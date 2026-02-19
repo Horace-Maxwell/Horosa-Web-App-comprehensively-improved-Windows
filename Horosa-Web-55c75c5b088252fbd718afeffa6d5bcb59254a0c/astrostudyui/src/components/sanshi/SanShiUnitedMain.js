@@ -2458,20 +2458,42 @@ class SanShiUnitedMain extends Component{
 								<>
 									<div>盘式：{this.state.taiyi.options ? this.state.taiyi.options.styleLabel : '—'}</div>
 									<div>积年法：{this.state.taiyi.options ? this.state.taiyi.options.accumLabel : '—'}</div>
-									<div>局式：{this.state.taiyi.kook ? this.state.taiyi.kook.text : '—'}</div>
-									<div>积数：{this.state.taiyi.accNum}</div>
-									<div>太乙：{this.state.taiyi.taiyiPalace}宫（数{this.state.taiyi.taiyiNum}）</div>
-									<div>文昌：{this.state.taiyi.skyeyes} 始击：{this.state.taiyi.sf}</div>
-									<div>太岁：{this.state.taiyi.taishui} 合神：{this.state.taiyi.hegod} 计神：{this.state.taiyi.jigod}</div>
-									<div>定目：{this.state.taiyi.se || '—'}</div>
-									<div>主算：{this.state.taiyi.homeCal} 客算：{this.state.taiyi.awayCal} 定算：{this.state.taiyi.setCal}</div>
-									<Divider style={{ margin: '8px 0' }} />
-									<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>
-									<div>四神：{this.state.taiyi.fgd} 天乙：{this.state.taiyi.skyyi} 地乙：{this.state.taiyi.earthyi}</div>
-									<div>直符：{this.state.taiyi.zhifu} 飞符：{this.state.taiyi.flyfu}</div>
-									<div>五福：{this.state.taiyi.wufuPalace} 帝符：{this.state.taiyi.kingfu} 太尊：{this.state.taiyi.taijun}</div>
-									<div>飞鸟：{this.state.taiyi.flybird} 三风：{this.state.taiyi.threewindPalace} 五风：{this.state.taiyi.fivewindPalace} 八风：{this.state.taiyi.eightwindPalace}</div>
-									<div>大游：{this.state.taiyi.bigyoPalace} 小游：{this.state.taiyi.smyoPalace}</div>
+									{this.state.taiyi.coreDisplay && this.state.taiyi.extDisplay ? (
+										<>
+											<Divider style={{ margin: '8px 0' }} />
+											<div>核心</div>
+											{(this.state.taiyi.coreDisplay.fields || []).map((item)=>(
+												<div key={`sansty_core_${item.key || item.label}`}>{item.label}：{item.value || '—'}</div>
+											))}
+											<Divider style={{ margin: '8px 0' }} />
+											<div>扩展</div>
+											{(this.state.taiyi.extDisplay.fields || []).map((item)=>(
+												<div key={`sansty_ext_${item.key || item.label}`}>{item.label}：{item.value || '—'}</div>
+											))}
+											<Divider style={{ margin: '8px 0' }} />
+											<div>断语</div>
+											{this.state.taiyi.predictionDisplay && this.state.taiyi.predictionDisplay.lines && this.state.taiyi.predictionDisplay.lines.length
+												? this.state.taiyi.predictionDisplay.lines.map((line, idx)=><div key={`sansty_prediction_${idx}`}>{line}</div>)
+												: <div>暂无断语</div>}
+										</>
+									) : (
+										<>
+											<div>局式：{this.state.taiyi.kook ? this.state.taiyi.kook.text : '—'}</div>
+											<div>积数：{this.state.taiyi.accNum}</div>
+											<div>太乙：{this.state.taiyi.taiyiPalace}宫（数{this.state.taiyi.taiyiNum}）</div>
+											<div>文昌：{this.state.taiyi.skyeyes} 始击：{this.state.taiyi.sf}</div>
+											<div>太岁：{this.state.taiyi.taishui} 合神：{this.state.taiyi.hegod} 计神：{this.state.taiyi.jigod}</div>
+											<div>定目：{this.state.taiyi.se || '—'}</div>
+											<div>主算：{this.state.taiyi.homeCal} 客算：{this.state.taiyi.awayCal} 定算：{this.state.taiyi.setCal}</div>
+											<Divider style={{ margin: '8px 0' }} />
+											<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>
+											<div>四神：{this.state.taiyi.fgd} 天乙：{this.state.taiyi.skyyi} 地乙：{this.state.taiyi.earthyi}</div>
+											<div>直符：{this.state.taiyi.zhifu} 飞符：{this.state.taiyi.flyfu}</div>
+											<div>五福：{this.state.taiyi.wufuPalace} 帝符：{this.state.taiyi.kingfu} 太尊：{this.state.taiyi.taijun}</div>
+											<div>飞鸟：{this.state.taiyi.flybird} 三风：{this.state.taiyi.threewindPalace} 五风：{this.state.taiyi.fivewindPalace} 八风：{this.state.taiyi.eightwindPalace}</div>
+											<div>大游：{this.state.taiyi.bigyoPalace} 小游：{this.state.taiyi.smyoPalace}</div>
+										</>
+									)}
 									<Divider style={{ margin: '8px 0' }} />
 									<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 8, rowGap: 4 }}>
 										{this.state.taiyi.palace16 && this.state.taiyi.palace16.map((item)=>(

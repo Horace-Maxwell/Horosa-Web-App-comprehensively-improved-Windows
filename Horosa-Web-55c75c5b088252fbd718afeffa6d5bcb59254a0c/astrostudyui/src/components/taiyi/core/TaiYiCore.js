@@ -526,6 +526,128 @@ function calcJiyuan(style, accNum){
 	return `第${cnum[jiNum - 1] || '一'}纪第${cnum[yuanNum - 1] || '一'}元`;
 }
 
+function buildPalaceMapsFromMarks(marks){
+	const map16 = {};
+	[...GONG16_ORDER, '中'].forEach((palace)=>{ map16[palace] = []; });
+	const map12 = {};
+	DI_ZHI.forEach((branch)=>{ map12[branch] = []; });
+	(marks || []).forEach((item)=>{
+		if(!item || !item.palace){
+			return;
+		}
+		if(map16[item.palace]){
+			map16[item.palace].push(item.label);
+		}
+		const branch = normalizePalace(item.palace);
+		if(map12[branch]){
+			map12[branch].push(item.label);
+		}
+	});
+	return {
+		palace16: [...GONG16_ORDER, '中'].map((palace)=>({ palace, items: map16[palace] })),
+		branch12: DI_ZHI.map((branch)=>({ branch, items: map12[branch] })),
+	};
+}
+
+function normalizeDisplayValue(value){
+	if(value === undefined || value === null){
+		return '—';
+	}
+	const text = `${value}`.trim();
+	return text ? text : '—';
+}
+
+function buildDisplayFields(items){
+	return (items || []).map((item)=>({
+		key: item.key,
+		label: item.label,
+		value: normalizeDisplayValue(item.value),
+	}));
+}
+
+function buildDisplayGroups(pan){
+	const coreMarks = [
+		{ label: '太乙', palace: pan.taiyiPalace },
+		{ label: '文昌', palace: pan.skyeyes },
+		{ label: '始击', palace: pan.sf },
+		{ label: '定目', palace: pan.se },
+		{ label: '太岁', palace: pan.taishui },
+		{ label: '合神', palace: pan.hegod },
+		{ label: '计神', palace: pan.jigod },
+		{ label: '主大', palace: pan.homeGeneralPalace },
+		{ label: '主参', palace: pan.homeVGenPalace },
+		{ label: '客大', palace: pan.awayGeneralPalace },
+		{ label: '客参', palace: pan.awayVGenPalace },
+		{ label: '定大', palace: pan.setGeneralPalace },
+		{ label: '定参', palace: pan.setVGenPalace },
+		{ label: '君基', palace: pan.kingbase },
+		{ label: '臣基', palace: pan.officerbase },
+		{ label: '民基', palace: pan.pplbase },
+	];
+	const extMarks = [
+		{ label: '四神', palace: pan.fgd },
+		{ label: '天乙', palace: pan.skyyi },
+		{ label: '地乙', palace: pan.earthyi },
+		{ label: '直符', palace: pan.zhifu },
+		{ label: '飞符', palace: pan.flyfu },
+		{ label: '五福', palace: pan.wufuPalace },
+		{ label: '帝符', palace: pan.kingfu },
+		{ label: '太尊', palace: pan.taijun },
+		{ label: '飞鸟', palace: pan.flybird },
+		{ label: '三风', palace: pan.threewindPalace },
+		{ label: '五风', palace: pan.fivewindPalace },
+		{ label: '八风', palace: pan.eightwindPalace },
+		{ label: '大游', palace: pan.bigyoPalace },
+		{ label: '小游', palace: pan.smyoPalace },
+	];
+	const coreMaps = buildPalaceMapsFromMarks(coreMarks);
+	const extMaps = buildPalaceMapsFromMarks(extMarks);
+	const coreFields = buildDisplayFields([
+		{ key: 'taiyi', label: '太乙', value: `${pan.taiyiPalace}宫（太乙数${pan.taiyiNum}）` },
+		{ key: 'wenchang', label: '文昌', value: pan.skyeyes },
+		{ key: 'shiji', label: '始击', value: pan.sf },
+		{ key: 'dingmu', label: '定目', value: pan.se },
+		{ key: 'taishui', label: '太岁', value: pan.taishui },
+		{ key: 'hegod', label: '合神', value: pan.hegod },
+		{ key: 'jigod', label: '计神', value: pan.jigod },
+		{ key: 'cal', label: '主客定算', value: `${pan.homeCal}/${pan.awayCal}/${pan.setCal}` },
+		{ key: 'mainGeneral', label: '主客定大将', value: `${pan.homeGeneralPalace}/${pan.awayGeneralPalace}/${pan.setGeneralPalace}` },
+		{ key: 'viceGeneral', label: '主客定参将', value: `${pan.homeVGenPalace}/${pan.awayVGenPalace}/${pan.setVGenPalace}` },
+		{ key: 'bases', label: '君臣民基', value: `${pan.kingbase}/${pan.officerbase}/${pan.pplbase}` },
+	]);
+	const extFields = buildDisplayFields([
+		{ key: 'jiyuan', label: '纪元', value: pan.jiyuan },
+		{ key: 'siyi', label: '四神/天乙/地乙', value: `${pan.fgd}/${pan.skyyi}/${pan.earthyi}` },
+		{ key: 'zhifu', label: '直符/飞符', value: `${pan.zhifu}/${pan.flyfu}` },
+		{ key: 'wufu', label: '五福/帝符/太尊', value: `${pan.wufuPalace}/${pan.kingfu}/${pan.taijun}` },
+		{ key: 'flybird', label: '飞鸟', value: pan.flybird },
+		{ key: 'wind', label: '三风/五风/八风', value: `${pan.threewindPalace}/${pan.fivewindPalace}/${pan.eightwindPalace}` },
+		{ key: 'yo', label: '大游/小游', value: `${pan.bigyoPalace}/${pan.smyoPalace}` },
+	]);
+	const predictionFields = buildDisplayFields([
+		{ key: 'kook', label: '局式', value: `${pan.kook ? pan.kook.text : '—'}（${pan.kook ? pan.kook.year : '—'}）` },
+		{ key: 'accNum', label: '积数', value: pan.accNum },
+		{ key: 'calHint', label: '算势', value: `主算${pan.homeCal} 客算${pan.awayCal} 定算${pan.setCal}` },
+		{ key: 'focus', label: '关注', value: `太乙${pan.taiyiPalace} 文昌${pan.skyeyes} 始击${pan.sf} 定目${pan.se || '—'}` },
+	]);
+	return {
+		coreDisplay: {
+			fields: coreFields,
+			palace16: coreMaps.palace16,
+			branch12: coreMaps.branch12,
+		},
+		extDisplay: {
+			fields: extFields,
+			palace16: extMaps.palace16,
+			branch12: extMaps.branch12,
+		},
+		predictionDisplay: {
+			fields: predictionFields,
+			lines: predictionFields.map((item)=>`${item.label}：${item.value}`),
+		},
+	};
+}
+
 function buildPalaceMarks(pan){
 	const marks = [
 		{ label: '太乙', palace: pan.taiyiPalace },
@@ -707,6 +829,10 @@ export function calcTaiyiPanFromKintaiyi(fields, nongli, options){
 	pan.palaceMarks = marks.marks;
 	pan.palace16 = marks.palace16;
 	pan.branch12 = marks.branch12;
+	const groups = buildDisplayGroups(pan);
+	pan.coreDisplay = groups.coreDisplay;
+	pan.extDisplay = groups.extDisplay;
+	pan.predictionDisplay = groups.predictionDisplay;
 	return pan;
 }
 
