@@ -1,0 +1,3 @@
+{
+	"baobao": "ffmpeg -f rtsp -rtsp_transport tcp  -i 'rtsp://admin:zjf184316@192.168.9.55/stream1'  -c:v copy -acodec libmp3lame -ar 44100 -b:v 2000k -bufsize 2000k -maxrate 2500k -r 15 -f flv rtmp://127.0.0.1:1935/rtsp/"
+}

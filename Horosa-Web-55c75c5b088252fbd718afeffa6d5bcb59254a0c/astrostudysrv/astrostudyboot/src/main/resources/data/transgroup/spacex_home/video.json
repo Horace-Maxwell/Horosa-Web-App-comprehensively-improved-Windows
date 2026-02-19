@@ -1,0 +1,20 @@
+{
+	"id": "group_homevideo",
+	"name": "家中视频",
+	"desc": "",
+	"functions":[{
+		"id": "videourl",
+		"name": "获取视频地址",
+		"desc": "",
+		"transcodes":[
+			"/astroreader/flvurl"		
+		]
+	},{
+		"id": "restartlive",
+		"name": "重启视频服务",
+		"desc": "",
+		"transcodes":[
+			"/astroreader/restartlive"		
+		]
+	}]
+}

@@ -1,0 +1,1858 @@
+import { getStore, } from './storageutil';
+import { getAstroAISnapshotForCurrent, saveAstroAISnapshot, } from './astroAiSnapshot';
+import { loadModuleAISnapshot, } from './moduleAiSnapshot';
+
+const CHART_TAB_LABELS = ['信息', '相位', '行星', '希腊点', '可能性'];
+const SIXYAO_TAB_LABELS = ['起卦方式', '卦辞'];
+
+const SYMBOL_MAP = {
+	'☉': '日',
+	'☽': '月',
+	'☿': '水',
+	'♀': '金',
+	'♂': '火',
+	'♃': '木',
+	'♄': '土',
+	'♅': '天王',
+	'♆': '海王',
+	'♇': '冥王',
+	'⚷': '凯龙',
+	'☊': '北交',
+	'☋': '南交',
+	'⊗': '福点',
+	'♈': '白羊',
+	'♉': '金牛',
+	'♊': '双子',
+	'♋': '巨蟹',
+	'♌': '狮子',
+	'♍': '处女',
+	'♎': '天秤',
+	'♏': '天蝎',
+	'♐': '射手',
+	'♑': '摩羯',
+	'♒': '水瓶',
+	'♓': '双鱼',
+	'☌': '0˚',
+	'⚹': '60˚',
+	'✶': '60˚',
+	'□': '90˚',
+	'△': '120˚',
+	'☍': '180˚',
+	'⚊': '阳爻',
+	'⚋': '阴爻',
+	'☰': '乾卦',
+	'☱': '兑卦',
+	'☲': '离卦',
+	'☳': '震卦',
+	'☴': '巽卦',
+	'☵': '坎卦',
+	'☶': '艮卦',
+	'☷': '坤卦',
+	'☯': '阴阳',
+};
+
+const COMMON_REPLACERS = [
+	{ regex: /\bConjunction\b/gi, value: '0˚' },
+	{ regex: /\bSextile\b/gi, value: '60˚' },
+	{ regex: /\bSquare\b/gi, value: '90˚' },
+	{ regex: /\bTrine\b/gi, value: '120˚' },
+	{ regex: /\bOpposition\b/gi, value: '180˚' },
+	{ regex: /\bRetrograde\b/gi, value: '逆行' },
+	{ regex: /\bDirect\b/gi, value: '顺行' },
+	{ regex: /\bruler\b/gi, value: '本垣' },
+	{ regex: /\bexalt\b/gi, value: '擢升' },
+	{ regex: /\bterm\b/gi, value: '界' },
+	{ regex: /\bface\b/gi, value: '十度' },
+	{ regex: /\bfall\b/gi, value: '落陷' },
+];
+
+const DOMAIN_REPLACERS = {
+	sixyao: [
+		{ regex: /老阳/g, value: '阳爻(动)' },
+		{ regex: /老阴/g, value: '阴爻(动)' },
+		{ regex: /少阳/g, value: '阳爻(静)' },
+		{ regex: /少阴/g, value: '阴爻(静)' },
+		{ regex: /初爻/g, value: '第一爻' },
+		{ regex: /上爻/g, value: '第六爻' },
+		{ regex: /旬空/g, value: '旬空(空亡)' },
+	],
+	liureng: [
+		{ regex: /旬空/g, value: '旬空(空亡)' },
+		{ regex: /三传/g, value: '三传(初传/中传/末传)' },
+		{ regex: /四课/g, value: '四课(一课/二课/三课/四课)' },
+		{ regex: /贵人/g, value: '贵人(天乙贵人体系)' },
+	],
+	qimen: [
+		{ regex: /值符/g, value: '值符(主事神)' },
+		{ regex: /值使/g, value: '值使(主事门)' },
+		{ regex: /九星/g, value: '九星(天蓬天任天冲天辅天英天芮天柱天心天禽)' },
+		{ regex: /八门/g, value: '八门(休生伤杜景死惊开)' },
+		{ regex: /八神/g, value: '八神(值符螣蛇太阴六合白虎玄武九地九天)' },
+		{ regex: /遁甲/g, value: '奇门遁甲' },
+	],
+};
+
+const ENABLE_SVG_TEXT_EXPORT = false;
+const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
+const JIEQI_SETTING_PRESETS = {
+	jieqi_meta: ['节气盘参数'],
+	jieqi_chunfen: ['春分星盘', '春分宿盘'],
+	jieqi_xiazhi: ['夏至星盘', '夏至宿盘'],
+	jieqi_qiufen: ['秋分星盘', '秋分宿盘'],
+	jieqi_dongzhi: ['冬至星盘', '冬至宿盘'],
+};
+const JIEQI_SPLIT_SETTING_KEYS = Object.keys(JIEQI_SETTING_PRESETS);
+const JIEQI_SPLIT_TECHNIQUES = [
+	{ key: 'jieqi_meta', label: '节气盘-通用参数' },
+	{ key: 'jieqi_chunfen', label: '节气盘-春分' },
+	{ key: 'jieqi_xiazhi', label: '节气盘-夏至' },
+	{ key: 'jieqi_qiufen', label: '节气盘-秋分' },
+	{ key: 'jieqi_dongzhi', label: '节气盘-冬至' },
+];
+
+const AI_EXPORT_TECHNIQUES = [
+	{ key: 'astrochart', label: '星盘' },
+	{ key: 'indiachart', label: '印度律盘' },
+	{ key: 'astrochart_like', label: '希腊/星体地图' },
+	{ key: 'relative', label: '关系盘' },
+	{ key: 'primarydirect', label: '推运盘-主/界限法' },
+	{ key: 'zodialrelease', label: '推运盘-黄道星释' },
+	{ key: 'firdaria', label: '推运盘-法达星限' },
+	{ key: 'profection', label: '推运盘-小限法' },
+	{ key: 'solararc', label: '推运盘-太阳弧' },
+	{ key: 'solarreturn', label: '推运盘-太阳返照' },
+	{ key: 'lunarreturn', label: '推运盘-月亮返照' },
+	{ key: 'givenyear', label: '推运盘-流年法' },
+	{ key: 'bazi', label: '八字' },
+	{ key: 'ziwei', label: '紫微斗数' },
+	{ key: 'suzhan', label: '宿占' },
+	{ key: 'sixyao', label: '易卦' },
+	{ key: 'liureng', label: '六壬' },
+	{ key: 'qimen', label: '奇门遁甲' },
+	{ key: 'taiyi', label: '太乙' },
+	{ key: 'guolao', label: '七政四余' },
+	{ key: 'germany', label: '量化盘' },
+	...JIEQI_SPLIT_TECHNIQUES,
+	{ key: 'otherbu', label: '西洋游戏' },
+	{ key: 'fengshui', label: '风水' },
+	{ key: 'generic', label: '其他页面' },
+];
+
+const AI_EXPORT_PRESET_SECTIONS = {
+	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性'],
+	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '可能性'],
+	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性'],
+	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '影响图盘-星盘A', '影响图盘-星盘B'],
+	primarydirect: ['出生时间', '星盘信息', '主/界限法表格'],
+	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运'],
+	firdaria: ['出生时间', '星盘信息', '法达星限表格'],
+	profection: ['星盘信息', '起盘信息', '相位'],
+	solararc: ['星盘信息', '起盘信息', '相位'],
+	solarreturn: ['星盘信息', '起盘信息', '相位'],
+	lunarreturn: ['星盘信息', '起盘信息', '相位'],
+	givenyear: ['星盘信息', '起盘信息', '相位'],
+	bazi: ['起盘信息', '四柱与三元', '流年行运概略', '神煞（四柱与三元）'],
+	ziwei: ['起盘信息'],
+	suzhan: ['起盘信息'],
+	sixyao: ['起盘信息', '起卦方式', '卦辞'],
+	liureng: ['起盘信息'],
+	taiyi: ['起盘信息', '太乙盘', '十六宫标记'],
+	qimen: ['起盘信息', '盘型', '右侧栏目', '九宫方盘'],
+	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞'],
+	germany: ['起盘信息'],
+	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '夏至星盘', '夏至宿盘', '秋分星盘', '秋分宿盘', '冬至星盘', '冬至宿盘'],
+	...JIEQI_SETTING_PRESETS,
+	otherbu: ['起盘信息'],
+	fengshui: ['起盘信息', '标记判定', '冲突清单', '建议汇总', '纳气建议'],
+	generic: ['起盘信息'],
+};
+
+// ywastr* 字体把术语编码到单字符里，复制后只剩字母，需要反解码。
+const STANDALONE_TOKEN_MAP = {
+	A: '日',
+	B: '月',
+	C: '水',
+	D: '金',
+	E: '火',
+	F: '木',
+	G: '土',
+	H: '天王',
+	I: '海王',
+	J: '冥王',
+	K: '北交',
+	L: '南交',
+	o: '灵点',
+	p: '福点',
+	q: '弱点',
+	r: '爱点',
+	s: '勇点',
+	t: '赢点',
+	u: '罪点',
+	v: '暗月',
+	w: '紫气',
+	y: '凯龙',
+	z: '月亮朔望点',
+	$: '月亮平均近地点',
+	Y: '月亮平均远地点',
+	'{': '',
+	'0': '上升',
+	'1': '天顶',
+	'2': '天底',
+	'3': '下降',
+	'4': '谷神星',
+	'5': '智神星',
+	'6': '婚神星',
+	'7': '灶神星',
+	'8': '人龙星',
+	// 相位
+	M: '0˚',
+	N: '30˚',
+	O: '45˚',
+	P: '60˚',
+	R: '90˚',
+	S: '120˚',
+	T: '135˚',
+	V: '150˚',
+	W: '180˚',
+	Z: '逆行',
+};
+
+const ZODIAC_CODE_MAP = {
+	a: '白羊',
+	b: '金牛',
+	c: '双子',
+	d: '巨蟹',
+	e: '狮子',
+	f: '处女',
+	g: '天秤',
+	h: '天蝎',
+	i: '射手',
+	j: '摩羯',
+	k: '水瓶',
+	l: '双鱼',
+};
+
+const ZODIAC_STANDALONE_MAP = {
+	a: '白羊',
+	b: '金牛',
+	c: '双子',
+	d: '巨蟹',
+	e: '狮子',
+	f: '处女',
+	g: '天秤',
+	h: '天蝎',
+	i: '射手',
+	j: '摩羯',
+	k: '水瓶',
+	l: '双鱼',
+};
+
+function sleep(ms){
+	return new Promise((resolve)=>setTimeout(resolve, ms));
+}
+
+function textOf(node){
+	if(!node){
+		return '';
+	}
+	return (node.innerText || node.textContent || '').trim();
+}
+
+function uniqueArray(arr){
+	const out = [];
+	const seen = new Set();
+	arr.forEach((item)=>{
+		if(!item){
+			return;
+		}
+		if(!seen.has(item)){
+			seen.add(item);
+			out.push(item);
+		}
+	});
+	return out;
+}
+
+function normalizeSectionTitle(title){
+	const t = `${title || ''}`.trim();
+	if(!t){
+		return '';
+	}
+	if(/^基于.+推运$/.test(t)){
+		return '基于X点推运';
+	}
+	return t;
+}
+
+function extractSectionTitles(content){
+	const lines = `${content || ''}`.split('\n');
+	const titles = [];
+	lines.forEach((line)=>{
+		const m = line.trim().match(/^\[(.+)\]$/);
+		if(m && m[1]){
+			const normalized = normalizeSectionTitle(m[1]);
+			if(normalized){
+				titles.push(normalized);
+			}
+		}
+	});
+	return uniqueArray(titles);
+}
+
+function normalizeAIExportSettings(settings){
+	const normalized = {
+		version: 1,
+		sections: {},
+	};
+	if(!settings || typeof settings !== 'object'){
+		return normalized;
+	}
+	const sections = settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
+	Object.keys(sections).forEach((key)=>{
+		const arr = Array.isArray(sections[key]) ? sections[key] : [];
+		normalized.sections[key] = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+	});
+	return normalized;
+}
+
+function snapshotModuleKeyByContextKey(key){
+	if(key === 'sixyao'){
+		return 'guazhan';
+	}
+	return key;
+}
+
+function isJieQiSplitSettingKey(key){
+	return JIEQI_SPLIT_SETTING_KEYS.includes(key);
+}
+
+function getJieQiCachedContent(){
+	const current = getModuleCachedContent('jieqi_current');
+	const whole = getModuleCachedContent('jieqi');
+	return [current, whole].filter(Boolean).join('\n\n');
+}
+
+function getCachedContentForTechnique(key){
+	if(key === 'astrochart' || key === 'astrochart_like'){
+		return getAstroCachedContent();
+	}
+	if(key === 'indiachart'){
+		return getIndiaCachedContent('');
+	}
+	if(key === 'jieqi' || isJieQiSplitSettingKey(key)){
+		return getJieQiCachedContent();
+	}
+	if(key === 'generic'){
+		return '';
+	}
+	const moduleKey = snapshotModuleKeyByContextKey(key);
+	return getModuleCachedContent(moduleKey);
+}
+
+function getOptionsForTechniqueKey(key){
+	const preset = AI_EXPORT_PRESET_SECTIONS[key] || [];
+	const cachedTitles = extractSectionTitles(getCachedContentForTechnique(key));
+	if(isJieQiSplitSettingKey(key)){
+		const wanted = new Set(preset.map((item)=>normalizeSectionTitle(item)));
+		const filtered = cachedTitles.filter((item)=>wanted.has(normalizeSectionTitle(item)));
+		return uniqueArray([...preset, ...filtered]);
+	}
+	return uniqueArray([...preset, ...cachedTitles]);
+}
+
+function splitContentSections(content){
+	const lines = `${content || ''}`.split('\n');
+	const sections = [];
+	let currentTitle = '';
+	let currentLines = [];
+
+	const pushCurrent = ()=>{
+		if(!currentTitle && currentLines.every((line)=>!`${line || ''}`.trim())){
+			currentLines = [];
+			return;
+		}
+		sections.push({
+			title: currentTitle,
+			lines: currentLines.slice(0),
+		});
+		currentLines = [];
+	};
+
+	lines.forEach((line)=>{
+		const m = `${line || ''}`.trim().match(/^\[(.+)\]$/);
+		if(m && m[1]){
+			if(currentLines.length){
+				pushCurrent();
+			}
+			currentTitle = normalizeSectionTitle(m[1]);
+			currentLines = [line];
+			return;
+		}
+		currentLines.push(line);
+	});
+	if(currentLines.length){
+		pushCurrent();
+	}
+	return sections;
+}
+
+function filterContentByWantedSections(content, wanted){
+	const sections = splitContentSections(content);
+	if(sections.length === 0){
+		return content;
+	}
+	if(!wanted || wanted.size === 0){
+		return '';
+	}
+	const kept = sections.filter((sec)=>{
+		if(!sec.title){
+			return true;
+		}
+		return wanted.has(normalizeSectionTitle(sec.title));
+	});
+	if(kept.length === 0){
+		return '';
+	}
+	const out = [];
+	kept.forEach((sec)=>{
+		if(out.length && out[out.length - 1] !== ''){
+			out.push('');
+		}
+		out.push(...sec.lines);
+	});
+	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function applyUserSectionFilter(content, key){
+	const settings = loadAIExportSettings();
+	const selected = settings.sections[key];
+	if(!selected){
+		return content;
+	}
+	const wanted = new Set(selected.map((item)=>normalizeSectionTitle(item)));
+	return filterContentByWantedSections(content, wanted);
+}
+
+function getJieQiWantedSections(settings){
+	const sections = settings && settings.sections && typeof settings.sections === 'object'
+		? settings.sections
+		: {};
+	const hasSplitConfig = JIEQI_SPLIT_SETTING_KEYS.some((key)=>Object.prototype.hasOwnProperty.call(sections, key));
+	if(!hasSplitConfig){
+		if(!Object.prototype.hasOwnProperty.call(sections, 'jieqi')){
+			return null;
+		}
+		const legacy = Array.isArray(sections.jieqi) ? sections.jieqi : [];
+		return new Set(legacy.map((item)=>normalizeSectionTitle(item)));
+	}
+	const wanted = new Set();
+	JIEQI_SPLIT_SETTING_KEYS.forEach((key)=>{
+		const defaults = AI_EXPORT_PRESET_SECTIONS[key] || [];
+		const picked = Object.prototype.hasOwnProperty.call(sections, key)
+			? (Array.isArray(sections[key]) ? sections[key] : [])
+			: defaults;
+		picked.forEach((item)=>{
+			const normalized = normalizeSectionTitle(item);
+			if(normalized){
+				wanted.add(normalized);
+			}
+		});
+	});
+	return wanted;
+}
+
+function applyUserSectionFilterByContext(content, key){
+	if(key !== 'jieqi'){
+		return applyUserSectionFilter(content, key);
+	}
+	const settings = loadAIExportSettings();
+	const wanted = getJieQiWantedSections(settings);
+	if(wanted === null){
+		return content;
+	}
+	return filterContentByWantedSections(content, wanted);
+}
+
+function normalizeWhitespace(text){
+	return (text || '')
+		.replace(/\r\n/g, '\n')
+		.split('\n')
+		.map((line)=>line.replace(/[\t ]+/g, ' ').replace(/[ ]+$/g, '').trimEnd())
+		.join('\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+}
+
+function replaceStandaloneToken(text, token, replacement){
+	const esc = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const pattern = new RegExp(`(^|[\\s,，;；:：()\\[\\]{}\\/\\\\|])${esc}(?=$|[\\s,，;；:：()\\[\\]{}\\/\\\\|])`, 'g');
+	return text.replace(pattern, `$1${replacement}`);
+}
+
+function replaceFontEncodedTokens(text){
+	let out = text || '';
+
+	// 27˚k52分 / 27°k52分 -> 27˚水瓶52分
+	out = out.replace(/(^|[^A-Za-z0-9\u4E00-\u9FFF])(\d{1,2})\s*[˚°º]\s*([a-l])\s*([0-5]?\d)\s*分/gi, (m, p1, deg, code, min)=>{
+		const zodiac = ZODIAC_CODE_MAP[code.toLowerCase()] || code;
+		return `${p1}${deg}˚${zodiac}${min}分`;
+	});
+	// 16k16分 -> 16˚水瓶16分
+	out = out.replace(/(^|[^A-Za-z0-9\u4E00-\u9FFF])(\d{1,2})\s*([a-l])\s*([0-5]?\d)\s*分/gi, (m, p1, deg, code, min)=>{
+		const zodiac = ZODIAC_CODE_MAP[code.toLowerCase()] || code;
+		return `${p1}${deg}˚${zodiac}${min}分`;
+	});
+
+	// A（日）/ 8（人龙星）/ {（信心点） 这类前缀编码，保留括号中的中文名。
+	out = out.replace(/(^|[\s\-•*])([A-Za-z0-9${}])\s*[（(]\s*([^）)]+)\s*[）)]/gm, (m, p1, token, label)=>{
+		const name = (label || '').trim();
+		if(!name){
+			const mapped = STANDALONE_TOKEN_MAP[token];
+			return `${p1}${mapped || ''}`;
+		}
+		return `${p1}${name}`;
+	});
+
+	Object.keys(STANDALONE_TOKEN_MAP).forEach((token)=>{
+		out = replaceStandaloneToken(out, token, STANDALONE_TOKEN_MAP[token]);
+	});
+
+	// 星座单字母残留（如: a , 土 , 海王）转中文星座名。
+	Object.keys(ZODIAC_STANDALONE_MAP).forEach((token)=>{
+		out = replaceStandaloneToken(out, token, ZODIAC_STANDALONE_MAP[token]);
+	});
+
+	// 去掉孤立的编码符号残留。
+	out = out.replace(/(^|[\s,，;；:：\-•*])([{]+)(?=$|[\s,，;；:：\-•*])/g, '$1');
+
+	return out;
+}
+
+function canonicalLine(text){
+	return (text || '')
+		.replace(/\s+/g, '')
+		.replace(/[，,。；;:：、·'"`~!！?？\[\]\(\)（）{}<>《》【】]/g, '')
+		.trim();
+}
+
+function isNoiseLine(text){
+	const val = (text || '').trim();
+	if(!val){
+		return true;
+	}
+	if(val === '[图形标注文本]'){
+		return true;
+	}
+	if(val === '打印星盘'){
+		return true;
+	}
+	if(/^[A-Za-z${}|\\/]{1,2}$/.test(val)){
+		return true;
+	}
+	if(/^\[符号U\+[0-9A-F]+\]$/.test(val)){
+		return true;
+	}
+	return false;
+}
+
+function beautifyForAI(text){
+	const srcLines = (text || '').split('\n');
+	const out = [];
+	let sectionSeen = new Set();
+
+	const pushLine = (line)=>{
+		const val = line.trim();
+		if(!val || isNoiseLine(val)){
+			return;
+		}
+		if(/^\[.+\]$/.test(val)){
+			if(out.length && out[out.length - 1] !== ''){
+				out.push('');
+			}
+			out.push(val);
+			out.push('');
+			sectionSeen = new Set();
+			return;
+		}
+		const clean = val.replace(/^[-*]\s*/, '').trim();
+		if(!clean || isNoiseLine(clean)){
+			return;
+		}
+		const key = canonicalLine(clean);
+		if(!key || sectionSeen.has(key)){
+			return;
+		}
+		sectionSeen.add(key);
+		out.push(`- ${clean}`);
+		out.push('');
+	};
+
+	srcLines.forEach((line)=>{
+		if(!line){
+			return;
+		}
+		// 长句按常见断句符拆分，提高可读性
+		const broken = line.length > 100 ? line.replace(/([。；;！？!?])/g, '$1\n') : line;
+		broken.split('\n').forEach((seg)=>pushLine(seg));
+	});
+
+	while(out.length && !out[out.length - 1]){
+		out.pop();
+	}
+
+	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function collectSvgTexts(root){
+	if(!root){
+		return [];
+	}
+	const vals = [];
+	root.querySelectorAll('svg text').forEach((n)=>{
+		const t = (n.textContent || '').trim();
+		if(t){
+			vals.push(t);
+		}
+	});
+	return uniqueArray(vals);
+}
+
+function getTabsNavItems(container){
+	if(!container){
+		return [];
+	}
+	return Array.from(container.querySelectorAll('.ant-tabs-nav .ant-tabs-tab'));
+}
+
+function getDirectActivePane(container){
+	if(!container){
+		return null;
+	}
+	const holder = Array.from(container.children).find((n)=>n.classList && n.classList.contains('ant-tabs-content-holder'));
+	if(holder){
+		const content = holder.querySelector('.ant-tabs-content');
+		if(content){
+			const direct = Array.from(content.children).find((n)=>n.classList && n.classList.contains('ant-tabs-tabpane-active'));
+			if(direct){
+				return direct;
+			}
+		}
+		const any = holder.querySelector('.ant-tabs-tabpane-active');
+		if(any){
+			return any;
+		}
+	}
+	return container.querySelector('.ant-tabs-tabpane-active');
+}
+
+function findTabsContainerByLabels(scopeRoot, labels, requireAll){
+	if(!scopeRoot){
+		return null;
+	}
+	const tabs = Array.from(scopeRoot.querySelectorAll('.ant-tabs'));
+	for(let i=0; i<tabs.length; i++){
+		const tab = tabs[i];
+		const names = getTabsNavItems(tab).map((n)=>textOf(n));
+		if(names.length === 0){
+			continue;
+		}
+		let ok = false;
+		if(requireAll){
+			ok = labels.every((k)=>names.some((v)=>v.includes(k)));
+		}else{
+			ok = labels.some((k)=>names.some((v)=>v.includes(k)));
+		}
+		if(ok){
+			return tab;
+		}
+	}
+	return null;
+}
+
+function findTopTabsContainer(root){
+	if(!root){
+		return null;
+	}
+	const tabs = Array.from(root.querySelectorAll('.ant-tabs'));
+	for(let i=0; i<tabs.length; i++){
+		const names = getTabsNavItems(tabs[i]).map((n)=>textOf(n));
+		if(names.includes('星盘') && names.includes('易与三式')){
+			return tabs[i];
+		}
+	}
+	return root.querySelector('.ant-tabs-left') || tabs[0] || null;
+}
+
+function detectChartTypeInPane(scopeRoot){
+	if(!scopeRoot){
+		return '';
+	}
+	const items = Array.from(scopeRoot.querySelectorAll('.ant-select-selection-item'));
+	for(let i=0; i<items.length; i++){
+		const txt = textOf(items[i]);
+		if(txt.includes('外盘')){
+			return txt;
+		}
+	}
+	return '';
+}
+
+function findIndiaActivePane(scopeRoot){
+	if(!scopeRoot){
+		return {
+			pane: null,
+			label: '',
+		};
+	}
+	const tabs = Array.from(scopeRoot.querySelectorAll('.ant-tabs'));
+	for(let i=0; i<tabs.length; i++){
+		const tab = tabs[i];
+		const names = getTabsNavItems(tab).map((n)=>textOf(n));
+		if(!names.some((n)=>n.includes('命盘'))){
+			continue;
+		}
+		if(!names.some((n)=>n.includes('律盘'))){
+			continue;
+		}
+		const active = getTabsNavItems(tab).find((n)=>n.classList.contains('ant-tabs-tab-active'));
+		return {
+			pane: getDirectActivePane(tab),
+			label: textOf(active),
+		};
+	}
+	return {
+		pane: null,
+		label: '',
+	};
+}
+
+function resolveActiveContext(){
+	const root = document.getElementById('mainContent') || document.body;
+	const topTabs = findTopTabsContainer(root);
+	if(!topTabs){
+		return {
+			displayName: '当前技术',
+			key: 'generic',
+			domain: null,
+			scopeRoot: root,
+		};
+	}
+
+	const topActiveTab = getTabsNavItems(topTabs).find((n)=>n.classList.contains('ant-tabs-tab-active'));
+	const topLabel = textOf(topActiveTab) || '当前技术';
+	const topPane = getDirectActivePane(topTabs) || root;
+
+	const context = {
+		displayName: topLabel,
+		key: 'generic',
+		domain: null,
+		scopeRoot: topPane,
+		topLabel,
+		subLabel: '',
+		chartType: '',
+	};
+
+	const predictiveLabelMap = [
+		{ label: '主/界限法', key: 'primarydirect', name: '推运盘-主/界限法' },
+		{ label: '黄道星释', key: 'zodialrelease', name: '推运盘-黄道星释' },
+		{ label: '法达星限', key: 'firdaria', name: '推运盘-法达星限' },
+		{ label: '小限法', key: 'profection', name: '推运盘-小限法' },
+		{ label: '太阳弧', key: 'solararc', name: '推运盘-太阳弧' },
+		{ label: '太阳返照', key: 'solarreturn', name: '推运盘-太阳返照' },
+		{ label: '月亮返照', key: 'lunarreturn', name: '推运盘-月亮返照' },
+		{ label: '流年法', key: 'givenyear', name: '推运盘-流年法' },
+	];
+	const predictiveByTop = predictiveLabelMap.find((item)=>topLabel && topLabel.includes(item.label));
+	if(predictiveByTop){
+		context.key = predictiveByTop.key;
+		context.domain = 'predictive_raw';
+		context.displayName = predictiveByTop.name;
+		return context;
+	}
+
+	if(topLabel.includes('推运盘')){
+		const subTabs = findTabsContainerByLabels(topPane, ['主/界限法', '黄道星释', '法达星限', '小限法', '太阳弧', '太阳返照', '月亮返照', '流年法'], false);
+		const subActiveTab = subTabs ? getTabsNavItems(subTabs).find((n)=>n.classList.contains('ant-tabs-tab-active')) : null;
+		const subLabel = textOf(subActiveTab);
+		context.subLabel = subLabel || '';
+		context.scopeRoot = subTabs ? (getDirectActivePane(subTabs) || topPane) : topPane;
+		const predictiveBySub = predictiveLabelMap.find((item)=>subLabel && subLabel.includes(item.label));
+		if(predictiveBySub){
+			context.key = predictiveBySub.key;
+			context.domain = 'predictive_raw';
+			context.displayName = predictiveBySub.name;
+			return context;
+		}
+		context.key = 'astrochart';
+		context.displayName = subLabel ? `推运盘-${subLabel}` : '推运盘';
+		return context;
+	}
+	if(topLabel.includes('星盘') || topLabel.includes('三维盘')){
+		context.key = 'astrochart';
+		return context;
+	}
+	if(topLabel.includes('七政四余')){
+		context.key = 'guolao';
+		return context;
+	}
+	if(topLabel.includes('量化盘')){
+		context.key = 'germany';
+		context.displayName = '量化盘';
+		return context;
+	}
+	if(topLabel.includes('节气盘')){
+		context.key = 'jieqi';
+		context.displayName = '节气盘';
+		return context;
+	}
+	if(topLabel.includes('印度律盘')){
+		context.key = 'indiachart';
+		context.displayName = '印度律盘';
+		return context;
+	}
+	if(topLabel.includes('希腊星术')
+		|| topLabel.includes('星体地图')){
+		context.key = 'astrochart_like';
+		return context;
+	}
+	if(topLabel.includes('关系盘')){
+		const subTabs = findTabsContainerByLabels(topPane, ['比较盘', '组合盘', '影响盘', '时空中点盘', '马克斯盘'], false);
+		const subActiveTab = subTabs ? getTabsNavItems(subTabs).find((n)=>n.classList.contains('ant-tabs-tab-active')) : null;
+		const subLabel = textOf(subActiveTab);
+		context.key = 'relative';
+		context.subLabel = subLabel || '';
+		context.scopeRoot = subTabs ? (getDirectActivePane(subTabs) || topPane) : topPane;
+		context.displayName = subLabel ? `关系盘-${subLabel}` : '关系盘';
+		return context;
+	}
+	if(topLabel.includes('西洋游戏')){
+		context.key = 'otherbu';
+		context.displayName = '西洋游戏';
+		return context;
+	}
+	if(topLabel.includes('风水')){
+		context.key = 'fengshui';
+		context.displayName = '风水';
+		return context;
+	}
+
+	if(topLabel.includes('易与三式')){
+		const subTabs = findTabsContainerByLabels(topPane, ['宿盘', '易卦', '六壬'], true);
+		if(!subTabs){
+			context.key = 'cnyibu';
+			return context;
+		}
+
+		const subActiveTab = getTabsNavItems(subTabs).find((n)=>n.classList.contains('ant-tabs-tab-active'));
+		const subLabel = textOf(subActiveTab);
+		const subPane = getDirectActivePane(subTabs) || topPane;
+		context.scopeRoot = subPane;
+		context.subLabel = subLabel;
+
+		if(subLabel.includes('易卦')){
+			context.key = 'sixyao';
+			context.domain = 'sixyao';
+			context.displayName = '易卦';
+			return context;
+		}
+
+		if(subLabel.includes('六壬')){
+			context.key = 'liureng';
+			context.domain = 'liureng';
+			context.displayName = '大六壬';
+			return context;
+		}
+
+		if(subLabel.includes('遁甲')){
+			context.key = 'qimen';
+			context.domain = 'qimen';
+			context.displayName = '奇门遁甲';
+			return context;
+		}
+
+		if(subLabel.includes('太乙')){
+			context.key = 'taiyi';
+			context.displayName = '太乙';
+			return context;
+		}
+
+		if(subLabel.includes('宿盘')){
+			const chartType = detectChartTypeInPane(subPane);
+			context.chartType = chartType;
+			if(chartType.includes('遁甲外盘')){
+				context.key = 'qimen';
+				context.domain = 'qimen';
+				context.displayName = '奇门(遁甲外盘)';
+			}else{
+				context.key = 'suzhan';
+				context.displayName = chartType ? `宿盘(${chartType})` : '宿盘';
+			}
+			return context;
+		}
+
+		context.key = 'cnyibu';
+		context.displayName = subLabel || '易与三式';
+	}
+	if(topLabel.includes('八字紫微')){
+		const subTabs = findTabsContainerByLabels(topPane, ['八字', '紫微斗数'], false);
+		if(!subTabs){
+			context.key = 'cntradition';
+			return context;
+		}
+		const subActiveTab = getTabsNavItems(subTabs).find((n)=>n.classList.contains('ant-tabs-tab-active'));
+		const subLabel = textOf(subActiveTab);
+		const subPane = getDirectActivePane(subTabs) || topPane;
+		context.scopeRoot = subPane;
+		context.subLabel = subLabel;
+		if(subLabel.includes('八字')){
+			context.key = 'bazi';
+			context.displayName = '八字';
+			return context;
+		}
+		if(subLabel.includes('紫微')){
+			context.key = 'ziwei';
+			context.displayName = '紫微斗数';
+			return context;
+		}
+		context.key = 'cntradition';
+		context.displayName = subLabel || '八字紫微';
+		return context;
+	}
+
+	return context;
+}
+
+function detectJieQiSettingKeyByCurrentSnapshot(){
+	const current = `${getModuleCachedContent('jieqi_current') || ''}`;
+	return detectJieQiSettingKeyByLabel(current) || 'jieqi_meta';
+}
+
+function detectJieQiSettingKeyByLabel(label){
+	const txt = `${label || ''}`;
+	if(txt.includes('春分')){
+		return 'jieqi_chunfen';
+	}
+	if(txt.includes('夏至')){
+		return 'jieqi_xiazhi';
+	}
+	if(txt.includes('秋分')){
+		return 'jieqi_qiufen';
+	}
+	if(txt.includes('冬至')){
+		return 'jieqi_dongzhi';
+	}
+	return '';
+}
+
+function detectJieQiSettingKeyByScope(scopeRoot){
+	const tab = findTabsContainerByLabels(scopeRoot, ['春分', '夏至', '秋分', '冬至'], false);
+	if(!tab){
+		return '';
+	}
+	const active = getTabsNavItems(tab).find((n)=>n.classList.contains('ant-tabs-tab-active'));
+	return detectJieQiSettingKeyByLabel(textOf(active));
+}
+
+export function getCurrentAIExportContext(){
+	try{
+		const context = resolveActiveContext();
+		if(context.key === 'jieqi'){
+			const byScope = detectJieQiSettingKeyByScope(context.scopeRoot);
+			return {
+				key: byScope || detectJieQiSettingKeyByCurrentSnapshot(),
+				displayName: context.displayName,
+			};
+		}
+		return {
+			key: context.key,
+			displayName: context.displayName,
+		};
+	}catch(e){
+		return {
+			key: 'generic',
+			displayName: '当前页面',
+		};
+	}
+}
+
+export function loadAIExportSettings(){
+	try{
+		if(typeof window === 'undefined' || !window.localStorage){
+			return normalizeAIExportSettings(null);
+		}
+		const raw = window.localStorage.getItem(AI_EXPORT_SETTINGS_KEY);
+		if(!raw){
+			return normalizeAIExportSettings(null);
+		}
+		return normalizeAIExportSettings(JSON.parse(raw));
+	}catch(e){
+		return normalizeAIExportSettings(null);
+	}
+}
+
+export function saveAIExportSettings(settings){
+	const normalized = normalizeAIExportSettings(settings);
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			window.localStorage.setItem(AI_EXPORT_SETTINGS_KEY, JSON.stringify(normalized));
+		}
+	}catch(e){
+	}
+	return normalized;
+}
+
+export function listAIExportTechniqueSettings(){
+	return AI_EXPORT_TECHNIQUES.map((item)=>{
+		return {
+			key: item.key,
+			label: item.label,
+			options: getOptionsForTechniqueKey(item.key),
+		};
+	});
+}
+
+async function captureTabsContentByLabels(scopeRoot, labels){
+	const container = findTabsContainerByLabels(scopeRoot, labels, true);
+	if(!container){
+		return null;
+	}
+
+	const tabNodes = getTabsNavItems(container);
+	if(tabNodes.length === 0){
+		return null;
+	}
+
+	const activeBefore = textOf(tabNodes.find((n)=>n.classList.contains('ant-tabs-tab-active')));
+	const out = {};
+
+	for(let i=0; i<labels.length; i++){
+		const label = labels[i];
+		const node = tabNodes.find((n)=>textOf(n).includes(label));
+		if(!node){
+			continue;
+		}
+		const clickNode = node.querySelector('.ant-tabs-tab-btn') || node;
+		clickNode.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await sleep(120);
+		const pane = getDirectActivePane(container);
+		out[label] = normalizeWhitespace(textOf(pane));
+	}
+
+	if(activeBefore){
+		const restore = tabNodes.find((n)=>textOf(n).includes(activeBefore));
+		if(restore){
+			const clickNode = restore.querySelector('.ant-tabs-tab-btn') || restore;
+			clickNode.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+			await sleep(60);
+		}
+	}
+
+	return out;
+}
+
+function getSummaryLines(scopeRoot, keywords){
+	const lines = normalizeWhitespace(textOf(scopeRoot))
+		.split('\n')
+		.map((s)=>s.trim())
+		.filter(Boolean);
+	const all = uniqueArray(lines);
+
+	const dtRegex = /\d{4}[-\/]\d{1,2}[-\/]\d{1,2}\s+\d{1,2}:\d{2}:\d{2}/;
+	const picked = [];
+	all.forEach((line)=>{
+		if(/^(经纬度选择|打印星盘|确定|此刻|回归黄道|整宫制)$/.test(line)){
+			return;
+		}
+		if(dtRegex.test(line)){
+			picked.push(line);
+			return;
+		}
+		if(keywords.some((k)=>line.includes(k))){
+			picked.push(line);
+		}
+	});
+	const unique = uniqueArray(picked);
+	return unique.filter((line, idx)=>{
+		return !unique.some((other, j)=>{
+			if(j === idx){
+				return false;
+			}
+			return other.length > line.length && other.includes(line);
+		});
+	});
+}
+
+function extractRightColumnText(scopeRoot){
+	if(!scopeRoot){
+		return '';
+	}
+	const cols = Array.from(scopeRoot.querySelectorAll('.ant-col-8'));
+	if(cols.length === 0){
+		return '';
+	}
+	let best = '';
+	cols.forEach((col)=>{
+		const t = normalizeWhitespace(textOf(col));
+		if(t.length > best.length){
+			best = t;
+		}
+	});
+	return best;
+}
+
+function appendSvgSection(parts, scopeRoot){
+	if(!ENABLE_SVG_TEXT_EXPORT){
+		return;
+	}
+	const svgLines = collectSvgTexts(scopeRoot);
+	if(svgLines.length){
+		parts.push('[图形标注文本]');
+		parts.push(svgLines.join('\n'));
+	}
+}
+
+function getAstroCachedContent(){
+	try{
+		const store = getStore();
+		if(!store || !store.astro){
+			return '';
+		}
+		const chartObj = store.astro.chartObj;
+		const fields = store.astro.fields;
+		const snapshot = getAstroAISnapshotForCurrent(chartObj, fields);
+		if(snapshot && snapshot.content){
+			return snapshot.content;
+		}
+		if(chartObj && chartObj.chart){
+			const saved = saveAstroAISnapshot(chartObj, fields);
+			if(saved && saved.content){
+				return saved.content;
+			}
+		}
+	}catch(e){
+		return '';
+	}
+	return '';
+}
+
+function getModuleCachedContent(moduleName){
+	if(!moduleName){
+		return '';
+	}
+	const snapshot = loadModuleAISnapshot(moduleName);
+	if(snapshot && snapshot.content){
+		return snapshot.content;
+	}
+	return '';
+}
+
+function parseIndiaFractalByLabel(label){
+	const txt = `${label || ''}`.trim();
+	if(!txt){
+		return null;
+	}
+	if(txt.includes('命盘')){
+		return 1;
+	}
+	const matched = txt.match(/(\d+)\s*律盘/);
+	if(!matched){
+		return null;
+	}
+	const val = parseInt(matched[1], 10);
+	if(Number.isNaN(val) || val <= 0){
+		return null;
+	}
+	return val;
+}
+
+function getIndiaCachedContent(activeLabel){
+	const keys = [];
+	const fractal = parseIndiaFractalByLabel(activeLabel);
+	if(fractal !== null){
+		keys.push(`indiachart_${fractal}`);
+	}
+	keys.push('indiachart_current');
+	keys.push('indiachart');
+
+	for(let i=0; i<keys.length; i++){
+		const txt = getModuleCachedContent(keys[i]);
+		if(txt){
+			return txt;
+		}
+	}
+	return '';
+}
+
+async function extractAstroContent(context){
+	const isAstroLike = context && context.key === 'astrochart_like';
+	const topLabel = context && context.topLabel ? context.topLabel : '';
+	const isIndia = (context && context.key === 'indiachart') || topLabel.includes('印度律盘');
+	if(!isAstroLike && !isIndia){
+		const cached = getAstroCachedContent();
+		if(cached){
+			return cached;
+		}
+	}
+
+	let scopeRoot = context.scopeRoot;
+	const extraLines = [];
+	let indiaActive = null;
+	if(isAstroLike || isIndia){
+		indiaActive = findIndiaActivePane(scopeRoot);
+		if(indiaActive && indiaActive.pane){
+			scopeRoot = indiaActive.pane;
+		}
+		if(indiaActive && indiaActive.label){
+			extraLines.push(`当前律盘：${indiaActive.label}`);
+		}
+		if(isIndia){
+			const indiaCached = getIndiaCachedContent(indiaActive ? indiaActive.label : '');
+			if(indiaCached){
+				return indiaCached;
+			}
+		}
+	}
+	const keywords = [
+		'经度', '纬度', '时区', '真太阳时', '回归黄道', '整宫制',
+		'日主星', '时主星', '日生盘', '夜生盘',
+		'周一', '周二', '周三', '周四', '周五', '周六', '周日'
+	];
+	const summary = uniqueArray([...extraLines, ...getSummaryLines(scopeRoot, keywords)]);
+	const tabs = await captureTabsContentByLabels(scopeRoot, CHART_TAB_LABELS);
+
+	const parts = [];
+	if(summary.length){
+		parts.push('[起盘信息]');
+		parts.push(summary.join('\n'));
+	}
+	if(tabs){
+		CHART_TAB_LABELS.forEach((label)=>{
+			const txt = normalizeWhitespace(tabs[label] || '');
+			if(txt){
+				parts.push(`[${label}]`);
+				parts.push(txt);
+			}
+		});
+	}
+
+	if(parts.length === 0){
+		parts.push('[起盘信息]');
+		parts.push(normalizeWhitespace(textOf(scopeRoot)));
+	}
+	appendSvgSection(parts, scopeRoot);
+	return parts.join('\n\n').trim();
+}
+
+async function extractSixYaoContent(context){
+	const cached = getModuleCachedContent('guazhan');
+	if(cached){
+		return cached;
+	}
+
+	const scopeRoot = context.scopeRoot;
+	const keywords = [
+		'起卦', '时间起卦', '数字起卦', '自定义起卦', '动爻', '上卦', '下卦',
+		'旬空', '卦辞', '经度', '纬度', '时区', '真太阳时', '六神', '世', '应'
+	];
+	const summary = getSummaryLines(scopeRoot, keywords);
+	const rightText = extractRightColumnText(scopeRoot);
+	const tabs = await captureTabsContentByLabels(scopeRoot, SIXYAO_TAB_LABELS);
+
+	const parts = [];
+	if(summary.length){
+		parts.push('[起盘信息]');
+		parts.push(summary.join('\n'));
+	}
+	if(rightText){
+		parts.push('[右侧栏目]');
+		parts.push(rightText);
+	}
+	if(tabs){
+		SIXYAO_TAB_LABELS.forEach((label)=>{
+			const txt = normalizeWhitespace(tabs[label] || '');
+			if(txt){
+				parts.push(`[${label}]`);
+				parts.push(txt);
+			}
+		});
+	}
+
+	if(parts.length === 0){
+		parts.push('[起盘信息]');
+		parts.push(normalizeWhitespace(textOf(scopeRoot)));
+	}
+	appendSvgSection(parts, scopeRoot);
+	return parts.join('\n\n').trim();
+}
+
+async function extractLiuRengContent(context){
+	const cached = getModuleCachedContent('liureng');
+	if(cached){
+		return cached;
+	}
+
+	const scopeRoot = context.scopeRoot;
+	const keywords = [
+		'卜卦', '出生时间', '经度', '纬度', '时区', '真太阳时',
+		'六壬', '三传', '四课', '旬空', '贵人', '天盘', '地盘', '神将'
+	];
+	const summary = getSummaryLines(scopeRoot, keywords);
+	const rightText = extractRightColumnText(scopeRoot);
+
+	const parts = [];
+	if(summary.length){
+		parts.push('[起盘信息]');
+		parts.push(summary.join('\n'));
+	}
+	if(rightText){
+		parts.push('[右侧栏目]');
+		parts.push(rightText);
+	}
+	if(parts.length === 0){
+		parts.push('[起盘信息]');
+		parts.push(normalizeWhitespace(textOf(scopeRoot)));
+	}
+	appendSvgSection(parts, scopeRoot);
+	return parts.join('\n\n').trim();
+}
+
+async function extractQiMenContent(context){
+	const cached = getModuleCachedContent('qimen');
+	if(cached){
+		return cached;
+	}
+
+	const scopeRoot = context.scopeRoot;
+	const keywords = [
+		'遁甲', '奇门', '外盘', '值符', '值使', '九星', '八门', '八神',
+		'经度', '纬度', '时区', '真太阳时', '年命', '男女', '斗柄定房法', '现实距星法'
+	];
+	const summary = getSummaryLines(scopeRoot, keywords);
+	const rightText = extractRightColumnText(scopeRoot);
+
+	const parts = [];
+	if(summary.length){
+		parts.push('[起盘信息]');
+		parts.push(summary.join('\n'));
+	}
+	if(context.chartType){
+		parts.push('[盘型]');
+		parts.push(context.chartType);
+	}
+	if(rightText){
+		parts.push('[右侧栏目]');
+		parts.push(rightText);
+	}
+	if(parts.length === 0){
+		parts.push('[起盘信息]');
+		parts.push(normalizeWhitespace(textOf(scopeRoot)));
+	}
+	appendSvgSection(parts, scopeRoot);
+	return parts.join('\n\n').trim();
+}
+
+async function extractTaiYiContent(context){
+	const cached = getModuleCachedContent('taiyi');
+	if(cached){
+		return cached;
+	}
+	const scopeRoot = context.scopeRoot;
+	const keywords = [
+		'太乙', '局式', '太乙积数', '文昌', '始击', '太岁', '合神', '计神',
+		'乾造', '坤造', '农历', '真太阳时', '节气'
+	];
+	const summary = getSummaryLines(scopeRoot, keywords);
+	const parts = [];
+	if(summary.length){
+		parts.push('[起盘信息]');
+		parts.push(summary.join('\n'));
+	}
+	if(parts.length === 0){
+		parts.push('[起盘信息]');
+		parts.push(normalizeWhitespace(textOf(scopeRoot)));
+	}
+	appendSvgSection(parts, scopeRoot);
+	return parts.join('\n\n').trim();
+}
+
+async function extractGermanyContent(context){
+	const cached = getModuleCachedContent('germany');
+	if(cached){
+		return cached;
+	}
+	return extractAstroContent(context);
+}
+
+async function extractJieQiContent(context){
+	const cachedCurrent = getModuleCachedContent('jieqi_current');
+	if(cachedCurrent){
+		return cachedCurrent;
+	}
+	const cached = getModuleCachedContent('jieqi');
+	if(cached){
+		return cached;
+	}
+	return extractAstroContent(context);
+}
+
+async function extractPrimaryDirectContent(context){
+	const cached = getModuleCachedContent('primarydirect');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractZodialReleaseContent(context){
+	const cached = getModuleCachedContent('zodialrelease');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractFirdariaContent(context){
+	const cached = getModuleCachedContent('firdaria');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractProfectionContent(context){
+	const cached = getModuleCachedContent('profection');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractSolarArcContent(context){
+	const cached = getModuleCachedContent('solararc');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractSolarReturnContent(context){
+	const cached = getModuleCachedContent('solarreturn');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractLunarReturnContent(context){
+	const cached = getModuleCachedContent('lunarreturn');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractGivenYearContent(context){
+	const cached = getModuleCachedContent('givenyear');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractRelativeContent(context){
+	const cached = getModuleCachedContent('relative');
+	if(cached){
+		return cached;
+	}
+	return extractGenericContent(context);
+}
+
+async function extractOtherBuContent(context){
+	const cached = getModuleCachedContent('otherbu');
+	if(cached){
+		return cached;
+	}
+	return extractGenericContent(context);
+}
+
+async function extractFengShuiContent(context){
+	const holder = context && context.scopeRoot ? context.scopeRoot : document;
+	const iframe = holder ? holder.querySelector('iframe[src*="/fengshui/index.html"]') : null;
+	if(iframe && iframe.contentWindow && iframe.contentWindow.document){
+		try{
+			const doc = iframe.contentWindow.document;
+			const txt = normalizeWhitespace(textOf(doc.body));
+			if(txt){
+				const lines = [
+					'[起盘信息]',
+					txt,
+				];
+				return lines.join('\n\n');
+			}
+		}catch(e){
+		}
+	}
+	return extractGenericContent(context);
+}
+
+async function extractGenericContent(context){
+	if(context.key === 'suzhan'){
+		const cached = getModuleCachedContent('suzhan');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'guolao'){
+		const cached = getModuleCachedContent('guolao');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'bazi'){
+		const cached = getModuleCachedContent('bazi');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'ziwei'){
+		const cached = getModuleCachedContent('ziwei');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'germany'){
+		const cached = getModuleCachedContent('germany');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'jieqi'){
+		const cachedCurrent = getModuleCachedContent('jieqi_current');
+		if(cachedCurrent){
+			return cachedCurrent;
+		}
+		const cached = getModuleCachedContent('jieqi');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'zodialrelease'){
+		const cached = getModuleCachedContent('zodialrelease');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'relative'){
+		const cached = getModuleCachedContent('relative');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'otherbu'){
+		const cached = getModuleCachedContent('otherbu');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'qimen'){
+		const cached = getModuleCachedContent('qimen');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'sixyao'){
+		const cached = getModuleCachedContent('guazhan');
+		if(cached){
+			return cached;
+		}
+	}
+
+	const txt = normalizeWhitespace(textOf(context.scopeRoot));
+	const parts = [];
+	if(txt){
+		parts.push('[起盘信息]');
+		parts.push(txt);
+	}
+	appendSvgSection(parts, context.scopeRoot);
+	return parts.join('\n\n').trim();
+}
+
+function applyReplacers(text, replacers){
+	let out = text;
+	replacers.forEach((item)=>{
+		out = out.replace(item.regex, item.value);
+	});
+	return out;
+}
+
+function replaceKnownSymbols(text, domain){
+	let output = text || '';
+	output = replaceFontEncodedTokens(output);
+	Object.keys(SYMBOL_MAP).forEach((key)=>{
+		output = output.split(key).join(` ${SYMBOL_MAP[key]} `);
+	});
+
+	output = applyReplacers(output, COMMON_REPLACERS);
+	if(domain && DOMAIN_REPLACERS[domain]){
+		output = applyReplacers(output, DOMAIN_REPLACERS[domain]);
+	}
+
+	output = output.replace(/[\u4DC0-\u4DFF]/g, (ch)=>{
+		const idx = ch.charCodeAt(0) - 0x4DC0 + 1;
+		return ` 六十四卦#${idx} `;
+	});
+
+	// 私有区字符多为字体残留，不输出乱码标记，直接清理。
+	output = output.replace(/[\uE000-\uF8FF]/g, ' ');
+
+	output = output
+		.replace(/[°º]/g, '˚')
+		.replace(/[−﹣]/g, '-')
+		.replace(/([0-9]+)\s*[′']/g, '$1分')
+		.replace(/([0-9]+)\s*[″"]/g, '$1秒')
+		.replace(/℞/g, '逆行')
+		.replace(/([0-9˚分秒]+)\s*R\b/g, '$1 逆行')
+		.replace(/\uFFFD/g, '[异常字符]')
+		.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+		.replace(/\u200B/g, '')
+		.replace(/\u00A0/g, ' ')
+		.replace(/[ ]{2,}/g, ' ');
+
+	return output;
+}
+
+function normalizeText(text, domain){
+	let output = replaceKnownSymbols(text, domain);
+	output = output.replace(/\r\n/g, '\n');
+	output = output
+		.split('\n')
+			.map((line)=>line.replace(/[ \t]+$/g, ''))
+			.join('\n');
+	output = output.replace(/\n{3,}/g, '\n\n');
+	if(domain === 'predictive_raw'){
+		return output.trim();
+	}
+	output = beautifyForAI(output);
+	return output.trim();
+}
+
+function safeFileName(name){
+	const val = (name || 'export')
+		.replace(/[\\/:*?"<>|]/g, '_')
+		.replace(/\s+/g, '_')
+		.replace(/_+/g, '_')
+		.replace(/^_+|_+$/g, '');
+	return val || 'export';
+}
+
+function escapeHtml(str){
+	return (str || '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
+function pad2(num){
+	return `${num}`.padStart(2, '0');
+}
+
+function formatDateTime(date){
+	return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
+function formatStamp(date){
+	return `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}_${pad2(date.getHours())}${pad2(date.getMinutes())}${pad2(date.getSeconds())}`;
+}
+
+function downloadBlob(filename, content, mime){
+	const blob = new Blob([content], { type: mime });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	a.style.display = 'none';
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+async function copyText(text){
+	if(navigator.clipboard && window.isSecureContext){
+		await navigator.clipboard.writeText(text);
+		return true;
+	}
+	const ta = document.createElement('textarea');
+	ta.value = text;
+	ta.setAttribute('readonly', '');
+	ta.style.position = 'fixed';
+	ta.style.left = '-9999px';
+	document.body.appendChild(ta);
+	ta.select();
+	ta.setSelectionRange(0, ta.value.length);
+	let ok = false;
+	try{
+		ok = document.execCommand('copy');
+	}catch(e){
+		ok = false;
+	}
+	document.body.removeChild(ta);
+	return ok;
+}
+
+function printAsPdf(title, text){
+	const win = window.open('', '_blank');
+	if(!win){
+		return false;
+	}
+	const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(title)}</title>
+<style>
+@page { size: A4; margin: 16mm; }
+body { font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif; color: #111; }
+pre { white-space: pre-wrap; word-break: break-word; line-height: 1.5; font-size: 12px; }
+</style>
+</head>
+<body>
+<pre>${escapeHtml(text)}</pre>
+<script>
+window.onload = function(){
+  setTimeout(function(){ window.print(); }, 120);
+};
+</script>
+</body>
+</html>`;
+	win.document.open();
+	win.document.write(html);
+	win.document.close();
+	return true;
+}
+
+function exportTxt(payload){
+	downloadBlob(`${payload.filenameBase}.txt`, payload.text, 'text/plain;charset=utf-8');
+}
+
+function exportWord(payload){
+	const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(payload.tech)}</title>
+</head>
+<body>
+<pre style="white-space: pre-wrap; word-break: break-word; font-family: 'Microsoft YaHei', Arial, sans-serif; line-height: 1.5;">${escapeHtml(payload.text)}</pre>
+</body>
+</html>`;
+	downloadBlob(`${payload.filenameBase}.doc`, html, 'application/msword;charset=utf-8');
+}
+
+async function buildPayload(){
+	const context = resolveActiveContext();
+	const now = new Date();
+
+	let content = '';
+	if(context.key === 'astrochart' || context.key === 'astrochart_like' || context.key === 'indiachart'){
+		content = await extractAstroContent(context);
+	}else if(context.key === 'germany'){
+		content = await extractGermanyContent(context);
+	}else if(context.key === 'jieqi'){
+		content = await extractJieQiContent(context);
+	}else if(context.key === 'primarydirect'){
+		content = await extractPrimaryDirectContent(context);
+	}else if(context.key === 'zodialrelease'){
+		content = await extractZodialReleaseContent(context);
+	}else if(context.key === 'firdaria'){
+		content = await extractFirdariaContent(context);
+	}else if(context.key === 'profection'){
+		content = await extractProfectionContent(context);
+	}else if(context.key === 'solararc'){
+		content = await extractSolarArcContent(context);
+	}else if(context.key === 'solarreturn'){
+		content = await extractSolarReturnContent(context);
+	}else if(context.key === 'lunarreturn'){
+		content = await extractLunarReturnContent(context);
+	}else if(context.key === 'givenyear'){
+		content = await extractGivenYearContent(context);
+	}else if(context.key === 'sixyao'){
+		content = await extractSixYaoContent(context);
+	}else if(context.key === 'liureng'){
+		content = await extractLiuRengContent(context);
+	}else if(context.key === 'qimen'){
+		content = await extractQiMenContent(context);
+	}else if(context.key === 'taiyi'){
+		content = await extractTaiYiContent(context);
+	}else if(context.key === 'relative'){
+		content = await extractRelativeContent(context);
+	}else if(context.key === 'otherbu'){
+		content = await extractOtherBuContent(context);
+	}else if(context.key === 'fengshui'){
+		content = await extractFengShuiContent(context);
+	}else{
+		content = await extractGenericContent(context);
+	}
+
+	content = applyUserSectionFilterByContext(content, context.key);
+	content = normalizeText(content, context.domain);
+	const stamp = formatStamp(now);
+	const time = formatDateTime(now);
+	const filenameBase = `horosa_${safeFileName(context.displayName)}_${stamp}`;
+	const header = [
+		`技术: ${context.displayName}`,
+		`导出时间: ${time}`,
+		`页面: ${window.location.href}`,
+		'说明: 当前激活技术面板专属导出；符号已转为AI可识别文本。',
+		'',
+		'========== 内容开始 =========='
+	].join('\n');
+	const text = `${header}\n${content}\n========== 内容结束 ==========`;
+
+	return {
+		tech: context.displayName,
+		content,
+		text,
+		filenameBase,
+	};
+}
+
+export async function runAIExport(action){
+	const payload = await buildPayload();
+	const pure = (payload.content || '').replace(/\s/g, '');
+	if(!pure){
+		return { ok: false, message: '当前页面没有可导出文本。' };
+	}
+
+	if(action === 'copy'){
+		const ok = await copyText(payload.text);
+		return { ok: ok, message: ok ? 'AI纯文字已复制。' : '复制失败，请手动导出TXT。' };
+	}
+	if(action === 'txt'){
+		exportTxt(payload);
+		return { ok: true, message: 'TXT 已导出。' };
+	}
+	if(action === 'word'){
+		exportWord(payload);
+		return { ok: true, message: 'Word 已导出。' };
+	}
+	if(action === 'pdf'){
+		const ok = printAsPdf(payload.tech, payload.text);
+		return { ok: ok, message: ok ? 'PDF 打印窗口已打开。' : 'PDF 窗口被浏览器拦截。' };
+	}
+	if(action === 'all'){
+		const copied = await copyText(payload.text);
+		exportTxt(payload);
+		exportWord(payload);
+		const pdfOk = printAsPdf(payload.tech, payload.text);
+		return {
+			ok: true,
+			message: copied
+				? (pdfOk ? '已完成复制 + TXT/Word/PDF。' : '已完成复制 + TXT/Word，PDF窗口被拦截。')
+				: (pdfOk ? '已导出TXT/Word/PDF（复制失败）。' : '已导出TXT/Word（复制失败，PDF窗口被拦截）。')
+		};
+	}
+	return { ok: false, message: '未知导出动作。' };
+}

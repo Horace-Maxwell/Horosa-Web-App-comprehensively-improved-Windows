@@ -1,0 +1,4 @@
+cherrypy
+jsonpickle
+pyswisseph
+flatlib==0.2.3.post3

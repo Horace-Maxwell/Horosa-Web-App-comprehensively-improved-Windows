@@ -1,0 +1,8 @@
+{
+	"noRestfulResultClass": "boundless.spring.help.interceptor.NoRestResultConverter",
+	
+	"appResultClass": {
+		"norestclient": "boundless.spring.help.interceptor.NoRestResultConverter"
+	}
+
+}

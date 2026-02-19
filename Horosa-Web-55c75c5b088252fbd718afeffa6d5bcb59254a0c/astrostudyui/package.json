@@ -1,0 +1,51 @@
+{
+	"private": true,
+	"scripts": {
+		"start": "export NODE_OPTIONS=--openssl-legacy-provider && umi dev",
+		"build": "export NODE_OPTIONS=--openssl-legacy-provider && umi build",
+		"build:file": "export BUILD_FOR_FILE=1 NODE_OPTIONS=--openssl-legacy-provider && umi build",
+		"postinstall": "umi generate tmp",
+		"prettier": "prettier --write '**/*.{js,jsx,tsx,ts,less,md,json}'",
+		"test": "umi-test",
+		"test:coverage": "umi-test --coverage"
+	},
+	"lint-staged": {
+		"*.{js,jsx,less,md,json}": [
+			"prettier --write"
+		],
+		"*.ts?(x)": [
+			"prettier --parser=typescript --write"
+		]
+	},
+	"dependencies": {
+		"@amap/amap-jsapi-loader": "^1.0.1",
+		"@ant-design/pro-layout": "^6.5.0",
+		"d3": "^7.8.4",
+		"drag-modal": "^1.0.6",
+		"fastclick": "^1.0.6",
+		"flv.js": "^1.6.2",
+		"js-rsa": "^1.0.3",
+		"node-forge": "^1.3.1",
+		"numeral": "^2.0.6",
+		"print-js": "^1.0.63",
+		"qrcode.react": "^1.0.0",
+		"react": "17.x",
+		"react-dom": "17.x",
+		"react-quill": "^1.3.5",
+		"three": "^0.128.0",
+		"umi": "^3.5.41",
+		"video.js": "^8.3.0",
+		"videojs-flash": "^2.2.1"
+	},
+	"devDependencies": {
+		"@babel/core": "^7.29.0",
+		"@types/react": "^17.0.0",
+		"@types/react-dom": "^17.0.0",
+		"@umijs/preset-react": "1.x",
+		"@umijs/test": "^3.5.41",
+		"lint-staged": "^10.0.7",
+		"prettier": "^2.2.0",
+		"typescript": "^4.1.2",
+		"yorkie": "^2.0.0"
+	}
+}
