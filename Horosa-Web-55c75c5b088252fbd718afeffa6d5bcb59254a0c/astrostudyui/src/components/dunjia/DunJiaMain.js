@@ -10,7 +10,6 @@ import {
 import {
 	fetchPreciseNongli,
 	fetchPreciseJieqiSeed,
-	warmupCache,
 } from '../../utils/preciseCalcBridge';
 import sealedImage from '../../assets/sealed.png';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -57,33 +56,14 @@ const DEFAULT_OPTIONS = {
 
 const DUNJIA_BOARD_BASE_WIDTH = 662;
 const DUNJIA_BOARD_BASE_HEIGHT = 870;
-const DUNJIA_BOARD_BASE = 662;
-const DUNJIA_SCALE_MIN = 0.45;
-const DUNJIA_SCALE_MAX = 1.35;
-const DUNJIA_VERTICAL_RESERVED = 180;
-const DUNJIA_WIDTH_PADDING = 22;
-const DUNJIA_FONT_STACK = "'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif";
-
-// 根据窗口高度动态计算面板最大尺寸
-function getDynamicDunjiaMax(viewportHeight) {
-	// 高度优先：可用高度 = 窗口高度 - 顶部和底部边距(约200px)
-	const availableHeight = viewportHeight - 220;
-	// 左侧盘面区域约占整页 16/24，默认按 0.66 估算宽度上限。
-	const maxByWidth = typeof window !== 'undefined' && window.innerWidth
-		? Math.round(window.innerWidth * 0.66)
-		: 800;
-	// 取两者的较小值，但不超过1100
-	return Math.min(Math.max(availableHeight, 500), maxByWidth, 1100);
-}
+const DUNJIA_SCALE_MIN = 0.64;
+const DUNJIA_SCALE_MAX = 1.22;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
 }
 
 function getViewportHeight(){
-	if(typeof window !== 'undefined' && window.visualViewport && Number.isFinite(window.visualViewport.height) && window.visualViewport.height > 0){
-		return Math.round(window.visualViewport.height);
-	}
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
 		return window.innerHeight;
 	}
@@ -150,54 +130,6 @@ function getQimenOptionsKey(options){
 	].join('|');
 }
 
-function buildWarmupPayload(fields, fallbackGender){
-	if(!fields || !fields.date || !fields.time || !fields.zone || !fields.lon || !fields.lat){
-		return null;
-	}
-	const genderValue = (fields.gender && fields.gender.value !== undefined && fields.gender.value !== null)
-		? fields.gender.value
-		: fallbackGender;
-	return {
-		date: fields.date.value.format('YYYY-MM-DD'),
-		time: fields.time.value.format('HH:mm:ss'),
-		zone: fields.zone.value,
-		lon: fields.lon.value,
-		lat: fields.lat.value,
-		gpsLat: fields.gpsLat ? fields.gpsLat.value : '',
-		gpsLon: fields.gpsLon ? fields.gpsLon.value : '',
-		ad: fields.ad ? fields.ad.value : 1,
-		gender: genderValue,
-	};
-}
-
-function toBirthText(fields){
-	if(!fields || !fields.date || !fields.time){
-		return '';
-	}
-	return `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
-}
-
-function normalizeBirthText(txt){
-	return `${txt || ''}`.trim().replace(/\//g, '-');
-}
-
-function pickChartNongli(fields, chartWrap){
-	if(!chartWrap){
-		return null;
-	}
-	const chart = chartWrap.chart ? chartWrap.chart : chartWrap;
-	if(!chart || !chart.nongli){
-		return null;
-	}
-	const params = chartWrap.params || {};
-	const birthFromChart = normalizeBirthText(params.birth);
-	const birthFromFields = normalizeBirthText(toBirthText(fields));
-	if(birthFromChart && birthFromFields && birthFromChart !== birthFromFields){
-		return null;
-	}
-	return chart.nongli;
-}
-
 function needJieqiYearSeed(options){
 	const opt = options || {};
 	return opt.paiPanType === 3 && opt.qijuMethod === 'zhirun';
@@ -243,6 +175,7 @@ class DunJiaMain extends Component {
 		this.requestSeq = 0;
 		this.panCache = new Map();
 		this.resizeObserver = null;
+		this.prefetchSeedTimer = null;
 		this.onOptionChange = this.onOptionChange.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
@@ -250,6 +183,8 @@ class DunJiaMain extends Component {
 		this.changeGeo = this.changeGeo.bind(this);
 		this.genJieqiParams = this.genJieqiParams.bind(this);
 		this.ensureJieqiSeed = this.ensureJieqiSeed.bind(this);
+		this.prefetchJieqiSeedForFields = this.prefetchJieqiSeedForFields.bind(this);
+		this.prefetchNongliForFields = this.prefetchNongliForFields.bind(this);
 		this.getContext = this.getContext.bind(this);
 		this.requestNongli = this.requestNongli.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -261,8 +196,6 @@ class DunJiaMain extends Component {
 		this.parseCasePayload = this.parseCasePayload.bind(this);
 		this.captureLeftBoardHost = this.captureLeftBoardHost.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
-		// 添加一个标志来控制是否允许自动计算
-		this.autoRecalcEnabled = false;
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -270,7 +203,13 @@ class DunJiaMain extends Component {
 					return;
 				}
 				this.restoreOptionsFromCurrentCase();
-				// 遁甲模块改为严格手动起盘：外部字段变化不自动触发计算。
+				if(fields){
+					this.setState({
+						localFields: fields,
+					});
+					this.prefetchJieqiSeedForFields(fields);
+					this.prefetchNongliForFields(fields);
+				}
 			};
 		}
 	}
@@ -297,88 +236,26 @@ class DunJiaMain extends Component {
 		return pan;
 	}
 
-	// 添加 shouldComponentUpdate 来避免不必要的重新渲染
-	shouldComponentUpdate(nextProps, nextState){
-		// 总是允许渲染 loading 状态变化
-		if(this.state.loading !== nextState.loading){
-			return true;
-		}
-		// 允许 panel 变化
-		if(this.state.pan !== nextState.pan){
-			return true;
-		}
-		// 允许 nongli 变化
-		if(this.state.nongli !== nextState.nongli){
-			return true;
-		}
-		// 允许 hasPlotted 变化
-		if(this.state.hasPlotted !== nextState.hasPlotted){
-			return true;
-		}
-		// 允许 rightPanelTab 变化
-		if(this.state.rightPanelTab !== nextState.rightPanelTab){
-			return true;
-		}
-		// 允许 localFields 时间变化（这是用户主动调整时间）
-		if(this.state.localFields !== nextState.localFields){
-			const curr = this.state.localFields;
-			const next = nextState.localFields;
-			if(curr && next){
-				const currTime = curr.time && curr.time.value ? curr.time.value.format('YYYY-MM-DD HH:mm:ss') : '';
-				const nextTime = next.time && next.time.value ? next.time.value.format('YYYY-MM-DD HH:mm:ss') : '';
-				if(currTime !== nextTime){
-					return true;
-				}
-			}
-		}
-		// 允许 viewport 变化
-		if(this.state.viewportHeight !== nextState.viewportHeight || this.state.leftBoardWidth !== nextState.leftBoardWidth){
-			return true;
-		}
-		// 允许 options 变化
-		if(this.state.options !== nextState.options){
-			return true;
-		}
-		// 其他情况不重新渲染
-		return false;
-	}
-
 	componentDidMount(){
 		this.unmounted = false;
 		this.restoreOptionsFromCurrentCase(true);
 		window.addEventListener('resize', this.handleWindowResize);
 		this.handleWindowResize();
-		// 预热缓存：提前加载数据以加速起盘
-		const fields = this.props.fields;
-		if(fields && fields.zone && fields.lon && fields.lat){
-			warmupCache({
-				date: fields.date && fields.date.value ? fields.date.value.format('YYYY-MM-DD') : undefined,
-				time: fields.time && fields.time.value ? fields.time.value.format('HH:mm:ss') : undefined,
-				zone: fields.zone.value || '8',
-				lon: fields.lon.value || '116.4074',
-				lat: fields.lat.value || '39.9042',
-				gpsLat: fields.gpsLat ? fields.gpsLat.value : '',
-				gpsLon: fields.gpsLon ? fields.gpsLon.value : '',
-				ad: fields.ad ? fields.ad.value : 1,
-				gender: fields.gender ? fields.gender.value : 1,
-			}, { mode: 'light' });
-		}
+		this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields);
+		this.prefetchNongliForFields(this.state.localFields || this.props.fields);
 	}
 
-	componentDidUpdate(prevProps){
-		// 只有在特定情况下才恢复选项，避免不必要的数据读取
-		// 主要是避免时间变化时触发不必要的处理
-		const prevKey = getFieldKey(prevProps.fields);
-		const nextKey = getFieldKey(this.props.fields);
-		// 只有当字段完全改变（非时间调整）时才恢复选项
-		if(prevKey !== nextKey && this.autoRecalcEnabled){
-			this.restoreOptionsFromCurrentCase();
-		}
+	componentDidUpdate(){
+		this.restoreOptionsFromCurrentCase();
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
 		window.removeEventListener('resize', this.handleWindowResize);
+		if(this.prefetchSeedTimer){
+			clearTimeout(this.prefetchSeedTimer);
+			this.prefetchSeedTimer = null;
+		}
 		if(this.resizeObserver){
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
@@ -402,17 +279,9 @@ class DunJiaMain extends Component {
 
 	handleWindowResize(){
 		const viewportHeight = getViewportHeight();
-		// 如果leftBoardHost还没有设置，使用窗口宽度的默认值
-		let leftBoardWidth = 0;
-		if (this.leftBoardHost) {
-			leftBoardWidth = this.leftBoardHost.clientWidth || 0;
-		} else if (typeof window !== 'undefined') {
-			// 左侧盘面区域约占整页 16/24，取 0.66 作为跨浏览器一致的兜底值。
-			leftBoardWidth = Math.round(window.innerWidth * 0.66) || 700;
-		}
-		// 降低阈值使窗口大小变化时更敏感地更新缩放
-		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 1
-			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 1;
+		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
+		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
+			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2;
 		if(changed){
 			this.setState({
 				leftBoardWidth,
@@ -421,25 +290,19 @@ class DunJiaMain extends Component {
 		}
 	}
 
-	calcBoardScale(panelHeight){
+	calcBoardScale(){
 		const viewH = this.state.viewportHeight || 900;
-		const baseH = typeof panelHeight === 'number' ? panelHeight : (viewH - 20);
-		const usableH = Math.min(viewH, baseH);
-		const dynamicMax = getDynamicDunjiaMax(usableH);
-		const availW = this.state.leftBoardWidth > 0 ? (this.state.leftBoardWidth - DUNJIA_WIDTH_PADDING) : dynamicMax;
+		const availW = this.state.leftBoardWidth > 0 ? (this.state.leftBoardWidth - 22) : DUNJIA_BOARD_BASE_WIDTH;
 		const widthScale = availW / DUNJIA_BOARD_BASE_WIDTH;
 		// 高度优先：先按可视高度给出主缩放，再用宽度做上限约束。
-		let rawScale = (usableH - DUNJIA_VERTICAL_RESERVED) / DUNJIA_BOARD_BASE_HEIGHT;
+		let rawScale = (viewH - 230) / DUNJIA_BOARD_BASE_HEIGHT;
 		if(Number.isFinite(widthScale) && widthScale > 0){
 			rawScale = Math.min(rawScale, widthScale);
 		}
 		if(!Number.isFinite(rawScale) || rawScale <= 0){
 			return 1;
 		}
-		// 使用基于高度动态计算的最大缩放比例
-		const heightBasedScale = (usableH - (DUNJIA_VERTICAL_RESERVED - 30)) / DUNJIA_BOARD_BASE_HEIGHT;
-		const dynamicMaxScale = Math.min(heightBasedScale, DUNJIA_SCALE_MAX);
-		return clamp(rawScale, DUNJIA_SCALE_MIN, dynamicMaxScale);
+		return clamp(rawScale, DUNJIA_SCALE_MIN, DUNJIA_SCALE_MAX);
 	}
 
 	parseCasePayload(raw){
@@ -512,18 +375,31 @@ class DunJiaMain extends Component {
 		this.setState({
 			options: nextOptions,
 		}, ()=>{
-			if(this.state.hasPlotted && this.state.nongli){
+			const calcFields = this.state.localFields || this.props.fields;
+			const canRecalc = this.state.nongli
+				&& getFieldKey(calcFields)
+				&& getFieldKey(calcFields) === this.lastFieldKey;
+			if(this.state.hasPlotted && canRecalc){
 				this.recalc(this.state.localFields || this.props.fields, this.state.nongli, nextOptions);
 			}
 		});
 	}
 
-	onFieldsChange(field){
+	onFieldsChange(field, syncOnly){
 		if(this.props.dispatch){
 			const flds = {
 				...(this.props.fields || {}),
 				...field,
 			};
+			if(syncOnly){
+				this.props.dispatch({
+					type: 'astro/save',
+					payload: {
+						fields: flds,
+					},
+				});
+				return;
+			}
 			this.props.dispatch({
 				type: 'astro/fetchByFields',
 				payload: flds,
@@ -533,31 +409,33 @@ class DunJiaMain extends Component {
 
 	onTimeChanged(value){
 		const dt = value.time;
-		const confirmed = !!value.confirmed;
-
-		// 严格手动起盘：时间调整仅更新本地字段，不触发全局 fetchByFields。
-		if(confirmed){
-			const base = this.props.fields || {};
-			const localFields = {
-				...base,
-				date: { value: dt.clone() },
-				time: { value: dt.clone() },
-				ad: { value: dt.ad },
-				zone: { value: dt.zone },
-			};
-			this.setState({ localFields });
-			const warmupParams = buildWarmupPayload(localFields, this.state.options.sex);
-			if(warmupParams){
-				warmupCache(warmupParams, { mode: 'light', immediate: true });
-			}
+		const base = this.props.fields || {};
+		const localFields = {
+			...base,
+			date: { value: dt.clone() },
+			time: { value: dt.clone() },
+			ad: { value: dt.ad },
+			zone: { value: dt.zone },
+		};
+		this.setState({ localFields });
+		if(this.prefetchSeedTimer){
+			clearTimeout(this.prefetchSeedTimer);
 		}
+		this.prefetchSeedTimer = setTimeout(()=>{
+			this.prefetchSeedTimer = null;
+			if(this.unmounted){
+				return;
+			}
+			this.prefetchJieqiSeedForFields(localFields);
+			this.prefetchNongliForFields(localFields);
+		}, 120);
 	}
 
 	onGenderChange(val){
 		this.onOptionChange('sex', val);
 		this.onFieldsChange({
 			gender: { value: val },
-		});
+		}, true);
 	}
 
 	getTimeFieldsFromSelector(baseFields){
@@ -587,16 +465,22 @@ class DunJiaMain extends Component {
 		if(!nextFields){
 			return;
 		}
-		const warmupParams = buildWarmupPayload(nextFields, this.state.options.sex);
-		if(warmupParams){
-			warmupCache(warmupParams, { mode: 'light', immediate: true });
+		const nextKey = getFieldKey(nextFields);
+		const curKey = getFieldKey(this.props.fields);
+		if(nextKey && nextKey !== curKey){
+			this.onFieldsChange({
+				date: { value: nextFields.date.value.clone() },
+				time: { value: nextFields.time.value.clone() },
+				ad: { value: nextFields.ad.value },
+				zone: { value: nextFields.zone.value },
+			}, true);
 		}
 		this.setState({
-			loading: true,
 			hasPlotted: true,
 			localFields: nextFields,
 		}, ()=>{
-			this.requestNongli(nextFields, true);
+			const shouldForce = !this.state.nongli || getFieldKey(nextFields) !== this.lastFieldKey;
+			this.requestNongli(nextFields, shouldForce);
 		});
 	}
 
@@ -606,7 +490,7 @@ class DunJiaMain extends Component {
 			lat: { value: convertLatToStr(rec.lat) },
 			gpsLon: { value: rec.gpsLng },
 			gpsLat: { value: rec.gpsLat },
-		});
+		}, true);
 	}
 
 	genParams(fields){
@@ -726,18 +610,62 @@ class DunJiaMain extends Component {
 		return this.jieqiSeedPromises[year];
 	}
 
+	prefetchJieqiSeedForFields(fields){
+		const flds = fields || this.state.localFields || this.props.fields;
+		if(!flds || !flds.date || !flds.date.value){
+			return;
+		}
+		const fixedOptions = {
+			...this.state.options,
+			jieQiType: 1,
+			yearGanZhiType: 2,
+			monthGanZhiType: 1,
+			dayGanZhiType: 1,
+		};
+		if(!needJieqiYearSeed(fixedOptions)){
+			return;
+		}
+		const year = parseInt(flds.date.value.format('YYYY'), 10);
+		if(!year || Number.isNaN(year)){
+			return;
+		}
+		Promise.all([
+			this.ensureJieqiSeed(flds, year - 1),
+			this.ensureJieqiSeed(flds, year),
+		]).catch(()=>null);
+	}
+
+	prefetchNongliForFields(fields){
+		const flds = fields || this.state.localFields || this.props.fields;
+		if(!flds){
+			return;
+		}
+		let params = null;
+		try{
+			params = this.genParams(flds);
+		}catch(e){
+			return;
+		}
+		if(!params){
+			return;
+		}
+		fetchPreciseNongli(params).then((result)=>{
+			if(result){
+				setNongliLocalCache(params, result);
+			}
+		}).catch(()=>null);
+	}
+
 	async requestNongli(fields, force){
 		const fldsToUse = fields || this.state.localFields || this.props.fields;
 		let params = null;
 		try{
 			params = this.genParams(fldsToUse);
 		}catch(e){
-			this.setState({ loading: false });
 			message.error('遁甲起盘参数无效，请确认时间与经纬度后重试');
 			return;
 		}
 		if(!params){
-			this.setState({ loading: false });
 			return;
 		}
 		const fieldKey = getFieldKey(fldsToUse);
@@ -745,10 +673,13 @@ class DunJiaMain extends Component {
 			this.recalc(fldsToUse, this.state.nongli);
 			return;
 		}
-		if(!force && this.pendingNongli && this.pendingNongli.key === fieldKey){
+		if(this.pendingNongli && this.pendingNongli.key === fieldKey){
 			return this.pendingNongli.promise;
 		}
 		const seq = ++this.requestSeq;
+		if(force && !this.state.loading){
+			this.setState({ loading: true });
+		}
 
 		const reqPromise = (async ()=>{
 			const fixedOptions = {
@@ -759,12 +690,22 @@ class DunJiaMain extends Component {
 				dayGanZhiType: 1,
 			};
 			const shouldWaitSeed = needJieqiYearSeed(fixedOptions);
+			const flds = fldsToUse;
+			let year = null;
+			if(flds && flds.date && flds.date.value){
+				year = parseInt(flds.date.value.format('YYYY'), 10);
+			}
+			const waitSeed = !!(year && shouldWaitSeed);
+			const seedPromise = waitSeed ? Promise.all([
+				this.ensureJieqiSeed(flds, year - 1),
+				this.ensureJieqiSeed(flds, year),
+			]) : null;
+			const missingSeed = waitSeed && (!this.jieqiYearSeeds[year - 1] || !this.jieqiYearSeeds[year]);
+			if(missingSeed && !this.state.loading){
+				this.setState({ loading: true });
+			}
 			try{
-				const chartNongli = pickChartNongli(fldsToUse, this.props.value);
-				let result = chartNongli;
-				if(!result){
-					result = await fetchPreciseNongli(params);
-				}
+				const result = await fetchPreciseNongli(params);
 				if(!result){
 					throw new Error('precise.nongli.unavailable');
 				}
@@ -772,16 +713,12 @@ class DunJiaMain extends Component {
 				if(this.unmounted || seq !== this.requestSeq){
 					return;
 				}
-				const flds = fldsToUse;
-				let year = null;
-				if(flds && flds.date && flds.date.value){
-					year = parseInt(flds.date.value.format('YYYY'), 10);
+				if(waitSeed){
+					const seeds = await seedPromise;
+					if(!seeds[0] || !seeds[1]){
+						throw new Error('precise.jieqi.unavailable');
+					}
 				}
-				if(this.unmounted || seq !== this.requestSeq){
-					return;
-				}
-				// 移除不必要的延迟以提升性能
-				// await new Promise((resolve)=>setTimeout(resolve, 0));
 				if(this.unmounted || seq !== this.requestSeq){
 					return;
 				}
@@ -803,19 +740,6 @@ class DunJiaMain extends Component {
 						saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(pan));
 					}
 				});
-				if(year && shouldWaitSeed){
-					Promise.all([
-						this.ensureJieqiSeed(flds, year - 1),
-						this.ensureJieqiSeed(flds, year),
-					]).then((seeds)=>{
-						if(this.unmounted || seq !== this.requestSeq){
-							return;
-						}
-						if(seeds && seeds[0] && seeds[1]){
-							this.recalc(flds, result, fixedOptions);
-						}
-					}).catch(()=>{});
-				}
 			}catch(e){
 				if(!this.unmounted && seq === this.requestSeq){
 					this.setState({ loading: false });
@@ -840,7 +764,12 @@ class DunJiaMain extends Component {
 			[key]: value,
 		};
 		this.setState({ options }, ()=>{
-			if(this.state.hasPlotted && this.state.nongli){
+			this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields);
+			const calcFields = this.state.localFields || this.props.fields;
+			const canRecalc = this.state.nongli
+				&& getFieldKey(calcFields)
+				&& getFieldKey(calcFields) === this.lastFieldKey;
+			if(this.state.hasPlotted && canRecalc){
 				this.recalc(this.state.localFields || this.props.fields, this.state.nongli, options);
 			}
 		});
@@ -890,7 +819,7 @@ class DunJiaMain extends Component {
 		}
 	}
 
-	renderCell(cell, metrics){
+	renderCell(cell){
 		const titleColor = cell.hasKongWang ? '#2f54eb' : (cell.isCenter ? '#c7c7c7' : '#5f5f5f');
 		let tianGanColor = '#262626';
 		if(cell.hasJiXing && cell.hasRuMu){
@@ -906,28 +835,23 @@ class DunJiaMain extends Component {
 		const line3Color = '#262626';
 		const diGanColor = '#262626';
 		const centerMinorColor = '#8c8c8c';
-		const cellSize = metrics.cellSize;
-		const unifiedFont = metrics.unifiedFont;
-		const insetX = metrics.insetX;
-		const insetY = metrics.insetY;
+		const unifiedFont = 34;
+		const insetX = 52;
+		const insetY = 40;
 		const isGenPalace = cell.palaceNum === 7 || cell.palaceName === '艮';
-		const smallFontSize = metrics.smallFontSize;
-		const palaceFontSize = metrics.palaceFontSize;
-		const centerFontSize = metrics.centerFontSize;
-		const cornerGap = metrics.cornerGap;
 		const yiMaStyle = isGenPalace
-			? { position: 'absolute', left: Math.max(4, Math.round(cornerGap * 0.8)), bottom: Math.max(4, Math.round(cornerGap * 0.66)), fontSize: smallFontSize, lineHeight: `${smallFontSize}px`, color: '#111' }
-			: { position: 'absolute', top: Math.max(4, Math.round(cornerGap * 0.66)), right: Math.max(4, Math.round(cornerGap * 0.8)), fontSize: smallFontSize, lineHeight: `${smallFontSize}px`, color: '#111' };
+			? { position: 'absolute', left: 10, bottom: 8, fontSize: 20, lineHeight: '20px', color: '#111' }
+			: { position: 'absolute', top: 8, right: 10, fontSize: 20, lineHeight: '20px', color: '#111' };
 
 		const palacePosMap = {
-			1: { right: cornerGap, bottom: Math.max(4, Math.round(cornerGap * 0.66)) }, // 巽：靠中宫（右下）
-			2: { left: '50%', bottom: Math.max(4, Math.round(cornerGap * 0.66)), transform: 'translateX(-50%)' }, // 离：靠中宫（下中）
-			3: { left: cornerGap, bottom: Math.max(4, Math.round(cornerGap * 0.66)) }, // 坤：靠中宫（左下）
-			4: { right: cornerGap, top: '50%', transform: 'translateY(-50%)' }, // 震：靠中宫（右中）
-			6: { left: cornerGap, top: '50%', transform: 'translateY(-50%)' }, // 兑：靠中宫（左中）
-			7: { right: cornerGap, top: Math.max(4, Math.round(cornerGap * 0.66)) }, // 艮：靠中宫（右上）
-			8: { left: '50%', top: Math.max(4, Math.round(cornerGap * 0.66)), transform: 'translateX(-50%)' }, // 坎：靠中宫（上中）
-			9: { left: cornerGap, top: Math.max(4, Math.round(cornerGap * 0.66)) }, // 乾：靠中宫（左上）
+			1: { right: 12, bottom: 8 }, // 巽：靠中宫（右下）
+			2: { left: '50%', bottom: 8, transform: 'translateX(-50%)' }, // 离：靠中宫（下中）
+			3: { left: 12, bottom: 8 }, // 坤：靠中宫（左下）
+			4: { right: 12, top: '50%', transform: 'translateY(-50%)' }, // 震：靠中宫（右中）
+			6: { left: 12, top: '50%', transform: 'translateY(-50%)' }, // 兑：靠中宫（左中）
+			7: { right: 12, top: 8 }, // 艮：靠中宫（右上）
+			8: { left: '50%', top: 8, transform: 'translateX(-50%)' }, // 坎：靠中宫（上中）
+			9: { left: 12, top: 8 }, // 乾：靠中宫（左上）
 		};
 		const palaceStyle = palacePosMap[cell.palaceNum] || null;
 		const wuHeMap = {
@@ -958,9 +882,9 @@ class DunJiaMain extends Component {
 					key={`cell_${cell.palaceNum}`}
 					style={{
 						background: '#f6f6f6',
-						borderRadius: Math.max(7, Math.round(cellSize * 0.065)),
+						borderRadius: 14,
 						border: '1px solid #ececec',
-						height: cellSize,
+						height: 214,
 						padding: 0,
 						position: 'relative',
 					}}
@@ -975,15 +899,15 @@ class DunJiaMain extends Component {
 							flexDirection: 'column',
 							alignItems: 'center',
 							justifyContent: 'center',
-							gap: Math.max(1, Math.round(centerFontSize * 0.12)),
+							gap: 4,
 						}}
 					>
 						{centerItems.map((item, idx)=>(
 							<div
 								key={`center_item_${idx}`}
 								style={{
-									fontSize: centerFontSize,
-									lineHeight: `${centerFontSize}px`,
+									fontSize: 32,
+									lineHeight: '32px',
 									fontWeight: 700,
 									color: item.color,
 								}}
@@ -1001,9 +925,9 @@ class DunJiaMain extends Component {
 				key={`cell_${cell.palaceNum}`}
 				style={{
 					background: '#f6f6f6',
-					borderRadius: Math.max(7, Math.round(cellSize * 0.065)),
+					borderRadius: 14,
 					border: '1px solid #ececec',
-					height: cellSize,
+					height: 214,
 					padding: 0,
 					position: 'relative',
 				}}
@@ -1084,8 +1008,8 @@ class DunJiaMain extends Component {
 						style={{
 							position: 'absolute',
 							color: titleColor,
-							fontSize: palaceFontSize,
-							lineHeight: `${palaceFontSize}px`,
+							fontSize: 15,
+							lineHeight: '15px',
 							fontWeight: 700,
 							...palaceStyle,
 						}}
@@ -1097,7 +1021,7 @@ class DunJiaMain extends Component {
 		);
 	}
 
-	renderBoard(panelHeight){
+	renderBoard(){
 		const pan = this.state.pan;
 		if(!this.state.hasPlotted){
 			return <Card bordered={false}>点击右侧“起盘”后显示遁甲盘</Card>;
@@ -1105,27 +1029,11 @@ class DunJiaMain extends Component {
 		if(!pan){
 			return <Card bordered={false}>暂无遁甲盘数据</Card>;
 		}
-		const boardScale = this.calcBoardScale(panelHeight);
-		const cellSize = clamp(Math.round(214 * boardScale), 92, 288);
-		const boardGap = clamp(Math.round(10 * boardScale), 4, 16);
+		const cellSize = 214;
+		const boardGap = 10;
 		const boardWidth = (cellSize * 3) + (boardGap * 2);
-		const unifiedFont = clamp(Math.round(34 * boardScale), 16, 42);
-		const metrics = {
-			cellSize,
-			unifiedFont,
-			insetX: clamp(Math.round(52 * boardScale), 18, 72),
-			insetY: clamp(Math.round(40 * boardScale), 14, 58),
-			smallFontSize: clamp(Math.round(20 * boardScale), 9, 24),
-			palaceFontSize: clamp(Math.round(15 * boardScale), 8, 20),
-			centerFontSize: clamp(Math.round(32 * boardScale), 14, 40),
-			cornerGap: clamp(Math.round(12 * boardScale), 4, 17),
-		};
-		const titleFont = clamp(Math.round(18 * boardScale), 12, 24);
-		const shiftFont = clamp(Math.round(16 * boardScale), 11, 22);
-		const pillarFont = clamp(Math.round(32 * boardScale), 14, 40);
-		const pillarLabelFont = clamp(Math.round(24 * boardScale), 11, 32);
-		const lineFont = clamp(Math.round(16 * boardScale), 11, 20);
-		const lineSubFont = clamp(Math.round(14 * boardScale), 10, 18);
+		const boardScale = this.calcBoardScale();
+		const scaledWidth = Math.round(boardWidth * boardScale);
 		const dateTitle = `${pan.dateStr.substr(0, 4)}年${pan.dateStr.substr(5, 2)}月${pan.dateStr.substr(8, 2)}日 ${pan.timeStr.substr(0, 5)}`;
 		const shiftTitle = pan && pan.shiftPalace > 0 ? `（顺转${pan.shiftPalace}宫）` : '';
 		const pillars = [
@@ -1164,24 +1072,25 @@ class DunJiaMain extends Component {
 		];
 		return (
 			<Card bordered={false}>
-				<div style={{ width: boardWidth }}>
-					<div style={{ width: boardWidth, fontFamily: DUNJIA_FONT_STACK }}>
+				<div style={{ width: scaledWidth, maxWidth: '100%' }}>
+					<div style={{ width: boardWidth, transform: `scale(${boardScale})`, transformOrigin: 'top left' }}>
 						<div
 							style={{
-								padding: clamp(Math.round(12 * boardScale), 7, 16),
-								borderRadius: clamp(Math.round(14 * boardScale), 8, 18),
+								padding: 12,
+								borderRadius: 14,
 								background: '#fbfbfb',
 								border: '1px solid #efefef',
-								marginBottom: clamp(Math.round(8 * boardScale), 5, 12),
+								marginBottom: 8,
 								width: boardWidth,
+								maxWidth: '100%',
 							}}
 						>
 							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-								<div style={{ fontSize: titleFont, lineHeight: `${Math.round(titleFont * 1.2)}px`, fontWeight: 700, color: '#222' }}>
+								<div style={{ fontSize: 18, lineHeight: '22px', fontWeight: 700, color: '#222' }}>
 									{dateTitle}
 								</div>
 								{shiftTitle ? (
-									<div style={{ fontSize: shiftFont, lineHeight: `${Math.round(shiftFont * 1.2)}px`, fontWeight: 700, color: '#595959' }}>
+									<div style={{ fontSize: 16, lineHeight: '20px', fontWeight: 700, color: '#595959' }}>
 										{shiftTitle}
 									</div>
 								) : null}
@@ -1203,17 +1112,17 @@ class DunJiaMain extends Component {
 												alignItems: 'center',
 												lineHeight: 1,
 												fontWeight: 700,
-												fontSize: pillarFont,
+												fontSize: 32,
 											}}
 										>
 											<span style={{ color: p.ganColor }}>{p.gan || ' '}</span>
-											<span style={{ color: p.zhiColor, marginTop: Math.max(1, Math.round(pillarFont * 0.12)) }}>{p.zhi || ' '}</span>
+											<span style={{ color: p.zhiColor, marginTop: 4 }}>{p.zhi || ' '}</span>
 										</div>
 										<span
 											style={{
-												marginLeft: Math.max(3, Math.round(6 * boardScale)),
+												marginLeft: 6,
 												color: '#8c8c8c',
-												fontSize: pillarLabelFont,
+												fontSize: 24,
 												lineHeight: 1,
 												fontWeight: 700,
 											}}
@@ -1223,16 +1132,16 @@ class DunJiaMain extends Component {
 									</div>
 								))}
 							</div>
-							<div style={{ marginTop: Math.max(3, Math.round(6 * boardScale)), fontSize: lineFont, lineHeight: `${Math.round(lineFont * 1.2)}px`, fontWeight: 700, color: '#202020' }}>
+							<div style={{ marginTop: 6, fontSize: 16, lineHeight: '20px', fontWeight: 700, color: '#202020' }}>
 								{pan.juText} 值符:{pan.zhiFu} 值使:{pan.zhiShi}
 							</div>
-							<div style={{ marginTop: Math.max(2, Math.round(4 * boardScale)), fontSize: lineSubFont, lineHeight: `${Math.round(lineSubFont * 1.2)}px`, color: '#595959' }}>
+							<div style={{ marginTop: 4, fontSize: 14, lineHeight: '18px', color: '#595959' }}>
 								{pan.options.kongModeLabel}-{pan.kongWang} 旬首-{pan.xunShou}
 							</div>
 						</div>
-						<div style={{ position: 'relative', width: boardWidth }}>
+						<div style={{ position: 'relative', width: boardWidth, maxWidth: '100%' }}>
 							<div style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${cellSize}px)`, gap: boardGap }}>
-								{pan.cells.map((cell)=>this.renderCell(cell, metrics))}
+								{pan.cells.map((cell)=>this.renderCell(cell))}
 							</div>
 							{pan.fengJu ? (
 								<div
@@ -1242,7 +1151,7 @@ class DunJiaMain extends Component {
 										top: '50%',
 										transform: 'translate(-50%, -50%)',
 										width: '62%',
-										maxWidth: Math.round(boardWidth * 0.65),
+										maxWidth: 430,
 										opacity: 0.22,
 										pointerEvents: 'none',
 										zIndex: 9,
@@ -1435,7 +1344,7 @@ class DunJiaMain extends Component {
 					<Row gutter={6}>
 						<Col span={16}>
 							<div ref={this.captureLeftBoardHost}>
-								{this.renderBoard(height)}
+								{this.renderBoard()}
 							</div>
 						</Col>
 						<Col span={8}>

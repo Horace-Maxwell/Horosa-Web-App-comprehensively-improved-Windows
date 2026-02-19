@@ -1,59 +1,49 @@
-import React, { lazy, Suspense } from 'react';
-import { connect } from 'dva';
+import { connect  } from 'dva';
 import { Drawer, Tabs, Row, Col, Button, Spin, } from 'antd';
 import DateTime from '../components/comp/DateTime';
+import LoginForm from '../components/user/LoginForm';
+import RegisterForm from '../components/user/RegisterForm';
+import ResetPwdForm from '../components/user/ResetPwdForm';
+import ChangePwdForm from '../components/user/ChangePwdForm';
+import ChangeParamsFormComp from '../components/user/ChangeParamsFormComp';
+import ChartAddFormComp from '../components/user/ChartAddFormComp';
+import ChartEditFormComp from '../components/user/ChartEditFormComp';
+import ChartList from '../components/user/ChartList';
+import CaseAddFormComp from '../components/user/CaseAddFormComp';
+import CaseEditFormComp from '../components/user/CaseEditFormComp';
+import CaseList from '../components/user/CaseList';
 import AstroFormComp from '../components/astro/AstroFormComp';
+import AstroChartMain from '../components/astro/AstroChartMain';
+import AstroChartMain3D from '../components/astro3d/AstroChartMain3D';
+import HellenAstroMain from '../components/hellenastro/HellenAstroMain';
+import LocAstroMain from '../components/loc/LocAstroMain';
+import IndiaChartMain from '../components/astro/IndiaChartMain';
+import AstroRelative from '../components/astro/AstroRelative';
+import AstroDirectMain from '../components/direction/AstroDirectMain';
 import AspSelector from '../components/astro/AspSelector';
 import PlanetSelector from '../components/astro/PlanetSelector';
 import ChartDisplaySelector from '../components/astro/ChartDisplaySelector';
+import ChartsGps from '../components/user/ChartsGps';
 import ChartMemo from '../components/comp/ChartMemo';
+import AstroGermany from '../components/germany/AstroGermany';
+import JieQiChartsMain from '../components/jieqi/JieQiChartsMain';
+import CnTraditionMain from '../components/cntradition/CnTraditionMain';
+import CnYiBuMain from '../components/cnyibu/CnYiBuMain';
+import CalendarMain from '../components/calendar/CalendarMain';
+import OtherBuMain from '../components/otherbu/OtherBuMain';
+import FengShuiMain from '../components/fengshui/FengShuiMain';
+import SanShiUnitedMain from '../components/sanshi/SanShiUnitedMain';
+import BookMain from '../components/reader/BookMain';
+import MediaMain from '../components/multimedia/MediaMain';
+import AdminToolsMain from '../components/admintools/AdminToolsMain';
+import GuoLaoChartMain from '../components/guolao/GuoLaoChartMain';
+import CommToolsMain from '../components/commtools/CommToolsMain';
+import DLFeature from '../components/deeplearn/DLFeature';
 import HomePageSetup from '../components/HomePageSetup';
 import * as AstroConst from '../constants/AstroConst';
 import {convertToArray} from '../utils/helper';
-import { warmupCache } from '../utils/preciseCalcBridge';
-
-// 懒加载组件 - 只有在用户切换到对应Tab时才加载
-const LoginForm = lazy(() => import('../components/user/LoginForm'));
-const RegisterForm = lazy(() => import('../components/user/RegisterForm'));
-const ResetPwdForm = lazy(() => import('../components/user/ResetPwdForm'));
-const ChangePwdForm = lazy(() => import('../components/user/ChangePwdForm'));
-const ChangeParamsFormComp = lazy(() => import('../components/user/ChangeParamsFormComp'));
-const ChartAddFormComp = lazy(() => import('../components/user/ChartAddFormComp'));
-const ChartEditFormComp = lazy(() => import('../components/user/ChartEditFormComp'));
-const ChartList = lazy(() => import('../components/user/ChartList'));
-const CaseAddFormComp = lazy(() => import('../components/user/CaseAddFormComp'));
-const CaseEditFormComp = lazy(() => import('../components/user/CaseEditFormComp'));
-const CaseList = lazy(() => import('../components/user/CaseList'));
-const AstroChartMain = lazy(() => import('../components/astro/AstroChartMain'));
-const AstroChartMain3D = lazy(() => import('../components/astro3d/AstroChartMain3D'));
-const HellenAstroMain = lazy(() => import('../components/hellenastro/HellenAstroMain'));
-const LocAstroMain = lazy(() => import('../components/loc/LocAstroMain'));
-const IndiaChartMain = lazy(() => import('../components/astro/IndiaChartMain'));
-const AstroRelative = lazy(() => import('../components/astro/AstroRelative'));
-const AstroDirectMain = lazy(() => import('../components/direction/AstroDirectMain'));
-const ChartsGps = lazy(() => import('../components/user/ChartsGps'));
-const AstroGermany = lazy(() => import('../components/germany/AstroGermany'));
-const JieQiChartsMain = lazy(() => import('../components/jieqi/JieQiChartsMain'));
-const CnTraditionMain = lazy(() => import('../components/cntradition/CnTraditionMain'));
-const loadCnYiBuMain = () => import('../components/cnyibu/CnYiBuMain');
-const CnYiBuMain = lazy(loadCnYiBuMain);
-const CalendarMain = lazy(() => import('../components/calendar/CalendarMain'));
-const OtherBuMain = lazy(() => import('../components/otherbu/OtherBuMain'));
-const FengShuiMain = lazy(() => import('../components/fengshui/FengShuiMain'));
-const loadSanShiUnitedMain = () => import('../components/sanshi/SanShiUnitedMain');
-const SanShiUnitedMain = lazy(loadSanShiUnitedMain);
-const BookMain = lazy(() => import('../components/reader/BookMain'));
-const MediaMain = lazy(() => import('../components/multimedia/MediaMain'));
-const AdminToolsMain = lazy(() => import('../components/admintools/AdminToolsMain'));
-const GuoLaoChartMain = lazy(() => import('../components/guolao/GuoLaoChartMain'));
-const CommToolsMain = lazy(() => import('../components/commtools/CommToolsMain'));
-const DLFeature = lazy(() => import('../components/deeplearn/DLFeature'));
-
-// 加载中的占位组件
-const LoadingFallback = () => <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin tip="加载中..." /></div>;
 
 const TabPane = Tabs.TabPane;
-const PRECISE_WARMUP_TABS = new Set(['cnyibu', 'sanshiunited', 'cntradition', 'jieqichart']);
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
     const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds} = app;
@@ -72,53 +62,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         casePageIndex,
         caseTotal,
     } = user;
- 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn, chartPerf} = astro;
+ 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
     const { ziwei, } = rules; 
-    const bootWarmupRef = React.useRef(false);
 
-    function shouldWarmupForTab(tabKey){
-        return PRECISE_WARMUP_TABS.has(tabKey);
-    }
-
-    function warmupPreciseCalc(flds){
-        if(!flds || !flds.date || !flds.time || !flds.zone || !flds.lon || !flds.lat){
-            return;
-        }
-        try{
-            // 仅预热当前参数相关数据，避免后台请求拥塞。
-            warmupCache({
-                date: flds.date.value.format('YYYY-MM-DD'),
-                time: flds.time.value.format('HH:mm:ss'),
-                zone: flds.zone.value,
-                lon: flds.lon.value,
-                lat: flds.lat.value,
-                gpsLat: flds.gpsLat ? flds.gpsLat.value : '',
-                gpsLon: flds.gpsLon ? flds.gpsLon.value : '',
-                ad: flds.ad ? flds.ad.value : 1,
-                gender: flds.gender ? flds.gender.value : 1,
-            }, { mode: 'light' });
-        }catch(e){
-            // ignore warmup failures
-        }
-    }
-
-    React.useEffect(()=>{
-        if(bootWarmupRef.current){
-            return;
-        }
-        bootWarmupRef.current = true;
-        const preloadHeavyTabs = ()=>{
-            loadCnYiBuMain().catch(()=>null);
-            loadSanShiUnitedMain().catch(()=>null);
-        };
-        if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
-            window.requestIdleCallback(preloadHeavyTabs, { timeout: 1200 });
-        }else{
-            setTimeout(preloadHeavyTabs, 220);
-        }
-        warmupPreciseCalc(fields);
-    }, [fields]);
-
+    
     function closeDrawer(){
         dispatch({
             type: 'astro/closeDrawer',
@@ -127,9 +74,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     }
 
     function changeTab(key){
-        if(shouldWarmupForTab(key)){
-            warmupPreciseCalc(fields);
-        }
         if(predictHook[key] && predictHook[key].fun){
             if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
                 || key === 'otherbu' || key === 'cnyibu' || key === 'germanytech'
@@ -197,9 +141,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             type: 'astro/fetchByFields',
             payload: flds,
         });    
-        if(shouldWarmupForTab(currentTab)){
-            warmupPreciseCalc(flds);
-        }
 
         return flds;
     }
@@ -245,246 +186,215 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 style={{ height: height }}
             >
                 <TabPane tab="星盘" key="astrochart">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <AstroChartMain
-                            value={chartObj}
-                            onChange={changeCond}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            chartPerf={chartPerf}
-                            dispatch={dispatch}
-                            hook={predictHook.astrochart}
-                        />
-                    </Suspense>
+                    <AstroChartMain 
+                        value={chartObj} 
+                        onChange={changeCond}
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        dispatch={dispatch}
+                        hook={predictHook.astrochart}
+                    />
                 </TabPane>
 
                 {
                     true && (
                     <TabPane tab="三维盘" key="astrochart3D">
-                        <Suspense fallback={<LoadingFallback />}>
-                            <AstroChartMain3D
-                                value={chartObj}
-                                onChange={changeCond}
-                                fields={fields}
-                                fieldsAry={aryfields}
-                                height={height}
-                                currentTab={currentTab}
-                                chartDisplay={chartDisplay}
-                                planetDisplay={planetDisplay}
-                                lotsDisplay={lotsDisplay}
-                                dispatch={dispatch}
-                                hook={predictHook.astrochart3D}
-                            />
-                        </Suspense>
-                    </TabPane>
+                        <AstroChartMain3D 
+                            value={chartObj} 
+                            onChange={changeCond}
+                            fields={fields} 
+                            fieldsAry={aryfields}
+                            height={height} 
+                            currentTab={currentTab}
+                            chartDisplay={chartDisplay}
+                            planetDisplay={planetDisplay}
+                            lotsDisplay={lotsDisplay}
+                            dispatch={dispatch}
+                            hook={predictHook.astrochart3D}
+                        />
+                    </TabPane>   
                     )
                 }
 
                 <TabPane tab="推运盘" key="direction">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <AstroDirectMain
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            chartObj={chartObj}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.direction}
-                            dispatch={dispatch}
-                            currentSubTab={currentSubTab}
-                        />
-                    </Suspense>
+                    <AstroDirectMain
+                        height={height} 
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        chartObj={chartObj}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.direction}
+                        dispatch={dispatch}
+                        currentSubTab={currentSubTab}
+                    />
                 </TabPane>
 
                 <TabPane tab="量化盘" key="germanytech">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <AstroGermany
-                            onChange={changeCond}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chart={chartObj}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.germanytech}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <AstroGermany
+                        onChange={changeCond}
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chart={chartObj}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.germanytech}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="关系盘" key="relativechart">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <AstroRelative
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.relativechart}
-                            dispatch={dispatch}
-                            currentSubTab={currentSubTab}
-                        />
-                    </Suspense>
+                    <AstroRelative
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.relativechart}
+                        dispatch={dispatch}
+                        currentSubTab={currentSubTab}
+                    />
                 </TabPane>
 
                 <TabPane tab="节气盘" key="jieqichart">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <JieQiChartsMain
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.jieqichart}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <JieQiChartsMain
+                        height={height} 
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.jieqichart}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="星体地图" key="locastro">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <LocAstroMain
-                            value={chartObj}
-                            onChange={changeCond}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.locastro}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <LocAstroMain 
+                        value={chartObj} 
+                        onChange={changeCond}
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.locastro}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="七政四余" key="guolao">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <GuoLaoChartMain
-                            value={chartObj}
-                            onChange={changeCond}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.guolao}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <GuoLaoChartMain 
+                        value={chartObj} 
+                        onChange={changeCond}
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.guolao}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="希腊星术" key="hellenastro">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <HellenAstroMain
-                            value={chartObj}
-                            onChange={changeCond}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.hellenastro}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <HellenAstroMain 
+                        value={chartObj} 
+                        onChange={changeCond}
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.hellenastro}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="印度律盘" key="indiachart">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <IndiaChartMain
-                            onChange={changeCond}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            height={height}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            lotsDisplay={lotsDisplay}
-                            hook={predictHook.indiachart}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <IndiaChartMain
+                        onChange={changeCond}
+                        fields={fields} 
+                        fieldsAry={aryfields}
+                        height={height} 
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        hook={predictHook.indiachart}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="八字紫微" key="cntradition">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <CnTraditionMain
-                            chart={chartObj}
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            hook={predictHook.cntradition}
-                            dispatch={dispatch}
-                            currentSubTab={currentSubTab}
-                        />
-                    </Suspense>
+                    <CnTraditionMain
+                        chart={chartObj}
+                        height={height} 
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        hook={predictHook.cntradition}
+                        dispatch={dispatch}
+                        currentSubTab={currentSubTab}
+                    />
                 </TabPane>
 
                 <TabPane tab="易与三式" key="cnyibu">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <CnYiBuMain
-                            chart={chartObj}
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            hook={predictHook.cnyibu}
-                            dispatch={dispatch}
-                            currentSubTab={currentSubTab}
-                        />
-                    </Suspense>
+                    <CnYiBuMain
+                        chart={chartObj}
+                        height={height} 
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        hook={predictHook.cnyibu}
+                        dispatch={dispatch}
+                        currentSubTab={currentSubTab}
+                    />
                 </TabPane>
 
                 <TabPane tab="万年历" key="calendar">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <CalendarMain
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            hook={predictHook.calendar}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <CalendarMain
+                        height={height} 
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        hook={predictHook.calendar}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="西洋游戏" key="otherbu">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <OtherBuMain
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            chartDisplay={chartDisplay}
-                            planetDisplay={planetDisplay}
-                            hook={predictHook.otherbu}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <OtherBuMain
+                        height={height} 
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        hook={predictHook.otherbu}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 {
                     userInfo && (
                         <TabPane tab="书籍阅读" key="astroreader">
-                            <Suspense fallback={<LoadingFallback />}>
-                                <BookMain
-                                    height={height}
-                                    userInfo={userInfo}
-                                    dispatch={dispatch}
-                                    hook={predictHook.astroreader}
-                                />
-                            </Suspense>
+                            <BookMain 
+                                height={height}
+                                userInfo={userInfo}
+                                dispatch={dispatch}
+                                hook={predictHook.astroreader}
+                            />
                         </TabPane>
                     )
                 }
@@ -492,15 +402,13 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 {
                     userInfo && (
                         <TabPane tab="星阙直播" key="liveplayer">
-                            <Suspense fallback={<LoadingFallback />}>
-                                <MediaMain
-                                    height={height}
-                                    dispatch={dispatch}
-                                    userInfo={userInfo}
-                                    currentSubTab={currentSubTab}
-                                    admin={admin}
-                                />
-                            </Suspense>
+                            <MediaMain 
+                                height={height}
+                                dispatch={dispatch}
+                                userInfo={userInfo}
+                                currentSubTab={currentSubTab}
+                                admin={admin}
+                            />
                         </TabPane>
                     )
                 }
@@ -508,35 +416,29 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 {
                     admin && (
                         <TabPane tab="管理工具" key="admintools">
-                            <Suspense fallback={<LoadingFallback />}>
-                                <AdminToolsMain />
-                            </Suspense>
+                            <AdminToolsMain />
                         </TabPane>
                     )
                 }
 
                 <TabPane tab="风水" key="fengshui">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <FengShuiMain
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            dispatch={dispatch}
-                        />
-                    </Suspense>
+                    <FengShuiMain
+                        height={height}
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        dispatch={dispatch}
+                    />
                 </TabPane>
 
                 <TabPane tab="三式合一" key="sanshiunited">
-                    <Suspense fallback={<LoadingFallback />}>
-                        <SanShiUnitedMain
-                            height={height}
-                            fields={fields}
-                            fieldsAry={aryfields}
-                            chartObj={chartObj}
-                            dispatch={dispatch}
-                            hook={predictHook.sanshiunited}
-                        />
-                    </Suspense>
+                    <SanShiUnitedMain
+                        height={height}
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        chartObj={chartObj}
+                        dispatch={dispatch}
+                        hook={predictHook.sanshiunited}
+                    />
                 </TabPane>
 
             </Tabs>
@@ -577,17 +479,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <RegisterForm
-                        {...registerFields}
-                        tokenImg={tokenImg}
-                        fields={registerFields}
-                        fieldsAry={aryregflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <RegisterForm 
+                    {...registerFields}
+                    tokenImg={tokenImg}
+                    fields={registerFields}
+                    fieldsAry={aryregflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -603,16 +503,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <LoginForm
-                        {...loginFields}
-                        fields={loginFields}
-                        fieldsAry={aryloginflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <LoginForm 
+                    {...loginFields}
+                    fields={loginFields}
+                    fieldsAry={aryloginflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -628,17 +526,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ResetPwdForm
-                        {...registerFields}
-                        tokenImg={tokenImg}
-                        fields={registerFields}
-                        fieldsAry={aryregflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ResetPwdForm 
+                    {...registerFields}
+                    tokenImg={tokenImg}
+                    fields={registerFields}
+                    fieldsAry={aryregflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -654,16 +550,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ChangePwdForm
-                        {...pwdFields}
-                        fields={pwdFields}
-                        fieldsAry={convertToArray(pwdFields)}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ChangePwdForm 
+                    {...pwdFields}
+                    fields={pwdFields}
+                    fieldsAry={convertToArray(pwdFields)}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -679,16 +573,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ChangeParamsFormComp
-                        {...fields}
-                        fields={fields}
-                        fieldsAry={aryfields}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ChangeParamsFormComp 
+                    {...fields}
+                    fields={fields}
+                    fieldsAry={aryfields}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -704,16 +596,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ChartAddFormComp
-                        {...currentChart}
-                        fields={currentChart}
-                        fieldsAry={arychartflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ChartAddFormComp 
+                    {...currentChart}
+                    fields={currentChart}
+                    fieldsAry={arychartflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -729,16 +619,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ChartEditFormComp
-                        {...currentChart}
-                        fields={currentChart}
-                        fieldsAry={arychartflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ChartEditFormComp 
+                    {...currentChart}
+                    fields={currentChart}
+                    fieldsAry={arychartflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -754,19 +642,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ChartList
-                        height={height}
-                        userInfo={userInfo}
-                        charts={charts}
-                        pageSize={pageSize}
-                        pageIndex={pageIndex}
-                        total={total}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ChartList
+                    height={height} 
+                    userInfo={userInfo}
+                    charts={charts}
+                    pageSize={pageSize}
+                    pageIndex={pageIndex}
+                    total={total}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -784,14 +670,12 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <CaseAddFormComp
-                        {...currentCase}
-                        fields={currentCase}
-                        fieldsAry={arycaseflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <CaseAddFormComp
+                    {...currentCase}
+                    fields={currentCase}
+                    fieldsAry={arycaseflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -809,14 +693,12 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <CaseEditFormComp
-                        {...currentCase}
-                        fields={currentCase}
-                        fieldsAry={arycaseflds}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <CaseEditFormComp
+                    {...currentCase}
+                    fields={currentCase}
+                    fieldsAry={arycaseflds}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -834,17 +716,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <CaseList
-                        height={height}
-                        userInfo={userInfo}
-                        cases={cases}
-                        casePageSize={casePageSize}
-                        casePageIndex={casePageIndex}
-                        caseTotal={caseTotal}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <CaseList
+                    height={height}
+                    userInfo={userInfo}
+                    cases={cases}
+                    casePageSize={casePageSize}
+                    casePageIndex={casePageIndex}
+                    caseTotal={caseTotal}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -926,16 +806,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <ChartsGps
-                        height={height}
-                        charts={charts}
-                        userInfo={userInfo}
-                        dispatch={dispatch}
-                    />
-                </Suspense>
+                <ChartsGps
+                    height={height} 
+                    charts={charts}
+                    userInfo={userInfo}
+                    dispatch={dispatch}
+                />
             </Drawer>
 
             <Drawer
@@ -951,7 +829,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
                 <ChartMemo
                     memoType={memoType}
@@ -978,15 +856,13 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <CommToolsMain
-                        fields={fields}
-                        dispatch={dispatch}
-                        loading={loading}
-                    />
-                </Suspense>
+                <CommToolsMain
+                    fields={fields}
+                    dispatch={dispatch}
+                    loading={loading}
+                />
             </Drawer>
 
             <Drawer
@@ -1002,12 +878,11 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     overflow: 'auto',
                     paddingBottom: 53,
                     backgroundColor: 'transparent',
-                }}
+                }}        
             >
-                <Suspense fallback={<LoadingFallback />}>
-                    <DLFeature
-                        {...currentChart}
-                        fields={currentChart}
+                <DLFeature
+                    {...currentChart}
+                    fields={currentChart}
                     fieldsAry={arychartflds}
                     deeplearn={deeplearn}
                     height={height} 

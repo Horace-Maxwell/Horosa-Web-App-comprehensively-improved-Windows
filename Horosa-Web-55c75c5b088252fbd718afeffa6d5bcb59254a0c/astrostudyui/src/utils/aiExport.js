@@ -129,6 +129,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'sixyao', label: '易卦' },
 	{ key: 'liureng', label: '六壬' },
 	{ key: 'qimen', label: '奇门遁甲' },
+	{ key: 'sanshiunited', label: '三式合一' },
 	{ key: 'taiyi', label: '太乙' },
 	{ key: 'guolao', label: '七政四余' },
 	{ key: 'germany', label: '量化盘' },
@@ -158,6 +159,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	liureng: ['起盘信息'],
 	taiyi: ['起盘信息', '太乙盘', '十六宫标记'],
 	qimen: ['起盘信息', '盘型', '右侧栏目', '九宫方盘'],
+	sanshiunited: ['起盘信息', '概览', '状态', '太乙', '太乙十六宫', '神煞', '大六壬', '正北坎宫', '东北艮宫', '正东震宫', '东南巽宫', '正南离宫', '西南坤宫', '正西兑宫', '西北乾宫'],
 	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞'],
 	germany: ['起盘信息'],
 	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '夏至星盘', '夏至宿盘', '秋分星盘', '秋分宿盘', '冬至星盘', '冬至宿盘'],
@@ -284,16 +286,28 @@ function normalizeSectionTitle(title){
 	return t;
 }
 
+function parseSectionTitleLine(line){
+	const txt = `${line || ''}`.trim();
+	if(!txt){
+		return '';
+	}
+	let m = txt.match(/^\[(.+)\]$/);
+	if(!m || !m[1]){
+		m = txt.match(/^【(.+)】$/);
+	}
+	if(m && m[1]){
+		return normalizeSectionTitle(m[1]);
+	}
+	return '';
+}
+
 function extractSectionTitles(content){
 	const lines = `${content || ''}`.split('\n');
 	const titles = [];
 	lines.forEach((line)=>{
-		const m = line.trim().match(/^\[(.+)\]$/);
-		if(m && m[1]){
-			const normalized = normalizeSectionTitle(m[1]);
-			if(normalized){
-				titles.push(normalized);
-			}
+		const normalized = parseSectionTitleLine(line);
+		if(normalized){
+			titles.push(normalized);
 		}
 	});
 	return uniqueArray(titles);
@@ -379,12 +393,12 @@ function splitContentSections(content){
 	};
 
 	lines.forEach((line)=>{
-		const m = `${line || ''}`.trim().match(/^\[(.+)\]$/);
-		if(m && m[1]){
+		const title = parseSectionTitleLine(line);
+		if(title){
 			if(currentLines.length){
 				pushCurrent();
 			}
-			currentTitle = normalizeSectionTitle(m[1]);
+			currentTitle = title;
 			currentLines = [line];
 			return;
 		}
@@ -833,6 +847,12 @@ function resolveActiveContext(){
 	if(topLabel.includes('风水')){
 		context.key = 'fengshui';
 		context.displayName = '风水';
+		return context;
+	}
+	if(topLabel.includes('三式合一')){
+		context.key = 'sanshiunited';
+		context.domain = 'sanshiunited';
+		context.displayName = '三式合一';
 		return context;
 	}
 
@@ -1351,6 +1371,14 @@ async function extractQiMenContent(context){
 	return parts.join('\n\n').trim();
 }
 
+async function extractSanShiUnitedContent(context){
+	const cached = getModuleCachedContent('sanshiunited');
+	if(cached){
+		return cached;
+	}
+	return extractGenericContent(context);
+}
+
 async function extractTaiYiContent(context){
 	const cached = getModuleCachedContent('taiyi');
 	if(cached){
@@ -1560,6 +1588,12 @@ async function extractGenericContent(context){
 			return cached;
 		}
 	}
+	if(context.key === 'sanshiunited'){
+		const cached = getModuleCachedContent('sanshiunited');
+		if(cached){
+			return cached;
+		}
+	}
 	if(context.key === 'sixyao'){
 		const cached = getModuleCachedContent('guazhan');
 		if(cached){
@@ -1611,12 +1645,14 @@ function replaceKnownSymbols(text, domain){
 		.replace(/([0-9]+)\s*[′']/g, '$1分')
 		.replace(/([0-9]+)\s*[″"]/g, '$1秒')
 		.replace(/℞/g, '逆行')
-		.replace(/([0-9˚分秒]+)\s*R\b/g, '$1 逆行')
 		.replace(/\uFFFD/g, '[异常字符]')
 		.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
 		.replace(/\u200B/g, '')
 		.replace(/\u00A0/g, ' ')
 		.replace(/[ ]{2,}/g, ' ');
+	if(domain !== 'sanshiunited'){
+		output = output.replace(/([0-9˚分秒]+)\s*R\b/g, '$1 逆行');
+	}
 
 	return output;
 }
@@ -1784,6 +1820,8 @@ async function buildPayload(){
 		content = await extractLiuRengContent(context);
 	}else if(context.key === 'qimen'){
 		content = await extractQiMenContent(context);
+	}else if(context.key === 'sanshiunited'){
+		content = await extractSanShiUnitedContent(context);
 	}else if(context.key === 'taiyi'){
 		content = await extractTaiYiContent(context);
 	}else if(context.key === 'relative'){

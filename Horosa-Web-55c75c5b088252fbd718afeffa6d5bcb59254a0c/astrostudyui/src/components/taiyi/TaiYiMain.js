@@ -250,17 +250,26 @@ class TaiYiMain extends Component {
 		const r3 = 222;
 		const r4 = 304;
 		const stroke = '#111';
-		const palaceInfo = {};
-		(pan.palaces || []).forEach((p) => {
-			palaceInfo[p.palace] = p.items || [];
-		});
-		const layer5 = LAYER3_BRANCH_GUA.map((p) => (palaceInfo[p] ? palaceInfo[p].slice(0) : []));
-		const topLeftInfo = [
-			`积数:${pan.accNum}`,
-			`命式:${pan.zhao}`,
-			`局:${pan.kook ? pan.kook.text : ''}`,
-			`定算:${pan.setCal}`,
-			`主算:${pan.homeCal}`,
+			const palaceInfo = {};
+			(pan.palaces || []).forEach((p) => {
+				palaceInfo[p.palace] = p.items || [];
+			});
+			const layer5 = LAYER3_BRANCH_GUA.map((p) => (palaceInfo[p] ? palaceInfo[p].slice(0) : []));
+			const ganzhiCompact = pan && pan.ganzhi
+				? [pan.ganzhi.year || '—', pan.ganzhi.month || '—', pan.ganzhi.day || '—', pan.ganzhi.time || '—'].join('/')
+				: '—';
+			const topLeftInfo = [
+				`农历:${pan.lunarText || '—'}`,
+				`真太阳时:${pan.realSunTime || '—'}`,
+				`干支:${ganzhiCompact}`,
+				`节气:${pan.jiedelta || '—'}`,
+			];
+			const bottomRightInfo = [
+				`积数:${pan.accNum}`,
+				`命式:${pan.zhao}`,
+				`局:${pan.kook ? pan.kook.text : ''}`,
+				`定算:${pan.setCal}`,
+				`主算:${pan.homeCal}`,
 			`客算:${pan.awayCal}`,
 			`太乙数:${pan.taiyiNum}`,
 		];
@@ -275,22 +284,38 @@ class TaiYiMain extends Component {
 							<circle cx={centerX} cy={centerY} r={r3} fill="none" stroke={stroke} strokeWidth="2" />
 							<circle cx={centerX} cy={centerY} r={r4} fill="none" stroke={stroke} strokeWidth="2.5" />
 
-							<text
-								x={28}
-								y={54}
-								textAnchor="start"
-								dominantBaseline="middle"
-								fill={stroke}
-								fontSize="13"
-								fontWeight="700"
-								fontFamily={TAIYI_FONT}
-							>
-								{topLeftInfo.map((line, lineIdx) => (
-									<tspan key={`ty_meta_${lineIdx}`} x={28} dy={lineIdx === 0 ? 0 : 18}>
-										{line}
-									</tspan>
-								))}
-							</text>
+								<text
+									x={20}
+									y={30}
+									textAnchor="start"
+									dominantBaseline="hanging"
+									fill={stroke}
+									fontSize="15"
+									fontWeight="400"
+									fontFamily={TAIYI_FONT}
+								>
+									{topLeftInfo.map((line, lineIdx) => (
+										<tspan key={`ty_meta_${lineIdx}`} x={20} dy={lineIdx === 0 ? 0 : 20}>
+											{line}
+										</tspan>
+									))}
+								</text>
+								<text
+									x={width - 20}
+									y={height - 20 - ((bottomRightInfo.length - 1) * 20)}
+									textAnchor="end"
+									dominantBaseline="hanging"
+									fill={stroke}
+									fontSize="15"
+									fontWeight="400"
+									fontFamily={TAIYI_FONT}
+								>
+									{bottomRightInfo.map((line, lineIdx) => (
+										<tspan key={`ty_meta_bottom_${lineIdx}`} x={width - 20} dy={lineIdx === 0 ? 0 : 20}>
+											{line}
+										</tspan>
+									))}
+								</text>
 
 							{LAYER2_NUMS.map((_, idx) => {
 								const angle = -112.5 + idx * 45;
@@ -326,29 +351,29 @@ class TaiYiMain extends Component {
 								);
 							})}
 
-							<text
-								x={centerX}
-								y={centerY - 12}
-								textAnchor="middle"
-								dominantBaseline="middle"
-								fill={stroke}
-								fontSize="42"
-								fontWeight="700"
-								fontFamily={TAIYI_FONT}
-							>
-								五
+								<text
+									x={centerX}
+									y={centerY - 12}
+									textAnchor="middle"
+									dominantBaseline="middle"
+									fill={stroke}
+									fontSize="48"
+									fontWeight="400"
+									fontFamily={TAIYI_FONT}
+								>
+									五
 							</text>
-							<text
-								x={centerX}
-								y={centerY + 30}
-								textAnchor="middle"
-								dominantBaseline="middle"
-								fill={stroke}
-								fontSize="30"
-								fontWeight="700"
-								fontFamily={TAIYI_FONT}
-							>
-								中宫
+								<text
+									x={centerX}
+									y={centerY + 30}
+									textAnchor="middle"
+									dominantBaseline="middle"
+									fill={stroke}
+									fontSize="34"
+									fontWeight="400"
+									fontFamily={TAIYI_FONT}
+								>
+									中宫
 							</text>
 
 							{LAYER2_NUMS.map((txt, idx) => {
@@ -360,13 +385,13 @@ class TaiYiMain extends Component {
 										x={p.x}
 										y={p.y}
 										textAnchor="middle"
-										dominantBaseline="middle"
-										fill={stroke}
-										fontSize="31"
-										fontWeight="700"
-										fontFamily={TAIYI_FONT}
-									>
-										{txt}
+											dominantBaseline="middle"
+											fill={stroke}
+											fontSize="36"
+											fontWeight="400"
+											fontFamily={TAIYI_FONT}
+										>
+											{txt}
 									</text>
 								);
 							})}
@@ -380,13 +405,13 @@ class TaiYiMain extends Component {
 										x={p.x}
 										y={p.y}
 										textAnchor="middle"
-										dominantBaseline="middle"
-										fill={stroke}
-										fontSize="29"
-										fontWeight="700"
-										fontFamily={TAIYI_FONT}
-									>
-										{txt}
+											dominantBaseline="middle"
+											fill={stroke}
+											fontSize="34"
+											fontWeight="400"
+											fontFamily={TAIYI_FONT}
+										>
+											{txt}
 									</text>
 								);
 							})}
@@ -400,13 +425,13 @@ class TaiYiMain extends Component {
 										x={p.x}
 										y={p.y}
 										textAnchor="middle"
-										dominantBaseline="middle"
-										fill={stroke}
-										fontSize="19"
-										fontWeight="700"
-										fontFamily={TAIYI_FONT}
-									>
-										{txt}
+											dominantBaseline="middle"
+											fill={stroke}
+											fontSize="23"
+											fontWeight="400"
+											fontFamily={TAIYI_FONT}
+										>
+											{txt}
 									</text>
 								);
 							})}
@@ -424,14 +449,14 @@ class TaiYiMain extends Component {
 										x={p.x}
 										y={p.y}
 										textAnchor="middle"
-										dominantBaseline="middle"
-										fill={stroke}
-										fontSize="13"
-										fontWeight="700"
-										fontFamily={TAIYI_FONT}
-									>
+											dominantBaseline="middle"
+											fill={stroke}
+											fontSize="16"
+											fontWeight="400"
+											fontFamily={TAIYI_FONT}
+										>
 										{merged.map((ln, lnIdx) => (
-											<tspan key={`l5_tspan_${idx}_${lnIdx}`} x={p.x} dy={lnIdx === 0 ? 0 : 15}>
+											<tspan key={`l5_tspan_${idx}_${lnIdx}`} x={p.x} dy={lnIdx === 0 ? 0 : 18}>
 												{ln}
 											</tspan>
 										))}
@@ -512,10 +537,6 @@ class TaiYiMain extends Component {
 					<div style={{ lineHeight: '26px' }}>
 						<div>起盘方式：{getStyleLabel(opt.style)}</div>
 						<div>积年方式：{getAccumLabel(opt.tn)}</div>
-						<div>命式：{pan ? pan.zhao : '—'}</div>
-						<Divider style={{ margin: '10px 0' }} />
-						<div>局式：{pan ? pan.kook.text : '—'}</div>
-						<div>太乙积数：{pan ? pan.accNum : '—'}</div>
 						<div>太乙：{pan ? `${pan.taiyiPalace}宫` : '—'}</div>
 						<div>文昌：{pan ? pan.skyeyes : '—'}</div>
 						<div>始击：{pan ? pan.sf : '—'}</div>
@@ -523,17 +544,20 @@ class TaiYiMain extends Component {
 						<div>合神：{pan ? pan.hegod : '—'}</div>
 						<div>计神：{pan ? pan.jigod : '—'}</div>
 						<Divider style={{ margin: '10px 0' }} />
-						<div>主算：{pan ? pan.homeCal : '—'}</div>
-						<div>客算：{pan ? pan.awayCal : '—'}</div>
-						<div>定算：{pan ? pan.setCal : '—'}</div>
-						<Divider style={{ margin: '10px 0' }} />
-						<div>农历：{pan ? pan.lunarText : '—'}</div>
-						<div>真太阳时：{pan ? (pan.realSunTime || '—') : '—'}</div>
-						<div>干支：{pan ? `年${pan.ganzhi.year} 月${pan.ganzhi.month} 日${pan.ganzhi.day} 时${pan.ganzhi.time}` : '—'}</div>
-						<div>节气段：{pan ? (pan.jiedelta || '—') : '—'}</div>
+						<div>定目：{pan ? (pan.se || '—') : '—'}</div>
+						<div>主大将/参将：{pan ? `${pan.homeGeneralPalace || '—'}/${pan.homeVGenPalace || '—'}` : '—'}</div>
+						<div>客大将/参将：{pan ? `${pan.awayGeneralPalace || '—'}/${pan.awayVGenPalace || '—'}` : '—'}</div>
+						<div>定大将/参将：{pan ? `${pan.setGeneralPalace || '—'}/${pan.setVGenPalace || '—'}` : '—'}</div>
+						<div>君臣民基：{pan ? `${pan.kingbase || '—'}/${pan.officerbase || '—'}/${pan.pplbase || '—'}` : '—'}</div>
+						<div>四神/天乙/地乙：{pan ? `${pan.fgd || '—'}/${pan.skyyi || '—'}/${pan.earthyi || '—'}` : '—'}</div>
+						<div>直符/飞符：{pan ? `${pan.zhifu || '—'}/${pan.flyfu || '—'}` : '—'}</div>
+						<div>五福/帝符/太尊：{pan ? `${pan.wufuPalace || '—'}/${pan.kingfu || '—'}/${pan.taijun || '—'}` : '—'}</div>
+						<div>飞鸟：{pan ? (pan.flybird || '—') : '—'}</div>
+						<div>三风/五风/八风：{pan ? `${pan.threewindPalace || '—'}/${pan.fivewindPalace || '—'}/${pan.eightwindPalace || '—'}` : '—'}</div>
+						<div>大游/小游：{pan ? `${pan.bigyoPalace || '—'}/${pan.smyoPalace || '—'}` : '—'}</div>
 					</div>
-				</Card>
-			</div>
+					</Card>
+				</div>
 		);
 	}
 

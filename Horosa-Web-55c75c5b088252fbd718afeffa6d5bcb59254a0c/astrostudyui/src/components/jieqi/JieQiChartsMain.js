@@ -689,13 +689,10 @@ class JieQiChartsMain extends Component{
 		this.requestSeq = 0;
 		this.pendingRequest = null;
 		this.lastResultKey = '';
-		this.chartLoadPromises = {};
 
 		this.changeTab = this.changeTab.bind(this);
 		this.requestJieQi = this.requestJieQi.bind(this);
 		this.genParams = this.genParams.bind(this);
-		this.ensureChartForTab = this.ensureChartForTab.bind(this);
-		this.ensureChartForTitle = this.ensureChartForTitle.bind(this);
 
 		this.onLatChanged = this.onLatChanged.bind(this);
 		this.onLonChanged = this.onLonChanged.bind(this);
@@ -775,17 +772,8 @@ class JieQiChartsMain extends Component{
 		const seq = ++this.requestSeq;
 		const flds = paramsToFields(params, this.state.fields);
 		const reqPromise = (async()=>{
-			const preciseParams = {
-				...params,
-				jieqis: [],
-			};
-			const preciseResult = await fetchPreciseJieqiYear(preciseParams);
-			let result = preciseResult ? {
-				...preciseResult,
-				charts: {
-					...(this.state.result && this.state.result.charts ? this.state.result.charts : {}),
-				},
-			} : preciseResult;
+			const preciseResult = await fetchPreciseJieqiYear(params);
+			let result = preciseResult;
 			if(!result || this.unmounted || seq !== this.requestSeq){
 				return result;
 			}
@@ -813,9 +801,8 @@ class JieQiChartsMain extends Component{
 				fields: flds,
 			};
 			this.lastResultKey = reqKey;
-			this.setState(st, async()=>{
+			this.setState(st, ()=>{
 				this.saveCurrentJieQiSnapshot(this.state.currentTab, result, flds);
-				await this.ensureChartForTab(this.state.currentTab, result, params, seq);
 			});
 			if(this.snapshotTimer){
 				if(typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'){
@@ -869,8 +856,7 @@ class JieQiChartsMain extends Component{
 	changeTab(key){
 		this.setState({
 			currentTab: key,
-		}, async()=>{
-			await this.ensureChartForTab(key, this.state.result, this.genParams(), this.requestSeq);
+		}, ()=>{
 			this.saveCurrentJieQiSnapshot(key);
 			if(this.props.dispatch){
 				this.props.dispatch({
@@ -881,55 +867,6 @@ class JieQiChartsMain extends Component{
 				});
 			}	
 		});
-	}
-
-	async ensureChartForTitle(title, result, params, seq){
-		if(!title || !result){
-			return null;
-		}
-		const charts = result.charts || {};
-		if(charts[title]){
-			return charts[title];
-		}
-		const list = Array.isArray(result.jieqi24) ? result.jieqi24 : [];
-		const one = list.find((item)=>`${item && item.jieqi ? item.jieqi : ''}` === `${title}`);
-		const birth = one && one.time ? `${one.time}` : '';
-		if(!birth){
-			return null;
-		}
-		const inflightKey = `${getSeedCacheKey(params)}|${title}`;
-		if(this.chartLoadPromises[inflightKey]){
-			return this.chartLoadPromises[inflightKey];
-		}
-		this.chartLoadPromises[inflightKey] = Promise.resolve().then(async()=>{
-			const chart = await loadJieqiChart(params, title, birth);
-			if(!chart || this.unmounted || seq !== this.requestSeq){
-				return null;
-			}
-			this.setState((prev)=>({
-				result: {
-					...(prev.result || {}),
-					charts: {
-						...((prev.result && prev.result.charts) || {}),
-						[title]: chart,
-					},
-				},
-			}), ()=>{
-				this.saveCurrentJieQiSnapshot(this.state.currentTab, this.state.result, this.state.fields);
-			});
-			return chart;
-		}).finally(()=>{
-			delete this.chartLoadPromises[inflightKey];
-		});
-		return this.chartLoadPromises[inflightKey];
-	}
-
-	async ensureChartForTab(tab, result, params, seq){
-		const info = parseJieQiTab(tab, this.state.jieqis);
-		if(!info || !info.title){
-			return null;
-		}
-		return this.ensureChartForTitle(info.title, result, params, seq);
 	}
 
 	saveCurrentJieQiSnapshot(currentTab, result, flds){
@@ -1139,12 +1076,12 @@ class JieQiChartsMain extends Component{
 		if(charts){
 			for(let i=0; i<this.state.jieqis.length; i++){
 				let title = this.state.jieqis[i];
-				let chart = charts[title] || null;
+				let chart = charts[title];
 				let flds = {
 					...(this.props.fields || {}),
 					...(this.state.fields || {}),
 				};
-				if(chart && chart.params){
+				if(chart.params){
 					flds = paramsToFields(chart.params, flds);
 				}
 				const starKey = title;
@@ -1155,7 +1092,7 @@ class JieQiChartsMain extends Component{
 				const render3d = this.state.currentTab === d3Key;
 				let tab = (
 					<TabPane tab={title+'星盘'} key={starKey}>
-						{renderStar && chart ? (
+						{renderStar ? (
 						<AstroChartMain
 							hidehsys={1}
 							hidezodiacal={1}
@@ -1166,7 +1103,7 @@ class JieQiChartsMain extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}	
-						/>) : (renderStar ? <Card bordered={false}>正在加载{title}星盘...</Card> : null)}
+						/>) : null}
 					</TabPane>
 
 				);
@@ -1174,7 +1111,7 @@ class JieQiChartsMain extends Component{
 
 				let sztab = (
 					<TabPane tab={title+'宿盘'} key={suKey}>
-						{renderSu && chart ? (
+						{renderSu ? (
 						<SuZhanMain
 							value={chart}
 							height={height}
@@ -1184,14 +1121,14 @@ class JieQiChartsMain extends Component{
 							hook={this.state.hook.suzhan}
 							onFieldsChange={this.onSuZhanFieldsChange}
 							dispatch={this.props.dispatch}
-						/>) : (renderSu ? <Card bordered={false}>正在加载{title}宿盘...</Card> : null)}
+						/>) : null}
 					</TabPane>
 				);
 				tabs.push(sztab);
 
 				let tab3d = (
 					<TabPane tab={title+'3D盘'} key={d3Key}>
-						{render3d && chart ? (
+						{render3d ? (
 						<AstroChartMain3D
 							hidehsys={1}
 							hidezodiacal={1}
@@ -1203,7 +1140,7 @@ class JieQiChartsMain extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}	
-						/>) : (render3d ? <Card bordered={false}>正在加载{title}3D盘...</Card> : null)}
+						/>) : null}
 					</TabPane>
 				);
 				tabs.push(tab3d);

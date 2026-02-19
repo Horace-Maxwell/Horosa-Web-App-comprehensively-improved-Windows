@@ -2,9 +2,10 @@ import request from '../utils/request';
 import { ServerRoot } from '../utils/constants';
 
 
-export function fetchChart(values){
+export function fetchChart(values, requestOptions){
     return request(`${ServerRoot}/chart`, {
         body: JSON.stringify(values),
+        ...(requestOptions || {}),
     });
 }
 

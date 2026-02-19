@@ -145,16 +145,6 @@ class AstroChartMain extends Component{
 	render(){
 		let chartObj = this.props.value;
 		let fields = this.props.fields;
-		const perf = this.props.chartPerf || {};
-		const perfSourceMap = {
-			network: '网络',
-			'mem-hit': '内存缓存',
-			'state-hit': '状态缓存',
-		};
-		const perfSource = perfSourceMap[perf.source] || '--';
-		const perfTotal = Number.isFinite(perf.totalMs) ? `${perf.totalMs}ms` : '--';
-		const perfChart = Number.isFinite(perf.chartMs) ? `${perf.chartMs}ms` : '--';
-		const perfCache = perf.cacheHit ? '是' : '否';
 		let dt = new DateTime();
 		if(chartObj){
 			dt.setZone(chartObj.params.zone);
@@ -288,12 +278,6 @@ class AstroChartMain extends Component{
 									</Col>
 								)
 							}
-							<Col span={24}>
-								<div style={{ marginTop: 4, padding: '4px 6px', border: '1px solid #e8e8e8', borderRadius: 4, background: '#fafafa', fontSize: 12, lineHeight: '18px' }}>
-									<div>性能: 来源 {perfSource} | 总耗时 {perfTotal}</div>
-									<div>排盘耗时 {perfChart} | 命中缓存 {perfCache}</div>
-								</div>
-							</Col>
 						</Row>
 						<Tabs defaultActiveKey="1" tabPosition='top'>
 							<TabPane tab="信息" key="1">

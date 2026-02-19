@@ -244,8 +244,8 @@ function decrpyt(str, response){
  * @return {object}           An object containing either "data" or "err"
  */
 export default async function request(url, options) {
-    const useGlobalLoading = !(options && options.noGlobalLoading);
-    if(useGlobalLoading && dispatch){
+    const silent = !!(options && (options.silent || options.disableLoading));
+    if(dispatch && !silent){
         dispatch({
             type: 'save',
             payload: {
@@ -263,8 +263,11 @@ export default async function request(url, options) {
         let opts = {
             ...options,
         };
-        if(opts && Object.prototype.hasOwnProperty.call(opts, 'noGlobalLoading')){
-            delete opts.noGlobalLoading;
+        if(opts && opts.silent !== undefined){
+            delete opts.silent;
+        }
+        if(opts && opts.disableLoading !== undefined){
+            delete opts.disableLoading;
         }
         let headers = opts.headers;
         if(headers === undefined || headers === null){
@@ -349,7 +352,7 @@ export default async function request(url, options) {
     }catch(e){
         innerHandleError(e);
     }finally{
-        if(useGlobalLoading && dispatch){
+        if(dispatch && !silent){
             dispatch({
                 type: 'save',
                 payload: {
@@ -363,7 +366,8 @@ export default async function request(url, options) {
 }
 
 export async function requestRaw(url, options) {
-    if(dispatch){
+    const silent = !!(options && (options.silent || options.disableLoading));
+    if(dispatch && !silent){
         dispatch({
             type: 'save',
             payload: {
@@ -381,6 +385,12 @@ export async function requestRaw(url, options) {
         let opts = {
             ...options,
         };
+        if(opts && opts.silent !== undefined){
+            delete opts.silent;
+        }
+        if(opts && opts.disableLoading !== undefined){
+            delete opts.disableLoading;
+        }
         let headers = opts.headers;
         if(headers === undefined || headers === null){
             headers = {};
@@ -435,7 +445,7 @@ export async function requestRaw(url, options) {
     }catch(e){
         innerHandleError(e);
     }finally{
-        if(dispatch){
+        if(dispatch && !silent){
             dispatch({
                 type: 'save',
                 payload: {

@@ -1,7 +1,6 @@
 .root {
   min-height: 100%;
   color: #111;
-  --ss-scale: 1;
 }
 
 .topBox {
@@ -12,7 +11,6 @@
   display: grid;
   grid-template-columns: 1fr 174px;
   gap: 6px;
-  font-size: calc(16px * var(--ss-scale));
 }
 
 .topLeft {
@@ -42,7 +40,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: calc(13px * var(--ss-scale));
+  font-size: 13px;
   color: #333;
 }
 
@@ -51,14 +49,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 9px;
-  font-size: calc(15px * var(--ss-scale));
+  font-size: 15px;
   line-height: 1;
   color: #111;
   font-weight: 600;
 }
 
 .dateTime {
-  font-size: calc(13px * var(--ss-scale));
+  font-size: 13px;
   color: #333;
   font-weight: 500;
 }
@@ -94,16 +92,16 @@
 }
 
 .pillarGan {
-  font-size: calc(18px * var(--ss-scale));
-  line-height: calc(18px * var(--ss-scale));
+  font-size: 18px;
+  line-height: 18px;
   font-weight: 700;
   color: #111;
 }
 
 .pillarZhi {
   margin-top: 2px;
-  font-size: calc(18px * var(--ss-scale));
-  line-height: calc(18px * var(--ss-scale));
+  font-size: 18px;
+  line-height: 18px;
   font-weight: 700;
   color: #333;
 }
@@ -115,15 +113,15 @@
 }
 
 .pillarTagDot {
-  width: calc(24px * var(--ss-scale));
-  height: calc(24px * var(--ss-scale));
-  border-radius: calc(12px * var(--ss-scale));
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
   background: #434343;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: calc(15px * var(--ss-scale));
+  font-size: 15px;
   line-height: 1;
   margin: 0 auto;
 }
@@ -145,7 +143,7 @@
   border-radius: 8px;
   background: #3d4148;
   color: #fff;
-  font-size: calc(15px * var(--ss-scale));
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -157,7 +155,7 @@
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.02);
   color: #111;
-  font-size: calc(17px * var(--ss-scale));
+  font-size: 17px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -183,7 +181,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: calc(12px * var(--ss-scale));
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -288,7 +286,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: calc(5px * var(--ss-scale));
+  gap: 5px;
   min-height: 1em;
 }
 
@@ -309,7 +307,6 @@
   height: 11%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  overflow: hidden;
 }
 
 .lrMark {
@@ -335,7 +332,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  border: calc(1.6px * var(--ss-scale)) solid rgb(218, 217, 213);
+  border: 1.6px solid rgb(218, 217, 213);
   background: rgb(218, 217, 213);
 }
 
@@ -356,7 +353,7 @@
   width: 33.4%;
   height: 33.4%;
   background: rgb(197, 195, 194);
-  border: calc(1.6px * var(--ss-scale)) solid #fff;
+  border: 1.6px solid #fff;
 }
 
 .qmTianGan,
@@ -426,6 +423,7 @@
   top: 2px;
   display: flex;
   align-items: flex-start;
+  justify-content: flex-start;
   gap: 1px;
 }
 
@@ -451,6 +449,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: flex-end;
   gap: 0;
 }
 
@@ -494,7 +493,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
-  font-size: calc(20px * var(--ss-scale));
+  font-size: 20px;
   line-height: 1;
   color: #222;
 }
@@ -524,7 +523,7 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  font-size: calc(20px * var(--ss-scale));
+  font-size: 20px;
   line-height: 1.1;
   color: #111;
   font-weight: 700;
@@ -547,50 +546,50 @@
     grid-template-columns: 1fr 164px;
   }
   .dateLabel {
-    font-size: calc(12px * var(--ss-scale));
+    font-size: 13px;
   }
   .dateValue {
-    font-size: calc(14px * var(--ss-scale));
+    font-size: 15px;
   }
   .dateTime {
-    font-size: calc(11px * var(--ss-scale));
+    font-size: 12px;
   }
   .pillarGan,
   .pillarZhi {
-    font-size: calc(17px * var(--ss-scale));
-    line-height: calc(17px * var(--ss-scale));
+    font-size: 18px;
+    line-height: 18px;
   }
   .metaTitle,
   .metaValue {
-    font-size: calc(13px * var(--ss-scale));
+    font-size: 13px;
     min-height: 30px;
   }
   .ssItem,
   .ssValue {
-    font-size: calc(11px * var(--ss-scale));
+    font-size: 12px;
     min-height: 26px;
   }
   .outerBranch {
-    font-size: calc(14px * var(--ss-scale));
+    font-size: 16px;
   }
   .qmTianGan,
   .qmGod,
   .qmDiGan,
   .qmStar {
-    font-size: calc(11px * var(--ss-scale));
+    font-size: 12px;
   }
   .centerKe,
   .centerChuan {
-    font-size: calc(10px * var(--ss-scale));
+    font-size: 11px;
   }
   .bottomBox {
     grid-template-columns: 1fr 88px;
   }
   .bottomCell {
-    font-size: calc(15px * var(--ss-scale));
+    font-size: 16px;
     min-height: 34px;
   }
   .bottomRight {
-    font-size: calc(15px * var(--ss-scale));
+    font-size: 16px;
   }
 }

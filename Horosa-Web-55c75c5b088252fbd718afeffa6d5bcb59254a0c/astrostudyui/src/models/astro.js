@@ -208,159 +208,6 @@ function fieldsToParams(fields){
 	return params;
 }
 
-function normalizeParamValue(val){
-	if(val === undefined || val === null){
-		return '';
-	}
-	if(Array.isArray(val)){
-		return val.join(',');
-	}
-	return `${val}`;
-}
-
-function buildFieldsRequestKey(fields){
-	if(!fields){
-		return '';
-	}
-	let params = null;
-	try{
-		params = fieldsToParams(fields);
-	}catch(e){
-		return '';
-	}
-	return [
-		normalizeParamValue(params.ad),
-		normalizeParamValue(params.date),
-		normalizeParamValue(params.time),
-		normalizeParamValue(params.zone),
-		normalizeParamValue(params.lat),
-		normalizeParamValue(params.lon),
-		normalizeParamValue(params.gpsLat),
-		normalizeParamValue(params.gpsLon),
-		normalizeParamValue(params.hsys),
-		normalizeParamValue(params.southchart),
-		normalizeParamValue(params.zodiacal),
-		normalizeParamValue(params.tradition),
-		normalizeParamValue(params.doubingSu28),
-		normalizeParamValue(params.strongRecption),
-		normalizeParamValue(params.simpleAsp),
-		normalizeParamValue(params.virtualPointReceiveAsp),
-		normalizeParamValue(params.predictive),
-		normalizeParamValue(params.showPdBounds),
-		normalizeParamValue(params.pdaspects),
-	].join('|');
-}
-
-function buildParamsRequestKey(params){
-	if(!params){
-		return '';
-	}
-	return [
-		normalizeParamValue(params.ad),
-		normalizeParamValue(params.date),
-		normalizeParamValue(params.time),
-		normalizeParamValue(params.zone),
-		normalizeParamValue(params.lat),
-		normalizeParamValue(params.lon),
-		normalizeParamValue(params.gpsLat),
-		normalizeParamValue(params.gpsLon),
-		normalizeParamValue(params.hsys),
-		normalizeParamValue(params.southchart),
-		normalizeParamValue(params.zodiacal),
-		normalizeParamValue(params.tradition),
-		normalizeParamValue(params.doubingSu28),
-		normalizeParamValue(params.strongRecption),
-		normalizeParamValue(params.simpleAsp),
-		normalizeParamValue(params.virtualPointReceiveAsp),
-		normalizeParamValue(params.predictive),
-		normalizeParamValue(params.showPdBounds),
-		normalizeParamValue(params.pdaspects),
-	].join('|');
-}
-
-function applyChartMeta(chartObj, fields){
-	if(!chartObj){
-		return chartObj;
-	}
-	const params = chartObj.params ? chartObj.params : {};
-	return {
-		...chartObj,
-		params: {
-			...params,
-			name: fields && fields.name ? fields.name.value : params.name,
-			pos: fields && fields.pos ? fields.pos.value : params.pos,
-		},
-	};
-}
-
-const CHART_MEM_CACHE_LIMIT = 64;
-const chartMemCache = new Map();
-const chartInflight = new Map();
-
-function cloneChartForCache(chartObj){
-	if(!chartObj || typeof chartObj !== 'object'){
-		return chartObj;
-	}
-	const params = chartObj.params && typeof chartObj.params === 'object'
-		? { ...chartObj.params }
-		: chartObj.params;
-	return {
-		...chartObj,
-		params,
-	};
-}
-
-function getChartFromMemCache(fetchKey){
-	if(!fetchKey || !chartMemCache.has(fetchKey)){
-		return null;
-	}
-	const cached = chartMemCache.get(fetchKey);
-	chartMemCache.delete(fetchKey);
-	chartMemCache.set(fetchKey, cached);
-	return cloneChartForCache(cached);
-}
-
-function putChartToMemCache(fetchKey, chartObj){
-	if(!fetchKey || !chartObj){
-		return;
-	}
-	if(chartMemCache.has(fetchKey)){
-		chartMemCache.delete(fetchKey);
-	}
-	chartMemCache.set(fetchKey, cloneChartForCache(chartObj));
-	if(chartMemCache.size > CHART_MEM_CACHE_LIMIT){
-		const first = chartMemCache.keys().next().value;
-		if(first){
-			chartMemCache.delete(first);
-		}
-	}
-}
-
-function fetchChartWithInflight(fetchKey, params){
-	if(fetchKey && chartInflight.has(fetchKey)){
-		return chartInflight.get(fetchKey);
-	}
-	const req = Promise.resolve().then(()=>service.fetchChart(params)).finally(()=>{
-		if(fetchKey){
-			chartInflight.delete(fetchKey);
-		}
-	});
-	if(fetchKey){
-		chartInflight.set(fetchKey, req);
-	}
-	return req;
-}
-
-function buildChartPerf(source, totalMs, chartMs, cacheHit){
-	return {
-		source: source || '',
-		totalMs: Number.isFinite(totalMs) ? Math.max(0, Math.round(totalMs)) : 0,
-		chartMs: Number.isFinite(chartMs) ? Math.max(0, Math.round(chartMs)) : 0,
-		cacheHit: !!cacheHit,
-		at: Date.now(),
-	};
-}
-
 function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
@@ -433,8 +280,6 @@ export default {
 		currentChart: null,
 		memoType: 0,
 		memo: '',
-		lastFetchKey: '',
-		chartPerf: buildChartPerf('', 0, 0, false),
 
 		deeplearn: null,
 
@@ -944,7 +789,6 @@ export default {
 
 
 		*fetch({ payload: values }, { call, put }){
-			const overallStart = Date.now();
 			const param = {
 				...values,
 				date: values.date.format('YYYY/MM/DD'),
@@ -958,19 +802,7 @@ export default {
 				param.pdaspects = JSON.parse(param.pdaspects);
 			}
 
-			const fetchKey = buildParamsRequestKey(param);
-			const memCached = getChartFromMemCache(fetchKey);
-			let rsp = null;
-			let chartMs = 0;
-			let source = 'mem-hit';
-			if(memCached){
-				rsp = { Result: memCached };
-			}else{
-				const chartStart = Date.now();
-				rsp = yield call(fetchChartWithInflight, fetchKey, param);
-				chartMs = Date.now() - chartStart;
-				source = 'network';
-			}
+			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
@@ -979,7 +811,6 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			putChartToMemCache(fetchKey, Result);
 			saveAstroAISnapshot(Result, values);
 
 			let drawer = closeAllDrawer('*fetch');
@@ -989,8 +820,6 @@ export default {
                 payload: {  
 					chartObj: Result,
 					drawerVisible: drawer,
-					lastFetchKey: buildFieldsRequestKey(values),
-					chartPerf: buildChartPerf(source, Date.now() - overallStart, chartMs, source !== 'network'),
                 },
             });
 
@@ -1010,7 +839,6 @@ export default {
 		},
 
 		*fetchByChartData({ payload: values }, { call, put }){
-			const overallStart = Date.now();
             const store = getStore();
 			const state = store.astro;
 			const fields = {
@@ -1039,19 +867,7 @@ export default {
 			}
 			
 			const param = fieldsToParams(fields);
-			const fetchKey = buildParamsRequestKey(param);
-			const memCached = getChartFromMemCache(fetchKey);
-			let rsp = null;
-			let chartMs = 0;
-			let source = 'mem-hit';
-			if(memCached){
-				rsp = { Result: memCached };
-			}else{
-				const chartStart = Date.now();
-				rsp = yield call(fetchChartWithInflight, fetchKey, param);
-				chartMs = Date.now() - chartStart;
-				source = 'network';
-			}
+			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
@@ -1060,7 +876,6 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			putChartToMemCache(fetchKey, Result);
 			saveAstroAISnapshot(Result, fields);
 
 			fields.memo74.value = values.memo74;
@@ -1099,8 +914,6 @@ export default {
 					byChartData: true,
 					memo: memo,
 					memoType: type,
-					lastFetchKey: buildFieldsRequestKey(fields),
-					chartPerf: buildChartPerf(source, Date.now() - overallStart, chartMs, source !== 'network'),
                 },
             });
 
@@ -1128,85 +941,31 @@ export default {
 		},
 
 		*fetchByFields({ payload: values }, { call, put }){
-			const overallStart = Date.now();
-			const fetchKey = buildFieldsRequestKey(values);
-			const store = getStore();
-			const state = store.astro;
-			if(state.chartObj && fetchKey && state.lastFetchKey && state.lastFetchKey === fetchKey){
-				const cached = applyChartMeta(state.chartObj, values);
-				let fld = {
-					...values,
-					nohook: false,
-				};
-				yield put({
-					type: 'save',
-					payload: {
-						chartObj: cached,
-						fields: fld,
-						lastFetchKey: fetchKey,
-						chartPerf: buildChartPerf('state-hit', Date.now() - overallStart, 0, true),
-					},
-				});
-				if(values.nohook){
-					return;
-				}
-				yield put({
-					type: 'doHook',
-					payload: {
-						chartObj: cached,
-						fields: fld,
-					},
-				});
-				return;
+			const requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
+				? values.__requestOptions
+				: null;
+			const fieldValues = {
+				...(values || {}),
+			};
+			if(Object.prototype.hasOwnProperty.call(fieldValues, '__requestOptions')){
+				delete fieldValues.__requestOptions;
 			}
-			const memCached = getChartFromMemCache(fetchKey);
-			if(memCached){
-				const cached = applyChartMeta(memCached, values);
-				cached.chartId = randomStr(8);
-				let fld = {
-					...values,
-					nohook: false,
-				};
-				yield put({
-					type: 'save',
-					payload: {
-						chartObj: cached,
-						fields: fld,
-						lastFetchKey: fetchKey,
-						chartPerf: buildChartPerf('mem-hit', Date.now() - overallStart, 0, true),
-					},
-				});
-				if(values.nohook){
-					return;
-				}
-				yield put({
-					type: 'doHook',
-					payload: {
-						chartObj: cached,
-						fields: fld,
-					},
-				});
-				return;
-			}
-			const param = fieldsToParams(values);
+			const param = fieldsToParams(fieldValues);
 			param.cid = null;
 
-			const chartStart = Date.now();
-			const rsp = yield call(fetchChartWithInflight, fetchKey, param);
-			const chartMs = Date.now() - chartStart;
+			const rsp = yield call(service.fetchChart, param, requestOptions);
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
 			}
 			const Result = rsp.Result;
-			Result.params.name = values.name.value;
-			Result.params.pos = values.pos.value;
+			Result.params.name = fieldValues.name.value;
+			Result.params.pos = fieldValues.pos.value;
 			Result.chartId = randomStr(8);
-			putChartToMemCache(fetchKey, Result);
-			saveAstroAISnapshot(Result, values);
+			saveAstroAISnapshot(Result, fieldValues);
 
 			let fld = {
-				...values,
+				...fieldValues,
 				nohook: false,
 			}
             yield put({
@@ -1214,8 +973,6 @@ export default {
                 payload: {  
 					chartObj: Result,
 					fields: fld,
-					lastFetchKey: fetchKey,
-					chartPerf: buildChartPerf('network', Date.now() - overallStart, chartMs, false),
                 },
             });
 
@@ -1241,33 +998,19 @@ export default {
 		},
 
 		*nowChart({ payload: values }, { call, put }){
-			const overallStart = Date.now();
 			let fields = values.fields;
 			if(fields === undefined || fields === null){
 				fields = newEmptyFields();
 			}
 			const param = fieldsToParams(fields);
 
-			const fetchKey = buildParamsRequestKey(param);
-			const memCached = getChartFromMemCache(fetchKey);
-			let rsp = null;
-			let chartMs = 0;
-			let source = 'mem-hit';
-			if(memCached){
-				rsp = { Result: memCached };
-			}else{
-				const chartStart = Date.now();
-				rsp = yield call(fetchChartWithInflight, fetchKey, param);
-				chartMs = Date.now() - chartStart;
-				source = 'network';
-			}
+			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
 			}
 			const Result = rsp.Result;
 			Result.chartId = randomStr(8);
-			putChartToMemCache(fetchKey, Result);
 			saveAstroAISnapshot(Result, fields);
 
 			let drawer = closeAllDrawer('*nowChart');
@@ -1277,8 +1020,6 @@ export default {
 					fields: fields,
 					chartObj: Result,
 					drawerVisible: drawer,
-					lastFetchKey: buildFieldsRequestKey(fields),
-					chartPerf: buildChartPerf(source, Date.now() - overallStart, chartMs, source !== 'network'),
                 },
             });
 

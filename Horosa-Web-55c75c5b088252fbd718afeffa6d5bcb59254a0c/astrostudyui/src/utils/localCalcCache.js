@@ -1,8 +1,7 @@
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
 const JIE_QI_NS = 'horosa.localcalc.jieqi.v1';
-// 扩大缓存以提升性能
-const MAX_NONG_LI = 1024;
-const MAX_JIE_QI = 512;
+const MAX_NONG_LI = 512;
+const MAX_JIE_QI = 256;
 
 let nongliMem = {};
 let jieqiMem = {};

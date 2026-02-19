@@ -6,11 +6,8 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as SZConst from './SZConst';
 import SZChart from './SZChart';
 
-const SQUARE_SIDE_MIN = 480;
-const SQUARE_SIDE_MAX = 1100;
-const SUZHAN_SCALE_MIN = 0.45;
-const SUZHAN_SCALE_MAX = 1.35;
-const SUZHAN_FONT_STACK = "'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif";
+const SQUARE_SIDE_MIN = 620;
+const SQUARE_SIDE_MAX = 980;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
@@ -34,49 +31,62 @@ class SuZhanChart extends Component{
 		this.drawChart = this.drawChart.bind(this);
 		this.updateSquareSide = this.updateSquareSide.bind(this);
 		this.handleResize = this.handleResize.bind(this);
-		this.measureSquareSide = this.measureSquareSide.bind(this);
 	}
 
-	measureSquareSide(){
+	updateSquareSide(){
+		const parseNum = (v)=>{
+			if(typeof v === 'number' && Number.isFinite(v)){
+				return v;
+			}
+			if(typeof v === 'string'){
+				const txt = v.trim();
+				// 仅接受纯数字或 px，避免把 "calc(100% - 70px)" 错判为 100。
+				if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
+					const n = parseFloat(txt);
+					if(Number.isFinite(n)){
+						return n;
+					}
+				}
+			}
+			return null;
+		};
+
+		let sideByProps = null;
+		const h = parseNum(this.props.height);
+		const w = parseNum(this.props.width);
+		if(h !== null && w !== null){
+			sideByProps = Math.min(h, w);
+		}else if(h !== null){
+			sideByProps = h;
+		}else if(w !== null){
+			sideByProps = w;
+		}
+
+		let sideByContainer = null;
 		const svgdom = document.getElementById(this.state.chartid);
-		const host = svgdom && svgdom.parentElement ? svgdom.parentElement : null;
-		let hostWidth = host && host.clientWidth ? host.clientWidth : 0;
-		let hostHeight = 0;
-		if(typeof this.props.height === 'number'){
-			hostHeight = this.props.height;
-		}else if(svgdom && svgdom.clientHeight){
-			hostHeight = svgdom.clientHeight;
-		}else if(typeof window !== 'undefined'){
-			hostHeight = Math.max(320, (window.innerHeight || 900) - 180);
+		if(svgdom){
+			const parent = svgdom.parentElement;
+			const parentW = parent ? parent.clientWidth : 0;
+			const parentH = parent ? parent.clientHeight : 0;
+			if(parentW > 0 && parentH > 0){
+				sideByContainer = Math.min(parentW, parentH);
+			}else if(parentW > 0){
+				sideByContainer = parentW;
+			}
 		}
-		if(!hostWidth && typeof window !== 'undefined'){
-			hostWidth = Math.round((window.innerWidth || 1200) * 0.66);
-		}
-		let side = hostWidth;
-		if(hostHeight > 0){
-			side = Math.min(hostWidth, hostHeight);
-		}
-		if(!side || side <= 0){
-			side = 700;
-		}
-		return clamp(Math.round(side), SQUARE_SIDE_MIN, SQUARE_SIDE_MAX);
-	}
 
-	updateSquareSide(force){
-		// 如果已经有固定的尺寸，保持不变（不随窗口调整）
-		if (!force && this.state.lockedSide !== null && this.state.lockedSide > 0) {
-			return;
+		let side = sideByContainer;
+		if((side === null || side <= 0) && sideByProps !== null){
+			side = sideByProps;
 		}
-		const side = this.measureSquareSide();
-		if (this.state.lockedSide === null || Math.abs(this.state.lockedSide - side) >= 2) {
+		if(side === null || side <= 0){
+			side = 740;
+		}
+
+		side = clamp(Math.round(side), SQUARE_SIDE_MIN, SQUARE_SIDE_MAX);
+		if(this.state.lockedSide === null || Math.abs(this.state.lockedSide - side) >= 4){
 			this.setState({ lockedSide: side });
 		}
-	}
-
-	// 重置方形盘尺寸（当需要重新计算时调用）
-	resetSquareSide() {
-		this.setState({ lockedSide: null });
-		this.updateSquareSide(true);
 	}
 
 	handleResize(){
@@ -84,10 +94,7 @@ class SuZhanChart extends Component{
 			? parseInt(this.props.fields.szshape.value, 10)
 			: SZConst.SZChart.shape;
 		if(szshape === SZConst.SZChart_Square){
-			// 方形盘：一旦初始化完成就保持尺寸不变，不再随窗口调整
-			if (this.state.lockedSide === null) {
-				this.updateSquareSide();
-			}
+			this.updateSquareSide();
 			return;
 		}
 		let svgdom = document.getElementById(this.state.chartid);
@@ -146,7 +153,7 @@ class SuZhanChart extends Component{
 	componentDidMount(){
 		window.addEventListener('resize', this.handleResize);
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
-		this.updateSquareSide(true);
+		this.updateSquareSide();
 		this.drawChart();
 	}
 
@@ -162,13 +169,11 @@ class SuZhanChart extends Component{
 		const nextShape = this.props.fields && this.props.fields.szshape
 			? parseInt(this.props.fields.szshape.value, 10)
 			: SZConst.SZChart.shape;
-		// 当切换到方形盘时，重置尺寸并重新计算
 		if(prevShape !== nextShape && nextShape === SZConst.SZChart_Square){
-			this.resetSquareSide();
+			this.updateSquareSide();
 		}
-		// 首次渲染方形盘时计算尺寸
-		if(nextShape === SZConst.SZChart_Square && this.state.lockedSide === null){
-			this.updateSquareSide(true);
+		if(nextShape === SZConst.SZChart_Square){
+			this.updateSquareSide();
 		}
 	}
 
@@ -178,27 +183,21 @@ class SuZhanChart extends Component{
 			: SZConst.SZChart.shape;
 		const isSquareChart = szshape === SZConst.SZChart_Square;
 		let chartstyle = {
+			width: this.props.width ? this.props.width : '100%',
+			height: this.props.height ? this.props.height : '100%',
 			backgroundColor: AstroConst.AstroColor.ChartBackgroud,
-			fontFamily: SUZHAN_FONT_STACK,
 		};
-
-		// 方形盘：始终强制设置宽高为正方形，不受外部props影响
-		if(isSquareChart){
-			const side = this.state.lockedSide || 740;
-			chartstyle.width = `${side}px`;
-			chartstyle.height = `${side}px`;
-		}else{
-			// 非方形盘：使用默认样式
-			chartstyle.width = this.props.width ? this.props.width : '100%';
-			chartstyle.height = this.props.height ? this.props.height : '100%';
-		}
-
-		// 外部传入的style只在非方形盘时合并，方形盘必须保持正方形
-		if(this.props.style && !isSquareChart){
+		if(this.props.style){
 			chartstyle = {
 				...chartstyle,
 				...this.props.style,
 			};
+		}
+
+		if(isSquareChart){
+			const side = this.state.lockedSide || 740;
+			chartstyle.width = `${side}px`;
+			chartstyle.height = `${side}px`;
 		}
 
 		this.drawChart();

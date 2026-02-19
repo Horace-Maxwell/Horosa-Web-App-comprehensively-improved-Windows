@@ -1,8 +1,9 @@
 import { Component } from 'react';
-import { Card, Spin, Row, Col, Select, Button, message } from 'antd';
+import { Card, Spin, Row, Col, Select, Button, Divider, message } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { splitDegree, convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
+import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import * as LRConst from '../liureng/LRConst';
 import ChuangChart from '../liureng/ChuangChart';
 import {
@@ -27,12 +28,41 @@ import {
 import {
 	fetchPreciseNongli,
 	fetchPreciseJieqiSeed,
-	warmupCache,
 } from '../../utils/preciseCalcBridge';
+import {
+	TAIYI_STYLE_OPTIONS,
+	TAIYI_ACCUM_OPTIONS,
+	calcTaiyiPanFromKintaiyi,
+	buildTaiyiSnapshotLines,
+} from './core/TaiYiCore';
 import styles from './SanShiUnitedMain.less';
 
 const { Option } = Select;
 const BRANCH_ORDER = '子丑寅卯辰巳午未申酉戌亥'.split('');
+const BRANCH_ZODIAC_MAP = {
+	子: '水瓶座',
+	丑: '摩羯座',
+	寅: '射手座',
+	卯: '天蝎座',
+	辰: '天秤座',
+	巳: '处女座',
+	午: '狮子座',
+	未: '巨蟹座',
+	申: '双子座',
+	酉: '金牛座',
+	戌: '白羊座',
+	亥: '双鱼座',
+};
+const SANSHI_PALACE_EXPORT_ORDER = [
+	{ title: '正北坎宫', palaceNum: 8, branches: ['子'] },
+	{ title: '东北艮宫', palaceNum: 7, branches: ['丑', '寅'] },
+	{ title: '正东震宫', palaceNum: 4, branches: ['卯'] },
+	{ title: '东南巽宫', palaceNum: 1, branches: ['辰', '巳'] },
+	{ title: '正南离宫', palaceNum: 2, branches: ['午'] },
+	{ title: '西南坤宫', palaceNum: 3, branches: ['未', '申'] },
+	{ title: '正西兑宫', palaceNum: 6, branches: ['酉'] },
+	{ title: '西北乾宫', palaceNum: 9, branches: ['戌', '亥'] },
+];
 const PALACE_GRID = {
 	1: { row: 2, col: 2 },
 	2: { row: 2, col: 3 },
@@ -67,22 +97,16 @@ const QIMEN_OPTIONS = {
 const OUTER_RING_LAYOUT = [
 	{ branch: '巳', side: 'top', x0: 11.1, x1: 33.33, y0: 0, y1: 11.1 },
 	{ branch: '午', side: 'top', x0: 33.33, x1: 66.67, y0: 0, y1: 11.1 },
-	// 未宫：向右移动1.5个单位
-	{ branch: '未', side: 'top', x0: 68.17, x1: 90.4, y0: 0, y1: 11.1 },
-	// 申宫：向上移动1个单位
-	{ branch: '申', side: 'right', x0: 88.9, x1: 100, y0: 10.1, y1: 32.33 },
+	{ branch: '未', side: 'top', x0: 66.67, x1: 88.9, y0: 0, y1: 11.1 },
+	{ branch: '申', side: 'right', x0: 88.9, x1: 100, y0: 11.1, y1: 33.33 },
 	{ branch: '酉', side: 'right', x0: 88.9, x1: 100, y0: 33.33, y1: 66.67 },
-	// 戌宫：向下移动1个单位
-	{ branch: '戌', side: 'right', x0: 88.9, x1: 100, y0: 67.67, y1: 89.9 },
-	// 亥宫：向右移动1.5个单位
-	{ branch: '亥', side: 'bottom', x0: 68.17, x1: 90.4, y0: 88.9, y1: 100 },
+	{ branch: '戌', side: 'right', x0: 88.9, x1: 100, y0: 66.67, y1: 88.9 },
+	{ branch: '亥', side: 'bottom', x0: 66.67, x1: 88.9, y0: 88.9, y1: 100 },
 	{ branch: '子', side: 'bottom', x0: 33.33, x1: 66.67, y0: 88.9, y1: 100 },
 	{ branch: '丑', side: 'bottom', x0: 11.1, x1: 33.33, y0: 88.9, y1: 100 },
-	// 寅宫：向下移动1个单位
-	{ branch: '寅', side: 'left', x0: 0, x1: 11.1, y0: 67.67, y1: 89.9 },
+	{ branch: '寅', side: 'left', x0: 0, x1: 11.1, y0: 66.67, y1: 88.9 },
 	{ branch: '卯', side: 'left', x0: 0, x1: 11.1, y0: 33.33, y1: 66.67 },
-	// 辰宫：向上移动1个单位
-	{ branch: '辰', side: 'left', x0: 0, x1: 11.1, y0: 10.1, y1: 32.33 },
+	{ branch: '辰', side: 'left', x0: 0, x1: 11.1, y0: 11.1, y1: 33.33 },
 ];
 
 const LIURENG_RING_LAYOUT = {
@@ -154,32 +178,14 @@ const GUIRENG_OPTIONS = [
 	{ value: 2, label: '星占法贵人' },
 ];
 
-const SANSHI_BOARD_MIN = 240;
-const SANSHI_BOARD_MAX = 980;
-const SANSHI_BOARD_BASE = 700;
-const SANSHI_SCALE_MIN = 0.45;
-const SANSHI_SCALE_MAX = 1.35;
-const SANSHI_VERTICAL_RESERVED = 350;
-const SANSHI_WIDTH_PADDING = 10;
-const SANSHI_FONT_STACK = "'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif";
-
-// 根据窗口高度动态计算面板最大尺寸
-function getDynamicBoardMax(viewportHeight, hostWidth) {
-	const byHeight = Math.max(SANSHI_BOARD_MIN, Math.round(viewportHeight - SANSHI_VERTICAL_RESERVED));
-	const byWidth = Number.isFinite(hostWidth) && hostWidth > 0
-		? Math.round(hostWidth - SANSHI_WIDTH_PADDING)
-		: (typeof window !== 'undefined' ? Math.round((window.innerWidth || 1200) * 0.66) : SANSHI_BOARD_BASE);
-	return Math.min(Math.max(SANSHI_BOARD_MIN, Math.min(byHeight, byWidth)), SANSHI_BOARD_MAX);
-}
+const SANSHI_BOARD_MIN = 380;
+const SANSHI_BOARD_MAX = 820;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
 }
 
 function getViewportHeight(){
-	if(typeof window !== 'undefined' && window.visualViewport && Number.isFinite(window.visualViewport.height) && window.visualViewport.height > 0){
-		return Math.round(window.visualViewport.height);
-	}
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
 		return window.innerHeight;
 	}
@@ -191,16 +197,6 @@ function getViewportHeight(){
 
 function safe(v, d = ''){
 	return v === undefined || v === null ? d : v;
-}
-
-function buildSanShiPerf(source, nongliMs, recalcMs, totalMs){
-	return {
-		source: source || '',
-		nongliMs: Number.isFinite(nongliMs) ? Math.max(0, Math.round(nongliMs)) : 0,
-		recalcMs: Number.isFinite(recalcMs) ? Math.max(0, Math.round(recalcMs)) : 0,
-		totalMs: Number.isFinite(totalMs) ? Math.max(0, Math.round(totalMs)) : 0,
-		at: Date.now(),
-	};
 }
 
 const TIANJIANG_SHORT_MAP = {
@@ -340,51 +336,6 @@ function getQimenOptionsKey(options){
 		safe(options.shiftPalace),
 		options.fengJu ? 1 : 0,
 	].join('|');
-}
-
-function buildWarmupPayload(fields, fallbackGender){
-	if(!fields || !fields.date || !fields.time || !fields.zone || !fields.lon || !fields.lat){
-		return null;
-	}
-	return {
-		date: fields.date.value.format('YYYY-MM-DD'),
-		time: fields.time.value.format('HH:mm:ss'),
-		zone: fields.zone.value,
-		lon: fields.lon.value,
-		lat: fields.lat.value,
-		gpsLat: fields.gpsLat ? fields.gpsLat.value : '',
-		gpsLon: fields.gpsLon ? fields.gpsLon.value : '',
-		ad: fields.ad ? fields.ad.value : 1,
-		gender: fields.gender ? fields.gender.value : fallbackGender,
-	};
-}
-
-function toBirthText(fields){
-	if(!fields || !fields.date || !fields.time){
-		return '';
-	}
-	return `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
-}
-
-function normalizeBirthText(txt){
-	return `${txt || ''}`.trim().replace(/\//g, '-');
-}
-
-function pickChartNongli(fields, chartWrap){
-	if(!chartWrap){
-		return null;
-	}
-	const chart = chartWrap.chart ? chartWrap.chart : chartWrap;
-	if(!chart || !chart.nongli){
-		return null;
-	}
-	const params = chartWrap.params || {};
-	const birthFromChart = normalizeBirthText(params.birth);
-	const birthFromFields = normalizeBirthText(toBirthText(fields));
-	if(birthFromChart && birthFromFields && birthFromChart !== birthFromFields){
-		return null;
-	}
-	return chart.nongli;
 }
 
 function extractIsDiurnalFromChartWrap(chartWrap){
@@ -590,12 +541,14 @@ function parseHouseNum(houseId){
 function buildOuterData(chartObj){
 	const housesByBranch = {};
 	const starsByBranch = {};
+	const starsByBranchFull = {};
 	BRANCH_ORDER.forEach((b)=>{
 		housesByBranch[b] = [];
 		starsByBranch[b] = [];
+		starsByBranchFull[b] = [];
 	});
 	if(!chartObj){
-		return { housesByBranch, starsByBranch };
+		return { housesByBranch, starsByBranch, starsByBranchFull };
 	}
 	const objs = chartObj.objects || [];
 	let ascBranch = '';
@@ -640,18 +593,22 @@ function buildOuterData(chartObj){
 		}
 		const deg = splitDegree(obj.signlon || 0);
 		const retro = obj.lonspeed < 0 ? 'R' : '';
-			const txt = `${shortMainStarLabel(msg(obj.id))}${safe(deg[0], 0)}${retro}`;
+		const shortTxt = `${shortMainStarLabel(msg(obj.id))}${safe(deg[0], 0)}${retro}`;
+		const starName = safe(msg(obj.id), '未知星曜');
+		const minTxt = `${safe(deg[1], 0)}`.padStart(2, '0');
+		const fullTxt = `${starName}${safe(deg[0], 0)}°${minTxt}${retro}`;
 		starsByBranchRaw[b].push({
-			txt,
+			shortTxt,
+			fullTxt,
 			deg: Number(safe(deg[0], 0)),
 		});
 	});
 	BRANCH_ORDER.forEach((b)=>{
-		starsByBranch[b] = starsByBranchRaw[b]
-			.sort((a, c)=>a.deg - c.deg)
-			.map((item)=>item.txt);
+		const sorted = starsByBranchRaw[b].sort((a, c)=>a.deg - c.deg);
+		starsByBranch[b] = sorted.map((item)=>item.shortTxt);
+		starsByBranchFull[b] = sorted.map((item)=>item.fullTxt);
 	});
-	return { housesByBranch, starsByBranch };
+	return { housesByBranch, starsByBranch, starsByBranchFull };
 }
 
 function buildShenShaMap(dunjia){
@@ -670,6 +627,135 @@ function buildShenShaMap(dunjia){
 		map.墓贵 = map.幕贵;
 	}
 	return map;
+}
+
+function appendSection(lines, title, bodyLines){
+	lines.push(`【${title}】`);
+	(bodyLines || []).forEach((line)=>{
+		lines.push(`${line}`);
+	});
+	lines.push('');
+}
+
+function buildLiuRengBranchMap(lrLayout){
+	const map = {};
+	if(!lrLayout || !Array.isArray(lrLayout.downZi)){
+		return map;
+	}
+	lrLayout.downZi.forEach((branch, idx)=>{
+		map[branch] = {
+			up: safe(lrLayout.upZi && lrLayout.upZi[idx], '—'),
+			god: safe(lrLayout.houseTianJiang && lrLayout.houseTianJiang[idx], '—'),
+		};
+	});
+	return map;
+}
+
+function buildSanShiUnitedSnapshotText(data){
+	const {
+		fields,
+		nongli,
+		liureng,
+		dunjia,
+		taiyi,
+		keData,
+		sanChuan,
+		lrLayout,
+		outerData,
+	} = data || {};
+	if(!dunjia || !keData || !sanChuan || !lrLayout){
+		return '';
+	}
+	const lines = [];
+	const solar = fmtSolar(fields);
+	const lunarText = safe(dunjia.lunarText, fmtLunar(nongli) || '—');
+	const pillars = dunjia.ganzhi || {};
+	const yuejiang = safe((liureng && liureng.yue) || (lrLayout && lrLayout.yue), '—');
+	const nianming = safe(
+		liureng && liureng.nianMing,
+		(pillars.year && pillars.year.length > 1) ? pillars.year.substring(1, 2) : '—'
+	);
+	appendSection(lines, '起盘信息', [
+		`农历：${lunarText || '—'}`,
+		`公历：${safe(solar.date, '—')} ${safe(solar.hm, '—')}`,
+		`四柱：${safe(pillars.year, '—')}年/${safe(pillars.month, '—')}月/${safe(pillars.day, '—')}日/${safe(pillars.time, '—')}时`,
+		`月将：${yuejiang}`,
+		`年命：${nianming}`,
+	]);
+	appendSection(lines, '概览', [
+		`局数：${safe(dunjia.juText, '—')}`,
+		`旬首：${safe(dunjia.xunShou, '—')}`,
+		`旬仪：${safe(dunjia.fuTou, '—')}`,
+		`值符：${safe(dunjia.zhiFu, '—')}`,
+		`值使：${safe(dunjia.zhiShi, '—')}`,
+		`月将：${yuejiang}`,
+	]);
+	appendSection(lines, '状态', [
+		`本旬：${safe(dunjia.xunShou, '—')}`,
+		`旬空：${safe(dunjia.xunkong && dunjia.xunkong.日空, '—')}`,
+		`时空：${safe(dunjia.xunkong && dunjia.xunkong.时空, '—')}`,
+		`日马：${dunjia.yiMa && dunjia.yiMa.text ? dunjia.yiMa.text : '无'}`,
+		`阴阳遁：${safe(dunjia.yinYangDun, '—')}`,
+	]);
+	if(taiyi){
+		appendSection(lines, '太乙', buildTaiyiSnapshotLines(taiyi));
+		appendSection(lines, '太乙十六宫', (taiyi.palace16 || []).map((item)=>{
+			const txt = item.items && item.items.length ? item.items.join('、') : '—';
+			return `${item.palace}：${txt}`;
+		}));
+	}
+	const keRaw = keData && Array.isArray(keData.raw) ? keData.raw : [];
+	const formatKe = (idx)=>{ 
+		const item = keRaw[idx] || [];
+		return `${safe(item[2], '—')}${safe(item[1], '—')}${safe(item[0], '—')}`;
+	};
+	const formatChuan = (idx)=>{
+		const gz = safe(sanChuan && sanChuan.cuang && sanChuan.cuang[idx], '—');
+		const god = safe(sanChuan && sanChuan.tianJiang && sanChuan.tianJiang[idx], '');
+		return god ? `${gz}（${god}）` : gz;
+	};
+	appendSection(lines, '大六壬', [
+		`一课：${formatKe(3)}`,
+		`二课：${formatKe(2)}`,
+		`三课：${formatKe(1)}`,
+		`四课：${formatKe(0)}`,
+		'',
+		`初传：${formatChuan(0)}`,
+		`中传：${formatChuan(1)}`,
+		`末传：${formatChuan(2)}`,
+	]);
+	const qimenMap = {};
+	if(Array.isArray(dunjia.cells)){
+		dunjia.cells.forEach((cell)=>{
+			qimenMap[cell.palaceNum] = cell;
+		});
+	}
+	const lrBranchMap = buildLiuRengBranchMap(lrLayout);
+	const starsByBranch = outerData && outerData.starsByBranchFull ? outerData.starsByBranchFull
+		: (outerData && outerData.starsByBranch ? outerData.starsByBranch : {});
+	SANSHI_PALACE_EXPORT_ORDER.forEach((palace)=>{
+		const qimenCell = qimenMap[palace.palaceNum] || {};
+		const body = [
+			`遁甲：天盘干：${safe(qimenCell.tianGan, '—')}；八神：${safe(qimenCell.god, '—')}；九星：${safe(qimenCell.tianXing, '—')}；地盘干：${safe(qimenCell.diGan, '—')}`,
+			'',
+		];
+		palace.branches.forEach((branch, idx)=>{
+			const lr = lrBranchMap[branch] || {};
+			const stars = Array.isArray(starsByBranch[branch]) ? starsByBranch[branch] : [];
+			body.push(`「${branch}-${safe(BRANCH_ZODIAC_MAP[branch], '未知星座')}」`);
+			body.push(`六壬：天盘：${safe(lr.up, '—')}；神将：${safe(lr.god, '—')}`);
+			body.push(`星盘：${stars.length ? stars.join('；') : '无'}`);
+			if(idx < palace.branches.length - 1){
+				body.push('');
+			}
+		});
+		appendSection(lines, palace.title, body);
+	});
+	const shenshaItems = dunjia.shenSha && Array.isArray(dunjia.shenSha.allItems) ? dunjia.shenSha.allItems : [];
+	appendSection(lines, '神煞', shenshaItems.length
+		? shenshaItems.map((item)=>`${item.name}：${item.value}`)
+		: ['暂无神煞']);
+	return lines.join('\n').trim();
 }
 
 function getOuterLabelLayout(branch, houseFont){
@@ -709,28 +795,28 @@ function getOuterLabelLayout(branch, houseFont){
 		};
 	case '辰': // 左偏上梯形：落入左上角三角，数字左上，地支在其下
 		return {
-			house: { left: px, top: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px - ${oneGridShift}px)` },
-			branch: { left: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px - ${oneGridShift}px)` },
+			house: { left: px, top: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { left: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
 		};
 	case '未': // 上偏右梯形：落入右上角三角，数字右上，地支在其左
 		return {
-			house: { right: `calc(${cornerOffset} + ${shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px - ${oneAndHalfGridShift}px)`, top: py },
-			branch: { right: `calc(${cornerOffset} + ${wideNumGap + shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px - ${oneAndHalfGridShift}px)`, top: py },
+			house: { right: `calc(${cornerOffset} + ${shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px)`, top: py },
+			branch: { right: `calc(${cornerOffset} + ${wideNumGap + shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px)`, top: py },
 		};
 	case '申': // 右偏上梯形：落入右上角三角，数字右上，地支在其下
 		return {
-			house: { right: px, top: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px - ${oneGridShift}px)` },
-			branch: { right: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px - ${oneGridShift}px)` },
+			house: { right: px, top: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { right: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
 		};
 	case '戌': // 右偏下梯形：落入右下角三角，数字右下，地支在其上
 		return {
-			house: { right: px, bottom: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px + ${oneGridShift}px)` },
-			branch: { right: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px + ${oneGridShift}px)` },
+			house: { right: px, bottom: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { right: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
 		};
 	case '亥': // 下偏右梯形：落入右下角三角，数字右下，地支在其左
 		return {
-			house: { right: `calc(${cornerOffset} + ${shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px - ${oneAndHalfGridShift}px)`, bottom: py },
-			branch: { right: `calc(${cornerOffset} + ${wideNumGap + shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px - ${oneAndHalfGridShift}px)`, bottom: py },
+			house: { right: `calc(${cornerOffset} + ${shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px)`, bottom: py },
+			branch: { right: `calc(${cornerOffset} + ${wideNumGap + shiftCols}px - ${fourGridShift}px - ${oneAndHalfGridShift}px)`, bottom: py },
 		};
 	case '丑': // 下偏左梯形：落入左下角三角，数字左下，地支在其右
 		return {
@@ -739,8 +825,8 @@ function getOuterLabelLayout(branch, houseFont){
 		};
 	case '寅': // 左偏下梯形：落入左下角三角，数字左下，地支在其上
 		return {
-			house: { left: px, bottom: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px + ${oneGridShift}px)` },
-			branch: { left: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px + ${oneGridShift}px)` },
+			house: { left: px, bottom: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { left: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
 		};
 	default:
 		return { house: topLeft, branch: topRight };
@@ -827,13 +913,13 @@ class SanShiUnitedMain extends Component{
 			nongli: null,
 			liureng: null,
 			dunjia: null,
+			taiyi: null,
 			lrLayout: null,
 			keData: null,
 			sanChuan: null,
 			localFields: null,
 			hasPlotted: false,
 			rightPanelTab: 'overview',
-			perf: buildSanShiPerf('', 0, 0, 0),
 			options: {
 				mode: 'ming',
 				sex: 1,
@@ -847,6 +933,8 @@ class SanShiUnitedMain extends Component{
 				kongMode: 'day',
 				yimaMode: 'day',
 				shiftPalace: 0,
+				taiyiStyle: 3,
+				taiyiAccum: 0,
 			},
 			leftBoardWidth: 0,
 			viewportHeight: getViewportHeight(),
@@ -864,13 +952,17 @@ class SanShiUnitedMain extends Component{
 		this.lrBundleCache = {};
 		this.outerDataCache = { chartRef: null, data: null };
 		this.resizeObserver = null;
+		this.prefetchSeedTimer = null;
 
 		this.refreshAll = this.refreshAll.bind(this);
 		this.genParams = this.genParams.bind(this);
 		this.ensureJieqiSeed = this.ensureJieqiSeed.bind(this);
+		this.prefetchJieqiSeedForFields = this.prefetchJieqiSeedForFields.bind(this);
+		this.prefetchNongliForFields = this.prefetchNongliForFields.bind(this);
 		this.genJieqiParams = this.genJieqiParams.bind(this);
 		this.getQimenOptions = this.getQimenOptions.bind(this);
 		this.recalcByNongli = this.recalcByNongli.bind(this);
+		this.syncFields = this.syncFields.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.onGenderChange = this.onGenderChange.bind(this);
@@ -891,7 +983,12 @@ class SanShiUnitedMain extends Component{
 					return;
 				}
 				this.restoreOptionsFromCurrentCase();
-				// 三式合一改为严格手动起盘：外部字段变化不自动触发计算。
+				const activeFields = fields || this.state.localFields || this.props.fields;
+				this.prefetchJieqiSeedForFields(activeFields);
+				this.prefetchNongliForFields(activeFields);
+				if(this.state.hasPlotted){
+					this.refreshAll(activeFields, false);
+				}
 			};
 		}
 	}
@@ -922,89 +1019,39 @@ class SanShiUnitedMain extends Component{
 		return pan;
 	}
 
-	// 添加 shouldComponentUpdate 来避免不必要的重新渲染
-	shouldComponentUpdate(nextProps, nextState){
-		// 总是允许渲染 loading 状态变化
-		if(this.state.loading !== nextState.loading){
-			return true;
-		}
-		// 允许 dunjia 变化
-		if(this.state.dunjia !== nextState.dunjia){
-			return true;
-		}
-		// 允许 nongli 变化
-		if(this.state.nongli !== nextState.nongli){
-			return true;
-		}
-		// 允许 hasPlotted 变化
-		if(this.state.hasPlotted !== nextState.hasPlotted){
-			return true;
-		}
-		// 允许 rightPanelTab 变化
-		if(this.state.rightPanelTab !== nextState.rightPanelTab){
-			return true;
-		}
-		// 允许 perf 变化
-		if(this.state.perf !== nextState.perf){
-			return true;
-		}
-		// 允许 localFields 时间变化
-		if(this.state.localFields !== nextState.localFields){
-			const curr = this.state.localFields;
-			const next = nextState.localFields;
-			if(curr && next){
-				const currTime = curr.time && curr.time.value ? curr.time.value.format('YYYY-MM-DD HH:mm:ss') : '';
-				const nextTime = next.time && next.time.value ? next.time.value.format('YYYY-MM-DD HH:mm:ss') : '';
-				if(currTime !== nextTime){
-					return true;
-				}
-			}
-		}
-		// 允许 viewport 变化
-		if(this.state.viewportHeight !== nextState.viewportHeight || this.state.leftBoardWidth !== nextState.leftBoardWidth){
-			return true;
-		}
-		// 允许 options 变化
-		if(this.state.options !== nextState.options){
-			return true;
-		}
-		// 其他情况不重新渲染
-		return false;
-	}
-
 	componentDidMount(){
 		this.unmounted = false;
 		this.restoreOptionsFromCurrentCase(true);
 		window.addEventListener('resize', this.handleWindowResize);
 		this.handleWindowResize();
-		// 预热缓存：提前加载数据以加速起盘
-		const fields = this.props.fields;
-		if(fields && fields.zone && fields.lon && fields.lat){
-			warmupCache({
-				date: fields.date && fields.date.value ? fields.date.value.format('YYYY-MM-DD') : undefined,
-				time: fields.time && fields.time.value ? fields.time.value.format('HH:mm:ss') : undefined,
-				zone: fields.zone.value || '8',
-				lon: fields.lon.value || '116.4074',
-				lat: fields.lat.value || '39.9042',
-				gpsLat: fields.gpsLat ? fields.gpsLat.value : '',
-				gpsLon: fields.gpsLon ? fields.gpsLon.value : '',
-				ad: fields.ad ? fields.ad.value : 1,
-				gender: fields.gender ? fields.gender.value : 1,
-			}, { mode: 'light' });
-		}
+		const activeFields = this.state.localFields || this.props.fields;
+		this.prefetchJieqiSeedForFields(activeFields);
+		this.prefetchNongliForFields(activeFields);
 	}
 
 	componentDidUpdate(prevProps){
+		this.restoreOptionsFromCurrentCase();
 		const prevKey = getFieldKey(prevProps.fields);
 		const nextKey = getFieldKey(this.props.fields);
-		if(prevKey !== nextKey){
-			this.restoreOptionsFromCurrentCase();
+		const chartChanged = (prevProps.chartObj !== this.props.chartObj) || (prevProps.chart !== this.props.chart);
+		if(this.state.hasPlotted && chartChanged && this.state.nongli){
+			this.recalcByNongli(this.props.fields, this.state.nongli);
+		}
+		if(this.state.hasPlotted && prevKey !== nextKey){
+			if(this.pendingRefresh && this.pendingRefresh.key === `${nextKey}|${this.state.options.sex}`){
+				return;
+			}
+			this.refreshAll(this.props.fields, false);
 		}
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
 		window.removeEventListener('resize', this.handleWindowResize);
+		if(this.prefetchSeedTimer){
+			clearTimeout(this.prefetchSeedTimer);
+			this.prefetchSeedTimer = null;
+		}
 		if(this.resizeObserver){
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
@@ -1028,17 +1075,9 @@ class SanShiUnitedMain extends Component{
 
 	handleWindowResize(){
 		const viewportHeight = getViewportHeight();
-		// 如果leftBoardHost还没有设置，使用窗口宽度的默认值
-		let leftBoardWidth = 0;
-		if (this.leftBoardHost) {
-			leftBoardWidth = this.leftBoardHost.clientWidth || 0;
-		} else if (typeof window !== 'undefined') {
-			// 左侧盘面区域约占整页 16/24，取 0.66 作为跨浏览器一致的兜底值。
-			leftBoardWidth = Math.round(window.innerWidth * 0.66) || 700;
-		}
-		// 降低阈值使窗口大小变化时更敏感地更新缩放
-		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 1
-			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 1;
+		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
+		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
+			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2;
 		if(changed){
 			this.setState({
 				leftBoardWidth,
@@ -1130,6 +1169,12 @@ class SanShiUnitedMain extends Component{
 				if(payload.options.shiftPalace !== undefined){
 					options.shiftPalace = payload.options.shiftPalace;
 				}
+				if(payload.options.taiyiStyle !== undefined){
+					options.taiyiStyle = payload.options.taiyiStyle;
+				}
+				if(payload.options.taiyiAccum !== undefined){
+					options.taiyiAccum = payload.options.taiyiAccum;
+				}
 			}
 		this.lastRestoredCaseId = caseVersion;
 		const patchFields = {};
@@ -1146,45 +1191,62 @@ class SanShiUnitedMain extends Component{
 			...this.getActiveFields(),
 			...patchFields,
 		};
-		const savedResult = payload.result && typeof payload.result === 'object' ? payload.result : null;
-		const hasSavedResult = !!(savedResult && savedResult.dunjia);
-		const nextState = {
-			options,
-			localFields: nextLocalFields,
-			hasPlotted: hasSavedResult,
-		};
-		if(hasSavedResult){
-			nextState.hasPlotted = true;
-			nextState.nongli = savedResult.nongli || null;
-			nextState.liureng = savedResult.liureng || null;
-			nextState.dunjia = savedResult.dunjia || null;
-			nextState.lrLayout = savedResult.lrLayout || null;
-			nextState.keData = savedResult.keData || null;
-			nextState.sanChuan = savedResult.sanChuan || null;
-		}else{
-			nextState.nongli = null;
-			nextState.liureng = null;
-			nextState.dunjia = null;
-			nextState.lrLayout = null;
-			nextState.keData = null;
-			nextState.sanChuan = null;
+		if(Object.keys(patchFields).length){
+			this.onFieldsChange(patchFields, true);
 		}
-		this.setState(nextState, ()=>{
-			if(hasSavedResult && !savedResult.lrLayout && this.state.nongli){
+		this.setState({
+			options,
+			hasPlotted: true,
+			localFields: nextLocalFields,
+		}, ()=>{
+			if(this.state.nongli){
 				this.recalcByNongli(nextLocalFields, this.state.nongli, options);
+			}else{
+				this.refreshAll(nextLocalFields, true);
 			}
 		});
 	}
 
-	onFieldsChange(field){
+	syncFields(field){
+		if(!this.props.dispatch){
+			return;
+		}
+		const flds = {
+			...(this.props.fields || {}),
+			...(field || {}),
+		};
+		this.props.dispatch({
+			type: 'astro/save',
+			payload: {
+				fields: flds,
+			},
+		});
+	}
+
+	onFieldsChange(field, requestMode){
 		if(this.props.dispatch){
+			const requestOptions = (typeof requestMode === 'object' && requestMode)
+				? requestMode
+				: {
+					silentRequest: !!requestMode,
+					nohook: !!requestMode,
+				};
+			const silentRequest = !!requestOptions.silentRequest;
+			const nohook = !!requestOptions.nohook;
 			const flds = {
 				...(this.props.fields || {}),
 				...field,
 			};
+			const payload = silentRequest ? {
+				...flds,
+				__requestOptions: {
+					silent: true,
+				},
+				nohook,
+			} : flds;
 			this.props.dispatch({
 				type: 'astro/fetchByFields',
-				payload: flds,
+				payload,
 			});
 		}
 	}
@@ -1192,22 +1254,34 @@ class SanShiUnitedMain extends Component{
 	onTimeChanged(value){
 		const dt = value.time;
 		const confirmed = !!value.confirmed;
-
-		// 手动起盘模式：时间确认只更新本地字段，不触发全局 fetchByFields。
+		const base = this.props.fields || {};
+		const localFields = {
+			...base,
+			date: { value: dt.clone() },
+			time: { value: dt.clone() },
+			ad: { value: dt.ad },
+			zone: { value: dt.zone },
+		};
+		this.setState({ localFields });
+		if(this.prefetchSeedTimer){
+			clearTimeout(this.prefetchSeedTimer);
+		}
+		this.prefetchSeedTimer = setTimeout(()=>{
+			this.prefetchSeedTimer = null;
+			if(this.unmounted){
+				return;
+			}
+			this.prefetchJieqiSeedForFields(localFields);
+			this.prefetchNongliForFields(localFields);
+		}, 120);
 		if(confirmed){
-			const base = this.props.fields || {};
-			const localFields = {
-				...base,
+			const syncedFields = {
 				date: { value: dt.clone() },
 				time: { value: dt.clone() },
 				ad: { value: dt.ad },
 				zone: { value: dt.zone },
 			};
-			this.setState({ localFields });
-			const warmupParams = buildWarmupPayload(localFields, this.state.options.sex);
-			if(warmupParams){
-				warmupCache(warmupParams, { mode: 'light', immediate: true });
-			}
+			this.syncFields(syncedFields);
 		}
 	}
 
@@ -1215,7 +1289,7 @@ class SanShiUnitedMain extends Component{
 		this.onOptionChange('sex', val);
 		this.onFieldsChange({
 			gender: { value: val },
-		});
+		}, true);
 	}
 
 	onOptionChange(key, value){
@@ -1224,6 +1298,7 @@ class SanShiUnitedMain extends Component{
 			[key]: value,
 		};
 		this.setState({ options }, ()=>{
+			this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields, options);
 			if(this.state.hasPlotted && this.state.nongli){
 				this.recalcByNongli(this.state.localFields || this.props.fields, this.state.nongli, options);
 			}
@@ -1234,7 +1309,7 @@ class SanShiUnitedMain extends Component{
 		this.onOptionChange(key, value);
 		this.onFieldsChange({
 			[key]: { value },
-		});
+		}, true);
 		const localFields = {
 			...this.getActiveFields(),
 			[key]: { value },
@@ -1269,16 +1344,30 @@ class SanShiUnitedMain extends Component{
 		if(!nextFields){
 			return;
 		}
-		const warmupParams = buildWarmupPayload(nextFields, this.state.options.sex);
-		if(warmupParams){
-			warmupCache(warmupParams, { mode: 'light', immediate: true });
+		if(timeFields){
+			const nextKey = getFieldKey(timeFields);
+			const curKey = getFieldKey(this.props.fields);
+			if(nextKey !== curKey){
+				const patchFields = {
+					date: { value: timeFields.date.value.clone() },
+					time: { value: timeFields.time.value.clone() },
+					ad: { value: timeFields.ad.value },
+					zone: { value: timeFields.zone.value },
+				};
+				this.syncFields(patchFields);
+				this.onFieldsChange(patchFields, {
+					silentRequest: true,
+					nohook: true,
+				});
+			}
 		}
+		const refreshKey = `${getFieldKey(nextFields)}|${this.state.options.sex}`;
+		const shouldForce = !this.state.nongli || refreshKey !== this.lastKey;
 		this.setState({
-			loading: true,
 			hasPlotted: true,
 			localFields: nextFields,
 		}, ()=>{
-			this.refreshAll(nextFields, true);
+			this.refreshAll(nextFields, shouldForce);
 		});
 	}
 
@@ -1288,7 +1377,7 @@ class SanShiUnitedMain extends Component{
 			lat: { value: convertLatToStr(rec.lat) },
 			gpsLon: { value: rec.gpsLng },
 			gpsLat: { value: rec.gpsLat },
-		});
+		}, true);
 	}
 
 	clickSave(){
@@ -1321,7 +1410,7 @@ class SanShiUnitedMain extends Component{
 				nongli: this.state.nongli,
 				liureng: this.state.liureng,
 				dunjia: this.state.dunjia,
-				lrLayout: this.state.lrLayout,
+				taiyi: this.state.taiyi,
 				keData: this.state.keData,
 				sanChuan: this.state.sanChuan,
 			},
@@ -1421,6 +1510,8 @@ class SanShiUnitedMain extends Component{
 			getNongliKey(nongli),
 			getQimenOptionsKey(qimenOptions),
 			`${guirengType}`,
+			`${safe((overrideOptions && overrideOptions.taiyiStyle) !== undefined ? overrideOptions.taiyiStyle : this.state.options.taiyiStyle)}`,
+			`${safe((overrideOptions && overrideOptions.taiyiAccum) !== undefined ? overrideOptions.taiyiAccum : this.state.options.taiyiAccum)}`,
 			safe(flds && flds.zodiacal && flds.zodiacal.value),
 			safe(flds && flds.hsys && flds.hsys.value),
 			`${safe(extractIsDiurnalFromChartWrap(this.props.chartObj || this.props.chart || null), '')}`,
@@ -1475,14 +1566,51 @@ class SanShiUnitedMain extends Component{
 				time: dunjia && dunjia.ganzhi ? (dunjia.ganzhi.time || '') : '',
 			},
 		};
+		const mergedOptions = {
+			...this.state.options,
+			...(overrideOptions || {}),
+		};
+		const taiyi = calcTaiyiPanFromKintaiyi(flds, nongli, {
+			style: mergedOptions.taiyiStyle,
+			tn: mergedOptions.taiyiAccum,
+			sex: mergedOptions.sex,
+		});
+		let outerData = this.outerDataCache.data;
+		if(this.outerDataCache.chartRef !== astroChart){
+			outerData = buildOuterData(astroChart);
+			this.outerDataCache = {
+				chartRef: astroChart,
+				data: outerData,
+			};
+		}
+		const snapshotText = buildSanShiUnitedSnapshotText({
+			fields: flds,
+			nongli,
+			liureng,
+			dunjia,
+			taiyi,
+			keData: lrBundle.keData,
+			sanChuan: lrBundle.sanChuan,
+			lrLayout: lrBundle.lrLayout,
+			outerData,
+		});
 		this.lastRecalcSignature = recalcSignature;
 		this.setState({
 			nongli,
 			liureng,
 			dunjia,
+			taiyi,
 			lrLayout: lrBundle.lrLayout,
 			keData: lrBundle.keData,
 			sanChuan: lrBundle.sanChuan,
+		}, ()=>{
+			saveModuleAISnapshot('sanshiunited', snapshotText, {
+				date: flds && flds.date ? flds.date.value.format('YYYY-MM-DD') : '',
+				time: flds && flds.time ? flds.time.value.format('HH:mm:ss') : '',
+				zone: flds && flds.zone ? flds.zone.value : '',
+				lon: flds && flds.lon ? flds.lon.value : '',
+				lat: flds && flds.lat ? flds.lat.value : '',
+			});
 		});
 	}
 
@@ -1513,77 +1641,88 @@ class SanShiUnitedMain extends Component{
 		return this.jieqiSeedPromises[year];
 	}
 
+	prefetchJieqiSeedForFields(fields, overrideOptions){
+		const flds = fields || this.state.localFields || this.props.fields;
+		if(!flds || !flds.date || !flds.date.value){
+			return;
+		}
+		const qimenOptions = this.getQimenOptions(overrideOptions);
+		if(!needJieqiYearSeed(qimenOptions)){
+			return;
+		}
+		const year = parseInt(flds.date.value.format('YYYY'), 10);
+		if(!year || Number.isNaN(year)){
+			return;
+		}
+		Promise.all([
+			this.ensureJieqiSeed(flds, year - 1),
+			this.ensureJieqiSeed(flds, year),
+		]).catch(()=>null);
+	}
+
+	prefetchNongliForFields(fields){
+		const flds = fields || this.state.localFields || this.props.fields;
+		if(!flds){
+			return;
+		}
+		const params = this.genParams(flds);
+		if(!params){
+			return;
+		}
+		fetchPreciseNongli(params).then((result)=>{
+			if(result){
+				setNongliLocalCache(params, result);
+			}
+		}).catch(()=>null);
+	}
+
 	async refreshAll(fields, force){
 		if(!fields){
-			this.setState({ loading: false });
 			return;
 		}
 		const key = `${getFieldKey(fields)}|${this.state.options.sex}`;
+		if(this.pendingRefresh && this.pendingRefresh.key === key){
+			return this.pendingRefresh.promise;
+		}
 		if(!force && key === this.lastKey){
 			return;
-		}
-		if(!force && this.pendingRefresh && this.pendingRefresh.key === key){
-			return this.pendingRefresh.promise;
 		}
 		this.lastKey = key;
 		const params = this.genParams(fields);
 		if(!params){
-			this.setState({ loading: false });
 			return;
-		}
-		if(!this.state.loading){
-			this.setState({ loading: true });
 		}
 		const seq = ++this.refreshSeq;
 		const refreshPromise = (async ()=>{
-			const totalStart = Date.now();
 			const qimenOptions = this.getQimenOptions();
 			const shouldWaitSeed = needJieqiYearSeed(qimenOptions);
 			try{
 				const year = parseInt(fields.date.value.format('YYYY'), 10);
-				const chartWrap = this.props.chartObj || this.props.chart || null;
-				const nongliStart = Date.now();
-				let source = 'chart-nongli';
-				let nongli = pickChartNongli(fields, chartWrap);
-				if(!nongli){
-					source = 'precise-api';
-					nongli = await fetchPreciseNongli(params);
+				const waitSeed = !!(year && shouldWaitSeed);
+				const seedPromise = waitSeed ? Promise.all([
+					this.ensureJieqiSeed(fields, year - 1),
+					this.ensureJieqiSeed(fields, year),
+				]) : null;
+				const missingSeed = waitSeed && (!this.jieqiYearSeeds[year - 1] || !this.jieqiYearSeeds[year]);
+				if((missingSeed || force) && !this.state.loading){
+					this.setState({ loading: true });
 				}
-				const nongliMs = Date.now() - nongliStart;
+				const nongli = await fetchPreciseNongli(params);
 				if(!nongli){
 					throw new Error('precise.nongli.unavailable');
 				}
 				setNongliLocalCache(params, nongli);
+				if(waitSeed){
+					await seedPromise;
+				}
 				if(this.unmounted || seq !== this.refreshSeq){
 					return;
 				}
-				// 移除不必要的延迟以提升性能
-				// await new Promise((resolve)=>setTimeout(resolve, 0));
-				if(this.unmounted || seq !== this.refreshSeq){
-					return;
-				}
-				const recalcStart = Date.now();
 				this.recalcByNongli(fields, nongli);
-				const recalcMs = Date.now() - recalcStart;
-				const perf = buildSanShiPerf(source, nongliMs, recalcMs, Date.now() - totalStart);
 				if(!this.unmounted && seq === this.refreshSeq){
 					this.setState({
 						loading: false,
-						perf,
 					});
-				}
-				if(shouldWaitSeed){
-					Promise.all([
-						this.ensureJieqiSeed(fields, year - 1),
-						this.ensureJieqiSeed(fields, year),
-					]).then((seeds)=>{
-						if(this.unmounted || seq !== this.refreshSeq){
-							return;
-						}
-						if(seeds && seeds[0] && seeds[1]){
-							this.recalcByNongli(fields, nongli);
-						}
-					}).catch(()=>{});
 				}
 			}catch(e){
 				if(!this.unmounted && seq === this.refreshSeq){
@@ -1606,28 +1745,18 @@ class SanShiUnitedMain extends Component{
 
 	calcBoardSize(height){
 		const viewH = this.state.viewportHeight || 900;
-		const baseH = typeof height === 'number' ? height : (viewH - 20);
-		const hostW = this.state.leftBoardWidth > 0 ? this.state.leftBoardWidth : 0;
-		const usableH = Math.min(viewH, baseH);
-		// 动态计算最大值：高度优先，并带宽度约束，附上下限。
-		const dynamicMax = getDynamicBoardMax(usableH, hostW);
-		const hCap = Math.max(SANSHI_BOARD_MIN, Math.round(usableH - SANSHI_VERTICAL_RESERVED));
-		const wCap = hostW > 0 ? Math.round(hostW - SANSHI_WIDTH_PADDING) : dynamicMax;
+		const baseH = typeof height === 'number' ? height : viewH - 20;
+		// 高度优先：先保证不超出可视区，再按宽度做二次约束。
+		const hCap = Math.max(SANSHI_BOARD_MIN, Math.min(viewH - 320, baseH - 300));
+		const wCap = this.state.leftBoardWidth > 0 ? (this.state.leftBoardWidth - 8) : SANSHI_BOARD_MAX;
 		let target = hCap;
 		if(Number.isFinite(wCap) && wCap > 0){
 			target = Math.min(target, wCap);
 		}
-		// 使用动态最大值，避免不同机器/浏览器出现失控放大。
-		return clamp(Math.round(target), SANSHI_BOARD_MIN, dynamicMax);
-	}
-
-	getBoardScale(boardSize){
-		const size = Number.isFinite(boardSize) && boardSize > 0 ? boardSize : SANSHI_BOARD_BASE;
-		return clamp(size / SANSHI_BOARD_BASE, SANSHI_SCALE_MIN, SANSHI_SCALE_MAX);
+		return clamp(Math.round(target), SANSHI_BOARD_MIN, SANSHI_BOARD_MAX);
 	}
 
 	renderTop(boardSize){
-		const boardScale = this.getBoardScale(boardSize);
 		const { nongli, liureng, dunjia } = this.state;
 		const fields = this.getActiveFields();
 		const solar = fmtSolar(fields);
@@ -1654,7 +1783,7 @@ class SanShiUnitedMain extends Component{
 		const dateText = solar.date || '---- -- --';
 		const timeText = solar.hm || '--:--';
 		return (
-			<div className={styles.topBox} style={{ width: boardSize, '--ss-scale': boardScale }}>
+			<div className={styles.topBox} style={{ width: boardSize, maxWidth: '100%' }}>
 				<div className={styles.topLeft}>
 					<div className={styles.datePanel}>
 						<div className={styles.dateRow}>
@@ -1718,12 +1847,11 @@ class SanShiUnitedMain extends Component{
 	}
 
 	renderOuterMarks(outerData, midFont, boardSize){
-		// 外圈文字按盘面尺寸连续缩放，避免在小窗口被最小字号”卡住”。
-		const size = boardSize || SANSHI_BOARD_BASE;
-		const ringCellPx = size * 0.111;
-		const houseFont = clamp(Math.round(ringCellPx * 0.20), 8, 22);
-		const branchFont = clamp(Math.round(ringCellPx * 0.18), 7, 20);
-		const starFont = clamp(Math.round(ringCellPx * 0.14), 6, 18);
+		// 外圈文字按盘面尺寸连续缩放，避免在小窗口被最小字号“卡住”。
+		const scale = clamp((boardSize || 600) / 600, 0.62, 1.35);
+		const houseFont = clamp(Math.round(18 * scale), 10, 34);
+		const branchFont = clamp(Math.round(17 * scale), 9, 32);
+		const starFont = clamp(Math.round(16 * scale), 9, 30);
 		return OUTER_RING_LAYOUT.map((item)=>{
 			const houses = outerData.housesByBranch[item.branch] || [];
 			const stars = outerData.starsByBranch[item.branch] || [];
@@ -1818,8 +1946,7 @@ class SanShiUnitedMain extends Component{
 		if(!layout || !layout.downZi || !layout.upZi || !layout.houseTianJiang){
 			return null;
 		}
-		const size = boardSize || SANSHI_BOARD_BASE;
-		const ringCellPx = size * 0.111;
+		const scale = clamp((boardSize || 600) / 600, 0.62, 1.35);
 		return layout.downZi.map((branch, idx)=>{
 			const pos = LIURENG_RING_LAYOUT[branch];
 			if(!pos){
@@ -1828,9 +1955,10 @@ class SanShiUnitedMain extends Component{
 			const up = layout.upZi[idx] || '';
 			const god = shortTianJiang(layout.houseTianJiang[idx] || '');
 			const isCardinal = pos.kind === 'cardinal';
+			// 六壬圈字体随盘面连续缩放：四正位略大于角位。
 			const font = isCardinal
-				? clamp(Math.round(ringCellPx * 0.23), 9, 24)
-				: clamp(Math.round(ringCellPx * 0.20), 8, 22);
+				? clamp(Math.round(20 * scale), 10, 36)
+				: clamp(Math.round(18 * scale), 9, 34);
 			if(!isCardinal){
 				const leftNum = parseFloat(`${pos.left}`) || 50;
 				const topNum = parseFloat(`${pos.top}`) || 50;
@@ -1840,9 +1968,8 @@ class SanShiUnitedMain extends Component{
 				const ux = dx / len;
 				const uy = dy / len;
 				// 角三角：地支远离中心，神将靠近中心；使用径向分离保证可读。
-				// 稍微减少偏移量以防止元素挤在一起
-				const outerShift = 3.0;
-				const innerShift = 2.4;
+				const outerShift = 3.1;
+				const innerShift = 2.5;
 				const ziLeft = `${leftNum + (ux * outerShift)}%`;
 				const ziTop = `${topNum + (uy * outerShift)}%`;
 				const godLeft = `${leftNum - (ux * innerShift)}%`;
@@ -1888,14 +2015,13 @@ class SanShiUnitedMain extends Component{
 			const tx = -uy;
 			const ty = ux;
 			// 规则：地支始终远离中心，神将始终靠近中心；二者分开独立定位。
-			// 稍微减少偏移量以防止元素挤在一起
 			const outerShift = isCardinal
-				? Math.max(11, Math.round(font * 0.64))
-				: Math.max(11, Math.round(font * 0.66));
+				? Math.max(12, Math.round(font * 0.66))
+				: Math.max(12, Math.round(font * 0.68));
 			const innerShift = isCardinal
-				? Math.max(9, Math.round(font * 0.52))
-				: Math.max(8, Math.round(font * 0.52));
-			const tangentShift = isCardinal ? 0 : Math.max(5, Math.round(font * 0.36));
+				? Math.max(10, Math.round(font * 0.54))
+				: Math.max(9, Math.round(font * 0.54));
+			const tangentShift = isCardinal ? 0 : Math.max(6, Math.round(font * 0.38));
 			const ziShiftX = Math.round((ux * outerShift) + (tx * tangentShift));
 			const ziShiftY = Math.round((uy * outerShift) + (ty * tangentShift));
 			const godShiftX = Math.round((-ux * innerShift) - (tx * tangentShift));
@@ -1941,18 +2067,15 @@ class SanShiUnitedMain extends Component{
 		if(!pos){
 			return null;
 		}
+		// 以宫格可用空间为准缩放，优先避免门框压住四角干神星。
 		const size = boardSize || 600;
+		const qScale = clamp(size / 600, 0.62, 1.28);
 		const ringCellPx = size * 0.111;
-		// “门”方块和字体都按宫格像素连续缩放，并限制上下限，防止挡住干门星神。
-		const qimenFont = clamp(Math.round(ringCellPx * 0.15), 5, 12);
-		const edgePad = clamp(Math.round(ringCellPx * 0.055), 1, 6);
-		const doorSize = clamp(
-			Math.round(ringCellPx * 0.095),
-			4,
-			Math.round(ringCellPx * 0.125),
-		);
-		const doorFont = clamp(Math.round(doorSize * 0.42), 4, 7);
-		const doorBorder = clamp(Math.round((ringCellPx * 0.01) * 10) / 10, 0.5, 1);
+		const qimenFont = clamp(Math.round(19 * qScale), 10, 28);
+		const doorMaxByCell = Math.round(ringCellPx * 0.34);
+		const doorSize = clamp(Math.round(22 * qScale), 9, doorMaxByCell);
+		const doorFont = clamp(Math.round(doorSize * 0.68), 8, Math.max(8, doorSize - 4));
+		const doorBorder = clamp(Math.round(1.1 * qScale * 10) / 10, 0.8, 1.6);
 		const isCorner = QIMEN_CORNER_PALACES.has(palaceNum);
 		return (
 			<div
@@ -1961,10 +2084,10 @@ class SanShiUnitedMain extends Component{
 				style={{ left: pos.left, top: pos.top }}
 			>
 				<div className={styles.qmRingCell} />
-				<div className={styles.qmTianGan} style={{ left: edgePad, top: edgePad, fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianGan, ' ')}</div>
-				<div className={styles.qmGod} style={{ right: edgePad, top: edgePad, fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.god, ' ')}</div>
-				<div className={styles.qmDiGan} style={{ left: edgePad, bottom: edgePad, fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.diGan, ' ')}</div>
-				<div className={styles.qmStar} style={{ right: edgePad, bottom: edgePad, fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianXing, ' ')}</div>
+				<div className={styles.qmTianGan} style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianGan, ' ')}</div>
+				<div className={styles.qmGod} style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.god, ' ')}</div>
+				<div className={styles.qmDiGan} style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.diGan, ' ')}</div>
+				<div className={styles.qmStar} style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianXing, ' ')}</div>
 				<div className={styles.qmDoorBox} style={{ width: doorSize, height: doorSize, borderWidth: doorBorder }}>
 					<div className={styles.qmDoor} style={{ fontSize: doorFont, lineHeight: `${doorFont}px` }}>{safe(cell.door, ' ')}</div>
 				</div>
@@ -1997,23 +2120,40 @@ class SanShiUnitedMain extends Component{
 		const edgePad = 2;
 		const centerPx = Math.max(140, Math.round((boardSize || 500) * 0.334));
 		const availableH = Math.max(90, centerPx - edgePad * 2);
-		const centerScale = clamp((boardSize || 600) / 700, 0.50, 1.00);
-		// 目标：四课(3行) + 三传(3行) 的总行高基本填满中宫高度
-		// 稍微减少字体大小以防止四课三传挤在一起
-		const txtSize = clamp(Math.min(Math.round((17 * centerScale) + 1), Math.floor(availableH / 7)), 8, 22);
-		const linePx = Math.max(8, Math.round(txtSize * 1.02));
+		const centerScale = clamp((boardSize || 600) / 600, 0.62, 1.35);
+		// 目标：四课(3行) + 三传(3行) 统一字号，并占中宫约85%可用高度，避免缩放时过挤。
+		const targetTextH = Math.max(72, Math.round(availableH * 0.85));
+		const linePx = clamp(Math.round(targetTextH / 6), 12, 52);
+		const sectionH = linePx * 3;
+		const txtSize = clamp(Math.min(Math.round(linePx * 0.95), Math.round(30 * centerScale)), 11, 46);
 		return (
 			<div key="qm_center" className={`${styles.qmBlock} ${styles.qmCenter}`} style={{ left: '50%', top: '50%' }}>
-				<div className={styles.centerKe} style={{ fontSize: txtSize, lineHeight: `${linePx}px` }}>
+				<div
+					className={styles.centerKe}
+					style={{
+						fontSize: txtSize,
+						lineHeight: `${linePx}px`,
+						top: edgePad,
+						height: sectionH,
+					}}
+				>
 					{keCols.map((col, idx)=>(
-						<div key={`ke_col_${idx}`} className={styles.centerKeCol}>
+						<div key={`ke_col_${idx}`} className={styles.centerKeCol} style={{ height: sectionH }}>
 							<div className={styles.centerKeGray}>{col.god}</div>
 							<div className={styles.centerKeMain}>{col.main1}</div>
 							<div className={styles.centerKeMain}>{col.main2}</div>
 						</div>
 					))}
 				</div>
-				<div className={styles.centerChuan} style={{ fontSize: txtSize, lineHeight: `${linePx}px` }}>
+				<div
+					className={styles.centerChuan}
+					style={{
+						fontSize: txtSize,
+						lineHeight: `${linePx}px`,
+						bottom: edgePad,
+						height: sectionH,
+					}}
+				>
 					{chuanRows.map((row, idx)=>(
 						<div key={`chuan_row_${idx}`} className={styles.centerChuanRow}>
 							<span className={styles.centerChuanGray}>{row.gan || ''}</span>
@@ -2028,7 +2168,7 @@ class SanShiUnitedMain extends Component{
 
 	renderBoardSvg(){
 		return (
-			<svg className={styles.boardSvg} viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet">
+			<svg className={styles.boardSvg} viewBox="0 0 1000 1000" preserveAspectRatio="none">
 				<rect x="0" y="0" width="1000" height="1000" className={styles.fillOuterRing} />
 				<rect x="111" y="111" width="778" height="778" className={styles.fillQimenRing} />
 				<rect x="222" y="222" width="556" height="556" className={styles.fillLiurengRing} />
@@ -2075,7 +2215,6 @@ class SanShiUnitedMain extends Component{
 	}
 
 	renderMiddle(boardSize){
-		const boardScale = this.getBoardScale(boardSize);
 		const chartWrap = this.props.chartObj || this.props.chart || null;
 		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 		let outerData = this.outerDataCache.data;
@@ -2095,7 +2234,7 @@ class SanShiUnitedMain extends Component{
 		}
 		const qmBlocks = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>this.renderQimenBlock(num, qimenMap, midFont, boardSize));
 		return (
-			<div className={styles.middleWrap} style={{ width: boardSize, '--ss-scale': boardScale }}>
+			<div className={styles.middleWrap} style={{ width: boardSize, maxWidth: '100%' }}>
 				<div className={styles.middleBoard} style={{ width: boardSize, height: boardSize }}>
 					{this.renderBoardSvg()}
 					<div className={styles.boardLayer}>
@@ -2110,7 +2249,6 @@ class SanShiUnitedMain extends Component{
 	}
 
 	renderBottom(boardSize){
-		const boardScale = this.getBoardScale(boardSize);
 		const pan = this.state.dunjia;
 		const xun = safe(pan && pan.xunShou, '—');
 		const futo = safe(pan && pan.fuTou, '—');
@@ -2119,7 +2257,7 @@ class SanShiUnitedMain extends Component{
 		const dunType = safe(pan && pan.yinYangDun, '—');
 		const dunJu = pan && pan.juShu !== undefined && pan.juShu !== null ? `${pan.juShu}局` : '—';
 		return (
-			<div className={styles.bottomBox} style={{ width: boardSize, '--ss-scale': boardScale }}>
+			<div className={styles.bottomBox} style={{ width: boardSize, maxWidth: '100%' }}>
 				<div className={styles.bottomGrid}>
 					<div className={styles.bottomCell}><span>本旬</span><b>{xun}</b></div>
 					<div className={styles.bottomCell}><span>旬仪</span><b>{futo}</b></div>
@@ -2142,23 +2280,11 @@ class SanShiUnitedMain extends Component{
 			return <Card bordered={false}>暂无三式合一数据</Card>;
 		}
 		const boardSize = this.calcBoardSize(height);
-		const hostCap = this.state.leftBoardWidth > 0
-			? Math.max(160, Math.round(this.state.leftBoardWidth - SANSHI_WIDTH_PADDING))
-			: boardSize;
-		const effectiveBoardSize = Math.max(160, Math.min(boardSize, hostCap));
 		return (
-			<div
-				style={{
-					display: 'flex',
-					flexDirection: 'column',
-					alignItems: 'center',
-					gap: 10,
-					fontFamily: SANSHI_FONT_STACK,
-				}}
-			>
-				{this.renderTop(effectiveBoardSize)}
-				{this.renderMiddle(effectiveBoardSize)}
-				{this.renderBottom(effectiveBoardSize)}
+			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+				{this.renderTop(boardSize)}
+				{this.renderMiddle(boardSize)}
+				{this.renderBottom(boardSize)}
 			</div>
 		);
 	}
@@ -2167,12 +2293,6 @@ class SanShiUnitedMain extends Component{
 		const fields = this.getActiveFields();
 		const pan = this.state.dunjia;
 		const opt = this.state.options;
-		const perf = this.state.perf || buildSanShiPerf('', 0, 0, 0);
-		const perfSourceMap = {
-			'chart-nongli': '星盘农历复用',
-			'precise-api': '精确历法接口',
-		};
-		const perfSource = perfSourceMap[perf.source] || '--';
 		let datetm = new DateTime();
 		if(fields.date && fields.time){
 			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
@@ -2254,6 +2374,18 @@ class SanShiUnitedMain extends Component{
 						</div>
 						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
 							<div>
+								<Select size="small" value={opt.taiyiStyle} onChange={(v)=>this.onOptionChange('taiyiStyle', v)} style={{ width: '100%' }}>
+									{TAIYI_STYLE_OPTIONS.map((item)=><Option key={`ty_style_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.taiyiAccum} onChange={(v)=>this.onOptionChange('taiyiAccum', v)} style={{ width: '100%' }}>
+									{TAIYI_ACCUM_OPTIONS.map((item)=><Option key={`ty_acc_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
+							<div>
 								<Select size="small" value={opt.zodiacal} onChange={(v)=>this.onAstroFieldOptionChange('zodiacal', v)} style={{ width: '100%' }}>
 									<Option value={0}>回归黄道</Option>
 									<Option value={1}>恒星黄道</Option>
@@ -2290,16 +2422,13 @@ class SanShiUnitedMain extends Component{
 						<div style={{ textAlign: 'right' }}>
 							<span>{fields.lon ? fields.lon.value : ''} {fields.lat ? fields.lat.value : ''}</span>
 						</div>
-						<div style={{ marginTop: 2, padding: '4px 6px', border: '1px solid #e8e8e8', borderRadius: 4, background: '#fafafa', fontSize: 12, lineHeight: '18px' }}>
-							<div>性能: 来源 {perfSource} | 总耗时 {perf.totalMs}ms</div>
-							<div>农历 {perf.nongliMs}ms | 重算 {perf.recalcMs}ms</div>
-						</div>
 					</div>
 				</div>
 
 				<div style={{ display: 'flex', gap: 6, marginTop: 8, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
 					<Button size="small" type={this.state.rightPanelTab === 'overview' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'overview' })}>概览</Button>
 					<Button size="small" type={this.state.rightPanelTab === 'status' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'status' })}>状态</Button>
+					<Button size="small" type={this.state.rightPanelTab === 'taiyi' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'taiyi' })}>太乙</Button>
 					<Button size="small" type={this.state.rightPanelTab === 'shensha' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'shensha' })}>神煞</Button>
 				</div>
 
@@ -2321,6 +2450,41 @@ class SanShiUnitedMain extends Component{
 							<div>时空：{pan && pan.xunkong ? pan.xunkong.时空 : '—'}</div>
 							<div>{pan && pan.yiMa ? pan.yiMa.text : '日马：无'}</div>
 							<div>阴阳遁：{pan ? pan.yinYangDun : '—'}</div>
+						</div>
+					)}
+					{this.state.rightPanelTab === 'taiyi' && (
+						<div style={{ lineHeight: '24px' }}>
+							{this.state.taiyi ? (
+								<>
+									<div>盘式：{this.state.taiyi.options ? this.state.taiyi.options.styleLabel : '—'}</div>
+									<div>积年法：{this.state.taiyi.options ? this.state.taiyi.options.accumLabel : '—'}</div>
+									<div>局式：{this.state.taiyi.kook ? this.state.taiyi.kook.text : '—'}</div>
+									<div>积数：{this.state.taiyi.accNum}</div>
+									<div>太乙：{this.state.taiyi.taiyiPalace}宫（数{this.state.taiyi.taiyiNum}）</div>
+									<div>文昌：{this.state.taiyi.skyeyes} 始击：{this.state.taiyi.sf}</div>
+									<div>太岁：{this.state.taiyi.taishui} 合神：{this.state.taiyi.hegod} 计神：{this.state.taiyi.jigod}</div>
+									<div>定目：{this.state.taiyi.se || '—'}</div>
+									<div>主算：{this.state.taiyi.homeCal} 客算：{this.state.taiyi.awayCal} 定算：{this.state.taiyi.setCal}</div>
+									<Divider style={{ margin: '8px 0' }} />
+									<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>
+									<div>四神：{this.state.taiyi.fgd} 天乙：{this.state.taiyi.skyyi} 地乙：{this.state.taiyi.earthyi}</div>
+									<div>直符：{this.state.taiyi.zhifu} 飞符：{this.state.taiyi.flyfu}</div>
+									<div>五福：{this.state.taiyi.wufuPalace} 帝符：{this.state.taiyi.kingfu} 太尊：{this.state.taiyi.taijun}</div>
+									<div>飞鸟：{this.state.taiyi.flybird} 三风：{this.state.taiyi.threewindPalace} 五风：{this.state.taiyi.fivewindPalace} 八风：{this.state.taiyi.eightwindPalace}</div>
+									<div>大游：{this.state.taiyi.bigyoPalace} 小游：{this.state.taiyi.smyoPalace}</div>
+									<Divider style={{ margin: '8px 0' }} />
+									<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 8, rowGap: 4 }}>
+										{this.state.taiyi.palace16 && this.state.taiyi.palace16.map((item)=>(
+											<div key={`ty_p16_${item.palace}`}>
+												<span style={{ color: '#262626' }}>{item.palace}-</span>
+												<span style={{ color: '#8c8c8c' }}>{item.items && item.items.length ? item.items.join('、') : '—'}</span>
+											</div>
+										))}
+									</div>
+								</>
+							) : (
+								<div>暂无太乙数据</div>
+							)}
 						</div>
 					)}
 					{this.state.rightPanelTab === 'shensha' && (
