@@ -1,5 +1,44 @@
 # AGENT Change Log
 
+## 2026-02-19 - GitHub 精简上传整理（Windows 一键部署保留）
+
+- 修改文件:
+  - `.gitignore`
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `PROJECT_STRUCTURE.md`
+  - `runtime/windows/bundle/astrostudyboot.url.example.txt`（新增）
+
+- 变更内容:
+  - Windows 启动脚本新增 jar URL 文件回退读取:
+    - 支持 `runtime/windows/bundle/astrostudyboot.url.txt`
+    - 支持 `runtime/windows/bundle/astrostudyboot.jar.url`
+    - 若 `HOROSA_BOOT_JAR_URL` 缺失时自动尝试读取上述文件
+  - GitHub 上传策略改为默认不提交超大 `astrostudyboot.jar`（避免 100MB 限制）。
+  - `.gitignore` 新增忽略项:
+    - `runtime/windows/wheels/`（避免与 `bundle/wheels` 重复）
+    - `runtime/windows/bundle/astrostudyboot.jar`
+    - 参考目录 `Horosa-Web-App-comprehensively-improved-MacOS-main/`、`modules/`
+  - 文档更新为“源码 + dist-file + wheels + 启动脚本”精简发布方案，并补充 URL 文件下载模式。
+
+- 清理动作（本地工作区执行）:
+  - 删除参考目录:
+    - `Horosa-Web-App-comprehensively-improved-MacOS-main/`
+    - `modules/`
+    - `scripts/`
+  - 删除冗余大文件与缓存:
+    - `runtime/windows/wheels/`
+    - `runtime/windows/bundle/astrostudyboot.jar`
+    - `Horosa-Web-55.../astrostudyui/node_modules`
+    - `Horosa-Web-55.../.horosa-local-logs-win`
+    - `Horosa-Web-55.../.horosa-browser-profile-win`
+    - `Horosa-Web-55.../astrostudysrv/**/target`（清理后又在烟测中自动重建）
+
+- 验证结果:
+  - 已执行无浏览器烟测:
+    - 命令: `HOROSA_NO_BROWSER=1 HOROSA_SMOKE_TEST=1 .\Horosa_Local_Windows.ps1`
+    - 在缺失 `runtime/windows/bundle/astrostudyboot.jar` 的情况下，脚本成功走 Maven 本地构建并完成启动/停止全流程。
+
 ## 2026-02-19 - 太乙显示修复与三式合一太乙标签补齐
 
 - 修改文件:

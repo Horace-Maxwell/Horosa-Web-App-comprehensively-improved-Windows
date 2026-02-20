@@ -1495,378 +1495,184 @@ public class RemoteCache implements ICache {
 	}
 	
 	public void dropDataSet(){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return;
-			}
 			cache.dropDataSet();
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public long countValues(FilterCond... conds){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return 0;
-			}
 			return cache.countValues(conds);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return 0;
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 
 	public List<Map<String, Object>> findValues(int limit, SortCond sort, FilterCond... conds){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.findValues(limit, sort, conds);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public List<Map<String, Object>> findValues(int limit, FilterCond... conds){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.findValues(limit, conds);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public List<Map<String, Object>> findValues(SortCond sort, FilterCond... conds){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.findValues(sort, conds);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public List<Map<String, Object>> findValues(FilterCond... conds){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.findValues(conds);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public void add(Map<String, Object> map){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return;
-			}
 			cache.add(map);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public void add(Map<String, Object> map, int timeoutInSec){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return;
-			}
 			cache.add(map, timeoutInSec);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}		
 	}
 	
 	@Override
 	public void setMap(Object key, Map<String, Object> map) {
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return;
-			}
 			cache.setMap(key, map);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 
 	@Override
 	public void setMap(Object key, Map<String, Object> map, int timeoutInSec) {
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return;
-			}
 			cache.setMap(key, map, timeoutInSec);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public Map<String, Object> getMap(Object key){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new HashMap<String, Object>();
-			}
 			return cache.getMap(key);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new HashMap<String, Object>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}
 	}
 	
 	public List<Map<String, Object>> getList(String field, Object fldKey){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.getList(field, fldKey);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}		
 	}
 	
 	public String getRemoteCacheName(){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return "";
-			}
 			return cache.getRemoteCacheName();
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return "";
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}				
 	}
 	
 	public Map<String, Object> getDistinct(String key){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new HashMap<String, Object>();
-			}
 			return cache.getDistinct(key);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new HashMap<String, Object>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}						
 	}
 	
 	public List<Map<String, Object>> aggregate(List<String> groupKeys, List<String> aggreKeys, Map<String, Object> matches){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.aggregate(groupKeys, aggreKeys, matches);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}						
 	}
 
 	public List<Map<String, Object>> aggregate(List<String> groupKeys, List<String> aggreKeys, FilterCond... matches){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.aggregate(groupKeys, aggreKeys, matches);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}						
 	}
 
 	public long count(FilterCond... matches){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return 0;
-			}
 			return cache.count(matches);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return 0;
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}						
 	}
 	
 	public long countTotal() {
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return 0;
-			}
 			return cache.countTotal();
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return 0;
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}								
 	}
 
 	public void createIndex(String fld, boolean desc) {
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return;
-			}
 			cache.createIndex(fld, desc);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}								
 	}
 
 	public List<Map<String, Object>> leftJoin(LookupCond[] lookups, int limit, SortCond sort){
-		ICache cache = null;
+		ICache cache = this.cachefactory.getCache();
 		try{
-			cache = this.cachefactory.getCache();
-			if(cache == null){
-				return new LinkedList<Map<String, Object>>();
-			}
 			return cache.leftJoin(lookups, limit, sort);
-		}catch(Exception e){
-			QueueLog.error(log, e.getMessage());
-			this.cachefactory.reconnect();
-			return new LinkedList<Map<String, Object>>();
 		}finally{
-			if(cache != null){
-				cache.close();
-			}
+			cache.close();
 		}						
 	}
 

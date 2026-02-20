@@ -3,6 +3,7 @@ const LocalCasesKey = 'horosa.localCases.v1';
 export const CASE_TYPE_OPTIONS = [
 	{ value: 'liuyao', label: '六爻', subTab: 'guazhan', module: 'guazhan' },
 	{ value: 'liureng', label: '六壬', subTab: 'liureng', module: 'liureng' },
+	{ value: 'jinkou', label: '金口诀', subTab: 'jinkou', module: 'jinkou' },
 	{ value: 'taiyi', label: '太乙', subTab: 'taiyi', module: 'taiyi' },
 	{ value: 'qimen', label: '奇门', subTab: 'dunjia', module: 'qimen' },
 	{ value: 'sanshiunited', label: '三式合一', subTab: null, tab: 'sanshiunited', module: 'sanshiunited' },
@@ -54,6 +55,9 @@ function normalizeCaseType(type){
 	}
 	if(val === '六壬'){
 		return 'liureng';
+	}
+	if(val === '金口诀'){
+		return 'jinkou';
 	}
 	if(val === '太乙'){
 		return 'taiyi';

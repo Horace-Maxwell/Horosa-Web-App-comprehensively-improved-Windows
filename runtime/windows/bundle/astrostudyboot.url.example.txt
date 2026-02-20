@@ -1,0 +1,3 @@
+# Copy this file to astrostudyboot.url.txt and replace with your real jar URL.
+# The launcher reads the first non-empty, non-comment http(s) line.
+https://example.com/path/to/astrostudyboot.jar

@@ -82,6 +82,13 @@ const DOMAIN_REPLACERS = {
 		{ regex: /四课/g, value: '四课(一课/二课/三课/四课)' },
 		{ regex: /贵人/g, value: '贵人(天乙贵人体系)' },
 	],
+	jinkou: [
+		{ regex: /旬空/g, value: '旬空(空亡)' },
+		{ regex: /四大空亡/g, value: '四大空亡(金空/水空)' },
+		{ regex: /贵神/g, value: '贵神(天将)' },
+		{ regex: /将神/g, value: '将神(月将)' },
+		{ regex: /地分/g, value: '地分(取课基准)' },
+	],
 	qimen: [
 		{ regex: /值符/g, value: '值符(主事神)' },
 		{ regex: /值使/g, value: '值使(主事门)' },
@@ -128,6 +135,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'suzhan', label: '宿占' },
 	{ key: 'sixyao', label: '易卦' },
 	{ key: 'liureng', label: '六壬' },
+	{ key: 'jinkou', label: '金口诀' },
 	{ key: 'qimen', label: '奇门遁甲' },
 	{ key: 'sanshiunited', label: '三式合一' },
 	{ key: 'taiyi', label: '太乙' },
@@ -157,6 +165,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	suzhan: ['起盘信息'],
 	sixyao: ['起盘信息', '起卦方式', '卦辞'],
 	liureng: ['起盘信息'],
+	jinkou: ['起盘信息', '金口诀速览', '金口诀四位', '四位神煞'],
 	taiyi: ['起盘信息', '太乙盘', '十六宫标记'],
 	qimen: ['起盘信息', '盘型', '右侧栏目', '九宫方盘'],
 	sanshiunited: ['起盘信息', '概览', '状态', '太乙', '太乙十六宫', '神煞', '大六壬', '正北坎宫', '东北艮宫', '正东震宫', '东南巽宫', '正南离宫', '西南坤宫', '正西兑宫', '西北乾宫'],
@@ -443,7 +452,11 @@ function applyUserSectionFilter(content, key){
 	if(!selected){
 		return content;
 	}
-	const wanted = new Set(selected.map((item)=>normalizeSectionTitle(item)));
+	const picked = selected.slice(0);
+	if(key === 'jinkou'){
+		picked.push('金口诀速览');
+	}
+	const wanted = new Set(uniqueArray(picked.map((item)=>normalizeSectionTitle(item)).filter(Boolean)));
 	return filterContentByWantedSections(content, wanted);
 }
 
@@ -857,7 +870,7 @@ function resolveActiveContext(){
 	}
 
 	if(topLabel.includes('易与三式')){
-		const subTabs = findTabsContainerByLabels(topPane, ['宿盘', '易卦', '六壬'], true);
+		const subTabs = findTabsContainerByLabels(topPane, ['宿盘', '易卦', '六壬', '金口诀'], true);
 		if(!subTabs){
 			context.key = 'cnyibu';
 			return context;
@@ -880,6 +893,13 @@ function resolveActiveContext(){
 			context.key = 'liureng';
 			context.domain = 'liureng';
 			context.displayName = '大六壬';
+			return context;
+		}
+
+		if(subLabel.includes('金口诀')){
+			context.key = 'jinkou';
+			context.domain = 'jinkou';
+			context.displayName = '金口诀';
 			return context;
 		}
 
@@ -1336,6 +1356,14 @@ async function extractLiuRengContent(context){
 	return parts.join('\n\n').trim();
 }
 
+async function extractJinKouContent(context){
+	const cached = getModuleCachedContent('jinkou');
+	if(cached){
+		return cached;
+	}
+	return extractLiuRengContent(context);
+}
+
 async function extractQiMenContent(context){
 	const cached = getModuleCachedContent('qimen');
 	if(cached){
@@ -1600,6 +1628,12 @@ async function extractGenericContent(context){
 			return cached;
 		}
 	}
+	if(context.key === 'jinkou'){
+		const cached = getModuleCachedContent('jinkou');
+		if(cached){
+			return cached;
+		}
+	}
 
 	const txt = normalizeWhitespace(textOf(context.scopeRoot));
 	const parts = [];
@@ -1818,6 +1852,8 @@ async function buildPayload(){
 		content = await extractSixYaoContent(context);
 	}else if(context.key === 'liureng'){
 		content = await extractLiuRengContent(context);
+	}else if(context.key === 'jinkou'){
+		content = await extractJinKouContent(context);
 	}else if(context.key === 'qimen'){
 		content = await extractQiMenContent(context);
 	}else if(context.key === 'sanshiunited'){

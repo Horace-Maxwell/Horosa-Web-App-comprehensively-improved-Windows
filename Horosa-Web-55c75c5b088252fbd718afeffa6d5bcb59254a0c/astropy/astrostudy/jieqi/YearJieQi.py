@@ -40,15 +40,6 @@ class YearJieQi:
             self.doubingSu28 = data['doubingSu28']
         else:
             self.doubingSu28 = 0
-        self.seedOnly = False
-        if 'seedOnly' in data.keys():
-            seedVal = data['seedOnly']
-            if isinstance(seedVal, bool):
-                self.seedOnly = seedVal
-            elif isinstance(seedVal, (int, float)):
-                self.seedOnly = int(seedVal) != 0
-            else:
-                self.seedOnly = str(seedVal).strip().lower() in ['1', 'true', 'yes', 'y', 'on']
 
         self.params = {}
         self.params['zone'] = self.zone
@@ -89,24 +80,6 @@ class YearJieQi:
         return newtm
 
     def computeJieQi(self, needChart):
-        if self.seedOnly:
-            res = {}
-            jieqi24 = []
-            for key in ['大雪', '芒种']:
-                if key not in jieqiconst.JieQiLon:
-                    continue
-                obj = self.computeOneJieQi(jieqiconst.JieQiLon[key])
-                obj['jieqi'] = key
-                jieqi24.append(obj)
-            jieqi24.sort(key=takeTime)
-            if self.pos.lat < 0:
-                for jq in jieqi24:
-                    jqname = jq['jieqi']
-                    jq['jieqi'] = jieqiconst.SouthEarthJieQi[jqname]
-            res['jieqi24'] = jieqi24
-            res['charts'] = {}
-            return res
-
         jieqicharts = {}
         jieqi24 = []
         tmpjieqi24 = {}

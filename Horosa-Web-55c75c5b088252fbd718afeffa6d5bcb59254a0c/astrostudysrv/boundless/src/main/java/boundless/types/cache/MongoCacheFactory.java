@@ -3,7 +3,6 @@ package boundless.types.cache;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
@@ -98,38 +97,6 @@ public class MongoCacheFactory implements ICacheFactory {
 		MongoClientSettings.Builder builder = MongoClientSettings.builder();
 		builder.applyToClusterSettings((clusterBuilder)->{
 			clusterBuilder.applySettings(clusterSettings);
-			long selTimeoutMs = 30000L;
-			try {
-				selTimeoutMs = Long.parseLong(System.getProperty("horosa.mongo.serverSelectionTimeoutMS", "30000"));
-			}catch(Exception e) {
-				selTimeoutMs = 30000L;
-			}
-			if(selTimeoutMs <= 0) {
-				selTimeoutMs = 30000L;
-			}
-			clusterBuilder.serverSelectionTimeout(selTimeoutMs, TimeUnit.MILLISECONDS);
-		});
-		builder.applyToSocketSettings((socketBuilder)->{
-			int connectTimeoutMs = 10000;
-			int readTimeoutMs = 30000;
-			try {
-				connectTimeoutMs = Integer.parseInt(System.getProperty("horosa.mongo.connectTimeoutMS", "10000"));
-			}catch(Exception e) {
-				connectTimeoutMs = 10000;
-			}
-			try {
-				readTimeoutMs = Integer.parseInt(System.getProperty("horosa.mongo.readTimeoutMS", "30000"));
-			}catch(Exception e) {
-				readTimeoutMs = 30000;
-			}
-			if(connectTimeoutMs <= 0) {
-				connectTimeoutMs = 10000;
-			}
-			if(readTimeoutMs <= 0) {
-				readTimeoutMs = 30000;
-			}
-			socketBuilder.connectTimeout(connectTimeoutMs, TimeUnit.MILLISECONDS);
-			socketBuilder.readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS);
 		});
 
 		List<MongoCredential> credentials = new ArrayList<MongoCredential>();

@@ -558,6 +558,9 @@ export default {
 					}else if(subtab && subtab === 'liureng'){
 						type = 5;
 						memo = currentChart.memoLiuReng.value;
+					}else if(subtab && subtab === 'jinkou'){
+						type = 5;
+						memo = currentChart.memoLiuReng.value;
 					}else{
 						type = 4;
 						memo = currentChart.memoGua.value;

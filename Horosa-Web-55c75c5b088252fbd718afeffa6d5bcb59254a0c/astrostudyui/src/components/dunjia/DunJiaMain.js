@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Card, Select, Button, Divider, Spin, Tag, message } from 'antd';
+import { Row, Col, Card, Select, Button, Divider, Spin, Tag, Tabs, message } from 'antd';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import {
 	setNongliLocalCache,
@@ -31,6 +31,7 @@ import {
 } from './DunJiaCalc';
 
 const { Option } = Select;
+const TabPane = Tabs.TabPane;
 const FENGJU_OPTIONS = [
 	{ value: 0, label: '未封局' },
 	{ value: 1, label: '已封局' },
@@ -1275,58 +1276,58 @@ class DunJiaMain extends Component {
 					</div>
 				</div>
 
-				<div style={{ display: 'flex', gap: 6, marginTop: 8, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
-					<Button size="small" type={panelTab === 'overview' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'overview' })}>概览</Button>
-					<Button size="small" type={panelTab === 'status' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'status' })}>状态</Button>
-					<Button size="small" type={panelTab === 'shensha' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'shensha' })}>神煞</Button>
-					<Button size="small" type={panelTab === 'calendar' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'calendar' })}>历法</Button>
-				</div>
-
-				<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }} style={{ marginTop: 6 }}>
-					{panelTab === 'overview' && (
-						<div style={{ lineHeight: '26px' }}>
-							<div>命式：{pan ? pan.options.sexLabel : '—'}</div>
-							<div>符头：{pan ? pan.fuTou : '—'}</div>
-							<div>节气：{pan ? pan.jieqiText : '—'}</div>
-							<div>局数：{pan ? pan.juText : '—'}</div>
-							<div>旬首：{pan ? pan.xunShou : '—'}</div>
-							<div>{pan ? pan.options.kongModeLabel : '空亡'}：{pan ? pan.kongWang : '—'}</div>
-							<div>值符：{pan ? pan.zhiFu : '—'}</div>
-							<div>值使：{pan ? pan.zhiShi : '—'}</div>
-							<div>移星：{pan ? (pan.options.shiftLabel || '原宫') : '原宫'}</div>
-							<div>奇门封局：{pan ? (pan.options.fengJuLabel || '未封局') : (opt.fengJu ? '已封局' : '未封局')}</div>
-						</div>
-					)}
-
-					{panelTab === 'status' && (
-						<div style={{ lineHeight: '26px' }}>
-							<div>六仪击刑：{pan && pan.liuYiJiXing.length ? pan.liuYiJiXing.join('；') : '无'}</div>
-							<div>奇仪入墓：{pan && pan.qiYiRuMu.length ? pan.qiYiRuMu.join('；') : '无'}</div>
-							<div>门迫：{pan && pan.menPo && pan.menPo.list.length ? pan.menPo.list.join('；') : '无'}</div>
-							<div>空亡宫：{pan && pan.kongWangDesc && pan.kongWangDesc.length ? pan.kongWangDesc.join('；') : '无'}</div>
-							<div>{pan && pan.yiMa ? pan.yiMa.text : '日马：无'}</div>
-						</div>
-					)}
-
-					{panelTab === 'shensha' && (
-						<div>
+				<Tabs
+					activeKey={panelTab}
+					onChange={(key)=>this.setState({ rightPanelTab: key })}
+					style={{ marginTop: 8 }}
+				>
+					<TabPane tab="概览" key="overview">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+							<div style={{ lineHeight: '26px' }}>
+								<div>命式：{pan ? pan.options.sexLabel : '—'}</div>
+								<div>符头：{pan ? pan.fuTou : '—'}</div>
+								<div>节气：{pan ? pan.jieqiText : '—'}</div>
+								<div>局数：{pan ? pan.juText : '—'}</div>
+								<div>旬首：{pan ? pan.xunShou : '—'}</div>
+								<div>{pan ? pan.options.kongModeLabel : '空亡'}：{pan ? pan.kongWang : '—'}</div>
+								<div>值符：{pan ? pan.zhiFu : '—'}</div>
+								<div>值使：{pan ? pan.zhiShi : '—'}</div>
+								<div>移星：{pan ? (pan.options.shiftLabel || '原宫') : '原宫'}</div>
+								<div>奇门封局：{pan ? (pan.options.fengJuLabel || '未封局') : (opt.fengJu ? '已封局' : '未封局')}</div>
+							</div>
+						</Card>
+					</TabPane>
+					<TabPane tab="状态" key="status">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+							<div style={{ lineHeight: '26px' }}>
+								<div>六仪击刑：{pan && pan.liuYiJiXing.length ? pan.liuYiJiXing.join('；') : '无'}</div>
+								<div>奇仪入墓：{pan && pan.qiYiRuMu.length ? pan.qiYiRuMu.join('；') : '无'}</div>
+								<div>门迫：{pan && pan.menPo && pan.menPo.list.length ? pan.menPo.list.join('；') : '无'}</div>
+								<div>空亡宫：{pan && pan.kongWangDesc && pan.kongWangDesc.length ? pan.kongWangDesc.join('；') : '无'}</div>
+								<div>{pan && pan.yiMa ? pan.yiMa.text : '日马：无'}</div>
+							</div>
+						</Card>
+					</TabPane>
+					<TabPane tab="神煞" key="shensha">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
 							<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', columnGap: 14, rowGap: 6, lineHeight: '24px' }}>
 								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
 									? pan.shenSha.allItems.map((item)=>(<div key={`ss_item_${item.name}`}><span style={{ color: '#262626' }}>{item.name}-</span><span style={{ color: '#8c8c8c' }}>{item.value}</span></div>))
 									: <div>暂无神煞</div>}
 							</div>
-						</div>
-					)}
-
-					{panelTab === 'calendar' && (
-						<div style={{ lineHeight: '26px' }}>
-							<div>农历：{pan ? pan.lunarText : '—'}</div>
-							<div>真太阳时：{pan ? (pan.realSunTime || '—') : '—'}</div>
-							<div>干支：{pan ? `年${pan.ganzhi.year} 月${pan.ganzhi.month} 日${pan.ganzhi.day} 时${pan.ganzhi.time}` : '—'}</div>
-							<div>节气段：{pan ? (pan.jiedelta || '—') : '—'}</div>
-						</div>
-					)}
-				</Card>
+						</Card>
+					</TabPane>
+					<TabPane tab="历法" key="calendar">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+							<div style={{ lineHeight: '26px' }}>
+								<div>农历：{pan ? pan.lunarText : '—'}</div>
+								<div>真太阳时：{pan ? (pan.realSunTime || '—') : '—'}</div>
+								<div>干支：{pan ? `年${pan.ganzhi.year} 月${pan.ganzhi.month} 日${pan.ganzhi.day} 时${pan.ganzhi.time}` : '—'}</div>
+								<div>节气段：{pan ? (pan.jiedelta || '—') : '—'}</div>
+							</div>
+						</Card>
+					</TabPane>
+				</Tabs>
 			</div>
 		);
 	}

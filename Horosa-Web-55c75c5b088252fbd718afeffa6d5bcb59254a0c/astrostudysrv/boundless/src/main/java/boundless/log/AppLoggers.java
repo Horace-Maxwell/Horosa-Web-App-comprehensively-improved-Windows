@@ -159,12 +159,23 @@ public class AppLoggers {
 	}
 	
 	public static String getBaseDir(){
-		return resolveBaseDir();
+		AbstractConfiguration conf = (AbstractConfiguration)config;
+		String basedir = conf.getStrSubstitutor().getVariableResolver().lookup("basedir");
+		basedir = StringUtility.isNullOrEmpty(basedir) ? "/" : basedir;
+		if(!basedir.endsWith("/")){
+			basedir = basedir + "/";
+		}
+
+		return basedir;
 	}
 	
 	synchronized public static void changeLogFile(){
 		AbstractConfiguration conf = (AbstractConfiguration)config;
-		String basedir = resolveBaseDir();
+		String basedir = config.getStrSubstitutor().getVariableResolver().lookup("basedir");
+		basedir = StringUtility.isNullOrEmpty(basedir) ? "/" : basedir;
+		if(!basedir.endsWith("/")){
+			basedir = basedir + "/";
+		}
 
 		Map<String, LoggerConfig> logconfigs = conf.getLoggers();
 		
@@ -240,7 +251,11 @@ public class AppLoggers {
 	
 	private static Tuple<Logger, org.apache.logging.log4j.core.Logger> createLog(String logdir, String name, Level level){
 		AbstractConfiguration conf = (AbstractConfiguration)config;
-		String basedir = resolveBaseDir();
+		String basedir = config.getStrSubstitutor().getVariableResolver().lookup("basedir");
+		basedir = StringUtility.isNullOrEmpty(basedir) ? "/" : basedir;
+		if(!basedir.endsWith("/")){
+			basedir = basedir + "/";
+		}
 		
 		if(logdir.startsWith("/")){
 			logdir = logdir.substring(1);
@@ -360,32 +375,5 @@ public class AppLoggers {
 			System.out.println(e.getMessage());
 			return LoggerFactory.getLogger(name);
 		}
-	}
-
-	private static String resolveBaseDir() {
-		String basedir = null;
-		try {
-			// Force recursive substitution instead of raw variable lookup.
-			basedir = config.getStrSubstitutor().replace("${basedir}");
-		} catch (Exception ex) {
-			basedir = null;
-		}
-
-		if(StringUtility.isNullOrEmpty(basedir) || basedir.contains("${")) {
-			String userHome = System.getProperty("user.home");
-			if(StringUtility.isNullOrEmpty(userHome)) {
-				userHome = System.getenv("USERPROFILE");
-			}
-			if(StringUtility.isNullOrEmpty(userHome)) {
-				userHome = ".";
-			}
-			basedir = userHome + "/.horosa-logs/astrostudyboot";
-		}
-
-		basedir = basedir.replace('\\', '/');
-		if(!basedir.endsWith("/")){
-			basedir = basedir + "/";
-		}
-		return basedir;
 	}
 }

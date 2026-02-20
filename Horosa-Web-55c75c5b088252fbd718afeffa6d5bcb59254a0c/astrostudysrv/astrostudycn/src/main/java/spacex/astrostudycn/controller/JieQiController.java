@@ -2,7 +2,6 @@ package spacex.astrostudycn.controller;
 
 import java.util.HashMap;
 import java.util.List;
-import java.lang.reflect.Array;
 import java.util.Map;
 
 import org.springframework.stereotype.Controller;
@@ -113,25 +112,8 @@ public class JieQiController {
 			params.put("gpsLat", TransData.get("gpsLat"));
 			params.put("gpsLon", TransData.get("gpsLon"));
 		}
-		boolean seedOnly = false;
 		if(TransData.containsParam("jieqis")) {
-			Object jieqis = TransData.get("jieqis");
-			params.put("jieqis", jieqis);
-			if(jieqis == null) {
-				seedOnly = true;
-			}else if(jieqis instanceof List) {
-				seedOnly = ((List<?>)jieqis).isEmpty();
-			}else if(jieqis.getClass().isArray()) {
-				seedOnly = Array.getLength(jieqis) <= 0;
-			}else {
-				String txt = ConvertUtility.getValueAsString(jieqis);
-				seedOnly = txt == null || txt.trim().isEmpty();
-			}
-		}else {
-			seedOnly = true;
-		}
-		if(seedOnly) {
-			params.put("seedOnly", true);
+			params.put("jieqis", TransData.get("jieqis"));
 		}
 		int timealg = TransData.getValueAsInt("timeAlg", 0);
 		params.put("timeAlg", TimeZiAlg.fromCode(timealg));

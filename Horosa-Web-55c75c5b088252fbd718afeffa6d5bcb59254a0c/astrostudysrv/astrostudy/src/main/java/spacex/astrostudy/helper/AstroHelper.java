@@ -14,8 +14,7 @@ import boundless.utility.JsonUtility;
 import boundless.utility.StringUtility;
 
 public class AstroHelper {
-	private static final boolean Debug = PropertyPlaceholder.getPropertyAsBool("devmode", false);
-	private static final boolean NeedPredictiveCache = PropertyPlaceholder.getPropertyAsBool("cachehelper.needcache", true);
+	private static final boolean Debug = PropertyPlaceholder.getPropertyAsBool("devmode", true);
 
 	public static final String AstroSrvUrl = PropertyPlaceholder.getProperty("astrosrv", "http://127.0.0.1:8899");
 	public static final String SolarReturn = PropertyPlaceholder.getProperty("solarreturn", "/predict/solarreturn");
@@ -61,7 +60,7 @@ public class AstroHelper {
 	}
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
-		if(Debug || !NeedPredictiveCache) {
+		if(Debug) {
 			return requestNoCache(path, params);
 		}
 		String key = getPredictiveKey(path, params);

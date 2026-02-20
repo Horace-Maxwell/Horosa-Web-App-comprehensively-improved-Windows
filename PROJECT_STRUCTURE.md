@@ -29,7 +29,7 @@
 
 ## C. 运行时（部署辅助）
 - `runtime/windows/bundle/`
-: Windows 启动时前端静态资源回填目录（`dist-file`）。
+: Windows 启动回填目录（`dist-file` / `wheels` / 可选 `astrostudyboot.url.txt`）。
 - `runtime/windows/maven/`
 : 可选，Windows 缺少系统 Maven 时用于后端 jar 本地构建。
 

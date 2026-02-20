@@ -4,20 +4,23 @@ import { randomStr } from '../../utils/helper';
 import SuZhanMain from '../suzhan/SuZhanMain';
 import GuaZhanMain from '../guazhan/GuaZhanMain';
 import LiuRengMain from '../lrzhan/LiuRengMain';
+import JinKouMain from '../jinkou/JinKouMain';
 import DunJiaMain from '../dunjia/DunJiaMain';
 import TaiYiMain from '../taiyi/TaiYiMain';
 
 
 const TabPane = Tabs.TabPane;
+const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi'];
 
 class CnYiBuMain extends Component{
 
 	constructor(props) {
 		super(props);
+		const tab = this.normalizeTab(this.props.currentSubTab);
 
 		this.state = {
 			divId: 'div_' + randomStr(8),
-			currentTab: 'suzhan',
+			currentTab: tab,
 			hook:{
 				suzhan:{
 					fun: null
@@ -26,6 +29,9 @@ class CnYiBuMain extends Component{
 					fun: null
 				},
 				liureng:{
+					fun: null
+				},
+				jinkou:{
 					fun: null
 				},
 				dunjia:{
@@ -38,31 +44,49 @@ class CnYiBuMain extends Component{
 		};
 
 		this.changeTab = this.changeTab.bind(this);
+		this.normalizeTab = this.normalizeTab.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
+				const currentTab = this.normalizeTab(this.state.currentTab);
 				let hook = this.state.hook;
-				if(hook[this.state.currentTab].fun){
-					hook[this.state.currentTab].fun(fields);
+				if(hook[currentTab] && hook[currentTab].fun){
+					hook[currentTab].fun(fields);
 				}
 			};
 		}
 
 	}
 
+	normalizeTab(tab){
+		return ValidTabs.indexOf(tab) >= 0 ? tab : 'suzhan';
+	}
+
+	componentDidUpdate(prevProps){
+		if(prevProps.currentSubTab !== this.props.currentSubTab){
+			const nextTab = this.normalizeTab(this.props.currentSubTab);
+			if(nextTab !== this.state.currentTab){
+				this.setState({
+					currentTab: nextTab,
+				});
+			}
+		}
+	}
+
 	changeTab(key){
+		const nextTab = this.normalizeTab(key);
 		let hook = this.state.hook;
 		this.setState({
-			currentTab: key,
+			currentTab: nextTab,
 		}, ()=>{
-			if(hook[key].fun){
-				hook[key].fun(this.props.fields);
+			if(hook[nextTab] && hook[nextTab].fun){
+				hook[nextTab].fun(this.props.fields);
 			}
 			if(this.props.dispatch){
 				this.props.dispatch({
 					type: 'astro/save',
 					payload: {
-						currentSubTab: key,
+						currentSubTab: nextTab,
 					}
 				});
 			}	
@@ -73,11 +97,13 @@ class CnYiBuMain extends Component{
 	render(){
 		let height = this.props.height ? this.props.height : 760;
 		height = height - 20;
+		const tab = this.normalizeTab(this.state.currentTab);
 
 		return (
 			<div id={this.state.divId}>
 				<Tabs 
-					defaultActiveKey={this.state.currentTab} tabPosition='right'
+					defaultActiveKey={tab} tabPosition='right'
+					activeKey={tab}
 					onChange={this.changeTab}
 					style={{ height: height }}
 				>
@@ -109,6 +135,15 @@ class CnYiBuMain extends Component{
 							height={height}
 							fields={this.props.fields}
 							hook={this.state.hook.liureng}
+							dispatch={this.props.dispatch}
+						/>
+					</TabPane>
+					<TabPane tab="金口诀" key="jinkou">
+						<JinKouMain
+							value={this.props.chart}
+							height={height}
+							fields={this.props.fields}
+							hook={this.state.hook.jinkou}
 							dispatch={this.props.dispatch}
 						/>
 					</TabPane>

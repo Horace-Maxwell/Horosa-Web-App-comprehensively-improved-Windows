@@ -5,7 +5,9 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RuntimeRoot = Join-Path $Root 'runtime\\windows'
 $JavaDst = Join-Path $RuntimeRoot 'java'
 $PyDst = Join-Path $RuntimeRoot 'python'
+$WheelsDst = Join-Path $RuntimeRoot 'wheels'
 $BundleDst = Join-Path $RuntimeRoot 'bundle'
+$WheelsBundleDst = Join-Path $BundleDst 'wheels'
 $ProjectDir = Join-Path $Root 'Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c'
 $JarSrc = Join-Path $ProjectDir 'astrostudysrv\\astrostudyboot\\target\\astrostudyboot.jar'
 $DistFileSrc = Join-Path $ProjectDir 'astrostudyui\\dist-file'
@@ -16,6 +18,61 @@ $DistBundleDst = Join-Path $BundleDst 'dist'
 
 New-Item -ItemType Directory -Force -Path $RuntimeRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $BundleDst | Out-Null
+
+function Test-PythonDeps {
+  param([string]$PythonExe)
+  if (-not (Test-Path $PythonExe)) { return $false }
+  try {
+    & $PythonExe -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
+    return ($LASTEXITCODE -eq 0)
+  } catch {
+    return $false
+  }
+}
+
+function Ensure-PythonDepsInRuntime {
+  param([string]$PythonExe)
+  if (-not (Test-Path $PythonExe)) { return $false }
+  if (Test-PythonDeps -PythonExe $PythonExe) {
+    Write-Host '[OK] Python runtime dependencies already satisfied.'
+    return $true
+  }
+
+  try {
+    & $PythonExe -m ensurepip --upgrade *> $null
+  } catch {
+    # embedded/runtime python may already have pip
+  }
+
+  try {
+    Write-Host 'Installing Python runtime dependencies into copied runtime...'
+    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
+    if ($LASTEXITCODE -ne 0) { return $false }
+    & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return (Test-PythonDeps -PythonExe $PythonExe)
+  } catch {
+    Write-Host ("[WARN] Python runtime dependency install failed: {0}" -f $_.Exception.Message)
+    return $false
+  }
+}
+
+function Export-PythonWheels {
+  param(
+    [string]$PythonExe,
+    [string]$WheelDir
+  )
+  if (-not (Test-Path $PythonExe)) { return $false }
+  try {
+    New-Item -ItemType Directory -Force -Path $WheelDir | Out-Null
+    Write-Host "Exporting offline Python wheels to: $WheelDir"
+    & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph
+    return ($LASTEXITCODE -eq 0)
+  } catch {
+    Write-Host ("[WARN] Wheel export failed: {0}" -f $_.Exception.Message)
+    return $false
+  }
+}
 
 $JavaSrc = $env:HOROSA_JAVA_HOME
 if (-not $JavaSrc) {
@@ -64,8 +121,8 @@ if ($JavaSrc -and (Test-Path (Join-Path $JavaSrc 'bin\\java.exe'))) {
 $PySrc = $env:HOROSA_PYTHON_HOME
 if (-not $PySrc) {
   $cand = @(
-    "$env:LocalAppData\\Programs\\Python\\Python312",
     "$env:LocalAppData\\Programs\\Python\\Python311",
+    "$env:LocalAppData\\Programs\\Python\\Python312",
     "$env:ProgramFiles\\Python312",
     "$env:ProgramFiles\\Python311"
   )
@@ -88,6 +145,22 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
   New-Item -ItemType Directory -Force -Path $PyDst | Out-Null
   robocopy $PySrc $PyDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+  $runtimePyExe = Join-Path $PyDst 'python.exe'
+  $depsReady = Ensure-PythonDepsInRuntime -PythonExe $runtimePyExe
+  if ($depsReady) {
+    Write-Host '[OK] Python runtime deps ready.'
+  } else {
+    Write-Host '[WARN] Python runtime deps are incomplete. Target machine may require internet at first startup.'
+  }
+  $wheelOk = Export-PythonWheels -PythonExe $runtimePyExe -WheelDir $WheelsDst
+  if ($wheelOk) {
+    if (Test-Path $WheelsBundleDst) { Remove-Item -Recurse -Force $WheelsBundleDst }
+    New-Item -ItemType Directory -Force -Path $WheelsBundleDst | Out-Null
+    robocopy $WheelsDst $WheelsBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    Write-Host "[OK] Offline wheels copied to: $WheelsBundleDst"
+  } else {
+    Write-Host '[WARN] Offline wheels not prepared.'
+  }
 } else {
   Write-Host 'Python runtime not found. Set HOROSA_PYTHON_HOME then rerun.'
 }
@@ -132,9 +205,14 @@ if (Test-Path $JarBundleDst) {
 } else {
   Write-Host '[MISSING] runtime\\windows\\bundle\\astrostudyboot.jar'
 }
-if (Test-Path (Join-Path $DistFileBundleDst 'index.html') -or Test-Path (Join-Path $DistBundleDst 'index.html')) {
+if ((Test-Path (Join-Path $DistFileBundleDst 'index.html')) -or (Test-Path (Join-Path $DistBundleDst 'index.html'))) {
   Write-Host '[OK] runtime\\windows\\bundle\\dist-file or dist'
 } else {
   Write-Host '[MISSING] runtime\\windows\\bundle\\dist-file or dist'
+}
+if (Test-Path $WheelsDst) {
+  Write-Host '[OK] runtime\\windows\\wheels (offline Python deps)'
+} else {
+  Write-Host '[WARN] runtime\\windows\\wheels not found'
 }
 Read-Host 'Press Enter to exit'

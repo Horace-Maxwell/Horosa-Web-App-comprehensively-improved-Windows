@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Card, Spin, Row, Col, Select, Button, Divider, message } from 'antd';
+import { Card, Spin, Row, Col, Select, Button, Divider, Tabs, message } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { splitDegree, convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
@@ -38,6 +38,7 @@ import {
 import styles from './SanShiUnitedMain.less';
 
 const { Option } = Select;
+const TabPane = Tabs.TabPane;
 const BRANCH_ORDER = '子丑寅卯辰巳午未申酉戌亥'.split('');
 const BRANCH_ZODIAC_MAP = {
 	子: '水瓶座',
@@ -360,6 +361,43 @@ function getChartYue(chartObj){
 		}
 	}
 	return '';
+}
+
+function getOuterChartKey(chartWrap){
+	if(!chartWrap){
+		return '';
+	}
+	const chart = chartWrap.chart ? chartWrap.chart : chartWrap;
+	if(!chart){
+		return '';
+	}
+	const chartId = safe(chartWrap.chartId || chart.chartId || chart.id, '');
+	const objs = chart.objects || [];
+	let ascKey = '';
+	let sunKey = '';
+	for(let i=0; i<objs.length; i++){
+		const obj = objs[i];
+		if(!obj){
+			continue;
+		}
+		if(!ascKey && obj.id === AstroConst.ASC){
+			ascKey = `${safe(obj.sign)}|${safe(obj.signlon)}|${safe(obj.lon)}`;
+		}
+		if(!sunKey && obj.id === AstroConst.SUN){
+			sunKey = `${safe(obj.sign)}|${safe(obj.signlon)}|${safe(obj.lon)}`;
+		}
+		if(ascKey && sunKey){
+			break;
+		}
+	}
+	return [
+		chartId,
+		ascKey,
+		sunKey,
+		safe(chart.nongli && chart.nongli.dayGanZi),
+		safe(chart.nongli && chart.nongli.time),
+		`${objs.length}`,
+	].join('|');
 }
 
 function buildLiuRengLayout(chartObj, guirengType){
@@ -835,6 +873,7 @@ function getOuterLabelLayout(branch, houseFont){
 
 function getOuterStarsLayout(branch, starFont){
 	const sidePad = 2;
+	const rightPad = sidePad + 2;
 	const topPad = Math.max(8, Math.round(starFont * 1.35));
 	const bottomPad = Math.max(8, Math.round(starFont * 1.35));
 	const onePerRowBranches = new Set(['寅', '卯', '辰', '申', '酉', '戌']);
@@ -861,7 +900,7 @@ function getOuterStarsLayout(branch, starFont){
 		break;
 	case '巳':
 	case '丑':
-		style = { right: sidePad, top: '50%', transform: 'translateY(-50%)', textAlign: 'right' };
+		style = { right: rightPad, top: '50%', transform: 'translateY(-50%)', textAlign: 'right' };
 		rowJustify = 'flex-end';
 		break;
 	case '亥':
@@ -896,6 +935,23 @@ function getOuterStarsLayout(branch, starFont){
 		rowJustify,
 		style,
 	};
+}
+
+function padOuterStarsRow(row, perRow, rowJustify){
+	const padded = row.slice();
+	while(padded.length < perRow){
+		if(rowJustify === 'flex-end'){
+			padded.unshift('');
+			continue;
+		}
+		if(rowJustify === 'center' && perRow === 3 && padded.length === 1){
+			padded.unshift('');
+			padded.push('');
+			continue;
+		}
+		padded.push('');
+	}
+	return padded;
 }
 
 function buildPillarFromPan(pan, key){
@@ -938,6 +994,8 @@ class SanShiUnitedMain extends Component{
 			},
 			leftBoardWidth: 0,
 			viewportHeight: getViewportHeight(),
+			rightTopHeight: 0,
+			rightPanelHeight: 0,
 		};
 		this.unmounted = false;
 		this.lastKey = '';
@@ -950,8 +1008,9 @@ class SanShiUnitedMain extends Component{
 		this.pendingRefresh = null;
 		this.panCache = new Map();
 		this.lrBundleCache = {};
-		this.outerDataCache = { chartRef: null, data: null };
+		this.outerDataCache = { chartKey: '', data: null };
 		this.resizeObserver = null;
+		this.rightTopResizeObserver = null;
 		this.prefetchSeedTimer = null;
 
 		this.refreshAll = this.refreshAll.bind(this);
@@ -975,6 +1034,8 @@ class SanShiUnitedMain extends Component{
 		this.parseCasePayload = this.parseCasePayload.bind(this);
 		this.restoreOptionsFromCurrentCase = this.restoreOptionsFromCurrentCase.bind(this);
 		this.captureLeftBoardHost = this.captureLeftBoardHost.bind(this);
+		this.captureRightPanel = this.captureRightPanel.bind(this);
+		this.captureRightTop = this.captureRightTop.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
 
 		if(this.props.hook){
@@ -1056,6 +1117,10 @@ class SanShiUnitedMain extends Component{
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
 		}
+		if(this.rightTopResizeObserver){
+			this.rightTopResizeObserver.disconnect();
+			this.rightTopResizeObserver = null;
+		}
 	}
 
 	captureLeftBoardHost(node){
@@ -1073,15 +1138,45 @@ class SanShiUnitedMain extends Component{
 		this.handleWindowResize();
 	}
 
+	captureRightTop(node){
+		if(this.rightTopResizeObserver){
+			this.rightTopResizeObserver.disconnect();
+			this.rightTopResizeObserver = null;
+		}
+		this.rightTopHost = node || null;
+		if(this.rightTopHost && typeof ResizeObserver !== 'undefined'){
+			this.rightTopResizeObserver = new ResizeObserver(()=>{
+				this.handleWindowResize();
+			});
+			this.rightTopResizeObserver.observe(this.rightTopHost);
+		}
+		this.handleWindowResize();
+	}
+
+	captureRightPanel(node){
+		this.rightPanelHost = node || null;
+		this.handleWindowResize();
+	}
+
 	handleWindowResize(){
 		const viewportHeight = getViewportHeight();
 		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
+		const rightTopHeight = this.rightTopHost ? this.rightTopHost.clientHeight : 0;
+		const rightTop = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top : 0;
+		const fallbackPanelHeight = Math.max(420, viewportHeight - 120);
+		const rightPanelHeight = rightTop > 0
+			? Math.max(220, viewportHeight - rightTop - 8)
+			: fallbackPanelHeight;
 		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
-			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2;
+			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
+			|| Math.abs((this.state.rightTopHeight || 0) - rightTopHeight) >= 2
+			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2;
 		if(changed){
 			this.setState({
 				leftBoardWidth,
 				viewportHeight,
+				rightTopHeight,
+				rightPanelHeight,
 			});
 		}
 	}
@@ -1282,6 +1377,13 @@ class SanShiUnitedMain extends Component{
 				zone: { value: dt.zone },
 			};
 			this.syncFields(syncedFields);
+			this.onFieldsChange(syncedFields, {
+				silentRequest: true,
+				nohook: true,
+			});
+			if(this.state.hasPlotted){
+				this.refreshAll(localFields, true);
+			}
 		}
 	}
 
@@ -1344,22 +1446,20 @@ class SanShiUnitedMain extends Component{
 		if(!nextFields){
 			return;
 		}
-		if(timeFields){
-			const nextKey = getFieldKey(timeFields);
-			const curKey = getFieldKey(this.props.fields);
-			if(nextKey !== curKey){
-				const patchFields = {
-					date: { value: timeFields.date.value.clone() },
-					time: { value: timeFields.time.value.clone() },
-					ad: { value: timeFields.ad.value },
-					zone: { value: timeFields.zone.value },
-				};
-				this.syncFields(patchFields);
-				this.onFieldsChange(patchFields, {
-					silentRequest: true,
-					nohook: true,
-				});
-			}
+		const nextKey = getFieldKey(nextFields);
+		const curKey = getFieldKey(this.props.fields);
+		if(nextKey && nextKey !== curKey){
+			const patchFields = {
+				date: { value: nextFields.date.value.clone() },
+				time: { value: nextFields.time.value.clone() },
+				ad: { value: nextFields.ad.value },
+				zone: { value: nextFields.zone.value },
+			};
+			this.syncFields(patchFields);
+			this.onFieldsChange(patchFields, {
+				silentRequest: true,
+				nohook: true,
+			});
 		}
 		const refreshKey = `${getFieldKey(nextFields)}|${this.state.options.sex}`;
 		const shouldForce = !this.state.nongli || refreshKey !== this.lastKey;
@@ -1505,6 +1605,8 @@ class SanShiUnitedMain extends Component{
 		}
 		const guirengType = overrideOptions && overrideOptions.guireng !== undefined ? overrideOptions.guireng : this.state.options.guireng;
 		const qimenOptions = this.getQimenOptions(overrideOptions);
+		const chartWrap = this.props.chartObj || this.props.chart || null;
+		const outerChartKey = getOuterChartKey(chartWrap);
 		const recalcSignature = [
 			getFieldKey(flds),
 			getNongliKey(nongli),
@@ -1515,12 +1617,12 @@ class SanShiUnitedMain extends Component{
 			safe(flds && flds.zodiacal && flds.zodiacal.value),
 			safe(flds && flds.hsys && flds.hsys.value),
 			`${safe(extractIsDiurnalFromChartWrap(this.props.chartObj || this.props.chart || null), '')}`,
+			outerChartKey,
 		].join('|');
 		if(this.state.dunjia && recalcSignature === this.lastRecalcSignature){
 			return;
 		}
 		const year = parseInt(flds.date.value.format('YYYY'), 10);
-		const chartWrap = this.props.chartObj || this.props.chart || null;
 		const isDiurnal = extractIsDiurnalFromChartWrap(chartWrap);
 		const dunjia = this.getCachedDunJia(flds, nongli, qimenOptions, year, isDiurnal);
 		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
@@ -1576,10 +1678,10 @@ class SanShiUnitedMain extends Component{
 			sex: mergedOptions.sex,
 		});
 		let outerData = this.outerDataCache.data;
-		if(this.outerDataCache.chartRef !== astroChart){
+		if(this.outerDataCache.chartKey !== outerChartKey){
 			outerData = buildOuterData(astroChart);
 			this.outerDataCache = {
-				chartRef: astroChart,
+				chartKey: outerChartKey,
 				data: outerData,
 			};
 		}
@@ -1859,10 +1961,8 @@ class SanShiUnitedMain extends Component{
 			const starRows = [];
 			for(let i=0; i<stars.length; i += starsLayout.perRow){
 				const row = stars.slice(i, i + starsLayout.perRow);
-				while(row.length < starsLayout.perRow){
-					row.push('');
-				}
-				starRows.push(row);
+				const paddedRow = padOuterStarsRow(row, starsLayout.perRow, starsLayout.rowJustify);
+				starRows.push(paddedRow);
 			}
 			const houseTxt = houses.length ? houses.join('/') : '';
 			const labelLayout = getOuterLabelLayout(item.branch, houseFont);
@@ -2217,11 +2317,12 @@ class SanShiUnitedMain extends Component{
 	renderMiddle(boardSize){
 		const chartWrap = this.props.chartObj || this.props.chart || null;
 		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
+		const outerChartKey = getOuterChartKey(chartWrap);
 		let outerData = this.outerDataCache.data;
-		if(this.outerDataCache.chartRef !== astroChart){
+		if(this.outerDataCache.chartKey !== outerChartKey){
 			outerData = buildOuterData(astroChart);
 			this.outerDataCache = {
-				chartRef: astroChart,
+				chartKey: outerChartKey,
 				data: outerData,
 			};
 		}
@@ -2293,6 +2394,9 @@ class SanShiUnitedMain extends Component{
 		const fields = this.getActiveFields();
 		const pan = this.state.dunjia;
 		const opt = this.state.options;
+		const panelHeight = this.state.rightPanelHeight || Math.max(420, (this.state.viewportHeight || 900) - 120);
+		const topHeight = this.state.rightTopHeight || 360;
+		const tabBodyHeight = Math.max(0, panelHeight - topHeight - 74);
 		let datetm = new DateTime();
 		if(fields.date && fields.time){
 			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
@@ -2302,8 +2406,8 @@ class SanShiUnitedMain extends Component{
 			}
 		}
 		return (
-			<div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-				<div style={{ paddingBottom: 6, borderBottom: '1px solid #f0f0f0' }}>
+			<div ref={this.captureRightPanel} style={{ display: 'flex', flexDirection: 'column', height: panelHeight, overflow: 'hidden' }}>
+				<div ref={this.captureRightTop} style={{ paddingBottom: 6, borderBottom: '1px solid #f0f0f0' }}>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 						<div>
 							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} hook={this.timeHook} />
@@ -2425,100 +2529,81 @@ class SanShiUnitedMain extends Component{
 					</div>
 				</div>
 
-				<div style={{ display: 'flex', gap: 6, marginTop: 8, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
-					<Button size="small" type={this.state.rightPanelTab === 'overview' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'overview' })}>概览</Button>
-					<Button size="small" type={this.state.rightPanelTab === 'status' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'status' })}>状态</Button>
-					<Button size="small" type={this.state.rightPanelTab === 'taiyi' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'taiyi' })}>太乙</Button>
-					<Button size="small" type={this.state.rightPanelTab === 'shensha' ? 'primary' : 'default'} onClick={()=>this.setState({ rightPanelTab: 'shensha' })}>神煞</Button>
-				</div>
-
-				<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }} style={{ marginTop: 6 }}>
-					{this.state.rightPanelTab === 'overview' && (
-						<div style={{ lineHeight: '26px' }}>
-							<div>局数：{pan ? pan.juText : '—'}</div>
-							<div>旬首：{pan ? pan.xunShou : '—'}</div>
-							<div>旬仪：{pan ? pan.fuTou : '—'}</div>
-							<div>值符：{pan ? pan.zhiFu : '—'}</div>
-							<div>值使：{pan ? pan.zhiShi : '—'}</div>
-							<div>月将：{this.state.lrLayout ? this.state.lrLayout.yue : '—'}</div>
-						</div>
-					)}
-					{this.state.rightPanelTab === 'status' && (
-						<div style={{ lineHeight: '26px' }}>
-							<div>本旬：{pan ? pan.xunShou : '—'}</div>
-							<div>旬空：{pan && pan.xunkong ? pan.xunkong.日空 : '—'}</div>
-							<div>时空：{pan && pan.xunkong ? pan.xunkong.时空 : '—'}</div>
-							<div>{pan && pan.yiMa ? pan.yiMa.text : '日马：无'}</div>
-							<div>阴阳遁：{pan ? pan.yinYangDun : '—'}</div>
-						</div>
-					)}
-					{this.state.rightPanelTab === 'taiyi' && (
-						<div style={{ lineHeight: '24px' }}>
-							{this.state.taiyi ? (
-								<>
-									<div>盘式：{this.state.taiyi.options ? this.state.taiyi.options.styleLabel : '—'}</div>
-									<div>积年法：{this.state.taiyi.options ? this.state.taiyi.options.accumLabel : '—'}</div>
-									{this.state.taiyi.coreDisplay && this.state.taiyi.extDisplay ? (
-										<>
-											<Divider style={{ margin: '8px 0' }} />
-											<div>核心</div>
-											{(this.state.taiyi.coreDisplay.fields || []).map((item)=>(
-												<div key={`sansty_core_${item.key || item.label}`}>{item.label}：{item.value || '—'}</div>
+				<Tabs
+					activeKey={this.state.rightPanelTab}
+					onChange={(key)=>this.setState({ rightPanelTab: key })}
+					style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}
+				>
+					<TabPane tab="概览" key="overview">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: tabBodyHeight, overflowY: 'auto' }}>
+							<div style={{ lineHeight: '26px' }}>
+								<div>局数：{pan ? pan.juText : '—'}</div>
+								<div>旬首：{pan ? pan.xunShou : '—'}</div>
+								<div>旬仪：{pan ? pan.fuTou : '—'}</div>
+								<div>值符：{pan ? pan.zhiFu : '—'}</div>
+								<div>值使：{pan ? pan.zhiShi : '—'}</div>
+								<div>月将：{this.state.lrLayout ? this.state.lrLayout.yue : '—'}</div>
+							</div>
+						</Card>
+					</TabPane>
+					<TabPane tab="状态" key="status">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: tabBodyHeight, overflowY: 'auto' }}>
+							<div style={{ lineHeight: '26px' }}>
+								<div>本旬：{pan ? pan.xunShou : '—'}</div>
+								<div>旬空：{pan && pan.xunkong ? pan.xunkong.日空 : '—'}</div>
+								<div>时空：{pan && pan.xunkong ? pan.xunkong.时空 : '—'}</div>
+								<div>{pan && pan.yiMa ? pan.yiMa.text : '日马：无'}</div>
+								<div>阴阳遁：{pan ? pan.yinYangDun : '—'}</div>
+							</div>
+						</Card>
+					</TabPane>
+					<TabPane tab="太乙" key="taiyi">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: tabBodyHeight, overflowY: 'auto' }}>
+							<div style={{ lineHeight: '24px' }}>
+								{this.state.taiyi ? (
+									<>
+										<div>盘式：{this.state.taiyi.options ? this.state.taiyi.options.styleLabel : '—'}</div>
+										<div>积年法：{this.state.taiyi.options ? this.state.taiyi.options.accumLabel : '—'}</div>
+										<div>局式：{this.state.taiyi.kook ? this.state.taiyi.kook.text : '—'}</div>
+										<div>积数：{this.state.taiyi.accNum}</div>
+										<div>太乙：{this.state.taiyi.taiyiPalace}宫（数{this.state.taiyi.taiyiNum}）</div>
+										<div>文昌：{this.state.taiyi.skyeyes} 始击：{this.state.taiyi.sf}</div>
+										<div>太岁：{this.state.taiyi.taishui} 合神：{this.state.taiyi.hegod} 计神：{this.state.taiyi.jigod}</div>
+										<div>定目：{this.state.taiyi.se || '—'}</div>
+										<div>主算：{this.state.taiyi.homeCal} 客算：{this.state.taiyi.awayCal} 定算：{this.state.taiyi.setCal}</div>
+										<Divider style={{ margin: '8px 0' }} />
+										<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>
+										<div>四神：{this.state.taiyi.fgd} 天乙：{this.state.taiyi.skyyi} 地乙：{this.state.taiyi.earthyi}</div>
+										<div>直符：{this.state.taiyi.zhifu} 飞符：{this.state.taiyi.flyfu}</div>
+										<div>五福：{this.state.taiyi.wufuPalace} 帝符：{this.state.taiyi.kingfu} 太尊：{this.state.taiyi.taijun}</div>
+										<div>飞鸟：{this.state.taiyi.flybird} 三风：{this.state.taiyi.threewindPalace} 五风：{this.state.taiyi.fivewindPalace} 八风：{this.state.taiyi.eightwindPalace}</div>
+										<div>大游：{this.state.taiyi.bigyoPalace} 小游：{this.state.taiyi.smyoPalace}</div>
+										<Divider style={{ margin: '8px 0' }} />
+										<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 8, rowGap: 4 }}>
+											{this.state.taiyi.palace16 && this.state.taiyi.palace16.map((item)=>(
+												<div key={`ty_p16_${item.palace}`}>
+													<span style={{ color: '#262626' }}>{item.palace}-</span>
+													<span style={{ color: '#8c8c8c' }}>{item.items && item.items.length ? item.items.join('、') : '—'}</span>
+												</div>
 											))}
-											<Divider style={{ margin: '8px 0' }} />
-											<div>扩展</div>
-											{(this.state.taiyi.extDisplay.fields || []).map((item)=>(
-												<div key={`sansty_ext_${item.key || item.label}`}>{item.label}：{item.value || '—'}</div>
-											))}
-											<Divider style={{ margin: '8px 0' }} />
-											<div>断语</div>
-											{this.state.taiyi.predictionDisplay && this.state.taiyi.predictionDisplay.lines && this.state.taiyi.predictionDisplay.lines.length
-												? this.state.taiyi.predictionDisplay.lines.map((line, idx)=><div key={`sansty_prediction_${idx}`}>{line}</div>)
-												: <div>暂无断语</div>}
-										</>
-									) : (
-										<>
-											<div>局式：{this.state.taiyi.kook ? this.state.taiyi.kook.text : '—'}</div>
-											<div>积数：{this.state.taiyi.accNum}</div>
-											<div>太乙：{this.state.taiyi.taiyiPalace}宫（数{this.state.taiyi.taiyiNum}）</div>
-											<div>文昌：{this.state.taiyi.skyeyes} 始击：{this.state.taiyi.sf}</div>
-											<div>太岁：{this.state.taiyi.taishui} 合神：{this.state.taiyi.hegod} 计神：{this.state.taiyi.jigod}</div>
-											<div>定目：{this.state.taiyi.se || '—'}</div>
-											<div>主算：{this.state.taiyi.homeCal} 客算：{this.state.taiyi.awayCal} 定算：{this.state.taiyi.setCal}</div>
-											<Divider style={{ margin: '8px 0' }} />
-											<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>
-											<div>四神：{this.state.taiyi.fgd} 天乙：{this.state.taiyi.skyyi} 地乙：{this.state.taiyi.earthyi}</div>
-											<div>直符：{this.state.taiyi.zhifu} 飞符：{this.state.taiyi.flyfu}</div>
-											<div>五福：{this.state.taiyi.wufuPalace} 帝符：{this.state.taiyi.kingfu} 太尊：{this.state.taiyi.taijun}</div>
-											<div>飞鸟：{this.state.taiyi.flybird} 三风：{this.state.taiyi.threewindPalace} 五风：{this.state.taiyi.fivewindPalace} 八风：{this.state.taiyi.eightwindPalace}</div>
-											<div>大游：{this.state.taiyi.bigyoPalace} 小游：{this.state.taiyi.smyoPalace}</div>
-										</>
-									)}
-									<Divider style={{ margin: '8px 0' }} />
-									<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 8, rowGap: 4 }}>
-										{this.state.taiyi.palace16 && this.state.taiyi.palace16.map((item)=>(
-											<div key={`ty_p16_${item.palace}`}>
-												<span style={{ color: '#262626' }}>{item.palace}-</span>
-												<span style={{ color: '#8c8c8c' }}>{item.items && item.items.length ? item.items.join('、') : '—'}</span>
-											</div>
-										))}
-									</div>
-								</>
-							) : (
-								<div>暂无太乙数据</div>
-							)}
-						</div>
-					)}
-					{this.state.rightPanelTab === 'shensha' && (
-						<div>
+										</div>
+									</>
+								) : (
+									<div>暂无太乙数据</div>
+								)}
+							</div>
+						</Card>
+					</TabPane>
+					<TabPane tab="神煞" key="shensha">
+						<Card bordered={false} bodyStyle={{ padding: '10px 12px', maxHeight: tabBodyHeight, overflowY: 'auto' }}>
 							<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 14, rowGap: 6, lineHeight: '24px' }}>
 								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
 									? pan.shenSha.allItems.map((item)=>(<div key={`ss_item_${item.name}`}><span style={{ color: '#262626' }}>{item.name}-</span><span style={{ color: '#8c8c8c' }}>{item.value}</span></div>))
 									: <div>暂无神煞</div>}
 							</div>
-						</div>
-					)}
-				</Card>
+						</Card>
+					</TabPane>
+				</Tabs>
 			</div>
 		);
 	}

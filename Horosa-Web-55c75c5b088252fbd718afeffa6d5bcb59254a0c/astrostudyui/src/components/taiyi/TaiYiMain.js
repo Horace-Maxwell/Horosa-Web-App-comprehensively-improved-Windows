@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Card, Select, Button, Divider, Spin, Checkbox } from 'antd';
+import { Row, Col, Card, Select, Button, Divider, Spin } from 'antd';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
 import { setNongliLocalCache } from '../../utils/localCalcCache';
@@ -27,29 +27,6 @@ const LAYER3_BRANCH_GUA = ['午', '未', '坤', '申', '酉', '戌', '乾', '亥
 const LAYER4_FIXED = ['大威', '大义', '天道', '大武', '武德', '太簇', '阴主', '阴德', '地主', '阳德', '和德', '吕申', '高丛', '太阳', '大炅', '大神'];
 const TAIYI_FONT = '"SimHei", "Heiti SC", "Microsoft YaHei", sans-serif';
 
-function toDisplayFields(items){
-	return (items || []).map((item)=>({
-		key: item && item.key ? item.key : (item && item.label ? item.label : 'field'),
-		label: item && item.label ? item.label : '—',
-		value: item && item.value !== undefined && item.value !== null && `${item.value}`.trim() ? item.value : '—',
-	}));
-}
-
-function toPalaceMap(palaceItems){
-	const map = {};
-	(palaceItems || []).forEach((item)=>{
-		if(!item || !item.palace){
-			return;
-		}
-		map[item.palace] = Array.isArray(item.items) ? item.items.slice(0) : [];
-	});
-	return map;
-}
-
-function toLayer(order, palaceMap){
-	return (order || []).map((key)=>((palaceMap && palaceMap[key]) ? palaceMap[key].slice(0) : []));
-}
-
 class TaiYiMain extends Component {
 	constructor(props) {
 		super(props);
@@ -58,11 +35,6 @@ class TaiYiMain extends Component {
 			loading: false,
 			nongli: null,
 			pan: null,
-			displayOptions: {
-				showLeftExt: true,
-				showPredictions: false,
-				coreOnly: true,
-			},
 			options: {
 				style: 3,
 				tn: 0,
@@ -84,7 +56,6 @@ class TaiYiMain extends Component {
 		this.requestNongli = this.requestNongli.bind(this);
 		this.genParams = this.genParams.bind(this);
 		this.recalc = this.recalc.bind(this);
-		this.onDisplayOptionChange = this.onDisplayOptionChange.bind(this);
 
 		if (this.props.hook) {
 			this.props.hook.fun = (fields) => {
@@ -256,14 +227,6 @@ class TaiYiMain extends Component {
 		});
 	}
 
-	onDisplayOptionChange(key, value){
-		const displayOptions = {
-			...this.state.displayOptions,
-			[key]: value,
-		};
-		this.setState({ displayOptions });
-	}
-
 	polarPoint(cx, cy, r, angleDeg) {
 		const rad = angleDeg * Math.PI / 180;
 		return {
@@ -287,38 +250,39 @@ class TaiYiMain extends Component {
 		const r3 = 222;
 		const r4 = 304;
 		const stroke = '#111';
-		const displayOpt = this.state.displayOptions || {};
-		const coreMap = toPalaceMap((pan.coreDisplay && pan.coreDisplay.palace16) || []);
-		const extMap = toPalaceMap((pan.extDisplay && pan.extDisplay.palace16) || []);
-		const fallbackMap = toPalaceMap(pan.palaces || []);
-		const mergedCoreMap = Object.keys(coreMap).length ? coreMap : fallbackMap;
-		const layerCore = toLayer(LAYER3_BRANCH_GUA, mergedCoreMap);
-		const layerExt = displayOpt.showLeftExt && !displayOpt.coreOnly ? toLayer(LAYER3_BRANCH_GUA, extMap) : [];
-		const ganzhiCompact = pan && pan.ganzhi
-			? [pan.ganzhi.year || '—', pan.ganzhi.month || '—', pan.ganzhi.day || '—', pan.ganzhi.time || '—'].join('/')
-			: '—';
-		const topLeftInfo = [
-			`农历:${pan.lunarText || '—'}`,
-			`真太阳时:${pan.realSunTime || '—'}`,
-			`干支:${ganzhiCompact}`,
-			`节气:${pan.jiedelta || '—'}`,
-		];
-		const bottomRightInfo = [
-			`积数:${pan.accNum}`,
-			`命式:${pan.zhao}`,
-			`局:${pan.kook ? pan.kook.text : ''}`,
-			`定算:${pan.setCal}`,
-			`主算:${pan.homeCal}`,
+		const textColor = '#111';
+		const textWeight = '500';
+			const palaceInfo = {};
+			(pan.palaces || []).forEach((p) => {
+				palaceInfo[p.palace] = p.items || [];
+			});
+			const layer5 = LAYER3_BRANCH_GUA.map((p) => (palaceInfo[p] ? palaceInfo[p].slice(0) : []));
+			const ganzhiCompact = pan && pan.ganzhi
+				? [pan.ganzhi.year || '—', pan.ganzhi.month || '—', pan.ganzhi.day || '—', pan.ganzhi.time || '—'].join('/')
+				: '—';
+			const topLeftInfo = [
+				`农历:${pan.lunarText || '—'}`,
+				`真太阳时:${pan.realSunTime || '—'}`,
+				`干支:${ganzhiCompact}`,
+				`节气:${pan.jiedelta || '—'}`,
+			];
+			const bottomRightInfo = [
+				`积数:${pan.accNum}`,
+				`命式:${pan.zhao}`,
+				`局:${pan.kook ? pan.kook.text : ''}`,
+				`定算:${pan.setCal}`,
+				`主算:${pan.homeCal}`,
 			`客算:${pan.awayCal}`,
 			`太乙数:${pan.taiyiNum}`,
 		];
-		const infoLineGap = 22;
-		const bottomRightStartY = height - 30 - ((bottomRightInfo.length - 1) * infoLineGap);
 		return (
 			<div>
 				<Card bordered={false}>
 					<div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-						<svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: 860, background: 'transparent' }}>
+						<svg
+							viewBox={`0 0 ${width} ${height}`}
+							style={{ width: '100%', maxWidth: 860, background: 'transparent', textRendering: 'geometricPrecision' }}
+						>
 							<circle cx={centerX} cy={centerY} r={r0} fill="none" stroke={stroke} strokeWidth="2.5" />
 							<circle cx={centerX} cy={centerY} r={r1} fill="none" stroke={stroke} strokeWidth="2" />
 							<circle cx={centerX} cy={centerY} r={r2} fill="none" stroke={stroke} strokeWidth="2" />
@@ -330,29 +294,31 @@ class TaiYiMain extends Component {
 									y={30}
 									textAnchor="start"
 									dominantBaseline="hanging"
-									fill={stroke}
-									fontSize="17"
-									fontWeight="400"
+									fill={textColor}
+									stroke="none"
+									fontSize="15"
+									fontWeight={textWeight}
 									fontFamily={TAIYI_FONT}
 								>
 									{topLeftInfo.map((line, lineIdx) => (
-										<tspan key={`ty_meta_${lineIdx}`} x={20} dy={lineIdx === 0 ? 0 : 22}>
+										<tspan key={`ty_meta_${lineIdx}`} x={20} dy={lineIdx === 0 ? 0 : 20}>
 											{line}
 										</tspan>
 									))}
 								</text>
 								<text
 									x={width - 20}
-									y={bottomRightStartY}
+									y={height - 20 - ((bottomRightInfo.length - 1) * 20)}
 									textAnchor="end"
 									dominantBaseline="hanging"
-									fill={stroke}
-									fontSize="17"
-									fontWeight="400"
+									fill={textColor}
+									stroke="none"
+									fontSize="15"
+									fontWeight={textWeight}
 									fontFamily={TAIYI_FONT}
 								>
 									{bottomRightInfo.map((line, lineIdx) => (
-										<tspan key={`ty_meta_bottom_${lineIdx}`} x={width - 20} dy={lineIdx === 0 ? 0 : infoLineGap}>
+										<tspan key={`ty_meta_bottom_${lineIdx}`} x={width - 20} dy={lineIdx === 0 ? 0 : 20}>
 											{line}
 										</tspan>
 									))}
@@ -397,9 +363,10 @@ class TaiYiMain extends Component {
 									y={centerY - 12}
 									textAnchor="middle"
 									dominantBaseline="middle"
-									fill={stroke}
+									fill={textColor}
+									stroke="none"
 									fontSize="48"
-									fontWeight="400"
+									fontWeight={textWeight}
 									fontFamily={TAIYI_FONT}
 								>
 									五
@@ -409,9 +376,10 @@ class TaiYiMain extends Component {
 									y={centerY + 30}
 									textAnchor="middle"
 									dominantBaseline="middle"
-									fill={stroke}
+									fill={textColor}
+									stroke="none"
 									fontSize="34"
-									fontWeight="400"
+									fontWeight={textWeight}
 									fontFamily={TAIYI_FONT}
 								>
 									中宫
@@ -427,9 +395,10 @@ class TaiYiMain extends Component {
 										y={p.y}
 										textAnchor="middle"
 											dominantBaseline="middle"
-											fill={stroke}
+											fill={textColor}
+											stroke="none"
 											fontSize="36"
-											fontWeight="400"
+											fontWeight={textWeight}
 											fontFamily={TAIYI_FONT}
 										>
 											{txt}
@@ -447,9 +416,10 @@ class TaiYiMain extends Component {
 										y={p.y}
 										textAnchor="middle"
 											dominantBaseline="middle"
-											fill={stroke}
+											fill={textColor}
+											stroke="none"
 											fontSize="34"
-											fontWeight="400"
+											fontWeight={textWeight}
 											fontFamily={TAIYI_FONT}
 										>
 											{txt}
@@ -467,9 +437,10 @@ class TaiYiMain extends Component {
 										y={p.y}
 										textAnchor="middle"
 											dominantBaseline="middle"
-											fill={stroke}
+											fill={textColor}
+											stroke="none"
 											fontSize="23"
-											fontWeight="400"
+											fontWeight={textWeight}
 											fontFamily={TAIYI_FONT}
 										>
 											{txt}
@@ -477,56 +448,28 @@ class TaiYiMain extends Component {
 								);
 							})}
 
-							{layerCore.map((lines, idx) => {
+							{layer5.map((lines, idx) => {
 								const angle = -90 + idx * 22.5;
-								const p = this.polarPoint(centerX, centerY, ((r3 + r4) / 2) - 16, angle);
-								const merged = (lines || []).filter(Boolean).slice(0, 2);
+								const p = this.polarPoint(centerX, centerY, (r3 + r4) / 2, angle);
+								const merged = (lines || []).filter(Boolean).slice(0, 3);
 								if (!merged.length) {
 									return null;
 								}
-								const lineStep = 14;
-								const startDy = -((merged.length - 1) * lineStep) / 2;
 								return (
 									<text
-										key={`l5_core_${idx}`}
+										key={`l5_txt_${idx}`}
 										x={p.x}
 										y={p.y}
 										textAnchor="middle"
 											dominantBaseline="middle"
-											fill={stroke}
-											fontSize="14"
-											fontWeight="400"
+											fill={textColor}
+											stroke="none"
+											fontSize="16"
+											fontWeight={textWeight}
 											fontFamily={TAIYI_FONT}
 										>
 										{merged.map((ln, lnIdx) => (
-											<tspan key={`l5_core_tspan_${idx}_${lnIdx}`} x={p.x} dy={lnIdx === 0 ? startDy : lineStep}>
-												{ln}
-											</tspan>
-										))}
-									</text>
-								);
-							})}
-							{layerExt.map((lines, idx) => {
-								const angle = -90 + idx * 22.5;
-								const p = this.polarPoint(centerX, centerY, ((r3 + r4) / 2) + 10, angle);
-								const merged = (lines || []).filter(Boolean).slice(0, 1);
-								if (!merged.length) {
-									return null;
-								}
-								return (
-									<text
-										key={`l5_ext_${idx}`}
-										x={p.x}
-										y={p.y}
-										textAnchor="middle"
-										dominantBaseline="middle"
-										fill={stroke}
-										fontSize="11"
-										fontWeight="400"
-										fontFamily={TAIYI_FONT}
-									>
-										{merged.map((ln, lnIdx) => (
-											<tspan key={`l5_ext_tspan_${idx}_${lnIdx}`} x={p.x} dy={lnIdx === 0 ? 0 : 15}>
+											<tspan key={`l5_tspan_${idx}_${lnIdx}`} x={p.x} dy={lnIdx === 0 ? 0 : 18}>
 												{ln}
 											</tspan>
 										))}
@@ -543,40 +486,7 @@ class TaiYiMain extends Component {
 	renderRight() {
 		const pan = this.state.pan;
 		const opt = this.state.options;
-		const displayOpt = this.state.displayOptions || {};
 		const fields = this.props.fields || {};
-		const coreFields = pan && pan.coreDisplay && pan.coreDisplay.fields
-			? toDisplayFields(pan.coreDisplay.fields)
-			: toDisplayFields([
-				{ key: 'taiyi', label: '太乙', value: pan ? `${pan.taiyiPalace}宫` : '—' },
-				{ key: 'wenchang', label: '文昌', value: pan ? pan.skyeyes : '—' },
-				{ key: 'shiji', label: '始击', value: pan ? pan.sf : '—' },
-				{ key: 'taishui', label: '太岁', value: pan ? pan.taishui : '—' },
-				{ key: 'hegod', label: '合神', value: pan ? pan.hegod : '—' },
-				{ key: 'jigod', label: '计神', value: pan ? pan.jigod : '—' },
-				{ key: 'dingmu', label: '定目', value: pan ? (pan.se || '—') : '—' },
-				{ key: 'main', label: '主大将/参将', value: pan ? `${pan.homeGeneralPalace || '—'}/${pan.homeVGenPalace || '—'}` : '—' },
-				{ key: 'guest', label: '客大将/参将', value: pan ? `${pan.awayGeneralPalace || '—'}/${pan.awayVGenPalace || '—'}` : '—' },
-			]);
-		const extFields = pan && pan.extDisplay && pan.extDisplay.fields
-			? toDisplayFields(pan.extDisplay.fields)
-			: toDisplayFields([
-				{ key: 'fixed', label: '定大将/参将', value: pan ? `${pan.setGeneralPalace || '—'}/${pan.setVGenPalace || '—'}` : '—' },
-				{ key: 'bases', label: '君臣民基', value: pan ? `${pan.kingbase || '—'}/${pan.officerbase || '—'}/${pan.pplbase || '—'}` : '—' },
-				{ key: 'siyi', label: '四神/天乙/地乙', value: pan ? `${pan.fgd || '—'}/${pan.skyyi || '—'}/${pan.earthyi || '—'}` : '—' },
-				{ key: 'zhifu', label: '直符/飞符', value: pan ? `${pan.zhifu || '—'}/${pan.flyfu || '—'}` : '—' },
-				{ key: 'wufu', label: '五福/帝符/太尊', value: pan ? `${pan.wufuPalace || '—'}/${pan.kingfu || '—'}/${pan.taijun || '—'}` : '—' },
-				{ key: 'flybird', label: '飞鸟', value: pan ? (pan.flybird || '—') : '—' },
-				{ key: 'wind', label: '三风/五风/八风', value: pan ? `${pan.threewindPalace || '—'}/${pan.fivewindPalace || '—'}/${pan.eightwindPalace || '—'}` : '—' },
-				{ key: 'yo', label: '大游/小游', value: pan ? `${pan.bigyoPalace || '—'}/${pan.smyoPalace || '—'}` : '—' },
-			]);
-		const predictionFields = pan && pan.predictionDisplay && pan.predictionDisplay.fields
-			? toDisplayFields(pan.predictionDisplay.fields)
-			: toDisplayFields([
-				{ key: 'kook', label: '局式', value: pan && pan.kook ? pan.kook.text : '—' },
-				{ key: 'acc', label: '积数', value: pan ? pan.accNum : '—' },
-			]);
-		const showPredictions = !!displayOpt.showPredictions && !displayOpt.coreOnly;
 		let datetm = new DateTime();
 		if (fields.date && fields.time) {
 			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
@@ -636,67 +546,31 @@ class TaiYiMain extends Component {
 					</Col>
 				</Row>
 
-				<Card bordered={false} bodyStyle={{ padding: '8px 0 6px 0' }}>
-					<div style={{ display: 'grid', rowGap: 4 }}>
-						<Checkbox
-							checked={!!displayOpt.showLeftExt}
-							onChange={(e)=>this.onDisplayOptionChange('showLeftExt', e.target.checked)}
-						>
-							左盘显示扩展定位
-						</Checkbox>
-						<Checkbox
-							checked={!!displayOpt.showPredictions}
-							onChange={(e)=>this.onDisplayOptionChange('showPredictions', e.target.checked)}
-						>
-							右侧显示断语
-						</Checkbox>
-						<Checkbox
-							checked={!!displayOpt.coreOnly}
-							onChange={(e)=>this.onDisplayOptionChange('coreOnly', e.target.checked)}
-						>
-							仅核心简版
-						</Checkbox>
-					</div>
-				</Card>
-
-				<Card
-					bordered={false}
-					bodyStyle={{
-						maxHeight: 'calc(100vh - 380px)',
-						minHeight: 220,
-						overflowY: 'auto',
-						paddingRight: 4,
-					}}
-				>
-					<div style={{ lineHeight: '24px', fontSize: 14, wordBreak: 'break-all', whiteSpace: 'normal' }}>
+				<Card bordered={false}>
+					<div style={{ lineHeight: '26px' }}>
 						<div>起盘方式：{getStyleLabel(opt.style)}</div>
 						<div>积年方式：{getAccumLabel(opt.tn)}</div>
+						<div>太乙：{pan ? `${pan.taiyiPalace}宫` : '—'}</div>
+						<div>文昌：{pan ? pan.skyeyes : '—'}</div>
+						<div>始击：{pan ? pan.sf : '—'}</div>
+						<div>太岁：{pan ? pan.taishui : '—'}</div>
+						<div>合神：{pan ? pan.hegod : '—'}</div>
+						<div>计神：{pan ? pan.jigod : '—'}</div>
 						<Divider style={{ margin: '10px 0' }} />
-						<div>核心</div>
-						{coreFields.map((item)=>(
-							<div key={`core_${item.key}`}>{item.label}：{item.value}</div>
-						))}
-						{!displayOpt.coreOnly && (
-							<>
-								<Divider style={{ margin: '10px 0' }} />
-								<div>扩展</div>
-								{extFields.map((item)=>(
-									<div key={`ext_${item.key}`}>{item.label}：{item.value}</div>
-								))}
-							</>
-						)}
-						{showPredictions && (
-							<>
-								<Divider style={{ margin: '10px 0' }} />
-								<div>断语</div>
-								{predictionFields.map((item)=>(
-									<div key={`prediction_${item.key}`}>{item.label}：{item.value}</div>
-								))}
-							</>
-						)}
+						<div>定目：{pan ? (pan.se || '—') : '—'}</div>
+						<div>主大将/参将：{pan ? `${pan.homeGeneralPalace || '—'}/${pan.homeVGenPalace || '—'}` : '—'}</div>
+						<div>客大将/参将：{pan ? `${pan.awayGeneralPalace || '—'}/${pan.awayVGenPalace || '—'}` : '—'}</div>
+						<div>定大将/参将：{pan ? `${pan.setGeneralPalace || '—'}/${pan.setVGenPalace || '—'}` : '—'}</div>
+						<div>君臣民基：{pan ? `${pan.kingbase || '—'}/${pan.officerbase || '—'}/${pan.pplbase || '—'}` : '—'}</div>
+						<div>四神/天乙/地乙：{pan ? `${pan.fgd || '—'}/${pan.skyyi || '—'}/${pan.earthyi || '—'}` : '—'}</div>
+						<div>直符/飞符：{pan ? `${pan.zhifu || '—'}/${pan.flyfu || '—'}` : '—'}</div>
+						<div>五福/帝符/太尊：{pan ? `${pan.wufuPalace || '—'}/${pan.kingfu || '—'}/${pan.taijun || '—'}` : '—'}</div>
+						<div>飞鸟：{pan ? (pan.flybird || '—') : '—'}</div>
+						<div>三风/五风/八风：{pan ? `${pan.threewindPalace || '—'}/${pan.fivewindPalace || '—'}/${pan.eightwindPalace || '—'}` : '—'}</div>
+						<div>大游/小游：{pan ? `${pan.bigyoPalace || '—'}/${pan.smyoPalace || '—'}` : '—'}</div>
 					</div>
-				</Card>
-			</div>
+					</Card>
+				</div>
 		);
 	}
 

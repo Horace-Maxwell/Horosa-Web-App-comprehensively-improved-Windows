@@ -11,8 +11,9 @@ PY_LOG="${LOG_DIR}/astropy.log"
 JAVA_LOG="${LOG_DIR}/astrostudyboot.log"
 HTML_PATH="${ROOT}/astrostudyui/dist-file/index.html"
 PYTHON_BIN="${HOROSA_PYTHON:-python3}"
+JAVA_BIN="${HOROSA_JAVA_BIN:-java}"
 PYTHONPATH_ASTRO="${ROOT}/astropy"
-EXTRA_PY_SITE="${HOME}/Library/Python/3.12/lib/python/site-packages"
+EXTRA_PY_SITE=""
 
 if [ ! -f "${HTML_PATH}" ]; then
   HTML_PATH="${ROOT}/astrostudyui/dist/index.html"
@@ -58,8 +59,13 @@ JAR="${ROOT}/astrostudysrv/astrostudyboot/target/astrostudyboot.jar"
 if [ ! -f "${JAR}" ]; then
   echo "missing ${JAR}"
   echo "build first:"
-  echo "  cd astrostudysrv/image && mvn -DskipTests install"
-  echo "  cd ../astrostudyboot && mvn -DskipTests clean install"
+  echo "  ../Horosa_OneClick_Mac.command"
+  exit 1
+fi
+
+if ! command -v "${JAVA_BIN}" >/dev/null 2>&1; then
+  echo "java runtime not found: ${JAVA_BIN}"
+  echo "install java 17+ or run ../Horosa_OneClick_Mac.command"
   exit 1
 fi
 
@@ -75,6 +81,13 @@ if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   echo "set HOROSA_PYTHON to a valid interpreter if needed."
   exit 1
 fi
+
+PY_MINOR="$("${PYTHON_BIN}" - <<'PY'
+import sys
+print(f"{sys.version_info.major}.{sys.version_info.minor}")
+PY
+)"
+EXTRA_PY_SITE="${HOME}/Library/Python/${PY_MINOR}/lib/python/site-packages"
 
 if ! PYTHONPATH="${PYTHONPATH_ASTRO}" "${PYTHON_BIN}" - <<'PY' >/dev/null 2>&1
 import cherrypy
@@ -106,7 +119,7 @@ cd "${ROOT}"
 PYTHONPATH="${PYTHONPATH_ASTRO}" "${PYTHON_BIN}" "${ROOT}/astropy/websrv/webchartsrv.py" >"${PY_LOG}" 2>&1 &
 echo $! > "${PY_PID_FILE}"
 
-java -jar "${JAR}" \
+"${JAVA_BIN}" -jar "${JAR}" \
   --astrosrv=http://127.0.0.1:8899 \
   --mongodb.ip=127.0.0.1 \
   --redis.ip=127.0.0.1 >"${JAVA_LOG}" 2>&1 &
