@@ -7,7 +7,6 @@
 请确保根目录包含以下关键文件/文件夹：
 
 - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
-- `Horosa_Local.command`（Mac 启动器）
 - `Horosa_Local_Windows.bat`（Windows 启动入口）
 - `Horosa_Local_Windows.ps1`（Windows 启动主脚本）
 - `runtime/`（可选：免安装运行时）
