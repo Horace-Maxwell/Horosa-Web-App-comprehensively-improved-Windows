@@ -44,3 +44,9 @@ runtime/mac/java/
 runtime/mac/python/
 runtime/windows/java/
 runtime/windows/python/
+runtime/windows/wheels/
+runtime/windows/bundle/astrostudyboot.jar
+
+# Local reference bundles (not for release branch)
+Horosa-Web-App-comprehensively-improved-MacOS-main/
+modules/

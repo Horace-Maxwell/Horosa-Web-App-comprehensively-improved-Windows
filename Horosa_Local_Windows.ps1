@@ -56,6 +56,20 @@ function Test-PortOpen {
   }
 }
 
+function Wait-PortFree {
+  param(
+    [int]$Port,
+    [int]$TimeoutMs = 6000
+  )
+  $elapsed = 0
+  while ($elapsed -lt $TimeoutMs) {
+    if (-not (Test-PortOpen -Port $Port)) { return $true }
+    Start-Sleep -Milliseconds 200
+    $elapsed += 200
+  }
+  return (-not (Test-PortOpen -Port $Port))
+}
+
 function Get-PidFromFile {
   param([string]$Path)
   if (-not (Test-Path $Path)) { return $null }
@@ -78,10 +92,45 @@ function Stop-PidFile {
   if (Test-Path $Path) { Remove-Item -Force $Path }
 }
 
+function Stop-PortOwners {
+  param([string]$Name, [int]$Port)
+  $ownerPids = @()
+  try {
+    $ownerPids = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty OwningProcess -Unique)
+  } catch {
+    $ownerPids = @()
+  }
+
+  foreach ($ownerPid in $ownerPids) {
+    if (-not $ownerPid) { continue }
+    if ($ownerPid -eq $PID) { continue }
+    $ownerProc = $null
+    try {
+      $ownerProc = Get-Process -Id $ownerPid -ErrorAction Stop
+    } catch {
+      continue
+    }
+    try {
+      Stop-Process -Id $ownerProc.Id -Force -ErrorAction Stop
+      Write-Host "$Name freed port $Port by stopping pid $ownerPid"
+    } catch {
+      Write-Host "$Name could not stop pid $ownerPid on port $Port"
+    }
+  }
+
+  if (-not (Wait-PortFree -Port $Port -TimeoutMs 6000)) {
+    Write-Host "$Name port $Port is still occupied after cleanup attempts"
+  }
+}
+
 function Cleanup-All {
   Stop-PidFile -Name 'web' -Path $WebPidFile
   Stop-PidFile -Name 'java' -Path $JavaPidFile
   Stop-PidFile -Name 'python' -Path $PyPidFile
+  Stop-PortOwners -Name 'web' -Port $WebPort
+  Stop-PortOwners -Name 'java' -Port $BackendPort
+  Stop-PortOwners -Name 'python' -Port $ChartPort
 }
 
 function Start-Background {
@@ -163,8 +212,18 @@ function Test-PythonSupported {
     if ($parts.Length -lt 2) { return $false }
     $major = [int]$parts[0]
     $minor = [int]$parts[1]
-    # Force Python 3.11 for best pyswisseph compatibility on Windows.
-    return ($major -eq 3 -and $minor -eq 11)
+    # Prefer Python 3.11; allow 3.12 for better cross-machine compatibility.
+    return ($major -eq 3 -and ($minor -eq 11 -or $minor -eq 12))
+  } catch {
+    return $false
+  }
+}
+
+function Test-PythonDepsReady {
+  param([string]$PythonCmdOrPath)
+  try {
+    & $PythonCmdOrPath -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
+    return ($LASTEXITCODE -eq 0)
   } catch {
     return $false
   }
@@ -665,9 +724,31 @@ function Ensure-PythonRuntimeDeps {
     [string]$PythonExe,
     [string]$ProjectRoot
   )
+  $checkDeps = {
+    param([string]$Exe)
+    try {
+      & $Exe -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
+      return ($LASTEXITCODE -eq 0)
+    } catch {
+      return $false
+    }
+  }
+
+  $installFromWheelDir = {
+    param([string]$Exe, [string]$WheelDir)
+    if (-not (Test-Path $WheelDir)) { return $false }
+    try {
+      Write-Host ("Installing Python dependencies from local wheelhouse: {0}" -f $WheelDir)
+      & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir cherrypy jsonpickle pyswisseph
+      if ($LASTEXITCODE -ne 0) { return $false }
+      return (& $checkDeps $Exe)
+    } catch {
+      return $false
+    }
+  }
+
   try {
-    & $PythonExe -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
-    if ($LASTEXITCODE -eq 0) {
+    if (& $checkDeps $PythonExe) {
       Write-Host 'Python dependencies already satisfied, skip install.'
       return $true
     }
@@ -681,12 +762,25 @@ function Ensure-PythonRuntimeDeps {
     # embedded python may already include pip
   }
 
+  $wheelDirs = @(
+    (Join-Path $Root 'runtime/windows/wheels'),
+    (Join-Path $Root 'runtime/wheels'),
+    (Join-Path $WinBundleRoot 'wheels'),
+    (Join-Path $CommonBundleRoot 'wheels')
+  ) | Select-Object -Unique
+  foreach ($wheelDir in $wheelDirs) {
+    if (& $installFromWheelDir $PythonExe $wheelDir) {
+      return $true
+    }
+  }
+
   try {
-    Write-Host 'Installing Python dependencies for local runtime...'
+    Write-Host 'Installing Python dependencies for local runtime (online fallback)...'
     & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
     if ($LASTEXITCODE -ne 0) { return $false }
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
-    return ($LASTEXITCODE -eq 0)
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return (& $checkDeps $PythonExe)
   } catch {
     Write-Host ("Python dependency install failed: {0}" -f $_.Exception.Message)
     return $false
@@ -714,6 +808,42 @@ function Sync-BundledFrontend {
   return $false
 }
 
+function Get-BackendJarDownloadUrl {
+  if ($env:HOROSA_BOOT_JAR_URL) {
+    $envUrl = $env:HOROSA_BOOT_JAR_URL.Trim()
+    if ($envUrl -match '^https?://') { return $envUrl }
+    Write-Host '[WARN] HOROSA_BOOT_JAR_URL is set but is not a valid http(s) URL. Ignore it.'
+  }
+
+  $urlFiles = @(
+    (Join-Path $WinBundleRoot 'astrostudyboot.url.txt'),
+    (Join-Path $WinBundleRoot 'astrostudyboot.jar.url'),
+    (Join-Path $CommonBundleRoot 'astrostudyboot.url.txt'),
+    (Join-Path $CommonBundleRoot 'astrostudyboot.jar.url')
+  ) | Select-Object -Unique
+
+  foreach ($urlFile in $urlFiles) {
+    if (-not (Test-Path $urlFile)) { continue }
+    try {
+      $lines = Get-Content -Path $urlFile -ErrorAction Stop
+      foreach ($line in $lines) {
+        $candidate = $line.Trim()
+        if (-not $candidate) { continue }
+        if ($candidate.StartsWith('#')) { continue }
+        if ($candidate -match '^https?://') {
+          Write-Host ("Using backend jar URL from file: {0}" -f $urlFile)
+          return $candidate
+        }
+      }
+      Write-Host ("[WARN] URL file exists but no valid http(s) URL found: {0}" -f $urlFile)
+    } catch {
+      Write-Host ("[WARN] Failed to read jar URL file {0}: {1}" -f $urlFile, $_.Exception.Message)
+    }
+  }
+
+  return $null
+}
+
 function Ensure-BackendJar {
   if (Test-Path $JarPath) { return $true }
 
@@ -731,11 +861,12 @@ function Ensure-BackendJar {
     }
   }
 
-  if ($env:HOROSA_BOOT_JAR_URL) {
+  $jarUrl = Get-BackendJarDownloadUrl
+  if ($jarUrl) {
     try {
-      Write-Host ("Downloading backend jar from HOROSA_BOOT_JAR_URL ...")
+      Write-Host ("Downloading backend jar from: {0}" -f $jarUrl)
       New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
-      Invoke-WebRequest -Uri $env:HOROSA_BOOT_JAR_URL -OutFile $JarPath -UseBasicParsing
+      Invoke-WebRequest -Uri $jarUrl -OutFile $JarPath -UseBasicParsing
       if (Test-Path $JarPath) {
         Write-Host ("[OK] Backend jar downloaded to: {0}" -f $JarPath)
         return $true
@@ -772,7 +903,8 @@ if (-not (Test-Path (Join-Path $DistDir 'index.html'))) {
 
 if (-not (Ensure-BackendJar)) {
   Write-Host "Backend jar missing: $JarPath"
-  Write-Host "Please run Prepare_Runtime_Windows.bat on build machine, or set HOROSA_BOOT_JAR_URL and retry."
+  Write-Host "Please run Prepare_Runtime_Windows.bat on build machine,"
+  Write-Host "or set HOROSA_BOOT_JAR_URL / runtime/windows/bundle/astrostudyboot.url.txt and retry."
   Read-Host 'Press Enter to exit'
   exit 1
 }
@@ -784,8 +916,8 @@ if (-not $PythonBin) {
     $PythonBin = Resolve-Python
   }
   if (-not $PythonBin) {
-    Write-Host 'Python 3.11 not found.'
-    Write-Host 'Install Python 3.11, then rerun this launcher.'
+    Write-Host 'Python 3.11/3.12 not found.'
+    Write-Host 'Install Python 3.11+ (recommended 3.11), then rerun this launcher.'
     Read-Host 'Press Enter to exit'
     exit 1
   }
@@ -803,7 +935,53 @@ if (-not (Test-Path (Join-Path $PyRuntimeDir 'python.exe'))) {
   }
 }
 
-if (-not (Ensure-PythonRuntimeDeps -PythonExe $PythonBin -ProjectRoot $ProjectDir)) {
+$depsReady = Ensure-PythonRuntimeDeps -PythonExe $PythonBin -ProjectRoot $ProjectDir
+if ($depsReady -and (-not (Test-PythonDepsReady -PythonCmdOrPath $PythonBin))) {
+  Write-Host '[WARN] Python dependency check failed after install attempt; will try fallback.'
+  $depsReady = $false
+}
+if (-not $depsReady) {
+  $runtimePythonExe = Join-Path $PyRuntimeDir 'python.exe'
+  $usingBundledPython = $false
+  try {
+    if ((Test-Path $PythonBin) -and (Test-Path $runtimePythonExe)) {
+      $usingBundledPython = ((Resolve-Path $PythonBin).Path -ieq (Resolve-Path $runtimePythonExe).Path)
+    }
+  } catch {
+    $usingBundledPython = $false
+  }
+
+  if ($usingBundledPython) {
+    Write-Host '[WARN] Bundled Python dependencies are incomplete, trying system Python fallback...'
+    $fallbackCandidates = @(
+      "$env:LocalAppData\Programs\Python\Python311\python.exe",
+      "$env:LocalAppData\Programs\Python\Python312\python.exe",
+      "$env:ProgramFiles\Python311\python.exe",
+      "$env:ProgramFiles\Python312\python.exe",
+      'C:\Python311\python.exe',
+      'C:\Python312\python.exe',
+      'python'
+    )
+    foreach ($candidate in $fallbackCandidates) {
+      if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
+      if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
+      if ($candidate -ne 'python' -and (Test-Path $PythonBin)) {
+        try {
+          if ((Resolve-Path $candidate).Path -ieq (Resolve-Path $PythonBin).Path) { continue }
+        } catch {}
+      }
+
+      if (Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) {
+        $PythonBin = $candidate
+        $depsReady = $true
+        Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
+        break
+      }
+    }
+  }
+}
+
+if (-not $depsReady) {
   Write-Host 'Python dependencies are incomplete. Startup aborted.'
   Read-Host 'Press Enter to exit'
   exit 1
@@ -837,6 +1015,13 @@ if ($oldPythonPath) {
 }
 
 try {
+  if (-not (Wait-PortFree -Port $ChartPort -TimeoutMs 6000)) {
+    throw "Port $ChartPort is still in use before backend startup"
+  }
+  if (-not (Wait-PortFree -Port $BackendPort -TimeoutMs 6000)) {
+    throw "Port $BackendPort is still in use before backend startup"
+  }
+
   Write-Host '[1/4] Starting local backend services...'
 
   $pyScript = Join-Path $ProjectDir 'astropy/websrv/webchartsrv.py'
