@@ -12,6 +12,70 @@ Append new entries; do not rewrite history.
 
 ---
 
+## 2026-02-20
+
+### 14:38 - Windows 一键部署补强：Java 检测/回退改为可构建后端的 JDK 路径
+- Scope: fix one-click startup failure on some Windows machines when backend jar is missing and launcher incorrectly treats Java detection as failed.
+- Files:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - `Test-JavaAtLeast17` 修复为兼容 `java -version` 输出到 stderr 的场景，避免在 `ErrorActionPreference=Stop` 下误判“无 Java”。
+  - `Resolve-Java` 新增 `-RequireJdk` 检测模式，构建后端时要求存在 `javac.exe`。
+  - `Install-Java17Portable` 下载地址从 JRE 切换为 Temurin JDK（`.../windows/x64/jdk/hotspot/...`）。
+  - `Try-BuildBackendJar` 改为优先获取可编译 JDK；若检测失败但便携 JDK 文件齐全，仍可直接使用 `runtime/windows/java/bin/java.exe` 进入 Maven 构建链路。
+  - `Install-Java17` 在 `-RequireJdk` 下仅尝试 JDK 候选，并在便携 JDK 文件就绪时直接返回成功。
+  - README 补充“便携 JDK（含 javac）”说明并修正章节编号。
+- Verification:
+  - `powershell -NoProfile -Command "$null=[ScriptBlock]::Create((Get-Content Horosa_Local_Windows.ps1 -Raw)); 'parse ok'"` (pass)
+  - `HOROSA_NO_BROWSER=1 HOROSA_SMOKE_TEST=1 powershell -ExecutionPolicy Bypass -File .\\Horosa_Local_Windows.ps1` (pass; backend/web/python 启动并自动停止)
+
+### 14:40 - 六壬“仅点击起课才计算”修复生效 + 前端产物选择防回退
+- Scope: make 大六壬 truly manual-triggered and fix stale frontend bundle selection on Windows launcher/runtime packaging.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/package.json`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/scripts/umi-runner.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/*` (rebuilt)
+  - `runtime/windows/bundle/dist-file/*` (synced)
+  - `Horosa_Local_Windows.ps1`
+  - `Prepare_Runtime_Windows.ps1`
+  - `README.md`
+- Details:
+  - 六壬页关闭自动起课链路：移除 mount/hook/出生时间变化的自动请求，新增显式“起课”按钮触发计算。
+  - 六壬左盘改为使用“点击起课时锁定的 chart 快照”，避免调整时间组件时左盘自动变化。
+  - 重新生成 `astrostudyui/dist-file`，确保启动器实际读取到最新前端代码（而非仅更新 `src`）。
+  - 同步更新 `runtime/windows/bundle/dist-file`，避免打包运行时继续使用旧前端包。
+  - `astrostudyui/package.json` 的 `start/build/build:file` 改为调用 `scripts/umi-runner.js`，解决 Windows 下 `export ...` 脚本不生效问题。
+  - `Horosa_Local_Windows.ps1` 新增前端目录选择策略：若 `dist` 比 `dist-file` 更新，则自动优先 `dist`。
+  - `Horosa_Local_Windows.ps1` 启动时输出当前实际前端目录（`[INFO] Frontend static dir: ...`），便于现场排查。
+  - `Prepare_Runtime_Windows.ps1` 新增前端源选择策略：打包时自动选最新前端产物，并统一写入 `bundle/dist-file`（同时镜像到 `bundle/dist`）。
+  - README 增补“旧前端缓存/旧包”排查与 Windows 下 `dist-file` 重建命令。
+- Verification:
+  - `npx umi build` in `astrostudyui` (pass)
+  - `$env:BUILD_FOR_FILE='1'; $env:NODE_OPTIONS='--openssl-legacy-provider'; npx umi build` in `astrostudyui` (pass)
+  - `npx umi-test src/components/liureng/__tests__/ChuangChart19940201.test.js --runInBand` (pass)
+  - `Test-Path runtime\\windows\\bundle\\dist-file\\index.html` (pass)
+
+### 14:22 - Windows 一键安装兼容性修复（目录自动识别 + Python 3.11 优先）
+- Scope: fix Windows one-click startup failures caused by hardcoded project folder names and improve Python dependency stability for offline machines.
+- Files:
+  - `Horosa_Local_Windows.ps1`
+  - `Prepare_Runtime_Windows.ps1`
+  - `README.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - 在 `Horosa_Local_Windows.ps1` 和 `Prepare_Runtime_Windows.ps1` 中新增工程目录自动发现逻辑，支持 `Horosa-Web`、`Horosa-Web-<hash>`，以及任意包含 `astrostudyui + astrostudysrv + astropy` 的目录。
+  - 支持环境变量 `HOROSA_PROJECT_DIR` 手动覆盖工程目录解析，避免不同打包结构导致的启动失败。
+  - `Horosa_Local_Windows.ps1` 的 Python 解析改为“优先 3.11、其次 3.12”，并在依赖安装失败时自动尝试安装/切换到 Python 3.11，再继续依赖补齐流程。
+  - `Prepare_Runtime_Windows.ps1` 的 Python 运行时拷贝顺序改为优先 3.11，并在选择非 3.11 时输出明确警告，提示离线分发建议使用 3.11 打包。
+  - `README.md` 同步更新为“工程目录名自动识别”与“Python 3.11 离线兼容优先”的新说明，移除旧的固定目录名要求。
+- Verification:
+  - `powershell -NoProfile -Command "$null=[System.Management.Automation.Language.Parser]::ParseFile('Horosa_Local_Windows.ps1',[ref]$null,[ref]$null)"`
+  - `powershell -NoProfile -Command "$null=[System.Management.Automation.Language.Parser]::ParseFile('Prepare_Runtime_Windows.ps1',[ref]$null,[ref]$null)"`
+  - `rg -n "Resolve-ProjectDir|HOROSA_PROJECT_DIR|Resolve-Python311|Python 3.11" Horosa_Local_Windows.ps1 Prepare_Runtime_Windows.ps1 README.md`
+
 ## 2026-02-19
 
 ### 11:44 - 三式合一接入 kintaiyi 太乙核心并完成盘面/标签展示
