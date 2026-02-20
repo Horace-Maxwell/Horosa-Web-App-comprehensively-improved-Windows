@@ -10,6 +10,7 @@ import boundless.exception.ErrorCodeException;
 import boundless.log.AppLoggers;
 import boundless.log.QueueLog;
 import boundless.security.SecurityUtility;
+import boundless.spring.help.PropertyPlaceholder;
 import boundless.types.ICache;
 import boundless.types.cache.CacheFactory;
 import boundless.types.cache.FilterCond;
@@ -24,6 +25,7 @@ import spacex.astrostudy.model.AstroUser;
 
 public class AstroCacheHelper {
 	private static int DefaultLimit = 5000000;
+	private static final boolean NeedCache = PropertyPlaceholder.getPropertyAsBool("cachehelper.needcache", true);
 	
 	private static ICache translogCache = CacheFactory.getCache("translogmongo");
 	private static ICache chartCache = CacheFactory.getCache("chart");
@@ -37,11 +39,17 @@ public class AstroCacheHelper {
 	
 	static {
 		try {
-			if(translogCache != null) {
+			if(!NeedCache) {
+				nongliCache = null;
+				translogCache = null;
+			}
+			if(NeedCache && translogCache != null) {
 				translogCache.createIndex("tm", true);				
 			}
 		}catch(Exception e) {
-			QueueLog.error(AppLoggers.ErrorLogger, e);
+			if(NeedCache) {
+				QueueLog.error(AppLoggers.ErrorLogger, e);				
+			}
 		}
 	}
 	
@@ -387,42 +395,60 @@ public class AstroCacheHelper {
 		if(nongliCache == null) {
 			return;
 		}
-		String date = (String) nongli.get("date");
-		String zone = (String) nongli.get("zone");
-		String key = String.format("%s %s", date, zone);
-		nongli.put("key", key);
-		nongliCache.setMap(key, nongli);
+		try {
+			String date = (String) nongli.get("date");
+			String zone = (String) nongli.get("zone");
+			String key = String.format("%s %s", date, zone);
+			nongli.put("key", key);
+			nongliCache.setMap(key, nongli);
+		}catch(Exception e) {
+			QueueLog.warn(AppLoggers.WarnLogger, "skip saveNongli cache, errmsg:{}", e.getMessage());
+		}
 	}
 	
 	public static Map<String, Object> getNongli(String date, String zone){
 		if(nongliCache == null) {
 			return null;
 		}
-		String key = String.format("%s %s", date, zone);
-		FilterCond idCond = new FilterCond("key", CondOperator.Eq, key);
-		List<Map<String, Object>> list = nongliCache.findValues(idCond);
-		return list.isEmpty() ? null : list.get(0);		
+		try {
+			String key = String.format("%s %s", date, zone);
+			FilterCond idCond = new FilterCond("key", CondOperator.Eq, key);
+			List<Map<String, Object>> list = nongliCache.findValues(idCond);
+			return list.isEmpty() ? null : list.get(0);			
+		}catch(Exception e) {
+			QueueLog.warn(AppLoggers.WarnLogger, "skip getNongli cache, errmsg:{}", e.getMessage());
+			return null;
+		}
 	}
 	
 	public static void saveJieqi(Map<String, Object> nongli) {
 		if(nongliCache == null) {
 			return;
 		}
-		String date = (String) nongli.get("date");
-		String zone = (String) nongli.get("zone");
-		String key = String.format("jieqi_%s %s", date, zone);
-		nongli.put("key", key);
-		nongliCache.setMap(key, nongli);
+		try {
+			String date = (String) nongli.get("date");
+			String zone = (String) nongli.get("zone");
+			String key = String.format("jieqi_%s %s", date, zone);
+			nongli.put("key", key);
+			nongliCache.setMap(key, nongli);
+		}catch(Exception e) {
+			QueueLog.warn(AppLoggers.WarnLogger, "skip saveJieqi cache, errmsg:{}", e.getMessage());
+		}
 	}
 	
 	public static Map<String, Object> getJieqi(String date, String zone){
 		if(nongliCache == null) {
 			return null;
 		}
-		String key = String.format("jieqi_%s %s", date, zone);
-		FilterCond idCond = new FilterCond("key", CondOperator.Eq, key);
-		List<Map<String, Object>> list = nongliCache.findValues(idCond);
-		return list.isEmpty() ? null : list.get(0);		
+		try {
+			String key = String.format("jieqi_%s %s", date, zone);
+			FilterCond idCond = new FilterCond("key", CondOperator.Eq, key);
+			List<Map<String, Object>> list = nongliCache.findValues(idCond);
+			return list.isEmpty() ? null : list.get(0);			
+		}catch(Exception e) {
+			QueueLog.warn(AppLoggers.WarnLogger, "skip getJieqi cache, errmsg:{}", e.getMessage());
+			return null;
+		}
 	}
 	
 	public static void removeChart(String cid, String creator) {

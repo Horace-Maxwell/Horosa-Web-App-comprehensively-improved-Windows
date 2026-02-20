@@ -251,6 +251,14 @@ function normalizeZiFromText(text){
 	return '';
 }
 
+function buildReqKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
 class JinKouMain extends Component{
 	constructor(props) {
 		super(props);
@@ -268,6 +276,12 @@ class JinKouMain extends Component{
 		};
 
 		this.unmounted = false;
+		this.godsReqSeq = 0;
+		this.runYearReqSeq = 0;
+		this.pendingGodsReqKey = '';
+		this.pendingRunYearReqKey = '';
+		this.lastGodsReq = { key: '', ts: 0 };
+		this.lastRunYearReq = { key: '', ts: 0 };
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onBirthChange = this.onBirthChange.bind(this);
@@ -301,12 +315,9 @@ class JinKouMain extends Component{
 				...field,
 			};
 			this.props.dispatch({
-				type: 'astro/save',
-				payload: {
-					fields: flds,
-				},
+				type: 'astro/fetchByFields',
+				payload: flds,
 			});
-			this.requestGods(flds);
 		}
 	}
 
@@ -431,18 +442,47 @@ class JinKouMain extends Component{
 	}
 
 	async requestGods(fields){
-		if(fields === undefined || fields === null){
+		if(fields === undefined || fields === null || this.unmounted){
 			return;
 		}
 		const params = this.genGodsParams(fields);
-		const data = await request(`${Constants.ServerRoot}/liureng/gods`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey];
+		const reqKey = buildReqKey(params);
+		const now = Date.now();
+		if(reqKey && reqKey === this.pendingGodsReqKey){
+			return;
+		}
+		if(reqKey && this.lastGodsReq.key === reqKey && now - this.lastGodsReq.ts < 2000){
+			return;
+		}
 
-		const dayGanZi = result.liureng.nongli.dayGanZi;
+		const reqSeq = ++this.godsReqSeq;
+		this.pendingGodsReqKey = reqKey;
+		let data = null;
+		try{
+			data = await request(`${Constants.ServerRoot}/liureng/gods`, {
+				body: JSON.stringify(params),
+				disableLoading: true,
+			});
+		}catch(e){
+			if(reqSeq === this.godsReqSeq){
+				this.pendingGodsReqKey = '';
+			}
+			return;
+		}
+		if(this.unmounted || reqSeq !== this.godsReqSeq){
+			return;
+		}
+		this.pendingGodsReqKey = '';
+		this.lastGodsReq = { key: reqKey, ts: Date.now() };
+
+		const result = data ? data[Constants.ResultKey] : null;
+		if(!result || !result.liureng || !result.liureng.nongli){
+			return;
+		}
+
+		const dayGanZi = `${result.liureng.nongli.dayGanZi || ''}`;
 		const dayGan = dayGanZi.substr(0, 1);
-		const wx = LRConst.GanZiWuXing[dayGan];
+		const wx = LRConst.GanZiWuXing[dayGan] ? LRConst.GanZiWuXing[dayGan] : this.state.wuxing;
 		const timeZi = normalizeZiFromText(result.liureng.nongli.time);
 		const diFen = timeZi ? timeZi : this.state.diFen;
 		const st = {
@@ -452,13 +492,16 @@ class JinKouMain extends Component{
 		};
 
 		this.setState(st, ()=>{
+			if(this.unmounted){
+				return;
+			}
 			this.requestRunYear();
 			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng, diFen);
 		});
 	}
 
 	async requestRunYear(){
-		if(this.state.liureng === null){
+		if(this.unmounted || this.state.liureng === null){
 			return;
 		}
 		const params = this.genRunYearParams();
@@ -468,10 +511,40 @@ class JinKouMain extends Component{
 			});
 			return;
 		}
-		const data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey];
+
+		const reqKey = buildReqKey(params);
+		const now = Date.now();
+		if(reqKey && reqKey === this.pendingRunYearReqKey){
+			return;
+		}
+		if(reqKey && this.lastRunYearReq.key === reqKey && now - this.lastRunYearReq.ts < 2000){
+			return;
+		}
+
+		const reqSeq = ++this.runYearReqSeq;
+		this.pendingRunYearReqKey = reqKey;
+		let data = null;
+		try{
+			data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
+				body: JSON.stringify(params),
+				disableLoading: true,
+			});
+		}catch(e){
+			if(reqSeq === this.runYearReqSeq){
+				this.pendingRunYearReqKey = '';
+			}
+			return;
+		}
+		if(this.unmounted || reqSeq !== this.runYearReqSeq){
+			return;
+		}
+		this.pendingRunYearReqKey = '';
+		this.lastRunYearReq = { key: reqKey, ts: Date.now() };
+
+		const result = data ? data[Constants.ResultKey] : null;
+		if(!result){
+			return;
+		}
 
 		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
 		age = Math.floor(age / 60) * 60 + result.age;
@@ -479,6 +552,9 @@ class JinKouMain extends Component{
 		this.setState({
 			runyear: result,
 		}, ()=>{
+			if(this.unmounted){
+				return;
+			}
 			this.saveJinKouSnapshot(null, this.state.liureng, result, this.state.wuxing, this.state.guireng, this.state.diFen);
 		});
 	}
@@ -543,6 +619,10 @@ class JinKouMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		this.godsReqSeq += 1;
+		this.runYearReqSeq += 1;
+		this.pendingGodsReqKey = '';
+		this.pendingRunYearReqKey = '';
 	}
 
 	renderInfoTable(title, rows){

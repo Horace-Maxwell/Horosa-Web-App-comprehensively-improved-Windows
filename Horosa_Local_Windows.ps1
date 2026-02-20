@@ -30,6 +30,15 @@ $WebPort = if ($env:HOROSA_WEB_PORT) { [int]$env:HOROSA_WEB_PORT } else { 8000 }
 $BackendPort = 9999
 $ChartPort = 8899
 $PerfMode = $env:HOROSA_PERF_MODE -ne '0'
+$UserHomeDir = if (-not [string]::IsNullOrWhiteSpace($env:HOME)) {
+  $env:HOME
+} elseif (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+  $env:USERPROFILE
+} else {
+  $ProjectDir
+}
+$env:HOME = $UserHomeDir
+$HorosaLogBaseDir = Join-Path $UserHomeDir '.horosa-logs/astrostudyboot'
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 if ($env:HOROSA_KEEP_BROWSER_PROFILE -ne '1') {
@@ -808,6 +817,34 @@ function Sync-BundledFrontend {
   return $false
 }
 
+function Ensure-FrontendStaticLayout {
+  param([string]$DistPath)
+
+  if (-not $DistPath) { return }
+  $indexPath = Join-Path $DistPath 'index.html'
+  if (-not (Test-Path $indexPath)) { return }
+
+  $html = Get-Content -Path $indexPath -Raw -ErrorAction SilentlyContinue
+  if (-not $html) { return }
+  if ($html -notmatch '/static/umi\.') { return }
+
+  $staticDir = Join-Path $DistPath 'static'
+  New-Item -ItemType Directory -Force -Path $staticDir | Out-Null
+
+  $fixed = $false
+  Get-ChildItem -Path $DistPath -File -Filter 'umi.*' | ForEach-Object {
+    $dest = Join-Path $staticDir $_.Name
+    if (-not (Test-Path $dest)) {
+      Copy-Item -Path $_.FullName -Destination $dest -Force
+      $fixed = $true
+    }
+  }
+
+  if ($fixed) {
+    Write-Host '[OK] Repaired frontend static layout for /static assets.'
+  }
+}
+
 function Get-BackendJarDownloadUrl {
   if ($env:HOROSA_BOOT_JAR_URL) {
     $envUrl = $env:HOROSA_BOOT_JAR_URL.Trim()
@@ -900,6 +937,8 @@ if (-not (Test-Path (Join-Path $DistDir 'index.html'))) {
     exit 1
   }
 }
+
+Ensure-FrontendStaticLayout -DistPath $DistDir
 
 if (-not (Ensure-BackendJar)) {
   Write-Host "Backend jar missing: $JarPath"
@@ -1034,6 +1073,7 @@ try {
   $cacheExpireSeconds = if ($PerfMode) { 300 } else { 120 }
 
   $javaArgs = @(
+    "-Dhorosa.log.basedir=$HorosaLogBaseDir",
     "-Dhorosa.mongo.serverSelectionTimeoutMS=$mongoSelectTimeoutMs",
     "-Dhorosa.mongo.connectTimeoutMS=$mongoConnectTimeoutMs",
     "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs",

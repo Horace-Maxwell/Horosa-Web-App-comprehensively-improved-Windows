@@ -1076,12 +1076,22 @@ class JieQiChartsMain extends Component{
 		if(charts){
 			for(let i=0; i<this.state.jieqis.length; i++){
 				let title = this.state.jieqis[i];
-				let chart = charts[title];
+				let chart = charts[title] ? charts[title] : null;
+				const hasRenderableChart = !!(chart && chart.params && chart.chart);
+				let fallbackMessage = `${title}数据暂不可用，请点击右上“新命盘”重试。`;
+				if(chart && chart.err){
+					fallbackMessage = `${fallbackMessage}（${chart.err}）`;
+				}
+				const fallbackDom = (
+					<Card bordered={false}>
+						{fallbackMessage}
+					</Card>
+				);
 				let flds = {
 					...(this.props.fields || {}),
 					...(this.state.fields || {}),
 				};
-				if(chart.params){
+				if(chart && chart.params){
 					flds = paramsToFields(chart.params, flds);
 				}
 				const starKey = title;
@@ -1093,17 +1103,19 @@ class JieQiChartsMain extends Component{
 				let tab = (
 					<TabPane tab={title+'星盘'} key={starKey}>
 						{renderStar ? (
-						<AstroChartMain
-							hidehsys={1}
-							hidezodiacal={1}
-							hidedateselector={true}
-							height={height}
-							fields={flds}
-							value={chart}
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}	
-						/>) : null}
+						(hasRenderableChart ? (
+							<AstroChartMain
+								hidehsys={1}
+								hidezodiacal={1}
+								hidedateselector={true}
+								height={height}
+								fields={flds}
+								value={chart}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}	
+							/>
+						) : fallbackDom)) : null}
 					</TabPane>
 
 				);
@@ -1112,16 +1124,18 @@ class JieQiChartsMain extends Component{
 				let sztab = (
 					<TabPane tab={title+'宿盘'} key={suKey}>
 						{renderSu ? (
-						<SuZhanMain
-							value={chart}
-							height={height}
-							fields={flds}
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-							hook={this.state.hook.suzhan}
-							onFieldsChange={this.onSuZhanFieldsChange}
-							dispatch={this.props.dispatch}
-						/>) : null}
+						(hasRenderableChart ? (
+							<SuZhanMain
+								value={chart}
+								height={height}
+								fields={flds}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								hook={this.state.hook.suzhan}
+								onFieldsChange={this.onSuZhanFieldsChange}
+								dispatch={this.props.dispatch}
+							/>
+						) : fallbackDom)) : null}
 					</TabPane>
 				);
 				tabs.push(sztab);
@@ -1129,18 +1143,20 @@ class JieQiChartsMain extends Component{
 				let tab3d = (
 					<TabPane tab={title+'3D盘'} key={d3Key}>
 						{render3d ? (
-						<AstroChartMain3D
-							hidehsys={1}
-							hidezodiacal={1}
-							hidedateselector={true}
-							needChart3D={true}
-							value={chart}
-							height={height}
-							fields={flds}
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}	
-						/>) : null}
+						(hasRenderableChart ? (
+							<AstroChartMain3D
+								hidehsys={1}
+								hidezodiacal={1}
+								hidedateselector={true}
+								needChart3D={true}
+								value={chart}
+								height={height}
+								fields={flds}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}	
+							/>
+						) : fallbackDom)) : null}
 					</TabPane>
 				);
 				tabs.push(tab3d);

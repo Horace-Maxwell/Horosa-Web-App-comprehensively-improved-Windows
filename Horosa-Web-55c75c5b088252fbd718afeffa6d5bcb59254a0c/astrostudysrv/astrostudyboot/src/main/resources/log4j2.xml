@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="debug">
+<Configuration status="warn">
 	<Properties>
-	    <Property name="basedir">${env:HOME}/.horosa-logs/astrostudyboot</Property>
+	    <Property name="basedir">${sys:horosa.log.basedir:-${sys:user.home}/.horosa-logs/astrostudyboot}</Property>
 	    <Property name="logdircomm">${basedir}/$${date:yyyy}/$${date:MM}/$${date:dd}</Property>
 	    <Property name="prjname">astrostudyboot</Property>
 	</Properties>

@@ -3,8 +3,8 @@ package boundless.types.cache;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
-import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
@@ -21,6 +21,9 @@ import boundless.utility.ProgArgsHelper;
 import boundless.utility.StringUtility;
 
 public class MongoCacheFactory implements ICacheFactory {
+	private static final int DEFAULT_SERVER_SELECTION_TIMEOUT_MS = 800;
+	private static final int DEFAULT_CONNECT_TIMEOUT_MS = 800;
+	private static final int DEFAULT_READ_TIMEOUT_MS = 1000;
 
 	private MongoClient mongoClient;
 	private String dbName;
@@ -93,10 +96,27 @@ public class MongoCacheFactory implements ICacheFactory {
 		}
 		
 		ClusterSettings clusterSettings = ClusterSettings.builder().hosts(servers).build();
+		int serverSelectionTimeoutMs = getPositiveIntSystemProperty(
+			"horosa.mongo.serverSelectionTimeoutMS",
+			DEFAULT_SERVER_SELECTION_TIMEOUT_MS
+		);
+		int connectTimeoutMs = getPositiveIntSystemProperty(
+			"horosa.mongo.connectTimeoutMS",
+			DEFAULT_CONNECT_TIMEOUT_MS
+		);
+		int readTimeoutMs = getPositiveIntSystemProperty(
+			"horosa.mongo.readTimeoutMS",
+			DEFAULT_READ_TIMEOUT_MS
+		);
 		
 		MongoClientSettings.Builder builder = MongoClientSettings.builder();
 		builder.applyToClusterSettings((clusterBuilder)->{
 			clusterBuilder.applySettings(clusterSettings);
+			clusterBuilder.serverSelectionTimeout(serverSelectionTimeoutMs, TimeUnit.MILLISECONDS);
+		});
+		builder.applyToSocketSettings((socketBuilder)->{
+			socketBuilder.connectTimeout(connectTimeoutMs, TimeUnit.MILLISECONDS);
+			socketBuilder.readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS);
 		});
 
 		List<MongoCredential> credentials = new ArrayList<MongoCredential>();
@@ -108,6 +128,19 @@ public class MongoCacheFactory implements ICacheFactory {
 		
 		settings = builder.build();
 		mongoClient = MongoClients.create(settings);
+	}
+
+	private static int getPositiveIntSystemProperty(String key, int defaultValue) {
+		String raw = System.getProperty(key);
+		if(StringUtility.isNullOrEmpty(raw)) {
+			return defaultValue;
+		}
+		try {
+			int parsed = Integer.parseInt(raw.trim());
+			return parsed > 0 ? parsed : defaultValue;
+		} catch (Exception e) {
+			return defaultValue;
+		}
 	}
 
 	@Override

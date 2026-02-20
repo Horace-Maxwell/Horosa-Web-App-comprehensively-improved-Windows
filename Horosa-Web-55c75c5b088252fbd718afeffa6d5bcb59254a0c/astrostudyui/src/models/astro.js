@@ -212,9 +212,17 @@ function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
 
-function showChartServiceError(){
+function showChartServiceError(rsp){
+	let detail = null;
+	if(rsp){
+		detail = rsp.ResultMessage || rsp.message;
+		if(!detail && rsp.headers){
+			detail = rsp.headers.ResultMessage;
+		}
+	}
+
 	Modal.error({
-		title: '排盘失败：本地排盘服务未就绪（127.0.0.1:8899）。请先启动本地服务后重试。',
+		title: detail ? `排盘失败：${detail}` : '排盘失败：服务返回异常，请稍后重试。',
 	});
 }
 
@@ -807,7 +815,7 @@ export default {
 
 			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError();
+				showChartServiceError(rsp);
 				return;
 			}
 			const Result = rsp.Result;

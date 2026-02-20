@@ -52,6 +52,10 @@ class JinKouChart extends Component{
 		this.drawChart();
 	}
 
+	componentDidUpdate(){
+		this.drawChart();
+	}
+
 	componentWillUnmount() {
 		d3.select(`#${this.state.tooltipId}`).remove();
 	}
@@ -67,7 +71,6 @@ class JinKouChart extends Component{
 			chartstyle = this.props.style;
 		}
 
-		this.drawChart();
 		return (
 			<svg id={this.state.chartid} style={chartstyle}>
 			</svg>

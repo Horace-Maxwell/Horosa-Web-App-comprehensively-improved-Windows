@@ -2,6 +2,52 @@
 
 本文档对应当前根目录结构，目标是双击即可本地运行，数据本地保存。
 
+## 0) GitHub 直接发布建议（Windows 一键版）
+
+如果你的目标是“上传 GitHub 后，任意 Windows 机器双击即可启动”，建议按下面的最小发布清单：
+
+- 必须保留：
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
+  - `Horosa_Local_Windows.bat`
+  - `Horosa_Local_Windows.ps1`
+  - `runtime/windows/bundle/dist-file/`
+  - `runtime/windows/bundle/wheels/`
+  - `runtime/windows/maven/`（建议保留，降低首次构建失败概率）
+- 可选保留：
+  - `runtime/windows/bundle/astrostudyboot.jar`（若仓库体积允许，首启更快）
+- 建议清理（不影响功能）：
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-browser-profile-win/`
+  - `**/node_modules/`
+  - `**/target/`
+
+说明：
+- 当前启动器已支持缺失 `astrostudyboot.jar` 时自动构建（本机有网络并允许下载依赖即可）。
+- 也支持通过 `HOROSA_BOOT_JAR_URL` 或 `runtime/windows/bundle/astrostudyboot.url.txt` 自动下载 jar。
+
+## 0.1) 最新验收记录（2026-02-20）
+
+已在本机完成“真实一键启动 + 全模块回归 + 节气盘专项 + 5 秒性能门槛”验收：
+
+- 全技术页回归：`22/22` 通过  
+  - `failedCaseCount=0`
+  - `pageErrorCount=0`
+  - `requestFailureCount=0`
+  - `responseErrorCount=0`
+- 节气盘专项（春分/夏至/秋分/冬至 × 星盘/宿盘/3D盘）：`12/12` 通过
+- 计算+显示耗时（门槛：每技术 <= 5 秒）：
+  - 非“易与三式”16项：通过，`maxResponseMs=2816`，`maxDisplayMs=2977`
+  - “易与三式”6项：通过，`maxResponseMs=980`，`maxDisplayMs=1115`
+
+验收报告（本机）：
+
+- `C:\Users\maxwe\AppData\Local\Temp\horosa_pw_runner\horosa_non_yishu_perf_5s_report.json`
+- `C:\Users\maxwe\AppData\Local\Temp\horosa_pw_runner\horosa_yishu_perf_5s_report.json`
+- `C:\Users\maxwe\AppData\Local\Temp\horosa_pw_runner\horosa_jieqi_after_fix_report.json`
+
+注意：
+- 不同 Windows 机器的 CPU/磁盘/安全软件会影响首启速度。以上门槛为本次实测结果。
+
 ## 一、目录约定
 
 请确保根目录包含以下关键文件/文件夹：

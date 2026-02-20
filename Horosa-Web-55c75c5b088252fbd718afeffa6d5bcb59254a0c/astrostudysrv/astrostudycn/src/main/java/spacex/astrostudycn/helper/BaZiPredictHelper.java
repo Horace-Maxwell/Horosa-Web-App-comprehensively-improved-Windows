@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 import boundless.io.FileUtility;
+import boundless.log.AppLoggers;
+import boundless.log.QueueLog;
+import boundless.spring.help.PropertyPlaceholder;
 import boundless.types.ICache;
 import boundless.types.cache.CacheFactory;
 import boundless.utility.ConvertUtility;
@@ -21,13 +24,46 @@ import spacex.astrostudycn.model.BaZi;
 import spacex.astrostudycn.model.BaZiDirect;
 
 public class BaZiPredictHelper {
-	private static ICache bzCache = CacheFactory.getCache("bazi");
+	private static final boolean NeedCache = PropertyPlaceholder.getPropertyAsBool("cachehelper.needcache", true);
+	private static ICache bzCache = NeedCache ? CacheFactory.getCache("bazi") : null;
+	private static volatile boolean cacheWarned = false;
 	
 	private static List<Map> attrs = null;
 	
 	static {
 		String json = FileUtility.getStringFromClassPath("spacex/astrostudycn/helper/bazipred.json");
 		attrs = JsonUtility.decodeList(json, Map.class);
+	}
+
+	private static void disableCache(Exception e) {
+		bzCache = null;
+		if(!cacheWarned) {
+			cacheWarned = true;
+			QueueLog.warn(AppLoggers.WarnLogger, "disable bazi predict cache, errmsg:{}", e.getMessage());
+		}
+	}
+
+	private static Map<String, Object> getCacheMap(String key) {
+		if(bzCache == null) {
+			return null;
+		}
+		try {
+			return bzCache.getMap(key);
+		}catch(Exception e) {
+			disableCache(e);
+			return null;
+		}
+	}
+
+	private static void setCacheMap(String key, Map<String, Object> map) {
+		if(bzCache == null || map == null) {
+			return;
+		}
+		try {
+			bzCache.setMap(key, map);
+		}catch(Exception e) {
+			disableCache(e);
+		}
 	}
 	
 	private static String getKey(BaZiGender gender, String year, String month, String date, String time) {
@@ -48,10 +84,7 @@ public class BaZiPredictHelper {
 		String genderstr = gender.toSimpleString();
 		String key = getKey(gender, year, month, date, time);
 		
-		Map<String, Object> map = null;
-		if(bzCache != null) {
-			map = bzCache.getMap(key);
-		}
+		Map<String, Object> map = getCacheMap(key);
 		if(map == null) {
 			map = new HashMap<String, Object>();
 			map.put("year", year);
@@ -75,9 +108,7 @@ public class BaZiPredictHelper {
 			map.put("tm", now.getTime());
 			map.put("tmStr", tmstr);
 
-			if(bzCache != null) {
-				bzCache.setMap(key, map);					
-			}
+			setCacheMap(key, map);
 		}
 		
 		return map;
@@ -111,7 +142,7 @@ public class BaZiPredictHelper {
 		map.put("tm", now.getTime());
 		map.put("tmStr", tmstr);
 		
-		bzCache.setMap(key, map);	
+		setCacheMap(key, map);
 		
 		return map;
 	}
@@ -148,7 +179,7 @@ public class BaZiPredictHelper {
 		map.put("tmStr", tmstr);
 
 		String key = getKey(gender, year, month, date, time);
-		bzCache.setMap(key, map);
+		setCacheMap(key, map);
 	}
 	
 	public static void save(String year, String month, String date, String time, Map<String, Object> data) {
