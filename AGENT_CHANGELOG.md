@@ -1,5 +1,23 @@
 # AGENT Change Log
 
+## 2026-02-20 - Windows 一键部署 Java/JDK 探测修复
+
+- 修改文件:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `UPGRADE_LOG.md`
+
+- 变更内容:
+  - 修复 `java -version` 读取逻辑，避免 `ErrorActionPreference=Stop` 时把 stderr 误判为异常，导致 Java 17 检测失败。
+  - `Resolve-Java` 新增 `-RequireJdk` 逻辑，后端自动构建时明确要求 `javac.exe`。
+  - 便携 Java 回退下载改为 Temurin JDK 链接（不再是 JRE）。
+  - 构建阶段增加兜底：若解析失败但 `runtime/windows/java/bin/{java.exe,javac.exe}` 已就绪，仍可直接进入 Maven 构建流程。
+  - README 同步补充“便携 JDK（含 javac）”说明，并修正章节编号。
+
+- 验证结果:
+  - `HOROSA_NO_BROWSER=1 HOROSA_SMOKE_TEST=1 powershell -ExecutionPolicy Bypass -File .\\Horosa_Local_Windows.ps1` 通过。
+  - 结果确认：后端/前端/Python 服务全部启动，smoke 模式 6 秒后自动停止。
+
 ## 2026-02-19 - GitHub 精简上传整理（Windows 一键部署保留）
 
 - 修改文件:
@@ -138,3 +156,24 @@
     - 右下角信息块起始 `y` 改为按统一行高计算并整体上移。
     - 行间距抽为常量，`y` 与 `dy` 使用同一套数值。
   - 重新构建 `dist-file`，新包已生效。
+
+## 2026-02-20 - 六壬手动起课与前端产物防回退
+
+- 问题:
+  - 大六壬调整时间组件后仍自动变化，且页面仍显示旧UI（只有“保存”，没有“起课”）。
+
+- 修复:
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+    - 六壬改为“仅点击起课才计算/更新”。
+    - 关闭 mount/hook/出生时间变化触发的自动请求。
+    - 左盘改为读取“起课时锁定快照”，避免时间变更时自动刷新。
+  - `astrostudyui/package.json`、`astrostudyui/scripts/umi-runner.js`
+    - `start/build/build:file` 改为跨平台启动器，修复 Windows 下 `export ...` 脚本不生效导致的旧前端构建问题。
+  - 重新构建 `astrostudyui/dist-file`，确保启动脚本读取到最新前端。
+  - 同步 `runtime/windows/bundle/dist-file`，避免 runtime 包继续使用旧产物。
+  - `Horosa_Local_Windows.ps1`
+    - 新增 `dist-file` 与 `dist` 更新时间比较，优先使用更新的一套。
+  - `Prepare_Runtime_Windows.ps1`
+    - 打包时自动选最新前端产物，并统一写入 `runtime/windows/bundle/dist-file`（同时镜像到 `dist`）。
+  - `README.md`、`UPGRADE_LOG.md`
+    - 补充“旧前端页面”排查与 Windows 下重建 `dist-file` 命令。

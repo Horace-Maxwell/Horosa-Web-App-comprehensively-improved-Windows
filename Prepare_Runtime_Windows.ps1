@@ -2,13 +2,119 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+function Test-HorosaProjectDir {
+  param([string]$DirPath)
+
+  if ([string]::IsNullOrWhiteSpace($DirPath)) { return $false }
+  if (-not (Test-Path $DirPath -PathType Container)) { return $false }
+
+  $requiredDirs = @('astrostudyui', 'astrostudysrv', 'astropy')
+  foreach ($requiredDir in $requiredDirs) {
+    if (-not (Test-Path (Join-Path $DirPath $requiredDir) -PathType Container)) {
+      return $false
+    }
+  }
+  return $true
+}
+
+function Resolve-ProjectDir {
+  param([string]$BaseDir)
+
+  if (Test-HorosaProjectDir -DirPath $BaseDir) {
+    return (Resolve-Path $BaseDir).Path
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_PROJECT_DIR)) {
+    $customDir = $env:HOROSA_PROJECT_DIR.Trim()
+    if (-not [System.IO.Path]::IsPathRooted($customDir)) {
+      $customDir = Join-Path $BaseDir $customDir
+    }
+    if (Test-HorosaProjectDir -DirPath $customDir) {
+      return (Resolve-Path $customDir).Path
+    }
+    Write-Host ("[WARN] HOROSA_PROJECT_DIR is set but invalid: {0}" -f $env:HOROSA_PROJECT_DIR)
+  }
+
+  $preferredNames = @(
+    'Horosa-Web',
+    'Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c'
+  )
+  foreach ($name in $preferredNames) {
+    $candidate = Join-Path $BaseDir $name
+    if (Test-HorosaProjectDir -DirPath $candidate) {
+      return (Resolve-Path $candidate).Path
+    }
+  }
+
+  $matches = @(
+    Get-ChildItem -Path $BaseDir -Directory -ErrorAction SilentlyContinue |
+      Where-Object { Test-HorosaProjectDir -DirPath $_.FullName } |
+      Sort-Object Name
+  )
+  if ($matches.Count -gt 0) {
+    return $matches[0].FullName
+  }
+
+  return $null
+}
+
+function Resolve-FrontendBuildSource {
+  param([string]$ProjDir)
+
+  $distFileDir = Join-Path $ProjDir 'astrostudyui\dist-file'
+  $distDir = Join-Path $ProjDir 'astrostudyui\dist'
+  $distFileIndex = Join-Path $distFileDir 'index.html'
+  $distIndex = Join-Path $distDir 'index.html'
+
+  $hasDistFile = Test-Path $distFileIndex
+  $hasDist = Test-Path $distIndex
+
+  if ($hasDistFile -and $hasDist) {
+    $distFileTime = (Get-Item $distFileIndex).LastWriteTimeUtc
+    $distTime = (Get-Item $distIndex).LastWriteTimeUtc
+    if ($distTime -gt $distFileTime) {
+      return [pscustomobject]@{
+        Kind = 'dist'
+        Path = $distDir
+      }
+    }
+    return [pscustomobject]@{
+      Kind = 'dist-file'
+      Path = $distFileDir
+    }
+  }
+
+  if ($hasDistFile) {
+    return [pscustomobject]@{
+      Kind = 'dist-file'
+      Path = $distFileDir
+    }
+  }
+  if ($hasDist) {
+    return [pscustomobject]@{
+      Kind = 'dist'
+      Path = $distDir
+    }
+  }
+
+  return $null
+}
+
 $RuntimeRoot = Join-Path $Root 'runtime\\windows'
 $JavaDst = Join-Path $RuntimeRoot 'java'
 $PyDst = Join-Path $RuntimeRoot 'python'
 $WheelsDst = Join-Path $RuntimeRoot 'wheels'
 $BundleDst = Join-Path $RuntimeRoot 'bundle'
 $WheelsBundleDst = Join-Path $BundleDst 'wheels'
-$ProjectDir = Join-Path $Root 'Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c'
+$ProjectDir = Resolve-ProjectDir -BaseDir $Root
+if (-not $ProjectDir) {
+  Write-Host "Project folder not found under: $Root"
+  Write-Host 'Expected a folder that contains astrostudyui / astrostudysrv / astropy.'
+  Write-Host 'You can set HOROSA_PROJECT_DIR to override project directory detection.'
+  Read-Host 'Press Enter to exit'
+  exit 1
+}
 $JarSrc = Join-Path $ProjectDir 'astrostudysrv\\astrostudyboot\\target\\astrostudyboot.jar'
 $DistFileSrc = Join-Path $ProjectDir 'astrostudyui\\dist-file'
 $DistSrc = Join-Path $ProjectDir 'astrostudyui\\dist'
@@ -27,6 +133,31 @@ function Test-PythonDeps {
     return ($LASTEXITCODE -eq 0)
   } catch {
     return $false
+  }
+}
+
+function Get-PythonVersionInfo {
+  param([string]$PythonExe)
+  if (-not (Test-Path $PythonExe)) { return $null }
+  try {
+    $out = & $PythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+    if (-not $out) { return $null }
+    $text = ($out | Select-Object -First 1).ToString().Trim()
+    $parts = $text.Split('.')
+    if ($parts.Length -lt 2) { return $null }
+
+    $major = 0
+    $minor = 0
+    if (-not [int]::TryParse($parts[0], [ref]$major)) { return $null }
+    if (-not [int]::TryParse($parts[1], [ref]$minor)) { return $null }
+
+    return [pscustomobject]@{
+      Major = $major
+      Minor = $minor
+      Text = $text
+    }
+  } catch {
+    return $null
   }
 }
 
@@ -122,9 +253,9 @@ $PySrc = $env:HOROSA_PYTHON_HOME
 if (-not $PySrc) {
   $cand = @(
     "$env:LocalAppData\\Programs\\Python\\Python311",
+    "$env:ProgramFiles\\Python311",
     "$env:LocalAppData\\Programs\\Python\\Python312",
-    "$env:ProgramFiles\\Python312",
-    "$env:ProgramFiles\\Python311"
+    "$env:ProgramFiles\\Python312"
   )
   foreach ($c in $cand) {
     if (Test-Path (Join-Path $c 'python.exe')) {
@@ -141,6 +272,15 @@ if (-not $PySrc) {
 }
 
 if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
+  $sourcePyExe = Join-Path $PySrc 'python.exe'
+  $sourceVersion = Get-PythonVersionInfo -PythonExe $sourcePyExe
+  if ($sourceVersion) {
+    Write-Host ("Detected Python runtime source version: {0}" -f $sourceVersion.Text)
+    if (-not ($sourceVersion.Major -eq 3 -and $sourceVersion.Minor -eq 11)) {
+      Write-Host '[WARN] Python 3.11 is recommended for offline one-click startup compatibility.'
+    }
+  }
+
   Write-Host "Copy Python runtime: $PySrc -> $PyDst"
   if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
   New-Item -ItemType Directory -Force -Path $PyDst | Out-Null
@@ -173,16 +313,19 @@ if (Test-Path $JarSrc) {
   Write-Host "[MISSING] Backend jar not found: $JarSrc"
 }
 
-if (Test-Path (Join-Path $DistFileSrc 'index.html')) {
-  if (Test-Path $DistFileBundleDst) { Remove-Item -Recurse -Force $DistFileBundleDst }
+if ((Test-Path $DistFileBundleDst)) { Remove-Item -Recurse -Force $DistFileBundleDst }
+if ((Test-Path $DistBundleDst)) { Remove-Item -Recurse -Force $DistBundleDst }
+
+$frontendSource = Resolve-FrontendBuildSource -ProjDir $ProjectDir
+if ($frontendSource -and $frontendSource.Path -and (Test-Path (Join-Path $frontendSource.Path 'index.html'))) {
   New-Item -ItemType Directory -Force -Path $DistFileBundleDst | Out-Null
-  robocopy $DistFileSrc $DistFileBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
-  Write-Host "Copy frontend dist-file: $DistFileSrc -> $DistFileBundleDst"
-} elseif (Test-Path (Join-Path $DistSrc 'index.html')) {
-  if (Test-Path $DistBundleDst) { Remove-Item -Recurse -Force $DistBundleDst }
+  robocopy $frontendSource.Path $DistFileBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+  Write-Host ("Copy frontend {0}: {1} -> {2}" -f $frontendSource.Kind, $frontendSource.Path, $DistFileBundleDst)
+
+  # Keep a mirror in bundle/dist for backward compatibility with existing restore logic.
   New-Item -ItemType Directory -Force -Path $DistBundleDst | Out-Null
-  robocopy $DistSrc $DistBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
-  Write-Host "Copy frontend dist: $DistSrc -> $DistBundleDst"
+  robocopy $frontendSource.Path $DistBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+  Write-Host ("Mirror frontend to dist: {0} -> {1}" -f $frontendSource.Path, $DistBundleDst)
 } else {
   Write-Host "[MISSING] Frontend dist not found: $DistFileSrc or $DistSrc"
 }
