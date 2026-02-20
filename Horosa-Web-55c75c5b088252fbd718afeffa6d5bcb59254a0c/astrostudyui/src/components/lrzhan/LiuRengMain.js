@@ -27,6 +27,17 @@ function cloneDateTimeSafe(val, fallback){
 	return new DateTime();
 }
 
+function cloneChartSnapshot(chartObj){
+	if(!chartObj || typeof chartObj !== 'object'){
+		return null;
+	}
+	try{
+		return JSON.parse(JSON.stringify(chartObj));
+	}catch(e){
+		return chartObj;
+	}
+}
+
 function buildBirthFields(source, fallbackNow){
 	const now = fallbackNow && fallbackNow instanceof DateTime ? fallbackNow : new DateTime();
 	const src = source || {};
@@ -97,8 +108,8 @@ function getChartYue(chartObj){
 	return '';
 }
 
-function buildLiuRengLayout(chartObj, guirengType){
-	if(!chartObj || !chartObj.nongli || !chartObj.nongli.time){
+function buildLiuRengLayout(chartObj, nongli, guirengType){
+	if(!chartObj || !nongli || !nongli.time){
 		return null;
 	}
 	const yue = getChartYue(chartObj);
@@ -108,7 +119,7 @@ function buildLiuRengLayout(chartObj, guirengType){
 	const downZi = LRConst.ZiList.slice(0);
 	const upZi = LRConst.ZiList.slice(0);
 	const yueIndexs = [];
-	const timezi = chartObj.nongli.time.substr(1);
+	const timezi = nongli.time.substr(1);
 	const yueIdx = LRConst.ZiList.indexOf(yue);
 	const tmIdx = LRConst.ZiList.indexOf(timezi);
 	if(yueIdx < 0 || tmIdx < 0){
@@ -122,7 +133,12 @@ function buildLiuRengLayout(chartObj, guirengType){
 	}
 
 	const houseTianJiang = LRConst.TianJiang.slice(0);
-	const guizi = LRConst.getGuiZi(chartObj, guirengType);
+	const guizi = LRConst.getGuiZi({
+		nongli: {
+			dayGanZi: nongli.dayGanZi,
+		},
+		isDiurnal: chartObj ? chartObj.isDiurnal : true,
+	}, guirengType);
 	let houseidx = 0;
 	for(let i=0; i<12; i++){
 		const zi = LRConst.ZiList[yueIndexs[i]];
@@ -154,15 +170,15 @@ function buildLiuRengLayout(chartObj, guirengType){
 	};
 }
 
-function buildKeData(layout, chartObj){
+function buildKeData(layout, nongli){
 	const result = {
 		raw: [],
 		lines: [],
 	};
-	if(!layout || !chartObj || !chartObj.nongli || !chartObj.nongli.dayGanZi){
+	if(!layout || !nongli || !nongli.dayGanZi){
 		return result;
 	}
-	const dayGanZi = chartObj.nongli.dayGanZi;
+	const dayGanZi = nongli.dayGanZi;
 	const daygan = dayGanZi.substr(0, 1);
 	const dayzi = dayGanZi.substr(1, 1);
 
@@ -188,21 +204,26 @@ function buildKeData(layout, chartObj){
 	const all = [ke1, ke2, ke3, ke4];
 	const names = ['一课', '二课', '三课', '四课'];
 	all.forEach((item, idx)=>{
-		result.lines.push(`${names[idx]}：干支=${item[2]}，天盘=${item[1]}，贵神=${item[0]}`);
+		result.lines.push(`${names[idx]}：地盘=${item[2]}，天盘=${item[1]}，贵神=${item[0]}`);
 	});
 	result.raw = all;
 	return result;
 }
 
-function buildSanChuanData(layout, keRaw, chartObj){
-	if(!layout || !keRaw || keRaw.length !== 4 || !chartObj || !chartObj.nongli){
+function buildSanChuanData(layout, keRaw, nongli, chartObj){
+	if(!layout || !keRaw || keRaw.length !== 4 || !nongli){
 		return null;
 	}
 	try{
 		const helper = new ChuangChart({
 			owner: null,
-			chartObj: chartObj,
-			nongli: chartObj.nongli,
+			chartObj: {
+				nongli: {
+					dayGanZi: nongli.dayGanZi,
+				},
+				isDiurnal: chartObj ? chartObj.isDiurnal : true,
+			},
+			nongli: nongli,
 			ke: keRaw,
 			liuRengChart: {
 				upZi: layout.upZi,
@@ -224,9 +245,9 @@ function buildSanChuanData(layout, keRaw, chartObj){
 function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengType, zhangshengElem, gender){
 	const lines = [];
 	const nongli = liureng && liureng.nongli ? liureng.nongli : (chartObj && chartObj.nongli ? chartObj.nongli : {});
-	const layout = buildLiuRengLayout(chartObj, guirengType);
-	const keData = buildKeData(layout, chartObj);
-	const sanChuan = buildSanChuanData(layout, keData.raw, chartObj);
+	const layout = buildLiuRengLayout(chartObj, nongli, guirengType);
+	const keData = buildKeData(layout, nongli);
+	const sanChuan = buildSanChuanData(layout, keData.raw, nongli, chartObj);
 	const xingbie = `${gender}` === '1' ? '男' : '女';
 
 	lines.push('[起盘信息]');
@@ -332,6 +353,8 @@ class LiuRengMain extends Component{
 			runyear: null,
 			wuxing: '土',
 			guireng: 2,
+			calcChart: null,
+			isCalculating: false,
 		};
 
 		this.unmounted = false;
@@ -346,15 +369,11 @@ class LiuRengMain extends Component{
 		this.requestGods = this.requestGods.bind(this);
 		this.requestRunYear = this.requestRunYear.bind(this);
 		this.saveLiuRengAISnapshot = this.saveLiuRengAISnapshot.bind(this);
+		this.clickCalcCase = this.clickCalcCase.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
 
 		if(this.props.hook){
-			this.props.hook.fun = (fields)=>{
-				if(this.unmounted){
-					return;
-				}
-				this.requestGods(fields);
-			};
+			this.props.hook.fun = ()=>{};
 		}
 	}
 
@@ -380,8 +399,6 @@ class LiuRengMain extends Component{
 		};
 		this.setState({
 			birth: flds,
-		}, ()=>{
-			this.requestRunYear();
 		});
 	}
 
@@ -410,7 +427,7 @@ class LiuRengMain extends Component{
 		if(!baseParams){
 			return;
 		}
-		const chartObj = this.props.value && this.props.value.chart ? this.props.value.chart : null;
+		const chartObj = this.state.calcChart ? this.state.calcChart : (this.props.value && this.props.value.chart ? this.props.value.chart : null);
 		const finalZone = baseParams.zone !== undefined ? baseParams.zone : (flds && flds.zone ? flds.zone.value : '');
 		const finalLon = baseParams.lon !== undefined ? baseParams.lon : (flds && flds.lon ? flds.lon.value : '');
 		const finalLat = baseParams.lat !== undefined ? baseParams.lat : (flds && flds.lat ? flds.lat.value : '');
@@ -493,9 +510,9 @@ class LiuRengMain extends Component{
 		return params;
 	}
 
-	async requestGods(fields){
+	async requestGods(fields, chartSnapshot){
 		if(fields === undefined || fields === null){
-			return;
+			return false;
 		}
 		const params = this.genGodsParams(fields);
 
@@ -510,17 +527,20 @@ class LiuRengMain extends Component{
 		const st = {
 			liureng: result.liureng,
 			wuxing: wx,
+			calcChart: chartSnapshot || null,
 		};
 
-		this.setState(st, ()=>{
-			this.requestRunYear();
-			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
+		return new Promise((resolve)=>{
+			this.setState(st, ()=>{
+				this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
+				resolve(true);
+			});
 		});
 	}
 
 	async requestRunYear(){
 		if(this.state.liureng === null){
-			return;
+			return false;
 		}
 		
 		const params = this.genRunYearParams();
@@ -528,7 +548,7 @@ class LiuRengMain extends Component{
 			Modal.error({
 				title: '出生年份必须小于卜卦年份'
 			});
-			return;
+			return false;
 		}
 
 		const data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
@@ -544,9 +564,37 @@ class LiuRengMain extends Component{
 			runyear: result,
 		};
 
-		this.setState(st, ()=>{
-			this.saveLiuRengAISnapshot(null, this.state.liureng, result, this.state.wuxing, this.state.guireng);
+		return new Promise((resolve)=>{
+			this.setState(st, ()=>{
+				this.saveLiuRengAISnapshot(null, this.state.liureng, result, this.state.wuxing, this.state.guireng);
+				resolve(true);
+			});
 		});
+	}
+
+	async clickCalcCase(){
+		if(this.state.isCalculating){
+			return;
+		}
+		if(!this.props.fields){
+			return;
+		}
+		const chartSnapshot = cloneChartSnapshot(this.props.value && this.props.value.chart ? this.props.value.chart : null);
+		this.setState({
+			isCalculating: true,
+		});
+		try{
+			const ok = await this.requestGods(this.props.fields, chartSnapshot);
+			if(ok){
+				await this.requestRunYear();
+			}
+		}finally{
+			if(!this.unmounted){
+				this.setState({
+					isCalculating: false,
+				});
+			}
+		}
 	}
 
 	clickSaveCase(){
@@ -603,9 +651,6 @@ class LiuRengMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
-		if(this.props.fields){
-			this.requestGods(this.props.fields);
-		}
 	}
 
 	componentWillUnmount(){
@@ -620,8 +665,7 @@ class LiuRengMain extends Component{
 			height = height - 20
 		}
 
-		let chartObj = this.props.value;
-		let chart = chartObj ? chartObj.chart : {};
+		let chart = this.state.calcChart;
 
 		let wxdoms = this.genWuXingDoms();
 		return (
@@ -651,7 +695,17 @@ class LiuRengMain extends Component{
 							</Col>
 						</Row>
 						<Row style={{ marginTop: 8 }}>
-							<Col span={24}>
+							<Col span={12}>
+								<Button
+									type='primary'
+									style={{ width: '100%' }}
+									onClick={this.clickCalcCase}
+									loading={this.state.isCalculating}
+								>
+									起课
+								</Button>
+							</Col>
+							<Col span={12}>
 								<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
 							</Col>
 						</Row>

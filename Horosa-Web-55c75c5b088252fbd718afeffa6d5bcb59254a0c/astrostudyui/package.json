@@ -1,9 +1,9 @@
 {
 	"private": true,
 	"scripts": {
-		"start": "export NODE_OPTIONS=--openssl-legacy-provider && umi dev",
-		"build": "export NODE_OPTIONS=--openssl-legacy-provider && umi build",
-		"build:file": "export BUILD_FOR_FILE=1 NODE_OPTIONS=--openssl-legacy-provider && umi build",
+		"start": "node scripts/umi-runner.js dev",
+		"build": "node scripts/umi-runner.js build",
+		"build:file": "node scripts/umi-runner.js build --for-file",
 		"postinstall": "umi generate tmp",
 		"prettier": "prettier --write '**/*.{js,jsx,tsx,ts,less,md,json}'",
 		"test": "umi-test",

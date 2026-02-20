@@ -2,7 +2,98 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectDir = Join-Path $Root 'Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c'
+
+function Test-HorosaProjectDir {
+  param([string]$DirPath)
+
+  if ([string]::IsNullOrWhiteSpace($DirPath)) { return $false }
+  if (-not (Test-Path $DirPath -PathType Container)) { return $false }
+
+  $requiredDirs = @('astrostudyui', 'astrostudysrv', 'astropy')
+  foreach ($requiredDir in $requiredDirs) {
+    if (-not (Test-Path (Join-Path $DirPath $requiredDir) -PathType Container)) {
+      return $false
+    }
+  }
+  return $true
+}
+
+function Resolve-ProjectDir {
+  param([string]$BaseDir)
+
+  if (Test-HorosaProjectDir -DirPath $BaseDir) {
+    return (Resolve-Path $BaseDir).Path
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_PROJECT_DIR)) {
+    $customDir = $env:HOROSA_PROJECT_DIR.Trim()
+    if (-not [System.IO.Path]::IsPathRooted($customDir)) {
+      $customDir = Join-Path $BaseDir $customDir
+    }
+    if (Test-HorosaProjectDir -DirPath $customDir) {
+      return (Resolve-Path $customDir).Path
+    }
+    Write-Host ("[WARN] HOROSA_PROJECT_DIR is set but invalid: {0}" -f $env:HOROSA_PROJECT_DIR)
+  }
+
+  $preferredNames = @(
+    'Horosa-Web',
+    'Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c'
+  )
+  foreach ($name in $preferredNames) {
+    $candidate = Join-Path $BaseDir $name
+    if (Test-HorosaProjectDir -DirPath $candidate) {
+      return (Resolve-Path $candidate).Path
+    }
+  }
+
+  $matches = @(
+    Get-ChildItem -Path $BaseDir -Directory -ErrorAction SilentlyContinue |
+      Where-Object { Test-HorosaProjectDir -DirPath $_.FullName } |
+      Sort-Object Name
+  )
+  if ($matches.Count -gt 0) {
+    return $matches[0].FullName
+  }
+
+  return $null
+}
+
+function Resolve-FrontendDistDir {
+  param([string]$ProjDir)
+
+  $distFileDir = Join-Path $ProjDir 'astrostudyui/dist-file'
+  $distDir = Join-Path $ProjDir 'astrostudyui/dist'
+  $distFileIndex = Join-Path $distFileDir 'index.html'
+  $distIndex = Join-Path $distDir 'index.html'
+
+  $hasDistFile = Test-Path $distFileIndex
+  $hasDist = Test-Path $distIndex
+
+  if ($hasDistFile -and $hasDist) {
+    $distFileTime = (Get-Item $distFileIndex).LastWriteTimeUtc
+    $distTime = (Get-Item $distIndex).LastWriteTimeUtc
+    if ($distTime -gt $distFileTime) {
+      Write-Host ("[INFO] Frontend dist is newer than dist-file, using: {0}" -f $distDir)
+      return $distDir
+    }
+    return $distFileDir
+  }
+
+  if ($hasDistFile) { return $distFileDir }
+  if ($hasDist) { return $distDir }
+
+  return $distFileDir
+}
+
+$ProjectDir = Resolve-ProjectDir -BaseDir $Root
+if (-not $ProjectDir) {
+  Write-Host "Project folder not found under: $Root"
+  Write-Host 'Expected a folder that contains astrostudyui / astrostudysrv / astropy.'
+  Write-Host 'You can set HOROSA_PROJECT_DIR to override project directory detection.'
+  Read-Host 'Press Enter to exit'
+  exit 1
+}
 
 $PyPidFile = Join-Path $ProjectDir '.horosa_win_py.pid'
 $JavaPidFile = Join-Path $ProjectDir '.horosa_win_java.pid'
@@ -16,10 +107,8 @@ $JavaLog = Join-Path $LogDir 'astrostudyboot.log'
 $WebLog = Join-Path $LogDir 'web.log'
 $BrowserProfile = Join-Path $ProjectDir '.horosa-browser-profile-win'
 
-$DistDir = Join-Path $ProjectDir 'astrostudyui/dist-file'
-if (-not (Test-Path (Join-Path $DistDir 'index.html'))) {
-  $DistDir = Join-Path $ProjectDir 'astrostudyui/dist'
-}
+$DistDir = Resolve-FrontendDistDir -ProjDir $ProjectDir
+Write-Host ("[INFO] Frontend static dir: {0}" -f $DistDir)
 
 $JarPath = Join-Path $ProjectDir 'astrostudysrv/astrostudyboot/target/astrostudyboot.jar'
 $WinBundleRoot = Join-Path $Root 'runtime/windows/bundle'
@@ -195,7 +284,15 @@ function Resolve-Browser {
 
 function Test-JavaAtLeast17 {
   param([string]$JavaCmdOrPath)
+  $oldErrorAction = $ErrorActionPreference
+  $hasNativePref = Test-Path 'Variable:PSNativeCommandUseErrorActionPreference'
+  $oldNativePref = $null
   try {
+    $ErrorActionPreference = 'Continue'
+    if ($hasNativePref) {
+      $oldNativePref = $PSNativeCommandUseErrorActionPreference
+      $PSNativeCommandUseErrorActionPreference = $false
+    }
     $out = & $JavaCmdOrPath -version 2>&1 | Out-String
     if (-not $out) { return $false }
     $m = [regex]::Match($out, 'version\s+"([^"]+)"')
@@ -208,24 +305,67 @@ function Test-JavaAtLeast17 {
     return ($major -ge 17)
   } catch {
     return $false
+  } finally {
+    $ErrorActionPreference = $oldErrorAction
+    if ($hasNativePref -and $null -ne $oldNativePref) {
+      $PSNativeCommandUseErrorActionPreference = $oldNativePref
+    }
+  }
+}
+
+function Test-JavaCompilerAvailable {
+  param([string]$JavaCmdOrPath)
+  try {
+    $javaExe = Get-ExePath -CmdOrPath $JavaCmdOrPath
+    if (-not $javaExe) { return $false }
+    $binDir = Split-Path -Parent $javaExe
+    if (-not $binDir) { return $false }
+    $javaHome = Split-Path -Parent $binDir
+    if (-not $javaHome) { return $false }
+    $javacExe = Join-Path $javaHome 'bin\javac.exe'
+    return (Test-Path $javacExe)
+  } catch {
+    return $false
+  }
+}
+
+function Get-PythonVersionInfo {
+  param([string]$PythonCmdOrPath)
+  try {
+    $out = & $PythonCmdOrPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+    if (-not $out) { return $null }
+
+    $versionText = ($out | Select-Object -First 1).ToString().Trim()
+    $parts = $versionText.Split('.')
+    if ($parts.Length -lt 2) { return $null }
+
+    $major = 0
+    $minor = 0
+    if (-not [int]::TryParse($parts[0], [ref]$major)) { return $null }
+    if (-not [int]::TryParse($parts[1], [ref]$minor)) { return $null }
+
+    return [pscustomobject]@{
+      Major = $major
+      Minor = $minor
+      Text = $versionText
+    }
+  } catch {
+    return $null
   }
 }
 
 function Test-PythonSupported {
   param([string]$PythonCmdOrPath)
-  try {
-    $out = & $PythonCmdOrPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-    if (-not $out) { return $false }
-    $v = ($out | Select-Object -First 1).ToString().Trim()
-    $parts = $v.Split('.')
-    if ($parts.Length -lt 2) { return $false }
-    $major = [int]$parts[0]
-    $minor = [int]$parts[1]
-    # Prefer Python 3.11; allow 3.12 for better cross-machine compatibility.
-    return ($major -eq 3 -and ($minor -eq 11 -or $minor -eq 12))
-  } catch {
-    return $false
-  }
+  $version = Get-PythonVersionInfo -PythonCmdOrPath $PythonCmdOrPath
+  if (-not $version) { return $false }
+  return ($version.Major -eq 3 -and ($version.Minor -eq 11 -or $version.Minor -eq 12))
+}
+
+function Test-Python311 {
+  param([string]$PythonCmdOrPath)
+  $version = Get-PythonVersionInfo -PythonCmdOrPath $PythonCmdOrPath
+  if (-not $version) { return $false }
+  return ($version.Major -eq 3 -and $version.Minor -eq 11)
 }
 
 function Test-PythonDepsReady {
@@ -239,19 +379,28 @@ function Test-PythonDepsReady {
 }
 
 function Resolve-Java {
+  param([switch]$RequireJdk)
+
+  $acceptJava = {
+    param([string]$JavaCandidate)
+    if (-not (Test-JavaAtLeast17 -JavaCmdOrPath $JavaCandidate)) { return $false }
+    if ($RequireJdk -and -not (Test-JavaCompilerAvailable -JavaCmdOrPath $JavaCandidate)) { return $false }
+    return $true
+  }
+
   $runtimeJava = Join-Path $Root 'runtime/windows/java/bin/java.exe'
   if (Test-Path $runtimeJava) {
-    return $runtimeJava
+    if (& $acceptJava $runtimeJava) { return $runtimeJava }
   }
 
   if ($env:HOROSA_JAVA -and (Test-Path $env:HOROSA_JAVA)) {
-    if (Test-JavaAtLeast17 -JavaCmdOrPath $env:HOROSA_JAVA) { return $env:HOROSA_JAVA }
+    if (& $acceptJava $env:HOROSA_JAVA) { return $env:HOROSA_JAVA }
   }
 
   if ($env:JAVA_HOME) {
     $javaHomeBin = Join-Path $env:JAVA_HOME 'bin/java.exe'
     if (Test-Path $javaHomeBin) {
-      if (Test-JavaAtLeast17 -JavaCmdOrPath $javaHomeBin) { return $javaHomeBin }
+      if (& $acceptJava $javaHomeBin) { return $javaHomeBin }
     }
   }
 
@@ -265,13 +414,13 @@ function Resolve-Java {
   )
   foreach ($p in $bundled) {
     if (Test-Path $p) {
-      if (Test-JavaAtLeast17 -JavaCmdOrPath $p) { return $p }
+      if (& $acceptJava $p) { return $p }
     }
   }
 
   $inPath = Get-Command 'java' -ErrorAction SilentlyContinue
   if ($inPath) {
-    if (Test-JavaAtLeast17 -JavaCmdOrPath 'java') { return 'java' }
+    if (& $acceptJava 'java') { return 'java' }
   }
 
   $javaCandidates = @(
@@ -294,7 +443,7 @@ function Resolve-Java {
     if ($found) {
       $candidate = Join-Path $found.FullName 'bin\java.exe'
       if (Test-Path $candidate) {
-        if (Test-JavaAtLeast17 -JavaCmdOrPath $candidate) { return $candidate }
+        if (& $acceptJava $candidate) { return $candidate }
       }
     }
   }
@@ -310,7 +459,7 @@ function Resolve-Java {
       Where-Object { $_.FullName -match 'jdk|jre|openjdk|temurin|corretto|zulu|microsoft' } |
       Select-Object -First 20
     foreach ($m in $matches) {
-      if (Test-JavaAtLeast17 -JavaCmdOrPath $m.FullName) {
+      if (& $acceptJava $m.FullName) {
         return $m.FullName
       }
     }
@@ -319,44 +468,82 @@ function Resolve-Java {
   return $null
 }
 
-function Resolve-Python {
+function Get-PythonCandidates {
+  $candidates = @()
+
   if ($env:HOROSA_PYTHON -and (Test-Path $env:HOROSA_PYTHON)) {
-    if (Test-PythonSupported -PythonCmdOrPath $env:HOROSA_PYTHON) { return $env:HOROSA_PYTHON }
+    $candidates += $env:HOROSA_PYTHON
   }
 
-  $bundled = @(
+  $candidates += @(
     (Join-Path $Root 'runtime/windows/python/python.exe'),
     (Join-Path $Root 'runtime/windows/python/python3.exe'),
     (Join-Path $Root 'runtime/python/python.exe'),
     (Join-Path $ProjectDir 'runtime/windows/python/python.exe'),
     (Join-Path $ProjectDir 'runtime/windows/python/python3.exe'),
-    (Join-Path $ProjectDir 'runtime/python/python.exe')
-  )
-  foreach ($p in $bundled) {
-    if (Test-Path $p) {
-      if (Test-PythonSupported -PythonCmdOrPath $p) { return $p }
-    }
-  }
-
-  $installed = @(
+    (Join-Path $ProjectDir 'runtime/python/python.exe'),
     "$env:LocalAppData\Programs\Python\Python311\python.exe",
     "$env:LocalAppData\Programs\Python\Python312\python.exe",
-    "$env:ProgramFiles\Python312\python.exe",
     "$env:ProgramFiles\Python311\python.exe",
+    "$env:ProgramFiles\Python312\python.exe",
     'C:\Python311\python.exe',
     'C:\Python312\python.exe'
   )
-  foreach ($p in $installed) {
-    if (Test-Path $p) {
-      if (Test-PythonSupported -PythonCmdOrPath $p) { return $p }
-    }
-  }
 
   $inPath = Get-Command 'python' -ErrorAction SilentlyContinue
   if ($inPath) {
-    if (Test-PythonSupported -PythonCmdOrPath 'python') { return 'python' }
+    $candidates += 'python'
   }
 
+  return $candidates
+}
+
+function Resolve-Python {
+  $seen = @{}
+  $found311 = $null
+  $found312 = $null
+
+  foreach ($candidate in (Get-PythonCandidates)) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $key = $candidate.ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { continue }
+    $seen[$key] = $true
+
+    if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
+
+    $version = Get-PythonVersionInfo -PythonCmdOrPath $candidate
+    if (-not $version) { continue }
+    if ($version.Major -ne 3) { continue }
+
+    if ($version.Minor -eq 11) {
+      if (-not $found311) { $found311 = $candidate }
+      continue
+    }
+    if ($version.Minor -eq 12) {
+      if (-not $found312) { $found312 = $candidate }
+    }
+  }
+
+  if ($found311) { return $found311 }
+  if ($found312) {
+    Write-Host '[WARN] Python 3.11 not found, fallback to Python 3.12.'
+    return $found312
+  }
+
+  return $null
+}
+
+function Resolve-Python311 {
+  $seen = @{}
+  foreach ($candidate in (Get-PythonCandidates)) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $key = $candidate.ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { continue }
+    $seen[$key] = $true
+
+    if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
+    if (Test-Python311 -PythonCmdOrPath $candidate) { return $candidate }
+  }
   return $null
 }
 
@@ -389,15 +576,20 @@ function Install-WithWinget {
 }
 
 function Install-Java17 {
+  param([switch]$RequireJdk)
+
   $candidates = @(
     @{ Id = 'EclipseAdoptium.Temurin.17.JDK'; Name = 'Java 17 (Temurin JDK)' },
-    @{ Id = 'EclipseAdoptium.Temurin.17.JRE'; Name = 'Java 17 (Temurin JRE)' },
     @{ Id = 'Microsoft.OpenJDK.17'; Name = 'Java 17 (Microsoft OpenJDK)' }
   )
+  if (-not $RequireJdk) {
+    $candidates += @{ Id = 'EclipseAdoptium.Temurin.17.JRE'; Name = 'Java 17 (Temurin JRE)' }
+  }
+
   foreach ($c in $candidates) {
     if (Install-WithWinget -PackageId $c.Id -DisplayName $c.Name) {
       Start-Sleep -Seconds 2
-      $resolved = Resolve-Java
+      $resolved = Resolve-Java -RequireJdk:$RequireJdk
       if ($resolved) {
         Write-Host ("[OK] Java 17 detected: {0}" -f $resolved)
         return $true
@@ -406,10 +598,18 @@ function Install-Java17 {
     }
   }
   if (Install-Java17Portable) {
-    $resolvedPortable = Resolve-Java
+    $resolvedPortable = Resolve-Java -RequireJdk:$RequireJdk
     if ($resolvedPortable) {
       Write-Host ("[OK] Portable Java 17 ready: {0}" -f $resolvedPortable)
       return $true
+    }
+    if ($RequireJdk) {
+      $portableJava = Join-Path $Root 'runtime/windows/java/bin/java.exe'
+      $portableJavac = Join-Path $Root 'runtime/windows/java/bin/javac.exe'
+      if ((Test-Path $portableJava) -and (Test-Path $portableJavac)) {
+        Write-Host ("[OK] Portable Java 17 files ready: {0}" -f $portableJava)
+        return $true
+      }
     }
   }
   return $false
@@ -425,7 +625,7 @@ function Install-Java17Portable {
     New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
     New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
 
-    $url = 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk'
+    $url = 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk'
     Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
 
     $extractDir = Join-Path $tmpDir 'extract'
@@ -613,21 +813,38 @@ function Try-BuildBackendJar {
     return $false
   }
 
-  $buildJava = Resolve-Java
+  $buildJava = Resolve-Java -RequireJdk
   if (-not $buildJava) {
-    if (Install-Java17) {
-      $buildJava = Resolve-Java
+    if (Install-Java17 -RequireJdk) {
+      $buildJava = Resolve-Java -RequireJdk
     }
   }
   if (-not $buildJava) {
-    Write-Host '[WARN] Java 17+ unavailable, skip auto build.'
+    $portableJava = Join-Path $Root 'runtime/windows/java/bin/java.exe'
+    $portableJavac = Join-Path $Root 'runtime/windows/java/bin/javac.exe'
+    if ((Test-Path $portableJava) -and (Test-Path $portableJavac)) {
+      $buildJava = $portableJava
+      Write-Host ("[INFO] Using bundled JDK for backend build: {0}" -f $buildJava)
+    }
+  }
+  if (-not $buildJava) {
+    Write-Host '[WARN] Java 17+ JDK unavailable, skip auto build.'
     return $false
   }
   $buildJavaHome = Get-JavaHomeFromJavaExe -JavaCmdOrPath $buildJava
   $javacPath = if ($buildJavaHome) { Join-Path $buildJavaHome 'bin/javac.exe' } else { $null }
   if (-not $javacPath -or -not (Test-Path $javacPath)) {
-    Write-Host '[WARN] JDK compiler (javac) not found, skip auto build.'
-    return $false
+    Write-Host '[WARN] JDK compiler (javac) not found, retrying Java installation...'
+    if (Install-Java17 -RequireJdk) {
+      Start-Sleep -Seconds 1
+      $buildJava = Resolve-Java -RequireJdk
+      $buildJavaHome = Get-JavaHomeFromJavaExe -JavaCmdOrPath $buildJava
+      $javacPath = if ($buildJavaHome) { Join-Path $buildJavaHome 'bin/javac.exe' } else { $null }
+    }
+    if (-not $javacPath -or -not (Test-Path $javacPath)) {
+      Write-Host '[WARN] JDK compiler (javac) not found, skip auto build.'
+      return $false
+    }
   }
 
   $srvRoot = Join-Path $ProjectDir 'astrostudysrv'
@@ -956,10 +1173,15 @@ if (-not $PythonBin) {
   }
   if (-not $PythonBin) {
     Write-Host 'Python 3.11/3.12 not found.'
-    Write-Host 'Install Python 3.11+ (recommended 3.11), then rerun this launcher.'
+    Write-Host 'Install Python 3.11 (recommended for offline startup), then rerun this launcher.'
     Read-Host 'Press Enter to exit'
     exit 1
   }
+}
+
+$selectedPythonVersion = Get-PythonVersionInfo -PythonCmdOrPath $PythonBin
+if ($selectedPythonVersion -and $selectedPythonVersion.Major -eq 3 -and $selectedPythonVersion.Minor -eq 12) {
+  Write-Host '[WARN] Python 3.12 detected. If dependency install fails, launcher will try switching to Python 3.11.'
 }
 
 $PyRuntimeDir = Join-Path $Root 'runtime/windows/python'
@@ -980,41 +1202,71 @@ if ($depsReady -and (-not (Test-PythonDepsReady -PythonCmdOrPath $PythonBin))) {
   $depsReady = $false
 }
 if (-not $depsReady) {
-  $runtimePythonExe = Join-Path $PyRuntimeDir 'python.exe'
-  $usingBundledPython = $false
-  try {
-    if ((Test-Path $PythonBin) -and (Test-Path $runtimePythonExe)) {
-      $usingBundledPython = ((Resolve-Path $PythonBin).Path -ieq (Resolve-Path $runtimePythonExe).Path)
-    }
-  } catch {
-    $usingBundledPython = $false
+  $currentVersion = Get-PythonVersionInfo -PythonCmdOrPath $PythonBin
+  $isPython311 = $false
+  if ($currentVersion -and $currentVersion.Major -eq 3 -and $currentVersion.Minor -eq 11) {
+    $isPython311 = $true
   }
 
-  if ($usingBundledPython) {
-    Write-Host '[WARN] Bundled Python dependencies are incomplete, trying system Python fallback...'
-    $fallbackCandidates = @(
-      "$env:LocalAppData\Programs\Python\Python311\python.exe",
-      "$env:LocalAppData\Programs\Python\Python312\python.exe",
-      "$env:ProgramFiles\Python311\python.exe",
-      "$env:ProgramFiles\Python312\python.exe",
-      'C:\Python311\python.exe',
-      'C:\Python312\python.exe',
-      'python'
-    )
-    foreach ($candidate in $fallbackCandidates) {
-      if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
-      if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
-      if ($candidate -ne 'python' -and (Test-Path $PythonBin)) {
-        try {
-          if ((Resolve-Path $candidate).Path -ieq (Resolve-Path $PythonBin).Path) { continue }
-        } catch {}
+  if (-not $isPython311) {
+    Write-Host '[WARN] Current Python is not 3.11. Trying Python 3.11 for better offline compatibility...'
+    $python311 = Resolve-Python311
+    if (-not $python311) {
+      $installed311 = Install-WithWinget -PackageId 'Python.Python.3.11' -DisplayName 'Python 3.11'
+      if ($installed311) {
+        Start-Sleep -Seconds 2
+        $python311 = Resolve-Python311
       }
+    }
 
-      if (Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) {
-        $PythonBin = $candidate
+    if ($python311) {
+      if (Ensure-PythonRuntimeDeps -PythonExe $python311 -ProjectRoot $ProjectDir) {
+        $PythonBin = $python311
         $depsReady = $true
-        Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
-        break
+        Write-Host ("[OK] Switched to Python 3.11: {0}" -f $PythonBin)
+      } else {
+        Write-Host '[WARN] Python 3.11 is available but dependency install still failed.'
+      }
+    }
+  }
+
+  if (-not $depsReady) {
+    $runtimePythonExe = Join-Path $PyRuntimeDir 'python.exe'
+    $usingBundledPython = $false
+    try {
+      if ((Test-Path $PythonBin) -and (Test-Path $runtimePythonExe)) {
+        $usingBundledPython = ((Resolve-Path $PythonBin).Path -ieq (Resolve-Path $runtimePythonExe).Path)
+      }
+    } catch {
+      $usingBundledPython = $false
+    }
+
+    if ($usingBundledPython) {
+      Write-Host '[WARN] Bundled Python dependencies are incomplete, trying system Python fallback...'
+      $fallbackCandidates = @(
+        "$env:LocalAppData\Programs\Python\Python311\python.exe",
+        "$env:LocalAppData\Programs\Python\Python312\python.exe",
+        "$env:ProgramFiles\Python311\python.exe",
+        "$env:ProgramFiles\Python312\python.exe",
+        'C:\Python311\python.exe',
+        'C:\Python312\python.exe',
+        'python'
+      )
+      foreach ($candidate in $fallbackCandidates) {
+        if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
+        if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
+        if ($candidate -ne 'python' -and (Test-Path $PythonBin)) {
+          try {
+            if ((Resolve-Path $candidate).Path -ieq (Resolve-Path $PythonBin).Path) { continue }
+          } catch {}
+        }
+
+        if (Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) {
+          $PythonBin = $candidate
+          $depsReady = $true
+          Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
+          break
+        }
       }
     }
   }
