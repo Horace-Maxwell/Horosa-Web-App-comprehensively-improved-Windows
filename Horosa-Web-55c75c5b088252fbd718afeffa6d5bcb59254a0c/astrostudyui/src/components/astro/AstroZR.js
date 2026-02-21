@@ -5,6 +5,7 @@ import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
 import AstroChart from './AstroChart';
 import ZodiacalRelease from './ZodiacalRelease';
+import AstroObjectLabel from './AstroObjectLabel';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
@@ -453,7 +454,7 @@ class AstroZR extends Component{
 		let radios = pnts.map((item)=>{
 			return (
 				<Radio style={radioStyle} value={item} key={randomStr(8)}>
-					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item]}&nbsp;</span>
+					<AstroObjectLabel id={item} chartSources={this.props.value} />&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>{AstroText.AstroTxtMsg[item]}&nbsp;</span>
 				</Radio>
 			);

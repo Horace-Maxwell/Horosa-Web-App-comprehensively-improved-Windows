@@ -11,6 +11,15 @@ import AstroProfection from '../astro/AstroProfection';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import {
+	appendPlanetMetaName,
+} from '../../utils/planetMetaDisplay';
+
+const DIRECT_SNAPSHOT_PLANET_META = {
+	showPostnatal: 1,
+	showHouse: 1,
+	showRuler: 1,
+};
 
 const TabPane = Tabs.TabPane;
 
@@ -25,6 +34,11 @@ function msg(id){
 		return `${AstroText.AstroMsg[id]}`;
 	}
 	return `${id}`;
+}
+
+function msgWithMeta(id, chartSources, displayOptions){
+	const base = msg(id);
+	return appendPlanetMetaName(base, id, chartSources, displayOptions || DIRECT_SNAPSHOT_PLANET_META);
 }
 
 function degreeText(value){
@@ -42,7 +56,7 @@ function degreeText(value){
 	return `${neg}${d}度${m}分`;
 }
 
-function directionObjText(text){
+function directionObjText(text, chartSources, displayOptions){
 	if(!text){
 		return '';
 	}
@@ -51,25 +65,25 @@ function directionObjText(text){
 		return `${text}`;
 	}
 	if(parts[0] === 'T'){
-		return `${msg(parts[2])}的${msg(parts[1])}界`;
+		return `${msgWithMeta(parts[2], chartSources, displayOptions)}的${msgWithMeta(parts[1], chartSources, displayOptions)}界`;
 	}
 	if(parts[0] === 'A'){
-		return `${msg(parts[1])}的映点`;
+		return `${msgWithMeta(parts[1], chartSources, displayOptions)}的映点`;
 	}
 	if(parts[0] === 'C'){
-		return `${msg(parts[1])}的反映点`;
+		return `${msgWithMeta(parts[1], chartSources, displayOptions)}的反映点`;
 	}
 	if(parts[0] === 'D'){
-		return `${msg(parts[1])}的${parts[2]}度右相位处`;
+		return `${msgWithMeta(parts[1], chartSources, displayOptions)}的${parts[2]}度右相位处`;
 	}
 	if(parts[0] === 'S'){
-		return `${msg(parts[1])}的${parts[2]}度左相位处`;
+		return `${msgWithMeta(parts[1], chartSources, displayOptions)}的${parts[2]}度左相位处`;
 	}
 	if(parts[0] === 'N'){
 		if(parts[2] && parts[2] !== '0'){
-			return `${msg(parts[1])}的${parts[2]}度相位处`;
+			return `${msgWithMeta(parts[1], chartSources, displayOptions)}的${parts[2]}度相位处`;
 		}
-		return `${msg(parts[1])}`;
+		return `${msgWithMeta(parts[1], chartSources, displayOptions)}`;
 	}
 	return `${text}`;
 }
@@ -137,8 +151,8 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	}else{
 		pds.forEach((pd)=>{
 			const degree = degreeText(pd && pd[0]);
-			const promittor = directionObjText(pd && pd[1]);
-			const significator = directionObjText(pd && pd[2]);
+			const promittor = directionObjText(pd && pd[1], chartObj, DIRECT_SNAPSHOT_PLANET_META);
+			const significator = directionObjText(pd && pd[2], chartObj, DIRECT_SNAPSHOT_PLANET_META);
 			const date = pd && pd[4] ? `${pd[4]}` : '';
 			lines.push(`| ${degree || '无'} | ${promittor || '无'} | ${significator || '无'} | ${date || '无'} |`);
 		});
@@ -161,7 +175,7 @@ function buildFirdariaSnapshotText(chartObj){
 	}else{
 		let rowCount = 0;
 		firdaria.forEach((main)=>{
-			const mainDirect = msg(main && main.mainDirect);
+			const mainDirect = msgWithMeta(main && main.mainDirect, chartObj, DIRECT_SNAPSHOT_PLANET_META);
 			const subs = main && Array.isArray(main.subDirect) ? main.subDirect : [];
 			if(subs.length === 0){
 				lines.push(`| ${mainDirect || '无'} | 无 | 无 |`);
@@ -169,7 +183,7 @@ function buildFirdariaSnapshotText(chartObj){
 				return;
 			}
 			subs.forEach((sub)=>{
-				const subDirect = msg(sub && sub.subDirect);
+				const subDirect = msgWithMeta(sub && sub.subDirect, chartObj, DIRECT_SNAPSHOT_PLANET_META);
 				const date = sub && sub.date ? `${sub.date}` : '';
 				lines.push(`| ${mainDirect || '无'} | ${subDirect || '无'} | ${date || '无'} |`);
 				rowCount += 1;

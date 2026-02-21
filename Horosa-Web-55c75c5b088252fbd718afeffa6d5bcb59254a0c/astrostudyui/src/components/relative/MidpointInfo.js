@@ -3,6 +3,7 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
+import AstroObjectLabel from '../astro/AstroObjectLabel';
 import { randomStr} from '../../utils/helper'
 import styles from '../../css/styles.less';
 
@@ -33,6 +34,7 @@ class MidpointInfo extends Component{
 		if(aspects === undefined || aspects === null){
 			return null;
 		}
+		const chartSources = this.props.chartSources || this.props.value;
 		let divs = [];
 
 		for(let i=0; i<LIST_POINTS.length; i++){
@@ -44,7 +46,7 @@ class MidpointInfo extends Component{
 			let domtitle = (
 				<div key={randomStr(8)}>
 					<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
-					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[key]}</span>
+					<AstroObjectLabel id={key} chartSources={chartSources} />
 				</div>
 			);
 			divs.push(domtitle);
@@ -56,9 +58,9 @@ class MidpointInfo extends Component{
 					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>&emsp;{AstroText.AstroMsg['Asp' + asp.aspect]}&nbsp;</span>
 						<span style={{fontFamily: AstroConst.NormalFont}}>（</span>
-						<span>{AstroText.AstroMsg[asp.midpoint.idA]}</span>
+						<AstroObjectLabel id={asp.midpoint.idA} chartSources={chartSources} />
 						<span style={{fontFamily: AstroConst.NormalFont}}>&nbsp;|&nbsp;</span>
-						<span>{AstroText.AstroMsg[asp.midpoint.idB]}</span>
+						<AstroObjectLabel id={asp.midpoint.idB} chartSources={chartSources} />
 						<span style={{fontFamily: AstroConst.NormalFont}}>）&nbsp;</span>
 						<span style={{fontFamily: AstroConst.NormalFont}}>
 							误差{Math.round(asp.delta * 1000)/1000}
@@ -109,4 +111,3 @@ class MidpointInfo extends Component{
 }
 
 export default MidpointInfo;
-

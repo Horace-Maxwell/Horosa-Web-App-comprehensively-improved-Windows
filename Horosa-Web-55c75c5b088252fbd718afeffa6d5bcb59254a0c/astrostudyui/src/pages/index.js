@@ -46,7 +46,7 @@ import {convertToArray} from '../utils/helper';
 const TabPane = Tabs.TabPane;
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
-    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds} = app;
+    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, planetMetaDisplay } = app;
     const {
         pwdFields,
         userInfo,
@@ -787,6 +787,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             >
                 <ChartDisplaySelector
                     value={chartDisplay}
+                    planetMetaDisplay={planetMetaDisplay}
                     showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
                     fields={fields}
                     dispatch={dispatch}

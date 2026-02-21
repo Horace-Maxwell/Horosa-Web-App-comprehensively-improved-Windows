@@ -4,6 +4,7 @@ import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
+import AstroObjectLabel from './AstroObjectLabel';
 import {TableOddRowBgColor} from '../../utils/constants'
 import styles from '../../css/styles.less';
 
@@ -19,7 +20,7 @@ class AstroFirdaria extends Component{
 			width: '20%',
 			render: (text, record)=>{
 				let dom = (
-					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[text]}</span>
+					<AstroObjectLabel id={text} chartSources={this.props.value} />
 				);
 				return dom;
 			},
@@ -30,7 +31,7 @@ class AstroFirdaria extends Component{
 			width: '20%',
 			render: (text, record)=>{
 				let dom = (
-					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[text]}</span>
+					<AstroObjectLabel id={text} chartSources={this.props.value} />
 				);
 				return dom;
 			},
@@ -142,4 +143,3 @@ class AstroFirdaria extends Component{
 }
 
 export default AstroFirdaria;
-

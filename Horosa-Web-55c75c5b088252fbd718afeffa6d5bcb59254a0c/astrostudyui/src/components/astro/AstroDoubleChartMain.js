@@ -57,6 +57,7 @@ class AstroCompare extends Component{
 							<TabPane tab="相位" key="1">
 								<AspectInfo 
 									value={this.props.value}
+									chartSources={resobj}
 									title={title}
 									innerTitle={innerTitle}
 									height={height-20}
@@ -69,6 +70,7 @@ class AstroCompare extends Component{
 									<TabPane tab="映点" key="2">
 										<AntisciaInfo 
 											value={resobj}
+											chartSources={resobj}
 											title={title}
 											innerTitle={innerTitle}
 											height={height-20}
@@ -83,6 +85,7 @@ class AstroCompare extends Component{
 									<TabPane tab="中点" key="3">
 										<MidpointInfo 
 											value={resobj.midpoints}
+											chartSources={resobj}
 											title={title}
 											innerTitle={innerTitle}
 											height={height-20}
@@ -101,4 +104,3 @@ class AstroCompare extends Component{
 }
 
 export default AstroCompare;
-

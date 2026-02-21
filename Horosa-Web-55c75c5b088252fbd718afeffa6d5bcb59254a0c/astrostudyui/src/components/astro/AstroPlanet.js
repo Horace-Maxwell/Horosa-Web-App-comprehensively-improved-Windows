@@ -3,8 +3,25 @@ import { Row, Col, Divider, Popover, Card, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
+import AstroObjectLabel from './AstroObjectLabel';
+import { appendPlanetMetaName, } from '../../utils/planetMetaDisplay';
 import {getAzimuthStr} from '../../utils/helper';
 import styles from '../../css/styles.less';
+
+function objectNameWithMeta(chartObj, id){
+	if(id === undefined || id === null){
+		return '';
+	}
+	const base = AstroText.AstroMsg[id] ? `${AstroText.AstroMsg[id]}` : `${id}`;
+	return appendPlanetMetaName(base, id, chartObj);
+}
+
+function objectListWithMeta(chartObj, ary){
+	if(!Array.isArray(ary) || ary.length === 0){
+		return null;
+	}
+	return ary.map((id)=>objectNameWithMeta(chartObj, id)).join(' , ');
+}
 
 class AstroPlanet extends Component{
 
@@ -67,7 +84,7 @@ class AstroPlanet extends Component{
 			if(obj.governSign){
 				govern = AstroText.AstroMsg[obj.governSign];
 				if(obj.governPlanets.length > 0){
-					govern = govern + ' , ' + AstroHelper.getObjectsText(obj.governPlanets);
+					govern = govern + ' , ' + objectListWithMeta(chartObj, obj.governPlanets);
 				}
 			}
 			
@@ -82,8 +99,8 @@ class AstroPlanet extends Component{
 				orienTxt = oriental.map((item)=>{
 					return item.id;
 				});
-				occiTxt = AstroHelper.getObjectsText(occiTxt);
-				orienTxt = AstroHelper.getObjectsText(orienTxt);	
+				occiTxt = objectListWithMeta(chartObj, occiTxt);
+				orienTxt = objectListWithMeta(chartObj, orienTxt);	
 			}
 
 			let stars = AstroHelper.getStars(chartObj, objid);
@@ -108,7 +125,12 @@ class AstroPlanet extends Component{
 			let dom = (
 				<Row key={objid}>
 					<Col span={24}>
-						<Card title={AstroText.AstroMsg[objid] + '（' + AstroText.AstroTxtMsg[objid] + '）'} 
+						<Card title={(
+							<span>
+								<AstroObjectLabel id={objid} chartSources={chartObj} />
+								<span style={{fontFamily: AstroConst.NormalFont}}>（{AstroText.AstroTxtMsg[objid]}）</span>
+							</span>
+						)} 
 							bordered={true} 
 							style={{
 								fontFamily: AstroConst.AstroFont,

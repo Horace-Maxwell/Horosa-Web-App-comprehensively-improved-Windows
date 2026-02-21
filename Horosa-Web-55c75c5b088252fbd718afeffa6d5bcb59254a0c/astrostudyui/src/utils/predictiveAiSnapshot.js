@@ -5,6 +5,15 @@ import {
 	buildStarAndLotPositionLines,
 	buildInfoSection,
 } from './astroAiSnapshot';
+import {
+	appendPlanetMetaName,
+} from './planetMetaDisplay';
+
+const PREDICTIVE_SNAPSHOT_PLANET_META = {
+	showPostnatal: 1,
+	showHouse: 1,
+	showRuler: 1,
+};
 
 function msg(id){
 	if(id === undefined || id === null){
@@ -17,6 +26,11 @@ function msg(id){
 		return `${AstroText.AstroMsg[id]}`;
 	}
 	return `${id}`;
+}
+
+function msgWithMeta(id, chartSources){
+	const base = msg(id);
+	return appendPlanetMetaName(base, id, chartSources, PREDICTIVE_SNAPSHOT_PLANET_META);
 }
 
 function normalizeDateTime(value){
@@ -150,15 +164,16 @@ function buildSetupLines(params){
 	return lines;
 }
 
-function buildAspectLines(result){
+function buildAspectLines(result, natalChartObj){
 	const lines = [];
 	const chart = result && result.chart ? result.chart : {};
 	const aspects = Array.isArray(chart.aspects) ? chart.aspects : [];
+	const chartSources = [result, natalChartObj];
 	aspects.forEach((item)=>{
-		const direct = msg(item.directId || item.id);
+		const direct = msgWithMeta(item.directId || item.id, chartSources);
 		const objs = Array.isArray(item.objects) ? item.objects : [];
 		objs.forEach((o)=>{
-			const natal = msg(o.natalId || o.id);
+			const natal = msgWithMeta(o.natalId || o.id, chartSources);
 			const asp = AstroText.AstroTxtMsg[`Asp${o.aspect}`] || `${o.aspect}º`;
 			lines.push(`行运${direct} 与 本命${natal} 成 ${asp} 相位，误差${round3(o.delta)}`);
 		});
@@ -188,7 +203,7 @@ export function buildPredictiveSnapshotText(natalChartObj, params, result){
 
 	lines.push('');
 	lines.push('[相位]');
-	const aspectLines = buildAspectLines(result);
+	const aspectLines = buildAspectLines(result, natalChartObj);
 	if(aspectLines.length){
 		lines.push(...aspectLines);
 	}else{

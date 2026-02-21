@@ -35,7 +35,16 @@ import {
 	calcTaiyiPanFromKintaiyi,
 	buildTaiyiSnapshotLines,
 } from './core/TaiYiCore';
+import {
+	appendPlanetMetaName,
+} from '../../utils/planetMetaDisplay';
 import styles from './SanShiUnitedMain.less';
+
+const SANSHI_SNAPSHOT_PLANET_META = {
+	showPostnatal: 1,
+	showHouse: 1,
+	showRuler: 1,
+};
 
 const { Option } = Select;
 const TabPane = Tabs.TabPane;
@@ -178,6 +187,14 @@ const GUIRENG_OPTIONS = [
 	{ value: 1, label: '遁甲法贵人' },
 	{ value: 2, label: '星占法贵人' },
 ];
+const TIME_ALG_OPTIONS = [
+	{ value: 0, label: '真太阳时' },
+	{ value: 1, label: '直接时间' },
+];
+const DAY_ROLLOVER_OPTIONS = [
+	{ value: 1, label: '子初换日' },
+	{ value: 0, label: '子正换日' },
+];
 
 const SANSHI_BOARD_MIN = 380;
 const SANSHI_BOARD_MAX = 820;
@@ -265,6 +282,15 @@ function fmtSolar(fields){
 	};
 }
 
+function extractSolarHm(realSunTime){
+	const txt = `${safe(realSunTime, '')}`.trim();
+	if(!txt){
+		return '';
+	}
+	const m = txt.match(/(\d{2}:\d{2})(:\d{2})?/);
+	return m ? m[1] : txt;
+}
+
 function fmtLunar(nongli){
 	if(!nongli){
 		return '';
@@ -272,8 +298,9 @@ function fmtLunar(nongli){
 	return `农历${safe(nongli.month)}${safe(nongli.day)}`;
 }
 
-function msg(key){
-	return AstroText.AstroMsgCN[key] || key || '';
+function msg(key, chartSources){
+	const base = AstroText.AstroMsgCN[key] || key || '';
+	return appendPlanetMetaName(base, key, chartSources, SANSHI_SNAPSHOT_PLANET_META);
 }
 
 function shortMainStarLabel(name){
@@ -298,6 +325,28 @@ function getFieldKey(fields){
 		safe(fields.lon && fields.lon.value),
 		safe(fields.lat && fields.lat.value),
 		safe(fields.ad && fields.ad.value),
+	].join('|');
+}
+
+function normalizeAfter23NewDay(val){
+	return val === 1 ? 1 : 0;
+}
+
+function normalizeTimeAlg(val){
+	return val === 1 ? 1 : 0;
+}
+
+function getTimeAlgLabel(val){
+	return normalizeTimeAlg(val) === 1 ? '直接时间' : '真太阳时';
+}
+
+function getSanShiRefreshKey(fields, options){
+	const opt = options || {};
+	return [
+		getFieldKey(fields),
+		safe(opt.sex),
+		normalizeAfter23NewDay(opt.after23NewDay),
+		normalizeTimeAlg(opt.timeAlg),
 	].join('|');
 }
 
@@ -631,8 +680,8 @@ function buildOuterData(chartObj){
 		}
 		const deg = splitDegree(obj.signlon || 0);
 		const retro = obj.lonspeed < 0 ? 'R' : '';
-		const shortTxt = `${shortMainStarLabel(msg(obj.id))}${safe(deg[0], 0)}${retro}`;
-		const starName = safe(msg(obj.id), '未知星曜');
+		const shortTxt = `${shortMainStarLabel(msg(obj.id, chartObj))}${safe(deg[0], 0)}${retro}`;
+		const starName = safe(msg(obj.id, chartObj), '未知星曜');
 		const minTxt = `${safe(deg[1], 0)}`.padStart(2, '0');
 		const fullTxt = `${starName}${safe(deg[0], 0)}°${minTxt}${retro}`;
 		starsByBranchRaw[b].push({
@@ -700,6 +749,7 @@ function buildSanShiUnitedSnapshotText(data){
 		sanChuan,
 		lrLayout,
 		outerData,
+		timeAlg,
 	} = data || {};
 	if(!dunjia || !keData || !sanChuan || !lrLayout){
 		return '';
@@ -716,6 +766,7 @@ function buildSanShiUnitedSnapshotText(data){
 	appendSection(lines, '起盘信息', [
 		`农历：${lunarText || '—'}`,
 		`公历：${safe(solar.date, '—')} ${safe(solar.hm, '—')}`,
+		`时间算法：${getTimeAlgLabel(timeAlg)}`,
 		`四柱：${safe(pillars.year, '—')}年/${safe(pillars.month, '—')}月/${safe(pillars.day, '—')}日/${safe(pillars.time, '—')}时`,
 		`月将：${yuejiang}`,
 		`年命：${nianming}`,
@@ -980,9 +1031,11 @@ class SanShiUnitedMain extends Component{
 				mode: 'ming',
 				sex: 1,
 				guireng: 2,
+				timeAlg: 0,
 				zodiacal: 0,
 				hsys: 0,
 				paiPanType: 3,
+				after23NewDay: 1,
 				zhiShiType: 0,
 				yueJiaQiJuType: 1,
 				qijuMethod: 'zhirun',
@@ -1099,7 +1152,8 @@ class SanShiUnitedMain extends Component{
 			this.recalcByNongli(this.props.fields, this.state.nongli);
 		}
 		if(this.state.hasPlotted && prevKey !== nextKey){
-			if(this.pendingRefresh && this.pendingRefresh.key === `${nextKey}|${this.state.options.sex}`){
+			const refreshKey = getSanShiRefreshKey(this.props.fields, this.state.options);
+			if(this.pendingRefresh && this.pendingRefresh.key === refreshKey){
 				return;
 			}
 			this.refreshAll(this.props.fields, false);
@@ -1224,6 +1278,8 @@ class SanShiUnitedMain extends Component{
 		if(!payload){
 			return;
 		}
+		const prevAfter23NewDay = normalizeAfter23NewDay(this.state.options.after23NewDay);
+		const prevTimeAlg = normalizeTimeAlg(this.state.options.timeAlg);
 		const options = {
 			...this.state.options,
 		};
@@ -1245,6 +1301,22 @@ class SanShiUnitedMain extends Component{
 				}
 				if(payload.options.paiPanType !== undefined){
 					options.paiPanType = payload.options.paiPanType;
+				}
+				if(
+					payload.options.timeAlg === 0
+					|| payload.options.timeAlg === 1
+					|| payload.options.timeAlg === '0'
+					|| payload.options.timeAlg === '1'
+				){
+					options.timeAlg = parseInt(payload.options.timeAlg, 10);
+				}
+				if(
+					payload.options.after23NewDay === 0
+					|| payload.options.after23NewDay === 1
+					|| payload.options.after23NewDay === '0'
+					|| payload.options.after23NewDay === '1'
+				){
+					options.after23NewDay = parseInt(payload.options.after23NewDay, 10);
 				}
 				if(payload.options.zhiShiType !== undefined){
 					options.zhiShiType = payload.options.zhiShiType;
@@ -1271,6 +1343,11 @@ class SanShiUnitedMain extends Component{
 					options.taiyiAccum = payload.options.taiyiAccum;
 				}
 			}
+		const nextAfter23NewDay = normalizeAfter23NewDay(options.after23NewDay);
+		const nextTimeAlg = normalizeTimeAlg(options.timeAlg);
+		const dayRolloverChanged = prevAfter23NewDay !== nextAfter23NewDay;
+		const timeAlgChanged = prevTimeAlg !== nextTimeAlg;
+		const nongliModeChanged = dayRolloverChanged || timeAlgChanged;
 		this.lastRestoredCaseId = caseVersion;
 		const patchFields = {};
 		if(options.zodiacal !== undefined){
@@ -1294,7 +1371,7 @@ class SanShiUnitedMain extends Component{
 			hasPlotted: true,
 			localFields: nextLocalFields,
 		}, ()=>{
-			if(this.state.nongli){
+			if(this.state.nongli && !nongliModeChanged){
 				this.recalcByNongli(nextLocalFields, this.state.nongli, options);
 			}else{
 				this.refreshAll(nextLocalFields, true);
@@ -1400,9 +1477,17 @@ class SanShiUnitedMain extends Component{
 			[key]: value,
 		};
 		this.setState({ options }, ()=>{
-			this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields, options);
+			const activeFields = this.state.localFields || this.props.fields;
+			this.prefetchJieqiSeedForFields(activeFields, options);
+			if(key === 'after23NewDay' || key === 'timeAlg'){
+				this.prefetchNongliForFields(activeFields);
+				if(this.state.hasPlotted){
+					this.refreshAll(activeFields, true);
+				}
+				return;
+			}
 			if(this.state.hasPlotted && this.state.nongli){
-				this.recalcByNongli(this.state.localFields || this.props.fields, this.state.nongli, options);
+				this.recalcByNongli(activeFields, this.state.nongli, options);
 			}
 		});
 	}
@@ -1461,7 +1546,7 @@ class SanShiUnitedMain extends Component{
 				nohook: true,
 			});
 		}
-		const refreshKey = `${getFieldKey(nextFields)}|${this.state.options.sex}`;
+		const refreshKey = getSanShiRefreshKey(nextFields, this.state.options);
 		const shouldForce = !this.state.nongli || refreshKey !== this.lastKey;
 		this.setState({
 			hasPlotted: true,
@@ -1552,7 +1637,8 @@ class SanShiUnitedMain extends Component{
 			gpsLat: flds.gpsLat.value,
 			gpsLon: flds.gpsLon.value,
 			gender: this.state.options.sex,
-			after23NewDay: 0,
+			timeAlg: normalizeTimeAlg(this.state.options.timeAlg),
+			after23NewDay: normalizeAfter23NewDay(this.state.options.after23NewDay),
 		};
 	}
 
@@ -1616,6 +1702,7 @@ class SanShiUnitedMain extends Component{
 			`${safe((overrideOptions && overrideOptions.taiyiAccum) !== undefined ? overrideOptions.taiyiAccum : this.state.options.taiyiAccum)}`,
 			safe(flds && flds.zodiacal && flds.zodiacal.value),
 			safe(flds && flds.hsys && flds.hsys.value),
+			`${normalizeTimeAlg((overrideOptions && overrideOptions.timeAlg) !== undefined ? overrideOptions.timeAlg : this.state.options.timeAlg)}`,
 			`${safe(extractIsDiurnalFromChartWrap(this.props.chartObj || this.props.chart || null), '')}`,
 			outerChartKey,
 		].join('|');
@@ -1695,6 +1782,7 @@ class SanShiUnitedMain extends Component{
 			sanChuan: lrBundle.sanChuan,
 			lrLayout: lrBundle.lrLayout,
 			outerData,
+			timeAlg: mergedOptions.timeAlg,
 		});
 		this.lastRecalcSignature = recalcSignature;
 		this.setState({
@@ -1782,7 +1870,7 @@ class SanShiUnitedMain extends Component{
 		if(!fields){
 			return;
 		}
-		const key = `${getFieldKey(fields)}|${this.state.options.sex}`;
+		const key = getSanShiRefreshKey(fields, this.state.options);
 		if(this.pendingRefresh && this.pendingRefresh.key === key){
 			return this.pendingRefresh.promise;
 		}
@@ -1883,7 +1971,8 @@ class SanShiUnitedMain extends Component{
 			safe(shenShaMap['破碎'], '—'),
 		];
 		const dateText = solar.date || '---- -- --';
-		const timeText = solar.hm || '--:--';
+		const solarHm = extractSolarHm(dunjia && dunjia.realSunTime);
+		const timeAlgLabel = getTimeAlgLabel(this.state.options.timeAlg);
 		return (
 			<div className={styles.topBox} style={{ width: boardSize, maxWidth: '100%' }}>
 				<div className={styles.topLeft}>
@@ -1895,8 +1984,10 @@ class SanShiUnitedMain extends Component{
 						<div className={styles.dateRow}>
 							<div className={styles.dateLabel}>公历</div>
 							<div className={styles.dateValue}>
-								<span>{dateText}</span>
-								<span className={styles.dateTime}>⏲ {timeText}</span>
+								<span>
+									{dateText}
+									<span className={styles.solarInline}>{` ${timeAlgLabel} ${solarHm || '--:--'}`}</span>
+								</span>
 							</div>
 						</div>
 					</div>
@@ -2412,10 +2503,15 @@ class SanShiUnitedMain extends Component{
 						<div>
 							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} hook={this.timeHook} />
 						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 4 }}>
 							<div>
 								<Select size="small" value={opt.mode} onChange={(v)=>this.onOptionChange('mode', v)} style={{ width: '100%' }}>
 									{GAME_TYPE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.timeAlg} onChange={(v)=>this.onOptionChange('timeAlg', v)} style={{ width: '100%' }}>
+									{TIME_ALG_OPTIONS.map((item)=><Option key={`tm_alg_${item.value}`} value={item.value}>{item.label}</Option>)}
 								</Select>
 							</div>
 							<div>
@@ -2429,10 +2525,15 @@ class SanShiUnitedMain extends Component{
 								</Select>
 							</div>
 						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
 							<div>
 								<Select size="small" value={opt.paiPanType} onChange={(v)=>this.onOptionChange('paiPanType', v)} style={{ width: '100%' }}>
 									{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.onOptionChange('after23NewDay', v)} style={{ width: '100%' }}>
+									{DAY_ROLLOVER_OPTIONS.map((item)=><Option key={`after23_${item.value}`} value={item.value}>{item.label}</Option>)}
 								</Select>
 							</div>
 							<div>

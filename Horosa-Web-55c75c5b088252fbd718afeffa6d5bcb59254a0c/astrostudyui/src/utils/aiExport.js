@@ -1,6 +1,11 @@
 import { getStore, } from './storageutil';
 import { getAstroAISnapshotForCurrent, saveAstroAISnapshot, } from './astroAiSnapshot';
 import { loadModuleAISnapshot, } from './moduleAiSnapshot';
+import {
+	filterPlanetMetaSuffix,
+	normalizePlanetMetaDisplay,
+	readPlanetMetaDisplayFromStore,
+} from './planetMetaDisplay';
 
 const CHART_TAB_LABELS = ['信息', '相位', '行星', '希腊点', '可能性'];
 const SIXYAO_TAB_LABELS = ['起卦方式', '卦辞'];
@@ -79,7 +84,6 @@ const DOMAIN_REPLACERS = {
 	liureng: [
 		{ regex: /旬空/g, value: '旬空(空亡)' },
 		{ regex: /三传/g, value: '三传(初传/中传/末传)' },
-		{ regex: /四课/g, value: '四课(一课/二课/三课/四课)' },
 		{ regex: /贵人/g, value: '贵人(天乙贵人体系)' },
 	],
 	jinkou: [
@@ -146,6 +150,32 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'fengshui', label: '风水' },
 	{ key: 'generic', label: '其他页面' },
 ];
+const AI_EXPORT_PLANET_META_TECHNIQUES = new Set([
+	'astrochart',
+	'indiachart',
+	'astrochart_like',
+	'relative',
+	'primarydirect',
+	'zodialrelease',
+	'firdaria',
+	'profection',
+	'solararc',
+	'solarreturn',
+	'lunarreturn',
+	'givenyear',
+	'germany',
+	'jieqi',
+	'jieqi_meta',
+	'jieqi_chunfen',
+	'jieqi_xiazhi',
+	'jieqi_qiufen',
+	'jieqi_dongzhi',
+	'sanshiunited',
+]);
+const AI_EXPORT_PLANET_META_DEFAULT = {
+	showHouse: 1,
+	showRuler: 1,
+};
 
 const AI_EXPORT_PRESET_SECTIONS = {
 	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性'],
@@ -322,10 +352,39 @@ function extractSectionTitles(content){
 	return uniqueArray(titles);
 }
 
+function supportsPlanetMetaSettingsForTechnique(key){
+	return AI_EXPORT_PLANET_META_TECHNIQUES.has(key);
+}
+
+function normalizeAIExportPlanetMeta(raw){
+	const src = raw && typeof raw === 'object' ? raw : {};
+	return {
+		showHouse: src.showHouse === 0 || src.showHouse === false ? 0 : 1,
+		showRuler: src.showRuler === 0 || src.showRuler === false ? 0 : 1,
+	};
+}
+
+function resolveAIExportPlanetMetaForKey(settings, key){
+	const storeDisplay = normalizePlanetMetaDisplay(readPlanetMetaDisplayFromStore());
+	if(!supportsPlanetMetaSettingsForTechnique(key)){
+		return storeDisplay;
+	}
+	const all = settings && settings.planetMeta && typeof settings.planetMeta === 'object'
+		? settings.planetMeta
+		: {};
+	const cfg = normalizeAIExportPlanetMeta(all[key] || AI_EXPORT_PLANET_META_DEFAULT);
+	return {
+		showPostnatal: storeDisplay.showPostnatal,
+		showHouse: cfg.showHouse,
+		showRuler: cfg.showRuler,
+	};
+}
+
 function normalizeAIExportSettings(settings){
 	const normalized = {
 		version: 1,
 		sections: {},
+		planetMeta: {},
 	};
 	if(!settings || typeof settings !== 'object'){
 		return normalized;
@@ -334,6 +393,13 @@ function normalizeAIExportSettings(settings){
 	Object.keys(sections).forEach((key)=>{
 		const arr = Array.isArray(sections[key]) ? sections[key] : [];
 		normalized.sections[key] = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+	});
+	const planetMeta = settings.planetMeta && typeof settings.planetMeta === 'object' ? settings.planetMeta : {};
+	Object.keys(planetMeta).forEach((key)=>{
+		if(!supportsPlanetMetaSettingsForTechnique(key)){
+			return;
+		}
+		normalized.planetMeta[key] = normalizeAIExportPlanetMeta(planetMeta[key]);
 	});
 	return normalized;
 }
@@ -498,6 +564,22 @@ function applyUserSectionFilterByContext(content, key){
 		return content;
 	}
 	return filterContentByWantedSections(content, wanted);
+}
+
+function resolvePlanetMetaContextKey(context){
+	const key = context && context.key ? context.key : 'generic';
+	if(key !== 'jieqi'){
+		return key;
+	}
+	const byScope = detectJieQiSettingKeyByScope(context.scopeRoot);
+	return byScope || detectJieQiSettingKeyByCurrentSnapshot() || 'jieqi';
+}
+
+function applyPlanetMetaFilterByContext(content, context){
+	const settings = loadAIExportSettings();
+	const settingKey = resolvePlanetMetaContextKey(context);
+	const display = resolveAIExportPlanetMetaForKey(settings, settingKey);
+	return filterPlanetMetaSuffix(content, display);
 }
 
 function normalizeWhitespace(text){
@@ -1047,6 +1129,7 @@ export function listAIExportTechniqueSettings(){
 			key: item.key,
 			label: item.label,
 			options: getOptionsForTechniqueKey(item.key),
+			supportsPlanetMeta: supportsPlanetMetaSettingsForTechnique(item.key),
 		};
 	});
 }
@@ -1871,6 +1954,7 @@ async function buildPayload(){
 	}
 
 	content = applyUserSectionFilterByContext(content, context.key);
+	content = applyPlanetMetaFilterByContext(content, context);
 	content = normalizeText(content, context.domain);
 	const stamp = formatStamp(now);
 	const time = formatDateTime(now);

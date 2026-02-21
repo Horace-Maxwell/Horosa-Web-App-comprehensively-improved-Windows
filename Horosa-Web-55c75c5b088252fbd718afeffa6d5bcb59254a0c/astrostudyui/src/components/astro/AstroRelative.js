@@ -11,21 +11,32 @@ import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import {
+	appendPlanetMetaName,
+} from '../../utils/planetMetaDisplay';
+
+const RELATIVE_SNAPSHOT_PLANET_META = {
+	showPostnatal: 1,
+	showHouse: 1,
+	showRuler: 1,
+};
 
 const TabPane = Tabs.TabPane;
 const Search = Input.Search;
 
-function msg(id){
+function msg(id, chartSources){
 	if(id === undefined || id === null){
 		return '';
 	}
+	let base = null;
 	if(AstroText.AstroTxtMsg[id]){
-		return AstroText.AstroTxtMsg[id];
+		base = AstroText.AstroTxtMsg[id];
+	}else if(AstroText.AstroMsg[id]){
+		base = `${AstroText.AstroMsg[id]}`;
+	}else{
+		base = `${id}`;
 	}
-	if(AstroText.AstroMsg[id]){
-		return `${AstroText.AstroMsg[id]}`;
-	}
-	return `${id}`;
+	return appendPlanetMetaName(base, id, chartSources, RELATIVE_SNAPSHOT_PLANET_META);
 }
 
 function round3(val){
@@ -62,7 +73,7 @@ function relationNameByKey(key){
 	return key || '关系盘';
 }
 
-function pushAspectArray(lines, title, list){
+function pushAspectArray(lines, title, list, chartSources){
 	if(!list || list.length === 0){
 		return;
 	}
@@ -70,7 +81,7 @@ function pushAspectArray(lines, title, list){
 	lines.push(`[${title}]`);
 	list.forEach((obj)=>{
 		const objId = obj.id !== undefined ? obj.id : obj.directId;
-		lines.push(`主体：${msg(objId)}`);
+		lines.push(`主体：${msg(objId, chartSources)}`);
 		const objs = obj.objects || [];
 		if(objs.length === 0){
 			lines.push('无');
@@ -78,13 +89,13 @@ function pushAspectArray(lines, title, list){
 		}
 		objs.forEach((natalObj)=>{
 			const natalId = natalObj.id !== undefined ? natalObj.id : natalObj.natalId;
-			lines.push(`与 ${msg(natalId)} 成 ${aspectText(natalObj.aspect)} 相位，误差${round3(natalObj.delta)}`);
+			lines.push(`与 ${msg(natalId, chartSources)} 成 ${aspectText(natalObj.aspect)} 相位，误差${round3(natalObj.delta)}`);
 		});
 		lines.push('');
 	});
 }
 
-function pushMidpointMap(lines, title, mapObj){
+function pushMidpointMap(lines, title, mapObj, chartSources){
 	if(!mapObj){
 		return;
 	}
@@ -96,27 +107,27 @@ function pushMidpointMap(lines, title, mapObj){
 	lines.push(`[${title}]`);
 	keys.forEach((key)=>{
 		const arr = mapObj[key] || [];
-		lines.push(`主体：${msg(key)}`);
+		lines.push(`主体：${msg(key, chartSources)}`);
 		if(arr.length === 0){
 			lines.push('无');
 			return;
 		}
 		arr.forEach((asp)=>{
 			const midpoint = asp.midpoint || {};
-			lines.push(`与中点(${msg(midpoint.idA)} | ${msg(midpoint.idB)}) 成 ${aspectText(asp.aspect)} 相位，误差${round3(asp.delta)}`);
+			lines.push(`与中点(${msg(midpoint.idA, chartSources)} | ${msg(midpoint.idB, chartSources)}) 成 ${aspectText(asp.aspect)} 相位，误差${round3(asp.delta)}`);
 		});
 		lines.push('');
 	});
 }
 
-function pushAntisciaArray(lines, title, arr, typeLabel){
+function pushAntisciaArray(lines, title, arr, typeLabel, chartSources){
 	if(!arr || arr.length === 0){
 		return;
 	}
 	lines.push('');
 	lines.push(`[${title}]`);
 	arr.forEach((item)=>{
-		lines.push(`${msg(item.idA)} 与 ${msg(item.idB)} 成${typeLabel}，误差${round3(item.delta)}`);
+		lines.push(`${msg(item.idA, chartSources)} 与 ${msg(item.idB, chartSources)} 成${typeLabel}，误差${round3(item.delta)}`);
 	});
 }
 
@@ -124,6 +135,7 @@ function buildRelativeSnapshotText(comp){
 	const lines = [];
 	const relationName = relationNameByKey(comp.currentTab);
 	const res = comp.result || {};
+	const chartSources = res;
 
 	lines.push('[关系起盘信息]');
 	lines.push(`盘型：${relationName}`);
@@ -141,14 +153,14 @@ function buildRelativeSnapshotText(comp){
 	}
 
 	if(comp.currentTab === 'Comp'){
-		pushAspectArray(lines, 'A对B相位', res.inToOutAsp);
-		pushAspectArray(lines, 'B对A相位', res.outToInAsp);
-		pushMidpointMap(lines, 'A对B中点相位', res.inToOutMidpoint);
-		pushMidpointMap(lines, 'B对A中点相位', res.outToInMidpoint);
-		pushAntisciaArray(lines, 'A对B映点', res.inToOutAnti, '映点');
-		pushAntisciaArray(lines, 'A对B反映点', res.inToOutCAnti, '反映点');
-		pushAntisciaArray(lines, 'B对A映点', res.outToInAnti, '映点');
-		pushAntisciaArray(lines, 'B对A反映点', res.outToInCAnti, '反映点');
+		pushAspectArray(lines, 'A对B相位', res.inToOutAsp, chartSources);
+		pushAspectArray(lines, 'B对A相位', res.outToInAsp, chartSources);
+		pushMidpointMap(lines, 'A对B中点相位', res.inToOutMidpoint, chartSources);
+		pushMidpointMap(lines, 'B对A中点相位', res.outToInMidpoint, chartSources);
+		pushAntisciaArray(lines, 'A对B映点', res.inToOutAnti, '映点', chartSources);
+		pushAntisciaArray(lines, 'A对B反映点', res.inToOutCAnti, '反映点', chartSources);
+		pushAntisciaArray(lines, 'B对A映点', res.outToInAnti, '映点', chartSources);
+		pushAntisciaArray(lines, 'B对A反映点', res.outToInCAnti, '反映点', chartSources);
 	}
 
 	if((comp.currentTab === 'Composite' || comp.currentTab === 'TimeSpace') && res.chart){

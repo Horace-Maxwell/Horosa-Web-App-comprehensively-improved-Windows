@@ -3,6 +3,7 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
+import AstroObjectLabel from '../astro/AstroObjectLabel';
 import { randomStr} from '../../utils/helper'
 import styles from '../../css/styles.less';
 
@@ -34,6 +35,7 @@ class AntisciaInfo extends Component{
 		if(chart === undefined || chart.antiscias === undefined || chart.antiscias === null){
 			return null;
 		}
+		const chartSources = this.props.chartSources || this.props.value;
 		let anti = chart.antiscias;
 
 		let divs = [];
@@ -44,9 +46,9 @@ class AntisciaInfo extends Component{
 			let dom = (
 				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
 					<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
-					<span>{AstroText.AstroMsg[obj.idA]}</span>&nbsp;与&nbsp;
+					<AstroObjectLabel id={obj.idA} chartSources={chartSources} />&nbsp;与&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>
-					<span>{AstroText.AstroMsg[obj.idB]}</span>&nbsp;成映点&nbsp;
+					<AstroObjectLabel id={obj.idB} chartSources={chartSources} />&nbsp;成映点&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>误差{Math.round(obj.delta * 1000) / 1000}</span>
 				</div>
 			);
@@ -61,9 +63,9 @@ class AntisciaInfo extends Component{
 			let dom = (
 				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
 					<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
-					<span>{AstroText.AstroMsg[obj.idA]}</span>&nbsp;与&nbsp;
+					<AstroObjectLabel id={obj.idA} chartSources={chartSources} />&nbsp;与&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>
-					<span>{AstroText.AstroMsg[obj.idB]}</span>&nbsp;成反映点&nbsp;
+					<AstroObjectLabel id={obj.idB} chartSources={chartSources} />&nbsp;成反映点&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>误差{Math.round(obj.delta * 1000) / 1000}</span>
 				</div>
 			);
@@ -114,4 +116,3 @@ class AntisciaInfo extends Component{
 }
 
 export default AntisciaInfo;
-

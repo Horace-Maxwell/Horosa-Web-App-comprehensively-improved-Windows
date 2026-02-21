@@ -24,12 +24,21 @@ function PageHeader(props){
 
 	const currentSettingTech = aiSettingTechs.find((item)=>item.key === aiSettingKey) || null;
 	const currentSettingOptions = currentSettingTech && currentSettingTech.options ? currentSettingTech.options : [];
+	const currentSettingSupportsPlanetMeta = !!(currentSettingTech && currentSettingTech.supportsPlanetMeta);
 	const currentSettingSelected = (()=>{
 		const sections = aiSettingData && aiSettingData.sections ? aiSettingData.sections : {};
 		if(Array.isArray(sections[aiSettingKey])){
 			return sections[aiSettingKey];
 		}
 		return currentSettingOptions.slice(0);
+	})();
+	const currentSettingPlanetMeta = (()=>{
+		const planetMeta = aiSettingData && aiSettingData.planetMeta ? aiSettingData.planetMeta : {};
+		const raw = planetMeta && planetMeta[aiSettingKey] ? planetMeta[aiSettingKey] : {};
+		return {
+			showHouse: raw.showHouse === 0 ? 0 : 1,
+			showRuler: raw.showRuler === 0 ? 0 : 1,
+		};
 	})();
 
 	function changeColorTheme(val){
@@ -124,11 +133,37 @@ function PageHeader(props){
 			const sections = {
 				...(prev && prev.sections ? prev.sections : {}),
 			};
+			const planetMeta = {
+				...(prev && prev.planetMeta ? prev.planetMeta : {}),
+			};
 			delete sections[aiSettingKey];
+			delete planetMeta[aiSettingKey];
 			return {
 				...(prev || {}),
 				version: 1,
 				sections,
+				planetMeta,
+			};
+		});
+	}
+
+	function onAISettingPlanetMetaChange(key, checked){
+		setAiSettingData((prev)=>{
+			const sectionData = {
+				...(prev && prev.sections ? prev.sections : {}),
+			};
+			const planetMeta = {
+				...(prev && prev.planetMeta ? prev.planetMeta : {}),
+				[aiSettingKey]: {
+					...(prev && prev.planetMeta && prev.planetMeta[aiSettingKey] ? prev.planetMeta[aiSettingKey] : {}),
+					[key]: checked ? 1 : 0,
+				},
+			};
+			return {
+				...(prev || {}),
+				version: 1,
+				sections: sectionData,
+				planetMeta,
 			};
 		});
 	}
@@ -357,6 +392,24 @@ function PageHeader(props){
 				) : (
 					<div>当前技法暂未检测到可选分段，请先在该技法完成一次排盘后再设置。</div>
 				)}
+				{currentSettingSupportsPlanetMeta ? (
+					<div style={{marginTop: 16}}>
+						<div style={{marginBottom: 8}}>星曜附加信息：</div>
+						<Checkbox
+							checked={currentSettingPlanetMeta.showHouse === 1}
+							onChange={(e)=>onAISettingPlanetMetaChange('showHouse', e.target.checked)}
+							style={{marginRight: 16}}
+						>
+							显示星曜宫位
+						</Checkbox>
+						<Checkbox
+							checked={currentSettingPlanetMeta.showRuler === 1}
+							onChange={(e)=>onAISettingPlanetMetaChange('showRuler', e.target.checked)}
+						>
+							显示星曜主宰星
+						</Checkbox>
+					</div>
+				) : null}
 			</Modal>
 		</div>
 	);

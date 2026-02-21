@@ -3,6 +3,7 @@ import { Row, Col, Divider, Popover, Card, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
+import AstroObjectLabel from './AstroObjectLabel';
 import styles from '../../css/styles.less';
 
 class AstroLots extends Component{
@@ -50,7 +51,12 @@ class AstroLots extends Component{
 			let dom = (
 				<Row key={objid}>
 					<Col span={24}>
-						<Card title={AstroText.AstroMsg[objid] + '（' + AstroText.AstroTxtMsg[objid] + '）'} 
+						<Card title={(
+							<span>
+								<AstroObjectLabel id={objid} chartSources={chartObj} />
+								<span style={{fontFamily: AstroConst.NormalFont}}>（{AstroText.AstroTxtMsg[objid]}）</span>
+							</span>
+						)} 
 							bordered={true} 
 							style={{
 								fontFamily: AstroConst.AstroFont,

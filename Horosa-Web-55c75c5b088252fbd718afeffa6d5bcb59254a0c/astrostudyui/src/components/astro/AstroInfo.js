@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
+import AstroObjectLabel from './AstroObjectLabel';
 import { randomStr} from '../../utils/helper'
 import styles from '../../css/styles.less';
 
@@ -27,6 +28,11 @@ class AstroInfo extends Component{
 		this.canDisplayPlanet = this.canDisplayPlanet.bind(this);
 		this.genDeclParallelDom = this.genDeclParallelDom.bind(this);
 		this.initPlanets = this.initPlanets.bind(this);
+		this.objLabel = this.objLabel.bind(this);
+	}
+
+	objLabel(id){
+		return <AstroObjectLabel id={id} chartSources={this.props.value} />;
 	}
 
 	fieldsToParams(){
@@ -99,7 +105,7 @@ class AstroInfo extends Component{
 				let span = (
 					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' }>
-						{AstroText.AstroMsg[obj]}&emsp;
+						{this.objLabel(obj)}&emsp;
 						</Popover>
 					</span>
 				);
@@ -124,7 +130,7 @@ class AstroInfo extends Component{
 				let span = (
 					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' } >
-						{AstroText.AstroMsg[obj]}&emsp;
+						{this.objLabel(obj)}&emsp;
 						</Popover>
 					</span>
 				);
@@ -140,7 +146,7 @@ class AstroInfo extends Component{
 						相对
 						<span style={{fontFamily: AstroConst.AstroFont}}>
 							<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' } >
-							&nbsp;{AstroText.AstroMsg[id]}&nbsp;
+							&nbsp;{this.objLabel(id)}&nbsp;
 							</Popover>
 						</span>
 						星体
@@ -181,8 +187,8 @@ class AstroInfo extends Component{
 			}
 			let dom = (
 				<div key={idx} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[obj[0]]}</span>&nbsp;与&nbsp;
-					<span>{AstroText.AstroMsg[obj[1]]}</span>&nbsp;成映点&nbsp;
+					{this.objLabel(obj[0])}&nbsp;与&nbsp;
+					{this.objLabel(obj[1])}&nbsp;成映点&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>误差{Math.round(obj[2] * 1000) / 1000}</span>
 				</div>
 			);
@@ -196,8 +202,8 @@ class AstroInfo extends Component{
 			}
 			let dom = (
 				<div key={idx+sz} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[obj[0]]}</span>&nbsp;与&nbsp;
-					<span>{AstroText.AstroMsg[obj[1]]}</span>&nbsp;成反映点&nbsp;
+					{this.objLabel(obj[0])}&nbsp;与&nbsp;
+					{this.objLabel(obj[1])}&nbsp;成反映点&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>误差{Math.round(obj[2] * 1000) / 1000}</span>
 				</div>
 			);
@@ -236,8 +242,8 @@ class AstroInfo extends Component{
 
 			let dom = (
 				<div key={idx} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[item.beneficiary]}</span>&nbsp;被&nbsp;
-					<span>{AstroText.AstroMsg[item.supplier]}</span>&nbsp;接纳&nbsp;
+					{this.objLabel(item.beneficiary)}&nbsp;被&nbsp;
+					{this.objLabel(item.supplier)}&nbsp;接纳&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>({ruleship})</span>
 					{
 						refuse && (<span>&nbsp;拒绝</span>)
@@ -263,9 +269,9 @@ class AstroInfo extends Component{
 			let diginty = this.getRuleShipText(item.beneficiaryDignity);
 			let dom = (
 				<div key={idx} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[item.beneficiary]}</span>&nbsp;
+					{this.objLabel(item.beneficiary)}&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>({diginty})</span>&nbsp;被&nbsp;
-					<span>{AstroText.AstroMsg[item.supplier]}</span>&nbsp;接纳&nbsp;
+					{this.objLabel(item.supplier)}&nbsp;接纳&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>({ruleship})</span>
 					{
 						refuse && (<span>&nbsp;拒绝</span>)
@@ -304,8 +310,8 @@ class AstroInfo extends Component{
 			let rsB = this.getRuleShipText(objB.rulerShip);
 			let dom = (
 				<div key={idx} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[objA.id]}</span>&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsA})</span>&nbsp;与&nbsp;
-					<span>{AstroText.AstroMsg[objB.id]}</span>&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsB})</span>&nbsp;互容
+					{this.objLabel(objA.id)}&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsA})</span>&nbsp;与&nbsp;
+					{this.objLabel(objB.id)}&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsB})</span>&nbsp;互容
 				</div>
 			);
 			return dom;
@@ -321,8 +327,8 @@ class AstroInfo extends Component{
 			let rsB = this.getRuleShipText(objB.rulerShip);
 			let dom = (
 				<div key={idx} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[objA.id]}</span>&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsA})</span>&nbsp;与&nbsp;
-					<span>{AstroText.AstroMsg[objB.id]}</span>&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsB})</span>&nbsp;互容
+					{this.objLabel(objA.id)}&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsA})</span>&nbsp;与&nbsp;
+					{this.objLabel(objB.id)}&nbsp;<span style={{fontFamily: AstroConst.NormalFont}}>({rsB})</span>&nbsp;互容
 				</div>
 			);
 			return dom;
@@ -357,9 +363,9 @@ class AstroInfo extends Component{
 			if(this.canDisplayPlanet(MinDelta[0].id) && this.canDisplayPlanet(MinDelta[1].id)){
 				let dom = (
 					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-						<span>{AstroText.AstroMsg[key]}</span>&nbsp;被&nbsp;
+						{this.objLabel(key)}&nbsp;被&nbsp;
 						<span>
-							{AstroText.AstroMsg[MinDelta[0].id]}&nbsp;
+							{this.objLabel(MinDelta[0].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + MinDelta[0].delta} >
 								(通过{MinDelta[0].aspect}相位)
@@ -367,7 +373,7 @@ class AstroInfo extends Component{
 							</span>
 						</span>&nbsp;与&nbsp;
 						<span>
-							{AstroText.AstroMsg[MinDelta[1].id]}&nbsp;
+							{this.objLabel(MinDelta[1].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + MinDelta[1].delta} >
 								(通过{MinDelta[1].aspect}相位)
@@ -382,9 +388,9 @@ class AstroInfo extends Component{
 			if(MarsSaturn.length > 0 && this.canDisplayPlanet(MarsSaturn[0].id) && this.canDisplayPlanet(MarsSaturn[1].id)){
 				dom = (
 					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-						<span>{AstroText.AstroMsg[key]}</span>&nbsp;被&nbsp;
+						{this.objLabel(key)}&nbsp;被&nbsp;
 						<span>
-							{AstroText.AstroMsg[MarsSaturn[0].id]}&nbsp;
+							{this.objLabel(MarsSaturn[0].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + MarsSaturn[0].delta} >
 								(通过{MarsSaturn[0].aspect}相位)
@@ -392,7 +398,7 @@ class AstroInfo extends Component{
 							</span>
 						</span>&nbsp;与&nbsp;
 						<span>
-							{AstroText.AstroMsg[MarsSaturn[1].id]}&nbsp;
+							{this.objLabel(MarsSaturn[1].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + MarsSaturn[1].delta} >
 								(通过{MarsSaturn[1].aspect}相位)
@@ -406,9 +412,9 @@ class AstroInfo extends Component{
 			if(SunMoon.length > 0 && this.canDisplayPlanet(SunMoon[0].id) && this.canDisplayPlanet(SunMoon[1].id)){
 				dom = (
 					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-						<span>{AstroText.AstroMsg[key]}</span>&nbsp;被&nbsp;
+						{this.objLabel(key)}&nbsp;被&nbsp;
 						<span>
-							{AstroText.AstroMsg[SunMoon[0].id]}&nbsp;
+							{this.objLabel(SunMoon[0].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>							
 								<Popover content={'误差' + SunMoon[0].delta} >
 								(通过{SunMoon[0].aspect}相位)
@@ -416,7 +422,7 @@ class AstroInfo extends Component{
 							</span>
 						</span>&nbsp;与&nbsp;
 						<span>
-							{AstroText.AstroMsg[SunMoon[1].id]}&nbsp;
+							{this.objLabel(SunMoon[1].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + SunMoon[1].delta} >
 								(通过{SunMoon[1].aspect}相位)
@@ -430,9 +436,9 @@ class AstroInfo extends Component{
 			if(VenusJupiter.length > 0 && this.canDisplayPlanet(VenusJupiter[0].id) && this.canDisplayPlanet(VenusJupiter[1].id)){
 				dom = (
 					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-						<span>{AstroText.AstroMsg[key]}</span>&nbsp;被&nbsp;
+						{this.objLabel(key)}&nbsp;被&nbsp;
 						<span>
-							{AstroText.AstroMsg[VenusJupiter[0].id]}&nbsp;
+							{this.objLabel(VenusJupiter[0].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + VenusJupiter[0].delta} >
 								(通过{VenusJupiter[0].aspect}相位)
@@ -440,7 +446,7 @@ class AstroInfo extends Component{
 							</span>
 						</span>&nbsp;与&nbsp;
 						<span>
-							{AstroText.AstroMsg[VenusJupiter[1].id]}&nbsp;
+							{this.objLabel(VenusJupiter[1].id)}&nbsp;
 							<span style={{fontFamily: AstroConst.NormalFont}}>
 								<Popover content={'误差' + VenusJupiter[1].delta} >
 								(通过{VenusJupiter[1].aspect}相位)
@@ -475,9 +481,9 @@ class AstroInfo extends Component{
 			}
 			let dom = (
 				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[obj[0].id]}</span>&nbsp;与&nbsp;
-					<span>{AstroText.AstroMsg[obj[1].id]}</span>&nbsp;夹&nbsp;
-					<span>{AstroText.AstroMsg[key]}</span>
+					{this.objLabel(obj[0].id)}&nbsp;与&nbsp;
+					{this.objLabel(obj[1].id)}&nbsp;夹&nbsp;
+					{this.objLabel(key)}
 				</div>
 			);
 			divs.push(dom);
@@ -502,9 +508,9 @@ class AstroInfo extends Component{
 			if(key === 'BySunMoon' && this.canDisplayPlanet(obj.id)){
 				let dom = (
 					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-						<span>{AstroText.AstroMsg[AstroConst.SUN]}</span>&nbsp;与&nbsp;
-						<span>{AstroText.AstroMsg[AstroConst.MOON]}</span>&nbsp;夹&nbsp;
-						<span>{AstroText.AstroMsg[obj.id]}</span>
+						{this.objLabel(AstroConst.SUN)}&nbsp;与&nbsp;
+						{this.objLabel(AstroConst.MOON)}&nbsp;夹&nbsp;
+						{this.objLabel(obj.id)}
 					</div>
 				);
 				divs.push(dom);
@@ -516,9 +522,9 @@ class AstroInfo extends Component{
 				if(obj.SunMoon){
 					dom = (
 						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-							<span>{AstroText.AstroMsg[obj.SunMoon[0].id]}</span>&nbsp;与&nbsp;
-							<span>{AstroText.AstroMsg[obj.SunMoon[1].id]}</span>&nbsp;夹&nbsp;
-							<span>{AstroText.AstroMsg[key]}</span>
+							{this.objLabel(obj.SunMoon[0].id)}&nbsp;与&nbsp;
+							{this.objLabel(obj.SunMoon[1].id)}&nbsp;夹&nbsp;
+							{this.objLabel(key)}
 						</div>
 					);	
 					divs.push(dom);
@@ -526,9 +532,9 @@ class AstroInfo extends Component{
 				if(dom === null && this.canDisplayPlanet(obj[0].id) && this.canDisplayPlanet(obj[1].id)){
 					dom = (
 						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-							<span>{AstroText.AstroMsg[obj[0].id]}</span>&nbsp;与&nbsp;
-							<span>{AstroText.AstroMsg[obj[1].id]}</span>&nbsp;夹&nbsp;
-							<span>{AstroText.AstroMsg[key]}</span>
+							{this.objLabel(obj[0].id)}&nbsp;与&nbsp;
+							{this.objLabel(obj[1].id)}&nbsp;夹&nbsp;
+							{this.objLabel(key)}
 						</div>
 					);	
 					divs.push(dom);

@@ -20,6 +20,15 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
+import {
+	appendPlanetMetaName,
+} from '../../utils/planetMetaDisplay';
+
+const JIEQI_SNAPSHOT_PLANET_META = {
+	showPostnatal: 1,
+	showHouse: 1,
+	showRuler: 1,
+};
 
 const { MonthPicker, } = DatePicker
 const TabPane = Tabs.TabPane;
@@ -341,21 +350,24 @@ function isEncodedToken(text){
 	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
 }
 
-function msg(id){
+function msg(id, chartSources){
 	if(id === undefined || id === null){
 		return '';
 	}
+	let base = null;
 	if(AstroText.AstroTxtMsg[id]){
-		return AstroText.AstroTxtMsg[id];
-	}
-	if(AstroText.AstroMsg[id]){
+		base = AstroText.AstroTxtMsg[id];
+	}else if(AstroText.AstroMsg[id]){
 		const val = AstroText.AstroMsg[id];
 		if(isEncodedToken(val)){
-			return `${id}`;
+			base = `${id}`;
+		}else{
+			base = `${val}`;
 		}
-		return `${val}`;
+	}else{
+		base = `${id}`;
 	}
-	return `${id}`;
+	return appendPlanetMetaName(base, id, chartSources, JIEQI_SNAPSHOT_PLANET_META);
 }
 
 function splitDegree(degree){
@@ -418,7 +430,7 @@ function computeAscSignIndex(rootObj, chart, fields){
 }
 
 function houseFullLabel(house, idx, ascSignIndex){
-	let houseName = msg(house && house.id ? house.id : null) || `第${idx + 1}宫`;
+	let houseName = msg(house && house.id ? house.id : null, null) || `第${idx + 1}宫`;
 	const sign = signFromLon(house ? house.lon : null);
 	if(!sign){
 		return houseName;
@@ -432,7 +444,7 @@ function houseFullLabel(house, idx, ascSignIndex){
 	const area = (SZConst.SZSigns[signIdx] && SZConst.SZSigns[signIdx].length >= 2)
 		? `${SZConst.SZSigns[signIdx][0]}${SZConst.SZSigns[signIdx][1]}`
 		: '';
-	const signName = AstroText.AstroMsgCN[sign] || msg(sign);
+	const signName = AstroText.AstroMsgCN[sign] || msg(sign, null);
 	return `${zi}—${area}—${signName}座—${houseName}`;
 }
 
@@ -506,7 +518,7 @@ function buildJieQiSuSection(chartObj, fields, planetDisplay){
 					radeg = Number(obj.signlon);
 				}
 				const sd = splitDegree(radeg);
-				lines.push(`星曜：${msg(obj.id)} ${sd[0]}˚${su}${sd[1]}分`);
+				lines.push(`星曜：${msg(obj.id, chartObj)} ${sd[0]}˚${su}${sd[1]}分`);
 			});
 		});
 		lines.push('');
@@ -536,10 +548,10 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 		lines.push(`时区：${params.zone}`);
 	}
 	if(chart.zodiacal){
-		lines.push(`黄道：${msg(chart.zodiacal)}`);
+		lines.push(`黄道：${msg(chart.zodiacal, chartObj)}`);
 	}
 	if(chart.hsys){
-		lines.push(`宫制：${msg(chart.hsys)}`);
+		lines.push(`宫制：${msg(chart.hsys, chartObj)}`);
 	}
 
 	if(withHeaders){
@@ -554,7 +566,7 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 			const deg = splitDegree(house.lon);
 			const sign = Math.floor(((house.lon % 360) + 360) % 360 / 30);
 			const signs = ['白羊', '金牛', '双子', '巨蟹', '狮子', '处女', '天秤', '天蝎', '射手', '摩羯', '水瓶', '双鱼'];
-			lines.push(`${msg(house.id) || `第${idx + 1}宫`}：${Math.abs(deg[0] % 30)}˚${signs[sign]}${Math.abs(deg[1])}分`);
+			lines.push(`${msg(house.id, chartObj) || `第${idx + 1}宫`}：${Math.abs(deg[0] % 30)}˚${signs[sign]}${Math.abs(deg[1])}分`);
 		}
 	});
 
@@ -566,7 +578,7 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 	}
 	objects.forEach((obj)=>{
 		const sd = splitDegree(obj.signlon);
-		lines.push(`${msg(obj.id)}：${sd[0]}˚${msg(obj.sign)}${sd[1]}分；宫位=${msg(obj.house)}`);
+		lines.push(`${msg(obj.id, chartObj)}：${sd[0]}˚${msg(obj.sign, chartObj)}${sd[1]}分；宫位=${msg(obj.house, chartObj)}`);
 	});
 	return lines.join('\n').trim();
 }

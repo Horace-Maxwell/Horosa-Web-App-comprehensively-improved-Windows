@@ -7,6 +7,10 @@ import {setDispatch} from '../utils/request';
 import {detectPlatform} from '../utils/helper';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
+import {
+    DEFAULT_PLANET_META_DISPLAY,
+    normalizePlanetMetaDisplay,
+} from '../utils/planetMetaDisplay';
 
 function userInfoToFields(flds, userInfo){
     flds.doubingSu28.value = userInfo.doubingSu28;
@@ -45,6 +49,9 @@ export default {
         colorTheme: AstroConst.DefaultColorTheme,
         aspects: AstroConst.DEFAULT_ASPECTS,
         showPdBounds: 1,
+        planetMetaDisplay: {
+            ...DEFAULT_PLANET_META_DISPLAY,
+        },
 
         loginFields:{
             loginId: {
@@ -75,13 +82,23 @@ export default {
 
     reducers: {
         save(state, {payload: values}) {
-            let st = { ...state, ...values };
+            let normalizedValues = values || {};
+            if(normalizedValues.planetMetaDisplay !== undefined){
+                normalizedValues = {
+                    ...normalizedValues,
+                    planetMetaDisplay: normalizePlanetMetaDisplay(normalizedValues.planetMetaDisplay),
+                };
+            }
+
+            let st = { ...state, ...normalizedValues };
+            st.planetMetaDisplay = normalizePlanetMetaDisplay(st.planetMetaDisplay);
             let globalSetup = {
                 chartDisplay: st.chartDisplay,
                 planetDisplay: st.planetDisplay,
                 lotsDisplay: st.lotsDisplay,
                 colorTheme: st.colorTheme,
                 showPdBounds: st.showPdBounds,
+                planetMetaDisplay: st.planetMetaDisplay,
             };
             let json = JSON.stringify(globalSetup);
             localStorage.setItem(Constants.GlobalSetupKey, json);
@@ -253,6 +270,9 @@ export default {
                 if(json && json.colorTheme !== undefined){
                     json.colorTheme = AstroConst.normalizeColorThemeIndex(json.colorTheme);
                 }
+                if(json){
+                    json.planetMetaDisplay = normalizePlanetMetaDisplay(json.planetMetaDisplay);
+                }
                 yield put({
                     type: 'save',
                     payload: json,
@@ -344,6 +364,9 @@ export default {
                 let json = JSON.parse(setupJson);
                 if(json && json.colorTheme !== undefined){
                     json.colorTheme = AstroConst.normalizeColorThemeIndex(json.colorTheme);
+                }
+                if(json){
+                    json.planetMetaDisplay = normalizePlanetMetaDisplay(json.planetMetaDisplay);
                 }
                 yield put({
                     type: 'save',

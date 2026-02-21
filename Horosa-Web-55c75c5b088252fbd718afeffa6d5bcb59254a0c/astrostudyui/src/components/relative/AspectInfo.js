@@ -3,6 +3,7 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
+import AstroObjectLabel from '../astro/AstroObjectLabel';
 import { randomStr} from '../../utils/helper'
 import styles from '../../css/styles.less';
 
@@ -22,6 +23,7 @@ class AspectInfo extends Component{
 
 	genAspectDom(title){
 		let resobj = this.props.value ? this.props.value : {};
+		const chartSources = this.props.chartSources || resobj;
 		let aspects = resobj.aspects;
 		if(aspects === undefined || aspects === null){
 			return null;
@@ -42,7 +44,7 @@ class AspectInfo extends Component{
 				let dom = (
 					<div key={randomStr(8)}>
 						<span style={{fontFamily: AstroConst.AstroFont}}>&emsp;{AstroText.AstroMsg['Asp' + asp]}&nbsp;</span>
-						<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[natalId]}&nbsp;</span>
+						<AstroObjectLabel id={natalId} chartSources={chartSources} />&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>
 							误差{Math.round(natalObj.delta * 1000)/1000}
 						</span>
@@ -54,7 +56,7 @@ class AspectInfo extends Component{
 				<Col key={i} span={12}>
 					<div>
 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
-						<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[objId]}</span>
+						<AstroObjectLabel id={objId} chartSources={chartSources} />
 					</div>
 					{coldivs}
 				</Col>
@@ -128,4 +130,3 @@ class AspectInfo extends Component{
 }
 
 export default AspectInfo;
-

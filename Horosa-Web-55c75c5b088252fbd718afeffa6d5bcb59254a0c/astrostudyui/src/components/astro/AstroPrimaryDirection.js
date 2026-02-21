@@ -4,6 +4,7 @@ import { SearchOutlined, } from '@ant-design/icons';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
+import AstroObjectLabel from './AstroObjectLabel';
 import {TableOddRowBgColor} from '../../utils/constants'
 import styles from '../../css/styles.less';
 
@@ -57,7 +58,7 @@ class AstroPrimaryDirection extends Component{
 				continue;
 			}
 			let obj = {
-				text: (<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[planet]}</span>),
+				text: (<AstroObjectLabel id={planet} chartSources={this.props.value} />),
 				value: planet,
 			}
 			filters.push(obj);
@@ -186,8 +187,8 @@ class AstroPrimaryDirection extends Component{
 	T(parts){
 		let dom = (
 			<div>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[2]]}</span>&nbsp;的&nbsp;
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;界
+				<AstroObjectLabel id={parts[2]} chartSources={this.props.value} />&nbsp;的&nbsp;
+				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;界
 			</div>
 		);
 		return dom;
@@ -196,7 +197,7 @@ class AstroPrimaryDirection extends Component{
 	A(parts){
 		let dom = (
 			<div>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;的映点
+				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的映点
 			</div>
 		);
 		return dom;
@@ -204,7 +205,7 @@ class AstroPrimaryDirection extends Component{
 	C(parts){
 		let dom = (
 			<div>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;的反映点
+				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的反映点
 			</div>
 		);
 		return dom;
@@ -213,7 +214,7 @@ class AstroPrimaryDirection extends Component{
 	D(parts){
 		let dom = (
 			<div>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;的&nbsp;
+				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的&nbsp;
 				<span style={{fontFamily: AstroConst.NormalFont}}>{parts[2]}</span>&nbsp;度右相位处
 			</div>
 		);
@@ -222,7 +223,7 @@ class AstroPrimaryDirection extends Component{
 	S(parts){
 		let dom = (
 			<div>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;的&nbsp;
+				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的&nbsp;
 				<span style={{fontFamily: AstroConst.NormalFont}}>{parts[2]}</span>&nbsp;度左相位处
 			</div>
 		);
@@ -231,13 +232,13 @@ class AstroPrimaryDirection extends Component{
 	N(parts){
 		let dom = (
 			<div>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;
+				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;
 			</div>
 		);
 		if(parts[2] !== '0'){
 			dom = (
 				<div>
-					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[parts[1]]}</span>&nbsp;的&nbsp;
+					<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>{parts[2]}</span>&nbsp;度相位处
 				</div>
 			); 

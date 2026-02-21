@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { Row, Card, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
+import AstroObjectLabel from './AstroObjectLabel';
 import styles from '../../css/styles.less';
 
 class AstroPredictPlanetSign extends Component{
@@ -41,7 +42,12 @@ class AstroPredictPlanetSign extends Component{
 			});
 			let dom = (
 				<Row key={key}>
-					<Card title={AstroText.AstroMsg[key] + '（' + AstroText.AstroTxtMsg[key] + '）'} 
+					<Card title={(
+						<span>
+							<AstroObjectLabel id={key} chartSources={chartObj} />
+							<span style={{fontFamily: AstroConst.NormalFont}}>（{AstroText.AstroTxtMsg[key]}）</span>
+						</span>
+					)} 
 						bordered={true} 
 						style={{
 							fontFamily: AstroConst.AstroFont,

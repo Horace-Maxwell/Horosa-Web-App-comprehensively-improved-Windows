@@ -5,6 +5,7 @@ import AstroDirectionForm from './AstroDirectionForm';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
+import AstroObjectLabel from './AstroObjectLabel';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { randomStr, convertToArray} from '../../utils/helper';
@@ -196,6 +197,7 @@ class AstroProfection extends Component{
 		if(this.state.dirChart === undefined || this.state.dirChart === null){
 			return null;
 		}
+		const chartSources = [this.state.dirChart, this.props.value];
 
 		let aspects = this.state.dirChart.chart.aspects;
 		let divs = [];
@@ -212,7 +214,7 @@ class AstroProfection extends Component{
 				let dom = (
 					<div key={natalObj.natalId + j}>
 						<span style={{fontFamily: AstroConst.AstroFont}}>&emsp;{AstroText.AstroMsg['Asp' + asp]}&nbsp;</span>
-						<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[natalObj.natalId]}&nbsp;</span>
+						<AstroObjectLabel id={natalObj.natalId} chartSources={chartSources} />&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>
 							误差{Math.round(natalObj.delta * 1000)/1000}
 						</span>
@@ -224,7 +226,7 @@ class AstroProfection extends Component{
 				<Col key={i} span={12}>
 					<div>
 						<span style={{fontFamily: AstroConst.NormalFont}}>行运&nbsp;</span>
-						<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[obj.directId]}</span>
+						<AstroObjectLabel id={obj.directId} chartSources={chartSources} />
 					</div>
 					{coldivs}
 				</Col>

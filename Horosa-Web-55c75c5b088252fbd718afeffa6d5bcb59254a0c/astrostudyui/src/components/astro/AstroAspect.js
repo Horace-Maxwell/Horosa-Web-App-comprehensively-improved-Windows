@@ -3,6 +3,7 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
+import AstroObjectLabel from './AstroObjectLabel';
 import { randomStr} from '../../utils/helper'
 import styles from '../../css/styles.less';
 
@@ -37,7 +38,7 @@ class AstroAspect extends Component{
 			}
 			let domtitle = (
 				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[key]}</span>
+					<AstroObjectLabel id={key} chartSources={this.props.value} />
 				</div>
 			);
 			divs.push(domtitle);
@@ -53,7 +54,7 @@ class AstroAspect extends Component{
 				let dom = (
 					<div key={key + asp.id} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>&emsp;{AstroText.AstroMsg['Asp' + asp.asp]}&nbsp;</span>
-						<span>{AstroText.AstroMsg[asp.id]}&nbsp;</span>
+						<AstroObjectLabel id={asp.id} chartSources={this.props.value} />&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>
 							入相&nbsp;误差{Math.round(asp.orb * 1000)/1000}
 						</span>
@@ -79,7 +80,7 @@ class AstroAspect extends Component{
 				let dom = (
 					<div key={key + asp.id} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>&emsp;{AstroText.AstroMsg['Asp' + asp.asp]}&nbsp;</span>
-						<span>{AstroText.AstroMsg[asp.id]}&nbsp;</span>
+						<AstroObjectLabel id={asp.id} chartSources={this.props.value} />&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>
 							离相&nbsp;误差{Math.round(asp.orb * 1000)/1000}
 						</span>
@@ -99,7 +100,7 @@ class AstroAspect extends Component{
 				let dom = (
 					<div key={key + asp.id} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>&emsp;{AstroText.AstroMsg['Asp' + asp.asp]}&nbsp;</span>
-						<span>{AstroText.AstroMsg[asp.id]}&nbsp;</span>
+						<AstroObjectLabel id={asp.id} chartSources={this.props.value} />&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>误差{Math.round(asp.orb * 1000)/1000}</span>
 					</div>
 				);
@@ -141,16 +142,16 @@ class AstroAspect extends Component{
 
 			let dom = (
 				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-					<span>{AstroText.AstroMsg[key]}&nbsp;</span>
+					<AstroObjectLabel id={key} chartSources={this.props.value} />&nbsp;
 					<span>{AstroText.AstroMsg['Asp' + obj[0].asp]}&nbsp;</span>
-					<span>{AstroText.AstroMsg[obj[0].id]}</span>&nbsp;
+					<AstroObjectLabel id={obj[0].id} chartSources={this.props.value} />&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>
 						<Popover content={'误差' + Math.round(obj[0].orb * 1000)/1000} >
 							离相；&nbsp;
 						</Popover>
 					</span>
 					<span>{AstroText.AstroMsg['Asp' + obj[1].asp]}&nbsp;</span>
-					<span>{AstroText.AstroMsg[obj[1].id]}</span>&nbsp;
+					<AstroObjectLabel id={obj[1].id} chartSources={this.props.value} />&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>
 						<Popover content={'误差' + Math.round(obj[1].orb * 1000)/1000} >
 							入相
@@ -175,7 +176,7 @@ class AstroAspect extends Component{
 		
 		let domtitle = (
 			<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-				<span>{AstroText.AstroMsg[key]}</span>
+				<AstroObjectLabel id={key} chartSources={this.props.value} />
 			</div>
 		);
 		divs.push(domtitle);
@@ -191,7 +192,7 @@ class AstroAspect extends Component{
 			let dom = (
 				<div key={key + asp.id} style={{fontFamily: AstroConst.AstroFont}}>
 					<span>&emsp;{AstroText.AstroMsg['Asp' + asp.asp]}&nbsp;</span>
-					<span>{AstroText.AstroMsg[asp.id]}</span>
+					<AstroObjectLabel id={asp.id} chartSources={this.props.value} />
 				</div>
 			);
 			divs.push(dom);
@@ -293,4 +294,3 @@ class AstroAspect extends Component{
 }
 
 export default AstroAspect;
-

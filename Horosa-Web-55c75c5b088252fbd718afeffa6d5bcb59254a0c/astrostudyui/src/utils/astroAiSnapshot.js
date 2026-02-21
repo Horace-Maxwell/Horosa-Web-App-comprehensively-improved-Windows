@@ -1,5 +1,9 @@
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
+import {
+	appendPlanetMetaName,
+	readPlanetMetaDisplayFromStore,
+} from './planetMetaDisplay';
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 
@@ -7,7 +11,28 @@ function isEncodedToken(text){
 	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
 }
 
-function msg(id){
+let snapshotPlanetMetaSources = null;
+let snapshotPlanetMetaDisplay = null;
+const SNAPSHOT_PLANET_META_DISPLAY = {
+	showPostnatal: 1,
+	showHouse: 1,
+	showRuler: 1,
+};
+
+function withPlanetMetaContext(chartObj, fn){
+	const prevSources = snapshotPlanetMetaSources;
+	const prevDisplay = snapshotPlanetMetaDisplay;
+	snapshotPlanetMetaSources = chartObj || null;
+	snapshotPlanetMetaDisplay = SNAPSHOT_PLANET_META_DISPLAY;
+	try{
+		return fn();
+	}finally{
+		snapshotPlanetMetaSources = prevSources;
+		snapshotPlanetMetaDisplay = prevDisplay;
+	}
+}
+
+function msgRaw(id){
 	if(id === undefined || id === null){
 		return '';
 	}
@@ -22,6 +47,11 @@ function msg(id){
 		return `${val}`;
 	}
 	return `${id}`;
+}
+
+function msg(id){
+	const base = msgRaw(id);
+	return appendPlanetMetaName(base, id, snapshotPlanetMetaSources, snapshotPlanetMetaDisplay);
 }
 
 function round3(val){
@@ -233,166 +263,172 @@ function buildBaseInfoLines(chartObj, fields){
 }
 
 export function buildHouseCuspLines(chartObj){
-	const lines = [];
-	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
-	const houses = chart.houses || [];
-	for(let i=0; i<houses.length; i++){
-		const h = houses[i];
-		if(!h || h.lon === undefined || h.lon === null){
-			continue;
+	return withPlanetMetaContext(chartObj, ()=>{
+		const lines = [];
+		const chart = chartObj && chartObj.chart ? chartObj.chart : {};
+		const houses = chart.houses || [];
+		for(let i=0; i<houses.length; i++){
+			const h = houses[i];
+			if(!h || h.lon === undefined || h.lon === null){
+				continue;
+			}
+			lines.push(`${msg(h.id)} 宫头：${lonToSignDegree(h.lon)}`);
 		}
-		lines.push(`${msg(h.id)} 宫头：${lonToSignDegree(h.lon)}`);
-	}
-	return lines;
+		return lines;
+	});
 }
 
 export function buildStarAndLotPositionLines(chartObj){
-	const lines = [];
-	const objectMap = getObjectsMap(chartObj);
-	const pushOne = (id)=>{
-		const obj = objectMap[id];
-		if(!obj || obj.sign === undefined || obj.signlon === undefined){
-			return;
-		}
-		lines.push(`${msg(id)}：${formatSignDegree(obj.sign, obj.signlon)}`);
-	};
+	return withPlanetMetaContext(chartObj, ()=>{
+		const lines = [];
+		const objectMap = getObjectsMap(chartObj);
+		const pushOne = (id)=>{
+			const obj = objectMap[id];
+			if(!obj || obj.sign === undefined || obj.signlon === undefined){
+				return;
+			}
+			lines.push(`${msg(id)}：${formatSignDegree(obj.sign, obj.signlon)}`);
+		};
 
-	AstroConst.LIST_OBJECTS.forEach((id)=>pushOne(id));
-	AstroConst.LOTS.forEach((id)=>pushOne(id));
+		AstroConst.LIST_OBJECTS.forEach((id)=>pushOne(id));
+		AstroConst.LOTS.forEach((id)=>pushOne(id));
 
-	return lines;
+		return lines;
+	});
 }
 
 export function buildInfoSection(chartObj, fields){
-	const lines = [];
-	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
-	const chartData = chartObj || {};
-	const planetMap = getObjectsMap(chartObj);
+	return withPlanetMetaContext(chartObj, ()=>{
+		const lines = [];
+		const chart = chartObj && chartObj.chart ? chartObj.chart : {};
+		const chartData = chartObj || {};
+		const planetMap = getObjectsMap(chartObj);
 
-	lines.push(...buildBaseInfoLines(chartObj, fields));
+		lines.push(...buildBaseInfoLines(chartObj, fields));
 
-	const anti = chart.antiscias || {};
-	const antiLines = [];
-	(anti.antiscia || []).forEach((item)=>{
-		antiLines.push(`${msg(item[0])} 与 ${msg(item[1])} 成映点 误差${round3(item[2])}`);
-	});
-	(anti.cantiscia || []).forEach((item)=>{
-		antiLines.push(`${msg(item[0])} 与 ${msg(item[1])} 成反映点 误差${round3(item[2])}`);
-	});
-	if(antiLines.length){
-		lines.push('映点/反映点');
-		lines.push(...antiLines);
-	}
-
-	const receptions = chartData.receptions || {};
-	if((receptions.normal || []).length || (receptions.abnormal || []).length){
-		lines.push('接纳');
-		lines.push('正接纳：');
-		(receptions.normal || []).forEach((item)=>{
-			lines.push(`${msg(item.beneficiary)} 被 ${msg(item.supplier)} 接纳 (${ruleshipText(item.supplierRulerShip)})`);
+		const anti = chart.antiscias || {};
+		const antiLines = [];
+		(anti.antiscia || []).forEach((item)=>{
+			antiLines.push(`${msg(item[0])} 与 ${msg(item[1])} 成映点 误差${round3(item[2])}`);
 		});
-		lines.push('邪接纳：');
-		(receptions.abnormal || []).forEach((item)=>{
-			lines.push(`${msg(item.beneficiary)} (${ruleshipText(item.beneficiaryDignity)}) 被 ${msg(item.supplier)} 接纳 (${ruleshipText(item.supplierRulerShip)})`);
+		(anti.cantiscia || []).forEach((item)=>{
+			antiLines.push(`${msg(item[0])} 与 ${msg(item[1])} 成反映点 误差${round3(item[2])}`);
 		});
-	}
+		if(antiLines.length){
+			lines.push('映点/反映点');
+			lines.push(...antiLines);
+		}
 
-	const mutuals = chartData.mutuals || {};
-	if((mutuals.normal || []).length || (mutuals.abnormal || []).length){
-		lines.push('互容');
-		lines.push('正互容：');
-		(mutuals.normal || []).forEach((item)=>{
-			lines.push(`${msg(item.planetA.id)} (${ruleshipText(item.planetA.rulerShip)}) 与 ${msg(item.planetB.id)} (${ruleshipText(item.planetB.rulerShip)}) 互容`);
+		const receptions = chartData.receptions || {};
+		if((receptions.normal || []).length || (receptions.abnormal || []).length){
+			lines.push('接纳');
+			lines.push('正接纳：');
+			(receptions.normal || []).forEach((item)=>{
+				lines.push(`${msg(item.beneficiary)} 被 ${msg(item.supplier)} 接纳 (${ruleshipText(item.supplierRulerShip)})`);
+			});
+			lines.push('邪接纳：');
+			(receptions.abnormal || []).forEach((item)=>{
+				lines.push(`${msg(item.beneficiary)} (${ruleshipText(item.beneficiaryDignity)}) 被 ${msg(item.supplier)} 接纳 (${ruleshipText(item.supplierRulerShip)})`);
+			});
+		}
+
+		const mutuals = chartData.mutuals || {};
+		if((mutuals.normal || []).length || (mutuals.abnormal || []).length){
+			lines.push('互容');
+			lines.push('正互容：');
+			(mutuals.normal || []).forEach((item)=>{
+				lines.push(`${msg(item.planetA.id)} (${ruleshipText(item.planetA.rulerShip)}) 与 ${msg(item.planetB.id)} (${ruleshipText(item.planetB.rulerShip)}) 互容`);
+			});
+			lines.push('邪互容：');
+			(mutuals.abnormal || []).forEach((item)=>{
+				lines.push(`${msg(item.planetA.id)} (${ruleshipText(item.planetA.rulerShip)}) 与 ${msg(item.planetB.id)} (${ruleshipText(item.planetB.rulerShip)}) 互容`);
+			});
+		}
+
+		const surround = chartData.surround || {};
+		const attacks = surround.attacks || {};
+		const attackLines = [];
+		Object.keys(attacks).forEach((key)=>{
+			const planet = attacks[key];
+			const candidates = [];
+			if(planet.MinDelta && planet.MinDelta.length === 2){
+				candidates.push(planet.MinDelta);
+			}
+			if(planet.MarsSaturn && planet.MarsSaturn.length === 2){
+				candidates.push(planet.MarsSaturn);
+			}
+			if(planet.SunMoon && planet.SunMoon.length === 2){
+				candidates.push(planet.SunMoon);
+			}
+			if(planet.VenusJupiter && planet.VenusJupiter.length === 2){
+				candidates.push(planet.VenusJupiter);
+			}
+			candidates.forEach((pair)=>{
+				attackLines.push(
+					`${msg(key)} 被 ${msg(pair[0].id)} (通过${aspectText(pair[0].aspect)}相位) 与 ${msg(pair[1].id)} (通过${aspectText(pair[1].aspect)}相位) 围攻`
+				);
+			});
 		});
-		lines.push('邪互容：');
-		(mutuals.abnormal || []).forEach((item)=>{
-			lines.push(`${msg(item.planetA.id)} (${ruleshipText(item.planetA.rulerShip)}) 与 ${msg(item.planetB.id)} (${ruleshipText(item.planetB.rulerShip)}) 互容`);
+		if(attackLines.length){
+			lines.push('光线围攻');
+			lines.push(...attackLines);
+		}
+
+		const houses = surround.houses || {};
+		const houseLines = [];
+		Object.keys(houses).forEach((key)=>{
+			const pair = houses[key];
+			if(pair && pair.length === 2){
+				houseLines.push(`${msg(pair[0].id)} 与 ${msg(pair[1].id)} 夹 ${msg(key)}`);
+			}
 		});
-	}
+		if(houseLines.length){
+			lines.push('夹宫');
+			lines.push(...houseLines);
+		}
 
-	const surround = chartData.surround || {};
-	const attacks = surround.attacks || {};
-	const attackLines = [];
-	Object.keys(attacks).forEach((key)=>{
-		const planet = attacks[key];
-		const candidates = [];
-		if(planet.MinDelta && planet.MinDelta.length === 2){
-			candidates.push(planet.MinDelta);
-		}
-		if(planet.MarsSaturn && planet.MarsSaturn.length === 2){
-			candidates.push(planet.MarsSaturn);
-		}
-		if(planet.SunMoon && planet.SunMoon.length === 2){
-			candidates.push(planet.SunMoon);
-		}
-		if(planet.VenusJupiter && planet.VenusJupiter.length === 2){
-			candidates.push(planet.VenusJupiter);
-		}
-		candidates.forEach((pair)=>{
-			attackLines.push(
-				`${msg(key)} 被 ${msg(pair[0].id)} (通过${aspectText(pair[0].aspect)}相位) 与 ${msg(pair[1].id)} (通过${aspectText(pair[1].aspect)}相位) 围攻`
-			);
+		const planets = surround.planets || {};
+		const planetLines = [];
+		Object.keys(planets).forEach((key)=>{
+			const pair = planets[key];
+			if(key === 'BySunMoon' && pair && pair.id){
+				planetLines.push(`${msg(AstroConst.MOON)} 与 ${msg(AstroConst.SUN)} 夹 ${msg(pair.id)}`);
+				return;
+			}
+			if(pair && pair.SunMoon && pair.SunMoon.length === 2){
+				planetLines.push(`${msg(pair.SunMoon[0].id)} 与 ${msg(pair.SunMoon[1].id)} 夹 ${msg(key)}`);
+				return;
+			}
+			if(pair && pair.length === 2){
+				planetLines.push(`${msg(pair[0].id)} 与 ${msg(pair[1].id)} 夹 ${msg(key)}`);
+			}
 		});
-	});
-	if(attackLines.length){
-		lines.push('光线围攻');
-		lines.push(...attackLines);
-	}
+		if(planetLines.length){
+			lines.push('夹星');
+			lines.push(...planetLines);
+		}
 
-	const houses = surround.houses || {};
-	const houseLines = [];
-	Object.keys(houses).forEach((key)=>{
-		const pair = houses[key];
-		if(pair && pair.length === 2){
-			houseLines.push(`${msg(pair[0].id)} 与 ${msg(pair[1].id)} 夹 ${msg(key)}`);
+		const declParallel = chartData.declParallel || {};
+		const parallelLines = [];
+		(declParallel.parallel || []).forEach((ids, idx)=>{
+			parallelLines.push(`平行星体${idx + 1}：${asNameList(ids)}`);
+		});
+		Object.keys(declParallel.contraParallel || {}).forEach((id)=>{
+			const ids = declParallel.contraParallel[id] || [];
+			if(ids.length){
+				parallelLines.push(`相对 ${msg(id)} 星体：${asNameList(ids)}`);
+			}
+		});
+		if(parallelLines.length){
+			lines.push('纬照');
+			lines.push(...parallelLines);
 		}
-	});
-	if(houseLines.length){
-		lines.push('夹宫');
-		lines.push(...houseLines);
-	}
 
-	const planets = surround.planets || {};
-	const planetLines = [];
-	Object.keys(planets).forEach((key)=>{
-		const pair = planets[key];
-		if(key === 'BySunMoon' && pair && pair.id){
-			planetLines.push(`${msg(AstroConst.MOON)} 与 ${msg(AstroConst.SUN)} 夹 ${msg(pair.id)}`);
-			return;
-		}
-		if(pair && pair.SunMoon && pair.SunMoon.length === 2){
-			planetLines.push(`${msg(pair.SunMoon[0].id)} 与 ${msg(pair.SunMoon[1].id)} 夹 ${msg(key)}`);
-			return;
-		}
-		if(pair && pair.length === 2){
-			planetLines.push(`${msg(pair[0].id)} 与 ${msg(pair[1].id)} 夹 ${msg(key)}`);
-		}
+		Object.keys(planetMap).forEach((id)=>{
+			planetMap[id].__name = msg(id);
+		});
+		return lines;
 	});
-	if(planetLines.length){
-		lines.push('夹星');
-		lines.push(...planetLines);
-	}
-
-	const declParallel = chartData.declParallel || {};
-	const parallelLines = [];
-	(declParallel.parallel || []).forEach((ids, idx)=>{
-		parallelLines.push(`平行星体${idx + 1}：${asNameList(ids)}`);
-	});
-	Object.keys(declParallel.contraParallel || {}).forEach((id)=>{
-		const ids = declParallel.contraParallel[id] || [];
-		if(ids.length){
-			parallelLines.push(`相对 ${msg(id)} 星体：${asNameList(ids)}`);
-		}
-	});
-	if(parallelLines.length){
-		lines.push('纬照');
-		lines.push(...parallelLines);
-	}
-
-	Object.keys(planetMap).forEach((id)=>{
-		planetMap[id].__name = msg(id);
-	});
-	return lines;
 }
 
 function buildAspectSection(chartObj){
@@ -603,23 +639,38 @@ export function createAstroSnapshotSignature(chartObj, fields){
 	const zodiacal = chart.zodiacal || AstroConst.ZODIACAL[fieldValue(fields, 'zodiacal')] || '';
 	const hsys = chart.hsys || AstroConst.HouseSys[fieldValue(fields, 'hsys')] || '';
 	const chartId = chartObj && chartObj.chartId ? chartObj.chartId : '';
-	return [chartId, birth, zone, lon, lat, zodiacal, hsys, chart.isDiurnal ? '1' : '0'].join('|');
+	const display = readPlanetMetaDisplayFromStore();
+	return [
+		chartId,
+		birth,
+		zone,
+		lon,
+		lat,
+		zodiacal,
+		hsys,
+		chart.isDiurnal ? '1' : '0',
+		display.showPostnatal,
+		display.showHouse,
+		display.showRuler,
+	].join('|');
 }
 
 export function buildAstroSnapshotContent(chartObj, fields){
 	if(!chartObj || !chartObj.chart){
 		return '';
 	}
-	const sections = [];
-	sections.push(buildSectionText('起盘信息', buildBaseInfoLines(chartObj, fields)));
-	sections.push(buildSectionText('宫位宫头', buildHouseCuspLines(chartObj)));
-	sections.push(buildSectionText('星与虚点', buildStarAndLotPositionLines(chartObj)));
-	sections.push(buildSectionText('信息', buildInfoSection(chartObj, fields)));
-	sections.push(buildSectionText('相位', buildAspectSection(chartObj)));
-	sections.push(buildSectionText('行星', buildPlanetSection(chartObj)));
-	sections.push(buildSectionText('希腊点', buildLotsSection(chartObj)));
-	sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));
-	return sections.filter(Boolean).join('\n\n').trim();
+	return withPlanetMetaContext(chartObj, ()=>{
+		const sections = [];
+		sections.push(buildSectionText('起盘信息', buildBaseInfoLines(chartObj, fields)));
+		sections.push(buildSectionText('宫位宫头', buildHouseCuspLines(chartObj)));
+		sections.push(buildSectionText('星与虚点', buildStarAndLotPositionLines(chartObj)));
+		sections.push(buildSectionText('信息', buildInfoSection(chartObj, fields)));
+		sections.push(buildSectionText('相位', buildAspectSection(chartObj)));
+		sections.push(buildSectionText('行星', buildPlanetSection(chartObj)));
+		sections.push(buildSectionText('希腊点', buildLotsSection(chartObj)));
+		sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));
+		return sections.filter(Boolean).join('\n\n').trim();
+	});
 }
 
 export function saveAstroAISnapshot(chartObj, fields){
