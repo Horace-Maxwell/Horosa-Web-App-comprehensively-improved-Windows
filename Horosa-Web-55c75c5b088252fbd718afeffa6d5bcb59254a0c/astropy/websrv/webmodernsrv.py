@@ -1,7 +1,7 @@
 import traceback
 import jsonpickle
 import cherrypy
-from websrv.helper import enable_crossdomain
+from websrv.helper import enable_crossdomain, build_param_error_response
 from astrostudy.modern.chartcomp import ChartComp
 from astrostudy.modern.chartcomposite import ChartComposite
 from astrostudy.modern.chartsynastry import ChartSynastry
@@ -60,9 +60,6 @@ class ModernAstroSrv:
 
             res = reschart.compute()
             return jsonpickle.encode(res, unpicklable=False)
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)

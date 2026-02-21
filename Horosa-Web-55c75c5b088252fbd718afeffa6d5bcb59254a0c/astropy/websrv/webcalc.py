@@ -4,7 +4,7 @@ import jsonpickle
 import cherrypy
 from flatlib import const
 from flatlib import utils
-from websrv.helper import enable_crossdomain
+from websrv.helper import enable_crossdomain, build_param_error_response
 
 class WebCalcSrv:
     exposed = True
@@ -38,12 +38,9 @@ class WebCalcSrv:
             }
 
             return jsonpickle.encode(res, unpicklable=False)
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -64,9 +61,6 @@ class WebCalcSrv:
             }
 
             return jsonpickle.encode(res, unpicklable=False)
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)

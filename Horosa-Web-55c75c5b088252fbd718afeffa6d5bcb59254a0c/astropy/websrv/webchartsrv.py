@@ -28,7 +28,7 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
 from astrostudy.perchart import PerChart
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart
-from websrv.helper import enable_crossdomain
+from websrv.helper import enable_crossdomain, build_param_error_response
 from websrv.webpredictsrv import PredictSrv
 from websrv.webindiasrv import IndiaAstroSrv
 from websrv.webmodernsrv import ModernAstroSrv
@@ -97,12 +97,9 @@ class WebChartSrv:
 
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -161,12 +158,9 @@ class WebChartSrv:
 
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
 
 
 def CORS():

@@ -3,7 +3,7 @@ import jsonpickle
 import cherrypy
 from astrostudy.acg.ACGraph import ACGraph
 
-from websrv.helper import enable_crossdomain
+from websrv.helper import enable_crossdomain, build_param_error_response
 
 class AcgSrv:
     exposed = True
@@ -22,11 +22,8 @@ class AcgSrv:
             obj = acg.compute()
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
 
 

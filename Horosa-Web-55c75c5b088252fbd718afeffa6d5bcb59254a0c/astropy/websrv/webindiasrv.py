@@ -3,7 +3,7 @@ import jsonpickle
 import cherrypy
 from astrostudy.perchart import PerChart
 from astrostudy.helper import getChartJson
-from websrv.helper import enable_crossdomain
+from websrv.helper import enable_crossdomain, build_param_error_response
 from astrostudy.india.chart2 import Chart2
 from astrostudy.india.chart3 import Chart3
 from astrostudy.india.chart4 import Chart4
@@ -95,9 +95,6 @@ class IndiaAstroSrv:
 
             res = getChartJson(data, perchart)
             return res
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)

@@ -58,6 +58,26 @@ public class AstroHelper {
 		String txt = sb.toString();
 		return MD5Utility.encryptAsString(txt);
 	}
+
+	private static String getRemoteErrMessage(Map<String, Object> jsonres) {
+		String err = ConvertUtility.getValueAsString(jsonres.get("err"));
+		if (StringUtility.isNullOrEmpty(err)) {
+			err = "param error";
+		}
+
+		if (jsonres.containsKey("detail")) {
+			String detail = ConvertUtility.getValueAsString(jsonres.get("detail"));
+			if (!StringUtility.isNullOrEmpty(detail)) {
+				if (detail.length() > 500) {
+					detail = detail.substring(0, 500) + "...";
+				}
+				if (err.indexOf(detail) < 0) {
+					err = String.format("%s (%s)", err, detail);
+				}
+			}
+		}
+		return err;
+	}
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
 		if(Debug) {
@@ -76,7 +96,7 @@ public class AstroHelper {
 		String str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
 		Map<String, Object> jsonres = JsonUtility.toDictionary(str);
 		if(jsonres.containsKey("err")) {
-			throw new ErrorCodeException(200001, jsonres.get("err").toString());
+			throw new ErrorCodeException(200001, getRemoteErrMessage(jsonres));
 		}
 		
 		CalculatePool.queueUserWorkItem(()->{
@@ -94,7 +114,7 @@ public class AstroHelper {
 		String str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
 		Map<String, Object> jsonres = JsonUtility.toDictionary(str);
 		if(jsonres.containsKey("err")) {
-			throw new ErrorCodeException(200001, jsonres.get("err").toString());
+			throw new ErrorCodeException(200001, getRemoteErrMessage(jsonres));
 		}
 		
 		return jsonres;		

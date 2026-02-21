@@ -2,7 +2,7 @@ import traceback
 import jsonpickle
 import cherrypy
 from astrostudy.perchart import PerChart
-from websrv.helper import enable_crossdomain
+from websrv.helper import enable_crossdomain, build_param_error_response
 from astrostudy.germany.midpoint import MidPoint
 
 
@@ -30,9 +30,6 @@ class GermanyAstroSrv:
 
             res = jsonpickle.encode(mids, unpicklable=False)
             return res
-        except:
+        except Exception as ex:
             traceback.print_exc()
-            obj = {
-                'err': 'param error'
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)

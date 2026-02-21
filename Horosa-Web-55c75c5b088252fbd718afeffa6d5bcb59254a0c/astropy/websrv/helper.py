@@ -14,3 +14,20 @@ def enable_crossdomain():
     else:
         cherrypy.response.headers['Access-Control-Allow-Origin'] = '*'
 
+
+def build_param_error_response(err):
+    detail = None
+    try:
+        detail = f"{type(err).__name__}: {err}"
+    except Exception:
+        detail = "unknown error"
+    # Keep the payload compact to avoid huge toast/messages on UI.
+    if detail and len(detail) > 500:
+        detail = detail[:500] + "..."
+    err_msg = 'param error'
+    if detail:
+        err_msg = f'param error: {detail}'
+    return {
+        'err': err_msg,
+        'detail': detail
+    }
