@@ -1,5 +1,40 @@
 # AGENT Change Log
 
+## 2026-02-21 - 星盘“显示后天宫位”全链路同步（含 AI 导出与字体兼容）
+
+- 修改文件:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/planetMetaDisplay.js`（新增）
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/AstroObjectLabel.js`（新增）
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/models/app.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/ChartDisplaySelector.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/pages/index.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/aiExport.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/homepage/PageHeader.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/*`（相关展示组件）
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/relative/*`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/jieqi/JieQiChartsMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/direction/AstroDirectMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/astroAiSnapshot.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/predictiveAiSnapshot.js`
+  - `UPGRADE_LOG.md`
+
+- 变更内容:
+  - 新增“星盘组件”设置项:
+    - `显示后天宫位`
+    - `显示星曜宫位`
+    - `显示星曜主宰星`
+  - 星曜附加信息格式统一为 `X (1th; 2R6R)`，并且严格使用左侧当前显示盘对象数据（`house` / `ruleHouses`）计算。
+  - 生效范围覆盖:
+    - 星盘、推运盘、关系盘、节气盘、三式合一、希腊星术、印度律盘
+    - 主/界限法与法达星限相关表格
+    - AI 导出设置与导出内容
+  - 针对 Mac 符号字体兼容问题，新增独立标签渲染组件，分离“星曜符号字体”和“附加文本字体”，避免开启后天宫信息时出现乱码或字母化回退。
+
+- 验证结果:
+  - `npm install --legacy-peer-deps`（`astrostudyui`）通过。
+  - `npm run build`（`astrostudyui`）通过。
+
 ## 2026-02-20 - Windows 一键部署 Java/JDK 探测修复
 
 - 修改文件:
