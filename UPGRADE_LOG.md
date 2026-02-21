@@ -14,8 +14,89 @@ Append new entries; do not rewrite history.
 
 ## 2026-02-21
 
-### 10:20 - 全站星盘“显示后天宫位”接入（含 AI 导出与多技法同步）
-- Scope: add postnatal house/rulership metadata display options to all chart-related pages and keep AI export behavior in sync.
+### 10:06 - 再次自检并更新 README 自检手册
+- Scope: rerun Windows startup/endpoint self-check and document repeatable pre-release checklist in README.
+- Files:
+  - `README.md`
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - Added README section:
+    - `三、Windows10 发布前自检（建议每次发包执行）`
+    - includes script parse checks, runtime artifact checks, smoke tests for both launch entries, and endpoint sanity check commands.
+  - Added explicit note that `.ps1` and `.bat` smoke commands must run sequentially to avoid `8899/9999` port contention.
+  - Updated README `param error` note to clarify enriched message format (`param error: <ExceptionType>: <message>`).
+  - Re-ran self-check in current workspace:
+    - `Horosa_Local_Windows.ps1` smoke test (pass)
+    - `Horosa_Local_Windows.bat` smoke test (pass)
+    - live endpoint check on `8899` for both valid and invalid payloads (pass)
+- Verification:
+  - Script parse: `PS_PARSE_OK`
+  - Runtime artifact checks: all `Test-Path` = `True`
+  - Endpoint outputs:
+    - `OK_BIRTH=2026-02-20 12:00:00`
+    - `BAD_ERR=param error: IndexError: string index out of range`
+    - `BAD_DETAIL=IndexError: string index out of range`
+
+### 10:01 - Windows10 全链路自检（启动入口 + 服务 + 接口）
+- Scope: validate current Windows launcher/package readiness after fixes, with real startup and endpoint checks.
+- Files:
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - Verified PowerShell script parse:
+    - `Horosa_Local_Windows.ps1`
+    - `Prepare_Runtime_Windows.ps1`
+  - Verified required runtime artifacts exist:
+    - `runtime/windows/python/python.exe`
+    - `runtime/windows/java/bin/java.exe`
+    - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudysrv/astrostudyboot/target/astrostudyboot.jar`
+    - frontend static `dist/index.html` and `dist-file/index.html`
+  - Ran smoke startup from both user entry points:
+    - `powershell -ExecutionPolicy Bypass -File Horosa_Local_Windows.ps1` (no-browser smoke mode)
+    - `cmd /c Horosa_Local_Windows.bat` (no-browser smoke mode)
+  - Ran endpoint sanity checks during live startup:
+    - valid payload to `http://127.0.0.1:8899/` returns chart data (`params.birth` present)
+    - invalid payload returns enriched error (`param error: <ExceptionType>: <message>`, with `detail`)
+  - Latest clean smoke logs show no blocking startup error (`astrostudyboot.log.err` / `web.log.err` empty).
+- Verification:
+  - Launcher smoke exit code: `0` (both `.ps1` and `.bat`)
+  - Endpoint check output:
+    - `OK_BIRTH=2026-02-20 12:00:00`
+    - `BAD_ERR=param error: IndexError: string index out of range`
+  - Note: this is high-confidence validation, not an absolute proof for every possible third-party Win10 environment.
+
+### 11:30 - Windows10 `param error` 诊断增强（异常细节全链路透传）
+- Scope: make `param error` actionable by surfacing root exception details from Python chart services through Java gateway to frontend error message.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/helper.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webchartsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webpredictsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webacgsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webcalc.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webjdn.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webgermanysrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webindiasrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webmodernsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webjieqisrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java`
+  - `README.md`
+- Details:
+  - Added shared Python helper `build_param_error_response(err)` returning:
+    - `err: "param error: <ExceptionType>: <message>"` (so even old prebuilt jar can show reason directly)
+    - `detail: "<ExceptionType>: <message>"` (trimmed to max 500 chars).
+  - Replaced bare `except` handlers in chart-related Python services with `except Exception as ex`, preserving traceback and returning the structured error payload.
+  - Java `AstroHelper` now includes Python `detail` in `ErrorCodeException(200001, ...)` so UI/log can show the real failure reason.
+  - README troubleshooting now includes explicit Windows PowerShell commands to inspect latest `astropy.log.err` / `astrostudyboot.log.err` and clear `.horosa-browser-profile-win`.
+- Verification:
+  - Python syntax validation: `py_compile` on all modified `astropy/websrv` modules (pass).
+  - Local endpoint sanity check:
+    - valid chart payload to `http://127.0.0.1:8899/` returns normal chart data.
+    - invalid payload returns `{"err":"param error","detail":"..."}`.
+  - Java compile not executed in this environment (`mvn` unavailable).
+
+### 10:20 - 全站星盘后天宫信息显示接入（含 AI 导出与跨技法同步）
+- Scope: add a global postnatal-house display option for planet labels across chart-related pages, and sync the same behavior to AI export controls/output.
 - Files:
   - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/planetMetaDisplay.js` (new)
   - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/AstroObjectLabel.js` (new)
@@ -47,36 +128,29 @@ Append new entries; do not rewrite history.
   - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/direction/AstroDirectMain.js`
   - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/astroAiSnapshot.js`
   - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/predictiveAiSnapshot.js`
-  - `AGENT_CHANGELOG.md`
-  - `UPGRADE_LOG.md`
 - Details:
   - Added global chart-component options: `showPostnatal`, `showHouse`, `showRuler`.
-  - Planet labels can append metadata with compact format `X (1th; 2R6R)`.
-  - Metadata source is bound to the currently displayed left chart (`house`, `ruleHouses`) and propagated across chart/predictive/relative/jieqi/sanshi/direction pages.
-  - Added matching AI export options to control house/ruler suffix output by technique.
-  - Added symbol/metadata split rendering to avoid symbol-font corruption on macOS when suffix text is appended.
+  - Planet labels can append postnatal metadata in compact form, e.g. `X (1th; 2R6R)`.
+  - Resolved metadata from the currently displayed left chart objects (`house`, `ruleHouses`) and propagated to chart info panels, predictive pages, relative charts, JieQi, and SanShi unified pages.
+  - Added per-technique AI export controls for house/ruler suffix visibility and applied suffix filtering at export time.
+  - Added dedicated label renderer to split glyph symbol and metadata suffix into separate spans with separate fonts to avoid symbol-font corruption on macOS.
 - Verification:
-  - `npm install --legacy-peer-deps` in `astrostudyui` (pass)
-  - `npm run build` in `astrostudyui` (pass)
+  - Frontend build previously completed in this update cycle (`npm run build` pass).
+  - Cross-page code-path checks completed for chart/predictive/relative/jieqi/sanshi/direction/AI snapshot pipelines.
 
-## 2026-02-20
-
-### 14:38 - Windows 一键部署补强：Java 检测/回退改为可构建后端的 JDK 路径
-- Scope: fix one-click startup failure on some Windows machines when backend jar is missing and launcher incorrectly treats Java detection as failed.
+### 10:45 - 星曜符号变字母回归修复（静态字体路径兼容）
+- Scope: fix glyph font fallback (`A/B/C...`) caused by static font URL mismatch under Windows local static hosting.
 - Files:
   - `Horosa_Local_Windows.ps1`
-  - `README.md`
-  - `UPGRADE_LOG.md`
 - Details:
-  - `Test-JavaAtLeast17` 修复为兼容 `java -version` 输出到 stderr 的场景，避免在 `ErrorActionPreference=Stop` 下误判“无 Java”。
-  - `Resolve-Java` 新增 `-RequireJdk` 检测模式，构建后端时要求存在 `javac.exe`。
-  - `Install-Java17Portable` 下载地址从 JRE 切换为 Temurin JDK（`.../windows/x64/jdk/hotspot/...`）。
-  - `Try-BuildBackendJar` 改为优先获取可编译 JDK；若检测失败但便携 JDK 文件齐全，仍可直接使用 `runtime/windows/java/bin/java.exe` 进入 Maven 构建链路。
-  - `Install-Java17` 在 `-RequireJdk` 下仅尝试 JDK 候选，并在便携 JDK 文件就绪时直接返回成功。
-  - README 补充“便携 JDK（含 javac）”说明并修正章节编号。
+  - Root cause: CSS font URLs using `url(static/...)` from `/static/umi*.css` resolve to `/static/static/...`; missing files cause browser fallback to plain Latin letters.
+  - Updated `Ensure-FrontendStaticLayout` to detect this CSS pattern and automatically mirror first-level files into `static/static/`.
+  - This ensures `ywastro`, `ywastrochart`, and `morinus` font files remain reachable in local launcher mode.
 - Verification:
-  - `powershell -NoProfile -Command "$null=[ScriptBlock]::Create((Get-Content Horosa_Local_Windows.ps1 -Raw)); 'parse ok'"` (pass)
-  - `HOROSA_NO_BROWSER=1 HOROSA_SMOKE_TEST=1 powershell -ExecutionPolicy Bypass -File .\\Horosa_Local_Windows.ps1` (pass; backend/web/python 启动并自动停止)
+  - PowerShell parse check: `Horosa_Local_Windows.ps1` (pass)
+  - Runtime static mirror validated by presence of font files under `astrostudyui/dist/static/static/*`.
+
+## 2026-02-20
 
 ### 14:40 - 六壬“仅点击起课才计算”修复生效 + 前端产物选择防回退
 - Scope: make 大六壬 truly manual-triggered and fix stale frontend bundle selection on Windows launcher/runtime packaging.

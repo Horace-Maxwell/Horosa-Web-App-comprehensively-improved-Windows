@@ -1,57 +1,83 @@
 # AGENT Change Log
 
-## 2026-02-21 - 星盘“显示后天宫位”全链路同步（含 AI 导出与字体兼容）
+## 2026-02-21 - 再次自检 + README 自检流程更新
 
 - 修改文件:
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/planetMetaDisplay.js`（新增）
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/AstroObjectLabel.js`（新增）
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/models/app.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/ChartDisplaySelector.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/pages/index.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/aiExport.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/homepage/PageHeader.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/*`（相关展示组件）
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/relative/*`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/jieqi/JieQiChartsMain.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/direction/AstroDirectMain.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/astroAiSnapshot.js`
-  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/predictiveAiSnapshot.js`
-  - `UPGRADE_LOG.md`
-
-- 变更内容:
-  - 新增“星盘组件”设置项:
-    - `显示后天宫位`
-    - `显示星曜宫位`
-    - `显示星曜主宰星`
-  - 星曜附加信息格式统一为 `X (1th; 2R6R)`，并且严格使用左侧当前显示盘对象数据（`house` / `ruleHouses`）计算。
-  - 生效范围覆盖:
-    - 星盘、推运盘、关系盘、节气盘、三式合一、希腊星术、印度律盘
-    - 主/界限法与法达星限相关表格
-    - AI 导出设置与导出内容
-  - 针对 Mac 符号字体兼容问题，新增独立标签渲染组件，分离“星曜符号字体”和“附加文本字体”，避免开启后天宫信息时出现乱码或字母化回退。
-
-- 验证结果:
-  - `npm install --legacy-peer-deps`（`astrostudyui`）通过。
-  - `npm run build`（`astrostudyui`）通过。
-
-## 2026-02-20 - Windows 一键部署 Java/JDK 探测修复
-
-- 修改文件:
-  - `Horosa_Local_Windows.ps1`
   - `README.md`
+  - `AGENT_CHANGELOG.md`
   - `UPGRADE_LOG.md`
 
 - 变更内容:
-  - 修复 `java -version` 读取逻辑，避免 `ErrorActionPreference=Stop` 时把 stderr 误判为异常，导致 Java 17 检测失败。
-  - `Resolve-Java` 新增 `-RequireJdk` 逻辑，后端自动构建时明确要求 `javac.exe`。
-  - 便携 Java 回退下载改为 Temurin JDK 链接（不再是 JRE）。
-  - 构建阶段增加兜底：若解析失败但 `runtime/windows/java/bin/{java.exe,javac.exe}` 已就绪，仍可直接进入 Maven 构建流程。
-  - README 同步补充“便携 JDK（含 javac）”说明，并修正章节编号。
+  - README 新增章节 `三、Windows10 发布前自检（建议每次发包执行）`，覆盖:
+    - 脚本语法与运行时资源完整性检查
+    - `.ps1` 与 `.bat` 双入口无浏览器烟测
+    - `8899` 排盘接口可用性自检
+  - README 补充烟测串行执行提醒，避免并发启动造成 `8899/9999` 端口冲突。
+  - README 的 `param error` 说明补充“当前版本会返回更具体错误（如 `param error: IndexError: ...`）”。
 
-- 验证结果:
-  - `HOROSA_NO_BROWSER=1 HOROSA_SMOKE_TEST=1 powershell -ExecutionPolicy Bypass -File .\\Horosa_Local_Windows.ps1` 通过。
-  - 结果确认：后端/前端/Python 服务全部启动，smoke 模式 6 秒后自动停止。
+- 自检执行结果（本轮）:
+  - `Horosa_Local_Windows.ps1` / `Prepare_Runtime_Windows.ps1` 语法检查通过。
+  - 关键运行时资源检查通过（python/java/jar/dist/dist-file）。
+  - 串行烟测通过:
+    - `powershell -ExecutionPolicy Bypass -File .\Horosa_Local_Windows.ps1`
+    - `cmd /c Horosa_Local_Windows.bat`
+  - 启动期间接口验证通过:
+    - 正常参数：返回 `params.birth=2026-02-20 12:00:00`
+    - 异常参数：返回 `param error: IndexError: string index out of range` 且含 `detail`
+
+## 2026-02-21 - Windows10 启动链路自检（入口/服务/接口）
+
+- 修改文件:
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+
+- 自检范围:
+  - `Horosa_Local_Windows.ps1` / `Prepare_Runtime_Windows.ps1` 语法解析
+  - 运行时资源存在性检查（Python/Java/jar/dist/dist-file）
+  - 启动器烟测（`.ps1` 入口）
+  - 启动器烟测（`.bat` 双击入口）
+  - 本地排盘接口可用性（`8899` 正常参数）
+  - 本地排盘异常透传（`8899` 非法参数返回 `param error: <detail>`）
+
+- 关键结果:
+  - 语法与资源检查通过。
+  - `Horosa_Local_Windows.ps1` 无浏览器烟测通过（服务正常起停）。
+  - `Horosa_Local_Windows.bat` 无浏览器烟测通过（用户双击入口链路正常）。
+  - `8899` 接口正常参数返回星盘数据；异常参数可返回具体 `detail`（不再黑盒）。
+  - 最近一次纯启动烟测日志无阻断性报错（`astrostudyboot.log.err` / `web.log.err` 为空，`astropy.log.err` 为 CherryPy 常规启动输出）。
+
+- 说明:
+  - 已显著提高 Windows10 跨机器启动成功率与问题可诊断性。
+  - 受第三方系统环境差异影响（如系统策略、损坏系统组件、杀软钩子），无法对“任何一台”Windows10 做绝对数学保证。
+
+## 2026-02-21 - Windows10 `param error` 定位增强（后端异常细节透传）
+
+- 修改文件:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/helper.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webchartsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webpredictsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webacgsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webcalc.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webjdn.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webgermanysrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webindiasrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webmodernsrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webjieqisrv.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java`
+  - `README.md`
+
+- 变更内容:
+  - Python 侧新增 `build_param_error_response(err)`，统一返回:
+    - `err: "param error: <ExceptionType>: <message>"`（兼容未重编译 jar 的旧发布包）
+    - `detail: "<ExceptionType>: <message>"`（长度上限 500）
+  - 星盘与推运等所有 `websrv` 相关接口从裸 `except` 升级为 `except Exception as ex`，并返回带 `detail` 的错误对象。
+  - Java 转发层 `AstroHelper` 在收到 Python `err` 时会拼接 `detail` 后再抛出 `ErrorCodeException(200001, ...)`，让前端和日志能看到具体原因而非只有 `param error`。
+  - README 新增 `param error` 排查步骤（日志定位 + 浏览器隔离目录清理）。
+
+- 验证结论:
+  - 已通过 Python 语法编译校验：`py_compile` 覆盖全部修改的 `astropy/websrv` 文件。
+  - 本地请求验证：正常参数返回 `OK`，异常参数返回 `err + detail` 结构（经接口链路验证）。
+  - 未执行 Java 编译（当前环境缺少 `mvn`）。
 
 ## 2026-02-19 - GitHub 精简上传整理（Windows 一键部署保留）
 
@@ -212,3 +238,63 @@
     - 打包时自动选最新前端产物，并统一写入 `runtime/windows/bundle/dist-file`（同时镜像到 `dist`）。
   - `README.md`、`UPGRADE_LOG.md`
     - 补充“旧前端页面”排查与 Windows 下重建 `dist-file` 命令。
+
+## 2026-02-21 - 星盘“显示后天宫位”全链路接入（含 AI 导出与多技法同步）
+
+- 修改文件（核心）:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/planetMetaDisplay.js`（新增）
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/AstroObjectLabel.js`（新增）
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/models/app.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/ChartDisplaySelector.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/pages/index.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/aiExport.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/homepage/PageHeader.js`
+
+- 修改文件（星盘/推运/关系/节气/三式合一等显示层）:
+  - `AstroAspect.js`、`AstroInfo.js`、`AstroPlanet.js`、`AstroLots.js`、`AstroPredictPlanetSign.js`
+  - `AstroPrimaryDirection.js`、`AstroFirdaria.js`、`AstroProfection.js`、`AstroSolarArc.js`、`AstroSolarReturn.js`、`AstroLunarReturn.js`、`AstroGivenYear.js`、`AstroZR.js`
+  - `relative/AspectInfo.js`、`relative/MidpointInfo.js`、`relative/AntisciaInfo.js`
+  - `AstroDoubleChartMain.js`、`AstroRelative.js`
+  - `JieQiChartsMain.js`、`SanShiUnitedMain.js`
+  - `AstroDirectMain.js`（主/界限法、法达星限相关文本快照）
+  - `astroAiSnapshot.js`、`predictiveAiSnapshot.js`
+
+- 变更内容:
+  - 在“星盘组件”新增全局设置:
+    - `显示后天宫位`
+    - `显示星曜宫位`
+    - `显示星曜主宰星`
+  - 右侧星曜文本支持后天宫附加信息:
+    - 格式: `X (1th; 2R6R)`
+    - 来源严格跟随左侧当前显示盘的对象数据（house / ruleHouses）。
+  - 覆盖生效范围:
+    - 星盘、推运盘、关系盘、节气盘、希腊星术、印度律盘、三式合一
+    - 主/界限法与法达星限表格显示
+  - AI 导出同步:
+    - 各相关技法的 AI 导出设置新增“显示星曜宫位/显示星曜主宰星”开关
+    - 导出时按技法配置过滤后天宫后缀。
+  - 兼容 Mac 字体渲染:
+    - 星曜符号与附加后缀分离渲染（符号字体 + 正文字体），避免将 `(...)` 误用符号字体导致乱码。
+
+- 验证结论:
+  - 已完成前端构建通过（本轮改造阶段）。
+  - 已做多页面代码路径自检，确认上述技法页面与 AI 导出链路均已接入。
+
+## 2026-02-21 - 星曜显示为字母回归修复（字体资源路径兼容）
+
+- 背景:
+  - 用户反馈开启相关功能后，页面星曜符号退化为 `A/B/C...` 字母。
+  - 根因并非星曜数据错误，而是静态托管场景下字体相对路径命中 `/static/static/*`，字体 404 后浏览器回退为普通字母。
+
+- 修改文件:
+  - `Horosa_Local_Windows.ps1`
+
+- 变更内容:
+  - 在 `Ensure-FrontendStaticLayout` 新增“嵌套 static 资源镜像”修复逻辑:
+    - 检测 `umi*.css` 中 `url(static/...)`
+    - 自动创建并补齐 `dist*/static/static/*`
+    - 保障 `ywastro / ywastrochart / morinus` 等字体在当前静态路径下可被正确加载。
+
+- 验证结论:
+  - PowerShell 脚本语法解析通过。
+  - 现场资源目录已补齐字体镜像，页面刷新后可恢复原星曜符号风格。

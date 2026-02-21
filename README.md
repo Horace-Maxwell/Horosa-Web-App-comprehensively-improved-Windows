@@ -24,11 +24,11 @@
    - 自动安装 Python 依赖（`cherrypy`、`jsonpickle`、`pyswisseph`）
    - 优先尝试从本地 wheel 仓库离线安装依赖（`runtime/windows/wheels` 或 `runtime/windows/bundle/wheels`）
    - 自动检测/安装 Java 17（含多源回退）
-   - `winget` 安装失败时，自动尝试下载便携 Java 17 JDK（含 `javac`）到 `runtime/windows/java`
+   - `winget` 安装失败时，自动尝试下载便携 Java 17 到 `runtime/windows/java`
    - 自动比较 `astrostudyui/dist-file` 与 `astrostudyui/dist` 的更新时间，优先加载更新的一套前端静态资源
    - 若工程内 jar 或 dist 缺失，自动从 `runtime/windows/bundle` 回填
    - 若设置了环境变量 `HOROSA_BOOT_JAR_URL`，或提供了 `runtime/windows/bundle/astrostudyboot.url.txt`（内含下载 URL），缺失 jar 时会自动下载
-   - 若仍缺 jar，脚本会尝试自动安装 Maven 并使用可用 JDK 本地构建后端 jar（需要网络）
+   - 若仍缺 jar，脚本会尝试自动安装 Maven 并本地构建后端 jar（需要网络）
 4. 依赖准备完成后自动启动后端与网页
 5. 浏览器关闭后，脚本会自动停止本地服务
 
@@ -48,8 +48,27 @@
   说明 Python 依赖没装好，重新双击 `Horosa_Local_Windows.bat` 让脚本自动补齐。
 - `ModuleNotFoundError: No module named 'swisseph'`  
   说明 `pyswisseph` 缺失。建议在构建机使用 Python 3.11 执行 `Prepare_Runtime_Windows.bat`，重新打包 `runtime/windows/python` 与 `runtime/windows/bundle/wheels` 后再分发。
+- 页面提示 `param error` / 排盘不可用  
+  说明后端服务已启动，但某个排盘参数或排盘计算过程抛出了异常。当前版本会尽量返回更具体提示，例如：`param error: IndexError: ...`。  
+  先执行以下排查（在项目根目录 PowerShell）：
+  ```powershell
+  # 1) 找到最新启动日志目录
+  $latest = Get-ChildItem ".\\Horosa-Web-*\\.horosa-local-logs-win" -Directory |
+    Sort-Object Name -Descending | Select-Object -First 1
+
+  # 2) 查看 Python 真实异常（重点）
+  Get-Content (Join-Path $latest.FullName "astropy.log.err") -Tail 120
+
+  # 3) 查看 Java 侧转发异常
+  Get-Content (Join-Path $latest.FullName "astrostudyboot.log.err") -Tail 120
+  ```
+  若是历史缓存参数污染，删除浏览器隔离目录后重启：
+  ```powershell
+  Remove-Item -Recurse -Force ".\\Horosa-Web-*\\.horosa-browser-profile-win"
+  ```
+  然后重新双击 `Horosa_Local_Windows.bat` 再测。
 - `winget install exit code ...`  
-  说明系统策略限制了 winget。脚本会自动继续尝试便携 JDK 下载；若仍失败，查看 `java.err`。
+  说明系统策略限制了 winget。脚本会自动继续尝试便携 Java 下载；若仍失败，查看 `java.err`。
 - 页面仍显示旧前端（例如看不到最新按钮/选项）  
   在工程目录重新构建 `dist-file`，再重启启动器：
   ```powershell
@@ -59,7 +78,83 @@
   若你需要重新打包给其他 Windows 机器，一并再执行一次根目录 `Prepare_Runtime_Windows.bat` 同步 `runtime/windows/bundle`。
 - 若 PowerShell 执行策略拦截：已通过 `.bat` 以 `-ExecutionPolicy Bypass` 调起，一般无需手动改策略。
 
-## 三、本地数据与日志
+## 三、Windows10 发布前自检（建议每次发包执行）
+
+### 1) 脚本与资源完整性检查
+
+在项目根目录 PowerShell 执行：
+
+```powershell
+# 启动脚本语法检查
+$null=[System.Management.Automation.Language.Parser]::ParseFile('Horosa_Local_Windows.ps1',[ref]$null,[ref]$null)
+$null=[System.Management.Automation.Language.Parser]::ParseFile('Prepare_Runtime_Windows.ps1',[ref]$null,[ref]$null)
+'PS_PARSE_OK'
+
+# 运行时关键文件检查（应全部 True）
+Test-Path .\runtime\windows\python\python.exe
+Test-Path .\runtime\windows\java\bin\java.exe
+Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudysrv\astrostudyboot\target\astrostudyboot.jar
+Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudyui\dist\index.html
+Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudyui\dist-file\index.html
+```
+
+通过标准：
+- 输出包含 `PS_PARSE_OK`
+- 5 条 `Test-Path` 全为 `True`
+
+### 2) 启动器烟测（`.ps1` 与 `.bat` 双入口）
+
+注意：两条烟测命令请串行执行，不要并行启动，避免 `8899/9999` 端口抢占。
+
+```powershell
+# 入口1：PowerShell 启动器
+$env:HOROSA_NO_BROWSER='1'
+$env:HOROSA_SMOKE_TEST='1'
+$env:HOROSA_SMOKE_WAIT_SECONDS='2'
+powershell -ExecutionPolicy Bypass -File .\Horosa_Local_Windows.ps1
+
+# 入口2：用户双击等价入口
+$env:HOROSA_NO_BROWSER='1'
+$env:HOROSA_SMOKE_TEST='1'
+$env:HOROSA_SMOKE_WAIT_SECONDS='2'
+cmd /c Horosa_Local_Windows.bat
+```
+
+通过标准（两条都要满足）：
+- 出现 `backend: http://127.0.0.1:9999`
+- 出现 `chartpy: http://127.0.0.1:8899`
+- 最终出现 `... stopped pid ...` 且命令返回无报错
+
+### 3) 排盘接口自检（可选但推荐）
+
+先启动（给 25 秒窗口用于接口调用）：
+
+```powershell
+$env:HOROSA_NO_BROWSER='1'
+$env:HOROSA_SMOKE_TEST='1'
+$env:HOROSA_SMOKE_WAIT_SECONDS='25'
+powershell -ExecutionPolicy Bypass -File .\Horosa_Local_Windows.ps1
+```
+
+在第二个 PowerShell 窗口请求正常排盘：
+
+```powershell
+$okBody=@{
+  date='2026/02/20'; time='12:00:00'; zone='+08:00';
+  lat='26n04'; lon='119e19'; hsys=0; tradition=$false; zodiacal=0;
+  predictive=$false; strongRecption=$false; simpleAsp=$false;
+  virtualPointReceiveAsp=$false; doubingSu28=$false; southchart=$false
+} | ConvertTo-Json -Depth 4
+
+$okResp = Invoke-RestMethod -Uri 'http://127.0.0.1:8899/' -Method Post -ContentType 'application/json' -Body $okBody -TimeoutSec 20
+$okResp.params.birth
+```
+
+通过标准：
+- 能返回出生时间字符串（例如 `2026-02-20 12:00:00`）
+- 不返回 `err`
+
+## 四、本地数据与日志
 
 - 本地数据默认存储在浏览器本地存储（离线可用）
 - Windows 日志目录：项目内 `.horosa-local-logs-win/`
