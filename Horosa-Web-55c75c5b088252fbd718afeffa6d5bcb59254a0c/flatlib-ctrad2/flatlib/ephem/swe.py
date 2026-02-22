@@ -101,15 +101,30 @@ def setPath(path):
     swisseph.set_ephe_path(path)
 
 
+def _fallbackFlags(flags):
+    """Fallback to Moshier when Swiss ephemeris files are unavailable."""
+    return (flags & ~swisseph.FLG_SWIEPH) | swisseph.FLG_MOSEPH
+
+
+def _calcUtSafe(jd, sweObj, flags):
+    try:
+        return swisseph.calc_ut(jd, sweObj, flags)
+    except Exception:
+        fbFlags = _fallbackFlags(flags)
+        if fbFlags == flags:
+            raise
+        return swisseph.calc_ut(jd, sweObj, fbFlags)
+
+
 # === Object functions === #
 
 def sweObject(obj, jd, flags=SEDEFAULT_FLAG):
     """ Returns an object from the Ephemeris. """
     sweObj = SWE_OBJECTS[obj]
     swisseph.set_sid_mode(SEDEFAULT_SIDM__MODE)
-    sweList = swisseph.calc_ut(jd, sweObj, flags)[0]
+    sweList = _calcUtSafe(jd, sweObj, flags)[0]
     newflags = flags | SEFLG_EQUATORIAL
-    eqlist = swisseph.calc_ut(jd, sweObj, newflags)[0]
+    eqlist = _calcUtSafe(jd, sweObj, newflags)[0]
     ra = eqlist[0] if eqlist[0] >= 0 else (eqlist[0] + 360) % 360
 
     return {
@@ -128,7 +143,7 @@ def sweObjectLon(obj, jd, flags=SEDEFAULT_FLAG):
     """ Returns the longitude of an object. """
     sweObj = SWE_OBJECTS[obj]
     swisseph.set_sid_mode(SEDEFAULT_SIDM__MODE)
-    sweList = swisseph.calc_ut(jd, sweObj, flags)[0]
+    sweList = _calcUtSafe(jd, sweObj, flags)[0]
     return sweList[0]
 
 

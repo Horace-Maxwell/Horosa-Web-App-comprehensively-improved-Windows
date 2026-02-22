@@ -389,18 +389,21 @@ class GuaZhanMain extends Component{
 			let params = {
 				name: [guaids.guaOrg, guaids.guaRes, guaids.guaMiddle],
 			};
-			
-			const descdata = await request(`${Constants.ServerRoot}/gua/desc`, {
-				body: JSON.stringify(params),
-			});
-	
-			const descresult = descdata[Constants.ResultKey];
-	
-			desc = {
-				guaOrg: descresult[guaids.guaOrg],
-				guaRes: descresult[guaids.guaRes],
-				guaMiddle: descresult[guaids.guaMiddle],
-			};
+			try{
+				const descdata = await request(`${Constants.ServerRoot}/gua/desc`, {
+					body: JSON.stringify(params),
+				});
+				const descresult = descdata && descdata[Constants.ResultKey] ? descdata[Constants.ResultKey] : null;
+				if(descresult){
+					desc = {
+						guaOrg: descresult[guaids.guaOrg],
+						guaRes: descresult[guaids.guaRes],
+						guaMiddle: descresult[guaids.guaMiddle],
+					};
+				}
+			}catch(e){
+				desc = null;
+			}
 		}
 
 		return desc;

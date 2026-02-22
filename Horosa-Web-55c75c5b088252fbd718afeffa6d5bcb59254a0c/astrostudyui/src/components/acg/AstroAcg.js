@@ -104,6 +104,9 @@ class AstroAcg extends Component{
 	}
 
 	genMcData(ary){
+		if(!(ary instanceof Array) || ary.length === 0 || !ary[0]){
+			return [];
+		}
 		let data = [];
 		for(let i=-90; i<=90; i++){
 			let pnt = gpsToGcj02(i, ary[0].lon);
@@ -137,6 +140,9 @@ class AstroAcg extends Component{
 	}
 
 	genAscData(ary){
+		if(!(ary instanceof Array) || ary.length < 2){
+			return [];
+		}
 		let dt = [];
 		let sym = -1;
 		let ascdata = [];
@@ -194,10 +200,17 @@ class AstroAcg extends Component{
 	}
 
 	genPlanetData(planet, key){
-		let ascdata = this.genAscData(planet.asc);
-		let descdata = this.genAscData(planet.desc);
-		let mcdata = this.genMcData(planet.mc);
-		let icdata = this.genMcData(planet.ic);
+		if(!planet){
+			return null;
+		}
+		let asc = planet.asc instanceof Array ? planet.asc : [];
+		let desc = planet.desc instanceof Array ? planet.desc : [];
+		let mc = planet.mc instanceof Array ? planet.mc : [];
+		let ic = planet.ic instanceof Array ? planet.ic : [];
+		let ascdata = this.genAscData(asc);
+		let descdata = this.genAscData(desc);
+		let mcdata = this.genMcData(mc);
+		let icdata = this.genMcData(ic);
 		let res = {
 			asc: ascdata,
 			desc: descdata,
@@ -210,9 +223,15 @@ class AstroAcg extends Component{
 
 	genLinesData(rec){
 		let res = {};
+		if(!rec || typeof rec !== 'object'){
+			return res;
+		}
 		for(let key in rec){
-			let planet = rec[key]
-			res[key] = this.genPlanetData(planet, key);
+			let planet = rec[key];
+			let lineData = this.genPlanetData(planet, key);
+			if(lineData){
+				res[key] = lineData;
+			}
 		}
 		return res;
 	}
@@ -221,8 +240,19 @@ class AstroAcg extends Component{
 		const data = await request(`${Constants.ServerRoot}/location/acg`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey]
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		if(!result){
+			if(!this.unmounted){
+				this.setState({
+					acgObj: null,
+				});
+			}
+			return;
+		}
 		let lines = this.genLinesData(result);
+		if(this.unmounted){
+			return;
+		}
 		const st = {
 			acgObj: lines,
 		};

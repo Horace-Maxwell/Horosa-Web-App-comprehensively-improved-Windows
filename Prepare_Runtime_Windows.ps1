@@ -129,7 +129,9 @@ function Test-PythonDeps {
   param([string]$PythonExe)
   if (-not (Test-Path $PythonExe)) { return $false }
   try {
-    & $PythonExe -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
+    $flatlibPath = Join-Path $ProjectDir 'flatlib-ctrad2'
+    $flatlibEscaped = $flatlibPath.Replace('\', '\\')
+    & $PythonExe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib;print('ok')" *> $null
     return ($LASTEXITCODE -eq 0)
   } catch {
     return $false
@@ -177,7 +179,7 @@ function Ensure-PythonDepsInRuntime {
 
   try {
     Write-Host 'Installing Python runtime dependencies into copied runtime...'
-    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
+    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle flatlib==0.2.3.post3
     if ($LASTEXITCODE -ne 0) { return $false }
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
@@ -197,7 +199,7 @@ function Export-PythonWheels {
   try {
     New-Item -ItemType Directory -Force -Path $WheelDir | Out-Null
     Write-Host "Exporting offline Python wheels to: $WheelDir"
-    & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph
+    & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph flatlib==0.2.3.post3
     return ($LASTEXITCODE -eq 0)
   } catch {
     Write-Host ("[WARN] Wheel export failed: {0}" -f $_.Exception.Message)

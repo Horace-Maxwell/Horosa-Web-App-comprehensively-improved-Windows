@@ -12,6 +12,7 @@ class MapV2 extends Component {
 		this.state = {
 			mapid: `map_${randomStr(8)}`,
 			map: null,
+			mapLoadError: false,
 		};
 
 	}
@@ -45,7 +46,17 @@ class MapV2 extends Component {
 					this.props.created(map);
 				}
 			});
+		}).catch(()=>{
+			this.setState({
+				mapLoadError: true,
+			});
 		});
+	}
+
+	componentWillUnmount(){
+		if(this.state.map && this.state.map.destroy){
+			this.state.map.destroy();
+		}
 	}
 
 	render(){
@@ -56,7 +67,11 @@ class MapV2 extends Component {
 
 		return (
 			<div id={this.state.mapid} style={mapstyle}>
-
+				{
+					this.state.mapLoadError && (
+						<div style={{ color: '#8c8c8c', padding: 8 }}>地图加载失败，请稍后重试。</div>
+					)
+				}
 			</div>
 		)
 	}

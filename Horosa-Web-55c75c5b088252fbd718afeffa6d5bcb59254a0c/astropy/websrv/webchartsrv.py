@@ -25,6 +25,11 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
     if os.path.isdir(os.path.join(_cand, "flatlib")) and _cand not in sys.path:
         sys.path.insert(0, _cand)
 
+_SWEPH_DEFAULT_DIR = os.path.join(_PROJ_ROOT, "flatlib-ctrad2", "flatlib", "resources", "swefiles")
+if os.path.isdir(_SWEPH_DEFAULT_DIR):
+    os.environ.setdefault("HOROSA_SWEPH_PATH", _SWEPH_DEFAULT_DIR)
+    os.environ.setdefault("SE_EPHE_PATH", _SWEPH_DEFAULT_DIR)
+
 from astrostudy.perchart import PerChart
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart

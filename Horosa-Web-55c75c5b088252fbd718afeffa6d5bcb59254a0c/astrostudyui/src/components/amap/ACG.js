@@ -70,21 +70,26 @@ class ACG extends Component{
 		this.setState({
 			map: map,
 		}, ()=>{
-			window.AMapUI.loadUI(['control/BasicControl'], (BasicControl)=>{
-				map.addControl(new BasicControl.Zoom({
-					position: 'lt',
-					showZoomNum: true
-				}));
-				map.addControl(new BasicControl.LayerSwitcher({
-					position: 'rt'
-				}));
-			})
+			if(window.AMapUI && window.AMapUI.loadUI){
+				window.AMapUI.loadUI(['control/BasicControl'], (BasicControl)=>{
+					map.addControl(new BasicControl.Zoom({
+						position: 'lt',
+						showZoomNum: true
+					}));
+					map.addControl(new BasicControl.LayerSwitcher({
+						position: 'rt'
+					}));
+				});
+			}
 
-			let infowin = new window.AMap.InfoWindow({
-				isCustom: true,  //使用自定义窗体
-				content: this.genInfoWinContent('title', null),
-				offset: new window.AMap.Pixel(16, 15)
-			});
+			let infowin = null;
+			if(window.AMap && window.AMap.InfoWindow){
+				infowin = new window.AMap.InfoWindow({
+					isCustom: true,  //使用自定义窗体
+					content: this.genInfoWinContent('title', null),
+					offset: new window.AMap.Pixel(16, 15)
+				});
+			}
 			this.setState({
 				infoWindow: infowin,
 			}, ()=>{
@@ -116,6 +121,9 @@ class ACG extends Component{
 	}
 
 	openInfoWin(key, angle, e){
+		if(!this.state.infoWindow || !this.state.map || !e || !e.lnglat){
+			return;
+		}
 		let title = `<span style='font-family:${AstroConst.AstroFont}'>${AstroText.AstroMsg[key]}&nbsp;${AstroText.AstroMsg['Asp0']}&nbsp;${AstroText.AstroMsg[angle]}</span>`;
 		let content = this.genInfoWinContent(title, e);
 		this.state.infoWindow.setPosition(e.lnglat);
@@ -133,7 +141,7 @@ class ACG extends Component{
 		
 		for(let i=0; i<pntsary.length; i++){
 			let pnts = pntsary[i];
-			if(pnts.lenght === 1){
+			if(!pnts || pnts.length <= 1){
 				continue;
 			}
 			let path = [];
@@ -165,14 +173,18 @@ class ACG extends Component{
 				this.openInfoWin(key, angle, e);
 			});
 			line.on('mouseout', (e)=>{
-				this.state.infoWindow.close();
+				if(this.state.infoWindow){
+					this.state.infoWindow.close();
+				}
 			});	
 	
 			line.on('touchmove', (e)=>{
 				this.openInfoWin(key, angle, e);
 			});
 			line.on('touchend', (e)=>{
-				this.state.infoWindow.close();
+				if(this.state.infoWindow){
+					this.state.infoWindow.close();
+				}
 			});	
 	
 		}
@@ -207,20 +219,32 @@ class ACG extends Component{
 		}
 	}
 
+	componentDidUpdate(prevProps, prevState){
+		const mapReadyNow = this.state.map && this.state.infoWindow;
+		if(!mapReadyNow){
+			return;
+		}
+		const needRedraw = prevProps.value !== this.props.value ||
+			prevProps.lines !== this.props.lines ||
+			prevState.map !== this.state.map ||
+			prevState.infoWindow !== this.state.infoWindow;
+		if(needRedraw){
+			this.drawLines();
+		}
+		if(prevProps.useSatellite !== this.props.useSatellite){
+			if(this.props.useSatellite){
+				this.showSatellite();
+			}else{
+				this.hideSatellite();
+			}
+		}
+	}
+
 	render(){
 		const mapstyle = {
 			width: this.props.width ? this.props.width : '100%',
 			height: this.props.height ? this.props.height : '100%',
 		};
-
-		
-		if(this.props.useSatellite){
-			this.showSatellite();
-		}else{
-			this.hideSatellite();
-		}
-
-		this.drawLines();
 
 		return (
 			<div>

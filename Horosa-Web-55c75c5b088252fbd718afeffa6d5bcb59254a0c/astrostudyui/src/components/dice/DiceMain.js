@@ -212,7 +212,10 @@ class DiceMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/predict/dice`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		if(!result){
+			return;
+		}
 
 		const st = {
 			diceChart: result.diceChart,
@@ -222,6 +225,9 @@ class DiceMain extends Component{
 			sign: result.sign,
 		};
 
+		if(this.unmounted){
+			return;
+		}
 		this.setState(st);
 		saveModuleAISnapshot('otherbu', buildDiceSnapshotText(params, result, this.state.txt), {
 			date: params.date,
