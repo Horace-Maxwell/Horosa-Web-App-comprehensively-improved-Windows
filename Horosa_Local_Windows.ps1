@@ -1060,6 +1060,33 @@ function Ensure-FrontendStaticLayout {
   if ($fixed) {
     Write-Host '[OK] Repaired frontend static layout for /static assets.'
   }
+
+  # Some bundles reference font URLs as url(static/...) inside /static/umi*.css.
+  # Browser then requests /static/static/* when CSS is served from /static/.
+  # Mirror first-level static files into static/static to avoid font 404.
+  $nestedStaticDir = Join-Path $staticDir 'static'
+  $needsNestedMirror = $false
+  Get-ChildItem -Path $staticDir -File -Filter 'umi*.css' -ErrorAction SilentlyContinue | ForEach-Object {
+    $cssText = Get-Content -Path $_.FullName -Raw -ErrorAction SilentlyContinue
+    if ($cssText -and $cssText -match 'url\(\s*static\/') {
+      $needsNestedMirror = $true
+    }
+  }
+
+  if ($needsNestedMirror) {
+    New-Item -ItemType Directory -Force -Path $nestedStaticDir | Out-Null
+    Get-ChildItem -Path $staticDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+      $dest = Join-Path $nestedStaticDir $_.Name
+      if (-not (Test-Path $dest)) {
+        Copy-Item -Path $_.FullName -Destination $dest -Force
+        $fixed = $true
+      }
+    }
+  }
+
+  if ($needsNestedMirror -and $fixed) {
+    Write-Host '[OK] Repaired frontend nested static assets for relative font URLs.'
+  }
 }
 
 function Get-BackendJarDownloadUrl {
