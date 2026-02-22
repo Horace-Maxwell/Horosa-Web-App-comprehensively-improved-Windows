@@ -9,6 +9,7 @@
 *.err
 *.tmp
 .tmp_*
+HOROSA_RUN_ISSUES.md
 
 # Local Horosa runtime artifacts
 Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs/
