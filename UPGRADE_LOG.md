@@ -14,6 +14,59 @@ Append new entries; do not rewrite history.
 
 ## 2026-02-21
 
+### 22:15 - 新增统一问题汇总文件（每次运行自动追加前后端诊断摘要）
+- Scope: add a single always-growing diagnostics file so each launcher run records frontend/backend/python issue hints for easier troubleshooting.
+- Files:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `.gitignore`
+- Details:
+  - Added run-summary output file path:
+    - `HOROSA_RUN_ISSUES.md` (root directory)
+  - Added launcher helpers:
+    - `Get-FileSizeSafe`
+    - `Get-IssueLinesFromLog`
+    - `Append-RunIssueSummary`
+  - At the end of every run (success/failure), launcher now appends:
+    - timestamp, run tag, log directory
+    - startup failure reason (if any)
+    - frontend/web, backend/java, chartpy/python matched issue lines from latest logs
+  - Reduced noise by ignoring routine `RollingFileAppender` warnings.
+  - Added README note under local logs section and ignored runtime summary file in `.gitignore`.
+- Verification:
+  - PowerShell parse check: `Horosa_Local_Windows.ps1` passed.
+  - No-browser smoke test passed and printed:
+    - `Issue summary updated: ...\\HOROSA_RUN_ISSUES.md`
+  - Summary file contains appended run entries with per-component diagnostics counts.
+
+### 22:02 - Windows 排盘超时修复：启动器代理环境隔离（localhost 回环强制直连）
+- Scope: fix cross-machine chart timeout where services are listening but chart requests spin and eventually timeout under proxy-enabled Windows environments.
+- Files:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+- Details:
+  - Added launcher-side proxy isolation helpers:
+    - `Enable-LocalLoopbackProxyBypass`
+    - `Restore-EnvSnapshot`
+  - On startup, launcher now snapshots process env and clears:
+    - `http_proxy`, `https_proxy`, `all_proxy`
+    - `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`
+  - Enforced loopback bypass during runtime:
+    - `no_proxy=127.0.0.1,localhost,::1`
+    - `NO_PROXY=127.0.0.1,localhost,::1`
+  - Restores original env variables in `finally` to avoid polluting caller process state.
+  - Updated README common-issues section with timeout root cause and fallback manual workaround for old scripts.
+- Verification:
+  - PowerShell parser checks passed:
+    - `PS_PARSE_OK` (`Horosa_Local_Windows.ps1`)
+    - `PREPARE_PS_PARSE_OK` (`Prepare_Runtime_Windows.ps1`)
+  - Proxy-stress smoke test passed:
+    - injected fake proxy env (`http_proxy/https_proxy/all_proxy=http://10.255.255.1:8888`)
+    - launcher still booted successfully with `backend: 9999` and `chartpy: 8899`
+  - Live chart service request under proxy-stress passed:
+    - `OK_BIRTH=2026-02-21 12:00:00`
+    - `RT_MS=300`
+
 ### 10:06 - 再次自检并更新 README 自检手册
 - Scope: rerun Windows startup/endpoint self-check and document repeatable pre-release checklist in README.
 - Files:

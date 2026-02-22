@@ -1,5 +1,53 @@
 # AGENT Change Log
 
+## 2026-02-21 - 新增运行问题汇总文件（前端/后端/Python自动诊断记录）
+
+- 修改文件:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `.gitignore`
+  - `HOROSA_RUN_ISSUES.md`（运行时自动生成/追加，已加入忽略）
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+
+- 变更内容:
+  - 启动器新增统一诊断摘要能力：每次运行结束自动写入根目录 `HOROSA_RUN_ISSUES.md`。
+  - 摘要内容包含：
+    - 本次 `RunTag` 与 `LogDir`
+    - 启动失败原因（若有）
+    - 前端(web)/后端(java)/排盘服务(python)日志中匹配到的异常线索
+  - 匹配规则已过滤常见无害噪音（例如 `RollingFileAppender`）。
+  - README 在“本地数据与日志”中补充了汇总文件说明。
+  - `.gitignore` 忽略 `HOROSA_RUN_ISSUES.md`，避免运行后污染提交状态。
+
+- 自检结果:
+  - 两份启动脚本（根目录与 `repo_fresh_sync_20260221`）语法解析均通过。
+  - 两份启动脚本无浏览器烟测均通过，均输出 `Issue summary updated: ...`.
+  - 汇总文件已确认自动追加新记录，且分组件统计正常。
+
+## 2026-02-21 - Windows 排盘超时修复（代理环境导致 localhost 被错误转发）
+
+- 修改文件:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+
+- 变更内容:
+  - 在 Windows 启动器新增代理环境隔离逻辑：
+    - 启动时自动清理 `http_proxy/https_proxy/all_proxy`（含大写变量）
+    - 强制设置 `no_proxy/NO_PROXY=127.0.0.1,localhost,::1`
+    - 退出时恢复原始环境变量（避免污染调用方会话）
+  - 在启动日志中增加提示：检测到代理变量时会明确打印已进入本地回环绕过模式。
+  - README 常见问题补充“排盘一直转圈后超时”条目，给出根因说明和旧脚本的手动临时规避命令。
+
+- 自检结果:
+  - `Horosa_Local_Windows.ps1` 与 `Prepare_Runtime_Windows.ps1` 语法解析通过。
+  - 在注入假代理变量（`http://10.255.255.1:8888`）条件下，启动器烟测通过，`8899/9999` 正常拉起并可自动收尾。
+  - 同条件下，直连 `8899` 排盘请求返回正常：
+    - `OK_BIRTH=2026-02-21 12:00:00`
+    - `RT_MS=300`
+
 ## 2026-02-21 - 再次自检 + README 自检流程更新
 
 - 修改文件:
