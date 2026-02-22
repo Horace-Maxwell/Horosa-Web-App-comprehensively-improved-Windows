@@ -298,3 +298,29 @@
 - 验证结论:
   - PowerShell 脚本语法解析通过。
   - 现场资源目录已补齐字体镜像，页面刷新后可恢复原星曜符号风格。
+
+## 2026-02-21 - Windows 发布包补同步（后天宫位功能 + 字体路径修复）
+
+- 背景:
+  - 用户反馈 Windows 下载版缺少“显示后天宫位”相关选项。
+  - 根因是源码已改但发布实际读取的 `dist-file` 仍是旧产物，导致新设置未体现在下载包。
+
+- 修改文件:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/index.html`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/umi.515dab11.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/umi.946bc48d.css`
+  - `Horosa_Local_Windows.ps1`
+
+- 变更内容:
+  - 在 `astrostudyui` 重新执行 `npm install --legacy-peer-deps` 与 `npm run build:file`，将后天宫位相关前端逻辑打入 `dist-file`。
+  - 同步 `Horosa_Local_Windows.ps1` 的字体路径兼容修复，确保 `url(static/...)` 场景下自动镜像 `static/static/*`，避免星曜符号退化为字母。
+  - 行号说明（因前文变更，位置已后移）:
+    - `Ensure-FrontendStaticLayout` 位于 `Horosa_Local_Windows.ps1:1037`
+    - `url(static/...)` 检测逻辑位于 `Horosa_Local_Windows.ps1:1064`
+    - `nested static` 修复提示位于 `Horosa_Local_Windows.ps1:1088`
+    - 调用入口位于 `Horosa_Local_Windows.ps1:1185`
+
+- 验证结论:
+  - PowerShell 语法解析通过。
+  - `Horosa_Local_Windows.ps1` smoke 启动通过（`HOROSA_NO_BROWSER=1` + `HOROSA_SMOKE_TEST=1`）。
+  - 远端已推送提交 `a6db45d94d62f81c930666fd9900ad06fef844eb`。
