@@ -21,7 +21,7 @@
    - 自动识别工程目录名（支持 `Horosa-Web/`、`Horosa-Web-<hash>/`，以及任意包含 `astrostudyui + astrostudysrv + astropy` 的目录）
    - `.bat` 会优先注入本地运行时：`runtime/windows/java/bin/java.exe` 与 `runtime/windows/python/python.exe`（不会被系统 Python 覆盖）
    - 自动检测 Python（优先 3.11；若仅有 3.12 且依赖失败，会自动尝试安装并切换到 3.11）
-   - 自动安装 Python 依赖（`cherrypy`、`jsonpickle`、`pyswisseph`）
+   - 自动安装 Python 依赖（`cherrypy`、`jsonpickle`、`pyswisseph`，并校验 `flatlib` 可用）
    - 优先尝试从本地 wheel 仓库离线安装依赖（`runtime/windows/wheels` 或 `runtime/windows/bundle/wheels`）
    - 自动检测/安装 Java 17（含多源回退）
    - `winget` 安装失败时，自动尝试下载便携 Java 17 到 `runtime/windows/java`
@@ -57,6 +57,14 @@
   说明 Python 依赖没装好，重新双击 `Horosa_Local_Windows.bat` 让脚本自动补齐。
 - `ModuleNotFoundError: No module named 'swisseph'`  
   说明 `pyswisseph` 缺失。建议在构建机使用 Python 3.11 执行 `Prepare_Runtime_Windows.bat`，重新打包 `runtime/windows/python` 与 `runtime/windows/bundle/wheels` 后再分发。
+- `ModuleNotFoundError: No module named 'flatlib'`  
+  说明运行环境没有正确加载项目内 `flatlib-ctrad2`。请确认压缩包里包含 `Horosa-Web-*/flatlib-ctrad2/`，并使用最新版 `Horosa_Local_Windows.ps1`（会自动把该目录注入 `PYTHONPATH`）。
+- 报错包含 `ephe` / `se*.se1` / `SwissEph file ... not found`  
+  新版已内置星历目录自动探测与回退（优先项目内 `flatlib-ctrad2/flatlib/resources/swefiles`，缺文件时自动回退 Moshier 计算）。  
+  一般不需要手动去瑞士星历网站下载文件。若仍出现，请先确认项目内目录存在：
+  ```powershell
+  Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\flatlib-ctrad2\flatlib\resources\swefiles
+  ```
 - 页面提示 `param error` / 排盘不可用  
   说明后端服务已启动，但某个排盘参数或排盘计算过程抛出了异常。当前版本会尽量返回更具体提示，例如：`param error: IndexError: ...`。  
   先执行以下排查（在项目根目录 PowerShell）：
@@ -103,13 +111,14 @@ $null=[System.Management.Automation.Language.Parser]::ParseFile('Prepare_Runtime
 Test-Path .\runtime\windows\python\python.exe
 Test-Path .\runtime\windows\java\bin\java.exe
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudysrv\astrostudyboot\target\astrostudyboot.jar
+Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\flatlib-ctrad2\flatlib\resources\swefiles
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudyui\dist\index.html
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudyui\dist-file\index.html
 ```
 
 通过标准：
 - 输出包含 `PS_PARSE_OK`
-- 5 条 `Test-Path` 全为 `True`
+- 6 条 `Test-Path` 全为 `True`
 
 ### 2) 启动器烟测（`.ps1` 与 `.bat` 双入口）
 

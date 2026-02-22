@@ -12,6 +12,55 @@ Append new entries; do not rewrite history.
 
 ---
 
+## 2026-02-22
+
+### 22:50 - DOCX问题修复与Windows稳定性增强（白屏/param error/ephe）
+- Scope: fix reported DOCX issues around 白屏、时间起卦不稳定、星体地图首屏报错、西洋游戏不可用、以及跨机器 ephe 缺失提示。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/guazhan/GuaZhanMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/acg/AstroAcg.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/amap/ACG.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/amap/MapV2.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/dice/DiceMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/flatlib-ctrad2/flatlib/ephem/__init__.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/flatlib-ctrad2/flatlib/ephem/swe.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webchartsrv.py`
+  - `Horosa_Local_Windows.ps1`
+  - `Prepare_Runtime_Windows.ps1`
+  - `README.md`
+- Details:
+  - Frontend anti-crash:
+    - Added null-safe request result handling in `GuaZhanMain` (`/gua/desc`), `AstroAcg` (`/location/acg`), `DiceMain` (`/predict/dice`).
+    - Prevented request failures from cascading into `TypeError` white screens.
+  - AMap load robustness:
+    - Guarded `window.AMapUI`/`InfoWindow` availability in `ACG.js`.
+    - Fixed typo `lenght` -> `length` in line drawing branch.
+    - Moved redraw side effects out of render and into `componentDidUpdate`.
+    - Added load-failure fallback and map destroy logic in `MapV2.js`.
+  - Ephemeris resilience:
+    - `webchartsrv.py` now exports bundled swefiles path via `HOROSA_SWEPH_PATH`/`SE_EPHE_PATH`.
+    - `flatlib.ephem.__init__` now resolves ephe path from multiple candidates (env + bundled resources).
+    - `flatlib.ephem.swe` now auto-falls back to Moshier when Swiss ephemeris files are unavailable.
+  - Windows launcher/runtime:
+    - Dependency checks now include `flatlib` import validation with local source injection.
+    - Runtime startup injects both `astropy` and `flatlib-ctrad2` into `PYTHONPATH`.
+    - Launcher now sets/restores `HOROSA_SWEPH_PATH` and `SE_EPHE_PATH`.
+    - Online fallback install now includes `flatlib==0.2.3.post3`.
+    - Prepare script updated similarly for runtime dependency/wheel export.
+  - Docs:
+    - README updated with `flatlib` and ephemeris troubleshooting + new pre-release swefiles check.
+- Verification:
+  - `npm run build` in `astrostudyui` (pass).
+  - PowerShell parse checks:
+    - `Horosa_Local_Windows.ps1` (pass)
+    - `Prepare_Runtime_Windows.ps1` (pass)
+  - Runtime Python import check (pass):
+    - `flatlib`, `astrostudy.perchart`, `swisseph`
+  - Ephemeris fallback check (pass):
+    - force invalid ephe path then compute `sweObject(SUN, ...)` still succeeds.
+  - Launcher no-browser smoke test (pass):
+    - services started on `8899/9999`, graceful stop, issue summary appended.
+
 ## 2026-02-21
 
 ### 22:15 - 新增统一问题汇总文件（每次运行自动追加前后端诊断摘要）

@@ -1,5 +1,59 @@
 # AGENT Change Log
 
+## 2026-02-22 - DOCX问题排查修复（易卦/金口诀/星体地图/西洋游戏/星历兼容）
+
+- 修改文件:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/guazhan/GuaZhanMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/acg/AstroAcg.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/amap/ACG.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/amap/MapV2.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/dice/DiceMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/flatlib-ctrad2/flatlib/ephem/__init__.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/flatlib-ctrad2/flatlib/ephem/swe.py`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/websrv/webchartsrv.py`
+  - `Horosa_Local_Windows.ps1`
+  - `Prepare_Runtime_Windows.ps1`
+  - `README.md`
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+
+- 变更内容:
+  - 修复前端网络异常导致的白屏链路（请求失败时不再直接解包 `data[Result]`）：
+    - 易卦 `gua/desc`
+    - 星体地图 `location/acg`
+    - 西洋游戏 `predict/dice`
+  - 修复星体地图加载竞态：
+    - `ACG.js` 增加 `AMapUI` 安全判断、`InfoWindow` 空值保护
+    - 修正 `pnts.lenght` 拼写错误
+    - 地图重绘从 `render` 迁移到 `componentDidUpdate`，避免渲染期副作用报错
+    - `MapV2.js` 增加地图加载失败兜底与卸载销毁
+  - 星历稳定性增强：
+    - `webchartsrv.py` 启动时注入 `HOROSA_SWEPH_PATH/SE_EPHE_PATH`
+    - `flatlib ephem` 增加多路径自动探测（内置 swefiles 优先）
+    - `swe.py` 增加 SwissEph 失败自动回退 Moshier 计算，减少 `ephe missing` 导致的参数错误
+  - Windows 启动脚本增强：
+    - 依赖检查新增 `flatlib` 校验（并注入本地 `flatlib-ctrad2`）
+    - 启动时 `PYTHONPATH` 同时注入 `astropy + flatlib-ctrad2`
+    - 自动注入/恢复 `HOROSA_SWEPH_PATH` 与 `SE_EPHE_PATH`
+    - 在线依赖兜底补充 `flatlib==0.2.3.post3`
+  - README 补充：
+    - `flatlib` 缺失、`ephe/se1` 报错排查
+    - 发布前自检新增内置 `swefiles` 目录检查
+
+- 自检结果:
+  - 前端构建通过：`npm run build`（Webpack compiled successfully）
+  - 启动脚本语法检查通过：
+    - `Horosa_Local_Windows.ps1`
+    - `Prepare_Runtime_Windows.ps1`
+  - Python 关键模块检查通过（runtime Python）：
+    - `flatlib + astrostudy + swe` 可导入
+    - `HOROSA_SWEPH_PATH` 指向内置 `flatlib/resources/swefiles`
+  - 星历回退检查通过：
+    - 手动设定无效 ephe 路径后仍可计算太阳经度（触发 Moshier fallback）
+  - Windows 启动烟测通过（无浏览器模式）：
+    - `backend 9999`、`chartpy 8899` 正常拉起并正常停止
+    - `HOROSA_RUN_ISSUES.md` 成功追加新运行摘要
+
 ## 2026-02-21 - 新增运行问题汇总文件（前端/后端/Python自动诊断记录）
 
 - 修改文件:
