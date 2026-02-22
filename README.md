@@ -42,6 +42,15 @@
   原因：旧脚本在含空格路径下参数被截断。请使用当前最新 `Horosa_Local_Windows.ps1`。
 - `Backend not ready in time, required ports: 8899 and 9999`  
   常见原因：Java 版本过低、Python 缺依赖、端口被占用。
+- 排盘时一直转圈后超时（尤其在公司网络/代理软件环境）  
+  常见根因：系统里存在 `http_proxy/https_proxy/all_proxy`，导致后端 Java 对本地 `127.0.0.1:8899` 的请求被错误走代理而不是回环地址。  
+  当前最新版 `Horosa_Local_Windows.ps1` 已在启动时自动处理：清理代理变量并强制 `no_proxy=127.0.0.1,localhost,::1`。  
+  如果你手上是旧脚本，可先手动执行再启动：
+  ```powershell
+  Remove-Item Env:http_proxy,Env:https_proxy,Env:all_proxy,Env:HTTP_PROXY,Env:HTTPS_PROXY,Env:ALL_PROXY -ErrorAction SilentlyContinue
+  $env:no_proxy='127.0.0.1,localhost,::1'
+  $env:NO_PROXY=$env:no_proxy
+  ```
 - `UnsupportedClassVersionError ... class file version 61.0`  
   说明 Java 太低，必须使用 Java 17+。
 - `ModuleNotFoundError: No module named 'cherrypy'`  
@@ -158,6 +167,7 @@ $okResp.params.birth
 
 - 本地数据默认存储在浏览器本地存储（离线可用）
 - Windows 日志目录：项目内 `.horosa-local-logs-win/`
+- 运行问题汇总文件：根目录 `HOROSA_RUN_ISSUES.md`（每次启动结束自动追加前端/后端/Python问题摘要）
 
 排查问题时，优先查看：
 

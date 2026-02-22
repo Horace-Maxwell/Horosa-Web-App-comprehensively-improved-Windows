@@ -105,7 +105,10 @@ $LogDir = Join-Path $LogRoot $RunTag
 $PyLog = Join-Path $LogDir 'astropy.log'
 $JavaLog = Join-Path $LogDir 'astrostudyboot.log'
 $WebLog = Join-Path $LogDir 'web.log'
+$IssueSummaryFile = Join-Path $Root 'HOROSA_RUN_ISSUES.md'
 $BrowserProfile = Join-Path $ProjectDir '.horosa-browser-profile-win'
+$RunStatus = 'SUCCESS'
+$RunFailureMessage = $null
 
 $DistDir = Resolve-FrontendDistDir -ProjDir $ProjectDir
 Write-Host ("[INFO] Frontend static dir: {0}" -f $DistDir)
@@ -254,6 +257,157 @@ function Quote-Arg {
   param([string]$Value)
   if ($null -eq $Value) { return '""' }
   '"' + ($Value -replace '"', '\\"') + '"'
+}
+
+function Get-FileSizeSafe {
+  param([string]$Path)
+  if (-not (Test-Path $Path)) { return 0 }
+  try {
+    return (Get-Item $Path).Length
+  } catch {
+    return 0
+  }
+}
+
+function Get-IssueLinesFromLog {
+  param(
+    [string]$Path,
+    [int]$TailLines = 160,
+    [int]$MaxLines = 10
+  )
+
+  if (-not (Test-Path $Path)) { return @() }
+  $content = @(Get-Content -Path $Path -Tail $TailLines -ErrorAction SilentlyContinue)
+  if ($content.Count -eq 0) { return @() }
+
+  $hits = New-Object System.Collections.Generic.List[string]
+  foreach ($line in $content) {
+    $txt = "$line".Trim()
+    if ([string]::IsNullOrWhiteSpace($txt)) { continue }
+    if ($txt -match '(?i)RollingFileAppender') {
+      continue
+    }
+    $matched = $false
+    if ($txt -match '(?i)\b(exception|traceback|failed|fatal|timeout|timed out|refused|denied|unable|param error|no module named|startup failed)\b') {
+      $matched = $true
+    } elseif ($txt -match '\sERROR-\s') {
+      $matched = $true
+    }
+    if ($matched) {
+      $hits.Add($txt)
+      if ($hits.Count -ge $MaxLines) { break }
+    }
+  }
+
+  return ,$hits.ToArray()
+}
+
+function Append-RunIssueSummary {
+  param(
+    [string]$Status,
+    [string]$FailureMessage
+  )
+
+  try {
+    if (-not (Test-Path $IssueSummaryFile)) {
+      @(
+        '# Horosa Run Issues'
+        ''
+        'Auto-generated run diagnostics. Each launch appends frontend/backend/python issue hints.'
+        ''
+      ) | Set-Content -Path $IssueSummaryFile -Encoding UTF8
+    }
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    $lines.Add("## [$ts] $Status")
+    $lines.Add("- RunTag: $RunTag")
+    $lines.Add("- LogDir: $LogDir")
+    if ($FailureMessage) {
+      $lines.Add("- StartupFailure: $FailureMessage")
+    }
+
+    $targets = @(
+      @{ Name = 'Frontend(web)'; Out = $WebLog; Err = "$WebLog.err" },
+      @{ Name = 'Backend(Java)'; Out = $JavaLog; Err = "$JavaLog.err" },
+      @{ Name = 'ChartPy(Python)'; Out = $PyLog; Err = "$PyLog.err" }
+    )
+
+    foreach ($target in $targets) {
+      $errSize = Get-FileSizeSafe -Path $target.Err
+      $outSize = Get-FileSizeSafe -Path $target.Out
+      $issues = @()
+      $issues += Get-IssueLinesFromLog -Path $target.Err
+      foreach ($line in (Get-IssueLinesFromLog -Path $target.Out)) {
+        if ($issues -notcontains $line) {
+          $issues += $line
+        }
+      }
+
+      $lines.Add("- $($target.Name): errBytes=$errSize, outBytes=$outSize, matchedIssues=$($issues.Count)")
+      foreach ($line in ($issues | Select-Object -First 8)) {
+        $lines.Add("  - $line")
+      }
+    }
+
+    $lines.Add('')
+    Add-Content -Path $IssueSummaryFile -Value ($lines -join "`r`n") -Encoding UTF8
+    Write-Host ("Issue summary updated: {0}" -f $IssueSummaryFile)
+  } catch {
+    Write-Host ("[WARN] Failed to write issue summary file: {0}" -f $_.Exception.Message)
+  }
+}
+
+function Enable-LocalLoopbackProxyBypass {
+  $proxyKeys = @('http_proxy', 'https_proxy', 'all_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY')
+  $noProxyKeys = @('no_proxy', 'NO_PROXY')
+  $allKeys = @($proxyKeys + $noProxyKeys)
+
+  $snapshot = @{}
+  foreach ($key in $allKeys) {
+    $snapshot[$key] = [System.Environment]::GetEnvironmentVariable($key, 'Process')
+  }
+
+  $detected = @()
+  foreach ($key in $proxyKeys) {
+    $val = $snapshot[$key]
+    if (-not [string]::IsNullOrWhiteSpace($val)) {
+      $detected += $key
+    }
+  }
+
+  if ($detected.Count -gt 0) {
+    Write-Host ("[INFO] Detected proxy env vars ({0}), forcing local-loopback bypass for launcher process." -f ($detected -join ', '))
+  }
+
+  foreach ($key in $proxyKeys) {
+    if (Test-Path ("Env:{0}" -f $key)) {
+      Remove-Item ("Env:{0}" -f $key) -ErrorAction SilentlyContinue
+    }
+  }
+
+  $loopbackBypass = '127.0.0.1,localhost,::1'
+  $env:no_proxy = $loopbackBypass
+  $env:NO_PROXY = $loopbackBypass
+
+  return $snapshot
+}
+
+function Restore-EnvSnapshot {
+  param([hashtable]$Snapshot)
+
+  if (-not $Snapshot) { return }
+  foreach ($entry in $Snapshot.GetEnumerator()) {
+    $key = $entry.Key
+    $value = [string]$entry.Value
+    if ($null -eq $entry.Value) {
+      if (Test-Path ("Env:{0}" -f $key)) {
+        Remove-Item ("Env:{0}" -f $key) -ErrorAction SilentlyContinue
+      }
+      continue
+    }
+    [System.Environment]::SetEnvironmentVariable($key, $value, 'Process')
+  }
 }
 
 function Resolve-Browser {
@@ -1326,6 +1480,7 @@ Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if
 Cleanup-All
 
 $oldPythonPath = $env:PYTHONPATH
+$proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
 if ($oldPythonPath) {
   $env:PYTHONPATH = (Join-Path $ProjectDir 'astropy') + ';' + $oldPythonPath
 } else {
@@ -1478,11 +1633,15 @@ try {
 
   Write-Host 'Browser closed, stopping local services...'
 } catch {
+  $RunStatus = 'FAILED'
+  $RunFailureMessage = $_.Exception.Message
   Write-Host "Startup failed: $($_.Exception.Message)"
   Write-Host "Log directory: $LogDir"
   Read-Host 'Press Enter to exit'
   exit 1
 } finally {
   Cleanup-All
+  Restore-EnvSnapshot -Snapshot $proxyEnvSnapshot
   $env:PYTHONPATH = $oldPythonPath
+  Append-RunIssueSummary -Status $RunStatus -FailureMessage $RunFailureMessage
 }
