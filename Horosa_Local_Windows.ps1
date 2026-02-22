@@ -624,20 +624,9 @@ function Resolve-Java {
   return $null
 }
 
-function Get-PythonCandidates {
+function Get-SystemPythonCandidates {
   $candidates = @()
-
-  if ($env:HOROSA_PYTHON -and (Test-Path $env:HOROSA_PYTHON)) {
-    $candidates += $env:HOROSA_PYTHON
-  }
-
   $candidates += @(
-    (Join-Path $Root 'runtime/windows/python/python.exe'),
-    (Join-Path $Root 'runtime/windows/python/python3.exe'),
-    (Join-Path $Root 'runtime/python/python.exe'),
-    (Join-Path $ProjectDir 'runtime/windows/python/python.exe'),
-    (Join-Path $ProjectDir 'runtime/windows/python/python3.exe'),
-    (Join-Path $ProjectDir 'runtime/python/python.exe'),
     "$env:LocalAppData\Programs\Python\Python311\python.exe",
     "$env:LocalAppData\Programs\Python\Python312\python.exe",
     "$env:ProgramFiles\Python311\python.exe",
@@ -650,16 +639,54 @@ function Get-PythonCandidates {
   if ($inPath) {
     $candidates += 'python'
   }
+  $inPath3 = Get-Command 'python3' -ErrorAction SilentlyContinue
+  if ($inPath3) {
+    $candidates += 'python3'
+  }
+
+  return $candidates
+}
+
+function Get-PythonCandidates {
+  param([switch]$IncludeSystem)
+
+  $candidates = @()
+
+  if ($env:HOROSA_PYTHON -and (Test-Path $env:HOROSA_PYTHON)) {
+    $candidates += $env:HOROSA_PYTHON
+  }
+
+  $candidates += @(
+    (Join-Path $Root 'runtime/windows/python/python.exe'),
+    (Join-Path $Root 'runtime/windows/python/python3.exe'),
+    (Join-Path $Root 'runtime/windows/python/Python311/python.exe'),
+    (Join-Path $Root 'runtime/windows/python/Python312/python.exe'),
+    (Join-Path $Root 'runtime/python/python.exe'),
+    (Join-Path $Root 'runtime/python/Python311/python.exe'),
+    (Join-Path $Root 'runtime/python/Python312/python.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/python/python.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/python/python3.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/python/Python311/python.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/python/Python312/python.exe'),
+    (Join-Path $ProjectDir 'runtime/python/python.exe'),
+    (Join-Path $ProjectDir 'runtime/python/Python311/python.exe'),
+    (Join-Path $ProjectDir 'runtime/python/Python312/python.exe')
+  )
+
+  if ($IncludeSystem) {
+    $candidates += Get-SystemPythonCandidates
+  }
 
   return $candidates
 }
 
 function Resolve-Python {
+  param([switch]$IncludeSystem)
   $seen = @{}
   $found311 = $null
   $found312 = $null
 
-  foreach ($candidate in (Get-PythonCandidates)) {
+  foreach ($candidate in (Get-PythonCandidates -IncludeSystem:$IncludeSystem)) {
     if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
     $key = $candidate.ToLowerInvariant()
     if ($seen.ContainsKey($key)) { continue }
@@ -690,8 +717,9 @@ function Resolve-Python {
 }
 
 function Resolve-Python311 {
+  param([switch]$IncludeSystem)
   $seen = @{}
-  foreach ($candidate in (Get-PythonCandidates)) {
+  foreach ($candidate in (Get-PythonCandidates -IncludeSystem:$IncludeSystem)) {
     if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
     $key = $candidate.ToLowerInvariant()
     if ($seen.ContainsKey($key)) { continue }
@@ -729,6 +757,128 @@ function Install-WithWinget {
     }
   }
   return $false
+}
+
+function Install-PythonPortable {
+  param(
+    [string]$DisplayName,
+    [string]$MajorMinor,
+    [string[]]$VersionCandidates
+  )
+
+  try {
+    Write-Host ("Trying portable install for {0}..." -f $DisplayName)
+    $portableRoot = Join-Path $Root 'runtime/windows/python'
+    $portableTag = 'Python' + $MajorMinor.Replace('.', '')
+    $pythonTarget = Join-Path $portableRoot $portableTag
+    $tmpBase = if ([string]::IsNullOrWhiteSpace($env:TEMP)) { $Root } else { $env:TEMP }
+    $tmpDir = Join-Path $tmpBase ('horosa_python_' + $portableTag + '_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
+    $installerPath = Join-Path $tmpDir 'python-installer.exe'
+    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+
+    try {
+      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+    } catch {
+      # keep default protocol settings if platform does not expose TLS 1.2 enum.
+    }
+
+    $downloaded = $false
+    foreach ($version in $VersionCandidates) {
+      if ([string]::IsNullOrWhiteSpace($version)) { continue }
+      $url = "https://www.python.org/ftp/python/$version/python-$version-amd64.exe"
+      try {
+        Write-Host ("Downloading {0} from {1}" -f $DisplayName, $url)
+        Invoke-WebRequest -Uri $url -OutFile $installerPath -UseBasicParsing
+        if ((Test-Path $installerPath) -and ((Get-Item $installerPath).Length -gt 8388608)) {
+          $downloaded = $true
+          break
+        }
+      } catch {
+        Write-Host ("[WARN] Download failed from {0}" -f $url)
+      }
+    }
+
+    if (-not $downloaded) {
+      Write-Host ("[WARN] Portable install skipped: no downloadable installer for {0}" -f $DisplayName)
+      return $false
+    }
+
+    if (Test-Path $pythonTarget) {
+      try {
+        Remove-Item -Recurse -Force $pythonTarget
+      } catch {
+        Write-Host ("[WARN] Failed to clear existing portable Python dir {0}: {1}" -f $pythonTarget, $_.Exception.Message)
+      }
+    }
+    New-Item -ItemType Directory -Force -Path $pythonTarget | Out-Null
+
+    $args = @(
+      '/quiet',
+      'InstallAllUsers=0',
+      'PrependPath=0',
+      'Include_launcher=0',
+      'Include_test=0',
+      'Include_doc=0',
+      'Include_dev=0',
+      'Include_symbols=0',
+      'Include_debug=0',
+      'SimpleInstall=1',
+      'Shortcuts=0',
+      'Include_pip=1',
+      ("TargetDir={0}" -f $pythonTarget)
+    )
+    $proc = Start-Process -FilePath $installerPath -ArgumentList $args -Wait -PassThru
+    if ($proc.ExitCode -ne 0) {
+      Write-Host ("[WARN] Portable installer exit code for {0}: {1}" -f $DisplayName, $proc.ExitCode)
+      return $false
+    }
+
+    $portableExe = Join-Path $pythonTarget 'python.exe'
+    if (-not (Test-Path $portableExe)) {
+      Write-Host ("[WARN] Portable install finished but python.exe missing: {0}" -f $portableExe)
+      return $false
+    }
+    if (-not (Test-PythonSupported -PythonCmdOrPath $portableExe)) {
+      Write-Host ("[WARN] Portable python is not supported (expected 3.11/3.12): {0}" -f $portableExe)
+      return $false
+    }
+
+    Write-Host ("[OK] Portable Python ready: {0}" -f $portableExe)
+    return $true
+  } catch {
+    Write-Host ("Portable Python install failed for {0}: {1}" -f $DisplayName, $_.Exception.Message)
+    return $false
+  }
+}
+
+function Install-PythonRuntime {
+  $methods = @(
+    @{ Kind = 'winget'; Id = 'Python.Python.3.11'; Name = 'Python 3.11' },
+    @{ Kind = 'winget'; Id = 'Python.Python.3.12'; Name = 'Python 3.12' },
+    @{ Kind = 'portable'; Name = 'Python 3.11'; MajorMinor = '3.11'; Versions = @('3.11.11', '3.11.10', '3.11.9') },
+    @{ Kind = 'portable'; Name = 'Python 3.12'; MajorMinor = '3.12'; Versions = @('3.12.11', '3.12.10', '3.12.9', '3.12.8', '3.12.7') }
+  )
+
+  foreach ($method in $methods) {
+    $ok = $false
+    if ($method.Kind -eq 'winget') {
+      $ok = Install-WithWinget -PackageId $method.Id -DisplayName $method.Name
+    } elseif ($method.Kind -eq 'portable') {
+      $ok = Install-PythonPortable -DisplayName $method.Name -MajorMinor $method.MajorMinor -VersionCandidates $method.Versions
+    }
+
+    if (-not $ok) { continue }
+    Start-Sleep -Seconds 2
+    $resolved = Resolve-Python -IncludeSystem
+    if ($resolved) {
+      Write-Host ("[OK] Python detected after auto-install ({0}): {1}" -f $method.Name, $resolved)
+      return $resolved
+    }
+    Write-Host ("[WARN] {0} install reported success, but Python still not detected. Trying next method..." -f $method.Name)
+  }
+
+  return $null
 }
 
 function Install-Java17 {
@@ -1077,6 +1227,25 @@ function Get-ExePath {
   return $null
 }
 
+function Test-PathUnderDirectory {
+  param(
+    [string]$ChildPath,
+    [string]$ParentPath
+  )
+  if ([string]::IsNullOrWhiteSpace($ChildPath)) { return $false }
+  if ([string]::IsNullOrWhiteSpace($ParentPath)) { return $false }
+  try {
+    $childFull = [System.IO.Path]::GetFullPath($ChildPath)
+    $parentFull = [System.IO.Path]::GetFullPath($ParentPath)
+    if (-not $parentFull.EndsWith('\')) {
+      $parentFull = $parentFull + '\'
+    }
+    return $childFull.StartsWith($parentFull, [System.StringComparison]::OrdinalIgnoreCase)
+  } catch {
+    return $false
+  }
+}
+
 function Sync-RuntimeFromExe {
   param(
     [string]$ExeCmdOrPath,
@@ -1352,16 +1521,18 @@ if (-not (Ensure-BackendJar)) {
 
 $PythonBin = Resolve-Python
 if (-not $PythonBin) {
-  $installed = Install-WithWinget -PackageId 'Python.Python.3.11' -DisplayName 'Python 3.11'
-  if ($installed) {
-    $PythonBin = Resolve-Python
-  }
-  if (-not $PythonBin) {
-    Write-Host 'Python 3.11/3.12 not found.'
-    Write-Host 'Install Python 3.11 (recommended for offline startup), then rerun this launcher.'
-    Read-Host 'Press Enter to exit'
-    exit 1
-  }
+  Write-Host '[INFO] No bundled Python detected, trying automatic Python installation methods...'
+  $PythonBin = Install-PythonRuntime
+}
+if (-not $PythonBin) {
+  Write-Host '[WARN] Auto Python install methods failed. Trying existing system Python as last resort...'
+  $PythonBin = Resolve-Python -IncludeSystem
+}
+if (-not $PythonBin) {
+  Write-Host 'Python 3.11/3.12 not found after all install attempts.'
+  Write-Host 'Install Python 3.11 manually, then rerun this launcher.'
+  Read-Host 'Press Enter to exit'
+  exit 1
 }
 
 $selectedPythonVersion = Get-PythonVersionInfo -PythonCmdOrPath $PythonBin
@@ -1370,14 +1541,20 @@ if ($selectedPythonVersion -and $selectedPythonVersion.Major -eq 3 -and $selecte
 }
 
 $PyRuntimeDir = Join-Path $Root 'runtime/windows/python'
-if (-not (Test-Path (Join-Path $PyRuntimeDir 'python.exe'))) {
-  Write-Host 'Preparing local Python runtime for offline use...'
-  $pySynced = Sync-RuntimeFromExe -ExeCmdOrPath $PythonBin -TargetDir $PyRuntimeDir -UpLevels 1 -CheckRelative 'python.exe'
-  if ($pySynced) {
-    $PythonBin = Join-Path $PyRuntimeDir 'python.exe'
-    Write-Host "[OK] Local Python runtime ready: $PythonBin"
+$runtimeRootPython = Join-Path $PyRuntimeDir 'python.exe'
+if (-not (Test-Path $runtimeRootPython)) {
+  $pythonResolvedPath = Get-ExePath -CmdOrPath $PythonBin
+  if ($pythonResolvedPath -and (Test-PathUnderDirectory -ChildPath $pythonResolvedPath -ParentPath $PyRuntimeDir)) {
+    Write-Host '[INFO] Selected Python already lives under runtime/windows/python, skip runtime sync.'
   } else {
-    Write-Host '[WARN] Could not sync local Python runtime, will continue with system Python.'
+    Write-Host 'Preparing local Python runtime for offline use...'
+    $pySynced = Sync-RuntimeFromExe -ExeCmdOrPath $PythonBin -TargetDir $PyRuntimeDir -UpLevels 1 -CheckRelative 'python.exe'
+    if ($pySynced) {
+      $PythonBin = Join-Path $PyRuntimeDir 'python.exe'
+      Write-Host "[OK] Local Python runtime ready: $PythonBin"
+    } else {
+      Write-Host '[WARN] Could not sync local Python runtime, will continue with current Python.'
+    }
   }
 }
 
@@ -1398,14 +1575,17 @@ if (-not $depsReady) {
     $python311 = Resolve-Python311
     if (-not $python311) {
       $installed311 = Install-WithWinget -PackageId 'Python.Python.3.11' -DisplayName 'Python 3.11'
+      if (-not $installed311) {
+        $installed311 = Install-PythonPortable -DisplayName 'Python 3.11' -MajorMinor '3.11' -VersionCandidates @('3.11.11', '3.11.10', '3.11.9')
+      }
       if ($installed311) {
         Start-Sleep -Seconds 2
-        $python311 = Resolve-Python311
+        $python311 = Resolve-Python311 -IncludeSystem
       }
     }
 
     if ($python311) {
-      if (Ensure-PythonRuntimeDeps -PythonExe $python311 -ProjectRoot $ProjectDir) {
+      if ((Ensure-PythonRuntimeDeps -PythonExe $python311 -ProjectRoot $ProjectDir) -and (Test-PythonDepsReady -PythonCmdOrPath $python311)) {
         $PythonBin = $python311
         $depsReady = $true
         Write-Host ("[OK] Switched to Python 3.11: {0}" -f $PythonBin)
@@ -1416,42 +1596,28 @@ if (-not $depsReady) {
   }
 
   if (-not $depsReady) {
-    $runtimePythonExe = Join-Path $PyRuntimeDir 'python.exe'
-    $usingBundledPython = $false
-    try {
-      if ((Test-Path $PythonBin) -and (Test-Path $runtimePythonExe)) {
-        $usingBundledPython = ((Resolve-Path $PythonBin).Path -ieq (Resolve-Path $runtimePythonExe).Path)
+    Write-Host '[WARN] Python dependencies are still incomplete, trying existing system Python candidates as final fallback...'
+    foreach ($candidate in (Get-SystemPythonCandidates)) {
+      if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
+      if ($candidate -ne 'python' -and $candidate -ne 'python3' -and (-not (Test-Path $candidate))) { continue }
+
+      $samePython = $false
+      try {
+        $candidatePath = Get-ExePath -CmdOrPath $candidate
+        $currentPath = Get-ExePath -CmdOrPath $PythonBin
+        if ($candidatePath -and $currentPath -and ($candidatePath -ieq $currentPath)) {
+          $samePython = $true
+        }
+      } catch {
+        $samePython = $false
       }
-    } catch {
-      $usingBundledPython = $false
-    }
+      if ($samePython) { continue }
 
-    if ($usingBundledPython) {
-      Write-Host '[WARN] Bundled Python dependencies are incomplete, trying system Python fallback...'
-      $fallbackCandidates = @(
-        "$env:LocalAppData\Programs\Python\Python311\python.exe",
-        "$env:LocalAppData\Programs\Python\Python312\python.exe",
-        "$env:ProgramFiles\Python311\python.exe",
-        "$env:ProgramFiles\Python312\python.exe",
-        'C:\Python311\python.exe',
-        'C:\Python312\python.exe',
-        'python'
-      )
-      foreach ($candidate in $fallbackCandidates) {
-        if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
-        if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
-        if ($candidate -ne 'python' -and (Test-Path $PythonBin)) {
-          try {
-            if ((Resolve-Path $candidate).Path -ieq (Resolve-Path $PythonBin).Path) { continue }
-          } catch {}
-        }
-
-        if (Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) {
-          $PythonBin = $candidate
-          $depsReady = $true
-          Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
-          break
-        }
+      if ((Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) -and (Test-PythonDepsReady -PythonCmdOrPath $candidate)) {
+        $PythonBin = $candidate
+        $depsReady = $true
+        Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
+        break
       }
     }
   }
