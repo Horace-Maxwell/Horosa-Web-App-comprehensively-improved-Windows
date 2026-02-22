@@ -525,7 +525,9 @@ function Test-Python311 {
 function Test-PythonDepsReady {
   param([string]$PythonCmdOrPath)
   try {
-    & $PythonCmdOrPath -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
+    $flatlibPath = Join-Path $ProjectDir 'flatlib-ctrad2'
+    $flatlibEscaped = $flatlibPath.Replace('\', '\\')
+    & $PythonCmdOrPath -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib;print('ok')" *> $null
     return ($LASTEXITCODE -eq 0)
   } catch {
     return $false
@@ -1105,9 +1107,11 @@ function Ensure-PythonRuntimeDeps {
     [string]$ProjectRoot
   )
   $checkDeps = {
-    param([string]$Exe)
+    param([string]$Exe, [string]$ProjRoot)
     try {
-      & $Exe -c "import cherrypy, jsonpickle, swisseph; print('ok')" *> $null
+      $flatlibPath = Join-Path $ProjRoot 'flatlib-ctrad2'
+      $flatlibEscaped = $flatlibPath.Replace('\', '\\')
+      & $Exe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib;print('ok')" *> $null
       return ($LASTEXITCODE -eq 0)
     } catch {
       return $false
@@ -1115,20 +1119,20 @@ function Ensure-PythonRuntimeDeps {
   }
 
   $installFromWheelDir = {
-    param([string]$Exe, [string]$WheelDir)
+    param([string]$Exe, [string]$WheelDir, [string]$ProjRoot)
     if (-not (Test-Path $WheelDir)) { return $false }
     try {
       Write-Host ("Installing Python dependencies from local wheelhouse: {0}" -f $WheelDir)
       & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir cherrypy jsonpickle pyswisseph
       if ($LASTEXITCODE -ne 0) { return $false }
-      return (& $checkDeps $Exe)
+      return (& $checkDeps $Exe $ProjRoot)
     } catch {
       return $false
     }
   }
 
   try {
-    if (& $checkDeps $PythonExe) {
+    if (& $checkDeps $PythonExe $ProjectRoot) {
       Write-Host 'Python dependencies already satisfied, skip install.'
       return $true
     }
@@ -1149,18 +1153,18 @@ function Ensure-PythonRuntimeDeps {
     (Join-Path $CommonBundleRoot 'wheels')
   ) | Select-Object -Unique
   foreach ($wheelDir in $wheelDirs) {
-    if (& $installFromWheelDir $PythonExe $wheelDir) {
+    if (& $installFromWheelDir $PythonExe $wheelDir $ProjectRoot) {
       return $true
     }
   }
 
   try {
     Write-Host 'Installing Python dependencies for local runtime (online fallback)...'
-    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
+    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle flatlib==0.2.3.post3
     if ($LASTEXITCODE -ne 0) { return $false }
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
-    return (& $checkDeps $PythonExe)
+    return (& $checkDeps $PythonExe $ProjectRoot)
   } catch {
     Write-Host ("Python dependency install failed: {0}" -f $_.Exception.Message)
     return $false
@@ -1480,11 +1484,29 @@ Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if
 Cleanup-All
 
 $oldPythonPath = $env:PYTHONPATH
+$oldHorosaSwephPath = $env:HOROSA_SWEPH_PATH
+$oldSeEphePath = $env:SE_EPHE_PATH
 $proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
+$pyPathItems = @(
+  (Join-Path $ProjectDir 'astropy'),
+  (Join-Path $ProjectDir 'flatlib-ctrad2')
+) | Where-Object { $_ -and (Test-Path $_) }
+$pyPathPrefix = ($pyPathItems -join ';')
 if ($oldPythonPath) {
-  $env:PYTHONPATH = (Join-Path $ProjectDir 'astropy') + ';' + $oldPythonPath
+  if ($pyPathPrefix) {
+    $env:PYTHONPATH = $pyPathPrefix + ';' + $oldPythonPath
+  } else {
+    $env:PYTHONPATH = $oldPythonPath
+  }
 } else {
-  $env:PYTHONPATH = (Join-Path $ProjectDir 'astropy')
+  $env:PYTHONPATH = $pyPathPrefix
+}
+$swephPath = Join-Path $ProjectDir 'flatlib-ctrad2\flatlib\resources\swefiles'
+if (Test-Path $swephPath) {
+  $env:HOROSA_SWEPH_PATH = $swephPath
+  if (-not $oldSeEphePath) {
+    $env:SE_EPHE_PATH = $swephPath
+  }
 }
 
 try {
@@ -1643,5 +1665,15 @@ try {
   Cleanup-All
   Restore-EnvSnapshot -Snapshot $proxyEnvSnapshot
   $env:PYTHONPATH = $oldPythonPath
+  if ($null -ne $oldHorosaSwephPath) {
+    $env:HOROSA_SWEPH_PATH = $oldHorosaSwephPath
+  } else {
+    Remove-Item Env:HOROSA_SWEPH_PATH -ErrorAction SilentlyContinue
+  }
+  if ($null -ne $oldSeEphePath) {
+    $env:SE_EPHE_PATH = $oldSeEphePath
+  } else {
+    Remove-Item Env:SE_EPHE_PATH -ErrorAction SilentlyContinue
+  }
   Append-RunIssueSummary -Status $RunStatus -FailureMessage $RunFailureMessage
 }
