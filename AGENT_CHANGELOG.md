@@ -426,3 +426,38 @@
   - PowerShell 语法解析通过。
   - `Horosa_Local_Windows.ps1` smoke 启动通过（`HOROSA_NO_BROWSER=1` + `HOROSA_SMOKE_TEST=1`）。
   - 远端已推送提交 `a6db45d94d62f81c930666fd9900ad06fef844eb`。
+
+## 2026-02-22 - Windows 启动器 Python 多方法自动安装 + 系统兜底后置
+
+- 背景:
+  - 用户反馈部分 Windows 10 机器虽然端口已监听，但排盘阶段超时，`astropy.log.err` 中出现 `ModuleNotFoundError: No module named 'cherrypy'`。
+  - 根因是旧流程在本地 wheel 不完整时会较早切到系统 Python，且部分系统 Python 未完成依赖补齐。
+
+- 修改文件:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+
+- 启动脚本改造:
+  - Python 候选路径扩展:
+    - 新增识别 `runtime/windows/python/Python311/python.exe`、`runtime/windows/python/Python312/python.exe`（含项目内同类路径）。
+  - 候选分层:
+    - 新增 `Get-SystemPythonCandidates`，把系统 Python 候选独立出来。
+    - `Resolve-Python` / `Resolve-Python311` 支持 `-IncludeSystem`，默认不提前吃系统 Python。
+  - 多方法自动安装链:
+    - 先 `winget Python 3.11`
+    - 再 `winget Python 3.12`
+    - 再 `python.org` 官方安装器静默安装到 `runtime/windows/python/Python311|Python312`
+    - 仅在以上全部失败后，才回退系统 Python。
+  - 依赖判定加严:
+    - 每次切换解释器后都强制复检 `cherrypy/jsonpickle/swisseph/flatlib` 导入，不再只看安装命令返回码。
+  - 运行时同步保护:
+    - 新增路径归属判断，若当前解释器已在 `runtime/windows/python` 下，跳过 runtime 同步，避免路径覆盖风险。
+
+- 验证结论:
+  - `Horosa_Local_Windows.ps1` 语法解析通过。
+  - 启动器烟测通过（`HOROSA_NO_BROWSER=1` + `HOROSA_SMOKE_TEST=1`）:
+    - 后端端口 `9999` 正常就绪
+    - Python 端口 `8899` 正常就绪
+    - 结束后服务正常回收并写入 `HOROSA_RUN_ISSUES.md`。

@@ -503,3 +503,32 @@ Append new entries; do not rewrite history.
   - PowerShell parse check for `Horosa_Local_Windows.ps1` passed
   - Smoke run passed: `HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`
   - Pushed to remote main: commit `a6db45d94d62f81c930666fd9900ad06fef844eb`
+
+### 22:34 - Windows 启动器增强：Python 多方法自动安装 + 系统兜底后置
+- Scope: fix Windows deployment cases where charting timed out due to Python dependency gaps (`ModuleNotFoundError: cherrypy`) by hardening Python resolution/install flow.
+- Files:
+  - `Horosa_Local_Windows.ps1`
+  - `README.md`
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - Split Python candidate sources into bundled/runtime vs system fallback (`Get-SystemPythonCandidates`).
+  - Expanded candidate scan to include nested runtime executables:
+    - `runtime/windows/python/Python311/python.exe`
+    - `runtime/windows/python/Python312/python.exe`
+    - same paths under `$ProjectDir`.
+  - Added auto-install chain (`Install-PythonRuntime`) for low-skill end users:
+    - `winget` install Python 3.11
+    - `winget` install Python 3.12
+    - fallback to official `python.org` silent installer into `runtime/windows/python/Python311|Python312`.
+  - Enforced strict dependency re-check after interpreter switching:
+    - only accept interpreter when `cherrypy/jsonpickle/swisseph/flatlib` import check passes.
+  - Added runtime path safety guard:
+    - if selected interpreter is already under `runtime/windows/python`, skip runtime sync copy step.
+  - Updated README troubleshooting text for new Python fallback chain and diagnostics.
+- Verification:
+  - PowerShell parse check passed for `Horosa_Local_Windows.ps1`.
+  - Smoke launch passed:
+    - command: `HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`, `HOROSA_SMOKE_WAIT_SECONDS=2`
+    - observed ready ports: `9999` (backend), `8899` (chartpy)
+    - graceful shutdown succeeded and `HOROSA_RUN_ISSUES.md` was updated.
