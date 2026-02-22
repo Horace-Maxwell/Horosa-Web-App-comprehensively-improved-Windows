@@ -378,3 +378,26 @@ Append new entries; do not rewrite history.
   - Increased corner metadata line spacing from `18` to `20`, and adjusted anchors to keep text within chart bounds.
 - Verification:
   - `npm run build --silent` in `Horosa-Web/astrostudyui` (compiled successfully)
+
+### 20:03 - Windows 发布包补同步：后天宫位功能进 dist-file + 字体路径兼容
+- Scope: ensure Windows downloadable package actually contains the new postnatal-house UI and avoids symbol-font fallback to plain letters.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/index.html`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/umi.515dab11.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/dist-file/umi.946bc48d.css`
+  - `Horosa_Local_Windows.ps1`
+  - `AGENT_CHANGELOG.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - Rebuilt frontend release bundle with `npm run build:file` so `showPostnatal / planetMetaDisplay` changes are present in `dist-file`.
+  - Kept launcher-side fallback in `Ensure-FrontendStaticLayout` to mirror `static/static/*` when CSS contains `url(static/...)`, preventing `ywastro`/`morinus` font 404 and symbol-to-letter regression.
+  - Current key locations in launcher script (line offsets changed after edits):
+    - `Horosa_Local_Windows.ps1:1037` (`Ensure-FrontendStaticLayout`)
+    - `Horosa_Local_Windows.ps1:1064` (`url(static/...)` detection)
+    - `Horosa_Local_Windows.ps1:1088` (nested static repair log)
+    - `Horosa_Local_Windows.ps1:1185` (function invocation)
+- Verification:
+  - `npm run build:file` in `astrostudyui` (compiled successfully)
+  - PowerShell parse check for `Horosa_Local_Windows.ps1` passed
+  - Smoke run passed: `HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`
+  - Pushed to remote main: commit `a6db45d94d62f81c930666fd9900ad06fef844eb`
