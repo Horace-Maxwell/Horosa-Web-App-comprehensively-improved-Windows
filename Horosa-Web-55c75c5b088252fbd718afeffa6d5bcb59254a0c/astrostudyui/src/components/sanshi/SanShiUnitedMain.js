@@ -1059,6 +1059,8 @@ class SanShiUnitedMain extends Component{
 		this.lastRecalcSignature = '';
 		this.refreshSeq = 0;
 		this.pendingRefresh = null;
+		this.lastPropFieldKey = getFieldKey(this.props.fields);
+		this.lastChartRef = this.props.chartObj || this.props.chart || null;
 		this.panCache = new Map();
 		this.lrBundleCache = {};
 		this.outerDataCache = { chartKey: '', data: null };
@@ -1143,21 +1145,29 @@ class SanShiUnitedMain extends Component{
 		this.prefetchNongliForFields(activeFields);
 	}
 
-	componentDidUpdate(prevProps){
+	componentDidUpdate(){
 		this.restoreOptionsFromCurrentCase();
-		const prevKey = getFieldKey(prevProps.fields);
 		const nextKey = getFieldKey(this.props.fields);
-		const chartChanged = (prevProps.chartObj !== this.props.chartObj) || (prevProps.chart !== this.props.chart);
+		const chartRef = this.props.chartObj || this.props.chart || null;
+		const chartChanged = this.lastChartRef !== chartRef;
+		const fieldChanged = this.lastPropFieldKey !== nextKey;
 		if(this.state.hasPlotted && chartChanged && this.state.nongli){
 			this.recalcByNongli(this.props.fields, this.state.nongli);
 		}
-		if(this.state.hasPlotted && prevKey !== nextKey){
+		if(this.state.hasPlotted && fieldChanged){
 			const refreshKey = getSanShiRefreshKey(this.props.fields, this.state.options);
 			if(this.pendingRefresh && this.pendingRefresh.key === refreshKey){
+				this.lastPropFieldKey = nextKey;
+				this.lastChartRef = chartRef;
 				return;
 			}
 			this.refreshAll(this.props.fields, false);
 		}
+		if(fieldChanged && this.state.localFields){
+			this.setState({ localFields: null });
+		}
+		this.lastPropFieldKey = nextKey;
+		this.lastChartRef = chartRef;
 	}
 
 	componentWillUnmount(){

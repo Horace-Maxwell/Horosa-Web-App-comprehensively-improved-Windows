@@ -36,6 +36,26 @@ function pickYearGan(chart){
 	return '';
 }
 
+function buildZiWeiFieldKey(fields){
+	if(!fields || !fields.date || !fields.time){
+		return '';
+	}
+	const dateVal = fields.date && fields.date.value && fields.date.value.format
+		? fields.date.value.format('YYYY-MM-DD')
+		: '';
+	const timeVal = fields.time && fields.time.value && fields.time.value.format
+		? fields.time.value.format('HH:mm:ss')
+		: '';
+	return [
+		dateVal,
+		timeVal,
+		fields.zone ? fields.zone.value : '',
+		fields.lon ? fields.lon.value : '',
+		fields.lat ? fields.lat.value : '',
+		fields.gender ? fields.gender.value : '',
+	].join('|');
+}
+
 function collectHouseStars(house){
 	const groups = [
 		'starsMain',
@@ -155,6 +175,9 @@ class ZiWeiMain extends Component{
 		};
 
 		this.unmounted = false;
+		this.requestSeq = 0;
+		this.lastFieldKey = buildZiWeiFieldKey(this.props.fields);
+		this.lastRequestKey = '';
 
 		this.requestZiWei = this.requestZiWei.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -187,6 +210,7 @@ class ZiWeiMain extends Component{
 				type: 'astro/save',
 				payload: flds
 			});
+			this.lastFieldKey = buildZiWeiFieldKey(flds.fields);
 			this.requestZiWei(flds.fields);
 		}
 	}
@@ -221,16 +245,28 @@ class ZiWeiMain extends Component{
 		if(fields === undefined || fields === null){
 			return;
 		}
+		const requestKey = buildZiWeiFieldKey(fields);
+		if(requestKey && this.lastRequestKey === requestKey){
+			return;
+		}
+		this.lastRequestKey = requestKey;
+		const seq = ++this.requestSeq;
 		const params = this.genParams(fields);
 
 		const data = await request(`${Constants.ServerRoot}/ziwei/birth`, {
 			body: JSON.stringify(params),
 		});
+		if(this.unmounted || seq !== this.requestSeq){
+			return;
+		}
 		const result = data[Constants.ResultKey]
 
 		const rules = await request(`${Constants.ServerRoot}/ziwei/rules`, {
 			body: JSON.stringify({}),
 		});
+		if(this.unmounted || seq !== this.requestSeq){
+			return;
+		}
 
 		let currentIdx = this.getNowDirectionIdx(result.chart);
 
@@ -242,6 +278,7 @@ class ZiWeiMain extends Component{
 
 
 		this.setState(st);
+		this.lastFieldKey = requestKey;
 		saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, result), {
 			date: params.date,
 			time: params.time,
@@ -331,8 +368,18 @@ class ZiWeiMain extends Component{
 		}
 	}
 
+	componentDidUpdate(){
+		const nextKey = buildZiWeiFieldKey(this.props.fields);
+		if(nextKey && nextKey !== this.lastFieldKey){
+			this.lastFieldKey = nextKey;
+			this.lastRequestKey = '';
+			this.requestZiWei(this.props.fields);
+		}
+	}
+
 	componentWillUnmount(){
 		this.unmounted = true;
+		this.requestSeq++;
 	}
 
 	render(){

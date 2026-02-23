@@ -174,6 +174,39 @@ function newEmptyFields(){
 	return fields;
 }
 
+function cloneFields(fields){
+	if(!fields){
+		return {};
+	}
+	const out = {};
+	for(const key in fields){
+		if(!Object.prototype.hasOwnProperty.call(fields, key)){
+			continue;
+		}
+		const field = fields[key];
+		if(field && typeof field === 'object'){
+			const cloned = {
+				...field,
+			};
+			if(field.value && typeof field.value === 'object'){
+				if(typeof field.value.clone === 'function'){
+					cloned.value = field.value.clone();
+				}else if(field.value instanceof Array){
+					cloned.value = [...field.value];
+				}else{
+					cloned.value = {
+						...field.value,
+					};
+				}
+			}
+			out[key] = cloned;
+		}else{
+			out[key] = field;
+		}
+	}
+	return out;
+}
+
 function fieldsToParams(fields){
 	const params = {
 		cid: fields.cid.value,
@@ -852,9 +885,7 @@ export default {
 		*fetchByChartData({ payload: values }, { call, put }){
             const store = getStore();
 			const state = store.astro;
-			const fields = {
-				...state.fields
-			}
+			const fields = cloneFields(state.fields);
 
 			let tm = new DateTime();
 			tm.parse(values.birth, 'YYYY-MM-DD HH:mm:ss');

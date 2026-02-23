@@ -52,5 +52,9 @@
 - `统摄法` 已并入主工程：`Horosa-Web-55.../astrostudyui/src/components/tongshefa/`
 - `易与三式` 已包含 `统摄法` 子页（位于 `太乙` 下方）。
 - AI 导出与本地案例映射均已包含 `tongshefa`。
+- 已修复“保存命盘读取后当前页不刷新”链路：
+  - `astrostudyui/src/models/astro.js`（`fetchByChartData` 深拷贝字段）
+  - `astrostudyui/src/components/ziwei/ZiWeiMain.js`（三合盘字段变更自动重算）
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`（三式合一外部命盘切换检测与刷新）
 - 参考目录 `Horosa-Web+App (Mac)/` 已删除，当前运行仅依赖本目录现存文件与 `runtime/`。
 - 仅 Git 工作树不保证可运行；发布包必须包含 `runtime/` 与 `runtime/windows/bundle/` 关键资产。
