@@ -14,6 +14,85 @@ Append new entries; do not rewrite history.
 
 ## 2026-02-23
 
+### 00:12 - 无本机 Python/Java 场景复验（Windows 一键启动）
+- Scope: re-validate launcher on a simulated clean Windows runtime environment with no local Python/Java discovery.
+- Files:
+  - `UPGRADE_LOG.md`
+- Details:
+  - Ran `.bat` launcher under restricted process env:
+    - unset `HOROSA_JAVA` / `HOROSA_PYTHON` / `JAVA_HOME`
+    - override `LocalAppData` / `ProgramFiles` / `ProgramFiles(x86)` to non-existing paths
+    - restrict `PATH` to `C:\Windows\System32;C:\Windows`
+  - Confirmed in-process checks:
+    - `where python` => `NO`
+    - `where java` => `NO`
+  - Launcher precheck still resolved bundled runtimes:
+    - Python `runtime/windows/python/python.exe`
+    - Java `runtime/windows/java/bin/java.exe`
+  - Startup smoke succeeded with no browser mode (`8899/9999/8000` up + graceful stop).
+- Verification:
+  - `cmd /c ... Horosa_Local_Windows.bat` in restricted env (pass)
+  - `HOROSA_RUN_ISSUES.md` latest run marked `SUCCESS` with no startup/timeout/module errors.
+
+### 23:58 - Windows 一键部署可靠性加固（多层兜底 + 打包门禁 + 弱网镜像）
+- Scope: make Windows one-click deployment robust on clean Win10/11 x64 machines by hardening runtime fallback layers, package completeness gates, and deployment observability.
+- Files:
+  - `Horosa_Local_Windows.ps1`
+  - `Prepare_Runtime_Windows.ps1`
+  - `Horosa_Local_Windows.bat`
+  - `README.md`
+  - `PROJECT_STRUCTURE.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - Launcher (`Horosa_Local_Windows.ps1`):
+    - Added unified downloader `Invoke-DownloadWithFallback` with fixed order: `BITS -> Invoke-WebRequest -> curl.exe`, per-source retry.
+    - Added Python portable fallback chain (`Install-PythonPortable`):
+      - runtime/bundled package -> `winget` fallback -> portable download.
+      - default portable source is Miniconda Py311 x64; supports `HOROSA_PYTHON_URL`.
+      - supports URL list files: `runtime/windows/bundle/python311.url.txt` and `runtime/bundle/python311.url.txt`.
+    - Hardened Java portable fallback:
+      - supports `HOROSA_JDK17_URL` and URL list file `runtime/windows/bundle/java17.url.txt`.
+      - keeps existing runtime/env/path/winget layers.
+    - Hardened backend jar restore:
+      - supports `astrostudyboot.jar` and `astrostudyboot-*.jar` in bundle.
+      - supports multi-URL loop from `astrostudyboot.url.txt`.
+      - on download failure still falls back to local Maven build.
+    - Added pre-start runtime summary output:
+      - Python path/version, Java path/version, jar source (`project/bundle/download/build`), frontend source (`dist/dist-file/bundle`).
+    - Python dependency online fallback now avoids hard-fail on `flatlib==0.2.3.post3` by retrying `0.2.3` then `flatlib`.
+  - Runtime packer (`Prepare_Runtime_Windows.ps1`):
+    - Added backend jar auto-build fallback (`mvn -DskipTests package`) when `target/astrostudyboot.jar` is missing.
+    - Added strict release gates (non-zero exit) for missing critical assets:
+      - `runtime/windows/java/bin/java.exe`
+      - `runtime/windows/python/python.exe`
+      - `runtime/windows/bundle/astrostudyboot.jar`
+      - `runtime/windows/bundle/dist-file/index.html` or `dist/index.html`
+      - required wheels (`CherryPy/jsonpickle/pyswisseph`)
+      - `runtime/windows/bundle/runtime.manifest.json`
+    - Added `runtime/windows/bundle/runtime.manifest.json` generation with file path/size/SHA256.
+    - Added weak-network URL template auto-generation:
+      - `java17.url.txt`
+      - `python311.url.txt`
+      - `astrostudyboot.url.txt`
+    - Python deps and wheel export now retry flatlib versions (`0.2.3.post3 -> 0.2.3 -> flatlib`) without blocking core wheels.
+  - Launcher entry (`Horosa_Local_Windows.bat`):
+    - prefers `pwsh` (PowerShell 7) when available; otherwise falls back to Windows PowerShell 5.1.
+    - on failure prints issue summary and latest local log directory hint.
+  - Docs:
+    - README updated with weak-network deployment, new env vars/URL files, and stricter release gate flow.
+    - PROJECT_STRUCTURE updated with manifest and URL-template artifacts.
+- Verification:
+  - PowerShell parse checks:
+    - `Horosa_Local_Windows.ps1` (pass)
+    - `Prepare_Runtime_Windows.ps1` (pass)
+  - Runtime prepare script:
+    - `Prepare_Runtime_Windows.ps1` full run (pass, exit code `0`)
+    - confirms manifest output and strict asset checks.
+  - Launcher smoke tests:
+    - `Horosa_Local_Windows.ps1` (`HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`) (pass)
+    - `Horosa_Local_Windows.bat` same smoke mode (pass)
+    - confirms ports `8899/9999/8000` startup + graceful stop.
+
 ### 19:45 - 统摄法完整并入 Windows 主工程 + 去除 Mac 参考目录依赖
 - Scope: sync 统摄法组件、AI 导出与本地案例映射到 Windows 主工程，修正统摄法命名显示规则，并验证删除 Mac 参考目录后可独立稳定运行。
 - Files:

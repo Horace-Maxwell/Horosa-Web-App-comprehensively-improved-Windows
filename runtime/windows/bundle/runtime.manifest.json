@@ -1,0 +1,176 @@
+﻿{
+    "generatedAt":  "2026-02-22T20:03:18-08:00",
+    "root":  "C:\\Users\\maxwe\\OneDrive\\Desktop\\Horosa-Web-App-comprehensively-improved-Windows-main",
+    "assets":  [
+                   {
+                       "path":  "runtime\\windows\\java\\bin\\java.exe",
+                       "size":  49696,
+                       "sha256":  "98fd4a0eec7fa39abbc2b3f55007ed9c8c24ef8fa5d7c04c3895b4c5915ec3f1"
+                   },
+                   {
+                       "path":  "runtime\\windows\\python\\python.exe",
+                       "size":  103192,
+                       "sha256":  "5f7b89a612c9b8af1d6456cdfcd1dbe5ca630849e79aebced9bee9a6694952ec"
+                   },
+                   {
+                       "path":  "runtime\\windows\\bundle\\astrostudyboot.jar",
+                       "size":  303888823,
+                       "sha256":  "1a9d6557df2b31d0031e64e1059c1e968e12e9f1e1cee4be0eba1f4daf254a0f"
+                   },
+                   {
+                       "path":  "runtime\\windows\\bundle\\dist-file\\index.html",
+                       "size":  1825,
+                       "sha256":  "80c3b0e845e9f437d22c13e838a241c176090de0a230117bb915fa92545fe759"
+                   },
+                   {
+                       "path":  "runtime\\windows\\bundle\\dist\\index.html",
+                       "size":  1825,
+                       "sha256":  "80c3b0e845e9f437d22c13e838a241c176090de0a230117bb915fa92545fe759"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\annotated_doc-0.0.4-py3-none-any.whl",
+                       "size":  5303,
+                       "sha256":  "571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\backports.tarfile-1.2.0-py3-none-any.whl",
+                       "size":  30181,
+                       "sha256":  "77e284d754527b01fb1e6fa8a1afe577858ebe4e9dad8919e34c862cb399bc34"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\cheroot-11.1.2-py3-none-any.whl",
+                       "size":  109248,
+                       "sha256":  "0f6c0ba05c00fbc869fb46b1de4ec2384e1d85418ae963d3bc10ae83b688dbfa"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\CherryPy-18.10.0-py3-none-any.whl",
+                       "size":  349804,
+                       "sha256":  "129e444b9a63cea4e765481b156376f1cfe319e64caaaec2485636532373b298"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\click-8.3.1-py3-none-any.whl",
+                       "size":  108274,
+                       "sha256":  "981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\colorama-0.4.6-py2.py3-none-any.whl",
+                       "size":  25335,
+                       "sha256":  "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\flatlib-0.2.3-py3-none-any.whl",
+                       "size":  5762227,
+                       "sha256":  "c846d83c965db7588581bb65ac9a6668b9a190afcad5027269f7e9c75f467bcd"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\jaraco_collections-5.2.1-py3-none-any.whl",
+                       "size":  11588,
+                       "sha256":  "ea3415ddfc50206b6ba7d09c3deb358b76a5f8c1ddc82be788e8e8bd151ebfa8"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\jaraco_context-6.1.0-py3-none-any.whl",
+                       "size":  7065,
+                       "sha256":  "a43b5ed85815223d0d3cfdb6d7ca0d2bc8946f28f30b6f3216bda070f68badda"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\jaraco_functools-4.4.0-py3-none-any.whl",
+                       "size":  10481,
+                       "sha256":  "9eec1e36f45c818d9bf307c8948eb03b2b56cd44087b3cdc989abca1f20b9176"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\jaraco_text-4.2.0-py3-none-any.whl",
+                       "size":  13267,
+                       "sha256":  "034408ef073f72de919124e9934a12acd50d10bd139bea47732620fa964b0144"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\jsonpickle-4.1.1-py3-none-any.whl",
+                       "size":  47125,
+                       "sha256":  "bb141da6057898aa2438ff268362b126826c812a1721e31cf08a6e142910dc91"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\markdown_it_py-4.0.0-py3-none-any.whl",
+                       "size":  87321,
+                       "sha256":  "87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\mdurl-0.1.2-py3-none-any.whl",
+                       "size":  9979,
+                       "sha256":  "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\more_itertools-10.8.0-py3-none-any.whl",
+                       "size":  69667,
+                       "sha256":  "52d4362373dcf7c52546bc4af9a86ee7c4579df9a8dc268be0a2f949d376cc9b"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\portend-3.2.1-py3-none-any.whl",
+                       "size":  5653,
+                       "sha256":  "bd2bb1cd8585e32f1f986c1b8eae2950c8622c648db163b711a2fc2ef8d8d492"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\pygments-2.19.2-py3-none-any.whl",
+                       "size":  1225217,
+                       "sha256":  "86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\pyswisseph-2.08.00-1.tar.gz",
+                       "size":  521573,
+                       "sha256":  "6b4818c0224d309c0b01f3c52df2432900dddcde345364408d99eafc9cdd1e71"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\pyswisseph-2.10.3.2-cp311-cp311-win_amd64.whl",
+                       "size":  1015881,
+                       "sha256":  "2b4a24f7954e1456ecbd3bb091b7c2a8a2e9838ff56e0d8af0f9e897fa84eb25"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+                       "size":  229892,
+                       "sha256":  "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\rich-14.3.3-py3-none-any.whl",
+                       "size":  310458,
+                       "sha256":  "793431c1f8619afa7d3b52b2cdec859562b950ea0d4b6b505397612db8d5362d"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\setuptools-82.0.0-py3-none-any.whl",
+                       "size":  1003468,
+                       "sha256":  "70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\shellingham-1.5.4-py2.py3-none-any.whl",
+                       "size":  9755,
+                       "sha256":  "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\six-1.17.0-py2.py3-none-any.whl",
+                       "size":  11050,
+                       "sha256":  "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\tempora-5.8.1-py3-none-any.whl",
+                       "size":  14427,
+                       "sha256":  "6945ec409ca930e5040490931dc0d8f516f2cd9798eb175dc3b3c6a0fc481ea2"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\typer-0.24.0-py3-none-any.whl",
+                       "size":  56441,
+                       "sha256":  "5fc435a9c8356f6160ed6e85a6301fdd6e3d8b2851da502050d1f92c5e9eddc8"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\typer-0.24.1-py3-none-any.whl",
+                       "size":  56085,
+                       "sha256":  "112c1f0ce578bfb4cab9ffdabc68f031416ebcc216536611ba21f04e9aa84c9e"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\typer_slim-0.24.0-py3-none-any.whl",
+                       "size":  3394,
+                       "sha256":  "d5d7ee1ee2834d5020c7c616ed5e0d0f29b9a4b1dd283bdebae198ec09778d0e"
+                   },
+                   {
+                       "path":  "runtime\\windows\\wheels\\zc_lockfile-4.0-py3-none-any.whl",
+                       "size":  9143,
+                       "sha256":  "aa3aa295257bebaa09ea9ad5cb288bf9f98f88de6932f96b6659f62715d83581"
+                   }
+               ]
+}

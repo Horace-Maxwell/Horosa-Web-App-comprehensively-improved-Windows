@@ -112,12 +112,20 @@ $RunFailureMessage = $null
 
 $DistDir = Resolve-FrontendDistDir -ProjDir $ProjectDir
 Write-Host ("[INFO] Frontend static dir: {0}" -f $DistDir)
+$FrontendSource = 'dist-file'
+if ($DistDir -match '[\\/]astrostudyui[\\/]dist$') {
+  $FrontendSource = 'dist'
+}
+if ($DistDir -match '[\\/]astrostudyui[\\/]dist-file$') {
+  $FrontendSource = 'dist-file'
+}
 
 $JarPath = Join-Path $ProjectDir 'astrostudysrv/astrostudyboot/target/astrostudyboot.jar'
 $WinBundleRoot = Join-Path $Root 'runtime/windows/bundle'
 $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
 $PythonBin = $null
 $JavaBin = $null
+$JarSource = if (Test-Path $JarPath) { 'project' } else { 'missing' }
 $WebPort = if ($env:HOROSA_WEB_PORT) { [int]$env:HOROSA_WEB_PORT } else { 8000 }
 $BackendPort = 9999
 $ChartPort = 8899
@@ -410,6 +418,88 @@ function Restore-EnvSnapshot {
   }
 }
 
+function Invoke-DownloadWithFallback {
+  param(
+    [string[]]$Urls,
+    [string]$OutFile,
+    [int]$MaxRetriesPerSource = 3,
+    [int]$TimeoutSec = 180
+  )
+
+  if (-not $OutFile) { return $false }
+  $normalizedUrls = @(
+    $Urls |
+      ForEach-Object { "$_".Trim() } |
+      Where-Object { $_ -match '^https?://' } |
+      Select-Object -Unique
+  )
+  if ($normalizedUrls.Count -eq 0) { return $false }
+
+  $outDir = Split-Path -Parent $OutFile
+  if ($outDir) {
+    New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+  }
+
+  $curlCmd = Get-Command 'curl.exe' -ErrorAction SilentlyContinue
+  $bitsAvailable = $null -ne (Get-Command 'Start-BitsTransfer' -ErrorAction SilentlyContinue)
+
+  foreach ($url in $normalizedUrls) {
+    for ($attempt = 1; $attempt -le $MaxRetriesPerSource; $attempt++) {
+      if (Test-Path $OutFile) {
+        Remove-Item -Force $OutFile -ErrorAction SilentlyContinue
+      }
+      Write-Host ("[DL] {0} (attempt {1}/{2})" -f $url, $attempt, $MaxRetriesPerSource)
+
+      if ($bitsAvailable) {
+        try {
+          Start-BitsTransfer -Source $url -Destination $OutFile -ErrorAction Stop
+          if ((Test-Path $OutFile) -and ((Get-Item $OutFile).Length -gt 0)) {
+            Write-Host '[DL] Download success via BITS.'
+            return $true
+          }
+        } catch {
+          Write-Host ("[DL][WARN] BITS failed: {0}" -f $_.Exception.Message)
+        }
+      }
+
+      try {
+        Invoke-WebRequest -Uri $url -OutFile $OutFile -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
+        if ((Test-Path $OutFile) -and ((Get-Item $OutFile).Length -gt 0)) {
+          Write-Host '[DL] Download success via Invoke-WebRequest.'
+          return $true
+        }
+      } catch {
+        Write-Host ("[DL][WARN] Invoke-WebRequest failed: {0}" -f $_.Exception.Message)
+      }
+
+      if ($curlCmd -and $curlCmd.Source) {
+        try {
+          $curlArgs = @(
+            '-L',
+            '--fail',
+            '--connect-timeout', '20',
+            '--max-time', "$TimeoutSec",
+            '-o', $OutFile,
+            $url
+          )
+          $curlProc = Start-Process -FilePath $curlCmd.Source -ArgumentList $curlArgs -Wait -PassThru -NoNewWindow
+          if (($curlProc.ExitCode -eq 0) -and (Test-Path $OutFile) -and ((Get-Item $OutFile).Length -gt 0)) {
+            Write-Host '[DL] Download success via curl.exe.'
+            return $true
+          }
+          Write-Host ("[DL][WARN] curl.exe exit code: {0}" -f $curlProc.ExitCode)
+        } catch {
+          Write-Host ("[DL][WARN] curl.exe failed: {0}" -f $_.Exception.Message)
+        }
+      }
+
+      Start-Sleep -Seconds 1
+    }
+  }
+
+  return $false
+}
+
 function Resolve-Browser {
   $chromeCandidates = @(
     "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
@@ -624,8 +714,22 @@ function Resolve-Java {
   return $null
 }
 
-function Get-SystemPythonCandidates {
+function Get-PythonCandidates {
   $candidates = @()
+
+  $candidates += @(
+    (Join-Path $Root 'runtime/windows/python/python.exe'),
+    (Join-Path $Root 'runtime/windows/python/python3.exe'),
+    (Join-Path $Root 'runtime/python/python.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/python/python.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/python/python3.exe'),
+    (Join-Path $ProjectDir 'runtime/python/python.exe')
+  )
+
+  if ($env:HOROSA_PYTHON -and (Test-Path $env:HOROSA_PYTHON)) {
+    $candidates += $env:HOROSA_PYTHON
+  }
+
   $candidates += @(
     "$env:LocalAppData\Programs\Python\Python311\python.exe",
     "$env:LocalAppData\Programs\Python\Python312\python.exe",
@@ -639,54 +743,16 @@ function Get-SystemPythonCandidates {
   if ($inPath) {
     $candidates += 'python'
   }
-  $inPath3 = Get-Command 'python3' -ErrorAction SilentlyContinue
-  if ($inPath3) {
-    $candidates += 'python3'
-  }
-
-  return $candidates
-}
-
-function Get-PythonCandidates {
-  param([switch]$IncludeSystem)
-
-  $candidates = @()
-
-  if ($env:HOROSA_PYTHON -and (Test-Path $env:HOROSA_PYTHON)) {
-    $candidates += $env:HOROSA_PYTHON
-  }
-
-  $candidates += @(
-    (Join-Path $Root 'runtime/windows/python/python.exe'),
-    (Join-Path $Root 'runtime/windows/python/python3.exe'),
-    (Join-Path $Root 'runtime/windows/python/Python311/python.exe'),
-    (Join-Path $Root 'runtime/windows/python/Python312/python.exe'),
-    (Join-Path $Root 'runtime/python/python.exe'),
-    (Join-Path $Root 'runtime/python/Python311/python.exe'),
-    (Join-Path $Root 'runtime/python/Python312/python.exe'),
-    (Join-Path $ProjectDir 'runtime/windows/python/python.exe'),
-    (Join-Path $ProjectDir 'runtime/windows/python/python3.exe'),
-    (Join-Path $ProjectDir 'runtime/windows/python/Python311/python.exe'),
-    (Join-Path $ProjectDir 'runtime/windows/python/Python312/python.exe'),
-    (Join-Path $ProjectDir 'runtime/python/python.exe'),
-    (Join-Path $ProjectDir 'runtime/python/Python311/python.exe'),
-    (Join-Path $ProjectDir 'runtime/python/Python312/python.exe')
-  )
-
-  if ($IncludeSystem) {
-    $candidates += Get-SystemPythonCandidates
-  }
 
   return $candidates
 }
 
 function Resolve-Python {
-  param([switch]$IncludeSystem)
   $seen = @{}
   $found311 = $null
   $found312 = $null
 
-  foreach ($candidate in (Get-PythonCandidates -IncludeSystem:$IncludeSystem)) {
+  foreach ($candidate in (Get-PythonCandidates)) {
     if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
     $key = $candidate.ToLowerInvariant()
     if ($seen.ContainsKey($key)) { continue }
@@ -717,9 +783,8 @@ function Resolve-Python {
 }
 
 function Resolve-Python311 {
-  param([switch]$IncludeSystem)
   $seen = @{}
-  foreach ($candidate in (Get-PythonCandidates -IncludeSystem:$IncludeSystem)) {
+  foreach ($candidate in (Get-PythonCandidates)) {
     if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
     $key = $candidate.ToLowerInvariant()
     if ($seen.ContainsKey($key)) { continue }
@@ -759,126 +824,225 @@ function Install-WithWinget {
   return $false
 }
 
-function Install-PythonPortable {
+function Read-HttpUrlsFromFiles {
+  param([string[]]$Files)
+
+  $result = New-Object System.Collections.Generic.List[string]
+  foreach ($file in $Files) {
+    if ([string]::IsNullOrWhiteSpace($file)) { continue }
+    if (-not (Test-Path $file)) { continue }
+    try {
+      $lines = Get-Content -Path $file -ErrorAction Stop
+      foreach ($line in $lines) {
+        $url = "$line".Trim()
+        if (-not $url) { continue }
+        if ($url.StartsWith('#')) { continue }
+        if ($url -match '^https?://') {
+          $result.Add($url)
+        }
+      }
+    } catch {
+      Write-Host ("[WARN] Failed to read URL file {0}: {1}" -f $file, $_.Exception.Message)
+    }
+  }
+  return @($result.ToArray() | Select-Object -Unique)
+}
+
+function Ensure-PythonPipAvailable {
   param(
-    [string]$DisplayName,
-    [string]$MajorMinor,
-    [string[]]$VersionCandidates
+    [string]$PythonExe,
+    [string]$TempDir
   )
 
+  if (-not (Test-Path $PythonExe)) { return $false }
   try {
-    Write-Host ("Trying portable install for {0}..." -f $DisplayName)
-    $portableRoot = Join-Path $Root 'runtime/windows/python'
-    $portableTag = 'Python' + $MajorMinor.Replace('.', '')
-    $pythonTarget = Join-Path $portableRoot $portableTag
-    $tmpBase = if ([string]::IsNullOrWhiteSpace($env:TEMP)) { $Root } else { $env:TEMP }
-    $tmpDir = Join-Path $tmpBase ('horosa_python_' + $portableTag + '_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
-    $installerPath = Join-Path $tmpDir 'python-installer.exe'
-    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
-    New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+    & $PythonExe -m pip --version *> $null
+    if ($LASTEXITCODE -eq 0) { return $true }
+  } catch {}
 
-    try {
-      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
-    } catch {
-      # keep default protocol settings if platform does not expose TLS 1.2 enum.
-    }
+  try {
+    & $PythonExe -m ensurepip --upgrade *> $null
+    & $PythonExe -m pip --version *> $null
+    if ($LASTEXITCODE -eq 0) { return $true }
+  } catch {}
 
-    $downloaded = $false
-    foreach ($version in $VersionCandidates) {
-      if ([string]::IsNullOrWhiteSpace($version)) { continue }
-      $url = "https://www.python.org/ftp/python/$version/python-$version-amd64.exe"
-      try {
-        Write-Host ("Downloading {0} from {1}" -f $DisplayName, $url)
-        Invoke-WebRequest -Uri $url -OutFile $installerPath -UseBasicParsing
-        if ((Test-Path $installerPath) -and ((Get-Item $installerPath).Length -gt 8388608)) {
-          $downloaded = $true
-          break
-        }
-      } catch {
-        Write-Host ("[WARN] Download failed from {0}" -f $url)
-      }
-    }
+  $getPipPath = Join-Path $TempDir 'get-pip.py'
+  $getPipUrls = @()
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_GET_PIP_URL)) {
+    $getPipUrls += $env:HOROSA_GET_PIP_URL.Trim()
+  }
+  $getPipUrls += @(
+    'https://bootstrap.pypa.io/get-pip.py',
+    'https://bootstrap.pypa.io/pip/3.11/get-pip.py'
+  )
+  if (-not (Invoke-DownloadWithFallback -Urls $getPipUrls -OutFile $getPipPath -TimeoutSec 180)) {
+    return $false
+  }
 
-    if (-not $downloaded) {
-      Write-Host ("[WARN] Portable install skipped: no downloadable installer for {0}" -f $DisplayName)
-      return $false
-    }
-
-    if (Test-Path $pythonTarget) {
-      try {
-        Remove-Item -Recurse -Force $pythonTarget
-      } catch {
-        Write-Host ("[WARN] Failed to clear existing portable Python dir {0}: {1}" -f $pythonTarget, $_.Exception.Message)
-      }
-    }
-    New-Item -ItemType Directory -Force -Path $pythonTarget | Out-Null
-
-    $args = @(
-      '/quiet',
-      'InstallAllUsers=0',
-      'PrependPath=0',
-      'Include_launcher=0',
-      'Include_test=0',
-      'Include_doc=0',
-      'Include_dev=0',
-      'Include_symbols=0',
-      'Include_debug=0',
-      'SimpleInstall=1',
-      'Shortcuts=0',
-      'Include_pip=1',
-      ("TargetDir={0}" -f $pythonTarget)
-    )
-    $proc = Start-Process -FilePath $installerPath -ArgumentList $args -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-      Write-Host ("[WARN] Portable installer exit code for {0}: {1}" -f $DisplayName, $proc.ExitCode)
-      return $false
-    }
-
-    $portableExe = Join-Path $pythonTarget 'python.exe'
-    if (-not (Test-Path $portableExe)) {
-      Write-Host ("[WARN] Portable install finished but python.exe missing: {0}" -f $portableExe)
-      return $false
-    }
-    if (-not (Test-PythonSupported -PythonCmdOrPath $portableExe)) {
-      Write-Host ("[WARN] Portable python is not supported (expected 3.11/3.12): {0}" -f $portableExe)
-      return $false
-    }
-
-    Write-Host ("[OK] Portable Python ready: {0}" -f $portableExe)
-    return $true
+  try {
+    & $PythonExe $getPipPath --disable-pip-version-check --no-warn-script-location
+    & $PythonExe -m pip --version *> $null
+    return ($LASTEXITCODE -eq 0)
   } catch {
-    Write-Host ("Portable Python install failed for {0}: {1}" -f $DisplayName, $_.Exception.Message)
     return $false
   }
 }
 
-function Install-PythonRuntime {
-  $methods = @(
-    @{ Kind = 'winget'; Id = 'Python.Python.3.11'; Name = 'Python 3.11' },
-    @{ Kind = 'winget'; Id = 'Python.Python.3.12'; Name = 'Python 3.12' },
-    @{ Kind = 'portable'; Name = 'Python 3.11'; MajorMinor = '3.11'; Versions = @('3.11.11', '3.11.10', '3.11.9') },
-    @{ Kind = 'portable'; Name = 'Python 3.12'; MajorMinor = '3.12'; Versions = @('3.12.11', '3.12.10', '3.12.9', '3.12.8', '3.12.7') }
+function Install-PythonPortableFromPackage {
+  param(
+    [string]$PackagePath,
+    [string]$PythonTarget,
+    [string]$TempDir
   )
 
-  foreach ($method in $methods) {
-    $ok = $false
-    if ($method.Kind -eq 'winget') {
-      $ok = Install-WithWinget -PackageId $method.Id -DisplayName $method.Name
-    } elseif ($method.Kind -eq 'portable') {
-      $ok = Install-PythonPortable -DisplayName $method.Name -MajorMinor $method.MajorMinor -VersionCandidates $method.Versions
-    }
+  if (-not (Test-Path $PackagePath)) { return $false }
+  $ext = [System.IO.Path]::GetExtension($PackagePath).ToLowerInvariant()
 
-    if (-not $ok) { continue }
-    Start-Sleep -Seconds 2
-    $resolved = Resolve-Python -IncludeSystem
-    if ($resolved) {
-      Write-Host ("[OK] Python detected after auto-install ({0}): {1}" -f $method.Name, $resolved)
-      return $resolved
+  if ($ext -eq '.exe') {
+    try {
+      if (Test-Path $PythonTarget) { Remove-Item -Recurse -Force $PythonTarget }
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $PythonTarget) | Out-Null
+      $installerArgs = @(
+        '/InstallationType=JustMe',
+        '/RegisterPython=0',
+        '/AddToPath=0',
+        '/S',
+        ("/D={0}" -f $PythonTarget)
+      )
+      $proc = Start-Process -FilePath $PackagePath -ArgumentList $installerArgs -Wait -PassThru
+      if ($proc.ExitCode -ne 0) {
+        Write-Host ("[WARN] Python installer exit code: {0}" -f $proc.ExitCode)
+        return $false
+      }
+    } catch {
+      Write-Host ("[WARN] Python installer failed: {0}" -f $_.Exception.Message)
+      return $false
     }
-    Write-Host ("[WARN] {0} install reported success, but Python still not detected. Trying next method..." -f $method.Name)
+  } elseif ($ext -eq '.zip') {
+    try {
+      $extractDir = Join-Path $TempDir 'extract'
+      if (Test-Path $extractDir) { Remove-Item -Recurse -Force $extractDir }
+      New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+      Expand-Archive -Path $PackagePath -DestinationPath $extractDir -Force
+
+      $pythonExe = Get-ChildItem -Path $extractDir -Recurse -Filter python.exe -File -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+      if (-not $pythonExe) {
+        Write-Host '[WARN] Python zip extracted but python.exe is missing.'
+        return $false
+      }
+      $pythonHome = Split-Path -Parent $pythonExe.FullName
+
+      if (Test-Path $PythonTarget) { Remove-Item -Recurse -Force $PythonTarget }
+      New-Item -ItemType Directory -Force -Path $PythonTarget | Out-Null
+      robocopy $pythonHome $PythonTarget /E /NFL /NDL /NJH /NJS /NP | Out-Null
+
+      $pthFile = Join-Path $PythonTarget 'python311._pth'
+      if (Test-Path $pthFile) {
+        try {
+          $pthText = Get-Content -Path $pthFile -Raw
+          if ($pthText -match '(?m)^\s*#\s*import site\s*$') {
+            $patched = $pthText -replace '(?m)^\s*#\s*import site\s*$', 'import site'
+            Set-Content -Path $pthFile -Value $patched -Encoding ASCII
+          }
+        } catch {}
+      }
+    } catch {
+      Write-Host ("[WARN] Python zip install failed: {0}" -f $_.Exception.Message)
+      return $false
+    }
+  } else {
+    Write-Host ("[WARN] Unsupported Python portable package type: {0}" -f $PackagePath)
+    return $false
   }
 
-  return $null
+  $portablePythonExe = Join-Path $PythonTarget 'python.exe'
+  if (-not (Test-Path $portablePythonExe)) { return $false }
+  if (-not (Test-Python311 -PythonCmdOrPath $portablePythonExe)) {
+    Write-Host '[WARN] Portable Python installed but is not Python 3.11.'
+    return $false
+  }
+  if (-not (Ensure-PythonPipAvailable -PythonExe $portablePythonExe -TempDir $TempDir)) {
+    Write-Host '[WARN] Portable Python ready, but pip bootstrap failed.'
+  }
+  return $true
+}
+
+function Install-PythonPortable {
+  $existingPortablePython = Join-Path $Root 'runtime/windows/python/python.exe'
+  if (Test-Python311 -PythonCmdOrPath $existingPortablePython) {
+    Write-Host ("[OK] Portable Python 3.11 already available: {0}" -f $existingPortablePython)
+    return $true
+  }
+
+  try {
+    Write-Host 'winget install Python failed, trying portable Python 3.11 fallback...'
+    $portableRoot = Join-Path $Root 'runtime/windows'
+    $pythonTarget = Join-Path $portableRoot 'python'
+    $tmpDir = Join-Path $env:TEMP ('horosa_python311_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
+    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+
+    $localPackages = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_PYTHON_PACKAGE) -and (Test-Path $env:HOROSA_PYTHON_PACKAGE)) {
+      $localPackages += $env:HOROSA_PYTHON_PACKAGE.Trim()
+    }
+    $localPackages += @(
+      (Join-Path $Root 'runtime/windows/bundle/python311-portable.exe'),
+      (Join-Path $Root 'runtime/windows/bundle/python311.exe'),
+      (Join-Path $Root 'runtime/windows/bundle/python311-runtime.zip'),
+      (Join-Path $Root 'runtime/windows/bundle/python311.zip'),
+      (Join-Path $Root 'runtime/windows/bundle/python.zip'),
+      (Join-Path $Root 'runtime/bundle/python311-portable.exe'),
+      (Join-Path $Root 'runtime/bundle/python311.exe'),
+      (Join-Path $Root 'runtime/bundle/python311-runtime.zip'),
+      (Join-Path $Root 'runtime/bundle/python311.zip'),
+      (Join-Path $Root 'runtime/bundle/python.zip')
+    ) | Select-Object -Unique
+
+    foreach ($package in $localPackages) {
+      if ([string]::IsNullOrWhiteSpace($package)) { continue }
+      if (-not (Test-Path $package)) { continue }
+      Write-Host ("Trying bundled Python package: {0}" -f $package)
+      if (Install-PythonPortableFromPackage -PackagePath $package -PythonTarget $pythonTarget -TempDir $tmpDir) {
+        Write-Host ("[OK] Portable Python 3.11 ready from bundled package: {0}" -f $package)
+        return $true
+      }
+    }
+
+    $urlCandidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_PYTHON_URL)) {
+      $urlCandidates += $env:HOROSA_PYTHON_URL.Trim()
+    }
+    $urlCandidates += Read-HttpUrlsFromFiles -Files @(
+      (Join-Path $Root 'runtime/windows/bundle/python311.url.txt'),
+      (Join-Path $Root 'runtime/windows/bundle/python.url.txt'),
+      (Join-Path $Root 'runtime/bundle/python311.url.txt'),
+      (Join-Path $Root 'runtime/bundle/python.url.txt')
+    )
+    $urlCandidates += @(
+      'https://repo.anaconda.com/miniconda/Miniconda3-py311_24.11.1-0-Windows-x86_64.exe',
+      'https://repo.anaconda.com/miniconda/Miniconda3-py311_24.7.1-0-Windows-x86_64.exe',
+      'https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip'
+    )
+    $urlCandidates = @($urlCandidates | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
+
+    foreach ($url in $urlCandidates) {
+      $isZip = $url -match '(?i)\.zip($|[?#])'
+      $pkgPath = Join-Path $tmpDir ($(if ($isZip) { 'python311_portable.zip' } else { 'python311_portable.exe' }))
+      if (-not (Invoke-DownloadWithFallback -Urls @($url) -OutFile $pkgPath -TimeoutSec 300)) {
+        continue
+      }
+      if (Install-PythonPortableFromPackage -PackagePath $pkgPath -PythonTarget $pythonTarget -TempDir $tmpDir) {
+        Write-Host ("[OK] Portable Python 3.11 ready from download: {0}" -f $url)
+        return $true
+      }
+    }
+  } catch {
+    Write-Host ("Portable Python fallback failed: {0}" -f $_.Exception.Message)
+  }
+
+  return $false
 }
 
 function Install-Java17 {
@@ -921,6 +1085,29 @@ function Install-Java17 {
   return $false
 }
 
+function Get-Java17DownloadUrls {
+  $urls = @()
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_JDK17_URL)) {
+    $envUrl = $env:HOROSA_JDK17_URL.Trim()
+    if ($envUrl -match '^https?://') {
+      $urls += $envUrl
+    } else {
+      Write-Host '[WARN] HOROSA_JDK17_URL is set but is not a valid http(s) URL. Ignore it.'
+    }
+  }
+
+  $urls += Read-HttpUrlsFromFiles -Files @(
+    (Join-Path $WinBundleRoot 'java17.url.txt'),
+    (Join-Path $CommonBundleRoot 'java17.url.txt')
+  )
+
+  $urls += @(
+    'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk',
+    'https://download.oracle.com/java/17/latest/jdk-17_windows-x64_bin.zip'
+  )
+  return @($urls | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
+}
+
 function Install-Java17Portable {
   try {
     Write-Host 'winget install failed, trying portable Java 17 download...'
@@ -931,8 +1118,38 @@ function Install-Java17Portable {
     New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
     New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
 
-    $url = 'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk'
-    Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+    $archiveReady = $false
+    $localArchives = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_JDK17_ZIP) -and (Test-Path $env:HOROSA_JDK17_ZIP)) {
+      $localArchives += $env:HOROSA_JDK17_ZIP.Trim()
+    }
+    $localArchives += @(
+      (Join-Path $WinBundleRoot 'java17.zip'),
+      (Join-Path $CommonBundleRoot 'java17.zip')
+    ) | Select-Object -Unique
+    foreach ($archive in $localArchives) {
+      if ([string]::IsNullOrWhiteSpace($archive)) { continue }
+      if (-not (Test-Path $archive)) { continue }
+      try {
+        Copy-Item -Path $archive -Destination $zipPath -Force
+        if ((Test-Path $zipPath) -and ((Get-Item $zipPath).Length -gt 1048576)) {
+          Write-Host ("[OK] Using bundled Java archive: {0}" -f $archive)
+          $archiveReady = $true
+          break
+        }
+      } catch {
+        Write-Host ("[WARN] Cannot use bundled Java archive {0}: {1}" -f $archive, $_.Exception.Message)
+      }
+    }
+
+    if (-not $archiveReady) {
+      $javaUrls = Get-Java17DownloadUrls
+      $archiveReady = Invoke-DownloadWithFallback -Urls $javaUrls -OutFile $zipPath -TimeoutSec 300
+    }
+    if (-not $archiveReady) {
+      Write-Host '[WARN] Portable Java archive is unavailable.'
+      return $false
+    }
 
     $extractDir = Join-Path $tmpDir 'extract'
     Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
@@ -1011,18 +1228,7 @@ function Install-MavenPortable {
       'https://downloads.apache.org/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip',
       'https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip'
     )
-    $downloaded = $false
-    foreach ($url in $urls) {
-      try {
-        Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
-        if ((Test-Path $zipPath) -and ((Get-Item $zipPath).Length -gt 1024)) {
-          $downloaded = $true
-          break
-        }
-      } catch {
-        Write-Host ("Portable Maven download failed from {0}" -f $url)
-      }
-    }
+    $downloaded = Invoke-DownloadWithFallback -Urls $urls -OutFile $zipPath -TimeoutSec 240
     if (-not $downloaded) {
       Write-Host '[WARN] Portable Maven download failed.'
       return $false
@@ -1227,25 +1433,6 @@ function Get-ExePath {
   return $null
 }
 
-function Test-PathUnderDirectory {
-  param(
-    [string]$ChildPath,
-    [string]$ParentPath
-  )
-  if ([string]::IsNullOrWhiteSpace($ChildPath)) { return $false }
-  if ([string]::IsNullOrWhiteSpace($ParentPath)) { return $false }
-  try {
-    $childFull = [System.IO.Path]::GetFullPath($ChildPath)
-    $parentFull = [System.IO.Path]::GetFullPath($ParentPath)
-    if (-not $parentFull.EndsWith('\')) {
-      $parentFull = $parentFull + '\'
-    }
-    return $childFull.StartsWith($parentFull, [System.StringComparison]::OrdinalIgnoreCase)
-  } catch {
-    return $false
-  }
-}
-
 function Sync-RuntimeFromExe {
   param(
     [string]$ExeCmdOrPath,
@@ -1329,8 +1516,27 @@ function Ensure-PythonRuntimeDeps {
 
   try {
     Write-Host 'Installing Python dependencies for local runtime (online fallback)...'
-    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle flatlib==0.2.3.post3
+    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
     if ($LASTEXITCODE -ne 0) { return $false }
+
+    $flatlibInstalled = $false
+    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
+    foreach ($flatlibSpec in $flatlibSpecs) {
+      try {
+        & $PythonExe -m pip install --disable-pip-version-check --no-input $flatlibSpec *> $null
+        if ($LASTEXITCODE -eq 0) {
+          $flatlibInstalled = $true
+          break
+        }
+      } catch {
+        # try next fallback
+      }
+      Write-Host ("[WARN] Failed to install {0}, trying fallback..." -f $flatlibSpec)
+    }
+    if (-not $flatlibInstalled) {
+      Write-Host '[WARN] Flatlib package install skipped; launcher will use bundled flatlib-ctrad2.'
+    }
+
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
     return (& $checkDeps $PythonExe $ProjectRoot)
@@ -1355,6 +1561,7 @@ function Sync-BundledFrontend {
     robocopy $src $DistDir /E /NFL /NDL /NJH /NJS /NP | Out-Null
     if (Test-Path (Join-Path $DistDir 'index.html')) {
       Write-Host ("[OK] Frontend bundle restored from: {0}" -f $src)
+      $script:FrontendSource = 'bundle'
       return $true
     }
   }
@@ -1416,80 +1623,128 @@ function Ensure-FrontendStaticLayout {
   }
 }
 
-function Get-BackendJarDownloadUrl {
+function Get-BackendJarDownloadUrls {
+  $urls = @()
   if ($env:HOROSA_BOOT_JAR_URL) {
     $envUrl = $env:HOROSA_BOOT_JAR_URL.Trim()
-    if ($envUrl -match '^https?://') { return $envUrl }
-    Write-Host '[WARN] HOROSA_BOOT_JAR_URL is set but is not a valid http(s) URL. Ignore it.'
-  }
-
-  $urlFiles = @(
-    (Join-Path $WinBundleRoot 'astrostudyboot.url.txt'),
-    (Join-Path $WinBundleRoot 'astrostudyboot.jar.url'),
-    (Join-Path $CommonBundleRoot 'astrostudyboot.url.txt'),
-    (Join-Path $CommonBundleRoot 'astrostudyboot.jar.url')
-  ) | Select-Object -Unique
-
-  foreach ($urlFile in $urlFiles) {
-    if (-not (Test-Path $urlFile)) { continue }
-    try {
-      $lines = Get-Content -Path $urlFile -ErrorAction Stop
-      foreach ($line in $lines) {
-        $candidate = $line.Trim()
-        if (-not $candidate) { continue }
-        if ($candidate.StartsWith('#')) { continue }
-        if ($candidate -match '^https?://') {
-          Write-Host ("Using backend jar URL from file: {0}" -f $urlFile)
-          return $candidate
-        }
-      }
-      Write-Host ("[WARN] URL file exists but no valid http(s) URL found: {0}" -f $urlFile)
-    } catch {
-      Write-Host ("[WARN] Failed to read jar URL file {0}: {1}" -f $urlFile, $_.Exception.Message)
+    if ($envUrl -match '^https?://') {
+      $urls += $envUrl
+    } else {
+      Write-Host '[WARN] HOROSA_BOOT_JAR_URL is set but is not a valid http(s) URL. Ignore it.'
     }
   }
 
-  return $null
+  $urls += Read-HttpUrlsFromFiles -Files @(
+    (Join-Path $WinBundleRoot 'astrostudyboot.url.txt'),
+    (Join-Path $WinBundleRoot 'astrostudyboot.jar.url'),
+    (Join-Path $WinBundleRoot 'astrostudyboot.urls.txt'),
+    (Join-Path $CommonBundleRoot 'astrostudyboot.url.txt'),
+    (Join-Path $CommonBundleRoot 'astrostudyboot.jar.url'),
+    (Join-Path $CommonBundleRoot 'astrostudyboot.urls.txt')
+  )
+
+  return @($urls | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
 }
 
 function Ensure-BackendJar {
-  if (Test-Path $JarPath) { return $true }
+  if (Test-Path $JarPath) {
+    $script:JarSource = 'project'
+    return $true
+  }
 
-  $sources = @(
+  $sources = New-Object System.Collections.Generic.List[string]
+  foreach ($direct in @(
     (Join-Path $WinBundleRoot 'astrostudyboot.jar'),
     (Join-Path $CommonBundleRoot 'astrostudyboot.jar')
-  )
-  foreach ($src in $sources) {
+  )) {
+    if ($direct -and (Test-Path $direct)) {
+      $sources.Add($direct)
+    }
+  }
+  foreach ($baseDir in @($WinBundleRoot, $CommonBundleRoot)) {
+    if (-not (Test-Path $baseDir)) { continue }
+    $versionedJars = @(
+      Get-ChildItem -Path $baseDir -Filter 'astrostudyboot-*.jar' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+    )
+    foreach ($jar in $versionedJars) {
+      $sources.Add($jar.FullName)
+    }
+  }
+
+  foreach ($src in @($sources.ToArray() | Select-Object -Unique)) {
     if (-not (Test-Path $src)) { continue }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
     Copy-Item -Path $src -Destination $JarPath -Force
     if (Test-Path $JarPath) {
       Write-Host ("[OK] Backend jar restored from: {0}" -f $src)
+      $script:JarSource = 'bundle'
       return $true
     }
   }
 
-  $jarUrl = Get-BackendJarDownloadUrl
-  if ($jarUrl) {
-    try {
-      Write-Host ("Downloading backend jar from: {0}" -f $jarUrl)
-      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
-      Invoke-WebRequest -Uri $jarUrl -OutFile $JarPath -UseBasicParsing
+  $jarUrls = Get-BackendJarDownloadUrls
+  if ($jarUrls.Count -gt 0) {
+    Write-Host ("Trying backend jar download sources: {0}" -f $jarUrls.Count)
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
+    if (Invoke-DownloadWithFallback -Urls $jarUrls -OutFile $JarPath -TimeoutSec 240) {
       if (Test-Path $JarPath) {
         Write-Host ("[OK] Backend jar downloaded to: {0}" -f $JarPath)
+        $script:JarSource = 'download'
         return $true
       }
-    } catch {
-      Write-Host ("[WARN] Backend jar download failed: {0}" -f $_.Exception.Message)
     }
   }
 
   if (Try-BuildBackendJar) {
     Write-Host ("[OK] Backend jar built locally: {0}" -f $JarPath)
+    $script:JarSource = 'build'
     return $true
   }
 
   return $false
+}
+
+function Get-PythonVersionText {
+  param([string]$PythonExe)
+  if (-not $PythonExe) { return 'unknown' }
+  try {
+    $out = & $PythonExe -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>$null
+    if ($out) {
+      return ($out | Select-Object -First 1).ToString().Trim()
+    }
+  } catch {}
+  return 'unknown'
+}
+
+function Get-JavaVersionText {
+  param([string]$JavaExe)
+  if (-not $JavaExe) { return 'unknown' }
+  try {
+    $cmdLine = ('"{0}" -version 2>&1' -f $JavaExe)
+    $versionOut = cmd /c $cmdLine
+    if ($versionOut) {
+      return ($versionOut | Select-Object -First 1).ToString().Trim()
+    }
+  } catch {}
+  return 'unknown'
+}
+
+function Show-PreflightRuntimeSummary {
+  param(
+    [string]$PythonExe,
+    [string]$JavaExe
+  )
+
+  $pyVersion = Get-PythonVersionText -PythonExe $PythonExe
+  $javaVersion = Get-JavaVersionText -JavaExe $JavaExe
+  Write-Host '[PRECHECK] Runtime resolution summary:'
+  Write-Host ("  python: {0}" -f $PythonExe)
+  Write-Host ("  python version: {0}" -f $pyVersion)
+  Write-Host ("  java: {0}" -f $JavaExe)
+  Write-Host ("  java version: {0}" -f $javaVersion)
+  Write-Host ("  backend jar source: {0}" -f $script:JarSource)
+  Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
 }
 
 if (-not (Test-Path $ProjectDir)) {
@@ -1514,25 +1769,34 @@ Ensure-FrontendStaticLayout -DistPath $DistDir
 if (-not (Ensure-BackendJar)) {
   Write-Host "Backend jar missing: $JarPath"
   Write-Host "Please run Prepare_Runtime_Windows.bat on build machine,"
-  Write-Host "or set HOROSA_BOOT_JAR_URL / runtime/windows/bundle/astrostudyboot.url.txt and retry."
+  Write-Host "or set HOROSA_BOOT_JAR_URL / runtime/windows/bundle/astrostudyboot.url.txt (multi-line URLs) and retry."
   Read-Host 'Press Enter to exit'
   exit 1
 }
 
 $PythonBin = Resolve-Python
 if (-not $PythonBin) {
-  Write-Host '[INFO] No bundled Python detected, trying automatic Python installation methods...'
-  $PythonBin = Install-PythonRuntime
-}
-if (-not $PythonBin) {
-  Write-Host '[WARN] Auto Python install methods failed. Trying existing system Python as last resort...'
-  $PythonBin = Resolve-Python -IncludeSystem
-}
-if (-not $PythonBin) {
-  Write-Host 'Python 3.11/3.12 not found after all install attempts.'
-  Write-Host 'Install Python 3.11 manually, then rerun this launcher.'
-  Read-Host 'Press Enter to exit'
-  exit 1
+  $installed = Install-WithWinget -PackageId 'Python.Python.3.11' -DisplayName 'Python 3.11'
+  if ($installed) {
+    $PythonBin = Resolve-Python
+  }
+  if (-not $PythonBin) {
+    $portableInstalled = Install-PythonPortable
+    if ($portableInstalled) {
+      Start-Sleep -Seconds 1
+      $PythonBin = Resolve-Python311
+      if (-not $PythonBin) {
+        $PythonBin = Resolve-Python
+      }
+    }
+  }
+  if (-not $PythonBin) {
+    Write-Host 'Python 3.11/3.12 not found.'
+    Write-Host 'Tried layered resolution: runtime/windows/python -> HOROSA_PYTHON -> system Python -> winget -> portable download.'
+    Write-Host 'Install Python 3.11 manually (recommended for offline startup), then rerun this launcher.'
+    Read-Host 'Press Enter to exit'
+    exit 1
+  }
 }
 
 $selectedPythonVersion = Get-PythonVersionInfo -PythonCmdOrPath $PythonBin
@@ -1541,20 +1805,14 @@ if ($selectedPythonVersion -and $selectedPythonVersion.Major -eq 3 -and $selecte
 }
 
 $PyRuntimeDir = Join-Path $Root 'runtime/windows/python'
-$runtimeRootPython = Join-Path $PyRuntimeDir 'python.exe'
-if (-not (Test-Path $runtimeRootPython)) {
-  $pythonResolvedPath = Get-ExePath -CmdOrPath $PythonBin
-  if ($pythonResolvedPath -and (Test-PathUnderDirectory -ChildPath $pythonResolvedPath -ParentPath $PyRuntimeDir)) {
-    Write-Host '[INFO] Selected Python already lives under runtime/windows/python, skip runtime sync.'
+if (-not (Test-Path (Join-Path $PyRuntimeDir 'python.exe'))) {
+  Write-Host 'Preparing local Python runtime for offline use...'
+  $pySynced = Sync-RuntimeFromExe -ExeCmdOrPath $PythonBin -TargetDir $PyRuntimeDir -UpLevels 1 -CheckRelative 'python.exe'
+  if ($pySynced) {
+    $PythonBin = Join-Path $PyRuntimeDir 'python.exe'
+    Write-Host "[OK] Local Python runtime ready: $PythonBin"
   } else {
-    Write-Host 'Preparing local Python runtime for offline use...'
-    $pySynced = Sync-RuntimeFromExe -ExeCmdOrPath $PythonBin -TargetDir $PyRuntimeDir -UpLevels 1 -CheckRelative 'python.exe'
-    if ($pySynced) {
-      $PythonBin = Join-Path $PyRuntimeDir 'python.exe'
-      Write-Host "[OK] Local Python runtime ready: $PythonBin"
-    } else {
-      Write-Host '[WARN] Could not sync local Python runtime, will continue with current Python.'
-    }
+    Write-Host '[WARN] Could not sync local Python runtime, will continue with system Python.'
   }
 }
 
@@ -1575,17 +1833,21 @@ if (-not $depsReady) {
     $python311 = Resolve-Python311
     if (-not $python311) {
       $installed311 = Install-WithWinget -PackageId 'Python.Python.3.11' -DisplayName 'Python 3.11'
-      if (-not $installed311) {
-        $installed311 = Install-PythonPortable -DisplayName 'Python 3.11' -MajorMinor '3.11' -VersionCandidates @('3.11.11', '3.11.10', '3.11.9')
-      }
       if ($installed311) {
         Start-Sleep -Seconds 2
-        $python311 = Resolve-Python311 -IncludeSystem
+        $python311 = Resolve-Python311
+      }
+      if (-not $python311) {
+        $portable311 = Install-PythonPortable
+        if ($portable311) {
+          Start-Sleep -Seconds 1
+          $python311 = Resolve-Python311
+        }
       }
     }
 
     if ($python311) {
-      if ((Ensure-PythonRuntimeDeps -PythonExe $python311 -ProjectRoot $ProjectDir) -and (Test-PythonDepsReady -PythonCmdOrPath $python311)) {
+      if (Ensure-PythonRuntimeDeps -PythonExe $python311 -ProjectRoot $ProjectDir) {
         $PythonBin = $python311
         $depsReady = $true
         Write-Host ("[OK] Switched to Python 3.11: {0}" -f $PythonBin)
@@ -1596,28 +1858,42 @@ if (-not $depsReady) {
   }
 
   if (-not $depsReady) {
-    Write-Host '[WARN] Python dependencies are still incomplete, trying existing system Python candidates as final fallback...'
-    foreach ($candidate in (Get-SystemPythonCandidates)) {
-      if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
-      if ($candidate -ne 'python' -and $candidate -ne 'python3' -and (-not (Test-Path $candidate))) { continue }
-
-      $samePython = $false
-      try {
-        $candidatePath = Get-ExePath -CmdOrPath $candidate
-        $currentPath = Get-ExePath -CmdOrPath $PythonBin
-        if ($candidatePath -and $currentPath -and ($candidatePath -ieq $currentPath)) {
-          $samePython = $true
-        }
-      } catch {
-        $samePython = $false
+    $runtimePythonExe = Join-Path $PyRuntimeDir 'python.exe'
+    $usingBundledPython = $false
+    try {
+      if ((Test-Path $PythonBin) -and (Test-Path $runtimePythonExe)) {
+        $usingBundledPython = ((Resolve-Path $PythonBin).Path -ieq (Resolve-Path $runtimePythonExe).Path)
       }
-      if ($samePython) { continue }
+    } catch {
+      $usingBundledPython = $false
+    }
 
-      if ((Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) -and (Test-PythonDepsReady -PythonCmdOrPath $candidate)) {
-        $PythonBin = $candidate
-        $depsReady = $true
-        Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
-        break
+    if ($usingBundledPython) {
+      Write-Host '[WARN] Bundled Python dependencies are incomplete, trying system Python fallback...'
+      $fallbackCandidates = @(
+        "$env:LocalAppData\Programs\Python\Python311\python.exe",
+        "$env:LocalAppData\Programs\Python\Python312\python.exe",
+        "$env:ProgramFiles\Python311\python.exe",
+        "$env:ProgramFiles\Python312\python.exe",
+        'C:\Python311\python.exe',
+        'C:\Python312\python.exe',
+        'python'
+      )
+      foreach ($candidate in $fallbackCandidates) {
+        if (-not (Test-PythonSupported -PythonCmdOrPath $candidate)) { continue }
+        if ($candidate -ne 'python' -and (-not (Test-Path $candidate))) { continue }
+        if ($candidate -ne 'python' -and (Test-Path $PythonBin)) {
+          try {
+            if ((Resolve-Path $candidate).Path -ieq (Resolve-Path $PythonBin).Path) { continue }
+          } catch {}
+        }
+
+        if (Ensure-PythonRuntimeDeps -PythonExe $candidate -ProjectRoot $ProjectDir) {
+          $PythonBin = $candidate
+          $depsReady = $true
+          Write-Host ("[OK] Switched to system Python: {0}" -f $PythonBin)
+          break
+        }
       }
     }
   }
@@ -1643,6 +1919,7 @@ if (-not $JavaBin) {
   }
 }
 
+Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin
 Write-Host ("Using Python: {0}" -f $PythonBin)
 Write-Host ("Using Java: {0}" -f $JavaBin)
 Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if($PerfMode){'ON'}else{'OFF'})))
