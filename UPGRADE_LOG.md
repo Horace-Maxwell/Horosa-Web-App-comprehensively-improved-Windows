@@ -14,6 +14,37 @@ Append new entries; do not rewrite history.
 
 ## 2026-02-23
 
+### 12:35 - 修复保存命盘在三合盘/三式合一读取后不即时刷新的问题
+- Scope: fix saved-chart load sync issue where `三合盘` required tab switching to refresh, and `三式合一` could remain stale after load.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/models/astro.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/ziwei/ZiWeiMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `UPGRADE_LOG.md`
+  - `PROJECT_STRUCTURE.md`
+- Details:
+  - `astro/fetchByChartData`：
+    - 新增 `cloneFields`，避免浅拷贝后直接修改嵌套字段导致旧引用被污染，保证读取命盘后字段变更可被组件正确感知。
+  - `ZiWeiMain`（含三合盘）：
+    - 新增 `buildZiWeiFieldKey` 字段签名与 `componentDidUpdate` 监听，外部命盘变更时自动重算。
+    - 新增请求序号防乱序覆盖，避免旧请求后返回覆盖新命盘结果。
+  - `SanShiUnitedMain`：
+    - 改用实例级 `lastPropFieldKey/lastChartRef` 检测外部命盘切换，避免因引用污染漏检。
+    - 外部字段切换时清理 `localFields`，避免页面停留旧草稿状态。
+  - 结果：
+    - 读取保存命盘时，在当前 `三合盘`/`三式合一` 页面可直接刷新，不再依赖先切换到其它栏目。
+- Verification:
+  - Frontend build:
+    - `npm run build` in `Horosa-Web-55.../astrostudyui` (pass)
+  - Launcher smoke:
+    - `HOROSA_NO_BROWSER=1`
+    - `HOROSA_SMOKE_TEST=1`
+    - `HOROSA_SMOKE_WAIT_SECONDS=8`
+    - `powershell -ExecutionPolicy Bypass -File .\\Horosa_Local_Windows.ps1` (pass)
+  - Smoke output confirms:
+    - launcher selected latest `astrostudyui/dist`
+    - backend/chartpy/web services on `9999/8899/8000` started and gracefully stopped.
+
 ### 00:12 - 无本机 Python/Java 场景复验（Windows 一键启动）
 - Scope: re-validate launcher on a simulated clean Windows runtime environment with no local Python/Java discovery.
 - Files:
