@@ -37,3 +37,9 @@
 - 改主站功能：`Horosa-Web-55.../astrostudyui/src/`
 - 改本地部署：根目录脚本 + `runtime/`
 - 看离线运行日志：`Horosa-Web-55.../.horosa-local-logs-win/`
+
+## E. 同步状态（2026-02-23）
+- `统摄法` 已并入主工程：`Horosa-Web-55.../astrostudyui/src/components/tongshefa/`
+- `易与三式` 已包含 `统摄法` 子页（位于 `太乙` 下方）。
+- AI 导出与本地案例映射均已包含 `tongshefa`。
+- 参考目录 `Horosa-Web+App (Mac)/` 已删除，当前运行仅依赖本目录现存文件与 `runtime/`。

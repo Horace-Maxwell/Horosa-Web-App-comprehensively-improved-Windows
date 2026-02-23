@@ -7,10 +7,11 @@ import LiuRengMain from '../lrzhan/LiuRengMain';
 import JinKouMain from '../jinkou/JinKouMain';
 import DunJiaMain from '../dunjia/DunJiaMain';
 import TaiYiMain from '../taiyi/TaiYiMain';
+import TongSheFaMain from '../tongshefa/TongSheFaMain';
 
 
 const TabPane = Tabs.TabPane;
-const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi'];
+const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'];
 
 class CnYiBuMain extends Component{
 
@@ -38,6 +39,9 @@ class CnYiBuMain extends Component{
 					fun: null
 				},
 				taiyi:{
+					fun: null
+				},
+				tongshefa:{
 					fun: null
 				}
 			},
@@ -162,6 +166,15 @@ class CnYiBuMain extends Component{
 							height={height}
 							fields={this.props.fields}
 							hook={this.state.hook.taiyi}
+							dispatch={this.props.dispatch}
+						/>
+					</TabPane>
+					<TabPane tab="统摄法" key="tongshefa">
+						<TongSheFaMain
+							value={this.props.chart}
+							height={height}
+							fields={this.props.fields}
+							hook={this.state.hook.tongshefa}
 							dispatch={this.props.dispatch}
 						/>
 					</TabPane>

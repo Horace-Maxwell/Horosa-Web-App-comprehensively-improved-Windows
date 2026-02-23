@@ -138,6 +138,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'ziwei', label: '紫微斗数' },
 	{ key: 'suzhan', label: '宿占' },
 	{ key: 'sixyao', label: '易卦' },
+	{ key: 'tongshefa', label: '统摄法' },
 	{ key: 'liureng', label: '六壬' },
 	{ key: 'jinkou', label: '金口诀' },
 	{ key: 'qimen', label: '奇门遁甲' },
@@ -194,6 +195,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	ziwei: ['起盘信息'],
 	suzhan: ['起盘信息'],
 	sixyao: ['起盘信息', '起卦方式', '卦辞'],
+	tongshefa: ['本卦', '六爻', '潜藏', '亲和'],
 	liureng: ['起盘信息'],
 	jinkou: ['起盘信息', '金口诀速览', '金口诀四位', '四位神煞'],
 	taiyi: ['起盘信息', '太乙盘', '十六宫标记'],
@@ -522,8 +524,25 @@ function applyUserSectionFilter(content, key){
 	if(key === 'jinkou'){
 		picked.push('金口诀速览');
 	}
-	const wanted = new Set(uniqueArray(picked.map((item)=>normalizeSectionTitle(item)).filter(Boolean)));
+	const wanted = new Set(uniqueArray(picked.map((item)=>mapLegacySectionTitle(key, item)).filter(Boolean)));
 	return filterContentByWantedSections(content, wanted);
+}
+
+function mapLegacySectionTitle(key, title){
+	const normalized = normalizeSectionTitle(title);
+	if(key !== 'tongshefa'){
+		return normalized;
+	}
+	if(normalized === '互潜'){
+		return '潜藏';
+	}
+	if(normalized === '错亲'){
+		return '亲和';
+	}
+	if(normalized === '统摄法起盘'){
+		return '本卦';
+	}
+	return normalized;
 }
 
 function getJieQiWantedSections(settings){
@@ -968,6 +987,13 @@ function resolveActiveContext(){
 			context.key = 'sixyao';
 			context.domain = 'sixyao';
 			context.displayName = '易卦';
+			return context;
+		}
+
+		if(subLabel.includes('统摄法')){
+			context.key = 'tongshefa';
+			context.domain = 'tongshefa';
+			context.displayName = '统摄法';
 			return context;
 		}
 
@@ -1490,6 +1516,14 @@ async function extractSanShiUnitedContent(context){
 	return extractGenericContent(context);
 }
 
+async function extractTongSheFaContent(context){
+	const cached = getModuleCachedContent('tongshefa');
+	if(cached){
+		return cached;
+	}
+	return extractGenericContent(context);
+}
+
 async function extractTaiYiContent(context){
 	const cached = getModuleCachedContent('taiyi');
 	if(cached){
@@ -1701,6 +1735,12 @@ async function extractGenericContent(context){
 	}
 	if(context.key === 'sanshiunited'){
 		const cached = getModuleCachedContent('sanshiunited');
+		if(cached){
+			return cached;
+		}
+	}
+	if(context.key === 'tongshefa'){
+		const cached = getModuleCachedContent('tongshefa');
 		if(cached){
 			return cached;
 		}
@@ -1941,6 +1981,8 @@ async function buildPayload(){
 		content = await extractQiMenContent(context);
 	}else if(context.key === 'sanshiunited'){
 		content = await extractSanShiUnitedContent(context);
+	}else if(context.key === 'tongshefa'){
+		content = await extractTongSheFaContent(context);
 	}else if(context.key === 'taiyi'){
 		content = await extractTaiYiContent(context);
 	}else if(context.key === 'relative'){
