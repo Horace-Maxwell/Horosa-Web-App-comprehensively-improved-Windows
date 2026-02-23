@@ -1,6 +1,7 @@
 # Horosa 本地离线版部署说明（Windows）
 
-本文档对应当前根目录结构，目标是双击即可本地运行，数据本地保存。
+本文档对应当前根目录结构，目标是双击即可本地运行，数据本地保存。  
+注意：仅 Git 克隆工作树不等于“可运行分发包”；可运行分发包必须包含 `runtime/` 与 `runtime/windows/bundle/` 的关键资产。
 
 ## 一、目录约定
 
@@ -18,19 +19,20 @@
 1. 构建机先执行一次 `Prepare_Runtime_Windows.bat`（用于把 runtime 与可运行产物打包进 `runtime/windows/bundle`）。
 2. 目标机双击 `Horosa_Local_Windows.bat`
 3. 脚本会自动调用 `Horosa_Local_Windows.ps1` 并自动处理依赖：
+   - `.bat` 会优先调用 `pwsh`（PowerShell 7）；若不存在则自动回退 Windows PowerShell 5.1
    - 自动识别工程目录名（支持 `Horosa-Web/`、`Horosa-Web-<hash>/`，以及任意包含 `astrostudyui + astrostudysrv + astropy` 的目录）
    - `.bat` 会优先注入本地运行时：`runtime/windows/java/bin/java.exe` 与 `runtime/windows/python/python.exe`（不会被系统 Python 覆盖）
-   - 自动检测 Python（优先打包 runtime 与 `HOROSA_PYTHON` 指定路径，不会一开始就直接使用系统 Python）
-   - 自动安装 Python（多方法链路）：`winget Python 3.11` -> `winget Python 3.12` -> `python.org` 官方安装器静默安装到 `runtime/windows/python/Python311|Python312`
-   - 若以上自动安装都失败，才会把系统 Python 作为最后兜底
+   - Python 六层解析链路（固定顺序）：`runtime/windows/python` -> `HOROSA_PYTHON` -> 系统 Python 3.11/3.12 -> `winget` 安装 3.11 -> 便携下载（默认 Miniconda Py311 x64）-> 失败退出
    - 自动安装 Python 依赖（`cherrypy`、`jsonpickle`、`pyswisseph`，并校验 `flatlib` 可用）
    - 优先尝试从本地 wheel 仓库离线安装依赖（`runtime/windows/wheels` 或 `runtime/windows/bundle/wheels`）
-   - 自动检测/安装 Java 17（含多源回退）
-   - `winget` 安装失败时，自动尝试下载便携 Java 17 到 `runtime/windows/java`
+   - 自动检测/安装 Java 17（`runtime` -> env/JAVA_HOME -> PATH -> `winget` -> 便携下载）
+   - Java 便携下载支持环境变量 `HOROSA_JDK17_URL` 与 URL 列表文件 `runtime/windows/bundle/java17.url.txt`
+   - Python 便携下载支持环境变量 `HOROSA_PYTHON_URL` 与 URL 列表文件 `runtime/windows/bundle/python311.url.txt`
    - 自动比较 `astrostudyui/dist-file` 与 `astrostudyui/dist` 的更新时间，优先加载更新的一套前端静态资源
-   - 若工程内 jar 或 dist 缺失，自动从 `runtime/windows/bundle` 回填
-   - 若设置了环境变量 `HOROSA_BOOT_JAR_URL`，或提供了 `runtime/windows/bundle/astrostudyboot.url.txt`（内含下载 URL），缺失 jar 时会自动下载
+   - 若工程内 jar 或 dist 缺失，自动从 `runtime/windows/bundle` 回填（jar 支持 `astrostudyboot.jar` 与 `astrostudyboot-*.jar`）
+   - 若设置了环境变量 `HOROSA_BOOT_JAR_URL`，或提供了 `runtime/windows/bundle/astrostudyboot.url.txt`（多行 URL 轮询），缺失 jar 时会自动下载
    - 若仍缺 jar，脚本会尝试自动安装 Maven 并本地构建后端 jar（需要网络）
+   - 启动前会输出运行时硬校验摘要：Python/Java 路径与版本、jar 来源（project/bundle/download/build）、前端来源（dist/dist-file/bundle）
 4. 依赖准备完成后自动启动后端与网页
 5. 浏览器关闭后，脚本会自动停止本地服务
 
@@ -38,7 +40,19 @@
 - 如果检测到 Java/Python/依赖都已就绪，脚本会直接启动，不再重复安装。
 - 仅当缺组件时才会执行自动安装/补齐。
 
-### 2) 常见问题
+### 2) 弱网部署（URL 镜像可选）
+
+- 可通过环境变量覆盖下载源：
+  - `HOROSA_JDK17_URL`
+  - `HOROSA_PYTHON_URL`
+  - `HOROSA_BOOT_JAR_URL`
+- 也可在 `runtime/windows/bundle/` 提供 URL 列表文件（每行一个 URL，支持注释行 `#`）：
+  - `java17.url.txt`
+  - `python311.url.txt`
+  - `astrostudyboot.url.txt`
+- 构建脚本会在 `runtime/windows/bundle/` 生成 `runtime.manifest.json`（关键文件大小与 SHA256），用于验包。
+
+### 3) 常见问题
 
 - `Unable to access jarfile D:\Horosa...`  
   原因：旧脚本在含空格路径下参数被截断。请使用当前最新 `Horosa_Local_Windows.ps1`。
@@ -56,8 +70,7 @@
 - `UnsupportedClassVersionError ... class file version 61.0`  
   说明 Java 太低，必须使用 Java 17+。
 - `ModuleNotFoundError: No module named 'cherrypy'`  
-  说明 Python 依赖没装好。新版会自动做“本地 wheel -> 在线 pip -> 切换 Python 3.11 -> 系统 Python 兜底”全链路重试。  
-  先重新双击 `Horosa_Local_Windows.bat`；若仍失败，查看本次日志目录下 `astropy.log.err` 与根目录 `HOROSA_RUN_ISSUES.md`。
+  说明 Python 依赖没装好，重新双击 `Horosa_Local_Windows.bat` 让脚本自动补齐。
 - `ModuleNotFoundError: No module named 'swisseph'`  
   说明 `pyswisseph` 缺失。建议在构建机使用 Python 3.11 执行 `Prepare_Runtime_Windows.bat`，重新打包 `runtime/windows/python` 与 `runtime/windows/bundle/wheels` 后再分发。
 - `ModuleNotFoundError: No module named 'flatlib'`  
@@ -88,10 +101,7 @@
   ```
   然后重新双击 `Horosa_Local_Windows.bat` 再测。
 - `winget install exit code ...`  
-  说明系统策略限制了 winget。脚本会自动继续尝试其他安装方式：  
-  - Java: 自动下载便携 Java 17  
-  - Python: 自动下载 `python.org` 官方安装器并静默安装到 `runtime/windows/python/*`  
-  若仍失败，再查看 `java.err` / `astropy.log.err`。
+  说明系统策略限制了 winget。脚本会自动继续尝试便携 Java/Python 下载；可通过 `runtime/windows/bundle/*.url.txt` 或 `HOROSA_JDK17_URL` / `HOROSA_PYTHON_URL` 指向内网镜像。
 - 页面仍显示旧前端（例如看不到最新按钮/选项）  
   在工程目录重新构建 `dist-file`，再重启启动器：
   ```powershell
@@ -108,23 +118,28 @@
 在项目根目录 PowerShell 执行：
 
 ```powershell
+# 先执行打包门禁（关键资产缺失会返回非 0）
+powershell -ExecutionPolicy Bypass -File .\Prepare_Runtime_Windows.ps1
+
 # 启动脚本语法检查
 $null=[System.Management.Automation.Language.Parser]::ParseFile('Horosa_Local_Windows.ps1',[ref]$null,[ref]$null)
 $null=[System.Management.Automation.Language.Parser]::ParseFile('Prepare_Runtime_Windows.ps1',[ref]$null,[ref]$null)
 'PS_PARSE_OK'
 
 # 运行时关键文件检查（应全部 True）
-(Test-Path .\runtime\windows\python\python.exe) -or (Test-Path .\runtime\windows\python\Python311\python.exe) -or (Test-Path .\runtime\windows\python\Python312\python.exe)
+Test-Path .\runtime\windows\python\python.exe
 Test-Path .\runtime\windows\java\bin\java.exe
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudysrv\astrostudyboot\target\astrostudyboot.jar
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\flatlib-ctrad2\flatlib\resources\swefiles
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudyui\dist\index.html
 Test-Path .\Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\astrostudyui\dist-file\index.html
+Test-Path .\runtime\windows\bundle\runtime.manifest.json
 ```
 
 通过标准：
+- `Prepare_Runtime_Windows.ps1` 返回码为 `0`
 - 输出包含 `PS_PARSE_OK`
-- 6 条检查结果全为 `True`
+- 7 条 `Test-Path` 全为 `True`
 
 ### 2) 启动器烟测（`.ps1` 与 `.bat` 双入口）
 

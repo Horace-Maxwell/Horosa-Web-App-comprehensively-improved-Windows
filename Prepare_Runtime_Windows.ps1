@@ -163,6 +163,157 @@ function Get-PythonVersionInfo {
   }
 }
 
+function Resolve-MavenCmd {
+  if ($env:HOROSA_MVN -and (Test-Path $env:HOROSA_MVN)) {
+    return $env:HOROSA_MVN
+  }
+
+  $candidates = @(
+    (Join-Path $Root 'runtime/windows/maven/bin/mvn.cmd'),
+    (Join-Path $Root 'runtime/windows/maven/bin/mvn.bat'),
+    "$env:ProgramFiles\Apache\maven\bin\mvn.cmd",
+    "$env:ProgramFiles\apache-maven\bin\mvn.cmd",
+    "$env:LocalAppData\Microsoft\WinGet\Links\mvn.cmd"
+  )
+  foreach ($candidate in $candidates) {
+    if ($candidate -and (Test-Path $candidate)) {
+      return $candidate
+    }
+  }
+
+  $inPath = Get-Command 'mvn' -ErrorAction SilentlyContinue
+  if ($inPath -and $inPath.Source) {
+    return $inPath.Source
+  }
+
+  return $null
+}
+
+function Try-BuildBackendJar {
+  param(
+    [string]$ProjDir,
+    [string]$TargetJarPath
+  )
+
+  if (Test-Path $TargetJarPath) { return $true }
+  $bootDir = Join-Path $ProjDir 'astrostudysrv\astrostudyboot'
+  if (-not (Test-Path $bootDir)) {
+    Write-Host ("[WARN] Backend build folder not found: {0}" -f $bootDir)
+    return $false
+  }
+
+  $mvn = Resolve-MavenCmd
+  if (-not $mvn) {
+    Write-Host '[WARN] Maven not found, cannot auto-build backend jar.'
+    return $false
+  }
+
+  Write-Host ("[mvn] package astrostudyboot via {0}" -f $mvn)
+  try {
+    Push-Location $bootDir
+    & $mvn -DskipTests package
+  } catch {
+    Write-Host ("[WARN] Maven build failed: {0}" -f $_.Exception.Message)
+  } finally {
+    Pop-Location
+  }
+
+  return (Test-Path $TargetJarPath)
+}
+
+function Test-WheelCompleteness {
+  param([string]$WheelDir)
+
+  if (-not (Test-Path $WheelDir)) { return $false }
+  $requiredPrefixes = @(
+    'CherryPy-',
+    'jsonpickle-',
+    'pyswisseph-'
+  )
+  foreach ($prefix in $requiredPrefixes) {
+    $match = Get-ChildItem -Path $WheelDir -File -Filter ($prefix + '*.whl') -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $match) {
+      return $false
+    }
+  }
+  return $true
+}
+
+function Ensure-UrlTemplateFile {
+  param(
+    [string]$Path,
+    [string[]]$Lines
+  )
+
+  if (Test-Path $Path) { return }
+  $dir = Split-Path -Parent $Path
+  if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+  Set-Content -Path $Path -Value $Lines -Encoding UTF8
+  Write-Host ("[OK] URL template created: {0}" -f $Path)
+}
+
+function Get-Sha256Text {
+  param([string]$Path)
+  if (-not (Test-Path $Path)) { return $null }
+  try {
+    $hashObjs = @(Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop)
+    if ($hashObjs.Count -gt 0 -and $hashObjs[0].Hash) {
+      return ("{0}" -f $hashObjs[0].Hash).ToLowerInvariant()
+    }
+  } catch {
+    # Fallback for environments where Get-FileHash is blocked/unavailable.
+    try {
+      $certOut = certutil -hashfile $Path SHA256 2>$null
+      $hexLine = @(
+        $certOut |
+          ForEach-Object { "$_".Trim() } |
+          Where-Object { $_ -match '^[0-9a-fA-F ]{64,}$' } |
+          Select-Object -First 1
+      )
+      if ($hexLine.Count -gt 0 -and $hexLine[0]) {
+        return $hexLine[0].Replace(' ', '').ToLowerInvariant()
+      }
+    } catch {}
+  }
+  return $null
+}
+
+function Write-RuntimeManifest {
+  param(
+    [string]$ManifestPath,
+    [string[]]$CandidateFiles
+  )
+
+  $assets = @()
+  foreach ($candidate in $CandidateFiles) {
+    if (-not $candidate) { continue }
+    if (-not (Test-Path $candidate)) { continue }
+    $item = Get-Item $candidate -ErrorAction SilentlyContinue
+    if (-not $item) { continue }
+
+    $resolvedPath = (Resolve-Path $candidate).Path
+    $relativePath = $resolvedPath
+    if ($resolvedPath.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+      $relativePath = $resolvedPath.Substring($Root.Length).TrimStart('\')
+    }
+
+    $assets += [pscustomobject]@{
+      path = $relativePath
+      size = [int64]$item.Length
+      sha256 = Get-Sha256Text -Path $resolvedPath
+    }
+  }
+
+  $manifest = [pscustomobject]@{
+    generatedAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ssK')
+    root = $Root
+    assets = $assets
+  }
+  $json = $manifest | ConvertTo-Json -Depth 6
+  Set-Content -Path $ManifestPath -Value $json -Encoding UTF8
+  Write-Host ("[OK] Runtime manifest generated: {0}" -f $ManifestPath)
+}
+
 function Ensure-PythonDepsInRuntime {
   param([string]$PythonExe)
   if (-not (Test-Path $PythonExe)) { return $false }
@@ -179,8 +330,25 @@ function Ensure-PythonDepsInRuntime {
 
   try {
     Write-Host 'Installing Python runtime dependencies into copied runtime...'
-    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle flatlib==0.2.3.post3
+    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
     if ($LASTEXITCODE -ne 0) { return $false }
+
+    $flatlibInstalled = $false
+    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
+    foreach ($flatlibSpec in $flatlibSpecs) {
+      try {
+        & $PythonExe -m pip install --disable-pip-version-check --no-input $flatlibSpec *> $null
+        if ($LASTEXITCODE -eq 0) {
+          $flatlibInstalled = $true
+          break
+        }
+      } catch {}
+      Write-Host ("[WARN] Failed to install {0}, trying fallback..." -f $flatlibSpec)
+    }
+    if (-not $flatlibInstalled) {
+      Write-Host '[WARN] Flatlib package install skipped; runtime can use bundled flatlib-ctrad2.'
+    }
+
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
     return (Test-PythonDeps -PythonExe $PythonExe)
@@ -199,8 +367,26 @@ function Export-PythonWheels {
   try {
     New-Item -ItemType Directory -Force -Path $WheelDir | Out-Null
     Write-Host "Exporting offline Python wheels to: $WheelDir"
-    & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph flatlib==0.2.3.post3
-    return ($LASTEXITCODE -eq 0)
+    & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph
+    if ($LASTEXITCODE -ne 0) { return $false }
+
+    $flatlibDownloaded = $false
+    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
+    foreach ($flatlibSpec in $flatlibSpecs) {
+      try {
+        & $PythonExe -m pip download --disable-pip-version-check --dest $WheelDir $flatlibSpec *> $null
+        if ($LASTEXITCODE -eq 0) {
+          $flatlibDownloaded = $true
+          break
+        }
+      } catch {}
+      Write-Host ("[WARN] Failed to export {0}, trying fallback..." -f $flatlibSpec)
+    }
+    if (-not $flatlibDownloaded) {
+      Write-Host '[WARN] Flatlib wheel/source export skipped; startup can still use bundled flatlib-ctrad2.'
+    }
+
+    return (Test-WheelCompleteness -WheelDir $WheelDir)
   } catch {
     Write-Host ("[WARN] Wheel export failed: {0}" -f $_.Exception.Message)
     return $false
@@ -307,12 +493,21 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   Write-Host 'Python runtime not found. Set HOROSA_PYTHON_HOME then rerun.'
 }
 
+if (-not (Test-Path $JarSrc)) {
+  Write-Host ("[WARN] Backend jar not found: {0}" -f $JarSrc)
+  Write-Host '[INFO] Trying local Maven build fallback...'
+  $builtJar = Try-BuildBackendJar -ProjDir $ProjectDir -TargetJarPath $JarSrc
+  if (-not $builtJar) {
+    Write-Host '[WARN] Maven build fallback did not produce astrostudyboot.jar.'
+  }
+}
+
 if (Test-Path $JarSrc) {
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarBundleDst) | Out-Null
   Copy-Item -Path $JarSrc -Destination $JarBundleDst -Force
   Write-Host "Copy backend jar: $JarSrc -> $JarBundleDst"
 } else {
-  Write-Host "[MISSING] Backend jar not found: $JarSrc"
+  Write-Host "[MISSING] Backend jar not found after fallback: $JarSrc"
 }
 
 if ((Test-Path $DistFileBundleDst)) { Remove-Item -Recurse -Force $DistFileBundleDst }
@@ -331,6 +526,35 @@ if ($frontendSource -and $frontendSource.Path -and (Test-Path (Join-Path $fronte
 } else {
   Write-Host "[MISSING] Frontend dist not found: $DistFileSrc or $DistSrc"
 }
+
+# Generate URL templates for weak-network mirrors.
+Ensure-UrlTemplateFile -Path (Join-Path $BundleDst 'java17.url.txt') -Lines @(
+  '# One URL per line. First successful URL wins.',
+  '# Example:',
+  '# https://mirror.example.com/temurin17-jdk.zip'
+)
+Ensure-UrlTemplateFile -Path (Join-Path $BundleDst 'python311.url.txt') -Lines @(
+  '# One URL per line. First successful URL wins.',
+  '# Default launcher expects Python 3.11 x64 package (Miniconda installer or zip runtime).',
+  '# Example:',
+  '# https://mirror.example.com/Miniconda3-py311-Windows-x86_64.exe'
+)
+Ensure-UrlTemplateFile -Path (Join-Path $BundleDst 'astrostudyboot.url.txt') -Lines @(
+  '# One URL per line. First successful URL wins.',
+  '# Example:',
+  '# https://mirror.example.com/astrostudyboot.jar'
+)
+
+$manifestPath = Join-Path $BundleDst 'runtime.manifest.json'
+$manifestCandidates = @(
+  (Join-Path $JavaDst 'bin\java.exe'),
+  (Join-Path $PyDst 'python.exe'),
+  $JarBundleDst,
+  (Join-Path $DistFileBundleDst 'index.html'),
+  (Join-Path $DistBundleDst 'index.html')
+)
+$manifestCandidates += @(Get-ChildItem -Path $WheelsDst -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+Write-RuntimeManifest -ManifestPath $manifestPath -CandidateFiles $manifestCandidates
 
 Write-Host 'Done. Runtime folder:'
 Get-ChildItem -Force $RuntimeRoot | Format-Table Name, LastWriteTime
@@ -360,4 +584,37 @@ if (Test-Path $WheelsDst) {
 } else {
   Write-Host '[WARN] runtime\\windows\\wheels not found'
 }
+
+$validationErrors = New-Object System.Collections.Generic.List[string]
+if (-not (Test-Path (Join-Path $JavaDst 'bin\\java.exe'))) {
+  $validationErrors.Add('Missing runtime/windows/java/bin/java.exe')
+}
+if (-not (Test-Path (Join-Path $PyDst 'python.exe'))) {
+  $validationErrors.Add('Missing runtime/windows/python/python.exe')
+}
+if (-not (Test-Path $JarBundleDst)) {
+  $validationErrors.Add('Missing runtime/windows/bundle/astrostudyboot.jar')
+}
+if (-not ((Test-Path (Join-Path $DistFileBundleDst 'index.html')) -or (Test-Path (Join-Path $DistBundleDst 'index.html')))) {
+  $validationErrors.Add('Missing runtime/windows/bundle/dist-file/index.html or dist/index.html')
+}
+if (-not (Test-WheelCompleteness -WheelDir $WheelsDst)) {
+  $validationErrors.Add('Missing required wheels (CherryPy/jsonpickle/pyswisseph) under runtime/windows/wheels')
+}
+if (-not (Test-Path $manifestPath)) {
+  $validationErrors.Add('Missing runtime/windows/bundle/runtime.manifest.json')
+}
+
+if ($validationErrors.Count -gt 0) {
+  Write-Host ''
+  Write-Host '[FAIL] Runtime prepare finished with blocking issues:'
+  foreach ($err in $validationErrors) {
+    Write-Host ("  - {0}" -f $err)
+  }
+  Read-Host 'Press Enter to exit'
+  exit 1
+}
+
+Write-Host ''
+Write-Host '[PASS] Runtime prepare completed with all required artifacts.'
 Read-Host 'Press Enter to exit'

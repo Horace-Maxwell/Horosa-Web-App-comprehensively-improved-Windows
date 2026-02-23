@@ -29,9 +29,19 @@
 
 ## C. 运行时（部署辅助）
 - `runtime/windows/bundle/`
-: Windows 启动回填目录（`dist-file` / `wheels` / 可选 `astrostudyboot.url.txt`）。
+: Windows 启动回填目录（`dist-file` / `wheels` / `astrostudyboot.jar` / URL 模板 / `runtime.manifest.json`）。
 - `runtime/windows/maven/`
 : 可选，Windows 缺少系统 Maven 时用于后端 jar 本地构建。
+
+### C1. 弱网兜底 URL 列表（可选）
+- `runtime/windows/bundle/java17.url.txt`
+- `runtime/windows/bundle/python311.url.txt`
+- `runtime/windows/bundle/astrostudyboot.url.txt`
+: 每行一个 URL，启动器按顺序重试，首个成功即使用。
+
+### C2. 验包清单
+- `runtime/windows/bundle/runtime.manifest.json`
+: 记录关键分发资产的路径、大小、SHA256、生成时间，用于部署前后快速核验。
 
 ## D. 快速检索建议
 - 改主站功能：`Horosa-Web-55.../astrostudyui/src/`
@@ -43,3 +53,4 @@
 - `易与三式` 已包含 `统摄法` 子页（位于 `太乙` 下方）。
 - AI 导出与本地案例映射均已包含 `tongshefa`。
 - 参考目录 `Horosa-Web+App (Mac)/` 已删除，当前运行仅依赖本目录现存文件与 `runtime/`。
+- 仅 Git 工作树不保证可运行；发布包必须包含 `runtime/` 与 `runtime/windows/bundle/` 关键资产。

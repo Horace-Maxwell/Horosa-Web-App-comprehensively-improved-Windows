@@ -1,0 +1,3 @@
+﻿# One URL per line. First successful URL wins.
+# Example:
+# https://mirror.example.com/temurin17-jdk.zip
