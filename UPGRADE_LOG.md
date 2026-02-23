@@ -12,6 +12,50 @@ Append new entries; do not rewrite history.
 
 ---
 
+## 2026-02-23
+
+### 19:45 - 统摄法完整并入 Windows 主工程 + 去除 Mac 参考目录依赖
+- Scope: sync 统摄法组件、AI 导出与本地案例映射到 Windows 主工程，修正统摄法命名显示规则，并验证删除 Mac 参考目录后可独立稳定运行。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/cnyibu/CnYiBuMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/tongshefa/TongSheFaMain.js` (new)
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/localcases.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/aiExport.js`
+  - `PROJECT_STRUCTURE.md`
+  - `UPGRADE_LOG.md`
+- Details:
+  - 易与三式标签页接入“统摄法”：
+    - `CnYiBuMain` 新增 `TongSheFaMain` import。
+    - `ValidTabs` 新增 `tongshefa`。
+    - 在“太乙”后新增 `TabPane tab="统摄法"`。
+  - 统摄法组件同步入主工程：
+    - 新增 `src/components/tongshefa/TongSheFaMain.js`。
+    - 左右侧标注改为 `天地水火风泽山雷`（显示 `cname`）。
+    - 顶部纯卦单字名改为 `乾坤坎离巽兑艮震`（如 `坤为地 -> 坤`）。
+  - 本地案例映射新增统摄法：
+    - `localcases` 增加 `tongshefa` 选项及 `统摄法 -> tongshefa` 归一化映射。
+  - AI 导出与设置新增统摄法：
+    - `AI_EXPORT_TECHNIQUES` 新增 `tongshefa`。
+    - `AI_EXPORT_PRESET_SECTIONS` 新增 `['本卦','六爻','潜藏','亲和']`。
+    - 导出上下文识别新增“统摄法”分支。
+    - 新增 `extractTongSheFaContent` 并接入 `buildPayload` 分发链。
+    - 兼容旧设置标题映射：`互潜->潜藏`、`错亲->亲和`、`统摄法起盘->本卦`。
+  - 参考目录清理：
+    - 删除 `Horosa-Web+App (Mac)`，运行路径不再依赖该目录。
+- Verification:
+  - Frontend build:
+    - `npm run build:file` (pass)
+    - `npm run build` (pass)
+  - Launcher smoke test after Mac-folder removal (pass):
+    - `HOROSA_NO_BROWSER=1`
+    - `HOROSA_SMOKE_TEST=1`
+    - `HOROSA_SMOKE_WAIT_SECONDS=8`
+    - `powershell -ExecutionPolicy Bypass -File .\Horosa_Local_Windows.ps1`
+  - Smoke output confirms:
+    - backend `9999` / chartpy `8899` started
+    - web `8000` started
+    - graceful stop completed without startup failure.
+
 ## 2026-02-22
 
 ### 22:50 - DOCX问题修复与Windows稳定性增强（白屏/param error/ephe）
@@ -503,32 +547,3 @@ Append new entries; do not rewrite history.
   - PowerShell parse check for `Horosa_Local_Windows.ps1` passed
   - Smoke run passed: `HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`
   - Pushed to remote main: commit `a6db45d94d62f81c930666fd9900ad06fef844eb`
-
-### 22:34 - Windows 启动器增强：Python 多方法自动安装 + 系统兜底后置
-- Scope: fix Windows deployment cases where charting timed out due to Python dependency gaps (`ModuleNotFoundError: cherrypy`) by hardening Python resolution/install flow.
-- Files:
-  - `Horosa_Local_Windows.ps1`
-  - `README.md`
-  - `AGENT_CHANGELOG.md`
-  - `UPGRADE_LOG.md`
-- Details:
-  - Split Python candidate sources into bundled/runtime vs system fallback (`Get-SystemPythonCandidates`).
-  - Expanded candidate scan to include nested runtime executables:
-    - `runtime/windows/python/Python311/python.exe`
-    - `runtime/windows/python/Python312/python.exe`
-    - same paths under `$ProjectDir`.
-  - Added auto-install chain (`Install-PythonRuntime`) for low-skill end users:
-    - `winget` install Python 3.11
-    - `winget` install Python 3.12
-    - fallback to official `python.org` silent installer into `runtime/windows/python/Python311|Python312`.
-  - Enforced strict dependency re-check after interpreter switching:
-    - only accept interpreter when `cherrypy/jsonpickle/swisseph/flatlib` import check passes.
-  - Added runtime path safety guard:
-    - if selected interpreter is already under `runtime/windows/python`, skip runtime sync copy step.
-  - Updated README troubleshooting text for new Python fallback chain and diagnostics.
-- Verification:
-  - PowerShell parse check passed for `Horosa_Local_Windows.ps1`.
-  - Smoke launch passed:
-    - command: `HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`, `HOROSA_SMOKE_WAIT_SECONDS=2`
-    - observed ready ports: `9999` (backend), `8899` (chartpy)
-    - graceful shutdown succeeded and `HOROSA_RUN_ISSUES.md` was updated.
