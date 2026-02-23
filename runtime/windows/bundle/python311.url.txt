@@ -1,0 +1,4 @@
+﻿# One URL per line. First successful URL wins.
+# Default launcher expects Python 3.11 x64 package (Miniconda installer or zip runtime).
+# Example:
+# https://mirror.example.com/Miniconda3-py311-Windows-x86_64.exe
