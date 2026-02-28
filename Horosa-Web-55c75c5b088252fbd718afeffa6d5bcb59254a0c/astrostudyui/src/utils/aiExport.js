@@ -1594,227 +1594,45 @@ function getIndiaCachedContent(activeLabel){
 }
 
 async function extractAstroContent(context){
-	const isAstroLike = context && context.key === 'astrochart_like';
+	const key = context && context.key ? context.key : '';
 	const topLabel = context && context.topLabel ? context.topLabel : '';
-	const isIndia = (context && context.key === 'indiachart') || topLabel.includes('印度律盘');
-	if(!isAstroLike && !isIndia){
-		const cached = getAstroCachedContent();
-		if(cached){
-			return cached;
-		}
+	const isIndia = key === 'indiachart' || topLabel.includes('印度律盘');
+	if(isIndia){
+		return getIndiaCachedContent('');
 	}
-
-	let scopeRoot = context.scopeRoot;
-	const extraLines = [];
-	let indiaActive = null;
-	if(isAstroLike || isIndia){
-		indiaActive = findIndiaActivePane(scopeRoot);
-		if(indiaActive && indiaActive.pane){
-			scopeRoot = indiaActive.pane;
-		}
-		if(indiaActive && indiaActive.label){
-			extraLines.push(`当前律盘：${indiaActive.label}`);
-		}
-		if(isIndia){
-			const indiaCached = getIndiaCachedContent(indiaActive ? indiaActive.label : '');
-			if(indiaCached){
-				return indiaCached;
-			}
-		}
-	}
-	const keywords = [
-		'经度', '纬度', '时区', '真太阳时', '回归黄道', '整宫制',
-		'日主星', '时主星', '日生盘', '夜生盘',
-		'周一', '周二', '周三', '周四', '周五', '周六', '周日'
-	];
-	const summary = uniqueArray([...extraLines, ...getSummaryLines(scopeRoot, keywords)]);
-	const tabs = await captureTabsContentByLabels(scopeRoot, CHART_TAB_LABELS);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(tabs){
-		CHART_TAB_LABELS.forEach((label)=>{
-			const txt = normalizeWhitespace(tabs[label] || '');
-			if(txt){
-				parts.push(`[${label}]`);
-				parts.push(txt);
-			}
-		});
-	}
-
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getAstroCachedContent();
 }
 
 async function extractSixYaoContent(context){
-	const cached = getModuleCachedContent('guazhan');
-	if(cached){
-		return cached;
-	}
-
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'起卦', '时间起卦', '数字起卦', '自定义起卦', '动爻', '上卦', '下卦',
-		'旬空', '卦辞', '经度', '纬度', '时区', '真太阳时', '六神', '世', '应'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const rightText = extractRightColumnText(scopeRoot);
-	const tabs = await captureTabsContentByLabels(scopeRoot, SIXYAO_TAB_LABELS);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(rightText){
-		parts.push('[右侧栏目]');
-		parts.push(rightText);
-	}
-	if(tabs){
-		SIXYAO_TAB_LABELS.forEach((label)=>{
-			const txt = normalizeWhitespace(tabs[label] || '');
-			if(txt){
-				parts.push(`[${label}]`);
-				parts.push(txt);
-			}
-		});
-	}
-
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('guazhan') || '';
 }
 
 async function extractLiuRengContent(context){
-	const cached = getModuleCachedContent('liureng');
-	if(cached){
-		return cached;
-	}
-
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'卜卦', '出生时间', '经度', '纬度', '时区', '真太阳时',
-		'六壬', '三传', '四课', '旬空', '贵人', '天盘', '地盘', '神将'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const rightText = extractRightColumnText(scopeRoot);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(rightText){
-		parts.push('[右侧栏目]');
-		parts.push(rightText);
-	}
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('liureng') || '';
 }
 
 async function extractJinKouContent(context){
-	const cached = getModuleCachedContent('jinkou');
-	if(cached){
-		return cached;
-	}
-	return extractLiuRengContent(context);
+	return getModuleCachedContent('jinkou') || '';
 }
 
 async function extractQiMenContent(context){
-	const cached = getModuleCachedContent('qimen');
-	if(cached){
-		return cached;
-	}
-
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'遁甲', '奇门', '外盘', '值符', '值使', '九星', '八门', '八神',
-		'经度', '纬度', '时区', '真太阳时', '年命', '男女', '斗柄定房法', '现实距星法'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const rightText = extractRightColumnText(scopeRoot);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(context.chartType){
-		parts.push('[盘型]');
-		parts.push(context.chartType);
-	}
-	if(rightText){
-		parts.push('[右侧栏目]');
-		parts.push(rightText);
-	}
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('qimen') || '';
 }
 
 async function extractSanShiUnitedContent(context){
-	const cached = getModuleCachedContent('sanshiunited');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('sanshiunited') || '';
 }
 
 async function extractTongSheFaContent(context){
-	const cached = getModuleCachedContent('tongshefa');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('tongshefa') || '';
 }
 
 async function extractTaiYiContent(context){
-	const cached = getModuleCachedContent('taiyi');
-	if(cached){
-		return cached;
-	}
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'太乙', '局式', '太乙积数', '文昌', '始击', '太岁', '合神', '计神',
-		'乾造', '坤造', '农历', '真太阳时', '节气'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('taiyi') || '';
 }
 
 async function extractGermanyContent(context){
-	const cached = getModuleCachedContent('germany');
-	if(cached){
-		return cached;
-	}
-	return extractAstroContent(context);
+	return getModuleCachedContent('germany') || '';
 }
 
 async function extractJieQiContent(context){
@@ -1826,7 +1644,7 @@ async function extractJieQiContent(context){
 	if(cached){
 		return cached;
 	}
-	return extractAstroContent(context);
+	return '';
 }
 
 async function extractPrimaryDirectContent(context){
@@ -1894,39 +1712,15 @@ async function extractGivenYearContent(context){
 }
 
 async function extractRelativeContent(context){
-	const cached = getModuleCachedContent('relative');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('relative') || '';
 }
 
 async function extractOtherBuContent(context){
-	const cached = getModuleCachedContent('otherbu');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('otherbu') || '';
 }
 
 async function extractFengShuiContent(context){
-	const holder = context && context.scopeRoot ? context.scopeRoot : document;
-	const iframe = holder ? holder.querySelector('iframe[src*="/fengshui/index.html"]') : null;
-	if(iframe && iframe.contentWindow && iframe.contentWindow.document){
-		try{
-			const doc = iframe.contentWindow.document;
-			const txt = normalizeWhitespace(textOf(doc.body));
-			if(txt){
-				const lines = [
-					'[起盘信息]',
-					txt,
-				];
-				return lines.join('\n\n');
-			}
-		}catch(e){
-		}
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('fengshui') || '';
 }
 
 async function extractGenericContent(context){
@@ -2019,14 +1813,7 @@ async function extractGenericContent(context){
 		}
 	}
 
-	const txt = normalizeWhitespace(textOf(context.scopeRoot));
-	const parts = [];
-	if(txt){
-		parts.push('[起盘信息]');
-		parts.push(txt);
-	}
-	appendSvgSection(parts, context.scopeRoot);
-	return parts.join('\n\n').trim();
+	return '';
 }
 
 function applyReplacers(text, replacers){
