@@ -302,3 +302,38 @@
     - 遁甲格局“按宫位查看判断”仍在。
     - 未检出“暂未录入详细释义”占位文案。
   - 最新构建与单测再次通过。
+
+## W. 晚间稳定性补丁（2026-02-28）
+- `astrostudyui/src/components/astro3d/Astro3D.js`
+  - 新增 `getChartDom` / `appendToChartDom`，统一并保护 3D 页面 DOM 挂载。
+  - GUI、Stats、Renderer、行星提示层的 `appendChild` 改为安全挂载，避免 tab 快切空容器报错。
+- `astrostudyui/src/components/guolao/GuoLaoChartMain.js`
+  - `chart` 初始化改为带 `chartObj.chart` 判空，避免 `chart.aspects` 写入 `undefined`。
+- `astrostudyui/src/components/suzhan/SuZhanMain.js`
+  - 同步 `chartObj.chart` 判空防护，保证苏战链路与国老链路一致。
+
+## X. 最新回归产物（2026-02-28）
+- 新增轮次报告：
+  - `SELF_CHECK_REPORTS/ROUND19_20260227_220500_*`
+  - `SELF_CHECK_REPORTS/ROUND20_20260227_221246_*`
+  - `SELF_CHECK_REPORTS/ROUND21_20260227_222031_*`
+  - `SELF_CHECK_REPORTS/ROUND22_20260227_222945_*`
+  - `SELF_CHECK_REPORTS/ROUND23_20260227_224538_*`
+- 结果概要：
+  - Round19/20/22/23：`pageErrorCount=0`
+  - Round21：捕获 `Cannot set properties of undefined (setting 'aspects')`，已由 W 节补丁修复。
+  - 仍存在外部资源请求失败与不可见控件点击失败噪声，不影响本地核心起盘与导出链路。
+
+## Y. 启停与补充扫描（2026-02-28）
+- 原生脚本链路复验：
+  - `start_horosa_local.sh`（使用 `runtime/windows/python/python.exe` + `runtime/windows/java/bin/java.exe`）
+  - `stop_horosa_local.sh`
+  - 结果：三端口 `8000/8899/9999` 可启动并保持监听；停服后端口全关闭，`.horosa_*.pid` 清理完成。
+- 补充报告：
+  - `SELF_CHECK_REPORTS/FULLSCAN_20260227_2257_button.report.json`
+  - 覆盖到了 `量化盘/节气盘/七政四余/希腊星术/印度律盘/易与三式/万年历/风水` 等主标签点击巡检，`pageErrorCount=0`。
+  - `SELF_CHECK_REPORTS/TARGET_MAIN_TABS_FULL_20260227_2302.json`
+  - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2303.json`
+  - `SELF_CHECK_REPORTS/TARGET_LR_DJ_20260227_2304.json`
+  - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2305.json`
+  - 用于补齐“16个一级标签全点击”与“点名技术页面定向起盘/导出点击”证据链。

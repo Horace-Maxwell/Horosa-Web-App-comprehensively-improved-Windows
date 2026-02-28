@@ -1012,3 +1012,82 @@ Append new entries; do not rewrite history.
   - `npm run build:file` in `astrostudyui` (compiled successfully)
   - `npm test -- --watch=false` in `astrostudyui` (2 suites, 11 tests passed)
   - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 15 -SmokeWaitSeconds 420`
+
+### 22:06 - Astro3D 挂载容器空值保护（修复 appendChild 随机空引用）
+- Scope: eliminate intermittent `Cannot read properties of null (reading 'appendChild')` when switching 3D-related tabs quickly under automated sweep.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro3d/Astro3D.js`
+- Details:
+  - 新增 `getChartDom` / `appendToChartDom`，统一容器读取与挂载逻辑。
+  - `planetHintDiv`、GUI、Stats、Renderer 的 `appendChild` 全部改为安全挂载（容器不存在时短路，不抛异常）。
+  - 不改动任何 3D 计算参数、渲染参数和业务逻辑，仅做生命周期空窗防崩。
+- Verification:
+  - `npm run build:file` in `astrostudyui` (compiled successfully)
+  - `npm test -- --watch=false` in `astrostudyui` (2 suites, 11 tests passed)
+  - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 19 -SmokeWaitSeconds 420` (`pageErrorCount=0`)
+
+### 22:29 - chart/aspects 赋值空对象防护（修复 undefined.aspects）
+- Scope: prevent `Cannot set properties of undefined (setting 'aspects')` when partial/failed chart payload leaves `chartObj.chart` empty.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/guolao/GuoLaoChartMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/suzhan/SuZhanMain.js`
+- Details:
+  - `chart` 初始化改为 `chartObj && chartObj.chart ? { ...chartObj.chart } : {}`。
+  - 后续 `chart.aspects` / `chart.lots` 赋值保持原有语义，但不再对 `undefined` 写属性。
+  - 不改算法与展示口径，仅增强失败场景健壮性。
+- Verification:
+  - `npm run build:file` in `astrostudyui` (compiled successfully)
+  - `npm test -- --watch=false` in `astrostudyui` (2 suites, 11 tests passed)
+
+### 22:45 - 再次三轮自检执行（含最新补丁）
+- Scope: run repeated post-fix validation rounds and archive artifacts for regression tracking.
+- Files:
+  - `SELF_CHECK_REPORTS/ROUND19_20260227_220500_*`
+  - `SELF_CHECK_REPORTS/ROUND20_20260227_221246_*`
+  - `SELF_CHECK_REPORTS/ROUND21_20260227_222031_*`
+  - `SELF_CHECK_REPORTS/ROUND22_20260227_222945_*`
+  - `SELF_CHECK_REPORTS/ROUND23_20260227_224538_*`
+- Details:
+  - Round19: `pageErrorCount=0`，构建/单测均通过。
+  - Round20: `pageErrorCount=0`，构建/单测均通过。
+  - Round21: 出现一次 `Cannot set properties of undefined (setting 'aspects')`，随后已在 `GuoLaoChartMain/SuZhanMain` 增加空值防护。
+  - Round22（长驻参数复测）与 Round23（常规参数复测）均完成，`pageErrorCount=0`。
+  - 仍有自动化噪声项：隐藏控件点击失败、地图/3D外部资源请求失败（`ERR_ABORTED/ERR_CONNECTION_*`）。
+- Verification:
+  - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 19 -SmokeWaitSeconds 420`
+  - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 20 -SmokeWaitSeconds 420`
+  - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 21 -SmokeWaitSeconds 420`
+  - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 22 -SmokeWaitSeconds 900`
+  - `powershell -ExecutionPolicy Bypass -File .\\run_self_check_round.ps1 -Round 23 -SmokeWaitSeconds 420`
+
+### 22:57 - 原生 bash 启停链路复验 + FULLSCAN 补充
+- Scope: re-validate `start_horosa_local.sh / stop_horosa_local.sh` and run additional long-duration button sweep on resident services.
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/start_horosa_local.sh`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/stop_horosa_local.sh`
+  - `SELF_CHECK_REPORTS/FULLSCAN_20260227_2257_button.report.json`
+- Details:
+  - 使用仓库 `runtime/windows` 内置 Python/Java 启动原生 bash 服务链路（避免系统 Python 缺少 `cherrypy`）。
+  - 启动后确认 8000/8899/9999 三端口监听，并在等待后保持监听（常驻行为成立）。
+  - 执行 `stop_horosa_local.sh` 后三端口全部关闭，`.horosa_*.pid` 全清理。
+  - 在常驻状态下执行补充 FULLSCAN（长时参数），新增报告产物并归档。
+- Verification:
+  - `bash -n horosa_local.command` / `bash -n stop_horosa_local.sh` (pass)
+  - `start_horosa_local.sh` 实测监听 `8000/8899/9999`，10 秒后仍监听
+  - `stop_horosa_local.sh` 后三端口全关闭，`NO_PID_FILES`
+  - `node button_self_check_playwright.js --output=SELF_CHECK_REPORTS/FULLSCAN_20260227_2257_button.report.json --maxRuntime=900000`
+
+### 23:03 - 目标模块定向验收探针（补充）
+- Scope: add deterministic probes for user-specified modules and main-tab accessibility.
+- Files:
+  - `SELF_CHECK_REPORTS/TARGET_MAIN_TABS_20260227_2300.json`
+  - `SELF_CHECK_REPORTS/TARGET_MISSING_TABS_RETRY_20260227_2301.json`
+  - `SELF_CHECK_REPORTS/TARGET_MAIN_TABS_FULL_20260227_2302.json`
+  - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2303.json`
+  - `SELF_CHECK_REPORTS/TARGET_LR_DJ_20260227_2304.json`
+  - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2305.json`
+- Details:
+  - 一级菜单补充探针确认 `16/16` 标签可进入（`TARGET_MAIN_TABS_FULL_...`）。
+  - `TARGET_REQUIRED_MODULES` 覆盖用户点名页面（星盘/推运/量化/关系/节气/希腊/七政/印度/三式合一/统摄法/易卦/金口诀/八字/紫微等）并触发起盘/导出按钮点击。
+  - 对六壬/遁甲补做单独探针（`TARGET_LR_DJ_...`），两者均 `found=true, clicked=true, start=true, export=true`。
+  - 所有定向探针运行期间 `pageErrors=0`。
