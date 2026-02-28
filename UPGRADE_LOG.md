@@ -1091,3 +1091,38 @@ Append new entries; do not rewrite history.
   - `TARGET_REQUIRED_MODULES` 覆盖用户点名页面（星盘/推运/量化/关系/节气/希腊/七政/印度/三式合一/统摄法/易卦/金口诀/八字/紫微等）并触发起盘/导出按钮点击。
   - 对六壬/遁甲补做单独探针（`TARGET_LR_DJ_...`），两者均 `found=true, clicked=true, start=true, export=true`。
   - 所有定向探针运行期间 `pageErrors=0`。
+
+### 09:25 - 导出稳态补丁 + 三式合一 timeAlg 透传 + 行星页白屏修复（2026-02-28）
+- Scope: 针对“最终确认”补齐稳定性与一致性缺口，确保 AI 导出保持快照链路，并降低页面切换/导出时竞态空白风险。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/AstroPlanet.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.less`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/aiExport.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/moduleAiSnapshot.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/astroAiSnapshot.js`
+- Details:
+  - `AstroPlanet`:
+    - `this.genPlanetsDom` 修正为 `bind(this)`，避免切换“行星”页时 `this` 丢失导致白屏。
+  - `SanShiUnitedMain`:
+    - `getQimenOptions` 新增 `timeAlg` 透传；
+    - `getQimenOptionsKey` 加入 `timeAlg`，避免不同时间算法复用同一缓存签名；
+    - 顶部网格改为 `minmax(0, 1fr) 148px`，右侧神煞列缩窄，左侧时间区更稳定。
+  - `aiExport`:
+    - 新增 `store.astro.currentTab/currentSubTab` 上下文兜底，减少 DOM 判定失败落入 `generic` 的空导出；
+    - 新增模块快照键别名读取（`sixyao<->guazhan`, `qimen<->dunjia`, `relative<->relativechart` 等）；
+    - 导出前加入短时快照等待，处理初次进入页面时快照尚未落盘的竞态；
+    - 导出主链路继续只读快照（未恢复右栏 DOM 拼接）。
+  - `moduleAiSnapshot / astroAiSnapshot`:
+    - 增加会话内存兜底，`localStorage` 失效时仍可导出当前会话计算结果。
+- Verification:
+  - `node --check`（6个文件）✅
+  - `npm run build:file` in `astrostudyui` ✅（`dist-file/umi.2600d9a6.js`）
+  - `bash -n horosa_local.command` / `bash -n start_horosa_local.sh` / `bash -n stop_horosa_local.sh` ✅
+  - `run_self_check_round.ps1 -Round 9 -SmokeWaitSeconds 900` 执行完成（按钮扫测存在外部资源与隐藏控件噪声）。
+  - `tmp_ai_export_isolated_check.js` 复测：
+    - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772299235181.json`，`23/24` 通过；
+    - 唯一失败项 `关系盘` 为“未选 A/B 盘时无关系盘数据”场景（无数据不导出）。
+  - AI 导出设置联动脚本复测：
+    - `TMP_SECTION2_*`：分段过滤生效（仅保留 `[信息]`）；
+    - `TMP_SIXYAO_*`：易卦分段勾选生效（`卦辞/起盘信息`互斥验证通过）。

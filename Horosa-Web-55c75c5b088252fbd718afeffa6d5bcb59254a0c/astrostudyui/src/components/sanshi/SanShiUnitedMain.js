@@ -53,10 +53,20 @@ import {
 	formatLiuRengPatternLines,
 } from '../liureng/LRPatternJudge';
 import {
+	buildLiuRengReferenceRows as buildUnifiedLiuRengReferenceRows,
+	buildLiuRengOverviewSections,
+} from '../liureng/LRJudgePanelHelper';
+import {
 	getPlanetAnnotation,
 	getSignAnnotation,
 	getHouseAnnotation,
 } from '../../constants/AstroInterpretation';
+import {
+	QIMEN_TEN_GAN_TOOLTIP_TEXT,
+	QIMEN_DOOR_TOOLTIP_TEXT,
+	QIMEN_STAR_TOOLTIP_TEXT,
+	QIMEN_GOD_TOOLTIP_TEXT,
+} from '../../constants/QimenTooltipTexts';
 import styles from './SanShiUnitedMain.less';
 
 const SANSHI_SNAPSHOT_PLANET_META = {
@@ -189,49 +199,10 @@ const QIMEN_RING_POSITIONS = {
 	9: { left: '83.3%', top: '83.3%' },
 };
 const QIMEN_CORNER_PALACES = new Set([1, 3, 7, 9]);
-const QIMEN_TEN_GAN_TOOLTIP = {
-	甲: '挺立老大：权威、名贵、一流；挺拔上进，直爽高傲。',
-	乙: '柔曲依附：曲折柔弱、艺术沟通、希望生发。',
-	丙: '放射表现：热烈外显、权柄争动、光明宣传。',
-	丁: '闪烁亮眼：尖锐突出、文书票证、细节表达。',
-	戊: '收容积聚：资本容器、房产土地、稳重厚实。',
-	己: '阴险谋划：欲望私谋、低洼坑陷、隐曲不明。',
-	庚: '凶猛敌对：肃杀阻隔、打斗金属、强硬决断。',
-	辛: '变化革新：改革创新、要害颗粒、问题修正。',
-	壬: '流动放纵：聪明逻辑、漂动运输、机动应变。',
-	癸: '沉迷浑浊：阴柔沉溺、浑浊暗耗、隐秘曲折。',
-};
-const QIMEN_DOOR_TOOLTIP = {
-	休: '休门：休养、休闲、婚恋与家庭；温和守成。',
-	生: '生门：生机、生产、利润与交易；发展延续。',
-	伤: '伤门：伤害、攻击、竞争与捕捉；冲突对抗。',
-	杜: '杜门：阻隔、保密、隐藏与防御；重技术壁垒。',
-	景: '景门：显眼、文书、信息与展示；丽而外放。',
-	死: '死门：终止、迟滞、保守与低谷；重静与旧。',
-	惊: '惊门：惊恐、口舌、诉讼与刺激；多变不安。',
-	开: '开门：开拓、事业、公权与公开；利开张上达。',
-};
-const QIMEN_STAR_TOOLTIP = {
-	蓬: '天蓬：胆魄冒险、聪明多变，偏边界突破。',
-	任: '天任：忠厚承担、稳中求进，偏执行与耐劳。',
-	冲: '天冲：快速敏捷、冲击直进，偏机动与行动。',
-	辅: '天辅：辅佐指导、文教传播，偏温雅规划。',
-	英: '天英：亮丽表现、社交展示，偏光显与才华。',
-	芮: '天芮（天内）：疾病问题、修正细节，偏内敛。',
-	禽: '天禽：坐镇中宫，不参与八宫轮转。',
-	柱: '天柱：脊梁辩论、破立执拗，偏口才与攻坚。',
-	心: '天心：中心统筹、领导监管，偏策划与管理。',
-};
-const QIMEN_GOD_TOOLTIP = {
-	值符: '值符：主贵权管显，为全局核心主导。',
-	螣蛇: '螣蛇：主惊疑梦幻、缠绕反复、虚实难辨。',
-	太阴: '太阴：主细密私谋、暗中助力与女性象。',
-	六合: '六合：主和合婚恋、协作人缘与中介牵连。',
-	白虎: '白虎：主阻隔严厉、凶猛冲突与强硬执行。',
-	玄武: '玄武：主盗耗欺隐、失物迷雾与不确定。',
-	九地: '九地：主厚重稳守、低位蓄势与缓进。',
-	九天: '九天：主高远扬动、扩张开拓与凌空之势。',
-};
+const QIMEN_TEN_GAN_TOOLTIP = QIMEN_TEN_GAN_TOOLTIP_TEXT;
+const QIMEN_DOOR_TOOLTIP = QIMEN_DOOR_TOOLTIP_TEXT;
+const QIMEN_STAR_TOOLTIP = QIMEN_STAR_TOOLTIP_TEXT;
+const QIMEN_GOD_TOOLTIP = QIMEN_GOD_TOOLTIP_TEXT;
 
 const MAIN_STAR_IDS = new Set([
 	AstroConst.SUN,
@@ -457,6 +428,9 @@ function shortMainStarLabel(name){
 	if(text === '太阳'){
 		return '日';
 	}
+	if(text === '天顶' || text === '中天' || text === 'MC'){
+		return '顶';
+	}
 	return text.substring(0, 1);
 }
 
@@ -553,6 +527,7 @@ function getQimenOptionsKey(options){
 		safe(options.yimaMode),
 		safe(options.shiftPalace),
 		options.fengJu ? 1 : 0,
+		normalizeTimeAlg(options.timeAlg),
 	].join('|');
 }
 
@@ -935,6 +910,21 @@ function appendSection(lines, title, bodyLines){
 	lines.push('');
 }
 
+function packLines(items, perLine){
+	if(!Array.isArray(items) || !items.length){
+		return [];
+	}
+	const groupSize = perLine && perLine > 1 ? perLine : 1;
+	if(groupSize === 1){
+		return items.slice(0);
+	}
+	const packed = [];
+	for(let i=0; i<items.length; i += groupSize){
+		packed.push(items.slice(i, i + groupSize).join('  ｜  '));
+	}
+	return packed;
+}
+
 function buildLiuRengBranchMap(lrLayout){
 	const map = {};
 	if(!lrLayout || !Array.isArray(lrLayout.downZi)){
@@ -958,13 +948,16 @@ function buildLiuRengTooltipNode(textObj, fallbackTitle){
 			</div>
 		);
 	}
-	const title = normalizeTooltipText(safe(textObj.title, fallbackTitle || '六壬释义'));
-	const poemTxt = normalizeTooltipText(textObj.poem);
-	const explainTxt = normalizeTooltipText(textObj.explain);
-	const kindTxt = normalizeTooltipText(textObj.kind);
+	const title = `${safe(textObj.title, fallbackTitle || '六壬释义')}`.trim();
+	const metaTxt = `${safe(textObj.meta, '')}`.trim();
+	const poemTxt = `${safe(textObj.poem, '')}`.trim();
+	const explainTxt = `${safe(textObj.explain, '')}`.trim();
+	const kindRaw = `${safe(textObj.kind, '')}`.trim();
+	const kindTxt = kindRaw.replace(/^类象[:：]\s*/, '');
 	return (
 		<div className={styles.lrTooltipCard}>
 			<div className={styles.lrTooltipTitle}>{title}</div>
+			{metaTxt ? <div className={styles.lrTooltipItem}>{metaTxt}</div> : null}
 			{poemTxt ? <div className={styles.lrTooltipItem}><b>诗句：</b>{poemTxt}</div> : null}
 			{explainTxt ? <div className={styles.lrTooltipItem}><b>释义：</b>{explainTxt}</div> : null}
 			{kindTxt ? <div className={styles.lrTooltipItem}><b>类象：</b>{kindTxt}</div> : null}
@@ -1148,40 +1141,27 @@ function buildSanShiPalaceSummaryRows(dunjia){
 			`吉格：${ji}`,
 			`凶格：${xiong}`,
 		];
+		const titleTxt = `${palace.title || ''}`;
+		const shortMatch = titleTxt.match(/([乾兑离震巽坎艮坤])宫/);
 		rows.push({
 			key: `${palace.palaceNum}`,
 			title: palace.title,
+			shortTitle: shortMatch ? `${shortMatch[1]}宫` : titleTxt,
 			lines,
 		});
 	});
 	return rows;
 }
 
-function buildLiuRengReferenceRows(lrJudge){
-	const rows = [];
-	const pushRows = (kind, hits)=>{
-		(hits || []).forEach((item)=>{
-			if(!item || !item.name){
-				return;
-			}
-			rows.push({
-				kind,
-				name: item.name,
-				basis: safe(item.basis, '命中'),
-			});
-		});
-	};
-	pushRows('大格', lrJudge && lrJudge.dageHits ? lrJudge.dageHits : []);
-	pushRows('小局', lrJudge && lrJudge.xiaojuHits ? lrJudge.xiaojuHits : []);
-	return rows;
-}
-
-function buildLiuRengReferenceLines(lrJudge){
-	const rows = buildLiuRengReferenceRows(lrJudge);
-	if(!rows.length){
-		return ['无符合参考条目'];
+function buildLiuRengOverviewHitText(hits){
+	if(!hits || !hits.length){
+		return '无';
 	}
-	return rows.map((item, idx)=>`${idx + 1}. [${item.kind}] ${item.name}：${item.basis}`);
+	return hits.map((item, idx)=>{
+		const name = safe(item && item.name, '未命名格局');
+		const logic = safe(item && (item.logic || item.basis), '命中');
+		return `${idx + 1}. ${name}：${logic}`;
+	}).join('\n');
 }
 
 function buildSanShiUnitedSnapshotText(data){
@@ -1263,7 +1243,15 @@ function buildSanShiUnitedSnapshotText(data){
 	]);
 	appendSection(lines, '六壬-大格', formatLiuRengPatternLines(lrJudge && lrJudge.dageHits ? lrJudge.dageHits : [], '无符合大格'));
 	appendSection(lines, '六壬-小局', formatLiuRengPatternLines(lrJudge && lrJudge.xiaojuHits ? lrJudge.xiaojuHits : [], '无符合小局'));
-	appendSection(lines, '六壬-参考', buildLiuRengReferenceLines(lrJudge));
+	const lrReferenceRows = buildUnifiedLiuRengReferenceRows({
+		liureng,
+		lrLayout,
+	});
+	appendSection(lines, '六壬-参考', lrReferenceRows.length
+		? lrReferenceRows.map((item, idx)=>`${idx + 1}. [${item.kind}] ${item.name}：${item.logic}；${item.detail}`)
+		: ['无符合参考条目']);
+	const lrOverviewSections = buildLiuRengOverviewSections();
+	appendSection(lines, '六壬-概览文', lrOverviewSections.map((item)=>`${item.title}\n${item.content}`));
 	const qimenMap = {};
 	if(Array.isArray(dunjia.cells)){
 		dunjia.cells.forEach((cell)=>{
@@ -1286,7 +1274,7 @@ function buildSanShiUnitedSnapshotText(data){
 	});
 	const shenshaItems = dunjia.shenSha && Array.isArray(dunjia.shenSha.allItems) ? dunjia.shenSha.allItems : [];
 	appendSection(lines, '神煞', shenshaItems.length
-		? shenshaItems.map((item)=>`${item.name}：${item.value}`)
+		? packLines(shenshaItems.map((item)=>`${item.name}：${item.value}`), 4)
 		: ['暂无神煞']);
 	return lines.join('\n').trim();
 }
@@ -2165,6 +2153,7 @@ class SanShiUnitedMain extends Component{
 			kongMode: opt.kongMode,
 			yimaMode: opt.yimaMode,
 			shiftPalace: opt.shiftPalace,
+			timeAlg: normalizeTimeAlg(opt.timeAlg),
 			// 三式合一统一按“交接时刻”计算，避免日级近似切换。
 			jieQiType: 1,
 			yearGanZhiType: 2,
@@ -3265,7 +3254,12 @@ class SanShiUnitedMain extends Component{
 		const liurengSubTab = ['overview', 'dage', 'xiaoju', 'reference'].includes(this.state.liurengSubTab)
 			? this.state.liurengSubTab
 			: 'dage';
-		const liurengReferenceRows = buildLiuRengReferenceRows(lrJudge);
+		const liurengReferenceRows = buildUnifiedLiuRengReferenceRows({
+			liureng: this.state.liureng,
+			runyear: this.state.runyear,
+			lrLayout: this.state.lrLayout,
+		});
+		const liurengOverviewSections = buildLiuRengOverviewSections();
 		const overviewRows = [
 			{ label: '公历', value: `${safe(solar.date, '—')} ${safe(solar.hm, '—')}` },
 			{ label: '直接时间', value: safe(solar.hm, '—') },
@@ -3283,17 +3277,8 @@ class SanShiUnitedMain extends Component{
 			{ label: '阴阳遁', value: pan ? pan.yinYangDun : '—' },
 			{ label: '吉格', value: pan && pan.jiPatterns && pan.jiPatterns.length ? pan.jiPatterns.join('、') : '无' },
 			{ label: '凶格', value: pan && pan.xiongPatterns && pan.xiongPatterns.length ? pan.xiongPatterns.join('、') : '无' },
-			{ label: '六壬大格', value: lrJudge.dageNames && lrJudge.dageNames.length ? lrJudge.dageNames.join('、') : '无' },
-			{ label: '六壬小局', value: lrJudge.xiaojuNames && lrJudge.xiaojuNames.length ? lrJudge.xiaojuNames.join('、') : '无' },
-		];
-		const liurengOverviewRows = [
-			{ label: '一课', value: formatKeLine(3) },
-			{ label: '二课', value: formatKeLine(2) },
-			{ label: '三课', value: formatKeLine(1) },
-			{ label: '四课', value: formatKeLine(0) },
-			{ label: '初传', value: formatChuanLine(0) },
-			{ label: '中传', value: formatChuanLine(1) },
-			{ label: '末传', value: formatChuanLine(2) },
+			{ label: '六壬大格', value: buildLiuRengOverviewHitText(lrJudge.dageHits) },
+			{ label: '六壬小局', value: buildLiuRengOverviewHitText(lrJudge.xiaojuHits) },
 		];
 		const jiCount = pan && pan.jiPatterns && pan.jiPatterns.length ? pan.jiPatterns.length : 0;
 		const xiongCount = pan && pan.xiongPatterns && pan.xiongPatterns.length ? pan.xiongPatterns.length : 0;
@@ -3517,7 +3502,7 @@ class SanShiUnitedMain extends Component{
 							<div className={styles.metricRow}>
 								<Tag color={shenshaCount ? 'blue' : 'default'} className={styles.metricTag}>神煞条目 {shenshaCount}</Tag>
 							</div>
-							<div className={styles.shenshaGrid}>
+							<div className={styles.shenshaGridDense}>
 								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
 									? pan.shenSha.allItems.map((item)=>(
 										<div key={`ss_item_${item.name}`} className={styles.shenshaItem}>
@@ -3545,7 +3530,8 @@ class SanShiUnitedMain extends Component{
 										{lrJudge.dageHits && lrJudge.dageHits.length ? lrJudge.dageHits.map((item, idx)=>(
 											<div key={`lr_dage_hit_${idx}`} className={styles.hitItem}>
 												<div className={styles.hitName}>{idx + 1}. {item.name}</div>
-												<div className={styles.hitBasis}>{item.basis}</div>
+												<div className={styles.hitBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												<div className={styles.hitDetail}>相关：{item.detail || '详见六壬格局原文释义。'}</div>
 											</div>
 										)) : <div className={styles.emptyText}>无符合大格</div>}
 									</div>
@@ -3560,7 +3546,8 @@ class SanShiUnitedMain extends Component{
 										{lrJudge.xiaojuHits && lrJudge.xiaojuHits.length ? lrJudge.xiaojuHits.map((item, idx)=>(
 											<div key={`lr_xiaoju_hit_${idx}`} className={styles.hitItem}>
 												<div className={styles.hitName}>{idx + 1}. {item.name}</div>
-												<div className={styles.hitBasis}>{item.basis}</div>
+												<div className={styles.hitBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												<div className={styles.hitDetail}>相关：{item.detail || '详见六壬格局原文释义。'}</div>
 											</div>
 										)) : <div className={styles.emptyText}>无符合小局</div>}
 									</div>
@@ -3575,7 +3562,8 @@ class SanShiUnitedMain extends Component{
 										{liurengReferenceRows.length ? liurengReferenceRows.map((item, idx)=>(
 											<div key={`lr_ref_${idx}`} className={styles.hitItem}>
 												<div className={styles.hitName}>{idx + 1}. [{item.kind}] {item.name}</div>
-												<div className={styles.hitBasis}>{item.basis}</div>
+												<div className={styles.hitBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												<div className={styles.hitDetail}>相关：{item.detail || '详见六壬格局原文释义。'}</div>
 											</div>
 										)) : <div className={styles.emptyText}>无符合参考条目</div>}
 									</div>
@@ -3583,14 +3571,12 @@ class SanShiUnitedMain extends Component{
 							</TabPane>
 							<TabPane tab="概览" key="overview">
 								<Card bordered={false} className={styles.rightCard} bodyStyle={{ padding: '10px 12px', maxHeight: liurengPaneHeight, overflowY: 'auto' }}>
-									<div className={styles.kvList}>
-										{liurengOverviewRows.map((row, idx)=>(
-											<div key={`ss_lr_overview_${idx}`} className={styles.kvItem}>
-												<div className={styles.kvLabel}>{row.label}</div>
-												<div className={styles.kvValue}>{row.value}</div>
-											</div>
-										))}
-									</div>
+									{liurengOverviewSections.length ? liurengOverviewSections.map((item)=>(
+										<div key={`lr_overview_${item.key}`} className={styles.referenceSection}>
+											<div className={styles.referenceTitle}>{item.title}</div>
+											<pre className={styles.referenceRaw}>{item.content}</pre>
+										</div>
+									)) : <div className={styles.emptyText}>暂无概览内容</div>}
 								</Card>
 							</TabPane>
 						</Tabs>
@@ -3614,16 +3600,25 @@ class SanShiUnitedMain extends Component{
 												type={selectedBagongRow && selectedBagongRow.key === row.key ? 'primary' : 'default'}
 												onClick={()=>this.setState({ selectedBagong: row.key })}
 											>
-												{row.title}
+												{row.shortTitle || row.title}
 											</Button>
 											))}
 									</div>
 									{selectedBagongRow ? (
 										<div key={`bg_${selectedBagongRow.key}`} className={styles.bgSection}>
 											<div className={styles.bgTitle}>{selectedBagongRow.title}</div>
-											{selectedBagongRow.lines.map((line, idx)=>(
-												<div key={`bg_${selectedBagongRow.key}_${idx}`} className={styles.bgLine}>{line}</div>
-											))}
+											{selectedBagongRow.lines.map((line, idx)=>{
+												const txt = `${line || ''}`;
+												const colonIdx = txt.indexOf('：');
+												const label = colonIdx >= 0 ? txt.substring(0, colonIdx) : `判断${idx + 1}`;
+												const value = colonIdx >= 0 ? txt.substring(colonIdx + 1) : txt;
+												return (
+												<div key={`bg_${selectedBagongRow.key}_${idx}`} className={styles.bgLineCard}>
+													<div className={styles.bgLineLabel}>{label}</div>
+													<div className={styles.bgLineValue}>{value}</div>
+												</div>
+												);
+											})}
 										</div>
 									) : <div className={styles.emptyText}>暂无八宫数据</div>}
 								</>

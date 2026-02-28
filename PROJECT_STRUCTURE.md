@@ -337,3 +337,28 @@
   - `SELF_CHECK_REPORTS/TARGET_LR_DJ_20260227_2304.json`
   - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2305.json`
   - 用于补齐“16个一级标签全点击”与“点名技术页面定向起盘/导出点击”证据链。
+
+## Z. 最终确认补丁与最新验收产物（2026-02-28）
+- 代码变更（本轮）：
+  - `astrostudyui/src/components/astro/AstroPlanet.js`
+    - 修复 `genPlanetsDom` 绑定错误（`bind(this)`），避免“行星”页切换白屏。
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+    - `getQimenOptions` 显式透传 `timeAlg`；
+    - `getQimenOptionsKey` 纳入 `timeAlg`，保证不同时间算法缓存隔离。
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.less`
+    - `.topBox` 右侧列缩窄为 `148px`，改善顶部时间行可见性。
+  - `astrostudyui/src/utils/aiExport.js`
+    - 新增 `store` 级上下文兜底与模块快照别名读取；
+    - 新增导出前快照短时等待，减少初载竞态空导出；
+    - 维持快照导出主路径（未恢复右栏 DOM 文本拼接）。
+  - `astrostudyui/src/utils/moduleAiSnapshot.js`
+  - `astrostudyui/src/utils/astroAiSnapshot.js`
+    - 均增加会话内存兜底，补强 `localStorage` 异常场景。
+- 验收产物（本轮新增）：
+  - `SELF_CHECK_REPORTS/ROUND9_20260228_085219_*`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772299235181.json`
+  - `SELF_CHECK_REPORTS/TMP_SECTION2_1772299377333.txt`
+  - `SELF_CHECK_REPORTS/TMP_SIXYAO_A_1772299429976.txt`
+  - `SELF_CHECK_REPORTS/TMP_SIXYAO_B_1772299430747.txt`
+  - `SELF_CHECK_REPORTS/TMP_META_A_1772299340576.txt`
+  - `SELF_CHECK_REPORTS/TMP_META_B_1772299341167.txt`
