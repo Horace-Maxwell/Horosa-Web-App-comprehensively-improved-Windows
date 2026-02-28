@@ -362,3 +362,70 @@
   - `SELF_CHECK_REPORTS/TMP_SIXYAO_B_1772299430747.txt`
   - `SELF_CHECK_REPORTS/TMP_META_A_1772299340576.txt`
   - `SELF_CHECK_REPORTS/TMP_META_B_1772299341167.txt`
+
+## AA. AI导出快照链路再收口（2026-02-28）
+- 导出提取函数统一快照-only：
+  - `astrostudyui/src/utils/aiExport.js`
+  - `extract*Content` 系列函数（含 `generic`）均不再回退到 `scopeRoot`/右栏/iframe 文本采集。
+- 运行语义：
+  - 导出正文来源保持 `astroAiSnapshot/moduleAiSnapshot`；
+  - 无快照时返回空文本，由导出层提示“先完成起盘”。
+- 验证产物：
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772304022748.json`（24 项中 19 项通过）
+  - `SELF_CHECK_REPORTS/ROUND31_20260228_100501_summary.json`（启动/构建/单测通过，按钮巡检 `pageErrorCount=0`）
+- 当前已知自动化噪声：
+  - 快速切页下部分模块快照未及时就绪（关系盘/节气盘/金口诀等）会出现导出动作超时；
+  - 属于自动化压测节奏问题，需在对应页面完成一次稳定起盘后再验导出。
+
+## AB. 全选项巡检工具链（2026-02-28）
+- 新增脚本：
+  - `tmp_full_option_setting_sweep.js`
+    - 分层遍历主/内层标签并触发可见交互控件；
+    - 统计每个作用域控件覆盖与失败分布；
+    - 收集 `pageErrors/consoleErrors/requestFailures`。
+  - `tmp_run_full_sweep.ps1`
+    - 一键启动服务并串行执行：按钮巡检 + 设置巡检，最后自动停服。
+  - `tmp_run_options_subset.ps1`
+    - 支持 `--tabs` 参数对剩余主标签做分组补扫，覆盖长耗时场景。
+- 新增报告：
+  - `SELF_CHECK_REPORTS/FULL_SWEEP_20260228_130842_button.report.json`
+  - `SELF_CHECK_REPORTS/FULL_SWEEP_20260228_130842_options.report.json`
+  - `SELF_CHECK_REPORTS/OPTIONS_SUBSET_20260228_140453_report.json`
+- 覆盖结果：
+  - 两轮合并后主标签覆盖 `16/16`；
+  - 两轮设置巡检控件尝试总数 `2346`；
+  - `pageErrorCount=0`（未见白屏级异常）。
+
+## AC. AI导出巡检稳定性增强（2026-02-28）
+- 新增/更新脚本：
+  - `tmp_ai_export_isolated_check.js`
+  - `tmp_ai_export_targeted_probe.js`
+  - `tmp_run_ai_export_only.ps1`
+  - `tmp_run_target_probe.ps1`
+  - `tmp_run_verification_suite.ps1`
+- 关键增强：
+  - 精确匹配“AI导出”按钮，避免误点“AI导出设置”；
+  - 下载项定位改为可见候选末项，降低菜单残留干扰；
+  - 关系盘自动注入并选择 A/B 本地测试盘。
+- 产物：
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772312520559.json`（`24/24`）
+  - `SELF_CHECK_REPORTS/AI_EXPORT_TARGET_PROBE_1772309669854.json`（定向疑难页通过）
+
+## AD. 最终验收复跑证据（2026-02-28）
+- 汇总脚本：
+  - `tmp_run_verification_suite.ps1`
+    - 一次拉起服务后串行执行：按钮巡检、AI导出隔离巡检、性能基准，并自动停服。
+  - `tmp_run_node_checks_with_services.ps1`
+    - 带服务启动执行设置联动脚本（`meta/section/sixyao/sanshi-consistency`）。
+- 新增报告：
+  - `SELF_CHECK_REPORTS/VERIFY_SUITE_20260228_143533_summary.json`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772318561146.json`
+  - `SELF_CHECK_REPORTS/PERF_BENCH_1772318654295.json`
+  - `SELF_CHECK_REPORTS/NODE_CHECK_20260228_143202_run.log`
+- Bash 语法与启停实测：
+  - 通过 `C:\Program Files\Git\bin\bash.exe` 显式执行：
+    - `bash -n horosa_local.command`
+    - `bash -n stop_horosa_local.sh`
+  - `horosa_local.command start`（`HOROSA_KEEP_SERVICES_RUNNING=1`）后，`8000/8899/9999` 持续监听；
+  - `stop_horosa_local.sh` 后三端口关闭且 `.horosa_*.pid` 清理；
+  - `HOROSA_KEEP_SERVICES_RUNNING=0` 分支验证可回退“按回车自动停服”旧行为。

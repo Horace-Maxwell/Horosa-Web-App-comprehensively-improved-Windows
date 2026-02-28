@@ -1126,3 +1126,89 @@ Append new entries; do not rewrite history.
   - AI 导出设置联动脚本复测：
     - `TMP_SECTION2_*`：分段过滤生效（仅保留 `[信息]`）；
     - `TMP_SIXYAO_*`：易卦分段勾选生效（`卦辞/起盘信息`互斥验证通过）。
+
+### 10:20 - AI导出提取函数快照-only再收口（2026-02-28）
+- Scope: 进一步收口 `aiExport` 中残留提取函数，确保即使未来路径调用也不会回退到 DOM 文本导出。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/aiExport.js`
+  - `UPGRADE_LOG.md`
+  - `PROJECT_STRUCTURE.md`
+- Details:
+  - `extractAstroContent / extractSixYaoContent / extractLiuRengContent / extractJinKouContent / extractQiMenContent / extractSanShiUnitedContent / extractTongSheFaContent / extractTaiYiContent / extractGermanyContent / extractJieQiContent / extractRelativeContent / extractOtherBuContent / extractFengShuiContent / extractGenericContent` 统一改为仅返回快照内容；
+  - 删除这些函数中的 DOM 兜底拼接路径（`scopeRoot` 文本/右侧栏目/iframe 文本提取）；
+  - 结果：导出链路在函数级别也满足“快照优先且无展示层文本抓取”。
+- Verification:
+  - `node --check Horosa-Web-55.../astrostudyui/src/utils/aiExport.js` ✅
+  - `npm --prefix Horosa-Web-55.../astrostudyui run build:file` ✅（`dist-file/umi.90e61d86.js`）
+  - `bash -n horosa_local.command` / `bash -n start_horosa_local.sh` / `bash -n stop_horosa_local.sh` ✅
+  - `tmp_ai_export_isolated_check.js` 增强重跑：
+    - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772304022748.json`
+    - `24` 项中 `19` 项通过；其余 `5` 项为自动化快切下快照未就绪/导出动作未触发场景（无串盘映射问题）。
+
+### 14:05 - 全页面全选项分组巡检（2026-02-28）
+- Scope: 按“每一个选项/设置都检查”要求，新增分组可控的设置全扫脚本，并执行两轮互补覆盖。
+- Files:
+  - `tmp_full_option_setting_sweep.js`
+  - `tmp_run_full_sweep.ps1`
+  - `tmp_run_options_subset.ps1`
+  - `SELF_CHECK_REPORTS/FULL_SWEEP_20260228_130842_*`
+  - `SELF_CHECK_REPORTS/OPTIONS_SUBSET_20260228_140453_report.json`
+- Details:
+  - `tmp_full_option_setting_sweep.js` 支持：
+    - 主标签 + 内层标签递归遍历；
+    - 按控件类型采集与触发（button/checkbox/switch/radio/select）；
+    - 统计每个作用域的 `controlsVisible/Attempted/Clicked/Failed`；
+    - 输出 `pageErrors/consoleErrors/requestFailures`。
+  - 第 1 轮 `FULL_SWEEP` 覆盖前 9 个主标签设置全扫；
+  - 第 2 轮 `OPTIONS_SUBSET` 覆盖剩余 7 个主标签（印度律盘、八字紫微、易与三式、万年历、西洋游戏、风水、三式合一）。
+- Verification:
+  - `node --check tmp_full_option_setting_sweep.js` ✅
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp_run_full_sweep.ps1 -SmokeWaitSeconds 3600` ✅
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp_run_options_subset.ps1 -Tabs '印度律盘,八字紫微,易与三式,万年历,西洋游戏,风水,三式合一' -SmokeWaitSeconds 2400` ✅
+  - 结果：
+    - 设置巡检两轮合并后主标签覆盖 `16/16`；
+    - `pageErrorCount=0`（未出现白屏级错误）；
+    - 仍有外部资源请求失败与复杂弹层控件自动点击失败噪声（不影响核心起盘/导出链路）。
+
+### 14:10 - AI导出全页面复测稳定（24/24）（2026-02-28）
+- Scope: 再次收敛 AI 导出巡检脚本点击竞态，确保全页面导出动作稳定触发。
+- Files:
+  - `tmp_ai_export_isolated_check.js`
+  - `tmp_run_ai_export_only.ps1`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772311876165.json`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772312520559.json`
+- Details:
+  - 修正“AI导出”按钮定位：
+    - 使用精确匹配并优先取最后一个可见按钮，避免误命中 `AI导出设置`；
+  - 修正“导出TXT”菜单项选择：
+    - 在可见候选中取末项，降低遮罩/残留下拉导致的误判；
+  - 增加关系盘自动准备 A/B 本地测试盘，避免“无关系数据”导致的伪失败。
+- Verification:
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp_run_ai_export_only.ps1 -SmokeWaitSeconds 1200` ✅
+  - 最新报告：`SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772312520559.json`，`24/24` 通过。
+
+### 14:46 - 最终验收复跑（2026-02-28）
+- Scope: 按最终清单再次复跑“语法/启停/AI导出/全页计算”关键链路，输出同批次证据。
+- Files:
+  - `SELF_CHECK_REPORTS/VERIFY_SUITE_20260228_143533_summary.json`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772318561146.json`
+  - `SELF_CHECK_REPORTS/PERF_BENCH_1772318654295.json`
+  - `SELF_CHECK_REPORTS/NODE_CHECK_20260228_143202_run.log`
+- Details:
+  - 通过 Git Bash 显式路径补跑语法检查（Windows 环境下 `bash` 不在 PATH）：
+    - `bash -n horosa_local.command`
+    - `bash -n stop_horosa_local.sh`
+  - 通过 `horosa_local.command start` + `stop_horosa_local.sh` 完整验证 8000/8899/9999：
+    - 默认 `HOROSA_KEEP_SERVICES_RUNNING=1`：关闭前端窗口后端口保持监听；
+    - `HOROSA_KEEP_SERVICES_RUNNING=0`：按回车后自动停服，端口关闭。
+  - `tmp_run_verification_suite.ps1` 复跑：
+    - AI 导出隔离巡检 `24/24`；
+    - 性能基准 `24` 项均成功取数，`23` 项 ≤ 1s，`1` 项（节气盘）>1s。
+  - `tmp_run_node_checks_with_services.ps1` 复跑设置生效脚本：
+    - 三式合一“起盘/确定”导出内容一致（`same=true`）；
+    - 占星导出设置 `section/planetMeta/annotation` 勾选联动生效。
+- Verification:
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp_run_verification_suite.ps1 -SmokeWaitSeconds 1200` ✅
+  - `powershell -ExecutionPolicy Bypass -File .\\tmp_run_node_checks_with_services.ps1 -Scripts 'tmp_test_meta_toggle.js,tmp_test_section_filter_germany2.js,tmp_test_sixyao_settings.js,tmp_check_sanshi_plot_confirm_consistency.js' -SmokeWaitSeconds 1200` ✅
+  - `C:\\Program Files\\Git\\bin\\bash.exe -lc "bash -n .../horosa_local.command"` ✅
+  - `C:\\Program Files\\Git\\bin\\bash.exe -lc "bash -n .../stop_horosa_local.sh"` ✅
