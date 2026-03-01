@@ -657,3 +657,26 @@ Append new entries; do not rewrite history.
   - PowerShell parse check for `Horosa_Local_Windows.ps1` passed
   - Smoke run passed: `HOROSA_NO_BROWSER=1`, `HOROSA_SMOKE_TEST=1`
   - Pushed to remote main: commit `a6db45d94d62f81c930666fd9900ad06fef844eb`
+
+### 01:20 - 稳定性补丁与垃圾清理收口（2026-03-01）
+- Scope: 收口本窗口回归中的 3 处代码异常，并同步记录清理结果。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/liureng/LRAstroBranchHelper.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/graph/D3Arrow.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/germany/AstroMidpoint.js`
+  - `UPGRADE_LOG.md`
+  - `PROJECT_STRUCTURE.md`
+- Details:
+  - `LRAstroBranchHelper.js`：
+    - 补齐 `AstroConst` 导入，避免 `AstroConst is not defined`。
+  - `D3Arrow.js`：
+    - 修正 SVG `viewBox` 为 `"0 0 " + width + " " + height`，解决箭头标记解析异常。
+  - `AstroMidpoint.js`：
+    - 新增 `fieldVal` 兜底函数；
+    - `fieldsToParams` 为 `zone/lat/lon/hsys/zodiacal/...` 增加默认值，降低设置快切导致的缺参 500。
+  - 清理与核验：
+    - 已完成 `tmp_*`、`SELF_CHECK_REPORTS`、`test-results`、`.tmp_playwright_runner`、`.horosa-local-logs-win` 清理；
+    - 清理后核验结果：`TMP_FILES_REMAIN=0`，相关临时目录不存在。
+- Verification:
+  - `npm test -- --runInBand src/components/liureng/__tests__/LRPatternJudge.test.js` ✅
+  - `npm run -s build` ✅
