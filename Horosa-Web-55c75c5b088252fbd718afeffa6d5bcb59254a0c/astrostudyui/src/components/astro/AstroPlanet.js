@@ -4,23 +4,27 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
 import AstroObjectLabel from './AstroObjectLabel';
-import { appendPlanetMetaName, } from '../../utils/planetMetaDisplay';
 import {getAzimuthStr} from '../../utils/helper';
 import styles from '../../css/styles.less';
 
-function objectNameWithMeta(chartObj, id){
-	if(id === undefined || id === null){
-		return '';
-	}
-	const base = AstroText.AstroMsg[id] ? `${AstroText.AstroMsg[id]}` : `${id}`;
-	return appendPlanetMetaName(base, id, chartObj);
+function isEncodedToken(text){
+	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
 }
 
-function objectListWithMeta(chartObj, ary){
+function renderObjectListWithMeta(chartObj, ary){
 	if(!Array.isArray(ary) || ary.length === 0){
 		return null;
 	}
-	return ary.map((id)=>objectNameWithMeta(chartObj, id)).join(' , ');
+	return ary.map((id, idx)=>(
+		<span key={`${id || 'obj'}-${idx}`}>
+			<AstroObjectLabel id={id} chartSources={chartObj} />
+			{
+				idx + 1 < ary.length && (
+					<span style={{ fontFamily: AstroConst.NormalFont }}>&nbsp;,&nbsp;</span>
+				)
+			}
+		</span>
+	));
 }
 
 class AstroPlanet extends Component{
@@ -82,10 +86,17 @@ class AstroPlanet extends Component{
 			let rulehouses = AstroHelper.getObjectsText(obj.ruleHouses);
 			let govern = null;
 			if(obj.governSign){
-				govern = AstroText.AstroMsg[obj.governSign];
-				if(obj.governPlanets.length > 0){
-					govern = govern + ' , ' + objectListWithMeta(chartObj, obj.governPlanets);
-				}
+				govern = (
+					<span>
+						<AstroObjectLabel id={obj.governSign} chartSources={chartObj} />
+						{
+							Array.isArray(obj.governPlanets) && obj.governPlanets.length > 0 && (
+								<span style={{fontFamily: AstroConst.NormalFont}}>&nbsp;,&nbsp;</span>
+							)
+						}
+						{renderObjectListWithMeta(chartObj, obj.governPlanets)}
+					</span>
+				);
 			}
 			
 			let occiTxt = null;
@@ -93,14 +104,8 @@ class AstroPlanet extends Component{
 			if(chartObj.chart.orientOccident[objid]){
 				let occidental = chartObj.chart.orientOccident[objid].occidental;
 				let oriental = chartObj.chart.orientOccident[objid].oriental;
-				occiTxt = occidental.map((item)=>{
-					return item.id;
-				});
-				orienTxt = oriental.map((item)=>{
-					return item.id;
-				});
-				occiTxt = objectListWithMeta(chartObj, occiTxt);
-				orienTxt = objectListWithMeta(chartObj, orienTxt);	
+				occiTxt = renderObjectListWithMeta(chartObj, occidental.map((item)=>item.id));
+				orienTxt = renderObjectListWithMeta(chartObj, oriental.map((item)=>item.id));	
 			}
 
 			let stars = AstroHelper.getStars(chartObj, objid);
@@ -111,7 +116,13 @@ class AstroPlanet extends Component{
 					let sname = item.length > 4 ? item[4] : AstroText.AstroMsg[item[0]];
 					return (
 						<div key={item[0]}>
-							{sname}：
+							{
+								isEncodedToken(sname) ? (
+									<span style={{fontFamily: AstroConst.AstroFont}}>{sname}</span>
+								) : (
+									<span>{sname}</span>
+								)
+							}：
 							<Popover content={'误差' + Math.round(item[3]*1000) / 1000} >
 							<span>{stardeg[0]}</span>
 							<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item[1]]}</span>

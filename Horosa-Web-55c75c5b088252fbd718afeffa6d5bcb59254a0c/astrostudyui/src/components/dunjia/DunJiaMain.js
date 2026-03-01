@@ -37,6 +37,7 @@ import {
 	QIMEN_STAR_TOOLTIP_TEXT,
 	QIMEN_GOD_TOOLTIP_TEXT,
 } from '../../constants/QimenTooltipTexts';
+import { renderMarkdownLiteBlock } from '../../utils/markdownLiteReact';
 import styles from './DunJiaMain.less';
 const { Option } = Select;
 const TabPane = Tabs.TabPane;
@@ -62,12 +63,24 @@ const DEFAULT_OPTIONS = {
 	shiftPalace: 0,
 	fengJu: false,
 };
+const DUNJIA_BAGONG_ORDER = [
+	{ title: '正北坎宫', palaceNum: 8 },
+	{ title: '东北艮宫', palaceNum: 7 },
+	{ title: '正东震宫', palaceNum: 4 },
+	{ title: '东南巽宫', palaceNum: 1 },
+	{ title: '正南离宫', palaceNum: 2 },
+	{ title: '西南坤宫', palaceNum: 3 },
+	{ title: '正西兑宫', palaceNum: 6 },
+	{ title: '西北乾宫', palaceNum: 9 },
+];
 
 const DUNJIA_BOARD_BASE_WIDTH = 662;
 const DUNJIA_BOARD_BASE_HEIGHT = 870;
-const DUNJIA_SCALE_MIN = 0.64;
+const DUNJIA_SCALE_MIN = 0.48;
 const DUNJIA_SCALE_MAX = 1.22;
 const DUNJIA_FAST_PLOT_TIMEOUT_MS = 650;
+const DUNJIA_VIEWPORT_GAP = 12;
+const DUNJIA_MIN_HEIGHT = 320;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
@@ -83,8 +96,37 @@ function getViewportHeight(){
 	return 900;
 }
 
+function toNumber(val){
+	if(typeof val === 'number' && Number.isFinite(val)){
+		return val;
+	}
+	if(typeof val === 'string'){
+		const txt = val.trim();
+		if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
+			const n = parseFloat(txt);
+			return Number.isFinite(n) ? n : null;
+		}
+	}
+	return null;
+}
+
+function resolveBoundedHeight(rawHeight){
+	const viewport = getViewportHeight();
+	let h = toNumber(rawHeight);
+	if(h === null){
+		h = rawHeight === '100%' ? (viewport - 80) : 760;
+	}
+	h = h - 20;
+	const maxH = Math.max(DUNJIA_MIN_HEIGHT, viewport - DUNJIA_VIEWPORT_GAP);
+	return Math.max(DUNJIA_MIN_HEIGHT, Math.min(h, maxH));
+}
+
 function safe(v, d = ''){
 	return v === undefined || v === null ? d : v;
+}
+
+function formatPatternValue(items){
+	return items && items.length ? items.join('\n') : '无';
 }
 
 function extractHm(timeText){
@@ -137,6 +179,7 @@ function getFieldKey(fields){
 		safe(fields.lat && fields.lat.value),
 		safe(fields.ad && fields.ad.value),
 		safe(fields.gender && fields.gender.value),
+		safe(fields.timeAlg && fields.timeAlg.value),
 	].join('|');
 }
 
@@ -174,6 +217,7 @@ function getQimenOptionsKey(options){
 		safe(options.kongMode),
 		safe(options.yimaMode),
 		safe(options.shiftPalace),
+		safe(options.timeAlg),
 		options.fengJu ? 1 : 0,
 	].join('|');
 }
@@ -206,14 +250,91 @@ const QIMEN_STATUS_TEXT = {
 	空亡: '空亡：象意落空、兑现折损，利于虚化避险，不利于实质落地。',
 	驿马: '驿马：主迁移、奔波与应变，宜机动，不宜久守。',
 };
+const DUNJIA_TOOLTIP_OVERLAY_STYLE = { maxWidth: 560 };
+const DUNJIA_TOOLTIP_INNER_STYLE = {
+	background: '#ffffff',
+	color: '#111827',
+	border: '1px solid #dbe5f1',
+	borderRadius: 8,
+	boxShadow: '0 8px 24px rgba(15, 23, 42, 0.14)',
+	padding: '8px 10px',
+};
+const QIMEN_TOOLTIP_CHAR_MAP = {
+	門: '门',
+	開: '开',
+	傷: '伤',
+	驚: '惊',
+	陰: '阴',
+	陽: '阳',
+	離: '离',
+	兌: '兑',
+	黃: '黄',
+	綠: '绿',
+	藍: '蓝',
+	騰: '腾',
+	內: '内',
+	沖: '冲',
+	輔: '辅',
+	麗: '丽',
+	風: '风',
+	險: '险',
+	鬥: '斗',
+	體: '体',
+	臺: '台',
+	與: '与',
+	廣: '广',
+	層: '层',
+	醫: '医',
+	氣: '气',
+	關: '关',
+	貴: '贵',
+	龍: '龙',
+	變: '变',
+	遠: '远',
+	飛: '飞',
+	壯: '壮',
+	闊: '阔',
+	圖: '图',
+	樓: '楼',
+	處: '处',
+	書: '书',
+	證: '证',
+	經: '经',
+	網: '网',
+};
+
+function normalizeQimenTooltipZh(raw){
+	// Intentionally preserve "乾" as trigram text; do not convert "乾" to "干".
+	const txt = `${safe(raw, '')}`;
+	if(!txt){
+		return '';
+	}
+	return txt.replace(/[門開傷驚陰陽離兌黃綠藍騰內沖輔麗風險鬥體臺與廣層醫氣關貴龍變遠飛壯闊圖樓處書證經網]/g, (ch)=>QIMEN_TOOLTIP_CHAR_MAP[ch] || ch);
+}
 
 function normalizeTooltipText(txt){
-	return `${safe(txt, '')}`.replace(/\r\n/g, '\n').trim();
+	return normalizeQimenTooltipZh(`${safe(txt, '')}`.replace(/\r\n/g, '\n')).trim();
+}
+
+function isRedundantQimenGanSummaryText(text){
+	const raw = `${safe(text, '')}`.replace(/\s/g, '');
+	if(!raw){
+		return false;
+	}
+	return raw.indexOf('天盘干') >= 0 && raw.indexOf('地盘干') >= 0;
 }
 
 function normalizeDoorKey(door){
 	const txt = `${safe(door, '')}`.replace(/\s/g, '').replace(/门/g, '').replace(/門/g, '');
-	return txt ? txt.substring(0, 1) : '';
+	if(!txt){
+		return '';
+	}
+	const head = txt.substring(0, 1);
+	return ({
+		開: '开',
+		傷: '伤',
+		驚: '惊',
+	})[head] || head;
 }
 
 function normalizeStarKey(star){
@@ -256,45 +377,63 @@ function normalizeGodKey(god){
 	if(!txt){
 		return '';
 	}
-	if(txt === '腾蛇' || txt === '螣蛇'){
-		return '螣蛇';
-	}
-	if(txt === '元武' || txt === '玄武'){
-		return '玄武';
-	}
-	return txt;
+	return ({
+		值符: '值符',
+		符: '值符',
+		腾蛇: '螣蛇',
+		螣蛇: '螣蛇',
+		騰蛇: '螣蛇',
+		蛇: '螣蛇',
+		太阴: '太阴',
+		太陰: '太阴',
+		阴: '太阴',
+		陰: '太阴',
+		六合: '六合',
+		合: '六合',
+		白虎: '白虎',
+		虎: '白虎',
+		元武: '玄武',
+		玄武: '玄武',
+		玄: '玄武',
+		九地: '九地',
+		地: '九地',
+		九天: '九天',
+		天: '九天',
+	})[txt] || txt;
 }
 
 function getStemInterpretation(gan){
-	return QIMEN_TEN_GAN_TEXT[`${safe(gan, '')}`.trim()] || '';
+	return normalizeQimenTooltipZh(QIMEN_TEN_GAN_TEXT[`${safe(gan, '')}`.trim()] || '');
 }
 
 function getDoorInterpretation(door){
 	const key = normalizeDoorKey(door);
-	return QIMEN_DOOR_TEXT[key] || '';
+	return normalizeQimenTooltipZh(QIMEN_DOOR_TEXT[key] || '');
 }
 
 function getStarInterpretation(star){
 	const key = normalizeStarKey(star);
-	return QIMEN_STAR_TEXT[key] || '';
+	return normalizeQimenTooltipZh(QIMEN_STAR_TEXT[key] || '');
 }
 
 function getGodInterpretation(god){
 	const key = normalizeGodKey(god);
-	return QIMEN_GOD_TEXT[key] || '';
+	return normalizeQimenTooltipZh(QIMEN_GOD_TEXT[key] || '');
 }
 
 function buildDunJiaTooltipNode(title, sections, emptyText){
 	const list = (sections || []).filter((item)=>item && normalizeTooltipText(item.text));
 	return (
 		<div className={styles.djTooltipCard}>
-			<div className={styles.djTooltipTitle}>{safe(title, '遁甲释义')}</div>
+			<div className={styles.djTooltipTitle}>{normalizeQimenTooltipZh(safe(title, '遁甲释义'))}</div>
 			{list.length ? list.map((item, idx)=>(
 				<div key={`dj_tip_${idx}`} className={styles.djTooltipSection}>
-					<div className={styles.djTooltipSectionTitle}>{safe(item.title, '说明')}</div>
-					<div className={styles.djTooltipItem}>{normalizeTooltipText(item.text)}</div>
+					<div className={styles.djTooltipSectionTitle}>{normalizeQimenTooltipZh(safe(item.title, '说明'))}</div>
+					<div className={styles.djTooltipItem}>
+						{renderMarkdownLiteBlock(normalizeTooltipText(item.text), `dj_tip_${idx}`)}
+					</div>
 				</div>
-			)) : <div className={styles.djTooltipItem}>{emptyText || '暂无释义'}</div>}
+			)) : <div className={styles.djTooltipItem}>{renderMarkdownLiteBlock(emptyText || '暂无释义', 'dj_tip_empty')}</div>}
 		</div>
 	);
 }
@@ -303,11 +442,7 @@ function buildDunJiaElementTooltipNode(cell, focusType){
 	if(!cell){
 		return buildDunJiaTooltipNode('遁甲释义', [], '暂无释义');
 	}
-	const palaceName = safe(cell.palaceName, '宫位');
-	const palaceNum = safe(cell.palaceNum, '—');
-	const doorVal = safe(cell.door, '—');
-	const baseDoor = safe(cell.baseDoor, '—');
-	const isCenter = !!cell.isCenter;
+	const doorVal = normalizeQimenTooltipZh(safe(cell.door, '—'));
 	const focusMap = {
 		tianGan: {
 			title: '天盘干',
@@ -336,8 +471,8 @@ function buildDunJiaElementTooltipNode(cell, focusType){
 		},
 		palace: {
 			title: '宫位',
-			value: `${palaceName}${palaceNum}`,
-			text: '用于定位本宫并联动右侧宫位格局查看。',
+			value: `${safe(cell.palaceName, '宫位')}${safe(cell.palaceNum, '—')}`,
+			text: '用于定位本宫方位。',
 		},
 		yima: {
 			title: '驿马',
@@ -346,44 +481,16 @@ function buildDunJiaElementTooltipNode(cell, focusType){
 		},
 	};
 	const focus = focusMap[focusType] || focusMap.tianGan;
-	const ji = cell.jiPatterns && cell.jiPatterns.length ? cell.jiPatterns.join('、') : '无';
-	const xiong = cell.xiongPatterns && cell.xiongPatterns.length ? cell.xiongPatterns.join('、') : '无';
-	const statusParts = [];
-	if(cell.hasJiXing){
-		statusParts.push(QIMEN_STATUS_TEXT.击刑);
-	}
-	if(cell.hasRuMu){
-		statusParts.push(QIMEN_STATUS_TEXT.入墓);
-	}
-	if(cell.hasMenPo){
-		statusParts.push(QIMEN_STATUS_TEXT.门迫);
-	}
-	if(cell.hasKongWang){
-		statusParts.push(QIMEN_STATUS_TEXT.空亡);
-	}
-	if(cell.isYiMa){
-		statusParts.push(QIMEN_STATUS_TEXT.驿马);
-	}
+	const title = `${focus.title}释义`;
 	const sections = [
-		{ title: '当前宫', text: `${palaceName}${palaceNum}` },
-		{ title: '当前值', text: `${focus.title}：${focus.value}` },
-		{ title: '元素释义', text: focus.text || '暂无释义' },
+		{ title: '释义', text: focus.text || '暂无释义' },
 	];
-	if(!isCenter){
-		sections.push(
-			{ title: '门位', text: `八门：${doorVal}；本位门：${baseDoor}` },
-			{ title: '十干克应', text: safe(cell.tenGanResponse, '无') },
-			{ title: '八门克应', text: safe(cell.doorBaseResponse, '无') },
-			{ title: '奇仪主应', text: safe(cell.doorGanResponse, '无') },
-			{ title: '吉格', text: ji },
-			{ title: '凶格', text: xiong },
-		);
-		if(statusParts.length){
-			sections.push({ title: '状态', text: statusParts.join('\n') });
-		}
+	// 八门在无值时保留门名，防止出现空提示。
+	if(focusType === 'door' && !normalizeTooltipText(focus.text) && normalizeTooltipText(doorVal)){
+		sections[1].text = `八门为${doorVal}，暂无条目释义。`;
 	}
 	return buildDunJiaTooltipNode(
-		`${palaceName}${palaceNum}宫·${focus.title}`,
+		title,
 		sections,
 		'暂无释义'
 	);
@@ -756,6 +863,10 @@ class DunJiaMain extends Component {
 		const adValue = flds.ad && flds.ad.value !== undefined && flds.ad.value !== null
 			? flds.ad.value
 			: 1;
+		const timeAlgRaw = flds.timeAlg && flds.timeAlg.value !== undefined && flds.timeAlg.value !== null
+			? parseInt(flds.timeAlg.value, 10)
+			: null;
+		const timeAlgValue = Number.isNaN(timeAlgRaw) ? null : timeAlgRaw;
 		return {
 			date: flds.date.value.format('YYYY-MM-DD'),
 			time: flds.time.value.format('HH:mm:ss'),
@@ -766,6 +877,7 @@ class DunJiaMain extends Component {
 			gpsLon: flds.gpsLon ? flds.gpsLon.value : '',
 			ad: adValue,
 			gender: genderValue,
+			timeAlg: (timeAlgValue === 0 || timeAlgValue === 1) ? timeAlgValue : undefined,
 			after23NewDay: 0,
 		};
 	}
@@ -775,6 +887,9 @@ class DunJiaMain extends Component {
 		if(!flds || !nongli){
 			return;
 		}
+		const timeAlgRaw = flds.timeAlg && flds.timeAlg.value !== undefined && flds.timeAlg.value !== null
+			? parseInt(flds.timeAlg.value, 10)
+			: null;
 		const fixedOptions = {
 			...(options || this.state.options),
 			jieQiType: 1,
@@ -782,6 +897,9 @@ class DunJiaMain extends Component {
 			monthGanZhiType: 1,
 			dayGanZhiType: 1,
 		};
+		if(timeAlgRaw === 0 || timeAlgRaw === 1){
+			fixedOptions.timeAlg = timeAlgRaw;
+		}
 		const panSignature = [
 			getFieldKey(flds),
 			getNongliKey(nongli || this.state.nongli),
@@ -1239,7 +1357,8 @@ class DunJiaMain extends Component {
 								key={`center_item_tt_${idx}`}
 								title={idx === 0 ? tianGanTooltip : diGanTooltip}
 								placement="top"
-								overlayStyle={{ maxWidth: 560 }}
+								overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE}
+								overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}
 							>
 								<div
 									key={`center_item_${idx}`}
@@ -1268,11 +1387,11 @@ class DunJiaMain extends Component {
 				onClick={()=>this.setState({ selectedPalace: cell.palaceNum })}
 			>
 				{cell.isYiMa && (
-					<Tooltip title={yiMaTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+					<Tooltip title={yiMaTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 						<div style={{ ...yiMaStyle, cursor: 'help', pointerEvents: 'auto' }}>🐎</div>
 					</Tooltip>
 				)}
-				<Tooltip title={tianGanTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+				<Tooltip title={tianGanTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 					<div
 						style={{
 							position: 'absolute',
@@ -1289,7 +1408,7 @@ class DunJiaMain extends Component {
 						{cell.tianGan || '　'}
 					</div>
 				</Tooltip>
-				<Tooltip title={diGanTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+				<Tooltip title={diGanTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 					<div
 						style={{
 							position: 'absolute',
@@ -1306,7 +1425,7 @@ class DunJiaMain extends Component {
 						{cell.diGan || '　'}
 					</div>
 				</Tooltip>
-				<Tooltip title={godTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+				<Tooltip title={godTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 					<div
 						style={{
 							position: 'absolute',
@@ -1323,7 +1442,7 @@ class DunJiaMain extends Component {
 						{cell.god || '　'}
 					</div>
 				</Tooltip>
-				<Tooltip title={starTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+				<Tooltip title={starTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 					<div
 						style={{
 							position: 'absolute',
@@ -1340,7 +1459,7 @@ class DunJiaMain extends Component {
 						{cell.tianXing || '　'}
 					</div>
 				</Tooltip>
-				<Tooltip title={doorTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+				<Tooltip title={doorTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 					<div
 						style={{
 							position: 'absolute',
@@ -1360,7 +1479,7 @@ class DunJiaMain extends Component {
 				</Tooltip>
 
 				{!!palaceStyle && (
-					<Tooltip title={palaceTooltip} placement="top" overlayStyle={{ maxWidth: 560 }}>
+					<Tooltip title={palaceTooltip} placement="top" overlayStyle={DUNJIA_TOOLTIP_OVERLAY_STYLE} overlayInnerStyle={DUNJIA_TOOLTIP_INNER_STYLE}>
 						<div
 							style={{
 								position: 'absolute',
@@ -1394,10 +1513,11 @@ class DunJiaMain extends Component {
 		const boardWidth = (cellSize * 3) + (boardGap * 2);
 		const boardScale = this.calcBoardScale();
 		const scaledWidth = Math.round(boardWidth * boardScale);
-		const dateParts = parseDateLabel(pan.dateStr);
+		const dateParts = parseDateLabel(pan.calcDateStr || pan.dateStr);
 		const dateTitle = `${dateParts.year}年${dateParts.month}月${dateParts.day}日`;
-		const directHm = extractHm(pan.timeStr);
+		const directHm = extractHm(pan.directTimeStr || pan.timeStr);
 		const solarHm = extractHm(pan.realSunTime);
+		const dateTimeTitle = `${dateTitle}　直接时间：${directHm}　真太阳时：${solarHm}`;
 		const shiftTitle = pan && pan.shiftPalace > 0 ? `（顺转${pan.shiftPalace}宫）` : '';
 		const pillars = [
 			{
@@ -1450,16 +1570,13 @@ class DunJiaMain extends Component {
 						>
 							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
 								<div style={{ fontSize: 18, lineHeight: '22px', fontWeight: 700, color: '#222' }}>
-									{dateTitle}
+									{dateTimeTitle}
 								</div>
 								{shiftTitle ? (
 									<div style={{ fontSize: 16, lineHeight: '20px', fontWeight: 700, color: '#595959' }}>
 										{shiftTitle}
 									</div>
 								) : null}
-							</div>
-							<div style={{ marginTop: 4, fontSize: 14, lineHeight: '18px', color: '#434343', fontWeight: 600 }}>
-								直接时间：{directHm}　真太阳时：{solarHm}
 							</div>
 							<div
 								style={{
@@ -1538,7 +1655,32 @@ class DunJiaMain extends Component {
 		const opt = this.state.options;
 		const panelTab = this.state.rightPanelTab;
 		const selectedPalace = this.state.selectedPalace || 1;
-		const selectedCell = pan && pan.cells ? pan.cells.find((item)=>item.palaceNum === selectedPalace) : null;
+		const palaceMap = {};
+		if(pan && Array.isArray(pan.cells)){
+			pan.cells.forEach((cell)=>{
+				if(cell && cell.palaceNum){
+					palaceMap[cell.palaceNum] = cell;
+				}
+			});
+		}
+		const bagongRows = DUNJIA_BAGONG_ORDER
+			.map((item)=>{
+				const cell = palaceMap[item.palaceNum];
+				if(!cell){
+					return null;
+				}
+				const titleTxt = `${item.title || ''}`;
+				const shortMatch = titleTxt.match(/([乾兑离震巽坎艮坤])宫/);
+				return {
+					key: `${item.palaceNum}`,
+					title: item.title,
+					shortTitle: shortMatch ? `${shortMatch[1]}宫` : `${safe(cell.palaceName, '')}${safe(cell.palaceNum, '')}`,
+					cell,
+				};
+			})
+			.filter(Boolean);
+		const selectedBagongRow = bagongRows.find((row)=>row.cell.palaceNum === selectedPalace) || bagongRows[0] || null;
+		const selectedCell = selectedBagongRow ? selectedBagongRow.cell : null;
 		const fields = this.state.localFields || this.props.fields || {};
 		let datetm = new DateTime();
 		if(fields.date && fields.time){
@@ -1566,17 +1708,19 @@ class DunJiaMain extends Component {
 			{ label: '干支', value: pan ? `年${pan.ganzhi.year} 月${pan.ganzhi.month} 日${pan.ganzhi.day} 时${pan.ganzhi.time}` : '—' },
 			{ label: '节气段', value: pan ? (pan.jiedelta || '—') : '—' },
 		];
-		const selectedCellRows = selectedCell ? [
-			{ label: '九星 / 八神', value: `${selectedCell.tianXing || '—'} / ${selectedCell.god || '—'}` },
-			{ label: '十干克应', value: selectedCell.tenGanResponse || '无' },
-			{ label: '八门克应', value: selectedCell.doorBaseResponse || '无' },
-			{ label: '奇仪主应', value: selectedCell.doorGanResponse || '无' },
-		] : [];
+		const selectedCellLines = selectedCell ? [
+			`十干克应：${safe(selectedCell.tenGanResponse, '无')}`,
+			`八门克应：${safe(selectedCell.doorBaseResponse, '无')}`,
+			`奇仪主应：${safe(selectedCell.doorGanResponse, '无')}`,
+			`吉格：${formatPatternValue(selectedCell.jiPatterns)}`,
+			`凶格：${formatPatternValue(selectedCell.xiongPatterns)}`,
+		].filter((line)=>!isRedundantQimenGanSummaryText(line)) : [];
 		const jiCount = pan && pan.jiPatterns && pan.jiPatterns.length ? pan.jiPatterns.length : 0;
 		const xiongCount = pan && pan.xiongPatterns && pan.xiongPatterns.length ? pan.xiongPatterns.length : 0;
 		const shenshaCount = pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length ? pan.shenSha.allItems.length : 0;
 		const cellJiCount = selectedCell && selectedCell.jiPatterns && selectedCell.jiPatterns.length ? selectedCell.jiPatterns.length : 0;
 		const cellXiongCount = selectedCell && selectedCell.xiongPatterns && selectedCell.xiongPatterns.length ? selectedCell.xiongPatterns.length : 0;
+		const cellLineCount = selectedCellLines.length;
 		return (
 			<div className={styles.rightPanel}>
 				<div className={styles.rightTopBlock}>
@@ -1692,53 +1836,42 @@ class DunJiaMain extends Component {
 								<div className={styles.sectionHint}>按宫位查看判断</div>
 								{selectedCell ? (
 									<div className={styles.metricRow}>
+										<Tag color="geekblue" className={styles.metricTag}>当前 {selectedBagongRow ? selectedBagongRow.title : `${selectedCell.palaceName}${selectedCell.palaceNum}宫`}</Tag>
+										<Tag color={cellLineCount ? 'blue' : 'default'} className={styles.metricTag}>条目 {cellLineCount}</Tag>
 										<Tag color={cellJiCount ? 'green' : 'default'} className={styles.metricTag}>吉格 {cellJiCount}</Tag>
 										<Tag color={cellXiongCount ? 'red' : 'default'} className={styles.metricTag}>凶格 {cellXiongCount}</Tag>
 									</div>
 								) : null}
-								<div className={styles.palaceBtnGrid}>
-									{pan && pan.cells ? pan.cells.map((cell)=>(
+								<div className={styles.palaceBtnGrid2}>
+									{bagongRows.map((row)=>(
 										<Button
-											key={`status_cell_btn_${cell.palaceNum}`}
+											key={`status_cell_btn_${row.cell.palaceNum}`}
 											size="small"
-											type={selectedPalace === cell.palaceNum ? 'primary' : 'default'}
-											onClick={()=>this.setState({ selectedPalace: cell.palaceNum })}
+											type={selectedBagongRow && selectedBagongRow.cell.palaceNum === row.cell.palaceNum ? 'primary' : 'default'}
+											onClick={()=>this.setState({ selectedPalace: row.cell.palaceNum })}
 										>
-											{cell.palaceName}{cell.palaceNum}
+											{row.shortTitle || row.title}
 										</Button>
-									)) : null}
+									))}
 								</div>
 								{selectedCell ? (
-									<div className={styles.detailCard}>
-										{selectedCellRows.map((row, idx)=>(
-											<div key={`dj_status_row_${idx}`} className={styles.kvItem}>
-												<div className={styles.kvLabel}>{row.label}</div>
-												<div className={styles.kvValue}>{row.value}</div>
+									<div className={styles.bgSection}>
+										<div className={styles.bgTitle}>{selectedBagongRow ? selectedBagongRow.title : `${selectedCell.palaceName}${selectedCell.palaceNum}宫`}</div>
+											{selectedCellLines.map((line, idx)=>{
+												const txt = `${line || ''}`;
+												const colonIdx = txt.indexOf('：');
+												const label = colonIdx >= 0 ? txt.substring(0, colonIdx) : `判断${idx + 1}`;
+												const value = colonIdx >= 0 ? txt.substring(colonIdx + 1) : txt;
+												return (
+													<div key={`dj_status_row_${selectedCell.palaceNum}_${idx}`} className={styles.bgLineCard}>
+														<div className={styles.bgLineLabel}>{label}</div>
+														<div className={styles.bgLineValue}>{value}</div>
+													</div>
+												);
+											})}
 											</div>
-										))}
-										<div className={styles.patternBlock}>
-											<div className={styles.patternLabel}>吉格</div>
-											<div className={styles.patternTags}>
-												{selectedCell.jiPatterns && selectedCell.jiPatterns.length
-													? selectedCell.jiPatterns.map((name)=>(
-														<Tag color="green" key={`dj_ji_${selectedCell.palaceNum}_${name}`} className={styles.patternTag}>{name}</Tag>
-													))
-													: <Tag className={styles.patternTag}>无</Tag>}
-											</div>
-										</div>
-										<div className={styles.patternBlock}>
-											<div className={styles.patternLabel}>凶格</div>
-											<div className={styles.patternTags}>
-												{selectedCell.xiongPatterns && selectedCell.xiongPatterns.length
-													? selectedCell.xiongPatterns.map((name)=>(
-														<Tag color="red" key={`dj_xiong_${selectedCell.palaceNum}_${name}`} className={styles.patternTag}>{name}</Tag>
-													))
-													: <Tag className={styles.patternTag}>无</Tag>}
-											</div>
-										</div>
-									</div>
-								) : <div className={styles.emptyText}>暂无宫位判断数据</div>}
-							</div>
+									) : <div className={styles.emptyText}>暂无宫位判断数据</div>}
+								</div>
 						</Card>
 					</TabPane>
 					<TabPane tab="神煞" key="shensha">
@@ -1773,14 +1906,9 @@ class DunJiaMain extends Component {
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		if(height === '100%'){
-			height = 'calc(100% - 70px)';
-		}else{
-			height = height - 20;
-		}
+		const height = resolveBoundedHeight(this.props.height);
 		return (
-			<div style={{ minHeight: height }}>
+			<div style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
 					<Row gutter={6}>
 						<Col span={16}>

@@ -106,6 +106,7 @@ const DOMAIN_REPLACERS = {
 
 const ENABLE_SVG_TEXT_EXPORT = false;
 const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
+const AI_EXPORT_SETTINGS_VERSION = 4;
 const JIEQI_SETTING_PRESETS = {
 	jieqi_meta: ['节气盘参数'],
 	jieqi_chunfen: ['春分星盘', '春分宿盘'],
@@ -227,11 +228,30 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	suzhan: ['起盘信息'],
 	sixyao: ['起盘信息', '起卦方式', '卦辞'],
 	tongshefa: ['本卦', '六爻', '潜藏', '亲和'],
-	liureng: ['起盘信息'],
+	liureng: [
+		'起盘信息',
+		'十二盘式',
+		'十二地盘/十二天盘/十二贵神对应',
+		'四课',
+		'三传',
+		'行年',
+		'旬日',
+		'旺衰',
+		'基础神煞',
+		'干煞',
+		'月煞',
+		'支煞',
+		'岁煞',
+		'十二长生',
+		'大格',
+		'小局',
+		'参考',
+		'概览',
+	],
 	jinkou: ['起盘信息', '金口诀速览', '金口诀四位', '四位神煞'],
 	taiyi: ['起盘信息', '太乙盘', '十六宫标记'],
 	qimen: ['起盘信息', '盘型', '右侧栏目', '九宫方盘'],
-	sanshiunited: ['起盘信息', '概览', '太乙', '太乙十六宫', '神煞', '六壬-概览', '六壬-大格', '六壬-小局', '六壬-参考', '正北坎宫', '东北艮宫', '正东震宫', '东南巽宫', '正南离宫', '西南坤宫', '正西兑宫', '西北乾宫'],
+	sanshiunited: ['起盘信息', '概览', '大六壬', '六壬大格', '六壬小局', '六壬参考', '六壬概览', '正北坎宫', '东北艮宫', '正东震宫', '东南巽宫', '正南离宫', '西南坤宫', '正西兑宫', '西北乾宫', '神煞', '八宫详解'],
 	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞'],
 	germany: ['起盘信息'],
 	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '夏至星盘', '夏至宿盘', '秋分星盘', '秋分宿盘', '冬至星盘', '冬至宿盘'],
@@ -240,6 +260,24 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	fengshui: ['起盘信息', '标记判定', '冲突清单', '建议汇总', '纳气建议'],
 	generic: ['起盘信息'],
 };
+
+const LIURENG_PRESET_SECTIONS_V2 = [
+	'起盘信息',
+	'十二地盘/十二天盘/十二贵神对应',
+	'四课',
+	'三传',
+	'行年',
+	'大格命中',
+	'小局命中',
+	'旬日',
+	'旺衰',
+	'基础神煞',
+	'干煞',
+	'月煞',
+	'支煞',
+	'岁煞',
+	'十二长生',
+];
 
 // ywastr* 字体把术语编码到单字符里，复制后只剩字母，需要反解码。
 const STANDALONE_TOKEN_MAP = {
@@ -413,6 +451,77 @@ function normalizeAIExportPlanetMeta(raw){
 	};
 }
 
+function normalizeSectionArray(raw){
+	const arr = Array.isArray(raw) ? raw : [];
+	return uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+}
+
+function mapLiurengLegacySectionTitle(title){
+	const normalized = normalizeSectionTitle(title);
+	if(normalized === normalizeSectionTitle('大格命中')){
+		return normalizeSectionTitle('大格');
+	}
+	if(normalized === normalizeSectionTitle('小局命中')){
+		return normalizeSectionTitle('小局');
+	}
+	return normalized;
+}
+
+function hasSameSections(a, b){
+	if(a.length !== b.length){
+		return false;
+	}
+	const setA = new Set(a);
+	const setB = new Set(b);
+	if(setA.size !== setB.size){
+		return false;
+	}
+	for(const key of setA){
+		if(!setB.has(key)){
+			return false;
+		}
+	}
+	return true;
+}
+
+function migrateLegacySectionSelection(key, selected, sourceVersion){
+	const normalizedSelected = normalizeSectionArray(selected);
+	const normalizedPreset = normalizeSectionArray(AI_EXPORT_PRESET_SECTIONS[key] || []);
+	if(sourceVersion >= AI_EXPORT_SETTINGS_VERSION || !normalizedPreset.length){
+		return normalizedSelected;
+	}
+
+	if(key === 'liureng'){
+		const mappedSelected = uniqueArray(normalizedSelected.map((item)=>mapLiurengLegacySectionTitle(item)).filter(Boolean));
+		// Legacy default only selected "起盘信息"; expand to current full preset.
+		if(mappedSelected.length === 1 && mappedSelected[0] === normalizeSectionTitle('起盘信息')){
+			return normalizedPreset;
+		}
+		// v2 default had old section names and missed newly-added sections.
+		if(sourceVersion < 3){
+			const normalizedV2Preset = normalizeSectionArray(LIURENG_PRESET_SECTIONS_V2.map((item)=>mapLiurengLegacySectionTitle(item)));
+			if(hasSameSections(mappedSelected, normalizedV2Preset)){
+				return normalizedPreset;
+			}
+		}
+		return mappedSelected;
+	}
+
+	if(key === 'sanshiunited'){
+		const mappedSelected = uniqueArray(normalizedSelected.map((item)=>mapLegacySectionTitle(key, item)).filter(Boolean));
+		const detailTitle = normalizeSectionTitle('八宫详解');
+		const selectedSet = new Set(mappedSelected);
+		const missingPreset = normalizedPreset.filter((title)=>!selectedSet.has(title));
+		// Legacy preset did not include this newly-added section; append it.
+		if(missingPreset.length === 1 && missingPreset[0] === detailTitle){
+			return uniqueArray([...mappedSelected, detailTitle]);
+		}
+		return mappedSelected;
+	}
+
+	return normalizedSelected;
+}
+
 function resolveAIExportPlanetMetaForKey(settings, key){
 	const storeDisplay = normalizePlanetMetaDisplay(readPlanetMetaDisplayFromStore());
 	if(!supportsPlanetMetaSettingsForTechnique(key)){
@@ -430,8 +539,9 @@ function resolveAIExportPlanetMetaForKey(settings, key){
 }
 
 function normalizeAIExportSettings(settings){
+	const sourceVersion = Number(settings && settings.version) || 1;
 	const normalized = {
-		version: 1,
+		version: AI_EXPORT_SETTINGS_VERSION,
 		sections: {},
 		planetMeta: {},
 		annotations: {},
@@ -442,7 +552,7 @@ function normalizeAIExportSettings(settings){
 	const sections = settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
 	Object.keys(sections).forEach((key)=>{
 		const arr = Array.isArray(sections[key]) ? sections[key] : [];
-		normalized.sections[key] = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+		normalized.sections[key] = migrateLegacySectionSelection(key, arr, sourceVersion);
 	});
 	const planetMeta = settings.planetMeta && typeof settings.planetMeta === 'object' ? settings.planetMeta : {};
 	Object.keys(planetMeta).forEach((key)=>{
@@ -635,6 +745,19 @@ function applyUserSectionFilter(content, key){
 
 function mapLegacySectionTitle(key, title){
 	const normalized = normalizeSectionTitle(title);
+	if(key === 'liureng'){
+		return mapLiurengLegacySectionTitle(normalized);
+	}
+	if(key === 'sanshiunited'){
+		const legacyMap = {
+			'六壬-概览': '大六壬',
+			'六壬-大格': '六壬大格',
+			'六壬-小局': '六壬小局',
+			'六壬-参考': '六壬参考',
+			'六壬-概览文': '六壬概览',
+		};
+		return legacyMap[normalized] || normalized;
+	}
 	if(key !== 'tongshefa'){
 		return normalized;
 	}

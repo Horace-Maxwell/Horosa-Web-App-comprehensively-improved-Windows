@@ -1212,3 +1212,58 @@ Append new entries; do not rewrite history.
   - `powershell -ExecutionPolicy Bypass -File .\\tmp_run_node_checks_with_services.ps1 -Scripts 'tmp_test_meta_toggle.js,tmp_test_section_filter_germany2.js,tmp_test_sixyao_settings.js,tmp_check_sanshi_plot_confirm_consistency.js' -SmokeWaitSeconds 1200` ✅
   - `C:\\Program Files\\Git\\bin\\bash.exe -lc "bash -n .../horosa_local.command"` ✅
   - `C:\\Program Files\\Git\\bin\\bash.exe -lc "bash -n .../stop_horosa_local.sh"` ✅
+
+### 15:18 - 六壬命中文案全量化与概览命中化（2026-02-28）
+- Scope: 修复六壬与三式合一中“将”提示、`大格/小局` 内容完整性、`概览` 命中过滤三项展示问题。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/constants/LiuRengTexts.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/liureng/LRJudgePanelHelper.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+- Details:
+  - `getLiuRengGeneralText(name, branch)` 现按当前落地支提取单条“临支”类象：
+    - 例如 `六合` 落 `子` 时只显示 `六合临子`；
+    - 不再整段展示“临十二神”全部条目。
+  - 新增命中展示增强器 `buildLiuRengPatternDisplayRows(hits)`：
+    - 从 `LIURENG_REF_OVERVIEW_TEXT` / `LIURENG_REF_XIAOJU_TEXT` 按 `### **标题**` 自动切片抽取格局原文段落；
+    - `大格/小局` 命中卡片在“逻辑/相关”之外，附加原文全文（`pre` 保真显示）。
+  - `buildLiuRengOverviewSections({ lrJudge })` 改为命中驱动：
+    - 仅输出当前盘面命中的 `大格/小局` 对应内容；
+    - 无命中时仅显示“当前盘面暂无命中大格/小局”提示，不再灌入通用大段文案。
+  - 两个页面统一接入以上共享逻辑：
+    - `LiuRengMain`（六壬）；
+    - `SanShiUnitedMain`（三式合一里的六壬）。
+  - 三式合一快照文案里的“六壬-概览文”也改为传入当前 `lrJudge`，保持导出与界面一致的命中视图。
+- Verification:
+  - `node --check Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/constants/LiuRengTexts.js` ✅
+  - `node --check Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/liureng/LRJudgePanelHelper.js` ✅
+  - `node --check Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/lrzhan/LiuRengMain.js` ✅
+  - `node --check Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js` ✅
+
+### 01:20 - 稳定性补丁与垃圾清理收口（2026-03-01）
+- Scope: 收口本窗口回归中的 3 处代码异常，并完成目录级垃圾文件清理与删除后核验。
+- Files:
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/liureng/LRAstroBranchHelper.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/graph/D3Arrow.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/germany/AstroMidpoint.js`
+  - `UPGRADE_LOG.md`
+  - `PROJECT_STRUCTURE.md`
+- Details:
+  - 修复六壬分支辅助器运行时常量缺失：
+    - `LRAstroBranchHelper.js` 新增 `AstroConst` 显式导入，消除 `AstroConst is not defined`。
+  - 修复 D3 箭头 `marker` 的 SVG 视口串拼接错误：
+    - `D3Arrow.js` 将 `viewBox` 修正为 `"0 0 " + width + " " + height`，避免渲染解析异常。
+  - 修复德国中点盘参数在快速切换下的缺省值问题：
+    - `AstroMidpoint.js` 增加 `fieldVal` 统一兜底；
+    - `fieldsToParams` 为 `zone/lat/lon/hsys/zodiacal/...` 提供默认值，避免 `miss.zone` 类后端 500。
+  - 覆盖复核：
+    - 主标签分组设置全扫合并后覆盖 `16/16`（拆分轮次执行以避免超时）。
+  - 垃圾清理：
+    - 删除根目录全部 `tmp_*` 临时脚本与临时文件（清理时剩余 `39` 个）；
+    - 删除 `SELF_CHECK_REPORTS/`、`test-results/`、`.tmp_playwright_runner/`；
+    - 删除 `Horosa-Web-55.../.horosa-local-logs-win/`；
+    - 先结束占用日志文件的残留 `java.exe` 与 `pwsh` 进程后完成删除。
+- Verification:
+  - `npm test -- --runInBand src/components/liureng/__tests__/LRPatternJudge.test.js` ✅
+  - `npm run -s build` ✅
+  - 清理结果核验：`TMP_FILES_REMAIN=0`，且 `SELF_CHECK_REPORTS/test-results/.tmp_playwright_runner/.horosa-local-logs-win` 均已不存在 ✅

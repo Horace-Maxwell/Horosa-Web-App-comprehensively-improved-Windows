@@ -428,4 +428,52 @@
     - `bash -n stop_horosa_local.sh`
   - `horosa_local.command start`（`HOROSA_KEEP_SERVICES_RUNNING=1`）后，`8000/8899/9999` 持续监听；
   - `stop_horosa_local.sh` 后三端口关闭且 `.horosa_*.pid` 清理；
-  - `HOROSA_KEEP_SERVICES_RUNNING=0` 分支验证可回退“按回车自动停服”旧行为。
+- `HOROSA_KEEP_SERVICES_RUNNING=0` 分支验证可回退“按回车自动停服”旧行为。
+
+## AE. 六壬命中文案分层（2026-02-28）
+- `astrostudyui/src/constants/LiuRengTexts.js`
+  - `getLiuRengGeneralText(name, branch)` 支持按当前地支过滤“将临十二神”。
+  - 规则：命中地支则输出单条 `X将临Y支：...`，未命中时保留原文。
+  - 影响范围：六壬盘与三式合一盘共享的“天将 tooltip”。
+- `astrostudyui/src/components/liureng/LRJudgePanelHelper.js`
+  - 新增 `buildLiuRengPatternDisplayRows(hits)`：
+    - 基于 `LIURENG_REF_OVERVIEW_TEXT` / `LIURENG_REF_XIAOJU_TEXT` 自动提取 `### **格局名**` 对应全文；
+    - 生成命中卡片所需的 `logic/detail/fullText` 三层字段。
+  - `buildLiuRengOverviewSections(params)` 改为命中驱动：
+    - 输入 `lrJudge`，输出仅包含当前命中项的概览段落；
+    - 无命中时输出简短占位说明，不再输出泛文。
+- `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - 六壬右侧 `大格/小局` 列表改为使用 `buildLiuRengPatternDisplayRows`；
+  - 每条命中增加 `pre` 原文块，避免仅显示缩略“相关”。
+  - `概览` 改为 `buildLiuRengOverviewSections({ lrJudge })`。
+- `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - 三式合一右侧 `六壬` 子页同步接入同一命中增强器；
+  - `六壬-概览文` 导出内容改为依赖当前 `lrJudge`，与页面命中一致。
+
+## AF. 2026-03-01 同步状态（稳定性修复 + 垃圾清理）
+- 代码稳定性修复已落地：
+  - `astrostudyui/src/components/liureng/LRAstroBranchHelper.js`
+    - 补充 `AstroConst` 导入，消除六壬辅助器的未定义常量报错。
+  - `astrostudyui/src/components/graph/D3Arrow.js`
+    - 修正 SVG `marker viewBox` 拼接，避免箭头渲染异常。
+  - `astrostudyui/src/components/germany/AstroMidpoint.js`
+    - 引入 `fieldVal` 兜底与默认参数，降低中点盘设置快切导致的缺参 500 风险（含 `zone` 缺失）。
+- 运行验证状态：
+  - 六壬关键测试 `LRPatternJudge.test.js` 已通过。
+  - 前端构建已通过。
+  - 主标签设置巡检合并覆盖 `16/16`。
+- 工作区清理状态（本窗口完成）：
+  - 已删除全部根目录 `tmp_*` 临时脚本/临时文件。
+  - 已删除：
+    - `SELF_CHECK_REPORTS/`
+    - `test-results/`
+    - `.tmp_playwright_runner/`
+    - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/`
+  - 删除后核验结果：
+    - `TMP_FILES_REMAIN=0`
+    - 以上临时目录均不存在。
+- 当前根目录保留项聚焦为：
+  - 核心源码目录：`Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
+  - 运行时目录：`runtime/`
+  - 启停与准备脚本：`Horosa_Local_Windows.*`、`Prepare_Runtime_Windows.*`
+  - 文档与治理文件：`README.md`、`UPGRADE_LOG.md`、`PROJECT_STRUCTURE.md`、`AGENT_CHANGELOG.md`、`HOROSA_RUN_ISSUES.md`

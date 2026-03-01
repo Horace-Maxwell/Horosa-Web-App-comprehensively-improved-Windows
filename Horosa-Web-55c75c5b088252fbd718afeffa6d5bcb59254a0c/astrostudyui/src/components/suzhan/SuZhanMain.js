@@ -10,6 +10,8 @@ import * as Su28Helper from '../su28/Su28Helper';
 import SuZhanInput from './SuZhanInput';
 import SuZhanChart from './SuZhanChart';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+const SUZHAN_VIEWPORT_GAP = 12;
+const SUZHAN_MIN_HEIGHT = 320;
 
 const SIMPLE_TOKEN_MAP = {
 	A: '日',
@@ -65,6 +67,41 @@ function splitDegree(degree){
 	const deg = Math.floor(d % 30);
 	const min = Math.floor(((d % 30) - deg) * 60);
 	return [deg, min];
+}
+
+function getViewportHeight(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
+		return window.innerHeight;
+	}
+	if(typeof document !== 'undefined' && document.documentElement){
+		return document.documentElement.clientHeight || 900;
+	}
+	return 900;
+}
+
+function toNumber(val){
+	if(typeof val === 'number' && Number.isFinite(val)){
+		return val;
+	}
+	if(typeof val === 'string'){
+		const txt = val.trim();
+		if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
+			const n = parseFloat(txt);
+			return Number.isFinite(n) ? n : null;
+		}
+	}
+	return null;
+}
+
+function resolveBoundedHeight(rawHeight){
+	const viewport = getViewportHeight();
+	let h = toNumber(rawHeight);
+	if(h === null){
+		h = rawHeight === '100%' ? (viewport - 80) : 760;
+	}
+	h = h - 20;
+	const maxH = Math.max(SUZHAN_MIN_HEIGHT, viewport - SUZHAN_VIEWPORT_GAP);
+	return Math.max(SUZHAN_MIN_HEIGHT, Math.min(h, maxH));
 }
 
 function isEncodedToken(text){
@@ -464,12 +501,7 @@ class SuZhanMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		if(height === '100%'){
-			height = 'calc(100% - 70px)'
-		}else{
-			height = height - 20
-		}
+		const height = resolveBoundedHeight(this.props.height);
 
 		let chartObj = this.props.value;
 		let chart = chartObj && chartObj.chart ? {
@@ -479,7 +511,7 @@ class SuZhanMain extends Component{
 		chart.lots = chartObj ? chartObj.lots : [];
 
 		return (
-			<div>
+			<div style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
 				<Row gutter={6}>
 					<Col span={16}>
 						<SuZhanChart 
