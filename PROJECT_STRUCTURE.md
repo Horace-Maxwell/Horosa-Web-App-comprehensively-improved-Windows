@@ -58,3 +58,23 @@
   - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`（三式合一外部命盘切换检测与刷新）
 - 参考目录 `Horosa-Web+App (Mac)/` 已删除，当前运行仅依赖本目录现存文件与 `runtime/`。
 - 仅 Git 工作树不保证可运行；发布包必须包含 `runtime/` 与 `runtime/windows/bundle/` 关键资产。
+
+## F. 2026-03-01 同步状态（稳定性修复 + 垃圾清理）
+- 代码稳定性修复已落地：
+  - `astrostudyui/src/components/liureng/LRAstroBranchHelper.js`
+    - 补充 `AstroConst` 导入，修复运行时未定义常量风险。
+  - `astrostudyui/src/components/graph/D3Arrow.js`
+    - 修正 `marker viewBox` 拼接，避免箭头渲染解析错误。
+  - `astrostudyui/src/components/germany/AstroMidpoint.js`
+    - 增加 `fieldVal` 兜底和默认参数，降低设置切换导致缺参请求的失败概率（含 `zone` 缺失）。
+- 验证状态：
+  - 六壬关键测试通过：`LRPatternJudge.test.js`。
+  - 前端构建通过：`npm run -s build`。
+- 工作区清理状态（本窗口）：
+  - 已删除根目录 `tmp_*` 临时文件。
+  - 已删除：
+    - `SELF_CHECK_REPORTS/`
+    - `test-results/`
+    - `.tmp_playwright_runner/`
+    - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/`
+  - 清理后核验：`TMP_FILES_REMAIN=0`，以上临时目录不存在。

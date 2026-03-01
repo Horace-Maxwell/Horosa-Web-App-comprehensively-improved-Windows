@@ -10,24 +10,37 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import styles from '../../css/styles.less';
 
+function fieldVal(fields, key, fallback){
+	if(!fields || !fields[key]){
+		return fallback;
+	}
+	const v = fields[key].value;
+	if(v === undefined || v === null || v === ''){
+		return fallback;
+	}
+	return v;
+}
+
 function fieldsToParams(fields){
+	const dateVal = fieldVal(fields, 'date', null);
+	const timeVal = fieldVal(fields, 'time', null);
 	const params = {
-		date: fields.date.value.format('YYYY/MM/DD'),
-		time: fields.time.value.format('HH:mm:ss'),
-		zone: fields.zone.value,
-		lat: fields.lat.value,
-		lon: fields.lon.value,
-		gpsLat: fields.gpsLat.value,
-		gpsLon: fields.gpsLon.value,
-		hsys: fields.hsys.value,
-		zodiacal: fields.zodiacal.value,
-		tradition: fields.tradition.value,
-		strongRecption: fields.strongRecption.value,
-		simpleAsp: fields.simpleAsp.value,
-		virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
+		date: dateVal && dateVal.format ? dateVal.format('YYYY/MM/DD') : '',
+		time: timeVal && timeVal.format ? timeVal.format('HH:mm:ss') : '',
+		zone: fieldVal(fields, 'zone', 8),
+		lat: fieldVal(fields, 'lat', ''),
+		lon: fieldVal(fields, 'lon', ''),
+		gpsLat: fieldVal(fields, 'gpsLat', null),
+		gpsLon: fieldVal(fields, 'gpsLon', null),
+		hsys: fieldVal(fields, 'hsys', 0),
+		zodiacal: fieldVal(fields, 'zodiacal', 0),
+		tradition: fieldVal(fields, 'tradition', 0),
+		strongRecption: fieldVal(fields, 'strongRecption', 0),
+		simpleAsp: fieldVal(fields, 'simpleAsp', 0),
+		virtualPointReceiveAsp: fieldVal(fields, 'virtualPointReceiveAsp', 0),
 		predictive: 0,
-		name: fields.name.value,
-		pos: fields.pos.value,
+		name: fieldVal(fields, 'name', null),
+		pos: fieldVal(fields, 'pos', null),
 	};
 
 	return params;

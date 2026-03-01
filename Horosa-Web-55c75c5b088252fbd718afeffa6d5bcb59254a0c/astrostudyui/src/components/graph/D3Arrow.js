@@ -19,7 +19,7 @@ class D3Arrow {
 						.attr("markerUnits", "strokeWidth")
 						.attr("markerWidth", this.width)
 						.attr("markerHeight", this.height)
-						.attr("viewBox", "0 0" + this.width + ' ' + this.height)
+						.attr("viewBox", "0 0 " + this.width + ' ' + this.height)
 						.attr('refX', this.width/2).attr('refY', this.width/2)
 						.attr("orient", "auto");
 
