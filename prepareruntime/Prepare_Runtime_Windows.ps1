@@ -1,7 +1,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Root = $ScriptRoot
 
 function Test-HorosaProjectDir {
   param([string]$DirPath)
@@ -100,6 +101,55 @@ function Resolve-FrontendBuildSource {
 
   return $null
 }
+
+function Resolve-HorosaLayout {
+  param([string]$ScriptDir)
+
+  $resolvedScript = (Resolve-Path $ScriptDir).Path
+  $parentDir = Split-Path -Parent $resolvedScript
+  $repoRoot = if ($parentDir -and (Test-Path (Join-Path $parentDir 'README.md'))) {
+    $parentDir
+  } else {
+    $resolvedScript
+  }
+
+  $workspaceCandidates = New-Object System.Collections.Generic.List[string]
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_WORKSPACE_DIR)) {
+    $customWorkspace = $env:HOROSA_WORKSPACE_DIR.Trim()
+    if (-not [System.IO.Path]::IsPathRooted($customWorkspace)) {
+      $customWorkspace = Join-Path $repoRoot $customWorkspace
+    }
+    $workspaceCandidates.Add($customWorkspace)
+  }
+  $workspaceCandidates.Add((Join-Path $resolvedScript 'workspace'))
+  $workspaceCandidates.Add((Join-Path $repoRoot 'workspace'))
+  $workspaceCandidates.Add((Join-Path $repoRoot 'local\workspace'))
+  $workspaceCandidates.Add($repoRoot)
+
+  $workspaceRoot = $repoRoot
+  foreach ($candidate in $workspaceCandidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if (-not (Test-Path $candidate -PathType Container)) { continue }
+    $candidateResolved = (Resolve-Path $candidate).Path
+    if (Test-HorosaProjectDir -DirPath $candidateResolved) {
+      $workspaceRoot = $candidateResolved
+      break
+    }
+    if (Test-Path (Join-Path $candidateResolved 'runtime\windows') -PathType Container) {
+      $workspaceRoot = $candidateResolved
+      break
+    }
+  }
+
+  return [pscustomobject]@{
+    RepoRoot = $repoRoot
+    WorkspaceRoot = $workspaceRoot
+  }
+}
+
+$layout = Resolve-HorosaLayout -ScriptDir $ScriptRoot
+$RepoRoot = $layout.RepoRoot
+$Root = $layout.WorkspaceRoot
 
 $RuntimeRoot = Join-Path $Root 'runtime\\windows'
 $JavaDst = Join-Path $RuntimeRoot 'java'
