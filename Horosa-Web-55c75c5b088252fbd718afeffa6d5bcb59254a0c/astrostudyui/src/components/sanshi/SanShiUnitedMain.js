@@ -723,6 +723,20 @@ function getQimenOptionsKey(options){
 	].join('|');
 }
 
+function getJieqiSeedDigestFromSeed(seed){
+	if(!seed || typeof seed !== 'object'){
+		return '';
+	}
+	const terms = Object.keys(seed).sort();
+	if(!terms.length){
+		return '';
+	}
+	return terms.map((term)=>{
+		const entry = seed[term] || {};
+		return `${term}:${safe(entry.dateKey)}:${safe(entry.dayGanzhi)}:${safe(entry.time)}`;
+	}).join('|');
+}
+
 function extractIsDiurnalFromChartWrap(chartWrap){
 	if(!chartWrap){
 		return null;
@@ -1866,12 +1880,17 @@ class SanShiUnitedMain extends Component{
 		this.lastRecalcSignature = '';
 		this.refreshSeq = 0;
 		this.pendingRefresh = null;
+		this.snapshotTaskSeq = 0;
+		this.snapshotTimer = null;
 		this.lastPropFieldKey = getFieldKey(this.props.fields);
 		this.lastChartRef = this.props.chartObj || this.props.chart || null;
 		this.panCache = new Map();
+		this.taiyiCache = new Map();
 		this.lrBundleCache = {};
 		this.lrGodsCache = {};
 		this.lrGodsPromiseCache = {};
+		this.jieqiSeedSources = {};
+		this.jieqiSeedDigests = {};
 		this.activeLrJudgeSignature = '';
 		this.outerDataCache = { chartKey: '', data: null };
 		this.resizeObserver = null;
@@ -1890,6 +1909,7 @@ class SanShiUnitedMain extends Component{
 		this.requestLiuRengGods = this.requestLiuRengGods.bind(this);
 		this.hydrateLiuRengJudgeByGods = this.hydrateLiuRengJudgeByGods.bind(this);
 		this.recalcByNongli = this.recalcByNongli.bind(this);
+		this.scheduleSnapshotSave = this.scheduleSnapshotSave.bind(this);
 		this.syncFields = this.syncFields.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
@@ -1930,13 +1950,14 @@ class SanShiUnitedMain extends Component{
 		return extractNongliFromChartWrap(chartWrap, fields);
 	}
 
-	getCachedDunJia(fields, nongli, qimenOptions, year, isDiurnal){
+	getCachedDunJia(fields, nongli, qimenOptions, year, isDiurnal, jieqiSeedDigest){
 		const key = [
 			getFieldKey(fields),
 			getNongliKey(nongli),
 			getQimenOptionsKey(qimenOptions),
 			`${year || ''}`,
 			`${safe(isDiurnal, '')}`,
+			safe(jieqiSeedDigest),
 		].join('|');
 		if(this.panCache.has(key)){
 			return this.panCache.get(key);
@@ -1956,6 +1977,80 @@ class SanShiUnitedMain extends Component{
 		return pan;
 	}
 
+	getCachedTaiyi(fields, nongli, options){
+		const key = [
+			getFieldKey(fields),
+			getNongliKey(nongli),
+			safe(options && options.style),
+			safe(options && options.tn),
+			safe(options && options.sex),
+		].join('|');
+		if(this.taiyiCache.has(key)){
+			return this.taiyiCache.get(key);
+		}
+		const pan = calcTaiyiPanFromKintaiyi(fields, nongli, options);
+		this.taiyiCache.set(key, pan);
+		if(this.taiyiCache.size > 64){
+			const firstKey = this.taiyiCache.keys().next().value;
+			if(firstKey){
+				this.taiyiCache.delete(firstKey);
+			}
+		}
+		return pan;
+	}
+
+	rememberJieqiSeed(year, seed, source){
+		if(!year || Number.isNaN(year) || !seed){
+			return false;
+		}
+		const digest = getJieqiSeedDigestFromSeed(seed);
+		const prevDigest = safe(this.jieqiSeedDigests[year]);
+		this.jieqiYearSeeds[year] = seed;
+		this.jieqiSeedSources[year] = source || 'precise';
+		this.jieqiSeedDigests[year] = digest;
+		return !!digest && digest !== prevDigest;
+	}
+
+	getJieqiSeedDigest(year){
+		if(!year || Number.isNaN(year)){
+			return '';
+		}
+		if(this.jieqiSeedDigests[year]){
+			return this.jieqiSeedDigests[year];
+		}
+		const seed = this.jieqiYearSeeds[year];
+		if(!seed){
+			return '';
+		}
+		const digest = getJieqiSeedDigestFromSeed(seed);
+		this.jieqiSeedDigests[year] = digest;
+		return digest;
+	}
+
+	ensureLocalJieqiSeed(fields, year){
+		if(!year || Number.isNaN(year) || this.jieqiYearSeeds[year]){
+			return false;
+		}
+		const params = this.genJieqiParams(fields, year);
+		if(!params){
+			return false;
+		}
+		const localSeed = buildLocalJieqiYearSeed(year, params.zone);
+		if(!localSeed){
+			return false;
+		}
+		this.rememberJieqiSeed(year, localSeed, 'local');
+		setJieqiSeedLocalCache(params, localSeed);
+		return true;
+	}
+
+	getJieqiSeedPairDigest(year){
+		if(!year || Number.isNaN(year)){
+			return '';
+		}
+		return `${this.getJieqiSeedDigest(year - 1)}|${this.getJieqiSeedDigest(year)}`;
+	}
+
 	componentDidMount(){
 		this.unmounted = false;
 		this.restoreOptionsFromCurrentCase(true);
@@ -1964,6 +2059,7 @@ class SanShiUnitedMain extends Component{
 		const activeFields = this.state.localFields || this.props.fields;
 		this.prefetchJieqiSeedForFields(activeFields);
 		this.prefetchNongliForFields(activeFields);
+		this.refreshAll(activeFields, true, { silent: true }).catch(()=>null);
 	}
 
 	componentDidUpdate(){
@@ -1997,6 +2093,10 @@ class SanShiUnitedMain extends Component{
 		if(this.prefetchSeedTimer){
 			clearTimeout(this.prefetchSeedTimer);
 			this.prefetchSeedTimer = null;
+		}
+		if(this.snapshotTimer){
+			clearTimeout(this.snapshotTimer);
+			this.snapshotTimer = null;
 		}
 		if(this.resizeObserver){
 			this.resizeObserver.disconnect();
@@ -2639,6 +2739,70 @@ class SanShiUnitedMain extends Component{
 		});
 	}
 
+	scheduleSnapshotSave(payload){
+		const taskSeq = ++this.snapshotTaskSeq;
+		if(this.snapshotTimer){
+			clearTimeout(this.snapshotTimer);
+			this.snapshotTimer = null;
+		}
+		this.snapshotTimer = setTimeout(()=>{
+			this.snapshotTimer = null;
+			if(this.unmounted || taskSeq !== this.snapshotTaskSeq){
+				return;
+			}
+			const args = payload || {};
+			const {
+				fields,
+				nongli,
+				liureng,
+				dunjia,
+				taiyi,
+				keData,
+				sanChuan,
+				lrLayout,
+				lrJudge,
+				recalcSignature,
+				timeAlg,
+				after23NewDay,
+			} = args;
+			if(!fields || !recalcSignature || recalcSignature !== this.activeLrJudgeSignature){
+				return;
+			}
+			const chartWrap = this.props.chartObj || this.props.chart || null;
+			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
+			const outerChartKey = getOuterChartKey(chartWrap);
+			let outerData = this.outerDataCache.data;
+			if(this.outerDataCache.chartKey !== outerChartKey){
+				outerData = buildOuterData(astroChart);
+				this.outerDataCache = {
+					chartKey: outerChartKey,
+					data: outerData,
+				};
+			}
+			const snapshotText = buildSanShiUnitedSnapshotText({
+				fields,
+				nongli,
+				liureng,
+				dunjia,
+				taiyi,
+				keData,
+				sanChuan,
+				lrLayout,
+				outerData,
+				timeAlg,
+				after23NewDay,
+				lrJudge,
+			});
+			saveModuleAISnapshot('sanshiunited', snapshotText, {
+				date: fields && fields.date ? fields.date.value.format('YYYY-MM-DD') : '',
+				time: fields && fields.time ? fields.time.value.format('HH:mm:ss') : '',
+				zone: fields && fields.zone ? fields.zone.value : '',
+				lon: fields && fields.lon ? fields.lon.value : '',
+				lat: fields && fields.lat ? fields.lat.value : '',
+			});
+		}, 0);
+	}
+
 	recalcByNongli(fields, nongli, overrideOptions){
 		const flds = fields || this.state.localFields || this.props.fields;
 		if(!flds || !nongli){
@@ -2648,10 +2812,14 @@ class SanShiUnitedMain extends Component{
 		const qimenOptions = this.getQimenOptions(overrideOptions);
 		const chartWrap = this.props.chartObj || this.props.chart || null;
 		const outerChartKey = getOuterChartKey(chartWrap);
+		const year = parseInt(flds.date.value.format('YYYY'), 10);
+		const needSeed = !!(year && needJieqiYearSeed(qimenOptions));
+		const jieqiSeedDigest = needSeed ? this.getJieqiSeedPairDigest(year) : '';
 		const recalcSignature = [
 			getFieldKey(flds),
 			getNongliKey(nongli),
 			getQimenOptionsKey(qimenOptions),
+			jieqiSeedDigest,
 			`${guirengType}`,
 			`${safe((overrideOptions && overrideOptions.taiyiStyle) !== undefined ? overrideOptions.taiyiStyle : this.state.options.taiyiStyle)}`,
 			`${safe((overrideOptions && overrideOptions.taiyiAccum) !== undefined ? overrideOptions.taiyiAccum : this.state.options.taiyiAccum)}`,
@@ -2665,9 +2833,8 @@ class SanShiUnitedMain extends Component{
 		if(this.state.dunjia && recalcSignature === this.lastRecalcSignature){
 			return;
 		}
-		const year = parseInt(flds.date.value.format('YYYY'), 10);
 		const isDiurnal = extractIsDiurnalFromChartWrap(chartWrap);
-		const dunjia = this.getCachedDunJia(flds, nongli, qimenOptions, year, isDiurnal);
+		const dunjia = this.getCachedDunJia(flds, nongli, qimenOptions, year, isDiurnal, jieqiSeedDigest);
 		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 		const lrNongli = buildLrNongli(nongli, dunjia, astroChart);
 		const chartForLr = astroChart ? {
@@ -2716,42 +2883,21 @@ class SanShiUnitedMain extends Component{
 		};
 		const liureng = mergeLiuRengData(liurengBase, lrBundle.godsLiureng, lrNongli);
 		lrBundle.fullLiureng = liureng;
-		lrBundle.lrJudge = evaluateLiuRengPatterns({
+		const judgePayload = {
 			liureng,
 			layout: lrBundle.lrLayout,
 			keRaw: lrBundle.keData ? lrBundle.keData.raw : [],
 			sanChuan: lrBundle.sanChuan,
-		});
+		};
+		const cachedJudge = lrBundle.lrJudge || null;
 		const mergedOptions = {
 			...this.state.options,
 			...(overrideOptions || {}),
 		};
-		const taiyi = calcTaiyiPanFromKintaiyi(flds, nongli, {
+		const taiyi = this.getCachedTaiyi(flds, nongli, {
 			style: mergedOptions.taiyiStyle,
 			tn: mergedOptions.taiyiAccum,
 			sex: mergedOptions.sex,
-		});
-		let outerData = this.outerDataCache.data;
-		if(this.outerDataCache.chartKey !== outerChartKey){
-			outerData = buildOuterData(astroChart);
-			this.outerDataCache = {
-				chartKey: outerChartKey,
-				data: outerData,
-			};
-		}
-		const snapshotText = buildSanShiUnitedSnapshotText({
-			fields: flds,
-			nongli,
-			liureng,
-			dunjia,
-			taiyi,
-			keData: lrBundle.keData,
-			sanChuan: lrBundle.sanChuan,
-			lrLayout: lrBundle.lrLayout,
-			outerData,
-			timeAlg: mergedOptions.timeAlg,
-			after23NewDay: mergedOptions.after23NewDay,
-			lrJudge: lrBundle.lrJudge,
 		});
 		this.lastRecalcSignature = recalcSignature;
 		this.setState({
@@ -2762,15 +2908,41 @@ class SanShiUnitedMain extends Component{
 			lrLayout: lrBundle.lrLayout,
 			keData: lrBundle.keData,
 			sanChuan: lrBundle.sanChuan,
-			lrJudge: lrBundle.lrJudge,
+			lrJudge: cachedJudge,
 		}, ()=>{
-			saveModuleAISnapshot('sanshiunited', snapshotText, {
-				date: flds && flds.date ? flds.date.value.format('YYYY-MM-DD') : '',
-				time: flds && flds.time ? flds.time.value.format('HH:mm:ss') : '',
-				zone: flds && flds.zone ? flds.zone.value : '',
-				lon: flds && flds.lon ? flds.lon.value : '',
-				lat: flds && flds.lat ? flds.lat.value : '',
-			});
+			const scheduleSnapshotWithJudge = (judgeValue)=>{
+				this.scheduleSnapshotSave({
+					fields: flds,
+					nongli,
+					liureng,
+					dunjia,
+					taiyi,
+					keData: lrBundle.keData,
+					sanChuan: lrBundle.sanChuan,
+					lrLayout: lrBundle.lrLayout,
+					timeAlg: mergedOptions.timeAlg,
+					after23NewDay: mergedOptions.after23NewDay,
+					lrJudge: judgeValue,
+					recalcSignature,
+				});
+			};
+			if(cachedJudge){
+				scheduleSnapshotWithJudge(cachedJudge);
+			}else{
+				setTimeout(()=>{
+					if(this.unmounted || recalcSignature !== this.activeLrJudgeSignature){
+						return;
+					}
+					const localJudge = evaluateLiuRengPatterns(judgePayload);
+					lrBundle.lrJudge = localJudge;
+					if(this.unmounted || recalcSignature !== this.activeLrJudgeSignature){
+						return;
+					}
+					this.setState({ lrJudge: localJudge }, ()=>{
+						scheduleSnapshotWithJudge(localJudge);
+					});
+				}, 0);
+			}
 			this.hydrateLiuRengJudgeByGods({
 				fields: flds,
 				recalcSignature,
@@ -2788,7 +2960,9 @@ class SanShiUnitedMain extends Component{
 		if(!year || Number.isNaN(year)){
 			return null;
 		}
-		if(this.jieqiYearSeeds[year]){
+		const curSeed = this.jieqiYearSeeds[year];
+		const curSource = this.jieqiSeedSources[year];
+		if(curSeed && curSource !== 'local'){
 			return this.jieqiYearSeeds[year];
 		}
 		if(this.jieqiSeedPromises[year]){
@@ -2800,14 +2974,20 @@ class SanShiUnitedMain extends Component{
 		}
 		this.jieqiSeedPromises[year] = Promise.resolve().then(async()=>{
 			let seed = await fetchPreciseJieqiSeed(params);
-			if(!seed){
-				seed = buildLocalJieqiYearSeed(year, params.zone);
-			}
 			if(seed){
-				this.jieqiYearSeeds[year] = seed;
+				this.rememberJieqiSeed(year, seed, 'precise');
+				setJieqiSeedLocalCache(params, seed);
+				return seed;
+			}
+			if(curSeed){
+				return curSeed;
+			}
+			seed = buildLocalJieqiYearSeed(year, params.zone);
+			if(seed){
+				this.rememberJieqiSeed(year, seed, 'local');
 				setJieqiSeedLocalCache(params, seed);
 			}
-			return seed;
+			return seed || null;
 		}).finally(()=>{
 			delete this.jieqiSeedPromises[year];
 		});
@@ -2827,6 +3007,8 @@ class SanShiUnitedMain extends Component{
 		if(!year || Number.isNaN(year)){
 			return;
 		}
+		this.ensureLocalJieqiSeed(flds, year - 1);
+		this.ensureLocalJieqiSeed(flds, year);
 		Promise.all([
 			this.ensureJieqiSeed(flds, year - 1),
 			this.ensureJieqiSeed(flds, year),
@@ -2849,10 +3031,11 @@ class SanShiUnitedMain extends Component{
 		}).catch(()=>null);
 	}
 
-	async refreshAll(fields, force){
+	async refreshAll(fields, force, extraOptions){
 		if(!fields){
 			return;
 		}
+		const silentMode = !!(extraOptions && extraOptions.silent);
 		const key = getSanShiRefreshKey(fields, this.state.options);
 		if(this.pendingRefresh && this.pendingRefresh.key === key){
 			return this.pendingRefresh.promise;
@@ -2866,44 +3049,93 @@ class SanShiUnitedMain extends Component{
 			return;
 		}
 		const seq = ++this.refreshSeq;
+		let loadingDelayTimer = null;
+		const stopDelayedLoading = ()=>{
+			if(loadingDelayTimer){
+				clearTimeout(loadingDelayTimer);
+				loadingDelayTimer = null;
+			}
+			if(!silentMode && !this.unmounted && seq === this.refreshSeq && this.state.loading){
+				this.setState({ loading: false });
+			}
+		};
 		const refreshPromise = (async ()=>{
 			const qimenOptions = this.getQimenOptions();
 			const shouldWaitSeed = needJieqiYearSeed(qimenOptions);
 			try{
 				const year = parseInt(fields.date.value.format('YYYY'), 10);
 				const waitSeed = !!(year && shouldWaitSeed);
-				const seedPromise = waitSeed ? Promise.all([
-					this.ensureJieqiSeed(fields, year - 1),
-					this.ensureJieqiSeed(fields, year),
-				]) : null;
-				const missingSeed = waitSeed && (!this.jieqiYearSeeds[year - 1] || !this.jieqiYearSeeds[year]);
-				if((missingSeed || force) && !this.state.loading){
-					this.setState({ loading: true });
+				let seedDigestBefore = '';
+				let seedUpgradePromise = null;
+				if(waitSeed){
+					this.ensureLocalJieqiSeed(fields, year - 1);
+					this.ensureLocalJieqiSeed(fields, year);
+					seedDigestBefore = this.getJieqiSeedPairDigest(year);
+					seedUpgradePromise = Promise.all([
+						this.ensureJieqiSeed(fields, year - 1),
+						this.ensureJieqiSeed(fields, year),
+					]).then(()=>{
+						return this.getJieqiSeedPairDigest(year);
+					}).catch(()=>{
+						return seedDigestBefore;
+					});
 				}
-				let nongli = await fetchPreciseNongli(params);
-				if(!nongli){
-					nongli = this.getLocalNongliFallback(fields);
+				let nongli = this.getLocalNongliFallback(fields);
+				let usedFallback = !!nongli;
+				let precisePromise = null;
+				if(usedFallback){
+					// Render quickly with current chart-derived nongli, then reconcile with precise result.
+					precisePromise = fetchPreciseNongli(params).catch(()=>null);
+				}else{
+					if(!silentMode){
+						loadingDelayTimer = setTimeout(()=>{
+							loadingDelayTimer = null;
+							if(!this.unmounted && seq === this.refreshSeq && !this.state.loading){
+								this.setState({ loading: true });
+							}
+						}, 700);
+					}
+					nongli = await fetchPreciseNongli(params);
+					usedFallback = false;
 				}
 				if(!nongli){
 					throw new Error('nongli.unavailable');
 				}
 				setNongliLocalCache(params, nongli);
-				if(waitSeed){
-					await seedPromise;
-				}
 				if(this.unmounted || seq !== this.refreshSeq){
 					return;
 				}
-				this.recalcByNongli(fields, nongli);
-				if(!this.unmounted && seq === this.refreshSeq){
-					this.setState({
-						loading: false,
-					});
+				let activeNongli = nongli;
+				this.recalcByNongli(fields, activeNongli);
+				if(usedFallback && precisePromise){
+					precisePromise.then((preciseNongli)=>{
+						if(this.unmounted || seq !== this.refreshSeq || !preciseNongli){
+							return;
+						}
+						setNongliLocalCache(params, preciseNongli);
+						if(getNongliKey(preciseNongli) !== getNongliKey(activeNongli)){
+							activeNongli = preciseNongli;
+							this.recalcByNongli(fields, activeNongli);
+						}
+					}).catch(()=>null);
 				}
+				if(waitSeed && seedUpgradePromise){
+					seedUpgradePromise.then((seedDigestAfter)=>{
+						if(this.unmounted || seq !== this.refreshSeq){
+							return;
+						}
+						if(seedDigestAfter && seedDigestAfter !== seedDigestBefore){
+							this.recalcByNongli(fields, activeNongli);
+						}
+					}).catch(()=>null);
+				}
+				stopDelayedLoading();
 			}catch(e){
+				stopDelayedLoading();
 				if(!this.unmounted && seq === this.refreshSeq){
-					this.setState({ loading: false });
-					message.error('三式合一计算失败：历法数据不可用');
+					if(!silentMode){
+						message.error('三式合一计算失败：历法数据不可用');
+					}
 				}
 			}finally{
 				if(this.pendingRefresh && this.pendingRefresh.seq === seq){

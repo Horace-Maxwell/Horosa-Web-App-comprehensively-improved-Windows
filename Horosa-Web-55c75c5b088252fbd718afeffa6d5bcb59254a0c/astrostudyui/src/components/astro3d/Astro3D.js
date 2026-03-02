@@ -490,11 +490,6 @@ class Astro3D {
 		loader.setDRACOLoader( dracoLoader );
 		const modelSources = [
 			{
-				name: 'local',
-				modelUrl: './gltf/planets4k.glb',
-				decoderPath: './gltf/draco/',
-			},
-			{
 				name: 'remote',
 				modelUrl: `${Chart3DServer}/gltf/planets4k.glb`,
 				decoderPath: `${Chart3DServer}/gltf/draco/`,
@@ -502,22 +497,69 @@ class Astro3D {
 		];
 		let sourceIdx = 0;
 		let settled = false;
-		let timeoutId = setTimeout(()=>{
+		const enterFallbackMode = (reason)=>{
 			if(settled){
 				return;
 			}
 			settled = true;
+			clearTimeout(timeoutId);
 			this.initMesh();
 			this.initGUI();
-			console.warn('3D model loading timeout, fallback to simplified mode.');
+			if(reason){
+				console.warn(reason);
+			}
 			setLoadingText(null);
 			setLoading(false);
+		};
+		let timeoutId = setTimeout(()=>{
+			enterFallbackMode('3D model loading timeout, fallback to simplified mode.');
 		}, 8000);
-		const loadModel = ()=>{
+		const probeModelSource = async (source)=>{
+			let controller = null;
+			let timer = null;
+			try{
+				const reqOpt = {method: 'HEAD', cache: 'no-store'};
+				if(typeof AbortController === 'function'){
+					controller = new AbortController();
+					reqOpt.signal = controller.signal;
+					const timeoutMs = source.name === 'remote' ? 2200 : 1200;
+					timer = setTimeout(()=>{
+						controller.abort();
+					}, timeoutMs);
+				}
+				const resp = await fetch(source.modelUrl, reqOpt);
+				return !!(resp && (resp.ok || resp.type === 'opaque'));
+			}catch(err){
+				return false;
+			}finally{
+				if(timer){
+					clearTimeout(timer);
+				}
+			}
+		};
+		const pickNextAvailableSource = async ()=>{
+			while(sourceIdx < modelSources.length){
+				const source = modelSources[sourceIdx];
+				const available = await probeModelSource(source);
+				if(available){
+					return source;
+				}
+				sourceIdx += 1;
+			}
+			return null;
+		};
+		const loadModel = async ()=>{
 			if(settled){
 				return;
 			}
-			const source = modelSources[sourceIdx];
+			const source = await pickNextAvailableSource();
+			if(settled){
+				return;
+			}
+			if(!source){
+				enterFallbackMode('3D model unavailable, fallback to simplified mode.');
+				return;
+			}
 			dracoLoader.setDecoderPath(source.decoderPath);
 			loader.load(
 				source.modelUrl,
@@ -575,13 +617,7 @@ class Astro3D {
 						loadModel();
 						return;
 					}
-					settled = true;
-					clearTimeout(timeoutId);
-					this.initMesh();
-					this.initGUI();
-					console.warn('3D model unavailable, fallback to simplified mode.');
-					setLoadingText(null);
-					setLoading(false);
+					enterFallbackMode('3D model unavailable, fallback to simplified mode.');
 				}
 			);
 		};
