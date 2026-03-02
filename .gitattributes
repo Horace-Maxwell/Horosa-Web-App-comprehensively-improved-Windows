@@ -1,1 +1,1 @@
-runtime/windows/bundle/astrostudyboot.jar filter=lfs diff=lfs merge=lfs -text
+local/workspace/runtime/windows/bundle/astrostudyboot.jar filter=lfs diff=lfs merge=lfs -text
