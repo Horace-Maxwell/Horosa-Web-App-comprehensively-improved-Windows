@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-02-22T20:03:18-08:00",
+    "generatedAt":  "2026-02-27T12:33:22-08:00",
     "root":  "C:\\Users\\maxwe\\OneDrive\\Desktop\\Horosa-Web-App-comprehensively-improved-Windows-main",
     "assets":  [
                    {
@@ -14,18 +14,18 @@
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\astrostudyboot.jar",
-                       "size":  303888823,
-                       "sha256":  "1a9d6557df2b31d0031e64e1059c1e968e12e9f1e1cee4be0eba1f4daf254a0f"
+                       "size":  303890214,
+                       "sha256":  "aff1bc03653558a192071ec4149b1037bb91491c6f6e19d6a4b31f5d20c4f3e8"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\dist-file\\index.html",
-                       "size":  1825,
-                       "sha256":  "80c3b0e845e9f437d22c13e838a241c176090de0a230117bb915fa92545fe759"
+                       "size":  1813,
+                       "sha256":  "cf08440c07f92bf39f71815e9f99c10a1e7bfbd45217bab5597801efa4198943"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\dist\\index.html",
-                       "size":  1825,
-                       "sha256":  "80c3b0e845e9f437d22c13e838a241c176090de0a230117bb915fa92545fe759"
+                       "size":  1813,
+                       "sha256":  "cf08440c07f92bf39f71815e9f99c10a1e7bfbd45217bab5597801efa4198943"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\annotated_doc-0.0.4-py3-none-any.whl",
@@ -151,11 +151,6 @@
                        "path":  "runtime\\windows\\wheels\\tempora-5.8.1-py3-none-any.whl",
                        "size":  14427,
                        "sha256":  "6945ec409ca930e5040490931dc0d8f516f2cd9798eb175dc3b3c6a0fc481ea2"
-                   },
-                   {
-                       "path":  "runtime\\windows\\wheels\\typer-0.24.0-py3-none-any.whl",
-                       "size":  56441,
-                       "sha256":  "5fc435a9c8356f6160ed6e85a6301fdd6e3d8b2851da502050d1f92c5e9eddc8"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\typer-0.24.1-py3-none-any.whl",

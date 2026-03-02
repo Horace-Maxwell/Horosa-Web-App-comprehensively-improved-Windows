@@ -1,0 +1,178 @@
+{
+  "generatedAt": "2026-03-01T15:30:25",
+  "environment": {
+    "os": "Windows",
+    "localMachine": "DESKTOP-2J184FI"
+  },
+  "buildAndUnit": {
+    "uiUnitTests": {
+      "pass": true,
+      "framework": "umi-test",
+      "note": "24 passed, 0 failed"
+    },
+    "pythonUnitTests": {
+      "pass": true,
+      "framework": "unittest",
+      "note": "5 passed, 0 failed"
+    }
+  },
+  "runtimeStability": {
+    "buttonSelfCheck": {
+      "mainTabsAttempted": 6,
+      "mainTabsMissing": 0,
+      "controlsVisibleTotal": 520,
+      "controlsAttemptedTotal": 520,
+      "controlsClickedTotal": 359,
+      "controlsFailedTotal": 104,
+      "consoleErrorCount": 0,
+      "pageErrorCount": 0,
+      "requestFailureCount": 534,
+      "clickFailureCount": 104,
+      "pass": false
+    },
+    "pageErrors": 0,
+    "consoleErrors": 0
+  },
+  "performanceRuns": [
+    {
+      "totalPages": 76,
+      "measuredPages": 59,
+      "noActionPages": 17,
+      "overThresholdPages": 1,
+      "thresholdMs": 1000,
+      "maxTotalMs": 1068,
+      "pass": false
+    },
+    {
+      "totalPages": 70,
+      "measuredPages": 53,
+      "noActionPages": 17,
+      "overThresholdPages": 1,
+      "thresholdMs": 1000,
+      "maxTotalMs": 1061,
+      "pass": false
+    },
+    {
+      "totalPages": 70,
+      "measuredPages": 53,
+      "noActionPages": 17,
+      "overThresholdPages": 1,
+      "thresholdMs": 1000,
+      "maxTotalMs": 1041,
+      "pass": false
+    }
+  ],
+  "crossBrowserSmoke": {
+    "at": "2026-03-01T23:30:04.024Z",
+    "url": "http://127.0.0.1:8000/index.html",
+    "result": [
+      {
+        "browser": "chromium",
+        "launched": true,
+        "navOk": true,
+        "clicked": 8,
+        "clickFailures": 12,
+        "consoleErrors": 0,
+        "pageErrors": 0,
+        "tabCandidates": [
+          "星盘",
+          "三维盘",
+          "推运盘",
+          "量化盘",
+          "关系盘",
+          "节气盘",
+          "星体地图",
+          "七政四余",
+          "希腊星术",
+          "印度律盘",
+          "八字紫微",
+          "易与三式",
+          "万年历",
+          "西洋游戏",
+          "风水",
+          "三式合一",
+          "信息",
+          "相位",
+          "行星",
+          "希腊点"
+        ],
+        "error": null
+      },
+      {
+        "browser": "firefox",
+        "launched": true,
+        "navOk": true,
+        "clicked": 8,
+        "clickFailures": 12,
+        "consoleErrors": 0,
+        "pageErrors": 0,
+        "tabCandidates": [
+          "星盘",
+          "三维盘",
+          "推运盘",
+          "量化盘",
+          "关系盘",
+          "节气盘",
+          "星体地图",
+          "七政四余",
+          "希腊星术",
+          "印度律盘",
+          "八字紫微",
+          "易与三式",
+          "万年历",
+          "西洋游戏",
+          "风水",
+          "三式合一",
+          "信息",
+          "相位",
+          "行星",
+          "希腊点"
+        ],
+        "error": null
+      },
+      {
+        "browser": "webkit",
+        "launched": true,
+        "navOk": true,
+        "clicked": 8,
+        "clickFailures": 12,
+        "consoleErrors": 0,
+        "pageErrors": 0,
+        "tabCandidates": [
+          "星盘",
+          "三维盘",
+          "推运盘",
+          "量化盘",
+          "关系盘",
+          "节气盘",
+          "星体地图",
+          "七政四余",
+          "希腊星术",
+          "印度律盘",
+          "八字紫微",
+          "易与三式",
+          "万年历",
+          "西洋游戏",
+          "风水",
+          "三式合一",
+          "信息",
+          "相位",
+          "行星",
+          "希腊点"
+        ],
+        "error": null
+      }
+    ],
+    "summary": {
+      "allLaunched": true,
+      "allNavOk": true,
+      "totalConsoleErrors": 0,
+      "totalPageErrors": 0
+    }
+  },
+  "assessment": {
+    "pageCrashOrRuntimeErrorFree": true,
+    "oneSecondStrictForAllPages": false,
+    "note": "Stability passed; strict 1s target still misses on 三式合一 (~1.04-1.07s)."
+  }
+}
