@@ -1,0 +1,34 @@
+{
+	"id": "group_comm",
+	"name": "通用功能",
+	"desc": "",
+	"functions":[{
+		"id": "usercomm",
+		"name": "用户通用功能",
+		"desc": "",
+		"transcodes":[
+			"/user/charts",
+			"/user/charts/update",
+			"/user/charts/delete",
+			"/user/charts/add",
+			"/user/charts/memo",
+			"/user/check",
+			"/user/changepwd",
+			"/user/changeparams",
+			"/user/charts/export",
+			"/user/charts/import",
+			"/deeplearn/fateevents",
+			"/deeplearn/train",		
+			"/astroreader/upload",				
+			"/astroreader/listbooks",				
+			"/astroreader/updatebook",				
+			"/astroreader/updatechapter",				
+			"/astroreader/getchapter",				
+			"/astroreader/deletebook",				
+			"/astroreader/readprogress",				
+			"/astroreader/tts",
+			"/astroreader/exportbook",
+			"/astroreader/livepublishpath"			
+		]
+	}]
+}

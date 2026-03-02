@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:p="http://www.springframework.org/schema/p" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xsi:schemaLocation="
+    http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/context
+    http://www.springframework.org/schema/context/spring-context.xsd
+    http://www.springframework.org/schema/mvc
+    http://www.springframework.org/schema/mvc/spring-mvc.xsd">
+	
+    <context:annotation-config />
+    <context:component-scan base-package="boundless.**.springcomp,spacex.**.controller,spacex.**.service,com.**.service,com.**.controller" >
+    </context:component-scan>
+    
+	<mvc:annotation-driven>
+		<mvc:message-converters>
+			<ref bean="jacksonMessageConverter" />
+		</mvc:message-converters>
+	</mvc:annotation-driven>
+
+    <mvc:default-servlet-handler/>
+    
+    <mvc:interceptors>
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>
+            <mvc:exclude-mapping path="/**/*.png"/>
+            <mvc:exclude-mapping path="/**/*.jpg"/>
+            <mvc:exclude-mapping path="/**/*.gif"/>
+            <mvc:exclude-mapping path="/**/*.jpeg"/>
+            <mvc:exclude-mapping path="/favicon.ico"/> 
+            <mvc:exclude-mapping path="/error"/> 
+            
+	        <bean class="boundless.spring.help.interceptor.MonitorInterceptor" />
+        </mvc:interceptor>
+         
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>
+            <mvc:exclude-mapping path="/**/*.png"/>
+            <mvc:exclude-mapping path="/**/*.jpg"/>
+            <mvc:exclude-mapping path="/**/*.gif"/>
+            <mvc:exclude-mapping path="/**/*.jpeg"/>
+            <mvc:exclude-mapping path="/favicon.ico"/> 
+            <mvc:exclude-mapping path="/error"/> 
+            
+	        <bean class="boundless.spring.help.interceptor.RequestHeaderInterceptor" />
+        </mvc:interceptor>
+<!--  --> 
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>            
+            <mvc:exclude-mapping path="/**/*.png"/>
+            <mvc:exclude-mapping path="/**/*.jpg"/>
+            <mvc:exclude-mapping path="/**/*.gif"/>
+            <mvc:exclude-mapping path="/**/*.jpeg"/>
+            <mvc:exclude-mapping path="/favicon.ico"/> 
+            <mvc:exclude-mapping path="/error"/> 
+
+	        <bean class="boundless.spring.help.interceptor.TransCodeAppAuthInterceptor" />
+        </mvc:interceptor>
+        
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>            
+            <mvc:exclude-mapping path="/**/*.png"/>
+            <mvc:exclude-mapping path="/**/*.jpg"/>
+            <mvc:exclude-mapping path="/**/*.gif"/>
+            <mvc:exclude-mapping path="/**/*.jpeg"/>
+            <mvc:exclude-mapping path="/favicon.ico"/> 
+            <mvc:exclude-mapping path="/error"/> 
+            
+	        <bean class="spacex.astrostudy.interceptor.UserTokenInterceptor" />
+        </mvc:interceptor>
+                                                  
+        <mvc:interceptor>
+            <mvc:mapping path="/**"/>
+            <mvc:exclude-mapping path="/favicon.ico"/> 
+
+            <mvc:exclude-mapping path="/common/**"/> 
+            <mvc:exclude-mapping path="/chart"/> 
+            <mvc:exclude-mapping path="/chart13"/> 
+            <mvc:exclude-mapping path="/allowedcharts"/> 
+            <mvc:exclude-mapping path="/chart/**"/> 
+            <mvc:exclude-mapping path="/modern/**"/> 
+            <mvc:exclude-mapping path="/india/**"/> 
+            <mvc:exclude-mapping path="/germany/**"/> 
+            <mvc:exclude-mapping path="/predict/**"/> 
+            <mvc:exclude-mapping path="/jieqi/**"/> 
+            <mvc:exclude-mapping path="/jdn/**"/> 
+            <mvc:exclude-mapping path="/location/**"/> 
+            <mvc:exclude-mapping path="/bazi/**"/> 
+            <mvc:exclude-mapping path="/ziwei/**"/> 
+            <mvc:exclude-mapping path="/gua/**"/> 
+            <mvc:exclude-mapping path="/nongli/**"/> 
+            <mvc:exclude-mapping path="/calendar/**"/> 
+            <mvc:exclude-mapping path="/liureng/**"/> 
+            <mvc:exclude-mapping path="/liuyao/**"/> 
+            <mvc:exclude-mapping path="/horo/**"/> 
+            <mvc:exclude-mapping path="/login"/> 
+            <mvc:exclude-mapping path="/register"/> 
+            <mvc:exclude-mapping path="/user/login"/> 
+            <mvc:exclude-mapping path="/user/register"/> 
+            <mvc:exclude-mapping path="/user/resetpwd"/> 
+            <mvc:exclude-mapping path="/user/check"/> 
+            <mvc:exclude-mapping path="/calc/**"/> 
+            <mvc:exclude-mapping path="/live/**"/> 
+            <mvc:exclude-mapping path="/astromedia/**"/> 
+            
+	        <bean class="spacex.astrostudy.interceptor.PermissionInterceptor" />
+        </mvc:interceptor>
+                
+    </mvc:interceptors>
+
+    
+	<!-- 避免IE在ajax请求时，返回json出现下载 -->
+	<bean id="jacksonMessageConverter"
+		class="boundless.spring.help.interceptor.JsonConverter">
+		<property name="supportedMediaTypes">
+			<list>
+				<value>text/html; charset=UTF-8</value>
+				<value>application/json; charset=UTF-8</value>
+			</list>
+		</property>
+		<property name="objectMapper">
+			<bean class="com.fasterxml.jackson.databind.ObjectMapper">
+				<property name="dateFormat">
+					<bean class="java.text.SimpleDateFormat">
+						<constructor-arg type="java.lang.String" value="yyyy-MM-dd HH:mm:ss" />
+					</bean>
+				</property>
+			</bean>
+		</property>
+	</bean>
+
+	<!-- 完成请求和注解POJO的映射 -->
+    <bean class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter">
+    	<property name="messageConverters">
+    		<list>
+    			<ref bean="jacksonMessageConverter" />
+    		</list>
+    	</property>
+    </bean>      
+       
+        
+	<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">  
+        <property name="defaultEncoding" value="UTF-8"/>  
+        <!-- 指定所上传文件的总大小不能超过100MB。注意maxUploadSize属性的限制不是针对单个文件，而是所有文件的容量之和 -->  
+        <property name="maxUploadSize" value="104857600"/> 
+        <!-- 设定文件上传时写入内存的最大值，如果小于这个参数不会生成临时文件，默认为10240 --> 
+        <property name="maxInMemorySize" value="1048576"/>  
+    </bean>
+    
+ 
+	
+		
+</beans>

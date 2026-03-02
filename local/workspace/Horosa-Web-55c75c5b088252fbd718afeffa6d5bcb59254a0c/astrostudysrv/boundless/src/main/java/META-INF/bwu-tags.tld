@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<jsp-config>
+<taglib xmlns="http://java.sun.com/xml/ns/j2ee" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	version="2.0"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/web-jsptaglibrary_2_0.xsd">
+
+	<display-name>BWU Tags</display-name>
+	<tlib-version>1.0</tlib-version>
+	<short-name>bwu</short-name>
+	<uri>/bwu-tags</uri>
+	<description>
+		the BWU tags
+	</description>
+	
+	
+	<tag>
+		<name>datatable</name>
+		<tag-class>boundless.web.ui.DataTableTag</tag-class>
+		<body-content>empty</body-content>
+		
+		<attribute>
+			<name>encoding</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>json</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>full</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>table</name>
+			<required>true</required>
+			<rtexprvalue>true</rtexprvalue>
+			<type>boundless.types.DataTable</type>
+		</attribute>
+		
+		
+		<dynamic-attributes>true</dynamic-attributes>
+	</tag>
+
+
+	<tag>
+		<name>json</name>
+		<tag-class>boundless.web.ui.JsonTag</tag-class>
+		<body-content>empty</body-content>
+		
+		<attribute>
+			<name>data</name>
+			<required>true</required>
+			<rtexprvalue>true</rtexprvalue>
+			<type>java.lang.Object</type>
+		</attribute>
+		
+		
+		<dynamic-attributes>true</dynamic-attributes>
+	</tag>
+	
+	<tag>
+		<name>reporttable</name>
+		<tag-class>boundless.web.ui.ReportTableTag</tag-class>
+		<body-content>jsp</body-content>
+		
+		<attribute>
+			<name>id</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>name</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>otherAttr</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>border</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>cellpadding</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>cellspacing</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headTitle</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>rowClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headTitleClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headCellClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headFirstCellClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>cellClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>firstCellClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>tableClass</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>columnHeight</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>rowHeight</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headTitleRowHeight</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>headTitleSpaceRowHeight</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>autoWrap</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>forceInteger</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>columns</name>
+			<rtexprvalue>true</rtexprvalue>
+			<type>java.lang.Object</type>
+		</attribute>
+		
+		<attribute>
+			<name>dataTable</name>
+			<type>boundless.types.DataTable</type>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<dynamic-attributes>true</dynamic-attributes>
+	</tag>
+	
+</taglib>
+</jsp-config>

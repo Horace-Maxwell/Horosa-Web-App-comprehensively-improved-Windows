@@ -1,0 +1,13 @@
+{
+	"id": "group_dooraction",
+	"name": "门锁功能组",
+	"desc": "",
+	"functions":[{
+		"id": "locktrigger",
+		"name": "门锁功能",
+		"desc": "",
+		"transcodes":[
+			"/door/locktrigger"		
+		]
+	}]
+}

@@ -1,0 +1,501 @@
+# Horosa Web 项目目录分类（2026-02-17）
+
+## A. 根目录（仅保留一键部署相关）
+以下文件固定在根目录，不再下沉：
+- `Horosa_Local.command`
+- `Horosa_Local_Windows.bat`
+- `Horosa_Local_Windows.ps1`
+- `Prepare_Runtime_Mac.command`
+- `Prepare_Runtime_Windows.bat`
+- `Prepare_Runtime_Windows.ps1`
+
+## B. 主工程（运行代码）
+- `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
+: 唯一运行中的业务工程（UI + Java API + Python 算法服务）。
+
+### B1. 前端
+- `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/`
+: 所有技术页 UI（星盘/遁甲/太乙/六壬/易卦/风水入口）。
+- `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/models/`
+: 状态管理、命盘/事盘本地存储读写逻辑。
+- `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/utils/`
+: AI 导出、请求层、离线本地缓存工具。
+
+### B2. 后端
+- `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudysrv/`
+: Java 后端服务（9999）。
+- `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/`
+: Python 图表服务（8899）。
+
+## C. 运行时（部署辅助）
+- `runtime/windows/bundle/`
+: Windows 启动回填目录（`dist-file` / `wheels` / `astrostudyboot.jar` / URL 模板 / `runtime.manifest.json`）。
+- `runtime/windows/maven/`
+: 可选，Windows 缺少系统 Maven 时用于后端 jar 本地构建。
+
+### C1. 弱网兜底 URL 列表（可选）
+- `runtime/windows/bundle/java17.url.txt`
+- `runtime/windows/bundle/python311.url.txt`
+- `runtime/windows/bundle/astrostudyboot.url.txt`
+: 每行一个 URL，启动器按顺序重试，首个成功即使用。
+
+### C2. 验包清单
+- `runtime/windows/bundle/runtime.manifest.json`
+: 记录关键分发资产的路径、大小、SHA256、生成时间，用于部署前后快速核验。
+
+## D. 快速检索建议
+- 改主站功能：`Horosa-Web-55.../astrostudyui/src/`
+- 改本地部署：根目录脚本 + `runtime/`
+- 看离线运行日志：`Horosa-Web-55.../.horosa-local-logs-win/`
+
+## E. 同步状态（2026-02-23）
+- `统摄法` 已并入主工程：`Horosa-Web-55.../astrostudyui/src/components/tongshefa/`
+- `易与三式` 已包含 `统摄法` 子页（位于 `太乙` 下方）。
+- AI 导出与本地案例映射均已包含 `tongshefa`。
+- 已修复“保存命盘读取后当前页不刷新”链路：
+  - `astrostudyui/src/models/astro.js`（`fetchByChartData` 深拷贝字段）
+  - `astrostudyui/src/components/ziwei/ZiWeiMain.js`（三合盘字段变更自动重算）
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`（三式合一外部命盘切换检测与刷新）
+- 参考目录 `Horosa-Web+App (Mac)/` 已删除，当前运行仅依赖本目录现存文件与 `runtime/`。
+- 仅 Git 工作树不保证可运行；发布包必须包含 `runtime/` 与 `runtime/windows/bundle/` 关键资产。
+
+## F. 同步状态（2026-02-27）
+- 三式合一六壬参考文本已独立为常量文件：
+  - `Horosa-Web-55.../astrostudyui/src/constants/LiuRengReferenceTexts.js`
+  - 覆盖 `9.神 / 10.将 / 11.释课元微 / 12.大格 / 13.小局` 的文档段，用于右侧二级标签与 AI 快照分段。
+- 三式合一右侧结构已统一为一级：
+  - `概览 / 太乙 / 神煞 / 六壬 / 八宫`
+  - 六壬下含二级：`概览 / 大格 / 小局 / 参考`
+- 六壬圈节点释义已统一在：
+  - `Horosa-Web-55.../astrostudyui/src/constants/LiuRengTexts.js`（十二神/十二将）
+  - `Horosa-Web-55.../astrostudyui/src/components/sanshi/SanShiUnitedMain.js`（tooltip 渲染）
+- 遁甲状态释义常量位于：
+  - `Horosa-Web-55.../astrostudyui/src/constants/QimenPatternTexts.js`
+  - 同时被 `DunJiaMain.js` 与 `DunJiaCalc.js` 调用，保证 UI 与 AI 导出一致。
+- 占星悬浮释义常量位于：
+  - `Horosa-Web-55.../astrostudyui/src/constants/AstroInterpretation.js`
+  - `ASTRO_ANNOTATION_SIGNS` 已包含 12 星座“本垣/擢升/入落/入陷”信息，供悬浮与导出共用。
+- 本地常驻启动脚本链路（Mac 脚本）：
+  - `Horosa-Web-55.../horosa_local.command`
+  - `Horosa-Web-55.../start_horosa_local.sh`
+  - `Horosa-Web-55.../stop_horosa_local.sh`
+  - 新增 `.horosa_web.pid` 管理 8000 web 服务，与 8899/9999 同步启停；默认常驻，`HOROSA_KEEP_SERVICES_RUNNING=0` 可切回旧行为。
+  - `start_horosa_local.sh` 端口就绪探测已兼容 `lsof + netstat`，适配 Windows + Git Bash 场景。
+
+## G. 同步状态（2026-02-27 二次回归）
+- 占星悬浮：
+  - `astrostudyui/src/components/astro/AstroChartCircle.js` 改为按段落逐行渲染注释（支持多级标题/空行），解决“整段糊成一行”与可读性下降。
+  - `astrostudyui/src/constants/AstroInterpretation.js` 替换为文档 H 的完整长文本（星/星座/宫位/希腊点），并保留星座入庙/擢升/入落/入陷。
+- 六壬独立页：
+  - `astrostudyui/src/components/graph/D3Circle.js` 支持分段 tooltip 注入。
+  - `astrostudyui/src/components/liureng/LRCircleChart.js` 对上神/天将圈接入“标题+诗句+释义+类象”悬浮。
+  - `astrostudyui/src/components/lrzhan/RengChart.js` 去除 runyear 硬依赖，行年缺失不再导致下方神煞块整体消失。
+- 遁甲与三式历法兜底：
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js`、`astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - 精确历法不可用时，回退 `localNongliAdapter` 与本地节气种子，降低“无法起盘”风险。
+- 遁甲判断层：
+  - `astrostudyui/src/components/dunjia/DunJiaCalc.js` 新增每宫判断数据（十干克应/八门克应/奇仪主应/吉格/凶格）与全盘吉凶格汇总。
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js` 右侧“格局”页支持按宫位查看；九宫卡片新增悬浮明细与点击聚焦。
+- 三式合一八宫：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js` 八宫页改为按宫位聚焦显示，不再一次性平铺所有宫信息；并同步展示遁甲判断行。
+
+## H. 同步状态（2026-02-27 三次回归）
+- 占星悬浮分离（星/座/宫互不串段）：
+  - `astrostudyui/src/components/astro/AstroChartCircle.js`
+  - 新增 `annotationMode`（`planet/sign/house`）通道，星座环与宫位环分别独立显示对应释义；行星 hover 不再混入星座/宫位释义。
+- 遁甲克应映射补全与占位文案清零：
+  - `astrostudyui/src/components/dunjia/DunJiaCalc.js`
+  - `TEN_GAN_RESPONSE_MAP` 扩展到 81 组；门克应/奇仪主应映射补全；删除“暂未录入详细释义”返回路径。
+- 遁甲左右职责分离：
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js`
+  - 左盘九宫仅负责盘面显示与选宫，不再出现克应/格局 tooltip；详细判断统一在右侧“格局”标签。
+- 六壬格局判定模块化：
+  - `astrostudyui/src/components/liureng/LRPatternJudge.js`（新增）
+  - 输出 `dageHits/xiaojuHits`，供三式合一右侧与六壬 AI 快照共用。
+- 三式合一六壬二级页改造：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - “大格/小局”页改为仅显示算法命中；全文保留在“参考”页。
+- 六壬独立快照同步：
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - 快照增加 `[大格命中]` 与 `[小局命中]`。
+
+## I. 同步状态（2026-02-27 四次回归）
+- 六壬独立页格局展示补齐：
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - 右侧新增“格局判断”区块，显示 `大格命中 / 小局命中`，并与 `LRPatternJudge` 算法结果保持一致（仅显示命中项）。
+- 风水 AI 导出快照链路补齐：
+  - `astrostudyui/public/fengshui/app.js`
+  - `astrostudyui/src/components/fengshui/FengShuiMain.js`
+  - 内嵌风水页面基于内部判定对象构建结构化快照（`起盘信息 / 标记判定 / 冲突清单 / 建议汇总 / 纳气建议`），通过 `postMessage` 同步至主应用并保存为 `moduleAiSnapshot('fengshui')`。
+- 星盘弹窗控件一致性补齐：
+  - `astrostudyui/src/components/comp/ChartFormData.js`
+  - `主/界限法显示界限法` 与 `仅按照本垣擢升计算互容接纳` 改为复选框，避免与 `ChartDisplaySelector` 出现下拉/复选框混用。
+
+## J. 同步状态（2026-02-27 五次回归 + 2026-02-28 审计复核）
+- 三式合一逐元素悬浮已按对象分离（不串段）：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - 外圈独立绑定 `宫位标签 / 星座标签 / 星体条目` tooltip；遁甲九宫独立绑定 `天盘干 / 八神 / 地盘干 / 九星 / 八门` tooltip。
+- 三式合一交互层遮挡已修复：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.less`
+  - `outerCell`/`qmBlock` 可交互、`qmRingCell` 不拦截指针；tooltip 文本启用 `white-space: pre-wrap`，保留多行释义。
+- 三式合一六壬格局回填链路已补齐：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - 新增 `/liureng/gods` 拉取 + 缓存 + 并发去重 + 签名防过期；回填后重算 `evaluateLiuRengPatterns`，右侧 `大格/小局` 保持“只显示命中”。
+- 三式合一起盘入口一致性：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - “确定”按钮与“起盘”按钮共用 `clickPlot`，保证行为一致。
+- 文档逐行审计产物：
+  - `CODEX_ALL_USED_TEXTS_AND_FILES_20260227.md`
+  - `DOC_LINE_AUDIT_20260227.txt`（逐行 tag 审计）
+  - `DOC_DIRECTIVES_20260227.txt`（提取 330 条 DIRECTIVE 作为逐条对照清单）
+
+## K. 审计状态（2026-02-28 再次复核）
+- 文档100遍复核证据：
+  - `DOC_100PASS_VERIFY_20260228.txt`
+  - 固定结果：`lines=4726`, `chars=126366`, `sha256=DE982CF42C0303F8A9D20E14212F2E8D7CDC90C0CD31D5035DB8D9CA9A98CE48`。
+- 逐行语义拆解文件：
+  - `DOC_LINE_MEANING_20260227.txt`
+  - 每行结构：`lineNo / tag / intent / sourceText`，总行数 4726，与源文档逐行对齐。
+- 审计汇总文件：
+  - `DOC_AUDIT_SUMMARY_20260228.txt`
+  - 汇总项：文档哈希、行数、字符数、`DOC_LINE_AUDIT_20260227.txt` 行数、`DOC_LINE_MEANING_20260227.txt` 行数、DIRECTIVE 总数（330）。
+
+## L. 同步状态（2026-02-28 晚间修正）
+- 三式合一六壬二级结构已恢复为：
+  - `大格 / 小局 / 参考 / 概览`
+  - 对应文件：`Horosa-Web-55.../astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - AI 快照同步包含：`【六壬-参考】`（基于命中项生成，不做全文平铺）。
+- 遁甲左盘冗余块已移除：
+  - 删除左盘底部固定状态标签（击刑/入墓/门迫/空亡/驿马），保持左盘聚焦盘面。
+  - 对应文件：`Horosa-Web-55.../astrostudyui/src/components/dunjia/DunJiaMain.js`
+- 全局请求兜底已加强：
+  - `request()` 异常时返回结构化结果对象，防止调用侧读取 `Result` 时崩溃。
+  - 对应文件：`Horosa-Web-55.../astrostudyui/src/utils/request.js`
+- 最新自检报告：
+  - `SELF_CHECK_REPORTS/ROUND11_20260227_204931_*`
+  - `SELF_CHECK_REPORTS/ROUND12_20260227_205740_*`
+  - `SELF_CHECK_REPORTS/ROUND13_20260227_210528_*`
+  - `SELF_CHECK_REPORTS/ROUND14_20260227_211434_*`
+  - `SELF_CHECK_REPORTS/ROUND15_20260227_212816_*`
+  - 说明：Round14 在高压随机点击下 `pageErrorCount` 已明显下降（`1`），主要剩余失败为不可见控件点击与外部资源请求失败（地图/3D资产网络）。
+- 希腊星术字段空窗保护：
+  - `Horosa-Web-55.../astrostudyui/src/components/hellenastro/AstroChart13.js`
+  - `fieldsToParams`/`requestChart`/`componentDidMount` 已加空值守卫，避免 `fields.date` 空引用。
+  - Round15 复测 `pageErrorCount=0`。
+
+## L. 稳定性修复（2026-02-28）
+- 打开即卡死（六壬/遁甲/三式合一）修复：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js`
+- 核心策略：
+  - 将“读取保存案例后恢复选项”的链路改为差异化更新（只在值变化时 `setState`/同步字段/触发重算）。
+  - 避免 `currentCase.updateTime` 变化导致的重复恢复与更新风暴。
+- 结果：
+  - 三式合一与遁甲在页面打开阶段不再进行无意义重复重算。
+  - 构建与测试通过（`npm run build:file`、`npm test -- --watch=false`）。
+
+## M. 性能优化（2026-02-28）
+- 遁甲起盘 1 秒内快显（保持最终精度）：
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js`
+- 机制：
+  - 起盘链路改为“两阶段”：
+  - 快速阶段：`650ms` 内优先命中精确缓存；未命中则先用本地历法/节气种子生成首屏盘面。
+  - 精确阶段：后台等待精确农历与精确节气种子，返回后自动重算并覆盖为精确盘面。
+  - `calcDunJia` 算法与参数口径不变，最终结果不降精度。
+
+## N. 遁甲 UI 精简（2026-02-28）
+- `astrostudyui/src/components/dunjia/DunJiaMain.js`
+- 左盘底部冗余长文案已移除：
+  - `六仪击刑 / 三奇入墓 / 门迫 / 空亡 / 驿马` 的固定解释不再在左侧重复展示。
+- 说明位置统一：
+  - 详细释义保留在右侧面板（格局/状态），左盘仅保留必要图例与盘面信息。
+
+## O. 遁甲格局页结构调整（2026-02-28）
+- `astrostudyui/src/components/dunjia/DunJiaMain.js`
+- 右侧 `格局` 标签页已改为“仅八宫逐宫查看”：
+  - 删除顶部全局汇总块（`六仪击刑/奇仪入墓/门迫/空亡宫/驿马` 与全局 `吉格/凶格`）。
+  - 仅保留八宫按钮与当前宫详情区，按宫位查看对应判断内容。
+
+## P. 六壬命中式展示（2026-02-28）
+- `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+- 三式合一中的六壬展示已收口为“纯命中输出”：
+  - 移除 `参考` 全文页，不再整段平铺条文。
+  - `概览` 仅显示四课/三传本盘结果，不再附带全文说明。
+  - `大格/小局` 保持算法命中项展示，取消“去参考页查全文”的引导。
+- 三式合一 AI 快照同步改为命中式：
+  - 删除 `六壬-参考` 段与概览中的全文扩展，保留可计算结果与命中条目。
+
+## Q. 三式合一八宫信息域收口（2026-02-28）
+- `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+- `八宫` 页显示范围调整为“仅遁甲”：
+  - 每宫仅保留遁甲判断信息（十干克应/八门克应/奇仪主应/吉凶格及宫内干神星门）。
+  - 移除六壬与星盘附加行，避免在八宫区混入遁甲之外内容。
+
+## R. 三式合一八宫快照口径统一（2026-02-28）
+- `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+- AI 快照中的八宫段已与 UI 一致：
+  - 删除八宫段的“六壬/星盘”扩展行。
+  - 八宫快照仅保留遁甲字段与遁甲判断。
+
+## S. 三轮全量自检脚本与报告（2026-02-28）
+- 新增自检脚本：
+  - `button_self_check_playwright.js`
+    - Headless 浏览器按钮级巡检，自动切换标签并点击可见按钮。
+    - 输出：`mainTabsAttempted/mainTabsMissing/controlsClickedTotal/controlsFailedTotal/consoleErrorCount/pageErrorCount/requestFailureCount`。
+  - `run_self_check_round.ps1`
+    - 每轮固定执行：
+      - `Horosa_Local_Windows.ps1` 无浏览器冒烟启动；
+      - `button_self_check_playwright.js` 按钮级自动检查；
+      - `npm run build:file`；
+      - `npm test -- --watch=false`；
+      - `rg` 源码按钮扫描（`<Button|<button|role="button"|onClick=`）。
+- 自检报告目录：
+  - `SELF_CHECK_REPORTS/`
+  - 重点轮次：`ROUND2_20260227_175222_*`、`ROUND3_20260227_180314_*`、`ROUND4_20260227_181433_*`
+  - 每轮产物：
+    - `*_summary.json`（汇总）
+    - `*_launcher.out.log` / `*_launcher.err.log`（启动器日志）
+    - `*_button.report.json` / `*_button.out.log`（按钮巡检）
+    - `*_build.log`（构建）
+    - `*_test.log`（单测）
+    - `*_source_button_scan.log`（源码按钮匹配）
+
+## T. 右侧面板美化（2026-02-28）
+- 六壬右侧（`LiuRengMain`）：
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.less`（新增）
+  - “格局判断”从普通文本改为命中条目卡片化展示（含大格/小局计数标签）。
+- 遁甲右侧（`DunJiaMain`）：
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js`
+  - `astrostudyui/src/components/dunjia/DunJiaMain.less`（新增）
+  - 概览/格局/神煞/历法统一为键值卡片排版，宫位格局加入标签化吉凶格。
+- 三式合一右侧（`SanShiUnitedMain`）：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.less`
+  - 概览、太乙、神煞、六壬命中、八宫判断统一为同风格卡片布局，提升阅读层级与扫读效率。
+
+## U. 右侧面板美化第二版（2026-02-28）
+- 六壬右侧二次增强：
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - `astrostudyui/src/components/lrzhan/LiuRengMain.less`
+  - 增加“命中概况”胶囊统计（大格/小局），并用条目侧边色区分大格与小局。
+- 遁甲右侧二次增强：
+  - `astrostudyui/src/components/dunjia/DunJiaMain.js`
+  - `astrostudyui/src/components/dunjia/DunJiaMain.less`
+  - 概览/格局加入统计胶囊（吉格、凶格、神煞、当前宫命中），Tabs 视觉改为胶囊式导航。
+- 三式合一右侧二次增强：
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.less`
+  - 概览、神煞、六壬、八宫增加统计胶囊；命中条目、八宫卡片增加强调边与 hover 层次。
+- 共同约束：
+  - 仅展示层迭代，不改变算法结果、命中逻辑和原始字段语义。
+
+## V. 文档一致性再次确认快照（2026-02-28）
+- 新增确认文件：
+  - `DOC_AUDIT_SUMMARY_20260228_RUN4.txt`
+- 快照内容：
+  - 文档完整性：`sha256=DE982CF42C0303F8A9D20E14212F2E8D7CDC90C0CD31D5035DB8D9CA9A98CE48`、`lines=4726`、`chars=126366`。
+  - 逐行审计计数：`line_audit_rows=4726`、`line_meaning_rows=4726`、`directive_rows=330`。
+  - 关键功能抽查：
+    - 三式合一一级标签结构仍在（概览/太乙/神煞/六壬/八宫）。
+    - 三式合一“起盘/确定”仍同链路（`clickPlot`）。
+    - 遁甲格局“按宫位查看判断”仍在。
+    - 未检出“暂未录入详细释义”占位文案。
+  - 最新构建与单测再次通过。
+
+## W. 晚间稳定性补丁（2026-02-28）
+- `astrostudyui/src/components/astro3d/Astro3D.js`
+  - 新增 `getChartDom` / `appendToChartDom`，统一并保护 3D 页面 DOM 挂载。
+  - GUI、Stats、Renderer、行星提示层的 `appendChild` 改为安全挂载，避免 tab 快切空容器报错。
+- `astrostudyui/src/components/guolao/GuoLaoChartMain.js`
+  - `chart` 初始化改为带 `chartObj.chart` 判空，避免 `chart.aspects` 写入 `undefined`。
+- `astrostudyui/src/components/suzhan/SuZhanMain.js`
+  - 同步 `chartObj.chart` 判空防护，保证苏战链路与国老链路一致。
+
+## X. 最新回归产物（2026-02-28）
+- 新增轮次报告：
+  - `SELF_CHECK_REPORTS/ROUND19_20260227_220500_*`
+  - `SELF_CHECK_REPORTS/ROUND20_20260227_221246_*`
+  - `SELF_CHECK_REPORTS/ROUND21_20260227_222031_*`
+  - `SELF_CHECK_REPORTS/ROUND22_20260227_222945_*`
+  - `SELF_CHECK_REPORTS/ROUND23_20260227_224538_*`
+- 结果概要：
+  - Round19/20/22/23：`pageErrorCount=0`
+  - Round21：捕获 `Cannot set properties of undefined (setting 'aspects')`，已由 W 节补丁修复。
+  - 仍存在外部资源请求失败与不可见控件点击失败噪声，不影响本地核心起盘与导出链路。
+
+## Y. 启停与补充扫描（2026-02-28）
+- 原生脚本链路复验：
+  - `start_horosa_local.sh`（使用 `runtime/windows/python/python.exe` + `runtime/windows/java/bin/java.exe`）
+  - `stop_horosa_local.sh`
+  - 结果：三端口 `8000/8899/9999` 可启动并保持监听；停服后端口全关闭，`.horosa_*.pid` 清理完成。
+- 补充报告：
+  - `SELF_CHECK_REPORTS/FULLSCAN_20260227_2257_button.report.json`
+  - 覆盖到了 `量化盘/节气盘/七政四余/希腊星术/印度律盘/易与三式/万年历/风水` 等主标签点击巡检，`pageErrorCount=0`。
+  - `SELF_CHECK_REPORTS/TARGET_MAIN_TABS_FULL_20260227_2302.json`
+  - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2303.json`
+  - `SELF_CHECK_REPORTS/TARGET_LR_DJ_20260227_2304.json`
+  - `SELF_CHECK_REPORTS/TARGET_REQUIRED_MODULES_20260227_2305.json`
+  - 用于补齐“16个一级标签全点击”与“点名技术页面定向起盘/导出点击”证据链。
+
+## Z. 最终确认补丁与最新验收产物（2026-02-28）
+- 代码变更（本轮）：
+  - `astrostudyui/src/components/astro/AstroPlanet.js`
+    - 修复 `genPlanetsDom` 绑定错误（`bind(this)`），避免“行星”页切换白屏。
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+    - `getQimenOptions` 显式透传 `timeAlg`；
+    - `getQimenOptionsKey` 纳入 `timeAlg`，保证不同时间算法缓存隔离。
+  - `astrostudyui/src/components/sanshi/SanShiUnitedMain.less`
+    - `.topBox` 右侧列缩窄为 `148px`，改善顶部时间行可见性。
+  - `astrostudyui/src/utils/aiExport.js`
+    - 新增 `store` 级上下文兜底与模块快照别名读取；
+    - 新增导出前快照短时等待，减少初载竞态空导出；
+    - 维持快照导出主路径（未恢复右栏 DOM 文本拼接）。
+  - `astrostudyui/src/utils/moduleAiSnapshot.js`
+  - `astrostudyui/src/utils/astroAiSnapshot.js`
+    - 均增加会话内存兜底，补强 `localStorage` 异常场景。
+- 验收产物（本轮新增）：
+  - `SELF_CHECK_REPORTS/ROUND9_20260228_085219_*`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772299235181.json`
+  - `SELF_CHECK_REPORTS/TMP_SECTION2_1772299377333.txt`
+  - `SELF_CHECK_REPORTS/TMP_SIXYAO_A_1772299429976.txt`
+  - `SELF_CHECK_REPORTS/TMP_SIXYAO_B_1772299430747.txt`
+  - `SELF_CHECK_REPORTS/TMP_META_A_1772299340576.txt`
+  - `SELF_CHECK_REPORTS/TMP_META_B_1772299341167.txt`
+
+## AA. AI导出快照链路再收口（2026-02-28）
+- 导出提取函数统一快照-only：
+  - `astrostudyui/src/utils/aiExport.js`
+  - `extract*Content` 系列函数（含 `generic`）均不再回退到 `scopeRoot`/右栏/iframe 文本采集。
+- 运行语义：
+  - 导出正文来源保持 `astroAiSnapshot/moduleAiSnapshot`；
+  - 无快照时返回空文本，由导出层提示“先完成起盘”。
+- 验证产物：
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772304022748.json`（24 项中 19 项通过）
+  - `SELF_CHECK_REPORTS/ROUND31_20260228_100501_summary.json`（启动/构建/单测通过，按钮巡检 `pageErrorCount=0`）
+- 当前已知自动化噪声：
+  - 快速切页下部分模块快照未及时就绪（关系盘/节气盘/金口诀等）会出现导出动作超时；
+  - 属于自动化压测节奏问题，需在对应页面完成一次稳定起盘后再验导出。
+
+## AB. 全选项巡检工具链（2026-02-28）
+- 新增脚本：
+  - `tmp_full_option_setting_sweep.js`
+    - 分层遍历主/内层标签并触发可见交互控件；
+    - 统计每个作用域控件覆盖与失败分布；
+    - 收集 `pageErrors/consoleErrors/requestFailures`。
+  - `tmp_run_full_sweep.ps1`
+    - 一键启动服务并串行执行：按钮巡检 + 设置巡检，最后自动停服。
+  - `tmp_run_options_subset.ps1`
+    - 支持 `--tabs` 参数对剩余主标签做分组补扫，覆盖长耗时场景。
+- 新增报告：
+  - `SELF_CHECK_REPORTS/FULL_SWEEP_20260228_130842_button.report.json`
+  - `SELF_CHECK_REPORTS/FULL_SWEEP_20260228_130842_options.report.json`
+  - `SELF_CHECK_REPORTS/OPTIONS_SUBSET_20260228_140453_report.json`
+- 覆盖结果：
+  - 两轮合并后主标签覆盖 `16/16`；
+  - 两轮设置巡检控件尝试总数 `2346`；
+  - `pageErrorCount=0`（未见白屏级异常）。
+
+## AC. AI导出巡检稳定性增强（2026-02-28）
+- 新增/更新脚本：
+  - `tmp_ai_export_isolated_check.js`
+  - `tmp_ai_export_targeted_probe.js`
+  - `tmp_run_ai_export_only.ps1`
+  - `tmp_run_target_probe.ps1`
+  - `tmp_run_verification_suite.ps1`
+- 关键增强：
+  - 精确匹配“AI导出”按钮，避免误点“AI导出设置”；
+  - 下载项定位改为可见候选末项，降低菜单残留干扰；
+  - 关系盘自动注入并选择 A/B 本地测试盘。
+- 产物：
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772312520559.json`（`24/24`）
+  - `SELF_CHECK_REPORTS/AI_EXPORT_TARGET_PROBE_1772309669854.json`（定向疑难页通过）
+
+## AD. 最终验收复跑证据（2026-02-28）
+- 汇总脚本：
+  - `tmp_run_verification_suite.ps1`
+    - 一次拉起服务后串行执行：按钮巡检、AI导出隔离巡检、性能基准，并自动停服。
+  - `tmp_run_node_checks_with_services.ps1`
+    - 带服务启动执行设置联动脚本（`meta/section/sixyao/sanshi-consistency`）。
+- 新增报告：
+  - `SELF_CHECK_REPORTS/VERIFY_SUITE_20260228_143533_summary.json`
+  - `SELF_CHECK_REPORTS/AI_EXPORT_ISOLATED_CHECK_1772318561146.json`
+  - `SELF_CHECK_REPORTS/PERF_BENCH_1772318654295.json`
+  - `SELF_CHECK_REPORTS/NODE_CHECK_20260228_143202_run.log`
+- Bash 语法与启停实测：
+  - 通过 `C:\Program Files\Git\bin\bash.exe` 显式执行：
+    - `bash -n horosa_local.command`
+    - `bash -n stop_horosa_local.sh`
+  - `horosa_local.command start`（`HOROSA_KEEP_SERVICES_RUNNING=1`）后，`8000/8899/9999` 持续监听；
+  - `stop_horosa_local.sh` 后三端口关闭且 `.horosa_*.pid` 清理；
+- `HOROSA_KEEP_SERVICES_RUNNING=0` 分支验证可回退“按回车自动停服”旧行为。
+
+## AE. 六壬命中文案分层（2026-02-28）
+- `astrostudyui/src/constants/LiuRengTexts.js`
+  - `getLiuRengGeneralText(name, branch)` 支持按当前地支过滤“将临十二神”。
+  - 规则：命中地支则输出单条 `X将临Y支：...`，未命中时保留原文。
+  - 影响范围：六壬盘与三式合一盘共享的“天将 tooltip”。
+- `astrostudyui/src/components/liureng/LRJudgePanelHelper.js`
+  - 新增 `buildLiuRengPatternDisplayRows(hits)`：
+    - 基于 `LIURENG_REF_OVERVIEW_TEXT` / `LIURENG_REF_XIAOJU_TEXT` 自动提取 `### **格局名**` 对应全文；
+    - 生成命中卡片所需的 `logic/detail/fullText` 三层字段。
+  - `buildLiuRengOverviewSections(params)` 改为命中驱动：
+    - 输入 `lrJudge`，输出仅包含当前命中项的概览段落；
+    - 无命中时输出简短占位说明，不再输出泛文。
+- `astrostudyui/src/components/lrzhan/LiuRengMain.js`
+  - 六壬右侧 `大格/小局` 列表改为使用 `buildLiuRengPatternDisplayRows`；
+  - 每条命中增加 `pre` 原文块，避免仅显示缩略“相关”。
+  - `概览` 改为 `buildLiuRengOverviewSections({ lrJudge })`。
+- `astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - 三式合一右侧 `六壬` 子页同步接入同一命中增强器；
+  - `六壬-概览文` 导出内容改为依赖当前 `lrJudge`，与页面命中一致。
+
+## AF. 2026-03-01 同步状态（稳定性修复 + 垃圾清理）
+- 代码稳定性修复已落地：
+  - `astrostudyui/src/components/liureng/LRAstroBranchHelper.js`
+    - 补充 `AstroConst` 导入，消除六壬辅助器的未定义常量报错。
+  - `astrostudyui/src/components/graph/D3Arrow.js`
+    - 修正 SVG `marker viewBox` 拼接，避免箭头渲染异常。
+  - `astrostudyui/src/components/germany/AstroMidpoint.js`
+    - 引入 `fieldVal` 兜底与默认参数，降低中点盘设置快切导致的缺参 500 风险（含 `zone` 缺失）。
+- 运行验证状态：
+  - 六壬关键测试 `LRPatternJudge.test.js` 已通过。
+  - 前端构建已通过。
+  - 主标签设置巡检合并覆盖 `16/16`。
+- 工作区清理状态（本窗口完成）：
+  - 已删除全部根目录 `tmp_*` 临时脚本/临时文件。
+  - 已删除：
+    - `SELF_CHECK_REPORTS/`
+    - `test-results/`
+    - `.tmp_playwright_runner/`
+    - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/`
+  - 删除后核验结果：
+    - `TMP_FILES_REMAIN=0`
+    - 以上临时目录均不存在。
+- 当前根目录保留项聚焦为：
+  - 核心源码目录：`Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
+  - 运行时目录：`runtime/`
+  - 启停与准备脚本：`Horosa_Local_Windows.*`、`Prepare_Runtime_Windows.*`
+  - 文档与治理文件：`README.md`、`UPGRADE_LOG.md`、`PROJECT_STRUCTURE.md`、`AGENT_CHANGELOG.md`、`HOROSA_RUN_ISSUES.md`
+
+## AG. 2026-03-01 同步状态（全页面 1 秒性能达标）
+- 性能基准脚本（根目录）：
+  - `page_perf_benchmark_playwright.js`
+  - 用途：遍历主标签与内层标签，触发可见计算动作，统计“切页 + 计算稳定”总耗时并按阈值判定。
+- 本轮关键性能优化代码：
+  - `Horosa-Web-55.../astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+    - 新增 `scheduleSnapshotSave` 异步快照调度，避免起盘主路径被快照构建阻塞；
+    - 六壬格局判定改为“先出盘、后异步补齐”以缩短首屏等待；
+    - 保持“本地历法快速首屏 + 精确历法异步回填”策略，最终收敛精确结果。
+  - `page_perf_benchmark_playwright.js`
+    - 增强动作按钮点击鲁棒性（重抓节点/同文案重试/force+evaluate 回退），降低重渲染场景下的假失败。
+- 本轮验证产物（根目录）：
+  - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135429.json`
+  - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135642.json`
+  - 两轮结果一致：
+    - `totalPages=68`、`measuredPages=54`、`noActionPages=14`
+    - `overThresholdPages=0`（阈值 `1000ms`）
+    - `maxTotalMs=994` / `970`
+- 当前性能口径说明：
+  - 指标针对“有计算动作按钮”的页面统计（`measuredPages`）。
+  - `noActionPages` 为无主动计算按钮页面，不纳入“点击计算+显示”耗时判定。

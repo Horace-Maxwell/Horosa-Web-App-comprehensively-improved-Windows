@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<contextName>i100cServer</contextName> 
+	
+	<!--定义时间戳 -->
+	<timestamp key="byDay" datePattern="yyyy-MM-dd" />
+
+	<!--定义指定文件名称的输出 -->
+	<appender name="RootFileAppender" class="ch.qos.logback.core.FileAppender">
+		<!--此处设定的文件名称是动态设置的 即每天生成一个文件用于记录当天的文件信息 -->
+		<file>/file/log/i100cserver-${byDay}.log</file>
+		<append>true</append>
+
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+		    <pattern>%d{yyyy-MM-dd HH:mm:ss}, %p, %c, %t, %F, %L, %C{1}.%M, %m%n</pattern>
+		</encoder>
+		
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>debug</level>
+		</filter>
+		<!--过滤器指定该类的日志级别 -->
+	</appender>
+
+	<!--定义控制台输出 -->
+	<appender name="RootConsoleAppender" class="ch.qos.logback.core.ConsoleAppender">
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>debug</level>
+		</filter>
+
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+		    <pattern>%d{yyyy-MM-dd HH:mm:ss}, %p, %c, %t, %F, %L, %C{1}.%M, %m%n</pattern>
+		</encoder>
+	</appender>
+
+	<!-- 设置根 的日志级别，根元素是配置文件的入口 -->
+	<root>
+		<level value="info" />
+		<appender-ref ref="RootFileAppender" /> <!-- 配置对RootFileAppender的引用 -->
+		<appender-ref ref="RootConsoleAppender" /> <!-- 配置对RootConsoleAppender的引用 -->
+	</root>
+	
+	
+	<appender name="ShengHongServerFileAppender" class="ch.qos.logback.core.FileAppender">
+		<!--此处设定的文件名称是动态设置的 即每天生成一个文件用于记录当天的文件信息 -->
+		<file>/file/log/shenghongserver-${byDay}.log</file>
+		<append>true</append>
+
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+		    <pattern>%d{yyyy-MM-dd HH:mm:ss}, %p, %c, %t, %F, %L, %C{1}.%M, %m%n</pattern>
+		</encoder>
+		
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>debug</level>
+		</filter>
+		<!--过滤器指定该类的日志级别 -->
+	</appender>
+	
+	<appender name="PutianServerFileAppender" class="ch.qos.logback.core.FileAppender">
+		<!--此处设定的文件名称是动态设置的 即每天生成一个文件用于记录当天的文件信息 -->
+		<file>/file/log/putianserver-${byDay}.log</file>
+		<append>true</append>
+
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+		    <pattern>%d{yyyy-MM-dd HH:mm:ss}, %p, %c, %t, %F, %L, %C{1}.%M, %m%n</pattern>
+		</encoder>
+		
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>debug</level>
+		</filter>
+		<!--过滤器指定该类的日志级别 -->
+	</appender>
+	
+	<appender name="MgmtServerFileAppender" class="ch.qos.logback.core.FileAppender">
+		<!--此处设定的文件名称是动态设置的 即每天生成一个文件用于记录当天的文件信息 -->
+		<file>/file/log/mgmtserver-${byDay}.log</file>
+		<append>true</append>
+
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+		    <pattern>%d{yyyy-MM-dd HH:mm:ss}, %p, %c, %t, %F, %L, %C{1}.%M, %m%n</pattern>
+		</encoder>
+		
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>debug</level>
+		</filter>
+		<!--过滤器指定该类的日志级别 -->
+	</appender>
+	
+	<appender name="DatabaseFileAppender" class="ch.qos.logback.core.FileAppender">
+		<!--此处设定的文件名称是动态设置的 即每天生成一个文件用于记录当天的文件信息 -->
+		<file>/file/log/db-server-${byDay}.log</file>
+		<append>true</append>
+
+		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+		    <pattern>%d{yyyy-MM-dd HH:mm:ss}, %p, %c, %t, %F, %L, %C{1}.%M, %m%n</pattern>
+		</encoder>
+		
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>debug</level>
+		</filter>
+		<!--过滤器指定该类的日志级别 -->
+	</appender>
+	
+	<logger name="shenghongcommunicate" additivity="false" level="INFO">
+		<appender-ref ref="ShengHongServerFileAppender" />
+		<appender-ref ref="RootConsoleAppender" /> <!-- 配置对RootConsoleAppender的引用 -->
+	</logger>
+
+	<logger name="putiancommunicate" additivity="false" level="INFO">
+		<appender-ref ref="PutianServerFileAppender" />
+		<appender-ref ref="RootConsoleAppender" /> <!-- 配置对RootConsoleAppender的引用 -->
+	</logger>
+
+	<logger name="mgmtcommunicate" additivity="false" level="INFO">
+		<appender-ref ref="MgmtServerFileAppender" />
+		<appender-ref ref="RootConsoleAppender" /> <!-- 配置对RootConsoleAppender的引用 -->
+	</logger>
+
+	<logger name="database" additivity="false" level="DEBUG">
+		<appender-ref ref="DatabaseFileAppender" />
+		<appender-ref ref="RootConsoleAppender" /> <!-- 配置对RootConsoleAppender的引用 -->
+	</logger>
+
+</configuration>
+

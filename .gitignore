@@ -9,16 +9,16 @@
 *.err
 *.tmp
 .tmp_*
-HOROSA_RUN_ISSUES.md
+log/HOROSA_RUN_ISSUES.md
 
 # Local Horosa runtime artifacts
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs/
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-browser-profile/
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-browser-profile-win/
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/${sys:user.home}/
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa_win_*.pid
-Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa_win_*.lock
+**/.horosa-local-logs/
+**/.horosa-local-logs-win/
+**/.horosa-browser-profile/
+**/.horosa-browser-profile-win/
+**/.horosa_win_*.pid
+**/.horosa_win_*.lock
+**/${sys:user.home}/
 
 # JS/TS
 **/node_modules/
@@ -41,6 +41,14 @@ Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa_win_*.lock
 .claude/
 
 # Bundled runtimes (too large for regular Git push)
+local/workspace/runtime/mac/java/
+local/workspace/runtime/mac/python/
+local/workspace/runtime/windows/java/
+local/workspace/runtime/windows/python/
+local/workspace/runtime/windows/wheels/
+local/workspace/runtime/windows/bundle/astrostudyboot.jar
+
+# Legacy path compatibility
 runtime/mac/java/
 runtime/mac/python/
 runtime/windows/java/

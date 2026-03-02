@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:p="http://www.springframework.org/schema/p" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xsi:schemaLocation="
+    http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/context
+    http://www.springframework.org/schema/context/spring-context.xsd
+    http://www.springframework.org/schema/mvc
+    http://www.springframework.org/schema/mvc/spring-mvc.xsd">
+	
+    
+    <bean id="propertyConfiguration" class="boundless.spring.help.PropertyPlaceholder">
+		<property name="fileEncoding" value="UTF-8" />
+ 		<property name="locations">
+			<list>
+				<value>classpath*:conf/properties/log.properties</value>
+				<value>classpath*:conf/properties/jdbc.properties</value>
+				<value>classpath*:conf/properties/param/webparams.properties</value>
+				<value>classpath*:conf/properties/param/params.properties</value>
+			    <value>classpath*:conf/properties/msg/msg.properties</value>
+				<value>classpath*:conf/properties/msg/error.properties</value>
+			</list>
+		</property>
+ 		<property name="yamlLocations">
+			<list>
+				<value>classpath*:conf/yaml/params.yml</value>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="cacheFactory" class="boundless.types.cache.CacheFactory">
+	    <property name="config" value="classpath:conf/properties/cache/caches.json" />
+	</bean>	
+	
+<!-- 	
+ 	<bean id="mqFactory" class="boundless.types.mq.MsgQueueFactory">
+	    <property name="config" value="classpath:conf/properties/queue/queues.json" />
+	</bean>	
+
+ 	<bean id="cloudStorageFactory" class="boundless.types.storage.CloudStorageFactory">
+	    <property name="config" value="classpath:conf/properties/storage/storages.json" />
+	</bean>	
+
+ 	<import resource="classpath*:/conf/spring-mybatis.xml" />
+ -->
+  	
+ 	<import resource="classpath*:/conf/spring-mvc.xml" />
+ 	<import resource="classpath*:/conf/beans.xml" />
+ 
+	
+		
+</beans>

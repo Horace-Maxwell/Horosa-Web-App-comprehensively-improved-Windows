@@ -1,0 +1,7 @@
+{
+	"mqfactoryclass": [{
+		"name": "mqttqueue",
+		"class": "boundless.types.mq.mqtt.MqttQueueFactory",
+		"config": "classpath:conf/properties/queue/mqtt.properties"
+	}]
+}

@@ -1,0 +1,11 @@
+{
+	"cloudstoragefactoryclass": [{
+		"name": "bos",
+		"class": "boundless.types.storage.bos.BosStorageFactory",
+		"config": "classpath:conf/properties/storage/bos.properties"
+	},{
+		"name": "fdfs",
+		"class": "boundless.types.storage.fdfs.FastDfsFactory",
+		"config": "classpath:conf/properties/storage/fdfs.properties"
+	}]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "horosa-web-app-comprehensively-improved-windows-main",
+  "version": "1.0.0",
+  "description": "本文档对应当前根目录结构，目标是双击即可本地运行，数据本地保存。   注意：仅 Git 克隆工作树不等于“可运行分发包”；可运行分发包必须包含 `runtime/` 与 `runtime/windows/bundle/` 的关键资产。",
+  "main": "button_self_check_playwright.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/issues"
+  },
+  "homepage": "https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows#readme",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

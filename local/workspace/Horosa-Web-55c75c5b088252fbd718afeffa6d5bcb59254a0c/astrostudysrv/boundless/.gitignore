@@ -1,0 +1,12 @@
+/target/
+/.settings/
+.DS_Store
+.settings
+
+/.apt_generated/
+/.apt_generated_tests/
+
+.idea
+/.idea/
+/.idea/libraries/
+.iml

@@ -1,0 +1,1135 @@
+import { Component } from 'react';
+import { Row, Col, Card, Tag, Button, Divider, Select, InputNumber, Input, Checkbox, Modal, message, Tabs } from 'antd';
+import * as Constants from '../../utils/constants';
+import request from '../../utils/request';
+import * as AstroConst from '../../constants/AstroConst';
+import {randomStr, randomNum, littleEndian,} from '../../utils/helper';
+import * as LRConst from '../liureng/LRConst';
+import { ZSList, ZhangSheng, } from '../liureng/LRZhangSheng';
+import ChuangChart from '../liureng/ChuangChart';
+import LiuRengChart from './LiuRengChart';
+import LiuRengInput from './LiuRengInput';
+import LiuRengBirthInput from './LiuRengBirthInput';
+import DateTime from '../comp/DateTime';
+import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import {
+	evaluateLiuRengPatterns,
+} from '../liureng/LRPatternJudge';
+import {
+	mergeLiurengSunMoonXiu,
+} from '../liureng/LRAstroBranchHelper';
+import {
+	buildLiuRengReferenceRows as buildUnifiedLiuRengReferenceRows,
+	buildLiuRengPatternDisplayRows,
+	buildLiuRengOverviewSections,
+	splitLiuRengPatternHitsForPanels,
+} from '../liureng/LRJudgePanelHelper';
+import { renderMarkdownLiteBlock } from '../../utils/markdownLiteReact';
+import styles from './LiuRengMain.less';
+
+
+const InputGroup = Input.Group;
+const {Option} = Select;
+const TabPane = Tabs.TabPane;
+const RIGHT_PANEL_BOTTOM_GAP = 12;
+const RIGHT_PANEL_MIN_HEIGHT = 180;
+
+function getViewportHeight(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
+		return window.innerHeight;
+	}
+	if(typeof document !== 'undefined' && document.documentElement){
+		return document.documentElement.clientHeight || 900;
+	}
+	return 900;
+}
+
+function cloneDateTimeSafe(val, fallback){
+	if(val && val instanceof DateTime){
+		return val.clone();
+	}
+	if(fallback && fallback instanceof DateTime){
+		return fallback.clone();
+	}
+	return new DateTime();
+}
+
+function cloneChartSnapshot(chartObj){
+	if(!chartObj || typeof chartObj !== 'object'){
+		return null;
+	}
+	try{
+		return JSON.parse(JSON.stringify(chartObj));
+	}catch(e){
+		return chartObj;
+	}
+}
+
+function buildBirthFields(source, fallbackNow){
+	const now = fallbackNow && fallbackNow instanceof DateTime ? fallbackNow : new DateTime();
+	const src = source || {};
+	const dateVal = src.date && src.date.value ? cloneDateTimeSafe(src.date.value, now.startOf('date')) : now.startOf('date');
+	const timeVal = src.time && src.time.value ? cloneDateTimeSafe(src.time.value, now) : now.clone();
+	return {
+		date: { value: dateVal },
+		time: { value: timeVal },
+		ad: { value: src.ad && src.ad.value !== undefined ? src.ad.value : now.ad },
+		zone: { value: src.zone && src.zone.value ? src.zone.value : now.zone },
+		lat: { value: src.lat && src.lat.value ? src.lat.value : Constants.DefLat },
+		lon: { value: src.lon && src.lon.value ? src.lon.value : Constants.DefLon },
+		gpsLat: { value: src.gpsLat && src.gpsLat.value !== undefined ? src.gpsLat.value : Constants.DefGpsLat },
+		gpsLon: { value: src.gpsLon && src.gpsLon.value !== undefined ? src.gpsLon.value : Constants.DefGpsLon },
+		gender: { value: src.gender && src.gender.value !== undefined ? src.gender.value : 1 },
+		after23NewDay: { value: src.after23NewDay && src.after23NewDay.value !== undefined ? src.after23NewDay.value : 0 },
+	};
+}
+
+function fmtValue(value){
+	if(value === undefined || value === null || value === ''){
+		return '无';
+	}
+	if(value instanceof Array){
+		return value.join('、') || '无';
+	}
+	return `${value}`;
+}
+
+function cleanKey(key){
+	const txt = `${key || ''}`;
+	const idx = txt.indexOf('(');
+	if(idx >= 0){
+		return txt.substring(0, idx);
+	}
+	return txt;
+}
+
+function orderedMapKeys(obj, preferred){
+	if(!obj || typeof obj !== 'object'){
+		return [];
+	}
+	const allKeys = Object.keys(obj);
+	if(!preferred || !preferred.length){
+		return allKeys;
+	}
+	const out = [];
+	const seen = new Set();
+	preferred.forEach((key)=>{
+		if(Object.prototype.hasOwnProperty.call(obj, key)){
+			out.push(key);
+			seen.add(key);
+		}
+	});
+	allKeys.forEach((key)=>{
+		if(!seen.has(key)){
+			out.push(key);
+		}
+	});
+	return out;
+}
+
+function appendMapSectionOrdered(lines, title, obj, preferredKeys){
+	lines.push(`[${title}]`);
+	if(!obj || typeof obj !== 'object'){
+		lines.push('无');
+		lines.push('');
+		return;
+	}
+	const keys = orderedMapKeys(obj, preferredKeys);
+	if(!keys.length){
+		lines.push('无');
+		lines.push('');
+		return;
+	}
+	keys.forEach((key)=>{
+		lines.push(`${cleanKey(key)}：${fmtValue(obj[key])}`);
+	});
+	lines.push('');
+}
+
+function getGuiRengSystemLabel(guirengType){
+	return guirengType === 0 ? '六壬法贵人' : (guirengType === 1 ? '遁甲法贵人' : '星占法贵人');
+}
+
+function normalizeMultiline(raw){
+	return `${raw === undefined || raw === null ? '' : raw}`.replace(/\r\n/g, '\n').trim();
+}
+
+function getLiuRengPanStyle(layout){
+	const monthBranch = layout && layout.yue ? `${layout.yue}` : '';
+	const timeBranch = layout && layout.timezi ? `${layout.timezi}` : '';
+	const monthIdx = LRConst.ZiList.indexOf(monthBranch);
+	const timeIdx = LRConst.ZiList.indexOf(timeBranch);
+	if(monthIdx < 0 || timeIdx < 0){
+		return {
+			name: '未知式',
+			yue: monthBranch || '无',
+			time: timeBranch || '无',
+			position: '未知',
+		};
+	}
+	const delta = (monthIdx - timeIdx + 12) % 12;
+	if(delta === 0){
+		return {
+			name: '伏吟式',
+			yue: monthBranch,
+			time: timeBranch,
+			position: '原位',
+		};
+	}
+	if(delta === 6){
+		return {
+			name: '返吟式',
+			yue: monthBranch,
+			time: timeBranch,
+			position: '对冲',
+		};
+	}
+	return {
+		name: '常式',
+		yue: monthBranch,
+		time: timeBranch,
+		position: `偏移${delta}位`,
+	};
+}
+
+function appendPatternSection(lines, title, rows, emptyText){
+	lines.push(`[${title}]`);
+	const list = rows && rows.length ? rows : [];
+	if(!list.length){
+		lines.push(emptyText || '无');
+		lines.push('');
+		return;
+	}
+	list.forEach((item, idx)=>{
+		const name = fmtValue(item && item.name ? item.name : '未命名格局');
+		const logic = `${item && (item.logic || item.basis) ? `${item.logic || item.basis}` : '命中'}`.trim();
+		const detail = `${item && item.detail ? item.detail : ''}`.trim();
+		const fullText = normalizeMultiline(item && item.fullText ? item.fullText : '');
+		lines.push(`${idx + 1}. ${name}`);
+		if(fullText){
+			fullText.split('\n').forEach((line)=>lines.push(line));
+		}else{
+			lines.push(logic);
+		}
+		lines.push(`依据：${logic}${detail ? `；${detail}` : ''}`);
+		if(idx < list.length - 1){
+			lines.push('');
+		}
+	});
+	lines.push('');
+}
+
+function appendOverviewSection(lines, sections){
+	lines.push('[概览]');
+	const blocks = [];
+	(sections || []).forEach((section)=>{
+		const titleBase = `${section && section.title ? section.title : '命中概览'}`.replace('（命中条文）', '').trim();
+		const content = normalizeMultiline(section && section.content ? section.content : '');
+		if(!content){
+			return;
+		}
+		content.split(/\n{2,}/).map((blk)=>blk.trim()).filter((blk)=>!!blk).forEach((blk)=>{
+			const rawLines = blk.split('\n').map((line)=>line.trim()).filter((line)=>!!line);
+			if(!rawLines.length){
+				return;
+			}
+			if(rawLines.length === 1 || rawLines[0].indexOf('当前盘面暂无命中') === 0){
+				blocks.push({
+					title: titleBase || '命中概览',
+					bodyLines: rawLines,
+					evidence: section && section.title ? section.title : '命中条文自动判定',
+				});
+				return;
+			}
+			blocks.push({
+				title: `${titleBase || '命中概览'} · ${rawLines[0]}`,
+				bodyLines: rawLines.slice(1),
+				evidence: section && section.title ? section.title : '命中条文自动判定',
+			});
+		});
+	});
+
+	if(!blocks.length){
+		lines.push('无');
+		lines.push('');
+		return;
+	}
+
+	blocks.forEach((item, idx)=>{
+		lines.push(`${idx + 1}. ${item.title}`);
+		(item.bodyLines || []).forEach((line)=>lines.push(line));
+		lines.push(`依据：${item.evidence}`);
+		if(idx < blocks.length - 1){
+			lines.push('');
+		}
+	});
+	lines.push('');
+}
+
+function getChartYue(chartObj){
+	if(!chartObj || !chartObj.objects){
+		return '';
+	}
+	for(let i=0; i<chartObj.objects.length; i++){
+		const obj = chartObj.objects[i];
+		if(obj.id === AstroConst.SUN){
+			return LRConst.getSignZi(obj.sign);
+		}
+	}
+	return '';
+}
+
+function buildLiuRengLayout(chartObj, nongli, guirengType){
+	if(!chartObj || !nongli || !nongli.time){
+		return null;
+	}
+	const yue = getChartYue(chartObj);
+	if(!yue){
+		return null;
+	}
+	const downZi = LRConst.ZiList.slice(0);
+	const upZi = LRConst.ZiList.slice(0);
+	const yueIndexs = [];
+	const timezi = nongli.time.substr(1);
+	const yueIdx = LRConst.ZiList.indexOf(yue);
+	const tmIdx = LRConst.ZiList.indexOf(timezi);
+	if(yueIdx < 0 || tmIdx < 0){
+		return null;
+	}
+	const delta = yueIdx - tmIdx;
+	for(let i=0; i<12; i++){
+		const idx = (i + delta + 12) % 12;
+		yueIndexs[i] = idx;
+		upZi[i] = LRConst.ZiList[idx];
+	}
+
+	const houseTianJiang = LRConst.TianJiang.slice(0);
+	const guizi = LRConst.getGuiZi({
+		nongli: {
+			dayGanZi: nongli.dayGanZi,
+		},
+		isDiurnal: chartObj ? chartObj.isDiurnal : true,
+	}, guirengType);
+	let houseidx = 0;
+	for(let i=0; i<12; i++){
+		const zi = LRConst.ZiList[yueIndexs[i]];
+		if(zi === guizi){
+			houseidx = i;
+			break;
+		}
+	}
+	const housezi = LRConst.ZiList[houseidx];
+	if(LRConst.SummerZiList.indexOf(housezi) >= 0){
+		for(let i=0; i<12; i++){
+			const idx = (houseidx - i + 12) % 12;
+			houseTianJiang[i] = LRConst.TianJiang[idx];
+		}
+	}else{
+		for(let i=0; i<12; i++){
+			const idx = (i - houseidx + 12) % 12;
+			houseTianJiang[i] = LRConst.TianJiang[idx];
+		}
+	}
+
+	return {
+		yue,
+		timezi,
+		guizi,
+		downZi,
+		upZi,
+		houseTianJiang,
+	};
+}
+
+function buildKeData(layout, nongli){
+	const result = {
+		raw: [],
+		lines: [],
+	};
+	if(!layout || !nongli || !nongli.dayGanZi){
+		return result;
+	}
+	const dayGanZi = nongli.dayGanZi;
+	const daygan = dayGanZi.substr(0, 1);
+	const dayzi = dayGanZi.substr(1, 1);
+
+	const idx1 = layout.downZi.indexOf(LRConst.GanJiZi[daygan]);
+	if(idx1 < 0){
+		return result;
+	}
+	const ke1zi = layout.upZi[idx1];
+	const ke1 = [layout.houseTianJiang[idx1], ke1zi, daygan];
+
+	const idx2 = layout.downZi.indexOf(ke1zi);
+	const ke2zi = idx2 >= 0 ? layout.upZi[idx2] : '';
+	const ke2 = [idx2 >= 0 ? layout.houseTianJiang[idx2] : '', ke2zi, ke1zi];
+
+	const idx3 = layout.downZi.indexOf(dayzi);
+	const ke3zi = idx3 >= 0 ? layout.upZi[idx3] : '';
+	const ke3 = [idx3 >= 0 ? layout.houseTianJiang[idx3] : '', ke3zi, dayzi];
+
+	const idx4 = layout.downZi.indexOf(ke3zi);
+	const ke4zi = idx4 >= 0 ? layout.upZi[idx4] : '';
+	const ke4 = [idx4 >= 0 ? layout.houseTianJiang[idx4] : '', ke4zi, ke3zi];
+
+	const all = [ke1, ke2, ke3, ke4];
+	const names = ['一课', '二课', '三课', '四课'];
+	all.forEach((item, idx)=>{
+		result.lines.push(`${names[idx]}：地盘=${item[2]}，天盘=${item[1]}，贵神=${item[0]}`);
+	});
+	result.raw = all;
+	return result;
+}
+
+function buildSanChuanData(layout, keRaw, nongli, chartObj){
+	if(!layout || !keRaw || keRaw.length !== 4 || !nongli){
+		return null;
+	}
+	try{
+		const helper = new ChuangChart({
+			owner: null,
+			chartObj: {
+				nongli: {
+					dayGanZi: nongli.dayGanZi,
+				},
+				isDiurnal: chartObj ? chartObj.isDiurnal : true,
+			},
+			nongli: nongli,
+			ke: keRaw,
+			liuRengChart: {
+				upZi: layout.upZi,
+				downZi: layout.downZi,
+				houseTianJiang: layout.houseTianJiang,
+			},
+			x: 0,
+			y: 0,
+			width: 0,
+			height: 0,
+		});
+		helper.genCuangs();
+		return helper.cuangs || null;
+	}catch(e){
+		return null;
+	}
+}
+
+function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengType, zhangshengElem, gender){
+	const lines = [];
+	const nongli = liureng && liureng.nongli ? liureng.nongli : (chartObj && chartObj.nongli ? chartObj.nongli : {});
+	const layout = buildLiuRengLayout(chartObj, nongli, guirengType);
+	const keData = buildKeData(layout, nongli);
+	const sanChuan = buildSanChuanData(layout, keData.raw, nongli, chartObj);
+	const lrJudge = evaluateLiuRengPatterns({
+		liureng,
+		runyear,
+		layout,
+		keRaw: keData.raw,
+		sanChuan,
+	});
+	const panelHits = splitLiuRengPatternHitsForPanels(lrJudge);
+	const dageRows = buildLiuRengPatternDisplayRows(panelHits.dageHits);
+	const xiaojuRows = buildLiuRengPatternDisplayRows(panelHits.xiaojuHits);
+	const referenceRows = buildUnifiedLiuRengReferenceRows({
+		liureng,
+		runyear,
+		lrLayout: layout,
+		lrJudge,
+	}).filter((item)=>`${item && item.kind ? item.kind : ''}` === '参考');
+	const overviewSections = buildLiuRengOverviewSections({
+		liureng,
+		runyear,
+		lrLayout: layout,
+		sanChuan,
+		keRaw: keData.raw,
+		lrJudge,
+	});
+	const panStyle = getLiuRengPanStyle(layout);
+	const xingbie = `${gender}` === '1' ? '男' : '女';
+
+	lines.push('[起盘信息]');
+	if(params){
+		lines.push(`日期：${params.date} ${params.time}`);
+		lines.push(`时区：${params.zone}`);
+		lines.push(`经纬度：${params.lon} ${params.lat}`);
+	}
+	if(nongli && nongli.birth){
+		lines.push(`真太阳时：${nongli.birth}`);
+	}
+	if(liureng && liureng.fourColumns){
+		const cols = liureng.fourColumns;
+		lines.push(`四柱：${fmtValue(cols.year && cols.year.ganzi)}年 ${fmtValue(cols.month && cols.month.ganzi)}月 ${fmtValue(cols.day && cols.day.ganzi)}日 ${fmtValue(cols.time && cols.time.ganzi)}时`);
+	}
+	lines.push(`贵人体系：${getGuiRengSystemLabel(guirengType)}`);
+	lines.push(`十二长生五行：${fmtValue(zhangshengElem)}`);
+	lines.push(`十二盘式：${panStyle.name}`);
+	lines.push(`问测人性别：${xingbie}`);
+	lines.push('');
+
+	lines.push('[十二盘式]');
+	lines.push(`盘式：${panStyle.name}`);
+	lines.push(`月将：${panStyle.yue}；占时：${panStyle.time}；位序：${panStyle.position}`);
+	lines.push('');
+
+	lines.push('[十二地盘/十二天盘/十二贵神对应]');
+	if(layout){
+		for(let i=0; i<12; i++){
+			lines.push(`${i + 1}. 地盘${layout.downZi[i]} -> 天盘${layout.upZi[i]} -> 贵神${layout.houseTianJiang[i]}`);
+		}
+	}else{
+		lines.push('无');
+	}
+	lines.push('');
+
+	lines.push('[四课]');
+	if(keData.lines.length){
+		keData.lines.forEach((line)=>lines.push(line));
+	}else{
+		lines.push('无');
+	}
+	lines.push('');
+
+	lines.push('[三传]');
+	if(sanChuan){
+		lines.push(`课式：${fmtValue(sanChuan.name)}`);
+		const names = ['初传', '中传', '末传'];
+		for(let i=0; i<3; i++){
+			const gz = sanChuan.cuang && sanChuan.cuang[i] ? sanChuan.cuang[i] : '无';
+			const lq = sanChuan.liuQin && sanChuan.liuQin[i] ? sanChuan.liuQin[i] : '无';
+			const gs = sanChuan.tianJiang && sanChuan.tianJiang[i] ? sanChuan.tianJiang[i] : '无';
+			lines.push(`${names[i]}：干支=${gz}；六亲=${lq}；贵神=${gs}`);
+		}
+	}else{
+		lines.push('无');
+	}
+	lines.push('');
+
+	lines.push('[行年]');
+	if(runyear){
+		lines.push(`行年干支：${fmtValue(runyear.year)}`);
+		lines.push(`年龄：${fmtValue(runyear.age)}岁`);
+		lines.push(`性别：${xingbie}`);
+	}else{
+		lines.push('无');
+	}
+	lines.push('');
+
+	appendMapSectionOrdered(lines, '旬日', liureng ? liureng.xun : null, ['遁丁', '旬空', '旬首', '旬丁', '旬尾']);
+	appendMapSectionOrdered(lines, '旺衰', liureng ? liureng.season : null, ['金', '水', '木', '火', '土']);
+	appendMapSectionOrdered(lines, '基础神煞', liureng ? liureng.gods : null, ['禄勋', '日德', '驿马']);
+	appendMapSectionOrdered(lines, '干煞', liureng ? liureng.godsGan : null, ['干墓', '游都', '长生']);
+	appendMapSectionOrdered(lines, '月煞', liureng ? liureng.godsMonth : null, ['月破', '月德', '天德']);
+	appendMapSectionOrdered(lines, '支煞', liureng ? liureng.godsZi : null, ['咸池', '华盖', '日破', '亡神', '劫煞', '支将', '金神']);
+
+	lines.push('[岁煞]');
+	const yearGods = liureng && liureng.godsYear ? liureng.godsYear.taisui1 : null;
+	if(yearGods){
+		LRConst.TaiSui.forEach((name)=>{
+			lines.push(`${name}：${fmtValue(yearGods[name])}`);
+		});
+	}else{
+		lines.push('无');
+	}
+	lines.push('');
+
+	lines.push('[十二长生]');
+	if(zhangshengElem){
+		ZSList.forEach((item)=>{
+			const key = `${zhangshengElem}_${item}`;
+			lines.push(`${item}：${fmtValue(ZhangSheng.wxphase[key])}`);
+		});
+	}else{
+		lines.push('无');
+	}
+	lines.push('');
+
+	appendPatternSection(lines, '大格', dageRows, '无符合大格');
+	appendPatternSection(lines, '小局', xiaojuRows, '无符合小局');
+	appendPatternSection(lines, '参考', referenceRows, '无符合参考条目');
+	appendOverviewSection(lines, overviewSections);
+	return lines.join('\n').trim();
+}
+
+class LiuRengMain extends Component{
+	constructor(props) {
+		super(props);
+		let now = new DateTime();
+		let birth = buildBirthFields(this.props.fields, now);
+
+		this.state = {
+			birth: birth,
+			liureng: null,
+			runyear: null,
+			wuxing: '土',
+			guireng: 2,
+			calcChart: null,
+			isCalculating: false,
+			liurengSubTab: 'dage',
+			viewportHeight: getViewportHeight(),
+			rightPanelTop: 0,
+			rightPanelLimit: 0,
+			rightPanelHeight: 0,
+		};
+
+		this.unmounted = false;
+		this.rightPanelHost = null;
+
+		this.onFieldsChange = this.onFieldsChange.bind(this);
+		this.onBirthChange = this.onBirthChange.bind(this);
+		this.onWuXingChange = this.onWuXingChange.bind(this);
+		this.onGuiRengChange = this.onGuiRengChange.bind(this);
+		this.genWuXingDoms = this.genWuXingDoms.bind(this);
+		this.genGodsParams = this.genGodsParams.bind(this);
+		this.genRunYearParams = this.genRunYearParams.bind(this);
+		this.requestGods = this.requestGods.bind(this);
+		this.requestRunYear = this.requestRunYear.bind(this);
+		this.saveLiuRengAISnapshot = this.saveLiuRengAISnapshot.bind(this);
+		this.clickCalcCase = this.clickCalcCase.bind(this);
+		this.clickSaveCase = this.clickSaveCase.bind(this);
+		this.captureRightPanel = this.captureRightPanel.bind(this);
+		this.handleWindowResize = this.handleWindowResize.bind(this);
+
+		if(this.props.hook){
+			this.props.hook.fun = ()=>{};
+		}
+	}
+
+	onFieldsChange(field){
+		if(this.props.dispatch && this.props.fields){
+			let flds = {
+				fields: {
+					...this.props.fields,
+					...field,
+				}
+			};
+			this.props.dispatch({
+				type: 'astro/fetchByFields',
+				payload: flds.fields
+			});
+		}
+	}
+
+	onBirthChange(field){
+		let flds = {
+			...this.state.birth,
+			...field,
+		};
+		this.setState({
+			birth: flds,
+		});
+	}
+
+	onWuXingChange(val){
+		this.setState({
+			wuxing: val,
+		}, ()=>{
+			this.saveLiuRengAISnapshot(null, this.state.liureng, this.state.runyear, val, this.state.guireng);
+		});
+	}
+
+	onGuiRengChange(val){
+		this.setState({
+			guireng: val,
+		}, ()=>{
+			this.saveLiuRengAISnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, val);
+		});
+	}
+
+	saveLiuRengAISnapshot(params, liureng, runyear, wuxing, guirengType){
+		if(!liureng){
+			return;
+		}
+		const flds = this.props.fields;
+		const baseParams = params ? params : (flds ? this.genGodsParams(flds) : null);
+		if(!baseParams){
+			return;
+		}
+		const chartObj = this.state.calcChart ? this.state.calcChart : (this.props.value && this.props.value.chart ? this.props.value.chart : null);
+		const finalZone = baseParams.zone !== undefined ? baseParams.zone : (flds && flds.zone ? flds.zone.value : '');
+		const finalLon = baseParams.lon !== undefined ? baseParams.lon : (flds && flds.lon ? flds.lon.value : '');
+		const finalLat = baseParams.lat !== undefined ? baseParams.lat : (flds && flds.lat ? flds.lat.value : '');
+		const saveParams = {
+			...baseParams,
+			zone: finalZone,
+			lon: finalLon,
+			lat: finalLat,
+		};
+		saveModuleAISnapshot('liureng', buildLiuRengSnapshotText(
+			saveParams,
+			liureng,
+			runyear,
+			chartObj,
+			guirengType,
+			wuxing,
+			this.state.birth && this.state.birth.gender ? this.state.birth.gender.value : 1
+		), {
+			date: saveParams.date,
+			time: saveParams.time,
+			zone: saveParams.zone,
+			lon: saveParams.lon,
+			lat: saveParams.lat,
+		});
+	}
+
+	genRunYearParams(){
+		let flds = this.state.birth;
+		const params = {
+			ad: flds.date.value.ad,
+			date: flds.date.value.format('YYYY-MM-DD'),
+			time: flds.time.value.format('HH:mm'),
+			zone: flds.date.value.zone,
+			lon: flds.lon.value,
+			lat: flds.lat.value,
+			gender: flds.gender.value,
+			after23NewDay: flds.after23NewDay.value,
+			guaYearGanZi: this.state.liureng.nongli.year,
+		}
+		return params;
+	}
+
+	genGodsParams(fields){
+		let params = null;
+		let flds = fields ? fields : this.props.fields;
+		if(flds.params){
+			let dtparts = flds.params.birth.split(' ');
+			params = {
+				...flds.params,
+				date: dtparts[0],
+				time: dtparts[1],
+			};
+	
+		}else{
+			params = {
+				date: flds.date.value.format('YYYY-MM-DD'),
+				time: flds.time.value.format('HH:mm'),
+				zone: flds.date.value.zone,
+				ad: flds.date.value.ad,
+				lon: flds.lon.value,
+				lat: flds.lat.value,
+			};	
+		}
+
+		if(this.props.value){
+			let chartObj = this.props.value.chart;
+			if(chartObj){
+				let yue = null;
+				for(let i=0; i<chartObj.objects.length; i++){
+					let obj = chartObj.objects[i];
+					if(obj.id === AstroConst.SUN){
+						yue = LRConst.getSignZi(obj.sign);
+						break;
+					}
+				}	
+				// params.yue = yue;	
+				// params.isDiurnal = chartObj.isDiurnal;
+			}
+		}
+		return params;
+	}
+
+	async requestGods(fields, chartSnapshot){
+		if(fields === undefined || fields === null){
+			return false;
+		}
+		const params = this.genGodsParams(fields);
+
+		const data = await request(`${Constants.ServerRoot}/liureng/gods`, {
+			body: JSON.stringify(params),
+		});
+		const result = data[Constants.ResultKey]
+		const mergedLiureng = mergeLiurengSunMoonXiu(result && result.liureng ? result.liureng : null, chartSnapshot);
+		
+		let dayGanZi = mergedLiureng && mergedLiureng.nongli ? mergedLiureng.nongli.dayGanZi : '';
+		let dayGan = dayGanZi.substr(0, 1);
+		let wx = LRConst.GanZiWuXing[dayGan];
+		const st = {
+			liureng: mergedLiureng,
+			wuxing: wx,
+			calcChart: chartSnapshot || null,
+		};
+
+		return new Promise((resolve)=>{
+			this.setState(st, ()=>{
+				this.saveLiuRengAISnapshot(params, mergedLiureng, this.state.runyear, wx, this.state.guireng);
+				resolve(true);
+			});
+		});
+	}
+
+	async requestRunYear(){
+		if(this.state.liureng === null){
+			return false;
+		}
+		
+		const params = this.genRunYearParams();
+		if(this.state.birth.date.value.year > this.props.fields.date.value.year){
+			Modal.error({
+				title: '出生年份必须小于卜卦年份'
+			});
+			return false;
+		}
+
+		const data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
+			body: JSON.stringify(params),
+		});
+		const result = data[Constants.ResultKey]
+
+		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
+		age = Math.floor(age / 60) * 60 + result.age;
+		result.age = age;
+		
+		const st = {
+			runyear: result,
+		};
+
+		return new Promise((resolve)=>{
+			this.setState(st, ()=>{
+				this.saveLiuRengAISnapshot(null, this.state.liureng, result, this.state.wuxing, this.state.guireng);
+				resolve(true);
+			});
+		});
+	}
+
+	async clickCalcCase(){
+		if(this.state.isCalculating){
+			return;
+		}
+		if(!this.props.fields){
+			return;
+		}
+		const chartSnapshot = cloneChartSnapshot(this.props.value && this.props.value.chart ? this.props.value.chart : null);
+		this.setState({
+			isCalculating: true,
+		});
+		try{
+			const ok = await this.requestGods(this.props.fields, chartSnapshot);
+			if(ok){
+				await this.requestRunYear();
+			}
+		}finally{
+			if(!this.unmounted){
+				this.setState({
+					isCalculating: false,
+				});
+			}
+		}
+	}
+
+	clickSaveCase(){
+		if(!this.state.liureng){
+			message.warning('请先完成起课后再保存');
+			return;
+		}
+		const flds = this.props.fields;
+		if(!flds){
+			return;
+		}
+		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
+		const snapshot = loadModuleAISnapshot('liureng');
+		const payload = {
+			module: 'liureng',
+			snapshot: snapshot,
+			liureng: this.state.liureng,
+			runyear: this.state.runyear,
+			wuxing: this.state.wuxing,
+			guireng: this.state.guireng,
+		};
+		if(this.props.dispatch){
+			this.props.dispatch({
+				type: 'astro/openDrawer',
+				payload: {
+					key: 'caseadd',
+					record: {
+						event: `六壬占断 ${divTime}`,
+						caseType: 'liureng',
+						divTime: divTime,
+						zone: flds.zone.value,
+						lat: flds.lat.value,
+						lon: flds.lon.value,
+						gpsLat: flds.gpsLat.value,
+						gpsLon: flds.gpsLon.value,
+						pos: flds.pos ? flds.pos.value : '',
+						payload: payload,
+						sourceModule: 'liureng',
+					},
+				},
+			});
+		}
+	}
+
+	genWuXingDoms(){
+		let res = LRConst.WuXing.map((item, idx)=>{
+			return (
+				<Option key={idx} value={item.elem}>十二长生：{item.elem}--{item.ganzi}</Option>
+			);
+		});
+		return res;
+
+	}
+
+	componentDidMount(){
+		this.unmounted = false;
+		window.addEventListener('resize', this.handleWindowResize);
+		this.handleWindowResize();
+	}
+
+	componentWillUnmount(){
+		this.unmounted = true;
+		window.removeEventListener('resize', this.handleWindowResize);
+	}
+
+	captureRightPanel(node){
+		this.rightPanelHost = node || null;
+		this.handleWindowResize();
+	}
+
+	handleWindowResize(){
+		const viewportHeight = getViewportHeight();
+		const rightTopRaw = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top : 0;
+		const rightPanelTop = Number.isFinite(rightTopRaw) ? Math.max(0, rightTopRaw) : 0;
+		// Keep right column strictly within viewport bottom edge.
+		const rightPanelLimit = Math.max(0, viewportHeight - rightPanelTop - RIGHT_PANEL_BOTTOM_GAP);
+		const fallbackPanelHeight = Math.max(360, viewportHeight - 120);
+		const preferredPanelHeight = Math.min(fallbackPanelHeight, rightPanelLimit);
+		const minPanelHeight = Math.min(RIGHT_PANEL_MIN_HEIGHT, rightPanelLimit);
+		const rightPanelHeight = Math.max(minPanelHeight, preferredPanelHeight);
+		const changed = Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
+			|| Math.abs((this.state.rightPanelTop || 0) - rightPanelTop) >= 2
+			|| Math.abs((this.state.rightPanelLimit || 0) - rightPanelLimit) >= 2
+			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2;
+		if(changed){
+			this.setState({
+				viewportHeight,
+				rightPanelTop,
+				rightPanelLimit,
+				rightPanelHeight,
+			});
+		}
+	}
+
+	render(){
+		let height = this.props.height ? this.props.height : 760;
+		if(height === '100%'){
+			height = 'calc(100% - 70px)'
+		}else{
+			height = height - 20
+		}
+
+		let chart = this.state.calcChart;
+		const liureng = this.state.liureng;
+		const nongli = liureng && liureng.nongli ? liureng.nongli : (chart && chart.nongli ? chart.nongli : null);
+		const lrLayout = (liureng && nongli) ? buildLiuRengLayout(chart, nongli, this.state.guireng) : null;
+		const lrKeData = (liureng && nongli) ? buildKeData(lrLayout, nongli) : { raw: [], lines: [] };
+		const lrSanChuan = (liureng && nongli) ? buildSanChuanData(lrLayout, lrKeData.raw, nongli, chart) : null;
+		const lrJudge = liureng ? evaluateLiuRengPatterns({
+			liureng,
+			runyear: this.state.runyear,
+			layout: lrLayout,
+			keRaw: lrKeData.raw,
+			sanChuan: lrSanChuan,
+		}) : {
+			dageHits: [],
+			xiaojuHits: [],
+		};
+
+		let wxdoms = this.genWuXingDoms();
+		const panelHits = splitLiuRengPatternHitsForPanels(lrJudge);
+		const dageCount = panelHits.dageHits && panelHits.dageHits.length ? panelHits.dageHits.length : 0;
+		const xiaojuCount = panelHits.xiaojuHits && panelHits.xiaojuHits.length ? panelHits.xiaojuHits.length : 0;
+		const liurengSubTab = ['overview', 'dage', 'xiaoju', 'reference'].includes(this.state.liurengSubTab)
+			? this.state.liurengSubTab
+			: 'dage';
+		const liurengReferenceRows = buildUnifiedLiuRengReferenceRows({
+			liureng: this.state.liureng,
+			runyear: this.state.runyear,
+			lrLayout,
+			lrJudge,
+		});
+		const liurengDageRows = buildLiuRengPatternDisplayRows(panelHits.dageHits);
+		const liurengXiaojuRows = buildLiuRengPatternDisplayRows(panelHits.xiaojuHits);
+		const liurengOverviewSections = buildLiuRengOverviewSections({
+			liureng,
+			runyear: this.state.runyear,
+			lrLayout,
+			sanChuan: lrSanChuan,
+			keRaw: lrKeData.raw,
+			lrJudge,
+		});
+		const referenceCount = liurengReferenceRows.length;
+		const viewportHeight = this.state.viewportHeight || 900;
+		const fallbackLimit = Math.max(0, viewportHeight - RIGHT_PANEL_BOTTOM_GAP);
+		const panelLimit = this.state.rightPanelLimit > 0 ? this.state.rightPanelLimit : fallbackLimit;
+		const rawPanelHeight = this.state.rightPanelHeight || Math.max(360, viewportHeight - 120);
+		const rightPanelHeight = Math.min(rawPanelHeight, panelLimit);
+		return (
+			<div>
+				<Row gutter={6}>
+					<Col span={16}>
+						<LiuRengChart 
+							value={chart} 
+							liureng={this.state.liureng}
+							runyear={this.state.runyear}
+							gender={this.state.birth.gender.value}
+							zhangshengElem={this.state.wuxing}
+							guireng={this.state.guireng}
+							height={height} 
+							fields={this.props.fields}  
+							chartDisplay={this.props.chartDisplay}
+							planetDisplay={this.props.planetDisplay}
+						/>
+					</Col>
+					<Col span={8}>
+						<div
+							ref={this.captureRightPanel}
+							style={{ height: rightPanelHeight, maxHeight: panelLimit, overflowY: 'auto', paddingRight: 2 }}
+						>
+						<Row className={styles.rightPanel}>
+							<Col span={24}>
+								<LiuRengInput 
+									fields={this.props.fields} 
+									onFieldsChange={this.onFieldsChange}
+								/>
+							</Col>
+						</Row>
+						<Row style={{ marginTop: 8 }} className={styles.quickActionRow}>
+							<Col span={12}>
+								<Button
+									type='primary'
+									style={{ width: '100%' }}
+									onClick={this.clickCalcCase}
+									loading={this.state.isCalculating}
+								>
+									起课
+								</Button>
+							</Col>
+							<Col span={12}>
+								<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
+							</Col>
+						</Row>
+						<Divider orientation='left'>卜卦人出生时间</Divider>
+						<Row>
+							<Col span={24}>
+								<LiuRengBirthInput 
+									fields={this.state.birth} 
+									onFieldsChange={this.onBirthChange}
+								/>
+							</Col>
+						</Row>
+						<Divider />
+						<Row>
+							<Col span={24}>
+								<Select value={this.state.wuxing} onChange={this.onWuXingChange} style={{width: '100%'}}>
+									{wxdoms}
+								</Select>
+							</Col>
+							<Col span={24}>
+								<Select value={this.state.guireng} onChange={this.onGuiRengChange} style={{width: '100%'}}>
+									<Option value={0}>六壬法贵人</Option>
+									<Option value={1}>遁甲法贵人</Option>
+									<Option value={2}>星占法贵人</Option>
+								</Select>
+							</Col>
+						</Row>
+						<Divider orientation='left'>格局判断</Divider>
+						<Card size="small" className={styles.judgeCard} bodyStyle={{ padding: '10px 12px' }}>
+							<div className={styles.judgeCardHead}>
+								<div className={styles.judgeCardTitle}>命中概况</div>
+								<div className={styles.judgeChips}>
+									<span className={`${styles.judgeChip} ${dageCount ? styles.judgeChipGood : styles.judgeChipMute}`}>
+										大格 <b>{dageCount}</b>
+									</span>
+									<span className={`${styles.judgeChip} ${xiaojuCount ? styles.judgeChipWarn : styles.judgeChipMute}`}>
+										小局 <b>{xiaojuCount}</b>
+									</span>
+								</div>
+							</div>
+							<div className={styles.judgeStats}>
+								<Tag color={dageCount ? 'green' : 'default'} className={styles.judgeTag}>大格命中</Tag>
+								<Tag color={xiaojuCount ? 'gold' : 'default'} className={styles.judgeTag}>小局命中</Tag>
+								<Tag color={referenceCount ? 'blue' : 'default'} className={styles.judgeTag}>参考 {referenceCount}</Tag>
+							</div>
+							<Tabs
+								size="small"
+								activeKey={liurengSubTab}
+								onChange={(key)=>this.setState({ liurengSubTab: key })}
+								className={styles.judgeTabs}
+							>
+								<TabPane tab="大格" key="dage">
+									<div className={styles.judgeList}>
+										{liurengDageRows.length ? liurengDageRows.map((item, idx)=>(
+											<div key={`lr_dage_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemGood}`}>
+												<div className={styles.judgeItemHead}>
+													<span className={styles.judgeIndex}>{idx + 1}.</span>
+													<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
+												</div>
+												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+												{(item.fullText || item.detail) ? (
+													<div className={styles.referenceRaw}>
+														{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_dage_${idx}`)}
+													</div>
+												) : null}
+											</div>
+										)) : <div className={styles.judgeEmpty}>无符合大格</div>}
+									</div>
+								</TabPane>
+								<TabPane tab="小局" key="xiaoju">
+									<div className={styles.judgeList}>
+										{liurengXiaojuRows.length ? liurengXiaojuRows.map((item, idx)=>(
+											<div key={`lr_xiaoju_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemWarn}`}>
+												<div className={styles.judgeItemHead}>
+													<span className={styles.judgeIndex}>{idx + 1}.</span>
+													<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
+												</div>
+												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+												{(item.fullText || item.detail) ? (
+													<div className={styles.referenceRaw}>
+														{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_xiaoju_${idx}`)}
+													</div>
+												) : null}
+											</div>
+										)) : <div className={styles.judgeEmpty}>无符合小局</div>}
+									</div>
+								</TabPane>
+								<TabPane tab="参考" key="reference">
+									<div className={styles.judgeList}>
+										{liurengReferenceRows.length ? liurengReferenceRows.map((item, idx)=>(
+											<div key={`lr_ref_${idx}`} className={styles.judgeItem}>
+												<div className={styles.judgeItemHead}>
+													<span className={styles.judgeIndex}>{idx + 1}.</span>
+													<span className={styles.judgeName}>[{item.kind}] {item.name}</span>
+												</div>
+												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+												{item.fullText ? (
+													<div className={styles.referenceRaw}>
+														{renderMarkdownLiteBlock(item.fullText, `lr_main_ref_${idx}`)}
+													</div>
+												) : null}
+											</div>
+										)) : <div className={styles.judgeEmpty}>无符合参考条目</div>}
+									</div>
+								</TabPane>
+								<TabPane tab="概览" key="overview">
+									{liurengOverviewSections.length ? liurengOverviewSections.map((item)=>(
+										<div key={`lr_overview_${item.key}`} className={styles.referenceSection}>
+											<div className={styles.referenceTitle}>{item.title}</div>
+											<div className={styles.referenceRaw}>
+												{renderMarkdownLiteBlock(item.content, `lr_main_overview_${item.key}`)}
+											</div>
+										</div>
+									)) : <div className={styles.judgeEmpty}>暂无概览内容</div>}
+								</TabPane>
+							</Tabs>
+						</Card>
+						</div>
+
+					</Col>
+				</Row>
+			</div>
+
+		);
+	}
+}
+
+export default LiuRengMain;

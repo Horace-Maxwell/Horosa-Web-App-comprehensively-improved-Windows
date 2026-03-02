@@ -1,0 +1,50 @@
+{
+	"needCheck": true,
+	
+	"superToken": {
+	},
+	
+	"needlogin": [
+		"/user/charts",
+		"/user/charts/update",
+		"/user/charts/delete",
+		"/user/charts/add",
+		"/user/charts/memo",
+		"/user/changepwd",
+		"/user/changeparams",
+		"/user/charts/export",
+		"/user/charts/import",
+		"/deeplearn/fateevents",
+		"/deeplearn/train",		
+		"/astroreader/upload",				
+		"/astroreader/listbooks",				
+		"/astroreader/updatebook",				
+		"/astroreader/updatechapter",				
+		"/astroreader/getchapter",				
+		"/astroreader/deletebook",				
+		"/astroreader/readprogress",				
+		"/astroreader/tts",
+		"/astroreader/exportbook",
+		"/astroreader/livepublishpath",
+		"/astroreader/flvurl",	
+		"/astroreader/restartlive",		
+		"/usermgmt/users",
+		"/usermgmt/charts",
+		"/usermgmt/setprivi",
+		"/usermgmt/setupadmin",
+		"/log/20001",
+		"/log/20002",
+		"/live/getstreams",
+		"/astroreader/removelive",
+		"/live/playpath",
+		"/astroreader/allbooks",
+		"/astroreader/removebook",
+		"/statis/count",
+		"/statis/chartsgps",	
+		"/bak/backup",
+		"/bak/delete",
+		"/bak/list",	
+		"/deeplearn/count"
+					
+	]
+}

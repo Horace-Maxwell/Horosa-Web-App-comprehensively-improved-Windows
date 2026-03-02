@@ -1,0 +1,97 @@
+[{
+	"label": "用户登录",
+	"value": "/user/login"
+},{
+	"label": "星盘",
+	"value": "/chart"
+},{
+	"label": "太阳返照",
+	"value": "/predict/solarreturn"
+},{
+	"label": "月亮返照",
+	"value": "/predict/lunarreturn"
+},{
+	"label": "太阳弧",
+	"value": "/predict/solararc"
+},{
+	"label": "小限法",
+	"value": "/predict/profection"
+},{
+	"label": "主限法",
+	"value": "/predict/pd"
+},{
+	"label": "黄道星释",
+	"value": "/predict/zr"
+},{
+	"label": "希腊13分盘",
+	"value": "/chart13"
+},{
+	"label": "印度律盘",
+	"value": "/india/chart"
+},{
+	"label": "关系盘",
+	"value": "/modern/relative"
+},{
+	"label": "中点盘",
+	"value": "/germany/midpoint"
+},{
+	"label": "年节气",
+	"value": "/jieqi/year"
+},{
+	"label": "农历",
+	"value": "/nongli/time"
+},{
+	"label": "jdn转日期",
+	"value": "/jdn/date"
+},{
+	"label": "日期转jdn",
+	"value": "/jdn/num"
+},{
+	"label": "ACG",
+	"value": "/location/acg"
+},{
+	"label": "占星骰子",
+	"value": "/predict/dice"
+},{
+	"label": "八字",
+	"value": "/bazi/birth"
+},{
+	"label": "排八字",
+	"value": "/bazi/direct"
+},{
+	"label": "紫微",
+	"value": "/ziwei/birth"
+},{
+	"label": "六壬神煞",
+	"value": "/liureng/gods"
+},{
+	"label": "六壬行年",
+	"value": "/liureng/runyear"
+},{
+	"label": "万年历",
+	"value": "/calendar/month"
+},{
+	"label": "编辑星盘",
+	"value": "/user/charts/update"
+},{
+	"label": "删除星盘",
+	"value": "/user/charts/delete"
+},{
+	"label": "添加星盘",
+	"value": "/user/charts/add"
+},{
+	"label": "星盘批注",
+	"value": "/user/charts/memo"
+},{
+	"label": "修改密码",
+	"value": "/user/changepwd"
+},{
+	"label": "修改默认查询参数",
+	"value": "/user/changeparams"
+},{
+	"label": "导出星盘",
+	"value": "/user/charts/export"
+},{
+	"label": "导入星盘",
+	"value": "/user/charts/import"
+}]

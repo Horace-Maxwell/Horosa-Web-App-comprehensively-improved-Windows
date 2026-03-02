@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="warn">
+	<Properties>
+	    <Property name="basedir">${sys:horosa.log.basedir:-${sys:user.home}/.horosa-logs/astrostudyboot}</Property>
+	    <Property name="logdircomm">${basedir}/$${date:yyyy}/$${date:MM}/$${date:dd}</Property>
+	    <Property name="prjname">astrostudyboot</Property>
+	</Properties>
+
+	<Appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+		</Console>
+
+		<RollingFile name="OtherAppender" fileName="${logdircomm}/all/other.log" filePattern="${logdircomm}/all/other_%d{yyyyMMdd_HH}.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+			</Policies>
+		</RollingFile>
+
+		<RollingFile name="BoringAppender" fileName="${logdircomm}/all/boring.log" filePattern="${logdircomm}/all/boring_%d{yyyyMMdd_HH}.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+			</Policies>
+		</RollingFile>
+
+		<RollingFile name="HttpClientAppender" fileName="${logdircomm}/http/httpclient.log" filePattern="${logdircomm}/http/httpclient_%d{yyyyMMdd_HH}.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+			</Policies>
+		</RollingFile>
+
+		<RollingFile name="SpringAppender" fileName="${logdircomm}/spring/spring.log" filePattern="${logdircomm}/spring/spring_%d{yyyyMMdd_HH}.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+			</Policies>
+		</RollingFile>
+
+		<RollingFile name="SqlAppender" fileName="${logdircomm}/sql/sql.log" filePattern="${logdircomm}/sql/sql_%d{yyyyMMdd_HH}.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+			</Policies>
+		</RollingFile>
+
+		<RollingFile name="AppSqlAppender" fileName="${logdircomm}/sql/appsql.log" filePattern="${logdircomm}/sql/appsql_%d{yyyyMMdd_HH}.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+			</Policies>
+		</RollingFile>
+																		
+	</Appenders>
+
+	<Loggers>
+		<Root level="warn">
+			<AppenderRef ref="OtherAppender" />
+		</Root>
+
+		<Logger name="boundless.net.http.HttpClientUtility" level="debug" additivity="false">
+			<AppenderRef ref="HttpClientAppender" />
+		</Logger>
+		<Logger name="org.apache.http" level="info" additivity="false">
+			<AppenderRef ref="HttpClientAppender" />
+		</Logger>
+		<Logger name="org.apache.http.wire" level="info" additivity="false">
+			<AppenderRef ref="HttpClientAppender" />
+		</Logger>
+
+		<Logger name="com.bem.cloudperiod.dao" level="debug" additivity="false">
+			<AppenderRef ref="AppSqlAppender" />
+		</Logger>
+		
+		<Logger name="java.sql" level="debug" additivity="false">
+			<AppenderRef ref="SqlAppender" />
+		</Logger>
+		<Logger name="org.mybatis" level="debug" additivity="false">
+			<AppenderRef ref="SqlAppender" />
+		</Logger>
+		<Logger name="druid.sql" level="debug" additivity="false">
+			<AppenderRef ref="SqlAppender" />
+		</Logger>
+		<Logger name="com.alibaba.druid" level="debug" additivity="false">
+			<AppenderRef ref="SqlAppender" />
+		</Logger>
+
+		<Logger name="org.springframework" level="debug" additivity="false">
+			<AppenderRef ref="SpringAppender" />
+		</Logger>
+
+		<Logger name="org.mongodb.driver" level="error" additivity="false">
+			<AppenderRef ref="BoringAppender" />
+		</Logger>
+		
+		
+	</Loggers>
+	
+	
+</Configuration>
