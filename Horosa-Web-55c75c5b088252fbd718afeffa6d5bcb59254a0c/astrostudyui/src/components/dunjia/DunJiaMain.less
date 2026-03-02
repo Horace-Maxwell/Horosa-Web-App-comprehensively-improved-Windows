@@ -1,0 +1,270 @@
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.rightTopBlock {
+  padding: 8px;
+  border: 1px solid #e5e8ef;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fcfdff 0%, #f7f9fc 100%);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
+}
+
+.coordText {
+  text-align: right;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.panelTabs {
+  margin-top: 8px;
+}
+
+.panelTabs :global(.ant-tabs-nav) {
+  margin-bottom: 8px;
+  padding: 4px;
+  border: 1px solid #e7ebf3;
+  border-radius: 10px;
+  background: #f8fafd;
+}
+
+.panelTabs :global(.ant-tabs-tab) {
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+.panelTabs :global(.ant-tabs-tab-active) {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.panelTabs :global(.ant-tabs-ink-bar) {
+  display: none !important;
+}
+
+.panelCard {
+  border: 1px solid #eceff5;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.metricRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.metricTag {
+  margin-right: 0;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.sectionHint {
+  margin-bottom: 6px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.kvList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kvItem {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 6px 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kvItem:hover {
+  border-color: #cfd7e4;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.kvLabel {
+  color: #667085;
+  font-size: 12px;
+  line-height: 16px;
+  margin-bottom: 2px;
+}
+
+.kvValue {
+  color: #111827;
+  font-size: 13px;
+  line-height: 19px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.palaceBtnGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.palaceBtnGrid2 {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.palaceBtnGrid2 :global(.ant-btn) {
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.bgSection {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 8px 10px;
+  border-left: 3px solid #8ca9d6;
+}
+
+.bgTitle {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 8px;
+}
+
+.bgLineCard {
+  border: 1px solid #e5e9f2;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.bgLineCard + .bgLineCard {
+  margin-top: 8px;
+}
+
+.bgLineLabel {
+  color: #374151;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 700;
+}
+
+.bgLineValue {
+  margin-top: 4px;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detailCard {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.patternBlock {
+  border-top: 1px dashed #e6e9ef;
+  padding-top: 6px;
+}
+
+.patternLabel {
+  color: #667085;
+  font-size: 12px;
+  line-height: 16px;
+  margin-bottom: 4px;
+}
+
+.patternTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.patternTag {
+  margin-right: 0;
+  border-radius: 999px;
+}
+
+.shenshaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.shenshaItem {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 6px 8px;
+  border-left: 3px solid #8ca9d6;
+}
+
+.shenshaName {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.shenshaValue {
+  display: block;
+  color: #111827;
+  font-size: 13px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+
+.emptyText {
+  color: #98a2b3;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.djTooltipCard {
+  max-width: 520px;
+}
+
+.djTooltipTitle {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.djTooltipSection {
+  border-top: 1px solid #e6edf7;
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+.djTooltipSectionTitle {
+  color: #667085;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.djTooltipItem {
+  color: #111827;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -1,0 +1,88 @@
+{
+	"needlocalmemcache": false,
+	"needcompress": false,
+	"needhystrix": false,
+	"cachefactoryclass": [{
+		"default": true,
+		"name": "comm",
+		"class": "boundless.types.cache.RedisCacheFactory",
+		"config": "classpath:conf/properties/cache/rediscomm.properties"		
+	},{
+		"default": false,
+		"name": "rtmp",
+		"class": "boundless.types.cache.RedisCacheFactory",
+		"config": "classpath:conf/properties/cache/redisrtmp.properties"		
+	},{
+		"name": "translogmongo",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/mongotranslog.properties"
+	},{
+		"name": "chart",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/mongochart.properties"
+	},{
+		"name": "nongli",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/mongonongli.properties"
+	},{
+		"name": "user",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/mongouser.properties"
+	},{
+		"name": "predictive",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/mongopredictive.properties"
+	},{
+		"name": "onlineuser",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/onlineuser.properties"
+	},{
+		"name": "onlineclient",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/onlineclient.properties"
+	},{
+		"name": "adminuser",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/adminuser.properties"
+	},{
+		"name": "dlsample10000",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/dlsample10000.properties"
+	},{
+		"name": "dlsample20000",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/dlsample20000.properties"
+	},{
+		"name": "dlsample30000",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/dlsample30000.properties"
+	},{
+		"name": "dlsample40000",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/dlsample40000.properties"
+	},{
+		"name": "dlbazifeature",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/dlbazifeature.properties"
+	},{
+		"name": "dlchartfeature",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/dlchartfeature.properties"
+	},{
+		"name": "books",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/books.properties"
+	},{
+		"name": "userbooks",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/userbooks.properties"
+	},{
+		"name": "clientapps",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/clientapps.properties"
+	},{
+		"name": "bazi",
+		"class": "boundless.types.cache.MongoCacheFactory",
+		"config": "classpath:conf/properties/cache/bazi.properties"
+	}]
+}

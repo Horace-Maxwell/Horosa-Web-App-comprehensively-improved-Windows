@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+
+# Logs and runtime temp
+*.log
+*.pid
+*.pid.lock
+*.out
+*.err
+*.tmp
+.tmp_*
+HOROSA_RUN_ISSUES.md
+
+# Local Horosa runtime artifacts
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs/
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-browser-profile/
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-browser-profile-win/
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/${sys:user.home}/
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa_win_*.pid
+Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa_win_*.lock
+
+# JS/TS
+**/node_modules/
+**/.umi/
+**/.cache/
+**/.next/
+**/coverage/
+
+# Java/Maven
+**/target/
+**/.mvn/
+
+# Python
+**/__pycache__/
+**/.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Bundled runtimes (too large for regular Git push)
+runtime/mac/java/
+runtime/mac/python/
+runtime/windows/java/
+runtime/windows/python/
+runtime/windows/wheels/
+runtime/windows/bundle/astrostudyboot.jar
+
+# Local reference bundles (not for release branch)
+Horosa-Web-App-comprehensively-improved-MacOS-main/
+modules/

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<appSettings>
+		<externalHost>$127.0.0.1</externalHost>
+		<externalPort>7510</externalPort>
+		<desKey>12345678</desKey>
+		<omsWorkerUrl>rmi://$127.0.0.1:2099/omsWorker</omsWorkerUrl>
+		<omsWorkerToken>12345678</omsWorkerToken>
+	</appSettings>
+
+	<sections>
+		<external serverId="101" serverName="resnode.external" serverType="2" port="7510" trackPacket="true" maxClient="30000" />
+		<internal serverId="101" serverName="resnode.internal" serverType="2" port="7003" trackPacket="true" maxClient="30000" />
+		<center serverId="100" serverName="rescenter" serverType="1" serverAddress="127.0.0.1" port="7001" trackPacket="true" />
+	</sections>
+
+	<monitor>
+		<packet id="4198409" name="switch_alert"  />
+		<packet id="4198306" name="setup_param"  />
+	</monitor>
+
+	<appPlugs>
+		<plug id="1" class="iot.vmresnode.VMPlug" />
+	</appPlugs>
+</configuration>

@@ -1,0 +1,65 @@
+{
+	"id": "group_mgmt",
+	"name": "管理功能",
+	"desc": "",
+	"functions":[{
+		"id": "usermgmt",
+		"name": "用户管理",
+		"desc": "",
+		"transcodes":[
+			"/usermgmt/users",
+			"/usermgmt/charts",
+			"/usermgmt/setprivi",
+			"/usermgmt/setupadmin"		
+		]
+	},{
+		"id": "logmgmt",
+		"name": "日志功能",
+		"desc": "",
+		"transcodes":[
+			"/log/20001",
+			"/log/20002"	
+		]
+	},{
+		"id": "livevideomgmt",
+		"name": "直播管理",
+		"desc": "",
+		"transcodes":[
+			"/live/getstreams",
+			"/astroreader/removelive",
+			"/live/playpath"	
+		]
+	},{
+		"id": "bookmgmt",
+		"name": "书籍管理",
+		"desc": "",
+		"transcodes":[
+			"/astroreader/allbooks",
+			"/astroreader/removebook"
+		]
+	},{
+		"id": "statis",
+		"name": "统计功能",
+		"desc": "",
+		"transcodes":[
+			"/statis/count",
+			"/statis/chartsgps"	
+		]
+	},{
+		"id": "backup",
+		"name": "数据备份",
+		"desc": "",
+		"transcodes":[
+			"/bak/backup",
+			"/bak/delete",
+			"/bak/list"	
+		]
+	},{
+		"id": "deeplearnmgmt",
+		"name": "深度学习",
+		"desc": "",
+		"transcodes":[
+			"/deeplearn/count"
+		]
+	}]
+}

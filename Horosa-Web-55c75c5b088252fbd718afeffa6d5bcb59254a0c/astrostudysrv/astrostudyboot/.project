@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>astrostudyboot</name>
+	<comment></comment>
+	<projects>
+		<project>astrodeeplearn</project>
+		<project>astroesp</project>
+		<project>astroreader</project>
+		<project>astrostudy</project>
+		<project>astrostudycn</project>
+		<project>basecomm</project>
+		<project>boundless</project>
+		<project>image</project>
+		<project>media</project>
+		<project>medialib</project>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.m2e.core.maven2Builder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+		<nature>org.eclipse.m2e.core.maven2Nature</nature>
+	</natures>
+</projectDescription>

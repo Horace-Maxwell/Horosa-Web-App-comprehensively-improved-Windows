@@ -477,3 +477,25 @@
   - 运行时目录：`runtime/`
   - 启停与准备脚本：`Horosa_Local_Windows.*`、`Prepare_Runtime_Windows.*`
   - 文档与治理文件：`README.md`、`UPGRADE_LOG.md`、`PROJECT_STRUCTURE.md`、`AGENT_CHANGELOG.md`、`HOROSA_RUN_ISSUES.md`
+
+## AG. 2026-03-01 同步状态（全页面 1 秒性能达标）
+- 性能基准脚本（根目录）：
+  - `page_perf_benchmark_playwright.js`
+  - 用途：遍历主标签与内层标签，触发可见计算动作，统计“切页 + 计算稳定”总耗时并按阈值判定。
+- 本轮关键性能优化代码：
+  - `Horosa-Web-55.../astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+    - 新增 `scheduleSnapshotSave` 异步快照调度，避免起盘主路径被快照构建阻塞；
+    - 六壬格局判定改为“先出盘、后异步补齐”以缩短首屏等待；
+    - 保持“本地历法快速首屏 + 精确历法异步回填”策略，最终收敛精确结果。
+  - `page_perf_benchmark_playwright.js`
+    - 增强动作按钮点击鲁棒性（重抓节点/同文案重试/force+evaluate 回退），降低重渲染场景下的假失败。
+- 本轮验证产物（根目录）：
+  - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135429.json`
+  - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135642.json`
+  - 两轮结果一致：
+    - `totalPages=68`、`measuredPages=54`、`noActionPages=14`
+    - `overThresholdPages=0`（阈值 `1000ms`）
+    - `maxTotalMs=994` / `970`
+- 当前性能口径说明：
+  - 指标针对“有计算动作按钮”的页面统计（`measuredPages`）。
+  - `noActionPages` 为无主动计算按钮页面，不纳入“点击计算+显示”耗时判定。

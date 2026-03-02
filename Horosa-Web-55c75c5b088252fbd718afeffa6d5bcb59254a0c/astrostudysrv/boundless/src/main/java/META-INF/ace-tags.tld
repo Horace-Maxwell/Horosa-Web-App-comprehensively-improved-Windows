@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<jsp-config>
+<taglib xmlns="http://java.sun.com/xml/ns/j2ee" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	version="2.0"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/web-jsptaglibrary_2_0.xsd">
+
+	<display-name>ACE Tags</display-name>
+	<tlib-version>1.0</tlib-version>
+	<short-name>ace</short-name>
+	<uri>/ace-tags</uri>
+	<description>
+		the ACE tags
+	</description>
+
+	<tag>
+		<name>jqgridtable</name>
+		<tag-class>boundless.web.ui.JqGridTableTag</tag-class>
+		<body-content>jsp</body-content>
+		
+		<attribute>
+			<name>id</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>name</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>otherAttr</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>caption</name>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>dataTable</name>
+			<type>boundless.types.DataTable</type>
+			<rtexprvalue>true</rtexprvalue>
+		</attribute>
+		
+		<attribute>
+			<name>columns</name>
+			<rtexprvalue>true</rtexprvalue>
+			<type>java.lang.Object</type>
+		</attribute>
+		
+	</tag>
+
+</taglib>
+</jsp-config>

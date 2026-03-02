@@ -1267,3 +1267,31 @@ Append new entries; do not rewrite history.
   - `npm test -- --runInBand src/components/liureng/__tests__/LRPatternJudge.test.js` ✅
   - `npm run -s build` ✅
   - 清理结果核验：`TMP_FILES_REMAIN=0`，且 `SELF_CHECK_REPORTS/test-results/.tmp_playwright_runner/.horosa-local-logs-win` 均已不存在 ✅
+
+### 13:56 - 全技术页“计算+显示 ≤ 1秒”达标（2026-03-01）
+- Scope: 在不降低算法精度的前提下，完成全页面性能压测闭环，确保每个可计算页面的“点击计算到页面稳定显示”不超过 1 秒。
+- Files:
+  - `page_perf_benchmark_playwright.js`
+  - `Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/sanshi/SanShiUnitedMain.js`
+  - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135429.json`
+  - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135642.json`
+  - `UPGRADE_LOG.md`
+  - `PROJECT_STRUCTURE.md`
+- Details:
+  - 基准脚本稳定性增强（避免假失败）：
+    - `page_perf_benchmark_playwright.js` 增加动作按钮鲁棒点击链路（重抓节点、同文案就近重试、`force/evaluate` 回退），解决 DOM 重渲染导致的 `action-click-failed`。
+  - 三式合一首帧阻塞链路拆分（不改算法口径）：
+    - `SanShiUnitedMain.js` 新增 `scheduleSnapshotSave`，将 AI 快照重构与写入从同步路径改为异步调度；
+    - `evaluateLiuRengPatterns` 在无缓存场景下改为先出盘后异步补齐判定，结果一致、时序优化；
+    - `refreshAll` 保持“本地历法快速首屏 + 精确历法异步回填”策略，最终以精确结果收敛。
+  - 精度约束：
+    - 未调整任何排盘算法参数与计算公式；
+    - 仅做请求去重、调度时序优化与测量脚本抗抖处理。
+- Verification:
+  - 前端构建：
+    - `npm run build:file` in `Horosa-Web-55.../astrostudyui` ✅（最新 `dist-file/umi.73ac745a.js`）
+  - 全页面性能基准（阈值 `1000ms`）：
+    - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135429.json`：
+      - `totalPages=68`、`measuredPages=54`、`noActionPages=14`、`overThresholdPages=0`、`maxTotalMs=994` ✅
+    - `SELF_CHECK_REPORTS/PAGE_PERF_BENCH_20260301_135642.json`（复验）：
+      - `totalPages=68`、`measuredPages=54`、`noActionPages=14`、`overThresholdPages=0`、`maxTotalMs=970` ✅
