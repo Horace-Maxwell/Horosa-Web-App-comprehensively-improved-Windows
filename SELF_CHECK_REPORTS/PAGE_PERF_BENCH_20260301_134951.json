@@ -1,0 +1,1711 @@
+{
+  "startedAt": "2026-03-01T21:49:51.901Z",
+  "url": "http://127.0.0.1:8000/index.html",
+  "thresholdMs": 1000,
+  "timeoutMs": 300000,
+  "maxInnerTabs": 20,
+  "pages": [
+    {
+      "mainTab": "星盘",
+      "innerTab": "",
+      "pageId": "星盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 486,
+      "totalMs": 639,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "星盘",
+      "innerTab": "信息",
+      "pageId": "星盘 / 信息",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 477,
+      "totalMs": 635,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "星盘",
+      "innerTab": "相位",
+      "pageId": "星盘 / 相位",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 472,
+      "totalMs": 638,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "星盘",
+      "innerTab": "行星",
+      "pageId": "星盘 / 行星",
+      "actionText": "确 定",
+      "switchMs": 180,
+      "computeMs": 487,
+      "totalMs": 635,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "星盘",
+      "innerTab": "希腊点",
+      "pageId": "星盘 / 希腊点",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 478,
+      "totalMs": 638,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "星盘",
+      "innerTab": "可能性",
+      "pageId": "星盘 / 可能性",
+      "actionText": "确 定",
+      "switchMs": 182,
+      "computeMs": 477,
+      "totalMs": 640,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "三维盘",
+      "innerTab": "",
+      "pageId": "三维盘",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "推运盘",
+      "innerTab": "",
+      "pageId": "推运盘",
+      "actionText": "",
+      "switchMs": 183,
+      "computeMs": null,
+      "totalMs": 183,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "量化盘",
+      "innerTab": "",
+      "pageId": "量化盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 599,
+      "totalMs": 559,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "量化盘",
+      "innerTab": "行星中点",
+      "pageId": "量化盘 / 行星中点",
+      "actionText": "确 定",
+      "switchMs": 180,
+      "computeMs": 569,
+      "totalMs": 533,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "量化盘",
+      "innerTab": "中点",
+      "pageId": "量化盘 / 中点",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 543,
+      "totalMs": 525,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "量化盘",
+      "innerTab": "相位",
+      "pageId": "量化盘 / 相位",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 559,
+      "totalMs": 536,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "",
+      "pageId": "关系盘",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 507,
+      "totalMs": 642,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "比较盘",
+      "pageId": "关系盘 / 比较盘",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 504,
+      "totalMs": 642,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "组合盘",
+      "pageId": "关系盘 / 组合盘",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 495,
+      "totalMs": 641,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "影响盘",
+      "pageId": "关系盘 / 影响盘",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 497,
+      "totalMs": 641,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "时空中点盘",
+      "pageId": "关系盘 / 时空中点盘",
+      "actionText": "排 盘",
+      "switchMs": 180,
+      "computeMs": 510,
+      "totalMs": 640,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "马克斯盘",
+      "pageId": "关系盘 / 马克斯盘",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 509,
+      "totalMs": 639,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "星盘A",
+      "pageId": "关系盘 / 星盘A",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 499,
+      "totalMs": 637,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "关系盘",
+      "innerTab": "星盘B",
+      "pageId": "关系盘 / 星盘B",
+      "actionText": "排 盘",
+      "switchMs": 181,
+      "computeMs": 499,
+      "totalMs": 640,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "节气盘",
+      "innerTab": "",
+      "pageId": "节气盘",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "节气盘",
+      "innerTab": "二十四节气",
+      "pageId": "节气盘 / 二十四节气",
+      "actionText": "",
+      "switchMs": 180,
+      "computeMs": null,
+      "totalMs": 180,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "星体地图",
+      "innerTab": "",
+      "pageId": "星体地图",
+      "actionText": "",
+      "switchMs": 180,
+      "computeMs": null,
+      "totalMs": 180,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "七政四余",
+      "innerTab": "",
+      "pageId": "七政四余",
+      "actionText": "",
+      "switchMs": 180,
+      "computeMs": null,
+      "totalMs": 180,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "希腊星术",
+      "innerTab": "",
+      "pageId": "希腊星术",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "",
+      "pageId": "印度律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 435,
+      "totalMs": 554,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "命盘",
+      "pageId": "印度律盘 / 命盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 424,
+      "totalMs": 546,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "2律盘",
+      "pageId": "印度律盘 / 2律盘",
+      "actionText": "确 定",
+      "switchMs": 182,
+      "computeMs": 465,
+      "totalMs": 584,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "3律盘",
+      "pageId": "印度律盘 / 3律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 40229,
+      "totalMs": 265,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "4律盘",
+      "pageId": "印度律盘 / 4律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 515,
+      "totalMs": 625,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "7律盘",
+      "pageId": "印度律盘 / 7律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 502,
+      "totalMs": 617,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "9律盘",
+      "pageId": "印度律盘 / 9律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 532,
+      "totalMs": 647,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "10律盘",
+      "pageId": "印度律盘 / 10律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 526,
+      "totalMs": 636,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "12律盘",
+      "pageId": "印度律盘 / 12律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 515,
+      "totalMs": 623,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "16律盘",
+      "pageId": "印度律盘 / 16律盘",
+      "actionText": "确 定",
+      "switchMs": 180,
+      "computeMs": 510,
+      "totalMs": 604,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "20律盘",
+      "pageId": "印度律盘 / 20律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 531,
+      "totalMs": 623,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "24律盘",
+      "pageId": "印度律盘 / 24律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 532,
+      "totalMs": 632,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "27律盘",
+      "pageId": "印度律盘 / 27律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 524,
+      "totalMs": 614,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "40律盘",
+      "pageId": "印度律盘 / 40律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 548,
+      "totalMs": 635,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "45律盘",
+      "pageId": "印度律盘 / 45律盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 509,
+      "totalMs": 609,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "信息",
+      "pageId": "印度律盘 / 信息",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 353,
+      "totalMs": 447,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "相位",
+      "pageId": "印度律盘 / 相位",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 375,
+      "totalMs": 470,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "行星",
+      "pageId": "印度律盘 / 行星",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 376,
+      "totalMs": 475,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "希腊点",
+      "pageId": "印度律盘 / 希腊点",
+      "actionText": "确 定",
+      "switchMs": 180,
+      "computeMs": 385,
+      "totalMs": 484,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "印度律盘",
+      "innerTab": "可能性",
+      "pageId": "印度律盘 / 可能性",
+      "actionText": "确 定",
+      "switchMs": 183,
+      "computeMs": 401,
+      "totalMs": 489,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "八字紫微",
+      "innerTab": "",
+      "pageId": "八字紫微",
+      "actionText": "确 定",
+      "switchMs": 182,
+      "computeMs": 1073,
+      "totalMs": 609,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "八字紫微",
+      "innerTab": "八字",
+      "pageId": "八字紫微 / 八字",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 971,
+      "totalMs": 605,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "八字紫微",
+      "innerTab": "紫微斗数",
+      "pageId": "八字紫微 / 紫微斗数",
+      "actionText": "确 定",
+      "switchMs": 180,
+      "computeMs": 970,
+      "totalMs": 606,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "八字紫微",
+      "innerTab": "八卦类象",
+      "pageId": "八字紫微 / 八卦类象",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "八字紫微",
+      "innerTab": "十二串宫",
+      "pageId": "八字紫微 / 十二串宫",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "八字紫微",
+      "innerTab": "八字规则",
+      "pageId": "八字紫微 / 八字规则",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "",
+      "pageId": "易与三式",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 980,
+      "totalMs": 602,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "宿盘",
+      "pageId": "易与三式 / 宿盘",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 1029,
+      "totalMs": 629,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "易卦",
+      "pageId": "易与三式 / 易卦",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 1292,
+      "totalMs": 847,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "六壬",
+      "pageId": "易与三式 / 六壬",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 531,
+      "totalMs": 611,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "金口诀",
+      "pageId": "易与三式 / 金口诀",
+      "actionText": "确 定",
+      "switchMs": 181,
+      "computeMs": 1122,
+      "totalMs": 607,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "遁甲",
+      "pageId": "易与三式 / 遁甲",
+      "actionText": "起 盘",
+      "switchMs": 180,
+      "computeMs": 647,
+      "totalMs": 618,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "太乙",
+      "pageId": "易与三式 / 太乙",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 1226,
+      "totalMs": 628,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "易与三式",
+      "innerTab": "统摄法",
+      "pageId": "易与三式 / 统摄法",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "万年历",
+      "innerTab": "",
+      "pageId": "万年历",
+      "actionText": "",
+      "switchMs": 180,
+      "computeMs": null,
+      "totalMs": 180,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "西洋游戏",
+      "innerTab": "",
+      "pageId": "西洋游戏",
+      "actionText": "",
+      "switchMs": 182,
+      "computeMs": null,
+      "totalMs": 182,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "风水",
+      "innerTab": "",
+      "pageId": "风水",
+      "actionText": "",
+      "switchMs": 181,
+      "computeMs": null,
+      "totalMs": 181,
+      "over1s": false,
+      "notes": "no-action-button"
+    },
+    {
+      "mainTab": "三式合一",
+      "innerTab": "",
+      "pageId": "三式合一",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 1821,
+      "totalMs": 1032,
+      "over1s": true,
+      "notes": ""
+    },
+    {
+      "mainTab": "三式合一",
+      "innerTab": "概览",
+      "pageId": "三式合一 / 概览",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 551,
+      "totalMs": 616,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "三式合一",
+      "innerTab": "太乙",
+      "pageId": "三式合一 / 太乙",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 553,
+      "totalMs": 614,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "三式合一",
+      "innerTab": "神煞",
+      "pageId": "三式合一 / 神煞",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 558,
+      "totalMs": 617,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "三式合一",
+      "innerTab": "六壬",
+      "pageId": "三式合一 / 六壬",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 544,
+      "totalMs": 613,
+      "over1s": false,
+      "notes": ""
+    },
+    {
+      "mainTab": "三式合一",
+      "innerTab": "八宫",
+      "pageId": "三式合一 / 八宫",
+      "actionText": "起 盘",
+      "switchMs": 181,
+      "computeMs": 546,
+      "totalMs": 611,
+      "over1s": false,
+      "notes": ""
+    }
+  ],
+  "missingMainTabs": [],
+  "consoleErrors": [
+    {
+      "at": "2026-03-01T21:50:01.553Z",
+      "text": "Failed to load resource: the server responded with a status of 404 (File not found)"
+    },
+    {
+      "at": "2026-03-01T21:50:22.704Z",
+      "text": "Failed to load resource: net::ERR_CONNECTION_TIMED_OUT"
+    }
+  ],
+  "pageErrors": [],
+  "requestFailures": [
+    {
+      "at": "2026-03-01T21:50:22.704Z",
+      "method": "GET",
+      "url": "https://chart3d.horosa.com/gltf/planets4k.glb",
+      "reason": "net::ERR_CONNECTION_TIMED_OUT"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/210_71_8?auth_key=1772412629-785683-0-0a1213fc27835f5d8c7c8f5ad4152c32",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/211_71_8?auth_key=1772412629-487804-0-f9f12b1dfe89f3647a891afa8a90451c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/210_72_8?auth_key=1772412629-691251-0-84339f8b906e2839c393171a193a7d7a",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/210_70_8?auth_key=1772412629-517350-0-123bc2f0d108fe3f06bc858824d2d0ca",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/209_71_8?auth_key=1772412629-672171-0-3bfc26e61fbea354489ab88750ecbfda",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/211_72_8?auth_key=1772412629-462831-0-1af2c27e7a7ff865131c3d3f5e8c894a",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/211_70_8?auth_key=1772412629-921653-0-164a7d9ebe90a15c41131a67065a0ac8",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/209_72_8?auth_key=1772412629-452327-0-a2e1f0563d42a8db5c7c687acc585fa7",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/209_70_8?auth_key=1772412629-666430-0-9fef5e4e7de77ef952d0158b352a316c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/212_71_8?auth_key=1772412629-443088-0-3b3c4a643fdb597c6366b328181ce276",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/210_73_8?auth_key=1772412629-503743-0-a9f73e1c2c64debda9b846e2f35c9972",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/210_69_8?auth_key=1772412629-250770-0-32ad50956cd670786d9299ac2b50005a",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/208_71_8?auth_key=1772412629-37094-0-e69d10d3a39aaa714725e338287383ed",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/212_72_8?auth_key=1772412629-825032-0-a7577cf97683e94074dcc86ba97c4665",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/212_70_8?auth_key=1772412629-422504-0-8b2275cc6fa31d106a201266a40b1bbe",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/211_73_8?auth_key=1772412629-344406-0-cd6d3e991524cbc8b311c5d04e2d7a86",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.708Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/211_69_8?auth_key=1772412629-944653-0-44a81f2afd14e0f8e052ac2ae1d0ea6e",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/209_73_8?auth_key=1772412629-275923-0-fa7dd7b11bc0d19544283609ba06e9c7",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/209_69_8?auth_key=1772412629-943746-0-dd82979dfa8df7921601b9170a76c8fb",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/208_72_8?auth_key=1772412629-857647-0-a1b6f4867a592935acd516e8c767906b",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/208_70_8?auth_key=1772412629-788561-0-90feae9c3fcc4a10b8d04a2ce2c6e150",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/212_73_8?auth_key=1772412629-752790-0-ecb6b58d2f4f946349ba6a56db75c0e3",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/212_69_8?auth_key=1772412629-308679-0-a993520eaabe51611317f082ef9a2e81",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/208_73_8?auth_key=1772412629-635665-0-b77a225e7772b4d70e9e713500ae78f4",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/208_69_8?auth_key=1772412629-256957-0-162d4537ae7e4330d221838ba640bfbd",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/210_68_8?auth_key=1772412629-126611-0-b5a47f8ffbe529731bf5c40770209964",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/211_68_8?auth_key=1772412629-620073-0-e78f8b68d87161e48e4235843335d49a",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/209_68_8?auth_key=1772412629-866365-0-765c724bea0b053eea720e6041d346a7",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/213_71_8?auth_key=1772412629-900807-0-77109b853699c618c878593f4b0ce4d6",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/213_70_8?auth_key=1772412629-174834-0-3b83c3f06219dba9c30da702a9113d0e",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/207_71_8?auth_key=1772412629-288877-0-384282ca5415334d86eaab1002612282",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/207_70_8?auth_key=1772412629-652325-0-f8e016f14d54900778a885fd7b2168ec",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/212_68_8?auth_key=1772412629-919681-0-b0f601bf85ca0e474cd6f9d195e32174",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/208_68_8?auth_key=1772412629-538111-0-09705ab51a9e08ad27e6c057964c0b93",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/213_72_8?auth_key=1772412629-298915-0-5622779c5873609c5537b4370e65c31d",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/213_69_8?auth_key=1772412629-812680-0-97252a72f7884df6f1389ad6b9fff9f4",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/207_72_8?auth_key=1772412629-902734-0-f053dc8e6266f16919b6ba73c3216aed",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/207_69_8?auth_key=1772412629-305319-0-cf4194de63ad0da9285a8f3b88ba7e1a",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/213_73_8?auth_key=1772412629-393462-0-1fccd4cd90c9108a2d22e63ac3a5d842",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/213_68_8?auth_key=1772412629-831359-0-1faa71b0a162b58527468acaa089c6bf",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/207_73_8?auth_key=1772412629-906248-0-c9a6dc3b7ac5e448640ae975ea8ddb37",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/207_68_8?auth_key=1772412629-388821-0-eb1fa888c16a01093bfa52879bd77e78",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/52_17_6?auth_key=1772412629-807-0-661498eaeffc99a82f2fa995b3a23cd3",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/53_17_6?auth_key=1772412629-30850-0-2f69ae1adce126a079b72a4780d49a9f",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/52_18_6?auth_key=1772412629-102730-0-bf0683bd50b3362b13fdd9b07a2533da",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/52_16_6?auth_key=1772412629-905979-0-77b96d41146c135ea318c416808032a4",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/51_17_6?auth_key=1772412629-767074-0-cbf72b9efe8852d78c1041cd56b80420",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/53_18_6?auth_key=1772412629-246975-0-3732da4c4cb884880811b6d56cf6a442",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/53_16_6?auth_key=1772412629-365915-0-1e6e21981510a97e298959ec41f5cb65",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/51_18_6?auth_key=1772412629-769959-0-5ea3307c2109e41d4b471ba431f7fa9c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/51_16_6?auth_key=1772412629-775798-0-c80444736543db79cb4395272f433316",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/54_18_6?auth_key=1772412629-949546-0-660aa54e25b055a6de5935dd3303c322",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.709Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/54_17_6?auth_key=1772412629-37069-0-53d99ee8d590af41bdb4db1d3e1fce1f",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/53_19_6?auth_key=1772412629-639030-0-10b0fd976a96fe1ed7c4e5ec400570a5",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/52_19_6?auth_key=1772412629-812277-0-f6ad12765a887f0dc18933ee32e33aaa",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/54_19_6?auth_key=1772412629-109376-0-c64003201c4842c34cc463b764951805",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/54_16_6?auth_key=1772412629-330695-0-412c717a2689de3d2757e621ba2702f9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/2/51_19_6?auth_key=1772412629-694406-0-6c995ce75c7e359702cad6e071bb09b7",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_18_6?auth_key=1772412629-160744-0-1445f9bfed00630a6d3b7c8511e864a2",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_17_6?auth_key=1772412629-385101-0-b93616ba3b088dbd55d323eaf390eca9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_19_6?auth_key=1772412629-866427-0-80b0bdcb012d0e80dc08fbcde661dcf9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_16_6?auth_key=1772412629-584953-0-404e1f45fbd792372c9b5c6d8755c717",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/52_15_6?auth_key=1772412629-527941-0-c157d11391efe252264a14875324e968",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/53_15_6?auth_key=1772412629-455953-0-66d05b3633197c824e7764df1c2ef3eb",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/51_15_6?auth_key=1772412629-632166-0-7eec4d7eac2e1390fc41b91ca741ea58",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/54_15_6?auth_key=1772412629-888427-0-7b4653d359d311cc1aa3b25309f4c6e3",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_15_6?auth_key=1772412629-191814-0-ce61a4b9bfcfab475d029150d26d02a9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/52_20_6?auth_key=1772412629-613415-0-f33f9d25dd454b24b5bca59891d8ff61",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/53_20_6?auth_key=1772412629-129321-0-88789ff0e4a4b5406b796afcbdfceb4b",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/51_20_6?auth_key=1772412629-902624-0-b8e51d65d884136fd7be9ac50b4e8bfa",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_18_6?auth_key=1772412629-82412-0-8dcacc5bd8fc39bcbd8c1fddf69bc186",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_17_6?auth_key=1772412629-833368-0-0e6b4198ef1e5a87f6e23d681623d13e",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_18_6?auth_key=1772412629-98036-0-da5c155f9eb50bb834fa01663b599789",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_17_6?auth_key=1772412629-154847-0-10db225369a8155f78fac2105c1da3f6",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/54_20_6?auth_key=1772412629-639661-0-a9a1cd31bfeb65a60a76fec8b9a72039",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_20_6?auth_key=1772412629-383472-0-f310f84e4b16a7b573f84a73372fa4c1",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_19_6?auth_key=1772412629-261579-0-cbf9ef66da947baa446cf5745b537898",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_16_6?auth_key=1772412629-969584-0-d0f951fc5e958610642eb15faf8c3358",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_19_6?auth_key=1772412629-316965-0-3ca8d9f5fe3be95b225b41df0e2a69d8",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_16_6?auth_key=1772412629-296791-0-892cd8719b3ac8b27f9fcec50d33605a",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_20_6?auth_key=1772412629-238239-0-3e5f2798328d3e624c789875d219e2dd",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_15_6?auth_key=1772412629-140884-0-53307de4f4d35b8c5b828bf30108e744",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_20_6?auth_key=1772412629-430193-0-f32863376bc19830c821bd97aaf25651",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:30.710Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_15_6?auth_key=1772412629-52661-0-df7f3c1a7cde89f892845dfc608c42bb",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/52_14_6?auth_key=1772412629-273011-0-d8b3e2ee1d0d84ac6402c3a0e9c25914",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/53_14_6?auth_key=1772412629-458376-0-a20ca621d357790acbd4f5eb3ebeb334",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/51_14_6?auth_key=1772412629-610045-0-c94cbcf3fd83b8ca64e9268d296550c9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/54_14_6?auth_key=1772412629-985105-0-d18598e39d88d47eb6af24dd0c68363d",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/50_14_6?auth_key=1772412629-433433-0-bdcef1966da2bc183693eb699447f39b",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/55_14_6?auth_key=1772412629-349413-0-2a8fc2c5f09c1ee5387178d58a324aeb",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.109Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/building_region_road_transit/pbf/0/49_14_6?auth_key=1772412629-768411-0-3b2cb20b1b8c573c0289f5bd09589ea0",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_4_3?auth_key=1772412630-69735-0-024b1b4ec91e7a533045f4bb597b3db9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_3_3?auth_key=1772412630-779226-0-395e6e0f958bc5f924c2338cf6c2b4d3",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_4_3?auth_key=1772412630-155936-0-54cb320cf86025ccb1c073bc2f749836",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_3_3?auth_key=1772412630-982658-0-ada73c1e74fd3816c761433a0b4544a9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_4_3?auth_key=1772412630-601635-0-7de14a47350d377657cda5b56a23917f",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_3_3?auth_key=1772412630-167955-0-a997780fcf42db5ed3a5ebd8abb217a1",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_5_3?auth_key=1772412630-546605-0-85c2d68fa3a21d4ead148e8ae5b3c56e",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_5_3?auth_key=1772412630-793069-0-5940a30e88197795b8a82073f91511fa",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_2_3?auth_key=1772412630-69661-0-99fed898d32c5092896ddda7c22ce1cd",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_5_3?auth_key=1772412630-532271-0-2737093b817f5b9a14ffb208999ab65c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_2_3?auth_key=1772412630-301036-0-47a5934afd66ea796593df27fcadb800",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_4_3?auth_key=1772412630-833677-0-03c4177d4e34eb84d1ecd626fd39c0f7",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_3_3?auth_key=1772412630-772373-0-00600c3caef47b3eda33403166cfed0c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_4_3?auth_key=1772412630-657731-0-45d69187f926a325fceb5bddd5dcefcc",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_3_3?auth_key=1772412630-864883-0-1daa7537088ae61b467d1e9c2dc748ad",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_5_3?auth_key=1772412630-526299-0-6dabf2768a935cabf1939cba6f6f04fb",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_2_3?auth_key=1772412630-488871-0-f82b20752bc15ddf361196eaf13aa55b",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_6_3?auth_key=1772412630-710442-0-17ea9ac348d50e0b7524b973e8112a5c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_1_3?auth_key=1772412630-426106-0-f343c434066bca62f3c0d74bcaf26a65",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_5_3?auth_key=1772412630-959075-0-a5247671bb7b0e4b37251933772e503e",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.650Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_2_3?auth_key=1772412630-148416-0-fa2ec92e1c60a4f35788960f6329c8fa",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_6_3?auth_key=1772412630-945031-0-5af83d632ae4f2f262013ce7b93b2fc5",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_1_3?auth_key=1772412630-322348-0-8745003e2eb13676c7dd02b6afa8c19d",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_6_3?auth_key=1772412630-341026-0-8556cd867fc60bd8c521b771952357df",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_1_3?auth_key=1772412630-286940-0-0daa4d0b2f1aae3db9ec305308cd7ea2",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_4_3?auth_key=1772412630-114845-0-088e1e88e90dee39b95af3a37303f22f",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_3_3?auth_key=1772412630-769019-0-76affd04b0f3df409c7061da18169963",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_4_3?auth_key=1772412630-438706-0-0aed541e78a019f0f781cb9d7ca62001",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_3_3?auth_key=1772412630-34202-0-f40c52f273e8fe6f90f2fe49035f9cf0",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_6_3?auth_key=1772412630-25062-0-4670878bb4d14dccec06e20930dca927",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.651Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_1_3?auth_key=1772412630-110959-0-55d96370db8f95b304321cc38cd7bbaa",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_6_3?auth_key=1772412630-600687-0-de452da8422138f47cbdcb1dd93d2210",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_1_3?auth_key=1772412630-151716-0-9752d7872561c77f112bb47af9f4e191",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_5_3?auth_key=1772412630-831920-0-f94f7eb3a92d394bcee199c56922ad7f",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_2_3?auth_key=1772412630-45501-0-a2c4b3d2ab89a55759632e5d95f197e9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_5_3?auth_key=1772412630-258777-0-0f579ce90b69b69d4b27c45db9dd02a5",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_2_3?auth_key=1772412630-884688-0-e4c5f30c4fd412f9b84bbe2325203a65",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_7_3?auth_key=1772412630-502429-0-33a7d3997db5e92c69efd6abebf88f84",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/6_0_3?auth_key=1772412630-340556-0-ff93b987963b570ec6a1a97af3d04bbc",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_7_3?auth_key=1772412630-158756-0-22dca02997d9a1148bd290f5efbc3b4d",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/7_0_3?auth_key=1772412630-654847-0-16f9ba678008355fa1dbff639ea438b7",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_7_3?auth_key=1772412630-391964-0-a702dcfcc104a89588caac164400648f",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/5_0_3?auth_key=1772412630-913876-0-8263d0a88be61c3b8ebd5404f901e5fc",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_6_3?auth_key=1772412630-539628-0-a2dd209edc57a0afb33cbbe88b26fb9c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_1_3?auth_key=1772412630-455306-0-59630c830b0759efa9bfcf70b41b3d32",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_6_3?auth_key=1772412630-555486-0-829025d31763e6cbfc84677110ac49aa",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_1_3?auth_key=1772412630-281327-0-a221b39fd0ac29149e6b9170074f934c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_4_3?auth_key=1772412630-323196-0-8f5616b12443bff100b24eb952a97e6e",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_3_3?auth_key=1772412630-276566-0-ca8b5bf0793a9d95e5364e717ef2516c",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_7_3?auth_key=1772412630-689668-0-abe60b6ca4fc0d7f85448f0cea010218",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/0_0_3?auth_key=1772412630-311002-0-992aa98d6a1d2a7d017d4166ef053761",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_7_3?auth_key=1772412630-954088-0-6c93a25ccc1390cb35742f7cc07fa6f9",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.652Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/4_0_3?auth_key=1772412630-837243-0-89cdb7774da8fec539b37d1b79d56c63",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_5_3?auth_key=1772412630-475502-0-3e9ca55b1a56e0d0e28c0793bc95455b",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_2_3?auth_key=1772412630-820-0-c3298a6b3e826738028bca30c7379fe3",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_7_3?auth_key=1772412630-545430-0-274c43e36b4cab65e53d00f90fb36017",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/1_0_3?auth_key=1772412630-39144-0-4b718d80414ec938a8f4b93c8d3ad063",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_7_3?auth_key=1772412630-781696-0-db0d0043f344cdeaf39ad69c66de18c2",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data5.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/3_0_3?auth_key=1772412630-501542-0-5c978c4fbf3671de2be40616e1ebbf66",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data1.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_6_3?auth_key=1772412630-67018-0-732784f0cf6786c51af20be60688a7b3",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data2.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_1_3?auth_key=1772412630-880226-0-15291ae87e0ac7aae634632fc982641d",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data3.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_7_3?auth_key=1772412630-674882-0-91cca27f388d2e86930d867941631174",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "at": "2026-03-01T21:50:31.653Z",
+      "method": "GET",
+      "url": "https://jsapi-data4.amap.com/tile/25_12_29_00/v2/poi_region_road_transit/pbf/2/2_0_3?auth_key=1772412630-598729-0-085de5e74c8c8540d99b367bda75c72e",
+      "reason": "net::ERR_ABORTED"
+    }
+  ],
+  "summary": {
+    "totalPages": 68,
+    "measuredPages": 54,
+    "noActionPages": 14,
+    "overThresholdPages": 1,
+    "thresholdMs": 1000,
+    "maxTotalMs": 1032,
+    "pass": false
+  },
+  "endedAt": "2026-03-01T21:52:37.798Z"
+}
