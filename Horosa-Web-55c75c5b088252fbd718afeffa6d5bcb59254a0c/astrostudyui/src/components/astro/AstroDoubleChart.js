@@ -1,3 +1,4 @@
+import * as d3 from 'd3';
 import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroHelper from './AstroHelper';
@@ -15,11 +16,30 @@ class AstroDoubleChart extends Component{
 			ox: 0,
 			oy: 0,
 			radius: 0,
+			tooltipId: 'div' + randomStr(8),
 		}
 
 		this.drawChart = this.drawChart.bind(this);
 		this.handleResize = this.handleResize.bind(this);
+		this.setupToolTip = this.setupToolTip.bind(this);
 
+	}
+
+	setupToolTip(){
+		const divTooltip = d3.select('#' + this.state.tooltipId);
+		divTooltip.style('opacity', 0)
+			.style('position', 'absolute')
+			.style('text-align', 'left')
+			.style('vertical-align', 'middle')
+			.style('width', '340px')
+			.style('padding', '2px')
+			.style('padding-left', '10px')
+			.style('font', '13px sans-serif')
+			.style('background', 'lightsteelblue')
+			.style('border', '0px')
+			.style('border-radius', '8px')
+			.style('pointer-events', 'none');
+		return divTooltip;
 	}
 
 	handleResize(){
@@ -71,11 +91,14 @@ class AstroDoubleChart extends Component{
 		if(chartDisplay === undefined || chartDisplay === null){
 			chartDisplay = AstroConst.CHART_DEFAULTOPTS;
 		}
-		AstroHelper.drawDoubleChart(this.state.chartid, chartobj, this.state.rStep, chartDisplay, planetDisp);
+		const divTooltip = d3.select('#' + this.state.tooltipId);
+		AstroHelper.drawDoubleChart(this.state.chartid, chartobj, this.state.rStep, chartDisplay, planetDisp, divTooltip);
 	}
 
 	componentDidMount(){
 		window.addEventListener('resize', this.handleResize);
+		d3.select('body').append('div').attr('id', this.state.tooltipId);
+		this.setupToolTip();
 		this.drawChart();
 	}
 
@@ -85,6 +108,7 @@ class AstroDoubleChart extends Component{
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize);
+		d3.select('#' + this.state.tooltipId).remove();
 	}
 
 

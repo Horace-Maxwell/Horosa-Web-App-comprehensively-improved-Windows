@@ -1,6 +1,7 @@
 import { getStore, } from './storageutil';
 import { getAstroAISnapshotForCurrent, saveAstroAISnapshot, } from './astroAiSnapshot';
 import { loadModuleAISnapshot, } from './moduleAiSnapshot';
+import { ASTRO_ANNOTATION_SECTION_TITLE, } from '../constants/AstroInterpretation';
 import {
 	filterPlanetMetaSuffix,
 	normalizePlanetMetaDisplay,
@@ -105,6 +106,7 @@ const DOMAIN_REPLACERS = {
 
 const ENABLE_SVG_TEXT_EXPORT = false;
 const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
+const AI_EXPORT_SETTINGS_VERSION = 4;
 const JIEQI_SETTING_PRESETS = {
 	jieqi_meta: ['节气盘参数'],
 	jieqi_chunfen: ['春分星盘', '春分宿盘'],
@@ -151,6 +153,20 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'fengshui', label: '风水' },
 	{ key: 'generic', label: '其他页面' },
 ];
+const AI_EXPORT_TECHNIQUE_LABEL_MAP = AI_EXPORT_TECHNIQUES.reduce((acc, item)=>{
+	acc[item.key] = item.label;
+	return acc;
+}, {});
+const MODULE_SNAPSHOT_ALIASES = {
+	guazhan: ['sixyao'],
+	sixyao: ['guazhan'],
+	qimen: ['dunjia'],
+	dunjia: ['qimen'],
+	relative: ['relativechart'],
+	relativechart: ['relative'],
+	indiachart: ['indiachart_current'],
+	jieqi: ['jieqi_current'],
+};
 const AI_EXPORT_PLANET_META_TECHNIQUES = new Set([
 	'astrochart',
 	'indiachart',
@@ -177,11 +193,27 @@ const AI_EXPORT_PLANET_META_DEFAULT = {
 	showHouse: 1,
 	showRuler: 1,
 };
+const AI_EXPORT_ANNOTATION_DEFAULT = 1;
+const AI_EXPORT_ANNOTATION_TECHNIQUES = new Set([
+	'astrochart',
+	'indiachart',
+	'astrochart_like',
+	'relative',
+	'primarydirect',
+	'zodialrelease',
+	'firdaria',
+	'profection',
+	'solararc',
+	'solarreturn',
+	'lunarreturn',
+	'givenyear',
+	'germany',
+]);
 
 const AI_EXPORT_PRESET_SECTIONS = {
-	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性'],
-	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '可能性'],
-	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性'],
+	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性', ASTRO_ANNOTATION_SECTION_TITLE],
+	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '可能性', ASTRO_ANNOTATION_SECTION_TITLE],
+	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性', ASTRO_ANNOTATION_SECTION_TITLE],
 	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '影响图盘-星盘A', '影响图盘-星盘B'],
 	primarydirect: ['出生时间', '星盘信息', '主/界限法表格'],
 	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运'],
@@ -196,11 +228,30 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	suzhan: ['起盘信息'],
 	sixyao: ['起盘信息', '起卦方式', '卦辞'],
 	tongshefa: ['本卦', '六爻', '潜藏', '亲和'],
-	liureng: ['起盘信息'],
+	liureng: [
+		'起盘信息',
+		'十二盘式',
+		'十二地盘/十二天盘/十二贵神对应',
+		'四课',
+		'三传',
+		'行年',
+		'旬日',
+		'旺衰',
+		'基础神煞',
+		'干煞',
+		'月煞',
+		'支煞',
+		'岁煞',
+		'十二长生',
+		'大格',
+		'小局',
+		'参考',
+		'概览',
+	],
 	jinkou: ['起盘信息', '金口诀速览', '金口诀四位', '四位神煞'],
 	taiyi: ['起盘信息', '太乙盘', '十六宫标记'],
 	qimen: ['起盘信息', '盘型', '右侧栏目', '九宫方盘'],
-	sanshiunited: ['起盘信息', '概览', '状态', '太乙', '太乙十六宫', '神煞', '大六壬', '正北坎宫', '东北艮宫', '正东震宫', '东南巽宫', '正南离宫', '西南坤宫', '正西兑宫', '西北乾宫'],
+	sanshiunited: ['起盘信息', '概览', '大六壬', '六壬大格', '六壬小局', '六壬参考', '六壬概览', '正北坎宫', '东北艮宫', '正东震宫', '东南巽宫', '正南离宫', '西南坤宫', '正西兑宫', '西北乾宫', '神煞', '八宫详解'],
 	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞'],
 	germany: ['起盘信息'],
 	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '夏至星盘', '夏至宿盘', '秋分星盘', '秋分宿盘', '冬至星盘', '冬至宿盘'],
@@ -209,6 +260,24 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	fengshui: ['起盘信息', '标记判定', '冲突清单', '建议汇总', '纳气建议'],
 	generic: ['起盘信息'],
 };
+
+const LIURENG_PRESET_SECTIONS_V2 = [
+	'起盘信息',
+	'十二地盘/十二天盘/十二贵神对应',
+	'四课',
+	'三传',
+	'行年',
+	'大格命中',
+	'小局命中',
+	'旬日',
+	'旺衰',
+	'基础神煞',
+	'干煞',
+	'月煞',
+	'支煞',
+	'岁煞',
+	'十二长生',
+];
 
 // ywastr* 字体把术语编码到单字符里，复制后只剩字母，需要反解码。
 const STANDALONE_TOKEN_MAP = {
@@ -301,6 +370,18 @@ function textOf(node){
 	return (node.innerText || node.textContent || '').trim();
 }
 
+function isElementVisible(node){
+	if(!node || !(node instanceof HTMLElement)){
+		return false;
+	}
+	const style = window.getComputedStyle(node);
+	if(!style || style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none'){
+		return false;
+	}
+	const rect = node.getBoundingClientRect();
+	return rect.width > 1 && rect.height > 1;
+}
+
 function uniqueArray(arr){
 	const out = [];
 	const seen = new Set();
@@ -358,12 +439,87 @@ function supportsPlanetMetaSettingsForTechnique(key){
 	return AI_EXPORT_PLANET_META_TECHNIQUES.has(key);
 }
 
+function supportsAnnotationSettingsForTechnique(key){
+	return AI_EXPORT_ANNOTATION_TECHNIQUES.has(key);
+}
+
 function normalizeAIExportPlanetMeta(raw){
 	const src = raw && typeof raw === 'object' ? raw : {};
 	return {
 		showHouse: src.showHouse === 0 || src.showHouse === false ? 0 : 1,
 		showRuler: src.showRuler === 0 || src.showRuler === false ? 0 : 1,
 	};
+}
+
+function normalizeSectionArray(raw){
+	const arr = Array.isArray(raw) ? raw : [];
+	return uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+}
+
+function mapLiurengLegacySectionTitle(title){
+	const normalized = normalizeSectionTitle(title);
+	if(normalized === normalizeSectionTitle('大格命中')){
+		return normalizeSectionTitle('大格');
+	}
+	if(normalized === normalizeSectionTitle('小局命中')){
+		return normalizeSectionTitle('小局');
+	}
+	return normalized;
+}
+
+function hasSameSections(a, b){
+	if(a.length !== b.length){
+		return false;
+	}
+	const setA = new Set(a);
+	const setB = new Set(b);
+	if(setA.size !== setB.size){
+		return false;
+	}
+	for(const key of setA){
+		if(!setB.has(key)){
+			return false;
+		}
+	}
+	return true;
+}
+
+function migrateLegacySectionSelection(key, selected, sourceVersion){
+	const normalizedSelected = normalizeSectionArray(selected);
+	const normalizedPreset = normalizeSectionArray(AI_EXPORT_PRESET_SECTIONS[key] || []);
+	if(sourceVersion >= AI_EXPORT_SETTINGS_VERSION || !normalizedPreset.length){
+		return normalizedSelected;
+	}
+
+	if(key === 'liureng'){
+		const mappedSelected = uniqueArray(normalizedSelected.map((item)=>mapLiurengLegacySectionTitle(item)).filter(Boolean));
+		// Legacy default only selected "起盘信息"; expand to current full preset.
+		if(mappedSelected.length === 1 && mappedSelected[0] === normalizeSectionTitle('起盘信息')){
+			return normalizedPreset;
+		}
+		// v2 default had old section names and missed newly-added sections.
+		if(sourceVersion < 3){
+			const normalizedV2Preset = normalizeSectionArray(LIURENG_PRESET_SECTIONS_V2.map((item)=>mapLiurengLegacySectionTitle(item)));
+			if(hasSameSections(mappedSelected, normalizedV2Preset)){
+				return normalizedPreset;
+			}
+		}
+		return mappedSelected;
+	}
+
+	if(key === 'sanshiunited'){
+		const mappedSelected = uniqueArray(normalizedSelected.map((item)=>mapLegacySectionTitle(key, item)).filter(Boolean));
+		const detailTitle = normalizeSectionTitle('八宫详解');
+		const selectedSet = new Set(mappedSelected);
+		const missingPreset = normalizedPreset.filter((title)=>!selectedSet.has(title));
+		// Legacy preset did not include this newly-added section; append it.
+		if(missingPreset.length === 1 && missingPreset[0] === detailTitle){
+			return uniqueArray([...mappedSelected, detailTitle]);
+		}
+		return mappedSelected;
+	}
+
+	return normalizedSelected;
 }
 
 function resolveAIExportPlanetMetaForKey(settings, key){
@@ -383,10 +539,12 @@ function resolveAIExportPlanetMetaForKey(settings, key){
 }
 
 function normalizeAIExportSettings(settings){
+	const sourceVersion = Number(settings && settings.version) || 1;
 	const normalized = {
-		version: 1,
+		version: AI_EXPORT_SETTINGS_VERSION,
 		sections: {},
 		planetMeta: {},
+		annotations: {},
 	};
 	if(!settings || typeof settings !== 'object'){
 		return normalized;
@@ -394,7 +552,7 @@ function normalizeAIExportSettings(settings){
 	const sections = settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
 	Object.keys(sections).forEach((key)=>{
 		const arr = Array.isArray(sections[key]) ? sections[key] : [];
-		normalized.sections[key] = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+		normalized.sections[key] = migrateLegacySectionSelection(key, arr, sourceVersion);
 	});
 	const planetMeta = settings.planetMeta && typeof settings.planetMeta === 'object' ? settings.planetMeta : {};
 	Object.keys(planetMeta).forEach((key)=>{
@@ -402,6 +560,13 @@ function normalizeAIExportSettings(settings){
 			return;
 		}
 		normalized.planetMeta[key] = normalizeAIExportPlanetMeta(planetMeta[key]);
+	});
+	const annotations = settings.annotations && typeof settings.annotations === 'object' ? settings.annotations : {};
+	Object.keys(annotations).forEach((key)=>{
+		if(!supportsAnnotationSettingsForTechnique(key)){
+			return;
+		}
+		normalized.annotations[key] = annotations[key] === 0 || annotations[key] === false ? 0 : 1;
 	});
 	return normalized;
 }
@@ -413,8 +578,58 @@ function snapshotModuleKeyByContextKey(key){
 	return key;
 }
 
+function getTechniqueLabelByKey(key){
+	return AI_EXPORT_TECHNIQUE_LABEL_MAP[key] || '当前技术';
+}
+
 function isJieQiSplitSettingKey(key){
 	return JIEQI_SPLIT_SETTING_KEYS.includes(key);
+}
+
+function getCachedContentByKeyWithContext(key, context){
+	if(key === 'indiachart'){
+		const indiaActive = context ? findIndiaActivePane(context.scopeRoot) : null;
+		return getIndiaCachedContent(indiaActive ? indiaActive.label : '');
+	}
+	return getCachedContentForTechnique(key);
+}
+
+function resolveCachedContentByContext(context){
+	const fallbackContext = resolveContextByAstroState();
+	const candidates = uniqueArray([
+		context && context.key ? context.key : '',
+		fallbackContext && fallbackContext.key ? fallbackContext.key : '',
+	].filter(Boolean));
+	for(let i=0; i<candidates.length; i++){
+		const key = candidates[i];
+		const content = getCachedContentByKeyWithContext(key, context);
+		if(content && `${content}`.trim()){
+			return {
+				key,
+				content,
+			};
+		}
+	}
+	return {
+		key: context && context.key ? context.key : 'generic',
+		content: '',
+	};
+}
+
+async function waitForCachedContentByContext(context, waitMs = 2400){
+	let resolved = resolveCachedContentByContext(context);
+	if(resolved.content && `${resolved.content}`.trim()){
+		return resolved;
+	}
+	const startedAt = Date.now();
+	while((Date.now() - startedAt) < waitMs){
+		await sleep(160);
+		resolved = resolveCachedContentByContext(context);
+		if(resolved.content && `${resolved.content}`.trim()){
+			return resolved;
+		}
+	}
+	return resolved;
 }
 
 function getJieQiCachedContent(){
@@ -530,6 +745,19 @@ function applyUserSectionFilter(content, key){
 
 function mapLegacySectionTitle(key, title){
 	const normalized = normalizeSectionTitle(title);
+	if(key === 'liureng'){
+		return mapLiurengLegacySectionTitle(normalized);
+	}
+	if(key === 'sanshiunited'){
+		const legacyMap = {
+			'六壬-概览': '大六壬',
+			'六壬-大格': '六壬大格',
+			'六壬-小局': '六壬小局',
+			'六壬-参考': '六壬参考',
+			'六壬-概览文': '六壬概览',
+		};
+		return legacyMap[normalized] || normalized;
+	}
 	if(key !== 'tongshefa'){
 		return normalized;
 	}
@@ -599,6 +827,44 @@ function applyPlanetMetaFilterByContext(content, context){
 	const settingKey = resolvePlanetMetaContextKey(context);
 	const display = resolveAIExportPlanetMetaForKey(settings, settingKey);
 	return filterPlanetMetaSuffix(content, display);
+}
+
+function resolveAnnotationFlagForKey(settings, key){
+	if(!supportsAnnotationSettingsForTechnique(key)){
+		return AI_EXPORT_ANNOTATION_DEFAULT;
+	}
+	const all = settings && settings.annotations && typeof settings.annotations === 'object'
+		? settings.annotations
+		: {};
+	const raw = all[key];
+	return raw === 0 || raw === false ? 0 : 1;
+}
+
+function removeAnnotationSection(content){
+	const sections = splitContentSections(content);
+	if(!sections.length){
+		return content;
+	}
+	const kept = sections.filter((sec)=>normalizeSectionTitle(sec.title) !== normalizeSectionTitle(ASTRO_ANNOTATION_SECTION_TITLE));
+	if(!kept.length){
+		return '';
+	}
+	const out = [];
+	kept.forEach((sec)=>{
+		if(out.length && out[out.length - 1] !== ''){
+			out.push('');
+		}
+		out.push(...sec.lines);
+	});
+	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function applyAnnotationFilterByContext(content, context){
+	const settings = loadAIExportSettings();
+	if(resolveAnnotationFlagForKey(settings, context.key) === 1){
+		return content;
+	}
+	return removeAnnotationSection(content);
 }
 
 function normalizeWhitespace(text){
@@ -749,6 +1015,12 @@ function getTabsNavItems(container){
 	if(!container){
 		return [];
 	}
+	const directNav = Array.from(container.children).find((n)=>{
+		return n && n.classList && n.classList.contains('ant-tabs-nav');
+	});
+	if(directNav){
+		return Array.from(directNav.querySelectorAll('.ant-tabs-tab'));
+	}
 	return Array.from(container.querySelectorAll('.ant-tabs-nav .ant-tabs-tab'));
 }
 
@@ -780,6 +1052,9 @@ function findTabsContainerByLabels(scopeRoot, labels, requireAll){
 	const tabs = Array.from(scopeRoot.querySelectorAll('.ant-tabs'));
 	for(let i=0; i<tabs.length; i++){
 		const tab = tabs[i];
+		if(!isElementVisible(tab)){
+			continue;
+		}
 		const names = getTabsNavItems(tab).map((n)=>textOf(n));
 		if(names.length === 0){
 			continue;
@@ -803,12 +1078,20 @@ function findTopTabsContainer(root){
 	}
 	const tabs = Array.from(root.querySelectorAll('.ant-tabs'));
 	for(let i=0; i<tabs.length; i++){
-		const names = getTabsNavItems(tabs[i]).map((n)=>textOf(n));
+		const tab = tabs[i];
+		if(!isElementVisible(tab)){
+			continue;
+		}
+		const names = getTabsNavItems(tab).map((n)=>textOf(n));
 		if(names.includes('星盘') && names.includes('易与三式')){
-			return tabs[i];
+			return tab;
 		}
 	}
-	return root.querySelector('.ant-tabs-left') || tabs[0] || null;
+	const tabsLeft = root.querySelector('.ant-tabs-left');
+	if(tabsLeft && isElementVisible(tabsLeft)){
+		return tabsLeft;
+	}
+	return tabs.find((tab)=>isElementVisible(tab)) || tabs[0] || null;
 }
 
 function detectChartTypeInPane(scopeRoot){
@@ -851,6 +1134,102 @@ function findIndiaActivePane(scopeRoot){
 	return {
 		pane: null,
 		label: '',
+	};
+}
+
+function resolveContextByAstroState(){
+	try{
+		const store = getStore();
+		const astro = store && store.astro ? store.astro : null;
+		if(!astro){
+			return null;
+		}
+		const tab = `${astro.currentTab || ''}`;
+		const subTab = `${astro.currentSubTab || ''}`;
+		const predictiveMap = {
+			primarydirect: '推运盘-主/界限法',
+			zodialrelease: '推运盘-黄道星释',
+			firdaria: '推运盘-法达星限',
+			profection: '推运盘-小限法',
+			solararc: '推运盘-太阳弧',
+			solarreturn: '推运盘-太阳返照',
+			lunarreturn: '推运盘-月亮返照',
+			givenyear: '推运盘-流年法',
+		};
+		if(tab === 'astrochart' || tab === 'astrochart3D'){
+			return { key: 'astrochart', domain: null, displayName: '星盘' };
+		}
+		if(tab === 'direction'){
+			const key = predictiveMap[subTab] ? subTab : 'primarydirect';
+			return { key, domain: 'predictive_raw', displayName: predictiveMap[key] || '推运盘-主/界限法' };
+		}
+		if(tab === 'germanytech'){
+			return { key: 'germany', domain: null, displayName: '量化盘' };
+		}
+		if(tab === 'relativechart'){
+			return { key: 'relative', domain: null, displayName: '关系盘' };
+		}
+		if(tab === 'jieqichart'){
+			return { key: 'jieqi', domain: null, displayName: '节气盘' };
+		}
+		if(tab === 'locastro' || tab === 'hellenastro'){
+			return { key: 'astrochart_like', domain: null, displayName: tab === 'hellenastro' ? '希腊星术' : '星体地图' };
+		}
+		if(tab === 'guolao'){
+			return { key: 'guolao', domain: null, displayName: '七政四余' };
+		}
+		if(tab === 'indiachart'){
+			return { key: 'indiachart', domain: null, displayName: '印度律盘' };
+		}
+		if(tab === 'cntradition'){
+			if(subTab === 'bazi'){
+				return { key: 'bazi', domain: null, displayName: '八字' };
+			}
+			if(subTab === 'ziwei'){
+				return { key: 'ziwei', domain: null, displayName: '紫微斗数' };
+			}
+			return { key: 'cntradition', domain: null, displayName: '八字紫微' };
+		}
+		if(tab === 'cnyibu'){
+			const map = {
+				suzhan: { key: 'suzhan', domain: null, displayName: '宿盘' },
+				guazhan: { key: 'sixyao', domain: 'sixyao', displayName: '易卦' },
+				liureng: { key: 'liureng', domain: 'liureng', displayName: '大六壬' },
+				jinkou: { key: 'jinkou', domain: 'jinkou', displayName: '金口诀' },
+				dunjia: { key: 'qimen', domain: 'qimen', displayName: '奇门遁甲' },
+				taiyi: { key: 'taiyi', domain: null, displayName: '太乙' },
+				tongshefa: { key: 'tongshefa', domain: 'tongshefa', displayName: '统摄法' },
+			};
+			return map[subTab] || { key: 'cnyibu', domain: null, displayName: '易与三式' };
+		}
+		if(tab === 'otherbu'){
+			return { key: 'otherbu', domain: null, displayName: '西洋游戏' };
+		}
+		if(tab === 'fengshui'){
+			return { key: 'fengshui', domain: null, displayName: '风水' };
+		}
+		if(tab === 'sanshiunited'){
+			return { key: 'sanshiunited', domain: 'sanshiunited', displayName: '三式合一' };
+		}
+		return null;
+	}catch(e){
+		return null;
+	}
+}
+
+function withStoreContextFallback(context){
+	const storeContext = resolveContextByAstroState();
+	if(!storeContext){
+		return context;
+	}
+	if(context && context.key && context.key !== 'generic'){
+		return context;
+	}
+	return {
+		...(context || {}),
+		key: storeContext.key || (context ? context.key : 'generic'),
+		domain: storeContext.domain !== undefined ? storeContext.domain : (context ? context.domain : null),
+		displayName: storeContext.displayName || (context ? context.displayName : '当前技术'),
 	};
 }
 
@@ -1103,7 +1482,7 @@ function detectJieQiSettingKeyByScope(scopeRoot){
 
 export function getCurrentAIExportContext(){
 	try{
-		const context = resolveActiveContext();
+		const context = withStoreContextFallback(resolveActiveContext());
 		if(context.key === 'jieqi'){
 			const byScope = detectJieQiSettingKeyByScope(context.scopeRoot);
 			return {
@@ -1156,6 +1535,7 @@ export function listAIExportTechniqueSettings(){
 			label: item.label,
 			options: getOptionsForTechniqueKey(item.key),
 			supportsPlanetMeta: supportsPlanetMetaSettingsForTechnique(item.key),
+			supportsAnnotation: supportsAnnotationSettingsForTechnique(item.key),
 		};
 	});
 }
@@ -1288,9 +1668,13 @@ function getModuleCachedContent(moduleName){
 	if(!moduleName){
 		return '';
 	}
-	const snapshot = loadModuleAISnapshot(moduleName);
-	if(snapshot && snapshot.content){
-		return snapshot.content;
+	const alias = MODULE_SNAPSHOT_ALIASES[moduleName] || [];
+	const keys = uniqueArray([moduleName, ...alias].filter(Boolean));
+	for(let i=0; i<keys.length; i++){
+		const snapshot = loadModuleAISnapshot(keys[i]);
+		if(snapshot && snapshot.content){
+			return snapshot.content;
+		}
 	}
 	return '';
 }
@@ -1333,227 +1717,45 @@ function getIndiaCachedContent(activeLabel){
 }
 
 async function extractAstroContent(context){
-	const isAstroLike = context && context.key === 'astrochart_like';
+	const key = context && context.key ? context.key : '';
 	const topLabel = context && context.topLabel ? context.topLabel : '';
-	const isIndia = (context && context.key === 'indiachart') || topLabel.includes('印度律盘');
-	if(!isAstroLike && !isIndia){
-		const cached = getAstroCachedContent();
-		if(cached){
-			return cached;
-		}
+	const isIndia = key === 'indiachart' || topLabel.includes('印度律盘');
+	if(isIndia){
+		return getIndiaCachedContent('');
 	}
-
-	let scopeRoot = context.scopeRoot;
-	const extraLines = [];
-	let indiaActive = null;
-	if(isAstroLike || isIndia){
-		indiaActive = findIndiaActivePane(scopeRoot);
-		if(indiaActive && indiaActive.pane){
-			scopeRoot = indiaActive.pane;
-		}
-		if(indiaActive && indiaActive.label){
-			extraLines.push(`当前律盘：${indiaActive.label}`);
-		}
-		if(isIndia){
-			const indiaCached = getIndiaCachedContent(indiaActive ? indiaActive.label : '');
-			if(indiaCached){
-				return indiaCached;
-			}
-		}
-	}
-	const keywords = [
-		'经度', '纬度', '时区', '真太阳时', '回归黄道', '整宫制',
-		'日主星', '时主星', '日生盘', '夜生盘',
-		'周一', '周二', '周三', '周四', '周五', '周六', '周日'
-	];
-	const summary = uniqueArray([...extraLines, ...getSummaryLines(scopeRoot, keywords)]);
-	const tabs = await captureTabsContentByLabels(scopeRoot, CHART_TAB_LABELS);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(tabs){
-		CHART_TAB_LABELS.forEach((label)=>{
-			const txt = normalizeWhitespace(tabs[label] || '');
-			if(txt){
-				parts.push(`[${label}]`);
-				parts.push(txt);
-			}
-		});
-	}
-
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getAstroCachedContent();
 }
 
 async function extractSixYaoContent(context){
-	const cached = getModuleCachedContent('guazhan');
-	if(cached){
-		return cached;
-	}
-
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'起卦', '时间起卦', '数字起卦', '自定义起卦', '动爻', '上卦', '下卦',
-		'旬空', '卦辞', '经度', '纬度', '时区', '真太阳时', '六神', '世', '应'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const rightText = extractRightColumnText(scopeRoot);
-	const tabs = await captureTabsContentByLabels(scopeRoot, SIXYAO_TAB_LABELS);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(rightText){
-		parts.push('[右侧栏目]');
-		parts.push(rightText);
-	}
-	if(tabs){
-		SIXYAO_TAB_LABELS.forEach((label)=>{
-			const txt = normalizeWhitespace(tabs[label] || '');
-			if(txt){
-				parts.push(`[${label}]`);
-				parts.push(txt);
-			}
-		});
-	}
-
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('guazhan') || '';
 }
 
 async function extractLiuRengContent(context){
-	const cached = getModuleCachedContent('liureng');
-	if(cached){
-		return cached;
-	}
-
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'卜卦', '出生时间', '经度', '纬度', '时区', '真太阳时',
-		'六壬', '三传', '四课', '旬空', '贵人', '天盘', '地盘', '神将'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const rightText = extractRightColumnText(scopeRoot);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(rightText){
-		parts.push('[右侧栏目]');
-		parts.push(rightText);
-	}
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('liureng') || '';
 }
 
 async function extractJinKouContent(context){
-	const cached = getModuleCachedContent('jinkou');
-	if(cached){
-		return cached;
-	}
-	return extractLiuRengContent(context);
+	return getModuleCachedContent('jinkou') || '';
 }
 
 async function extractQiMenContent(context){
-	const cached = getModuleCachedContent('qimen');
-	if(cached){
-		return cached;
-	}
-
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'遁甲', '奇门', '外盘', '值符', '值使', '九星', '八门', '八神',
-		'经度', '纬度', '时区', '真太阳时', '年命', '男女', '斗柄定房法', '现实距星法'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const rightText = extractRightColumnText(scopeRoot);
-
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(context.chartType){
-		parts.push('[盘型]');
-		parts.push(context.chartType);
-	}
-	if(rightText){
-		parts.push('[右侧栏目]');
-		parts.push(rightText);
-	}
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('qimen') || '';
 }
 
 async function extractSanShiUnitedContent(context){
-	const cached = getModuleCachedContent('sanshiunited');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('sanshiunited') || '';
 }
 
 async function extractTongSheFaContent(context){
-	const cached = getModuleCachedContent('tongshefa');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('tongshefa') || '';
 }
 
 async function extractTaiYiContent(context){
-	const cached = getModuleCachedContent('taiyi');
-	if(cached){
-		return cached;
-	}
-	const scopeRoot = context.scopeRoot;
-	const keywords = [
-		'太乙', '局式', '太乙积数', '文昌', '始击', '太岁', '合神', '计神',
-		'乾造', '坤造', '农历', '真太阳时', '节气'
-	];
-	const summary = getSummaryLines(scopeRoot, keywords);
-	const parts = [];
-	if(summary.length){
-		parts.push('[起盘信息]');
-		parts.push(summary.join('\n'));
-	}
-	if(parts.length === 0){
-		parts.push('[起盘信息]');
-		parts.push(normalizeWhitespace(textOf(scopeRoot)));
-	}
-	appendSvgSection(parts, scopeRoot);
-	return parts.join('\n\n').trim();
+	return getModuleCachedContent('taiyi') || '';
 }
 
 async function extractGermanyContent(context){
-	const cached = getModuleCachedContent('germany');
-	if(cached){
-		return cached;
-	}
-	return extractAstroContent(context);
+	return getModuleCachedContent('germany') || '';
 }
 
 async function extractJieQiContent(context){
@@ -1565,7 +1767,7 @@ async function extractJieQiContent(context){
 	if(cached){
 		return cached;
 	}
-	return extractAstroContent(context);
+	return '';
 }
 
 async function extractPrimaryDirectContent(context){
@@ -1633,39 +1835,15 @@ async function extractGivenYearContent(context){
 }
 
 async function extractRelativeContent(context){
-	const cached = getModuleCachedContent('relative');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('relative') || '';
 }
 
 async function extractOtherBuContent(context){
-	const cached = getModuleCachedContent('otherbu');
-	if(cached){
-		return cached;
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('otherbu') || '';
 }
 
 async function extractFengShuiContent(context){
-	const holder = context && context.scopeRoot ? context.scopeRoot : document;
-	const iframe = holder ? holder.querySelector('iframe[src*="/fengshui/index.html"]') : null;
-	if(iframe && iframe.contentWindow && iframe.contentWindow.document){
-		try{
-			const doc = iframe.contentWindow.document;
-			const txt = normalizeWhitespace(textOf(doc.body));
-			if(txt){
-				const lines = [
-					'[起盘信息]',
-					txt,
-				];
-				return lines.join('\n\n');
-			}
-		}catch(e){
-		}
-	}
-	return extractGenericContent(context);
+	return getModuleCachedContent('fengshui') || '';
 }
 
 async function extractGenericContent(context){
@@ -1758,14 +1936,7 @@ async function extractGenericContent(context){
 		}
 	}
 
-	const txt = normalizeWhitespace(textOf(context.scopeRoot));
-	const parts = [];
-	if(txt){
-		parts.push('[起盘信息]');
-		parts.push(txt);
-	}
-	appendSvgSection(parts, context.scopeRoot);
-	return parts.join('\n\n').trim();
+	return '';
 }
 
 function applyReplacers(text, replacers){
@@ -1945,64 +2116,32 @@ function exportWord(payload){
 }
 
 async function buildPayload(){
-	const context = resolveActiveContext();
+	const context = withStoreContextFallback(resolveActiveContext());
 	const now = new Date();
-
-	let content = '';
-	if(context.key === 'astrochart' || context.key === 'astrochart_like' || context.key === 'indiachart'){
-		content = await extractAstroContent(context);
-	}else if(context.key === 'germany'){
-		content = await extractGermanyContent(context);
-	}else if(context.key === 'jieqi'){
-		content = await extractJieQiContent(context);
-	}else if(context.key === 'primarydirect'){
-		content = await extractPrimaryDirectContent(context);
-	}else if(context.key === 'zodialrelease'){
-		content = await extractZodialReleaseContent(context);
-	}else if(context.key === 'firdaria'){
-		content = await extractFirdariaContent(context);
-	}else if(context.key === 'profection'){
-		content = await extractProfectionContent(context);
-	}else if(context.key === 'solararc'){
-		content = await extractSolarArcContent(context);
-	}else if(context.key === 'solarreturn'){
-		content = await extractSolarReturnContent(context);
-	}else if(context.key === 'lunarreturn'){
-		content = await extractLunarReturnContent(context);
-	}else if(context.key === 'givenyear'){
-		content = await extractGivenYearContent(context);
-	}else if(context.key === 'sixyao'){
-		content = await extractSixYaoContent(context);
-	}else if(context.key === 'liureng'){
-		content = await extractLiuRengContent(context);
-	}else if(context.key === 'jinkou'){
-		content = await extractJinKouContent(context);
-	}else if(context.key === 'qimen'){
-		content = await extractQiMenContent(context);
-	}else if(context.key === 'sanshiunited'){
-		content = await extractSanShiUnitedContent(context);
-	}else if(context.key === 'tongshefa'){
-		content = await extractTongSheFaContent(context);
-	}else if(context.key === 'taiyi'){
-		content = await extractTaiYiContent(context);
-	}else if(context.key === 'relative'){
-		content = await extractRelativeContent(context);
-	}else if(context.key === 'otherbu'){
-		content = await extractOtherBuContent(context);
-	}else if(context.key === 'fengshui'){
-		content = await extractFengShuiContent(context);
-	}else{
-		content = await extractGenericContent(context);
+	let resolved = await waitForCachedContentByContext(context);
+	let exportKey = resolved.key || context.key || 'generic';
+	if((!resolved.content || !`${resolved.content}`.trim()) && context && context.key && context.key !== 'generic'){
+		resolved = await waitForCachedContentByContext({
+			...context,
+			key: context.key,
+		});
+		exportKey = resolved.key || context.key || exportKey;
 	}
-
-	content = applyUserSectionFilterByContext(content, context.key);
-	content = applyPlanetMetaFilterByContext(content, context);
-	content = normalizeText(content, context.domain);
+	const exportContext = {
+		...context,
+		key: exportKey,
+		displayName: context.displayName || getTechniqueLabelByKey(exportKey),
+	};
+	let content = resolved.content || '';
+	content = applyUserSectionFilterByContext(content, exportKey);
+	content = applyPlanetMetaFilterByContext(content, exportContext);
+	content = applyAnnotationFilterByContext(content, exportContext);
+	content = normalizeText(content, exportContext.domain);
 	const stamp = formatStamp(now);
 	const time = formatDateTime(now);
-	const filenameBase = `horosa_${safeFileName(context.displayName)}_${stamp}`;
+	const filenameBase = `horosa_${safeFileName(exportContext.displayName)}_${stamp}`;
 	const header = [
-		`技术: ${context.displayName}`,
+		`技术: ${exportContext.displayName}`,
 		`导出时间: ${time}`,
 		`页面: ${window.location.href}`,
 		'说明: 当前激活技术面板专属导出；符号已转为AI可识别文本。',
@@ -2012,7 +2151,7 @@ async function buildPayload(){
 	const text = `${header}\n${content}\n========== 内容结束 ==========`;
 
 	return {
-		tech: context.displayName,
+		tech: exportContext.displayName,
 		content,
 		text,
 		filenameBase,
@@ -2023,7 +2162,7 @@ export async function runAIExport(action){
 	const payload = await buildPayload();
 	const pure = (payload.content || '').replace(/\s/g, '');
 	if(!pure){
-		return { ok: false, message: '当前页面没有可导出文本。' };
+		return { ok: false, message: '当前页面暂无可导出的排盘快照，请先完成起盘。' };
 	}
 
 	if(action === 'copy'){

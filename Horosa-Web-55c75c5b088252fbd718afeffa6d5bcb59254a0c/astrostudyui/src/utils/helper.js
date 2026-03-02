@@ -620,42 +620,127 @@ export function getScriptPromise(url) {
 	return p;
 }
 
+function escapeTipHtml(str){
+	return `${str === undefined || str === null ? '' : str}`
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
+function inlineMarkdown(text){
+	let out = escapeTipHtml(text);
+	out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+	return out;
+}
+
+function normalizeTipTitle(rawTitle){
+	const lines = `${normalizeTipValue(rawTitle)}`.replace(/\r\n/g, '\n').split('\n');
+	let first = '';
+	for(let i=0; i<lines.length; i++){
+		const txt = `${lines[i] || ''}`.trim();
+		if(txt){
+			first = txt;
+			break;
+		}
+	}
+	if(!first){
+		return '';
+	}
+	const h = first.match(/^#{1,6}\s*(.+)$/);
+	const title = h ? h[1] : first;
+	return inlineMarkdown(title);
+}
+
+function normalizeTipValue(val){
+	if(val === undefined || val === null){
+		return '';
+	}
+	if(typeof val === 'string'){
+		return val;
+	}
+	if(typeof val === 'number' || typeof val === 'boolean'){
+		return `${val}`;
+	}
+	if(val && typeof val === 'object'){
+		if(val.title || val.tips){
+			return `${val.title || ''}`;
+		}
+		try{
+			return JSON.stringify(val);
+		}catch(e){
+			return '';
+		}
+	}
+	return '';
+}
+
+function renderTipLine(line){
+	const raw = normalizeTipValue(line).trim();
+	if(!raw){
+		return '';
+	}
+	if(raw === '=='){
+		return '<hr style="margin: 8px 0;" />';
+	}
+	let level = 0;
+	let text = raw;
+	const h = raw.match(/^(#{1,6})\s*(.+)$/);
+	if(h){
+		level = h[1].length;
+		text = h[2];
+	}
+	const content = inlineMarkdown(text);
+	if(level > 0){
+		const fs = level <= 2 ? 14 : 13;
+		return `<div style="margin: 6px 0 2px 0; font-size:${fs}px; font-weight:700;">${content}</div>`;
+	}
+	return `<div style="margin: 3px 0; line-height: 1.45;">${content}</div>`;
+}
+
+function renderTipLines(source){
+	const raw = normalizeTipValue(source);
+	if(!raw){
+		return [];
+	}
+	const lines = `${raw}`.replace(/\r\n/g, '\n').split('\n');
+	const out = [];
+	for(let i=0; i<lines.length; i++){
+		const rendered = renderTipLine(lines[i]);
+		if(rendered){
+			out.push(rendered);
+		}
+	}
+	return out;
+}
+
 export function genHtml(tipobj, needpadding){
-	if(tipobj === undefined || tipobj === null 
+	if(tipobj === undefined || tipobj === null
 		|| tipobj.tips === undefined || tipobj.tips === null){
 		return '';
 	}
-	let tips = tipobj.tips;
-	let parts = [`<h4 style='margin: 10px;'>${tipobj.title}</h4><hr />`];
-	let ul = '<ul style="margin-right: 10px; overflow-x:hidden; overflow-y:auto;">';
-	if(needpadding){
-		ul = '<ul style="margin-right: 10px; padding-left: 5px; overflow-x:hidden; overflow-y:auto;">';
-	}
-	parts.push(ul);
+	const title = normalizeTipTitle(tipobj.title || '');
+	const tips = tipobj.tips;
+	const bodyPad = needpadding ? '6px 8px 8px 6px' : '4px 8px 6px 2px';
+	let parts = [`<h4 style='margin: 8px 4px 6px 2px;'>${title}</h4><hr style="margin: 0 0 6px 0;" />`];
+	parts.push(`<div style="margin-right: 10px; padding: ${bodyPad}; overflow-x:hidden; overflow-y:auto; max-height: 420px;">`);
 	if(tips instanceof Array){
 		for(let i=0; i<tips.length; i++){
-			let item = tips[i];
+			const item = tips[i];
 			if(item instanceof Array){
-				parts.push('<ul style="margin-right: 10px;">');
 				for(let j=0; j<item.length; j++){
-					let sitem = item[j];
-					parts.push(`<li>${sitem}</li>`);
+					parts.push(...renderTipLines(item[j]));
 				}
-				parts.push('</ul>');
-			}else{
-				if(item === '=='){
-					parts.push('<hr />');
-				}else{
-					parts.push(`<li>${item}</li>`);
-				}
+				continue;
 			}
+			parts.push(...renderTipLines(item));
 		}
 	}else{
-		parts.push(`<li>${tips}</li>`);
+		parts.push(...renderTipLines(tips));
 	}
-	parts.push('</ul>');
-	let html = parts.join('');
-	return html;
+	parts.push('</div>');
+	return parts.join('');
 }
 
 export function creatTooltip(divTooltip, titleSvg, tipobj, onTipClick, needpadding){

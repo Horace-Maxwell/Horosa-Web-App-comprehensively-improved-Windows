@@ -3,6 +3,11 @@ import * as LRConst from './LRConst';
 import LRCommChart from './LRCommChart';
 import D3Circle from '../graph/D3Circle';
 import { drawTextH, } from '../graph/GraphHelper';
+import {
+	getLiuRengGodText,
+	getLiuRengGeneralText,
+	buildLiuRengTooltipObj,
+} from '../../constants/LiuRengTexts';
 
 class LRCircleChart extends LRCommChart {
 	constructor(option){
@@ -57,6 +62,9 @@ class LRCircleChart extends LRCommChart {
 	}
 
 	drawUpCircle(){
+		const tipObjs = this.upZi.map((branch)=>{
+			return buildLiuRengTooltipObj(getLiuRengGodText(branch), `${branch || '—'}神`);
+		});
 		let options = {
 			owner: this.owner,
 			x: this.ox,
@@ -69,6 +77,8 @@ class LRCircleChart extends LRCommChart {
 			highLightData: [this.yue],
 			highLightColor: LRConst.LRColor.time.color,
 			highLightBgColor: LRConst.LRColor.time.bg,
+			divTooltip: this.divTooltip,
+			tipObjs: tipObjs,
 		};
 
 		let downChart = new D3Circle(options);
@@ -77,6 +87,9 @@ class LRCircleChart extends LRCommChart {
 	}
 
 	drawTianJiangCircle(){
+		const tipObjs = this.houseTianJiang.map((name, idx)=>{
+			return buildLiuRengTooltipObj(getLiuRengGeneralText(name, this.downZi[idx]), name || '天将');
+		});
 		let options = {
 			owner: this.owner,
 			x: this.ox,
@@ -86,6 +99,8 @@ class LRCircleChart extends LRCommChart {
 			color: this.tianJiangColor,
 			bgColor: AstroConst.AstroColor.NoColor,
 			data: this.houseTianJiang,
+			divTooltip: this.divTooltip,
+			tipObjs: tipObjs,
 		};
 
 		let downChart = new D3Circle(options);

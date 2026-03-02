@@ -46,7 +46,7 @@ import {convertToArray} from '../utils/helper';
 const TabPane = Tabs.TabPane;
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
-    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, planetMetaDisplay } = app;
+    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, showAstroAnnotation, planetMetaDisplay } = app;
     const {
         pwdFields,
         userInfo,
@@ -102,7 +102,24 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         let flds = {
             ...fields,
         };  
-        if(values.nohook){
+        const hasTimePayload = values.tm !== undefined && values.tm !== null;
+        const hasOtherPayload =
+            values.hsys !== undefined || values.zodiacal !== undefined ||
+            values.lon !== undefined || values.southchart !== undefined;
+        if(values.confirmed && hasTimePayload && !hasOtherPayload){
+            const oldDate = fields && fields.date && fields.date.value ? fields.date.value : null;
+            const oldTime = fields && fields.time && fields.time.value ? fields.time.value : null;
+            const newTime = values.tm;
+            if(oldDate && oldTime && newTime &&
+                oldDate.format('YYYY/MM/DD') === newTime.format('YYYY/MM/DD') &&
+                oldTime.format('HH:mm:ss') === newTime.format('HH:mm:ss') &&
+                `${oldDate.zone}` === `${newTime.zone}` &&
+                `${oldDate.ad}` === `${newTime.ad}`){
+                return flds;
+            }
+        }
+        const skipFetch = !!values.nohook;
+        if(skipFetch){
             flds.nohook = true;
         }  
 
@@ -137,6 +154,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         }
 
         console.log("changeCond");
+        if(skipFetch){
+            dispatch({
+                type: 'astro/save',
+                payload: {
+                    fields: flds,
+                },
+            });
+            return flds;
+        }
+
         dispatch({
             type: 'astro/fetchByFields',
             payload: flds,
@@ -789,6 +816,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     value={chartDisplay}
                     planetMetaDisplay={planetMetaDisplay}
                     showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
+                    showAstroAnnotation={showAstroAnnotation}
                     fields={fields}
                     dispatch={dispatch}
                 />

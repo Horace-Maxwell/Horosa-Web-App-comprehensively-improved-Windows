@@ -25,6 +25,7 @@ function PageHeader(props){
 	const currentSettingTech = aiSettingTechs.find((item)=>item.key === aiSettingKey) || null;
 	const currentSettingOptions = currentSettingTech && currentSettingTech.options ? currentSettingTech.options : [];
 	const currentSettingSupportsPlanetMeta = !!(currentSettingTech && currentSettingTech.supportsPlanetMeta);
+	const currentSettingSupportsAnnotation = !!(currentSettingTech && currentSettingTech.supportsAnnotation);
 	const currentSettingSelected = (()=>{
 		const sections = aiSettingData && aiSettingData.sections ? aiSettingData.sections : {};
 		if(Array.isArray(sections[aiSettingKey])){
@@ -39,6 +40,11 @@ function PageHeader(props){
 			showHouse: raw.showHouse === 0 ? 0 : 1,
 			showRuler: raw.showRuler === 0 ? 0 : 1,
 		};
+	})();
+	const currentSettingAnnotation = (()=>{
+		const annotations = aiSettingData && aiSettingData.annotations ? aiSettingData.annotations : {};
+		const raw = annotations[aiSettingKey];
+		return raw === 0 ? 0 : 1;
 	})();
 
 	function changeColorTheme(val){
@@ -136,13 +142,18 @@ function PageHeader(props){
 			const planetMeta = {
 				...(prev && prev.planetMeta ? prev.planetMeta : {}),
 			};
+			const annotations = {
+				...(prev && prev.annotations ? prev.annotations : {}),
+			};
 			delete sections[aiSettingKey];
 			delete planetMeta[aiSettingKey];
+			delete annotations[aiSettingKey];
 			return {
 				...(prev || {}),
 				version: 1,
 				sections,
 				planetMeta,
+				annotations,
 			};
 		});
 	}
@@ -164,6 +175,26 @@ function PageHeader(props){
 				version: 1,
 				sections: sectionData,
 				planetMeta,
+			};
+		});
+	}
+
+	function onAISettingAnnotationChange(checked){
+		setAiSettingData((prev)=>{
+			const annotations = {
+				...(prev && prev.annotations ? prev.annotations : {}),
+				[aiSettingKey]: checked ? 1 : 0,
+			};
+			return {
+				...(prev || {}),
+				version: 1,
+				sections: {
+					...(prev && prev.sections ? prev.sections : {}),
+				},
+				planetMeta: {
+					...(prev && prev.planetMeta ? prev.planetMeta : {}),
+				},
+				annotations,
 			};
 		});
 	}
@@ -406,7 +437,17 @@ function PageHeader(props){
 							checked={currentSettingPlanetMeta.showRuler === 1}
 							onChange={(e)=>onAISettingPlanetMetaChange('showRuler', e.target.checked)}
 						>
-							显示星曜主宰星
+							显示星曜主宰宫
+						</Checkbox>
+					</div>
+				) : null}
+				{currentSettingSupportsAnnotation ? (
+					<div style={{marginTop: 12}}>
+						<Checkbox
+							checked={currentSettingAnnotation === 1}
+							onChange={(e)=>onAISettingAnnotationChange(e.target.checked)}
+						>
+							占星注释
 						</Checkbox>
 					</div>
 				) : null}

@@ -1,11 +1,16 @@
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
 import {
+	ASTRO_ANNOTATION_SECTION_TITLE,
+	listAstroAnnotationLines,
+} from '../constants/AstroInterpretation';
+import {
 	appendPlanetMetaName,
 	readPlanetMetaDisplayFromStore,
 } from './planetMetaDisplay';
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
+let ASTRO_AI_SNAPSHOT_MEMORY = null;
 
 function isEncodedToken(text){
 	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
@@ -669,15 +674,13 @@ export function buildAstroSnapshotContent(chartObj, fields){
 		sections.push(buildSectionText('行星', buildPlanetSection(chartObj)));
 		sections.push(buildSectionText('希腊点', buildLotsSection(chartObj)));
 		sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));
+		sections.push(buildSectionText(ASTRO_ANNOTATION_SECTION_TITLE, listAstroAnnotationLines()));
 		return sections.filter(Boolean).join('\n\n').trim();
 	});
 }
 
 export function saveAstroAISnapshot(chartObj, fields){
 	try{
-		if(typeof window === 'undefined' || !window.localStorage){
-			return null;
-		}
 		const content = buildAstroSnapshotContent(chartObj, fields);
 		if(!content){
 			return null;
@@ -689,7 +692,10 @@ export function saveAstroAISnapshot(chartObj, fields){
 			chartId: chartObj && chartObj.chartId ? chartObj.chartId : null,
 			content: content,
 		};
-		window.localStorage.setItem(ASTRO_AI_SNAPSHOT_KEY, JSON.stringify(payload));
+		ASTRO_AI_SNAPSHOT_MEMORY = payload;
+		if(typeof window !== 'undefined' && window.localStorage){
+			window.localStorage.setItem(ASTRO_AI_SNAPSHOT_KEY, JSON.stringify(payload));
+		}
 		return payload;
 	}catch(e){
 		return null;
@@ -698,20 +704,19 @@ export function saveAstroAISnapshot(chartObj, fields){
 
 export function loadAstroAISnapshot(){
 	try{
-		if(typeof window === 'undefined' || !window.localStorage){
-			return null;
+		if(typeof window !== 'undefined' && window.localStorage){
+			const raw = window.localStorage.getItem(ASTRO_AI_SNAPSHOT_KEY);
+			if(raw){
+				const obj = JSON.parse(raw);
+				if(obj && obj.content){
+					ASTRO_AI_SNAPSHOT_MEMORY = obj;
+					return obj;
+				}
+			}
 		}
-		const raw = window.localStorage.getItem(ASTRO_AI_SNAPSHOT_KEY);
-		if(!raw){
-			return null;
-		}
-		const obj = JSON.parse(raw);
-		if(!obj || !obj.content){
-			return null;
-		}
-		return obj;
+		return ASTRO_AI_SNAPSHOT_MEMORY;
 	}catch(e){
-		return null;
+		return ASTRO_AI_SNAPSHOT_MEMORY;
 	}
 }
 

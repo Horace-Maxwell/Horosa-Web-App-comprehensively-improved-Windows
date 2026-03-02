@@ -3,6 +3,14 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import {splitDegree, whichTerm, convertLatToStr, convertLonToStr, getDignityText, getObjectsText} from './AstroHelper';
 import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
+import { getStore, } from '../../utils/storageutil';
+import {
+	getAspectAnnotation,
+	getHouseAnnotation,
+	getLotAnnotation,
+	getPlanetAnnotation,
+	getSignAnnotation,
+} from '../../constants/AstroInterpretation';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
 
 
@@ -30,7 +38,7 @@ export default class AstroChartCircle {
 				.style('position', 'absolute')
 				.style('text-align', 'left')
 				.style('vertical-align', 'middle')
-				.style('width', '200px')
+				.style('width', '340px')
 				.style('padding', '2px')
 				.style('padding-left', '10px')
 				.style('font', '13px sans-serif')
@@ -40,8 +48,31 @@ export default class AstroChartCircle {
 				.style('pointer-events', 'none');
 		}
 	}
+
+	isAnnotationEnabled(){
+		try{
+			const store = getStore();
+			const app = store && store.app ? store.app : {};
+			return app.showAstroAnnotation === 1;
+		}catch(e){
+			return false;
+		}
+	}
+
+	appendAnnotationSection(lines, heading, text){
+		if(!text){
+			return;
+		}
+		if(lines.length){
+			lines.push('');
+		}
+		lines.push(`# ${heading}`);
+		`${text}`.replace(/\r\n/g, '\n').split('\n').forEach((line)=>{
+			lines.push(line);
+		});
+	}
 	
-	genTooltipObj(infoObj, name){
+	genTooltipObj(infoObj, name, annotationMode = 'auto'){
 		if(this.divTooltip === undefined || this.divTooltip === null){
 			return {};
 		}
@@ -74,17 +105,53 @@ export default class AstroChartCircle {
 			lbl = lbl + '：' + degstr;
 		}
 
-		let degs = splitDegree(infoObj.lon);
+		const tipLines = [];
+		if(Number.isFinite(infoObj.lon)){
+			let degs = splitDegree(infoObj.lon);
+			tipLines.push('黄经：' +  degs[0] + 'º' + degs[1] + "'； " + Math.round(infoObj.lon*10000)/10000+ 'º');
+		}
 		let tipobj = {
 			title: lbl,
-			tips: ['黄经：' +  degs[0] + 'º' + degs[1] + "'； " + Math.round(infoObj.lon*10000)/10000+ 'º'],
+			tips: tipLines,
 		};
+		if(this.isAnnotationEnabled()){
+			const planetTxt = getPlanetAnnotation(infoObj.id);
+			const lotTxt = getLotAnnotation(infoObj.id);
+			const signTxt = getSignAnnotation(infoObj.sign);
+			const houseTxt = getHouseAnnotation(infoObj.house || infoObj.id);
+			const textLines = [];
+			if(annotationMode === 'sign'){
+				this.appendAnnotationSection(textLines, '星座释义', signTxt);
+			}else if(annotationMode === 'house'){
+				this.appendAnnotationSection(textLines, '宫位释义', houseTxt);
+			}else if(annotationMode === 'planet'){
+				if(planetTxt){
+					this.appendAnnotationSection(textLines, '星释义', planetTxt);
+				}else if(lotTxt){
+					this.appendAnnotationSection(textLines, '希腊点释义', lotTxt);
+				}
+			}else{
+				if(planetTxt){
+					this.appendAnnotationSection(textLines, '星释义', planetTxt);
+				}else if(lotTxt){
+					this.appendAnnotationSection(textLines, '希腊点释义', lotTxt);
+				}
+				this.appendAnnotationSection(textLines, '星座释义', signTxt);
+				this.appendAnnotationSection(textLines, '宫位释义', houseTxt);
+			}
+			if(textLines.length){
+				if(tipobj.tips.length){
+					tipobj.tips.push('==');
+				}
+				tipobj.tips.push(...textLines);
+			}
+		}
 
 		return tipobj;
 	}
 
-	genTooltip(titleSvg, infoObj){
-		let tipobj = this.genTooltipObj(infoObj, null);		
+	genTooltip(titleSvg, infoObj, annotationMode = 'auto'){
+		let tipobj = this.genTooltipObj(infoObj, null, annotationMode);		
 		creatTooltip(this.divTooltip, titleSvg, tipobj, this.onTipClick, true);
 	}
 
@@ -216,6 +283,11 @@ export default class AstroChartCircle {
 			siggroup.append('path')
 				.attr('d', arcd).attr('stroke', AstroConst.AstroColor.Stroke)
 				.attr('fill', AstroConst.AstroColor.SignFill[sig]);
+			this.genTooltip(siggroup, {
+				id: sig,
+				sign: sig,
+				lon: ang + 15,
+			}, 'sign');
 	
 			let lblgroup = siggroup.append('g').attr("text-anchor", "middle");
 			let txts = [
@@ -616,7 +688,7 @@ export default class AstroChartCircle {
 			pnt.poslon = tmplon;
 			let lon = tmplon * Math.PI / 180;
 			let lblgroup = stars.append('g').attr("text-anchor", "middle");
-			this.genTooltip(lblgroup, pnt);
+			this.genTooltip(lblgroup, pnt, 'planet');
 	
 			let degs = splitDegree(pnt.signlon);
 			let startxt = [];
@@ -753,6 +825,20 @@ export default class AstroChartCircle {
 					.attr('stroke-width', 1)
 					.attr('fill', 'none');
 				path.attr('d', pathStr);	
+				if(this.divTooltip){
+					const title = `${AstroText.AstroMsgCN[objA.id] || objA.id} ${AstroText.AstroMsg[`Asp${item.asp}`] || `${item.asp}˚`} ${AstroText.AstroMsgCN[objB.id] || objB.id}`;
+					const tips = [`误差：${Math.round((item.orb || 0) * 1000) / 1000}`];
+					if(this.isAnnotationEnabled()){
+						const aspTxt = getAspectAnnotation(`Asp${item.asp}`);
+						if(aspTxt){
+							const sec = [];
+							this.appendAnnotationSection(sec, '相位释义', aspTxt);
+							tips.push('==');
+							tips.push(...sec);
+						}
+					}
+					creatTooltip(this.divTooltip, path, { title, tips, }, this.onTipClick, true);
+				}
 				let txt = AstroText.AstroMsg['Asp' + item.asp];
 				apsgroup.append('text')
 				.attr("dominant-baseline","middle")
@@ -785,7 +871,7 @@ export default class AstroChartCircle {
 				endAngle: -(stangle + edangle)
 			});
 			let termgroup = terms.append('g');
-			this.genTooltip(termgroup, term);
+			this.genTooltip(termgroup, term, 'house');
 
 			termgroup.append('path')
 				.attr('d', arcd).attr('stroke', AstroConst.AstroColor[term.id])
@@ -1408,4 +1494,3 @@ export default class AstroChartCircle {
 	}
 		
 }
-

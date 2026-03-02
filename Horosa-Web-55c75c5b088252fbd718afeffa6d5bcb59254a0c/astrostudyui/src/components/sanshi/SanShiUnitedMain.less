@@ -9,7 +9,7 @@
   background: transparent;
   padding: 4px 6px;
   display: grid;
-  grid-template-columns: 1fr 174px;
+  grid-template-columns: minmax(0, 1fr) 148px;
   gap: 6px;
 }
 
@@ -258,7 +258,7 @@
 
 .outerCell {
   position: absolute;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 9;
 }
 
@@ -269,6 +269,7 @@
 
 .outerLabel {
   position: absolute;
+  pointer-events: auto;
 }
 
 .outerBranch {
@@ -280,6 +281,7 @@
   position: absolute;
   color: #8a8a8a;
   z-index: 10;
+  pointer-events: none;
 }
 
 .outerStarsRow {
@@ -295,6 +297,7 @@
   min-width: 1.8em;
   text-align: center;
   white-space: nowrap;
+  pointer-events: auto;
 }
 
 .outerStarPlaceholder {
@@ -306,12 +309,12 @@
   width: 11%;
   height: 11%;
   transform: translate(-50%, -50%);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .lrMark {
   position: absolute;
-  pointer-events: none;
+  pointer-events: auto;
   transform: translate(-50%, -50%);
   font-weight: 700;
   white-space: nowrap;
@@ -334,6 +337,7 @@
   bottom: 0;
   border: 1.6px solid rgb(218, 217, 213);
   background: rgb(218, 217, 213);
+  pointer-events: none;
 }
 
 .qmBlockCorner .qmRingCell {
@@ -400,6 +404,7 @@
   justify-content: center;
   background: rgb(60, 58, 57);
   z-index: 1;
+  pointer-events: auto;
 }
 
 .qmDoor {
@@ -539,6 +544,330 @@
 
 .bottomRight > div + div {
   border-top: 1px solid #d7d7d7;
+}
+
+.lrTooltipCard {
+  max-width: 410px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.lrTooltipTitle {
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.lrTooltipSection + .lrTooltipSection {
+  margin-top: 6px;
+}
+
+.lrTooltipSectionTitle {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #111;
+}
+
+.lrTooltipItem {
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 2px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.refPre {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #222;
+}
+
+.bgSection {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 8px 10px;
+  border-left: 3px solid #8ca9d6;
+}
+
+.bgSection + .bgSection {
+  margin-top: 8px;
+}
+
+.bgTitle {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 8px;
+}
+
+.bgLine {
+  font-size: 12px;
+  line-height: 19px;
+  color: #4f4f4f;
+}
+
+.bgLineCard {
+  border: 1px solid #e5e9f2;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.bgLineCard + .bgLineCard {
+  margin-top: 8px;
+}
+
+.bgLineLabel {
+  color: #374151;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 700;
+}
+
+.bgLineValue {
+  margin-top: 4px;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rightTopBlock {
+  padding: 8px;
+  border: 1px solid #e5e8ef;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fcfdff 0%, #f7f9fc 100%);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
+}
+
+.rightCoord {
+  text-align: right;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.rightTabs {
+  margin-top: 8px;
+}
+
+.rightTabs :global(.ant-tabs-nav) {
+  margin-bottom: 8px;
+  padding: 4px;
+  border: 1px solid #e7ebf3;
+  border-radius: 10px;
+  background: #f8fafd;
+}
+
+.rightTabs :global(.ant-tabs-tab) {
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+.rightTabs :global(.ant-tabs-tab-active) {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.rightTabs :global(.ant-tabs-ink-bar) {
+  display: none !important;
+}
+
+.rightCard {
+  border: 1px solid #eceff5;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.metricRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.metricTag {
+  margin-right: 0;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.sectionHint {
+  margin-bottom: 6px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.kvList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kvItem {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 6px 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kvItem:hover {
+  border-color: #cfd7e4;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.kvLabel {
+  color: #667085;
+  font-size: 12px;
+  line-height: 16px;
+  margin-bottom: 2px;
+}
+
+.kvValue {
+  color: #111827;
+  font-size: 13px;
+  line-height: 19px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.shenshaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.shenshaGridDense {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 10px;
+  row-gap: 8px;
+}
+
+.shenshaItem {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 6px 8px;
+  border-left: 3px solid #8ca9d6;
+}
+
+.shenshaName {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.shenshaValue {
+  display: block;
+  color: #111827;
+  font-size: 13px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+
+.hitList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hitItem {
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fafcff;
+  padding: 6px 8px;
+  border-left: 3px solid #d7b06a;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hitItem:hover {
+  border-color: #cfd7e4;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.hitName {
+  color: #111827;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.hitBasis {
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+
+.hitDetail {
+  color: #667085;
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 1px;
+}
+
+.referenceSection {
+  margin-top: 10px;
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.referenceTitle {
+  color: #1f2937;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.referenceRaw {
+  margin: 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.palaceBtnGrid2 {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.palaceBtnGrid2 :global(.ant-btn) {
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.emptyText {
+  color: #98a2b3;
+  font-size: 12px;
+  line-height: 20px;
 }
 
 @media (max-width: 1520px) {

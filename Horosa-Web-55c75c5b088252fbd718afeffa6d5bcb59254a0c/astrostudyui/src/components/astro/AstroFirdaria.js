@@ -1,9 +1,6 @@
 import { Component } from 'react';
 import { Row, Col, Table, Divider, } from 'antd';
 import {randomStr} from '../../utils/helper';
-import * as AstroConst from '../../constants/AstroConst';
-import * as AstroText from '../../constants/AstroText';
-import * as AstroHelper from './AstroHelper';
 import AstroObjectLabel from './AstroObjectLabel';
 import {TableOddRowBgColor} from '../../utils/constants'
 import styles from '../../css/styles.less';
@@ -12,6 +9,7 @@ class AstroFirdaria extends Component{
 
 	constructor(props) {
 		super(props);
+		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
 
 		let columns = [{
 			title: '主限',
@@ -19,10 +17,7 @@ class AstroFirdaria extends Component{
 			key: 'mainDirect',
 			width: '20%',
 			render: (text, record)=>{
-				let dom = (
-					<AstroObjectLabel id={text} chartSources={this.props.value} />
-				);
-				return dom;
+				return this.renderPlanetLabel(text);
 			},
 		},{
 			title: '子限',
@@ -30,10 +25,7 @@ class AstroFirdaria extends Component{
 			key: 'subDirect',
 			width: '20%',
 			render: (text, record)=>{
-				let dom = (
-					<AstroObjectLabel id={text} chartSources={this.props.value} />
-				);
-				return dom;
+				return this.renderPlanetLabel(text);
 			},
 		},{
 			title: '日期',
@@ -51,6 +43,15 @@ class AstroFirdaria extends Component{
 
 		this.convertToDataSource = this.convertToDataSource.bind(this);
 		this.genFirdariaDom = this.genFirdariaDom.bind(this);
+	}
+
+	renderPlanetLabel(id){
+		return (
+			<AstroObjectLabel
+				id={id}
+				chartSources={this.props.value}
+			/>
+		);
 	}
 
 	convertToDataSource(firdaria){

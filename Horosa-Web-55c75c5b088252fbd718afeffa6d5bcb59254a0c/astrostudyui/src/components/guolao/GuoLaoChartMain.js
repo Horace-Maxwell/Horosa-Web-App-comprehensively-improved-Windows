@@ -552,7 +552,9 @@ class GuoLaoChartMain extends Component{
 		}
 
 		let chartObj = this.state.chartObj;
-		let chart = chartObj ? chartObj.chart : {};
+		let chart = chartObj && chartObj.chart ? {
+			...chartObj.chart,
+		} : {};
 		chart.aspects = chartObj ? chartObj.aspects : {};
 		chart.lots = chartObj ? chartObj.lots : [];
 

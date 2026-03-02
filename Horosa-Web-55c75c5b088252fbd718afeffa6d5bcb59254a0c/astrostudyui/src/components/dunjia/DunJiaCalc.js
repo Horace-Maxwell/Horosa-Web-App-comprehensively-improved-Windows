@@ -1,4 +1,8 @@
 import * as LRConst from '../liureng/LRConst';
+import {
+	appendQimenExplanation,
+	appendQimenPatternExplanation,
+} from '../../constants/QimenPatternTexts';
 
 export const SEX_OPTIONS = [
 	{ value: 1, label: '男' },
@@ -270,6 +274,49 @@ const PALACE_NAME = {
 	9: '乾',
 };
 const OUTER_RING_CLOCKWISE = [1, 2, 3, 6, 9, 8, 7, 4];
+const QIMEN_EXPORT_CHAR_MAP = {
+	門: '门',
+	開: '开',
+	傷: '伤',
+	驚: '惊',
+	陰: '阴',
+	陽: '阳',
+	離: '离',
+	兌: '兑',
+	黃: '黄',
+	綠: '绿',
+	藍: '蓝',
+	騰: '腾',
+	內: '内',
+	沖: '冲',
+	輔: '辅',
+	麗: '丽',
+	風: '风',
+	險: '险',
+	鬥: '斗',
+	體: '体',
+	臺: '台',
+	與: '与',
+	廣: '广',
+	層: '层',
+	醫: '医',
+	氣: '气',
+	關: '关',
+	貴: '贵',
+	龍: '龙',
+	變: '变',
+	遠: '远',
+	飛: '飞',
+	壯: '壮',
+	闊: '阔',
+	圖: '图',
+	樓: '楼',
+	處: '处',
+	書: '书',
+	證: '证',
+	經: '经',
+	網: '网',
+};
 
 const JI_XING_RULE = {
 	1: '壬癸',
@@ -296,6 +343,770 @@ const MEN_PO_RULE = {
 	8: '生死',
 	9: '景',
 };
+
+const PALACE_BASE_DOOR = {
+	1: '杜',
+	2: '景',
+	3: '死',
+	4: '伤',
+	5: '',
+	6: '惊',
+	7: '生',
+	8: '休',
+	9: '开',
+};
+
+const TEN_GAN_RESPONSE_MAP = {
+	丁丁: '星奇入太阴，文书证件即至，喜事从心、万事如意',
+	丁丙: '星随月转，贵人越级高升，常人乐极生悲，要忍、不然因小的不忍，而引起大的不幸',
+	丁乙: '人遁吉格，贵人加官进爵，常人婚姻财帛有喜',
+	丁壬: '奇仪相合，贵人恩诏，诉狱公平',
+	丁己: '火入勾陈，奸私仇怨，事因女人',
+	丁庚: '星奇受阻，文书阻隔，行人必归',
+	丁戊: '青龙转光，官人升迁，常人威昌',
+	丁癸: '朱雀投江，文书口舌是非，经官动府、词诉不利，音信沉溺不到',
+	丁辛: '朱雀入狱，罪人失囚，官人失位',
+	丙丁: '星奇朱雀，贵人文书吉利，常人平静安乐，得三吉门为天遁',
+	丙丙: '月奇悖师，文书逼迫，破耗遗失，主单据、票证，不明遗失',
+	丙乙: '日月并行，公谋私为皆为吉',
+	丙壬: '火入天罗，为客不利，是非颇多',
+	丙己: '火悖入刑，囚人刑杖，文书不行，吉门得吉，凶门转凶',
+	丙庚: '荧入太白，賊必去',
+	丙戊: '飞鸟跌穴，事业可为，可谋大事，对好事大吉大利，如求婚、求财、考试、求官等，不用费多大力气，就能成功',
+	丙癸: '月奇地网，阴人害事，灾祸频生，凡事暗昧不明',
+	丙辛: '日月相会，谋事成就，病人不凶',
+	乙丁: '奇仪相佐，最利文书、考试，百事可为',
+	乙丙: '奇仪顺遂，吉星加官尽职，凶星夫妻反目离别',
+	乙乙: '日奇伏吟，不宜见上级领导、贵人；求名求利及进取事不可求，只宜安分守己',
+	乙壬: '日奇入天罗，尊婢悖乱，官讼是非，有人谋害之事',
+	乙己: '日奇入墓，被土暗昧、门凶事必凶',
+	乙庚: '日奇被刑，为争讼财产，夫妻各怀私意',
+	乙戊: '阴害阳门，利于阴人阴事，不利于阳人阳事，就是说不利于公开的事情，利于女人/利于暗中行事',
+	乙癸: '日奇入地网，宜退不宜进，隐匿藏形，躲灾避难为吉，此格局不利于进攻',
+	乙辛: '青龙逃走，人亡财破，奴仆拐带，六畜皆伤',
+	壬丁: '干合蛇刑，文书牵连，贵人匆匆，男吉女凶',
+	壬丙: '水蛇入火，因为壬丙相冲克，故主官灾刑禁，络绎不绝，主两败俱伤，为客不利',
+	壬乙: '小蛇得势，女人柔顺，男人通达',
+	壬壬: '天狱自刑或蛇入地罗，壬为天罗又名天狱，辰辰自刑，故名',
+	壬己: '反吟蛇刑，主官司败诉，大祸将至，顺守为吉，妄动必凶',
+	壬庚: '太白擒蛇，因庚为太白，壬为蛇，故名',
+	壬戊: '小蛇化龙，男人发达，女产婴童，做事要防耗散',
+	壬癸: '幼女奸淫，主有家丑外扬之事发生；门吉星凶，反福为祸',
+	壬辛: '腾蛇相缠，纵得吉门，亦不能安',
+	己丁: '朱雀入狱，天盘甲戌己，地盘丁奇，因戌/丑都为火墓，丁奇为南方火，又名朱雀，所以叫朱雀入狱',
+	己丙: '火悖地户，己在天盘，丙在地盘，戌为火墓，己为地户，阴阳颠倒，所以叫火悖地户凶格',
+	己乙: '墓神不明，戌为乙木之墓，己又为地户，故名墓神不明，地户逢星，宜遁迹隐形为利',
+	己壬: '地网高张，狡童佚女，奸情伤杀，凡事不吉，谋为不利',
+	己己: '地户逢鬼，病者发凶或必死，百事不遂，暂不谋为，谋为则凶',
+	己庚: '刑格返名，词讼先动者不利，如临阴星（凶星）则有谋害之情',
+	己戊: '犬遇青龙，戌为犬，甲为龙，故名犬遇青龙',
+	己癸: '地刑玄武，男女疾病垂危，有囚狱词讼之灾',
+	己辛: '游魂入墓，易招阴邪鬼魅作祟',
+	庚丁: '亭亭之格，因私匿或男女关系起官司是非，门吉有救；门凶，事必凶',
+	庚丙: '太白入荧，贼必来，为客进利，为主破财',
+	庚乙: '太白逢星，退吉进凶，谋为不利',
+	庚壬: '移荡格，上格又名小格',
+	庚己: '官府刑格，主有官司口舌，因官讼被判刑，住牢狱更凶，百事不利',
+	庚庚: '太白同宫，又名战格，官灾横祸',
+	庚戊: '天乙伏宫，百事不可谋，大凶',
+	庚癸: '大格，因寅申相冲，庚为道路，故多主车祸，行人不至，官司不止，生育母子具伤，婚姻易鳏寡孤独',
+	庚辛: '白虎干格，不宜远行，远行车折马伤，求财更为大凶，诸事有灾殃，时间越长越凶',
+	戊丁: '青龙耀明，宜见上级领导、贵人，求功名，为事吉利',
+	戊丙: '青龙返首，动作大吉，但若逢门迫、入墓、击刑，则吉事成凶',
+	戊乙: '青龙和会，门吉事吉，门凶事也凶',
+	戊壬: '青龙入天牢，凡阴阳事皆不吉利',
+	戊己: '贵人入狱，公私皆不利',
+	戊庚: '值符飞宫，吉事不吉，凶事更凶，求财没利益，测病也主凶',
+	戊戊: '名为伏吟，凡事不利，道路闭塞，以守为好',
+	戊癸: '青龙华盖，又戊癸相合，故逢吉门为吉，可招福临门；逢凶门，事多不利，为凶',
+	戊辛: '青龙折足，吉门有生助，尚能谋事；若逢凶门，主招灾，失财或有足疾、折伤',
+	癸丁: '腾蛇夭矫，文书官司，火焚也逃不掉，虚惊不宁',
+	癸丙: '华盖悖师，贵贱逢之皆不利，唯上人见喜',
+	癸乙: '华盖逢星，贵人禄位，常人平安',
+	癸壬: '复见腾蛇，癸水、壬水均为水蛇，主嫁娶重婚，后嫁无子，不保年华',
+	癸己: '华盖地户，男女测之，音信皆阻，躲灾避难方为吉',
+	癸庚: '太白入网，主以暴力争讼，自邏罪责',
+	癸戊: '天乙合会，吉门宜求财，婚姻喜美，吉人赞助成合',
+	癸癸: '天网四张，主行人失伴，病讼皆伤',
+	癸辛: '网盖天牢，主官司败诉，死罪难逃',
+	辛丁: '狱神得奇，经商求财获利倍增，囚人逢天赦释免，办其他事，也会有意外的收获',
+	辛丙: '干合悖师，荧惑出现，占雨无，占晴旱，占事必因财致讼',
+	辛乙: '白虎猖狂，家败人亡（分家、婚散、破产），出行有惊恐，远行多灾殃，尊长不喜，车船俱伤',
+	辛壬: '凶蛇入狱，因为壬为凶蛇，辛为牢狱，故名',
+	辛己: '入狱自刑，辛为罪人，戌为午火之墓，故为入狱自刑，主奴仆背主，有苦诉讼难伸',
+	辛庚: '白虎出力，刀刃相交，主客相残，逊让退步则安，强进血溅衣衫',
+	辛戊: '困龙被伤，主官司破财，屈抑守分尚可，妄动则带来祸殃',
+	辛癸: '天牢华盖，日月失明，误入天网，动止乖张',
+	辛辛: '伏吟天庭，公废私就，讼狱自羅罪名',
+};
+
+const DOOR_BASE_RESPONSE_MAP = {
+	休休: '求才进人口，谒贵吉，朝见上官，修造大利',
+	休伤: '上官主喜庆',
+	休开: '主开张店铺及见贵，求财等事大吉',
+	休惊: '主损财、招非并疾病惊恐事',
+	休景: '主谋望文书印信等事不成，反招口舌',
+	休杜: '主破财、失物难寻',
+	休死: '主文印官事不吉，远行，僧道事不吉，占病凶',
+	休生: '得阴人财物',
+	伤休: '主男人变动或托人谋事，财名不利',
+	伤伤: '主变动、远行皆主折伤',
+	伤开: '主见贵人、开张、走失、变动等事不利',
+	伤惊: '主亲人疾病、惊忧，谋为不利，凶',
+	伤景: '主文书、印信、口舌、惹是生非',
+	伤杜: '主变动、失聪、官司、刑狱、百事凶',
+	伤死: '主官司、印信凶，出行大忌，占病凶',
+	伤生: '主房产、种植业等变动',
+	开休: '主见贵人、财喜、开张店铺、贸易大利',
+	开伤: '主变动、更改、移徙等事，皆不吉',
+	开开: '主贵人、宝物、财喜、官运、事业皆吉',
+	开惊: '词讼、惊疑之事',
+	开景: '见贵人，因文书事不利',
+	开杜: '主失脱文印、书契等，小凶',
+	开死: '官司、惊忧、恶事，先忧后喜',
+	开生: '见贵人，谋望所求遂意',
+	惊休: '求财事或口舌事，迟吉',
+	惊伤: '主因商议同谋害人事泄，惹讼凶',
+	惊开: '主忧疑，官事惊恐，见喜贵则不凶',
+	惊惊: '主疾病、忧虑、惊疑、惊恐',
+	惊景: '主讼词不息，小口疾病，凶',
+	惊杜: '失脱破财事，惊恐，不凶',
+	惊死: '因田宅中怪异而生是非，凶',
+	惊生: '主因妇人生产或求财而生惊忧，皆吉',
+	景休: '主文书遗失，争讼不休',
+	景伤: '主亲眷口舌，败财后平',
+	景开: '官人升迁，求文印事皆吉',
+	景惊: '主阳人小口疾病事凶。',
+	景景: '主文状未动，有预先见之意，内有阳人、小口忧患',
+	景杜: '主文书、印信阻隔，阳人小口疾病。',
+	景死: '主官讼，争田宅事，多啾唧',
+	景生: '主阴人生产大喜，更主求财旺利，行人大吉',
+	杜休: '主求财小益',
+	杜伤: '主兄弟田产破财',
+	杜开: '主见贵人、官长谋事，先破财后吉',
+	杜惊: '主门户内忧疑、惊恐、词讼事',
+	杜景: '主文书、印信阻隔，阳人小口疾病',
+	杜杜: '主因父母疾病、田宅出脱事，凶',
+	杜死: '主田宅、文书失落，官司破财小凶',
+	杜生: '主阳人小口破财，田宅求财不利',
+	死休: '主求财物事不吉，向僧道求方吉',
+	死伤: '官司变动遭刑杖凶',
+	死开: '见贵人求文书、印信事利',
+	死惊: '因官司事不结，忧疑患病凶',
+	死景: '因文信、书契、财产事见官，先怒后喜不凶',
+	死杜: '破财，妇人风疾，腹肿',
+	死死: '主官事，无气、凶',
+	死生: '主丧事，求财则得，占病死者复生',
+	生休: '主阴人处，谋财利',
+	生伤: '主亲友变动，道路不吉',
+	生开: '主见贵人，求财大发',
+	生惊: '主尊长财产、词讼，病迟愈，吉',
+	生景: '主阴人、小口不宁及文书事',
+	生杜: '主阴谋、阴人损财，不利',
+	生死: '主田宅官司，病则主难救',
+	生生: '主远行，求财，吉',
+};
+
+const DOOR_GAN_RESPONSE_MAP = {
+	休丁: '百讼休歇',
+	休丙: '文书和合喜庆',
+	休乙: '求谋重，不得',
+	休壬: '阴人词讼牵连',
+	休己: '暗昧不宁',
+	休庚: '文书词讼先结后解',
+	休戊: '财物和合',
+	休癸: '阴人词讼牵连',
+	休辛: '疾病退愈，失物不得',
+	伤丁: '印信不实',
+	伤丙: '道路损失',
+	伤乙: '求财不得，反盗耗失财',
+	伤壬: '囚盗牵连',
+	伤己: '财散人病',
+	伤庚: '讼狱被刑杖',
+	伤戊: '失脱难获',
+	伤癸: '讼狱被冤，有理难伸',
+	伤辛: '夫妻怀私怨怒',
+	开丁: '远信必至',
+	开丙: '贵人印绶',
+	开乙: '小财可求',
+	开壬: '远行有失',
+	开己: '事绪不定',
+	开庚: '道路词讼，谋为两歧',
+	开戊: '财名俱得',
+	开癸: '失财小凶',
+	开辛: '阴人道路',
+	惊丁: '词讼牵连',
+	惊丙: '主文书印信惊恐',
+	惊乙: '主谋财不得',
+	惊壬: '官司囚禁、病者大凶',
+	惊己: '恶犬伤人成讼',
+	惊庚: '道路损伤、遇盗贼，凶',
+	惊戊: '损财、信阻',
+	惊癸: '主被贼盗，失物不获',
+	惊辛: '因女人成讼，凶',
+	景丁: '主因文书、印状招非',
+	景丙: '文书急迫、火速不利',
+	景乙: '讼事不成',
+	景壬: '因贼牵连',
+	景己: '官司牵连',
+	景庚: '讼人自讼',
+	景戊: '因财产至讼，远行则吉',
+	景癸: '因奴婢受刑伤',
+	景辛: '阴人词讼',
+	杜丁: '主阳人讼狱',
+	杜丙: '主文契遗失',
+	杜乙: '主暗求财物，后则不明至讼',
+	杜壬: '主奸盗事凶',
+	杜己: '主私谋取、害人、招非',
+	杜庚: '因女人词讼被刑',
+	杜戊: '主谋事不易成，密处求财可得',
+	杜癸: '主百事皆阻，病者不食',
+	杜辛: '主打伤人至词讼，阳人小口凶',
+	死丁: '老阳人疾病',
+	死丙: '信息忧疑',
+	死乙: '求事不成',
+	死壬: '主讼人自讼自招',
+	死己: '主病讼牵连凶',
+	死庚: '主女人生产、子母并凶',
+	死戊: '主作伪财',
+	死癸: '主妇女嫁娶事凶',
+	死辛: '主遭盗贼，失脱难获',
+	生丁: '词讼、婚姻、财利，出行大吉',
+	生丙: '贵人，印绶、婚姻、书信等喜事',
+	生乙: '主阴人生产迟，吉',
+	生壬: '遗失财物，后得，捕盗易获',
+	生己: '得贵人维护支持，吉',
+	生庚: '财产争讼、破耗遗失',
+	生戊: '嫁娶、谒贵，求财皆吉',
+	生癸: '主婚姻难成，余事皆吉',
+	生辛: '主产妇疾病，后吉',
+};
+
+const JI_DOOR_SET = new Set(['开', '休', '生']);
+const SAN_QI_SET = new Set(['乙', '丙', '丁']);
+const GOD_ALIAS_MAP = {
+	值符: '值符',
+	符: '值符',
+	螣蛇: '螣蛇',
+	腾蛇: '螣蛇',
+	蛇: '螣蛇',
+	太阴: '太阴',
+	阴: '太阴',
+	六合: '六合',
+	合: '六合',
+	白虎: '白虎',
+	虎: '白虎',
+	玄武: '玄武',
+	元武: '玄武',
+	玄: '玄武',
+	九地: '九地',
+	地: '九地',
+	九天: '九天',
+	天: '九天',
+};
+const PALACE_BASE_STAR = {
+	1: '辅',
+	2: '英',
+	3: '芮',
+	4: '冲',
+	5: '禽',
+	6: '柱',
+	7: '任',
+	8: '蓬',
+	9: '心',
+};
+const PALACE_OPPOSITE = {
+	1: 9,
+	2: 8,
+	3: 7,
+	4: 6,
+	5: 5,
+	6: 4,
+	7: 3,
+	8: 2,
+	9: 1,
+};
+const PALACE_WUXING = {
+	1: '木',
+	2: '火',
+	3: '土',
+	4: '木',
+	5: '土',
+	6: '金',
+	7: '土',
+	8: '水',
+	9: '金',
+};
+const DOOR_WUXING = {
+	休: '水',
+	生: '土',
+	伤: '木',
+	杜: '木',
+	景: '火',
+	死: '土',
+	惊: '金',
+	开: '金',
+};
+const GAN_WUXING = {
+	甲: '木',
+	乙: '木',
+	丙: '火',
+	丁: '火',
+	戊: '土',
+	己: '土',
+	庚: '金',
+	辛: '金',
+	壬: '水',
+	癸: '水',
+};
+const GAN_YINYANG = {
+	甲: '阳',
+	乙: '阴',
+	丙: '阳',
+	丁: '阴',
+	戊: '阳',
+	己: '阴',
+	庚: '阳',
+	辛: '阴',
+	壬: '阳',
+	癸: '阴',
+};
+const WUXING_SHENG = {
+	木: '火',
+	火: '土',
+	土: '金',
+	金: '水',
+	水: '木',
+};
+const WUXING_KE = {
+	木: '土',
+	火: '金',
+	土: '水',
+	金: '木',
+	水: '火',
+};
+const SAN_QI_DESHI_DAY_MAP = {
+	甲: '丙',
+	己: '丙',
+	乙: '乙',
+	庚: '乙',
+	丙: '丙',
+	辛: '丙',
+	丁: '乙',
+	壬: '乙',
+	戊: '丁',
+	癸: '丁',
+};
+const YUNV_SHOUMEN_TIME_MAP = {
+	甲: '丙',
+	己: '丙',
+	乙: '辛',
+	庚: '辛',
+	丙: '乙',
+	辛: '乙',
+	丁: '己',
+	壬: '己',
+	戊: '壬',
+	癸: '壬',
+};
+const TIANFU_SHI_TIME_MAP = {
+	甲: '己巳',
+	己: '己巳',
+	乙: '甲申',
+	庚: '甲申',
+	丙: '甲午',
+	辛: '甲午',
+	丁: '甲辰',
+	壬: '甲辰',
+	戊: '甲寅',
+	癸: '甲寅',
+};
+const QIYI_HE_SET = new Set([
+	'乙庚', '庚乙',
+	'丙辛', '辛丙',
+	'丁壬', '壬丁',
+	'戊癸', '癸戊',
+	'甲己', '己甲',
+]);
+
+function normalizeGodName(god){
+	const key = `${god || ''}`.trim();
+	return GOD_ALIAS_MAP[key] || key;
+}
+
+function normalizeStarName(star){
+	const txt = `${star || ''}`.trim();
+	if(!txt){
+		return '';
+	}
+	if(txt.indexOf('芮') >= 0 || txt.indexOf('内') >= 0 || txt.indexOf('內') >= 0){
+		return '芮';
+	}
+	if(txt.indexOf('禽') >= 0){
+		return '禽';
+	}
+	if(txt.indexOf('蓬') >= 0){
+		return '蓬';
+	}
+	if(txt.indexOf('任') >= 0){
+		return '任';
+	}
+	if(txt.indexOf('冲') >= 0 || txt.indexOf('沖') >= 0){
+		return '冲';
+	}
+	if(txt.indexOf('辅') >= 0 || txt.indexOf('輔') >= 0){
+		return '辅';
+	}
+	if(txt.indexOf('英') >= 0){
+		return '英';
+	}
+	if(txt.indexOf('柱') >= 0){
+		return '柱';
+	}
+	if(txt.indexOf('心') >= 0){
+		return '心';
+	}
+	return txt.substring(0, 1);
+}
+
+function isJiDoor(doorHead){
+	return JI_DOOR_SET.has(doorHead);
+}
+
+function isSanQi(gan){
+	return SAN_QI_SET.has(gan);
+}
+
+function isGodOneOf(god, list){
+	const norm = normalizeGodName(god);
+	return list.indexOf(norm) >= 0;
+}
+
+function isWuxingSheng(from, to){
+	return !!from && !!to && WUXING_SHENG[from] === to;
+}
+
+function isWuxingKe(from, to){
+	return !!from && !!to && WUXING_KE[from] === to;
+}
+
+function isDoorShengGong(cell){
+	const doorWuXing = DOOR_WUXING[cell.doorHead];
+	const gongWuXing = PALACE_WUXING[cell.palaceNum];
+	return isWuxingSheng(doorWuXing, gongWuXing);
+}
+
+function isGongShengDoor(cell){
+	const doorWuXing = DOOR_WUXING[cell.doorHead];
+	const gongWuXing = PALACE_WUXING[cell.palaceNum];
+	return isWuxingSheng(gongWuXing, doorWuXing);
+}
+
+function isGongKeDoor(cell){
+	const doorWuXing = DOOR_WUXING[cell.doorHead];
+	const gongWuXing = PALACE_WUXING[cell.palaceNum];
+	return isWuxingKe(gongWuXing, doorWuXing);
+}
+
+function isSameYinYang(ganA, ganB){
+	return !!ganA && !!ganB && GAN_YINYANG[ganA] && GAN_YINYANG[ganA] === GAN_YINYANG[ganB];
+}
+
+function isFiveBuYuShi(dayGan, timeGan){
+	const dayWuXing = GAN_WUXING[dayGan];
+	const timeWuXing = GAN_WUXING[timeGan];
+	return isSameYinYang(dayGan, timeGan) && isWuxingKe(timeWuXing, dayWuXing);
+}
+
+function isTianFuShi(dayGan, timeGanzhi){
+	return !!dayGan && !!timeGanzhi && TIANFU_SHI_TIME_MAP[dayGan] === timeGanzhi;
+}
+
+function isQiYiHe(cell){
+	return QIYI_HE_SET.has(`${cell.tianGan || ''}${cell.diGan || ''}`);
+}
+
+function isXingMenRuMu(cell){
+	const star = normalizeStarName(cell.tianXing);
+	const p = cell.palaceNum;
+	if((cell.doorHead === '休' || star === '蓬' || cell.doorHead === '生' || cell.doorHead === '死' || star === '任' || star === '芮' || star === '禽') && p === 1){
+		return true;
+	}
+	if((cell.doorHead === '惊' || cell.doorHead === '开' || star === '心' || star === '柱') && p === 7){
+		return true;
+	}
+	if((cell.doorHead === '伤' || cell.doorHead === '杜' || star === '冲' || star === '辅') && p === 3){
+		return true;
+	}
+	if((cell.doorHead === '景' || star === '英') && p === 9){
+		return true;
+	}
+	return false;
+}
+
+function isFuYin(cell){
+	const star = normalizeStarName(cell.tianXing);
+	const starFuYin = star && PALACE_BASE_STAR[cell.palaceNum] === star;
+	const doorFuYin = cell.doorHead && cell.baseDoor && cell.doorHead === cell.baseDoor;
+	return !!(starFuYin || doorFuYin);
+}
+
+function isFanYin(cell){
+	const opposite = PALACE_OPPOSITE[cell.palaceNum];
+	if(!opposite){
+		return false;
+	}
+	const star = normalizeStarName(cell.tianXing);
+	const starFanYin = star && PALACE_BASE_STAR[opposite] === star;
+	const doorFanYin = cell.doorHead && PALACE_BASE_DOOR[opposite] === cell.doorHead;
+	return !!(starFanYin || doorFanYin);
+}
+
+const QIMEN_JI_RULES = [
+	{
+		name: '天遁',
+		when: (cell)=>cell.tianGan === '丙' && cell.diGan === '丁' && isJiDoor(cell.doorHead),
+	},
+	{
+		name: '地遁',
+		when: (cell)=>cell.tianGan === '乙' && cell.diGan === '己' && cell.doorHead === '开'
+			&& isGodOneOf(cell.god, ['九地', '太阴', '六合']),
+	},
+	{
+		name: '人遁',
+		when: (cell)=>cell.tianGan === '丁' && cell.diGan === '乙'
+			&& (cell.doorHead === '休' || cell.doorHead === '生')
+			&& isGodOneOf(cell.god, ['太阴']),
+	},
+	{
+		name: '风遁',
+		when: (cell)=>cell.tianGan === '乙'
+			&& isJiDoor(cell.doorHead)
+			&& cell.palaceNum === 1,
+	},
+	{
+		name: '云遁',
+		when: (cell)=>cell.tianGan === '乙' && cell.diGan === '辛'
+			&& isJiDoor(cell.doorHead)
+			&& cell.palaceNum === 3,
+	},
+	{
+		name: '龙遁',
+		when: (cell)=>cell.tianGan === '乙' && cell.diGan === '壬'
+			&& isJiDoor(cell.doorHead)
+			&& cell.palaceNum === 8,
+	},
+	{
+		name: '虎遁',
+		when: (cell)=>cell.tianGan === '乙' && cell.diGan === '辛'
+			&& (cell.doorHead === '休' || cell.doorHead === '生')
+			&& cell.palaceNum === 7,
+	},
+	{
+		name: '神遁',
+		when: (cell)=>cell.tianGan === '丙' && cell.doorHead === '生' && isGodOneOf(cell.god, ['九天']),
+	},
+	{
+		name: '鬼遁',
+		when: (cell)=>cell.tianGan === '辛' && cell.diGan === '丁'
+			&& ['休', '生', '杜'].indexOf(cell.doorHead) >= 0
+			&& cell.palaceNum === 7
+			&& isGodOneOf(cell.god, ['九地']),
+	},
+	{
+		name: '真诈',
+		when: (cell)=>isSanQi(cell.tianGan) && isJiDoor(cell.doorHead) && isGodOneOf(cell.god, ['太阴']),
+	},
+	{
+		name: '重诈',
+		when: (cell)=>isSanQi(cell.tianGan) && isJiDoor(cell.doorHead) && isGodOneOf(cell.god, ['九地']),
+	},
+	{
+		name: '休诈',
+		when: (cell)=>isSanQi(cell.tianGan) && isJiDoor(cell.doorHead) && isGodOneOf(cell.god, ['六合']),
+	},
+	{
+		name: '天假',
+		when: (cell)=>cell.doorHead === '景' && isSanQi(cell.tianGan) && isGodOneOf(cell.god, ['九天']),
+	},
+	{
+		name: '地假',
+		when: (cell)=>cell.doorHead === '杜' && '丁己癸'.indexOf(cell.tianGan) >= 0 && isGodOneOf(cell.god, ['九地']),
+	},
+	{
+		name: '人假',
+		when: (cell)=>cell.doorHead === '惊' && cell.tianGan === '壬' && isGodOneOf(cell.god, ['九天']),
+	},
+	{
+		name: '鬼假',
+		when: (cell)=>cell.doorHead === '死' && '丁己癸'.indexOf(cell.tianGan) >= 0 && isGodOneOf(cell.god, ['九地']),
+	},
+	{
+		name: '物假',
+		when: (cell)=>cell.doorHead === '伤' && '丁己癸'.indexOf(cell.tianGan) >= 0 && isGodOneOf(cell.god, ['六合']),
+	},
+	{
+		name: '青龙回首',
+		when: (cell)=>cell.tianGan === '戊' && cell.diGan === '丙',
+	},
+	{
+		name: '飞鸟跌穴',
+		when: (cell)=>cell.tianGan === '丙' && cell.diGan === '戊',
+	},
+	{
+		name: '三奇得使',
+		when: (cell, ctx)=>!!cell.tianGan && SAN_QI_DESHI_DAY_MAP[ctx.dayGan] === cell.tianGan,
+	},
+	{
+		name: '玉女守门',
+		when: (cell, ctx)=>!!cell.tianGan && YUNV_SHOUMEN_TIME_MAP[ctx.timeGan] === cell.tianGan,
+	},
+	{
+		name: '天辅时',
+		when: (cell, ctx)=>ctx.isTianFuShi === true && cell.isZhiShi,
+	},
+	{
+		name: '三奇升殿',
+		when: (cell)=>(cell.tianGan === '乙' && cell.palaceNum === 4)
+			|| (cell.tianGan === '丙' && cell.palaceNum === 2)
+			|| (cell.tianGan === '丁' && cell.palaceNum === 6),
+	},
+	{
+		name: '奇游禄位',
+		when: (cell)=>(cell.tianGan === '乙' && cell.palaceNum === 4)
+			|| (cell.tianGan === '丙' && cell.palaceNum === 1)
+			|| (cell.tianGan === '丁' && cell.palaceNum === 2),
+	},
+	{
+		name: '欢怡',
+		when: (cell)=>cell.isZhiFu && isSanQi(cell.tianGan),
+	},
+	{
+		name: '相佐',
+		when: (cell)=>cell.isZhiFu && isSanQi(cell.diGan),
+	},
+	{
+		name: '奇仪相合',
+		when: (cell)=>isJiDoor(cell.doorHead) && isQiYiHe(cell),
+	},
+	{
+		name: '交泰',
+		when: (cell)=>isJiDoor(cell.doorHead) && ((cell.tianGan === '乙' && cell.diGan === '丁') || (cell.tianGan === '丁' && cell.diGan === '丙')),
+	},
+	{
+		name: '天运昌气',
+		when: (cell)=>isJiDoor(cell.doorHead) && cell.tianGan === '丁' && cell.diGan === '乙',
+	},
+	{
+		name: '门宫和义',
+		when: (cell)=>isJiDoor(cell.doorHead) && (isDoorShengGong(cell) || isGongShengDoor(cell)),
+	},
+];
+
+const QIMEN_XIONG_RULES = [
+	{
+		name: '青龙逃走',
+		when: (cell)=>cell.tianGan === '乙' && cell.diGan === '辛',
+	},
+	{
+		name: '白虎猖狂',
+		when: (cell)=>cell.tianGan === '辛' && cell.diGan === '乙',
+	},
+	{
+		name: '螣蛇夭矫',
+		when: (cell)=>cell.tianGan === '癸' && cell.diGan === '丁',
+	},
+	{
+		name: '朱雀投江',
+		when: (cell)=>cell.tianGan === '丁' && cell.diGan === '癸',
+	},
+	{
+		name: '太白火荧',
+		when: (cell)=>cell.tianGan === '庚' && cell.diGan === '丙',
+	},
+	{
+		name: '荧入太白',
+		when: (cell)=>cell.tianGan === '丙' && cell.diGan === '庚',
+	},
+	{
+		name: '飞宫格',
+		when: (cell)=>cell.isZhiFu && cell.diGan === '庚',
+	},
+	{
+		name: '伏宫格',
+		when: (cell)=>cell.tianGan === '庚' && cell.isZhiFu,
+	},
+	{
+		name: '飞干格',
+		when: (cell, ctx)=>cell.tianGan === ctx.dayGan && cell.diGan === '庚',
+	},
+	{
+		name: '伏干格',
+		when: (cell, ctx)=>cell.tianGan === '庚' && cell.diGan === ctx.dayGan,
+	},
+	{
+		name: '大格',
+		when: (cell)=>cell.tianGan === '庚' && cell.diGan === '癸',
+	},
+	{
+		name: '小格',
+		when: (cell)=>cell.tianGan === '庚' && cell.diGan === '壬',
+	},
+	{
+		name: '刑格',
+		when: (cell)=>cell.tianGan === '庚' && cell.diGan === '己',
+	},
+	{
+		name: '悖格',
+		when: (cell, ctx)=>cell.tianGan === '丙' && [ctx.yearGan, ctx.monthGan, ctx.dayGan, ctx.timeGan].indexOf(cell.diGan) >= 0,
+	},
+	{
+		name: '年月日时格',
+		when: (cell, ctx)=>cell.tianGan === '庚' && [ctx.yearGan, ctx.monthGan, ctx.dayGan, ctx.timeGan].indexOf(cell.diGan) >= 0,
+	},
+	{
+		name: '天网四张格',
+		when: (cell)=>cell.tianGan === '癸' && cell.diGan === '癸',
+	},
+	{
+		name: '地罗遮格',
+		when: (cell, ctx)=>cell.tianGan === '壬' && !!ctx.timeGan && cell.diGan === ctx.timeGan,
+	},
+	{
+		name: '五不遇时',
+		when: (cell, ctx)=>ctx.isFiveBuYuShi === true && cell.isZhiShi,
+	},
+	{
+		name: '六仪击刑',
+		when: (cell)=>cell.hasJiXing === true,
+	},
+	{
+		name: '三奇入墓',
+		when: (cell)=>(cell.tianGan === '乙' && (cell.palaceNum === 3 || cell.palaceNum === 9))
+			|| (cell.tianGan === '丙' && cell.palaceNum === 9)
+			|| (cell.tianGan === '丁' && cell.palaceNum === 7),
+	},
+	{
+		name: '时干入墓',
+		when: (cell, ctx)=>cell.tianGan === ctx.timeGan && cell.hasRuMu === true,
+	},
+	{
+		name: '星门入墓',
+		when: (cell)=>isXingMenRuMu(cell),
+	},
+	{
+		name: '伏吟',
+		when: (cell)=>isFuYin(cell),
+	},
+	{
+		name: '返吟',
+		when: (cell)=>isFanYin(cell),
+	},
+	{
+		name: '门宫迫制',
+		when: (cell)=>cell.hasMenPo === true || isGongKeDoor(cell),
+	},
+];
 
 // 复用 Horosa-APP 的非八字神煞规则（奇门/六壬/六爻共用）
 const QIMEN_SHENSHA_DAY_STEMS = {
@@ -352,6 +1163,10 @@ const QIMEN_SHENSHA_YEAR_BRANCH = {
 function normalizeNum(v, defVal = 0){
 	const n = parseInt(v, 10);
 	return Number.isNaN(n) ? defVal : n;
+}
+
+function normalizeTimeAlg(v){
+	return v === 1 ? 1 : 0;
 }
 
 function normalizeShiftPalace(v){
@@ -437,6 +1252,42 @@ function parseDateTime(fields){
 		dateStr,
 		timeStr,
 	};
+}
+
+function parseBirthDateTimeParts(birthText){
+	const txt = `${birthText || ''}`.trim();
+	if(!txt){
+		return null;
+	}
+	const matched = txt.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+	if(!matched){
+		return null;
+	}
+	const year = normalizeNum(matched[1], 0);
+	const month = normalizeNum(matched[2], 1);
+	const day = normalizeNum(matched[3], 1);
+	const hour = normalizeNum(matched[4], 0);
+	const minute = normalizeNum(matched[5], 0);
+	const second = normalizeNum(matched[6], 0);
+	const pad2 = (n)=>`${n}`.padStart(2, '0');
+	return {
+		year,
+		month,
+		day,
+		hour,
+		minute,
+		second,
+		dateStr: `${year}-${pad2(month)}-${pad2(day)}`,
+		timeStr: `${pad2(hour)}:${pad2(minute)}:${pad2(second)}`,
+	};
+}
+
+function resolveQimenDateParts(dateParts, nongli, timeAlg){
+	if(normalizeTimeAlg(timeAlg) !== 0){
+		return dateParts;
+	}
+	const birthParts = parseBirthDateTimeParts(nongli && nongli.birth ? nongli.birth : '');
+	return birthParts || dateParts;
 }
 
 function newList(list, start){
@@ -707,11 +1558,15 @@ function parseQmju(qmju){
 }
 
 function buildGanzhiForQimen(nongli, dateParts){
-	let day = normalizeGanZhi(nongli ? nongli.dayGanZi : '甲子');
-	if(dateParts.hour === 23){
+	const dayFromNongli = normalizeGanZhi(nongli ? nongli.dayGanZi : '');
+	let day = dayFromNongli || '甲子';
+	if(!dayFromNongli && dateParts.hour === 23){
 		day = nextGanZhi(day);
 	}
-	const time = getHourGanZhi(day, dateParts.hour);
+	let time = normalizeGanZhi(nongli ? nongli.time : '');
+	if(!time){
+		time = getHourGanZhi(day, dateParts.hour);
+	}
 	return {
 		year: normalizeGanZhi(nongli ? (nongli.yearJieqi || nongli.year) : ''),
 		month: normalizeGanZhi(nongli ? nongli.monthGanZi : ''),
@@ -1033,30 +1888,140 @@ function rotateOuterPalaceNum(palaceNum, shiftPalace){
 	return OUTER_RING_CLOCKWISE[(idx + step) % OUTER_RING_CLOCKWISE.length];
 }
 
+function normalizeQimenGan(gan){
+	if(!gan){
+		return '';
+	}
+	return gan === '甲' ? '戊' : gan;
+}
+
+function buildTenGanResponse(tianGan, diGan){
+	if(!tianGan || !diGan){
+		return '';
+	}
+	const key = `${normalizeQimenGan(tianGan)}${normalizeQimenGan(diGan)}`;
+	const body = TEN_GAN_RESPONSE_MAP[key];
+	if(body){
+		return `天${tianGan}加地${diGan}：${body}`;
+	}
+	return '';
+}
+
+function buildDoorBaseResponse(doorHead, baseDoor){
+	if(!doorHead || !baseDoor){
+		return '';
+	}
+	const key = `${doorHead}${baseDoor}`;
+	const reverseKey = `${baseDoor}${doorHead}`;
+	const body = DOOR_BASE_RESPONSE_MAP[key] || DOOR_BASE_RESPONSE_MAP[reverseKey];
+	if(body){
+		return `人${doorHead}加地${baseDoor}：${body}`;
+	}
+	return '';
+}
+
+function buildDoorGanResponse(doorHead, tianGan){
+	if(!doorHead || !tianGan){
+		return '';
+	}
+	const key = `${doorHead}${normalizeQimenGan(tianGan)}`;
+	const body = DOOR_GAN_RESPONSE_MAP[key];
+	if(body){
+		return `人${doorHead}加天${tianGan}：${body}`;
+	}
+	return '';
+}
+
+function evaluateCellPatterns(cell, ctx){
+	const jiSet = new Set();
+	const xiongSet = new Set();
+	QIMEN_JI_RULES.forEach((rule)=>{
+		if(rule && typeof rule.when === 'function' && rule.when(cell, ctx)){
+			const label = appendQimenPatternExplanation(rule.name);
+			if(label){
+				jiSet.add(label);
+			}
+		}
+	});
+	QIMEN_XIONG_RULES.forEach((rule)=>{
+		if(rule && typeof rule.when === 'function' && rule.when(cell, ctx)){
+			const label = appendQimenPatternExplanation(rule.name);
+			if(label){
+				xiongSet.add(label);
+			}
+		}
+	});
+	return { ji: [...jiSet], xiong: [...xiongSet] };
+}
+
+function collectPatternSummary(cells){
+	const jiSet = new Set();
+	const xiongSet = new Set();
+	(cells || []).forEach((cell)=>{
+		(cell.jiPatterns || []).forEach((name)=>jiSet.add(name));
+		(cell.xiongPatterns || []).forEach((name)=>xiongSet.add(name));
+	});
+	return {
+		ji: [...jiSet],
+		xiong: [...xiongSet],
+	};
+}
+
 function buildCells(diPan, tianPan, men, shen, star, zhiFuPalace, zhiShiPalace, status){
 	const jiXingSet = new Set(status && status.jiXingPalaces ? status.jiXingPalaces : []);
 	const ruMuSet = new Set(status && status.ruMuPalaces ? status.ruMuPalaces : []);
 	const menPoSet = new Set(status && status.menPoPalaces ? status.menPoPalaces : []);
 	const kongSet = new Set(status && status.kongWangPalaces ? status.kongWangPalaces : []);
 	const yimaPalace = status && status.yimaPalace ? status.yimaPalace : 0;
+	const dayGan = status && status.dayGan ? status.dayGan : '';
+	const monthGan = status && status.monthGan ? status.monthGan : '';
+	const yearGan = status && status.yearGan ? status.yearGan : '';
+	const timeGan = status && status.timeGan ? status.timeGan : '';
+	const timeGanzhi = status && status.timeGanzhi ? status.timeGanzhi : '';
+	const isFiveBuYuShiFlag = status && status.isFiveBuYuShi === true;
+	const isTianFuShiFlag = status && status.isTianFuShi === true;
 
-	return PALACE_GRID.map((palaceNum)=>({
-		palaceNum,
-		palaceName: PALACE_NAME[palaceNum] || `${palaceNum}`,
-		diGan: diPan[palaceNum] || '',
-		tianXing: star[palaceNum] || '',
-		door: men[palaceNum] || '',
-		god: shen[palaceNum] || '',
-		tianGan: tianPan[palaceNum] || '',
-		isCenter: palaceNum === 5,
-		isZhiFu: palaceNum === zhiFuPalace,
-		isZhiShi: palaceNum === zhiShiPalace,
-		hasJiXing: jiXingSet.has(palaceNum),
-		hasRuMu: ruMuSet.has(palaceNum),
-		hasMenPo: menPoSet.has(palaceNum),
-		hasKongWang: kongSet.has(palaceNum),
-		isYiMa: palaceNum === yimaPalace,
-	}));
+	return PALACE_GRID.map((palaceNum)=>{
+		const tianGanNow = tianPan[palaceNum] || '';
+		const diGanNow = diPan[palaceNum] || '';
+		const doorNow = men[palaceNum] || '';
+		const doorHead = doorNow.substring(0, 1);
+		const baseDoor = PALACE_BASE_DOOR[palaceNum] || '';
+		const cell = {
+			palaceNum,
+			palaceName: PALACE_NAME[palaceNum] || `${palaceNum}`,
+			diGan: diGanNow,
+			tianXing: star[palaceNum] || '',
+			door: doorNow,
+			doorHead,
+			baseDoor,
+			god: shen[palaceNum] || '',
+			tianGan: tianGanNow,
+			isCenter: palaceNum === 5,
+			isZhiFu: palaceNum === zhiFuPalace,
+			isZhiShi: palaceNum === zhiShiPalace,
+			hasJiXing: jiXingSet.has(palaceNum),
+			hasRuMu: ruMuSet.has(palaceNum),
+			hasMenPo: menPoSet.has(palaceNum),
+			hasKongWang: kongSet.has(palaceNum),
+			isYiMa: palaceNum === yimaPalace,
+		};
+		const patterns = evaluateCellPatterns(cell, {
+			yearGan,
+			monthGan,
+			dayGan,
+			timeGan,
+			timeGanzhi,
+			isFiveBuYuShi: isFiveBuYuShiFlag,
+			isTianFuShi: isTianFuShiFlag,
+		});
+		cell.jiPatterns = patterns.ji;
+		cell.xiongPatterns = patterns.xiong;
+		cell.tenGanResponse = buildTenGanResponse(tianGanNow, diGanNow);
+		cell.doorBaseResponse = buildDoorBaseResponse(doorHead, baseDoor);
+		cell.doorGanResponse = buildDoorGanResponse(doorHead, tianGanNow);
+		return cell;
+	});
 }
 
 function parseDayFromTime(timeStr){
@@ -1269,6 +2234,15 @@ function joinList(list){
 	return list.join('、');
 }
 
+function normalizeQimenExportText(raw){
+	// Keep trigram "乾" unchanged; do not convert it to "干".
+	const txt = `${raw === undefined || raw === null ? '' : raw}`;
+	if(!txt){
+		return '';
+	}
+	return txt.replace(/[門開傷驚陰陽離兌黃綠藍騰內沖輔麗風險鬥體臺與廣層醫氣關貴龍變遠飛壯闊圖樓處書證經網]/g, (ch)=>QIMEN_EXPORT_CHAR_MAP[ch] || ch);
+}
+
 function getQimenShenShaValue(mapObj, name, key){
 	if(!mapObj || !name || !key){
 		return '';
@@ -1387,14 +2361,17 @@ export function calcDunJia(fields, nongli, options, context){
 		yimaMode: 'day',
 		shiftPalace: 0,
 		fengJu: false,
+		timeAlg: 1,
 		...(options || {}),
 	};
 	opts.qijuMethod = normalizeQijuMethod(opts.qijuMethod);
 	const shiftPalace = normalizeShiftPalace(opts.shiftPalace);
+	const timeAlg = normalizeTimeAlg(opts.timeAlg);
+	const calcDateParts = resolveQimenDateParts(dateParts, nongli || {}, timeAlg);
 
-	const ganzhi = buildGanzhiForQimen(nongli || {}, dateParts);
+	const ganzhi = buildGanzhiForQimen(nongli || {}, calcDateParts);
 	const jieqi = getCurrentJieqi(nongli || {});
-	const paiPanMeta = resolvePaiPanMeta(opts, ganzhi, jieqi, dateParts, context || {});
+	const paiPanMeta = resolvePaiPanMeta(opts, ganzhi, jieqi, calcDateParts, context || {});
 	const qmju = paiPanMeta.qmju || buildQmjuByMeta(paiPanMeta.yinYangDun, paiPanMeta.juShu, paiPanMeta.sanYuan);
 	const zfzs = zhifuNZhishi(ganzhi, qmju, {
 		zhiShiType: opts.zhiShiType,
@@ -1435,6 +2412,12 @@ export function calcDunJia(fields, nongli, options, context){
 		zhiFu = '天禽';
 	}
 	const zhiShi = BA_MEN_NAME[zfzs.值使门宫[0]] || `${zfzs.值使门宫[0]}门`;
+	const yearGan = getGanzhiGan(ganzhi.year);
+	const monthGan = getGanzhiGan(ganzhi.month);
+	const dayGan = getGanzhiGan(ganzhi.day);
+	const timeGan = getGanzhiGan(ganzhi.time);
+	const isFiveBuYuShiFlag = isFiveBuYuShi(dayGan, timeGan);
+	const isTianFuShiFlag = isTianFuShi(dayGan, ganzhi.time || '');
 
 	const cells = buildCells(diPan, tianPan, men, shen, star, zhiFuPalace, zhiShiPalace, {
 		jiXingPalaces: specials.jiXingPalaces,
@@ -1442,13 +2425,26 @@ export function calcDunJia(fields, nongli, options, context){
 		menPoPalaces: menPo.palaces,
 		kongWangPalaces: kongWangMeta.palaces,
 		yimaPalace: yiMaMeta.palace,
+		yearGan,
+		monthGan,
+		dayGan,
+		timeGan,
+		timeGanzhi: ganzhi.time || '',
+		isFiveBuYuShi: isFiveBuYuShiFlag,
+		isTianFuShi: isTianFuShiFlag,
 	});
+	const patternSummary = collectPatternSummary(cells);
 
 	const qmjuMeta = parseQmju(qmju);
 
 	return {
-		dateStr: dateParts.dateStr,
-		timeStr: dateParts.timeStr,
+		dateStr: calcDateParts.dateStr,
+		timeStr: calcDateParts.timeStr,
+		directDateStr: dateParts.dateStr,
+		directTimeStr: dateParts.timeStr,
+		calcDateStr: calcDateParts.dateStr,
+		calcTimeStr: calcDateParts.timeStr,
+		timeAlg,
 		realSunTime: nongli ? (nongli.birth || '') : '',
 		lunarText: nongli ? `${nongli.year || ''}年${nongli.leap ? '闰' : ''}${nongli.month || ''}${nongli.day || ''}` : '',
 		jiedelta: nongli ? (nongli.jiedelta || '') : '',
@@ -1485,6 +2481,8 @@ export function calcDunJia(fields, nongli, options, context){
 		kongWangPalaces: kongWangMeta.palaces,
 		yiMa: yiMaMeta,
 		shenSha: buildQimenShenSha(ganzhi, isDiurnal),
+		jiPatterns: patternSummary.ji,
+		xiongPatterns: patternSummary.xiong,
 		cells,
 		xunkong,
 		options: {
@@ -1513,11 +2511,16 @@ export function buildDunJiaSnapshotText(pan){
 		return '';
 	}
 	const lines = [];
+	const calcDate = pan.calcDateStr || pan.dateStr;
+	const calcTime = pan.calcTimeStr || pan.timeStr;
+	const directTime = pan.directTimeStr || pan.timeStr;
 	lines.push('[起盘信息]');
-	lines.push(`日期：${pan.dateStr} ${pan.timeStr}`);
+	lines.push(`日期：${calcDate} ${calcTime}`);
+	lines.push(`直接时间：${directTime}`);
 	if(pan.realSunTime){
 		lines.push(`真太阳时：${pan.realSunTime}`);
 	}
+	lines.push(`时间算法：${normalizeTimeAlg(pan.timeAlg) === 1 ? '直接时间' : '真太阳时'}`);
 	if(pan.lunarText){
 		lines.push(`农历：${pan.lunarText}`);
 	}
@@ -1549,13 +2552,15 @@ export function buildDunJiaSnapshotText(pan){
 	lines.push(`天盘：${pan.tianPanList.join(' ')}`);
 	lines.push(`人盘：${pan.renPanList.join(' ')}`);
 	lines.push(`神盘：${pan.shenPanList.join(' ')}`);
-	lines.push(`六仪击刑：${joinList(pan.liuYiJiXing)}`);
-	lines.push(`奇仪入墓：${joinList(pan.qiYiRuMu)}`);
-	lines.push(`门迫：${joinList(pan.menPo && pan.menPo.list ? pan.menPo.list : [])}`);
-	lines.push(`空亡宫：${joinList(pan.kongWangDesc)}`);
-	lines.push(`${pan.yiMa ? pan.yiMa.text : '日马：无'}`);
+	lines.push(normalizeQimenExportText(appendQimenExplanation(`六仪击刑：${joinList(pan.liuYiJiXing)}`)));
+	lines.push(normalizeQimenExportText(appendQimenExplanation(`奇仪入墓：${joinList(pan.qiYiRuMu)}`)));
+	lines.push(normalizeQimenExportText(appendQimenExplanation(`门迫：${joinList(pan.menPo && pan.menPo.list ? pan.menPo.list : [])}`)));
+	lines.push(normalizeQimenExportText(appendQimenExplanation(`空亡宫：${joinList(pan.kongWangDesc)}`)));
+	lines.push(normalizeQimenExportText(appendQimenExplanation(`${pan.yiMa ? pan.yiMa.text : '日马：无'}`)));
+	lines.push(normalizeQimenExportText(`吉格：${joinList(pan.jiPatterns || [])}`));
+	lines.push(normalizeQimenExportText(`凶格：${joinList(pan.xiongPatterns || [])}`));
 	if(pan.shenSha && pan.shenSha.summary && pan.shenSha.summary.length){
-		lines.push(`神煞概览：${pan.shenSha.summary.map((item)=>`${item.name}-${item.value}`).join('  ')}`);
+		lines.push(normalizeQimenExportText(`神煞概览：${pan.shenSha.summary.map((item)=>`${item.name}-${item.value}`).join('  ')}`));
 	}
 	lines.push('');
 
@@ -1566,3 +2571,4 @@ export function buildDunJiaSnapshotText(pan){
 
 	return lines.join('\n');
 }
+

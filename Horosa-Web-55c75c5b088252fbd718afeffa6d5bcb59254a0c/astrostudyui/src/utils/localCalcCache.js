@@ -64,7 +64,7 @@ function trimByCount(mapObj, maxCount){
 	return mapObj;
 }
 
-const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay'];
+const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'timeAlg', 'after23NewDay'];
 const JIE_QI_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon'];
 
 export function getNongliLocalCache(params){
@@ -114,4 +114,3 @@ export function setJieqiSeedLocalCache(params, data){
 	trimByCount(jieqiMem, MAX_JIE_QI);
 	saveNS(JIE_QI_NS, jieqiMem);
 }
-

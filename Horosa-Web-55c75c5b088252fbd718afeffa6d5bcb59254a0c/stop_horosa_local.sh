@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PY_PID_FILE="${ROOT}/.horosa_py.pid"
 JAVA_PID_FILE="${ROOT}/.horosa_java.pid"
+WEB_PID_FILE="${ROOT}/.horosa_web.pid"
 
 stop_by_pid_file() {
   local name="$1"
@@ -30,3 +31,4 @@ stop_by_pid_file() {
 
 stop_by_pid_file "astropy" "${PY_PID_FILE}"
 stop_by_pid_file "astrostudyboot" "${JAVA_PID_FILE}"
+stop_by_pid_file "web" "${WEB_PID_FILE}"

@@ -1,8 +1,7 @@
 import { Component } from 'react';
-import { Row, Col, Table, Input, Button,  } from 'antd';
+import { Row, Col, Table, Input, Button, } from 'antd';
 import { SearchOutlined, } from '@ant-design/icons';
 import * as AstroConst from '../../constants/AstroConst';
-import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
 import AstroObjectLabel from './AstroObjectLabel';
 import {TableOddRowBgColor} from '../../utils/constants'
@@ -21,6 +20,7 @@ class AstroPrimaryDirection extends Component{
 
 		this.convertToDataSource = this.convertToDataSource.bind(this);
 		this.convertText = this.convertText.bind(this);
+		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
 		this.T = this.T.bind(this);
 		this.A = this.A.bind(this);
 		this.C = this.C.bind(this);
@@ -58,7 +58,7 @@ class AstroPrimaryDirection extends Component{
 				continue;
 			}
 			let obj = {
-				text: (<AstroObjectLabel id={planet} chartSources={this.props.value} />),
+				text: this.renderPlanetLabel(planet),
 				value: planet,
 			}
 			filters.push(obj);
@@ -184,11 +184,20 @@ class AstroPrimaryDirection extends Component{
 		};
 	}
 
+	renderPlanetLabel(id){
+		return (
+			<AstroObjectLabel
+				id={id}
+				chartSources={this.props.value}
+			/>
+		);
+	}
+
 	T(parts){
 		let dom = (
 			<div>
-				<AstroObjectLabel id={parts[2]} chartSources={this.props.value} />&nbsp;的&nbsp;
-				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;界
+				{this.renderPlanetLabel(parts[2])}&nbsp;的&nbsp;
+				{this.renderPlanetLabel(parts[1])}&nbsp;界
 			</div>
 		);
 		return dom;
@@ -197,7 +206,7 @@ class AstroPrimaryDirection extends Component{
 	A(parts){
 		let dom = (
 			<div>
-				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的映点
+				{this.renderPlanetLabel(parts[1])}&nbsp;的映点
 			</div>
 		);
 		return dom;
@@ -205,7 +214,7 @@ class AstroPrimaryDirection extends Component{
 	C(parts){
 		let dom = (
 			<div>
-				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的反映点
+				{this.renderPlanetLabel(parts[1])}&nbsp;的反映点
 			</div>
 		);
 		return dom;
@@ -214,7 +223,7 @@ class AstroPrimaryDirection extends Component{
 	D(parts){
 		let dom = (
 			<div>
-				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的&nbsp;
+				{this.renderPlanetLabel(parts[1])}&nbsp;的&nbsp;
 				<span style={{fontFamily: AstroConst.NormalFont}}>{parts[2]}</span>&nbsp;度右相位处
 			</div>
 		);
@@ -223,7 +232,7 @@ class AstroPrimaryDirection extends Component{
 	S(parts){
 		let dom = (
 			<div>
-				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的&nbsp;
+				{this.renderPlanetLabel(parts[1])}&nbsp;的&nbsp;
 				<span style={{fontFamily: AstroConst.NormalFont}}>{parts[2]}</span>&nbsp;度左相位处
 			</div>
 		);
@@ -232,13 +241,13 @@ class AstroPrimaryDirection extends Component{
 	N(parts){
 		let dom = (
 			<div>
-				<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;
+				{this.renderPlanetLabel(parts[1])}&nbsp;
 			</div>
 		);
 		if(parts[2] !== '0'){
 			dom = (
 				<div>
-					<AstroObjectLabel id={parts[1]} chartSources={this.props.value} />&nbsp;的&nbsp;
+					{this.renderPlanetLabel(parts[1])}&nbsp;的&nbsp;
 					<span style={{fontFamily: AstroConst.NormalFont}}>{parts[2]}</span>&nbsp;度相位处
 				</div>
 			); 

@@ -6,6 +6,7 @@ import AstroComposite from '../relative/AstroComposite'
 import AstroSynastry from '../relative/AstroSynastry'
 import AstroTimeSpace from '../relative/AstroTimeSpace'
 import AstroMarks from '../relative/AstroMarks'
+import RelativeFloatingPanel from '../relative/RelativeFloatingPanel'
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
@@ -193,6 +194,8 @@ class AstroRelative extends Component{
 			currentRelative: 0,
 			chartA: null,
 			chartB: null,
+			floatingPanelVisible: true,
+			floatingPanelCollapsed: false,
 			hook: {
 				Comp:{
 					txt:'比较盘',
@@ -234,6 +237,8 @@ class AstroRelative extends Component{
 		this.clickDoChart = this.clickDoChart.bind(this);
 		this.doChart = this.doChart.bind(this);
 		this.genParams = this.genParams.bind(this);
+		this.toggleFloatingPanel = this.toggleFloatingPanel.bind(this);
+		this.toggleFloatingPanelCollapse = this.toggleFloatingPanelCollapse.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -397,6 +402,18 @@ class AstroRelative extends Component{
 		this.doChart()
 	}
 
+	toggleFloatingPanel(){
+		this.setState({
+			floatingPanelVisible: !this.state.floatingPanelVisible,
+		});
+	}
+
+	toggleFloatingPanelCollapse(){
+		this.setState({
+			floatingPanelCollapsed: !this.state.floatingPanelCollapsed,
+		});
+	}
+
 
 	render(){
 		let height = this.props.height ? this.props.height : 760;
@@ -422,6 +439,9 @@ class AstroRelative extends Component{
 					</Col>
 					<Col span={8}>
 						<Button onClick={this.clickDoChart}>排盘</Button>
+						<Button style={{marginLeft: 8}} onClick={this.toggleFloatingPanel}>
+							{this.state.floatingPanelVisible ? '隐藏浮窗' : '显示浮窗'}
+						</Button>
 					</Col>
 				</Row>
 				<Row gutter={12} style={{marginTop: 10}}>
@@ -500,6 +520,18 @@ class AstroRelative extends Component{
 						</Tabs>
 					</Col>
 				</Row>
+				<RelativeFloatingPanel
+					visible={this.state.floatingPanelVisible}
+					collapsed={this.state.floatingPanelCollapsed}
+					onToggleCollapse={this.toggleFloatingPanelCollapse}
+					modeKey={this.state.currentTab}
+					result={hook[this.state.currentTab] ? hook[this.state.currentTab].result : null}
+					chartA={this.state.chartA}
+					chartB={this.state.chartB}
+					fields={this.props.fields}
+					planetDisplay={this.props.planetDisplay}
+					lotsDisplay={this.props.lotsDisplay}
+				/>
 			</div>
 		);
 	}

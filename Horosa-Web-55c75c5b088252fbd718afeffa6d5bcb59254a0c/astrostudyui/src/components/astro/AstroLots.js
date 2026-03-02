@@ -6,6 +6,10 @@ import * as AstroHelper from './AstroHelper';
 import AstroObjectLabel from './AstroObjectLabel';
 import styles from '../../css/styles.less';
 
+function isEncodedToken(text){
+	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
+}
+
 class AstroLots extends Component{
 
 	constructor(props) {
@@ -34,9 +38,16 @@ class AstroLots extends Component{
 			if(stars){
 				starsDom = stars.map((item)=>{
 					let stardeg = AstroHelper.splitDegree(item[2])
+					const starName = AstroText.AstroMsg[item[0]];
 					return (
 						<div key={item[0]}>
-							{AstroText.AstroMsg[item[0]]}：
+							{
+								isEncodedToken(starName) ? (
+									<span style={{fontFamily: AstroConst.AstroFont}}>{starName}</span>
+								) : (
+									<span>{starName}</span>
+								)
+							}：
 							<Popover content={'误差' + Math.round(item[3]*1000) / 1000} >
 							<span>{stardeg[0]}</span>
 							<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item[1]]}</span>

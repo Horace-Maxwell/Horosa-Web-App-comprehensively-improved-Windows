@@ -28,6 +28,8 @@ const MARKER_TYPES = [
   { id: "custom", label: "自定义", short: "标", category: "neutral", color: "#6b655a" }
 ];
 const EMBEDDED_MODE = new URLSearchParams(window.location.search).get("embedded") === "horosa";
+const HOROSA_SNAPSHOT_EVENT = "horosa:fengshui-snapshot";
+const HOROSA_SNAPSHOT_REQUEST_EVENT = "horosa:fengshui-snapshot-request";
 if (EMBEDDED_MODE) {
   document.body.classList.add("horosa-embed");
 }
@@ -1158,11 +1160,125 @@ function getMarkerStats() {
   };
 }
 
+function buildHorosaSnapshotText() {
+  const lines = [];
+  const periodLabel = periodMode === "current" ? "1964-2044" : "2044-2124";
+  const stats = getMarkerStats();
+  const markerDetails = markers.map((marker) => {
+    const result = evaluateMarker(marker);
+    const position = result.sector
+      ? `${result.sector.num}·${result.sector.name}·${result.actual === "wind" ? "气位" : "水位"}`
+      : "未定位";
+    let statusText = "观察";
+    if (marker.category !== "neutral") {
+      statusText = result.ok ? "位置合适" : "位置冲突";
+    }
+    if (!result.sector) {
+      stats.unknown += 1;
+    } else if (marker.category === "wind") {
+      result.ok ? (stats.windOk += 1) : (stats.windBad += 1);
+    } else if (marker.category === "water") {
+      result.ok ? (stats.waterOk += 1) : (stats.waterBad += 1);
+    }
+    return { marker, result, position, statusText };
+  });
+
+  const conflictLines = markerDetails
+    .filter((item) => item.marker.category !== "neutral" && item.result.sector && !item.result.ok)
+    .map((item) => `${item.marker.label}：${item.position}（期望 ${item.result.expected === "wind" ? "气位" : "水位"}）`);
+  const unknownLines = markerDetails
+    .filter((item) => !item.result.sector)
+    .map((item) => `${item.marker.label}：未定位`);
+
+  const suggestionLines = [];
+  if (!markerDetails.length) {
+    suggestionLines.push("当前没有标注，可先放置门、窗、床、灶、沙发等关键点。");
+  } else {
+    if (stats.windBad > 0) suggestionLines.push("存在气位冲突，建议将气位类标注调整到气位扇区。");
+    if (stats.waterBad > 0) suggestionLines.push("存在水位冲突，建议将水位类标注调整到水位扇区。");
+    if (stats.unknown > 0) suggestionLines.push("有未定位标注，请确认盘心、房屋框或角度输入。");
+    if (stats.windBad === 0 && stats.waterBad === 0 && stats.unknown === 0) {
+      suggestionLines.push("当前标注均在合适位置，可继续完善细节。");
+    }
+  }
+  if (!suggestionLines.length) {
+    suggestionLines.push("请先完成标注后再评估。");
+  }
+
+  const advice =
+    "气位建议放置：门、窗、灶台、沙发、床、书桌、神龛、宠物床等。水位建议放置：水槽、洗手池、马桶、下水管、洗衣机、厕所等。";
+  const rectText = rect.active
+    ? `x=${Math.round(rect.x)} y=${Math.round(rect.y)} w=${Math.round(rect.w)} h=${Math.round(rect.h)} rot=${formatAngle(rect.rotation)}`
+    : "未设置";
+
+  lines.push("[起盘信息]");
+  lines.push(`生成时间：${new Date().toLocaleString()}`);
+  lines.push(`单元门角度：${formatAngle(unitAzimuth)}`);
+  lines.push(`入户门角度：${formatAngle(doorImageAngle)}`);
+  lines.push(`盘旋转：${formatAngle(getDiskRotation())}`);
+  lines.push(`运期：${periodLabel}`);
+  lines.push(`房屋框：${rectText}`);
+  lines.push(`标记数量：${markerDetails.length}`);
+  lines.push("");
+
+  lines.push("[标记判定]");
+  if (markerDetails.length) {
+    lines.push(`统计：气位正确 ${stats.windOk} 项，气位冲突 ${stats.windBad} 项；水位正确 ${stats.waterOk} 项，水位冲突 ${stats.waterBad} 项；未定位 ${stats.unknown} 项。`);
+    markerDetails.forEach((item, idx) => {
+      lines.push(`${idx + 1}. ${item.marker.label}：${item.position}（${item.statusText}）`);
+    });
+  } else {
+    lines.push("暂无标记");
+  }
+  lines.push("");
+
+  lines.push("[冲突清单]");
+  if (conflictLines.length) {
+    lines.push(...conflictLines);
+  } else {
+    lines.push("暂无冲突标记");
+  }
+  if (unknownLines.length) {
+    lines.push(...unknownLines);
+  }
+  lines.push("");
+
+  lines.push("[建议汇总]");
+  lines.push(...suggestionLines);
+  lines.push("");
+
+  lines.push("[纳气建议]");
+  lines.push(advice);
+  return lines.join("\n").trim();
+}
+
+function pushHorosaSnapshotToParent() {
+  if (!EMBEDDED_MODE) return;
+  if (!window.parent || window.parent === window) return;
+  const payload = {
+    type: HOROSA_SNAPSHOT_EVENT,
+    payload: {
+      content: buildHorosaSnapshotText(),
+      meta: {
+        generatedAt: new Date().toISOString(),
+        markerCount: markers.length,
+        rectActive: !!rect.active,
+        periodMode
+      }
+    }
+  };
+  try {
+    window.parent.postMessage(payload, "*");
+  } catch (e) {
+  }
+}
+
 function updateMarkerList() {
   markerList.innerHTML = "";
   if (markers.length === 0) {
     markerList.innerHTML = "<div class=\"helper\">暂无标记，请先放置。</div>";
     summary.textContent = "";
+    pushHorosaSnapshotToParent();
     return;
   }
 
@@ -1258,6 +1374,7 @@ function updateMarkerList() {
   });
 
   summary.textContent = `气位正确 ${stats.windOk} 项，气位冲突 ${stats.windBad} 项；水位正确 ${stats.waterOk} 项，水位冲突 ${stats.waterBad} 项；未定位 ${stats.unknown} 项。`;
+  pushHorosaSnapshotToParent();
 }
 
 function resetRect() {
@@ -2093,6 +2210,12 @@ canvas.addEventListener("mouseup", (e) => {
 
 window.addEventListener("resize", () => {
   resizeCanvas();
+});
+
+window.addEventListener("message", (event) => {
+  const data = event && event.data ? event.data : null;
+  if (!data || data.type !== HOROSA_SNAPSHOT_REQUEST_EVENT) return;
+  pushHorosaSnapshotToParent();
 });
 
 if (canvasShell && "ResizeObserver" in window) {

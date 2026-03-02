@@ -12,6 +12,43 @@ import TongSheFaMain from '../tongshefa/TongSheFaMain';
 
 const TabPane = Tabs.TabPane;
 const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'];
+const CNYIBU_VIEWPORT_GAP = 12;
+const CNYIBU_MIN_HEIGHT = 300;
+
+function getViewportHeight(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
+		return window.innerHeight;
+	}
+	if(typeof document !== 'undefined' && document.documentElement){
+		return document.documentElement.clientHeight || 900;
+	}
+	return 900;
+}
+
+function toNumber(val){
+	if(typeof val === 'number' && Number.isFinite(val)){
+		return val;
+	}
+	if(typeof val === 'string'){
+		const txt = val.trim();
+		if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
+			const n = parseFloat(txt);
+			return Number.isFinite(n) ? n : null;
+		}
+	}
+	return null;
+}
+
+function resolveBoundedHeight(rawHeight){
+	const viewport = getViewportHeight();
+	let h = toNumber(rawHeight);
+	if(h === null){
+		h = rawHeight === '100%' ? (viewport - 80) : 760;
+	}
+	h = h - 20;
+	const maxH = Math.max(CNYIBU_MIN_HEIGHT, viewport - CNYIBU_VIEWPORT_GAP);
+	return Math.max(CNYIBU_MIN_HEIGHT, Math.min(h, maxH));
+}
 
 class CnYiBuMain extends Component{
 
@@ -99,17 +136,22 @@ class CnYiBuMain extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		const height = resolveBoundedHeight(this.props.height);
 		const tab = this.normalizeTab(this.state.currentTab);
+		const wrapStyle = {
+			height,
+			maxHeight: height,
+			overflowY: 'auto',
+			overflowX: 'hidden',
+		};
 
 		return (
-			<div id={this.state.divId}>
+			<div id={this.state.divId} style={wrapStyle}>
 				<Tabs 
 					defaultActiveKey={tab} tabPosition='right'
 					activeKey={tab}
 					onChange={this.changeTab}
-					style={{ height: height }}
+					style={{ height: height, maxHeight: height }}
 				>
 					<TabPane tab="宿盘" key="suzhan">
 						<SuZhanMain 

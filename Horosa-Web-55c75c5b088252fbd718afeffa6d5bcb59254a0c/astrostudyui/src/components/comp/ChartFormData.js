@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Table, Popconfirm, Button,  Input, Select, Pagination, Modal } from 'antd';
+import { Row, Col, Table, Popconfirm, Button,  Input, Select, Pagination, Modal, Checkbox } from 'antd';
 import LatInput from '../astro/LatInput';
 import LonInput from '../astro/LonInput';
 import DateTimeSelector from './DateTimeSelector';
@@ -158,7 +158,8 @@ export default class ChartFormData extends Component{
 	}
 
 	changeStrongRecption(val){
-		this.setValue('strongRecption', val);
+		const v = (val === 1 || val === true) ? 1 : 0;
+		this.setValue('strongRecption', v);
 	}
 
 	changeSimpleAsp(val){
@@ -174,7 +175,8 @@ export default class ChartFormData extends Component{
 	}
 
 	changeShowPdBounds(val){
-		this.setValue('showPdBounds', val);
+		const v = (val === 1 || val === true) ? 1 : 0;
+		this.setValue('showPdBounds', v);
 	}
 
 	changePdtype(val){
@@ -342,12 +344,14 @@ export default class ChartFormData extends Component{
 					</Col>
 					<Col span={8}>
 						<Row>
-							<Col span={24}>强接纳：</Col>
+							<Col span={24}>互容接纳：</Col>
 							<Col span={24}>
-								<Select value={flds.strongRecption.value} onChange={this.changeStrongRecption} style={{width: '100%'}}>
-									<Option value={1}>是</Option>
-									<Option value={0}>否</Option>
-								</Select>
+								<Checkbox
+									checked={flds.strongRecption.value === 1}
+									onChange={(e)=>this.changeStrongRecption(e.target.checked)}
+								>
+									仅按照本垣擢升计算互容接纳
+								</Checkbox>
 							</Col>
 						</Row>
 					</Col>
@@ -405,10 +409,12 @@ export default class ChartFormData extends Component{
 							<Row>
 								<Col span={24}>主/界限法显示界限法：</Col>
 								<Col span={24}>
-									<Select value={(flds.showPdBounds && flds.showPdBounds.value !== undefined) ? flds.showPdBounds.value : 1} onChange={this.changeShowPdBounds} style={{width: '100%'}}>
-										<Option value={1}>是</Option>
-										<Option value={0}>否</Option>
-									</Select>
+									<Checkbox
+										checked={!(flds.showPdBounds && flds.showPdBounds.value === 0)}
+										onChange={(e)=>this.changeShowPdBounds(e.target.checked)}
+									>
+										主/界限法显示界限法
+									</Checkbox>
 								</Col>
 							</Row>
 						</Col>

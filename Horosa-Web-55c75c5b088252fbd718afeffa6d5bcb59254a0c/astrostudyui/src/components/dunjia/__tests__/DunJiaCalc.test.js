@@ -132,4 +132,19 @@ describe('DunJiaCalc options', ()=>{
 		expect(panTrad.juText).toEqual(panSimple.juText);
 		expect(panTrad.zhiShi).toEqual(panSimple.zhiShi);
 	});
+
+	test('timeAlg=真太阳时时应按 nongli.birth 时间计算时柱并保留直接时间', ()=>{
+		const fields = makeFields('2026-02-17', '23:50:07');
+		const nongli = {
+			...makeNongli(),
+			dayGanZi: '壬戌',
+			birth: '2026-02-17 22:50:07',
+		};
+		const panDirect = calcDunJia(fields, nongli, makeOptions({ timeAlg: 1 }), {});
+		const panSolar = calcDunJia(fields, nongli, makeOptions({ timeAlg: 0 }), {});
+		expect(panDirect.ganzhi.time).not.toEqual(panSolar.ganzhi.time);
+		expect(panSolar.directTimeStr).toEqual('23:50:07');
+		expect(panSolar.timeStr).toEqual('22:50:07');
+		expect(panSolar.calcTimeStr).toEqual('22:50:07');
+	});
 });

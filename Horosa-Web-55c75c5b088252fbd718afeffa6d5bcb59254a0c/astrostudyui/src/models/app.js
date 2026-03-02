@@ -11,6 +11,7 @@ import {
     DEFAULT_PLANET_META_DISPLAY,
     normalizePlanetMetaDisplay,
 } from '../utils/planetMetaDisplay';
+import { normalizeAstroAnnotationFlag, } from '../constants/AstroInterpretation';
 
 function userInfoToFields(flds, userInfo){
     flds.doubingSu28.value = userInfo.doubingSu28;
@@ -49,6 +50,7 @@ export default {
         colorTheme: AstroConst.DefaultColorTheme,
         aspects: AstroConst.DEFAULT_ASPECTS,
         showPdBounds: 1,
+        showAstroAnnotation: 0,
         planetMetaDisplay: {
             ...DEFAULT_PLANET_META_DISPLAY,
         },
@@ -89,15 +91,23 @@ export default {
                     planetMetaDisplay: normalizePlanetMetaDisplay(normalizedValues.planetMetaDisplay),
                 };
             }
+            if(normalizedValues.showAstroAnnotation !== undefined){
+                normalizedValues = {
+                    ...normalizedValues,
+                    showAstroAnnotation: normalizeAstroAnnotationFlag(normalizedValues.showAstroAnnotation, 0),
+                };
+            }
 
             let st = { ...state, ...normalizedValues };
             st.planetMetaDisplay = normalizePlanetMetaDisplay(st.planetMetaDisplay);
+            st.showAstroAnnotation = normalizeAstroAnnotationFlag(st.showAstroAnnotation, 0);
             let globalSetup = {
                 chartDisplay: st.chartDisplay,
                 planetDisplay: st.planetDisplay,
                 lotsDisplay: st.lotsDisplay,
                 colorTheme: st.colorTheme,
                 showPdBounds: st.showPdBounds,
+                showAstroAnnotation: st.showAstroAnnotation,
                 planetMetaDisplay: st.planetMetaDisplay,
             };
             let json = JSON.stringify(globalSetup);

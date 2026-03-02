@@ -6,7 +6,34 @@ import * as Constants from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
 import styles from '../../css/styles.less';
 
+function isFieldsReady(fields){
+	if(!fields){
+		return false;
+	}
+	return !!(
+		fields.date && fields.date.value &&
+		fields.time && fields.time.value &&
+		fields.ad &&
+		fields.zone &&
+		fields.lat &&
+		fields.lon &&
+		fields.gpsLat &&
+		fields.gpsLon &&
+		fields.hsys &&
+		fields.zodiacal &&
+		fields.tradition &&
+		fields.strongRecption &&
+		fields.simpleAsp &&
+		fields.virtualPointReceiveAsp &&
+		fields.name &&
+		fields.pos
+	);
+}
+
 function fieldsToParams(fields){
+	if(!isFieldsReady(fields)){
+		return null;
+	}
 	const params = {
 		date: fields.date.value.format('YYYY/MM/DD'),
 		time: fields.time.value.format('HH:mm:ss'),
@@ -56,10 +83,13 @@ class AstroChart13 extends Component{
 	}
 
 	async requestChart(params){
+		if(!params){
+			return;
+		}
 		const data = await request(`${Constants.ServerRoot}/chart13`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey]
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 
 		const st = {
 			chartObj: result,
@@ -78,7 +108,9 @@ class AstroChart13 extends Component{
 		if(this.props.onChange){
 			let flds = this.props.onChange(values);
 			let params = fieldsToParams(flds);
-			this.requestChart(params);
+			if(params){
+				this.requestChart(params);
+			}
 		}		
 	}
 
@@ -86,7 +118,9 @@ class AstroChart13 extends Component{
 		this.unmounted = false;
 
 		let params = this.genParams();
-		this.requestChart(params);
+		if(params){
+			this.requestChart(params);
+		}
 	}
 
 	componentWillUnmount(){

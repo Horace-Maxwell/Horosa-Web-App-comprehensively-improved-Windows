@@ -7,7 +7,7 @@ import {
 	setJieqiSeedLocalCache,
 } from './localCalcCache';
 
-const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay'];
+const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'timeAlg', 'after23NewDay'];
 const JIE_QI_SEED_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon'];
 const JIE_QI_YEAR_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'hsys', 'zodiacal', 'doubingSu28', 'jieqis'];
 const MAX_CACHE_SIZE = 192;

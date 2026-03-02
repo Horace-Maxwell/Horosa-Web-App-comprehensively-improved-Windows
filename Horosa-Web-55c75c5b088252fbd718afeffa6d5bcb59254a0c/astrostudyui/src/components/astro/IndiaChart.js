@@ -150,6 +150,8 @@ class IndiaChart extends Component{
 	async requestChart(params, sourceFields){
 		const data = await request(`${Constants.ServerRoot}/india/chart`, {
 			body: JSON.stringify(params),
+			silent: true,
+			disableLoading: true,
 		});
 		const result = data[Constants.ResultKey]
 

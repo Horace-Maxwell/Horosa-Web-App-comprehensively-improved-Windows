@@ -1013,4 +1013,3 @@ Astro3DColor['Asp60'] = '#FFFF00';
 Astro3DColor['Asp90'] = '#FFFF00';
 Astro3DColor['Asp120'] = '#FFFF00';
 Astro3DColor['Asp180'] = '#FFFF00';
-

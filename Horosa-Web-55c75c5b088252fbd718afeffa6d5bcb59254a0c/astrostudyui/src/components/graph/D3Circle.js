@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import {randomStr,} from '../../utils/helper';
+import {randomStr, creatTooltip,} from '../../utils/helper';
 
 class D3Circle {
 	constructor(option){
@@ -16,6 +16,9 @@ class D3Circle {
 		this.highLightData = option.highLightData ? option.highLightData : [];
 		this.highLightColor = option.highLightColor ? option.highLightColor : '#ffffff';
 		this.highLightBgColor = option.highLightBgColor ? option.highLightBgColor : '#CC9900';
+		this.divTooltip = option.divTooltip ? option.divTooltip : null;
+		this.tipObjs = option.tipObjs ? option.tipObjs : null;
+		this.onTipClick = option.onTipClick ? option.onTipClick : null;
 
 		this.id = 'circle' + randomStr(8);
 		this.svg = null;
@@ -89,6 +92,10 @@ class D3Circle {
 					return trans;	
 				})
 				.text(function(d){return d});
+
+			if(this.divTooltip && this.tipObjs && this.tipObjs[i]){
+				creatTooltip(this.divTooltip, g, this.tipObjs[i], this.onTipClick, true);
+			}
 
 			endDeg = startdeg;
 			edangle = stangle;

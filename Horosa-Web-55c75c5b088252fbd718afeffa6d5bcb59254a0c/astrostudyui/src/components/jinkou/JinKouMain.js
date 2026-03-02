@@ -14,6 +14,25 @@ import styles from '../../css/styles.less';
 
 const { Option } = Select;
 const TabPane = Tabs.TabPane;
+const JINKOU_CACHE_MAX = 24;
+const JINKOU_GODS_CACHE = new Map();
+const JINKOU_RUNYEAR_CACHE = new Map();
+
+function pushCache(cacheMap, key, val){
+	if(!key){
+		return;
+	}
+	if(cacheMap.has(key)){
+		cacheMap.delete(key);
+	}
+	cacheMap.set(key, val);
+	if(cacheMap.size > JINKOU_CACHE_MAX){
+		const oldest = cacheMap.keys().next().value;
+		if(oldest !== undefined){
+			cacheMap.delete(oldest);
+		}
+	}
+}
 
 function cloneDateTimeSafe(val, fallback){
 	if(val && val instanceof DateTime){
@@ -441,17 +460,76 @@ class JinKouMain extends Component{
 		});
 	}
 
+	applyGodsResult(params, result){
+		if(!result || !result.liureng || !result.liureng.nongli){
+			return;
+		}
+		const dayGanZi = `${result.liureng.nongli.dayGanZi || ''}`;
+		const dayGan = dayGanZi.substr(0, 1);
+		const wx = LRConst.GanZiWuXing[dayGan] ? LRConst.GanZiWuXing[dayGan] : this.state.wuxing;
+		const timeZi = normalizeZiFromText(result.liureng.nongli.time);
+		const diFen = timeZi ? timeZi : this.state.diFen;
+		const st = {
+			liureng: result.liureng,
+			wuxing: wx,
+			diFen: diFen,
+		};
+
+		this.setState(st, ()=>{
+			if(this.unmounted){
+				return;
+			}
+			this.requestRunYear();
+			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng, diFen);
+		});
+	}
+
+	applyRunYearResult(result){
+		if(!result){
+			return;
+		}
+		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
+		age = Math.floor(age / 60) * 60 + result.age;
+		const merged = {
+			...result,
+			age: age,
+		};
+		this.setState({
+			runyear: merged,
+		}, ()=>{
+			if(this.unmounted){
+				return;
+			}
+			this.saveJinKouSnapshot(null, this.state.liureng, merged, this.state.wuxing, this.state.guireng, this.state.diFen);
+		});
+	}
+
 	async requestGods(fields){
 		if(fields === undefined || fields === null || this.unmounted){
 			return;
 		}
 		const params = this.genGodsParams(fields);
+		if(this.state.liureng){
+			this.saveJinKouSnapshot(
+				params,
+				this.state.liureng,
+				this.state.runyear,
+				this.state.wuxing,
+				this.state.guireng,
+				this.state.diFen
+			);
+		}
 		const reqKey = buildReqKey(params);
 		const now = Date.now();
 		if(reqKey && reqKey === this.pendingGodsReqKey){
 			return;
 		}
 		if(reqKey && this.lastGodsReq.key === reqKey && now - this.lastGodsReq.ts < 2000){
+			return;
+		}
+		if(reqKey && JINKOU_GODS_CACHE.has(reqKey)){
+			this.lastGodsReq = { key: reqKey, ts: Date.now() };
+			this.applyGodsResult(params, JINKOU_GODS_CACHE.get(reqKey));
 			return;
 		}
 
@@ -476,28 +554,10 @@ class JinKouMain extends Component{
 		this.lastGodsReq = { key: reqKey, ts: Date.now() };
 
 		const result = data ? data[Constants.ResultKey] : null;
-		if(!result || !result.liureng || !result.liureng.nongli){
-			return;
+		if(reqKey && result){
+			pushCache(JINKOU_GODS_CACHE, reqKey, result);
 		}
-
-		const dayGanZi = `${result.liureng.nongli.dayGanZi || ''}`;
-		const dayGan = dayGanZi.substr(0, 1);
-		const wx = LRConst.GanZiWuXing[dayGan] ? LRConst.GanZiWuXing[dayGan] : this.state.wuxing;
-		const timeZi = normalizeZiFromText(result.liureng.nongli.time);
-		const diFen = timeZi ? timeZi : this.state.diFen;
-		const st = {
-			liureng: result.liureng,
-			wuxing: wx,
-			diFen: diFen,
-		};
-
-		this.setState(st, ()=>{
-			if(this.unmounted){
-				return;
-			}
-			this.requestRunYear();
-			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng, diFen);
-		});
+		this.applyGodsResult(params, result);
 	}
 
 	async requestRunYear(){
@@ -518,6 +578,11 @@ class JinKouMain extends Component{
 			return;
 		}
 		if(reqKey && this.lastRunYearReq.key === reqKey && now - this.lastRunYearReq.ts < 2000){
+			return;
+		}
+		if(reqKey && JINKOU_RUNYEAR_CACHE.has(reqKey)){
+			this.lastRunYearReq = { key: reqKey, ts: Date.now() };
+			this.applyRunYearResult(JINKOU_RUNYEAR_CACHE.get(reqKey));
 			return;
 		}
 
@@ -542,21 +607,10 @@ class JinKouMain extends Component{
 		this.lastRunYearReq = { key: reqKey, ts: Date.now() };
 
 		const result = data ? data[Constants.ResultKey] : null;
-		if(!result){
-			return;
+		if(reqKey && result){
+			pushCache(JINKOU_RUNYEAR_CACHE, reqKey, result);
 		}
-
-		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
-		age = Math.floor(age / 60) * 60 + result.age;
-		result.age = age;
-		this.setState({
-			runyear: result,
-		}, ()=>{
-			if(this.unmounted){
-				return;
-			}
-			this.saveJinKouSnapshot(null, this.state.liureng, result, this.state.wuxing, this.state.guireng, this.state.diFen);
-		});
+		this.applyRunYearResult(result);
 	}
 
 	clickSaveCase(){

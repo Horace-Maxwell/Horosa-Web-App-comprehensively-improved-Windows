@@ -1,7 +1,8 @@
 import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import {detectOS, printArea, distanceInCircleAbs} from '../../utils/helper';
+import {detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
+import { getSignAnnotation } from '../../constants/AstroInterpretation';
 
 const ChartMargin = 20;
 const ChartMarginDelta = 55;
@@ -260,7 +261,25 @@ export function getSuHouse(chartObj, suid){
 }
 
 
-export function signsBand(svg, r, rStep, flags, isDiurnal, house1Ang){
+function buildSignTooltip(sig){
+	const signName = AstroText.AstroMsgCN[sig] || AstroText.AstroMsg[sig] || sig;
+	const signTxt = getSignAnnotation(sig);
+	const tips = [];
+	if(signTxt){
+		tips.push('# 星座释义');
+		`${signTxt}`.replace(/\r\n/g, '\n').split('\n').forEach((line)=>{
+			tips.push(`${line}`);
+		});
+	}else{
+		tips.push('暂无释义');
+	}
+	return {
+		title: `${signName}座`,
+		tips,
+	};
+}
+
+export function signsBand(svg, r, rStep, flags, isDiurnal, house1Ang, divTooltip){
 	let txtforward = (flags & AstroConst.CHART_TXTPLANETFORWARD) === 0 ? false : true;
 	let samecolorwithsign = (flags & AstroConst.CHART_PLANETCOLORWITHSIGN) === 0 ? false : true;
 	let needTrip = (flags & AstroConst.CHART_TRIP) === 0 ? false : true;
@@ -285,6 +304,9 @@ export function signsBand(svg, r, rStep, flags, isDiurnal, house1Ang){
 		siggroup.append('path')
 			.attr('d', arcd).attr('stroke', AstroConst.AstroColor.Stroke)
 			.attr('fill', AstroConst.AstroColor.SignFill[sig]);
+		if(divTooltip){
+			creatTooltip(divTooltip, siggroup, buildSignTooltip(sig), null, true);
+		}
 
 		let lblgroup = siggroup.append('g').attr("text-anchor", "middle");
 		let txts = [
@@ -1167,7 +1189,7 @@ export function drawChartWithOrgXY(chartid, chartObj, orgx, orgy, radius, rStep,
 		let lblHousedegR = radius + 20;
 		labelHousesDeg(topgroup, lblHousedegR, 70, chartObj.chart.houses, flags);	
 	}
-	let houseR = drawOuterSigns(chartObj, topgroup, radius, rStep, flags, chartObj.chart.isDiurnal);
+	let houseR = drawOuterSigns(chartObj, topgroup, radius, rStep, flags, chartObj.chart.isDiurnal, null);
 
 	let txtsu28 = (flags & AstroConst.CHART_SU28_TEXT) === 0 ? false : true;
 	let chartres = drawInnerChartWithOrgXY(topgroup, chartObj, orgx, orgy, houseR, rStep, flags, planetDisplay, txtsu28, keyplanets);
@@ -1178,7 +1200,7 @@ export function drawChartWithOrgXY(chartid, chartObj, orgx, orgy, radius, rStep,
 	return resobj;
 }
 
-export function drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurnal){
+export function drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurnal, divTooltip){
 	let needOutDeg = (flags & AstroConst.CHART_OUTERDEG) === AstroConst.CHART_OUTERDEG ? true : false;
 	if(needOutDeg){
 		let outerDegLines = degreeOuterLines(topgroup, radius);
@@ -1188,7 +1210,7 @@ export function drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurn
 		house1 = getHouse(chartObj, AstroConst.HOUSE1);
 	}
 	let house1ang = house1 ? house1['lon'] : null;
-	let signs = signsBand(topgroup, radius, rStep, flags, isDiurnal, house1ang);
+	let signs = signsBand(topgroup, radius, rStep, flags, isDiurnal, house1ang, divTooltip);
 
 	let needTerm = (flags & AstroConst.CHART_TERM) === AstroConst.CHART_TERM ? true : false;
 
@@ -1374,7 +1396,7 @@ export function drawOutterChartInfo(svg, margin, width, datetime, lat, lon, inve
 
 }
 
-export function drawDoubleChart(chartid, chartObj, rStep, chartDisplay, planetDisplay){
+export function drawDoubleChart(chartid, chartObj, rStep, chartDisplay, planetDisplay, divTooltip){
 	if(chartObj === undefined || chartObj === null || chartObj.err ||
 		chartObj.natualChart === undefined || chartObj.natualChart === null ||
 		chartObj.dirChart === undefined || chartObj.dirChart === null){
@@ -1422,7 +1444,7 @@ export function drawDoubleChart(chartid, chartObj, rStep, chartDisplay, planetDi
 		let lblHousedegR = signsR + 20;
 		labelHousesDeg(topgroup, lblHousedegR, 70, innerChart.chart.houses, flags);	
 	}
-	let restR = drawOuterSigns(null, topgroup, signsR, rStep, flags, innerChart.chart.isDiurnal);
+	let restR = drawOuterSigns(null, topgroup, signsR, rStep, flags, innerChart.chart.isDiurnal, divTooltip);
 	let housesAry = innerChart.chart.houses;
 	let objectsAry = [];
 	for(let i=0; i<outerChart.chart.objects.length; i++){
@@ -1457,4 +1479,3 @@ export function drawDoubleChart(chartid, chartObj, rStep, chartDisplay, planetDi
 
 	return svg;
 }
-

@@ -23,6 +23,7 @@ class RengChart {
 		this.gender = options.gender;
 		this.zhangshengElem = options.zhangshengElem;
 		this.guireng = options.guireng;
+		this.divTooltip = null;
 
 		this.margin = 20;
 		this.svgTopgroup = null;
@@ -46,6 +47,29 @@ class RengChart {
 
 		this.ke = null;
 
+	}
+
+	setupToolTip(){
+		if(!this.tooltipId){
+			return;
+		}
+		this.divTooltip = d3.select('#' + this.tooltipId);
+		if(!this.divTooltip || this.divTooltip.empty()){
+			this.divTooltip = null;
+			return;
+		}
+		this.divTooltip.style('opacity', 0)
+			.style('position', 'absolute')
+			.style('text-align', 'left')
+			.style('vertical-align', 'middle')
+			.style('width', '340px')
+			.style('padding', '2px')
+			.style('padding-left', '10px')
+			.style('font', '13px sans-serif')
+			.style('background', 'lightsteelblue')
+			.style('border', '0px')
+			.style('border-radius', '8px')
+			.style('pointer-events', 'none');
 	}
 
 	set chart(chartobj){
@@ -81,6 +105,7 @@ class RengChart {
 		this.svg = d3.select(svgid);
 		this.svg.html('');
 		this.svg.attr('stroke', this.color).attr("stroke-width", 1);
+		this.setupToolTip();
 	
 		this.svgTopgroup = this.svg.append('g');
 		this.svgTopgroup.append('rect')
@@ -129,6 +154,7 @@ class RengChart {
 			yue: this.yue,
 			nongli: this.nongli,
 			guireng: this.guireng,
+			divTooltip: this.divTooltip,
 		};
 
 		let chartsvg = null;
@@ -197,8 +223,7 @@ class RengChart {
 		let x = cord.x + this.margin/2;
 		let y = cord.y + this.margin/2;
 
-		if(this.liureng === undefined || this.liureng === null || 
-			this.runyear === undefined || this.runyear === null){
+		if(this.liureng === undefined || this.liureng === null){
 			return;
 		}
 		
@@ -302,8 +327,7 @@ class RengChart {
 		let x = cord.x + this.margin/2;
 		let y = cord.y + this.margin/2;
 
-		if(this.liureng === undefined || this.liureng === null || 
-			this.runyear === undefined || this.runyear === null){
+		if(this.liureng === undefined || this.liureng === null){
 			return;
 		}
 
@@ -365,6 +389,18 @@ class RengChart {
 	}
 
 	getRunYear(){
+		if(!this.runyear){
+			return [{
+				key: '行年',
+				value: '无',
+			},{
+				key: '年龄',
+				value: '无',
+			},{
+				key: '性别',
+				value: this.gender ? '男' : '女',
+			}];
+		}
 		let res = [{
 			key: '行年',
 			value: this.runyear.year,
@@ -379,6 +415,9 @@ class RengChart {
 	}
 
 	getYearGods(){
+		if(!this.liureng || !this.liureng.godsYear || !this.liureng.godsYear.taisui1){
+			return [];
+		}
 		let res = [];
 		let taisui1 = this.liureng.godsYear.taisui1;
 		for(let i=0; i<TaiSui.length; i++){
@@ -393,6 +432,9 @@ class RengChart {
 	}
 
 	getXun(){
+		if(!this.liureng || !this.liureng.xun){
+			return [];
+		}
 		let xuns = [{
 			key: '旬空',
 			value: this.liureng.xun['旬空'],
@@ -411,6 +453,9 @@ class RengChart {
 	}
 
 	getData(obj){
+		if(!obj || typeof obj !== 'object'){
+			return [];
+		}
 		let res = [];
 		for(let k in obj){
 			let data = {
@@ -423,7 +468,7 @@ class RengChart {
 				data.key = name;
 			}
 			if(data.value instanceof Array){
-				data.value = data.value.join('');
+				data.value = data.value.join('、');
 			}
 			res.push(data);
 		}

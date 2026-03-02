@@ -42,6 +42,43 @@ const JIEQI_STD = [
 ];
 
 const jieqiChartMem = {};
+const JIEQI_VIEWPORT_GAP = 12;
+const JIEQI_MIN_HEIGHT = 320;
+
+function getViewportHeight(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
+		return window.innerHeight;
+	}
+	if(typeof document !== 'undefined' && document.documentElement){
+		return document.documentElement.clientHeight || 900;
+	}
+	return 900;
+}
+
+function toNumber(val){
+	if(typeof val === 'number' && Number.isFinite(val)){
+		return val;
+	}
+	if(typeof val === 'string'){
+		const txt = val.trim();
+		if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
+			const n = parseFloat(txt);
+			return Number.isFinite(n) ? n : null;
+		}
+	}
+	return null;
+}
+
+function resolveBoundedHeight(rawHeight){
+	const viewport = getViewportHeight();
+	let h = toNumber(rawHeight);
+	if(h === null){
+		h = rawHeight === '100%' ? (viewport - 80) : 760;
+	}
+	h = h - 50;
+	const maxH = Math.max(JIEQI_MIN_HEIGHT, viewport - JIEQI_VIEWPORT_GAP);
+	return Math.max(JIEQI_MIN_HEIGHT, Math.min(h, maxH));
+}
 
 function newEmptyFields(fld){
 	const fields = {
@@ -1022,14 +1059,16 @@ class JieQiChartsMain extends Component{
 		}
 
 		let cols = this.state.result.jieqi24.map((item, idx)=>{
-			let fourCols = item.bazi.fourColumns
+			const one = item || {};
+			const fourCols = one && one.bazi && one.bazi.fourColumns ? one.bazi.fourColumns : null;
+			const title = one.jieqi || `节气${idx + 1}`;
 			return (
-				<Col key={item.jieqi} span={6}>
-					<Card title={item.jieqi} bordered={false}>
+				<Col key={`${title}_${idx}`} span={6}>
+					<Card title={title} bordered={false}>
 						<Row>
-							<Col span={24}>{item.time}</Col>
+							<Col span={24}>{one.time || '时间缺失'}</Col>
 							{
-								fourCols && fourCols.year && (
+								fourCols && fourCols.year && fourCols.month && fourCols.day && fourCols.time && (
 									<Col span={24} style={{textAlign:'center'}}>
 										<Row gutter={6}>
 											<Col span={6}>
@@ -1049,7 +1088,7 @@ class JieQiChartsMain extends Component{
 								)
 							}
 							{
-								fourCols && fourCols.year && (
+								fourCols && fourCols.year && fourCols.month && fourCols.day && fourCols.time && (
 									<Col span={24} style={{textAlign:'center'}}>
 										<Row gutter={6}>
 											<Col span={6}>
@@ -1218,21 +1257,18 @@ class JieQiChartsMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-
-		if(height === '100%'){
-			height = 'calc(100% - 70px)'
-		}else{
-			height = height - 50
-		}
+		const height = resolveBoundedHeight(this.props.height);
+		const tabsHeight = this.state.currentTab && this.state.currentTab.indexOf('宿盘') >= 0
+			? height
+			: Math.max(240, height - 44);
 		let style = {
-			height: height,
+			height: tabsHeight,
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};
 
 
-		const tabs = this.genTabsDom(height);
+		const tabs = this.genTabsDom(tabsHeight);
 
 		let jieqi24dom = this.gen24JieqiDom();
 
@@ -1242,7 +1278,7 @@ class JieQiChartsMain extends Component{
 		}
 
 		return (
-			<div id={this.state.divid}>
+			<div id={this.state.divid} style={{ height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
 				{
 					showInput && (
 					<Row gutter={6}>
@@ -1292,7 +1328,7 @@ class JieQiChartsMain extends Component{
 					tabPosition='right'
 					onChange={this.changeTab}
 					destroyInactiveTabPane={true}
-					style={{ height: height }}
+					style={{ height: tabsHeight, maxHeight: tabsHeight }}
 				>
 					<TabPane tab='二十四节气' key='二十四节气'>
 						<div className={styles.scrollbar} style={style}>

@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Button, Divider, Select, InputNumber, Input, Checkbox, Modal, message } from 'antd';
+import { Row, Col, Card, Tag, Button, Divider, Select, InputNumber, Input, Checkbox, Modal, message, Tabs } from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import * as AstroConst from '../../constants/AstroConst';
@@ -12,10 +12,37 @@ import LiuRengInput from './LiuRengInput';
 import LiuRengBirthInput from './LiuRengBirthInput';
 import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import {
+	evaluateLiuRengPatterns,
+} from '../liureng/LRPatternJudge';
+import {
+	mergeLiurengSunMoonXiu,
+} from '../liureng/LRAstroBranchHelper';
+import {
+	buildLiuRengReferenceRows as buildUnifiedLiuRengReferenceRows,
+	buildLiuRengPatternDisplayRows,
+	buildLiuRengOverviewSections,
+	splitLiuRengPatternHitsForPanels,
+} from '../liureng/LRJudgePanelHelper';
+import { renderMarkdownLiteBlock } from '../../utils/markdownLiteReact';
+import styles from './LiuRengMain.less';
 
 
 const InputGroup = Input.Group;
 const {Option} = Select;
+const TabPane = Tabs.TabPane;
+const RIGHT_PANEL_BOTTOM_GAP = 12;
+const RIGHT_PANEL_MIN_HEIGHT = 180;
+
+function getViewportHeight(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
+		return window.innerHeight;
+	}
+	if(typeof document !== 'undefined' && document.documentElement){
+		return document.documentElement.clientHeight || 900;
+	}
+	return 900;
+}
 
 function cloneDateTimeSafe(val, fallback){
 	if(val && val instanceof DateTime){
@@ -76,21 +103,165 @@ function cleanKey(key){
 	return txt;
 }
 
-function appendMapSection(lines, title, obj){
+function orderedMapKeys(obj, preferred){
+	if(!obj || typeof obj !== 'object'){
+		return [];
+	}
+	const allKeys = Object.keys(obj);
+	if(!preferred || !preferred.length){
+		return allKeys;
+	}
+	const out = [];
+	const seen = new Set();
+	preferred.forEach((key)=>{
+		if(Object.prototype.hasOwnProperty.call(obj, key)){
+			out.push(key);
+			seen.add(key);
+		}
+	});
+	allKeys.forEach((key)=>{
+		if(!seen.has(key)){
+			out.push(key);
+		}
+	});
+	return out;
+}
+
+function appendMapSectionOrdered(lines, title, obj, preferredKeys){
 	lines.push(`[${title}]`);
 	if(!obj || typeof obj !== 'object'){
 		lines.push('无');
 		lines.push('');
 		return;
 	}
-	const keys = Object.keys(obj);
-	if(keys.length === 0){
+	const keys = orderedMapKeys(obj, preferredKeys);
+	if(!keys.length){
 		lines.push('无');
 		lines.push('');
 		return;
 	}
 	keys.forEach((key)=>{
 		lines.push(`${cleanKey(key)}：${fmtValue(obj[key])}`);
+	});
+	lines.push('');
+}
+
+function getGuiRengSystemLabel(guirengType){
+	return guirengType === 0 ? '六壬法贵人' : (guirengType === 1 ? '遁甲法贵人' : '星占法贵人');
+}
+
+function normalizeMultiline(raw){
+	return `${raw === undefined || raw === null ? '' : raw}`.replace(/\r\n/g, '\n').trim();
+}
+
+function getLiuRengPanStyle(layout){
+	const monthBranch = layout && layout.yue ? `${layout.yue}` : '';
+	const timeBranch = layout && layout.timezi ? `${layout.timezi}` : '';
+	const monthIdx = LRConst.ZiList.indexOf(monthBranch);
+	const timeIdx = LRConst.ZiList.indexOf(timeBranch);
+	if(monthIdx < 0 || timeIdx < 0){
+		return {
+			name: '未知式',
+			yue: monthBranch || '无',
+			time: timeBranch || '无',
+			position: '未知',
+		};
+	}
+	const delta = (monthIdx - timeIdx + 12) % 12;
+	if(delta === 0){
+		return {
+			name: '伏吟式',
+			yue: monthBranch,
+			time: timeBranch,
+			position: '原位',
+		};
+	}
+	if(delta === 6){
+		return {
+			name: '返吟式',
+			yue: monthBranch,
+			time: timeBranch,
+			position: '对冲',
+		};
+	}
+	return {
+		name: '常式',
+		yue: monthBranch,
+		time: timeBranch,
+		position: `偏移${delta}位`,
+	};
+}
+
+function appendPatternSection(lines, title, rows, emptyText){
+	lines.push(`[${title}]`);
+	const list = rows && rows.length ? rows : [];
+	if(!list.length){
+		lines.push(emptyText || '无');
+		lines.push('');
+		return;
+	}
+	list.forEach((item, idx)=>{
+		const name = fmtValue(item && item.name ? item.name : '未命名格局');
+		const logic = `${item && (item.logic || item.basis) ? `${item.logic || item.basis}` : '命中'}`.trim();
+		const detail = `${item && item.detail ? item.detail : ''}`.trim();
+		const fullText = normalizeMultiline(item && item.fullText ? item.fullText : '');
+		lines.push(`${idx + 1}. ${name}`);
+		if(fullText){
+			fullText.split('\n').forEach((line)=>lines.push(line));
+		}else{
+			lines.push(logic);
+		}
+		lines.push(`依据：${logic}${detail ? `；${detail}` : ''}`);
+		if(idx < list.length - 1){
+			lines.push('');
+		}
+	});
+	lines.push('');
+}
+
+function appendOverviewSection(lines, sections){
+	lines.push('[概览]');
+	const blocks = [];
+	(sections || []).forEach((section)=>{
+		const titleBase = `${section && section.title ? section.title : '命中概览'}`.replace('（命中条文）', '').trim();
+		const content = normalizeMultiline(section && section.content ? section.content : '');
+		if(!content){
+			return;
+		}
+		content.split(/\n{2,}/).map((blk)=>blk.trim()).filter((blk)=>!!blk).forEach((blk)=>{
+			const rawLines = blk.split('\n').map((line)=>line.trim()).filter((line)=>!!line);
+			if(!rawLines.length){
+				return;
+			}
+			if(rawLines.length === 1 || rawLines[0].indexOf('当前盘面暂无命中') === 0){
+				blocks.push({
+					title: titleBase || '命中概览',
+					bodyLines: rawLines,
+					evidence: section && section.title ? section.title : '命中条文自动判定',
+				});
+				return;
+			}
+			blocks.push({
+				title: `${titleBase || '命中概览'} · ${rawLines[0]}`,
+				bodyLines: rawLines.slice(1),
+				evidence: section && section.title ? section.title : '命中条文自动判定',
+			});
+		});
+	});
+
+	if(!blocks.length){
+		lines.push('无');
+		lines.push('');
+		return;
+	}
+
+	blocks.forEach((item, idx)=>{
+		lines.push(`${idx + 1}. ${item.title}`);
+		(item.bodyLines || []).forEach((line)=>lines.push(line));
+		lines.push(`依据：${item.evidence}`);
+		if(idx < blocks.length - 1){
+			lines.push('');
+		}
 	});
 	lines.push('');
 }
@@ -248,6 +419,31 @@ function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengTyp
 	const layout = buildLiuRengLayout(chartObj, nongli, guirengType);
 	const keData = buildKeData(layout, nongli);
 	const sanChuan = buildSanChuanData(layout, keData.raw, nongli, chartObj);
+	const lrJudge = evaluateLiuRengPatterns({
+		liureng,
+		runyear,
+		layout,
+		keRaw: keData.raw,
+		sanChuan,
+	});
+	const panelHits = splitLiuRengPatternHitsForPanels(lrJudge);
+	const dageRows = buildLiuRengPatternDisplayRows(panelHits.dageHits);
+	const xiaojuRows = buildLiuRengPatternDisplayRows(panelHits.xiaojuHits);
+	const referenceRows = buildUnifiedLiuRengReferenceRows({
+		liureng,
+		runyear,
+		lrLayout: layout,
+		lrJudge,
+	}).filter((item)=>`${item && item.kind ? item.kind : ''}` === '参考');
+	const overviewSections = buildLiuRengOverviewSections({
+		liureng,
+		runyear,
+		lrLayout: layout,
+		sanChuan,
+		keRaw: keData.raw,
+		lrJudge,
+	});
+	const panStyle = getLiuRengPanStyle(layout);
 	const xingbie = `${gender}` === '1' ? '男' : '女';
 
 	lines.push('[起盘信息]');
@@ -263,9 +459,15 @@ function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengTyp
 		const cols = liureng.fourColumns;
 		lines.push(`四柱：${fmtValue(cols.year && cols.year.ganzi)}年 ${fmtValue(cols.month && cols.month.ganzi)}月 ${fmtValue(cols.day && cols.day.ganzi)}日 ${fmtValue(cols.time && cols.time.ganzi)}时`);
 	}
-	lines.push(`贵人体系：${guirengType === 0 ? '六壬法贵人' : (guirengType === 1 ? '遁甲法贵人' : '星占法贵人')}`);
+	lines.push(`贵人体系：${getGuiRengSystemLabel(guirengType)}`);
 	lines.push(`十二长生五行：${fmtValue(zhangshengElem)}`);
+	lines.push(`十二盘式：${panStyle.name}`);
 	lines.push(`问测人性别：${xingbie}`);
+	lines.push('');
+
+	lines.push('[十二盘式]');
+	lines.push(`盘式：${panStyle.name}`);
+	lines.push(`月将：${panStyle.yue}；占时：${panStyle.time}；位序：${panStyle.position}`);
 	lines.push('');
 
 	lines.push('[十二地盘/十二天盘/十二贵神对应]');
@@ -311,12 +513,12 @@ function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengTyp
 	}
 	lines.push('');
 
-	appendMapSection(lines, '旬日', liureng ? liureng.xun : null);
-	appendMapSection(lines, '旺衰', liureng ? liureng.season : null);
-	appendMapSection(lines, '基础神煞', liureng ? liureng.gods : null);
-	appendMapSection(lines, '干煞', liureng ? liureng.godsGan : null);
-	appendMapSection(lines, '月煞', liureng ? liureng.godsMonth : null);
-	appendMapSection(lines, '支煞', liureng ? liureng.godsZi : null);
+	appendMapSectionOrdered(lines, '旬日', liureng ? liureng.xun : null, ['遁丁', '旬空', '旬首', '旬丁', '旬尾']);
+	appendMapSectionOrdered(lines, '旺衰', liureng ? liureng.season : null, ['金', '水', '木', '火', '土']);
+	appendMapSectionOrdered(lines, '基础神煞', liureng ? liureng.gods : null, ['禄勋', '日德', '驿马']);
+	appendMapSectionOrdered(lines, '干煞', liureng ? liureng.godsGan : null, ['干墓', '游都', '长生']);
+	appendMapSectionOrdered(lines, '月煞', liureng ? liureng.godsMonth : null, ['月破', '月德', '天德']);
+	appendMapSectionOrdered(lines, '支煞', liureng ? liureng.godsZi : null, ['咸池', '华盖', '日破', '亡神', '劫煞', '支将', '金神']);
 
 	lines.push('[岁煞]');
 	const yearGods = liureng && liureng.godsYear ? liureng.godsYear.taisui1 : null;
@@ -338,6 +540,12 @@ function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengTyp
 	}else{
 		lines.push('无');
 	}
+	lines.push('');
+
+	appendPatternSection(lines, '大格', dageRows, '无符合大格');
+	appendPatternSection(lines, '小局', xiaojuRows, '无符合小局');
+	appendPatternSection(lines, '参考', referenceRows, '无符合参考条目');
+	appendOverviewSection(lines, overviewSections);
 	return lines.join('\n').trim();
 }
 
@@ -355,9 +563,15 @@ class LiuRengMain extends Component{
 			guireng: 2,
 			calcChart: null,
 			isCalculating: false,
+			liurengSubTab: 'dage',
+			viewportHeight: getViewportHeight(),
+			rightPanelTop: 0,
+			rightPanelLimit: 0,
+			rightPanelHeight: 0,
 		};
 
 		this.unmounted = false;
+		this.rightPanelHost = null;
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onBirthChange = this.onBirthChange.bind(this);
@@ -371,6 +585,8 @@ class LiuRengMain extends Component{
 		this.saveLiuRengAISnapshot = this.saveLiuRengAISnapshot.bind(this);
 		this.clickCalcCase = this.clickCalcCase.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
+		this.captureRightPanel = this.captureRightPanel.bind(this);
+		this.handleWindowResize = this.handleWindowResize.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = ()=>{};
@@ -520,19 +736,20 @@ class LiuRengMain extends Component{
 			body: JSON.stringify(params),
 		});
 		const result = data[Constants.ResultKey]
+		const mergedLiureng = mergeLiurengSunMoonXiu(result && result.liureng ? result.liureng : null, chartSnapshot);
 		
-		let dayGanZi = result.liureng.nongli.dayGanZi;
+		let dayGanZi = mergedLiureng && mergedLiureng.nongli ? mergedLiureng.nongli.dayGanZi : '';
 		let dayGan = dayGanZi.substr(0, 1);
 		let wx = LRConst.GanZiWuXing[dayGan];
 		const st = {
-			liureng: result.liureng,
+			liureng: mergedLiureng,
 			wuxing: wx,
 			calcChart: chartSnapshot || null,
 		};
 
 		return new Promise((resolve)=>{
 			this.setState(st, ()=>{
-				this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
+				this.saveLiuRengAISnapshot(params, mergedLiureng, this.state.runyear, wx, this.state.guireng);
 				resolve(true);
 			});
 		});
@@ -651,10 +868,42 @@ class LiuRengMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
+		window.addEventListener('resize', this.handleWindowResize);
+		this.handleWindowResize();
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		window.removeEventListener('resize', this.handleWindowResize);
+	}
+
+	captureRightPanel(node){
+		this.rightPanelHost = node || null;
+		this.handleWindowResize();
+	}
+
+	handleWindowResize(){
+		const viewportHeight = getViewportHeight();
+		const rightTopRaw = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top : 0;
+		const rightPanelTop = Number.isFinite(rightTopRaw) ? Math.max(0, rightTopRaw) : 0;
+		// Keep right column strictly within viewport bottom edge.
+		const rightPanelLimit = Math.max(0, viewportHeight - rightPanelTop - RIGHT_PANEL_BOTTOM_GAP);
+		const fallbackPanelHeight = Math.max(360, viewportHeight - 120);
+		const preferredPanelHeight = Math.min(fallbackPanelHeight, rightPanelLimit);
+		const minPanelHeight = Math.min(RIGHT_PANEL_MIN_HEIGHT, rightPanelLimit);
+		const rightPanelHeight = Math.max(minPanelHeight, preferredPanelHeight);
+		const changed = Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
+			|| Math.abs((this.state.rightPanelTop || 0) - rightPanelTop) >= 2
+			|| Math.abs((this.state.rightPanelLimit || 0) - rightPanelLimit) >= 2
+			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2;
+		if(changed){
+			this.setState({
+				viewportHeight,
+				rightPanelTop,
+				rightPanelLimit,
+				rightPanelHeight,
+			});
+		}
 	}
 
 	render(){
@@ -666,8 +915,51 @@ class LiuRengMain extends Component{
 		}
 
 		let chart = this.state.calcChart;
+		const liureng = this.state.liureng;
+		const nongli = liureng && liureng.nongli ? liureng.nongli : (chart && chart.nongli ? chart.nongli : null);
+		const lrLayout = (liureng && nongli) ? buildLiuRengLayout(chart, nongli, this.state.guireng) : null;
+		const lrKeData = (liureng && nongli) ? buildKeData(lrLayout, nongli) : { raw: [], lines: [] };
+		const lrSanChuan = (liureng && nongli) ? buildSanChuanData(lrLayout, lrKeData.raw, nongli, chart) : null;
+		const lrJudge = liureng ? evaluateLiuRengPatterns({
+			liureng,
+			runyear: this.state.runyear,
+			layout: lrLayout,
+			keRaw: lrKeData.raw,
+			sanChuan: lrSanChuan,
+		}) : {
+			dageHits: [],
+			xiaojuHits: [],
+		};
 
 		let wxdoms = this.genWuXingDoms();
+		const panelHits = splitLiuRengPatternHitsForPanels(lrJudge);
+		const dageCount = panelHits.dageHits && panelHits.dageHits.length ? panelHits.dageHits.length : 0;
+		const xiaojuCount = panelHits.xiaojuHits && panelHits.xiaojuHits.length ? panelHits.xiaojuHits.length : 0;
+		const liurengSubTab = ['overview', 'dage', 'xiaoju', 'reference'].includes(this.state.liurengSubTab)
+			? this.state.liurengSubTab
+			: 'dage';
+		const liurengReferenceRows = buildUnifiedLiuRengReferenceRows({
+			liureng: this.state.liureng,
+			runyear: this.state.runyear,
+			lrLayout,
+			lrJudge,
+		});
+		const liurengDageRows = buildLiuRengPatternDisplayRows(panelHits.dageHits);
+		const liurengXiaojuRows = buildLiuRengPatternDisplayRows(panelHits.xiaojuHits);
+		const liurengOverviewSections = buildLiuRengOverviewSections({
+			liureng,
+			runyear: this.state.runyear,
+			lrLayout,
+			sanChuan: lrSanChuan,
+			keRaw: lrKeData.raw,
+			lrJudge,
+		});
+		const referenceCount = liurengReferenceRows.length;
+		const viewportHeight = this.state.viewportHeight || 900;
+		const fallbackLimit = Math.max(0, viewportHeight - RIGHT_PANEL_BOTTOM_GAP);
+		const panelLimit = this.state.rightPanelLimit > 0 ? this.state.rightPanelLimit : fallbackLimit;
+		const rawPanelHeight = this.state.rightPanelHeight || Math.max(360, viewportHeight - 120);
+		const rightPanelHeight = Math.min(rawPanelHeight, panelLimit);
 		return (
 			<div>
 				<Row gutter={6}>
@@ -686,7 +978,11 @@ class LiuRengMain extends Component{
 						/>
 					</Col>
 					<Col span={8}>
-						<Row>
+						<div
+							ref={this.captureRightPanel}
+							style={{ height: rightPanelHeight, maxHeight: panelLimit, overflowY: 'auto', paddingRight: 2 }}
+						>
+						<Row className={styles.rightPanel}>
 							<Col span={24}>
 								<LiuRengInput 
 									fields={this.props.fields} 
@@ -694,7 +990,7 @@ class LiuRengMain extends Component{
 								/>
 							</Col>
 						</Row>
-						<Row style={{ marginTop: 8 }}>
+						<Row style={{ marginTop: 8 }} className={styles.quickActionRow}>
 							<Col span={12}>
 								<Button
 									type='primary'
@@ -733,6 +1029,100 @@ class LiuRengMain extends Component{
 								</Select>
 							</Col>
 						</Row>
+						<Divider orientation='left'>格局判断</Divider>
+						<Card size="small" className={styles.judgeCard} bodyStyle={{ padding: '10px 12px' }}>
+							<div className={styles.judgeCardHead}>
+								<div className={styles.judgeCardTitle}>命中概况</div>
+								<div className={styles.judgeChips}>
+									<span className={`${styles.judgeChip} ${dageCount ? styles.judgeChipGood : styles.judgeChipMute}`}>
+										大格 <b>{dageCount}</b>
+									</span>
+									<span className={`${styles.judgeChip} ${xiaojuCount ? styles.judgeChipWarn : styles.judgeChipMute}`}>
+										小局 <b>{xiaojuCount}</b>
+									</span>
+								</div>
+							</div>
+							<div className={styles.judgeStats}>
+								<Tag color={dageCount ? 'green' : 'default'} className={styles.judgeTag}>大格命中</Tag>
+								<Tag color={xiaojuCount ? 'gold' : 'default'} className={styles.judgeTag}>小局命中</Tag>
+								<Tag color={referenceCount ? 'blue' : 'default'} className={styles.judgeTag}>参考 {referenceCount}</Tag>
+							</div>
+							<Tabs
+								size="small"
+								activeKey={liurengSubTab}
+								onChange={(key)=>this.setState({ liurengSubTab: key })}
+								className={styles.judgeTabs}
+							>
+								<TabPane tab="大格" key="dage">
+									<div className={styles.judgeList}>
+										{liurengDageRows.length ? liurengDageRows.map((item, idx)=>(
+											<div key={`lr_dage_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemGood}`}>
+												<div className={styles.judgeItemHead}>
+													<span className={styles.judgeIndex}>{idx + 1}.</span>
+													<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
+												</div>
+												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+												{(item.fullText || item.detail) ? (
+													<div className={styles.referenceRaw}>
+														{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_dage_${idx}`)}
+													</div>
+												) : null}
+											</div>
+										)) : <div className={styles.judgeEmpty}>无符合大格</div>}
+									</div>
+								</TabPane>
+								<TabPane tab="小局" key="xiaoju">
+									<div className={styles.judgeList}>
+										{liurengXiaojuRows.length ? liurengXiaojuRows.map((item, idx)=>(
+											<div key={`lr_xiaoju_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemWarn}`}>
+												<div className={styles.judgeItemHead}>
+													<span className={styles.judgeIndex}>{idx + 1}.</span>
+													<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
+												</div>
+												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+												{(item.fullText || item.detail) ? (
+													<div className={styles.referenceRaw}>
+														{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_xiaoju_${idx}`)}
+													</div>
+												) : null}
+											</div>
+										)) : <div className={styles.judgeEmpty}>无符合小局</div>}
+									</div>
+								</TabPane>
+								<TabPane tab="参考" key="reference">
+									<div className={styles.judgeList}>
+										{liurengReferenceRows.length ? liurengReferenceRows.map((item, idx)=>(
+											<div key={`lr_ref_${idx}`} className={styles.judgeItem}>
+												<div className={styles.judgeItemHead}>
+													<span className={styles.judgeIndex}>{idx + 1}.</span>
+													<span className={styles.judgeName}>[{item.kind}] {item.name}</span>
+												</div>
+												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+												{item.fullText ? (
+													<div className={styles.referenceRaw}>
+														{renderMarkdownLiteBlock(item.fullText, `lr_main_ref_${idx}`)}
+													</div>
+												) : null}
+											</div>
+										)) : <div className={styles.judgeEmpty}>无符合参考条目</div>}
+									</div>
+								</TabPane>
+								<TabPane tab="概览" key="overview">
+									{liurengOverviewSections.length ? liurengOverviewSections.map((item)=>(
+										<div key={`lr_overview_${item.key}`} className={styles.referenceSection}>
+											<div className={styles.referenceTitle}>{item.title}</div>
+											<div className={styles.referenceRaw}>
+												{renderMarkdownLiteBlock(item.content, `lr_main_overview_${item.key}`)}
+											</div>
+										</div>
+									)) : <div className={styles.judgeEmpty}>暂无概览内容</div>}
+								</TabPane>
+							</Tabs>
+						</Card>
+						</div>
 
 					</Col>
 				</Row>

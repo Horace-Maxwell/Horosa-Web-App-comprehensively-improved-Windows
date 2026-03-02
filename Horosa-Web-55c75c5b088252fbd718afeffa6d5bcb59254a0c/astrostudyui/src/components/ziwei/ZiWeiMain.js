@@ -12,6 +12,27 @@ import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 
 const TabPane = Tabs.TabPane;
+const ZIWEI_CACHE_MAX = 24;
+const ZIWEI_BIRTH_CACHE = new Map();
+const ZIWEI_BIRTH_INFLIGHT = new Map();
+let ZIWEI_RULES_CACHE = null;
+let ZIWEI_RULES_INFLIGHT = null;
+
+function pushZiWeiCache(key, val){
+	if(!key){
+		return;
+	}
+	if(ZIWEI_BIRTH_CACHE.has(key)){
+		ZIWEI_BIRTH_CACHE.delete(key);
+	}
+	ZIWEI_BIRTH_CACHE.set(key, val);
+	if(ZIWEI_BIRTH_CACHE.size > ZIWEI_CACHE_MAX){
+		const oldest = ZIWEI_BIRTH_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			ZIWEI_BIRTH_CACHE.delete(oldest);
+		}
+	}
+}
 
 function normalizeGan(value){
 	if(!value){
@@ -52,7 +73,10 @@ function buildZiWeiFieldKey(fields){
 		fields.zone ? fields.zone.value : '',
 		fields.lon ? fields.lon.value : '',
 		fields.lat ? fields.lat.value : '',
+		fields.gpsLat ? fields.gpsLat.value : '',
+		fields.gpsLon ? fields.gpsLon.value : '',
 		fields.gender ? fields.gender.value : '',
+		fields.after23NewDay ? fields.after23NewDay.value : 0,
 	].join('|');
 }
 
@@ -200,17 +224,29 @@ class ZiWeiMain extends Component{
 
 	onFieldsChange(field){
 		if(this.props.dispatch && this.props.fields){
+			const mergedFields = {
+				...this.props.fields,
+				...field,
+			};
+			const nextFieldKey = buildZiWeiFieldKey(mergedFields);
+			if(this.state.result && nextFieldKey && this.lastFieldKey === nextFieldKey){
+				this.props.dispatch({
+					type: 'astro/save',
+					payload: {
+						fields: mergedFields,
+					},
+				});
+				return;
+			}
 			let flds = {
-				fields: {
-					...this.props.fields,
-					...field,
-				}
+				fields: mergedFields,
 			};
 			this.props.dispatch({
 				type: 'astro/save',
 				payload: flds
 			});
-			this.lastFieldKey = buildZiWeiFieldKey(flds.fields);
+			this.lastFieldKey = nextFieldKey;
+			this.lastRequestKey = '';
 			this.requestZiWei(flds.fields);
 		}
 	}
@@ -246,25 +282,85 @@ class ZiWeiMain extends Component{
 			return;
 		}
 		const requestKey = buildZiWeiFieldKey(fields);
+		const params = this.genParams(fields);
+		if(this.state.result && this.state.result.chart){
+			saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, this.state.result), {
+				date: params.date,
+				time: params.time,
+				zone: params.zone,
+				lon: params.lon,
+				lat: params.lat,
+			});
+		}
 		if(requestKey && this.lastRequestKey === requestKey){
+			if(this.state.result && this.state.result.chart){
+				saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, this.state.result), {
+					date: params.date,
+					time: params.time,
+					zone: params.zone,
+					lon: params.lon,
+					lat: params.lat,
+				});
+			}
 			return;
 		}
 		this.lastRequestKey = requestKey;
 		const seq = ++this.requestSeq;
-		const params = this.genParams(fields);
+		let birthData = null;
+		if(requestKey && ZIWEI_BIRTH_CACHE.has(requestKey)){
+			birthData = ZIWEI_BIRTH_CACHE.get(requestKey);
+		}
+		let birthPromise = null;
+		if(birthData){
+			birthPromise = Promise.resolve(birthData);
+		}else if(requestKey && ZIWEI_BIRTH_INFLIGHT.has(requestKey)){
+			birthPromise = ZIWEI_BIRTH_INFLIGHT.get(requestKey);
+		}else{
+			birthPromise = request(`${Constants.ServerRoot}/ziwei/birth`, {
+				body: JSON.stringify(params),
+				silent: true,
+				disableLoading: true,
+			}).finally(()=>{
+				if(requestKey){
+					ZIWEI_BIRTH_INFLIGHT.delete(requestKey);
+				}
+			});
+			if(requestKey){
+				ZIWEI_BIRTH_INFLIGHT.set(requestKey, birthPromise);
+			}
+		}
 
-		const data = await request(`${Constants.ServerRoot}/ziwei/birth`, {
-			body: JSON.stringify(params),
-		});
+		let rulesPromise = null;
+		if(ZIWEI_RULES_CACHE){
+			rulesPromise = Promise.resolve(ZIWEI_RULES_CACHE);
+		}else if(ZIWEI_RULES_INFLIGHT){
+			rulesPromise = ZIWEI_RULES_INFLIGHT;
+		}else{
+			ZIWEI_RULES_INFLIGHT = request(`${Constants.ServerRoot}/ziwei/rules`, {
+				body: JSON.stringify({}),
+				silent: true,
+				disableLoading: true,
+			}).finally(()=>{
+				ZIWEI_RULES_INFLIGHT = null;
+			});
+			rulesPromise = ZIWEI_RULES_INFLIGHT;
+		}
+
+		const pair = await Promise.all([birthPromise, rulesPromise]);
 		if(this.unmounted || seq !== this.requestSeq){
 			return;
 		}
-		const result = data[Constants.ResultKey]
-
-		const rules = await request(`${Constants.ServerRoot}/ziwei/rules`, {
-			body: JSON.stringify({}),
-		});
-		if(this.unmounted || seq !== this.requestSeq){
+		const data = pair[0];
+		const rules = pair[1];
+		if(requestKey && data){
+			pushZiWeiCache(requestKey, data);
+		}
+		if(!ZIWEI_RULES_CACHE && rules){
+			ZIWEI_RULES_CACHE = rules;
+		}
+		const result = data ? data[Constants.ResultKey] : null;
+		const ruleData = rules ? rules[Constants.ResultKey] : null;
+		if(!result){
 			return;
 		}
 
@@ -272,7 +368,7 @@ class ZiWeiMain extends Component{
 
 		const st = {
 			result: result,
-			rules: rules[Constants.ResultKey],
+			rules: ruleData,
 			currentDirectionIndex: currentIdx,
 		};
 

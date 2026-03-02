@@ -11,11 +11,10 @@ class LiuRengChart extends Component{
 		let svgid = this.props.id ? 'svg' + this.props.id : 'svg' + randomStr(8);
 		this.state = {
 			chartid: svgid,
-			ox: 0,
-			oy: 0,
-			radius: 0,
 			tooltipId: 'div' + randomStr(8),
 		};
+		this.unmounted = false;
+		this.drawQueued = false;
 
 		let opt = {
 			id: svgid,
@@ -32,29 +31,33 @@ class LiuRengChart extends Component{
 		this.rengchart = new RengChart(opt);
 
 		this.drawChart = this.drawChart.bind(this);
+		this.scheduleDraw = this.scheduleDraw.bind(this);
 		this.handleResize = this.handleResize.bind(this);
 	}
 
 	handleResize(){
-		let svgdom = document.getElementById(this.state.chartid);
-		if(svgdom === undefined || svgdom === null){
+		if(this.unmounted){
 			return;
 		}
-		let w = svgdom.clientWidth;
-		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
+		this.scheduleDraw();
+	}
+
+	scheduleDraw(){
+		if(this.drawQueued || this.unmounted){
 			return;
 		}
-	
-		let orgx = w / 2;
-		let orgy = h / 2;
-		let delta = 30;
-		let chartR = Math.min(w, h) / 2 - delta;
-		this.setState({
-			ox: orgx,
-			oy: orgy,
-			radius: chartR,
-		});
+		this.drawQueued = true;
+		const runner = ()=>{
+			this.drawQueued = false;
+			if(!this.unmounted){
+				this.drawChart();
+			}
+		};
+		if(typeof window !== 'undefined' && window.requestAnimationFrame){
+			window.requestAnimationFrame(runner);
+		}else{
+			setTimeout(runner, 16);
+		}
 	}
 
 	drawChart(){
@@ -75,12 +78,31 @@ class LiuRengChart extends Component{
 	}
 
 	componentDidMount(){
+		this.unmounted = false;
 		window.addEventListener('resize', this.handleResize)
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
-		this.drawChart();
+		this.scheduleDraw();
+	}
+
+	componentDidUpdate(prevProps){
+		if(
+			prevProps.value !== this.props.value ||
+			prevProps.fields !== this.props.fields ||
+			prevProps.liureng !== this.props.liureng ||
+			prevProps.runyear !== this.props.runyear ||
+			prevProps.gender !== this.props.gender ||
+			prevProps.zhangshengElem !== this.props.zhangshengElem ||
+			prevProps.guireng !== this.props.guireng ||
+			prevProps.width !== this.props.width ||
+			prevProps.height !== this.props.height ||
+			prevProps.style !== this.props.style
+		){
+			this.scheduleDraw();
+		}
 	}
 
 	componentWillUnmount() {
+		this.unmounted = true;
 		window.removeEventListener('resize', this.handleResize)
 		d3.select('#' + this.state.tooltipId).remove();
 	}
@@ -96,8 +118,6 @@ class LiuRengChart extends Component{
 			chartstyle = this.props.style;
 		}
 
-		this.drawChart();
-
 		return (
 			<svg id={this.state.chartid} style={chartstyle}>
 			</svg>
@@ -106,4 +126,3 @@ class LiuRengChart extends Component{
 }
 
 export default LiuRengChart;
-

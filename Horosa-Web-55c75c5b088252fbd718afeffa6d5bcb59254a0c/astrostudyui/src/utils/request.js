@@ -351,6 +351,14 @@ export default async function request(url, options) {
         }    
     }catch(e){
         innerHandleError(e);
+        return {
+            [Constants.ResultKey]: null,
+            [Constants.ResultCodeKey]: e && e[Constants.ResultCodeKey] !== undefined ? e[Constants.ResultCodeKey] : -1,
+            [Constants.ResultMessageKey]: e && e[Constants.ResultMessageKey]
+                ? e[Constants.ResultMessageKey]
+                : (e && e.message ? e.message : 'request failed'),
+            headers: e && e.headers ? e.headers : null,
+        };
     }finally{
         if(dispatch && !silent){
             dispatch({
@@ -444,6 +452,7 @@ export async function requestRaw(url, options) {
 
     }catch(e){
         innerHandleError(e);
+        return null;
     }finally{
         if(dispatch && !silent){
             dispatch({

@@ -241,6 +241,71 @@ function fieldsToParams(fields){
 	return params;
 }
 
+let fetchByFieldsCache = {
+	key: '',
+	result: null,
+	ts: 0,
+};
+
+function normalizeKeyValue(value){
+	if(value === undefined || value === null){
+		return '';
+	}
+	if(value instanceof Array){
+		return value.map((item)=>normalizeKeyValue(item));
+	}
+	if(typeof value === 'object'){
+		const keys = Object.keys(value).sort();
+		const out = {};
+		for(const key of keys){
+			out[key] = normalizeKeyValue(value[key]);
+		}
+		return out;
+	}
+	return value;
+}
+
+function buildFetchByFieldsCacheKey(param){
+	if(!param){
+		return '';
+	}
+	const normalized = normalizeKeyValue(param);
+	try{
+		return JSON.stringify(normalized);
+	}catch(e){
+		return '';
+	}
+}
+
+function deepCloneChartResult(result){
+	if(result === undefined || result === null){
+		return result;
+	}
+	try{
+		return JSON.parse(JSON.stringify(result));
+	}catch(e){
+		return result;
+	}
+}
+
+function setFetchByFieldsCache(key, result){
+	fetchByFieldsCache = {
+		key: key || '',
+		result: result ? deepCloneChartResult(result) : null,
+		ts: Date.now(),
+	};
+}
+
+function readFetchByFieldsCache(key){
+	if(!key || !fetchByFieldsCache.result){
+		return null;
+	}
+	if(fetchByFieldsCache.key !== key){
+		return null;
+	}
+	return deepCloneChartResult(fetchByFieldsCache.result);
+}
+
 function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
@@ -855,6 +920,7 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
+			setFetchByFieldsCache(buildFetchByFieldsCacheKey(param), Result);
 			saveAstroAISnapshot(Result, values);
 
 			let drawer = closeAllDrawer('*fetch');
@@ -918,6 +984,7 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
+			setFetchByFieldsCache(buildFetchByFieldsCacheKey(param), Result);
 			saveAstroAISnapshot(Result, fields);
 
 			fields.memo74.value = values.memo74;
@@ -983,9 +1050,16 @@ export default {
 		},
 
 		*fetchByFields({ payload: values }, { call, put }){
-			const requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
+			const store = getStore();
+			const state = store && store.astro ? store.astro : {};
+			const rawRequestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
 				? values.__requestOptions
 				: null;
+			const requestOptions = {
+				silent: true,
+				disableLoading: true,
+				...(rawRequestOptions || {}),
+			};
 			const fieldValues = {
 				...(values || {}),
 			};
@@ -994,6 +1068,32 @@ export default {
 			}
 			const param = fieldsToParams(fieldValues);
 			param.cid = null;
+			const cacheKey = buildFetchByFieldsCacheKey(param);
+			const bypassCache = state.currentTab === 'cnyibu' && state.currentSubTab === 'liureng';
+			const cachedResult = bypassCache ? null : readFetchByFieldsCache(cacheKey);
+			if(cachedResult){
+				cachedResult.params.name = fieldValues.name.value;
+				cachedResult.params.pos = fieldValues.pos.value;
+				cachedResult.chartId = randomStr(8);
+				saveAstroAISnapshot(cachedResult, fieldValues);
+
+				let cachedFields = {
+					...fieldValues,
+					nohook: false,
+				};
+				yield put({
+					type: 'save',
+					payload: {
+						chartObj: cachedResult,
+						fields: cachedFields,
+					},
+				});
+
+				if(values.nohook){
+					return;
+				}
+				return;
+			}
 
 			const rsp = yield call(service.fetchChart, param, requestOptions);
 			if(!isValidChartResponse(rsp)){
@@ -1004,6 +1104,7 @@ export default {
 			Result.params.name = fieldValues.name.value;
 			Result.params.pos = fieldValues.pos.value;
 			Result.chartId = randomStr(8);
+			setFetchByFieldsCache(cacheKey, Result);
 			saveAstroAISnapshot(Result, fieldValues);
 
 			let fld = {
@@ -1053,6 +1154,7 @@ export default {
 			}
 			const Result = rsp.Result;
 			Result.chartId = randomStr(8);
+			setFetchByFieldsCache(buildFetchByFieldsCacheKey(param), Result);
 			saveAstroAISnapshot(Result, fields);
 
 			let drawer = closeAllDrawer('*nowChart');

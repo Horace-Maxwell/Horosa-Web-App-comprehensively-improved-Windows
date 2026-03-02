@@ -12,7 +12,26 @@ export default class TipsBoard extends Component{
         }
 
         this.genTipsDom = this.genTipsDom.bind(this);
+		this.normalizeTitle = this.normalizeTitle.bind(this);
     }
+
+	normalizeTitle(raw){
+		const lines = `${raw === undefined || raw === null ? '' : raw}`.replace(/\r\n/g, '\n').split('\n');
+		let first = '';
+		for(let i=0; i<lines.length; i++){
+			const txt = `${lines[i] || ''}`.trim();
+			if(txt){
+				first = txt;
+				break;
+			}
+		}
+		if(!first){
+			return '';
+		}
+		const heading = first.match(/^#{1,6}\s*(.+)$/);
+		const title = heading ? heading[1] : first;
+		return title.replace(/^\*\*(.+?)\*\*$/, '$1').trim();
+	}
 
     genTipsDom(){
         if(this.props.value === undefined || this.props.value === null ||
@@ -21,7 +40,7 @@ export default class TipsBoard extends Component{
         }
         let tipobj = this.props.value;
         let tips = tipobj.tips;
-        let title = tipobj.title;
+        let title = this.normalizeTitle(tipobj.title);
         let itemdoms = null;
         if(tips instanceof Array){
             itemdoms = tips.map((item, idx)=>{
@@ -74,7 +93,7 @@ export default class TipsBoard extends Component{
         }
 
         let res = (
-            <Card title={title} size='small' style={{width: '100%'}}>
+            <Card title={this.normalizeTitle(title)} size='small' style={{width: '100%'}}>
                 <div className={styles.scrollbar} style={{
                     height: height, 
                     width: width,

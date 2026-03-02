@@ -17,6 +17,46 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 const TabPane = Tabs.TabPane;
 
 const BaZiOptKey = 'baziopt';
+const BAZI_CACHE_MAX = 48;
+const BAZI_DIRECT_CACHE = new Map();
+const BAZI_DIRECT_INFLIGHT = new Map();
+
+function buildBaziKey(params){
+	if(!params){
+		return '';
+	}
+	return [
+		params.date,
+		params.time,
+		params.zone,
+		params.lon,
+		params.lat,
+		params.gpsLat,
+		params.gpsLon,
+		params.gender,
+		params.timeAlg,
+		params.phaseType,
+		params.godKeyPos,
+		params.after23NewDay,
+		params.adjustJieqi,
+	].map((v)=>`${v === undefined || v === null ? '' : v}`).join('|');
+}
+
+function pushBaziCache(key, val){
+	if(!key || !val){
+		return;
+	}
+	if(BAZI_DIRECT_CACHE.has(key)){
+		BAZI_DIRECT_CACHE.delete(key);
+	}
+	BAZI_DIRECT_CACHE.set(key, val);
+	if(BAZI_DIRECT_CACHE.size > BAZI_CACHE_MAX){
+		const oldest = BAZI_DIRECT_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			BAZI_DIRECT_CACHE.delete(oldest);
+		}
+	}
+}
 
 function gzText(zhu){
 	if(!zhu){
@@ -213,6 +253,8 @@ class BaZi extends Component{
 		};
 
 		this.unmounted = false;
+		this.requestSeq = 0;
+		this.lastRequestKey = '';
 
 		this.requestBazi = this.requestBazi.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -232,11 +274,22 @@ class BaZi extends Component{
 
 	onFieldsChange(field){
 		if(this.props.dispatch && this.props.fields){
+			const mergedFields = {
+				...this.props.fields,
+				...field,
+			};
+			const nextKey = buildBaziKey(this.genParams(mergedFields));
+			if(this.state.result && nextKey && this.lastRequestKey === nextKey){
+				this.props.dispatch({
+					type: 'astro/save',
+					payload: {
+						fields: mergedFields,
+					},
+				});
+				return;
+			}
 			let flds = {
-				fields: {
-					...this.props.fields,
-					...field,
-				}
+				fields: mergedFields,
 			};
 			this.props.dispatch({
 				type: 'astro/save',
@@ -279,11 +332,56 @@ class BaZi extends Component{
 			return;
 		}
 		const params = this.genParams(fields);
+		const reqKey = buildBaziKey(params);
+		const seq = ++this.requestSeq;
+		if(reqKey){
+			this.lastRequestKey = reqKey;
+		}
 
-		const data = await request(`${Constants.ServerRoot}/bazi/direct`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		if(reqKey && BAZI_DIRECT_CACHE.has(reqKey)){
+			const cached = BAZI_DIRECT_CACHE.get(reqKey);
+			if(this.unmounted || seq !== this.requestSeq){
+				return;
+			}
+			this.setState({
+				result: cached,
+			});
+			saveModuleAISnapshot('bazi', buildBaziSnapshotText(params, cached), {
+				date: params.date,
+				time: params.time,
+				zone: params.zone,
+				lon: params.lon,
+				lat: params.lat,
+			});
+			return;
+		}
+
+		let reqPromise = null;
+		if(reqKey && BAZI_DIRECT_INFLIGHT.has(reqKey)){
+			reqPromise = BAZI_DIRECT_INFLIGHT.get(reqKey);
+		}else{
+			reqPromise = request(`${Constants.ServerRoot}/bazi/direct`, {
+				body: JSON.stringify(params),
+				silent: true,
+				disableLoading: true,
+			}).then((data)=>data ? data[Constants.ResultKey] : null)
+				.finally(()=>{
+					if(reqKey){
+						BAZI_DIRECT_INFLIGHT.delete(reqKey);
+					}
+				});
+			if(reqKey){
+				BAZI_DIRECT_INFLIGHT.set(reqKey, reqPromise);
+			}
+		}
+
+		const result = await reqPromise;
+		if(this.unmounted || seq !== this.requestSeq || !result){
+			return;
+		}
+		if(reqKey){
+			pushBaziCache(reqKey, result);
+		}
 
 		const st = {
 			result: result,
