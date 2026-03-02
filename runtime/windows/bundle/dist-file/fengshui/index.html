@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>荀爽纳气风水 · 可视化辅助盘</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">纳气</div>
+        <div>
+          <h1>荀爽纳气风水 · 可视化辅助盘</h1>
+          <p>以楼门真北为准，叠合家门，定位太极中心，直观判断气与水。</p>
+        </div>
+      </div>
+      <div class="status-pill" id="statusBar">未加载图片</div>
+    </header>
+
+    <div class="quickbar">
+      <button class="quick-btn primary" id="quickUpload">上传户型图</button>
+      <button class="quick-btn" id="quickDrawRect">框选房屋</button>
+      <button class="quick-btn" id="quickDrawDoor">画入户门</button>
+      <button class="quick-btn" id="quickPlaceMarker">放置标记</button>
+      <button class="quick-btn ghost" id="quickUndo">撤销</button>
+      <button class="quick-btn ghost" id="quickRedo">重做</button>
+      <button class="quick-btn ghost" id="quickExportPng">导出 PNG</button>
+      <button class="quick-btn ghost" id="quickRefresh">刷新风水盘</button>
+    </div>
+
+    <main class="layout">
+      <aside class="controls">
+        <div class="control-tabs" id="controlTabs">
+          <button class="tab-btn active" data-panel="base">基础</button>
+          <button class="tab-btn" data-panel="disk">纳气盘</button>
+          <button class="tab-btn" data-panel="markers">标注</button>
+          <button class="tab-btn" data-panel="export">导出</button>
+        </div>
+
+        <div class="control-panel active" data-panel="base">
+          <section class="card" style="--i:1">
+          <div class="card-title">图片与房屋</div>
+          <label class="file-btn">
+            <input type="file" id="fileInput" accept="image/*" />
+            <span>上传户型图</span>
+          </label>
+          <div class="btn-row">
+            <button class="btn" id="btnDrawBox">手动框选房屋</button>
+            <button class="btn ghost" id="btnResetRect">重置房屋框</button>
+          </div>
+          <div class="helper">上传后请手动框选房屋主体。</div>
+
+          <div class="field">
+            <label>矩形旋转角度</label>
+            <div class="dual-input">
+              <input type="range" id="rectRotationSlider" min="-45" max="45" step="0.5" value="0" />
+              <input type="number" id="rectRotationInput" step="0.5" value="0" />
+            </div>
+            <div class="helper">用于修正歪斜户型，建议先框选再微调。</div>
+          </div>
+        </section>
+
+        <section class="card" style="--i:2">
+          <div class="card-title">角度与门向</div>
+          <div class="field">
+            <label>单元门真北角度 (0-360°)</label>
+            <input type="number" id="unitAngle" placeholder="例如 58.5" step="0.1" />
+            <div class="helper">用卫星地图测量楼门朝向，门内朝向门外。</div>
+          </div>
+          <div class="field">
+            <label>入户门方向 (0-360°)</label>
+            <input type="number" id="doorAngle" placeholder="可手动输入" step="1" />
+            <button class="btn" id="btnDrawDoor">在图上画入户门方向</button>
+          </div>
+          <div class="stats">
+            <div class="stat"><span>单元门</span><strong id="unitAngleDisplay">--</strong></div>
+            <div class="stat"><span>入户门</span><strong id="doorAngleDisplay">--</strong></div>
+            <div class="stat"><span>盘旋转</span><strong id="diskRotationDisplay">--</strong></div>
+          </div>
+        </section>
+        </div>
+
+        <div class="control-panel" data-panel="disk">
+          <section class="card" style="--i:3">
+          <div class="card-title">纳气盘</div>
+          <div class="field">
+            <label>透明度 <span id="opacityVal" class="inline-val">30%</span></label>
+            <input type="range" id="opacitySlider" min="0.2" max="0.95" step="0.05" value="0.3" />
+          </div>
+          <div class="field">
+            <label>盘大小 <span id="diskScaleVal" class="inline-val">100%</span></label>
+            <input type="range" id="diskScale" min="1" max="1.6" step="0.05" value="1" />
+          </div>
+          <div class="field">
+            <label>盘中心位置</label>
+            <div class="segmented" id="diskCenterGroup">
+              <button class="seg-btn active" data-center="house">房屋中心</button>
+              <button class="seg-btn" data-center="door">入户门</button>
+              <button class="seg-btn" data-center="custom">自定义点</button>
+              <button class="seg-btn" data-center="marker">选中标记</button>
+            </div>
+            <div class="helper">用于评估门、家具等局部纳气。</div>
+          </div>
+          <div class="field">
+            <label>运期模式</label>
+            <div class="segmented" id="periodGroup">
+              <button class="seg-btn active" data-period="current">1964-2044</button>
+              <button class="seg-btn" data-period="reversed">2044-2124</button>
+            </div>
+            <div class="helper">2044 后风水位置反转：气位与水位互换。</div>
+          </div>
+        </section>
+        </div>
+
+        <div class="control-panel" data-panel="markers">
+          <section class="card" style="--i:4">
+          <div class="card-title">家具与设施标注</div>
+          <div class="field">
+            <label>选择标记类型</label>
+            <select id="markerType"></select>
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="btnPlaceMarker">放置标记</button>
+            <button class="btn ghost" id="btnClearMarkers">清空标记</button>
+          </div>
+          <div class="helper">点击画布放置，拖动可调整位置。</div>
+        </section>
+        </div>
+
+        <div class="control-panel" data-panel="export">
+          <section class="card compact-card" style="--i:5">
+            <div class="card-title">导出</div>
+            <button class="btn" id="btnExport">导出当前视图 PNG</button>
+            <div class="btn-row" style="margin-top: 10px;">
+              <button class="btn ghost" id="btnExportReportPng">导出判定报告 PNG</button>
+              <button class="btn ghost" id="btnExportReportPdf">导出判定报告 PDF</button>
+            </div>
+            <div class="helper">导出会包含底图、房屋框、纳气盘与标记。</div>
+          </section>
+
+          <section class="card compact-card hidden-in-horosa" style="--i:6">
+            <div class="card-title">项目文件</div>
+            <div class="btn-row">
+              <button class="btn" id="btnExportConfig">导出项目文件</button>
+              <button class="btn ghost" id="btnImportConfig">导入项目文件</button>
+            </div>
+            <div class="helper">项目文件包含角度、房屋框、盘参数与标记。</div>
+            <div class="recent-list" id="recentList"></div>
+            <input type="file" id="configInput" accept=".naqi,application/json" hidden />
+          </section>
+
+          <section class="card hidden-in-horosa" style="--i:7">
+            <div class="card-title">项目管理</div>
+            <div class="field">
+              <label>项目名称</label>
+              <input type="text" id="projectName" placeholder="例如：A座1202" />
+            </div>
+            <label class="check">
+              <input type="checkbox" id="autoSaveEnabled" checked />
+              <span>自动保存到当前项目</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="projectIncludeImage" checked />
+              <span>保存包含底图（占用空间更大）</span>
+            </label>
+            <div class="btn-row">
+              <button class="btn" id="btnSaveProject">保存项目</button>
+              <button class="btn ghost" id="btnClearProjectSearch">清空搜索</button>
+            </div>
+            <div class="field" style="margin-top: 10px;">
+              <label>当前项目</label>
+              <div class="project-current" id="currentProjectLabel">未选择</div>
+            </div>
+            <div class="field">
+              <label>历史版本</label>
+              <div class="row-inline">
+                <select id="projectVersionSelect"></select>
+                <button class="btn ghost" id="btnRestoreVersion">恢复版本</button>
+              </div>
+            </div>
+            <div class="field" style="margin-top: 10px;">
+              <label>搜索</label>
+              <input type="text" id="projectSearch" placeholder="输入名称关键字" />
+            </div>
+            <div class="project-list" id="projectList"></div>
+            <div class="helper">项目保存在本机应用的本地存储中。</div>
+          </section>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <div class="workspace-tabs" id="workspaceTabs">
+          <button class="tab-btn active" data-view="canvas">画布</button>
+          <button class="tab-btn" data-view="analysis">判定</button>
+          <button class="tab-btn" data-view="tips">要点</button>
+        </div>
+
+        <div class="workspace-view active" data-view="canvas">
+          <div class="card canvas-card" style="--i:1">
+          <div class="canvas-toolbar">
+            <div class="legend">
+              <div class="legend-item"><span class="dot wind"></span>气位（红）</div>
+              <div class="legend-item"><span class="dot water"></span>水位（蓝）</div>
+              <div class="legend-item"><span class="dot unit"></span>单元门</div>
+              <div class="legend-item"><span class="dot door"></span>入户门</div>
+            </div>
+            <div class="hint" id="canvasHint">上传户型图后开始操作</div>
+            <div class="canvas-actions">
+              <button class="mini-btn" id="btnPanToggle">拖拽</button>
+              <button class="mini-btn active" id="btnSnapToggle">吸附</button>
+              <button class="mini-btn" id="btnZoomOut">-</button>
+              <span class="zoom-label" id="zoomLabel">100%</span>
+              <button class="mini-btn" id="btnZoomIn">+</button>
+              <button class="mini-btn" id="btnZoomReset">重置</button>
+            </div>
+          </div>
+            <div class="canvas-shell" id="canvasShell">
+              <div class="canvas-area" id="canvasArea">
+                <canvas id="mainCanvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace-view" data-view="analysis">
+          <div class="card analysis-card" style="--i:2">
+            <div class="card-title">标记判定</div>
+            <div class="filter-bar" id="markerFilters">
+              <button class="filter-btn active" data-filter="all">全部</button>
+              <button class="filter-btn" data-filter="ok">位置合适</button>
+              <button class="filter-btn" data-filter="wind-bad">气位冲突</button>
+              <button class="filter-btn" data-filter="water-bad">水位冲突</button>
+              <button class="filter-btn" data-filter="unknown">未定位</button>
+            </div>
+            <div class="marker-list" id="markerList"></div>
+            <div class="summary" id="summary"></div>
+            <div class="helper">
+              气位建议放置：门、窗、灶台、沙发、床、书桌、神龛、宠物床等。水位建议放置：水槽、洗手池、马桶、下水管、洗衣机、厕所等。
+            </div>
+          </div>
+        </div>
+
+        <div class="workspace-view" data-view="tips">
+          <div class="card" style="--i:3">
+            <div class="card-title">使用要点</div>
+            <ul class="tips">
+              <li>楼门朝向以卫星地图为准，门内朝门外，记录真北角度。</li>
+              <li>家门方向在户型图上画出，令两箭头平行后再判定。</li>
+              <li>房屋主体以矩形为准，扩大范围导致空缺大于实体时不再扩大。</li>
+              <li>盘心放在太极点，八方颜色与数字即可判断气位与水位。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
