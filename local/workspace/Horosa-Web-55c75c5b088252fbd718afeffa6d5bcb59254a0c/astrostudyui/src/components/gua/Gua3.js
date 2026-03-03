@@ -11,13 +11,11 @@ class Gua3 extends Gua{
 	}
 
 	draw(){
-		super();
-
+		super.draw();
 	}
 
 
 }
 
 export default Gua3;
-
 

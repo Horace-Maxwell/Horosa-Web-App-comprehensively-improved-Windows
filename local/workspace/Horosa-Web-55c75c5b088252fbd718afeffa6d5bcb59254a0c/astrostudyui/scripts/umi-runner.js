@@ -1,8 +1,27 @@
+const fs = require('fs');
+const path = require('path');
 const { spawnSync } = require('child_process');
+
+function removeDirIfExists(relativeDir) {
+	const absDir = path.resolve(process.cwd(), relativeDir);
+	if (fs.existsSync(absDir)) {
+		try {
+			fs.rmSync(absDir, { recursive: true, force: true });
+		} catch (error) {
+			// Non-fatal on Windows/OneDrive lock races; Umi can still regenerate files.
+			console.warn(`[umi-runner] skip removing ${relativeDir}: ${error.message}`);
+		}
+	}
+}
 
 function run() {
 	const mode = process.argv[2] || 'build';
 	const forFile = process.argv.includes('--for-file');
+
+	if (mode !== 'dev') {
+		// Avoid stale generated artifacts corrupting the next production build.
+		removeDirIfExists('src/.umi-production');
+	}
 
 	const env = {
 		...process.env,
