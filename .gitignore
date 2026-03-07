@@ -56,6 +56,9 @@ runtime/windows/python/
 runtime/windows/wheels/
 runtime/windows/bundle/astrostudyboot.jar
 
-# Local reference bundles (not for release branch)
+# Local reference bundles and audit artifacts (not for release branch)
 Horosa-Web-App-comprehensively-improved-MacOS-main/
 modules/
+/docs/reference-kit/
+/runtime/
+/local/workspace/Horosa-Web-*/runtime/
