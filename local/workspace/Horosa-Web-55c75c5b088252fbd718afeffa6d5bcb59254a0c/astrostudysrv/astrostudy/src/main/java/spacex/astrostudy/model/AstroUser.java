@@ -93,7 +93,7 @@ public class AstroUser extends BaseUser {
 	private long regTime = System.currentTimeMillis();
 	private int hsys = 0;
 	private byte tradition = 1;
-	private byte pdtype = 1;
+	private byte pdtype = 0;
 	private byte strongReception = 0;
 	private byte virtualPntReceiveAsp = 1;
 	private byte simpleAsp = 0;

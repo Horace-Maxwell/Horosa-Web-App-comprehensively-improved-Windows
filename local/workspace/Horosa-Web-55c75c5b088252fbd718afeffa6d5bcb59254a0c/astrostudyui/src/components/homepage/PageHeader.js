@@ -24,8 +24,8 @@ function PageHeader(props){
 
 	const currentSettingTech = aiSettingTechs.find((item)=>item.key === aiSettingKey) || null;
 	const currentSettingOptions = currentSettingTech && currentSettingTech.options ? currentSettingTech.options : [];
-	const currentSettingSupportsPlanetMeta = !!(currentSettingTech && currentSettingTech.supportsPlanetMeta);
-	const currentSettingSupportsAnnotation = !!(currentSettingTech && currentSettingTech.supportsAnnotation);
+	const currentSettingSupportsPlanetMeta = !!(currentSettingTech && (currentSettingTech.supportsPlanetMeta || currentSettingTech.supportsPlanetInfo));
+	const currentSettingSupportsAnnotation = !!(currentSettingTech && (currentSettingTech.supportsAnnotation || currentSettingTech.supportsAstroMeaning));
 	const currentSettingSelected = (()=>{
 		const sections = aiSettingData && aiSettingData.sections ? aiSettingData.sections : {};
 		if(Array.isArray(sections[aiSettingKey])){
@@ -34,7 +34,7 @@ function PageHeader(props){
 		return currentSettingOptions.slice(0);
 	})();
 	const currentSettingPlanetMeta = (()=>{
-		const planetMeta = aiSettingData && aiSettingData.planetMeta ? aiSettingData.planetMeta : {};
+		const planetMeta = aiSettingData && aiSettingData.planetInfo ? aiSettingData.planetInfo : (aiSettingData && aiSettingData.planetMeta ? aiSettingData.planetMeta : {});
 		const raw = planetMeta && planetMeta[aiSettingKey] ? planetMeta[aiSettingKey] : {};
 		return {
 			showHouse: raw.showHouse === 0 ? 0 : 1,
@@ -42,9 +42,14 @@ function PageHeader(props){
 		};
 	})();
 	const currentSettingAnnotation = (()=>{
+		const astroMeaning = aiSettingData && aiSettingData.astroMeaning ? aiSettingData.astroMeaning : {};
+		const raw = astroMeaning[aiSettingKey];
+		if(raw && typeof raw === 'object'){
+			return raw.enabled === 0 ? 0 : 1;
+		}
 		const annotations = aiSettingData && aiSettingData.annotations ? aiSettingData.annotations : {};
-		const raw = annotations[aiSettingKey];
-		return raw === 0 ? 0 : 1;
+		const legacy = annotations[aiSettingKey];
+		return legacy === 0 ? 0 : 1;
 	})();
 
 	function changeColorTheme(val){
@@ -139,20 +144,30 @@ function PageHeader(props){
 			const sections = {
 				...(prev && prev.sections ? prev.sections : {}),
 			};
+			const planetInfo = {
+				...(prev && prev.planetInfo ? prev.planetInfo : {}),
+			};
 			const planetMeta = {
 				...(prev && prev.planetMeta ? prev.planetMeta : {}),
+			};
+			const astroMeaning = {
+				...(prev && prev.astroMeaning ? prev.astroMeaning : {}),
 			};
 			const annotations = {
 				...(prev && prev.annotations ? prev.annotations : {}),
 			};
 			delete sections[aiSettingKey];
+			delete planetInfo[aiSettingKey];
 			delete planetMeta[aiSettingKey];
+			delete astroMeaning[aiSettingKey];
 			delete annotations[aiSettingKey];
 			return {
 				...(prev || {}),
 				version: 1,
 				sections,
+				planetInfo,
 				planetMeta,
+				astroMeaning,
 				annotations,
 			};
 		});
@@ -163,17 +178,21 @@ function PageHeader(props){
 			const sectionData = {
 				...(prev && prev.sections ? prev.sections : {}),
 			};
-			const planetMeta = {
-				...(prev && prev.planetMeta ? prev.planetMeta : {}),
+			const nextMeta = {
+				...((prev && prev.planetInfo ? prev.planetInfo : (prev && prev.planetMeta ? prev.planetMeta : {}))),
 				[aiSettingKey]: {
-					...(prev && prev.planetMeta && prev.planetMeta[aiSettingKey] ? prev.planetMeta[aiSettingKey] : {}),
+					...((prev && prev.planetInfo && prev.planetInfo[aiSettingKey]) ? prev.planetInfo[aiSettingKey] : ((prev && prev.planetMeta && prev.planetMeta[aiSettingKey]) ? prev.planetMeta[aiSettingKey] : {})),
 					[key]: checked ? 1 : 0,
 				},
+			};
+			const planetMeta = {
+				...nextMeta,
 			};
 			return {
 				...(prev || {}),
 				version: 1,
 				sections: sectionData,
+				planetInfo: nextMeta,
 				planetMeta,
 			};
 		});
@@ -181,6 +200,12 @@ function PageHeader(props){
 
 	function onAISettingAnnotationChange(checked){
 		setAiSettingData((prev)=>{
+			const astroMeaning = {
+				...(prev && prev.astroMeaning ? prev.astroMeaning : {}),
+				[aiSettingKey]: {
+					enabled: checked ? 1 : 0,
+				},
+			};
 			const annotations = {
 				...(prev && prev.annotations ? prev.annotations : {}),
 				[aiSettingKey]: checked ? 1 : 0,
@@ -191,6 +216,7 @@ function PageHeader(props){
 				sections: {
 					...(prev && prev.sections ? prev.sections : {}),
 				},
+				astroMeaning,
 				planetMeta: {
 					...(prev && prev.planetMeta ? prev.planetMeta : {}),
 				},

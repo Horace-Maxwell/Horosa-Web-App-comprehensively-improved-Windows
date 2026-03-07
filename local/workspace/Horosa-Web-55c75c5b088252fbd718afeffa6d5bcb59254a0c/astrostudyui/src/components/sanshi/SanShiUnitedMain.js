@@ -3155,7 +3155,7 @@ class SanShiUnitedMain extends Component{
 		const viewH = this.state.viewportHeight || 900;
 		const baseH = typeof height === 'number' ? height : viewH - 20;
 		// 高度优先：先保证不超出可视区，再按宽度做二次约束。
-		const hCap = Math.max(SANSHI_BOARD_MIN, Math.min(viewH - 320, baseH - 300));
+		const hCap = Math.max(SANSHI_BOARD_MIN, Math.min(viewH - 286, baseH - 244));
 		const wCap = this.state.leftBoardWidth > 0 ? (this.state.leftBoardWidth - 8) : SANSHI_BOARD_MAX;
 		let target = hCap;
 		if(Number.isFinite(wCap) && wCap > 0){
@@ -3199,22 +3199,14 @@ class SanShiUnitedMain extends Component{
 							<div className={styles.dateLabel}>农历</div>
 							<div className={styles.dateValue}>{fmtLunar(nongli) || '农历--'}</div>
 						</div>
-						<div className={styles.dateRow}>
+						<div className={`${styles.dateRow} ${styles.dateRowCompact}`}>
 							<div className={styles.dateLabel}>公历</div>
-							<div className={styles.dateValue}>
-								<span>{dateText}</span>
-							</div>
-						</div>
-						<div className={styles.dateRow}>
-							<div className={styles.dateLabel}>直接时间</div>
-							<div className={styles.dateValue}>
-								<span>{directHm}</span>
-							</div>
-						</div>
-						<div className={styles.dateRow}>
-							<div className={styles.dateLabel}>真太阳时</div>
-							<div className={styles.dateValue}>
-								<span>{solarHm}</span>
+							<div className={`${styles.dateValue} ${styles.dateValueWithMeta}`}>
+								<span className={styles.datePrimary}>{dateText}</span>
+								<span className={styles.dateMetaInline}>
+									<span className={styles.dateMetaItem}>直接时间 {directHm}</span>
+									<span className={styles.dateMetaItem}>真太阳时 {solarHm}</span>
+								</span>
 							</div>
 						</div>
 					</div>
@@ -3654,11 +3646,15 @@ class SanShiUnitedMain extends Component{
 		const centerPx = Math.max(140, Math.round((boardSize || 500) * 0.334));
 		const availableH = Math.max(90, centerPx - edgePad * 2);
 		const centerScale = clamp((boardSize || 600) / 600, 0.62, 1.35);
-		// 目标：四课(3行) + 三传(3行) 统一字号，并占中宫约85%可用高度，避免缩放时过挤。
-		const targetTextH = Math.max(72, Math.round(availableH * 0.85));
-		const linePx = clamp(Math.round(targetTextH / 6), 12, 52);
+		// Keep about 10% of the center cell as a vertical gutter so Si Ke and San Chuan do not crowd each other.
+		const centerGap = Math.max(8, Math.round(availableH * 0.1));
+		const linePx = clamp((availableH - centerGap) / 6, 12, 52);
 		const sectionH = linePx * 3;
-		const txtSize = clamp(Math.min(Math.round(linePx * 0.95), Math.round(30 * centerScale)), 11, 46);
+		const usedTextH = sectionH * 2;
+		const sparePad = Math.max(0, availableH - centerGap - usedTextH);
+		const topInset = edgePad + Math.floor(sparePad / 2);
+		const bottomInset = edgePad + Math.ceil(sparePad / 2);
+		const txtSize = clamp(Math.min(Math.round(linePx * 0.94), Math.round(30 * centerScale)), 11, 46);
 		return (
 			<div key="qm_center" className={`${styles.qmBlock} ${styles.qmCenter}`} style={{ left: '50%', top: '50%' }}>
 				<div
@@ -3666,7 +3662,7 @@ class SanShiUnitedMain extends Component{
 					style={{
 						fontSize: txtSize,
 						lineHeight: `${linePx}px`,
-						top: edgePad,
+						top: topInset,
 						height: sectionH,
 					}}
 				>
@@ -3683,7 +3679,7 @@ class SanShiUnitedMain extends Component{
 					style={{
 						fontSize: txtSize,
 						lineHeight: `${linePx}px`,
-						bottom: edgePad,
+						bottom: bottomInset,
 						height: sectionH,
 					}}
 				>
@@ -4283,12 +4279,12 @@ class SanShiUnitedMain extends Component{
 			<div className={styles.root} style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
 					<Row gutter={6}>
-						<Col span={16}>
+						<Col xxl={18} xl={18} lg={16} md={16} sm={24} xs={24}>
 							<div ref={this.captureLeftBoardHost}>
 								{this.renderLeftBoard(height)}
 							</div>
 						</Col>
-						<Col span={8}>
+						<Col xxl={6} xl={6} lg={8} md={8} sm={24} xs={24}>
 							{this.renderRight()}
 						</Col>
 					</Row>

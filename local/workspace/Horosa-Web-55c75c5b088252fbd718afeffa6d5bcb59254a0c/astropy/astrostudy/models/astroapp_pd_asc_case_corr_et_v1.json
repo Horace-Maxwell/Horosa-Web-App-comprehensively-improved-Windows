@@ -1,0 +1,23 @@
+{
+  "model_name": "asc_current_moon_truepos_obshift",
+  "samples": 500,
+  "features": 31,
+  "train_case_mae": 2.5555588493899467e-13,
+  "sources": [
+    {
+      "rows_csv": "/Users/horacedong/Desktop/Horosa-Primary Direction Trial/runtime/pd_reverse/virtual_kernel_run200_login_v6_rows.csv",
+      "cases_root": "/Users/horacedong/Desktop/Horosa-Primary Direction Trial/runtime/pd_auto/run200_login"
+    },
+    {
+      "rows_csv": "/Users/horacedong/Desktop/Horosa-Primary Direction Trial/runtime/pd_reverse/virtual_kernel_geo300_full_v8_rows.csv",
+      "cases_root": "/Users/horacedong/Desktop/Horosa-Primary Direction Trial/runtime/pd_auto/run_geo300"
+    }
+  ],
+  "params": {
+    "estimator": "ExtraTreesRegressor",
+    "n_estimators": 600,
+    "min_samples_leaf": 1,
+    "max_features": 1.0,
+    "random_state": 42
+  }
+}

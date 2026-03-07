@@ -99,6 +99,7 @@ function traverseMaterials (object, callback) {
 
 
 const ChartOptKey = 'chart3dOpt';
+const ModelUnavailableAtKey = 'horosa3dModelUnavailableAt';
   
 class Astro3D {
 	constructor(option){

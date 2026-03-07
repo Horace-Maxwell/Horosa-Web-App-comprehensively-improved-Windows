@@ -1,0 +1,18 @@
+{
+  "dataset": "runtime/pd_auto/run_geo_current540_v1",
+  "mode": "virtual_only_current_runtime_fullfit",
+  "targets": {
+    "Asc": {
+      "arc_mae": 0.0009919652751037512,
+      "date_max_days": 4.200450747739524
+    },
+    "MC": {
+      "arc_mae": 0.00041444975277272176,
+      "date_max_days": 3.0462396615184844
+    },
+    "North Node": {
+      "arc_mae": 0.00011554510206301699,
+      "date_max_days": 1.2248965478502214
+    }
+  }
+}

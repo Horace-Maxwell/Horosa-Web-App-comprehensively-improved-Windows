@@ -96,10 +96,18 @@ function newEmptyFields(){
 					value: 1,
 					name: ['showPdBounds'],
 				},
-				pdtype: {
-					value: 1,
-					name: ['pdtype'],
-				},
+		pdtype: {
+			value: 0,
+			name: ['pdtype'],
+		},
+		pdMethod: {
+			value: 'astroapp_alchabitius',
+			name: ['pdMethod'],
+		},
+		pdTimeKey: {
+			value: 'Ptolemy',
+			name: ['pdTimeKey'],
+		},
 		pdaspects: {
 			value: [0, 60, 90, 120, 180],
 			name: ['pdaspects'],
@@ -174,39 +182,6 @@ function newEmptyFields(){
 	return fields;
 }
 
-function cloneFields(fields){
-	if(!fields){
-		return {};
-	}
-	const out = {};
-	for(const key in fields){
-		if(!Object.prototype.hasOwnProperty.call(fields, key)){
-			continue;
-		}
-		const field = fields[key];
-		if(field && typeof field === 'object'){
-			const cloned = {
-				...field,
-			};
-			if(field.value && typeof field.value === 'object'){
-				if(typeof field.value.clone === 'function'){
-					cloned.value = field.value.clone();
-				}else if(field.value instanceof Array){
-					cloned.value = [...field.value];
-				}else{
-					cloned.value = {
-						...field.value,
-					};
-				}
-			}
-			out[key] = cloned;
-		}else{
-			out[key] = field;
-		}
-	}
-	return out;
-}
-
 function fieldsToParams(fields){
 	const params = {
 		cid: fields.cid.value,
@@ -228,6 +203,9 @@ function fieldsToParams(fields){
 		virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
 		predictive: fields.predictive.value,
 		showPdBounds: fields.showPdBounds ? fields.showPdBounds.value : 1,
+		pdtype: fields.pdtype ? fields.pdtype.value : 0,
+		pdMethod: fields.pdMethod ? fields.pdMethod.value : 'astroapp_alchabitius',
+		pdTimeKey: fields.pdTimeKey ? fields.pdTimeKey.value : 'Ptolemy',
 		pdaspects: fields.pdaspects.value,
 		name: fields.name.value,
 		pos: fields.pos.value,
@@ -241,86 +219,13 @@ function fieldsToParams(fields){
 	return params;
 }
 
-let fetchByFieldsCache = {
-	key: '',
-	result: null,
-	ts: 0,
-};
-
-function normalizeKeyValue(value){
-	if(value === undefined || value === null){
-		return '';
-	}
-	if(value instanceof Array){
-		return value.map((item)=>normalizeKeyValue(item));
-	}
-	if(typeof value === 'object'){
-		const keys = Object.keys(value).sort();
-		const out = {};
-		for(const key of keys){
-			out[key] = normalizeKeyValue(value[key]);
-		}
-		return out;
-	}
-	return value;
-}
-
-function buildFetchByFieldsCacheKey(param){
-	if(!param){
-		return '';
-	}
-	const normalized = normalizeKeyValue(param);
-	try{
-		return JSON.stringify(normalized);
-	}catch(e){
-		return '';
-	}
-}
-
-function deepCloneChartResult(result){
-	if(result === undefined || result === null){
-		return result;
-	}
-	try{
-		return JSON.parse(JSON.stringify(result));
-	}catch(e){
-		return result;
-	}
-}
-
-function setFetchByFieldsCache(key, result){
-	fetchByFieldsCache = {
-		key: key || '',
-		result: result ? deepCloneChartResult(result) : null,
-		ts: Date.now(),
-	};
-}
-
-function readFetchByFieldsCache(key){
-	if(!key || !fetchByFieldsCache.result){
-		return null;
-	}
-	if(fetchByFieldsCache.key !== key){
-		return null;
-	}
-	return deepCloneChartResult(fetchByFieldsCache.result);
-}
-
 function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
 
-function showChartServiceError(rsp){
-	let detail = null;
-	if(rsp){
-		detail = rsp.ResultMessage || rsp.message;
-		if(!detail && rsp.headers){
-			detail = rsp.headers.ResultMessage;
-		}
-	}
-
+function showChartServiceError(){
 	Modal.error({
-		title: detail ? `排盘失败：${detail}` : '排盘失败：服务返回异常，请稍后重试。',
+		title: '排盘失败：本地排盘服务未就绪。请确认 Horosa 本地服务仍在运行后重试。',
 	});
 }
 
@@ -353,13 +258,13 @@ function closeAllDrawer(msg){
 }
 
 function hooking(hook, currentTab, fields, chartObj){
-	if(currentTab === 'indiachart' || currentTab === 'locastro' || currentTab === 'astrochart'
-		|| currentTab === 'hellenastro' || currentTab === 'guolao'  || currentTab === 'astrochart3D'
+	if(currentTab === 'indiachart' || currentTab === 'locastro'
+		|| currentTab === 'hellenastro' || currentTab === 'guolao'
 		|| currentTab === 'germanytech' || currentTab === 'jieqichart'
 		|| currentTab === 'cntradition' || currentTab === 'cnyibu' || currentTab === 'otherbu'
 		|| currentTab === 'fengshui' || currentTab === 'sanshiunited'){
 		if(hook[currentTab].fun){
-			hook[currentTab].fun(fields)
+			hook[currentTab].fun(fields, chartObj)
 		}
 	}else if(currentTab === 'direction'){
 		if(hook[currentTab].fun){
@@ -545,8 +450,16 @@ export default {
 				name: ['showPdBounds'],
 			},
 			pdtype: {
-				value: 1,
+				value: 0,
 				name: ['pdtype'],
+			},
+			pdMethod: {
+				value: 'astroapp_alchabitius',
+				name: ['pdMethod'],
+			},
+			pdTimeKey: {
+				value: 'Ptolemy',
+				name: ['pdTimeKey'],
 			},
 			pdaspects: {
 				value: [0, 60, 90, 120, 180],
@@ -913,14 +826,13 @@ export default {
 
 			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError(rsp);
+				showChartServiceError();
 				return;
 			}
 			const Result = rsp.Result;
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			setFetchByFieldsCache(buildFetchByFieldsCacheKey(param), Result);
 			saveAstroAISnapshot(Result, values);
 
 			let drawer = closeAllDrawer('*fetch');
@@ -951,7 +863,9 @@ export default {
 		*fetchByChartData({ payload: values }, { call, put }){
             const store = getStore();
 			const state = store.astro;
-			const fields = cloneFields(state.fields);
+			const fields = {
+				...state.fields
+			}
 
 			let tm = new DateTime();
 			tm.parse(values.birth, 'YYYY-MM-DD HH:mm:ss');
@@ -984,7 +898,6 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			setFetchByFieldsCache(buildFetchByFieldsCacheKey(param), Result);
 			saveAstroAISnapshot(Result, fields);
 
 			fields.memo74.value = values.memo74;
@@ -1050,16 +963,9 @@ export default {
 		},
 
 		*fetchByFields({ payload: values }, { call, put }){
-			const store = getStore();
-			const state = store && store.astro ? store.astro : {};
-			const rawRequestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
+			const requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
 				? values.__requestOptions
-				: null;
-			const requestOptions = {
-				silent: true,
-				disableLoading: true,
-				...(rawRequestOptions || {}),
-			};
+				: { silent: true };
 			const fieldValues = {
 				...(values || {}),
 			};
@@ -1068,32 +974,6 @@ export default {
 			}
 			const param = fieldsToParams(fieldValues);
 			param.cid = null;
-			const cacheKey = buildFetchByFieldsCacheKey(param);
-			const bypassCache = state.currentTab === 'cnyibu' && state.currentSubTab === 'liureng';
-			const cachedResult = bypassCache ? null : readFetchByFieldsCache(cacheKey);
-			if(cachedResult){
-				cachedResult.params.name = fieldValues.name.value;
-				cachedResult.params.pos = fieldValues.pos.value;
-				cachedResult.chartId = randomStr(8);
-				saveAstroAISnapshot(cachedResult, fieldValues);
-
-				let cachedFields = {
-					...fieldValues,
-					nohook: false,
-				};
-				yield put({
-					type: 'save',
-					payload: {
-						chartObj: cachedResult,
-						fields: cachedFields,
-					},
-				});
-
-				if(values.nohook){
-					return;
-				}
-				return;
-			}
 
 			const rsp = yield call(service.fetchChart, param, requestOptions);
 			if(!isValidChartResponse(rsp)){
@@ -1104,7 +984,6 @@ export default {
 			Result.params.name = fieldValues.name.value;
 			Result.params.pos = fieldValues.pos.value;
 			Result.chartId = randomStr(8);
-			setFetchByFieldsCache(cacheKey, Result);
 			saveAstroAISnapshot(Result, fieldValues);
 
 			let fld = {
@@ -1154,7 +1033,6 @@ export default {
 			}
 			const Result = rsp.Result;
 			Result.chartId = randomStr(8);
-			setFetchByFieldsCache(buildFetchByFieldsCacheKey(param), Result);
 			saveAstroAISnapshot(Result, fields);
 
 			let drawer = closeAllDrawer('*nowChart');

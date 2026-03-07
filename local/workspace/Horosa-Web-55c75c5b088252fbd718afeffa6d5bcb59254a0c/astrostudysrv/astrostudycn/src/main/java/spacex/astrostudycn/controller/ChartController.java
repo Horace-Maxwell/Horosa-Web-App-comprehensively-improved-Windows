@@ -14,6 +14,7 @@ import boundless.utility.ConvertUtility;
 import boundless.utility.JsonUtility;
 import spacex.astrostudy.helper.AstroHelper;
 import spacex.astrostudy.helper.NongliHelper;
+import spacex.astrostudy.helper.ParamHashCacheHelper;
 import spacex.astrostudy.helper.predict.PlanetSignPredictHelper;
 import spacex.astrostudycn.model.OnlyFourColumns;
 
@@ -24,32 +25,34 @@ public class ChartController {
 	@RequestMapping("/chart")
 	public void chart(){
 		Map<String, Object> params = getParams();
-		int ad = ConvertUtility.getValueAsInt(params.get("ad"), 1);
+		Map<String, Object> keyparams = new HashMap<String, Object>();
+		keyparams.putAll(params);
+		keyparams.remove("gpsLat");
+		keyparams.remove("gpsLon");
+		Object obj = ParamHashCacheHelper.get("/chart", keyparams, (args)->{
+			Map<String, Object> res = AstroHelper.getChart(args);
+			int ad = ConvertUtility.getValueAsInt(args.get("ad"), 1);
+			String zone = ConvertUtility.getValueAsString(args.get("zone"));
+			String lon = ConvertUtility.getValueAsString(args.get("lon"));
+			String lat = ConvertUtility.getValueAsString(args.get("lat"));
+			String dtstr = String.format("%s %s", args.get("date"), args.get("time"));
+			boolean after23NewDay = false;
+			OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay);
+			Map<String, Object> map = bz.getNongli();
+			if(res.containsKey("chart")) {
+				Map<String, Object> chart = (Map<String, Object>) res.get("chart");
+				bz.genLifeMasterDeg(chart);
+				chart.put("nongli", map);
+			}else {
+				res.put("nongli", map);					
+			}
+			
+			PlanetSignPredictHelper.predictPlanetSign(res);
+			return res;
+		});
 		
-		Map<String, Object> res = AstroHelper.getChart(params);
-		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
-		if(reqparams != null) {
-			reqparams.put("gpsLat", TransData.get("gpsLat"));
-			reqparams.put("gpsLon", TransData.get("gpsLon"));	
-		}
-		
-		String zone = TransData.getValueAsString("zone");
-		String lon = TransData.getValueAsString("lon");
-		String lat = TransData.getValueAsString("lat");
-		String dtstr = String.format("%s %s", params.get("date"), params.get("time"));
-		boolean after23NewDay = false;
-		OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay);
-		Map<String, Object> map = bz.getNongli();
-		if(res.containsKey("chart")) {
-			Map<String, Object> chart = (Map<String, Object>) res.get("chart");
-			bz.genLifeMasterDeg(chart);
-			chart.put("nongli", map);
-		}else {
-			res.put("nongli", map);					
-		}
-		
-		PlanetSignPredictHelper.predictPlanetSign(res);
-		
+		Map<String, Object> res = (Map<String, Object>)obj;
+		setupGps(res);
 		TransData.set(res);
 	}
 	
@@ -57,17 +60,28 @@ public class ChartController {
 	@RequestMapping("/chart13")
 	public void chart13(){
 		Map<String, Object> params = getParams();
-		int ad = ConvertUtility.getValueAsInt(params.get("ad"), 1);
+		Map<String, Object> keyparams = new HashMap<String, Object>();
+		keyparams.putAll(params);
+		keyparams.remove("gpsLat");
+		keyparams.remove("gpsLon");
+		Object obj = ParamHashCacheHelper.get("/chart13", keyparams, (args)->{
+			Map<String, Object> res = AstroHelper.getChart13(args);
+			int ad = ConvertUtility.getValueAsInt(args.get("ad"), 1);
+			NongliHelper.fillNongli(res, args, ad);
+			return res;
+		});
 		
-		Map<String, Object> res = AstroHelper.getChart13(params);
+		Map<String, Object> res = (Map<String, Object>)obj;
+		setupGps(res);
+		TransData.set(res);
+	}
+
+	private void setupGps(Map<String, Object> res) {
 		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
 		if(reqparams != null) {
 			reqparams.put("gpsLat", TransData.get("gpsLat"));
-			reqparams.put("gpsLon", TransData.get("gpsLon"));	
+			reqparams.put("gpsLon", TransData.get("gpsLon"));
 		}
-		
-		NongliHelper.fillNongli(res, params, ad);
-		TransData.set(res);
 	}
 	
 	private Map<String, Object> getParams(){
@@ -107,6 +121,8 @@ public class ChartController {
 		params.put("zone", TransData.get("zone"));
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
+		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
+		params.put("_wireRev", "pd_method_sync_v4");
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("tradition", TransData.getValueAsBool("tradition", false));
 		params.put("doubingSu28", TransData.getValueAsBool("doubingSu28", false));
@@ -124,6 +140,12 @@ public class ChartController {
 		}
 		if(TransData.containsParam("pdtype")) {
 			params.put("pdtype", TransData.get("pdtype"));
+		}
+		if(TransData.containsParam("pdMethod")) {
+			params.put("pdMethod", TransData.get("pdMethod"));
+		}
+		if(TransData.containsParam("pdTimeKey")) {
+			params.put("pdTimeKey", TransData.get("pdTimeKey"));
 		}
 		if(TransData.containsParam("zodiacal")) {
 			params.put("zodiacal", TransData.get("zodiacal"));

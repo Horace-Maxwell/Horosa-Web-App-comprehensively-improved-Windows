@@ -20,6 +20,59 @@ let lastErrorToast = {
 	ts: 0,
 };
 
+function getLocalStorageSafe(){
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			return window.localStorage;
+		}
+		if(typeof localStorage !== 'undefined'){
+			return localStorage;
+		}
+	}catch(e){
+		return null;
+	}
+	return null;
+}
+
+function safeGetLocalItem(key, defVal = null){
+	const storage = getLocalStorageSafe();
+	if(!storage){
+		return defVal;
+	}
+	try{
+		const val = storage.getItem(key);
+		return val === undefined || val === null ? defVal : val;
+	}catch(e){
+		return defVal;
+	}
+}
+
+function safeSetLocalItem(key, value){
+	const storage = getLocalStorageSafe();
+	if(!storage){
+		return false;
+	}
+	try{
+		storage.setItem(key, value);
+		return true;
+	}catch(e){
+		return false;
+	}
+}
+
+function safeRemoveLocalItem(key){
+	const storage = getLocalStorageSafe();
+	if(!storage){
+		return false;
+	}
+	try{
+		storage.removeItem(key);
+		return true;
+	}catch(e){
+		return false;
+	}
+}
+
 function safeErrorToast(text, cooldownMs){
 	const msg = (text || '').trim();
 	if(!msg){
@@ -34,6 +87,15 @@ function safeErrorToast(text, cooldownMs){
 		ts: now,
 	};
 	message.error(msg);
+}
+
+function normalizeFetchCacheOption(opts){
+	if(!opts || opts.cache === undefined || opts.cache === null){
+		return;
+	}
+	if(typeof opts.cache === 'boolean'){
+		opts.cache = opts.cache ? 'default' : 'no-store';
+	}
 }
 
 function isNeedLoginLikeValue(val){
@@ -74,7 +136,7 @@ export function innerHandleError(err) {
         const rawCode = err ? err[Constants.ResultCodeKey] : null;
         const needLoginByBody = isNeedLoginLikeValue(rawMsg) || isNeedLoginLikeValue(rawCode);
         if(needLoginByHeader || needLoginByBody){
-            const hasToken = !!localStorage.getItem(Constants.TokenKey);
+            const hasToken = !!safeGetLocalItem(Constants.TokenKey, '');
             const now = new Date().getTime();
             if(hasToken && now - lastNeedLoginTs > 8000){
                 lastNeedLoginTs = now;
@@ -157,7 +219,7 @@ function sign(token, headers, body){
 }
 
 export function signRequest(body){
-    const usrtoken = localStorage.getItem(Constants.TokenKey);
+    const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
     const headers = {
         ClientChannel: Constants.ClientChannel,
         ClientApp: Constants.ClientApp,
@@ -236,6 +298,82 @@ function decrpyt(str, response){
     return str;
 }
 
+function normalizeTimeoutMs(val){
+	if(val === undefined || val === null || val === ''){
+		return null;
+	}
+	const n = Number(val);
+	if(!Number.isFinite(n) || n <= 0){
+		return null;
+	}
+	return Math.max(500, Math.floor(n));
+}
+
+function isTimeoutLikeError(err){
+	if(!err){
+		return false;
+	}
+	if(err.name === 'TimeoutError'){
+		return true;
+	}
+	const msg = `${err.message || ''}`.toLowerCase();
+	if(msg.indexOf('request.timeout') >= 0){
+		return true;
+	}
+	if(err.name === 'AbortError'){
+		return true;
+	}
+	return false;
+}
+
+function buildTimeoutError(){
+	const err = new Error('request.timeout');
+	err[Constants.ResultCodeKey] = 999;
+	err[Constants.ResultMessageKey] = 'request.timeout';
+	err.headers = {};
+	return err;
+}
+
+function fetchWithTimeout(url, opts, timeoutMs){
+	const timeout = normalizeTimeoutMs(timeoutMs);
+	if(!timeout){
+		return fetch(url, opts);
+	}
+	const reqOpts = {
+		...opts,
+	};
+	let controller = null;
+	if(typeof AbortController !== 'undefined'){
+		controller = new AbortController();
+		reqOpts.signal = controller.signal;
+	}
+	return new Promise((resolve, reject)=>{
+		let settled = false;
+		let timer = null;
+		const done = (handler, payload)=>{
+			if(settled){
+				return;
+			}
+			settled = true;
+			if(timer){
+				clearTimeout(timer);
+			}
+			handler(payload);
+		};
+		timer = setTimeout(()=>{
+			if(controller){
+				controller.abort();
+			}
+			const timeoutErr = new Error('request.timeout');
+			timeoutErr.name = 'TimeoutError';
+			done(reject, timeoutErr);
+		}, timeout);
+		fetch(url, reqOpts)
+			.then((resp)=>done(resolve, resp))
+			.catch((err)=>done(reject, err));
+	});
+}
+
 /**
  * Requests a URL, returning a promise.
  *
@@ -269,6 +407,12 @@ export default async function request(url, options) {
         if(opts && opts.disableLoading !== undefined){
             delete opts.disableLoading;
         }
+		let timeoutMs = null;
+		if(opts && opts.timeoutMs !== undefined){
+			timeoutMs = opts.timeoutMs;
+			delete opts.timeoutMs;
+		}
+        normalizeFetchCacheOption(opts);
         let headers = opts.headers;
         if(headers === undefined || headers === null){
             headers = {};
@@ -278,7 +422,7 @@ export default async function request(url, options) {
             opts.method = 'POST'
         }
     
-        const usrtoken = localStorage.getItem(Constants.TokenKey);
+        const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
         opts.headers = {
             ...headers,
             Token: usrtoken ? usrtoken : '', 
@@ -292,7 +436,7 @@ export default async function request(url, options) {
         opts.body = encrypt(opts.body);
     
         const st = new Date().getTime();
-        const response = await fetch(url, opts);
+        const response = await fetchWithTimeout(url, opts, timeoutMs);
         const endt = new Date().getTime();
         const delta = endt - st;
         if(delta > 1000){
@@ -350,15 +494,13 @@ export default async function request(url, options) {
             return data;
         }    
     }catch(e){
-        innerHandleError(e);
-        return {
-            [Constants.ResultKey]: null,
-            [Constants.ResultCodeKey]: e && e[Constants.ResultCodeKey] !== undefined ? e[Constants.ResultCodeKey] : -1,
-            [Constants.ResultMessageKey]: e && e[Constants.ResultMessageKey]
-                ? e[Constants.ResultMessageKey]
-                : (e && e.message ? e.message : 'request failed'),
-            headers: e && e.headers ? e.headers : null,
-        };
+		if(isTimeoutLikeError(e)){
+			if(!silent){
+				innerHandleError(buildTimeoutError());
+			}
+		}else{
+			innerHandleError(e);
+		}
     }finally{
         if(dispatch && !silent){
             dispatch({
@@ -367,7 +509,7 @@ export default async function request(url, options) {
                     loading: false,
                 }
             });  
-            localStorage.setItem('forceChange', '1');
+            safeSetLocalItem('forceChange', '1');
         }
     }
 
@@ -399,6 +541,12 @@ export async function requestRaw(url, options) {
         if(opts && opts.disableLoading !== undefined){
             delete opts.disableLoading;
         }
+		let timeoutMs = null;
+		if(opts && opts.timeoutMs !== undefined){
+			timeoutMs = opts.timeoutMs;
+			delete opts.timeoutMs;
+		}
+        normalizeFetchCacheOption(opts);
         let headers = opts.headers;
         if(headers === undefined || headers === null){
             headers = {};
@@ -408,7 +556,7 @@ export async function requestRaw(url, options) {
             opts.method = 'POST'
         }
     
-        const usrtoken = localStorage.getItem(Constants.TokenKey);
+        const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
         opts.headers = {
             ...headers,
             Token: usrtoken, 
@@ -422,7 +570,7 @@ export async function requestRaw(url, options) {
         opts.body = encrypt(opts.body);
     
         const st = new Date().getTime();
-        const response = await fetch(url, opts);
+        const response = await fetchWithTimeout(url, opts, timeoutMs);
         const endt = new Date().getTime();
         const delta = endt - st;
         if(delta > 1000){
@@ -451,8 +599,13 @@ export async function requestRaw(url, options) {
         }
 
     }catch(e){
-        innerHandleError(e);
-        return null;
+		if(isTimeoutLikeError(e)){
+			if(!silent){
+				innerHandleError(buildTimeoutError());
+			}
+		}else{
+			innerHandleError(e);
+		}
     }finally{
         if(dispatch && !silent){
             dispatch({
@@ -461,7 +614,7 @@ export async function requestRaw(url, options) {
                     loading: false,
                 }
             });  
-            localStorage.setItem('forceChange', '1');
+            safeSetLocalItem('forceChange', '1');
         }
     }
 
@@ -524,7 +677,7 @@ export function downloadUrl(url, options, ignoreTM){
             opts.method = 'POST'
         }
     
-        const usrtoken = localStorage.getItem(Constants.TokenKey);
+        const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
         opts.headers = {
             ...headers,
             Token: usrtoken, 
@@ -567,7 +720,7 @@ export function encodeUrl(url, params, notimestamp){
             });
         }
     
-        const usrtoken = localStorage.getItem(Constants.TokenKey);
+        const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
         let opts = {
             headers: {
                 Token: usrtoken, 

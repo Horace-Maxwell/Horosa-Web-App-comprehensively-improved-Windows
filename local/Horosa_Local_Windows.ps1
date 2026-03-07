@@ -176,9 +176,12 @@ $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
 $PythonBin = $null
 $JavaBin = $null
 $JarSource = if (Test-Path $JarPath) { 'project' } else { 'missing' }
-$WebPort = if ($env:HOROSA_WEB_PORT) { [int]$env:HOROSA_WEB_PORT } else { 8000 }
-$BackendPort = 9999
-$ChartPort = 8899
+$DefaultWebPort = 8000
+$DefaultBackendPort = 9999
+$DefaultChartPort = 8899
+$WebPort = $DefaultWebPort
+$BackendPort = $DefaultBackendPort
+$ChartPort = $DefaultChartPort
 $PerfMode = $env:HOROSA_PERF_MODE -ne '0'
 $UserHomeDir = if (-not [string]::IsNullOrWhiteSpace($env:HOME)) {
   $env:HOME
@@ -198,6 +201,33 @@ if ($env:HOROSA_KEEP_BROWSER_PROFILE -ne '1') {
   }
 }
 New-Item -ItemType Directory -Force -Path $BrowserProfile | Out-Null
+
+function Get-EnvPortOrDefault {
+  param(
+    [string]$EnvName,
+    [int]$DefaultPort
+  )
+
+  $raw = [System.Environment]::GetEnvironmentVariable($EnvName, 'Process')
+  if ([string]::IsNullOrWhiteSpace($raw)) {
+    return $DefaultPort
+  }
+
+  $parsed = 0
+  if ([int]::TryParse($raw, [ref]$parsed) -and $parsed -ge 1 -and $parsed -le 65535) {
+    return $parsed
+  }
+
+  Write-Host ("[WARN] Ignore invalid {0}: {1}" -f $EnvName, $raw)
+  return $DefaultPort
+}
+
+$DefaultWebPort = Get-EnvPortOrDefault -EnvName 'HOROSA_WEB_PORT' -DefaultPort $DefaultWebPort
+$DefaultBackendPort = Get-EnvPortOrDefault -EnvName 'HOROSA_SERVER_PORT' -DefaultPort $DefaultBackendPort
+$DefaultChartPort = Get-EnvPortOrDefault -EnvName 'HOROSA_CHART_PORT' -DefaultPort $DefaultChartPort
+$WebPort = $DefaultWebPort
+$BackendPort = $DefaultBackendPort
+$ChartPort = $DefaultChartPort
 
 function Test-PortOpen {
   param([int]$Port)
@@ -228,6 +258,161 @@ function Wait-PortFree {
     $elapsed += 200
   }
   return (-not (Test-PortOpen -Port $Port))
+}
+
+function Get-ListeningOwningProcesses {
+  param([int]$Port)
+
+  try {
+    return @(
+      Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+    )
+  } catch {
+    return @()
+  }
+}
+
+function Get-ProcessCommandLine {
+  param([int]$ProcessId)
+
+  try {
+    $proc = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f $ProcessId) -ErrorAction Stop
+    return [string]$proc.CommandLine
+  } catch {
+    try {
+      $proc = Get-Process -Id $ProcessId -ErrorAction Stop
+      return [string]$proc.Path
+    } catch {
+      return $null
+    }
+  }
+}
+
+function Test-ProcessOwnedByProject {
+  param([int]$ProcessId)
+
+  $cmdline = Get-ProcessCommandLine -ProcessId $ProcessId
+  if ([string]::IsNullOrWhiteSpace($cmdline)) {
+    return $false
+  }
+
+  $markers = @(
+    (Join-Path $ProjectDir 'astropy\websrv\webchartsrv.py'),
+    $JarPath,
+    $DistDir,
+    (Join-Path $ProjectDir 'astrostudyui\dist-file'),
+    (Join-Path $ProjectDir 'astrostudyui\dist')
+  ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+  foreach ($marker in $markers) {
+    if ($cmdline.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Test-PortOwnedByProject {
+  param([int]$Port)
+
+  foreach ($ownerPid in (Get-ListeningOwningProcesses -Port $Port)) {
+    if (-not $ownerPid) { continue }
+    if (Test-ProcessOwnedByProject -ProcessId $ownerPid) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Stop-ProjectPortOwners {
+  param([string]$Name, [int]$Port)
+
+  $ownerPids = Get-ListeningOwningProcesses -Port $Port
+  foreach ($ownerPid in $ownerPids) {
+    if (-not $ownerPid) { continue }
+    if ($ownerPid -eq $PID) { continue }
+    if (-not (Test-ProcessOwnedByProject -ProcessId $ownerPid)) {
+      continue
+    }
+    try {
+      Stop-Process -Id $ownerPid -Force -ErrorAction Stop
+      Write-Host ("{0} freed port {1} by stopping project pid {2}" -f $Name, $Port, $ownerPid)
+    } catch {
+      Write-Host ("{0} could not stop project pid {1} on port {2}" -f $Name, $ownerPid, $Port)
+    }
+  }
+
+  if (-not (Wait-PortFree -Port $Port -TimeoutMs 6000)) {
+    Write-Host ("{0} port {1} is still occupied after project cleanup attempts" -f $Name, $Port)
+  }
+}
+
+function Resolve-PortLayout {
+  param(
+    [int]$PreferredWebPort,
+    [int]$PreferredChartPort,
+    [int]$PreferredBackendPort
+  )
+
+  $chartOffset = $PreferredChartPort - $PreferredWebPort
+  $backendOffset = $PreferredBackendPort - $PreferredWebPort
+  $candidateWeb = $PreferredWebPort
+  $fallbackWeb = if ($PreferredWebPort -lt 18000) { 18000 } else { $PreferredWebPort + 1 }
+  $maxAttempts = 4000
+
+  for ($attempt = 0; $attempt -lt $maxAttempts; $attempt++) {
+    $candidateChart = $candidateWeb + $chartOffset
+    $candidateBackend = $candidateWeb + $backendOffset
+    if ($candidateWeb -gt 65535 -or $candidateChart -gt 65535 -or $candidateBackend -gt 65535) {
+      break
+    }
+
+    $occupiedByForeign = $false
+    $candidatePorts = @($candidateWeb, $candidateChart, $candidateBackend)
+
+    foreach ($port in $candidatePorts) {
+      if (-not (Test-PortOpen -Port $port)) {
+        continue
+      }
+
+      if (Test-PortOwnedByProject -Port $port) {
+        Stop-ProjectPortOwners -Name 'cleanup' -Port $port
+        if (-not (Wait-PortFree -Port $port -TimeoutMs 6000)) {
+          $occupiedByForeign = $true
+          break
+        }
+        continue
+      }
+
+      $occupiedByForeign = $true
+      break
+    }
+
+    if (-not $occupiedByForeign) {
+      $usedAlt = (
+        $candidateWeb -ne $PreferredWebPort -or
+        $candidateChart -ne $PreferredChartPort -or
+        $candidateBackend -ne $PreferredBackendPort
+      )
+      return [pscustomobject]@{
+        WebPort = $candidateWeb
+        ChartPort = $candidateChart
+        BackendPort = $candidateBackend
+        UsedAlternatePorts = $usedAlt
+      }
+    }
+
+    if ($attempt -eq 0) {
+      $candidateWeb = $fallbackWeb
+    } else {
+      $candidateWeb++
+    }
+  }
+
+  throw "Unable to find an available port layout starting from web=$PreferredWebPort chart=$PreferredChartPort backend=$PreferredBackendPort"
 }
 
 function Get-PidFromFile {
@@ -288,9 +473,9 @@ function Cleanup-All {
   Stop-PidFile -Name 'web' -Path $WebPidFile
   Stop-PidFile -Name 'java' -Path $JavaPidFile
   Stop-PidFile -Name 'python' -Path $PyPidFile
-  Stop-PortOwners -Name 'web' -Port $WebPort
-  Stop-PortOwners -Name 'java' -Port $BackendPort
-  Stop-PortOwners -Name 'python' -Port $ChartPort
+  Stop-ProjectPortOwners -Name 'web' -Port $WebPort
+  Stop-ProjectPortOwners -Name 'java' -Port $BackendPort
+  Stop-ProjectPortOwners -Name 'python' -Port $ChartPort
 }
 
 function Start-Background {
@@ -1796,6 +1981,7 @@ function Show-PreflightRuntimeSummary {
   Write-Host ("  java version: {0}" -f $javaVersion)
   Write-Host ("  backend jar source: {0}" -f $script:JarSource)
   Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
+  Write-Host ("  ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
 }
 
 if (-not (Test-Path $ProjectDir)) {
@@ -1970,6 +2156,25 @@ if (-not $JavaBin) {
   }
 }
 
+try {
+  $portLayout = Resolve-PortLayout -PreferredWebPort $DefaultWebPort -PreferredChartPort $DefaultChartPort -PreferredBackendPort $DefaultBackendPort
+  $WebPort = $portLayout.WebPort
+  $ChartPort = $portLayout.ChartPort
+  $BackendPort = $portLayout.BackendPort
+  if ($portLayout.UsedAlternatePorts) {
+    Write-Host ("[INFO] Default ports are occupied by another app/copy. Auto-switched to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  }
+} catch {
+  Write-Host ("Port layout resolution failed: {0}" -f $_.Exception.Message)
+  Read-Host 'Press Enter to exit'
+  exit 1
+}
+
+$env:HOROSA_WEB_PORT = [string]$WebPort
+$env:HOROSA_CHART_PORT = [string]$ChartPort
+$env:HOROSA_SERVER_PORT = [string]$BackendPort
+$env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
+
 Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin
 Write-Host ("Using Python: {0}" -f $PythonBin)
 Write-Host ("Using Java: {0}" -f $JavaBin)
@@ -2029,6 +2234,7 @@ try {
     "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs",
     '-jar',
     (Quote-Arg $JarPath),
+    "--server.port=$BackendPort",
     "--astrosrv=http://127.0.0.1:$ChartPort",
     '--mongodb.ip=127.0.0.1',
     '--mongodb.host=127.0.0.1',
@@ -2107,7 +2313,10 @@ try {
     throw "Web service failed to start. Check log: $WebLog"
   }
 
-  $url = "http://127.0.0.1:$WebPort/index.html"
+  $serverRoot = "http://127.0.0.1:$BackendPort"
+  $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
+  $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+  $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&v=$cacheBust"
 
   Write-Host '[3/4] Opening browser...'
   if ($env:HOROSA_NO_BROWSER -eq '1') {

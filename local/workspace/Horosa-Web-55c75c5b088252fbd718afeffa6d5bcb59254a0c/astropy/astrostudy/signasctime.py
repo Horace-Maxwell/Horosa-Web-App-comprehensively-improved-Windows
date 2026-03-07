@@ -1,3 +1,5 @@
+import math
+from datetime import datetime, timedelta, timezone
 
 from flatlib.datetime import Datetime
 from flatlib import const
@@ -182,11 +184,82 @@ class SignAscTime:
         self.ascSign = ascSign
         self.lat = lat
         self.zone = zone
+        self._birth_local = self._build_local_birth_datetime(birthday, birthtime, zone)
+
+    def _parse_offset_tz(self, zone):
+        if isinstance(zone, (int, float)):
+            return timezone(timedelta(hours=float(zone)))
+
+        txt = '{0}'.format(zone if zone is not None else '').strip()
+        if txt in ['', 'UTC', 'utc', 'Z', 'z']:
+            return timezone.utc
+
+        sign = 1
+        if txt[0] == '-':
+            sign = -1
+        txt = txt[1:] if txt[0] in ['+', '-'] else txt
+        parts = txt.split(':')
+        hour = int(parts[0]) if len(parts) > 0 and parts[0] != '' else 0
+        minute = int(parts[1]) if len(parts) > 1 and parts[1] != '' else 0
+        delta = timedelta(hours=hour, minutes=minute)
+        return timezone(sign * delta)
+
+    def _build_local_birth_datetime(self, birthday, birthtime, zone):
+        parts = birthday.split('/')
+        if len(parts) == 1:
+            parts = birthday.split('-')
+        if len(parts) != 3:
+            return None
+
+        year = int(parts[0])
+        month = int(parts[1])
+        day = int(parts[2])
+        if year <= 0 or year > 9999:
+            return None
+
+        if isinstance(birthtime, (int, float)):
+            total_seconds = int(round(float(birthtime) * 3600.0))
+            hour = (total_seconds // 3600) % 24
+            minute = (total_seconds % 3600) // 60
+            second = total_seconds % 60
+        else:
+            tm = '{0}'.format(birthtime if birthtime is not None else '00:00:00').split('.')[0]
+            tparts = tm.split(':')
+            hour = int(tparts[0]) if len(tparts) > 0 and tparts[0] != '' else 0
+            minute = int(tparts[1]) if len(tparts) > 1 and tparts[1] != '' else 0
+            second = int(tparts[2]) if len(tparts) > 2 and tparts[2] != '' else 0
+        return datetime(year, month, day, hour, minute, second, tzinfo=self._parse_offset_tz(zone))
+
+    def _add_years_safe(self, dt, years):
+        try:
+            return dt.replace(year=dt.year + years)
+        except ValueError:
+            # Feb 29 fallback for non-leap years.
+            return dt.replace(month=2, day=28, year=dt.year + years)
+
+    def getJDFromPDArc(self, arc):
+        # AstroApp is closer to symbolic-year interpolation than a tropical-year
+        # constant: split the age by whole years, move to the local anniversary,
+        # then interpolate across the next anniversary span.
+        magnitude = abs(float(arc))
+        if self._birth_local is None or not math.isfinite(magnitude):
+            return self.birth.jd + magnitude * 365.2421904
+
+        years = int(math.floor(magnitude + 1e-12))
+        fraction = magnitude - years
+
+        birth_utc = self._birth_local.astimezone(timezone.utc)
+        current_local = self._add_years_safe(self._birth_local, years)
+        next_local = self._add_years_safe(self._birth_local, years + 1)
+
+        whole_days = (current_local.astimezone(timezone.utc) - birth_utc).total_seconds() / 86400.0
+        span_days = (next_local.astimezone(timezone.utc) - current_local.astimezone(timezone.utc)).total_seconds() / 86400.0
+        return self.birth.jd + whole_days + fraction * span_days
 
     def getDateFromPDArc(self, arc):
-        days = arc / ((59+8/60)/60) * 365.2421904
-        jd = self.birth.jd + days
-        dt = Datetime.fromJD(jd, self.zone)
+        jd = self.getJDFromPDArc(arc)
+        # AstroApp dirs.csv exports dirDate in UTC-like display, not local chart time.
+        dt = Datetime.fromJD(jd, 0)
         return dt.toCNString()
 
 

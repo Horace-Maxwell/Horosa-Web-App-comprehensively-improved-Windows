@@ -15,7 +15,60 @@ const isLocalHost =
 		window.location.hostname === '127.0.0.1'
 	);
 
-export const ServerRoot = isLocalHost ? 'http://127.0.0.1:9999' : 'https://srv.horosa.com';
+function resolveLocalServerRoot(){
+	if(typeof window === 'undefined'){
+		return 'http://127.0.0.1:9999';
+	}
+	const storageKey = 'horosaLocalServerRoot';
+	const deriveFromPagePort = () => {
+		try{
+			const portTxt = `${window.location.port || ''}`.trim();
+			if(!/^\d+$/.test(portTxt)){
+				return null;
+			}
+			const webPort = parseInt(portTxt, 10);
+			if(!(webPort > 0)){
+				return null;
+			}
+			const backendPort = webPort + 1999;
+			if(!(backendPort > 0)){
+				return null;
+			}
+			return `http://127.0.0.1:${backendPort}`;
+		}catch(e){
+			return null;
+		}
+	};
+	let serverRoot = null;
+	try{
+		const params = new URLSearchParams(window.location.search || '');
+		const fromQuery = params.get('srv');
+		if(fromQuery && /^https?:\/\/.+/i.test(fromQuery)){
+			serverRoot = fromQuery;
+			window.localStorage && window.localStorage.setItem(storageKey, serverRoot);
+		}
+	}catch(e){}
+	if(!serverRoot){
+		const fromPage = deriveFromPagePort();
+		if(fromPage){
+			serverRoot = fromPage;
+			try{
+				window.localStorage && window.localStorage.setItem(storageKey, serverRoot);
+			}catch(e){}
+		}
+	}
+	if(!serverRoot){
+		try{
+			const fromStorage = window.localStorage && window.localStorage.getItem(storageKey);
+			if(fromStorage && /^https?:\/\/.+/i.test(fromStorage)){
+				serverRoot = fromStorage;
+			}
+		}catch(e){}
+	}
+	return serverRoot || 'http://127.0.0.1:9999';
+}
+
+export const ServerRoot = isLocalHost ? resolveLocalServerRoot() : 'https://srv.horosa.com';
 export const MobileServer = 'https://mobileweb.horosa.com';
 export const Chart3DServer = 'https://chart3d.horosa.com';
 export const WebSockServer = 'ws://www.horosa.com:26900/ws';

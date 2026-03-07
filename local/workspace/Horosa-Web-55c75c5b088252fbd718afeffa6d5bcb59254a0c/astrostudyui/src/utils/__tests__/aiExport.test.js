@@ -177,6 +177,104 @@ describe('aiExport utilities', ()=>{
 		}
 	});
 
+	test('store fallback overrides stale DOM tab context from hidden panes', ()=>{
+		document.body.innerHTML = `
+			<div id="mainContent">
+				<div class="ant-tabs ant-tabs-left">
+					<div class="ant-tabs-nav">
+						<div class="ant-tabs-tab ant-tabs-tab-active">量化盘</div>
+						<div class="ant-tabs-tab">关系盘</div>
+						<div class="ant-tabs-tab">节气盘</div>
+						<div class="ant-tabs-tab">易与三式</div>
+					</div>
+					<div class="ant-tabs-content-holder">
+						<div class="ant-tabs-content">
+							<div class="ant-tabs-tabpane ant-tabs-tabpane-active">
+								<div class="ant-tabs">
+									<div class="ant-tabs-nav">
+										<div class="ant-tabs-tab ant-tabs-tab-active">行星中点</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'relativechart',
+				currentSubTab: '',
+			},
+		});
+		expect(getCurrentAIExportContext()).toEqual({
+			key: 'relative',
+			displayName: '关系盘',
+		});
+
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'jieqichart',
+				currentSubTab: '',
+			},
+		});
+		expect(getCurrentAIExportContext()).toEqual({
+			key: 'jieqi_meta',
+			displayName: '节气盘',
+		});
+
+		document.body.innerHTML = `
+			<div id="mainContent">
+				<div class="ant-tabs ant-tabs-left">
+					<div class="ant-tabs-nav">
+						<div class="ant-tabs-tab">量化盘</div>
+						<div class="ant-tabs-tab ant-tabs-tab-active">易与三式</div>
+					</div>
+					<div class="ant-tabs-content-holder">
+						<div class="ant-tabs-content">
+							<div class="ant-tabs-tabpane ant-tabs-tabpane-active">
+								<div class="ant-tabs">
+									<div class="ant-tabs-nav">
+										<div class="ant-tabs-tab ant-tabs-tab-active">宿盘</div>
+										<div class="ant-tabs-tab">易卦</div>
+										<div class="ant-tabs-tab">六壬</div>
+										<div class="ant-tabs-tab">金口诀</div>
+										<div class="ant-tabs-tab">遁甲</div>
+										<div class="ant-tabs-tab">太乙</div>
+										<div class="ant-tabs-tab">统摄法</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'cnyibu',
+				currentSubTab: 'dunjia',
+			},
+		});
+		expect(getCurrentAIExportContext()).toEqual({
+			key: 'qimen',
+			displayName: '奇门遁甲',
+		});
+
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'cnyibu',
+				currentSubTab: 'liureng',
+			},
+		});
+		expect(getCurrentAIExportContext()).toEqual({
+			key: 'liureng',
+			displayName: '大六壬',
+		});
+	});
+
 	test('runAIExport(copy) copies normalized payload text', async ()=>{
 		const result = await runAIExport('copy');
 		expect(result.ok).toBe(true);

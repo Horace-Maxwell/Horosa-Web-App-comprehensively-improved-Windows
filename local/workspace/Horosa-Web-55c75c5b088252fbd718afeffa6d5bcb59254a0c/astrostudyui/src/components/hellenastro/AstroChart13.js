@@ -57,6 +57,24 @@ function fieldsToParams(fields){
 	return params;
 }
 
+const chart13Cache = new Map();
+
+async function fetchChart13Cached(params){
+	const key = JSON.stringify(params || {});
+	if(chart13Cache.has(key)){
+		return chart13Cache.get(key);
+	}
+	const pending = request(`${Constants.ServerRoot}/chart13`, {
+		body: JSON.stringify(params),
+	}).then((data)=>data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null)
+		.catch((err)=>{
+			chart13Cache.delete(key);
+			throw err;
+		});
+	chart13Cache.set(key, pending);
+	return pending;
+}
+
 class AstroChart13 extends Component{
 	constructor(props) {
 		super(props);
@@ -86,10 +104,7 @@ class AstroChart13 extends Component{
 		if(!params){
 			return;
 		}
-		const data = await request(`${Constants.ServerRoot}/chart13`, {
-			body: JSON.stringify(params),
-		});
-		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		const result = await fetchChart13Cached(params);
 
 		const st = {
 			chartObj: result,

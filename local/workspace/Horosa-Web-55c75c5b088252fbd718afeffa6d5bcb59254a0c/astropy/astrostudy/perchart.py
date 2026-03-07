@@ -157,6 +157,8 @@ class PerChart:
         self.virtualPointReceiveAsp = False
         self.simpleAsp = False
         self.pdtype = 0
+        self.pdMethod = 'astroapp_alchabitius'
+        self.pdTimeKey = 'Ptolemy'
 
         self.isBC = False
         if 'ad' in data.keys():
@@ -195,6 +197,12 @@ class PerChart:
 
         if 'pdtype' in data.keys():
             self.pdtype = data['pdtype']
+
+        if 'pdMethod' in data.keys():
+            self.pdMethod = data['pdMethod']
+
+        if 'pdTimeKey' in data.keys():
+            self.pdTimeKey = data['pdTimeKey']
 
         self.zodiacal = const.TROPICAL
         if 'zodiacal' in data.keys():

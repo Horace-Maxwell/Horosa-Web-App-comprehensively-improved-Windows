@@ -12,6 +12,7 @@ import boundless.exception.ErrorCodeException;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.JsonUtility;
 import spacex.astrostudy.helper.AstroHelper;
+import spacex.astrostudy.helper.ParamHashCacheHelper;
 
 @Controller
 @RequestMapping("/india")
@@ -21,8 +22,16 @@ public class IndiaChartController {
 	@RequestMapping("/chart")
 	public void chart(){
 		Map<String, Object> params = getParams();
-		
-		Map<String, Object> res = AstroHelper.getIndiaChart(params);
+		Map<String, Object> keyparams = new HashMap<String, Object>();
+		keyparams.putAll(params);
+		keyparams.remove("gpsLat");
+		keyparams.remove("gpsLon");
+		Object obj = ParamHashCacheHelper.get("/india/chart", keyparams, (args)->{
+			Map<String, Object> res = AstroHelper.getIndiaChart(args);
+			return res;
+		});
+
+		Map<String, Object> res = (Map<String, Object>)obj;
 		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
 		if(reqparams != null) {
 			reqparams.put("gpsLat", TransData.get("gpsLat"));
@@ -69,6 +78,8 @@ public class IndiaChartController {
 		params.put("zone", TransData.get("zone"));
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
+		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
+		params.put("_wireRev", "pd_method_sync_v4");
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("tradition", TransData.getValueAsBool("tradition", false));
 		params.put("strongRecption", TransData.getValueAsBool("strongRecption", false));
@@ -87,6 +98,12 @@ public class IndiaChartController {
 		}
 		if(TransData.containsParam("pdtype")) {
 			params.put("pdtype", TransData.get("pdtype"));
+		}
+		if(TransData.containsParam("pdMethod")) {
+			params.put("pdMethod", TransData.get("pdMethod"));
+		}
+		if(TransData.containsParam("pdTimeKey")) {
+			params.put("pdTimeKey", TransData.get("pdTimeKey"));
 		}
 		if(TransData.containsParam("gpsLat")) {
 			params.put("gpsLat", TransData.get("gpsLat"));

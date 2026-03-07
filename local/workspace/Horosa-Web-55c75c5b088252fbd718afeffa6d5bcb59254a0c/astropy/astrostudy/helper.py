@@ -4,6 +4,8 @@ from flatlib import const
 
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 
+PD_SYNC_REV = 'pd_method_sync_v4'
+
 
 def getChartDate(date):
     parts = date.split('/')
@@ -137,6 +139,11 @@ def getChartObj(data, perchart):
             'tradition': perchart.tradition,
             'zodiacal': perchart.zodiacal,
             'doubingSu28': perchart.isDoubingSu28,
+            'showPdBounds': data.get('showPdBounds', 1),
+            'pdtype': perchart.pdtype,
+            'pdMethod': perchart.pdMethod,
+            'pdTimeKey': perchart.pdTimeKey,
+            'pdSyncRev': PD_SYNC_REV,
         },
         'chart': perchart.getChartObj(),
         'receptions': perchart.getReceptions(),
@@ -260,5 +267,3 @@ def getSignLon(sign):
     idx = const.LIST_SIGNS.index(sign)
     lon = idx * 30
     return lon
-
-

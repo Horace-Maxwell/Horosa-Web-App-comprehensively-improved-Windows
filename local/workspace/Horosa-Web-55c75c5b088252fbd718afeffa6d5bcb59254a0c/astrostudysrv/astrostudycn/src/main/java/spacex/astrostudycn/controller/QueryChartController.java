@@ -61,8 +61,18 @@ public class QueryChartController {
 		String[] parts = StringUtility.splitString(birth, ' ');
 		chart.put("date", parts[0]);
 		chart.put("time", parts[1]);
+		chart.put("_wireRev", "pd_method_sync_v4");
 		chart.put("hsys", TransData.getValueAsInt("hsys", 0));
 		chart.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		if(TransData.containsParam("pdtype")) {
+			chart.put("pdtype", TransData.get("pdtype"));
+		}
+		if(TransData.containsParam("pdMethod")) {
+			chart.put("pdMethod", TransData.get("pdMethod"));
+		}
+		if(TransData.containsParam("pdTimeKey")) {
+			chart.put("pdTimeKey", TransData.get("pdTimeKey"));
+		}
 		return chart;
 	}
 	

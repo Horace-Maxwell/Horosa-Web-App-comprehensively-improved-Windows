@@ -25,15 +25,10 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
     if os.path.isdir(os.path.join(_cand, "flatlib")) and _cand not in sys.path:
         sys.path.insert(0, _cand)
 
-_SWEPH_DEFAULT_DIR = os.path.join(_PROJ_ROOT, "flatlib-ctrad2", "flatlib", "resources", "swefiles")
-if os.path.isdir(_SWEPH_DEFAULT_DIR):
-    os.environ.setdefault("HOROSA_SWEPH_PATH", _SWEPH_DEFAULT_DIR)
-    os.environ.setdefault("SE_EPHE_PATH", _SWEPH_DEFAULT_DIR)
-
 from astrostudy.perchart import PerChart
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart
-from websrv.helper import enable_crossdomain, build_param_error_response
+from websrv.helper import enable_crossdomain
 from websrv.webpredictsrv import PredictSrv
 from websrv.webindiasrv import IndiaAstroSrv
 from websrv.webmodernsrv import ModernAstroSrv
@@ -47,6 +42,7 @@ from websrv.webacgsrv import AcgSrv
 
 class WebChartSrv:
     exposed = True
+    PD_SYNC_REV = 'pd_method_sync_v4'
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -71,6 +67,11 @@ class WebChartSrv:
                     'tradition': perchart.tradition,
                     'zodiacal': perchart.zodiacal,
                     'doubingSu28': perchart.isDoubingSu28,
+                    'showPdBounds': data.get('showPdBounds', 1),
+                    'pdtype': perchart.pdtype,
+                    'pdMethod': perchart.pdMethod,
+                    'pdTimeKey': perchart.pdTimeKey,
+                    'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),
                 'receptions': perchart.getReceptions(),
@@ -102,9 +103,12 @@ class WebChartSrv:
 
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -131,7 +135,12 @@ class WebChartSrv:
                     'hsys': data['hsys'],
                     'zone': data['zone'],
                     'tradition': perchart.tradition,
-                    'zodiacal': perchart.zodiacal
+                    'zodiacal': perchart.zodiacal,
+                    'showPdBounds': data.get('showPdBounds', 1),
+                    'pdtype': perchart.pdtype,
+                    'pdMethod': perchart.pdMethod,
+                    'pdTimeKey': perchart.pdTimeKey,
+                    'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),
                 'receptions': perchart.getReceptions(),
@@ -163,9 +172,12 @@ class WebChartSrv:
 
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
 
 def CORS():
@@ -182,8 +194,9 @@ def CORS():
 
 
 if __name__ == '__main__':
+    chart_port = int(os.environ.get('HOROSA_CHART_PORT', '8899'))
     cherrypy.config.update({'server.socket_host': '127.0.0.1',
-                            'server.socket_port': 8899,
+                            'server.socket_port': chart_port,
                             'server.thread_pool': 30,
                             })
 

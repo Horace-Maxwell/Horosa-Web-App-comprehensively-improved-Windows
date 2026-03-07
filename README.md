@@ -1,126 +1,41 @@
-# Horosa Windows 本地部署（GitHub 克隆后一键启动）
+# Horosa Windows 使用说明
 
-本仓库已按根目录极简结构整理。默认目标：克隆后在任意 Windows 机器上可直接通过命令一键启动。
+普通用户只需要记住一件事：
 
-## 根目录结构
+- 只双击根目录里的 `START_HERE.bat`
 
-仅保留以下四个可见入口（另有 `.git*` 隐藏文件）：
+这份包已经带好了运行 Horosa 需要的内容。正常使用时，不需要你自己先装 Python、Java、Node 或别的软件。
 
-- `README.md`
-- `log/`
-- `local/`
-- `prepareruntime/`
+## 只做这 3 步
 
-其中：
+1. 双击 `START_HERE.bat`
+2. 等浏览器自己打开 Horosa 页面后再开始使用
+3. 用完先关浏览器，再关启动窗口
 
-- 启动入口在 `local/`：
-  - `local/Horosa_Local_Windows.bat`
-  - `local/Horosa_Local_Windows.ps1`
-- 运行时与源码统一在 `local/workspace/`
-- 打包入口在 `prepareruntime/`：
-  - `prepareruntime/Prepare_Runtime_Windows.bat`
-  - `prepareruntime/Prepare_Runtime_Windows.ps1`
+## 不要乱点
 
-## 一键下载 + 启动
+- 根目录现在只保留了一个给用户点的脚本：`START_HERE.bat`
+- 其他脚本已经收进子目录，普通用户不要去点 `local/`、`prepareruntime/` 里面的脚本
+- 第一次启动可能稍慢，等它自己跑完，不要连续双击很多次
+- `local`、`runtime`、`prepareruntime` 这些文件夹不要删、不要拆开、不要单独移动
+- 如果 Windows 弹确认，就选“允许”或“仍要运行”
 
-```powershell
-git clone <你的仓库地址>
-cd Horosa-Web-App-comprehensively-improved-Windows-main
-cmd /c .\local\Horosa_Local_Windows.bat
-```
+## 如果没打开成功
 
-等价 PowerShell 启动：
+1. 先把已经开的浏览器和启动窗口全部关掉
+2. 回到根目录，再双击一次 `START_HERE.bat`
+3. 如果还不行，就打开 `log/HOROSA_RUN_ISSUES.md`
+4. 还需要更详细说明时，再看 `docs/` 里的文档
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\local\Horosa_Local_Windows.ps1
-```
+## 你可能会用到的说明文件
 
-## 一键准备运行时（构建机）
+- `docs/给完全不会的人看的启动说明.txt`：只有 3 步的超简版说明
+- `docs/SELFCHECK_LOG.md`：最近一次自检记录
+- `docs/PROJECT_STRUCTURE.md`：目录用途说明
+- `log/HOROSA_RUN_ISSUES.md`：启动失败时先看的问题说明
 
-用于把当前机器上的运行时、jar、前端构建产物整理到 `local/workspace/runtime/windows/bundle`：
+## 给维护人的一句话
 
-```powershell
-cmd /c .\prepareruntime\Prepare_Runtime_Windows.bat
-```
-
-或：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\prepareruntime\Prepare_Runtime_Windows.ps1
-```
-
-## 脚本能力（当前版）
-
-- 自动识别项目目录（在 `local/workspace` 下寻找包含 `astrostudyui + astrostudysrv + astropy` 的目录）
-- Python 解析链路：
-  - `local/workspace/runtime/windows/python`
-  - `HOROSA_PYTHON`
-  - 系统 Python 3.11/3.12
-  - `winget` 安装 3.11
-  - 便携下载
-- Java 解析链路：
-  - `local/workspace/runtime/windows/java`
-  - `HOROSA_JAVA` / `JAVA_HOME` / PATH
-  - `winget`
-  - 便携下载
-- 缺失 jar / dist 时会优先从 `local/workspace/runtime/windows/bundle` 回填
-- 缺失 jar 时支持 URL 轮询下载并可回退 Maven 本地构建
-
-## 可选环境变量
-
-- `HOROSA_WORKSPACE_DIR`：自定义 workspace 路径（默认自动识别 `local/workspace`）
-- `HOROSA_PROJECT_DIR`：指定项目目录（可相对 workspace）
-- `HOROSA_JDK17_URL`：JDK 17 下载地址
-- `HOROSA_PYTHON_URL`：Python 3.11 便携下载地址
-- `HOROSA_BOOT_JAR_URL`：后端 jar 下载地址
-- `HOROSA_WEB_PORT`：前端静态服务端口（默认 8000）
-- `HOROSA_NO_BROWSER=1`：不自动打开浏览器（适合 CI/烟测）
-- `HOROSA_SMOKE_TEST=1`：启用启动后自动探活/快速退出流程
-
-## 自检（发布前建议）
-
-### 1) 语法检查
-
-```powershell
-$null=[System.Management.Automation.Language.Parser]::ParseFile('local/Horosa_Local_Windows.ps1',[ref]$null,[ref]$null)
-$null=[System.Management.Automation.Language.Parser]::ParseFile('prepareruntime/Prepare_Runtime_Windows.ps1',[ref]$null,[ref]$null)
-'PS_PARSE_OK'
-```
-
-### 2) 运行时打包检查
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\prepareruntime\Prepare_Runtime_Windows.ps1
-```
-
-返回码应为 `0`。
-
-### 3) 双入口烟测（无浏览器）
-
-```powershell
-$env:HOROSA_NO_BROWSER='1'
-$env:HOROSA_SMOKE_TEST='1'
-$env:HOROSA_SMOKE_WAIT_SECONDS='2'
-powershell -ExecutionPolicy Bypass -File .\local\Horosa_Local_Windows.ps1
-
-$env:HOROSA_NO_BROWSER='1'
-$env:HOROSA_SMOKE_TEST='1'
-$env:HOROSA_SMOKE_WAIT_SECONDS='2'
-cmd /c .\local\Horosa_Local_Windows.bat
-```
-
-两条都应完成且无未处理异常。
-
-## 日志与问题定位
-
-- 运行汇总：`log/HOROSA_RUN_ISSUES.md`
-- 进程日志：`<项目目录>/.horosa-local-logs-win/<时间戳>/`
-  - `astropy.log(.err)`
-  - `astrostudyboot.log(.err)`
-  - `web.log(.err)`
-
-## 常见问题
-
-- `UnsupportedClassVersionError`：Java 版本低于 17
-- `No module named swisseph/cherrypy/jsonpickle`：让启动脚本自动补依赖，或先执行一次 `prepareruntime` 打包
-- 端口 `8899/9999` 被占用：关闭冲突进程后重试
+- 真正的项目、运行环境和打包内容都在 `local/` 里
+- 打包脚本在 `prepareruntime/` 里
+- ??????????????????????????????????

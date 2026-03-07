@@ -9,7 +9,7 @@
   background: transparent;
   padding: 4px 6px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 148px;
+  grid-template-columns: minmax(0, 1fr) 80px;
   gap: 6px;
 }
 
@@ -27,12 +27,16 @@
 
 .dateRow {
   display: grid;
-  grid-template-columns: 54px 1fr;
+  grid-template-columns: 50px 1fr;
   min-height: 31px;
 }
 
 .dateRow + .dateRow {
   border-top: 1px solid #d7d7d7;
+}
+
+.dateRowCompact {
+  min-height: 38px;
 }
 
 .dateLabel {
@@ -48,11 +52,45 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 9px;
-  font-size: 15px;
+  padding: 0 8px;
+  font-size: 14px;
   line-height: 1;
   color: #111;
   font-weight: 600;
+}
+
+.dateValueWithMeta {
+  justify-content: space-between;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  line-height: 1.2;
+}
+
+.datePrimary {
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.dateMetaInline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  color: #5c6470;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.dateMetaItem {
+  white-space: nowrap;
 }
 
 .dateTime {
@@ -63,7 +101,7 @@
 
 .pillarArea {
   display: grid;
-  grid-template-columns: 1fr 118px;
+  grid-template-columns: 1fr 72px;
   gap: 6px;
   align-items: start;
 }
@@ -77,7 +115,7 @@
 .pillarBlocks {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
+  gap: 4px;
 }
 
 .pillarBox {
@@ -109,7 +147,7 @@
 .pillarTags {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
+  gap: 4px;
 }
 
 .pillarTagDot {
@@ -129,7 +167,7 @@
 .metaPairWrap {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
+  gap: 3px;
 }
 
 .metaPair {
@@ -139,23 +177,23 @@
 }
 
 .metaTitle {
-  min-height: 32px;
-  border-radius: 8px;
+  min-height: 24px;
+  border-radius: 7px;
   background: #3d4148;
   color: #fff;
-  font-size: 15px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .metaValue {
-  min-height: 32px;
+  min-height: 24px;
   border: 1px solid #d9d9d9;
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(0, 0, 0, 0.02);
   color: #111;
-  font-size: 17px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -176,12 +214,12 @@
 
 .ssItem,
 .ssValue {
-  min-height: 28px;
+  min-height: 19px;
   border-bottom: 1px solid #ececec;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 9px;
   line-height: 1;
 }
 
@@ -478,8 +516,8 @@
 .bottomBox {
   margin-top: 8px;
   display: grid;
-  grid-template-columns: 1fr 94px;
-  gap: 8px;
+  grid-template-columns: 1fr 84px;
+  gap: 5px;
 }
 
 .bottomGrid {
@@ -491,14 +529,14 @@
 }
 
 .bottomCell {
-  min-height: 40px;
+  min-height: 28px;
   border-right: 1px solid #d7d7d7;
   border-bottom: 1px solid #d7d7d7;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
-  font-size: 20px;
+  padding: 0 6px;
+  font-size: 11px;
   line-height: 1;
   color: #222;
 }
@@ -514,11 +552,13 @@
 
 .bottomCell span {
   color: #333;
+  font-size: 10px;
 }
 
 .bottomCell b {
   color: #111;
   font-weight: 700;
+  font-size: 12px;
 }
 
 .bottomRight {
@@ -528,8 +568,8 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
-  font-size: 20px;
-  line-height: 1.1;
+  font-size: 12px;
+  line-height: 1.05;
   color: #111;
   font-weight: 700;
   overflow: hidden;
@@ -872,13 +912,13 @@
 
 @media (max-width: 1520px) {
   .topBox {
-    grid-template-columns: 1fr 164px;
+    grid-template-columns: 1fr 80px;
   }
   .dateLabel {
     font-size: 13px;
   }
   .dateValue {
-    font-size: 15px;
+    font-size: 14px;
   }
   .dateTime {
     font-size: 12px;
@@ -888,15 +928,18 @@
     font-size: 18px;
     line-height: 18px;
   }
+  .pillarArea {
+    grid-template-columns: 1fr 72px;
+  }
   .metaTitle,
   .metaValue {
-    font-size: 13px;
-    min-height: 30px;
+    font-size: 10px;
+    min-height: 24px;
   }
   .ssItem,
   .ssValue {
-    font-size: 12px;
-    min-height: 26px;
+    font-size: 9px;
+    min-height: 19px;
   }
   .outerBranch {
     font-size: 16px;
@@ -912,13 +955,13 @@
     font-size: 11px;
   }
   .bottomBox {
-    grid-template-columns: 1fr 88px;
+    grid-template-columns: 1fr 84px;
   }
   .bottomCell {
-    font-size: 16px;
-    min-height: 34px;
+    font-size: 11px;
+    min-height: 28px;
   }
   .bottomRight {
-    font-size: 16px;
+    font-size: 12px;
   }
 }

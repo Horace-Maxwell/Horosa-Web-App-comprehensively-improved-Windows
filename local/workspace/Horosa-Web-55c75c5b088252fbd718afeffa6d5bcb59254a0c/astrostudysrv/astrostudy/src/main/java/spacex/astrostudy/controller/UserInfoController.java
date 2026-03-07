@@ -73,7 +73,7 @@ public class UserInfoController {
 			user.setTradition(TransData.getValueAsByte("tradition", (byte)1));
 		}
 		if(TransData.containsParam("pdtype")) {
-			user.setPdtype(TransData.getValueAsByte("pdtype", (byte)1));
+			user.setPdtype(TransData.getValueAsByte("pdtype", (byte)0));
 		}
 		if(TransData.containsParam("strongRecption")) {
 			user.setStrongReception(TransData.getValueAsByte("strongRecption", (byte)0));
