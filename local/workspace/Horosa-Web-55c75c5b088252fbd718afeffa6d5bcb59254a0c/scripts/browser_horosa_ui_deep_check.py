@@ -310,13 +310,36 @@ def select_dropdown_value(page, select_index: int, label: str) -> None:
     page.wait_for_timeout(700)
 
 
-def click_compute_and_wait_chart(page) -> None:
-    button = page.get_by_role("button", name="重新计算")
+def click_compute_and_wait_chart(page, *, previous_row: str = "") -> str:
+    button = page.get_by_role("button", name="\u91cd\u65b0\u8ba1\u7b97")
     if button.count() == 0 or not button.first.is_visible():
-        button = page.get_by_role("button", name="计算")
-    with page.expect_response(lambda resp: "/chart" in resp.url and resp.request.method == "POST" and resp.status == 200, timeout=120_000):
-        button.first.click(force=True)
-    page.wait_for_timeout(1400)
+        button = page.get_by_role("button", name="\u8ba1\u7b97")
+
+    last_timeout = None
+    last_row = first_table_row_text(page)
+    for attempt in range(3):
+        try:
+            with page.expect_response(lambda resp: "/chart" in resp.url and resp.request.method == "POST" and resp.status == 200, timeout=45_000):
+                button.first.click(force=True)
+        except PlaywrightTimeoutError as exc:
+            last_timeout = exc
+            try:
+                button.first.click(force=True)
+            except Exception:
+                pass
+        page.wait_for_timeout(1800 + attempt * 700)
+        last_row = first_table_row_text(page)
+        if last_row and previous_row and last_row != previous_row:
+            return last_row
+        if last_row and not previous_row:
+            return last_row
+        page.wait_for_timeout(900)
+
+    if last_row:
+        return last_row
+    if last_timeout is not None:
+        raise last_timeout
+    raise AssertionError("\u70b9\u51fb\u8ba1\u7b97\u540e\u4e3b\u9650\u6cd5\u8868\u683c\u4ecd\u4e3a\u7a7a")
 
 
 def ensure_pd_recalc(page, result: dict) -> None:
@@ -328,12 +351,10 @@ def ensure_pd_recalc(page, result: dict) -> None:
     before = first_table_row_text(page)
 
     select_dropdown_value(page, method_select_index, "Horosa原方法")
-    click_compute_and_wait_chart(page)
-    legacy = first_table_row_text(page)
+    legacy = click_compute_and_wait_chart(page, previous_row=before)
 
     select_dropdown_value(page, method_select_index, "AstroAPP-Alchabitius")
-    click_compute_and_wait_chart(page)
-    astroapp = first_table_row_text(page)
+    astroapp = click_compute_and_wait_chart(page, previous_row=legacy)
 
     if not legacy or not astroapp:
         raise AssertionError("主限法表格为空")
@@ -421,26 +442,44 @@ def read_toast_message(page) -> str:
 
 
 def click_ai_export_copy(page) -> dict:
-    clear_clipboard(page)
-    if not click_visible_text(page, "AI导出"):
-        raise AssertionError("AI导出 按钮不可点击")
-    if not click_visible_text(page, "复制AI纯文字"):
-        raise AssertionError("AI导出菜单中的 复制AI纯文字 不可点击")
-    page.wait_for_timeout(900)
-    toast = read_toast_message(page)
-    clip_text = ""
-    for _ in range(12):
-        clip_text = read_clipboard(page)
-        if clip_text or "当前页面没有可导出文本" in toast:
-            break
-        page.wait_for_timeout(250)
-    content = extract_export_content(clip_text)
-    return {
-        "toast": toast,
-        "header": extract_export_header(clip_text),
-        "clipboard_length": len(clip_text),
-        "content_length": len(content),
-        "content_excerpt": content[:260],
+    last_result = None
+    for attempt in range(3):
+        clear_clipboard(page)
+        if not click_visible_text(page, "AI\u5bfc\u51fa"):
+            raise AssertionError("AI\u5bfc\u51fa \u6309\u94ae\u4e0d\u53ef\u70b9\u51fb")
+        if not click_visible_text(page, "\u590d\u5236AI\u7eaf\u6587\u5b57"):
+            raise AssertionError("AI\u5bfc\u51fa\u83dc\u5355\u4e2d\u7684 \u590d\u5236AI\u7eaf\u6587\u5b57 \u4e0d\u53ef\u70b9\u51fb")
+        page.wait_for_timeout(900 + attempt * 400)
+        toast = read_toast_message(page)
+        clip_text = ""
+        for _ in range(12 + attempt * 6):
+            latest_clip = read_clipboard(page)
+            if latest_clip:
+                clip_text = latest_clip
+                break
+            latest_toast = read_toast_message(page)
+            if latest_toast:
+                toast = latest_toast
+            if "\u5f53\u524d\u9875\u9762\u6ca1\u6709\u53ef\u5bfc\u51fa\u6587\u672c" in toast:
+                break
+            page.wait_for_timeout(250)
+        content = extract_export_content(clip_text)
+        last_result = {
+            "toast": toast,
+            "header": extract_export_header(clip_text),
+            "clipboard_length": len(clip_text),
+            "content_length": len(content),
+            "content_excerpt": content[:260],
+        }
+        if content or "\u5f53\u524d\u9875\u9762\u6ca1\u6709\u53ef\u5bfc\u51fa\u6587\u672c" in toast or "AI\u7eaf\u6587\u5b57\u5df2\u590d\u5236" in toast:
+            return last_result
+        page.wait_for_timeout(800)
+    return last_result or {
+        "toast": "",
+        "header": "",
+        "clipboard_length": 0,
+        "content_length": 0,
+        "content_excerpt": "",
     }
 
 
