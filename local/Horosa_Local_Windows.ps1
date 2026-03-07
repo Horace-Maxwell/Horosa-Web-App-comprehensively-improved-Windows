@@ -2219,7 +2219,18 @@ try {
   Write-Host '[1/4] Starting local backend services...'
 
   $pyScript = Join-Path $ProjectDir 'astropy/websrv/webchartsrv.py'
-  $null = Start-Background -FilePath $PythonBin -Arguments @(Quote-Arg $pyScript) -LogPath $PyLog -PidFile $PyPidFile
+  # Embedded Python ignores PYTHONPATH, so inject project roots explicitly.
+  $pyBootstrapProjectDir = $ProjectDir -replace '\\', '\\\\' -replace "'", "\'"
+  $pyBootstrapScriptPath = $pyScript -replace '\\', '\\\\' -replace "'", "\'"
+  $pyBootstrapPaths = @(
+    (Join-Path $ProjectDir 'astropy'),
+    (Join-Path $ProjectDir 'flatlib-ctrad2')
+  ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object {
+    "'" + (($_ -replace '\\', '\\\\') -replace "'", "\'") + "'"
+  }
+  $pyBootstrapList = ($pyBootstrapPaths -join ', ')
+  $pyBootstrap = "import os, runpy, sys; os.chdir('" + $pyBootstrapProjectDir + "'); sys.path[0:0]=[" + $pyBootstrapList + "]; runpy.run_path('" + $pyBootstrapScriptPath + "', run_name='__main__')"
+  $null = Start-Background -FilePath $PythonBin -Arguments @('-c', (Quote-Arg $pyBootstrap)) -LogPath $PyLog -PidFile $PyPidFile
 
   $mongoSelectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
   $mongoConnectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
