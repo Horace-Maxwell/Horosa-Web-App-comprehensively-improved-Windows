@@ -3811,7 +3811,7 @@ class SanShiUnitedMain extends Component{
 		}
 		const boardSize = this.calcBoardSize(height);
 		return (
-			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
 				{this.renderTop(boardSize)}
 				{this.renderMiddle(boardSize)}
 				{this.renderBottom(boardSize)}
@@ -4278,13 +4278,13 @@ class SanShiUnitedMain extends Component{
 		return (
 			<div className={styles.root} style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
-					<Row gutter={6}>
-						<Col xxl={18} xl={18} lg={16} md={16} sm={24} xs={24}>
+					<Row gutter={6} className={styles.mainLayoutRow}>
+						<Col xxl={18} xl={18} lg={16} md={16} sm={24} xs={24} className={styles.mainBoardCol}>
 							<div ref={this.captureLeftBoardHost}>
 								{this.renderLeftBoard(height)}
 							</div>
 						</Col>
-						<Col xxl={6} xl={6} lg={8} md={8} sm={24} xs={24}>
+						<Col xxl={6} xl={6} lg={8} md={8} sm={24} xs={24} className={styles.settingsPanelCol}>
 							{this.renderRight()}
 						</Col>
 					</Row>

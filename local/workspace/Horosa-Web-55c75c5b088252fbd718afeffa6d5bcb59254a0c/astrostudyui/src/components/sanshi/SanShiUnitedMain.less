@@ -3,6 +3,22 @@
   color: #111;
 }
 
+.mainLayoutRow {
+  align-items: flex-start;
+}
+
+@media (min-width: 992px) {
+  .mainBoardCol {
+    flex: 0 0 57.142857% !important;
+    max-width: 57.142857% !important;
+  }
+
+  .settingsPanelCol {
+    flex: 0 0 42.857143% !important;
+    max-width: 42.857143% !important;
+  }
+}
+
 .topBox {
   border: 1px solid #fff;
   border-radius: 10px;
@@ -102,9 +118,9 @@
 
 .pillarArea {
   display: grid;
-  grid-template-columns: 1fr 84px;
-  gap: 6px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+  align-items: end;
 }
 
 .pillarLeft {
@@ -168,7 +184,8 @@
 .metaPairWrap {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 6px;
+  align-self: end;
 }
 
 .metaPair {
@@ -178,24 +195,24 @@
 }
 
 .metaTitle {
-  min-height: 26px;
+  min-height: 28px;
   border-radius: 7px;
   background: #3d4148;
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .metaValue {
-  min-height: 30px;
+  min-height: 36px;
   border: 1px solid #d9d9d9;
   border-radius: 7px;
   background: rgba(0, 0, 0, 0.02);
   color: #111;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -247,7 +264,7 @@
 }
 
 .middleWrap {
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .middleBoard {
@@ -524,7 +541,7 @@
 }
 
 .bottomBox {
-  margin-top: 8px;
+  margin-top: 0;
   display: grid;
   grid-template-columns: 1fr 84px;
   gap: 5px;
@@ -939,17 +956,16 @@
     line-height: 16px;
   }
   .pillarArea {
-    grid-template-columns: 1fr 84px;
-  }
-  .metaTitle,
-  .metaValue {
-    min-height: 26px;
+    grid-template-columns: minmax(0, 1fr) 92px;
+    gap: 7px;
   }
   .metaTitle {
+    min-height: 27px;
     font-size: 11px;
   }
   .metaValue {
-    font-size: 13px;
+    min-height: 34px;
+    font-size: 15px;
   }
   .ssItem,
   .ssValue {
