@@ -9,14 +9,15 @@
   background: transparent;
   padding: 4px 6px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 80px;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .topLeft {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .datePanel {
@@ -36,7 +37,7 @@
 }
 
 .dateRowCompact {
-  min-height: 38px;
+  min-height: 36px;
 }
 
 .dateLabel {
@@ -53,7 +54,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   color: #111;
   font-weight: 600;
@@ -79,12 +80,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
   flex: 0 1 auto;
   flex-wrap: wrap;
   color: #5c6470;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   line-height: 1.2;
 }
@@ -94,32 +95,32 @@
 }
 
 .dateTime {
-  font-size: 13px;
+  font-size: 12px;
   color: #333;
   font-weight: 500;
 }
 
 .pillarArea {
   display: grid;
-  grid-template-columns: 1fr 72px;
+  grid-template-columns: 1fr 84px;
   gap: 6px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .pillarLeft {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .pillarBlocks {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
 }
 
 .pillarBox {
-  min-height: 66px;
+  min-height: 58px;
   border: 1px solid #d9d9d9;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.02);
@@ -130,16 +131,16 @@
 }
 
 .pillarGan {
-  font-size: 18px;
-  line-height: 18px;
+  font-size: 16px;
+  line-height: 16px;
   font-weight: 700;
   color: #111;
 }
 
 .pillarZhi {
   margin-top: 2px;
-  font-size: 18px;
-  line-height: 18px;
+  font-size: 16px;
+  line-height: 16px;
   font-weight: 700;
   color: #333;
 }
@@ -147,19 +148,19 @@
 .pillarTags {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
 }
 
 .pillarTagDot {
-  width: 24px;
-  height: 24px;
-  border-radius: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
   background: #434343;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
   margin: 0 auto;
 }
@@ -167,33 +168,34 @@
 .metaPairWrap {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
+  gap: 4px;
 }
 
 .metaPair {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .metaTitle {
-  min-height: 24px;
+  min-height: 26px;
   border-radius: 7px;
   background: #3d4148;
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .metaValue {
-  min-height: 24px;
+  min-height: 30px;
   border: 1px solid #d9d9d9;
   border-radius: 7px;
   background: rgba(0, 0, 0, 0.02);
   color: #111;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -205,7 +207,13 @@
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  align-self: start;
+  height: 100%;
+}
+
+.ssCol {
+  display: grid;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  height: 100%;
 }
 
 .ssCol + .ssCol {
@@ -214,13 +222,14 @@
 
 .ssItem,
 .ssValue {
-  min-height: 19px;
+  min-height: 0;
+  padding: 3px 0;
   border-bottom: 1px solid #ececec;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
-  line-height: 1;
+  font-size: 11px;
+  line-height: 1.15;
 }
 
 .ssItem {
@@ -229,6 +238,7 @@
 
 .ssValue {
   color: #111;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -912,34 +922,39 @@
 
 @media (max-width: 1520px) {
   .topBox {
-    grid-template-columns: 1fr 80px;
+    grid-template-columns: 1fr 92px;
   }
   .dateLabel {
     font-size: 13px;
   }
   .dateValue {
-    font-size: 14px;
+    font-size: 13px;
   }
   .dateTime {
-    font-size: 12px;
+    font-size: 11px;
   }
   .pillarGan,
   .pillarZhi {
-    font-size: 18px;
-    line-height: 18px;
+    font-size: 16px;
+    line-height: 16px;
   }
   .pillarArea {
-    grid-template-columns: 1fr 72px;
+    grid-template-columns: 1fr 84px;
   }
   .metaTitle,
   .metaValue {
-    font-size: 10px;
-    min-height: 24px;
+    min-height: 26px;
+  }
+  .metaTitle {
+    font-size: 11px;
+  }
+  .metaValue {
+    font-size: 13px;
   }
   .ssItem,
   .ssValue {
-    font-size: 9px;
-    min-height: 19px;
+    font-size: 11px;
+    min-height: 0;
   }
   .outerBranch {
     font-size: 16px;
