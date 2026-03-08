@@ -8,6 +8,7 @@ import AstroLunarReturn from '../astro/AstroLunarReturn';
 import AstroGivenYear from '../astro/AstroGivenYear';
 import AstroSolarArc from '../astro/AstroSolarArc';
 import AstroProfection from '../astro/AstroProfection';
+import AstroDecennials from '../astro/AstroDecennials';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
@@ -80,7 +81,7 @@ function primaryDirectionMethodText(val){
 	if(val === 'horosa_legacy'){
 		return 'Horosa原方法';
 	}
-	return 'AstroAPP-Alchabitius';
+	return 'Alchabitius';
 }
 
 function primaryDirectionTimeKeyText(val){
@@ -294,6 +295,9 @@ class AstroDirectMain extends Component{
 					fun: null
 				},
 				givenyear:{
+					fun: null
+				},
+				decennials:{
 					fun: null
 				},
 				zodialrelease:{
@@ -602,6 +606,19 @@ class AstroDirectMain extends Component{
 								showAstroMeaning={this.props.showAstroMeaning}
 								hook={this.state.hook.givenyear} 
 							/>
+					</TabPane>
+
+					<TabPane tab="十年大运" key="decennials">
+						<AstroDecennials
+							value={this.props.chartObj}
+							height={height}
+							chartDisplay={this.props.chartDisplay}
+							planetDisplay={this.props.planetDisplay}
+							lotsDisplay={this.props.lotsDisplay}
+							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+							showAstroMeaning={this.props.showAstroMeaning}
+							hook={this.state.hook.decennials}
+						/>
 					</TabPane>
 
 				</Tabs>
