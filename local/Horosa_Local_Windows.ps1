@@ -1610,8 +1610,57 @@ function Install-MavenAliasArtifact {
   return (Invoke-Maven -MvnExe $MvnExe -WorkingDir $WorkingDir -MavenArgs $args)
 }
 
+function Test-JarFileLooksValid {
+  param([string]$Path)
+
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+  if (-not (Test-Path $Path -PathType Leaf)) { return $false }
+
+  try {
+    $fileInfo = Get-Item -LiteralPath $Path -ErrorAction Stop
+    if ($fileInfo.Length -lt 1MB) { return $false }
+
+    Add-Type -AssemblyName 'System.IO.Compression.FileSystem' -ErrorAction SilentlyContinue | Out-Null
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($fileInfo.FullName)
+    try {
+      if ($zip.Entries.Count -eq 0) { return $false }
+
+      $manifestEntry = $zip.GetEntry('META-INF/MANIFEST.MF')
+      if (-not $manifestEntry) { return $false }
+
+      $manifestStream = $manifestEntry.Open()
+      try {
+        $manifestReader = New-Object System.IO.StreamReader($manifestStream)
+        try {
+          $manifestText = $manifestReader.ReadToEnd()
+        } finally {
+          $manifestReader.Dispose()
+        }
+      } finally {
+        $manifestStream.Dispose()
+      }
+
+      return ($manifestText -match '(?im)^Main-Class\s*:')
+    } finally {
+      $zip.Dispose()
+    }
+  } catch {
+    return $false
+  }
+}
+
 function Try-BuildBackendJar {
-  if (Test-Path $JarPath) { return $true }
+  if (Test-Path $JarPath) {
+    if (Test-JarFileLooksValid -Path $JarPath) { return $true }
+
+    Write-Host ("[WARN] Existing backend jar is invalid, forcing local rebuild: {0}" -f $JarPath)
+    try {
+      Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
+    } catch {
+      Write-Host ("[WARN] Could not remove invalid backend jar before rebuild: {0}" -f $_.Exception.Message)
+      return $false
+    }
+  }
 
   $mvn = Resolve-Maven
   if (-not $mvn) {
@@ -1948,8 +1997,18 @@ function Get-BackendJarDownloadUrls {
 
 function Ensure-BackendJar {
   if (Test-Path $JarPath) {
-    $script:JarSource = 'project'
-    return $true
+    if (Test-JarFileLooksValid -Path $JarPath) {
+      $script:JarSource = 'project'
+      return $true
+    }
+
+    Write-Host ("[WARN] Existing backend jar is invalid, trying bundled copy: {0}" -f $JarPath)
+    try {
+      Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
+    } catch {
+      Write-Host ("[WARN] Could not remove invalid backend jar: {0}" -f $_.Exception.Message)
+      return $false
+    }
   }
 
   $sources = New-Object System.Collections.Generic.List[string]
@@ -1974,13 +2033,29 @@ function Ensure-BackendJar {
 
   foreach ($src in @($sources.ToArray() | Select-Object -Unique)) {
     if (-not (Test-Path $src)) { continue }
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
-    Copy-Item -Path $src -Destination $JarPath -Force
-    if (Test-Path $JarPath) {
+    if (-not (Test-JarFileLooksValid -Path $src)) {
+      Write-Host ("[WARN] Skip invalid bundled backend jar: {0}" -f $src)
+      continue
+    }
+
+    try {
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
+      Copy-Item -Path $src -Destination $JarPath -Force
+    } catch {
+      Write-Host ("[WARN] Failed to restore backend jar from {0}: {1}" -f $src, $_.Exception.Message)
+      continue
+    }
+
+    if (Test-JarFileLooksValid -Path $JarPath) {
       Write-Host ("[OK] Backend jar restored from: {0}" -f $src)
       $script:JarSource = 'bundle'
       return $true
     }
+
+    Write-Host ("[WARN] Restored backend jar is still invalid, trying next source: {0}" -f $src)
+    try {
+      Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
+    } catch {}
   }
 
   $jarUrls = Get-BackendJarDownloadUrls
@@ -1988,18 +2063,30 @@ function Ensure-BackendJar {
     Write-Host ("Trying backend jar download sources: {0}" -f $jarUrls.Count)
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
     if (Invoke-DownloadWithFallback -Urls $jarUrls -OutFile $JarPath -TimeoutSec 240) {
-      if (Test-Path $JarPath) {
+      if (Test-JarFileLooksValid -Path $JarPath) {
         Write-Host ("[OK] Backend jar downloaded to: {0}" -f $JarPath)
         $script:JarSource = 'download'
         return $true
       }
+
+      Write-Host ("[WARN] Downloaded backend jar is invalid, will try local build: {0}" -f $JarPath)
+      try {
+        Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
+      } catch {}
     }
   }
 
   if (Try-BuildBackendJar) {
-    Write-Host ("[OK] Backend jar built locally: {0}" -f $JarPath)
-    $script:JarSource = 'build'
-    return $true
+    if (Test-JarFileLooksValid -Path $JarPath) {
+      Write-Host ("[OK] Backend jar built locally: {0}" -f $JarPath)
+      $script:JarSource = 'build'
+      return $true
+    }
+
+    Write-Host ("[WARN] Backend jar build finished but jar is invalid: {0}" -f $JarPath)
+    try {
+      Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
+    } catch {}
   }
 
   return $false
