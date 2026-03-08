@@ -170,7 +170,66 @@ if ($DistDir -match '[\\/]astrostudyui[\\/]dist-file$') {
   $FrontendSource = 'dist-file'
 }
 
+function Get-ManagedRuntimeWindowsDir {
+  param(
+    [string]$WorkspaceRoot,
+    [string]$RepoBase
+  )
+
+  $defaultRuntimeWindowsDir = Join-Path $WorkspaceRoot 'runtime/windows'
+  $probePath = Join-Path $defaultRuntimeWindowsDir 'python\Lib\site-packages\sklearn\tree\tests\__pycache__\test_monotonic_constraints.cpython-311.pyc'
+  if ($probePath.Length -lt 235) {
+    return $defaultRuntimeWindowsDir
+  }
+
+  $hashSuffix = 'portable'
+  try {
+    $sha1 = [System.Security.Cryptography.SHA1]::Create()
+    try {
+      $bytes = [System.Text.Encoding]::UTF8.GetBytes($RepoBase)
+      $hashSuffix = (-join ($sha1.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') })).Substring(0, 12)
+    } finally {
+      $sha1.Dispose()
+    }
+  } catch {}
+
+  $cacheRoots = New-Object System.Collections.Generic.List[string]
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_RUNTIME_CACHE_DIR)) {
+    $cacheRoots.Add($env:HOROSA_RUNTIME_CACHE_DIR.Trim())
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:LocalAppData)) {
+    $cacheRoots.Add((Join-Path $env:LocalAppData 'Horosa\runtime-cache'))
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) {
+    $cacheRoots.Add((Join-Path $env:TEMP 'Horosa\runtime-cache'))
+  }
+
+  foreach ($cacheRoot in $cacheRoots) {
+    if ([string]::IsNullOrWhiteSpace($cacheRoot)) { continue }
+    try {
+      New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
+      return (Join-Path (Join-Path $cacheRoot $hashSuffix) 'windows')
+    } catch {}
+  }
+
+  return $defaultRuntimeWindowsDir
+}
+
 $JarPath = Join-Path $ProjectDir 'astrostudysrv/astrostudyboot/target/astrostudyboot.jar'
+$DefaultRuntimeWindowsDir = Join-Path $Root 'runtime/windows'
+$RuntimeWindowsDir = Get-ManagedRuntimeWindowsDir -WorkspaceRoot $Root -RepoBase $RepoRoot
+if ($RuntimeWindowsDir -ne $DefaultRuntimeWindowsDir) {
+  Write-Host ("[INFO] Portable runtime cache moved to short path: {0}" -f $RuntimeWindowsDir)
+}
+$PortablePythonRuntimeDir = Join-Path $RuntimeWindowsDir 'python'
+$PortablePythonExe = Join-Path $PortablePythonRuntimeDir 'python.exe'
+$PortablePythonExeAlt = Join-Path $PortablePythonRuntimeDir 'python3.exe'
+$PortableJavaRuntimeDir = Join-Path $RuntimeWindowsDir 'java'
+$PortableJavaExe = Join-Path $PortableJavaRuntimeDir 'bin/java.exe'
+$PortableJavacExe = Join-Path $PortableJavaRuntimeDir 'bin/javac.exe'
+$PortableMavenRuntimeDir = Join-Path $RuntimeWindowsDir 'maven'
+$PortableMavenCmd = Join-Path $PortableMavenRuntimeDir 'bin/mvn.cmd'
+$PortableMavenBat = Join-Path $PortableMavenRuntimeDir 'bin/mvn.bat'
 $WinBundleRoot = Join-Path $Root 'runtime/windows/bundle'
 $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
 $PythonBin = $null
@@ -870,7 +929,7 @@ function Resolve-Java {
     return $true
   }
 
-  $runtimeJava = Join-Path $Root 'runtime/windows/java/bin/java.exe'
+  $runtimeJava = $PortableJavaExe
   if (Test-Path $runtimeJava) {
     if (& $acceptJava $runtimeJava) { return $runtimeJava }
   }
@@ -887,7 +946,7 @@ function Resolve-Java {
   }
 
   $bundled = @(
-    (Join-Path $Root 'runtime/windows/java/bin/java.exe'),
+    $PortableJavaExe,
     (Join-Path $Root 'runtime/java/bin/java.exe'),
     (Join-Path $Root 'jre/bin/java.exe'),
     (Join-Path $ProjectDir 'runtime/windows/java/bin/java.exe'),
@@ -954,8 +1013,8 @@ function Get-PythonCandidates {
   $candidates = @()
 
   $candidates += @(
-    (Join-Path $Root 'runtime/windows/python/python.exe'),
-    (Join-Path $Root 'runtime/windows/python/python3.exe'),
+    $PortablePythonExe,
+    $PortablePythonExeAlt,
     (Join-Path $Root 'runtime/python/python.exe'),
     (Join-Path $ProjectDir 'runtime/windows/python/python.exe'),
     (Join-Path $ProjectDir 'runtime/windows/python/python3.exe'),
@@ -1205,7 +1264,7 @@ function Install-PythonPortableFromPackage {
 }
 
 function Install-PythonPortable {
-  $existingPortablePython = Join-Path $Root 'runtime/windows/python/python.exe'
+  $existingPortablePython = $PortablePythonExe
   if (Test-Python311 -PythonCmdOrPath $existingPortablePython) {
     Write-Host ("[OK] Portable Python 3.11 already available: {0}" -f $existingPortablePython)
     return $true
@@ -1213,8 +1272,8 @@ function Install-PythonPortable {
 
   try {
     Write-Host 'winget install Python failed, trying portable Python 3.11 fallback...'
-    $portableRoot = Join-Path $Root 'runtime/windows'
-    $pythonTarget = Join-Path $portableRoot 'python'
+    $portableRoot = $RuntimeWindowsDir
+    $pythonTarget = $PortablePythonRuntimeDir
     $tmpDir = Join-Path $env:TEMP ('horosa_python311_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
     New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
     New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
@@ -1310,8 +1369,8 @@ function Install-Java17 {
       return $true
     }
     if ($RequireJdk) {
-      $portableJava = Join-Path $Root 'runtime/windows/java/bin/java.exe'
-      $portableJavac = Join-Path $Root 'runtime/windows/java/bin/javac.exe'
+      $portableJava = $PortableJavaExe
+      $portableJavac = $PortableJavacExe
       if ((Test-Path $portableJava) -and (Test-Path $portableJavac)) {
         Write-Host ("[OK] Portable Java 17 files ready: {0}" -f $portableJava)
         return $true
@@ -1347,8 +1406,8 @@ function Get-Java17DownloadUrls {
 function Install-Java17Portable {
   try {
     Write-Host 'winget install failed, trying portable Java 17 download...'
-    $portableRoot = Join-Path $Root 'runtime/windows'
-    $javaTarget = Join-Path $portableRoot 'java'
+    $portableRoot = $RuntimeWindowsDir
+    $javaTarget = $PortableJavaRuntimeDir
     $tmpDir = Join-Path $env:TEMP ('horosa_java17_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
     $zipPath = Join-Path $tmpDir 'java17.zip'
     New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
@@ -1421,8 +1480,8 @@ function Resolve-Maven {
   }
 
   $bundled = @(
-    (Join-Path $Root 'runtime/windows/maven/bin/mvn.cmd'),
-    (Join-Path $Root 'runtime/windows/maven/bin/mvn.bat')
+    $PortableMavenCmd,
+    $PortableMavenBat
   )
   foreach ($p in $bundled) {
     if (Test-Path $p) { return $p }
@@ -1453,8 +1512,8 @@ function Install-Maven {
 function Install-MavenPortable {
   try {
     Write-Host 'winget install Maven failed, trying portable Maven download...'
-    $portableRoot = Join-Path $Root 'runtime/windows'
-    $mavenTarget = Join-Path $portableRoot 'maven'
+    $portableRoot = $RuntimeWindowsDir
+    $mavenTarget = $PortableMavenRuntimeDir
     $tmpDir = Join-Path $env:TEMP ('horosa_maven_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
     $zipPath = Join-Path $tmpDir 'maven.zip'
     New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
@@ -1568,8 +1627,8 @@ function Try-BuildBackendJar {
     }
   }
   if (-not $buildJava) {
-    $portableJava = Join-Path $Root 'runtime/windows/java/bin/java.exe'
-    $portableJavac = Join-Path $Root 'runtime/windows/java/bin/javac.exe'
+    $portableJava = $PortableJavaExe
+    $portableJavac = $PortableJavacExe
     if ((Test-Path $portableJava) -and (Test-Path $portableJavac)) {
       $buildJava = $portableJava
       Write-Host ("[INFO] Using bundled JDK for backend build: {0}" -f $buildJava)
@@ -2041,7 +2100,7 @@ if ($selectedPythonVersion -and $selectedPythonVersion.Major -eq 3 -and $selecte
   Write-Host '[WARN] Python 3.12 detected. If dependency install fails, launcher will try switching to Python 3.11.'
 }
 
-$PyRuntimeDir = Join-Path $Root 'runtime/windows/python'
+$PyRuntimeDir = $PortablePythonRuntimeDir
 if (-not (Test-Path (Join-Path $PyRuntimeDir 'python.exe'))) {
   Write-Host 'Preparing local Python runtime for offline use...'
   $pySynced = Sync-RuntimeFromExe -ExeCmdOrPath $PythonBin -TargetDir $PyRuntimeDir -UpLevels 1 -CheckRelative 'python.exe'
