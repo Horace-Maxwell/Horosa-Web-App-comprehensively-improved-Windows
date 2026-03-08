@@ -1992,6 +1992,12 @@ function Get-BackendJarDownloadUrls {
     (Join-Path $CommonBundleRoot 'astrostudyboot.urls.txt')
   )
 
+  # GitHub source ZIP stores this LFS-tracked jar as a pointer file, so keep a public
+  # binary URL as a built-in fallback for one-click startup users.
+  $urls += @(
+    'https://media.githubusercontent.com/media/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/main/local/workspace/runtime/windows/bundle/astrostudyboot.jar'
+  )
+
   return @($urls | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
 }
 
@@ -2058,7 +2064,7 @@ function Ensure-BackendJar {
     } catch {}
   }
 
-  $jarUrls = Get-BackendJarDownloadUrls
+  $jarUrls = @(Get-BackendJarDownloadUrls)
   if ($jarUrls.Count -gt 0) {
     Write-Host ("Trying backend jar download sources: {0}" -f $jarUrls.Count)
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null

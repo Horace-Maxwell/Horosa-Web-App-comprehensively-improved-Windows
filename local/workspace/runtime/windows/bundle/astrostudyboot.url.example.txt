@@ -1,3 +1,3 @@
-# Copy this file to astrostudyboot.url.txt and replace with your real jar URL.
-# The launcher reads the first non-empty, non-comment http(s) line.
-https://example.com/path/to/astrostudyboot.jar
+# Copy this file to astrostudyboot.url.txt and replace or prepend your own mirror URLs.
+# The launcher reads the first non-empty, non-comment http(s) line that succeeds.
+https://media.githubusercontent.com/media/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/main/local/workspace/runtime/windows/bundle/astrostudyboot.jar

@@ -1,3 +1,4 @@
-﻿# One URL per line. First successful URL wins.
-# Example:
-# https://mirror.example.com/astrostudyboot.jar
+# One URL per line. First successful URL wins.
+# GitHub source ZIP stores the bundled jar as an LFS pointer file,
+# so keep this public binary URL as the default recovery source.
+https://media.githubusercontent.com/media/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/main/local/workspace/runtime/windows/bundle/astrostudyboot.jar
