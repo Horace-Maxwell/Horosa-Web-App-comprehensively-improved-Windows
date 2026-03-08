@@ -177,8 +177,13 @@ function Get-ManagedRuntimeWindowsDir {
   )
 
   $defaultRuntimeWindowsDir = Join-Path $WorkspaceRoot 'runtime/windows'
+  $portablePythonDefault = Join-Path $defaultRuntimeWindowsDir 'python\python.exe'
+  $portableJavaDefault = Join-Path $defaultRuntimeWindowsDir 'java\bin\java.exe'
   $probePath = Join-Path $defaultRuntimeWindowsDir 'python\Lib\site-packages\sklearn\tree\tests\__pycache__\test_monotonic_constraints.cpython-311.pyc'
-  if ($probePath.Length -lt 235) {
+  if ((Test-Path $portablePythonDefault) -and (Test-Path $portableJavaDefault)) {
+    return $defaultRuntimeWindowsDir
+  }
+  if ($probePath.Length -lt 210) {
     return $defaultRuntimeWindowsDir
   }
 
