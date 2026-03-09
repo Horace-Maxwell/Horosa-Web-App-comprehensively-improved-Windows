@@ -1,5 +1,4 @@
-const forge = require('node-forge');
-const RSA = require('js-rsa');
+const { forge, RSA } = require('./loadCryptoDeps');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');

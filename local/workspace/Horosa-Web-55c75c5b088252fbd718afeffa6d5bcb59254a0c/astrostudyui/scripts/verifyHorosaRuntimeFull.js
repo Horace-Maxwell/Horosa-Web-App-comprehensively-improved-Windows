@@ -1,5 +1,4 @@
-const forge = require('node-forge');
-const RSA = require('js-rsa');
+const { forge, RSA } = require('./loadCryptoDeps');
 const crypto = require('crypto');
 
 const SERVER = process.env.HOROSA_SERVER_ROOT || 'http://127.0.0.1:9999';
