@@ -31,6 +31,20 @@ def _configure_stdio() -> None:
 _configure_stdio()
 
 
+def _fs_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    if os.name != "nt":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value.lstrip("\\"))
+    if len(value) >= 240:
+        return Path("\\\\?\\" + value)
+    return resolved
+
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = ROOT / "runtime"
 KIT_ROOT = ROOT.parents[2] / "WINDOWS_CODEX_PRIMARY_DIRECTION_CHART_REPRO_KIT"
@@ -592,7 +606,7 @@ def load_astroapp_rows(limit: int = 7) -> list[dict]:
             "missing Guangde dirs.csv fixture in runtime/ or WINDOWS_CODEX_PRIMARY_DIRECTION_CHART_REPRO_KIT/expected_results/"
         )
     rows = []
-    with path.open("r", encoding="utf-8-sig", newline="") as fh:
+    with _fs_path(path).open("r", encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
         for idx, row in enumerate(reader):
             if idx >= limit:
@@ -851,7 +865,7 @@ def main() -> None:
     }
     if result["dialogs"] or result["pageErrors"] or result["consoleErrors"] or result["requestFailures"]:
         result["status"] = "error"
-    out_json.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    _fs_path(out_json).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(1 if result["status"] != "ok" else 0)
 

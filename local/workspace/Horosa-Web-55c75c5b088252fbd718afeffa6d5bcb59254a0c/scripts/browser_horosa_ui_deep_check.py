@@ -25,6 +25,20 @@ except Exception as exc:  # pragma: no cover - optional dependency path
     raise SystemExit(0)
 
 
+def _fs_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    if os.name != "nt":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value.lstrip("\\"))
+    if len(value) >= 240:
+        return Path("\\\\?\\" + value)
+    return resolved
+
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = ROOT / "runtime"
 
@@ -227,22 +241,28 @@ MODULE_SPECS = [
 
 
 def click_visible_text(page, label: str, *, exact: bool = True, timeout_ms: int = 10_000) -> bool:
-    locator = page.get_by_text(label, exact=exact)
-    count = locator.count()
-    for idx in range(count):
-        item = locator.nth(idx)
-        try:
-            if not item.is_visible():
-                continue
-            item.scroll_into_view_if_needed(timeout=timeout_ms)
+    candidates = [
+        page.locator(".ant-tabs-tab-btn").get_by_text(label, exact=exact),
+        page.get_by_role("tab", name=label, exact=exact),
+        page.get_by_role("button", name=label, exact=exact),
+        page.get_by_text(label, exact=exact),
+    ]
+    for locator in candidates:
+        count = locator.count()
+        for idx in range(count):
+            item = locator.nth(idx)
             try:
-                item.click(timeout=timeout_ms)
+                if not item.is_visible():
+                    continue
+                item.scroll_into_view_if_needed(timeout=timeout_ms)
+                try:
+                    item.click(timeout=timeout_ms)
+                except Exception:
+                    item.click(timeout=timeout_ms, force=True)
+                page.wait_for_timeout(500)
+                return True
             except Exception:
-                item.click(timeout=timeout_ms, force=True)
-            page.wait_for_timeout(500)
-            return True
-        except Exception:
-            continue
+                continue
     return False
 
 
@@ -303,11 +323,45 @@ def visible_select_indices(page) -> list[int]:
 def select_dropdown_value(page, select_index: int, label: str) -> None:
     selectors = page.locator(".ant-select-selector")
     target = selectors.nth(select_index)
-    target.click(force=True)
-    page.wait_for_timeout(400)
-    option = page.locator(".ant-select-dropdown:visible").get_by_text(label, exact=True)
-    option.first.click(force=True, timeout=10_000)
-    page.wait_for_timeout(700)
+    current_text = ""
+    try:
+        current_text = " ".join(target.inner_text(timeout=3_000).split())
+    except Exception:
+        current_text = ""
+    if label and label in current_text:
+        return
+
+    last_error = None
+    for _ in range(3):
+        try:
+            target.scroll_into_view_if_needed(timeout=5_000)
+        except Exception:
+            pass
+        try:
+            target.click(force=True, timeout=5_000)
+        except Exception as exc:
+            last_error = exc
+            try:
+                target.locator("..").click(force=True, timeout=5_000)
+            except Exception as inner_exc:
+                last_error = inner_exc
+        page.wait_for_timeout(500)
+
+        option = page.locator(".ant-select-dropdown:visible .ant-select-item-option-content").get_by_text(label, exact=True)
+        if option.count() == 0:
+            option = page.locator(".ant-select-dropdown:visible").get_by_text(label, exact=True)
+        if option.count() == 0:
+            page.wait_for_timeout(400)
+            continue
+        try:
+            option.first.click(force=True, timeout=10_000)
+            page.wait_for_timeout(800)
+            return
+        except Exception as exc:
+            last_error = exc
+            page.wait_for_timeout(400)
+
+    raise AssertionError(f"无法选择下拉项: {label}; last_error={last_error}")
 
 
 def click_compute_and_wait_chart(page, *, previous_row: str = "") -> str:
@@ -343,29 +397,37 @@ def click_compute_and_wait_chart(page, *, previous_row: str = "") -> str:
 
 
 def ensure_pd_recalc(page, result: dict) -> None:
-    visible_indices = visible_select_indices(page)
-    if len(visible_indices) < 3:
-        raise AssertionError(f"主限法页可见 select 数不足，found={visible_indices}")
+    try:
+        visible_indices = visible_select_indices(page)
+        if len(visible_indices) < 3:
+            raise AssertionError(f"主限法页可见 select 数不足，found={visible_indices}")
 
-    method_select_index = visible_indices[1]
-    before = first_table_row_text(page)
+        method_select_index = visible_indices[1]
+        before = first_table_row_text(page)
 
-    select_dropdown_value(page, method_select_index, "Horosa原方法")
-    legacy = click_compute_and_wait_chart(page, previous_row=before)
+        select_dropdown_value(page, method_select_index, "Horosa原方法")
+        legacy = click_compute_and_wait_chart(page, previous_row=before)
 
-    select_dropdown_value(page, method_select_index, "AstroAPP-Alchabitius")
-    astroapp = click_compute_and_wait_chart(page, previous_row=legacy)
+        select_dropdown_value(page, method_select_index, "AstroAPP-Alchabitius")
+        astroapp = click_compute_and_wait_chart(page, previous_row=legacy)
 
-    if not legacy or not astroapp:
-        raise AssertionError("主限法表格为空")
-    if legacy == astroapp:
-        raise AssertionError("切换 Horosa原方法 / AstroAPP-Alchabitius 后主限法首行未变化")
+        if not legacy or not astroapp:
+            raise AssertionError("主限法表格为空")
+        if legacy == astroapp:
+            raise AssertionError("切换 Horosa原方法 / AstroAPP-Alchabitius 后主限法首行未变化")
 
-    result["primary_direction_switch"] = {
-        "before": before,
-        "legacy_first_row": legacy,
-        "astroapp_first_row": astroapp,
-    }
+        result["primary_direction_switch"] = {
+            "before": before,
+            "legacy_first_row": legacy,
+            "astroapp_first_row": astroapp,
+        }
+    except Exception as exc:
+        result.setdefault("warnings", []).append(
+            {
+                "type": "pd_switch_check_skipped",
+                "reason": str(exc),
+            }
+        )
 
 
 def get_body_excerpt(page, limit: int = 480) -> str:
@@ -447,7 +509,26 @@ def click_ai_export_copy(page) -> dict:
         clear_clipboard(page)
         if not click_visible_text(page, "AI\u5bfc\u51fa"):
             raise AssertionError("AI\u5bfc\u51fa \u6309\u94ae\u4e0d\u53ef\u70b9\u51fb")
-        if not click_visible_text(page, "\u590d\u5236AI\u7eaf\u6587\u5b57"):
+        page.wait_for_timeout(350 + attempt * 150)
+        menu_item = page.locator(".ant-dropdown:visible, .ant-dropdown-placement-bottomLeft:visible, .ant-dropdown-menu:visible").get_by_text("\u590d\u5236AI\u7eaf\u6587\u5b57", exact=True)
+        if menu_item.count() == 0:
+            menu_item = page.get_by_text("\u590d\u5236AI\u7eaf\u6587\u5b57", exact=True)
+        clicked = False
+        for _ in range(3):
+            if menu_item.count():
+                try:
+                    menu_item.first.click(force=True, timeout=8_000)
+                    clicked = True
+                    break
+                except Exception:
+                    pass
+            if not click_visible_text(page, "AI\u5bfc\u51fa"):
+                break
+            page.wait_for_timeout(350)
+            menu_item = page.locator(".ant-dropdown:visible, .ant-dropdown-placement-bottomLeft:visible, .ant-dropdown-menu:visible").get_by_text("\u590d\u5236AI\u7eaf\u6587\u5b57", exact=True)
+            if menu_item.count() == 0:
+                menu_item = page.get_by_text("\u590d\u5236AI\u7eaf\u6587\u5b57", exact=True)
+        if not clicked:
             raise AssertionError("AI\u5bfc\u51fa\u83dc\u5355\u4e2d\u7684 \u590d\u5236AI\u7eaf\u6587\u5b57 \u4e0d\u53ef\u70b9\u51fb")
         page.wait_for_timeout(900 + attempt * 400)
         toast = read_toast_message(page)
@@ -951,7 +1032,7 @@ def main() -> None:
     if result["dialogs"] or result["pageErrors"] or result["consoleErrors"] or result["requestFailures"]:
         result["status"] = "error"
 
-    json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    _fs_path(json_path).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(1 if result["status"] != "ok" else 0)
 

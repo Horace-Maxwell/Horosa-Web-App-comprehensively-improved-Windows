@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -18,8 +19,22 @@ def _project_root(root: Path | None = None) -> Path:
     return horosa_web if horosa_web.exists() else base
 
 
+def _fs_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    if os.name != "nt":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value.lstrip("\\"))
+    if len(value) >= 240:
+        return Path("\\\\?\\" + value)
+    return resolved
+
+
 def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+    return _fs_path(path).read_text(encoding="utf-8")
 
 
 def _assert_contains(path: Path, needle: str) -> None:

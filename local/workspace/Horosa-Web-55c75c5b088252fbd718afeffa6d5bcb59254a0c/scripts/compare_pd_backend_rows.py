@@ -18,6 +18,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import random
 import statistics
 from dataclasses import dataclass
@@ -35,6 +36,24 @@ def _code_root() -> Path:
     root = _repo_root()
     nested = root / "Horosa-Web"
     return nested if nested.is_dir() else root
+
+
+def _fs_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    if os.name != "nt":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value.lstrip("\\"))
+    if len(value) >= 240:
+        return Path("\\\\?\\" + value)
+    return resolved
+
+
+def _read_text(path: Path) -> str:
+    return _fs_path(path).read_text(encoding="utf-8")
 
 
 def _ensure_import_paths() -> None:
@@ -131,7 +150,7 @@ def _jd_to_utc_date_time_exact(jd: float) -> tuple[str, float]:
 
 
 def _load_csv(path: Path) -> list[dict[str, str]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as f:
+    with _fs_path(path).open("r", encoding="utf-8-sig", newline="") as f:
         return list(csv.DictReader(f))
 
 
@@ -231,7 +250,7 @@ def compare_case(
     planet_only: bool,
     shared_core_only: bool,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    meta = json.loads((case_dir / "meta.json").read_text(encoding="utf-8"))
+    meta = json.loads(_read_text(case_dir / "meta.json"))
     astro_rows = _load_csv(case_dir / "dirs.csv")
 
     source_jd = float(meta["sourceJD"])
@@ -368,7 +387,7 @@ def main() -> None:
         raise ValueError("--planet-only and --shared-core-only are mutually exclusive")
 
     root = Path(args.cases_root)
-    case_dirs = sorted(p for p in root.glob("case_*") if p.is_dir())
+    case_dirs = sorted(p for p in _fs_path(root).glob("case_*") if p.is_dir())
     if args.sample and args.sample < len(case_dirs):
         rng = random.Random(args.seed)
         case_dirs = sorted(rng.sample(case_dirs, args.sample))
@@ -402,7 +421,7 @@ def main() -> None:
 
     out_csv = Path(args.out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
-    with out_csv.open("w", encoding="utf-8", newline="") as f:
+    with _fs_path(out_csv).open("w", encoding="utf-8", newline="") as f:
         if all_rows:
             writer = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
             writer.writeheader()
@@ -418,7 +437,7 @@ def main() -> None:
         if args.shared_core_only
         else ("planet_only" if args.planet_only else "all")
     )
-    out_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _fs_path(out_json).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     print(json.dumps(payload, indent=2))
 

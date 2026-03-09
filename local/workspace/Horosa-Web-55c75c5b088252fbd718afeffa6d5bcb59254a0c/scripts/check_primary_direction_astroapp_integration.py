@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import random
 import re
 import statistics
@@ -32,6 +33,28 @@ def _project_root(root: Path | None = None) -> Path:
     base = root or _repo_root()
     horosa_web = base / "Horosa-Web"
     return horosa_web if horosa_web.exists() else base
+
+
+def _fs_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    if os.name != "nt":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value.lstrip("\\"))
+    if len(value) >= 240:
+        return Path("\\\\?\\" + value)
+    return resolved
+
+
+def _read_text(path: Path) -> str:
+    return _fs_path(path).read_text(encoding="utf-8")
+
+
+def _path_exists(path: Path) -> bool:
+    return _fs_path(path).exists()
 
 
 def _ensure_import_paths() -> None:
@@ -78,13 +101,13 @@ EXPECTED_PD_SYNC_REV = "pd_method_sync_v6"
 
 
 def _assert_contains(path: Path, needle: str) -> None:
-    text = path.read_text(encoding="utf-8")
+    text = _read_text(path)
     if needle not in text:
         raise AssertionError(f"{path} missing expected text: {needle}")
 
 
 def _assert_regex(path: Path, pattern: str) -> None:
-    text = path.read_text(encoding="utf-8")
+    text = _read_text(path)
     if re.search(pattern, text, re.S) is None:
         raise AssertionError(f"{path} missing expected pattern: {pattern}")
 
@@ -127,7 +150,7 @@ def _is_astroapp_unsupported_row(row: list) -> bool:
 
 
 def _build_sample_payload(case_dir: Path, pd_method: str) -> dict:
-    meta = json.loads((case_dir / "meta.json").read_text(encoding="utf-8"))
+    meta = json.loads(_read_text(case_dir / "meta.json"))
     date_str, time_float = _jd_to_utc_date_time_exact(float(meta["sourceJD"]))
     hsys = int(float(meta.get("th_payload", {}).get("house_system_id", 1)))
     zodiacal = 1 if str(meta.get("th_payload", {}).get("zodiac_id", "100")) == "101" else 0
@@ -169,7 +192,7 @@ def _fallback_sample_payload(pd_method: str) -> dict:
 
 
 def _sample_payload(case_dir: Path | None, pd_method: str) -> dict:
-    if case_dir is not None and case_dir.exists():
+    if case_dir is not None and _path_exists(case_dir):
         return _build_sample_payload(case_dir, pd_method)
     return _fallback_sample_payload(pd_method)
 
@@ -235,7 +258,7 @@ def _load_method_report(case_dir: Path | None) -> dict[str, dict[str, object]]:
 
 
 def _multi_case_runtime_report(cases_root: Path, sample_size: int, seed: int) -> dict[str, object]:
-    case_dirs = sorted(p for p in cases_root.glob("case_*") if p.is_dir())
+    case_dirs = sorted(p for p in _fs_path(cases_root).glob("case_*") if p.is_dir())
     if not case_dirs:
         raise AssertionError(f"no case directories found in {cases_root}")
     if sample_size and sample_size < len(case_dirs):
@@ -282,7 +305,7 @@ def _multi_case_runtime_report(cases_root: Path, sample_size: int, seed: int) ->
 
 
 def _load_threshold_report(rows_csv: Path, threshold: float) -> dict[str, dict[str, float]]:
-    rows = list(csv.DictReader(rows_csv.open("r", encoding="utf-8-sig", newline="")))
+    rows = list(csv.DictReader(_fs_path(rows_csv).open("r", encoding="utf-8-sig", newline="")))
     out: dict[str, dict[str, float]] = {}
     for label in TARGET_SIGS:
         sub = [r for r in rows if r.get("significator") == label]
@@ -308,7 +331,7 @@ def _load_threshold_report(rows_csv: Path, threshold: float) -> dict[str, dict[s
 
 
 def _maybe_load_threshold_report(rows_csv: Path, threshold: float) -> dict[str, object]:
-    if not rows_csv.exists():
+    if not _path_exists(rows_csv):
         return {
             "status": "skipped",
             "reason": f"missing exact-compare csv: {rows_csv}",
@@ -321,7 +344,7 @@ def _maybe_load_threshold_report(rows_csv: Path, threshold: float) -> dict[str, 
 
 
 def _maybe_multi_case_runtime_report(cases_root: Path, sample_size: int, seed: int) -> dict[str, object]:
-    if not cases_root.exists():
+    if not _path_exists(cases_root):
         return {
             "status": "skipped",
             "reason": f"missing multi-case runtime root: {cases_root}",
@@ -441,10 +464,10 @@ def main() -> None:
         "astroapp_pd_virtual_body_corr_neptune_v1.joblib",
         "astroapp_pd_virtual_body_corr_pluto_v1.joblib",
     ]:
-        if not (models_dir / model_name).exists():
+        if not _path_exists(models_dir / model_name):
             raise AssertionError(f"missing expected body-correction model: {model_name}")
 
-    effective_case_dir = case_dir if case_dir.exists() else None
+    effective_case_dir = case_dir if _path_exists(case_dir) else None
     sample_rows = _load_sample_rows(effective_case_dir)
     method_report = _load_method_report(effective_case_dir)
     threshold_report_state = _maybe_load_threshold_report(rows_csv, args.threshold)

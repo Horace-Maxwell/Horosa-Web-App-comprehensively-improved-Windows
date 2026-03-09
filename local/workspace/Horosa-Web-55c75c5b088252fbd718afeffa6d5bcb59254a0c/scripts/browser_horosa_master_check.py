@@ -30,6 +30,20 @@ def _configure_stdio() -> None:
 _configure_stdio()
 
 
+def _fs_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    if os.name != "nt":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value.lstrip("\\"))
+    if len(value) >= 240:
+        return Path("\\\\?\\" + value)
+    return resolved
+
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DIR = ROOT / "runtime"
 
@@ -331,7 +345,7 @@ def main() -> None:
     if result["dialogs"] or result["pageErrors"] or result["consoleErrors"] or result["requestFailures"]:
         result["status"] = "error"
 
-    json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    _fs_path(json_path).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(1 if result["status"] != "ok" else 0)
 
