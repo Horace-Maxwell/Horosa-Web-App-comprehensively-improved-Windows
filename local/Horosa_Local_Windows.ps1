@@ -1649,11 +1649,37 @@ function Test-JarFileLooksValid {
   }
 }
 
-function Try-BuildBackendJar {
-  if (Test-Path $JarPath) {
-    if (Test-JarFileLooksValid -Path $JarPath) { return $true }
+function Get-BackendSourceLatestWriteTimeUtc {
+  $srvRoot = Join-Path $ProjectDir 'astrostudysrv'
+  if (-not (Test-Path $srvRoot)) {
+    return $null
+  }
 
-    Write-Host ("[WARN] Existing backend jar is invalid, forcing local rebuild: {0}" -f $JarPath)
+  $latest = @(
+    Get-ChildItem -Path $srvRoot -Recurse -File -Include *.java,*.properties,pom.xml -ErrorAction SilentlyContinue |
+      Where-Object { $_.FullName -notmatch '[\\/](target|\.git|node_modules)[\\/]' } |
+      Sort-Object LastWriteTimeUtc -Descending |
+      Select-Object -First 1
+  )
+  if ($latest.Count -gt 0 -and $latest[0]) {
+    return $latest[0].LastWriteTimeUtc
+  }
+  return $null
+}
+
+function Try-BuildBackendJar {
+  param(
+    [switch]$ForceRebuild
+  )
+
+  if (Test-Path $JarPath) {
+    if ((Test-JarFileLooksValid -Path $JarPath) -and (-not $ForceRebuild)) { return $true }
+
+    if ($ForceRebuild) {
+      Write-Host ("[WARN] Existing backend jar is stale, forcing local rebuild: {0}" -f $JarPath)
+    } else {
+      Write-Host ("[WARN] Existing backend jar is invalid, forcing local rebuild: {0}" -f $JarPath)
+    }
     try {
       Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
     } catch {
@@ -1720,7 +1746,11 @@ function Try-BuildBackendJar {
     $env:JAVA_HOME = $buildJavaHome
     $env:Path = (Join-Path $buildJavaHome 'bin') + ';' + $oldPath
 
-    Write-Host 'Backend jar missing, trying local Maven build...'
+    if ($ForceRebuild) {
+      Write-Host 'Backend source is newer than local jar, trying local Maven rebuild...'
+    } else {
+      Write-Host 'Backend jar missing, trying local Maven build...'
+    }
     $moduleOrder = @(
       'boundless',
       'basecomm',
@@ -2004,8 +2034,22 @@ function Get-BackendJarDownloadUrls {
 function Ensure-BackendJar {
   if (Test-Path $JarPath) {
     if (Test-JarFileLooksValid -Path $JarPath) {
-      $script:JarSource = 'project'
-      return $true
+      $sourceStamp = Get-BackendSourceLatestWriteTimeUtc
+      $jarStamp = (Get-Item $JarPath).LastWriteTimeUtc
+      if (-not $sourceStamp -or $jarStamp -ge $sourceStamp) {
+        $script:JarSource = 'project'
+        return $true
+      }
+
+      Write-Host ("[WARN] Backend source is newer than existing jar ({0:u} > {1:u}), preferring local rebuild." -f $sourceStamp, $jarStamp)
+      if (Try-BuildBackendJar -ForceRebuild) {
+        if (Test-JarFileLooksValid -Path $JarPath) {
+          Write-Host ("[OK] Backend jar rebuilt locally: {0}" -f $JarPath)
+          $script:JarSource = 'build'
+          return $true
+        }
+      }
+      Write-Host '[WARN] Local backend rebuild did not produce a valid jar, falling back to bundled/download sources.'
     }
 
     Write-Host ("[WARN] Existing backend jar is invalid, trying bundled copy: {0}" -f $JarPath)
@@ -2015,6 +2059,19 @@ function Ensure-BackendJar {
       Write-Host ("[WARN] Could not remove invalid backend jar: {0}" -f $_.Exception.Message)
       return $false
     }
+  }
+
+  if (Try-BuildBackendJar) {
+    if (Test-JarFileLooksValid -Path $JarPath) {
+      Write-Host ("[OK] Backend jar built locally: {0}" -f $JarPath)
+      $script:JarSource = 'build'
+      return $true
+    }
+
+    Write-Host ("[WARN] Backend jar build finished but jar is invalid: {0}" -f $JarPath)
+    try {
+      Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
+    } catch {}
   }
 
   $sources = New-Object System.Collections.Generic.List[string]
@@ -2080,19 +2137,6 @@ function Ensure-BackendJar {
         Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
       } catch {}
     }
-  }
-
-  if (Try-BuildBackendJar) {
-    if (Test-JarFileLooksValid -Path $JarPath) {
-      Write-Host ("[OK] Backend jar built locally: {0}" -f $JarPath)
-      $script:JarSource = 'build'
-      return $true
-    }
-
-    Write-Host ("[WARN] Backend jar build finished but jar is invalid: {0}" -f $JarPath)
-    try {
-      Remove-Item -LiteralPath $JarPath -Force -ErrorAction Stop
-    } catch {}
   }
 
   return $false
