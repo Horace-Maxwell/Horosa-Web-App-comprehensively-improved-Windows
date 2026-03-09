@@ -595,16 +595,14 @@ def wait_state_line(page, key: str, expected: str, rounds: int = 12, delay_ms: i
     return state
 
 
-def load_astroapp_rows(limit: int = 7) -> list[dict]:
+def load_astroapp_rows(limit: int = 7) -> tuple[list[dict], str]:
     candidates = [
         ROOT / "runtime" / "pd_auto" / "debug_guangde_case" / "dirs.csv",
         KIT_EXPECTED_RUNTIME_DIR / "pd_auto" / "debug_guangde_case" / "dirs.csv",
     ]
     path = next((candidate for candidate in candidates if candidate.exists()), None)
     if path is None:
-        raise FileNotFoundError(
-            "missing Guangde dirs.csv fixture in runtime/ or WINDOWS_CODEX_PRIMARY_DIRECTION_CHART_REPRO_KIT/expected_results/"
-        )
+        return [], "skipped: missing Guangde dirs.csv fixture in runtime/ or WINDOWS_CODEX_PRIMARY_DIRECTION_CHART_REPRO_KIT/expected_results/"
     rows = []
     with _fs_path(path).open("r", encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
@@ -618,7 +616,7 @@ def load_astroapp_rows(limit: int = 7) -> list[dict]:
                     "date_text": row["dirDate"],
                 }
             )
-    return rows
+    return rows, f"ok: {path}"
 
 
 def main() -> None:
@@ -730,7 +728,7 @@ def main() -> None:
 
         captured_chart_json = extract_primary_direction_chart_obj(page)
         backend_rows = build_display_rows(captured_chart_json)[:7]
-        astroapp_rows = load_astroapp_rows(limit=7)
+        astroapp_rows, astroapp_rows_status = load_astroapp_rows(limit=7)
 
         for idx, (browser_row, backend_row) in enumerate(zip(browser_table, backend_rows), start=1):
             if browser_row["arc_text"] != backend_row["arc_text"]:
@@ -843,6 +841,7 @@ def main() -> None:
     result["browser_table_first_rows"] = browser_table
     result["backend_first_rows"] = backend_rows
     result["astroapp_first_rows"] = astroapp_rows
+    result["astroapp_first_rows_status"] = astroapp_rows_status
     result["initial_pd_chart_state"] = initial_state
     result["initial_pd_chart_term_highlight"] = initial_term_highlight
     result["row_time_pd_chart_state"] = state_at_row
