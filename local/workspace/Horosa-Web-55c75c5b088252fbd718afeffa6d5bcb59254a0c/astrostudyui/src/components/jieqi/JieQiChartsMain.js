@@ -20,15 +20,7 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
-import {
-	appendPlanetMetaName,
-} from '../../utils/planetMetaDisplay';
-
-const JIEQI_SNAPSHOT_PLANET_META = {
-	showPostnatal: 1,
-	showHouse: 1,
-	showRuler: 1,
-};
+import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
 
 const { MonthPicker, } = DatePicker
 const TabPane = Tabs.TabPane;
@@ -42,43 +34,10 @@ const JIEQI_STD = [
 ];
 
 const jieqiChartMem = {};
-const JIEQI_VIEWPORT_GAP = 12;
-const JIEQI_MIN_HEIGHT = 320;
-
-function getViewportHeight(){
-	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
-		return window.innerHeight;
-	}
-	if(typeof document !== 'undefined' && document.documentElement){
-		return document.documentElement.clientHeight || 900;
-	}
-	return 900;
-}
-
-function toNumber(val){
-	if(typeof val === 'number' && Number.isFinite(val)){
-		return val;
-	}
-	if(typeof val === 'string'){
-		const txt = val.trim();
-		if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
-			const n = parseFloat(txt);
-			return Number.isFinite(n) ? n : null;
-		}
-	}
-	return null;
-}
-
-function resolveBoundedHeight(rawHeight){
-	const viewport = getViewportHeight();
-	let h = toNumber(rawHeight);
-	if(h === null){
-		h = rawHeight === '100%' ? (viewport - 80) : 760;
-	}
-	h = h - 50;
-	const maxH = Math.max(JIEQI_MIN_HEIGHT, viewport - JIEQI_VIEWPORT_GAP);
-	return Math.max(JIEQI_MIN_HEIGHT, Math.min(h, maxH));
-}
+const AI_EXPORT_PLANET_INFO = {
+	showHouse: 1,
+	showRuler: 1,
+};
 
 function newEmptyFields(fld){
 	const fields = {
@@ -324,6 +283,140 @@ function toSimpleFourColumns(nongli){
 	};
 }
 
+function getJieqiFourColumns(item){
+	if(!item){
+		return null;
+	}
+	if(item.bazi && item.bazi.fourColumns){
+		return item.bazi.fourColumns;
+	}
+	if(item.fourColumns){
+		return item.fourColumns;
+	}
+	if(item.bazi){
+		const fromBazi = toSimpleFourColumns(item.bazi);
+		if(fromBazi){
+			return fromBazi;
+		}
+	}
+	if(item.nongli){
+		return toSimpleFourColumns(item.nongli);
+	}
+	return null;
+}
+
+function normalizeFourColumnPart(part){
+	const src = part || {};
+	return {
+		ganzi: src.ganzi ? `${src.ganzi}` : '',
+		naying: src.naying ? `${src.naying}` : '',
+	};
+}
+
+function compactFourColumns(fourCols){
+	if(!fourCols){
+		return null;
+	}
+	return {
+		year: normalizeFourColumnPart(fourCols.year),
+		month: normalizeFourColumnPart(fourCols.month),
+		day: normalizeFourColumnPart(fourCols.day),
+		time: normalizeFourColumnPart(fourCols.time),
+	};
+}
+
+function compactJieqiSeedResult(result){
+	if(!result || !Array.isArray(result.jieqi24)){
+		return result;
+	}
+	const jieqi24 = result.jieqi24.map((item)=>{
+		const fourCols = compactFourColumns(getJieqiFourColumns(item));
+		return {
+			ord: item && item.ord !== undefined ? item.ord : null,
+			jieqi: item && item.jieqi ? `${item.jieqi}` : '',
+			jie: item && item.jie !== undefined ? item.jie : null,
+			time: item && item.time ? `${item.time}` : '',
+			ad: item && item.ad !== undefined ? item.ad : null,
+			bazi: fourCols ? { fourColumns: fourCols } : null,
+		};
+	});
+	return {
+		...result,
+		jieqi24,
+		charts: {},
+	};
+}
+
+function mergeJieqiRows(baseRows, patchRows){
+	const base = Array.isArray(baseRows) ? baseRows : [];
+	const patch = Array.isArray(patchRows) ? patchRows : [];
+	if(!base.length){
+		return patch;
+	}
+	if(!patch.length){
+		return base;
+	}
+	const patchMap = {};
+	patch.forEach((row)=>{
+		const key = row && row.jieqi ? `${row.jieqi}` : '';
+		if(!key){
+			return;
+		}
+		patchMap[key] = row;
+	});
+	return base.map((row)=>{
+		const key = row && row.jieqi ? `${row.jieqi}` : '';
+		const next = key ? patchMap[key] : null;
+		if(!next){
+			return row;
+		}
+		return {
+			...row,
+			ord: next.ord !== undefined ? next.ord : row.ord,
+			jie: next.jie !== undefined ? next.jie : row.jie,
+			time: next.time || row.time,
+			ad: next.ad !== undefined ? next.ad : row.ad,
+			bazi: next.bazi || row.bazi || null,
+		};
+	});
+}
+
+function cacheJieqiSeedRows(params, rows){
+	if(!params || !Array.isArray(rows) || !rows.length){
+		return;
+	}
+	const seed = {};
+	rows.forEach((entry)=>{
+		const term = entry && entry.jieqi ? `${entry.jieqi}` : '';
+		const time = entry && entry.time ? `${entry.time}` : '';
+		const fourCols = getJieqiFourColumns(entry);
+		if(term && time){
+			seed[term] = {
+				term,
+				time,
+				dateKey: time.split(' ')[0].replace(/-/g, ''),
+				dayGanzhi: fourCols && fourCols.day ? `${fourCols.day.ganzi || ''}` : '',
+			};
+		}
+	});
+	if(Object.keys(seed).length){
+		setJieqiSeedLocalCache(params, seed);
+	}
+}
+
+function findJieqiRow(rows, title){
+	if(!Array.isArray(rows) || !title){
+		return null;
+	}
+	for(let i = 0; i < rows.length; i += 1){
+		const row = rows[i];
+		if(row && row.jieqi === title){
+			return row;
+		}
+	}
+	return null;
+}
+
 function buildChartRequestParams(params, birth){
 	const dt = splitBirthToDateTime(birth);
 	return {
@@ -387,24 +480,21 @@ function isEncodedToken(text){
 	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
 }
 
-function msg(id, chartSources){
+function msg(id){
 	if(id === undefined || id === null){
 		return '';
 	}
-	let base = null;
 	if(AstroText.AstroTxtMsg[id]){
-		base = AstroText.AstroTxtMsg[id];
-	}else if(AstroText.AstroMsg[id]){
+		return AstroText.AstroTxtMsg[id];
+	}
+	if(AstroText.AstroMsg[id]){
 		const val = AstroText.AstroMsg[id];
 		if(isEncodedToken(val)){
-			base = `${id}`;
-		}else{
-			base = `${val}`;
+			return `${id}`;
 		}
-	}else{
-		base = `${id}`;
+		return `${val}`;
 	}
-	return appendPlanetMetaName(base, id, chartSources, JIEQI_SNAPSHOT_PLANET_META);
+	return `${id}`;
 }
 
 function splitDegree(degree){
@@ -467,7 +557,7 @@ function computeAscSignIndex(rootObj, chart, fields){
 }
 
 function houseFullLabel(house, idx, ascSignIndex){
-	let houseName = msg(house && house.id ? house.id : null, null) || `第${idx + 1}宫`;
+	let houseName = msg(house && house.id ? house.id : null) || `第${idx + 1}宫`;
 	const sign = signFromLon(house ? house.lon : null);
 	if(!sign){
 		return houseName;
@@ -481,7 +571,7 @@ function houseFullLabel(house, idx, ascSignIndex){
 	const area = (SZConst.SZSigns[signIdx] && SZConst.SZSigns[signIdx].length >= 2)
 		? `${SZConst.SZSigns[signIdx][0]}${SZConst.SZSigns[signIdx][1]}`
 		: '';
-	const signName = AstroText.AstroMsgCN[sign] || msg(sign, null);
+	const signName = AstroText.AstroMsgCN[sign] || msg(sign);
 	return `${zi}—${area}—${signName}座—${houseName}`;
 }
 
@@ -555,7 +645,7 @@ function buildJieQiSuSection(chartObj, fields, planetDisplay){
 					radeg = Number(obj.signlon);
 				}
 				const sd = splitDegree(radeg);
-				lines.push(`星曜：${msg(obj.id, chartObj)} ${sd[0]}˚${su}${sd[1]}分`);
+				lines.push(`星曜：${appendPlanetHouseInfo(msg(obj.id), obj, AI_EXPORT_PLANET_INFO)} ${sd[0]}˚${su}${sd[1]}分`);
 			});
 		});
 		lines.push('');
@@ -585,10 +675,10 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 		lines.push(`时区：${params.zone}`);
 	}
 	if(chart.zodiacal){
-		lines.push(`黄道：${msg(chart.zodiacal, chartObj)}`);
+		lines.push(`黄道：${msg(chart.zodiacal)}`);
 	}
 	if(chart.hsys){
-		lines.push(`宫制：${msg(chart.hsys, chartObj)}`);
+		lines.push(`宫制：${msg(chart.hsys)}`);
 	}
 
 	if(withHeaders){
@@ -603,7 +693,7 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 			const deg = splitDegree(house.lon);
 			const sign = Math.floor(((house.lon % 360) + 360) % 360 / 30);
 			const signs = ['白羊', '金牛', '双子', '巨蟹', '狮子', '处女', '天秤', '天蝎', '射手', '摩羯', '水瓶', '双鱼'];
-			lines.push(`${msg(house.id, chartObj) || `第${idx + 1}宫`}：${Math.abs(deg[0] % 30)}˚${signs[sign]}${Math.abs(deg[1])}分`);
+			lines.push(`${msg(house.id) || `第${idx + 1}宫`}：${Math.abs(deg[0] % 30)}˚${signs[sign]}${Math.abs(deg[1])}分`);
 		}
 	});
 
@@ -615,7 +705,7 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 	}
 	objects.forEach((obj)=>{
 		const sd = splitDegree(obj.signlon);
-		lines.push(`${msg(obj.id, chartObj)}：${sd[0]}˚${msg(obj.sign, chartObj)}${sd[1]}分；宫位=${msg(obj.house, chartObj)}`);
+		lines.push(`${appendPlanetHouseInfoById(msg(obj.id), chartObj, obj.id, AI_EXPORT_PLANET_INFO)}：${sd[0]}˚${msg(obj.sign)}${sd[1]}分；宫位=${msg(obj.house)}`);
 	});
 	return lines.join('\n').trim();
 }
@@ -699,6 +789,10 @@ function buildJieQiCurrentSnapshotText(currentTab, result, baseFields, jieqis, p
 	return lines.join('\n').trim();
 }
 
+function tabNeedsJieqiCharts(currentTab, jieqis){
+	return parseJieQiTab(currentTab, jieqis) !== null;
+}
+
 
 class JieQiChartsMain extends Component{
 
@@ -736,12 +830,24 @@ class JieQiChartsMain extends Component{
 		this.unmounted = false;
 		this.snapshotTimer = null;
 		this.requestSeq = 0;
-		this.pendingRequest = null;
-		this.lastResultKey = '';
+		this.pendingSeedRequest = null;
+		this.lastSeedResultKey = '';
+		this.chartRequestSeq = 0;
+		this.pendingChartRequest = null;
+		this.lastChartResultKey = '';
+		this.baziRequestSeq = 0;
+		this.pendingBaziRequest = null;
+		this.lastBaziResultKey = '';
 
 		this.changeTab = this.changeTab.bind(this);
 		this.requestJieQi = this.requestJieQi.bind(this);
+		this.requestJieQiCharts = this.requestJieQiCharts.bind(this);
+		this.requestJieQiBazi = this.requestJieQiBazi.bind(this);
+		this.currentTabNeedsCharts = this.currentTabNeedsCharts.bind(this);
+		this.ensureChartsForTab = this.ensureChartsForTab.bind(this);
 		this.genParams = this.genParams.bind(this);
+		this.genSeedParams = this.genSeedParams.bind(this);
+		this.genChartParams = this.genChartParams.bind(this);
 
 		this.onLatChanged = this.onLatChanged.bind(this);
 		this.onLonChanged = this.onLonChanged.bind(this);
@@ -756,8 +862,9 @@ class JieQiChartsMain extends Component{
 		this.gen24JieqiDom = this.gen24JieqiDom.bind(this);
 		this.genTabsDom = this.genTabsDom.bind(this);
 		this.saveCurrentJieQiSnapshot = this.saveCurrentJieQiSnapshot.bind(this);
+		this.scheduleJieqiSnapshotSave = this.scheduleJieqiSnapshotSave.bind(this);
 
-		let params = this.genParams();
+		let params = this.genSeedParams();
 		this.state.fields = paramsToFields(params);
 
 		if(this.props.hook){
@@ -781,120 +888,161 @@ class JieQiChartsMain extends Component{
 
 	}
 
-	genParams(){
+	genParams(includeJieqis=true){
 		const params = {
 			year: this.state.time.format('YYYY'),
 			ad: this.state.ad,
 			zone: this.state.zone,
 			lon: this.state.lon,
 			lat: this.state.lat,
-			jieqis: this.state.jieqis,
 			hsys: this.state.hsys,
 			zodiacal: this.state.zodiacal,
 			gpsLat: this.state.gpsLat,
 			gpsLon: this.state.gpsLon,
 			doubingSu28: this.state.doubingSu28,
 		}
+		if(includeJieqis){
+			params.jieqis = this.state.jieqis;
+		}
 		return params;
 	}
 
-	getRequestKey(params){
-		const p = params || this.genParams();
+	genSeedParams(){
+		return this.genParams(false);
+	}
+
+	genChartParams(seedParams){
+		const base = seedParams || this.genSeedParams();
+		return {
+			...base,
+			jieqis: this.state.jieqis,
+		};
+	}
+
+	currentTabNeedsCharts(tab){
+		return tabNeedsJieqiCharts(tab || this.state.currentTab, this.state.jieqis);
+	}
+
+	ensureChartsForTab(tab){
+		if(!this.currentTabNeedsCharts(tab)){
+			return null;
+		}
+		const titleInfo = parseJieQiTab(tab || this.state.currentTab, this.state.jieqis);
+		const title = titleInfo && titleInfo.title ? titleInfo.title : null;
+		if(title && this.state.result && this.state.result.charts && this.state.result.charts[title]){
+			return Promise.resolve(this.state.result.charts[title]);
+		}
+		const seedParams = this.genSeedParams();
+		return this.requestJieQiCharts(seedParams, this.requestSeq);
+	}
+
+	getSeedRequestKey(params){
+		const p = params || this.genSeedParams();
 		return [
 			getSeedCacheKey(p),
 			p && p.hsys,
 			p && p.zodiacal,
 			p && p.doubingSu28,
-			p && Array.isArray(p.jieqis) ? p.jieqis.join(',') : '',
+			p && p.seedOnly ? 1 : 0,
+		].join('|');
+	}
+
+	getChartRequestKey(params, tab){
+		const p = params || this.genSeedParams();
+		const info = parseJieQiTab(tab || this.state.currentTab, this.state.jieqis);
+		const title = info && info.title ? info.title : '';
+		return [
+			getSeedCacheKey(p),
+			p && p.hsys,
+			p && p.zodiacal,
+			p && p.doubingSu28,
+			title,
 		].join('|');
 	}
 
 	async requestJieQi(){
-		const params = this.genParams();
-		const reqKey = this.getRequestKey(params);
-		if(this.pendingRequest && this.pendingRequest.key === reqKey){
-			return this.pendingRequest.promise;
-		}
-		if(this.lastResultKey === reqKey && this.state.result && Object.keys(this.state.result).length){
-			return this.state.result;
-		}
+		const seedParams = this.genSeedParams();
+		const needsCharts = this.currentTabNeedsCharts();
+		const flds = paramsToFields(seedParams, this.state.fields);
 		const seq = ++this.requestSeq;
-		const flds = paramsToFields(params, this.state.fields);
+		this.setState({
+			fields: flds,
+		});
+		if(needsCharts){
+			this.requestJieQiCharts(seedParams, seq, this.state.currentTab);
+		}
+		return this.requestJieQiBazi(seedParams, seq);
+	}
+
+	async requestJieQiCharts(seedParams, seedSeq, tab){
+		const currentTab = tab || this.state.currentTab;
+		const info = parseJieQiTab(currentTab, this.state.jieqis);
+		if(!info || !info.title){
+			return null;
+		}
+		const title = info.title;
+		const reqParams = seedParams || this.genSeedParams();
+		const reqKey = this.getChartRequestKey(reqParams, currentTab);
+		if(this.pendingChartRequest && this.pendingChartRequest.key === reqKey){
+			return this.pendingChartRequest.promise;
+		}
+		if(this.state.result
+			&& this.state.result.charts
+			&& this.state.result.charts[title]){
+			this.lastChartResultKey = reqKey;
+			return this.state.result.charts[title];
+		}
+		const seq = ++this.chartRequestSeq;
 		const reqPromise = (async()=>{
-			const preciseResult = await fetchPreciseJieqiYear(params);
-			let result = preciseResult;
-			if(!result || this.unmounted || seq !== this.requestSeq){
-				return result;
+			let rows = this.state.result && Array.isArray(this.state.result.jieqi24)
+				? this.state.result.jieqi24 : [];
+			let row = findJieqiRow(rows, title);
+			if(!row || !row.time){
+				rows = await this.requestJieQiBazi(reqParams, seedSeq);
+				row = findJieqiRow(rows, title);
 			}
-			if(result && Array.isArray(result.jieqi24)){
-				const seed = {};
-				result.jieqi24.forEach((entry)=>{
-					const term = entry && entry.jieqi ? `${entry.jieqi}` : '';
-					const time = entry && entry.time ? `${entry.time}` : '';
-					if(term && time){
-						seed[term] = {
-							term,
-							time,
-							dateKey: time.split(' ')[0].replace(/-/g, ''),
-							dayGanzhi: entry && entry.bazi && entry.bazi.fourColumns && entry.bazi.fourColumns.day
-								? `${entry.bazi.fourColumns.day.ganzi || ''}` : '',
-						};
-					}
+			if(!row || !row.time || this.unmounted){
+				return null;
+			}
+			if(seedSeq !== undefined && seedSeq !== this.requestSeq){
+				return null;
+			}
+			if(seq !== this.chartRequestSeq){
+				return null;
+			}
+			const chartObj = await loadJieqiChart(reqParams, title, row.time);
+			if(!chartObj || this.unmounted){
+				return chartObj;
+			}
+			if(seedSeq !== undefined && seedSeq !== this.requestSeq){
+				return chartObj;
+			}
+			if(seq !== this.chartRequestSeq){
+				return chartObj;
+			}
+			this.lastChartResultKey = reqKey;
+			this.setState((prev)=>{
+				const prevResult = prev.result || {};
+				return {
+					result: {
+						...prevResult,
+						charts: {
+							...(prevResult.charts || {}),
+							[title]: chartObj,
+						},
+					},
+				};
+				}, ()=>{
+					this.saveCurrentJieQiSnapshot(this.state.currentTab, this.state.result, this.state.fields);
+					this.scheduleJieqiSnapshotSave(this.state.result, this.state.fields, reqParams);
 				});
-				if(Object.keys(seed).length){
-					setJieqiSeedLocalCache(params, seed);
-				}
-			}
-			const st = {
-				result: result,
-				fields: flds,
-			};
-			this.lastResultKey = reqKey;
-			this.setState(st, ()=>{
-				this.saveCurrentJieQiSnapshot(this.state.currentTab, result, flds);
-			});
-			if(this.snapshotTimer){
-				if(typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'){
-					window.cancelIdleCallback(this.snapshotTimer);
-				}else{
-					clearTimeout(this.snapshotTimer);
-				}
-			}
-			const saveJob = ()=>{
-				if(this.unmounted){
-					return;
-				}
-				saveModuleAISnapshot('jieqi', buildJieQiSnapshotText(result, flds, this.state.jieqis, this.props.planetDisplay), {
-					year: params.year,
-					zone: params.zone,
-					lon: params.lon,
-					lat: params.lat,
-					hsys: params.hsys,
-					zodiacal: params.zodiacal,
-				});
-				saveModuleAISnapshot('jieqi_current', buildJieQiCurrentSnapshotText(this.state.currentTab, result, flds, this.state.jieqis, this.props.planetDisplay), {
-					year: params.year,
-					zone: params.zone,
-					lon: params.lon,
-					lat: params.lat,
-					hsys: params.hsys,
-					zodiacal: params.zodiacal,
-					currentTab: this.state.currentTab,
-				});
-			};
-			// 节气快照在空闲时保存，避免与页面交互竞争主线程。
-			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
-				this.snapshotTimer = window.requestIdleCallback(saveJob, { timeout: 1200 });
-			}else{
-				this.snapshotTimer = setTimeout(saveJob, 200);
-			}
-			return result;
+			return chartObj;
 		})().finally(()=>{
-			if(this.pendingRequest && this.pendingRequest.seq === seq){
-				this.pendingRequest = null;
+			if(this.pendingChartRequest && this.pendingChartRequest.seq === seq){
+				this.pendingChartRequest = null;
 			}
 		});
-		this.pendingRequest = {
+		this.pendingChartRequest = {
 			key: reqKey,
 			seq,
 			promise: reqPromise,
@@ -902,10 +1050,108 @@ class JieQiChartsMain extends Component{
 		return reqPromise;
 	}
 
+	async requestJieQiBazi(seedParams, seedSeq){
+		const reqKey = this.getSeedRequestKey(seedParams);
+		if(this.pendingBaziRequest && this.pendingBaziRequest.key === reqKey){
+			return this.pendingBaziRequest.promise;
+		}
+		if(this.lastBaziResultKey === reqKey
+			&& this.state.result
+			&& Array.isArray(this.state.result.jieqi24)
+			&& this.state.result.jieqi24.some((item)=>item && item.bazi && item.bazi.fourColumns)){
+			return this.state.result.jieqi24;
+		}
+		const seq = ++this.baziRequestSeq;
+		const reqPromise = (async()=>{
+			const fullResult = await fetchPreciseJieqiYear(seedParams);
+			if(!fullResult || this.unmounted){
+				return fullResult;
+			}
+			if(seedSeq !== undefined && seedSeq !== this.requestSeq){
+				return fullResult;
+			}
+			if(seq !== this.baziRequestSeq){
+				return fullResult;
+			}
+			const compact = compactJieqiSeedResult(fullResult);
+			const fullRows = compact && Array.isArray(compact.jieqi24) ? compact.jieqi24 : [];
+			if(!fullRows.length){
+				return fullRows;
+			}
+			cacheJieqiSeedRows(seedParams, fullRows);
+			this.lastBaziResultKey = reqKey;
+			this.setState((prev)=>{
+				const prevResult = prev.result || {};
+				const mergedJieqi24 = mergeJieqiRows(prevResult.jieqi24, fullRows);
+				return {
+					result: {
+						...prevResult,
+						jieqi24: mergedJieqi24,
+					},
+				};
+			}, ()=>{
+				this.saveCurrentJieQiSnapshot(this.state.currentTab, this.state.result, this.state.fields);
+				this.scheduleJieqiSnapshotSave(this.state.result, this.state.fields, seedParams);
+			});
+			return fullRows;
+		})().finally(()=>{
+			if(this.pendingBaziRequest && this.pendingBaziRequest.seq === seq){
+				this.pendingBaziRequest = null;
+			}
+		});
+		this.pendingBaziRequest = {
+			key: reqKey,
+			seq,
+			promise: reqPromise,
+		};
+		return reqPromise;
+	}
+
+	scheduleJieqiSnapshotSave(result, fields, params){
+		if(this.snapshotTimer){
+			if(typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'){
+				window.cancelIdleCallback(this.snapshotTimer);
+			}else{
+				clearTimeout(this.snapshotTimer);
+			}
+			this.snapshotTimer = null;
+		}
+		const saveJob = ()=>{
+			if(this.unmounted){
+				return;
+			}
+			const p = params || {};
+			saveModuleAISnapshot('jieqi', buildJieQiSnapshotText(result, fields, this.state.jieqis, this.props.planetDisplay), {
+				year: p.year,
+				zone: p.zone,
+				lon: p.lon,
+				lat: p.lat,
+				hsys: p.hsys,
+				zodiacal: p.zodiacal,
+			});
+			saveModuleAISnapshot('jieqi_current', buildJieQiCurrentSnapshotText(this.state.currentTab, result, fields, this.state.jieqis, this.props.planetDisplay), {
+				year: p.year,
+				zone: p.zone,
+				lon: p.lon,
+				lat: p.lat,
+				hsys: p.hsys,
+				zodiacal: p.zodiacal,
+				currentTab: this.state.currentTab,
+			});
+		};
+		// 节气快照在空闲时保存，避免主线程卡顿。
+		if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+			this.snapshotTimer = window.requestIdleCallback(saveJob, { timeout: 1200 });
+		}else{
+			this.snapshotTimer = setTimeout(saveJob, 220);
+		}
+	}
+
 	changeTab(key){
 		this.setState({
 			currentTab: key,
 		}, ()=>{
+			this.ensureChartsForTab(key);
 			this.saveCurrentJieQiSnapshot(key);
 			if(this.props.dispatch){
 				this.props.dispatch({
@@ -1059,49 +1305,52 @@ class JieQiChartsMain extends Component{
 		}
 
 		let cols = this.state.result.jieqi24.map((item, idx)=>{
-			const one = item || {};
-			const fourCols = one && one.bazi && one.bazi.fourColumns ? one.bazi.fourColumns : null;
-			const title = one.jieqi || `节气${idx + 1}`;
+			const fourCols = getJieqiFourColumns(item);
+			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
+			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
+			const monthCol = fourCols && fourCols.month ? fourCols.month : null;
+			const dayCol = fourCols && fourCols.day ? fourCols.day : null;
+			const timeCol = fourCols && fourCols.time ? fourCols.time : null;
 			return (
-				<Col key={`${title}_${idx}`} span={6}>
-					<Card title={title} bordered={false}>
+				<Col key={key} span={6}>
+					<Card title={item && item.jieqi ? item.jieqi : ''} bordered={false}>
 						<Row>
-							<Col span={24}>{one.time || '时间缺失'}</Col>
+							<Col span={24}>{item && item.time ? item.time : ''}</Col>
 							{
-								fourCols && fourCols.year && fourCols.month && fourCols.day && fourCols.time && (
+								yearCol && (
 									<Col span={24} style={{textAlign:'center'}}>
 										<Row gutter={6}>
 											<Col span={6}>
-												{fourCols.year.ganzi}
+												{yearCol.ganzi}
 											</Col>
 											<Col span={6}>
-												{fourCols.month.ganzi}
+												{monthCol ? monthCol.ganzi : ''}
 											</Col>
 											<Col span={6}>
-												{fourCols.day.ganzi}
+												{dayCol ? dayCol.ganzi : ''}
 											</Col>
 											<Col span={6}>
-												{fourCols.time.ganzi}
+												{timeCol ? timeCol.ganzi : ''}
 											</Col>
 										</Row>
 									</Col>	
 								)
 							}
 							{
-								fourCols && fourCols.year && fourCols.month && fourCols.day && fourCols.time && (
+								yearCol && (
 									<Col span={24} style={{textAlign:'center'}}>
 										<Row gutter={6}>
 											<Col span={6}>
-												{fourCols.year.naying}
+												{yearCol.naying}
 											</Col>
 											<Col span={6}>
-												{fourCols.month.naying}
+												{monthCol ? monthCol.naying : ''}
 											</Col>
 											<Col span={6}>
-												{fourCols.day.naying}
+												{dayCol ? dayCol.naying : ''}
 											</Col>
 											<Col span={6}>
-												{fourCols.time.naying}
+												{timeCol ? timeCol.naying : ''}
 											</Col>
 										</Row>
 									</Col>	
@@ -1123,96 +1372,100 @@ class JieQiChartsMain extends Component{
 
 	genTabsDom(height){
 		let tabs = [];
-		const charts = this.state.result.charts;
-		if(charts){
-			for(let i=0; i<this.state.jieqis.length; i++){
-				let title = this.state.jieqis[i];
-				let chart = charts[title] ? charts[title] : null;
-				const hasRenderableChart = !!(chart && chart.params && chart.chart);
-				let fallbackMessage = `${title}数据暂不可用，请点击右上“新命盘”重试。`;
-				if(chart && chart.err){
-					fallbackMessage = `${fallbackMessage}（${chart.err}）`;
-				}
-				const fallbackDom = (
-					<Card bordered={false}>
-						{fallbackMessage}
-					</Card>
-				);
-				let flds = {
-					...(this.props.fields || {}),
-					...(this.state.fields || {}),
-				};
-				if(chart && chart.params){
-					flds = paramsToFields(chart.params, flds);
-				}
-				const starKey = title;
-				const suKey = '宿盘'+title;
-				const d3Key = '3D盘'+title;
-				const renderStar = this.state.currentTab === starKey;
-				const renderSu = this.state.currentTab === suKey;
-				const render3d = this.state.currentTab === d3Key;
-				let tab = (
-					<TabPane tab={title+'星盘'} key={starKey}>
-						{renderStar ? (
-						(hasRenderableChart ? (
-							<AstroChartMain
-								hidehsys={1}
-								hidezodiacal={1}
-								hidedateselector={true}
-								height={height}
-								fields={flds}
-								value={chart}
-								chartDisplay={this.props.chartDisplay}
-								planetDisplay={this.props.planetDisplay}
-								lotsDisplay={this.props.lotsDisplay}	
-							/>
-						) : fallbackDom)) : null}
-					</TabPane>
-
-				);
-				tabs.push(tab);
-
-				let sztab = (
-					<TabPane tab={title+'宿盘'} key={suKey}>
-						{renderSu ? (
-						(hasRenderableChart ? (
-							<SuZhanMain
-								value={chart}
-								height={height}
-								fields={flds}
-								chartDisplay={this.props.chartDisplay}
-								planetDisplay={this.props.planetDisplay}
-								hook={this.state.hook.suzhan}
-								onFieldsChange={this.onSuZhanFieldsChange}
-								dispatch={this.props.dispatch}
-							/>
-						) : fallbackDom)) : null}
+		const charts = this.state.result.charts || {};
+		for(let i=0; i<this.state.jieqis.length; i++){
+			let title = this.state.jieqis[i];
+			let chart = charts[title];
+			if(!chart){
+				tabs.push(
+					<TabPane tab={title+'星盘'} key={title}>
+						<div style={{ padding: 12 }}>加载中...</div>
 					</TabPane>
 				);
-				tabs.push(sztab);
-
-				let tab3d = (
-					<TabPane tab={title+'3D盘'} key={d3Key}>
-						{render3d ? (
-						(hasRenderableChart ? (
-							<AstroChartMain3D
-								hidehsys={1}
-								hidezodiacal={1}
-								hidedateselector={true}
-								needChart3D={true}
-								value={chart}
-								height={height}
-								fields={flds}
-								chartDisplay={this.props.chartDisplay}
-								planetDisplay={this.props.planetDisplay}
-								lotsDisplay={this.props.lotsDisplay}	
-							/>
-						) : fallbackDom)) : null}
+				tabs.push(
+					<TabPane tab={title+'宿盘'} key={'宿盘'+title}>
+						<div style={{ padding: 12 }}>加载中...</div>
 					</TabPane>
 				);
-				tabs.push(tab3d);
-
+				tabs.push(
+					<TabPane tab={title+'3D盘'} key={'3D盘'+title}>
+						<div style={{ padding: 12 }}>加载中...</div>
+					</TabPane>
+				);
+				continue;
 			}
+			let flds = {
+				...(this.props.fields || {}),
+				...(this.state.fields || {}),
+			};
+			if(chart.params){
+				flds = paramsToFields(chart.params, flds);
+			}
+			const starKey = title;
+			const suKey = '宿盘'+title;
+			const d3Key = '3D盘'+title;
+			const renderStar = this.state.currentTab === starKey;
+			const renderSu = this.state.currentTab === suKey;
+			const render3d = this.state.currentTab === d3Key;
+			let tab = (
+				<TabPane tab={title+'星盘'} key={starKey}>
+					{renderStar ? (
+						<AstroChartMain
+							hidehsys={1}
+						hidezodiacal={1}
+						hidedateselector={true}
+						height={height}
+						fields={flds}
+						value={chart}
+							chartDisplay={this.props.chartDisplay}
+							planetDisplay={this.props.planetDisplay}
+							lotsDisplay={this.props.lotsDisplay}	
+							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+							showAstroMeaning={this.props.showAstroMeaning}
+						/>) : null}
+				</TabPane>
+
+			);
+			tabs.push(tab);
+
+			let sztab = (
+				<TabPane tab={title+'宿盘'} key={suKey}>
+					{renderSu ? (
+					<SuZhanMain
+						value={chart}
+						height={height}
+						fields={flds}
+						chartDisplay={this.props.chartDisplay}
+						planetDisplay={this.props.planetDisplay}
+						hook={this.state.hook.suzhan}
+						onFieldsChange={this.onSuZhanFieldsChange}
+						dispatch={this.props.dispatch}
+					/>) : null}
+				</TabPane>
+			);
+			tabs.push(sztab);
+
+			let tab3d = (
+				<TabPane tab={title+'3D盘'} key={d3Key}>
+					{render3d ? (
+						<AstroChartMain3D
+							hidehsys={1}
+						hidezodiacal={1}
+						hidedateselector={true}
+						needChart3D={true}
+						value={chart}
+						height={height}
+						fields={flds}
+							chartDisplay={this.props.chartDisplay}
+							planetDisplay={this.props.planetDisplay}
+							lotsDisplay={this.props.lotsDisplay}	
+							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+							showAstroMeaning={this.props.showAstroMeaning}
+						/>) : null}
+				</TabPane>
+			);
+			tabs.push(tab3d);
+
 		}
 
 		return tabs;
@@ -1257,18 +1510,21 @@ class JieQiChartsMain extends Component{
 	}
 
 	render(){
-		const height = resolveBoundedHeight(this.props.height);
-		const tabsHeight = this.state.currentTab && this.state.currentTab.indexOf('宿盘') >= 0
-			? height
-			: Math.max(240, height - 44);
+		let height = this.props.height ? this.props.height : 760;
+
+		if(height === '100%'){
+			height = 'calc(100% - 70px)'
+		}else{
+			height = height - 50
+		}
 		let style = {
-			height: tabsHeight,
+			height: height,
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};
 
 
-		const tabs = this.genTabsDom(tabsHeight);
+		const tabs = this.genTabsDom(height);
 
 		let jieqi24dom = this.gen24JieqiDom();
 
@@ -1278,7 +1534,7 @@ class JieQiChartsMain extends Component{
 		}
 
 		return (
-			<div id={this.state.divid} style={{ height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
+			<div id={this.state.divid}>
 				{
 					showInput && (
 					<Row gutter={6}>
@@ -1328,7 +1584,7 @@ class JieQiChartsMain extends Component{
 					tabPosition='right'
 					onChange={this.changeTab}
 					destroyInactiveTabPane={true}
-					style={{ height: tabsHeight, maxHeight: tabsHeight }}
+					style={{ height: height }}
 				>
 					<TabPane tab='二十四节气' key='二十四节气'>
 						<div className={styles.scrollbar} style={style}>

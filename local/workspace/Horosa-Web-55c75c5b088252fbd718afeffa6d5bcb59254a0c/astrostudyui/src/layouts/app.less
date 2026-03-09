@@ -41,3 +41,28 @@
     box-shadow: inset 0 0 6px rgba(0, 0, 0, .3);
     background-color: #D2D7DD;
 }
+
+:global {
+    .mainRootTabs.ant-tabs-left > .ant-tabs-nav {
+        max-height: calc(100vh - 92px);
+    }
+
+    .mainRootTabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-nav-wrap {
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        scrollbar-width: none;
+    }
+
+    .mainRootTabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-nav-wrap::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+    }
+
+    .mainRootTabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-nav-list {
+        transform: none !important;
+    }
+
+    .mainRootTabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-nav-operations {
+        display: none !important;
+    }
+}

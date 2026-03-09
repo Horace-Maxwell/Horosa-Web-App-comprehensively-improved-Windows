@@ -6,35 +6,12 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as SZConst from './SZConst';
 import SZChart from './SZChart';
 
-const SQUARE_SIDE_MIN = 420;
+const SQUARE_SIDE_MIN = 620;
 const SQUARE_SIDE_MAX = 980;
-const SQUARE_SIDE_HARD_MIN = 160;
-const SUZHAN_VIEWPORT_GAP = 12;
+const VIEWPORT_BOTTOM_GAP = 28;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
-}
-
-function getViewportHeight(){
-	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
-		return window.innerHeight;
-	}
-	if(typeof document !== 'undefined' && document.documentElement){
-		return document.documentElement.clientHeight || 900;
-	}
-	return 900;
-}
-
-function getViewportSideLimit(elem){
-	const viewport = getViewportHeight();
-	const absCap = Math.max(SQUARE_SIDE_HARD_MIN, viewport - SUZHAN_VIEWPORT_GAP);
-	if(!elem || !elem.getBoundingClientRect){
-		return absCap;
-	}
-	const rect = elem.getBoundingClientRect();
-	const top = Number.isFinite(rect.top) ? rect.top : 0;
-	const remain = viewport - top - SUZHAN_VIEWPORT_GAP;
-	return Math.max(SQUARE_SIDE_HARD_MIN, Math.min(absCap, remain));
 }
 
 class SuZhanChart extends Component{
@@ -88,46 +65,43 @@ class SuZhanChart extends Component{
 
 		let sideByContainer = null;
 		const svgdom = document.getElementById(this.state.chartid);
-		let parentW = 0;
-		let parentH = 0;
 		if(svgdom){
 			const parent = svgdom.parentElement;
-			parentW = parent ? parent.clientWidth : 0;
-			parentH = parent ? parent.clientHeight : 0;
+			const parentW = parent ? parent.clientWidth : 0;
+			const parentH = parent ? parent.clientHeight : 0;
+			let viewportRemainH = 0;
+			const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
+			if(viewportH > 0){
+				const rect = svgdom.getBoundingClientRect();
+				let bottomLimit = viewportH;
+				const footer = document.getElementById('globalFooter');
+				if(footer){
+					const footerRect = footer.getBoundingClientRect();
+					if(footerRect.top > rect.top && footerRect.top < bottomLimit){
+						bottomLimit = footerRect.top;
+					}
+				}
+				viewportRemainH = bottomLimit - rect.top - VIEWPORT_BOTTOM_GAP;
+			}
 			if(parentW > 0 && parentH > 0){
-				sideByContainer = Math.min(parentW, parentH);
+				sideByContainer = Math.min(parentW, parentH, viewportRemainH > 0 ? viewportRemainH : parentH);
 			}else if(parentW > 0){
-				sideByContainer = parentW;
+				sideByContainer = viewportRemainH > 0 ? Math.min(parentW, viewportRemainH) : parentW;
+			}
+			if((sideByContainer === null || sideByContainer <= 0) && viewportRemainH > 0){
+				sideByContainer = viewportRemainH;
 			}
 		}
 
-		const limits = [];
-		if(sideByProps !== null && sideByProps > 0){
-			limits.push(sideByProps);
+		let side = sideByContainer;
+		if((side === null || side <= 0) && sideByProps !== null){
+			side = sideByProps;
 		}
-		if(sideByContainer !== null && sideByContainer > 0){
-			limits.push(sideByContainer);
-		}
-		if(parentW > 0){
-			limits.push(parentW);
-		}
-		if(parentH > 0){
-			limits.push(parentH);
-		}
-		const viewportLimit = getViewportSideLimit(svgdom);
-		if(viewportLimit > 0){
-			limits.push(viewportLimit);
-		}
-
-		let side = limits.length > 0 ? Math.min(...limits) : 740;
-		if(!Number.isFinite(side) || side <= 0){
+		if(side === null || side <= 0){
 			side = 740;
 		}
-		side = Math.round(side);
-		side = side >= SQUARE_SIDE_MIN
-			? clamp(side, SQUARE_SIDE_MIN, SQUARE_SIDE_MAX)
-			: clamp(side, SQUARE_SIDE_HARD_MIN, SQUARE_SIDE_MAX);
 
+		side = clamp(Math.round(side), SQUARE_SIDE_MIN, SQUARE_SIDE_MAX);
 		if(this.state.lockedSide === null || Math.abs(this.state.lockedSide - side) >= 4){
 			this.setState({ lockedSide: side });
 		}
@@ -242,7 +216,6 @@ class SuZhanChart extends Component{
 			const side = this.state.lockedSide || 740;
 			chartstyle.width = `${side}px`;
 			chartstyle.height = `${side}px`;
-			chartstyle.display = 'block';
 		}
 
 		this.drawChart();

@@ -1,6 +1,6 @@
 # Horosa Web 项目结构（GitHub 上传版）
 
-更新时间：2026-03-06
+更新时间：2026-03-09
 
 ## 1) 根目录（入口）
 
@@ -105,6 +105,22 @@
   - `Horosa-Web/astrostudyui/src/components/jieqi/JieQiChartsMain.js`
 - 统一参数哈希缓存层位于：
   - `Horosa-Web/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/ParamHashCacheHelper.java`
+- 运行时性能总验收脚本：
+  - `Horosa-Web/astrostudyui/scripts/verifyHorosaPerformanceRuntime.js`
+  - 当前门槛固定为 `1000ms`
+  - 2026-03-09 最新复核结果：
+    - 所有 `enforceThreshold = true` 的主要技法场景均 `< 1s`
+    - 当前最慢强制场景为 `八字紫微 /bazi/direct = 327.16ms`
+    - `推运盘 /predict/zr = 269.6ms`
+    - `星盘 / 3D盘 / 节气单盘共用 /chart = 162.553ms`
+    - `三式合一 / 易与三式 = 47.832ms`
+    - `节气盘二十四节气首屏 = 47.479ms`
+    - `七政四余 = 47.473ms`
+    - `希腊星术 = 34.047ms`
+    - `印度律盘 = 29.432ms`
+  - 说明：
+    - 本轮结论来自真实运行时复测，不是降低算法精度换速度。
+    - 辅助观测项 `节气盘 legacy批量图 = 281.318ms` 也仍低于 1 秒。
 
 ## 8) 本次统摄法新增结构（2026-02-23）
 
@@ -2538,3 +2554,33 @@
     - `-0度48分 / 2007-07-23 11:01:34`
     - `0度57分 / 2007-09-14 13:37:20`
     - `1度33分 / 2008-04-21 15:49:15`
+
+### 103.15) 全站主要技法运行时性能复核（2026-03-09）
+
+- 验收脚本：
+  - `Horosa-Web/astrostudyui/scripts/verifyHorosaPerformanceRuntime.js`
+- 最新结论：
+  - 所有主要技法强制验收场景均已稳定低于 `1 秒`
+  - 当前最慢强制场景为：
+    - `八字紫微 /bazi/direct = 327.16ms`
+- 代表性运行时峰值：
+  - `推运盘 /predict/zr = 269.6ms`
+  - `星盘 / 3D盘 / 节气单盘共用 /chart = 162.553ms`
+  - `关系盘 /modern/relative = 73.849ms`
+  - `三式合一 / 易与三式 = 47.832ms`
+  - `节气盘 /jieqi/year 二十四节气首屏 = 47.479ms`
+  - `七政四余 /chart = 47.473ms`
+  - `希腊星术 /chart13 = 34.047ms`
+  - `印度律盘 /india/chart = 29.432ms`
+  - `量化盘 /germany/midpoint = 18.536ms`
+  - `万年历 /calendar/month = 19.89ms`
+- 辅助观测：
+  - `节气盘 /jieqi/year legacy批量图 = 281.318ms`
+  - 该场景不是强制门槛项，但目前同样显著低于 `1 秒`
+- 约束说明：
+  - 本轮只是复核，不包含模型替换、算法简化、精度下调或近似化处理
+  - 因此当前性能结论可视为“保持现有生产算法精度前提下”的真实结果
+- Windows 自检兼容性补充：
+  - `Horosa-Web/verify_horosa_local.sh`
+    - 已兼容 Windows Git Bash 无 `lsof` 的环境
+    - 会跳过 WindowsApps Python alias，并在可用时继续执行浏览器级巡检

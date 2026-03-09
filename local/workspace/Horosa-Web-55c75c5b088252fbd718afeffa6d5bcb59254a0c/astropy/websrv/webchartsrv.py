@@ -3,6 +3,7 @@ import os
 import sys
 import traceback
 import json
+import time
 import cherrypy
 
 try:
@@ -28,6 +29,7 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
 from astrostudy.perchart import PerChart
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart
+from astrostudy.helper import getPredictivesObj
 from websrv.helper import enable_crossdomain
 from websrv.webpredictsrv import PredictSrv
 from websrv.webindiasrv import IndiaAstroSrv
@@ -42,7 +44,30 @@ from websrv.webacgsrv import AcgSrv
 
 class WebChartSrv:
     exposed = True
-    PD_SYNC_REV = 'pd_method_sync_v4'
+    PD_SYNC_REV = 'pd_method_sync_v6'
+    PD_WARMUP_SAMPLE = {
+        'date': '2028/04/06',
+        'time': '09:33:00',
+        'zone': '+00:00',
+        'lat': '41n26',
+        'lon': '174w30',
+        'gpsLat': -41.433333,
+        'gpsLon': 174.5,
+        'hsys': 1,
+        'tradition': False,
+        'predictive': True,
+        'includePrimaryDirection': True,
+        'zodiacal': 0,
+        'simpleAsp': False,
+        'strongRecption': False,
+        'virtualPointReceiveAsp': True,
+        'southchart': False,
+        'ad': 1,
+        'pdtype': 0,
+        'pdMethod': 'astroapp_alchabitius',
+        'pdTimeKey': 'Ptolemy',
+        'pdaspects': [0, 60, 90, 120, 180],
+    }
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -93,13 +118,9 @@ class WebChartSrv:
                 }
             }
 
-            if 'predictive' in data.keys() and data['predictive']:
-                perpredict = perchart.getPredict()
-                pdlist = perpredict.getPrimaryDirection()
-                obj['predictives'] = {
-                    'primaryDirection': pdlist,
-                    'firdaria': perpredict.getFirdaria()
-                }
+            predictives = getPredictivesObj(data, perchart)
+            if predictives is not None:
+                obj['predictives'] = predictives
 
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
@@ -162,13 +183,9 @@ class WebChartSrv:
                 }
             }
 
-            if 'predictive' in data.keys() and data['predictive']:
-                perpredict = perchart.getPredict()
-                pdlist = perpredict.getPrimaryDirection()
-                obj['predictives'] = {
-                    'primaryDirection': pdlist,
-                    'firdaria': perpredict.getFirdaria()
-                }
+            predictives = getPredictivesObj(data, perchart)
+            if predictives is not None:
+                obj['predictives'] = predictives
 
             res = jsonpickle.encode(obj, unpicklable=False)
             return res
@@ -194,6 +211,14 @@ def CORS():
 
 
 if __name__ == '__main__':
+    try:
+        t0 = time.perf_counter()
+        warm_chart = PerChart(dict(WebChartSrv.PD_WARMUP_SAMPLE))
+        warm_chart.getPredict().getPrimaryDirection()
+        print('pd warmup ready in {0:.3f}s'.format(time.perf_counter() - t0))
+    except Exception:
+        traceback.print_exc()
+
     chart_port = int(os.environ.get('HOROSA_CHART_PORT', '8899'))
     cherrypy.config.update({'server.socket_host': '127.0.0.1',
                             'server.socket_port': chart_port,

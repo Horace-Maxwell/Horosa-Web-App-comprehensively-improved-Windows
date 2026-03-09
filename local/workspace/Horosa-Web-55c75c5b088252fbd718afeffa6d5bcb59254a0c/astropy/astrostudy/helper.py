@@ -4,7 +4,29 @@ from flatlib import const
 
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 
-PD_SYNC_REV = 'pd_method_sync_v4'
+PD_SYNC_REV = 'pd_method_sync_v6'
+
+
+def includePrimaryDirection(data):
+    if data is None:
+        return False
+    val = data.get('includePrimaryDirection', False)
+    if isinstance(val, str):
+        return val.strip().lower() in ['1', 'true', 'yes', 'y', 'on']
+    return bool(val)
+
+
+def getPredictivesObj(data, perchart):
+    if not ('predictive' in data.keys() and data['predictive']):
+        return None
+
+    perpredict = perchart.getPredict()
+    predictives = {
+        'firdaria': perpredict.getFirdaria()
+    }
+    if includePrimaryDirection(data):
+        predictives['primaryDirection'] = perpredict.getPrimaryDirection()
+    return predictives
 
 
 def getChartDate(date):
@@ -168,13 +190,9 @@ def getChartObj(data, perchart):
     if 'name' in data.keys():
         obj['params']['name'] = data['name']
 
-    if 'predictive' in data.keys() and data['predictive']:
-        perpredict = perchart.getPredict()
-        pdlist = perpredict.getPrimaryDirection()
-        obj['predictives'] = {
-            'primaryDirection': pdlist,
-            'firdaria': perpredict.getFirdaria()
-        }
+    predictives = getPredictivesObj(data, perchart)
+    if predictives is not None:
+        obj['predictives'] = predictives
 
     return obj
 

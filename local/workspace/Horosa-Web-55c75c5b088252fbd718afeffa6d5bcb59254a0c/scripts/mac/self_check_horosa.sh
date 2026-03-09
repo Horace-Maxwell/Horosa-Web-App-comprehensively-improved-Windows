@@ -28,7 +28,43 @@ AUTO_ALT_PORTS=0
 
 port_listening() {
   local port="$1"
-  lsof -tiTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
+
+  local py_bin=""
+  for candidate in python python3; do
+    if ! command -v "${candidate}" >/dev/null 2>&1; then
+      continue
+    fi
+    py_bin="$(command -v "${candidate}")"
+    case "${py_bin}" in
+      */WindowsApps/*)
+        continue
+        ;;
+    esac
+    break
+  done
+  if [ -z "${py_bin}" ]; then
+    return 1
+  fi
+
+  "${py_bin}" - "${port}" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(0.5)
+try:
+    sock.connect(("127.0.0.1", port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+raise SystemExit(0)
+PY
 }
 
 port_listener_pids() {

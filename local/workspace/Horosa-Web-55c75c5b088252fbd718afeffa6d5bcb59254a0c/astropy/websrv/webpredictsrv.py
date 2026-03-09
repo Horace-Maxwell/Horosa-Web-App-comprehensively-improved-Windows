@@ -6,7 +6,7 @@ from flatlib import const
 from flatlib.geopos import GeoPos
 from astrostudy.perchart import PerChart
 from astrostudy.helper import getChartObj
-from websrv.helper import enable_crossdomain, build_param_error_response
+from websrv.helper import enable_crossdomain
 
 
 class PredictSrv:
@@ -59,9 +59,12 @@ class PredictSrv:
             res['dirChart'] = getChartObj(res['dirParams'], dirchart)
 
             return jsonpickle.encode(res, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
 
     @cherrypy.expose
@@ -100,9 +103,12 @@ class PredictSrv:
                 seclr['dirChart'] = getChartObj(seclr['dirParams'], secdirchart)
 
             return jsonpickle.encode(res, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
 
     @cherrypy.expose
@@ -137,9 +143,12 @@ class PredictSrv:
             res['dirChart'] = getChartObj(res['dirParams'], dirchart)
 
             return jsonpickle.encode(res, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
 
     @cherrypy.expose
@@ -173,9 +182,12 @@ class PredictSrv:
 
             return jsonpickle.encode(res, unpicklable=False)
 
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -204,9 +216,12 @@ class PredictSrv:
 
             return jsonpickle.encode(res, unpicklable=False)
 
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
 
     @cherrypy.expose
@@ -223,9 +238,31 @@ class PredictSrv:
                 'pd': pdlist
             }
             return jsonpickle.encode(obj, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def pdchart(self):
+        enable_crossdomain()
+        try:
+            data = cherrypy.request.json
+            perchart = PerChart(data)
+            predict = perchart.getPredict()
+            zone = data['dirZone'] if 'dirZone' in data.keys() else data['zone']
+            obj = predict.getPrimaryDirectionChartByDate(data['datetime'], zone)
+            return jsonpickle.encode(obj, unpicklable=False)
+        except:
+            traceback.print_exc()
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -244,9 +281,12 @@ class PredictSrv:
                 'td': tdlist
             }
             return jsonpickle.encode(obj, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -275,9 +315,12 @@ class PredictSrv:
                 'zr': zrlist
             }
             return jsonpickle.encode(obj, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -305,6 +348,9 @@ class PredictSrv:
                 'house': house
             }
             return jsonpickle.encode(obj, unpicklable=False)
-        except Exception as ex:
+        except:
             traceback.print_exc()
-            return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)

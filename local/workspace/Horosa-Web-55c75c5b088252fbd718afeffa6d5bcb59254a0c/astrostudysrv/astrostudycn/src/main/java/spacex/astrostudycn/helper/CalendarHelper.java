@@ -24,20 +24,20 @@ public class CalendarHelper {
 		
 		String firstdt = String.format("%s-%s-01 12:00:00", parts[0], parts[1]);
 		double jdn = DateTimeUtility.getDateNum(firstdt, zone);
-		List<NongLi> list = new ArrayList<NongLi>(38);
+		List<String> births = new ArrayList<String>(38);
 		for(int i=0; i<38; i++) {
 			double tmpjdn = jdn + i;
 			String dtstr = JdnHelper.getDateFromJdn(tmpjdn, zone);
-			NongLi tm = NongliHelper.getNongLi(ad, dtstr, zone, lon, false);
-			list.add(tm);
+			births.add(dtstr);
 		}
-		List<NongLi> prev7 = new ArrayList<NongLi>(7);
+		List<NongLi> list = NongliHelper.getNongLiSeries(ad, births, zone, lon, false, false);
+		List<String> prevBirths = new ArrayList<String>(7);
 		for(int i=1; i<7; i++) {
 			double tmpjdn = jdn - i;
 			String dtstr = JdnHelper.getDateFromJdn(tmpjdn, zone);
-			NongLi tm = NongliHelper.getNongLi(ad, dtstr, zone, lon, false);
-			prev7.add(tm);
+			prevBirths.add(dtstr);
 		}
+		List<NongLi> prev7 = NongliHelper.getNongLiSeries(ad, prevBirths, zone, lon, false, false);
 		Map<String, Object> map = new HashMap<String, Object>();
 		map.put("days", list);
 		map.put("prevDays", prev7);

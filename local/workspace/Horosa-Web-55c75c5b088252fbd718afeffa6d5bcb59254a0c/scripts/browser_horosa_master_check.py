@@ -9,19 +9,25 @@ import sys
 import time
 from pathlib import Path
 
-
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except OSError:
-        pass
-
 try:
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
     from playwright.sync_api import sync_playwright
 except Exception as exc:  # pragma: no cover - optional dependency path
     print(json.dumps({"status": "skipped", "reason": f"playwright unavailable: {exc}"}, ensure_ascii=False))
     raise SystemExit(0)
+
+
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
+_configure_stdio()
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +37,7 @@ RUNTIME_DIR = ROOT / "runtime"
 TOP_MODULES = [
     ("星盘", ["信息", "相位", "行星", "希腊点", "可能性"]),
     ("三维盘", ["信息", "相位", "行星", "希腊点"]),
-    ("推运盘", ["主/界限法", "黄道星释", "法达星限", "小限法", "太阳弧", "太阳返照", "月亮返照", "流年法"]),
+    ("推运盘", ["主/界限法", "主限法盘", "黄道星释", "法达星限", "小限法", "太阳弧", "太阳返照", "月亮返照", "流年法", "十年大运"]),
     ("量化盘", []),
     ("关系盘", []),
     ("节气盘", ["二十四节气"]),
@@ -149,6 +155,47 @@ def ensure_pd_recalc(page, result: dict) -> None:
     }
 
 
+def ensure_pd_chart_smoke(page, result: dict) -> None:
+    if not click_visible_text(page, "主限法盘"):
+        raise AssertionError("无法切到主限法盘")
+    page.wait_for_timeout(1200)
+
+    body = page.locator("body").inner_text()
+    required = ["时间选择", "推运方法", "度数换算", "当前主限法年龄", "外圈时间"]
+    missing = [item for item in required if item not in body]
+    if missing:
+        raise AssertionError(f"主限法盘缺少关键文案: {missing}")
+
+    svg_markup = page.evaluate(
+        """
+        () => {
+          const svgs = Array.from(document.querySelectorAll('svg')).filter((el) => {
+            const style = window.getComputedStyle(el);
+            return style && style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+          });
+          if (!svgs.length) {
+            return '';
+          }
+          let best = '';
+          svgs.forEach((el) => {
+            const markup = el.innerHTML || '';
+            if (markup.length > best.length) {
+              best = markup;
+            }
+          });
+          return best;
+        }
+        """
+    ) or ""
+    if len(svg_markup) < 1000:
+        raise AssertionError("主限法盘 SVG 内容为空或过短")
+
+    result["primary_direction_chart"] = {
+        "svg_length": len(svg_markup),
+        "body_excerpt": body[:400],
+    }
+
+
 def open_and_close_modal(page, button_label: str, result_key: str, result: dict) -> None:
     clicked = click_visible_text(page, button_label)
     if not clicked:
@@ -235,6 +282,8 @@ def main() -> None:
                     page.wait_for_timeout(700)
                     if top_label == "推运盘" and subtab == "主/界限法":
                         ensure_pd_recalc(page, result)
+                    if top_label == "推运盘" and subtab == "主限法盘":
+                        ensure_pd_chart_smoke(page, result)
                 entry["subtabs"].append(sub_entry)
 
             entry["seconds"] = round(time.perf_counter() - step_start, 3)
@@ -265,10 +314,7 @@ def main() -> None:
     fatal_console_errors = []
     ignored_console_errors = []
     for message in result["consoleErrors"]:
-        if (
-            "Failed to load resource" in message
-            and ("ERR_CONNECTION_TIMED_OUT" in message or "ERR_TIMED_OUT" in message)
-        ):
+        if "Failed to load resource" in message and "ERR_CONNECTION_TIMED_OUT" in message:
             ignored_console_errors.append(message)
         else:
             fatal_console_errors.append(message)

@@ -521,6 +521,204 @@ class PerPredict:
             return -ASTROAPP_PD_DISPLAY_WINDOW < raw_delta < -ASTROAPP_PD_DISPLAY_EPS
         return False
 
+    def _pdChartClonePayload(self, obj):
+        if isinstance(obj, dict):
+            payload = copy.deepcopy(obj)
+        else:
+            payload = copy.deepcopy(getattr(obj, '__dict__', {}))
+        if 'id' not in payload and hasattr(obj, 'id'):
+            payload['id'] = obj.id
+        if 'type' not in payload and hasattr(obj, 'type'):
+            payload['type'] = obj.type
+        return payload
+
+    def _pdChartNormalizeLon(self, lon, jd):
+        value = angle.norm(float(lon))
+        if getattr(self.perchart, 'zodiacal', const.TROPICAL) == const.SIDEREAL:
+            try:
+                value = angle.norm(value - float(swisseph.get_ayanamsa_ut(float(jd))))
+            except Exception:
+                return value
+        return value
+
+    def _pdChartEqCoords(self, lon, lat, obliquity):
+        eq = swisseph.cotrans([float(lon), float(lat), 1.0], -float(obliquity))
+        return float(eq[0]), float(eq[1])
+
+    def _pdChartEqToEcl(self, ra, decl, obliquity):
+        ecl = swisseph.cotrans([float(ra), float(decl), 1.0], float(obliquity))
+        return float(ecl[0]), float(ecl[1])
+
+    def _pdChartPointEqCoords(self, point, obliquity):
+        ra = point.get('ra')
+        decl = point.get('decl')
+        if ra is not None and decl is not None:
+            return float(ra), float(decl)
+        lon = point.get('lon')
+        lat = point.get('lat', 0.0)
+        if lon is None:
+            return None, None
+        return self._pdChartEqCoords(lon, lat, obliquity)
+
+    def _pdChartSetLonLat(self, payload, lon, lat, ra=None, decl=None, jd=None):
+        value = self._pdChartNormalizeLon(lon, jd if jd is not None else self.perchart.chart.date.jd)
+        payload['lon'] = value
+        payload['lat'] = float(lat)
+        if ra is not None:
+            payload['ra'] = float(ra) % 360.0
+        if decl is not None:
+            payload['decl'] = float(decl)
+        payload['sign'] = const.LIST_SIGNS[int(value / 30.0) % 12]
+        payload['signlon'] = value % 30.0
+        return payload
+
+    def _pdChartAdjustedBasePoint(self, pd, chart, payload, pd_method):
+        point = {
+            'id': payload.get('id'),
+            'lon': float(payload.get('lon', 0.0)),
+            'lat': float(payload.get('lat', 0.0)),
+        }
+        if pd_method != 'astroapp_alchabitius':
+            return point
+
+        base_id = self._baseDirectionObjectId(point.get('id'))
+        if base_id in [const.NORTH_NODE, const.SOUTH_NODE]:
+            node_lons = self._astroappTrueNodeBaseLons(chart)
+            lon = node_lons.get(base_id)
+            if lon is not None:
+                point['lon'] = float(lon)
+                point['lat'] = 0.0
+
+        if base_id == const.MOON:
+            point = self._rebuildAstroAppTruePosMoonPoint(pd, chart, point)
+
+        point = self._applyAstroAppPromissorBodyModelCorrection(pd, chart, point) or point
+        point = self._applyAstroAppPromissorLonCorrection(pd, chart, point)
+        return point
+
+    def _pdChartProjectPoint(self, pd, chart, payload, arc, obliquity, pd_method):
+        point = self._pdChartAdjustedBasePoint(pd, chart, payload, pd_method)
+        ra, decl = self._pdChartPointEqCoords(point, obliquity)
+        if ra is None or decl is None:
+            return payload
+        directed_ra = angle.norm(float(ra) + float(arc))
+        lon, lat = self._pdChartEqToEcl(directed_ra, decl, obliquity)
+        return self._pdChartSetLonLat(payload, lon, lat, ra=directed_ra, decl=decl, jd=chart.date.jd)
+
+    def _pdChartBuildAnglesAndHouses(self, chart, arc, obliquity):
+        lat = self._astroappParseCoord(getattr(self.perchart, 'lat', 0.0))
+        lon = self._astroappParseCoord(getattr(self.perchart, 'lon', 0.0))
+        flag = 0
+        if getattr(self.perchart, 'zodiacal', const.TROPICAL) == const.SIDEREAL:
+            flag = swisseph.FLG_SIDEREAL
+        swhsys = swe.SWE_HOUSESYS[self.perchart.house]
+        _, ascmc, _, _ = swisseph.houses_ex2(chart.date.jd, lat, lon, swhsys, flag)
+        armc = angle.norm(float(ascmc[2]) + float(arc))
+        hlist, dir_ascmc = swisseph.houses_armc(armc, lat, float(obliquity), swhsys)
+        hlist = tuple(hlist) + (hlist[0],)
+        houses = []
+        for i in range(12):
+            house_lon = self._pdChartNormalizeLon(hlist[i], chart.date.jd)
+            next_lon = self._pdChartNormalizeLon(hlist[i + 1], chart.date.jd)
+            ra, decl = self._pdChartEqCoords(hlist[i], 0.0, obliquity)
+            houses.append({
+                'hsys': self.perchart.house,
+                'id': const.LIST_HOUSES[i],
+                'lon': house_lon,
+                'size': angle.distance(house_lon, next_lon),
+                'ra': float(ra),
+                'decl': float(decl),
+                'sign': const.LIST_SIGNS[int(house_lon / 30.0) % 12],
+                'signlon': house_lon % 30.0,
+            })
+
+        asc_lon = self._pdChartNormalizeLon(dir_ascmc[0], chart.date.jd)
+        mc_lon = self._pdChartNormalizeLon(dir_ascmc[1], chart.date.jd)
+        desc_lon = angle.norm(asc_lon + 180.0)
+        ic_lon = angle.norm(mc_lon + 180.0)
+        asc_lat = swisseph.cotrans([float(dir_ascmc[4]), lat, 1.0], float(obliquity))[1]
+        asc = self._pdChartSetLonLat({'id': const.ASC, 'type': 'Generic'}, asc_lon, asc_lat, ra=float(dir_ascmc[4]), decl=float(lat), jd=chart.date.jd)
+        desc_ra, desc_decl = self._pdChartEqCoords(desc_lon, asc_lat, obliquity)
+        desc = self._pdChartSetLonLat({'id': const.DESC, 'type': 'Generic'}, desc_lon, asc_lat, ra=desc_ra, decl=desc_decl, jd=chart.date.jd)
+        mc_ra, mc_decl = self._pdChartEqCoords(mc_lon, asc_lat, obliquity)
+        mc = self._pdChartSetLonLat({'id': const.MC, 'type': 'Generic'}, mc_lon, asc_lat, ra=mc_ra, decl=mc_decl, jd=chart.date.jd)
+        ic_ra, ic_decl = self._pdChartEqCoords(ic_lon, asc_lat, obliquity)
+        ic = self._pdChartSetLonLat({'id': const.IC, 'type': 'Generic'}, ic_lon, asc_lat, ra=ic_ra, decl=ic_decl, jd=chart.date.jd)
+        angles = {
+            const.ASC: asc,
+            const.DESC: desc,
+            const.MC: mc,
+            const.IC: ic,
+        }
+        return houses, angles
+
+    def getPrimaryDirectionChartByDate(self, datetime_text, zone=None):
+        zone = zone if zone is not None else self.perchart.zone
+        parts = '{0}'.format(datetime_text if datetime_text is not None else '').split(' ')
+        if len(parts) == 0 or parts[0] == '':
+            return {'err': 'param error'}
+        date = helper.getChartDate(parts[0])
+        tm = parts[1] if len(parts) > 1 else '00:00:00'
+        current_dt = Datetime(date, tm, zone)
+        chart = self.perchart.getChart()
+        asc = chart.get(const.ASC)
+        asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
+        current_arc = asctime.getPDArcFromDate(current_dt)
+        obliquity = self._astroappMeanObliquity(chart) if getattr(self.perchart, 'pdMethod', 'astroapp_alchabitius') == 'astroapp_alchabitius' else const.EQ2ECLI_OBLIQUITY
+
+        pd = PrimaryDirections(chart)
+        houses, angle_map = self._pdChartBuildAnglesAndHouses(chart, current_arc, obliquity)
+
+        directed_objects = []
+        for obj in self.perchart.getChartObj()['objects']:
+            payload = self._pdChartClonePayload(obj)
+            obj_id = payload.get('id')
+            if obj_id in angle_map:
+                directed_objects.append(copy.deepcopy(angle_map[obj_id]))
+                continue
+            directed_objects.append(
+                self._pdChartProjectPoint(
+                    pd,
+                    chart,
+                    payload,
+                    current_arc,
+                    obliquity,
+                    getattr(self.perchart, 'pdMethod', 'astroapp_alchabitius'),
+                )
+            )
+
+        directed_lots = []
+        for obj in self.perchart.getPars(chart):
+            payload = self._pdChartClonePayload(obj)
+            directed_lots.append(
+                self._pdChartProjectPoint(
+                    pd,
+                    chart,
+                    payload,
+                    current_arc,
+                    obliquity,
+                    getattr(self.perchart, 'pdMethod', 'astroapp_alchabitius'),
+                )
+            )
+
+        directed_objects.sort(key=lambda item: float(item.get('lon', 0.0)))
+        directed_lots.sort(key=lambda item: float(item.get('lon', 0.0)))
+        houses.sort(key=lambda item: float(item.get('lon', 0.0)))
+        return {
+            'date': current_dt.toCNString(),
+            'arc': float(current_arc),
+            'pos': {
+                'lat': self._astroappParseCoord(getattr(self.perchart, 'lat', 0.0)),
+                'lon': self._astroappParseCoord(getattr(self.perchart, 'lon', 0.0)),
+            },
+            'chart': {
+                'objects': directed_objects,
+                'houses': houses,
+                'isDiurnal': self.perchart.isDiurnal,
+            },
+            'lots': directed_lots,
+        }
+
     def getPrimaryDirectionByZAstroAppKernel(self):
         """
         AstroApp-aligned In Zodiaco kernel:

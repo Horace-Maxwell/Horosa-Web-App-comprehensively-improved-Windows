@@ -46,6 +46,7 @@ const App = ({children, dispatch, app, user, })=>{
         stroke: AstroConst.AstroColor.TextStroke,
     };
     let footerStyle = { 
+        padding: '8px 50px 10px',
         textAlign: 'center', 
         backgroundColor: AstroConst.AstroColor.Backgroud,
         color: AstroConst.AstroColor.TextStroke,
@@ -74,7 +75,7 @@ const App = ({children, dispatch, app, user, })=>{
                 </div>
             </Content>
 
-            <Footer style={footerStyle}>
+            <Footer id='globalFooter' style={footerStyle}>
                 <PageFooter />
             </Footer>
         </Layout>

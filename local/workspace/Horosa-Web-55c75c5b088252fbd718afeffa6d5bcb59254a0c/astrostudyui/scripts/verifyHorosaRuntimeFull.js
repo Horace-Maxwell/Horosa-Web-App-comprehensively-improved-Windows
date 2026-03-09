@@ -1,5 +1,5 @@
-const forge = require('./vendor/node-forge');
-const RSA = require('./vendor/js-rsa');
+const forge = require('node-forge');
+const RSA = require('js-rsa');
 const crypto = require('crypto');
 
 const SERVER = process.env.HOROSA_SERVER_ROOT || 'http://127.0.0.1:9999';
@@ -165,10 +165,21 @@ async function run() {
   });
   ensureObject(chart.params, '/chart params');
   ensureObject(chart.chart, '/chart chart');
-  ensureNonEmptyArray(chart.predictives && chart.predictives.primaryDirection, '/chart predictives.primaryDirection');
+  ensureNonEmptyArray(chart.predictives && chart.predictives.firdaria, '/chart predictives.firdaria');
+  assert(!(chart.predictives && Array.isArray(chart.predictives.primaryDirection)), '/chart unexpectedly returned primaryDirection without includePrimaryDirection');
+  const chartWithPd = await call('/chart', {
+    ...BASE_PAYLOAD,
+    pdtype: 0,
+    pdMethod: 'astroapp_alchabitius',
+    pdTimeKey: 'Ptolemy',
+    pdaspects: [0, 60, 90, 120, 180],
+    includePrimaryDirection: true,
+  });
+  ensureNonEmptyArray(chartWithPd.predictives && chartWithPd.predictives.primaryDirection, '/chart includePrimaryDirection predictives.primaryDirection');
   summary.chart = {
     birth: chart.params.birth,
-    primaryDirectionRows: chart.predictives.primaryDirection.length,
+    firdariaRows: chart.predictives.firdaria.length,
+    primaryDirectionRows: chartWithPd.predictives.primaryDirection.length,
   };
 
   const chart13 = await call('/chart13', {
@@ -422,6 +433,16 @@ async function run() {
   ensureObject(liureng.liureng, '/liureng/gods liureng');
   summary.liureng = { keys: objectKeys(liureng.liureng).length };
 
+  const guaYearGanZi = `${(
+    (liureng.liureng && liureng.liureng.nongli && (
+      liureng.liureng.nongli.yearGanZi
+      || liureng.liureng.nongli.yearJieqi
+      || liureng.liureng.nongli.year
+    ))
+    || ''
+  )}`.trim();
+  assert(guaYearGanZi.length > 0, '/liureng/gods missing guaYearGanZi source');
+
   const runyear = await call('/liureng/runyear', {
     date: '2020-04-06',
     time: '09:33:00',
@@ -438,7 +459,7 @@ async function run() {
     guaLon: '121e28',
     guaAd: 1,
     guaAfter23NewDay: false,
-    guaYearGanZi: '戊申',
+    guaYearGanZi,
   });
   assert(`${runyear.year || ''}`.length > 0, '/liureng/runyear year missing');
   assert(Number.isFinite(Number(runyear.age)), '/liureng/runyear age missing');

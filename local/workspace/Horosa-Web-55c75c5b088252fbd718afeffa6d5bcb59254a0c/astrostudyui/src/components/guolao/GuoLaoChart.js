@@ -4,36 +4,15 @@ import { Row, Col, Tabs, DatePicker, Input, Button, Card, Select } from 'antd';
 import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import GLChart from './GLChart';
+import * as SZConst from '../suzhan/SZConst';
 
-const SQUARE_SIDE_MIN = 420;
+const SQUARE_SIDE_MIN = 620;
 const SQUARE_SIDE_MAX = 980;
-const SQUARE_SIDE_HARD_MIN = 160;
-const VIEWPORT_GAP = 12;
+const SQUARE_SIDE_FALLBACK = 740;
+const VIEWPORT_BOTTOM_GAP = 28;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
-}
-
-function getViewportHeight(){
-	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
-		return window.innerHeight;
-	}
-	if(typeof document !== 'undefined' && document.documentElement){
-		return document.documentElement.clientHeight || 900;
-	}
-	return 900;
-}
-
-function getViewportSideLimit(elem){
-	const viewport = getViewportHeight();
-	const absCap = Math.max(SQUARE_SIDE_HARD_MIN, viewport - VIEWPORT_GAP);
-	if(!elem || !elem.getBoundingClientRect){
-		return absCap;
-	}
-	const rect = elem.getBoundingClientRect();
-	const top = Number.isFinite(rect.top) ? rect.top : 0;
-	const remain = viewport - top - VIEWPORT_GAP;
-	return Math.max(SQUARE_SIDE_HARD_MIN, Math.min(absCap, remain));
 }
 
 class GuoLaoChart extends Component{
@@ -53,19 +32,35 @@ class GuoLaoChart extends Component{
 		this.redrawTimer = null;
 
 		this.drawChart = this.drawChart.bind(this);
+		this.getChartShape = this.getChartShape.bind(this);
 		this.updateSquareSide = this.updateSquareSide.bind(this);
 		this.handleResize = this.handleResize.bind(this);
 		this.scheduleDrawRetry = this.scheduleDrawRetry.bind(this);
 	}
 
+	getChartShape(){
+		const fields = this.props.fields || {};
+		if(fields.szshape !== undefined && fields.szshape !== null &&
+			fields.szshape.value !== undefined && fields.szshape.value !== null){
+			const parsed = parseInt(fields.szshape.value, 10);
+			if(Number.isFinite(parsed)){
+				return parsed;
+			}
+		}
+		return SZConst.SZChart.shape;
+	}
+
 	updateSquareSide(){
+		if(this.getChartShape() !== SZConst.SZChart_Square){
+			return;
+		}
+
 		const parseNum = (v)=>{
 			if(typeof v === 'number' && Number.isFinite(v)){
 				return v;
 			}
 			if(typeof v === 'string'){
 				const txt = v.trim();
-				// Avoid parsing "calc(100% - 70px)" as 100.
 				if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
 					const n = parseFloat(txt);
 					if(Number.isFinite(n)){
@@ -75,59 +70,60 @@ class GuoLaoChart extends Component{
 			}
 			return null;
 		};
+		const pickFirstPositive = (vals)=>{
+			for(let i=0; i<vals.length; i++){
+				const v = vals[i];
+				if(typeof v === 'number' && Number.isFinite(v) && v > 0){
+					return v;
+				}
+			}
+			return null;
+		};
 
-		let sideByProps = null;
-		const h = parseNum(this.props.height);
-		const w = parseNum(this.props.width);
-		if(h !== null && w !== null){
-			sideByProps = Math.min(h, w);
-		}else if(h !== null){
-			sideByProps = h;
-		}else if(w !== null){
-			sideByProps = w;
-		}
+		const propH = parseNum(this.props.height);
+		const propW = parseNum(this.props.width);
 
-		let sideByContainer = null;
 		let parentW = 0;
 		let parentH = 0;
+		let viewportRemainH = 0;
 		const svgdom = document.getElementById(this.state.chartid);
 		if(svgdom){
 			const parent = svgdom.parentElement;
-			parentW = parent ? parent.clientWidth : 0;
-			parentH = parent ? parent.clientHeight : 0;
-			if(parentW > 0 && parentH > 0){
-				sideByContainer = Math.min(parentW, parentH);
-			}else if(parentW > 0){
-				sideByContainer = parentW;
+			parentW = parent ? parent.clientWidth : svgdom.clientWidth;
+			parentH = parent ? parent.clientHeight : svgdom.clientHeight;
+
+			const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
+			if(viewportH > 0){
+				const rect = svgdom.getBoundingClientRect();
+				let bottomLimit = viewportH;
+				const footer = document.getElementById('globalFooter');
+				if(footer){
+					const footerRect = footer.getBoundingClientRect();
+					if(footerRect.top > rect.top && footerRect.top < bottomLimit){
+						bottomLimit = footerRect.top;
+					}
+				}
+				viewportRemainH = bottomLimit - rect.top - VIEWPORT_BOTTOM_GAP;
 			}
 		}
 
-		const limits = [];
-		if(sideByProps !== null && sideByProps > 0){
-			limits.push(sideByProps);
+		const availableWidth = pickFirstPositive([parentW, propW]);
+		const availableHeight = pickFirstPositive([viewportRemainH, parentH, propH]);
+
+		let side = availableHeight || availableWidth || SQUARE_SIDE_FALLBACK;
+		side = clamp(side, SQUARE_SIDE_MIN, SQUARE_SIDE_MAX);
+
+		if(availableHeight){
+			side = Math.min(side, availableHeight);
 		}
-		if(sideByContainer !== null && sideByContainer > 0){
-			limits.push(sideByContainer);
-		}
-		if(parentW > 0){
-			limits.push(parentW);
-		}
-		if(parentH > 0){
-			limits.push(parentH);
-		}
-		const viewportLimit = getViewportSideLimit(svgdom);
-		if(viewportLimit > 0){
-			limits.push(viewportLimit);
+		if(availableWidth){
+			side = Math.min(side, availableWidth);
 		}
 
-		let side = limits.length > 0 ? Math.min(...limits) : 740;
 		if(!Number.isFinite(side) || side <= 0){
-			side = 740;
+			side = SQUARE_SIDE_FALLBACK;
 		}
 		side = Math.round(side);
-		side = side >= SQUARE_SIDE_MIN
-			? clamp(side, SQUARE_SIDE_MIN, SQUARE_SIDE_MAX)
-			: clamp(side, SQUARE_SIDE_HARD_MIN, SQUARE_SIDE_MAX);
 
 		if(this.state.lockedSide === null || Math.abs(this.state.lockedSide - side) >= 4){
 			this.setState({ lockedSide: side });
@@ -135,7 +131,10 @@ class GuoLaoChart extends Component{
 	}
 
 	handleResize(){
-		this.updateSquareSide();
+		if(this.getChartShape() === SZConst.SZChart_Square){
+			this.updateSquareSide();
+			return;
+		}
 
 		let svgdom = document.getElementById(this.state.chartid);
 		if(svgdom === undefined || svgdom === null){
@@ -217,7 +216,9 @@ class GuoLaoChart extends Component{
 	}
 
 	componentDidUpdate(){
-		this.updateSquareSide();
+		if(this.getChartShape() === SZConst.SZChart_Square){
+			this.updateSquareSide();
+		}
 		this.drawChart();
 		this.scheduleDrawRetry();
 	}
@@ -232,6 +233,7 @@ class GuoLaoChart extends Component{
 	}
 
 	render(){
+		const isSquareChart = this.getChartShape() === SZConst.SZChart_Square;
 		let chartstyle = {
 			width: this.props.width ? this.props.width : '100%',
 			height: this.props.height ? this.props.height : '100%',
@@ -245,12 +247,14 @@ class GuoLaoChart extends Component{
 			};
 		}
 
-		const side = this.state.lockedSide || 740;
-		if(side > 0){
+		if(isSquareChart){
+			const side = this.state.lockedSide || SQUARE_SIDE_FALLBACK;
 			chartstyle.width = `${side}px`;
 			chartstyle.height = `${side}px`;
 			chartstyle.display = 'block';
-			chartstyle.margin = '0 auto';
+			if(!chartstyle.margin){
+				chartstyle.margin = '0 auto';
+			}
 		}
 
 		return (

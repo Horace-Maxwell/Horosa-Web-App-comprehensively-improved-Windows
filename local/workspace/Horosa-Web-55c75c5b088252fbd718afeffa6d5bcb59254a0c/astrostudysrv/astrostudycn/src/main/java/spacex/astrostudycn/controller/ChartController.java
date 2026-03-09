@@ -48,6 +48,7 @@ public class ChartController {
 			}
 			
 			PlanetSignPredictHelper.predictPlanetSign(res);
+			syncPredictiveMetaAndRows(res, args);
 			return res;
 		});
 		
@@ -68,6 +69,7 @@ public class ChartController {
 			Map<String, Object> res = AstroHelper.getChart13(args);
 			int ad = ConvertUtility.getValueAsInt(args.get("ad"), 1);
 			NongliHelper.fillNongli(res, args, ad);
+			syncPredictiveMetaAndRows(res, args);
 			return res;
 		});
 		
@@ -82,6 +84,43 @@ public class ChartController {
 			reqparams.put("gpsLat", TransData.get("gpsLat"));
 			reqparams.put("gpsLon", TransData.get("gpsLon"));
 		}
+	}
+
+	private void syncPredictiveMetaAndRows(Map<String, Object> res, Map<String, Object> args) {
+		if(res == null || args == null) {
+			return;
+		}
+		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
+		if(reqparams != null) {
+			reqparams.put("pdSyncRev", "pd_method_sync_v6");
+			reqparams.put("showPdBounds", ConvertUtility.getValueAsInt(args.get("showPdBounds"), 1));
+			if(args.containsKey("pdtype")) {
+				reqparams.put("pdtype", args.get("pdtype"));
+			}
+			if(args.containsKey("pdMethod")) {
+				reqparams.put("pdMethod", args.get("pdMethod"));
+			}
+			if(args.containsKey("pdTimeKey")) {
+				reqparams.put("pdTimeKey", args.get("pdTimeKey"));
+			}
+		}
+
+		if(!ConvertUtility.getValueAsBool(args.get("predictive"), false)) {
+			return;
+		}
+		if(!ConvertUtility.getValueAsBool(args.get("includePrimaryDirection"), false)) {
+			return;
+		}
+		Map<String, Object> pdres = AstroHelper.getPrimaryDirection(args);
+		if(pdres == null || !pdres.containsKey("pd")) {
+			return;
+		}
+		Map<String, Object> predictives = (Map<String, Object>) res.get("predictives");
+		if(predictives == null) {
+			predictives = new HashMap<String, Object>();
+			res.put("predictives", predictives);
+		}
+		predictives.put("primaryDirection", pdres.get("pd"));
 	}
 	
 	private Map<String, Object> getParams(){
@@ -122,7 +161,7 @@ public class ChartController {
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
 		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
-		params.put("_wireRev", "pd_method_sync_v4");
+		params.put("_wireRev", "pd_method_sync_v6");
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("tradition", TransData.getValueAsBool("tradition", false));
 		params.put("doubingSu28", TransData.getValueAsBool("doubingSu28", false));
@@ -130,6 +169,7 @@ public class ChartController {
 		params.put("virtualPointReceiveAsp", TransData.getValueAsBool("virtualPointReceiveAsp", false));
 		params.put("simpleAsp", TransData.getValueAsBool("simpleAsp", false));
 		params.put("predictive", TransData.getValueAsBool("predictive", true));
+		params.put("includePrimaryDirection", TransData.getValueAsBool("includePrimaryDirection", false));
 		params.put("southchart", TransData.getValueAsBool("southchart", false));
 		if(TransData.containsParam("pdaspects")) {
 			Object aspobj = TransData.get("pdaspects");

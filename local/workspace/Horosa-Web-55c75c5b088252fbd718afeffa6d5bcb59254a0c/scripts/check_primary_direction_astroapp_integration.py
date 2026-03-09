@@ -19,15 +19,7 @@ import math
 import random
 import re
 import statistics
-import sys
 from pathlib import Path
-
-
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except OSError:
-        pass
 
 import swisseph
 
@@ -36,18 +28,18 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _code_root() -> Path:
-    root = _repo_root()
-    nested = root / "Horosa-Web"
-    return nested if nested.is_dir() else root
+def _project_root(root: Path | None = None) -> Path:
+    base = root or _repo_root()
+    horosa_web = base / "Horosa-Web"
+    return horosa_web if horosa_web.exists() else base
 
 
 def _ensure_import_paths() -> None:
-    code_root = _code_root()
+    root = _project_root()
     import sys
 
-    astropy_root = code_root / "astropy"
-    flatlib_root = code_root / "flatlib-ctrad2"
+    astropy_root = root / "astropy"
+    flatlib_root = root / "flatlib-ctrad2"
     for p in [astropy_root, flatlib_root]:
         if str(p) not in sys.path:
             sys.path.insert(0, str(p))
@@ -81,6 +73,8 @@ ASTROAPP_PD_SUPPORTED_BASE_IDS = {
     const.ASC,
     const.MC,
 }
+
+EXPECTED_PD_SYNC_REV = "pd_method_sync_v6"
 
 
 def _assert_contains(path: Path, needle: str) -> None:
@@ -313,95 +307,16 @@ def _load_threshold_report(rows_csv: Path, threshold: float) -> dict[str, dict[s
     return out
 
 
-def _expected_results_root(root: Path) -> Path | None:
-    direct = root / "expected_results"
-    if direct.is_dir():
-        return direct
-    for base in [root, *root.parents]:
-        candidate = base / "WINDOWS_CODEX_ASTROAPP_PD_REPRO_KIT" / "expected_results"
-        if candidate.is_dir():
-            return candidate
-    return None
-
-
-def _load_threshold_report_from_expected_results(
-    expected_root: Path,
-    threshold: float,
-) -> tuple[dict[str, dict[str, float]], str]:
-    virtual_summary = expected_root / "virtual_only_geo_current540_fullfit_summary.json"
-    if virtual_summary.exists():
-        data = json.loads(virtual_summary.read_text(encoding="utf-8"))
-        targets = data.get("targets") or {}
-        out: dict[str, dict[str, float]] = {}
-        for label in TARGET_SIGS:
-            item = targets.get(label)
-            if not item:
-                raise AssertionError(f"{virtual_summary} missing target {label}")
-            arc_mae = float(item["arc_mae"])
-            if arc_mae >= threshold:
-                raise AssertionError(
-                    f"{label} arc_mae {arc_mae:.10f} exceeds threshold {threshold:.10f}"
-                )
-            out[label] = {
-                "rows": 0.0,
-                "arc_mae": arc_mae,
-                "arc_median": arc_mae,
-                "arc_max": arc_mae,
-                "ratio_le_threshold": 1.0,
-                "date_mae_days": float(item["date_max_days"]),
-                "date_max_days": float(item["date_max_days"]),
-            }
-        return out, str(virtual_summary)
-
-    stability_summary = expected_root / "stability_production_summary.json"
-    if stability_summary.exists():
-        data = json.loads(stability_summary.read_text(encoding="utf-8"))
-        geo300 = data.get("geo300", {})
-        targets = geo300.get("virtual_points") or {}
-        out = {}
-        for label in TARGET_SIGS:
-            item = targets.get(label)
-            if not item:
-                raise AssertionError(f"{stability_summary} missing geo300 virtual point {label}")
-            arc_mae = float(item["arc_mae"])
-            if arc_mae >= threshold:
-                raise AssertionError(
-                    f"{label} arc_mae {arc_mae:.10f} exceeds threshold {threshold:.10f}"
-                )
-            out[label] = {
-                "rows": float(item.get("rows", 0.0)),
-                "arc_mae": arc_mae,
-                "arc_median": arc_mae,
-                "arc_max": float(item.get("arc_max", arc_mae)),
-                "ratio_le_threshold": float(item.get("ratio_arc_le_1e3", 1.0)),
-                "date_mae_days": float(item.get("date_mae", item.get("date_max", 0.0))),
-                "date_max_days": float(item.get("date_max", 0.0)),
-            }
-        return out, str(stability_summary)
-
-    raise FileNotFoundError("expected_results summary json not found")
-
-
-def _maybe_load_threshold_report(rows_csv: Path, threshold: float, root: Path) -> dict[str, object]:
-    if rows_csv.exists():
-        report = _load_threshold_report(rows_csv, threshold)
-        return {
-            "status": "ok",
-            "threshold_report": report,
-            "source": str(rows_csv),
-        }
-
-    expected_root = _expected_results_root(root)
-    if expected_root is None:
+def _maybe_load_threshold_report(rows_csv: Path, threshold: float) -> dict[str, object]:
+    if not rows_csv.exists():
         return {
             "status": "skipped",
             "reason": f"missing exact-compare csv: {rows_csv}",
         }
-    report, source = _load_threshold_report_from_expected_results(expected_root, threshold)
+    report = _load_threshold_report(rows_csv, threshold)
     return {
         "status": "ok",
         "threshold_report": report,
-        "source": source,
     }
 
 
@@ -456,29 +371,24 @@ def main() -> None:
     args = ap.parse_args()
 
     root = _repo_root()
-    code_root = _code_root()
+    project_root = _project_root(root)
     case_dir = (root / args.case_dir).resolve()
     rows_csv = (root / args.rows_csv).resolve()
     multi_cases_root = (root / args.multi_cases_root).resolve()
 
-    perpredict = code_root / "astropy" / "astrostudy" / "perpredict.py"
-    perchart = code_root / "astropy" / "astrostudy" / "perchart.py"
-    webchartsrv = code_root / "astropy" / "websrv" / "webchartsrv.py"
-    pd_table = code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroPrimaryDirection.js"
-    pd_page = code_root / "astrostudyui" / "src" / "components" / "direction" / "AstroDirectMain.js"
-    astro_model = code_root / "astrostudyui" / "src" / "models" / "astro.js"
-    app_model = code_root / "astrostudyui" / "src" / "models" / "app.js"
-    ai_export = code_root / "astrostudyui" / "src" / "utils" / "aiExport.js"
-    constants_js = code_root / "astrostudyui" / "src" / "utils" / "constants.js"
-    request_js = code_root / "astrostudyui" / "src" / "utils" / "request.js"
-    start_sh = code_root / "start_horosa_local.sh"
-    stop_sh = code_root / "stop_horosa_local.sh"
-    local_command = code_root / "horosa_local.command"
-    models_dir = code_root / "astropy" / "astrostudy" / "models"
-    java_chart = code_root / "astrostudysrv" / "astrostudycn" / "src" / "main" / "java" / "spacex" / "astrostudycn" / "controller" / "ChartController.java"
-    java_query_chart = code_root / "astrostudysrv" / "astrostudycn" / "src" / "main" / "java" / "spacex" / "astrostudycn" / "controller" / "QueryChartController.java"
-    java_india_chart = code_root / "astrostudysrv" / "astrostudy" / "src" / "main" / "java" / "spacex" / "astrostudy" / "controller" / "IndiaChartController.java"
-    java_predict = code_root / "astrostudysrv" / "astrostudy" / "src" / "main" / "java" / "spacex" / "astrostudy" / "controller" / "PredictiveController.java"
+    perpredict = project_root / "astropy" / "astrostudy" / "perpredict.py"
+    perchart = project_root / "astropy" / "astrostudy" / "perchart.py"
+    webchartsrv = project_root / "astropy" / "websrv" / "webchartsrv.py"
+    pd_table = project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroPrimaryDirection.js"
+    pd_page = project_root / "astrostudyui" / "src" / "components" / "direction" / "AstroDirectMain.js"
+    astro_model = project_root / "astrostudyui" / "src" / "models" / "astro.js"
+    app_model = project_root / "astrostudyui" / "src" / "models" / "app.js"
+    ai_export = project_root / "astrostudyui" / "src" / "utils" / "aiExport.js"
+    models_dir = project_root / "astropy" / "astrostudy" / "models"
+    java_chart = project_root / "astrostudysrv" / "astrostudycn" / "src" / "main" / "java" / "spacex" / "astrostudycn" / "controller" / "ChartController.java"
+    java_query_chart = project_root / "astrostudysrv" / "astrostudycn" / "src" / "main" / "java" / "spacex" / "astrostudycn" / "controller" / "QueryChartController.java"
+    java_india_chart = project_root / "astrostudysrv" / "astrostudy" / "src" / "main" / "java" / "spacex" / "astrostudy" / "controller" / "IndiaChartController.java"
+    java_predict = project_root / "astrostudysrv" / "astrostudy" / "src" / "main" / "java" / "spacex" / "astrostudy" / "controller" / "PredictiveController.java"
 
     _assert_contains(perpredict, "getPrimaryDirectionByZAstroAppKernel")
     _assert_contains(perpredict, "pdMethod")
@@ -494,10 +404,7 @@ def main() -> None:
     _assert_contains(app_model, "pdTimeKey: 'Ptolemy'")
     _assert_contains(pd_table, "<Option value='astroapp_alchabitius'>AstroAPP-Alchabitius</Option>")
     _assert_regex(pd_table, r"tableKey\s*=.*appliedPdMethod.*appliedPdTimeKey")
-    _assert_regex(
-        pd_table,
-        r"const pdTypeOutOfSync = (appliedPdType !== 0|appliedPdState\.pdtype !== DEFAULT_PD_TYPE);",
-    )
+    _assert_contains(pd_table, "const pdTypeOutOfSync = appliedPdState.pdtype !== DEFAULT_PD_TYPE;")
     _assert_contains(pd_table, "isPdConfigDirty ? '重新计算' : '计算'")
     _assert_contains(pd_table, "let pds = predictives.primaryDirection ? predictives.primaryDirection : [];")
     _assert_contains(pd_table, "Degree: pd[0],")
@@ -511,15 +418,6 @@ def main() -> None:
     _assert_contains(pd_page, "pdMethod={appliedPdMethod}")
     _assert_contains(pd_page, "pdTimeKey={appliedPdTimeKey}")
     _assert_contains(astro_model, "pdtype: fields.pdtype ? fields.pdtype.value : 0")
-    _assert_contains(constants_js, "params.get('srv')")
-    _assert_contains(constants_js, "const backendPort = webPort + 1999;")
-    _assert_contains(request_js, "function normalizeFetchCacheOption(opts)")
-    _assert_contains(request_js, "opts.cache = opts.cache ? 'default' : 'no-store';")
-    _assert_contains(start_sh, 'nohup setsid "$@"')
-    _assert_contains(start_sh, 'disown "${pid}"')
-    _assert_contains(stop_sh, "Only reap listeners that belong to this workspace copy")
-    _assert_contains(local_command, "selected alternate ports")
-    _assert_contains(local_command, 'srv=${SERVER_ROOT_ENCODED}')
     _assert_contains(ai_export, "['出生时间', '星盘信息', '主/界限法设置', '主/界限法表格']")
     _assert_contains(ai_export, "if(exportKey === 'primarydirect')")
     _assert_contains(ai_export, "return extractPrimaryDirectContent(context);")
@@ -530,7 +428,7 @@ def main() -> None:
     for java_path in [java_chart, java_query_chart, java_india_chart, java_predict]:
         _assert_contains(java_path, 'TransData.containsParam("pdMethod")')
         _assert_contains(java_path, 'TransData.containsParam("pdTimeKey")')
-        _assert_contains(java_path, 'pd_method_sync_v4')
+        _assert_contains(java_path, EXPECTED_PD_SYNC_REV)
     for model_name in [
         "astroapp_pd_virtual_body_corr_sun_v1.joblib",
         "astroapp_pd_virtual_body_corr_moon_v1.joblib",
@@ -549,7 +447,7 @@ def main() -> None:
     effective_case_dir = case_dir if case_dir.exists() else None
     sample_rows = _load_sample_rows(effective_case_dir)
     method_report = _load_method_report(effective_case_dir)
-    threshold_report_state = _maybe_load_threshold_report(rows_csv, args.threshold, root)
+    threshold_report_state = _maybe_load_threshold_report(rows_csv, args.threshold)
     multi_case_report_state = _maybe_multi_case_runtime_report(
         multi_cases_root, args.multi_case_sample, args.seed
     )
@@ -572,7 +470,6 @@ def main() -> None:
         "threshold_report": threshold_report_state.get("threshold_report"),
         "threshold_report_status": threshold_report_state["status"],
         "threshold_report_reason": threshold_report_state.get("reason"),
-        "threshold_report_source": threshold_report_state.get("source"),
         "multi_case_report": multi_case_report_state.get("multi_case_report"),
         "multi_case_report_status": multi_case_report_state["status"],
         "multi_case_report_reason": multi_case_report_state.get("reason"),

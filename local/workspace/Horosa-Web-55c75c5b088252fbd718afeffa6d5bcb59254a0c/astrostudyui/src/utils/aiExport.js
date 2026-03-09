@@ -112,18 +112,13 @@ const AI_EXPORT_PLANET_INFO_DEFAULT = {
 const AI_EXPORT_ASTRO_MEANING_DEFAULT = {
 	enabled: 0,
 };
-const LEGACY_SECTION_TITLE_ALIASES = {
-	'大格命中': '大格',
-	'小局命中': '小局',
-	'六壬大格命中': '六壬大格',
-	'六壬小局命中': '六壬小局',
-};
 const AI_EXPORT_PLANET_INFO_TECHNIQUES = new Set([
 	'astrochart',
 	'indiachart',
 	'astrochart_like',
 	'relative',
 	'primarydirect',
+	'primarydirchart',
 	'zodialrelease',
 	'firdaria',
 	'profection',
@@ -175,6 +170,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'astrochart_like', label: '希腊/星体地图' },
 	{ key: 'relative', label: '关系盘' },
 	{ key: 'primarydirect', label: '推运盘-主/界限法' },
+	{ key: 'primarydirchart', label: '推运盘-主限法盘' },
 	{ key: 'zodialrelease', label: '推运盘-黄道星释' },
 	{ key: 'firdaria', label: '推运盘-法达星限' },
 	{ key: 'profection', label: '推运盘-小限法' },
@@ -188,7 +184,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'suzhan', label: '宿占' },
 	{ key: 'sixyao', label: '易卦' },
 	{ key: 'tongshefa', label: '统摄法' },
-	{ key: 'liureng', label: '六壬', displayName: '大六壬' },
+	{ key: 'liureng', label: '六壬' },
 	{ key: 'jinkou', label: '金口诀' },
 	{ key: 'qimen', label: '奇门遁甲' },
 	{ key: 'sanshiunited', label: '三式合一' },
@@ -208,6 +204,7 @@ const AI_EXPORT_PRESET_SECTIONS = {
 	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '可能性'],
 	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '影响图盘-星盘A', '影响图盘-星盘B'],
 	primarydirect: ['出生时间', '星盘信息', '主/界限法设置', '主/界限法表格'],
+	primarydirchart: ['出生时间', '星盘信息', '主限法盘设置', '主限法盘说明'],
 	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运'],
 	firdaria: ['出生时间', '星盘信息', '法达星限表格'],
 	profection: ['星盘信息', '起盘信息', '相位'],
@@ -408,16 +405,6 @@ function isPlanetInfoTechnique(key){
 }
 
 function normalizeAstroMeaningSetting(raw){
-	if(raw === 1 || raw === true){
-		return {
-			enabled: 1,
-		};
-	}
-	if(raw === 0 || raw === false){
-		return {
-			enabled: 0,
-		};
-	}
 	const val = raw && typeof raw === 'object' ? raw : {};
 	return {
 		enabled: val.enabled === 1 || val.enabled === true ? 1 : 0,
@@ -460,9 +447,7 @@ function getPlanetInfoSettingByTechnique(settings, key){
 	}
 	const source = settings && settings.planetInfo && typeof settings.planetInfo === 'object'
 		? settings.planetInfo[key]
-		: (settings && settings.planetMeta && typeof settings.planetMeta === 'object'
-			? settings.planetMeta[key]
-			: null);
+		: null;
 	if(!source){
 		return {
 			...AI_EXPORT_PLANET_INFO_DEFAULT,
@@ -479,9 +464,7 @@ function getAstroMeaningSettingByTechnique(settings, key){
 	}
 	const source = settings && settings.astroMeaning && typeof settings.astroMeaning === 'object'
 		? settings.astroMeaning[key]
-		: (settings && settings.annotations && typeof settings.annotations === 'object'
-			? settings.annotations[key]
-			: null);
+		: null;
 	if(!source){
 		return {
 			...AI_EXPORT_ASTRO_MEANING_DEFAULT,
@@ -501,7 +484,7 @@ function normalizeSectionTitle(title){
 	if(/^基于.+起运$/.test(t)){
 		return '基于X起运';
 	}
-	return LEGACY_SECTION_TITLE_ALIASES[t] || t;
+	return t;
 }
 
 function parseSectionTitleLine(line){
@@ -540,8 +523,6 @@ function normalizeAIExportSettings(settings){
 		sections: {},
 		planetInfo: {},
 		astroMeaning: {},
-		planetMeta: {},
-		annotations: {},
 	};
 	if(!settings || typeof settings !== 'object'){
 		return normalized;
@@ -564,31 +545,19 @@ function normalizeAIExportSettings(settings){
 			normalized.sections[key] = merged;
 		});
 	}
-	const planetInfo = settings.planetInfo && typeof settings.planetInfo === 'object'
-		? settings.planetInfo
-		: (settings.planetMeta && typeof settings.planetMeta === 'object' ? settings.planetMeta : {});
+	const planetInfo = settings.planetInfo && typeof settings.planetInfo === 'object' ? settings.planetInfo : {};
 	Object.keys(planetInfo).forEach((key)=>{
 		if(!isPlanetInfoTechnique(key)){
 			return;
 		}
-		const one = normalizePlanetInfoSetting(planetInfo[key]);
-		normalized.planetInfo[key] = one;
-		normalized.planetMeta[key] = {
-			...one,
-		};
+		normalized.planetInfo[key] = normalizePlanetInfoSetting(planetInfo[key]);
 	});
-	const astroMeaning = settings.astroMeaning && typeof settings.astroMeaning === 'object'
-		? settings.astroMeaning
-		: (settings.annotations && typeof settings.annotations === 'object' ? settings.annotations : {});
+	const astroMeaning = settings.astroMeaning && typeof settings.astroMeaning === 'object' ? settings.astroMeaning : {};
 	Object.keys(astroMeaning).forEach((key)=>{
 		if(!isAstroMeaningTechnique(key) && !isHoverMeaningTechnique(key)){
 			return;
 		}
-		const one = normalizeAstroMeaningSetting(astroMeaning[key]);
-		normalized.astroMeaning[key] = one;
-		if(isPlanetInfoTechnique(key)){
-			normalized.annotations[key] = one.enabled === 1 ? 1 : 0;
-		}
+		normalized.astroMeaning[key] = normalizeAstroMeaningSetting(astroMeaning[key]);
 	});
 	return normalized;
 }
@@ -1211,11 +1180,7 @@ function getTabsNavItems(container){
 	if(!container){
 		return [];
 	}
-	const directNav = Array.from(container.children).find((n)=>n.classList && n.classList.contains('ant-tabs-nav'));
-	if(!directNav){
-		return [];
-	}
-	return Array.from(directNav.querySelectorAll('.ant-tabs-tab'));
+	return Array.from(container.querySelectorAll('.ant-tabs-nav .ant-tabs-tab'));
 }
 
 function getDirectActivePane(container){
@@ -1391,6 +1356,7 @@ function resolveActiveContext(){
 
 	const predictiveLabelMap = [
 		{ label: '主/界限法', key: 'primarydirect', name: '推运盘-主/界限法' },
+		{ label: '主限法盘', key: 'primarydirchart', name: '推运盘-主限法盘' },
 		{ label: '黄道星释', key: 'zodialrelease', name: '推运盘-黄道星释' },
 		{ label: '法达星限', key: 'firdaria', name: '推运盘-法达星限' },
 		{ label: '小限法', key: 'profection', name: '推运盘-小限法' },
@@ -1647,6 +1613,7 @@ function resolveContextByAstroState(){
 		}
 		const predictiveMap = {
 			primarydirect: { key: 'primarydirect', displayName: '推运盘-主/界限法', domain: 'predictive_raw' },
+			primarydirchart: { key: 'primarydirchart', displayName: '推运盘-主限法盘', domain: 'predictive_raw' },
 			zodialrelease: { key: 'zodialrelease', displayName: '推运盘-黄道星释', domain: 'predictive_raw' },
 			firdaria: { key: 'firdaria', displayName: '推运盘-法达星限', domain: 'predictive_raw' },
 			profection: { key: 'profection', displayName: '推运盘-小限法', domain: 'predictive_raw' },
@@ -1731,8 +1698,6 @@ function withStoreContextFallback(context){
 	const shouldUseFallback = !baseKey
 		|| !baseKnown
 		|| isBaseUmbrella
-		// Hidden panes remain mounted, so DOM-only detection can lag behind the store.
-		|| (fallbackSpecific && baseKey !== fallbackKey)
 		|| (baseKey === fallbackKey && fallbackSpecific);
 	if(!shouldUseFallback){
 		return base;
@@ -1832,24 +1797,14 @@ export function listAIExportTechniqueSettings(){
 	const settings = loadAIExportSettings();
 	return AI_EXPORT_TECHNIQUES.map((item)=>{
 		const meaningMeta = getMeaningSettingMetaByTechnique(item.key);
-		const planetInfo = getPlanetInfoSettingByTechnique(settings, item.key);
-		const astroMeaning = getAstroMeaningSettingByTechnique(settings, item.key);
-		const supportsPlanetInfo = isPlanetInfoTechnique(item.key);
-		const supportsAstroMeaning = isAstroMeaningTechnique(item.key) || isHoverMeaningTechnique(item.key);
 		return {
 			key: item.key,
 			label: item.label,
 			options: getOptionsForTechniqueKey(item.key),
-			supportsPlanetInfo,
-			supportsPlanetMeta: supportsPlanetInfo,
-			planetInfo,
-			planetMeta: {
-				...planetInfo,
-			},
-			supportsAstroMeaning,
-			supportsAnnotation: supportsAstroMeaning,
-			astroMeaning,
-			annotation: astroMeaning.enabled === 1 ? 1 : 0,
+			supportsPlanetInfo: isPlanetInfoTechnique(item.key),
+			planetInfo: getPlanetInfoSettingByTechnique(settings, item.key),
+			supportsAstroMeaning: isAstroMeaningTechnique(item.key) || isHoverMeaningTechnique(item.key),
+			astroMeaning: getAstroMeaningSettingByTechnique(settings, item.key),
 			astroMeaningTitle: meaningMeta.title,
 			astroMeaningCheckbox: meaningMeta.checkbox,
 		};
@@ -2010,8 +1965,9 @@ function getModuleAliasList(moduleName){
 		set.add('qimen');
 		set.add('dunjia');
 	}
-	if(name === 'primarydirect' || name === 'direction'){
+	if(name === 'primarydirect' || name === 'primarydirchart' || name === 'direction'){
 		set.add('primarydirect');
+		set.add('primarydirchart');
 		set.add('direction');
 	}
 	if(name === 'decennials' || name === 'decennial'){
@@ -2861,6 +2817,19 @@ async function extractPrimaryDirectContent(context){
 		return refreshed;
 	}
 	const cached = getModuleCachedContent('primarydirect');
+	if(cached){
+		return cached;
+	}
+	return '';
+}
+
+async function extractPrimaryDirChartContent(context){
+	void context;
+	const refreshed = await requestModuleSnapshotRefresh('primarydirchart');
+	if(refreshed){
+		return refreshed;
+	}
+	const cached = getModuleCachedContent('primarydirchart');
 	if(cached){
 		return cached;
 	}
@@ -4185,7 +4154,11 @@ function exportWord(payload){
 }
 
 function normalizeExportKey(key){
-	return `${key || ''}` === 'direction' ? 'primarydirect' : `${key || ''}`;
+	const val = `${key || ''}`;
+	if(val === 'direction'){
+		return 'primarydirect';
+	}
+	return val;
 }
 
 function isStrictSpecificExportKey(key){
@@ -4202,6 +4175,7 @@ function isStrictSpecificExportKey(key){
 function isPredictiveExportKey(key){
 	const val = normalizeExportKey(key);
 	return val === 'primarydirect'
+		|| val === 'primarydirchart'
 		|| val === 'zodialrelease'
 		|| val === 'firdaria'
 		|| val === 'profection'
@@ -4231,7 +4205,7 @@ function isAstroFamilyExportKey(key){
 
 function getTechniqueLabelByKey(key){
 	const found = AI_EXPORT_TECHNIQUES.find((item)=>item.key === `${key || ''}`);
-	return found ? (found.displayName || found.name || found.label) : '';
+	return found ? found.label : '';
 }
 
 function getCandidateExportKeys(context){
@@ -4257,7 +4231,7 @@ function getCandidateExportKeys(context){
 		context && context.displayName ? context.displayName : '',
 		stateContext && stateContext.displayName ? stateContext.displayName : '',
 	].join(' ');
-	const predictiveKeys = ['primarydirect', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials'];
+	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials'];
 	const primaryIsPredictive = isPredictiveExportKey(primary);
 	const stateIsPredictive = isPredictiveExportKey(stateKey);
 	// 仅在上下文无法定位具体推运子模块时，才展开推运候选全量兜底；
@@ -4289,14 +4263,13 @@ function getCandidateExportKeys(context){
 	if(topInfo.includes('印度律盘') && !hasPrimarySpecific){
 		keys.push('indiachart');
 	}
-	if(topInfo.includes('西洋游戏') && !hasPrimarySpecific){
-		keys.push('otherbu');
-	}
-	if(topInfo.includes('风水') && !hasPrimarySpecific){
-		keys.push('fengshui');
-	}
 	if((topInfo.includes('星盘') || topInfo.includes('三维盘') || topInfo.includes('希腊星术') || topInfo.includes('星体地图')) && !hasPrimarySpecific){
 		keys.push('astrochart', 'astrochart_like');
+	}
+
+	// 兜底候选：确保上下文误判时仍能从计算快照抓到内容。
+	if(!hasPrimarySpecific){
+		keys.push('astrochart', 'astrochart_like', 'indiachart', 'relative', 'germany', 'jieqi', 'guolao', 'bazi', 'ziwei', 'qimen', 'liureng', 'jinkou', 'sanshiunited', 'tongshefa', 'sixyao', 'taiyi', 'otherbu', 'fengshui');
 	}
 
 	return uniqueArray(keys.map((key)=>normalizeExportKey(key)).filter(Boolean));
@@ -4344,7 +4317,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	}
 	if(topInfo.includes('推运盘') || topInfo.includes('主/界限法') || topInfo.includes('法达星限')
 		|| topInfo.includes('太阳弧') || topInfo.includes('太阳返照') || topInfo.includes('月亮返照')){
-		push('primarydirect', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials');
+		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials');
 	}
 	if(topInfo.includes('三式合一')){
 		push('sanshiunited', 'qimen', 'jinkou', 'liureng', 'sixyao', 'tongshefa', 'taiyi', 'astrochart');
@@ -4370,15 +4343,18 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	if(topInfo.includes('七政四余')){
 		push('guolao', 'astrochart_like', 'astrochart');
 	}
-	if(topInfo.includes('西洋游戏')){
-		push('otherbu');
-	}
-	if(topInfo.includes('风水')){
-		push('fengshui');
-	}
 	if(topInfo.includes('星盘') || topInfo.includes('希腊星术') || topInfo.includes('星体地图') || topInfo.includes('三维盘')){
 		push('astrochart', 'astrochart_like', 'indiachart');
 	}
+	// 终极兜底：按术法族群补全，避免误报“无可导出文本”。
+	push(
+		'astrochart', 'astrochart_like', 'indiachart',
+		'relative', 'germany', 'jieqi',
+		'primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials',
+		'sanshiunited', 'qimen', 'liureng', 'jinkou', 'sixyao', 'tongshefa', 'taiyi', 'suzhan',
+		'guolao', 'otherbu', 'fengshui',
+		'bazi', 'ziwei',
+	);
 	return keys;
 }
 
@@ -4394,6 +4370,9 @@ async function extractContentByKey(exportKey, context){
 	}
 	if(exportKey === 'primarydirect'){
 		return extractPrimaryDirectContent(context);
+	}
+	if(exportKey === 'primarydirchart'){
+		return extractPrimaryDirChartContent(context);
 	}
 	if(exportKey === 'zodialrelease'){
 		return extractZodialReleaseContent(context);

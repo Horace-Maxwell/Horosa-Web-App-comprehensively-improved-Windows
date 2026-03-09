@@ -219,6 +219,14 @@ function fieldsToParams(fields){
 	return params;
 }
 
+function shouldIncludePrimaryDirection(state){
+	return !!(
+		state
+		&& state.currentTab === 'direction'
+		&& (state.currentSubTab === 'primarydirect' || state.currentSubTab === 'primarydirchart')
+	);
+}
+
 function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
@@ -810,7 +818,7 @@ export default {
 		},
 
 
-		*fetch({ payload: values }, { call, put }){
+		*fetch({ payload: values }, { call, put, select }){
 			const param = {
 				...values,
 				date: values.date.format('YYYY/MM/DD'),
@@ -823,6 +831,8 @@ export default {
 			if(param.pdaspects && param.pdaspects instanceof String){
 				param.pdaspects = JSON.parse(param.pdaspects);
 			}
+			const astroState = yield select((state)=>state.astro);
+			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
@@ -860,7 +870,7 @@ export default {
             });
 		},
 
-		*fetchByChartData({ payload: values }, { call, put }){
+		*fetchByChartData({ payload: values }, { call, put, select }){
             const store = getStore();
 			const state = store.astro;
 			const fields = {
@@ -889,6 +899,8 @@ export default {
 			}
 			
 			const param = fieldsToParams(fields);
+			const astroState = yield select((allState)=>allState.astro);
+			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
@@ -962,7 +974,7 @@ export default {
 			}
 		},
 
-		*fetchByFields({ payload: values }, { call, put }){
+		*fetchByFields({ payload: values }, { call, put, select }){
 			const requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
 				? values.__requestOptions
 				: { silent: true };
@@ -974,6 +986,8 @@ export default {
 			}
 			const param = fieldsToParams(fieldValues);
 			param.cid = null;
+			const astroState = yield select((state)=>state.astro);
+			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param, requestOptions);
 			if(!isValidChartResponse(rsp)){
@@ -1019,12 +1033,14 @@ export default {
 			hooking(hook, state.currentTab, values.fields, values.chartObj);
 		},
 
-		*nowChart({ payload: values }, { call, put }){
+		*nowChart({ payload: values }, { call, put, select }){
 			let fields = values.fields;
 			if(fields === undefined || fields === null){
 				fields = newEmptyFields();
 			}
 			const param = fieldsToParams(fields);
+			const astroState = yield select((state)=>state.astro);
+			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){

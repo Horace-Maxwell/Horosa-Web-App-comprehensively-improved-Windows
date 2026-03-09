@@ -8,6 +8,17 @@ import {detectPlatform} from '../utils/helper';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
 
+const MinWorkspaceHeight = 660;
+const WorkspaceReservedHeight = 88;
+
+function normalizeWorkspaceHeight(viewportHeight){
+    const raw = Number(viewportHeight) - WorkspaceReservedHeight;
+    if(!Number.isFinite(raw)){
+        return MinWorkspaceHeight;
+    }
+    return raw <= MinWorkspaceHeight ? MinWorkspaceHeight : raw;
+}
+
 function normalizeDisplayList(raw, fallback, allowSet, allowEmpty = false){
     const fallbackArr = Array.isArray(fallback) ? fallback.slice(0) : [];
     const allow = new Set(Array.isArray(allowSet) ? allowSet : []);
@@ -621,17 +632,42 @@ export default {
             }else{
                 aspects = JSON.parse(aspects);
             }
-            let h = doch - 100;
-            h = doch - 100;
-            if(h > 660){
+            const syncWorkspaceHeight = (extraPayload = {})=>{
+                const nextViewportHeight = document.documentElement.clientHeight;
+                const h = normalizeWorkspaceHeight(nextViewportHeight);
+                if(h < MinWorkspaceHeight){
+                    return;
+                }
+                const store = getStore();
+                const currentHeight = store && store.astro ? store.astro.height : null;
+                const hasExtraPayload = extraPayload && Object.keys(extraPayload).length > 0;
+                if(!hasExtraPayload && currentHeight === h){
+                    return;
+                }
                 dispatch({
                     type: 'astro/save',
                     payload:{
                         height: h,
-                        aspects: aspects,
+                        ...extraPayload,
                     },
-                });                               
-            }
+                });
+            };
+
+            let resizeTimer = null;
+            const handleResize = ()=>{
+                if(resizeTimer){
+                    clearTimeout(resizeTimer);
+                }
+                resizeTimer = setTimeout(()=>{
+                    resizeTimer = null;
+                    syncWorkspaceHeight();
+                }, 80);
+            };
+            window.addEventListener('resize', handleResize);
+
+            syncWorkspaceHeight({
+                aspects: aspects,
+            });
 
             dispatch({
                 type: 'getSysTime',
@@ -643,6 +679,13 @@ export default {
                 payload:{},
             });                           
 
+            return ()=>{
+                window.removeEventListener('resize', handleResize);
+                if(resizeTimer){
+                    clearTimeout(resizeTimer);
+                    resizeTimer = null;
+                }
+            };
         },
 
     },

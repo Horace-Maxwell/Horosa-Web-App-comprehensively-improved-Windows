@@ -256,6 +256,56 @@ class SignAscTime:
         span_days = (next_local.astimezone(timezone.utc) - current_local.astimezone(timezone.utc)).total_seconds() / 86400.0
         return self.birth.jd + whole_days + fraction * span_days
 
+    def getPDArcFromDate(self, current):
+        if current is None:
+            return 0.0
+
+        target_jd = None
+        if hasattr(current, 'jd'):
+            target_jd = float(current.jd)
+        elif isinstance(current, datetime):
+            current_dt = current if current.tzinfo is not None else current.replace(tzinfo=self._parse_offset_tz(self.zone))
+            offset = current_dt.utcoffset() or timedelta(0)
+            total_minutes = int(offset.total_seconds() / 60.0)
+            sign_txt = '+' if total_minutes >= 0 else '-'
+            total_minutes = abs(total_minutes)
+            zone_txt = '{0}{1:02d}:{2:02d}'.format(sign_txt, total_minutes // 60, total_minutes % 60)
+            target_jd = Datetime(current_dt.strftime('%Y/%m/%d'), current_dt.strftime('%H:%M:%S'), zone_txt).jd
+
+        if target_jd is None:
+            return 0.0
+
+        delta_days = target_jd - self.birth.jd
+        if self._birth_local is None or not math.isfinite(delta_days):
+            return delta_days / 365.2421904
+
+        sign = -1.0 if delta_days < 0 else 1.0
+        remaining_days = abs(delta_days)
+        birth_utc = self._birth_local.astimezone(timezone.utc)
+
+        guess_years = int(math.floor(remaining_days / 365.2421904))
+        years = max(0, guess_years)
+
+        def whole_days_for_year(offset_years):
+            current_local = self._add_years_safe(self._birth_local, offset_years)
+            return (current_local.astimezone(timezone.utc) - birth_utc).total_seconds() / 86400.0
+
+        current_whole_days = whole_days_for_year(years)
+        while years > 0 and current_whole_days > remaining_days:
+            years -= 1
+            current_whole_days = whole_days_for_year(years)
+
+        next_whole_days = whole_days_for_year(years + 1)
+        while next_whole_days <= remaining_days:
+            years += 1
+            current_whole_days = next_whole_days
+            next_whole_days = whole_days_for_year(years + 1)
+
+        span_days = next_whole_days - current_whole_days
+        fraction = 0.0 if span_days == 0 else (remaining_days - current_whole_days) / span_days
+        fraction = min(max(fraction, 0.0), 1.0)
+        return sign * (years + fraction)
+
     def getDateFromPDArc(self, arc):
         jd = self.getJDFromPDArc(arc)
         # AstroApp dirs.csv exports dirDate in UTC-like display, not local chart time.

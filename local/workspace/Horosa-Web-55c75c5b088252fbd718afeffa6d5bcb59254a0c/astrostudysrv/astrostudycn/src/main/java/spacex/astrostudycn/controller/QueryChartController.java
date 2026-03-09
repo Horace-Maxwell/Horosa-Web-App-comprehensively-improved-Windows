@@ -1,5 +1,6 @@
 package spacex.astrostudycn.controller;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.stereotype.Controller;
@@ -25,6 +26,7 @@ public class QueryChartController {
 		int ad = ConvertUtility.getValueAsInt(params.get("ad"), 1);
 		
 		Map<String, Object> res = AstroHelper.getChart(params);
+		syncPredictiveMetaAndRows(res, params);
 		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
 		if(reqparams != null) {
 			reqparams.put("gpsLat", TransData.get("gpsLat"));
@@ -47,6 +49,41 @@ public class QueryChartController {
 		
 		TransData.set(res);
 	}
+
+	private void syncPredictiveMetaAndRows(Map<String, Object> res, Map<String, Object> args) {
+		if(res == null || args == null) {
+			return;
+		}
+		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
+		if(reqparams != null) {
+			reqparams.put("pdSyncRev", "pd_method_sync_v6");
+			if(args.containsKey("pdtype")) {
+				reqparams.put("pdtype", args.get("pdtype"));
+			}
+			if(args.containsKey("pdMethod")) {
+				reqparams.put("pdMethod", args.get("pdMethod"));
+			}
+			if(args.containsKey("pdTimeKey")) {
+				reqparams.put("pdTimeKey", args.get("pdTimeKey"));
+			}
+		}
+		if(!ConvertUtility.getValueAsBool(args.get("predictive"), false)) {
+			return;
+		}
+		if(!ConvertUtility.getValueAsBool(args.get("includePrimaryDirection"), false)) {
+			return;
+		}
+		Map<String, Object> pdres = AstroHelper.getPrimaryDirection(args);
+		if(pdres == null || !pdres.containsKey("pd")) {
+			return;
+		}
+		Map<String, Object> predictives = (Map<String, Object>) res.get("predictives");
+		if(predictives == null) {
+			predictives = new HashMap<String, Object>();
+			res.put("predictives", predictives);
+		}
+		predictives.put("primaryDirection", pdres.get("pd"));
+	}
 	
 	private Map<String, Object> getParams(){
 		if(!TransData.containsParam("cid")) {
@@ -61,9 +98,11 @@ public class QueryChartController {
 		String[] parts = StringUtility.splitString(birth, ' ');
 		chart.put("date", parts[0]);
 		chart.put("time", parts[1]);
-		chart.put("_wireRev", "pd_method_sync_v4");
+		chart.put("_wireRev", "pd_method_sync_v6");
 		chart.put("hsys", TransData.getValueAsInt("hsys", 0));
 		chart.put("zodiacal", TransData.getValueAsInt("zodiacal", 0));
+		chart.put("predictive", TransData.getValueAsBool("predictive", false));
+		chart.put("includePrimaryDirection", TransData.getValueAsBool("includePrimaryDirection", false));
 		if(TransData.containsParam("pdtype")) {
 			chart.put("pdtype", TransData.get("pdtype"));
 		}

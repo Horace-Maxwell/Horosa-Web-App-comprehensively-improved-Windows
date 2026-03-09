@@ -17,6 +17,7 @@ PYTHONPATH_ASTRO="${ROOT}/astropy"
 EXTRA_PY_SITE=""
 STARTUP_TIMEOUT="${HOROSA_STARTUP_TIMEOUT:-180}"
 SKIP_UI_BUILD="${HOROSA_SKIP_UI_BUILD:-0}"
+SKIP_RUNTIME_WARMUP="${HOROSA_SKIP_RUNTIME_WARMUP:-0}"
 CHART_PORT="${HOROSA_CHART_PORT:-8899}"
 BACKEND_PORT="${HOROSA_SERVER_PORT:-9999}"
 ROOT_PARENT="$(cd "${ROOT}/.." && pwd)"
@@ -89,6 +90,32 @@ http_responding() {
     return 1
   fi
   return 0
+}
+
+warm_runtime_routes() {
+  local warmup_js="${UI_DIR}/scripts/warmHorosaRuntime.js"
+  local warmup_log="${LOG_DIR}/runtime-warmup.log"
+
+  if [ "${SKIP_RUNTIME_WARMUP}" = "1" ]; then
+    diag_log "runtime warmup skipped by env"
+    return 0
+  fi
+  if [ ! -f "${warmup_js}" ]; then
+    diag_log "runtime warmup script missing: ${warmup_js}"
+    return 0
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    diag_log "runtime warmup skipped: node missing"
+    return 0
+  fi
+
+  diag_log "runtime warmup begin"
+  if HOROSA_SERVER_ROOT="http://127.0.0.1:${BACKEND_PORT}" node "${warmup_js}" >"${warmup_log}" 2>&1; then
+    diag_log "runtime warmup done"
+  else
+    diag_log "runtime warmup failed"
+    diag_tail "${warmup_log}" 120
+  fi
 }
 
 load_brew_env() {
@@ -370,10 +397,10 @@ fi
 if [ ! -f "${JAR}" ]; then
   diag_log "missing jar after fallback: ${JAR}"
   echo "missing ${JAR}"
-  echo "build first:"
-  echo "  ../Prepare_Runtime_Mac.command"
-  echo "or"
+  echo "请先回到仓库根目录执行："
   echo "  ../Horosa_OneClick_Mac.command"
+  echo "高级离线打包工具："
+  echo "  ../tools/mac/Prepare_Runtime_Mac.command"
   exit 1
 fi
 
@@ -426,14 +453,25 @@ trap cleanup_on_fail EXIT
 launch_detached() {
   local log_file="$1"
   shift
-  if command -v setsid >/dev/null 2>&1; then
-    nohup setsid "$@" </dev/null >"${log_file}" 2>&1 &
-  else
-    nohup "$@" </dev/null >"${log_file}" 2>&1 &
-  fi
-  local pid="$!"
-  disown "${pid}" >/dev/null 2>&1 || true
-  printf '%s\n' "${pid}"
+  "${PYTHON_BIN}" - "${log_file}" "$@" <<'PY'
+import subprocess
+import sys
+
+log_path = sys.argv[1]
+cmd = sys.argv[2:]
+
+with open(log_path, "ab", buffering=0) as fh:
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=fh,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
+    )
+
+print(proc.pid)
+PY
 }
 
 cd "${ROOT}"
@@ -483,6 +521,7 @@ if [ "${ready}" -ne 1 ]; then
 fi
 
 trap - EXIT
+warm_runtime_routes
 
 diag_log "services ready: backend=${BACKEND_PORT} chartpy=${CHART_PORT}"
 diag_log "===== run end (success) ====="

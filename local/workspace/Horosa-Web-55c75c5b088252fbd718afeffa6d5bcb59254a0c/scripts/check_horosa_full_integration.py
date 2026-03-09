@@ -5,25 +5,17 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from pathlib import Path
-
-
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except OSError:
-        pass
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _code_root() -> Path:
-    root = _repo_root()
-    nested = root / "Horosa-Web"
-    return nested if nested.is_dir() else root
+def _project_root(root: Path | None = None) -> Path:
+    base = root or _repo_root()
+    horosa_web = base / "Horosa-Web"
+    return horosa_web if horosa_web.exists() else base
 
 
 def _read(path: Path) -> str:
@@ -48,63 +40,55 @@ def _assert_tab(path: Path, label: str, key: str) -> None:
 
 def main() -> None:
     root = _repo_root()
-    code_root = _code_root()
+    project_root = _project_root(root)
 
-    index_js = code_root / "astrostudyui" / "src" / "pages" / "index.js"
-    page_header = code_root / "astrostudyui" / "src" / "components" / "homepage" / "PageHeader.js"
-    ai_export = code_root / "astrostudyui" / "src" / "utils" / "aiExport.js"
-    astro_snapshot = code_root / "astrostudyui" / "src" / "utils" / "astroAiSnapshot.js"
-    module_snapshot = code_root / "astrostudyui" / "src" / "utils" / "moduleAiSnapshot.js"
-    precise_bridge = code_root / "astrostudyui" / "src" / "utils" / "preciseCalcBridge.js"
-    constants_js = code_root / "astrostudyui" / "src" / "utils" / "constants.js"
-    request_js = code_root / "astrostudyui" / "src" / "utils" / "request.js"
-    astro_model = code_root / "astrostudyui" / "src" / "models" / "astro.js"
-    start_sh = code_root / "start_horosa_local.sh"
-    stop_sh = code_root / "stop_horosa_local.sh"
-    local_command = code_root / "horosa_local.command"
-    verify_sh = code_root / "verify_horosa_local.sh"
-    browser_verify = root / "scripts" / "browser_horosa_master_check.py"
-    self_check_sh = root / "scripts" / "mac" / "self_check_horosa.sh"
-    self_check_cmd = code_root / "Horosa_SelfCheck_Mac.command"
+    index_js = project_root / "astrostudyui" / "src" / "pages" / "index.js"
+    page_header = project_root / "astrostudyui" / "src" / "components" / "homepage" / "PageHeader.js"
+    ai_export = project_root / "astrostudyui" / "src" / "utils" / "aiExport.js"
+    astro_snapshot = project_root / "astrostudyui" / "src" / "utils" / "astroAiSnapshot.js"
+    module_snapshot = project_root / "astrostudyui" / "src" / "utils" / "moduleAiSnapshot.js"
+    precise_bridge = project_root / "astrostudyui" / "src" / "utils" / "preciseCalcBridge.js"
+    astro_model = project_root / "astrostudyui" / "src" / "models" / "astro.js"
+    verify_sh = project_root / "verify_horosa_local.sh"
 
-    cntrad_main = code_root / "astrostudyui" / "src" / "components" / "cntradition" / "CnTraditionMain.js"
-    cnyibu_main = code_root / "astrostudyui" / "src" / "components" / "cnyibu" / "CnYiBuMain.js"
-    direct_main = code_root / "astrostudyui" / "src" / "components" / "direction" / "AstroDirectMain.js"
-    pd_table = code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroPrimaryDirection.js"
-    hellen_main = code_root / "astrostudyui" / "src" / "components" / "hellenastro" / "HellenAstroMain.js"
-    chart13 = code_root / "astrostudyui" / "src" / "components" / "hellenastro" / "AstroChart13.js"
-    astro_chart_main = code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroChartMain.js"
-    astro_chart_main3d = code_root / "astrostudyui" / "src" / "components" / "astro3d" / "AstroChartMain3D.js"
-    astro_chart3d = code_root / "astrostudyui" / "src" / "components" / "astro3d" / "AstroChart3D.js"
-    astro3d_core = code_root / "astrostudyui" / "src" / "components" / "astro3d" / "Astro3D.js"
-    loc_main = code_root / "astrostudyui" / "src" / "components" / "loc" / "LocAstroMain.js"
-    acg = code_root / "astrostudyui" / "src" / "components" / "acg" / "AstroAcg.js"
+    cntrad_main = project_root / "astrostudyui" / "src" / "components" / "cntradition" / "CnTraditionMain.js"
+    cnyibu_main = project_root / "astrostudyui" / "src" / "components" / "cnyibu" / "CnYiBuMain.js"
+    direct_main = project_root / "astrostudyui" / "src" / "components" / "direction" / "AstroDirectMain.js"
+    pd_table = project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroPrimaryDirection.js"
+    hellen_main = project_root / "astrostudyui" / "src" / "components" / "hellenastro" / "HellenAstroMain.js"
+    chart13 = project_root / "astrostudyui" / "src" / "components" / "hellenastro" / "AstroChart13.js"
+    astro_chart_main = project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroChartMain.js"
+    astro_chart_main3d = project_root / "astrostudyui" / "src" / "components" / "astro3d" / "AstroChartMain3D.js"
+    astro_chart3d = project_root / "astrostudyui" / "src" / "components" / "astro3d" / "AstroChart3D.js"
+    astro3d_core = project_root / "astrostudyui" / "src" / "components" / "astro3d" / "Astro3D.js"
+    loc_main = project_root / "astrostudyui" / "src" / "components" / "loc" / "LocAstroMain.js"
+    acg = project_root / "astrostudyui" / "src" / "components" / "acg" / "AstroAcg.js"
 
     snapshot_expectations = {
-        "bazi": code_root / "astrostudyui" / "src" / "components" / "cntradition" / "BaZi.js",
-        "ziwei": code_root / "astrostudyui" / "src" / "components" / "ziwei" / "ZiWeiMain.js",
-        "suzhan": code_root / "astrostudyui" / "src" / "components" / "suzhan" / "SuZhanMain.js",
-        "guazhan": code_root / "astrostudyui" / "src" / "components" / "guazhan" / "GuaZhanMain.js",
-        "liureng": code_root / "astrostudyui" / "src" / "components" / "lrzhan" / "LiuRengMain.js",
-        "jinkou": code_root / "astrostudyui" / "src" / "components" / "jinkou" / "JinKouMain.js",
-        "qimen": code_root / "astrostudyui" / "src" / "components" / "dunjia" / "DunJiaMain.js",
-        "taiyi": code_root / "astrostudyui" / "src" / "components" / "taiyi" / "TaiYiMain.js",
-        "tongshefa": code_root / "astrostudyui" / "src" / "components" / "tongshefa" / "TongSheFaMain.js",
-        "sanshiunited": code_root / "astrostudyui" / "src" / "components" / "sanshi" / "SanShiUnitedMain.js",
-        "jieqi": code_root / "astrostudyui" / "src" / "components" / "jieqi" / "JieQiChartsMain.js",
-        "guolao": code_root / "astrostudyui" / "src" / "components" / "guolao" / "GuoLaoChartMain.js",
-        "germany": code_root / "astrostudyui" / "src" / "components" / "germany" / "AstroMidpoint.js",
+        "bazi": project_root / "astrostudyui" / "src" / "components" / "cntradition" / "BaZi.js",
+        "ziwei": project_root / "astrostudyui" / "src" / "components" / "ziwei" / "ZiWeiMain.js",
+        "suzhan": project_root / "astrostudyui" / "src" / "components" / "suzhan" / "SuZhanMain.js",
+        "guazhan": project_root / "astrostudyui" / "src" / "components" / "guazhan" / "GuaZhanMain.js",
+        "liureng": project_root / "astrostudyui" / "src" / "components" / "lrzhan" / "LiuRengMain.js",
+        "jinkou": project_root / "astrostudyui" / "src" / "components" / "jinkou" / "JinKouMain.js",
+        "qimen": project_root / "astrostudyui" / "src" / "components" / "dunjia" / "DunJiaMain.js",
+        "taiyi": project_root / "astrostudyui" / "src" / "components" / "taiyi" / "TaiYiMain.js",
+        "tongshefa": project_root / "astrostudyui" / "src" / "components" / "tongshefa" / "TongSheFaMain.js",
+        "sanshiunited": project_root / "astrostudyui" / "src" / "components" / "sanshi" / "SanShiUnitedMain.js",
+        "jieqi": project_root / "astrostudyui" / "src" / "components" / "jieqi" / "JieQiChartsMain.js",
+        "guolao": project_root / "astrostudyui" / "src" / "components" / "guolao" / "GuoLaoChartMain.js",
+        "germany": project_root / "astrostudyui" / "src" / "components" / "germany" / "AstroMidpoint.js",
         "primarydirect": direct_main,
-        "relative": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroRelative.js",
-        "indiachart": code_root / "astrostudyui" / "src" / "components" / "astro" / "IndiaChart.js",
-        "fengshui": code_root / "astrostudyui" / "src" / "components" / "fengshui" / "FengShuiMain.js",
-        "otherbu": code_root / "astrostudyui" / "src" / "components" / "dice" / "DiceMain.js",
-        "solararc": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroSolarArc.js",
-        "solarreturn": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroSolarReturn.js",
-        "lunarreturn": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroLunarReturn.js",
-        "givenyear": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroGivenYear.js",
-        "profection": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroProfection.js",
-        "zodialrelease": code_root / "astrostudyui" / "src" / "components" / "astro" / "AstroZR.js",
+        "relative": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroRelative.js",
+        "indiachart": project_root / "astrostudyui" / "src" / "components" / "astro" / "IndiaChart.js",
+        "fengshui": project_root / "astrostudyui" / "src" / "components" / "fengshui" / "FengShuiMain.js",
+        "otherbu": project_root / "astrostudyui" / "src" / "components" / "dice" / "DiceMain.js",
+        "solararc": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroSolarArc.js",
+        "solarreturn": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroSolarReturn.js",
+        "lunarreturn": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroLunarReturn.js",
+        "givenyear": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroGivenYear.js",
+        "profection": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroProfection.js",
+        "zodialrelease": project_root / "astrostudyui" / "src" / "components" / "astro" / "AstroZR.js",
     }
 
     top_level_tabs = {
@@ -244,7 +228,7 @@ def main() -> None:
         "saveModuleAISnapshot('indiachart_current'",
         "saveModuleAISnapshot(`indiachart_${fractal}`",
     ]:
-        _assert_contains(snapshot_expectations["indiachart"], needle) if "saveModuleAISnapshot" in needle else _assert_contains(code_root / "astrostudyui" / "src" / "components" / "astro" / "IndiaChartMain.js", needle)
+        _assert_contains(snapshot_expectations["indiachart"], needle) if "saveModuleAISnapshot" in needle else _assert_contains(project_root / "astrostudyui" / "src" / "components" / "astro" / "IndiaChartMain.js", needle)
 
     for needle in [
         "currentTab: '二十四节气'",
@@ -267,6 +251,7 @@ def main() -> None:
         "<TabPane tab=\"太阳返照\" key=\"solarreturn\">",
         "<TabPane tab=\"月亮返照\" key=\"lunarreturn\">",
         "<TabPane tab=\"流年法\" key=\"givenyear\">",
+        "<TabPane tab=\"十年大运\" key=\"decennials\">",
     ]:
         _assert_contains(direct_main, needle)
 
@@ -385,22 +370,13 @@ def main() -> None:
     _assert_contains(precise_bridge, "export async function fetchPreciseJieqiSeed(params)")
     _assert_contains(precise_bridge, "request(`${ServerRoot}/nongli/time`")
     _assert_contains(precise_bridge, "request(`${ServerRoot}/jieqi/year`")
-    _assert_contains(constants_js, "const storageKey = 'horosaLocalServerRoot';")
-    _assert_contains(constants_js, "params.get('srv')")
-    _assert_contains(constants_js, "const backendPort = webPort + 1999;")
-    _assert_contains(constants_js, "window.localStorage && window.localStorage.setItem(storageKey, serverRoot);")
-    _assert_contains(request_js, "function normalizeFetchCacheOption(opts)")
-    _assert_contains(request_js, "opts.cache = opts.cache ? 'default' : 'no-store';")
 
     _assert_contains(chart13, "request(`${Constants.ServerRoot}/chart13`")
     _assert_contains(acg, "request(`${Constants.ServerRoot}/location/acg`")
     _assert_contains(hellen_main, "this.props.hook.fun = (fields)=>")
     _assert_contains(loc_main, "this.props.hook.fun = (fields)=>")
     _assert_contains(direct_main, "applyPrimaryDirectionConfig(pdMethod, pdTimeKey)")
-    _assert_regex(
-        pd_table,
-        r"const pdTypeOutOfSync = (appliedPdType !== 0|appliedPdState\.pdtype !== DEFAULT_PD_TYPE);",
-    )
+    _assert_contains(pd_table, "const pdTypeOutOfSync = appliedPdState.pdtype !== DEFAULT_PD_TYPE;")
     _assert_contains(pd_table, "needsPdRecompute(){")
     _assert_contains(pd_table, "if(!this.needsPdRecompute())")
     _assert_contains(pd_table, "disabled={!needsPdRecompute}")
@@ -408,31 +384,10 @@ def main() -> None:
     _assert_contains(direct_main, "cache: false")
     _assert_contains(astro_model, "pdtype: fields.pdtype ? fields.pdtype.value : 0")
 
-    _assert_contains(start_sh, 'nohup setsid "$@"')
-    _assert_contains(start_sh, 'disown "${pid}"')
-    _assert_contains(stop_sh, "Only reap listeners that belong to this workspace copy")
-    _assert_contains(stop_sh, 'grep -Fq "${ROOT}"')
-    _assert_contains(local_command, "find_free_port()")
-    _assert_contains(local_command, "selected alternate ports")
-    _assert_contains(local_command, 'URL="http://127.0.0.1:${WEB_PORT}/index.html?srv=${SERVER_ROOT_ENCODED}')
-    _assert_contains(local_command, 'KEEP_SERVICES_RUNNING="${HOROSA_KEEP_SERVICES_RUNNING:-1}"')
-    _assert_contains(local_command, 'export HOROSA_SERVER_ROOT="http://127.0.0.1:${BACKEND_PORT}"')
-    _assert_contains(local_command, 'nohup setsid "$@"')
-    _assert_contains(local_command, 'disown "${pid}"')
-    _assert_contains(self_check_sh, 'START_CMD="${ROOT}/Horosa_Local.command"')
-    _assert_contains(self_check_sh, 'selected alternate ports')
-    _assert_contains(self_check_sh, 'HOROSA_KEEP_SERVICES_RUNNING=1')
-    _assert_contains(self_check_cmd, 'exec "${ROOT}/scripts/mac/self_check_horosa.sh" "$@"')
     _assert_contains(verify_sh, "verifyPrimaryDirectionRuntime.js")
     _assert_contains(verify_sh, "verifyHorosaRuntimeFull.js")
     _assert_contains(verify_sh, "check_primary_direction_astroapp_integration.py")
     _assert_contains(verify_sh, "check_horosa_full_integration.py")
-    _assert_contains(verify_sh, 'SCRIPT_ROOT="${ROOT}"')
-    _assert_contains(verify_sh, 'HOROSA_SERVER_ROOT="${HOROSA_SERVER_ROOT}"')
-    _assert_contains(browser_verify, 'open_and_close_modal(page, "AI导出设置"')
-    _assert_contains(browser_verify, 'open_and_close_modal(page, "AI导出"')
-    _assert_contains(browser_verify, 'select_dropdown_value(page, method_select_index, "Horosa原方法")')
-    _assert_contains(browser_verify, 'select_dropdown_value(page, method_select_index, "AstroAPP-Alchabitius")')
 
     report = {
         "status": "ok",

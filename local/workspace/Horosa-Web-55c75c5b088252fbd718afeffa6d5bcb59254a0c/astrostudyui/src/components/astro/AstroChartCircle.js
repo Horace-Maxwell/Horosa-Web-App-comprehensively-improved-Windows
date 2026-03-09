@@ -3,15 +3,8 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import {splitDegree, whichTerm, convertLatToStr, convertLonToStr, getDignityText, getObjectsText} from './AstroHelper';
 import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
-import { getStore, } from '../../utils/storageutil';
-import {
-	getAspectAnnotation,
-	getHouseAnnotation,
-	getLotAnnotation,
-	getPlanetAnnotation,
-	getSignAnnotation,
-} from '../../constants/AstroInterpretation';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
+import { appendAstroMeaningTips, buildSignMeaningTip, buildAspectMeaningTip } from './AstroMeaningData';
 
 
 export default class AstroChartCircle {
@@ -28,8 +21,13 @@ export default class AstroChartCircle {
 
 		this.divTooltip = option.divTooltip;
 		this.onTipClick = option.onTipClick;
+		this.showAstroMeaning = option.showAstroMeaning ? true : false;
 
 		this.setupToolTip();
+	}
+
+	setShowAstroMeaning(flag){
+		this.showAstroMeaning = flag ? true : false;
 	}
 
 	setupToolTip(){
@@ -38,41 +36,24 @@ export default class AstroChartCircle {
 				.style('position', 'absolute')
 				.style('text-align', 'left')
 				.style('vertical-align', 'middle')
-				.style('width', '340px')
-				.style('padding', '2px')
-				.style('padding-left', '10px')
+				.style('width', '560px')
+				.style('max-width', '72vw')
+				.style('max-height', '60vh')
+				.style('overflow-y', 'auto')
+				.style('white-space', 'normal')
+				.style('line-height', '1.4')
+				.style('padding', '8px 10px')
 				.style('font', '13px sans-serif')
-				.style('background', 'lightsteelblue')
-				.style('border', '0px')
+				.style('background', '#ffffff')
+				.style('color', '#262626')
+				.style('border', '1px solid #e8e8e8')
 				.style('border-radius', '8px')
+				.style('box-shadow', '0 6px 18px rgba(0,0,0,0.16)')
 				.style('pointer-events', 'none');
 		}
 	}
-
-	isAnnotationEnabled(){
-		try{
-			const store = getStore();
-			const app = store && store.app ? store.app : {};
-			return app.showAstroAnnotation === 1;
-		}catch(e){
-			return false;
-		}
-	}
-
-	appendAnnotationSection(lines, heading, text){
-		if(!text){
-			return;
-		}
-		if(lines.length){
-			lines.push('');
-		}
-		lines.push(`# ${heading}`);
-		`${text}`.replace(/\r\n/g, '\n').split('\n').forEach((line)=>{
-			lines.push(line);
-		});
-	}
 	
-	genTooltipObj(infoObj, name, annotationMode = 'auto'){
+	genTooltipObj(infoObj, name){
 		if(this.divTooltip === undefined || this.divTooltip === null){
 			return {};
 		}
@@ -105,53 +86,24 @@ export default class AstroChartCircle {
 			lbl = lbl + '：' + degstr;
 		}
 
-		const tipLines = [];
-		if(Number.isFinite(infoObj.lon)){
-			let degs = splitDegree(infoObj.lon);
-			tipLines.push('黄经：' +  degs[0] + 'º' + degs[1] + "'； " + Math.round(infoObj.lon*10000)/10000+ 'º');
-		}
+		let degs = splitDegree(infoObj.lon);
 		let tipobj = {
 			title: lbl,
-			tips: tipLines,
+			tips: ['黄经：' +  degs[0] + 'º' + degs[1] + "'； " + Math.round(infoObj.lon*10000)/10000+ 'º'],
 		};
-		if(this.isAnnotationEnabled()){
-			const planetTxt = getPlanetAnnotation(infoObj.id);
-			const lotTxt = getLotAnnotation(infoObj.id);
-			const signTxt = getSignAnnotation(infoObj.sign);
-			const houseTxt = getHouseAnnotation(infoObj.house || infoObj.id);
-			const textLines = [];
-			if(annotationMode === 'sign'){
-				this.appendAnnotationSection(textLines, '星座释义', signTxt);
-			}else if(annotationMode === 'house'){
-				this.appendAnnotationSection(textLines, '宫位释义', houseTxt);
-			}else if(annotationMode === 'planet'){
-				if(planetTxt){
-					this.appendAnnotationSection(textLines, '星释义', planetTxt);
-				}else if(lotTxt){
-					this.appendAnnotationSection(textLines, '希腊点释义', lotTxt);
-				}
-			}else{
-				if(planetTxt){
-					this.appendAnnotationSection(textLines, '星释义', planetTxt);
-				}else if(lotTxt){
-					this.appendAnnotationSection(textLines, '希腊点释义', lotTxt);
-				}
-				this.appendAnnotationSection(textLines, '星座释义', signTxt);
-				this.appendAnnotationSection(textLines, '宫位释义', houseTxt);
-			}
-			if(textLines.length){
-				if(tipobj.tips.length){
-					tipobj.tips.push('==');
-				}
-				tipobj.tips.push(...textLines);
+		if(this.showAstroMeaning){
+			if(infoObj && infoObj.type && (infoObj.type === 'Planet' || infoObj.type === 'Generic' || infoObj.type === 'GenericCN')){
+				tipobj = appendAstroMeaningTips(tipobj, 'planet', infoObj.id);
+			}else if(infoObj && infoObj.id && infoObj.id.indexOf('House') === 0){
+				tipobj = appendAstroMeaningTips(tipobj, 'house', infoObj.id);
 			}
 		}
 
 		return tipobj;
 	}
 
-	genTooltip(titleSvg, infoObj, annotationMode = 'auto'){
-		let tipobj = this.genTooltipObj(infoObj, null, annotationMode);		
+	genTooltip(titleSvg, infoObj){
+		let tipobj = this.genTooltipObj(infoObj, null);		
 		creatTooltip(this.divTooltip, titleSvg, tipobj, this.onTipClick, true);
 	}
 
@@ -283,11 +235,6 @@ export default class AstroChartCircle {
 			siggroup.append('path')
 				.attr('d', arcd).attr('stroke', AstroConst.AstroColor.Stroke)
 				.attr('fill', AstroConst.AstroColor.SignFill[sig]);
-			this.genTooltip(siggroup, {
-				id: sig,
-				sign: sig,
-				lon: ang + 15,
-			}, 'sign');
 	
 			let lblgroup = siggroup.append('g').attr("text-anchor", "middle");
 			let txts = [
@@ -360,15 +307,75 @@ export default class AstroChartCircle {
 					return trans;	
 				})
 				.text(function(d){return AstroText.AstroMsg[d]});
+
+			if(this.showAstroMeaning){
+				const signTip = buildSignMeaningTip(sig);
+				if(signTip){
+					creatTooltip(this.divTooltip, siggroup, signTip, this.onTipClick, true);
+				}
+			}
 		}
 		
 		return signs;
 	}
+
+	resolveTermHighlightColor(sig, termOwner, matchedHighlight){
+		let owner = matchedHighlight && matchedHighlight.owner ? matchedHighlight.owner : termOwner;
+		let ownerColor = AstroConst.AstroColor[owner];
+		if(ownerColor && ownerColor !== AstroConst.AstroColor.Stroke){
+			return ownerColor;
+		}
+		return AstroConst.AstroColor[sig] || ownerColor || AstroConst.AstroColor.Stroke;
+	}
+
+	appendTermHighlightMarker(termgroup, sigstart, degree, innerR, outerR, accentColor){
+		let normalizedDegree = Number(degree);
+		if(!Number.isFinite(normalizedDegree)){
+			return;
+		}
+		let angle = (sigstart + normalizedDegree) * Math.PI / 180;
+		let markerStartR = innerR + 1.5;
+		let markerEndR = outerR - 1.5;
+		let startX = -markerStartR * Math.sin(angle);
+		let startY = -markerStartR * Math.cos(angle);
+		let endX = -markerEndR * Math.sin(angle);
+		let endY = -markerEndR * Math.cos(angle);
+		let markerDotR = outerR - 4.5;
+		let dotX = -markerDotR * Math.sin(angle);
+		let dotY = -markerDotR * Math.cos(angle);
+		let markerStroke = accentColor || AstroConst.AstroColor.Stroke;
+		let markerFill = d3.color(markerStroke);
+		if(markerFill){
+			markerFill.opacity = 0.92;
+		}
+		termgroup.append('line')
+			.attr('x1', startX)
+			.attr('y1', startY)
+			.attr('x2', endX)
+			.attr('y2', endY)
+			.attr('stroke', markerStroke)
+			.attr('stroke-width', 2.5)
+			.attr('stroke-linecap', 'round')
+			.attr('opacity', 0.96);
+		termgroup.append('circle')
+			.attr('cx', dotX)
+			.attr('cy', dotY)
+			.attr('r', 4.5)
+			.attr('stroke', '#ffffff')
+			.attr('stroke-width', 1.4)
+			.attr('fill', markerFill ? `${markerFill}` : markerStroke);
+	}
 	
-	termBand(svg, r, rStep, flags){
+	termBand(svg, r, rStep, flags, termHighlight){
 		let samecolorwithsign = (flags & AstroConst.CHART_PLANETCOLORWITHSIGN) === 0 ? false : true;
 		let innerR = r - rStep;
 		let txtPosR = r - rStep / 2 - this.TxtOffsetTop;
+		let highlights = [];
+		if(Array.isArray(termHighlight)){
+			highlights = termHighlight.filter(Boolean);
+		}else if(termHighlight){
+			highlights = [termHighlight];
+		}
 	
 		let terms = svg.append('g');
 		const signStep = 30;
@@ -385,10 +392,76 @@ export default class AstroChartCircle {
 							.innerRadius(innerR).outerRadius(r)
 							.startAngle(-stangle).endAngle(-(stangle + edangle));
 				let arcd = arc();
-				let termgroup = terms.append('g');
+				let matchedHighlight = null;
+				for(let k=0; k<highlights.length; k++){
+					let item = highlights[k];
+					if(!item || item.sign !== sig){
+						continue;
+					}
+					let sameRange = Number.isFinite(Number(item.start)) && Number.isFinite(Number(item.end))
+						? Math.abs(Number(item.start) - term[1]) < 1e-9 && Math.abs(Number(item.end) - term[2]) < 1e-9
+						: false;
+					if(sameRange){
+						matchedHighlight = item;
+						break;
+					}
+					let degree = Number(item.degree);
+					if(Number.isFinite(degree) && term[1] <= degree && degree < term[2]){
+						matchedHighlight = item;
+						break;
+					}
+				}
+				let strokeColor = AstroConst.AstroColor.Stroke;
+				let fillColor = AstroConst.AstroColor['NoColor'];
+				let labelColor = samecolorwithsign ? AstroConst.AstroColor[sig] : AstroConst.AstroColor[term[0]];
+				let fontWeight = 100;
+				let fontSize = 13;
+				let accentColor = null;
+				if(matchedHighlight){
+					accentColor = this.resolveTermHighlightColor(sig, term[0], matchedHighlight);
+					let fill = d3.color(accentColor);
+					if(fill){
+						fill.opacity = 0.26;
+						fillColor = `${fill}`;
+					}
+					strokeColor = accentColor;
+					labelColor = accentColor;
+					fontWeight = 700;
+					fontSize = 15;
+				}
+				let termgroup = terms.append('g')
+					.attr('class', matchedHighlight ? 'astro-term astro-term-highlight' : 'astro-term')
+					.attr('data-term-sign', sig)
+					.attr('data-term-owner', term[0]);
+				if(matchedHighlight){
+					termgroup
+						.attr('data-highlight-marker', matchedHighlight.markerId || matchedHighlight.markerLabel || 'term')
+						.attr('data-highlight-owner', matchedHighlight.owner || term[0]);
+				}
 				termgroup.append('path')
-					.attr('d', arcd).attr('stroke', AstroConst.AstroColor.Stroke)
-					.attr('fill', AstroConst.AstroColor['NoColor']);
+					.attr('d', arcd)
+					.attr('stroke', strokeColor)
+					.attr('stroke-width', matchedHighlight ? 2.25 : 1)
+					.attr('fill', fillColor);
+				if(matchedHighlight){
+					let overlayFill = d3.color(accentColor);
+					if(overlayFill){
+						overlayFill.opacity = 0.12;
+					}
+					let overlayArc = d3.arc()
+						.innerRadius(innerR + 1.5)
+						.outerRadius(r - 1.5)
+						.startAngle(-stangle)
+						.endAngle(-(stangle + edangle));
+					termgroup.append('path')
+						.attr('d', overlayArc())
+						.attr('fill', overlayFill ? `${overlayFill}` : AstroConst.AstroColor['NoColor'])
+						.attr('stroke', accentColor)
+						.attr('stroke-width', 3.5)
+						.attr('stroke-linejoin', 'round')
+						.attr('fill-opacity', 1);
+					this.appendTermHighlightMarker(termgroup, sigstart, matchedHighlight.degree, innerR, r, accentColor);
+				}
 	
 				let demiStep = (delta / 2) * Math.PI / 180;
 				let lblgroup = termgroup.append('g').attr("text-anchor", "middle");
@@ -397,15 +470,11 @@ export default class AstroChartCircle {
 				let transtr = 'translate(' + posx + ',' + posy +  ')';
 				lblgroup.attr('transform', transtr);
 				let termtxt = AstroText.AstroMsg[term[0]];
-				let color = AstroConst.AstroColor[term[0]];
-				if(samecolorwithsign){
-					color = AstroConst.AstroColor[sig];
-				}
 				let lbl = lblgroup.append('text')
 						.attr("dominant-baseline","middle")
 						.attr("text-anchor", "middle")
 						.attr('font-family', AstroConst.AstroChartFont)
-						.attr('font-size', 13).attr('font-weight', 100).attr('stroke', color)
+						.attr('font-size', fontSize).attr('font-weight', fontWeight).attr('stroke', labelColor)
 						.text(termtxt);
 				let txtang = -(term[1] + delta) - 30*i;
 				let txtrot = 'rotate(' + txtang + ')';
@@ -688,7 +757,7 @@ export default class AstroChartCircle {
 			pnt.poslon = tmplon;
 			let lon = tmplon * Math.PI / 180;
 			let lblgroup = stars.append('g').attr("text-anchor", "middle");
-			this.genTooltip(lblgroup, pnt, 'planet');
+			this.genTooltip(lblgroup, pnt);
 	
 			let degs = splitDegree(pnt.signlon);
 			let startxt = [];
@@ -820,32 +889,25 @@ export default class AstroChartCircle {
 				let LineGen = d3.line();
 				let linedata = [[x1,y1], [x2, y2]];
 				let pathStr = LineGen(linedata);
-				let path = apsgroup.append('path')
+				let aspitemgrp = apsgroup.append('g');
+				let path = aspitemgrp.append('path')
 					.attr('stroke', color)
 					.attr('stroke-width', 1)
 					.attr('fill', 'none');
 				path.attr('d', pathStr);	
-				if(this.divTooltip){
-					const title = `${AstroText.AstroMsgCN[objA.id] || objA.id} ${AstroText.AstroMsg[`Asp${item.asp}`] || `${item.asp}˚`} ${AstroText.AstroMsgCN[objB.id] || objB.id}`;
-					const tips = [`误差：${Math.round((item.orb || 0) * 1000) / 1000}`];
-					if(this.isAnnotationEnabled()){
-						const aspTxt = getAspectAnnotation(`Asp${item.asp}`);
-						if(aspTxt){
-							const sec = [];
-							this.appendAnnotationSection(sec, '相位释义', aspTxt);
-							tips.push('==');
-							tips.push(...sec);
-						}
-					}
-					creatTooltip(this.divTooltip, path, { title, tips, }, this.onTipClick, true);
-				}
 				let txt = AstroText.AstroMsg['Asp' + item.asp];
-				apsgroup.append('text')
+				aspitemgrp.append('text')
 				.attr("dominant-baseline","middle")
 				.attr("text-anchor", "middle").attr('stroke', color)
 				.attr('font-size', 10).attr('font-family', AstroConst.AstroChartFont)
 				.text(txt).attr('transform', 'translate(' + (x1+x2)/2 + ',' + (y1+y2)/2 + ')');	;
-	
+				if(this.showAstroMeaning){
+					let asptip = buildAspectMeaningTip(item.asp, objA, objB);
+					if(asptip){
+						creatTooltip(this.divTooltip, aspitemgrp, asptip, this.onTipClick, true);
+					}
+				}
+
 			}
 		}
 	
@@ -871,7 +933,7 @@ export default class AstroChartCircle {
 				endAngle: -(stangle + edangle)
 			});
 			let termgroup = terms.append('g');
-			this.genTooltip(termgroup, term, 'house');
+			this.genTooltip(termgroup, term);
 
 			termgroup.append('path')
 				.attr('d', arcd).attr('stroke', AstroConst.AstroColor[term.id])
@@ -1213,7 +1275,7 @@ export default class AstroChartCircle {
 		return resobj;
 	}
 	
-	drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurnal){
+	drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurnal, termHighlight){
 		let needOutDeg = (flags & AstroConst.CHART_OUTERDEG) === AstroConst.CHART_OUTERDEG ? true : false;
 		if(needOutDeg){
 			let outerDegLines = this.degreeOuterLines(topgroup, radius);
@@ -1230,7 +1292,7 @@ export default class AstroChartCircle {
 		if(needTerm){
 			let termR = radius - rStep;
 			let termStep = 20;
-			let terms = this.termBand(topgroup, termR, termStep, flags);
+			let terms = this.termBand(topgroup, termR, termStep, flags, termHighlight);
 		
 			let houseR = termR - termStep;
 			return houseR;	
@@ -1409,7 +1471,7 @@ export default class AstroChartCircle {
 	
 	}
 	
-	drawDoubleChart(chartid, chartObj, rStep, chartDisplay, planetDisplay){
+	drawDoubleChart(chartid, chartObj, rStep, chartDisplay, planetDisplay, termHighlight){
 		if(chartObj === undefined || chartObj === null || chartObj.err ||
 			chartObj.natualChart === undefined || chartObj.natualChart === null ||
 			chartObj.dirChart === undefined || chartObj.dirChart === null){
@@ -1457,7 +1519,7 @@ export default class AstroChartCircle {
 			let lblHousedegR = signsR + 20;
 			this.labelHousesDeg(topgroup, lblHousedegR, 70, innerChart.chart.houses, flags);	
 		}
-		let restR = this.drawOuterSigns(null, topgroup, signsR, rStep, flags, innerChart.chart.isDiurnal);
+		let restR = this.drawOuterSigns(null, topgroup, signsR, rStep, flags, innerChart.chart.isDiurnal, termHighlight);
 		let housesAry = innerChart.chart.houses;
 		let objectsAry = [];
 		for(let i=0; i<outerChart.chart.objects.length; i++){

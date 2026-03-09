@@ -4688,3 +4688,39 @@ Append new entries; do not rewrite history.
   - 桌面包浏览器取证：
     - `runtime/guangde_pkg_browser_check.png` ✅
     - `runtime/guangde_pkg_browser_check.json` ✅
+
+## 2026-03-09
+
+### 10:55 - 全站技法性能复核完成，当前所有强制验收场景均低于 1 秒（不降算法精度）
+- Scope: 按“星盘、三式合一、易与三式、节气盘、推运盘、七政四余、3D盘、印度律盘、希腊星术等所有主要技法计算时间不超过 1 秒”的要求，重新执行运行时性能验收，并把结果同步到项目文档。
+- Files:
+  - `UPGRADE_LOG.md`
+  - `PROJECT_STRUCTURE.md`
+- Details:
+  - 本轮没有修改任何算法、模型、近似参数或精度口径；仅复核当前实现的真实运行时表现。
+  - 重新执行 `node astrostudyui/scripts/verifyHorosaPerformanceRuntime.js` 后，所有 `enforceThreshold = true` 的场景均满足 `thresholdMs = 1000`。
+  - 本次最慢的强制验收场景为：
+    - `八字紫微 /bazi/direct = 327.16ms`
+  - 代表性模块峰值如下：
+    - `推运盘 = 269.6ms`
+    - `星盘 / 3D盘 / 节气单盘共用 /chart = 162.553ms`
+    - `节气盘二十四节气首屏 = 47.479ms`
+    - `三式合一 = 47.832ms`
+    - `易与三式 = 47.832ms`
+    - `七政四余 = 47.473ms`
+    - `希腊星术 = 34.047ms`
+    - `印度律盘 = 29.432ms`
+    - `关系盘 = 73.849ms`
+    - `量化盘 = 18.536ms`
+    - `万年历 = 19.89ms`
+    - `星体地图 = 20.03ms`
+  - 辅助观测项 `节气盘 /jieqi/year legacy批量图 = 281.318ms`，虽不作为强制门槛场景，也同样低于 1 秒。
+  - 结论：当前这份 Windows 工作区在不降低算法精度的前提下，已经满足“主要技法计算时间不超过 1 秒”的目标，无需再为了提速改写算法。
+  - 与此前 Windows 兼容修复一起，`verify_horosa_local.sh` 现也可在 Windows Git Bash 环境下完成整站自检，不再依赖 `lsof`。
+- Verification (local):
+  - `node astrostudyui/scripts/verifyHorosaPerformanceRuntime.js` ✅
+  - 结果摘要：
+    - `status = ok`
+    - `thresholdMs = 1000`
+    - `failingScenarios = []`
+    - `failingModules = []`

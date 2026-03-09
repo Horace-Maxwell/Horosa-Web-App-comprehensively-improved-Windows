@@ -1,5 +1,5 @@
-const forge = require('./vendor/node-forge');
-const RSA = require('./vendor/js-rsa');
+const forge = require('node-forge');
+const RSA = require('js-rsa');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -48,6 +48,15 @@ function verifyFrontendBinding() {
     'Date: pd[4],',
   ]) {
     assert(src.includes(needle), `frontend PD table binding missing: ${needle}`);
+  }
+  const pdMainPath = path.resolve(__dirname, '../src/components/direction/AstroDirectMain.js');
+  const pdMainSrc = fs.readFileSync(pdMainPath, 'utf8');
+  for (const needle of [
+    'includePrimaryDirection: true,',
+    'requestPrimaryDirectionRows',
+    "request(`${Constants.ServerRoot}/predict/pd`",
+  ]) {
+    assert(pdMainSrc.includes(needle), `frontend lazy PD wiring missing: ${needle}`);
   }
 }
 
@@ -155,12 +164,17 @@ function rowSignature(rows, limit = 40) {
   return rows.slice(0, limit).map(normalizeRow);
 }
 
-function verifyChartResult(result, method) {
+function verifyChartResult(result, method, expectPrimaryDirection) {
   assert(result && result.params, `/chart missing params for ${method}`);
   assert(result.params.pdMethod === method, `/chart params.pdMethod mismatch for ${method}: ${result.params.pdMethod}`);
   assert(result.params.pdTimeKey === 'Ptolemy', `/chart params.pdTimeKey mismatch for ${method}: ${result.params.pdTimeKey}`);
-  assert(result.predictives && Array.isArray(result.predictives.primaryDirection), `/chart missing predictives.primaryDirection for ${method}`);
-  assert(result.predictives.primaryDirection.length > 0, `/chart empty primaryDirection for ${method}`);
+  assert(result.predictives && Array.isArray(result.predictives.firdaria), `/chart missing predictives.firdaria for ${method}`);
+  if (expectPrimaryDirection) {
+    assert(result.predictives && Array.isArray(result.predictives.primaryDirection), `/chart missing predictives.primaryDirection for ${method}`);
+    assert(result.predictives.primaryDirection.length > 0, `/chart empty primaryDirection for ${method}`);
+  } else {
+    assert(!(result.predictives && Array.isArray(result.predictives.primaryDirection)), `/chart unexpectedly returned primaryDirection by default for ${method}`);
+  }
 }
 
 function verifyPdResult(result, method) {
@@ -170,18 +184,32 @@ function verifyPdResult(result, method) {
 
 async function run() {
   verifyFrontendBinding();
+  const chartAstroDefault = await call('/chart', {
+    ...BASE_PAYLOAD,
+    pdMethod: 'astroapp_alchabitius',
+    pdTimeKey: 'Ptolemy',
+  });
+  const chartLegacyDefault = await call('/chart', {
+    ...BASE_PAYLOAD,
+    pdMethod: 'horosa_legacy',
+    pdTimeKey: 'Ptolemy',
+  });
   const chartAstro = await call('/chart', {
     ...BASE_PAYLOAD,
     pdMethod: 'astroapp_alchabitius',
     pdTimeKey: 'Ptolemy',
+    includePrimaryDirection: true,
   });
   const chartLegacy = await call('/chart', {
     ...BASE_PAYLOAD,
     pdMethod: 'horosa_legacy',
     pdTimeKey: 'Ptolemy',
+    includePrimaryDirection: true,
   });
-  verifyChartResult(chartAstro, 'astroapp_alchabitius');
-  verifyChartResult(chartLegacy, 'horosa_legacy');
+  verifyChartResult(chartAstroDefault, 'astroapp_alchabitius', false);
+  verifyChartResult(chartLegacyDefault, 'horosa_legacy', false);
+  verifyChartResult(chartAstro, 'astroapp_alchabitius', true);
+  verifyChartResult(chartLegacy, 'horosa_legacy', true);
 
   const pdAstro = await call('/predict/pd', {
     ...BASE_PAYLOAD,
@@ -215,6 +243,8 @@ async function run() {
   );
 
   console.log(JSON.stringify({
+    chart_astroapp_default_firdaria: chartAstroDefault.predictives.firdaria.length,
+    chart_legacy_default_firdaria: chartLegacyDefault.predictives.firdaria.length,
     chart_astroapp_rows: chartAstroRows.length,
     chart_legacy_rows: chartLegacyRows.length,
     pd_astroapp_rows: pdAstroRows.length,
@@ -222,7 +252,7 @@ async function run() {
     chart_astroapp_first: normalizeRow(chartAstroRows[0]),
     chart_legacy_first: normalizeRow(chartLegacyRows[0]),
   }, null, 2));
-  console.log('verify ok: primary direction runtime wiring is active for /chart and /predict/pd');
+  console.log('verify ok: /chart lazy-loads primaryDirection by default, and /predict/pd stays aligned when includePrimaryDirection=true');
 }
 
 run().catch((err) => {

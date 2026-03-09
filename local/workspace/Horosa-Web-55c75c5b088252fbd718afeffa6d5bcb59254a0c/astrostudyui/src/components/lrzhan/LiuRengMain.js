@@ -154,6 +154,95 @@ function normalizeMultiline(raw){
 	return `${raw === undefined || raw === null ? '' : raw}`.replace(/\r\n/g, '\n').trim();
 }
 
+function toReferenceDocText(item){
+	const lines = [];
+	const fullText = normalizeMultiline(item && item.fullText ? item.fullText : '');
+	if(fullText){
+		return fullText;
+	}
+	const detail = normalizeMultiline(item && item.detail ? item.detail : '');
+	const logic = normalizeMultiline(item && (item.logic || item.basis) ? (item.logic || item.basis) : '');
+	if(logic){
+		lines.push(logic);
+	}
+	if(detail && detail !== logic){
+		lines.push(detail);
+	}
+	return lines.join('\n').trim();
+}
+
+export const XIAO_JU_REFERENCE_TAB_KEYS = {
+	has(value){
+		return `${value || ''}`.startsWith('reference:');
+	},
+};
+
+export function buildReferenceDocumentText(item, _type){
+	return toReferenceDocText(item);
+}
+
+export function buildOverviewReferenceText(item){
+	return normalizeMultiline(item && item.content ? item.content : (item && item.fullText ? item.fullText : ''));
+}
+
+export function buildLiuRengReferenceBundle(liureng, chartObj, guirengType, runyear){
+	const lrLayout = buildLiuRengLayout(chartObj, liureng && liureng.nongli ? liureng.nongli : null, guirengType);
+	const keData = buildKeData(lrLayout, liureng && liureng.nongli ? liureng.nongli : null);
+	const sanChuan = buildSanChuanData(lrLayout, keData.raw, liureng && liureng.nongli ? liureng.nongli : null, chartObj);
+	const lrJudge = evaluateLiuRengPatterns({
+		liureng,
+		runyear,
+		layout: lrLayout,
+		keRaw: keData.raw,
+		sanChuan,
+	});
+	const split = splitLiuRengPatternHitsForPanels(lrJudge);
+	const dage = buildLiuRengPatternDisplayRows(split.dageHits).map((item, idx)=>({
+		...item,
+		key: item && item.key ? `${item.key}` : `dage:${idx}`,
+	}));
+	const xiaoju = buildLiuRengPatternDisplayRows(split.xiaojuHits).map((item, idx)=>({
+		...item,
+		key: item && item.key ? `${item.key}` : `xiaoju:${idx}`,
+	}));
+	const reference = buildUnifiedLiuRengReferenceRows({
+		liureng,
+		runyear,
+		lrLayout,
+		lrJudge,
+	}).map((item, idx)=>({
+		...item,
+		key: `reference:${item && item.key ? item.key : idx}`,
+	}));
+	const overview = buildLiuRengOverviewSections({
+		liureng,
+		runyear,
+		lrLayout,
+		sanChuan,
+		keRaw: keData.raw,
+		lrJudge,
+	}).map((item, idx)=>({
+		...item,
+		key: item && item.key ? `${item.key}` : `overview:${idx}`,
+		name: item && item.title ? item.title : `概览 ${idx + 1}`,
+		fullText: normalizeMultiline(item && item.content ? item.content : ''),
+	}));
+	const panStyle = getLiuRengPanStyle(lrLayout);
+	const context = {
+		courseName: sanChuan && sanChuan.name ? sanChuan.name : '',
+		sanChuanText: sanChuan && sanChuan.cuang ? sanChuan.cuang.join(' / ') : '',
+		dayGanZi: liureng && liureng.nongli ? liureng.nongli.dayGanZi : '',
+		yuejiang: lrLayout && lrLayout.yue ? lrLayout.yue : '',
+		panStyle: panStyle && panStyle.name ? panStyle.name : '',
+	};
+	return {
+		context,
+		dage,
+		xiaoju: [...xiaoju, ...reference],
+		overview,
+	};
+}
+
 function getLiuRengPanStyle(layout){
 	const monthBranch = layout && layout.yue ? `${layout.yue}` : '';
 	const timeBranch = layout && layout.timezi ? `${layout.timezi}` : '';

@@ -4,6 +4,8 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 import boundless.io.FileUtility;
 import boundless.log.AppLoggers;
@@ -27,6 +29,19 @@ public class NongliHelper {
 	private static Map<Integer, String> dayMap = new HashMap<Integer, String>();
 	private static Map<String, Integer> NongliMonth = new HashMap<String, Integer>();
 	private static Map<String, Tuple<String, Integer>[]> jieqiChefMap = new HashMap<String, Tuple<String, Integer>[]>();
+	private static Map<String, Map<String, Object>[]> localMonthCache = new ConcurrentHashMap<String, Map<String, Object>[]>();
+	private static Map<String, JieqiYearData> localJieqiYearCache = new ConcurrentHashMap<String, JieqiYearData>();
+
+	private static final class JieqiYearData {
+		Map<String, Map<String, Object>> byDate = new HashMap<String, Map<String, Object>>();
+		List<Map<String, Object>> jieList = new ArrayList<Map<String, Object>>();
+	}
+
+	private static final class NongliBatchContext {
+		Map<String, Map<String, Object>> dayCache = new HashMap<String, Map<String, Object>>();
+		Map<String, Map<String, Object>[]> monthCache = new HashMap<String, Map<String, Object>[]>();
+		Map<String, JieqiYearData> jieqiYearCache = new HashMap<String, JieqiYearData>();
+	}
 	
 
 	static {
@@ -170,7 +185,31 @@ public class NongliHelper {
 		}
 	}
 	
-	private static Map<String, Map<String, Object>> getJieqi24(String year, String zone, int ad, String lon, double birthjdn){
+	private static String buildMonthCacheKey(String year, String zone) {
+		return String.format("%s|%s", year, zone);
+	}
+
+	private static String buildJieqiYearCacheKey(String year, String zone, String lon) {
+		return String.format("%s|%s|%s", year, zone, lon);
+	}
+
+	private static JieqiYearData getJieqiYearData(String year, String zone, int ad, String lon, NongliBatchContext ctx) {
+		String key = buildJieqiYearCacheKey(year, zone, lon);
+		if(ctx != null) {
+			JieqiYearData data = ctx.jieqiYearCache.get(key);
+			if(data != null) {
+				return data;
+			}
+		}
+
+		JieqiYearData local = localJieqiYearCache.get(key);
+		if(local != null) {
+			if(ctx != null) {
+				ctx.jieqiYearCache.put(key, local);
+			}
+			return local;
+		}
+
 		Map<String, Object> params = new HashMap<String, Object>();
 		if(ad < 0 && year.indexOf('-') != 0) {
 			params.put("year", "-"+year);
@@ -181,44 +220,57 @@ public class NongliHelper {
 		params.put("lat", "0n00");
 		params.put("lon", lon);
 		Map<String, Object> map = AstroHelper.getJieQiYear(params);
-		Map<String, Map<String, Object>> res = new HashMap<String, Map<String, Object>>();
-		Map<String, Object> jie = null;
+		JieqiYearData data = new JieqiYearData();
 		List<Map<String, Object>> list = (List<Map<String, Object>>) map.get("jieqi24");
 		for(Map<String, Object> jieqi : list) {
 			String time = (String) jieqi.get("time");
 			String[] parts = StringUtility.splitString(time, ' ');
-			res.put(parts[0], jieqi);
+			data.byDate.put(parts[0], jieqi);
 			
 			boolean jieflag = (boolean) jieqi.get("jie");
+			if(jieflag) {
+				data.jieList.add(jieqi);
+			}
+		}
+
+		localJieqiYearCache.put(key, data);
+		if(ctx != null) {
+			ctx.jieqiYearCache.put(key, data);
+		}
+		return data;
+	}
+
+	private static Map<String, Object> getMonthJie(String year, String zone, int ad, String lon, double birthjdn, NongliBatchContext ctx){
+		JieqiYearData data = getJieqiYearData(year, zone, ad, lon, ctx);
+		Map<String, Object> jie = null;
+		for(Map<String, Object> jieqi : data.jieList) {
 			double jdn = (double) jieqi.get("jdn");
-			if(jieflag && jdn < birthjdn) {
+			if(jdn < birthjdn) {
 				jie = jieqi;
+			}else {
+				break;
 			}
 		}
-		
-		if(jie == null) {
-			int y = ConvertUtility.getValueAsInt(params.get("year")) - 1;
-			if(y == 0) {
-				y = -1;
-			}
-			params.put("year", y);
-			map = AstroHelper.getJieQiYear(params);
-			list = (List<Map<String, Object>>) map.get("jieqi24");
-			for(Map<String, Object> jieqi : list) {
-				String time = (String) jieqi.get("time");
-				String[] parts = StringUtility.splitString(time, ' ');
-				res.put(parts[0], jieqi);
-				
-				boolean jieflag = (boolean) jieqi.get("jie");
-				double jdn = (double) jieqi.get("jdn");
-				if(jieflag && jdn < birthjdn) {
-					jie = jieqi;
-				}
+		if(jie != null) {
+			return jie;
+		}
+
+		int y = ConvertUtility.getValueAsInt(year) - 1;
+		if(y == 0) {
+			y = -1;
+		}
+		String prevYear = String.valueOf(y);
+		int prevAd = prevYear.startsWith("-") ? -1 : 1;
+		JieqiYearData prevData = getJieqiYearData(prevYear, zone, prevAd, lon, ctx);
+		for(Map<String, Object> jieqi : prevData.jieList) {
+			double jdn = (double) jieqi.get("jdn");
+			if(jdn < birthjdn) {
+				jie = jieqi;
+			}else {
+				break;
 			}
 		}
-		
-		res.put("monthJie", jie);
-		return res;
+		return jie;
 	}
 	
 	private static String convertZoneToLon(String zone) {
@@ -243,6 +295,26 @@ public class NongliHelper {
 	}
 	
 	private static Map<String, Object>[] getNongliMonths(String year, String zone){
+		return getNongliMonths(year, zone, null);
+	}
+
+	private static Map<String, Object>[] getNongliMonths(String year, String zone, NongliBatchContext ctx){
+		String key = buildMonthCacheKey(year, zone);
+		if(ctx != null) {
+			Map<String, Object>[] months = ctx.monthCache.get(key);
+			if(months != null) {
+				return months;
+			}
+		}
+
+		Map<String, Object>[] localMonths = localMonthCache.get(key);
+		if(localMonths != null) {
+			if(ctx != null) {
+				ctx.monthCache.put(key, localMonths);
+			}
+			return localMonths;
+		}
+
 		Map<String, Object> params = new HashMap<String, Object>();
 		String lon = getLonFromZone(zone);
 		params.put("year", year);
@@ -273,55 +345,95 @@ public class NongliHelper {
 		
 		Map<String, Object>[] months = new Map[list.size()];
 		list.toArray(months);
+		localMonthCache.put(key, months);
+		if(ctx != null) {
+			ctx.monthCache.put(key, months);
+		}
 
 		return months;
 	}
 
 	private static Map<String, Object> getNongli(int orgad, String birth, String zone, String lon){
+		return getNongli(orgad, birth, zone, lon, null, true);
+	}
+
+	private static Map<String, Object> getNongli(int orgad, String birth, String zone, String lon, NongliBatchContext ctx, boolean persistCache){
 		int ad = orgad;
 		if(birth.startsWith("-")) {
 			ad = -1;
 		}
 		
 		String date = birth;
-		String[] parts = StringUtility.splitString(date, ' ');
-		date = String.format("%s 12:00:00", parts[0]);
-		Map<String, Object> map = AstroCacheHelper.getNongli(date, zone);
-		if(map != null) {
-			return map;
-		}
-		
-		parts = StringUtility.splitString(date, '-');
-		String year = parts[0];
+			String[] parts = StringUtility.splitString(date, ' ');
+			date = String.format("%s 12:00:00", parts[0]);
+			String cacheKey = String.format("%s %s", date, zone);
+			if(ctx != null) {
+				Map<String, Object> daymap = ctx.dayCache.get(cacheKey);
+				if(daymap != null) {
+					return daymap;
+				}
+			}
+			if(persistCache) {
+			Map<String, Object> map = AstroCacheHelper.getNongli(date, zone);
+			if(map != null) {
+				if(ctx != null) {
+					ctx.dayCache.put(cacheKey, map);
+				}
+				return map;
+			}
+			}
+			
+			parts = StringUtility.splitString(date, '-');
+			String year = parts[0];
 		if(ad < 0 && !year.startsWith("-")) {
 			year = "-" + year;
 		}
 		int nexty = ConvertUtility.getValueAsInt(year) + 1;
 		int nextad = ad;
 		if(nexty == 0) {
-			nexty = 1;
-			nextad = 1;
+				nexty = 1;
+				nextad = 1;
+			}
+			Map<String, Object>[] months = getNongliMonths(year, zone, ctx);
+			Map<String, Object>[] nextmonths = getNongliMonths(nexty + "", zone, ctx);
+			return getNongli(ad, birth, zone, months, nextmonths, nextad, lon, ctx, persistCache);
 		}
-		Map<String, Object>[] months = getNongliMonths(year, zone);
-		Map<String, Object>[] nextmonths = getNongliMonths(nexty + "", zone);
-		return getNongli(ad, birth, zone, months, nextmonths, nextad, lon);
+		
+	public static NongLi getNongLi(int orgad, String birth, String zone, String lon, boolean after23NewDay){
+		return getNongLi(orgad, birth, zone, lon, after23NewDay, false);
 	}
 	
-	public static NongLi getNongLi(int orgad, String birth, String zone, String lon, boolean after23NewDay){
+	public static NongLi getNongLi(int orgad, String birth, String zone, String lon, boolean after23NewDay, boolean directTime){
+		return getNongLi(orgad, birth, zone, lon, after23NewDay, directTime, null, true);
+	}
+
+	public static List<NongLi> getNongLiSeries(int orgad, List<String> births, String zone, String lon, boolean after23NewDay, boolean directTime){
+		List<NongLi> list = new ArrayList<NongLi>(births.size());
+		NongliBatchContext ctx = new NongliBatchContext();
+		for(String birth : births) {
+			list.add(getNongLi(orgad, birth, zone, lon, after23NewDay, directTime, ctx, false));
+		}
+		return list;
+	}
+
+	private static NongLi getNongLi(int orgad, String birth, String zone, String lon, boolean after23NewDay, boolean directTime, NongliBatchContext ctx, boolean persistCache){
 		int ad = orgad;
 		if(birth.startsWith("-")) {
 			ad = -1;
 		}
 		
-		int timeOffset = RealSunTimeOffset.getOffsetByDate(birth, zone, lon);
-		double offsetjdn = timeOffset/3600.0/24.0;
-		RealDate realdate = JdnHelper.addOffset(birth, zone, offsetjdn);
-		String realBirth = realdate.realDate;
-		
-		Map<String, Object> nonglimap = NongliHelper.getNongli(ad, realBirth, zone, lon);
-		NongLi nongli = new NongLi(nonglimap);
-		nongli.birth = realBirth;
-		nongli.jdn = DateTimeUtility.getDateNum(realBirth, zone);
+		String realBirth = birth;
+		if(!directTime) {
+			int timeOffset = RealSunTimeOffset.getOffsetByDate(birth, zone, lon);
+			double offsetjdn = timeOffset/3600.0/24.0;
+			RealDate realdate = JdnHelper.addOffset(birth, zone, offsetjdn);
+				realBirth = realdate.realDate;
+			}
+			
+			Map<String, Object> nonglimap = NongliHelper.getNongli(ad, realBirth, zone, lon, ctx, persistCache);
+			NongLi nongli = new NongLi(nonglimap);
+			nongli.birth = realBirth;
+			nongli.jdn = DateTimeUtility.getDateNum(realBirth, zone);
 		nongli.monthInt = NongliMonth.get(nongli.month);
 		int m = NongliMonth.get(nongli.month);
 		int jiem = nongli.jieord / 2 + 1;
@@ -381,12 +493,12 @@ public class NongliHelper {
 			}			
 		}
 		
-		if(nongli.dayInt == 30) {
-			RealDate nextRealdate = JdnHelper.addOffset(birth, zone, 1);
-			NongLi nextnongli = getNongLi(orgad, nextRealdate.realDate, zone, lon, after23NewDay);
-			if(nextnongli.dayInt == 2) {
-				nextnongli.dayInt = 1;
-				nextnongli.day = "初一";
+			if(nongli.dayInt == 30) {
+				RealDate nextRealdate = JdnHelper.addOffset(realBirth, zone, 1);
+				NongLi nextnongli = getNongLi(orgad, nextRealdate.realDate, zone, lon, after23NewDay, directTime, ctx, persistCache);
+				if(nextnongli.dayInt == 2) {
+					nextnongli.dayInt = 1;
+					nextnongli.day = "初一";
 				nextnongli.dayGanZi = nongli.dayGanZi;
 				nextnongli.birth = nongli.birth;
 				nextnongli.time = nongli.time;
@@ -398,11 +510,11 @@ public class NongliHelper {
 		}
 		
 		return nongli;
-	}
-	
-	
+		}
 		
-	private static Map<String, Object> getNongli(int thisad, String birth, String zone, Map<String, Object>[] thisMonths, Map<String, Object>[] nextYearMonths, int nextad, String lon){
+		
+			
+	private static Map<String, Object> getNongli(int thisad, String birth, String zone, Map<String, Object>[] thisMonths, Map<String, Object>[] nextYearMonths, int nextad, String lon, NongliBatchContext ctx, boolean persistCache){
 		Map<String, Object> res = new HashMap<String, Object>();
 		int ad = thisad;
 		if(birth.startsWith("-")) {
@@ -493,28 +605,28 @@ public class NongliHelper {
 			n = (n + 10) % 12;
 			String nstr = monthMap.get(n);
 			res.put("month", nstr);
-		}
-		String nongliday = dayMap.get(dayInt);
-		res.put("day", nongliday);
-		res.put("dayInt", dayInt);
+			}
+			String nongliday = dayMap.get(dayInt);
+			res.put("day", nongliday);
+			res.put("dayInt", dayInt);
 
 		if(firstDt.equals(date)) {
 			res.put("moonTime", map.get("time"));
 			res.put("moonJdn", map.get("jdn"));
 		}
 		
-		Map<String, Map<String, Object>> jieqi24 = getJieqi24(yearStr, zone, ad, lon, birthjdn);
-		Map<String, Object> jieqi = (Map<String, Object>) jieqi24.get(date);
-		if(jieqi != null) {
-			res.put("jieqi", jieqi.get("jieqi"));
-			res.put("jieqiTime", jieqi.get("time"));
-			res.put("jieqiJdn", jieqi.get("jdn"));
-		}
-		
-		Map<String, Object> monthjie = jieqi24.get("monthJie");
-		double jiejdn = (double) monthjie.get("jdn");
-		String jiestr = (String) monthjie.get("jieqi");
-		int jieord = (int) monthjie.get("ord");
+			JieqiYearData jieqiYearData = getJieqiYearData(yearStr, zone, ad, lon, ctx);
+			Map<String, Object> jieqi = jieqiYearData.byDate.get(date);
+			if(jieqi != null) {
+				res.put("jieqi", jieqi.get("jieqi"));
+				res.put("jieqiTime", jieqi.get("time"));
+				res.put("jieqiJdn", jieqi.get("jdn"));
+			}
+			
+			Map<String, Object> monthjie = getMonthJie(yearStr, zone, ad, lon, birthjdn, ctx);
+			double jiejdn = (double) monthjie.get("jdn");
+			String jiestr = (String) monthjie.get("jieqi");
+			int jieord = (int) monthjie.get("ord");
 		int deltadays = ConvertUtility.getValueAsInt(birthjdn - jiejdn);
 		Tuple<String, Integer>[] tuples = jieqiChefMap.get(jiestr);
 		int cnt = 0;
@@ -538,14 +650,20 @@ public class NongliHelper {
 		FiveElement elem = StemBranch.StemFiveElemMap.get(gan);
 		String jieDelta = String.format("%s后第%d天", jiestr, deltadays+1);
 		String chefstr = String.format("%s%s用事", gan, elem.toString());
-		res.put("chef", chefstr);
-		res.put("jiedelta", jieDelta);
-		res.put("jieord", jieord);
-				
-		AstroCacheHelper.saveNongli(res);	
-		
-		return res;
-	}
+			res.put("chef", chefstr);
+			res.put("jiedelta", jieDelta);
+			res.put("jieord", jieord);
+
+			String cacheKey = String.format("%s 12:00:00 %s", date, zone);
+			if(ctx != null) {
+				ctx.dayCache.put(cacheKey, res);
+			}
+			if(persistCache) {
+				AstroCacheHelper.saveNongli(res);
+			}
+			
+			return res;
+		}
 	
 	public static void fillNongli(Map<String, Object> res, Map<String, Object> params, int ad) {
 		String lon = (String) params.get("lon");

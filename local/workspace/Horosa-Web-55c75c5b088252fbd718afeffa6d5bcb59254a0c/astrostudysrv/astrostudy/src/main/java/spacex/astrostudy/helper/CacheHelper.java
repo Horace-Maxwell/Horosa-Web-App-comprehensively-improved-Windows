@@ -3,6 +3,7 @@ package spacex.astrostudy.helper;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
 
 import boundless.spring.help.PropertyPlaceholder;
 import boundless.types.ICache;
@@ -15,6 +16,21 @@ public class CacheHelper {
 	private static int ExpInSec = PropertyPlaceholder.getPropertyAsInt("cachehelper.expireinsecond", 1800);
 	private static final String Prefix = PropertyPlaceholder.getProperty("cachehelper.prjprefix", "astrostudy_");
 	private static ICache cache = CacheFactory.getCache("comm");
+	private static final ConcurrentHashMap<String, LocalCacheEntry> localCache = new ConcurrentHashMap<String, LocalCacheEntry>();
+
+	private static class LocalCacheEntry {
+		private final Object value;
+		private final long expireAtMs;
+
+		private LocalCacheEntry(Object value, int expInSec) {
+			this.value = value;
+			this.expireAtMs = expInSec > 0 ? System.currentTimeMillis() + expInSec * 1000L : Long.MAX_VALUE;
+		}
+
+		private boolean isExpired() {
+			return System.currentTimeMillis() > expireAtMs;
+		}
+	}
 
 	
 	public static ICache getCache(){
@@ -29,10 +45,56 @@ public class CacheHelper {
 	public static String toPartKey(Map params){
 		return CacheUtility.toPartKey(params);
 	}
+
+	private static String buildLocalEntryKey(String relkey, Map<String, Object> params) {
+		if(params == null || params.isEmpty()) {
+			return relkey;
+		}
+		return relkey + CacheUtility.toPartKey(params);
+	}
+
+	private static Object getLocal(String localKey, boolean needCache) {
+		if(!needCache || localKey == null) {
+			return null;
+		}
+		LocalCacheEntry entry = localCache.get(localKey);
+		if(entry == null) {
+			return null;
+		}
+		if(entry.isExpired()) {
+			localCache.remove(localKey, entry);
+			return null;
+		}
+		return entry.value;
+	}
+
+	private static void putLocal(String localKey, Object value, boolean needCache, int expInSec) {
+		if(!needCache || localKey == null || value == null) {
+			return;
+		}
+		if(value instanceof java.util.Collection) {
+			java.util.Collection<?> col = (java.util.Collection<?>) value;
+			if(col.isEmpty()) {
+				return;
+			}
+		}else if(value instanceof Map) {
+			Map<?, ?> map = (Map<?, ?>) value;
+			if(map.isEmpty()) {
+				return;
+			}
+		}
+		localCache.put(localKey, new LocalCacheEntry(value, expInSec));
+	}
 	
 	public static <T extends Object> T getDirect(String key, Class<T> tclass, Supplier<T> fun, boolean needCache, int expInSec){
 		String relkey = buildCacheKey(key);
-		return CacheUtility.getDirect(relkey, tclass, fun, cache, needCache, expInSec);
+		Object cached = getLocal(relkey, needCache);
+		if(tclass.isInstance(cached)) {
+			return tclass.cast(cached);
+		}
+		T value = CacheUtility.getDirect(relkey, tclass, fun, cache, needCache, expInSec);
+		putLocal(relkey, value, needCache, expInSec);
+		return value;
 	}
 	
 	public static <T extends Object> T getDirect(String key, Class<T> tclass, Supplier<T> fun, boolean needCache){
@@ -52,22 +114,50 @@ public class CacheHelper {
 	
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun, int expInSec){
 		String relkey = buildCacheKey(key);
-		return CacheUtility.get(relkey, params, fun, cache, NeedCache, expInSec);
+		String localKey = buildLocalEntryKey(relkey, params);
+		Object cached = getLocal(localKey, NeedCache);
+		if(cached != null) {
+			return cached;
+		}
+		Object value = CacheUtility.get(relkey, params, fun, cache, NeedCache, expInSec);
+		putLocal(localKey, value, NeedCache, expInSec);
+		return value;
 	}
 
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun){
 		String relkey = buildCacheKey(key);
-		return CacheUtility.get(relkey, params, fun, cache, NeedCache, ExpInSec);
+		String localKey = buildLocalEntryKey(relkey, params);
+		Object cached = getLocal(localKey, NeedCache);
+		if(cached != null) {
+			return cached;
+		}
+		Object value = CacheUtility.get(relkey, params, fun, cache, NeedCache, ExpInSec);
+		putLocal(localKey, value, NeedCache, ExpInSec);
+		return value;
 	}
 
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun, boolean needCache, int expInSec){
 		String relkey = buildCacheKey(key);
-		return CacheUtility.get(relkey, params, fun, cache, needCache, expInSec);
+		String localKey = buildLocalEntryKey(relkey, params);
+		Object cached = getLocal(localKey, needCache);
+		if(cached != null) {
+			return cached;
+		}
+		Object value = CacheUtility.get(relkey, params, fun, cache, needCache, expInSec);
+		putLocal(localKey, value, needCache, expInSec);
+		return value;
 	}
 	
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun, boolean needCache){
 		String relkey = buildCacheKey(key);
-		return CacheUtility.get(relkey, params, fun, cache, needCache, ExpInSec);
+		String localKey = buildLocalEntryKey(relkey, params);
+		Object cached = getLocal(localKey, needCache);
+		if(cached != null) {
+			return cached;
+		}
+		Object value = CacheUtility.get(relkey, params, fun, cache, needCache, ExpInSec);
+		putLocal(localKey, value, needCache, ExpInSec);
+		return value;
 	}
 	
 	public static Object inc(String key){
@@ -92,6 +182,11 @@ public class CacheHelper {
 
 	public static long deleteCacheKey(final String keyprefix) {
 		String key = String.format("%s%s*", Prefix, keyprefix);
+		for(String localKey : localCache.keySet()) {
+			if(localKey.startsWith(String.format("%s%s", Prefix, keyprefix))) {
+				localCache.remove(localKey);
+			}
+		}
 		return cache.removeMany(key);
 	}
 	

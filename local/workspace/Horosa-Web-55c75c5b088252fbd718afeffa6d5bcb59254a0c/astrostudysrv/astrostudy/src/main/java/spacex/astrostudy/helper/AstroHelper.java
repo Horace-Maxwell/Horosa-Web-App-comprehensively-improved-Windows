@@ -3,6 +3,7 @@ package spacex.astrostudy.helper;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import boundless.exception.ErrorCodeException;
 import boundless.net.http.HttpClientUtility;
@@ -15,6 +16,7 @@ import boundless.utility.StringUtility;
 
 public class AstroHelper {
 	private static final boolean Debug = PropertyPlaceholder.getPropertyAsBool("devmode", true);
+	private static final ConcurrentHashMap<String, Map<String, Object>> localPredictiveCache = new ConcurrentHashMap<String, Map<String, Object>>();
 
 	public static final String AstroSrvUrl = PropertyPlaceholder.getProperty("astrosrv", "http://127.0.0.1:8899");
 	public static final String SolarReturn = PropertyPlaceholder.getProperty("solarreturn", "/predict/solarreturn");
@@ -23,6 +25,7 @@ public class AstroHelper {
 	public static final String SolarArc = PropertyPlaceholder.getProperty("solararc", "/predict/solararc");
 	public static final String Profection = PropertyPlaceholder.getProperty("profection", "/predict/profection");
 	public static final String PrimaryDirection = PropertyPlaceholder.getProperty("pd", "/predict/pd");
+	public static final String PrimaryDirectionChart = PropertyPlaceholder.getProperty("pdchart", "/predict/pdchart");
 	public static final String ZodiacalRelease = PropertyPlaceholder.getProperty("zr", "/predict/zr");
 	public static final String Dice = PropertyPlaceholder.getProperty("dice", "/predict/dice");
 	public static final String Chart13 = PropertyPlaceholder.getProperty("chart13", "/chart13");
@@ -84,8 +87,13 @@ public class AstroHelper {
 			return requestNoCache(path, params);
 		}
 		String key = getPredictiveKey(path, params);
+		Map<String, Object> localRes = localPredictiveCache.get(key);
+		if(localRes != null) {
+			return localRes;
+		}
 		Map<String, Object> res = AstroCacheHelper.getPredictive(key);
 		if(res != null) {
+			localPredictiveCache.putIfAbsent(key, res);
 			return res;
 		}
 		
@@ -98,6 +106,7 @@ public class AstroHelper {
 		if(jsonres.containsKey("err")) {
 			throw new ErrorCodeException(200001, getRemoteErrMessage(jsonres));
 		}
+		localPredictiveCache.put(key, jsonres);
 		
 		CalculatePool.queueUserWorkItem(()->{
 			AstroCacheHelper.setPredictive(key, jsonres);
@@ -147,6 +156,10 @@ public class AstroHelper {
 	
 	public static Map<String, Object> getPrimaryDirection(Map<String, Object> params){
 		return request(PrimaryDirection, params);
+	}
+
+	public static Map<String, Object> getPrimaryDirectionChart(Map<String, Object> params){
+		return request(PrimaryDirectionChart, params);
 	}
 	
 	public static Map<String, Object> getZodiacalRelease(Map<String, Object> params){
