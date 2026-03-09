@@ -2142,6 +2142,67 @@ function Ensure-BackendJar {
   return $false
 }
 
+function Resolve-NodeJs {
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE) -and (Test-Path $env:HOROSA_NODE)) {
+    return $env:HOROSA_NODE
+  }
+
+  try {
+    $nodeCmd = Get-Command node -ErrorAction Stop
+    if ($nodeCmd -and $nodeCmd.Source -and ($nodeCmd.Source -notmatch 'WindowsApps')) {
+      return $nodeCmd.Source
+    }
+  } catch {}
+
+  return $null
+}
+
+function Invoke-HorosaWarmup {
+  param(
+    [string]$ProjectRoot
+  )
+
+  $warmScript = Join-Path $ProjectRoot 'astrostudyui\scripts\warmHorosaRuntime.js'
+  if (-not (Test-Path $warmScript)) {
+    return
+  }
+
+  $nodeCmd = Resolve-NodeJs
+  if (-not $nodeCmd) {
+    Write-Host '[WARN] Node.js not found, skip runtime warmup.'
+    return
+  }
+
+  $warmOut = Join-Path $LogDir 'warmup.log'
+  $warmErr = Join-Path $LogDir 'warmup.log.err'
+  Write-Host ("[warmup] Using Node.js: {0}" -f $nodeCmd)
+  Write-Host ("[warmup] Preheating critical runtime endpoints via {0}" -f $warmScript)
+
+  try {
+    $proc = Start-Process -FilePath $nodeCmd `
+      -ArgumentList @($warmScript) `
+      -WorkingDirectory (Split-Path -Parent $warmScript) `
+      -PassThru `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput $warmOut `
+      -RedirectStandardError $warmErr
+
+    if (-not (Wait-Process -Id $proc.Id -Timeout 180 -ErrorAction SilentlyContinue)) {
+      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+      Write-Host '[WARN] Runtime warmup timed out after 180s, continue without blocking startup.'
+      return
+    }
+
+    if ($proc.ExitCode -eq 0) {
+      Write-Host '[warmup] Runtime warmup completed.'
+    } else {
+      Write-Host ("[WARN] Runtime warmup exited with code {0}. See {1}" -f $proc.ExitCode, $warmErr)
+    }
+  } catch {
+    Write-Host ("[WARN] Runtime warmup failed: {0}" -f $_.Exception.Message)
+  }
+}
+
 function Get-PythonVersionText {
   param([string]$PythonExe)
   if (-not $PythonExe) { return 'unknown' }
@@ -2504,6 +2565,9 @@ try {
 
   Write-Host "backend: http://127.0.0.1:$BackendPort"
   Write-Host "chartpy: http://127.0.0.1:$ChartPort"
+  if ($PerfMode) {
+    Invoke-HorosaWarmup -ProjectRoot $ProjectDir
+  }
 
   Write-Host "[2/4] Starting local web service on 127.0.0.1:$WebPort ..."
   if (Test-PortOpen -Port $WebPort) {
