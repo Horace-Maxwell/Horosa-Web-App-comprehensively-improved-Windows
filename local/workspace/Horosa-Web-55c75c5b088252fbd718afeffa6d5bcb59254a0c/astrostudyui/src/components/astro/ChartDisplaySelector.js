@@ -106,7 +106,9 @@ class ChartDisplaySelector extends Component{
 		if(!this.props.dispatch){
 			return;
 		}
-		const current = this.props.planetMetaDisplay || {};
+		const current = this.props.planetMetaDisplay
+			|| (this.props.showPlanetHouseInfo && typeof this.props.showPlanetHouseInfo === 'object' ? this.props.showPlanetHouseInfo : {})
+			|| {};
 		const next = {
 			showPostnatal: current.showPostnatal === 1 ? 1 : 0,
 			showHouse: current.showHouse === 1 ? 1 : 0,
@@ -122,7 +124,9 @@ class ChartDisplaySelector extends Component{
 	}
 
 		render(){
-		const planetMetaDisplay = this.props.planetMetaDisplay || {};
+		const planetMetaDisplay = this.props.planetMetaDisplay
+			|| (this.props.showPlanetHouseInfo && typeof this.props.showPlanetHouseInfo === 'object' ? this.props.showPlanetHouseInfo : {})
+			|| {};
 		const showPostnatal = planetMetaDisplay.showPostnatal === 1;
 		const showHouse = planetMetaDisplay.showHouse === 1;
 		const showRuler = planetMetaDisplay.showRuler === 1;

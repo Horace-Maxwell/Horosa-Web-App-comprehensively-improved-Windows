@@ -7,6 +7,7 @@ import {setDispatch} from '../utils/request';
 import {detectPlatform} from '../utils/helper';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
+import { normalizePlanetMetaDisplay, DEFAULT_PLANET_META_DISPLAY } from '../utils/planetMetaDisplay';
 
 const MinWorkspaceHeight = 660;
 const WorkspaceReservedHeight = 88;
@@ -113,6 +114,7 @@ export default {
         showPdBounds: 1,
         pdMethod: 'astroapp_alchabitius',
         pdTimeKey: 'Ptolemy',
+        planetMetaDisplay: normalizePlanetMetaDisplay(DEFAULT_PLANET_META_DISPLAY),
         showPlanetHouseInfo: 0,
         showAstroMeaning: 0,
         showOnlyRulExaltReception: 0,
@@ -147,6 +149,21 @@ export default {
     reducers: {
         save(state, {payload: values}) {
             const payload = { ...(values || {}) };
+            if(Object.prototype.hasOwnProperty.call(payload, 'planetMetaDisplay')){
+                payload.planetMetaDisplay = normalizePlanetMetaDisplay(payload.planetMetaDisplay);
+                payload.showPlanetHouseInfo = payload.planetMetaDisplay.showPostnatal === 1 ? 1 : 0;
+            }
+            if(
+                !Object.prototype.hasOwnProperty.call(payload, 'planetMetaDisplay')
+                && Object.prototype.hasOwnProperty.call(payload, 'showPlanetHouseInfo')
+                && (payload.showPlanetHouseInfo === 1 || payload.showPlanetHouseInfo === true)
+            ){
+                payload.planetMetaDisplay = normalizePlanetMetaDisplay({
+                    showPostnatal: 1,
+                    showHouse: 1,
+                    showRuler: 1,
+                });
+            }
             if(Object.prototype.hasOwnProperty.call(payload, 'planetDisplay')){
                 payload.planetDisplay = normalizeDisplayList(
                     payload.planetDisplay,
@@ -173,6 +190,7 @@ export default {
                 showPdBounds: st.showPdBounds,
                 pdMethod: st.pdMethod,
                 pdTimeKey: st.pdTimeKey,
+                planetMetaDisplay: st.planetMetaDisplay,
                 showPlanetHouseInfo: st.showPlanetHouseInfo,
                 showAstroMeaning: st.showAstroMeaning,
                 showOnlyRulExaltReception: st.showOnlyRulExaltReception,

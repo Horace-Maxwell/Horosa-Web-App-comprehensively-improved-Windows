@@ -47,7 +47,7 @@ const TabPane = Tabs.TabPane;
 let fetchByFieldsTimer = null;
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
-    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, showPlanetHouseInfo, showAstroMeaning, showOnlyRulExaltReception} = app;
+    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, planetMetaDisplay, showAstroMeaning, showOnlyRulExaltReception} = app;
     const {
         pwdFields,
         userInfo,
@@ -222,7 +222,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+	                        showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        dispatch={dispatch}
 	                        hook={predictHook.astrochart}
@@ -242,7 +242,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                             chartDisplay={chartDisplay}
                             planetDisplay={planetDisplay}
 	                            lotsDisplay={lotsDisplay}
-	                            showPlanetHouseInfo={showPlanetHouseInfo}
+	                            showPlanetHouseInfo={planetMetaDisplay}
 	                            showAstroMeaning={showAstroMeaning}
 	                            dispatch={dispatch}
 	                            hook={predictHook.astrochart3D}
@@ -260,7 +260,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+	                            showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.direction}
 	                        dispatch={dispatch}
@@ -292,7 +292,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+	                        showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.relativechart}
 	                        dispatch={dispatch}
@@ -308,7 +308,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+	                        showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.jieqichart}
 	                        dispatch={dispatch}
@@ -355,7 +355,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+                            showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.hellenastro}
 	                        dispatch={dispatch}
@@ -371,7 +371,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+                            showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.indiachart}
 	                        dispatch={dispatch}
@@ -480,7 +480,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         fields={fields}
                         fieldsAry={aryfields}
 	                        chartObj={chartObj}
-	                        showPlanetHouseInfo={showPlanetHouseInfo}
+	                        showPlanetHouseInfo={planetMetaDisplay}
 	                        showAstroMeaning={showAstroMeaning}
 	                        dispatch={dispatch}
 	                        hook={predictHook.sanshiunited}
@@ -833,8 +833,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             >
                 <ChartDisplaySelector
                     value={chartDisplay}
+                    planetMetaDisplay={planetMetaDisplay}
                     showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
-                    showPlanetHouseInfo={showPlanetHouseInfo}
+                    showPlanetHouseInfo={planetMetaDisplay}
                     showAstroMeaning={showAstroMeaning}
                     showOnlyRulExaltReception={showOnlyRulExaltReception}
                     fields={fields}
