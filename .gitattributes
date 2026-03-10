@@ -1,1 +1,2 @@
 local/workspace/runtime/windows/bundle/astrostudyboot.jar filter=lfs diff=lfs merge=lfs -text
+desktop_installer_bundle/wheelhouse/*.whl filter=lfs diff=lfs merge=lfs -text

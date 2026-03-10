@@ -1,0 +1,106 @@
+name: Horosa Desktop Release
+
+on:
+  push:
+    tags:
+      - '*.*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-desktop:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build portable release assets
+        shell: pwsh
+        run: |
+          ./desktop_installer_bundle/build_portable_release_zip.ps1 -RequireTagMatch
+
+      - name: Create or update GitHub release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $tag = $env:GITHUB_REF_NAME
+          if (-not $tag) {
+            throw 'GITHUB_REF_NAME is empty.'
+          }
+
+          $repo = $env:GITHUB_REPOSITORY
+          $apiRoot = "https://api.github.com/repos/$repo"
+          $headers = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'User-Agent' = 'HorosaDesktopReleaseWorkflow'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+
+          $assets = Get-ChildItem -Path ./desktop_installer_bundle/release -File |
+            Where-Object { $_.Name -like "HorosaPortableWindows-$tag.*" }
+
+          if (-not $assets) {
+            throw "No release assets found for tag $tag."
+          }
+
+          $release = $null
+          try {
+            $release = Invoke-RestMethod -Method Get -Headers $headers -Uri "$apiRoot/releases/tags/$tag"
+          } catch {
+            if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+              throw
+            }
+          }
+
+          if (-not $release) {
+            $body = @{
+              tag_name = $tag
+              name = "Horosa Desktop $tag"
+              generate_release_notes = $true
+              draft = $false
+              prerelease = $false
+            } | ConvertTo-Json
+
+            $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "$apiRoot/releases" -Body $body -ContentType 'application/json'
+          }
+
+          foreach ($asset in $assets) {
+            $existing = @($release.assets | Where-Object { $_.name -eq $asset.Name })
+            foreach ($item in $existing) {
+              Invoke-RestMethod -Method Delete -Headers $headers -Uri "$apiRoot/releases/assets/$($item.id)" | Out-Null
+            }
+          }
+
+          $uploadUrl = ($release.upload_url -replace '\{\?name,label\}$', '')
+          foreach ($asset in $assets) {
+            $escapedName = [System.Uri]::EscapeDataString($asset.Name)
+            $assetHeaders = @{
+              Authorization = "Bearer $env:GITHUB_TOKEN"
+              Accept = 'application/vnd.github+json'
+              'User-Agent' = 'HorosaDesktopReleaseWorkflow'
+              'X-GitHub-Api-Version' = '2022-11-28'
+              'Content-Type' = 'application/octet-stream'
+            }
+
+            Invoke-RestMethod `
+              -Method Post `
+              -Headers $assetHeaders `
+              -Uri "$uploadUrl?name=$escapedName" `
+              -InFile $asset.FullName | Out-Null
+          }

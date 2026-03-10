@@ -1,0 +1,11 @@
+{
+  "github_repo": "Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows",
+  "releases_api": "https://api.github.com/repos/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases?per_page=20",
+  "release_page": "https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases",
+  "preferred_asset_prefixes": [
+    "HorosaPortableWindows",
+    "HorosaDesktopBundle"
+  ],
+  "portable_asset_prefix": "HorosaPortableWindows",
+  "desktop_asset_prefix": "HorosaDesktopBundle"
+}
