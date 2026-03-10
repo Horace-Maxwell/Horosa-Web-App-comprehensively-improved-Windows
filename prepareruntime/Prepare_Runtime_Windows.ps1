@@ -716,3 +716,4 @@ if ($validationErrors.Count -gt 0) {
 Write-Host ''
 Write-Host '[PASS] Runtime prepare completed with all required artifacts.'
 Wait-ForExitPrompt
+exit 0
