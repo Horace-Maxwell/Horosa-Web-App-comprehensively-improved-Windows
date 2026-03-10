@@ -34,11 +34,11 @@ If Not fso.FileExists(launchScript) Then
   WScript.Quit 1
 End If
 
-cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & installScript & """"
+cmd = """" & pwshExe & """ -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & installScript & """"
 exitCode = shell.Run(cmd, 0, True)
 If exitCode <> 0 Or Not fso.FolderExists(depsRoot) Then
   If fso.FileExists(wizardScript) Then
-    shell.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & wizardScript & """", 0, False
+    shell.Run """" & pwshExe & """ -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & wizardScript & """", 0, False
   Else
     MsgBox "桌面运行环境尚未安装完成。" & vbCrLf & "请先运行安装程序。", vbExclamation, displayName
   End If
