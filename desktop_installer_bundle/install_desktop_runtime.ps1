@@ -9,6 +9,7 @@ $ProgressFile = Join-Path $env:LocalAppData 'HorosaDesktop\install-progress.json
 $ReqFile = Join-Path $ScriptRoot 'runtime_requirements.txt'
 $Wheelhouse = Join-Path $ScriptRoot 'wheelhouse'
 $InstallStateFile = Join-Path $DepsRoot 'install_state.json'
+$DisplayName = '星阙'
 
 if (-not (Test-Path $PythonExe)) {
   throw "Bundled Python not found: $PythonExe"
@@ -44,7 +45,7 @@ if (Test-Path $InstallStateFile) {
   try {
     $state = Get-Content -Raw $InstallStateFile | ConvertFrom-Json
     if ($state.version -eq $targetVersion) {
-      Write-InstallProgress -State 'done' -Title 'Horosa Desktop 已准备完成' -Message '当前版本所需的桌面运行环境已经准备好了。' -Percent 100
+      Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '当前版本所需的桌面运行环境已经准备好了。' -Percent 100
       Write-Host '[OK] Desktop runtime already prepared.'
       exit 0
     }
@@ -101,5 +102,5 @@ Write-InstallProgress -State 'finalizing' -Title '正在完成安装' -Message '
   depsRoot = $DepsRoot
 } | ConvertTo-Json | Set-Content -Path $InstallStateFile -Encoding UTF8
 
-Write-InstallProgress -State 'done' -Title 'Horosa Desktop 已准备完成' -Message '桌面运行环境已经准备好，可以立即启动。' -Percent 100
+Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '桌面运行环境已经准备好，可以立即启动。' -Percent 100
 Write-Host '[OK] Desktop runtime prepared.'

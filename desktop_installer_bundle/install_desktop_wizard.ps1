@@ -16,6 +16,7 @@ $AssetsRoot = Join-Path $ScriptRoot 'assets'
 $InstallerIconFile = Join-Path $AssetsRoot 'horosa_setup.ico'
 $InstallerBadgeFile = Join-Path $AssetsRoot 'horosa_setup_badge.png'
 $IconCandidate = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
+$DisplayName = '星阙'
 $VersionInfo = Get-Content -Raw $VersionFile | ConvertFrom-Json
 
 function New-HorosaShortcut {
@@ -34,13 +35,13 @@ function New-HorosaShortcut {
     $shortcut.IconLocation = $IconPath
   }
   $shortcut.WindowStyle = 1
-  $shortcut.Description = 'Horosa Desktop'
+  $shortcut.Description = $DisplayName
   $shortcut.Save()
 }
 
 function Ensure-Shortcuts {
-  $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Horosa Desktop.lnk'
-  $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Horosa Desktop.lnk'
+  $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) "$DisplayName.lnk"
+  $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) "$DisplayName.lnk"
   $shortcutIcon = if (Test-Path $IconCandidate) { $IconCandidate } elseif (Test-Path $InstallerIconFile) { $InstallerIconFile } else { $null }
   New-HorosaShortcut -ShortcutPath $desktopShortcut -TargetPath $RunScript -WorkingDirectory $ScriptRoot -IconPath $shortcutIcon
   New-HorosaShortcut -ShortcutPath $startMenuShortcut -TargetPath $RunScript -WorkingDirectory $ScriptRoot -IconPath $shortcutIcon
@@ -127,7 +128,7 @@ function Set-StageVisual {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'Horosa Desktop 安装程序'
+$form.Text = "$DisplayName 安装程序"
 $form.StartPosition = 'CenterScreen'
 $form.Size = New-Object System.Drawing.Size(900, 620)
 $form.MinimumSize = $form.Size
@@ -185,7 +186,7 @@ if (Test-Path $InstallerBadgeFile) {
 $brandBadgeFrame.Controls.Add($brandBadge)
 
 $brandPill = New-Object System.Windows.Forms.Label
-$brandPill.Text = 'DESKTOP SETUP'
+$brandPill.Text = 'DESKTOP APP'
 $brandPill.TextAlign = 'MiddleCenter'
 $brandPill.ForeColor = [System.Drawing.Color]::FromArgb(255, 246, 223)
 $brandPill.BackColor = [System.Drawing.Color]::FromArgb(64, 77, 103)
@@ -195,7 +196,7 @@ $brandPill.Size = New-Object System.Drawing.Size(92, 24)
 $leftPanel.Controls.Add($brandPill)
 
 $brandTitle = New-Object System.Windows.Forms.Label
-$brandTitle.Text = 'Horosa Desktop'
+$brandTitle.Text = $DisplayName
 $brandTitle.ForeColor = [System.Drawing.Color]::White
 $brandTitle.Font = New-Object System.Drawing.Font('Segoe UI', 22, [System.Drawing.FontStyle]::Bold)
 $brandTitle.Location = New-Object System.Drawing.Point(34, 180)
@@ -211,7 +212,7 @@ $brandSubtitle.Size = New-Object System.Drawing.Size(180, 20)
 $leftPanel.Controls.Add($brandSubtitle)
 
 $brandSummary = New-Object System.Windows.Forms.Label
-$brandSummary.Text = '为 Horosa 提供更像正式商业软件的桌面安装体验，包括隐藏后台服务、原生窗口壳和后续自动更新能力。'
+$brandSummary.Text = '为星阙提供更像正式商业软件的桌面安装体验，包括隐藏后台服务、原生窗口壳和后续自动更新能力。'
 $brandSummary.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
 $brandSummary.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $brandSummary.Location = New-Object System.Drawing.Point(36, 248)
@@ -273,7 +274,7 @@ $versionLabel.AutoSize = $true
 $leftPanel.Controls.Add($versionLabel)
 
 $headline = New-Object System.Windows.Forms.Label
-$headline.Text = '欢迎使用 Horosa Desktop 安装程序'
+$headline.Text = "欢迎使用 $DisplayName 安装程序"
 $headline.Font = New-Object System.Drawing.Font('Segoe UI', 20, [System.Drawing.FontStyle]::Bold)
 $headline.ForeColor = [System.Drawing.Color]::FromArgb(28, 33, 40)
 $headline.AutoSize = $true
@@ -367,7 +368,7 @@ $statusDetail.Size = New-Object System.Drawing.Size(500, 62)
 $statusCard.Controls.Add($statusDetail)
 
 $launchCheck = New-Object System.Windows.Forms.CheckBox
-$launchCheck.Text = '点击“完成”后立即启动 Horosa Desktop'
+$launchCheck.Text = '点击“完成”后立即启动 ' + $DisplayName
 $launchCheck.Checked = $true
 $launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, 494)
 $launchCheck.AutoSize = $true
@@ -407,7 +408,7 @@ $timer.Add_Tick({
     Set-StageVisual -Current 'install'
     $stepTitle.Text = [string]$progress.title
     $stepDetail.Text = [string]$progress.message
-    $headline.Text = '正在安装 Horosa Desktop'
+    $headline.Text = "正在安装 $DisplayName"
     $subtitle.Text = '安装程序正在后台准备本地运行环境，完成后会自动切换到完成页面。'
     $statusLabel.Text = '安装状态'
     $statusDetail.Text = ("状态：{0}`r`n更新时间：{1}" -f $progress.state, $progress.updatedAt)
@@ -423,10 +424,10 @@ $timer.Add_Tick({
       Ensure-Shortcuts
       $script:installSucceeded = $true
       Set-StageVisual -Current 'finish'
-      $headline.Text = 'Horosa Desktop 已准备就绪'
-      $subtitle.Text = '安装程序已在这台电脑上完成 Horosa Desktop 的准备工作。'
+      $headline.Text = "$DisplayName 已准备就绪"
+      $subtitle.Text = "安装程序已在这台电脑上完成 $DisplayName 的准备工作。"
       $stepTitle.Text = '安装完成'
-      $stepDetail.Text = 'Horosa Desktop 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
+      $stepDetail.Text = $DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
       $statusLabel.Text = '已就绪'
       $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
       $progressBar.Value = 100
@@ -436,7 +437,7 @@ $timer.Add_Tick({
     } else {
       $script:installSucceeded = $false
       Set-StageVisual -Current 'failed'
-      $headline.Text = 'Horosa Desktop 安装程序'
+      $headline.Text = "$DisplayName 安装程序"
       $subtitle.Text = '安装程序未能在这台电脑上完成运行环境准备。'
       $stepTitle.Text = '安装失败'
       $stepDetail.Text = '运行环境安装没有完成。你可以重新尝试安装，或直接关闭这个向导。'
@@ -464,10 +465,10 @@ $primaryButton.Add_Click({
   $script:installSucceeded = $false
   $primaryButton.Enabled = $false
   Set-StageVisual -Current 'install'
-  $headline.Text = '正在安装 Horosa Desktop'
+  $headline.Text = "正在安装 $DisplayName"
   $subtitle.Text = '安装程序正在为当前 Windows 账户准备桌面运行环境和快捷方式入口。'
   $secondaryButton.Text = '取消'
-  $stepTitle.Text = '正在安装 Horosa Desktop'
+  $stepTitle.Text = "正在安装 $DisplayName"
   $stepDetail.Text = '正在准备本地运行环境和随包附带的桌面组件。'
   $statusLabel.Text = '安装状态'
   $statusDetail.Text = '安装程序正在后台运行。'
@@ -512,10 +513,10 @@ if (Test-Path $StateFile) {
     if ($state.version -eq $VersionInfo.version) {
       Ensure-Shortcuts
       Set-StageVisual -Current 'finish'
-      $headline.Text = 'Horosa Desktop 已可直接使用'
-      $subtitle.Text = '当前这个版本的 Horosa Desktop 已经在这台电脑上准备完成。'
+      $headline.Text = "$DisplayName 已可直接使用"
+      $subtitle.Text = "当前这个版本的 $DisplayName 已经在这台电脑上准备完成。"
       $stepTitle.Text = '当前版本已安装'
-      $stepDetail.Text = '你可以点击“完成”退出安装程序，或打开安装目录查看文件；也可以立刻启动 Horosa Desktop。'
+      $stepDetail.Text = '你可以点击“完成”退出安装程序，或打开安装目录查看文件；也可以立刻启动 ' + $DisplayName + '。'
       $statusLabel.Text = '已就绪'
       $statusDetail.Text = '桌面运行环境和快捷方式都已存在。' + "`r`n" + '当前版本无需重新安装。'
       $progressBar.Value = 100
