@@ -41,6 +41,21 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Resolve release title
+        shell: python
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          version_info = json.loads(Path("desktop_installer_bundle/version.json").read_text(encoding="utf-8"))
+          release_tag = os.environ["RELEASE_TAG"]
+          release_title = str(version_info.get("release_name") or f"Horosa Desktop {release_tag}")
+          if not release_title.strip():
+              release_title = f"Horosa Desktop {release_tag}"
+          with open(Path(os.environ["GITHUB_ENV"]), "a", encoding="utf-8") as fh:
+              fh.write(f"RELEASE_NAME={release_title}\n")
+
       - name: Build portable release assets
         shell: pwsh
         run: |
@@ -56,7 +71,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Horosa Desktop ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
           generate_release_notes: true
           draft: false
           prerelease: false
