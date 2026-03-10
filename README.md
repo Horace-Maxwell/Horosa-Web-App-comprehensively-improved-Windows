@@ -1,40 +1,53 @@
-# Horosa Windows 使用说明
+# 星阙 Windows 下载与安装
 
-普通用户只需要记住一件事：
+普通用户先看这里，不需要先看源码。
 
-- 只双击根目录里的 `START_HERE.bat`
+## 一键安装包下载位置
 
-这份包已经带好了运行 Horosa 需要的内容。正常使用时，不需要你自己先装 Python、Java、Node 或别的软件。
+- 最新 Release 页面：
+  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest`
+- 当前可直接下载的一键安装包：
+  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.2/HorosaPortableWindows-2026.03.10.2.zip`
 
-## 只做这 3 步
+请注意：
 
-1. 双击 `START_HERE.bat`
-2. 等浏览器自己打开 Horosa 页面后再开始使用
-3. 用完先关浏览器，再关启动窗口
+- 普通用户要下载的是 `HorosaPortableWindows-版本.zip`
+- 不要下载同页里的 `.manifest.json`，那个不是给手动安装用的
+- 这个 zip 虽然文件名里写的是 `PortableWindows`，但它就是目前给普通用户发布的一键安装包
+- 如果上面的当前直链以后失效，直接打开 `releases/latest` 页面下载最新同名格式的 zip 即可
 
-## 不要乱点
+## 安装只做这 3 步
 
-- 根目录现在只保留了一个给用户点的脚本：`START_HERE.bat`
-- 其他脚本已经收进子目录，普通用户不要去点 `local/`、`prepareruntime/` 里面的脚本
-- 第一次启动可能稍慢，等它自己跑完，不要连续双击很多次
-- `local`、`runtime`、`prepareruntime` 这些文件夹不要删、不要拆开、不要单独移动
-- 如果 Windows 弹确认，就选“允许”或“仍要运行”
+1. 下载 `HorosaPortableWindows-版本.zip`
+2. 先解压 zip，再打开解压后的文件夹
+3. 双击 `Install_Horosa_Desktop.vbs`，按中文安装向导完成安装
 
-## 如果没打开成功
+安装完成后：
 
-1. 先把已经开的浏览器和启动窗口全部关掉
-2. 回到根目录，再双击一次 `START_HERE.bat`
-3. 如果还不行，就打开 `log/HOROSA_RUN_ISSUES.md`
-4. 还需要更详细说明时，再看 `docs/` 里的文档
+- 桌面或开始菜单里会出现 `星阙`
+- 以后直接打开 `星阙` 就可以，不需要重复安装
 
-## 你可能会用到的说明文件
+## 下载后不要点错
 
-- `docs/给完全不会的人看的启动说明.txt`：只有 3 步的超简版说明
-- `docs/SELFCHECK_LOG.md`：最近一次自检记录
-- `docs/PROJECT_STRUCTURE.md`：目录用途说明
-- `log/HOROSA_RUN_ISSUES.md`：启动失败时先看的问题说明
+- 正确入口是 `Install_Horosa_Desktop.vbs`
+- 不要手动去点 `.ps1` 脚本
+- 不要直接点 `.manifest.json`
+- 第一次安装如果 Windows 弹出安全提示，按系统提示选择允许继续即可
 
-## 给维护人的一句话
+## 更新怎么收
 
-- 真正的项目、运行环境和打包内容都在 `local/` 里
-- 打包脚本在 `prepareruntime/` 里
+- 安装后的应用里可以使用 `更新 -> 检查更新`
+- 软件会显示当前版本、是否已是最新版本，以及 GitHub Release 里的更新日志
+- 如果有新版本，可以直接在弹窗里继续更新
+- 用户数据会保留在 `%LocalAppData%\HorosaDesktop`，更新不会清空这些内容
+
+## 如果你是开发者
+
+这个仓库同时保留了 Windows 桌面包装、源码运行环境和发布脚本，所以普通用户只需要看上面的 Release 下载说明。
+
+开发相关内容主要在这些位置：
+
+- `desktop_installer_bundle/`：Windows 桌面壳、安装器、打包与更新脚本
+- `local/`：本地运行环境和主项目工作区
+- `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`：发布更新流程
+- `desktop_installer_bundle/INSTALL_3_STEPS.md`：给终端用户的三步安装说明
