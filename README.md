@@ -4,13 +4,14 @@
 
 ## 一键安装包下载位置
 
-- [点击直接下载最新版 Windows 一键安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.18/HorosaPortableWindows-2026.03.10.18.zip)
+- [点击直接下载最新版 Windows 一键安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.19/HorosaPortableWindows-2026.03.10.19.zip)
 - [打开最新版 Release 页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 请注意：
 
 - 普通用户要下载的是 `HorosaPortableWindows-版本.zip`
 - 不要下载同页里的 `.manifest.json`，那个不是给手动安装用的
+- 同页里的 `HorosaRuntimeWindows-版本.zip` 也是安装器内部使用的支持资产，普通用户不用单独下载
 - 这个 zip 虽然文件名里写的是 `PortableWindows`，但它就是目前给普通用户发布的一键安装包
 - 如果上面的当前直链以后失效，直接打开 `releases/latest` 页面下载最新同名格式的 zip 即可
 
@@ -24,6 +25,7 @@
 
 - 桌面或开始菜单里会出现 `星阙`
 - 以后直接打开 `星阙` 就可以，不需要重复安装
+- 第一次安装时，安装器会自动联网下载较大的 Windows 运行时组件，所以会比后续启动慢一些
 
 ## 下载后不要点错
 
