@@ -206,32 +206,54 @@ $brandPill.Location = New-Object System.Drawing.Point(166, 60)
 $brandPill.Size = New-Object System.Drawing.Size(92, 24)
 $leftPanel.Controls.Add($brandPill)
 
+$brandInfoPanel = New-Object System.Windows.Forms.Panel
+$brandInfoPanel.Location = New-Object System.Drawing.Point(28, 176)
+$brandInfoPanel.Size = New-Object System.Drawing.Size(228, 122)
+$brandInfoPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
+$leftPanel.Controls.Add($brandInfoPanel)
+
+$brandTitlePlate = New-Object System.Windows.Forms.Panel
+$brandTitlePlate.Location = New-Object System.Drawing.Point(6, 0)
+$brandTitlePlate.Size = New-Object System.Drawing.Size(212, 52)
+$brandTitlePlate.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
+$brandInfoPanel.Controls.Add($brandTitlePlate)
+
 $brandTitle = New-Object System.Windows.Forms.Label
 $brandTitle.Text = $DisplayName
 $brandTitle.ForeColor = [System.Drawing.Color]::White
-$brandTitle.Font = New-Object System.Drawing.Font('Segoe UI', 22, [System.Drawing.FontStyle]::Bold)
-$brandTitle.Location = New-Object System.Drawing.Point(34, 180)
-$brandTitle.AutoSize = $true
-$leftPanel.Controls.Add($brandTitle)
+$brandTitle.BackColor = $brandTitlePlate.BackColor
+$brandTitle.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 22, [System.Drawing.FontStyle]::Bold)
+$brandTitle.Location = New-Object System.Drawing.Point(0, 0)
+$brandTitle.Size = New-Object System.Drawing.Size(212, 46)
+$brandTitle.TextAlign = 'MiddleLeft'
+$brandTitlePlate.Controls.Add($brandTitle)
 
 $brandSubtitle = New-Object System.Windows.Forms.Label
 $brandSubtitle.Text = '中文安装向导'
 $brandSubtitle.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
-$brandSubtitle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
-$brandSubtitle.Location = New-Object System.Drawing.Point(36, 218)
-$brandSubtitle.Size = New-Object System.Drawing.Size(180, 20)
-$leftPanel.Controls.Add($brandSubtitle)
+$brandSubtitle.BackColor = $brandInfoPanel.BackColor
+$brandSubtitle.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 10.5, [System.Drawing.FontStyle]::Bold)
+$brandSubtitle.Location = New-Object System.Drawing.Point(8, 56)
+$brandSubtitle.Size = New-Object System.Drawing.Size(180, 24)
+$brandInfoPanel.Controls.Add($brandSubtitle)
+
+$brandDivider = New-Object System.Windows.Forms.Panel
+$brandDivider.Location = New-Object System.Drawing.Point(8, 86)
+$brandDivider.Size = New-Object System.Drawing.Size(188, 1)
+$brandDivider.BackColor = [System.Drawing.Color]::FromArgb(58, 74, 103)
+$brandInfoPanel.Controls.Add($brandDivider)
 
 $brandSummary = New-Object System.Windows.Forms.Label
-$brandSummary.Text = '为星阙提供更像正式商业软件的桌面安装体验，包括隐藏后台服务、原生窗口壳和后续自动更新能力。'
+$brandSummary.Text = '为星阙提供更稳妥、更像正式商业软件的桌面安装体验。'
 $brandSummary.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
-$brandSummary.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$brandSummary.Location = New-Object System.Drawing.Point(36, 248)
-$brandSummary.Size = New-Object System.Drawing.Size(214, 56)
-$leftPanel.Controls.Add($brandSummary)
+$brandSummary.BackColor = $brandInfoPanel.BackColor
+$brandSummary.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 9)
+$brandSummary.Location = New-Object System.Drawing.Point(8, 94)
+$brandSummary.Size = New-Object System.Drawing.Size(206, 24)
+$brandInfoPanel.Controls.Add($brandSummary)
 
 $featureCard = New-Object System.Windows.Forms.Panel
-$featureCard.Location = New-Object System.Drawing.Point(34, 324)
+$featureCard.Location = New-Object System.Drawing.Point(34, 320)
 $featureCard.Size = New-Object System.Drawing.Size(220, 136)
 $featureCard.BackColor = [System.Drawing.Color]::FromArgb(28, 40, 61)
 $featureCard.BorderStyle = 'FixedSingle'
