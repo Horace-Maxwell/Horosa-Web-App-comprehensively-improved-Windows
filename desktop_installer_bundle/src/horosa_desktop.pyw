@@ -584,6 +584,12 @@ class MainWindow(QMainWindow):
         self.web_view.setPage(QWebEnginePage(self.web_profile, self.web_view))
         self.web_view.setZoomFactor(self.zoom_factor)
 
+        web_surface = QWidget(self)
+        web_surface_layout = QVBoxLayout(web_surface)
+        web_surface_layout.setContentsMargins(18, 12, 18, 22)
+        web_surface_layout.setSpacing(0)
+        web_surface_layout.addWidget(self.web_view)
+
         loading_widget = QWidget(self)
         loading_widget.setObjectName("LoadingSurface")
         loading_widget.setStyleSheet(
@@ -741,7 +747,7 @@ class MainWindow(QMainWindow):
         central = QWidget(self)
         self.stack = QStackedLayout(central)
         self.stack.addWidget(loading_widget)
-        self.stack.addWidget(self.web_view)
+        self.stack.addWidget(web_surface)
         self.setCentralWidget(central)
         self._set_loading_scene(
             scene="startup",
