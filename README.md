@@ -7,7 +7,7 @@
 - 最新 Release 页面：
   `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest`
 - 当前可直接下载的一键安装包：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.12/HorosaPortableWindows-2026.03.10.12.zip`
+  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.18/HorosaPortableWindows-2026.03.10.18.zip`
 
 请注意：
 
@@ -19,7 +19,7 @@
 ## 安装只做这 3 步
 
 1. 下载 `HorosaPortableWindows-版本.zip`
-2. 先解压 zip，再打开解压后的文件夹
+2. 先解压 zip，再打开解压后的 `desktop_installer_bundle` 文件夹
 3. 双击 `Install_Horosa_Desktop.vbs`，按中文安装向导完成安装
 
 安装完成后：
