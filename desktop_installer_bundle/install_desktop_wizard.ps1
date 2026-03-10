@@ -407,7 +407,7 @@ $headline.Location = New-Object System.Drawing.Point($contentOffsetX, 0)
 $rightPanel.Controls.Add($headline)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = '该安装程序会配置桌面运行环境、创建标准 Windows 快捷方式，并将你的数据保存在应用目录之外，方便以后安全更新。'
+$subtitle.Text = '该安装程序会配置桌面运行环境、创建标准 Windows 快捷方式，并在首次安装时自动下载所需的大型运行时组件。'
 $subtitle.Font = New-UiFont 10.6
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $subtitle.Location = New-Object System.Drawing.Point($contentOffsetX, 54)
@@ -453,7 +453,7 @@ $stepTitle.AutoSize = $true
 $rightPanel.Controls.Add($stepTitle)
 
 $stepDetail = New-Object System.Windows.Forms.Label
-$stepDetail.Text = '点击“下一步”开始准备桌面运行环境。首次安装可能需要几分钟。'
+$stepDetail.Text = '点击“下一步”开始准备桌面运行环境。首次安装会联网下载运行时组件，可能需要几分钟。'
 $stepDetail.Font = New-UiFont 10.6
 $stepDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $stepDetail.Location = New-Object System.Drawing.Point($contentOffsetX, 220)
@@ -596,10 +596,10 @@ $primaryButton.Add_Click({
   $primaryButton.Enabled = $false
   Set-StageVisual -Current 'install'
   $headline.Text = "正在安装 $DisplayName"
-  $subtitle.Text = '安装程序正在为当前 Windows 账户准备桌面运行环境和快捷方式入口。'
+  $subtitle.Text = '安装程序正在为当前 Windows 账户准备桌面运行环境、下载运行时组件并创建快捷方式。'
   $secondaryButton.Text = '取消'
   $stepTitle.Text = "正在安装 $DisplayName"
-  $stepDetail.Text = '正在准备本地运行环境和随包附带的桌面组件。'
+  $stepDetail.Text = '正在准备本地运行环境，并按需下载和展开桌面运行时组件。'
   $statusLabel.Text = '安装状态'
   $statusDetail.Text = '安装程序正在后台运行。'
   $progressBar.Style = 'Marquee'

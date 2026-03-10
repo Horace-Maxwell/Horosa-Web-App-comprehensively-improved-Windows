@@ -49,6 +49,7 @@ import hashlib
 import json
 import os
 import time
+from fnmatch import fnmatch
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -74,9 +75,13 @@ if require_tag_match and git_tag and version != git_tag:
     )
 
 asset_prefix = "HorosaPortableWindows"
+runtime_asset_prefix = str(version_info.get("runtime_asset_prefix") or "HorosaRuntimeWindows")
 zip_name = f"{asset_prefix}-{version}.zip"
 zip_path = release_dir / zip_name
 manifest_path = release_dir / f"{asset_prefix}-{version}.manifest.json"
+runtime_zip_name = f"{runtime_asset_prefix}-{version}.zip"
+runtime_zip_path = release_dir / runtime_zip_name
+runtime_manifest_path = release_dir / f"{runtime_asset_prefix}-{version}.manifest.json"
 
 root_excludes = {".git", ".github"}
 relative_excludes = {
@@ -86,8 +91,23 @@ relative_excludes = {
     "desktop_installer_bundle/qt-cache",
     "desktop_installer_bundle/qt-profile",
     "desktop_installer_bundle/runtime-logs",
+    "desktop_installer_bundle/wheelhouse",
     "log",
+    "local/workspace/runtime/windows",
 }
+pattern_excludes = [
+    "smallpkg_selfcheck*",
+    "release_selfcheck_tmp*",
+    "local/workspace/*/astrostudyui/node_modules",
+    "local/workspace/*/astrostudyui/coverage",
+    "local/workspace/*/astrostudyui/dist",
+    "local/workspace/*/astrostudyui/dist-file",
+    "local/workspace/*/astrostudysrv/astrostudyboot/target",
+    "local/workspace/*/.horosa-browser-profile-win",
+    "local/workspace/*/.horosa-local-logs-win",
+    "local/workspace/*/tmp_*.out",
+    "local/workspace/*/tmp_*.err",
+]
 
 def should_skip(rel_posix: str) -> bool:
     if not rel_posix:
@@ -96,6 +116,9 @@ def should_skip(rel_posix: str) -> bool:
         return True
     for prefix in relative_excludes:
         if rel_posix.startswith(prefix + "/"):
+            return True
+    for pattern in pattern_excludes:
+        if fnmatch(rel_posix, pattern):
             return True
     return False
 
@@ -117,6 +140,28 @@ def remove_with_retry(path: Path) -> None:
 
 remove_with_retry(zip_path)
 remove_with_retry(manifest_path)
+remove_with_retry(runtime_zip_path)
+remove_with_retry(runtime_manifest_path)
+
+def add_tree(zf: ZipFile, source_root: Path, archive_root: str) -> None:
+    if not source_root.exists():
+        raise FileNotFoundError(f"Runtime payload source missing: {source_root}")
+
+    for current_root, dirs, files in os.walk(source_root):
+        current_path = Path(current_root)
+        rel_dir = current_path.relative_to(source_root).as_posix() if current_path != source_root else ""
+        arc_dir = "/".join([archive_root.strip("/"), rel_dir]).strip("/")
+
+        dirs[:] = [d for d in dirs if d not in root_excludes]
+
+        for file_name in files:
+            file_path = current_path / file_name
+            rel_file = file_path.relative_to(source_root).as_posix()
+            arc_file = "/".join([archive_root.strip("/"), rel_file]).strip("/")
+            try:
+                zf.write(file_path, arc_file)
+            except FileNotFoundError:
+                continue
 
 with ZipFile(zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
     for current_root, dirs, files in os.walk(repo_root):
@@ -139,20 +184,70 @@ with ZipFile(zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
             except FileNotFoundError:
                 continue
 
-sha256 = hashlib.sha256()
-with zip_path.open("rb") as handle:
-    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-        sha256.update(chunk)
+with ZipFile(runtime_zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
+    add_tree(zf, repo_root / "local" / "workspace" / "runtime" / "windows", "local/workspace/runtime/windows")
+    add_tree(zf, script_root / "wheelhouse", "desktop_installer_bundle/wheelhouse")
+    workspace_root = repo_root / "local" / "workspace"
+    for project_dir in workspace_root.iterdir():
+        if not project_dir.is_dir():
+            continue
+        if not (project_dir / "astrostudyui").is_dir():
+            continue
+        if not (project_dir / "astrostudysrv").is_dir():
+            continue
+        if not (project_dir / "astropy").is_dir():
+            continue
+        jar_path = project_dir / "astrostudysrv" / "astrostudyboot" / "target" / "astrostudyboot.jar"
+        if jar_path.exists():
+            add_tree(
+                zf,
+                jar_path.parent,
+                jar_path.parent.relative_to(repo_root).as_posix(),
+            )
+        dist_file_dir = project_dir / "astrostudyui" / "dist-file"
+        if dist_file_dir.exists():
+            add_tree(
+                zf,
+                dist_file_dir,
+                dist_file_dir.relative_to(repo_root).as_posix(),
+            )
+        dist_dir = project_dir / "astrostudyui" / "dist"
+        if dist_dir.exists():
+            add_tree(
+                zf,
+                dist_dir,
+                dist_dir.relative_to(repo_root).as_posix(),
+            )
 
-manifest = {
-    "version": version,
-    "asset": zip_name,
-    "sha256": sha256.hexdigest(),
-    "createdAt": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    "notes": "Attach the zip asset to a published GitHub release whose tag matches this version.",
-}
-manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+def write_manifest(asset_path: Path, asset_name: str, target_manifest_path: Path, notes: str) -> None:
+    sha256 = hashlib.sha256()
+    with asset_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            sha256.update(chunk)
+
+    manifest = {
+        "version": version,
+        "asset": asset_name,
+        "sha256": sha256.hexdigest(),
+        "createdAt": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "notes": notes,
+    }
+    target_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+write_manifest(
+    zip_path,
+    zip_name,
+    manifest_path,
+    "Attach the installer zip asset to a published GitHub release whose tag matches this version.",
+)
+write_manifest(
+    runtime_zip_path,
+    runtime_zip_name,
+    runtime_manifest_path,
+    "Attach the runtime zip asset to the same GitHub release; the Windows installer downloads it during install.",
+)
 print(f"[OK] Portable release zip built: {zip_path}")
+print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 '@ | & $ResolvedPythonExe -
 
 Remove-Item Env:HOROSA_DESKTOP_BUNDLE_ROOT -ErrorAction SilentlyContinue
