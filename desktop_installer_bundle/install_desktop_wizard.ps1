@@ -153,16 +153,28 @@ $leftPanel.Width = 288
 $leftPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
 $form.Controls.Add($leftPanel)
 
+$leftAccent = New-Object System.Windows.Forms.Panel
+$leftAccent.Location = New-Object System.Drawing.Point(0, 0)
+$leftAccent.Size = New-Object System.Drawing.Size(10, 620)
+$leftAccent.BackColor = [System.Drawing.Color]::FromArgb(189, 160, 98)
+$leftPanel.Controls.Add($leftAccent)
+
+$leftGlow = New-Object System.Windows.Forms.Panel
+$leftGlow.Location = New-Object System.Drawing.Point(26, 24)
+$leftGlow.Size = New-Object System.Drawing.Size(226, 14)
+$leftGlow.BackColor = [System.Drawing.Color]::FromArgb(36, 51, 79)
+$leftPanel.Controls.Add($leftGlow)
+
 $brandBadgeFrame = New-Object System.Windows.Forms.Panel
-$brandBadgeFrame.Location = New-Object System.Drawing.Point(34, 34)
-$brandBadgeFrame.Size = New-Object System.Drawing.Size(112, 112)
-$brandBadgeFrame.BackColor = [System.Drawing.Color]::FromArgb(34, 45, 66)
+$brandBadgeFrame.Location = New-Object System.Drawing.Point(34, 44)
+$brandBadgeFrame.Size = New-Object System.Drawing.Size(118, 118)
+$brandBadgeFrame.BackColor = [System.Drawing.Color]::FromArgb(31, 44, 68)
 $brandBadgeFrame.BorderStyle = 'FixedSingle'
 $leftPanel.Controls.Add($brandBadgeFrame)
 
 $brandBadge = New-Object System.Windows.Forms.PictureBox
-$brandBadge.Location = New-Object System.Drawing.Point(10, 10)
-$brandBadge.Size = New-Object System.Drawing.Size(90, 90)
+$brandBadge.Location = New-Object System.Drawing.Point(12, 12)
+$brandBadge.Size = New-Object System.Drawing.Size(92, 92)
 $brandBadge.SizeMode = 'Zoom'
 $brandBadge.BackColor = [System.Drawing.Color]::Transparent
 if (Test-Path $InstallerBadgeFile) {
@@ -170,43 +182,91 @@ if (Test-Path $InstallerBadgeFile) {
 }
 $brandBadgeFrame.Controls.Add($brandBadge)
 
+$brandPill = New-Object System.Windows.Forms.Label
+$brandPill.Text = 'DESKTOP SETUP'
+$brandPill.TextAlign = 'MiddleCenter'
+$brandPill.ForeColor = [System.Drawing.Color]::FromArgb(255, 246, 223)
+$brandPill.BackColor = [System.Drawing.Color]::FromArgb(64, 77, 103)
+$brandPill.Font = New-Object System.Drawing.Font('Segoe UI', 8.5, [System.Drawing.FontStyle]::Bold)
+$brandPill.Location = New-Object System.Drawing.Point(166, 60)
+$brandPill.Size = New-Object System.Drawing.Size(92, 24)
+$leftPanel.Controls.Add($brandPill)
+
 $brandTitle = New-Object System.Windows.Forms.Label
 $brandTitle.Text = 'Horosa Desktop'
 $brandTitle.ForeColor = [System.Drawing.Color]::White
 $brandTitle.Font = New-Object System.Drawing.Font('Segoe UI', 22, [System.Drawing.FontStyle]::Bold)
-$brandTitle.Location = New-Object System.Drawing.Point(34, 164)
+$brandTitle.Location = New-Object System.Drawing.Point(34, 180)
 $brandTitle.AutoSize = $true
 $leftPanel.Controls.Add($brandTitle)
 
 $brandSubtitle = New-Object System.Windows.Forms.Label
-$brandSubtitle.Text = '安装向导'
+$brandSubtitle.Text = '中文安装向导'
 $brandSubtitle.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
-$brandSubtitle.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
-$brandSubtitle.Location = New-Object System.Drawing.Point(36, 202)
+$brandSubtitle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$brandSubtitle.Location = New-Object System.Drawing.Point(36, 218)
 $brandSubtitle.Size = New-Object System.Drawing.Size(180, 20)
 $leftPanel.Controls.Add($brandSubtitle)
 
-$featureLabel = New-Object System.Windows.Forms.Label
-$featureLabel.Text = "本次安装将准备：`r`n`r`n- 原生桌面窗口外壳`r`n- 隐藏运行的本地服务`r`n- 桌面和开始菜单快捷方式`r`n- 稳定的 GitHub 更新支持"
-$featureLabel.ForeColor = [System.Drawing.Color]::FromArgb(225, 231, 240)
-$featureLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
-$featureLabel.Location = New-Object System.Drawing.Point(36, 258)
-$featureLabel.Size = New-Object System.Drawing.Size(212, 176)
-$leftPanel.Controls.Add($featureLabel)
+$brandSummary = New-Object System.Windows.Forms.Label
+$brandSummary.Text = '为 Horosa 提供更像正式商业软件的桌面安装体验，包括隐藏后台服务、原生窗口壳和后续自动更新能力。'
+$brandSummary.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
+$brandSummary.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$brandSummary.Location = New-Object System.Drawing.Point(36, 248)
+$brandSummary.Size = New-Object System.Drawing.Size(214, 56)
+$leftPanel.Controls.Add($brandSummary)
 
-$railNote = New-Object System.Windows.Forms.Label
-$railNote.Text = '你的用户数据会保存在 LocalAppData 中，因此以后更新时替换程序文件也不会清空桌面状态。'
-$railNote.ForeColor = [System.Drawing.Color]::FromArgb(203, 214, 229)
-$railNote.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$railNote.Location = New-Object System.Drawing.Point(36, 464)
-$railNote.Size = New-Object System.Drawing.Size(212, 64)
-$leftPanel.Controls.Add($railNote)
+$featureCard = New-Object System.Windows.Forms.Panel
+$featureCard.Location = New-Object System.Drawing.Point(34, 324)
+$featureCard.Size = New-Object System.Drawing.Size(220, 136)
+$featureCard.BackColor = [System.Drawing.Color]::FromArgb(28, 40, 61)
+$featureCard.BorderStyle = 'FixedSingle'
+$leftPanel.Controls.Add($featureCard)
+
+$featureTitle = New-Object System.Windows.Forms.Label
+$featureTitle.Text = '本次安装包含'
+$featureTitle.ForeColor = [System.Drawing.Color]::White
+$featureTitle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$featureTitle.Location = New-Object System.Drawing.Point(14, 12)
+$featureTitle.AutoSize = $true
+$featureCard.Controls.Add($featureTitle)
+
+$featureList = New-Object System.Windows.Forms.Label
+$featureList.Text = "• 原生桌面窗口外壳`r`n• 隐藏运行的本地服务`r`n• 桌面与开始菜单快捷方式`r`n• 稳定的 GitHub 更新支持"
+$featureList.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 242)
+$featureList.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$featureList.Location = New-Object System.Drawing.Point(14, 38)
+$featureList.Size = New-Object System.Drawing.Size(188, 84)
+$featureCard.Controls.Add($featureList)
+
+$dataCard = New-Object System.Windows.Forms.Panel
+$dataCard.Location = New-Object System.Drawing.Point(34, 476)
+$dataCard.Size = New-Object System.Drawing.Size(220, 92)
+$dataCard.BackColor = [System.Drawing.Color]::FromArgb(24, 34, 53)
+$dataCard.BorderStyle = 'FixedSingle'
+$leftPanel.Controls.Add($dataCard)
+
+$dataTitle = New-Object System.Windows.Forms.Label
+$dataTitle.Text = '数据保护'
+$dataTitle.ForeColor = [System.Drawing.Color]::FromArgb(255, 243, 214)
+$dataTitle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$dataTitle.Location = New-Object System.Drawing.Point(14, 12)
+$dataTitle.AutoSize = $true
+$dataCard.Controls.Add($dataTitle)
+
+$dataBody = New-Object System.Windows.Forms.Label
+$dataBody.Text = '用户数据会保存在 LocalAppData 中，所以以后更新替换程序文件时不会清空你的桌面状态。'
+$dataBody.ForeColor = [System.Drawing.Color]::FromArgb(210, 220, 235)
+$dataBody.Font = New-Object System.Drawing.Font('Segoe UI', 8.8)
+$dataBody.Location = New-Object System.Drawing.Point(14, 36)
+$dataBody.Size = New-Object System.Drawing.Size(188, 40)
+$dataCard.Controls.Add($dataBody)
 
 $versionLabel = New-Object System.Windows.Forms.Label
 $versionLabel.Text = "版本 " + $VersionInfo.version
 $versionLabel.ForeColor = [System.Drawing.Color]::FromArgb(157, 177, 204)
 $versionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$versionLabel.Location = New-Object System.Drawing.Point(36, 560)
+$versionLabel.Location = New-Object System.Drawing.Point(36, 582)
 $versionLabel.AutoSize = $true
 $leftPanel.Controls.Add($versionLabel)
 
