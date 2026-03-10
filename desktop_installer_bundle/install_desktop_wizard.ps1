@@ -1,6 +1,25 @@
 ﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+try {
+  Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class HorosaDpi {
+    [DllImport("shcore.dll")]
+    public static extern int SetProcessDpiAwareness(int awareness);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetProcessDPIAware();
+}
+"@
+  try {
+    [void][HorosaDpi]::SetProcessDpiAwareness(2)
+  } catch {
+    [void][HorosaDpi]::SetProcessDPIAware()
+  }
+} catch {}
 [System.Windows.Forms.Application]::EnableVisualStyles()
+[System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -18,6 +37,77 @@ $InstallerBadgeFile = Join-Path $AssetsRoot 'horosa_setup_badge.png'
 $IconCandidate = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $DisplayName = '星阙'
 $VersionInfo = Get-Content -Raw $VersionFile | ConvertFrom-Json
+
+function Resolve-UiFontFamily {
+  $preferredFamilies = @(
+    'Microsoft YaHei UI',
+    'Microsoft YaHei',
+    'DengXian',
+    'PingFang SC',
+    'Noto Sans CJK SC',
+    'Source Han Sans SC',
+    'SimHei',
+    'Segoe UI'
+  )
+
+  $installedFamilies = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+  $fontCollection = New-Object System.Drawing.Text.InstalledFontCollection
+  foreach ($family in $fontCollection.Families) {
+    [void]$installedFamilies.Add($family.Name)
+  }
+
+  foreach ($family in $preferredFamilies) {
+    if ($installedFamilies.Contains($family)) {
+      return $family
+    }
+  }
+
+  return 'Microsoft Sans Serif'
+}
+
+function New-UiFont {
+  param(
+    [double]$Size,
+    [System.Drawing.FontStyle]$Style = [System.Drawing.FontStyle]::Regular
+  )
+
+  return New-Object System.Drawing.Font($script:UiFontFamily, [single]$Size, $Style, [System.Drawing.GraphicsUnit]::Point)
+}
+
+function Enable-ClearTextRendering {
+  param(
+    [Parameter(Mandatory = $true)][System.Windows.Forms.Control]$Control
+  )
+
+  if ($Control.PSObject.Properties.Match('UseCompatibleTextRendering').Count -gt 0) {
+    try {
+      $Control.UseCompatibleTextRendering = $true
+    } catch {}
+  }
+
+  foreach ($child in $Control.Controls) {
+    Enable-ClearTextRendering -Control $child
+  }
+}
+
+function Enable-DoubleBuffer {
+  param(
+    [Parameter(Mandatory = $true)][System.Windows.Forms.Control]$Control
+  )
+
+  try {
+    $property = $Control.GetType().GetProperty('DoubleBuffered', [Reflection.BindingFlags]'Instance, NonPublic')
+    if ($property) {
+      $property.SetValue($Control, $true, $null)
+    }
+  } catch {}
+
+  foreach ($child in $Control.Controls) {
+    Enable-DoubleBuffer -Control $child
+  }
+}
+
+$script:UiFontFamily = Resolve-UiFontFamily
 
 function New-HorosaShortcut {
   param(
@@ -141,35 +231,37 @@ function Set-StageVisual {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "$DisplayName 安装程序"
 $form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(900, 620)
+$form.Size = New-Object System.Drawing.Size(1024, 700)
 $form.MinimumSize = $form.Size
 $form.MaximumSize = $form.Size
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.MinimizeBox = $true
 $form.BackColor = [System.Drawing.Color]::FromArgb(248, 249, 252)
+$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+$form.Font = New-UiFont 9.8
 
 $formIcon = Resolve-FormIcon
 if ($formIcon) {
   $form.Icon = $formIcon
 }
 
-$contentOffsetX = 24
+$contentOffsetX = 34
 
 $rightPanel = New-Object System.Windows.Forms.Panel
 $rightPanel.Dock = 'Fill'
-$rightPanel.Padding = New-Object System.Windows.Forms.Padding(44, 38, 44, 36)
+$rightPanel.Padding = New-Object System.Windows.Forms.Padding(54, 42, 48, 42)
 $form.Controls.Add($rightPanel)
 
 $leftPanel = New-Object System.Windows.Forms.Panel
 $leftPanel.Dock = 'Left'
-$leftPanel.Width = 288
+$leftPanel.Width = 320
 $leftPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
 $form.Controls.Add($leftPanel)
 
 $leftAccent = New-Object System.Windows.Forms.Panel
 $leftAccent.Location = New-Object System.Drawing.Point(0, 0)
-$leftAccent.Size = New-Object System.Drawing.Size(10, 620)
+$leftAccent.Size = New-Object System.Drawing.Size(10, 700)
 $leftAccent.BackColor = [System.Drawing.Color]::FromArgb(189, 160, 98)
 $leftPanel.Controls.Add($leftAccent)
 
@@ -181,14 +273,14 @@ $leftPanel.Controls.Add($leftGlow)
 
 $brandBadgeFrame = New-Object System.Windows.Forms.Panel
 $brandBadgeFrame.Location = New-Object System.Drawing.Point(34, 44)
-$brandBadgeFrame.Size = New-Object System.Drawing.Size(118, 118)
-$brandBadgeFrame.BackColor = [System.Drawing.Color]::FromArgb(31, 44, 68)
-$brandBadgeFrame.BorderStyle = 'FixedSingle'
+$brandBadgeFrame.Size = New-Object System.Drawing.Size(126, 126)
+$brandBadgeFrame.BackColor = [System.Drawing.Color]::FromArgb(34, 49, 76)
+$brandBadgeFrame.BorderStyle = 'None'
 $leftPanel.Controls.Add($brandBadgeFrame)
 
 $brandBadge = New-Object System.Windows.Forms.PictureBox
-$brandBadge.Location = New-Object System.Drawing.Point(12, 12)
-$brandBadge.Size = New-Object System.Drawing.Size(92, 92)
+$brandBadge.Location = New-Object System.Drawing.Point(15, 15)
+$brandBadge.Size = New-Object System.Drawing.Size(96, 96)
 $brandBadge.SizeMode = 'Zoom'
 $brandBadge.BackColor = [System.Drawing.Color]::Transparent
 if (Test-Path $InstallerBadgeFile) {
@@ -201,20 +293,20 @@ $brandPill.Text = 'DESKTOP APP'
 $brandPill.TextAlign = 'MiddleCenter'
 $brandPill.ForeColor = [System.Drawing.Color]::FromArgb(255, 246, 223)
 $brandPill.BackColor = [System.Drawing.Color]::FromArgb(64, 77, 103)
-$brandPill.Font = New-Object System.Drawing.Font('Segoe UI', 8.5, [System.Drawing.FontStyle]::Bold)
-$brandPill.Location = New-Object System.Drawing.Point(166, 60)
-$brandPill.Size = New-Object System.Drawing.Size(92, 24)
+$brandPill.Font = New-UiFont 8.6 ([System.Drawing.FontStyle]::Bold)
+$brandPill.Location = New-Object System.Drawing.Point(172, 64)
+$brandPill.Size = New-Object System.Drawing.Size(104, 26)
 $leftPanel.Controls.Add($brandPill)
 
 $brandInfoPanel = New-Object System.Windows.Forms.Panel
-$brandInfoPanel.Location = New-Object System.Drawing.Point(28, 176)
-$brandInfoPanel.Size = New-Object System.Drawing.Size(228, 122)
+$brandInfoPanel.Location = New-Object System.Drawing.Point(30, 186)
+$brandInfoPanel.Size = New-Object System.Drawing.Size(248, 136)
 $brandInfoPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
 $leftPanel.Controls.Add($brandInfoPanel)
 
 $brandTitlePlate = New-Object System.Windows.Forms.Panel
 $brandTitlePlate.Location = New-Object System.Drawing.Point(6, 0)
-$brandTitlePlate.Size = New-Object System.Drawing.Size(212, 52)
+$brandTitlePlate.Size = New-Object System.Drawing.Size(224, 54)
 $brandTitlePlate.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
 $brandInfoPanel.Controls.Add($brandTitlePlate)
 
@@ -222,9 +314,9 @@ $brandTitle = New-Object System.Windows.Forms.Label
 $brandTitle.Text = $DisplayName
 $brandTitle.ForeColor = [System.Drawing.Color]::White
 $brandTitle.BackColor = $brandTitlePlate.BackColor
-$brandTitle.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 22, [System.Drawing.FontStyle]::Bold)
+$brandTitle.Font = New-UiFont 23 ([System.Drawing.FontStyle]::Bold)
 $brandTitle.Location = New-Object System.Drawing.Point(0, 0)
-$brandTitle.Size = New-Object System.Drawing.Size(212, 46)
+$brandTitle.Size = New-Object System.Drawing.Size(224, 48)
 $brandTitle.TextAlign = 'MiddleLeft'
 $brandTitlePlate.Controls.Add($brandTitle)
 
@@ -232,9 +324,9 @@ $brandSubtitle = New-Object System.Windows.Forms.Label
 $brandSubtitle.Text = '中文安装向导'
 $brandSubtitle.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
 $brandSubtitle.BackColor = $brandInfoPanel.BackColor
-$brandSubtitle.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 10.5, [System.Drawing.FontStyle]::Bold)
+$brandSubtitle.Font = New-UiFont 10.8 ([System.Drawing.FontStyle]::Bold)
 $brandSubtitle.Location = New-Object System.Drawing.Point(8, 56)
-$brandSubtitle.Size = New-Object System.Drawing.Size(180, 24)
+$brandSubtitle.Size = New-Object System.Drawing.Size(194, 25)
 $brandInfoPanel.Controls.Add($brandSubtitle)
 
 $brandDivider = New-Object System.Windows.Forms.Panel
@@ -247,22 +339,22 @@ $brandSummary = New-Object System.Windows.Forms.Label
 $brandSummary.Text = '为星阙提供更稳妥、更像正式商业软件的桌面安装体验。'
 $brandSummary.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
 $brandSummary.BackColor = $brandInfoPanel.BackColor
-$brandSummary.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 9)
+$brandSummary.Font = New-UiFont 9.6
 $brandSummary.Location = New-Object System.Drawing.Point(8, 94)
-$brandSummary.Size = New-Object System.Drawing.Size(206, 24)
+$brandSummary.Size = New-Object System.Drawing.Size(222, 36)
 $brandInfoPanel.Controls.Add($brandSummary)
 
 $featureCard = New-Object System.Windows.Forms.Panel
-$featureCard.Location = New-Object System.Drawing.Point(34, 320)
-$featureCard.Size = New-Object System.Drawing.Size(220, 136)
+$featureCard.Location = New-Object System.Drawing.Point(34, 344)
+$featureCard.Size = New-Object System.Drawing.Size(242, 146)
 $featureCard.BackColor = [System.Drawing.Color]::FromArgb(28, 40, 61)
-$featureCard.BorderStyle = 'FixedSingle'
+$featureCard.BorderStyle = 'None'
 $leftPanel.Controls.Add($featureCard)
 
 $featureTitle = New-Object System.Windows.Forms.Label
 $featureTitle.Text = '本次安装包含'
 $featureTitle.ForeColor = [System.Drawing.Color]::White
-$featureTitle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$featureTitle.Font = New-UiFont 10.8 ([System.Drawing.FontStyle]::Bold)
 $featureTitle.Location = New-Object System.Drawing.Point(14, 12)
 $featureTitle.AutoSize = $true
 $featureCard.Controls.Add($featureTitle)
@@ -270,22 +362,22 @@ $featureCard.Controls.Add($featureTitle)
 $featureList = New-Object System.Windows.Forms.Label
 $featureList.Text = "• 原生桌面窗口外壳`r`n• 隐藏运行的本地服务`r`n• 桌面与开始菜单快捷方式`r`n• 稳定的 GitHub 更新支持"
 $featureList.ForeColor = [System.Drawing.Color]::FromArgb(226, 232, 242)
-$featureList.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$featureList.Font = New-UiFont 9.6
 $featureList.Location = New-Object System.Drawing.Point(14, 38)
-$featureList.Size = New-Object System.Drawing.Size(188, 84)
+$featureList.Size = New-Object System.Drawing.Size(210, 92)
 $featureCard.Controls.Add($featureList)
 
 $dataCard = New-Object System.Windows.Forms.Panel
-$dataCard.Location = New-Object System.Drawing.Point(34, 476)
-$dataCard.Size = New-Object System.Drawing.Size(220, 92)
+$dataCard.Location = New-Object System.Drawing.Point(34, 510)
+$dataCard.Size = New-Object System.Drawing.Size(242, 112)
 $dataCard.BackColor = [System.Drawing.Color]::FromArgb(24, 34, 53)
-$dataCard.BorderStyle = 'FixedSingle'
+$dataCard.BorderStyle = 'None'
 $leftPanel.Controls.Add($dataCard)
 
 $dataTitle = New-Object System.Windows.Forms.Label
 $dataTitle.Text = '数据保护'
 $dataTitle.ForeColor = [System.Drawing.Color]::FromArgb(255, 243, 214)
-$dataTitle.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$dataTitle.Font = New-UiFont 10.8 ([System.Drawing.FontStyle]::Bold)
 $dataTitle.Location = New-Object System.Drawing.Point(14, 12)
 $dataTitle.AutoSize = $true
 $dataCard.Controls.Add($dataTitle)
@@ -293,22 +385,22 @@ $dataCard.Controls.Add($dataTitle)
 $dataBody = New-Object System.Windows.Forms.Label
 $dataBody.Text = '用户数据会保存在 LocalAppData 中，所以以后更新替换程序文件时不会清空你的桌面状态。'
 $dataBody.ForeColor = [System.Drawing.Color]::FromArgb(210, 220, 235)
-$dataBody.Font = New-Object System.Drawing.Font('Segoe UI', 8.8)
+$dataBody.Font = New-UiFont 9.2
 $dataBody.Location = New-Object System.Drawing.Point(14, 36)
-$dataBody.Size = New-Object System.Drawing.Size(188, 40)
+$dataBody.Size = New-Object System.Drawing.Size(210, 54)
 $dataCard.Controls.Add($dataBody)
 
 $versionLabel = New-Object System.Windows.Forms.Label
 $versionLabel.Text = "版本 " + $VersionInfo.version
 $versionLabel.ForeColor = [System.Drawing.Color]::FromArgb(157, 177, 204)
-$versionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$versionLabel.Location = New-Object System.Drawing.Point(36, 582)
+$versionLabel.Font = New-UiFont 9.2
+$versionLabel.Location = New-Object System.Drawing.Point(36, 640)
 $versionLabel.AutoSize = $true
 $leftPanel.Controls.Add($versionLabel)
 
 $headline = New-Object System.Windows.Forms.Label
 $headline.Text = "欢迎使用 $DisplayName 安装程序"
-$headline.Font = New-Object System.Drawing.Font('Segoe UI', 20, [System.Drawing.FontStyle]::Bold)
+$headline.Font = New-UiFont 21.5 ([System.Drawing.FontStyle]::Bold)
 $headline.ForeColor = [System.Drawing.Color]::FromArgb(28, 33, 40)
 $headline.AutoSize = $true
 $headline.Location = New-Object System.Drawing.Point($contentOffsetX, 0)
@@ -316,45 +408,45 @@ $rightPanel.Controls.Add($headline)
 
 $subtitle = New-Object System.Windows.Forms.Label
 $subtitle.Text = '该安装程序会配置桌面运行环境、创建标准 Windows 快捷方式，并将你的数据保存在应用目录之外，方便以后安全更新。'
-$subtitle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$subtitle.Font = New-UiFont 10.6
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $subtitle.Location = New-Object System.Drawing.Point($contentOffsetX, 54)
-$subtitle.Size = New-Object System.Drawing.Size(520, 48)
+$subtitle.Size = New-Object System.Drawing.Size(574, 50)
 $rightPanel.Controls.Add($subtitle)
 
 $stageWelcome = New-Object System.Windows.Forms.Label
 $stageWelcome.Text = '1  欢迎'
 $stageWelcome.TextAlign = 'MiddleCenter'
-$stageWelcome.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$stageWelcome.Font = New-UiFont 9.4 ([System.Drawing.FontStyle]::Bold)
 $stageWelcome.ForeColor = [System.Drawing.Color]::White
 $stageWelcome.BackColor = [System.Drawing.Color]::FromArgb(184, 155, 96)
 $stageWelcome.Location = New-Object System.Drawing.Point($contentOffsetX, 124)
-$stageWelcome.Size = New-Object System.Drawing.Size(126, 32)
+$stageWelcome.Size = New-Object System.Drawing.Size(134, 34)
 $rightPanel.Controls.Add($stageWelcome)
 
 $stageInstall = New-Object System.Windows.Forms.Label
 $stageInstall.Text = '2  安装'
 $stageInstall.TextAlign = 'MiddleCenter'
-$stageInstall.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$stageInstall.Font = New-UiFont 9.4 ([System.Drawing.FontStyle]::Bold)
 $stageInstall.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $stageInstall.BackColor = [System.Drawing.Color]::FromArgb(232, 236, 242)
 $stageInstall.Location = New-Object System.Drawing.Point((140 + $contentOffsetX), 124)
-$stageInstall.Size = New-Object System.Drawing.Size(118, 32)
+$stageInstall.Size = New-Object System.Drawing.Size(126, 34)
 $rightPanel.Controls.Add($stageInstall)
 
 $stageFinish = New-Object System.Windows.Forms.Label
 $stageFinish.Text = '3  完成'
 $stageFinish.TextAlign = 'MiddleCenter'
-$stageFinish.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$stageFinish.Font = New-UiFont 9.4 ([System.Drawing.FontStyle]::Bold)
 $stageFinish.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $stageFinish.BackColor = [System.Drawing.Color]::FromArgb(232, 236, 242)
 $stageFinish.Location = New-Object System.Drawing.Point((272 + $contentOffsetX), 124)
-$stageFinish.Size = New-Object System.Drawing.Size(118, 32)
+$stageFinish.Size = New-Object System.Drawing.Size(126, 34)
 $rightPanel.Controls.Add($stageFinish)
 
 $stepTitle = New-Object System.Windows.Forms.Label
 $stepTitle.Text = '准备开始安装'
-$stepTitle.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
+$stepTitle.Font = New-UiFont 14.8 ([System.Drawing.FontStyle]::Bold)
 $stepTitle.ForeColor = [System.Drawing.Color]::FromArgb(31, 41, 55)
 $stepTitle.Location = New-Object System.Drawing.Point($contentOffsetX, 186)
 $stepTitle.AutoSize = $true
@@ -362,15 +454,15 @@ $rightPanel.Controls.Add($stepTitle)
 
 $stepDetail = New-Object System.Windows.Forms.Label
 $stepDetail.Text = '点击“下一步”开始准备桌面运行环境。首次安装可能需要几分钟。'
-$stepDetail.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$stepDetail.Font = New-UiFont 10.6
 $stepDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $stepDetail.Location = New-Object System.Drawing.Point($contentOffsetX, 220)
-$stepDetail.Size = New-Object System.Drawing.Size(520, 46)
+$stepDetail.Size = New-Object System.Drawing.Size(574, 48)
 $rightPanel.Controls.Add($stepDetail)
 
 $progressBar = New-Object System.Windows.Forms.ProgressBar
 $progressBar.Location = New-Object System.Drawing.Point($contentOffsetX, 292)
-$progressBar.Size = New-Object System.Drawing.Size(540, 20)
+$progressBar.Size = New-Object System.Drawing.Size(592, 22)
 $progressBar.Style = 'Continuous'
 $progressBar.Minimum = 0
 $progressBar.Maximum = 100
@@ -379,14 +471,14 @@ $rightPanel.Controls.Add($progressBar)
 
 $statusCard = New-Object System.Windows.Forms.Panel
 $statusCard.Location = New-Object System.Drawing.Point($contentOffsetX, 338)
-$statusCard.Size = New-Object System.Drawing.Size(540, 126)
+$statusCard.Size = New-Object System.Drawing.Size(592, 142)
 $statusCard.BackColor = [System.Drawing.Color]::White
-$statusCard.BorderStyle = 'FixedSingle'
+$statusCard.BorderStyle = 'None'
 $rightPanel.Controls.Add($statusCard)
 
 $statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Text = '安装状态'
-$statusLabel.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$statusLabel.Font = New-UiFont 10.8 ([System.Drawing.FontStyle]::Bold)
 $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(31, 41, 55)
 $statusLabel.Location = New-Object System.Drawing.Point(16, 14)
 $statusLabel.AutoSize = $true
@@ -394,36 +486,41 @@ $statusCard.Controls.Add($statusLabel)
 
 $statusDetail = New-Object System.Windows.Forms.Label
 $statusDetail.Text = '尚未开始更改此电脑上的任何内容。'
-$statusDetail.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$statusDetail.Font = New-UiFont 10.4
 $statusDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $statusDetail.Location = New-Object System.Drawing.Point(16, 42)
-$statusDetail.Size = New-Object System.Drawing.Size(500, 62)
+$statusDetail.Size = New-Object System.Drawing.Size(548, 74)
 $statusCard.Controls.Add($statusDetail)
 
 $launchCheck = New-Object System.Windows.Forms.CheckBox
 $launchCheck.Text = '点击“完成”后立即启动 ' + $DisplayName
 $launchCheck.Checked = $true
-$launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, 494)
+$launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, 508)
 $launchCheck.AutoSize = $true
-$launchCheck.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$launchCheck.Font = New-UiFont 10.4
 $rightPanel.Controls.Add($launchCheck)
 
 $primaryButton = New-Object System.Windows.Forms.Button
 $primaryButton.Text = '下一步 >'
-$primaryButton.Size = New-Object System.Drawing.Size(144, 40)
-$primaryButton.Location = New-Object System.Drawing.Point((396 + $contentOffsetX), 530)
+$primaryButton.Size = New-Object System.Drawing.Size(156, 42)
+$primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), 566)
 $primaryButton.BackColor = [System.Drawing.Color]::FromArgb(24, 119, 242)
 $primaryButton.ForeColor = [System.Drawing.Color]::White
 $primaryButton.FlatStyle = 'Flat'
 $primaryButton.FlatAppearance.BorderSize = 0
-$primaryButton.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$primaryButton.Font = New-UiFont 10.6 ([System.Drawing.FontStyle]::Bold)
 $rightPanel.Controls.Add($primaryButton)
 
 $secondaryButton = New-Object System.Windows.Forms.Button
 $secondaryButton.Text = '取消'
-$secondaryButton.Size = New-Object System.Drawing.Size(124, 40)
-$secondaryButton.Location = New-Object System.Drawing.Point((258 + $contentOffsetX), 530)
-$secondaryButton.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$secondaryButton.Size = New-Object System.Drawing.Size(132, 42)
+$secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), 566)
+$secondaryButton.BackColor = [System.Drawing.Color]::FromArgb(248, 250, 253)
+$secondaryButton.ForeColor = [System.Drawing.Color]::FromArgb(42, 54, 69)
+$secondaryButton.FlatStyle = 'Flat'
+$secondaryButton.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(208, 216, 228)
+$secondaryButton.FlatAppearance.BorderSize = 1
+$secondaryButton.Font = New-UiFont 10.4
 $rightPanel.Controls.Add($secondaryButton)
 
 $script:installProcess = $null
@@ -576,5 +673,8 @@ if ($env:HOROSA_DESKTOP_INSTALLER_SMOKE -eq '1') {
   })
   $smokeTimer.Start()
 }
+
+Enable-ClearTextRendering -Control $form
+Enable-DoubleBuffer -Control $form
 
 [void]$form.ShowDialog()
