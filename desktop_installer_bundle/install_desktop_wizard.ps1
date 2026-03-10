@@ -142,6 +142,11 @@ if ($formIcon) {
   $form.Icon = $formIcon
 }
 
+$rightPanel = New-Object System.Windows.Forms.Panel
+$rightPanel.Dock = 'Fill'
+$rightPanel.Padding = New-Object System.Windows.Forms.Padding(36, 30, 36, 28)
+$form.Controls.Add($rightPanel)
+
 $leftPanel = New-Object System.Windows.Forms.Panel
 $leftPanel.Dock = 'Left'
 $leftPanel.Width = 264
@@ -174,44 +179,39 @@ $brandTitle.AutoSize = $true
 $leftPanel.Controls.Add($brandTitle)
 
 $brandSubtitle = New-Object System.Windows.Forms.Label
-$brandSubtitle.Text = 'Setup Wizard'
+$brandSubtitle.Text = 'SETUP WIZARD'
 $brandSubtitle.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
-$brandSubtitle.Font = New-Object System.Drawing.Font('Segoe UI', 11)
+$brandSubtitle.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
 $brandSubtitle.Location = New-Object System.Drawing.Point(30, 186)
-$brandSubtitle.Size = New-Object System.Drawing.Size(180, 24)
+$brandSubtitle.Size = New-Object System.Drawing.Size(180, 20)
 $leftPanel.Controls.Add($brandSubtitle)
 
 $featureLabel = New-Object System.Windows.Forms.Label
 $featureLabel.Text = "What setup prepares:`r`n`r`n- Native desktop shell`r`n- Hidden local services`r`n- Desktop and Start Menu shortcuts`r`n- Reliable GitHub update support"
 $featureLabel.ForeColor = [System.Drawing.Color]::FromArgb(225, 231, 240)
-$featureLabel.Font = New-Object System.Drawing.Font('Segoe UI', 10)
+$featureLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
 $featureLabel.Location = New-Object System.Drawing.Point(30, 234)
-$featureLabel.Size = New-Object System.Drawing.Size(204, 150)
+$featureLabel.Size = New-Object System.Drawing.Size(196, 168)
 $leftPanel.Controls.Add($featureLabel)
 
 $railNote = New-Object System.Windows.Forms.Label
 $railNote.Text = 'Your user data stays in LocalAppData so future updates can replace the app files without wiping your desktop state.'
 $railNote.ForeColor = [System.Drawing.Color]::FromArgb(203, 214, 229)
 $railNote.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$railNote.Location = New-Object System.Drawing.Point(30, 392)
-$railNote.Size = New-Object System.Drawing.Size(204, 62)
+$railNote.Location = New-Object System.Drawing.Point(30, 420)
+$railNote.Size = New-Object System.Drawing.Size(196, 52)
 $leftPanel.Controls.Add($railNote)
 
 $versionLabel = New-Object System.Windows.Forms.Label
 $versionLabel.Text = "Version " + $VersionInfo.version
 $versionLabel.ForeColor = [System.Drawing.Color]::FromArgb(157, 177, 204)
 $versionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$versionLabel.Location = New-Object System.Drawing.Point(30, 484)
+$versionLabel.Location = New-Object System.Drawing.Point(30, 496)
 $versionLabel.AutoSize = $true
 $leftPanel.Controls.Add($versionLabel)
 
-$rightPanel = New-Object System.Windows.Forms.Panel
-$rightPanel.Dock = 'Fill'
-$rightPanel.Padding = New-Object System.Windows.Forms.Padding(36, 30, 36, 28)
-$form.Controls.Add($rightPanel)
-
 $headline = New-Object System.Windows.Forms.Label
-$headline.Text = 'Welcome to the Horosa Desktop Setup Wizard'
+$headline.Text = 'Welcome to Horosa Desktop Setup'
 $headline.Font = New-Object System.Drawing.Font('Segoe UI', 20, [System.Drawing.FontStyle]::Bold)
 $headline.ForeColor = [System.Drawing.Color]::FromArgb(28, 33, 40)
 $headline.AutoSize = $true
@@ -361,7 +361,7 @@ $timer.Add_Tick({
       Ensure-Shortcuts
       $script:installSucceeded = $true
       Set-StageVisual -Current 'finish'
-      $headline.Text = 'Completing the Horosa Desktop Setup Wizard'
+      $headline.Text = 'Horosa Desktop is ready'
       $subtitle.Text = 'Setup finished preparing this machine for Horosa Desktop.'
       $stepTitle.Text = 'Setup complete'
       $stepDetail.Text = 'Horosa Desktop is installed. Click Finish to leave setup, or open the install folder first.'
@@ -450,7 +450,7 @@ if (Test-Path $StateFile) {
     if ($state.version -eq $VersionInfo.version) {
       Ensure-Shortcuts
       Set-StageVisual -Current 'finish'
-      $headline.Text = 'Completing the Horosa Desktop Setup Wizard'
+      $headline.Text = 'Horosa Desktop is already ready'
       $subtitle.Text = 'This version of Horosa Desktop is already prepared on this machine.'
       $stepTitle.Text = 'Horosa Desktop is already installed'
       $stepDetail.Text = 'Click Finish to leave setup, or open the install folder. You can still launch Horosa immediately.'
