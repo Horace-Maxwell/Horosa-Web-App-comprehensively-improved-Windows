@@ -7,7 +7,7 @@
 - 最新 Release 页面：
   `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest`
 - 当前一键安装包直链：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.8/HorosaPortableWindows-2026.03.10.8.zip`
+  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.9/HorosaPortableWindows-2026.03.10.9.zip`
 
 请下载：
 
