@@ -7,7 +7,7 @@
 - 最新 Release 页面：
   `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest`
 - 当前一键安装包直链：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.12/HorosaPortableWindows-2026.03.10.12.zip`
+  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.18/HorosaPortableWindows-2026.03.10.18.zip`
 
 请下载：
 
@@ -21,13 +21,13 @@
 
 - 当前给普通用户发布的完整 Windows 安装包就是这个 `HorosaPortableWindows-版本.zip`
 - 如果当前直链以后过期，直接去 `releases/latest` 页面下载最新同名格式的 zip
-- 下载后先解压，再双击 `Install_Horosa_Desktop.vbs`
+- 下载后先解压，再打开 `desktop_installer_bundle` 文件夹并双击 `Install_Horosa_Desktop.vbs`
 - 安装完成后使用桌面或开始菜单里的 `星阙` 快捷方式启动
 
 ## 普通用户安装步骤
 
 1. 下载并解压 `HorosaPortableWindows-版本.zip`
-2. 双击 `Install_Horosa_Desktop.vbs`
+2. 打开解压后的 `desktop_installer_bundle` 文件夹，再双击 `Install_Horosa_Desktop.vbs`
 3. 按中文安装向导安装，完成后启动 `星阙`
 
 补充说明：

@@ -105,6 +105,42 @@ jobs:
           with open(Path(os.environ["GITHUB_ENV"]), "a", encoding="utf-8") as fh:
               fh.write(f"RELEASE_NAME={release_title}\n")
 
+      - name: Write release instructions
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+
+          release_tag = os.environ["RELEASE_TAG"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          body_path = Path(os.environ["RUNNER_TEMP"]) / "horosa-release-body.md"
+          body_path.write_text(
+              f"""## 普通用户请这样下载
+
+- 打开最新 Release 页面：`https://github.com/{repository}/releases/latest`
+- 下载：`HorosaPortableWindows-{release_tag}.zip`
+- 不要下载：`HorosaPortableWindows-{release_tag}.manifest.json`
+
+## 普通用户请这样安装和使用
+
+1. 下载并完整解压 `HorosaPortableWindows-{release_tag}.zip`
+2. 打开解压后的 `desktop_installer_bundle` 文件夹
+3. 双击 `Install_Horosa_Desktop.vbs`
+4. 按中文安装向导完成安装
+5. 安装完成后，从桌面或开始菜单打开 `星阙`
+
+## 补充说明
+
+- 这个 zip 就是普通用户使用的一键安装包
+- 不要手动运行 `.ps1` 脚本
+- 安装后的应用里可以使用 `更新 -> 检查更新`
+- 用户数据保存在 `%LocalAppData%\\HorosaDesktop`，更新不会清空这些内容
+""",
+              encoding="utf-8",
+          )
+          with open(Path(os.environ["GITHUB_ENV"]), "a", encoding="utf-8") as fh:
+              fh.write(f"RELEASE_BODY_PATH={body_path}\n")
+
       - name: Build portable release assets
         shell: pwsh
         run: |
@@ -121,6 +157,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: ${{ env.RELEASE_NAME }}
+          body_path: ${{ env.RELEASE_BODY_PATH }}
           generate_release_notes: true
           draft: false
           prerelease: false
