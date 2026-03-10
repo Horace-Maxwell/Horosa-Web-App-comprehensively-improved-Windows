@@ -7,6 +7,61 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+function Expand-ZipSafely {
+  param(
+    [Parameter(Mandatory = $true)][string]$ArchivePath,
+    [Parameter(Mandatory = $true)][string]$DestinationPath
+  )
+
+  if (Test-Path $DestinationPath) {
+    Remove-Item -Recurse -Force $DestinationPath
+  }
+  New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
+
+  $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+  try {
+    foreach ($entry in $archive.Entries) {
+      if ([string]::IsNullOrWhiteSpace($entry.FullName)) {
+        continue
+      }
+
+      $targetPath = Join-Path $DestinationPath $entry.FullName
+      $normalizedTarget = [System.IO.Path]::GetFullPath($targetPath)
+      $normalizedRoot = [System.IO.Path]::GetFullPath($DestinationPath)
+      if (-not $normalizedTarget.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unsafe zip entry detected: $($entry.FullName)"
+      }
+
+      if ($entry.FullName.EndsWith('/')) {
+        New-Item -ItemType Directory -Force -Path $normalizedTarget | Out-Null
+        continue
+      }
+
+      $targetDir = Split-Path -Parent $normalizedTarget
+      if ($targetDir) {
+        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+      }
+
+      $entryStream = $entry.Open()
+      try {
+        $fileStream = [System.IO.File]::Open($normalizedTarget, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        try {
+          $entryStream.CopyTo($fileStream)
+        } finally {
+          $fileStream.Dispose()
+        }
+      } finally {
+        $entryStream.Dispose()
+      }
+    }
+  } finally {
+    $archive.Dispose()
+  }
+}
+
 function Resolve-PayloadRoot {
   param([string]$ExtractRoot)
 
@@ -103,28 +158,24 @@ function Copy-PayloadOverlay {
     [string]$DestinationRoot
   )
 
-  foreach ($item in Get-ChildItem -LiteralPath $SourceRoot -Force) {
-    $dest = Join-Path $DestinationRoot $item.Name
-    if ($item.PSIsContainer) {
-      New-Item -ItemType Directory -Force -Path $dest | Out-Null
-      $children = @(Get-ChildItem -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue)
-      if ($children.Count -gt 0) {
-        foreach ($child in $children) {
-          Copy-Item -LiteralPath $child.FullName -Destination $dest -Recurse -Force
-        }
-      }
-    } else {
-      Copy-Item -LiteralPath $item.FullName -Destination $dest -Force
-    }
+  $resolvedSource = (Resolve-Path $SourceRoot).Path
+  New-Item -ItemType Directory -Force -Path $DestinationRoot | Out-Null
+  & robocopy $resolvedSource $DestinationRoot /E /XJ /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  $copyExitCode = $LASTEXITCODE
+  if ($copyExitCode -ge 8) {
+    throw ("robocopy failed with exit code {0}: {1} -> {2}" -f $copyExitCode, $resolvedSource, $DestinationRoot)
   }
 }
 
-$tempRoot = Join-Path $env:TEMP ("horosa-desktop-update-" + [guid]::NewGuid().ToString('n'))
+$systemDrive = if ($env:SystemDrive) { $env:SystemDrive } else { 'C:' }
+$shortTempBase = Join-Path $systemDrive 'hdu'
+New-Item -ItemType Directory -Force -Path $shortTempBase | Out-Null
+$tempRoot = Join-Path $shortTempBase ([guid]::NewGuid().ToString('n'))
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 
 try {
   Wait-ForTargetExit -VbsPath $RelaunchVbs
-  Expand-Archive -LiteralPath $ZipPath -DestinationPath $tempRoot -Force
+  Expand-ZipSafely -ArchivePath $ZipPath -DestinationPath $tempRoot
   $payload = Resolve-PayloadRoot -ExtractRoot $tempRoot
   $payloadRoot = $payload.Root
 
