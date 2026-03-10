@@ -22,6 +22,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngin
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -246,7 +247,7 @@ class LauncherController(QObject):
         self.stop_requested = False
         self.ready_url = None
         self.launch_started_at = time.time()
-        self.signals.status.emit("Starting Horosa services...")
+        self.signals.status.emit("正在启动 Horosa 服务...")
 
         self.process = subprocess.Popen(
             [
@@ -277,7 +278,7 @@ class LauncherController(QObject):
         while self.process and self.process.poll() is None and not self.ready_url:
             if time.time() - self.launch_started_at > STARTUP_TIMEOUT_SECONDS:
                 self.signals.failed.emit(
-                    f"Startup timed out after {STARTUP_TIMEOUT_SECONDS} seconds. Check desktop logs."
+                    f"启动在 {STARTUP_TIMEOUT_SECONDS} 秒后超时。请检查桌面日志。"
                 )
                 self.stop(force=True)
                 return
@@ -299,13 +300,13 @@ class LauncherController(QObject):
                 if not line:
                     continue
                 if line.startswith("[1/4]"):
-                    self.signals.status.emit("Starting backend services...")
+                    self.signals.status.emit("正在启动后端服务...")
                 elif line.startswith("[2/4]"):
-                    self.signals.status.emit("Starting local web service...")
+                    self.signals.status.emit("正在启动本地网页服务...")
                 elif "Started (no-browser mode):" in line:
                     url = line.split("Started (no-browser mode):", 1)[1].strip()
                     self.ready_url = url
-                    self.signals.status.emit("Loading Horosa window...")
+                    self.signals.status.emit("正在加载 Horosa 窗口...")
                     self.signals.ready.emit(url)
                 elif line.startswith("Startup failed:"):
                     failure_message = line.split(":", 1)[1].strip()
@@ -314,7 +315,7 @@ class LauncherController(QObject):
         finally:
             exit_code = self.process.wait()
             if not self.stop_requested and not self.ready_url:
-                self.signals.failed.emit(failure_message or f"Launcher exited early with code {exit_code}.")
+                self.signals.failed.emit(failure_message or f"启动程序提前退出，退出码：{exit_code}。")
 
     def stop(self, force: bool = False) -> None:
         if not self.process:
@@ -433,7 +434,7 @@ class GitHubUpdater(QObject):
                 expected_hash = expected_digest.split(":", 1)[1].lower()
                 actual_hash = sha256_of_file(zip_path)
                 if actual_hash.lower() != expected_hash:
-                    raise RuntimeError("Downloaded update zip failed SHA256 verification.")
+                    raise RuntimeError("已下载的更新压缩包未通过 SHA256 校验。")
 
             self.signals.download_done.emit(
                 {
@@ -448,11 +449,11 @@ class GitHubUpdater(QObject):
     def apply_update(self, zip_path: str) -> None:
         helper = self.data_root / "src" / "horosa_update_helper.ps1"
         if not helper.exists():
-            raise FileNotFoundError(f"Update helper not found: {helper}")
+            raise FileNotFoundError(f"未找到更新辅助脚本：{helper}")
 
         relaunch_vbs = self.package_root / "Run_Horosa_Desktop.vbs"
         if not relaunch_vbs.exists():
-            raise FileNotFoundError(f"Relaunch script not found: {relaunch_vbs}")
+            raise FileNotFoundError(f"未找到重新启动脚本：{relaunch_vbs}")
 
         subprocess.Popen(
             [
@@ -508,7 +509,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Preparing Horosa...")
+        self.status_bar.showMessage("正在准备 Horosa Desktop...")
 
         profile_root = self.user_root / "qt-profile"
         cache_root = self.user_root / "qt-cache"
@@ -526,76 +527,255 @@ class MainWindow(QMainWindow):
         self.web_view.setPage(QWebEnginePage(self.web_profile, self.web_view))
 
         loading_widget = QWidget(self)
+        loading_widget.setObjectName("LoadingSurface")
+        loading_widget.setStyleSheet(
+            """
+            QWidget#LoadingSurface {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #f8f2e9,
+                    stop: 0.58 #f3eadc,
+                    stop: 1 #ebe0cf
+                );
+            }
+            QFrame#LoadingCard {
+                background: rgba(255, 251, 245, 0.97);
+                border: 1px solid #e4d6c0;
+                border-radius: 28px;
+            }
+            QLabel#LoadingEyebrow {
+                background: #f3e3c5;
+                color: #7c5b21;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                padding: 6px 14px;
+            }
+            QLabel#LoadingTitle {
+                color: #201b15;
+                font-size: 34px;
+                font-weight: 700;
+            }
+            QLabel#LoadingSubtitle {
+                color: #6e5f4c;
+                font-size: 15px;
+                line-height: 1.5;
+            }
+            QFrame#LoadingStatusCard {
+                background: #f7efe2;
+                border: 1px solid #eadac3;
+                border-radius: 20px;
+            }
+            QLabel#LoadingPhase {
+                color: #8a6528;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+            }
+            QLabel#LoadingStatus {
+                color: #2d241b;
+                font-size: 17px;
+                font-weight: 600;
+            }
+            QLabel#LoadingHint {
+                color: #7c6d59;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+            QProgressBar#LoadingProgress {
+                background: #eadfce;
+                border: none;
+                border-radius: 9px;
+            }
+            QProgressBar#LoadingProgress::chunk {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #d4ad64,
+                    stop: 1 #c78d45
+                );
+                border-radius: 9px;
+            }
+            QPushButton#RetryButton {
+                background: #201b15;
+                color: #fffaf3;
+                border: none;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+                min-width: 184px;
+                min-height: 42px;
+                padding: 0 22px;
+            }
+            QPushButton#RetryButton:hover {
+                background: #30271f;
+            }
+            """
+        )
+
         loading_layout = QVBoxLayout(loading_widget)
-        loading_layout.setContentsMargins(48, 48, 48, 48)
-        loading_layout.setSpacing(16)
+        loading_layout.setContentsMargins(72, 56, 72, 60)
+        loading_layout.setSpacing(24)
 
-        self.loading_title = QLabel("Horosa Desktop is starting", loading_widget)
+        loading_card = QFrame(loading_widget)
+        loading_card.setObjectName("LoadingCard")
+        loading_card.setMaximumWidth(760)
+        loading_card_layout = QVBoxLayout(loading_card)
+        loading_card_layout.setContentsMargins(56, 48, 56, 42)
+        loading_card_layout.setSpacing(22)
+
+        self.loading_eyebrow = QLabel(loading_card)
+        self.loading_eyebrow.setObjectName("LoadingEyebrow")
+        self.loading_eyebrow.setAlignment(Qt.AlignCenter)
+
+        self.loading_title = QLabel(loading_card)
+        self.loading_title.setObjectName("LoadingTitle")
         self.loading_title.setAlignment(Qt.AlignCenter)
-        self.loading_title.setStyleSheet("font-size: 28px; font-weight: 600;")
 
-        self.loading_status = QLabel("Preparing services...", loading_widget)
+        self.loading_subtitle = QLabel(loading_card)
+        self.loading_subtitle.setObjectName("LoadingSubtitle")
+        self.loading_subtitle.setAlignment(Qt.AlignCenter)
+        self.loading_subtitle.setWordWrap(True)
+
+        loading_status_card = QFrame(loading_card)
+        loading_status_card.setObjectName("LoadingStatusCard")
+        loading_status_layout = QVBoxLayout(loading_status_card)
+        loading_status_layout.setContentsMargins(26, 22, 26, 22)
+        loading_status_layout.setSpacing(10)
+
+        self.loading_phase = QLabel(loading_status_card)
+        self.loading_phase.setObjectName("LoadingPhase")
+        self.loading_phase.setAlignment(Qt.AlignCenter)
+
+        self.loading_status = QLabel(loading_status_card)
+        self.loading_status.setObjectName("LoadingStatus")
         self.loading_status.setAlignment(Qt.AlignCenter)
         self.loading_status.setWordWrap(True)
-        self.loading_status.setStyleSheet("font-size: 15px; color: #555;")
 
-        self.loading_progress = QProgressBar(loading_widget)
+        self.loading_progress = QProgressBar(loading_card)
+        self.loading_progress.setObjectName("LoadingProgress")
         self.loading_progress.setRange(0, 0)
         self.loading_progress.setTextVisible(False)
-        self.loading_progress.setFixedHeight(14)
+        self.loading_progress.setFixedHeight(18)
 
-        self.retry_button = QPushButton("Restart Horosa", loading_widget)
+        self.loading_hint = QLabel(loading_card)
+        self.loading_hint.setObjectName("LoadingHint")
+        self.loading_hint.setAlignment(Qt.AlignCenter)
+        self.loading_hint.setWordWrap(True)
+
+        self.retry_button = QPushButton("重新启动 Horosa", loading_card)
+        self.retry_button.setObjectName("RetryButton")
         self.retry_button.clicked.connect(self._restart_services)
         self.retry_button.hide()
 
+        loading_status_layout.addWidget(self.loading_phase)
+        loading_status_layout.addWidget(self.loading_status)
+
+        loading_card_layout.addWidget(self.loading_eyebrow, alignment=Qt.AlignCenter)
+        loading_card_layout.addWidget(self.loading_title)
+        loading_card_layout.addWidget(self.loading_subtitle)
+        loading_card_layout.addWidget(loading_status_card)
+        loading_card_layout.addWidget(self.loading_progress)
+        loading_card_layout.addWidget(self.loading_hint)
+        loading_card_layout.addWidget(self.retry_button, alignment=Qt.AlignCenter)
+
         loading_layout.addStretch(1)
-        loading_layout.addWidget(self.loading_title)
-        loading_layout.addWidget(self.loading_status)
-        loading_layout.addWidget(self.loading_progress)
-        loading_layout.addWidget(self.retry_button, alignment=Qt.AlignCenter)
-        loading_layout.addStretch(2)
+        loading_layout.addWidget(loading_card, alignment=Qt.AlignHCenter)
+        loading_layout.addStretch(1)
 
         central = QWidget(self)
         self.stack = QStackedLayout(central)
         self.stack.addWidget(loading_widget)
         self.stack.addWidget(self.web_view)
         self.setCentralWidget(central)
+        self._set_loading_scene(
+            scene="startup",
+            status="正在准备本地服务与桌面窗口...",
+        )
+
+    def _set_loading_scene(self, scene: str, status: Optional[str] = None) -> None:
+        scenes = {
+            "startup": {
+                "eyebrow": "桌面工作区",
+                "title": "正在打开 Horosa Desktop",
+                "subtitle": "正在恢复本地桌面环境、连接服务，并回到你上次的使用状态。",
+                "phase": "启动中",
+                "hint": "通常只需几秒钟。这是应用启动页面，不会重新执行安装，也不会影响你的本地数据。",
+            },
+            "restart": {
+                "eyebrow": "重新连接",
+                "title": "正在重新连接 Horosa Desktop",
+                "subtitle": "正在重启本地服务并恢复桌面窗口，请稍候片刻。",
+                "phase": "处理中",
+                "hint": "如果刚刚出现异常，这是最快的恢复方式之一。",
+            },
+            "update": {
+                "eyebrow": "版本更新",
+                "title": "正在更新 Horosa Desktop",
+                "subtitle": "新版正在下载并准备替换当前程序文件，你的本地数据会被完整保留。",
+                "phase": "下载中",
+                "hint": "下载完成后，应用会自动关闭、替换文件，并恢复到你当前的桌面状态。",
+            },
+            "apply": {
+                "eyebrow": "版本更新",
+                "title": "正在应用更新",
+                "subtitle": "正在替换程序文件并准备重新打开 Horosa Desktop。",
+                "phase": "即将重启",
+                "hint": "这个过程不会重新安装应用，也不会清空你的本地使用数据。",
+            },
+            "error": {
+                "eyebrow": "需要处理",
+                "title": "Horosa Desktop 未能完成启动",
+                "subtitle": "可以尝试重新启动服务，或打开本地日志继续排查。",
+                "phase": "启动失败",
+                "hint": "如果问题持续出现，请把桌面日志提供给开发者进一步定位。",
+            },
+        }
+
+        payload = scenes.get(scene, scenes["startup"])
+        self.loading_eyebrow.setText(payload["eyebrow"])
+        self.loading_title.setText(payload["title"])
+        self.loading_subtitle.setText(payload["subtitle"])
+        self.loading_phase.setText(payload["phase"])
+        self.loading_hint.setText(payload["hint"])
+        if status is not None:
+            self.loading_status.setText(status)
 
     def _build_menu(self) -> None:
         menu_bar = self.menuBar()
 
-        file_menu = menu_bar.addMenu("File")
-        refresh_action = QAction("Refresh current page", self)
+        file_menu = menu_bar.addMenu("文件")
+        refresh_action = QAction("刷新当前页面", self)
         refresh_action.triggered.connect(self.web_view.reload)
         file_menu.addAction(refresh_action)
 
-        restart_action = QAction("Restart Horosa services", self)
+        restart_action = QAction("重新启动 Horosa 服务", self)
         restart_action.triggered.connect(self._restart_services)
         file_menu.addAction(restart_action)
 
-        open_logs_action = QAction("Open desktop logs", self)
+        open_logs_action = QAction("打开桌面日志", self)
         open_logs_action.triggered.connect(self._open_logs)
         file_menu.addAction(open_logs_action)
 
-        exit_action = QAction("Exit", self)
+        exit_action = QAction("退出", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        update_menu = menu_bar.addMenu("Update")
-        check_updates_action = QAction("Check for updates", self)
+        update_menu = menu_bar.addMenu("更新")
+        check_updates_action = QAction("检查更新", self)
         check_updates_action.triggered.connect(self._check_updates)
         update_menu.addAction(check_updates_action)
 
-        help_menu = menu_bar.addMenu("Help")
-        guide_action = QAction("Open 3-step guide", self)
+        help_menu = menu_bar.addMenu("帮助")
+        guide_action = QAction("打开三步安装说明", self)
         guide_action.triggered.connect(self._open_install_guide)
         help_menu.addAction(guide_action)
 
-        release_guide_action = QAction("Open update release guide", self)
+        release_guide_action = QAction("打开发布更新说明", self)
         release_guide_action.triggered.connect(self._open_release_guide)
         help_menu.addAction(release_guide_action)
 
-        about_action = QAction("About", self)
+        about_action = QAction("关于", self)
         about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
 
@@ -642,7 +822,7 @@ class MainWindow(QMainWindow):
         if ok:
             self.stack.setCurrentIndex(1)
             self.retry_button.hide()
-            self.status_bar.showMessage("Horosa is ready.")
+            self.status_bar.showMessage("Horosa Desktop 已就绪。")
             if smoke_test_enabled():
                 smoke_dir = self.user_root / "runtime-logs"
                 smoke_dir.mkdir(parents=True, exist_ok=True)
@@ -661,27 +841,27 @@ class MainWindow(QMainWindow):
                 )
                 QTimer.singleShot(smoke_autoclose_seconds() * 1000, self.close)
         else:
-            self._show_startup_error("Embedded page failed to load.")
+            self._show_startup_error("内嵌页面加载失败。")
 
     def _show_startup_error(self, message: str) -> None:
         self.stack.setCurrentIndex(0)
         self.loading_progress.setRange(0, 1)
         self.loading_progress.setValue(0)
         self.retry_button.show()
-        self.loading_status.setText(message)
+        self._set_loading_scene("error", message)
         self.status_bar.showMessage(message)
         QMessageBox.critical(
             self,
             APP_NAME,
-            f"{message}\n\nDesktop logs:\n{self.user_root / 'runtime-logs'}",
+            f"{message}\n\n桌面日志位置：\n{self.user_root / 'runtime-logs'}",
         )
 
     def _restart_services(self) -> None:
         self.stack.setCurrentIndex(0)
         self.loading_progress.setRange(0, 0)
         self.retry_button.hide()
-        self.loading_status.setText("Restarting Horosa...")
-        self.status_bar.showMessage("Restarting Horosa...")
+        self._set_loading_scene("restart", "正在重新启动 Horosa 服务...")
+        self.status_bar.showMessage("正在重新启动 Horosa 服务...")
         self.launcher.restart()
 
     def _open_logs(self) -> None:
@@ -705,20 +885,20 @@ class MainWindow(QMainWindow):
             APP_NAME,
             (
                 f"{APP_NAME}\n"
-                f"Version: {app_version(self.data_root)}\n\n"
-                "Runs Horosa inside a native desktop window, stores user data in LocalAppData, "
-                "and can update itself from published GitHub releases."
+                f"版本：{app_version(self.data_root)}\n\n"
+                "Horosa Desktop 会在原生桌面窗口中运行 Horosa，"
+                "把用户数据保存在 LocalAppData，并支持从已发布的 GitHub Release 自动更新。"
             ),
         )
 
     def _check_updates(self) -> None:
-        self.status_bar.showMessage("Checking GitHub updates...")
+        self.status_bar.showMessage("正在检查 GitHub 更新...")
         self.updater.check_async()
 
     def _handle_update_info(self, payload: dict) -> None:
         if not payload.get("has_update"):
-            QMessageBox.information(self, APP_NAME, "You already have the latest published version.")
-            self.status_bar.showMessage("No update available.")
+            QMessageBox.information(self, APP_NAME, "当前已经是最新的已发布版本。")
+            self.status_bar.showMessage("当前没有可用更新。")
             return
 
         latest_tag = payload.get("latest_tag", "")
@@ -727,36 +907,37 @@ class MainWindow(QMainWindow):
             self,
             APP_NAME,
             (
-                f"A new version is available: {latest_tag}\n\n"
-                f"Asset: {asset_name}\n\n"
-                "Horosa Desktop will download it, replace the installed app files, and restart automatically "
-                "without touching your user data stored in LocalAppData.\n\n"
-                "Continue?"
+                f"发现新版本：{latest_tag}\n\n"
+                f"发布包：{asset_name}\n\n"
+                "Horosa Desktop 会先下载它，再替换当前程序文件并自动重新打开。"
+                "保存在 LocalAppData 中的用户数据不会被触碰。\n\n"
+                "要继续吗？"
             ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         )
         if reply == QMessageBox.Yes:
-            self.loading_status.setText(f"Downloading update {latest_tag}...")
             self.stack.setCurrentIndex(0)
             self.loading_progress.setRange(0, 100)
             self.loading_progress.setValue(0)
             self.retry_button.hide()
+            self._set_loading_scene("update", f"正在下载更新 {latest_tag}...")
+            self.status_bar.showMessage(f"正在下载更新 {latest_tag}...")
             self.updater.download_async(payload)
         else:
-            self.status_bar.showMessage("Update cancelled.")
+            self.status_bar.showMessage("已取消更新。")
 
     def _show_download_progress(self, current: int, total: int) -> None:
         if total > 0:
             percent = int((current / total) * 100)
             self.loading_progress.setRange(0, 100)
             self.loading_progress.setValue(percent)
-            self.loading_status.setText(f"Downloading update... {percent}%")
-            self.status_bar.showMessage(f"Downloading update... {percent}%")
+            self.loading_status.setText(f"正在下载更新... {percent}%")
+            self.status_bar.showMessage(f"正在下载更新... {percent}%")
         else:
             self.loading_progress.setRange(0, 0)
-            self.loading_status.setText("Downloading update...")
-            self.status_bar.showMessage("Downloading update...")
+            self.loading_status.setText("正在下载更新...")
+            self.status_bar.showMessage("正在下载更新...")
 
     def _finish_update_download(self, payload: dict) -> None:
         self.pending_update_zip = payload["zip_path"]
@@ -766,12 +947,12 @@ class MainWindow(QMainWindow):
             self,
             APP_NAME,
             (
-                f"Update {payload['version_label']} has finished downloading.\n\n"
-                "Horosa Desktop will now close, replace the installed files, and reopen in the same desktop state."
+                f"更新 {payload['version_label']} 已完成下载。\n\n"
+                "Horosa Desktop 现在会关闭当前窗口、替换程序文件，并恢复到相同的桌面状态。"
             ),
         )
-        self.status_bar.showMessage("Applying update...")
-        self.loading_status.setText("Applying update and restarting...")
+        self.status_bar.showMessage("正在应用更新...")
+        self._set_loading_scene("apply", "正在应用更新并准备重新打开...")
         try:
             self.updater.apply_update(self.pending_update_zip)
         except Exception as exc:
@@ -782,12 +963,14 @@ class MainWindow(QMainWindow):
 
     def _show_update_error(self, message: str) -> None:
         self.stack.setCurrentIndex(1 if self.current_url else 0)
+        if not self.current_url:
+            self._set_loading_scene("error", message)
         self.status_bar.showMessage(message)
         QMessageBox.warning(self, APP_NAME, message)
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._save_window_settings()
-        self.status_bar.showMessage("Stopping Horosa services...")
+        self.status_bar.showMessage("正在停止 Horosa 服务...")
         self.launcher.stop()
         super().closeEvent(event)
 
