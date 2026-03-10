@@ -44,7 +44,7 @@ NEW_PROCESS_GROUP = 0x00000200
 MIN_ZOOM_FACTOR = 0.7
 MAX_ZOOM_FACTOR = 2.0
 ZOOM_STEP = 0.1
-DEFAULT_STARTUP_ZOOM_FACTOR = 0.9
+DEFAULT_STARTUP_ZOOM_FACTOR = 0.8
 
 
 def normalize_version(value: str) -> Version:
@@ -882,7 +882,7 @@ class MainWindow(QMainWindow):
 
         reset_zoom_action = QAction("恢复默认缩放", self)
         reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
-        reset_zoom_action.triggered.connect(lambda: self._apply_zoom_factor(1.0))
+        reset_zoom_action.triggered.connect(lambda: self._apply_zoom_factor(DEFAULT_STARTUP_ZOOM_FACTOR))
         view_menu.addAction(reset_zoom_action)
 
         help_menu = menu_bar.addMenu("帮助")
