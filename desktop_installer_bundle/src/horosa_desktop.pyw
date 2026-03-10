@@ -12,12 +12,12 @@ import threading
 import time
 import traceback
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from packaging.version import InvalidVersion, Version
 from PySide6.QtCore import QObject, QSettings, QStandardPaths, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase, QKeySequence
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -40,6 +40,9 @@ STARTUP_TIMEOUT_SECONDS = 240
 CREATE_NO_WINDOW = 0x08000000
 DETACHED_PROCESS = 0x00000008
 NEW_PROCESS_GROUP = 0x00000200
+MIN_ZOOM_FACTOR = 0.7
+MAX_ZOOM_FACTOR = 2.0
+ZOOM_STEP = 0.1
 
 
 def normalize_version(value: str) -> Version:
@@ -113,6 +116,33 @@ def find_repo_root(start: Path) -> Path:
 def app_version(data_root: Path) -> str:
     payload = json.loads((data_root / "version.json").read_text(encoding="utf-8"))
     return payload["version"]
+
+
+def preferred_ui_font_family() -> str:
+    preferred_families = [
+        "Microsoft YaHei UI",
+        "Microsoft YaHei",
+        "PingFang SC",
+        "Hiragino Sans GB",
+        "Noto Sans CJK SC",
+        "Source Han Sans SC",
+        "Segoe UI Variable Text",
+        "Segoe UI",
+    ]
+    available = {family.lower(): family for family in QFontDatabase.families()}
+    for family in preferred_families:
+        if family.lower() in available:
+            return available[family.lower()]
+    app = QApplication.instance()
+    return app.font().family() if app else ""
+
+
+def clamp_zoom_factor(value: object) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = 1.0
+    return round(min(MAX_ZOOM_FACTOR, max(MIN_ZOOM_FACTOR, numeric)), 2)
 
 
 def smoke_test_enabled() -> bool:
@@ -477,6 +507,22 @@ class GitHubUpdater(QObject):
         )
 
 
+class ZoomableWebView(QWebEngineView):
+    def __init__(self, zoom_callback: Callable[[float], None], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._zoom_callback = zoom_callback
+
+    def wheelEvent(self, event) -> None:  # type: ignore[override]
+        if event.modifiers() & Qt.ControlModifier:
+            delta_y = event.angleDelta().y()
+            if delta_y:
+                step = ZOOM_STEP if delta_y > 0 else -ZOOM_STEP
+                self._zoom_callback(self.zoomFactor() + step)
+                event.accept()
+                return
+        super().wheelEvent(event)
+
+
 class MainWindow(QMainWindow):
     def __init__(
         self,
@@ -497,6 +543,8 @@ class MainWindow(QMainWindow):
         self.current_url: Optional[str] = None
         self.pending_update_zip: Optional[str] = None
         self.update_restart_requested = False
+        self.ui_font_family = preferred_ui_font_family()
+        self.zoom_factor = clamp_zoom_factor(self.settings.value("ui/zoomFactor", 1.0))
 
         self.setWindowTitle(APP_NAME)
         self.resize(1540, 960)
@@ -523,8 +571,9 @@ class MainWindow(QMainWindow):
         self.web_profile.settings().setAttribute(QWebEngineSettings.JavascriptEnabled, True)
         self.web_profile.settings().setAttribute(QWebEngineSettings.FullScreenSupportEnabled, True)
 
-        self.web_view = QWebEngineView(self)
+        self.web_view = ZoomableWebView(self._apply_zoom_factor, self)
         self.web_view.setPage(QWebEnginePage(self.web_profile, self.web_view))
+        self.web_view.setZoomFactor(self.zoom_factor)
 
         loading_widget = QWidget(self)
         loading_widget.setObjectName("LoadingSurface")
@@ -547,20 +596,13 @@ class MainWindow(QMainWindow):
                 background: #f3e3c5;
                 color: #7c5b21;
                 border-radius: 12px;
-                font-size: 12px;
-                font-weight: 700;
-                letter-spacing: 0.08em;
                 padding: 6px 14px;
             }
             QLabel#LoadingTitle {
                 color: #201b15;
-                font-size: 34px;
-                font-weight: 700;
             }
             QLabel#LoadingSubtitle {
                 color: #6e5f4c;
-                font-size: 15px;
-                line-height: 1.5;
             }
             QFrame#LoadingStatusCard {
                 background: #f7efe2;
@@ -569,19 +611,12 @@ class MainWindow(QMainWindow):
             }
             QLabel#LoadingPhase {
                 color: #8a6528;
-                font-size: 12px;
-                font-weight: 700;
-                letter-spacing: 0.08em;
             }
             QLabel#LoadingStatus {
                 color: #2d241b;
-                font-size: 17px;
-                font-weight: 600;
             }
             QLabel#LoadingHint {
                 color: #7c6d59;
-                font-size: 13px;
-                line-height: 1.5;
             }
             QProgressBar#LoadingProgress {
                 background: #eadfce;
@@ -601,8 +636,6 @@ class MainWindow(QMainWindow):
                 color: #fffaf3;
                 border: none;
                 border-radius: 20px;
-                font-size: 14px;
-                font-weight: 600;
                 min-width: 184px;
                 min-height: 42px;
                 padding: 0 22px;
@@ -619,38 +652,48 @@ class MainWindow(QMainWindow):
 
         loading_card = QFrame(loading_widget)
         loading_card.setObjectName("LoadingCard")
-        loading_card.setMaximumWidth(760)
+        loading_card.setMaximumWidth(780)
         loading_card_layout = QVBoxLayout(loading_card)
-        loading_card_layout.setContentsMargins(56, 48, 56, 42)
-        loading_card_layout.setSpacing(22)
+        loading_card_layout.setContentsMargins(60, 50, 60, 46)
+        loading_card_layout.setSpacing(24)
 
         self.loading_eyebrow = QLabel(loading_card)
         self.loading_eyebrow.setObjectName("LoadingEyebrow")
         self.loading_eyebrow.setAlignment(Qt.AlignCenter)
+        self.loading_eyebrow.setFont(self._make_ui_font(10.5, QFont.Weight.DemiBold))
 
         self.loading_title = QLabel(loading_card)
         self.loading_title.setObjectName("LoadingTitle")
         self.loading_title.setAlignment(Qt.AlignCenter)
+        self.loading_title.setWordWrap(True)
+        self.loading_title.setMinimumHeight(92)
+        self.loading_title.setFont(self._make_ui_font(23, QFont.Weight.Bold))
 
         self.loading_subtitle = QLabel(loading_card)
         self.loading_subtitle.setObjectName("LoadingSubtitle")
         self.loading_subtitle.setAlignment(Qt.AlignCenter)
         self.loading_subtitle.setWordWrap(True)
+        self.loading_subtitle.setMaximumWidth(560)
+        self.loading_subtitle.setFont(self._make_ui_font(12.5, QFont.Weight.Medium))
 
         loading_status_card = QFrame(loading_card)
         loading_status_card.setObjectName("LoadingStatusCard")
+        loading_status_card.setMinimumHeight(118)
         loading_status_layout = QVBoxLayout(loading_status_card)
-        loading_status_layout.setContentsMargins(26, 22, 26, 22)
-        loading_status_layout.setSpacing(10)
+        loading_status_layout.setContentsMargins(30, 22, 30, 24)
+        loading_status_layout.setSpacing(8)
 
         self.loading_phase = QLabel(loading_status_card)
         self.loading_phase.setObjectName("LoadingPhase")
         self.loading_phase.setAlignment(Qt.AlignCenter)
+        self.loading_phase.setFont(self._make_ui_font(10.5, QFont.Weight.DemiBold))
 
         self.loading_status = QLabel(loading_status_card)
         self.loading_status.setObjectName("LoadingStatus")
         self.loading_status.setAlignment(Qt.AlignCenter)
         self.loading_status.setWordWrap(True)
+        self.loading_status.setMinimumHeight(40)
+        self.loading_status.setFont(self._make_ui_font(13.5, QFont.Weight.DemiBold))
 
         self.loading_progress = QProgressBar(loading_card)
         self.loading_progress.setObjectName("LoadingProgress")
@@ -662,9 +705,12 @@ class MainWindow(QMainWindow):
         self.loading_hint.setObjectName("LoadingHint")
         self.loading_hint.setAlignment(Qt.AlignCenter)
         self.loading_hint.setWordWrap(True)
+        self.loading_hint.setMaximumWidth(560)
+        self.loading_hint.setFont(self._make_ui_font(11, QFont.Weight.Medium))
 
         self.retry_button = QPushButton("重新启动 Horosa", loading_card)
         self.retry_button.setObjectName("RetryButton")
+        self.retry_button.setFont(self._make_ui_font(11.5, QFont.Weight.DemiBold))
         self.retry_button.clicked.connect(self._restart_services)
         self.retry_button.hide()
 
@@ -673,10 +719,10 @@ class MainWindow(QMainWindow):
 
         loading_card_layout.addWidget(self.loading_eyebrow, alignment=Qt.AlignCenter)
         loading_card_layout.addWidget(self.loading_title)
-        loading_card_layout.addWidget(self.loading_subtitle)
+        loading_card_layout.addWidget(self.loading_subtitle, alignment=Qt.AlignCenter)
         loading_card_layout.addWidget(loading_status_card)
         loading_card_layout.addWidget(self.loading_progress)
-        loading_card_layout.addWidget(self.loading_hint)
+        loading_card_layout.addWidget(self.loading_hint, alignment=Qt.AlignCenter)
         loading_card_layout.addWidget(self.retry_button, alignment=Qt.AlignCenter)
 
         loading_layout.addStretch(1)
@@ -741,11 +787,19 @@ class MainWindow(QMainWindow):
         if status is not None:
             self.loading_status.setText(status)
 
+    def _make_ui_font(self, point_size: float, weight: QFont.Weight = QFont.Weight.Normal) -> QFont:
+        base_family = self.ui_font_family or self.font().family()
+        font = QFont(base_family)
+        font.setPointSizeF(point_size)
+        font.setWeight(weight)
+        return font
+
     def _build_menu(self) -> None:
         menu_bar = self.menuBar()
 
         file_menu = menu_bar.addMenu("文件")
         refresh_action = QAction("刷新当前页面", self)
+        refresh_action.setShortcut(QKeySequence.Refresh)
         refresh_action.triggered.connect(self.web_view.reload)
         file_menu.addAction(refresh_action)
 
@@ -765,6 +819,22 @@ class MainWindow(QMainWindow):
         check_updates_action = QAction("检查更新", self)
         check_updates_action.triggered.connect(self._check_updates)
         update_menu.addAction(check_updates_action)
+
+        view_menu = menu_bar.addMenu("视图")
+        zoom_in_action = QAction("放大", self)
+        zoom_in_action.setShortcuts([QKeySequence.ZoomIn, QKeySequence("Ctrl+=")])
+        zoom_in_action.triggered.connect(lambda: self._apply_zoom_factor(self.zoom_factor + ZOOM_STEP))
+        view_menu.addAction(zoom_in_action)
+
+        zoom_out_action = QAction("缩小", self)
+        zoom_out_action.setShortcuts([QKeySequence.ZoomOut, QKeySequence("Ctrl+-")])
+        zoom_out_action.triggered.connect(lambda: self._apply_zoom_factor(self.zoom_factor - ZOOM_STEP))
+        view_menu.addAction(zoom_out_action)
+
+        reset_zoom_action = QAction("恢复默认缩放", self)
+        reset_zoom_action.setShortcut(QKeySequence("Ctrl+0"))
+        reset_zoom_action.triggered.connect(lambda: self._apply_zoom_factor(1.0))
+        view_menu.addAction(reset_zoom_action)
 
         help_menu = menu_bar.addMenu("帮助")
         guide_action = QAction("打开三步安装说明", self)
@@ -797,6 +867,7 @@ class MainWindow(QMainWindow):
 
     def _save_window_settings(self) -> None:
         self.settings.setValue("ui/geometry", self.saveGeometry())
+        self.settings.setValue("ui/zoomFactor", self.zoom_factor)
         current = self.web_view.url()
         if current.isValid() and current.fragment():
             self.settings.setValue("ui/lastFragment", current.fragment())
@@ -817,6 +888,13 @@ class MainWindow(QMainWindow):
     def _load_url(self, url: str) -> None:
         self.current_url = self._apply_saved_fragment(url)
         self.web_view.load(QUrl(self.current_url))
+
+    def _apply_zoom_factor(self, factor: float) -> None:
+        normalized = clamp_zoom_factor(factor)
+        self.zoom_factor = normalized
+        self.web_view.setZoomFactor(normalized)
+        self.settings.setValue("ui/zoomFactor", normalized)
+        self.status_bar.showMessage(f"页面缩放：{int(round(normalized * 100))}%")
 
     def _handle_page_loaded(self, ok: bool) -> None:
         if ok:
@@ -986,6 +1064,12 @@ def main() -> int:
     qt_app = QApplication(sys.argv)
     qt_app.setOrganizationName(ORG_NAME)
     qt_app.setApplicationName(APP_NAME)
+    app_font = qt_app.font()
+    app_font_family = preferred_ui_font_family()
+    if app_font_family:
+        app_font.setFamily(app_font_family)
+    app_font.setPointSize(10)
+    qt_app.setFont(app_font)
 
     package_root = app_package_root()
     data_root = app_data_root(package_root)
