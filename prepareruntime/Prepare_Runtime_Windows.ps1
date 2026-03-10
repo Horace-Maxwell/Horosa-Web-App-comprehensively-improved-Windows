@@ -27,10 +27,33 @@ function Invoke-RobocopyCopy {
   $sourcePath = (Resolve-Path $Source).Path
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
 
-  & robocopy $sourcePath $Destination /E /NFL /NDL /NJH /NJS /NP | Out-Null
+  & robocopy $sourcePath $Destination /E /XJ /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
   $exitCode = $LASTEXITCODE
   if ($exitCode -ge 8) {
     throw ("robocopy failed with exit code {0}: {1} -> {2}" -f $exitCode, $sourcePath, $Destination)
+  }
+}
+
+function Remove-TreeWithRetry {
+  param([string]$Path)
+
+  if (-not (Test-Path $Path)) {
+    return
+  }
+
+  $lastError = $null
+  for ($i = 0; $i -lt 8; $i++) {
+    try {
+      Remove-Item -Recurse -Force $Path
+      return
+    } catch {
+      $lastError = $_
+      Start-Sleep -Milliseconds 400
+    }
+  }
+
+  if ($lastError) {
+    throw $lastError
   }
 }
 
@@ -510,7 +533,7 @@ if (-not $JavaSrc) {
 
 if ($JavaSrc -and (Test-Path (Join-Path $JavaSrc 'bin\\java.exe'))) {
   Write-Host "Copy Java runtime: $JavaSrc -> $JavaDst"
-  if (Test-Path $JavaDst) { Remove-Item -Recurse -Force $JavaDst }
+  Remove-TreeWithRetry -Path $JavaDst
   Invoke-RobocopyCopy -Source $JavaSrc -Destination $JavaDst
 } else {
   Write-Host 'Java runtime not found. Set HOROSA_JAVA_HOME (or JAVA_HOME) then rerun.'
@@ -549,7 +572,7 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   }
 
   Write-Host "Copy Python runtime: $PySrc -> $PyDst"
-  if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
+  Remove-TreeWithRetry -Path $PyDst
   Invoke-RobocopyCopy -Source $PySrc -Destination $PyDst
   $runtimePyExe = Join-Path $PyDst 'python.exe'
   $depsReady = Ensure-PythonDepsInRuntime -PythonExe $runtimePyExe
@@ -560,7 +583,7 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   }
   $wheelOk = Export-PythonWheels -PythonExe $runtimePyExe -WheelDir $WheelsDst
   if ($wheelOk) {
-    if (Test-Path $WheelsBundleDst) { Remove-Item -Recurse -Force $WheelsBundleDst }
+    Remove-TreeWithRetry -Path $WheelsBundleDst
     Invoke-RobocopyCopy -Source $WheelsDst -Destination $WheelsBundleDst
     Write-Host "[OK] Offline wheels copied to: $WheelsBundleDst"
   } else {
@@ -587,8 +610,8 @@ if (Test-Path $JarSrc) {
   Write-Host "[MISSING] Backend jar not found after fallback: $JarSrc"
 }
 
-if ((Test-Path $DistFileBundleDst)) { Remove-Item -Recurse -Force $DistFileBundleDst }
-if ((Test-Path $DistBundleDst)) { Remove-Item -Recurse -Force $DistBundleDst }
+Remove-TreeWithRetry -Path $DistFileBundleDst
+Remove-TreeWithRetry -Path $DistBundleDst
 
 $frontendSource = Resolve-FrontendBuildSource -ProjDir $ProjectDir
 if ($frontendSource -and $frontendSource.Path -and (Test-Path (Join-Path $frontendSource.Path 'index.html'))) {
