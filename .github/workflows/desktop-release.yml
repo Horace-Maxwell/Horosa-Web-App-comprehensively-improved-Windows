@@ -74,7 +74,18 @@ jobs:
             Write-Output "::error title=Prepare runtime failed::$message"
             if (Test-Path $logPath) {
               Write-Host '---- prepare-runtime log tail ----'
-              Get-Content $logPath -Tail 200
+              $tailLines = @(
+                Get-Content $logPath -Tail 40 |
+                  ForEach-Object { "$_".Trim() } |
+                  Where-Object { $_ }
+              )
+              $tailLines | Write-Host
+              $tailLines |
+                Select-Object -Last 8 |
+                ForEach-Object {
+                  $line = $_ -replace '\r|\n', ' '
+                  Write-Output "::error title=Prepare runtime tail::$line"
+                }
             }
             throw
           }
