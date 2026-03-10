@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -44,14 +44,14 @@ if (Test-Path $InstallStateFile) {
   try {
     $state = Get-Content -Raw $InstallStateFile | ConvertFrom-Json
     if ($state.version -eq $targetVersion) {
-      Write-InstallProgress -State 'done' -Title 'Horosa Desktop is ready' -Message 'Desktop runtime is already prepared for this version.' -Percent 100
+      Write-InstallProgress -State 'done' -Title 'Horosa Desktop 已准备完成' -Message '当前版本所需的桌面运行环境已经准备好了。' -Percent 100
       Write-Host '[OK] Desktop runtime already prepared.'
       exit 0
     }
   } catch {}
 }
 
-Write-InstallProgress -State 'preparing' -Title 'Preparing installer' -Message 'Checking local runtime and desktop dependencies.' -Percent 10
+Write-InstallProgress -State 'preparing' -Title '正在准备安装程序' -Message '正在检查本地运行环境和桌面依赖。' -Percent 10
 
 if (Test-Path $DepsRoot) {
   Remove-Item -Recurse -Force $DepsRoot
@@ -70,13 +70,13 @@ function Install-Offline {
     return $false
   }
 
-  Write-InstallProgress -State 'installing' -Title 'Installing desktop runtime' -Message 'Using bundled offline packages.' -Percent 45
+  Write-InstallProgress -State 'installing' -Title '正在安装桌面运行环境' -Message '正在使用随包附带的离线组件。' -Percent 45
   & $PythonExe -m pip install --upgrade --target $DepsRoot --no-index --find-links $Wheelhouse -r $ReqFile
   return ($LASTEXITCODE -eq 0)
 }
 
 function Install-Online {
-  Write-InstallProgress -State 'installing' -Title 'Installing desktop runtime' -Message 'Downloading required desktop packages.' -Percent 45
+  Write-InstallProgress -State 'installing' -Title '正在安装桌面运行环境' -Message '正在下载所需的桌面组件。' -Percent 45
   & $PythonExe -m pip install --upgrade --target $DepsRoot -r $ReqFile
   return ($LASTEXITCODE -eq 0)
 }
@@ -89,11 +89,11 @@ if (Install-Offline) {
 }
 
 if (-not $installed) {
-  Write-InstallProgress -State 'error' -Title 'Install failed' -Message 'Desktop runtime dependency install failed.' -Percent 100
+  Write-InstallProgress -State 'error' -Title '安装失败' -Message '桌面运行环境依赖安装失败。' -Percent 100
   throw 'Desktop runtime dependency install failed.'
 }
 
-Write-InstallProgress -State 'finalizing' -Title 'Finalizing install' -Message 'Saving runtime state for future launches.' -Percent 85
+Write-InstallProgress -State 'finalizing' -Title '正在完成安装' -Message '正在保存运行环境状态，供以后启动时复用。' -Percent 85
 
 @{
   version = $targetVersion
@@ -101,5 +101,5 @@ Write-InstallProgress -State 'finalizing' -Title 'Finalizing install' -Message '
   depsRoot = $DepsRoot
 } | ConvertTo-Json | Set-Content -Path $InstallStateFile -Encoding UTF8
 
-Write-InstallProgress -State 'done' -Title 'Horosa Desktop is ready' -Message 'Desktop runtime is prepared and ready to launch.' -Percent 100
+Write-InstallProgress -State 'done' -Title 'Horosa Desktop 已准备完成' -Message '桌面运行环境已经准备好，可以立即启动。' -Percent 100
 Write-Host '[OK] Desktop runtime prepared.'
