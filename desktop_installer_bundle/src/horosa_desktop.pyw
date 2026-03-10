@@ -43,6 +43,7 @@ NEW_PROCESS_GROUP = 0x00000200
 MIN_ZOOM_FACTOR = 0.7
 MAX_ZOOM_FACTOR = 2.0
 ZOOM_STEP = 0.1
+DEFAULT_STARTUP_ZOOM_FACTOR = 0.9
 
 
 def normalize_version(value: str) -> Version:
@@ -143,6 +144,13 @@ def clamp_zoom_factor(value: object) -> float:
     except (TypeError, ValueError):
         numeric = 1.0
     return round(min(MAX_ZOOM_FACTOR, max(MIN_ZOOM_FACTOR, numeric)), 2)
+
+
+def resolve_initial_zoom_factor(settings: QSettings) -> float:
+    customized = settings.value("ui/zoomCustomized", False, type=bool)
+    if customized:
+        return clamp_zoom_factor(settings.value("ui/zoomFactor", DEFAULT_STARTUP_ZOOM_FACTOR))
+    return DEFAULT_STARTUP_ZOOM_FACTOR
 
 
 def smoke_test_enabled() -> bool:
@@ -544,7 +552,7 @@ class MainWindow(QMainWindow):
         self.pending_update_zip: Optional[str] = None
         self.update_restart_requested = False
         self.ui_font_family = preferred_ui_font_family()
-        self.zoom_factor = clamp_zoom_factor(self.settings.value("ui/zoomFactor", 1.0))
+        self.zoom_factor = resolve_initial_zoom_factor(self.settings)
 
         self.setWindowTitle(APP_NAME)
         self.resize(1540, 960)
@@ -894,6 +902,7 @@ class MainWindow(QMainWindow):
         self.zoom_factor = normalized
         self.web_view.setZoomFactor(normalized)
         self.settings.setValue("ui/zoomFactor", normalized)
+        self.settings.setValue("ui/zoomCustomized", True)
         self.status_bar.showMessage(f"页面缩放：{int(round(normalized * 100))}%")
 
     def _handle_page_loaded(self, ok: bool) -> None:
