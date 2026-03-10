@@ -53,10 +53,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Show runtime toolchain
+        shell: pwsh
+        run: |
+          Write-Host "python: $(python --version)"
+          Write-Host "java: $(java -version 2>&1 | Select-Object -First 1)"
+          Write-Host "JAVA_HOME: $env:JAVA_HOME"
+
       - name: Prepare Windows runtime payload
         shell: pwsh
-        env:
-          HOROSA_JAVA_HOME: ${{ env.JAVA_HOME }}
         run: |
           ./prepareruntime/Prepare_Runtime_Windows.ps1
 
