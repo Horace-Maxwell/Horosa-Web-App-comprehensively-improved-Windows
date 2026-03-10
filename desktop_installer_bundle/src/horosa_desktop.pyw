@@ -43,8 +43,6 @@ APP_NAME = "Horosa Desktop"
 DISPLAY_NAME = "星阙"
 STARTUP_TIMEOUT_SECONDS = 240
 CREATE_NO_WINDOW = 0x08000000
-DETACHED_PROCESS = 0x00000008
-NEW_PROCESS_GROUP = 0x00000200
 MIN_ZOOM_FACTOR = 0.7
 MAX_ZOOM_FACTOR = 2.0
 ZOOM_STEP = 0.1
@@ -582,7 +580,10 @@ class GitHubUpdater(QObject):
                 str(relaunch_vbs),
             ],
             cwd=str(self.repo_root),
-            creationflags=DETACHED_PROCESS | NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=CREATE_NO_WINDOW,
         )
 
 
