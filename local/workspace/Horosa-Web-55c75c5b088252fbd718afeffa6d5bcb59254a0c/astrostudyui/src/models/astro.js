@@ -231,10 +231,67 @@ function isValidChartResponse(rsp){
 	return rsp !== undefined && rsp !== null && rsp.Result !== undefined && rsp.Result !== null;
 }
 
-function showChartServiceError(){
+function hasChartParamError(rsp){
+	return !!(
+		rsp &&
+		(
+			(typeof rsp.err === 'string' && rsp.err.trim()) ||
+			(typeof rsp.detail === 'string' && rsp.detail.trim())
+		)
+	);
+}
+
+function getChartErrorDetail(rsp){
+	if(!rsp){
+		return '';
+	}
+	if(typeof rsp.err === 'string' && rsp.err.trim()){
+		return rsp.err.trim();
+	}
+	if(typeof rsp.detail === 'string' && rsp.detail.trim()){
+		return rsp.detail.trim();
+	}
+	return '';
+}
+
+function showChartServiceError(rsp){
+	const detail = getChartErrorDetail(rsp);
+	if(detail){
+		Modal.error({
+			title: detail.indexOf('param error') >= 0
+				? '排盘失败：参数或图盘数据不合法。'
+				: '排盘失败',
+			content: detail,
+		});
+		return;
+	}
 	Modal.error({
 		title: '排盘失败：本地排盘服务未就绪。请确认 Horosa 本地服务仍在运行后重试。',
 	});
+}
+
+function sleep(ms){
+	return new Promise((resolve)=>{
+		setTimeout(resolve, ms);
+	});
+}
+
+function* fetchChartWithRecovery(call, param, requestOptions){
+	let rsp = null;
+	try{
+		rsp = yield call(service.fetchChart, param, requestOptions);
+	}catch(e){
+		rsp = null;
+	}
+	if(isValidChartResponse(rsp) || hasChartParamError(rsp)){
+		return rsp;
+	}
+	yield sleep(450);
+	try{
+		return yield call(service.fetchChart, param, requestOptions);
+	}catch(e){
+		return rsp;
+	}
 }
 
 
@@ -834,9 +891,9 @@ export default {
 			const astroState = yield select((state)=>state.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
-			const rsp = yield call(service.fetchChart, param);
+			const rsp = yield* fetchChartWithRecovery(call, param);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError();
+				showChartServiceError(rsp);
 				return;
 			}
 			const Result = rsp.Result;
@@ -901,9 +958,9 @@ export default {
 			const param = fieldsToParams(fields);
 			const astroState = yield select((allState)=>allState.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-			const rsp = yield call(service.fetchChart, param);
+			const rsp = yield* fetchChartWithRecovery(call, param);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError();
+				showChartServiceError(rsp);
 				return;
 			}
 			const Result = rsp.Result;
@@ -989,9 +1046,9 @@ export default {
 			const astroState = yield select((state)=>state.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
-			const rsp = yield call(service.fetchChart, param, requestOptions);
+			const rsp = yield* fetchChartWithRecovery(call, param, requestOptions);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError();
+				showChartServiceError(rsp);
 				return;
 			}
 			const Result = rsp.Result;
@@ -1042,9 +1099,9 @@ export default {
 			const astroState = yield select((state)=>state.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
-			const rsp = yield call(service.fetchChart, param);
+			const rsp = yield* fetchChartWithRecovery(call, param);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError();
+				showChartServiceError(rsp);
 				return;
 			}
 			const Result = rsp.Result;
