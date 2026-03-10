@@ -811,6 +811,40 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         menu_bar = self.menuBar()
+        menu_bar.setFont(self._make_ui_font(9.2, QFont.Weight.Medium))
+        menu_bar.setStyleSheet(
+            """
+            QMenuBar {
+                background: #f7f3ec;
+                border-bottom: 1px solid #ddd4c6;
+                spacing: 2px;
+                padding: 0 8px 0 8px;
+                min-height: 26px;
+            }
+            QMenuBar::item {
+                padding: 4px 10px;
+                margin: 1px 2px;
+                background: transparent;
+                border-radius: 6px;
+            }
+            QMenuBar::item:selected {
+                background: #ebe2d6;
+                color: #221d17;
+            }
+            QMenu {
+                background: #fffaf3;
+                border: 1px solid #ded3c3;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 6px 24px 6px 10px;
+                border-radius: 6px;
+            }
+            QMenu::item:selected {
+                background: #efe4d5;
+            }
+            """
+        )
 
         file_menu = menu_bar.addMenu("文件")
         refresh_action = QAction("刷新当前页面", self)
