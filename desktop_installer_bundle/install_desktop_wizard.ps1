@@ -289,24 +289,24 @@ if (Test-Path $InstallerBadgeFile) {
 $brandBadgeFrame.Controls.Add($brandBadge)
 
 $brandPill = New-Object System.Windows.Forms.Label
-$brandPill.Text = 'DESKTOP APP'
+$brandPill.Text = '桌面版'
 $brandPill.TextAlign = 'MiddleCenter'
 $brandPill.ForeColor = [System.Drawing.Color]::FromArgb(255, 246, 223)
 $brandPill.BackColor = [System.Drawing.Color]::FromArgb(64, 77, 103)
-$brandPill.Font = New-UiFont 8.6 ([System.Drawing.FontStyle]::Bold)
-$brandPill.Location = New-Object System.Drawing.Point(172, 64)
-$brandPill.Size = New-Object System.Drawing.Size(104, 26)
+$brandPill.Font = New-UiFont 9.6 ([System.Drawing.FontStyle]::Bold)
+$brandPill.Location = New-Object System.Drawing.Point(176, 68)
+$brandPill.Size = New-Object System.Drawing.Size(96, 30)
 $leftPanel.Controls.Add($brandPill)
 
 $brandInfoPanel = New-Object System.Windows.Forms.Panel
-$brandInfoPanel.Location = New-Object System.Drawing.Point(30, 186)
-$brandInfoPanel.Size = New-Object System.Drawing.Size(248, 136)
+$brandInfoPanel.Location = New-Object System.Drawing.Point(30, 182)
+$brandInfoPanel.Size = New-Object System.Drawing.Size(250, 150)
 $brandInfoPanel.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
 $leftPanel.Controls.Add($brandInfoPanel)
 
 $brandTitlePlate = New-Object System.Windows.Forms.Panel
-$brandTitlePlate.Location = New-Object System.Drawing.Point(6, 0)
-$brandTitlePlate.Size = New-Object System.Drawing.Size(224, 54)
+$brandTitlePlate.Location = New-Object System.Drawing.Point(8, 0)
+$brandTitlePlate.Size = New-Object System.Drawing.Size(228, 58)
 $brandTitlePlate.BackColor = [System.Drawing.Color]::FromArgb(14, 24, 40)
 $brandInfoPanel.Controls.Add($brandTitlePlate)
 
@@ -314,9 +314,9 @@ $brandTitle = New-Object System.Windows.Forms.Label
 $brandTitle.Text = $DisplayName
 $brandTitle.ForeColor = [System.Drawing.Color]::White
 $brandTitle.BackColor = $brandTitlePlate.BackColor
-$brandTitle.Font = New-UiFont 23 ([System.Drawing.FontStyle]::Bold)
-$brandTitle.Location = New-Object System.Drawing.Point(0, 0)
-$brandTitle.Size = New-Object System.Drawing.Size(224, 48)
+$brandTitle.Font = New-UiFont 21.2 ([System.Drawing.FontStyle]::Bold)
+$brandTitle.Location = New-Object System.Drawing.Point(0, 2)
+$brandTitle.Size = New-Object System.Drawing.Size(228, 50)
 $brandTitle.TextAlign = 'MiddleLeft'
 $brandTitlePlate.Controls.Add($brandTitle)
 
@@ -325,13 +325,13 @@ $brandSubtitle.Text = '中文安装向导'
 $brandSubtitle.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
 $brandSubtitle.BackColor = $brandInfoPanel.BackColor
 $brandSubtitle.Font = New-UiFont 10.8 ([System.Drawing.FontStyle]::Bold)
-$brandSubtitle.Location = New-Object System.Drawing.Point(8, 56)
-$brandSubtitle.Size = New-Object System.Drawing.Size(194, 25)
+$brandSubtitle.Location = New-Object System.Drawing.Point(10, 62)
+$brandSubtitle.Size = New-Object System.Drawing.Size(206, 25)
 $brandInfoPanel.Controls.Add($brandSubtitle)
 
 $brandDivider = New-Object System.Windows.Forms.Panel
-$brandDivider.Location = New-Object System.Drawing.Point(8, 86)
-$brandDivider.Size = New-Object System.Drawing.Size(188, 1)
+$brandDivider.Location = New-Object System.Drawing.Point(10, 92)
+$brandDivider.Size = New-Object System.Drawing.Size(196, 1)
 $brandDivider.BackColor = [System.Drawing.Color]::FromArgb(58, 74, 103)
 $brandInfoPanel.Controls.Add($brandDivider)
 
@@ -340,12 +340,12 @@ $brandSummary.Text = '为星阙提供更稳妥、更像正式商业软件的桌�
 $brandSummary.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
 $brandSummary.BackColor = $brandInfoPanel.BackColor
 $brandSummary.Font = New-UiFont 9.6
-$brandSummary.Location = New-Object System.Drawing.Point(8, 94)
-$brandSummary.Size = New-Object System.Drawing.Size(222, 36)
+$brandSummary.Location = New-Object System.Drawing.Point(10, 100)
+$brandSummary.Size = New-Object System.Drawing.Size(224, 44)
 $brandInfoPanel.Controls.Add($brandSummary)
 
 $featureCard = New-Object System.Windows.Forms.Panel
-$featureCard.Location = New-Object System.Drawing.Point(34, 344)
+$featureCard.Location = New-Object System.Drawing.Point(34, 356)
 $featureCard.Size = New-Object System.Drawing.Size(242, 146)
 $featureCard.BackColor = [System.Drawing.Color]::FromArgb(28, 40, 61)
 $featureCard.BorderStyle = 'None'
@@ -368,7 +368,7 @@ $featureList.Size = New-Object System.Drawing.Size(210, 92)
 $featureCard.Controls.Add($featureList)
 
 $dataCard = New-Object System.Windows.Forms.Panel
-$dataCard.Location = New-Object System.Drawing.Point(34, 510)
+$dataCard.Location = New-Object System.Drawing.Point(34, 520)
 $dataCard.Size = New-Object System.Drawing.Size(242, 112)
 $dataCard.BackColor = [System.Drawing.Color]::FromArgb(24, 34, 53)
 $dataCard.BorderStyle = 'None'
@@ -676,5 +676,12 @@ if ($env:HOROSA_DESKTOP_INSTALLER_SMOKE -eq '1') {
 
 Enable-ClearTextRendering -Control $form
 Enable-DoubleBuffer -Control $form
+foreach ($label in @($brandPill, $brandTitle, $brandSubtitle, $brandSummary)) {
+  if ($label.PSObject.Properties.Match('UseCompatibleTextRendering').Count -gt 0) {
+    try {
+      $label.UseCompatibleTextRendering = $false
+    } catch {}
+  }
+}
 
 [void]$form.ShowDialog()
