@@ -586,7 +586,7 @@ class MainWindow(QMainWindow):
 
         web_surface = QWidget(self)
         web_surface_layout = QVBoxLayout(web_surface)
-        web_surface_layout.setContentsMargins(18, 12, 18, 22)
+        web_surface_layout.setContentsMargins(6, 4, 6, 14)
         web_surface_layout.setSpacing(0)
         web_surface_layout.addWidget(self.web_view)
 
