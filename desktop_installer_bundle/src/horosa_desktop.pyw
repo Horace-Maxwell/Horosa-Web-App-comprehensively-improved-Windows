@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -22,10 +23,13 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngin
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QProgressBar,
     QStackedLayout,
@@ -192,6 +196,38 @@ def sha256_of_file(file_path: Path) -> str:
     return digest.hexdigest()
 
 
+def format_release_timestamp(value: str) -> str:
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return "未提供"
+    try:
+        stamp = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        return cleaned
+    return stamp.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+def release_notes_text(release: dict) -> str:
+    notes = (release.get("body") or "").replace("\r\n", "\n").strip()
+    return notes or "这个版本还没有填写更新日志。"
+
+
+def select_release_asset(release: dict, asset_prefixes: list[str]) -> tuple[Optional[dict], Optional[int]]:
+    assets = release.get("assets") or []
+    for priority, prefix in enumerate(asset_prefixes):
+        selected_asset = next(
+            (
+                item
+                for item in assets
+                if item.get("name", "").startswith(prefix) and item.get("name", "").lower().endswith(".zip")
+            ),
+            None,
+        )
+        if selected_asset:
+            return selected_asset, priority
+    return None, None
+
+
 def select_best_release(releases: list[dict], asset_prefixes: list[str]) -> Optional[dict]:
     best: Optional[dict] = None
     best_key: Optional[tuple[Version, str]] = None
@@ -209,21 +245,7 @@ def select_best_release(releases: list[dict], asset_prefixes: list[str]) -> Opti
         except InvalidVersion:
             continue
 
-        assets = release.get("assets") or []
-        selected_asset = None
-        selected_priority = None
-        for priority, prefix in enumerate(asset_prefixes):
-            selected_asset = next(
-                (
-                    item
-                    for item in assets
-                    if item.get("name", "").startswith(prefix) and item.get("name", "").lower().endswith(".zip")
-                ),
-                None,
-            )
-            if selected_asset:
-                selected_priority = priority
-                break
+        selected_asset, selected_priority = select_release_asset(release, asset_prefixes)
 
         if not selected_asset:
             continue
@@ -240,6 +262,46 @@ def select_best_release(releases: list[dict], asset_prefixes: list[str]) -> Opti
             best_key = current_key
 
     return best
+
+
+def collect_newer_releases(releases: list[dict], asset_prefixes: list[str], current_version: Version) -> list[dict]:
+    newer_releases: list[dict] = []
+
+    for release in releases:
+        if release.get("draft") or release.get("prerelease"):
+            continue
+
+        tag_name = (release.get("tag_name") or release.get("name") or "").strip()
+        if not tag_name:
+            continue
+
+        try:
+            parsed_version = normalize_version(tag_name)
+        except InvalidVersion:
+            continue
+
+        selected_asset, _ = select_release_asset(release, asset_prefixes)
+        if not selected_asset or parsed_version <= current_version:
+            continue
+
+        newer_releases.append(
+            {
+                "tag": release.get("tag_name", "") or tag_name,
+                "version": str(parsed_version),
+                "title": (release.get("name") or release.get("tag_name") or tag_name).strip(),
+                "published_at": release.get("published_at", ""),
+                "published_label": format_release_timestamp(release.get("published_at", "")),
+                "asset_name": selected_asset.get("name", ""),
+                "html_url": release.get("html_url", ""),
+                "notes": release_notes_text(release),
+                "_sort_key": (parsed_version, release.get("published_at") or ""),
+            }
+        )
+
+    newer_releases.sort(key=lambda item: item["_sort_key"])
+    for item in newer_releases:
+        item.pop("_sort_key", None)
+    return newer_releases
 
 
 class AppSignals(QObject):
@@ -403,7 +465,8 @@ class GitHubUpdater(QObject):
         self.user_root = user_root
         self.signals = signals
         self.config = json.loads((data_root / "src" / "app_release_config.json").read_text(encoding="utf-8"))
-        self.current_version = normalize_version(app_version(data_root))
+        self.current_version_text = app_version(data_root)
+        self.current_version = normalize_version(self.current_version_text)
 
     def check_async(self) -> None:
         threading.Thread(target=self._check, daemon=True).start()
@@ -423,21 +486,28 @@ class GitHubUpdater(QObject):
 
             if not best:
                 self.signals.update_check_error.emit(
-                    "No published GitHub release with a supported Horosa update asset was found."
+                    "未找到包含受支持更新包的已发布 GitHub Release。"
                 )
                 return
 
             release = best["release"]
             asset = best["asset"]
             parsed_version = best["parsed_version"]
+            newer_releases = collect_newer_releases(releases, asset_prefixes, self.current_version)
             result = {
+                "current_version": self.current_version_text,
                 "latest_tag": release.get("tag_name", ""),
                 "latest_version": str(parsed_version),
+                "latest_name": (release.get("name") or release.get("tag_name") or str(parsed_version)).strip(),
+                "latest_notes": release_notes_text(release),
                 "html_url": release.get("html_url", self.config["release_page"]),
+                "release_page": self.config["release_page"],
                 "download_url": asset.get("browser_download_url", ""),
                 "asset_name": asset.get("name", ""),
                 "asset_digest": asset.get("digest", ""),
                 "published_at": release.get("published_at", ""),
+                "published_label": format_release_timestamp(release.get("published_at", "")),
+                "newer_releases": newer_releases,
                 "has_update": parsed_version > self.current_version,
             }
 
@@ -530,6 +600,224 @@ class ZoomableWebView(QWebEngineView):
                 event.accept()
                 return
         super().wheelEvent(event)
+
+
+class UpdateInfoDialog(QDialog):
+    def __init__(self, parent: QWidget, payload: dict, make_font: Callable[[float, QFont.Weight], QFont]) -> None:
+        super().__init__(parent)
+        self.payload = payload
+        self.make_font = make_font
+        self.setObjectName("UpdateInfoDialog")
+        self.setModal(True)
+        self.setWindowTitle(f"{DISPLAY_NAME} 更新检查")
+        self.resize(760, 620)
+        self.setStyleSheet(
+            """
+            QDialog#UpdateInfoDialog {
+                background: #f7f1e7;
+            }
+            QFrame#UpdateHeaderCard, QFrame#UpdateNotesCard {
+                background: rgba(255, 251, 245, 0.98);
+                border: 1px solid #e5d7c2;
+                border-radius: 24px;
+            }
+            QLabel#UpdateEyebrow {
+                color: #8a6528;
+                background: #f3e3c5;
+                border-radius: 12px;
+                padding: 6px 14px;
+            }
+            QLabel#UpdateTitle {
+                color: #1f1913;
+            }
+            QLabel#UpdateSummary {
+                color: #5f513f;
+                line-height: 1.5;
+            }
+            QLabel#UpdateNotesTitle {
+                color: #2c241b;
+            }
+            QPlainTextEdit#ReleaseNotesBox {
+                background: #fbf7f0;
+                border: 1px solid #e8dcc9;
+                border-radius: 18px;
+                padding: 12px;
+                color: #3b3024;
+                selection-background-color: #d9b36c;
+            }
+            QPushButton {
+                min-height: 38px;
+                padding: 0 18px;
+                border-radius: 18px;
+            }
+            QPushButton#PrimaryAction {
+                background: #201b15;
+                color: #fffaf3;
+                border: none;
+            }
+            QPushButton#PrimaryAction:hover {
+                background: #30271f;
+            }
+            QPushButton#SecondaryAction {
+                background: #efe4d5;
+                color: #2b231b;
+                border: 1px solid #dfcfb9;
+            }
+            QPushButton#SecondaryAction:hover {
+                background: #e5d7c4;
+            }
+            """
+        )
+
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(22, 22, 22, 20)
+        root_layout.setSpacing(16)
+
+        header_card = QFrame(self)
+        header_card.setObjectName("UpdateHeaderCard")
+        header_layout = QVBoxLayout(header_card)
+        header_layout.setContentsMargins(26, 24, 26, 24)
+        header_layout.setSpacing(14)
+
+        eyebrow = QLabel("版本检查结果", header_card)
+        eyebrow.setObjectName("UpdateEyebrow")
+        eyebrow.setAlignment(Qt.AlignCenter)
+        eyebrow.setFont(self.make_font(10.5, QFont.Weight.DemiBold))
+
+        title = QLabel(self._dialog_title(), header_card)
+        title.setObjectName("UpdateTitle")
+        title.setWordWrap(True)
+        title.setFont(self.make_font(21, QFont.Weight.Bold))
+
+        summary = QLabel(self._summary_text(), header_card)
+        summary.setObjectName("UpdateSummary")
+        summary.setWordWrap(True)
+        summary.setTextFormat(Qt.PlainText)
+        summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        summary.setFont(self.make_font(11.5, QFont.Weight.Medium))
+
+        header_layout.addWidget(eyebrow, alignment=Qt.AlignLeft)
+        header_layout.addWidget(title)
+        header_layout.addWidget(summary)
+
+        notes_card = QFrame(self)
+        notes_card.setObjectName("UpdateNotesCard")
+        notes_layout = QVBoxLayout(notes_card)
+        notes_layout.setContentsMargins(24, 22, 24, 22)
+        notes_layout.setSpacing(12)
+
+        notes_title = QLabel(self._notes_title(), notes_card)
+        notes_title.setObjectName("UpdateNotesTitle")
+        notes_title.setFont(self.make_font(12.5, QFont.Weight.DemiBold))
+
+        notes_box = QPlainTextEdit(notes_card)
+        notes_box.setObjectName("ReleaseNotesBox")
+        notes_box.setReadOnly(True)
+        notes_box.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        notes_box.setPlainText(self._notes_text())
+        notes_box.setFont(self.make_font(10.5, QFont.Weight.Medium))
+
+        notes_layout.addWidget(notes_title)
+        notes_layout.addWidget(notes_box, 1)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(10)
+        button_row.addStretch(1)
+
+        release_button = QPushButton("打开 Release 页面", self)
+        release_button.setObjectName("SecondaryAction")
+        release_button.setFont(self.make_font(10.5, QFont.Weight.DemiBold))
+        release_button.clicked.connect(self._open_release_page)
+        button_row.addWidget(release_button)
+
+        close_text = "稍后再说" if self.payload.get("has_update") else "知道了"
+        close_button = QPushButton(close_text, self)
+        close_button.setObjectName("SecondaryAction")
+        close_button.setFont(self.make_font(10.5, QFont.Weight.DemiBold))
+        close_button.clicked.connect(self.reject)
+        button_row.addWidget(close_button)
+
+        if self.payload.get("has_update"):
+            update_button = QPushButton("立即更新", self)
+            update_button.setObjectName("PrimaryAction")
+            update_button.setFont(self.make_font(10.5, QFont.Weight.DemiBold))
+            update_button.clicked.connect(self.accept)
+            update_button.setDefault(True)
+            button_row.addWidget(update_button)
+        else:
+            close_button.setDefault(True)
+
+        root_layout.addWidget(header_card)
+        root_layout.addWidget(notes_card, 1)
+        root_layout.addLayout(button_row)
+
+    def _dialog_title(self) -> str:
+        if self.payload.get("has_update"):
+            return f"发现可更新版本：{self.payload.get('latest_tag') or self.payload.get('latest_version')}"
+        return f"{DISPLAY_NAME} 已是最新版本"
+
+    def _summary_text(self) -> str:
+        current_version = self.payload.get("current_version", "未提供")
+        latest_version = self.payload.get("latest_tag") or self.payload.get("latest_version") or "未提供"
+        latest_name = self.payload.get("latest_name") or latest_version
+        published_label = self.payload.get("published_label") or "未提供"
+        newer_releases = self.payload.get("newer_releases") or []
+
+        if newer_releases:
+            version_list = "、".join(item.get("tag") or item.get("version") or "" for item in newer_releases)
+        else:
+            version_list = "无"
+
+        status_line = "可更新到最新发布版本" if self.payload.get("has_update") else "当前已经是最新发布版本"
+        return (
+            f"当前版本：{current_version}\n"
+            f"最新版本：{latest_version}\n"
+            f"发布名称：{latest_name}\n"
+            f"检查结果：{status_line}\n"
+            f"发布时间：{published_label}\n"
+            f"可升级版本：{version_list}"
+        )
+
+    def _notes_title(self) -> str:
+        if self.payload.get("has_update"):
+            count = len(self.payload.get("newer_releases") or [])
+            return f"更新内容与日志（{count} 个版本）"
+        return "最新版本更新日志"
+
+    def _notes_text(self) -> str:
+        newer_releases = self.payload.get("newer_releases") or []
+        if newer_releases:
+            blocks = []
+            for index, release in enumerate(newer_releases, start=1):
+                title = release.get("title") or release.get("tag") or release.get("version") or "未命名版本"
+                tag = release.get("tag") or release.get("version") or "未提供"
+                published = release.get("published_label") or "未提供"
+                asset_name = release.get("asset_name") or "未提供"
+                notes = release.get("notes") or "这个版本还没有填写更新日志。"
+                blocks.append(
+                    f"{index}. {title}\n"
+                    f"版本标记：{tag}\n"
+                    f"发布时间：{published}\n"
+                    f"更新包：{asset_name}\n\n"
+                    f"{notes.strip()}"
+                )
+            return ("\n\n" + ("-" * 56) + "\n\n").join(blocks)
+
+        latest_name = self.payload.get("latest_name") or self.payload.get("latest_tag") or "当前版本"
+        latest_tag = self.payload.get("latest_tag") or self.payload.get("latest_version") or "未提供"
+        notes = self.payload.get("latest_notes") or "这个版本还没有填写更新日志。"
+        published = self.payload.get("published_label") or "未提供"
+        return (
+            f"{latest_name}\n"
+            f"版本标记：{latest_tag}\n"
+            f"发布时间：{published}\n\n"
+            f"{notes.strip()}"
+        )
+
+    def _open_release_page(self) -> None:
+        url = self.payload.get("html_url") or self.payload.get("release_page")
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
 
 
 class MainWindow(QMainWindow):
@@ -1024,27 +1312,15 @@ class MainWindow(QMainWindow):
         self.updater.check_async()
 
     def _handle_update_info(self, payload: dict) -> None:
+        dialog = UpdateInfoDialog(self, payload, self._make_ui_font)
+
         if not payload.get("has_update"):
-            QMessageBox.information(self, DISPLAY_NAME, "当前已经是最新的已发布版本。")
+            dialog.exec()
             self.status_bar.showMessage("当前没有可用更新。")
             return
 
-        latest_tag = payload.get("latest_tag", "")
-        asset_name = payload.get("asset_name", "")
-        reply = QMessageBox.question(
-            self,
-            DISPLAY_NAME,
-            (
-                f"发现新版本：{latest_tag}\n\n"
-                f"发布包：{asset_name}\n\n"
-                f"{DISPLAY_NAME} 会先下载它，再替换当前程序文件并自动重新打开。"
-                "保存在 LocalAppData 中的用户数据不会被触碰。\n\n"
-                "要继续吗？"
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
-        )
-        if reply == QMessageBox.Yes:
+        if dialog.exec() == QDialog.Accepted:
+            latest_tag = payload.get("latest_tag", "")
             self.stack.setCurrentIndex(0)
             self.loading_progress.setRange(0, 100)
             self.loading_progress.setValue(0)
@@ -1053,7 +1329,7 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(f"正在下载更新 {latest_tag}...")
             self.updater.download_async(payload)
         else:
-            self.status_bar.showMessage("已取消更新。")
+            self.status_bar.showMessage("已查看更新信息，暂未开始更新。")
 
     def _show_download_progress(self, current: int, total: int) -> None:
         if total > 0:
