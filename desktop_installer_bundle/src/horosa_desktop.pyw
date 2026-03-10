@@ -855,6 +855,23 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
+        self.status_bar.setSizeGripEnabled(False)
+        self.status_bar.setFont(self._make_ui_font(7.8, QFont.Weight.Medium))
+        self.status_bar.setStyleSheet(
+            """
+            QStatusBar {
+                background: #faf7f1;
+                color: #4c4439;
+                border-top: 1px solid #ddd4c6;
+                min-height: 14px;
+                max-height: 14px;
+                padding: 0 6px;
+            }
+            QStatusBar::item {
+                border: none;
+            }
+            """
+        )
         self.status_bar.showMessage(f"正在准备 {DISPLAY_NAME}...")
 
         profile_root = self.user_root / "qt-profile"
@@ -875,7 +892,7 @@ class MainWindow(QMainWindow):
 
         web_surface = QWidget(self)
         web_surface_layout = QVBoxLayout(web_surface)
-        web_surface_layout.setContentsMargins(6, 4, 6, 14)
+        web_surface_layout.setContentsMargins(2, 0, 2, 2)
         web_surface_layout.setSpacing(0)
         web_surface_layout.addWidget(self.web_view)
 
@@ -1035,6 +1052,8 @@ class MainWindow(QMainWindow):
 
         central = QWidget(self)
         self.stack = QStackedLayout(central)
+        self.stack.setContentsMargins(0, 0, 0, 0)
+        self.stack.setSpacing(0)
         self.stack.addWidget(loading_widget)
         self.stack.addWidget(web_surface)
         self.setCentralWidget(central)
@@ -1107,11 +1126,11 @@ class MainWindow(QMainWindow):
                 background: #f7f3ec;
                 border-bottom: 1px solid #ddd4c6;
                 spacing: 1px;
-                padding: 0 4px 0 4px;
-                min-height: 18px;
+                padding: 0 2px 0 2px;
+                min-height: 16px;
             }
             QMenuBar::item {
-                padding: 1px 8px;
+                padding: 0 8px;
                 margin: 0;
                 background: transparent;
                 border-radius: 4px;
