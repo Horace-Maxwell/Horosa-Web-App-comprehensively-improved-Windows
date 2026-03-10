@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 
 ORG_NAME = "Horosa"
 APP_NAME = "Horosa Desktop"
+DISPLAY_NAME = "星阙"
 STARTUP_TIMEOUT_SECONDS = 240
 CREATE_NO_WINDOW = 0x08000000
 DETACHED_PROCESS = 0x00000008
@@ -285,7 +286,7 @@ class LauncherController(QObject):
         self.stop_requested = False
         self.ready_url = None
         self.launch_started_at = time.time()
-        self.signals.status.emit("正在启动 Horosa 服务...")
+        self.signals.status.emit(f"正在启动{DISPLAY_NAME}服务...")
 
         self.process = subprocess.Popen(
             [
@@ -344,7 +345,7 @@ class LauncherController(QObject):
                 elif "Started (no-browser mode):" in line:
                     url = line.split("Started (no-browser mode):", 1)[1].strip()
                     self.ready_url = url
-                    self.signals.status.emit("正在加载 Horosa 窗口...")
+                    self.signals.status.emit(f"正在加载{DISPLAY_NAME}窗口...")
                     self.signals.ready.emit(url)
                 elif line.startswith("Startup failed:"):
                     failure_message = line.split(":", 1)[1].strip()
@@ -554,7 +555,7 @@ class MainWindow(QMainWindow):
         self.ui_font_family = preferred_ui_font_family()
         self.zoom_factor = resolve_initial_zoom_factor(self.settings)
 
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(DISPLAY_NAME)
         self.resize(1540, 960)
         self._build_ui()
         self._build_menu()
@@ -565,7 +566,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("正在准备 Horosa Desktop...")
+        self.status_bar.showMessage(f"正在准备 {DISPLAY_NAME}...")
 
         profile_root = self.user_root / "qt-profile"
         cache_root = self.user_root / "qt-cache"
@@ -716,7 +717,7 @@ class MainWindow(QMainWindow):
         self.loading_hint.setMaximumWidth(560)
         self.loading_hint.setFont(self._make_ui_font(11, QFont.Weight.Medium))
 
-        self.retry_button = QPushButton("重新启动 Horosa", loading_card)
+        self.retry_button = QPushButton(f"重新启动{DISPLAY_NAME}", loading_card)
         self.retry_button.setObjectName("RetryButton")
         self.retry_button.setFont(self._make_ui_font(11.5, QFont.Weight.DemiBold))
         self.retry_button.clicked.connect(self._restart_services)
@@ -751,21 +752,21 @@ class MainWindow(QMainWindow):
         scenes = {
             "startup": {
                 "eyebrow": "桌面工作区",
-                "title": "正在打开 Horosa Desktop",
+                "title": f"正在打开 {DISPLAY_NAME}",
                 "subtitle": "正在恢复本地桌面环境、连接服务，并回到你上次的使用状态。",
                 "phase": "启动中",
                 "hint": "通常只需几秒钟。这是应用启动页面，不会重新执行安装，也不会影响你的本地数据。",
             },
             "restart": {
                 "eyebrow": "重新连接",
-                "title": "正在重新连接 Horosa Desktop",
+                "title": f"正在重新连接 {DISPLAY_NAME}",
                 "subtitle": "正在重启本地服务并恢复桌面窗口，请稍候片刻。",
                 "phase": "处理中",
                 "hint": "如果刚刚出现异常，这是最快的恢复方式之一。",
             },
             "update": {
                 "eyebrow": "版本更新",
-                "title": "正在更新 Horosa Desktop",
+                "title": f"正在更新 {DISPLAY_NAME}",
                 "subtitle": "新版正在下载并准备替换当前程序文件，你的本地数据会被完整保留。",
                 "phase": "下载中",
                 "hint": "下载完成后，应用会自动关闭、替换文件，并恢复到你当前的桌面状态。",
@@ -773,13 +774,13 @@ class MainWindow(QMainWindow):
             "apply": {
                 "eyebrow": "版本更新",
                 "title": "正在应用更新",
-                "subtitle": "正在替换程序文件并准备重新打开 Horosa Desktop。",
+                "subtitle": f"正在替换程序文件并准备重新打开 {DISPLAY_NAME}。",
                 "phase": "即将重启",
                 "hint": "这个过程不会重新安装应用，也不会清空你的本地使用数据。",
             },
             "error": {
                 "eyebrow": "需要处理",
-                "title": "Horosa Desktop 未能完成启动",
+                "title": f"{DISPLAY_NAME} 未能完成启动",
                 "subtitle": "可以尝试重新启动服务，或打开本地日志继续排查。",
                 "phase": "启动失败",
                 "hint": "如果问题持续出现，请把桌面日志提供给开发者进一步定位。",
@@ -811,7 +812,7 @@ class MainWindow(QMainWindow):
         refresh_action.triggered.connect(self.web_view.reload)
         file_menu.addAction(refresh_action)
 
-        restart_action = QAction("重新启动 Horosa 服务", self)
+        restart_action = QAction(f"重新启动{DISPLAY_NAME}服务", self)
         restart_action.triggered.connect(self._restart_services)
         file_menu.addAction(restart_action)
 
@@ -909,7 +910,7 @@ class MainWindow(QMainWindow):
         if ok:
             self.stack.setCurrentIndex(1)
             self.retry_button.hide()
-            self.status_bar.showMessage("Horosa Desktop 已就绪。")
+            self.status_bar.showMessage(f"{DISPLAY_NAME} 已就绪。")
             if smoke_test_enabled():
                 smoke_dir = self.user_root / "runtime-logs"
                 smoke_dir.mkdir(parents=True, exist_ok=True)
@@ -939,7 +940,7 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(message)
         QMessageBox.critical(
             self,
-            APP_NAME,
+            DISPLAY_NAME,
             f"{message}\n\n桌面日志位置：\n{self.user_root / 'runtime-logs'}",
         )
 
@@ -947,8 +948,8 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(0)
         self.loading_progress.setRange(0, 0)
         self.retry_button.hide()
-        self._set_loading_scene("restart", "正在重新启动 Horosa 服务...")
-        self.status_bar.showMessage("正在重新启动 Horosa 服务...")
+        self._set_loading_scene("restart", f"正在重新启动{DISPLAY_NAME}服务...")
+        self.status_bar.showMessage(f"正在重新启动{DISPLAY_NAME}服务...")
         self.launcher.restart()
 
     def _open_logs(self) -> None:
@@ -969,11 +970,11 @@ class MainWindow(QMainWindow):
     def _show_about(self) -> None:
         QMessageBox.information(
             self,
-            APP_NAME,
+            DISPLAY_NAME,
             (
-                f"{APP_NAME}\n"
+                f"{DISPLAY_NAME}\n"
                 f"版本：{app_version(self.data_root)}\n\n"
-                "Horosa Desktop 会在原生桌面窗口中运行 Horosa，"
+                f"{DISPLAY_NAME} 会在原生桌面窗口中运行 Horosa，"
                 "把用户数据保存在 LocalAppData，并支持从已发布的 GitHub Release 自动更新。"
             ),
         )
@@ -984,7 +985,7 @@ class MainWindow(QMainWindow):
 
     def _handle_update_info(self, payload: dict) -> None:
         if not payload.get("has_update"):
-            QMessageBox.information(self, APP_NAME, "当前已经是最新的已发布版本。")
+            QMessageBox.information(self, DISPLAY_NAME, "当前已经是最新的已发布版本。")
             self.status_bar.showMessage("当前没有可用更新。")
             return
 
@@ -992,11 +993,11 @@ class MainWindow(QMainWindow):
         asset_name = payload.get("asset_name", "")
         reply = QMessageBox.question(
             self,
-            APP_NAME,
+            DISPLAY_NAME,
             (
                 f"发现新版本：{latest_tag}\n\n"
                 f"发布包：{asset_name}\n\n"
-                "Horosa Desktop 会先下载它，再替换当前程序文件并自动重新打开。"
+                f"{DISPLAY_NAME} 会先下载它，再替换当前程序文件并自动重新打开。"
                 "保存在 LocalAppData 中的用户数据不会被触碰。\n\n"
                 "要继续吗？"
             ),
@@ -1032,10 +1033,10 @@ class MainWindow(QMainWindow):
         self._save_window_settings()
         QMessageBox.information(
             self,
-            APP_NAME,
+            DISPLAY_NAME,
             (
                 f"更新 {payload['version_label']} 已完成下载。\n\n"
-                "Horosa Desktop 现在会关闭当前窗口、替换程序文件，并恢复到相同的桌面状态。"
+                f"{DISPLAY_NAME} 现在会关闭当前窗口、替换程序文件，并恢复到相同的桌面状态。"
             ),
         )
         self.status_bar.showMessage("正在应用更新...")
@@ -1053,11 +1054,11 @@ class MainWindow(QMainWindow):
         if not self.current_url:
             self._set_loading_scene("error", message)
         self.status_bar.showMessage(message)
-        QMessageBox.warning(self, APP_NAME, message)
+        QMessageBox.warning(self, DISPLAY_NAME, message)
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self._save_window_settings()
-        self.status_bar.showMessage("正在停止 Horosa 服务...")
+        self.status_bar.showMessage(f"正在停止{DISPLAY_NAME}服务...")
         self.launcher.stop()
         super().closeEvent(event)
 
@@ -1073,6 +1074,7 @@ def main() -> int:
     qt_app = QApplication(sys.argv)
     qt_app.setOrganizationName(ORG_NAME)
     qt_app.setApplicationName(APP_NAME)
+    qt_app.setApplicationDisplayName(DISPLAY_NAME)
     app_font = qt_app.font()
     app_font_family = preferred_ui_font_family()
     if app_font_family:
