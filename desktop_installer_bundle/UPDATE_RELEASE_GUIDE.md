@@ -29,6 +29,7 @@ Why this is reliable:
 - The updater downloads that zip, overlays the installed app files, preserves user data stored in `%LocalAppData%\HorosaDesktop`, and relaunches the desktop app automatically.
 - The release workflow fails fast if the pushed git tag does not exactly match `version.json`, so users will not miss an update because of a mismatched version string.
 - The offline desktop dependency wheels live in Git LFS, so the release workflow can fetch the same large Windows wheels that the installer expects without breaking normal Git pushes.
+- The release workflow runs on Linux to avoid Windows checkout path-length failures while still producing the same portable Windows update zip.
 
 Best practice:
 - Keep tags monotonic, for example `2026.03.10.1`, `2026.03.11.1`, `2026.03.11.2`.
