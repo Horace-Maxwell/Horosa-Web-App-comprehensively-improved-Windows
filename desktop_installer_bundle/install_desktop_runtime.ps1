@@ -11,16 +11,6 @@ $Wheelhouse = Join-Path $ScriptRoot 'wheelhouse'
 $InstallStateFile = Join-Path $DepsRoot 'install_state.json'
 $DisplayName = '星阙'
 
-if (-not (Test-Path $PythonExe)) {
-  throw "Bundled Python not found: $PythonExe"
-}
-
-if (-not (Test-Path $ReqFile)) {
-  throw "Runtime requirements file not found: $ReqFile"
-}
-
-New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ProgressFile) | Out-Null
-
 function Write-InstallProgress {
   param(
     [string]$State,
@@ -28,6 +18,13 @@ function Write-InstallProgress {
     [string]$Message,
     [int]$Percent
   )
+
+  @(
+    Split-Path -Parent $ProgressFile,
+    $DepsRoot
+  ) | Where-Object { $_ } | Select-Object -Unique | ForEach-Object {
+    New-Item -ItemType Directory -Force -Path $_ | Out-Null
+  }
 
   @{
     state = $State
@@ -37,6 +34,18 @@ function Write-InstallProgress {
     updatedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
   } | ConvertTo-Json | Set-Content -Path $ProgressFile -Encoding UTF8
 }
+
+if (-not (Test-Path $PythonExe)) {
+  Write-InstallProgress -State 'error' -Title '安装失败' -Message "安装包缺少内置 Python 运行时：$PythonExe`r`n请重新下载最新官方 Release 压缩包并完整解压后再安装。" -Percent 100
+  throw "Bundled Python not found: $PythonExe"
+}
+
+if (-not (Test-Path $ReqFile)) {
+  Write-InstallProgress -State 'error' -Title '安装失败' -Message "安装包缺少运行环境依赖清单：$ReqFile" -Percent 100
+  throw "Runtime requirements file not found: $ReqFile"
+}
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ProgressFile) | Out-Null
 
 $versionInfo = Get-Content -Raw (Join-Path $ScriptRoot 'version.json') | ConvertFrom-Json
 $targetVersion = [string]$versionInfo.version

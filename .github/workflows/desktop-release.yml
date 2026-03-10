@@ -19,7 +19,7 @@ env:
 
 jobs:
   release-desktop:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
@@ -40,6 +40,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare Windows runtime payload
+        shell: pwsh
+        env:
+          HOROSA_JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: |
+          ./prepareruntime/Prepare_Runtime_Windows.ps1
 
       - name: Resolve release title
         shell: python
