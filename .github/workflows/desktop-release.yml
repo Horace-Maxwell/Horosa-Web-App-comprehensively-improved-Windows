@@ -63,7 +63,21 @@ jobs:
       - name: Prepare Windows runtime payload
         shell: pwsh
         run: |
-          ./prepareruntime/Prepare_Runtime_Windows.ps1
+          $logPath = Join-Path $env:RUNNER_TEMP 'prepare-runtime.log'
+          try {
+            & ./prepareruntime/Prepare_Runtime_Windows.ps1 *>&1 | Tee-Object -FilePath $logPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Prepare_Runtime_Windows.ps1 exited with code $LASTEXITCODE"
+            }
+          } catch {
+            $message = $_.Exception.Message -replace '\r|\n', ' '
+            Write-Output "::error title=Prepare runtime failed::$message"
+            if (Test-Path $logPath) {
+              Write-Host '---- prepare-runtime log tail ----'
+              Get-Content $logPath -Tail 200
+            }
+            throw
+          }
 
       - name: Resolve release title
         shell: python
