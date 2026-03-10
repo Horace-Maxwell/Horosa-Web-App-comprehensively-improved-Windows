@@ -811,19 +811,19 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         menu_bar = self.menuBar()
-        menu_bar.setFont(self._make_ui_font(9.2, QFont.Weight.Medium))
+        menu_bar.setFont(self._make_ui_font(8.6, QFont.Weight.Medium))
         menu_bar.setStyleSheet(
             """
             QMenuBar {
                 background: #f7f3ec;
                 border-bottom: 1px solid #ddd4c6;
                 spacing: 2px;
-                padding: 0 8px 0 8px;
-                min-height: 26px;
+                padding: 0 6px 0 6px;
+                min-height: 22px;
             }
             QMenuBar::item {
-                padding: 4px 10px;
-                margin: 1px 2px;
+                padding: 2px 9px;
+                margin: 0 1px;
                 background: transparent;
                 border-radius: 6px;
             }
