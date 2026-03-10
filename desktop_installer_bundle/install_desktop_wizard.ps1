@@ -27,8 +27,14 @@ function New-HorosaShortcut {
     [string]$IconPath
   )
 
+  $shortcutDir = Split-Path -Parent $ShortcutPath
+  if (-not (Test-Path $shortcutDir)) {
+    New-Item -ItemType Directory -Force -Path $shortcutDir | Out-Null
+  }
+
+  $tempShortcutPath = Join-Path $shortcutDir ("Xingque-{0}.lnk" -f ([guid]::NewGuid().ToString('N')))
   $shell = New-Object -ComObject WScript.Shell
-  $shortcut = $shell.CreateShortcut($ShortcutPath)
+  $shortcut = $shell.CreateShortcut($tempShortcutPath)
   $shortcut.TargetPath = $TargetPath
   $shortcut.WorkingDirectory = $WorkingDirectory
   if (Test-Path $IconPath) {
@@ -37,6 +43,11 @@ function New-HorosaShortcut {
   $shortcut.WindowStyle = 1
   $shortcut.Description = $DisplayName
   $shortcut.Save()
+
+  if (Test-Path $ShortcutPath) {
+    Remove-Item -Force $ShortcutPath
+  }
+  Move-Item -Path $tempShortcutPath -Destination $ShortcutPath -Force
 }
 
 function Ensure-Shortcuts {
