@@ -62,3 +62,9 @@ modules/
 /docs/reference-kit/
 /runtime/
 /local/workspace/Horosa-Web-*/runtime/
+
+# Desktop bundle build outputs
+desktop_installer_bundle/build/
+desktop_installer_bundle/dist/
+desktop_installer_bundle/release/
+desktop_installer_bundle/src/__pycache__/
