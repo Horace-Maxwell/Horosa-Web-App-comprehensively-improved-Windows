@@ -52,6 +52,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
+    icon=str(project_root / "assets" / "horosa_setup.ico"),
 )
 coll = COLLECT(
     exe,
