@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Windows.Forms
+﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
@@ -127,7 +127,7 @@ function Set-StageVisual {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'Horosa Desktop Setup'
+$form.Text = 'Horosa Desktop 安装程序'
 $form.StartPosition = 'CenterScreen'
 $form.Size = New-Object System.Drawing.Size(820, 540)
 $form.MinimumSize = $form.Size
@@ -179,7 +179,7 @@ $brandTitle.AutoSize = $true
 $leftPanel.Controls.Add($brandTitle)
 
 $brandSubtitle = New-Object System.Windows.Forms.Label
-$brandSubtitle.Text = 'SETUP WIZARD'
+$brandSubtitle.Text = '安装向导'
 $brandSubtitle.ForeColor = [System.Drawing.Color]::FromArgb(214, 223, 235)
 $brandSubtitle.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
 $brandSubtitle.Location = New-Object System.Drawing.Point(30, 186)
@@ -187,7 +187,7 @@ $brandSubtitle.Size = New-Object System.Drawing.Size(180, 20)
 $leftPanel.Controls.Add($brandSubtitle)
 
 $featureLabel = New-Object System.Windows.Forms.Label
-$featureLabel.Text = "What setup prepares:`r`n`r`n- Native desktop shell`r`n- Hidden local services`r`n- Desktop and Start Menu shortcuts`r`n- Reliable GitHub update support"
+$featureLabel.Text = "本次安装将准备：`r`n`r`n- 原生桌面窗口外壳`r`n- 隐藏运行的本地服务`r`n- 桌面和开始菜单快捷方式`r`n- 稳定的 GitHub 更新支持"
 $featureLabel.ForeColor = [System.Drawing.Color]::FromArgb(225, 231, 240)
 $featureLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
 $featureLabel.Location = New-Object System.Drawing.Point(30, 234)
@@ -195,7 +195,7 @@ $featureLabel.Size = New-Object System.Drawing.Size(196, 168)
 $leftPanel.Controls.Add($featureLabel)
 
 $railNote = New-Object System.Windows.Forms.Label
-$railNote.Text = 'Your user data stays in LocalAppData so future updates can replace the app files without wiping your desktop state.'
+$railNote.Text = '你的用户数据会保存在 LocalAppData 中，因此以后更新时替换程序文件也不会清空桌面状态。'
 $railNote.ForeColor = [System.Drawing.Color]::FromArgb(203, 214, 229)
 $railNote.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $railNote.Location = New-Object System.Drawing.Point(30, 420)
@@ -203,7 +203,7 @@ $railNote.Size = New-Object System.Drawing.Size(196, 52)
 $leftPanel.Controls.Add($railNote)
 
 $versionLabel = New-Object System.Windows.Forms.Label
-$versionLabel.Text = "Version " + $VersionInfo.version
+$versionLabel.Text = "版本 " + $VersionInfo.version
 $versionLabel.ForeColor = [System.Drawing.Color]::FromArgb(157, 177, 204)
 $versionLabel.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $versionLabel.Location = New-Object System.Drawing.Point(30, 496)
@@ -211,7 +211,7 @@ $versionLabel.AutoSize = $true
 $leftPanel.Controls.Add($versionLabel)
 
 $headline = New-Object System.Windows.Forms.Label
-$headline.Text = 'Welcome to Horosa Desktop Setup'
+$headline.Text = '欢迎使用 Horosa Desktop 安装程序'
 $headline.Font = New-Object System.Drawing.Font('Segoe UI', 20, [System.Drawing.FontStyle]::Bold)
 $headline.ForeColor = [System.Drawing.Color]::FromArgb(28, 33, 40)
 $headline.AutoSize = $true
@@ -219,7 +219,7 @@ $headline.Location = New-Object System.Drawing.Point(0, 0)
 $rightPanel.Controls.Add($headline)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = 'This setup installs the desktop runtime, adds standard Windows shortcuts, and keeps your data outside the app folder so future updates stay clean.'
+$subtitle.Text = '该安装程序会配置桌面运行环境、创建标准 Windows 快捷方式，并将你的数据保存在应用目录之外，方便以后安全更新。'
 $subtitle.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $subtitle.Location = New-Object System.Drawing.Point(0, 46)
@@ -227,7 +227,7 @@ $subtitle.Size = New-Object System.Drawing.Size(460, 42)
 $rightPanel.Controls.Add($subtitle)
 
 $stageWelcome = New-Object System.Windows.Forms.Label
-$stageWelcome.Text = '1  Welcome'
+$stageWelcome.Text = '1  欢迎'
 $stageWelcome.TextAlign = 'MiddleCenter'
 $stageWelcome.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $stageWelcome.ForeColor = [System.Drawing.Color]::White
@@ -237,7 +237,7 @@ $stageWelcome.Size = New-Object System.Drawing.Size(118, 28)
 $rightPanel.Controls.Add($stageWelcome)
 
 $stageInstall = New-Object System.Windows.Forms.Label
-$stageInstall.Text = '2  Install'
+$stageInstall.Text = '2  安装'
 $stageInstall.TextAlign = 'MiddleCenter'
 $stageInstall.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $stageInstall.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
@@ -247,7 +247,7 @@ $stageInstall.Size = New-Object System.Drawing.Size(110, 28)
 $rightPanel.Controls.Add($stageInstall)
 
 $stageFinish = New-Object System.Windows.Forms.Label
-$stageFinish.Text = '3  Finish'
+$stageFinish.Text = '3  完成'
 $stageFinish.TextAlign = 'MiddleCenter'
 $stageFinish.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $stageFinish.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
@@ -257,7 +257,7 @@ $stageFinish.Size = New-Object System.Drawing.Size(110, 28)
 $rightPanel.Controls.Add($stageFinish)
 
 $stepTitle = New-Object System.Windows.Forms.Label
-$stepTitle.Text = 'Ready to install'
+$stepTitle.Text = '准备开始安装'
 $stepTitle.Font = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
 $stepTitle.ForeColor = [System.Drawing.Color]::FromArgb(31, 41, 55)
 $stepTitle.Location = New-Object System.Drawing.Point(0, 146)
@@ -265,7 +265,7 @@ $stepTitle.AutoSize = $true
 $rightPanel.Controls.Add($stepTitle)
 
 $stepDetail = New-Object System.Windows.Forms.Label
-$stepDetail.Text = 'Click Next to prepare the desktop runtime. The first setup run may take a few minutes.'
+$stepDetail.Text = '点击“下一步”开始准备桌面运行环境。首次安装可能需要几分钟。'
 $stepDetail.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 $stepDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $stepDetail.Location = New-Object System.Drawing.Point(0, 178)
@@ -289,7 +289,7 @@ $statusCard.BorderStyle = 'FixedSingle'
 $rightPanel.Controls.Add($statusCard)
 
 $statusLabel = New-Object System.Windows.Forms.Label
-$statusLabel.Text = 'Installer status'
+$statusLabel.Text = '安装状态'
 $statusLabel.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
 $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(31, 41, 55)
 $statusLabel.Location = New-Object System.Drawing.Point(16, 14)
@@ -297,7 +297,7 @@ $statusLabel.AutoSize = $true
 $statusCard.Controls.Add($statusLabel)
 
 $statusDetail = New-Object System.Windows.Forms.Label
-$statusDetail.Text = 'Nothing has been changed yet.'
+$statusDetail.Text = '尚未开始更改此电脑上的任何内容。'
 $statusDetail.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 $statusDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $statusDetail.Location = New-Object System.Drawing.Point(16, 42)
@@ -305,7 +305,7 @@ $statusDetail.Size = New-Object System.Drawing.Size(442, 52)
 $statusCard.Controls.Add($statusDetail)
 
 $launchCheck = New-Object System.Windows.Forms.CheckBox
-$launchCheck.Text = 'Launch Horosa Desktop when I click Finish'
+$launchCheck.Text = '点击“完成”后立即启动 Horosa Desktop'
 $launchCheck.Checked = $true
 $launchCheck.Location = New-Object System.Drawing.Point(0, 414)
 $launchCheck.AutoSize = $true
@@ -313,7 +313,7 @@ $launchCheck.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 $rightPanel.Controls.Add($launchCheck)
 
 $primaryButton = New-Object System.Windows.Forms.Button
-$primaryButton.Text = 'Next >'
+$primaryButton.Text = '下一步 >'
 $primaryButton.Size = New-Object System.Drawing.Size(132, 38)
 $primaryButton.Location = New-Object System.Drawing.Point(350, 448)
 $primaryButton.BackColor = [System.Drawing.Color]::FromArgb(24, 119, 242)
@@ -324,7 +324,7 @@ $primaryButton.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Dra
 $rightPanel.Controls.Add($primaryButton)
 
 $secondaryButton = New-Object System.Windows.Forms.Button
-$secondaryButton.Text = 'Cancel'
+$secondaryButton.Text = '取消'
 $secondaryButton.Size = New-Object System.Drawing.Size(112, 38)
 $secondaryButton.Location = New-Object System.Drawing.Point(228, 448)
 $secondaryButton.Font = New-Object System.Drawing.Font('Segoe UI', 10)
@@ -345,10 +345,10 @@ $timer.Add_Tick({
     Set-StageVisual -Current 'install'
     $stepTitle.Text = [string]$progress.title
     $stepDetail.Text = [string]$progress.message
-    $headline.Text = 'Installing Horosa Desktop'
-    $subtitle.Text = 'Setup is preparing the local runtime in the background and will switch to a Finish page when everything is ready.'
-    $statusLabel.Text = 'Setup status'
-    $statusDetail.Text = ("State: {0}`r`nUpdated: {1}" -f $progress.state, $progress.updatedAt)
+    $headline.Text = '正在安装 Horosa Desktop'
+    $subtitle.Text = '安装程序正在后台准备本地运行环境，完成后会自动切换到完成页面。'
+    $statusLabel.Text = '安装状态'
+    $statusDetail.Text = ("状态：{0}`r`n更新时间：{1}" -f $progress.state, $progress.updatedAt)
     $progressBar.Style = 'Continuous'
     $value = [Math]::Max(0, [Math]::Min(100, [int]$progress.percent))
     $progressBar.Value = $value
@@ -361,29 +361,29 @@ $timer.Add_Tick({
       Ensure-Shortcuts
       $script:installSucceeded = $true
       Set-StageVisual -Current 'finish'
-      $headline.Text = 'Horosa Desktop is ready'
-      $subtitle.Text = 'Setup finished preparing this machine for Horosa Desktop.'
-      $stepTitle.Text = 'Setup complete'
-      $stepDetail.Text = 'Horosa Desktop is installed. Click Finish to leave setup, or open the install folder first.'
-      $statusLabel.Text = 'Ready'
-      $statusDetail.Text = 'Shortcuts were created on the Desktop and in the Start Menu.' + "`r`n" + 'Updates will preserve your LocalAppData state.'
+      $headline.Text = 'Horosa Desktop 已准备就绪'
+      $subtitle.Text = '安装程序已在这台电脑上完成 Horosa Desktop 的准备工作。'
+      $stepTitle.Text = '安装完成'
+      $stepDetail.Text = 'Horosa Desktop 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
+      $statusLabel.Text = '已就绪'
+      $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
       $progressBar.Value = 100
-      $primaryButton.Text = 'Finish'
+      $primaryButton.Text = '完成'
       $primaryButton.Enabled = $true
-      $secondaryButton.Text = 'Open Folder'
+      $secondaryButton.Text = '打开目录'
     } else {
       $script:installSucceeded = $false
       Set-StageVisual -Current 'failed'
-      $headline.Text = 'Horosa Desktop Setup'
-      $subtitle.Text = 'Setup could not finish the runtime preparation step on this machine.'
-      $stepTitle.Text = 'Installation failed'
-      $stepDetail.Text = 'The runtime setup did not complete. You can try setup again or close this wizard.'
-      $statusLabel.Text = 'Failed'
-      $statusDetail.Text = 'The install script returned a non-zero exit code.'
+      $headline.Text = 'Horosa Desktop 安装程序'
+      $subtitle.Text = '安装程序未能在这台电脑上完成运行环境准备。'
+      $stepTitle.Text = '安装失败'
+      $stepDetail.Text = '运行环境安装没有完成。你可以重新尝试安装，或直接关闭这个向导。'
+      $statusLabel.Text = '失败'
+      $statusDetail.Text = '安装脚本返回了非零退出码。'
       $progressBar.Value = 100
-      $primaryButton.Text = 'Try Again'
+      $primaryButton.Text = '重试'
       $primaryButton.Enabled = $true
-      $secondaryButton.Text = 'Close'
+      $secondaryButton.Text = '关闭'
     }
   }
 })
@@ -402,13 +402,13 @@ $primaryButton.Add_Click({
   $script:installSucceeded = $false
   $primaryButton.Enabled = $false
   Set-StageVisual -Current 'install'
-  $headline.Text = 'Installing Horosa Desktop'
-  $subtitle.Text = 'Setup is preparing the desktop runtime and shortcut entry points for this Windows account.'
-  $secondaryButton.Text = 'Cancel'
-  $stepTitle.Text = 'Installing Horosa Desktop'
-  $stepDetail.Text = 'Preparing local runtime and bundled desktop packages.'
-  $statusLabel.Text = 'Setup status'
-  $statusDetail.Text = 'The installer is running in the background.'
+  $headline.Text = '正在安装 Horosa Desktop'
+  $subtitle.Text = '安装程序正在为当前 Windows 账户准备桌面运行环境和快捷方式入口。'
+  $secondaryButton.Text = '取消'
+  $stepTitle.Text = '正在安装 Horosa Desktop'
+  $stepDetail.Text = '正在准备本地运行环境和随包附带的桌面组件。'
+  $statusLabel.Text = '安装状态'
+  $statusDetail.Text = '安装程序正在后台运行。'
   $progressBar.Style = 'Marquee'
   $script:installProcess = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
     '-NoProfile',
@@ -450,15 +450,15 @@ if (Test-Path $StateFile) {
     if ($state.version -eq $VersionInfo.version) {
       Ensure-Shortcuts
       Set-StageVisual -Current 'finish'
-      $headline.Text = 'Horosa Desktop is already ready'
-      $subtitle.Text = 'This version of Horosa Desktop is already prepared on this machine.'
-      $stepTitle.Text = 'Horosa Desktop is already installed'
-      $stepDetail.Text = 'Click Finish to leave setup, or open the install folder. You can still launch Horosa immediately.'
-      $statusLabel.Text = 'Ready'
-      $statusDetail.Text = 'Desktop runtime and shortcuts are already present.' + "`r`n" + 'No reinstall was needed for this version.'
+      $headline.Text = 'Horosa Desktop 已可直接使用'
+      $subtitle.Text = '当前这个版本的 Horosa Desktop 已经在这台电脑上准备完成。'
+      $stepTitle.Text = '当前版本已安装'
+      $stepDetail.Text = '你可以点击“完成”退出安装程序，或打开安装目录查看文件；也可以立刻启动 Horosa Desktop。'
+      $statusLabel.Text = '已就绪'
+      $statusDetail.Text = '桌面运行环境和快捷方式都已存在。' + "`r`n" + '当前版本无需重新安装。'
       $progressBar.Value = 100
-      $primaryButton.Text = 'Finish'
-      $secondaryButton.Text = 'Open Folder'
+      $primaryButton.Text = '完成'
+      $secondaryButton.Text = '打开目录'
       $script:installSucceeded = $true
     }
   } catch {}
