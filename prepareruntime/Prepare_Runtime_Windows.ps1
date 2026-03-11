@@ -214,6 +214,7 @@ $Root = $layout.WorkspaceRoot
 $RuntimeRoot = Join-Path $Root 'runtime\\windows'
 $JavaDst = Join-Path $RuntimeRoot 'java'
 $PyDst = Join-Path $RuntimeRoot 'python'
+$NodeDst = Join-Path $RuntimeRoot 'node'
 $WheelsDst = Join-Path $RuntimeRoot 'wheels'
 $BundleDst = Join-Path $RuntimeRoot 'bundle'
 $WheelsBundleDst = Join-Path $BundleDst 'wheels'
@@ -294,6 +295,29 @@ function Resolve-MavenCmd {
   $inPath = Get-Command 'mvn' -ErrorAction SilentlyContinue
   if ($inPath -and $inPath.Source) {
     return $inPath.Source
+  }
+
+  return $null
+}
+
+function Resolve-NodeExe {
+  if ($env:HOROSA_NODE -and (Test-Path $env:HOROSA_NODE)) {
+    return $env:HOROSA_NODE
+  }
+
+  $inPath = Get-Command 'node' -ErrorAction SilentlyContinue
+  if ($inPath -and $inPath.Source -and ($inPath.Source -notmatch 'WindowsApps')) {
+    return $inPath.Source
+  }
+
+  $candidates = @(
+    "$env:ProgramFiles\nodejs\node.exe",
+    "$env:ProgramFiles(x86)\nodejs\node.exe"
+  )
+  foreach ($candidate in $candidates) {
+    if ($candidate -and (Test-Path $candidate)) {
+      return $candidate
+    }
   }
 
   return $null
@@ -546,6 +570,16 @@ if ($JavaSrc -and (Test-Path (Join-Path $JavaSrc 'bin\\java.exe'))) {
   Write-Host 'Java runtime not found. Set HOROSA_JAVA_HOME (or JAVA_HOME) then rerun.'
 }
 
+$NodeExe = Resolve-NodeExe
+if ($NodeExe -and (Test-Path $NodeExe)) {
+  Write-Host "Copy Node runtime: $NodeExe -> $NodeDst"
+  Remove-TreeWithRetry -Path $NodeDst
+  New-Item -ItemType Directory -Force -Path $NodeDst | Out-Null
+  Copy-Item -Path $NodeExe -Destination (Join-Path $NodeDst 'node.exe') -Force
+} else {
+  Write-Host 'Node runtime not found. Set HOROSA_NODE or install Node.js, then rerun.'
+}
+
 $PySrc = $env:HOROSA_PYTHON_HOME
 if (-not $PySrc) {
   $cand = @(
@@ -654,6 +688,7 @@ $manifestPath = Join-Path $BundleDst 'runtime.manifest.json'
 $manifestCandidates = @(
   (Join-Path $JavaDst 'bin\java.exe'),
   (Join-Path $PyDst 'python.exe'),
+  (Join-Path $NodeDst 'node.exe'),
   $JarBundleDst,
   (Join-Path $DistFileBundleDst 'index.html'),
   (Join-Path $DistBundleDst 'index.html')
@@ -673,6 +708,11 @@ if (Test-Path (Join-Path $PyDst 'python.exe')) {
   Write-Host '[OK] Python runtime ready.'
 } else {
   Write-Host '[MISSING] runtime\\windows\\python\\python.exe'
+}
+if (Test-Path (Join-Path $NodeDst 'node.exe')) {
+  Write-Host '[OK] runtime\\windows\\node\\node.exe'
+} else {
+  Write-Host '[MISSING] runtime\\windows\\node\\node.exe'
 }
 if (Test-Path $JarBundleDst) {
   Write-Host '[OK] runtime\\windows\\bundle\\astrostudyboot.jar'
@@ -696,6 +736,9 @@ if (-not (Test-Path (Join-Path $JavaDst 'bin\\java.exe'))) {
 }
 if (-not (Test-Path (Join-Path $PyDst 'python.exe'))) {
   $validationErrors.Add('Missing runtime/windows/python/python.exe')
+}
+if (-not (Test-Path (Join-Path $NodeDst 'node.exe'))) {
+  $validationErrors.Add('Missing runtime/windows/node/node.exe')
 }
 if (-not (Test-Path $JarBundleDst)) {
   $validationErrors.Add('Missing runtime/windows/bundle/astrostudyboot.jar')
