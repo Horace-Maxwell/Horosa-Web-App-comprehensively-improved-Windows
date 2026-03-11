@@ -51,12 +51,36 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Maven
+        shell: pwsh
+        run: |
+          $mavenVersion = '3.9.9'
+          $archiveName = "apache-maven-$mavenVersion-bin.zip"
+          $downloadUrl = "https://archive.apache.org/dist/maven/maven-3/$mavenVersion/binaries/$archiveName"
+          $toolsRoot = Join-Path $env:RUNNER_TEMP 'maven-tools'
+          $archivePath = Join-Path $toolsRoot $archiveName
+          $extractRoot = Join-Path $toolsRoot "apache-maven-$mavenVersion"
+
+          New-Item -ItemType Directory -Force -Path $toolsRoot | Out-Null
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
+          Expand-Archive -Path $archivePath -DestinationPath $toolsRoot -Force
+
+          $mvnCmd = Join-Path $extractRoot 'bin/mvn.cmd'
+          if (-not (Test-Path $mvnCmd -PathType Leaf)) {
+            throw "Maven executable not found after extraction: $mvnCmd"
+          }
+
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $extractRoot 'bin')
+          Add-Content -Path $env:GITHUB_ENV -Value "HOROSA_MVN=$mvnCmd"
+          Write-Host "Maven ready: $mvnCmd"
+
       - name: Show runtime toolchain
         shell: pwsh
         run: |
           Write-Host "python: $(python --version)"
           Write-Host "java: $(java -version 2>&1 | Select-Object -First 1)"
           Write-Host "JAVA_HOME: $env:JAVA_HOME"
+          Write-Host "maven: $(&$env:HOROSA_MVN -version 2>&1 | Select-Object -First 1)"
 
       - name: Build backend jar
         shell: pwsh
@@ -69,8 +93,10 @@ jobs:
             throw 'No astrostudyboot Maven project found under local/workspace.'
           }
 
-          $bootDir = Join-Path $projectDir.FullName 'astrostudysrv/astrostudyboot'
+          $serviceRoot = Join-Path $projectDir.FullName 'astrostudysrv'
+          $bootDir = Join-Path $serviceRoot 'astrostudyboot'
           $mvnCandidates = @(
+            $env:HOROSA_MVN,
             (Join-Path $PWD 'local/workspace/runtime/windows/maven/bin/mvn.cmd'),
             (Join-Path $PWD 'local/workspace/runtime/windows/maven/bin/mvn.bat')
           )
@@ -85,14 +111,36 @@ jobs:
             throw 'Maven not found for backend jar build.'
           }
 
-          Push-Location $bootDir
-          try {
-            & $mvn -DskipTests package
-            if ($LASTEXITCODE -ne 0) {
-              throw "Maven package failed with exit code $LASTEXITCODE"
+          $moduleOrder = @(
+            'boundless',
+            'basecomm',
+            'image',
+            'astrostudy',
+            'astrostudycn',
+            'astrodeeplearn',
+            'astroesp',
+            'astroreader',
+            'astrostudyboot'
+          )
+
+          foreach ($moduleName in $moduleOrder) {
+            $moduleDir = Join-Path $serviceRoot $moduleName
+            $pomPath = Join-Path $moduleDir 'pom.xml'
+            if (-not (Test-Path $pomPath -PathType Leaf)) {
+              throw "Required Maven module missing: $pomPath"
             }
-          } finally {
-            Pop-Location
+
+            Push-Location $moduleDir
+            try {
+              $goal = if ($moduleName -eq 'astrostudyboot') { 'package' } else { 'install' }
+              Write-Host "Building $moduleName via Maven goal $goal"
+              & $mvn -DskipTests $goal
+              if ($LASTEXITCODE -ne 0) {
+                throw "Maven $goal failed for $moduleName with exit code $LASTEXITCODE"
+              }
+            } finally {
+              Pop-Location
+            }
           }
 
           $jarPath = Join-Path $bootDir 'target/astrostudyboot.jar'
