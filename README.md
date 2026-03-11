@@ -4,7 +4,7 @@
 
 ## 一键安装包下载位置
 
-- [一键下载最新版 Windows 安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.11.4/HorosaPortableWindows-2026.03.11.4.zip)
+- [一键下载最新版 Windows 安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.11.5/HorosaPortableWindows-2026.03.11.5.zip)
 - [打开最新版 Release 页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 请注意：

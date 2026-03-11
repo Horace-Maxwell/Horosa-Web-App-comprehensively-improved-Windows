@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-03-11T03:17:34-07:00",
+    "generatedAt":  "2026-03-11T14:39:40-07:00",
     "root":  "C:\\Users\\maxwe\\OneDrive\\Desktop\\Horosa-Web-App-comprehensively-improved-Windows-main\\local\\workspace",
     "assets":  [
                    {
@@ -61,11 +61,6 @@
                        "path":  "runtime\\windows\\wheels\\colorama-0.4.6-py2.py3-none-any.whl",
                        "size":  25335,
                        "sha256":  "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"
-                   },
-                   {
-                       "path":  "runtime\\windows\\wheels\\flatlib-0.2.3-py3-none-any.whl",
-                       "size":  5762227,
-                       "sha256":  "c846d83c965db7588581bb65ac9a6668b9a190afcad5027269f7e9c75f467bcd"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\jaraco_collections-5.2.1-py3-none-any.whl",
