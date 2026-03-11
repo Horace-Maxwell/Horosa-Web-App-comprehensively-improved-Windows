@@ -441,6 +441,7 @@ class JinKouMain extends Component{
 		const jinkouData = buildJinKouData(liureng, {
 			diFen: diFen,
 			guirengType: guirengType,
+			chartObj: this.props.value,
 		});
 		saveModuleAISnapshot('jinkou', buildJinKouSnapshotText(
 			saveParams,
@@ -727,6 +728,7 @@ class JinKouMain extends Component{
 		const jinkouData = buildJinKouData(this.state.liureng, {
 			diFen: this.state.diFen,
 			guirengType: this.state.guireng,
+			chartObj: chartObj,
 		});
 		const wxdoms = this.genWuXingDoms();
 

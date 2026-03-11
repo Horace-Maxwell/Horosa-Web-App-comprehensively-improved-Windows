@@ -1,3 +1,4 @@
+import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from '../liureng/LRConst';
 
 export const JinKouElementColor = {
@@ -160,6 +161,47 @@ function getMonthZi(liureng){
 	return '';
 }
 
+function pickChart(chartLike){
+	if(!chartLike){
+		return null;
+	}
+	return chartLike.chart ? chartLike.chart : chartLike;
+}
+
+function getChartYueJiang(chartLike){
+	const chart = pickChart(chartLike);
+	if(!chart || !Array.isArray(chart.objects)){
+		return '';
+	}
+	for(let i=0; i<chart.objects.length; i++){
+		const obj = chart.objects[i];
+		if(obj && obj.id === AstroConst.SUN && obj.sign){
+			const branch = LRConst.getSignZi(obj.sign);
+			if(branch && containsVal(LRConst.ZiList, branch)){
+				return branch;
+			}
+		}
+	}
+	return '';
+}
+
+function resolveYueJiang(liureng, options){
+	const opt = options ? options : {};
+	const explicit = extractFromList(opt.yuejiang, LRConst.ZiList);
+	if(explicit){
+		return explicit;
+	}
+	const chartBased = getChartYueJiang(opt.chartObj || opt.chart || opt.value);
+	if(chartBased){
+		return chartBased;
+	}
+	const monthZi = getMonthZi(liureng);
+	if(monthZi && LRConst.ZiHe[monthZi]){
+		return LRConst.ZiHe[monthZi];
+	}
+	return '';
+}
+
 function getYearZi(liureng){
 	if(!liureng){
 		return '';
@@ -237,8 +279,7 @@ function getGuiShenAtDiFen(dayGan, timeZi, diFen, guirengType){
 	};
 }
 
-function getJiangZiAtDiFen(monthZi, timeZi, diFen){
-	const yuejiang = LRConst.ZiHe[monthZi];
+function getJiangZiAtDiFen(yuejiang, timeZi, diFen){
 	if(!yuejiang){
 		return {
 			yuejiang: '',
@@ -995,13 +1036,14 @@ export function buildJinKouData(liureng, options){
 
 	const dayGan = getDayGan(liureng);
 	const monthZi = getMonthZi(liureng);
+	const yuejiang = resolveYueJiang(liureng, opt);
 	const timeZi = getTimeZi(liureng);
 	const diFen = normalizeDiFen(opt.diFen, timeZi);
 	const renYuanGan = getStemByWuZiDun(dayGan, diFen);
 	const guiShen = getGuiShenAtDiFen(dayGan, timeZi, diFen, opt.guirengType);
 	const guiZi = guiShen.zi;
 	const guiGan = getStemByWuZiDun(dayGan, guiZi);
-	const jiang = getJiangZiAtDiFen(monthZi, timeZi, diFen);
+	const jiang = getJiangZiAtDiFen(yuejiang, timeZi, diFen);
 	const jiangZi = jiang.zi;
 	const jiangGan = getStemByWuZiDun(dayGan, jiangZi);
 

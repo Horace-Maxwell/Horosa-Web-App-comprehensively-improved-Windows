@@ -68,3 +68,12 @@ desktop_installer_bundle/build/
 desktop_installer_bundle/dist/
 desktop_installer_bundle/release/
 desktop_installer_bundle/src/__pycache__/
+desktop_installer_bundle/wheelhouse/*.whl
+
+# Local selfcheck and audit outputs
+selfcheck/results/
+selfcheck/last-ui-fast.json
+selfcheck/last-ui-fast.err.log
+tmp_ui_audit_*.out.json
+tmp_ui_overview.png
+e2e_release_check/

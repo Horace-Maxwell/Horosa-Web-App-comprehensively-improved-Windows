@@ -2,12 +2,16 @@ import moment from 'moment';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 
+function normalizeZone(zone) {
+	return zone ? zone : '+08:00';
+}
+
 class DateTime {
 	constructor(opt){
 		let tm = moment();
 
 		this.ad = opt ? opt.ad : 1;
-		this.zone = opt && opt.zone ? opt.zone : "+08:00";
+		this.zone = normalizeZone(opt && opt.zone);
 		this.year = opt ? opt.year : tm.year();
 		this.month = opt ? opt.month : tm.month() + 1;
 		this.date = opt ? opt.date : tm.date();
@@ -39,7 +43,7 @@ class DateTime {
 	}
 
 	getZoneJdn() {
-		let parts = this.zone.split(':');
+		let parts = normalizeZone(this.zone).split(':');
 		let h = parts[0];
 		let sym = 1;
 		if(h.indexOf("+") === 0) {
@@ -288,7 +292,7 @@ class DateTime {
 	}
 
 	setZone(val){
-		this.zone = val;
+		this.zone = normalizeZone(val);
 		this.calcJdn();
 	}
 

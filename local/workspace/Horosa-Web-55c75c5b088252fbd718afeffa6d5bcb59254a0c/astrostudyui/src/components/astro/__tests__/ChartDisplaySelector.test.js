@@ -50,4 +50,21 @@ describe('ChartDisplaySelector planet meta toggles', ()=>{
 			},
 		});
 	});
+
+	test('changeAstroAnnotation updates showAstroMeaning for downstream renderers', ()=>{
+		const dispatch = jest.fn();
+		const panel = new ChartDisplaySelector({
+			dispatch,
+			showAstroMeaning: 0,
+		});
+
+		panel.changeAstroAnnotation(true);
+
+		expect(dispatch).toHaveBeenCalledWith({
+			type: 'app/save',
+			payload: {
+				showAstroMeaning: 1,
+			},
+		});
+	});
 });

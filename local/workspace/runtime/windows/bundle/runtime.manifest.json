@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-03-07T10:15:41-08:00",
+    "generatedAt":  "2026-03-11T00:52:41-07:00",
     "root":  "C:\\Users\\maxwe\\OneDrive\\Desktop\\Horosa-Web-App-comprehensively-improved-Windows-main\\local\\workspace",
     "assets":  [
                    {
@@ -14,18 +14,18 @@
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\astrostudyboot.jar",
-                       "size":  303889783,
-                       "sha256":  "e84686dd5b3d1f93ed7b0789fe487654dd143a887309662d9e0f16a9d96e87a2"
+                       "size":  303897915,
+                       "sha256":  "a09d102add06d39845160ff543721c45b27da8f91efa8b82c5200f3cc7f782e2"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\dist-file\\index.html",
                        "size":  1813,
-                       "sha256":  "3d58110bc69a07721a34891225050254585f65da14f35dc19f474591f3dcc397"
+                       "sha256":  "0061f5a35a29e4e9a05ed7f7edae80a37c8144ca43d30e3593653126f7a6a39a"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\dist\\index.html",
                        "size":  1813,
-                       "sha256":  "3d58110bc69a07721a34891225050254585f65da14f35dc19f474591f3dcc397"
+                       "sha256":  "0061f5a35a29e4e9a05ed7f7edae80a37c8144ca43d30e3593653126f7a6a39a"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\annotated_doc-0.0.4-py3-none-any.whl",
@@ -66,11 +66,6 @@
                        "path":  "runtime\\windows\\wheels\\jaraco_collections-5.2.1-py3-none-any.whl",
                        "size":  11588,
                        "sha256":  "ea3415ddfc50206b6ba7d09c3deb358b76a5f8c1ddc82be788e8e8bd151ebfa8"
-                   },
-                   {
-                       "path":  "runtime\\windows\\wheels\\jaraco_context-6.1.0-py3-none-any.whl",
-                       "size":  7065,
-                       "sha256":  "a43b5ed85815223d0d3cfdb6d7ca0d2bc8946f28f30b6f3216bda070f68badda"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\jaraco_context-6.1.1-py3-none-any.whl",
@@ -138,9 +133,9 @@
                        "sha256":  "793431c1f8619afa7d3b52b2cdec859562b950ea0d4b6b505397612db8d5362d"
                    },
                    {
-                       "path":  "runtime\\windows\\wheels\\setuptools-82.0.0-py3-none-any.whl",
-                       "size":  1003468,
-                       "sha256":  "70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0"
+                       "path":  "runtime\\windows\\wheels\\setuptools-82.0.1-py3-none-any.whl",
+                       "size":  1006223,
+                       "sha256":  "a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\shellingham-1.5.4-py2.py3-none-any.whl",

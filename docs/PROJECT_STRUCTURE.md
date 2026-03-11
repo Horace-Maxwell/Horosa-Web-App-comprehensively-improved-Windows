@@ -19,6 +19,23 @@
 - `docs/SELFCHECK_LOG.md`
 - `docs/PROJECT_STRUCTURE.md`
 
+### `desktop_installer_bundle/`
+
+Windows 桌面安装包、安装向导、自更新、发布脚本都在这里。
+
+- `desktop_installer_bundle/version.json`：当前桌面版本号、release 名称与资产前缀
+- `desktop_installer_bundle/build_portable_release_zip.ps1`：生成 Windows release 资产
+- `desktop_installer_bundle/publish_github_release.ps1`：推送 `main` 与 tag，触发 GitHub Release
+- `desktop_installer_bundle/release/`：本地生成的发布资产目录
+
+### `selfcheck/`
+
+给维护人发版前做本地回归检查用。
+
+- `selfcheck/run_windows_2min_selfcheck.ps1`：2 分钟内快检入口
+- `selfcheck/run_windows_full_selfcheck.ps1`：更完整的本地自检入口
+- `selfcheck/ui_fast_smoke.js`：快速 UI smoke 巡检脚本
+
 ### `local/`
 
 真正的 Horosa 项目、Windows 启动链路、Python/Java/runtime、前端构建产物都在这里。普通用户不要改它。

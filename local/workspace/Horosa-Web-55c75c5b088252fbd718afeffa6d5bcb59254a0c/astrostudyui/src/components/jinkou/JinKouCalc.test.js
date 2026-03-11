@@ -1,3 +1,4 @@
+import * as AstroConst from '../../constants/AstroConst';
 import { buildJinKouData, calcJinKouWangElem, buildJinKouWangShuaiMap } from './JinKouCalc';
 
 function mockLiuReng(data){
@@ -56,6 +57,55 @@ describe('JinKouCalc', ()=>{
 		expect(data.renYuanGan).toBe('甲');
 		expect(data.guiZi).toBe('亥');
 		expect(data.jiangZi).toBe('酉');
+	});
+
+	it('prefers liureng yuejiang from chart sun sign over simple month-branch mapping', ()=>{
+		const data = buildJinKouData(mockLiuReng(), {
+			diFen: '午',
+			guirengType: 0,
+			chartObj: {
+				chart: {
+					objects: [{
+						id: AstroConst.SUN,
+						sign: AstroConst.AQUARIUS,
+					}],
+				},
+			},
+		});
+		expect(data.yuejiang).toBe('子');
+		expect(data.jiangZi).toBe('戌');
+		expect(data.jiangName).toBe('河魁');
+	});
+
+	it('calculates 将神 as 月将加时 then reads the branch above 地分 on the earth plate', ()=>{
+		const anchored = buildJinKouData(mockLiuReng({
+			nongli: {
+				time: '申时',
+			},
+		}), {
+			diFen: '午',
+			guirengType: 0,
+			yuejiang: '申',
+		});
+		expect(anchored.yuejiang).toBe('申');
+		expect(anchored.timeZi).toBe('申');
+		expect(anchored.diFen).toBe('午');
+		expect(anchored.jiangZi).toBe('午');
+
+		const shifted = buildJinKouData(mockLiuReng({
+			nongli: {
+				time: '申时',
+			},
+		}), {
+			diFen: '午',
+			guirengType: 0,
+			yuejiang: '子',
+		});
+		expect(shifted.yuejiang).toBe('子');
+		expect(shifted.timeZi).toBe('申');
+		expect(shifted.diFen).toBe('午');
+		expect(shifted.jiangZi).toBe('戌');
+		expect(shifted.jiangName).toBe('河魁');
 	});
 
 	it('calculates 四大空亡 from 旬首', ()=>{

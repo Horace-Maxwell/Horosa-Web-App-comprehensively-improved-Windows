@@ -10,6 +10,10 @@ $ErrorActionPreference = 'Stop'
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptRoot
 $BundledPythonExe = Join-Path $RepoRoot 'local\workspace\runtime\windows\python\python.exe'
+$WheelhouseDir = Join-Path $ScriptRoot 'wheelhouse'
+$RuntimeRequirementsFile = Join-Path $ScriptRoot 'runtime_requirements.txt'
+$PreparedRuntimeRoot = Join-Path $RepoRoot 'local\workspace\runtime\windows'
+$PreparedRuntimeJar = Join-Path $PreparedRuntimeRoot 'bundle\astrostudyboot.jar'
 
 function Resolve-PythonExe {
   param(
@@ -36,7 +40,103 @@ function Resolve-PythonExe {
   throw "Python executable not found. Expected bundled runtime at $BundledPath or python on PATH."
 }
 
+function Test-WheelhouseComplete {
+  param([string]$WheelDir)
+
+  if (-not (Test-Path $WheelDir -PathType Container)) {
+    return $false
+  }
+
+  $requiredPrefixes = @(
+    'PySide6-',
+    'PySide6_Addons-',
+    'PySide6_Essentials-',
+    'shiboken6-',
+    'packaging-',
+    'requests-',
+    'certifi-',
+    'charset_normalizer-',
+    'idna-',
+    'urllib3-'
+  )
+
+  foreach ($prefix in $requiredPrefixes) {
+    $match = Get-ChildItem -Path $WheelDir -File -Filter ($prefix + '*.whl') -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $match) {
+      return $false
+    }
+    if ($match.Length -lt 1024) {
+      return $false
+    }
+  }
+
+  return $true
+}
+
+function Ensure-Wheelhouse {
+  param(
+    [string]$PythonExe,
+    [string]$ReqFile,
+    [string]$WheelDir
+  )
+
+  if (-not (Test-Path $ReqFile -PathType Leaf)) {
+    throw "runtime_requirements.txt not found: $ReqFile"
+  }
+
+  if (Test-WheelhouseComplete -WheelDir $WheelDir) {
+    Write-Host "[OK] Desktop wheelhouse already available: $WheelDir"
+    return
+  }
+
+  New-Item -ItemType Directory -Force -Path $WheelDir | Out-Null
+  Get-ChildItem -Path $WheelDir -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
+  Write-Host "[INFO] Downloading desktop wheelhouse for offline installer..."
+  & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir -r $ReqFile
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to download desktop wheelhouse via pip."
+  }
+
+  if (-not (Test-WheelhouseComplete -WheelDir $WheelDir)) {
+    throw "Desktop wheelhouse is incomplete after download: $WheelDir"
+  }
+
+  Write-Host "[OK] Desktop wheelhouse ready: $WheelDir"
+}
+
+function Ensure-PreparedRuntime {
+  param(
+    [string]$RepoPath,
+    [string]$ExpectedJarPath
+  )
+
+  if (Test-Path $ExpectedJarPath -PathType Leaf) {
+    Write-Host "[OK] Prepared runtime bundle already available."
+    return
+  }
+
+  $prepareScript = Join-Path $RepoPath 'prepareruntime\Prepare_Runtime_Windows.ps1'
+  if (-not (Test-Path $prepareScript -PathType Leaf)) {
+    throw "Prepare runtime script not found: $prepareScript"
+  }
+
+  Write-Host "[INFO] Runtime bundle missing; preparing Windows runtime payload..."
+  & $prepareScript
+  if ($LASTEXITCODE -ne 0) {
+    throw "Prepare_Runtime_Windows.ps1 failed with exit code $LASTEXITCODE"
+  }
+
+  if (-not (Test-Path $ExpectedJarPath -PathType Leaf)) {
+    throw "Prepared runtime jar still missing after runtime preparation: $ExpectedJarPath"
+  }
+
+  Write-Host "[OK] Prepared runtime bundle regenerated."
+}
+
+Ensure-PreparedRuntime -RepoPath $RepoRoot -ExpectedJarPath $PreparedRuntimeJar
 $ResolvedPythonExe = Resolve-PythonExe -RequestedPath $PythonExe -BundledPath $BundledPythonExe
+Ensure-Wheelhouse -PythonExe $ResolvedPythonExe -ReqFile $RuntimeRequirementsFile -WheelDir $WheelhouseDir
 
 $env:HOROSA_DESKTOP_BUNDLE_ROOT = $ScriptRoot
 $env:HOROSA_DESKTOP_REQUESTED_VERSION = $Version
@@ -82,6 +182,10 @@ manifest_path = release_dir / f"{asset_prefix}-{version}.manifest.json"
 runtime_zip_name = f"{runtime_asset_prefix}-{version}.zip"
 runtime_zip_path = release_dir / runtime_zip_name
 runtime_manifest_path = release_dir / f"{runtime_asset_prefix}-{version}.manifest.json"
+log_asset_name = f"HorosaWindowsLog-{version}.md"
+log_asset_path = release_dir / log_asset_name
+structure_asset_name = f"HorosaWindowsStructure-{version}.md"
+structure_asset_path = release_dir / structure_asset_name
 
 root_excludes = {".git", ".github"}
 relative_excludes = {
@@ -142,6 +246,8 @@ remove_with_retry(zip_path)
 remove_with_retry(manifest_path)
 remove_with_retry(runtime_zip_path)
 remove_with_retry(runtime_manifest_path)
+remove_with_retry(log_asset_path)
+remove_with_retry(structure_asset_path)
 
 def add_tree(zf: ZipFile, source_root: Path, archive_root: str) -> None:
     if not source_root.exists():
@@ -246,6 +352,17 @@ write_manifest(
     runtime_manifest_path,
     "Attach the runtime zip asset to the same GitHub release; the Windows installer downloads it during install.",
 )
+docs_dir = repo_root / "docs"
+log_source = docs_dir / "SELFCHECK_LOG.md"
+structure_source = docs_dir / "PROJECT_STRUCTURE.md"
+if log_source.exists():
+    log_header = f"# Horosa Windows Release Log\\n\\n- version: `{version}`\\n- source: `docs/SELFCHECK_LOG.md`\\n\\n"
+    log_asset_path.write_text(log_header + log_source.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"[OK] Release log generated: {log_asset_path}")
+if structure_source.exists():
+    structure_header = f"# Horosa Windows Release Structure\\n\\n- version: `{version}`\\n- source: `docs/PROJECT_STRUCTURE.md`\\n\\n"
+    structure_asset_path.write_text(structure_header + structure_source.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"[OK] Release structure generated: {structure_asset_path}")
 print(f"[OK] Portable release zip built: {zip_path}")
 print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 '@ | & $ResolvedPythonExe -

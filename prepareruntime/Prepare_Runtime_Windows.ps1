@@ -188,6 +188,13 @@ function Resolve-HorosaLayout {
       $workspaceRoot = $candidateResolved
       break
     }
+    $nestedProject = Get-ChildItem -Path $candidateResolved -Directory -ErrorAction SilentlyContinue |
+      Where-Object { Test-HorosaProjectDir -DirPath $_.FullName } |
+      Select-Object -First 1
+    if ($nestedProject) {
+      $workspaceRoot = $candidateResolved
+      break
+    }
     if (Test-Path (Join-Path $candidateResolved 'runtime\windows') -PathType Container) {
       $workspaceRoot = $candidateResolved
       break

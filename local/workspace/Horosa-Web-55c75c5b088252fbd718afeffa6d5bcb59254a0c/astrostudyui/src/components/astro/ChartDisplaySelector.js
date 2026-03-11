@@ -97,7 +97,7 @@ class ChartDisplaySelector extends Component{
 		this.props.dispatch({
 			type: 'app/save',
 			payload: {
-				showAstroAnnotation: checked ? 1 : 0,
+				showAstroMeaning: checked ? 1 : 0,
 			},
 		});
 	}
@@ -132,7 +132,7 @@ class ChartDisplaySelector extends Component{
 		const showRuler = planetMetaDisplay.showRuler === 1;
 		const showPdBounds = !(this.props.showPdBounds === 0 || this.props.showPdBounds === false);
 		const strongRecption = !!(this.props.fields && this.props.fields.strongRecption && this.props.fields.strongRecption.value === 1);
-		const showAstroAnnotation = this.props.showAstroAnnotation === 1;
+		const showAstroAnnotation = this.props.showAstroMeaning === 1;
 		let allobjs = AstroConst.CHART_OPTIONS.map((opt, idx)=>{
 			return (
 				<Col span={24} key={opt}>

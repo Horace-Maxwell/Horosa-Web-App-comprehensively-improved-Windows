@@ -45,14 +45,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Hydrate wheelhouse LFS assets
-        shell: pwsh
-        run: |
-          git lfs pull --include="desktop_installer_bundle/wheelhouse/*.whl"
-          Get-ChildItem ./desktop_installer_bundle/wheelhouse/*.whl |
-            Select-Object Name, Length |
-            Format-Table -AutoSize
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -114,11 +106,37 @@ jobs:
       - name: Write release instructions
         shell: python
         run: |
+          import subprocess
           import os
           from pathlib import Path
 
           release_tag = os.environ["RELEASE_TAG"]
           repository = os.environ["GITHUB_REPOSITORY"]
+          tags = subprocess.check_output(
+              ["git", "tag", "--sort=v:refname"],
+              text=True,
+              encoding="utf-8",
+          ).splitlines()
+          previous_tag = ""
+          if release_tag in tags:
+              index = tags.index(release_tag)
+              if index > 0:
+                  previous_tag = tags[index - 1]
+
+          changelog_lines = []
+          if previous_tag:
+              changelog_output = subprocess.check_output(
+                  ["git", "log", "--no-merges", "--pretty=format:- %s", f"{previous_tag}..{release_tag}"],
+                  text=True,
+                  encoding="utf-8",
+              ).strip()
+              if changelog_output:
+                  changelog_lines = changelog_output.splitlines()
+          if not changelog_lines:
+              changelog_lines = [
+                  "- 已同步当前版本的 Windows 安装包、运行时包与相关说明资产。",
+              ]
+
           body_path = Path(os.environ["RUNNER_TEMP"]) / "horosa-release-body.md"
           body_lines = [
               "## 普通用户请这样下载",
@@ -144,7 +162,16 @@ jobs:
               "- 用户数据保存在 `%LocalAppData%\\HorosaDesktop`，更新不会清空这些内容",
               "- 同页里额外的 `HorosaRuntimeWindows-*` 和 `.manifest.json` 都是安装器或更新器内部使用的支持资产，普通用户不需要单独处理",
               "",
+              "## 附带发布资产",
+              "",
+              f"- `HorosaWindowsLog-{release_tag}.md`：这一版 Windows 自检与收尾日志",
+              f"- `HorosaWindowsStructure-{release_tag}.md`：这一版目录与交付结构说明",
+              "",
+              "## 本次版本更新",
+              "",
           ]
+          body_lines.extend(changelog_lines)
+          body_lines.append("")
           body_path.write_text("\n".join(body_lines), encoding="utf-8")
           with open(Path(os.environ["GITHUB_ENV"]), "a", encoding="utf-8") as fh:
               fh.write(f"RELEASE_BODY_PATH={body_path}\n")
@@ -176,3 +203,5 @@ jobs:
             ./desktop_installer_bundle/release/HorosaPortableWindows-${{ env.RELEASE_TAG }}.manifest.json
             ./desktop_installer_bundle/release/HorosaRuntimeWindows-${{ env.RELEASE_TAG }}.zip
             ./desktop_installer_bundle/release/HorosaRuntimeWindows-${{ env.RELEASE_TAG }}.manifest.json
+            ./desktop_installer_bundle/release/HorosaWindowsLog-${{ env.RELEASE_TAG }}.md
+            ./desktop_installer_bundle/release/HorosaWindowsStructure-${{ env.RELEASE_TAG }}.md
