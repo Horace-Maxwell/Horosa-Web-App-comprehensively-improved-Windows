@@ -58,6 +58,49 @@ jobs:
           Write-Host "java: $(java -version 2>&1 | Select-Object -First 1)"
           Write-Host "JAVA_HOME: $env:JAVA_HOME"
 
+      - name: Build backend jar
+        shell: pwsh
+        run: |
+          $workspaceRoot = Join-Path $PWD 'local/workspace'
+          $projectDir = Get-ChildItem -Path $workspaceRoot -Directory -ErrorAction Stop |
+            Where-Object { Test-Path (Join-Path $_.FullName 'astrostudysrv/astrostudyboot/pom.xml') } |
+            Select-Object -First 1
+          if (-not $projectDir) {
+            throw 'No astrostudyboot Maven project found under local/workspace.'
+          }
+
+          $bootDir = Join-Path $projectDir.FullName 'astrostudysrv/astrostudyboot'
+          $mvnCandidates = @(
+            (Join-Path $PWD 'local/workspace/runtime/windows/maven/bin/mvn.cmd'),
+            (Join-Path $PWD 'local/workspace/runtime/windows/maven/bin/mvn.bat')
+          )
+          $mvn = $mvnCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $mvn) {
+            $cmd = Get-Command 'mvn' -ErrorAction SilentlyContinue
+            if ($cmd -and $cmd.Source) {
+              $mvn = $cmd.Source
+            }
+          }
+          if (-not $mvn) {
+            throw 'Maven not found for backend jar build.'
+          }
+
+          Push-Location $bootDir
+          try {
+            & $mvn -DskipTests package
+            if ($LASTEXITCODE -ne 0) {
+              throw "Maven package failed with exit code $LASTEXITCODE"
+            }
+          } finally {
+            Pop-Location
+          }
+
+          $jarPath = Join-Path $bootDir 'target/astrostudyboot.jar'
+          if (-not (Test-Path $jarPath -PathType Leaf)) {
+            throw "Backend jar missing after Maven build: $jarPath"
+          }
+          Write-Host "Built backend jar: $jarPath"
+
       - name: Prepare Windows runtime payload
         shell: pwsh
         run: |
