@@ -1,7 +1,7 @@
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
-from flatlib.chart import Chart
 from flatlib import const
+from flatlib.ephem import swe
 
 from astrostudy.helper import distance
 from . import jieqiconst
@@ -58,19 +58,17 @@ class NongLi:
         self.jq25 = jq25
 
     def approach(self, dt):
-        chart = Chart(dt, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
-        sun = chart.getObject(const.SUN)
-        moon = chart.getObject(const.MOON)
-        delta = distance(sun.lon, moon.lon) + 1/7200
-        deltatm = delta / moon.lonspeed
+        sun = swe.sweObject(const.SUN, dt.jd)
+        moon = swe.sweObject(const.MOON, dt.jd)
+        delta = distance(sun['lon'], moon['lon']) + 1/7200
+        deltatm = delta / moon['lonspeed']
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
         while abs(delta) > 0.0003:
-            chart = Chart(newtm, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
-            sun = chart.getObject(const.SUN)
-            moon = chart.getObject(const.MOON)
-            delta = distance(sun.lon, moon.lon) + 1 / 7200
-            deltatm = delta / moon.lonspeed
+            sun = swe.sweObject(const.SUN, newtm.jd)
+            moon = swe.sweObject(const.MOON, newtm.jd)
+            delta = distance(sun['lon'], moon['lon']) + 1 / 7200
+            deltatm = delta / moon['lonspeed']
             newjd = newtm.jd + deltatm
             newtm = Datetime.fromJD(newjd, self.zone)
         return newtm

@@ -9,6 +9,10 @@ from websrv.helper import enable_crossdomain, build_param_error_response
 class WebCalcSrv:
     exposed = True
 
+    @staticmethod
+    def _resolve_azalt_flag(coord_type):
+        return swisseph.ECL2HOR if int(coord_type) == 0 else swisseph.EQU2HOR
+
     def OPTIONS(*args, **kwargs):
         enable_crossdomain()
 
@@ -30,7 +34,14 @@ class WebCalcSrv:
             coordLat = data['coordLat']
             coordLon = data['coordLon']
 
-            res = swisseph.azalt(jdn, lon, lat, height, coordLon, coordLat, 0, press, temp, coordType)
+            res = swisseph.azalt(
+                jdn,
+                self._resolve_azalt_flag(coordType),
+                (float(lon), float(lat), float(height)),
+                float(press),
+                float(temp),
+                (float(coordLon), float(coordLat), 1.0),
+            )
             res = {
                 'azimuth': res[0],
                 'altitudeTrue': res[1],
@@ -54,7 +65,7 @@ class WebCalcSrv:
             lon = data['lon']
             obliquity = const.ECLI2EQ_OBLIQUITY if cotype == -1 else const.EQ2ECLI_OBLIQUITY
 
-            res = swisseph.cotrans(lon, lat, 1, obliquity)
+            res = swisseph.cotrans((float(lon), float(lat), 1.0), float(obliquity))
             res = {
                 'lon': res[0],
                 'lat': res[1],

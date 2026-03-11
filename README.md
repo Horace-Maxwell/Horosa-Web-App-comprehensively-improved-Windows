@@ -4,7 +4,7 @@
 
 ## 一键安装包下载位置
 
-- [一键下载最新版 Windows 安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.11.3/HorosaPortableWindows-2026.03.11.3.zip)
+- [一键下载最新版 Windows 安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.11.4/HorosaPortableWindows-2026.03.11.4.zip)
 - [打开最新版 Release 页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 请注意：
@@ -18,18 +18,19 @@
 ## 安装只做这 3 步
 
 1. 下载 `HorosaPortableWindows-版本.zip`
-2. 先解压 zip，再打开解压后的 `desktop_installer_bundle` 文件夹
-3. 双击 `Install_Horosa_Desktop.vbs`，按中文安装向导完成安装
+2. 先完整解压 zip
+3. 直接双击解压后第一层的 `Install_Horosa_Desktop.vbs`，按中文安装向导完成安装
 
 安装完成后：
 
 - 桌面或开始菜单里会出现 `星阙`
 - 以后直接打开 `星阙` 就可以，不需要重复安装
 - 第一次安装时，安装器会自动联网下载较大的 Windows 运行时组件，所以会比后续启动慢一些
+- 普通用户不需要提前安装 Python、Java、Node 或其他开发工具
 
 ## 下载后不要点错
 
-- 正确入口是 `Install_Horosa_Desktop.vbs`
+- 正确入口是解压后第一层的 `Install_Horosa_Desktop.vbs`
 - 不要手动去点 `.ps1` 脚本
 - 不要直接点 `.manifest.json`
 - 第一次安装如果 Windows 弹出安全提示，按系统提示选择允许继续即可

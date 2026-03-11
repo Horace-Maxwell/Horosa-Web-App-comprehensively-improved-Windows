@@ -89,5 +89,5 @@ def eqCoords0(lon, lat):
 
 
 def eqCoords(lon, lat):
-    eq = swisseph.cotrans(lon, lat, 1, const.ECLI2EQ_OBLIQUITY)
+    eq = swisseph.cotrans((lon, lat, 1.0), const.ECLI2EQ_OBLIQUITY)
     return (eq[0], eq[1])

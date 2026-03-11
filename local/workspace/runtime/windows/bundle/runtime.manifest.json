@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-03-11T00:52:41-07:00",
+    "generatedAt":  "2026-03-11T03:17:34-07:00",
     "root":  "C:\\Users\\maxwe\\OneDrive\\Desktop\\Horosa-Web-App-comprehensively-improved-Windows-main\\local\\workspace",
     "assets":  [
                    {
@@ -11,6 +11,11 @@
                        "path":  "runtime\\windows\\python\\python.exe",
                        "size":  103192,
                        "sha256":  "5f7b89a612c9b8af1d6456cdfcd1dbe5ca630849e79aebced9bee9a6694952ec"
+                   },
+                   {
+                       "path":  "runtime\\windows\\node\\node.exe",
+                       "size":  89894400,
+                       "sha256":  "f13ac3ca23248dc389507e8fe38c34489ab7edb3e6d6700eb6da6a0b7e128eaf"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\astrostudyboot.jar",

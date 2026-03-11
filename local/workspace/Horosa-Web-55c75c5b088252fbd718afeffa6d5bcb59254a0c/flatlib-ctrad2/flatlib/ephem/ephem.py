@@ -26,6 +26,16 @@ from flatlib.lists import (GenericList, ObjectList,
                            HouseList, FixedStarList)
 
 
+def _azalt_ecliptic(jd, geo_lon, geo_lat, height, obj_lon, obj_lat):
+    return swisseph.azalt(
+        jd,
+        swisseph.ECL2HOR,
+        (float(geo_lon), float(geo_lat), float(height)),
+        1000.0,
+        20.0,
+        (float(obj_lon), float(obj_lat), 1.0),
+    )
+
 
 # === Objects === #
 
@@ -43,7 +53,7 @@ def calcMiddle(obj1, obj2, date, pos, height=150):
     eq = utils.eqCoords(obj['lon'], obj['lat'])
     obj['ra'] = eq[0]
     obj['decl'] = eq[1]
-    za = swisseph.azalt(date.jd, pos.lon, pos.lat, height, obj['lon'], obj['lat'], 0, 1000, 20, 0)
+    za = _azalt_ecliptic(date.jd, pos.lon, pos.lat, height, obj['lon'], obj['lat'])
     obj['azimuth'] = za[0]
     obj['altitudeTrue'] = za[1]
     obj['altitudeAppa'] = za[2]
@@ -54,7 +64,7 @@ def calcMiddle(obj1, obj2, date, pos, height=150):
 def getObject(ID, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
     """ Returns an ephemeris object. """
     obj = eph.getObject(ID, date.jd, pos.lat, pos.lon, flags)
-    za = swisseph.azalt(date.jd, pos.lon, pos.lat, height, obj['lon'], obj['lat'], 0, 1000, 20, 0)
+    za = _azalt_ecliptic(date.jd, pos.lon, pos.lat, height, obj['lon'], obj['lat'])
     obj['azimuth'] = za[0]
     obj['altitudeTrue'] = za[1]
     obj['altitudeAppa'] = za[2]
@@ -110,7 +120,7 @@ def getHouses(date, pos, hsys, height=150, flag=0):
     hList = [House.fromDict(house) for house in houses]
     aList = [GenericObject.fromDict(angle) for angle in angles]
     for obj in aList:
-        za = swisseph.azalt(date.jd, pos.lon, pos.lat, height, obj.lon, obj.lat, 0, 1000, 20, 0)
+        za = _azalt_ecliptic(date.jd, pos.lon, pos.lat, height, obj.lon, obj.lat)
         obj.azimuth = za[0]
         obj.altitudeTrue = za[1]
         obj.altitudeAppa = za[2]
@@ -131,7 +141,7 @@ def getAngleList(date, pos, hsys):
 def getFixedStar(ID, date, pos, height, flags=swe.SEDEFAULT_FLAG):
     """ Returns a fixed star from the ephemeris. """
     star = eph.getFixedStar(ID, date.jd, flags)
-    za = swisseph.azalt(date.jd, pos.lon, pos.lat, height, star['lon'], star['lat'], 0, 1000, 20, 0)
+    za = _azalt_ecliptic(date.jd, pos.lon, pos.lat, height, star['lon'], star['lat'])
     star['azimuth'] = za[0]
     star['altitudeTrue'] = za[1]
     star['altitudeAppa'] = za[2]
@@ -140,7 +150,7 @@ def getFixedStar(ID, date, pos, height, flags=swe.SEDEFAULT_FLAG):
 def getFixedStarSu28(ID, date, pos, height, flags=swe.SEDEFAULT_FLAG):
     """ Returns a fixed star from the ephemeris. """
     star = eph.getFixedStarSu28(ID, date.jd, flags)
-    za = swisseph.azalt(date.jd, pos.lon, pos.lat, height, star['lon'], star['lat'], 0, 1000, 20, 0)
+    za = _azalt_ecliptic(date.jd, pos.lon, pos.lat, height, star['lon'], star['lat'])
     star['azimuth'] = za[0]
     star['altitudeTrue'] = za[1]
     star['altitudeAppa'] = za[2]

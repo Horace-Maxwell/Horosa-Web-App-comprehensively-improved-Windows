@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Version,
   [string]$PythonExe,
   [switch]$RequireTagMatch
@@ -149,6 +149,7 @@ import hashlib
 import json
 import os
 import time
+import shutil
 from fnmatch import fnmatch
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -157,6 +158,8 @@ script_root = Path(os.environ["HOROSA_DESKTOP_BUNDLE_ROOT"]).resolve()
 repo_root = script_root.parent
 release_dir = script_root / "release"
 release_dir.mkdir(parents=True, exist_ok=True)
+short_stage_base = Path(os.environ.get("SystemDrive", "C:")) / "hpx"
+short_stage_base.mkdir(parents=True, exist_ok=True)
 
 version_info = json.loads((script_root / "version.json").read_text(encoding="utf-8"))
 version = str(version_info["version"])
@@ -178,14 +181,9 @@ asset_prefix = "HorosaPortableWindows"
 runtime_asset_prefix = str(version_info.get("runtime_asset_prefix") or "HorosaRuntimeWindows")
 zip_name = f"{asset_prefix}-{version}.zip"
 zip_path = release_dir / zip_name
-manifest_path = release_dir / f"{asset_prefix}-{version}.manifest.json"
 runtime_zip_name = f"{runtime_asset_prefix}-{version}.zip"
 runtime_zip_path = release_dir / runtime_zip_name
 runtime_manifest_path = release_dir / f"{runtime_asset_prefix}-{version}.manifest.json"
-log_asset_name = f"HorosaWindowsLog-{version}.md"
-log_asset_path = release_dir / log_asset_name
-structure_asset_name = f"HorosaWindowsStructure-{version}.md"
-structure_asset_path = release_dir / structure_asset_name
 
 root_excludes = {".git", ".github"}
 relative_excludes = {
@@ -202,6 +200,13 @@ relative_excludes = {
 pattern_excludes = [
     "smallpkg_selfcheck*",
     "release_selfcheck_tmp*",
+    "local/workspace/runtime/horosa_runtime_perf_check.json",
+    "local/workspace/*/.horosa_win_*.pid",
+    "local/workspace/*/*.command",
+    "local/workspace/*/runtime",
+    "local/workspace/*/astropy/astrostudy/models",
+    "local/workspace/*/astrostudysrv/*/target",
+    "local/workspace/*/flatlib-ctrad2/flatlib/resources/swefiles",
     "local/workspace/*/astrostudyui/node_modules",
     "local/workspace/*/astrostudyui/coverage",
     "local/workspace/*/astrostudyui/dist",
@@ -242,12 +247,27 @@ def remove_with_retry(path: Path) -> None:
     if last_exc:
         raise last_exc
 
+def remove_tree_with_retry(path: Path) -> None:
+    if not path.exists():
+        return
+    last_exc = None
+    for _ in range(20):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError as exc:
+            last_exc = exc
+            time.sleep(0.5)
+    if last_exc:
+        raise last_exc
+
 remove_with_retry(zip_path)
-remove_with_retry(manifest_path)
 remove_with_retry(runtime_zip_path)
 remove_with_retry(runtime_manifest_path)
-remove_with_retry(log_asset_path)
-remove_with_retry(structure_asset_path)
+portable_stage_root = short_stage_base / f"portable-stage-{version}"
+remove_tree_with_retry(portable_stage_root)
 
 def add_tree(zf: ZipFile, source_root: Path, archive_root: str) -> None:
     if not source_root.exists():
@@ -269,10 +289,13 @@ def add_tree(zf: ZipFile, source_root: Path, archive_root: str) -> None:
             except FileNotFoundError:
                 continue
 
-with ZipFile(zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
-    for current_root, dirs, files in os.walk(repo_root):
+def copy_filtered_tree(source_root: Path, destination_root: Path) -> None:
+    if not source_root.exists():
+        raise FileNotFoundError(f"Portable payload source missing: {source_root}")
+
+    for current_root, dirs, files in os.walk(source_root):
         current_path = Path(current_root)
-        rel_dir = current_path.relative_to(repo_root).as_posix() if current_path != repo_root else ""
+        rel_dir = current_path.relative_to(repo_root).as_posix()
 
         dirs[:] = [
             d for d in dirs
@@ -286,9 +309,112 @@ with ZipFile(zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
             if should_skip(rel_file):
                 continue
             try:
+                destination = destination_root / file_path.relative_to(source_root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file_path, destination)
+            except FileNotFoundError:
+                continue
+
+def copy_tree(source_root: Path, destination_root: Path) -> None:
+    if not source_root.exists():
+        raise FileNotFoundError(f"Portable payload source missing: {source_root}")
+    for current_root, dirs, files in os.walk(source_root):
+        current_path = Path(current_root)
+        rel_dir = current_path.relative_to(source_root)
+        target_dir = destination_root / rel_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+        dirs[:] = [d for d in dirs if d not in root_excludes]
+        for file_name in files:
+            file_path = current_path / file_name
+            destination = target_dir / file_name
+            try:
+                shutil.copy2(file_path, destination)
+            except FileNotFoundError:
+                continue
+
+portable_stage_root.mkdir(parents=True, exist_ok=True)
+portable_payload_root = portable_stage_root / "_package"
+portable_payload_root.mkdir(parents=True, exist_ok=True)
+copy_filtered_tree(repo_root / "desktop_installer_bundle", portable_payload_root / "desktop_installer_bundle")
+copy_filtered_tree(repo_root / "local", portable_payload_root / "local")
+
+payload_readme = portable_payload_root / "README.md"
+payload_readme.write_text(
+    "\n".join(
+        [
+            "# Xingque Desktop Payload",
+            "",
+            "Internal payload for the Xingque Windows installer package.",
+            "Do not run files from this folder directly.",
+        ]
+    ),
+    encoding="ascii",
+)
+
+portable_readme = portable_stage_root / "README.md"
+portable_readme.write_text(
+    "\n".join(
+        [
+            "# Xingque Windows Installer",
+            "",
+            "1. Extract this zip completely.",
+            "2. Double-click `Install_Horosa_Desktop.vbs` in this top-level folder.",
+            "3. Follow the Chinese setup wizard to finish installation.",
+            "",
+            "You do not need to open the `_package` folder.",
+            "Large runtime components will be downloaded automatically during installation.",
+        ]
+    ),
+    encoding="ascii",
+)
+
+portable_bootstrap_vbs = portable_stage_root / "Install_Horosa_Desktop.vbs"
+portable_bootstrap_vbs.write_text(
+    "\n".join(
+        [
+            "Option Explicit",
+            "",
+            "Dim fso, shell, scriptDir, wizardScript, cmd, exitCode, pwshExe",
+            'Set fso = CreateObject("Scripting.FileSystemObject")',
+            'Set shell = CreateObject("WScript.Shell")',
+            "",
+            "scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)",
+            'wizardScript = fso.BuildPath(scriptDir, "_package\\desktop_installer_bundle\\install_desktop_wizard.ps1")',
+            'pwshExe = shell.ExpandEnvironmentStrings("%ProgramFiles%") & "\\PowerShell\\7\\pwsh.exe"',
+            "If Not fso.FileExists(pwshExe) Then",
+            '  pwshExe = "powershell.exe"',
+            "End If",
+            "",
+            "If Not fso.FileExists(wizardScript) Then",
+            '  MsgBox "Installer script not found." & vbCrLf & wizardScript, vbCritical, "Xingque"',
+            "  WScript.Quit 1",
+            "End If",
+            "",
+            'cmd = Chr(34) & pwshExe & Chr(34) & " -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " & Chr(34) & wizardScript & Chr(34)',
+            "exitCode = shell.Run(cmd, 0, True)",
+            "WScript.Quit exitCode",
+            "",
+        ]
+    ),
+    encoding="ascii",
+)
+
+with ZipFile(zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
+    for current_root, dirs, files in os.walk(portable_stage_root):
+        current_path = Path(current_root)
+        rel_dir = current_path.relative_to(portable_stage_root).as_posix() if current_path != portable_stage_root else ""
+
+        dirs[:] = [d for d in dirs if d not in root_excludes]
+
+        for file_name in files:
+            file_path = current_path / file_name
+            rel_file = file_path.relative_to(portable_stage_root).as_posix()
+            try:
                 zf.write(file_path, rel_file)
             except FileNotFoundError:
                 continue
+
+remove_tree_with_retry(portable_stage_root)
 
 with ZipFile(runtime_zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
     add_tree(zf, repo_root / "local" / "workspace" / "runtime" / "windows", "local/workspace/runtime/windows")
@@ -324,6 +450,20 @@ with ZipFile(runtime_zip_path, "w", compression=ZIP_DEFLATED, compresslevel=9) a
                 dist_dir,
                 dist_dir.relative_to(repo_root).as_posix(),
             )
+        models_dir = project_dir / "astropy" / "astrostudy" / "models"
+        if models_dir.exists():
+            add_tree(
+                zf,
+                models_dir,
+                models_dir.relative_to(repo_root).as_posix(),
+            )
+        swefiles_dir = project_dir / "flatlib-ctrad2" / "flatlib" / "resources" / "swefiles"
+        if swefiles_dir.exists():
+            add_tree(
+                zf,
+                swefiles_dir,
+                swefiles_dir.relative_to(repo_root).as_posix(),
+            )
 
 def write_manifest(asset_path: Path, asset_name: str, target_manifest_path: Path, notes: str) -> None:
     sha256 = hashlib.sha256()
@@ -341,28 +481,11 @@ def write_manifest(asset_path: Path, asset_name: str, target_manifest_path: Path
     target_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 write_manifest(
-    zip_path,
-    zip_name,
-    manifest_path,
-    "Attach the installer zip asset to a published GitHub release whose tag matches this version.",
-)
-write_manifest(
     runtime_zip_path,
     runtime_zip_name,
     runtime_manifest_path,
-    "Attach the runtime zip asset to the same GitHub release; the Windows installer downloads it during install.",
+    "Attach the runtime zip asset to the dedicated runtime release for this version.",
 )
-docs_dir = repo_root / "docs"
-log_source = docs_dir / "SELFCHECK_LOG.md"
-structure_source = docs_dir / "PROJECT_STRUCTURE.md"
-if log_source.exists():
-    log_header = f"# Horosa Windows Release Log\\n\\n- version: `{version}`\\n- source: `docs/SELFCHECK_LOG.md`\\n\\n"
-    log_asset_path.write_text(log_header + log_source.read_text(encoding="utf-8"), encoding="utf-8")
-    print(f"[OK] Release log generated: {log_asset_path}")
-if structure_source.exists():
-    structure_header = f"# Horosa Windows Release Structure\\n\\n- version: `{version}`\\n- source: `docs/PROJECT_STRUCTURE.md`\\n\\n"
-    structure_asset_path.write_text(structure_header + structure_source.read_text(encoding="utf-8"), encoding="utf-8")
-    print(f"[OK] Release structure generated: {structure_asset_path}")
 print(f"[OK] Portable release zip built: {zip_path}")
 print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 '@ | & $ResolvedPythonExe -
@@ -372,3 +495,4 @@ Remove-Item Env:HOROSA_DESKTOP_REQUESTED_VERSION -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_REQUIRE_TAG_MATCH -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_GIT_TAG -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_PYTHON_EXE -ErrorAction SilentlyContinue
+

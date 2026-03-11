@@ -744,3 +744,4 @@ foreach ($label in @($brandPill, $brandTitle, $brandSubtitle, $brandSummary)) {
 }
 
 [void]$form.ShowDialog()
+

@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -22,3 +22,4 @@ if (-not (Test-Path $DepsRoot)) {
 $env:PYTHONPATH = $DepsRoot
 
 Start-Process -FilePath $PythonWExe -ArgumentList @($LauncherScript) -WorkingDirectory (Split-Path -Parent $LauncherScript) -WindowStyle Hidden | Out-Null
+

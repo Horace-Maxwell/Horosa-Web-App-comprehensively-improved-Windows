@@ -39,9 +39,6 @@ from websrv.webjieqisrv import JieQiSrv
 from websrv.webjdn import WebJdnSrv
 from websrv.webcalc import WebCalcSrv
 from websrv.webacgsrv import AcgSrv
-
-
-
 class WebChartSrv:
     exposed = True
     PD_SYNC_REV = 'pd_method_sync_v6'
@@ -205,14 +202,6 @@ def CORS():
 
 
 if __name__ == '__main__':
-    try:
-        t0 = time.perf_counter()
-        warm_chart = PerChart(dict(WebChartSrv.PD_WARMUP_SAMPLE))
-        warm_chart.getPredict().getPrimaryDirection()
-        print('pd warmup ready in {0:.3f}s'.format(time.perf_counter() - t0))
-    except Exception:
-        traceback.print_exc()
-
     chart_port = int(os.environ.get('HOROSA_CHART_PORT', '8899'))
     cherrypy.config.update({'server.socket_host': '127.0.0.1',
                             'server.socket_port': chart_port,

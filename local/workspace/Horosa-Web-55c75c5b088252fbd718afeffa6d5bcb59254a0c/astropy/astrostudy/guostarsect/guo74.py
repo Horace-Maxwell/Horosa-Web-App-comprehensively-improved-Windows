@@ -141,7 +141,7 @@ class Guo74:
         for idx in range(0, 28):
             su = su28[idx]
             fixedstar = self.perchart.chart.getFixedStar(Su28Id[su])
-            eclip = swisseph.cotrans(startdeg, fixedstar.decl, 1, 1)
+            eclip = swisseph.cotrans((startdeg, fixedstar.decl, 1.0), 1.0)
             sig = const.LIST_SIGNS[int(eclip[0] / 30) % 12]
             star = {
                 'ra': startdeg,

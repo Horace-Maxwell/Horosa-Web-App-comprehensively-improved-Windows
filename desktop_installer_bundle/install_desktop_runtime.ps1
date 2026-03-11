@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -140,12 +140,73 @@ function Remove-TreeWithRetry {
       return
     } catch {
       $lastError = $_
+      try {
+        & cmd.exe /d /c "rmdir /s /q `"$Path`"" | Out-Null
+        if (-not (Test-Path $Path)) {
+          return
+        }
+      } catch {}
       Start-Sleep -Milliseconds 400
     }
   }
 
   if ($lastError) {
     throw $lastError
+  }
+}
+
+function Expand-ZipArchive {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ZipPath,
+    [Parameter(Mandatory = $true)]
+    [string]$DestinationPath
+  )
+
+  Remove-TreeWithRetry -Path $DestinationPath
+  New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
+
+  $tarCommand = Get-Command 'tar.exe' -ErrorAction SilentlyContinue
+  if ($tarCommand) {
+    & $tarCommand.Source -xf $ZipPath -C $DestinationPath
+    if ($LASTEXITCODE -eq 0) {
+      return
+    }
+
+    throw "tar 解压失败，退出码：$LASTEXITCODE"
+  }
+
+  Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
+  [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $DestinationPath)
+}
+
+function Copy-DirectoryTree {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$SourcePath,
+    [Parameter(Mandatory = $true)]
+    [string]$DestinationPath
+  )
+
+  if (-not (Test-Path $SourcePath -PathType Container)) {
+    throw "复制失败，源目录不存在：$SourcePath"
+  }
+
+  Remove-TreeWithRetry -Path $DestinationPath
+  New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
+
+  $robocopyOutput = & robocopy $SourcePath $DestinationPath /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP 2>&1
+  $robocopyExitCode = $LASTEXITCODE
+  if ($null -ne $robocopyOutput) {
+    foreach ($line in $robocopyOutput) {
+      if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+        Write-InstallLog ("robocopy: {0}" -f $line)
+      }
+    }
+  }
+
+  if ($robocopyExitCode -ge 8) {
+    throw "robocopy 复制失败，退出码：$robocopyExitCode，源目录：$SourcePath，目标目录：$DestinationPath"
   }
 }
 
@@ -174,11 +235,17 @@ function Get-RuntimeAssetInfo {
   $runtimePrefix = if ($runtimePrefixProp -and -not [string]::IsNullOrWhiteSpace([string]$runtimePrefixProp.Value)) { [string]$runtimePrefixProp.Value } else { 'HorosaRuntimeWindows' }
   $assetName = "$runtimePrefix-$Version.zip"
   $manifestName = "$runtimePrefix-$Version.manifest.json"
+  $runtimeTagProp = $VersionInfo.PSObject.Properties['runtime_release_tag']
+  $runtimeTag = if ($runtimeTagProp -and -not [string]::IsNullOrWhiteSpace([string]$runtimeTagProp.Value)) { [string]$runtimeTagProp.Value } else { "runtime-$Version" }
   $baseOverride = [string]$env:HOROSA_DESKTOP_RELEASE_DOWNLOAD_BASE_URL
+  $configOverrideProp = $VersionInfo.PSObject.Properties['runtime_download_base_url']
+  $configOverride = if ($configOverrideProp) { [string]$configOverrideProp.Value } else { '' }
   if (-not [string]::IsNullOrWhiteSpace($baseOverride)) {
     $baseUrl = $baseOverride.Trim().TrimEnd('/')
+  } elseif (-not [string]::IsNullOrWhiteSpace($configOverride)) {
+    $baseUrl = $configOverride.Trim().TrimEnd('/')
   } else {
-    $baseUrl = "https://github.com/$repo/releases/download/$Version"
+    $baseUrl = "https://github.com/$repo/releases/download/$runtimeTag"
   }
 
   return @{
@@ -247,8 +314,7 @@ function Ensure-RuntimePayload {
   }
 
   Write-InstallProgress -State 'extracting' -Title '正在展开运行时组件' -Message '已下载完成，正在解压并准备本地运行环境。' -Percent 35
-  Remove-TreeWithRetry -Path $extractRoot
-  Expand-Archive -LiteralPath $zipPath -DestinationPath $extractRoot -Force
+  Expand-ZipArchive -ZipPath $zipPath -DestinationPath $extractRoot
 
   $extractedRuntimeRoot = Join-Path $extractRoot 'local\workspace\runtime\windows'
   $extractedWheelhouse = Join-Path $extractRoot 'desktop_installer_bundle\wheelhouse'
@@ -259,11 +325,48 @@ function Ensure-RuntimePayload {
     throw "Extracted runtime payload missing directory: $extractedWheelhouse"
   }
 
-  Remove-TreeWithRetry -Path $RuntimeRoot
-  Remove-TreeWithRetry -Path $Wheelhouse
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $RuntimeRoot) | Out-Null
-  Copy-Item -Path $extractedRuntimeRoot -Destination (Split-Path -Parent $RuntimeRoot) -Recurse -Force
-  Copy-Item -Path $extractedWheelhouse -Destination $ScriptRoot -Recurse -Force
+  Copy-DirectoryTree -SourcePath $extractedRuntimeRoot -DestinationPath $RuntimeRoot
+  Copy-DirectoryTree -SourcePath $extractedWheelhouse -DestinationPath $Wheelhouse
+
+  $workspaceExtractRoot = Join-Path $extractRoot 'local\workspace'
+  if (Test-Path $workspaceExtractRoot -PathType Container) {
+    $workspaceTargetRoot = Join-Path $RepoRoot 'local\workspace'
+    $copyPairs = @(
+      @{
+        SourcePattern = 'astropy\astrostudy\models'
+        DestinationPattern = 'astropy\astrostudy\models'
+      },
+      @{
+        SourcePattern = 'flatlib-ctrad2\flatlib\resources\swefiles'
+        DestinationPattern = 'flatlib-ctrad2\flatlib\resources\swefiles'
+      },
+      @{
+        SourcePattern = 'astrostudyui\dist-file'
+        DestinationPattern = 'astrostudyui\dist-file'
+      },
+      @{
+        SourcePattern = 'astrostudyui\dist'
+        DestinationPattern = 'astrostudyui\dist'
+      },
+      @{
+        SourcePattern = 'astrostudysrv\astrostudyboot\target'
+        DestinationPattern = 'astrostudysrv\astrostudyboot\target'
+      }
+    )
+
+    foreach ($projectDir in Get-ChildItem -Path $workspaceExtractRoot -Directory -ErrorAction SilentlyContinue) {
+      foreach ($pair in $copyPairs) {
+        $sourcePath = Join-Path $projectDir.FullName $pair.SourcePattern
+        if (-not (Test-Path $sourcePath)) {
+          continue
+        }
+
+        $targetPath = Join-Path (Join-Path $workspaceTargetRoot $projectDir.Name) $pair.DestinationPattern
+        Copy-DirectoryTree -SourcePath $sourcePath -DestinationPath $targetPath
+      }
+    }
+  }
+
   Remove-TreeWithRetry -Path $extractRoot
 
   if (-not (Test-RuntimePayloadPresent)) {
@@ -342,3 +445,4 @@ Write-InstallProgress -State 'finalizing' -Title '正在完成安装' -Message '
 
 Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '桌面运行环境已经准备好，可以立即启动。' -Percent 100
 Write-Host '[OK] Desktop runtime prepared.'
+

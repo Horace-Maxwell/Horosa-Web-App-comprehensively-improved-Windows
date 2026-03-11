@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory = $true)][string]$ZipPath,
   [Parameter(Mandatory = $true)][string]$TargetDir,
   [Parameter(Mandatory = $true)][string]$RelaunchVbs
@@ -158,6 +158,37 @@ function Resolve-PayloadRoot {
     }
   }
 
+  $packageChild = Join-Path $ExtractRoot '_package'
+  if (Test-Path $packageChild -PathType Container) {
+    $packageRepoMatch = $true
+    foreach ($marker in $repoMarkers) {
+      if (-not (Test-Path (Join-Path $packageChild $marker))) {
+        $packageRepoMatch = $false
+        break
+      }
+    }
+    if ($packageRepoMatch) {
+      return [pscustomobject]@{
+        Root = $packageChild
+        Kind = 'repo'
+      }
+    }
+
+    $packageBundleMatch = $true
+    foreach ($marker in $bundleMarkers) {
+      if (-not (Test-Path (Join-Path $packageChild $marker))) {
+        $packageBundleMatch = $false
+        break
+      }
+    }
+    if ($packageBundleMatch) {
+      return [pscustomobject]@{
+        Root = $packageChild
+        Kind = 'bundle'
+      }
+    }
+  }
+
   $children = @(Get-ChildItem -Path $ExtractRoot -Directory -ErrorAction SilentlyContinue)
   if ($children.Count -eq 1) {
     $childRoot = $children[0].FullName
@@ -298,3 +329,4 @@ try {
   }
   Write-UpdateLog ("Updater finished. Temp root cleaned: {0}" -f $tempRoot)
 }
+

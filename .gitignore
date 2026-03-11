@@ -44,9 +44,11 @@ log/HOROSA_RUN_ISSUES.md
 local/workspace/runtime/mac/java/
 local/workspace/runtime/mac/python/
 local/workspace/runtime/windows/java/
+local/workspace/runtime/windows/node/
 local/workspace/runtime/windows/python/
 local/workspace/runtime/windows/wheels/
 local/workspace/runtime/windows/bundle/astrostudyboot.jar
+local/workspace/runtime/horosa_runtime_perf_check.json
 
 # Legacy path compatibility
 runtime/mac/java/
@@ -74,6 +76,12 @@ desktop_installer_bundle/wheelhouse/*.whl
 selfcheck/results/
 selfcheck/last-ui-fast.json
 selfcheck/last-ui-fast.err.log
+selfcheck/probe_chartpy_route.ps1
+tmp_launcher_perf.out.log
+tmp_launcher_perf.err.log
 tmp_ui_audit_*.out.json
 tmp_ui_overview.png
 e2e_release_check/
+tmp_*.ps1
+tmp_*.py
+tmp_*.js

@@ -116,6 +116,10 @@ def _calcUtSafe(jd, sweObj, flags):
         return swisseph.calc_ut(jd, sweObj, fbFlags)
 
 
+def _cotrans(lon, lat, dist, obliquity):
+    return swisseph.cotrans((float(lon), float(lat), float(dist)), float(obliquity))
+
+
 # === Object functions === #
 
 def sweObject(obj, jd, flags=SEDEFAULT_FLAG):
@@ -185,17 +189,17 @@ def sweHouses(jd, lat, lon, hsys, flag=0):
         } for i in range(12)
     ]
     for house in houses:
-        eqcod = swisseph.cotrans(house['lon'], 0, 1, const.ECLI2EQ_OBLIQUITY)
+        eqcod = _cotrans(house['lon'], 0, 1, const.ECLI2EQ_OBLIQUITY)
         house['ra'] = eqcod[0]
         house['decl'] = eqcod[1]
 
     descLon = angle.norm(ascmc[0] + 180)
     icLon = angle.norm(ascmc[1] + 180)
 
-    ascEclip = swisseph.cotrans(ascmc[4], lat, 1, const.EQ2ECLI_OBLIQUITY)
-    descRA= swisseph.cotrans(descLon, ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
-    mcRA = swisseph.cotrans(ascmc[1], ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
-    icRA = swisseph.cotrans(icLon, ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
+    ascEclip = _cotrans(ascmc[4], lat, 1, const.EQ2ECLI_OBLIQUITY)
+    descRA = _cotrans(descLon, ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
+    mcRA = _cotrans(ascmc[1], ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
+    icRA = _cotrans(icLon, ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
 
     angles = [
         {'id': const.ASC, 'lon': ascmc[0], 'lat': ascEclip[1], 'ra': ascmc[4], 'decl': lat},

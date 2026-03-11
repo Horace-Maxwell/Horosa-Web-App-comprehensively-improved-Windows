@@ -1,8 +1,10 @@
 from flatlib import angle
+import copy
+
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
-from flatlib.chart import Chart
 from flatlib import const
+from flatlib.ephem import swe
 from astrostudy.helper import getChartObj
 
 from astrostudy.helper import distance
@@ -10,6 +12,28 @@ from . import jieqiconst
 
 def takeTime(obj):
     return obj['jdn']
+
+
+_YEAR_JIEQI_CACHE = {}
+
+
+def _normalize_cache_value(value):
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, float):
+        return round(value, 8)
+    return value
+
+
+def _build_cache_key(data):
+    keys = ['year', 'zone', 'lat', 'lon', 'hsys', 'zodiacal', 'doubingSu28']
+    normalized = []
+    for key in keys:
+        normalized.append((key, _normalize_cache_value(data.get(key))))
+    jieqis = data.get('jieqis')
+    if jieqis is not None:
+        normalized.append(('jieqis', tuple(sorted(jieqis))))
+    return tuple(normalized)
 
 class YearJieQi:
 
@@ -49,6 +73,7 @@ class YearJieQi:
         self.params['zodiacal'] = self.zodiacal
         self.params['doubingSu28'] = self.doubingSu28
         self.params['predictive'] = False
+        self._cache_key = _build_cache_key(data)
 
     def compute(self):
         return self.computeJieQi(True)
@@ -64,22 +89,24 @@ class YearJieQi:
         return res
 
     def approach(self, dt, jieqiLon):
-        chart = Chart(dt, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
-        sun = chart.getObject(const.SUN)
-        delta = distance(jieqiLon, sun.lon) + 1/7200
-        deltatm = delta / sun.lonspeed
+        sun = swe.sweObject(const.SUN, dt.jd)
+        delta = distance(jieqiLon, sun['lon']) + 1/7200
+        deltatm = delta / sun['lonspeed']
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
         while abs(delta) > 0.0003:
-            chart = Chart(newtm, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
-            sun = chart.getObject(const.SUN)
-            delta = distance(jieqiLon, sun.lon) + 1/7200
-            deltatm = delta / sun.lonspeed
+            sun = swe.sweObject(const.SUN, newtm.jd)
+            delta = distance(jieqiLon, sun['lon']) + 1/7200
+            deltatm = delta / sun['lonspeed']
             newjd = newtm.jd + deltatm
             newtm = Datetime.fromJD(newjd, self.zone)
         return newtm
 
     def computeJieQi(self, needChart):
+        cached = _YEAR_JIEQI_CACHE.get((self._cache_key, bool(needChart)))
+        if cached is not None:
+            return copy.deepcopy(cached)
+
         jieqicharts = {}
         jieqi24 = []
         tmpjieqi24 = {}
@@ -129,8 +156,10 @@ class YearJieQi:
                     jieqicharts[key] = getChartObj(self.params, perchart)
 
             res['charts'] = jieqicharts
+            _YEAR_JIEQI_CACHE[(self._cache_key, True)] = copy.deepcopy(res)
             return res
         else:
+            _YEAR_JIEQI_CACHE[(self._cache_key, False)] = copy.deepcopy(jieqi24)
             return jieqi24
 
     def computeOneJieQi(self, jieqi):

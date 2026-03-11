@@ -148,6 +148,7 @@ if (-not $ProjectDir) {
 $PyPidFile = Join-Path $ProjectDir '.horosa_win_py.pid'
 $JavaPidFile = Join-Path $ProjectDir '.horosa_win_java.pid'
 $WebPidFile = Join-Path $ProjectDir '.horosa_win_web.pid'
+$WarmupPidFile = Join-Path $ProjectDir '.horosa_win_warmup.pid'
 
 $LogRoot = Join-Path $ProjectDir '.horosa-local-logs-win'
 $RunTag = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -537,6 +538,7 @@ function Cleanup-All {
   Stop-PidFile -Name 'web' -Path $WebPidFile
   Stop-PidFile -Name 'java' -Path $JavaPidFile
   Stop-PidFile -Name 'python' -Path $PyPidFile
+  Stop-PidFile -Name 'warmup' -Path $WarmupPidFile
   Stop-ProjectPortOwners -Name 'web' -Port $WebPort
   Stop-ProjectPortOwners -Name 'java' -Port $BackendPort
   Stop-ProjectPortOwners -Name 'python' -Port $ChartPort
@@ -2147,6 +2149,16 @@ function Resolve-NodeJs {
     return $env:HOROSA_NODE
   }
 
+  $candidates = @(
+    (Join-Path $Root 'runtime/windows/node/node.exe'),
+    (Join-Path $RepoRoot 'local/workspace/runtime/windows/node/node.exe')
+  )
+  foreach ($candidate in $candidates) {
+    if ($candidate -and (Test-Path $candidate)) {
+      return $candidate
+    }
+  }
+
   try {
     $nodeCmd = Get-Command node -ErrorAction Stop
     if ($nodeCmd -and $nodeCmd.Source -and ($nodeCmd.Source -notmatch 'WindowsApps')) {
@@ -2157,49 +2169,109 @@ function Resolve-NodeJs {
   return $null
 }
 
-function Invoke-HorosaWarmup {
+function Start-HorosaWarmupProcess {
   param(
-    [string]$ProjectRoot
+    [string]$ProjectRoot,
+    [string]$Mode,
+    [int]$DelaySec = 0,
+    [string]$OutPath,
+    [string]$ErrPath
   )
 
   $warmScript = Join-Path $ProjectRoot 'astrostudyui\scripts\warmHorosaRuntime.js'
   if (-not (Test-Path $warmScript)) {
-    return
+    return $null
   }
 
   $nodeCmd = Resolve-NodeJs
   if (-not $nodeCmd) {
     Write-Host '[WARN] Node.js not found, skip runtime warmup.'
-    return
+    return $null
   }
 
-  $warmOut = Join-Path $LogDir 'warmup.log'
-  $warmErr = Join-Path $LogDir 'warmup.log.err'
   Write-Host ("[warmup] Using Node.js: {0}" -f $nodeCmd)
-  Write-Host ("[warmup] Preheating critical runtime endpoints via {0}" -f $warmScript)
+  Write-Host ("[warmup] Starting {0} warmup via {1}" -f $Mode, $warmScript)
 
   try {
-    $proc = Start-Process -FilePath $nodeCmd `
-      -ArgumentList @($warmScript) `
+    if ($DelaySec -gt 0) {
+      $runner = @"
+Start-Sleep -Seconds $DelaySec
+& '$nodeCmd' '$warmScript' '--mode=$Mode'
+exit \$LASTEXITCODE
+"@
+      return (Start-Process -FilePath 'powershell.exe' `
+        -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $runner) `
+        -WorkingDirectory (Split-Path -Parent $warmScript) `
+        -PassThru `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $OutPath `
+        -RedirectStandardError $ErrPath)
+    }
+
+    return (Start-Process -FilePath $nodeCmd `
+      -ArgumentList @($warmScript, "--mode=$Mode") `
       -WorkingDirectory (Split-Path -Parent $warmScript) `
       -PassThru `
       -WindowStyle Hidden `
+      -RedirectStandardOutput $OutPath `
+      -RedirectStandardError $ErrPath)
+  } catch {
+    Write-Host ("[WARN] Runtime warmup failed to start: {0}" -f $_.Exception.Message)
+    return $null
+  }
+}
+
+function Invoke-HorosaWarmup {
+  param(
+    [string]$ProjectRoot,
+    [string]$Mode = 'quick',
+    [int]$TimeoutSec = 15,
+    [int]$DelaySec = 0,
+    [switch]$Background
+  )
+
+  $warmOut = Join-Path $LogDir ("warmup-{0}.log" -f $Mode)
+  $warmErr = Join-Path $LogDir ("warmup-{0}.log.err" -f $Mode)
+  $warmScript = Join-Path $ProjectRoot 'astrostudyui\scripts\warmHorosaRuntime.js'
+  $nodeCmd = Resolve-NodeJs
+  if (-not (Test-Path $warmScript) -or -not $nodeCmd) {
+    if (-not $nodeCmd) {
+      Write-Host '[WARN] Node.js not found, skip runtime warmup.'
+    }
+    return $false
+  }
+
+  if ($Background) {
+    $proc = Start-HorosaWarmupProcess -ProjectRoot $ProjectRoot -Mode $Mode -DelaySec $DelaySec -OutPath $warmOut -ErrPath $warmErr
+    if (-not $proc) {
+      return $false
+    }
+    Set-Content -Path $WarmupPidFile -Value $proc.Id -NoNewline
+    Write-Host ("[warmup] Background {0} warmup running (pid {1})." -f $Mode, $proc.Id)
+    return $true
+  }
+
+  try {
+    Write-Host ("[warmup] Using Node.js: {0}" -f $nodeCmd)
+    Write-Host ("[warmup] Starting {0} warmup via {1}" -f $Mode, $warmScript)
+    $proc = Start-Process -FilePath $nodeCmd `
+      -ArgumentList @($warmScript, "--mode=$Mode") `
+      -WorkingDirectory (Split-Path -Parent $warmScript) `
+      -PassThru `
+      -Wait `
+      -WindowStyle Hidden `
       -RedirectStandardOutput $warmOut `
       -RedirectStandardError $warmErr
-
-    if (-not (Wait-Process -Id $proc.Id -Timeout 180 -ErrorAction SilentlyContinue)) {
-      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-      Write-Host '[WARN] Runtime warmup timed out after 180s, continue without blocking startup.'
-      return
-    }
-
     if ($proc.ExitCode -eq 0) {
-      Write-Host '[warmup] Runtime warmup completed.'
+      Write-Host ("[warmup] Runtime {0} warmup completed." -f $Mode)
+      return $true
     } else {
-      Write-Host ("[WARN] Runtime warmup exited with code {0}. See {1}" -f $proc.ExitCode, $warmErr)
+      Write-Host ("[WARN] Runtime {0} warmup exited with code {1}. See {2}" -f $Mode, $proc.ExitCode, $warmErr)
+      return $false
     }
   } catch {
-    Write-Host ("[WARN] Runtime warmup failed: {0}" -f $_.Exception.Message)
+    Write-Host ("[WARN] Runtime {0} warmup failed: {1}" -f $Mode, $_.Exception.Message)
+    return $false
   }
 }
 
@@ -2566,7 +2638,7 @@ try {
   Write-Host "backend: http://127.0.0.1:$BackendPort"
   Write-Host "chartpy: http://127.0.0.1:$ChartPort"
   if ($PerfMode) {
-    Invoke-HorosaWarmup -ProjectRoot $ProjectDir
+    Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -TimeoutSec 12 | Out-Null
   }
 
   Write-Host "[2/4] Starting local web service on 127.0.0.1:$WebPort ..."
@@ -2587,6 +2659,16 @@ try {
 
   if (-not $webReady) {
     throw "Web service failed to start. Check log: $WebLog"
+  }
+
+  if ($PerfMode) {
+    if ($env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
+      $fullWarmupDelaySec = 20
+      if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
+        [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
+      }
+      Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'full' -DelaySec $fullWarmupDelaySec -Background | Out-Null
+    }
   }
 
   $serverRoot = "http://127.0.0.1:$BackendPort"
