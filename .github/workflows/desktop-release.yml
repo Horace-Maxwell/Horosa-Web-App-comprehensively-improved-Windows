@@ -229,11 +229,19 @@ jobs:
               ]
 
           body_path = Path(os.environ["RUNNER_TEMP"]) / "horosa-release-body.md"
+          portable_asset = f"HorosaPortableWindows-{release_tag}.zip"
+          portable_url = f"https://github.com/{repository}/releases/download/{release_tag}/{portable_asset}"
+          latest_release_url = f"https://github.com/{repository}/releases/latest"
+          log_asset = f"HorosaWindowsLog-{release_tag}.md"
+          log_url = f"https://github.com/{repository}/releases/download/{release_tag}/{log_asset}"
+          structure_asset = f"HorosaWindowsStructure-{release_tag}.md"
+          structure_url = f"https://github.com/{repository}/releases/download/{release_tag}/{structure_asset}"
           body_lines = [
               "## 普通用户请这样下载",
               "",
-              f"- 打开最新 Release 页面：`https://github.com/{repository}/releases/latest`",
-              f"- 下载：`HorosaPortableWindows-{release_tag}.zip`",
+              f"- [一键下载 Windows 安装包]({portable_url})",
+              f"- [打开最新 Release 页面]({latest_release_url})",
+              f"- 下载：`{portable_asset}`",
               f"- 不要下载：`HorosaPortableWindows-{release_tag}.manifest.json`",
               "",
               "## 普通用户请这样安装和使用",
@@ -255,8 +263,8 @@ jobs:
               "",
               "## 附带发布资产",
               "",
-              f"- `HorosaWindowsLog-{release_tag}.md`：这一版 Windows 自检与收尾日志",
-              f"- `HorosaWindowsStructure-{release_tag}.md`：这一版目录与交付结构说明",
+              f"- [`{log_asset}`]({log_url})：这一版 Windows 自检与收尾日志",
+              f"- [`{structure_asset}`]({structure_url})：这一版目录与交付结构说明",
               "",
               "## 本次版本更新",
               "",
