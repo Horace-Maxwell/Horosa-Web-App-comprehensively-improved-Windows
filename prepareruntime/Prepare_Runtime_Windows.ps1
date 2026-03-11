@@ -467,28 +467,33 @@ function Ensure-PythonDepsInRuntime {
     & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
     if ($LASTEXITCODE -ne 0) { return $false }
 
-    $flatlibInstalled = $false
-    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
-    foreach ($flatlibSpec in $flatlibSpecs) {
-      try {
-        & $PythonExe -m pip install --disable-pip-version-check --no-input $flatlibSpec *> $null
-        if ($LASTEXITCODE -eq 0) {
-          $flatlibInstalled = $true
-          break
-        }
-      } catch {}
-      Write-Host ("[WARN] Failed to install {0}, trying fallback..." -f $flatlibSpec)
-    }
-    if (-not $flatlibInstalled) {
-      Write-Host '[WARN] Flatlib package install skipped; runtime can use bundled flatlib-ctrad2.'
-    }
-
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
     return (Test-PythonDeps -PythonExe $PythonExe)
   } catch {
     Write-Host ("[WARN] Python runtime dependency install failed: {0}" -f $_.Exception.Message)
     return $false
+  }
+}
+
+function Remove-ConflictingPythonPackages {
+  param([string]$PythonRoot)
+
+  if (-not $PythonRoot) { return }
+  $sitePackages = Join-Path $PythonRoot 'Lib\site-packages'
+  if (-not (Test-Path $sitePackages -PathType Container)) { return }
+
+  $patterns = @(
+    'flatlib',
+    'flatlib-*.dist-info'
+  )
+
+  foreach ($pattern in $patterns) {
+    $matches = @(Get-ChildItem -Path $sitePackages -Filter $pattern -Force -ErrorAction SilentlyContinue)
+    foreach ($match in $matches) {
+      Write-Host ("[INFO] Removing conflicting bundled Python package: {0}" -f $match.FullName)
+      Remove-TreeWithRetry -Path $match.FullName
+    }
   }
 }
 
@@ -500,25 +505,14 @@ function Export-PythonWheels {
   if (-not (Test-Path $PythonExe)) { return $false }
   try {
     New-Item -ItemType Directory -Force -Path $WheelDir | Out-Null
+    Get-ChildItem -Path $WheelDir -File -Filter 'flatlib*' -ErrorAction SilentlyContinue |
+      ForEach-Object {
+        Write-Host ("[INFO] Removing conflicting offline wheel: {0}" -f $_.FullName)
+        Remove-Item -Force $_.FullName -ErrorAction SilentlyContinue
+      }
     Write-Host "Exporting offline Python wheels to: $WheelDir"
     & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
-
-    $flatlibDownloaded = $false
-    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
-    foreach ($flatlibSpec in $flatlibSpecs) {
-      try {
-        & $PythonExe -m pip download --disable-pip-version-check --dest $WheelDir $flatlibSpec *> $null
-        if ($LASTEXITCODE -eq 0) {
-          $flatlibDownloaded = $true
-          break
-        }
-      } catch {}
-      Write-Host ("[WARN] Failed to export {0}, trying fallback..." -f $flatlibSpec)
-    }
-    if (-not $flatlibDownloaded) {
-      Write-Host '[WARN] Flatlib wheel/source export skipped; startup can still use bundled flatlib-ctrad2.'
-    }
 
     return (Test-WheelCompleteness -WheelDir $WheelDir)
   } catch {
@@ -615,8 +609,10 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   Write-Host "Copy Python runtime: $PySrc -> $PyDst"
   Remove-TreeWithRetry -Path $PyDst
   Invoke-RobocopyCopy -Source $PySrc -Destination $PyDst
+  Remove-ConflictingPythonPackages -PythonRoot $PyDst
   $runtimePyExe = Join-Path $PyDst 'python.exe'
   $depsReady = Ensure-PythonDepsInRuntime -PythonExe $runtimePyExe
+  Remove-ConflictingPythonPackages -PythonRoot $PyDst
   if ($depsReady) {
     Write-Host '[OK] Python runtime deps ready.'
   } else {
