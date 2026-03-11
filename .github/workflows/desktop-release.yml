@@ -45,6 +45,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Hydrate wheelhouse LFS assets
+        shell: pwsh
+        run: |
+          git lfs pull --include="desktop_installer_bundle/wheelhouse/*.whl"
+          Get-ChildItem ./desktop_installer_bundle/wheelhouse/*.whl |
+            Select-Object Name, Length |
+            Format-Table -AutoSize
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:

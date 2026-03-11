@@ -1,7 +1,7 @@
 {
-  "version": "2026.03.10.23",
+  "version": "2026.03.10.24",
   "channel": "stable",
   "release_asset_prefix": "HorosaPortableWindows",
   "runtime_asset_prefix": "HorosaRuntimeWindows",
-  "release_name": "v1.0.15"
+  "release_name": "v1.0.16"
 }
