@@ -32,13 +32,11 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v4
         with:
-          lfs: true
           fetch-depth: 0
       - name: Checkout requested tag
         if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/checkout@v4
         with:
-          lfs: true
           fetch-depth: 0
           ref: refs/tags/${{ env.RELEASE_TAG }}
 
