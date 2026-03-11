@@ -13,6 +13,9 @@ $ReqFile = Join-Path $ScriptRoot 'runtime_requirements.txt'
 $Wheelhouse = Join-Path $ScriptRoot 'wheelhouse'
 $InstallStateFile = Join-Path $DepsRoot 'install_state.json'
 $ReleaseConfigFile = Join-Path $ScriptRoot 'src\app_release_config.json'
+$InstallLogDir = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-logs'
+$InstallLogFile = Join-Path $InstallLogDir 'install-runtime.log'
+$PipLogFile = Join-Path $InstallLogDir 'install-runtime-pip.log'
 $DisplayName = '星阙'
 $ReleaseRepository = 'Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows'
 
@@ -38,6 +41,89 @@ function Write-InstallProgress {
     percent = $Percent
     updatedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
   } | ConvertTo-Json | Set-Content -Path $ProgressFile -Encoding UTF8
+}
+
+function Write-InstallLog {
+  param([string]$Message)
+
+  New-Item -ItemType Directory -Force -Path $InstallLogDir | Out-Null
+  $line = "[{0}] {1}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'), $Message
+  Add-Content -Path $InstallLogFile -Value $line -Encoding UTF8
+}
+
+function Get-CompactErrorText {
+  param([object]$ErrorRecord)
+
+  if ($null -eq $ErrorRecord) {
+    return '未知错误'
+  }
+
+  if ($ErrorRecord.Exception -and -not [string]::IsNullOrWhiteSpace([string]$ErrorRecord.Exception.Message)) {
+    return ([string]$ErrorRecord.Exception.Message).Trim()
+  }
+
+  $text = [string]$ErrorRecord
+  if (-not [string]::IsNullOrWhiteSpace($text)) {
+    return $text.Trim()
+  }
+
+  return '未知错误'
+}
+
+function Publish-InstallFailure {
+  param(
+    [object]$ErrorRecord,
+    [string]$FriendlyMessage = '安装过程中遇到错误。'
+  )
+
+  $reason = Get-CompactErrorText -ErrorRecord $ErrorRecord
+  $combined = "$FriendlyMessage`r`n失败原因：$reason`r`n详细日志：$InstallLogFile"
+  Write-InstallLog ("FAILED: {0}" -f $reason)
+  if ($ErrorRecord.ScriptStackTrace) {
+    Write-InstallLog ("STACK: {0}" -f $ErrorRecord.ScriptStackTrace)
+  }
+  Write-InstallProgress -State 'error' -Title '安装失败' -Message $combined -Percent 100
+}
+
+function Invoke-PipInstall {
+  param(
+    [string[]]$Arguments,
+    [string]$ProgressMessage
+  )
+
+  if (Test-Path $PipLogFile) {
+    Remove-Item -Force $PipLogFile -ErrorAction SilentlyContinue
+  }
+
+  Write-InstallProgress -State 'installing' -Title '正在安装桌面运行环境' -Message $ProgressMessage -Percent 55
+  Write-InstallLog ("pip install {0}" -f ($Arguments -join ' '))
+  $output = & $PythonExe -m pip @Arguments 2>&1
+  $exitCode = $LASTEXITCODE
+  if ($null -ne $output) {
+    $output | Out-File -FilePath $PipLogFile -Encoding UTF8
+    foreach ($line in $output) {
+      Write-InstallLog ("pip: {0}" -f $line)
+    }
+  }
+
+  if ($exitCode -ne 0) {
+    $tail = if (Test-Path $PipLogFile) {
+      ((Get-Content -Path $PipLogFile -Tail 12) -join ' | ').Trim()
+    } else {
+      ''
+    }
+    if ([string]::IsNullOrWhiteSpace($tail)) {
+      throw "pip install 失败，退出码：$exitCode"
+    }
+    throw "pip install 失败，退出码：$exitCode。$tail"
+  }
+
+  return $true
+}
+
+trap {
+  Publish-InstallFailure -ErrorRecord $_
+  break
 }
 
 function Remove-TreeWithRetry {
@@ -141,10 +227,12 @@ function Ensure-RuntimePayload {
   $oldProgress = $ProgressPreference
   try {
     $ProgressPreference = 'SilentlyContinue'
+    Write-InstallLog ("Downloading runtime manifest: {0}" -f $asset.ManifestUrl)
     Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.ManifestUrl -OutFile $manifestPath
+    Write-InstallLog ("Downloading runtime asset: {0}" -f $asset.AssetUrl)
     Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.AssetUrl -OutFile $zipPath
   } catch {
-    Write-InstallProgress -State 'error' -Title '安装失败' -Message '运行时组件下载失败。请确认网络可用后重试，或重新下载最新 Release。' -Percent 100
+    Publish-InstallFailure -ErrorRecord $_ -FriendlyMessage '运行时组件下载失败。请确认网络可用后重试，或重新下载最新 Release。'
     throw
   } finally {
     $ProgressPreference = $oldProgress
@@ -154,7 +242,7 @@ function Ensure-RuntimePayload {
   $expectedHash = ([string]$manifest.sha256).ToLowerInvariant()
   $actualHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($expectedHash -ne $actualHash) {
-    Write-InstallProgress -State 'error' -Title '安装失败' -Message '下载到的运行时组件未通过完整性校验，请重新安装。' -Percent 100
+    Publish-InstallFailure -ErrorRecord "下载到的运行时组件未通过完整性校验。期望哈希：$expectedHash，实际哈希：$actualHash" -FriendlyMessage '下载到的运行时组件未通过完整性校验，请重新安装。'
     throw "Runtime payload SHA256 mismatch for $($asset.AssetName)"
   }
 
@@ -184,7 +272,7 @@ function Ensure-RuntimePayload {
 }
 
 if (-not (Test-Path $ReqFile)) {
-  Write-InstallProgress -State 'error' -Title '安装失败' -Message "安装包缺少运行环境依赖清单：$ReqFile" -Percent 100
+  Publish-InstallFailure -ErrorRecord "安装包缺少运行环境依赖清单：$ReqFile" -FriendlyMessage '安装包内容不完整，缺少运行环境依赖清单。'
   throw "Runtime requirements file not found: $ReqFile"
 }
 
@@ -224,15 +312,11 @@ function Install-Offline {
     return $false
   }
 
-  Write-InstallProgress -State 'installing' -Title '正在安装桌面运行环境' -Message '正在使用已下载的离线组件完成桌面环境安装。' -Percent 55
-  & $PythonExe -m pip install --upgrade --target $DepsRoot --no-index --find-links $Wheelhouse -r $ReqFile
-  return ($LASTEXITCODE -eq 0)
+  return (Invoke-PipInstall -Arguments @('install', '--upgrade', '--target', $DepsRoot, '--no-index', '--find-links', $Wheelhouse, '-r', $ReqFile) -ProgressMessage '正在使用已下载的离线组件完成桌面环境安装。')
 }
 
 function Install-Online {
-  Write-InstallProgress -State 'installing' -Title '正在安装桌面运行环境' -Message '离线组件不可用，正在联网下载桌面组件。' -Percent 55
-  & $PythonExe -m pip install --upgrade --target $DepsRoot -r $ReqFile
-  return ($LASTEXITCODE -eq 0)
+  return (Invoke-PipInstall -Arguments @('install', '--upgrade', '--target', $DepsRoot, '-r', $ReqFile) -ProgressMessage '离线组件不可用，正在联网下载桌面组件。')
 }
 
 $installed = $false
@@ -243,7 +327,7 @@ if (Install-Offline) {
 }
 
 if (-not $installed) {
-  Write-InstallProgress -State 'error' -Title '安装失败' -Message '桌面运行环境依赖安装失败。' -Percent 100
+  Publish-InstallFailure -ErrorRecord '桌面运行环境依赖安装失败。' -FriendlyMessage '桌面运行环境依赖安装失败。'
   throw 'Desktop runtime dependency install failed.'
 }
 

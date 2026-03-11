@@ -31,6 +31,10 @@ $RunScript = Join-Path $ScriptRoot 'Run_Horosa_Desktop.vbs'
 $VersionFile = Join-Path $ScriptRoot 'version.json'
 $ProgressFile = Join-Path $env:LocalAppData 'HorosaDesktop\install-progress.json'
 $StateFile = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-pydeps\install_state.json'
+$RuntimeLogDir = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-logs'
+$InstallStdoutLog = Join-Path $RuntimeLogDir 'install-wizard-stdout.log'
+$InstallStderrLog = Join-Path $RuntimeLogDir 'install-wizard-stderr.log'
+$InstallRuntimeLog = Join-Path $RuntimeLogDir 'install-runtime.log'
 $AssetsRoot = Join-Path $ScriptRoot 'assets'
 $InstallerIconFile = Join-Path $AssetsRoot 'horosa_setup.ico'
 $InstallerBadgeFile = Join-Path $AssetsRoot 'horosa_setup_badge.png'
@@ -158,6 +162,58 @@ function Read-ProgressState {
   } catch {
     return $null
   }
+}
+
+function Get-LogTailText {
+  param(
+    [string]$Path,
+    [int]$LineCount = 10
+  )
+
+  if (-not (Test-Path $Path)) {
+    return $null
+  }
+
+  try {
+    $tail = (Get-Content -Path $Path -Tail $LineCount) -join "`r`n"
+    if (-not [string]::IsNullOrWhiteSpace($tail)) {
+      return $tail.Trim()
+    }
+  } catch {}
+
+  return $null
+}
+
+function Get-InstallFailureSummary {
+  $sections = New-Object System.Collections.Generic.List[string]
+  $progress = Read-ProgressState
+
+  if ($progress) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$progress.message)) {
+      [void]$sections.Add(([string]$progress.message).Trim())
+    }
+  }
+
+  $runtimeTail = Get-LogTailText -Path $InstallRuntimeLog -LineCount 8
+  if ($runtimeTail) {
+    [void]$sections.Add("运行时日志尾部：`r`n$runtimeTail")
+  }
+
+  $stderrTail = Get-LogTailText -Path $InstallStderrLog -LineCount 8
+  if ($stderrTail) {
+    [void]$sections.Add("安装器错误输出：`r`n$stderrTail")
+  }
+
+  $stdoutTail = Get-LogTailText -Path $InstallStdoutLog -LineCount 8
+  if ($stdoutTail) {
+    [void]$sections.Add("安装器输出尾部：`r`n$stdoutTail")
+  }
+
+  if ($sections.Count -eq 0) {
+    return "安装脚本返回了非零退出码。`r`n日志位置：$RuntimeLogDir"
+  }
+
+  return (($sections | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`r`n`r`n")
 }
 
 function Resolve-FormIcon {
@@ -489,7 +545,7 @@ $statusDetail.Text = '尚未开始更改此电脑上的任何内容。'
 $statusDetail.Font = New-UiFont 10.4
 $statusDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $statusDetail.Location = New-Object System.Drawing.Point(16, 42)
-$statusDetail.Size = New-Object System.Drawing.Size(548, 74)
+$statusDetail.Size = New-Object System.Drawing.Size(548, 92)
 $statusCard.Controls.Add($statusDetail)
 
 $launchCheck = New-Object System.Windows.Forms.CheckBox
@@ -566,13 +622,14 @@ $timer.Add_Tick({
       $secondaryButton.Text = '打开目录'
     } else {
       $script:installSucceeded = $false
+      $failureSummary = Get-InstallFailureSummary
       Set-StageVisual -Current 'failed'
       $headline.Text = "$DisplayName 安装程序"
       $subtitle.Text = '安装程序未能在这台电脑上完成运行环境准备。'
       $stepTitle.Text = '安装失败'
-      $stepDetail.Text = '运行环境安装没有完成。你可以重新尝试安装，或直接关闭这个向导。'
-      $statusLabel.Text = '失败'
-      $statusDetail.Text = '安装脚本返回了非零退出码。'
+      $stepDetail.Text = '运行环境安装没有完成。下面会直接显示本次失败原因，便于你重试或排查。'
+      $statusLabel.Text = '失败原因'
+      $statusDetail.Text = $failureSummary
       $progressBar.Value = 100
       $primaryButton.Text = '重试'
       $primaryButton.Enabled = $true
@@ -591,6 +648,8 @@ $primaryButton.Add_Click({
   }
 
   Remove-Item -Force $ProgressFile -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Force -Path $RuntimeLogDir | Out-Null
+  Remove-Item -Force $InstallStdoutLog, $InstallStderrLog -ErrorAction SilentlyContinue
   $script:installCompleted = $false
   $script:installSucceeded = $false
   $primaryButton.Enabled = $false
@@ -611,7 +670,7 @@ $primaryButton.Add_Click({
     'Hidden',
     '-File',
     $InstallScript
-  ) -PassThru -WindowStyle Hidden
+  ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $InstallStdoutLog -RedirectStandardError $InstallStderrLog
   $timer.Start()
 })
 

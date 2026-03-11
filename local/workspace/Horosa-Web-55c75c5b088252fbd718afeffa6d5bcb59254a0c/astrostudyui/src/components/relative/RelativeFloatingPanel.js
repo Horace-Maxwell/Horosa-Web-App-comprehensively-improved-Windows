@@ -73,6 +73,13 @@ function getViewportHeight(){
 	return 900;
 }
 
+function getViewportWidth(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerWidth) && window.innerWidth > 0){
+		return window.innerWidth;
+	}
+	return 1600;
+}
+
 class RelativeFloatingPanel extends Component{
 	renderCompareBody(unified, panelHeight){
 		const result = this.props.result || {};
@@ -240,13 +247,16 @@ class RelativeFloatingPanel extends Component{
 		const modeText = unified.modeText || MODE_TEXT[unified.mode] || '关系盘';
 		const collapsed = !!this.props.collapsed;
 		const viewportH = getViewportHeight();
+		const viewportW = getViewportWidth();
 		const bodyHeight = Math.max(320, Math.min(700, viewportH - 210));
+		const safeRightGap = viewportW >= 1400 ? 180 : 24;
+		const panelWidth = Math.min(480, Math.max(320, viewportW - safeRightGap - 32));
 
 		const wrapStyle = {
 			position: 'fixed',
-			right: 16,
+			right: safeRightGap,
 			bottom: 16,
-			width: 480,
+			width: panelWidth,
 			maxWidth: 'calc(100vw - 24px)',
 			zIndex: 1060,
 			background: '#ffffff',

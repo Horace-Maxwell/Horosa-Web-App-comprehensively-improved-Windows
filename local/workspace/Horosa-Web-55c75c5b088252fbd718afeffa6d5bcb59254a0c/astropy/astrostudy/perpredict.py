@@ -261,7 +261,7 @@ class PerPredict:
         return float(swisseph.calc_ut(chart.date.jd, swisseph.ECL_NUT)[0][0])
 
     def _astroappEqCoords(self, lon, lat, obliquity):
-        eq = swisseph.cotrans([float(lon), float(lat), 1.0], -float(obliquity))
+        eq = swisseph.cotrans(float(lon), float(lat), 1.0, -float(obliquity))
         return (angle.norm(float(eq[0])), float(eq[1]))
 
     def _astroappPointEqCoords(self, point, obliquity, zero_lat=False):
@@ -542,11 +542,11 @@ class PerPredict:
         return value
 
     def _pdChartEqCoords(self, lon, lat, obliquity):
-        eq = swisseph.cotrans([float(lon), float(lat), 1.0], -float(obliquity))
+        eq = swisseph.cotrans(float(lon), float(lat), 1.0, -float(obliquity))
         return float(eq[0]), float(eq[1])
 
     def _pdChartEqToEcl(self, ra, decl, obliquity):
-        ecl = swisseph.cotrans([float(ra), float(decl), 1.0], float(obliquity))
+        ecl = swisseph.cotrans(float(ra), float(decl), 1.0, float(obliquity))
         return float(ecl[0]), float(ecl[1])
 
     def _pdChartPointEqCoords(self, point, obliquity):
@@ -612,7 +612,7 @@ class PerPredict:
         if getattr(self.perchart, 'zodiacal', const.TROPICAL) == const.SIDEREAL:
             flag = swisseph.FLG_SIDEREAL
         swhsys = swe.SWE_HOUSESYS[self.perchart.house]
-        _, ascmc, _, _ = swisseph.houses_ex2(chart.date.jd, lat, lon, swhsys, flag)
+        _, ascmc = swisseph.houses_ex(chart.date.jd, lat, lon, swhsys, flag)
         armc = angle.norm(float(ascmc[2]) + float(arc))
         hlist, dir_ascmc = swisseph.houses_armc(armc, lat, float(obliquity), swhsys)
         hlist = tuple(hlist) + (hlist[0],)
@@ -636,7 +636,7 @@ class PerPredict:
         mc_lon = self._pdChartNormalizeLon(dir_ascmc[1], chart.date.jd)
         desc_lon = angle.norm(asc_lon + 180.0)
         ic_lon = angle.norm(mc_lon + 180.0)
-        asc_lat = swisseph.cotrans([float(dir_ascmc[4]), lat, 1.0], float(obliquity))[1]
+        asc_lat = swisseph.cotrans(float(dir_ascmc[4]), lat, 1.0, float(obliquity))[1]
         asc = self._pdChartSetLonLat({'id': const.ASC, 'type': 'Generic'}, asc_lon, asc_lat, ra=float(dir_ascmc[4]), decl=float(lat), jd=chart.date.jd)
         desc_ra, desc_decl = self._pdChartEqCoords(desc_lon, asc_lat, obliquity)
         desc = self._pdChartSetLonLat({'id': const.DESC, 'type': 'Generic'}, desc_lon, asc_lat, ra=desc_ra, decl=desc_decl, jd=chart.date.jd)

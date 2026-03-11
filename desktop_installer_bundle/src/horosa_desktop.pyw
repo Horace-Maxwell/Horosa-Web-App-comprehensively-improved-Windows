@@ -339,7 +339,8 @@ class LauncherController(QObject):
 
         env = os.environ.copy()
         env["HOROSA_NO_BROWSER"] = "1"
-        env["HOROSA_PERF_MODE"] = env.get("HOROSA_PERF_MODE", "0")
+        # Keep first-use pages responsive by prewarming heavy endpoints during launch.
+        env["HOROSA_PERF_MODE"] = env.get("HOROSA_PERF_MODE", "1")
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
 

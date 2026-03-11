@@ -54,7 +54,7 @@ class WebCalcSrv:
             lon = data['lon']
             obliquity = const.ECLI2EQ_OBLIQUITY if cotype == -1 else const.EQ2ECLI_OBLIQUITY
 
-            res = swisseph.cotrans([lon, lat, 1], obliquity)
+            res = swisseph.cotrans(lon, lat, 1, obliquity)
             res = {
                 'lon': res[0],
                 'lat': res[1],
