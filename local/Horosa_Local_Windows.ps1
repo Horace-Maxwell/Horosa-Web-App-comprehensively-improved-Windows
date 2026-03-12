@@ -238,6 +238,13 @@ $PortableMavenCmd = Join-Path $PortableMavenRuntimeDir 'bin/mvn.cmd'
 $PortableMavenBat = Join-Path $PortableMavenRuntimeDir 'bin/mvn.bat'
 $WinBundleRoot = Join-Path $Root 'runtime/windows/bundle'
 $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
+$InstalledPackageMode = (
+  $env:HOROSA_INSTALLED_APP -eq '1' -or
+  (
+    (Test-Path $WinBundleRoot -PathType Container) -and
+    -not (Test-Path (Join-Path $RepoRoot '.git'))
+  )
+)
 $PythonBin = $null
 $JavaBin = $null
 $JarSource = if (Test-Path $JarPath) { 'project' } else { 'missing' }
@@ -2034,6 +2041,37 @@ function Get-BackendJarDownloadUrls {
 }
 
 function Ensure-BackendJar {
+  $bundledJarSources = @(
+    (Join-Path $WinBundleRoot 'astrostudyboot.jar'),
+    (Join-Path $CommonBundleRoot 'astrostudyboot.jar')
+  ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+  if ($InstalledPackageMode -and $env:HOROSA_ALLOW_LOCAL_BACKEND_REBUILD -ne '1') {
+    foreach ($src in $bundledJarSources) {
+      if (-not (Test-Path $src -PathType Leaf)) { continue }
+      if (-not (Test-JarFileLooksValid -Path $src)) {
+        Write-Host ("[WARN] Installed package mode skipped invalid bundled backend jar: {0}" -f $src)
+        continue
+      }
+
+      try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
+        Copy-Item -Path $src -Destination $JarPath -Force
+      } catch {
+        Write-Host ("[WARN] Installed package mode failed to restore backend jar from {0}: {1}" -f $src, $_.Exception.Message)
+        continue
+      }
+
+      if (Test-JarFileLooksValid -Path $JarPath) {
+        Write-Host ("[OK] Installed package mode restored backend jar from bundled asset: {0}" -f $src)
+        $script:JarSource = 'bundle'
+        return $true
+      }
+    }
+
+    Write-Host '[WARN] Installed package mode could not restore a valid bundled backend jar; falling back to legacy backend resolution.'
+  }
+
   if (Test-Path $JarPath) {
     if (Test-JarFileLooksValid -Path $JarPath) {
       $sourceStamp = Get-BackendSourceLatestWriteTimeUtc
@@ -2077,10 +2115,7 @@ function Ensure-BackendJar {
   }
 
   $sources = New-Object System.Collections.Generic.List[string]
-  foreach ($direct in @(
-    (Join-Path $WinBundleRoot 'astrostudyboot.jar'),
-    (Join-Path $CommonBundleRoot 'astrostudyboot.jar')
-  )) {
+  foreach ($direct in $bundledJarSources) {
     if ($direct -and (Test-Path $direct)) {
       $sources.Add($direct)
     }
@@ -2191,25 +2226,21 @@ function Start-HorosaWarmupProcess {
 
   Write-Host ("[warmup] Using Node.js: {0}" -f $nodeCmd)
   Write-Host ("[warmup] Starting {0} warmup via {1}" -f $Mode, $warmScript)
-
   try {
-    if ($DelaySec -gt 0) {
-      $runner = @"
+    $runnerPrefix = if ($DelaySec -gt 0) {
+@"
 Start-Sleep -Seconds $DelaySec
-& '$nodeCmd' '$warmScript' '--mode=$Mode'
+"@
+    } else {
+      ''
+    }
+    $runner = @"
+$runnerPrefix& '$nodeCmd' '$warmScript' '--mode=$Mode'
 exit \$LASTEXITCODE
 "@
-      return (Start-Process -FilePath 'powershell.exe' `
-        -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $runner) `
-        -WorkingDirectory (Split-Path -Parent $warmScript) `
-        -PassThru `
-        -WindowStyle Hidden `
-        -RedirectStandardOutput $OutPath `
-        -RedirectStandardError $ErrPath)
-    }
-
-    return (Start-Process -FilePath $nodeCmd `
-      -ArgumentList @($warmScript, "--mode=$Mode") `
+    $encodedRunner = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($runner))
+    return (Start-Process -FilePath 'powershell.exe' `
+      -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encodedRunner) `
       -WorkingDirectory (Split-Path -Parent $warmScript) `
       -PassThru `
       -WindowStyle Hidden `

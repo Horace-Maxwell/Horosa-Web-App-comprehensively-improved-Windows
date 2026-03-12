@@ -3,14 +3,14 @@ import { Row, Col, Tabs, Input, Button, } from 'antd';
 import DateTime from '../comp/DateTime';
 import AstroPrimaryDirection from '../astro/AstroPrimaryDirection';
 import AstroPrimaryDirectionChart from '../astro/AstroPrimaryDirectionChart';
-import AstroZR from '../astro/AstroZR';
+import AstroZR, { warmZR, } from '../astro/AstroZR';
 import AstroFirdaria from '../astro/AstroFirdaria';
-import AstroSolarReturn from '../astro/AstroSolarReturn';
-import AstroLunarReturn from '../astro/AstroLunarReturn';
-import AstroGivenYear from '../astro/AstroGivenYear';
-import AstroSolarArc from '../astro/AstroSolarArc';
+import AstroSolarReturn, { warmSolarReturn, } from '../astro/AstroSolarReturn';
+import AstroLunarReturn, { warmLunarReturn, } from '../astro/AstroLunarReturn';
+import AstroGivenYear, { warmGivenYear, } from '../astro/AstroGivenYear';
+import AstroSolarArc, { warmSolarArc, } from '../astro/AstroSolarArc';
 import AstroProfection from '../astro/AstroProfection';
-import AstroDecennials from '../astro/AstroDecennials';
+import AstroDecennials, { warmDecennials, } from '../astro/AstroDecennials';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
@@ -24,6 +24,25 @@ const PD_SYNC_REV = 'pd_method_sync_v6';
 const DEFAULT_PD_METHOD = 'astroapp_alchabitius';
 const DEFAULT_PD_TIME_KEY = 'Ptolemy';
 const DEFAULT_PD_TYPE = 0;
+const DIRECT_WARM_DELAY_MS = 200;
+const DIRECT_WARM_STEP_MS = 240;
+const DIRECT_WARM_HOOK_DELAY_MS = 90;
+const DIRECT_WARM_PRIORITY = {
+	zodialrelease: 0,
+	lunarreturn: 1,
+	givenyear: 2,
+	decennials: 3,
+	solarreturn: 4,
+	solararc: 5,
+};
+const DIRECT_WARMERS = {
+	zodialrelease: (chartObj)=>warmZR(chartObj),
+	solararc: (chartObj)=>warmSolarArc(chartObj),
+	solarreturn: (chartObj)=>warmSolarReturn(chartObj),
+	lunarreturn: (chartObj)=>warmLunarReturn(chartObj),
+	givenyear: (chartObj)=>warmGivenYear(chartObj),
+	decennials: (chartObj)=>warmDecennials(chartObj),
+};
 const AI_EXPORT_PLANET_INFO = {
 	showHouse: 1,
 	showRuler: 1,
@@ -405,13 +424,32 @@ function isPrimaryDirectionTabKey(key){
 	return key === 'primarydirect' || key === 'primarydirchart';
 }
 
+const DIRECT_TAB_KEYS = [
+	'primarydirect',
+	'primarydirchart',
+	'zodialrelease',
+	'firdaria',
+	'profection',
+	'solararc',
+	'solarreturn',
+	'lunarreturn',
+	'givenyear',
+	'decennials',
+];
+
 class AstroDirectMain extends Component{
 
 	constructor(props) {
 		super(props);
+		const currentTab = DIRECT_TAB_KEYS.indexOf(props.currentSubTab) >= 0 ? props.currentSubTab : 'primarydirect';
+		const preloadedTabs = {};
+		DIRECT_TAB_KEYS.forEach((key)=>{
+			preloadedTabs[key] = key === currentTab;
+		});
 
 		this.state = {
-			currentTab: props.currentSubTab || 'primarydirect',
+			currentTab,
+			preloadedTabs,
 			hook:{
 				primarydirect:{
 					fun: null
@@ -459,10 +497,18 @@ class AstroDirectMain extends Component{
 		this.getDesiredPdConfig = this.getDesiredPdConfig.bind(this);
 		this.needsPrimaryDirectionLoad = this.needsPrimaryDirectionLoad.bind(this);
 		this.syncCurrentSubTab = this.syncCurrentSubTab.bind(this);
+		this.ensureTabPreloaded = this.ensureTabPreloaded.bind(this);
+		this.scheduleWarmTabs = this.scheduleWarmTabs.bind(this);
+		this.runWarmTabs = this.runWarmTabs.bind(this);
+		this.clearWarmTimer = this.clearWarmTimer.bind(this);
 
 		this.unmounted = false;
 		this.primaryDirectionInflightKey = '';
 		this.primaryDirectionRequestSeq = 0;
+		this.primaryDirectionRetryTimer = null;
+		this.primaryDirectionRetryCount = 0;
+		this.warmTimer = null;
+		this.warmToken = 0;
 
 		if(this.props.hook){
 			this.props.hook.fun = (chartobj)=>{
@@ -473,6 +519,92 @@ class AstroDirectMain extends Component{
 			};
 		}
 
+	}
+
+	clearWarmTimer(){
+		if(this.warmTimer){
+			clearTimeout(this.warmTimer);
+			this.warmTimer = null;
+		}
+	}
+
+	ensureTabPreloaded(tab){
+		if(!tab || this.unmounted){
+			return;
+		}
+		if(this.state.preloadedTabs && this.state.preloadedTabs[tab]){
+			return;
+		}
+		this.setState((prevState)=>{
+			if(prevState.preloadedTabs && prevState.preloadedTabs[tab]){
+				return null;
+			}
+			return {
+				preloadedTabs: {
+					...prevState.preloadedTabs,
+					[tab]: true,
+				},
+			};
+		});
+	}
+
+	scheduleWarmTabs(activeTab){
+		if(this.unmounted){
+			return;
+		}
+		this.clearWarmTimer();
+		const queue = DIRECT_TAB_KEYS.filter((key)=>{
+			return key !== activeTab && !!DIRECT_WARMERS[key];
+		}).sort((a, b)=>{
+			const pa = DIRECT_WARM_PRIORITY[a];
+			const pb = DIRECT_WARM_PRIORITY[b];
+			return (pa === undefined ? 999 : pa) - (pb === undefined ? 999 : pb);
+		});
+		if(!queue.length){
+			return;
+		}
+		const token = ++this.warmToken;
+		this.warmTimer = setTimeout(()=>{
+			this.warmTimer = null;
+			this.runWarmTabs(token, queue, 0);
+		}, DIRECT_WARM_DELAY_MS);
+	}
+
+	runWarmTabs(token, queue, index){
+		if(this.unmounted || token !== this.warmToken){
+			return;
+		}
+		if(!queue || index >= queue.length){
+			return;
+		}
+		const nextTab = queue[index];
+		this.ensureTabPreloaded(nextTab);
+		this.warmTimer = setTimeout(()=>{
+			if(this.unmounted || token !== this.warmToken){
+				return;
+			}
+			const warm = DIRECT_WARMERS[nextTab];
+			if(warm){
+				try{
+					warm(this.props.chartObj);
+				}catch(e){
+				}
+			}
+			const nextHook = this.state.hook && this.state.hook[nextTab] ? this.state.hook[nextTab].fun : null;
+			if(nextHook){
+				setTimeout(()=>{
+					if(this.unmounted || token !== this.warmToken){
+						return;
+					}
+					try{
+						nextHook(this.props.chartObj);
+					}catch(e){
+					}
+				}, DIRECT_WARM_HOOK_DELAY_MS);
+			}
+			this.warmTimer = null;
+			this.runWarmTabs(token, queue, index + 1);
+		}, DIRECT_WARM_STEP_MS);
 	}
 
 	syncCurrentSubTab(){
@@ -620,8 +752,18 @@ class AstroDirectMain extends Component{
 		this.primaryDirectionInflightKey = '';
 		const pdRows = result && Array.isArray(result.pd) ? result.pd : null;
 		if(!pdRows){
+			if(this.primaryDirectionRetryCount < 3 && isPrimaryDirectionTabKey(this.state.currentTab)){
+				this.primaryDirectionRetryCount += 1;
+				clearTimeout(this.primaryDirectionRetryTimer);
+				this.primaryDirectionRetryTimer = setTimeout(()=>{
+					this.ensurePrimaryDirectionReady();
+				}, 900);
+			}
 			return;
 		}
+		this.primaryDirectionRetryCount = 0;
+		clearTimeout(this.primaryDirectionRetryTimer);
+		this.primaryDirectionRetryTimer = null;
 		const nextChartObj = {
 			...chartObj,
 			params: {
@@ -648,6 +790,9 @@ class AstroDirectMain extends Component{
 	ensurePrimaryDirectionReady(){
 		if(!this.needsPrimaryDirectionLoad()){
 			this.primaryDirectionInflightKey = '';
+			this.primaryDirectionRetryCount = 0;
+			clearTimeout(this.primaryDirectionRetryTimer);
+			this.primaryDirectionRetryTimer = null;
 			return;
 		}
 		this.requestPrimaryDirectionRows();
@@ -730,6 +875,8 @@ class AstroDirectMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
+		this.ensureTabPreloaded(this.state.currentTab);
+		this.scheduleWarmTabs(this.state.currentTab);
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -740,6 +887,9 @@ class AstroDirectMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		this.clearWarmTimer();
+		clearTimeout(this.primaryDirectionRetryTimer);
+		this.primaryDirectionRetryTimer = null;
 		if(typeof window !== 'undefined' && window.removeEventListener){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -758,6 +908,22 @@ class AstroDirectMain extends Component{
 		if(prevState.currentTab !== this.state.currentTab || prevProps.currentSubTab !== this.props.currentSubTab){
 			this.syncCurrentSubTab();
 		}
+		if(prevProps.currentSubTab !== this.props.currentSubTab){
+			const nextTab = DIRECT_TAB_KEYS.indexOf(this.props.currentSubTab) >= 0 ? this.props.currentSubTab : this.state.currentTab;
+			if(nextTab !== this.state.currentTab){
+				this.setState({
+					currentTab: nextTab,
+				}, ()=>{
+					this.ensureTabPreloaded(nextTab);
+					this.scheduleWarmTabs(nextTab);
+				});
+				return;
+			}
+		}
+		if(prevState.currentTab !== this.state.currentTab){
+			this.ensureTabPreloaded(this.state.currentTab);
+			this.scheduleWarmTabs(this.state.currentTab);
+		}
 		if(
 			prevState.currentTab !== this.state.currentTab
 			|| prevProps.chartObj !== this.props.chartObj
@@ -772,12 +938,14 @@ class AstroDirectMain extends Component{
 		this.setState({
 			currentTab: key,
 		}, ()=>{
+			this.ensureTabPreloaded(key);
 			this.syncCurrentSubTab();
 			this.ensurePrimaryDirectionReady();
 			this.saveDirectionSnapshot();
 			if(hook[key].fun){
 				hook[key].fun(this.props.chartObj);
 			}
+			this.scheduleWarmTabs(key);
 		});
 	}
 
@@ -834,7 +1002,7 @@ class AstroDirectMain extends Component{
 					onChange={this.changeTab}
 					style={{ height: height }}
 				>
-					<TabPane tab="主/界限法" key="primarydirect">
+					<TabPane tab="主/界限法" key="primarydirect" forceRender={!!this.state.preloadedTabs.primarydirect}>
 							<AstroPrimaryDirection  
 								value={this.props.chartObj} height={height}
 								showPdBounds={this.props.fields && this.props.fields.showPdBounds ? this.props.fields.showPdBounds.value : 1}
@@ -846,7 +1014,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="主限法盘" key="primarydirchart">
+					<TabPane tab="主限法盘" key="primarydirchart" forceRender={!!this.state.preloadedTabs.primarydirchart}>
 							<AstroPrimaryDirectionChart
 								value={this.props.chartObj}
 								height={height}
@@ -865,7 +1033,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="黄道星释" key="zodialrelease">
+					<TabPane tab="黄道星释" key="zodialrelease" forceRender={!!this.state.preloadedTabs.zodialrelease}>
 						<AstroZR  
 							value={this.props.chartObj} 
 							height={this.props.height} 
@@ -878,7 +1046,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="法达星限" key="firdaria">
+					<TabPane tab="法达星限" key="firdaria" forceRender={!!this.state.preloadedTabs.firdaria}>
 						<AstroFirdaria 
 								value={this.props.chartObj} 
 								height={height}
@@ -887,7 +1055,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="小限法" key="profection">
+					<TabPane tab="小限法" key="profection" forceRender={!!this.state.preloadedTabs.profection}>
 						<AstroProfection 
 							value={this.props.chartObj} 
 							height={height} 
@@ -901,7 +1069,7 @@ class AstroDirectMain extends Component{
 
 					</TabPane>
 
-					<TabPane tab="太阳弧" key="solararc">
+					<TabPane tab="太阳弧" key="solararc" forceRender={!!this.state.preloadedTabs.solararc}>
 						<AstroSolarArc 
 							value={this.props.chartObj} 
 							height={height} 
@@ -915,7 +1083,7 @@ class AstroDirectMain extends Component{
 
 					</TabPane>
 
-					<TabPane tab="太阳返照" key="solarreturn">
+					<TabPane tab="太阳返照" key="solarreturn" forceRender={!!this.state.preloadedTabs.solarreturn}>
 						<AstroSolarReturn 
 							value={this.props.chartObj} 
 							height={height} 
@@ -928,7 +1096,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="月亮返照" key="lunarreturn">
+					<TabPane tab="月亮返照" key="lunarreturn" forceRender={!!this.state.preloadedTabs.lunarreturn}>
 						<AstroLunarReturn 
 							value={this.props.chartObj} 
 							height={height} 
@@ -941,7 +1109,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="流年法" key="givenyear">
+					<TabPane tab="流年法" key="givenyear" forceRender={!!this.state.preloadedTabs.givenyear}>
 						<AstroGivenYear 
 							value={this.props.chartObj} 
 							height={height} 
@@ -954,7 +1122,7 @@ class AstroDirectMain extends Component{
 							/>
 					</TabPane>
 
-					<TabPane tab="十年大运" key="decennials">
+					<TabPane tab="十年大运" key="decennials" forceRender={!!this.state.preloadedTabs.decennials}>
 						<AstroDecennials
 							value={this.props.chartObj}
 							height={height}

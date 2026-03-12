@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import traceback
+import ctypes
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
@@ -18,7 +19,7 @@ from typing import Callable, Optional
 import requests
 from packaging.version import InvalidVersion, Version
 from PySide6.QtCore import QObject, QSettings, QStandardPaths, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase, QKeySequence
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase, QIcon, QKeySequence
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -41,6 +42,7 @@ from PySide6.QtWidgets import (
 ORG_NAME = "Horosa"
 APP_NAME = "Horosa Desktop"
 DISPLAY_NAME = "星阙"
+APP_USER_MODEL_ID = "Horosa.Xingque.Desktop"
 STARTUP_TIMEOUT_SECONDS = 240
 CREATE_NO_WINDOW = 0x08000000
 MIN_ZOOM_FACTOR = 0.7
@@ -139,6 +141,17 @@ def preferred_ui_font_family() -> str:
             return available[family.lower()]
     app = QApplication.instance()
     return app.font().family() if app else ""
+
+
+def resolve_app_icon_path(package_root: Path) -> Optional[Path]:
+    candidates = [
+        package_root / "assets" / "horosa_setup.ico",
+        resource_root() / "assets" / "horosa_setup.ico",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def clamp_zoom_factor(value: object) -> float:
@@ -846,6 +859,9 @@ class MainWindow(QMainWindow):
         self.zoom_factor = resolve_initial_zoom_factor(self.settings)
 
         self.setWindowTitle(DISPLAY_NAME)
+        icon_path = resolve_app_icon_path(package_root)
+        if icon_path:
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.resize(1540, 960)
         self._build_ui()
         self._build_menu()
@@ -1401,17 +1417,28 @@ class MainWindow(QMainWindow):
 
 
 def user_state_root() -> Path:
-    qt_path = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
-    root = Path(qt_path) if qt_path else fallback_user_root()
+    if os.name == "nt":
+        root = fallback_user_root()
+    else:
+        qt_path = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
+        root = Path(qt_path) if qt_path else fallback_user_root()
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
 def main() -> int:
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:
+        pass
     qt_app = QApplication(sys.argv)
     qt_app.setOrganizationName(ORG_NAME)
     qt_app.setApplicationName(APP_NAME)
     qt_app.setApplicationDisplayName(DISPLAY_NAME)
+    package_root = app_package_root()
+    app_icon_path = resolve_app_icon_path(package_root)
+    if app_icon_path:
+        qt_app.setWindowIcon(QIcon(str(app_icon_path)))
     app_font = qt_app.font()
     app_font_family = preferred_ui_font_family()
     if app_font_family:
@@ -1419,7 +1446,6 @@ def main() -> int:
     app_font.setPointSize(10)
     qt_app.setFont(app_font)
 
-    package_root = app_package_root()
     data_root = app_data_root(package_root)
     repo_root = find_repo_root(package_root)
     user_root = user_state_root()

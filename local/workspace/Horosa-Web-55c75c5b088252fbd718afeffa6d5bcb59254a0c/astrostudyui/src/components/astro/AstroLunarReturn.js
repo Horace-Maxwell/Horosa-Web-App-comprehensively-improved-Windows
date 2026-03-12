@@ -17,6 +17,108 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
+const LUNAR_RETURN_CACHE_MAX = 24;
+const LUNAR_RETURN_CACHE = new Map();
+const LUNAR_RETURN_INFLIGHT = new Map();
+
+function buildLunarReturnCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushLunarReturnCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(LUNAR_RETURN_CACHE.has(key)){
+		LUNAR_RETURN_CACHE.delete(key);
+	}
+	LUNAR_RETURN_CACHE.set(key, value);
+	if(LUNAR_RETURN_CACHE.size > LUNAR_RETURN_CACHE_MAX){
+		const oldest = LUNAR_RETURN_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			LUNAR_RETURN_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestLunarReturnCached(params){
+	const key = buildLunarReturnCacheKey(params);
+	if(key && LUNAR_RETURN_CACHE.has(key)){
+		return LUNAR_RETURN_CACHE.get(key);
+	}
+	if(key && LUNAR_RETURN_INFLIGHT.has(key)){
+		return LUNAR_RETURN_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/predict/lunarreturn`, {
+		body: JSON.stringify(params),
+	}).then((data)=>{
+		const result = data[Constants.ResultKey];
+		pushLunarReturnCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			LUNAR_RETURN_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		LUNAR_RETURN_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
+function buildLunarReturnNatalParams(chartObj){
+	let qryparam = chartObj ? chartObj.params : {};
+	let datetime = new DateTime();
+	if(qryparam.birth){
+		let parts = qryparam.birth.split(' ');
+		qryparam.date = parts[0];
+		qryparam.time = parts[1];
+		let dtstr = datetime.format('yyyy') + parts[0].substr(4) + ' ' + parts[1];
+		if(parts[1].length < 8){
+			dtstr = dtstr + ':00';
+		}
+		datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
+	}
+	let params = {
+		date: qryparam.date,
+		time: qryparam.time,
+		datetime: datetime,
+		ad: qryparam.ad ? qryparam.ad : 1,
+		zone: qryparam.zone,
+		lon: qryparam.lon,
+		lat: qryparam.lat,
+		gpsLon: qryparam.gpsLon,
+		gpsLat: qryparam.gpsLat,
+		hsys: qryparam.hsys,
+		zodiacal: qryparam.zodiacal,
+		tradition: qryparam.tradition,
+	};
+	return params;
+}
+
+export function warmLunarReturn(chartObj, extraParams){
+	if(!chartObj){
+		return Promise.resolve(null);
+	}
+	const natal = buildLunarReturnNatalParams(chartObj);
+	const dt = natal.datetime ? natal.datetime.copy() : new DateTime();
+	const params = {
+		...natal,
+		datetime: dt.format('YYYY-MM-DD HH:mm'),
+		dirLat: natal.lat,
+		dirLon: natal.lon,
+		dirZone: natal.zone,
+		tmType: 'y',
+		nodeRetrograde: false,
+		asporb: 1,
+		...(extraParams || {}),
+	};
+	return requestLunarReturnCached(params).catch(()=>null);
+}
 
 class AstroLunarReturn extends Component{
 
@@ -98,33 +200,7 @@ class AstroLunarReturn extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
-		let datetime = new DateTime();
-		if(qryparam.birth){
-			let parts = qryparam.birth.split(' ');
-			qryparam.date = parts[0];
-			qryparam.time = parts[1];
-			let dtstr = datetime.format('yyyy') + parts[0].substr(4) + ' ' + parts[1];
-			if(parts[1].length < 8){
-				dtstr = dtstr + ':00';
-			}
-			datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
-		}
-		let params = {
-			date: qryparam.date,
-			time: qryparam.time,
-			datetime: datetime,
-			ad: qryparam.ad ? qryparam.ad : 1,
-			zone: qryparam.zone,
-			lon: qryparam.lon,
-			lat: qryparam.lat,
-			gpsLon: qryparam.gpsLon,
-			gpsLat: qryparam.gpsLat,
-			hsys: qryparam.hsys,
-			zodiacal: qryparam.zodiacal,
-			tradition: qryparam.tradition,
-		};
-		return params;
+		return buildLunarReturnNatalParams(chartObj);
 	}
 
 	requestData(){
@@ -139,10 +215,7 @@ class AstroLunarReturn extends Component{
 	}
 
 	async requestDirection(params){
-		const data = await request(`${Constants.ServerRoot}/predict/lunarreturn`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		const result = await requestLunarReturnCached(params);
 
 		let tm = new DateTime();
 		let dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');

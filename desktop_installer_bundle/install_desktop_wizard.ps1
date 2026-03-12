@@ -35,13 +35,30 @@ $RuntimeLogDir = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-logs'
 $InstallStdoutLog = Join-Path $RuntimeLogDir 'install-wizard-stdout.log'
 $InstallStderrLog = Join-Path $RuntimeLogDir 'install-wizard-stderr.log'
 $InstallRuntimeLog = Join-Path $RuntimeLogDir 'install-runtime.log'
+$WizardTraceLog = Join-Path $RuntimeLogDir 'install-wizard-trace.log'
 $AssetsRoot = Join-Path $ScriptRoot 'assets'
 $InstallerIconFile = Join-Path $AssetsRoot 'horosa_setup.ico'
 $InstallerBadgeFile = Join-Path $AssetsRoot 'horosa_setup_badge.png'
+$LauncherExe = Join-Path $ScriptRoot 'Xingque.exe'
 $IconCandidate = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $DesktopExe = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
+$InstallRoot = Join-Path $env:LocalAppData 'Horosa\Xingque App'
+$InstalledBundleRoot = Join-Path $InstallRoot 'desktop_installer_bundle'
+$InstalledLauncherExe = Join-Path $InstalledBundleRoot 'Xingque.exe'
+$InstalledRunScript = Join-Path $InstalledBundleRoot 'Run_Horosa_Desktop.vbs'
+$InstalledDesktopExe = Join-Path $InstalledBundleRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $DisplayName = '星阙'
 $VersionInfo = Get-Content -Raw $VersionFile | ConvertFrom-Json
+
+function Write-WizardTrace {
+  param([string]$Message)
+
+  try {
+    New-Item -ItemType Directory -Force -Path $RuntimeLogDir | Out-Null
+    $line = "[{0}] {1}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'), $Message
+    Add-Content -Path $WizardTraceLog -Value $line -Encoding UTF8
+  } catch {}
+}
 
 function Resolve-UiFontFamily {
   $preferredFamilies = @(
@@ -142,34 +159,152 @@ function New-HorosaShortcut {
   $shortcut.WindowStyle = 1
   $shortcut.Description = $DisplayName
   $shortcut.Save()
+  Write-WizardTrace ("shortcut temp saved: path={0}; target={1}; args={2}; workdir={3}; icon={4}" -f $tempShortcutPath, $TargetPath, $Arguments, $WorkingDirectory, $IconPath)
 
   if (Test-Path $ShortcutPath) {
     Remove-Item -Force $ShortcutPath
   }
   Move-Item -Path $tempShortcutPath -Destination $ShortcutPath -Force
+  Write-WizardTrace ("shortcut installed: path={0}" -f $ShortcutPath)
 }
 
-function Resolve-AppLaunchSpec {
-  if (Test-Path $DesktopExe) {
-    return @{
-      TargetPath = $DesktopExe
-      WorkingDirectory = Split-Path -Parent $DesktopExe
-      Arguments = ''
+function Remove-TreeWithRetry {
+  param([string]$Path)
+
+  if (-not (Test-Path $Path)) {
+    return
+  }
+
+  $lastError = $null
+  for ($i = 0; $i -lt 8; $i++) {
+    try {
+      Remove-Item -Recurse -Force $Path
+      return
+    } catch {
+      $lastError = $_
+      try {
+        & cmd.exe /d /c "rmdir /s /q `"$Path`"" | Out-Null
+        if (-not (Test-Path $Path)) {
+          return
+        }
+      } catch {}
+      Start-Sleep -Milliseconds 400
     }
   }
 
-  return @{
+  if ($lastError) {
+    throw $lastError
+  }
+}
+
+function Copy-DirectoryTree {
+  param(
+    [Parameter(Mandatory = $true)][string]$SourcePath,
+    [Parameter(Mandatory = $true)][string]$DestinationPath
+  )
+
+  if (-not (Test-Path $SourcePath -PathType Container)) {
+    throw "复制失败，源目录不存在：$SourcePath"
+  }
+
+  Remove-TreeWithRetry -Path $DestinationPath
+  New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
+
+  & robocopy $SourcePath $DestinationPath /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "robocopy 复制失败，退出码：$LASTEXITCODE，源目录：$SourcePath，目标目录：$DestinationPath"
+  }
+}
+
+function Install-AppBundle {
+  Write-WizardTrace ("install bundle start: source={0}; installRoot={1}; installedBundleRoot={2}" -f $RepoRoot, $InstallRoot, $InstalledBundleRoot)
+  if (-not (Test-Path $RepoRoot -PathType Container)) {
+    throw "安装源目录不存在：$RepoRoot"
+  }
+
+  $parentDir = Split-Path -Parent $InstallRoot
+  if ($parentDir) {
+    New-Item -ItemType Directory -Force -Path $parentDir | Out-Null
+  }
+
+  Copy-DirectoryTree -SourcePath $RepoRoot -DestinationPath $InstallRoot
+  Write-WizardTrace ("install bundle copied: installRootExists={0}; installedBundleExists={1}" -f (Test-Path $InstallRoot), (Test-Path $InstalledBundleRoot))
+
+  if (-not (Test-Path $InstalledLauncherExe -PathType Leaf)) {
+    Write-WizardTrace ("installed launcher missing after copy: {0}" -f $InstalledLauncherExe)
+    throw "安装后的应用启动器不存在：$InstalledLauncherExe"
+  }
+  Write-WizardTrace ("install bundle success: installedLauncher={0}" -f $InstalledLauncherExe)
+}
+
+function Resolve-AppLaunchSpec {
+  if (Test-Path $InstalledLauncherExe) {
+    $result = @{
+      TargetPath = $InstalledLauncherExe
+      WorkingDirectory = Split-Path -Parent $InstalledLauncherExe
+      Arguments = ''
+    }
+    Write-WizardTrace ("launch spec resolved: installed launcher -> {0}" -f $result.TargetPath)
+    return $result
+  }
+
+  if (Test-Path $InstalledDesktopExe) {
+    $result = @{
+      TargetPath = $InstalledDesktopExe
+      WorkingDirectory = Split-Path -Parent $InstalledDesktopExe
+      Arguments = ''
+    }
+    Write-WizardTrace ("launch spec resolved: installed desktop exe -> {0}" -f $result.TargetPath)
+    return $result
+  }
+
+  if (Test-Path $InstalledRunScript) {
+    $result = @{
+      TargetPath = $InstalledRunScript
+      WorkingDirectory = $InstalledBundleRoot
+      Arguments = ''
+    }
+    Write-WizardTrace ("launch spec resolved: installed run script -> {0}" -f $result.TargetPath)
+    return $result
+  }
+
+  if (Test-Path $LauncherExe) {
+    $result = @{
+      TargetPath = $LauncherExe
+      WorkingDirectory = $ScriptRoot
+      Arguments = ''
+    }
+    Write-WizardTrace ("launch spec resolved: local launcher -> {0}" -f $result.TargetPath)
+    return $result
+  }
+
+  $result = @{
     TargetPath = $RunScript
     WorkingDirectory = $ScriptRoot
     Arguments = ''
   }
+  Write-WizardTrace ("launch spec resolved: local run script -> {0}" -f $result.TargetPath)
+  return $result
 }
 
 function Ensure-Shortcuts {
   $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) "$DisplayName.lnk"
   $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) "$DisplayName.lnk"
-  $shortcutIcon = if (Test-Path $IconCandidate) { $IconCandidate } elseif (Test-Path $InstallerIconFile) { $InstallerIconFile } else { $null }
+  $shortcutIcon = if (Test-Path $InstalledLauncherExe) {
+    $InstalledLauncherExe
+  } elseif (Test-Path $LauncherExe) {
+    $LauncherExe
+  } elseif (Test-Path $InstalledDesktopExe) {
+    $InstalledDesktopExe
+  } elseif (Test-Path $IconCandidate) {
+    $IconCandidate
+  } elseif (Test-Path $InstallerIconFile) {
+    $InstallerIconFile
+  } else {
+    $null
+  }
   $launchSpec = Resolve-AppLaunchSpec
+  Write-WizardTrace ("ensure shortcuts: desktop={0}; startMenu={1}; icon={2}; target={3}" -f $desktopShortcut, $startMenuShortcut, $shortcutIcon, $launchSpec.TargetPath)
   New-HorosaShortcut -ShortcutPath $desktopShortcut -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments
   New-HorosaShortcut -ShortcutPath $startMenuShortcut -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments
 }
@@ -258,12 +393,35 @@ function Resolve-FormIcon {
 }
 
 function Open-InstallFolder {
-  Start-Process -FilePath 'explorer.exe' -ArgumentList @($ScriptRoot) | Out-Null
+  $target = if (Test-Path $InstallRoot) { $InstallRoot } else { $ScriptRoot }
+  Start-Process -FilePath 'explorer.exe' -ArgumentList @($target) | Out-Null
 }
 
 function Start-InstalledApp {
   $launchSpec = Resolve-AppLaunchSpec
+  Write-WizardTrace ("start installed app: target={0}; workdir={1}; args={2}" -f $launchSpec.TargetPath, $launchSpec.WorkingDirectory, $launchSpec.Arguments)
   Start-Process -FilePath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -ArgumentList @($launchSpec.Arguments) | Out-Null
+}
+
+function Schedule-AutoFinish {
+  if ($script:autoFinishScheduled -or $env:HOROSA_DESKTOP_INSTALLER_AUTO_FINISH -ne '1') {
+    return
+  }
+
+  $script:autoFinishScheduled = $true
+  $autoFinishTimer = New-Object System.Windows.Forms.Timer
+  $autoFinishTimer.Interval = 900
+  $autoFinishTimer.Add_Tick({
+    param($sender, $eventArgs)
+    $sender.Stop()
+    if ($env:HOROSA_DESKTOP_INSTALLER_AUTO_LAUNCH -eq '0') {
+      $launchCheck.Checked = $false
+    } elseif ($env:HOROSA_DESKTOP_INSTALLER_AUTO_LAUNCH -eq '1') {
+      $launchCheck.Checked = $true
+    }
+    $primaryButton.PerformClick()
+  })
+  $autoFinishTimer.Start()
 }
 
 function Set-StageVisual {
@@ -609,6 +767,7 @@ $rightPanel.Controls.Add($secondaryButton)
 $script:installProcess = $null
 $script:installCompleted = $false
 $script:installSucceeded = $false
+$script:autoFinishScheduled = $false
 
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 400
@@ -634,19 +793,39 @@ $timer.Add_Tick({
     $script:installCompleted = $true
     $timer.Stop()
     if ($script:installProcess.ExitCode -eq 0) {
-      Ensure-Shortcuts
-      $script:installSucceeded = $true
-      Set-StageVisual -Current 'finish'
-      $headline.Text = "$DisplayName 已准备就绪"
-      $subtitle.Text = "安装程序已在这台电脑上完成 $DisplayName 的准备工作。"
-      $stepTitle.Text = '安装完成'
-      $stepDetail.Text = $DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
-      $statusLabel.Text = '已就绪'
-      $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
-      $progressBar.Value = 100
-      $primaryButton.Text = '完成'
-      $primaryButton.Enabled = $true
-      $secondaryButton.Text = '打开目录'
+      try {
+        Write-WizardTrace ("runtime install exited 0; beginning install finalization")
+        Install-AppBundle
+        Ensure-Shortcuts
+        $script:installSucceeded = $true
+        Set-StageVisual -Current 'finish'
+        $headline.Text = "$DisplayName 已准备就绪"
+        $subtitle.Text = "安装程序已在这台电脑上完成 $DisplayName 的准备工作。"
+        $stepTitle.Text = '安装完成'
+        $stepDetail.Text = $DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
+        $statusLabel.Text = '已就绪'
+        $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
+        $progressBar.Value = 100
+        $primaryButton.Text = '完成'
+        $primaryButton.Enabled = $true
+        $secondaryButton.Text = '打开目录'
+        Write-WizardTrace ("install finalization succeeded")
+        Schedule-AutoFinish
+      } catch {
+        Write-WizardTrace ("install finalization failed: {0}" -f $_.Exception.Message)
+        $script:installSucceeded = $false
+        Set-StageVisual -Current 'failed'
+        $headline.Text = "$DisplayName 安装程序"
+        $subtitle.Text = '安装程序未能在这台电脑上完成应用部署。'
+        $stepTitle.Text = '安装失败'
+        $stepDetail.Text = '运行环境已准备完成，但应用复制或快捷方式创建失败。下面会直接显示本次失败原因。'
+        $statusLabel.Text = '失败原因'
+        $statusDetail.Text = "安装后处理失败：$($_.Exception.Message)`r`n详细日志：$WizardTraceLog"
+        $progressBar.Value = 100
+        $primaryButton.Text = '重试'
+        $primaryButton.Enabled = $true
+        $secondaryButton.Text = '关闭'
+      }
     } else {
       $script:installSucceeded = $false
       $failureSummary = Get-InstallFailureSummary
@@ -727,20 +906,43 @@ if (Test-Path $StateFile) {
   try {
     $state = Get-Content -Raw $StateFile | ConvertFrom-Json
     if ($state.version -eq $VersionInfo.version) {
-      Ensure-Shortcuts
-      Set-StageVisual -Current 'finish'
-      $headline.Text = "$DisplayName 已可直接使用"
-      $subtitle.Text = "当前这个版本的 $DisplayName 已经在这台电脑上准备完成。"
-      $stepTitle.Text = '当前版本已安装'
-      $stepDetail.Text = '你可以点击“完成”退出安装程序，或打开安装目录查看文件；也可以立刻启动 ' + $DisplayName + '。'
-      $statusLabel.Text = '已就绪'
-      $statusDetail.Text = '桌面运行环境和快捷方式都已存在。' + "`r`n" + '当前版本无需重新安装。'
-      $progressBar.Value = 100
-      $primaryButton.Text = '完成'
-      $secondaryButton.Text = '打开目录'
-      $script:installSucceeded = $true
+      try {
+        if (-not (Test-Path $InstalledLauncherExe -PathType Leaf)) {
+          Write-WizardTrace ("existing install branch: installed launcher missing, copying bundle")
+          Install-AppBundle
+        }
+        Ensure-Shortcuts
+        Write-WizardTrace ("existing install branch: ensured shortcuts successfully")
+        Set-StageVisual -Current 'finish'
+        $headline.Text = "$DisplayName 已可直接使用"
+        $subtitle.Text = "当前这个版本的 $DisplayName 已经在这台电脑上准备完成。"
+        $stepTitle.Text = '当前版本已安装'
+        $stepDetail.Text = '你可以点击“完成”退出安装程序，或打开安装目录查看文件；也可以立刻启动 ' + $DisplayName + '。'
+        $statusLabel.Text = '已就绪'
+        $statusDetail.Text = '桌面运行环境和快捷方式都已存在。' + "`r`n" + '当前版本无需重新安装。'
+        $progressBar.Value = 100
+        $primaryButton.Text = '完成'
+        $secondaryButton.Text = '打开目录'
+        $script:installSucceeded = $true
+        Schedule-AutoFinish
+      } catch {
+        Write-WizardTrace ("existing install branch failed: {0}" -f $_.Exception.Message)
+      }
     }
   } catch {}
+}
+
+if ($env:HOROSA_DESKTOP_INSTALLER_AUTO_INSTALL -eq '1' -and -not $script:installSucceeded) {
+  $autoInstallTimer = New-Object System.Windows.Forms.Timer
+  $autoInstallTimer.Interval = 700
+  $autoInstallTimer.Add_Tick({
+    param($sender, $eventArgs)
+    $sender.Stop()
+    if (-not $script:installSucceeded) {
+      $primaryButton.PerformClick()
+    }
+  })
+  $autoInstallTimer.Start()
 }
 
 if ($env:HOROSA_DESKTOP_INSTALLER_SMOKE -eq '1') {

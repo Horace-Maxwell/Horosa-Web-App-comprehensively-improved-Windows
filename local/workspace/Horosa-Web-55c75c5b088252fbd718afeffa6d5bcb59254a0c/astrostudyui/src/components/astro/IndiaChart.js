@@ -6,6 +6,10 @@ import * as Constants from '../../utils/constants';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 
+const INDIA_CHART_CACHE_MAX = 48;
+const INDIA_CHART_CACHE = new Map();
+const INDIA_CHART_INFLIGHT = new Map();
+
 function fieldsToParams(fields){
 	const params = {
 		date: fields.date.value.format('YYYY/MM/DD'),
@@ -32,6 +36,93 @@ function fieldsToParams(fields){
 	}
 
 	return params;
+}
+
+function buildIndiaCacheKey(params){
+	if(!params){
+		return '';
+	}
+	return [
+		params.date,
+		params.time,
+		params.ad,
+		params.zone,
+		params.lat,
+		params.lon,
+		params.gpsLat,
+		params.gpsLon,
+		params.hsys,
+		params.zodiacal,
+		params.tradition,
+		params.strongRecption,
+		params.simpleAsp,
+		params.virtualPointReceiveAsp,
+		params.predictive,
+		params.name,
+		params.pos,
+		params.chartnum,
+	].map((v)=>`${v === undefined || v === null ? '' : v}`).join('|');
+}
+
+function pushIndiaCache(key, val){
+	if(!key || !val){
+		return;
+	}
+	if(INDIA_CHART_CACHE.has(key)){
+		INDIA_CHART_CACHE.delete(key);
+	}
+	INDIA_CHART_CACHE.set(key, val);
+	if(INDIA_CHART_CACHE.size > INDIA_CHART_CACHE_MAX){
+		const oldest = INDIA_CHART_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			INDIA_CHART_CACHE.delete(oldest);
+		}
+	}
+}
+
+export function buildIndiaChartParams(fields, chartnum){
+	const params = fieldsToParams(fields);
+	if(chartnum !== undefined && chartnum !== null){
+		params.chartnum = chartnum;
+	}else if(params.chartnum === undefined || params.chartnum === null){
+		params.chartnum = 1;
+	}
+	return params;
+}
+
+export async function requestIndiaChartCached(params){
+	const key = buildIndiaCacheKey(params);
+	if(key && INDIA_CHART_CACHE.has(key)){
+		return INDIA_CHART_CACHE.get(key);
+	}
+	if(key && INDIA_CHART_INFLIGHT.has(key)){
+		return INDIA_CHART_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/india/chart`, {
+		body: JSON.stringify(params),
+		silent: true,
+		disableLoading: true,
+	}).then((data)=>{
+		const result = data[Constants.ResultKey];
+		pushIndiaCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			INDIA_CHART_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		INDIA_CHART_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
+export function warmIndiaChart(fields, chartnum){
+	if(!fields){
+		return Promise.resolve(null);
+	}
+	const params = buildIndiaChartParams(fields, chartnum);
+	return requestIndiaChartCached(params).catch(()=>null);
 }
 
 function resolveIndiaFractal(chartnum, hook){
@@ -148,12 +239,7 @@ class IndiaChart extends Component{
 	}
 
 	async requestChart(params, sourceFields){
-		const data = await request(`${Constants.ServerRoot}/india/chart`, {
-			body: JSON.stringify(params),
-			silent: true,
-			disableLoading: true,
-		});
-		const result = data[Constants.ResultKey]
+		const result = await requestIndiaChartCached(params);
 
 		const st = {
 			chartObj: result,
@@ -178,10 +264,7 @@ class IndiaChart extends Component{
 	requestChartObj(fields){
 		let params = null;
 		if(fields){
-			params = fieldsToParams(fields);
-			if(params.chartnum === undefined || params.chartnum === null){
-				params.chartnum = 1;
-			}
+			params = buildIndiaChartParams(fields);
 		}else{
 			params = this.genParams();
 		}
@@ -190,7 +273,7 @@ class IndiaChart extends Component{
 
 	genParams(){
 		let fields = this.props.fields;
-		let params = fieldsToParams(fields);
+		let params = buildIndiaChartParams(fields);
 		if(this.props.chartnum){
 			params.chartnum = this.props.chartnum;
 		}

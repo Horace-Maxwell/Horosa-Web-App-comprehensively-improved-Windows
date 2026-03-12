@@ -356,6 +356,7 @@ function Ensure-RuntimePayload {
   $workspaceExtractRoot = Join-Path $extractRoot 'local\workspace'
   if (Test-Path $workspaceExtractRoot -PathType Container) {
     $workspaceTargetRoot = Join-Path $RepoRoot 'local\workspace'
+    $runtimeBundleJarSource = Join-Path $extractedRuntimeRoot 'bundle\astrostudyboot.jar'
     $copyPairs = @(
       @{
         SourcePattern = 'astropy\astrostudy\models'
@@ -388,6 +389,14 @@ function Ensure-RuntimePayload {
 
         $targetPath = Join-Path (Join-Path $workspaceTargetRoot $projectDir.Name) $pair.DestinationPattern
         Copy-DirectoryTree -SourcePath $sourcePath -DestinationPath $targetPath
+      }
+
+      $projectJarTargetDir = Join-Path (Join-Path $workspaceTargetRoot $projectDir.Name) 'astrostudysrv\astrostudyboot\target'
+      $projectJarTarget = Join-Path $projectJarTargetDir 'astrostudyboot.jar'
+      if (-not (Test-Path $projectJarTarget -PathType Leaf) -and (Test-Path $runtimeBundleJarSource -PathType Leaf)) {
+        New-Item -ItemType Directory -Force -Path $projectJarTargetDir | Out-Null
+        Copy-Item -Path $runtimeBundleJarSource -Destination $projectJarTarget -Force
+        Write-InstallLog ("Restored backend jar into project target from runtime bundle: {0}" -f $projectJarTarget)
       }
     }
   }

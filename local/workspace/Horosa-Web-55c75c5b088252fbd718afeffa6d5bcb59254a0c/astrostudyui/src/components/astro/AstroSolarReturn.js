@@ -17,6 +17,108 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
+const SOLAR_RETURN_CACHE_MAX = 24;
+const SOLAR_RETURN_CACHE = new Map();
+const SOLAR_RETURN_INFLIGHT = new Map();
+
+function buildSolarReturnCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushSolarReturnCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(SOLAR_RETURN_CACHE.has(key)){
+		SOLAR_RETURN_CACHE.delete(key);
+	}
+	SOLAR_RETURN_CACHE.set(key, value);
+	if(SOLAR_RETURN_CACHE.size > SOLAR_RETURN_CACHE_MAX){
+		const oldest = SOLAR_RETURN_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			SOLAR_RETURN_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestSolarReturnCached(params){
+	const key = buildSolarReturnCacheKey(params);
+	if(key && SOLAR_RETURN_CACHE.has(key)){
+		return SOLAR_RETURN_CACHE.get(key);
+	}
+	if(key && SOLAR_RETURN_INFLIGHT.has(key)){
+		return SOLAR_RETURN_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/predict/solarreturn`, {
+		body: JSON.stringify(params),
+	}).then((data)=>{
+		const result = data[Constants.ResultKey];
+		pushSolarReturnCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			SOLAR_RETURN_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		SOLAR_RETURN_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
+function buildSolarReturnNatalParams(chartObj){
+	let qryparam = chartObj ? chartObj.params : {};
+	let datetime = new DateTime();
+	if(qryparam.birth){
+		let parts = qryparam.birth.split(' ');
+		qryparam.date = parts[0];
+		qryparam.time = parts[1];
+		let dtstr = datetime.format('yyyy') + parts[0].substr(4) + ' ' + parts[1];
+		if(parts[1].length < 8){
+			dtstr = dtstr + ':00';
+		}
+		datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
+	}
+	let params = {
+		date: qryparam.date,
+		time: qryparam.time,
+		datetime: datetime,
+		ad: qryparam.ad ? qryparam.ad : 1,
+		zone: qryparam.zone,
+		lon: qryparam.lon,
+		lat: qryparam.lat,
+		gpsLon: qryparam.gpsLon,
+		gpsLat: qryparam.gpsLat,
+		hsys: qryparam.hsys,
+		zodiacal: qryparam.zodiacal,
+		tradition: qryparam.tradition,
+	};
+	return params;
+}
+
+export function warmSolarReturn(chartObj, extraParams){
+	if(!chartObj){
+		return Promise.resolve(null);
+	}
+	const natal = buildSolarReturnNatalParams(chartObj);
+	const dt = natal.datetime ? natal.datetime.copy() : new DateTime();
+	const params = {
+		...natal,
+		datetime: dt.format('YYYY-MM-DD HH:mm'),
+		dirLat: natal.lat,
+		dirLon: natal.lon,
+		dirZone: natal.zone,
+		tmType: 'y',
+		nodeRetrograde: false,
+		asporb: 1,
+		...(extraParams || {}),
+	};
+	return requestSolarReturnCached(params).catch(()=>null);
+}
 
 class AstroSolarReturn extends Component{
 
@@ -97,33 +199,7 @@ class AstroSolarReturn extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
-		let datetime = new DateTime();
-		if(qryparam.birth){
-			let parts = qryparam.birth.split(' ');
-			qryparam.date = parts[0];
-			qryparam.time = parts[1];
-			let dtstr = datetime.format('yyyy') + parts[0].substr(4) + ' ' + parts[1];
-			if(parts[1].length < 8){
-				dtstr = dtstr + ':00';
-			}
-			datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
-		}
-		let params = {
-			date: qryparam.date,
-			time: qryparam.time,
-			datetime: datetime,
-			ad: qryparam.ad ? qryparam.ad : 1,
-			zone: qryparam.zone,
-			lon: qryparam.lon,
-			lat: qryparam.lat,
-			gpsLon: qryparam.gpsLon,
-			gpsLat: qryparam.gpsLat,
-			hsys: qryparam.hsys,
-			zodiacal: qryparam.zodiacal,
-			tradition: qryparam.tradition,
-		};
-		return params;
+		return buildSolarReturnNatalParams(chartObj);
 	}
 
 	requestData(){
@@ -138,10 +214,7 @@ class AstroSolarReturn extends Component{
 	}
 
 	async requestDirection(params){
-		const data = await request(`${Constants.ServerRoot}/predict/solarreturn`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		const result = await requestSolarReturnCached(params);
 
 		let tm = new DateTime();
 		let dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');

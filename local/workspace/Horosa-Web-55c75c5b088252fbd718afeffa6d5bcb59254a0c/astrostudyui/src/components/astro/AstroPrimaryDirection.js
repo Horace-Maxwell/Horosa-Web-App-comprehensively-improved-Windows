@@ -40,6 +40,8 @@ class AstroPrimaryDirection extends Component{
 			searchYear: '',
 			pdMethodValue: props.pdMethod ? props.pdMethod : 'astroapp_alchabitius',
 			pdTimeKeyValue: props.pdTimeKey ? props.pdTimeKey : 'Ptolemy',
+			page: 1,
+			pageSize: 12,
 		}
 
 		this.searchInput = null;
@@ -65,6 +67,7 @@ class AstroPrimaryDirection extends Component{
 		this.handlePdMethodChange = this.handlePdMethodChange.bind(this);
 		this.handlePdTimeKeyChange = this.handlePdTimeKeyChange.bind(this);
 		this.handlePdCalculate = this.handlePdCalculate.bind(this);
+		this.handlePageChange = this.handlePageChange.bind(this);
 		this.normalizePdMethod = this.normalizePdMethod.bind(this);
 		this.normalizePdTimeKey = this.normalizePdTimeKey.bind(this);
 		this.normalizePdType = this.normalizePdType.bind(this);
@@ -272,6 +275,13 @@ class AstroPrimaryDirection extends Component{
 				this.state.pdTimeKeyValue
 			);
 		}
+	}
+
+	handlePageChange(page, pageSize){
+		this.setState({
+			page,
+			pageSize,
+		});
 	}
 
 	normalizePdMethod(value){
@@ -508,6 +518,10 @@ class AstroPrimaryDirection extends Component{
 		let dsres = this.convertToDataSource(pds);
 		let ds = dsres.ds;
 		let filterKeys = dsres.filterKeys;
+		const page = this.state.page || 1;
+		const pageSize = this.state.pageSize || 20;
+		const pageStart = (page - 1) * pageSize;
+		const pagedDs = ds.slice(pageStart, pageStart + pageSize);
 		const appliedPdState = this.getAppliedPdState();
 		const appliedPdTimeKey = appliedPdState.pdTimeKey;
 		const tableKey = `${chart.chartId ? chart.chartId : 'pd'}:${appliedPdMethod}:${appliedPdTimeKey}:${this.props.showPdBounds === 0 || this.props.showPdBounds === false ? 0 : 1}:${appliedPdState.syncRev || 'nosync'}`;
@@ -653,9 +667,15 @@ class AstroPrimaryDirection extends Component{
 				<div style={tableWrapStyle}>
 					<Table
 						key={tableKey}
-						dataSource={ds} columns={columns} 
+						dataSource={pagedDs} columns={columns} 
 						rowKey='Seq'  
-						pagination={{pageSize: 50}}
+						pagination={{
+							current: page,
+							pageSize,
+							total: ds.length,
+							showSizeChanger: false,
+							onChange: this.handlePageChange,
+						}}
 						bordered size='small'
 						scroll={{x: '100%', y: tblY }}
 						onRow={(record, index)=>{

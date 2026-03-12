@@ -14,9 +14,16 @@ launchScript = fso.BuildPath(scriptDir, "launch_desktop_runtime.ps1")
 depsRoot = shell.ExpandEnvironmentStrings("%LocalAppData%") & "\HorosaDesktop\runtime-pydeps"
 installScript = fso.BuildPath(scriptDir, "install_desktop_runtime.ps1")
 wizardScript = fso.BuildPath(scriptDir, "install_desktop_wizard.ps1")
+Dim installedLauncherExe
+installedLauncherExe = fso.BuildPath(scriptDir, "Xingque.exe")
 pwshExe = shell.ExpandEnvironmentStrings("%ProgramFiles%") & "\PowerShell\7\pwsh.exe"
 If Not fso.FileExists(pwshExe) Then
   pwshExe = "powershell.exe"
+End If
+
+If fso.FileExists(installedLauncherExe) Then
+  shell.Run """" & installedLauncherExe & """", 0, False
+  WScript.Quit 0
 End If
 
 If Not fso.FileExists(launcherScript) Then

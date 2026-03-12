@@ -7,8 +7,8 @@ import * as SZConst from './SZConst';
 import SZChart from './SZChart';
 
 const SQUARE_SIDE_MIN = 620;
-const SQUARE_SIDE_MAX = 980;
-const VIEWPORT_BOTTOM_GAP = 28;
+const SQUARE_SIDE_MAX = 940;
+const VIEWPORT_BOTTOM_GAP = 54;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
@@ -216,6 +216,7 @@ class SuZhanChart extends Component{
 			const side = this.state.lockedSide || 740;
 			chartstyle.width = `${side}px`;
 			chartstyle.height = `${side}px`;
+			chartstyle.display = 'block';
 		}
 
 		this.drawChart();

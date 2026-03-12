@@ -14,6 +14,99 @@ import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 
+const SOLAR_ARC_CACHE_MAX = 24;
+const SOLAR_ARC_CACHE = new Map();
+const SOLAR_ARC_INFLIGHT = new Map();
+
+function buildSolarArcCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushSolarArcCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(SOLAR_ARC_CACHE.has(key)){
+		SOLAR_ARC_CACHE.delete(key);
+	}
+	SOLAR_ARC_CACHE.set(key, value);
+	if(SOLAR_ARC_CACHE.size > SOLAR_ARC_CACHE_MAX){
+		const oldest = SOLAR_ARC_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			SOLAR_ARC_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestSolarArcCached(params){
+	const key = buildSolarArcCacheKey(params);
+	if(key && SOLAR_ARC_CACHE.has(key)){
+		return SOLAR_ARC_CACHE.get(key);
+	}
+	if(key && SOLAR_ARC_INFLIGHT.has(key)){
+		return SOLAR_ARC_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/predict/solararc`, {
+		body: JSON.stringify(params),
+	}).then((data)=>{
+		const result = data[Constants.ResultKey];
+		pushSolarArcCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			SOLAR_ARC_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		SOLAR_ARC_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
+function buildSolarArcNatalParams(chartObj){
+	let qryparam = chartObj ? chartObj.params : {};
+	if(qryparam.birth){
+		let parts = qryparam.birth.split(' ');
+		qryparam.date = parts[0];
+		qryparam.time = parts[1];
+	}
+	let params = {
+		date: qryparam.date,
+		time: qryparam.time,
+		ad: qryparam.ad ? qryparam.ad : 1,
+		zone: qryparam.zone,
+		dirZone: qryparam.zone,
+		lon: qryparam.lon,
+		lat: qryparam.lat,
+		gpsLat: qryparam.gpsLat,
+		gpsLon: qryparam.gpsLon,
+		hsys: qryparam.hsys,
+		zodiacal: qryparam.zodiacal,
+		tradition: qryparam.tradition,
+	};
+	return params;
+}
+
+export function warmSolarArc(chartObj, extraParams){
+	if(!chartObj){
+		return Promise.resolve(null);
+	}
+	const dt = new DateTime().addDate(1);
+	const params = {
+		...buildSolarArcNatalParams(chartObj),
+		datetime: dt.format('YYYY-MM-DD HH:mm'),
+		tmType: 'y',
+		nodeRetrograde: false,
+		asporb: 1,
+		...(extraParams || {}),
+	};
+	return requestSolarArcCached(params).catch(()=>null);
+}
+
 class AstroSolarArc extends Component{
 
 	constructor(props) {
@@ -98,34 +191,11 @@ class AstroSolarArc extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
-		if(qryparam.birth){
-			let parts = qryparam.birth.split(' ');
-			qryparam.date = parts[0];
-			qryparam.time = parts[1];
-		}
-		let params = {
-			date: qryparam.date,
-			time: qryparam.time,
-			ad: qryparam.ad ? qryparam.ad : 1,
-			zone: qryparam.zone,
-			dirZone: qryparam.zone,
-			lon: qryparam.lon,
-			lat: qryparam.lat,
-			gpsLat: qryparam.gpsLat,
-			gpsLon: qryparam.gpsLon,
-			hsys: qryparam.hsys,
-			zodiacal: qryparam.zodiacal,
-			tradition: qryparam.tradition,
-		};
-		return params;
+		return buildSolarArcNatalParams(chartObj);
 	}
 
 	async requestDirection(params){
-		const data = await request(`${Constants.ServerRoot}/predict/solararc`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		const result = await requestSolarArcCached(params);
 
 		let tm = new DateTime();
 		let dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');

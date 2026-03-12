@@ -1,17 +1,46 @@
 import { Component } from 'react';
 import { Row, Col, Tabs, Tooltip } from 'antd';
-import IndiaChart from './IndiaChart';
+import IndiaChart, { warmIndiaChart, } from './IndiaChart';
 
 
 const TabPane = Tabs.TabPane;
+const INDIA_TAB_KEYS = [
+	'Natal', 'Hora', 'Drekkana', 'Chaturthamsa', 'Panchamsa', 'Shashthamsa',
+	'Saptamsa', 'Ashthamsa', 'Navamsa', 'Dasamsa', 'Rudramsa', 'Dwadasamsa',
+	'Shodasamsa', 'Vimsamsa', 'Chaturvimsamsa', 'Nakshatramsa', 'Trimsamsa',
+	'Khavedamsa', 'Akshavedamsa', 'Shashtyamsa',
+];
+const INDIA_FRACTAL_BY_TAB = {
+	Natal: 1,
+	Hora: 2,
+	Drekkana: 3,
+	Chaturthamsa: 4,
+	Panchamsa: 5,
+	Shashthamsa: 6,
+	Saptamsa: 7,
+	Ashthamsa: 8,
+	Navamsa: 9,
+	Dasamsa: 10,
+	Rudramsa: 11,
+	Dwadasamsa: 12,
+	Shodasamsa: 16,
+	Vimsamsa: 20,
+	Chaturvimsamsa: 24,
+	Nakshatramsa: 27,
+	Trimsamsa: 30,
+	Khavedamsa: 40,
+	Akshavedamsa: 45,
+	Shashtyamsa: 60,
+};
 
 class IndiaChartMain extends Component{
 
 	constructor(props) {
 		super(props);
+		const tab = INDIA_TAB_KEYS.indexOf(this.props.currentSubTab) >= 0 ? this.props.currentSubTab : 'Natal';
 		this.state = {
-			currentTab: "Natal",
-			currentFractal: 1,
+			currentTab: tab,
+			currentFractal: INDIA_FRACTAL_BY_TAB[tab] || 1,
 			hook: {
 				Natal:{
 					txt:'命盘',
@@ -119,6 +148,13 @@ class IndiaChartMain extends Component{
 
 		this.changeTab = this.changeTab.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
+		this.findTab = this.findTab.bind(this);
+		this.scheduleBackgroundWarmup = this.scheduleBackgroundWarmup.bind(this);
+		this.runWarmupQueue = this.runWarmupQueue.bind(this);
+		this.clearWarmupTimer = this.clearWarmupTimer.bind(this);
+		this.unmounted = false;
+		this.warmupTimer = null;
+		this.warmupToken = 0;
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -135,6 +171,10 @@ class IndiaChartMain extends Component{
 			};
 		}
 
+	}
+
+	findTab(tab){
+		return INDIA_TAB_KEYS.indexOf(tab) >= 0 ? tab : 'Natal';
 	}
 
 
@@ -155,6 +195,7 @@ class IndiaChartMain extends Component{
 					}
 				});
 			}	
+			this.scheduleBackgroundWarmup(this.props.fields, key);
 		});
 	}
 
@@ -171,10 +212,73 @@ class IndiaChartMain extends Component{
 	}
 
 	componentDidMount(){
+		this.unmounted = false;
 		let hook = this.state.hook;
 		if(hook[this.state.currentTab].fun){
 			hook[this.state.currentTab].fun()
 		}
+		this.scheduleBackgroundWarmup(this.props.fields, this.state.currentTab);
+	}
+
+	componentDidUpdate(prevProps, prevState){
+		if(prevProps.fields !== this.props.fields){
+			this.scheduleBackgroundWarmup(this.props.fields, this.state.currentTab);
+		}
+		if(prevProps.currentSubTab !== this.props.currentSubTab){
+			const nextTab = this.props.currentSubTab && this.state.hook[this.props.currentSubTab] ? this.props.currentSubTab : 'Natal';
+			if(nextTab !== this.state.currentTab){
+				this.setState({
+					currentTab: nextTab,
+					currentFractal: this.state.hook[nextTab].fractal,
+				}, ()=>{
+					this.scheduleBackgroundWarmup(this.props.fields, nextTab);
+				});
+			}
+		}
+		if(prevState.currentTab !== this.state.currentTab){
+			this.scheduleBackgroundWarmup(this.props.fields, this.state.currentTab);
+		}
+	}
+
+	componentWillUnmount(){
+		this.unmounted = true;
+		this.clearWarmupTimer();
+	}
+
+	clearWarmupTimer(){
+		if(this.warmupTimer){
+			clearTimeout(this.warmupTimer);
+			this.warmupTimer = null;
+		}
+	}
+
+	scheduleBackgroundWarmup(fields, activeTab){
+		this.clearWarmupTimer();
+		if(!fields){
+			return;
+		}
+		const active = activeTab && this.state.hook[activeTab] ? activeTab : this.state.currentTab;
+		const queue = Object.keys(this.state.hook)
+			.filter((key)=>key !== active)
+			.map((key)=>this.state.hook[key].fractal)
+			.filter((fractal)=>Number.isFinite(fractal) && fractal > 0);
+		if(queue.length === 0){
+			return;
+		}
+		const token = ++this.warmupToken;
+		this.warmupTimer = setTimeout(()=>{
+			this.runWarmupQueue(token, fields, queue, 0);
+		}, 220);
+	}
+
+	runWarmupQueue(token, fields, queue, index){
+		if(this.unmounted || token !== this.warmupToken || !fields || index >= queue.length){
+			return;
+		}
+		warmIndiaChart(fields, queue[index]).catch(()=>null);
+		this.warmupTimer = setTimeout(()=>{
+			this.runWarmupQueue(token, fields, queue, index + 1);
+		}, 70);
 	}
 
 	render(){
@@ -244,4 +348,3 @@ class IndiaChartMain extends Component{
 }
 
 export default IndiaChartMain;
-

@@ -17,6 +17,108 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
+const GIVEN_YEAR_CACHE_MAX = 24;
+const GIVEN_YEAR_CACHE = new Map();
+const GIVEN_YEAR_INFLIGHT = new Map();
+
+function buildGivenYearCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushGivenYearCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(GIVEN_YEAR_CACHE.has(key)){
+		GIVEN_YEAR_CACHE.delete(key);
+	}
+	GIVEN_YEAR_CACHE.set(key, value);
+	if(GIVEN_YEAR_CACHE.size > GIVEN_YEAR_CACHE_MAX){
+		const oldest = GIVEN_YEAR_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			GIVEN_YEAR_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestGivenYearCached(params){
+	const key = buildGivenYearCacheKey(params);
+	if(key && GIVEN_YEAR_CACHE.has(key)){
+		return GIVEN_YEAR_CACHE.get(key);
+	}
+	if(key && GIVEN_YEAR_INFLIGHT.has(key)){
+		return GIVEN_YEAR_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/predict/givenyear`, {
+		body: JSON.stringify(params),
+	}).then((data)=>{
+		const result = data[Constants.ResultKey];
+		pushGivenYearCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			GIVEN_YEAR_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		GIVEN_YEAR_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
+function buildGivenYearNatalParams(chartObj){
+	let qryparam = chartObj ? chartObj.params : {};
+	let datetime = new DateTime();
+	if(qryparam.birth){
+		let parts = qryparam.birth.split(' ');
+		qryparam.date = parts[0];
+		qryparam.time = parts[1];
+		let dtstr = datetime.format('yyyy') + parts[0].substr(4) + ' ' + parts[1];
+		if(parts[1].length < 8){
+			dtstr = dtstr + ':00';
+		}
+		datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
+	}
+	let params = {
+		date: qryparam.date,
+		time: qryparam.time,
+		datetime: datetime,
+		ad: qryparam.ad ? qryparam.ad : 1,
+		zone: qryparam.zone,
+		lon: qryparam.lon,
+		lat: qryparam.lat,
+		gpsLon: qryparam.gpsLon,
+		gpsLat: qryparam.gpsLat,
+		hsys: qryparam.hsys,
+		zodiacal: qryparam.zodiacal,
+		tradition: qryparam.tradition,
+	};
+	return params;
+}
+
+export function warmGivenYear(chartObj, extraParams){
+	if(!chartObj){
+		return Promise.resolve(null);
+	}
+	const natal = buildGivenYearNatalParams(chartObj);
+	const dt = natal.datetime ? natal.datetime.copy() : new DateTime();
+	const params = {
+		...natal,
+		datetime: dt.format('YYYY-MM-DD HH:mm:ss'),
+		dirLat: natal.lat,
+		dirLon: natal.lon,
+		dirZone: natal.zone,
+		tmType: 'y',
+		nodeRetrograde: false,
+		asporb: 1,
+		...(extraParams || {}),
+	};
+	return requestGivenYearCached(params).catch(()=>null);
+}
 
 class AstroGivenYear extends Component{
 
@@ -97,33 +199,7 @@ class AstroGivenYear extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
-		let datetime = new DateTime();
-		if(qryparam.birth){
-			let parts = qryparam.birth.split(' ');
-			qryparam.date = parts[0];
-			qryparam.time = parts[1];
-			let dtstr = datetime.format('yyyy') + parts[0].substr(4) + ' ' + parts[1];
-			if(parts[1].length < 8){
-				dtstr = dtstr + ':00';
-			}
-			datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
-		}
-		let params = {
-			date: qryparam.date,
-			time: qryparam.time,
-			datetime: datetime,
-			ad: qryparam.ad ? qryparam.ad : 1,
-			zone: qryparam.zone,
-			lon: qryparam.lon,
-			lat: qryparam.lat,
-			gpsLon: qryparam.gpsLon,
-			gpsLat: qryparam.gpsLat,
-			hsys: qryparam.hsys,
-			zodiacal: qryparam.zodiacal,
-			tradition: qryparam.tradition,
-		};
-		return params;
+		return buildGivenYearNatalParams(chartObj);
 	}
 
 	requestData(){
@@ -138,10 +214,7 @@ class AstroGivenYear extends Component{
 	}
 
 	async requestDirection(params){
-		const data = await request(`${Constants.ServerRoot}/predict/givenyear`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		const result = await requestGivenYearCached(params);
 
 		let tm = new DateTime();
 		let dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');

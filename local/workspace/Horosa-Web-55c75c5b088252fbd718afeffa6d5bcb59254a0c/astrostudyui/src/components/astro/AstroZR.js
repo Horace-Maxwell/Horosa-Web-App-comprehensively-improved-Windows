@@ -14,6 +14,92 @@ import styles from '../../css/styles.less';
 
 const RadioGroup = Radio.Group;
 const Option = Select.Option;
+const ZR_CACHE_MAX = 24;
+const ZR_CACHE = new Map();
+const ZR_INFLIGHT = new Map();
+
+function buildZRCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushZRCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(ZR_CACHE.has(key)){
+		ZR_CACHE.delete(key);
+	}
+	ZR_CACHE.set(key, value);
+	if(ZR_CACHE.size > ZR_CACHE_MAX){
+		const oldest = ZR_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			ZR_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestZRCached(params){
+	const key = buildZRCacheKey(params);
+	if(key && ZR_CACHE.has(key)){
+		return ZR_CACHE.get(key);
+	}
+	if(key && ZR_INFLIGHT.has(key)){
+		return ZR_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/predict/zr`, {
+		body: JSON.stringify(params),
+	}).then((data)=>{
+		const result = data[Constants.ResultKey] || {};
+		pushZRCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			ZR_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		ZR_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
+function buildZRNatalParams(chartObj){
+	let qryparam = chartObj ? chartObj.params : {};
+	if(qryparam.birth){
+		let parts = qryparam.birth.split(' ');
+		qryparam.date = parts[0];
+		qryparam.time = parts[1];
+	}
+	let params = {
+		date: qryparam.date,
+		time: qryparam.time,
+		zone: qryparam.zone,
+		lon: qryparam.lon,
+		lat: qryparam.lat,
+		hsys: qryparam.hsys,
+		tradition: qryparam.tradition,
+		birth: qryparam.birth,
+		zodiacal: qryparam.zodiacal,
+	};
+	return params;
+}
+
+export function warmZR(chartObj, extraParams){
+	if(!chartObj){
+		return Promise.resolve(null);
+	}
+	const params = {
+		...buildZRNatalParams(chartObj),
+		stopLevelIdx: 3,
+		startSign: null,
+		...(extraParams || {}),
+	};
+	return requestZRCached(params).catch(()=>null);
+}
 
 const AI_MODE_L1_ALL = 'l1_all';
 const AI_MODE_L2_IN_L1 = 'l2_in_l1';
@@ -333,31 +419,11 @@ class AstroZR extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
-		if(qryparam.birth){
-			let parts = qryparam.birth.split(' ');
-			qryparam.date = parts[0];
-			qryparam.time = parts[1];
-		}
-		let params = {
-			date: qryparam.date,
-			time: qryparam.time,
-			zone: qryparam.zone,
-			lon: qryparam.lon,
-			lat: qryparam.lat,
-			hsys: qryparam.hsys,
-			tradition: qryparam.tradition,
-			birth: qryparam.birth,
-			zodiacal: qryparam.zodiacal,
-		};
-		return params;
+		return buildZRNatalParams(chartObj);
 	}
 
 	async requestDirection(params){
-		const data = await request(`${Constants.ServerRoot}/predict/zr`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey] || {};
+		const result = await requestZRCached(params);
 
 		const st = {
 			list: Array.isArray(result.zr) ? result.zr : [],

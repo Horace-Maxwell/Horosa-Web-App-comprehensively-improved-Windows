@@ -12,8 +12,10 @@ import TongSheFaMain from '../tongshefa/TongSheFaMain';
 
 const TabPane = Tabs.TabPane;
 const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'];
-const CNYIBU_VIEWPORT_GAP = 12;
+const CNYIBU_VIEWPORT_GAP = 22;
 const CNYIBU_MIN_HEIGHT = 300;
+const CNYIBU_WARM_DELAY_MS = 120;
+const CNYIBU_WARM_STEP_MS = 180;
 
 function getViewportHeight(){
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
@@ -55,10 +57,15 @@ class CnYiBuMain extends Component{
 	constructor(props) {
 		super(props);
 		const tab = this.normalizeTab(this.props.currentSubTab);
+		const preloadedTabs = {};
+		ValidTabs.forEach((key)=>{
+			preloadedTabs[key] = key === tab;
+		});
 
 		this.state = {
 			divId: 'div_' + randomStr(8),
 			currentTab: tab,
+			preloadedTabs,
 			hook:{
 				suzhan:{
 					fun: null
@@ -86,6 +93,13 @@ class CnYiBuMain extends Component{
 
 		this.changeTab = this.changeTab.bind(this);
 		this.normalizeTab = this.normalizeTab.bind(this);
+		this.ensureTabPreloaded = this.ensureTabPreloaded.bind(this);
+		this.scheduleWarmTabs = this.scheduleWarmTabs.bind(this);
+		this.runWarmTabs = this.runWarmTabs.bind(this);
+		this.clearWarmTimer = this.clearWarmTimer.bind(this);
+		this.warmTimer = null;
+		this.warmToken = 0;
+		this.unmounted = false;
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -109,9 +123,86 @@ class CnYiBuMain extends Component{
 			if(nextTab !== this.state.currentTab){
 				this.setState({
 					currentTab: nextTab,
+				}, ()=>{
+					this.ensureTabPreloaded(nextTab);
+					this.scheduleWarmTabs(nextTab);
 				});
 			}
 		}
+	}
+
+	componentDidMount(){
+		this.unmounted = false;
+		this.ensureTabPreloaded(this.state.currentTab);
+		this.scheduleWarmTabs(this.state.currentTab);
+	}
+
+	componentWillUnmount(){
+		this.unmounted = true;
+		this.clearWarmTimer();
+	}
+
+	clearWarmTimer(){
+		if(this.warmTimer){
+			clearTimeout(this.warmTimer);
+			this.warmTimer = null;
+		}
+	}
+
+	ensureTabPreloaded(tab){
+		const nextTab = this.normalizeTab(tab);
+		if(this.unmounted){
+			return;
+		}
+		if(this.state.preloadedTabs && this.state.preloadedTabs[nextTab]){
+			return;
+		}
+		this.setState((prevState)=>{
+			if(prevState.preloadedTabs && prevState.preloadedTabs[nextTab]){
+				return null;
+			}
+			return {
+				preloadedTabs: {
+					...prevState.preloadedTabs,
+					[nextTab]: true,
+				},
+			};
+		});
+	}
+
+	scheduleWarmTabs(activeTab){
+		if(this.unmounted){
+			return;
+		}
+		this.clearWarmTimer();
+		const currentTab = this.normalizeTab(activeTab);
+		const queue = ValidTabs.filter((key)=>key !== currentTab);
+		if(!queue.length){
+			return;
+		}
+		const token = ++this.warmToken;
+		this.warmTimer = setTimeout(()=>{
+			this.warmTimer = null;
+			this.runWarmTabs(token, queue, 0);
+		}, CNYIBU_WARM_DELAY_MS);
+	}
+
+	runWarmTabs(token, queue, index){
+		if(this.unmounted || token !== this.warmToken){
+			return;
+		}
+		if(!queue || index >= queue.length){
+			return;
+		}
+		const nextTab = queue[index];
+		this.ensureTabPreloaded(nextTab);
+		this.warmTimer = setTimeout(()=>{
+			if(this.unmounted || token !== this.warmToken){
+				return;
+			}
+			this.warmTimer = null;
+			this.runWarmTabs(token, queue, index + 1);
+		}, CNYIBU_WARM_STEP_MS);
 	}
 
 	changeTab(key){
@@ -120,6 +211,7 @@ class CnYiBuMain extends Component{
 		this.setState({
 			currentTab: nextTab,
 		}, ()=>{
+			this.ensureTabPreloaded(nextTab);
 			if(hook[nextTab] && hook[nextTab].fun){
 				hook[nextTab].fun(this.props.fields);
 			}
@@ -131,6 +223,7 @@ class CnYiBuMain extends Component{
 					}
 				});
 			}	
+			this.scheduleWarmTabs(nextTab);
 		});
 	}
 
@@ -143,6 +236,18 @@ class CnYiBuMain extends Component{
 			maxHeight: height,
 			overflowY: 'auto',
 			overflowX: 'hidden',
+			position: 'relative',
+		};
+		const tabsStyle = {
+			height,
+			maxHeight: height,
+			overflow: 'hidden',
+		};
+		const tabBarStyle = {
+			position: 'relative',
+			zIndex: 6,
+			backgroundColor: '#fff',
+			paddingInlineStart: 8,
 		};
 
 		return (
@@ -151,9 +256,10 @@ class CnYiBuMain extends Component{
 					defaultActiveKey={tab} tabPosition='right'
 					activeKey={tab}
 					onChange={this.changeTab}
-					style={{ height: height, maxHeight: height }}
+					style={tabsStyle}
+					tabBarStyle={tabBarStyle}
 				>
-					<TabPane tab="宿盘" key="suzhan">
+					<TabPane tab="宿盘" key="suzhan" forceRender={!!this.state.preloadedTabs.suzhan}>
 						<SuZhanMain 
 							value={this.props.chart}
 							height={height}
@@ -165,7 +271,7 @@ class CnYiBuMain extends Component{
 						/>
 					</TabPane>
 
-					<TabPane tab="易卦" key="guazhan">
+					<TabPane tab="易卦" key="guazhan" forceRender={!!this.state.preloadedTabs.guazhan}>
 						<GuaZhanMain 
 							value={this.props.chart}
 							height={height}
@@ -175,7 +281,7 @@ class CnYiBuMain extends Component{
 						/>
 					</TabPane>
 
-					<TabPane tab="六壬" key="liureng">
+					<TabPane tab="六壬" key="liureng" forceRender={!!this.state.preloadedTabs.liureng}>
 						<LiuRengMain 
 							value={this.props.chart}
 							height={height}
@@ -184,7 +290,7 @@ class CnYiBuMain extends Component{
 							dispatch={this.props.dispatch}
 						/>
 					</TabPane>
-					<TabPane tab="金口诀" key="jinkou">
+					<TabPane tab="金口诀" key="jinkou" forceRender={!!this.state.preloadedTabs.jinkou}>
 						<JinKouMain
 							value={this.props.chart}
 							height={height}
@@ -193,7 +299,7 @@ class CnYiBuMain extends Component{
 							dispatch={this.props.dispatch}
 						/>
 					</TabPane>
-					<TabPane tab="遁甲" key="dunjia">
+					<TabPane tab="遁甲" key="dunjia" forceRender={!!this.state.preloadedTabs.dunjia}>
 						<DunJiaMain
 							value={this.props.chart}
 							height={height}
@@ -202,7 +308,7 @@ class CnYiBuMain extends Component{
 							dispatch={this.props.dispatch}
 						/>
 					</TabPane>
-					<TabPane tab="太乙" key="taiyi">
+					<TabPane tab="太乙" key="taiyi" forceRender={!!this.state.preloadedTabs.taiyi}>
 						<TaiYiMain
 							value={this.props.chart}
 							height={height}
@@ -211,7 +317,7 @@ class CnYiBuMain extends Component{
 							dispatch={this.props.dispatch}
 						/>
 					</TabPane>
-					<TabPane tab="统摄法" key="tongshefa">
+					<TabPane tab="统摄法" key="tongshefa" forceRender={!!this.state.preloadedTabs.tongshefa}>
 						<TongSheFaMain
 							value={this.props.chart}
 							height={height}

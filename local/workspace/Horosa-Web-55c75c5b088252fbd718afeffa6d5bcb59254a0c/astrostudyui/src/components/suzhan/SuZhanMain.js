@@ -10,7 +10,7 @@ import * as Su28Helper from '../su28/Su28Helper';
 import SuZhanInput from './SuZhanInput';
 import SuZhanChart from './SuZhanChart';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-const SUZHAN_VIEWPORT_GAP = 12;
+const SUZHAN_VIEWPORT_GAP = 28;
 const SUZHAN_MIN_HEIGHT = 320;
 
 const SIMPLE_TOKEN_MAP = {
@@ -502,6 +502,7 @@ class SuZhanMain extends Component{
 
 	render(){
 		const height = resolveBoundedHeight(this.props.height);
+		const chartHeight = Math.max(SUZHAN_MIN_HEIGHT, height - 26);
 
 		let chartObj = this.props.value;
 		let chart = chartObj && chartObj.chart ? {
@@ -511,12 +512,12 @@ class SuZhanMain extends Component{
 		chart.lots = chartObj ? chartObj.lots : [];
 
 		return (
-			<div style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
+			<div style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden', paddingBottom: 16 }}>
 				<Row gutter={6}>
-					<Col span={16}>
+					<Col span={16} style={{ overflow: 'hidden', paddingBottom: 16 }}>
 						<SuZhanChart 
 							value={chart} 
-							height={height} 
+							height={chartHeight} 
 							fields={this.props.fields}  
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}

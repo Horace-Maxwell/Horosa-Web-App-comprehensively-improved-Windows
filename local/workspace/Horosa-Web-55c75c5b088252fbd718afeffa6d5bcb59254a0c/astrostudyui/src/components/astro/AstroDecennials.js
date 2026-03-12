@@ -55,6 +55,68 @@ const AI_MODE_ITEMS = [
 ];
 
 const LEVEL_COLORS = ['#0a2e81', '#c81808', '#005000', '#948e33'];
+const DECENNIAL_TIMELINE_CACHE_MAX = 32;
+const DECENNIAL_TIMELINE_CACHE = new Map();
+
+function buildDecennialCacheKey(chartObj, settings){
+	try{
+		return JSON.stringify({
+			params: chartObj && chartObj.params ? chartObj.params : null,
+			chart: chartObj && chartObj.chart ? {
+				isDiurnal: chartObj.chart.isDiurnal,
+				objects: chartObj.chart.objects,
+				fortune: chartObj.chart.fortune,
+				spirit: chartObj.chart.spirit,
+			} : null,
+			settings,
+		});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushDecennialCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(DECENNIAL_TIMELINE_CACHE.has(key)){
+		DECENNIAL_TIMELINE_CACHE.delete(key);
+	}
+	DECENNIAL_TIMELINE_CACHE.set(key, value);
+	if(DECENNIAL_TIMELINE_CACHE.size > DECENNIAL_TIMELINE_CACHE_MAX){
+		const oldest = DECENNIAL_TIMELINE_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			DECENNIAL_TIMELINE_CACHE.delete(oldest);
+		}
+	}
+}
+
+function getDecennialTimelineCached(chartObj, settings){
+	const key = buildDecennialCacheKey(chartObj, settings);
+	if(key && DECENNIAL_TIMELINE_CACHE.has(key)){
+		return DECENNIAL_TIMELINE_CACHE.get(key);
+	}
+	const value = buildDecennialTimeline(chartObj, settings);
+	pushDecennialCache(key, value);
+	return value;
+}
+
+const DEFAULT_DECENNIAL_SETTINGS = {
+	startMode: DECENNIAL_START_MODE_SECT_LIGHT,
+	orderType: DECENNIAL_ORDER_ZODIACAL,
+	dayMethod: DECENNIAL_DAY_METHOD_VALENS,
+	calendarType: DECENNIAL_CALENDAR_TRADITIONAL,
+};
+
+export function warmDecennials(chartObj, settings){
+	if(!chartObj){
+		return null;
+	}
+	return getDecennialTimelineCached(chartObj, {
+		...DEFAULT_DECENNIAL_SETTINGS,
+		...(settings || {}),
+	});
+}
 
 function safeIdx(idx, len){
 	if(!len || len <= 0){
@@ -250,10 +312,7 @@ class AstroDecennials extends Component{
 		this.state = {
 			params: qryparam,
 			settings: {
-				startMode: DECENNIAL_START_MODE_SECT_LIGHT,
-				orderType: DECENNIAL_ORDER_ZODIACAL,
-				dayMethod: DECENNIAL_DAY_METHOD_VALENS,
-				calendarType: DECENNIAL_CALENDAR_TRADITIONAL,
+				...DEFAULT_DECENNIAL_SETTINGS,
 			},
 			list: [],
 			timelineMeta: {
@@ -337,7 +396,7 @@ class AstroDecennials extends Component{
 		if(!chartObj){
 			return;
 		}
-		const timelineMeta = buildDecennialTimeline(chartObj, this.state.settings);
+		const timelineMeta = getDecennialTimelineCached(chartObj, this.state.settings);
 		this.setState({
 			list: Array.isArray(timelineMeta.list) ? timelineMeta.list : [],
 			timelineMeta,

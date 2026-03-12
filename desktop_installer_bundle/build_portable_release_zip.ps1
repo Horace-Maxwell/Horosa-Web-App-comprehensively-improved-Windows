@@ -170,11 +170,55 @@ $ResolvedPythonExe = Resolve-PythonExe -RequestedPath $PythonExe -BundledPath $B
 Ensure-Wheelhouse -PythonExe $ResolvedPythonExe -ReqFile $RuntimeRequirementsFile -WheelDir $WheelhouseDir
 Ensure-SetupBuilderDeps -PythonExe $ResolvedPythonExe -ReqFile $SetupBuilderRequirementsFile -DepsRoot $SetupDepsRoot
 
+$versionInfo = Get-Content -Raw (Join-Path $ScriptRoot 'version.json') | ConvertFrom-Json
+$launcherAssetName = if ($versionInfo.PSObject.Properties['launcher_asset_name']) { [string]$versionInfo.launcher_asset_name } else { 'Xingque.exe' }
+$launcherExePath = Join-Path (Join-Path $ScriptRoot 'release') $launcherAssetName
+$launcherWorkDir = Join-Path $ScriptRoot 'build\xingque-launcher'
+$launcherSpec = Join-Path $ScriptRoot 'pyinstaller\xingque_launcher.spec'
+
+if (-not (Test-Path $launcherSpec -PathType Leaf)) {
+  throw "Installed app launcher spec not found: $launcherSpec"
+}
+if (Test-Path $launcherWorkDir) {
+  Remove-Item -Recurse -Force $launcherWorkDir -ErrorAction SilentlyContinue
+}
+if (Test-Path $launcherExePath) {
+  Remove-Item -Force $launcherExePath -ErrorAction SilentlyContinue
+}
+
 $env:HOROSA_DESKTOP_BUNDLE_ROOT = $ScriptRoot
 $env:HOROSA_DESKTOP_REQUESTED_VERSION = $Version
 $env:HOROSA_DESKTOP_REQUIRE_TAG_MATCH = if ($RequireTagMatch) { '1' } else { '0' }
 $env:HOROSA_DESKTOP_GIT_TAG = $env:GITHUB_REF_NAME
 $env:HOROSA_DESKTOP_PYTHON_EXE = $ResolvedPythonExe
+
+$oldPythonPath = $env:PYTHONPATH
+try {
+  if ([string]::IsNullOrWhiteSpace($oldPythonPath)) {
+    $env:PYTHONPATH = $SetupDepsRoot
+  } else {
+    $env:PYTHONPATH = $SetupDepsRoot + ';' + $oldPythonPath
+  }
+
+  $env:HOROSA_XINGQUE_EXE_NAME = [System.IO.Path]::GetFileNameWithoutExtension($launcherAssetName)
+  & $ResolvedPythonExe -m PyInstaller $launcherSpec --noconfirm --clean --distpath (Join-Path $ScriptRoot 'release') --workpath $launcherWorkDir
+  if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed while building installed app launcher with exit code $LASTEXITCODE"
+  }
+} finally {
+  if ($null -ne $oldPythonPath) {
+    $env:PYTHONPATH = $oldPythonPath
+  } else {
+    Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+  }
+  Remove-Item Env:HOROSA_XINGQUE_EXE_NAME -ErrorAction SilentlyContinue
+}
+
+if (-not (Test-Path $launcherExePath -PathType Leaf)) {
+  throw "Installed app launcher was not produced: $launcherExePath"
+}
+Write-Host "[OK] Installed app launcher built: $launcherExePath"
+$env:HOROSA_DESKTOP_LAUNCHER_EXE = $launcherExePath
 
 @'
 import hashlib
@@ -370,6 +414,15 @@ portable_payload_root.mkdir(parents=True, exist_ok=True)
 copy_filtered_tree(repo_root / "desktop_installer_bundle", portable_payload_root / "desktop_installer_bundle")
 copy_filtered_tree(repo_root / "local", portable_payload_root / "local")
 
+launcher_exe = (os.environ.get("HOROSA_DESKTOP_LAUNCHER_EXE") or "").strip()
+if launcher_exe:
+    launcher_path = Path(launcher_exe)
+    if not launcher_path.exists():
+        raise FileNotFoundError(f"Installed app launcher missing: {launcher_path}")
+    launcher_dest = portable_payload_root / "desktop_installer_bundle" / launcher_path.name
+    launcher_dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(launcher_path, launcher_dest)
+
 payload_readme = portable_payload_root / "README.md"
 payload_readme.write_text(
     "\n".join(
@@ -522,16 +575,12 @@ print(f"[OK] Portable release zip built: {zip_path}")
 print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 '@ | & $ResolvedPythonExe -
 
-$versionInfo = Get-Content -Raw (Join-Path $ScriptRoot 'version.json') | ConvertFrom-Json
 $portableZipPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.zip" -f $versionInfo.release_asset_prefix, $versionInfo.version)
 $installerAssetName = if ($versionInfo.PSObject.Properties['installer_asset_name']) { [string]$versionInfo.installer_asset_name } else { 'XingqueSetup.exe' }
 $installerExePath = Join-Path (Join-Path $ScriptRoot 'release') $installerAssetName
 $setupWorkDir = Join-Path $ScriptRoot 'build\setup-installer'
 $setupSpec = Join-Path $ScriptRoot 'pyinstaller\xingque_setup.spec'
 
-if (-not (Test-Path $portableZipPath -PathType Leaf)) {
-  throw "Portable release zip not found for single-file installer build: $portableZipPath"
-}
 if (-not (Test-Path $setupSpec -PathType Leaf)) {
   throw "Single-file installer spec not found: $setupSpec"
 }
@@ -567,6 +616,9 @@ try {
   Remove-Item Env:HOROSA_SETUP_EXE_NAME -ErrorAction SilentlyContinue
 }
 
+if (-not (Test-Path $portableZipPath -PathType Leaf)) {
+  throw "Portable release zip not found for single-file installer build: $portableZipPath"
+}
 if (-not (Test-Path $installerExePath -PathType Leaf)) {
   throw "Single-file installer was not produced: $installerExePath"
 }
@@ -577,4 +629,5 @@ Remove-Item Env:HOROSA_DESKTOP_REQUESTED_VERSION -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_REQUIRE_TAG_MATCH -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_GIT_TAG -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_PYTHON_EXE -ErrorAction SilentlyContinue
+Remove-Item Env:HOROSA_DESKTOP_LAUNCHER_EXE -ErrorAction SilentlyContinue
 

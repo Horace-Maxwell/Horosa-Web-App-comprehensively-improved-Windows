@@ -20,6 +20,8 @@ if (-not (Test-Path $DepsRoot)) {
 }
 
 $env:PYTHONPATH = $DepsRoot
+$env:HOROSA_INSTALLED_APP = '1'
+$quotedLauncherScript = '"' + $LauncherScript + '"'
 
-Start-Process -FilePath $PythonWExe -ArgumentList @($LauncherScript) -WorkingDirectory (Split-Path -Parent $LauncherScript) -WindowStyle Hidden | Out-Null
+Start-Process -FilePath $PythonWExe -ArgumentList @($quotedLauncherScript) -WorkingDirectory (Split-Path -Parent $LauncherScript) -WindowStyle Hidden | Out-Null
 
