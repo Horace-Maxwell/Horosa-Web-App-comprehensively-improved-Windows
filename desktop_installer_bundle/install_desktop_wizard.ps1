@@ -39,6 +39,7 @@ $AssetsRoot = Join-Path $ScriptRoot 'assets'
 $InstallerIconFile = Join-Path $AssetsRoot 'horosa_setup.ico'
 $InstallerBadgeFile = Join-Path $AssetsRoot 'horosa_setup_badge.png'
 $IconCandidate = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
+$DesktopExe = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $DisplayName = '星阙'
 $VersionInfo = Get-Content -Raw $VersionFile | ConvertFrom-Json
 
@@ -118,7 +119,8 @@ function New-HorosaShortcut {
     [string]$ShortcutPath,
     [string]$TargetPath,
     [string]$WorkingDirectory,
-    [string]$IconPath
+    [string]$IconPath,
+    [string]$Arguments = ''
   )
 
   $shortcutDir = Split-Path -Parent $ShortcutPath
@@ -131,6 +133,9 @@ function New-HorosaShortcut {
   $shortcut = $shell.CreateShortcut($tempShortcutPath)
   $shortcut.TargetPath = $TargetPath
   $shortcut.WorkingDirectory = $WorkingDirectory
+  if (-not [string]::IsNullOrWhiteSpace($Arguments)) {
+    $shortcut.Arguments = $Arguments
+  }
   if (Test-Path $IconPath) {
     $shortcut.IconLocation = $IconPath
   }
@@ -144,12 +149,29 @@ function New-HorosaShortcut {
   Move-Item -Path $tempShortcutPath -Destination $ShortcutPath -Force
 }
 
+function Resolve-AppLaunchSpec {
+  if (Test-Path $DesktopExe) {
+    return @{
+      TargetPath = $DesktopExe
+      WorkingDirectory = Split-Path -Parent $DesktopExe
+      Arguments = ''
+    }
+  }
+
+  return @{
+    TargetPath = $RunScript
+    WorkingDirectory = $ScriptRoot
+    Arguments = ''
+  }
+}
+
 function Ensure-Shortcuts {
   $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) "$DisplayName.lnk"
   $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) "$DisplayName.lnk"
   $shortcutIcon = if (Test-Path $IconCandidate) { $IconCandidate } elseif (Test-Path $InstallerIconFile) { $InstallerIconFile } else { $null }
-  New-HorosaShortcut -ShortcutPath $desktopShortcut -TargetPath $RunScript -WorkingDirectory $ScriptRoot -IconPath $shortcutIcon
-  New-HorosaShortcut -ShortcutPath $startMenuShortcut -TargetPath $RunScript -WorkingDirectory $ScriptRoot -IconPath $shortcutIcon
+  $launchSpec = Resolve-AppLaunchSpec
+  New-HorosaShortcut -ShortcutPath $desktopShortcut -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments
+  New-HorosaShortcut -ShortcutPath $startMenuShortcut -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments
 }
 
 function Read-ProgressState {
@@ -237,6 +259,11 @@ function Resolve-FormIcon {
 
 function Open-InstallFolder {
   Start-Process -FilePath 'explorer.exe' -ArgumentList @($ScriptRoot) | Out-Null
+}
+
+function Start-InstalledApp {
+  $launchSpec = Resolve-AppLaunchSpec
+  Start-Process -FilePath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -ArgumentList @($launchSpec.Arguments) | Out-Null
 }
 
 function Set-StageVisual {
@@ -641,7 +668,7 @@ $timer.Add_Tick({
 $primaryButton.Add_Click({
   if ($script:installSucceeded) {
     if ($launchCheck.Checked) {
-      Start-Process -FilePath 'wscript.exe' -ArgumentList @($RunScript) | Out-Null
+      Start-InstalledApp
     }
     $form.Close()
     return
