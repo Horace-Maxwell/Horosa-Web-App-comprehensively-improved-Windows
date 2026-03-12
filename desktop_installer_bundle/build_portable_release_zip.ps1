@@ -12,8 +12,10 @@ $RepoRoot = Split-Path -Parent $ScriptRoot
 $BundledPythonExe = Join-Path $RepoRoot 'local\workspace\runtime\windows\python\python.exe'
 $WheelhouseDir = Join-Path $ScriptRoot 'wheelhouse'
 $RuntimeRequirementsFile = Join-Path $ScriptRoot 'runtime_requirements.txt'
+$SetupBuilderRequirementsFile = Join-Path $ScriptRoot 'setup_builder_requirements.txt'
 $PreparedRuntimeRoot = Join-Path $RepoRoot 'local\workspace\runtime\windows'
 $PreparedRuntimeJar = Join-Path $PreparedRuntimeRoot 'bundle\astrostudyboot.jar'
+$SetupDepsRoot = Join-Path $env:LocalAppData 'HorosaDesktop\setupbuilddeps'
 
 function Resolve-PythonExe {
   param(
@@ -105,6 +107,35 @@ function Ensure-Wheelhouse {
   Write-Host "[OK] Desktop wheelhouse ready: $WheelDir"
 }
 
+function Ensure-SetupBuilderDeps {
+  param(
+    [string]$PythonExe,
+    [string]$ReqFile,
+    [string]$DepsRoot
+  )
+
+  if (-not (Test-Path $ReqFile -PathType Leaf)) {
+    throw "setup_builder_requirements.txt not found: $ReqFile"
+  }
+
+  if (Test-Path $DepsRoot) {
+    Remove-Item -Recurse -Force $DepsRoot -ErrorAction SilentlyContinue
+  }
+
+  New-Item -ItemType Directory -Force -Path $DepsRoot | Out-Null
+  Write-Host "[INFO] Installing single-file setup builder dependencies..."
+  & $PythonExe -m pip install --disable-pip-version-check --upgrade --target $DepsRoot -r $ReqFile
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to install setup builder dependencies."
+  }
+
+  if (-not (Test-Path (Join-Path $DepsRoot 'PyInstaller'))) {
+    throw "PyInstaller was not installed into setup builder deps: $DepsRoot"
+  }
+
+  Write-Host "[OK] Single-file setup builder dependencies ready: $DepsRoot"
+}
+
 function Ensure-PreparedRuntime {
   param(
     [string]$RepoPath,
@@ -137,6 +168,7 @@ function Ensure-PreparedRuntime {
 Ensure-PreparedRuntime -RepoPath $RepoRoot -ExpectedJarPath $PreparedRuntimeJar
 $ResolvedPythonExe = Resolve-PythonExe -RequestedPath $PythonExe -BundledPath $BundledPythonExe
 Ensure-Wheelhouse -PythonExe $ResolvedPythonExe -ReqFile $RuntimeRequirementsFile -WheelDir $WheelhouseDir
+Ensure-SetupBuilderDeps -PythonExe $ResolvedPythonExe -ReqFile $SetupBuilderRequirementsFile -DepsRoot $SetupDepsRoot
 
 $env:HOROSA_DESKTOP_BUNDLE_ROOT = $ScriptRoot
 $env:HOROSA_DESKTOP_REQUESTED_VERSION = $Version
@@ -489,6 +521,56 @@ write_manifest(
 print(f"[OK] Portable release zip built: {zip_path}")
 print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 '@ | & $ResolvedPythonExe -
+
+$versionInfo = Get-Content -Raw (Join-Path $ScriptRoot 'version.json') | ConvertFrom-Json
+$portableZipPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.zip" -f $versionInfo.release_asset_prefix, $versionInfo.version)
+$installerAssetName = if ($versionInfo.PSObject.Properties['installer_asset_name']) { [string]$versionInfo.installer_asset_name } else { 'XingqueSetup.exe' }
+$installerExePath = Join-Path (Join-Path $ScriptRoot 'release') $installerAssetName
+$setupWorkDir = Join-Path $ScriptRoot 'build\setup-installer'
+$setupSpec = Join-Path $ScriptRoot 'pyinstaller\xingque_setup.spec'
+
+if (-not (Test-Path $portableZipPath -PathType Leaf)) {
+  throw "Portable release zip not found for single-file installer build: $portableZipPath"
+}
+if (-not (Test-Path $setupSpec -PathType Leaf)) {
+  throw "Single-file installer spec not found: $setupSpec"
+}
+if (Test-Path $setupWorkDir) {
+  Remove-Item -Recurse -Force $setupWorkDir -ErrorAction SilentlyContinue
+}
+if (Test-Path $installerExePath) {
+  Remove-Item -Force $installerExePath -ErrorAction SilentlyContinue
+}
+
+$oldPythonPath = $env:PYTHONPATH
+try {
+  if ([string]::IsNullOrWhiteSpace($oldPythonPath)) {
+    $env:PYTHONPATH = $SetupDepsRoot
+  } else {
+    $env:PYTHONPATH = $SetupDepsRoot + ';' + $oldPythonPath
+  }
+
+  $env:HOROSA_SETUP_PAYLOAD_ZIP = $portableZipPath
+  $env:HOROSA_SETUP_EXE_NAME = [System.IO.Path]::GetFileNameWithoutExtension($installerAssetName)
+
+  & $ResolvedPythonExe -m PyInstaller $setupSpec --noconfirm --clean --distpath (Join-Path $ScriptRoot 'release') --workpath $setupWorkDir
+  if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed while building single-file installer with exit code $LASTEXITCODE"
+  }
+} finally {
+  if ($null -ne $oldPythonPath) {
+    $env:PYTHONPATH = $oldPythonPath
+  } else {
+    Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+  }
+  Remove-Item Env:HOROSA_SETUP_PAYLOAD_ZIP -ErrorAction SilentlyContinue
+  Remove-Item Env:HOROSA_SETUP_EXE_NAME -ErrorAction SilentlyContinue
+}
+
+if (-not (Test-Path $installerExePath -PathType Leaf)) {
+  throw "Single-file installer was not produced: $installerExePath"
+}
+Write-Host "[OK] Single-file setup built: $installerExePath"
 
 Remove-Item Env:HOROSA_DESKTOP_BUNDLE_ROOT -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_REQUESTED_VERSION -ErrorAction SilentlyContinue

@@ -231,28 +231,31 @@ jobs:
               ]
 
           body_path = Path(os.environ["RUNNER_TEMP"]) / "horosa-release-body.md"
+          setup_asset = "XingqueSetup.exe"
+          setup_url = f"https://github.com/{repository}/releases/download/{release_tag}/{setup_asset}"
           portable_asset = f"HorosaPortableWindows-{release_tag}.zip"
-          portable_url = f"https://github.com/{repository}/releases/download/{release_tag}/{portable_asset}"
           latest_release_url = f"https://github.com/{repository}/releases/latest"
           body_lines = [
               "## 普通用户请这样下载",
               "",
-              f"- [一键下载 Windows 安装包]({portable_url})",
+              f"- [一键下载 Windows 安装器 EXE]({setup_url})",
               f"- [打开最新 Release 页面]({latest_release_url})",
-              f"- 下载：`{portable_asset}`",
+              f"- 下载：`{setup_asset}`",
+              f"- 不要手动下载：`{portable_asset}`",
               f"- 不要手动下载：`HorosaRuntimeWindows-{release_tag}.zip`",
               f"- 不要手动下载：`HorosaRuntimeWindows-{release_tag}.manifest.json`",
               "",
               "## 普通用户请这样安装和使用",
               "",
-              f"1. 下载并完整解压 `HorosaPortableWindows-{release_tag}.zip`",
-              "2. 直接双击解压后第一层的 `Install_Horosa_Desktop.vbs`",
+              "1. 下载 `XingqueSetup.exe`",
+              "2. 直接双击运行这个安装器",
               "3. 按中文安装向导完成安装",
               "4. 安装完成后，从桌面或开始菜单打开 `星阙`",
               "",
               "## 补充说明",
               "",
-              "- 这个 zip 就是普通用户使用的一键安装包",
+              "- `XingqueSetup.exe` 是给普通用户的一键安装器",
+              "- 其他 zip 和 manifest 资产主要给安装器与更新链使用",
               "- 首次安装时，安装器会自动下载较大的运行时组件",
               "- 普通用户不需要提前安装 Python、Java、Node 或其他开发工具",
               "- 不要手动运行 `.ps1` 脚本",
@@ -291,6 +294,7 @@ jobs:
           overwrite_files: true
           fail_on_unmatched_files: true
           files: |
+            ./desktop_installer_bundle/release/XingqueSetup.exe
             ./desktop_installer_bundle/release/HorosaPortableWindows-${{ env.RELEASE_TAG }}.zip
             ./desktop_installer_bundle/release/HorosaRuntimeWindows-${{ env.RELEASE_TAG }}.zip
             ./desktop_installer_bundle/release/HorosaRuntimeWindows-${{ env.RELEASE_TAG }}.manifest.json

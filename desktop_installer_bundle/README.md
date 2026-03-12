@@ -4,32 +4,32 @@
 
 ## 去哪里下载一键安装包
 
-- [一键下载最新版 Windows 安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.11.5/HorosaPortableWindows-2026.03.11.5.zip)
+- [一键下载最新版 Windows 安装器 EXE](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/XingqueSetup.exe)
 - [打开最新版 Release 页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 请下载：
 
-- `HorosaPortableWindows-版本.zip`
+- `XingqueSetup.exe`
 
 不要下载：
 
-- `HorosaPortableWindows-版本.manifest.json`
+- `HorosaPortableWindows-版本.zip`
 - `HorosaRuntimeWindows-版本.zip`
 - `HorosaRuntimeWindows-版本.manifest.json`
 
 说明：
 
-- 当前给普通用户发布的完整 Windows 安装包就是这个 `HorosaPortableWindows-版本.zip`
-- 如果当前直链以后过期，直接去 `releases/latest` 页面下载最新同名格式的 zip
-- 下载后先完整解压，再直接双击解压后第一层的 `Install_Horosa_Desktop.vbs`
+- 当前给普通用户发布的主安装入口就是 `XingqueSetup.exe`
+- 如果当前直链以后过期，直接去 `releases/latest` 页面下载 `XingqueSetup.exe`
+- 下载后直接双击运行，不需要先解压 zip
 - 安装完成后使用桌面或开始菜单里的 `星阙` 快捷方式启动
 - 首次安装时，安装器会自动下载较大的 Windows 运行时组件
 - 普通用户不需要提前安装 Python、Java、Node 或其他开发工具
 
 ## 普通用户安装步骤
 
-1. 下载并解压 `HorosaPortableWindows-版本.zip`
-2. 直接双击解压后第一层的 `Install_Horosa_Desktop.vbs`
+1. 下载 `XingqueSetup.exe`
+2. 直接双击运行 `XingqueSetup.exe`
 3. 按中文安装向导安装，完成后启动 `星阙`
 
 补充说明：

@@ -85,6 +85,31 @@ function Publish-InstallFailure {
   Write-InstallProgress -State 'error' -Title '安装失败' -Message $combined -Percent 100
 }
 
+function Get-Sha256Hash {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  $fileHashCmd = Get-Command Get-FileHash -ErrorAction SilentlyContinue
+  if ($fileHashCmd) {
+    return (Get-FileHash $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
+
+  $stream = $null
+  try {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $hashBytes = $sha256.ComputeHash($stream)
+    } finally {
+      $sha256.Dispose()
+    }
+    return ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+  } finally {
+    if ($stream) {
+      $stream.Dispose()
+    }
+  }
+}
+
 function Invoke-PipInstall {
   param(
     [string[]]$Arguments,
@@ -307,7 +332,7 @@ function Ensure-RuntimePayload {
 
   $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
   $expectedHash = ([string]$manifest.sha256).ToLowerInvariant()
-  $actualHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $actualHash = Get-Sha256Hash -Path $zipPath
   if ($expectedHash -ne $actualHash) {
     Publish-InstallFailure -ErrorRecord "下载到的运行时组件未通过完整性校验。期望哈希：$expectedHash，实际哈希：$actualHash" -FriendlyMessage '下载到的运行时组件未通过完整性校验，请重新安装。'
     throw "Runtime payload SHA256 mismatch for $($asset.AssetName)"

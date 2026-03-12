@@ -4,22 +4,21 @@
 
 ## 一键安装包下载位置
 
-- [一键下载最新版 Windows 安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.11.5/HorosaPortableWindows-2026.03.11.5.zip)
+- [一键下载最新版 Windows 安装器 EXE](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/XingqueSetup.exe)
 - [打开最新版 Release 页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 请注意：
 
-- 普通用户要下载的是 `HorosaPortableWindows-版本.zip`
+- 普通用户要下载的是 `XingqueSetup.exe`
 - 不要下载同页里的 `.manifest.json`，那个不是给手动安装用的
-- 同页里的 `HorosaRuntimeWindows-版本.zip` 也是安装器内部使用的支持资产，普通用户不用单独下载
-- 这个 zip 虽然文件名里写的是 `PortableWindows`，但它就是目前给普通用户发布的一键安装包
-- 如果上面的当前直链以后失效，直接打开 `releases/latest` 页面下载最新同名格式的 zip 即可
+- `HorosaPortableWindows-版本.zip` 和 `HorosaRuntimeWindows-版本.zip` 是安装器和更新链使用的支持资产，普通用户不用单独下载
+- 如果上面的当前直链以后失效，直接打开 `releases/latest` 页面下载同页的 `XingqueSetup.exe` 即可
 
 ## 安装只做这 3 步
 
-1. 下载 `HorosaPortableWindows-版本.zip`
-2. 先完整解压 zip
-3. 直接双击解压后第一层的 `Install_Horosa_Desktop.vbs`，按中文安装向导完成安装
+1. 下载 `XingqueSetup.exe`
+2. 直接双击运行这个安装器
+3. 按中文安装向导完成安装
 
 安装完成后：
 
@@ -30,7 +29,7 @@
 
 ## 下载后不要点错
 
-- 正确入口是解压后第一层的 `Install_Horosa_Desktop.vbs`
+- 正确入口是 `XingqueSetup.exe`
 - 不要手动去点 `.ps1` 脚本
 - 不要直接点 `.manifest.json`
 - 第一次安装如果 Windows 弹出安全提示，按系统提示选择允许继续即可
