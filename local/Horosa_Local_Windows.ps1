@@ -2235,8 +2235,9 @@ Start-Sleep -Seconds $DelaySec
       ''
     }
     $runner = @"
-$runnerPrefix& '$nodeCmd' '$warmScript' '--mode=$Mode'
-exit \$LASTEXITCODE
+$runnerPrefix
+& '$nodeCmd' '$warmScript' '--mode=$Mode'
+exit `$LASTEXITCODE
 "@
     $encodedRunner = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($runner))
     return (Start-Process -FilePath 'powershell.exe' `
@@ -2285,8 +2286,9 @@ function Invoke-HorosaWarmup {
   try {
     Write-Host ("[warmup] Using Node.js: {0}" -f $nodeCmd)
     Write-Host ("[warmup] Starting {0} warmup via {1}" -f $Mode, $warmScript)
+    $quotedWarmScript = '"' + $warmScript + '"'
     $proc = Start-Process -FilePath $nodeCmd `
-      -ArgumentList @($warmScript, "--mode=$Mode") `
+      -ArgumentList @($quotedWarmScript, "--mode=$Mode") `
       -WorkingDirectory (Split-Path -Parent $warmScript) `
       -PassThru `
       -Wait `
