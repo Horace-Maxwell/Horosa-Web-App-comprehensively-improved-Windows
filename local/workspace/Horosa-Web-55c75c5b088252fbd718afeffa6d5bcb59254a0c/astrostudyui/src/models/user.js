@@ -720,6 +720,10 @@ export default {
 					key: 'caselist',
 				},
 			});
+			yield put({
+				type: 'fetchCases',
+				payload: {},
+			});
 		},
 
 		*updateCase({ payload: values }, { call, put }){
@@ -741,6 +745,10 @@ export default {
 					key: 'caselist',
 				},
 			});
+			yield put({
+				type: 'fetchCases',
+				payload: {},
+			});
 		},
 
 		*deleteCase({ payload: values }, { call, put }){
@@ -750,6 +758,10 @@ export default {
 				payload: {
 					key: 'caselist',
 				},
+			});
+			yield put({
+				type: 'fetchCases',
+				payload: {},
 			});
 		},
 
@@ -885,6 +897,10 @@ export default {
 					key: 'chartlist'
 				},
             });
+			yield put({
+				type: 'fetchCharts',
+				payload: {},
+			});
 			return;
 			
 		},
@@ -908,6 +924,10 @@ export default {
 						key: 'chartlist'
 					},
 				});
+			yield put({
+				type: 'fetchCharts',
+				payload: {},
+			});
 
             yield put({
                 type: 'astro/fetchByChartData',
@@ -992,6 +1012,10 @@ export default {
 					key: 'chartlist'
 				},
 	            });
+			yield put({
+				type: 'fetchCharts',
+				payload: {},
+			});
 			return;
 
 		},

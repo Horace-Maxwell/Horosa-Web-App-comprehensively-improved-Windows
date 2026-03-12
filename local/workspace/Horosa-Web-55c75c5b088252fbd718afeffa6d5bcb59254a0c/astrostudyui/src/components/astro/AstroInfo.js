@@ -101,7 +101,11 @@ class AstroInfo extends Component{
 
 		let rows = declParallel.parallel.map((item, idx)=>{
 			let objs = item.map((obj, oidx)=>{
-				let decl = chart.planets[obj].decl;
+				let planet = chart.planets[obj];
+				if(planet === undefined || planet === null || planet.decl === undefined || planet.decl === null){
+					return null;
+				}
+				let decl = planet.decl;
 				let span = (
 					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' }>
@@ -110,7 +114,10 @@ class AstroInfo extends Component{
 					</span>
 				);
 				return span;
-			});
+			}).filter(Boolean);
+			if(objs.length === 0){
+				return null;
+			}
 			let row = (
 				<Row gutter={6} key={randomStr(8)}>
 					<Col span={8}>平行星体{idx+1}</Col>
@@ -120,13 +127,17 @@ class AstroInfo extends Component{
 				</Row>
 			);
 			return row;
-		});
+		}).filter(Boolean);
 
 		let crows = [];
 		for(let id in declParallel.contraParallel){
 			let planet = declParallel.contraParallel[id];
 			let objs = planet.map((obj, idx)=>{
-				let decl = chart.planets[obj].decl;
+				let current = chart.planets[obj];
+				if(current === undefined || current === null || current.decl === undefined || current.decl === null){
+					return null;
+				}
+				let decl = current.decl;
 				let span = (
 					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' } >
@@ -135,11 +146,15 @@ class AstroInfo extends Component{
 					</span>
 				);
 				return span;
-			});
+			}).filter(Boolean);
 			if(objs === null || objs.length === null || objs.length === 0){
 				continue;
 			}
-			let decl = chart.planets[id].decl;
+			let current = chart.planets[id];
+			if(current === undefined || current === null || current.decl === undefined || current.decl === null){
+				continue;
+			}
+			let decl = current.decl;
 			let row = (
 				<Row gutter={6} key={randomStr(8)}>
 					<Col span={8}>
