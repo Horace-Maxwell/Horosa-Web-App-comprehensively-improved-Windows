@@ -10,7 +10,8 @@ $ReleaseDir = Join-Path $RepoRoot 'desktop_installer_bundle\release'
 $PortableZip = Join-Path $ReleaseDir ("HorosaPortableWindows-{0}.zip" -f $Version)
 $RuntimeZip = Join-Path $ReleaseDir ("HorosaRuntimeWindows-{0}.zip" -f $Version)
 $RuntimeManifest = Join-Path $ReleaseDir ("HorosaRuntimeWindows-{0}.manifest.json" -f $Version)
-$TestRoot = Join-Path 'C:\xqe' ("portable-release-verify-{0}" -f ($Version -replace '[^0-9A-Za-z]+', '_'))
+$RunStamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$TestRoot = Join-Path 'C:\xqe' ("portable-release-verify-{0}-{1}" -f ($Version -replace '[^0-9A-Za-z]+', '_'), $RunStamp)
 $ExtractRoot = Join-Path $TestRoot 'extract'
 $LocalAppDataRoot = Join-Path $TestRoot 'LocalAppData'
 $InstallState = Join-Path $LocalAppDataRoot 'HorosaDesktop\runtime-pydeps\install_state.json'
@@ -52,6 +53,26 @@ function Remove-TreeWithRetry {
   }
 }
 
+function Stop-ProcessesUsingRoot {
+  param([string]$RootPath)
+
+  if (-not $RootPath) {
+    return
+  }
+
+  $normalizedRoot = $RootPath.ToLowerInvariant()
+  $candidates = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    ($_.ExecutablePath -and $_.ExecutablePath.ToLowerInvariant().StartsWith($normalizedRoot)) -or
+    ($_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($normalizedRoot))
+  }
+
+  foreach ($proc in $candidates) {
+    try {
+      Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+    } catch {}
+  }
+}
+
 function Expand-ZipArchive {
   param(
     [Parameter(Mandatory = $true)]
@@ -87,6 +108,7 @@ if (-not (Test-Path $RuntimeManifest -PathType Leaf)) {
   throw "Runtime manifest not found: $RuntimeManifest"
 }
 
+Stop-ProcessesUsingRoot -RootPath $TestRoot
 if (Test-Path $TestRoot) {
   Remove-TreeWithRetry -Path $TestRoot
 }
@@ -137,6 +159,16 @@ try {
 
     $state = Get-Content -Raw $InstallState | ConvertFrom-Json
     $smoke = Get-Content -Raw $SmokeReady | ConvertFrom-Json
+
+    $shutdownDeadline = (Get-Date).AddSeconds(25)
+    do {
+      Start-Sleep -Seconds 2
+      Stop-ProcessesUsingRoot -RootPath $ExtractRoot
+      $remaining = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        ($_.ExecutablePath -and $_.ExecutablePath.ToLowerInvariant().StartsWith($ExtractRoot.ToLowerInvariant())) -or
+        ($_.CommandLine -and $_.CommandLine.ToLowerInvariant().Contains($ExtractRoot.ToLowerInvariant()))
+      }
+    } while ($remaining -and (Get-Date) -lt $shutdownDeadline)
 
     [pscustomobject]@{
       version = $Version
