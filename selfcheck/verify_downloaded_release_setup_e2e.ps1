@@ -1,12 +1,14 @@
 param(
   [string]$Root = 'C:\xqe\gh-release-e2e-20260312_120436',
-  [string]$Tag = '2026.03.11.8'
+  [string]$Tag = '2026.03.11.8',
+  [string]$InstallerName = 'XingqueSetup.exe',
+  [string]$ReleaseDownloadBaseUrl = ''
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$installer = Join-Path $Root 'download\XingqueSetup.exe'
+$installer = Join-Path $Root ("download\{0}" -f $InstallerName)
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $testRoot = Join-Path $Root ("install-e2e-$stamp")
 $localAppDataRoot = Join-Path $testRoot 'LocalAppData'
@@ -46,7 +48,11 @@ try {
   $env:HOROSA_DESKTOP_INSTALLER_AUTO_LAUNCH = '1'
   $env:HOROSA_DESKTOP_SMOKE_TEST = '1'
   $env:HOROSA_DESKTOP_AUTOCLOSE_SECONDS = '10'
-  $env:HOROSA_DESKTOP_RELEASE_DOWNLOAD_BASE_URL = "https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/$Tag"
+  if ([string]::IsNullOrWhiteSpace($ReleaseDownloadBaseUrl)) {
+    $env:HOROSA_DESKTOP_RELEASE_DOWNLOAD_BASE_URL = "https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/$Tag"
+  } else {
+    $env:HOROSA_DESKTOP_RELEASE_DOWNLOAD_BASE_URL = $ReleaseDownloadBaseUrl
+  }
 
   $proc = Start-Process -FilePath $installer -PassThru
   if (-not $proc.WaitForExit(1800000)) {
