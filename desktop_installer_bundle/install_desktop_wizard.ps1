@@ -67,6 +67,40 @@ $InstalledDesktopExe = Join-Path $InstalledBundleRoot 'dist\HorosaDesktop\Horosa
 $DisplayName = '星阙'
 $VersionInfo = Get-Content -Raw $VersionFile | ConvertFrom-Json
 
+function Get-ExistingInstallInfo {
+  $state = $null
+  $installedVersion = $null
+  $runtimeVersion = $null
+
+  if (Test-Path $StateFile -PathType Leaf) {
+    try {
+      $state = Get-Content -Raw $StateFile | ConvertFrom-Json
+      if ($state.PSObject.Properties['version']) {
+        $installedVersion = [string]$state.version
+      }
+      if ($state.PSObject.Properties['runtimeVersion']) {
+        $runtimeVersion = [string]$state.runtimeVersion
+      }
+    } catch {}
+  }
+
+  $bundleExists = Test-Path $InstalledBundleRoot -PathType Container
+  $launcherExists = Test-Path $InstalledLauncherExe -PathType Leaf
+  $desktopExeExists = Test-Path $InstalledDesktopExe -PathType Leaf
+  $hasInstall = $bundleExists -or $launcherExists -or $desktopExeExists -or ($null -ne $state)
+
+  return [pscustomobject]@{
+    Exists = $hasInstall
+    InstalledVersion = $installedVersion
+    RuntimeVersion = $runtimeVersion
+    InstallRoot = $InstallRoot
+    BundleExists = $bundleExists
+    LauncherExists = $launcherExists
+    DesktopExeExists = $desktopExeExists
+    StateAvailable = ($null -ne $state)
+  }
+}
+
 function Resolve-PowerShellHost {
   $preferred = @(
     (Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
@@ -264,6 +298,35 @@ function Remove-TreeWithRetry {
 
   if ($lastError) {
     throw $lastError
+  }
+}
+
+function Stop-InstalledAppProcesses {
+  $candidateRoots = @($InstalledBundleRoot, $InstallRoot) | Where-Object { $_ } | Select-Object -Unique
+  foreach ($process in Get-CimInstance Win32_Process -ErrorAction SilentlyContinue) {
+    $commandLine = [string]$process.CommandLine
+    if ([string]::IsNullOrWhiteSpace($commandLine)) {
+      continue
+    }
+
+    $matchesInstallRoot = $false
+    foreach ($root in $candidateRoots) {
+      if (-not [string]::IsNullOrWhiteSpace($root) -and $commandLine.IndexOf($root, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        $matchesInstallRoot = $true
+        break
+      }
+    }
+
+    if (-not $matchesInstallRoot) {
+      continue
+    }
+
+    try {
+      Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+      Write-WizardTrace ("stopped installed process: pid={0}; name={1}" -f $process.ProcessId, $process.Name)
+    } catch {
+      Write-WizardTrace ("failed to stop installed process: pid={0}; name={1}; error={2}" -f $process.ProcessId, $process.Name, $_.Exception.Message)
+    }
   }
 }
 
@@ -842,7 +905,7 @@ $rightPanel.Controls.Add($progressBar)
 
 $statusCard = New-Object System.Windows.Forms.Panel
 $statusCard.Location = New-Object System.Drawing.Point($contentOffsetX, 338)
-$statusCard.Size = New-Object System.Drawing.Size(592, 142)
+$statusCard.Size = New-Object System.Drawing.Size(592, 190)
 $statusCard.BackColor = [System.Drawing.Color]::White
 $statusCard.BorderStyle = 'None'
 $rightPanel.Controls.Add($statusCard)
@@ -860,13 +923,41 @@ $statusDetail.Text = '尚未开始更改此电脑上的任何内容。'
 $statusDetail.Font = New-UiFont 10.4
 $statusDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $statusDetail.Location = New-Object System.Drawing.Point(16, 42)
-$statusDetail.Size = New-Object System.Drawing.Size(548, 92)
+$statusDetail.Size = New-Object System.Drawing.Size(548, 56)
 $statusCard.Controls.Add($statusDetail)
+
+$existingInstallPanel = New-Object System.Windows.Forms.Panel
+$existingInstallPanel.Location = New-Object System.Drawing.Point(16, 100)
+$existingInstallPanel.Size = New-Object System.Drawing.Size(548, 78)
+$existingInstallPanel.Visible = $false
+$existingInstallPanel.BackColor = [System.Drawing.Color]::White
+$statusCard.Controls.Add($existingInstallPanel)
+
+$repairRadio = New-Object System.Windows.Forms.RadioButton
+$repairRadio.Text = '修复当前安装（保留程序和数据）'
+$repairRadio.Font = New-UiFont 9.8
+$repairRadio.Location = New-Object System.Drawing.Point(0, 0)
+$repairRadio.Size = New-Object System.Drawing.Size(320, 24)
+$existingInstallPanel.Controls.Add($repairRadio)
+
+$replaceRadio = New-Object System.Windows.Forms.RadioButton
+$replaceRadio.Text = '用当前安装包替换现有版本'
+$replaceRadio.Font = New-UiFont 9.8
+$replaceRadio.Location = New-Object System.Drawing.Point(0, 26)
+$replaceRadio.Size = New-Object System.Drawing.Size(320, 24)
+$existingInstallPanel.Controls.Add($replaceRadio)
+
+$cancelInstallRadio = New-Object System.Windows.Forms.RadioButton
+$cancelInstallRadio.Text = '取消安装并退出'
+$cancelInstallRadio.Font = New-UiFont 9.8
+$cancelInstallRadio.Location = New-Object System.Drawing.Point(0, 52)
+$cancelInstallRadio.Size = New-Object System.Drawing.Size(240, 24)
+$existingInstallPanel.Controls.Add($cancelInstallRadio)
 
 $launchCheck = New-Object System.Windows.Forms.CheckBox
 $launchCheck.Text = '点击“完成”后立即启动 ' + $DisplayName
 $launchCheck.Checked = $true
-$launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, 508)
+$launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, 556)
 $launchCheck.AutoSize = $true
 $launchCheck.Font = New-UiFont 10.4
 $rightPanel.Controls.Add($launchCheck)
@@ -874,7 +965,7 @@ $rightPanel.Controls.Add($launchCheck)
 $primaryButton = New-Object System.Windows.Forms.Button
 $primaryButton.Text = '下一步 >'
 $primaryButton.Size = New-Object System.Drawing.Size(156, 42)
-$primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), 566)
+$primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), 604)
 $primaryButton.BackColor = [System.Drawing.Color]::FromArgb(24, 119, 242)
 $primaryButton.ForeColor = [System.Drawing.Color]::White
 $primaryButton.FlatStyle = 'Flat'
@@ -885,7 +976,7 @@ $rightPanel.Controls.Add($primaryButton)
 $secondaryButton = New-Object System.Windows.Forms.Button
 $secondaryButton.Text = '取消'
 $secondaryButton.Size = New-Object System.Drawing.Size(132, 42)
-$secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), 566)
+$secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), 604)
 $secondaryButton.BackColor = [System.Drawing.Color]::FromArgb(248, 250, 253)
 $secondaryButton.ForeColor = [System.Drawing.Color]::FromArgb(42, 54, 69)
 $secondaryButton.FlatStyle = 'Flat'
@@ -898,6 +989,56 @@ $script:installProcess = $null
 $script:installCompleted = $false
 $script:installSucceeded = $false
 $script:autoFinishScheduled = $false
+$script:existingInstallInfo = Get-ExistingInstallInfo
+$script:selectedInstallAction = $null
+$script:recommendedInstallAction = if ($script:existingInstallInfo.Exists -and $script:existingInstallInfo.InstalledVersion -eq $VersionInfo.version) { 'repair' } else { 'replace' }
+
+function Show-ExistingInstallChoice {
+  if (-not $script:existingInstallInfo.Exists) {
+    $existingInstallPanel.Visible = $false
+    return
+  }
+
+  $existingInstallPanel.Visible = $true
+  $installedVersionText = if (-not [string]::IsNullOrWhiteSpace($script:existingInstallInfo.InstalledVersion)) { $script:existingInstallInfo.InstalledVersion } else { '未知版本' }
+  $runtimeVersionText = if (-not [string]::IsNullOrWhiteSpace($script:existingInstallInfo.RuntimeVersion)) { $script:existingInstallInfo.RuntimeVersion } else { '未知' }
+  $statusLabel.Text = '已检测到现有安装'
+  $statusDetail.Text = "已安装版本：$installedVersionText`r`n运行时版本：$runtimeVersionText`r`n安装位置：$($script:existingInstallInfo.InstallRoot)"
+  $stepTitle.Text = '检测到现有版本'
+  $stepDetail.Text = '这台电脑上已经存在星阙。请选择你要执行的操作：修复当前安装、用当前安装包替换现有版本，或直接取消。'
+  $headline.Text = "欢迎使用 $DisplayName 安装程序"
+  $subtitle.Text = '安装程序检测到本机已有旧版本或当前版本，请先选择处理方式。'
+
+  $repairRadio.Checked = $script:recommendedInstallAction -eq 'repair'
+  $replaceRadio.Checked = $script:recommendedInstallAction -eq 'replace'
+  $cancelInstallRadio.Checked = $false
+}
+
+function Finalize-InstallSuccess {
+  param(
+    [string]$HeadlineText,
+    [string]$SubtitleText,
+    [string]$StepTitleText,
+    [string]$StepDetailText,
+    [string]$StatusDetailText
+  )
+
+  $script:installSucceeded = $true
+  $existingInstallPanel.Visible = $false
+  Set-StageVisual -Current 'finish'
+  $headline.Text = $HeadlineText
+  $subtitle.Text = $SubtitleText
+  $stepTitle.Text = $StepTitleText
+  $stepDetail.Text = $StepDetailText
+  $statusLabel.Text = '已就绪'
+  $statusDetail.Text = $StatusDetailText
+  $progressBar.Style = 'Continuous'
+  $progressBar.Value = 100
+  $primaryButton.Text = '完成'
+  $primaryButton.Enabled = $true
+  $secondaryButton.Text = '打开目录'
+  Schedule-AutoFinish
+}
 
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 400
@@ -920,6 +1061,7 @@ $timer.Add_Tick({
       $subtitle.Text = '安装程序正在后台准备本地运行环境，完成后会自动切换到完成页面。'
       $statusLabel.Text = '安装状态'
       $statusDetail.Text = ("状态：{0}`r`n更新时间：{1}" -f $progressState, $progressUpdatedAt)
+      $existingInstallPanel.Visible = $false
       $progressBar.Style = 'Continuous'
       $value = [Math]::Max(0, [Math]::Min(100, $progressPercent))
       $progressBar.Value = $value
@@ -931,22 +1073,20 @@ $timer.Add_Tick({
       if ($script:installProcess.ExitCode -eq 0) {
         try {
           Write-WizardTrace ("runtime install exited 0; beginning install finalization")
+          if ($script:selectedInstallAction -eq 'replace') {
+            Write-WizardTrace ("replace mode selected; removing install root before bundle copy: {0}" -f $InstallRoot)
+            Stop-InstalledAppProcesses
+            Remove-TreeWithRetry -Path $InstallRoot
+          }
           Install-AppBundle
           Ensure-Shortcuts
-          $script:installSucceeded = $true
-          Set-StageVisual -Current 'finish'
-          $headline.Text = "$DisplayName 已准备就绪"
-          $subtitle.Text = "安装程序已在这台电脑上完成 $DisplayName 的准备工作。"
-          $stepTitle.Text = '安装完成'
-          $stepDetail.Text = $DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
-          $statusLabel.Text = '已就绪'
-          $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
-          $progressBar.Value = 100
-          $primaryButton.Text = '完成'
-          $primaryButton.Enabled = $true
-          $secondaryButton.Text = '打开目录'
+          Finalize-InstallSuccess `
+            -HeadlineText "$DisplayName 已准备就绪" `
+            -SubtitleText "安装程序已在这台电脑上完成 $DisplayName 的准备工作。" `
+            -StepTitleText '安装完成' `
+            -StepDetailText ($DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。') `
+            -StatusDetailText ('桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。')
           Write-WizardTrace ("install finalization succeeded")
-          Schedule-AutoFinish
         } catch {
           Write-WizardTrace ("install finalization failed: {0}" -f $_.Exception.Message)
           $script:installSucceeded = $false
@@ -990,6 +1130,7 @@ $timer.Add_Tick({
     $stepDetail.Text = '安装向导内部出现异常。下面会直接显示本次失败原因。'
     $statusLabel.Text = '失败原因'
     $statusDetail.Text = "安装向导异常：$($_.Exception.Message)`r`n详细日志：$WizardTraceLog"
+    $existingInstallPanel.Visible = $false
     $progressBar.Value = 100
     $primaryButton.Text = '重试'
     $primaryButton.Enabled = $true
@@ -1006,6 +1147,32 @@ $primaryButton.Add_Click({
     return
   }
 
+  if ($script:existingInstallInfo.Exists -and -not $script:installCompleted -and -not $script:installProcess) {
+    if ($cancelInstallRadio.Checked) {
+      $form.Close()
+      return
+    }
+
+    $script:selectedInstallAction = if ($replaceRadio.Checked) { 'replace' } else { 'repair' }
+    Write-WizardTrace ("existing install action selected: {0}; installedVersion={1}; currentVersion={2}" -f $script:selectedInstallAction, $script:existingInstallInfo.InstalledVersion, $VersionInfo.version)
+
+    if ($script:selectedInstallAction -eq 'repair' -and $script:existingInstallInfo.InstalledVersion -eq $VersionInfo.version -and (Test-Path $InstalledLauncherExe -PathType Leaf)) {
+      try {
+        Ensure-Shortcuts
+        Finalize-InstallSuccess `
+          -HeadlineText "$DisplayName 已可直接使用" `
+          -SubtitleText "当前这个版本的 $DisplayName 已经在这台电脑上准备完成。" `
+          -StepTitleText '修复完成' `
+          -StepDetailText ('已重新确认安装入口并创建快捷方式。你可以点击“完成”退出安装程序，或打开安装目录查看文件。') `
+          -StatusDetailText ('桌面和开始菜单快捷方式已重新创建。' + "`r`n" + '当前版本无需重新复制程序文件。')
+        Write-WizardTrace ("repair shortcut-only flow succeeded")
+        return
+      } catch {
+        Write-WizardTrace ("repair shortcut-only flow failed: {0}" -f $_.Exception.Message)
+      }
+    }
+  }
+
   Remove-Item -Force $ProgressFile -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Force -Path $RuntimeLogDir | Out-Null
   Remove-Item -Force $InstallStdoutLog, $InstallStderrLog, $WizardTraceLog -ErrorAction SilentlyContinue
@@ -1013,11 +1180,21 @@ $primaryButton.Add_Click({
   $script:installSucceeded = $false
   $primaryButton.Enabled = $false
   Set-StageVisual -Current 'install'
+  $existingInstallPanel.Visible = $false
   $headline.Text = "正在安装 $DisplayName"
-  $subtitle.Text = '安装程序正在为当前 Windows 账户准备桌面运行环境、下载运行时组件并创建快捷方式。'
+  if ($script:selectedInstallAction -eq 'replace') {
+    $subtitle.Text = '安装程序正在替换现有版本，并为当前 Windows 账户准备桌面运行环境、下载运行时组件并创建快捷方式。'
+  } else {
+    $subtitle.Text = '安装程序正在修复或安装当前版本，并为当前 Windows 账户准备桌面运行环境、下载运行时组件并创建快捷方式。'
+  }
   $secondaryButton.Text = '取消'
-  $stepTitle.Text = "正在安装 $DisplayName"
-  $stepDetail.Text = '正在准备本地运行环境，并按需下载和展开桌面运行时组件。'
+  if ($script:selectedInstallAction -eq 'replace') {
+    $stepTitle.Text = "正在替换 $DisplayName"
+    $stepDetail.Text = '正在移除旧版程序文件，并按需下载、展开当前版本所需的桌面运行时组件。'
+  } else {
+    $stepTitle.Text = "正在安装 $DisplayName"
+    $stepDetail.Text = '正在修复现有安装，并按需下载、展开当前版本所需的桌面运行时组件。'
+  }
   $statusLabel.Text = '安装状态'
   $statusDetail.Text = '安装程序正在后台运行。'
   $progressBar.Style = 'Marquee'
@@ -1048,34 +1225,8 @@ $form.Add_FormClosing({
   }
 })
 
-if (Test-Path $StateFile) {
-  try {
-    $state = Get-Content -Raw $StateFile | ConvertFrom-Json
-    if ($state.version -eq $VersionInfo.version) {
-      try {
-        if (-not (Test-Path $InstalledLauncherExe -PathType Leaf)) {
-          Write-WizardTrace ("existing install branch: installed launcher missing, copying bundle")
-          Install-AppBundle
-        }
-        Ensure-Shortcuts
-        Write-WizardTrace ("existing install branch: ensured shortcuts successfully")
-        Set-StageVisual -Current 'finish'
-        $headline.Text = "$DisplayName 已可直接使用"
-        $subtitle.Text = "当前这个版本的 $DisplayName 已经在这台电脑上准备完成。"
-        $stepTitle.Text = '当前版本已安装'
-        $stepDetail.Text = '你可以点击“完成”退出安装程序，或打开安装目录查看文件；也可以立刻启动 ' + $DisplayName + '。'
-        $statusLabel.Text = '已就绪'
-        $statusDetail.Text = '桌面运行环境和快捷方式都已存在。' + "`r`n" + '当前版本无需重新安装。'
-        $progressBar.Value = 100
-        $primaryButton.Text = '完成'
-        $secondaryButton.Text = '打开目录'
-        $script:installSucceeded = $true
-        Schedule-AutoFinish
-      } catch {
-        Write-WizardTrace ("existing install branch failed: {0}" -f $_.Exception.Message)
-      }
-    }
-  } catch {}
+if ($script:existingInstallInfo.Exists) {
+  Show-ExistingInstallChoice
 }
 
 if ($env:HOROSA_DESKTOP_INSTALLER_AUTO_INSTALL -eq '1' -and -not $script:installSucceeded) {
