@@ -145,7 +145,7 @@ def main() -> int:
         show_error(f"安装器解压内部载荷失败：\n{exc}")
         return 1
 
-    wizard_script = extract_root / "_package" / "desktop_installer_bundle" / "install_desktop_wizard.ps1"
+    wizard_script = (extract_root / "_package" / "desktop_installer_bundle" / "install_desktop_wizard.ps1").resolve()
     if not wizard_script.exists():
         log_line(f"wizard script missing: {wizard_script}")
         show_error(f"未找到安装入口文件：\n{wizard_script}")
@@ -168,6 +168,9 @@ def main() -> int:
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
             startupinfo.wShowWindow = 0
+        escaped_wizard_script = str(wizard_script).replace("'", "''")
+        launcher_command = f"& '{escaped_wizard_script}'"
+        log_line(f"wizard script resolved: {wizard_script}")
         result = subprocess.run(
             [
                 host,
@@ -176,8 +179,8 @@ def main() -> int:
                 "Bypass",
                 "-WindowStyle",
                 "Hidden",
-                "-File",
-                str(wizard_script),
+                "-Command",
+                launcher_command,
             ],
             env=child_env,
             check=False,
