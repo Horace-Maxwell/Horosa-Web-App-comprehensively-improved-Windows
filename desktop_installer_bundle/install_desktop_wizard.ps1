@@ -611,6 +611,11 @@ function Open-InstallFolder {
 function Start-InstalledApp {
   $launchSpec = Resolve-AppLaunchSpec
   Write-WizardTrace ("start installed app: target={0}; workdir={1}; args={2}" -f $launchSpec.TargetPath, $launchSpec.WorkingDirectory, $launchSpec.Arguments)
+  if ([string]::IsNullOrWhiteSpace([string]$launchSpec.Arguments)) {
+    Start-Process -FilePath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory | Out-Null
+    return
+  }
+
   Start-Process -FilePath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -ArgumentList @($launchSpec.Arguments) | Out-Null
 }
 
