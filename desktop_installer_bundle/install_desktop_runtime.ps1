@@ -301,11 +301,26 @@ function Get-RuntimeAssetInfo {
     $baseUrl = "https://github.com/$repo/releases/download/$runtimeTag"
   }
 
+  $localAssetRoot = [string]$env:HOROSA_DESKTOP_LOCAL_RUNTIME_ASSET_ROOT
+  $localAssetPath = $null
+  $localManifestPath = $null
+  if (-not [string]::IsNullOrWhiteSpace($localAssetRoot)) {
+    $candidateRoot = $localAssetRoot.Trim()
+    $candidateAsset = Join-Path $candidateRoot $assetName
+    $candidateManifest = Join-Path $candidateRoot $manifestName
+    if ((Test-Path $candidateAsset -PathType Leaf) -and (Test-Path $candidateManifest -PathType Leaf)) {
+      $localAssetPath = $candidateAsset
+      $localManifestPath = $candidateManifest
+    }
+  }
+
   return @{
     AssetName = $assetName
     ManifestName = $manifestName
     AssetUrl = "$baseUrl/$assetName"
     ManifestUrl = "$baseUrl/$manifestName"
+    LocalAssetPath = $localAssetPath
+    LocalManifestPath = $localManifestPath
   }
 }
 
@@ -344,18 +359,25 @@ function Ensure-RuntimePayload {
   New-Item -ItemType Directory -Force -Path $DownloadRoot | Out-Null
   Write-InstallProgress -State 'downloading' -Title '正在下载运行时组件' -Message '首次安装或版本升级时，需要自动下载较大的桌面运行时组件，请耐心等待。' -Percent 20
 
-  $oldProgress = $ProgressPreference
-  try {
-    $ProgressPreference = 'SilentlyContinue'
-    Write-InstallLog ("Downloading runtime manifest: {0}" -f $asset.ManifestUrl)
-    Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.ManifestUrl -OutFile $manifestPath
-    Write-InstallLog ("Downloading runtime asset: {0}" -f $asset.AssetUrl)
-    Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.AssetUrl -OutFile $zipPath
-  } catch {
-    Publish-InstallFailure -ErrorRecord $_ -FriendlyMessage '运行时组件下载失败。请确认网络可用后重试，或重新下载最新 Release。'
-    throw
-  } finally {
-    $ProgressPreference = $oldProgress
+  if ($asset.LocalAssetPath -and $asset.LocalManifestPath) {
+    Write-InstallLog ("Using bundled offline runtime manifest: {0}" -f $asset.LocalManifestPath)
+    Write-InstallLog ("Using bundled offline runtime asset: {0}" -f $asset.LocalAssetPath)
+    Copy-Item -Path $asset.LocalManifestPath -Destination $manifestPath -Force
+    Copy-Item -Path $asset.LocalAssetPath -Destination $zipPath -Force
+  } else {
+    $oldProgress = $ProgressPreference
+    try {
+      $ProgressPreference = 'SilentlyContinue'
+      Write-InstallLog ("Downloading runtime manifest: {0}" -f $asset.ManifestUrl)
+      Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.ManifestUrl -OutFile $manifestPath
+      Write-InstallLog ("Downloading runtime asset: {0}" -f $asset.AssetUrl)
+      Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.AssetUrl -OutFile $zipPath
+    } catch {
+      Publish-InstallFailure -ErrorRecord $_ -FriendlyMessage '运行时组件下载失败。请确认网络可用后重试，或重新下载最新 Release。'
+      throw
+    } finally {
+      $ProgressPreference = $oldProgress
+    }
   }
 
   $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json

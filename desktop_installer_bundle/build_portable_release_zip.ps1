@@ -577,9 +577,14 @@ print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 
 $portableZipPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.zip" -f $versionInfo.release_asset_prefix, $versionInfo.version)
 $installerAssetName = if ($versionInfo.PSObject.Properties['installer_asset_name']) { [string]$versionInfo.installer_asset_name } else { 'XingqueSetup.exe' }
+$offlineInstallerAssetName = if ($versionInfo.PSObject.Properties['offline_installer_asset_name']) { [string]$versionInfo.offline_installer_asset_name } else { 'XingqueSetupFull.exe' }
 $installerExePath = Join-Path (Join-Path $ScriptRoot 'release') $installerAssetName
+$offlineInstallerExePath = Join-Path (Join-Path $ScriptRoot 'release') $offlineInstallerAssetName
 $setupWorkDir = Join-Path $ScriptRoot 'build\setup-installer'
+$offlineSetupWorkDir = Join-Path $ScriptRoot 'build\setup-installer-full'
 $setupSpec = Join-Path $ScriptRoot 'pyinstaller\xingque_setup.spec'
+$runtimeZipPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.zip" -f $versionInfo.runtime_asset_prefix, $versionInfo.version)
+$runtimeManifestPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.manifest.json" -f $versionInfo.runtime_asset_prefix, $versionInfo.version)
 
 if (-not (Test-Path $setupSpec -PathType Leaf)) {
   throw "Single-file installer spec not found: $setupSpec"
@@ -589,6 +594,12 @@ if (Test-Path $setupWorkDir) {
 }
 if (Test-Path $installerExePath) {
   Remove-Item -Force $installerExePath -ErrorAction SilentlyContinue
+}
+if (Test-Path $offlineSetupWorkDir) {
+  Remove-Item -Recurse -Force $offlineSetupWorkDir -ErrorAction SilentlyContinue
+}
+if (Test-Path $offlineInstallerExePath) {
+  Remove-Item -Force $offlineInstallerExePath -ErrorAction SilentlyContinue
 }
 
 $oldPythonPath = $env:PYTHONPATH
@@ -606,6 +617,24 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller failed while building single-file installer with exit code $LASTEXITCODE"
   }
+
+  $extraFiles = @(
+    @{
+      source = $runtimeZipPath
+      dest = '.'
+    },
+    @{
+      source = $runtimeManifestPath
+      dest = '.'
+    }
+  ) | ConvertTo-Json -Compress
+  $env:HOROSA_SETUP_EXTRA_FILES = $extraFiles
+  $env:HOROSA_SETUP_EXE_NAME = [System.IO.Path]::GetFileNameWithoutExtension($offlineInstallerAssetName)
+
+  & $ResolvedPythonExe -m PyInstaller $setupSpec --noconfirm --clean --distpath (Join-Path $ScriptRoot 'release') --workpath $offlineSetupWorkDir
+  if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed while building offline single-file installer with exit code $LASTEXITCODE"
+  }
 } finally {
   if ($null -ne $oldPythonPath) {
     $env:PYTHONPATH = $oldPythonPath
@@ -613,6 +642,7 @@ try {
     Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
   }
   Remove-Item Env:HOROSA_SETUP_PAYLOAD_ZIP -ErrorAction SilentlyContinue
+  Remove-Item Env:HOROSA_SETUP_EXTRA_FILES -ErrorAction SilentlyContinue
   Remove-Item Env:HOROSA_SETUP_EXE_NAME -ErrorAction SilentlyContinue
 }
 
@@ -622,7 +652,11 @@ if (-not (Test-Path $portableZipPath -PathType Leaf)) {
 if (-not (Test-Path $installerExePath -PathType Leaf)) {
   throw "Single-file installer was not produced: $installerExePath"
 }
+if (-not (Test-Path $offlineInstallerExePath -PathType Leaf)) {
+  throw "Offline single-file installer was not produced: $offlineInstallerExePath"
+}
 Write-Host "[OK] Single-file setup built: $installerExePath"
+Write-Host "[OK] Offline single-file setup built: $offlineInstallerExePath"
 
 Remove-Item Env:HOROSA_DESKTOP_BUNDLE_ROOT -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_REQUESTED_VERSION -ErrorAction SilentlyContinue

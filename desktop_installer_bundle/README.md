@@ -4,12 +4,14 @@
 
 ## 去哪里下载一键安装包
 
-- [一键下载最新版 Windows 安装器 EXE](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/XingqueSetup.exe)
+- [一键下载轻量在线版安装器](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/XingqueSetup.exe)
+- [一键下载大陆离线完整版安装器](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/XingqueSetupFull.exe)
 - [打开最新版 Release 页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 请下载：
 
-- `XingqueSetup.exe`
+- 常规网络环境：`XingqueSetup.exe`
+- 中国大陆或弱网环境：`XingqueSetupFull.exe`
 
 不要下载：
 
@@ -19,17 +21,18 @@
 
 说明：
 
-- 当前给普通用户发布的主安装入口就是 `XingqueSetup.exe`
-- 如果当前直链以后过期，直接去 `releases/latest` 页面下载 `XingqueSetup.exe`
+- 当前给普通用户发布了两种安装入口：轻量在线版 `XingqueSetup.exe` 和离线完整版 `XingqueSetupFull.exe`
+- 如果当前直链以后过期，直接去 `releases/latest` 页面下载对应安装器
 - 下载后直接双击运行，不需要先解压 zip
 - 安装完成后使用桌面或开始菜单里的 `星阙` 快捷方式启动
-- 首次安装时，安装器会自动下载较大的 Windows 运行时组件
+- 轻量在线版首次安装时会自动下载较大的 Windows 运行时组件
+- 离线完整版安装时不需要再额外下载运行时组件
 - 普通用户不需要提前安装 Python、Java、Node 或其他开发工具
 
 ## 普通用户安装步骤
 
-1. 下载 `XingqueSetup.exe`
-2. 直接双击运行 `XingqueSetup.exe`
+1. 下载 `XingqueSetup.exe` 或 `XingqueSetupFull.exe`
+2. 直接双击运行下载好的安装器
 3. 按中文安装向导安装，完成后启动 `星阙`
 
 补充说明：

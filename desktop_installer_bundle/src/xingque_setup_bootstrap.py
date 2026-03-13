@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from zipfile import ZipFile
@@ -39,6 +40,15 @@ def resolve_payload_zip() -> Path:
     return direct
 
 
+def resolve_local_runtime_asset_root() -> Path | None:
+    search_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    runtime_zips = sorted(search_root.glob("HorosaRuntimeWindows-*.zip"))
+    manifests = sorted(search_root.glob("HorosaRuntimeWindows-*.manifest.json"))
+    if runtime_zips and manifests:
+        return search_root
+    return None
+
+
 def log_line(message: str) -> None:
     try:
         local_app_data = Path(os.environ.get("LocalAppData", tempfile.gettempdir()))
@@ -73,8 +83,7 @@ def hide_directory(path: Path) -> None:
 
 
 def extract_payload(payload_zip: Path) -> Path:
-    local_app_data = Path(os.environ.get("LocalAppData", Path.home() / "AppData" / "Local"))
-    temp_root = local_app_data / "HorosaDesktop" / "setup-staging"
+    temp_root = Path(tempfile.gettempdir()) / "xingque-setup-staging"
     temp_root.mkdir(parents=True, exist_ok=True)
     cleanup_old_extract_roots(temp_root)
     extract_root = temp_root / f"xingque-setup-{int(time.time())}"
@@ -106,7 +115,15 @@ def main() -> int:
         return 1
 
     log_line(f"payload resolved: {payload_zip}")
-    extract_root = extract_payload(payload_zip)
+    try:
+        log_line("extract payload start")
+        extract_root = extract_payload(payload_zip)
+        log_line(f"extract payload done: {extract_root}")
+    except Exception as exc:
+        log_line(f"extract payload failed: {exc!r}")
+        show_error(f"安装器解压内部载荷失败：\n{exc}")
+        return 1
+
     wizard_script = extract_root / "_package" / "desktop_installer_bundle" / "install_desktop_wizard.ps1"
     if not wizard_script.exists():
         log_line(f"wizard script missing: {wizard_script}")
@@ -118,6 +135,13 @@ def main() -> int:
     try:
         creationflags = 0
         startupinfo = None
+        child_env = os.environ.copy()
+        local_runtime_root = resolve_local_runtime_asset_root()
+        if local_runtime_root:
+            child_env["HOROSA_DESKTOP_LOCAL_RUNTIME_ASSET_ROOT"] = str(local_runtime_root)
+            log_line(f"local runtime asset root: {local_runtime_root}")
+        else:
+            log_line("local runtime asset root: none")
         if os.name == "nt":
             creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
             startupinfo = subprocess.STARTUPINFO()
@@ -134,6 +158,7 @@ def main() -> int:
                 "-File",
                 str(wizard_script),
             ],
+            env=child_env,
             check=False,
             creationflags=creationflags,
             startupinfo=startupinfo,

@@ -232,31 +232,37 @@ jobs:
 
           body_path = Path(os.environ["RUNNER_TEMP"]) / "horosa-release-body.md"
           setup_asset = "XingqueSetup.exe"
+          offline_setup_asset = "XingqueSetupFull.exe"
           setup_url = f"https://github.com/{repository}/releases/download/{release_tag}/{setup_asset}"
+          offline_setup_url = f"https://github.com/{repository}/releases/download/{release_tag}/{offline_setup_asset}"
           portable_asset = f"HorosaPortableWindows-{release_tag}.zip"
           latest_release_url = f"https://github.com/{repository}/releases/latest"
           body_lines = [
               "## 普通用户请这样下载",
               "",
-              f"- [一键下载 Windows 安装器 EXE]({setup_url})",
+              f"- [轻量在线版安装器]({setup_url})：文件更小，安装时自动下载运行时",
+              f"- [大陆离线完整版安装器]({offline_setup_url})：单文件自带运行时，适合网络受限环境",
               f"- [打开最新 Release 页面]({latest_release_url})",
-              f"- 下载：`{setup_asset}`",
+              f"- 常规网络环境下载：`{setup_asset}`",
+              f"- 中国大陆或弱网环境优先下载：`{offline_setup_asset}`",
               f"- 不要手动下载：`{portable_asset}`",
               f"- 不要手动下载：`HorosaRuntimeWindows-{release_tag}.zip`",
               f"- 不要手动下载：`HorosaRuntimeWindows-{release_tag}.manifest.json`",
               "",
               "## 普通用户请这样安装和使用",
               "",
-              "1. 下载 `XingqueSetup.exe`",
+              "1. 下载适合你的安装器：轻量在线版 `XingqueSetup.exe`，或大陆离线完整版 `XingqueSetupFull.exe`",
               "2. 直接双击运行这个安装器",
               "3. 按中文安装向导完成安装",
               "4. 安装完成后，从桌面或开始菜单打开 `星阙`",
               "",
               "## 补充说明",
               "",
-              "- `XingqueSetup.exe` 是给普通用户的一键安装器",
+              "- `XingqueSetup.exe` 是较小的在线安装器",
+              "- `XingqueSetupFull.exe` 是自带运行时的离线完整安装器",
               "- 其他 zip 和 manifest 资产主要给安装器与更新链使用",
-              "- 首次安装时，安装器会自动下载较大的运行时组件",
+              "- 轻量在线版首次安装时会自动下载较大的运行时组件",
+              "- 离线完整版安装时不需要再额外下载运行时组件",
               "- 普通用户不需要提前安装 Python、Java、Node 或其他开发工具",
               "- 不要手动运行 `.ps1` 脚本",
               "- 安装后的应用里可以使用 `更新 -> 检查更新`",
@@ -295,6 +301,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             ./desktop_installer_bundle/release/XingqueSetup.exe
+            ./desktop_installer_bundle/release/XingqueSetupFull.exe
             ./desktop_installer_bundle/release/HorosaPortableWindows-${{ env.RELEASE_TAG }}.zip
             ./desktop_installer_bundle/release/HorosaRuntimeWindows-${{ env.RELEASE_TAG }}.zip
             ./desktop_installer_bundle/release/HorosaRuntimeWindows-${{ env.RELEASE_TAG }}.manifest.json

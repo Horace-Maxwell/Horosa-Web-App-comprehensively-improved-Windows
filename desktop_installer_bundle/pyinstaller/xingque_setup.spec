@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import json
 import os
 from pathlib import Path
 
@@ -11,6 +12,13 @@ exe_name = os.environ.get("HOROSA_SETUP_EXE_NAME", "XingqueSetup")
 datas = [
     (str(payload_zip), "."),
 ]
+
+extra_data_raw = (os.environ.get("HOROSA_SETUP_EXTRA_FILES") or "").strip()
+if extra_data_raw:
+    for item in json.loads(extra_data_raw):
+        source_path = Path(item["source"]).resolve()
+        destination = str(item.get("dest", ".")).strip() or "."
+        datas.append((str(source_path), destination))
 
 block_cipher = None
 
