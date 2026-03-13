@@ -2,7 +2,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 from zipfile import ZipFile
@@ -74,7 +73,9 @@ def hide_directory(path: Path) -> None:
 
 
 def extract_payload(payload_zip: Path) -> Path:
-    temp_root = Path(tempfile.gettempdir())
+    local_app_data = Path(os.environ.get("LocalAppData", Path.home() / "AppData" / "Local"))
+    temp_root = local_app_data / "HorosaDesktop" / "setup-staging"
+    temp_root.mkdir(parents=True, exist_ok=True)
     cleanup_old_extract_roots(temp_root)
     extract_root = temp_root / f"xingque-setup-{int(time.time())}"
     extract_root.mkdir(parents=True, exist_ok=True)
@@ -115,6 +116,13 @@ def main() -> int:
     host = find_powershell_host()
     log_line(f"launching installer via {host}")
     try:
+        creationflags = 0
+        startupinfo = None
+        if os.name == "nt":
+            creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
+            startupinfo.wShowWindow = 0
         result = subprocess.run(
             [
                 host,
@@ -127,14 +135,14 @@ def main() -> int:
                 str(wizard_script),
             ],
             check=False,
+            creationflags=creationflags,
+            startupinfo=startupinfo,
         )
         log_line(f"installer exit code: {result.returncode}")
         return int(result.returncode)
     except Exception as exc:
         log_line(f"bootstrap exception: {exc}")
         raise
-    finally:
-        shutil.rmtree(extract_root, ignore_errors=True)
 
 
 if __name__ == "__main__":

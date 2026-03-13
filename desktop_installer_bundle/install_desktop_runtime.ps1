@@ -110,6 +110,18 @@ function Get-Sha256Hash {
   }
 }
 
+function New-ShortRuntimeExtractPath {
+  param([Parameter(Mandatory = $true)][string]$Version)
+
+  $tempRoot = [System.IO.Path]::GetTempPath()
+  $compactVersion = ($Version -replace '[^0-9A-Za-z]', '')
+  if ([string]::IsNullOrWhiteSpace($compactVersion)) {
+    $compactVersion = 'runtime'
+  }
+
+  return (Join-Path $tempRoot ("xqert-" + $compactVersion))
+}
+
 function Invoke-PipInstall {
   param(
     [string[]]$Arguments,
@@ -191,18 +203,34 @@ function Expand-ZipArchive {
   Remove-TreeWithRetry -Path $DestinationPath
   New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
 
-  $tarCommand = Get-Command 'tar.exe' -ErrorAction SilentlyContinue
-  if ($tarCommand) {
-    & $tarCommand.Source -xf $ZipPath -C $DestinationPath
-    if ($LASTEXITCODE -eq 0) {
-      return
-    }
-
-    throw "tar 解压失败，退出码：$LASTEXITCODE"
-  }
-
   Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
   [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $DestinationPath)
+
+  $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+  try {
+    foreach ($entry in $archive.Entries) {
+      if ([string]::IsNullOrWhiteSpace($entry.FullName)) {
+        continue
+      }
+      if ($entry.FullName.EndsWith('/')) {
+        continue
+      }
+      if ($entry.Length -ne 0) {
+        continue
+      }
+
+      $targetPath = Join-Path $DestinationPath ($entry.FullName -replace '/', '\')
+      $targetDir = Split-Path -Parent $targetPath
+      if ($targetDir) {
+        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+      }
+      if (-not (Test-Path $targetPath -PathType Leaf)) {
+        New-Item -ItemType File -Force -Path $targetPath | Out-Null
+      }
+    }
+  } finally {
+    $archive.Dispose()
+  }
 }
 
 function Copy-DirectoryTree {
@@ -311,7 +339,7 @@ function Ensure-RuntimePayload {
   $asset = Get-RuntimeAssetInfo -Version $TargetVersion -VersionInfo $VersionInfo
   $zipPath = Join-Path $DownloadRoot $asset.AssetName
   $manifestPath = Join-Path $DownloadRoot $asset.ManifestName
-  $extractRoot = Join-Path $DownloadRoot ("runtime-" + $TargetVersion)
+  $extractRoot = New-ShortRuntimeExtractPath -Version $TargetVersion
 
   New-Item -ItemType Directory -Force -Path $DownloadRoot | Out-Null
   Write-InstallProgress -State 'downloading' -Title '正在下载运行时组件' -Message '首次安装或版本升级时，需要自动下载较大的桌面运行时组件，请耐心等待。' -Percent 20

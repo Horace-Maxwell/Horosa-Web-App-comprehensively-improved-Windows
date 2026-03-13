@@ -225,15 +225,27 @@ function Resolve-PayloadRoot {
 }
 
 function Wait-ForTargetExit {
-  param([string]$VbsPath)
+  param(
+    [Parameter(Mandatory = $true)][string]$TargetRoot,
+    [Parameter(Mandatory = $true)][string]$VbsPath
+  )
+
+  $bundleRoot = Join-Path $TargetRoot 'desktop_installer_bundle'
+  $launcherExe = Join-Path $bundleRoot 'Xingque.exe'
 
   for ($i = 0; $i -lt 120; $i++) {
     $proc = Get-CimInstance Win32_Process -Filter "Name='pythonw.exe' OR Name='HorosaDesktop.exe'" -ErrorAction SilentlyContinue |
       Where-Object {
         $cmd = [string]$_.CommandLine
-        $cmd.IndexOf('horosa_desktop.pyw', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-        $cmd.IndexOf('HorosaDesktop.exe', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-        $cmd.IndexOf($VbsPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        (
+          $cmd.IndexOf($TargetRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+          $cmd.IndexOf($bundleRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+          $cmd.IndexOf($launcherExe, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+          $cmd.IndexOf($VbsPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        ) -and (
+          $cmd.IndexOf('horosa_desktop.pyw', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+          $cmd.IndexOf('HorosaDesktop.exe', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        )
       }
     if (-not $proc) {
       return
@@ -261,6 +273,25 @@ function Copy-PayloadOverlay {
   }
 }
 
+function Start-RelaunchTarget {
+  param(
+    [Parameter(Mandatory = $true)][string]$TargetRoot,
+    [Parameter(Mandatory = $true)][string]$RelaunchVbs
+  )
+
+  $bundleRoot = Join-Path $TargetRoot 'desktop_installer_bundle'
+  $launcherExe = Join-Path $bundleRoot 'Xingque.exe'
+  if (Test-Path $launcherExe -PathType Leaf) {
+    Write-UpdateLog ("Relaunching installed launcher directly: {0}" -f $launcherExe)
+    Start-Process -FilePath $launcherExe -WorkingDirectory $bundleRoot | Out-Null
+    return 'launcher-exe'
+  }
+
+  Write-UpdateLog ("Relaunching via VBS fallback: {0}" -f $RelaunchVbs)
+  Start-Process -FilePath 'wscript.exe' -ArgumentList @($RelaunchVbs) -WorkingDirectory (Split-Path -Parent $RelaunchVbs) | Out-Null
+  return 'vbs-fallback'
+}
+
 $systemDrive = if ($env:SystemDrive) { $env:SystemDrive } else { 'C:' }
 $shortTempBase = Join-Path $systemDrive 'hdu'
 New-Item -ItemType Directory -Force -Path $shortTempBase | Out-Null
@@ -283,7 +314,7 @@ try {
     }
 
     Write-UpdateLog 'Waiting for running desktop processes to exit.'
-    Wait-ForTargetExit -VbsPath $RelaunchVbs
+    Wait-ForTargetExit -TargetRoot $TargetDir -VbsPath $RelaunchVbs
     Write-UpdateLog 'Target processes stopped.'
 
     Write-UpdateLog ("Extracting zip to temp root: {0}" -f $tempRoot)
@@ -315,9 +346,8 @@ try {
     }
 
     Start-Sleep -Milliseconds 500
-    Write-UpdateLog ("Relaunching via: {0}" -f $RelaunchVbs)
-    Start-Process -FilePath 'wscript.exe' -ArgumentList @($RelaunchVbs) -WorkingDirectory (Split-Path -Parent $RelaunchVbs) | Out-Null
-    Write-UpdateLog 'Relaunch requested successfully.'
+    $relaunchMode = Start-RelaunchTarget -TargetRoot $TargetDir -RelaunchVbs $RelaunchVbs
+    Write-UpdateLog ("Relaunch requested successfully via {0}." -f $relaunchMode)
   } catch {
     Write-UpdateLog ("Updater failed: {0}" -f $_.Exception.Message)
     throw

@@ -50,6 +50,59 @@ $InstalledDesktopExe = Join-Path $InstalledBundleRoot 'dist\HorosaDesktop\Horosa
 $DisplayName = '星阙'
 $VersionInfo = Get-Content -Raw $VersionFile | ConvertFrom-Json
 
+function Resolve-PowerShellHost {
+  $preferred = @(
+    (Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'PowerShell\7\pwsh.exe'),
+    (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')
+  ) | Where-Object { $_ }
+
+  foreach ($candidate in $preferred) {
+    if (Test-Path $candidate) {
+      return $candidate
+    }
+  }
+
+  $fallback = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+  if ($fallback) {
+    return $fallback.Source
+  }
+
+  $fallback = Get-Command powershell.exe -ErrorAction SilentlyContinue
+  if ($fallback) {
+    return $fallback.Source
+  }
+
+  return 'powershell.exe'
+}
+
+function Start-HiddenPowerShellProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$ScriptPath,
+    [Parameter(Mandatory = $true)][string]$StdoutPath,
+    [Parameter(Mandatory = $true)][string]$StderrPath
+  )
+
+  $hostPath = Resolve-PowerShellHost
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $hostPath
+  $psi.Arguments = ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $ScriptPath)
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.RedirectStandardOutput = $false
+  $psi.RedirectStandardError = $false
+  $psi.WorkingDirectory = Split-Path -Parent $ScriptPath
+  $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+
+  if (-not $proc.Start()) {
+    throw "无法启动后台安装进程：$hostPath"
+  }
+  return $proc
+}
+
 function Write-WizardTrace {
   param([string]$Message)
 
@@ -197,6 +250,19 @@ function Remove-TreeWithRetry {
   }
 }
 
+function Convert-ToLongPath {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  $fullPath = [System.IO.Path]::GetFullPath($Path)
+  if ($fullPath.StartsWith('\\?\')) {
+    return $fullPath
+  }
+  if ($fullPath.StartsWith('\\')) {
+    return '\\?\UNC\' + $fullPath.TrimStart('\')
+  }
+  return '\\?\' + $fullPath
+}
+
 function Copy-DirectoryTree {
   param(
     [Parameter(Mandatory = $true)][string]$SourcePath,
@@ -209,10 +275,28 @@ function Copy-DirectoryTree {
 
   Remove-TreeWithRetry -Path $DestinationPath
   New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
+  $sourceRoot = [System.IO.Path]::GetFullPath((Resolve-Path $SourcePath).ProviderPath).TrimEnd('\')
+  $destinationRoot = [System.IO.Path]::GetFullPath($DestinationPath).TrimEnd('\')
+  $sourceRootLong = Convert-ToLongPath $sourceRoot
+  $destinationRootLong = Convert-ToLongPath $destinationRoot
 
-  & robocopy $SourcePath $DestinationPath /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
-  if ($LASTEXITCODE -ge 8) {
-    throw "robocopy 复制失败，退出码：$LASTEXITCODE，源目录：$SourcePath，目标目录：$DestinationPath"
+  foreach ($directory in [System.IO.Directory]::EnumerateDirectories($sourceRootLong, '*', [System.IO.SearchOption]::AllDirectories)) {
+    $relativePath = $directory.Substring($sourceRootLong.Length).TrimStart('\')
+    if ([string]::IsNullOrWhiteSpace($relativePath)) {
+      continue
+    }
+    $targetDirectory = [System.IO.Path]::Combine($destinationRootLong, $relativePath)
+    [System.IO.Directory]::CreateDirectory($targetDirectory) | Out-Null
+  }
+
+  foreach ($filePath in [System.IO.Directory]::EnumerateFiles($sourceRootLong, '*', [System.IO.SearchOption]::AllDirectories)) {
+    $relativePath = $filePath.Substring($sourceRootLong.Length).TrimStart('\')
+    $targetPath = [System.IO.Path]::Combine($destinationRootLong, $relativePath)
+    $targetDirectory = Split-Path -Parent $targetPath
+    if ($targetDirectory) {
+      [System.IO.Directory]::CreateDirectory($targetDirectory) | Out-Null
+    }
+    [System.IO.File]::Copy($filePath, $targetPath, $true)
   }
 }
 
@@ -775,72 +859,95 @@ $timer.Interval = 400
 Set-StageVisual -Current 'welcome'
 
 $timer.Add_Tick({
-  $progress = Read-ProgressState
-  if ($null -ne $progress) {
-    Set-StageVisual -Current 'install'
-    $stepTitle.Text = [string]$progress.title
-    $stepDetail.Text = [string]$progress.message
-    $headline.Text = "正在安装 $DisplayName"
-    $subtitle.Text = '安装程序正在后台准备本地运行环境，完成后会自动切换到完成页面。'
-    $statusLabel.Text = '安装状态'
-    $statusDetail.Text = ("状态：{0}`r`n更新时间：{1}" -f $progress.state, $progress.updatedAt)
-    $progressBar.Style = 'Continuous'
-    $value = [Math]::Max(0, [Math]::Min(100, [int]$progress.percent))
-    $progressBar.Value = $value
-  }
+  try {
+    $progress = Read-ProgressState
+    if ($null -ne $progress) {
+      Set-StageVisual -Current 'install'
+      $progressTitle = if ($progress.PSObject.Properties['title']) { [string]$progress.title } else { '正在安装 星阙' }
+      $progressMessage = if ($progress.PSObject.Properties['message']) { [string]$progress.message } else { '正在准备本地运行环境。' }
+      $progressState = if ($progress.PSObject.Properties['state']) { [string]$progress.state } else { 'running' }
+      $progressUpdatedAt = if ($progress.PSObject.Properties['updatedAt']) { [string]$progress.updatedAt } else { (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') }
+      $progressPercent = if ($progress.PSObject.Properties['percent']) { [int]$progress.percent } else { 0 }
+      $stepTitle.Text = $progressTitle
+      $stepDetail.Text = $progressMessage
+      $headline.Text = "正在安装 $DisplayName"
+      $subtitle.Text = '安装程序正在后台准备本地运行环境，完成后会自动切换到完成页面。'
+      $statusLabel.Text = '安装状态'
+      $statusDetail.Text = ("状态：{0}`r`n更新时间：{1}" -f $progressState, $progressUpdatedAt)
+      $progressBar.Style = 'Continuous'
+      $value = [Math]::Max(0, [Math]::Min(100, $progressPercent))
+      $progressBar.Value = $value
+    }
 
-  if ($script:installProcess -and $script:installProcess.HasExited -and -not $script:installCompleted) {
-    $script:installCompleted = $true
-    $timer.Stop()
-    if ($script:installProcess.ExitCode -eq 0) {
-      try {
-        Write-WizardTrace ("runtime install exited 0; beginning install finalization")
-        Install-AppBundle
-        Ensure-Shortcuts
-        $script:installSucceeded = $true
-        Set-StageVisual -Current 'finish'
-        $headline.Text = "$DisplayName 已准备就绪"
-        $subtitle.Text = "安装程序已在这台电脑上完成 $DisplayName 的准备工作。"
-        $stepTitle.Text = '安装完成'
-        $stepDetail.Text = $DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
-        $statusLabel.Text = '已就绪'
-        $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
-        $progressBar.Value = 100
-        $primaryButton.Text = '完成'
-        $primaryButton.Enabled = $true
-        $secondaryButton.Text = '打开目录'
-        Write-WizardTrace ("install finalization succeeded")
-        Schedule-AutoFinish
-      } catch {
-        Write-WizardTrace ("install finalization failed: {0}" -f $_.Exception.Message)
+    if ($script:installProcess -and $script:installProcess.HasExited -and -not $script:installCompleted) {
+      $script:installCompleted = $true
+      $timer.Stop()
+      if ($script:installProcess.ExitCode -eq 0) {
+        try {
+          Write-WizardTrace ("runtime install exited 0; beginning install finalization")
+          Install-AppBundle
+          Ensure-Shortcuts
+          $script:installSucceeded = $true
+          Set-StageVisual -Current 'finish'
+          $headline.Text = "$DisplayName 已准备就绪"
+          $subtitle.Text = "安装程序已在这台电脑上完成 $DisplayName 的准备工作。"
+          $stepTitle.Text = '安装完成'
+          $stepDetail.Text = $DisplayName + ' 已安装完成。你可以点击“完成”退出，或先打开安装目录查看文件。'
+          $statusLabel.Text = '已就绪'
+          $statusDetail.Text = '桌面和开始菜单快捷方式已创建。' + "`r`n" + '以后更新会保留你存放在 LocalAppData 中的数据。'
+          $progressBar.Value = 100
+          $primaryButton.Text = '完成'
+          $primaryButton.Enabled = $true
+          $secondaryButton.Text = '打开目录'
+          Write-WizardTrace ("install finalization succeeded")
+          Schedule-AutoFinish
+        } catch {
+          Write-WizardTrace ("install finalization failed: {0}" -f $_.Exception.Message)
+          $script:installSucceeded = $false
+          Set-StageVisual -Current 'failed'
+          $headline.Text = "$DisplayName 安装程序"
+          $subtitle.Text = '安装程序未能在这台电脑上完成应用部署。'
+          $stepTitle.Text = '安装失败'
+          $stepDetail.Text = '运行环境已准备完成，但应用复制或快捷方式创建失败。下面会直接显示本次失败原因。'
+          $statusLabel.Text = '失败原因'
+          $statusDetail.Text = "安装后处理失败：$($_.Exception.Message)`r`n详细日志：$WizardTraceLog"
+          $progressBar.Value = 100
+          $primaryButton.Text = '重试'
+          $primaryButton.Enabled = $true
+          $secondaryButton.Text = '关闭'
+        }
+      } else {
         $script:installSucceeded = $false
+        $failureSummary = Get-InstallFailureSummary
         Set-StageVisual -Current 'failed'
         $headline.Text = "$DisplayName 安装程序"
-        $subtitle.Text = '安装程序未能在这台电脑上完成应用部署。'
+        $subtitle.Text = '安装程序未能在这台电脑上完成运行环境准备。'
         $stepTitle.Text = '安装失败'
-        $stepDetail.Text = '运行环境已准备完成，但应用复制或快捷方式创建失败。下面会直接显示本次失败原因。'
+        $stepDetail.Text = '运行环境安装没有完成。下面会直接显示本次失败原因，便于你重试或排查。'
         $statusLabel.Text = '失败原因'
-        $statusDetail.Text = "安装后处理失败：$($_.Exception.Message)`r`n详细日志：$WizardTraceLog"
+        $statusDetail.Text = $failureSummary
         $progressBar.Value = 100
         $primaryButton.Text = '重试'
         $primaryButton.Enabled = $true
         $secondaryButton.Text = '关闭'
       }
-    } else {
-      $script:installSucceeded = $false
-      $failureSummary = Get-InstallFailureSummary
-      Set-StageVisual -Current 'failed'
-      $headline.Text = "$DisplayName 安装程序"
-      $subtitle.Text = '安装程序未能在这台电脑上完成运行环境准备。'
-      $stepTitle.Text = '安装失败'
-      $stepDetail.Text = '运行环境安装没有完成。下面会直接显示本次失败原因，便于你重试或排查。'
-      $statusLabel.Text = '失败原因'
-      $statusDetail.Text = $failureSummary
-      $progressBar.Value = 100
-      $primaryButton.Text = '重试'
-      $primaryButton.Enabled = $true
-      $secondaryButton.Text = '关闭'
     }
+  } catch {
+    Write-WizardTrace ("timer tick failed: {0}" -f $_.Exception.ToString())
+    $timer.Stop()
+    $script:installCompleted = $true
+    $script:installSucceeded = $false
+    Set-StageVisual -Current 'failed'
+    $headline.Text = "$DisplayName 安装程序"
+    $subtitle.Text = '安装向导在刷新进度时遇到了错误。'
+    $stepTitle.Text = '安装失败'
+    $stepDetail.Text = '安装向导内部出现异常。下面会直接显示本次失败原因。'
+    $statusLabel.Text = '失败原因'
+    $statusDetail.Text = "安装向导异常：$($_.Exception.Message)`r`n详细日志：$WizardTraceLog"
+    $progressBar.Value = 100
+    $primaryButton.Text = '重试'
+    $primaryButton.Enabled = $true
+    $secondaryButton.Text = '关闭'
   }
 })
 
@@ -855,7 +962,7 @@ $primaryButton.Add_Click({
 
   Remove-Item -Force $ProgressFile -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Force -Path $RuntimeLogDir | Out-Null
-  Remove-Item -Force $InstallStdoutLog, $InstallStderrLog -ErrorAction SilentlyContinue
+  Remove-Item -Force $InstallStdoutLog, $InstallStderrLog, $WizardTraceLog -ErrorAction SilentlyContinue
   $script:installCompleted = $false
   $script:installSucceeded = $false
   $primaryButton.Enabled = $false
@@ -868,15 +975,8 @@ $primaryButton.Add_Click({
   $statusLabel.Text = '安装状态'
   $statusDetail.Text = '安装程序正在后台运行。'
   $progressBar.Style = 'Marquee'
-  $script:installProcess = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-WindowStyle',
-    'Hidden',
-    '-File',
-    $InstallScript
-  ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $InstallStdoutLog -RedirectStandardError $InstallStderrLog
+  Write-WizardTrace ("launch runtime install: script={0}; installRoot={1}; progressFile={2}" -f $InstallScript, $InstallRoot, $ProgressFile)
+  $script:installProcess = Start-HiddenPowerShellProcess -ScriptPath $InstallScript -StdoutPath $InstallStdoutLog -StderrPath $InstallStderrLog
   $timer.Start()
 })
 
