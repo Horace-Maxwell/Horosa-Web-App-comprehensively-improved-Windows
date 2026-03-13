@@ -20,6 +20,23 @@ public static class HorosaDpi {
 } catch {}
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
+try {
+  Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class HorosaConsoleWindow {
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+  $consoleHandle = [HorosaConsoleWindow]::GetConsoleWindow()
+  if ($consoleHandle -ne [IntPtr]::Zero) {
+    [void][HorosaConsoleWindow]::ShowWindow($consoleHandle, 0)
+  }
+} catch {}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

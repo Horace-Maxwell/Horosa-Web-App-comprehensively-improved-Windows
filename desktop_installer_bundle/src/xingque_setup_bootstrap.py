@@ -119,8 +119,8 @@ def extract_payload(payload_zip: Path) -> Path:
 
 def find_powershell_host() -> str:
     candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "PowerShell" / "7" / "pwsh.exe",
         Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe",
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "PowerShell" / "7" / "pwsh.exe",
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -154,8 +154,6 @@ def main() -> int:
     host = find_powershell_host()
     log_line(f"launching installer via {host}")
     try:
-        creationflags = 0
-        startupinfo = None
         child_env = os.environ.copy()
         local_runtime_root = resolve_local_runtime_asset_root()
         if local_runtime_root:
@@ -163,29 +161,22 @@ def main() -> int:
             log_line(f"local runtime asset root: {local_runtime_root}")
         else:
             log_line("local runtime asset root: none")
-        if os.name == "nt":
-            creationflags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
-            startupinfo.wShowWindow = 0
-        escaped_wizard_script = str(wizard_script).replace("'", "''")
-        launcher_command = f"& '{escaped_wizard_script}'"
         log_line(f"wizard script resolved: {wizard_script}")
+        command = [
+            host,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+        ]
+        if Path(host).name.lower() == "powershell.exe":
+            command.extend(["-Sta", "-File", str(wizard_script)])
+        else:
+            escaped_wizard_script = str(wizard_script).replace("'", "''")
+            command.extend(["-Command", f"& '{escaped_wizard_script}'"])
         result = subprocess.run(
-            [
-                host,
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-WindowStyle",
-                "Hidden",
-                "-Command",
-                launcher_command,
-            ],
+            command,
             env=child_env,
             check=False,
-            creationflags=creationflags,
-            startupinfo=startupinfo,
         )
         log_line(f"installer exit code: {result.returncode}")
         return int(result.returncode)
