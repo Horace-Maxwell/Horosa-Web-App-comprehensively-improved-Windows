@@ -63,7 +63,7 @@ def log_line(message: str) -> None:
 
 def cleanup_old_extract_roots(temp_root: Path) -> None:
     cutoff = time.time() - 7 * 24 * 60 * 60
-    for candidate in temp_root.glob("xingque-setup-*"):
+    for candidate in temp_root.glob("xq*"):
         try:
             if candidate.is_dir() and candidate.stat().st_mtime < cutoff:
                 shutil.rmtree(candidate, ignore_errors=True)
@@ -82,11 +82,32 @@ def hide_directory(path: Path) -> None:
         pass
 
 
+def resolve_short_extract_base() -> Path:
+    candidates = []
+    system_drive = os.environ.get("SystemDrive")
+    if system_drive:
+        drive_root = system_drive if system_drive.endswith("\\") else f"{system_drive}\\"
+        candidates.append(Path(drive_root) / "xq")
+    candidates.append(Path(tempfile.gettempdir()) / "xq")
+
+    last_error: Exception | None = None
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        except Exception as exc:
+            last_error = exc
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("unable to create extract root")
+
+
 def extract_payload(payload_zip: Path) -> Path:
-    temp_root = Path(tempfile.gettempdir()) / "xingque-setup-staging"
+    temp_root = resolve_short_extract_base()
     temp_root.mkdir(parents=True, exist_ok=True)
     cleanup_old_extract_roots(temp_root)
-    extract_root = temp_root / f"xingque-setup-{int(time.time())}"
+    extract_root = temp_root / f"xq{os.getpid():x}{int(time.time()) % 0xFFFFF:x}"
     extract_root.mkdir(parents=True, exist_ok=True)
     with ZipFile(payload_zip) as archive:
         archive.extractall(extract_root)

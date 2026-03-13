@@ -198,9 +198,11 @@ function New-HorosaShortcut {
     New-Item -ItemType Directory -Force -Path $shortcutDir | Out-Null
   }
 
-  $tempShortcutPath = Join-Path $shortcutDir ("Xingque-{0}.lnk" -f ([guid]::NewGuid().ToString('N')))
+  if (Test-Path $ShortcutPath) {
+    Remove-Item -Force $ShortcutPath -ErrorAction SilentlyContinue
+  }
   $shell = New-Object -ComObject WScript.Shell
-  $shortcut = $shell.CreateShortcut($tempShortcutPath)
+  $shortcut = $shell.CreateShortcut($ShortcutPath)
   $shortcut.TargetPath = $TargetPath
   $shortcut.WorkingDirectory = $WorkingDirectory
   if (-not [string]::IsNullOrWhiteSpace($Arguments)) {
@@ -212,13 +214,11 @@ function New-HorosaShortcut {
   $shortcut.WindowStyle = 1
   $shortcut.Description = $DisplayName
   $shortcut.Save()
-  Write-WizardTrace ("shortcut temp saved: path={0}; target={1}; args={2}; workdir={3}; icon={4}" -f $tempShortcutPath, $TargetPath, $Arguments, $WorkingDirectory, $IconPath)
-
-  if (Test-Path $ShortcutPath) {
-    Remove-Item -Force $ShortcutPath
+  $savedShortcut = $shell.CreateShortcut($ShortcutPath)
+  Write-WizardTrace ("shortcut installed: path={0}; target={1}; args={2}; workdir={3}; icon={4}" -f $ShortcutPath, $savedShortcut.TargetPath, $savedShortcut.Arguments, $savedShortcut.WorkingDirectory, $savedShortcut.IconLocation)
+  if ([string]::IsNullOrWhiteSpace($savedShortcut.TargetPath)) {
+    throw "Shortcut target was not saved correctly: $ShortcutPath"
   }
-  Move-Item -Path $tempShortcutPath -Destination $ShortcutPath -Force
-  Write-WizardTrace ("shortcut installed: path={0}" -f $ShortcutPath)
 }
 
 function Remove-TreeWithRetry {
@@ -371,9 +371,38 @@ function Resolve-AppLaunchSpec {
   return $result
 }
 
+function Install-ShortcutWithFallback {
+  param(
+    [string]$DirectoryPath,
+    [string]$TargetPath,
+    [string]$WorkingDirectory,
+    [string]$IconPath,
+    [string]$Arguments = ''
+  )
+
+  $baseNames = @($DisplayName, 'Xingque')
+  $lastError = $null
+
+  foreach ($baseName in $baseNames) {
+    $shortcutPath = Join-Path $DirectoryPath ("{0}.lnk" -f $baseName)
+    try {
+      New-HorosaShortcut -ShortcutPath $shortcutPath -TargetPath $TargetPath -WorkingDirectory $WorkingDirectory -IconPath $IconPath -Arguments $Arguments
+      Write-WizardTrace ("shortcut fallback success: path={0}" -f $shortcutPath)
+      return $shortcutPath
+    } catch {
+      $lastError = $_
+      Write-WizardTrace ("shortcut fallback failed: path={0}; error={1}" -f $shortcutPath, $_.Exception.Message)
+    }
+  }
+
+  if ($lastError) {
+    throw $lastError
+  }
+}
+
 function Ensure-Shortcuts {
-  $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) "$DisplayName.lnk"
-  $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('Programs')) "$DisplayName.lnk"
+  $desktopDir = [Environment]::GetFolderPath('Desktop')
+  $startMenuDir = [Environment]::GetFolderPath('Programs')
   $shortcutIcon = if (Test-Path $InstalledLauncherExe) {
     $InstalledLauncherExe
   } elseif (Test-Path $LauncherExe) {
@@ -388,9 +417,9 @@ function Ensure-Shortcuts {
     $null
   }
   $launchSpec = Resolve-AppLaunchSpec
-  Write-WizardTrace ("ensure shortcuts: desktop={0}; startMenu={1}; icon={2}; target={3}" -f $desktopShortcut, $startMenuShortcut, $shortcutIcon, $launchSpec.TargetPath)
-  New-HorosaShortcut -ShortcutPath $desktopShortcut -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments
-  New-HorosaShortcut -ShortcutPath $startMenuShortcut -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments
+  Write-WizardTrace ("ensure shortcuts: desktopDir={0}; startMenuDir={1}; icon={2}; target={3}" -f $desktopDir, $startMenuDir, $shortcutIcon, $launchSpec.TargetPath)
+  Install-ShortcutWithFallback -DirectoryPath $desktopDir -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments | Out-Null
+  Install-ShortcutWithFallback -DirectoryPath $startMenuDir -TargetPath $launchSpec.TargetPath -WorkingDirectory $launchSpec.WorkingDirectory -IconPath $shortcutIcon -Arguments $launchSpec.Arguments | Out-Null
 }
 
 function Read-ProgressState {
