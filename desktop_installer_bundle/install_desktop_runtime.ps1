@@ -34,13 +34,16 @@ function Write-InstallProgress {
     New-Item -ItemType Directory -Force -Path $_ | Out-Null
   }
 
-  @{
+  $payload = @{
     state = $State
     title = $Title
     message = $Message
     percent = $Percent
     updatedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-  } | ConvertTo-Json | Set-Content -Path $ProgressFile -Encoding UTF8
+  } | ConvertTo-Json
+
+  $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+  [System.IO.File]::WriteAllText($ProgressFile, $payload, $utf8Bom)
 }
 
 function Write-InstallLog {

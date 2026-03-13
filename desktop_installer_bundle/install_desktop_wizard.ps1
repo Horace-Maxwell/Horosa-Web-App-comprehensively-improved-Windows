@@ -57,6 +57,7 @@ $AssetsRoot = Join-Path $ScriptRoot 'assets'
 $InstallerIconFile = Join-Path $AssetsRoot 'horosa_setup.ico'
 $InstallerBadgeFile = Join-Path $AssetsRoot 'horosa_setup_badge.png'
 $LauncherExe = Join-Path $ScriptRoot 'Xingque.exe'
+$ReleaseLauncherExe = Join-Path $ScriptRoot 'release\Xingque.exe'
 $IconCandidate = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $DesktopExe = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $InstallRoot = Join-Path $env:LocalAppData 'Horosa\Xingque App'
@@ -395,6 +396,22 @@ function Install-AppBundle {
   Write-WizardTrace ("install bundle copied: installRootExists={0}; installedBundleExists={1}" -f (Test-Path $InstallRoot), (Test-Path $InstalledBundleRoot))
 
   if (-not (Test-Path $InstalledLauncherExe -PathType Leaf)) {
+    $fallbackLauncher = $null
+    foreach ($candidate in @($LauncherExe, $ReleaseLauncherExe)) {
+      if (Test-Path $candidate -PathType Leaf) {
+        $fallbackLauncher = $candidate
+        break
+      }
+    }
+
+    if ($fallbackLauncher) {
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $InstalledLauncherExe) | Out-Null
+      Copy-Item -Path $fallbackLauncher -Destination $InstalledLauncherExe -Force
+      Write-WizardTrace ("installed launcher restored from fallback: source={0}; target={1}" -f $fallbackLauncher, $InstalledLauncherExe)
+    }
+  }
+
+  if (-not (Test-Path $InstalledLauncherExe -PathType Leaf)) {
     Write-WizardTrace ("installed launcher missing after copy: {0}" -f $InstalledLauncherExe)
     throw "安装后的应用启动器不存在：$InstalledLauncherExe"
   }
@@ -508,7 +525,8 @@ function Read-ProgressState {
   }
 
   try {
-    return Get-Content -Raw $ProgressFile | ConvertFrom-Json
+    $raw = [System.IO.File]::ReadAllText($ProgressFile, [System.Text.Encoding]::UTF8)
+    return $raw | ConvertFrom-Json
   } catch {
     return $null
   }
@@ -992,6 +1010,7 @@ $script:autoFinishScheduled = $false
 $script:existingInstallInfo = Get-ExistingInstallInfo
 $script:selectedInstallAction = $null
 $script:recommendedInstallAction = if ($script:existingInstallInfo.Exists -and $script:existingInstallInfo.InstalledVersion -eq $VersionInfo.version) { 'repair' } else { 'replace' }
+$script:autoExistingInstallAction = ([string]$env:HOROSA_DESKTOP_INSTALLER_AUTO_EXISTING_ACTION).Trim().ToLowerInvariant()
 
 function Show-ExistingInstallChoice {
   if (-not $script:existingInstallInfo.Exists) {
@@ -1009,9 +1028,17 @@ function Show-ExistingInstallChoice {
   $headline.Text = "欢迎使用 $DisplayName 安装程序"
   $subtitle.Text = '安装程序检测到本机已有旧版本或当前版本，请先选择处理方式。'
 
-  $repairRadio.Checked = $script:recommendedInstallAction -eq 'repair'
-  $replaceRadio.Checked = $script:recommendedInstallAction -eq 'replace'
-  $cancelInstallRadio.Checked = $false
+  $selectedAction = switch ($script:autoExistingInstallAction) {
+    'repair' { 'repair' }
+    'replace' { 'replace' }
+    'cancel' { 'cancel' }
+    default { $script:recommendedInstallAction }
+  }
+
+  $repairRadio.Checked = $selectedAction -eq 'repair'
+  $replaceRadio.Checked = $selectedAction -eq 'replace'
+  $cancelInstallRadio.Checked = $selectedAction -eq 'cancel'
+  Write-WizardTrace ("existing install options shown: installedVersion={0}; runtimeVersion={1}; autoChoice={2}; selected={3}" -f $installedVersionText, $runtimeVersionText, $script:autoExistingInstallAction, $selectedAction)
 }
 
 function Finalize-InstallSuccess {
@@ -1149,6 +1176,7 @@ $primaryButton.Add_Click({
 
   if ($script:existingInstallInfo.Exists -and -not $script:installCompleted -and -not $script:installProcess) {
     if ($cancelInstallRadio.Checked) {
+      Write-WizardTrace ("existing install action selected: cancel; installedVersion={0}; currentVersion={1}" -f $script:existingInstallInfo.InstalledVersion, $VersionInfo.version)
       $form.Close()
       return
     }
