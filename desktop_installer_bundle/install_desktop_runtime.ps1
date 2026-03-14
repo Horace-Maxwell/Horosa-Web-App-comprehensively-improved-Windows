@@ -81,6 +81,18 @@ function Write-InstallLog {
   Add-Content -Path $InstallLogFile -Value $line -Encoding UTF8
 }
 
+function Get-CurrentProgressState {
+  if (-not (Test-Path $ProgressFile -PathType Leaf)) {
+    return $null
+  }
+
+  try {
+    return (Get-Content -Raw $ProgressFile | ConvertFrom-Json)
+  } catch {
+    return $null
+  }
+}
+
 function Get-CompactErrorText {
   param([object]$ErrorRecord)
 
@@ -98,6 +110,96 @@ function Get-CompactErrorText {
   }
 
   return '未知错误'
+}
+
+function Get-DownloadFailureFriendlyMessage {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$StageLabel,
+    [object]$ErrorRecord
+  )
+
+  $reason = Get-CompactErrorText -ErrorRecord $ErrorRecord
+  $normalized = $reason.ToLowerInvariant()
+
+  if ($normalized.Contains('404')) {
+    return "${StageLabel}下载失败：当前线上安装资源不存在或暂时不可用。请稍后重试，或直接改用离线完整版 XingqueSetupFull.exe。"
+  }
+
+  if (
+    $normalized.Contains('timed out') -or
+    $normalized.Contains('timeout') -or
+    $normalized.Contains('name resolution') -or
+    $normalized.Contains('no such host') -or
+    $normalized.Contains('could not be resolved') -or
+    $normalized.Contains('connection') -or
+    $normalized.Contains('unable to connect')
+  ) {
+    return "${StageLabel}下载失败：网络连接不稳定或当前无法访问 GitHub 资源。你可以重试安装，或直接改用离线完整版 XingqueSetupFull.exe。"
+  }
+
+  if (
+    $normalized.Contains('access denied') -or
+    $normalized.Contains('cannot access') -or
+    $normalized.Contains('being used by another process')
+  ) {
+    return "${StageLabel}下载失败：本地下载缓存正在被占用。请关闭其他安装器后重试；如果仍失败，可改用离线完整版 XingqueSetupFull.exe。"
+  }
+
+  return "${StageLabel}下载失败。你可以点击`"重试`"重新安装；如果网络较慢或下载总失败，建议直接改用离线完整版 XingqueSetupFull.exe。"
+}
+
+function Invoke-DownloadWithRetry {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Uri,
+    [Parameter(Mandatory = $true)]
+    [string]$OutFile,
+    [Parameter(Mandatory = $true)]
+    [string]$StageLabel,
+    [Parameter(Mandatory = $true)]
+    [int]$Percent,
+    [string]$BaseMessage,
+    [int]$MaxAttempts = 3
+  )
+
+  $lastError = $null
+  $oldProgress = $ProgressPreference
+  $ProgressPreference = 'SilentlyContinue'
+  try {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+      $attemptMessage = if ([string]::IsNullOrWhiteSpace($BaseMessage)) {
+        "正在处理：$StageLabel（第 $attempt/$MaxAttempts 次尝试）"
+      } else {
+        "$BaseMessage`r`n当前步骤：$StageLabel（第 $attempt/$MaxAttempts 次尝试）"
+      }
+      Write-InstallProgress -State 'downloading' -Title '正在下载运行时组件' -Message $attemptMessage -Percent $Percent
+      Write-InstallLog ("Download attempt {0}/{1}: {2}" -f $attempt, $MaxAttempts, $Uri)
+
+      try {
+        if (Test-Path $OutFile -PathType Leaf) {
+          Remove-Item -Force $OutFile -ErrorAction SilentlyContinue
+        }
+        Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $Uri -OutFile $OutFile
+        return
+      } catch {
+        $lastError = $_
+        $compact = Get-CompactErrorText -ErrorRecord $_
+        Write-InstallLog ("Download failed ({0}/{1}) for {2}: {3}" -f $attempt, $MaxAttempts, $StageLabel, $compact)
+        if ($attempt -lt $MaxAttempts) {
+          $retryMessage = "$StageLabel 下载遇到网络或资源错误，正在自动重试。`r`n失败原因：$compact`r`n如果多次失败，建议改用离线完整版 XingqueSetupFull.exe。"
+          Write-InstallProgress -State 'downloading' -Title '正在重试下载运行时组件' -Message $retryMessage -Percent $Percent
+          Start-Sleep -Seconds ([Math]::Min(2 * $attempt, 6))
+        }
+      }
+    }
+  } finally {
+    $ProgressPreference = $oldProgress
+  }
+
+  if ($lastError) {
+    throw $lastError
+  }
 }
 
 function Publish-InstallFailure {
@@ -199,7 +301,10 @@ function Invoke-PipInstall {
 }
 
 trap {
-  Publish-InstallFailure -ErrorRecord $_
+  $existingProgress = Get-CurrentProgressState
+  if (-not $existingProgress -or [string]$existingProgress.state -ne 'error') {
+    Publish-InstallFailure -ErrorRecord $_
+  }
   break
 }
 
@@ -405,18 +510,14 @@ function Ensure-RuntimePayload {
     Copy-Item -Path $asset.LocalManifestPath -Destination $manifestPath -Force
     Copy-Item -Path $asset.LocalAssetPath -Destination $zipPath -Force
   } else {
-    $oldProgress = $ProgressPreference
+    $baseMessage = '首次安装或版本升级时，需要自动下载较大的桌面运行时组件。安装器会自动重试下载；如果网络较慢或访问 GitHub 不稳定，建议改用离线完整版 XingqueSetupFull.exe。'
     try {
-      $ProgressPreference = 'SilentlyContinue'
-      Write-InstallLog ("Downloading runtime manifest: {0}" -f $asset.ManifestUrl)
-      Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.ManifestUrl -OutFile $manifestPath
-      Write-InstallLog ("Downloading runtime asset: {0}" -f $asset.AssetUrl)
-      Invoke-WebRequest -Headers @{ 'User-Agent' = 'HorosaDesktopInstaller' } -Uri $asset.AssetUrl -OutFile $zipPath
+      Invoke-DownloadWithRetry -Uri $asset.ManifestUrl -OutFile $manifestPath -StageLabel '运行时清单文件' -Percent 20 -BaseMessage $baseMessage
+      Invoke-DownloadWithRetry -Uri $asset.AssetUrl -OutFile $zipPath -StageLabel '运行时压缩包' -Percent 28 -BaseMessage $baseMessage
     } catch {
-      Publish-InstallFailure -ErrorRecord $_ -FriendlyMessage '运行时组件下载失败。请确认网络可用后重试，或重新下载最新 Release。'
+      $friendly = Get-DownloadFailureFriendlyMessage -StageLabel '运行时组件' -ErrorRecord $_
+      Publish-InstallFailure -ErrorRecord $_ -FriendlyMessage $friendly
       throw
-    } finally {
-      $ProgressPreference = $oldProgress
     }
   }
 
