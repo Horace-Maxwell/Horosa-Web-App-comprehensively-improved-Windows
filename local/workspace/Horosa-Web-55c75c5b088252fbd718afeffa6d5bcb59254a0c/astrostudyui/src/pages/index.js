@@ -63,7 +63,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         casePageIndex,
         caseTotal,
     } = user;
- 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
+ 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, moduleSubTabs, deeplearn} = astro;
     const { ziwei, } = rules; 
 
     
@@ -202,6 +202,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     let arycaseflds = convertToArray(currentCase);
     let aryregflds = convertToArray(registerFields);
     let aryloginflds = convertToArray(loginFields);
+    const rememberedSubTabs = moduleSubTabs || {};
+    function getModuleSubTab(moduleKey, fallback = null){
+        if(rememberedSubTabs[moduleKey] !== undefined && rememberedSubTabs[moduleKey] !== null){
+            return rememberedSubTabs[moduleKey];
+        }
+        if(currentTab === moduleKey && currentSubTab !== undefined && currentSubTab !== null){
+            return currentSubTab;
+        }
+        return fallback;
+    }
 
 	return (
 		<div style={idxstyle}>
@@ -264,7 +274,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.direction}
 	                        dispatch={dispatch}
-	                        currentSubTab={currentSubTab}
+	                        currentSubTab={getModuleSubTab('direction', 'primarydirect')}
                     />
                 </TabPane>
 
@@ -296,7 +306,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.relativechart}
 	                        dispatch={dispatch}
-	                        currentSubTab={currentSubTab}
+	                        currentSubTab={getModuleSubTab('relativechart', 'Comp')}
                     />
                 </TabPane>
 
@@ -375,6 +385,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                        showAstroMeaning={showAstroMeaning}
 	                        hook={predictHook.indiachart}
 	                        dispatch={dispatch}
+	                        currentSubTab={getModuleSubTab('indiachart', 'Natal')}
 	                    />
                 </TabPane>
 
@@ -388,7 +399,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         planetDisplay={planetDisplay}
                         hook={predictHook.cntradition}
                         dispatch={dispatch}
-                        currentSubTab={currentSubTab}
+                        currentSubTab={getModuleSubTab('cntradition', 'bazi')}
                     />
                 </TabPane>
 
@@ -402,7 +413,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         planetDisplay={planetDisplay}
                         hook={predictHook.cnyibu}
                         dispatch={dispatch}
-                        currentSubTab={currentSubTab}
+                        currentTab={currentTab}
+                        currentSubTab={getModuleSubTab('cnyibu', 'suzhan')}
                     />
                 </TabPane>
 
@@ -450,7 +462,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                                 height={height}
                                 dispatch={dispatch}
                                 userInfo={userInfo}
-                                currentSubTab={currentSubTab}
+                                currentSubTab={getModuleSubTab('liveplayer', null)}
                                 admin={admin}
                             />
                         </TabPane>

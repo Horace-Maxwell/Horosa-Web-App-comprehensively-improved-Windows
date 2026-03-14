@@ -56,7 +56,7 @@ async function requestSolarReturnCached(params){
 	const req = request(`${Constants.ServerRoot}/predict/solarreturn`, {
 		body: JSON.stringify(params),
 	}).then((data)=>{
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		pushSolarReturnCache(key, result);
 		return result;
 	}).finally(()=>{

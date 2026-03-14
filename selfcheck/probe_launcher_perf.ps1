@@ -8,6 +8,21 @@ $StdErrLog = Join-Path $RepoRoot 'tmp_launcher_perf.err.log'
 $PerfScript = Join-Path $ProjectDir 'astrostudyui\scripts\verifyHorosaPerformanceRuntime.js'
 
 function Stop-HorosaPorts {
+  $oldCleanupOnly = $env:HOROSA_CLEANUP_ONLY
+  try {
+    $env:HOROSA_CLEANUP_ONLY = '1'
+    Start-Process -FilePath 'powershell.exe' `
+      -ArgumentList @('-ExecutionPolicy', 'Bypass', '-File', (Join-Path $RepoRoot 'local\Horosa_Local_Windows.ps1')) `
+      -WorkingDirectory $RepoRoot `
+      -WindowStyle Hidden `
+      -Wait `
+      -ErrorAction SilentlyContinue | Out-Null
+  } catch {}
+  if ($null -ne $oldCleanupOnly) {
+    $env:HOROSA_CLEANUP_ONLY = $oldCleanupOnly
+  } else {
+    Remove-Item Env:HOROSA_CLEANUP_ONLY -ErrorAction SilentlyContinue
+  }
   Remove-HorosaPidFiles
 }
 

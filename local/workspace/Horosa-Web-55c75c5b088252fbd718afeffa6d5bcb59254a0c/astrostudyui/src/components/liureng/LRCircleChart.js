@@ -42,6 +42,9 @@ class LRCircleChart extends LRCommChart {
 	}
 
 	drawDownCircle(){
+		const timeHighlight = this.nongli && typeof this.nongli.time === 'string' && this.nongli.time.length > 1
+			? [this.nongli.time.substr(1)]
+			: [];
 		let options = {
 			owner: this.owner,
 			x: this.ox,
@@ -51,7 +54,7 @@ class LRCircleChart extends LRCommChart {
 			color: this.color,
 			bgColor: AstroConst.AstroColor.NoColor,
 			data: this.downZi,
-			highLightData: [this.nongli.time.substr(1)],
+			highLightData: timeHighlight,
 			highLightColor: LRConst.LRColor.time.color,
 			highLightBgColor: LRConst.LRColor.time.bg,
 		};
@@ -109,7 +112,7 @@ class LRCircleChart extends LRCommChart {
 	}
 
 	drawTitle(){
-		if(this.cuangTitle === undefined || this.cuangTitle === null){
+		if(this.cuangTitle === undefined || this.cuangTitle === null || !this.nongli || !this.nongli.dayGanZi){
 			return;
 		}
 

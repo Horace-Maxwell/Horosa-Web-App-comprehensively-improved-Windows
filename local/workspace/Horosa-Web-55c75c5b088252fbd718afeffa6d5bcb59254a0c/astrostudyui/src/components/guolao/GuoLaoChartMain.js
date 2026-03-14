@@ -463,7 +463,15 @@ class GuoLaoChartMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/chart`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey]
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		if(!result){
+			if(!this.unmounted){
+				this.setState({
+					chartObj: null,
+				});
+			}
+			return;
+		}
 
 		const st = {
 			chartObj: result,

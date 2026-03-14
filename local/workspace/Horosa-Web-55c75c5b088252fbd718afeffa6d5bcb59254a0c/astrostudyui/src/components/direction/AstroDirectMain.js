@@ -18,6 +18,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
+import styles from '../../css/styles.less';
 
 const TabPane = Tabs.TabPane;
 const PD_SYNC_REV = 'pd_method_sync_v6';
@@ -27,6 +28,8 @@ const DEFAULT_PD_TYPE = 0;
 const DIRECT_WARM_DELAY_MS = 200;
 const DIRECT_WARM_STEP_MS = 240;
 const DIRECT_WARM_HOOK_DELAY_MS = 90;
+const DIRECT_VIEWPORT_GAP = 22;
+const DIRECT_MIN_HEIGHT = 360;
 const DIRECT_WARM_PRIORITY = {
 	zodialrelease: 0,
 	lunarreturn: 1,
@@ -62,6 +65,43 @@ const ASTROAPP_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.ASC,
 	AstroConst.MC,
 ]);
+
+function getViewportHeight(){
+	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
+		return window.innerHeight;
+	}
+	if(typeof document !== 'undefined' && document.documentElement){
+		return document.documentElement.clientHeight || 900;
+	}
+	return 900;
+}
+
+function toNumber(val){
+	if(typeof val === 'number' && Number.isFinite(val)){
+		return val;
+	}
+	if(typeof val === 'string'){
+		const txt = val.trim();
+		if(/^[-+]?\d+(\.\d+)?(px)?$/i.test(txt)){
+			const n = parseFloat(txt);
+			return Number.isFinite(n) ? n : null;
+		}
+	}
+	return null;
+}
+
+function resolveBoundedHeight(rawHeight){
+	const viewport = getViewportHeight();
+	let h = toNumber(rawHeight);
+	if(h === null){
+		h = viewport - 92;
+	}else if(rawHeight === '100%'){
+		h = viewport - 92;
+	}
+	h = h - 8;
+	const maxH = Math.max(DIRECT_MIN_HEIGHT, viewport - DIRECT_VIEWPORT_GAP);
+	return Math.max(DIRECT_MIN_HEIGHT, Math.min(h, maxH));
+}
 
 function msg(id){
 	if(id === undefined || id === null){
@@ -985,8 +1025,7 @@ class AstroDirectMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		const height = resolveBoundedHeight(this.props.height);
 		const chartParams = this.props.chartObj && this.props.chartObj.params ? this.props.chartObj.params : {};
 		const appliedPdMethod = chartParams.pdMethod
 			? chartParams.pdMethod
@@ -996,11 +1035,15 @@ class AstroDirectMain extends Component{
 			: (this.props.fields && this.props.fields.pdTimeKey ? this.props.fields.pdTimeKey.value : 'Ptolemy');
 
 		return (
-			<div>
+			<div style={{ height, maxHeight: height, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 				<Tabs 
-					defaultActiveKey={this.state.currentTab} tabPosition='right'
+					defaultActiveKey={this.state.currentTab}
+					activeKey={this.state.currentTab}
+					tabPosition='right'
 					onChange={this.changeTab}
-					style={{ height: height }}
+					style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}
+					className={styles.cnYiBuTabs}
+					animated={false}
 				>
 					<TabPane tab="主/界限法" key="primarydirect" forceRender={!!this.state.preloadedTabs.primarydirect}>
 							<AstroPrimaryDirection  
@@ -1036,7 +1079,7 @@ class AstroDirectMain extends Component{
 					<TabPane tab="黄道星释" key="zodialrelease" forceRender={!!this.state.preloadedTabs.zodialrelease}>
 						<AstroZR  
 							value={this.props.chartObj} 
-							height={this.props.height} 
+							height={height} 
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

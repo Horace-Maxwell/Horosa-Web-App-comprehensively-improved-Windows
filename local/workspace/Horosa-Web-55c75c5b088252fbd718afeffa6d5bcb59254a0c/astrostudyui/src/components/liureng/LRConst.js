@@ -516,6 +516,9 @@ export function getSignZi(sign){
 
 export function getGuiZi(chartObj, guirengType){
 	let guirengobj = GuiRengs[guirengType];
+	if(!guirengobj || !chartObj || !chartObj.nongli || !chartObj.nongli.dayGanZi){
+		return '';
+	}
 	let dayGui = guirengobj.day;
 	let nightGui = guirengobj.night;
 
@@ -617,4 +620,3 @@ export function getXun(gan, zi){
 	}
 	return xun;
 }
-

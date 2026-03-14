@@ -20,7 +20,7 @@ class LRChart extends LRCommChart {
 			y: this.y + this.innerChartOffsetY,
 			width: this.width - this.innerChartOffsetX * 2,
 			height: this.height - this.innerChartOffsetY * 2,
-			timezi: this.nongli.time.substr(1),			
+			timezi: this.nongli && typeof this.nongli.time === 'string' && this.nongli.time.length > 1 ? this.nongli.time.substr(1) : '',			
 		}
 
 		this.innerChart = new LRInnerChart(this.innerOptions);

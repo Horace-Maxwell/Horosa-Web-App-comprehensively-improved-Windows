@@ -18,9 +18,9 @@ from typing import Callable, Optional
 
 import requests
 from packaging.version import InvalidVersion, Version
-from PySide6.QtCore import QObject, QSettings, QStandardPaths, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, QEventLoop, QSettings, QStandardPaths, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase, QIcon, QKeySequence
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineScript, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication,
@@ -49,6 +49,8 @@ MIN_ZOOM_FACTOR = 0.7
 MAX_ZOOM_FACTOR = 2.0
 ZOOM_STEP = 0.1
 DEFAULT_STARTUP_ZOOM_FACTOR = 0.75
+PERSISTED_BROWSER_STORAGE_KEY = "ui/persistedBrowserStorage"
+BROWSER_STORAGE_CAPTURE_INTERVAL_MS = 150
 
 
 def normalize_version(value: str) -> Version:
@@ -341,6 +343,16 @@ class LauncherController(QObject):
         self.log_path = self.log_dir / "desktop-launcher.log"
         self.launch_started_at = 0.0
 
+    def _launcher_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        env["HOROSA_NO_BROWSER"] = "1"
+        env["HOROSA_PERSIST_STACK"] = "1"
+        # Keep first-use pages responsive by prewarming heavy endpoints during launch.
+        env["HOROSA_PERF_MODE"] = env.get("HOROSA_PERF_MODE", "1")
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        return env
+
     def start(self) -> None:
         if self.process and self.process.poll() is None:
             return
@@ -350,12 +362,7 @@ class LauncherController(QObject):
             self.signals.failed.emit(f"Launcher not found: {launcher}")
             return
 
-        env = os.environ.copy()
-        env["HOROSA_NO_BROWSER"] = "1"
-        # Keep first-use pages responsive by prewarming heavy endpoints during launch.
-        env["HOROSA_PERF_MODE"] = env.get("HOROSA_PERF_MODE", "1")
-        env["PYTHONIOENCODING"] = "utf-8"
-        env["PYTHONUTF8"] = "1"
+        env = self._launcher_env()
 
         self.stop_requested = False
         self.ready_url = None
@@ -386,6 +393,34 @@ class LauncherController(QObject):
         self.reader_thread = threading.Thread(target=self._read_output_loop, daemon=True)
         self.reader_thread.start()
         threading.Thread(target=self._timeout_watch, daemon=True).start()
+
+    def _run_cleanup_only(self) -> None:
+        launcher = self.repo_root / "local" / "Horosa_Local_Windows.ps1"
+        if not launcher.exists():
+            return
+        env = self._launcher_env()
+        env["HOROSA_CLEANUP_ONLY"] = "1"
+        env.pop("HOROSA_PERSIST_STACK", None)
+        try:
+            subprocess.run(
+                [
+                    resolve_powershell_exe(),
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(launcher),
+                ],
+                cwd=str(self.repo_root),
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=CREATE_NO_WINDOW,
+                check=False,
+                timeout=30,
+            )
+        except Exception:
+            pass
 
     def _timeout_watch(self) -> None:
         while self.process and self.process.poll() is None and not self.ready_url:
@@ -430,8 +465,10 @@ class LauncherController(QObject):
             if not self.stop_requested and not self.ready_url:
                 self.signals.failed.emit(failure_message or f"启动程序提前退出，退出码：{exit_code}。")
 
-    def stop(self, force: bool = False) -> None:
+    def stop(self, force: bool = False, cleanup_services: bool = False) -> None:
         if not self.process:
+            if cleanup_services:
+                self._run_cleanup_only()
             return
 
         self.stop_requested = True
@@ -454,9 +491,11 @@ class LauncherController(QObject):
         finally:
             self.process = None
             self.ready_url = None
+            if cleanup_services:
+                self._run_cleanup_only()
 
     def restart(self) -> None:
-        self.stop()
+        self.stop(cleanup_services=True)
         time.sleep(1.0)
         self.start()
 
@@ -857,6 +896,8 @@ class MainWindow(QMainWindow):
         self.update_restart_requested = False
         self.ui_font_family = preferred_ui_font_family()
         self.zoom_factor = resolve_initial_zoom_factor(self.settings)
+        self.persisted_browser_storage = self._load_persisted_browser_storage()
+        self.storage_bootstrap_script: Optional[QWebEngineScript] = None
 
         self.setWindowTitle(DISPLAY_NAME)
         icon_path = resolve_app_icon_path(package_root)
@@ -902,10 +943,14 @@ class MainWindow(QMainWindow):
         self.web_profile.settings().setAttribute(QWebEngineSettings.LocalStorageEnabled, True)
         self.web_profile.settings().setAttribute(QWebEngineSettings.JavascriptEnabled, True)
         self.web_profile.settings().setAttribute(QWebEngineSettings.FullScreenSupportEnabled, True)
+        self._refresh_storage_bootstrap_script()
 
         self.web_view = ZoomableWebView(self._apply_zoom_factor, self)
         self.web_view.setPage(QWebEnginePage(self.web_profile, self.web_view))
         self.web_view.setZoomFactor(self.zoom_factor)
+        self.storage_capture_timer = QTimer(self)
+        self.storage_capture_timer.setInterval(BROWSER_STORAGE_CAPTURE_INTERVAL_MS)
+        self.storage_capture_timer.timeout.connect(self._capture_browser_storage)
 
         web_surface = QWidget(self)
         web_surface_layout = QVBoxLayout(web_surface)
@@ -1134,6 +1179,160 @@ class MainWindow(QMainWindow):
         font.setWeight(weight)
         return font
 
+    def _load_persisted_browser_storage(self) -> dict[str, str]:
+        raw = self.settings.value(PERSISTED_BROWSER_STORAGE_KEY, "", type=str)
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        result: dict[str, str] = {}
+        for key, value in parsed.items():
+            if not isinstance(key, str):
+                continue
+            if value is None:
+                continue
+            result[key] = str(value)
+        return result
+
+    def _save_persisted_browser_storage(self) -> None:
+        payload = json.dumps(self.persisted_browser_storage, ensure_ascii=False, separators=(",", ":"))
+        self.settings.setValue(PERSISTED_BROWSER_STORAGE_KEY, payload)
+        self.settings.sync()
+
+    def _refresh_storage_bootstrap_script(self) -> None:
+        payload = json.dumps(self.persisted_browser_storage, ensure_ascii=False)
+        script_source = (
+            "(function(){\n"
+            "  try {\n"
+            "    var payload = " + payload + ";\n"
+            "    if (!window.localStorage) { return; }\n"
+            "    var storage = window.localStorage;\n"
+            "    var bridge = window.__horosaDesktopStorageBridge || (window.__horosaDesktopStorageBridge = {});\n"
+            "    var markDirty = function(){ bridge.dirty = true; bridge.updatedAt = Date.now(); };\n"
+            "    if (!bridge.patched) {\n"
+            "      var originalSetItem = storage.setItem.bind(storage);\n"
+            "      var originalRemoveItem = storage.removeItem.bind(storage);\n"
+            "      var originalClear = storage.clear.bind(storage);\n"
+            "      storage.setItem = function(key, value){ originalSetItem(key, value); markDirty(); };\n"
+            "      storage.removeItem = function(key){ originalRemoveItem(key); markDirty(); };\n"
+            "      storage.clear = function(){ originalClear(); markDirty(); };\n"
+            "      window.addEventListener('pagehide', markDirty, true);\n"
+            "      window.addEventListener('beforeunload', markDirty, true);\n"
+            "      document.addEventListener('visibilitychange', function(){ if (document.visibilityState !== 'visible') { markDirty(); } }, true);\n"
+            "      bridge.patched = true;\n"
+            "    }\n"
+            "    if (!payload || typeof payload !== 'object') { markDirty(); return; }\n"
+            "    Object.keys(payload).forEach(function(key){\n"
+            "      if (typeof key !== 'string') { return; }\n"
+            "      var value = payload[key];\n"
+            "      if (value === null || value === undefined) {\n"
+            "        if (storage.getItem(key) !== null) {\n"
+            "          storage.removeItem(key);\n"
+            "        }\n"
+            "        return;\n"
+            "      }\n"
+            "      if (storage.getItem(key) !== String(value)) {\n"
+            "        storage.setItem(key, String(value));\n"
+            "      }\n"
+            "    });\n"
+            "    markDirty();\n"
+            "  } catch (e) {}\n"
+            "})();"
+        )
+
+        collection = self.web_profile.scripts()
+        if self.storage_bootstrap_script is not None:
+            collection.remove(self.storage_bootstrap_script)
+
+        script = QWebEngineScript()
+        script.setName("horosa-storage-bootstrap")
+        script.setWorldId(QWebEngineScript.MainWorld)
+        script.setInjectionPoint(QWebEngineScript.DocumentCreation)
+        script.setRunsOnSubFrames(False)
+        script.setSourceCode(script_source)
+        collection.insert(script)
+        self.storage_bootstrap_script = script
+
+    def _capture_browser_storage(self, wait: bool = False) -> None:
+        page = self.web_view.page() if self.web_view else None
+        if page is None:
+            return
+        capture_script = """
+            (() => {
+              try {
+                if (!window.localStorage) {
+                  return JSON.stringify({ dirty: false, items: {} });
+                }
+                const bridge = window.__horosaDesktopStorageBridge || (window.__horosaDesktopStorageBridge = {});
+                if (bridge.dirty === false) {
+                  return JSON.stringify({ dirty: false, items: null });
+                }
+                const out = {};
+                for (let i = 0; i < window.localStorage.length; i += 1) {
+                  const key = window.localStorage.key(i);
+                  if (!key) { continue; }
+                  out[key] = window.localStorage.getItem(key);
+                }
+                bridge.dirty = false;
+                bridge.lastFlushedAt = Date.now();
+                return JSON.stringify({ dirty: true, items: out });
+              } catch (error) {
+                return JSON.stringify({ dirty: false, items: {} });
+              }
+            })();
+        """
+        if not wait:
+            page.runJavaScript(capture_script, self._handle_browser_storage_snapshot)
+            return
+
+        loop = QEventLoop(self)
+        done = {"value": False}
+
+        def _finish_capture(result: object) -> None:
+            self._handle_browser_storage_snapshot(result)
+            done["value"] = True
+            if loop.isRunning():
+                loop.quit()
+
+        page.runJavaScript(capture_script, _finish_capture)
+        QTimer.singleShot(260, loop.quit)
+        loop.exec()
+
+    def _handle_browser_storage_snapshot(self, result: object) -> None:
+        if not result:
+            return
+        try:
+            parsed = json.loads(str(result))
+        except (TypeError, ValueError):
+            return
+        if not isinstance(parsed, dict):
+            return
+        if "items" in parsed:
+            if not parsed.get("dirty"):
+                return
+            parsed = parsed.get("items") or {}
+            if not isinstance(parsed, dict):
+                return
+
+        next_storage: dict[str, str] = {}
+        for key, value in parsed.items():
+            if not isinstance(key, str):
+                continue
+            if value is None:
+                continue
+            next_storage[key] = str(value)
+
+        if next_storage == self.persisted_browser_storage:
+            return
+
+        self.persisted_browser_storage = next_storage
+        self._save_persisted_browser_storage()
+        self._refresh_storage_bootstrap_script()
+
     def _build_menu(self) -> None:
         menu_bar = self.menuBar()
         menu_bar.setFont(self._make_ui_font(8.0, QFont.Weight.Medium))
@@ -1276,6 +1475,8 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentIndex(1)
             self.retry_button.hide()
             self.status_bar.showMessage(f"{DISPLAY_NAME} 已就绪。")
+            self.storage_capture_timer.start()
+            QTimer.singleShot(250, self._capture_browser_storage)
             if smoke_test_enabled():
                 smoke_dir = self.user_root / "runtime-logs"
                 smoke_dir.mkdir(parents=True, exist_ok=True)
@@ -1294,6 +1495,7 @@ class MainWindow(QMainWindow):
                 )
                 QTimer.singleShot(smoke_autoclose_seconds() * 1000, self.close)
         else:
+            self.storage_capture_timer.stop()
             self._show_startup_error("内嵌页面加载失败。")
 
     def _show_startup_error(self, message: str) -> None:
@@ -1410,9 +1612,15 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, DISPLAY_NAME, message)
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        self.storage_capture_timer.stop()
+        self._capture_browser_storage(wait=True)
         self._save_window_settings()
-        self.status_bar.showMessage(f"正在停止{DISPLAY_NAME}服务...")
-        self.launcher.stop()
+        if self.update_restart_requested or not self.current_url:
+            self.status_bar.showMessage(f"正在停止{DISPLAY_NAME}服务...")
+            self.launcher.stop(cleanup_services=True)
+        else:
+            self.status_bar.showMessage(f"{DISPLAY_NAME} 本地服务将保留在后台，便于下次快速启动。")
+            self.launcher.stop()
         super().closeEvent(event)
 
 

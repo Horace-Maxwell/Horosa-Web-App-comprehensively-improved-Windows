@@ -7,7 +7,7 @@ class ChuangChart {
 	constructor(option){
 		this.owner = option.owner;
 		this.chartObj = option.chartObj;
-		this.nongli = option.nongli;
+		this.nongli = option.nongli || {};
 		this.liuRengChart = option.liuRengChart;
 		this.ke = option.ke;
 		this.upZi = option.liuRengChart.upZi;
@@ -38,7 +38,13 @@ class ChuangChart {
 			.attr('x', this.x).attr('y', this.y)
 			.attr('width', this.width).attr('height', this.height);
 
+		if(!this.nongli || !this.nongli.dayGanZi || !this.ke || this.ke.length < 4){
+			return;
+		}
 		this.genCuangs();
+		if(!this.cuangs){
+			return;
+		}
 		this.drawCuangs();
 	}
 
@@ -110,7 +116,15 @@ class ChuangChart {
 	}
 
 	genCuangs(){
+		if(!this.nongli || !this.nongli.dayGanZi || !this.ke || this.ke.length < 4){
+			this.cuangs = null;
+			return;
+		}
 		let cuang = this.getSangCuang();
+		if(!cuang || !cuang.cuang || cuang.cuang.length < 3){
+			this.cuangs = null;
+			return;
+		}
 		let tj = [];
 		let liuqin = [];
 		let gan = this.nongli.dayGanZi.substr(0, 1);

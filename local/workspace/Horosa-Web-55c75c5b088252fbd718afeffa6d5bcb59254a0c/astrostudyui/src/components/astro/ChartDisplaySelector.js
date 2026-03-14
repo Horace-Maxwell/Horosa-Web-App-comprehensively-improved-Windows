@@ -67,6 +67,12 @@ class ChartDisplaySelector extends Component{
 			return;
 		}
 		const val = checked ? 1 : 0;
+		this.props.dispatch({
+			type: 'app/save',
+			payload: {
+				showOnlyRulExaltReception: val,
+			},
+		});
 		let flds = {
 			...(this.props.fields || {}),
 		};

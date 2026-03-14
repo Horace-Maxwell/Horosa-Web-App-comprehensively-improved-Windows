@@ -334,6 +334,55 @@ function buildTimeoutError(){
 	return err;
 }
 
+function isLocalRuntimeUrl(url){
+	if(!url){
+		return false;
+	}
+	const txt = `${url}`.toLowerCase();
+	return txt.indexOf('http://127.0.0.1:') === 0 || txt.indexOf('http://localhost:') === 0;
+}
+
+function isRetryableLocalRequestError(err){
+	if(!err){
+		return false;
+	}
+	if(isTimeoutLikeError(err)){
+		return true;
+	}
+	const msg = `${err.message || ''}`.toLowerCase();
+	return (
+		msg.indexOf('failed to fetch') >= 0 ||
+		msg.indexOf('networkerror') >= 0 ||
+		msg.indexOf('network request failed') >= 0 ||
+		msg.indexOf('load failed') >= 0 ||
+		msg.indexOf('fetch failed') >= 0 ||
+		msg.indexOf('err_connection_refused') >= 0 ||
+		msg.indexOf('connection refused') >= 0
+	);
+}
+
+async function fetchWithLocalRetry(url, opts, timeoutMs){
+	if(!isLocalRuntimeUrl(url)){
+		return fetchWithTimeout(url, opts, timeoutMs);
+	}
+	const maxAttempts = 8;
+	const retryDelays = [120, 180, 240, 320, 420, 560, 720];
+	let lastErr = null;
+	for(let attempt = 0; attempt < maxAttempts; attempt += 1){
+		try{
+			return await fetchWithTimeout(url, opts, timeoutMs);
+		}catch(err){
+			lastErr = err;
+			if(!isRetryableLocalRequestError(err) || attempt >= maxAttempts - 1){
+				throw err;
+			}
+			const delay = retryDelays[Math.min(attempt, retryDelays.length - 1)];
+			await new Promise((resolve)=>setTimeout(resolve, delay));
+		}
+	}
+	throw lastErr || buildTimeoutError();
+}
+
 function fetchWithTimeout(url, opts, timeoutMs){
 	const timeout = normalizeTimeoutMs(timeoutMs);
 	if(!timeout){
@@ -436,7 +485,7 @@ export default async function request(url, options) {
         opts.body = encrypt(opts.body);
     
         const st = new Date().getTime();
-        const response = await fetchWithTimeout(url, opts, timeoutMs);
+        const response = await fetchWithLocalRetry(url, opts, timeoutMs);
         const endt = new Date().getTime();
         const delta = endt - st;
         if(delta > 1000){
@@ -570,7 +619,7 @@ export async function requestRaw(url, options) {
         opts.body = encrypt(opts.body);
     
         const st = new Date().getTime();
-        const response = await fetchWithTimeout(url, opts, timeoutMs);
+        const response = await fetchWithLocalRetry(url, opts, timeoutMs);
         const endt = new Date().getTime();
         const delta = endt - st;
         if(delta > 1000){

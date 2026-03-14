@@ -53,7 +53,7 @@ async function requestSolarArcCached(params){
 	const req = request(`${Constants.ServerRoot}/predict/solararc`, {
 		body: JSON.stringify(params),
 	}).then((data)=>{
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		pushSolarArcCache(key, result);
 		return result;
 	}).finally(()=>{

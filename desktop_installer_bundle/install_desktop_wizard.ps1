@@ -361,7 +361,8 @@ function Copy-DirectoryTree {
   $sourceRootLong = Convert-ToLongPath $sourceRoot
   $destinationRootLong = Convert-ToLongPath $destinationRoot
 
-  foreach ($directory in [System.IO.Directory]::EnumerateDirectories($sourceRootLong, '*', [System.IO.SearchOption]::AllDirectories)) {
+  $directories = @([System.IO.Directory]::EnumerateDirectories($sourceRootLong, '*', [System.IO.SearchOption]::AllDirectories))
+  foreach ($directory in $directories) {
     $relativePath = $directory.Substring($sourceRootLong.Length).TrimStart('\')
     if ([string]::IsNullOrWhiteSpace($relativePath)) {
       continue
@@ -370,14 +371,37 @@ function Copy-DirectoryTree {
     [System.IO.Directory]::CreateDirectory($targetDirectory) | Out-Null
   }
 
-  foreach ($filePath in [System.IO.Directory]::EnumerateFiles($sourceRootLong, '*', [System.IO.SearchOption]::AllDirectories)) {
+  $files = @([System.IO.Directory]::EnumerateFiles($sourceRootLong, '*', [System.IO.SearchOption]::AllDirectories))
+  foreach ($filePath in $files) {
+    if (-not [System.IO.File]::Exists($filePath)) {
+      continue
+    }
     $relativePath = $filePath.Substring($sourceRootLong.Length).TrimStart('\')
     $targetPath = [System.IO.Path]::Combine($destinationRootLong, $relativePath)
-    $targetDirectory = Split-Path -Parent $targetPath
-    if ($targetDirectory) {
-      [System.IO.Directory]::CreateDirectory($targetDirectory) | Out-Null
+    $targetDirectory = [System.IO.Path]::GetDirectoryName($targetPath)
+    $copied = $false
+    $lastCopyError = $null
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+      try {
+        if (-not [System.IO.File]::Exists($filePath)) {
+          $copied = $true
+          break
+        }
+        if ($targetDirectory) {
+          [System.IO.Directory]::CreateDirectory($targetDirectory) | Out-Null
+        }
+        [System.IO.File]::Copy($filePath, $targetPath, $true)
+        $copied = $true
+        break
+      } catch {
+        $lastCopyError = $_
+        Start-Sleep -Milliseconds (80 * $attempt)
+      }
     }
-    [System.IO.File]::Copy($filePath, $targetPath, $true)
+
+    if (-not $copied) {
+      throw $lastCopyError
+    }
   }
 }
 

@@ -18,3 +18,122 @@
 	box-shadow: inset 0 0 6px rgba(0, 0, 0, .3);
 	background-color: #D2D7DD;
 }
+
+.primaryDirectionTable {
+	height: 100%;
+
+	:global(.ant-table-wrapper),
+	:global(.ant-spin-nested-loading),
+	:global(.ant-spin-container),
+	:global(.ant-table),
+	:global(.ant-table-container) {
+		height: 100%;
+	}
+
+	:global(.ant-table-body) {
+		height: var(--pd-table-body-height);
+		min-height: var(--pd-table-body-height);
+		max-height: var(--pd-table-body-height) !important;
+	}
+
+	:global(.ant-table-pagination.ant-pagination) {
+		margin-bottom: 0;
+	}
+}
+
+.cnYiBuTabs {
+	display: flex !important;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+
+	:global(.ant-tabs-nav) {
+		flex: 0 0 auto;
+		position: relative;
+		z-index: 16;
+		background-color: #fff;
+	}
+
+	:global(.ant-tabs-content-holder) {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+
+	:global(.ant-tabs-nav-wrap),
+	:global(.ant-tabs-tab),
+	:global(.ant-tabs-tab-btn) {
+		pointer-events: auto;
+	}
+
+	:global(.ant-tabs-content-holder),
+	:global(.ant-tabs-content),
+	:global(.ant-tabs-tabpane) {
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
+	}
+}
+
+.cnYiBuDock {
+	display: flex;
+	height: 100%;
+	min-height: 0;
+	gap: 14px;
+}
+
+.cnYiBuContent {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	position: relative;
+	overflow: hidden;
+}
+
+.cnYiBuPane {
+	position: absolute;
+	inset: 0;
+	display: none;
+	min-height: 0;
+}
+
+.cnYiBuPaneActive {
+	display: block;
+}
+
+.cnYiBuSideNav {
+	flex: 0 0 112px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding-top: 2px;
+	padding-right: 6px;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.cnYiBuNavButton {
+	border: none;
+	background: transparent;
+	text-align: left;
+	padding: 8px 10px;
+	border-radius: 10px;
+	color: #334155;
+	font-size: 14px;
+	line-height: 22px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cnYiBuNavButton:hover {
+	background: rgba(30, 64, 175, 0.06);
+	color: #0f172a;
+}
+
+.cnYiBuNavButtonActive {
+	background: rgba(37, 99, 235, 0.08);
+	color: #2563eb;
+	box-shadow: inset 2px 0 0 #2563eb;
+	font-weight: 700;
+}

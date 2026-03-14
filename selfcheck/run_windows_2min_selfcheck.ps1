@@ -22,10 +22,15 @@ try {
   Write-Host '[1/2] Starting local audit runtime...'
   $startLog = Join-Path $RunRoot 'start-runtime.log'
   $startErr = Join-Path $RunRoot 'start-runtime.err.log'
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'tmp_start_runtime_for_audit.ps1') 1> $startLog 2> $startErr
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'start_runtime_for_audit.ps1') 1> $startLog 2> $startErr
   if ($LASTEXITCODE -ne 0) {
     throw "Runtime start failed. See $startLog and $startErr"
   }
+  $startInfo = Get-Content $startLog -Raw | ConvertFrom-Json
+  if ([string]::IsNullOrWhiteSpace([string]$startInfo.readyUrl)) {
+    throw "Runtime start did not report a readyUrl. See $startLog"
+  }
+  $env:HOROSA_APP_URL = [string]$startInfo.readyUrl
 
   Write-Host '[2/2] Running fast UI smoke...'
   $uiLog = Join-Path $RunRoot 'ui-fast-smoke.json'
@@ -66,7 +71,7 @@ catch {
 finally {
   if (-not $KeepRuntime) {
     try {
-      & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'tmp_stop_runtime_for_audit.ps1') | Out-Null
+      & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'stop_runtime_for_audit.ps1') | Out-Null
     } catch {
     }
   }

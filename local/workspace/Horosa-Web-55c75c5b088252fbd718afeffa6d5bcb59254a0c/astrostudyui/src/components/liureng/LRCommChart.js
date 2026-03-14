@@ -11,7 +11,7 @@ class LRCommChart {
 		this.fields = option.fields;
 		this.chartObj = option.chartObj;
 		this.yue = option.yue;
-		this.nongli = option.nongli;
+		this.nongli = option.nongli || {};
 		this.guireng = option.guireng;
 
 		this.x = option.x;
@@ -39,7 +39,8 @@ class LRCommChart {
 			AstroConst.AstroChartFont,
 			AstroConst.NormalFont,
 		];
-		this.timezi = this.nongli.time.substr(1);
+		const nongliTime = this.nongli && typeof this.nongli.time === 'string' ? this.nongli.time : '';
+		this.timezi = nongliTime.length > 1 ? nongliTime.substr(1) : '';
 		this.yueIndexs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 		this.tianJiangColor = LRConst.LRColor.tianJiangColor;
 		this.houseTianJiang = LRConst.TianJiang.slice(0);
@@ -61,6 +62,9 @@ class LRCommChart {
 	genYueJiangIndex(){
 		let yueIdx = LRConst.ZiList.indexOf(this.yue);
 		let tmIdx = LRConst.ZiList.indexOf(this.timezi);
+		if(yueIdx < 0 || tmIdx < 0){
+			return;
+		}
 		let delta = yueIdx - tmIdx;
 		for(let i=0; i<12; i++){
 			let idx = (i + delta + 12) % 12;
@@ -94,6 +98,9 @@ class LRCommChart {
 	}
 
 	getKe(){
+		if(!this.chartObj || !this.chartObj.nongli || !this.chartObj.nongli.dayGanZi){
+			return [];
+		}
 		let daygan = this.chartObj.nongli.dayGanZi.substr(0, 1);
 		let ganjizi = LRConst.GanJiZi[daygan];
 		let idx = this.downZi.indexOf(ganjizi);

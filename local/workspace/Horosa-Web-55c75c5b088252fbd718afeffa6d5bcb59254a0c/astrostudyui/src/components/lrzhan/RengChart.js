@@ -74,6 +74,10 @@ class RengChart {
 
 	set chart(chartobj){
 		this.chartObj = chartobj;
+		this.yue = null;
+		if(!chartobj || !chartobj.objects){
+			return;
+		}
 		for(let i=0; i<chartobj.objects.length; i++){
 			let obj = chartobj.objects[i];
 			if(obj.id === AstroConst.SUN){
@@ -84,7 +88,13 @@ class RengChart {
 	}
 
 	draw(){
-		if(this.chartObj === undefined || this.chartObj === null){
+		if(
+			this.chartObj === undefined ||
+			this.chartObj === null ||
+			!this.chartObj.nongli ||
+			!this.chartObj.nongli.time ||
+			!this.chartObj.nongli.dayGanZi
+		){
 			return null;
 		}
 		let svgdom = document.getElementById(this.chartId); 

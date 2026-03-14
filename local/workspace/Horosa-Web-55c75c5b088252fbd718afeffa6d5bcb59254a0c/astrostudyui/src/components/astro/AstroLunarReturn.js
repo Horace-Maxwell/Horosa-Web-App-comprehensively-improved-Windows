@@ -56,7 +56,7 @@ async function requestLunarReturnCached(params){
 	const req = request(`${Constants.ServerRoot}/predict/lunarreturn`, {
 		body: JSON.stringify(params),
 	}).then((data)=>{
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		pushLunarReturnCache(key, result);
 		return result;
 	}).finally(()=>{
@@ -229,7 +229,7 @@ class AstroLunarReturn extends Component{
 				datetime: dt,
 			},
 		};
-		if(result.secLuneReturn){
+		if(result && result.secLuneReturn){
 			st.secDirChart = result.secLuneReturn;
 		}else{
 			st.secDirChart = null;

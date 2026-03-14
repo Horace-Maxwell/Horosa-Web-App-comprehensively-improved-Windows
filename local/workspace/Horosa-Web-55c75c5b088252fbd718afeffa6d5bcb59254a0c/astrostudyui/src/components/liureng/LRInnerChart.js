@@ -11,7 +11,7 @@ class LRInnerChart {
 		this.fields = option.fields;
 		this.chartObj = option.chartObj;
 		this.timezi = option.timezi;
-		this.nongli = option.nongli;
+		this.nongli = option.nongli || {};
 		this.cuangName = null;
 
 
@@ -210,7 +210,7 @@ class LRInnerChart {
 	drawCenterHouse(ord){
 		let house = this.drawHouse(ord);
 		this.houses[12] = house;
-		if(this.cuangName === undefined || this.cuangName === null){
+		if(this.cuangName === undefined || this.cuangName === null || !this.nongli || !this.nongli.dayGanZi){
 			return;
 		}
 

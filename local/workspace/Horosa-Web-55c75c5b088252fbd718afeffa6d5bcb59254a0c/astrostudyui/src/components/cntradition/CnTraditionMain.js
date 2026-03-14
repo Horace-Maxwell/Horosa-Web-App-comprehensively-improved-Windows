@@ -120,7 +120,7 @@ class CnTraditionMain extends Component{
 
 	componentDidUpdate(prevProps){
 		if(prevProps.currentSubTab !== this.props.currentSubTab){
-			const nextTab = this.props.currentSubTab || 'bazi';
+			const nextTab = CN_TRADITION_TAB_KEYS.indexOf(this.props.currentSubTab) >= 0 ? this.props.currentSubTab : 'bazi';
 			if(nextTab !== this.state.currentTab){
 				this.setState({
 					currentTab: nextTab,

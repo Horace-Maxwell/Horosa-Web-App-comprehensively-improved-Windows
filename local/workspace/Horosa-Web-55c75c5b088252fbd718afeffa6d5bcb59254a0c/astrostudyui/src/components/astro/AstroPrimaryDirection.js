@@ -41,10 +41,17 @@ class AstroPrimaryDirection extends Component{
 			pdMethodValue: props.pdMethod ? props.pdMethod : 'astroapp_alchabitius',
 			pdTimeKeyValue: props.pdTimeKey ? props.pdTimeKey : 'Ptolemy',
 			page: 1,
-			pageSize: 12,
+			pageSize: 20,
+			hostHeight: 0,
+			tableBodyHeight: 360,
 		}
 
 		this.searchInput = null;
+		this.rootHost = null;
+		this.controlsHost = null;
+		this.tableWrapHost = null;
+		this.resizeObserver = null;
+		this.layoutRefreshTimer = null;
 
 		this.convertToDataSource = this.convertToDataSource.bind(this);
 		this.convertText = this.convertText.bind(this);
@@ -74,12 +81,34 @@ class AstroPrimaryDirection extends Component{
 		this.getSelectedPdMethod = this.getSelectedPdMethod.bind(this);
 		this.getSelectedPdTimeKey = this.getSelectedPdTimeKey.bind(this);
 		this.getAppliedPdState = this.getAppliedPdState.bind(this);
+		this.captureRootHost = this.captureRootHost.bind(this);
+		this.captureControlsHost = this.captureControlsHost.bind(this);
+		this.captureTableWrapHost = this.captureTableWrapHost.bind(this);
+		this.queueTableLayoutRefresh = this.queueTableLayoutRefresh.bind(this);
+		this.refreshTableLayout = this.refreshTableLayout.bind(this);
 
 			this.objs = AstroConst.LIST_OBJECTS.slice(0);
 			this.objs.push(AstroConst.ASC);
 			this.objs.push(AstroConst.MC);
 
 		}
+
+	componentDidMount(){
+		if(typeof window !== 'undefined'){
+			window.addEventListener('resize', this.queueTableLayoutRefresh);
+		}
+		if(typeof ResizeObserver !== 'undefined'){
+			this.resizeObserver = new ResizeObserver(()=>{
+				this.queueTableLayoutRefresh();
+			});
+			[this.rootHost, this.controlsHost, this.tableWrapHost].forEach((node)=>{
+				if(node){
+					this.resizeObserver.observe(node);
+				}
+			});
+		}
+		this.queueTableLayoutRefresh();
+	}
 
 	componentDidUpdate(prevProps){
 		const nextMethod = this.normalizePdMethod(this.props.pdMethod);
@@ -88,6 +117,97 @@ class AstroPrimaryDirection extends Component{
 			this.setState({
 				pdMethodValue: nextMethod,
 				pdTimeKeyValue: nextTimeKey,
+			});
+		}
+		if(
+			prevProps.height !== this.props.height ||
+			prevProps.value !== this.props.value ||
+			prevProps.showPdBounds !== this.props.showPdBounds
+		){
+			this.queueTableLayoutRefresh();
+		}
+	}
+
+	componentWillUnmount(){
+		if(typeof window !== 'undefined'){
+			window.removeEventListener('resize', this.queueTableLayoutRefresh);
+		}
+		if(this.resizeObserver){
+			try{
+				this.resizeObserver.disconnect();
+			}catch(e){}
+			this.resizeObserver = null;
+		}
+		if(this.layoutRefreshTimer){
+			clearTimeout(this.layoutRefreshTimer);
+			this.layoutRefreshTimer = null;
+		}
+	}
+
+	captureRootHost(node){
+		this.rootHost = node || null;
+		if(this.resizeObserver && node){
+			try{
+				this.resizeObserver.observe(node);
+			}catch(e){}
+		}
+		this.queueTableLayoutRefresh();
+	}
+
+	captureControlsHost(node){
+		this.controlsHost = node || null;
+		if(this.resizeObserver && node){
+			try{
+				this.resizeObserver.observe(node);
+			}catch(e){}
+		}
+		this.queueTableLayoutRefresh();
+	}
+
+	captureTableWrapHost(node){
+		this.tableWrapHost = node || null;
+		if(this.resizeObserver && node){
+			try{
+				this.resizeObserver.observe(node);
+			}catch(e){}
+		}
+		this.queueTableLayoutRefresh();
+	}
+
+	queueTableLayoutRefresh(){
+		if(this.layoutRefreshTimer){
+			clearTimeout(this.layoutRefreshTimer);
+		}
+		this.layoutRefreshTimer = setTimeout(()=>{
+			this.layoutRefreshTimer = null;
+			this.refreshTableLayout();
+		}, 0);
+	}
+
+	refreshTableLayout(){
+		const viewportHeight = typeof document !== 'undefined' && document.documentElement
+			? document.documentElement.clientHeight
+			: 980;
+		const rootRect = this.rootHost ? this.rootHost.getBoundingClientRect() : null;
+		const rootTop = rootRect && Number.isFinite(rootRect.top) ? Math.max(0, rootRect.top) : 110;
+		let hostHeight = this.props.height ? this.props.height : viewportHeight - 36;
+		const viewportLimitedHeight = Math.max(560, viewportHeight - rootTop - 8);
+		hostHeight = Math.max(520, Math.min(hostHeight, viewportLimitedHeight));
+		const controlsHeight = this.controlsHost ? this.controlsHost.getBoundingClientRect().height : 52;
+		const tableWrapHeight = this.tableWrapHost ? this.tableWrapHost.getBoundingClientRect().height : (hostHeight - controlsHeight - 12);
+		const paginationReserve = 34;
+		const bottomBreathing = 8;
+		const nextBodyHeight = Math.max(
+			470,
+			Math.round(tableWrapHeight - paginationReserve - bottomBreathing)
+		);
+		if(
+			Math.abs((this.state.tableBodyHeight || 0) - nextBodyHeight) >= 2 ||
+			Math.abs((this.state.hostHeight || 0) - hostHeight) >= 2
+		){
+			this.setState({
+				hostHeight,
+				tableBodyHeight: nextBodyHeight,
 			});
 		}
 	}
@@ -495,24 +615,33 @@ class AstroPrimaryDirection extends Component{
 		const compactControls = viewportWidth < 1280;
 		const stackedControls = viewportWidth < 920;
 
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 50;
-		const controlHeight = stackedControls ? 110 : (compactControls ? 82 : 54);
-		const controlBottom = 10;
-		const tableReserve = controlHeight + controlBottom + 126;
-		let tblY = height - tableReserve;
-		if(tblY < 200){
-			tblY = 200;
+		let height = this.state.hostHeight || this.props.height || (document.documentElement.clientHeight - 36);
+		const viewportHeight = typeof document !== 'undefined' && document.documentElement
+			? document.documentElement.clientHeight
+			: 980;
+		const boundedHeight = Math.max(560, Math.min(height, viewportHeight - 6));
+		const controlHeight = stackedControls ? 102 : (compactControls ? 74 : 48);
+		const controlBottom = 8;
+		const paginationReserve = 34;
+		const tableBottomGap = 8;
+		const tableReserve = controlHeight + controlBottom + paginationReserve + tableBottomGap;
+		let tblY = this.state.tableBodyHeight || (boundedHeight - tableReserve);
+		if(tblY < 470){
+			tblY = 470;
 		}
 
 		let style = {
-			height: height,
+			height: boundedHeight,
 			overflow: 'hidden',
 			display: 'flex',
 			flexDirection: 'column',
 		};
 		let tableWrapStyle = {
 			flex: '1 1 auto',
+			height: '100%',
 			minHeight: 0,
+			paddingBottom: tableBottomGap,
+			'--pd-table-body-height': `${tblY}px`,
 		};
 
 		let dsres = this.convertToDataSource(pds);
@@ -623,8 +752,9 @@ class AstroPrimaryDirection extends Component{
 
 		
 		return (
-			<div className={styles.scrollbar} style={style}>
-				<Row gutter={[8, 8]} style={{marginBottom: controlBottom, flex: '0 0 auto'}}>
+			<div className={styles.scrollbar} style={style} ref={this.captureRootHost}>
+				<div ref={this.captureControlsHost} style={{flex: '0 0 auto'}}>
+				<Row gutter={[8, 8]} style={{marginBottom: controlBottom}}>
 					<Col xs={24} md={12} lg={8}>
 						<div style={controlBoxStyle}>
 							<span style={labelStyle}>推运方法</span>
@@ -664,9 +794,11 @@ class AstroPrimaryDirection extends Component{
 						</Button>
 					</Col>
 				</Row>
-				<div style={tableWrapStyle}>
+				</div>
+				<div style={tableWrapStyle} ref={this.captureTableWrapHost}>
 					<Table
 						key={tableKey}
+						className={styles.primaryDirectionTable}
 						dataSource={pagedDs} columns={columns} 
 						rowKey='Seq'  
 						pagination={{

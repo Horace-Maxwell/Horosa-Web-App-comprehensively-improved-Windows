@@ -263,16 +263,198 @@ $UserHomeDir = if (-not [string]::IsNullOrWhiteSpace($env:HOME)) {
   $ProjectDir
 }
 $env:HOME = $UserHomeDir
+$LaunchStateDir = Join-Path $UserHomeDir '.horosa-desktop'
+$PortLayoutStateFile = Join-Path $LaunchStateDir 'port-layout.json'
+$RuntimeValidationStateFile = Join-Path $LaunchStateDir 'runtime-validation.json'
+$StackStateFile = Join-Path $LaunchStateDir 'runtime-stack.json'
 $HorosaLogBaseDir = Join-Path $UserHomeDir '.horosa-logs/astrostudyboot'
+$StartupTimer = [System.Diagnostics.Stopwatch]::StartNew()
+$PersistServices = (
+  $env:HOROSA_PERSIST_STACK -eq '1' -and
+  $env:HOROSA_SMOKE_TEST -ne '1'
+)
+$SkipCleanup = $false
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $IssueSummaryFile) | Out-Null
-if ($env:HOROSA_KEEP_BROWSER_PROFILE -ne '1') {
-  if (Test-Path $BrowserProfile) {
-    Remove-Item -Recurse -Force $BrowserProfile -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $LaunchStateDir | Out-Null
+New-Item -ItemType Directory -Force -Path $BrowserProfile | Out-Null
+
+function Write-StartupCheckpoint {
+  param([string]$Label)
+  if ([string]::IsNullOrWhiteSpace($Label)) { return }
+  Write-Host ("[STARTUP] {0} at {1}ms" -f $Label, [int]$StartupTimer.ElapsedMilliseconds)
+}
+
+function Get-FileSignature {
+  param([string]$Path)
+
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  if (-not (Test-Path $Path -PathType Leaf)) { return $null }
+
+  try {
+    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    return [pscustomobject]@{
+      Path = $item.FullName
+      Length = [int64]$item.Length
+      LastWriteTicksUtc = [int64]$item.LastWriteTimeUtc.Ticks
+    }
+  } catch {
+    return $null
   }
 }
-New-Item -ItemType Directory -Force -Path $BrowserProfile | Out-Null
+
+function Get-RuntimeValidationState {
+  if (-not (Test-Path $RuntimeValidationStateFile -PathType Leaf)) {
+    return $null
+  }
+
+  try {
+    $raw = [System.IO.File]::ReadAllText($RuntimeValidationStateFile, [System.Text.Encoding]::UTF8)
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+      return $null
+    }
+    return ($raw | ConvertFrom-Json)
+  } catch {
+    Write-Host ("[WARN] Failed to read runtime validation cache: {0}" -f $_.Exception.Message)
+    return $null
+  }
+}
+
+function Save-RuntimeValidationState {
+  param([psobject]$State)
+
+  if (-not $State) { return }
+  try {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $payload = $State | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText($RuntimeValidationStateFile, $payload, $utf8NoBom)
+  } catch {
+    Write-Host ("[WARN] Failed to write runtime validation cache: {0}" -f $_.Exception.Message)
+  }
+}
+
+function Get-StackState {
+  if (-not (Test-Path $StackStateFile -PathType Leaf)) {
+    return $null
+  }
+
+  try {
+    $raw = [System.IO.File]::ReadAllText($StackStateFile, [System.Text.Encoding]::UTF8)
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+      return $null
+    }
+    return ($raw | ConvertFrom-Json)
+  } catch {
+    Write-Host ("[WARN] Failed to read runtime stack cache: {0}" -f $_.Exception.Message)
+    return $null
+  }
+}
+
+function Save-StackState {
+  param([psobject]$State)
+
+  if (-not $State) { return }
+  try {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $payload = $State | ConvertTo-Json -Depth 6
+    [System.IO.File]::WriteAllText($StackStateFile, $payload, $utf8NoBom)
+  } catch {
+    Write-Host ("[WARN] Failed to write runtime stack cache: {0}" -f $_.Exception.Message)
+  }
+}
+
+function Clear-StackState {
+  if (Test-Path $StackStateFile -PathType Leaf) {
+    try {
+      Remove-Item -LiteralPath $StackStateFile -Force -ErrorAction Stop
+    } catch {
+      Write-Host ("[WARN] Failed to clear runtime stack cache: {0}" -f $_.Exception.Message)
+    }
+  }
+}
+
+function Test-ValidationSignatureMatch {
+  param(
+    [psobject]$Saved,
+    [psobject]$Current
+  )
+
+  if (-not $Saved -or -not $Current) { return $false }
+  return (
+    "$($Saved.Path)" -eq "$($Current.Path)" -and
+    [int64]$Saved.Length -eq [int64]$Current.Length -and
+    [int64]$Saved.LastWriteTicksUtc -eq [int64]$Current.LastWriteTicksUtc
+  )
+}
+
+function Test-CachedPythonDepsValidation {
+  param(
+    [string]$PythonExe,
+    [string]$ProjectRoot
+  )
+
+  if (-not $PerfMode) { return $false }
+  $state = Get-RuntimeValidationState
+  if (-not $state) { return $false }
+  $entryProp = $state.PSObject.Properties['PythonDeps']
+  if (-not $entryProp) { return $false }
+
+  $entry = $entryProp.Value
+  if ("$($entry.ProjectRoot)" -ne "$ProjectRoot") { return $false }
+  $currentSignature = Get-FileSignature -Path $PythonExe
+  if (-not $currentSignature) { return $false }
+  return (Test-ValidationSignatureMatch -Saved $entry.PythonExe -Current $currentSignature)
+}
+
+function Save-CachedPythonDepsValidation {
+  param(
+    [string]$PythonExe,
+    [string]$ProjectRoot
+  )
+
+  $signature = Get-FileSignature -Path $PythonExe
+  if (-not $signature) { return }
+  $state = Get-RuntimeValidationState
+  if (-not $state) {
+    $state = [pscustomobject]@{}
+  }
+  $state | Add-Member -NotePropertyName PythonDeps -NotePropertyValue ([pscustomobject]@{
+    ProjectRoot = $ProjectRoot
+    PythonExe = $signature
+    SavedAt = (Get-Date).ToString('o')
+  }) -Force
+  Save-RuntimeValidationState -State $state
+}
+
+function Test-CachedBackendJarValidation {
+  param([string]$BackendJarPath)
+
+  if (-not $PerfMode) { return $false }
+  $state = Get-RuntimeValidationState
+  if (-not $state) { return $false }
+  $entryProp = $state.PSObject.Properties['BackendJar']
+  if (-not $entryProp) { return $false }
+  $currentSignature = Get-FileSignature -Path $BackendJarPath
+  if (-not $currentSignature) { return $false }
+  return (Test-ValidationSignatureMatch -Saved $entryProp.Value.JarFile -Current $currentSignature)
+}
+
+function Save-CachedBackendJarValidation {
+  param([string]$BackendJarPath)
+
+  $signature = Get-FileSignature -Path $BackendJarPath
+  if (-not $signature) { return }
+  $state = Get-RuntimeValidationState
+  if (-not $state) {
+    $state = [pscustomobject]@{}
+  }
+  $state | Add-Member -NotePropertyName BackendJar -NotePropertyValue ([pscustomobject]@{
+    JarFile = $signature
+    SavedAt = (Get-Date).ToString('o')
+  }) -Force
+  Save-RuntimeValidationState -State $state
+}
 
 function Get-EnvPortOrDefault {
   param(
@@ -312,12 +494,17 @@ function Get-RandomPreferredWebPort {
 }
 
 function Test-PortOpen {
-  param([int]$Port)
+  param(
+    [int]$Port,
+    [int]$TimeoutMs = 80
+  )
   $client = $null
   try {
     $client = New-Object System.Net.Sockets.TcpClient
     $iar = $client.BeginConnect('127.0.0.1', $Port, $null, $null)
-    $ok = $iar.AsyncWaitHandle.WaitOne(300)
+    $waitMs = $TimeoutMs
+    if ($waitMs -lt 10) { $waitMs = 10 }
+    $ok = $iar.AsyncWaitHandle.WaitOne($waitMs)
     if (-not $ok) { return $false }
     $client.EndConnect($iar) | Out-Null
     return $true
@@ -335,11 +522,11 @@ function Wait-PortFree {
   )
   $elapsed = 0
   while ($elapsed -lt $TimeoutMs) {
-    if (-not (Test-PortOpen -Port $Port)) { return $true }
+    if (-not (Test-PortOpen -Port $Port -TimeoutMs 60)) { return $true }
     Start-Sleep -Milliseconds 200
     $elapsed += 200
   }
-  return (-not (Test-PortOpen -Port $Port))
+  return (-not (Test-PortOpen -Port $Port -TimeoutMs 60))
 }
 
 function Get-ListeningOwningProcesses {
@@ -378,6 +565,7 @@ function Test-ProcessOwnedByProject {
   if ([string]::IsNullOrWhiteSpace($cmdline)) {
     return $false
   }
+  $normalizedCmdline = $cmdline.Replace('\\\\', '\')
 
   $markers = @(
     (Join-Path $ProjectDir 'astropy\websrv\webchartsrv.py'),
@@ -388,7 +576,10 @@ function Test-ProcessOwnedByProject {
   ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
   foreach ($marker in $markers) {
-    if ($cmdline.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    if (
+      $cmdline.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+      $normalizedCmdline.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    ) {
       return $true
     }
   }
@@ -506,6 +697,184 @@ function Resolve-PortLayout {
   throw "Unable to find an available port layout starting from web=$PreferredWebPort chart=$PreferredChartPort backend=$PreferredBackendPort"
 }
 
+function Get-SavedPortLayout {
+  if (-not (Test-Path $PortLayoutStateFile)) {
+    return $null
+  }
+
+  try {
+    $raw = [System.IO.File]::ReadAllText($PortLayoutStateFile, [System.Text.Encoding]::UTF8)
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+      return $null
+    }
+    $saved = $raw | ConvertFrom-Json
+    $web = 0
+    $chart = 0
+    $backend = 0
+    if (
+      [int]::TryParse("$($saved.WebPort)", [ref]$web) -and
+      [int]::TryParse("$($saved.ChartPort)", [ref]$chart) -and
+      [int]::TryParse("$($saved.BackendPort)", [ref]$backend) -and
+      $web -ge 1 -and $web -le 65535 -and
+      $chart -ge 1 -and $chart -le 65535 -and
+      $backend -ge 1 -and $backend -le 65535
+    ) {
+      return [pscustomobject]@{
+        WebPort = $web
+        ChartPort = $chart
+        BackendPort = $backend
+      }
+    }
+  } catch {
+    Write-Host ("[WARN] Failed to read saved port layout: {0}" -f $_.Exception.Message)
+  }
+
+  return $null
+}
+
+function Save-PortLayout {
+  param(
+    [int]$WebPort,
+    [int]$ChartPort,
+    [int]$BackendPort
+  )
+
+  try {
+    $payload = [pscustomobject]@{
+      WebPort = $WebPort
+      ChartPort = $ChartPort
+      BackendPort = $BackendPort
+      SavedAt = (Get-Date).ToString('o')
+    } | ConvertTo-Json -Depth 3
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($PortLayoutStateFile, $payload, $utf8NoBom)
+  } catch {
+    Write-Host ("[WARN] Failed to persist port layout: {0}" -f $_.Exception.Message)
+  }
+}
+
+function Sync-PortLayout {
+  param(
+    [int]$WebPort,
+    [int]$ChartPort,
+    [int]$BackendPort
+  )
+
+  if ($webPortPinned -or $backendPortPinned -or $chartPortPinned) {
+    return
+  }
+
+  Save-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
+}
+
+function Build-LaunchUrl {
+  param(
+    [int]$WebPort,
+    [int]$BackendPort
+  )
+
+  $serverRoot = "http://127.0.0.1:$BackendPort"
+  $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
+  return "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot"
+}
+
+function Test-HttpReady {
+  param(
+    [string]$Url,
+    [int]$TimeoutMs = 1800
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Url)) { return $false }
+
+  $response = $null
+  try {
+    $request = [System.Net.HttpWebRequest]::Create($Url)
+    $request.Method = 'GET'
+    $request.Timeout = $TimeoutMs
+    $request.ReadWriteTimeout = $TimeoutMs
+    $request.Proxy = $null
+    $request.KeepAlive = $false
+    $response = $request.GetResponse()
+    return $true
+  } catch {
+    return $false
+  } finally {
+    if ($response) {
+      try { $response.Close() } catch {}
+    }
+  }
+}
+
+function Get-CurrentStackSignature {
+  param(
+    [string]$ProjectRoot,
+    [string]$BackendJarPath,
+    [string]$FrontendDir
+  )
+
+  return [pscustomobject]@{
+    ProjectRoot = $ProjectRoot
+    ChartScript = Get-FileSignature -Path (Join-Path $ProjectRoot 'astropy\websrv\webchartsrv.py')
+    BackendJar = Get-FileSignature -Path $BackendJarPath
+    FrontendIndex = Get-FileSignature -Path (Join-Path $FrontendDir 'index.html')
+  }
+}
+
+function Test-StackSignatureMatch {
+  param(
+    [psobject]$Saved,
+    [psobject]$Current
+  )
+
+  if (-not $Saved -or -not $Current) { return $false }
+  if ("$($Saved.ProjectRoot)" -ne "$($Current.ProjectRoot)") { return $false }
+
+  return (
+    (Test-ValidationSignatureMatch -Saved $Saved.ChartScript -Current $Current.ChartScript) -and
+    (Test-ValidationSignatureMatch -Saved $Saved.BackendJar -Current $Current.BackendJar) -and
+    (Test-ValidationSignatureMatch -Saved $Saved.FrontendIndex -Current $Current.FrontendIndex)
+  )
+}
+
+function Test-ReusableRuntimeStack {
+  param(
+    [psobject]$ExpectedSignature,
+    [int]$WebPort,
+    [int]$ChartPort,
+    [int]$BackendPort
+  )
+
+  $state = Get-StackState
+  if (-not $state) { return $false }
+  if ([int]$state.WebPort -ne $WebPort -or [int]$state.ChartPort -ne $ChartPort -or [int]$state.BackendPort -ne $BackendPort) {
+    return $false
+  }
+  if (-not (Test-StackSignatureMatch -Saved $state.Signature -Current $ExpectedSignature)) {
+    return $false
+  }
+
+  $ports = @($WebPort, $ChartPort, $BackendPort)
+  $launchUrl = Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort
+
+  for ($attempt = 0; $attempt -lt 16; $attempt++) {
+    $allPortsReady = $true
+    foreach ($port in $ports) {
+      if (-not (Test-PortOpen -Port $port)) {
+        $allPortsReady = $false
+        break
+      }
+    }
+
+    if ($allPortsReady -and (Test-HttpReady -Url $launchUrl -TimeoutMs 650)) {
+      return $true
+    }
+
+    Start-Sleep -Milliseconds 250
+  }
+
+  return $false
+}
+
 function Get-PidFromFile {
   param([string]$Path)
   if (-not (Test-Path $Path)) { return $null }
@@ -561,6 +930,7 @@ function Stop-PortOwners {
 }
 
 function Cleanup-All {
+  Clear-StackState
   Stop-PidFile -Name 'web' -Path $WebPidFile
   Stop-PidFile -Name 'java' -Path $JavaPidFile
   Stop-PidFile -Name 'python' -Path $PyPidFile
@@ -1869,6 +2239,12 @@ function Ensure-PythonRuntimeDeps {
     [string]$PythonExe,
     [string]$ProjectRoot
   )
+  if ($InstalledPackageMode) {
+    Write-Host 'Installed package mode using bundled Python dependencies.'
+    Save-CachedPythonDepsValidation -PythonExe $PythonExe -ProjectRoot $ProjectRoot
+    return $true
+  }
+
   $checkDeps = {
     param([string]$Exe, [string]$ProjRoot)
     try {
@@ -1894,9 +2270,15 @@ function Ensure-PythonRuntimeDeps {
     }
   }
 
+  if (Test-CachedPythonDepsValidation -PythonExe $PythonExe -ProjectRoot $ProjectRoot) {
+    Write-Host 'Python dependency cache hit, skip validation.'
+    return $true
+  }
+
   try {
     if (& $checkDeps $PythonExe $ProjectRoot) {
       Write-Host 'Python dependencies already satisfied, skip install.'
+      Save-CachedPythonDepsValidation -PythonExe $PythonExe -ProjectRoot $ProjectRoot
       return $true
     }
   } catch {
@@ -1917,6 +2299,7 @@ function Ensure-PythonRuntimeDeps {
   ) | Select-Object -Unique
   foreach ($wheelDir in $wheelDirs) {
     if (& $installFromWheelDir $PythonExe $wheelDir $ProjectRoot) {
+      Save-CachedPythonDepsValidation -PythonExe $PythonExe -ProjectRoot $ProjectRoot
       return $true
     }
   }
@@ -1946,7 +2329,11 @@ function Ensure-PythonRuntimeDeps {
 
     & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
-    return (& $checkDeps $PythonExe $ProjectRoot)
+    $ready = (& $checkDeps $PythonExe $ProjectRoot)
+    if ($ready) {
+      Save-CachedPythonDepsValidation -PythonExe $PythonExe -ProjectRoot $ProjectRoot
+    }
+    return $ready
   } catch {
     Write-Host ("Python dependency install failed: {0}" -f $_.Exception.Message)
     return $false
@@ -2065,6 +2452,12 @@ function Ensure-BackendJar {
     (Join-Path $CommonBundleRoot 'astrostudyboot.jar')
   ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
+  if (Test-CachedBackendJarValidation -BackendJarPath $JarPath) {
+    Write-Host ("[OK] Backend jar cache hit: {0}" -f $JarPath)
+    $script:JarSource = 'cache'
+    return $true
+  }
+
   if ($InstalledPackageMode -and $env:HOROSA_ALLOW_LOCAL_BACKEND_REBUILD -ne '1') {
     foreach ($src in $bundledJarSources) {
       if (-not (Test-Path $src -PathType Leaf)) { continue }
@@ -2073,19 +2466,13 @@ function Ensure-BackendJar {
         continue
       }
 
-      try {
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $JarPath) | Out-Null
-        Copy-Item -Path $src -Destination $JarPath -Force
-      } catch {
-        Write-Host ("[WARN] Installed package mode failed to restore backend jar from {0}: {1}" -f $src, $_.Exception.Message)
-        continue
-      }
-
-      if (Test-JarFileLooksValid -Path $JarPath) {
-        Write-Host ("[OK] Installed package mode restored backend jar from bundled asset: {0}" -f $src)
-        $script:JarSource = 'bundle'
-        return $true
-      }
+      # In packaged installs, the bundled jar is already in a stable location.
+      # Use it directly on first launch to avoid an extra copy on the critical path.
+      $script:JarPath = $src
+      Write-Host ("[OK] Installed package mode using bundled backend jar directly: {0}" -f $src)
+      $script:JarSource = 'bundle'
+      Save-CachedBackendJarValidation -BackendJarPath $JarPath
+      return $true
     }
 
     Write-Host '[WARN] Installed package mode could not restore a valid bundled backend jar; falling back to legacy backend resolution.'
@@ -2093,10 +2480,17 @@ function Ensure-BackendJar {
 
   if (Test-Path $JarPath) {
     if (Test-JarFileLooksValid -Path $JarPath) {
+      if ($PerfMode -and $env:HOROSA_FORCE_BACKEND_FRESH_CHECK -ne '1') {
+        $script:JarSource = 'project'
+        Save-CachedBackendJarValidation -BackendJarPath $JarPath
+        return $true
+      }
+
       $sourceStamp = Get-BackendSourceLatestWriteTimeUtc
       $jarStamp = (Get-Item $JarPath).LastWriteTimeUtc
       if (-not $sourceStamp -or $jarStamp -ge $sourceStamp) {
         $script:JarSource = 'project'
+        Save-CachedBackendJarValidation -BackendJarPath $JarPath
         return $true
       }
 
@@ -2124,6 +2518,7 @@ function Ensure-BackendJar {
     if (Test-JarFileLooksValid -Path $JarPath) {
       Write-Host ("[OK] Backend jar built locally: {0}" -f $JarPath)
       $script:JarSource = 'build'
+      Save-CachedBackendJarValidation -BackendJarPath $JarPath
       return $true
     }
 
@@ -2168,6 +2563,7 @@ function Ensure-BackendJar {
     if (Test-JarFileLooksValid -Path $JarPath) {
       Write-Host ("[OK] Backend jar restored from: {0}" -f $src)
       $script:JarSource = 'bundle'
+      Save-CachedBackendJarValidation -BackendJarPath $JarPath
       return $true
     }
 
@@ -2185,6 +2581,7 @@ function Ensure-BackendJar {
       if (Test-JarFileLooksValid -Path $JarPath) {
         Write-Host ("[OK] Backend jar downloaded to: {0}" -f $JarPath)
         $script:JarSource = 'download'
+        Save-CachedBackendJarValidation -BackendJarPath $JarPath
         return $true
       }
 
@@ -2358,16 +2755,21 @@ function Show-PreflightRuntimeSummary {
     [string]$JavaExe
   )
 
-  $pyVersion = Get-PythonVersionText -PythonExe $PythonExe
-  $javaVersion = Get-JavaVersionText -JavaExe $JavaExe
   Write-Host '[PRECHECK] Runtime resolution summary:'
   Write-Host ("  python: {0}" -f $PythonExe)
-  Write-Host ("  python version: {0}" -f $pyVersion)
   Write-Host ("  java: {0}" -f $JavaExe)
-  Write-Host ("  java version: {0}" -f $javaVersion)
   Write-Host ("  backend jar source: {0}" -f $script:JarSource)
   Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
   Write-Host ("  ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  if (-not $InstalledPackageMode) {
+    $pyVersion = Get-PythonVersionText -PythonExe $PythonExe
+    $javaVersion = Get-JavaVersionText -JavaExe $JavaExe
+    Write-Host ("  python version: {0}" -f $pyVersion)
+    Write-Host ("  java version: {0}" -f $javaVersion)
+  } else {
+    Write-Host '  python version: embedded runtime'
+    Write-Host '  java version: embedded runtime'
+  }
 }
 
 if (-not (Test-Path $ProjectDir)) {
@@ -2388,6 +2790,80 @@ if (-not (Test-Path (Join-Path $DistDir 'index.html'))) {
 }
 
 Ensure-FrontendStaticLayout -DistPath $DistDir
+
+if ($PersistServices -and -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)) {
+  $cachedStack = Get-StackState
+  if ($cachedStack) {
+    try {
+      $cachedWebPort = [int]$cachedStack.WebPort
+      $cachedChartPort = [int]$cachedStack.ChartPort
+      $cachedBackendPort = [int]$cachedStack.BackendPort
+      $cachedSignature = Get-CurrentStackSignature -ProjectRoot $ProjectDir -BackendJarPath $JarPath -FrontendDir $DistDir
+      if (Test-ReusableRuntimeStack -ExpectedSignature $cachedSignature -WebPort $cachedWebPort -ChartPort $cachedChartPort -BackendPort $cachedBackendPort) {
+        $WebPort = $cachedWebPort
+        $ChartPort = $cachedChartPort
+        $BackendPort = $cachedBackendPort
+        $env:HOROSA_WEB_PORT = [string]$WebPort
+        $env:HOROSA_CHART_PORT = [string]$ChartPort
+        $env:HOROSA_SERVER_PORT = [string]$BackendPort
+        $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
+        $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
+        $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
+        $cachedUrl = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+        Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
+        Write-Host ("[INFO] Fast reusing existing local services: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+        Write-StartupCheckpoint 'preflight-skipped-reuse'
+        Write-StartupCheckpoint 'backend-ready'
+        Write-StartupCheckpoint 'web-ready'
+        if ($env:HOROSA_NO_BROWSER -eq '1') {
+          Write-StartupCheckpoint 'ready-url-emitted'
+          Write-Host "[4/4] Started (no-browser mode): $cachedUrl"
+          if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
+            Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
+          }
+          if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
+            $fullWarmupDelaySec = 6
+            if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
+              [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
+            }
+            Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'full' -DelaySec $fullWarmupDelaySec -Background | Out-Null
+          }
+          Save-StackState -State ([pscustomobject]@{
+            ProjectRoot = $ProjectDir
+            WebPort = $WebPort
+            ChartPort = $ChartPort
+            BackendPort = $BackendPort
+            Url = $cachedUrl
+            Signature = $cachedSignature
+            SavedAt = (Get-Date).ToString('o')
+          })
+          exit 0
+        }
+
+        $browser = Resolve-Browser
+        if ($browser) {
+          $args = @(
+            "--user-data-dir=$BrowserProfile",
+            "--app=$cachedUrl",
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-features=DialMediaRouteProvider'
+          )
+          $bp = Start-Process -FilePath $browser -ArgumentList $args -PassThru
+          Write-Host "[4/4] Started: $cachedUrl"
+          Wait-Process -Id $bp.Id
+        } else {
+          Start-Process $cachedUrl | Out-Null
+          Write-Host "[4/4] Started: $cachedUrl"
+          Read-Host 'Press Enter to exit'
+        }
+        exit 0
+      }
+    } catch {
+      Write-Host ("[WARN] Fast stack reuse check failed, continuing with full startup: {0}" -f $_.Exception.Message)
+    }
+  }
+}
 
 if (-not (Ensure-BackendJar)) {
   Write-Host "Backend jar missing: $JarPath"
@@ -2543,19 +3019,47 @@ if (-not $JavaBin) {
 }
 
 try {
+  $savedPortLayout = $null
+  $savedLayoutPreferredForReuse = $false
+  if (-not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)) {
+    $savedPortLayout = Get-SavedPortLayout
+    if ($InstalledPackageMode -and $savedPortLayout) {
+      # For packaged installs, stale saved ports cost startup time and rarely help
+      # unless a live reusable stack is confirmed later in the launch flow.
+      $savedPortLayout = $null
+    }
+    if ($savedPortLayout) {
+      $DefaultWebPort = $savedPortLayout.WebPort
+      $DefaultChartPort = $savedPortLayout.ChartPort
+      $DefaultBackendPort = $savedPortLayout.BackendPort
+    }
+  }
   $preferRandomPorts = -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)
-  $portLayout = Resolve-PortLayout `
-    -PreferredWebPort $DefaultWebPort `
-    -PreferredChartPort $DefaultChartPort `
-    -PreferredBackendPort $DefaultBackendPort `
-    -PreferRandomStart:$preferRandomPorts
-  $WebPort = $portLayout.WebPort
-  $ChartPort = $portLayout.ChartPort
-  $BackendPort = $portLayout.BackendPort
-  if ($preferRandomPorts) {
-    Write-Host ("[INFO] Auto-selected temporary ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
-  } elseif ($portLayout.UsedAlternatePorts) {
-    Write-Host ("[INFO] Requested ports are occupied by another app/copy. Auto-switched to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  if ($PersistServices -and $savedPortLayout -and -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)) {
+    $savedLayoutPreferredForReuse = $true
+    $WebPort = $savedPortLayout.WebPort
+    $ChartPort = $savedPortLayout.ChartPort
+    $BackendPort = $savedPortLayout.BackendPort
+    Write-Host ("[INFO] Attempting to reuse saved desktop ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  } else {
+    $portLayout = Resolve-PortLayout `
+      -PreferredWebPort $DefaultWebPort `
+      -PreferredChartPort $DefaultChartPort `
+      -PreferredBackendPort $DefaultBackendPort `
+      -PreferRandomStart:($preferRandomPorts -and -not $savedPortLayout)
+    $WebPort = $portLayout.WebPort
+    $ChartPort = $portLayout.ChartPort
+    $BackendPort = $portLayout.BackendPort
+    Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
+    if ($preferRandomPorts -and -not $savedPortLayout) {
+      Write-Host ("[INFO] Auto-selected temporary ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+    } elseif ($preferRandomPorts -and $savedPortLayout -and $portLayout.UsedAlternatePorts) {
+      Write-Host ("[INFO] Saved desktop ports were occupied. Auto-switched to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+    } elseif ($preferRandomPorts -and $savedPortLayout) {
+      Write-Host ("[INFO] Reusing saved desktop ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+    } elseif ($portLayout.UsedAlternatePorts) {
+      Write-Host ("[INFO] Requested ports are occupied by another app/copy. Auto-switched to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+    }
   }
 } catch {
   Write-Host ("Port layout resolution failed: {0}" -f $_.Exception.Message)
@@ -2570,176 +3074,215 @@ $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
 $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
 $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
 
-Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin
-Write-Host ("Using Python: {0}" -f $PythonBin)
-Write-Host ("Using Java: {0}" -f $JavaBin)
-Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if($PerfMode){'ON'}else{'OFF'})))
+if ($env:HOROSA_CLEANUP_ONLY -eq '1') {
+  Write-Host '[INFO] Cleanup-only mode requested.'
+  Cleanup-All
+  Write-Host '[OK] Local services stopped.'
+  exit 0
+}
 
-Cleanup-All
-
+$currentStackSignature = Get-CurrentStackSignature -ProjectRoot $ProjectDir -BackendJarPath $JarPath -FrontendDir $DistDir
+$reusedExistingStack = $false
+$url = $null
 $oldPythonPath = $env:PYTHONPATH
 $oldHorosaSwephPath = $env:HOROSA_SWEPH_PATH
 $oldSeEphePath = $env:SE_EPHE_PATH
-$proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
-$pyPathItems = @(
-  (Join-Path $ProjectDir 'astropy'),
-  (Join-Path $ProjectDir 'flatlib-ctrad2')
-) | Where-Object { $_ -and (Test-Path $_) }
-$pyPathPrefix = ($pyPathItems -join ';')
-if ($oldPythonPath) {
-  if ($pyPathPrefix) {
-    $env:PYTHONPATH = $pyPathPrefix + ';' + $oldPythonPath
-  } else {
-    $env:PYTHONPATH = $oldPythonPath
-  }
-} else {
-  $env:PYTHONPATH = $pyPathPrefix
+$proxyEnvSnapshot = $null
+
+if ($PersistServices -and (Test-ReusableRuntimeStack -ExpectedSignature $currentStackSignature -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort)) {
+  $reusedExistingStack = $true
+  $url = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+  Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
+  Write-Host ("[INFO] Reusing existing local services: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  Write-StartupCheckpoint 'preflight-skipped-reuse'
+  Write-StartupCheckpoint 'backend-ready'
+  Write-StartupCheckpoint 'web-ready'
 }
-$swephPath = Join-Path $ProjectDir 'flatlib-ctrad2\flatlib\resources\swefiles'
-if (Test-Path $swephPath) {
-  $env:HOROSA_SWEPH_PATH = $swephPath
-  if (-not $oldSeEphePath) {
-    $env:SE_EPHE_PATH = $swephPath
+
+if (-not $reusedExistingStack) {
+  Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin
+  Write-StartupCheckpoint 'preflight-finished'
+  Write-Host ("Using Python: {0}" -f $PythonBin)
+  Write-Host ("Using Java: {0}" -f $JavaBin)
+  Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if($PerfMode){'ON'}else{'OFF'})))
+
+  if ($savedLayoutPreferredForReuse) {
+    $fallbackPortLayout = Resolve-PortLayout `
+      -PreferredWebPort $DefaultWebPort `
+      -PreferredChartPort $DefaultChartPort `
+      -PreferredBackendPort $DefaultBackendPort `
+      -PreferRandomStart:($preferRandomPorts -and -not $savedPortLayout)
+    $WebPort = $fallbackPortLayout.WebPort
+    $ChartPort = $fallbackPortLayout.ChartPort
+    $BackendPort = $fallbackPortLayout.BackendPort
+    $env:HOROSA_WEB_PORT = [string]$WebPort
+    $env:HOROSA_CHART_PORT = [string]$ChartPort
+    $env:HOROSA_SERVER_PORT = [string]$BackendPort
+    $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
+    $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
+    $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
+    Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
+    if ($fallbackPortLayout.UsedAlternatePorts) {
+      Write-Host ("[INFO] Existing desktop stack could not be reused. Falling back to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+    }
+  }
+  Cleanup-All
+
+  $proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
+  $pyPathItems = @(
+    (Join-Path $ProjectDir 'astropy'),
+    (Join-Path $ProjectDir 'flatlib-ctrad2')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+  $pyPathPrefix = ($pyPathItems -join ';')
+  if ($oldPythonPath) {
+    if ($pyPathPrefix) {
+      $env:PYTHONPATH = $pyPathPrefix + ';' + $oldPythonPath
+    } else {
+      $env:PYTHONPATH = $oldPythonPath
+    }
+  } else {
+    $env:PYTHONPATH = $pyPathPrefix
+  }
+  $swephPath = Join-Path $ProjectDir 'flatlib-ctrad2\flatlib\resources\swefiles'
+  if (Test-Path $swephPath) {
+    $env:HOROSA_SWEPH_PATH = $swephPath
+    if (-not $oldSeEphePath) {
+      $env:SE_EPHE_PATH = $swephPath
+    }
   }
 }
 
 try {
-  if (-not (Wait-PortFree -Port $ChartPort -TimeoutMs 6000)) {
-    throw "Port $ChartPort is still in use before backend startup"
-  }
-  if (-not (Wait-PortFree -Port $BackendPort -TimeoutMs 6000)) {
-    throw "Port $BackendPort is still in use before backend startup"
-  }
+  if (-not $reusedExistingStack) {
+    if (-not (Wait-PortFree -Port $ChartPort -TimeoutMs 6000)) {
+      throw "Port $ChartPort is still in use before backend startup"
+    }
+    if (-not (Wait-PortFree -Port $BackendPort -TimeoutMs 6000)) {
+      throw "Port $BackendPort is still in use before backend startup"
+    }
 
-  Write-Host '[1/4] Starting local backend services...'
+    Write-Host '[1/4] Starting local backend services...'
 
-  $pyScript = Join-Path $ProjectDir 'astropy/websrv/webchartsrv.py'
-  # Embedded Python ignores PYTHONPATH, so inject project roots explicitly.
-  $pyBootstrapProjectDir = $ProjectDir -replace '\\', '\\\\' -replace "'", "\'"
-  $pyBootstrapScriptPath = $pyScript -replace '\\', '\\\\' -replace "'", "\'"
-  $pyBootstrapPaths = @(
-    (Join-Path $ProjectDir 'astropy'),
-    (Join-Path $ProjectDir 'flatlib-ctrad2')
-  ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object {
-    "'" + (($_ -replace '\\', '\\\\') -replace "'", "\'") + "'"
-  }
-  $pyBootstrapList = ($pyBootstrapPaths -join ', ')
-  $pyBootstrap = "import os, runpy, sys; os.chdir('" + $pyBootstrapProjectDir + "'); sys.path[0:0]=[" + $pyBootstrapList + "]; runpy.run_path('" + $pyBootstrapScriptPath + "', run_name='__main__')"
-  $null = Start-Background -FilePath $PythonBin -Arguments @('-c', (Quote-Arg $pyBootstrap)) -LogPath $PyLog -PidFile $PyPidFile
+    $pyScript = Join-Path $ProjectDir 'astropy/websrv/webchartsrv.py'
+    # Embedded Python ignores PYTHONPATH, so inject project roots explicitly.
+    $pyBootstrapProjectDir = $ProjectDir -replace '\\', '\\\\' -replace "'", "\'"
+    $pyBootstrapScriptPath = $pyScript -replace '\\', '\\\\' -replace "'", "\'"
+    $pyBootstrapPaths = @(
+      (Join-Path $ProjectDir 'astropy'),
+      (Join-Path $ProjectDir 'flatlib-ctrad2')
+    ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object {
+      "'" + (($_ -replace '\\', '\\\\') -replace "'", "\'") + "'"
+    }
+    $pyBootstrapList = ($pyBootstrapPaths -join ', ')
+    $pyBootstrap = "import os, runpy, sys; os.chdir('" + $pyBootstrapProjectDir + "'); sys.path[0:0]=[" + $pyBootstrapList + "]; runpy.run_path('" + $pyBootstrapScriptPath + "', run_name='__main__')"
+    $null = Start-Background -FilePath $PythonBin -Arguments @('-c', (Quote-Arg $pyBootstrap)) -LogPath $PyLog -PidFile $PyPidFile
 
-  $mongoSelectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
-  $mongoConnectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
-  $mongoReadTimeoutMs = if ($PerfMode) { 220 } else { 1000 }
-  $redisPoolTimeoutMs = if ($PerfMode) { 400 } else { 1000 }
-  $cacheExpireSeconds = if ($PerfMode) { 300 } else { 120 }
+    Write-Host "chartpy: initializing on http://127.0.0.1:$ChartPort"
+    Write-Host "[2/4] Starting local web service on 127.0.0.1:$WebPort ..."
+    if (Test-PortOpen -Port $WebPort -TimeoutMs 60) {
+      throw "Port $WebPort is already in use"
+    }
 
-  $javaArgs = @(
-    "-Dhorosa.log.basedir=$HorosaLogBaseDir",
-    "-Dhorosa.mongo.serverSelectionTimeoutMS=$mongoSelectTimeoutMs",
-    "-Dhorosa.mongo.connectTimeoutMS=$mongoConnectTimeoutMs",
-    "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs",
-    '-jar',
-    (Quote-Arg $JarPath),
-    "--server.port=$BackendPort",
-    "--astrosrv=http://127.0.0.1:$ChartPort",
-    '--mongodb.ip=127.0.0.1',
-    '--mongodb.host=127.0.0.1',
-    '--redis.ip=127.0.0.1',
-    "--redis.pool.timeout=$redisPoolTimeoutMs",
-    '--cachehelper.needcache=false',
-    "--cachehelper.expireinsecond=$cacheExpireSeconds"
-  )
-  if ($PerfMode) {
-    $javaArgs += @(
-      '--needtranslog=false',
-      '--mongo.statement.log=false'
+    $null = Start-Background -FilePath $PythonBin -Arguments @('-m', 'http.server', "$WebPort", '--bind', '127.0.0.1', '--directory', (Quote-Arg $DistDir)) -LogPath $WebLog -PidFile $WebPidFile
+
+    $mongoSelectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
+    $mongoConnectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
+    $mongoReadTimeoutMs = if ($PerfMode) { 220 } else { 1000 }
+    $redisPoolTimeoutMs = if ($PerfMode) { 400 } else { 1000 }
+    $cacheExpireSeconds = if ($PerfMode) { 300 } else { 120 }
+
+    $javaArgs = @(
+      '-XX:TieredStopAtLevel=1',
+      '-Dspring.main.lazy-initialization=true',
+      '-Dspring.backgroundpreinitializer.ignore=true',
+      '-Djava.awt.headless=true',
+      "-Dhorosa.log.basedir=$HorosaLogBaseDir",
+      "-Dhorosa.mongo.serverSelectionTimeoutMS=$mongoSelectTimeoutMs",
+      "-Dhorosa.mongo.connectTimeoutMS=$mongoConnectTimeoutMs",
+      "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs",
+      '-jar',
+      (Quote-Arg $JarPath),
+      "--server.port=$BackendPort",
+      "--astrosrv=http://127.0.0.1:$ChartPort",
+      '--mongodb.ip=127.0.0.1',
+      '--mongodb.host=127.0.0.1',
+      '--redis.ip=127.0.0.1',
+      "--redis.pool.timeout=$redisPoolTimeoutMs",
+      '--cachehelper.needcache=false',
+      "--cachehelper.expireinsecond=$cacheExpireSeconds"
     )
-  }
-
-  $null = Start-Background -FilePath $JavaBin -Arguments $javaArgs -LogPath $JavaLog -PidFile $JavaPidFile
-
-  $ready = $false
-  for ($i = 0; $i -lt 90; $i++) {
-    $pyPid = Get-PidFromFile -Path $PyPidFile
-    $javaPid = Get-PidFromFile -Path $JavaPidFile
-    if (-not $pyPid -or -not $javaPid) { break }
-
-    $pyAlive = Get-Process -Id $pyPid -ErrorAction SilentlyContinue
-    $javaAlive = Get-Process -Id $javaPid -ErrorAction SilentlyContinue
-    if (-not $pyAlive -or -not $javaAlive) { break }
-
-    if ((Test-PortOpen -Port $ChartPort) -and (Test-PortOpen -Port $BackendPort)) {
-      $ready = $true
-      break
+    if ($PerfMode) {
+      $javaArgs += @(
+        '--needtranslog=false',
+        '--mongo.statement.log=false'
+      )
     }
-    Start-Sleep -Seconds 1
-  }
 
-  if (-not $ready) {
-    Write-Host "Backend not ready in time, required ports: $ChartPort and $BackendPort"
-    if (Test-Path $PyLog) {
-      Write-Host '--- python log tail ---'
-      Get-Content $PyLog -Tail 30
+    $null = Start-Background -FilePath $JavaBin -Arguments $javaArgs -LogPath $JavaLog -PidFile $JavaPidFile
+    Write-Host "backend: initializing on http://127.0.0.1:$BackendPort"
+
+    $webReady = $false
+    for ($i = 0; $i -lt 60; $i++) {
+      if (Test-PortOpen -Port $WebPort -TimeoutMs 40) {
+        $webReady = $true
+        break
+      }
+      Start-Sleep -Milliseconds 50
     }
-    if (Test-Path "$PyLog.err") {
-      Write-Host '--- python err tail ---'
-      Get-Content "$PyLog.err" -Tail 30
+
+    if (-not $webReady) {
+      throw "Web service failed to start. Check log: $WebLog"
     }
-    if (Test-Path $JavaLog) {
-      Write-Host '--- java log tail ---'
-      Get-Content $JavaLog -Tail 30
+
+    Write-StartupCheckpoint 'web-ready'
+    $serverRoot = "http://127.0.0.1:$BackendPort"
+    $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
+    $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&v=$cacheBust"
+
+    $ready = $false
+    $chartReadyLogged = $false
+    $backendReadyLogged = $false
+    $readinessPollCount = if ($InstalledPackageMode -or $PerfMode) { 2 } else { 6 }
+    for ($i = 0; $i -lt $readinessPollCount; $i++) {
+      $chartReadyNow = Test-PortOpen -Port $ChartPort -TimeoutMs 35
+      $backendReadyNow = Test-PortOpen -Port $BackendPort -TimeoutMs 35
+      if ($chartReadyNow -and -not $chartReadyLogged) {
+        Write-StartupCheckpoint 'chart-ready'
+        $chartReadyLogged = $true
+      }
+      if ($backendReadyNow -and -not $backendReadyLogged) {
+        Write-StartupCheckpoint 'backend-port-ready'
+        $backendReadyLogged = $true
+      }
+      if ($chartReadyNow -and $backendReadyNow) {
+        $ready = $true
+        break
+      }
+      Start-Sleep -Milliseconds 40
     }
-    if (Test-Path "$JavaLog.err") {
-      Write-Host '--- java err tail ---'
-      Get-Content "$JavaLog.err" -Tail 30
+
+    if (-not $ready) {
+      Write-Host ("[INFO] Backend is still warming in background (chart={0} backend={1}). Frontend will retry local requests automatically." -f $ChartPort, $BackendPort)
+    } else {
+      Write-StartupCheckpoint 'backend-ready'
     }
-    throw 'Backend failed to start'
   }
 
-  Write-Host "backend: http://127.0.0.1:$BackendPort"
-  Write-Host "chartpy: http://127.0.0.1:$ChartPort"
-  if ($PerfMode) {
-    Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -TimeoutSec 12 | Out-Null
-  }
-
-  Write-Host "[2/4] Starting local web service on 127.0.0.1:$WebPort ..."
-  if (Test-PortOpen -Port $WebPort) {
-    throw "Port $WebPort is already in use"
-  }
-
-  $null = Start-Background -FilePath $PythonBin -Arguments @('-m', 'http.server', "$WebPort", '--bind', '127.0.0.1', '--directory', (Quote-Arg $DistDir)) -LogPath $WebLog -PidFile $WebPidFile
-
-  $webReady = $false
-  for ($i = 0; $i -lt 30; $i++) {
-    if (Test-PortOpen -Port $WebPort) {
-      $webReady = $true
-      break
+  Write-Host '[3/4] Opening browser...'
+  if ($env:HOROSA_NO_BROWSER -eq '1') {
+    Write-StartupCheckpoint 'ready-url-emitted'
+    Write-Host "[4/4] Started (no-browser mode): $url"
+    if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
+      Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
     }
-    Start-Sleep -Milliseconds 300
-  }
-
-  if (-not $webReady) {
-    throw "Web service failed to start. Check log: $WebLog"
-  }
-
-  if ($PerfMode) {
-    if ($env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
-      $fullWarmupDelaySec = 20
+    if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
+      $fullWarmupDelaySec = 6
       if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
         [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
       }
       Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'full' -DelaySec $fullWarmupDelaySec -Background | Out-Null
     }
-  }
-
-  $serverRoot = "http://127.0.0.1:$BackendPort"
-  $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
-  $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-  $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&v=$cacheBust"
-
-  Write-Host '[3/4] Opening browser...'
-  if ($env:HOROSA_NO_BROWSER -eq '1') {
-    Write-Host "[4/4] Started (no-browser mode): $url"
     if ($env:HOROSA_SMOKE_TEST -eq '1') {
       $waitSec = 6
       if ($env:HOROSA_SMOKE_WAIT_SECONDS) {
@@ -2748,6 +3291,19 @@ try {
       if ($waitSec -lt 1) { $waitSec = 1 }
       Write-Host ("Smoke test mode: wait {0}s then stop services." -f $waitSec)
       Start-Sleep -Seconds $waitSec
+    } elseif ($PersistServices) {
+      Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
+      Save-StackState -State ([pscustomobject]@{
+        ProjectRoot = $ProjectDir
+        WebPort = $WebPort
+        ChartPort = $ChartPort
+        BackendPort = $BackendPort
+        Url = $url
+        Signature = $currentStackSignature
+        SavedAt = (Get-Date).ToString('o')
+      })
+      $SkipCleanup = $true
+      Write-Host '[INFO] Desktop local services will stay alive for faster relaunch.'
     } else {
       Write-Host 'Press Enter to stop local services.'
       Read-Host 'Press Enter to stop'
@@ -2764,11 +3320,31 @@ try {
       )
       $bp = Start-Process -FilePath $browser -ArgumentList $args -PassThru
       Write-Host "[4/4] Started: $url"
+      if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
+        Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
+      }
+      if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
+        $fullWarmupDelaySec = 6
+        if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
+          [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
+        }
+        Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'full' -DelaySec $fullWarmupDelaySec -Background | Out-Null
+      }
       Write-Host 'Close this app window to stop local services.'
       Wait-Process -Id $bp.Id
     } else {
       Start-Process $url | Out-Null
       Write-Host "[4/4] Started: $url"
+      if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
+        Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
+      }
+      if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
+        $fullWarmupDelaySec = 6
+        if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
+          [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
+        }
+        Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'full' -DelaySec $fullWarmupDelaySec -Background | Out-Null
+      }
       Write-Host 'No Chrome/Edge/Brave/Chromium found.'
       Write-Host 'Close browser, then come back here and press Enter to stop services.'
       Read-Host 'Press Enter to stop'
@@ -2784,7 +3360,9 @@ try {
   Read-Host 'Press Enter to exit'
   exit 1
 } finally {
-  Cleanup-All
+  if (-not $SkipCleanup) {
+    Cleanup-All
+  }
   Restore-EnvSnapshot -Snapshot $proxyEnvSnapshot
   $env:PYTHONPATH = $oldPythonPath
   if ($null -ne $oldHorosaSwephPath) {

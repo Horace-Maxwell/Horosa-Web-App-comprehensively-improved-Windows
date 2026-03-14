@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-03-11T14:39:40-07:00",
+    "generatedAt":  "2026-03-14T08:55:14-07:00",
     "root":  "C:\\Users\\maxwe\\OneDrive\\Desktop\\Horosa-Web-App-comprehensively-improved-Windows-main\\local\\workspace",
     "assets":  [
                    {
@@ -19,18 +19,18 @@
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\astrostudyboot.jar",
-                       "size":  303897915,
-                       "sha256":  "a09d102add06d39845160ff543721c45b27da8f91efa8b82c5200f3cc7f782e2"
+                       "size":  303899396,
+                       "sha256":  "2f525bcce5cc2328dbfe3d25f46bafe391e907617143bef3c4422a4b4b72afc5"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\dist-file\\index.html",
                        "size":  1813,
-                       "sha256":  "0061f5a35a29e4e9a05ed7f7edae80a37c8144ca43d30e3593653126f7a6a39a"
+                       "sha256":  "7847ddd2b75c30f7f3d06a3aed5fc9ff17798d102ca7943ca16a18bc7a6b80a8"
                    },
                    {
                        "path":  "runtime\\windows\\bundle\\dist\\index.html",
                        "size":  1813,
-                       "sha256":  "0061f5a35a29e4e9a05ed7f7edae80a37c8144ca43d30e3593653126f7a6a39a"
+                       "sha256":  "7847ddd2b75c30f7f3d06a3aed5fc9ff17798d102ca7943ca16a18bc7a6b80a8"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\annotated_doc-0.0.4-py3-none-any.whl",
@@ -111,11 +111,6 @@
                        "path":  "runtime\\windows\\wheels\\pygments-2.19.2-py3-none-any.whl",
                        "size":  1225217,
                        "sha256":  "86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b"
-                   },
-                   {
-                       "path":  "runtime\\windows\\wheels\\pyswisseph-2.08.00-1.tar.gz",
-                       "size":  521573,
-                       "sha256":  "6b4818c0224d309c0b01f3c52df2432900dddcde345364408d99eafc9cdd1e71"
                    },
                    {
                        "path":  "runtime\\windows\\wheels\\pyswisseph-2.10.3.2-cp311-cp311-win_amd64.whl",

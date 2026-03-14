@@ -11,6 +11,19 @@ import { normalizePlanetMetaDisplay, DEFAULT_PLANET_META_DISPLAY } from '../util
 
 const MinWorkspaceHeight = 660;
 const WorkspaceReservedHeight = 88;
+const PersistedSetupKeys = [
+    'chartDisplay',
+    'planetDisplay',
+    'lotsDisplay',
+    'colorTheme',
+    'showPdBounds',
+    'pdMethod',
+    'pdTimeKey',
+    'planetMetaDisplay',
+    'showPlanetHouseInfo',
+    'showAstroMeaning',
+    'showOnlyRulExaltReception',
+];
 
 function normalizeWorkspaceHeight(viewportHeight){
     const raw = Number(viewportHeight) - WorkspaceReservedHeight;
@@ -91,6 +104,14 @@ function applyPredictiveSetupToFields(flds, appst){
     if(flds.pdTimeKey){
         flds.pdTimeKey.value = appst.pdTimeKey || 'Ptolemy';
     }
+    if(flds.strongRecption){
+        flds.strongRecption.value = appst.showOnlyRulExaltReception === 1 ? 1 : 0;
+    }else{
+        flds.strongRecption = {
+            value: appst.showOnlyRulExaltReception === 1 ? 1 : 0,
+            name: ['strongRecption'],
+        };
+    }
 }
 
 export default {
@@ -144,11 +165,14 @@ export default {
                 name: ['imgToken'],
             },
         },
+        globalSetupHydrated: false,
     },
 
     reducers: {
         save(state, {payload: values}) {
             const payload = { ...(values || {}) };
+            const shouldHydrateGlobalSetup = !!payload.__hydrateGlobalSetup;
+            delete payload.__hydrateGlobalSetup;
             if(Object.prototype.hasOwnProperty.call(payload, 'planetMetaDisplay')){
                 payload.planetMetaDisplay = normalizePlanetMetaDisplay(payload.planetMetaDisplay);
                 payload.showPlanetHouseInfo = payload.planetMetaDisplay.showPostnatal === 1 ? 1 : 0;
@@ -182,21 +206,28 @@ export default {
             }
 
             let st = { ...state, ...payload };
-            let globalSetup = {
-                chartDisplay: st.chartDisplay,
-                planetDisplay: st.planetDisplay,
-                lotsDisplay: st.lotsDisplay,
-                colorTheme: st.colorTheme,
-                showPdBounds: st.showPdBounds,
-                pdMethod: st.pdMethod,
-                pdTimeKey: st.pdTimeKey,
-                planetMetaDisplay: st.planetMetaDisplay,
-                showPlanetHouseInfo: st.showPlanetHouseInfo,
-                showAstroMeaning: st.showAstroMeaning,
-                showOnlyRulExaltReception: st.showOnlyRulExaltReception,
-            };
-            let json = JSON.stringify(globalSetup);
-            localStorage.setItem(Constants.GlobalSetupKey, json);
+            if(shouldHydrateGlobalSetup){
+                st.globalSetupHydrated = true;
+            }
+
+            const payloadTouchesPersistedSetup = PersistedSetupKeys.some((key)=>Object.prototype.hasOwnProperty.call(payload, key));
+            if(st.globalSetupHydrated || payloadTouchesPersistedSetup){
+                let globalSetup = {
+                    chartDisplay: st.chartDisplay,
+                    planetDisplay: st.planetDisplay,
+                    lotsDisplay: st.lotsDisplay,
+                    colorTheme: st.colorTheme,
+                    showPdBounds: st.showPdBounds,
+                    pdMethod: st.pdMethod,
+                    pdTimeKey: st.pdTimeKey,
+                    planetMetaDisplay: st.planetMetaDisplay,
+                    showPlanetHouseInfo: st.showPlanetHouseInfo,
+                    showAstroMeaning: st.showAstroMeaning,
+                    showOnlyRulExaltReception: st.showOnlyRulExaltReception,
+                };
+                let json = JSON.stringify(globalSetup);
+                localStorage.setItem(Constants.GlobalSetupKey, json);
+            }
 
             return st;
         },
@@ -368,6 +399,12 @@ export default {
                     payload: json,
                 });
             }
+            yield put({
+                type: 'save',
+                payload: {
+                    __hydrateGlobalSetup: true,
+                },
+            });
 
             const rsp = yield call(appService.checkUser, param);
             if(!rsp || !rsp.Result){
@@ -476,6 +513,12 @@ export default {
                     payload: json,
                 });
             }
+            yield put({
+                type: 'save',
+                payload: {
+                    __hydrateGlobalSetup: true,
+                },
+            });
 
             const rsp = yield call(appService.checkUser, param);
             if(!rsp || !rsp.Result){

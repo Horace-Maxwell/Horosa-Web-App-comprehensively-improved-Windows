@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Card, Tag, Button, Divider, Select, InputNumber, Input, Checkbox, Modal, message, Tabs } from 'antd';
+import { Row, Col, Card, Tag, Button, Divider, Select, InputNumber, Input, Checkbox, Modal, message } from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import * as AstroConst from '../../constants/AstroConst';
@@ -30,7 +30,6 @@ import styles from './LiuRengMain.less';
 
 const InputGroup = Input.Group;
 const {Option} = Select;
-const TabPane = Tabs.TabPane;
 const RIGHT_PANEL_BOTTOM_GAP = 12;
 const RIGHT_PANEL_MIN_HEIGHT = 180;
 
@@ -152,6 +151,13 @@ function getGuiRengSystemLabel(guirengType){
 
 function normalizeMultiline(raw){
 	return `${raw === undefined || raw === null ? '' : raw}`.replace(/\r\n/g, '\n').trim();
+}
+
+function extractRequestResult(data){
+	if(!data || typeof data !== 'object'){
+		return null;
+	}
+	return data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 }
 
 function toReferenceDocText(item){
@@ -824,7 +830,14 @@ class LiuRengMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/liureng/gods`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey]
+		const result = extractRequestResult(data);
+		if(!result){
+			Modal.error({
+				title: '六壬起课失败',
+				content: '本地六壬服务未返回有效结果，请稍后重试。',
+			});
+			return false;
+		}
 		const mergedLiureng = mergeLiurengSunMoonXiu(result && result.liureng ? result.liureng : null, chartSnapshot);
 		
 		let dayGanZi = mergedLiureng && mergedLiureng.nongli ? mergedLiureng.nongli.dayGanZi : '';
@@ -860,7 +873,14 @@ class LiuRengMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey]
+		const result = extractRequestResult(data);
+		if(!result){
+			Modal.error({
+				title: '行年计算失败',
+				content: '本地六壬服务未返回有效行年结果，请稍后重试。',
+			});
+			return false;
+		}
 
 		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
 		age = Math.floor(age / 60) * 60 + result.age;
@@ -1049,6 +1069,83 @@ class LiuRengMain extends Component{
 		const panelLimit = this.state.rightPanelLimit > 0 ? this.state.rightPanelLimit : fallbackLimit;
 		const rawPanelHeight = this.state.rightPanelHeight || Math.max(360, viewportHeight - 120);
 		const rightPanelHeight = Math.min(rawPanelHeight, panelLimit);
+		const liurengTabItems = [
+			{ key: 'dage', label: '大格' },
+			{ key: 'xiaoju', label: '小局' },
+			{ key: 'reference', label: '参考' },
+			{ key: 'overview', label: '概览' },
+		];
+		let liurengTabContent = null;
+		if(liurengSubTab === 'xiaoju'){
+			liurengTabContent = (
+				<div className={styles.judgeList}>
+					{liurengXiaojuRows.length ? liurengXiaojuRows.map((item, idx)=>(
+						<div key={`lr_xiaoju_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemWarn}`}>
+							<div className={styles.judgeItemHead}>
+								<span className={styles.judgeIndex}>{idx + 1}.</span>
+								<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
+							</div>
+							<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+							{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+							{(item.fullText || item.detail) ? (
+								<div className={styles.referenceRaw}>
+									{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_xiaoju_${idx}`)}
+								</div>
+							) : null}
+						</div>
+					)) : <div className={styles.judgeEmpty}>无符合小局</div>}
+				</div>
+			);
+		}else if(liurengSubTab === 'reference'){
+			liurengTabContent = (
+				<div className={styles.judgeList}>
+					{liurengReferenceRows.length ? liurengReferenceRows.map((item, idx)=>(
+						<div key={`lr_ref_${idx}`} className={styles.judgeItem}>
+							<div className={styles.judgeItemHead}>
+								<span className={styles.judgeIndex}>{idx + 1}.</span>
+								<span className={styles.judgeName}>[{item.kind}] {item.name}</span>
+							</div>
+							<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+							{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+							{item.fullText ? (
+								<div className={styles.referenceRaw}>
+									{renderMarkdownLiteBlock(item.fullText, `lr_main_ref_${idx}`)}
+								</div>
+							) : null}
+						</div>
+					)) : <div className={styles.judgeEmpty}>无符合参考条目</div>}
+				</div>
+			);
+		}else if(liurengSubTab === 'overview'){
+			liurengTabContent = liurengOverviewSections.length ? liurengOverviewSections.map((item)=>(
+				<div key={`lr_overview_${item.key}`} className={styles.referenceSection}>
+					<div className={styles.referenceTitle}>{item.title}</div>
+					<div className={styles.referenceRaw}>
+						{renderMarkdownLiteBlock(item.content, `lr_main_overview_${item.key}`)}
+					</div>
+				</div>
+			)) : <div className={styles.judgeEmpty}>暂无概览内容</div>;
+		}else{
+			liurengTabContent = (
+				<div className={styles.judgeList}>
+					{liurengDageRows.length ? liurengDageRows.map((item, idx)=>(
+						<div key={`lr_dage_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemGood}`}>
+							<div className={styles.judgeItemHead}>
+								<span className={styles.judgeIndex}>{idx + 1}.</span>
+								<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
+							</div>
+							<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
+							{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
+							{(item.fullText || item.detail) ? (
+								<div className={styles.referenceRaw}>
+									{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_dage_${idx}`)}
+								</div>
+							) : null}
+						</div>
+					)) : <div className={styles.judgeEmpty}>无符合大格</div>}
+				</div>
+			);
+		}
 		return (
 			<div>
 				<Row gutter={6}>
@@ -1069,57 +1166,79 @@ class LiuRengMain extends Component{
 					<Col span={8}>
 						<div
 							ref={this.captureRightPanel}
-							style={{ height: rightPanelHeight, maxHeight: panelLimit, overflowY: 'auto', paddingRight: 2 }}
+							style={{
+								height: rightPanelHeight,
+								maxHeight: panelLimit,
+								overflow: 'hidden',
+								paddingRight: 2,
+								display: 'flex',
+								flexDirection: 'column',
+								minHeight: 0,
+							}}
 						>
-						<Row className={styles.rightPanel}>
-							<Col span={24}>
-								<LiuRengInput 
-									fields={this.props.fields} 
-									onFieldsChange={this.onFieldsChange}
-								/>
-							</Col>
-						</Row>
-						<Row style={{ marginTop: 8 }} className={styles.quickActionRow}>
-							<Col span={12}>
-								<Button
-									type='primary'
-									style={{ width: '100%' }}
-									onClick={this.clickCalcCase}
-									loading={this.state.isCalculating}
-								>
-									起课
-								</Button>
-							</Col>
-							<Col span={12}>
-								<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
-							</Col>
-						</Row>
-						<Divider orientation='left'>卜卦人出生时间</Divider>
-						<Row>
-							<Col span={24}>
-								<LiuRengBirthInput 
-									fields={this.state.birth} 
-									onFieldsChange={this.onBirthChange}
-								/>
-							</Col>
-						</Row>
-						<Divider />
-						<Row>
-							<Col span={24}>
-								<Select value={this.state.wuxing} onChange={this.onWuXingChange} style={{width: '100%'}}>
-									{wxdoms}
-								</Select>
-							</Col>
-							<Col span={24}>
-								<Select value={this.state.guireng} onChange={this.onGuiRengChange} style={{width: '100%'}}>
-									<Option value={0}>六壬法贵人</Option>
-									<Option value={1}>遁甲法贵人</Option>
-									<Option value={2}>星占法贵人</Option>
-								</Select>
-							</Col>
-						</Row>
-						<Divider orientation='left'>格局判断</Divider>
-						<Card size="small" className={styles.judgeCard} bodyStyle={{ padding: '10px 12px' }}>
+						<div style={{ flex: '0 0 auto' }}>
+							<Row className={styles.rightPanel}>
+								<Col span={24}>
+									<LiuRengInput 
+										fields={this.props.fields} 
+										onFieldsChange={this.onFieldsChange}
+									/>
+								</Col>
+							</Row>
+							<Row style={{ marginTop: 8 }} className={styles.quickActionRow}>
+								<Col span={12}>
+									<Button
+										type='primary'
+										style={{ width: '100%' }}
+										onClick={this.clickCalcCase}
+										loading={this.state.isCalculating}
+									>
+										起课
+									</Button>
+								</Col>
+								<Col span={12}>
+									<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
+								</Col>
+							</Row>
+							<Divider orientation='left'>卜卦人出生时间</Divider>
+							<Row>
+								<Col span={24}>
+									<LiuRengBirthInput 
+										fields={this.state.birth} 
+										onFieldsChange={this.onBirthChange}
+									/>
+								</Col>
+							</Row>
+							<Divider />
+							<Row>
+								<Col span={24}>
+									<Select value={this.state.wuxing} onChange={this.onWuXingChange} style={{width: '100%'}}>
+										{wxdoms}
+									</Select>
+								</Col>
+								<Col span={24}>
+									<Select value={this.state.guireng} onChange={this.onGuiRengChange} style={{width: '100%'}}>
+										<Option value={0}>六壬法贵人</Option>
+										<Option value={1}>遁甲法贵人</Option>
+										<Option value={2}>星占法贵人</Option>
+									</Select>
+								</Col>
+							</Row>
+							<Divider orientation='left'>格局判断</Divider>
+						</div>
+						<div style={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
+						<Card
+							size="small"
+							className={styles.judgeCard}
+							style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+							bodyStyle={{
+								padding: '10px 12px',
+								display: 'flex',
+								flexDirection: 'column',
+								minHeight: 0,
+								height: '100%',
+							}}
+						>
 							<div className={styles.judgeCardHead}>
 								<div className={styles.judgeCardTitle}>命中概况</div>
 								<div className={styles.judgeChips}>
@@ -1136,81 +1255,25 @@ class LiuRengMain extends Component{
 								<Tag color={xiaojuCount ? 'gold' : 'default'} className={styles.judgeTag}>小局命中</Tag>
 								<Tag color={referenceCount ? 'blue' : 'default'} className={styles.judgeTag}>参考 {referenceCount}</Tag>
 							</div>
-							<Tabs
-								size="small"
-								activeKey={liurengSubTab}
-								onChange={(key)=>this.setState({ liurengSubTab: key })}
-								className={styles.judgeTabs}
-							>
-								<TabPane tab="大格" key="dage">
-									<div className={styles.judgeList}>
-										{liurengDageRows.length ? liurengDageRows.map((item, idx)=>(
-											<div key={`lr_dage_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemGood}`}>
-												<div className={styles.judgeItemHead}>
-													<span className={styles.judgeIndex}>{idx + 1}.</span>
-													<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
-												</div>
-												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
-												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
-												{(item.fullText || item.detail) ? (
-													<div className={styles.referenceRaw}>
-														{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_dage_${idx}`)}
-													</div>
-												) : null}
-											</div>
-										)) : <div className={styles.judgeEmpty}>无符合大格</div>}
-									</div>
-								</TabPane>
-								<TabPane tab="小局" key="xiaoju">
-									<div className={styles.judgeList}>
-										{liurengXiaojuRows.length ? liurengXiaojuRows.map((item, idx)=>(
-											<div key={`lr_xiaoju_${idx}`} className={`${styles.judgeItem} ${styles.judgeItemWarn}`}>
-												<div className={styles.judgeItemHead}>
-													<span className={styles.judgeIndex}>{idx + 1}.</span>
-													<span className={styles.judgeName}>{item.name || '未命名格局'}</span>
-												</div>
-												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
-												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
-												{(item.fullText || item.detail) ? (
-													<div className={styles.referenceRaw}>
-														{renderMarkdownLiteBlock(item.fullText || item.detail || '', `lr_main_xiaoju_${idx}`)}
-													</div>
-												) : null}
-											</div>
-										)) : <div className={styles.judgeEmpty}>无符合小局</div>}
-									</div>
-								</TabPane>
-								<TabPane tab="参考" key="reference">
-									<div className={styles.judgeList}>
-										{liurengReferenceRows.length ? liurengReferenceRows.map((item, idx)=>(
-											<div key={`lr_ref_${idx}`} className={styles.judgeItem}>
-												<div className={styles.judgeItemHead}>
-													<span className={styles.judgeIndex}>{idx + 1}.</span>
-													<span className={styles.judgeName}>[{item.kind}] {item.name}</span>
-												</div>
-												<div className={styles.judgeBasis}>逻辑：{item.logic || item.basis || '命中'}</div>
-												{item.detail ? <div className={styles.judgeDetail}>相关：{item.detail}</div> : null}
-												{item.fullText ? (
-													<div className={styles.referenceRaw}>
-														{renderMarkdownLiteBlock(item.fullText, `lr_main_ref_${idx}`)}
-													</div>
-												) : null}
-											</div>
-										)) : <div className={styles.judgeEmpty}>无符合参考条目</div>}
-									</div>
-								</TabPane>
-								<TabPane tab="概览" key="overview">
-									{liurengOverviewSections.length ? liurengOverviewSections.map((item)=>(
-										<div key={`lr_overview_${item.key}`} className={styles.referenceSection}>
-											<div className={styles.referenceTitle}>{item.title}</div>
-											<div className={styles.referenceRaw}>
-												{renderMarkdownLiteBlock(item.content, `lr_main_overview_${item.key}`)}
-											</div>
-										</div>
-									)) : <div className={styles.judgeEmpty}>暂无概览内容</div>}
-								</TabPane>
-							</Tabs>
+							<div className={styles.judgeTabs}>
+								<div className={styles.judgeTabSwitch}>
+									{liurengTabItems.map((item)=>(
+										<button
+											key={item.key}
+											type="button"
+											className={`${styles.judgeTabButton} ${liurengSubTab === item.key ? styles.judgeTabButtonActive : ''}`}
+											onClick={()=>this.setState({ liurengSubTab: item.key })}
+										>
+											{item.label}
+										</button>
+									))}
+								</div>
+								<div className={styles.judgeTabBody}>
+									{liurengTabContent}
+								</div>
+							</div>
 						</Card>
+						</div>
 						</div>
 
 					</Col>

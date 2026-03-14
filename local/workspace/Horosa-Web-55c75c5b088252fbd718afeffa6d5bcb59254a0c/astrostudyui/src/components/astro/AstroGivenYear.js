@@ -56,7 +56,7 @@ async function requestGivenYearCached(params){
 	const req = request(`${Constants.ServerRoot}/predict/givenyear`, {
 		body: JSON.stringify(params),
 	}).then((data)=>{
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		pushGivenYearCache(key, result);
 		return result;
 	}).finally(()=>{

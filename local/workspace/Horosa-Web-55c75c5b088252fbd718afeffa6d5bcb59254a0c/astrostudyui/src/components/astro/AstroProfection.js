@@ -125,7 +125,7 @@ class AstroProfection extends Component{
 		const data = await request(`${Constants.ServerRoot}/predict/profection`, {
 			body: JSON.stringify(params),
 		});
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		let tm = new DateTime();
 		let dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
 		if(params.dirZone){

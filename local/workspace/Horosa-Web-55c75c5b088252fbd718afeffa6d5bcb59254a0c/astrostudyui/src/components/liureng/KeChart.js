@@ -9,7 +9,7 @@ class KeChart {
 		this.owner = option.owner;
 		this.chartObj = option.chartObj;
 		this.nongli = option.nongli;
-		this.ke = option.ke;
+		this.ke = Array.isArray(option.ke) ? option.ke : [];
 
 		this.x = option.x;
 		this.y = option.y;
@@ -27,6 +27,9 @@ class KeChart {
 	}
 
 	draw(){
+		if(!this.owner){
+			return;
+		}
 		this.owner.select('#' + this.id).remove();
 		let container = this.owner.append('g').attr('id', this.id);
 		this.svg = container;
@@ -54,13 +57,28 @@ class KeChart {
 
 	drawKes(){
 		let ords = this.getKeXY();
-		this.drawKe(ords[0], '一课', this.ke[0]);
-		this.drawKe(ords[1], '二课', this.ke[1]);
-		this.drawKe(ords[2], '三课', this.ke[2]);
-		this.drawKe(ords[3], '四课', this.ke[3]);
+		const safeKes = [0, 1, 2, 3].map((idx)=>{
+			const row = this.ke[idx];
+			if(!(row instanceof Array)){
+				return ['', '', ''];
+			}
+			return [
+				row[0] !== undefined && row[0] !== null ? `${row[0]}` : '',
+				row[1] !== undefined && row[1] !== null ? `${row[1]}` : '',
+				row[2] !== undefined && row[2] !== null ? `${row[2]}` : '',
+			];
+		});
+		this.drawKe(ords[0], '一课', safeKes[0]);
+		this.drawKe(ords[1], '二课', safeKes[1]);
+		this.drawKe(ords[2], '三课', safeKes[2]);
+		this.drawKe(ords[3], '四课', safeKes[3]);
 	}
 
 	drawKe(ord, title, data){
+		const safeData = data instanceof Array ? data : ['', '', ''];
+		const topText = safeData[0] ? `${safeData[0]}` : '—';
+		const midText = safeData[1] ? `${safeData[1]}` : '—';
+		const bottomText = safeData[2] ? `${safeData[2]}` : '—';
 		let x1 = ord.x;
 		let y1 = ord.y;
 		let w = ord.w;
@@ -84,12 +102,12 @@ class KeChart {
 
 		y1 = ord.y + ord.h/4;
 		h = (ord.h - ord.h/4) / 2;
-		txtdata = data[0].split('');
+		txtdata = topText.split('');
 		drawTextV(this.svg, txtdata, x1, y1, w, h, 5, LRConst.LRColor.tianJiangColor);
 
 		y1 = y1 + h;
 		h = h;
-		txtdata = [data[1], data[2]];
+		txtdata = [midText, bottomText];
 		drawTextV(this.svg, txtdata, x1, y1, w, h, 5, this.color);
 
 	}

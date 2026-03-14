@@ -353,6 +353,14 @@ export default {
 		drawerVisible: closeAllDrawer('init'),
 		currentTab: 'astrochart',
 		currentSubTab: null,
+		moduleSubTabs: {
+			direction: 'primarydirect',
+			relativechart: 'Comp',
+			indiachart: 'Natal',
+			cntradition: 'bazi',
+			cnyibu: 'suzhan',
+			liveplayer: null,
+		},
 		currentChart: null,
 		memoType: 0,
 		memo: '',
@@ -602,9 +610,29 @@ export default {
 
 	reducers: {
 		save(state, {payload: values}){
-			let st = { ...state, ...values, };
-			let tab = values.currentTab ? values.currentTab : state.currentTab;
-			let subtab = values.currentSubTab ? values.currentSubTab : state.currentSubTab;
+			const nextModuleSubTabs = {
+				...(state.moduleSubTabs || {}),
+				...((values && values.moduleSubTabs) ? values.moduleSubTabs : {}),
+			};
+			const hasCurrentTab = values.currentTab !== undefined && values.currentTab !== null && `${values.currentTab}` !== '';
+			const hasCurrentSubTab = values.currentSubTab !== undefined && values.currentSubTab !== null && `${values.currentSubTab}` !== '';
+			let tab = hasCurrentTab ? values.currentTab : state.currentTab;
+			if(tab && hasCurrentSubTab){
+				nextModuleSubTabs[tab] = values.currentSubTab;
+			}
+			let subtab = hasCurrentSubTab
+				? values.currentSubTab
+				: (
+					tab && nextModuleSubTabs[tab] !== undefined
+						? nextModuleSubTabs[tab]
+						: state.currentSubTab
+				);
+			let st = {
+				...state,
+				...values,
+				currentSubTab: subtab,
+				moduleSubTabs: nextModuleSubTabs,
+			};
 
 			if(values.currentChart){
 				return st;

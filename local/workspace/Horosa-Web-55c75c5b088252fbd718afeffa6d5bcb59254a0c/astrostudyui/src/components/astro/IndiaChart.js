@@ -103,7 +103,7 @@ export async function requestIndiaChartCached(params){
 		silent: true,
 		disableLoading: true,
 	}).then((data)=>{
-		const result = data[Constants.ResultKey];
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		pushIndiaCache(key, result);
 		return result;
 	}).finally(()=>{
