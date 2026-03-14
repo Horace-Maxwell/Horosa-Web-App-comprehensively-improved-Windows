@@ -1,5 +1,7 @@
 const { chromium } = require('../local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/node_modules/playwright');
 
+const APP_URL = process.env.HOROSA_APP_URL || 'http://127.0.0.1:8000/index.html?srv=http%3A%2F%2F127.0.0.1%3A9999#/';
+
 function normalizeText(text) {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -70,7 +72,7 @@ async function closeOverlay(page) {
 }
 
 async function waitForAppReady(page) {
-  await page.goto('http://127.0.0.1:8000/index.html?srv=http%3A%2F%2F127.0.0.1%3A9999#/', {
+  await page.goto(APP_URL, {
     waitUntil: 'domcontentloaded',
     timeout: 45000,
   });
