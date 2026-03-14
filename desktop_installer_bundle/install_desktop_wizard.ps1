@@ -704,7 +704,7 @@ function Set-StageVisual {
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "$DisplayName 安装程序"
 $form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(1024, 700)
+$form.Size = New-Object System.Drawing.Size(1024, 748)
 $form.MinimumSize = $form.Size
 $form.MaximumSize = $form.Size
 $form.FormBorderStyle = 'FixedDialog'
@@ -942,9 +942,18 @@ $progressBar.Maximum = 100
 $progressBar.Value = 0
 $rightPanel.Controls.Add($progressBar)
 
+$normalStatusCardHeight = 190
+$existingStatusCardHeight = 258
+$normalStatusDetailHeight = 56
+$existingStatusDetailHeight = 86
+$normalLaunchCheckY = 556
+$existingLaunchCheckY = 624
+$normalButtonY = 604
+$existingButtonY = 672
+
 $statusCard = New-Object System.Windows.Forms.Panel
 $statusCard.Location = New-Object System.Drawing.Point($contentOffsetX, 338)
-$statusCard.Size = New-Object System.Drawing.Size(592, 190)
+$statusCard.Size = New-Object System.Drawing.Size(592, $normalStatusCardHeight)
 $statusCard.BackColor = [System.Drawing.Color]::White
 $statusCard.BorderStyle = 'None'
 $rightPanel.Controls.Add($statusCard)
@@ -962,41 +971,41 @@ $statusDetail.Text = '尚未开始更改此电脑上的任何内容。'
 $statusDetail.Font = New-UiFont 10.4
 $statusDetail.ForeColor = [System.Drawing.Color]::FromArgb(92, 102, 114)
 $statusDetail.Location = New-Object System.Drawing.Point(16, 42)
-$statusDetail.Size = New-Object System.Drawing.Size(548, 56)
+$statusDetail.Size = New-Object System.Drawing.Size(548, $normalStatusDetailHeight)
 $statusCard.Controls.Add($statusDetail)
 
 $existingInstallPanel = New-Object System.Windows.Forms.Panel
-$existingInstallPanel.Location = New-Object System.Drawing.Point(16, 100)
-$existingInstallPanel.Size = New-Object System.Drawing.Size(548, 78)
+$existingInstallPanel.Location = New-Object System.Drawing.Point(16, 134)
+$existingInstallPanel.Size = New-Object System.Drawing.Size(548, 104)
 $existingInstallPanel.Visible = $false
 $existingInstallPanel.BackColor = [System.Drawing.Color]::White
 $statusCard.Controls.Add($existingInstallPanel)
 
 $repairRadio = New-Object System.Windows.Forms.RadioButton
 $repairRadio.Text = '修复当前安装（保留程序和数据）'
-$repairRadio.Font = New-UiFont 9.8
+$repairRadio.Font = New-UiFont 10.0
 $repairRadio.Location = New-Object System.Drawing.Point(0, 0)
-$repairRadio.Size = New-Object System.Drawing.Size(320, 24)
+$repairRadio.Size = New-Object System.Drawing.Size(420, 26)
 $existingInstallPanel.Controls.Add($repairRadio)
 
 $replaceRadio = New-Object System.Windows.Forms.RadioButton
 $replaceRadio.Text = '用当前安装包替换现有版本'
-$replaceRadio.Font = New-UiFont 9.8
-$replaceRadio.Location = New-Object System.Drawing.Point(0, 26)
-$replaceRadio.Size = New-Object System.Drawing.Size(320, 24)
+$replaceRadio.Font = New-UiFont 10.0
+$replaceRadio.Location = New-Object System.Drawing.Point(0, 34)
+$replaceRadio.Size = New-Object System.Drawing.Size(420, 26)
 $existingInstallPanel.Controls.Add($replaceRadio)
 
 $cancelInstallRadio = New-Object System.Windows.Forms.RadioButton
 $cancelInstallRadio.Text = '取消安装并退出'
-$cancelInstallRadio.Font = New-UiFont 9.8
-$cancelInstallRadio.Location = New-Object System.Drawing.Point(0, 52)
-$cancelInstallRadio.Size = New-Object System.Drawing.Size(240, 24)
+$cancelInstallRadio.Font = New-UiFont 10.0
+$cancelInstallRadio.Location = New-Object System.Drawing.Point(0, 68)
+$cancelInstallRadio.Size = New-Object System.Drawing.Size(300, 26)
 $existingInstallPanel.Controls.Add($cancelInstallRadio)
 
 $launchCheck = New-Object System.Windows.Forms.CheckBox
 $launchCheck.Text = '点击“完成”后立即启动 ' + $DisplayName
 $launchCheck.Checked = $true
-$launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, 556)
+$launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, $normalLaunchCheckY)
 $launchCheck.AutoSize = $true
 $launchCheck.Font = New-UiFont 10.4
 $rightPanel.Controls.Add($launchCheck)
@@ -1004,7 +1013,7 @@ $rightPanel.Controls.Add($launchCheck)
 $primaryButton = New-Object System.Windows.Forms.Button
 $primaryButton.Text = '下一步 >'
 $primaryButton.Size = New-Object System.Drawing.Size(156, 42)
-$primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), 604)
+$primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), $normalButtonY)
 $primaryButton.BackColor = [System.Drawing.Color]::FromArgb(24, 119, 242)
 $primaryButton.ForeColor = [System.Drawing.Color]::White
 $primaryButton.FlatStyle = 'Flat'
@@ -1015,7 +1024,7 @@ $rightPanel.Controls.Add($primaryButton)
 $secondaryButton = New-Object System.Windows.Forms.Button
 $secondaryButton.Text = '取消'
 $secondaryButton.Size = New-Object System.Drawing.Size(132, 42)
-$secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), 604)
+$secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), $normalButtonY)
 $secondaryButton.BackColor = [System.Drawing.Color]::FromArgb(248, 250, 253)
 $secondaryButton.ForeColor = [System.Drawing.Color]::FromArgb(42, 54, 69)
 $secondaryButton.FlatStyle = 'Flat'
@@ -1033,17 +1042,40 @@ $script:selectedInstallAction = $null
 $script:recommendedInstallAction = if ($script:existingInstallInfo.Exists -and $script:existingInstallInfo.InstalledVersion -eq $VersionInfo.version) { 'repair' } else { 'replace' }
 $script:autoExistingInstallAction = ([string]$env:HOROSA_DESKTOP_INSTALLER_AUTO_EXISTING_ACTION).Trim().ToLowerInvariant()
 
-function Show-ExistingInstallChoice {
-  if (-not $script:existingInstallInfo.Exists) {
-    $existingInstallPanel.Visible = $false
+function Update-ExistingInstallLayout {
+  param(
+    [bool]$Visible = $false
+  )
+
+  if ($Visible) {
+    $statusCard.Size = New-Object System.Drawing.Size(592, $existingStatusCardHeight)
+    $statusDetail.Size = New-Object System.Drawing.Size(548, $existingStatusDetailHeight)
+    $existingInstallPanel.Visible = $true
+    $launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, $existingLaunchCheckY)
+    $secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), $existingButtonY)
+    $primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), $existingButtonY)
     return
   }
 
-  $existingInstallPanel.Visible = $true
+  $existingInstallPanel.Visible = $false
+  $statusCard.Size = New-Object System.Drawing.Size(592, $normalStatusCardHeight)
+  $statusDetail.Size = New-Object System.Drawing.Size(548, $normalStatusDetailHeight)
+  $launchCheck.Location = New-Object System.Drawing.Point($contentOffsetX, $normalLaunchCheckY)
+  $secondaryButton.Location = New-Object System.Drawing.Point((298 + $contentOffsetX), $normalButtonY)
+  $primaryButton.Location = New-Object System.Drawing.Point((446 + $contentOffsetX), $normalButtonY)
+}
+
+function Show-ExistingInstallChoice {
+  if (-not $script:existingInstallInfo.Exists) {
+    Update-ExistingInstallLayout -Visible $false
+    return
+  }
+
+  Update-ExistingInstallLayout -Visible $true
   $installedVersionText = if (-not [string]::IsNullOrWhiteSpace($script:existingInstallInfo.InstalledVersion)) { $script:existingInstallInfo.InstalledVersion } else { '未知版本' }
   $runtimeVersionText = if (-not [string]::IsNullOrWhiteSpace($script:existingInstallInfo.RuntimeVersion)) { $script:existingInstallInfo.RuntimeVersion } else { '未知' }
   $statusLabel.Text = '已检测到现有安装'
-  $statusDetail.Text = "已安装版本：$installedVersionText`r`n运行时版本：$runtimeVersionText`r`n安装位置：$($script:existingInstallInfo.InstallRoot)"
+  $statusDetail.Text = "已安装版本：$installedVersionText`r`n运行时版本：$runtimeVersionText`r`n安装位置：`r`n$($script:existingInstallInfo.InstallRoot)"
   $stepTitle.Text = '检测到现有版本'
   $stepDetail.Text = '这台电脑上已经存在星阙。请选择你要执行的操作：修复当前安装、用当前安装包替换现有版本，或直接取消。'
   $headline.Text = "欢迎使用 $DisplayName 安装程序"
@@ -1072,7 +1104,7 @@ function Finalize-InstallSuccess {
   )
 
   $script:installSucceeded = $true
-  $existingInstallPanel.Visible = $false
+  Update-ExistingInstallLayout -Visible $false
   Set-StageVisual -Current 'finish'
   $headline.Text = $HeadlineText
   $subtitle.Text = $SubtitleText
@@ -1109,7 +1141,7 @@ $timer.Add_Tick({
       $subtitle.Text = '安装程序正在后台准备本地运行环境，完成后会自动切换到完成页面。'
       $statusLabel.Text = '安装状态'
       $statusDetail.Text = ("状态：{0}`r`n更新时间：{1}" -f $progressState, $progressUpdatedAt)
-      $existingInstallPanel.Visible = $false
+      Update-ExistingInstallLayout -Visible $false
       $progressBar.Style = 'Continuous'
       $value = [Math]::Max(0, [Math]::Min(100, $progressPercent))
       $progressBar.Value = $value
@@ -1178,7 +1210,7 @@ $timer.Add_Tick({
     $stepDetail.Text = '安装向导内部出现异常。下面会直接显示本次失败原因。'
     $statusLabel.Text = '失败原因'
     $statusDetail.Text = "安装向导异常：$($_.Exception.Message)`r`n详细日志：$WizardTraceLog"
-    $existingInstallPanel.Visible = $false
+    Update-ExistingInstallLayout -Visible $false
     $progressBar.Value = 100
     $primaryButton.Text = '重试'
     $primaryButton.Enabled = $true
@@ -1229,7 +1261,7 @@ $primaryButton.Add_Click({
   $script:installSucceeded = $false
   $primaryButton.Enabled = $false
   Set-StageVisual -Current 'install'
-  $existingInstallPanel.Visible = $false
+  Update-ExistingInstallLayout -Visible $false
   $headline.Text = "正在安装 $DisplayName"
   if ($script:selectedInstallAction -eq 'replace') {
     $subtitle.Text = '安装程序正在替换现有版本，并为当前 Windows 账户准备桌面运行环境、下载运行时组件并创建快捷方式。'
