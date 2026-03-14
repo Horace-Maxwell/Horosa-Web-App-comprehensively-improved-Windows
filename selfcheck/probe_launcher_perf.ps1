@@ -8,16 +8,7 @@ $StdErrLog = Join-Path $RepoRoot 'tmp_launcher_perf.err.log'
 $PerfScript = Join-Path $ProjectDir 'astrostudyui\scripts\verifyHorosaPerformanceRuntime.js'
 
 function Stop-HorosaPorts {
-  $listeners = @(
-    Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-      Where-Object { $_.LocalPort -in 8000, 8899, 9999 } |
-      Select-Object -ExpandProperty OwningProcess -Unique
-  )
-  foreach ($procId in $listeners) {
-    try {
-      Stop-Process -Id $procId -Force -ErrorAction Stop
-    } catch {}
-  }
+  Remove-HorosaPidFiles
 }
 
 function Remove-HorosaPidFiles {
@@ -39,15 +30,15 @@ function Wait-ForLauncherReady {
     Start-Sleep -Milliseconds 500
     if (-not (Test-Path $OutFile)) { continue }
     $text = Get-Content $OutFile -Raw -ErrorAction SilentlyContinue
-    if ($text -match 'Started \(no-browser mode\)') {
-      return $true
+    if ($text -match 'Started \(no-browser mode\):\s*(?<url>https?://\S+)') {
+      return $Matches.url
     }
     if ($text -match 'Startup failed:') {
-      return $false
+      return $null
     }
   }
 
-  return $false
+  return $null
 }
 
 foreach ($log in @($StdOutLog, $StdErrLog)) {
@@ -75,11 +66,28 @@ try {
     -RedirectStandardError $StdErrLog `
     -PassThru
 
-  if (-not (Wait-ForLauncherReady -OutFile $StdOutLog)) {
+  $readyUrl = Wait-ForLauncherReady -OutFile $StdOutLog
+  if (-not $readyUrl) {
     throw 'launcher did not reach Started (no-browser mode)'
   }
   $startupTimer.Stop()
   Write-Output ("startup_ready_ms={0}" -f $startupTimer.ElapsedMilliseconds)
+  Write-Output ("ready_url={0}" -f $readyUrl)
+
+  $serverRoot = $null
+  try {
+    $readyUri = [System.Uri]$readyUrl
+    foreach ($part in $readyUri.Query.TrimStart('?').Split('&', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+      if ($part -like 'srv=*') {
+        $serverRoot = [System.Uri]::UnescapeDataString($part.Substring(4))
+        break
+      }
+    }
+  } catch {}
+  if ([string]::IsNullOrWhiteSpace($serverRoot)) {
+    throw "failed to parse srv query from ready url: $readyUrl"
+  }
+  $env:HOROSA_SERVER_ROOT = $serverRoot
 
   Write-Output '--- launcher stdout ---'
   Get-Content $StdOutLog -Tail 120

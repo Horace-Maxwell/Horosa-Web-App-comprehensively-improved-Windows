@@ -14,10 +14,14 @@ if (-not (Test-Path $launcherExe -PathType Leaf)) {
 }
 
 Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-  Where-Object { $_.LocalPort -in 8000, 8899, 9999 } |
   Select-Object -ExpandProperty OwningProcess -Unique |
   ForEach-Object {
-    try { Stop-Process -Id $_ -Force -ErrorAction Stop } catch {}
+    try {
+      $proc = Get-Process -Id $_ -ErrorAction Stop
+      if ($proc.ProcessName -match '^(python|pwsh|powershell|java|Xingque|HorosaDesktop)$') {
+        Stop-Process -Id $_ -Force -ErrorAction Stop
+      }
+    } catch {}
   }
 
 Remove-Item Env:HOROSA_SMOKE_TEST -ErrorAction SilentlyContinue
@@ -28,15 +32,29 @@ $env:HOROSA_PERF_MODE = '1'
 $env:LocalAppData = $LocalAppDataRoot
 
 $proc = Start-Process -FilePath $launcherExe -PassThru
+$launcherLog = Join-Path $LocalAppDataRoot 'HorosaDesktop\runtime-logs\desktop-launcher.log'
+$readyUrl = $null
 
 for ($i = 0; $i -lt 240; $i++) {
   try {
-    $resp = Invoke-WebRequest 'http://127.0.0.1:8000/index.html?srv=http%3A%2F%2F127.0.0.1%3A9999#/' -UseBasicParsing -TimeoutSec 3
-    if ($resp.StatusCode -eq 200) {
-      break
+    if (-not $readyUrl -and (Test-Path $launcherLog)) {
+      $logText = Get-Content $launcherLog -Raw -ErrorAction SilentlyContinue
+      if ($logText -match 'Started \(no-browser mode\):\s*(?<url>https?://\S+)') {
+        $readyUrl = $Matches.url
+      }
+    }
+    if ($readyUrl) {
+      $resp = Invoke-WebRequest $readyUrl -UseBasicParsing -TimeoutSec 3
+      if ($resp.StatusCode -eq 200) {
+        break
+      }
     }
   } catch {}
   Start-Sleep -Seconds 1
+}
+
+if (-not $readyUrl) {
+  throw "Ready URL not found in launcher log: $launcherLog"
 }
 
 Write-Output $proc.Id

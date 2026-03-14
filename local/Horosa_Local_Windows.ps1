@@ -294,12 +294,22 @@ function Get-EnvPortOrDefault {
   return $DefaultPort
 }
 
+$webPortPinned = -not [string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable('HOROSA_WEB_PORT', 'Process'))
+$backendPortPinned = -not [string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable('HOROSA_SERVER_PORT', 'Process'))
+$chartPortPinned = -not [string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable('HOROSA_CHART_PORT', 'Process'))
+
 $DefaultWebPort = Get-EnvPortOrDefault -EnvName 'HOROSA_WEB_PORT' -DefaultPort $DefaultWebPort
 $DefaultBackendPort = Get-EnvPortOrDefault -EnvName 'HOROSA_SERVER_PORT' -DefaultPort $DefaultBackendPort
 $DefaultChartPort = Get-EnvPortOrDefault -EnvName 'HOROSA_CHART_PORT' -DefaultPort $DefaultChartPort
 $WebPort = $DefaultWebPort
 $BackendPort = $DefaultBackendPort
 $ChartPort = $DefaultChartPort
+
+function Get-RandomPreferredWebPort {
+  $min = 18000
+  $maxExclusive = 61000
+  return (Get-Random -Minimum $min -Maximum $maxExclusive)
+}
 
 function Test-PortOpen {
   param([int]$Port)
@@ -426,12 +436,13 @@ function Resolve-PortLayout {
   param(
     [int]$PreferredWebPort,
     [int]$PreferredChartPort,
-    [int]$PreferredBackendPort
+    [int]$PreferredBackendPort,
+    [switch]$PreferRandomStart
   )
 
   $chartOffset = $PreferredChartPort - $PreferredWebPort
   $backendOffset = $PreferredBackendPort - $PreferredWebPort
-  $candidateWeb = $PreferredWebPort
+  $candidateWeb = if ($PreferRandomStart) { Get-RandomPreferredWebPort } else { $PreferredWebPort }
   $fallbackWeb = if ($PreferredWebPort -lt 18000) { 18000 } else { $PreferredWebPort + 1 }
   $maxAttempts = 4000
 
@@ -478,9 +489,17 @@ function Resolve-PortLayout {
     }
 
     if ($attempt -eq 0) {
-      $candidateWeb = $fallbackWeb
+      if ($PreferRandomStart) {
+        $candidateWeb = Get-RandomPreferredWebPort
+      } else {
+        $candidateWeb = $fallbackWeb
+      }
     } else {
-      $candidateWeb++
+      if ($PreferRandomStart) {
+        $candidateWeb = Get-RandomPreferredWebPort
+      } else {
+        $candidateWeb++
+      }
     }
   }
 
@@ -2524,12 +2543,19 @@ if (-not $JavaBin) {
 }
 
 try {
-  $portLayout = Resolve-PortLayout -PreferredWebPort $DefaultWebPort -PreferredChartPort $DefaultChartPort -PreferredBackendPort $DefaultBackendPort
+  $preferRandomPorts = -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)
+  $portLayout = Resolve-PortLayout `
+    -PreferredWebPort $DefaultWebPort `
+    -PreferredChartPort $DefaultChartPort `
+    -PreferredBackendPort $DefaultBackendPort `
+    -PreferRandomStart:$preferRandomPorts
   $WebPort = $portLayout.WebPort
   $ChartPort = $portLayout.ChartPort
   $BackendPort = $portLayout.BackendPort
-  if ($portLayout.UsedAlternatePorts) {
-    Write-Host ("[INFO] Default ports are occupied by another app/copy. Auto-switched to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  if ($preferRandomPorts) {
+    Write-Host ("[INFO] Auto-selected temporary ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
+  } elseif ($portLayout.UsedAlternatePorts) {
+    Write-Host ("[INFO] Requested ports are occupied by another app/copy. Auto-switched to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
   }
 } catch {
   Write-Host ("Port layout resolution failed: {0}" -f $_.Exception.Message)
@@ -2541,6 +2567,8 @@ $env:HOROSA_WEB_PORT = [string]$WebPort
 $env:HOROSA_CHART_PORT = [string]$ChartPort
 $env:HOROSA_SERVER_PORT = [string]$BackendPort
 $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
+$env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
+$env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
 
 Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin
 Write-Host ("Using Python: {0}" -f $PythonBin)
