@@ -122,7 +122,17 @@ function New-ShortRuntimeExtractPath {
     $compactVersion = 'runtime'
   }
 
-  return (Join-Path $tempRoot ("xqert-" + $compactVersion))
+  $prefix = "xqert-$compactVersion"
+  Get-ChildItem -Path $tempRoot -Directory -Filter "$prefix*" -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+      if ($_.LastWriteTime -lt (Get-Date).AddHours(-12)) {
+        Remove-TreeWithRetry -Path $_.FullName
+      }
+    } catch {}
+  }
+
+  $suffix = "{0}-{1}" -f $PID, ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
+  return (Join-Path $tempRoot ("{0}-{1}" -f $prefix, $suffix))
 }
 
 function Invoke-PipInstall {
