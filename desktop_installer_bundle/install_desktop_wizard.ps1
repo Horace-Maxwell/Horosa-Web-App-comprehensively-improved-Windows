@@ -525,7 +525,23 @@ function Read-ProgressState {
   }
 
   try {
-    $raw = [System.IO.File]::ReadAllText($ProgressFile, [System.Text.Encoding]::UTF8)
+    $stream = New-Object System.IO.FileStream(
+      $ProgressFile,
+      [System.IO.FileMode]::Open,
+      [System.IO.FileAccess]::Read,
+      [System.IO.FileShare]::ReadWrite
+    )
+    try {
+      $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $true)
+      try {
+        $raw = $reader.ReadToEnd()
+      } finally {
+        $reader.Dispose()
+      }
+    } finally {
+      $stream.Dispose()
+    }
+
     return $raw | ConvertFrom-Json
   } catch {
     return $null

@@ -43,7 +43,34 @@ function Write-InstallProgress {
   } | ConvertTo-Json
 
   $utf8Bom = New-Object System.Text.UTF8Encoding($true)
-  [System.IO.File]::WriteAllText($ProgressFile, $payload, $utf8Bom)
+  $bytes = $utf8Bom.GetBytes($payload)
+  $lastError = $null
+  for ($attempt = 0; $attempt -lt 12; $attempt++) {
+    $stream = $null
+    try {
+      $stream = New-Object System.IO.FileStream(
+        $ProgressFile,
+        [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::ReadWrite
+      )
+      $stream.SetLength(0)
+      $stream.Write($bytes, 0, $bytes.Length)
+      $stream.Flush()
+      return
+    } catch {
+      $lastError = $_
+      Start-Sleep -Milliseconds 120
+    } finally {
+      if ($stream) {
+        $stream.Dispose()
+      }
+    }
+  }
+
+  if ($lastError) {
+    throw $lastError
+  }
 }
 
 function Write-InstallLog {
