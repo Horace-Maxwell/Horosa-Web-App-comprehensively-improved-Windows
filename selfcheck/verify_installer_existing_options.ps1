@@ -1,13 +1,22 @@
+param(
+  [string]$InstallerPath = ''
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$wizardPath = Join-Path $repoRoot 'desktop_installer_bundle\install_desktop_wizard.ps1'
 $launcherPath = Join-Path $repoRoot 'desktop_installer_bundle\release\Xingque.exe'
 $versionPath = Join-Path $repoRoot 'desktop_installer_bundle\version.json'
-$releaseAssetRoot = Join-Path $repoRoot 'desktop_installer_bundle\release'
 $versionInfo = Get-Content -Raw $versionPath | ConvertFrom-Json
 $currentVersion = [string]$versionInfo.version
+
+if ([string]::IsNullOrWhiteSpace($InstallerPath)) {
+  $InstallerPath = Join-Path $repoRoot 'desktop_installer_bundle\release\XingqueSetup.exe'
+}
+
+$installerLaunchPath = (Resolve-Path $InstallerPath).ProviderPath
+$installerIsScript = [System.IO.Path]::GetExtension($installerLaunchPath).Equals('.ps1', [System.StringComparison]::OrdinalIgnoreCase)
 
 function Remove-PathIfExists {
   param([string]$Path)
@@ -30,6 +39,28 @@ function Remove-ShortcutArtifact {
   param([string]$Path)
   if (Test-Path $Path -PathType Leaf) {
     Remove-Item -Force $Path -ErrorAction SilentlyContinue
+  }
+}
+
+function Get-JsonFileUtf8 {
+  param([string]$Path)
+
+  if (-not (Test-Path $Path -PathType Leaf)) {
+    return $null
+  }
+
+  $reader = $null
+  try {
+    $reader = New-Object System.IO.StreamReader($Path, [System.Text.Encoding]::UTF8, $true)
+    $raw = $reader.ReadToEnd()
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+      return $null
+    }
+    return $raw | ConvertFrom-Json
+  } finally {
+    if ($reader) {
+      $reader.Dispose()
+    }
   }
 }
 
@@ -89,38 +120,36 @@ function Invoke-ExistingInstallScenario {
     $env:HOROSA_DESKTOP_INSTALLER_AUTO_FINISH = '1'
     $env:HOROSA_DESKTOP_INSTALLER_AUTO_LAUNCH = '0'
     $env:HOROSA_DESKTOP_INSTALLER_AUTO_EXISTING_ACTION = $Action
-    $env:HOROSA_DESKTOP_LOCAL_RUNTIME_ASSET_ROOT = $releaseAssetRoot
-
-    $hostExe = 'powershell.exe'
-    $process = Start-Process -FilePath $hostExe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $wizardPath) -PassThru -Wait
+    if ($installerIsScript) {
+      $env:HOROSA_DESKTOP_LOCAL_RUNTIME_ASSET_ROOT = Join-Path $repoRoot 'desktop_installer_bundle\release'
+      $process = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $installerLaunchPath) -PassThru -Wait
+    } else {
+      Remove-Item Env:HOROSA_DESKTOP_LOCAL_RUNTIME_ASSET_ROOT -ErrorAction SilentlyContinue
+      $process = Start-Process -FilePath $installerLaunchPath -PassThru -Wait
+    }
     if ($process.ExitCode -ne 0) {
       throw "Installer wizard exited with code $($process.ExitCode) for action $Action"
     }
 
-    $smoke = if (Test-Path $smokeFile -PathType Leaf) {
-      Get-Content -Raw $smokeFile | ConvertFrom-Json
-    } else {
-      $null
-    }
+    $smoke = Get-JsonFileUtf8 -Path $smokeFile
     $traceTail = if (Test-Path $traceFile -PathType Leaf) {
-      @(Get-Content -Path $traceFile -Tail 40)
+      @((Get-Content -Path $traceFile -Tail 12) | ForEach-Object { [string]$_ })
     } else {
       @()
     }
 
     $installStatePath = Join-Path $stateDir 'install_state.json'
-    $finalState = if (Test-Path $installStatePath -PathType Leaf) {
-      Get-Content -Raw $installStatePath | ConvertFrom-Json
-    } else {
-      $null
-    }
+    $finalState = Get-JsonFileUtf8 -Path $installStatePath
+    $finalProgress = Get-JsonFileUtf8 -Path $progressFile
 
     [pscustomobject]@{
       action = $Action
       smoke_status = if ($smoke) { $smoke.status } else { $null }
       smoke_version = if ($smoke) { $smoke.version } else { $null }
       trace_tail = $traceTail
-      final_progress = if (Test-Path $progressFile -PathType Leaf) { Get-Content -Raw $progressFile | ConvertFrom-Json } else { $null }
+      final_progress_state = if ($finalProgress) { $finalProgress.state } else { $null }
+      final_progress_title = if ($finalProgress) { $finalProgress.title } else { $null }
+      final_progress_message = if ($finalProgress) { $finalProgress.message } else { $null }
       desktop_shortcut_exists = Test-Path $desktopShortcut -PathType Leaf
       startmenu_shortcut_exists = Test-Path $startMenuShortcut -PathType Leaf
       sentinel_exists_after = Test-Path $sentinelPath -PathType Leaf

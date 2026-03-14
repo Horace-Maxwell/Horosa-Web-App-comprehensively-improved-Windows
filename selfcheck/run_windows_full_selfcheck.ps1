@@ -80,35 +80,34 @@ try {
 
   Invoke-And-Capture `
     -Name 'start-runtime-for-audit' `
-    -Command "Set-Location '$RepoRoot'; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tmp_start_runtime_for_audit.ps1"
+    -Command "Set-Location '$RepoRoot'; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\selfcheck\start_runtime_for_audit.ps1"
+
+  $startInfoPath = Join-Path $RunRoot 'start-runtime-for-audit.log'
+  $startInfo = Get-Content $startInfoPath -Raw | ConvertFrom-Json
+  if ([string]::IsNullOrWhiteSpace([string]$startInfo.readyUrl)) {
+    throw "Runtime start did not report a readyUrl. See $startInfoPath"
+  }
+  $appUrl = [string]$startInfo.readyUrl
 
   Invoke-And-Capture `
-    -Name 'audit-topbar' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_topbar.js"
+    -Name 'ui-fast-smoke' `
+    -Command "`$env:HOROSA_APP_URL='$appUrl'; Set-Location '$RepoRoot'; node .\selfcheck\ui_fast_smoke.js"
 
   Invoke-And-Capture `
-    -Name 'audit-topbar-controls' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_topbar_controls.js"
+    -Name 'ui-targeted-regression' `
+    -Command "`$env:HOROSA_APP_URL='$appUrl'; Set-Location '$RepoRoot'; node .\selfcheck\ui_targeted_regression.js"
 
   Invoke-And-Capture `
-    -Name 'audit-topbar-extras' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_topbar_extras.js"
+    -Name 'verify-ui-state-persistence' `
+    -Command "Set-Location '$RepoRoot'; node .\selfcheck\verify_ui_state_persistence.js '$appUrl' '.\selfcheck\results\full-selfcheck-profile'"
 
   Invoke-And-Capture `
-    -Name 'audit-left-tabs' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_left_tabs.js"
+    -Name 'verify-installer-existing-options' `
+    -Command "Set-Location '$RepoRoot'; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\selfcheck\verify_installer_existing_options.ps1"
 
   Invoke-And-Capture `
-    -Name 'audit-nested-tabs' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_nested_tabs.js"
-
-  Invoke-And-Capture `
-    -Name 'audit-specialized-modules' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_specialized_modules.js"
-
-  Invoke-And-Capture `
-    -Name 'audit-single-pane-controls' `
-    -Command "Set-Location '$RepoRoot'; node .\tmp_ui_audit_single_pane_controls.js"
+    -Name 'probe-launcher-perf' `
+    -Command "Set-Location '$RepoRoot'; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\selfcheck\probe_launcher_perf.ps1"
 
   $Summary.finishedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
   $Summary.status = 'passed'
@@ -120,7 +119,7 @@ catch {
 }
 finally {
   try {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $RepoRoot 'tmp_stop_runtime_for_audit.ps1') | Out-Null
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'stop_runtime_for_audit.ps1') | Out-Null
   } catch {
   }
 

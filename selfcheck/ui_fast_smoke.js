@@ -72,12 +72,22 @@ async function closeOverlay(page) {
 }
 
 async function waitForAppReady(page) {
-  await page.goto(APP_URL, {
-    waitUntil: 'domcontentloaded',
-    timeout: 45000,
-  });
-  await page.locator('.mainRootTabs .ant-tabs-nav .ant-tabs-tab').first().waitFor({ state: 'visible', timeout: 20000 });
-  await wait(page, 250);
+  let lastError = null;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      await page.goto(APP_URL, {
+        waitUntil: 'domcontentloaded',
+        timeout: 15000,
+      });
+      await page.locator('.mainRootTabs .ant-tabs-nav .ant-tabs-tab').first().waitFor({ state: 'visible', timeout: 20000 });
+      await wait(page, 250);
+      return;
+    } catch (error) {
+      lastError = error;
+      await wait(page, 1000);
+    }
+  }
+  throw lastError || new Error('App did not become ready in time');
 }
 
 async function clickAiExportItem(page, itemText) {
@@ -98,89 +108,95 @@ async function clickAiExportItem(page, itemText) {
 
 async function main() {
   const startedAt = Date.now();
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-  page.setDefaultTimeout(8000);
-  const pageErrors = [];
-  const consoleErrors = [];
-  const failures = [];
-  page.on('pageerror', (err) => pageErrors.push(err.message));
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      consoleErrors.push(msg.text());
-    }
-  });
-
-  await waitForAppReady(page);
-
-  const results = {
-    topbar: {},
-    rootTabs: [],
-    representatives: [],
-    timings: {},
-  };
-
-  // Topbar quick checks
-  const memoStarted = Date.now();
+  let browser;
+  const hardTimeout = setTimeout(() => {
+    console.error('ui_fast_smoke hard timeout after 90s');
+    process.exit(1);
+  }, 90000);
   try {
-    await page.getByRole('button', { name: '批 注', exact: true }).click({ force: true });
-    await page.locator('.ant-drawer-content-wrapper').last().waitFor({ state: 'visible', timeout: 8000 });
-    const memoDrawer = page.locator('.ant-drawer-content-wrapper').last();
-    results.topbar.memoVisible = await memoDrawer.isVisible().catch(() => false);
-    results.topbar.memoText = normalizeText(await memoDrawer.innerText().catch(() => '')).slice(0, 120);
-    await closeOverlay(page);
-  } catch (error) {
-    failures.push({ area: 'topbar', item: '批注', error: error.message });
-  }
-  results.timings.memoMs = Date.now() - memoStarted;
-
-  const chartStarted = Date.now();
-  try {
-    await page.getByRole('button', { name: '星盘组件', exact: true }).click({ force: true });
-    await page.locator('.ant-drawer-content-wrapper').last().waitFor({ state: 'visible', timeout: 8000 });
-    const chartDrawer = page.locator('.ant-drawer-content-wrapper').last();
-    results.topbar.annotationToggle = await chartDrawer.locator('.ant-checkbox-wrapper').evaluateAll((nodes) => {
-      const node = nodes.find((n) => ((n.innerText || n.textContent || '').replace(/\s+/g, ' ').trim()) === '显示星/宫/座/相释义');
-      if (!node) return { found: false };
-      const input = node.querySelector('input[type="checkbox"]');
-      const before = input ? !!input.checked : null;
-      node.click();
-      const after = input ? !!input.checked : null;
-      return { found: true, before, after, toggled: before !== after };
+    browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+    page.setDefaultTimeout(8000);
+    const pageErrors = [];
+    const consoleErrors = [];
+    const failures = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
     });
-    await closeOverlay(page);
-  } catch (error) {
-    failures.push({ area: 'topbar', item: '星盘组件', error: error.message });
-  }
-  results.timings.chartComponentsMs = Date.now() - chartStarted;
 
-  const aiStarted = Date.now();
-  try {
-    await clickAiExportItem(page, '复制AI纯文字');
-    await wait(page, 250);
-    results.topbar.aiExportMessage = normalizeText(await page.locator('.ant-message-notice').last().innerText().catch(() => ''));
-    await closeOverlay(page);
-  } catch (error) {
-    failures.push({ area: 'topbar', item: 'AI导出', error: error.message });
-  }
-  results.timings.aiExportMs = Date.now() - aiStarted;
+    await waitForAppReady(page);
 
-  const manageStarted = Date.now();
-  try {
-    const manageTrigger = page.getByText('管理', { exact: true }).last();
-    await manageTrigger.click({ force: true });
-    await wait(page, 120);
-    await page.locator('.ant-dropdown:visible').getByText('新增命盘', { exact: true }).first().click({ force: true });
-    await page.locator('.ant-drawer-content-wrapper').last().waitFor({ state: 'visible', timeout: 8000 });
-    const manageDrawer = page.locator('.ant-drawer-content-wrapper').last();
-    results.topbar.manageDrawerTitle = normalizeText(await manageDrawer.locator('.ant-drawer-title').innerText().catch(() => ''));
-    await closeOverlay(page);
-  } catch (error) {
-    failures.push({ area: 'topbar', item: '管理', error: error.message });
-  }
-  results.timings.manageMs = Date.now() - manageStarted;
+    const results = {
+      topbar: {},
+      rootTabs: [],
+      representatives: [],
+      timings: {},
+    };
 
-  const rootLabels = [
+    // Topbar quick checks
+    const memoStarted = Date.now();
+    try {
+      await page.getByRole('button', { name: '批 注', exact: true }).click({ force: true });
+      await page.locator('.ant-drawer-content-wrapper').last().waitFor({ state: 'visible', timeout: 8000 });
+      const memoDrawer = page.locator('.ant-drawer-content-wrapper').last();
+      results.topbar.memoVisible = await memoDrawer.isVisible().catch(() => false);
+      results.topbar.memoText = normalizeText(await memoDrawer.innerText().catch(() => '')).slice(0, 120);
+      await closeOverlay(page);
+    } catch (error) {
+      failures.push({ area: 'topbar', item: '批注', error: error.message });
+    }
+    results.timings.memoMs = Date.now() - memoStarted;
+
+    const chartStarted = Date.now();
+    try {
+      await page.getByRole('button', { name: '星盘组件', exact: true }).click({ force: true });
+      await page.locator('.ant-drawer-content-wrapper').last().waitFor({ state: 'visible', timeout: 8000 });
+      const chartDrawer = page.locator('.ant-drawer-content-wrapper').last();
+      results.topbar.annotationToggle = await chartDrawer.locator('.ant-checkbox-wrapper').evaluateAll((nodes) => {
+        const node = nodes.find((n) => ((n.innerText || n.textContent || '').replace(/\s+/g, ' ').trim()) === '显示星/宫/座/相释义');
+        if (!node) return { found: false };
+        const input = node.querySelector('input[type="checkbox"]');
+        const before = input ? !!input.checked : null;
+        node.click();
+        const after = input ? !!input.checked : null;
+        return { found: true, before, after, toggled: before !== after };
+      });
+      await closeOverlay(page);
+    } catch (error) {
+      failures.push({ area: 'topbar', item: '星盘组件', error: error.message });
+    }
+    results.timings.chartComponentsMs = Date.now() - chartStarted;
+
+    const aiStarted = Date.now();
+    try {
+      await clickAiExportItem(page, '复制AI纯文字');
+      await wait(page, 250);
+      results.topbar.aiExportMessage = normalizeText(await page.locator('.ant-message-notice').last().innerText().catch(() => ''));
+      await closeOverlay(page);
+    } catch (error) {
+      failures.push({ area: 'topbar', item: 'AI导出', error: error.message });
+    }
+    results.timings.aiExportMs = Date.now() - aiStarted;
+
+    const manageStarted = Date.now();
+    try {
+      const manageTrigger = page.getByText('管理', { exact: true }).last();
+      await manageTrigger.click({ force: true });
+      await wait(page, 120);
+      await page.locator('.ant-dropdown:visible').getByText('新增命盘', { exact: true }).first().click({ force: true });
+      await page.locator('.ant-drawer-content-wrapper').last().waitFor({ state: 'visible', timeout: 8000 });
+      const manageDrawer = page.locator('.ant-drawer-content-wrapper').last();
+      results.topbar.manageDrawerTitle = normalizeText(await manageDrawer.locator('.ant-drawer-title').innerText().catch(() => ''));
+      await closeOverlay(page);
+    } catch (error) {
+      failures.push({ area: 'topbar', item: '管理', error: error.message });
+    }
+    results.timings.manageMs = Date.now() - manageStarted;
+
+    const rootLabels = [
     '星盘',
     '三维盘',
     '推运盘',
@@ -198,51 +214,56 @@ async function main() {
     '风水',
     '三式合一',
   ];
-  const rootStarted = Date.now();
-  for (const label of rootLabels) {
-    try {
-      await clickRoot(page, label);
-      results.rootTabs.push({
-        label,
-        hasError: await bodyHasError(page),
-      });
-    } catch (error) {
-      results.rootTabs.push({
-        label,
-        hasError: true,
-        clickError: error.message,
-      });
-      failures.push({ area: 'rootTabs', item: label, error: error.message });
+    const rootStarted = Date.now();
+    for (const label of rootLabels) {
+      try {
+        await clickRoot(page, label);
+        results.rootTabs.push({
+          label,
+          hasError: await bodyHasError(page),
+        });
+      } catch (error) {
+        results.rootTabs.push({
+          label,
+          hasError: true,
+          clickError: error.message,
+        });
+        failures.push({ area: 'rootTabs', item: label, error: error.message });
+      }
+    }
+    results.timings.rootTabsMs = Date.now() - rootStarted;
+
+    const reps = [];
+    const repsStarted = Date.now();
+    for (const [rootLabel, tabLabel] of reps) {
+      try {
+        await clickRoot(page, rootLabel);
+        await clickPaneText(page, tabLabel);
+        results.representatives.push({
+          rootLabel,
+          tabLabel,
+          hasError: await bodyHasError(page),
+        });
+      } catch (error) {
+        results.representatives.push({
+          rootLabel,
+          tabLabel,
+          hasError: true,
+          clickError: error.message,
+        });
+        failures.push({ area: 'representatives', item: `${rootLabel}/${tabLabel}`, error: error.message });
+      }
+    }
+    results.timings.representativesMs = Date.now() - repsStarted;
+    results.timings.totalMs = Date.now() - startedAt;
+
+    console.log(JSON.stringify({ results, failures, pageErrors, consoleErrors }, null, 2));
+  } finally {
+    clearTimeout(hardTimeout);
+    if (browser) {
+      await browser.close().catch(() => {});
     }
   }
-  results.timings.rootTabsMs = Date.now() - rootStarted;
-
-  const reps = [];
-  const repsStarted = Date.now();
-  for (const [rootLabel, tabLabel] of reps) {
-    try {
-      await clickRoot(page, rootLabel);
-      await clickPaneText(page, tabLabel);
-      results.representatives.push({
-        rootLabel,
-        tabLabel,
-        hasError: await bodyHasError(page),
-      });
-    } catch (error) {
-      results.representatives.push({
-        rootLabel,
-        tabLabel,
-        hasError: true,
-        clickError: error.message,
-      });
-      failures.push({ area: 'representatives', item: `${rootLabel}/${tabLabel}`, error: error.message });
-    }
-  }
-  results.timings.representativesMs = Date.now() - repsStarted;
-  results.timings.totalMs = Date.now() - startedAt;
-
-  console.log(JSON.stringify({ results, failures, pageErrors, consoleErrors }, null, 2));
-  await browser.close();
 }
 
 main().catch((err) => {
