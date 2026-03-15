@@ -24,6 +24,21 @@ const PersistedSetupKeys = [
     'showAstroMeaning',
     'showOnlyRulExaltReception',
 ];
+const StartupChartCacheKey = 'horosa.startupChartCache.v1';
+
+function hasStartupChartCache(){
+    try{
+        if(typeof window === 'undefined'){
+            return false;
+        }
+        if(window.__HOROSA_STARTUP_CACHE && window.__HOROSA_STARTUP_CACHE.chartObj && window.__HOROSA_STARTUP_CACHE.fields){
+            return true;
+        }
+        return !!(window.localStorage && window.localStorage.getItem(StartupChartCacheKey));
+    }catch(e){
+        return false;
+    }
+}
 
 function normalizeWorkspaceHeight(viewportHeight){
     const raw = Number(viewportHeight) - WorkspaceReservedHeight;
@@ -388,6 +403,7 @@ export default {
 
         *checkUser({ payload: values }, { call, put }) {
             const param = {};
+            const requestOptions = values && values.__silent ? { silent: true } : undefined;
             let setupJson = localStorage.getItem(Constants.GlobalSetupKey);
             if(setupJson){
                 let json = JSON.parse(setupJson);
@@ -406,7 +422,7 @@ export default {
                 },
             });
 
-            const rsp = yield call(appService.checkUser, param);
+            const rsp = yield call(appService.checkUser, param, requestOptions);
             if(!rsp || !rsp.Result){
                 localStorage.removeItem(Constants.TokenKey);
                 const store = getStore();
@@ -425,6 +441,15 @@ export default {
                         admin: false,
                     },
                 });
+                if((astrost && astrost.chartObj) || hasStartupChartCache()){
+                    yield put({
+                        type: 'astro/save',
+                        payload: {
+                            fields: fld,
+                        },
+                    });
+                    return;
+                }
                 yield put({
                     type: 'astro/nowChart',
                     payload: {
@@ -443,6 +468,15 @@ export default {
                     ...astrost.fields,
                 };
                 applyPredictiveSetupToFields(fld, appst);
+                if((astrost && astrost.chartObj) || hasStartupChartCache()){
+                    yield put({
+                        type: 'astro/save',
+                        payload: {
+                            fields: fld,
+                        },
+                    });
+                    return;
+                }
                 yield put({
                     type: 'astro/nowChart',
                     payload: {
@@ -478,6 +512,24 @@ export default {
                     ...usrdata,
                 },
             });
+
+            if((astrost && astrost.chartObj) || hasStartupChartCache()){
+                yield put({
+                    type: 'astro/save',
+                    payload: {
+                        fields: fld,
+                    },
+                });
+                let page = localStorage.getItem(Constants.HomePageKey);
+                if(page){
+                    page = JSON.parse(page);
+                    yield put({
+                        type: 'astro/setHomePage',
+                        payload: page,
+                    });                               
+                }
+                return;
+            }
 
             yield put({
                 type: 'astro/nowChart',
@@ -620,7 +672,8 @@ export default {
         },
 
         *getSysTime({ payload:values }, { put, call }){
-            const Result = yield call(appService.systime);
+            const requestOptions = values && values.__silent ? { silent: true } : undefined;
+            const Result = yield call(appService.systime, requestOptions);
             if(Result === undefined || Result === null){
                 return;
             }
@@ -679,10 +732,17 @@ export default {
             setDispatch(dispatch);
             const { location } = history;
             const { query } = location;
+            dispatch({
+                type: 'astro/hydrateStartupCache',
+                payload:{},
+            });
+            const shouldSilenceStartupRequests = true;
             if(location.pathname === '/' || location.pathname === ''){
                 dispatch({
                     type: 'checkUser',
-                    payload:{},
+                    payload:{
+                        __silent: shouldSilenceStartupRequests,
+                    },
                 });                           
             }
 
@@ -732,12 +792,16 @@ export default {
 
             dispatch({
                 type: 'getSysTime',
-                payload:{},
+                payload:{
+                    __silent: shouldSilenceStartupRequests,
+                },
             });                           
 
             dispatch({
                 type: 'rules/ziwei',
-                payload:{},
+                payload:{
+                    __silent: shouldSilenceStartupRequests,
+                },
             });                           
 
             return ()=>{

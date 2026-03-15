@@ -27,6 +27,46 @@ class AstroChart extends Component{
 		this.handleResize = this.handleResize.bind(this);
 		this.onTipClick = this.onTipClick.bind(this);
 		this.scheduleDrawRetry = this.scheduleDrawRetry.bind(this);
+		this.shouldRedraw = this.shouldRedraw.bind(this);
+	}
+
+	areArraysEqual(arr1, arr2){
+		if(arr1 === arr2){
+			return true;
+		}
+		if(!Array.isArray(arr1) || !Array.isArray(arr2)){
+			return false;
+		}
+		if(arr1.length !== arr2.length){
+			return false;
+		}
+		for(let i=0; i<arr1.length; i++){
+			if(arr1[i] !== arr2[i]){
+				return false;
+			}
+		}
+		return true;
+	}
+
+	areObjectsShallowEqual(obj1, obj2){
+		if(obj1 === obj2){
+			return true;
+		}
+		if(!obj1 || !obj2){
+			return false;
+		}
+		let keys1 = Object.keys(obj1);
+		let keys2 = Object.keys(obj2);
+		if(keys1.length !== keys2.length){
+			return false;
+		}
+		for(let i=0; i<keys1.length; i++){
+			let key = keys1[i];
+			if(obj1[key] !== obj2[key]){
+				return false;
+			}
+		}
+		return true;
 	}
 
 	onTipClick(tipobj){
@@ -45,16 +85,39 @@ class AstroChart extends Component{
 		if(h < 560 || w < 560){
 			return;
 		}
-	
-		let orgx = w / 2;
-		let orgy = h / 2;
-		let delta = 30;
-		let chartR = Math.min(w, h) / 2 - delta;
-		this.setState({
-			ox: orgx,
-			oy: orgy,
-			radius: chartR,
-		});
+
+		this.scheduleDrawRetry();
+	}
+
+	shouldRedraw(prevProps, prevState){
+		if(prevState.chartid !== this.state.chartid){
+			return true;
+		}
+		if(prevState.rStep !== this.state.rStep){
+			return true;
+		}
+		if(prevProps.value !== this.props.value){
+			return true;
+		}
+		if(prevProps.width !== this.props.width || prevProps.height !== this.props.height){
+			return true;
+		}
+		if(!this.areObjectsShallowEqual(prevProps.style, this.props.style)){
+			return true;
+		}
+		if(!this.areArraysEqual(prevProps.keyPlanets, this.props.keyPlanets)){
+			return true;
+		}
+		if(!this.areArraysEqual(prevProps.chartDisplay, this.props.chartDisplay)){
+			return true;
+		}
+		if(!this.areArraysEqual(prevProps.planetDisplay, this.props.planetDisplay)){
+			return true;
+		}
+		if(!this.areArraysEqual(prevProps.lotsDisplay, this.props.lotsDisplay)){
+			return true;
+		}
+		return false;
 	}
 
 	drawChart(){
@@ -121,12 +184,12 @@ class AstroChart extends Component{
 		this.chartCircle = new AstroChartCircle(option);
 
 		this.drawChart();
-		this.scheduleDrawRetry();
 	}
 
-	componentDidUpdate(){
-		this.drawChart();
-		this.scheduleDrawRetry();
+	componentDidUpdate(prevProps, prevState){
+		if(this.shouldRedraw(prevProps, prevState)){
+			this.drawChart();
+		}
 	}
 
 	componentWillUnmount() {

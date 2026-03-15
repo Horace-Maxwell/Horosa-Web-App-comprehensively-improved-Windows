@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import boundless.exception.ErrorCodeException;
 import boundless.spring.help.interceptor.TransData;
 import spacex.astrostudy.helper.AstroHelper;
+import spacex.astrostudy.helper.CacheHelper;
 
 @Controller
 @RequestMapping("/location")
@@ -19,7 +20,10 @@ public class AcgController {
 	@RequestMapping("/acg")
 	public void chart(){
 		Map<String, Object> params = getParams();
-		Map<String, Object> res = AstroHelper.getAcg(params);
+		Object obj = CacheHelper.get("/location/acg", params, (args) -> {
+			return AstroHelper.getAcg(args);
+		});
+		Map<String, Object> res = (Map<String, Object>)obj;
 
 		TransData.set(res);
 	}

@@ -20,8 +20,9 @@ export default {
 	effects: {
 		*ziwei({ payload: values }, { call, put }){
             let params = { };
+			const requestOptions = values && values.__silent ? { silent: true } : undefined;
 			
-			const { Result } = yield call(service.ziweirules, params);
+			const { Result } = yield call(service.ziweirules, params, requestOptions);
 
 			yield put({
                 type: 'save',

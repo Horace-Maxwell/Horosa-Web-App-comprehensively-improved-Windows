@@ -6,11 +6,12 @@ from flatlib import const
 from flatlib.geopos import GeoPos
 from astrostudy.perchart import PerChart
 from astrostudy.helper import getChartObj
-from websrv.helper import enable_crossdomain, build_param_error_response
+from websrv.helper import enable_crossdomain, build_param_error_response, RequestResultCache, get_request_cache_dir
 
 
 class PredictSrv:
     exposed = True
+    RESPONSE_CACHE = RequestResultCache(max_entries=48, ttl_sec=1200, persist_dir=get_request_cache_dir('predict'))
 
     def OPTIONS(*args, **kwargs):
         enable_crossdomain()
@@ -22,43 +23,46 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            data['tradition'] = False
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            res = {}
-            asporb = -1
-            params = {}
-            params['date'] = data['date']
-            params['time'] = data['time']
-            params['zone'] = data['zone']
-            params['lat'] = data['lat']
-            params['lon'] = data['lon']
-            params['hsys'] = data['hsys']
-            if 'zodiacal' in data.keys():
-                params['zodiacal'] = data['zodiacal']
-            if 'dirZone' in data.keys():
-                params['zone'] = data['dirZone']
+            def _build():
+                payload = dict(data)
+                payload['tradition'] = False
+                perchart = PerChart(payload)
+                predict = perchart.getPredict()
+                res = {}
+                asporb = -1
+                params = {}
+                params['date'] = payload['date']
+                params['time'] = payload['time']
+                params['zone'] = payload['zone']
+                params['lat'] = payload['lat']
+                params['lon'] = payload['lon']
+                params['hsys'] = payload['hsys']
+                if 'zodiacal' in payload.keys():
+                    params['zodiacal'] = payload['zodiacal']
+                if 'dirZone' in payload.keys():
+                    params['zone'] = payload['dirZone']
 
-            if 'asporb' in data.keys():
-                asporb = data['asporb']
-            if 'datetime' in data.keys():
-                if data['datetime'] == None or data['datetime'] == '':
-                    res = predict.getSolarReturn(params)
-                else:
-                    if 'dirLat' in data.keys() and 'dirLon' in data.keys():
-                        params['lat'] = data['dirLat']
-                        params['lon'] = data['dirLon']
-                        pos = GeoPos(data['dirLat'], data['dirLon'])
-                        res = predict.getSolarReturnByDatePos(params, data['datetime'], pos, asporb)
+                if 'asporb' in payload.keys():
+                    asporb = payload['asporb']
+                if 'datetime' in payload.keys():
+                    if payload['datetime'] == None or payload['datetime'] == '':
+                        res = predict.getSolarReturn(params)
                     else:
-                        res = predict.getSolarReturnByDate(params, data['datetime'], asporb)
-            else:
-                res = predict.getSolarReturn(params, asporb)
+                        if 'dirLat' in payload.keys() and 'dirLon' in payload.keys():
+                            params['lat'] = payload['dirLat']
+                            params['lon'] = payload['dirLon']
+                            pos = GeoPos(payload['dirLat'], payload['dirLon'])
+                            res = predict.getSolarReturnByDatePos(params, payload['datetime'], pos, asporb)
+                        else:
+                            res = predict.getSolarReturnByDate(params, payload['datetime'], asporb)
+                else:
+                    res = predict.getSolarReturn(params, asporb)
 
-            dirchart = PerChart(res['dirParams'])
-            res['dirChart'] = getChartObj(res['dirParams'], dirchart)
+                dirchart = PerChart(res['dirParams'])
+                res['dirChart'] = getChartObj(res['dirParams'], dirchart)
+                return jsonpickle.encode(res, unpicklable=False)
 
-            return jsonpickle.encode(res, unpicklable=False)
+            return self.RESPONSE_CACHE.get_or_compute('predict.solarreturn', data, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
@@ -71,35 +75,39 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            data['tradition'] = False
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            asporb = -1
-            params = {}
-            params['date'] = data['date']
-            params['time'] = data['time']
-            params['zone'] = data['zone']
-            params['lat'] = data['dirLat']
-            params['lon'] = data['dirLon']
-            params['hsys'] = data['hsys']
-            if 'zodiacal' in data.keys():
-                params['zodiacal'] = data['zodiacal']
-            if 'dirZone' in data.keys():
-                params['zone'] = data['dirZone']
+            def _build():
+                payload = dict(data)
+                payload['tradition'] = False
+                perchart = PerChart(payload)
+                predict = perchart.getPredict()
+                asporb = -1
+                params = {}
+                params['date'] = payload['date']
+                params['time'] = payload['time']
+                params['zone'] = payload['zone']
+                params['lat'] = payload['dirLat']
+                params['lon'] = payload['dirLon']
+                params['hsys'] = payload['hsys']
+                if 'zodiacal' in payload.keys():
+                    params['zodiacal'] = payload['zodiacal']
+                if 'dirZone' in payload.keys():
+                    params['zone'] = payload['dirZone']
 
-            if 'asporb' in data.keys():
-                asporb = data['asporb']
-            pos = GeoPos(data['dirLat'], data['dirLon'])
-            res = predict.getLunarReturn(params, data['datetime'], pos, asporb)
+                if 'asporb' in payload.keys():
+                    asporb = payload['asporb']
+                pos = GeoPos(payload['dirLat'], payload['dirLon'])
+                res = predict.getLunarReturn(params, payload['datetime'], pos, asporb)
 
-            dirchart = PerChart(res['dirParams'])
-            res['dirChart'] = getChartObj(res['dirParams'], dirchart)
-            if 'secLuneReturn' in res.keys():
-                seclr = res['secLuneReturn']
-                secdirchart = PerChart(seclr['dirParams'])
-                seclr['dirChart'] = getChartObj(seclr['dirParams'], secdirchart)
+                dirchart = PerChart(res['dirParams'])
+                res['dirChart'] = getChartObj(res['dirParams'], dirchart)
+                if 'secLuneReturn' in res.keys():
+                    seclr = res['secLuneReturn']
+                    secdirchart = PerChart(seclr['dirParams'])
+                    seclr['dirChart'] = getChartObj(seclr['dirParams'], secdirchart)
 
-            return jsonpickle.encode(res, unpicklable=False)
+                return jsonpickle.encode(res, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.lunarreturn', data, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
@@ -112,31 +120,35 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            data['tradition'] = False
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            asporb = -1
-            params = {}
-            params['date'] = data['date']
-            params['time'] = data['time']
-            params['zone'] = data['zone']
-            params['lat'] = data['dirLat']
-            params['lon'] = data['dirLon']
-            params['hsys'] = data['hsys']
-            if 'zodiacal' in data.keys():
-                params['zodiacal'] = data['zodiacal']
-            if 'dirZone' in data.keys():
-                params['zone'] = data['dirZone']
+            def _build():
+                payload = dict(data)
+                payload['tradition'] = False
+                perchart = PerChart(payload)
+                predict = perchart.getPredict()
+                asporb = -1
+                params = {}
+                params['date'] = payload['date']
+                params['time'] = payload['time']
+                params['zone'] = payload['zone']
+                params['lat'] = payload['dirLat']
+                params['lon'] = payload['dirLon']
+                params['hsys'] = payload['hsys']
+                if 'zodiacal' in payload.keys():
+                    params['zodiacal'] = payload['zodiacal']
+                if 'dirZone' in payload.keys():
+                    params['zone'] = payload['dirZone']
 
-            if 'asporb' in data.keys():
-                asporb = data['asporb']
-            pos = GeoPos(data['dirLat'], data['dirLon'])
-            res = predict.getGivenYear(params, data['datetime'], pos, asporb)
+                if 'asporb' in payload.keys():
+                    asporb = payload['asporb']
+                pos = GeoPos(payload['dirLat'], payload['dirLon'])
+                res = predict.getGivenYear(params, payload['datetime'], pos, asporb)
 
-            dirchart = PerChart(res['dirParams'])
-            res['dirChart'] = getChartObj(res['dirParams'], dirchart)
+                dirchart = PerChart(res['dirParams'])
+                res['dirChart'] = getChartObj(res['dirParams'], dirchart)
 
-            return jsonpickle.encode(res, unpicklable=False)
+                return jsonpickle.encode(res, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.givenyear', data, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
@@ -149,29 +161,33 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            data['tradition'] = False
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            res = {}
-            nodeRetrograde = False
-            asporb = -1
-            if 'nodeRetrograde' in data.keys():
-                nodeRetrograde = data['nodeRetrograde']
-            if 'asporb' in data.keys():
-                asporb = data['asporb']
+            def _build():
+                payload = dict(data)
+                payload['tradition'] = False
+                perchart = PerChart(payload)
+                predict = perchart.getPredict()
+                res = {}
+                nodeRetrograde = False
+                asporb = -1
+                if 'nodeRetrograde' in payload.keys():
+                    nodeRetrograde = payload['nodeRetrograde']
+                if 'asporb' in payload.keys():
+                    asporb = payload['asporb']
 
-            if 'datetime' in data.keys():
-                if data['datetime'] == None or data['datetime'] == '':
-                    res = predict.getProfection(nodeRetrograde, asporb)
+                if 'datetime' in payload.keys():
+                    if payload['datetime'] == None or payload['datetime'] == '':
+                        res = predict.getProfection(nodeRetrograde, asporb)
+                    else:
+                        zone = perchart.zone
+                        if 'dirZone' in payload.keys():
+                            zone = payload['dirZone']
+                        res = predict.getProfectionByDate(payload['datetime'], zone, nodeRetrograde, asporb)
                 else:
-                    zone = perchart.zone
-                    if 'dirZone' in data.keys():
-                        zone = data['dirZone']
-                    res = predict.getProfectionByDate(data['datetime'], zone, nodeRetrograde, asporb)
-            else:
-                res = predict.getProfection()
+                    res = predict.getProfection()
 
-            return jsonpickle.encode(res, unpicklable=False)
+                return jsonpickle.encode(res, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.profection', data, _build)
 
         except Exception as ex:
             traceback.print_exc()
@@ -184,25 +200,29 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            data['tradition'] = False
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            res = {}
-            nodeRetrograde = False
-            asporb = 1
-            if 'asporb' in data.keys():
-                asporb = data['asporb']
-            if 'nodeRetrograde' in data.keys():
-                nodeRetrograde = data['nodeRetrograde']
-            if 'datetime' in data.keys():
-                if data['datetime'] == None or data['datetime'] == '':
-                    res = predict.getSolarArc(asporb, nodeRetrograde)
+            def _build():
+                payload = dict(data)
+                payload['tradition'] = False
+                perchart = PerChart(payload)
+                predict = perchart.getPredict()
+                res = {}
+                nodeRetrograde = False
+                asporb = 1
+                if 'asporb' in payload.keys():
+                    asporb = payload['asporb']
+                if 'nodeRetrograde' in payload.keys():
+                    nodeRetrograde = payload['nodeRetrograde']
+                if 'datetime' in payload.keys():
+                    if payload['datetime'] == None or payload['datetime'] == '':
+                        res = predict.getSolarArc(asporb, nodeRetrograde)
+                    else:
+                        res = predict.getSolarArcByDate(payload['datetime'], asporb, nodeRetrograde)
                 else:
-                    res = predict.getSolarArcByDate(data['datetime'], asporb, nodeRetrograde)
-            else:
-                res = predict.getSolarArc()
+                    res = predict.getSolarArc()
 
-            return jsonpickle.encode(res, unpicklable=False)
+                return jsonpickle.encode(res, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.solararc', data, _build)
 
         except Exception as ex:
             traceback.print_exc()
@@ -216,13 +236,17 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            pdlist = predict.getPrimaryDirection()
-            obj = {
-                'pd': pdlist
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+
+            def _build():
+                perchart = PerChart(data)
+                predict = perchart.getPredict()
+                pdlist = predict.getPrimaryDirection()
+                obj = {
+                    'pd': pdlist
+                }
+                return jsonpickle.encode(obj, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.pd', data, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
@@ -234,11 +258,15 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            perchart = PerChart(data)
-            predict = perchart.getPredict()
-            zone = data['dirZone'] if 'dirZone' in data.keys() else data['zone']
-            obj = predict.getPrimaryDirectionChartByDate(data['datetime'], zone)
-            return jsonpickle.encode(obj, unpicklable=False)
+
+            def _build():
+                perchart = PerChart(data)
+                predict = perchart.getPredict()
+                zone = data['dirZone'] if 'dirZone' in data.keys() else data['zone']
+                obj = predict.getPrimaryDirectionChartByDate(data['datetime'], zone)
+                return jsonpickle.encode(obj, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.pdchart', data, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
@@ -271,26 +299,31 @@ class PredictSrv:
         enable_crossdomain()
         try:
             data = cherrypy.request.json
-            data['predictive'] = False
 
-            startSign = None
-            perchart = PerChart(data)
-            if 'startSign' in data.keys():
-                startSign = data['startSign']
-            if startSign == None:
-                lot = perchart.getPar(const.PARS_FORTUNA)
-                startSign = lot.sign
+            def _build():
+                payload = dict(data)
+                payload['predictive'] = False
 
-            stopLevelIdx = 3
-            if 'stopLevelIdx' in data.keys():
-                stopLevelIdx = data['stopLevelIdx'] if (data['stopLevelIdx'] < 4 and data['stopLevelIdx'] >= 0) else 3
+                startSign = None
+                perchart = PerChart(payload)
+                if 'startSign' in payload.keys():
+                    startSign = payload['startSign']
+                if startSign == None:
+                    lot = perchart.getPar(const.PARS_FORTUNA)
+                    startSign = lot.sign
 
-            predict = perchart.getPredict()
-            zrlist = predict.getZodiacalRelease(startSign, stopLevelIdx)
-            obj = {
-                'zr': zrlist
-            }
-            return jsonpickle.encode(obj, unpicklable=False)
+                stopLevelIdx = 3
+                if 'stopLevelIdx' in payload.keys():
+                    stopLevelIdx = payload['stopLevelIdx'] if (payload['stopLevelIdx'] < 4 and payload['stopLevelIdx'] >= 0) else 3
+
+                predict = perchart.getPredict()
+                zrlist = predict.getZodiacalRelease(startSign, stopLevelIdx)
+                obj = {
+                    'zr': zrlist
+                }
+                return jsonpickle.encode(obj, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('predict.zr', data, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)

@@ -9,43 +9,100 @@ import { saveAstroAISnapshot, } from '../utils/astroAiSnapshot';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 
 let dtm = new DateTime();
+const StartupChartCacheKey = 'horosa.startupChartCache.v1';
+const StartupErrorGraceUntil = Date.now() + 20000;
+
+function parseStartupLaunchState(){
+	try{
+		if(typeof window === 'undefined' || !window.location || !window.location.search){
+			return null;
+		}
+		const params = new URLSearchParams(window.location.search || '');
+		const sdate = params.get('sdate');
+		const stime = params.get('stime');
+		const szone = params.get('szone');
+		if(!sdate || !stime || !szone){
+			return null;
+		}
+		const dateParts = sdate.split(/[\\/\\-]/).map((item)=>parseInt(item, 10));
+		const timeParts = stime.split(':').map((item)=>parseInt(item, 10));
+		if(dateParts.length !== 3 || timeParts.length < 2){
+			return null;
+		}
+		if(dateParts.some((item)=>!Number.isFinite(item)) || timeParts.some((item)=>!Number.isFinite(item))){
+			return null;
+		}
+		const second = Number.isFinite(timeParts[2]) ? timeParts[2] : 0;
+		const gpsLatRaw = Number(params.get('sgpslat'));
+		const gpsLonRaw = Number(params.get('sgpslon'));
+		const hsysRaw = parseInt(params.get('shsys'), 10);
+		return {
+			dateTime: new DateTime({
+				ad: 1,
+				year: dateParts[0],
+				month: dateParts[1],
+				date: dateParts[2],
+				hour: timeParts[0],
+				minute: timeParts[1],
+				second,
+				zone: szone,
+			}),
+			zone: szone,
+			lat: params.get('slat') || DefLat,
+			lon: params.get('slon') || DefLon,
+			gpsLat: Number.isFinite(gpsLatRaw) ? gpsLatRaw : DefGpsLat,
+			gpsLon: Number.isFinite(gpsLonRaw) ? gpsLonRaw : DefGpsLon,
+			hsys: Number.isFinite(hsysRaw) ? hsysRaw : 0,
+		};
+	}catch(e){
+		return null;
+	}
+}
 
 function newEmptyFields(){
+	const startupLaunchState = parseStartupLaunchState();
+	const baseDateTime = startupLaunchState ? startupLaunchState.dateTime : dtm;
+	const baseZone = startupLaunchState ? startupLaunchState.zone : dtm.zone;
+	const baseLat = startupLaunchState ? startupLaunchState.lat : DefLat;
+	const baseLon = startupLaunchState ? startupLaunchState.lon : DefLon;
+	const baseGpsLat = startupLaunchState ? startupLaunchState.gpsLat : DefGpsLat;
+	const baseGpsLon = startupLaunchState ? startupLaunchState.gpsLon : DefGpsLon;
+	const baseHsys = startupLaunchState ? startupLaunchState.hsys : 0;
 	const fields = {
 		cid: {
 			value: null,
 			name: ['cid'],
 		},
 		ad:{
-			value: dtm.ad,
+			value: baseDateTime.ad,
 			name: ['ad'],
 		},
 		date: {
-			value: dtm,
+			value: baseDateTime.clone(),
 			name: ['date'],
 		},
 		time: {
-			value: dtm.clone(),
+			value: baseDateTime.clone(),
 			name: ['time'],
 		},
 		zone: {
-			value: dtm.zone,
+			value: baseZone,
 			name: ['zone'],
 		},
 		lat: {
-			value: DefLat,
+			value: baseLat,
 			name: ['lat'],
 		},
 		lon: {
-			value: DefLon,
+			value: baseLon,
 			name: ['lon'],
 		},
 		gpsLat: {
-			value: DefGpsLat,
+			value: baseGpsLat,
 			name: ['gpsLat'],
 		},
 		gpsLon: {
-			value: DefGpsLon,
+			value: baseGpsLon,
 			name: ['gpsLon'],
 		},
 		name: {
@@ -57,7 +114,7 @@ function newEmptyFields(){
 			name: ['pos'],
 		},
 		hsys: {
-			value: 0,
+			value: baseHsys,
 			name: ['hsys'],
 		},
 		zodiacal: {
@@ -219,6 +276,130 @@ function fieldsToParams(fields){
 	return params;
 }
 
+function serializeDateTime(val){
+	if(!(val instanceof DateTime)){
+		return val;
+	}
+	return {
+		__type: 'DateTime',
+		ad: val.ad,
+		year: val.year,
+		month: val.month,
+		date: val.date,
+		hour: val.hour,
+		minute: val.minute,
+		second: val.second,
+		zone: val.zone,
+	};
+}
+
+function deserializeDateTime(val){
+	if(!val || typeof val !== 'object' || val.__type !== 'DateTime'){
+		return val;
+	}
+	return new DateTime({
+		ad: val.ad,
+		year: val.year,
+		month: val.month,
+		date: val.date,
+		hour: val.hour,
+		minute: val.minute,
+		second: val.second,
+		zone: val.zone,
+	});
+}
+
+function serializeFields(fields){
+	if(!fields || typeof fields !== 'object'){
+		return null;
+	}
+	const out = {};
+	Object.keys(fields).forEach((key)=>{
+		const item = fields[key];
+		if(!item || typeof item !== 'object'){
+			return;
+		}
+		out[key] = {
+			...item,
+			value: serializeDateTime(item.value),
+		};
+	});
+	return out;
+}
+
+function deserializeFields(raw){
+	const base = newEmptyFields();
+	if(!raw || typeof raw !== 'object'){
+		return base;
+	}
+	Object.keys(raw).forEach((key)=>{
+		const item = raw[key];
+		if(!item || typeof item !== 'object'){
+			return;
+		}
+		base[key] = {
+			...(base[key] || { name: [key] }),
+			...item,
+			value: deserializeDateTime(item.value),
+		};
+	});
+	return base;
+}
+
+function saveStartupChartCache(chartObj, fields){
+	if(typeof window === 'undefined' || !window.localStorage){
+		return;
+	}
+	if(!chartObj || !fields){
+		return;
+	}
+	try{
+		const payload = {
+			savedAt: Date.now(),
+			chartObj: chartObj,
+			fields: serializeFields(fields),
+		};
+		window.localStorage.setItem(StartupChartCacheKey, JSON.stringify(payload));
+	}catch(e){}
+}
+
+function loadStartupChartCache(){
+	if(typeof window === 'undefined'){
+		return null;
+	}
+	try{
+		const globalPayload = window.__HOROSA_STARTUP_CACHE;
+		if(globalPayload && globalPayload.chartObj && globalPayload.fields){
+			try{
+				if(window.localStorage){
+					window.localStorage.setItem(StartupChartCacheKey, JSON.stringify(globalPayload));
+				}
+			}catch(e){}
+			return {
+				chartObj: globalPayload.chartObj,
+				fields: deserializeFields(globalPayload.fields),
+			};
+		}
+		if(!window.localStorage){
+			return null;
+		}
+		const raw = window.localStorage.getItem(StartupChartCacheKey);
+		if(!raw){
+			return null;
+		}
+		const payload = JSON.parse(raw);
+		if(!payload || !payload.chartObj || !payload.fields){
+			return null;
+		}
+		return {
+			chartObj: payload.chartObj,
+			fields: deserializeFields(payload.fields),
+		};
+	}catch(e){
+		return null;
+	}
+}
+
 function shouldIncludePrimaryDirection(state){
 	return !!(
 		state
@@ -256,6 +437,16 @@ function getChartErrorDetail(rsp){
 
 function showChartServiceError(rsp){
 	const detail = getChartErrorDetail(rsp);
+	const inStartupGrace = Date.now() <= StartupErrorGraceUntil;
+	try{
+		const store = getStore();
+		const astroState = store && store.astro ? store.astro : null;
+		const hasLiveChart = !!(astroState && astroState.chartObj);
+		const hasStartupCache = !!loadStartupChartCache();
+		if((hasLiveChart || hasStartupCache) && inStartupGrace){
+			return;
+		}
+	}catch(e){}
 	if(detail){
 		Modal.error({
 			title: detail.indexOf('param error') >= 0
@@ -263,6 +454,9 @@ function showChartServiceError(rsp){
 				: '排盘失败',
 			content: detail,
 		});
+		return;
+	}
+	if(inStartupGrace){
 		return;
 	}
 	Modal.error({
@@ -344,12 +538,11 @@ function hooking(hook, currentTab, fields, chartObj){
 }
 
 let now = new DateTime();
-
-export default { 
-	namespace: 'astro',
-	state:{
+function buildInitialAstroState(){
+	const startupCache = loadStartupChartCache();
+	return {
 		height: 660,
-		chartObj: null,
+		chartObj: startupCache && startupCache.chartObj ? startupCache.chartObj : null,
 		drawerVisible: closeAllDrawer('init'),
 		currentTab: 'astrochart',
 		currentSubTab: null,
@@ -364,248 +557,38 @@ export default {
 		currentChart: null,
 		memoType: 0,
 		memo: '',
-
 		deeplearn: null,
-
 		predictHook:{
-			astrochart:{
-				fun: null
-			},
-			astrochart3D:{
-				fun: null
-			},
-			direction:{
-				fun: null
-			},
-			profection:{
-				fun: null
-			},
-			solararc:{
-				fun: null
-			},
-			solarreturn:{
-				fun: null
-			},
-			zodialrelease:{
-				fun: null
-			},
-			locastro:{
-				fun: null
-			},
-			hellenastro:{
-				fun: null
-			},
-			indiachart:{
-				fun: null
-			},
-			relativechart:{
-				fun: null
-			},
-			germanytech:{
-				fun: null
-			},
-			jieqichart:{
-				fun: null
-			},
-			cntradition:{
-				fun: null
-			},
-			cnyibu:{
-				fun: null
-			},
-			calendar:{
-				fun: null
-			},
-			otherbu:{
-				fun: null
-			},
-			fengshui:{
-				fun: null
-			},
-			sanshiunited:{
-				fun: null
-			},
-			astroreader:{
-				fun: null
-			},
-			admintools:{
-				fun: null
-			},
-			guolao:{
-				fun: null
-			},
-
+			astrochart:{ fun: null },
+			astrochart3D:{ fun: null },
+			direction:{ fun: null },
+			profection:{ fun: null },
+			solararc:{ fun: null },
+			solarreturn:{ fun: null },
+			zodialrelease:{ fun: null },
+			locastro:{ fun: null },
+			hellenastro:{ fun: null },
+			indiachart:{ fun: null },
+			relativechart:{ fun: null },
+			germanytech:{ fun: null },
+			jieqichart:{ fun: null },
+			cntradition:{ fun: null },
+			cnyibu:{ fun: null },
+			calendar:{ fun: null },
+			otherbu:{ fun: null },
+			fengshui:{ fun: null },
+			sanshiunited:{ fun: null },
+			astroreader:{ fun: null },
+			admintools:{ fun: null },
+			guolao:{ fun: null },
 		},
+		fields: startupCache && startupCache.fields ? startupCache.fields : newEmptyFields(),
+	};
+}
 
-		fields:{
-			cid: {
-				value: null,
-				name: ['cid'],
-			},	
-			ad:{
-				value: now.ad,
-				name: ['ad'],
-			},
-			date: {
-				value: now.startOf('date'),
-				name: ['date'],
-			},
-			time: {
-				value: now.clone(),
-				name: ['time'],
-			},
-			zone: {
-				value: now.zone,
-				name: ['zone'],
-			},
-			lat: {
-				value: DefLat,
-				name: ['lat'],
-			},
-			lon: {
-				value: DefLon,
-				name: ['lon'],
-			},
-			gpsLat: {
-				value: DefGpsLat,
-				name: ['gpsLat'],
-			},
-			gpsLon: {
-				value: DefGpsLon,
-				name: ['gpsLon'],
-			},
-			name: {
-				value: null,
-				name: ['name'],
-			},
-			pos: {
-				value: null,
-				name: ['pos'],
-			},
-			hsys: {
-				value: 0,
-				name: ['hsys'],
-			},
-			zodiacal: {
-				value: 0,
-				name: ['zodiacal'],
-			},
-			tradition: {
-				value: 0,
-				name: ['tradition'],
-			},
-			strongRecption: {
-				value: 0,
-				name: ['strongRecption'],
-			},
-			simpleAsp: {
-				value: 0,
-				name: ['simpleAsp'],
-			},
-			virtualPointReceiveAsp: {
-				value: 0,
-				name: ['virtualPointReceiveAsp'],
-			},
-			doubingSu28: {
-				value: 0,
-				name: ['doubingSu28'],
-			},
-			houseStartMode: {
-				value: 0,
-				name: ['houseStartMode'],
-			},
-			predictive: {
-				value: 1,
-				name: ['predictive'],
-			},
-			showPdBounds: {
-				value: 1,
-				name: ['showPdBounds'],
-			},
-			pdtype: {
-				value: 0,
-				name: ['pdtype'],
-			},
-			pdMethod: {
-				value: 'astroapp_alchabitius',
-				name: ['pdMethod'],
-			},
-			pdTimeKey: {
-				value: 'Ptolemy',
-				name: ['pdTimeKey'],
-			},
-			pdaspects: {
-				value: [0, 60, 90, 120, 180],
-				name: ['pdaspects'],
-			},
-			timeAlg: {
-				value: 0,
-				name: ['timeAlg'],
-			},
-			phaseType: {
-				value: 0,
-				name: ['phaseType'],
-			},
-			godKeyPos: {
-				value: '年',
-				name: ['godKeyPos'],
-			},
-			after23NewDay: {
-				value: 0,
-				name: ['after23NewDay'],
-			},
-			adjustJieqi: {
-				value: 0,
-				name: ['adjustJieqi'],
-			},
-			gender: {
-				value: 1,
-				name: ['gender'],
-			},
-			group: {
-				value: null,
-				name: ['group'],
-			},
-			southchart: {
-				value: 0,
-				name: ['southchart'],
-			},
-	
-			memoZiWei:{
-				value: null,
-				name: ['memoZiWei'],
-			},
-			memoBaZi:{
-				value: null,
-				name: ['memoBaZi'],
-			},
-			memoAstro:{
-				value: null,
-				name: ['memoAstro'],
-			},
-			memo74:{
-				value: null,
-				name: ['memo74'],
-			},
-			memoGua:{
-				value: null,
-				name: ['memoGua'],
-			},
-			memoLiuReng:{
-				value: null,
-				name: ['memoLiuReng'],
-			},
-			memoQiMeng:{
-				value: null,
-				name: ['memoQiMeng'],
-			},
-			memoSuZhan:{
-				value: null,
-				name: ['memoSuZhan'],
-			},
-
-		},
-	},
+export default { 
+	namespace: 'astro',
+	state: buildInitialAstroState(),
 	
 
 	reducers: {
@@ -929,6 +912,7 @@ export default {
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
 			saveAstroAISnapshot(Result, values);
+			saveStartupChartCache(Result, state.fields);
 
 			let drawer = closeAllDrawer('*fetch');
 
@@ -996,6 +980,7 @@ export default {
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
 			saveAstroAISnapshot(Result, fields);
+			saveStartupChartCache(Result, fields);
 
 			fields.memo74.value = values.memo74;
 			fields.memoBaZi.value = values.memoBaZi;
@@ -1084,6 +1069,7 @@ export default {
 			Result.params.pos = fieldValues.pos.value;
 			Result.chartId = randomStr(8);
 			saveAstroAISnapshot(Result, fieldValues);
+			saveStartupChartCache(Result, fieldValues);
 
 			let fld = {
 				...fieldValues,
@@ -1126,15 +1112,21 @@ export default {
 			const param = fieldsToParams(fields);
 			const astroState = yield select((state)=>state.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+			const forceSilent = !!(values && values.__silent);
+			const suppressErrors = !!(values && values.__suppressErrors);
+			const requestOptions = (forceSilent || (astroState && astroState.chartObj)) ? { silent: true } : undefined;
 
-			const rsp = yield* fetchChartWithRecovery(call, param);
+			const rsp = yield* fetchChartWithRecovery(call, param, requestOptions);
 			if(!isValidChartResponse(rsp)){
-				showChartServiceError(rsp);
+				if(!suppressErrors){
+					showChartServiceError(rsp);
+				}
 				return;
 			}
 			const Result = rsp.Result;
 			Result.chartId = randomStr(8);
 			saveAstroAISnapshot(Result, fields);
+			saveStartupChartCache(Result, fields);
 
 			let drawer = closeAllDrawer('*nowChart');
             yield put({
@@ -1151,6 +1143,21 @@ export default {
 			let hook = state.predictHook;
 			hooking(hook, state.currentTab, fields, Result);
 
+		},
+
+		*hydrateStartupCache({ payload: values }, { call, put }){
+			const cached = loadStartupChartCache();
+			if(!cached){
+				return;
+			}
+			yield put({
+				type: 'save',
+				payload: {
+					fields: cached.fields,
+					chartObj: cached.chartObj,
+					drawerVisible: closeAllDrawer('*hydrateStartupCache'),
+				},
+			});
 		},
 
 		*setHomePage({ payload: values }, { call, put }){

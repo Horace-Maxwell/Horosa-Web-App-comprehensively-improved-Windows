@@ -72,12 +72,6 @@ function Resolve-FrontendDistDir {
   $hasDist = Test-Path $distIndex
 
   if ($hasDistFile -and $hasDist) {
-    $distFileTime = (Get-Item $distFileIndex).LastWriteTimeUtc
-    $distTime = (Get-Item $distIndex).LastWriteTimeUtc
-    if ($distTime -gt $distFileTime) {
-      Write-Host ("[INFO] Frontend dist is newer than dist-file, using: {0}" -f $distDir)
-      return $distDir
-    }
     return $distFileDir
   }
 
@@ -274,6 +268,7 @@ $PersistServices = (
   $env:HOROSA_SMOKE_TEST -ne '1'
 )
 $SkipCleanup = $false
+$QuickWarmupStarted = $false
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $IssueSummaryFile) | Out-Null
@@ -483,6 +478,9 @@ $chartPortPinned = -not [string]::IsNullOrWhiteSpace([System.Environment]::GetEn
 $DefaultWebPort = Get-EnvPortOrDefault -EnvName 'HOROSA_WEB_PORT' -DefaultPort $DefaultWebPort
 $DefaultBackendPort = Get-EnvPortOrDefault -EnvName 'HOROSA_SERVER_PORT' -DefaultPort $DefaultBackendPort
 $DefaultChartPort = Get-EnvPortOrDefault -EnvName 'HOROSA_CHART_PORT' -DefaultPort $DefaultChartPort
+$PreferredWebPortBase = $DefaultWebPort
+$PreferredBackendPortBase = $DefaultBackendPort
+$PreferredChartPortBase = $DefaultChartPort
 $WebPort = $DefaultWebPort
 $BackendPort = $DefaultBackendPort
 $ChartPort = $DefaultChartPort
@@ -767,15 +765,61 @@ function Sync-PortLayout {
   Save-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
 }
 
+function New-StartupLaunchState {
+  $now = Get-Date
+  return [pscustomobject]@{
+    Date = $now.ToString('yyyy/MM/dd')
+    Time = $now.ToString('HH:mm:ss')
+    Zone = '+08:00'
+    Lat = '26n04'
+    Lon = '119e19'
+    GpsLat = '26.076417371316914'
+    GpsLon = '119.31516153077507'
+    Hsys = '0'
+  }
+}
+
+function Set-StartupLaunchEnv {
+  param(
+    [Parameter(Mandatory = $true)]
+    [pscustomobject]$StartupState
+  )
+
+  $env:HOROSA_WARM_DATE = $StartupState.Date
+  $env:HOROSA_WARM_TIME = $StartupState.Time
+  $env:HOROSA_WARM_ZONE = $StartupState.Zone
+  $env:HOROSA_WARM_LAT = $StartupState.Lat
+  $env:HOROSA_WARM_LON = $StartupState.Lon
+  $env:HOROSA_WARM_GPS_LAT = $StartupState.GpsLat
+  $env:HOROSA_WARM_GPS_LON = $StartupState.GpsLon
+  $env:HOROSA_WARM_HSYS = $StartupState.Hsys
+}
+
 function Build-LaunchUrl {
   param(
     [int]$WebPort,
-    [int]$BackendPort
+    [int]$BackendPort,
+    [pscustomobject]$StartupState
   )
+
+  if (-not $StartupState) {
+    $StartupState = New-StartupLaunchState
+  }
 
   $serverRoot = "http://127.0.0.1:$BackendPort"
   $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
-  return "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot"
+  $queryParts = @(
+    "srv=$encodedServerRoot",
+    "sdate=$([System.Uri]::EscapeDataString($StartupState.Date))",
+    "stime=$([System.Uri]::EscapeDataString($StartupState.Time))",
+    "szone=$([System.Uri]::EscapeDataString($StartupState.Zone))",
+    "slat=$([System.Uri]::EscapeDataString($StartupState.Lat))",
+    "slon=$([System.Uri]::EscapeDataString($StartupState.Lon))",
+    "sgpslat=$([System.Uri]::EscapeDataString([string]$StartupState.GpsLat))",
+    "sgpslon=$([System.Uri]::EscapeDataString([string]$StartupState.GpsLon))",
+    "shsys=$([System.Uri]::EscapeDataString([string]$StartupState.Hsys))"
+  )
+  return "http://127.0.0.1:$WebPort/index.html?" + ($queryParts -join '&')
 }
 
 function Test-HttpReady {
@@ -878,7 +922,23 @@ function Test-ReusableRuntimeStack {
 function Get-PidFromFile {
   param([string]$Path)
   if (-not (Test-Path $Path)) { return $null }
-  $raw = (Get-Content -Path $Path -Raw).Trim()
+  $raw = $null
+  $lastError = $null
+  for ($attempt = 0; $attempt -lt 8; $attempt++) {
+    try {
+      $raw = (Get-Content -Path $Path -Raw -ErrorAction Stop).Trim()
+      break
+    } catch {
+      $lastError = $_
+      Start-Sleep -Milliseconds 120
+    }
+  }
+  if ($null -eq $raw) {
+    if ($lastError) {
+      Write-Host ("[WARN] Failed to read pid file {0}: {1}" -f $Path, $lastError.Exception.Message)
+    }
+    return $null
+  }
   if (-not $raw) { return $null }
   try { return [int]$raw } catch { return $null }
 }
@@ -930,14 +990,31 @@ function Stop-PortOwners {
 }
 
 function Cleanup-All {
+  param(
+    [int[]]$ExtraWebPorts = @(),
+    [int[]]$ExtraBackendPorts = @(),
+    [int[]]$ExtraChartPorts = @()
+  )
+
   Clear-StackState
   Stop-PidFile -Name 'web' -Path $WebPidFile
   Stop-PidFile -Name 'java' -Path $JavaPidFile
   Stop-PidFile -Name 'python' -Path $PyPidFile
   Stop-PidFile -Name 'warmup' -Path $WarmupPidFile
-  Stop-ProjectPortOwners -Name 'web' -Port $WebPort
-  Stop-ProjectPortOwners -Name 'java' -Port $BackendPort
-  Stop-ProjectPortOwners -Name 'python' -Port $ChartPort
+
+  $webPortsToClean = @($WebPort) + $ExtraWebPorts
+  $backendPortsToClean = @($BackendPort) + $ExtraBackendPorts
+  $chartPortsToClean = @($ChartPort) + $ExtraChartPorts
+
+  foreach ($port in ($webPortsToClean | Where-Object { $_ } | Select-Object -Unique)) {
+    Stop-ProjectPortOwners -Name 'web' -Port ([int]$port)
+  }
+  foreach ($port in ($backendPortsToClean | Where-Object { $_ } | Select-Object -Unique)) {
+    Stop-ProjectPortOwners -Name 'java' -Port ([int]$port)
+  }
+  foreach ($port in ($chartPortsToClean | Where-Object { $_ } | Select-Object -Unique)) {
+    Stop-ProjectPortOwners -Name 'python' -Port ([int]$port)
+  }
 }
 
 function Start-Background {
@@ -2626,7 +2703,8 @@ function Start-HorosaWarmupProcess {
     [string]$Mode,
     [int]$DelaySec = 0,
     [string]$OutPath,
-    [string]$ErrPath
+    [string]$ErrPath,
+    [hashtable]$EnvOverrides = @{}
   )
 
   $warmScript = Join-Path $ProjectRoot 'astrostudyui\scripts\warmHorosaRuntime.js'
@@ -2650,7 +2728,34 @@ Start-Sleep -Seconds $DelaySec
     } else {
       ''
     }
+    $warmEnv = @{
+      HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
+      HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
+      HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
+      HOROSA_SERVER_PORT = [string]$BackendPort
+      HOROSA_CHART_PORT = [string]$ChartPort
+      HOROSA_WEB_PORT = [string]$WebPort
+    }
+    if ($EnvOverrides) {
+      foreach ($key in $EnvOverrides.Keys) {
+        $warmEnv[$key] = $EnvOverrides[$key]
+      }
+    }
+    $envPrefix = ''
+    if ($warmEnv) {
+      $pairs = @()
+      foreach ($entry in $warmEnv.GetEnumerator()) {
+        if ($null -eq $entry.Value) { continue }
+        $keyEsc = ("{0}" -f $entry.Key) -replace "'", "''"
+        $valEsc = ("{0}" -f $entry.Value) -replace "'", "''"
+        $pairs += ('$env:{0} = ''{1}''' -f $keyEsc, $valEsc)
+      }
+      if ($pairs.Count -gt 0) {
+        $envPrefix = ($pairs -join "`r`n") + "`r`n"
+      }
+    }
     $runner = @"
+$envPrefix
 $runnerPrefix
 & '$nodeCmd' '$warmScript' '--mode=$Mode'
 exit `$LASTEXITCODE
@@ -2666,6 +2771,103 @@ exit `$LASTEXITCODE
   } catch {
     Write-Host ("[WARN] Runtime warmup failed to start: {0}" -f $_.Exception.Message)
     return $null
+  }
+}
+
+function Prime-StartupCache {
+  param(
+    [string]$ProjectRoot,
+    [int]$TimeoutMs = 500
+  )
+
+  $warmScript = Join-Path $ProjectRoot 'astrostudyui\scripts\warmHorosaRuntime.js'
+  if (-not (Test-Path $warmScript)) {
+    return $false
+  }
+
+  $startupCacheJs = Join-Path $DistDir 'startup-cache.js'
+  $warmOut = Join-Path $LogDir 'warmup-startup.log'
+  $warmErr = Join-Path $LogDir 'warmup-startup.log.err'
+  try {
+    if (Test-Path $startupCacheJs) {
+      Remove-Item $startupCacheJs -Force -ErrorAction SilentlyContinue
+    }
+  } catch {}
+  $proc = Start-HorosaWarmupProcess `
+    -ProjectRoot $ProjectRoot `
+    -Mode 'startup' `
+    -DelaySec 0 `
+    -OutPath $warmOut `
+    -ErrPath $warmErr `
+    -EnvOverrides @{ HOROSA_STARTUP_CACHE_JS = $startupCacheJs }
+  if (-not $proc) {
+    return $false
+  }
+
+  $waitMs = [Math]::Max(200, $TimeoutMs)
+  $deadline = [DateTime]::UtcNow.AddMilliseconds($waitMs)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if (Test-Path $startupCacheJs) {
+      try {
+        $cacheText = Get-Content -Path $startupCacheJs -Raw -ErrorAction Stop
+        if ($cacheText -and $cacheText -notmatch 'window\.__HOROSA_STARTUP_CACHE\s*=\s*null') {
+          Write-Host ("[warmup] Startup cache primed: {0}" -f $startupCacheJs)
+          return $true
+        }
+      } catch {}
+    }
+    if ($proc.HasExited) { break }
+    Start-Sleep -Milliseconds 40
+  }
+
+  if (-not $proc.HasExited) {
+    try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+    if (Test-Path $startupCacheJs) {
+      try {
+        $cacheText = Get-Content -Path $startupCacheJs -Raw -ErrorAction Stop
+        if ($cacheText -and $cacheText -notmatch 'window\.__HOROSA_STARTUP_CACHE\s*=\s*null') {
+          Write-Host ("[warmup] Startup cache primed: {0}" -f $startupCacheJs)
+          return $true
+        }
+      } catch {}
+    }
+    Write-Host '[warmup] Startup cache skipped because priming exceeded budget.'
+    return $false
+  }
+
+  if ($proc.ExitCode -ne 0) {
+    Write-Host ("[warmup] Startup cache priming failed with code {0}. See {1}" -f $proc.ExitCode, $warmErr)
+    return $false
+  }
+
+  if (Test-Path $startupCacheJs) {
+    try {
+      $cacheText = Get-Content -Path $startupCacheJs -Raw -ErrorAction Stop
+      if ($cacheText -and $cacheText -notmatch 'window\.__HOROSA_STARTUP_CACHE\s*=\s*null') {
+        Write-Host ("[warmup] Startup cache primed: {0}" -f $startupCacheJs)
+        return $true
+      }
+    } catch {}
+  }
+
+  Write-Host '[warmup] Startup cache priming finished but no cache file was produced.'
+  return $false
+}
+
+function Test-StartupCacheReady {
+  param([string]$CachePath)
+
+  if ([string]::IsNullOrWhiteSpace($CachePath)) {
+    return $false
+  }
+  if (-not (Test-Path $CachePath -PathType Leaf)) {
+    return $false
+  }
+  try {
+    $cacheText = Get-Content -Path $CachePath -Raw -ErrorAction Stop
+    return !!($cacheText -and $cacheText -notmatch 'window\.__HOROSA_STARTUP_CACHE\s*=\s*null')
+  } catch {
+    return $false
   }
 }
 
@@ -2694,7 +2896,11 @@ function Invoke-HorosaWarmup {
     if (-not $proc) {
       return $false
     }
-    Set-Content -Path $WarmupPidFile -Value $proc.Id -NoNewline
+    try {
+      Set-Content -Path $WarmupPidFile -Value $proc.Id -NoNewline -ErrorAction Stop
+    } catch {
+      Write-Host ("[WARN] Failed to persist warmup pid file: {0}" -f $_.Exception.Message)
+    }
     Write-Host ("[warmup] Background {0} warmup running (pid {1})." -f $Mode, $proc.Id)
     return $true
   }
@@ -2761,12 +2967,12 @@ function Show-PreflightRuntimeSummary {
   Write-Host ("  backend jar source: {0}" -f $script:JarSource)
   Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
   Write-Host ("  ports: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
-  if (-not $InstalledPackageMode) {
+  if (-not $InstalledPackageMode -and $env:HOROSA_VERBOSE_RUNTIME_SUMMARY -eq '1') {
     $pyVersion = Get-PythonVersionText -PythonExe $PythonExe
     $javaVersion = Get-JavaVersionText -JavaExe $JavaExe
     Write-Host ("  python version: {0}" -f $pyVersion)
     Write-Host ("  java version: {0}" -f $javaVersion)
-  } else {
+  } elseif ($InstalledPackageMode) {
     Write-Host '  python version: embedded runtime'
     Write-Host '  java version: embedded runtime'
   }
@@ -2809,20 +3015,28 @@ if ($PersistServices -and -not ($webPortPinned -or $backendPortPinned -or $chart
         $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
         $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
         $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
-        $cachedUrl = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+        $cachedUrl = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
         Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
         Write-Host ("[INFO] Fast reusing existing local services: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
         Write-StartupCheckpoint 'preflight-skipped-reuse'
         Write-StartupCheckpoint 'backend-ready'
         Write-StartupCheckpoint 'web-ready'
+        if ($PerfMode) {
+          if (Wait-StartupWarmServicesReady -ChartPort $ChartPort -BackendPort $BackendPort -TimeoutMs 1200) {
+            Prime-StartupCache -ProjectRoot $ProjectDir | Out-Null
+          } else {
+            Write-Host '[warmup] Startup cache skipped because backend/chart are not ready yet.'
+          }
+        }
+        if ($PerfMode -and -not $QuickWarmupStarted -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
+          Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -DelaySec 0 -Background | Out-Null
+          $QuickWarmupStarted = $true
+        }
         if ($env:HOROSA_NO_BROWSER -eq '1') {
           Write-StartupCheckpoint 'ready-url-emitted'
           Write-Host "[4/4] Started (no-browser mode): $cachedUrl"
-          if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
-            Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
-          }
           if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
-            $fullWarmupDelaySec = 6
+            $fullWarmupDelaySec = 8
             if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
               [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
             }
@@ -3073,6 +3287,8 @@ $env:HOROSA_SERVER_PORT = [string]$BackendPort
 $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
 $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
 $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
+$StartupLaunchState = New-StartupLaunchState
+Set-StartupLaunchEnv -StartupState $StartupLaunchState
 
 if ($env:HOROSA_CLEANUP_ONLY -eq '1') {
   Write-Host '[INFO] Cleanup-only mode requested.'
@@ -3091,7 +3307,7 @@ $proxyEnvSnapshot = $null
 
 if ($PersistServices -and (Test-ReusableRuntimeStack -ExpectedSignature $currentStackSignature -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort)) {
   $reusedExistingStack = $true
-  $url = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+  $url = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
   Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
   Write-Host ("[INFO] Reusing existing local services: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
   Write-StartupCheckpoint 'preflight-skipped-reuse'
@@ -3107,11 +3323,15 @@ if (-not $reusedExistingStack) {
   Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if($PerfMode){'ON'}else{'OFF'})))
 
   if ($savedLayoutPreferredForReuse) {
+    $savedReuseWebPort = $WebPort
+    $savedReuseChartPort = $ChartPort
+    $savedReuseBackendPort = $BackendPort
+
     $fallbackPortLayout = Resolve-PortLayout `
-      -PreferredWebPort $DefaultWebPort `
-      -PreferredChartPort $DefaultChartPort `
-      -PreferredBackendPort $DefaultBackendPort `
-      -PreferRandomStart:($preferRandomPorts -and -not $savedPortLayout)
+      -PreferredWebPort $PreferredWebPortBase `
+      -PreferredChartPort $PreferredChartPortBase `
+      -PreferredBackendPort $PreferredBackendPortBase `
+      -PreferRandomStart:$preferRandomPorts
     $WebPort = $fallbackPortLayout.WebPort
     $ChartPort = $fallbackPortLayout.ChartPort
     $BackendPort = $fallbackPortLayout.BackendPort
@@ -3121,12 +3341,20 @@ if (-not $reusedExistingStack) {
     $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
     $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
     $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
+    $StartupLaunchState = New-StartupLaunchState
+    Set-StartupLaunchEnv -StartupState $StartupLaunchState
     Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
     if ($fallbackPortLayout.UsedAlternatePorts) {
       Write-Host ("[INFO] Existing desktop stack could not be reused. Falling back to web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
     }
+
+    Cleanup-All `
+      -ExtraWebPorts @($savedReuseWebPort) `
+      -ExtraChartPorts @($savedReuseChartPort) `
+      -ExtraBackendPorts @($savedReuseBackendPort)
+  } else {
+    Cleanup-All
   }
-  Cleanup-All
 
   $proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
   $pyPathItems = @(
@@ -3220,7 +3448,6 @@ try {
 
     $null = Start-Background -FilePath $JavaBin -Arguments $javaArgs -LogPath $JavaLog -PidFile $JavaPidFile
     Write-Host "backend: initializing on http://127.0.0.1:$BackendPort"
-
     $webReady = $false
     for ($i = 0; $i -lt 60; $i++) {
       if (Test-PortOpen -Port $WebPort -TimeoutMs 40) {
@@ -3235,21 +3462,39 @@ try {
     }
 
     Write-StartupCheckpoint 'web-ready'
-    $serverRoot = "http://127.0.0.1:$BackendPort"
-    $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
     $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&v=$cacheBust"
+    $url = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$cacheBust"
+    $startupCacheJs = Join-Path $DistDir 'startup-cache.js'
+    $startupWarmupOut = Join-Path $LogDir 'warmup-startup.log'
+    $startupWarmupErr = Join-Path $LogDir 'warmup-startup.log.err'
+    $startupWarmupProc = $null
+    $startupWarmupStarted = $false
 
     $ready = $false
     $chartReadyLogged = $false
     $backendReadyLogged = $false
-    $readinessPollCount = if ($InstalledPackageMode -or $PerfMode) { 2 } else { 6 }
+    $readinessPollCount = if ($InstalledPackageMode -or $PerfMode) { 10 } else { 6 }
     for ($i = 0; $i -lt $readinessPollCount; $i++) {
       $chartReadyNow = Test-PortOpen -Port $ChartPort -TimeoutMs 35
       $backendReadyNow = Test-PortOpen -Port $BackendPort -TimeoutMs 35
       if ($chartReadyNow -and -not $chartReadyLogged) {
         Write-StartupCheckpoint 'chart-ready'
         $chartReadyLogged = $true
+        if ($PerfMode -and -not $startupWarmupStarted -and $env:HOROSA_WARMUP_DISABLE_STARTUP -ne '1') {
+          try {
+            if (Test-Path $startupCacheJs) {
+              Remove-Item $startupCacheJs -Force -ErrorAction SilentlyContinue
+            }
+          } catch {}
+          $startupWarmupProc = Start-HorosaWarmupProcess `
+            -ProjectRoot $ProjectDir `
+            -Mode 'startup' `
+            -DelaySec 0 `
+            -OutPath $startupWarmupOut `
+            -ErrPath $startupWarmupErr `
+            -EnvOverrides @{ HOROSA_STARTUP_CACHE_JS = $startupCacheJs }
+          $startupWarmupStarted = $null -ne $startupWarmupProc
+        }
       }
       if ($backendReadyNow -and -not $backendReadyLogged) {
         Write-StartupCheckpoint 'backend-port-ready'
@@ -3259,7 +3504,7 @@ try {
         $ready = $true
         break
       }
-      Start-Sleep -Milliseconds 40
+      Start-Sleep -Milliseconds 60
     }
 
     if (-not $ready) {
@@ -3269,15 +3514,33 @@ try {
     }
   }
 
+  if ($PerfMode -and -not $QuickWarmupStarted -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
+    if ($startupWarmupStarted) {
+      $startupCacheDeadline = [DateTime]::UtcNow.AddMilliseconds(260)
+      while ([DateTime]::UtcNow -lt $startupCacheDeadline) {
+        if (Test-StartupCacheReady -CachePath $startupCacheJs) {
+          Write-Host ("[warmup] Startup cache primed: {0}" -f $startupCacheJs)
+          break
+        }
+        if ($startupWarmupProc -and $startupWarmupProc.HasExited) {
+          break
+        }
+        Start-Sleep -Milliseconds 40
+      }
+    } elseif ($chartReadyLogged) {
+      Prime-StartupCache -ProjectRoot $ProjectDir -TimeoutMs 260 | Out-Null
+    }
+    $quickWarmupDelaySec = if ($ready) { 0 } else { 2 }
+    Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -DelaySec $quickWarmupDelaySec -Background | Out-Null
+    $QuickWarmupStarted = $true
+  }
+
   Write-Host '[3/4] Opening browser...'
   if ($env:HOROSA_NO_BROWSER -eq '1') {
     Write-StartupCheckpoint 'ready-url-emitted'
     Write-Host "[4/4] Started (no-browser mode): $url"
-    if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
-      Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
-    }
     if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
-      $fullWarmupDelaySec = 6
+      $fullWarmupDelaySec = 8
       if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
         [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
       }
@@ -3320,11 +3583,8 @@ try {
       )
       $bp = Start-Process -FilePath $browser -ArgumentList $args -PassThru
       Write-Host "[4/4] Started: $url"
-      if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
-        Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
-      }
       if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
-        $fullWarmupDelaySec = 6
+        $fullWarmupDelaySec = 8
         if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
           [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
         }
@@ -3335,11 +3595,8 @@ try {
     } else {
       Start-Process $url | Out-Null
       Write-Host "[4/4] Started: $url"
-      if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_QUICK -ne '1') {
-        Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -Background | Out-Null
-      }
       if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
-        $fullWarmupDelaySec = 6
+        $fullWarmupDelaySec = 8
         if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
           [void][int]::TryParse($env:HOROSA_WARMUP_FULL_DELAY_SEC, [ref]$fullWarmupDelaySec)
         }

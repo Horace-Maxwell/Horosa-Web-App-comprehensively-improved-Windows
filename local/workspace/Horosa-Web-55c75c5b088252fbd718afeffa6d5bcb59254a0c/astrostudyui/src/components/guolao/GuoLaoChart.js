@@ -212,7 +212,6 @@ class GuoLaoChart extends Component{
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
 		this.updateSquareSide();
 		this.drawChart();
-		this.scheduleDrawRetry();
 	}
 
 	componentDidUpdate(){
@@ -220,7 +219,6 @@ class GuoLaoChart extends Component{
 			this.updateSquareSide();
 		}
 		this.drawChart();
-		this.scheduleDrawRetry();
 	}
 
 	componentWillUnmount() {

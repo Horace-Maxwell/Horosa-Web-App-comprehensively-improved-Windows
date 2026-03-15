@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { Tabs } from 'antd';
 import { randomStr } from '../../utils/helper';
 import SuZhanMain from '../suzhan/SuZhanMain';
 import GuaZhanMain from '../guazhan/GuaZhanMain';
@@ -7,7 +8,6 @@ import JinKouMain from '../jinkou/JinKouMain';
 import DunJiaMain from '../dunjia/DunJiaMain';
 import TaiYiMain from '../taiyi/TaiYiMain';
 import TongSheFaMain from '../tongshefa/TongSheFaMain';
-import styles from '../../css/styles.less';
 
 const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'];
 const CNYIBU_VIEWPORT_GAP = 22;
@@ -324,53 +324,25 @@ class CnYiBuMain extends Component{
 	render(){
 		const height = resolveBoundedHeight(this.props.height);
 		const tab = this.normalizeTab(this.state.currentTab);
-		const wrapStyle = {
-			height,
-			maxHeight: height,
-			overflow: 'hidden',
-			overflowX: 'hidden',
-			position: 'relative',
-		};
-		const dockStyle = {
-			height,
-			maxHeight: height,
-		};
 
 		return (
-			<div id={this.state.divId} style={wrapStyle}>
-				<div className={styles.cnYiBuDock} style={dockStyle}>
-					<div className={styles.cnYiBuContent}>
-						{ValidTabs.map((key)=>{
-							if(!this.state.preloadedTabs[key]){
-								return null;
-							}
-							const active = key === tab;
-							return (
-								<div
-									key={key}
-									className={`${styles.cnYiBuPane} ${active ? styles.cnYiBuPaneActive : ''}`}
-									aria-hidden={!active}
-								>
-									{this.renderTabPane(key, height)}
-								</div>
-							);
-						})}
-					</div>
-					<div className={styles.cnYiBuSideNav} role="tablist" aria-label="易与三式子项">
-						{CNYIBU_NAV_ITEMS.map((item)=>(
-							<button
-								key={item.key}
-								type="button"
-								role="tab"
-								aria-selected={tab === item.key}
-								className={`${styles.cnYiBuNavButton} ${tab === item.key ? styles.cnYiBuNavButtonActive : ''}`}
-								onClick={()=>this.changeTab(item.key)}
-							>
-								{item.label}
-							</button>
-						))}
-					</div>
-				</div>
+			<div id={this.state.divId}>
+				<Tabs
+					tabPosition='right'
+					activeKey={tab}
+					onChange={this.changeTab}
+					style={{ height }}
+				>
+					{CNYIBU_NAV_ITEMS.map((item)=>(
+						<Tabs.TabPane
+							tab={item.label}
+							key={item.key}
+							forceRender={!!this.state.preloadedTabs[item.key]}
+						>
+							{this.renderTabPane(item.key, height)}
+						</Tabs.TabPane>
+					))}
+				</Tabs>
 			</div>
 		);
 	}

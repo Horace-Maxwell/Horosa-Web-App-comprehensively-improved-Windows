@@ -1,3 +1,4 @@
+import React from 'react';
 import { connect  } from 'dva';
 import { Drawer, Tabs, Row, Col, Button, Spin, } from 'antd';
 import DateTime from '../components/comp/DateTime';
@@ -42,9 +43,47 @@ import DLFeature from '../components/deeplearn/DLFeature';
 import HomePageSetup from '../components/HomePageSetup';
 import * as AstroConst from '../constants/AstroConst';
 import {convertToArray} from '../utils/helper';
+import { fetchPreciseJieqiYear } from '../utils/preciseCalcBridge';
 
 const TabPane = Tabs.TabPane;
 let fetchByFieldsTimer = null;
+const jieqiPrefetchSeen = new Set();
+
+function buildJieqiPrefetchParams(fields){
+    if(!fields || !fields.date || !fields.date.value){
+        return null;
+    }
+    return {
+        year: fields.date.value.year,
+        ad: fields.ad ? fields.ad.value : fields.date.value.ad,
+        zone: fields.zone ? fields.zone.value : fields.date.value.zone,
+        lon: fields.lon ? fields.lon.value : '',
+        lat: fields.lat ? fields.lat.value : '',
+        gpsLat: fields.gpsLat ? fields.gpsLat.value : '',
+        gpsLon: fields.gpsLon ? fields.gpsLon.value : '',
+        hsys: fields.hsys ? fields.hsys.value : 0,
+        zodiacal: fields.zodiacal ? fields.zodiacal.value : 0,
+        doubingSu28: fields.doubingSu28 ? fields.doubingSu28.value : 0,
+    };
+}
+
+function getJieqiPrefetchKey(params){
+    if(!params){
+        return '';
+    }
+    return [
+        params.year,
+        params.ad,
+        params.zone,
+        params.lon,
+        params.lat,
+        params.gpsLat,
+        params.gpsLon,
+        params.hsys,
+        params.zodiacal,
+        params.doubingSu28,
+    ].join('|');
+}
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
     const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, planetMetaDisplay, showAstroMeaning, showOnlyRulExaltReception} = app;
@@ -179,6 +218,47 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             });               
         }, 1000);
     }
+
+    React.useEffect(()=>{
+        const params = buildJieqiPrefetchParams(fields);
+        const key = getJieqiPrefetchKey(params);
+        if(!chartObj || !params || !key || jieqiPrefetchSeen.has(key)){
+            return undefined;
+        }
+        const trigger = ()=>{
+            if(jieqiPrefetchSeen.has(key)){
+                return;
+            }
+            jieqiPrefetchSeen.add(key);
+            fetchPreciseJieqiYear(params).catch(()=>null);
+        };
+        let timer = null;
+        if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+            timer = window.requestIdleCallback(trigger, { timeout: 1800 });
+            return ()=>{
+                if(timer){
+                    window.cancelIdleCallback(timer);
+                }
+            };
+        }
+        timer = setTimeout(trigger, 900);
+        return ()=>{
+            if(timer){
+                clearTimeout(timer);
+            }
+        };
+    }, [
+        chartObj,
+        fields && fields.date && fields.date.value ? fields.date.value.year : null,
+        fields && fields.zone ? fields.zone.value : null,
+        fields && fields.lon ? fields.lon.value : null,
+        fields && fields.lat ? fields.lat.value : null,
+        fields && fields.gpsLat ? fields.gpsLat.value : null,
+        fields && fields.gpsLon ? fields.gpsLon.value : null,
+        fields && fields.hsys ? fields.hsys.value : null,
+        fields && fields.zodiacal ? fields.zodiacal.value : null,
+        fields && fields.doubingSu28 ? fields.doubingSu28.value : null,
+    ]);
     
     const themeIdx = AstroConst.normalizeColorThemeIndex(colorTheme);
     AstroConst.setColorTheme(themeIdx);
@@ -196,6 +276,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     if(loadingText){
         tip = loadingText;
     }
+
+    const isStartupLoadingText = !loadingText || `${loadingText}`.indexOf('载入中') >= 0;
+    const isStartupChartTab = !currentTab || currentTab === '1' || currentTab === 'astrochart';
+    const suppressStartupSpin = !!(
+        loading
+        && isStartupChartTab
+        && isStartupLoadingText
+    );
+    const effectiveLoading = suppressStartupSpin ? false : loading;
 
     let aryfields = convertToArray(fields);
     let arychartflds = convertToArray(currentChart);
@@ -215,7 +304,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
 	return (
 		<div style={idxstyle}>
-        <Spin spinning={loading} size="large" tip={tip}>
+        <Spin spinning={effectiveLoading} size="large" tip={tip}>
             <Tabs 
                 defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}
                 activeKey={currentTab}

@@ -10,6 +10,33 @@ import AstroLinesSelector from './AstroLinesSelector';
 import { getAllLines, } from './AcgHelper';
 import styles from '../../css/styles.less';
 
+const ACG_CACHE_MAX = 16;
+const ACG_RESULT_CACHE = new Map();
+
+function pushCache(cacheMap, key, val){
+	if(!key){
+		return;
+	}
+	if(cacheMap.has(key)){
+		cacheMap.delete(key);
+	}
+	cacheMap.set(key, val);
+	if(cacheMap.size > ACG_CACHE_MAX){
+		const oldest = cacheMap.keys().next().value;
+		if(oldest !== undefined){
+			cacheMap.delete(oldest);
+		}
+	}
+}
+
+function buildReqKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
 function fieldsToParams(fields){
 	const params = {
 		ad: fields.date.value.ad,
@@ -45,6 +72,9 @@ class AstroAcg extends Component{
 		};
 
 		this.unmounted = false;
+		this.acgReqSeq = 0;
+		this.pendingAcgReqKey = '';
+		this.lastAcgReq = { key: '', ts: 0 };
 
 		this.requestAcg = this.requestAcg.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -237,9 +267,43 @@ class AstroAcg extends Component{
 	}
 
 	async requestAcg(params){
-		const data = await request(`${Constants.ServerRoot}/location/acg`, {
-			body: JSON.stringify(params),
-		});
+		const reqKey = buildReqKey(params);
+		const now = Date.now();
+		if(reqKey && reqKey === this.pendingAcgReqKey){
+			return;
+		}
+		if(reqKey && this.lastAcgReq.key === reqKey && now - this.lastAcgReq.ts < 2000){
+			return;
+		}
+		if(reqKey && ACG_RESULT_CACHE.has(reqKey)){
+			const cached = ACG_RESULT_CACHE.get(reqKey);
+			this.lastAcgReq = { key: reqKey, ts: Date.now() };
+			if(!this.unmounted){
+				this.setState({
+					acgObj: cached,
+				});
+			}
+			return;
+		}
+		const reqSeq = ++this.acgReqSeq;
+		this.pendingAcgReqKey = reqKey;
+		let data = null;
+		try{
+			data = await request(`${Constants.ServerRoot}/location/acg`, {
+				body: JSON.stringify(params),
+				disableLoading: true,
+			});
+		}catch(e){
+			if(reqSeq === this.acgReqSeq){
+				this.pendingAcgReqKey = '';
+			}
+			return;
+		}
+		if(this.unmounted || reqSeq !== this.acgReqSeq){
+			return;
+		}
+		this.pendingAcgReqKey = '';
+		this.lastAcgReq = { key: reqKey, ts: Date.now() };
 		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		if(!result){
 			if(!this.unmounted){
@@ -250,6 +314,9 @@ class AstroAcg extends Component{
 			return;
 		}
 		let lines = this.genLinesData(result);
+		if(reqKey){
+			pushCache(ACG_RESULT_CACHE, reqKey, lines);
+		}
 		if(this.unmounted){
 			return;
 		}
@@ -283,6 +350,8 @@ class AstroAcg extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		this.acgReqSeq += 1;
+		this.pendingAcgReqKey = '';
 	}
 
 	render(){

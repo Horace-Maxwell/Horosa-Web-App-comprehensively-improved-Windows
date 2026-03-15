@@ -12,6 +12,7 @@ import boundless.exception.ErrorCodeException;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.JsonUtility;
 import spacex.astrostudy.helper.AstroHelper;
+import spacex.astrostudy.helper.CacheHelper;
 
 @Controller
 @RequestMapping("/predict")
@@ -164,8 +165,11 @@ public class PredictiveController {
 	@ResponseBody
 	@RequestMapping("/zr")
 	public void zr(){
-		Map<String, Object> params = getParams();		
-		Map<String, Object> res = AstroHelper.getZodiacalRelease(params);		
+		Map<String, Object> params = getParams();
+		Object obj = CacheHelper.get("/predict/zr", params, (args)->{
+			return AstroHelper.getZodiacalRelease(args);
+		});
+		Map<String, Object> res = (Map<String, Object>)obj;
 		TransData.set(res);
 	}
 	

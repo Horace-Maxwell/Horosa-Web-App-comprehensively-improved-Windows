@@ -68,7 +68,77 @@ function resolveLocalServerRoot(){
 	return serverRoot || 'http://127.0.0.1:9999';
 }
 
+function resolveLocalChartServerRoot(){
+	if(typeof window === 'undefined'){
+		return 'http://127.0.0.1:8899';
+	}
+	const storageKey = 'horosaLocalChartServerRoot';
+	const deriveFromPagePort = () => {
+		try{
+			const portTxt = `${window.location.port || ''}`.trim();
+			if(!/^\d+$/.test(portTxt)){
+				return null;
+			}
+			const webPort = parseInt(portTxt, 10);
+			if(!(webPort > 0)){
+				return null;
+			}
+			const chartPort = webPort + 899;
+			if(!(chartPort > 0)){
+				return null;
+			}
+			return `http://127.0.0.1:${chartPort}`;
+		}catch(e){
+			return null;
+		}
+	};
+	const deriveFromServerRoot = () => {
+		try{
+			const srvRoot = resolveLocalServerRoot();
+			const url = new URL(srvRoot);
+			const backendPort = parseInt(url.port || '0', 10);
+			if(!(backendPort > 0)){
+				return null;
+			}
+			const chartPort = backendPort - 1100;
+			if(!(chartPort > 0)){
+				return null;
+			}
+			return `${url.protocol}//${url.hostname}:${chartPort}`;
+		}catch(e){
+			return null;
+		}
+	};
+	let chartRoot = null;
+	try{
+		const params = new URLSearchParams(window.location.search || '');
+		const fromQuery = params.get('chart');
+		if(fromQuery && /^https?:\/\/.+/i.test(fromQuery)){
+			chartRoot = fromQuery;
+			window.localStorage && window.localStorage.setItem(storageKey, chartRoot);
+		}
+	}catch(e){}
+	if(!chartRoot){
+		chartRoot = deriveFromPagePort() || deriveFromServerRoot();
+		if(chartRoot){
+			try{
+				window.localStorage && window.localStorage.setItem(storageKey, chartRoot);
+			}catch(e){}
+		}
+	}
+	if(!chartRoot){
+		try{
+			const fromStorage = window.localStorage && window.localStorage.getItem(storageKey);
+			if(fromStorage && /^https?:\/\/.+/i.test(fromStorage)){
+				chartRoot = fromStorage;
+			}
+		}catch(e){}
+	}
+	return chartRoot || 'http://127.0.0.1:8899';
+}
+
 export const ServerRoot = isLocalHost ? resolveLocalServerRoot() : 'https://srv.horosa.com';
+export const ChartServerRoot = isLocalHost ? resolveLocalChartServerRoot() : ServerRoot;
 export const MobileServer = 'https://mobileweb.horosa.com';
 export const Chart3DServer = 'https://chart3d.horosa.com';
 export const WebSockServer = 'ws://www.horosa.com:26900/ws';

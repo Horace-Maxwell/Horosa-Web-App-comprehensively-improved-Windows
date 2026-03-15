@@ -102,12 +102,31 @@ async function clickCnYiBuSideTab(page, label) {
   const expected = normalizeText(label);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const ok = await page.evaluate((exp) => {
-      const buttons = Array.from(document.querySelectorAll('[class*="cnYiBuSideNav"] button'));
-      const target = buttons.find((node) => ((node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim() === exp));
-      if (!target) {
+      const visible = (node) => {
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const legacyButtons = Array.from(document.querySelectorAll('[class*="cnYiBuSideNav"] button'))
+        .filter((node) => visible(node));
+      const legacyTarget = legacyButtons.find((node) => ((node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim() === exp));
+      if (legacyTarget) {
+        legacyTarget.click();
+        return true;
+      }
+      const activePane = Array.from(document.querySelectorAll('.mainRootTabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active .ant-tabs-tab'))
+        .find((node) => {
+          if (!visible(node)) {
+            return false;
+          }
+          const text = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+          return text === exp || text.indexOf(exp) >= 0;
+        });
+      if (!activePane) {
         return false;
       }
-      target.click();
+      const btn = activePane.querySelector('.ant-tabs-tab-btn') || activePane;
+      btn.click();
       return true;
     }, expected);
     if (ok) {
@@ -283,27 +302,28 @@ async function selectVisiblePaneOptionByCurrentText(page, currentTextCandidates,
   const activePaneSelector = '.mainRootTabs .ant-tabs-content-holder .ant-tabs-tabpane-active[aria-hidden="false"], .mainRootTabs .ant-tabs-content-holder .ant-tabs-tabpane-active';
   await page.waitForFunction((selector) => document.querySelectorAll(selector).length > 0 || document.querySelector('[class*="cnYiBuPaneActive"]'), activePaneSelector, { timeout: 10000 });
   const opened = await page.evaluate(({ selector, candidates }) => {
-    const globalCnYiBuPane = Array.from(document.querySelectorAll('[class*="cnYiBuPaneActive"]')).find((node) => {
+    const visible = (node) => {
       const rect = node.getBoundingClientRect();
       const style = window.getComputedStyle(node);
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const globalCnYiBuPane = Array.from(document.querySelectorAll('[class*="cnYiBuPaneActive"]')).find((node) => {
+      return visible(node);
     });
     const panes = Array.from(document.querySelectorAll(selector));
     const rootPane = panes[panes.length - 1];
     const pane = globalCnYiBuPane || rootPane;
-    if (!pane) {
-      return false;
-    }
-    const selects = Array.from(pane.querySelectorAll('.ant-select')).filter((node) => {
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
-      if (!(rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden')) {
+    const findTarget = (scope) => Array.from(scope.querySelectorAll('.ant-select')).filter((node) => {
+      if (!visible(node)) {
         return false;
       }
       const text = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
       return candidates.indexOf(text) >= 0;
-    });
-    const target = selects[0];
+    })[0];
+    let target = pane ? findTarget(pane) : null;
+    if (!target) {
+      target = findTarget(document);
+    }
     if (!target) {
       return false;
     }
@@ -328,6 +348,15 @@ async function readVisiblePaneSelectByCandidates(page, currentTextCandidates) {
   const activePaneSelector = '.mainRootTabs .ant-tabs-content-holder .ant-tabs-tabpane-active[aria-hidden="false"], .mainRootTabs .ant-tabs-content-holder .ant-tabs-tabpane-active';
   await page.waitForFunction((selector) => document.querySelectorAll(selector).length > 0 || document.querySelector('[class*="cnYiBuPaneActive"]'), activePaneSelector, { timeout: 10000 });
   const text = await page.evaluate(({ selector, candidates }) => {
+    const findMatchingVisibleSelect = (root) => Array.from(root.querySelectorAll('.ant-select')).find((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      if (!(rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden')) {
+        return false;
+      }
+      const value = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+      return candidates.some((candidate) => value.indexOf(candidate) >= 0);
+    });
     const globalCnYiBuPane = Array.from(document.querySelectorAll('[class*="cnYiBuPaneActive"]')).find((node) => {
       const rect = node.getBoundingClientRect();
       const style = window.getComputedStyle(node);
@@ -336,19 +365,14 @@ async function readVisiblePaneSelectByCandidates(page, currentTextCandidates) {
     const panes = Array.from(document.querySelectorAll(selector));
     const rootPane = panes[panes.length - 1];
     const pane = globalCnYiBuPane || rootPane;
-    if (!pane) {
-      return null;
-    }
-    const target = Array.from(pane.querySelectorAll('.ant-select')).find((node) => {
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
-      if (!(rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden')) {
-        return false;
+    if (pane) {
+      const target = findMatchingVisibleSelect(pane);
+      if (target) {
+        return target.innerText || target.textContent || '';
       }
-      const value = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
-      return candidates.indexOf(value) >= 0;
-    });
-    return target ? (target.innerText || target.textContent || '') : null;
+    }
+    const fallback = findMatchingVisibleSelect(document);
+    return fallback ? (fallback.innerText || fallback.textContent || '') : null;
   }, { selector: activePaneSelector, candidates: normalizedCandidates });
   if (text === null) {
     throw new Error(`Visible pane select text not found for candidates: ${normalizedCandidates.join(', ')}`);
@@ -424,10 +448,10 @@ async function readValues(url, userDataDir) {
 
     await clickRoot(page, '易与三式');
     await clickCnYiBuSideTab(page, '宿盘');
-    const suzhanPaneText = normalizeText(await page.locator('[class*="cnYiBuPaneActive"]').innerText().catch(() => ''));
+    const suzhanPaneText = await readVisiblePaneSelectByCandidates(page, ['无外盘', '星座外盘', '分野外盘', '八卦外盘', '遁甲外盘', '太乙外盘', '方位外盘', '逆向外盘']);
 
     await clickCnYiBuSideTab(page, '六壬');
-    const liurengPaneText = normalizeText(await page.locator('[class*="cnYiBuPaneActive"]').innerText().catch(() => ''));
+    const liurengPaneText = await readVisiblePaneSelectByCandidates(page, ['圆形盘', '方形盘']);
 
     const localState = await captureLocalState(page);
     return {

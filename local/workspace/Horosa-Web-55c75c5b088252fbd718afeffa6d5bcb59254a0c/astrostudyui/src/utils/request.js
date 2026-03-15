@@ -342,6 +342,72 @@ function isLocalRuntimeUrl(url){
 	return txt.indexOf('http://127.0.0.1:') === 0 || txt.indexOf('http://localhost:') === 0;
 }
 
+const DIRECT_LOCAL_CALC_PREFIXES = [
+	'/chart',
+	'/chart13',
+	'/predict/pd',
+	'/predict/pdchart',
+	'/predict/profection',
+	'/predict/solararc',
+	'/predict/solarreturn',
+	'/predict/lunarreturn',
+	'/predict/givenyear',
+	'/predict/zr',
+	'/jieqi/year',
+	'/india/chart',
+	'/location/acg',
+	'/germany/midpoint',
+];
+
+function shouldUseDirectLocalCalc(url){
+	if(!isLocalRuntimeUrl(url) || !Constants.ChartServerRoot || !isLocalRuntimeUrl(Constants.ChartServerRoot)){
+		return false;
+	}
+	try{
+		const target = new URL(url);
+		const pathname = target.pathname || '/';
+		return DIRECT_LOCAL_CALC_PREFIXES.some((prefix)=>{
+			if(pathname === prefix){
+				return true;
+			}
+			if(prefix.endsWith('/')){
+				return pathname.indexOf(prefix) === 0;
+			}
+			return pathname === prefix;
+		});
+	}catch(e){
+		return false;
+	}
+}
+
+function rewriteToDirectLocalCalc(url){
+	if(!shouldUseDirectLocalCalc(url)){
+		return {
+			url,
+			direct: false,
+		};
+	}
+	try{
+		const target = new URL(url);
+		const directRoot = new URL(Constants.ChartServerRoot);
+		target.protocol = directRoot.protocol;
+		target.hostname = directRoot.hostname;
+		target.port = directRoot.port;
+		if((target.pathname || '/') === '/chart'){
+			target.pathname = '/';
+		}
+		return {
+			url: target.toString(),
+			direct: true,
+		};
+	}catch(e){
+		return {
+			url,
+			direct: false,
+		};
+	}
+}
+
 function isRetryableLocalRequestError(err){
 	if(!err){
 		return false;
@@ -462,6 +528,8 @@ export default async function request(url, options) {
 			delete opts.timeoutMs;
 		}
         normalizeFetchCacheOption(opts);
+        const directLocalCalc = rewriteToDirectLocalCalc(url);
+        url = directLocalCalc.url;
         let headers = opts.headers;
         if(headers === undefined || headers === null){
             headers = {};
@@ -472,17 +540,24 @@ export default async function request(url, options) {
         }
     
         const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
-        opts.headers = {
-            ...headers,
-            Token: usrtoken ? usrtoken : '', 
-            'Content-Type': 'application/json; charset=UTF-8', 
-            LocalIp: LocalIp,
-            ClientChannel: Constants.ClientChannel,
-            ClientApp: Constants.ClientApp,
-            ClientVer: Constants.ClientVer,
-        };
-        opts.headers.Signature = sign(usrtoken, opts.headers, opts.body);
-        opts.body = encrypt(opts.body);
+		if(directLocalCalc.direct){
+			opts.headers = {
+				...headers,
+				'Content-Type': 'application/json; charset=UTF-8',
+			};
+		}else{
+	        opts.headers = {
+	            ...headers,
+	            Token: usrtoken ? usrtoken : '', 
+	            'Content-Type': 'application/json; charset=UTF-8', 
+	            LocalIp: LocalIp,
+	            ClientChannel: Constants.ClientChannel,
+	            ClientApp: Constants.ClientApp,
+	            ClientVer: Constants.ClientVer,
+	        };
+	        opts.headers.Signature = sign(usrtoken, opts.headers, opts.body);
+	        opts.body = encrypt(opts.body);
+		}
     
         const st = new Date().getTime();
         const response = await fetchWithLocalRetry(url, opts, timeoutMs);
@@ -521,10 +596,22 @@ export default async function request(url, options) {
 
         let ret = null;
         if(isObject(data)){
-            ret = {
-                ...data,
-                headers: respheaders,
-            };
+			if(
+				directLocalCalc.direct &&
+				data[Constants.ResultKey] === undefined &&
+				data[Constants.ResultCodeKey] === undefined
+			){
+				ret = {
+					[Constants.ResultCodeKey]: 0,
+					[Constants.ResultKey]: data,
+					headers: respheaders,
+				};
+			}else{
+	            ret = {
+	                ...data,
+	                headers: respheaders,
+	            };
+			}
         }else{
             ret = data;
         }

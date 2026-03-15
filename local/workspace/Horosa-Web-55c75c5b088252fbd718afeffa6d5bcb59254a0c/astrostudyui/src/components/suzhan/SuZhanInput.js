@@ -46,6 +46,25 @@ class SuZhanInput extends Component{
 
 	}
 
+	componentDidMount(){
+		if(!this.props.onFieldsChange || !this.props.fields){
+			return;
+		}
+		const patch = {};
+		if(!this.props.fields.szchart || this.props.fields.szchart.value !== SZConst.SZChart.chart){
+			patch.szchart = { value: SZConst.SZChart.chart };
+		}
+		if(!this.props.fields.szshape || this.props.fields.szshape.value !== SZConst.SZChart.shape){
+			patch.szshape = { value: SZConst.SZChart.shape };
+		}
+		if(!this.props.fields.houseStartMode || parseInt(this.props.fields.houseStartMode.value, 10) !== SZConst.SZChart.houseStartMode){
+			patch.houseStartMode = { value: SZConst.SZChart.houseStartMode };
+		}
+		if(Object.keys(patch).length){
+			this.props.onFieldsChange(patch);
+		}
+	}
+
 	onGenderChange(val){
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({

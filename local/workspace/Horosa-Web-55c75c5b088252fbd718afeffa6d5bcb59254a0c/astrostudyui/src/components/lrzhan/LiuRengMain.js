@@ -19,6 +19,10 @@ import {
 	mergeLiurengSunMoonXiu,
 } from '../liureng/LRAstroBranchHelper';
 import {
+	getLiurengRunyearLocalCache,
+	setLiurengRunyearLocalCache,
+} from '../../utils/localCalcCache';
+import {
 	buildLiuRengReferenceRows as buildUnifiedLiuRengReferenceRows,
 	buildLiuRengPatternDisplayRows,
 	buildLiuRengOverviewSections,
@@ -32,6 +36,33 @@ const InputGroup = Input.Group;
 const {Option} = Select;
 const RIGHT_PANEL_BOTTOM_GAP = 12;
 const RIGHT_PANEL_MIN_HEIGHT = 180;
+const LIURENG_CACHE_MAX = 24;
+const LIURENG_PREFETCH_DELAY_MS = 1400;
+const LIURENG_RUNYEAR_CACHE = new Map();
+
+function pushCache(cacheMap, key, val){
+	if(!key){
+		return;
+	}
+	if(cacheMap.has(key)){
+		cacheMap.delete(key);
+	}
+	cacheMap.set(key, val);
+	if(cacheMap.size > LIURENG_CACHE_MAX){
+		const oldest = cacheMap.keys().next().value;
+		if(oldest !== undefined){
+			cacheMap.delete(oldest);
+		}
+	}
+}
+
+function buildReqKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
 
 function getViewportHeight(){
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
@@ -667,6 +698,9 @@ class LiuRengMain extends Component{
 
 		this.unmounted = false;
 		this.rightPanelHost = null;
+		this.runYearReqSeq = 0;
+		this.pendingRunYearReqKey = '';
+		this.lastRunYearReq = { key: '', ts: 0 };
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onBirthChange = this.onBirthChange.bind(this);
@@ -682,6 +716,10 @@ class LiuRengMain extends Component{
 		this.clickSaveCase = this.clickSaveCase.bind(this);
 		this.captureRightPanel = this.captureRightPanel.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
+		this.clearPrefetchTimer = this.clearPrefetchTimer.bind(this);
+		this.schedulePrefetch = this.schedulePrefetch.bind(this);
+		this.prefetchCaseData = this.prefetchCaseData.bind(this);
+		this.prefetchTimer = null;
 
 		if(this.props.hook){
 			this.props.hook.fun = ()=>{};
@@ -821,7 +859,7 @@ class LiuRengMain extends Component{
 		return params;
 	}
 
-	async requestGods(fields, chartSnapshot){
+	async requestGods(fields, chartSnapshot, options = {}){
 		if(fields === undefined || fields === null){
 			return false;
 		}
@@ -832,10 +870,12 @@ class LiuRengMain extends Component{
 		});
 		const result = extractRequestResult(data);
 		if(!result){
-			Modal.error({
-				title: '六壬起课失败',
-				content: '本地六壬服务未返回有效结果，请稍后重试。',
-			});
+			if(!options.silent){
+				Modal.error({
+					title: '六壬起课失败',
+					content: '本地六壬服务未返回有效结果，请稍后重试。',
+				});
+			}
 			return false;
 		}
 		const mergedLiureng = mergeLiurengSunMoonXiu(result && result.liureng ? result.liureng : null, chartSnapshot);
@@ -857,29 +897,82 @@ class LiuRengMain extends Component{
 		});
 	}
 
-	async requestRunYear(){
+	async requestRunYear(options = {}){
 		if(this.state.liureng === null){
 			return false;
 		}
 		
 		const params = this.genRunYearParams();
-		if(this.state.birth.date.value.year > this.props.fields.date.value.year){
-			Modal.error({
-				title: '出生年份必须小于卜卦年份'
-			});
+		const reqKey = buildReqKey(params);
+		const now = Date.now();
+		if(reqKey && reqKey === this.pendingRunYearReqKey){
 			return false;
 		}
-
-		const data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
-			body: JSON.stringify(params),
-		});
+		if(reqKey && this.lastRunYearReq.key === reqKey && now - this.lastRunYearReq.ts < 2000){
+			return true;
+		}
+		const localCached = reqKey ? getLiurengRunyearLocalCache(reqKey) : null;
+		if(reqKey && localCached && !LIURENG_RUNYEAR_CACHE.has(reqKey)){
+			pushCache(LIURENG_RUNYEAR_CACHE, reqKey, localCached);
+		}
+		if(reqKey && LIURENG_RUNYEAR_CACHE.has(reqKey)){
+			const cached = LIURENG_RUNYEAR_CACHE.get(reqKey);
+			let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
+			age = Math.floor(age / 60) * 60 + cached.age;
+			const result = {
+				...cached,
+				age,
+			};
+			this.lastRunYearReq = { key: reqKey, ts: Date.now() };
+			return new Promise((resolve)=>{
+				this.setState({
+					runyear: result,
+				}, ()=>{
+					this.saveLiuRengAISnapshot(null, this.state.liureng, result, this.state.wuxing, this.state.guireng);
+					resolve(true);
+				});
+			});
+		}
+		if(this.state.birth.date.value.year > this.props.fields.date.value.year){
+			if(!options.silent){
+				Modal.error({
+					title: '出生年份必须小于卜卦年份'
+				});
+			}
+			return false;
+		}
+		const reqSeq = ++this.runYearReqSeq;
+		this.pendingRunYearReqKey = reqKey;
+		let data = null;
+		try{
+			data = await request(`${Constants.ServerRoot}/liureng/runyear`, {
+				body: JSON.stringify(params),
+				disableLoading: true,
+			});
+		}catch(e){
+			if(reqSeq === this.runYearReqSeq){
+				this.pendingRunYearReqKey = '';
+			}
+			return false;
+		}
+		if(this.unmounted || reqSeq !== this.runYearReqSeq){
+			return false;
+		}
+		this.pendingRunYearReqKey = '';
+		this.lastRunYearReq = { key: reqKey, ts: Date.now() };
 		const result = extractRequestResult(data);
 		if(!result){
-			Modal.error({
-				title: '行年计算失败',
-				content: '本地六壬服务未返回有效行年结果，请稍后重试。',
-			});
+			if(!options.silent){
+				Modal.error({
+					title: '行年计算失败',
+					content: '本地六壬服务未返回有效行年结果，请稍后重试。',
+				});
+			}
 			return false;
+		}
+		if(reqKey){
+			pushCache(LIURENG_RUNYEAR_CACHE, reqKey, result);
+			setLiurengRunyearLocalCache(reqKey, result);
 		}
 
 		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
@@ -979,11 +1072,60 @@ class LiuRengMain extends Component{
 		this.unmounted = false;
 		window.addEventListener('resize', this.handleWindowResize);
 		this.handleWindowResize();
+		this.schedulePrefetch();
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
 		window.removeEventListener('resize', this.handleWindowResize);
+		this.runYearReqSeq += 1;
+		this.pendingRunYearReqKey = '';
+		this.clearPrefetchTimer();
+	}
+
+	clearPrefetchTimer(){
+		if(!this.prefetchTimer){
+			return;
+		}
+		if(typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'){
+			window.cancelIdleCallback(this.prefetchTimer);
+		}else{
+			clearTimeout(this.prefetchTimer);
+		}
+		this.prefetchTimer = null;
+	}
+
+	schedulePrefetch(){
+		if(this.unmounted){
+			return;
+		}
+		this.clearPrefetchTimer();
+		const run = ()=>{
+			this.prefetchTimer = null;
+			this.prefetchCaseData();
+		};
+		if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+			this.prefetchTimer = window.requestIdleCallback(run, { timeout: LIURENG_PREFETCH_DELAY_MS });
+			return;
+		}
+		this.prefetchTimer = setTimeout(run, LIURENG_PREFETCH_DELAY_MS);
+	}
+
+	async prefetchCaseData(){
+		if(this.unmounted || this.state.isCalculating){
+			return;
+		}
+		if(this.state.liureng && this.state.runyear){
+			return;
+		}
+		if(!this.props.fields || !this.props.value || !this.props.value.chart){
+			return;
+		}
+		const chartSnapshot = cloneChartSnapshot(this.props.value.chart);
+		const ok = await this.requestGods(this.props.fields, chartSnapshot, { silent: true });
+		if(ok){
+			await this.requestRunYear({ silent: true });
+		}
 	}
 
 	captureRightPanel(node){

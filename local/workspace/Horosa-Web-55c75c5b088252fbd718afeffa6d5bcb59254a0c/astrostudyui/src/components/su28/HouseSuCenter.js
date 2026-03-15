@@ -36,18 +36,27 @@ class HouseSuCenter extends HouseSu{
 	}
 
 	drawTitle(){
-		let nongli = this.su28chart.chartObj.nongli;
-		let bazi = nongli.bazi;
-		let leap = nongli.leap ? '闰' : '';
-		let nonglistr = `${nongli.year}年${leap}${nongli.month}${nongli.day}${nongli.time.substr(1)}时`;
-		let baziganzi = `${bazi.year.ganzi},${bazi.month.ganzi},${bazi.day.ganzi},${bazi.time.ganzi}时`;
-		let realtm = nongli.birth.split(' ');
+		const chartObj = this.su28chart && this.su28chart.chartObj ? this.su28chart.chartObj : {};
+		const nongli = chartObj.nongli || null;
+		const bazi = nongli && nongli.bazi ? nongli.bazi : null;
+		const leap = nongli && nongli.leap ? '闰' : '';
+		const nongliTime = nongli && typeof nongli.time === 'string' ? nongli.time : '';
+		const nonglistr = nongli
+			? `${nongli.year || ''}年${leap}${nongli.month || ''}${nongli.day || ''}${nongliTime ? nongliTime.substr(1) : ''}时`
+			: '未知';
+		const baziganzi = bazi
+			? `${bazi.year && bazi.year.ganzi ? bazi.year.ganzi : '未知'},${bazi.month && bazi.month.ganzi ? bazi.month.ganzi : '未知'},${bazi.day && bazi.day.ganzi ? bazi.day.ganzi : '未知'},${bazi.time && bazi.time.ganzi ? bazi.time.ganzi : '未知'}时`
+			: '未知';
+		const realtm = nongli && typeof nongli.birth === 'string' ? nongli.birth.split(' ') : [];
+		const zone = this.fields && this.fields.zone ? this.fields.zone.value : '未知';
+		const lon = this.fields && this.fields.lon ? this.fields.lon.value : '未知';
+		const lat = this.fields && this.fields.lat ? this.fields.lat.value : '未知';
 		let data = [
-			'时区：' + this.fields.zone.value,
-			'经度：' + this.fields.lon.value,
-			'纬度：' + this.fields.lat.value,
-			'真太阳日：' + realtm[0],
-			'真太阳时：' + realtm[1],
+			'时区：' + zone,
+			'经度：' + lon,
+			'纬度：' + lat,
+			'真太阳日：' + (realtm[0] || '未知'),
+			'真太阳时：' + (realtm[1] || '未知'),
 			'农历:' + nonglistr,
 			'四柱:' + baziganzi,
 		];
@@ -56,7 +65,7 @@ class HouseSuCenter extends HouseSu{
 		}
 		data.push('打印');
 
-		let zutips = {
+		let zutips = bazi ? {
 			title: '四柱纳音',
 			tips: [
 				'年：'+ bazi.year.ganzi + '-' + bazi.year.naying,
@@ -64,7 +73,7 @@ class HouseSuCenter extends HouseSu{
 				'日：'+ bazi.day.ganzi + '-' + bazi.day.naying,
 				'时：'+ bazi.time.ganzi + '-' + bazi.time.naying,
 			]
-		}
+		} : null;
 
 		let fz = this.fontSize;
 		let evlfz = this.height / (data.length+2) - this.margin * 2;
@@ -88,7 +97,7 @@ class HouseSuCenter extends HouseSu{
 				.attr('x', x).attr('y', y)
 				.text(txt);
 
-			if(txt.indexOf('四柱') >= 0){
+			if(zutips && txt.indexOf('四柱') >= 0){
 				this.genTooltipByTips(txtgrp[i], zutips)
 			}
 			y = y + h;

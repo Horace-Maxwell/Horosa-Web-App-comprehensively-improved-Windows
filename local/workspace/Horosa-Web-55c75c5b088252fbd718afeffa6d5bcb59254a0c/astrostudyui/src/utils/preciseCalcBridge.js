@@ -5,6 +5,8 @@ import {
 	setNongliLocalCache,
 	getJieqiSeedLocalCache,
 	setJieqiSeedLocalCache,
+	getJieqiYearLocalCache,
+	setJieqiYearLocalCache,
 } from './localCalcCache';
 
 const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'timeAlg', 'after23NewDay'];
@@ -111,6 +113,13 @@ export async function fetchPreciseJieqiYear(params){
 	if(key && jieqiYearMem.has(key)){
 		return jieqiYearMem.get(key);
 	}
+	const localHit = getJieqiYearLocalCache(key);
+	if(localHit){
+		if(key){
+			pushCache(jieqiYearMem, key, localHit);
+		}
+		return localHit;
+	}
 	if(key && jieqiYearInflight.has(key)){
 		return jieqiYearInflight.get(key);
 	}
@@ -123,6 +132,7 @@ export async function fetchPreciseJieqiYear(params){
 			const result = rsp && rsp[ResultKey] ? rsp[ResultKey] : null;
 			if(result){
 				pushCache(jieqiYearMem, key, result);
+				setJieqiYearLocalCache(key, result);
 			}
 			return result;
 		}catch(e){

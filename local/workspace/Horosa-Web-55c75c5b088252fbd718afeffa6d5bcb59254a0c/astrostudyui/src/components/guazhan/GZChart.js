@@ -358,9 +358,16 @@ class GZChart {
 			txt = '真太阳时:' + this.nongli.birth+ '（' + leap + this.nongli.month + this.nongli.day + '）';
 
 			let bz = this.nongli.bazi;
-
-			bztxt = nltxt + '； 八字：' + bz.year.ganzi + '年 ' + bz.month.ganzi + '月 '
-				+ bz.day.ganzi + '日 '+ bz.time.ganzi + '时';
+			if(
+				bz
+				&& bz.year && bz.year.ganzi
+				&& bz.month && bz.month.ganzi
+				&& bz.day && bz.day.ganzi
+				&& bz.time && bz.time.ganzi
+			){
+				bztxt = nltxt + '； 八字：' + bz.year.ganzi + '年 ' + bz.month.ganzi + '月 '
+					+ bz.day.ganzi + '日 '+ bz.time.ganzi + '时';
+			}
 		}else{
 			let dt = new Date();
 			let h = dt.getHours();

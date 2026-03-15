@@ -1,10 +1,16 @@
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
 const JIE_QI_NS = 'horosa.localcalc.jieqi.v1';
+const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v1';
+const LIURENG_RUNYEAR_NS = 'horosa.localcalc.liurengRunyear.v1';
 const MAX_NONG_LI = 512;
 const MAX_JIE_QI = 256;
+const MAX_JIE_QI_YEAR = 96;
+const MAX_LIURENG_RUNYEAR = 128;
 
 let nongliMem = {};
 let jieqiMem = {};
+let jieqiYearMem = {};
+let liurengRunyearMem = {};
 let loaded = false;
 
 function canUseLocalStorage(){
@@ -27,11 +33,17 @@ function loadIfNeeded(){
 	try{
 		const nongliRaw = window.localStorage.getItem(NONG_LI_NS);
 		const jieqiRaw = window.localStorage.getItem(JIE_QI_NS);
+		const jieqiYearRaw = window.localStorage.getItem(JIE_QI_YEAR_NS);
+		const liurengRunyearRaw = window.localStorage.getItem(LIURENG_RUNYEAR_NS);
 		nongliMem = nongliRaw ? (JSON.parse(nongliRaw) || {}) : {};
 		jieqiMem = jieqiRaw ? (JSON.parse(jieqiRaw) || {}) : {};
+		jieqiYearMem = jieqiYearRaw ? (JSON.parse(jieqiYearRaw) || {}) : {};
+		liurengRunyearMem = liurengRunyearRaw ? (JSON.parse(liurengRunyearRaw) || {}) : {};
 	}catch(e){
 		nongliMem = {};
 		jieqiMem = {};
+		jieqiYearMem = {};
+		liurengRunyearMem = {};
 	}
 }
 
@@ -113,4 +125,52 @@ export function setJieqiSeedLocalCache(params, data){
 	jieqiMem[key] = { ts: Date.now(), data };
 	trimByCount(jieqiMem, MAX_JIE_QI);
 	saveNS(JIE_QI_NS, jieqiMem);
+}
+
+export function getJieqiYearLocalCache(key){
+	loadIfNeeded();
+	const cacheKey = toStr(key);
+	if(!cacheKey){
+		return null;
+	}
+	const hit = jieqiYearMem[cacheKey];
+	return hit && hit.data ? hit.data : null;
+}
+
+export function setJieqiYearLocalCache(key, data){
+	if(!data){
+		return;
+	}
+	loadIfNeeded();
+	const cacheKey = toStr(key);
+	if(!cacheKey){
+		return;
+	}
+	jieqiYearMem[cacheKey] = { ts: Date.now(), data };
+	trimByCount(jieqiYearMem, MAX_JIE_QI_YEAR);
+	saveNS(JIE_QI_YEAR_NS, jieqiYearMem);
+}
+
+export function getLiurengRunyearLocalCache(key){
+	loadIfNeeded();
+	const cacheKey = toStr(key);
+	if(!cacheKey){
+		return null;
+	}
+	const hit = liurengRunyearMem[cacheKey];
+	return hit && hit.data ? hit.data : null;
+}
+
+export function setLiurengRunyearLocalCache(key, data){
+	if(!data){
+		return;
+	}
+	loadIfNeeded();
+	const cacheKey = toStr(key);
+	if(!cacheKey){
+		return;
+	}
+	liurengRunyearMem[cacheKey] = { ts: Date.now(), data };
+	trimByCount(liurengRunyearMem, MAX_LIURENG_RUNYEAR);
+	saveNS(LIURENG_RUNYEAR_NS, liurengRunyearMem);
 }
