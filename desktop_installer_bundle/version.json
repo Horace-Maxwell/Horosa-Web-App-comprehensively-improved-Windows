@@ -1,11 +1,11 @@
 {
-  "version": "2026.03.14.2",
+  "version": "2026.03.15.1",
   "channel": "stable",
   "release_asset_prefix": "HorosaPortableWindows",
   "installer_asset_name": "XingqueSetup.exe",
   "offline_installer_asset_name": "XingqueSetupFull.exe",
   "runtime_asset_prefix": "HorosaRuntimeWindows",
-  "runtime_release_tag": "2026.03.14.2",
-  "release_name": "v1.0.40",
+  "runtime_release_tag": "2026.03.15.1",
+  "release_name": "v1.0.41",
   "launcher_asset_name": "Xingque.exe"
 }
