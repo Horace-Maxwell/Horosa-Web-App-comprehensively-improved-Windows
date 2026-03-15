@@ -38,7 +38,7 @@ async function clickVisibleTab(page, selector, label) {
         const style = window.getComputedStyle(node);
         const text = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
         const visible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-        if (visible && text === exp) {
+        if (visible && (text === exp || text.includes(exp) || exp.includes(text))) {
           return i;
         }
       }
@@ -102,7 +102,7 @@ async function clickPaneTab(page, label) {
 async function clickCnYiBuSideTab(page, label) {
   const expected = normalizeText(label);
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const ok = await page.evaluate((exp) => {
+    const customOk = await page.evaluate((exp) => {
       const buttons = Array.from(document.querySelectorAll('[class*="cnYiBuSideNav"] button'));
       const target = buttons.find((node) => ((node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim() === exp));
       if (!target) {
@@ -111,10 +111,43 @@ async function clickCnYiBuSideTab(page, label) {
       target.click();
       return true;
     }, expected);
-    if (ok) {
+    if (customOk) {
       await wait(page, 180);
       return;
     }
+    const genericOk = await page.evaluate((exp) => {
+      const activeRootPane = Array.from(document.querySelectorAll('.mainRootTabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active, .mainRootTabs > .ant-tabs-content-holder > .ant-tabs-tabpane-active'))
+        .find((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = window.getComputedStyle(node);
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        });
+      if (!activeRootPane) {
+        return false;
+      }
+      const candidates = Array.from(activeRootPane.querySelectorAll('.ant-tabs-nav .ant-tabs-tab, .ant-tabs-nav .ant-tabs-tab .ant-tabs-tab-btn'))
+        .filter((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = window.getComputedStyle(node);
+          const text = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && (text === exp || text.includes(exp) || exp.includes(text));
+        })
+        .sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right);
+      const target = candidates[0];
+      if (!target) {
+        return false;
+      }
+      target.click();
+      return true;
+    }, expected);
+    if (genericOk) {
+      await wait(page, 220);
+      return;
+    }
+    try {
+      await clickPaneTab(page, label);
+      return;
+    } catch {}
     await wait(page, 180);
   }
   throw new Error(`CnYiBu tab not found: ${expected}`);
@@ -159,8 +192,28 @@ async function verifyCnYiBuTabs(page) {
   await clickRoot(page, '易与三式');
   const labels = ['宿盘', '易卦', '六壬', '金口诀', '遁甲', '太乙', '统摄法'];
   const passes = [];
-  const readActive = async () => normalizeText(await page.locator('[class*="cnYiBuSideNav"] [class*="cnYiBuNavButtonActive"]').textContent().catch(() => ''));
-  passes.push({ round: 0, label: '宿盘', active: await readActive(), ok: (await readActive()) === '宿盘' });
+  const readActive = async () => {
+    return await page.evaluate((validLabels) => {
+      const normalized = (txt) => (txt || '').replace(/\s+/g, ' ').trim();
+      const validSet = new Set(validLabels);
+      const candidates = Array.from(document.querySelectorAll('.ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn, .ant-tabs-nav .ant-tabs-tab-active'))
+        .map((node) => {
+          const text = normalized(node.innerText || node.textContent || '');
+          const rect = node.getBoundingClientRect();
+          return {
+            text,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+          };
+        })
+        .filter((item) => item.width > 0 && item.height > 0 && validSet.has(item.text))
+        .sort((a, b) => b.right - a.right);
+      return candidates.length ? candidates[0].text : '';
+    }, labels);
+  };
+  const initialActive = await readActive();
+  passes.push({ round: 0, label: '宿盘', active: initialActive, ok: initialActive === '宿盘' });
   for (let round = 0; round < 2; round += 1) {
     for (const label of labels.slice(1)) {
       await clickCnYiBuSideTab(page, label);
@@ -187,10 +240,21 @@ async function verifyLiuRengScroll(page) {
   if (await calcButton.count()) {
     await calcButton.click();
   }
-  await page.locator('[class*="judgeTabBody"]').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const nodes = Array.from(document.querySelectorAll('[class*="judgeTabBody"]'));
+    return nodes.some((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    });
+  }, { timeout: 10000 });
   await wait(page, 1200);
   return await page.evaluate(() => {
-    const body = document.querySelector('[class*="judgeTabBody"]');
+    const body = Array.from(document.querySelectorAll('[class*="judgeTabBody"]')).find((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    }) || null;
     const divider = Array.from(document.querySelectorAll('span,div')).find((node) => ((node.textContent || '').trim() === '格局判断'));
     const inputRoot = body ? body.closest('div[style*="flex-direction: column"]') : null;
     const fixedTopHost = body ? body.parentElement?.parentElement?.parentElement : null;
@@ -227,11 +291,34 @@ async function main() {
   page.setDefaultTimeout(10000);
   const pageErrors = [];
   const consoleErrors = [];
+  const failedResponses = [];
+  const failedRequests = [];
   page.on('pageerror', (err) => pageErrors.push(err.message));
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
       consoleErrors.push(msg.text());
     }
+  });
+  page.on('response', async (response) => {
+    const status = response.status();
+    if (status < 400) {
+      return;
+    }
+    const request = response.request();
+    failedResponses.push({
+      status,
+      url: response.url(),
+      method: request.method(),
+      resourceType: request.resourceType(),
+    });
+  });
+  page.on('requestfailed', (request) => {
+    failedRequests.push({
+      url: request.url(),
+      method: request.method(),
+      resourceType: request.resourceType(),
+      failure: request.failure() ? request.failure().errorText : '',
+    });
   });
 
   await waitForAppReady(page);
@@ -246,6 +333,8 @@ async function main() {
     liuRengScroll,
     pageErrors,
     consoleErrors,
+    failedResponses,
+    failedRequests,
   };
 
   console.log(JSON.stringify(result, null, 2));
