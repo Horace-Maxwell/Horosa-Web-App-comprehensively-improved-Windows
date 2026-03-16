@@ -96,7 +96,9 @@ function Invoke-ExistingInstallScenario {
       version = $InstalledVersion
       runtimeVersion = $InstalledVersion
     } | ConvertTo-Json
-  ) | Set-Content -Path (Join-Path $stateDir 'install_state.json') -Encoding UTF8
+  ) | ForEach-Object {
+    [System.IO.File]::WriteAllText((Join-Path $stateDir 'install_state.json'), $_, (New-Object System.Text.UTF8Encoding($false)))
+  }
 
   Remove-ShortcutArtifact -Path $desktopShortcut
   Remove-ShortcutArtifact -Path $startMenuShortcut

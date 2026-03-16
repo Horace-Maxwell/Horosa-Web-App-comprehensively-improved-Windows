@@ -90,8 +90,8 @@ try {
   $appUrl = [string]$startInfo.readyUrl
 
   Invoke-And-Capture `
-    -Name 'ui-fast-smoke' `
-    -Command "`$env:HOROSA_APP_URL='$appUrl'; Set-Location '$RepoRoot'; node .\selfcheck\ui_fast_smoke.js"
+    -Name 'ui-comprehensive-audit' `
+    -Command "`$env:HOROSA_APP_URL='$appUrl'; Set-Location '$RepoRoot'; node .\selfcheck\ui_comprehensive_audit.js"
 
   Invoke-And-Capture `
     -Name 'ui-targeted-regression' `

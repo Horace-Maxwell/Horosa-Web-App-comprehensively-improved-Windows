@@ -5,6 +5,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$VersionInfo = Get-Content -Raw (Join-Path $RepoRoot 'desktop_installer_bundle\version.json') | ConvertFrom-Json
+$ExpectedVersion = [string]$VersionInfo.version
+
 $TestRoot = Join-Path 'C:\xqe' 'singlefile-installer-smoke'
 $LocalAppDataRoot = Join-Path $TestRoot 'LocalAppData'
 $SmokeFile = Join-Path $LocalAppDataRoot 'HorosaDesktop\installer-smoke.json'
@@ -38,8 +42,12 @@ try {
   }
 
   $smoke = Get-Content -Raw $SmokeFile | ConvertFrom-Json
+  if ([string]$smoke.version -ne $ExpectedVersion) {
+    throw "Installer smoke version mismatch. Expected $ExpectedVersion but got $($smoke.version)"
+  }
   [pscustomobject]@{
     installer = $InstallerPath
+    expected_version = $ExpectedVersion
     exit_code = $proc.ExitCode
     smoke_status = $smoke.status
     smoke_version = $smoke.version

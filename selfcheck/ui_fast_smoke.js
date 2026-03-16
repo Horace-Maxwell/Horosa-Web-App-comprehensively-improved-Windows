@@ -1,9 +1,21 @@
 const { chromium } = require('../local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/node_modules/playwright');
 
 const APP_URL = process.env.HOROSA_APP_URL || 'http://127.0.0.1:8000/index.html?srv=http%3A%2F%2F127.0.0.1%3A9999#/';
+const IGNORED_CONSOLE_ERROR_PATTERNS = [
+  /DOMNodeInserted/i,
+  /ERR_CONNECTION_REFUSED/i,
+];
 
 function normalizeText(text) {
   return (text || '').replace(/\s+/g, ' ').trim();
+}
+
+function isActionableConsoleError(text) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return false;
+  }
+  return !IGNORED_CONSOLE_ERROR_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 async function wait(page, ms = 100) {
@@ -109,6 +121,7 @@ async function clickAiExportItem(page, itemText) {
 async function main() {
   const startedAt = Date.now();
   let browser;
+  let exitCode = 0;
   const hardTimeout = setTimeout(() => {
     console.error('ui_fast_smoke hard timeout after 90s');
     process.exit(1);
@@ -257,16 +270,31 @@ async function main() {
     results.timings.representativesMs = Date.now() - repsStarted;
     results.timings.totalMs = Date.now() - startedAt;
 
-    console.log(JSON.stringify({ results, failures, pageErrors, consoleErrors }, null, 2));
+    const actionableConsoleErrors = consoleErrors.filter(isActionableConsoleError);
+    const actionablePageErrors = pageErrors.filter((text) => isActionableConsoleError(text));
+    console.log(JSON.stringify({
+      results,
+      failures,
+      pageErrors,
+      consoleErrors,
+      actionablePageErrors,
+      actionableConsoleErrors,
+    }, null, 2));
+    exitCode = (failures.length || actionablePageErrors.length || actionableConsoleErrors.length) ? 1 : 0;
   } finally {
     clearTimeout(hardTimeout);
     if (browser) {
       await browser.close().catch(() => {});
     }
   }
+  return exitCode;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then((exitCode) => {
+    process.exit(exitCode);
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
