@@ -1308,6 +1308,7 @@ class LiuRengMain extends Component{
 					<Col span={8}>
 						<div
 							ref={this.captureRightPanel}
+							className={styles.rightPanelColumn}
 							style={{
 								height: rightPanelHeight,
 								maxHeight: panelLimit,
@@ -1318,7 +1319,7 @@ class LiuRengMain extends Component{
 								minHeight: 0,
 							}}
 						>
-						<div style={{ flex: '0 0 auto' }}>
+						<div className={styles.rightPanelStatic}>
 							<Row className={styles.rightPanel}>
 								<Col span={24}>
 									<LiuRengInput 
@@ -1368,7 +1369,7 @@ class LiuRengMain extends Component{
 							</Row>
 							<Divider orientation='left'>格局判断</Divider>
 						</div>
-						<div style={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
+						<div className={styles.rightPanelScrollable}>
 						<Card
 							size="small"
 							className={styles.judgeCard}

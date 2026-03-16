@@ -115,17 +115,7 @@ public class BaZi {
 	}
 	
 	private int getBaseLonByZone() {
-		String sym = this.zone.substring(0, 1);
-		String hour = this.zone.substring(1, 3);
-		if(hour.startsWith("0")) {
-			hour = hour.substring(1, 2);
-		}
-		int h = ConvertUtility.getValueAsInt(hour);
-		int lon = h * 15;
-		if(sym.equals("+")) {
-			return lon;
-		}
-		return -lon;
+		return spacex.astrostudy.model.RealSunTimeOffset.getBaseLonByZone(this.zone);
 	}
 	
 	private void adjustJieqiInfo(List<Map<String, Object>> jieqilist) {

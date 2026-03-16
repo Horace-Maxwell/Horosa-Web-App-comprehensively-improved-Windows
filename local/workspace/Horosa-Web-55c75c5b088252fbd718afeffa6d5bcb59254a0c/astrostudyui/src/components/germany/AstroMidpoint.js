@@ -10,6 +10,60 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import styles from '../../css/styles.less';
 
+const MIDPOINT_CACHE_MAX = 24;
+const MIDPOINT_CACHE = new Map();
+const MIDPOINT_INFLIGHT = new Map();
+
+function buildMidpointCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushMidpointCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(MIDPOINT_CACHE.has(key)){
+		MIDPOINT_CACHE.delete(key);
+	}
+	MIDPOINT_CACHE.set(key, value);
+	if(MIDPOINT_CACHE.size > MIDPOINT_CACHE_MAX){
+		const oldest = MIDPOINT_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			MIDPOINT_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestMidpointCached(params){
+	const key = buildMidpointCacheKey(params);
+	if(key && MIDPOINT_CACHE.has(key)){
+		return MIDPOINT_CACHE.get(key);
+	}
+	if(key && MIDPOINT_INFLIGHT.has(key)){
+		return MIDPOINT_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/germany/midpoint`, {
+		body: JSON.stringify(params),
+		silent: true,
+	}).then((data)=>{
+		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		pushMidpointCache(key, result);
+		return result;
+	}).finally(()=>{
+		if(key){
+			MIDPOINT_INFLIGHT.delete(key);
+		}
+	});
+	if(key){
+		MIDPOINT_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
 function fieldVal(fields, key, fallback){
 	if(!fields || !fields[key]){
 		return fallback;
@@ -199,10 +253,7 @@ class AstroMidpoint extends Component{
 	}
 
 	async requestChart(params){
-		const data = await request(`${Constants.ServerRoot}/germany/midpoint`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey]
+		const result = await requestMidpointCached(params);
 
 		const st = {
 			midpoints: result,

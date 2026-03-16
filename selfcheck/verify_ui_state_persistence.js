@@ -394,7 +394,50 @@ async function captureLocalState(page) {
     aspKey: localStorage.getItem('AspKey'),
     suzhanChartType: localStorage.getItem('suzhanChartType'),
     liurengChartType: localStorage.getItem('liurengChartType'),
+    localCharts: localStorage.getItem('horosa.localCharts.v1'),
+    localCases: localStorage.getItem('horosa.localCases.v1'),
   }));
+}
+
+async function seedLocalRecords(page) {
+  await page.evaluate(() => {
+    const chartRecord = [{
+      cid: 'persist-chart-001',
+      name: '持久化命盘回归样例',
+      birth: '2028-04-06 09:33:00',
+      zone: '+08:00',
+      lat: '31n13',
+      lon: '121e28',
+      gpsLat: 31.2167,
+      gpsLon: 121.4667,
+      pos: 'Shanghai',
+      gender: 1,
+      isPub: 0,
+      group: '["回归测试"]',
+      creator: 'selfcheck',
+      updateTime: '2028-04-06 09:33:00',
+    }];
+    const caseRecord = [{
+      cid: 'persist-case-001',
+      event: '持久化事盘回归样例',
+      caseType: 'liureng',
+      divTime: '2028-04-06 09:33:00',
+      zone: '+08:00',
+      lat: '31n13',
+      lon: '121e28',
+      gpsLat: 31.2167,
+      gpsLon: 121.4667,
+      pos: 'Shanghai',
+      isPub: 0,
+      group: '["回归测试"]',
+      creator: 'selfcheck',
+      updateTime: '2028-04-06 09:33:00',
+      payload: '{"module":"liureng","snapshot":"selfcheck"}',
+      sourceModule: 'liureng',
+    }];
+    localStorage.setItem('horosa.localCharts.v1', JSON.stringify(chartRecord));
+    localStorage.setItem('horosa.localCases.v1', JSON.stringify(caseRecord));
+  });
 }
 
 async function setValues(url, userDataDir) {
@@ -417,6 +460,8 @@ async function setValues(url, userDataDir) {
 
     await clickCnYiBuSideTab(page, '六壬');
     await selectVisiblePaneOptionByCurrentText(page, ['圆形盘', '方形盘'], '方形盘');
+
+    await seedLocalRecords(page);
 
     const localState = await captureLocalState(page);
     await wait(page, 1200);
@@ -489,6 +534,8 @@ async function main() {
     && normalizeText(readResult.liurengSelected).includes('方形盘')
     && `${readResult.localState.suzhanChartType}` === '5'
     && `${readResult.localState.liurengChartType}` === '1'
+    && `${readResult.localState.localCharts || ''}`.includes('persist-chart-001')
+    && `${readResult.localState.localCases || ''}`.includes('persist-case-001')
     && !!readResult.localState.globalSetup;
 
   console.log(JSON.stringify({

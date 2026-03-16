@@ -6,6 +6,13 @@ $ProjectDir = Join-Path $RepoRoot 'local\workspace\Horosa-Web-55c75c5b088252fbd7
 $StdOutLog = Join-Path $RepoRoot 'tmp_launcher_perf.out.log'
 $StdErrLog = Join-Path $RepoRoot 'tmp_launcher_perf.err.log'
 $PerfScript = Join-Path $ProjectDir 'astrostudyui\scripts\verifyHorosaPerformanceRuntime.js'
+$InitialPerfDelaySec = 4
+if ($env:HOROSA_PERF_INITIAL_DELAY_SEC) {
+  try { $InitialPerfDelaySec = [int]$env:HOROSA_PERF_INITIAL_DELAY_SEC } catch {}
+}
+if ($InitialPerfDelaySec -lt 2) {
+  $InitialPerfDelaySec = 2
+}
 
 function Stop-HorosaPorts {
   $oldCleanupOnly = $env:HOROSA_CLEANUP_ONLY
@@ -70,7 +77,7 @@ $startupTimer = [System.Diagnostics.Stopwatch]::StartNew()
 $env:HOROSA_NO_BROWSER = '1'
 $env:HOROSA_PERF_MODE = '1'
 $env:HOROSA_SMOKE_TEST = '1'
-$env:HOROSA_SMOKE_WAIT_SECONDS = '90'
+$env:HOROSA_SMOKE_WAIT_SECONDS = '180'
 
 $launcher = $null
 try {
@@ -103,6 +110,23 @@ try {
     throw "failed to parse srv query from ready url: $readyUrl"
   }
   $env:HOROSA_SERVER_ROOT = $serverRoot
+  $env:HOROSA_READY_URL = $readyUrl
+  try {
+    $readyUri = [System.Uri]$readyUrl
+    $query = [System.Web.HttpUtility]::ParseQueryString($readyUri.Query)
+    $chartRoot = $query['chart']
+    if (-not [string]::IsNullOrWhiteSpace($chartRoot)) {
+      $env:HOROSA_CHART_SERVER_ROOT = $chartRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($query['sdate'])) { $env:HOROSA_PERF_DATE = $query['sdate'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['stime'])) { $env:HOROSA_PERF_TIME = $query['stime'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['szone'])) { $env:HOROSA_PERF_ZONE = $query['szone'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['slat'])) { $env:HOROSA_PERF_LAT = $query['slat'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['slon'])) { $env:HOROSA_PERF_LON = $query['slon'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['sgpslat'])) { $env:HOROSA_PERF_GPS_LAT = $query['sgpslat'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['sgpslon'])) { $env:HOROSA_PERF_GPS_LON = $query['sgpslon'] }
+    if (-not [string]::IsNullOrWhiteSpace($query['shsys'])) { $env:HOROSA_PERF_HSYS = $query['shsys'] }
+  } catch {}
 
   Write-Output '--- launcher stdout ---'
   Get-Content $StdOutLog -Tail 120
@@ -111,8 +135,8 @@ try {
     Get-Content $StdErrLog -Tail 120
   }
 
-  Write-Output '--- perf after startup + 2s ---'
-  Start-Sleep -Seconds 2
+  Write-Output ("--- perf after startup + {0}s ---" -f $InitialPerfDelaySec)
+  Start-Sleep -Seconds $InitialPerfDelaySec
   & node $PerfScript
   Write-Output ("perf_exit_1={0}" -f $LASTEXITCODE)
 

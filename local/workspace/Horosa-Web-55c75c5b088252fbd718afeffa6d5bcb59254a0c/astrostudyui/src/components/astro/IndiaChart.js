@@ -49,8 +49,6 @@ function buildIndiaCacheKey(params){
 		params.zone,
 		params.lat,
 		params.lon,
-		params.gpsLat,
-		params.gpsLon,
 		params.hsys,
 		params.zodiacal,
 		params.tradition,
@@ -58,8 +56,6 @@ function buildIndiaCacheKey(params){
 		params.simpleAsp,
 		params.virtualPointReceiveAsp,
 		params.predictive,
-		params.name,
-		params.pos,
 		params.chartnum,
 	].map((v)=>`${v === undefined || v === null ? '' : v}`).join('|');
 }

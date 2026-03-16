@@ -25,15 +25,23 @@ public class OnlyFourColumns extends BaZi {
 	private FateDirect[] direction = new FateDirect[0];
 	
 	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay, boolean adjustJieqi) {
-		this(ad, birth, zone, lon, lat, after23NewDay, BaZiGender.Male, adjustJieqi);
+		this(ad, birth, zone, lon, lat, TimeZiAlg.RealSun, after23NewDay, BaZiGender.Male, adjustJieqi);
 	}
 
 	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay) {
-		this(ad, birth, zone, lon, lat, after23NewDay, BaZiGender.Male, false);
+		this(ad, birth, zone, lon, lat, TimeZiAlg.RealSun, after23NewDay, BaZiGender.Male, false);
 	}
 
 	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay, BaZiGender gender, boolean adjustJieqi) {
-		super(ad, birth, zone, lon, lat, TimeZiAlg.RealSun, false, GodRule.ZhuRiZhu, after23NewDay, adjustJieqi);
+		this(ad, birth, zone, lon, lat, TimeZiAlg.RealSun, after23NewDay, gender, adjustJieqi);
+	}
+
+	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, TimeZiAlg timeAlg, boolean after23NewDay) {
+		this(ad, birth, zone, lon, lat, timeAlg, after23NewDay, BaZiGender.Male, false);
+	}
+
+	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, TimeZiAlg timeAlg, boolean after23NewDay, BaZiGender gender, boolean adjustJieqi) {
+		super(ad, birth, zone, lon, lat, timeAlg, false, GodRule.ZhuRiZhu, after23NewDay, adjustJieqi);
 		this.gender = gender;
 	}
 	
@@ -70,7 +78,6 @@ public class OnlyFourColumns extends BaZi {
 	private void forwardDirect(PhaseType phaseType) {
 		String monthGanzi = this.fourColumns.month.ganzi;
 		int monthIdx = StemBranch.JiaZiIndex.get(monthGanzi);
-		System.out.println(this.nextJieSeconds/(24 * 3600));
 		this.directAge = this.nextJieSeconds * DirectTimeFactor / (365.25 * 24 * 3600);
 		int sec = ConvertUtility.getValueAsInt(this.nextJieSeconds * DirectTimeFactor);
 		

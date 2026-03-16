@@ -224,6 +224,7 @@ const SANSHI_BOARD_MAX = 820;
 const SANSHI_FAST_BUDGET_MS = 2200;
 const SANSHI_RECALC_DEFER_MS = 28;
 const SANSHI_SNAPSHOT_DEFER_MS = 120;
+const SANSHI_BACKGROUND_PREFETCH_DELAY_MS = 720;
 const AI_EXPORT_PLANET_INFO = {
 	showHouse: 1,
 	showRuler: 1,
@@ -1473,6 +1474,7 @@ class SanShiUnitedMain extends Component{
 		this.ensureJieqiSeed = this.ensureJieqiSeed.bind(this);
 		this.prefetchJieqiSeedForFields = this.prefetchJieqiSeedForFields.bind(this);
 		this.prefetchNongliForFields = this.prefetchNongliForFields.bind(this);
+		this.scheduleBackgroundPrefetch = this.scheduleBackgroundPrefetch.bind(this);
 		this.resolveDisplaySolarTime = this.resolveDisplaySolarTime.bind(this);
 		this.genJieqiParams = this.genJieqiParams.bind(this);
 		this.getQimenOptions = this.getQimenOptions.bind(this);
@@ -1573,8 +1575,7 @@ class SanShiUnitedMain extends Component{
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		this.handleWindowResize();
 		const activeFields = this.state.localFields || this.props.fields;
-		this.prefetchJieqiSeedForFields(activeFields);
-		this.prefetchNongliForFields(activeFields);
+		this.scheduleBackgroundPrefetch(activeFields, null, SANSHI_BACKGROUND_PREFETCH_DELAY_MS);
 	}
 
 	componentDidUpdate(prevProps){
@@ -1891,8 +1892,7 @@ class SanShiUnitedMain extends Component{
 				silentRequest: true,
 				nohook: true,
 			});
-			this.prefetchNongliForFields(localFields);
-			this.prefetchJieqiSeedForFields(localFields);
+			this.scheduleBackgroundPrefetch(localFields, null, 180);
 		}
 	}
 
@@ -1913,8 +1913,7 @@ class SanShiUnitedMain extends Component{
 			timeAlg: { value: nextVal },
 		};
 		this.setState({ localFields }, ()=>{
-			this.prefetchNongliForFields(localFields);
-			this.prefetchJieqiSeedForFields(localFields);
+			this.scheduleBackgroundPrefetch(localFields, null, 180);
 		});
 	}
 
@@ -1933,8 +1932,7 @@ class SanShiUnitedMain extends Component{
 		this.setState({ options }, ()=>{
 			if(key === 'after23NewDay' || key === 'paiPanType' || key === 'qijuMethod'){
 				const flds = this.getActiveFields();
-				this.prefetchNongliForFields(flds);
-				this.prefetchJieqiSeedForFields(flds, options);
+				this.scheduleBackgroundPrefetch(flds, options, 240);
 			}
 		});
 	}
@@ -2023,8 +2021,7 @@ class SanShiUnitedMain extends Component{
 		maybePatchRaw('gender');
 		maybePatchRaw('timeAlg');
 		const needChartSync = Object.keys(patchFields).length > 0;
-		this.prefetchNongliForFields(nextFields);
-		this.prefetchJieqiSeedForFields(nextFields);
+		this.scheduleBackgroundPrefetch(nextFields, null, 80);
 		this.awaitingChartSync = false;
 		if(needChartSync){
 			this.syncFields(patchFields);
@@ -2232,6 +2229,28 @@ class SanShiUnitedMain extends Component{
 		}
 		this.pendingRecalcPayload = null;
 		this.resolvePendingRecalc(result);
+	}
+
+	scheduleBackgroundPrefetch(fields, overrideOptions, delay = SANSHI_BACKGROUND_PREFETCH_DELAY_MS){
+		if(this.unmounted){
+			return;
+		}
+		const activeFields = fields || this.state.localFields || this.props.fields;
+		if(!activeFields){
+			return;
+		}
+		if(this.prefetchSeedTimer){
+			clearTimeout(this.prefetchSeedTimer);
+			this.prefetchSeedTimer = null;
+		}
+		this.prefetchSeedTimer = setTimeout(()=>{
+			this.prefetchSeedTimer = null;
+			if(this.unmounted){
+				return;
+			}
+			this.prefetchJieqiSeedForFields(activeFields, overrideOptions);
+			this.prefetchNongliForFields(activeFields);
+		}, delay);
 	}
 
 	scheduleSnapshotSave(snapshotPayload, snapshotMeta){

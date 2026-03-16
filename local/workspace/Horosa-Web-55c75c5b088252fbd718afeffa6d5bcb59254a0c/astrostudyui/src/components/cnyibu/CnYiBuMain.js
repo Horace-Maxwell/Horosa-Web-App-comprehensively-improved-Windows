@@ -1,5 +1,4 @@
 import { Component } from 'react';
-import { Tabs } from 'antd';
 import { randomStr } from '../../utils/helper';
 import SuZhanMain from '../suzhan/SuZhanMain';
 import GuaZhanMain from '../guazhan/GuaZhanMain';
@@ -8,12 +7,11 @@ import JinKouMain from '../jinkou/JinKouMain';
 import DunJiaMain from '../dunjia/DunJiaMain';
 import TaiYiMain from '../taiyi/TaiYiMain';
 import TongSheFaMain from '../tongshefa/TongSheFaMain';
+import styles from '../../css/styles.less';
 
 const ValidTabs = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'];
 const CNYIBU_VIEWPORT_GAP = 22;
 const CNYIBU_MIN_HEIGHT = 300;
-const CNYIBU_WARM_DELAY_MS = 120;
-const CNYIBU_WARM_STEP_MS = 150;
 const CNYIBU_NAV_ITEMS = [
 	{ key: 'suzhan', label: '宿盘' },
 	{ key: 'guazhan', label: '易卦' },
@@ -50,13 +48,8 @@ function toNumber(val){
 
 function resolveBoundedHeight(rawHeight){
 	const viewport = getViewportHeight();
-	let h = toNumber(rawHeight);
-	if(h === null){
-		h = rawHeight === '100%' ? (viewport - 80) : 760;
-	}
-	h = h - 20;
 	const maxH = Math.max(CNYIBU_MIN_HEIGHT, viewport - CNYIBU_VIEWPORT_GAP);
-	return Math.max(CNYIBU_MIN_HEIGHT, Math.min(h, maxH));
+	return maxH;
 }
 
 class CnYiBuMain extends Component{
@@ -101,12 +94,7 @@ class CnYiBuMain extends Component{
 		this.changeTab = this.changeTab.bind(this);
 		this.normalizeTab = this.normalizeTab.bind(this);
 		this.ensureTabPreloaded = this.ensureTabPreloaded.bind(this);
-		this.scheduleWarmTabs = this.scheduleWarmTabs.bind(this);
-		this.runWarmTabs = this.runWarmTabs.bind(this);
-		this.clearWarmTimer = this.clearWarmTimer.bind(this);
 		this.isCnYiBuActive = this.isCnYiBuActive.bind(this);
-		this.warmTimer = null;
-		this.warmToken = 0;
 		this.unmounted = false;
 
 		if(this.props.hook){
@@ -137,7 +125,6 @@ class CnYiBuMain extends Component{
 					currentTab: nextTab,
 				}, ()=>{
 					this.ensureTabPreloaded(nextTab);
-					this.scheduleWarmTabs(nextTab);
 				});
 			}
 		}
@@ -146,23 +133,14 @@ class CnYiBuMain extends Component{
 	componentDidMount(){
 		this.unmounted = false;
 		this.ensureTabPreloaded(this.state.currentTab);
-		this.scheduleWarmTabs(this.state.currentTab);
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
-		this.clearWarmTimer();
 	}
 
 	isCnYiBuActive(){
 		return !this.props.currentTab || this.props.currentTab === 'cnyibu';
-	}
-
-	clearWarmTimer(){
-		if(this.warmTimer){
-			clearTimeout(this.warmTimer);
-			this.warmTimer = null;
-		}
 	}
 
 	ensureTabPreloaded(tab){
@@ -185,40 +163,6 @@ class CnYiBuMain extends Component{
 		});
 	}
 
-	scheduleWarmTabs(activeTab){
-		if(this.unmounted || !this.isCnYiBuActive()){
-			return;
-		}
-		this.clearWarmTimer();
-		const queue = ValidTabs.filter((key)=>key !== activeTab);
-		if(!queue.length){
-			return;
-		}
-		const token = ++this.warmToken;
-		this.warmTimer = setTimeout(()=>{
-			this.warmTimer = null;
-			this.runWarmTabs(token, queue, 0);
-		}, CNYIBU_WARM_DELAY_MS);
-	}
-
-	runWarmTabs(token, queue, index){
-		if(this.unmounted || token !== this.warmToken){
-			return;
-		}
-		if(!queue || index >= queue.length){
-			return;
-		}
-		const nextTab = queue[index];
-		this.ensureTabPreloaded(nextTab);
-		this.warmTimer = setTimeout(()=>{
-			if(this.unmounted || token !== this.warmToken){
-				return;
-			}
-			this.warmTimer = null;
-			this.runWarmTabs(token, queue, index + 1);
-		}, CNYIBU_WARM_STEP_MS);
-	}
-
 	changeTab(key){
 		const nextTab = this.normalizeTab(key);
 		let hook = this.state.hook;
@@ -237,7 +181,6 @@ class CnYiBuMain extends Component{
 					}
 				});
 			}
-			this.scheduleWarmTabs(nextTab);
 		});
 	}
 
@@ -326,23 +269,48 @@ class CnYiBuMain extends Component{
 		const tab = this.normalizeTab(this.state.currentTab);
 
 		return (
-			<div id={this.state.divId}>
-				<Tabs
-					tabPosition='right'
-					activeKey={tab}
-					onChange={this.changeTab}
-					style={{ height }}
-				>
-					{CNYIBU_NAV_ITEMS.map((item)=>(
-						<Tabs.TabPane
-							tab={item.label}
-							key={item.key}
-							forceRender={!!this.state.preloadedTabs[item.key]}
-						>
-							{this.renderTabPane(item.key, height)}
-						</Tabs.TabPane>
-					))}
-				</Tabs>
+			<div id={this.state.divId} className={styles.cnYiBuDock} style={{ height }}>
+				<div className={styles.cnYiBuSideNav} role="tablist" aria-label="易与三式子页签">
+					{CNYIBU_NAV_ITEMS.map((item)=>{
+						const active = item.key === tab;
+						const buttonClass = active
+							? `${styles.cnYiBuNavButton} ${styles.cnYiBuNavButtonActive}`
+							: styles.cnYiBuNavButton;
+						return (
+							<button
+								key={item.key}
+								type="button"
+								role="tab"
+								aria-selected={active}
+								aria-controls={`${this.state.divId}_${item.key}`}
+								className={buttonClass}
+								onClick={()=>this.changeTab(item.key)}
+							>
+								{item.label}
+							</button>
+						);
+					})}
+				</div>
+				<div className={styles.cnYiBuContent}>
+					{ValidTabs.map((itemKey)=>{
+						const active = itemKey === tab;
+						const shouldRender = active || !!(this.state.preloadedTabs && this.state.preloadedTabs[itemKey]);
+						const paneClass = active
+							? `${styles.cnYiBuPane} ${styles.cnYiBuPaneActive}`
+							: styles.cnYiBuPane;
+						return (
+							<div
+								key={itemKey}
+								id={`${this.state.divId}_${itemKey}`}
+								role="tabpanel"
+								aria-hidden={!active}
+								className={paneClass}
+							>
+								{shouldRender ? this.renderTabPane(itemKey, height) : null}
+							</div>
+						);
+					})}
+				</div>
 			</div>
 		);
 	}

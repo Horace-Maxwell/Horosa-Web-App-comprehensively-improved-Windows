@@ -3,6 +3,7 @@ package spacex.astrostudy.helper;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import boundless.spring.help.PropertyPlaceholder;
@@ -17,6 +18,7 @@ public class CacheHelper {
 	private static final String Prefix = PropertyPlaceholder.getProperty("cachehelper.prjprefix", "astrostudy_");
 	private static ICache cache = CacheFactory.getCache("comm");
 	private static final ConcurrentHashMap<String, LocalCacheEntry> localCache = new ConcurrentHashMap<String, LocalCacheEntry>();
+	private static final ConcurrentHashMap<String, CompletableFuture<Object>> inflightCache = new ConcurrentHashMap<String, CompletableFuture<Object>>();
 
 	private static class LocalCacheEntry {
 		private final Object value;
@@ -119,9 +121,36 @@ public class CacheHelper {
 		if(cached != null) {
 			return cached;
 		}
-		Object value = CacheUtility.get(relkey, params, fun, cache, NeedCache, expInSec);
-		putLocal(localKey, value, NeedCache, expInSec);
-		return value;
+		if(!NeedCache || localKey == null) {
+			return CacheUtility.get(relkey, params, fun, cache, NeedCache, expInSec);
+		}
+		CompletableFuture<Object> ownerFuture = new CompletableFuture<Object>();
+		CompletableFuture<Object> existingFuture = inflightCache.putIfAbsent(localKey, ownerFuture);
+		if(existingFuture != null) {
+			return existingFuture.join();
+		}
+		try {
+			Object cachedAfterClaim = getLocal(localKey, NeedCache);
+			if(cachedAfterClaim != null) {
+				ownerFuture.complete(cachedAfterClaim);
+				return cachedAfterClaim;
+			}
+			Object value = CacheUtility.get(relkey, params, fun, cache, NeedCache, expInSec);
+			putLocal(localKey, value, NeedCache, expInSec);
+			ownerFuture.complete(value);
+			return value;
+		}catch(Throwable ex) {
+			ownerFuture.completeExceptionally(ex);
+			if(ex instanceof RuntimeException) {
+				throw (RuntimeException)ex;
+			}
+			if(ex instanceof Error) {
+				throw (Error)ex;
+			}
+			throw new RuntimeException(ex);
+		} finally {
+			inflightCache.remove(localKey, ownerFuture);
+		}
 	}
 
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun){
@@ -131,9 +160,36 @@ public class CacheHelper {
 		if(cached != null) {
 			return cached;
 		}
-		Object value = CacheUtility.get(relkey, params, fun, cache, NeedCache, ExpInSec);
-		putLocal(localKey, value, NeedCache, ExpInSec);
-		return value;
+		if(!NeedCache || localKey == null) {
+			return CacheUtility.get(relkey, params, fun, cache, NeedCache, ExpInSec);
+		}
+		CompletableFuture<Object> ownerFuture = new CompletableFuture<Object>();
+		CompletableFuture<Object> existingFuture = inflightCache.putIfAbsent(localKey, ownerFuture);
+		if(existingFuture != null) {
+			return existingFuture.join();
+		}
+		try {
+			Object cachedAfterClaim = getLocal(localKey, NeedCache);
+			if(cachedAfterClaim != null) {
+				ownerFuture.complete(cachedAfterClaim);
+				return cachedAfterClaim;
+			}
+			Object value = CacheUtility.get(relkey, params, fun, cache, NeedCache, ExpInSec);
+			putLocal(localKey, value, NeedCache, ExpInSec);
+			ownerFuture.complete(value);
+			return value;
+		}catch(Throwable ex) {
+			ownerFuture.completeExceptionally(ex);
+			if(ex instanceof RuntimeException) {
+				throw (RuntimeException)ex;
+			}
+			if(ex instanceof Error) {
+				throw (Error)ex;
+			}
+			throw new RuntimeException(ex);
+		} finally {
+			inflightCache.remove(localKey, ownerFuture);
+		}
 	}
 
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun, boolean needCache, int expInSec){
@@ -143,9 +199,36 @@ public class CacheHelper {
 		if(cached != null) {
 			return cached;
 		}
-		Object value = CacheUtility.get(relkey, params, fun, cache, needCache, expInSec);
-		putLocal(localKey, value, needCache, expInSec);
-		return value;
+		if(!needCache || localKey == null) {
+			return CacheUtility.get(relkey, params, fun, cache, needCache, expInSec);
+		}
+		CompletableFuture<Object> ownerFuture = new CompletableFuture<Object>();
+		CompletableFuture<Object> existingFuture = inflightCache.putIfAbsent(localKey, ownerFuture);
+		if(existingFuture != null) {
+			return existingFuture.join();
+		}
+		try {
+			Object cachedAfterClaim = getLocal(localKey, needCache);
+			if(cachedAfterClaim != null) {
+				ownerFuture.complete(cachedAfterClaim);
+				return cachedAfterClaim;
+			}
+			Object value = CacheUtility.get(relkey, params, fun, cache, needCache, expInSec);
+			putLocal(localKey, value, needCache, expInSec);
+			ownerFuture.complete(value);
+			return value;
+		}catch(Throwable ex) {
+			ownerFuture.completeExceptionally(ex);
+			if(ex instanceof RuntimeException) {
+				throw (RuntimeException)ex;
+			}
+			if(ex instanceof Error) {
+				throw (Error)ex;
+			}
+			throw new RuntimeException(ex);
+		} finally {
+			inflightCache.remove(localKey, ownerFuture);
+		}
 	}
 	
 	public static Object get(String key, Map<String, Object> params, Function<Map<String, Object>, Object> fun, boolean needCache){
@@ -155,9 +238,36 @@ public class CacheHelper {
 		if(cached != null) {
 			return cached;
 		}
-		Object value = CacheUtility.get(relkey, params, fun, cache, needCache, ExpInSec);
-		putLocal(localKey, value, needCache, ExpInSec);
-		return value;
+		if(!needCache || localKey == null) {
+			return CacheUtility.get(relkey, params, fun, cache, needCache, ExpInSec);
+		}
+		CompletableFuture<Object> ownerFuture = new CompletableFuture<Object>();
+		CompletableFuture<Object> existingFuture = inflightCache.putIfAbsent(localKey, ownerFuture);
+		if(existingFuture != null) {
+			return existingFuture.join();
+		}
+		try {
+			Object cachedAfterClaim = getLocal(localKey, needCache);
+			if(cachedAfterClaim != null) {
+				ownerFuture.complete(cachedAfterClaim);
+				return cachedAfterClaim;
+			}
+			Object value = CacheUtility.get(relkey, params, fun, cache, needCache, ExpInSec);
+			putLocal(localKey, value, needCache, ExpInSec);
+			ownerFuture.complete(value);
+			return value;
+		}catch(Throwable ex) {
+			ownerFuture.completeExceptionally(ex);
+			if(ex instanceof RuntimeException) {
+				throw (RuntimeException)ex;
+			}
+			if(ex instanceof Error) {
+				throw (Error)ex;
+			}
+			throw new RuntimeException(ex);
+		} finally {
+			inflightCache.remove(localKey, ownerFuture);
+		}
 	}
 	
 	public static Object inc(String key){

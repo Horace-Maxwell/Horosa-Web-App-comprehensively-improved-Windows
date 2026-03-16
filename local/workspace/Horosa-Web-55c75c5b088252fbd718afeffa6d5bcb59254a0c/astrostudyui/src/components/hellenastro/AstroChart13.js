@@ -66,6 +66,7 @@ async function fetchChart13Cached(params){
 	}
 	const pending = request(`${Constants.ServerRoot}/chart13`, {
 		body: JSON.stringify(params),
+		silent: true,
 	}).then((data)=>data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null)
 		.catch((err)=>{
 			chart13Cache.delete(key);

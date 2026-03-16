@@ -16,6 +16,7 @@ $SetupBuilderRequirementsFile = Join-Path $ScriptRoot 'setup_builder_requirement
 $PreparedRuntimeRoot = Join-Path $RepoRoot 'local\workspace\runtime\windows'
 $PreparedRuntimeJar = Join-Path $PreparedRuntimeRoot 'bundle\astrostudyboot.jar'
 $SetupDepsRoot = Join-Path $env:LocalAppData 'HorosaDesktop\setupbuilddeps'
+$VersionInfoScript = Join-Path $ScriptRoot 'pyinstaller\generate_version_info.py'
 
 function Resolve-PythonExe {
   param(
@@ -165,6 +166,160 @@ function Ensure-PreparedRuntime {
   Write-Host "[OK] Prepared runtime bundle regenerated."
 }
 
+function New-PyInstallerVersionFile {
+  param(
+    [string]$PythonExe,
+    [string]$GeneratorScript,
+    [string]$VersionJsonPath,
+    [string]$OutputPath,
+    [string]$FileDescription,
+    [string]$InternalName,
+    [string]$OriginalFilename
+  )
+
+  if (-not (Test-Path $GeneratorScript -PathType Leaf)) {
+    throw "PyInstaller version info generator not found: $GeneratorScript"
+  }
+
+  $outputDir = Split-Path -Parent $OutputPath
+  if ($outputDir) {
+    New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+  }
+
+  & $PythonExe $GeneratorScript `
+    --version-json $VersionJsonPath `
+    --output $OutputPath `
+    --file-description $FileDescription `
+    --internal-name $InternalName `
+    --original-filename $OriginalFilename
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to generate PyInstaller version file: $OutputPath"
+  }
+  if (-not (Test-Path $OutputPath -PathType Leaf)) {
+    throw "PyInstaller version file missing after generation: $OutputPath"
+  }
+}
+
+function Resolve-SignToolExe {
+  $configured = [string]$env:HOROSA_SIGNTOOL_EXE
+  if (-not [string]::IsNullOrWhiteSpace($configured)) {
+    if (-not (Test-Path $configured -PathType Leaf)) {
+      throw "Configured signtool not found: $configured"
+    }
+    return (Resolve-Path $configured).Path
+  }
+
+  $command = Get-Command signtool.exe -ErrorAction SilentlyContinue
+  if ($command -and $command.Source) {
+    return $command.Source
+  }
+
+  $kitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+  if (Test-Path $kitsRoot -PathType Container) {
+    $candidate = Get-ChildItem -Path $kitsRoot -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+      Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+      Sort-Object FullName -Descending |
+      Select-Object -First 1
+    if ($candidate) {
+      return $candidate.FullName
+    }
+  }
+
+  throw 'Code signing requested but signtool.exe was not found.'
+}
+
+$script:SigningConfigResolved = $false
+$script:SigningConfig = $null
+
+function Get-SigningConfig {
+  if ($script:SigningConfigResolved) {
+    return $script:SigningConfig
+  }
+
+  $thumbprint = [string]$env:HOROSA_SIGN_CERT_SHA1
+  $pfxPath = [string]$env:HOROSA_SIGN_PFX_PATH
+  $pfxPassword = [string]$env:HOROSA_SIGN_PFX_PASSWORD
+  $timestampUrl = [string]$env:HOROSA_SIGN_TIMESTAMP_URL
+
+  $thumbprint = $thumbprint.Trim()
+  $pfxPath = $pfxPath.Trim()
+  $pfxPassword = $pfxPassword.Trim()
+  $timestampUrl = $timestampUrl.Trim()
+
+  if ([string]::IsNullOrWhiteSpace($thumbprint) -and [string]::IsNullOrWhiteSpace($pfxPath)) {
+    Write-Host '[INFO] Code signing skipped; no signing certificate configuration detected.'
+    $script:SigningConfigResolved = $true
+    $script:SigningConfig = $null
+    return $null
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($thumbprint) -and -not [string]::IsNullOrWhiteSpace($pfxPath)) {
+    throw 'Configure either HOROSA_SIGN_CERT_SHA1 or HOROSA_SIGN_PFX_PATH, not both.'
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($pfxPath)) {
+    if (-not (Test-Path $pfxPath -PathType Leaf)) {
+      throw "Configured PFX certificate not found: $pfxPath"
+    }
+    $pfxPath = (Resolve-Path $pfxPath).Path
+  }
+
+  $script:SigningConfigResolved = $true
+  $script:SigningConfig = @{
+    SignTool = Resolve-SignToolExe
+    Thumbprint = $thumbprint
+    PfxPath = $pfxPath
+    PfxPassword = $pfxPassword
+    TimestampUrl = $timestampUrl
+  }
+  return $script:SigningConfig
+}
+
+function Invoke-OptionalCodeSign {
+  param([string[]]$Paths)
+
+  $config = Get-SigningConfig
+  if ($null -eq $config) {
+    return
+  }
+
+  foreach ($path in $Paths) {
+    if ([string]::IsNullOrWhiteSpace($path)) {
+      continue
+    }
+    if (-not (Test-Path $path -PathType Leaf)) {
+      throw "Unable to sign missing file: $path"
+    }
+
+    $args = @('sign', '/fd', 'SHA256')
+    if (-not [string]::IsNullOrWhiteSpace($config.TimestampUrl)) {
+      $args += @('/tr', $config.TimestampUrl, '/td', 'SHA256')
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($config.Thumbprint)) {
+      $args += @('/sha1', $config.Thumbprint)
+    } else {
+      $args += @('/f', $config.PfxPath)
+      if (-not [string]::IsNullOrWhiteSpace($config.PfxPassword)) {
+        $args += @('/p', $config.PfxPassword)
+      }
+    }
+
+    $args += $path
+    & $config.SignTool @args
+    if ($LASTEXITCODE -ne 0) {
+      throw "signtool sign failed for $path with exit code $LASTEXITCODE"
+    }
+
+    & $config.SignTool verify /pa $path
+    if ($LASTEXITCODE -ne 0) {
+      throw "signtool verify failed for $path with exit code $LASTEXITCODE"
+    }
+
+    Write-Host "[OK] Signed and verified: $path"
+  }
+}
+
 Ensure-PreparedRuntime -RepoPath $RepoRoot -ExpectedJarPath $PreparedRuntimeJar
 $ResolvedPythonExe = Resolve-PythonExe -RequestedPath $PythonExe -BundledPath $BundledPythonExe
 Ensure-Wheelhouse -PythonExe $ResolvedPythonExe -ReqFile $RuntimeRequirementsFile -WheelDir $WheelhouseDir
@@ -172,6 +327,19 @@ Ensure-SetupBuilderDeps -PythonExe $ResolvedPythonExe -ReqFile $SetupBuilderRequ
 
 $versionInfo = Get-Content -Raw (Join-Path $ScriptRoot 'version.json') | ConvertFrom-Json
 $launcherAssetName = if ($versionInfo.PSObject.Properties['launcher_asset_name']) { [string]$versionInfo.launcher_asset_name } else { 'Xingque.exe' }
+$installerAssetName = if ($versionInfo.PSObject.Properties['installer_asset_name']) { [string]$versionInfo.installer_asset_name } else { 'XingqueSetup.exe' }
+$offlineInstallerAssetName = if ($versionInfo.PSObject.Properties['offline_installer_asset_name']) { [string]$versionInfo.offline_installer_asset_name } else { 'XingqueSetupFull.exe' }
+$versionInfoRoot = Join-Path $ScriptRoot 'build\version-info'
+if (Test-Path $versionInfoRoot) {
+  Remove-Item -Recurse -Force $versionInfoRoot -ErrorAction SilentlyContinue
+}
+$launcherVersionInfoPath = Join-Path $versionInfoRoot 'xingque_launcher.version.txt'
+$setupVersionInfoPath = Join-Path $versionInfoRoot 'xingque_setup.version.txt'
+$offlineSetupVersionInfoPath = Join-Path $versionInfoRoot 'xingque_setup_full.version.txt'
+New-PyInstallerVersionFile -PythonExe $ResolvedPythonExe -GeneratorScript $VersionInfoScript -VersionJsonPath (Join-Path $ScriptRoot 'version.json') -OutputPath $launcherVersionInfoPath -FileDescription 'Xingque Desktop Launcher' -InternalName ([System.IO.Path]::GetFileNameWithoutExtension($launcherAssetName)) -OriginalFilename $launcherAssetName
+New-PyInstallerVersionFile -PythonExe $ResolvedPythonExe -GeneratorScript $VersionInfoScript -VersionJsonPath (Join-Path $ScriptRoot 'version.json') -OutputPath $setupVersionInfoPath -FileDescription 'Xingque Desktop Installer' -InternalName ([System.IO.Path]::GetFileNameWithoutExtension($installerAssetName)) -OriginalFilename $installerAssetName
+New-PyInstallerVersionFile -PythonExe $ResolvedPythonExe -GeneratorScript $VersionInfoScript -VersionJsonPath (Join-Path $ScriptRoot 'version.json') -OutputPath $offlineSetupVersionInfoPath -FileDescription 'Xingque Desktop Full Installer' -InternalName ([System.IO.Path]::GetFileNameWithoutExtension($offlineInstallerAssetName)) -OriginalFilename $offlineInstallerAssetName
+
 $launcherExePath = Join-Path (Join-Path $ScriptRoot 'release') $launcherAssetName
 $launcherWorkDir = Join-Path $ScriptRoot 'build\xingque-launcher'
 $launcherSpec = Join-Path $ScriptRoot 'pyinstaller\xingque_launcher.spec'
@@ -201,6 +369,7 @@ try {
   }
 
   $env:HOROSA_XINGQUE_EXE_NAME = [System.IO.Path]::GetFileNameWithoutExtension($launcherAssetName)
+  $env:HOROSA_XINGQUE_VERSION_FILE = $launcherVersionInfoPath
   & $ResolvedPythonExe -m PyInstaller $launcherSpec --noconfirm --clean --distpath (Join-Path $ScriptRoot 'release') --workpath $launcherWorkDir
   if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller failed while building installed app launcher with exit code $LASTEXITCODE"
@@ -212,12 +381,14 @@ try {
     Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
   }
   Remove-Item Env:HOROSA_XINGQUE_EXE_NAME -ErrorAction SilentlyContinue
+  Remove-Item Env:HOROSA_XINGQUE_VERSION_FILE -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path $launcherExePath -PathType Leaf)) {
   throw "Installed app launcher was not produced: $launcherExePath"
 }
 Write-Host "[OK] Installed app launcher built: $launcherExePath"
+Invoke-OptionalCodeSign -Paths @($launcherExePath)
 $env:HOROSA_DESKTOP_LAUNCHER_EXE = $launcherExePath
 
 @'
@@ -257,6 +428,7 @@ asset_prefix = "HorosaPortableWindows"
 runtime_asset_prefix = str(version_info.get("runtime_asset_prefix") or "HorosaRuntimeWindows")
 zip_name = f"{asset_prefix}-{version}.zip"
 zip_path = release_dir / zip_name
+portable_manifest_path = release_dir / f"{asset_prefix}-{version}.manifest.json"
 runtime_zip_name = f"{runtime_asset_prefix}-{version}.zip"
 runtime_zip_path = release_dir / runtime_zip_name
 runtime_manifest_path = release_dir / f"{runtime_asset_prefix}-{version}.manifest.json"
@@ -340,6 +512,7 @@ def remove_tree_with_retry(path: Path) -> None:
         raise last_exc
 
 remove_with_retry(zip_path)
+remove_with_retry(portable_manifest_path)
 remove_with_retry(runtime_zip_path)
 remove_with_retry(runtime_manifest_path)
 portable_stage_root = short_stage_base / f"portable-stage-{version}"
@@ -566,18 +739,25 @@ def write_manifest(asset_path: Path, asset_name: str, target_manifest_path: Path
     target_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 write_manifest(
+    zip_path,
+    zip_name,
+    portable_manifest_path,
+    "Embed this payload manifest inside XingqueSetup installers and verify it before extraction.",
+)
+
+write_manifest(
     runtime_zip_path,
     runtime_zip_name,
     runtime_manifest_path,
     "Attach the runtime zip asset to the dedicated runtime release for this version.",
 )
 print(f"[OK] Portable release zip built: {zip_path}")
+print(f"[OK] Portable payload manifest built: {portable_manifest_path}")
 print(f"[OK] Runtime payload zip built: {runtime_zip_path}")
 '@ | & $ResolvedPythonExe -
 
 $portableZipPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.zip" -f $versionInfo.release_asset_prefix, $versionInfo.version)
-$installerAssetName = if ($versionInfo.PSObject.Properties['installer_asset_name']) { [string]$versionInfo.installer_asset_name } else { 'XingqueSetup.exe' }
-$offlineInstallerAssetName = if ($versionInfo.PSObject.Properties['offline_installer_asset_name']) { [string]$versionInfo.offline_installer_asset_name } else { 'XingqueSetupFull.exe' }
+$portableManifestPath = Join-Path (Join-Path $ScriptRoot 'release') ("{0}-{1}.manifest.json" -f $versionInfo.release_asset_prefix, $versionInfo.version)
 $installerExePath = Join-Path (Join-Path $ScriptRoot 'release') $installerAssetName
 $offlineInstallerExePath = Join-Path (Join-Path $ScriptRoot 'release') $offlineInstallerAssetName
 $setupWorkDir = Join-Path $ScriptRoot 'build\setup-installer'
@@ -611,6 +791,14 @@ try {
   }
 
   $env:HOROSA_SETUP_PAYLOAD_ZIP = $portableZipPath
+  $env:HOROSA_SETUP_VERSION_FILE = $setupVersionInfoPath
+  $setupExtraFiles = @(
+    @{
+      source = $portableManifestPath
+      dest = '.'
+    }
+  ) | ConvertTo-Json -Compress
+  $env:HOROSA_SETUP_EXTRA_FILES = $setupExtraFiles
   $env:HOROSA_SETUP_EXE_NAME = [System.IO.Path]::GetFileNameWithoutExtension($installerAssetName)
 
   & $ResolvedPythonExe -m PyInstaller $setupSpec --noconfirm --clean --distpath (Join-Path $ScriptRoot 'release') --workpath $setupWorkDir
@@ -619,6 +807,10 @@ try {
   }
 
   $extraFiles = @(
+    @{
+      source = $portableManifestPath
+      dest = '.'
+    },
     @{
       source = $runtimeZipPath
       dest = '.'
@@ -629,6 +821,7 @@ try {
     }
   ) | ConvertTo-Json -Compress
   $env:HOROSA_SETUP_EXTRA_FILES = $extraFiles
+  $env:HOROSA_SETUP_VERSION_FILE = $offlineSetupVersionInfoPath
   $env:HOROSA_SETUP_EXE_NAME = [System.IO.Path]::GetFileNameWithoutExtension($offlineInstallerAssetName)
 
   & $ResolvedPythonExe -m PyInstaller $setupSpec --noconfirm --clean --distpath (Join-Path $ScriptRoot 'release') --workpath $offlineSetupWorkDir
@@ -644,10 +837,14 @@ try {
   Remove-Item Env:HOROSA_SETUP_PAYLOAD_ZIP -ErrorAction SilentlyContinue
   Remove-Item Env:HOROSA_SETUP_EXTRA_FILES -ErrorAction SilentlyContinue
   Remove-Item Env:HOROSA_SETUP_EXE_NAME -ErrorAction SilentlyContinue
+  Remove-Item Env:HOROSA_SETUP_VERSION_FILE -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path $portableZipPath -PathType Leaf)) {
   throw "Portable release zip not found for single-file installer build: $portableZipPath"
+}
+if (-not (Test-Path $portableManifestPath -PathType Leaf)) {
+  throw "Portable payload manifest not found for single-file installer build: $portableManifestPath"
 }
 if (-not (Test-Path $installerExePath -PathType Leaf)) {
   throw "Single-file installer was not produced: $installerExePath"
@@ -657,6 +854,7 @@ if (-not (Test-Path $offlineInstallerExePath -PathType Leaf)) {
 }
 Write-Host "[OK] Single-file setup built: $installerExePath"
 Write-Host "[OK] Offline single-file setup built: $offlineInstallerExePath"
+Invoke-OptionalCodeSign -Paths @($installerExePath, $offlineInstallerExePath)
 
 Remove-Item Env:HOROSA_DESKTOP_BUNDLE_ROOT -ErrorAction SilentlyContinue
 Remove-Item Env:HOROSA_DESKTOP_REQUESTED_VERSION -ErrorAction SilentlyContinue

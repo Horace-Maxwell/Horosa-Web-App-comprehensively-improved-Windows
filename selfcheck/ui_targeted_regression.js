@@ -162,6 +162,35 @@ async function waitForAppReady(page) {
   await wait(page, 400);
 }
 
+function isActionableConsoleError(text) {
+  const normalized = `${text || ''}`.trim();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized.includes('ERR_CONNECTION_REFUSED')) {
+    return false;
+  }
+  return true;
+}
+
+function isActionableRequestFailure(entry) {
+  if (!entry || !entry.url) {
+    return false;
+  }
+  const failure = `${entry.failure || ''}`.trim();
+  if (!failure) {
+    return true;
+  }
+  try {
+    const url = new URL(entry.url);
+    if ((url.hostname === '127.0.0.1' || url.hostname === 'localhost') && failure.includes('ERR_CONNECTION_REFUSED')) {
+      return false;
+    }
+  } catch (error) {
+  }
+  return true;
+}
+
 async function verifyPrimaryDirection(page) {
   await clickRoot(page, '推运盘');
   await clickPaneTab(page, '主/界限法');
@@ -196,6 +225,26 @@ async function verifyCnYiBuTabs(page) {
     return await page.evaluate((validLabels) => {
       const normalized = (txt) => (txt || '').replace(/\s+/g, ' ').trim();
       const validSet = new Set(validLabels);
+      const customActive = Array.from(document.querySelectorAll('[class*="cnYiBuSideNav"] button, [class*="cnYiBuNavButton"]'))
+        .map((node) => {
+          const text = normalized(node.innerText || node.textContent || '');
+          const rect = node.getBoundingClientRect();
+          const style = window.getComputedStyle(node);
+          const className = `${node.className || ''}`;
+          return {
+            text,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+            visible: rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden',
+            active: className.indexOf('cnYiBuNavButtonActive') >= 0 || node.getAttribute('aria-selected') === 'true',
+          };
+        })
+        .filter((item) => item.visible && item.active && validSet.has(item.text))
+        .sort((a, b) => b.right - a.right);
+      if (customActive.length) {
+        return customActive[0].text;
+      }
       const candidates = Array.from(document.querySelectorAll('.ant-tabs-nav .ant-tabs-tab-active .ant-tabs-tab-btn, .ant-tabs-nav .ant-tabs-tab-active'))
         .map((node) => {
           const text = normalized(node.innerText || node.textContent || '');
@@ -333,14 +382,23 @@ async function main() {
     liuRengScroll,
     pageErrors,
     consoleErrors,
+    actionableConsoleErrors: consoleErrors.filter(isActionableConsoleError),
     failedResponses,
     failedRequests,
+    actionableFailedRequests: failedRequests.filter(isActionableRequestFailure),
   };
 
   console.log(JSON.stringify(result, null, 2));
   await browser.close();
 
-  if (!primaryDirection.ok || !cnYiBuTabs.ok || !liuRengScroll.ok || pageErrors.length) {
+  if (
+    !primaryDirection.ok ||
+    !cnYiBuTabs.ok ||
+    !liuRengScroll.ok ||
+    pageErrors.length ||
+    result.actionableConsoleErrors.length ||
+    result.actionableFailedRequests.length
+  ) {
     process.exit(1);
   }
 }

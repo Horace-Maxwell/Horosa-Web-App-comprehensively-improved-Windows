@@ -15,6 +15,11 @@ const PD_SYNC_REV = 'pd_method_sync_v6';
 const DEFAULT_PD_METHOD = 'astroapp_alchabitius';
 const DEFAULT_PD_TIME_KEY = 'Ptolemy';
 const DEFAULT_PD_TYPE = 0;
+const PD_VIEWPORT_BOTTOM_GAP = 14;
+const PD_MIN_HOST_HEIGHT = 560;
+const PD_MIN_BODY_HEIGHT = 470;
+const PD_PAGINATION_RESERVE = 28;
+const PD_TABLE_BOTTOM_GAP = 12;
 const ASTROAPP_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.SUN,
 	AstroConst.MOON,
@@ -190,15 +195,14 @@ class AstroPrimaryDirection extends Component{
 			: 980;
 		const rootRect = this.rootHost ? this.rootHost.getBoundingClientRect() : null;
 		const rootTop = rootRect && Number.isFinite(rootRect.top) ? Math.max(0, rootRect.top) : 110;
-		let hostHeight = this.props.height ? this.props.height : viewportHeight - 36;
-		const viewportLimitedHeight = Math.max(560, viewportHeight - rootTop - 8);
-		hostHeight = Math.max(520, Math.min(hostHeight, viewportLimitedHeight));
+		const viewportLimitedHeight = Math.max(PD_MIN_HOST_HEIGHT, viewportHeight - rootTop - PD_VIEWPORT_BOTTOM_GAP);
+		const hostHeight = viewportLimitedHeight;
 		const controlsHeight = this.controlsHost ? this.controlsHost.getBoundingClientRect().height : 52;
 		const tableWrapHeight = this.tableWrapHost ? this.tableWrapHost.getBoundingClientRect().height : (hostHeight - controlsHeight - 12);
-		const paginationReserve = 34;
-		const bottomBreathing = 8;
+		const paginationReserve = PD_PAGINATION_RESERVE;
+		const bottomBreathing = PD_TABLE_BOTTOM_GAP;
 		const nextBodyHeight = Math.max(
-			470,
+			PD_MIN_BODY_HEIGHT,
 			Math.round(tableWrapHeight - paginationReserve - bottomBreathing)
 		);
 		if(
@@ -615,19 +619,24 @@ class AstroPrimaryDirection extends Component{
 		const compactControls = viewportWidth < 1280;
 		const stackedControls = viewportWidth < 920;
 
-		let height = this.state.hostHeight || this.props.height || (document.documentElement.clientHeight - 36);
 		const viewportHeight = typeof document !== 'undefined' && document.documentElement
 			? document.documentElement.clientHeight
 			: 980;
-		const boundedHeight = Math.max(560, Math.min(height, viewportHeight - 6));
+		const rootRect = this.rootHost ? this.rootHost.getBoundingClientRect() : null;
+		const rootTop = rootRect && Number.isFinite(rootRect.top) ? Math.max(0, rootRect.top) : 110;
+		const boundedHeight = Math.max(PD_MIN_HOST_HEIGHT, viewportHeight - rootTop - PD_VIEWPORT_BOTTOM_GAP);
 		const controlHeight = stackedControls ? 102 : (compactControls ? 74 : 48);
 		const controlBottom = 8;
-		const paginationReserve = 34;
-		const tableBottomGap = 8;
+		const paginationReserve = PD_PAGINATION_RESERVE;
+		const tableBottomGap = PD_TABLE_BOTTOM_GAP;
 		const tableReserve = controlHeight + controlBottom + paginationReserve + tableBottomGap;
 		let tblY = this.state.tableBodyHeight || (boundedHeight - tableReserve);
-		if(tblY < 470){
-			tblY = 470;
+		const maxTableBodyHeight = Math.max(PD_MIN_BODY_HEIGHT, boundedHeight - tableReserve);
+		if(tblY > maxTableBodyHeight){
+			tblY = maxTableBodyHeight;
+		}
+		if(tblY < PD_MIN_BODY_HEIGHT){
+			tblY = PD_MIN_BODY_HEIGHT;
 		}
 
 		let style = {

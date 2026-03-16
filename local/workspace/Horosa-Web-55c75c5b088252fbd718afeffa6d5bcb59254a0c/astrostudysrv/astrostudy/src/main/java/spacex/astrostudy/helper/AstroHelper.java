@@ -1,8 +1,14 @@
 package spacex.astrostudy.helper;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import boundless.exception.ErrorCodeException;
@@ -17,6 +23,8 @@ import boundless.utility.StringUtility;
 public class AstroHelper {
 	private static final boolean Debug = PropertyPlaceholder.getPropertyAsBool("devmode", true);
 	private static final ConcurrentHashMap<String, Map<String, Object>> localPredictiveCache = new ConcurrentHashMap<String, Map<String, Object>>();
+	private static final ConcurrentHashMap<String, CompletableFuture<Map<String, Object>>> inflightPredictiveCache = new ConcurrentHashMap<String, CompletableFuture<Map<String, Object>>>();
+	private static final Set<String> ForceExactCachePaths = new HashSet<String>();
 
 	public static final String AstroSrvUrl = PropertyPlaceholder.getProperty("astrosrv", "http://127.0.0.1:8899");
 	public static final String SolarReturn = PropertyPlaceholder.getProperty("solarreturn", "/predict/solarreturn");
@@ -39,25 +47,48 @@ public class AstroHelper {
 	public static final String Acg = PropertyPlaceholder.getProperty("acg", "/location/acg");
 	public static final String Azimuth = PropertyPlaceholder.getProperty("azimuth", "/calc/azimuth");
 	public static final String Cotrans = PropertyPlaceholder.getProperty("cotrans", "/calc/cotrans");
+
+	static {
+		ForceExactCachePaths.add(RelativeChart);
+		ForceExactCachePaths.add(JieQiYear);
+		ForceExactCachePaths.add(JieQiBirth);
+		ForceExactCachePaths.add(Nongli);
+		ForceExactCachePaths.add(Acg);
+	}
+
+	private static Object normalizeCacheValue(Object obj) {
+		if(obj instanceof Map) {
+			TreeMap<String, Object> normalized = new TreeMap<String, Object>();
+			Map<?, ?> map = (Map<?, ?>) obj;
+			for(Map.Entry<?, ?> entry : map.entrySet()) {
+				String key = entry.getKey() == null ? "null" : entry.getKey().toString();
+				normalized.put(key, normalizeCacheValue(entry.getValue()));
+			}
+			return normalized;
+		}
+		if(obj instanceof Collection) {
+			List<Object> list = new ArrayList<Object>();
+			for(Object item : (Collection<?>) obj) {
+				list.add(normalizeCacheValue(item));
+			}
+			return list;
+		}
+		if(obj != null && obj.getClass().isArray()) {
+			int len = java.lang.reflect.Array.getLength(obj);
+			List<Object> list = new ArrayList<Object>(len);
+			for(int i=0; i<len; i++) {
+				list.add(normalizeCacheValue(java.lang.reflect.Array.get(obj, i)));
+			}
+			return list;
+		}
+		return obj;
+	}
 	
 	private static String getPredictiveKey(String path, Map<String, Object> params) {
 		StringBuilder sb = new StringBuilder(path);
 		sb.append("_");
-		for(Object obj : params.values()) {
-			if(obj instanceof Collection) {
-				String str = StringUtility.joinWithSeperator(",", obj);
-				sb.append(str);
-			}if(obj instanceof Map) {
-				String str = JsonUtility.encode(obj);
-				sb.append(str);
-			}else {
-				if(obj == null) {
-					sb.append("null");
-				}else {
-					sb.append(obj.toString());					
-				}
-			}
-		}
+		Object normalized = normalizeCacheValue(params);
+		sb.append(JsonUtility.encode(normalized));
 		String txt = sb.toString();
 		return MD5Utility.encryptAsString(txt);
 	}
@@ -83,7 +114,8 @@ public class AstroHelper {
 	}
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
-		if(Debug) {
+		boolean forceExactCache = ForceExactCachePaths.contains(path);
+		if(Debug && !forceExactCache) {
 			return requestNoCache(path, params);
 		}
 		String key = getPredictiveKey(path, params);
@@ -96,23 +128,56 @@ public class AstroHelper {
 			localPredictiveCache.putIfAbsent(key, res);
 			return res;
 		}
-		
-		String url = String.format("%s%s", AstroSrvUrl, path);
-		String jsonData = JsonUtility.encode(params);
-		Map<String, String> headers = new HashMap<String, String>();
-		Map<String, String> respHeadMap = new HashMap<String, String>();
-		String str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
-		Map<String, Object> jsonres = JsonUtility.toDictionary(str);
-		if(jsonres.containsKey("err")) {
-			throw new ErrorCodeException(200001, getRemoteErrMessage(jsonres));
+
+		CompletableFuture<Map<String, Object>> ownerFuture = new CompletableFuture<Map<String, Object>>();
+		CompletableFuture<Map<String, Object>> existingFuture = inflightPredictiveCache.putIfAbsent(key, ownerFuture);
+		if(existingFuture != null) {
+			return existingFuture.join();
 		}
-		localPredictiveCache.put(key, jsonres);
-		
-		CalculatePool.queueUserWorkItem(()->{
-			AstroCacheHelper.setPredictive(key, jsonres);
-		});
-		
-		return jsonres;		
+
+		try {
+			Map<String, Object> cachedAfterClaim = localPredictiveCache.get(key);
+			if(cachedAfterClaim != null) {
+				ownerFuture.complete(cachedAfterClaim);
+				return cachedAfterClaim;
+			}
+
+			Map<String, Object> remoteCachedAfterClaim = AstroCacheHelper.getPredictive(key);
+			if(remoteCachedAfterClaim != null) {
+				localPredictiveCache.putIfAbsent(key, remoteCachedAfterClaim);
+				ownerFuture.complete(remoteCachedAfterClaim);
+				return remoteCachedAfterClaim;
+			}
+
+			String url = String.format("%s%s", AstroSrvUrl, path);
+			String jsonData = JsonUtility.encode(params);
+			Map<String, String> headers = new HashMap<String, String>();
+			Map<String, String> respHeadMap = new HashMap<String, String>();
+			String str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
+			Map<String, Object> jsonres = JsonUtility.toDictionary(str);
+			if(jsonres.containsKey("err")) {
+				throw new ErrorCodeException(200001, getRemoteErrMessage(jsonres));
+			}
+			localPredictiveCache.put(key, jsonres);
+			ownerFuture.complete(jsonres);
+			
+			CalculatePool.queueUserWorkItem(()->{
+				AstroCacheHelper.setPredictive(key, jsonres);
+			});
+			
+			return jsonres;
+		}catch(Throwable ex) {
+			ownerFuture.completeExceptionally(ex);
+			if(ex instanceof RuntimeException) {
+				throw (RuntimeException)ex;
+			}
+			if(ex instanceof Error) {
+				throw (Error)ex;
+			}
+			throw new RuntimeException(ex);
+		} finally {
+			inflightPredictiveCache.remove(key, ownerFuture);
+		}
 	}
 	
 	public static Map<String, Object> requestNoCache(String path, Map<String, Object> params){

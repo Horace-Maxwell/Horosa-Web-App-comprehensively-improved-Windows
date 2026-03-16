@@ -103,16 +103,15 @@ def _build_jieqi_warmup_sample():
 
 
 def _build_acg_warmup_sample():
-    base = _get_warmup_defaults()
     return {
         'ad': 1,
-        'date': base['date'],
-        'time': base['time'],
-        'zone': base['zone'],
-        'lat': base['lat'],
-        'lon': base['lon'],
-        'gpsLat': base['gpsLat'],
-        'gpsLon': base['gpsLon'],
+        'date': '2028/04/06',
+        'time': '09:33:00',
+        'zone': '+08:00',
+        'lat': '31n13',
+        'lon': '121e28',
+        'gpsLat': 31.2167,
+        'gpsLon': 121.4667,
         'name': 'Warmup',
         'pos': 'Warmup',
     }

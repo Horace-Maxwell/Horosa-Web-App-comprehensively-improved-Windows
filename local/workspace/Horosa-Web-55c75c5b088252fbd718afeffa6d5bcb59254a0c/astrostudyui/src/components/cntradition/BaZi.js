@@ -31,8 +31,6 @@ function buildBaziKey(params){
 		params.zone,
 		params.lon,
 		params.lat,
-		params.gpsLat,
-		params.gpsLon,
 		params.gender,
 		params.timeAlg,
 		params.phaseType,

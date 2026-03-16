@@ -43,12 +43,40 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptRoot
+$ResolveLocalBase = {
+  $candidates = @()
+  if (-not [string]::IsNullOrWhiteSpace([string]$env:HOROSA_DESKTOP_USER_ROOT)) {
+    try {
+      $configuredRoot = [System.IO.Path]::GetFullPath([string]$env:HOROSA_DESKTOP_USER_ROOT)
+      $configuredParent = Split-Path -Parent $configuredRoot
+      if (-not [string]::IsNullOrWhiteSpace($configuredParent)) {
+        $candidates += $configuredParent
+      }
+    } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace([string]$env:LocalAppData)) {
+    $candidates += [string]$env:LocalAppData
+  }
+  if (-not [string]::IsNullOrWhiteSpace([string]$env:UserProfile)) {
+    $candidates += (Join-Path ([string]$env:UserProfile) 'AppData\Local')
+  }
+  $candidates += [System.IO.Path]::GetTempPath()
+  foreach ($candidate in ($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+    try {
+      New-Item -ItemType Directory -Force -Path $candidate | Out-Null
+      return (Resolve-Path $candidate).Path
+    } catch {}
+  }
+  throw 'Unable to resolve writable local app data base directory.'
+}
+$LocalAppBase = & $ResolveLocalBase
+$UserRoot = Join-Path $LocalAppBase 'HorosaDesktop'
 $InstallScript = Join-Path $ScriptRoot 'install_desktop_runtime.ps1'
 $RunScript = Join-Path $ScriptRoot 'Run_Horosa_Desktop.vbs'
 $VersionFile = Join-Path $ScriptRoot 'version.json'
-$ProgressFile = Join-Path $env:LocalAppData 'HorosaDesktop\install-progress.json'
-$StateFile = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-pydeps\install_state.json'
-$RuntimeLogDir = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-logs'
+$ProgressFile = Join-Path $UserRoot 'install-progress.json'
+$StateFile = Join-Path $UserRoot 'runtime-pydeps\install_state.json'
+$RuntimeLogDir = Join-Path $UserRoot 'runtime-logs'
 $InstallStdoutLog = Join-Path $RuntimeLogDir 'install-wizard-stdout.log'
 $InstallStderrLog = Join-Path $RuntimeLogDir 'install-wizard-stderr.log'
 $InstallRuntimeLog = Join-Path $RuntimeLogDir 'install-runtime.log'
@@ -60,7 +88,7 @@ $LauncherExe = Join-Path $ScriptRoot 'Xingque.exe'
 $ReleaseLauncherExe = Join-Path $ScriptRoot 'release\Xingque.exe'
 $IconCandidate = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
 $DesktopExe = Join-Path $ScriptRoot 'dist\HorosaDesktop\HorosaDesktop.exe'
-$InstallRoot = Join-Path $env:LocalAppData 'Horosa\Xingque App'
+$InstallRoot = Join-Path $LocalAppBase 'Horosa\Xingque App'
 $InstalledBundleRoot = Join-Path $InstallRoot 'desktop_installer_bundle'
 $InstalledLauncherExe = Join-Path $InstalledBundleRoot 'Xingque.exe'
 $InstalledRunScript = Join-Path $InstalledBundleRoot 'Run_Horosa_Desktop.vbs'
@@ -344,6 +372,53 @@ function Convert-ToLongPath {
   return '\\?\' + $fullPath
 }
 
+function Test-ShouldSkipBundleCopyPath {
+  param([string]$RelativePath)
+
+  if ([string]::IsNullOrWhiteSpace($RelativePath)) {
+    return $false
+  }
+
+  $normalized = ($RelativePath -replace '/', '\').TrimStart('\')
+  $normalizedLower = $normalized.ToLowerInvariant()
+  $fileNameLower = [System.IO.Path]::GetFileName($normalized).ToLowerInvariant()
+
+  $excludedPrefixes = @(
+    '.git\',
+    '.github\',
+    'desktop_installer_bundle\build\',
+    'desktop_installer_bundle\dist\',
+    'desktop_installer_bundle\release\',
+    'desktop_installer_bundle\qt-cache\',
+    'desktop_installer_bundle\qt-profile\',
+    'desktop_installer_bundle\runtime-logs\',
+    'local\workspace\horosa-web-55c75c5b088252fbd718afeffa6d5bcb59254a0c\.horosa-local-logs-win\'
+  )
+  foreach ($prefix in $excludedPrefixes) {
+    if ($normalizedLower.StartsWith($prefix)) {
+      return $true
+    }
+  }
+
+  if ($normalizedLower -like 'local\workspace\*\.horosa-local-logs-win\*') {
+    return $true
+  }
+
+  $excludedFilePatterns = @(
+    '*.log',
+    '*.err',
+    '*.out',
+    '*.pid'
+  )
+  foreach ($pattern in $excludedFilePatterns) {
+    if ($fileNameLower -like $pattern) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
 function Copy-DirectoryTree {
   param(
     [Parameter(Mandatory = $true)][string]$SourcePath,
@@ -367,6 +442,9 @@ function Copy-DirectoryTree {
     if ([string]::IsNullOrWhiteSpace($relativePath)) {
       continue
     }
+    if (Test-ShouldSkipBundleCopyPath -RelativePath $relativePath) {
+      continue
+    }
     $targetDirectory = [System.IO.Path]::Combine($destinationRootLong, $relativePath)
     [System.IO.Directory]::CreateDirectory($targetDirectory) | Out-Null
   }
@@ -377,6 +455,9 @@ function Copy-DirectoryTree {
       continue
     }
     $relativePath = $filePath.Substring($sourceRootLong.Length).TrimStart('\')
+    if (Test-ShouldSkipBundleCopyPath -RelativePath $relativePath) {
+      continue
+    }
     $targetPath = [System.IO.Path]::Combine($destinationRootLong, $relativePath)
     $targetDirectory = [System.IO.Path]::GetDirectoryName($targetPath)
     $copied = $false
@@ -410,6 +491,8 @@ function Install-AppBundle {
   if (-not (Test-Path $RepoRoot -PathType Container)) {
     throw "安装源目录不存在：$RepoRoot"
   }
+
+  Stop-InstalledAppProcesses
 
   $parentDir = Split-Path -Parent $InstallRoot
   if ($parentDir) {

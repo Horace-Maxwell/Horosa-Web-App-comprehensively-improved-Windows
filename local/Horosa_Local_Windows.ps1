@@ -798,6 +798,7 @@ function Set-StartupLaunchEnv {
 function Build-LaunchUrl {
   param(
     [int]$WebPort,
+    [int]$ChartPort,
     [int]$BackendPort,
     [pscustomobject]$StartupState
   )
@@ -807,9 +808,12 @@ function Build-LaunchUrl {
   }
 
   $serverRoot = "http://127.0.0.1:$BackendPort"
+  $chartRoot = "http://127.0.0.1:$ChartPort"
   $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
+  $encodedChartRoot = [System.Uri]::EscapeDataString($chartRoot)
   $queryParts = @(
     "srv=$encodedServerRoot",
+    "chart=$encodedChartRoot",
     "sdate=$([System.Uri]::EscapeDataString($StartupState.Date))",
     "stime=$([System.Uri]::EscapeDataString($StartupState.Time))",
     "szone=$([System.Uri]::EscapeDataString($StartupState.Zone))",
@@ -898,7 +902,7 @@ function Test-ReusableRuntimeStack {
   }
 
   $ports = @($WebPort, $ChartPort, $BackendPort)
-  $launchUrl = Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort
+  $launchUrl = Build-LaunchUrl -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
 
   for ($attempt = 0; $attempt -lt 16; $attempt++) {
     $allPortsReady = $true
@@ -3015,7 +3019,7 @@ if ($PersistServices -and -not ($webPortPinned -or $backendPortPinned -or $chart
         $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
         $env:HOROSA_CHART_SERVER_ROOT = "http://127.0.0.1:$ChartPort"
         $env:HOROSA_WEB_ROOT = "http://127.0.0.1:$WebPort"
-        $cachedUrl = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+        $cachedUrl = (Build-LaunchUrl -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
         Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
         Write-Host ("[INFO] Fast reusing existing local services: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
         Write-StartupCheckpoint 'preflight-skipped-reuse'
@@ -3237,18 +3241,16 @@ try {
   $savedLayoutPreferredForReuse = $false
   if (-not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)) {
     $savedPortLayout = Get-SavedPortLayout
-    if ($InstalledPackageMode -and $savedPortLayout) {
-      # For packaged installs, stale saved ports cost startup time and rarely help
-      # unless a live reusable stack is confirmed later in the launch flow.
-      $savedPortLayout = $null
-    }
     if ($savedPortLayout) {
       $DefaultWebPort = $savedPortLayout.WebPort
       $DefaultChartPort = $savedPortLayout.ChartPort
       $DefaultBackendPort = $savedPortLayout.BackendPort
     }
   }
-  $preferRandomPorts = -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)
+  $preferRandomPorts = (
+    ($env:HOROSA_RANDOM_PORTS -eq '1') -and
+    -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)
+  )
   if ($PersistServices -and $savedPortLayout -and -not ($webPortPinned -or $backendPortPinned -or $chartPortPinned)) {
     $savedLayoutPreferredForReuse = $true
     $WebPort = $savedPortLayout.WebPort
@@ -3307,7 +3309,7 @@ $proxyEnvSnapshot = $null
 
 if ($PersistServices -and (Test-ReusableRuntimeStack -ExpectedSignature $currentStackSignature -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort)) {
   $reusedExistingStack = $true
-  $url = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+  $url = (Build-LaunchUrl -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
   Sync-PortLayout -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort
   Write-Host ("[INFO] Reusing existing local services: web={0} chart={1} backend={2}" -f $WebPort, $ChartPort, $BackendPort)
   Write-StartupCheckpoint 'preflight-skipped-reuse'
@@ -3436,7 +3438,7 @@ try {
       '--mongodb.host=127.0.0.1',
       '--redis.ip=127.0.0.1',
       "--redis.pool.timeout=$redisPoolTimeoutMs",
-      '--cachehelper.needcache=false',
+      '--cachehelper.needcache=true',
       "--cachehelper.expireinsecond=$cacheExpireSeconds"
     )
     if ($PerfMode) {
@@ -3463,12 +3465,13 @@ try {
 
     Write-StartupCheckpoint 'web-ready'
     $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    $url = (Build-LaunchUrl -WebPort $WebPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$cacheBust"
+    $url = (Build-LaunchUrl -WebPort $WebPort -ChartPort $ChartPort -BackendPort $BackendPort -StartupState $StartupLaunchState) + "&v=$cacheBust"
     $startupCacheJs = Join-Path $DistDir 'startup-cache.js'
     $startupWarmupOut = Join-Path $LogDir 'warmup-startup.log'
     $startupWarmupErr = Join-Path $LogDir 'warmup-startup.log.err'
     $startupWarmupProc = $null
     $startupWarmupStarted = $false
+    $readyUrlEmitted = $false
 
     $ready = $false
     $chartReadyLogged = $false
@@ -3500,6 +3503,11 @@ try {
         Write-StartupCheckpoint 'backend-port-ready'
         $backendReadyLogged = $true
       }
+      if (-not $readyUrlEmitted -and $env:HOROSA_NO_BROWSER -eq '1') {
+        Write-StartupCheckpoint 'ready-url-emitted'
+        Write-Host "[4/4] Started (no-browser mode): $url"
+        $readyUrlEmitted = $true
+      }
       if ($chartReadyNow -and $backendReadyNow) {
         $ready = $true
         break
@@ -3530,15 +3538,24 @@ try {
     } elseif ($chartReadyLogged) {
       Prime-StartupCache -ProjectRoot $ProjectDir -TimeoutMs 260 | Out-Null
     }
-    $quickWarmupDelaySec = if ($ready) { 0 } else { 2 }
+    $quickWarmupDelaySec = if ($ready) { 0 } else { 1 }
+    if ($env:HOROSA_WARMUP_QUICK_DELAY_SEC) {
+      [void][int]::TryParse($env:HOROSA_WARMUP_QUICK_DELAY_SEC, [ref]$quickWarmupDelaySec)
+    }
+    if ($quickWarmupDelaySec -lt 0) {
+      $quickWarmupDelaySec = 0
+    }
     Invoke-HorosaWarmup -ProjectRoot $ProjectDir -Mode 'quick' -DelaySec $quickWarmupDelaySec -Background | Out-Null
     $QuickWarmupStarted = $true
   }
 
   Write-Host '[3/4] Opening browser...'
   if ($env:HOROSA_NO_BROWSER -eq '1') {
-    Write-StartupCheckpoint 'ready-url-emitted'
-    Write-Host "[4/4] Started (no-browser mode): $url"
+    if (-not $readyUrlEmitted) {
+      Write-StartupCheckpoint 'ready-url-emitted'
+      Write-Host "[4/4] Started (no-browser mode): $url"
+      $readyUrlEmitted = $true
+    }
     if ($PerfMode -and $env:HOROSA_WARMUP_DISABLE_FULL -ne '1') {
       $fullWarmupDelaySec = 8
       if ($env:HOROSA_WARMUP_FULL_DELAY_SEC) {
@@ -3608,7 +3625,11 @@ try {
     }
   }
 
-  Write-Host 'Browser closed, stopping local services...'
+  if (-not $SkipCleanup) {
+    Write-Host 'Browser closed, stopping local services...'
+  } else {
+    Write-Host '[INFO] Local services remain running for follow-up audit.'
+  }
 } catch {
   $RunStatus = 'FAILED'
   $RunFailureMessage = $_.Exception.Message

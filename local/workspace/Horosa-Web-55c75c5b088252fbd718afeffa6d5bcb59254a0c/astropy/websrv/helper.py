@@ -6,6 +6,49 @@ import time
 
 import cherrypy
 
+
+def _read_cherrypy_request_json(req):
+    cached = getattr(req, '_horosa_cached_json_payload', None)
+    if cached is not None:
+        return cached
+    try:
+        body = req.body.fp.read()
+    except Exception:
+        try:
+            body = req.body.read()
+        except Exception:
+            body = b''
+    if not body:
+        data = {}
+    else:
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        data = json.loads(body)
+    setattr(req, '_horosa_cached_json_payload', data)
+    return data
+
+
+def ensure_cherrypy_json_property():
+    request_cls = getattr(getattr(cherrypy, '_cprequest', None), 'Request', None)
+    if request_cls is None:
+        return
+    existing = getattr(request_cls, 'json', None)
+    if isinstance(existing, property) and existing.fset is not None:
+        return
+
+    @property
+    def json_payload(self):
+        return _read_cherrypy_request_json(self)
+
+    @json_payload.setter
+    def json_payload(self, value):
+        setattr(self, '_horosa_cached_json_payload', value)
+
+    setattr(request_cls, 'json', json_payload)
+
+
+ensure_cherrypy_json_property()
+
 # supprt crossdomain ajax script
 def enable_crossdomain():
     if cherrypy.request.method == 'OPTIONS':
@@ -45,6 +88,7 @@ class RequestResultCache:
         self.persist_dir = persist_dir
         self._lock = threading.Lock()
         self._items = {}
+        self._inflight = {}
         if self.persist_dir:
             os.makedirs(self.persist_dir, exist_ok=True)
 
@@ -92,36 +136,56 @@ class RequestResultCache:
 
     def get_or_compute(self, scope, payload, builder):
         key = self._make_key(scope, payload)
-        now = time.time()
-        with self._lock:
-            hit = self._items.get(key)
-            if hit and (now - hit['ts']) <= self.ttl_sec:
-                return hit['value']
-            expired = [k for k, v in self._items.items() if (now - v['ts']) > self.ttl_sec]
-            for old in expired:
-                self._items.pop(old, None)
+        while True:
+            now = time.time()
+            with self._lock:
+                hit = self._items.get(key)
+                if hit and (now - hit['ts']) <= self.ttl_sec:
+                    return hit['value']
+                expired = [k for k, v in self._items.items() if (now - v['ts']) > self.ttl_sec]
+                for old in expired:
+                    self._items.pop(old, None)
 
-        persisted = self._read_persisted(key, now)
-        if persisted is not None:
+            persisted = self._read_persisted(key, now)
+            if persisted is not None:
+                with self._lock:
+                    self._items[key] = {
+                        'ts': now,
+                        'value': persisted,
+                    }
+                return persisted
+
+            with self._lock:
+                waiter = self._inflight.get(key)
+                if waiter is None:
+                    waiter = threading.Event()
+                    self._inflight[key] = waiter
+                    is_owner = True
+                else:
+                    is_owner = False
+
+            if is_owner:
+                break
+
+            waiter.wait(timeout=max(1, min(self.ttl_sec, 30)))
+
+        try:
+            value = builder()
             with self._lock:
                 self._items[key] = {
-                    'ts': now,
-                    'value': persisted,
+                    'ts': time.time(),
+                    'value': value,
                 }
-            return persisted
-
-        value = builder()
-
-        with self._lock:
-            self._items[key] = {
-                'ts': now,
-                'value': value,
-            }
-            if len(self._items) > self.max_entries:
-                oldest = min(self._items.items(), key=lambda kv: kv[1]['ts'])[0]
-                self._items.pop(oldest, None)
-        self._write_persisted(key, value)
-        return value
+                if len(self._items) > self.max_entries:
+                    oldest = min(self._items.items(), key=lambda kv: kv[1]['ts'])[0]
+                    self._items.pop(oldest, None)
+            self._write_persisted(key, value)
+            return value
+        finally:
+            with self._lock:
+                waiter = self._inflight.pop(key, None)
+            if waiter is not None:
+                waiter.set()
 
 
 def get_request_cache_dir(namespace):

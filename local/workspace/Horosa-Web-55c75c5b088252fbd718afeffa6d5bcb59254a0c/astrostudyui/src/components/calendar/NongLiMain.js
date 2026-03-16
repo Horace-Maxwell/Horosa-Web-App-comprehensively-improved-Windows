@@ -10,18 +10,151 @@ import NongLi from './NongLi';
 import GuaChartDiv from '../gua/GuaChartDiv';
 import {Week} from '../../msg/types';
 
+const NONG_LI_MONTH_CACHE_PREFIX = 'horosa.nongli.month.v1';
+const NONG_LI_MONTH_CACHE = new Map();
+const NONG_LI_MONTH_INFLIGHT = new Map();
+
+function getLocalStorageSafe(){
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			return window.localStorage;
+		}
+		if(typeof localStorage !== 'undefined'){
+			return localStorage;
+		}
+	}catch(e){
+		return null;
+	}
+	return null;
+}
+
+function buildMonthCacheKey(params){
+	if(!params){
+		return '';
+	}
+	return [
+		NONG_LI_MONTH_CACHE_PREFIX,
+		params.date || '',
+		params.zone || '',
+		params.lon || '',
+	].join('|');
+}
+
+function normalizeMonthPayload(payload){
+	if(!payload || !Array.isArray(payload.days) || !Array.isArray(payload.prevDays)){
+		return null;
+	}
+	return {
+		days: payload.days,
+		prevDays: payload.prevDays,
+	};
+}
+
+function readMonthCache(cacheKey){
+	if(!cacheKey){
+		return null;
+	}
+	if(NONG_LI_MONTH_CACHE.has(cacheKey)){
+		return NONG_LI_MONTH_CACHE.get(cacheKey);
+	}
+	const storage = getLocalStorageSafe();
+	if(!storage){
+		return null;
+	}
+	try{
+		const raw = storage.getItem(cacheKey);
+		if(!raw){
+			return null;
+		}
+		const parsed = normalizeMonthPayload(JSON.parse(raw));
+		if(parsed){
+			NONG_LI_MONTH_CACHE.set(cacheKey, parsed);
+		}
+		return parsed;
+	}catch(e){
+		return null;
+	}
+}
+
+function writeMonthCache(cacheKey, payload){
+	const normalized = normalizeMonthPayload(payload);
+	if(!cacheKey || !normalized){
+		return null;
+	}
+	NONG_LI_MONTH_CACHE.set(cacheKey, normalized);
+	const storage = getLocalStorageSafe();
+	if(storage){
+		try{
+			storage.setItem(cacheKey, JSON.stringify(normalized));
+		}catch(e){
+		}
+	}
+	return normalized;
+}
+
+async function fetchMonthPayload(params){
+	const cacheKey = buildMonthCacheKey(params);
+	const cached = readMonthCache(cacheKey);
+	if(cached){
+		return cached;
+	}
+	if(NONG_LI_MONTH_INFLIGHT.has(cacheKey)){
+		return NONG_LI_MONTH_INFLIGHT.get(cacheKey);
+	}
+	const promise = request(`${Constants.ServerRoot}/calendar/month`, {
+		body: JSON.stringify(params),
+		silent: true,
+	}).then((data)=>{
+		const result = data ? data[Constants.ResultKey] : null;
+		return writeMonthCache(cacheKey, {
+			days: result && Array.isArray(result.days) ? result.days : [],
+			prevDays: result && Array.isArray(result.prevDays) ? result.prevDays : [],
+		});
+	}).finally(()=>{
+		NONG_LI_MONTH_INFLIGHT.delete(cacheKey);
+	});
+	NONG_LI_MONTH_INFLIGHT.set(cacheKey, promise);
+	return promise;
+}
+
+function buildInitialDate(fields){
+	const value = fields && fields.date && fields.date.value;
+	if(value && typeof value.clone === 'function'){
+		return value.clone();
+	}
+	return new DateTime();
+}
+
+function normalizeFieldValue(fields, key, fallback){
+	if(fields && fields[key] && fields[key].value !== undefined && fields[key].value !== null){
+		const value = `${fields[key].value}`.trim();
+		if(value){
+			return value;
+		}
+	}
+	return fallback;
+}
+
 
 class NongLiMain extends Component{
 	constructor(props) {
 		super(props);
+		const date = buildInitialDate(this.props.fields);
+		const lon = normalizeFieldValue(this.props.fields, 'lon', '120e00');
+		const lat = normalizeFieldValue(this.props.fields, 'lat', '0n00');
+		const cachedMonth = readMonthCache(buildMonthCacheKey({
+			date: date.format('YYYY-MM-DD'),
+			zone: date.zone,
+			lon,
+		}));
 		this.state = {
-			date: new DateTime(),
+			date,
 			gpsLon: this.props.fields.gpsLon.value,
 			gpsLat: this.props.fields.gpsLat.value,
-			lon: '120e00',
-			lat: '0n00',
-			days: [],
-			prevDays: [],
+			lon,
+			lat,
+			days: cachedMonth ? cachedMonth.days : [],
+			prevDays: cachedMonth ? cachedMonth.prevDays : [],
 			dateSelected: null,
 			yearGua: null,
 		};
@@ -34,6 +167,8 @@ class NongLiMain extends Component{
 		this.clickDate = this.clickDate.bind(this);
 		this.clickYearGua = this.clickYearGua.bind(this);
 		this.requestYearGua = this.requestYearGua.bind(this);
+		this.unmounted = false;
+		this.initialRequestTimer = null;
 	}
 
 	genParams(){
@@ -47,11 +182,10 @@ class NongLiMain extends Component{
 
 	async requestNongli(){
 		const params = this.genParams();
-
-		const data = await request(`${Constants.ServerRoot}/calendar/month`, {
-			body: JSON.stringify(params),
-		});
-		const result = data[Constants.ResultKey];
+		const result = await fetchMonthPayload(params);
+		if(this.unmounted || !result){
+			return;
+		}
 
 		const st = {
 			days: result.days,
@@ -77,6 +211,7 @@ class NongLiMain extends Component{
 		}
 		const data = await request(`${Constants.ServerRoot}/gua/desc`, {
 			body: JSON.stringify(params),
+			silent: true,
 		});
 		const result = data[Constants.ResultKey];
 
@@ -228,7 +363,19 @@ class NongLiMain extends Component{
 	}
 
 	componentDidMount(){
-		this.requestNongli();
+		this.unmounted = false;
+		this.initialRequestTimer = setTimeout(()=>{
+			this.initialRequestTimer = null;
+			this.requestNongli();
+		}, 16);
+	}
+
+	componentWillUnmount(){
+		this.unmounted = true;
+		if(this.initialRequestTimer){
+			clearTimeout(this.initialRequestTimer);
+			this.initialRequestTimer = null;
+		}
 	}
 
 

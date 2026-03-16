@@ -211,6 +211,7 @@ class DiceMain extends Component{
 	async requestDirection(params){
 		const data = await request(`${Constants.ServerRoot}/predict/dice`, {
 			body: JSON.stringify(params),
+			silent: true,
 		});
 		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 		if(!result){

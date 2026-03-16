@@ -134,17 +134,69 @@ public class RealSunTimeOffset {
 	}
 	
 	public static int getBaseLonByZone(String zone) {
-		String sym = zone.substring(0, 1);
-		String hour = zone.substring(1, 3);
+		if(StringUtility.isNullOrEmpty(zone)) {
+			return 8 * 15;
+		}
+		String text = zone.trim();
+		if(text.isEmpty()) {
+			return 8 * 15;
+		}
+		text = text.replace("：", ":");
+		text = text.replace("UTC", "");
+		text = text.replace("utc", "");
+		text = text.replace("GMT", "");
+		text = text.replace("gmt", "");
+		text = text.replace("区", "");
+		text = text.replace(" ", "");
+		if(text.startsWith("东")) {
+			text = "+" + text.substring(1);
+		}else if(text.startsWith("西")) {
+			text = "-" + text.substring(1);
+		}
+		if(text.matches("^[+-]?\\d{1,2}:\\d{2}$")) {
+			String sign = text.startsWith("-") ? "-" : "+";
+			String body = text.startsWith("+") || text.startsWith("-") ? text.substring(1) : text;
+			String[] parts = StringUtility.splitString(body, ':');
+			int hour = ConvertUtility.getValueAsInt(parts[0], 8);
+			int minute = ConvertUtility.getValueAsInt(parts[1], 0);
+			int lon = hour * 15;
+			if(minute >= 30) {
+				lon += 15;
+			}
+			return "-".equals(sign) ? -lon : lon;
+		}
+		if(text.matches("^[+-]?\\d{3,4}$")) {
+			String sign = text.startsWith("-") ? "-" : "+";
+			String body = text.startsWith("+") || text.startsWith("-") ? text.substring(1) : text;
+			if(body.length() == 3) {
+				body = "0" + body;
+			}
+			int hour = ConvertUtility.getValueAsInt(body.substring(0, 2), 8);
+			int minute = ConvertUtility.getValueAsInt(body.substring(2), 0);
+			int lon = hour * 15;
+			if(minute >= 30) {
+				lon += 15;
+			}
+			return "-".equals(sign) ? -lon : lon;
+		}
+		if(text.matches("^[+-]?\\d{1,2}$")) {
+			int hour = ConvertUtility.getValueAsInt(text, 8);
+			return hour * 15;
+		}
+		String sym = text.substring(0, 1);
+		String hour = text.length() >= 3 ? text.substring(1, 3) : "08";
 		if(hour.startsWith("0")) {
 			hour = hour.substring(1, 2);
 		}
-		int h = ConvertUtility.getValueAsInt(hour);
+		int h = ConvertUtility.getValueAsInt(hour, 8);
 		int lon = h * 15;
 		if(sym.equals("+")) {
 			return lon;
 		}
-		return -lon;
+		if(sym.equals("-")) {
+			return -lon;
+		}
+		return 8 * 15;
 	}
 	
 	public static int getOffsetByDate(String birth, String zone, String lon) {

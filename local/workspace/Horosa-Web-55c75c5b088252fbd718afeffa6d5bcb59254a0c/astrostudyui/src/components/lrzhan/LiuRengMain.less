@@ -6,6 +6,23 @@
   box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
 }
 
+.rightPanelColumn {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rightPanelStatic {
+  flex: 0 0 auto;
+}
+
+.rightPanelScrollable {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .quickActionRow :global(.ant-btn) {
   border-radius: 8px;
   font-weight: 600;
@@ -179,6 +196,9 @@
   border: 1px solid #e7ebf3;
   border-radius: 10px;
   background: #f8fafd;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .judgeTabButton {
@@ -210,6 +230,7 @@
   min-height: 0;
   overflow-y: auto;
   padding-right: 2px;
+  padding-bottom: 4px;
 }
 
 .referenceSection {

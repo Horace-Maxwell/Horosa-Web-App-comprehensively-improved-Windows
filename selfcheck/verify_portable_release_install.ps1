@@ -1,11 +1,16 @@
-﻿param(
-  [string]$Version = '2026.03.11.3'
+param(
+  [string]$Version
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+$VersionInfo = Get-Content -Raw (Join-Path $RepoRoot 'desktop_installer_bundle\version.json') | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace($Version)) {
+  $Version = [string]$VersionInfo.version
+}
+
 $ReleaseDir = Join-Path $RepoRoot 'desktop_installer_bundle\release'
 $PortableZip = Join-Path $ReleaseDir ("HorosaPortableWindows-{0}.zip" -f $Version)
 $RuntimeZip = Join-Path $ReleaseDir ("HorosaRuntimeWindows-{0}.zip" -f $Version)
@@ -15,12 +20,11 @@ $TestRoot = Join-Path 'C:\xqe' ("portable-release-verify-{0}-{1}" -f ($Version -
 $ExtractRoot = Join-Path $TestRoot 'extract'
 $LocalAppDataRoot = Join-Path $TestRoot 'LocalAppData'
 $InstallState = Join-Path $LocalAppDataRoot 'HorosaDesktop\runtime-pydeps\install_state.json'
-$SystemLocalAppData = [Environment]::GetFolderPath('LocalApplicationData')
-$DesktopUserRoot = Join-Path $SystemLocalAppData 'Horosa\Horosa Desktop'
+$DesktopUserRoot = Join-Path $LocalAppDataRoot 'HorosaDesktop'
 $SmokeReady = Join-Path $DesktopUserRoot 'runtime-logs\smoke-ready.json'
 $LauncherLog = Join-Path $DesktopUserRoot 'runtime-logs\desktop-launcher.log'
 $InstallScript = Join-Path $ExtractRoot '_package\desktop_installer_bundle\install_desktop_runtime.ps1'
-$RunScript = Join-Path $ExtractRoot '_package\desktop_installer_bundle\Run_Horosa_Desktop.vbs'
+$PortableLauncher = Join-Path $ExtractRoot '_package\desktop_installer_bundle\Xingque.exe'
 $ServerLog = Join-Path $TestRoot 'runtime-asset-server.log'
 $ServerErr = Join-Path $TestRoot 'runtime-asset-server.err.log'
 
@@ -90,7 +94,6 @@ function Expand-ZipArchive {
     if ($LASTEXITCODE -eq 0) {
       return
     }
-
     throw "tar extraction failed with exit code $LASTEXITCODE"
   }
 
@@ -138,13 +141,17 @@ try {
       throw "Install state file was not created: $InstallState"
     }
 
+    if (-not (Test-Path $PortableLauncher -PathType Leaf)) {
+      throw "Portable launcher not found: $PortableLauncher"
+    }
+
     if (Test-Path $SmokeReady -PathType Leaf) {
       Remove-Item -Force $SmokeReady -ErrorAction SilentlyContinue
     }
 
     $env:HOROSA_DESKTOP_SMOKE_TEST = '1'
     $env:HOROSA_DESKTOP_AUTOCLOSE_SECONDS = '8'
-    $launch = Start-Process -FilePath 'wscript.exe' -ArgumentList @($RunScript) -PassThru -WindowStyle Hidden
+    $launch = Start-Process -FilePath $PortableLauncher -WorkingDirectory (Split-Path $PortableLauncher) -PassThru
     $deadline = (Get-Date).AddMinutes(4)
     while ((Get-Date) -lt $deadline) {
       if (Test-Path $SmokeReady -PathType Leaf) {
@@ -159,6 +166,9 @@ try {
 
     $state = Get-Content -Raw $InstallState | ConvertFrom-Json
     $smoke = Get-Content -Raw $SmokeReady | ConvertFrom-Json
+    if ([string]$state.version -ne $Version -or [string]$state.runtimeVersion -ne $Version) {
+      throw "Portable install state version mismatch. Expected $Version but got app=$($state.version) runtime=$($state.runtimeVersion)"
+    }
 
     $shutdownDeadline = (Get-Date).AddSeconds(25)
     do {
@@ -172,6 +182,7 @@ try {
 
     [pscustomobject]@{
       version = $Version
+      expected_version = [string]$VersionInfo.version
       portable_zip_mb = [math]::Round(((Get-Item $PortableZip).Length / 1MB), 2)
       runtime_zip_mb = [math]::Round(((Get-Item $RuntimeZip).Length / 1MB), 2)
       runtime_download_base = "http://127.0.0.1:$port"
@@ -181,6 +192,7 @@ try {
       smoke_url = $smoke.url
       smoke_timestamp = $smoke.timestamp
       launcher_log = $LauncherLog
+      launcher_path = $PortableLauncher
     } | ConvertTo-Json -Depth 4
   } finally {
     $env:LocalAppData = $oldLocalAppData
@@ -193,4 +205,3 @@ try {
     Stop-Process -Id $serverProcess.Id -Force -ErrorAction SilentlyContinue
   }
 }
-

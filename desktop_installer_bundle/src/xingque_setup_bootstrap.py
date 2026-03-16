@@ -4,6 +4,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import json
+import hashlib
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -40,12 +42,46 @@ def resolve_payload_zip() -> Path:
     return direct
 
 
-def resolve_local_runtime_asset_root() -> Path | None:
+def resolve_payload_manifest() -> Path:
+    direct = resource_path("payload.manifest.json")
+    if direct.exists():
+        return direct
+
     search_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-    runtime_zips = sorted(search_root.glob("HorosaRuntimeWindows-*.zip"))
-    manifests = sorted(search_root.glob("HorosaRuntimeWindows-*.manifest.json"))
-    if runtime_zips and manifests:
-        return search_root
+    preferred = sorted(search_root.glob("HorosaPortableWindows-*.manifest.json"))
+    if preferred:
+        return preferred[0]
+
+    candidates = sorted(search_root.glob("*.manifest.json"))
+    if candidates:
+        return candidates[0]
+
+    return direct
+
+
+def resolve_local_runtime_asset_root() -> Path | None:
+    search_roots: list[Path] = []
+    meipass_root = getattr(sys, "_MEIPASS", None)
+    if meipass_root:
+        search_roots.append(Path(meipass_root))
+    if getattr(sys, "frozen", False):
+        search_roots.append(Path(sys.executable).resolve().parent)
+    search_roots.append(Path(__file__).resolve().parent)
+
+    seen: set[str] = set()
+    for search_root in search_roots:
+        try:
+            resolved = search_root.resolve()
+        except Exception:
+            resolved = search_root
+        key = str(resolved).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        runtime_zips = sorted(resolved.glob("HorosaRuntimeWindows-*.zip"))
+        manifests = sorted(resolved.glob("HorosaRuntimeWindows-*.manifest.json"))
+        if runtime_zips and manifests:
+            return resolved
     return None
 
 
@@ -117,6 +153,41 @@ def extract_payload(payload_zip: Path) -> Path:
     return extract_root
 
 
+def sha256_of_file(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with file_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_payload_integrity(payload_zip: Path) -> None:
+    manifest_path = resolve_payload_manifest()
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"未找到安装载荷校验文件：{manifest_path}")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"安装载荷校验文件损坏：{exc}") from exc
+
+    expected_sha256 = str(manifest.get("sha256") or "").strip().lower()
+    if not expected_sha256:
+        raise RuntimeError("安装载荷校验文件缺少 SHA256。")
+
+    actual_sha256 = sha256_of_file(payload_zip).lower()
+    if actual_sha256 != expected_sha256:
+        raise RuntimeError("安装载荷未通过完整性校验，请重新下载安装包。")
+
+    manifest_asset_name = str(manifest.get("asset") or "").strip()
+    if manifest_asset_name and manifest_asset_name != payload_zip.name:
+        log_line(
+            f"payload manifest asset mismatch: manifest={manifest_asset_name}; actual={payload_zip.name}"
+        )
+
+    log_line(f"payload integrity verified: {payload_zip.name}")
+
+
 def find_powershell_host() -> str:
     candidates = [
         Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe",
@@ -136,6 +207,13 @@ def main() -> int:
         return 1
 
     log_line(f"payload resolved: {payload_zip}")
+    try:
+        verify_payload_integrity(payload_zip)
+    except Exception as exc:
+        log_line(f"payload verify failed: {exc!r}")
+        show_error(f"安装器校验内部载荷失败：\n{exc}")
+        return 1
+
     try:
         log_line("extract payload start")
         extract_root = extract_payload(payload_zip)

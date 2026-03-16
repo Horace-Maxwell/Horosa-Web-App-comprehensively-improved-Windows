@@ -10,7 +10,85 @@ import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplea
 
 let dtm = new DateTime();
 const StartupChartCacheKey = 'horosa.startupChartCache.v1';
-const StartupErrorGraceUntil = Date.now() + 20000;
+const StartupErrorGraceUntil = Date.now() + 45000;
+const DefaultModuleSubTabs = Object.freeze({
+	direction: 'primarydirect',
+	relativechart: 'Comp',
+	indiachart: 'Natal',
+	cntradition: 'bazi',
+	cnyibu: 'suzhan',
+	liveplayer: null,
+});
+
+function buildDefaultModuleSubTabs(){
+	return {
+		...DefaultModuleSubTabs,
+	};
+}
+
+function normalizeModuleSubTabs(raw){
+	const next = buildDefaultModuleSubTabs();
+	if(!raw || typeof raw !== 'object'){
+		return next;
+	}
+	Object.keys(raw).forEach((key)=>{
+		if(raw[key] === undefined){
+			return;
+		}
+		next[key] = raw[key];
+	});
+	return next;
+}
+
+function normalizeStartupUiState(raw){
+	if(!raw || typeof raw !== 'object'){
+		return null;
+	}
+	const currentTab = raw.currentTab !== undefined && raw.currentTab !== null && `${raw.currentTab}` !== ''
+		? `${raw.currentTab}`
+		: 'astrochart';
+	const moduleSubTabs = normalizeModuleSubTabs(raw.moduleSubTabs);
+	let currentSubTab = raw.currentSubTab;
+	if(currentSubTab === undefined){
+		currentSubTab = moduleSubTabs[currentTab] !== undefined ? moduleSubTabs[currentTab] : null;
+	}
+	return {
+		currentTab,
+		currentSubTab: currentSubTab === undefined ? null : currentSubTab,
+		moduleSubTabs,
+	};
+}
+
+function readStoredStartupCachePayload(){
+	if(typeof window === 'undefined' || !window.localStorage){
+		return null;
+	}
+	try{
+		const raw = window.localStorage.getItem(StartupChartCacheKey);
+		if(!raw){
+			return null;
+		}
+		const payload = JSON.parse(raw);
+		return payload && typeof payload === 'object' ? payload : null;
+	}catch(e){
+		return null;
+	}
+}
+
+function writeStartupCachePayload(partial){
+	if(typeof window === 'undefined' || !window.localStorage){
+		return;
+	}
+	try{
+		const previous = readStoredStartupCachePayload() || {};
+		const payload = {
+			...previous,
+			...partial,
+			savedAt: Date.now(),
+		};
+		window.localStorage.setItem(StartupChartCacheKey, JSON.stringify(payload));
+	}catch(e){}
+}
 
 function parseStartupLaunchState(){
 	try{
@@ -347,20 +425,23 @@ function deserializeFields(raw){
 }
 
 function saveStartupChartCache(chartObj, fields){
-	if(typeof window === 'undefined' || !window.localStorage){
-		return;
-	}
 	if(!chartObj || !fields){
 		return;
 	}
-	try{
-		const payload = {
-			savedAt: Date.now(),
-			chartObj: chartObj,
-			fields: serializeFields(fields),
-		};
-		window.localStorage.setItem(StartupChartCacheKey, JSON.stringify(payload));
-	}catch(e){}
+	writeStartupCachePayload({
+		chartObj: chartObj,
+		fields: serializeFields(fields),
+	});
+}
+
+function saveStartupUiState(state){
+	const uiState = normalizeStartupUiState(state);
+	if(!uiState){
+		return;
+	}
+	writeStartupCachePayload({
+		uiState,
+	});
 }
 
 function loadStartupChartCache(){
@@ -368,32 +449,37 @@ function loadStartupChartCache(){
 		return null;
 	}
 	try{
-		const globalPayload = window.__HOROSA_STARTUP_CACHE;
+		let globalPayload = window.__HOROSA_STARTUP_CACHE;
 		if(globalPayload && globalPayload.chartObj && globalPayload.fields){
 			try{
 				if(window.localStorage){
+					const storedPayload = readStoredStartupCachePayload();
+					if(storedPayload && storedPayload.uiState && !globalPayload.uiState){
+						globalPayload = {
+							...globalPayload,
+							uiState: storedPayload.uiState,
+						};
+					}
 					window.localStorage.setItem(StartupChartCacheKey, JSON.stringify(globalPayload));
 				}
 			}catch(e){}
 			return {
 				chartObj: globalPayload.chartObj,
 				fields: deserializeFields(globalPayload.fields),
+				uiState: normalizeStartupUiState(globalPayload.uiState),
 			};
 		}
 		if(!window.localStorage){
 			return null;
 		}
-		const raw = window.localStorage.getItem(StartupChartCacheKey);
-		if(!raw){
-			return null;
-		}
-		const payload = JSON.parse(raw);
+		const payload = readStoredStartupCachePayload();
 		if(!payload || !payload.chartObj || !payload.fields){
 			return null;
 		}
 		return {
 			chartObj: payload.chartObj,
 			fields: deserializeFields(payload.fields),
+			uiState: normalizeStartupUiState(payload.uiState),
 		};
 	}catch(e){
 		return null;
@@ -470,22 +556,35 @@ function sleep(ms){
 	});
 }
 
+function shouldRetryChartFetch(rsp, attempt){
+	if(hasChartParamError(rsp)){
+		return false;
+	}
+	if(isValidChartResponse(rsp)){
+		return false;
+	}
+	return Date.now() <= StartupErrorGraceUntil;
+}
+
 function* fetchChartWithRecovery(call, param, requestOptions){
 	let rsp = null;
-	try{
-		rsp = yield call(service.fetchChart, param, requestOptions);
-	}catch(e){
-		rsp = null;
+	const retryDelays = [250, 400, 600, 900, 1200, 1600, 2100, 2600, 3200];
+	for(let attempt = 0; attempt <= retryDelays.length; attempt++){
+		try{
+			rsp = yield call(service.fetchChart, param, requestOptions);
+		}catch(e){
+			rsp = null;
+		}
+		if(isValidChartResponse(rsp) || hasChartParamError(rsp)){
+			return rsp;
+		}
+		if(!shouldRetryChartFetch(rsp, attempt)){
+			return rsp;
+		}
+		const delay = retryDelays[Math.min(attempt, retryDelays.length - 1)];
+		yield sleep(delay);
 	}
-	if(isValidChartResponse(rsp) || hasChartParamError(rsp)){
-		return rsp;
-	}
-	yield sleep(450);
-	try{
-		return yield call(service.fetchChart, param, requestOptions);
-	}catch(e){
-		return rsp;
-	}
+	return rsp;
 }
 
 
@@ -540,20 +639,25 @@ function hooking(hook, currentTab, fields, chartObj){
 let now = new DateTime();
 function buildInitialAstroState(){
 	const startupCache = loadStartupChartCache();
+	const startupUiState = startupCache && startupCache.uiState ? startupCache.uiState : null;
+	const moduleSubTabs = startupUiState && startupUiState.moduleSubTabs
+		? startupUiState.moduleSubTabs
+		: buildDefaultModuleSubTabs();
+	const currentTab = startupUiState && startupUiState.currentTab ? startupUiState.currentTab : 'astrochart';
+	let currentSubTab = startupUiState ? startupUiState.currentSubTab : null;
+	if(currentSubTab === undefined){
+		currentSubTab = moduleSubTabs[currentTab] !== undefined ? moduleSubTabs[currentTab] : null;
+	}
+	const initialHeight = (typeof document !== 'undefined' && document.documentElement)
+		? Math.max(660, document.documentElement.clientHeight - 88)
+		: 660;
 	return {
-		height: 660,
+		height: initialHeight,
 		chartObj: startupCache && startupCache.chartObj ? startupCache.chartObj : null,
 		drawerVisible: closeAllDrawer('init'),
-		currentTab: 'astrochart',
-		currentSubTab: null,
-		moduleSubTabs: {
-			direction: 'primarydirect',
-			relativechart: 'Comp',
-			indiachart: 'Natal',
-			cntradition: 'bazi',
-			cnyibu: 'suzhan',
-			liveplayer: null,
-		},
+		currentTab: currentTab,
+		currentSubTab: currentSubTab,
+		moduleSubTabs: moduleSubTabs,
 		currentChart: null,
 		memoType: 0,
 		memo: '',
@@ -593,6 +697,7 @@ export default {
 
 	reducers: {
 		save(state, {payload: values}){
+			values = values || {};
 			const nextModuleSubTabs = {
 				...(state.moduleSubTabs || {}),
 				...((values && values.moduleSubTabs) ? values.moduleSubTabs : {}),
@@ -618,11 +723,13 @@ export default {
 			};
 
 			if(values.currentChart){
+				saveStartupUiState(st);
 				return st;
 			}
 
 			const currentChart = state.currentChart;
 			if(currentChart === undefined || currentChart === null){
+				saveStartupUiState(st);
 				return st;
 			}
 
@@ -692,6 +799,7 @@ export default {
 				st.memo = values.memo;
 			}
 
+			saveStartupUiState(st);
 			return st;
 		},
 	},
@@ -1145,19 +1253,37 @@ export default {
 
 		},
 
-		*hydrateStartupCache({ payload: values }, { call, put }){
+		*hydrateStartupCache({ payload: values }, { call, put, select }){
 			const cached = loadStartupChartCache();
-			if(!cached){
+			if(cached){
+				const uiState = cached.uiState || null;
+				const uiPayload = uiState ? {
+					currentTab: uiState.currentTab,
+					currentSubTab: uiState.currentSubTab,
+					moduleSubTabs: uiState.moduleSubTabs,
+				} : {};
+				yield put({
+					type: 'save',
+					payload: {
+						fields: cached.fields,
+						chartObj: cached.chartObj,
+						drawerVisible: closeAllDrawer('*hydrateStartupCache'),
+						...uiPayload,
+					},
+				});
 				return;
 			}
-			yield put({
-				type: 'save',
-				payload: {
-					fields: cached.fields,
-					chartObj: cached.chartObj,
-					drawerVisible: closeAllDrawer('*hydrateStartupCache'),
-				},
-			});
+			const astroState = yield select((state)=>state.astro);
+			const fields = astroState && astroState.fields ? astroState.fields : null;
+			if(fields){
+				yield put({
+					type: 'fetchByFields',
+					payload: {
+						...fields,
+						__requestOptions: { silent: true },
+					},
+				});
+			}
 		},
 
 		*setHomePage({ payload: values }, { call, put }){

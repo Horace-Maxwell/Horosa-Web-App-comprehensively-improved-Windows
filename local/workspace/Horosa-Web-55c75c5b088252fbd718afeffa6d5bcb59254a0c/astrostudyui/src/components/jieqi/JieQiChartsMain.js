@@ -841,6 +841,7 @@ class JieQiChartsMain extends Component{
 
 		this.changeTab = this.changeTab.bind(this);
 		this.requestJieQi = this.requestJieQi.bind(this);
+		this.requestJieQiSeed = this.requestJieQiSeed.bind(this);
 		this.requestJieQiCharts = this.requestJieQiCharts.bind(this);
 		this.requestJieQiBazi = this.requestJieQiBazi.bind(this);
 		this.currentTabNeedsCharts = this.currentTabNeedsCharts.bind(this);
@@ -968,10 +969,65 @@ class JieQiChartsMain extends Component{
 		this.setState({
 			fields: flds,
 		});
+		const seedPromise = this.requestJieQiSeed(seedParams, seq);
 		if(needsCharts){
 			this.requestJieQiCharts(seedParams, seq, this.state.currentTab);
 		}
-		return this.requestJieQiBazi(seedParams, seq);
+		this.requestJieQiBazi(seedParams, seq);
+		return seedPromise;
+	}
+
+	async requestJieQiSeed(seedParams, seedSeq){
+		const reqParams = {
+			...(seedParams || this.genSeedParams()),
+			seedOnly: true,
+		};
+		const reqKey = this.getSeedRequestKey(reqParams);
+		if(this.pendingSeedRequest && this.pendingSeedRequest.key === reqKey){
+			return this.pendingSeedRequest.promise;
+		}
+		if(this.lastSeedResultKey === reqKey
+			&& this.state.result
+			&& Array.isArray(this.state.result.jieqi24)
+			&& this.state.result.jieqi24.length){
+			return this.state.result.jieqi24;
+		}
+		const seq = seedSeq !== undefined ? seedSeq : this.requestSeq;
+		const reqPromise = (async()=>{
+			const seedResult = await fetchPreciseJieqiYear(reqParams);
+			if(!seedResult || this.unmounted){
+				return null;
+			}
+			if(seedSeq !== undefined && seedSeq !== this.requestSeq){
+				return null;
+			}
+			if(seq !== this.requestSeq){
+				return null;
+			}
+			const compact = compactJieqiSeedResult(seedResult);
+			const seedRows = compact && Array.isArray(compact.jieqi24) ? compact.jieqi24 : [];
+			if(!seedRows.length){
+				return null;
+			}
+			cacheJieqiSeedRows(seedParams, seedRows);
+			this.lastSeedResultKey = reqKey;
+			this.setState((prev)=>({
+				result: {
+					...(prev.result || {}),
+					jieqi24: mergeJieqiRows((prev.result || {}).jieqi24, seedRows),
+				},
+			}));
+			return seedRows;
+		})().finally(()=>{
+			if(this.pendingSeedRequest && this.pendingSeedRequest.key === reqKey){
+				this.pendingSeedRequest = null;
+			}
+		});
+		this.pendingSeedRequest = {
+			key: reqKey,
+			promise: reqPromise,
+		};
+		return reqPromise;
 	}
 
 	async requestJieQiCharts(seedParams, seedSeq, tab){
@@ -998,7 +1054,7 @@ class JieQiChartsMain extends Component{
 				? this.state.result.jieqi24 : [];
 			let row = findJieqiRow(rows, title);
 			if(!row || !row.time){
-				rows = await this.requestJieQiBazi(reqParams, seedSeq);
+				rows = await this.requestJieQiSeed(reqParams, seedSeq);
 				row = findJieqiRow(rows, title);
 			}
 			if(!row || !row.time || this.unmounted){

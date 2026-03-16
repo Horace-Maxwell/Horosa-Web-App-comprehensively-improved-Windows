@@ -431,6 +431,60 @@ function fieldsToParams(fields){
 	return params;
 }
 
+const GUOLAO_CACHE_MAX = 24;
+const GUOLAO_CACHE = new Map();
+const GUOLAO_INFLIGHT = new Map();
+
+function buildGuolaoCacheKey(params){
+	try{
+		return JSON.stringify(params || {});
+	}catch(e){
+		return '';
+	}
+}
+
+function pushGuolaoCache(key, value){
+	if(!key || !value){
+		return;
+	}
+	if(GUOLAO_CACHE.has(key)){
+		GUOLAO_CACHE.delete(key);
+	}
+	GUOLAO_CACHE.set(key, value);
+	if(GUOLAO_CACHE.size > GUOLAO_CACHE_MAX){
+		const oldest = GUOLAO_CACHE.keys().next().value;
+		if(oldest !== undefined){
+			GUOLAO_CACHE.delete(oldest);
+		}
+	}
+}
+
+async function requestGuolaoCached(params){
+	const key = buildGuolaoCacheKey(params);
+	if(key && GUOLAO_CACHE.has(key)){
+		return GUOLAO_CACHE.get(key);
+	}
+	if(key && GUOLAO_INFLIGHT.has(key)){
+		return GUOLAO_INFLIGHT.get(key);
+	}
+	const req = request(`${Constants.ServerRoot}/chart`, {
+		body: JSON.stringify(params),
+		silent: true,
+	}).then((data)=>data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null)
+		.then((result)=>{
+			pushGuolaoCache(key, result);
+			return result;
+		}).finally(()=>{
+			if(key){
+				GUOLAO_INFLIGHT.delete(key);
+			}
+		});
+	if(key){
+		GUOLAO_INFLIGHT.set(key, req);
+	}
+	return req;
+}
+
 
 class GuoLaoChartMain extends Component{
 	constructor(props) {
@@ -460,10 +514,7 @@ class GuoLaoChartMain extends Component{
 	}
 
 	async requestChart(params){
-		const data = await request(`${Constants.ServerRoot}/chart`, {
-			body: JSON.stringify(params),
-		});
-		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		const result = await requestGuolaoCached(params);
 		if(!result){
 			if(!this.unmounted){
 				this.setState({

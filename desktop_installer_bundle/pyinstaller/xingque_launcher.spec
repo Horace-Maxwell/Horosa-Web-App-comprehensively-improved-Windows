@@ -6,6 +6,7 @@ from pathlib import Path
 project_root = Path(os.environ["HOROSA_DESKTOP_BUNDLE_ROOT"]).resolve()
 src_root = project_root / "src"
 exe_name = os.environ.get("HOROSA_XINGQUE_EXE_NAME", "Xingque")
+version_file = (os.environ.get("HOROSA_XINGQUE_VERSION_FILE") or "").strip() or None
 
 block_cipher = None
 
@@ -39,5 +40,6 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
+    version=version_file,
     icon=str(project_root / "assets" / "horosa_setup.ico"),
 )

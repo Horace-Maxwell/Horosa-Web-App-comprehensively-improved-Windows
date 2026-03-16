@@ -25,6 +25,7 @@ const PD_SYNC_REV = 'pd_method_sync_v6';
 const DEFAULT_PD_METHOD = 'astroapp_alchabitius';
 const DEFAULT_PD_TIME_KEY = 'Ptolemy';
 const DEFAULT_PD_TYPE = 0;
+const ENABLE_DIRECT_BACKGROUND_WARM = false;
 const DIRECT_WARM_DELAY_MS = 200;
 const DIRECT_WARM_STEP_MS = 240;
 const DIRECT_WARM_HOOK_DELAY_MS = 90;
@@ -92,15 +93,8 @@ function toNumber(val){
 
 function resolveBoundedHeight(rawHeight){
 	const viewport = getViewportHeight();
-	let h = toNumber(rawHeight);
-	if(h === null){
-		h = viewport - 92;
-	}else if(rawHeight === '100%'){
-		h = viewport - 92;
-	}
-	h = h - 8;
 	const maxH = Math.max(DIRECT_MIN_HEIGHT, viewport - DIRECT_VIEWPORT_GAP);
-	return Math.max(DIRECT_MIN_HEIGHT, Math.min(h, maxH));
+	return maxH;
 }
 
 function msg(id){
@@ -589,7 +583,7 @@ class AstroDirectMain extends Component{
 	}
 
 	scheduleWarmTabs(activeTab){
-		if(this.unmounted){
+		if(this.unmounted || !ENABLE_DIRECT_BACKGROUND_WARM){
 			return;
 		}
 		this.clearWarmTimer();
@@ -780,6 +774,7 @@ class AstroDirectMain extends Component{
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/pd`, {
 				body: JSON.stringify(req),
+				silent: true,
 				cache: 'no-store',
 			});
 			result = data ? data[Constants.ResultKey] : null;
@@ -885,8 +880,8 @@ class AstroDirectMain extends Component{
 	}
 
 	saveDirectionSnapshot(){
-		this.savePrimaryDirectSnapshot();
 		if(this.state.currentTab === 'primarydirect'){
+			this.savePrimaryDirectSnapshot();
 			return;
 		}
 		if(this.state.currentTab === 'firdaria'){
@@ -939,9 +934,7 @@ class AstroDirectMain extends Component{
 		if(
 			prevState.currentTab !== this.state.currentTab ||
 			prevProps.chartObj !== this.props.chartObj ||
-			prevProps.fields !== this.props.fields ||
-			this.state.currentTab === 'primarydirect' ||
-			this.state.currentTab === 'firdaria'
+			prevProps.fields !== this.props.fields
 		){
 			this.saveDirectionSnapshot();
 		}

@@ -1,17 +1,25 @@
 package spacex.astrostudycn.helper;
 
+import java.util.Calendar;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import boundless.io.FileUtility;
 import boundless.utility.ConvertUtility;
+import boundless.utility.DateTimeUtility;
 import boundless.utility.JsonUtility;
 import spacex.astrostudy.constants.StemBranch;
+import spacex.astrostudy.helper.BaZiHelper;
+import spacex.astrostudy.helper.CacheHelper;
+import spacex.astrostudy.helper.JdnHelper;
 import spacex.astrostudy.model.FourColumns;
+import spacex.astrostudy.model.RealSunTimeOffset;
+import spacex.astrostudycn.constants.TimeZiAlg;
 
 public class LiuRengHelper {
 	
@@ -220,7 +228,10 @@ public class LiuRengHelper {
 	
 	
 	public static Map<String, Object> runYear(FourColumns fourcols, boolean male, String yearGanZi) {
-		String birthYear = fourcols.year.ganzi;
+		return runYear(fourcols.year.ganzi, male, yearGanZi);
+	}
+
+	public static Map<String, Object> runYear(String birthYear, boolean male, String yearGanZi) {
 		int birthIdx = StemBranch.JiaZiIndex.get(birthYear);
 		int guaIdx = StemBranch.JiaZiIndex.get(yearGanZi);
 		int idx = (guaIdx - birthIdx + 60) % 60;
@@ -232,6 +243,81 @@ public class LiuRengHelper {
 			map.put("year", FemaleRunYear[idx]) ;
 		}
 		return map;
+	}
+
+	private static int getBaseLonByZone(String zone) {
+		return spacex.astrostudy.model.RealSunTimeOffset.getBaseLonByZone(zone);
+	}
+
+	private static int getAstroYear(int ad, String birth) {
+		int[] parts = DateTimeUtility.getDateTimeParts(birth);
+		int year = parts[0];
+		int y = year == 0 ? 1 : year;
+		if(y > 0) {
+			y = y * ad;
+		}
+		return y;
+	}
+
+	private static String normalizeBirthForYearCalc(String birth, String zone, String lon, TimeZiAlg timeAlg) {
+		if(timeAlg != TimeZiAlg.RealSun) {
+			return birth;
+		}
+		int[] parts = DateTimeUtility.getDateTimeParts(birth);
+		String monthday = String.format("%02d-%02d", parts[1], parts[2]);
+		int baseLon = getBaseLonByZone(zone);
+		int timeOffset = RealSunTimeOffset.getOffset(monthday, lon, baseLon);
+		if(timeOffset == 0) {
+			return birth;
+		}
+		double jdn = DateTimeUtility.getDateNum(birth, zone) + timeOffset / 3600.0 / 24.0;
+		return JdnHelper.getDateFromJdn(jdn, zone);
+	}
+
+	public static String getBirthYearGanZi(int orgad, String birth, String zone, String lon, String lat, TimeZiAlg timeAlg, boolean useZodicalLon) {
+		int ad = orgad;
+		if(birth.startsWith("-")) {
+			ad = -1;
+		}
+
+		String adjustedBirth = normalizeBirthForYearCalc(birth, zone, lon, timeAlg);
+		final int cacheAd = ad;
+		final String cacheBirth = adjustedBirth;
+		final String cacheZone = zone;
+		final String cacheLon = lon;
+		final String cacheLat = lat;
+		final TimeZiAlg cacheTimeAlg = timeAlg == null ? TimeZiAlg.RealSun : timeAlg;
+		final boolean cacheUseZodicalLon = useZodicalLon;
+		Map<String, Object> cacheParams = new LinkedHashMap<String, Object>();
+		cacheParams.put("ad", cacheAd);
+		cacheParams.put("birth", cacheBirth);
+		cacheParams.put("zone", cacheZone);
+		cacheParams.put("lon", cacheLon);
+		cacheParams.put("lat", cacheLat);
+		cacheParams.put("timeAlg", cacheTimeAlg.getCode());
+		cacheParams.put("useZodicalLon", cacheUseZodicalLon ? 1 : 0);
+
+		return CacheHelper.getDirect("/liureng/birthyear/" + CacheHelper.toPartKey(cacheParams), String.class, ()->{
+			int[] parts = DateTimeUtility.getDateTimeParts(cacheBirth);
+			int month = parts[1];
+			boolean prevflag = false;
+			if(month == Calendar.JANUARY + 1) {
+				prevflag = true;
+			}else if(month == Calendar.FEBRUARY + 1) {
+				int useLocalMao = cacheTimeAlg == TimeZiAlg.LocalMao ? 1 : 0;
+				int byLon = cacheUseZodicalLon ? 1 : 0;
+				Map<String, Object> jieqiinfo = BaZiHelper.getJieQiInfo(cacheAd, cacheBirth, cacheZone, cacheLon, cacheLat, useLocalMao, byLon);
+				List<Map<String, Object>> jieqi = (List<Map<String, Object>>) jieqiinfo.get("jieqi");
+				if(jieqi != null && jieqi.size() > 2) {
+					double liChunJdn = ConvertUtility.getValueAsDouble(jieqi.get(2).get("jdn"));
+					double birthJdn = DateTimeUtility.getDateNum(cacheBirth, cacheZone);
+					prevflag = birthJdn < liChunJdn;
+				}
+			}
+
+			int astroYear = getAstroYear(cacheAd, cacheBirth);
+			return BaZiHelper.getYearGanzi(astroYear, prevflag);
+		}, true, 7200);
 	}
 	
 	public static Map<String, Object> calcKeCuang(FourColumns fourcols, String yue, boolean isDiurnal) {

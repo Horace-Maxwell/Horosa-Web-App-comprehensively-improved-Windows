@@ -11,7 +11,7 @@ import {
 
 const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'timeAlg', 'after23NewDay'];
 const JIE_QI_SEED_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon'];
-const JIE_QI_YEAR_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'hsys', 'zodiacal', 'doubingSu28', 'jieqis'];
+const JIE_QI_YEAR_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'hsys', 'zodiacal', 'doubingSu28', 'jieqis', 'seedOnly'];
 const MAX_CACHE_SIZE = 192;
 
 const nongliMem = new Map();
@@ -165,7 +165,10 @@ export async function fetchPreciseJieqiSeed(params){
 		return jieqiSeedInflight.get(key);
 	}
 	const req = (async()=>{
-		const yearRes = await fetchPreciseJieqiYear(params);
+		const yearRes = await fetchPreciseJieqiYear({
+			...(params || {}),
+			seedOnly: true,
+		});
 		if(!yearRes || !Array.isArray(yearRes.jieqi24)){
 			return null;
 		}

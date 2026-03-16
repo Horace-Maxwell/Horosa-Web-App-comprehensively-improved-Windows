@@ -431,8 +431,8 @@ async function fetchWithLocalRetry(url, opts, timeoutMs){
 	if(!isLocalRuntimeUrl(url)){
 		return fetchWithTimeout(url, opts, timeoutMs);
 	}
-	const maxAttempts = 8;
-	const retryDelays = [120, 180, 240, 320, 420, 560, 720];
+	const maxAttempts = 15;
+	const retryDelays = [120, 180, 240, 320, 420, 560, 720, 900, 1100, 1300, 1600, 1900, 2200, 2500];
 	let lastErr = null;
 	for(let attempt = 0; attempt < maxAttempts; attempt += 1){
 		try{

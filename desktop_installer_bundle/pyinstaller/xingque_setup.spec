@@ -8,6 +8,7 @@ project_root = Path(os.environ["HOROSA_DESKTOP_BUNDLE_ROOT"]).resolve()
 src_root = project_root / "src"
 payload_zip = Path(os.environ["HOROSA_SETUP_PAYLOAD_ZIP"]).resolve()
 exe_name = os.environ.get("HOROSA_SETUP_EXE_NAME", "XingqueSetup")
+version_file = (os.environ.get("HOROSA_SETUP_VERSION_FILE") or "").strip() or None
 
 datas = [
     (str(payload_zip), "."),
@@ -15,7 +16,10 @@ datas = [
 
 extra_data_raw = (os.environ.get("HOROSA_SETUP_EXTRA_FILES") or "").strip()
 if extra_data_raw:
-    for item in json.loads(extra_data_raw):
+    extra_items = json.loads(extra_data_raw)
+    if isinstance(extra_items, dict):
+        extra_items = [extra_items]
+    for item in extra_items:
         source_path = Path(item["source"]).resolve()
         destination = str(item.get("dest", ".")).strip() or "."
         datas.append((str(source_path), destination))
@@ -52,5 +56,6 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
+    version=version_file,
     icon=str(project_root / "assets" / "horosa_setup.ico"),
 )

@@ -9,6 +9,7 @@ import BaziPithy from '../commtools/BaziPithy';
 
 const TabPane = Tabs.TabPane;
 const CN_TRADITION_TAB_KEYS = ['bazi', 'ziwei', 'guasym', 'cuangong12', 'pithy'];
+const ENABLE_CN_TRADITION_BACKGROUND_WARM = false;
 const CN_TRADITION_WARM_DELAY_MS = 120;
 const CN_TRADITION_WARM_STEP_MS = 160;
 
@@ -165,7 +166,7 @@ class CnTraditionMain extends Component{
 	}
 
 	scheduleWarmTabs(activeTab){
-		if(this.unmounted){
+		if(this.unmounted || !ENABLE_CN_TRADITION_BACKGROUND_WARM){
 			return;
 		}
 		this.clearWarmTimer();

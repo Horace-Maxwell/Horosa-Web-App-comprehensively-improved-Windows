@@ -92,23 +92,29 @@ class Su28Chart {
 			return;
 		}
 
-		let suhouses = this.chartObj.fixedStarSu28;
+		let suhouses = Array.isArray(this.chartObj.fixedStarSu28) ? this.chartObj.fixedStarSu28 : [];
+		let objects = Array.isArray(this.chartObj.objects) ? this.chartObj.objects : [];
+		if(suhouses.length === 0){
+			return;
+		}
 		for(let i=0; i<suhouses.length; i++){
 			let suh = suhouses[i];
 			suh.planets = [];
 			this.houseMap.set(suh.name, suh);
 		}	
 
-		for(let i=0; i<this.chartObj.objects.length; i++){
-			let obj = this.chartObj.objects[i];
+		for(let i=0; i<objects.length; i++){
+			let obj = objects[i];
+			let house = this.houseMap.get(obj.su28);
+			if(!house){
+				continue;
+			}
 			if(this.planetDisp){
 				if(this.planetDisp.has(obj.id)){
-					let house = this.houseMap.get(obj.su28);
 					house.planets.push(obj);
 				}	
 			}else{
 				if(AstroConst.isTraditionPlanet(obj.id)){
-					let house = this.houseMap.get(obj.su28);
 					house.planets.push(obj);
 				}
 			}
@@ -116,6 +122,9 @@ class Su28Chart {
 
 		for(let su of suhouses){
 			let house = this.houseMap.get(su.name);
+			if(!house || !Array.isArray(house.planets)){
+				continue;
+			}
 			house.planets.sort((a, b)=>{
 				if(a.ra > 300 && b.ra < 30){
 					return -1;

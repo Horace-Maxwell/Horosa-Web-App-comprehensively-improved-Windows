@@ -3,21 +3,56 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptRoot
+function Resolve-LocalAppDataBase {
+  $candidates = @()
+  if (-not [string]::IsNullOrWhiteSpace([string]$env:HOROSA_DESKTOP_USER_ROOT)) {
+    try {
+      $configuredRoot = [System.IO.Path]::GetFullPath([string]$env:HOROSA_DESKTOP_USER_ROOT)
+      $configuredParent = Split-Path -Parent $configuredRoot
+      if (-not [string]::IsNullOrWhiteSpace($configuredParent)) {
+        $candidates += $configuredParent
+      }
+    } catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace([string]$env:LocalAppData)) {
+    $candidates += [string]$env:LocalAppData
+  }
+  if (-not [string]::IsNullOrWhiteSpace([string]$env:UserProfile)) {
+    $candidates += (Join-Path ([string]$env:UserProfile) 'AppData\Local')
+  }
+  $candidates += [System.IO.Path]::GetTempPath()
+  $candidates += (Join-Path (Get-Location).Path '.horosa-local')
+
+  foreach ($candidate in ($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+    try {
+      New-Item -ItemType Directory -Force -Path $candidate | Out-Null
+      return (Resolve-Path $candidate).Path
+    } catch {}
+  }
+
+  throw 'Unable to resolve writable Local App Data base directory.'
+}
+
+$LocalAppBase = Resolve-LocalAppDataBase
+$UserRoot = Join-Path $LocalAppBase 'HorosaDesktop'
 $RuntimeRoot = Join-Path $RepoRoot 'local\workspace\runtime\windows'
 $PythonExe = Join-Path $RuntimeRoot 'python\python.exe'
 $PythonWExe = Join-Path $RuntimeRoot 'python\pythonw.exe'
-$DepsRoot = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-pydeps'
-$ProgressFile = Join-Path $env:LocalAppData 'HorosaDesktop\install-progress.json'
-$DownloadRoot = Join-Path $env:LocalAppData 'HorosaDesktop\downloads'
+$DepsRoot = Join-Path $UserRoot 'runtime-pydeps'
+$ProgressFile = Join-Path $UserRoot 'install-progress.json'
+$DownloadRoot = Join-Path $UserRoot 'downloads'
 $ReqFile = Join-Path $ScriptRoot 'runtime_requirements.txt'
 $Wheelhouse = Join-Path $ScriptRoot 'wheelhouse'
 $InstallStateFile = Join-Path $DepsRoot 'install_state.json'
 $ReleaseConfigFile = Join-Path $ScriptRoot 'src\app_release_config.json'
-$InstallLogDir = Join-Path $env:LocalAppData 'HorosaDesktop\runtime-logs'
+$InstallLogDir = Join-Path $UserRoot 'runtime-logs'
 $InstallLogFile = Join-Path $InstallLogDir 'install-runtime.log'
 $PipLogFile = Join-Path $InstallLogDir 'install-runtime-pip.log'
+$RuntimeInstallMutexName = 'Local\HorosaDesktopRuntimeInstall'
+$RuntimeInstallMutex = $null
 $DisplayName = '星阙'
 $ReleaseRepository = 'Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows'
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Write-InstallProgress {
   param(
@@ -79,6 +114,29 @@ function Write-InstallLog {
   New-Item -ItemType Directory -Force -Path $InstallLogDir | Out-Null
   $line = "[{0}] {1}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'), $Message
   Add-Content -Path $InstallLogFile -Value $line -Encoding UTF8
+}
+
+function Write-JsonFileAtomic {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Content,
+    [System.Text.Encoding]$Encoding = $Utf8NoBom
+  )
+
+  $directory = Split-Path -Parent $Path
+  if (-not [string]::IsNullOrWhiteSpace($directory)) {
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+  }
+
+  $tmpPath = "$Path.tmp"
+  [System.IO.File]::WriteAllText($tmpPath, $Content, $Encoding)
+  if (Test-Path $Path -PathType Leaf) {
+    $backupPath = "$Path.bak"
+    [System.IO.File]::Replace($tmpPath, $Path, $backupPath, $true)
+    Remove-Item -Force $backupPath -ErrorAction SilentlyContinue
+  } else {
+    [System.IO.File]::Move($tmpPath, $Path)
+  }
 }
 
 function Get-CurrentProgressState {
@@ -202,6 +260,42 @@ function Invoke-DownloadWithRetry {
   }
 }
 
+function Invoke-DownloadFromCandidates {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Uris,
+    [Parameter(Mandatory = $true)]
+    [string]$OutFile,
+    [Parameter(Mandatory = $true)]
+    [string]$StageLabel,
+    [Parameter(Mandatory = $true)]
+    [int]$Percent,
+    [string]$BaseMessage
+  )
+
+  $lastError = $null
+  $candidates = @($Uris | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+  if (-not $candidates.Count) {
+    throw "No download candidates available for $StageLabel"
+  }
+
+  foreach ($candidate in $candidates) {
+    try {
+      Write-InstallLog ("Trying download source for {0}: {1}" -f $StageLabel, $candidate)
+      Invoke-DownloadWithRetry -Uri $candidate -OutFile $OutFile -StageLabel $StageLabel -Percent $Percent -BaseMessage $BaseMessage
+      Write-InstallLog ("Download source succeeded for {0}: {1}" -f $StageLabel, $candidate)
+      return $candidate
+    } catch {
+      $lastError = $_
+      Write-InstallLog ("Download source failed for {0}: {1} -> {2}" -f $StageLabel, $candidate, (Get-CompactErrorText -ErrorRecord $_))
+    }
+  }
+
+  if ($lastError) {
+    throw $lastError
+  }
+}
+
 function Publish-InstallFailure {
   param(
     [object]$ErrorRecord,
@@ -240,6 +334,60 @@ function Get-Sha256Hash {
       $stream.Dispose()
     }
   }
+}
+
+function Get-AvailableFreeBytes {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  $absolutePath = [System.IO.Path]::GetFullPath($Path)
+  $root = [System.IO.Path]::GetPathRoot($absolutePath)
+  if ([string]::IsNullOrWhiteSpace($root)) {
+    throw "Unable to determine drive root for path: $Path"
+  }
+
+  $drive = New-Object System.IO.DriveInfo($root)
+  if (-not $drive.IsReady) {
+    throw "Drive is not ready: $root"
+  }
+
+  return [int64]$drive.AvailableFreeSpace
+}
+
+function Assert-FreeSpace {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][int64]$RequiredBytes,
+    [Parameter(Mandatory = $true)][string]$Label
+  )
+
+  $availableBytes = Get-AvailableFreeBytes -Path $Path
+  if ($availableBytes -lt $RequiredBytes) {
+    $requiredGb = [Math]::Round($RequiredBytes / 1GB, 1)
+    $availableGb = [Math]::Round($availableBytes / 1GB, 1)
+    $message = "$Label 所在磁盘剩余空间不足。至少需要约 $requiredGb GB，当前仅剩 $availableGb GB。"
+    Publish-InstallFailure -ErrorRecord $message -FriendlyMessage "$message`r`n请清理磁盘空间后重试，或切换到空间更充足的系统环境。"
+    throw $message
+  }
+}
+
+function Enter-RuntimeInstallMutex {
+  param([int]$TimeoutSeconds = 600)
+
+  $mutex = New-Object System.Threading.Mutex($false, $RuntimeInstallMutexName)
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    try {
+      if ($mutex.WaitOne(1000)) {
+        return $mutex
+      }
+    } catch [System.Threading.AbandonedMutexException] {
+      return $mutex
+    }
+    Write-InstallProgress -State 'preparing' -Title '正在等待安装资源' -Message '检测到另一个星阙安装或修复进程正在运行，正在等待它完成。' -Percent 8
+  }
+
+  $mutex.Dispose()
+  throw '另一个星阙安装或修复进程长时间未结束，已停止本次安装。'
 }
 
 function New-ShortRuntimeExtractPath {
@@ -345,36 +493,49 @@ function Expand-ZipArchive {
     [string]$DestinationPath
   )
 
-  Remove-TreeWithRetry -Path $DestinationPath
-  New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
-
   Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
-  [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $DestinationPath)
+  $lastError = $null
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try {
+      Remove-TreeWithRetry -Path $DestinationPath
+      New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
+      [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $DestinationPath)
 
-  $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
-  try {
-    foreach ($entry in $archive.Entries) {
-      if ([string]::IsNullOrWhiteSpace($entry.FullName)) {
-        continue
-      }
-      if ($entry.FullName.EndsWith('/')) {
-        continue
-      }
-      if ($entry.Length -ne 0) {
-        continue
-      }
+      $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+      try {
+        foreach ($entry in $archive.Entries) {
+          if ([string]::IsNullOrWhiteSpace($entry.FullName)) {
+            continue
+          }
+          if ($entry.FullName.EndsWith('/')) {
+            continue
+          }
+          if ($entry.Length -ne 0) {
+            continue
+          }
 
-      $targetPath = Join-Path $DestinationPath ($entry.FullName -replace '/', '\')
-      $targetDir = Split-Path -Parent $targetPath
-      if ($targetDir) {
-        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+          $targetPath = Join-Path $DestinationPath ($entry.FullName -replace '/', '')
+          $targetDir = Split-Path -Parent $targetPath
+          if ($targetDir) {
+            New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+          }
+          if (-not (Test-Path $targetPath -PathType Leaf)) {
+            New-Item -ItemType File -Force -Path $targetPath | Out-Null
+          }
+        }
+      } finally {
+        $archive.Dispose()
       }
-      if (-not (Test-Path $targetPath -PathType Leaf)) {
-        New-Item -ItemType File -Force -Path $targetPath | Out-Null
-      }
+      return
+    } catch {
+      $lastError = $_
+      Write-InstallLog ("Zip extract failed ({0}/3): {1}" -f $attempt, (Get-CompactErrorText -ErrorRecord $_))
+      Start-Sleep -Milliseconds (400 * $attempt)
     }
-  } finally {
-    $archive.Dispose()
+  }
+
+  if ($lastError) {
+    throw $lastError
   }
 }
 
@@ -393,19 +554,25 @@ function Copy-DirectoryTree {
   Remove-TreeWithRetry -Path $DestinationPath
   New-Item -ItemType Directory -Force -Path $DestinationPath | Out-Null
 
-  $robocopyOutput = & robocopy $SourcePath $DestinationPath /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP 2>&1
-  $robocopyExitCode = $LASTEXITCODE
-  if ($null -ne $robocopyOutput) {
-    foreach ($line in $robocopyOutput) {
-      if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
-        Write-InstallLog ("robocopy: {0}" -f $line)
+  $robocopy = Get-Command robocopy.exe -ErrorAction SilentlyContinue
+  if ($robocopy) {
+    $robocopyOutput = & $robocopy.Source $SourcePath $DestinationPath /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP 2>&1
+    $robocopyExitCode = $LASTEXITCODE
+    if ($null -ne $robocopyOutput) {
+      foreach ($line in $robocopyOutput) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+          Write-InstallLog ("robocopy: {0}" -f $line)
+        }
       }
     }
+
+    if ($robocopyExitCode -ge 8) {
+      throw "robocopy 复制失败，退出码：$robocopyExitCode，源目录：$SourcePath，目标目录：$DestinationPath"
+    }
+    return
   }
 
-  if ($robocopyExitCode -ge 8) {
-    throw "robocopy 复制失败，退出码：$robocopyExitCode，源目录：$SourcePath，目标目录：$DestinationPath"
-  }
+  Copy-Item -Path (Join-Path $SourcePath '*') -Destination $DestinationPath -Recurse -Force
 }
 
 function Resolve-ReleaseRepository {
@@ -438,13 +605,17 @@ function Get-RuntimeAssetInfo {
   $baseOverride = [string]$env:HOROSA_DESKTOP_RELEASE_DOWNLOAD_BASE_URL
   $configOverrideProp = $VersionInfo.PSObject.Properties['runtime_download_base_url']
   $configOverride = if ($configOverrideProp) { [string]$configOverrideProp.Value } else { '' }
+  $baseUrls = New-Object System.Collections.Generic.List[string]
   if (-not [string]::IsNullOrWhiteSpace($baseOverride)) {
-    $baseUrl = $baseOverride.Trim().TrimEnd('/')
+    $baseUrls.Add($baseOverride.Trim().TrimEnd('/'))
   } elseif (-not [string]::IsNullOrWhiteSpace($configOverride)) {
-    $baseUrl = $configOverride.Trim().TrimEnd('/')
-  } else {
-    $baseUrl = "https://github.com/$repo/releases/download/$runtimeTag"
+    $baseUrls.Add($configOverride.Trim().TrimEnd('/'))
   }
+  $baseUrls.Add("https://github.com/$repo/releases/download/$runtimeTag")
+  $baseUrls.Add("https://github.com/$repo/releases/download/$Version")
+  $baseUrls.Add("https://github.com/$repo/releases/latest/download")
+
+  $resolvedBaseUrls = @($baseUrls | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
 
   $localAssetRoot = [string]$env:HOROSA_DESKTOP_LOCAL_RUNTIME_ASSET_ROOT
   $localAssetPath = $null
@@ -462,8 +633,8 @@ function Get-RuntimeAssetInfo {
   return @{
     AssetName = $assetName
     ManifestName = $manifestName
-    AssetUrl = "$baseUrl/$assetName"
-    ManifestUrl = "$baseUrl/$manifestName"
+    AssetUrls = @($resolvedBaseUrls | ForEach-Object { "$_/$assetName" })
+    ManifestUrls = @($resolvedBaseUrls | ForEach-Object { "$_/$manifestName" })
     LocalAssetPath = $localAssetPath
     LocalManifestPath = $localManifestPath
   }
@@ -500,8 +671,18 @@ function Ensure-RuntimePayload {
   $zipPath = Join-Path $DownloadRoot $asset.AssetName
   $manifestPath = Join-Path $DownloadRoot $asset.ManifestName
   $extractRoot = New-ShortRuntimeExtractPath -Version $TargetVersion
+  $archiveBytesEstimate = 1610612736L
+  if ($asset.LocalAssetPath -and (Test-Path $asset.LocalAssetPath -PathType Leaf)) {
+    $archiveBytesEstimate = [Math]::Max($archiveBytesEstimate, (Get-Item $asset.LocalAssetPath).Length)
+  } elseif (Test-Path $zipPath -PathType Leaf) {
+    $archiveBytesEstimate = [Math]::Max($archiveBytesEstimate, (Get-Item $zipPath).Length)
+  }
+  $requiredUserRootBytes = [Math]::Max(4GB, ($archiveBytesEstimate * 2) + 1GB)
+  $requiredTempBytes = [Math]::Max(3GB, ($archiveBytesEstimate * 2))
 
   New-Item -ItemType Directory -Force -Path $DownloadRoot | Out-Null
+  Assert-FreeSpace -Path $DownloadRoot -RequiredBytes $requiredUserRootBytes -Label '下载和依赖缓存目录'
+  Assert-FreeSpace -Path $extractRoot -RequiredBytes $requiredTempBytes -Label '临时解压目录'
   Write-InstallProgress -State 'downloading' -Title '正在下载运行时组件' -Message '首次安装或版本升级时，需要自动下载较大的桌面运行时组件，请耐心等待。' -Percent 20
 
   if ($asset.LocalAssetPath -and $asset.LocalManifestPath) {
@@ -512,8 +693,8 @@ function Ensure-RuntimePayload {
   } else {
     $baseMessage = '首次安装或版本升级时，需要自动下载较大的桌面运行时组件。安装器会自动重试下载；如果网络较慢或访问 GitHub 不稳定，建议改用离线完整版 XingqueSetupFull.exe。'
     try {
-      Invoke-DownloadWithRetry -Uri $asset.ManifestUrl -OutFile $manifestPath -StageLabel '运行时清单文件' -Percent 20 -BaseMessage $baseMessage
-      Invoke-DownloadWithRetry -Uri $asset.AssetUrl -OutFile $zipPath -StageLabel '运行时压缩包' -Percent 28 -BaseMessage $baseMessage
+      Invoke-DownloadFromCandidates -Uris $asset.ManifestUrls -OutFile $manifestPath -StageLabel '运行时清单文件' -Percent 20 -BaseMessage $baseMessage | Out-Null
+      Invoke-DownloadFromCandidates -Uris $asset.AssetUrls -OutFile $zipPath -StageLabel '运行时压缩包' -Percent 28 -BaseMessage $baseMessage | Out-Null
     } catch {
       $friendly = Get-DownloadFailureFriendlyMessage -StageLabel '运行时组件' -ErrorRecord $_
       Publish-InstallFailure -ErrorRecord $_ -FriendlyMessage $friendly
@@ -609,27 +790,6 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ProgressFile) | O
 $versionInfo = Get-Content -Raw (Join-Path $ScriptRoot 'version.json') | ConvertFrom-Json
 $targetVersion = [string]$versionInfo.version
 
-if (Test-Path $InstallStateFile) {
-  try {
-    $state = Get-Content -Raw $InstallStateFile | ConvertFrom-Json
-    if ($state.version -eq $targetVersion -and $state.runtimeVersion -eq $targetVersion -and (Test-RuntimePayloadPresent)) {
-      Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '当前版本所需的桌面运行环境已经准备好了。' -Percent 100
-      Write-Host '[OK] Desktop runtime already prepared.'
-      exit 0
-    }
-  } catch {}
-}
-
-Write-InstallProgress -State 'preparing' -Title '正在准备安装程序' -Message '正在检查本地运行环境和桌面依赖。' -Percent 10
-Ensure-RuntimePayload -TargetVersion $targetVersion -VersionInfo $versionInfo
-
-if (Test-Path $DepsRoot) {
-  Remove-Item -Recurse -Force $DepsRoot
-}
-New-Item -ItemType Directory -Force -Path $DepsRoot | Out-Null
-
-$env:PIP_DISABLE_PIP_VERSION_CHECK = '1'
-
 function Install-Offline {
   if (-not (Test-Path $Wheelhouse)) {
     return $false
@@ -647,27 +807,60 @@ function Install-Online {
   return (Invoke-PipInstall -Arguments @('install', '--upgrade', '--target', $DepsRoot, '-r', $ReqFile) -ProgressMessage '离线组件不可用，正在联网下载桌面组件。')
 }
 
-$installed = $false
-if (Install-Offline) {
-  $installed = $true
-} else {
-  $installed = Install-Online
+try {
+  $RuntimeInstallMutex = Enter-RuntimeInstallMutex
+  Write-InstallLog ("runtime install mutex acquired: {0}" -f $RuntimeInstallMutexName)
+
+  if (Test-Path $InstallStateFile) {
+    try {
+      $state = Get-Content -Raw $InstallStateFile | ConvertFrom-Json
+      if ($state.version -eq $targetVersion -and $state.runtimeVersion -eq $targetVersion -and (Test-RuntimePayloadPresent)) {
+        Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '当前版本所需的桌面运行环境已经准备好了。' -Percent 100
+        Write-Host '[OK] Desktop runtime already prepared.'
+        exit 0
+      }
+    } catch {}
+  }
+
+  Write-InstallProgress -State 'preparing' -Title '正在准备安装程序' -Message '正在检查本地运行环境和桌面依赖。' -Percent 10
+  Ensure-RuntimePayload -TargetVersion $targetVersion -VersionInfo $versionInfo
+
+  if (Test-Path $DepsRoot) {
+    Remove-Item -Recurse -Force $DepsRoot
+  }
+  New-Item -ItemType Directory -Force -Path $DepsRoot | Out-Null
+
+  $env:PIP_DISABLE_PIP_VERSION_CHECK = '1'
+
+  $installed = $false
+  if (Install-Offline) {
+    $installed = $true
+  } else {
+    $installed = Install-Online
+  }
+
+  if (-not $installed) {
+    Publish-InstallFailure -ErrorRecord '桌面运行环境依赖安装失败。' -FriendlyMessage '桌面运行环境依赖安装失败。'
+    throw 'Desktop runtime dependency install failed.'
+  }
+
+  Write-InstallProgress -State 'finalizing' -Title '正在完成安装' -Message '正在保存运行环境状态，供以后启动时复用。' -Percent 85
+
+  @{
+    version = $targetVersion
+    runtimeVersion = $targetVersion
+    installedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+    depsRoot = $DepsRoot
+  } | ConvertTo-Json | ForEach-Object { Write-JsonFileAtomic -Path $InstallStateFile -Content $_ -Encoding $Utf8NoBom }
+
+  Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '桌面运行环境已经准备好，可以立即启动。' -Percent 100
+  Write-Host '[OK] Desktop runtime prepared.'
+} finally {
+  if ($RuntimeInstallMutex) {
+    try {
+      $RuntimeInstallMutex.ReleaseMutex()
+    } catch {}
+    $RuntimeInstallMutex.Dispose()
+  }
 }
-
-if (-not $installed) {
-  Publish-InstallFailure -ErrorRecord '桌面运行环境依赖安装失败。' -FriendlyMessage '桌面运行环境依赖安装失败。'
-  throw 'Desktop runtime dependency install failed.'
-}
-
-Write-InstallProgress -State 'finalizing' -Title '正在完成安装' -Message '正在保存运行环境状态，供以后启动时复用。' -Percent 85
-
-@{
-  version = $targetVersion
-  runtimeVersion = $targetVersion
-  installedAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-  depsRoot = $DepsRoot
-} | ConvertTo-Json | Set-Content -Path $InstallStateFile -Encoding UTF8
-
-Write-InstallProgress -State 'done' -Title "$DisplayName 已准备完成" -Message '桌面运行环境已经准备好，可以立即启动。' -Percent 100
-Write-Host '[OK] Desktop runtime prepared.'
 

@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 import ctypes
+from urllib.parse import parse_qsl, urlparse
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
@@ -184,9 +185,34 @@ def smoke_autoclose_seconds() -> int:
 
 
 def fallback_user_root() -> Path:
-    local_app_data = os.environ.get("LocalAppData")
+    configured = (os.environ.get("HOROSA_DESKTOP_USER_ROOT") or "").strip()
+    if configured:
+        return Path(configured)
+
+    candidates: list[Path] = []
+    local_app_data = (os.environ.get("LocalAppData") or "").strip()
     if local_app_data:
-        return Path(local_app_data) / "HorosaDesktop"
+        candidates.append(Path(local_app_data) / "HorosaDesktop")
+
+    user_profile = (os.environ.get("UserProfile") or "").strip()
+    if user_profile:
+        candidates.append(Path(user_profile) / "AppData" / "Local" / "HorosaDesktop")
+
+    try:
+        candidates.append(Path.home() / "AppData" / "Local" / "HorosaDesktop")
+    except Exception:
+        pass
+
+    candidates.append(Path(tempfile.gettempdir()) / "HorosaDesktop")
+    candidates.append(Path.cwd() / ".horosa-desktop")
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        except Exception:
+            continue
+
     return Path.cwd() / ".horosa-desktop"
 
 
@@ -1179,8 +1205,19 @@ class MainWindow(QMainWindow):
         font.setWeight(weight)
         return font
 
+    def _browser_storage_file_path(self) -> Path:
+        return self.user_root / "browser-storage.json"
+
     def _load_persisted_browser_storage(self) -> dict[str, str]:
-        raw = self.settings.value(PERSISTED_BROWSER_STORAGE_KEY, "", type=str)
+        storage_file = self._browser_storage_file_path()
+        raw = ""
+        if storage_file.exists():
+            try:
+                raw = storage_file.read_text(encoding="utf-8")
+            except Exception:
+                raw = ""
+        if not raw:
+            raw = self.settings.value(PERSISTED_BROWSER_STORAGE_KEY, "", type=str)
         if not raw:
             return {}
         try:
@@ -1200,8 +1237,19 @@ class MainWindow(QMainWindow):
 
     def _save_persisted_browser_storage(self) -> None:
         payload = json.dumps(self.persisted_browser_storage, ensure_ascii=False, separators=(",", ":"))
-        self.settings.setValue(PERSISTED_BROWSER_STORAGE_KEY, payload)
-        self.settings.sync()
+        storage_file = self._browser_storage_file_path()
+        try:
+            storage_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = storage_file.with_suffix(".tmp")
+            tmp.write_text(payload, encoding="utf-8")
+            tmp.replace(storage_file)
+        except Exception:
+            pass
+        try:
+            self.settings.setValue(PERSISTED_BROWSER_STORAGE_KEY, payload[:4096] if len(payload) > 4096 else payload)
+            self.settings.sync()
+        except Exception:
+            pass
 
     def _refresh_storage_bootstrap_script(self) -> None:
         payload = json.dumps(self.persisted_browser_storage, ensure_ascii=False)
@@ -1299,7 +1347,7 @@ class MainWindow(QMainWindow):
                 loop.quit()
 
         page.runJavaScript(capture_script, _finish_capture)
-        QTimer.singleShot(260, loop.quit)
+        QTimer.singleShot(800, loop.quit)
         loop.exec()
 
     def _handle_browser_storage_snapshot(self, result: object) -> None:
@@ -1458,7 +1506,27 @@ class MainWindow(QMainWindow):
             return f"{url}#{fragment}"
         return url
 
+    def _sync_runtime_roots_from_url(self, url: str) -> None:
+        try:
+            parsed = urlparse(url)
+            values = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            server_root = (values.get("srv") or "").strip()
+            chart_root = (values.get("chart") or "").strip()
+            updated = False
+            if server_root and self.persisted_browser_storage.get("horosaLocalServerRoot") != server_root:
+                self.persisted_browser_storage["horosaLocalServerRoot"] = server_root
+                updated = True
+            if chart_root and self.persisted_browser_storage.get("horosaLocalChartServerRoot") != chart_root:
+                self.persisted_browser_storage["horosaLocalChartServerRoot"] = chart_root
+                updated = True
+            if updated:
+                self._save_persisted_browser_storage()
+                self._refresh_storage_bootstrap_script()
+        except Exception:
+            return
+
     def _load_url(self, url: str) -> None:
+        self._sync_runtime_roots_from_url(url)
         self.current_url = self._apply_saved_fragment(url)
         self.web_view.load(QUrl(self.current_url))
 
@@ -1625,11 +1693,31 @@ class MainWindow(QMainWindow):
 
 
 def user_state_root() -> Path:
-    if os.name == "nt":
-        root = fallback_user_root()
-    else:
-        qt_path = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
-        root = Path(qt_path) if qt_path else fallback_user_root()
+    configured = (os.environ.get("HOROSA_DESKTOP_USER_ROOT") or "").strip()
+    if configured:
+        root = Path(configured)
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    candidate_strings: list[str] = []
+    candidate_strings.append(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation))
+    try:
+        candidate_strings.append(QStandardPaths.writableLocation(QStandardPaths.StateLocation))
+    except Exception:
+        pass
+
+    for value in candidate_strings:
+        value = (value or "").strip()
+        if not value:
+            continue
+        try:
+            root = Path(value)
+            root.mkdir(parents=True, exist_ok=True)
+            return root
+        except Exception:
+            continue
+
+    root = fallback_user_root()
     root.mkdir(parents=True, exist_ok=True)
     return root
 

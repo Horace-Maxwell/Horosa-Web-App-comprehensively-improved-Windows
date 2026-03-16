@@ -2,6 +2,7 @@ package spacex.astrostudy.helper;
 
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import boundless.utility.DateTimeUtility;
@@ -248,7 +249,7 @@ public class BaZiHelper {
 			ad = -1;
 		}
 		
-		Map<String, Object> params = new HashMap<String, Object>();
+		Map<String, Object> params = new LinkedHashMap<String, Object>();
 		String[] parts = StringUtility.splitString(birth, ' ');
 		String tmstr = "00:00:00";
 		if(parts.length > 1) {
@@ -267,12 +268,14 @@ public class BaZiHelper {
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
 		
-		Map<String, Object> res = AstroHelper.getJieQiBirth(params);
+		Map<String, Object> res = (Map<String, Object>) CacheHelper.get("/bazi/jieqi/info", params, (args)->{
+			return AstroHelper.getJieQiBirth(args);
+		}, true, 7200);
 		return res;
 	}
 	
 	public static Map<String, Object> getJieQiInfoNoCache(int ad, Calendar birth, String zone, String lon, String lat, int useLocalMao, int byLon) {
-		Map<String, Object> params = new HashMap<String, Object>();
+		Map<String, Object> params = new LinkedHashMap<String, Object>();
 		String date = FormatUtility.formatDateTime(birth.getTime(), "yyyy-MM-dd");
 		if(ad < 0) {
 			date = "-" + date;

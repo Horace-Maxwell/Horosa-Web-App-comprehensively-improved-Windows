@@ -10,6 +10,8 @@ const QUICK_RETRY_COUNT = Number(process.env.HOROSA_WARM_QUICK_RETRY_COUNT || 90
 const FULL_RETRY_COUNT = Number(process.env.HOROSA_WARM_FULL_RETRY_COUNT || 20);
 const QUICK_RETRY_DELAY_MS = Number(process.env.HOROSA_WARM_QUICK_RETRY_DELAY_MS || 80);
 const FULL_RETRY_DELAY_MS = Number(process.env.HOROSA_WARM_FULL_RETRY_DELAY_MS || Number(process.env.HOROSA_WARM_RETRY_DELAY_MS || 500));
+const READY_RETRY_COUNT = Number(process.env.HOROSA_WARM_READY_RETRY_COUNT || 48);
+const READY_RETRY_DELAY_MS = Number(process.env.HOROSA_WARM_READY_RETRY_DELAY_MS || 250);
 
 const SignatureKey = 'FE45AB6E29EF';
 const ClientChannel = '1';
@@ -91,11 +93,11 @@ const BASE_PAYLOAD = {
 };
 
 function getBasePayloadForMode(mode = 'full') {
-  return mode === 'quick' ? STARTUP_BASE_PAYLOAD : BASE_PAYLOAD;
+  return mode === 'quick' || mode === 'startup' ? STARTUP_BASE_PAYLOAD : BASE_PAYLOAD;
 }
 
 function getJieqiYearForMode(mode = 'full') {
-  if (mode === 'quick') {
+  if (mode === 'quick' || mode === 'startup') {
     const match = `${STARTUP_BASE_PAYLOAD.date || ''}`.match(/^(\d{4})[\/-]/);
     if (match) {
       return match[1];
@@ -314,6 +316,31 @@ async function callPlain(pathname, bodyObj) {
   }
 }
 
+async function waitForEncryptedServerReady() {
+  let lastError = null;
+  for (let attempt = 0; attempt <= READY_RETRY_COUNT; attempt += 1) {
+    try {
+      await call('/calendar/month', {
+        date: '2028-04-01',
+        zone: '+08:00',
+        lon: '121e28',
+        ad: 1,
+      });
+      return;
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableError(err) || attempt >= READY_RETRY_COUNT) {
+        break;
+      }
+      await wait(READY_RETRY_DELAY_MS);
+    }
+  }
+  if (lastError) {
+    console.warn(`[warmup-warning] encrypted server readiness probe failed: ${lastError.message || String(lastError)}`);
+  }
+  return false;
+}
+
 async function warmOne(label, pathname, payloadInput, transport = 'encrypted', mode = 'full', initialDelayMs = 0, captureResult = false) {
   const start = performance.now();
   const retryCount = mode === 'quick' ? QUICK_RETRY_COUNT : FULL_RETRY_COUNT;
@@ -412,7 +439,7 @@ const SCENARIOS = [
   {
     label: 'chart-backend',
     pathname: '/chart',
-    modes: ['quick', 'full'],
+    modes: ['full'],
     initialDelayMs: 900,
     payload: async (mode) => ({
       ...getBasePayloadForMode(mode),
@@ -438,7 +465,7 @@ const SCENARIOS = [
   {
     label: 'predict-zr',
     pathname: '/predict/zr',
-    modes: ['quick', 'full'],
+    modes: ['full'],
     transport: 'plain',
     initialDelayMs: 820,
     payload: async (mode) => ({
@@ -484,7 +511,7 @@ const SCENARIOS = [
   {
     label: 'predict-pd',
     pathname: '/predict/pd',
-    modes: ['quick', 'full'],
+    modes: ['full'],
     transport: 'plain',
     initialDelayMs: 980,
     payload: async (mode) => ({
@@ -512,7 +539,7 @@ const SCENARIOS = [
   {
     label: 'predict-pdchart',
     pathname: '/predict/pdchart',
-    modes: ['quick', 'full'],
+    modes: ['full'],
       transport: 'plain',
     initialDelayMs: 980,
     payload: async (mode) => ({
@@ -582,29 +609,31 @@ const SCENARIOS = [
     }),
   },
   { label: 'predict-profection', pathname: '/predict/profection', modes: ['full'], transport: 'plain', payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+00:00' }) },
-  { label: 'predict-solararc', pathname: '/predict/solararc', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 240, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+00:00' }) },
-  { label: 'predict-solarreturn', pathname: '/predict/solarreturn', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 80, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+08:00', dirLat: '31n13', dirLon: '121e28' }) },
-  { label: 'predict-lunarreturn', pathname: '/predict/lunarreturn', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 340, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+08:00', dirLat: '31n13', dirLon: '121e28' }) },
-  { label: 'predict-givenyear', pathname: '/predict/givenyear', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 1100, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+08:00', dirLat: '31n13', dirLon: '121e28' }) },
+  { label: 'predict-solararc', pathname: '/predict/solararc', modes: ['full'], transport: 'plain', initialDelayMs: 240, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+00:00' }) },
+  { label: 'predict-solarreturn', pathname: '/predict/solarreturn', modes: ['full'], transport: 'plain', initialDelayMs: 80, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+08:00', dirLat: '31n13', dirLon: '121e28' }) },
+  { label: 'predict-lunarreturn', pathname: '/predict/lunarreturn', modes: ['full'], transport: 'plain', initialDelayMs: 340, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+08:00', dirLat: '31n13', dirLon: '121e28' }) },
+{ label: 'predict-givenyear', pathname: '/predict/givenyear', modes: ['full'], transport: 'plain', initialDelayMs: 1100, payload: async () => ({ ...BASE_PAYLOAD, datetime: '2031-04-06 09:33:00', dirZone: '+08:00', dirLat: '31n13', dirLon: '121e28' }) },
   { label: 'chart13', pathname: '/chart13', modes: ['quick', 'full'], transport: 'plain', payload: async () => ({ ...BASE_PAYLOAD, predictive: 0 }) },
-  { label: 'india-chart', pathname: '/india/chart', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 320, payload: async () => ({ ...BASE_PAYLOAD, zodiacal: 1, predictive: 1, pdtype: 0, pdMethod: 'astroapp_alchabitius', pdTimeKey: 'Ptolemy', pdaspects: [0, 60, 90, 120, 180] }) },
+  { label: 'india-chart', pathname: '/india/chart', modes: ['startup', 'quick', 'full'], transport: 'plain', initialDelayMs: 320, payload: async (mode) => ({ ...getBasePayloadForMode(mode), zodiacal: 1, predictive: 1, pdtype: 0, pdMethod: 'astroapp_alchabitius', pdTimeKey: 'Ptolemy', pdaspects: [0, 60, 90, 120, 180] }) },
   { label: 'jieqi24', pathname: '/jieqi/year', modes: ['full'], transport: 'plain', payload: async (mode) => ({ year: getJieqiYearForMode(mode), ad: getBasePayloadForMode(mode).ad, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, hsys: getBasePayloadForMode(mode).hsys, zodiacal: getBasePayloadForMode(mode).zodiacal, doubingSu28: false }) },
   { label: 'jieqi24-backend', pathname: '/jieqi/year', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 60, payload: async (mode) => ({ year: getJieqiYearForMode(mode), ad: getBasePayloadForMode(mode).ad, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, hsys: getBasePayloadForMode(mode).hsys, zodiacal: getBasePayloadForMode(mode).zodiacal, doubingSu28: false }) },
   { label: 'jieqi24-backend-base', pathname: '/jieqi/year', modes: ['full'], transport: 'plain', initialDelayMs: 90, payload: async () => ({ year: '2032', ad: BASE_PAYLOAD.ad, zone: BASE_PAYLOAD.zone, lon: BASE_PAYLOAD.lon, lat: BASE_PAYLOAD.lat, gpsLat: BASE_PAYLOAD.gpsLat, gpsLon: BASE_PAYLOAD.gpsLon, hsys: BASE_PAYLOAD.hsys, zodiacal: BASE_PAYLOAD.zodiacal, doubingSu28: false }) },
   { label: 'jieqi24-java', pathname: '/jieqi/year', modes: ['full'], initialDelayMs: 1700, payload: async (mode) => ({ year: getJieqiYearForMode(mode), ad: getBasePayloadForMode(mode).ad, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, hsys: getBasePayloadForMode(mode).hsys, zodiacal: getBasePayloadForMode(mode).zodiacal, doubingSu28: false }) },
-  { label: 'relative-chart', pathname: '/modern/relative', modes: ['full'], payload: async () => ({ inner: { date: '2028/04/06', time: '09:33:00', zone: '+00:00', lat: '41n26', lon: '174w30', ad: 1 }, outer: { date: '2029/09/16', time: '18:45:00', zone: '+08:00', lat: '31n13', lon: '121e28', ad: 1 }, hsys: 1, zodiacal: 0, relative: 0 }) },
-{ label: 'acg', pathname: '/location/acg', modes: ['quick', 'full'], transport: 'plain', initialDelayMs: 420, payload: async (mode) => ({ ...getBasePayloadForMode(mode), predictive: 0 }) },
-{ label: 'acg-base', pathname: '/location/acg', modes: ['full'], transport: 'plain', initialDelayMs: 180, payload: async () => ({ ...BASE_PAYLOAD, predictive: 0 }) },
-  { label: 'germany-midpoint', pathname: '/germany/midpoint', modes: ['full'], transport: 'plain', payload: async () => ({ ...BASE_PAYLOAD, predictive: 0 }) },
-  { label: 'nongli-time', pathname: '/nongli/time', modes: ['full'], initialDelayMs: 260, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lat: getBasePayloadForMode(mode).lat, lon: getBasePayloadForMode(mode).lon, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, gender: true, ad: getBasePayloadForMode(mode).ad, after23NewDay: 0, timeAlg: 0 }) },
+  { label: 'relative-chart', pathname: '/modern/relative', modes: ['startup', 'quick', 'full'], payload: async () => ({ inner: { date: '2028/04/06', time: '09:33:00', zone: '+00:00', lat: '41n26', lon: '174w30', ad: 1 }, outer: { date: '2029/09/16', time: '18:45:00', zone: '+08:00', lat: '31n13', lon: '121e28', ad: 1 }, hsys: 1, zodiacal: 0, relative: 0 }) },
+  { label: 'acg', pathname: '/location/acg', modes: ['startup', 'quick', 'full'], transport: 'plain', initialDelayMs: 180, payload: async (mode) => ({ ...getBasePayloadForMode(mode), predictive: 0 }) },
+  { label: 'acg-base', pathname: '/location/acg', modes: ['startup', 'quick', 'full'], transport: 'plain', initialDelayMs: 40, payload: async () => ({ ...BASE_PAYLOAD, predictive: 0 }) },
+  { label: 'germany-midpoint', pathname: '/germany/midpoint', modes: ['startup', 'full'], transport: 'plain', payload: async (mode) => ({ ...getBasePayloadForMode(mode), predictive: 0 }) },
+  { label: 'nongli-time', pathname: '/nongli/time', modes: ['startup', 'quick', 'full'], initialDelayMs: 40, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lat: getBasePayloadForMode(mode).lat, lon: getBasePayloadForMode(mode).lon, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, gender: true, ad: getBasePayloadForMode(mode).ad, after23NewDay: 0, timeAlg: 0 }) },
   { label: 'jieqi-seed', pathname: '/jieqi/year', modes: ['full'], payload: async () => ({ year: 2028, ad: 1, zone: '+08:00', lon: '121e28', lat: '31n13', gpsLat: 31.2167, gpsLon: 121.4667, timeAlg: 0, jieqis: ['大雪', '芒种'], seedOnly: true }) },
-  { label: 'liureng-gods', pathname: '/liureng/gods', modes: ['quick', 'full'], initialDelayMs: 520, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, ad: getBasePayloadForMode(mode).ad, after23NewDay: false }) },
+  { label: 'liureng-gods', pathname: '/liureng/gods', modes: ['startup', 'quick', 'full'], initialDelayMs: 80, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, ad: getBasePayloadForMode(mode).ad, after23NewDay: false }) },
+  { label: 'liureng-gods-base', pathname: '/liureng/gods', modes: ['quick', 'full'], initialDelayMs: 80, payload: async () => ({ date: BASE_PAYLOAD.date.replaceAll('/', '-'), time: BASE_PAYLOAD.time, zone: BASE_PAYLOAD.zone, lon: BASE_PAYLOAD.lon, lat: BASE_PAYLOAD.lat, ad: BASE_PAYLOAD.ad, after23NewDay: false }) },
   { label: 'gua-desc', pathname: '/gua/desc', modes: ['full'], payload: async () => ({ name: ['111111', '000000', '101010'] }) },
-  { label: 'bazi-direct', pathname: '/bazi/direct', modes: ['full'], initialDelayMs: 3200, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, gender: true, ad: getBasePayloadForMode(mode).ad, after23NewDay: false, timeAlg: 0, byLon: false, phaseType: 0 }) },
-  { label: 'ziwei-birth', pathname: '/ziwei/birth', modes: ['full'], initialDelayMs: 3800, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, ad: getBasePayloadForMode(mode).ad, gender: true, after23NewDay: false, timeAlg: 0 }) },
+  { label: 'bazi-direct', pathname: '/bazi/direct', modes: ['startup', 'quick', 'full'], initialDelayMs: 40, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, gpsLat: getBasePayloadForMode(mode).gpsLat, gpsLon: getBasePayloadForMode(mode).gpsLon, gender: true, ad: getBasePayloadForMode(mode).ad, after23NewDay: false, timeAlg: 0, byLon: false, phaseType: 0 }) },
+  { label: 'bazi-direct-base', pathname: '/bazi/direct', modes: ['startup', 'quick', 'full'], initialDelayMs: 120, payload: async () => ({ date: BASE_PAYLOAD.date.replaceAll('/', '-'), time: BASE_PAYLOAD.time, zone: BASE_PAYLOAD.zone, lon: BASE_PAYLOAD.lon, lat: BASE_PAYLOAD.lat, gpsLat: BASE_PAYLOAD.gpsLat, gpsLon: BASE_PAYLOAD.gpsLon, gender: true, ad: BASE_PAYLOAD.ad, after23NewDay: false, timeAlg: 0, byLon: false, phaseType: 0 }) },
+  { label: 'ziwei-birth', pathname: '/ziwei/birth', modes: ['startup', 'quick', 'full'], initialDelayMs: 120, payload: async (mode) => ({ date: getBasePayloadForMode(mode).date.replaceAll('/', '-'), time: getBasePayloadForMode(mode).time, zone: getBasePayloadForMode(mode).zone, lon: getBasePayloadForMode(mode).lon, lat: getBasePayloadForMode(mode).lat, ad: getBasePayloadForMode(mode).ad, gender: true, after23NewDay: false, timeAlg: 0 }) },
   { label: 'calendar-month', pathname: '/calendar/month', modes: ['full'], payload: async () => ({ date: '2028-04-01', zone: '+08:00', lon: '121e28', ad: 1 }) },
-{ label: 'liureng-runyear', pathname: '/liureng/runyear', modes: ['quick', 'full'], initialDelayMs: 650, payload: async (mode) => buildLiurengRunyearPayload(getBasePayloadForMode(mode)) },
-{ label: 'liureng-runyear-base', pathname: '/liureng/runyear', modes: ['full'], initialDelayMs: 1750, payload: async () => buildLiurengRunyearPayload(BASE_PAYLOAD) },
+{ label: 'liureng-runyear', pathname: '/liureng/runyear', modes: ['quick', 'full'], initialDelayMs: 180, payload: async (mode) => buildLiurengRunyearPayload(getBasePayloadForMode(mode)) },
+{ label: 'liureng-runyear-base', pathname: '/liureng/runyear', modes: ['quick', 'full'], initialDelayMs: 80, payload: async () => buildLiurengRunyearPayload(BASE_PAYLOAD) },
   {
     label: 'jieqi-legacy',
     pathname: '/jieqi/year',
@@ -625,6 +654,38 @@ const SCENARIOS = [
       jieqis: ['春分', '夏至', '秋分', '冬至'],
     }),
   },
+];
+
+const STARTUP_FOLLOWUP_LABELS = [
+  'liureng-gods-base',
+  'liureng-gods',
+  'nongli-time',
+  'bazi-direct-base',
+  'ziwei-birth',
+  'bazi-direct',
+  'liureng-runyear-base',
+  'liureng-runyear',
+  'relative-chart',
+  'acg-base',
+  'acg',
+  'chart-direct',
+  'india-chart',
+  'jieqi24-backend',
+  'germany-midpoint',
+];
+
+const QUICK_CRITICAL_LABELS = [
+  'liureng-gods-base',
+  'relative-chart',
+  'acg-base',
+  'liureng-gods',
+  'acg',
+  'nongli-time',
+  'bazi-direct-base',
+  'ziwei-birth',
+  'bazi-direct',
+  'liureng-runyear-base',
+  'liureng-runyear',
 ];
 
 function resolveMode() {
@@ -699,45 +760,43 @@ async function run(mode) {
   }
 
   if (mode === 'quick') {
-    const quickCritical = [
-      'chart-direct',
-      'chart-backend',
-      'predict-pd',
-      'predict-zr',
-      'india-chart',
-      'acg',
-      'jieqi24-backend',
+    await waitForEncryptedServerReady();
+    const quickPrimary = [
+      'liureng-gods-base',
+      'relative-chart',
+      'acg-base',
       'liureng-gods',
+      'acg',
+      'nongli-time',
+      'bazi-direct-base',
+      'ziwei-birth',
+      'bazi-direct',
+      'liureng-runyear-base',
       'liureng-runyear',
-      'predict-solarreturn',
+      'chart-direct',
+    ];
+    const quickSecondary = [
       'chart13',
+      'india-chart',
+      'jieqi24-backend',
     ];
-    const quickFollowup = [
-      'predict-pdchart',
-      'predict-lunarreturn',
-      'predict-givenyear',
-      'predict-solararc',
-    ];
-    const orderedCritical = [];
-    for (const label of quickCritical) {
+    const orderedPrimary = [];
+    for (const label of quickPrimary) {
       const scenario = selected.find((item) => item.label === label);
       if (scenario) {
-        orderedCritical.push(scenario);
+        orderedPrimary.push(scenario);
       }
     }
-    const orderedFollowup = [];
-    for (const label of quickFollowup) {
+    const orderedSecondary = [];
+    for (const label of quickSecondary) {
       const scenario = selected.find((item) => item.label === label);
       if (scenario) {
-        orderedFollowup.push(scenario);
+        orderedSecondary.push(scenario);
       }
     }
-    const tail = selected.filter((item) => !quickCritical.includes(item.label) && !quickFollowup.includes(item.label));
     const failures = [];
-      const criticalFailures = await runWithConcurrency(orderedCritical, mode, 1);
-      failures.push(...criticalFailures);
-      const followupFailures = await runWithConcurrency([...orderedFollowup, ...tail], mode, 2);
-    failures.push(...followupFailures);
+    failures.push(...await runWithConcurrency(orderedPrimary, mode, 5));
+    failures.push(...await runWithConcurrency(orderedSecondary, mode, 2));
     if (failures.length > 0) {
       console.warn(`[warmup-summary] ${mode} failures=${failures.length}`);
     }
@@ -745,31 +804,35 @@ async function run(mode) {
   }
 
   if (mode === 'full') {
+    await waitForEncryptedServerReady();
     const fullCritical = [
-      'guolao-chart',
+      'chart-backend',
+      'chart-backend-base',
       'chart13',
-      'india-chart',
       'acg',
       'acg-base',
-      'liureng-gods',
+      'liureng-gods-base',
       'liureng-runyear-base',
       'liureng-runyear',
+      'jieqi24-backend',
+      'jieqi24-backend-base',
+      'jieqi24-java',
+      'predict-pd',
+      'predict-pd-base',
+      'predict-zr',
+      'predict-zr-base',
+      'guolao-chart',
+      'india-chart',
+      'liureng-gods',
       'predict-solarreturn',
       'predict-solararc',
       'predict-lunarreturn',
       'predict-givenyear',
-      'predict-pd',
-      'predict-pd-base',
       'predict-pdchart',
       'predict-pdchart-base',
-      'predict-zr',
-      'predict-zr-base',
-      'chart-backend',
-      'chart-backend-base',
-      'jieqi24-backend',
-      'jieqi24-backend-base',
-      'jieqi24-java',
       'nongli-time',
+      'germany-midpoint',
+      'ziwei-birth',
     ];
     const orderedCritical = [];
     for (const label of fullCritical) {
@@ -780,7 +843,7 @@ async function run(mode) {
     }
     const tail = selected.filter((item) => !fullCritical.includes(item.label));
     const failures = [];
-    failures.push(...await runWithConcurrency(orderedCritical, mode, 3));
+    failures.push(...await runWithConcurrency(orderedCritical, mode, 5));
     failures.push(...await runWithConcurrency(tail, mode, 2));
     if (failures.length > 0) {
       console.warn(`[warmup-summary] ${mode} failures=${failures.length}`);
@@ -839,6 +902,30 @@ async function main() {
     } catch (error) {
       writeEmptyStartupCacheArtifact();
       throw error;
+    }
+    const startupFollowups = STARTUP_FOLLOWUP_LABELS
+      .map((label) => SCENARIOS.find((item) => item.label === label))
+      .filter((item) => !!item);
+    if (startupFollowups.length > 0) {
+      await waitForEncryptedServerReady();
+      const priorityLabels = new Set(QUICK_CRITICAL_LABELS);
+      const secondaryLabels = new Set(['relative-chart', 'acg-base', 'acg', 'chart-direct', 'india-chart', 'jieqi24-backend', 'germany-midpoint']);
+      const priorityFollowups = startupFollowups.filter((item) => priorityLabels.has(item.label));
+      const secondaryFollowups = startupFollowups.filter((item) => secondaryLabels.has(item.label));
+      const backgroundFollowups = startupFollowups.filter((item) => !priorityLabels.has(item.label) && !secondaryLabels.has(item.label));
+      const failures = [];
+      if (priorityFollowups.length > 0) {
+        failures.push(...await runWithConcurrency(priorityFollowups, mode, 5));
+      }
+      if (secondaryFollowups.length > 0) {
+        failures.push(...await runWithConcurrency(secondaryFollowups, mode, 2));
+      }
+      if (backgroundFollowups.length > 0) {
+        failures.push(...await runWithConcurrency(backgroundFollowups, mode, 3));
+      }
+      if (failures.length > 0) {
+        console.warn(`[warmup-summary] startup-followup failures=${failures.length}`);
+      }
     }
     console.log(`warmup-total: ${Number((performance.now() - start).toFixed(3))}ms`);
     return;

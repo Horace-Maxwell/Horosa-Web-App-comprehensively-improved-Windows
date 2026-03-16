@@ -193,6 +193,7 @@ class SuZhanChart extends Component{
 		if(nextShape === SZConst.SZChart_Square){
 			this.updateSquareSide();
 		}
+		this.drawChart();
 	}
 
 	render(){
@@ -218,8 +219,6 @@ class SuZhanChart extends Component{
 			chartstyle.height = `${side}px`;
 			chartstyle.display = 'block';
 		}
-
-		this.drawChart();
 
 		return (
 			<svg id={this.state.chartid} style={chartstyle}>

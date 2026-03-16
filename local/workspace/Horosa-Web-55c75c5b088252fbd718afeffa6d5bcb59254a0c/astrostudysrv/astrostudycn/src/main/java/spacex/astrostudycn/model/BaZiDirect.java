@@ -1,6 +1,7 @@
 package spacex.astrostudycn.model;
 
 import boundless.io.FileUtility;
+import boundless.utility.CalculatePool;
 import boundless.utility.ConvertUtility;
 import boundless.utility.DateTimeUtility;
 import boundless.utility.JsonUtility;
@@ -68,7 +69,9 @@ public class BaZiDirect extends BaZi {
 			}			
 		}
 		
-		BaZiPredictHelper.save(this);
+		CalculatePool.queueUserWorkItem(()->{
+			BaZiPredictHelper.save(this);
+		});
 	}
 	
 	private void forwardDirect(PhaseType phaseType) {

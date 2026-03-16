@@ -2,8 +2,10 @@
 
 - `desktop_installer_bundle/src/horosa_desktop.pyw`
   Native desktop shell built with PySide6 + QtWebEngine.
+- `desktop_installer_bundle/src/xingque_setup_bootstrap.py`
+  One-file installer bootstrap that now auto-detects adjacent runtime assets before falling back to online download.
 - `desktop_installer_bundle/install_desktop_runtime.ps1`
-  Silent installer for the desktop runtime dependencies.
+  Silent installer for the desktop runtime dependencies, with multi-source runtime download fallback and offline-runtime reuse.
 - `desktop_installer_bundle/install_desktop_wizard.ps1`
   Native-looking Windows installer UI launched by the public VBS entrypoint.
 - `desktop_installer_bundle/src/horosa_update_helper.ps1`
@@ -15,11 +17,13 @@
 - `desktop_installer_bundle/wheelhouse/`
   Offline wheels used by the installer when available.
 - `desktop_installer_bundle/build_portable_release_zip.ps1`
-  Builds the full update zip that the in-app updater should download.
+  Builds all publishable release assets: launcher, online installer, offline installer, portable zip and runtime zip.
 - `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`
   Release discipline for reliable GitHub update detection.
-- `desktop_installer_bundle/pyinstaller/horosa_desktop.spec`
-  PyInstaller build spec for the packaged app.
+- `desktop_installer_bundle/pyinstaller/xingque_launcher.spec`
+  PyInstaller build spec for the packaged desktop launcher.
+- `desktop_installer_bundle/pyinstaller/xingque_setup.spec`
+  PyInstaller build spec for the online/offline one-file installers.
 - `desktop_installer_bundle/build_desktop_bundle.ps1`
   Installs build dependencies into the bundled Python and builds the app.
 - `desktop_installer_bundle/build_desktop_bundle.bat`
@@ -33,4 +37,10 @@
 - `desktop_installer_bundle/dist/`
   Generated packaged app output for developer experiments.
 - `desktop_installer_bundle/release/`
-  Generated zip artifact for GitHub Releases.
+  Generated GitHub Release assets:
+  - `Xingque.exe`
+  - `XingqueSetup.exe`
+  - `XingqueSetupFull.exe`
+  - `HorosaPortableWindows-<version>.zip`
+  - `HorosaRuntimeWindows-<version>.zip`
+  - matching manifest files for integrity verification.

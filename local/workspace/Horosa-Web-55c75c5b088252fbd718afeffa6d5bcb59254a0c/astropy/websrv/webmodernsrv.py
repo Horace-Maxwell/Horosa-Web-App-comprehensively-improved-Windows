@@ -1,7 +1,8 @@
 import traceback
+import copy
 import jsonpickle
 import cherrypy
-from websrv.helper import enable_crossdomain, build_param_error_response
+from websrv.helper import enable_crossdomain, build_param_error_response, RequestResultCache, get_request_cache_dir
 from astrostudy.modern.chartcomp import ChartComp
 from astrostudy.modern.chartcomposite import ChartComposite
 from astrostudy.modern.chartsynastry import ChartSynastry
@@ -11,6 +12,7 @@ from astrostudy.modern.chartmarks import ChartMarks
 
 class ModernAstroSrv:
     exposed = True
+    RESPONSE_CACHE = RequestResultCache(max_entries=48, ttl_sec=1800, persist_dir=get_request_cache_dir('modern-relative'))
 
     RELATIVE_MODE_MAP = {
         0: 'Comp',
@@ -110,6 +112,15 @@ class ModernAstroSrv:
 
         return normalized
 
+    def _build_relative_cache_payload(self, inner, outer, hsys, zodiacal, relative_mode):
+        return {
+            'inner': copy.deepcopy(inner),
+            'outer': copy.deepcopy(outer),
+            'hsys': hsys,
+            'zodiacal': zodiacal,
+            'relative': relative_mode,
+        }
+
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
     @cherrypy.tools.json_in()
@@ -140,21 +151,27 @@ class ModernAstroSrv:
             if 'relative' in data.keys():
                 relative = data['relative']
 
-            reschart = None
-            if relative == 1:
-                reschart = ChartComposite(inner, outer)
-            elif relative == 2:
-                reschart = ChartSynastry(inner, outer)
-            elif relative == 3:
-                reschart = ChartTimeSpace(inner, outer)
-            elif relative == 4:
-                reschart = ChartMarks(inner, outer)
-            else:
-                reschart = ChartComp(inner, outer)
+            cache_payload = self._build_relative_cache_payload(inner, outer, hsys, zodiacal, relative)
 
-            res = reschart.compute()
-            res = self._normalize_relative_payload(relative, res)
-            return jsonpickle.encode(res, unpicklable=False)
+            def _build():
+                inner_input = copy.deepcopy(inner)
+                outer_input = copy.deepcopy(outer)
+                if relative == 1:
+                    reschart = ChartComposite(inner_input, outer_input)
+                elif relative == 2:
+                    reschart = ChartSynastry(inner_input, outer_input)
+                elif relative == 3:
+                    reschart = ChartTimeSpace(inner_input, outer_input)
+                elif relative == 4:
+                    reschart = ChartMarks(inner_input, outer_input)
+                else:
+                    reschart = ChartComp(inner_input, outer_input)
+
+                res = reschart.compute()
+                res = self._normalize_relative_payload(relative, res)
+                return jsonpickle.encode(res, unpicklable=False)
+
+            return self.RESPONSE_CACHE.get_or_compute('modern.relative', cache_payload, _build)
         except Exception as ex:
             traceback.print_exc()
             return jsonpickle.encode(build_param_error_response(ex), unpicklable=False)
