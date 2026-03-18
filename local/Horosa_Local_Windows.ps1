@@ -3,6 +3,17 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = $ScriptRoot
+$HorosaLauncherChannel = 'stable'
+$HorosaLauncherDisplayName = 'Horosa Windows Stable Launcher'
+
+try {
+  if ($Host.UI -and $Host.UI.RawUI) {
+    $Host.UI.RawUI.WindowTitle = $HorosaLauncherDisplayName
+  }
+} catch {}
+
+Write-Host ("[INFO] Launcher: {0}" -f $HorosaLauncherDisplayName)
+Write-Host ("[INFO] Channel: {0}" -f $HorosaLauncherChannel)
 
 function Test-HorosaProjectDir {
   param([string]$DirPath)
