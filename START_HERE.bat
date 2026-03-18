@@ -4,7 +4,9 @@ for %%I in ("%~dp0.") do set "REPO_ROOT=%%~fI"
 set "HOROSA_REPO_ROOT=%REPO_ROOT%"
 if not defined HOROSA_WORKSPACE_DIR set "HOROSA_WORKSPACE_DIR=%REPO_ROOT%\local\workspace"
 
-echo Horosa Windows one-click start
+title Horosa Windows Stable Launcher
+echo Horosa Windows stable one-click start
+echo Stable channel: fixed-window startup build
 
 echo Only run this file. Do not open other scripts.
 echo.

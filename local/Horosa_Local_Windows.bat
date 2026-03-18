@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
+title Horosa Windows Stable Launcher
 for %%I in ("%~dp0.") do set "ROOT=%%~fI"
 set "WORKSPACE=%ROOT%\workspace"
 if defined HOROSA_WORKSPACE_DIR set "WORKSPACE=%HOROSA_WORKSPACE_DIR%"
@@ -59,6 +60,7 @@ if errorlevel 1 (
 
   echo.
   echo Launcher failed.
+  echo Launcher channel: stable
   if exist "!ISSUE_FILE!" (
     echo Issue summary: !ISSUE_FILE!
   ) else (
