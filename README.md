@@ -1,5 +1,7 @@
 # 星阙 Windows 下载与安装
 
+当前仓库对应的是 Windows 一键启动稳定版整理分支，面向普通用户交付。
+
 普通用户先看这里，不需要先看源码。
 
 ## 一键安装包下载位置
@@ -51,3 +53,11 @@
 - `local/`：本地运行环境和主项目工作区
 - `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`：发布更新流程
 - `desktop_installer_bundle/INSTALL_3_STEPS.md`：给终端用户的三步安装说明
+
+## 当前稳定版补充说明
+
+- 启动入口固定为 `START_HERE.bat`
+- 启动器已整理为稳定版链路：默认固定窗口比例、优先使用已构建前端、默认跳过不必要源码扫描
+- 启动器已加入 AppCDS 动态归档加速链路；首次运行会训练，后续启动自动复用
+- `docs/SELFCHECK_LOG.md` 记录本轮稳定版自检结果
+- `docs/PROJECT_STRUCTURE.md` 记录当前交付目录结构

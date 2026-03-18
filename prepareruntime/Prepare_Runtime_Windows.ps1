@@ -4,59 +4,6 @@ $ErrorActionPreference = 'Stop'
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = $ScriptRoot
 
-function Wait-ForExitPrompt {
-  param([string]$Prompt = 'Press Enter to exit')
-
-  if ($env:CI -or ($env:GITHUB_ACTIONS -eq 'true') -or (-not [Environment]::UserInteractive)) {
-    return
-  }
-
-  try {
-    Read-Host $Prompt | Out-Null
-  } catch {
-    # Ignore prompt failures in shells that do not support interactive input.
-  }
-}
-
-function Invoke-RobocopyCopy {
-  param(
-    [Parameter(Mandatory = $true)][string]$Source,
-    [Parameter(Mandatory = $true)][string]$Destination
-  )
-
-  $sourcePath = (Resolve-Path $Source).Path
-  New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-
-  & robocopy $sourcePath $Destination /E /XJ /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
-  $exitCode = $LASTEXITCODE
-  if ($exitCode -ge 8) {
-    throw ("robocopy failed with exit code {0}: {1} -> {2}" -f $exitCode, $sourcePath, $Destination)
-  }
-}
-
-function Remove-TreeWithRetry {
-  param([string]$Path)
-
-  if (-not (Test-Path $Path)) {
-    return
-  }
-
-  $lastError = $null
-  for ($i = 0; $i -lt 8; $i++) {
-    try {
-      Remove-Item -Recurse -Force $Path
-      return
-    } catch {
-      $lastError = $_
-      Start-Sleep -Milliseconds 400
-    }
-  }
-
-  if ($lastError) {
-    throw $lastError
-  }
-}
-
 function Test-HorosaProjectDir {
   param([string]$DirPath)
 
@@ -215,7 +162,7 @@ if (-not $ProjectDir) {
   Write-Host "Project folder not found under: $Root"
   Write-Host 'Expected a folder that contains astrostudyui / astrostudysrv / astropy.'
   Write-Host 'You can set HOROSA_PROJECT_DIR to override project directory detection.'
-  Wait-ForExitPrompt
+  Read-Host 'Press Enter to exit'
   exit 1
 }
 $JarSrc = Join-Path $ProjectDir 'astrostudysrv\\astrostudyboot\\target\\astrostudyboot.jar'
@@ -533,8 +480,9 @@ if (-not $JavaSrc) {
 
 if ($JavaSrc -and (Test-Path (Join-Path $JavaSrc 'bin\\java.exe'))) {
   Write-Host "Copy Java runtime: $JavaSrc -> $JavaDst"
-  Remove-TreeWithRetry -Path $JavaDst
-  Invoke-RobocopyCopy -Source $JavaSrc -Destination $JavaDst
+  if (Test-Path $JavaDst) { Remove-Item -Recurse -Force $JavaDst }
+  New-Item -ItemType Directory -Force -Path $JavaDst | Out-Null
+  robocopy $JavaSrc $JavaDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
 } else {
   Write-Host 'Java runtime not found. Set HOROSA_JAVA_HOME (or JAVA_HOME) then rerun.'
 }
@@ -572,8 +520,9 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   }
 
   Write-Host "Copy Python runtime: $PySrc -> $PyDst"
-  Remove-TreeWithRetry -Path $PyDst
-  Invoke-RobocopyCopy -Source $PySrc -Destination $PyDst
+  if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
+  New-Item -ItemType Directory -Force -Path $PyDst | Out-Null
+  robocopy $PySrc $PyDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
   $runtimePyExe = Join-Path $PyDst 'python.exe'
   $depsReady = Ensure-PythonDepsInRuntime -PythonExe $runtimePyExe
   if ($depsReady) {
@@ -583,8 +532,9 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   }
   $wheelOk = Export-PythonWheels -PythonExe $runtimePyExe -WheelDir $WheelsDst
   if ($wheelOk) {
-    Remove-TreeWithRetry -Path $WheelsBundleDst
-    Invoke-RobocopyCopy -Source $WheelsDst -Destination $WheelsBundleDst
+    if (Test-Path $WheelsBundleDst) { Remove-Item -Recurse -Force $WheelsBundleDst }
+    New-Item -ItemType Directory -Force -Path $WheelsBundleDst | Out-Null
+    robocopy $WheelsDst $WheelsBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
     Write-Host "[OK] Offline wheels copied to: $WheelsBundleDst"
   } else {
     Write-Host '[WARN] Offline wheels not prepared.'
@@ -610,16 +560,18 @@ if (Test-Path $JarSrc) {
   Write-Host "[MISSING] Backend jar not found after fallback: $JarSrc"
 }
 
-Remove-TreeWithRetry -Path $DistFileBundleDst
-Remove-TreeWithRetry -Path $DistBundleDst
+if ((Test-Path $DistFileBundleDst)) { Remove-Item -Recurse -Force $DistFileBundleDst }
+if ((Test-Path $DistBundleDst)) { Remove-Item -Recurse -Force $DistBundleDst }
 
 $frontendSource = Resolve-FrontendBuildSource -ProjDir $ProjectDir
 if ($frontendSource -and $frontendSource.Path -and (Test-Path (Join-Path $frontendSource.Path 'index.html'))) {
-  Invoke-RobocopyCopy -Source $frontendSource.Path -Destination $DistFileBundleDst
+  New-Item -ItemType Directory -Force -Path $DistFileBundleDst | Out-Null
+  robocopy $frontendSource.Path $DistFileBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
   Write-Host ("Copy frontend {0}: {1} -> {2}" -f $frontendSource.Kind, $frontendSource.Path, $DistFileBundleDst)
 
   # Keep a mirror in bundle/dist for backward compatibility with existing restore logic.
-  Invoke-RobocopyCopy -Source $frontendSource.Path -Destination $DistBundleDst
+  New-Item -ItemType Directory -Force -Path $DistBundleDst | Out-Null
+  robocopy $frontendSource.Path $DistBundleDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
   Write-Host ("Mirror frontend to dist: {0} -> {1}" -f $frontendSource.Path, $DistBundleDst)
 } else {
   Write-Host "[MISSING] Frontend dist not found: $DistFileSrc or $DistSrc"
@@ -709,10 +661,10 @@ if ($validationErrors.Count -gt 0) {
   foreach ($err in $validationErrors) {
     Write-Host ("  - {0}" -f $err)
   }
-  Wait-ForExitPrompt
+  Read-Host 'Press Enter to exit'
   exit 1
 }
 
 Write-Host ''
 Write-Host '[PASS] Runtime prepare completed with all required artifacts.'
-Wait-ForExitPrompt
+Read-Host 'Press Enter to exit'
