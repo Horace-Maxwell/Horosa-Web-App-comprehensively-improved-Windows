@@ -25,7 +25,8 @@ const App = ({children, dispatch, app, user, })=>{
     AstroConst.setColorTheme(colorTheme);
 
     let mainstyle = {
-        minHeight: '100vh',
+        height: '100vh',
+        overflow: 'hidden',
         background: AstroConst.AstroColor.Background,
         color: AstroConst.AstroColor.TextStroke,
         stroke: AstroConst.AstroColor.TextStroke,
@@ -40,13 +41,18 @@ const App = ({children, dispatch, app, user, })=>{
         stroke: AstroConst.AstroColor.TextStroke,
     };
     let contentStyle = {
-        marginTop: 64, paddingTop:10, 
+        marginTop: 64,
+        height: 'calc(100vh - 64px)',
+        overflow: 'hidden',
         backgroundColor: AstroConst.AstroColor.Backgroud, 
         color: AstroConst.AstroColor.TextStroke,
         stroke: AstroConst.AstroColor.TextStroke,
     };
     let footerStyle = { 
-        padding: '8px 50px 10px',
+        display: 'none',
+        padding: 0,
+        height: 0,
+        minHeight: 0,
         textAlign: 'center', 
         backgroundColor: AstroConst.AstroColor.Backgroud,
         color: AstroConst.AstroColor.TextStroke,
@@ -67,9 +73,9 @@ const App = ({children, dispatch, app, user, })=>{
             </Header>
 
             <Content id='mainContent' style={contentStyle}>
-                <div style={{ width:'100%', paddingLeft: 30, paddingRight:30}}>
+                <div style={{ width:'100%', height:'100%', paddingLeft: 30, paddingRight:30, overflow:'hidden', boxSizing:'border-box' }}>
                     <BackTop visibilityHeight={50}/>
-                    <div style={{paddingLeft: 30, paddingRight:30, paddingTop:30}}>
+                    <div style={{ height:'100%', paddingLeft: 30, paddingRight:30, paddingTop:12, paddingBottom:12, overflow:'hidden', boxSizing:'border-box' }}>
                         {children}
                     </div>
                 </div>

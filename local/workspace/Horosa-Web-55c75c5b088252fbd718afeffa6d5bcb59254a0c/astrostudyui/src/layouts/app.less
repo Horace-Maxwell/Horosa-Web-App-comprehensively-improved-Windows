@@ -43,12 +43,22 @@
 }
 
 :global {
+    html,
+    body,
+    #root {
+        height: 100%;
+        overflow: hidden;
+    }
+
     @main-tabs-safe-gap: 118px;
 
     .mainRootTabs.ant-tabs-left,
     .mainRootTabs.ant-tabs-left .ant-tabs-content-holder,
-    .mainRootTabs.ant-tabs-left .ant-tabs-content {
-        min-height: calc(100vh - @main-tabs-safe-gap);
+    .mainRootTabs.ant-tabs-left .ant-tabs-content,
+    .mainRootTabs.ant-tabs-left .ant-tabs-tabpane-active {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
     }
 
     .mainRootTabs.ant-tabs-left > .ant-tabs-nav,

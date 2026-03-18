@@ -26,6 +26,38 @@
   font-style: normal;
 }
 
+.astroMeaningTooltip.ant-tooltip {
+  max-width: none;
+}
+
+.astroMeaningTooltip .ant-tooltip-inner {
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.astroMeaningTooltip .ant-tooltip-arrow {
+  display: none;
+}
+
+.astroMeaningTooltipContent {
+  width: 560px;
+  max-width: 72vw;
+  max-height: 60vh;
+  overflow-y: auto;
+  text-align: left;
+  vertical-align: middle;
+  white-space: normal;
+  line-height: 1.4;
+  padding: 8px 10px;
+  font: 13px sans-serif;
+  background: #ffffff;
+  color: #262626;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
 
 @charset "UTF-8";
 .vjs-modal-dialog .vjs-modal-dialog-content, .video-js .vjs-modal-dialog, .vjs-button > .vjs-icon-placeholder:before, .video-js .vjs-big-play-button .vjs-icon-placeholder:before {
@@ -1695,7 +1727,6 @@ video::-webkit-media-text-track-display {
 html, body, :global(#root) {
   height: 100%;
 }
-
 
 
 

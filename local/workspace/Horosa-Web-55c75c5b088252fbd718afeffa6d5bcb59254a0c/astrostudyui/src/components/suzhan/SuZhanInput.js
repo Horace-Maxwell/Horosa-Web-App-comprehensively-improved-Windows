@@ -8,6 +8,7 @@ import {convertLatStrToDegree, convertLonStrToDegree, convertLatToStr, convertLo
 import DateTime from '../comp/DateTime';
 
 const {Option} = Select
+const SUZHAN_SHAPE_STORAGE_KEY = 'suzhanChartShape';
 
 class SuZhanInput extends Component{
 	
@@ -28,10 +29,16 @@ class SuZhanInput extends Component{
 			SZConst.SZChart.chart = parseInt(type+'');
 		}
 
-		let shape = localStorage.getItem('suzhanChartShape');
+		let shape = localStorage.getItem(SUZHAN_SHAPE_STORAGE_KEY);
 		if(shape !== undefined && shape !== null){
-			SZConst.SZChart.shape = parseInt(shape+'');
+			try{
+				shape = parseInt(shape, 10);
+				if(shape === SZConst.SZChart_Circle || shape === SZConst.SZChart_Square){
+					SZConst.SZChart.shape = shape;
+				}
+			}catch(e){}
 		}
+
 		let houseStartMode = localStorage.getItem('suzhanHouseStartMode');
 		if(houseStartMode !== undefined && houseStartMode !== null){
 			try{
@@ -101,7 +108,7 @@ class SuZhanInput extends Component{
 
 	onChartShapeChange(val){
 		SZConst.SZChart.shape = val;
-		localStorage.setItem('suzhanChartShape', val);
+		localStorage.setItem(SUZHAN_SHAPE_STORAGE_KEY, val);
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				szshape: {
@@ -173,7 +180,10 @@ class SuZhanInput extends Component{
 		let szshape = SZConst.SZChart.shape;
 		if(fields.szshape !== undefined && fields.szshape !== null &&
 			fields.szshape.value !== undefined && fields.szshape.value !== null){
-			szshape = fields.szshape.value;
+			szshape = parseInt(fields.szshape.value, 10);
+		}
+		if(szshape !== SZConst.SZChart_Circle){
+			szshape = SZConst.SZChart_Square;
 		}
 		let houseStartMode = SZConst.SZChart.houseStartMode;
 		if(fields.houseStartMode !== undefined && fields.houseStartMode !== null &&

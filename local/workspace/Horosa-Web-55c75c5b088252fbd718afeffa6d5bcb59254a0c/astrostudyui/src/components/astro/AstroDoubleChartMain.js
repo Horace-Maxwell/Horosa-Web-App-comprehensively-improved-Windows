@@ -50,6 +50,7 @@ class AstroCompare extends Component{
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
 							chartDisplay={this.props.chartDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
 						/>
 					</Col>
 					<Col span={7}>

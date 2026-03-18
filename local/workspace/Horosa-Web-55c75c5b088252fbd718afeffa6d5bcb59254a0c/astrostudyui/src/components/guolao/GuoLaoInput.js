@@ -8,6 +8,8 @@ import DateTime from '../comp/DateTime';
 import * as SZConst from '../suzhan/SZConst';
 
 const {Option} = Select
+const GUOLAO_SHAPE_STORAGE_KEY = 'guolaoChartShape';
+const GUOLAO_HOUSE_START_STORAGE_KEY = 'guolaoHouseStartMode';
 
 class GuoLaoInput extends Component{
 	
@@ -25,7 +27,17 @@ class GuoLaoInput extends Component{
 		this.onChartShapeChange = this.onChartShapeChange.bind(this);
 		this.onHouseStartModeChange = this.onHouseStartModeChange.bind(this);
 
-		let houseStartMode = localStorage.getItem('suzhanHouseStartMode');
+		let shape = localStorage.getItem(GUOLAO_SHAPE_STORAGE_KEY);
+		if(shape !== undefined && shape !== null){
+			try{
+				shape = parseInt(shape, 10);
+				if(shape === SZConst.SZChart_Circle || shape === SZConst.SZChart_Square){
+					SZConst.SZChart.shape = shape;
+				}
+			}catch(e){}
+		}
+
+		let houseStartMode = localStorage.getItem(GUOLAO_HOUSE_START_STORAGE_KEY);
 		if(houseStartMode !== undefined && houseStartMode !== null){
 			try{
 				houseStartMode = parseInt(houseStartMode, 10);
@@ -109,7 +121,7 @@ class GuoLaoInput extends Component{
 
 	onChartShapeChange(val){
 		SZConst.SZChart.shape = val;
-		localStorage.setItem('suzhanChartShape', val);
+		localStorage.setItem(GUOLAO_SHAPE_STORAGE_KEY, val);
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
 			this.props.onFieldsChange({
@@ -135,7 +147,7 @@ class GuoLaoInput extends Component{
 
 	onHouseStartModeChange(val){
 		SZConst.SZChart.houseStartMode = val;
-		localStorage.setItem('suzhanHouseStartMode', val);
+		localStorage.setItem(GUOLAO_HOUSE_START_STORAGE_KEY, val);
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
 			this.props.onFieldsChange({

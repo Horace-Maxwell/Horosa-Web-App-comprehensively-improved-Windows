@@ -11,6 +11,8 @@ import boundless.exception.ErrorCodeException;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.ConvertUtility;
 import spacex.astrostudy.helper.CacheHelper;
+import spacex.astrostudycn.constants.BaZiGender;
+import spacex.astrostudycn.constants.TimeZiAlg;
 import spacex.astrostudycn.model.OnlyFourColumns;
 
 @Controller
@@ -29,9 +31,11 @@ public class NongliController {
 		int ad = ConvertUtility.getValueAsInt(params.get("ad"), 1);
 		
 		boolean after23NewDay = (boolean) params.get("after23NewDay");
+		TimeZiAlg timeAlg = (TimeZiAlg) params.get("timeAlg");
+		BaZiGender gender = (BaZiGender) params.get("gender");
 		
 		Object obj = CacheHelper.get("/nongli/time", params, (args)->{
-			OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay);
+			OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay, timeAlg, gender, false);
 			Map<String, Object> map = bz.getNongli();
 			return map;
 		});
@@ -64,6 +68,12 @@ public class NongliController {
 		map.put("lat", "0n00");
 		boolean after23NewDay = TransData.getValueAsBool("after23NewDay", false);
 		map.put("after23NewDay", after23NewDay);
+		map.put("gender", BaZiGender.fromValue(TransData.getValueAsBool("gender", true)));
+		int timeAlgCode = TransData.getValueAsInt("timeAlg", 0);
+		if(timeAlgCode != TimeZiAlg.DirectTime.getCode()) {
+			timeAlgCode = TimeZiAlg.RealSun.getCode();
+		}
+		map.put("timeAlg", TimeZiAlg.fromCode(timeAlgCode));
 
 		if(TransData.containsParam("ad")) {
 			int ad = TransData.getValueAsInt("ad", 1);

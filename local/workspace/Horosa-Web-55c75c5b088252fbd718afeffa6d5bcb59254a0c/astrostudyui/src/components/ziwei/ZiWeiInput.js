@@ -37,6 +37,7 @@ class ZiWeiInput extends Component{
 		this.changeGeo = this.changeGeo.bind(this);
 
 		this.onGenderChange = this.onGenderChange.bind(this);
+		this.onTimeAlgChange = this.onTimeAlgChange.bind(this);
 		this.onChartTypeChange = this.onChartTypeChange.bind(this);
 		this.onTipsChange = this.onTipsChange.bind(this);
 
@@ -79,6 +80,30 @@ class ZiWeiInput extends Component{
 			this.props.onFieldsChange({
 				gender: {
 					value: val,
+				},
+				date: {
+					value: dt.clone(),
+				},
+				time:{
+					value: dt.clone(),
+				},
+				ad:{
+					value: dt.ad,
+				},
+				zone:{
+					value: dt.zone,
+				},
+
+			});
+		}
+	}
+
+	onTimeAlgChange(val){
+		if(this.props.onFieldsChange){
+			let dt = this.tmHook.getValue().value;
+			this.props.onFieldsChange({
+				timeAlg: {
+					value: val === 1 ? 1 : 0,
 				},
 				date: {
 					value: dt.clone(),
@@ -179,6 +204,9 @@ class ZiWeiInput extends Component{
 			fields.zwchart.value !== undefined && fields.zwchart.value !== null){
 			zwchart = fields.zwchart.value;
 		}
+		const timeAlg = fields.timeAlg && fields.timeAlg.value !== undefined && fields.timeAlg.value !== null
+			? fields.timeAlg.value
+			: 0;
 
 		return (
 			<div>
@@ -188,20 +216,26 @@ class ZiWeiInput extends Component{
 				</Col>	
 			</Row>
 			<Row>
-				<Col lg={12} xl={8}>
+				<Col lg={12} xl={6}>
 					<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' style={{width:'100%'}}>
 						<Option value={-1}>未知</Option>
 						<Option value={0}>女</Option>
 						<Option value={1}>男</Option>
 					</Select>
 				</Col>
-				<Col lg={12} xl={8}>
+				<Col lg={12} xl={6}>
+					<Select value={timeAlg} onChange={this.onTimeAlgChange} size='small' style={{width:'100%'}}>
+						<Option value={0}>真太阳时</Option>
+						<Option value={1}>直接时间</Option>
+					</Select>
+				</Col>
+				<Col lg={12} xl={6}>
 					<Select value={zwchart} onChange={this.onChartTypeChange} size='small' style={{width:'100%'}}>
 						<Option value={ZWCont.ZWChart_SiHua}>四化盘</Option>
 						<Option value={ZWCont.ZWChart_SangHe}>三合盘</Option>
 					</Select>				
 				</Col>
-				<Col lg={12} xl={8}>
+				<Col lg={12} xl={6}>
 					<div>
 						<GeoCoordModal 
 							onOk={this.changeGeo}

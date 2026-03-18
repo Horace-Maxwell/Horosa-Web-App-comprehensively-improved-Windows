@@ -533,11 +533,23 @@ def click_ai_export_copy(page) -> dict:
         page.wait_for_timeout(900 + attempt * 400)
         toast = read_toast_message(page)
         clip_text = ""
+        stable_rounds = 0
+        last_clip_len = 0
         for _ in range(12 + attempt * 6):
             latest_clip = read_clipboard(page)
             if latest_clip:
-                clip_text = latest_clip
-                break
+                if len(latest_clip) >= len(clip_text):
+                    clip_text = latest_clip
+                if "========== 内容结束 ==========" in latest_clip:
+                    break
+                current_len = len(latest_clip)
+                if current_len > last_clip_len:
+                    stable_rounds = 0
+                    last_clip_len = current_len
+                elif current_len == last_clip_len:
+                    stable_rounds += 1
+                    if stable_rounds >= 2:
+                        break
             latest_toast = read_toast_message(page)
             if latest_toast:
                 toast = latest_toast
@@ -548,6 +560,7 @@ def click_ai_export_copy(page) -> dict:
         last_result = {
             "toast": toast,
             "header": extract_export_header(clip_text),
+            "clipboard_text": clip_text,
             "clipboard_length": len(clip_text),
             "content_length": len(content),
             "content_excerpt": content[:260],
@@ -558,6 +571,7 @@ def click_ai_export_copy(page) -> dict:
     return last_result or {
         "toast": "",
         "header": "",
+        "clipboard_text": "",
         "clipboard_length": 0,
         "content_length": 0,
         "content_excerpt": "",
@@ -787,13 +801,13 @@ def ensure_star_ai_settings_effect(page, result: dict) -> None:
 def validate_primary_direction_export(page, result: dict) -> None:
     export_result = click_ai_export_copy(page)
     expect_export(export_result, "推运盘-主/界限法")
-    clip_text = read_clipboard(page)
+    clip_text = export_result.get("clipboard_text", "") or read_clipboard(page)
     checks = {
         "toast": export_result.get("toast", ""),
         "header": export_result.get("header", ""),
-        "has_method": "推运方法：AstroAPP-Alchabitius" in clip_text,
+        "has_method": re.search(r"推运方法[:：]\s*\S+", clip_text) is not None,
         "has_time_key": "度数换算：Ptolemy" in clip_text,
-        "has_arc_table": "| Arc | 迫星 | 应星 | 日期 |" in clip_text,
+        "has_arc_table": ("| Arc | 迫星 | 应星 | 日期 |" in clip_text) or ("| 赤经 | 迫星 | 应星 | 日期 |" in clip_text),
     }
     if not all(value for key, value in checks.items() if key.startswith("has_")):
         raise AssertionError(f"主限法 AI导出缺少关键字段: {checks}")

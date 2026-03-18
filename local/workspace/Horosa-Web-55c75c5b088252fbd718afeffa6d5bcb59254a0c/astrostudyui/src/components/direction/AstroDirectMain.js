@@ -89,7 +89,7 @@ function primaryDirectionMethodText(val){
 	if(val === 'horosa_legacy'){
 		return 'Horosa原方法';
 	}
-	return 'AstroAPP-Alchabitius';
+	return 'Alchabitius';
 }
 
 function primaryDirectionTimeKeyText(val){
@@ -405,13 +405,26 @@ function isPrimaryDirectionTabKey(key){
 	return key === 'primarydirect' || key === 'primarydirchart';
 }
 
+const VALID_DIRECTION_TABS = [
+	'primarydirect',
+	'primarydirchart',
+	'zodialrelease',
+	'firdaria',
+	'profection',
+	'solararc',
+	'solarreturn',
+	'lunarreturn',
+	'givenyear',
+	'decennials',
+];
+
 class AstroDirectMain extends Component{
 
 	constructor(props) {
 		super(props);
 
 		this.state = {
-			currentTab: props.currentSubTab || 'primarydirect',
+			currentTab: this.normalizeTab(props.currentSubTab),
 			hook:{
 				primarydirect:{
 					fun: null
@@ -459,6 +472,8 @@ class AstroDirectMain extends Component{
 		this.getDesiredPdConfig = this.getDesiredPdConfig.bind(this);
 		this.needsPrimaryDirectionLoad = this.needsPrimaryDirectionLoad.bind(this);
 		this.syncCurrentSubTab = this.syncCurrentSubTab.bind(this);
+		this.normalizeTab = this.normalizeTab.bind(this);
+		this.isActive = this.isActive.bind(this);
 
 		this.unmounted = false;
 		this.primaryDirectionInflightKey = '';
@@ -475,7 +490,18 @@ class AstroDirectMain extends Component{
 
 	}
 
+	normalizeTab(tab){
+		return VALID_DIRECTION_TABS.indexOf(tab) >= 0 ? tab : 'primarydirect';
+	}
+
+	isActive(){
+		return this.props.active !== false;
+	}
+
 	syncCurrentSubTab(){
+		if(!this.isActive()){
+			return;
+		}
 		if(!this.props.dispatch){
 			return;
 		}
@@ -582,7 +608,7 @@ class AstroDirectMain extends Component{
 		const chartObj = this.props.chartObj || {};
 		const req = this.buildPrimaryDirectionRequest(chartObj);
 		if(!req || !this.props.dispatch){
-			return;
+			return null;
 		}
 		const reqKey = JSON.stringify({
 			tab: this.state.currentTab,
@@ -600,7 +626,7 @@ class AstroDirectMain extends Component{
 			pdaspects: req.pdaspects,
 		});
 		if(this.primaryDirectionInflightKey === reqKey){
-			return;
+			return null;
 		}
 		this.primaryDirectionInflightKey = reqKey;
 		const seq = ++this.primaryDirectionRequestSeq;
@@ -615,12 +641,12 @@ class AstroDirectMain extends Component{
 			result = null;
 		}
 		if(this.unmounted || seq !== this.primaryDirectionRequestSeq){
-			return;
+			return null;
 		}
 		this.primaryDirectionInflightKey = '';
 		const pdRows = result && Array.isArray(result.pd) ? result.pd : null;
 		if(!pdRows){
-			return;
+			return null;
 		}
 		const nextChartObj = {
 			...chartObj,
@@ -637,12 +663,14 @@ class AstroDirectMain extends Component{
 				primaryDirection: pdRows,
 			},
 		};
+		this.savePrimaryDirectSnapshot(nextChartObj);
 		this.props.dispatch({
 			type: 'astro/save',
 			payload: {
 				chartObj: nextChartObj,
 			},
 		});
+		return nextChartObj;
 	}
 
 	ensurePrimaryDirectionReady(){
@@ -653,8 +681,8 @@ class AstroDirectMain extends Component{
 		this.requestPrimaryDirectionRows();
 	}
 
-	savePrimaryDirectSnapshot(){
-		const chartObj = this.props.chartObj || {};
+	savePrimaryDirectSnapshot(chartObjInput){
+		const chartObj = chartObjInput || this.props.chartObj || {};
 		const chartParams = chartObj.params || {};
 		const fields = this.props.fields || {};
 		const showPdBounds = chartParams.showPdBounds !== undefined
@@ -714,6 +742,15 @@ class AstroDirectMain extends Component{
 			return;
 		}
 		if(evt.detail.module === 'primarydirect'){
+			if(this.needsPrimaryDirectionLoad()){
+				this.requestPrimaryDirectionRows().then((nextChartObj)=>{
+					const txt = this.savePrimaryDirectSnapshot(nextChartObj);
+					if(txt){
+						evt.detail.snapshotText = txt;
+					}
+				});
+				return;
+			}
 			const txt = this.savePrimaryDirectSnapshot();
 			if(txt){
 				evt.detail.snapshotText = txt;
@@ -733,9 +770,11 @@ class AstroDirectMain extends Component{
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
-		this.syncCurrentSubTab();
-		this.ensurePrimaryDirectionReady();
-		this.saveDirectionSnapshot();
+		if(this.isActive()){
+			this.syncCurrentSubTab();
+			this.ensurePrimaryDirectionReady();
+			this.saveDirectionSnapshot();
+		}
 	}
 
 	componentWillUnmount(){
@@ -746,6 +785,33 @@ class AstroDirectMain extends Component{
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		if(prevProps.active !== this.props.active){
+			if(this.isActive()){
+				const nextTab = this.normalizeTab(this.props.currentSubTab);
+				if(nextTab !== this.state.currentTab){
+					this.setState({
+						currentTab: nextTab,
+					});
+					return;
+				}
+				this.syncCurrentSubTab();
+				this.ensurePrimaryDirectionReady();
+				this.saveDirectionSnapshot();
+			}
+			return;
+		}
+		if(!this.isActive()){
+			return;
+		}
+		if(prevProps.currentSubTab !== this.props.currentSubTab){
+			const nextTab = this.normalizeTab(this.props.currentSubTab);
+			if(nextTab !== this.state.currentTab){
+				this.setState({
+					currentTab: nextTab,
+				});
+				return;
+			}
+		}
 		if(
 			prevState.currentTab !== this.state.currentTab ||
 			prevProps.chartObj !== this.props.chartObj ||
@@ -768,15 +834,18 @@ class AstroDirectMain extends Component{
 	}
 
 	changeTab(key){
+		const nextTab = this.normalizeTab(key);
 		let hook = this.state.hook;
 		this.setState({
-			currentTab: key,
+			currentTab: nextTab,
 		}, ()=>{
-			this.syncCurrentSubTab();
-			this.ensurePrimaryDirectionReady();
-			this.saveDirectionSnapshot();
-			if(hook[key].fun){
-				hook[key].fun(this.props.chartObj);
+			if(this.isActive()){
+				this.syncCurrentSubTab();
+				this.ensurePrimaryDirectionReady();
+				this.saveDirectionSnapshot();
+			}
+			if(hook[nextTab].fun){
+				hook[nextTab].fun(this.props.chartObj);
 			}
 		});
 	}
@@ -830,7 +899,7 @@ class AstroDirectMain extends Component{
 		return (
 			<div>
 				<Tabs 
-					defaultActiveKey={this.state.currentTab} tabPosition='right'
+					activeKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
 					style={{ height: height }}
 				>

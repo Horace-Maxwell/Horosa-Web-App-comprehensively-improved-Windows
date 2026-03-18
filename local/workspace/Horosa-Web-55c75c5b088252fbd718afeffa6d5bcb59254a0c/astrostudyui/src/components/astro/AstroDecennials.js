@@ -55,6 +55,8 @@ const AI_MODE_ITEMS = [
 ];
 
 const LEVEL_COLORS = ['#0a2e81', '#c81808', '#005000', '#948e33'];
+const DECENNIAL_PANEL_RESERVED_HEIGHT = 72;
+const DECENNIAL_PANEL_MIN_HEIGHT = 240;
 
 function safeIdx(idx, len){
 	if(!len || len <= 0){
@@ -609,8 +611,10 @@ class AstroDecennials extends Component{
 
 	render(){
 		let height = this.props.height ? this.props.height : 760;
+		const panelHeight = Math.max(DECENNIAL_PANEL_MIN_HEIGHT, height - DECENNIAL_PANEL_RESERVED_HEIGHT);
 		const style = {
-			height: `${height - 20}px`,
+			height: `${panelHeight}px`,
+			maxHeight: `${panelHeight}px`,
 			overflowY: 'auto',
 			overflowX: 'hidden',
 		};

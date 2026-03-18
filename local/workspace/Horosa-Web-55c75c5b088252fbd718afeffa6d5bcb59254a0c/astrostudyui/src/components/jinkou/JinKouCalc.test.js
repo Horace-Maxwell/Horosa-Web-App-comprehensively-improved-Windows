@@ -58,6 +58,24 @@ describe('JinKouCalc', ()=>{
 		expect(data.jiangZi).toBe('酉');
 	});
 
+	it('uses displayed tianpan branch above 地分 when panYue is provided', ()=>{
+		const data = buildJinKouData(mockLiuReng({
+			nongli: {
+				time: '申时',
+				monthGanZi: '辛卯',
+			},
+			fourColumns: {
+				month: { ganzi: '辛卯' },
+			},
+		}), {
+			diFen: '巳',
+			guirengType: 0,
+			panYue: '亥',
+		});
+		expect(data.jiangZi).toBe('申');
+		expect(data.panYue).toBe('亥');
+	});
+
 	it('calculates 四大空亡 from 旬首', ()=>{
 		const dataZi = buildJinKouData(mockLiuReng({
 			xun: {

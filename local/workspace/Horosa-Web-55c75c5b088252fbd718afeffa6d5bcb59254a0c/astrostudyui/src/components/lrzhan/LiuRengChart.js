@@ -4,6 +4,7 @@ import { Row, Col, Tabs, DatePicker, Input, Button, Card, Select } from 'antd';
 import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import RengChart from './RengChart';
+import { isMeaningEnabled, } from '../astro/AstroMeaningPopover';
 
 class LiuRengChart extends Component{
 	constructor(props) {
@@ -27,6 +28,7 @@ class LiuRengChart extends Component{
 			gender: this.props.gender,
 			zhangshengElem: this.props.zhangshengElem,
 			guireng: this.props.guireng,
+			showMeaning: isMeaningEnabled(this.props.showAstroMeaning),
 		};
 		this.rengchart = new RengChart(opt);
 
@@ -73,6 +75,7 @@ class LiuRengChart extends Component{
 		this.rengchart.runyear = this.props.runyear;
 		this.rengchart.zhangshengElem = this.props.zhangshengElem;
 		this.rengchart.guireng = this.props.guireng;
+		this.rengchart.showMeaning = isMeaningEnabled(this.props.showAstroMeaning);
 
 		this.rengchart.draw();
 	}

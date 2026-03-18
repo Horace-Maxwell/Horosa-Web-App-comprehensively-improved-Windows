@@ -460,7 +460,8 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}	
+									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 									hook={hook.Comp}	
 								/>
 							</TabPane>
@@ -473,7 +474,8 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}	
+									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 									hook={hook.Composite}	
 								/>
 							</TabPane>
@@ -486,7 +488,8 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}	
+									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 									hook={hook.Synastry}	
 								/>
 							</TabPane>
@@ -499,7 +502,8 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}	
+									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 									hook={hook.TimeSpace}	
 								/>
 							</TabPane>
@@ -512,7 +516,8 @@ class AstroRelative extends Component{
 									chartB={this.state.chartB}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}	
+									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 									hook={hook.Marks}	
 								/>
 							</TabPane>

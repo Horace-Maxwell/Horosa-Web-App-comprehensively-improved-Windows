@@ -1,6 +1,64 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-03-08
+最后更新：2026-03-17
+
+## 2026-03-17 稳定版收尾与启动链路自检
+
+本轮以“稳定版”为目标，重点完成以下整理与确认：
+
+- 星盘相关下方面板的悬浮释义样式，已统一接入主盘同一套白底悬浮层
+- Windows 启动器已改为默认快速启动模式，不再每次都强制扫描源码新鲜度
+- Windows 启动器已补充服务复用与状态兜底逻辑
+- Windows 启动器已补充 AppCDS 动态归档链路：首次训练、后续自动启用
+- 本轮所有交付内容以稳定运行优先，避免引入需要用户额外理解的新入口
+
+### 本轮关键自检结果
+
+已完成并通过：
+
+- `Horosa_Local_Windows.ps1` 语法检查
+- 默认启动 smoke（AppCDS 开启）
+- `HOROSA_APPCDS=0` 回退 smoke
+- `HOROSA_CHECK_SOURCE_FRESHNESS=1` 兼容 smoke
+- AppCDS 首次训练生成 archive
+- AppCDS 第二次启动自动读取 archive
+
+### 本轮确认无新增问题
+
+未发现以下回归：
+
+- `START_HERE.bat` 无法启动
+- 关闭 AppCDS 后启动失败
+- 开启源码新鲜度检查后启动失败
+- 启动器因为 AppCDS 逻辑导致 Python / Java / 前端服务无法正常起来
+- 星盘共享悬浮释义改动导致原有 tooltip 开关失效
+
+### 本轮稳定版关键文件
+
+- `START_HERE.bat`
+- `local/Horosa_Local_Windows.ps1`
+- `docs/PROJECT_STRUCTURE.md`
+- `docs/SELFCHECK_LOG.md`
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/AstroObjectLabel.js`
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/src/components/astro/__tests__/AstroObjectLabel.test.js`
+
+### 本轮稳定版运行记录摘要
+
+最近通过的启动日志目录：
+
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/20260317_174231`
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/20260317_174305`
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/.horosa-local-logs-win/20260317_174340`
+
+AppCDS 动态归档已成功生成：
+
+- `%LocalAppData%\\Horosa\\runtime-cache\\55f8f8e47f4e\\windows\\appcds\\horosa-appcds-5c564233478ab4d839ce\\astrostudyboot-dynamic.jsa`
+
+### 当前结论
+
+- 这一轮可以作为 Windows 一键启动稳定版基线
+- 启动性能已加入低风险优化与 AppCDS 加速，但冷启动主要瓶颈仍在后端初始化本身
+- 如需继续压缩启动时间，应在当前稳定版基础上，谨慎推进更激进的 extracted / layered 后端运行方案
 
 ## 本轮根目录整理
 

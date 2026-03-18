@@ -743,6 +743,55 @@ export function genHtml(tipobj, needpadding){
 	return parts.join('');
 }
 
+function clampTooltipPos(val, min, max){
+	if(max < min){
+		return min;
+	}
+	return Math.min(Math.max(val, min), max);
+}
+
+export function positionTooltipInViewport(divTooltip, evt){
+	if(divTooltip === undefined || divTooltip === null || evt === undefined || evt === null){
+		return;
+	}
+	const node = divTooltip.node ? divTooltip.node() : null;
+	if(!node){
+		return;
+	}
+	const margin = 12;
+	const offsetX = 18;
+	const offsetY = 18;
+	const doc = document.documentElement || {};
+	const scrollX = window.pageXOffset !== undefined ? window.pageXOffset : (doc.scrollLeft || 0);
+	const scrollY = window.pageYOffset !== undefined ? window.pageYOffset : (doc.scrollTop || 0);
+	const viewportWidth = window.innerWidth || doc.clientWidth || 0;
+	const viewportHeight = window.innerHeight || doc.clientHeight || 0;
+	const viewportLeft = scrollX + margin;
+	const viewportTop = scrollY + margin;
+	const viewportRight = scrollX + viewportWidth - margin;
+	const viewportBottom = scrollY + viewportHeight - margin;
+	const pageX = evt.pageX !== undefined ? evt.pageX : scrollX + (evt.clientX || 0);
+	const pageY = evt.pageY !== undefined ? evt.pageY : scrollY + (evt.clientY || 0);
+	const tooltipWidth = node.offsetWidth || node.scrollWidth || 0;
+	const tooltipHeight = node.offsetHeight || node.scrollHeight || 0;
+
+	let left = pageX + offsetX;
+	if(left + tooltipWidth > viewportRight){
+		left = pageX - tooltipWidth - offsetX;
+	}
+	left = clampTooltipPos(left, viewportLeft, viewportRight - tooltipWidth);
+
+	let top = pageY + offsetY;
+	if(top + tooltipHeight > viewportBottom){
+		top = pageY - tooltipHeight - offsetY;
+	}
+	top = clampTooltipPos(top, viewportTop, viewportBottom - tooltipHeight);
+
+	divTooltip
+		.style('left', `${left}px`)
+		.style('top', `${top}px`);
+}
+
 export function creatTooltip(divTooltip, titleSvg, tipobj, onTipClick, needpadding){
 	if(divTooltip === undefined || divTooltip === null){
 		return;
@@ -753,9 +802,15 @@ export function creatTooltip(divTooltip, titleSvg, tipobj, onTipClick, needpaddi
 		divTooltip.transition()		
 			.duration(200)		
 			.style("opacity", .9);
-		divTooltip.html(str)
-			.style("left", (evt.pageX) + "px")
-			.style("top", (evt.pageY - 28) + "px");
+		divTooltip.html(str);
+		positionTooltipInViewport(divTooltip, evt);
+		if(window.requestAnimationFrame){
+			window.requestAnimationFrame(()=>{
+				positionTooltipInViewport(divTooltip, evt);
+			});
+		}
+	}).on('mousemove', (evt)=>{
+		positionTooltipInViewport(divTooltip, evt);
 	}).on('mouseout', (evt)=>{
 		divTooltip.transition()		
 			.duration(500)		

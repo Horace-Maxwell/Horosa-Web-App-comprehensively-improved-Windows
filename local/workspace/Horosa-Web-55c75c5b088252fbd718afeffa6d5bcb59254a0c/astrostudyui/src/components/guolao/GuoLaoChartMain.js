@@ -1,8 +1,6 @@
 import { Component } from 'react';
-import { Row, Col, Button, Divider, } from 'antd';
+import { Row, Col, Divider, } from 'antd';
 import * as Constants from '../../utils/constants';
-import request from '../../utils/request';
-import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import TipsBoard from '../comp/TipsBoard';
 import GuoLaoInput from './GuoLaoInput';
@@ -11,6 +9,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import * as AstroText from '../../constants/AstroText';
 import * as SZConst from '../suzhan/SZConst';
 import * as Su28Helper from '../su28/Su28Helper';
+import { fetchChart as fetchAstroChart } from '../../services/astro';
 
 const SIMPLE_TOKEN_MAP = {
 	A: '日',
@@ -436,11 +435,12 @@ class GuoLaoChartMain extends Component{
 	constructor(props) {
 		super(props);
 		this.state = {
-			chartObj: null,
+			chartObj: this.props.value || null,
 			tips: null,
 		};
 
 		this.unmounted = false;
+		this.requestToken = 0;
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.requestChart = this.requestChart.bind(this);
@@ -460,9 +460,14 @@ class GuoLaoChartMain extends Component{
 	}
 
 	async requestChart(params){
-		const data = await request(`${Constants.ServerRoot}/chart`, {
-			body: JSON.stringify(params),
+		const token = this.requestToken + 1;
+		this.requestToken = token;
+		const data = await fetchAstroChart(params, {
+			silent: true,
 		});
+		if(this.unmounted || token !== this.requestToken){
+			return;
+		}
 		const result = data[Constants.ResultKey]
 
 		const st = {
@@ -506,17 +511,16 @@ class GuoLaoChartMain extends Component{
 
 	onFieldsChange(field){
 		if(this.props.dispatch && this.props.fields){
-			let flds = {
-				fields: {
-					...this.props.fields,
-					...field,
-					nohook: false,
-				}
+			const nextFields = {
+				...this.props.fields,
+				...field,
+				nohook: true,
 			};
 			this.props.dispatch({
 				type: 'astro/fetchByFields',
-				payload: flds.fields
+				payload: nextFields
 			});
+			this.requestChartObj(nextFields);
 		}
 	}
 
@@ -528,7 +532,9 @@ class GuoLaoChartMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
-		if(this.props.fields){
+		if(this.state.chartObj){
+			this.saveGuolaoAISnapshot(null, this.state.chartObj);
+		}else if(this.props.fields){
 			this.requestChartObj();
 		}
 	}

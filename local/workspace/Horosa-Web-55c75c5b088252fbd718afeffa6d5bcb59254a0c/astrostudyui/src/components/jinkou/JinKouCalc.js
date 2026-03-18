@@ -239,6 +239,10 @@ function getGuiShenAtDiFen(dayGan, timeZi, diFen, guirengType){
 
 function getJiangZiAtDiFen(monthZi, timeZi, diFen){
 	const yuejiang = LRConst.ZiHe[monthZi];
+	return getJiangZiByPanYue(yuejiang, timeZi, diFen);
+}
+
+function getJiangZiByPanYue(yuejiang, timeZi, diFen){
 	if(!yuejiang){
 		return {
 			yuejiang: '',
@@ -263,6 +267,15 @@ function getJiangZiAtDiFen(monthZi, timeZi, diFen){
 		zi: zi,
 		name: JinKouYueJiangName[zi] ? JinKouYueJiangName[zi] : '',
 	};
+}
+
+function resolveJiangAtDiFen(liureng, opt, timeZi, diFen){
+	const panYue = extractFromList(opt.panYue, LRConst.ZiList);
+	if(panYue){
+		return getJiangZiByPanYue(panYue, timeZi, diFen);
+	}
+	const monthZi = getMonthZi(liureng);
+	return getJiangZiAtDiFen(monthZi, timeZi, diFen);
 }
 
 function parseBranches(text){
@@ -994,14 +1007,13 @@ export function buildJinKouData(liureng, options){
 	}
 
 	const dayGan = getDayGan(liureng);
-	const monthZi = getMonthZi(liureng);
 	const timeZi = getTimeZi(liureng);
 	const diFen = normalizeDiFen(opt.diFen, timeZi);
 	const renYuanGan = getStemByWuZiDun(dayGan, diFen);
 	const guiShen = getGuiShenAtDiFen(dayGan, timeZi, diFen, opt.guirengType);
 	const guiZi = guiShen.zi;
 	const guiGan = getStemByWuZiDun(dayGan, guiZi);
-	const jiang = getJiangZiAtDiFen(monthZi, timeZi, diFen);
+	const jiang = resolveJiangAtDiFen(liureng, opt, timeZi, diFen);
 	const jiangZi = jiang.zi;
 	const jiangGan = getStemByWuZiDun(dayGan, jiangZi);
 
@@ -1092,7 +1104,8 @@ export function buildJinKouData(liureng, options){
 		ready: true,
 		diFen: diFen,
 		timeZi: timeZi,
-		monthZi: monthZi,
+		monthZi: getMonthZi(liureng),
+		panYue: jiang.yuejiang,
 		dayGan: dayGan,
 		renYuanGan: renYuanGan,
 		guiName: guiShen.name,

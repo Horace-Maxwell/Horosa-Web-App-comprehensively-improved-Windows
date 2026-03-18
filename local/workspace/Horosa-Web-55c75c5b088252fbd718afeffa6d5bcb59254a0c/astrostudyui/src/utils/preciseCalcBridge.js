@@ -23,6 +23,48 @@ function safe(v, d = ''){
 	return v === undefined || v === null ? d : `${v}`;
 }
 
+function normalizeTimeAlg(value){
+	return parseInt(value, 10) === 1 ? 1 : 0;
+}
+
+function pad2(value){
+	return `${value}`.padStart(2, '0');
+}
+
+function buildRequestedBirth(params){
+	if(!params){
+		return '';
+	}
+	const date = safe(params.date).trim();
+	const timeRaw = safe(params.time).trim();
+	if(!date || !timeRaw){
+		return '';
+	}
+	const segs = timeRaw.split(':');
+	if(segs.length < 2){
+		return `${date} ${timeRaw}`;
+	}
+	const hour = pad2(parseInt(segs[0], 10) || 0);
+	const minute = pad2(parseInt(segs[1], 10) || 0);
+	const second = pad2(parseInt(segs[2], 10) || 0);
+	return `${date} ${hour}:${minute}:${second}`;
+}
+
+function isCompatibleNongliResult(params, result){
+	if(!result){
+		return false;
+	}
+	if(normalizeTimeAlg(params && params.timeAlg) !== 1){
+		return true;
+	}
+	const expectedBirth = buildRequestedBirth(params);
+	const actualBirth = safe(result && result.birth).trim();
+	if(!expectedBirth || !actualBirth){
+		return false;
+	}
+	return actualBirth === expectedBirth;
+}
+
 function pushCache(cacheMap, key, val){
 	if(!key || val === undefined || val === null){
 		return;
@@ -68,10 +110,14 @@ function normalizeDayGanzhi(entry){
 export async function fetchPreciseNongli(params){
 	const key = buildKey(params, NONG_LI_KEYS);
 	if(key && nongliMem.has(key)){
-		return nongliMem.get(key);
+		const memHit = nongliMem.get(key);
+		if(isCompatibleNongliResult(params, memHit)){
+			return memHit;
+		}
+		nongliMem.delete(key);
 	}
 	const localHit = getNongliLocalCache(params);
-	if(localHit){
+	if(localHit && isCompatibleNongliResult(params, localHit)){
 		if(key){
 			pushCache(nongliMem, key, localHit);
 		}
@@ -87,9 +133,10 @@ export async function fetchPreciseNongli(params){
 				silent: true,
 			});
 			const result = rsp && rsp[ResultKey] ? rsp[ResultKey] : null;
-			if(result){
+			if(result && isCompatibleNongliResult(params, result)){
 				pushCache(nongliMem, key, result);
 				setNongliLocalCache(params, result);
+				return result;
 			}
 			return result;
 		}catch(e){

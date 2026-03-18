@@ -108,7 +108,8 @@ public class BaZi {
 		}
 		
 		
-		NongLi nl = NongliHelper.getNongLi(this.ad, this.birth, zone, lon, after23NewDay);
+		boolean directTime = this.timeAlg == TimeZiAlg.DirectTime;
+		NongLi nl = NongliHelper.getNongLi(this.ad, this.birth, zone, lon, after23NewDay, directTime);
 		this.nongli = nl.toMap();
 		
 		this.setup();

@@ -4,7 +4,7 @@ import * as AstroText from '../../constants/AstroText';
 import * as Su28Helper from './Su28Helper';
 import * as SZConst from '../suzhan/SZConst';
 import {splitDegree} from '../astro/AstroHelper';
-import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
+import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip, positionTooltipInViewport} from '../../utils/helper';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
 import {ZiSign,} from '../suzhan/SZConst';
 
@@ -196,9 +196,15 @@ class Su28ChartCircle {
 			this.divTooltip.transition()		
 				.duration(200)		
 				.style("opacity", .9);
-			this.divTooltip.html(str)
-				.style("left", (evt.pageX) + "px")
-				.style("top", (evt.pageY - 28) + "px");
+			this.divTooltip.html(str);
+			positionTooltipInViewport(this.divTooltip, evt);
+			if(window.requestAnimationFrame){
+				window.requestAnimationFrame(()=>{
+					positionTooltipInViewport(this.divTooltip, evt);
+				});
+			}
+		}).on('mousemove', (evt)=>{
+			positionTooltipInViewport(this.divTooltip, evt);
 		}).on('mouseout', (evt)=>{
 			this.divTooltip.transition()		
 				.duration(500)		

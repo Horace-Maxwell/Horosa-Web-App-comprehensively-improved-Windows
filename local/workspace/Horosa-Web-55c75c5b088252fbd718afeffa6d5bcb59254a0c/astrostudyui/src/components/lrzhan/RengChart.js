@@ -23,6 +23,7 @@ class RengChart {
 		this.gender = options.gender;
 		this.zhangshengElem = options.zhangshengElem;
 		this.guireng = options.guireng;
+		this.showMeaning = options.showMeaning === true;
 		this.divTooltip = null;
 
 		this.margin = 20;
@@ -66,9 +67,11 @@ class RengChart {
 			.style('padding', '2px')
 			.style('padding-left', '10px')
 			.style('font', '13px sans-serif')
-			.style('background', 'lightsteelblue')
-			.style('border', '0px')
+			.style('background', '#ffffff')
+			.style('color', '#111827')
+			.style('border', '1px solid #dbe5f1')
 			.style('border-radius', '8px')
+			.style('box-shadow', '0 8px 24px rgba(15, 23, 42, 0.14)')
 			.style('pointer-events', 'none');
 	}
 
@@ -189,7 +192,9 @@ class RengChart {
 			owner: this.svgTopgroup,
 			ke: this.ke,
 			nongli: this.nongli,	
-			guireng: this.guireng,		
+			guireng: this.guireng,
+			divTooltip: this.divTooltip,
+			showMeaning: this.showMeaning,
 		};
 		let kesvg = new KeChart(opt);
 		this.rengs[1] = kesvg;
@@ -210,6 +215,8 @@ class RengChart {
 			nongli: this.nongli,
 			guireng: this.guireng,
 			liuRengChart: this.rengs[0],			
+			divTooltip: this.divTooltip,
+			showMeaning: this.showMeaning,
 		};
 		let csvg = new ChuangChart(opt1);
 		this.rengs[2] = csvg;

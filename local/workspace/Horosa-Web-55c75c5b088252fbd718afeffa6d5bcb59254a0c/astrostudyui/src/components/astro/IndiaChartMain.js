@@ -160,7 +160,10 @@ class IndiaChartMain extends Component{
 
 	onFieldsChange(values){
 		if(this.props.onChange){
-			let flds = this.props.onChange(values);
+			let flds = this.props.onChange({
+				...values,
+				nohook: true,
+			});
 			flds.chartnum = {};
 			flds.chartnum.value = this.state.currentFractal;
 			let hook = this.state.hook[this.state.currentTab];
@@ -206,6 +209,7 @@ class IndiaChartMain extends Component{
 						chartDisplay={this.props.chartDisplay}
 						planetDisplay={this.props.planetDisplay}
 						lotsDisplay={this.props.lotsDisplay}
+						showAstroMeaning={this.props.showAstroMeaning}
 						hook={hook}
 					/>						
 				</TabPane>
@@ -232,6 +236,7 @@ class IndiaChartMain extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
 							hook={this.state.hook.Natal}
 						/>						
 					</TabPane>
@@ -244,4 +249,3 @@ class IndiaChartMain extends Component{
 }
 
 export default IndiaChartMain;
-

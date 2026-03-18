@@ -121,6 +121,30 @@ describe('aiExport utilities', ()=>{
 		expect(Array.isArray(liureng.options)).toBe(true);
 	});
 
+	test('all AI export techniques expose stable settings metadata', ()=>{
+		const list = listAIExportTechniqueSettings();
+		const keys = list.map((item)=>item.key);
+		expect(new Set(keys).size).toBe(keys.length);
+		list.forEach((item)=>{
+			expect(item.label).toBeTruthy();
+			expect(Array.isArray(item.options)).toBe(true);
+			expect(item.options.length).toBeGreaterThan(0);
+			if(item.supportsPlanetInfo){
+				expect(item.planetInfo).toEqual({
+					showHouse: expect.any(Number),
+					showRuler: expect.any(Number),
+				});
+			}
+			if(item.supportsAstroMeaning){
+				expect(item.astroMeaning).toEqual({
+					enabled: expect.any(Number),
+				});
+				expect(item.astroMeaningTitle).toBeTruthy();
+				expect(item.astroMeaningCheckbox).toBeTruthy();
+			}
+		});
+	});
+
 	test('context mapping matrix across major tabs and copy export path', async ()=>{
 		loadModuleAISnapshot.mockImplementation((moduleName)=>{
 			if(moduleName === 'jieqi_current'){
@@ -273,6 +297,39 @@ describe('aiExport utilities', ()=>{
 			key: 'liureng',
 			displayName: '大六壬',
 		});
+
+		document.body.innerHTML = `
+			<div id="mainContent">
+				<div class="ant-tabs ant-tabs-left">
+					<div class="ant-tabs-nav">
+						<div class="ant-tabs-tab ant-tabs-tab-active">八字紫微</div>
+					</div>
+					<div class="ant-tabs-content-holder">
+						<div class="ant-tabs-content">
+							<div class="ant-tabs-tabpane ant-tabs-tabpane-active">
+								<div class="ant-tabs ant-tabs-right">
+									<div class="ant-tabs-nav">
+										<div class="ant-tabs-tab">八字</div>
+										<div class="ant-tabs-tab ant-tabs-tab-active">紫微斗数</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'cntradition',
+				currentSubTab: '',
+			},
+		});
+		expect(getCurrentAIExportContext()).toEqual({
+			key: 'ziwei',
+			displayName: '紫微斗数',
+		});
 	});
 
 	test('runAIExport(copy) copies normalized payload text', async ()=>{
@@ -285,6 +342,58 @@ describe('aiExport utilities', ()=>{
 		expect(copied).toContain('测试内容');
 		expect(copied).toContain('========== 内容开始 ==========');
 		expect(copied).toContain('========== 内容结束 ==========');
+	});
+
+	test('astrochart3D export keeps canonical 星盘 header', async ()=>{
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'astrochart3D',
+				currentSubTab: '',
+			},
+		});
+
+		const result = await runAIExport('copy');
+		expect(result.ok).toBe(true);
+		const copied = navigator.clipboard.writeText.mock.calls[navigator.clipboard.writeText.mock.calls.length - 1][0];
+		expect(copied).toContain('技术: 星盘');
+		expect(copied).not.toContain('技术: 三维盘');
+	});
+
+	test('locastro export keeps canonical 希腊/星体地图 header', async ()=>{
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'locastro',
+				currentSubTab: '',
+			},
+		});
+
+		const result = await runAIExport('copy');
+		expect(result.ok).toBe(true);
+		const copied = navigator.clipboard.writeText.mock.calls[navigator.clipboard.writeText.mock.calls.length - 1][0];
+		expect(copied).toContain('技术: 希腊/星体地图');
+		expect(copied).not.toContain('技术: 星体地图');
+	});
+
+	test('suzhan export keeps canonical 宿占 header', async ()=>{
+		getStore.mockReturnValue({
+			astro: {
+				currentTab: 'cnyibu',
+				currentSubTab: 'suzhan',
+			},
+		});
+
+		loadModuleAISnapshot.mockImplementation((moduleName)=>{
+			if(moduleName === 'suzhan'){
+				return { content: '[起盘信息]\n宿盘快照' };
+			}
+			return null;
+		});
+
+		const result = await runAIExport('copy');
+		expect(result.ok).toBe(true);
+		const copied = navigator.clipboard.writeText.mock.calls[navigator.clipboard.writeText.mock.calls.length - 1][0];
+		expect(copied).toContain('技术: 宿占');
+		expect(copied).not.toContain('技术: 宿盘');
 	});
 
 	test('runAIExport(txt/word/pdf) executes download and print branches', async ()=>{

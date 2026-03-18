@@ -24,6 +24,13 @@ class ZWCenterHouse extends ZWCommHouse {
 		this.shiTongZHMap = new Map();
 	}
 
+	getTimeAlgLabel(){
+		const val = this.fields && this.fields.timeAlg && this.fields.timeAlg.value !== undefined && this.fields.timeAlg.value !== null
+			? this.fields.timeAlg.value
+			: 0;
+		return Number.parseInt(val, 10) === 1 ? '直接时间' : '真太阳时';
+	}
+
 
 	draw(){
 		this.owner.select('#' + this.id).remove();
@@ -93,7 +100,10 @@ class ZWCenterHouse extends ZWCommHouse {
 		let zonepos = '时区：' + this.chartObj.zone
 		+ '； 经度：' + this.chartObj.lon + '； 纬度：' + this.chartObj.lat;
 		let nongli = this.chartObj.nongli;
-		let birth = '真太阳时：' + nongli.birth;
+		let solarBirth = this.chartObj.realSunBirth ? this.chartObj.realSunBirth : nongli.birth;
+		let birth = '真太阳时：' + solarBirth;
+		let directBirth = '直接时间：' + this.chartObj.birth;
+		let timeAlg = '时间算法：' + this.getTimeAlgLabel();
 		let leap = nongli.leap ? '闰' : '';
 		let nltxt = '农历：' + nongli.year + '年 ' + leap + nongli.month + nongli.day + ' ' + nongli.time.charAt(1) + '时';
 
@@ -111,6 +121,29 @@ class ZWCenterHouse extends ZWCommHouse {
 
 		let nlx = x;
 		let nly = y + sz + this.rowgap;
+		let directsvg = this.svg.append('g');
+		directsvg.append('text')
+			.attr("dominant-baseline","middle")
+			.attr("text-anchor", "left")
+			.attr('font-weight', 100)
+			.attr('stroke', AstroConst.AstroColor.Stroke)
+			.attr('font-size', `${sz}px`)
+			.attr('x', nlx).attr('y', nly)
+			.text(directBirth);
+
+		let algx = x;
+		let algy = nly + sz + this.rowgap;
+		let algsvg = this.svg.append('g');
+		algsvg.append('text')
+			.attr("dominant-baseline","middle")
+			.attr("text-anchor", "left")
+			.attr('font-weight', 100)
+			.attr('stroke', AstroConst.AstroColor.Stroke)
+			.attr('font-size', `${sz}px`)
+			.attr('x', algx).attr('y', algy)
+			.text(timeAlg);
+
+		let nltxtY = algy + sz + this.rowgap;
 		let nlsvg = this.svg.append('g');
 		nlsvg.append('text')
 			.attr("dominant-baseline","middle")
@@ -118,11 +151,11 @@ class ZWCenterHouse extends ZWCommHouse {
 			.attr('font-weight', 100)
 			.attr('stroke', AstroConst.AstroColor.Stroke)
 			.attr('font-size', `${sz}px`)
-			.attr('x', nlx).attr('y', nly)
+			.attr('x', nlx).attr('y', nltxtY)
 			.text(nltxt);
 
 		let zonex = x;
-		let zoney = nly + sz + this.rowgap;
+		let zoney = nltxtY + sz + this.rowgap;
 		let zonesvg = this.svg.append('g');
 		zonesvg.append('text')
 			.attr("dominant-baseline","middle")

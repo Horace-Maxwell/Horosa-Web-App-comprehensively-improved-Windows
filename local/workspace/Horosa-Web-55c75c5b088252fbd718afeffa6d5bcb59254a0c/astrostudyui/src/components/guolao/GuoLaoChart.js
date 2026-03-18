@@ -30,12 +30,14 @@ class GuoLaoChart extends Component{
 
 		this.glchart = new GLChart(svgid, null, this.props.fields, this.state.tooltipId, this.props.onTipClick);
 		this.redrawTimer = null;
+		this.resizeObserver = null;
 
 		this.drawChart = this.drawChart.bind(this);
 		this.getChartShape = this.getChartShape.bind(this);
 		this.updateSquareSide = this.updateSquareSide.bind(this);
 		this.handleResize = this.handleResize.bind(this);
 		this.scheduleDrawRetry = this.scheduleDrawRetry.bind(this);
+		this.observeChartResize = this.observeChartResize.bind(this);
 	}
 
 	getChartShape(){
@@ -207,9 +209,28 @@ class GuoLaoChart extends Component{
 		}, 120);
 	}
 
+	observeChartResize(){
+		let svgdom = document.getElementById(this.state.chartid);
+		if(!svgdom || typeof ResizeObserver === 'undefined'){
+			return;
+		}
+		this.resizeObserver = new ResizeObserver(()=>{
+			if(this.getChartShape() === SZConst.SZChart_Square){
+				this.updateSquareSide();
+			}
+			this.drawChart();
+			this.scheduleDrawRetry();
+		});
+		this.resizeObserver.observe(svgdom);
+		if(svgdom.parentElement){
+			this.resizeObserver.observe(svgdom.parentElement);
+		}
+	}
+
 	componentDidMount(){
 		window.addEventListener('resize', this.handleResize)
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
+		this.observeChartResize();
 		this.updateSquareSide();
 		this.drawChart();
 		this.scheduleDrawRetry();
@@ -229,6 +250,10 @@ class GuoLaoChart extends Component{
 		if(this.redrawTimer){
 			clearTimeout(this.redrawTimer);
 			this.redrawTimer = null;
+		}
+		if(this.resizeObserver){
+			this.resizeObserver.disconnect();
+			this.resizeObserver = null;
 		}
 	}
 

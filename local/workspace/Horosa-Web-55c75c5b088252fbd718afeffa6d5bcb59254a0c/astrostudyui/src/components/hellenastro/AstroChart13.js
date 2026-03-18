@@ -83,6 +83,7 @@ class AstroChart13 extends Component{
 		};
 
 		this.unmounted = false;
+		this.requestToken = 0;
 
 		this.requestChart = this.requestChart.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -104,7 +105,12 @@ class AstroChart13 extends Component{
 		if(!params){
 			return;
 		}
+		const token = this.requestToken + 1;
+		this.requestToken = token;
 		const result = await fetchChart13Cached(params);
+		if(this.unmounted || token !== this.requestToken){
+			return;
+		}
 
 		const st = {
 			chartObj: result,
@@ -159,6 +165,7 @@ class AstroChart13 extends Component{
 					chartDisplay={this.props.chartDisplay}
 					planetDisplay={this.props.planetDisplay}
 					lotsDisplay={this.props.lotsDisplay}
+					showAstroMeaning={this.props.showAstroMeaning}
 				/>
 			</div>
 		);

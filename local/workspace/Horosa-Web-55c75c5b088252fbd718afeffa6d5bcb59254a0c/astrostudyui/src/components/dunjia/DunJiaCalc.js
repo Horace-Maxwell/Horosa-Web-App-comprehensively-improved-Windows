@@ -2517,8 +2517,8 @@ export function buildDunJiaSnapshotText(pan){
 	lines.push('[起盘信息]');
 	lines.push(`日期：${calcDate} ${calcTime}`);
 	lines.push(`直接时间：${directTime}`);
-	if(pan.realSunTime){
-		lines.push(`真太阳时：${pan.realSunTime}`);
+	if(pan.realSunTimeDisplay || pan.realSunTime){
+		lines.push(`真太阳时：${pan.realSunTimeDisplay || pan.realSunTime}`);
 	}
 	lines.push(`时间算法：${normalizeTimeAlg(pan.timeAlg) === 1 ? '直接时间' : '真太阳时'}`);
 	if(pan.lunarText){
@@ -2571,4 +2571,3 @@ export function buildDunJiaSnapshotText(pan){
 
 	return lines.join('\n');
 }
-

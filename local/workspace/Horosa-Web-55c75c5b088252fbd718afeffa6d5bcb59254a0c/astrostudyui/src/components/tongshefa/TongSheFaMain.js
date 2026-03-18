@@ -1104,7 +1104,7 @@ class TongSheFaMain extends Component{
 		);
 	}
 
-	renderObserveTab(model, tabheight){
+	renderObserveTab(model){
 		const cards = POSITION_KEYS.map((posKey)=>{
 			const meta = POSITION_META[posKey];
 			const trigram = model.selected[posKey];
@@ -1126,7 +1126,7 @@ class TongSheFaMain extends Component{
 		});
 
 		return (
-			<div className={styles.scrollbar} style={{ height: tabheight, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+			<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
 				<Row gutter={8}>
 					{cards}
 				</Row>
@@ -1134,7 +1134,7 @@ class TongSheFaMain extends Component{
 		);
 	}
 
-	renderSanJieTab(model, tabheight){
+	renderSanJieTab(model){
 		const selectedTagMap = {};
 		POSITION_KEYS.forEach((posKey)=>{
 			const baguaKey = model.selected[posKey];
@@ -1174,7 +1174,7 @@ class TongSheFaMain extends Component{
 		});
 
 		return (
-			<div className={styles.scrollbar} style={{ height: tabheight, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+			<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
 				<Card size='small' title='三界'>
 					{SANJIE_TEXT.map((item)=>{
 						return (
@@ -1192,7 +1192,7 @@ class TongSheFaMain extends Component{
 		);
 	}
 
-	renderYaoWeiTab(model, tabheight){
+	renderYaoWeiTab(model){
 		const leftTitle = shortGuaName(model.baseLeft.gua ? model.baseLeft.gua.name : '左卦');
 		const rightTitle = shortGuaName(model.baseRight.gua ? model.baseRight.gua.name : '右卦');
 		const leftLines = model.baseLeft.lines.map((value, idx)=>{
@@ -1205,7 +1205,7 @@ class TongSheFaMain extends Component{
 		}).reverse();
 
 		return (
-			<div className={styles.scrollbar} style={{ height: tabheight, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+			<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
 				<Card size='small' title='爻位原意' style={{ marginBottom: 8 }}>
 					{YAO_ORIGIN.map((item)=>{
 						return <div key={item.line}>{item.line}爻：{item.name}</div>;
@@ -1260,7 +1260,7 @@ class TongSheFaMain extends Component{
 		);
 	}
 
-	renderNaJiaTab(model, tabheight){
+	renderNaJiaTab(model){
 		const baseRows = [];
 		const leftAsMainRows = [];
 		const rightAsMainRows = [];
@@ -1300,7 +1300,7 @@ class TongSheFaMain extends Component{
 		}
 
 		return (
-			<div className={styles.scrollbar} style={{ height: tabheight, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+			<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
 				<Card size='small' title='左右卦之五行关系' style={{ marginBottom: 8 }}>
 					<div style={{ marginBottom: 6 }}>
 						<Tag color='blue'>{model.mainRelation}</Tag>
@@ -1352,7 +1352,6 @@ class TongSheFaMain extends Component{
 		}else{
 			height = height - 20;
 		}
-		const tabheight = typeof height === 'number' ? Math.max(height - 360, 220) : 'calc(100% - 360px)';
 		const leftHeight = typeof height === 'number' ? height : 'calc(100% - 20px)';
 		const model = buildTongSheFaModel(this.state.selected);
 
@@ -1377,75 +1376,79 @@ class TongSheFaMain extends Component{
 						</div>
 					</Col>
 					<Col span={8}>
-						<Row>
-							<Col span={24}>
-								<div style={{ marginBottom: 2 }}>是否显示边框</div>
-								<Select
-									value={this.state.showMatrixBorder ? 1 : 0}
-									onChange={this.onBorderToggle}
-									style={{ width: '100%' }}
-								>
-									<Option value={1}>显示</Option>
-									<Option value={0}>不显示</Option>
-								</Select>
-							</Col>
-						</Row>
-						<Row style={{ marginTop: 8 }}>
-							<Col span={24}>
-								<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存为事盘</Button>
-							</Col>
-						</Row>
-						<Divider />
-						<Row gutter={10} style={{ marginBottom: 8 }}>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>太阴·本体</div>
-								<Select value={model.selected.taiyin} onChange={(val)=>this.changeSelect('taiyin', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`taiyin_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>太阳·方法</div>
-								<Select value={model.selected.taiyang} onChange={(val)=>this.changeSelect('taiyang', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`taiyang_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-						</Row>
-						<Row gutter={10} style={{ marginBottom: 8 }}>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>少阳·认识</div>
-								<Select value={model.selected.shaoyang} onChange={(val)=>this.changeSelect('shaoyang', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`shaoyang_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-							<Col span={12}>
-								<div style={{ marginBottom: 4 }}>少阴·宇宙</div>
-								<Select value={model.selected.shaoyin} onChange={(val)=>this.changeSelect('shaoyin', val)} style={{ width: '100%' }}>
-									{BAGUA_LIST.map((item)=>{
-										return <Option key={`shaoyin_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
-									})}
-								</Select>
-							</Col>
-						</Row>
-						<Tabs defaultActiveKey='observe32' tabPosition='top' style={{ height: tabheight }}>
-							<TabPane tab='三十二观' key='observe32'>
-								{this.renderObserveTab(model, tabheight)}
-							</TabPane>
-							<TabPane tab='三界' key='sanjie'>
-								{this.renderSanJieTab(model, tabheight)}
-							</TabPane>
-							<TabPane tab='爻位' key='yaowei'>
-								{this.renderYaoWeiTab(model, tabheight)}
-							</TabPane>
-							<TabPane tab='纳甲筮法' key='najia'>
-								{this.renderNaJiaTab(model, tabheight)}
-							</TabPane>
-						</Tabs>
+						<div className={styles.fillPanelHost} style={{ height, maxHeight: height }}>
+							<div className={styles.fillPanelStatic}>
+								<Row>
+									<Col span={24}>
+										<div style={{ marginBottom: 2 }}>是否显示边框</div>
+										<Select
+											value={this.state.showMatrixBorder ? 1 : 0}
+											onChange={this.onBorderToggle}
+											style={{ width: '100%' }}
+										>
+											<Option value={1}>显示</Option>
+											<Option value={0}>不显示</Option>
+										</Select>
+									</Col>
+								</Row>
+								<Row style={{ marginTop: 8 }}>
+									<Col span={24}>
+										<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存为事盘</Button>
+									</Col>
+								</Row>
+								<Divider />
+								<Row gutter={10} style={{ marginBottom: 8 }}>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>太阴·本体</div>
+										<Select value={model.selected.taiyin} onChange={(val)=>this.changeSelect('taiyin', val)} style={{ width: '100%' }}>
+											{BAGUA_LIST.map((item)=>{
+												return <Option key={`taiyin_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
+											})}
+										</Select>
+									</Col>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>太阳·方法</div>
+										<Select value={model.selected.taiyang} onChange={(val)=>this.changeSelect('taiyang', val)} style={{ width: '100%' }}>
+											{BAGUA_LIST.map((item)=>{
+												return <Option key={`taiyang_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
+											})}
+										</Select>
+									</Col>
+								</Row>
+								<Row gutter={10} style={{ marginBottom: 8 }}>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>少阳·认识</div>
+										<Select value={model.selected.shaoyang} onChange={(val)=>this.changeSelect('shaoyang', val)} style={{ width: '100%' }}>
+											{BAGUA_LIST.map((item)=>{
+												return <Option key={`shaoyang_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
+											})}
+										</Select>
+									</Col>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>少阴·宇宙</div>
+										<Select value={model.selected.shaoyin} onChange={(val)=>this.changeSelect('shaoyin', val)} style={{ width: '100%' }}>
+											{BAGUA_LIST.map((item)=>{
+												return <Option key={`shaoyin_${item.key}`} value={item.key}>{item.symbol}{item.cname}（{item.name}）</Option>;
+											})}
+										</Select>
+									</Col>
+								</Row>
+							</div>
+							<Tabs defaultActiveKey='observe32' tabPosition='top' className={styles.fillTabs} style={{ marginTop: 8 }}>
+								<TabPane tab='三十二观' key='observe32'>
+									{this.renderObserveTab(model)}
+								</TabPane>
+								<TabPane tab='三界' key='sanjie'>
+									{this.renderSanJieTab(model)}
+								</TabPane>
+								<TabPane tab='爻位' key='yaowei'>
+									{this.renderYaoWeiTab(model)}
+								</TabPane>
+								<TabPane tab='纳甲筮法' key='najia'>
+									{this.renderNaJiaTab(model)}
+								</TabPane>
+							</Tabs>
+						</div>
 					</Col>
 				</Row>
 			</div>

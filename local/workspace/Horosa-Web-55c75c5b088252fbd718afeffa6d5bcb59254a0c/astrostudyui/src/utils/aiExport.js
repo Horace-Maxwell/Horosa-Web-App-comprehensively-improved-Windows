@@ -405,6 +405,12 @@ function isPlanetInfoTechnique(key){
 }
 
 function normalizeAstroMeaningSetting(raw){
+	if(raw === 1 || raw === true){
+		return { enabled: 1 };
+	}
+	if(raw === 0 || raw === false){
+		return { enabled: 0 };
+	}
 	const val = raw && typeof raw === 'object' ? raw : {};
 	return {
 		enabled: val.enabled === 1 || val.enabled === true ? 1 : 0,
@@ -530,7 +536,7 @@ function normalizeAIExportSettings(settings){
 	const sections = settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
 	Object.keys(sections).forEach((key)=>{
 		const arr = Array.isArray(sections[key]) ? sections[key] : [];
-		normalized.sections[key] = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+		normalized.sections[key] = uniqueArray(arr.map((item)=>mapLegacySectionTitle(key, item)).filter(Boolean));
 	});
 	if(sourceVersion < AI_EXPORT_SECTION_MIGRATION_VERSION){
 		AI_EXPORT_SECTION_MIGRATION_KEYS.forEach((key)=>{
@@ -546,18 +552,45 @@ function normalizeAIExportSettings(settings){
 		});
 	}
 	const planetInfo = settings.planetInfo && typeof settings.planetInfo === 'object' ? settings.planetInfo : {};
+	const legacyPlanetMeta = settings.planetMeta && typeof settings.planetMeta === 'object' ? settings.planetMeta : {};
 	Object.keys(planetInfo).forEach((key)=>{
 		if(!isPlanetInfoTechnique(key)){
 			return;
 		}
 		normalized.planetInfo[key] = normalizePlanetInfoSetting(planetInfo[key]);
 	});
+	Object.keys(legacyPlanetMeta).forEach((key)=>{
+		if(!isPlanetInfoTechnique(key) || normalized.planetInfo[key]){
+			return;
+		}
+		normalized.planetInfo[key] = normalizePlanetInfoSetting(legacyPlanetMeta[key]);
+	});
 	const astroMeaning = settings.astroMeaning && typeof settings.astroMeaning === 'object' ? settings.astroMeaning : {};
+	const legacyAnnotations = settings.annotations && typeof settings.annotations === 'object' ? settings.annotations : {};
 	Object.keys(astroMeaning).forEach((key)=>{
 		if(!isAstroMeaningTechnique(key) && !isHoverMeaningTechnique(key)){
 			return;
 		}
 		normalized.astroMeaning[key] = normalizeAstroMeaningSetting(astroMeaning[key]);
+	});
+	Object.keys(legacyAnnotations).forEach((key)=>{
+		if(normalized.astroMeaning[key]){
+			return;
+		}
+		if(!isAstroMeaningTechnique(key) || isHoverMeaningTechnique(key)){
+			return;
+		}
+		normalized.astroMeaning[key] = normalizeAstroMeaningSetting(legacyAnnotations[key]);
+	});
+	normalized.planetMeta = {
+		...normalized.planetInfo,
+	};
+	normalized.annotations = {};
+	Object.keys(normalized.astroMeaning).forEach((key)=>{
+		if(isHoverMeaningTechnique(key)){
+			return;
+		}
+		normalized.annotations[key] = normalized.astroMeaning[key].enabled === 1 ? 1 : 0;
 	});
 	return normalized;
 }
@@ -597,7 +630,7 @@ async function requestModuleSnapshotRefresh(moduleName){
 	}
 	// 某些模块会在事件回调里触发异步重算后才写快照；轮询一小段时间。
 	const stepMs = 120;
-	const maxWaitMs = 1800;
+	const maxWaitMs = 3200;
 	let waited = 0;
 	while(waited <= maxWaitMs){
 		const direct = typeof detail.snapshotText === 'string'
@@ -749,6 +782,12 @@ function mapLegacySectionTitle(key, title){
 		}
 	}
 	if(key === 'liureng'){
+		if(normalized === '大格命中'){
+			return '大格';
+		}
+		if(normalized === '小局命中'){
+			return '小局';
+		}
 		if(normalized.startsWith('三传(')){
 			return '三传';
 		}
@@ -1180,6 +1219,10 @@ function getTabsNavItems(container){
 	if(!container){
 		return [];
 	}
+	const directNav = Array.from(container.children).find((n)=>n.classList && n.classList.contains('ant-tabs-nav'));
+	if(directNav){
+		return Array.from(directNav.querySelectorAll('.ant-tabs-tab'));
+	}
 	return Array.from(container.querySelectorAll('.ant-tabs-nav .ant-tabs-tab'));
 }
 
@@ -1398,12 +1441,12 @@ function resolveActiveContext(){
 		context.displayName = '节气盘';
 		return context;
 	}
-	if(topLabel === '八字' || topLabel.includes('八字')){
+	if(topLabel === '八字' || (topLabel.includes('八字') && !topLabel.includes('八字紫微'))){
 		context.key = 'bazi';
 		context.displayName = '八字';
 		return context;
 	}
-	if(topLabel.includes('紫微')){
+	if(topLabel.includes('紫微') && !topLabel.includes('八字紫微')){
 		context.key = 'ziwei';
 		context.displayName = '紫微斗数';
 		return context;
@@ -1571,7 +1614,7 @@ function resolveActiveContext(){
 		context.displayName = subLabel || '易与三式';
 	}
 	if(topLabel.includes('八字紫微')){
-		const subTabs = findTabsContainerByLabels(topPane, ['八字', '紫微斗数'], false);
+		const subTabs = findTabsContainerByLabels(topPane, ['八字', '紫微斗数'], true);
 		if(!subTabs){
 			context.key = 'cntradition';
 			return context;
@@ -1695,9 +1738,16 @@ function withStoreContextFallback(context){
 		|| baseKey === 'cntradition'
 		|| baseKey === 'cnyibu'
 		|| baseKey === 'direction';
+	const isFallbackUmbrella = fallbackKey === 'cntradition'
+		|| fallbackKey === 'cnyibu'
+		|| fallbackKey === 'direction';
+	if(baseKnown && !isBaseUmbrella && isFallbackUmbrella){
+		return base;
+	}
 	const shouldUseFallback = !baseKey
 		|| !baseKnown
 		|| isBaseUmbrella
+		|| (fallbackSpecific && baseKey !== fallbackKey)
 		|| (baseKey === fallbackKey && fallbackSpecific);
 	if(!shouldUseFallback){
 		return base;
@@ -4208,6 +4258,24 @@ function getTechniqueLabelByKey(key){
 	return found ? found.label : '';
 }
 
+function getPayloadDisplayName(usedExportKey, context){
+	const contextKey = normalizeExportKey(context && context.key ? context.key : '');
+	const contextName = `${context && context.displayName ? context.displayName : ''}`.trim();
+	if(usedExportKey === 'astrochart'){
+		return getTechniqueLabelByKey('astrochart') || contextName || '当前技术';
+	}
+	if(usedExportKey === 'astrochart_like'){
+		return getTechniqueLabelByKey('astrochart_like') || contextName || '当前技术';
+	}
+	if(usedExportKey === 'suzhan'){
+		return getTechniqueLabelByKey('suzhan') || contextName || '当前技术';
+	}
+	if(contextName && contextKey && contextKey === usedExportKey && contextKey !== 'generic'){
+		return contextName;
+	}
+	return getTechniqueLabelByKey(usedExportKey) || contextName || '当前技术';
+}
+
 function getCandidateExportKeys(context){
 	const keys = [];
 	const primary = normalizeExportKey(context && context.key ? context.key : '');
@@ -4504,7 +4572,7 @@ async function buildPayload(){
 			.replace(/\n{3,}/g, '\n\n')
 			.trim();
 	}
-	const displayName = getTechniqueLabelByKey(usedExportKey) || context.displayName || '当前技术';
+	const displayName = getPayloadDisplayName(usedExportKey, context);
 	const stamp = formatStamp(now);
 	const time = formatDateTime(now);
 	const filenameBase = `horosa_${safeFileName(displayName)}_${stamp}`;

@@ -88,6 +88,7 @@ class AstroTimeSpace extends Component{
 					chartDisplay={this.props.chartDisplay}
 					planetDisplay={this.props.planetDisplay}
 					lotsDisplay={this.props.lotsDisplay}
+					showAstroMeaning={this.props.showAstroMeaning}
 				/>
 			</div>
 		);

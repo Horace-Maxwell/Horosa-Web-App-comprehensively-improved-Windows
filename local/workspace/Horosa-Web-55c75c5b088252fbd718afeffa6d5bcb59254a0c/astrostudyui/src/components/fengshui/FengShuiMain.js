@@ -67,7 +67,7 @@ class FengShuiMain extends Component {
 		}
 
 		return (
-			<div style={{ minHeight: height, marginTop: -12 }}>
+			<div style={{ height, maxHeight: height, overflow: 'hidden', marginTop: -12 }}>
 				<Card bordered={false} bodyStyle={{ padding: 0 }}>
 					<iframe
 						ref={(node)=>{ this.iframeRef = node; }}

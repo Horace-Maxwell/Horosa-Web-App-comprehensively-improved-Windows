@@ -56,7 +56,10 @@ class HellenAstroMain extends Component{
 
 	onFieldsChange(values){
 		if(this.props.onChange){
-			let flds = this.props.onChange(values);
+			let flds = this.props.onChange({
+				...values,
+				nohook: true,
+			});
 			let hook = this.state.hook[this.state.currentTab];
 			if(hook.fun){
 				hook.fun(flds);
@@ -91,6 +94,7 @@ class HellenAstroMain extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
 							hook={this.state.hook.Chart13}
 						/>						
 					</TabPane>
@@ -102,4 +106,3 @@ class HellenAstroMain extends Component{
 }
 
 export default HellenAstroMain;
-

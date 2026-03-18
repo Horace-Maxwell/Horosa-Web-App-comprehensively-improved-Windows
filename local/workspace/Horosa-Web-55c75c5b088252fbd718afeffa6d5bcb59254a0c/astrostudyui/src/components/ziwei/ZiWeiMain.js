@@ -76,8 +76,42 @@ function buildZiWeiFieldKey(fields){
 		fields.gpsLat ? fields.gpsLat.value : '',
 		fields.gpsLon ? fields.gpsLon.value : '',
 		fields.gender ? fields.gender.value : '',
+		fields.timeAlg ? fields.timeAlg.value : 0,
 		fields.after23NewDay ? fields.after23NewDay.value : 0,
 	].join('|');
+}
+
+function normalizeTimeAlg(value){
+	const num = Number.parseInt(value, 10);
+	return num === 1 ? 1 : 0;
+}
+
+function getTimeAlgLabel(value){
+	return normalizeTimeAlg(value) === 1 ? '直接时间' : '真太阳时';
+}
+
+function getDirectTimeText(params, chart){
+	if(chart && chart.birth){
+		return chart.birth;
+	}
+	if(params && params.date && params.time){
+		return `${params.date} ${params.time}`;
+	}
+	return '';
+}
+
+function getSolarTimeText(params, chart){
+	if(chart && chart.realSunBirth){
+		return chart.realSunBirth;
+	}
+	if(chart && chart.nongli && chart.nongli.birth){
+		return chart.nongli.birth;
+	}
+	return getDirectTimeText(params, chart);
+}
+
+function getGzText(item){
+	return item && item.ganzi ? item.ganzi : '未知';
 }
 
 function collectHouseStars(house){
@@ -151,6 +185,9 @@ function buildZiWeiSnapshotText(params, result){
 	const yearGan = pickYearGan(chart);
 	const lifeHouse = getLifeHouse(chart, houses);
 	const lifeGan = lifeHouse && lifeHouse.ganzi ? normalizeGan(lifeHouse.ganzi) : '';
+	const bazi = chart && chart.bazi && chart.bazi.bazi ? chart.bazi.bazi : null;
+	const directTime = getDirectTimeText(params, chart);
+	const solarTime = getSolarTimeText(params, chart);
 	const lines = [];
 
 	lines.push('[起盘信息]');
@@ -158,6 +195,9 @@ function buildZiWeiSnapshotText(params, result){
 	lines.push(`时区：${params.zone}`);
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
 	lines.push(`性别：${params.gender}`);
+	lines.push(`时间算法：${getTimeAlgLabel(params.timeAlg)}`);
+	lines.push(`直接时间：${directTime || '未知'}`);
+	lines.push(`真太阳时：${solarTime || '未知'}`);
 	if(yearGan){
 		lines.push(`生年天干：${yearGan}`);
 	}
@@ -166,6 +206,15 @@ function buildZiWeiSnapshotText(params, result){
 	}
 	if(lifeGan){
 		lines.push(`命宫天干：${lifeGan}`);
+	}
+
+	if(bazi){
+		lines.push('');
+		lines.push('[四柱]');
+		lines.push(`年柱：${getGzText(bazi.year)}`);
+		lines.push(`月柱：${getGzText(bazi.month)}`);
+		lines.push(`日柱：${getGzText(bazi.day)}`);
+		lines.push(`时柱：${getGzText(bazi.time)}`);
 	}
 
 	lines.push('');
@@ -211,6 +260,8 @@ class ZiWeiMain extends Component{
 		this.genDirectionDom = this.genDirectionDom.bind(this);
 		this.indicate = this.indicate.bind(this);
 		this.onTipClick = this.onTipClick.bind(this);
+		this.saveZiWeiSnapshot = this.saveZiWeiSnapshot.bind(this);
+		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -272,9 +323,61 @@ class ZiWeiMain extends Component{
 			gpsLat: flds.gpsLat.value,
 			gpsLon: flds.gpsLon.value,
 			gender: flds.gender.value,
+			timeAlg: normalizeTimeAlg(flds.timeAlg && flds.timeAlg.value),
 			after23NewDay: 0,
 		}
 		return params;
+	}
+
+	saveZiWeiSnapshot(resultInput, fieldsInput){
+		const result = resultInput || this.state.result;
+		const fields = fieldsInput || this.props.fields;
+		if(!result || !result.chart || !fields){
+			return '';
+		}
+		const params = this.genParams(fields);
+		const txt = buildZiWeiSnapshotText(params, result);
+		if(!txt){
+			return '';
+		}
+		saveModuleAISnapshot('ziwei', txt, {
+			date: params.date,
+			time: params.time,
+			zone: params.zone,
+			lon: params.lon,
+			lat: params.lat,
+			timeAlg: params.timeAlg,
+		});
+		return txt;
+	}
+
+	handleSnapshotRefreshRequest(evt){
+		if(!evt || !evt.detail || typeof evt.detail !== 'object' || evt.detail.module !== 'ziwei'){
+			return;
+		}
+		const txt = this.saveZiWeiSnapshot();
+		if(txt){
+			evt.detail.snapshotText = txt;
+			return;
+		}
+		this.requestZiWei(this.props.fields);
+		let attempts = 0;
+		const waitForSnapshot = ()=>{
+			if(this.unmounted){
+				return;
+			}
+			const latestTxt = this.saveZiWeiSnapshot();
+			if(latestTxt){
+				evt.detail.snapshotText = latestTxt;
+				return;
+			}
+			attempts += 1;
+			if(attempts >= 16){
+				return;
+			}
+			setTimeout(waitForSnapshot, 200);
+		};
+		setTimeout(waitForSnapshot, 200);
 	}
 
 	async requestZiWei(fields){
@@ -284,23 +387,11 @@ class ZiWeiMain extends Component{
 		const requestKey = buildZiWeiFieldKey(fields);
 		const params = this.genParams(fields);
 		if(this.state.result && this.state.result.chart){
-			saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, this.state.result), {
-				date: params.date,
-				time: params.time,
-				zone: params.zone,
-				lon: params.lon,
-				lat: params.lat,
-			});
+			this.saveZiWeiSnapshot(this.state.result, fields);
 		}
 		if(requestKey && this.lastRequestKey === requestKey){
 			if(this.state.result && this.state.result.chart){
-				saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, this.state.result), {
-					date: params.date,
-					time: params.time,
-					zone: params.zone,
-					lon: params.lon,
-					lat: params.lat,
-				});
+				this.saveZiWeiSnapshot(this.state.result, fields);
 			}
 			return;
 		}
@@ -375,13 +466,7 @@ class ZiWeiMain extends Component{
 
 		this.setState(st);
 		this.lastFieldKey = requestKey;
-		saveModuleAISnapshot('ziwei', buildZiWeiSnapshotText(params, result), {
-			date: params.date,
-			time: params.time,
-			zone: params.zone,
-			lon: params.lon,
-			lat: params.lat,
-		});
+		this.saveZiWeiSnapshot(result, fields);
 	}
 
 	getNowDirectionIdx(chartobj){
@@ -459,6 +544,9 @@ class ZiWeiMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
+		if(typeof window !== 'undefined' && window.addEventListener){
+			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
 		if(this.props.fields){
 			this.requestZiWei(this.props.fields);
 		}
@@ -476,6 +564,9 @@ class ZiWeiMain extends Component{
 	componentWillUnmount(){
 		this.unmounted = true;
 		this.requestSeq++;
+		if(typeof window !== 'undefined' && window.removeEventListener){
+			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
 	}
 
 	render(){

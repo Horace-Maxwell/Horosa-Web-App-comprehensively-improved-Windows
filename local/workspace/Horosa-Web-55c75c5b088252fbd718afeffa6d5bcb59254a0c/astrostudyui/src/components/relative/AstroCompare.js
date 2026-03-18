@@ -88,6 +88,7 @@ class AstroCompare extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
 						/>					
 					</TabPane>
 					<TabPane tab={chartBTitle} key="chartB">
@@ -99,6 +100,7 @@ class AstroCompare extends Component{
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
 						/>					
 					</TabPane>
 				</Tabs>
@@ -108,4 +110,3 @@ class AstroCompare extends Component{
 }
 
 export default AstroCompare;
-

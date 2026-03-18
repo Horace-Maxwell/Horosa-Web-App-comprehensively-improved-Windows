@@ -3,6 +3,7 @@ import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import AstroChartCircle from './AstroChartCircle';
+import { isMeaningEnabled } from './AstroMeaningPopover';
 
 class AstroChart extends Component{
 
@@ -22,11 +23,18 @@ class AstroChart extends Component{
 
 		this.chartCircle = null;
 		this.redrawTimer = null;
+		this.resizeObserver = null;
+		this.resizeFrame = null;
+		this.lastDrawSignature = null;
+		this.lastDrawSize = null;
 
 		this.drawChart = this.drawChart.bind(this);
 		this.handleResize = this.handleResize.bind(this);
 		this.onTipClick = this.onTipClick.bind(this);
 		this.scheduleDrawRetry = this.scheduleDrawRetry.bind(this);
+		this.observeChartResize = this.observeChartResize.bind(this);
+		this.getShowAstroMeaning = this.getShowAstroMeaning.bind(this);
+		this.buildDrawSignature = this.buildDrawSignature.bind(this);
 	}
 
 	onTipClick(tipobj){
@@ -36,24 +44,24 @@ class AstroChart extends Component{
 	}
 
 	handleResize(){
-		let svgdom = document.getElementById(this.state.chartid);
-		if(svgdom === undefined || svgdom === null){
-			return;
-		}
-		let w = svgdom.clientWidth;
-		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
-			return;
-		}
-	
-		let orgx = w / 2;
-		let orgy = h / 2;
-		let delta = 30;
-		let chartR = Math.min(w, h) / 2 - delta;
-		this.setState({
-			ox: orgx,
-			oy: orgy,
-			radius: chartR,
+		this.scheduleDrawRetry();
+	}
+
+	getShowAstroMeaning(){
+		const propFlag = this.props.showAstroMeaning !== undefined && this.props.showAstroMeaning !== null
+			? this.props.showAstroMeaning
+			: this.props.showAstroAnnotation;
+		return isMeaningEnabled(propFlag);
+	}
+
+	buildDrawSignature(chartobj){
+		return JSON.stringify({
+			params: chartobj && chartobj.params ? chartobj.params : null,
+			chartDisplay: this.props.chartDisplay || [],
+			planetDisplay: this.props.planetDisplay || [],
+			lotsDisplay: this.props.lotsDisplay || [],
+			keyPlanets: this.props.keyPlanets || null,
+			showAstroMeaning: this.getShowAstroMeaning(),
 		});
 	}
 
@@ -61,6 +69,19 @@ class AstroChart extends Component{
 		let chartobj = this.props.value;
 		if(chartobj === undefined || chartobj === null || 
 			chartobj.chart === undefined || chartobj.chart === null || chartobj.err){
+			return;
+		}
+		let svgdom = document.getElementById(this.state.chartid);
+		if(!svgdom){
+			return;
+		}
+		if(svgdom.clientWidth === 0 || svgdom.clientHeight === 0){
+			this.scheduleDrawRetry();
+			return;
+		}
+		const sizeSignature = `${svgdom.clientWidth}x${svgdom.clientHeight}`;
+		const drawSignature = this.buildDrawSignature(chartobj);
+		if(this.lastDrawSignature === drawSignature && this.lastDrawSize === sizeSignature){
 			return;
 		}
 		
@@ -89,15 +110,13 @@ class AstroChart extends Component{
 
 		if(this.chartCircle){
 			try{
+				this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
 				this.chartCircle.drawChart(this.state.chartid, chartobj, this.state.rStep, disp, planetDisp, keyplanets);
+				this.lastDrawSignature = drawSignature;
+				this.lastDrawSize = sizeSignature;
 			}catch(err){
 				console.error('AstroChart draw failed', err);
 			}
-		}
-
-		let svgdom = document.getElementById(this.state.chartid);
-		if(svgdom && (svgdom.clientWidth === 0 || svgdom.clientHeight === 0)){
-			this.scheduleDrawRetry();
 		}
 	}
 
@@ -106,8 +125,29 @@ class AstroChart extends Component{
 			clearTimeout(this.redrawTimer);
 		}
 		this.redrawTimer = setTimeout(()=>{
+			this.redrawTimer = null;
 			this.drawChart();
-		}, 120);
+		}, 80);
+	}
+
+	observeChartResize(){
+		let svgdom = document.getElementById(this.state.chartid);
+		if(!svgdom || typeof ResizeObserver === 'undefined'){
+			return;
+		}
+		this.resizeObserver = new ResizeObserver(()=>{
+			if(this.resizeFrame){
+				cancelAnimationFrame(this.resizeFrame);
+			}
+			this.resizeFrame = requestAnimationFrame(()=>{
+				this.resizeFrame = null;
+				this.drawChart();
+			});
+		});
+		this.resizeObserver.observe(svgdom);
+		if(svgdom.parentElement){
+			this.resizeObserver.observe(svgdom.parentElement);
+		}
 	}
 
 	componentDidMount(){
@@ -119,14 +159,14 @@ class AstroChart extends Component{
 			onTipClick: this.onTipClick,
 		};
 		this.chartCircle = new AstroChartCircle(option);
+		this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
 
+		this.observeChartResize();
 		this.drawChart();
-		this.scheduleDrawRetry();
 	}
 
 	componentDidUpdate(){
 		this.drawChart();
-		this.scheduleDrawRetry();
 	}
 
 	componentWillUnmount() {
@@ -134,6 +174,14 @@ class AstroChart extends Component{
 		if(this.redrawTimer){
 			clearTimeout(this.redrawTimer);
 			this.redrawTimer = null;
+		}
+		if(this.resizeFrame){
+			cancelAnimationFrame(this.resizeFrame);
+			this.resizeFrame = null;
+		}
+		if(this.resizeObserver){
+			this.resizeObserver.disconnect();
+			this.resizeObserver = null;
 		}
 	}
 

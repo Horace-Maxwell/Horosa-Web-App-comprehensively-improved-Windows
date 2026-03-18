@@ -1,8 +1,14 @@
 const { forge, RSA } = require('./loadCryptoDeps');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { performance } = require('perf_hooks');
 
 const SERVER = process.env.HOROSA_SERVER_ROOT || 'http://127.0.0.1:9999';
+const markerArgIndex = process.argv.indexOf('--marker');
+const fingerprintArgIndex = process.argv.indexOf('--fingerprint');
+const WARMUP_MARKER = markerArgIndex >= 0 ? process.argv[markerArgIndex + 1] : '';
+const WARMUP_FINGERPRINT = fingerprintArgIndex >= 0 ? process.argv[fingerprintArgIndex + 1] : '';
 
 const SignatureKey = 'FE45AB6E29EF';
 const ClientChannel = '1';
@@ -250,6 +256,22 @@ async function run() {
 async function main() {
   const start = performance.now();
   await run();
+  if (WARMUP_MARKER && WARMUP_FINGERPRINT) {
+    fs.mkdirSync(path.dirname(WARMUP_MARKER), { recursive: true });
+    fs.writeFileSync(
+      WARMUP_MARKER,
+      JSON.stringify(
+        {
+          fingerprint: WARMUP_FINGERPRINT,
+          warmedAt: new Date().toISOString(),
+          server: SERVER,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+  }
   console.log(`warmup-total: ${Number((performance.now() - start).toFixed(3))}ms`);
 }
 

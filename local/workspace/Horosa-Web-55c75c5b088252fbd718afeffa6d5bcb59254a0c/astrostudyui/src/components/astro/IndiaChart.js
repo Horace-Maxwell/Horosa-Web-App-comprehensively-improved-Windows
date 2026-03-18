@@ -1,10 +1,10 @@
 import { Component } from 'react';
 import { Row, Col, Tabs, Select } from 'antd';
 import AstroChartMain from './AstroChartMain';
-import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { fetchIndiaChart } from '../../services/astro';
 
 function fieldsToParams(fields){
 	const params = {
@@ -133,6 +133,8 @@ class IndiaChart extends Component{
 		this.state = {
 			chartObj: null,
 		};
+		this.unmounted = false;
+		this.requestToken = 0;
 
 		this.requestChart = this.requestChart.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -148,11 +150,15 @@ class IndiaChart extends Component{
 	}
 
 	async requestChart(params, sourceFields){
-		const data = await request(`${Constants.ServerRoot}/india/chart`, {
-			body: JSON.stringify(params),
+		const token = this.requestToken + 1;
+		this.requestToken = token;
+		const data = await fetchIndiaChart(params, {
 			silent: true,
 			disableLoading: true,
 		});
+		if(this.unmounted || token !== this.requestToken){
+			return;
+		}
 		const result = data[Constants.ResultKey]
 
 		const st = {
@@ -179,6 +185,9 @@ class IndiaChart extends Component{
 		let params = null;
 		if(fields){
 			params = fieldsToParams(fields);
+			if(!params){
+				return;
+			}
 			if(params.chartnum === undefined || params.chartnum === null){
 				params.chartnum = 1;
 			}
@@ -203,6 +212,14 @@ class IndiaChart extends Component{
 		}		
 	}
 
+	componentDidMount(){
+		this.unmounted = false;
+	}
+
+	componentWillUnmount(){
+		this.unmounted = true;
+	}
+
 	render(){
 		let fields = this.props.fields;
 		let chartObj = this.state.chartObj;
@@ -221,6 +238,7 @@ class IndiaChart extends Component{
 					chartDisplay={this.props.chartDisplay}
 					planetDisplay={this.props.planetDisplay}
 					lotsDisplay={this.props.lotsDisplay}
+					showAstroMeaning={this.props.showAstroMeaning}
 				/>
 			</div>
 		);

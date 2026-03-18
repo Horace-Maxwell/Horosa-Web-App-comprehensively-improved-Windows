@@ -2,8 +2,8 @@ import * as d3 from 'd3';
 import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
-import * as Constants from '../../utils/constants';
 import AstroChartCircle from './AstroChartCircle';
+import { isMeaningEnabled } from './AstroMeaningPopover';
 
 class AstroDoubleChart extends Component{
 
@@ -22,11 +22,15 @@ class AstroDoubleChart extends Component{
 		};
 
 		this.chartCircle = null;
+		this.redrawTimer = null;
+		this.resizeObserver = null;
 
 		this.drawChart = this.drawChart.bind(this);
 		this.handleResize = this.handleResize.bind(this);
 		this.onTipClick = this.onTipClick.bind(this);
 		this.getShowAstroMeaning = this.getShowAstroMeaning.bind(this);
+		this.scheduleDrawRetry = this.scheduleDrawRetry.bind(this);
+		this.observeChartResize = this.observeChartResize.bind(this);
 
 	}
 
@@ -60,19 +64,10 @@ class AstroDoubleChart extends Component{
 	}
 
 	getShowAstroMeaning(){
-		if(this.props.showAstroMeaning !== undefined && this.props.showAstroMeaning !== null){
-			return this.props.showAstroMeaning === 1 || this.props.showAstroMeaning === true;
-		}
-		try{
-			const json = localStorage.getItem(Constants.GlobalSetupKey);
-			if(!json){
-				return false;
-			}
-			const cfg = JSON.parse(json);
-			return cfg && (cfg.showAstroMeaning === 1 || cfg.showAstroMeaning === true);
-		}catch(e){
-			return false;
-		}
+		const propFlag = this.props.showAstroMeaning !== undefined && this.props.showAstroMeaning !== null
+			? this.props.showAstroMeaning
+			: this.props.showAstroAnnotation;
+		return isMeaningEnabled(propFlag);
 	}
 
 	drawChart(){
@@ -112,6 +107,35 @@ class AstroDoubleChart extends Component{
 				this.props.termHighlight
 			);
 		}
+
+		let svgdom = document.getElementById(this.state.chartid);
+		if(svgdom && (svgdom.clientWidth === 0 || svgdom.clientHeight === 0)){
+			this.scheduleDrawRetry();
+		}
+	}
+
+	scheduleDrawRetry(){
+		if(this.redrawTimer){
+			clearTimeout(this.redrawTimer);
+		}
+		this.redrawTimer = setTimeout(()=>{
+			this.drawChart();
+		}, 120);
+	}
+
+	observeChartResize(){
+		let svgdom = document.getElementById(this.state.chartid);
+		if(!svgdom || typeof ResizeObserver === 'undefined'){
+			return;
+		}
+		this.resizeObserver = new ResizeObserver(()=>{
+			this.drawChart();
+			this.scheduleDrawRetry();
+		});
+		this.resizeObserver.observe(svgdom);
+		if(svgdom.parentElement){
+			this.resizeObserver.observe(svgdom.parentElement);
+		}
 	}
 
 	componentDidMount(){
@@ -123,15 +147,26 @@ class AstroDoubleChart extends Component{
 		};
 		this.chartCircle = new AstroChartCircle(option);
 		this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
+		this.observeChartResize();
 		this.drawChart();
+		this.scheduleDrawRetry();
 	}
 
 	componentDidUpdate(){
 		this.drawChart();
+		this.scheduleDrawRetry();
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize);
+		if(this.redrawTimer){
+			clearTimeout(this.redrawTimer);
+			this.redrawTimer = null;
+		}
+		if(this.resizeObserver){
+			this.resizeObserver.disconnect();
+			this.resizeObserver = null;
+		}
 	}
 
 

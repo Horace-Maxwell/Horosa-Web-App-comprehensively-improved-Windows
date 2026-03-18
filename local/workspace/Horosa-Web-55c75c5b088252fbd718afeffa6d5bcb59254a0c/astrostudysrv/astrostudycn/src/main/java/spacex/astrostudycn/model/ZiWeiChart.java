@@ -14,6 +14,7 @@ import spacex.astrostudy.helper.NongliHelper;
 import spacex.astrostudy.helper.WuXingPhaseHelper;
 import spacex.astrostudy.model.NongLi;
 import spacex.astrostudycn.constants.BaZiGender;
+import spacex.astrostudycn.constants.TimeZiAlg;
 import spacex.astrostudycn.constants.ZiWeiStarType;
 import spacex.astrostudycn.helper.ZiWeiHelper;
 
@@ -41,23 +42,34 @@ public class ZiWeiChart {
 	protected Map<String, Integer> starsHouseIndex;
 	
 	protected String birth;
+	protected String realSunBirth;
 	protected String zone;
 	protected String lon;
 	protected String lat;
 	protected int ad;
+	protected int timeAlg;
 	
 	protected Map<String, Object> bazi = new HashMap<String, Object>();
 	
 	public ZiWeiChart(int ad, BaZiGender gender, String birth, String zone, String lon, String lat, boolean after23NewDay, Map<String, Map<String, String>> mysihua) {
-		this(ad, gender, birth, zone, lon, lat, after23NewDay, mysihua, false);
+		this(ad, gender, birth, zone, lon, lat, TimeZiAlg.RealSun, after23NewDay, mysihua, false);
 	}
 	
 	public ZiWeiChart(int ad, BaZiGender gender, String birth, String zone, String lon, String lat, boolean after23NewDay, Map<String, Map<String, String>> mysihua, boolean adjustJieqi) {
+		this(ad, gender, birth, zone, lon, lat, TimeZiAlg.RealSun, after23NewDay, mysihua, adjustJieqi);
+	}
+
+	public ZiWeiChart(int ad, BaZiGender gender, String birth, String zone, String lon, String lat, TimeZiAlg timeAlg, boolean after23NewDay, Map<String, Map<String, String>> mysihua) {
+		this(ad, gender, birth, zone, lon, lat, timeAlg, after23NewDay, mysihua, false);
+	}
+
+	public ZiWeiChart(int ad, BaZiGender gender, String birth, String zone, String lon, String lat, TimeZiAlg timeAlg, boolean after23NewDay, Map<String, Map<String, String>> mysihua, boolean adjustJieqi) {
 		this.gender = gender;
 		this.birth = birth.replace('/', '-');
 		this.zone = zone;
 		this.lat = lat;
 		this.lon = lon;
+		this.timeAlg = timeAlg == null ? TimeZiAlg.RealSun.getCode() : timeAlg.getCode();
 		this.ad = ad;
 		if(birth.startsWith("-")) {
 			this.ad = -1;
@@ -66,7 +78,15 @@ public class ZiWeiChart {
 		this.mySihua = mysihua;
 		initSihuaGan();
 		
-		this.nongli = NongliHelper.getNongLi(this.ad, birth, zone, lon, after23NewDay);
+		boolean directTime = timeAlg == TimeZiAlg.DirectTime;
+		this.nongli = NongliHelper.getNongLi(this.ad, birth, zone, lon, after23NewDay, directTime);
+		this.realSunBirth = this.nongli.birth;
+		if(directTime) {
+			NongLi solarNongli = NongliHelper.getNongLi(this.ad, birth, zone, lon, after23NewDay, false);
+			if(solarNongli != null && solarNongli.birth != null && solarNongli.birth.length() > 0) {
+				this.realSunBirth = solarNongli.birth;
+			}
+		}
 		this.yearGan = this.nongli.year.substring(0, 1);
 		this.yearZi = this.nongli.year.substring(1);
 		this.timeZi = this.nongli.time.substring(1);
@@ -85,7 +105,7 @@ public class ZiWeiChart {
 		
 		setup();
 		
-		OnlyFourColumns bz = new OnlyFourColumns(ad, birth, zone, lon, lat, after23NewDay, gender, adjustJieqi);
+		OnlyFourColumns bz = new OnlyFourColumns(ad, birth, zone, lon, lat, after23NewDay, timeAlg, gender, adjustJieqi);
 		this.bazi = bz.getNongli();
 		
 	}

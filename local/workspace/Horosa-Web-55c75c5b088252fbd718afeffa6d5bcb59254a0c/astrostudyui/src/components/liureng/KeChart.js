@@ -1,7 +1,8 @@
 import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from './LRConst';
-import {randomStr,} from '../../utils/helper';
+import {randomStr, creatTooltip,} from '../../utils/helper';
 import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj, } from './LRShenJiangDoc';
 
 
 class KeChart {
@@ -17,6 +18,7 @@ class KeChart {
 		this.height = option.height;
 
 		this.divTooltip = option.divTooltip;
+		this.showMeaning = option.showMeaning === true;
 
 		this.id = 'chart' + randomStr(8);
 
@@ -85,12 +87,18 @@ class KeChart {
 		y1 = ord.y + ord.h/4;
 		h = (ord.h - ord.h/4) / 2;
 		txtdata = data[0].split('');
-		drawTextV(this.svg, txtdata, x1, y1, w, h, 5, LRConst.LRColor.tianJiangColor);
+		const jiangGroup = drawTextV(this.svg, txtdata, x1, y1, w, h, 5, LRConst.LRColor.tianJiangColor);
+		if(this.showMeaning){
+			creatTooltip(this.divTooltip, jiangGroup, buildLiuRengHouseTipObj(data[0], data[1], data[1]), null, true);
+		}
 
 		y1 = y1 + h;
 		h = h;
 		txtdata = [data[1], data[2]];
-		drawTextV(this.svg, txtdata, x1, y1, w, h, 5, this.color);
+		const shenGroup = drawTextV(this.svg, txtdata, x1, y1, w, h, 5, this.color);
+		if(this.showMeaning){
+			creatTooltip(this.divTooltip, shenGroup, buildLiuRengShenTipObj(data[1]), null, true);
+		}
 
 	}
 

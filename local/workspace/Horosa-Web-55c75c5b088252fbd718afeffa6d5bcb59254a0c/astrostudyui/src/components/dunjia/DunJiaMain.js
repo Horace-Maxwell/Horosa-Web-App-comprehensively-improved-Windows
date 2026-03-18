@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { Row, Col, Card, Select, Button, Spin, Tag, Tabs, Tooltip, message } from 'antd';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import {
+	getNongliLocalCache,
 	setNongliLocalCache,
 	setJieqiSeedLocalCache,
 } from '../../utils/localCalcCache';
@@ -45,8 +46,13 @@ const FENGJU_OPTIONS = [
 	{ value: 0, label: '未封局' },
 	{ value: 1, label: '已封局' },
 ];
+const TIME_ALG_OPTIONS = [
+	{ value: 0, label: '真太阳时' },
+	{ value: 1, label: '直接时间' },
+];
 const DEFAULT_OPTIONS = {
 	sex: 1,
+	timeAlg: 0,
 	dateType: 0,
 	leapMonthType: 0,
 	xuShiSuiType: 0,
@@ -140,6 +146,20 @@ function extractHm(timeText){
 	}
 	const seg = matched[1].split(':');
 	return `${seg[0].padStart(2, '0')}:${seg[1]}`;
+}
+
+function normalizeTimeAlg(value){
+	return parseInt(value, 10) === 1 ? 1 : 0;
+}
+
+function buildDisplaySolarParams(params){
+	if(!params){
+		return null;
+	}
+	return {
+		...params,
+		timeAlg: 0,
+	};
 }
 
 function parseDateLabel(dateText){
@@ -504,6 +524,7 @@ class DunJiaMain extends Component {
 			loading: false,
 			nongli: null,
 			pan: null,
+			displaySolarTime: '',
 			localFields: null,
 			hasPlotted: false,
 			rightPanelTab: 'overview',
@@ -530,6 +551,7 @@ class DunJiaMain extends Component {
 		this.onOptionChange = this.onOptionChange.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.onTimeAlgChange = this.onTimeAlgChange.bind(this);
 		this.onGenderChange = this.onGenderChange.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.genJieqiParams = this.genJieqiParams.bind(this);
@@ -539,6 +561,8 @@ class DunJiaMain extends Component {
 		this.getContext = this.getContext.bind(this);
 		this.requestNongli = this.requestNongli.bind(this);
 		this.getLocalNongliFallback = this.getLocalNongliFallback.bind(this);
+		this.resolveDisplaySolarTime = this.resolveDisplaySolarTime.bind(this);
+		this.withPanDisplaySolarTime = this.withPanDisplaySolarTime.bind(this);
 		this.genParams = this.genParams.bind(this);
 		this.recalc = this.recalc.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
@@ -571,6 +595,45 @@ class DunJiaMain extends Component {
 			? this.props.value
 			: (this.props && this.props.chart ? this.props.chart : null);
 		return extractNongliFromChartWrap(chartWrap, fields);
+	}
+
+	async resolveDisplaySolarTime(params, primaryNongli){
+		if(!params){
+			return safe(primaryNongli && primaryNongli.birth, '');
+		}
+		const current = safe(primaryNongli && primaryNongli.birth, '');
+		if(normalizeTimeAlg(params.timeAlg) === 0){
+			return current;
+		}
+		const solarParams = buildDisplaySolarParams(params);
+		const cachedSolar = getNongliLocalCache(solarParams);
+		if(cachedSolar && cachedSolar.birth){
+			return safe(cachedSolar.birth, current);
+		}
+		try{
+			const solarNongli = await fetchPreciseNongli(solarParams);
+			if(solarNongli){
+				setNongliLocalCache(solarParams, solarNongli);
+			}
+			return safe(solarNongli && solarNongli.birth, current);
+		}catch(e){
+			return current;
+		}
+	}
+
+	withPanDisplaySolarTime(panInput, displaySolarTime){
+		const pan = panInput || null;
+		if(!pan){
+			return pan;
+		}
+		const nextSolar = safe(displaySolarTime, '') || safe(pan.realSunTime, '');
+		if(safe(pan.realSunTimeDisplay, '') === nextSolar){
+			return pan;
+		}
+		return {
+			...pan,
+			realSunTimeDisplay: nextSolar,
+		};
 	}
 
 	getCachedPan(fields, nongli, options){
@@ -765,7 +828,7 @@ class DunJiaMain extends Component {
 
 	onTimeChanged(value){
 		const dt = value.time;
-		const base = this.props.fields || {};
+		const base = this.state.localFields || this.props.fields || {};
 		const localFields = {
 			...base,
 			date: { value: dt.clone() },
@@ -785,6 +848,34 @@ class DunJiaMain extends Component {
 			this.prefetchJieqiSeedForFields(localFields);
 			this.prefetchNongliForFields(localFields);
 		}, 120);
+	}
+
+	onTimeAlgChange(val){
+		const nextVal = normalizeTimeAlg(val);
+		const baseFields = this.state.localFields || this.props.fields || {};
+		const options = {
+			...this.state.options,
+			timeAlg: nextVal,
+		};
+		const localFields = {
+			...baseFields,
+			timeAlg: { value: nextVal },
+		};
+		this.jieqiYearSeeds = {};
+		this.jieqiSeedPromises = {};
+		this.panCache.clear();
+		this.lastPanSignature = '';
+		this.lastFieldKey = '';
+		this.onFieldsChange({
+			timeAlg: { value: nextVal },
+		}, true);
+		this.setState({ localFields, options }, ()=>{
+			this.prefetchNongliForFields(localFields);
+			this.prefetchJieqiSeedForFields(localFields);
+			if(this.state.hasPlotted){
+				this.requestNongli(localFields, true);
+			}
+		});
 	}
 
 	onGenderChange(val){
@@ -910,10 +1001,11 @@ class DunJiaMain extends Component {
 			return;
 		}
 		const pan = this.getCachedPan(flds, nongli || this.state.nongli, fixedOptions);
+		const displayPan = this.withPanDisplaySolarTime(pan, this.state.displaySolarTime);
 		this.lastPanSignature = panSignature;
-		this.setState({ pan }, ()=>{
-			if(pan){
-				saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(pan));
+		this.setState({ pan: displayPan }, ()=>{
+			if(displayPan){
+				saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(displayPan));
 			}
 		});
 	}
@@ -1090,6 +1182,7 @@ class DunJiaMain extends Component {
 					throw new Error('nongli.unavailable');
 				}
 				setNongliLocalCache(params, quickResult);
+				const quickDisplaySolarTime = await this.resolveDisplaySolarTime(params, quickResult);
 				if(waitSeed && missingSeed){
 					const localPrev = buildLocalJieqiYearSeed(year - 1, params.zone);
 					const localCurr = buildLocalJieqiYearSeed(year, params.zone);
@@ -1116,15 +1209,17 @@ class DunJiaMain extends Component {
 					safe(this.getContext(flds).isDiurnal, ''),
 				].join('|');
 				const quickPan = this.getCachedPan(flds, quickResult, fixedOptions);
+				const displayQuickPan = this.withPanDisplaySolarTime(quickPan, quickDisplaySolarTime);
 				this.lastFieldKey = fieldKey;
 				this.lastPanSignature = quickPanSignature;
 				this.setState({
 					nongli: quickResult,
-					pan: quickPan,
+					pan: displayQuickPan,
+					displaySolarTime: quickDisplaySolarTime,
 					loading: false,
 				}, ()=>{
-					if(quickPan){
-						saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(quickPan));
+					if(displayQuickPan){
+						saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(displayQuickPan));
 					}
 				});
 				// 后台补齐精确历法与节气种子，不阻塞首屏起盘时间。
@@ -1169,14 +1264,17 @@ class DunJiaMain extends Component {
 						return;
 					}
 					const finalPan = this.getCachedPan(flds, finalResult, fixedOptions);
+					const finalDisplaySolarTime = await this.resolveDisplaySolarTime(params, finalResult);
+					const displayFinalPan = this.withPanDisplaySolarTime(finalPan, finalDisplaySolarTime);
 					this.lastFieldKey = fieldKey;
 					this.lastPanSignature = finalSignature;
 					this.setState({
 						nongli: finalResult,
-						pan: finalPan,
+						pan: displayFinalPan,
+						displaySolarTime: finalDisplaySolarTime,
 					}, ()=>{
-						if(finalPan){
-							saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(finalPan));
+						if(displayFinalPan){
+							saveModuleAISnapshot('qimen', buildDunJiaSnapshotText(displayFinalPan));
 						}
 					});
 				}).catch(()=>null);
@@ -1516,7 +1614,7 @@ class DunJiaMain extends Component {
 		const dateParts = parseDateLabel(pan.calcDateStr || pan.dateStr);
 		const dateTitle = `${dateParts.year}年${dateParts.month}月${dateParts.day}日`;
 		const directHm = extractHm(pan.directTimeStr || pan.timeStr);
-		const solarHm = extractHm(pan.realSunTime);
+		const solarHm = extractHm(pan.realSunTimeDisplay || pan.realSunTime);
 		const dateTimeTitle = `${dateTitle}　直接时间：${directHm}　真太阳时：${solarHm}`;
 		const shiftTitle = pan && pan.shiftPalace > 0 ? `（顺转${pan.shiftPalace}宫）` : '';
 		const pillars = [
@@ -1682,6 +1780,11 @@ class DunJiaMain extends Component {
 		const selectedBagongRow = bagongRows.find((row)=>row.cell.palaceNum === selectedPalace) || bagongRows[0] || null;
 		const selectedCell = selectedBagongRow ? selectedBagongRow.cell : null;
 		const fields = this.state.localFields || this.props.fields || {};
+		const timeAlgValue = normalizeTimeAlg(
+			fields.timeAlg && fields.timeAlg.value !== undefined && fields.timeAlg.value !== null
+				? fields.timeAlg.value
+				: opt.timeAlg
+		);
 		let datetm = new DateTime();
 		if(fields.date && fields.time){
 			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
@@ -1704,7 +1807,7 @@ class DunJiaMain extends Component {
 		];
 		const calendarRows = [
 			{ label: '农历', value: pan ? pan.lunarText : '—' },
-			{ label: '真太阳时', value: pan ? (pan.realSunTime || '—') : '—' },
+			{ label: '真太阳时', value: pan ? (pan.realSunTimeDisplay || pan.realSunTime || '—') : '—' },
 			{ label: '干支', value: pan ? `年${pan.ganzhi.year} 月${pan.ganzhi.month} 日${pan.ganzhi.day} 时${pan.ganzhi.time}` : '—' },
 			{ label: '节气段', value: pan ? (pan.jiedelta || '—') : '—' },
 		];
@@ -1777,9 +1880,14 @@ class DunJiaMain extends Component {
 
 						<div style={{ display: 'flex', gap: 4 }}>
 							<div style={{ flex: 1 }}>
-								<GeoCoordModal onOk={this.changeGeo} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
-									<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
-								</GeoCoordModal>
+								<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+									<Select size="small" value={timeAlgValue} onChange={this.onTimeAlgChange} style={{ width: '100%' }}>
+										{TIME_ALG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+									</Select>
+									<GeoCoordModal onOk={this.changeGeo} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
+										<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
+									</GeoCoordModal>
+								</div>
 							</div>
 							<div style={{ flex: 1 }}>
 								<Select size="small" value={opt.fengJu ? 1 : 0} onChange={(v)=>this.onOptionChange('fengJu', v === 1)} style={{ width: '100%' }}>
@@ -1814,7 +1922,7 @@ class DunJiaMain extends Component {
 					className={styles.panelTabs}
 				>
 					<TabPane tab="概览" key="overview">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
 							<div className={styles.metricRow}>
 								<Tag color={jiCount ? 'green' : 'default'} className={styles.metricTag}>吉格 {jiCount}</Tag>
 								<Tag color={xiongCount ? 'red' : 'default'} className={styles.metricTag}>凶格 {xiongCount}</Tag>
@@ -1831,7 +1939,7 @@ class DunJiaMain extends Component {
 						</Card>
 					</TabPane>
 					<TabPane tab="格局" key="status">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
 							<div style={{ lineHeight: '26px' }}>
 								<div className={styles.sectionHint}>按宫位查看判断</div>
 								{selectedCell ? (
@@ -1875,7 +1983,7 @@ class DunJiaMain extends Component {
 						</Card>
 					</TabPane>
 					<TabPane tab="神煞" key="shensha">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
 							<div className={styles.shenshaGrid}>
 								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
 									? pan.shenSha.allItems.map((item)=>(
@@ -1889,7 +1997,7 @@ class DunJiaMain extends Component {
 						</Card>
 					</TabPane>
 					<TabPane tab="历法" key="calendar">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px', maxHeight: 'calc(100vh - 420px)', overflowY: 'auto' }}>
+						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
 							<div className={styles.kvList}>
 								{calendarRows.map((row, idx)=>(
 									<div key={`dj_calendar_${idx}`} className={styles.kvItem}>
@@ -1908,17 +2016,19 @@ class DunJiaMain extends Component {
 	render(){
 		const height = resolveBoundedHeight(this.props.height);
 		return (
-			<div style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
-					<Row gutter={6}>
-						<Col span={16}>
-							<div ref={this.captureLeftBoardHost}>
+					<Row gutter={6} style={{ height: '100%' }}>
+						<Col span={16} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
+							<div ref={this.captureLeftBoardHost} style={{ height: '100%', overflow: 'hidden' }}>
 								{this.renderBoard()}
 							</div>
 						</Col>
-						<Col span={8}>
-							{this.renderRight()}
-						</Col>
+					<Col span={8} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
+							<div style={{ height: '100%', maxHeight: height, overflow: 'hidden' }}>
+								{this.renderRight()}
+							</div>
+					</Col>
 					</Row>
 				</Spin>
 			</div>

@@ -14,6 +14,66 @@ function removeDirIfExists(relativeDir) {
 	}
 }
 
+function copyFileIfNeeded(sourcePath, targetPath) {
+	if (!fs.existsSync(sourcePath) || fs.existsSync(targetPath)) {
+		return false;
+	}
+	fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+	fs.copyFileSync(sourcePath, targetPath);
+	return true;
+}
+
+function ensureFrontendStaticLayout(relativeDir) {
+	const distDir = path.resolve(process.cwd(), relativeDir);
+	const indexPath = path.join(distDir, 'index.html');
+	if (!fs.existsSync(indexPath)) {
+		return;
+	}
+
+	const html = fs.readFileSync(indexPath, 'utf8');
+	if (!html.includes('/static/umi.')) {
+		return;
+	}
+
+	const staticDir = path.join(distDir, 'static');
+	fs.mkdirSync(staticDir, { recursive: true });
+
+	let changed = false;
+	for (const entry of fs.readdirSync(distDir, { withFileTypes: true })) {
+		if (!entry.isFile() || !/^umi\./.test(entry.name)) {
+			continue;
+		}
+		if (copyFileIfNeeded(path.join(distDir, entry.name), path.join(staticDir, entry.name))) {
+			changed = true;
+		}
+	}
+
+	const cssFiles = fs
+		.readdirSync(staticDir, { withFileTypes: true })
+		.filter((entry) => entry.isFile() && /^umi\..*\.css$/.test(entry.name));
+	const needsNestedStatic = cssFiles.some((entry) => {
+		const cssText = fs.readFileSync(path.join(staticDir, entry.name), 'utf8');
+		return cssText.includes('url(static/');
+	});
+
+	if (needsNestedStatic) {
+		const nestedStaticDir = path.join(staticDir, 'static');
+		fs.mkdirSync(nestedStaticDir, { recursive: true });
+		for (const entry of fs.readdirSync(staticDir, { withFileTypes: true })) {
+			if (!entry.isFile()) {
+				continue;
+			}
+			if (copyFileIfNeeded(path.join(staticDir, entry.name), path.join(nestedStaticDir, entry.name))) {
+				changed = true;
+			}
+		}
+	}
+
+	if (changed) {
+		console.log(`[umi-runner] synced /static assets into ${relativeDir}`);
+	}
+}
+
 function run() {
 	const mode = process.argv[2] || 'build';
 	const forFile = process.argv.includes('--for-file');
@@ -39,6 +99,9 @@ function run() {
 	});
 
 	if (typeof result.status === 'number') {
+		if (result.status === 0 && mode !== 'dev') {
+			ensureFrontendStaticLayout(forFile ? 'dist-file' : 'dist');
+		}
 		process.exit(result.status);
 	}
 	process.exit(1);

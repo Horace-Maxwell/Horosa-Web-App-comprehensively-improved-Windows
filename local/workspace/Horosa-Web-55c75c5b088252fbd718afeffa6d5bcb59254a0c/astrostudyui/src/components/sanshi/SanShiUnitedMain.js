@@ -1455,6 +1455,7 @@ class SanShiUnitedMain extends Component{
 		this.pendingRefresh = null;
 		this.panCache = new Map();
 		this.lrBundleCache = {};
+		this.liurengRefCache = new Map();
 		this.outerDataCache = { chartKey: '', data: null };
 		this.resizeObserver = null;
 		this.rightTopResizeObserver = null;
@@ -1466,6 +1467,7 @@ class SanShiUnitedMain extends Component{
 		this.pendingRecalcPayload = null;
 		this.pendingRecalcResolvers = [];
 		this.pendingSnapshotTimer = null;
+		this.autoPlotTimer = null;
 		this.taiyiCache = new Map();
 
 		this.refreshAll = this.refreshAll.bind(this);
@@ -1482,6 +1484,7 @@ class SanShiUnitedMain extends Component{
 		this.cancelPendingRecalc = this.cancelPendingRecalc.bind(this);
 		this.scheduleSnapshotSave = this.scheduleSnapshotSave.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+		this.ensureAutoPlotOnActivate = this.ensureAutoPlotOnActivate.bind(this);
 		this.syncFields = this.syncFields.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
@@ -1575,10 +1578,14 @@ class SanShiUnitedMain extends Component{
 		const activeFields = this.state.localFields || this.props.fields;
 		this.prefetchJieqiSeedForFields(activeFields);
 		this.prefetchNongliForFields(activeFields);
+		this.ensureAutoPlotOnActivate();
 	}
 
 	componentDidUpdate(prevProps){
 		this.restoreOptionsFromCurrentCase();
+		if(!prevProps.active && this.props.active){
+			this.ensureAutoPlotOnActivate(true);
+		}
 		const chartChanged = (prevProps.chartObj !== this.props.chartObj) || (prevProps.chart !== this.props.chart);
 		if(this.awaitingChartSync && this.state.hasPlotted && chartChanged){
 			if(this.awaitingSyncTimer){
@@ -1602,6 +1609,10 @@ class SanShiUnitedMain extends Component{
 		if(this.awaitingSyncTimer){
 			clearTimeout(this.awaitingSyncTimer);
 			this.awaitingSyncTimer = null;
+		}
+		if(this.autoPlotTimer){
+			clearTimeout(this.autoPlotTimer);
+			this.autoPlotTimer = null;
 		}
 		this.cancelPendingRecalc(false);
 		if(this.pendingSnapshotTimer){
@@ -1689,6 +1700,34 @@ class SanShiUnitedMain extends Component{
 		return {
 			...chart.nongli,
 		};
+	}
+
+	ensureAutoPlotOnActivate(immediate = false){
+		if(!this.props.active || this.state.hasPlotted || this.state.loading || this.awaitingChartSync){
+			return;
+		}
+		const store = getStore();
+		const userState = store && store.user ? store.user : null;
+		const currentCase = userState && userState.currentCase ? userState.currentCase : null;
+		const sourceModule = currentCase && currentCase.sourceModule ? currentCase.sourceModule.value : null;
+		const caseType = currentCase && currentCase.caseType ? currentCase.caseType.value : null;
+		if(sourceModule === 'sanshiunited' || caseType === 'sanshiunited'){
+			return;
+		}
+		const fields = this.state.localFields || this.props.fields;
+		if(!fields || !fields.date || !fields.time){
+			return;
+		}
+		if(this.autoPlotTimer){
+			clearTimeout(this.autoPlotTimer);
+		}
+		this.autoPlotTimer = setTimeout(()=>{
+			this.autoPlotTimer = null;
+			if(this.unmounted || !this.props.active || this.state.hasPlotted || this.state.loading || this.awaitingChartSync){
+				return;
+			}
+			this.clickPlot();
+		}, immediate ? 40 : 160);
 	}
 
 	parseCasePayload(raw){
@@ -2418,9 +2457,29 @@ class SanShiUnitedMain extends Component{
 			},
 		};
 		let liurengRefBundle = null;
+		const runYearRef = lrNongli && lrNongli.runyear ? { year: lrNongli.runyear } : null;
+		const liurengRefCacheKey = [
+			lrCacheKey,
+			outerChartKey,
+			safe(runYearRef && runYearRef.year),
+			safe(dunjia && dunjia.ganzhi ? dunjia.ganzhi.year : ''),
+			safe(dunjia && dunjia.ganzhi ? dunjia.ganzhi.month : ''),
+			safe(dunjia && dunjia.ganzhi ? dunjia.ganzhi.day : ''),
+			safe(dunjia && dunjia.ganzhi ? dunjia.ganzhi.time : ''),
+		].join('|');
 		try{
-			const runYearRef = lrNongli && lrNongli.runyear ? { year: lrNongli.runyear } : null;
-			liurengRefBundle = buildLiuRengReferenceBundle(liureng, chartForLr, guirengType, runYearRef);
+			if(this.liurengRefCache.has(liurengRefCacheKey)){
+				liurengRefBundle = this.liurengRefCache.get(liurengRefCacheKey);
+			}else{
+				liurengRefBundle = buildLiuRengReferenceBundle(liureng, chartForLr, guirengType, runYearRef);
+				this.liurengRefCache.set(liurengRefCacheKey, liurengRefBundle);
+				if(this.liurengRefCache.size > 48){
+					const firstKey = this.liurengRefCache.keys().next().value;
+					if(firstKey){
+						this.liurengRefCache.delete(firstKey);
+					}
+				}
+			}
 		}catch(e){
 			liurengRefBundle = null;
 		}
@@ -3165,15 +3224,17 @@ class SanShiUnitedMain extends Component{
 		const keCols = keOrder.map((one)=>{
 			const item = keRaw[one.idx] || [];
 			const zhi = safe(item[1], '—');
+			const gan = safe(item[2], '—');
 			const godRaw = safe(item[0], '');
 			const di = getDiByUp(zhi);
 			return {
 				label: one.label,
 				// 两层天干上下位置互换（上层取 item[1]，下层取 item[2]）。
 				main1: zhi,
-				main2: safe(item[2], '—'),
+				main2: gan,
 				god: shortTianJiang(godRaw),
 				shenTip: buildLiuRengShenTipObj(zhi),
+				ganTip: buildLiuRengShenTipObj(gan),
 				jiangTip: buildLiuRengHouseTipObj(godRaw, zhi, di || zhi),
 			};
 		});
@@ -3189,6 +3250,7 @@ class SanShiUnitedMain extends Component{
 				gan: parsed.gan,
 				zhi: parsed.zhi,
 				god: shortTianJiang(godRaw),
+				ganTip: buildLiuRengShenTipObj(parsed.gan),
 				shenTip: buildLiuRengShenTipObj(parsed.zhi),
 				jiangTip: buildLiuRengHouseTipObj(godRaw, parsed.zhi, di || parsed.zhi),
 			};
@@ -3226,7 +3288,11 @@ class SanShiUnitedMain extends Component{
 								showMeaning,
 								col.shenTip
 							)}
-							<div className={styles.centerKeMain}>{col.main2}</div>
+							{wrapWithMeaning(
+								<div className={styles.centerKeMain}>{col.main2}</div>,
+								showMeaning,
+								col.ganTip
+							)}
 						</div>
 					))}
 				</div>
@@ -3241,7 +3307,11 @@ class SanShiUnitedMain extends Component{
 				>
 					{chuanRows.map((row, idx)=>(
 						<div key={`chuan_row_${idx}`} className={styles.centerChuanRow}>
-							<span className={styles.centerChuanGray}>{row.gan || ''}</span>
+							{wrapWithMeaning(
+								<span className={styles.centerChuanGray}>{row.gan || ''}</span>,
+								showMeaning,
+								row.ganTip
+							)}
 							{wrapWithMeaning(
 								<span className={styles.centerChuanMain}>{row.zhi}</span>,
 								showMeaning,
@@ -3813,9 +3883,9 @@ class SanShiUnitedMain extends Component{
 			height = height - 20;
 		}
 		return (
-			<div className={styles.root} style={{ minHeight: height }}>
+			<div className={styles.root} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
-					<Row gutter={6}>
+					<Row gutter={6} style={{ alignItems: 'flex-start' }}>
 						<Col span={16}>
 							<div ref={this.captureLeftBoardHost}>
 								{this.renderLeftBoard(height)}

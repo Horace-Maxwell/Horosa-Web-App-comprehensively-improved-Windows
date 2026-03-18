@@ -1,5 +1,4 @@
 import React from 'react';
-import { Tooltip, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { getPlanetAnnotation } from '../../constants/AstroInterpretation';
@@ -8,6 +7,8 @@ import {
 	buildPlanetMetaSuffix,
 	readPlanetMetaDisplayFromStore,
 } from '../../utils/planetMetaDisplay';
+import { buildMeaningTipByCategory } from './AstroMeaningData';
+import { isMeaningEnabled, wrapWithMeaning } from './AstroMeaningPopover';
 
 function symbolOf(id){
 	if(id === undefined || id === null){
@@ -70,6 +71,31 @@ function buildLabelTooltipText(id){
 	return `${name}\n\n${annotation}`;
 }
 
+function resolveMeaningCategory(id, explicitCategory){
+	const raw = safeText(id);
+	const forced = safeText(explicitCategory).toLowerCase();
+	if(forced){
+		return forced;
+	}
+	if(AstroConst.LIST_SIGNS.indexOf(raw) >= 0){
+		return 'sign';
+	}
+	if(AstroConst.LIST_HOUSES.indexOf(raw) >= 0){
+		return 'house';
+	}
+	if(AstroConst.LOTS.indexOf(raw) >= 0){
+		return 'lot';
+	}
+	if(AstroConst.LIST_ASP.indexOf(raw) >= 0 || /^Asp\d+$/.test(raw)){
+		return 'aspect';
+	}
+	return 'planet';
+}
+
+function buildMeaningTip(id, explicitCategory){
+	return buildMeaningTipByCategory(resolveMeaningCategory(id, explicitCategory), id);
+}
+
 function AstroObjectLabel(props){
 	const id = props.id;
 	const chartSources = props.chartSources;
@@ -78,10 +104,19 @@ function AstroObjectLabel(props){
 	const suffix = withMeta ? buildPlanetMetaSuffix(chartSources, id, display) : '';
 	const disableTooltip = props.disableTooltip === true || props.tooltip === false;
 	const tip = buildLabelTooltipText(id);
+	const meaningTip = disableTooltip ? null : buildMeaningTip(id, props.meaningCategory || props.category);
+	const useMeaningPopup = !disableTooltip && !!meaningTip && isMeaningEnabled(props.meaningEnabled);
 	const nativeTitleEnabled = props.nativeTitle === undefined ? !disableTooltip : props.nativeTitle === true;
-	const nativeTitle = nativeTitleEnabled && tip ? tip : undefined;
-	const label = (
-		<span className={props.className} style={props.wrapperStyle} title={nativeTitle}>
+	const nativeTitle = !useMeaningPopup && nativeTitleEnabled && tip ? tip : undefined;
+	const labelNode = (
+		<span
+			className={props.className}
+			style={{
+				cursor: disableTooltip || !tip ? undefined : 'help',
+				...(props.wrapperStyle || {}),
+			}}
+			title={nativeTitle}
+		>
 			<span style={{
 				fontFamily: AstroConst.AstroFont,
 				...(props.symbolStyle || {}),
@@ -100,28 +135,7 @@ function AstroObjectLabel(props){
 			}
 		</span>
 	);
-
-	if(disableTooltip || !tip){
-		return label;
-	}
-	return (
-		<Tooltip
-			title={<div style={{ whiteSpace: 'pre-wrap' }}>{tip}</div>}
-			placement="top"
-			overlayStyle={{ maxWidth: 520 }}
-			overlayInnerStyle={{
-				background: '#ffffff',
-				color: '#111827',
-				border: '1px solid #dbe5f1',
-				borderRadius: 8,
-				boxShadow: '0 8px 24px rgba(15, 23, 42, 0.14)',
-				padding: '8px 10px',
-			}}
-			getPopupContainer={()=>(document.body)}
-		>
-			<span style={{ cursor: 'help' }}>{label}</span>
-		</Tooltip>
-	);
+	return wrapWithMeaning(labelNode, useMeaningPopup, meaningTip);
 }
 
 export default AstroObjectLabel;

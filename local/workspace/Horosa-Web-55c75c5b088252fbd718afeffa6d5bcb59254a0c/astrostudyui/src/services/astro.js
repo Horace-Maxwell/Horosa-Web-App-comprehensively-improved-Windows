@@ -1,11 +1,19 @@
-import request from '../utils/request';
 import { ServerRoot } from '../utils/constants';
+import request from '../utils/request';
+import { memoizedJsonRequest } from '../utils/apiMemo';
 
 
 export function fetchChart(values, requestOptions){
-    return request(`${ServerRoot}/chart`, {
-        body: JSON.stringify(values),
-        ...(requestOptions || {}),
+    return memoizedJsonRequest(`${ServerRoot}/chart`, values, requestOptions || {}, {
+        namespace: 'astro.chart',
+        maxSize: 128,
+    });
+}
+
+export function fetchIndiaChart(values, requestOptions){
+    return memoizedJsonRequest(`${ServerRoot}/india/chart`, values, requestOptions || {}, {
+        namespace: 'india.chart',
+        maxSize: 128,
     });
 }
 
@@ -26,4 +34,3 @@ export function dlTrain(values){
         body: JSON.stringify(values),
     });
 }
-

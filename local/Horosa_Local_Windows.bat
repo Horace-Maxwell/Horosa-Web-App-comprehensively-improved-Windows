@@ -1,9 +1,32 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-set "ROOT=%~dp0"
-set "WORKSPACE=%ROOT%workspace"
+for %%I in ("%~dp0.") do set "ROOT=%%~fI"
+set "WORKSPACE=%ROOT%\workspace"
 if defined HOROSA_WORKSPACE_DIR set "WORKSPACE=%HOROSA_WORKSPACE_DIR%"
+if not "%WORKSPACE:~-1%"=="\" set "WORKSPACE=%WORKSPACE%\"
 if not defined HOROSA_WORKSPACE_DIR if exist "%WORKSPACE%" set "HOROSA_WORKSPACE_DIR=%WORKSPACE%"
+
+if not defined HOROSA_PROJECT_DIR (
+  if exist "%WORKSPACE%HOROSA_PROJECT_DIR.txt" (
+    for /f "usebackq delims=" %%I in ("%WORKSPACE%HOROSA_PROJECT_DIR.txt") do (
+      if not defined HOROSA_PROJECT_DIR if not "%%~I"=="" if not "%%~I"=="# Horosa current project pointer" if not "%%~I"=="# Relative child folder name or absolute path" (
+        set "POINTER_VALUE=%%~I"
+        if exist "!POINTER_VALUE!\astrostudyui" if exist "!POINTER_VALUE!\astrostudysrv" if exist "!POINTER_VALUE!\astropy" (
+          set "HOROSA_PROJECT_DIR=!POINTER_VALUE!"
+        ) else if exist "%WORKSPACE%!POINTER_VALUE!\astrostudyui" if exist "%WORKSPACE%!POINTER_VALUE!\astrostudysrv" if exist "%WORKSPACE%!POINTER_VALUE!\astropy" (
+          set "HOROSA_PROJECT_DIR=%WORKSPACE%!POINTER_VALUE!"
+        )
+      )
+    )
+  )
+)
+if not defined HOROSA_PROJECT_DIR (
+  for /d %%D in ("%WORKSPACE%*") do (
+    if not defined HOROSA_PROJECT_DIR if exist "%%~fD\astrostudyui" if exist "%%~fD\astrostudysrv" if exist "%%~fD\astropy" (
+      set "HOROSA_PROJECT_DIR=%%~fD"
+    )
+  )
+)
 
 if not defined HOROSA_JAVA if exist "%WORKSPACE%\runtime\windows\java\bin\java.exe" set "HOROSA_JAVA=%WORKSPACE%\runtime\windows\java\bin\java.exe"
 if not defined HOROSA_PYTHON if exist "%WORKSPACE%\runtime\windows\python\python.exe" set "HOROSA_PYTHON=%WORKSPACE%\runtime\windows\python\python.exe"
@@ -16,14 +39,17 @@ if not defined PS_EXE if exist "%ProgramFiles(x86)%\PowerShell\7\pwsh.exe" set "
 if not defined PS_EXE for /f "delims=" %%I in ('where pwsh.exe 2^>nul') do if not defined PS_EXE set "PS_EXE=%%I"
 if not defined PS_EXE set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
-"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0Horosa_Local_Windows.ps1"
+set "HOROSA_REPO_ROOT=%ROOT%\.."
+"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\Horosa_Local_Windows.ps1" %*
 if errorlevel 1 (
-  set "ISSUE_FILE=%ROOT%..\log\HOROSA_RUN_ISSUES.md"
-  set "PROJECT_DIR="
+  set "ISSUE_FILE=%ROOT%\..\log\HOROSA_RUN_ISSUES.md"
+  set "PROJECT_DIR=%HOROSA_PROJECT_DIR%"
   set "LATEST_LOG="
 
-  for /f "delims=" %%D in ('dir /b /ad /o-n "%WORKSPACE%\Horosa-Web*" 2^>nul') do (
-    if not defined PROJECT_DIR set "PROJECT_DIR=%WORKSPACE%\%%D"
+  if not defined PROJECT_DIR (
+    for /f "delims=" %%D in ('dir /b /ad /o-n "%WORKSPACE%Horosa-Web*" 2^>nul') do (
+      if not defined PROJECT_DIR set "PROJECT_DIR=%WORKSPACE%%%D"
+    )
   )
   if defined PROJECT_DIR (
     for /f "delims=" %%L in ('dir /b /ad /o-n "!PROJECT_DIR!\.horosa-local-logs-win" 2^>nul') do (

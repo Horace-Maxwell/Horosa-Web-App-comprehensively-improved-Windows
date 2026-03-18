@@ -92,7 +92,9 @@ export default class AstroChartCircle {
 			tips: ['黄经：' +  degs[0] + 'º' + degs[1] + "'； " + Math.round(infoObj.lon*10000)/10000+ 'º'],
 		};
 		if(this.showAstroMeaning){
-			if(infoObj && infoObj.type && (infoObj.type === 'Planet' || infoObj.type === 'Generic' || infoObj.type === 'GenericCN')){
+			if(infoObj && infoObj.id && Array.isArray(AstroConst.LOTS) && AstroConst.LOTS.indexOf(infoObj.id) >= 0){
+				tipobj = appendAstroMeaningTips(tipobj, 'lot', infoObj.id);
+			}else if(infoObj && infoObj.type && (infoObj.type === 'Planet' || infoObj.type === 'Generic' || infoObj.type === 'GenericCN')){
 				tipobj = appendAstroMeaningTips(tipobj, 'planet', infoObj.id);
 			}else if(infoObj && infoObj.id && infoObj.id.indexOf('House') === 0){
 				tipobj = appendAstroMeaningTips(tipobj, 'house', infoObj.id);

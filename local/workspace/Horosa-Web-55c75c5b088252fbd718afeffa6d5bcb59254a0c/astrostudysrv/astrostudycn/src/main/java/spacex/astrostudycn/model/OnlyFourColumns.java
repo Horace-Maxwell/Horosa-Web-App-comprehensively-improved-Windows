@@ -25,15 +25,19 @@ public class OnlyFourColumns extends BaZi {
 	private FateDirect[] direction = new FateDirect[0];
 	
 	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay, boolean adjustJieqi) {
-		this(ad, birth, zone, lon, lat, after23NewDay, BaZiGender.Male, adjustJieqi);
+		this(ad, birth, zone, lon, lat, after23NewDay, TimeZiAlg.RealSun, BaZiGender.Male, adjustJieqi);
 	}
 
 	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay) {
-		this(ad, birth, zone, lon, lat, after23NewDay, BaZiGender.Male, false);
+		this(ad, birth, zone, lon, lat, after23NewDay, TimeZiAlg.RealSun, BaZiGender.Male, false);
 	}
 
 	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay, BaZiGender gender, boolean adjustJieqi) {
-		super(ad, birth, zone, lon, lat, TimeZiAlg.RealSun, false, GodRule.ZhuRiZhu, after23NewDay, adjustJieqi);
+		this(ad, birth, zone, lon, lat, after23NewDay, TimeZiAlg.RealSun, gender, adjustJieqi);
+	}
+
+	public OnlyFourColumns(int ad, String birth, String zone, String lon, String lat, boolean after23NewDay, TimeZiAlg timeAlg, BaZiGender gender, boolean adjustJieqi) {
+		super(ad, birth, zone, lon, lat, timeAlg, false, GodRule.ZhuRiZhu, after23NewDay, adjustJieqi);
 		this.gender = gender;
 	}
 	

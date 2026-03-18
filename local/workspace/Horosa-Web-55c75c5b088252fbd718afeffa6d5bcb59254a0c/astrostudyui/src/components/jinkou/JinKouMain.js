@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { Row, Col, Button, Divider, Select, Tabs, message, Modal } from 'antd';
+import * as AstroConst from '../../constants/AstroConst';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import * as LRConst from '../liureng/LRConst';
@@ -100,6 +101,20 @@ function appendMapSection(lines, title, obj){
 		lines.push(`${cleanKey(key)}：${fmtValue(obj[key])}`);
 	}
 	lines.push('');
+}
+
+function getJinKouPanYue(value){
+	const chart = value && value.chart ? value.chart : null;
+	if(!chart || !Array.isArray(chart.objects)){
+		return '';
+	}
+	for(let i=0; i<chart.objects.length; i++){
+		const obj = chart.objects[i];
+		if(obj && obj.id === AstroConst.SUN && obj.sign){
+			return LRConst.getSignZi(obj.sign) || '';
+		}
+	}
+	return '';
 }
 
 function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wuxing, guirengType, gender){
@@ -441,6 +456,7 @@ class JinKouMain extends Component{
 		const jinkouData = buildJinKouData(liureng, {
 			diFen: diFen,
 			guirengType: guirengType,
+			panYue: getJinKouPanYue(this.props.value),
 		});
 		saveModuleAISnapshot('jinkou', buildJinKouSnapshotText(
 			saveParams,
@@ -724,9 +740,11 @@ class JinKouMain extends Component{
 
 		const chartObj = this.props.value;
 		const chart = chartObj ? chartObj.chart : {};
+		const panYue = getJinKouPanYue(chartObj);
 		const jinkouData = buildJinKouData(this.state.liureng, {
 			diFen: this.state.diFen,
 			guirengType: this.state.guireng,
+			panYue: panYue,
 		});
 		const wxdoms = this.genWuXingDoms();
 
@@ -752,8 +770,6 @@ class JinKouMain extends Component{
 			key: '一、地分',
 			value: '下、田宅、子孙、奴仆、鞍马、六畜',
 		}];
-		const optionTabHeight = Math.max(170, Math.floor(chartHeight * 0.36));
-
 		return (
 			<div>
 				<Row gutter={6}>
@@ -785,83 +801,86 @@ class JinKouMain extends Component{
 						</div>
 					</Col>
 					<Col span={8}>
-						<Row>
-							<Col span={24}>
-								<LiuRengInput
-									fields={this.props.fields}
-									onFieldsChange={this.onFieldsChange}
-								/>
-							</Col>
-						</Row>
-						<Row style={{ marginTop: 8 }} gutter={6}>
-							<Col span={12}>
-								<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
-							</Col>
-							<Col span={12}>
-								<Select value={this.state.diFen} onChange={this.onDiFenChange} style={{ width: '100%' }}>
-									{
-										LRConst.ZiList.map((zi)=>(
-											<Option key={`difen_${zi}`} value={zi}>地分：{zi}</Option>
-										))
-									}
-								</Select>
-							</Col>
-						</Row>
-						<Divider orientation='left'>卜卦人出生时间</Divider>
-						<Row>
-							<Col span={24}>
-								<LiuRengBirthInput
-									fields={this.state.birth}
-									onFieldsChange={this.onBirthChange}
-								/>
-							</Col>
-						</Row>
-						<Divider />
-						<Row gutter={6}>
-							<Col span={24}>
-								<Select value={this.state.wuxing} onChange={this.onWuXingChange} style={{ width: '100%' }}>
-									{wxdoms}
-								</Select>
-							</Col>
-							<Col span={24} style={{ marginTop: 4 }}>
-								<Select value={this.state.guireng} onChange={this.onGuiRengChange} style={{ width: '100%' }}>
-									<Option value={0}>六壬法贵人</Option>
-									<Option value={1}>遁甲法贵人</Option>
-									<Option value={2}>星占法贵人</Option>
-								</Select>
-							</Col>
-						</Row>
-
-						<Divider style={{ marginTop: 10, marginBottom: 8 }} />
-						<Tabs
-							activeKey={this.state.rightTab}
-							onChange={this.setRightTab}
-							defaultActiveKey='godsZi'
-							tabPosition='top'
-							size='small'
-							style={{ height: optionTabHeight + 44 }}
-						>
-							<TabPane tab='支煞' key='godsZi'>
-								<div className={styles.scrollbar} style={{ height: optionTabHeight, overflow: 'auto' }}>
-									{this.renderInfoTable('支煞', godsZiRows)}
-								</div>
-							</TabPane>
-							<TabPane tab='年煞' key='godsYear'>
-								<div className={styles.scrollbar} style={{ height: optionTabHeight, overflow: 'auto' }}>
-									{this.renderInfoTable('年煞', godsYearRows)}
-								</div>
-							</TabPane>
-							<TabPane tab='十二长生' key='zs'>
-								<div className={styles.scrollbar} style={{ height: optionTabHeight, overflow: 'auto' }}>
-									{this.renderInfoTable(`${this.state.wuxing}十二长生`, zsRows)}
-								</div>
-							</TabPane>
-							<TabPane tab='四位参考' key='roleRef'>
-								<div className={styles.scrollbar} style={{ height: optionTabHeight, overflow: 'auto' }}>
-									{this.renderInfoTable('四位参考', roleRefRows)}
-								</div>
-							</TabPane>
-						</Tabs>
+						<div className={styles.fillPanelHost} style={{ height: chartHeight, maxHeight: chartHeight }}>
+							<div className={styles.fillPanelStatic}>
+								<Row>
+									<Col span={24}>
+										<LiuRengInput
+											fields={this.props.fields}
+											onFieldsChange={this.onFieldsChange}
+										/>
+									</Col>
+								</Row>
+								<Row style={{ marginTop: 8 }} gutter={6}>
+									<Col span={12}>
+										<Button style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
+									</Col>
+									<Col span={12}>
+										<Select value={this.state.diFen} onChange={this.onDiFenChange} style={{ width: '100%' }}>
+											{
+												LRConst.ZiList.map((zi)=>(
+													<Option key={`difen_${zi}`} value={zi}>地分：{zi}</Option>
+												))
+											}
+										</Select>
+									</Col>
+								</Row>
+								<Divider orientation='left'>卜卦人出生时间</Divider>
+								<Row>
+									<Col span={24}>
+										<LiuRengBirthInput
+											fields={this.state.birth}
+											onFieldsChange={this.onBirthChange}
+										/>
+									</Col>
+								</Row>
+								<Divider />
+								<Row gutter={6}>
+									<Col span={24}>
+										<Select value={this.state.wuxing} onChange={this.onWuXingChange} style={{ width: '100%' }}>
+											{wxdoms}
+										</Select>
+									</Col>
+									<Col span={24} style={{ marginTop: 4 }}>
+										<Select value={this.state.guireng} onChange={this.onGuiRengChange} style={{ width: '100%' }}>
+											<Option value={0}>六壬法贵人</Option>
+											<Option value={1}>遁甲法贵人</Option>
+											<Option value={2}>星占法贵人</Option>
+										</Select>
+									</Col>
+								</Row>
+								<Divider style={{ marginTop: 10, marginBottom: 8 }} />
+							</div>
+							<Tabs
+								activeKey={this.state.rightTab}
+								onChange={this.setRightTab}
+								defaultActiveKey='godsZi'
+								tabPosition='top'
+								size='small'
+								className={styles.fillTabs}
+							>
+								<TabPane tab='支煞' key='godsZi'>
+									<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+										{this.renderInfoTable('支煞', godsZiRows)}
+									</div>
+								</TabPane>
+								<TabPane tab='年煞' key='godsYear'>
+									<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+										{this.renderInfoTable('年煞', godsYearRows)}
+									</div>
+								</TabPane>
+								<TabPane tab='十二长生' key='zs'>
+									<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+										{this.renderInfoTable(`${this.state.wuxing}十二长生`, zsRows)}
+									</div>
+								</TabPane>
+								<TabPane tab='四位参考' key='roleRef'>
+									<div className={styles.scrollbar} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+										{this.renderInfoTable('四位参考', roleRefRows)}
+									</div>
+								</TabPane>
+							</Tabs>
+						</div>
 					</Col>
 				</Row>
 			</div>

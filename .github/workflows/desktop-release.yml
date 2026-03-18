@@ -19,15 +19,9 @@ env:
 
 jobs:
   release-desktop:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Enable Windows long paths
-        if: ${{ runner.os == 'Windows' }}
-        shell: pwsh
-        run: |
-          git config --system core.longpaths true
-
       - name: Checkout repository
         if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v4
@@ -47,64 +41,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Show runtime toolchain
-        shell: pwsh
-        run: |
-          Write-Host "python: $(python --version)"
-          Write-Host "java: $(java -version 2>&1 | Select-Object -First 1)"
-          Write-Host "JAVA_HOME: $env:JAVA_HOME"
-
-      - name: Prepare Windows runtime payload
-        shell: pwsh
-        run: |
-          $logPath = Join-Path $env:RUNNER_TEMP 'prepare-runtime.log'
-          try {
-            & ./prepareruntime/Prepare_Runtime_Windows.ps1 *>&1 | Tee-Object -FilePath $logPath
-            if ($LASTEXITCODE -ne 0) {
-              throw "Prepare_Runtime_Windows.ps1 exited with code $LASTEXITCODE"
-            }
-          } catch {
-            $message = $_.Exception.Message -replace '\r|\n', ' '
-            Write-Output "::error title=Prepare runtime failed::$message"
-            if (Test-Path $logPath) {
-              Write-Host '---- prepare-runtime log tail ----'
-              $tailLines = @(
-                Get-Content $logPath -Tail 40 |
-                  ForEach-Object { "$_".Trim() } |
-                  Where-Object { $_ }
-              )
-              $tailLines | Write-Host
-              $tailLines |
-                Select-Object -Last 8 |
-                ForEach-Object {
-                  $line = $_ -replace '\r|\n', ' '
-                  Write-Output "::error title=Prepare runtime tail::$line"
-                }
-            }
-            throw
-          }
-
-      - name: Resolve release title
-        shell: python
-        run: |
-          import json
-          import os
-          from pathlib import Path
-
-          version_info = json.loads(Path("desktop_installer_bundle/version.json").read_text(encoding="utf-8"))
-          release_tag = os.environ["RELEASE_TAG"]
-          release_title = str(version_info.get("release_name") or f"Horosa Desktop {release_tag}")
-          if not release_title.strip():
-              release_title = f"Horosa Desktop {release_tag}"
-          with open(Path(os.environ["GITHUB_ENV"]), "a", encoding="utf-8") as fh:
-              fh.write(f"RELEASE_NAME={release_title}\n")
-
       - name: Build portable release assets
         shell: pwsh
         run: |
@@ -120,7 +56,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.RELEASE_NAME }}
+          name: Horosa Desktop ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           draft: false
           prerelease: false

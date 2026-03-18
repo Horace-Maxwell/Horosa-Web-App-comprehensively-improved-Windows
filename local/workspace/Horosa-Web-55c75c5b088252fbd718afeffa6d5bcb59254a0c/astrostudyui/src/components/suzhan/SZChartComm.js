@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import Su28Chart from '../su28/Su28Chart';
 import * as SZConst from '../suzhan/SZConst';
-import {randomStr, creatTooltip} from '../../utils/helper';
+import {randomStr, creatTooltip, positionTooltipInViewport} from '../../utils/helper';
 import * as AstroText from '../../constants/AstroText';
 import {splitDegree, } from '../astro/AstroHelper';
 
@@ -108,9 +108,15 @@ class SZChartComm {
 			this.divTooltip.transition()		
 				.duration(200)		
 				.style("opacity", .9);
-			this.divTooltip.html(str)
-				.style("left", (evt.pageX) + "px")
-				.style("top", (evt.pageY - 28) + "px");
+			this.divTooltip.html(str);
+			positionTooltipInViewport(this.divTooltip, evt);
+			if(window.requestAnimationFrame){
+				window.requestAnimationFrame(()=>{
+					positionTooltipInViewport(this.divTooltip, evt);
+				});
+			}
+		}).on('mousemove', (evt)=>{
+			positionTooltipInViewport(this.divTooltip, evt);
 		}).on('mouseout', (evt)=>{
 			this.divTooltip.transition()		
 				.duration(500)		

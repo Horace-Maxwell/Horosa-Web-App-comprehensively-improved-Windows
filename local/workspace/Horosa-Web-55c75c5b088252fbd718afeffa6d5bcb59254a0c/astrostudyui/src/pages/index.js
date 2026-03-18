@@ -47,7 +47,7 @@ const TabPane = Tabs.TabPane;
 let fetchByFieldsTimer = null;
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
-    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, showPlanetHouseInfo, showAstroMeaning, showOnlyRulExaltReception} = app;
+    const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, showPlanetHouseInfo, showAstroMeaning, showAstroAnnotation, showOnlyRulExaltReception, planetMetaDisplay} = app;
     const {
         pwdFields,
         userInfo,
@@ -253,6 +253,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
                 <TabPane tab="推运盘" key="direction">
 	                    <AstroDirectMain
+                        active={currentTab === 'direction'}
                         height={height} 
                         fields={fields}
                         fieldsAry={aryfields}
@@ -394,6 +395,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
                 <TabPane tab="易与三式" key="cnyibu">
                     <CnYiBuMain
+                        active={currentTab === 'cnyibu'}
                         chart={chartObj}
                         height={height} 
                         fields={fields}
@@ -476,6 +478,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
                 <TabPane tab="三式合一" key="sanshiunited">
 	                    <SanShiUnitedMain
+	                        active={currentTab === 'sanshiunited'}
 	                        height={height}
                         fields={fields}
                         fieldsAry={aryfields}
@@ -836,7 +839,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
                     showPlanetHouseInfo={showPlanetHouseInfo}
                     showAstroMeaning={showAstroMeaning}
+                    showAstroAnnotation={showAstroAnnotation}
                     showOnlyRulExaltReception={showOnlyRulExaltReception}
+                    planetMetaDisplay={planetMetaDisplay}
                     fields={fields}
                     dispatch={dispatch}
                 />

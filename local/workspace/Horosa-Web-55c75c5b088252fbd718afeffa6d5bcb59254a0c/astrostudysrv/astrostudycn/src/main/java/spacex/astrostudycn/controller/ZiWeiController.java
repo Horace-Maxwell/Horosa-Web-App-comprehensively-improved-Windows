@@ -13,6 +13,7 @@ import boundless.spring.help.interceptor.TransData;
 import boundless.utility.ConvertUtility;
 import spacex.astrostudy.helper.CacheHelper;
 import spacex.astrostudycn.constants.BaZiGender;
+import spacex.astrostudycn.constants.TimeZiAlg;
 import spacex.astrostudycn.helper.ZWRulesHelper;
 import spacex.astrostudycn.helper.ZiWeiHelper;
 import spacex.astrostudycn.model.ZiWeiChart;
@@ -35,10 +36,11 @@ public class ZiWeiController {
 		boolean after23NewDay = (boolean) params.get("after23NewDay");
 		boolean genderval = (boolean) params.get("gender");
 		BaZiGender gender = BaZiGender.fromValue(genderval);
+		TimeZiAlg timeAlg = (TimeZiAlg) params.get("timeAlg");
 		
 		Object obj = CacheHelper.get("/ziwei/birth", params, (args)->{
 			Map<String, Map<String, String>> sihua = (Map<String, Map<String, String>>) params.get("sihua");
-			ZiWeiChart chart = new ZiWeiChart(ad, gender, dtstr, zone, lon, lat, after23NewDay, sihua);
+			ZiWeiChart chart = new ZiWeiChart(ad, gender, dtstr, zone, lon, lat, timeAlg, after23NewDay, sihua);
 			Map<String, Object> res = new HashMap<String, Object>();
 			
 			res.put("chart", chart);
@@ -75,6 +77,11 @@ public class ZiWeiController {
 		map.put("gender", TransData.getValueAsBool("gender", true));
 		boolean after23NewDay = TransData.getValueAsBool("after23NewDay", false);
 		map.put("after23NewDay", after23NewDay);
+		int timeAlgCode = TransData.getValueAsInt("timeAlg", 0);
+		if(timeAlgCode != TimeZiAlg.DirectTime.getCode()) {
+			timeAlgCode = TimeZiAlg.RealSun.getCode();
+		}
+		map.put("timeAlg", TimeZiAlg.fromCode(timeAlgCode));
 		
 		if(TransData.containsParam("sihua")) {
 			Map<String, List<String>> sihuamap = (Map<String, List<String>>) TransData.get("sihua");

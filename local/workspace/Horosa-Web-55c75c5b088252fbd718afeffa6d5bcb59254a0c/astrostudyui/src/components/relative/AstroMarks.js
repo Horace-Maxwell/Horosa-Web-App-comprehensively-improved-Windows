@@ -109,6 +109,7 @@ class AstroMarks extends Component{
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 								/>
 							) : (
 								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看马克斯盘。</div>
@@ -130,6 +131,7 @@ class AstroMarks extends Component{
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
+									showAstroMeaning={this.props.showAstroMeaning}
 								/>
 							) : (
 								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看马克斯盘。</div>

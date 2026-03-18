@@ -58,7 +58,7 @@ class ZiWeiChart extends Component{
 			return;
 		}
 		
-		this.zwchart.fileds = this.props.fields;
+		this.zwchart.fields = this.props.fields;
 		this.zwchart.chart = chartobj;
 		if(this.props.dirIndex !== undefined && this.props.dirIndex !== null){
 			this.zwchart.dirHouseIndex = this.props.dirIndex;
@@ -131,4 +131,3 @@ class ZiWeiChart extends Component{
 }
 
 export default ZiWeiChart;
-

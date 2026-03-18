@@ -104,6 +104,18 @@ function resolveBoundedHeight(rawHeight){
 	return Math.max(SUZHAN_MIN_HEIGHT, Math.min(h, maxH));
 }
 
+function getSuZhanShape(fields){
+	if(fields && fields.szshape && fields.szshape.value !== undefined && fields.szshape.value !== null){
+		const shape = parseInt(fields.szshape.value, 10);
+		if(shape === SZConst.SZChart_Circle || shape === SZConst.SZChart_Square){
+			return shape;
+		}
+	}
+	return SZConst.SZChart.shape === SZConst.SZChart_Circle
+		? SZConst.SZChart_Circle
+		: SZConst.SZChart_Square;
+}
+
 function isEncodedToken(text){
 	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
 }
@@ -392,7 +404,7 @@ function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 		lines.push(`外盘：${chartTypeName(fields.szchart.value)}`);
 	}
 	if(fields && fields.szshape){
-		lines.push(`盘型：${chartShapeName(fields.szshape.value)}`);
+		lines.push(`盘型：${chartShapeName(getSuZhanShape(fields))}`);
 	}
 	if(fields && fields.doubingSu28){
 		lines.push(`宿法：${fields.doubingSu28.value === 1 ? '斗柄定房法' : '现实距星法'}`);
@@ -511,18 +523,19 @@ class SuZhanMain extends Component{
 		chart.lots = chartObj ? chartObj.lots : [];
 
 		return (
-			<div style={{ minHeight: height, maxHeight: height, overflowY: 'auto', overflowX: 'hidden' }}>
-				<Row gutter={6}>
-					<Col span={16}>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
+				<Row gutter={6} style={{ height: '100%', alignItems: 'flex-start', flexWrap: 'nowrap', minWidth: 0 }}>
+					<Col span={16} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
 						<SuZhanChart 
 							value={chart} 
 							height={height} 
+							active={this.props.active}
 							fields={this.props.fields}  
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 						/>
 					</Col>
-					<Col span={8}>
+					<Col span={8} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
 						<Row>
 							<Col span={24}>
 								<SuZhanInput 

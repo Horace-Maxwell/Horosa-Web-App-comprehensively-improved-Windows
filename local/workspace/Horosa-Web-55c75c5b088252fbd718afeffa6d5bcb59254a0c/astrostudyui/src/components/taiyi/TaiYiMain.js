@@ -582,13 +582,13 @@ class TaiYiMain extends Component {
 			height = height - 20;
 		}
 		return (
-			<div style={{ minHeight: height }}>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
-					<Row gutter={6}>
-						<Col span={16}>
+					<Row gutter={6} style={{ height: '100%' }}>
+						<Col span={16} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
 							{this.renderLeft()}
 						</Col>
-						<Col span={8}>
+						<Col span={8} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', minWidth: 0 }}>
 							{this.renderRight()}
 						</Col>
 					</Row>

@@ -7,6 +7,7 @@ import {setDispatch} from '../utils/request';
 import {detectPlatform} from '../utils/helper';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
+import { DEFAULT_PLANET_META_DISPLAY, normalizePlanetMetaDisplay } from '../utils/planetMetaDisplay';
 
 const MinWorkspaceHeight = 660;
 const WorkspaceReservedHeight = 88;
@@ -115,7 +116,9 @@ export default {
         pdTimeKey: 'Ptolemy',
         showPlanetHouseInfo: 0,
         showAstroMeaning: 0,
+        showAstroAnnotation: 0,
         showOnlyRulExaltReception: 0,
+        planetMetaDisplay: normalizePlanetMetaDisplay(DEFAULT_PLANET_META_DISPLAY),
 
         loginFields:{
             loginId: {
@@ -147,6 +150,14 @@ export default {
     reducers: {
         save(state, {payload: values}) {
             const payload = { ...(values || {}) };
+            if(Object.prototype.hasOwnProperty.call(payload, 'showAstroAnnotation')
+                && !Object.prototype.hasOwnProperty.call(payload, 'showAstroMeaning')){
+                payload.showAstroMeaning = payload.showAstroAnnotation;
+            }
+            if(Object.prototype.hasOwnProperty.call(payload, 'showAstroMeaning')
+                && !Object.prototype.hasOwnProperty.call(payload, 'showAstroAnnotation')){
+                payload.showAstroAnnotation = payload.showAstroMeaning;
+            }
             if(Object.prototype.hasOwnProperty.call(payload, 'planetDisplay')){
                 payload.planetDisplay = normalizeDisplayList(
                     payload.planetDisplay,
@@ -163,6 +174,9 @@ export default {
                     true
                 );
             }
+            if(Object.prototype.hasOwnProperty.call(payload, 'planetMetaDisplay')){
+                payload.planetMetaDisplay = normalizePlanetMetaDisplay(payload.planetMetaDisplay);
+            }
 
             let st = { ...state, ...payload };
             let globalSetup = {
@@ -175,7 +189,9 @@ export default {
                 pdTimeKey: st.pdTimeKey,
                 showPlanetHouseInfo: st.showPlanetHouseInfo,
                 showAstroMeaning: st.showAstroMeaning,
+                showAstroAnnotation: st.showAstroAnnotation,
                 showOnlyRulExaltReception: st.showOnlyRulExaltReception,
+                planetMetaDisplay: normalizePlanetMetaDisplay(st.planetMetaDisplay),
             };
             let json = JSON.stringify(globalSetup);
             localStorage.setItem(Constants.GlobalSetupKey, json);

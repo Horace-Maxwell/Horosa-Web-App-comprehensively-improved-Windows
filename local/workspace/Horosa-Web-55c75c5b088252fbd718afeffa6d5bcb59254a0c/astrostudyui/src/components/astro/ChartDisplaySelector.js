@@ -97,6 +97,7 @@ class ChartDisplaySelector extends Component{
 		this.props.dispatch({
 			type: 'app/save',
 			payload: {
+				showAstroMeaning: checked ? 1 : 0,
 				showAstroAnnotation: checked ? 1 : 0,
 			},
 		});
@@ -116,6 +117,7 @@ class ChartDisplaySelector extends Component{
 		this.props.dispatch({
 			type: 'app/save',
 			payload: {
+				showPlanetHouseInfo: next.showPostnatal === 1 ? 1 : 0,
 				planetMetaDisplay: next,
 			},
 		});

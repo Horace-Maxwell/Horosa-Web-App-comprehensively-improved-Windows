@@ -1,7 +1,8 @@
 import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from './LRConst';
-import {randomStr,} from '../../utils/helper';
+import {randomStr, creatTooltip,} from '../../utils/helper';
 import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj, } from './LRShenJiangDoc';
 
 class ChuangChart {
 	constructor(option){
@@ -20,6 +21,7 @@ class ChuangChart {
 		this.height = option.height;
 
 		this.divTooltip = option.divTooltip;
+		this.showMeaning = option.showMeaning === true;
 
 		this.id = 'chart' + randomStr(8);
 
@@ -96,17 +98,40 @@ class ChuangChart {
 		y1 = ord.y + ord.h/4;
 		h = (ord.h - ord.h/4) / 2;
 		txtdata = data[2].split('');
-		drawTextV(this.svg, txtdata, x1, y1, w, h, 5, this.color);
+		const shenGroup = drawTextV(this.svg, txtdata, x1, y1, w, h, 5, this.color);
 
 		y1 = y1 + h;
 		h = h / 2;
 		txtdata = data[0].split('');
-		drawTextH(this.svg, txtdata, x, y1, tw, h, 2, LRConst.LRColor.tianJiangColor);
+		const jiangGroup = drawTextH(this.svg, txtdata, x, y1, tw, h, 2, LRConst.LRColor.tianJiangColor);
 
 		y1 = y1 + h;
 		txtdata = data[1].split('');
 		drawTextH(this.svg, txtdata, x, y1, tw, h, 2, LRConst.LRColor.liuQinColor);
+		if(this.showMeaning){
+			const zhi = this.extractZhi(data[2]);
+			const di = this.getDiByUp(zhi);
+			creatTooltip(this.divTooltip, shenGroup, buildLiuRengShenTipObj(zhi), null, true);
+			creatTooltip(this.divTooltip, jiangGroup, buildLiuRengHouseTipObj(data[0], zhi, di || zhi), null, true);
+		}
 
+	}
+
+	getDiByUp(up){
+		const idx = this.upZi.indexOf(`${up || ''}`);
+		if(idx < 0){
+			return '';
+		}
+		return this.downZi[idx] || '';
+	}
+
+	extractZhi(gz){
+		const txt = `${gz || ''}`.trim();
+		if(!txt){
+			return '';
+		}
+		const val = txt.slice(-1);
+		return LRConst.ZiList.indexOf(val) >= 0 ? val : '';
 	}
 
 	genCuangs(){
