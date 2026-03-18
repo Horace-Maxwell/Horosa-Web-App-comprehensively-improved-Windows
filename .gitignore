@@ -10,14 +10,20 @@
 *.tmp
 .tmp_*
 log/HOROSA_RUN_ISSUES.md
+log/*.png
+log/*.txt
+log/*.json
 
 # Local Horosa runtime artifacts
 **/.horosa-local-logs/
 **/.horosa-local-logs-win/
+**/.horosa-local-cache-win/
 **/.horosa-browser-profile/
 **/.horosa-browser-profile-win/
 **/.horosa_win_*.pid
 **/.horosa_win_*.lock
+**/.horosa_win_service_state.json
+**/HOROSA_PROJECT_DIR.txt
 **/${sys:user.home}/
 
 # JS/TS
