@@ -355,6 +355,8 @@ function Write-RuntimeManifest {
   }
 
   $manifest = [pscustomobject]@{
+    product = 'Horosa Windows Stable'
+    channel = 'stable'
     generatedAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ssK')
     root = $Root
     assets = $assets
