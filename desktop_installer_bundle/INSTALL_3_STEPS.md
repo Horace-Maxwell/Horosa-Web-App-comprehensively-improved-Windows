@@ -2,12 +2,12 @@
 
 ## 普通用户下载哪个
 
-- 请到 GitHub Release 下载 `Horosa-Setup-1.0.2.exe`
+- 请到 GitHub Release 下载 `Horosa-Setup-1.0.3.exe`
 - 不要手动下载 `latest.yml` 或 `.blockmap`
 
 ## 三步完成安装
 
-1. 下载 `Horosa-Setup-1.0.2.exe`
+1. 下载 `Horosa-Setup-1.0.3.exe`
 2. 双击安装器，按中文向导完成安装
 3. 从桌面或开始菜单打开 `星阙`
 
@@ -20,3 +20,4 @@
 - 用户数据保存在 `%LocalAppData%\\HorosaDesktop`
 - 如果机器上已安装星阙，安装器会进入维护页，可选择 `替换 / 修复 / 取消`
 - 更新可以直接在应用内完成，升级默认保留用户数据
+- 桌面快捷方式会按 Windows Shell 的真实桌面目录创建，包含 OneDrive 桌面场景

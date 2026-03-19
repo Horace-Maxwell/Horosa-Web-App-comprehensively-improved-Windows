@@ -2,7 +2,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } = require('electron');
-const { autoUpdater } = require('electron-updater');
+const { NsisUpdater } = require('electron-updater');
+const packageMetadata = require('../package.json');
 const { createLogger } = require('./logger');
 const { RuntimeManager } = require('./service-manager');
 
@@ -15,14 +16,21 @@ const DEFAULT_ZOOM_FACTOR = 1.0;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 1.6;
 const ZOOM_STEP = 0.1;
+const DEFAULT_UPDATE_PUBLISH_CONFIG = Object.freeze({
+  provider: 'github',
+  owner: 'Horace-Maxwell',
+  repo: 'Horosa-Web-App-comprehensively-improved-Windows',
+});
 
 app.setPath('userData', horosaDataRoot);
 
 let mainWindow = null;
 let runtimeManager = null;
 let logger = null;
+let autoUpdater = null;
 let runtimeBootPromise = null;
 let updateCheckTimer = null;
+let updateCheckContext = 'idle';
 let currentWindowBoundsMode = 'default-85';
 let currentPage = 'loading';
 let windowStateSaveTimer = null;
@@ -33,6 +41,147 @@ let updateState = {
   status: app.isPackaged ? 'idle' : 'unsupported',
   message: app.isPackaged ? '等待检查更新' : '开发模式下不启用自动更新',
 };
+
+function createUpdaterLogger() {
+  return {
+    info(...args) {
+      if (logger) {
+        logger.info('[updater]', ...args);
+      }
+    },
+    warn(...args) {
+      if (logger) {
+        logger.warn('[updater]', ...args);
+      }
+    },
+    error(...args) {
+      if (logger) {
+        logger.error('[updater]', ...args);
+      }
+    },
+    debug(...args) {
+      if (logger) {
+        logger.info('[updater]', ...args);
+      }
+    },
+  };
+}
+
+function getConfiguredPublishOptions() {
+  const publishConfig = packageMetadata && packageMetadata.build ? packageMetadata.build.publish : null;
+  const firstPublishConfig = Array.isArray(publishConfig) ? publishConfig[0] : publishConfig;
+  if (!firstPublishConfig || firstPublishConfig.provider !== 'github') {
+    return { ...DEFAULT_UPDATE_PUBLISH_CONFIG };
+  }
+
+  return {
+    ...DEFAULT_UPDATE_PUBLISH_CONFIG,
+    ...firstPublishConfig,
+  };
+}
+
+function ensureAutoUpdater() {
+  if (!app.isPackaged) {
+    return null;
+  }
+
+  if (autoUpdater) {
+    return autoUpdater;
+  }
+
+  const publishConfig = getConfiguredPublishOptions();
+  autoUpdater = new NsisUpdater(publishConfig);
+  autoUpdater.logger = createUpdaterLogger();
+  if (logger) {
+    logger.info('Configured NSIS updater', publishConfig);
+  }
+  return autoUpdater;
+}
+
+function isOfflineUpdateError(message) {
+  const normalizedMessage = String(message || '').toLowerCase();
+  return [
+    'enetunreach',
+    'econnreset',
+    'econnrefused',
+    'etimedout',
+    'err_internet_disconnected',
+    'internet disconnected',
+    'net::err_network_changed',
+    'net::err_name_not_resolved',
+    'enotfound',
+    'network request failed',
+    'socket hang up',
+    'timeout',
+  ].some((pattern) => normalizedMessage.includes(pattern));
+}
+
+function formatUpdateErrorMessage(error, { manual = false } = {}) {
+  const rawMessage = error && error.message ? error.message : String(error || '');
+
+  if (rawMessage.includes('app-update.yml')) {
+    return manual
+      ? '更新功能初始化失败，请安装最新完整安装包后重试。'
+      : '更新暂不可用，已跳过后台检查。';
+  }
+
+  if (isOfflineUpdateError(rawMessage)) {
+    return manual
+      ? '网络不可用，暂时无法检查更新。'
+      : '当前网络不可用，已跳过后台更新检查。';
+  }
+
+  return manual
+    ? `检查更新失败：${rawMessage || '请稍后重试。'}`
+    : '更新暂不可用，已跳过后台检查。';
+}
+
+function applyUpdateErrorState(error, { manual = false } = {}) {
+  const rawMessage = error && error.message ? error.message : String(error || '检查更新失败');
+  if (logger) {
+    logger.warn('Auto update failed', {
+      manual,
+      message: rawMessage,
+    });
+  }
+  setUpdateState({
+    status: manual ? 'error' : 'unavailable',
+    message: formatUpdateErrorMessage(error, { manual }),
+  });
+}
+
+async function runUpdateCheck({ manual = false } = {}) {
+  if (!app.isPackaged) {
+    setUpdateState({
+      status: 'unsupported',
+      message: '开发模式下不启用自动更新',
+    });
+    return updateState;
+  }
+
+  const updater = ensureAutoUpdater();
+  if (!updater) {
+    setUpdateState({
+      status: manual ? 'error' : 'unavailable',
+      message: manual ? '自动更新未启用。' : '更新暂不可用，已跳过后台检查。',
+    });
+    return updateState;
+  }
+
+  const context = manual ? 'manual' : 'background';
+  updateCheckContext = context;
+
+  try {
+    await updater.checkForUpdates();
+  } catch (error) {
+    if (updateCheckContext === context) {
+      updateCheckContext = 'idle';
+      applyUpdateErrorState(error, { manual });
+    }
+  }
+
+  return updateState;
+}
 
 function getResourceRoot() {
   if (app.isPackaged) {
@@ -591,19 +740,7 @@ function createAppMenu() {
         {
           label: '检查更新',
           click: () => {
-            if (app.isPackaged) {
-              autoUpdater.checkForUpdates().catch((error) => {
-                setUpdateState({
-                  status: 'error',
-                  message: error.message,
-                });
-              });
-            } else {
-              setUpdateState({
-                status: 'unsupported',
-                message: '开发模式下不启用自动更新',
-              });
-            }
+            runUpdateCheck({ manual: true }).catch(() => {});
           },
         },
         {
@@ -624,17 +761,23 @@ function configureAutoUpdater() {
     return;
   }
 
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = false;
+  const updater = ensureAutoUpdater();
+  if (!updater) {
+    return;
+  }
 
-  autoUpdater.on('checking-for-update', () => {
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = false;
+
+  updater.on('checking-for-update', () => {
     setUpdateState({
       status: 'checking',
       message: '正在检查更新',
     });
   });
 
-  autoUpdater.on('update-available', (info) => {
+  updater.on('update-available', (info) => {
+    updateCheckContext = 'idle';
     setUpdateState({
       status: 'available',
       message: `发现新版本 ${info.version}，正在下载`,
@@ -642,7 +785,7 @@ function configureAutoUpdater() {
     });
   });
 
-  autoUpdater.on('download-progress', (progress) => {
+  updater.on('download-progress', (progress) => {
     setUpdateState({
       status: 'downloading',
       message: '正在下载更新',
@@ -650,7 +793,8 @@ function configureAutoUpdater() {
     });
   });
 
-  autoUpdater.on('update-not-available', (info) => {
+  updater.on('update-not-available', (info) => {
+    updateCheckContext = 'idle';
     setUpdateState({
       status: 'not-available',
       message: '当前已是最新版本',
@@ -658,7 +802,8 @@ function configureAutoUpdater() {
     });
   });
 
-  autoUpdater.on('update-downloaded', (info) => {
+  updater.on('update-downloaded', (info) => {
+    updateCheckContext = 'idle';
     setUpdateState({
       status: 'downloaded',
       message: `更新 ${info.version} 已下载完成，重启即可安装`,
@@ -666,11 +811,10 @@ function configureAutoUpdater() {
     });
   });
 
-  autoUpdater.on('error', (error) => {
-    setUpdateState({
-      status: 'error',
-      message: error == null ? '检查更新失败' : error.message,
-    });
+  updater.on('error', (error) => {
+    const manual = updateCheckContext === 'manual';
+    updateCheckContext = 'idle';
+    applyUpdateErrorState(error, { manual });
   });
 }
 
@@ -681,12 +825,7 @@ function queueUpdateCheck() {
 
   updateCheckTimer = setTimeout(() => {
     updateCheckTimer = null;
-    autoUpdater.checkForUpdates().catch((error) => {
-      setUpdateState({
-        status: 'error',
-        message: error.message,
-      });
-    });
+    runUpdateCheck({ manual: false }).catch(() => {});
   }, 15000);
 }
 
@@ -719,20 +858,12 @@ ipcMain.handle('desktop:get-app-info', async () => {
   });
 
   ipcMain.handle('desktop:check-for-updates', async () => {
-    if (!app.isPackaged) {
-      setUpdateState({
-        status: 'unsupported',
-        message: '开发模式下不启用自动更新',
-      });
-      return updateState;
-    }
-
-    await autoUpdater.checkForUpdates();
-    return updateState;
+    return runUpdateCheck({ manual: true });
   });
 
   ipcMain.handle('desktop:install-downloaded-update', async () => {
-    if (updateState.status !== 'downloaded') {
+    const updater = ensureAutoUpdater();
+    if (!updater || updateState.status !== 'downloaded') {
       return {
         ok: false,
         message: '当前没有可安装的已下载更新',
@@ -740,7 +871,7 @@ ipcMain.handle('desktop:get-app-info', async () => {
     }
 
     setImmediate(() => {
-      autoUpdater.quitAndInstall(false, true);
+      updater.quitAndInstall(false, true);
     });
     return {
       ok: true,
