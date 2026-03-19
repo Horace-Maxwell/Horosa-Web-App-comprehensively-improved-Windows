@@ -238,23 +238,40 @@ Function CleanupLegacyLauncherArtifacts
   Delete "$DESKTOP\START_HERE*.lnk"
   Delete "$DESKTOP\Horosa Local*.lnk"
   Delete "$DESKTOP\Horosa Launcher*.lnk"
+  Delete "$DESKTOP\Horosa Desktop*.lnk"
+  Delete "$DESKTOP\星阙*.lnk"
 
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\START_HERE*.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Local*.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Launcher*.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop*.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙*.lnk"
 
   RMDir /r "$SMPROGRAMS\Horosa Local"
   RMDir /r "$SMPROGRAMS\Horosa Launcher"
   RMDir /r "$SMPROGRAMS\START_HERE"
+  RMDir /r "$SMPROGRAMS\Horosa Desktop"
 
   SetShellVarContext all
   Delete "$SMPROGRAMS\START_HERE*.lnk"
   Delete "$SMPROGRAMS\Horosa Local*.lnk"
   Delete "$SMPROGRAMS\Horosa Launcher*.lnk"
+  Delete "$SMPROGRAMS\Horosa Desktop*.lnk"
+  Delete "$SMPROGRAMS\星阙*.lnk"
   RMDir /r "$SMPROGRAMS\Horosa Local"
   RMDir /r "$SMPROGRAMS\Horosa Launcher"
   RMDir /r "$SMPROGRAMS\START_HERE"
+  RMDir /r "$SMPROGRAMS\Horosa Desktop"
   SetShellVarContext current
+FunctionEnd
+
+Function CleanupCurrentDesktopShortcuts
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙.lnk"
+  Delete "$DESKTOP\Horosa Desktop.lnk"
+  Delete "$DESKTOP\星阙.lnk"
+  Delete "$SMPROGRAMS\Horosa Desktop.lnk"
+  Delete "$SMPROGRAMS\星阙.lnk"
 FunctionEnd
 
 Function ExistingInstallPageCreate
@@ -368,6 +385,22 @@ FunctionEnd
 
 !macro customPageAfterChangeDir
   Page Custom ExistingInstallPageCreate ExistingInstallPageLeave
+!macroend
+
+!macro customInstall
+  Call CleanupCurrentDesktopShortcuts
+  CreateShortCut "$newStartMenuLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+  ClearErrors
+  CreateShortCut "$newDesktopLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+  ClearErrors
+  System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
+!macroend
+
+!macro customUnInstall
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙.lnk"
+  Delete "$DESKTOP\Horosa Desktop.lnk"
+  Delete "$DESKTOP\星阙.lnk"
 !macroend
 
 !endif

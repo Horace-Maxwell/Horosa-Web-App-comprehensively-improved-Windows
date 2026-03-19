@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Horosa mature Windows desktop app bundle",
   "author": "Horosa",
@@ -10,11 +10,12 @@
     "prepare:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\prepareruntime\\Prepare_Runtime_Windows.ps1 -NoPause",
     "stage:runtime": "node scripts/stage-runtime.cjs",
     "build:desktop": "npm run build:renderer && npm run prepare:runtime && npm run stage:runtime",
+    "patch:win-icon": "node scripts/patch-win-exe-icon.cjs",
     "dev": "npm run build:renderer && npm run stage:runtime && electron .",
     "dev:fast": "npm run stage:runtime && electron .",
     "start": "npm run build:desktop && electron .",
-    "pack:win": "npm run build:desktop && electron-builder --dir",
-    "dist:win": "npm run build:desktop && electron-builder --win nsis"
+    "pack:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon",
+    "dist:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon && electron-builder --win nsis --prepackaged release/win-unpacked"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
