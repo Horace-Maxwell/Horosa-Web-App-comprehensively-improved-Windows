@@ -7,6 +7,7 @@ import {splitDegree} from '../astro/AstroHelper';
 import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip, positionTooltipInViewport} from '../../utils/helper';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
 import {ZiSign,} from '../suzhan/SZConst';
+import { buildNormalizedSu28State } from './su28Data';
 
 
 
@@ -88,37 +89,13 @@ class Su28ChartCircle {
 		if(this.chartObj === null || this.chartObj === undefined){
 			return;
 		}
-
-		let suhouses = this.chartObj.fixedStarSu28;
-		for(let i=0; i<suhouses.length; i++){
-			let suh = suhouses[i];
-			suh.planets = [];
-			this.houseMap.set(suh.name, suh);
-		}	
-
-		for(let i=0; i<this.chartObj.objects.length; i++){
-			let obj = this.chartObj.objects[i];
-			if(this.planetDisp){
-				if(this.planetDisp.has(obj.id)){
-					let house = this.houseMap.get(obj.su28);
-					house.planets.push(obj);
-				}	
-			}else{
-				if(AstroConst.isTraditionPlanet(obj.id)){
-					let house = this.houseMap.get(obj.su28);
-					house.planets.push(obj);
-				}
-			}
+		const normalized = buildNormalizedSu28State(this.chartObj, this.planetDisp);
+		this.houseMap = normalized.houseMap;
+		if(normalized.missingHouseNames.length > 0){
+			console.warn('[Horosa:Su28ChartCircle] missing su28 houses', normalized.missingHouseNames);
 		}
-
-		for(let su of suhouses){
-			let house = this.houseMap.get(su.name);
-			house.planets.sort((a, b)=>{
-				if(a.ra > 300 && b.ra < 30){
-					return -1;
-				}
-				return a.ra - b.ra;
-			});
+		if(normalized.unknownAssignments.length > 0){
+			console.warn('[Horosa:Su28ChartCircle] unmapped su28 objects', normalized.unknownAssignments);
 		}
 	}
 

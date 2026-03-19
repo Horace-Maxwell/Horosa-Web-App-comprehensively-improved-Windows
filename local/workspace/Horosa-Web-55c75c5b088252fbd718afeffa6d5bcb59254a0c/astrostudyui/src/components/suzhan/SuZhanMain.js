@@ -10,7 +10,6 @@ import * as Su28Helper from '../su28/Su28Helper';
 import SuZhanInput from './SuZhanInput';
 import SuZhanChart from './SuZhanChart';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-const SUZHAN_VIEWPORT_GAP = 12;
 const SUZHAN_MIN_HEIGHT = 320;
 
 const SIMPLE_TOKEN_MAP = {
@@ -94,14 +93,11 @@ function toNumber(val){
 }
 
 function resolveBoundedHeight(rawHeight){
-	const viewport = getViewportHeight();
 	let h = toNumber(rawHeight);
 	if(h === null){
-		h = rawHeight === '100%' ? (viewport - 80) : 760;
+		h = getViewportHeight();
 	}
-	h = h - 20;
-	const maxH = Math.max(SUZHAN_MIN_HEIGHT, viewport - SUZHAN_VIEWPORT_GAP);
-	return Math.max(SUZHAN_MIN_HEIGHT, Math.min(h, maxH));
+	return Math.max(SUZHAN_MIN_HEIGHT, h);
 }
 
 function getSuZhanShape(fields){

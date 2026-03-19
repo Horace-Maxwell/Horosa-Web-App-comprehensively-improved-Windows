@@ -102,4 +102,35 @@ describe('SuZhanChart shape sync', ()=>{
 		expect(observe).toHaveBeenNthCalledWith(2, parent);
 		expect(observe).not.toHaveBeenCalledWith(svg);
 	});
+
+	test('drawChart stores local error instead of throwing when draw fails', ()=>{
+		mockDraw.mockImplementationOnce(()=>{
+			throw new Error('draw boom');
+		});
+
+		const comp = new SuZhanChart({
+			fields: makeFields(),
+			value: makeValue(),
+			chartDisplay: [],
+			planetDisplay: [],
+			active: true,
+		});
+
+		comp.setState = jest.fn((updater)=>{
+			const patch = typeof updater === 'function' ? updater(comp.state, comp.props) : updater;
+			comp.state = {
+				...comp.state,
+				...patch,
+			};
+		});
+
+		const svg = document.createElement('svg');
+		svg.id = comp.state.chartid;
+		Object.defineProperty(svg, 'clientWidth', { configurable: true, value: 800 });
+		Object.defineProperty(svg, 'clientHeight', { configurable: true, value: 800 });
+		document.body.appendChild(svg);
+
+		expect(()=>comp.drawChart()).not.toThrow();
+		expect(comp.state.drawError).toBe('draw boom');
+	});
 });

@@ -21,6 +21,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
 import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const { MonthPicker, } = DatePicker
 const TabPane = Tabs.TabPane;
@@ -1510,31 +1511,25 @@ class JieQiChartsMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-
-		if(height === '100%'){
-			height = 'calc(100% - 70px)'
-		}else{
-			height = height - 50
+		const height = normalizeContentHeight(this.props.height);
+		let showInput = true;
+		if(this.state.currentTab.indexOf('宿盘') >= 0){
+			showInput = false;
 		}
+		const tabsHeight = Math.max(260, height - (showInput ? 48 : 0));
 		let style = {
-			height: height,
+			height: tabsHeight,
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};
 
 
-		const tabs = this.genTabsDom(height);
+		const tabs = this.genTabsDom(tabsHeight);
 
 		let jieqi24dom = this.gen24JieqiDom();
 
-		let showInput = true;
-		if(this.state.currentTab.indexOf('宿盘') >= 0){
-			showInput = false;
-		}
-
 		return (
-			<div id={this.state.divid}>
+			<div id={this.state.divid} style={{ height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 				{
 					showInput && (
 					<Row gutter={6}>
@@ -1584,7 +1579,8 @@ class JieQiChartsMain extends Component{
 					tabPosition='right'
 					onChange={this.changeTab}
 					destroyInactiveTabPane={true}
-					style={{ height: height }}
+					className='horosaFillTabs'
+					style={{ height: tabsHeight, flex: '1 1 auto', minHeight: 0 }}
 				>
 					<TabPane tab='二十四节气' key='二十四节气'>
 						<div className={styles.scrollbar} style={style}>

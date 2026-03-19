@@ -1,63 +1,84 @@
-# 星阙 Windows 下载与安装
+# 星阙 Horosa Windows 桌面版
 
-当前仓库对应的是 Windows 一键启动稳定版整理分支，面向普通用户交付。
+这个仓库现在同时服务两类人：
 
-普通用户先看这里，不需要先看源码。
+- **普通 Windows 用户**：去 GitHub Release 下载离线安装包
+- **开发者 / 维护者**：从 `main` 下载源码、脚本与打包工程，自行复原运行环境与构建桌面版
 
-## 一键安装包下载位置
+## 普通用户下载哪个
 
-- 最新 Release 页面：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest`
-- 当前可直接下载的一键安装包：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.8/HorosaPortableWindows-2026.03.10.8.zip`
+- 最新正式版 Release：
+  [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+- **Windows 10/11 x64 普通用户** 请下载：
+  `Horosa-Setup-1.0.0.exe`
 
-请注意：
+不要手动下载这些文件：
 
-- 普通用户要下载的是 `HorosaPortableWindows-版本.zip`
-- 不要下载同页里的 `.manifest.json`，那个不是给手动安装用的
-- 这个 zip 虽然文件名里写的是 `PortableWindows`，但它就是目前给普通用户发布的一键安装包
-- 如果上面的当前直链以后失效，直接打开 `releases/latest` 页面下载最新同名格式的 zip 即可
+- `latest.yml`
+- `Horosa-Setup-1.0.0.exe.blockmap`
 
-## 安装只做这 3 步
+它们是给应用内自动更新使用的，不是手动安装入口。
 
-1. 下载 `HorosaPortableWindows-版本.zip`
-2. 先解压 zip，再打开解压后的文件夹
-3. 双击 `Install_Horosa_Desktop.vbs`，按中文安装向导完成安装
+## 三步安装
 
-安装完成后：
+1. 下载 `Horosa-Setup-1.0.0.exe`
+2. 双击运行安装器，按中文向导安装
+3. 从桌面或开始菜单打开 `星阙`
 
-- 桌面或开始菜单里会出现 `星阙`
-- 以后直接打开 `星阙` 就可以，不需要重复安装
+补充说明：
 
-## 下载后不要点错
+- 安装包已经包含 Electron、Java、Python、前后端资源
+- 安装完成后可**离线运行本地功能**
+- 只有“检查更新”需要联网
+- 默认安装到 `%LocalAppData%\Programs\Horosa`
+- 用户数据保存在 `%LocalAppData%\HorosaDesktop`
+- 如果机器上已经装过星阙，安装器会进入维护页，可选 `替换 / 修复 / 取消`
 
-- 正确入口是 `Install_Horosa_Desktop.vbs`
-- 不要手动去点 `.ps1` 脚本
-- 不要直接点 `.manifest.json`
-- 第一次安装如果 Windows 弹出安全提示，按系统提示选择允许继续即可
+## 这次正式版包含什么
 
-## 更新怎么收
+`v1.0.0` 重点包含：
 
-- 安装后的应用里可以使用 `更新 -> 检查更新`
-- 软件会显示当前版本、是否已是最新版本，以及 GitHub Release 里的更新日志
-- 如果有新版本，可以直接在弹窗里继续更新
-- 用户数据会保留在 `%LocalAppData%\HorosaDesktop`，更新不会清空这些内容
+- 真正的 Electron 桌面窗口，不再依赖浏览器 `--app` 壳
+- 完整离线安装包，尽量不依赖目标机器预装环境
+- 应用内更新链路（GitHub Releases + `latest.yml` + blockmap）
+- 中文维护页：已安装检测、替换 / 修复 / 取消
+- 默认窗口比例、缩放、快捷键、窗口恢复逻辑完善
+- 顶栏抽屉、易与三式、组合盘 / 时空中点盘等白屏问题修复
+- 全部主 tab 底部越界修复
+- 风水 tab 在桌面壳中的本地资源加载修复
 
-## 如果你是开发者
+## 开发者从哪里开始
 
-这个仓库同时保留了 Windows 桌面包装、源码运行环境和发布脚本，所以普通用户只需要看上面的 Release 下载说明。
+源码与桌面打包主要在这些位置：
 
-开发相关内容主要在这些位置：
+- `desktop_installer_bundle/`：Electron 桌面壳、NSIS 安装器、自动更新、桌面构建脚本
+- `prepareruntime/`：运行时准备脚本，用于补齐 Java / Python / wheels / bundle
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`：主项目源码
+- `docs/`：结构说明、自检记录、版本发布说明
 
-- `desktop_installer_bundle/`：Windows 桌面壳、安装器、打包与更新脚本
-- `local/`：本地运行环境和主项目工作区
-- `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`：发布更新流程
-- `desktop_installer_bundle/INSTALL_3_STEPS.md`：给终端用户的三步安装说明
+常用文档：
 
-## 当前稳定版补充说明
+- `desktop_installer_bundle/INSTALL_3_STEPS.md`
+- `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`
+- `docs/PROJECT_STRUCTURE.md`
+- `docs/SELFCHECK_LOG.md`
+- `docs/releases/v1.0.0.md`
 
-- 启动入口固定为 `START_HERE.bat`
-- 启动器已整理为稳定版链路：默认固定窗口比例、优先使用已构建前端、默认跳过不必要源码扫描
-- 启动器已加入 AppCDS 动态归档加速链路；首次运行会训练，后续启动自动复用
-- `docs/SELFCHECK_LOG.md` 记录本轮稳定版自检结果
-- `docs/PROJECT_STRUCTURE.md` 记录当前交付目录结构
+## `main` 分支包含什么，不包含什么
+
+`main` 分支会保留：
+
+- 可复原功能所需的源码、脚本、配置、文档
+- 桌面打包工程与安装器脚本
+- 主项目源码和运行时准备脚本
+
+`main` 分支不会保留：
+
+- `node_modules/`
+- `desktop_installer_bundle/build/`
+- `desktop_installer_bundle/release/`
+- 本地日志、缓存、浏览器 profile
+- 可由脚本重新准备的 Java / Python / wheels 大包
+- 可重新生成的前端构建产物与桌面运行时大文件
+
+也就是说：**普通用户去 Release 下载成品，开发者在 `main` 拿源码和脚本自行复原。**

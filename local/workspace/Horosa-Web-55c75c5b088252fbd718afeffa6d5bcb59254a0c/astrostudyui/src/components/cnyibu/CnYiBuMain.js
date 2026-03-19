@@ -12,7 +12,6 @@ import styles from './CnYiBuMain.less';
 
 const TabPane = Tabs.TabPane;
 const VALID_TABS = ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'];
-const CNYIBU_VIEWPORT_GAP = 12;
 const CNYIBU_MIN_HEIGHT = 300;
 
 function getViewportHeight(){
@@ -40,14 +39,11 @@ function toNumber(val){
 }
 
 function resolveBoundedHeight(rawHeight){
-	const viewport = getViewportHeight();
 	let h = toNumber(rawHeight);
 	if(h === null){
-		h = rawHeight === '100%' ? (viewport - 80) : 760;
+		h = getViewportHeight();
 	}
-	h = h - 20;
-	const maxH = Math.max(CNYIBU_MIN_HEIGHT, viewport - CNYIBU_VIEWPORT_GAP);
-	return Math.max(CNYIBU_MIN_HEIGHT, Math.min(h, maxH));
+	return Math.max(CNYIBU_MIN_HEIGHT, h);
 }
 
 class CnYiBuMain extends Component{

@@ -7,9 +7,16 @@
 // export const HasRtspPlayer = true;
 
 
+const desktopConfig =
+	typeof window !== 'undefined' &&
+	window.__HOROSA_DESKTOP_CONFIG__
+		? window.__HOROSA_DESKTOP_CONFIG__
+		: null;
+
 const isLocalHost =
 	typeof window !== 'undefined' &&
 	(
+		!!(desktopConfig && desktopConfig.desktop) ||
 		window.location.protocol === 'file:' ||
 		window.location.hostname === 'localhost' ||
 		window.location.hostname === '127.0.0.1'
@@ -18,6 +25,9 @@ const isLocalHost =
 function resolveLocalServerRoot(){
 	if(typeof window === 'undefined'){
 		return 'http://127.0.0.1:9999';
+	}
+	if(desktopConfig && desktopConfig.serverRoot){
+		return desktopConfig.serverRoot;
 	}
 	const storageKey = 'horosaLocalServerRoot';
 	const deriveFromPagePort = () => {

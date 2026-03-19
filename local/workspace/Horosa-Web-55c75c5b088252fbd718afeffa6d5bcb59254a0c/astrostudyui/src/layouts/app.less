@@ -50,8 +50,6 @@
         overflow: hidden;
     }
 
-    @main-tabs-safe-gap: 118px;
-
     .mainRootTabs.ant-tabs-left,
     .mainRootTabs.ant-tabs-left .ant-tabs-content-holder,
     .mainRootTabs.ant-tabs-left .ant-tabs-content,
@@ -64,19 +62,21 @@
     .mainRootTabs.ant-tabs-left > .ant-tabs-nav,
     .mainRootTabs.ant-tabs-left > .ant-tabs-bar,
     .mainRootTabs.ant-tabs-left .ant-tabs-nav-container {
-        max-height: calc(100vh - @main-tabs-safe-gap);
-        padding-bottom: 12px;
+        height: 100%;
+        min-height: 0;
+        align-self: stretch;
         box-sizing: border-box;
     }
 
     .mainRootTabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-nav-wrap,
     .mainRootTabs.ant-tabs-left > .ant-tabs-bar .ant-tabs-nav-wrap,
     .mainRootTabs.ant-tabs-left .ant-tabs-nav-container .ant-tabs-nav-wrap {
+        max-height: 100%;
+        min-height: 0;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         overscroll-behavior: contain;
         scrollbar-width: thin;
-        padding-bottom: 12px;
         box-sizing: border-box;
     }
 
@@ -97,5 +97,17 @@
     .mainRootTabs.ant-tabs-left > .ant-tabs-bar .ant-tabs-tab-prev,
     .mainRootTabs.ant-tabs-left > .ant-tabs-bar .ant-tabs-tab-next {
         display: none !important;
+    }
+
+    .horosaFillTabs.ant-tabs,
+    .horosaFillTabs.ant-tabs .ant-tabs-content-holder,
+    .horosaFillTabs.ant-tabs .ant-tabs-content,
+    .horosaFillTabs.ant-tabs .ant-tabs-tabpane {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosaFillTabs.ant-tabs .ant-tabs-tabpane {
+        overflow: hidden;
     }
 }

@@ -9,6 +9,81 @@ import { saveAstroAISnapshot, } from '../utils/astroAiSnapshot';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 
 let dtm = new DateTime();
+const SAFE_MAIN_TAB = 'astrochart';
+const VALID_MAIN_TABS = [
+	'astrochart',
+	'astrochart3D',
+	'direction',
+	'germanytech',
+	'relativechart',
+	'jieqichart',
+	'locastro',
+	'guolao',
+	'hellenastro',
+	'indiachart',
+	'cntradition',
+	'cnyibu',
+	'calendar',
+	'otherbu',
+	'astroreader',
+	'liveplayer',
+	'admintools',
+	'fengshui',
+	'sanshiunited',
+];
+const STRICT_SUB_TABS = {
+	cntradition: ['bazi', 'ziwei', '74'],
+	cnyibu: ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'],
+	direction: ['primarydirect', 'primarydirchart'],
+};
+const DEFAULT_SUB_TAB = {
+	cntradition: 'bazi',
+	cnyibu: 'suzhan',
+	direction: 'primarydirect',
+};
+
+function normalizeMainTab(tab){
+	return VALID_MAIN_TABS.indexOf(tab) >= 0 ? tab : SAFE_MAIN_TAB;
+}
+
+function normalizeSubTabForTab(tab, subTab){
+	if(!Object.prototype.hasOwnProperty.call(STRICT_SUB_TABS, tab)){
+		return subTab === undefined ? null : subTab;
+	}
+	const nextSubTab = `${subTab || ''}`.trim();
+	return STRICT_SUB_TABS[tab].indexOf(nextSubTab) >= 0 ? nextSubTab : DEFAULT_SUB_TAB[tab];
+}
+
+function resolveNextTabState(state, payload){
+	const hasCurrentTab = Object.prototype.hasOwnProperty.call(payload, 'currentTab');
+	const hasCurrentSubTab = Object.prototype.hasOwnProperty.call(payload, 'currentSubTab');
+	const prevTab = normalizeMainTab(state.currentTab);
+	const nextTab = hasCurrentTab ? normalizeMainTab(payload.currentTab) : prevTab;
+
+	let nextSubTab = state.currentSubTab;
+	if(hasCurrentSubTab){
+		nextSubTab = normalizeSubTabForTab(nextTab, payload.currentSubTab);
+	}else if(hasCurrentTab && nextTab !== prevTab){
+		nextSubTab = normalizeSubTabForTab(nextTab, undefined);
+	}else if(Object.prototype.hasOwnProperty.call(STRICT_SUB_TABS, nextTab)){
+		nextSubTab = normalizeSubTabForTab(nextTab, state.currentSubTab);
+	}
+
+	return {
+		hasCurrentTab,
+		hasCurrentSubTab,
+		nextTab,
+		nextSubTab,
+	};
+}
+
+function getChartMemoValue(currentChart, key){
+	const field = currentChart && currentChart[key];
+	if(field && Object.prototype.hasOwnProperty.call(field, 'value')){
+		return field.value;
+	}
+	return null;
+}
 
 function newEmptyFields(){
 	const fields = {
@@ -266,24 +341,25 @@ function closeAllDrawer(msg){
 }
 
 function hooking(hook, currentTab, fields, chartObj){
-	if(currentTab === 'indiachart' || currentTab === 'locastro'
-		|| currentTab === 'hellenastro' || currentTab === 'guolao'
-		|| currentTab === 'germanytech' || currentTab === 'jieqichart'
-		|| currentTab === 'cntradition' || currentTab === 'cnyibu' || currentTab === 'otherbu'
-		|| currentTab === 'fengshui' || currentTab === 'sanshiunited'){
-		if(hook[currentTab].fun){
-			hook[currentTab].fun(fields, chartObj)
-		}
-	}else if(currentTab === 'direction'){
-		if(hook[currentTab].fun){
-			hook[currentTab].fun(chartObj);
-		}
-	}else if(currentTab === 'astroreader'){
-		if(hook[currentTab].fun){
-			hook[currentTab].fun();
-		}
+	const currentHook = hook && hook[currentTab];
+	if(!currentHook || typeof currentHook.fun !== 'function'){
+		return;
 	}
-
+	try{
+		if(currentTab === 'indiachart' || currentTab === 'locastro'
+			|| currentTab === 'hellenastro' || currentTab === 'guolao'
+			|| currentTab === 'germanytech' || currentTab === 'jieqichart'
+			|| currentTab === 'cntradition' || currentTab === 'cnyibu' || currentTab === 'otherbu'
+			|| currentTab === 'fengshui' || currentTab === 'sanshiunited'){
+			currentHook.fun(fields, chartObj);
+		}else if(currentTab === 'direction'){
+			currentHook.fun(chartObj);
+		}else if(currentTab === 'astroreader'){
+			currentHook.fun();
+		}
+	}catch(e){
+		console.error(`[Horosa:hook:${currentTab}]`, e);
+	}
 }
 
 let now = new DateTime();
@@ -545,11 +621,27 @@ export default {
 
 	reducers: {
 		save(state, {payload: values}){
-			let st = { ...state, ...values, };
-			let tab = values.currentTab ? values.currentTab : state.currentTab;
-			let subtab = values.currentSubTab ? values.currentSubTab : state.currentSubTab;
+			const payload = {
+				...(values || {}),
+			};
+			const {
+				hasCurrentTab,
+				hasCurrentSubTab,
+				nextTab,
+				nextSubTab,
+			} = resolveNextTabState(state, payload);
+			if(hasCurrentTab){
+				payload.currentTab = nextTab;
+			}
+			if(hasCurrentSubTab || hasCurrentTab){
+				payload.currentSubTab = nextSubTab;
+			}
 
-			if(values.currentChart){
+			let st = { ...state, ...payload };
+			let tab = hasCurrentTab ? nextTab : normalizeMainTab(state.currentTab);
+			let subtab = hasCurrentSubTab || hasCurrentTab ? nextSubTab : state.currentSubTab;
+
+			if(payload.currentChart){
 				return st;
 			}
 
@@ -560,62 +652,59 @@ export default {
 
 			if(tab && (values.memoType === undefined || values.memoType === null)){
 				let type = 0;
-				let memo = currentChart.memoAstro.value;
+				let memo = getChartMemoValue(currentChart, 'memoAstro');
 				if(tab === 'cntradition'){
-					if(subtab && subtab === 'bazi'){
-						type = 1;
-						memo = currentChart.memoBaZi.value;
-					}else if(subtab && subtab === 'ziwei'){
+					if(subtab === 'ziwei'){
 						type = 2;
-						memo = currentChart.memoZiWei.value;
+						memo = getChartMemoValue(currentChart, 'memoZiWei');
 					}else if(subtab && subtab === '74'){
 						type = 3;
-						memo = currentChart.memo74.value;
+						memo = getChartMemoValue(currentChart, 'memo74');
 					}else{
-						type = 2;
-						memo = currentChart.memoZiWei.value;
+						type = 1;
+						memo = getChartMemoValue(currentChart, 'memoBaZi');
 					}
 				}else if(tab === 'cnyibu'){
 					if(subtab && subtab === 'suzhan'){
 						type = 7;
-						memo = currentChart.memoSuZhan.value;
+						memo = getChartMemoValue(currentChart, 'memoSuZhan');
 					}else if(subtab && subtab === 'guazhan'){
 						type = 4;
-						memo = currentChart.memoGua.value;
+						memo = getChartMemoValue(currentChart, 'memoGua');
 					}else if(subtab && subtab === 'liureng'){
 						type = 5;
-						memo = currentChart.memoLiuReng.value;
+						memo = getChartMemoValue(currentChart, 'memoLiuReng');
 					}else if(subtab && subtab === 'jinkou'){
 						type = 5;
-						memo = currentChart.memoLiuReng.value;
+						memo = getChartMemoValue(currentChart, 'memoLiuReng');
 					}else{
-						type = 4;
-						memo = currentChart.memoGua.value;
+						type = 7;
+						memo = getChartMemoValue(currentChart, 'memoSuZhan');
 					}
 				}else if(tab === 'guolao'){
 					type = 3;
-					memo = currentChart.memo74.value;
+					memo = getChartMemoValue(currentChart, 'memo74');
 				}
 				st.memoType = type;	
 				st.memo = memo;
 			}else if(values.memoType !== undefined && values.memoType !== null && 
 				(values.byChartData === undefined || values.byChartData === null)){
 				let type = values.memoType;
-				let memo = currentChart.memoAstro.value;
+				let memo = getChartMemoValue(currentChart, 'memoAstro');
 				if(type === 1){
-					memo = currentChart.memoBaZi.value;
+					memo = getChartMemoValue(currentChart, 'memoBaZi');
 				}else if(type === 2){
-					memo = currentChart.memoZiWei.value;
+					memo = getChartMemoValue(currentChart, 'memoZiWei');
 				}else if(type === 3){
-					memo = currentChart.memo74.value;
+					memo = getChartMemoValue(currentChart, 'memo74');
 				}else if(type === 4){
-					memo = currentChart.memoGua.value;
+					memo = getChartMemoValue(currentChart, 'memoGua');
 				}else if(type === 5){
-					memo = currentChart.memoLiuReng.value;
+					memo = getChartMemoValue(currentChart, 'memoLiuReng');
 				}else if(type === 6){
-					memo = currentChart.memoQiMeng.value;
+					memo = getChartMemoValue(currentChart, 'memoQiMeng');
 				}else if(type === 7){
-					memo = currentChart.memoSuZhan.value;
+					memo = getChartMemoValue(currentChart, 'memoSuZhan');
 				}
 				st.memo = memo;
 			}
@@ -1073,7 +1162,12 @@ export default {
 				return;
 			}
 
-			let path = values.path;
+			let path = Array.isArray(values.path) ? values.path.slice(0) : [values.path];
+			if(path[0] === '1'){
+				path[0] = SAFE_MAIN_TAB;
+			}
+			const currentTab = normalizeMainTab(path[0]);
+			const currentSubTab = normalizeSubTabForTab(currentTab, path[1]);
 			if(path[0] === 'astroreader'){
 				const store = getStore();
 				const userState = store.user;
@@ -1081,7 +1175,8 @@ export default {
 					yield put({
 						type: 'save',
 						payload: {
-							currentTab: '1',
+							currentTab: SAFE_MAIN_TAB,
+							currentSubTab: null,
 						},
 					});		
 					return;
@@ -1089,11 +1184,9 @@ export default {
 			}
 
 			let payload = {
-				currentTab: path[0],
+				currentTab,
 			};
-			if(path.length > 0){
-				payload.currentSubTab = path[1];
-			}
+			payload.currentSubTab = currentSubTab;
 
 			yield put({
 				type: 'save',

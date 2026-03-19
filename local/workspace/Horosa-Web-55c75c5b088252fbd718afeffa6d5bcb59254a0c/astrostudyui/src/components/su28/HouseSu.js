@@ -37,6 +37,22 @@ class HouseSu {
 		this.svg = container;
 	}
 
+	getHouseObj(){
+		if(this.houseObj && typeof this.houseObj === 'object'){
+			return this.houseObj;
+		}
+		return {
+			name: '',
+			ra: 0,
+			planets: [],
+		};
+	}
+
+	getPlanets(){
+		const houseObj = this.getHouseObj();
+		return Array.isArray(houseObj.planets) ? houseObj.planets : [];
+	}
+
 	genTooltipByTips(titleSvg, tipobj){
 		creatTooltip(this.su28chart.divTooltip, titleSvg, tipobj, this.onTipClick);
 	}
@@ -50,9 +66,12 @@ class HouseSu {
 		if(titleSvg){
 			lblsvg = titleSvg;
 		}
-		let hobj = this.houseObj;
+		let hobj = this.getHouseObj();
 		if(obj){
 			hobj = obj;
+		}
+		if(!lblsvg){
+			return;
 		}
 		
 		let lbl = name;
@@ -115,7 +134,7 @@ class HouseSu {
 	}
 
 	hasAsc(){
-		let planets = this.houseObj.planets;
+		let planets = this.getPlanets();
 		for(let i=0; i<planets.length; i++){
 			let pnt = planets[i];
 			if(pnt.id === AstroConst.ASC){
@@ -126,19 +145,20 @@ class HouseSu {
 	}
 
 	getStarText(){
+		const houseObj = this.getHouseObj();
 		let flags = this.su28chart.chartDisp;
 		let txtplanet = true;
 		if(flags !== undefined && flags !== null){
 			txtplanet = (flags & AstroConst.CHART_TXTPLANET) === 0 ? false : true;
 		}
 		let res = [];
-		let planets = this.houseObj.planets;
+		let planets = this.getPlanets();
 		for(let i=0; i<planets.length; i++){
 			let pnt = planets[i];
 			let pntstr = pnt.id;
-			let radeg = pnt.ra - this.houseObj.ra;
+			let radeg = pnt.ra - houseObj.ra;
 			if(radeg < 0){
-				radeg = pnt.ra + 360 - this.houseObj.ra;
+				radeg = pnt.ra + 360 - houseObj.ra;
 			}
 			let degs = splitDegree(radeg);
 			let startxt = [];

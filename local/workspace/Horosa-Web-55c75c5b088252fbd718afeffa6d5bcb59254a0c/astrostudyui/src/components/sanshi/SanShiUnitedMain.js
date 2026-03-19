@@ -46,6 +46,7 @@ import {
 	buildOverviewReferenceText,
 	XIAO_JU_REFERENCE_TAB_KEYS,
 } from '../lrzhan/LiuRengMain';
+import { TAB_BOTTOM_SAFE_GAP, getRectBottomLimit, normalizeContentHeight } from '../../utils/layout';
 import {
 	BAGONG_PALACE_ORDER,
 	BAGONG_PALACE_NAME,
@@ -1405,6 +1406,7 @@ class SanShiUnitedMain extends Component{
 		);
 		this.state = {
 			loading: false,
+			moduleError: null,
 			nongli: null,
 			displaySolarTime: '',
 			liureng: null,
@@ -1469,6 +1471,7 @@ class SanShiUnitedMain extends Component{
 		this.pendingSnapshotTimer = null;
 		this.autoPlotTimer = null;
 		this.taiyiCache = new Map();
+		this.rootHost = null;
 
 		this.refreshAll = this.refreshAll.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -1498,6 +1501,7 @@ class SanShiUnitedMain extends Component{
 		this.clickSave = this.clickSave.bind(this);
 		this.parseCasePayload = this.parseCasePayload.bind(this);
 		this.restoreOptionsFromCurrentCase = this.restoreOptionsFromCurrentCase.bind(this);
+		this.captureRoot = this.captureRoot.bind(this);
 		this.captureLeftBoardHost = this.captureLeftBoardHost.bind(this);
 		this.captureRightPanel = this.captureRightPanel.bind(this);
 		this.captureRightTop = this.captureRightTop.bind(this);
@@ -1659,6 +1663,11 @@ class SanShiUnitedMain extends Component{
 		this.handleWindowResize();
 	}
 
+	captureRoot(node){
+		this.rootHost = node || null;
+		this.handleWindowResize();
+	}
+
 	captureRightPanel(node){
 		this.rightPanelHost = node || null;
 		this.handleWindowResize();
@@ -1668,10 +1677,10 @@ class SanShiUnitedMain extends Component{
 		const viewportHeight = getViewportHeight();
 		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
 		const rightTopHeight = this.rightTopHost ? this.rightTopHost.clientHeight : 0;
-		const rightTop = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top : 0;
 		const fallbackPanelHeight = Math.max(420, viewportHeight - 120);
-		const rightPanelHeight = rightTop > 0
-			? Math.max(220, viewportHeight - rightTop - 8)
+		const panelBounds = getRectBottomLimit(this.rootHost, this.rightPanelHost, viewportHeight, TAB_BOTTOM_SAFE_GAP)
+		const rightPanelHeight = panelBounds.subjectTop > 0
+			? Math.max(220, panelBounds.limit)
 			: fallbackPanelHeight;
 		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
 			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
@@ -2088,6 +2097,7 @@ class SanShiUnitedMain extends Component{
 			hasPlotted: true,
 			localFields: nextFields,
 			plottedFields: nextFields,
+			moduleError: null,
 			loading: needChartSync ? true : this.state.loading,
 		}, ()=>{
 			this.pendingTimeFields = null;
@@ -2367,11 +2377,18 @@ class SanShiUnitedMain extends Component{
 					try{
 						this.lastRecalcError = null;
 						const changed = this.performRecalcByNongli(payload.fields, payload.nongli, payload.overrideOptions);
+						if(changed && !this.unmounted && this.state.moduleError){
+							this.setState({ moduleError: null });
+						}
 						this.resolvePendingRecalc(changed);
 					}catch(e){
 						this.lastRecalcError = e;
 						if(!this.unmounted){
-							this.setState({ loading: false });
+							const detail = safe(e && e.message, '').trim();
+							this.setState({
+								loading: false,
+								moduleError: detail || '三式合一模块计算异常，请重试。',
+							});
 							console.error('[SanShiUnited] performRecalcByNongli failed', e);
 						}
 						this.resolvePendingRecalc(false);
@@ -2654,7 +2671,10 @@ class SanShiUnitedMain extends Component{
 				let usedFallback = false;
 				if(!nongli){
 					if((missingSeed || force) && !this.state.loading){
-						this.setState({ loading: true });
+						this.setState({
+							loading: true,
+							moduleError: null,
+						});
 					}
 					const budgetResult = await Promise.race([
 						precisePromise.then((result)=>({
@@ -2700,6 +2720,9 @@ class SanShiUnitedMain extends Component{
 							if(this.state.loading){
 								patch.loading = false;
 							}
+							if(this.state.moduleError){
+								patch.moduleError = null;
+							}
 							if(displaySolarTime !== this.state.displaySolarTime){
 								patch.displaySolarTime = displaySolarTime;
 							}
@@ -2740,12 +2763,18 @@ class SanShiUnitedMain extends Component{
 						}
 				}catch(e){
 					if(!this.unmounted && seq === this.refreshSeq){
-						this.setState({ loading: false });
 						const errText = `${safe(e && e.message, '')}`.toLowerCase();
+						const detail = safe(e && e.message, '').trim();
+						const moduleError = errText.indexOf('precise.nongli.unavailable') >= 0
+							? '精确历法服务暂时不可用，当前无法完成三式合一起盘。'
+							: (detail || '三式合一计算异常，请重试。');
+						this.setState({
+							loading: false,
+							moduleError,
+						});
 						if(errText.indexOf('precise.nongli.unavailable') >= 0){
 							message.error('三式合一计算失败：精确历法服务不可用');
 						}else{
-							const detail = safe(e && e.message, '').trim();
 							message.error(detail ? `三式合一计算异常：${detail}` : '三式合一计算异常，请重试');
 						}
 						if(e){
@@ -3453,7 +3482,7 @@ class SanShiUnitedMain extends Component{
 		);
 	}
 
-		renderRight(){
+	renderRight(){
 			const fields = this.getActiveFields();
 			const pan = this.state.dunjia;
 			const opt = this.state.options || {};
@@ -3875,15 +3904,38 @@ class SanShiUnitedMain extends Component{
 		);
 	}
 
-	render(){
-		let height = this.props.height ? this.props.height : 760;
-		if(height === '100%'){
-			height = 760;
-		}else{
-			height = height - 20;
-		}
+	renderModuleError(height){
+		const errorText = safe(this.state.moduleError, '').trim() || '当前模块暂时不可用，请稍后重试。';
 		return (
 			<div className={styles.root} style={{ height, maxHeight: height, overflow: 'hidden' }}>
+				<div style={{ height: '100%', padding: 12, boxSizing: 'border-box' }}>
+					<Card
+						bordered={false}
+						style={{ height: '100%' }}
+						bodyStyle={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+					>
+						<div style={{ maxWidth: 560, textAlign: 'center' }}>
+							<div style={{ fontSize: 18, fontWeight: 600, color: '#262626', marginBottom: 12 }}>三式合一模块暂时无法显示</div>
+							<div style={{ color: '#595959', lineHeight: '24px', marginBottom: 20 }}>{errorText}</div>
+							<div style={{ color: '#8c8c8c', lineHeight: '22px', marginBottom: 20 }}>你可以重试当前模块，或先切换到安全页签后再返回。</div>
+							<div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+								<Button type="primary" onClick={this.clickPlot}>重试当前模块</Button>
+								<Button onClick={()=>this.setState({ moduleError: null })}>关闭错误提示</Button>
+							</div>
+						</div>
+					</Card>
+				</div>
+			</div>
+		);
+	}
+
+	render(){
+		let height = normalizeContentHeight(this.props.height);
+		if(this.state.moduleError){
+			return this.renderModuleError(height);
+		}
+		return (
+			<div ref={this.captureRoot} className={styles.root} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
 					<Row gutter={6} style={{ alignItems: 'flex-start' }}>
 						<Col span={16}>

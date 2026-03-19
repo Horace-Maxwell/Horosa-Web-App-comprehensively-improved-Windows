@@ -1,13 +1,22 @@
-﻿# Horosa Desktop 三步安装说明
+# 星阙 Windows 桌面版三步安装
 
-1. 先把压缩包解压到你想放置的位置，然后打开解压后的文件夹。
-2. 双击 `Install_Horosa_Desktop.vbs`，打开 Horosa 中文安装向导。
-3. 按欢迎页提示点击“下一步”，安装完成后使用生成的 `Horosa Desktop` 快捷方式启动软件。
+## 普通用户下载哪个
 
-说明：
-- 不要手动直接打开 PowerShell 脚本。
-- 以后可以在应用菜单中检查更新：`Update -> Check for updates`。
-- 如果 Windows 第一次提示网络访问权限，请允许本地访问。
-- 首次安装可能需要几分钟，因为安装程序会自动准备桌面运行环境。
-- 你的桌面状态和更新缓存保存在 `%LocalAppData%\HorosaDesktop`，以后更新不会把这些数据清掉。
-- 完成页支持直接启动 Horosa，也可以先打开解压后的安装目录。
+- 请到 GitHub Release 下载 `Horosa-Setup-1.0.0.exe`
+- 不要手动下载 `latest.yml` 或 `.blockmap`
+
+## 三步完成安装
+
+1. 下载 `Horosa-Setup-1.0.0.exe`
+2. 双击安装器，按中文向导完成安装
+3. 从桌面或开始菜单打开 `星阙`
+
+## 补充说明
+
+- 安装包已经包含 Electron、Java、Python 和前后端资源
+- 安装完成后可在本地**离线运行**
+- 只有“检查更新”需要网络
+- 默认安装到 `%LocalAppData%\\Programs\\Horosa`
+- 用户数据保存在 `%LocalAppData%\\HorosaDesktop`
+- 如果机器上已安装星阙，安装器会进入维护页，可选择 `替换 / 修复 / 取消`
+- 更新可以直接在应用内完成，升级默认保留用户数据

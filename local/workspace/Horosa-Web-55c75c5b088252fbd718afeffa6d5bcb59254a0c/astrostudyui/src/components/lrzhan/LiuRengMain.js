@@ -26,12 +26,13 @@ import {
 } from '../liureng/LRJudgePanelHelper';
 import { renderMarkdownLiteBlock } from '../../utils/markdownLiteReact';
 import styles from './LiuRengMain.less';
+import { TAB_BOTTOM_SAFE_GAP, getRectBottomLimit, normalizeContentHeight } from '../../utils/layout';
 
 
 const InputGroup = Input.Group;
 const {Option} = Select;
 const TabPane = Tabs.TabPane;
-const RIGHT_PANEL_BOTTOM_GAP = 12;
+const RIGHT_PANEL_BOTTOM_GAP = TAB_BOTTOM_SAFE_GAP;
 const RIGHT_PANEL_MIN_HEIGHT = 180;
 
 function getViewportHeight(){
@@ -660,6 +661,7 @@ class LiuRengMain extends Component{
 		};
 
 		this.unmounted = false;
+		this.rootHost = null;
 		this.rightPanelHost = null;
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
@@ -674,6 +676,7 @@ class LiuRengMain extends Component{
 		this.saveLiuRengAISnapshot = this.saveLiuRengAISnapshot.bind(this);
 		this.clickCalcCase = this.clickCalcCase.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
+		this.captureRoot = this.captureRoot.bind(this);
 		this.captureRightPanel = this.captureRightPanel.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
 
@@ -968,6 +971,11 @@ class LiuRengMain extends Component{
 		window.removeEventListener('resize', this.handleWindowResize);
 	}
 
+	captureRoot(node){
+		this.rootHost = node || null;
+		this.handleWindowResize();
+	}
+
 	captureRightPanel(node){
 		this.rightPanelHost = node || null;
 		this.handleWindowResize();
@@ -975,10 +983,9 @@ class LiuRengMain extends Component{
 
 	handleWindowResize(){
 		const viewportHeight = getViewportHeight();
-		const rightTopRaw = this.rightPanelHost ? this.rightPanelHost.getBoundingClientRect().top : 0;
-		const rightPanelTop = Number.isFinite(rightTopRaw) ? Math.max(0, rightTopRaw) : 0;
-		// Keep right column strictly within viewport bottom edge.
-		const rightPanelLimit = Math.max(0, viewportHeight - rightPanelTop - RIGHT_PANEL_BOTTOM_GAP);
+		const panelBounds = getRectBottomLimit(this.rootHost, this.rightPanelHost, viewportHeight, RIGHT_PANEL_BOTTOM_GAP);
+		const rightPanelTop = panelBounds.subjectTop;
+		const rightPanelLimit = panelBounds.limit;
 		const fallbackPanelHeight = Math.max(360, viewportHeight - 120);
 		const preferredPanelHeight = Math.min(fallbackPanelHeight, rightPanelLimit);
 		const minPanelHeight = Math.min(RIGHT_PANEL_MIN_HEIGHT, rightPanelLimit);
@@ -998,12 +1005,7 @@ class LiuRengMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		if(height === '100%'){
-			height = 'calc(100% - 70px)'
-		}else{
-			height = height - 20
-		}
+		let height = normalizeContentHeight(this.props.height);
 
 		let chart = this.state.calcChart || (this.props.value && this.props.value.chart ? this.props.value.chart : null);
 		const liureng = this.state.liureng;
@@ -1052,8 +1054,8 @@ class LiuRengMain extends Component{
 		const rawPanelHeight = this.state.rightPanelHeight || Math.max(360, viewportHeight - 120);
 		const rightPanelHeight = Math.min(rawPanelHeight, panelLimit);
 		return (
-			<div>
-				<Row gutter={6}>
+			<div ref={this.captureRoot} style={{ height, maxHeight: height, overflow: 'hidden' }}>
+				<Row gutter={6} style={{ height: '100%' }}>
 					<Col span={16}>
 						<LiuRengChart 
 							value={chart} 
@@ -1069,7 +1071,7 @@ class LiuRengMain extends Component{
 							planetDisplay={this.props.planetDisplay}
 						/>
 					</Col>
-					<Col span={8}>
+					<Col span={8} style={{ height: '100%' }}>
 						<div
 							ref={this.captureRightPanel}
 							className={styles.rightPanelHost}

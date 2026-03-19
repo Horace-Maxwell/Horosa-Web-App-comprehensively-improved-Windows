@@ -7,6 +7,7 @@ import BookReader from './BookReader';
 import BookList from './BookList';
 import MyBookList from './MyBookList';
 import BookUpload from './BookUpload';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 
@@ -73,7 +74,7 @@ class BookMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = normalizeContentHeight(this.props.height);
 
 		this.currentDom = 'mybooklist';
 		let bookdom = (
@@ -125,7 +126,7 @@ class BookMain extends Component{
 
 
 		return (
-			<div>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				{bookdom}
 			</div>
 		)
@@ -134,6 +135,5 @@ class BookMain extends Component{
 }
 
 export default BookMain;
-
 
 

@@ -6,6 +6,7 @@ import ZiWeiMain from '../ziwei/ZiWeiMain';
 import GuaSymDesc from '../gua/GuaSymDesc';
 import CuanGong12 from '../commtools/CuanGong12';
 import BaziPithy from '../commtools/BaziPithy';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 
@@ -94,16 +95,16 @@ class CnTraditionMain extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		let height = normalizeContentHeight(this.props.height);
 		let tab = this.findTab();
 
 		return (
-			<div id={this.state.divId}>
+			<div id={this.state.divId} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey={tab} tabPosition='right'
 					activeKey={tab}
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					<TabPane tab="八字" key="bazi">

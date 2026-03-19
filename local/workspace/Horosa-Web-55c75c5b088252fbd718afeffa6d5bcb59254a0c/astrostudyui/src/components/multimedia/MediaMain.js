@@ -5,6 +5,7 @@ import LivePlayer from './LivePlayer';
 import MediaPlayer from './MediaPlayer';
 import RtspPlayer from './RtspPlayer';
 import { HasRtspPlayer, } from '../../utils/constants';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 
@@ -66,8 +67,7 @@ class MediaMain extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		let height = normalizeContentHeight(this.props.height);
 		if(HasRtspPlayer && this.props.admin){
 			this.hasBaobaoVideo = true;
 		}else{
@@ -80,10 +80,11 @@ class MediaMain extends Component{
 		}
 
 		return (
-			<div id={this.state.divId}>
+			<div id={this.state.divId} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey={curTab} tabPosition='right'
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					{

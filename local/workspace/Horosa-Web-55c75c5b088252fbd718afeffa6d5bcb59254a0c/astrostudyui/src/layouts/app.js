@@ -75,7 +75,7 @@ const App = ({children, dispatch, app, user, })=>{
             <Content id='mainContent' style={contentStyle}>
                 <div style={{ width:'100%', height:'100%', paddingLeft: 30, paddingRight:30, overflow:'hidden', boxSizing:'border-box' }}>
                     <BackTop visibilityHeight={50}/>
-                    <div style={{ height:'100%', paddingLeft: 30, paddingRight:30, paddingTop:12, paddingBottom:12, overflow:'hidden', boxSizing:'border-box' }}>
+                    <div id='workspaceContentHost' style={{ height:'100%', paddingLeft: 30, paddingRight:30, paddingTop:12, paddingBottom:12, overflow:'hidden', boxSizing:'border-box' }}>
                         {children}
                     </div>
                 </div>

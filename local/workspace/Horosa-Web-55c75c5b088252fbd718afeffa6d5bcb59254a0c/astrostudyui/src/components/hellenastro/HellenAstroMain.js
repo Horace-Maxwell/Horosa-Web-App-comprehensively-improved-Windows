@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { Row, Col, Tabs, Tooltip } from 'antd';
 import AstroChart13 from './AstroChart13';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 
@@ -76,14 +77,15 @@ class HellenAstroMain extends Component{
 
 	render(){
 		let fields = this.props.fields;
-		let height = this.props.height ? this.props.height : 760;
+		let height = normalizeContentHeight(this.props.height);
 
 
 		return (
-			<div >
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					<TabPane tab='十三分盘' key="Chart13" >

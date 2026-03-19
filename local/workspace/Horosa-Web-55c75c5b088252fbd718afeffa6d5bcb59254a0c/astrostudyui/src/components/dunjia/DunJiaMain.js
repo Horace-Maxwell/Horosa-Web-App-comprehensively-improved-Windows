@@ -85,7 +85,6 @@ const DUNJIA_BOARD_BASE_HEIGHT = 870;
 const DUNJIA_SCALE_MIN = 0.48;
 const DUNJIA_SCALE_MAX = 1.22;
 const DUNJIA_FAST_PLOT_TIMEOUT_MS = 650;
-const DUNJIA_VIEWPORT_GAP = 12;
 const DUNJIA_MIN_HEIGHT = 320;
 
 function clamp(val, min, max){
@@ -117,14 +116,11 @@ function toNumber(val){
 }
 
 function resolveBoundedHeight(rawHeight){
-	const viewport = getViewportHeight();
 	let h = toNumber(rawHeight);
 	if(h === null){
-		h = rawHeight === '100%' ? (viewport - 80) : 760;
+		h = getViewportHeight();
 	}
-	h = h - 20;
-	const maxH = Math.max(DUNJIA_MIN_HEIGHT, viewport - DUNJIA_VIEWPORT_GAP);
-	return Math.max(DUNJIA_MIN_HEIGHT, Math.min(h, maxH));
+	return Math.max(DUNJIA_MIN_HEIGHT, h);
 }
 
 function safe(v, d = ''){
@@ -522,6 +518,7 @@ class DunJiaMain extends Component {
 
 		this.state = {
 			loading: false,
+			moduleError: null,
 			nongli: null,
 			pan: null,
 			displaySolarTime: '',
@@ -925,6 +922,7 @@ class DunJiaMain extends Component {
 		this.setState({
 			hasPlotted: true,
 			localFields: nextFields,
+			moduleError: null,
 		}, ()=>{
 			const shouldForce = !this.state.nongli || getFieldKey(nextFields) !== this.lastFieldKey;
 			this.requestNongli(nextFields, shouldForce);
@@ -1124,6 +1122,10 @@ class DunJiaMain extends Component {
 		try{
 			params = this.genParams(fldsToUse);
 		}catch(e){
+			this.setState({
+				moduleError: '当前时间或地理参数无效，请确认后重试。',
+				loading: false,
+			});
 			message.error('遁甲起盘参数无效，请确认时间与经纬度后重试');
 			return;
 		}
@@ -1140,7 +1142,10 @@ class DunJiaMain extends Component {
 		}
 		const seq = ++this.requestSeq;
 		if(force && !this.state.loading){
-			this.setState({ loading: true });
+			this.setState({
+				loading: true,
+				moduleError: null,
+			});
 		}
 
 		const reqPromise = (async ()=>{
@@ -1213,6 +1218,7 @@ class DunJiaMain extends Component {
 				this.lastFieldKey = fieldKey;
 				this.lastPanSignature = quickPanSignature;
 				this.setState({
+					moduleError: null,
 					nongli: quickResult,
 					pan: displayQuickPan,
 					displaySolarTime: quickDisplaySolarTime,
@@ -1269,6 +1275,7 @@ class DunJiaMain extends Component {
 					this.lastFieldKey = fieldKey;
 					this.lastPanSignature = finalSignature;
 					this.setState({
+						moduleError: null,
 						nongli: finalResult,
 						pan: displayFinalPan,
 						displaySolarTime: finalDisplaySolarTime,
@@ -1280,8 +1287,18 @@ class DunJiaMain extends Component {
 				}).catch(()=>null);
 			}catch(e){
 				if(!this.unmounted && seq === this.requestSeq){
-					this.setState({ loading: false });
-					message.error('遁甲计算失败：历法数据不可用');
+					const errText = `${safe(e && e.message, '')}`.toLowerCase();
+					const moduleError = errText.indexOf('nongli.unavailable') >= 0
+						? '历法数据暂时不可用，当前无法完成遁甲起盘。'
+						: (safe(e && e.message, '').trim() || '遁甲模块初始化失败，请重试。');
+					this.setState({
+						loading: false,
+						moduleError,
+					});
+					message.error(moduleError);
+					if(e){
+						console.error('[DunJia] requestNongli failed', e);
+					}
 				}
 			}finally{
 				if(this.pendingNongli && this.pendingNongli.key === fieldKey && seq === this.requestSeq){
@@ -2013,8 +2030,38 @@ class DunJiaMain extends Component {
 		);
 	}
 
+	renderModuleError(){
+		const errorText = safe(this.state.moduleError, '').trim() || '当前模块暂时不可用，请稍后重试。';
+		return (
+			<div style={{ height: '100%', padding: 12, boxSizing: 'border-box' }}>
+				<Card
+					bordered={false}
+					style={{ height: '100%' }}
+					bodyStyle={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+				>
+					<div style={{ maxWidth: 560, textAlign: 'center' }}>
+						<div style={{ fontSize: 18, fontWeight: 600, color: '#262626', marginBottom: 12 }}>遁甲模块暂时无法显示</div>
+						<div style={{ color: '#595959', lineHeight: '24px', marginBottom: 20 }}>{errorText}</div>
+						<div style={{ color: '#8c8c8c', lineHeight: '22px', marginBottom: 20 }}>你可以重试当前模块，或切换到其他页签后再返回。</div>
+						<div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+							<Button type="primary" onClick={this.clickPlot}>重试当前模块</Button>
+							<Button onClick={()=>this.setState({ moduleError: null })}>关闭错误提示</Button>
+						</div>
+					</div>
+				</Card>
+			</div>
+		);
+	}
+
 	render(){
 		const height = resolveBoundedHeight(this.props.height);
+		if(this.state.moduleError){
+			return (
+				<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
+					{this.renderModuleError()}
+				</div>
+			);
+		}
 		return (
 			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Spin spinning={this.state.loading}>

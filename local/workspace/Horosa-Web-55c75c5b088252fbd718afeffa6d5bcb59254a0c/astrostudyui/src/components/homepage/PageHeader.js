@@ -1,5 +1,5 @@
 import React from 'react';
-import {  Avatar, Dropdown, Select, Button, message, Modal, Checkbox, } from 'antd';
+import {  Avatar, Dropdown, Select, Button, message, Modal, Checkbox, Progress, } from 'antd';
 import { UserOutlined, LogoutOutlined, SearchOutlined } from '@ant-design/icons';
 import * as AstroConst from '../../constants/AstroConst';
 import blogo from '../../assets/blogo.jpg';
@@ -11,6 +11,16 @@ import {
 	listAIExportTechniqueSettings,
 	getCurrentAIExportContext,
 } from '../../utils/aiExport';
+import {
+	hasDesktopBridge,
+	getDesktopAppInfo,
+	checkDesktopUpdates,
+	installDesktopUpdate,
+	openDesktopLogsDirectory,
+	retryDesktopRuntime,
+	onDesktopUpdateState,
+	onDesktopRuntimeState,
+} from '../../utils/desktopBridge';
 import styles from './PageHeader.less';
 
 const Option = Select.Option;
@@ -21,6 +31,13 @@ function PageHeader(props){
 	const [aiSettingData, setAiSettingData] = React.useState(loadAIExportSettings());
 	const [aiSettingTechs, setAiSettingTechs] = React.useState(listAIExportTechniqueSettings());
 	const [aiSettingKey, setAiSettingKey] = React.useState('astrochart');
+	const [desktopUpdateVisible, setDesktopUpdateVisible] = React.useState(false);
+	const [desktopAppInfo, setDesktopAppInfo] = React.useState(null);
+	const [desktopUpdateState, setDesktopUpdateState] = React.useState({
+		status: 'idle',
+		message: '等待检查更新',
+	});
+	const [desktopRuntimeState, setDesktopRuntimeState] = React.useState(null);
 
 	const currentSettingTech = aiSettingTechs.find((item)=>item.key === aiSettingKey) || null;
 	const currentSettingOptions = currentSettingTech && currentSettingTech.options ? currentSettingTech.options : [];
@@ -51,6 +68,43 @@ function PageHeader(props){
 		const legacy = annotations[aiSettingKey];
 		return legacy === 0 ? 0 : 1;
 	})();
+
+	React.useEffect(()=>{
+		if(!hasDesktopBridge()){
+			return ()=>{};
+		}
+		let active = true;
+		getDesktopAppInfo().then((info)=>{
+			if(!active || !info){
+				return;
+			}
+			setDesktopAppInfo(info);
+			if(info.updateState){
+				setDesktopUpdateState(info.updateState);
+			}
+			if(info.runtimeState){
+				setDesktopRuntimeState(info.runtimeState);
+			}
+		}).catch(()=>{});
+
+		const offUpdate = onDesktopUpdateState((state)=>{
+			if(!active){
+				return;
+			}
+			setDesktopUpdateState(state || {});
+		});
+		const offRuntime = onDesktopRuntimeState((state)=>{
+			if(!active){
+				return;
+			}
+			setDesktopRuntimeState(state || {});
+		});
+		return ()=>{
+			active = false;
+			offUpdate();
+			offRuntime();
+		};
+	}, []);
 
 	function changeColorTheme(val){
 		if(props.dispatch){
@@ -225,12 +279,6 @@ function PageHeader(props){
 		});
 	}
 
-	function hasDesktopBridge(){
-		return typeof window !== 'undefined'
-			&& window.horosaDesktop
-			&& typeof window.horosaDesktop.exportDiagnostics === 'function';
-	}
-
 	function collectSnapshotPayload(){
 		const payload = {
 			url: typeof window !== 'undefined' ? window.location.href : '',
@@ -269,6 +317,92 @@ function PageHeader(props){
 			message.error((ret && ret.message) ? ret.message : '诊断报告导出失败');
 		}
 	}
+
+	async function openDesktopUpdateModal(){
+		setDesktopUpdateVisible(true);
+		if(!hasDesktopBridge()){
+			return;
+		}
+		try{
+			const info = await getDesktopAppInfo();
+			if(info){
+				setDesktopAppInfo(info);
+				if(info.updateState){
+					setDesktopUpdateState(info.updateState);
+				}
+				if(info.runtimeState){
+					setDesktopRuntimeState(info.runtimeState);
+				}
+			}
+		}catch(e){}
+	}
+
+	async function onCheckDesktopUpdateClick(){
+		if(!hasDesktopBridge()){
+			message.warning('当前不是桌面 App 环境，无法检查更新。');
+			return;
+		}
+		setDesktopUpdateVisible(true);
+		try{
+			const ret = await checkDesktopUpdates();
+			if(ret){
+				setDesktopUpdateState(ret);
+			}
+		}catch(e){
+			message.error((e && e.message) ? e.message : '检查更新失败');
+		}
+	}
+
+	async function onInstallDesktopUpdateClick(){
+		try{
+			const ret = await installDesktopUpdate();
+			if(ret && ret.ok){
+				message.success(ret.message || '即将安装更新');
+			}else{
+				message.warning((ret && ret.message) ? ret.message : '暂无可安装更新');
+			}
+		}catch(e){
+			message.error((e && e.message) ? e.message : '安装更新失败');
+		}
+	}
+
+	async function onOpenDesktopLogsClick(){
+		try{
+			const ret = await openDesktopLogsDirectory();
+			if(ret && ret.ok){
+				message.success(ret.message || '日志目录已打开');
+			}else{
+				message.warning((ret && ret.message) ? ret.message : '打开日志目录失败');
+			}
+		}catch(e){
+			message.error((e && e.message) ? e.message : '打开日志目录失败');
+		}
+	}
+
+	async function onRetryDesktopRuntimeClick(){
+		try{
+			const ret = await retryDesktopRuntime();
+			if(ret && (ret.status === 'ready' || ret.status === 'starting-java' || ret.status === 'starting-python' || ret.status === 'starting-window')){
+				setDesktopRuntimeState(ret || {});
+				message.success(ret.message || '正在重新启动本地服务');
+			}else{
+				message.warning((ret && ret.message) ? ret.message : '重试本地服务失败');
+			}
+		}catch(e){
+			message.error((e && e.message) ? e.message : '重试本地服务失败');
+		}
+	}
+
+	const desktopDownloadPercent = (()=> {
+		if(!desktopUpdateState || !desktopUpdateState.progress){
+			return 0;
+		}
+		const percent = Number(desktopUpdateState.progress.percent);
+		if(!Number.isFinite(percent)){
+			return 0;
+		}
+		return Math.max(0, Math.min(100, percent));
+	})();
 	
 	let pubmenu = [{
 		key: 'chartlist',
@@ -401,6 +535,16 @@ function PageHeader(props){
 					</span>
 					{hasDesktopBridge() ? (
 					<span className={styles.action} >
+						<Button size='small' onClick={openDesktopUpdateModal}>检查更新</Button>
+					</span>
+					) : null}
+					{hasDesktopBridge() ? (
+					<span className={styles.action} >
+						<Button size='small' onClick={onOpenDesktopLogsClick}>日志目录</Button>
+					</span>
+					) : null}
+					{hasDesktopBridge() ? (
+					<span className={styles.action} >
 						<Button size='small' onClick={onExportDiagnosticsClick}>导出诊断报告</Button>
 					</span>
 					) : null}
@@ -475,6 +619,60 @@ function PageHeader(props){
 						>
 							占星注释
 						</Checkbox>
+					</div>
+				) : null}
+			</Modal>
+			<Modal
+				title="桌面应用更新"
+				open={desktopUpdateVisible}
+				onCancel={()=>setDesktopUpdateVisible(false)}
+				footer={[
+					<Button key='logs' onClick={onOpenDesktopLogsClick}>打开日志目录</Button>,
+					<Button key='retry-runtime' onClick={onRetryDesktopRuntimeClick}>重试本地服务</Button>,
+					<Button key='check' type='primary' ghost onClick={onCheckDesktopUpdateClick}>检查更新</Button>,
+					<Button
+						key='install'
+						type='primary'
+						disabled={!desktopUpdateState || desktopUpdateState.status !== 'downloaded'}
+						onClick={onInstallDesktopUpdateClick}
+					>
+						重启并安装
+					</Button>,
+				]}
+				width={640}
+			>
+				<div style={{marginBottom: 10}}>
+					当前版本：{desktopAppInfo && desktopAppInfo.version ? desktopAppInfo.version : '未知版本'}
+				</div>
+				<div style={{marginBottom: 10}}>
+					更新状态：{desktopUpdateState && desktopUpdateState.message ? desktopUpdateState.message : '等待检查更新'}
+				</div>
+				{desktopRuntimeState && desktopRuntimeState.serverRoot ? (
+					<div style={{marginBottom: 10}}>
+						本地服务：{desktopRuntimeState.serverRoot}
+					</div>
+				) : null}
+				{desktopRuntimeState && desktopRuntimeState.status ? (
+					<div style={{marginBottom: 10}}>
+						运行状态：{desktopRuntimeState.status}{desktopRuntimeState.message ? ` / ${desktopRuntimeState.message}` : ''}
+					</div>
+				) : null}
+				{desktopRuntimeState && desktopRuntimeState.startupDurationMs ? (
+					<div style={{marginBottom: 10}}>
+						最近一次后端启动耗时：{desktopRuntimeState.startupDurationMs} ms
+					</div>
+				) : null}
+				{desktopUpdateState && desktopUpdateState.progress ? (
+					<div style={{marginTop: 16}}>
+						<Progress percent={desktopDownloadPercent} status={desktopUpdateState.status === 'error' ? 'exception' : 'active'} />
+						<div style={{fontSize: 12, color: '#666'}}>
+							已下载 {desktopUpdateState.progress.transferred || 0} / {desktopUpdateState.progress.total || 0} 字节
+						</div>
+					</div>
+				) : null}
+				{desktopUpdateState && desktopUpdateState.info && desktopUpdateState.info.version ? (
+					<div style={{marginTop: 16}}>
+						最新版本：{desktopUpdateState.info.version}
 					</div>
 				) : null}
 			</Modal>

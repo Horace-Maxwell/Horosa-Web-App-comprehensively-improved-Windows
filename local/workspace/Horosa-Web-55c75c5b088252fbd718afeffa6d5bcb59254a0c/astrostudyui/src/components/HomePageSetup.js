@@ -4,9 +4,9 @@ import { ColorTheme, ReaderThemeKey, } from '../constants/ReaderConst';
 import { HomePageKey, } from '../utils/constants';
 
 const Pages = [{
-	path: ['1'],
+	path: ['astrochart'],
 	label: '星盘',
-	key: '1',
+	key: 'astrochart',
 },{
 	path: ['guolao'],
 	label: '七政四余',
@@ -25,13 +25,45 @@ const Pages = [{
 	key: 'astroreader',
 }];
 
+function normalizeHomePageRecord(home){
+	if(!home || typeof home !== 'object'){
+		return {
+			...Pages[0],
+		};
+	}
+	let nextKey = home.key;
+	if(nextKey === '1'){
+		nextKey = 'astrochart';
+	}
+	const found = Pages.find((item)=>item.key === nextKey);
+	if(found){
+		return {
+			...found,
+		};
+	}
+	return {
+		...Pages[0],
+	};
+}
+
+function safeParseJson(text, fallback){
+	if(text === undefined || text === null || text === ''){
+		return fallback;
+	}
+	try{
+		return JSON.parse(text);
+	}catch(e){
+		return fallback;
+	}
+}
+
 
 function getColorTheme(){
 	let theme = localStorage.getItem(ReaderThemeKey);
 	if(theme === undefined || theme === null){
 		theme = ColorTheme[0];
 	}else{
-		theme = JSON.parse(theme);
+		theme = safeParseJson(theme, ColorTheme[0]);
 	}
 
 	return theme;
@@ -43,13 +75,7 @@ class HomePageSetup extends Component{
 		super(props);
 
 		let home = localStorage.getItem(HomePageKey);
-		if(home){
-			home = JSON.parse(home);
-		}else{
-			home = {
-				...Pages[0],
-			};
-		}
+		home = normalizeHomePageRecord(safeParseJson(home, null));
 
 		this.state = {
 			page: home,

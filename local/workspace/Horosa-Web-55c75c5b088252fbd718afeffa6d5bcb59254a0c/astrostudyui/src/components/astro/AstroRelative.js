@@ -15,6 +15,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import {
 	appendPlanetMetaName,
 } from '../../utils/planetMetaDisplay';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const RELATIVE_SNAPSHOT_PLANET_META = {
 	showPostnatal: 1,
@@ -416,8 +417,7 @@ class AstroRelative extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 50
+		let height = normalizeContentHeight(this.props.height);
 
 		let chartAtxt = this.state.chartA ? this.state.chartA.txt : null;
 		let chartBtxt = this.state.chartB ? this.state.chartB.txt : null;
@@ -425,7 +425,7 @@ class AstroRelative extends Component{
 		let hook = this.state.hook;
 
 		return (
-			<div>
+			<div style={{ height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 				<Row gutter={12}>
 					<Col span={8}>
 						<ChartSearchModal onOk={this.selectChartA}>
@@ -444,12 +444,13 @@ class AstroRelative extends Component{
 						</Button>
 					</Col>
 				</Row>
-				<Row gutter={12} style={{marginTop: 10}}>
-					<Col span={24}>
+				<Row gutter={12} style={{marginTop: 10, flex: '1 1 auto', minHeight: 0}}>
+					<Col span={24} style={{ height: '100%' }}>
 						<Tabs 
 							defaultActiveKey={this.state.currentTab} tabPosition='right'
 							onChange={this.changeTab}
-							style={{ height: height }}
+							className='horosaFillTabs'
+							style={{ height: '100%' }}
 						>
 							<TabPane tab="比较盘" key="Comp">
 								<AstroCompare

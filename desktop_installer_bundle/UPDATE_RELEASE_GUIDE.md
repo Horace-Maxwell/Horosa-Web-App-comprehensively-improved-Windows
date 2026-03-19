@@ -1,45 +1,119 @@
-# Reliable Update Flow
+# Windows 桌面版发布流程（`v1.0.0` 口径）
 
-To make every installed Horosa Desktop catch updates reliably, use this release flow every time:
+## 1. 发布目标
 
-1. Commit the desktop release pipeline files to `main` once:
-   - `desktop_installer_bundle/`
-   - `.github/workflows/desktop-release.yml`
-   - `.gitattributes` with the `desktop_installer_bundle/wheelhouse/*.whl` Git LFS rule
-2. Bump [version.json](/C:/Users/maxwe/OneDrive/Desktop/Horosa-Web-App-comprehensively-improved-Windows-main/desktop_installer_bundle/version.json) to a newer semantic-like version.
-3. Commit the updated files to `main`.
-4. Run:
+当前正式对外发布物分为两类：
 
-```powershell
-pwsh -File .\desktop_installer_bundle\publish_github_release.ps1
-```
+- **给普通用户的离线安装器**
+  - `Horosa-Setup-<version>.exe`
+- **给应用内自动更新的元数据**
+  - `latest.yml`
+  - `Horosa-Setup-<version>.exe.blockmap`
 
-This does three things in order:
-- builds `HorosaPortableWindows-<version>.zip`
-- creates or reuses the matching git tag
-- pushes the current `main` commit and that tag to GitHub
+普通用户只需要下载 `.exe` 安装器。
 
-5. GitHub Actions automatically creates or updates the published GitHub Release for that tag and uploads:
-   - `HorosaPortableWindows-<version>.zip`
-   - `HorosaPortableWindows-<version>.manifest.json`
+## 2. 机器准备
 
-If a release ever needs to be repaired without creating a newer version, run the `Horosa Desktop Release` workflow manually and pass the existing tag as `release_tag`. The workflow now checks out that exact tag and overwrites the matching release assets in place.
+- Windows 10/11 x64
+- 已安装 Node.js / npm
+- 已安装可用的 Java 17
+- 已安装可用的 Python 3.11
+- 已安装 GitHub CLI，并已登录：`gh auth status`
 
-Why this is reliable:
-- The desktop app does not trust GitHub `/latest` anymore.
-- It scans the published releases list, filters out draft/prerelease entries, and picks the highest parsed version that has a valid portable zip asset.
-- The updater downloads that zip, overlays the installed app files, preserves user data stored in `%LocalAppData%\HorosaDesktop`, and relaunches the desktop app automatically.
-- The release workflow fails fast if the pushed git tag does not exactly match `version.json`, so users will not miss an update because of a mismatched version string.
-- The release workflow uses `softprops/action-gh-release` to upload the zip and manifest, which is more reliable for large binary assets than the earlier custom REST upload step.
-- The offline desktop dependency wheels live in Git LFS, so the release workflow can fetch the same large Windows wheels that the installer expects without breaking normal Git pushes.
-- The release workflow runs on Linux to avoid Windows checkout path-length failures while still producing the same portable Windows update zip.
+## 3. 准备运行时
 
-Best practice:
-- Keep tags monotonic, for example `2026.03.10.1`, `2026.03.11.1`, `2026.03.11.2`.
-- Do not reuse an old tag with a different asset.
-- Always update `version.json` before running the publish script.
-- If you want to dry-run locally without pushing, use:
+在仓库根目录运行：
 
-```powershell
-pwsh -File .\desktop_installer_bundle\publish_github_release.ps1 -SkipPush
-```
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\prepareruntime\Prepare_Runtime_Windows.ps1 -NoPause`
+
+这一步会填充：
+
+- `local/workspace/runtime/windows/java/`
+- `local/workspace/runtime/windows/python/`
+- `local/workspace/runtime/windows/wheels/`
+- `local/workspace/runtime/windows/bundle/`
+
+这些内容用于本地打包，但**不应该常规提交到 `main`**。
+
+## 4. 构建桌面安装器
+
+进入：
+
+`desktop_installer_bundle/`
+
+首次执行：
+
+`npm install`
+
+正式打包：
+
+`npm run dist:win`
+
+预期产物位于：
+
+- `desktop_installer_bundle/release/Horosa-Setup-<version>.exe`
+- `desktop_installer_bundle/release/latest.yml`
+- `desktop_installer_bundle/release/Horosa-Setup-<version>.exe.blockmap`
+
+## 5. Release 资产要求
+
+正式版 `v1.0.0` 及后续语义化版本，至少上传这些文件：
+
+- `Horosa-Setup-<version>.exe`
+- `latest.yml`
+- `Horosa-Setup-<version>.exe.blockmap`
+- `SHA256SUMS.txt`
+
+建议再附：
+
+- 中文安装说明，如 `安装说明-<version>.md`
+
+## 6. Release 正文要求
+
+Release 正文统一写中文，至少包含：
+
+- 哪些用户该下载哪个文件
+- 哪些文件不要手动下载
+- 三步安装说明
+- 离线运行说明
+- 本次新增功能 / 修复列表
+- 保留用户数据说明
+
+建议把正文来源固定在：
+
+- `docs/releases/<version>.md`
+
+## 7. `main` 分支提交边界
+
+`main` 只保留：
+
+- 源码
+- 脚本
+- 配置
+- 文档
+- 打包工程
+
+`main` 不保留：
+
+- `desktop_installer_bundle/build/`
+- `desktop_installer_bundle/release/`
+- `desktop_installer_bundle/node_modules/`
+- 本地日志、缓存、浏览器 profile
+- Java / Python / wheels / jar 等可通过脚本重新准备的大包
+
+## 8. GitHub Actions 标签兼容
+
+工作流标签触发需要同时兼容：
+
+- 历史格式：`*.*.*.*`
+- 语义化版本：`v*.*.*`
+
+如果后续使用 `v1.0.1`、`v1.1.0` 这类标签发版，必须保持 workflow 对 `v*.*.*` 可响应。
+
+## 9. 发版前检查
+
+- 在已安装机器上再次运行完整安装器
+- 确认维护页中文标题、说明、推荐动作显示正常
+- 验证 `替换 / 修复 / 取消` 三条分支
+- 确认应用内更新仍能读取 `latest.yml`
+- 确认 `Horosa-Setup-<version>.exe` 可在断网环境安装并启动本地功能

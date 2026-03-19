@@ -30,8 +30,23 @@ const MARKER_TYPES = [
 const EMBEDDED_MODE = new URLSearchParams(window.location.search).get("embedded") === "horosa";
 const HOROSA_SNAPSHOT_EVENT = "horosa:fengshui-snapshot";
 const HOROSA_SNAPSHOT_REQUEST_EVENT = "horosa:fengshui-snapshot-request";
+const HOROSA_READY_EVENT = "horosa:fengshui-ready";
 if (EMBEDDED_MODE) {
   document.body.classList.add("horosa-embed");
+}
+
+function notifyHorosaReady() {
+  if (!EMBEDDED_MODE || !window.parent || window.parent === window) return;
+  try {
+    window.parent.postMessage({
+      type: HOROSA_READY_EVENT,
+      payload: {
+        href: window.location.href,
+        embedded: true
+      }
+    }, "*");
+  } catch (_error) {
+  }
 }
 
 const canvas = document.getElementById("mainCanvas");
@@ -2379,3 +2394,4 @@ if (!EMBEDDED_MODE) {
 updateUndoButtons();
 if (btnSnapToggle) btnSnapToggle.classList.toggle("active", snapEnabled);
 bindTauriMenuEvents();
+notifyHorosaReady();

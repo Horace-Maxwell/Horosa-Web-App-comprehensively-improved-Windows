@@ -7,6 +7,17 @@ import * as AstroText from '../../constants/AstroText';
 
 const TabPane = Tabs.TabPane;
 
+function safeParseJson(text, fallback){
+	if(text === undefined || text === null || text === ''){
+		return fallback;
+	}
+	try{
+		return JSON.parse(text);
+	}catch(e){
+		return fallback;
+	}
+}
+
 
 class AspSelector extends Component{
 
@@ -47,7 +58,10 @@ class AspSelector extends Component{
 			val = AstroConst.DEFAULT_ASPECTS;
 			localStorage.setItem(AstroConst.AspKey, JSON.stringify(val));
 		}else{
-			val = JSON.parse(val);
+			val = safeParseJson(val, AstroConst.DEFAULT_ASPECTS);
+			if(!Array.isArray(val)){
+				val = AstroConst.DEFAULT_ASPECTS;
+			}
 		}
 
 		return (

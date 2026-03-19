@@ -41,9 +41,32 @@ class ModernAstroSrv:
             return obj
         return []
 
+    def _build_single_chart_snapshot(self, raw):
+        source = self._safe_dict(raw)
+        snapshot = {}
+        allowed_keys = [
+            'params',
+            'chart',
+            'receptions',
+            'mutuals',
+            'declParallel',
+            'aspects',
+            'lots',
+            'surround',
+            'guoStarSect',
+            'predictives',
+        ]
+        for key in allowed_keys:
+            if key in source:
+                snapshot[key] = source.get(key)
+        return snapshot if len(snapshot.keys()) > 0 else None
+
     def _build_relative_unified(self, relative_mode, raw_res):
         mode_key = self.RELATIVE_MODE_MAP.get(relative_mode, 'Comp')
         raw = self._safe_dict(raw_res)
+        composite_chart = None
+        if mode_key == 'Composite' or mode_key == 'TimeSpace':
+            composite_chart = self._build_single_chart_snapshot(raw)
 
         unified = {
             'mode': mode_key,
@@ -52,7 +75,7 @@ class ModernAstroSrv:
             'charts': {
                 'inner': raw.get('inner'),
                 'outer': raw.get('outer'),
-                'composite': raw if (mode_key == 'Composite' or mode_key == 'TimeSpace') and raw.get('chart') is not None else None
+                'composite': composite_chart
             },
             'analysis': {
                 'aspects': {

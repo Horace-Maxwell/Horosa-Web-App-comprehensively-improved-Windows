@@ -8,12 +8,22 @@ import {detectPlatform} from '../utils/helper';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
 import { DEFAULT_PLANET_META_DISPLAY, normalizePlanetMetaDisplay } from '../utils/planetMetaDisplay';
+import { TAB_BOTTOM_SAFE_GAP, getContentHostHeight } from '../utils/layout';
 
-const MinWorkspaceHeight = 660;
-const WorkspaceReservedHeight = 88;
+const MinWorkspaceHeight = 320;
+
+function getWorkspaceContainerHeight(){
+    const candidates = [
+        getContentHostHeight(),
+        document.documentElement && document.documentElement.clientHeight,
+        document.body && document.body.clientHeight,
+        window.innerHeight,
+    ].filter((value)=>Number.isFinite(value) && value > 0);
+    return candidates.length ? candidates[0] : 760;
+}
 
 function normalizeWorkspaceHeight(viewportHeight){
-    const raw = Number(viewportHeight) - WorkspaceReservedHeight;
+    const raw = Math.floor(Number(viewportHeight)) - TAB_BOTTOM_SAFE_GAP;
     if(!Number.isFinite(raw)){
         return MinWorkspaceHeight;
     }
@@ -58,6 +68,17 @@ function normalizeDisplayList(raw, fallback, allowSet, allowEmpty = false){
         return [];
     }
     return fallbackArr;
+}
+
+function safeParseJson(text, fallback){
+    if(text === undefined || text === null || text === ''){
+        return fallback;
+    }
+    try{
+        return JSON.parse(text);
+    }catch(e){
+        return fallback;
+    }
 }
 
 function userInfoToFields(flds, userInfo){
@@ -275,11 +296,15 @@ export default {
 
             let page = localStorage.getItem(Constants.HomePageKey);
             if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
+                page = safeParseJson(page, null);
+                if(page){
+                    yield put({
+                        type: 'astro/setHomePage',
+                        payload: page,
+                    });
+                }else{
+                    localStorage.removeItem(Constants.HomePageKey);
+                }
             }
 
        },
@@ -319,11 +344,15 @@ export default {
 
             let page = localStorage.getItem(Constants.HomePageKey);
             if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
+                page = safeParseJson(page, null);
+                if(page){
+                    yield put({
+                        type: 'astro/setHomePage',
+                        payload: page,
+                    });
+                }else{
+                    localStorage.removeItem(Constants.HomePageKey);
+                }
             }
             
         },
@@ -357,14 +386,18 @@ export default {
             const param = {};
             let setupJson = localStorage.getItem(Constants.GlobalSetupKey);
             if(setupJson){
-                let json = JSON.parse(setupJson);
+                let json = safeParseJson(setupJson, null);
                 if(json && json.colorTheme !== undefined){
                     json.colorTheme = AstroConst.normalizeColorThemeIndex(json.colorTheme);
                 }
-                yield put({
-                    type: 'save',
-                    payload: json,
-                });
+                if(json){
+                    yield put({
+                        type: 'save',
+                        payload: json,
+                    });
+                }else{
+                    localStorage.removeItem(Constants.GlobalSetupKey);
+                }
             }
 
             const rsp = yield call(appService.checkUser, param);
@@ -449,11 +482,15 @@ export default {
 
             let page = localStorage.getItem(Constants.HomePageKey);
             if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
+                page = safeParseJson(page, null);
+                if(page){
+                    yield put({
+                        type: 'astro/setHomePage',
+                        payload: page,
+                    });
+                }else{
+                    localStorage.removeItem(Constants.HomePageKey);
+                }
             }
 
         },
@@ -465,14 +502,18 @@ export default {
             };
             let setupJson = localStorage.getItem(Constants.GlobalSetupKey);
             if(setupJson){
-                let json = JSON.parse(setupJson);
+                let json = safeParseJson(setupJson, null);
                 if(json && json.colorTheme !== undefined){
                     json.colorTheme = AstroConst.normalizeColorThemeIndex(json.colorTheme);
                 }
-                yield put({
-                    type: 'save',
-                    payload: json,
-                });
+                if(json){
+                    yield put({
+                        type: 'save',
+                        payload: json,
+                    });
+                }else{
+                    localStorage.removeItem(Constants.GlobalSetupKey);
+                }
             }
 
             const rsp = yield call(appService.checkUser, param);
@@ -547,11 +588,15 @@ export default {
 
             let page = localStorage.getItem(Constants.HomePageKey);
             if(page){
-                page = JSON.parse(page);
-                yield put({
-                    type: 'astro/setHomePage',
-                    payload: page,
-                });                               
+                page = safeParseJson(page, null);
+                if(page){
+                    yield put({
+                        type: 'astro/setHomePage',
+                        payload: page,
+                    });
+                }else{
+                    localStorage.removeItem(Constants.HomePageKey);
+                }
             }
 
         },
@@ -646,10 +691,13 @@ export default {
                 aspects = AstroConst.DEFAULT_ASPECTS;
                 localStorage.setItem(AstroConst.AspKey, JSON.stringify(aspects));
             }else{
-                aspects = JSON.parse(aspects);
+                aspects = safeParseJson(aspects, AstroConst.DEFAULT_ASPECTS);
+                if(!Array.isArray(aspects)){
+                    aspects = AstroConst.DEFAULT_ASPECTS;
+                }
             }
             const syncWorkspaceHeight = (extraPayload = {})=>{
-                const nextViewportHeight = document.documentElement.clientHeight;
+                const nextViewportHeight = getWorkspaceContainerHeight();
                 const h = normalizeWorkspaceHeight(nextViewportHeight);
                 if(h < MinWorkspaceHeight){
                     return;
@@ -670,6 +718,7 @@ export default {
             };
 
             let resizeTimer = null;
+            const rootElement = document.getElementById('root');
             const handleResize = ()=>{
                 if(resizeTimer){
                     clearTimeout(resizeTimer);
@@ -679,6 +728,13 @@ export default {
                     syncWorkspaceHeight();
                 }, 80);
             };
+            let resizeObserver = null;
+            if(typeof ResizeObserver !== 'undefined' && rootElement){
+                resizeObserver = new ResizeObserver(()=>{
+                    handleResize();
+                });
+                resizeObserver.observe(rootElement);
+            }
             window.addEventListener('resize', handleResize);
 
             syncWorkspaceHeight({
@@ -697,6 +753,10 @@ export default {
 
             return ()=>{
                 window.removeEventListener('resize', handleResize);
+                if(resizeObserver){
+                    resizeObserver.disconnect();
+                    resizeObserver = null;
+                }
                 if(resizeTimer){
                     clearTimeout(resizeTimer);
                     resizeTimer = null;

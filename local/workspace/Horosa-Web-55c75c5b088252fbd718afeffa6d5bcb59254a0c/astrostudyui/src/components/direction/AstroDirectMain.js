@@ -18,6 +18,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 const PD_SYNC_REV = 'pd_method_sync_v6';
@@ -886,8 +887,7 @@ class AstroDirectMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		let height = normalizeContentHeight(this.props.height);
 		const chartParams = this.props.chartObj && this.props.chartObj.params ? this.props.chartObj.params : {};
 		const appliedPdMethod = chartParams.pdMethod
 			? chartParams.pdMethod
@@ -897,10 +897,11 @@ class AstroDirectMain extends Component{
 			: (this.props.fields && this.props.fields.pdTimeKey ? this.props.fields.pdTimeKey.value : 'Ptolemy');
 
 		return (
-			<div>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					activeKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					<TabPane tab="主/界限法" key="primarydirect">

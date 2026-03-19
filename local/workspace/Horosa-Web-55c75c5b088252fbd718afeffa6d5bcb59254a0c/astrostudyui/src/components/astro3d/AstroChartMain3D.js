@@ -10,6 +10,7 @@ import DateTime from '../comp/DateTime';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { getHousesOption } from '../comp/CompHelper'
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
@@ -101,7 +102,7 @@ class AstroChartMain3D extends Component{
 			}
 		}	
 
-		let height = this.props.height ? this.props.height : 760;
+		let height = normalizeContentHeight(this.props.height);
 		let tabHeight = height - 100;
 
 		let showzodical = true;
@@ -133,8 +134,8 @@ class AstroChartMain3D extends Component{
 		}
 
 		return (
-			<div>
-				<Row gutter={6}>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
+				<Row gutter={6} style={{ height: '100%' }}>
 					<Col span={17}>
 						<AstroChart3D 
 							value={chartObj} 
@@ -147,7 +148,7 @@ class AstroChartMain3D extends Component{
 							needChart3D={needChart3D}
 						/>	
 					</Col>
-					<Col span={7}>
+					<Col span={7} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 						<Row gutter={0}>
 							{
 								showdateselector && (
@@ -228,7 +229,7 @@ class AstroChartMain3D extends Component{
 								)
 							}
 						</Row>
-						<Tabs defaultActiveKey="1" tabPosition='top'>
+						<Tabs defaultActiveKey="1" tabPosition='top' className='horosaFillTabs' style={{ flex: '1 1 auto', minHeight: 0 }}>
 							<TabPane tab="信息" key="1">
 								<AstroInfo height={tabHeight}
 									value={chartObj} fields={fields}

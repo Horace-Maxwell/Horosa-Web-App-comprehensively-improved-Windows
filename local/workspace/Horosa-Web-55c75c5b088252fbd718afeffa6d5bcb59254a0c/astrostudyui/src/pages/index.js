@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import { connect  } from 'dva';
 import { Drawer, Tabs, Row, Col, Button, Spin, } from 'antd';
 import DateTime from '../components/comp/DateTime';
@@ -14,16 +15,13 @@ import CaseEditFormComp from '../components/user/CaseEditFormComp';
 import CaseList from '../components/user/CaseList';
 import AstroFormComp from '../components/astro/AstroFormComp';
 import AstroChartMain from '../components/astro/AstroChartMain';
-import AstroChartMain3D from '../components/astro3d/AstroChartMain3D';
 import HellenAstroMain from '../components/hellenastro/HellenAstroMain';
-import LocAstroMain from '../components/loc/LocAstroMain';
 import IndiaChartMain from '../components/astro/IndiaChartMain';
 import AstroRelative from '../components/astro/AstroRelative';
 import AstroDirectMain from '../components/direction/AstroDirectMain';
 import AspSelector from '../components/astro/AspSelector';
 import PlanetSelector from '../components/astro/PlanetSelector';
 import ChartDisplaySelector from '../components/astro/ChartDisplaySelector';
-import ChartsGps from '../components/user/ChartsGps';
 import ChartMemo from '../components/comp/ChartMemo';
 import AstroGermany from '../components/germany/AstroGermany';
 import JieQiChartsMain from '../components/jieqi/JieQiChartsMain';
@@ -33,18 +31,58 @@ import CalendarMain from '../components/calendar/CalendarMain';
 import OtherBuMain from '../components/otherbu/OtherBuMain';
 import FengShuiMain from '../components/fengshui/FengShuiMain';
 import SanShiUnitedMain from '../components/sanshi/SanShiUnitedMain';
-import BookMain from '../components/reader/BookMain';
-import MediaMain from '../components/multimedia/MediaMain';
-import AdminToolsMain from '../components/admintools/AdminToolsMain';
 import GuoLaoChartMain from '../components/guolao/GuoLaoChartMain';
-import CommToolsMain from '../components/commtools/CommToolsMain';
-import DLFeature from '../components/deeplearn/DLFeature';
 import HomePageSetup from '../components/HomePageSetup';
+import ModuleErrorBoundary from '../components/comp/ModuleErrorBoundary';
 import * as AstroConst from '../constants/AstroConst';
 import {convertToArray} from '../utils/helper';
 
+const AstroChartMain3D = React.lazy(()=>import('../components/astro3d/AstroChartMain3D'));
+const LocAstroMain = React.lazy(()=>import('../components/loc/LocAstroMain'));
+const ChartsGps = React.lazy(()=>import('../components/user/ChartsGps'));
+const BookMain = React.lazy(()=>import('../components/reader/BookMain'));
+const MediaMain = React.lazy(()=>import('../components/multimedia/MediaMain'));
+const AdminToolsMain = React.lazy(()=>import('../components/admintools/AdminToolsMain'));
+const CommToolsMain = React.lazy(()=>import('../components/commtools/CommToolsMain'));
+const DLFeature = React.lazy(()=>import('../components/deeplearn/DLFeature'));
+
 const TabPane = Tabs.TabPane;
 let fetchByFieldsTimer = null;
+const MAIN_TAB_LABELS = {
+	astrochart: '星盘',
+	astrochart3D: '三维盘',
+	direction: '推运盘',
+	germanytech: '量化盘',
+	relativechart: '关系盘',
+	jieqichart: '节气盘',
+	locastro: '星体地图',
+	guolao: '七政四余',
+	hellenastro: '希腊星术',
+	indiachart: '印度律盘',
+	cntradition: '八字紫微',
+	cnyibu: '易与三式',
+	calendar: '万年历',
+	otherbu: '西洋游戏',
+	astroreader: '书籍阅读',
+	liveplayer: '星阙直播',
+	admintools: '管理工具',
+	fengshui: '风水',
+	sanshiunited: '三式合一',
+};
+
+function LazySection(props){
+	return (
+		<Suspense
+			fallback={
+				<div style={{display:'flex', alignItems:'center', justifyContent:'center', width:'100%', height:'100%'}}>
+					<Spin size='large' tip='模块加载中...' />
+				</div>
+			}
+		>
+			{props.children}
+		</Suspense>
+	);
+}
 
 function AstroIndex({dispatch, astro, app, user, rules, }){
     const { tokenImg, registerFields, loginFields, loading, loadingText, refresh, chartDisplay, aspects, planetDisplay, lotsDisplay, colorTheme, showPdBounds, showPlanetHouseInfo, showAstroMeaning, showAstroAnnotation, showOnlyRulExaltReception, planetMetaDisplay} = app;
@@ -67,12 +105,35 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     const { ziwei, } = rules; 
 
     
-    function closeDrawer(){
+	function closeDrawer(){
         dispatch({
             type: 'astro/closeDrawer',
             payload:{},
         });
-    }
+	}
+
+	function goSafeMainPage(){
+		dispatch({
+			type: 'astro/save',
+			payload: {
+				currentTab: 'astrochart',
+				currentSubTab: null,
+			},
+		});
+	}
+
+	function renderProtectedModule(moduleName, node, options = {}){
+		return (
+			<ModuleErrorBoundary
+				moduleName={moduleName}
+				resetKey={options.resetKey || moduleName}
+				onClose={options.onClose}
+				onGoSafe={options.onGoSafe || goSafeMainPage}
+			>
+				{node}
+			</ModuleErrorBoundary>
+		);
+	}
 
     function changeTab(key){
         if(predictHook[key] && predictHook[key].fun){
@@ -186,6 +247,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     let idxstyle = {
         backgroundColor: AstroConst.AstroColor.Backgroud,
         height: height,
+        maxHeight: height,
+        overflow: 'hidden',
     };
 
     if(refresh){
@@ -206,12 +269,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	return (
 		<div style={idxstyle}>
         <Spin spinning={loading} size="large" tip={tip}>
-            <Tabs 
-                defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}
-                activeKey={currentTab}
-                className='mainRootTabs'
-                style={{ height: height }}
-            >
+            {renderProtectedModule(
+                MAIN_TAB_LABELS[currentTab] || '当前模块',
+                <Tabs 
+                    defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}
+                    activeKey={currentTab}
+                    className='mainRootTabs'
+                    style={{ height: height }}
+                >
                 <TabPane tab="星盘" key="astrochart">
 	                    <AstroChartMain 
 	                        value={chartObj} 
@@ -232,6 +297,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 {
                     true && (
                     <TabPane tab="三维盘" key="astrochart3D">
+                        <LazySection>
 	                        <AstroChartMain3D 
                             value={chartObj} 
                             onChange={changeCond}
@@ -247,6 +313,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                            dispatch={dispatch}
 	                            hook={predictHook.astrochart3D}
 	                        />
+                        </LazySection>
                     </TabPane>   
                     )
                 }
@@ -317,6 +384,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 </TabPane>
 
                 <TabPane tab="星体地图" key="locastro">
+                    <LazySection>
                     <LocAstroMain 
                         value={chartObj} 
                         onChange={changeCond}
@@ -329,6 +397,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         hook={predictHook.locastro}
                         dispatch={dispatch}
                     />
+                    </LazySection>
                 </TabPane>
 
                 <TabPane tab="七政四余" key="guolao">
@@ -435,12 +504,14 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 {
                     userInfo && (
                         <TabPane tab="书籍阅读" key="astroreader">
+                            <LazySection>
                             <BookMain 
                                 height={height}
                                 userInfo={userInfo}
                                 dispatch={dispatch}
                                 hook={predictHook.astroreader}
                             />
+                            </LazySection>
                         </TabPane>
                     )
                 }
@@ -448,6 +519,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 {
                     userInfo && (
                         <TabPane tab="星阙直播" key="liveplayer">
+                            <LazySection>
                             <MediaMain 
                                 height={height}
                                 dispatch={dispatch}
@@ -455,6 +527,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                                 currentSubTab={currentSubTab}
                                 admin={admin}
                             />
+                            </LazySection>
                         </TabPane>
                     )
                 }
@@ -462,7 +535,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 {
                     admin && (
                         <TabPane tab="管理工具" key="admintools">
-                            <AdminToolsMain />
+                            <LazySection>
+                                <AdminToolsMain />
+                            </LazySection>
                         </TabPane>
                     )
                 }
@@ -490,7 +565,11 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                    />
                 </TabPane>
 
-            </Tabs>
+                </Tabs>,
+                {
+                    resetKey: `main:${currentTab}:${currentSubTab || ''}`,
+                }
+            )}
 
             <Drawer
                 title='星盘配置'
@@ -507,12 +586,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <AstroFormComp 
-                    { ...fields }
-                    fields={fields}
-                    fieldsAry={aryfields}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('星盘配置', (
+                    <AstroFormComp 
+                        { ...fields }
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:query:${drawerVisible.query ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -530,13 +614,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <RegisterForm 
-                    {...registerFields}
-                    tokenImg={tokenImg}
-                    fields={registerFields}
-                    fieldsAry={aryregflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('注册', (
+                    <RegisterForm 
+                        {...registerFields}
+                        tokenImg={tokenImg}
+                        fields={registerFields}
+                        fieldsAry={aryregflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:register:${drawerVisible.register ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -554,12 +643,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <LoginForm 
-                    {...loginFields}
-                    fields={loginFields}
-                    fieldsAry={aryloginflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('登录', (
+                    <LoginForm 
+                        {...loginFields}
+                        fields={loginFields}
+                        fieldsAry={aryloginflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:login:${drawerVisible.login ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -577,13 +671,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ResetPwdForm 
-                    {...registerFields}
-                    tokenImg={tokenImg}
-                    fields={registerFields}
-                    fieldsAry={aryregflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('忘记密码', (
+                    <ResetPwdForm 
+                        {...registerFields}
+                        tokenImg={tokenImg}
+                        fields={registerFields}
+                        fieldsAry={aryregflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:resetpwd:${drawerVisible.resetpwd ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -601,12 +700,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChangePwdForm 
-                    {...pwdFields}
-                    fields={pwdFields}
-                    fieldsAry={convertToArray(pwdFields)}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('修改密码', (
+                    <ChangePwdForm 
+                        {...pwdFields}
+                        fields={pwdFields}
+                        fieldsAry={convertToArray(pwdFields)}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:changepwd:${drawerVisible.changepwd ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -624,12 +728,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChangeParamsFormComp 
-                    {...fields}
-                    fields={fields}
-                    fieldsAry={aryfields}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('修改参数', (
+                    <ChangeParamsFormComp 
+                        {...fields}
+                        fields={fields}
+                        fieldsAry={aryfields}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:changeparams:${drawerVisible.changeparams ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -647,12 +756,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChartAddFormComp 
-                    {...currentChart}
-                    fields={currentChart}
-                    fieldsAry={arychartflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('添加星盘', (
+                    <ChartAddFormComp 
+                        {...currentChart}
+                        fields={currentChart}
+                        fieldsAry={arychartflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:chartadd:${drawerVisible.chartadd ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -670,12 +784,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChartEditFormComp 
-                    {...currentChart}
-                    fields={currentChart}
-                    fieldsAry={arychartflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('编辑星盘', (
+                    <ChartEditFormComp 
+                        {...currentChart}
+                        fields={currentChart}
+                        fieldsAry={arychartflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:chartedit:${drawerVisible.chartedit ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -693,15 +812,20 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChartList
-                    height={height} 
-                    userInfo={userInfo}
-                    charts={charts}
-                    pageSize={pageSize}
-                    pageIndex={pageIndex}
-                    total={total}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('星盘列表', (
+                    <ChartList
+                        height={height} 
+                        userInfo={userInfo}
+                        charts={charts}
+                        pageSize={pageSize}
+                        pageIndex={pageIndex}
+                        total={total}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:chartlist:${drawerVisible.chartlist ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -719,12 +843,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}
             >
-                <CaseAddFormComp
-                    {...currentCase}
-                    fields={currentCase}
-                    fieldsAry={arycaseflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('添加起课', (
+                    <CaseAddFormComp
+                        {...currentCase}
+                        fields={currentCase}
+                        fieldsAry={arycaseflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:caseadd:${drawerVisible.caseadd ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -742,12 +871,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}
             >
-                <CaseEditFormComp
-                    {...currentCase}
-                    fields={currentCase}
-                    fieldsAry={arycaseflds}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('编辑起课', (
+                    <CaseEditFormComp
+                        {...currentCase}
+                        fields={currentCase}
+                        fieldsAry={arycaseflds}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:caseedit:${drawerVisible.caseedit ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -765,15 +899,20 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}
             >
-                <CaseList
-                    height={height}
-                    userInfo={userInfo}
-                    cases={cases}
-                    casePageSize={casePageSize}
-                    casePageIndex={casePageIndex}
-                    caseTotal={caseTotal}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('起课列表', (
+                    <CaseList
+                        height={height}
+                        userInfo={userInfo}
+                        cases={cases}
+                        casePageSize={casePageSize}
+                        casePageIndex={casePageIndex}
+                        caseTotal={caseTotal}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:caselist:${drawerVisible.caselist ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -791,10 +930,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <AspSelector
-                    value={aspects}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('相位选择', (
+                    <AspSelector
+                        value={aspects}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:selectasp:${drawerVisible.selectasp ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -812,11 +956,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <PlanetSelector
-                    value={planetDisplay}
-                    lots={lotsDisplay}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('行星选择', (
+                    <PlanetSelector
+                        value={planetDisplay}
+                        lots={lotsDisplay}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:selectplanet:${drawerVisible.selectplanet ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -834,17 +983,22 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChartDisplaySelector
-                    value={chartDisplay}
-                    showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
-                    showPlanetHouseInfo={showPlanetHouseInfo}
-                    showAstroMeaning={showAstroMeaning}
-                    showAstroAnnotation={showAstroAnnotation}
-                    showOnlyRulExaltReception={showOnlyRulExaltReception}
-                    planetMetaDisplay={planetMetaDisplay}
-                    fields={fields}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('星盘组件', (
+                    <ChartDisplaySelector
+                        value={chartDisplay}
+                        showPdBounds={fields && fields.showPdBounds ? fields.showPdBounds.value : showPdBounds}
+                        showPlanetHouseInfo={showPlanetHouseInfo}
+                        showAstroMeaning={showAstroMeaning}
+                        showAstroAnnotation={showAstroAnnotation}
+                        showOnlyRulExaltReception={showOnlyRulExaltReception}
+                        planetMetaDisplay={planetMetaDisplay}
+                        fields={fields}
+                        dispatch={dispatch}
+                    />
+                ), {
+                    resetKey: `drawer:selectchartdisplay:${drawerVisible.selectchartdisplay ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -862,12 +1016,19 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChartsGps
-                    height={height} 
-                    charts={charts}
-                    userInfo={userInfo}
-                    dispatch={dispatch}
-                />
+                {renderProtectedModule('我的星盘分布', (
+                    <LazySection>
+                    <ChartsGps
+                        height={height} 
+                        charts={charts}
+                        userInfo={userInfo}
+                        dispatch={dispatch}
+                    />
+                    </LazySection>
+                ), {
+                    resetKey: `drawer:chartsgps:${drawerVisible.chartsgps ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -885,16 +1046,21 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <ChartMemo
-                    memoType={memoType}
-                    memo={memo}
-                    currentSubTab={currentSubTab}
-                    currentTab={currentTab}
-                    userInfo={userInfo}
-                    currentChart={currentChart}
-                    dispatch={dispatch}
-                    loading={loading}
-                />
+                {renderProtectedModule('命盘批注', (
+                    <ChartMemo
+                        memoType={memoType}
+                        memo={memo}
+                        currentSubTab={currentSubTab}
+                        currentTab={currentTab}
+                        userInfo={userInfo}
+                        currentChart={currentChart}
+                        dispatch={dispatch}
+                        loading={loading}
+                    />
+                ), {
+                    resetKey: `drawer:memo:${drawerVisible.memo ? 1 : 0}:${currentTab}:${currentSubTab || ''}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -912,11 +1078,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <CommToolsMain
-                    fields={fields}
-                    dispatch={dispatch}
-                    loading={loading}
-                />
+                {renderProtectedModule('小工具', (
+                    <LazySection>
+                    <CommToolsMain
+                        fields={fields}
+                        dispatch={dispatch}
+                        loading={loading}
+                    />
+                    </LazySection>
+                ), {
+                    resetKey: `drawer:commtools:${drawerVisible.commtools ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -934,15 +1107,22 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <DLFeature
-                    {...currentChart}
-                    fields={currentChart}
-                    fieldsAry={arychartflds}
-                    deeplearn={deeplearn}
-                    height={height} 
-                    dispatch={dispatch}
-                    loading={loading}
-                />
+                {renderProtectedModule('人生事件设置', (
+                    <LazySection>
+                    <DLFeature
+                        {...currentChart}
+                        fields={currentChart}
+                        fieldsAry={arychartflds}
+                        deeplearn={deeplearn}
+                        height={height} 
+                        dispatch={dispatch}
+                        loading={loading}
+                    />
+                    </LazySection>
+                ), {
+                    resetKey: `drawer:chartdeeplearn:${drawerVisible.chartdeeplearn ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
             <Drawer
@@ -960,10 +1140,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     backgroundColor: 'transparent',
                 }}        
             >
-                <HomePageSetup
-                    dispatch={dispatch}
-                    loading={loading}
-                />
+                {renderProtectedModule('首页设置', (
+                    <HomePageSetup
+                        dispatch={dispatch}
+                        loading={loading}
+                    />
+                ), {
+                    resetKey: `drawer:homepage:${drawerVisible.homepage ? 1 : 0}`,
+                    onClose: closeDrawer,
+                })}
             </Drawer>
 
         </Spin>

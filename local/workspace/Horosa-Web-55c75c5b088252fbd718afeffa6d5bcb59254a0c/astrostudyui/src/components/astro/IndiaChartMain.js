@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { Row, Col, Tabs, Tooltip } from 'antd';
 import IndiaChart from './IndiaChart';
+import { normalizeContentHeight } from '../../utils/layout';
 
 
 const TabPane = Tabs.TabPane;
@@ -182,7 +183,7 @@ class IndiaChartMain extends Component{
 
 	render(){
 		let fields = this.props.fields;
-		let height = this.props.height ? this.props.height : 760;
+		let height = normalizeContentHeight(this.props.height);
 
 		let panes = [];
 		for(let key in this.state.hook){
@@ -218,10 +219,11 @@ class IndiaChartMain extends Component{
 		}
 
 		return (
-			<div >
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					<TabPane 

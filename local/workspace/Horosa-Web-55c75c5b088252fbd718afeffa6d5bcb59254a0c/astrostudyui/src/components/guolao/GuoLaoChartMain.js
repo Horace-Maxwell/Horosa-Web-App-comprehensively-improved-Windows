@@ -10,6 +10,7 @@ import * as AstroText from '../../constants/AstroText';
 import * as SZConst from '../suzhan/SZConst';
 import * as Su28Helper from '../su28/Su28Helper';
 import { fetchChart as fetchAstroChart } from '../../services/astro';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const SIMPLE_TOKEN_MAP = {
 	A: '日',
@@ -550,12 +551,7 @@ class GuoLaoChartMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		if(height === '100%'){
-			height = 'calc(100% - 70px)'
-		}else{
-			height = height - 20
-		}
+		let height = normalizeContentHeight(this.props.height);
 
 		let chartObj = this.state.chartObj;
 		let chart = chartObj && chartObj.chart ? {
@@ -571,8 +567,8 @@ class GuoLaoChartMain extends Component{
 		}
 
 		return (
-			<div>
-				<Row gutter={6}>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
+				<Row gutter={6} style={{ height: '100%' }}>
 					<Col span={16}>
 						<GuoLaoChart 
 							value={chart} 
@@ -583,7 +579,7 @@ class GuoLaoChartMain extends Component{
 							onTipClick={this.onTipClick}
 						/>
 					</Col>
-					<Col span={8}>
+					<Col span={8} style={{ height: '100%', overflow: 'hidden' }}>
 						<Row>
 							<Col span={24}>
 								<GuoLaoInput 

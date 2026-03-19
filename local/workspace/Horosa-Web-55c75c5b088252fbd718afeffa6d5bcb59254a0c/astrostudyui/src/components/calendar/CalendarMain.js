@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { Row, Col, Tabs, } from 'antd';
 import { randomStr } from '../../utils/helper';
 import NongLiMain from './NongLiMain';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 
@@ -58,14 +59,14 @@ class CalendarMain extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		let height = normalizeContentHeight(this.props.height);
 
 		return (
-			<div id={this.state.divId}>
+			<div id={this.state.divId} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					<TabPane tab="农历" key="nongli">

@@ -38,6 +38,7 @@ class SuZhanChart extends Component{
 			radius: 0,
 			tooltipId: 'div' + randomStr(8),
 			lockedSide: null,
+			drawError: null,
 		};
 
 		this.szchart = new SZChart(svgid, null, this.props.fields, this.state.tooltipId);
@@ -60,6 +61,10 @@ class SuZhanChart extends Component{
 		this.clearObserverFrame = this.clearObserverFrame.bind(this);
 		this.scheduleSquareSideSync = this.scheduleSquareSideSync.bind(this);
 		this.isChartActive = this.isChartActive.bind(this);
+		this.clearDrawError = this.clearDrawError.bind(this);
+		this.reportDrawError = this.reportDrawError.bind(this);
+		this.runGuardedDraw = this.runGuardedDraw.bind(this);
+		this.handleRetryDraw = this.handleRetryDraw.bind(this);
 	}
 
 	isChartActive(){
@@ -187,6 +192,33 @@ class SuZhanChart extends Component{
 		this.observerFrame = null;
 	}
 
+	clearDrawError(){
+		if(this.state.drawError !== null){
+			this.setState({ drawError: null });
+		}
+	}
+
+	reportDrawError(error, context){
+		const detail = error && error.message ? error.message : '宿盘模块绘制失败，请重试。';
+		console.error(`[Horosa:SuZhanChart:${context}]`, error);
+		if(this.state.drawError !== detail){
+			this.setState({ drawError: detail });
+		}
+	}
+
+	runGuardedDraw(context, callback){
+		try{
+			callback();
+			if(this.state.drawError !== null){
+				this.setState({ drawError: null });
+			}
+			return true;
+		}catch(error){
+			this.reportDrawError(error, context);
+			return false;
+		}
+	}
+
 	scheduleDrawRetry(){
 		if(!this.isChartActive()){
 			return;
@@ -197,8 +229,10 @@ class SuZhanChart extends Component{
 			if(!this.isChartActive()){
 				return;
 			}
-			this.scheduleSquareSideSync(4);
-			this.drawChart();
+			this.runGuardedDraw('retry', ()=>{
+				this.scheduleSquareSideSync(4);
+				this.drawChart();
+			});
 		}, 120);
 	}
 
@@ -233,8 +267,10 @@ class SuZhanChart extends Component{
 				if(!this.isChartActive()){
 					return;
 				}
-				this.scheduleSquareSideSync();
-				this.drawChart();
+				this.runGuardedDraw('resize-observer', ()=>{
+					this.scheduleSquareSideSync();
+					this.drawChart();
+				});
 			});
 		});
 		if(wrap){
@@ -304,54 +340,67 @@ class SuZhanChart extends Component{
 		if(!this.isChartActive()){
 			return;
 		}
-		let chartobj = this.props.value;
-		if(chartobj === undefined || chartobj === null 
-			|| chartobj.fixedStarSu28 === undefined || chartobj.fixedStarSu28 === null){
-			return;
-		}
-
-		let disp = [];
-		if(this.props.chartDisplay !== undefined && this.props.chartDisplay !== null){
-			disp = this.props.chartDisplay;
-		}
-		let flags = 0;
-		for(let i=0; i<disp.length; i++){
-			flags = flags + disp[i];
-		}
-
-		let planetDisp = new Set();
-		if(this.props.planetDisplay !== undefined && this.props.planetDisplay !== null){
-			for(let i=0; i<this.props.planetDisplay.length; i++){
-				let id = this.props.planetDisplay[i];
-				planetDisp.add(id);
+		this.runGuardedDraw('draw', ()=>{
+			let chartobj = this.props.value;
+			if(chartobj === undefined || chartobj === null 
+				|| chartobj.fixedStarSu28 === undefined || chartobj.fixedStarSu28 === null){
+				this.clearDrawError();
+				return;
 			}
-		}
 
-		const shape = getSuZhanShape(this.props.fields);
-		SZConst.SZChart.shape = shape;
-		if(this.props.fields && this.props.fields.szchart &&
-			this.props.fields.szchart.value !== undefined && this.props.fields.szchart.value !== null){
-			SZConst.SZChart.chart = parseInt(this.props.fields.szchart.value, 10);
-		}
-		if(this.props.fields && this.props.fields.houseStartMode &&
-			this.props.fields.houseStartMode.value !== undefined && this.props.fields.houseStartMode.value !== null){
-			const mode = parseInt(this.props.fields.houseStartMode.value, 10);
-			SZConst.SZChart.houseStartMode = mode === SZConst.SZHouseStart_ASC
-				? SZConst.SZHouseStart_ASC
-				: SZConst.SZHouseStart_Bazi;
-		}
-		
-		this.szchart.chartDisp = flags;
-		this.szchart.planetDisp = planetDisp;
-		this.szchart.fields = this.props.fields;
-		this.szchart.chart = chartobj;
+			let disp = [];
+			if(this.props.chartDisplay !== undefined && this.props.chartDisplay !== null){
+				disp = this.props.chartDisplay;
+			}
+			let flags = 0;
+			for(let i=0; i<disp.length; i++){
+				flags = flags + disp[i];
+			}
 
-		this.szchart.draw();
+			let planetDisp = new Set();
+			if(this.props.planetDisplay !== undefined && this.props.planetDisplay !== null){
+				for(let i=0; i<this.props.planetDisplay.length; i++){
+					let id = this.props.planetDisplay[i];
+					planetDisp.add(id);
+				}
+			}
 
-		const svgdom = document.getElementById(this.state.chartid);
-		if(svgdom && (svgdom.clientWidth === 0 || svgdom.clientHeight === 0)){
+			const shape = getSuZhanShape(this.props.fields);
+			SZConst.SZChart.shape = shape;
+			if(this.props.fields && this.props.fields.szchart &&
+				this.props.fields.szchart.value !== undefined && this.props.fields.szchart.value !== null){
+				SZConst.SZChart.chart = parseInt(this.props.fields.szchart.value, 10);
+			}
+			if(this.props.fields && this.props.fields.houseStartMode &&
+				this.props.fields.houseStartMode.value !== undefined && this.props.fields.houseStartMode.value !== null){
+				const mode = parseInt(this.props.fields.houseStartMode.value, 10);
+				SZConst.SZChart.houseStartMode = mode === SZConst.SZHouseStart_ASC
+					? SZConst.SZHouseStart_ASC
+					: SZConst.SZHouseStart_Bazi;
+			}
+			
+			this.szchart.chartDisp = flags;
+			this.szchart.planetDisp = planetDisp;
+			this.szchart.fields = this.props.fields;
+			this.szchart.chart = chartobj;
+
+			this.szchart.draw();
+
+			const svgdom = document.getElementById(this.state.chartid);
+			if(svgdom && (svgdom.clientWidth === 0 || svgdom.clientHeight === 0)){
+				this.scheduleDrawRetry();
+			}
+		});
+	}
+
+	handleRetryDraw(){
+		this.setState({
+			drawError: null,
+		}, ()=>{
+			this.scheduleSquareSideSync();
+			this.drawChart();
 			this.scheduleDrawRetry();
-		}
+		});
 	}
 
 	componentDidMount(){
@@ -441,6 +490,53 @@ class SuZhanChart extends Component{
 			chartstyle.height = `${side}px`;
 		}
 
+		if(this.state.drawError){
+			return (
+				<div
+					ref={this.setChartWrapRef}
+					style={{
+						width: '100%',
+						height: this.props.height ? this.props.height : '100%',
+						minWidth: 0,
+						overflow: 'hidden',
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						padding: 16,
+						boxSizing: 'border-box',
+					}}
+				>
+					<Card
+						bordered
+						style={{
+							width: '100%',
+							maxWidth: 720,
+							borderRadius: 10,
+						}}
+					>
+						<div style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>宿盘暂时无法显示</div>
+						<div style={{ color: '#666', lineHeight: '22px', marginBottom: 16 }}>
+							当前错误已被限制在宿盘模块内，不会再导致整个页面白屏。你可以重试当前模块后继续使用。
+						</div>
+						<div
+							style={{
+								padding: '10px 12px',
+								background: '#fff7e6',
+								border: '1px solid #ffd591',
+								borderRadius: 8,
+								color: '#ad6800',
+								marginBottom: 16,
+								wordBreak: 'break-word',
+							}}
+						>
+							{this.state.drawError}
+						</div>
+						<Button type='primary' onClick={this.handleRetryDraw}>重试当前模块</Button>
+					</Card>
+				</div>
+			);
+		}
+
 		return (
 			<div
 				ref={this.setChartWrapRef}
@@ -458,7 +554,7 @@ class SuZhanChart extends Component{
 				<svg id={this.state.chartid} style={chartstyle}>
 				</svg>
 			</div>
-		)
+		);
 	}
 }
 

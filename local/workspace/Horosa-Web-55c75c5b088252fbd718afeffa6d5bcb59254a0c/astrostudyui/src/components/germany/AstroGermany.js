@@ -3,6 +3,7 @@ import { Row, Col, Tabs, Input, Button, } from 'antd';
 import AstroMidpoint from './AstroMidpoint'
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
+import { normalizeContentHeight } from '../../utils/layout';
 
 const TabPane = Tabs.TabPane;
 
@@ -66,16 +67,16 @@ class AstroGermany extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 50
+		let height = normalizeContentHeight(this.props.height);
 
 		let hook = this.state.hook;
 
 		return (
-			<div>
+			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
+					className='horosaFillTabs'
 					style={{ height: height }}
 				>
 					<TabPane tab="行星中点" key="Midpoint">
