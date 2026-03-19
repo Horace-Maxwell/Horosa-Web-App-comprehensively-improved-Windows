@@ -14,11 +14,13 @@ from pywinauto import Desktop
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER_EXE = ROOT / "release" / "Horosa-Setup-1.0.0.exe"
+PACKAGE_JSON = ROOT / "package.json"
+APP_VERSION = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["version"]
+INSTALLER_EXE = ROOT / "release" / f"Horosa-Setup-{APP_VERSION}.exe"
 REPORT_DIR = ROOT / "qa_artifacts" / datetime.now().strftime("%Y-%m-%d")
 SCREENSHOT_DIR = REPORT_DIR / "screenshots"
 JSON_REPORT = REPORT_DIR / "installer_regression.json"
-MARKDOWN_REPORT = ROOT / "QA_REGRESSION_2026-03-18.md"
+MARKDOWN_REPORT = ROOT / f"QA_REGRESSION_{datetime.now().strftime('%Y-%m-%d')}.md"
 APP_GUID = "9d2acd56-1a0c-5d43-a9dc-c1506beeddee"
 INSTALL_REG_PATH = fr"Software\{APP_GUID}"
 UNINSTALL_REG_PATH = fr"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_GUID}"
@@ -115,7 +117,7 @@ def kill_running_app() -> None:
 
 
 def kill_running_installers() -> None:
-    subprocess.run(["taskkill", "/IM", "Horosa-Setup-1.0.0.exe", "/T", "/F"], check=False, capture_output=True)
+    subprocess.run(["taskkill", "/IM", f"Horosa-Setup-{APP_VERSION}.exe", "/T", "/F"], check=False, capture_output=True)
 
 
 def find_setup_window(timeout: int = 60, process_id: int | None = None):
@@ -314,7 +316,7 @@ def write_reports(results: dict) -> None:
     JSON_REPORT.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 
     lines = [
-        "# 星阙安装器真机回归记录（2026-03-18）",
+        f"# 星阙安装器真机回归记录（{datetime.now().strftime('%Y-%m-%d')}）",
         "",
         "- 机器：当前开发机 Windows",
         f"- 安装器：`{INSTALLER_EXE}`",
