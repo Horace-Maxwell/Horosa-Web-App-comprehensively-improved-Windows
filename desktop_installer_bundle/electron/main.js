@@ -10,8 +10,8 @@ const localAppDataRoot = process.env.LOCALAPPDATA || app.getPath('appData');
 const horosaDataRoot = path.join(localAppDataRoot, 'HorosaDesktop');
 const windowStateFile = path.join(horosaDataRoot, 'window-state.json');
 const loadingPagePath = path.join(__dirname, 'loading.html');
-const WINDOW_STATE_VERSION = 6;
-const DEFAULT_ZOOM_FACTOR = 0.75;
+const WINDOW_STATE_VERSION = 7;
+const DEFAULT_ZOOM_FACTOR = 1.0;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 1.6;
 const ZOOM_STEP = 0.1;
@@ -23,7 +23,7 @@ let runtimeManager = null;
 let logger = null;
 let runtimeBootPromise = null;
 let updateCheckTimer = null;
-let currentWindowBoundsMode = 'default-80';
+let currentWindowBoundsMode = 'default-85';
 let currentPage = 'loading';
 let windowStateSaveTimer = null;
 let hasAppliedInitialWindowState = false;
@@ -176,8 +176,8 @@ function getPreferredDisplay() {
 
 function buildDefaultBounds(display) {
   const workArea = display.workArea || display.workAreaSize || { x: 0, y: 0, width: 1440, height: 900 };
-  const width = Math.max(960, Math.floor(workArea.width * 0.8));
-  const height = Math.max(640, Math.floor(workArea.height * 0.8));
+  const width = Math.max(960, Math.floor(workArea.width * 0.85));
+  const height = Math.max(640, Math.floor(workArea.height * 0.85));
   const x = workArea.x + Math.floor((workArea.width - width) / 2);
   const y = workArea.y + Math.floor((workArea.height - height) / 2);
 
@@ -244,10 +244,12 @@ function resolveInitialWindowState() {
     }
   }
 
+  const preserveMaximizeState = !!(savedState && savedState.isMaximized);
+
   return {
     bounds: buildDefaultBounds(preferredDisplay),
-    mode: shouldResetLegacyBounds ? 'default-80-reset' : 'default-80',
-    maximizeAfterShow: false,
+    mode: shouldResetLegacyBounds ? 'default-85-reset' : 'default-85',
+    maximizeAfterShow: shouldResetLegacyBounds ? preserveMaximizeState : false,
     zoomFactor,
   };
 }
