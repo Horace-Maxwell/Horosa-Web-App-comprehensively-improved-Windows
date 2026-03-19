@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Horosa mature Windows desktop app bundle",
   "author": "Horosa",
@@ -78,7 +78,7 @@
       "installerHeader": "assets/installerHeader.bmp",
       "installerSidebar": "assets/installerSidebar.bmp",
       "uninstallerSidebar": "assets/uninstallerSidebar.bmp",
-      "createDesktopShortcut": true,
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "星阙",
       "displayLanguageSelector": false,
