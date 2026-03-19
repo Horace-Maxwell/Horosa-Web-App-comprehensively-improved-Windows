@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'unsafe-inline' 'self'; script-src 'unsafe-inline' 'self'; img-src 'self' data:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星阙启动中</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+        background:
+          radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 36%),
+          linear-gradient(180deg, #0f172a 0%, #111827 100%);
+        color: #e5eefb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .shell {
+        width: min(720px, calc(100vw - 48px));
+        padding: 36px;
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.86);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+      }
+      .title {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 10px;
+      }
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        object-fit: cover;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+      }
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .subtitle {
+        margin: 0 0 24px;
+        color: #9fb0c8;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .spinner {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 3px solid rgba(148, 163, 184, 0.2);
+        border-top-color: #38bdf8;
+        animation: spin 0.9s linear infinite;
+      }
+      .spinner.failed,
+      .spinner.ready {
+        animation: none;
+        border-color: transparent;
+        width: 14px;
+        height: 14px;
+        background: #f87171;
+      }
+      .spinner.ready {
+        background: #34d399;
+      }
+      .message {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .detail {
+        min-height: 48px;
+        margin: 0 0 18px;
+        color: #c2d0e5;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+      .meta {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 13px;
+        color: #9fb0c8;
+      }
+      .meta-row span:last-child {
+        color: #d8e3f3;
+        text-align: right;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+      }
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .primary {
+        color: #08111f;
+        background: #38bdf8;
+      }
+      .secondary {
+        color: #e5eefb;
+        background: rgba(148, 163, 184, 0.14);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="title">
+        <img class="logo" src="../assets/horosa_setup_badge.png" alt="星阙图标" />
+        <div>
+          <h1>星阙正在启动</h1>
+          <p class="subtitle">先显示原生桌面窗口，再在后台拉起本地服务。</p>
+        </div>
+      </div>
+
+      <div class="status">
+        <div id="spinner" class="spinner"></div>
+        <div id="message" class="message">正在准备桌面窗口</div>
+      </div>
+
+      <p id="detail" class="detail">请稍候，正在启动 Java 与 Python 本地服务。</p>
+
+      <section class="meta">
+        <div class="meta-row">
+          <span>窗口模式</span>
+          <span id="windowMode">default-80</span>
+        </div>
+        <div class="meta-row">
+          <span>本地服务</span>
+          <span id="serverRoot">等待分配端口</span>
+        </div>
+        <div class="meta-row">
+          <span>运行状态</span>
+          <span id="runtimeStatus">starting-window</span>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="retry" class="primary" type="button">重试启动</button>
+        <button id="openLogs" class="secondary" type="button">打开日志目录</button>
+      </div>
+    </main>
+
+    <script>
+      const bridge = window.horosaDesktop || null;
+      const bootstrapConfig =
+        (bridge && typeof bridge.getBootstrapConfig === 'function' ? bridge.getBootstrapConfig() : null) ||
+        window.__HOROSA_DESKTOP_CONFIG__ ||
+        {};
+
+      const els = {
+        spinner: document.getElementById('spinner'),
+        message: document.getElementById('message'),
+        detail: document.getElementById('detail'),
+        windowMode: document.getElementById('windowMode'),
+        serverRoot: document.getElementById('serverRoot'),
+        runtimeStatus: document.getElementById('runtimeStatus'),
+        retry: document.getElementById('retry'),
+        openLogs: document.getElementById('openLogs'),
+      };
+
+      function toDisplayText(value, fallback) {
+        return value == null || value === '' ? fallback : String(value);
+      }
+
+      function renderRuntimeState(state) {
+        const runtimeState = state || bootstrapConfig.runtimeStatus || {};
+        const status = toDisplayText(runtimeState.status, 'starting-window');
+        const message = toDisplayText(runtimeState.message, '正在准备桌面窗口');
+        const detailParts = [];
+
+        if (runtimeState.logDir) {
+          detailParts.push(`日志目录：${runtimeState.logDir}`);
+        }
+        if (runtimeState.error) {
+          detailParts.push(runtimeState.error);
+        }
+        if (runtimeState.startupDurationMs) {
+          detailParts.push(`后端启动耗时：${runtimeState.startupDurationMs} ms`);
+        }
+
+        els.windowMode.textContent = toDisplayText(bootstrapConfig.windowBoundsMode, 'default-80');
+        els.serverRoot.textContent = toDisplayText(runtimeState.serverRoot, '等待分配端口');
+        els.runtimeStatus.textContent = status;
+        els.message.textContent = message;
+        els.detail.textContent = detailParts.length
+          ? detailParts.join('\n')
+          : '请稍候，正在启动 Java 与 Python 本地服务。';
+
+        els.spinner.className = 'spinner';
+        if (status === 'failed' || status === 'error') {
+          els.spinner.classList.add('failed');
+        } else if (status === 'ready') {
+          els.spinner.classList.add('ready');
+        }
+
+        els.retry.disabled = status === 'starting-python' || status === 'starting-java' || status === 'starting-window';
+      }
+
+      async function retryRuntime() {
+        if (!bridge || typeof bridge.retryRuntime !== 'function') {
+          return;
+        }
+        els.retry.disabled = true;
+        els.message.textContent = '正在重新启动本地服务';
+        try {
+          const state = await bridge.retryRuntime();
+          renderRuntimeState(state);
+        } catch (error) {
+          renderRuntimeState({
+            status: 'failed',
+            message: '重试启动失败',
+            error: error && error.message ? error.message : String(error),
+          });
+        } finally {
+          els.retry.disabled = false;
+        }
+      }
+
+      els.retry.addEventListener('click', retryRuntime);
+      els.openLogs.addEventListener('click', async () => {
+        if (bridge && typeof bridge.openLogsDirectory === 'function') {
+          await bridge.openLogsDirectory();
+        }
+      });
+
+      if (bridge && typeof bridge.onRuntimeState === 'function') {
+        bridge.onRuntimeState(renderRuntimeState);
+      }
+
+      renderRuntimeState(bootstrapConfig.runtimeStatus || {});
+    </script>
+  </body>
+</html>

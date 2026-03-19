@@ -1,8 +1,22 @@
+param(
+  [switch]$NoPause
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = $ScriptRoot
+
+function Pause-IfNeeded {
+  param([string]$Prompt = 'Press Enter to exit')
+
+  if ($NoPause) {
+    return
+  }
+
+  Read-Host $Prompt | Out-Null
+}
 
 function Test-HorosaProjectDir {
   param([string]$DirPath)
@@ -162,7 +176,7 @@ if (-not $ProjectDir) {
   Write-Host "Project folder not found under: $Root"
   Write-Host 'Expected a folder that contains astrostudyui / astrostudysrv / astropy.'
   Write-Host 'You can set HOROSA_PROJECT_DIR to override project directory detection.'
-  Read-Host 'Press Enter to exit'
+  Pause-IfNeeded
   exit 1
 }
 $JarSrc = Join-Path $ProjectDir 'astrostudysrv\\astrostudyboot\\target\\astrostudyboot.jar'
@@ -663,10 +677,10 @@ if ($validationErrors.Count -gt 0) {
   foreach ($err in $validationErrors) {
     Write-Host ("  - {0}" -f $err)
   }
-  Read-Host 'Press Enter to exit'
+  Pause-IfNeeded
   exit 1
 }
 
 Write-Host ''
 Write-Host '[PASS] Runtime prepare completed with all required artifacts.'
-Read-Host 'Press Enter to exit'
+Pause-IfNeeded

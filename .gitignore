@@ -10,9 +10,6 @@
 *.tmp
 .tmp_*
 log/HOROSA_RUN_ISSUES.md
-log/*.png
-log/*.txt
-log/*.json
 
 # Local Horosa runtime artifacts
 **/.horosa-local-logs/
@@ -32,6 +29,8 @@ log/*.json
 **/.cache/
 **/.next/
 **/coverage/
+**/dist/
+**/dist-file/
 
 # Java/Maven
 **/target/
@@ -40,6 +39,8 @@ log/*.json
 # Python
 **/__pycache__/
 **/.pytest_cache/
+**/*.pyc
+**/*.pyo
 
 # IDE
 .vscode/
@@ -73,4 +74,5 @@ modules/
 desktop_installer_bundle/build/
 desktop_installer_bundle/dist/
 desktop_installer_bundle/release/
+desktop_installer_bundle/qa_artifacts/
 desktop_installer_bundle/src/__pycache__/

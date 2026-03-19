@@ -1,61 +1,32 @@
-# 星阙 Windows 桌面包说明
+# Horosa Windows Desktop Bundle
 
-如果你是普通用户，先下载 Release 里的安装包，不需要自己拼这些文件。
+这个目录现在承载真正的 Windows 桌面应用工程：
 
-## 去哪里下载一键安装包
+- `electron/`：Electron 主进程、预加载脚本、运行时编排、自动更新
+- `scripts/`：前端构建、运行时 staging、项目路径解析
+- `assets/horosa_setup.ico`：应用、安装器、卸载器统一图标
 
-- 最新 Release 页面：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest`
-- 当前一键安装包直链：
-  `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/2026.03.10.8/HorosaPortableWindows-2026.03.10.8.zip`
+## 构建步骤
 
-请下载：
+1. 先准备主项目前端构建产物
+2. 运行 `..\\prepareruntime\\Prepare_Runtime_Windows.ps1 -NoPause`
+3. 运行 `npm install`
+4. 运行 `npm run dist:win`
 
-- `HorosaPortableWindows-版本.zip`
+## 开发验证
 
-不要下载：
+- 使用 `npm run dev` 做桌面端前端回归；它会先重建 renderer，再重新 stage runtime，然后启动 Electron
+- `npm run dev:fast` 只适合不涉及前端改动的快速排查；如果改了 `astrostudyui`，不要用它做现场验证
+- 启动日志会打印 renderer 构建时间和 stage 的 `dist-file` 时间，若时间戳没刷新，本次验证结果无效
 
-- `HorosaPortableWindows-版本.manifest.json`
+## 产物
 
-说明：
+- 安装器输出到 `desktop_installer_bundle/release/`
+- Electron 会把完整运行时打进 `extraResources/app-runtime/`
+- 应用默认安装到 `%LocalAppData%\\Programs\\Horosa`
 
-- 当前给普通用户发布的完整 Windows 安装包就是这个 `HorosaPortableWindows-版本.zip`
-- 如果当前直链以后过期，直接去 `releases/latest` 页面下载最新同名格式的 zip
-- 下载后先解压，再双击 `Install_Horosa_Desktop.vbs`
-- 安装完成后使用桌面或开始菜单里的 `星阙` 快捷方式启动
+## 更新
 
-## 普通用户安装步骤
-
-1. 下载并解压 `HorosaPortableWindows-版本.zip`
-2. 双击 `Install_Horosa_Desktop.vbs`
-3. 按中文安装向导安装，完成后启动 `星阙`
-
-补充说明：
-
-- 安装器会自动准备桌面运行环境
-- 不要直接运行 PowerShell 脚本
-- 应用内可以通过 `更新 -> 检查更新` 收到后续新版本
-- 用户数据保存在 `%LocalAppData%\HorosaDesktop`，更新不会删除这些数据
-
-## 这个目录里有什么
-
-- `src/`：桌面应用源码、更新检查和更新辅助脚本
-- `wheelhouse/`：离线 Python 依赖
-- `pyinstaller/`：PyInstaller 打包配置
-- `version.json`：当前桌面包版本
-- `Install_Horosa_Desktop.vbs`：普通用户安装入口
-- `Run_Horosa_Desktop.vbs`：无控制台启动桌面端
-- `install_desktop_wizard.ps1`：中文安装向导界面
-- `build_portable_release_zip.ps1`：构建 Release zip
-- `publish_github_release.ps1`：发布到 GitHub Release
-- `UPDATE_RELEASE_GUIDE.md`：后续发布与自动更新流程
-- `INSTALL_3_STEPS.md`：面向普通用户的简版安装说明
-
-## 开发者补充
-
-这个目录的目标是：
-
-- 正常使用时不弹 PowerShell 或 cmd 窗口
-- 在原生桌面窗口里运行 Horosa
-- 让 GitHub Release 更新链路可重复、可验证
-- 把会随更新保留的数据放到安装目录之外
+- 使用 `electron-builder` + `electron-updater`
+- 发布到 GitHub Releases 后会生成 `latest.yml` 和 blockmap
+- 应用内可直接检查、下载并安装更新

@@ -1,0 +1,85 @@
+{
+  "name": "horosa-desktop-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Horosa mature Windows desktop app bundle",
+  "author": "Horosa",
+  "main": "electron/main.js",
+  "scripts": {
+    "build:renderer": "node scripts/build-renderer.cjs",
+    "prepare:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\prepareruntime\\Prepare_Runtime_Windows.ps1 -NoPause",
+    "stage:runtime": "node scripts/stage-runtime.cjs",
+    "build:desktop": "npm run build:renderer && npm run prepare:runtime && npm run stage:runtime",
+    "dev": "npm run build:renderer && npm run stage:runtime && electron .",
+    "dev:fast": "npm run stage:runtime && electron .",
+    "start": "npm run build:desktop && electron .",
+    "pack:win": "npm run build:desktop && electron-builder --dir",
+    "dist:win": "npm run build:desktop && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron": "^35.0.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.horosa.desktop",
+    "productName": "星阙",
+    "artifactName": "Horosa-Setup-${version}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/app-runtime",
+        "to": "app-runtime"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Horace-Maxwell",
+        "repo": "Horosa-Web-App-comprehensively-improved-Windows"
+      }
+    ],
+    "win": {
+      "icon": "assets/horosa_setup.ico",
+      "executableName": "Horosa",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "include": "installer.nsh",
+      "installerIcon": "assets/horosa_setup.ico",
+      "uninstallerIcon": "assets/horosa_setup.ico",
+      "installerHeaderIcon": "assets/horosa_setup.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "星阙",
+      "displayLanguageSelector": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    }
+  }
+}
