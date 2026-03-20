@@ -324,7 +324,9 @@ $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
 $PythonBin = $null
 $JavaBin = $null
 $NodeBin = $null
+$NpmBin = $null
 $JarSource = if (Test-Path $JarPath) { 'project' } else { 'missing' }
+$FrontendRepairFailureReason = $null
 $DefaultWebPort = 8000
 $DefaultBackendPort = 9999
 $DefaultChartPort = 8899
@@ -3115,19 +3117,20 @@ function Test-NodeJsSupported {
   return ($version.Major -ge 20)
 }
 
-function Get-NodeJsCandidates {
+function Get-PortableNodeJsCandidates {
   $candidates = @(
+    $env:HOROSA_NODE,
     $PortableNodeExe,
     (Join-Path $Root 'runtime/node/node.exe'),
     (Join-Path $ProjectDir 'runtime/windows/node/node.exe'),
     (Join-Path $ProjectDir 'runtime/node/node.exe')
   )
 
-  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE) -and (Test-Path $env:HOROSA_NODE)) {
-    $candidates += $env:HOROSA_NODE
-  }
+  return @($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
 
-  $candidates += @(
+function Get-SystemNodeJsCandidates {
+  $candidates = @(
     "$env:LocalAppData\Programs\nodejs\node.exe",
     "$env:ProgramFiles\nodejs\node.exe",
     "$env:ProgramFiles(x86)\nodejs\node.exe"
@@ -3143,11 +3146,21 @@ function Get-NodeJsCandidates {
   return $candidates
 }
 
-function Resolve-NodeJs {
+function Get-NodeJsCandidates {
+  return @((Get-PortableNodeJsCandidates) + (Get-SystemNodeJsCandidates))
+}
+
+function Resolve-NodeJsFromCandidates {
+  param(
+    [string[]]$Candidates,
+    [string]$ScopeLabel = 'Node.js',
+    [switch]$QuietUnsupported
+  )
+
   $seen = @{}
   $unsupported = New-Object System.Collections.Generic.List[string]
 
-  foreach ($candidate in (Get-NodeJsCandidates)) {
+  foreach ($candidate in @($Candidates)) {
     if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
     $key = $candidate.ToLowerInvariant()
     if ($seen.ContainsKey($key)) { continue }
@@ -3164,11 +3177,23 @@ function Resolve-NodeJs {
     }
   }
 
-  if ($unsupported.Count -gt 0) {
-    Write-Host ("[WARN] Node.js found but version is below the supported baseline (20+): {0}" -f ($unsupported -join ', '))
+  if ((-not $QuietUnsupported) -and $unsupported.Count -gt 0) {
+    Write-Host ("[WARN] {0} found but version is below the supported baseline (20+): {1}" -f $ScopeLabel, ($unsupported -join ', '))
   }
 
   return $null
+}
+
+function Resolve-NodeJs {
+  return (Resolve-NodeJsFromCandidates -Candidates (Get-NodeJsCandidates) -ScopeLabel 'Node.js')
+}
+
+function Resolve-PortableNodeJs {
+  return (Resolve-NodeJsFromCandidates -Candidates (Get-PortableNodeJsCandidates) -ScopeLabel 'Portable Node.js' -QuietUnsupported)
+}
+
+function Resolve-SystemNodeJs {
+  return (Resolve-NodeJsFromCandidates -Candidates (Get-SystemNodeJsCandidates) -ScopeLabel 'System Node.js' -QuietUnsupported)
 }
 
 function Get-NodeJsOfficialLatestV20ZipUrl {
@@ -3334,6 +3359,70 @@ function Ensure-NodeJs {
   return $resolved
 }
 
+function Get-NodeJsSourceLabel {
+  param([string]$NodeExe)
+
+  if ([string]::IsNullOrWhiteSpace($NodeExe)) {
+    return 'missing'
+  }
+
+  $resolvedPath = Get-ExePath -CmdOrPath $NodeExe
+  if (-not $resolvedPath) {
+    $resolvedPath = $NodeExe
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE)) {
+    try {
+      $envNode = (Resolve-Path $env:HOROSA_NODE -ErrorAction Stop).Path
+      $candidatePath = (Resolve-Path $resolvedPath -ErrorAction Stop).Path
+      if ($envNode -eq $candidatePath) {
+        return 'HOROSA_NODE'
+      }
+    } catch {}
+  }
+
+  $portableRoots = @(
+    $PortableNodeRuntimeDir,
+    (Join-Path $Root 'runtime/node'),
+    (Join-Path $ProjectDir 'runtime/windows/node'),
+    (Join-Path $ProjectDir 'runtime/node')
+  ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+  foreach ($portableRoot in $portableRoots) {
+    try {
+      $normalizedRoot = (Resolve-Path $portableRoot -ErrorAction Stop).Path
+      $normalizedCandidate = (Resolve-Path $resolvedPath -ErrorAction Stop).Path
+      if ($normalizedCandidate.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return 'portable-runtime'
+      }
+    } catch {}
+  }
+
+  return 'system'
+}
+
+function Ensure-FrontendNodeJs {
+  $resolved = Resolve-PortableNodeJs
+  if ($resolved) { return $resolved }
+
+  Write-Host '[INFO] Frontend bootstrap prefers local portable Node.js 20 runtime.'
+  if (Install-NodeJsPortable) {
+    Start-Sleep -Seconds 2
+    $resolved = Resolve-PortableNodeJs
+    if ($resolved) {
+      Write-Host ("[OK] Frontend portable Node.js ready: {0}" -f $resolved)
+      return $resolved
+    }
+  }
+
+  $resolved = Resolve-SystemNodeJs
+  if ($resolved) {
+    Write-Host ("[WARN] Falling back to system Node.js for frontend bootstrap: {0}" -f $resolved)
+  }
+
+  return $resolved
+}
+
 function Resolve-NpmCmd {
   param([string]$NodeExe)
 
@@ -3369,15 +3458,49 @@ function Invoke-Npm {
   param(
     [string]$NpmExe,
     [string]$WorkingDir,
-    [string[]]$NpmArgs
+    [string[]]$NpmArgs,
+    [string]$LogTag = 'npm'
   )
 
+  $stamp = [DateTime]::Now.ToString('yyyyMMdd_HHmmss_fff')
+  $stdoutPath = Join-Path $LogDir ("{0}_{1}.out.log" -f $LogTag, $stamp)
+  $stderrPath = Join-Path $LogDir ("{0}_{1}.err.log" -f $LogTag, $stamp)
+
   try {
-    $p = Start-Process -FilePath $NpmExe -WorkingDirectory $WorkingDir -ArgumentList $NpmArgs -NoNewWindow -Wait -PassThru
-    return ($p.ExitCode -eq 0)
+    $p = Start-Process `
+      -FilePath $NpmExe `
+      -WorkingDirectory $WorkingDir `
+      -ArgumentList $NpmArgs `
+      -NoNewWindow `
+      -Wait `
+      -PassThru `
+      -RedirectStandardOutput $stdoutPath `
+      -RedirectStandardError $stderrPath
+    $success = ($p.ExitCode -eq 0)
+    $peerConflict = $false
+    if (-not $success) {
+      $peerConflict = Test-NpmPeerDependencyConflict -LogPaths @($stdoutPath, $stderrPath)
+      Write-Host ("[WARN] npm command failed (exit code {0}). Logs: {1}, {2}" -f $p.ExitCode, $stdoutPath, $stderrPath)
+    }
+
+    return [pscustomobject]@{
+      Success = $success
+      ExitCode = $p.ExitCode
+      StdOutPath = $stdoutPath
+      StdErrPath = $stderrPath
+      PeerDependencyConflict = $peerConflict
+      ErrorMessage = $null
+    }
   } catch {
     Write-Host ("[WARN] npm run failed in {0}: {1}" -f $WorkingDir, $_.Exception.Message)
-    return $false
+    return [pscustomobject]@{
+      Success = $false
+      ExitCode = -1
+      StdOutPath = $stdoutPath
+      StdErrPath = $stderrPath
+      PeerDependencyConflict = $false
+      ErrorMessage = $_.Exception.Message
+    }
   }
 }
 
@@ -3442,17 +3565,48 @@ function Ensure-FrontendNodeModules {
 
   $nodeModulesDir = Join-Path $UiDir 'node_modules'
   if ((Test-Path $nodeModulesDir) -and (Get-ChildItem -Path $nodeModulesDir -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-    return $true
+    return [pscustomobject]@{
+      Success = $true
+      UsedLegacyPeerDeps = $false
+      Result = $null
+    }
   }
 
   $lockFile = Join-Path $UiDir 'package-lock.json'
+  $baseArgs = @('install', '--no-audit', '--no-fund')
   if (Test-Path $lockFile) {
     Write-Host 'Frontend dependencies missing, running npm ci...'
-    return (Invoke-Npm -NpmExe $NpmExe -WorkingDir $UiDir -NpmArgs @('ci', '--no-audit', '--no-fund'))
+    $baseArgs = @('ci', '--no-audit', '--no-fund')
+  } else {
+    Write-Host 'Frontend dependencies missing, running npm install...'
   }
 
-  Write-Host 'Frontend dependencies missing, running npm install...'
-  return (Invoke-Npm -NpmExe $NpmExe -WorkingDir $UiDir -NpmArgs @('install', '--no-audit', '--no-fund'))
+  $result = Invoke-Npm -NpmExe $NpmExe -WorkingDir $UiDir -NpmArgs $baseArgs -LogTag 'frontend_deps'
+  if ($result.Success) {
+    return [pscustomobject]@{
+      Success = $true
+      UsedLegacyPeerDeps = $false
+      Result = $result
+    }
+  }
+
+  if (-not $result.PeerDependencyConflict) {
+    return [pscustomobject]@{
+      Success = $false
+      UsedLegacyPeerDeps = $false
+      Result = $result
+    }
+  }
+
+  Write-Host '[WARN] Standard frontend dependency install hit a peer dependency conflict. Retrying with --legacy-peer-deps...'
+  $compatArgs = @($baseArgs + '--legacy-peer-deps')
+  $compatResult = Invoke-Npm -NpmExe $NpmExe -WorkingDir $UiDir -NpmArgs $compatArgs -LogTag 'frontend_deps_legacy'
+
+  return [pscustomobject]@{
+    Success = $compatResult.Success
+    UsedLegacyPeerDeps = $true
+    Result = $compatResult
+  }
 }
 
 function Try-BuildFrontendDist {
@@ -3466,12 +3620,15 @@ function Try-BuildFrontendDist {
   $distFileIndex = Join-Path $distFileDir 'index.html'
 
   if (-not (Test-Path $packageJson)) {
+    $script:FrontendRepairFailureReason = 'Frontend source folder is missing package.json.'
     Write-Host '[WARN] Frontend source folder missing package.json, skip local frontend build.'
     return $false
   }
 
-  $nodeCmd = Ensure-NodeJs
+  $script:FrontendRepairFailureReason = $null
+  $nodeCmd = Ensure-FrontendNodeJs
   if (-not $nodeCmd) {
+    $script:FrontendRepairFailureReason = 'Node.js auto-setup failed for frontend bootstrap.'
     Write-Host '[WARN] Node.js 20+ not found, skip local frontend build.'
     return $false
   }
@@ -3479,11 +3636,25 @@ function Try-BuildFrontendDist {
 
   $npmCmd = Resolve-NpmCmd -NodeExe $nodeCmd
   if (-not $npmCmd) {
+    $script:FrontendRepairFailureReason = 'npm.cmd was not found for the selected frontend Node.js runtime.'
     Write-Host '[WARN] npm not found, skip local frontend build.'
     return $false
   }
+  $script:NpmBin = $npmCmd
+  $nodeSource = Get-NodeJsSourceLabel -NodeExe $nodeCmd
+  Write-Host ("[INFO] Frontend bootstrap runtime: node={0} ({1}), npm={2}" -f $nodeCmd, $nodeSource, $npmCmd)
 
-  if (-not (Ensure-FrontendNodeModules -UiDir $uiDir -NpmExe $npmCmd)) {
+  $depsResult = Ensure-FrontendNodeModules -UiDir $uiDir -NpmExe $npmCmd
+  if (-not $depsResult.Success) {
+    $depsLogs = @($depsResult.Result.StdOutPath, $depsResult.Result.StdErrPath) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    if ($depsResult.UsedLegacyPeerDeps) {
+      $script:FrontendRepairFailureReason = 'Frontend dependency install failed even after retrying with --legacy-peer-deps.'
+    } else {
+      $script:FrontendRepairFailureReason = 'Frontend dependency install failed before build:file.'
+    }
+    if ($depsLogs.Count -gt 0) {
+      Write-Host ("[WARN] Frontend dependency install logs: {0}" -f ($depsLogs -join ', '))
+    }
     Write-Host '[WARN] Frontend dependencies install failed, skip local frontend build.'
     return $false
   }
@@ -3502,18 +3673,43 @@ function Try-BuildFrontendDist {
     Write-Host 'Frontend static file missing, trying local npm build...'
   }
 
-  $ok = Invoke-Npm -NpmExe $npmCmd -WorkingDir $uiDir -NpmArgs @('run', 'build:file')
-  if (-not $ok) {
+  $buildResult = Invoke-Npm -NpmExe $npmCmd -WorkingDir $uiDir -NpmArgs @('run', 'build:file') -LogTag 'frontend_build_file'
+  if (-not $buildResult.Success) {
+    $script:FrontendRepairFailureReason = 'Frontend build:file command failed.'
     return $false
   }
 
   if (Test-Path $distFileIndex) {
     Set-FrontendDistContext
+    $script:FrontendRepairFailureReason = $null
     return $true
   }
 
+  $script:FrontendRepairFailureReason = 'Frontend build finished but dist-file/index.html is still missing.'
   Write-Host ("[WARN] Frontend build finished but index.html is still missing: {0}" -f $distFileIndex)
   return $false
+}
+
+function Test-NpmPeerDependencyConflict {
+  param([string[]]$LogPaths)
+
+  $paths = @($LogPaths | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)
+  if ($paths.Count -eq 0) {
+    return $false
+  }
+
+  $patterns = @(
+    'ERESOLVE',
+    'peer dependency',
+    'Could not resolve dependency',
+    '--legacy-peer-deps'
+  )
+
+  try {
+    return [bool](Select-String -Path $paths -Pattern $patterns -SimpleMatch -Quiet -ErrorAction SilentlyContinue)
+  } catch {
+    return $false
+  }
 }
 
 function Get-WarmupMarkerPath {
@@ -3707,7 +3903,8 @@ function Show-PreflightRuntimeSummary {
   param(
     [string]$PythonExe,
     [string]$JavaExe,
-    [string]$NodeExe
+    [string]$NodeExe,
+    [string]$NpmExe
   )
 
   $pyVersion = Get-PythonVersionText -PythonExe $PythonExe
@@ -3720,8 +3917,12 @@ function Show-PreflightRuntimeSummary {
   Write-Host ("  java version: {0}" -f $javaVersion)
   Write-Host ("  node: {0}" -f $(if ($NodeExe) { $NodeExe } else { 'missing/not-needed-yet' }))
   Write-Host ("  node version: {0}" -f $nodeVersion)
+  Write-Host ("  npm: {0}" -f $(if ($NpmExe) { $NpmExe } else { 'missing/not-needed-yet' }))
   Write-Host ("  backend jar source: {0}" -f $script:JarSource)
   Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
+  if ($script:FrontendRepairFailureReason) {
+    Write-Host ("  frontend last failure: {0}" -f $script:FrontendRepairFailureReason)
+  }
   if ($script:AppCdsContext) {
     $appCdsState = if (Test-HorosaAppCdsArchiveReady -Context $script:AppCdsContext) { 'ready' } else { 'recording' }
     Write-Host ("  appcds: {0} ({1})" -f $appCdsState, $script:AppCdsContext.ArchivePath)
@@ -3770,6 +3971,15 @@ if ($needsFrontendRebuild) {
       Set-FrontendDistContext
     } else {
       Write-Host "Frontend static file is still missing after one-click self-repair: $DistDir\index.html"
+      if ($script:FrontendRepairFailureReason) {
+        Write-Host ("Frontend self-repair diagnosis: {0}" -f $script:FrontendRepairFailureReason)
+      }
+      if ($script:NodeBin) {
+        Write-Host ("Frontend bootstrap Node.js: {0}" -f $script:NodeBin)
+      }
+      if ($script:NpmBin) {
+        Write-Host ("Frontend bootstrap npm: {0}" -f $script:NpmBin)
+      }
       Write-Host 'Launcher already tried Node.js auto-setup, local npm rebuild, and bundled frontend restore.'
       Write-Host 'Please confirm network access, or provide HOROSA_NODE / HOROSA_NODE_URL / runtime/windows/bundle/node20.url.txt, then rerun START_HERE.bat.'
       Read-Host 'Press Enter to exit'
@@ -3972,11 +4182,14 @@ if (-not $NodeBin) {
   $NodeBin = Resolve-NodeJs
 }
 
-Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin -NodeExe $NodeBin
+Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin -NodeExe $NodeBin -NpmExe $NpmBin
 Write-Host ("Using Python: {0}" -f $PythonBin)
 Write-Host ("Using Java: {0}" -f $JavaBin)
 if ($NodeBin) {
   Write-Host ("Using Node.js: {0}" -f $NodeBin)
+}
+if ($NpmBin) {
+  Write-Host ("Using npm: {0}" -f $NpmBin)
 }
 Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if($PerfMode){'ON'}else{'OFF'})))
 
