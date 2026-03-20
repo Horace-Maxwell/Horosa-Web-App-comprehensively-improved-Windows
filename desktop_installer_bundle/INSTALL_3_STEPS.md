@@ -2,12 +2,12 @@
 
 ## 普通用户下载哪个
 
-- 请到 GitHub Release 下载 `Horosa-Setup-1.0.3.exe`
+- 请到 GitHub Release 下载 `Horosa-Setup-1.0.4.exe`
 - 不要手动下载 `latest.yml` 或 `.blockmap`
 
 ## 三步完成安装
 
-1. 下载 `Horosa-Setup-1.0.3.exe`
+1. 下载 `Horosa-Setup-1.0.4.exe`
 2. 双击安装器，按中文向导完成安装
 3. 从桌面或开始菜单打开 `星阙`
 

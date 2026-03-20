@@ -12,7 +12,7 @@ const horosaDataRoot = path.join(localAppDataRoot, 'HorosaDesktop');
 const windowStateFile = path.join(horosaDataRoot, 'window-state.json');
 const loadingPagePath = path.join(__dirname, 'loading.html');
 const WINDOW_STATE_VERSION = 7;
-const DEFAULT_ZOOM_FACTOR = 1.0;
+const DEFAULT_ZOOM_FACTOR = 0.8;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 1.6;
 const ZOOM_STEP = 0.1;
@@ -31,11 +31,12 @@ let autoUpdater = null;
 let runtimeBootPromise = null;
 let updateCheckTimer = null;
 let updateCheckContext = 'idle';
-let currentWindowBoundsMode = 'default-85';
+let currentWindowBoundsMode = 'default-maximized-80';
 let currentPage = 'loading';
 let windowStateSaveTimer = null;
+let initialWindowNormalizationTimers = [];
 let hasAppliedInitialWindowState = false;
-let lastNormalContentBounds = null;
+let lastNormalWindowBounds = null;
 let currentZoomFactor = DEFAULT_ZOOM_FACTOR;
 let updateState = {
   status: app.isPackaged ? 'idle' : 'unsupported',
@@ -325,8 +326,8 @@ function getPreferredDisplay() {
 
 function buildDefaultBounds(display) {
   const workArea = display.workArea || display.workAreaSize || { x: 0, y: 0, width: 1440, height: 900 };
-  const width = Math.max(960, Math.floor(workArea.width * 0.85));
-  const height = Math.max(640, Math.floor(workArea.height * 0.85));
+  const width = Math.max(960, Math.floor(workArea.width * 0.8));
+  const height = Math.max(640, Math.floor(workArea.height * 0.8));
   const x = workArea.x + Math.floor((workArea.width - width) / 2);
   const y = workArea.y + Math.floor((workArea.height - height) / 2);
 
@@ -370,36 +371,14 @@ function isBoundsVisible(bounds, display) {
 }
 
 function resolveInitialWindowState() {
-  const savedState = readWindowState();
   const preferredDisplay = getPreferredDisplay();
-  const savedBounds = normalizeBounds(savedState && savedState.bounds);
-  const savedVersion = savedState && Number.isFinite(Number(savedState.version))
-    ? Number(savedState.version)
-    : 0;
-  const shouldResetLegacyBounds = savedVersion !== WINDOW_STATE_VERSION;
-  const zoomFactor = shouldResetLegacyBounds
-    ? getDefaultZoomFactor()
-    : normalizeZoomFactor(savedState && savedState.zoomFactor);
-
-  if (savedBounds && !shouldResetLegacyBounds) {
-    const savedDisplay = screen.getDisplayMatching(savedBounds) || preferredDisplay;
-    if (isBoundsVisible(savedBounds, savedDisplay)) {
-      return {
-        bounds: clampBoundsToDisplay(savedBounds, savedDisplay),
-        mode: 'restored',
-        maximizeAfterShow: !!savedState.isMaximized,
-        zoomFactor,
-      };
-    }
-  }
-
-  const preserveMaximizeState = !!(savedState && savedState.isMaximized);
+  const defaultBounds = buildDefaultBounds(preferredDisplay);
 
   return {
-    bounds: buildDefaultBounds(preferredDisplay),
-    mode: shouldResetLegacyBounds ? 'default-85-reset' : 'default-85',
-    maximizeAfterShow: shouldResetLegacyBounds ? preserveMaximizeState : false,
-    zoomFactor,
+    bounds: defaultBounds,
+    mode: 'default-maximized-80',
+    maximizeAfterShow: true,
+    zoomFactor: getDefaultZoomFactor(),
   };
 }
 
@@ -414,6 +393,16 @@ function writeWindowState(snapshot) {
   }
 }
 
+function clearInitialWindowNormalizationTimers() {
+  if (initialWindowNormalizationTimers.length === 0) {
+    return;
+  }
+  for (const timer of initialWindowNormalizationTimers) {
+    clearTimeout(timer);
+  }
+  initialWindowNormalizationTimers = [];
+}
+
 function saveWindowState() {
   if (!mainWindow || mainWindow.isDestroyed() || !hasAppliedInitialWindowState) {
     return;
@@ -423,8 +412,8 @@ function saveWindowState() {
   const isFullScreen = mainWindow.isFullScreen();
   const bounds = normalizeBounds(
     isMaximized || isFullScreen
-      ? lastNormalContentBounds
-      : mainWindow.getContentBounds()
+      ? lastNormalWindowBounds
+      : mainWindow.getBounds()
   );
   if (!bounds) {
     return;
@@ -434,7 +423,7 @@ function saveWindowState() {
   writeWindowState({
     version: WINDOW_STATE_VERSION,
     bounds,
-    isMaximized,
+    isMaximized: false,
     zoomFactor: currentZoomFactor,
     displayId: display ? display.id : null,
     displayScaleFactor: display ? display.scaleFactor : null,
@@ -456,7 +445,7 @@ function queueWindowStateSave() {
   }, 250);
 }
 
-function syncLastNormalContentBounds() {
+function syncLastNormalWindowBounds() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
@@ -464,10 +453,83 @@ function syncLastNormalContentBounds() {
     return;
   }
 
-  const contentBounds = normalizeBounds(mainWindow.getContentBounds());
-  if (contentBounds) {
-    lastNormalContentBounds = contentBounds;
+  const windowBounds = normalizeBounds(mainWindow.getBounds());
+  if (windowBounds) {
+    lastNormalWindowBounds = windowBounds;
   }
+}
+
+function applyNormalWindowBounds(bounds, reason = 'unknown') {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  try {
+    if (mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+    }
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    }
+    mainWindow.setBounds(bounds);
+    lastNormalWindowBounds = normalizeBounds(bounds);
+    if (logger) {
+      logger.info('Applied normal startup window bounds', {
+        reason,
+        bounds,
+      });
+    }
+  } catch (error) {
+    if (logger) {
+      logger.warn('Failed to apply normal startup window bounds', {
+        reason,
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+  }
+}
+
+function applyStartupMaximizedWindowState(bounds, reason = 'unknown') {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  try {
+    if (mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+    }
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    }
+    mainWindow.setBounds(bounds);
+    lastNormalWindowBounds = normalizeBounds(bounds);
+    mainWindow.maximize();
+    if (logger) {
+      logger.info('Applied maximized startup window state', {
+        reason,
+        bounds,
+      });
+    }
+  } catch (error) {
+    if (logger) {
+      logger.warn('Failed to apply maximized startup window state', {
+        reason,
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+  }
+}
+
+function scheduleInitialWindowNormalization(bounds) {
+  clearInitialWindowNormalizationTimers();
+  const delays = [0, 60, 180, 360, 720];
+  initialWindowNormalizationTimers = delays.map((delay) => setTimeout(() => {
+    applyStartupMaximizedWindowState(bounds, `startup-${delay}ms`);
+    if (delay === delays[delays.length - 1]) {
+      clearInitialWindowNormalizationTimers();
+      queueWindowStateSave();
+    }
+  }, delay));
 }
 
 function applyZoomFactor(nextZoomFactor, options = {}) {
@@ -520,7 +582,8 @@ function createMainWindow() {
   const initialState = resolveInitialWindowState();
   currentWindowBoundsMode = initialState.mode;
   hasAppliedInitialWindowState = false;
-  lastNormalContentBounds = normalizeBounds(initialState.bounds);
+  clearInitialWindowNormalizationTimers();
+  lastNormalWindowBounds = normalizeBounds(initialState.bounds);
   currentZoomFactor = normalizeZoomFactor(initialState.zoomFactor);
 
   mainWindow = new BrowserWindow({
@@ -532,7 +595,7 @@ function createMainWindow() {
     autoHideMenuBar: false,
     backgroundColor: '#0f172a',
     icon: path.join(__dirname, '..', 'assets', 'horosa_setup.ico'),
-    useContentSize: true,
+    useContentSize: false,
     resizable: true,
     maximizable: true,
     minimizable: true,
@@ -636,39 +699,31 @@ function createMainWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
-    if (initialState.maximizeAfterShow) {
-      mainWindow.setContentBounds(initialState.bounds);
-    } else {
-      if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
-      }
-      mainWindow.setContentBounds(initialState.bounds);
-    }
+    applyStartupMaximizedWindowState(initialState.bounds, 'ready-to-show');
     mainWindow.show();
     mainWindow.focus();
-    if (initialState.maximizeAfterShow) {
-      mainWindow.maximize();
-    }
-    syncLastNormalContentBounds();
+    lastNormalWindowBounds = normalizeBounds(initialState.bounds);
     hasAppliedInitialWindowState = true;
+    scheduleInitialWindowNormalization(initialState.bounds);
     queueWindowStateSave();
   });
 
   mainWindow.on('move', () => {
-    syncLastNormalContentBounds();
+    syncLastNormalWindowBounds();
     queueWindowStateSave();
   });
   mainWindow.on('resize', () => {
-    syncLastNormalContentBounds();
+    syncLastNormalWindowBounds();
     queueWindowStateSave();
   });
   mainWindow.on('maximize', queueWindowStateSave);
   mainWindow.on('unmaximize', () => {
-    syncLastNormalContentBounds();
+    syncLastNormalWindowBounds();
     queueWindowStateSave();
   });
   mainWindow.on('close', saveWindowState);
   mainWindow.on('closed', () => {
+    clearInitialWindowNormalizationTimers();
     mainWindow = null;
   });
 

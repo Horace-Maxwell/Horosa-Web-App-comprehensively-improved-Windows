@@ -1322,6 +1322,7 @@ function Get-BrowserAppWindowBounds {
     Height = 820
     Left = 80
     Top = 40
+    Maximized = $true
   }
 
   try {
@@ -1340,6 +1341,7 @@ function Get-BrowserAppWindowBounds {
         Height = [int]$height
         Left = [int]$left
         Top = [int]$top
+        Maximized = $true
       }
     }
   } catch {}
@@ -1441,7 +1443,7 @@ function Set-ProcessWindowBounds {
     Ensure-NativeWindowTools
     [Horosa.NativeWindowTools]::ShowWindowAsync($handle, 9) | Out-Null
     $flags = [uint32]0x0040
-    return [Horosa.NativeWindowTools]::SetWindowPos(
+    $moved = [Horosa.NativeWindowTools]::SetWindowPos(
       $handle,
       [IntPtr]::Zero,
       [int]$Bounds.Left,
@@ -1450,6 +1452,11 @@ function Set-ProcessWindowBounds {
       [int]$Bounds.Height,
       $flags
     )
+    if ($Bounds.PSObject.Properties.Name -contains 'Maximized' -and [bool]$Bounds.Maximized) {
+      [Horosa.NativeWindowTools]::ShowWindowAsync($handle, 3) | Out-Null
+      return $true
+    }
+    return $moved
   } catch {
     return $false
   }
@@ -3841,6 +3848,7 @@ try {
       $args = @(
         "--user-data-dir=$BrowserProfile",
         "--app=$url",
+        '--start-maximized',
         "--window-size=$($windowBounds.Width),$($windowBounds.Height)",
         "--window-position=$($windowBounds.Left),$($windowBounds.Top)",
         '--no-first-run',
