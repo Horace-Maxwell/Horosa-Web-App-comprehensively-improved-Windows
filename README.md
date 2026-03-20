@@ -10,18 +10,20 @@
 - 最新正式版 Release：
   [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 - **Windows 10/11 x64 普通用户** 请下载：
-  `Horosa-Setup-1.0.3.exe`
+  `Horosa-Setup-1.0.4.exe`
+- **需要非 App 稳定版的用户**：
+  请到 `windows-stable-2026-03-19` Release 下载稳定版压缩包
 
 不要手动下载这些文件：
 
 - `latest.yml`
-- `Horosa-Setup-1.0.2.exe.blockmap`
+- `Horosa-Setup-1.0.4.exe.blockmap`
 
 它们是给应用内自动更新使用的，不是手动安装入口。
 
 ## 三步安装
 
-1. 下载 `Horosa-Setup-1.0.3.exe`
+1. 下载 `Horosa-Setup-1.0.4.exe`
 2. 双击运行安装器，按中文向导安装
 3. 从桌面或开始菜单打开 `星阙`
 
@@ -36,7 +38,7 @@
 
 ## 这次正式版包含什么
 
-`v1.0.3` 重点包含：
+`v1.0.4` 重点包含：
 
 - 真正的 Electron 桌面窗口，不再依赖浏览器 `--app` 壳
 - 完整离线安装包，尽量不依赖目标机器预装环境
@@ -51,6 +53,8 @@
 - 修复开始菜单 / 桌面快捷方式残留旧入口或损坏 `星阙.lnk` 的问题
 - 修复安装版应用内更新初始化依赖 `app-update.yml` 导致的报错
 - 强化桌面快捷方式重建，并按 Windows Shell 真实桌面目录验收（含 OneDrive 桌面）
+- 安装版默认启动改为最大化，并保持默认内容缩放为 `0.8`
+- 非 App 稳定版默认窗口改为最大化，页面内容缩放保持原样
 
 ## 开发者从哪里开始
 
@@ -67,7 +71,7 @@
 - `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`
 - `docs/PROJECT_STRUCTURE.md`
 - `docs/SELFCHECK_LOG.md`
-- `docs/releases/v1.0.3.md`
+- `docs/releases/v1.0.4.md`
 
 ## `main` 分支包含什么，不包含什么
 

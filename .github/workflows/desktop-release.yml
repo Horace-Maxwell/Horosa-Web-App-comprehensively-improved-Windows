@@ -3,8 +3,7 @@ name: Horosa Windows Stable Release
 on:
   push:
     tags:
-      - '*.*.*.*'
-      - 'v*.*.*'
+      - 'windows-stable-*'
   workflow_dispatch:
     inputs:
       release_tag:
@@ -20,7 +19,7 @@ env:
 
 jobs:
   release-desktop:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
