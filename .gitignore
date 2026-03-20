@@ -51,6 +51,8 @@ log/HOROSA_RUN_ISSUES.md
 local/workspace/runtime/mac/java/
 local/workspace/runtime/mac/python/
 local/workspace/runtime/windows/java/
+local/workspace/runtime/windows/maven/
+local/workspace/runtime/windows/node/
 local/workspace/runtime/windows/python/
 local/workspace/runtime/windows/wheels/
 local/workspace/runtime/windows/bundle/astrostudyboot.jar
@@ -59,6 +61,8 @@ local/workspace/runtime/windows/bundle/astrostudyboot.jar
 runtime/mac/java/
 runtime/mac/python/
 runtime/windows/java/
+runtime/windows/maven/
+runtime/windows/node/
 runtime/windows/python/
 runtime/windows/wheels/
 runtime/windows/bundle/astrostudyboot.jar
