@@ -3,7 +3,7 @@
 这个仓库现在同时服务两类人：
 
 - **普通 Windows 用户**：去 GitHub Release 下载离线安装包
-- **开发者 / 维护者**：从 `main` 下载源码、脚本与打包工程，自行复原运行环境与构建桌面版
+- **开发者 / 维护者**：从 `main` 下载源码、脚本与打包工程，通过根目录 `START_HERE.bat` 一键自举复原并启动
 
 ## 普通用户下载哪个
 
@@ -54,14 +54,14 @@
 - 修复安装版应用内更新初始化依赖 `app-update.yml` 导致的报错
 - 强化桌面快捷方式重建，并按 Windows Shell 真实桌面目录验收（含 OneDrive 桌面）
 - 安装版默认启动改为最大化，并保持默认内容缩放为 `0.8`
-- 非 App 稳定版默认窗口改为最大化，页面内容缩放保持原样
+- 非 App 稳定版默认窗口改为最大化，并在每次启动前强制保持页面内容缩放为 `0.8`
 
 ## 开发者从哪里开始
 
 源码与桌面打包主要在这些位置：
 
 - `desktop_installer_bundle/`：Electron 桌面壳、NSIS 安装器、自动更新、桌面构建脚本
-- `prepareruntime/`：运行时准备脚本，用于补齐 Java / Python / wheels / bundle
+- `prepareruntime/`：发布与维护辅助脚本，用于显式准备 runtime / bundle
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`：主项目源码
 - `docs/`：结构说明、自检记录、版本发布说明
 
@@ -69,6 +69,7 @@
 
 - `desktop_installer_bundle/INSTALL_3_STEPS.md`
 - `desktop_installer_bundle/UPDATE_RELEASE_GUIDE.md`
+- `docs/MAIN_BRANCH_RESTORE.md`
 - `docs/PROJECT_STRUCTURE.md`
 - `docs/SELFCHECK_LOG.md`
 - `docs/releases/v1.0.4.md`
@@ -80,14 +81,31 @@
 - 可复原功能所需的源码、脚本、配置、文档
 - 桌面打包工程与安装器脚本
 - 主项目源码和运行时准备脚本
+- 发布工作流与 portable / installer 构建脚本
 
 `main` 分支不会保留：
 
 - `node_modules/`
+- `local/workspace/runtime/windows/java/`
+- `local/workspace/runtime/windows/maven/`
+- `local/workspace/runtime/windows/node/`
+- `local/workspace/runtime/windows/python/`
+- `local/workspace/runtime/windows/wheels/`
+- `local/workspace/runtime/windows/bundle/astrostudyboot.jar`
 - `desktop_installer_bundle/build/`
 - `desktop_installer_bundle/release/`
 - 本地日志、缓存、浏览器 profile
 - 可由脚本重新准备的 Java / Python / wheels 大包
 - 可重新生成的前端构建产物与桌面运行时大文件
 
-也就是说：**普通用户去 Release 下载成品，开发者在 `main` 拿源码和脚本自行复原。**
+也就是说：**普通用户去 Release 下载成品，开发者在 `main` 拿源码后只点 `START_HERE.bat` 即可自举复原。**
+
+## 从 `main` 复原功能怎么做
+
+- `main` 默认不带 Java / Python / wheels / 前端 `dist-file` / 后端 jar 这类大包或构建产物
+- 但会保留复原所需的源码、脚本、模型文件、图标素材、工作流和文档
+- 从 `main` 下载后，默认入口只有根目录 `START_HERE.bat`
+- 启动器会自动检查并补齐缺失的 `Node.js`、`Python`、`Java`、`Maven`、前端静态文件、后端 jar 和本地 runtime
+- 如果机器已经配好环境或本地 runtime 仍然可用，启动器会直接启动或仅做最小补齐
+- 首次恢复允许联网下载官方工具链，但这些下载内容不会提交回 `main`
+- 具体说明见：`docs/MAIN_BRANCH_RESTORE.md`
