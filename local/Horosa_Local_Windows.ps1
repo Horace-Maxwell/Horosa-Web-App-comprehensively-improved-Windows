@@ -316,10 +316,14 @@ $PortableJavacExe = Join-Path $PortableJavaRuntimeDir 'bin/javac.exe'
 $PortableMavenRuntimeDir = Join-Path $RuntimeWindowsDir 'maven'
 $PortableMavenCmd = Join-Path $PortableMavenRuntimeDir 'bin/mvn.cmd'
 $PortableMavenBat = Join-Path $PortableMavenRuntimeDir 'bin/mvn.bat'
+$PortableNodeRuntimeDir = Join-Path $RuntimeWindowsDir 'node'
+$PortableNodeExe = Join-Path $PortableNodeRuntimeDir 'node.exe'
+$PortableNodeNpmCmd = Join-Path $PortableNodeRuntimeDir 'npm.cmd'
 $WinBundleRoot = Join-Path $Root 'runtime/windows/bundle'
 $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
 $PythonBin = $null
 $JavaBin = $null
+$NodeBin = $null
 $JarSource = if (Test-Path $JarPath) { 'project' } else { 'missing' }
 $DefaultWebPort = 8000
 $DefaultBackendPort = 9999
@@ -1539,6 +1543,81 @@ function Reset-BrowserProfileWindowPlacement {
     } catch {
       Write-Host ("[WARN] Failed to reset browser window state: {0}" -f $_.Exception.Message)
     }
+  }
+}
+
+function Ensure-JsonObjectProperty {
+  param(
+    [Parameter(Mandatory = $true)]
+    [object]$Parent,
+
+    [Parameter(Mandatory = $true)]
+    [string]$PropertyName
+  )
+
+  $property = $Parent.PSObject.Properties[$PropertyName]
+  if ($property -and $property.Value -is [psobject]) {
+    return $property.Value
+  }
+
+  $child = [pscustomobject]@{}
+  if ($property) {
+    $property.Value = $child
+  } else {
+    Add-Member -InputObject $Parent -MemberType NoteProperty -Name $PropertyName -Value $child
+  }
+
+  return $child
+}
+
+function Ensure-BrowserProfileZoomPreference {
+  param(
+    [string]$ProfileRoot,
+    [string]$TargetHost = '127.0.0.1',
+    [double]$ZoomLevel = -1.2239010857415447
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ProfileRoot) -or [string]::IsNullOrWhiteSpace($TargetHost)) {
+    return $false
+  }
+
+  $preferencesPath = Join-Path $ProfileRoot 'Default\Preferences'
+
+  try {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $preferencesPath) | Out-Null
+
+    $json = [pscustomobject]@{}
+    if (Test-Path $preferencesPath -PathType Leaf) {
+      $raw = Get-Content -Path $preferencesPath -Raw -Encoding UTF8
+      if (-not [string]::IsNullOrWhiteSpace($raw)) {
+        $json = $raw | ConvertFrom-Json -Depth 100
+      }
+    }
+
+    if ($null -eq $json) {
+      $json = [pscustomobject]@{}
+    }
+
+    $partition = Ensure-JsonObjectProperty -Parent $json -PropertyName 'partition'
+    $perHostZoomLevels = Ensure-JsonObjectProperty -Parent $partition -PropertyName 'per_host_zoom_levels'
+    $defaultPartition = Ensure-JsonObjectProperty -Parent $perHostZoomLevels -PropertyName 'x'
+    $hostConfig = Ensure-JsonObjectProperty -Parent $defaultPartition -PropertyName $TargetHost
+
+    $lastModified = [DateTime]::UtcNow.ToFileTimeUtc().ToString()
+    foreach ($propertyName in @('last_modified', 'zoom_level')) {
+      if ($hostConfig.PSObject.Properties[$propertyName]) {
+        $hostConfig.PSObject.Properties.Remove($propertyName)
+      }
+    }
+    Add-Member -InputObject $hostConfig -MemberType NoteProperty -Name 'last_modified' -Value $lastModified
+    Add-Member -InputObject $hostConfig -MemberType NoteProperty -Name 'zoom_level' -Value $ZoomLevel
+
+    $updated = $json | ConvertTo-Json -Depth 100 -Compress
+    Set-Content -Path $preferencesPath -Value $updated -Encoding UTF8
+    return $true
+  } catch {
+    Write-Host ("[WARN] Failed to enforce browser zoom preference: {0}" -f $_.Exception.Message)
+    return $false
   }
 }
 
@@ -3005,19 +3084,254 @@ function Ensure-BackendJar {
   return $false
 }
 
-function Resolve-NodeJs {
-  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE) -and (Test-Path $env:HOROSA_NODE)) {
-    return $env:HOROSA_NODE
+function Get-NodeVersionInfo {
+  param([string]$NodeCmdOrPath)
+
+  if ([string]::IsNullOrWhiteSpace($NodeCmdOrPath)) { return $null }
+  try {
+    $out = & $NodeCmdOrPath -v 2>$null
+    if (-not $out) { return $null }
+
+    $versionText = ($out | Select-Object -First 1).ToString().Trim()
+    $match = [System.Text.RegularExpressions.Regex]::Match($versionText, '^v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)')
+    if (-not $match.Success) { return $null }
+
+    return [pscustomobject]@{
+      Major = [int]$match.Groups['major'].Value
+      Minor = [int]$match.Groups['minor'].Value
+      Patch = [int]$match.Groups['patch'].Value
+      Text = $versionText
+    }
+  } catch {
+    return $null
   }
+}
+
+function Test-NodeJsSupported {
+  param([string]$NodeCmdOrPath)
+
+  $version = Get-NodeVersionInfo -NodeCmdOrPath $NodeCmdOrPath
+  if (-not $version) { return $false }
+  return ($version.Major -ge 20)
+}
+
+function Get-NodeJsCandidates {
+  $candidates = @(
+    $PortableNodeExe,
+    (Join-Path $Root 'runtime/node/node.exe'),
+    (Join-Path $ProjectDir 'runtime/windows/node/node.exe'),
+    (Join-Path $ProjectDir 'runtime/node/node.exe')
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE) -and (Test-Path $env:HOROSA_NODE)) {
+    $candidates += $env:HOROSA_NODE
+  }
+
+  $candidates += @(
+    "$env:LocalAppData\Programs\nodejs\node.exe",
+    "$env:ProgramFiles\nodejs\node.exe",
+    "$env:ProgramFiles(x86)\nodejs\node.exe"
+  )
 
   try {
     $nodeCmd = Get-Command node -ErrorAction Stop
     if ($nodeCmd -and $nodeCmd.Source -and ($nodeCmd.Source -notmatch 'WindowsApps')) {
-      return $nodeCmd.Source
+      $candidates += $nodeCmd.Source
     }
   } catch {}
 
+  return $candidates
+}
+
+function Resolve-NodeJs {
+  $seen = @{}
+  $unsupported = New-Object System.Collections.Generic.List[string]
+
+  foreach ($candidate in (Get-NodeJsCandidates)) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $key = $candidate.ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { continue }
+    $seen[$key] = $true
+
+    if ($candidate -ne 'node' -and (-not (Test-Path $candidate))) { continue }
+    if (Test-NodeJsSupported -NodeCmdOrPath $candidate) {
+      return $candidate
+    }
+
+    $version = Get-NodeVersionInfo -NodeCmdOrPath $candidate
+    if ($version) {
+      $unsupported.Add(("{0} ({1})" -f $candidate, $version.Text))
+    }
+  }
+
+  if ($unsupported.Count -gt 0) {
+    Write-Host ("[WARN] Node.js found but version is below the supported baseline (20+): {0}" -f ($unsupported -join ', '))
+  }
+
   return $null
+}
+
+function Get-NodeJsOfficialLatestV20ZipUrl {
+  $tempRoot = if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) {
+    $env:TEMP
+  } elseif (-not [string]::IsNullOrWhiteSpace($env:TMP)) {
+    $env:TMP
+  } else {
+    Join-Path $RepoRoot 'log'
+  }
+
+  $tmpDir = Join-Path $tempRoot ('horosa_nodejs_manifest_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
+  $manifestPath = Join-Path $tmpDir 'SHASUMS256.txt'
+  try {
+    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+    if (-not (Invoke-DownloadWithFallback -Urls @('https://nodejs.org/dist/latest-v20.x/SHASUMS256.txt') -OutFile $manifestPath -TimeoutSec 120)) {
+      return $null
+    }
+    foreach ($line in (Get-Content -Path $manifestPath -ErrorAction SilentlyContinue)) {
+      $trimmed = "$line".Trim()
+      if ($trimmed -match '(node-v\d+\.\d+\.\d+-win-x64\.zip)$') {
+        return ("https://nodejs.org/dist/latest-v20.x/{0}" -f $Matches[1])
+      }
+    }
+  } catch {
+    Write-Host ("[WARN] Could not resolve official Node.js LTS archive URL automatically: {0}" -f $_.Exception.Message)
+  }
+
+  return $null
+}
+
+function Get-NodeJsDownloadUrls {
+  $urls = @()
+
+  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE_URL)) {
+    $envUrl = $env:HOROSA_NODE_URL.Trim()
+    if ($envUrl -match '^https?://') {
+      $urls += $envUrl
+    } else {
+      Write-Host '[WARN] HOROSA_NODE_URL is set but is not a valid http(s) URL. Ignore it.'
+    }
+  }
+
+  $urls += Read-HttpUrlsFromFiles -Files @(
+    (Join-Path $WinBundleRoot 'node20.url.txt'),
+    (Join-Path $WinBundleRoot 'node.url.txt'),
+    (Join-Path $CommonBundleRoot 'node20.url.txt'),
+    (Join-Path $CommonBundleRoot 'node.url.txt')
+  )
+
+  $officialUrl = Get-NodeJsOfficialLatestV20ZipUrl
+  if ($officialUrl) {
+    $urls += $officialUrl
+  }
+
+  return @($urls | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
+}
+
+function Install-NodeJsPortable {
+  try {
+    Write-Host 'winget install Node.js failed, trying portable Node.js LTS download...'
+    $portableRoot = $RuntimeWindowsDir
+    $nodeTarget = $PortableNodeRuntimeDir
+    $tmpDir = Join-Path $env:TEMP ('horosa_nodejs_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
+    $zipPath = Join-Path $tmpDir 'nodejs.zip'
+    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+
+    $archiveReady = $false
+    $localArchives = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE_ZIP) -and (Test-Path $env:HOROSA_NODE_ZIP)) {
+      $localArchives += $env:HOROSA_NODE_ZIP.Trim()
+    }
+    foreach ($baseDir in @($WinBundleRoot, $CommonBundleRoot)) {
+      if (-not (Test-Path $baseDir)) { continue }
+      $localArchives += @(
+        (Join-Path $baseDir 'node20.zip'),
+        (Join-Path $baseDir 'node.zip')
+      )
+      $localArchives += @(
+        Get-ChildItem -Path $baseDir -Filter 'node-v*-win-x64.zip' -File -ErrorAction SilentlyContinue |
+          Sort-Object LastWriteTime -Descending |
+          Select-Object -ExpandProperty FullName
+      )
+    }
+
+    foreach ($archive in @($localArchives | Select-Object -Unique)) {
+      if ([string]::IsNullOrWhiteSpace($archive)) { continue }
+      if (-not (Test-Path $archive)) { continue }
+      try {
+        Copy-Item -Path $archive -Destination $zipPath -Force
+        if ((Test-Path $zipPath) -and ((Get-Item $zipPath).Length -gt 1MB)) {
+          Write-Host ("[OK] Using bundled Node.js archive: {0}" -f $archive)
+          $archiveReady = $true
+          break
+        }
+      } catch {
+        Write-Host ("[WARN] Cannot use bundled Node.js archive {0}: {1}" -f $archive, $_.Exception.Message)
+      }
+    }
+
+    if (-not $archiveReady) {
+      $nodeUrls = Get-NodeJsDownloadUrls
+      if ($nodeUrls.Count -gt 0) {
+        $archiveReady = Invoke-DownloadWithFallback -Urls $nodeUrls -OutFile $zipPath -TimeoutSec 300
+      }
+    }
+    if (-not $archiveReady) {
+      Write-Host '[WARN] Portable Node.js archive is unavailable.'
+      return $false
+    }
+
+    $extractDir = Join-Path $tmpDir 'extract'
+    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+    $nodeExe = Get-ChildItem -Path $extractDir -Recurse -Filter node.exe -File -ErrorAction SilentlyContinue |
+      Select-Object -First 1
+    if (-not $nodeExe) {
+      Write-Host '[WARN] Portable Node.js archive extracted but node.exe not found.'
+      return $false
+    }
+    $nodeHome = Split-Path -Parent $nodeExe.FullName
+
+    if (Test-Path $nodeTarget) { Remove-Item -Recurse -Force $nodeTarget }
+    New-Item -ItemType Directory -Force -Path $nodeTarget | Out-Null
+    robocopy $nodeHome $nodeTarget /E /NFL /NDL /NJH /NJS /NP | Out-Null
+
+    $nodeOk = Test-Path (Join-Path $nodeTarget 'node.exe')
+    $npmOk = Test-Path (Join-Path $nodeTarget 'npm.cmd')
+    if (-not $nodeOk -or -not $npmOk) {
+      Write-Host '[WARN] Portable Node.js copy finished but node.exe or npm.cmd is still missing.'
+      return $false
+    }
+    return $true
+  } catch {
+    Write-Host ("Portable Node.js download failed: {0}" -f $_.Exception.Message)
+    return $false
+  }
+}
+
+function Install-NodeJs {
+  if (Install-WithWinget -PackageId 'OpenJS.NodeJS.LTS' -DisplayName 'Node.js LTS') {
+    return $true
+  }
+  if (Install-WithWinget -PackageId 'OpenJS.NodeJS' -DisplayName 'Node.js') {
+    return $true
+  }
+  return (Install-NodeJsPortable)
+}
+
+function Ensure-NodeJs {
+  $resolved = Resolve-NodeJs
+  if ($resolved) { return $resolved }
+
+  if (Install-NodeJs) {
+    Start-Sleep -Seconds 2
+    $resolved = Resolve-NodeJs
+    if ($resolved) {
+      Write-Host ("[OK] Node.js ready: {0}" -f $resolved)
+    }
+  }
+
+  return $resolved
 }
 
 function Resolve-NpmCmd {
@@ -3156,11 +3470,12 @@ function Try-BuildFrontendDist {
     return $false
   }
 
-  $nodeCmd = Resolve-NodeJs
+  $nodeCmd = Ensure-NodeJs
   if (-not $nodeCmd) {
-    Write-Host '[WARN] Node.js not found, skip local frontend build.'
+    Write-Host '[WARN] Node.js 20+ not found, skip local frontend build.'
     return $false
   }
+  $script:NodeBin = $nodeCmd
 
   $npmCmd = Resolve-NpmCmd -NodeExe $nodeCmd
   if (-not $npmCmd) {
@@ -3378,19 +3693,33 @@ function Get-JavaVersionText {
   return 'unknown'
 }
 
+function Get-NodeVersionText {
+  param([string]$NodeExe)
+  if (-not $NodeExe) { return 'missing' }
+  $version = Get-NodeVersionInfo -NodeCmdOrPath $NodeExe
+  if ($version) {
+    return $version.Text
+  }
+  return 'unknown'
+}
+
 function Show-PreflightRuntimeSummary {
   param(
     [string]$PythonExe,
-    [string]$JavaExe
+    [string]$JavaExe,
+    [string]$NodeExe
   )
 
   $pyVersion = Get-PythonVersionText -PythonExe $PythonExe
   $javaVersion = Get-JavaVersionText -JavaExe $JavaExe
+  $nodeVersion = Get-NodeVersionText -NodeExe $NodeExe
   Write-Host '[PRECHECK] Runtime resolution summary:'
   Write-Host ("  python: {0}" -f $PythonExe)
   Write-Host ("  python version: {0}" -f $pyVersion)
   Write-Host ("  java: {0}" -f $JavaExe)
   Write-Host ("  java version: {0}" -f $javaVersion)
+  Write-Host ("  node: {0}" -f $(if ($NodeExe) { $NodeExe } else { 'missing/not-needed-yet' }))
+  Write-Host ("  node version: {0}" -f $nodeVersion)
   Write-Host ("  backend jar source: {0}" -f $script:JarSource)
   Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
   if ($script:AppCdsContext) {
@@ -3440,8 +3769,9 @@ if ($needsFrontendRebuild) {
     if ($distRestored) {
       Set-FrontendDistContext
     } else {
-      Write-Host "Frontend static file missing: $DistDir\index.html"
-      Write-Host "Please run prepareruntime\\Prepare_Runtime_Windows.bat on build machine, then repack and retry."
+      Write-Host "Frontend static file is still missing after one-click self-repair: $DistDir\index.html"
+      Write-Host 'Launcher already tried Node.js auto-setup, local npm rebuild, and bundled frontend restore.'
+      Write-Host 'Please confirm network access, or provide HOROSA_NODE / HOROSA_NODE_URL / runtime/windows/bundle/node20.url.txt, then rerun START_HERE.bat.'
       Read-Host 'Press Enter to exit'
       exit 1
     }
@@ -3449,11 +3779,12 @@ if ($needsFrontendRebuild) {
 }
 
 Ensure-FrontendStaticLayout -DistPath $DistDir
+$NodeBin = Resolve-NodeJs
 
 if (-not (Ensure-BackendJar)) {
-  Write-Host "Backend jar missing: $JarPath"
-  Write-Host "Please run prepareruntime\\Prepare_Runtime_Windows.bat on build machine,"
-  Write-Host "or set HOROSA_BOOT_JAR_URL / runtime/windows/bundle/astrostudyboot.url.txt (multi-line URLs) and retry."
+  Write-Host "Backend jar is still missing after one-click self-repair: $JarPath"
+  Write-Host 'Launcher already tried local Maven rebuild, bundled jar restore, and download fallback.'
+  Write-Host 'Please confirm network access, or provide HOROSA_BOOT_JAR_URL / runtime/windows/bundle/astrostudyboot.url.txt, then rerun START_HERE.bat.'
   Read-Host 'Press Enter to exit'
   exit 1
 }
@@ -3637,9 +3968,16 @@ $env:HOROSA_CHART_PORT = [string]$ChartPort
 $env:HOROSA_SERVER_PORT = [string]$BackendPort
 $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
 
-Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin
+if (-not $NodeBin) {
+  $NodeBin = Resolve-NodeJs
+}
+
+Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin -NodeExe $NodeBin
 Write-Host ("Using Python: {0}" -f $PythonBin)
 Write-Host ("Using Java: {0}" -f $JavaBin)
+if ($NodeBin) {
+  Write-Host ("Using Node.js: {0}" -f $NodeBin)
+}
 Write-Host ("Performance mode: {0} (set HOROSA_PERF_MODE=0 to disable)" -f ($(if($PerfMode){'ON'}else{'OFF'})))
 
 $ShouldCleanupOnExit = $true
@@ -3845,6 +4183,9 @@ try {
       $windowBounds = Get-BrowserAppWindowBounds
       Stop-BrowserProcessesForProfile -ProfileRoot $BrowserProfile
       Reset-BrowserProfileWindowPlacement -ProfileRoot $BrowserProfile
+      if (-not (Ensure-BrowserProfileZoomPreference -ProfileRoot $BrowserProfile)) {
+        Write-Host '[WARN] Browser zoom preference could not be enforced; existing profile zoom may be reused.'
+      }
       $args = @(
         "--user-data-dir=$BrowserProfile",
         "--app=$url",

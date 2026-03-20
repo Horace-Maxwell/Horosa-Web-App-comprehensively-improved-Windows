@@ -41,6 +41,77 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            desktop_installer_bundle/package-lock.json
+            local/workspace/**/astrostudyui/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: '3.9.9'
+
+      - name: Resolve project directory
+        id: resolve-project
+        shell: pwsh
+        run: |
+          $workspaceRoot = Join-Path $env:GITHUB_WORKSPACE 'local\workspace'
+          $projectDir = Get-ChildItem -Path $workspaceRoot -Directory |
+            Where-Object {
+              (Test-Path (Join-Path $_.FullName 'astrostudyui')) -and
+              (Test-Path (Join-Path $_.FullName 'astrostudysrv')) -and
+              (Test-Path (Join-Path $_.FullName 'astropy'))
+            } |
+            Sort-Object Name |
+            Select-Object -First 1
+          if (-not $projectDir) {
+            throw "Unable to locate Horosa project directory under $workspaceRoot"
+          }
+          "PROJECT_DIR=$($projectDir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install frontend dependencies
+        shell: pwsh
+        run: |
+          Push-Location (Join-Path $env:PROJECT_DIR 'astrostudyui')
+          npm ci
+          Pop-Location
+
+      - name: Install desktop bundle dependencies
+        shell: pwsh
+        run: |
+          Push-Location (Join-Path $env:GITHUB_WORKSPACE 'desktop_installer_bundle')
+          npm ci
+          Pop-Location
+
+      - name: Build frontend dist-file
+        shell: pwsh
+        run: |
+          Push-Location (Join-Path $env:PROJECT_DIR 'astrostudyui')
+          npm run build:file
+          Pop-Location
+
+      - name: Build backend jar
+        shell: pwsh
+        run: |
+          $pomPath = Join-Path $env:PROJECT_DIR 'astrostudysrv\astrostudyboot\pom.xml'
+          mvn -f $pomPath -DskipTests package
+
+      - name: Prepare runtime from source
+        shell: pwsh
+        run: |
+          ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
+
       - name: Build portable release assets
         shell: pwsh
         run: |
