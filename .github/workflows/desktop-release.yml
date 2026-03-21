@@ -160,7 +160,12 @@ jobs:
         shell: pwsh
         run: |
           $env:HOROSA_PROJECT_DIR = $env:PROJECT_DIR
-          ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
+          $global:LASTEXITCODE = 0
+          & ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
+          if (-not $?) {
+            throw 'Prepare_Runtime_Windows.ps1 failed.'
+          }
+          $global:LASTEXITCODE = 0
 
       - name: Build installer release assets
         shell: pwsh
