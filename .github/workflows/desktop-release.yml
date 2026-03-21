@@ -22,6 +22,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      - name: Enable Git long paths
+        shell: pwsh
+        run: |
+          git config --system core.longpaths true
+
       - name: Checkout repository
         if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v4
