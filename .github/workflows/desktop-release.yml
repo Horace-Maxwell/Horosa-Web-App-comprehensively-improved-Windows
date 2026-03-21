@@ -200,8 +200,22 @@ jobs:
                 break
               }
             }
+
             if (-not $rcedit) {
-              throw 'Unable to locate rcedit-x64.exe in electron-builder cache.'
+              Write-Host 'rcedit not found in electron-builder cache; installing temporary npm fallback...'
+              npm install --no-save rcedit@5.0.2
+              if ($LASTEXITCODE -ne 0) {
+                throw 'Temporary rcedit install failed.'
+              }
+
+              $packageRcedit = Join-Path (Join-Path (Get-Location) 'node_modules\rcedit\bin') 'rcedit-x64.exe'
+              if (Test-Path $packageRcedit) {
+                $rcedit = $packageRcedit
+              }
+            }
+
+            if (-not $rcedit) {
+              throw 'Unable to locate rcedit-x64.exe in electron-builder cache or temporary npm fallback.'
             }
             Write-Host "Using RCEDIT_PATH=$rcedit"
             $env:RCEDIT_PATH = $rcedit
