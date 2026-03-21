@@ -324,9 +324,14 @@ $CommonBundleRoot = Join-Path $Root 'runtime/bundle'
 $PythonBin = $null
 $JavaBin = $null
 $NodeBin = $null
+$MavenBin = $null
 $NpmBin = $null
 $JarSource = if (Test-Path $JarPath) { 'project' } else { 'missing' }
 $FrontendRepairFailureReason = $null
+$PythonSourceLabel = $null
+$JavaSourceLabel = $null
+$NodeSourceLabel = $null
+$MavenSourceLabel = $null
 $DefaultWebPort = 8000
 $DefaultBackendPort = 9999
 $DefaultChartPort = 8899
@@ -1721,33 +1726,26 @@ function Test-PythonDepsReady {
   }
 }
 
-function Resolve-Java {
-  param([switch]$RequireJdk)
+function Test-JavaCandidateAccepted {
+  param(
+    [string]$JavaCandidate,
+    [switch]$RequireJdk
+  )
 
-  $acceptJava = {
-    param([string]$JavaCandidate)
-    if (-not (Test-JavaAtLeast17 -JavaCmdOrPath $JavaCandidate)) { return $false }
-    if ($RequireJdk -and -not (Test-JavaCompilerAvailable -JavaCmdOrPath $JavaCandidate)) { return $false }
-    return $true
-  }
+  if ([string]::IsNullOrWhiteSpace($JavaCandidate)) { return $false }
+  if (-not (Test-JavaAtLeast17 -JavaCmdOrPath $JavaCandidate)) { return $false }
+  if ($RequireJdk -and -not (Test-JavaCompilerAvailable -JavaCmdOrPath $JavaCandidate)) { return $false }
+  return $true
+}
 
-  $runtimeJava = $PortableJavaExe
-  if (Test-Path $runtimeJava) {
-    if (& $acceptJava $runtimeJava) { return $runtimeJava }
-  }
+function Get-PortableJavaCandidates {
+  $candidates = @()
 
   if ($env:HOROSA_JAVA -and (Test-Path $env:HOROSA_JAVA)) {
-    if (& $acceptJava $env:HOROSA_JAVA) { return $env:HOROSA_JAVA }
+    $candidates += $env:HOROSA_JAVA
   }
 
-  if ($env:JAVA_HOME) {
-    $javaHomeBin = Join-Path $env:JAVA_HOME 'bin/java.exe'
-    if (Test-Path $javaHomeBin) {
-      if (& $acceptJava $javaHomeBin) { return $javaHomeBin }
-    }
-  }
-
-  $bundled = @(
+  $candidates += @(
     $PortableJavaExe,
     (Join-Path $Root 'runtime/java/bin/java.exe'),
     (Join-Path $Root 'jre/bin/java.exe'),
@@ -1755,18 +1753,28 @@ function Resolve-Java {
     (Join-Path $ProjectDir 'runtime/java/bin/java.exe'),
     (Join-Path $ProjectDir 'jre/bin/java.exe')
   )
-  foreach ($p in $bundled) {
-    if (Test-Path $p) {
-      if (& $acceptJava $p) { return $p }
+
+  return @($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+}
+
+function Get-SystemJavaCandidates {
+  $candidates = @()
+
+  if ($env:JAVA_HOME) {
+    $javaHomeBin = Join-Path $env:JAVA_HOME 'bin/java.exe'
+    if (Test-Path $javaHomeBin) {
+      $candidates += $javaHomeBin
     }
   }
 
-  $inPath = Get-Command 'java' -ErrorAction SilentlyContinue
-  if ($inPath) {
-    if (& $acceptJava 'java') { return 'java' }
-  }
+  try {
+    $javaCmd = Get-Command 'java' -ErrorAction Stop
+    if ($javaCmd -and $javaCmd.Source -and ($javaCmd.Source -notmatch 'WindowsApps')) {
+      $candidates += $javaCmd.Source
+    }
+  } catch {}
 
-  $javaCandidates = @(
+  $javaRoots = @(
     "$env:ProgramFiles\Java",
     "$env:ProgramFiles\Eclipse Adoptium",
     "$env:ProgramFiles\Microsoft",
@@ -1777,7 +1785,7 @@ function Resolve-Java {
     "$env:LocalAppData\Programs\Eclipse Adoptium",
     "$env:LocalAppData\Programs\Microsoft"
   )
-  foreach ($base in $javaCandidates) {
+  foreach ($base in $javaRoots) {
     if (-not (Test-Path $base)) { continue }
     $found = Get-ChildItem -Path $base -Directory -ErrorAction SilentlyContinue |
       Sort-Object LastWriteTime -Descending |
@@ -1786,7 +1794,7 @@ function Resolve-Java {
     if ($found) {
       $candidate = Join-Path $found.FullName 'bin\java.exe'
       if (Test-Path $candidate) {
-        if (& $acceptJava $candidate) { return $candidate }
+        $candidates += $candidate
       }
     }
   }
@@ -1801,10 +1809,127 @@ function Resolve-Java {
     $matches = Get-ChildItem -Path $root -Recurse -Filter java.exe -ErrorAction SilentlyContinue |
       Where-Object { $_.FullName -match 'jdk|jre|openjdk|temurin|corretto|zulu|microsoft' } |
       Select-Object -First 20
-    foreach ($m in $matches) {
-      if (& $acceptJava $m.FullName) {
-        return $m.FullName
+    foreach ($match in $matches) {
+      $candidates += $match.FullName
+    }
+  }
+
+  return @($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+}
+
+function Resolve-JavaFromCandidates {
+  param(
+    [string[]]$Candidates,
+    [switch]$RequireJdk
+  )
+
+  foreach ($candidate in @($Candidates)) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if ($candidate -ne 'java' -and (-not (Test-Path $candidate))) { continue }
+    if (Test-JavaCandidateAccepted -JavaCandidate $candidate -RequireJdk:$RequireJdk) {
+      return $candidate
+    }
+  }
+
+  return $null
+}
+
+function Resolve-PortableJava {
+  param([switch]$RequireJdk)
+  return (Resolve-JavaFromCandidates -Candidates (Get-PortableJavaCandidates) -RequireJdk:$RequireJdk)
+}
+
+function Resolve-SystemJava {
+  param([switch]$RequireJdk)
+  return (Resolve-JavaFromCandidates -Candidates (Get-SystemJavaCandidates) -RequireJdk:$RequireJdk)
+}
+
+function Resolve-Java {
+  param([switch]$RequireJdk)
+
+  $portable = Resolve-PortableJava -RequireJdk:$RequireJdk
+  if ($portable) { return $portable }
+
+  return (Resolve-SystemJava -RequireJdk:$RequireJdk)
+}
+
+function Get-JavaSourceLabel {
+  param(
+    [string]$JavaExe,
+    [string]$SystemLabel = 'system'
+  )
+
+  return (Get-ExecutableSourceLabel `
+    -CmdOrPath $JavaExe `
+    -EnvOverridePath $env:HOROSA_JAVA `
+    -EnvOverrideLabel 'HOROSA_JAVA' `
+    -LocalRoots @(
+      $PortableJavaRuntimeDir,
+      (Join-Path $Root 'runtime/java'),
+      (Join-Path $ProjectDir 'runtime/windows/java'),
+      (Join-Path $ProjectDir 'runtime/java'),
+      (Join-Path $Root 'jre'),
+      (Join-Path $ProjectDir 'jre')
+    ) `
+    -SystemLabel $SystemLabel)
+}
+
+function Ensure-BackendJava {
+  param([switch]$RequireJdk)
+
+  if ($env:HOROSA_JAVA -and (Test-JavaCandidateAccepted -JavaCandidate $env:HOROSA_JAVA -RequireJdk:$RequireJdk)) {
+    $script:JavaSourceLabel = 'HOROSA_JAVA'
+    return $env:HOROSA_JAVA
+  }
+
+  $portable = Resolve-PortableJava -RequireJdk:$RequireJdk
+  if ($portable) {
+    $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $portable
+    return $portable
+  }
+
+  Write-Host '[INFO] Backend runtime prefers local portable Java 17 runtime.'
+  if (Install-Java17Portable) {
+    Start-Sleep -Seconds 2
+    $portable = Resolve-PortableJava -RequireJdk:$RequireJdk
+    if ($portable) {
+      $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $portable
+      Write-Host ("[OK] Backend portable Java 17 ready: {0}" -f $portable)
+      return $portable
+    }
+  }
+
+  $systemJava = Resolve-SystemJava -RequireJdk:$RequireJdk
+  if ($systemJava) {
+    $checkRelative = if ($RequireJdk) { 'bin\javac.exe' } else { 'bin\java.exe' }
+    Write-Host ("[WARN] Portable Java bootstrap failed, trying to sync a local runtime from system Java: {0}" -f $systemJava)
+    $javaSynced = Sync-RuntimeFromExe -ExeCmdOrPath $systemJava -TargetDir $PortableJavaRuntimeDir -UpLevels 1 -CheckRelative $checkRelative
+    if ($javaSynced) {
+      $portable = Resolve-PortableJava -RequireJdk:$RequireJdk
+      if ($portable) {
+        $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $portable
+        Write-Host ("[OK] Local Java runtime ready from system seed: {0}" -f $portable)
+        return $portable
       }
+    }
+
+    $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $systemJava -SystemLabel 'system-fallback'
+    Write-Host ("[WARN] Portable Java bootstrap failed, using system Java fallback: {0}" -f $systemJava)
+    return $systemJava
+  }
+
+  if (Install-Java17 -RequireJdk:$RequireJdk) {
+    Start-Sleep -Seconds 2
+    $portable = Resolve-PortableJava -RequireJdk:$RequireJdk
+    if ($portable) {
+      $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $portable
+      return $portable
+    }
+
+    $systemJava = Resolve-SystemJava -RequireJdk:$RequireJdk
+    if ($systemJava) {
+      $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $systemJava -SystemLabel 'system-fallback'
+      return $systemJava
     }
   }
 
@@ -1891,6 +2016,25 @@ function Resolve-Python311 {
     if (Test-Python311 -PythonCmdOrPath $candidate) { return $candidate }
   }
   return $null
+}
+
+function Get-PythonSourceLabel {
+  param(
+    [string]$PythonExe,
+    [string]$SystemLabel = 'system'
+  )
+
+  return (Get-ExecutableSourceLabel `
+    -CmdOrPath $PythonExe `
+    -EnvOverridePath $env:HOROSA_PYTHON `
+    -EnvOverrideLabel 'HOROSA_PYTHON' `
+    -LocalRoots @(
+      $PortablePythonRuntimeDir,
+      (Join-Path $Root 'runtime/python'),
+      (Join-Path $ProjectDir 'runtime/windows/python'),
+      (Join-Path $ProjectDir 'runtime/python')
+    ) `
+    -SystemLabel $SystemLabel)
 }
 
 function Install-WithWinget {
@@ -2304,6 +2448,20 @@ function Resolve-Maven {
   return $null
 }
 
+function Get-MavenSourceLabel {
+  param(
+    [string]$MvnExe,
+    [string]$SystemLabel = 'system'
+  )
+
+  return (Get-ExecutableSourceLabel `
+    -CmdOrPath $MvnExe `
+    -EnvOverridePath $env:HOROSA_MVN `
+    -EnvOverrideLabel 'HOROSA_MVN' `
+    -LocalRoots @($PortableMavenRuntimeDir) `
+    -SystemLabel $SystemLabel)
+}
+
 function Install-Maven {
   if (Install-WithWinget -PackageId 'Apache.Maven' -DisplayName 'Apache Maven') {
     return $true
@@ -2636,21 +2794,10 @@ function Try-BuildBackendJar {
     Write-Host '[WARN] Maven not found, skip auto build.'
     return $false
   }
+  $script:MavenBin = $mvn
+  $script:MavenSourceLabel = Get-MavenSourceLabel -MvnExe $mvn
 
-  $buildJava = Resolve-Java -RequireJdk
-  if (-not $buildJava) {
-    if (Install-Java17 -RequireJdk) {
-      $buildJava = Resolve-Java -RequireJdk
-    }
-  }
-  if (-not $buildJava) {
-    $portableJava = $PortableJavaExe
-    $portableJavac = $PortableJavacExe
-    if ((Test-Path $portableJava) -and (Test-Path $portableJavac)) {
-      $buildJava = $portableJava
-      Write-Host ("[INFO] Using bundled JDK for backend build: {0}" -f $buildJava)
-    }
-  }
+  $buildJava = Ensure-BackendJava -RequireJdk
   if (-not $buildJava) {
     Write-Host '[WARN] Java 17+ JDK unavailable, skip auto build.'
     return $false
@@ -2658,13 +2805,10 @@ function Try-BuildBackendJar {
   $buildJavaHome = Get-JavaHomeFromJavaExe -JavaCmdOrPath $buildJava
   $javacPath = if ($buildJavaHome) { Join-Path $buildJavaHome 'bin/javac.exe' } else { $null }
   if (-not $javacPath -or -not (Test-Path $javacPath)) {
-    Write-Host '[WARN] JDK compiler (javac) not found, retrying Java installation...'
-    if (Install-Java17 -RequireJdk) {
-      Start-Sleep -Seconds 1
-      $buildJava = Resolve-Java -RequireJdk
-      $buildJavaHome = Get-JavaHomeFromJavaExe -JavaCmdOrPath $buildJava
-      $javacPath = if ($buildJavaHome) { Join-Path $buildJavaHome 'bin/javac.exe' } else { $null }
-    }
+    Write-Host '[WARN] JDK compiler (javac) not found, retrying backend Java bootstrap...'
+    $buildJava = Ensure-BackendJava -RequireJdk
+    $buildJavaHome = Get-JavaHomeFromJavaExe -JavaCmdOrPath $buildJava
+    $javacPath = if ($buildJavaHome) { Join-Path $buildJavaHome 'bin/javac.exe' } else { $null }
     if (-not $javacPath -or -not (Test-Path $javacPath)) {
       Write-Host '[WARN] JDK compiler (javac) not found, skip auto build.'
       return $false
@@ -2747,6 +2891,47 @@ function Get-ExePath {
   $cmd = Get-Command $CmdOrPath -ErrorAction SilentlyContinue
   if ($cmd -and $cmd.Source) { return $cmd.Source }
   return $null
+}
+
+function Get-ExecutableSourceLabel {
+  param(
+    [string]$CmdOrPath,
+    [string]$EnvOverridePath,
+    [string]$EnvOverrideLabel,
+    [string[]]$LocalRoots,
+    [string]$SystemLabel = 'system'
+  )
+
+  if ([string]::IsNullOrWhiteSpace($CmdOrPath)) {
+    return 'missing'
+  }
+
+  $resolvedPath = Get-ExePath -CmdOrPath $CmdOrPath
+  if (-not $resolvedPath) {
+    $resolvedPath = $CmdOrPath
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($EnvOverridePath)) {
+    try {
+      $overridePath = (Resolve-Path $EnvOverridePath -ErrorAction Stop).Path
+      $candidatePath = (Resolve-Path $resolvedPath -ErrorAction Stop).Path
+      if ($overridePath -eq $candidatePath) {
+        return $EnvOverrideLabel
+      }
+    } catch {}
+  }
+
+  foreach ($localRoot in @($LocalRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+    try {
+      $normalizedRoot = (Resolve-Path $localRoot -ErrorAction Stop).Path
+      $normalizedCandidate = (Resolve-Path $resolvedPath -ErrorAction Stop).Path
+      if ($normalizedCandidate.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return 'portable-runtime'
+      }
+    } catch {}
+  }
+
+  return $SystemLabel
 }
 
 function Sync-RuntimeFromExe {
@@ -3299,10 +3484,12 @@ function Install-NodeJsPortable {
       $nodeUrls = Get-NodeJsDownloadUrls
       if ($nodeUrls.Count -gt 0) {
         $archiveReady = Invoke-DownloadWithFallback -Urls $nodeUrls -OutFile $zipPath -TimeoutSec 300
+      } else {
+        Write-Host '[WARN] Official Node.js LTS download URL resolution failed.'
       }
     }
     if (-not $archiveReady) {
-      Write-Host '[WARN] Portable Node.js archive is unavailable.'
+      Write-Host '[WARN] Portable Node.js zip download failed or no usable archive was available.'
       return $false
     }
 
@@ -3360,67 +3547,66 @@ function Ensure-NodeJs {
 }
 
 function Get-NodeJsSourceLabel {
-  param([string]$NodeExe)
+  param(
+    [string]$NodeExe,
+    [string]$SystemLabel = 'system'
+  )
 
-  if ([string]::IsNullOrWhiteSpace($NodeExe)) {
-    return 'missing'
-  }
-
-  $resolvedPath = Get-ExePath -CmdOrPath $NodeExe
-  if (-not $resolvedPath) {
-    $resolvedPath = $NodeExe
-  }
-
-  if (-not [string]::IsNullOrWhiteSpace($env:HOROSA_NODE)) {
-    try {
-      $envNode = (Resolve-Path $env:HOROSA_NODE -ErrorAction Stop).Path
-      $candidatePath = (Resolve-Path $resolvedPath -ErrorAction Stop).Path
-      if ($envNode -eq $candidatePath) {
-        return 'HOROSA_NODE'
-      }
-    } catch {}
-  }
-
-  $portableRoots = @(
-    $PortableNodeRuntimeDir,
-    (Join-Path $Root 'runtime/node'),
-    (Join-Path $ProjectDir 'runtime/windows/node'),
-    (Join-Path $ProjectDir 'runtime/node')
-  ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
-  foreach ($portableRoot in $portableRoots) {
-    try {
-      $normalizedRoot = (Resolve-Path $portableRoot -ErrorAction Stop).Path
-      $normalizedCandidate = (Resolve-Path $resolvedPath -ErrorAction Stop).Path
-      if ($normalizedCandidate.StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        return 'portable-runtime'
-      }
-    } catch {}
-  }
-
-  return 'system'
+  return (Get-ExecutableSourceLabel `
+    -CmdOrPath $NodeExe `
+    -EnvOverridePath $env:HOROSA_NODE `
+    -EnvOverrideLabel 'HOROSA_NODE' `
+    -LocalRoots @(
+      $PortableNodeRuntimeDir,
+      (Join-Path $Root 'runtime/node'),
+      (Join-Path $ProjectDir 'runtime/windows/node'),
+      (Join-Path $ProjectDir 'runtime/node')
+    ) `
+    -SystemLabel $SystemLabel)
 }
 
 function Ensure-FrontendNodeJs {
+  if ($env:HOROSA_NODE -and (Test-Path $env:HOROSA_NODE) -and (Test-NodeJsSupported -NodeCmdOrPath $env:HOROSA_NODE)) {
+    $script:NodeSourceLabel = 'HOROSA_NODE'
+    return $env:HOROSA_NODE
+  }
+
   $resolved = Resolve-PortableNodeJs
-  if ($resolved) { return $resolved }
+  if ($resolved) {
+    $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $resolved
+    return $resolved
+  }
 
   Write-Host '[INFO] Frontend bootstrap prefers local portable Node.js 20 runtime.'
   if (Install-NodeJsPortable) {
     Start-Sleep -Seconds 2
     $resolved = Resolve-PortableNodeJs
     if ($resolved) {
+      $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $resolved
       Write-Host ("[OK] Frontend portable Node.js ready: {0}" -f $resolved)
       return $resolved
     }
   }
 
-  $resolved = Resolve-SystemNodeJs
-  if ($resolved) {
-    Write-Host ("[WARN] Falling back to system Node.js for frontend bootstrap: {0}" -f $resolved)
+  $systemNode = Resolve-SystemNodeJs
+  if ($systemNode) {
+    Write-Host ("[WARN] Portable Node.js bootstrap failed, trying to sync a local runtime from system Node.js: {0}" -f $systemNode)
+    $nodeSynced = Sync-RuntimeFromExe -ExeCmdOrPath $systemNode -TargetDir $PortableNodeRuntimeDir -UpLevels 0 -CheckRelative 'npm.cmd'
+    if ($nodeSynced) {
+      $resolved = Resolve-PortableNodeJs
+      if ($resolved) {
+        $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $resolved
+        Write-Host ("[OK] Local Node.js runtime ready from system seed: {0}" -f $resolved)
+        return $resolved
+      }
+    }
+
+    $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $systemNode -SystemLabel 'system-fallback'
+    Write-Host ("[WARN] Portable Node.js bootstrap failed, using system Node fallback: {0}" -f $systemNode)
+    return $systemNode
   }
 
-  return $resolved
+  return $null
 }
 
 function Resolve-NpmCmd {
@@ -3904,6 +4090,7 @@ function Show-PreflightRuntimeSummary {
     [string]$PythonExe,
     [string]$JavaExe,
     [string]$NodeExe,
+    [string]$MavenExe,
     [string]$NpmExe
   )
 
@@ -3913,10 +4100,15 @@ function Show-PreflightRuntimeSummary {
   Write-Host '[PRECHECK] Runtime resolution summary:'
   Write-Host ("  python: {0}" -f $PythonExe)
   Write-Host ("  python version: {0}" -f $pyVersion)
+  Write-Host ("  python source: {0}" -f $(if ($script:PythonSourceLabel) { $script:PythonSourceLabel } else { 'unknown' }))
   Write-Host ("  java: {0}" -f $JavaExe)
   Write-Host ("  java version: {0}" -f $javaVersion)
+  Write-Host ("  java source: {0}" -f $(if ($script:JavaSourceLabel) { $script:JavaSourceLabel } else { 'unknown' }))
   Write-Host ("  node: {0}" -f $(if ($NodeExe) { $NodeExe } else { 'missing/not-needed-yet' }))
   Write-Host ("  node version: {0}" -f $nodeVersion)
+  Write-Host ("  node source: {0}" -f $(if ($script:NodeSourceLabel) { $script:NodeSourceLabel } else { 'unknown' }))
+  Write-Host ("  maven: {0}" -f $(if ($MavenExe) { $MavenExe } else { 'missing/not-needed-yet' }))
+  Write-Host ("  maven source: {0}" -f $(if ($script:MavenSourceLabel) { $script:MavenSourceLabel } else { 'unknown/not-needed-yet' }))
   Write-Host ("  npm: {0}" -f $(if ($NpmExe) { $NpmExe } else { 'missing/not-needed-yet' }))
   Write-Host ("  backend jar source: {0}" -f $script:JarSource)
   Write-Host ("  frontend source: {0}" -f $script:FrontendSource)
@@ -3989,7 +4181,10 @@ if ($needsFrontendRebuild) {
 }
 
 Ensure-FrontendStaticLayout -DistPath $DistDir
-$NodeBin = Resolve-NodeJs
+$NodeBin = if ($script:NodeBin) { $script:NodeBin } else { Resolve-NodeJs }
+if ($NodeBin -and (-not $script:NodeSourceLabel)) {
+  $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $NodeBin
+}
 
 if (-not (Ensure-BackendJar)) {
   Write-Host "Backend jar is still missing after one-click self-repair: $JarPath"
@@ -4130,18 +4325,14 @@ if (-not $depsReady) {
   exit 1
 }
 
-$JavaBin = Resolve-Java
+$script:PythonSourceLabel = Get-PythonSourceLabel -PythonExe $PythonBin
+
+$JavaBin = Ensure-BackendJava
 if (-not $JavaBin) {
-  $installed = Install-Java17
-  if ($installed) {
-    $JavaBin = Resolve-Java
-  }
-  if (-not $JavaBin) {
-    Write-Host 'Java 17+ not found.'
-    Write-Host 'Install Java 17+, then rerun this launcher.'
-    Read-Host 'Press Enter to exit'
-    exit 1
-  }
+  Write-Host 'Java 17+ not found.'
+  Write-Host 'Launcher tried portable Java bootstrap first and system Java only as the last fallback.'
+  Read-Host 'Press Enter to exit'
+  exit 1
 }
 
 if ($AppCdsEnabled) {
@@ -4181,12 +4372,36 @@ $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
 if (-not $NodeBin) {
   $NodeBin = Resolve-NodeJs
 }
+if ($NodeBin -and (-not $script:NodeSourceLabel)) {
+  $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $NodeBin
+}
+if ($JavaBin -and (-not $script:JavaSourceLabel)) {
+  $script:JavaSourceLabel = Get-JavaSourceLabel -JavaExe $JavaBin
+}
+if ($PythonBin -and (-not $script:PythonSourceLabel)) {
+  $script:PythonSourceLabel = Get-PythonSourceLabel -PythonExe $PythonBin
+}
 
-Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin -NodeExe $NodeBin -NpmExe $NpmBin
+Show-PreflightRuntimeSummary -PythonExe $PythonBin -JavaExe $JavaBin -NodeExe $NodeBin -MavenExe $MavenBin -NpmExe $NpmBin
 Write-Host ("Using Python: {0}" -f $PythonBin)
+if ($script:PythonSourceLabel) {
+  Write-Host ("Using Python source: {0}" -f $script:PythonSourceLabel)
+}
 Write-Host ("Using Java: {0}" -f $JavaBin)
+if ($script:JavaSourceLabel) {
+  Write-Host ("Using Java source: {0}" -f $script:JavaSourceLabel)
+}
 if ($NodeBin) {
   Write-Host ("Using Node.js: {0}" -f $NodeBin)
+}
+if ($script:NodeSourceLabel) {
+  Write-Host ("Using Node.js source: {0}" -f $script:NodeSourceLabel)
+}
+if ($MavenBin) {
+  Write-Host ("Using Maven: {0}" -f $MavenBin)
+}
+if ($script:MavenSourceLabel) {
+  Write-Host ("Using Maven source: {0}" -f $script:MavenSourceLabel)
 }
 if ($NpmBin) {
   Write-Host ("Using npm: {0}" -f $NpmBin)
