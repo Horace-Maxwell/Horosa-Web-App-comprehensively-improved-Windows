@@ -15,6 +15,7 @@ const DEFAULT_ZOOM_FACTOR = 0.8;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 1.6;
 const ZOOM_STEP = 0.1;
+const FOREGROUND_RESET_DELAY_MS = 150;
 const LATEST_RELEASE_URL = 'https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest';
 const MANUAL_INSTALLER_UPDATE_MESSAGE = '当前版本改为通过 GitHub Releases 下载完整安装器更新，请下载最新 Horosa-Setup 安装包后覆盖安装。';
 
@@ -110,6 +111,65 @@ function getBootstrapConfig() {
     serverRoot: runtimeState.serverRoot || 'http://127.0.0.1:9999',
     userDataPath: app.getPath('userData'),
   };
+}
+
+function setMainWindowTitle(nextTitle) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  try {
+    mainWindow.setTitle(nextTitle);
+  } catch (_error) {
+    // Ignore title sync failures on platforms that do not support it consistently.
+  }
+}
+
+function bringWindowToFront(reason = 'unknown') {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  const wasMinimized = mainWindow.isMinimized();
+  const wasVisible = mainWindow.isVisible();
+
+  try {
+    if (wasMinimized) {
+      mainWindow.restore();
+    }
+    if (!wasVisible) {
+      mainWindow.show();
+    }
+
+    if (typeof mainWindow.moveTop === 'function') {
+      mainWindow.moveTop();
+    }
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.focus();
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      mainWindow.setAlwaysOnTop(false);
+    }, FOREGROUND_RESET_DELAY_MS);
+  } catch (error) {
+    if (logger) {
+      logger.warn('Failed to bring window to front', {
+        reason,
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+    return;
+  }
+
+  if (logger) {
+    logger.info('Foreground activation path', {
+      reason,
+      page: currentPage,
+      wasMinimized,
+      wasVisible,
+    });
+  }
 }
 
 function broadcast(channel, payload) {
@@ -455,6 +515,7 @@ async function showLoadingScreen() {
   }
 
   currentPage = 'loading';
+  setMainWindowTitle('星阙启动中');
   await mainWindow.loadFile(loadingPagePath);
   publishCurrentStates();
 }
@@ -465,10 +526,34 @@ async function loadRendererApp() {
   }
 
   currentPage = 'renderer';
+  setMainWindowTitle('星阙');
   await mainWindow.loadFile(getRendererIndexPath(), {
     hash: '/',
   });
   publishCurrentStates();
+}
+
+function showBootstrapWindow(bounds, reason = 'bootstrap') {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  applyStartupMaximizedWindowState(bounds, reason);
+  lastNormalWindowBounds = normalizeBounds(bounds);
+  if (!hasAppliedInitialWindowState) {
+    hasAppliedInitialWindowState = true;
+    scheduleInitialWindowNormalization(bounds);
+    queueWindowStateSave();
+  }
+
+  bringWindowToFront(reason);
+  if (logger) {
+    logger.info('Bootstrap window shown', {
+      reason,
+      bounds,
+      page: currentPage,
+    });
+  }
 }
 
 function createMainWindow() {
@@ -493,7 +578,7 @@ function createMainWindow() {
     maximizable: true,
     minimizable: true,
     fullscreenable: true,
-    title: '星阙',
+    title: '星阙启动中',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -592,13 +677,7 @@ function createMainWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
-    applyStartupMaximizedWindowState(initialState.bounds, 'ready-to-show');
-    mainWindow.show();
-    mainWindow.focus();
-    lastNormalWindowBounds = normalizeBounds(initialState.bounds);
-    hasAppliedInitialWindowState = true;
-    scheduleInitialWindowNormalization(initialState.bounds);
-    queueWindowStateSave();
+    bringWindowToFront('ready-to-show');
   });
 
   mainWindow.on('move', () => {
@@ -620,6 +699,7 @@ function createMainWindow() {
     mainWindow = null;
   });
 
+  showBootstrapWindow(initialState.bounds, 'initial-create');
   return showLoadingScreen();
 }
 
@@ -847,6 +927,7 @@ async function startRuntimeFlow({ restart = false } = {}) {
         logger.error('Runtime bootstrap failed', error);
       }
       await showLoadingScreen();
+      bringWindowToFront(restart ? 'runtime-restart-failed' : 'runtime-start-failed');
       publishCurrentStates();
       return runtimeManager.getState();
     } finally {
@@ -883,6 +964,7 @@ async function bootstrap() {
       logger.error('Runtime error', error);
     }
     await showLoadingScreen();
+    bringWindowToFront('runtime-error');
     publishCurrentStates();
   });
 
@@ -908,10 +990,13 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => {
     if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
+      bringWindowToFront('second-instance');
+    } else {
+      app.whenReady().then(() => {
+        if (mainWindow) {
+          bringWindowToFront('second-instance-deferred');
+        }
+      }).catch(() => {});
     }
   });
 

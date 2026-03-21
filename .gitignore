@@ -55,6 +55,7 @@ local/workspace/runtime/windows/maven/
 local/workspace/runtime/windows/node/
 local/workspace/runtime/windows/python/
 local/workspace/runtime/windows/wheels/
+local/workspace/runtime/windows/bundle/
 local/workspace/runtime/windows/bundle/astrostudyboot.jar
 
 # Legacy path compatibility
@@ -65,6 +66,7 @@ runtime/windows/maven/
 runtime/windows/node/
 runtime/windows/python/
 runtime/windows/wheels/
+runtime/windows/bundle/
 runtime/windows/bundle/astrostudyboot.jar
 
 # Local reference bundles and audit artifacts (not for release branch)

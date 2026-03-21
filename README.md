@@ -10,14 +10,14 @@
 - 最新正式版 Release：
   [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 - **Windows 10/11 x64 普通用户** 请下载：
-  `Horosa-Setup-1.0.4.exe`
+  `Horosa-Setup-1.0.5.exe`
 - GitHub Release 页面只保留离线安装器，不提供 portable zip、源码快照或 `main` 分支相关产物
 
 ## 三步安装
 
-1. 下载 `Horosa-Setup-1.0.4.exe`
+1. 下载 `Horosa-Setup-1.0.5.exe`
 2. 双击运行安装器，按中文向导安装
-3. 从桌面或开始菜单打开 `星阙`
+3. 从桌面或开始菜单打开 `Horosa`（应用窗口标题仍显示“星阙”）
 
 补充说明：
 
@@ -30,7 +30,7 @@
 
 ## 这次正式版包含什么
 
-`v1.0.4` 重点包含：
+`v1.0.5` 重点包含：
 
 - 真正的 Electron 桌面窗口，不再依赖浏览器 `--app` 壳
 - 完整离线安装包，尽量不依赖目标机器预装环境
@@ -42,10 +42,12 @@
 - 风水 tab 在桌面壳中的本地资源加载修复
 - 修复 `v1.0.0` 误发旧安装器的问题，重新打入最新桌面壳、维护页、图标与窗口显示逻辑
 - 修复 `Horosa.exe` 仍显示旧默认图标的问题
-- 修复开始菜单 / 桌面快捷方式残留旧入口或损坏 `星阙.lnk` 的问题
+- 修复开始菜单 / 桌面快捷方式残留旧入口或损坏快捷方式的问题
 - 修复安装版应用内更新初始化依赖 `app-update.yml` 导致的报错
 - 强化桌面快捷方式重建，并按 Windows Shell 真实桌面目录验收（含 OneDrive 桌面）
 - 安装版默认启动改为最大化，并保持默认内容缩放为 `0.8`
+- 双击 `Horosa.exe` 或桌面快捷方式后优先立即显示“星阙启动中”原生窗口，再在后台拉起本地服务
+- 单实例再次双击时会把现有窗口恢复并拉到最前，而不是静默无反应
 - 非 App 稳定版默认窗口改为最大化，并在每次启动前强制保持页面内容缩放为 `0.8`
 
 ## 开发者从哪里开始
@@ -64,7 +66,7 @@
 - `docs/MAIN_BRANCH_RESTORE.md`
 - `docs/PROJECT_STRUCTURE.md`
 - `docs/SELFCHECK_LOG.md`
-- `docs/releases/v1.0.4.md`
+- `docs/releases/v1.0.5.md`
 
 ## `main` 分支包含什么，不包含什么
 

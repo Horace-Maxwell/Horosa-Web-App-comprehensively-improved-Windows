@@ -30,6 +30,10 @@ Var ExistingInstallPageRadioCancel
 Var ExistingLegacyHasDataDir
 Var ExistingLegacyHasLogDir
 Var ExistingLegacyHasShortcut
+Var ShortcutPathUnderTest
+Var ShortcutExpectedTarget
+Var ShortcutValidationResult
+Var ShortcutRepairWarning
 
 Function DetectDesktopInstallRecord
   StrCpy $ExistingInstallTypeText ""
@@ -267,11 +271,63 @@ FunctionEnd
 
 Function CleanupCurrentDesktopShortcuts
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙.lnk"
   Delete "$DESKTOP\Horosa Desktop.lnk"
+  Delete "$DESKTOP\Horosa.lnk"
   Delete "$DESKTOP\星阙.lnk"
   Delete "$SMPROGRAMS\Horosa Desktop.lnk"
+  Delete "$SMPROGRAMS\Horosa.lnk"
   Delete "$SMPROGRAMS\星阙.lnk"
+FunctionEnd
+
+Function ValidateShortcutTarget
+  StrCpy $ShortcutValidationResult "0"
+
+  IfFileExists "$ShortcutPathUnderTest" 0 shortcut_validate_done
+
+  InitPluginsDir
+  FileOpen $1 "$PLUGINSDIR\validate-shortcut.ps1" w
+  FileWrite $1 "$$ErrorActionPreference = 'Stop'$\r$\n"
+  FileWrite $1 "$$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($$env:HOROSA_SHORTCUT_PATH)$\r$\n"
+  FileWrite $1 "if ($$shortcut.TargetPath -eq $$env:HOROSA_EXPECTED_TARGET) { exit 0 }$\r$\n"
+  FileWrite $1 "exit 1$\r$\n"
+  FileClose $1
+
+  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_SHORTCUT_PATH", "$ShortcutPathUnderTest").r0'
+  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_EXPECTED_TARGET", "$ShortcutExpectedTarget").r0'
+  ClearErrors
+  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\validate-shortcut.ps1"' $0
+  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_SHORTCUT_PATH", "").r0'
+  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_EXPECTED_TARGET", "").r0'
+
+  ${If} $0 == 0
+    StrCpy $ShortcutValidationResult "1"
+  ${EndIf}
+
+shortcut_validate_done:
+FunctionEnd
+
+Function CreateShortcutWithPowerShell
+  InitPluginsDir
+  FileOpen $1 "$PLUGINSDIR\create-shortcut.vbs" w
+  FileWrite $1 "Set fso = CreateObject($\"Scripting.FileSystemObject$\")$\r$\n"
+  FileWrite $1 "Set shell = CreateObject($\"WScript.Shell$\")$\r$\n"
+  FileWrite $1 "finalPath = WScript.Arguments.Item(0)$\r$\n"
+  FileWrite $1 "tempPath = fso.GetParentFolderName(finalPath) & $\"\\Horosa Shortcut.tmp.lnk$\"$\r$\n"
+  FileWrite $1 "If fso.FileExists(tempPath) Then fso.DeleteFile tempPath, True$\r$\n"
+  FileWrite $1 "If fso.FileExists(finalPath) Then fso.DeleteFile finalPath, True$\r$\n"
+  FileWrite $1 "Set shortcut = shell.CreateShortcut(tempPath)$\r$\n"
+  FileWrite $1 "shortcut.TargetPath = WScript.Arguments.Item(1)$\r$\n"
+  FileWrite $1 "shortcut.WorkingDirectory = WScript.Arguments.Item(2)$\r$\n"
+  FileWrite $1 "shortcut.IconLocation = WScript.Arguments.Item(3)$\r$\n"
+  FileWrite $1 "shortcut.Description = WScript.Arguments.Item(4)$\r$\n"
+  FileWrite $1 "shortcut.Save$\r$\n"
+  FileWrite $1 "fso.MoveFile tempPath, finalPath$\r$\n"
+  FileClose $1
+
+  ClearErrors
+  ExecWait '"$SYSDIR\cscript.exe" //NoLogo "$PLUGINSDIR\create-shortcut.vbs" "$ShortcutPathUnderTest" "$ShortcutExpectedTarget" "$INSTDIR" "$ShortcutExpectedTarget,0" "${APP_DESCRIPTION}"' $0
 FunctionEnd
 
 Function ExistingInstallPageCreate
@@ -377,6 +433,10 @@ FunctionEnd
   StrCpy $ExistingLegacyHasDataDir "0"
   StrCpy $ExistingLegacyHasLogDir "0"
   StrCpy $ExistingLegacyHasShortcut "0"
+  StrCpy $ShortcutPathUnderTest ""
+  StrCpy $ShortcutExpectedTarget ""
+  StrCpy $ShortcutValidationResult "0"
+  StrCpy $ShortcutRepairWarning ""
 
   ${IfNot} ${Silent}
     Call BuildExistingInstallState
@@ -389,18 +449,55 @@ FunctionEnd
 
 !macro customInstall
   Call CleanupCurrentDesktopShortcuts
-  CreateShortCut "$newStartMenuLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
-  ClearErrors
-  CreateShortCut "$newDesktopLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
-  ClearErrors
+  StrCpy $ShortcutExpectedTarget "$INSTDIR\${APP_FILENAME}.exe"
+  StrCpy $ShortcutPathUnderTest "$newStartMenuLink"
+  Call CreateShortcutWithPowerShell
+  Call ValidateShortcutTarget
+  ${If} $ShortcutValidationResult != "1"
+    Delete "$newStartMenuLink"
+    Call CreateShortcutWithPowerShell
+    Call ValidateShortcutTarget
+    ${If} $ShortcutValidationResult != "1"
+      StrCpy $ShortcutRepairWarning "开始菜单快捷方式未能正确重建，请从安装目录中的 Horosa.exe 启动一次后再重新创建快捷方式。"
+      DetailPrint "WARNING: failed to validate Start Menu shortcut target -> $newStartMenuLink"
+    ${EndIf}
+  ${EndIf}
+  StrCpy $ShortcutExpectedTarget "$INSTDIR\${APP_FILENAME}.exe"
+  StrCpy $ShortcutPathUnderTest "$newDesktopLink"
+  Call CreateShortcutWithPowerShell
+  Call ValidateShortcutTarget
+  ${If} $ShortcutValidationResult != "1"
+    Delete "$newDesktopLink"
+    Call CreateShortcutWithPowerShell
+    Call ValidateShortcutTarget
+    ${If} $ShortcutValidationResult != "1"
+      ${If} $ShortcutRepairWarning == ""
+        StrCpy $ShortcutRepairWarning "桌面快捷方式未能正确重建，请从开始菜单或安装目录中的 Horosa.exe 启动一次后再重新创建桌面快捷方式。"
+      ${Else}
+        StrCpy $ShortcutRepairWarning "$ShortcutRepairWarning$\r$\n桌面快捷方式未能正确重建，请从开始菜单或安装目录中的 Horosa.exe 启动一次后再重新创建桌面快捷方式。"
+      ${EndIf}
+      DetailPrint "WARNING: failed to validate Desktop shortcut target -> $newDesktopLink"
+    ${EndIf}
+  ${EndIf}
   System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
+  ${If} $ShortcutRepairWarning != ""
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONEXCLAMATION "$ShortcutRepairWarning"
+    ${Else}
+      DetailPrint "WARNING: $ShortcutRepairWarning"
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 !macro customUnInstall
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙.lnk"
   Delete "$DESKTOP\Horosa Desktop.lnk"
+  Delete "$DESKTOP\Horosa.lnk"
   Delete "$DESKTOP\星阙.lnk"
+  Delete "$SMPROGRAMS\Horosa.lnk"
+  Delete "$SMPROGRAMS\星阙.lnk"
 !macroend
 
 !endif
