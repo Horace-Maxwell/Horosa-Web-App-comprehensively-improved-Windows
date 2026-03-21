@@ -44,13 +44,6 @@
         "to": "app-runtime"
       }
     ],
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "Horace-Maxwell",
-        "repo": "Horosa-Web-App-comprehensively-improved-Windows"
-      }
-    ],
     "win": {
       "icon": "assets/horosa_setup.ico",
       "executableName": "Horosa",

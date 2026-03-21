@@ -2,7 +2,7 @@
 
 这个目录现在承载真正的 Windows 桌面应用工程：
 
-- `electron/`：Electron 主进程、预加载脚本、运行时编排、自动更新
+- `electron/`：Electron 主进程、预加载脚本、运行时编排
 - `scripts/`：前端构建、运行时 staging、项目路径解析
 - `assets/horosa_setup.ico`：应用、安装器、卸载器统一图标
 
@@ -27,6 +27,6 @@
 
 ## 更新
 
-- 使用 `electron-builder` + `electron-updater`
-- 发布到 GitHub Releases 后会生成 `latest.yml` 和 blockmap
-- 应用内可直接检查、下载并安装更新
+- GitHub Release 只保留 `Horosa-Setup-*.exe`
+- 安装版升级通过重新下载安装最新完整安装器完成
+- 不再向 GitHub Release 上传 portable zip、`latest.yml`、`.blockmap` 或其它源码快照式资产

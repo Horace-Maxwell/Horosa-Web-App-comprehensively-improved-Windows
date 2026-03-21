@@ -11,15 +11,7 @@
   [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 - **Windows 10/11 x64 普通用户** 请下载：
   `Horosa-Setup-1.0.4.exe`
-- **需要非 App 稳定版的用户**：
-  请到 `windows-stable-2026-03-19` Release 下载稳定版压缩包
-
-不要手动下载这些文件：
-
-- `latest.yml`
-- `Horosa-Setup-1.0.4.exe.blockmap`
-
-它们是给应用内自动更新使用的，不是手动安装入口。
+- GitHub Release 页面只保留离线安装器，不提供 portable zip、源码快照或 `main` 分支相关产物
 
 ## 三步安装
 
@@ -31,7 +23,7 @@
 
 - 安装包已经包含 Electron、Java、Python、前后端资源
 - 安装完成后可**离线运行本地功能**
-- 只有“检查更新”需要联网
+- 若要升级，请重新到 GitHub Releases 下载新的 `Horosa-Setup-*.exe`
 - 默认安装到 `%LocalAppData%\Programs\Horosa`
 - 用户数据保存在 `%LocalAppData%\HorosaDesktop`
 - 如果机器上已经装过星阙，安装器会进入维护页，可选 `替换 / 修复 / 取消`
@@ -42,7 +34,7 @@
 
 - 真正的 Electron 桌面窗口，不再依赖浏览器 `--app` 壳
 - 完整离线安装包，尽量不依赖目标机器预装环境
-- 应用内更新链路（GitHub Releases + `latest.yml` + blockmap）
+- GitHub Release 只保留离线安装器，不再上传 portable zip 或源码快照式发布物
 - 中文维护页：已安装检测、替换 / 修复 / 取消
 - 默认窗口比例、缩放、快捷键、窗口恢复逻辑完善
 - 顶栏抽屉、易与三式、组合盘 / 时空中点盘等白屏问题修复
@@ -60,7 +52,7 @@
 
 源码与桌面打包主要在这些位置：
 
-- `desktop_installer_bundle/`：Electron 桌面壳、NSIS 安装器、自动更新、桌面构建脚本
+- `desktop_installer_bundle/`：Electron 桌面壳、NSIS 安装器、桌面构建脚本
 - `prepareruntime/`：发布与维护辅助脚本，用于显式准备 runtime / bundle
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`：主项目源码
 - `docs/`：结构说明、自检记录、版本发布说明
@@ -81,7 +73,7 @@
 - 可复原功能所需的源码、脚本、配置、文档
 - 桌面打包工程与安装器脚本
 - 主项目源码和运行时准备脚本
-- 发布工作流与 portable / installer 构建脚本
+- 发布工作流与安装器构建脚本
 
 `main` 分支不会保留：
 
@@ -98,7 +90,7 @@
 - 可由脚本重新准备的 Java / Python / wheels 大包
 - 可重新生成的前端构建产物与桌面运行时大文件
 
-也就是说：**普通用户去 Release 下载成品，开发者在 `main` 拿源码后只点 `START_HERE.bat` 即可自举复原。**
+也就是说：**普通用户去 Release 下载离线安装器，开发者在 `main` 拿源码后只点 `START_HERE.bat` 即可自举复原。**
 
 ## 从 `main` 复原功能怎么做
 
