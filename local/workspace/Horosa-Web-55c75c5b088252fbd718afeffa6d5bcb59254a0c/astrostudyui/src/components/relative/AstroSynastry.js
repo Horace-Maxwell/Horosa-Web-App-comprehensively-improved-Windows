@@ -92,27 +92,31 @@ class AstroSynastry extends Component{
 		const canRenderB = chartBobj !== undefined && chartBobj !== null && fieldsB;
 
 		return (
-			<div style={{ height: height }}>
+			<div style={{ height: height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey='chartA' tabPosition='top'
-					style={{ height: height }}
+					className='horosaFillTabs'
+					style={{ flex: '1 1 auto', minHeight: 0 }}
 				>
 					<TabPane tab={chartATitle} key="chartA">
 						{
 							canRenderA ? (
-								<AstroChartMain 
-									value={chartAobj} 
-									fields={fieldsA} 
-									hidezodiacal={1}
-									hidehsys={1}
-									hidedateselector={1}
-									hidelots={1}
-									height={height - 40} 
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-								/>
+								<div style={{ height: '100%', overflow: 'hidden' }}>
+									<AstroChartMain 
+										value={chartAobj} 
+										fields={fieldsA} 
+										hidezodiacal={1}
+										hidehsys={1}
+										hidedateselector={1}
+										hidelots={1}
+										height={height} 
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										fitChartToViewport={true}
+									/>
+								</div>
 							) : (
 								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看影响盘。</div>
 							)
@@ -122,19 +126,22 @@ class AstroSynastry extends Component{
 					<TabPane tab={chartBTitle} key="chartB">
 						{
 							canRenderB ? (
-								<AstroChartMain 
-									value={chartBobj} 
-									fields={fieldsB} 
-									hidezodiacal={1}
-									hidehsys={1}
-									hidedateselector={1}
-									hidelots={1}
-									height={height - 40} 
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-								/>
+								<div style={{ height: '100%', overflow: 'hidden' }}>
+									<AstroChartMain 
+										value={chartBobj} 
+										fields={fieldsB} 
+										hidezodiacal={1}
+										hidehsys={1}
+										hidedateselector={1}
+										hidelots={1}
+										height={height} 
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										fitChartToViewport={true}
+									/>
+								</div>
 							) : (
 								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看影响盘。</div>
 							)

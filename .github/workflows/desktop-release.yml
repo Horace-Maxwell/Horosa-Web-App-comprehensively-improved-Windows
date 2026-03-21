@@ -136,7 +136,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: Horosa Windows ${{ env.RELEASE_TAG }}
-          generate_release_notes: true
+          body_path: ./docs/releases/${{ env.RELEASE_TAG }}.md
           draft: false
           prerelease: false
           overwrite_files: true

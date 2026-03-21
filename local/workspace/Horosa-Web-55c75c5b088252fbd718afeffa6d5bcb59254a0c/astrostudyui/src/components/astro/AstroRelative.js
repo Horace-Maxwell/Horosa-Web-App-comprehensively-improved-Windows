@@ -15,7 +15,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import {
 	appendPlanetMetaName,
 } from '../../utils/planetMetaDisplay';
-import { normalizeContentHeight } from '../../utils/layout';
+import { getRectBottomLimit, normalizeContentHeight, TAB_BOTTOM_SAFE_GAP } from '../../utils/layout';
 
 const RELATIVE_SNAPSHOT_PLANET_META = {
 	showPostnatal: 1,
@@ -25,6 +25,8 @@ const RELATIVE_SNAPSHOT_PLANET_META = {
 
 const TabPane = Tabs.TabPane;
 const Search = Input.Search;
+const RELATIVE_CONTENT_BOTTOM_GAP = TAB_BOTTOM_SAFE_GAP;
+const MIN_RELATIVE_CONTENT_HEIGHT = 260;
 
 function msg(id, chartSources){
 	if(id === undefined || id === null){
@@ -195,6 +197,7 @@ class AstroRelative extends Component{
 			currentRelative: 0,
 			chartA: null,
 			chartB: null,
+			contentHeight: null,
 			floatingPanelVisible: true,
 			floatingPanelCollapsed: false,
 			hook: {
@@ -232,6 +235,10 @@ class AstroRelative extends Component{
 			},
 		}
 
+		this.rootHost = null;
+		this.tabRowHost = null;
+		this.relativeResizeObserver = null;
+
 		this.changeTab = this.changeTab.bind(this);
 		this.selectChartA = this.selectChartA.bind(this);
 		this.selectChartB = this.selectChartB.bind(this);
@@ -240,6 +247,11 @@ class AstroRelative extends Component{
 		this.genParams = this.genParams.bind(this);
 		this.toggleFloatingPanel = this.toggleFloatingPanel.bind(this);
 		this.toggleFloatingPanelCollapse = this.toggleFloatingPanelCollapse.bind(this);
+		this.captureRoot = this.captureRoot.bind(this);
+		this.captureTabRow = this.captureTabRow.bind(this);
+		this.observeRelativeResize = this.observeRelativeResize.bind(this);
+		this.disconnectRelativeResize = this.disconnectRelativeResize.bind(this);
+		this.handleWindowResize = this.handleWindowResize.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -251,6 +263,81 @@ class AstroRelative extends Component{
 			};
 		}
 
+	}
+
+	componentDidMount(){
+		window.addEventListener('resize', this.handleWindowResize);
+		this.observeRelativeResize();
+		this.handleWindowResize();
+	}
+
+	componentDidUpdate(prevProps, prevState){
+		if(prevProps.height !== this.props.height
+			|| prevState.currentTab !== this.state.currentTab
+			|| prevState.floatingPanelVisible !== this.state.floatingPanelVisible
+			|| prevState.floatingPanelCollapsed !== this.state.floatingPanelCollapsed){
+			this.handleWindowResize();
+		}
+	}
+
+	componentWillUnmount(){
+		window.removeEventListener('resize', this.handleWindowResize);
+		this.disconnectRelativeResize();
+	}
+
+	captureRoot(node){
+		this.rootHost = node || null;
+		this.observeRelativeResize();
+		this.handleWindowResize();
+	}
+
+	captureTabRow(node){
+		this.tabRowHost = node || null;
+		this.observeRelativeResize();
+		this.handleWindowResize();
+	}
+
+	disconnectRelativeResize(){
+		if(this.relativeResizeObserver){
+			this.relativeResizeObserver.disconnect();
+			this.relativeResizeObserver = null;
+		}
+	}
+
+	observeRelativeResize(){
+		this.disconnectRelativeResize();
+		if(typeof ResizeObserver === 'undefined'){
+			return;
+		}
+		const targets = [this.rootHost, this.tabRowHost].filter(Boolean);
+		if(targets.length === 0){
+			return;
+		}
+		this.relativeResizeObserver = new ResizeObserver(()=>{
+			this.handleWindowResize();
+		});
+		targets.forEach((node)=>{
+			this.relativeResizeObserver.observe(node);
+		});
+	}
+
+	handleWindowResize(){
+		const viewportHeight = normalizeContentHeight(this.props.height);
+		const contentBounds = getRectBottomLimit(
+			this.rootHost,
+			this.tabRowHost,
+			viewportHeight,
+			RELATIVE_CONTENT_BOTTOM_GAP,
+		);
+		const nextContentHeight = Math.max(
+			MIN_RELATIVE_CONTENT_HEIGHT,
+			Math.min(viewportHeight, contentBounds.limit || 0),
+		);
+		if(Math.abs((this.state.contentHeight || 0) - nextContentHeight) >= 2){
+			this.setState({
+				contentHeight: nextContentHeight,
+			});
+		}
 	}
 
 	genParams(){
@@ -418,6 +505,7 @@ class AstroRelative extends Component{
 
 	render(){
 		let height = normalizeContentHeight(this.props.height);
+		const contentHeight = this.state.contentHeight || Math.max(MIN_RELATIVE_CONTENT_HEIGHT, height - 96);
 
 		let chartAtxt = this.state.chartA ? this.state.chartA.txt : null;
 		let chartBtxt = this.state.chartB ? this.state.chartB.txt : null;
@@ -425,7 +513,7 @@ class AstroRelative extends Component{
 		let hook = this.state.hook;
 
 		return (
-			<div style={{ height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+			<div ref={this.captureRoot} style={{ height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 				<Row gutter={12}>
 					<Col span={8}>
 						<ChartSearchModal onOk={this.selectChartA}>
@@ -446,84 +534,86 @@ class AstroRelative extends Component{
 				</Row>
 				<Row gutter={12} style={{marginTop: 10, flex: '1 1 auto', minHeight: 0}}>
 					<Col span={24} style={{ height: '100%' }}>
-						<Tabs 
-							defaultActiveKey={this.state.currentTab} tabPosition='right'
-							onChange={this.changeTab}
-							className='horosaFillTabs'
-							style={{ height: '100%' }}
-						>
-							<TabPane tab="比较盘" key="Comp">
-								<AstroCompare
-									value={hook.Comp.result}
-									height={height}
-									fields={this.props.fields}
-									chartA={this.state.chartA}
-									chartB={this.state.chartB}
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-									hook={hook.Comp}	
-								/>
-							</TabPane>
-							<TabPane tab="组合盘" key="Composite">
-								<AstroComposite 
-									value={hook.Composite.result}
-									height={height}
-									fields={this.props.fields}
-									chartA={this.state.chartA}
-									chartB={this.state.chartB}
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-									hook={hook.Composite}	
-								/>
-							</TabPane>
-							<TabPane tab="影响盘" key="Synastry">
-								<AstroSynastry 
-									value={hook.Synastry.result}
-									height={height}
-									fields={this.props.fields}
-									chartA={this.state.chartA}
-									chartB={this.state.chartB}
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-									hook={hook.Synastry}	
-								/>
-							</TabPane>
-							<TabPane tab="时空中点盘" key="TimeSpace">
-								<AstroTimeSpace 
-									value={hook.TimeSpace.result}
-									height={height}
-									fields={this.props.fields}
-									chartA={this.state.chartA}
-									chartB={this.state.chartB}
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-									hook={hook.TimeSpace}	
-								/>
-							</TabPane>
-							<TabPane tab="马克斯盘" key="Marks">
-								<AstroMarks 
-									value={hook.Marks.result}
-									height={height}
-									fields={this.props.fields}
-									chartA={this.state.chartA}
-									chartB={this.state.chartB}
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-									hook={hook.Marks}	
-								/>
-							</TabPane>
+						<div ref={this.captureTabRow} style={{ height: '100%' }}>
+							<Tabs 
+								defaultActiveKey={this.state.currentTab} tabPosition='right'
+								onChange={this.changeTab}
+								className='horosaFillTabs'
+								style={{ height: '100%' }}
+							>
+								<TabPane tab="比较盘" key="Comp">
+									<AstroCompare
+										value={hook.Comp.result}
+										height={contentHeight}
+										fields={this.props.fields}
+										chartA={this.state.chartA}
+										chartB={this.state.chartB}
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										hook={hook.Comp}	
+									/>
+								</TabPane>
+								<TabPane tab="组合盘" key="Composite">
+									<AstroComposite 
+										value={hook.Composite.result}
+										height={contentHeight}
+										fields={this.props.fields}
+										chartA={this.state.chartA}
+										chartB={this.state.chartB}
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										hook={hook.Composite}	
+									/>
+								</TabPane>
+								<TabPane tab="影响盘" key="Synastry">
+									<AstroSynastry 
+										value={hook.Synastry.result}
+										height={contentHeight}
+										fields={this.props.fields}
+										chartA={this.state.chartA}
+										chartB={this.state.chartB}
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										hook={hook.Synastry}	
+									/>
+								</TabPane>
+								<TabPane tab="时空中点盘" key="TimeSpace">
+									<AstroTimeSpace 
+										value={hook.TimeSpace.result}
+										height={contentHeight}
+										fields={this.props.fields}
+										chartA={this.state.chartA}
+										chartB={this.state.chartB}
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										hook={hook.TimeSpace}	
+									/>
+								</TabPane>
+								<TabPane tab="马克斯盘" key="Marks">
+									<AstroMarks 
+										value={hook.Marks.result}
+										height={contentHeight}
+										fields={this.props.fields}
+										chartA={this.state.chartA}
+										chartB={this.state.chartB}
+										chartDisplay={this.props.chartDisplay}
+										planetDisplay={this.props.planetDisplay}
+										lotsDisplay={this.props.lotsDisplay}
+										showAstroMeaning={this.props.showAstroMeaning}
+										hook={hook.Marks}	
+									/>
+								</TabPane>
 
-						</Tabs>
+							</Tabs>
+						</div>
 					</Col>
 				</Row>
 				<RelativeFloatingPanel

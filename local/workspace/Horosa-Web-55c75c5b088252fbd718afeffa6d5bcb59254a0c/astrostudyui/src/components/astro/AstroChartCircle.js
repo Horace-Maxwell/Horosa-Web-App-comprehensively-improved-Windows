@@ -5,6 +5,7 @@ import {splitDegree, whichTerm, convertLatToStr, convertLonToStr, getDignityText
 import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
 import { appendAstroMeaningTips, buildSignMeaningTip, buildAspectMeaningTip } from './AstroMeaningData';
+import { getAstroParamLine } from '../../utils/astroParamDisplay';
 
 
 export default class AstroChartCircle {
@@ -1035,13 +1036,11 @@ export default class AstroChartCircle {
 			let suntm = '真太阳时：' + chartObj.chart.nongli.birth;
 			commtxts.push(suntm);
 		}
-		if(params.zodiacal === AstroConst.SIDEREAL){
-			commtxts.push(AstroText.AstroTxtMsg[params.zodiacal]);
-			let txt = AstroConst.HouseSys[params.hsys];
-			commtxts.push(txt)
-		}else{
-			let txt = AstroText.AstroMsg[params.zodiacal] + '，' + AstroConst.HouseSys[params.hsys]
-			commtxts.push(txt);
+		const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
+			preferDetailedSidereal: true,
+		});
+		if(paramLine){
+			commtxts.push(paramLine);
 		}
 		commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 		commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);
@@ -1106,13 +1105,11 @@ export default class AstroChartCircle {
 			let suntime = '真太阳时：' + chartObj.chart.nongli.birth;
 			commtxts.push(suntime);
 		}
-		if(params.zodiacal === AstroConst.SIDEREAL){
-			commtxts.push(AstroText.AstroTxtMsg[params.zodiacal]);
-			let txt = AstroConst.HouseSys[params.hsys];
-			commtxts.push(txt)
-		}else{
-			let txt = AstroText.AstroMsg[params.zodiacal] + '，' + AstroConst.HouseSys[params.hsys]
-			commtxts.push(txt);
+		const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
+			preferDetailedSidereal: true,
+		});
+		if(paramLine){
+			commtxts.push(paramLine);
 		}
 		commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 		commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);

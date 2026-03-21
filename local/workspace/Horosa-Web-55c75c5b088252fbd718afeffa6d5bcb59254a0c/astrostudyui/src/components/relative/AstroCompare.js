@@ -74,34 +74,41 @@ class AstroCompare extends Component{
 		let height = this.props.height ? this.props.height : 760;
 
 		return (
-			<div style={{ height: height }}>
+			<div style={{ height: height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 				<Tabs 
 					defaultActiveKey='chartA' tabPosition='top'
-					style={{ height: height }}
+					className='horosaFillTabs'
+					style={{ flex: '1 1 auto', minHeight: 0 }}
 				>
 					<TabPane tab={chartATitle} key="chartA">
-						<AstroDoubleChartMain 
-							value={chartAobj} 
-							height={height - 40} 
-							title={chartATitle}
-							innerTitle={chartBTitle}
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}
-							showAstroMeaning={this.props.showAstroMeaning}
-						/>					
+						<div style={{ height: '100%', overflow: 'hidden' }}>
+							<AstroDoubleChartMain 
+								value={chartAobj} 
+								height={height} 
+								title={chartATitle}
+								innerTitle={chartBTitle}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+								fitChartToViewport={true}
+							/>
+						</div>					
 					</TabPane>
 					<TabPane tab={chartBTitle} key="chartB">
-						<AstroDoubleChartMain 
-							value={chartBobj} 
-							height={height - 40} 
-							title={chartBTitle}
-							innerTitle={chartATitle}
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}
-							showAstroMeaning={this.props.showAstroMeaning}
-						/>					
+						<div style={{ height: '100%', overflow: 'hidden' }}>
+							<AstroDoubleChartMain 
+								value={chartBobj} 
+								height={height} 
+								title={chartBTitle}
+								innerTitle={chartATitle}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+								fitChartToViewport={true}
+							/>
+						</div>					
 					</TabPane>
 				</Tabs>
 			</div>

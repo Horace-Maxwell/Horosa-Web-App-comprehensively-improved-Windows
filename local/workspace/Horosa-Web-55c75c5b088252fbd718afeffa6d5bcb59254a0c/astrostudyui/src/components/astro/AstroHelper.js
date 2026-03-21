@@ -3,6 +3,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import {detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
 import { getSignAnnotation } from '../../constants/AstroInterpretation';
+import { getAstroParamLine } from '../../utils/astroParamDisplay';
 
 const ChartMargin = 20;
 const ChartMarginDelta = 55;
@@ -969,13 +970,11 @@ export function drawBirthInfo(svg, margin, chartObj, chartid, inverse){
 		let suntm = '真太阳时：' + chartObj.chart.nongli.birth;
 		commtxts.push(suntm);
 	}
-	if(params.zodiacal === AstroConst.SIDEREAL){
-		commtxts.push(AstroText.AstroTxtMsg[params.zodiacal]);
-		let txt = AstroConst.HouseSys[params.hsys];
-		commtxts.push(txt)
-	}else{
-		let txt = AstroText.AstroMsg[params.zodiacal] + '，' + AstroConst.HouseSys[params.hsys]
-		commtxts.push(txt);
+	const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
+		preferDetailedSidereal: true,
+	});
+	if(paramLine){
+		commtxts.push(paramLine);
 	}
 	commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 	commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);
@@ -1040,13 +1039,11 @@ export function drawBirthInfoInCircle(svg, r, firstX, firstY, chartObj, chartid)
 		let suntime = '真阳时：' + chartObj.chart.nongli.birth;
 		commtxts.push(suntime);
 	}
-	if(params.zodiacal === AstroConst.SIDEREAL){
-		commtxts.push(AstroText.AstroTxtMsg[params.zodiacal]);
-		let txt = AstroConst.HouseSys[params.hsys];
-		commtxts.push(txt)
-	}else{
-		let txt = AstroText.AstroMsg[params.zodiacal] + '，' + AstroConst.HouseSys[params.hsys]
-		commtxts.push(txt);
+	const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
+		preferDetailedSidereal: true,
+	});
+	if(paramLine){
+		commtxts.push(paramLine);
 	}
 	commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 	commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);
