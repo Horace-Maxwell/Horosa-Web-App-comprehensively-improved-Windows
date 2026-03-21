@@ -170,9 +170,54 @@ jobs:
       - name: Build installer release assets
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           Push-Location (Join-Path $env:GITHUB_WORKSPACE 'desktop_installer_bundle')
-          npm run dist:win
-          Pop-Location
+          try {
+            npm run build:desktop
+            if ($LASTEXITCODE -ne 0) {
+              throw 'npm run build:desktop failed.'
+            }
+
+            npx electron-builder --dir
+            if ($LASTEXITCODE -ne 0) {
+              throw 'electron-builder --dir failed.'
+            }
+
+            $cacheRoots = @(
+              $env:ELECTRON_BUILDER_CACHE,
+              (Join-Path ($env:LOCALAPPDATA ?? '') 'electron-builder\Cache'),
+              (Join-Path ($env:USERPROFILE ?? '') 'AppData\Local\electron-builder\Cache')
+            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+            $rcedit = $null
+            foreach ($cacheRoot in $cacheRoots) {
+              if (-not (Test-Path $cacheRoot)) { continue }
+              $candidate = Get-ChildItem -Path $cacheRoot -Recurse -Filter 'rcedit-x64.exe' -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTimeUtc -Descending |
+                Select-Object -First 1
+              if ($candidate) {
+                $rcedit = $candidate.FullName
+                break
+              }
+            }
+            if (-not $rcedit) {
+              throw 'Unable to locate rcedit-x64.exe in electron-builder cache.'
+            }
+            Write-Host "Using RCEDIT_PATH=$rcedit"
+            $env:RCEDIT_PATH = $rcedit
+
+            npm run patch:win-icon
+            if ($LASTEXITCODE -ne 0) {
+              throw 'npm run patch:win-icon failed.'
+            }
+
+            npx electron-builder --win nsis --prepackaged release/win-unpacked
+            if ($LASTEXITCODE -ne 0) {
+              throw 'electron-builder NSIS packaging failed.'
+            }
+          } finally {
+            Pop-Location
+          }
 
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v2
