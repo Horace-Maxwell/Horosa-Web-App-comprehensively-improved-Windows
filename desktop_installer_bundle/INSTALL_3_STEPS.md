@@ -2,12 +2,12 @@
 
 ## 普通用户下载哪个
 
-- 请到 GitHub Release 下载 `Horosa-Setup-1.0.6.exe`
+- 请到 GitHub Release 下载 `Horosa-Setup-1.0.7.exe`
 - Release 页面只保留离线安装器，不提供 portable zip 或源码快照类文件
 
 ## 三步完成安装
 
-1. 下载 `Horosa-Setup-1.0.6.exe`
+1. 下载 `Horosa-Setup-1.0.7.exe`
 2. 双击安装器，按中文向导完成安装
 3. 从桌面或开始菜单打开 `Horosa`（应用窗口标题仍显示“星阙”）
 
