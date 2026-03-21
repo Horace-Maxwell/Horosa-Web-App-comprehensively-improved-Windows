@@ -5,6 +5,10 @@ const net = require('net');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
+const STOP_WAIT_INTERVAL_MS = 250;
+const STOP_WAIT_TIMEOUT_MS = 8000;
+const APP_CDS_DUMP_TIMEOUT_MS = 2500;
+
 function waitForPort(port, timeoutMs = 60000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -52,6 +56,36 @@ function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
 }
 
+function sleep(timeoutMs) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, timeoutMs);
+  });
+}
+
+function processExists(pid) {
+  if (!pid || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function waitForProcessExit(pid, timeoutMs = STOP_WAIT_TIMEOUT_MS) {
+  const startedAt = Date.now();
+  while (processExists(pid)) {
+    if (Date.now() - startedAt >= timeoutMs) {
+      return false;
+    }
+    await sleep(STOP_WAIT_INTERVAL_MS);
+  }
+  return true;
+}
+
 function killProcessTree(pid, logger) {
   if (!pid) {
     return Promise.resolve();
@@ -63,8 +97,15 @@ function killProcessTree(pid, logger) {
       windowsHide: true,
     });
     killer.once('exit', () => {
-      logger.info('Stopped child process tree', pid);
-      resolve();
+      (async () => {
+        const stopped = await waitForProcessExit(pid);
+        if (stopped) {
+          logger.info('Stopped child process tree', { pid });
+        } else {
+          logger.warn('Process still present after taskkill timeout', { pid, timeoutMs: STOP_WAIT_TIMEOUT_MS });
+        }
+        resolve();
+      })().catch(() => resolve());
     });
     killer.once('error', (error) => {
       logger.warn('Failed to stop child process tree', pid, error.message);
@@ -168,10 +209,26 @@ function invokeAppCdsDynamicDump(processId, context, javaExe, logger) {
     return false;
   }
 
-  const result = spawnSync(jcmdExe, [String(processId), 'VM.cds', 'dynamic_dump', context.archivePath], {
-    windowsHide: true,
-    encoding: 'utf8',
-  });
+  let result;
+  try {
+    result = spawnSync(jcmdExe, [String(processId), 'VM.cds', 'dynamic_dump', context.archivePath], {
+      windowsHide: true,
+      encoding: 'utf8',
+      timeout: APP_CDS_DUMP_TIMEOUT_MS,
+    });
+  } catch (error) {
+    logger.warn('AppCDS dynamic dump failed to execute', error.message);
+    return false;
+  }
+
+  if (result.error) {
+    logger.warn('AppCDS dynamic dump returned an execution error', {
+      message: result.error.message,
+      timedOut: result.error.code === 'ETIMEDOUT',
+      timeoutMs: APP_CDS_DUMP_TIMEOUT_MS,
+    });
+    return false;
+  }
 
   if (isAppCdsArchiveReady(context)) {
     logger.info('AppCDS dynamic dump completed', context.archivePath);
@@ -193,6 +250,7 @@ class RuntimeManager extends EventEmitter {
     this.running = false;
     this.shuttingDown = false;
     this.startPromise = null;
+    this.stopPromise = null;
     this.pythonProcess = null;
     this.javaProcess = null;
     this.logStreams = [];
@@ -273,11 +331,14 @@ class RuntimeManager extends EventEmitter {
 
   async cleanupProcesses() {
     const closeTasks = [];
-    if (this.pythonProcess && this.pythonProcess.pid) {
-      closeTasks.push(killProcessTree(this.pythonProcess.pid, this.logger));
+    const pythonPid = this.pythonProcess && this.pythonProcess.pid ? this.pythonProcess.pid : null;
+    const javaPid = this.javaProcess && this.javaProcess.pid ? this.javaProcess.pid : null;
+
+    if (pythonPid) {
+      closeTasks.push(killProcessTree(pythonPid, this.logger));
     }
-    if (this.javaProcess && this.javaProcess.pid) {
-      closeTasks.push(killProcessTree(this.javaProcess.pid, this.logger));
+    if (javaPid) {
+      closeTasks.push(killProcessTree(javaPid, this.logger));
     }
 
     await Promise.all(closeTasks);
@@ -325,6 +386,10 @@ class RuntimeManager extends EventEmitter {
   }
 
   async start() {
+    if (this.stopPromise) {
+      await this.stopPromise;
+    }
+
     if (this.running) {
       return this.getState();
     }
@@ -460,27 +525,45 @@ class RuntimeManager extends EventEmitter {
   }
 
   async stop() {
-    this.shuttingDown = true;
-    this.updateState({ status: 'stopping', message: '正在关闭本地服务' });
-
-    if (
-      this.javaProcess &&
-      this.javaProcess.pid &&
-      this.appCdsContext &&
-      this.layout &&
-      !isAppCdsArchiveReady(this.appCdsContext)
-    ) {
-      invokeAppCdsDynamicDump(this.javaProcess.pid, this.appCdsContext, this.layout.javaExe, this.logger);
+    if (this.stopPromise) {
+      return this.stopPromise;
     }
 
-    await this.cleanupProcesses();
-    this.running = false;
-    this.startPromise = null;
-    this.layout = null;
-    this.updateState({
-      status: 'stopped',
-      message: '本地服务已停止',
-    });
+    this.stopPromise = (async () => {
+      this.shuttingDown = true;
+      this.logger.info('Stopping runtime', {
+        pythonPid: this.pythonProcess && this.pythonProcess.pid ? this.pythonProcess.pid : null,
+        javaPid: this.javaProcess && this.javaProcess.pid ? this.javaProcess.pid : null,
+      });
+      this.updateState({ status: 'stopping', message: '正在关闭本地服务' });
+
+      if (
+        this.javaProcess &&
+        this.javaProcess.pid &&
+        this.appCdsContext &&
+        this.layout &&
+        !isAppCdsArchiveReady(this.appCdsContext)
+      ) {
+        invokeAppCdsDynamicDump(this.javaProcess.pid, this.appCdsContext, this.layout.javaExe, this.logger);
+      }
+
+      await this.cleanupProcesses();
+      this.running = false;
+      this.startPromise = null;
+      this.layout = null;
+      this.updateState({
+        status: 'stopped',
+        message: '本地服务已停止',
+      });
+      this.logger.info('Runtime stopped');
+    })();
+
+    try {
+      await this.stopPromise;
+    } finally {
+      this.stopPromise = null;
+      this.shuttingDown = false;
+    }
   }
 
   getState() {
