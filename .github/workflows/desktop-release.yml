@@ -95,14 +95,20 @@ jobs:
       - name: Install frontend dependencies
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           Push-Location (Join-Path $env:PROJECT_DIR 'astrostudyui')
           try {
-            npm ci
-          } catch {
-            Write-Host "Standard npm ci hit a peer dependency conflict, retrying with --legacy-peer-deps..."
-            npm ci --legacy-peer-deps
+            npm ci --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Standard npm ci hit a peer dependency conflict, retrying with --legacy-peer-deps..."
+              npm ci --no-audit --no-fund --legacy-peer-deps
+              if ($LASTEXITCODE -ne 0) {
+                throw "Frontend npm ci failed after --legacy-peer-deps retry."
+              }
+            }
+          } finally {
+            Pop-Location
           }
-          Pop-Location
 
       - name: Install desktop bundle dependencies
         shell: pwsh
