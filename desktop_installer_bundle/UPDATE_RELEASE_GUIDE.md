@@ -1,16 +1,13 @@
-# Windows 桌面版发布流程（`v1.0.4` 口径）
+# Windows 桌面安装器发布流程（离线安装包口径）
 
 ## 1. 发布目标
 
-当前正式对外发布物分为两类：
+当前正式对外发布物只有一类：
 
 - **给普通用户的离线安装器**
   - `Horosa-Setup-<version>.exe`
-- **给应用内自动更新的元数据**
-  - `latest.yml`
-  - `Horosa-Setup-<version>.exe.blockmap`
 
-普通用户只需要下载 `.exe` 安装器。
+GitHub Release 不再上传 portable zip、`latest.yml`、`.blockmap`、校验清单或源码快照式资产。
 
 ## 2. 机器准备
 
@@ -52,28 +49,18 @@
 预期产物位于：
 
 - `desktop_installer_bundle/release/Horosa-Setup-<version>.exe`
-- `desktop_installer_bundle/release/latest.yml`
-- `desktop_installer_bundle/release/Horosa-Setup-<version>.exe.blockmap`
 
 ## 5. Release 资产要求
 
-正式版 `v1.0.4` 及后续语义化版本，至少上传这些文件：
+正式版语义化版本只上传：
 
 - `Horosa-Setup-<version>.exe`
-- `latest.yml`
-- `Horosa-Setup-<version>.exe.blockmap`
-- `SHA256SUMS.txt`
-
-建议再附：
-
-- 中文安装说明，如 `安装说明-<version>.md`
 
 ## 6. Release 正文要求
 
 Release 正文统一写中文，至少包含：
 
 - 哪些用户该下载哪个文件
-- 哪些文件不要手动下载
 - 三步安装说明
 - 离线运行说明
 - 本次新增功能 / 修复列表
@@ -103,17 +90,15 @@ Release 正文统一写中文，至少包含：
 
 ## 8. GitHub Actions 标签兼容
 
-工作流标签触发需要同时兼容：
+工作流标签触发固定为：
 
-- 历史格式：`*.*.*.*`
 - 语义化版本：`v*.*.*`
 
-安装版语义化版本继续通过手动 `gh` 发布；独立稳定版 workflow 仅响应 `windows-stable-*` 标签。
+工作流会源码重建后生成安装器，并把 GitHub Release 的自定义资产收口为 `Horosa-Setup-*.exe`。
 
 ## 9. 发版前检查
 
 - 在已安装机器上再次运行完整安装器
 - 确认维护页中文标题、说明、推荐动作显示正常
 - 验证 `替换 / 修复 / 取消` 三条分支
-- 确认安装版应用内更新不再依赖本地 `app-update.yml`
 - 确认 `Horosa-Setup-<version>.exe` 可在断网环境安装并启动本地功能

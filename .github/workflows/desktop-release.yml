@@ -1,9 +1,9 @@
-name: Horosa Windows Stable Release
+name: Horosa Windows Installer Release
 
 on:
   push:
     tags:
-      - 'windows-stable-*'
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       release_tag:
@@ -80,11 +80,23 @@ jobs:
           }
           "PROJECT_DIR=$($projectDir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Validate installer release tag
+        shell: pwsh
+        run: |
+          if (-not ($env:RELEASE_TAG -match '^v\d+\.\d+\.\d+$')) {
+            throw "Installer release tag must match v<major>.<minor>.<patch>. Current: $env:RELEASE_TAG"
+          }
+
       - name: Install frontend dependencies
         shell: pwsh
         run: |
           Push-Location (Join-Path $env:PROJECT_DIR 'astrostudyui')
-          npm ci
+          try {
+            npm ci
+          } catch {
+            Write-Host "Standard npm ci hit a peer dependency conflict, retrying with --legacy-peer-deps..."
+            npm ci --legacy-peer-deps
+          }
           Pop-Location
 
       - name: Install desktop bundle dependencies
@@ -112,27 +124,39 @@ jobs:
         run: |
           ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
 
-      - name: Build portable release assets
+      - name: Build installer release assets
         shell: pwsh
         run: |
-          $params = @{
-            Version = $env:RELEASE_TAG
-          }
-          if ($env:GITHUB_EVENT_NAME -eq 'push') {
-            $params.RequireTagMatch = $true
-          }
-          ./desktop_installer_bundle/build_portable_release_zip.ps1 @params
+          Push-Location (Join-Path $env:GITHUB_WORKSPACE 'desktop_installer_bundle')
+          npm run dist:win
+          Pop-Location
 
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Horosa Windows Stable ${{ env.RELEASE_TAG }}
+          name: Horosa Windows ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           draft: false
           prerelease: false
           overwrite_files: true
           fail_on_unmatched_files: true
           files: |
-            ./desktop_installer_bundle/release/HorosaPortableWindows-${{ env.RELEASE_TAG }}.zip
-            ./desktop_installer_bundle/release/HorosaPortableWindows-${{ env.RELEASE_TAG }}.manifest.json
+            ./desktop_installer_bundle/release/Horosa-Setup-*.exe
+
+      - name: Remove non-installer release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $release = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
+          $assets = @($release.assets)
+          foreach ($asset in $assets) {
+            if ($asset.name -notlike 'Horosa-Setup-*.exe') {
+              Write-Host "Deleting disallowed release asset: $($asset.name)"
+              gh api `
+                --method DELETE `
+                -H "Accept: application/vnd.github+json" `
+                "/repos/$env:GITHUB_REPOSITORY/releases/assets/$($asset.id)"
+            }
+          }
