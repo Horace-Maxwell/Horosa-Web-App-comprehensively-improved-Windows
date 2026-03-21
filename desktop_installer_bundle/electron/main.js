@@ -38,6 +38,8 @@ let isForceExiting = false;
 let quitFlowPromise = null;
 let pendingRelaunch = false;
 let quitForceExitTimer = null;
+let suppressWindowCloseQuit = false;
+let windowRecreationInProgress = false;
 let updateState = {
   status: app.isPackaged ? 'manual-installer-only' : 'unsupported',
   message: app.isPackaged ? MANUAL_INSTALLER_UPDATE_MESSAGE : '开发模式下不启用安装器更新',
@@ -749,6 +751,10 @@ function createMainWindow() {
   });
   mainWindow.on('close', (event) => {
     saveWindowState();
+    if (suppressWindowCloseQuit) {
+      suppressWindowCloseQuit = false;
+      return;
+    }
     if (!quitRequested && !isForceExiting) {
       event.preventDefault();
       requestAppQuit('window-close');
@@ -776,39 +782,46 @@ async function recreateMainWindow(reason) {
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     try {
+      windowRecreationInProgress = true;
+      suppressWindowCloseQuit = true;
       mainWindow.destroy();
     } catch (_error) {
+      windowRecreationInProgress = false;
+      suppressWindowCloseQuit = false;
       // Ignore best-effort teardown failures before we recreate the window.
     }
   }
   mainWindow = null;
+  try {
+    await createMainWindow();
 
-  await createMainWindow();
+    if (!runtimeManager) {
+      return;
+    }
 
-  if (!runtimeManager) {
-    return;
+    const runtimeState = runtimeManager.getState();
+    if (runtimeState.status === 'ready') {
+      await loadRendererApp();
+      bringWindowToFront(`${reason}-renderer-ready`);
+      return;
+    }
+
+    if (!runtimeBootPromise) {
+      startRuntimeFlow({
+        restart: runtimeState.status === 'failed' || runtimeState.status === 'stopped',
+      }).catch((error) => {
+        if (logger) {
+          logger.error('Failed to restart runtime while recreating window', error);
+        }
+      });
+    } else {
+      runtimeBootPromise.catch(() => {});
+    }
+
+    bringWindowToFront(`${reason}-loading`);
+  } finally {
+    windowRecreationInProgress = false;
   }
-
-  const runtimeState = runtimeManager.getState();
-  if (runtimeState.status === 'ready') {
-    await loadRendererApp();
-    bringWindowToFront(`${reason}-renderer-ready`);
-    return;
-  }
-
-  if (!runtimeBootPromise) {
-    startRuntimeFlow({
-      restart: runtimeState.status === 'failed' || runtimeState.status === 'stopped',
-    }).catch((error) => {
-      if (logger) {
-        logger.error('Failed to restart runtime while recreating window', error);
-      }
-    });
-  } else {
-    runtimeBootPromise.catch(() => {});
-  }
-
-  bringWindowToFront(`${reason}-loading`);
 }
 
 async function ensureHealthyMainWindow(reason) {
@@ -1239,6 +1252,12 @@ app.on('activate', () => {
 });
 
 app.on('window-all-closed', () => {
+  if (windowRecreationInProgress) {
+    if (logger) {
+      logger.info('Ignoring window-all-closed during window recreation');
+    }
+    return;
+  }
   if (!quitRequested && !isForceExiting) {
     requestAppQuit('window-all-closed');
   }

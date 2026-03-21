@@ -10,12 +10,12 @@
 - 最新正式版 Release：
   [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 - **Windows 10/11 x64 普通用户** 请下载：
-  `Horosa-Setup-1.0.6.exe`
+  `Horosa-Setup-1.0.7.exe`
 - GitHub Release 页面只保留离线安装器，不提供 portable zip、源码快照或 `main` 分支相关产物
 
 ## 三步安装
 
-1. 下载 `Horosa-Setup-1.0.6.exe`
+1. 下载 `Horosa-Setup-1.0.7.exe`
 2. 双击运行安装器，按中文向导安装
 3. 从桌面或开始菜单打开 `Horosa`（应用窗口标题仍显示“星阙”）
 
@@ -30,7 +30,7 @@
 
 ## 这次正式版包含什么
 
-`v1.0.6` 重点包含：
+`v1.0.7` 重点包含：
 
 - 真正的 Electron 桌面窗口，不再依赖浏览器 `--app` 壳
 - 完整离线安装包，尽量不依赖目标机器预装环境
@@ -50,6 +50,7 @@
 - 单实例再次双击时会把现有窗口恢复并拉到最前，而不是静默无反应
 - 点击右上角 `X` 后会完整退出 Electron、Java 与 Python 后台进程，不再残留僵尸实例
 - 关闭后再次双击 `Horosa.lnk` 会重新冷启动；若遇到旧实例无窗异常，也会触发自救恢复
+- 旧实例窗口损坏时会直接重建主窗口，不再在自救过程中误触发退出链
 - 非 App 稳定版默认窗口改为最大化，并在每次启动前强制保持页面内容缩放为 `0.8`
 
 ## 开发者从哪里开始
@@ -68,7 +69,7 @@
 - `docs/MAIN_BRANCH_RESTORE.md`
 - `docs/PROJECT_STRUCTURE.md`
 - `docs/SELFCHECK_LOG.md`
-- `docs/releases/v1.0.6.md`
+- `docs/releases/v1.0.7.md`
 
 ## `main` 分支包含什么，不包含什么
 
