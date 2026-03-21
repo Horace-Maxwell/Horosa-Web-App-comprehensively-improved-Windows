@@ -107,7 +107,9 @@
 - 从 `main` 下载后，默认入口只有根目录 `START_HERE.bat`
 - 启动器会自动检查并补齐缺失的 `Node.js`、`Python`、`Java`、`Maven`、前端静态文件、后端 jar 和本地 runtime
 - 前端自举会优先准备并使用仓库本地 portable `Node 20`，只有本地 Node 不可用时才回退系统 `Node`
+- 后端构建与运行会优先准备并使用仓库本地 portable `JDK 17`，只有本地 Java 链路明确失败时才回退系统 `Java`
 - 若现代 npm 因 peer dependency 严格解析导致 `npm ci` 失败，启动器会自动改用 `--legacy-peer-deps` 做一次兼容重试
 - 如果机器已经配好环境或本地 runtime 仍然可用，启动器会直接启动或仅做最小补齐
+- 若启动器最终回退到了系统 `Node` / `Java`，这属于可用性兜底，不算完全自举恢复
 - 首次恢复允许联网下载官方工具链，但这些下载内容不会提交回 `main`
 - 具体说明见：`docs/MAIN_BRANCH_RESTORE.md`
