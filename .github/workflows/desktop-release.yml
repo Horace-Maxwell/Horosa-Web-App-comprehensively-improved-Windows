@@ -159,6 +159,7 @@ jobs:
       - name: Prepare runtime from source
         shell: pwsh
         run: |
+          $env:HOROSA_PROJECT_DIR = $env:PROJECT_DIR
           ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
 
       - name: Build installer release assets
