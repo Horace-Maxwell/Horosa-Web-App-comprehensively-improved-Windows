@@ -3481,7 +3481,7 @@ function Install-NodeJsPortable {
     }
 
     if (-not $archiveReady) {
-      $nodeUrls = Get-NodeJsDownloadUrls
+      $nodeUrls = @(Get-NodeJsDownloadUrls)
       if ($nodeUrls.Count -gt 0) {
         $archiveReady = Invoke-DownloadWithFallback -Urls $nodeUrls -OutFile $zipPath -TimeoutSec 300
       } else {
