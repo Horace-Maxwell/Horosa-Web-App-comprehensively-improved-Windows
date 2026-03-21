@@ -21,6 +21,7 @@ START_HERE.bat
 - 检查项目目录、前端静态文件、后端 jar、runtime 缓存目录
 - 自动发现或补齐 `Node.js`、`Python`、`Java`、`Maven`
 - 前端恢复时优先准备并使用仓库本地 portable `Node 20`，避免被系统里更激进的新 npm 行为打断
+- 后端构建与运行时优先准备并使用仓库本地 portable `JDK 17`
 - 缺失时优先尝试本地 runtime / 系统环境，再尝试 `winget`，最后走官方便携下载回退
 - 自动执行前端 `npm ci` 与 `npm run build:file`
 - 若标准 `npm ci` / `npm install` 因 peer dependency 冲突报 `ERESOLVE`，会自动用 `--legacy-peer-deps` 再重试一次
@@ -67,6 +68,8 @@ START_HERE.bat
 - 若环境未配置好，启动器会先联网自举补齐
 - 若环境已就绪，启动器会直接启动或仅做增量补齐
 - 若系统里已经有 Node，也仍会优先尝试仓库本地 portable `Node 20` 来完成前端恢复
+- 若系统里已经有 Java，也仍会优先尝试仓库本地 portable `JDK 17` 来完成后端构建与启动
+- 只有本地 Node / Java 链路明确失败时，启动器才会回退系统安装；这种情况属于可用性兜底，不算完全自举恢复
 - 本地 Python / Java / web 服务正常启动
 - 浏览器壳稳定版可打开
 - 窗口默认最大化
