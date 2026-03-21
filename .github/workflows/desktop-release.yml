@@ -127,8 +127,34 @@ jobs:
       - name: Build backend jar
         shell: pwsh
         run: |
-          $pomPath = Join-Path $env:PROJECT_DIR 'astrostudysrv\astrostudyboot\pom.xml'
-          mvn -f $pomPath -DskipTests package
+          $ErrorActionPreference = 'Stop'
+          $serviceRoot = Join-Path $env:PROJECT_DIR 'astrostudysrv'
+          $moduleBuildOrder = @(
+            'boundless',
+            'image',
+            'basecomm',
+            'astrostudy',
+            'astrostudycn',
+            'astrodeeplearn',
+            'astroreader',
+            'astroesp'
+          )
+
+          foreach ($module in $moduleBuildOrder) {
+            $pomPath = Join-Path $serviceRoot "$module\pom.xml"
+            Write-Host "Building backend module: $module"
+            mvn -f $pomPath -DskipTests install
+            if ($LASTEXITCODE -ne 0) {
+              throw "Maven install failed for module: $module"
+            }
+          }
+
+          $bootPomPath = Join-Path $serviceRoot 'astrostudyboot\pom.xml'
+          Write-Host 'Packaging astrostudyboot'
+          mvn -f $bootPomPath -DskipTests package
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Maven package failed for astrostudyboot'
+          }
 
       - name: Prepare runtime from source
         shell: pwsh
