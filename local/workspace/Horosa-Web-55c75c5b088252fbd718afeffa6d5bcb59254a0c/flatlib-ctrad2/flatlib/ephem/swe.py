@@ -185,17 +185,17 @@ def sweHouses(jd, lat, lon, hsys, flag=0):
         } for i in range(12)
     ]
     for house in houses:
-        eqcod = swisseph.cotrans([house['lon'], 0, 1], const.ECLI2EQ_OBLIQUITY)
+        eqcod = utils.sweCotrans(house['lon'], 0, 1, const.ECLI2EQ_OBLIQUITY)
         house['ra'] = eqcod[0]
         house['decl'] = eqcod[1]
 
     descLon = angle.norm(ascmc[0] + 180)
     icLon = angle.norm(ascmc[1] + 180)
 
-    ascEclip = swisseph.cotrans([ascmc[4], lat, 1], const.EQ2ECLI_OBLIQUITY)
-    descRA= swisseph.cotrans([descLon, ascEclip[1], 1], const.ECLI2EQ_OBLIQUITY)
-    mcRA = swisseph.cotrans([ascmc[1], ascEclip[1], 1], const.ECLI2EQ_OBLIQUITY)
-    icRA = swisseph.cotrans([icLon, ascEclip[1], 1], const.ECLI2EQ_OBLIQUITY)
+    ascEclip = utils.sweCotrans(ascmc[4], lat, 1, const.EQ2ECLI_OBLIQUITY)
+    descRA = utils.sweCotrans(descLon, ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
+    mcRA = utils.sweCotrans(ascmc[1], ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
+    icRA = utils.sweCotrans(icLon, ascEclip[1], 1, const.ECLI2EQ_OBLIQUITY)
 
     angles = [
         {'id': const.ASC, 'lon': ascmc[0], 'lat': ascEclip[1], 'ra': ascmc[4], 'decl': lat},

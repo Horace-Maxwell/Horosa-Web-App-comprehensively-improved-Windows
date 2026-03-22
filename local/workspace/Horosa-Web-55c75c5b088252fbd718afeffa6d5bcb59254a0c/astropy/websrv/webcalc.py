@@ -30,7 +30,7 @@ class WebCalcSrv:
             coordLat = data['coordLat']
             coordLon = data['coordLon']
 
-            res = swisseph.azalt(jdn, lon, lat, height, coordLon, coordLat, 0, press, temp, coordType)
+            res = utils.sweAzalt(jdn, lon, lat, height, coordLon, coordLat, 0, press, temp, coordType)
             res = {
                 'azimuth': res[0],
                 'altitudeTrue': res[1],
@@ -54,7 +54,7 @@ class WebCalcSrv:
             lon = data['lon']
             obliquity = const.ECLI2EQ_OBLIQUITY if cotype == -1 else const.EQ2ECLI_OBLIQUITY
 
-            res = swisseph.cotrans([lon, lat, 1], obliquity)
+            res = utils.sweCotrans(lon, lat, 1, obliquity)
             res = {
                 'lon': res[0],
                 'lat': res[1],

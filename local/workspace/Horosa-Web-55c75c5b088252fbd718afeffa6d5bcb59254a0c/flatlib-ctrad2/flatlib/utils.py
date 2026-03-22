@@ -11,6 +11,41 @@ import swisseph
 from . import angle
 from . import const
 
+
+def sweCotrans(lon, lat, dist=1.0, obliquity=const.ECLI2EQ_OBLIQUITY):
+    """Call swisseph.cotrans across both new and legacy pyswisseph signatures."""
+    try:
+        return swisseph.cotrans(lon, lat, dist, obliquity)
+    except TypeError:
+        return swisseph.cotrans([lon, lat, dist], obliquity)
+
+
+def sweAzalt(jd, geo_lon, geo_lat, height, coord_lon, coord_lat,
+             coord_dist=0.0, press=1000.0, temp=20.0, coord_type=0):
+    """Call swisseph.azalt across both new and legacy pyswisseph signatures."""
+    try:
+        return swisseph.azalt(
+            jd,
+            geo_lon,
+            geo_lat,
+            height,
+            coord_lon,
+            coord_lat,
+            coord_dist,
+            press,
+            temp,
+            coord_type,
+        )
+    except TypeError:
+        return swisseph.azalt(
+            jd,
+            coord_type,
+            [geo_lon, geo_lat, height],
+            press,
+            temp,
+            [coord_lon, coord_lat, coord_dist],
+        )
+
 # === Diurnal and nocturnal arcs === #
 
 def ascdiff(decl, lat):
@@ -89,6 +124,6 @@ def eqCoords0(lon, lat):
 
 
 def eqCoords(lon, lat):
-    eq = swisseph.cotrans([lon, lat, 1], const.ECLI2EQ_OBLIQUITY)
+    eq = sweCotrans(lon, lat, 1, const.ECLI2EQ_OBLIQUITY)
     return (eq[0], eq[1])
 
