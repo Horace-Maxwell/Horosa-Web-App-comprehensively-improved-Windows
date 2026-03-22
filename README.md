@@ -10,12 +10,12 @@
 - 最新正式版 Release：
   [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 - **Windows 10/11 x64 普通用户** 请下载：
-  `Horosa-Setup-1.0.8.exe`
+  `Horosa-Setup-1.0.9.exe`
 - GitHub Release 页面只保留离线安装器，不提供 portable zip、源码快照或 `main` 分支相关产物
 
 ## 三步安装
 
-1. 下载 `Horosa-Setup-1.0.8.exe`
+1. 下载 `Horosa-Setup-1.0.9.exe`
 2. 双击运行安装器，按中文向导安装
 3. 从桌面或开始菜单打开 `Horosa`（应用窗口标题仍显示“星阙”）
 
@@ -30,7 +30,7 @@
 
 ## 这次正式版包含什么
 
-`v1.0.8` 重点包含：
+`v1.0.9` 重点包含：
 
 - 真正的 Electron 桌面窗口，不再依赖浏览器 `--app` 壳
 - 完整离线安装包，尽量不依赖目标机器预装环境
@@ -54,6 +54,8 @@
 - 修复节气盘各个 `XX星盘` 左上角出现 `undefined` 的显示问题，统一显示黄道与分宫制中文标签
 - 修复节气盘切换黄道和分宫制后仍复用旧图的问题，`春分/夏至/秋分/冬至` 星盘与 3D 盘都会按当前设置重算
 - 修复关系盘比较盘、组合盘、影响盘、时空中点盘、马克斯盘在正常和偏矮窗口下底部黄道圈被裁切的问题
+- 修复推运盘 `法达星限` 在缺少 predictive 数据时整页空白的问题；进入该页会按需静默补取数据，并显示加载态/空态
+- 修复 `主/界限法` 与 `法达星限` 丢失后天宫位和主宰宫位附加信息的问题，恢复 `(8th; 4R7R)` 这类标注格式
 - 非 App 稳定版默认窗口改为最大化，并在每次启动前强制保持页面内容缩放为 `0.8`
 
 ## 开发者从哪里开始
@@ -72,7 +74,7 @@
 - `docs/MAIN_BRANCH_RESTORE.md`
 - `docs/PROJECT_STRUCTURE.md`
 - `docs/SELFCHECK_LOG.md`
-- `docs/releases/v1.0.8.md`
+- `docs/releases/v1.0.9.md`
 
 ## `main` 分支包含什么，不包含什么
 
