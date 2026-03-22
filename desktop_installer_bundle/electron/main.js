@@ -1141,7 +1141,9 @@ async function performQuitFlow() {
       saveWindowState();
 
       if (runtimeManager) {
-        await runtimeManager.stop().catch((error) => {
+        await runtimeManager.stop({
+          reason: pendingRelaunch ? 'relaunch' : 'quit',
+        }).catch((error) => {
           if (logger) {
             logger.error('Runtime stop failed during quit flow', error);
           }
@@ -1189,6 +1191,18 @@ async function bootstrap() {
   });
 
   runtimeManager.on('runtime-error', async (error) => {
+    if (quitRequested || isForceExiting || pendingRelaunch) {
+      if (logger) {
+        logger.warn('Ignoring runtime error during planned app exit', {
+          message: error && error.message ? error.message : String(error),
+          quitRequested,
+          isForceExiting,
+          pendingRelaunch,
+        });
+      }
+      return;
+    }
+
     if (logger) {
       logger.error('Runtime error', error);
     }

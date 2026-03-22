@@ -241,6 +241,51 @@ function invokeAppCdsDynamicDump(processId, context, javaExe, logger) {
   return false;
 }
 
+function classifyProcessExit({ child, activeChild, shuttingDown, expectedExit }) {
+  if (!child) {
+    return {
+      unexpected: false,
+      planned: false,
+      stale: false,
+      reason: null,
+    };
+  }
+
+  if (expectedExit) {
+    return {
+      unexpected: false,
+      planned: true,
+      stale: false,
+      reason: expectedExit.reason || 'planned-stop',
+    };
+  }
+
+  if (shuttingDown) {
+    return {
+      unexpected: false,
+      planned: true,
+      stale: false,
+      reason: 'manager-shutting-down',
+    };
+  }
+
+  if (!activeChild || activeChild !== child) {
+    return {
+      unexpected: false,
+      planned: false,
+      stale: true,
+      reason: 'stale-process-exit',
+    };
+  }
+
+  return {
+    unexpected: true,
+    planned: false,
+    stale: false,
+    reason: 'unexpected-process-exit',
+  };
+}
+
 class RuntimeManager extends EventEmitter {
   constructor({ resourceRoot, userDataDir, logger }) {
     super();
@@ -256,6 +301,7 @@ class RuntimeManager extends EventEmitter {
     this.logStreams = [];
     this.appCdsContext = null;
     this.layout = null;
+    this.expectedProcessExits = new WeakMap();
     this.state = {
       status: 'idle',
       message: '等待启动本地服务',
@@ -307,37 +353,83 @@ class RuntimeManager extends EventEmitter {
   }
 
   attachUnexpectedExitHandlers(logDir) {
-    const handleUnexpectedExit = (name) => (code, signal) => {
-      if (this.shuttingDown) {
-        return;
-      }
+    const attachChildExitHandler = (kind, name, attachedChild) => {
+      attachedChild.once('exit', (code, signal) => {
+        const child = kind === 'python' ? this.pythonProcess : this.javaProcess;
+        const expectedExit = attachedChild ? this.expectedProcessExits.get(attachedChild) : null;
+        if (attachedChild && expectedExit) {
+          this.expectedProcessExits.delete(attachedChild);
+        }
 
-      const message = `${name} exited unexpectedly (code=${code ?? 'null'}, signal=${signal ?? 'null'})`;
-      this.logger.error(message);
-      this.running = false;
-      this.startPromise = null;
-      this.updateState({
-        status: 'failed',
-        message,
-        error: message,
-        logDir,
+        const exitState = classifyProcessExit({
+          child: attachedChild,
+          activeChild: child,
+          shuttingDown: this.shuttingDown,
+          expectedExit,
+        });
+
+        if (exitState.planned) {
+          this.logger.info('Child process exited during planned shutdown', {
+            kind,
+            pid: attachedChild && attachedChild.pid ? attachedChild.pid : null,
+            code: code ?? null,
+            signal: signal ?? null,
+            reason: exitState.reason,
+          });
+          return;
+        }
+
+        if (exitState.stale) {
+          this.logger.info('Ignoring stale child exit after process replacement', {
+            kind,
+            pid: attachedChild && attachedChild.pid ? attachedChild.pid : null,
+            code: code ?? null,
+            signal: signal ?? null,
+          });
+          return;
+        }
+
+        const message = `${name} exited unexpectedly (code=${code ?? 'null'}, signal=${signal ?? 'null'})`;
+        this.logger.error(message);
+        this.running = false;
+        this.startPromise = null;
+        this.updateState({
+          status: 'failed',
+          message,
+          error: message,
+          logDir,
+        });
+        this.emit('runtime-error', new Error(message));
       });
-      this.emit('runtime-error', new Error(message));
     };
-
-    this.pythonProcess.once('exit', handleUnexpectedExit('Python chart service'));
-    this.javaProcess.once('exit', handleUnexpectedExit('Java backend'));
+    attachChildExitHandler('python', 'Python chart service', this.pythonProcess);
+    attachChildExitHandler('java', 'Java backend', this.javaProcess);
   }
 
-  async cleanupProcesses() {
+  markExpectedProcessExit(kind, child, reason) {
+    if (!child) {
+      return;
+    }
+
+    this.expectedProcessExits.set(child, {
+      kind,
+      reason,
+      markedAt: Date.now(),
+      pid: child.pid || null,
+    });
+  }
+
+  async cleanupProcesses(reason = 'stop') {
     const closeTasks = [];
     const pythonPid = this.pythonProcess && this.pythonProcess.pid ? this.pythonProcess.pid : null;
     const javaPid = this.javaProcess && this.javaProcess.pid ? this.javaProcess.pid : null;
 
     if (pythonPid) {
+      this.markExpectedProcessExit('python', this.pythonProcess, reason);
       closeTasks.push(killProcessTree(pythonPid, this.logger));
     }
     if (javaPid) {
+      this.markExpectedProcessExit('java', this.javaProcess, reason);
       closeTasks.push(killProcessTree(javaPid, this.logger));
     }
 
@@ -494,7 +586,7 @@ class RuntimeManager extends EventEmitter {
         this.logger.info('Local runtime ready', this.state);
         return this.getState();
       } catch (error) {
-        await this.cleanupProcesses();
+        await this.cleanupProcesses('startup-cleanup');
         this.running = false;
         this.updateState({
           status: 'failed',
@@ -516,7 +608,7 @@ class RuntimeManager extends EventEmitter {
   }
 
   async restart() {
-    await this.stop();
+    await this.stop({ reason: 'restart' });
     this.updateState({
       status: 'starting-window',
       message: '正在重新准备本地服务',
@@ -524,7 +616,8 @@ class RuntimeManager extends EventEmitter {
     return this.start();
   }
 
-  async stop() {
+  async stop(options = {}) {
+    const { reason = 'stop' } = options;
     if (this.stopPromise) {
       return this.stopPromise;
     }
@@ -547,7 +640,7 @@ class RuntimeManager extends EventEmitter {
         invokeAppCdsDynamicDump(this.javaProcess.pid, this.appCdsContext, this.layout.javaExe, this.logger);
       }
 
-      await this.cleanupProcesses();
+      await this.cleanupProcesses(reason);
       this.running = false;
       this.startPromise = null;
       this.layout = null;
@@ -574,5 +667,6 @@ class RuntimeManager extends EventEmitter {
 }
 
 module.exports = {
+  classifyProcessExit,
   RuntimeManager,
 };
