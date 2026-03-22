@@ -15,10 +15,12 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
 import request from '../../utils/request';
+import * as astroService from '../../services/astro';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
 import { normalizeContentHeight } from '../../utils/layout';
+import { randomStr, } from '../../utils/helper';
 
 const TabPane = Tabs.TabPane;
 const PD_SYNC_REV = 'pd_method_sync_v6';
@@ -402,6 +404,51 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 	return fields;
 }
 
+function buildChartRequestFromFields(fields, chartObj, options = {}){
+	const chart = chartObj || {};
+	const desiredPdMethod = options.pdMethod || (chart.params && chart.params.pdMethod) || DEFAULT_PD_METHOD;
+	const desiredPdTimeKey = options.pdTimeKey || (chart.params && chart.params.pdTimeKey) || DEFAULT_PD_TIME_KEY;
+	const nextFields = buildPrimaryDirectionFetchFields(
+		fields,
+		chart,
+		desiredPdMethod,
+		desiredPdTimeKey
+	);
+	const dateValue = nextFields.date && nextFields.date.value;
+	const timeValue = nextFields.time && nextFields.time.value;
+	if(!dateValue || !timeValue || !dateValue.format || !timeValue.format){
+		return null;
+	}
+	return {
+		date: dateValue.format('YYYY/MM/DD'),
+		time: timeValue.format('HH:mm:ss'),
+		ad: nextFields.ad && nextFields.ad.value !== undefined ? nextFields.ad.value : (dateValue.ad !== undefined ? dateValue.ad : 1),
+		zone: nextFields.zone ? nextFields.zone.value : undefined,
+		lat: nextFields.lat ? nextFields.lat.value : undefined,
+		lon: nextFields.lon ? nextFields.lon.value : undefined,
+		gpsLat: nextFields.gpsLat ? nextFields.gpsLat.value : undefined,
+		gpsLon: nextFields.gpsLon ? nextFields.gpsLon.value : undefined,
+		hsys: nextFields.hsys ? nextFields.hsys.value : 0,
+		southchart: nextFields.southchart ? nextFields.southchart.value : 0,
+		zodiacal: nextFields.zodiacal ? nextFields.zodiacal.value : 0,
+		tradition: nextFields.tradition ? nextFields.tradition.value : 0,
+		strongRecption: nextFields.strongRecption ? nextFields.strongRecption.value : 0,
+		simpleAsp: nextFields.simpleAsp ? nextFields.simpleAsp.value : 0,
+		virtualPointReceiveAsp: nextFields.virtualPointReceiveAsp ? nextFields.virtualPointReceiveAsp.value : 0,
+		doubingSu28: nextFields.doubingSu28 ? nextFields.doubingSu28.value : 0,
+		predictive: options.predictive === undefined ? true : !!options.predictive,
+		includePrimaryDirection: options.includePrimaryDirection === true,
+		showPdBounds: nextFields.showPdBounds ? nextFields.showPdBounds.value : 1,
+		pdtype: nextFields.pdtype ? nextFields.pdtype.value : DEFAULT_PD_TYPE,
+		pdMethod: desiredPdMethod,
+		pdTimeKey: desiredPdTimeKey,
+		pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
+		name: nextFields.name ? nextFields.name.value : null,
+		pos: nextFields.pos ? nextFields.pos.value : null,
+		cid: null,
+	};
+}
+
 function isPrimaryDirectionTabKey(key){
 	return key === 'primarydirect' || key === 'primarydirchart';
 }
@@ -426,6 +473,8 @@ class AstroDirectMain extends Component{
 
 		this.state = {
 			currentTab: this.normalizeTab(props.currentSubTab),
+			firdariaLoading: false,
+			firdariaError: '',
 			hook:{
 				primarydirect:{
 					fun: null
@@ -468,10 +517,13 @@ class AstroDirectMain extends Component{
 		this.saveFirdariaSnapshot = this.saveFirdariaSnapshot.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		this.ensurePrimaryDirectionReady = this.ensurePrimaryDirectionReady.bind(this);
+		this.ensureFirdariaReady = this.ensureFirdariaReady.bind(this);
 		this.requestPrimaryDirectionRows = this.requestPrimaryDirectionRows.bind(this);
+		this.requestFirdariaRows = this.requestFirdariaRows.bind(this);
 		this.buildPrimaryDirectionRequest = this.buildPrimaryDirectionRequest.bind(this);
 		this.getDesiredPdConfig = this.getDesiredPdConfig.bind(this);
 		this.needsPrimaryDirectionLoad = this.needsPrimaryDirectionLoad.bind(this);
+		this.needsFirdariaLoad = this.needsFirdariaLoad.bind(this);
 		this.syncCurrentSubTab = this.syncCurrentSubTab.bind(this);
 		this.normalizeTab = this.normalizeTab.bind(this);
 		this.isActive = this.isActive.bind(this);
@@ -479,6 +531,8 @@ class AstroDirectMain extends Component{
 		this.unmounted = false;
 		this.primaryDirectionInflightKey = '';
 		this.primaryDirectionRequestSeq = 0;
+		this.firdariaInflightKey = '';
+		this.firdariaRequestSeq = 0;
 
 		if(this.props.hook){
 			this.props.hook.fun = (chartobj)=>{
@@ -534,45 +588,16 @@ class AstroDirectMain extends Component{
 	buildPrimaryDirectionRequest(chartObj){
 		const chart = chartObj || this.props.chartObj || {};
 		const desired = this.getDesiredPdConfig(chart);
-		const nextFields = buildPrimaryDirectionFetchFields(
+		return buildChartRequestFromFields(
 			this.props.fields,
 			chart,
-			desired.pdMethod,
-			desired.pdTimeKey
+			{
+				predictive: true,
+				includePrimaryDirection: true,
+				pdMethod: desired.pdMethod,
+				pdTimeKey: desired.pdTimeKey,
+			}
 		);
-		const dateValue = nextFields.date && nextFields.date.value;
-		const timeValue = nextFields.time && nextFields.time.value;
-		if(!dateValue || !timeValue || !dateValue.format || !timeValue.format){
-			return null;
-		}
-		return {
-			date: dateValue.format('YYYY/MM/DD'),
-			time: timeValue.format('HH:mm:ss'),
-			ad: nextFields.ad && nextFields.ad.value !== undefined ? nextFields.ad.value : (dateValue.ad !== undefined ? dateValue.ad : 1),
-			zone: nextFields.zone ? nextFields.zone.value : undefined,
-			lat: nextFields.lat ? nextFields.lat.value : undefined,
-			lon: nextFields.lon ? nextFields.lon.value : undefined,
-			gpsLat: nextFields.gpsLat ? nextFields.gpsLat.value : undefined,
-			gpsLon: nextFields.gpsLon ? nextFields.gpsLon.value : undefined,
-			hsys: nextFields.hsys ? nextFields.hsys.value : 0,
-			southchart: nextFields.southchart ? nextFields.southchart.value : 0,
-			zodiacal: nextFields.zodiacal ? nextFields.zodiacal.value : 0,
-			tradition: nextFields.tradition ? nextFields.tradition.value : 0,
-			strongRecption: nextFields.strongRecption ? nextFields.strongRecption.value : 0,
-			simpleAsp: nextFields.simpleAsp ? nextFields.simpleAsp.value : 0,
-			virtualPointReceiveAsp: nextFields.virtualPointReceiveAsp ? nextFields.virtualPointReceiveAsp.value : 0,
-			doubingSu28: nextFields.doubingSu28 ? nextFields.doubingSu28.value : 0,
-			predictive: true,
-			includePrimaryDirection: true,
-			showPdBounds: nextFields.showPdBounds ? nextFields.showPdBounds.value : 1,
-			pdtype: DEFAULT_PD_TYPE,
-			pdMethod: desired.pdMethod,
-			pdTimeKey: desired.pdTimeKey,
-			pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
-			name: nextFields.name ? nextFields.name.value : null,
-			pos: nextFields.pos ? nextFields.pos.value : null,
-			cid: null,
-		};
 	}
 
 	needsPrimaryDirectionLoad(chartObj){
@@ -603,6 +628,16 @@ class AstroDirectMain extends Component{
 			return true;
 		}
 		return pds.length === 0;
+	}
+
+	needsFirdariaLoad(chartObj){
+		if(this.state.currentTab !== 'firdaria'){
+			return false;
+		}
+		const chart = chartObj || this.props.chartObj || {};
+		const predictives = chart.predictives || {};
+		const firdaria = Array.isArray(predictives.firdaria) ? predictives.firdaria : [];
+		return firdaria.length === 0;
 	}
 
 	async requestPrimaryDirectionRows(){
@@ -674,12 +709,106 @@ class AstroDirectMain extends Component{
 		return nextChartObj;
 	}
 
+	async requestFirdariaRows(){
+		const chartObj = this.props.chartObj || {};
+		const desired = this.getDesiredPdConfig(chartObj);
+		const req = buildChartRequestFromFields(this.props.fields, chartObj, {
+			predictive: true,
+			includePrimaryDirection: false,
+			pdMethod: desired.pdMethod,
+			pdTimeKey: desired.pdTimeKey,
+		});
+		if(!req || !this.props.dispatch){
+			return null;
+		}
+		const reqKey = JSON.stringify({
+			tab: this.state.currentTab,
+			date: req.date,
+			time: req.time,
+			zone: req.zone,
+			lat: req.lat,
+			lon: req.lon,
+			hsys: req.hsys,
+			zodiacal: req.zodiacal,
+			tradition: req.tradition,
+			doubingSu28: req.doubingSu28,
+		});
+		if(this.firdariaInflightKey === reqKey){
+			return null;
+		}
+		this.firdariaInflightKey = reqKey;
+		const seq = ++this.firdariaRequestSeq;
+		this.setState({
+			firdariaLoading: true,
+			firdariaError: '',
+		});
+		let result = null;
+		let requestFailed = false;
+		try{
+			const data = await astroService.fetchChart(req, {
+				silent: true,
+				cache: false,
+			});
+			result = data ? data[Constants.ResultKey] : null;
+		}catch(e){
+			requestFailed = true;
+			result = null;
+		}
+		if(this.unmounted || seq !== this.firdariaRequestSeq){
+			return null;
+		}
+		this.firdariaInflightKey = '';
+		const nextPredictives = result && result.predictives ? result.predictives : {};
+		const firdariaRows = Array.isArray(nextPredictives.firdaria) ? nextPredictives.firdaria : null;
+		if(!firdariaRows || firdariaRows.length === 0){
+			this.setState({
+				firdariaLoading: false,
+				firdariaError: requestFailed ? '法达数据加载失败' : '暂无法达数据',
+			});
+			return null;
+		}
+		const nextChartObj = {
+			...result,
+			chartId: chartObj.chartId || randomStr(8),
+			params: {
+				...(result.params || {}),
+				name: req.name,
+				pos: req.pos,
+			},
+		};
+		this.setState({
+			firdariaLoading: false,
+			firdariaError: '',
+		});
+		this.saveFirdariaSnapshot(nextChartObj);
+		this.props.dispatch({
+			type: 'astro/save',
+			payload: {
+				chartObj: nextChartObj,
+			},
+		});
+		return nextChartObj;
+	}
+
 	ensurePrimaryDirectionReady(){
 		if(!this.needsPrimaryDirectionLoad()){
 			this.primaryDirectionInflightKey = '';
 			return;
 		}
 		this.requestPrimaryDirectionRows();
+	}
+
+	ensureFirdariaReady(){
+		if(!this.needsFirdariaLoad()){
+			this.firdariaInflightKey = '';
+			if(this.state.firdariaError){
+				this.setState({
+					firdariaError: '',
+				});
+			}
+			return;
+		}
+		this.requestFirdariaRows();
 	}
 
 	savePrimaryDirectSnapshot(chartObjInput){
@@ -717,8 +846,8 @@ class AstroDirectMain extends Component{
 		return txt;
 	}
 
-	saveFirdariaSnapshot(){
-		const txt = buildFirdariaSnapshotText(this.props.chartObj);
+	saveFirdariaSnapshot(chartObjInput){
+		const txt = buildFirdariaSnapshotText(chartObjInput || this.props.chartObj);
 		if(!txt){
 			return '';
 		}
@@ -759,6 +888,15 @@ class AstroDirectMain extends Component{
 			return;
 		}
 		if(evt.detail.module === 'firdaria'){
+			if(this.needsFirdariaLoad()){
+				this.requestFirdariaRows().then((nextChartObj)=>{
+					const txt = this.saveFirdariaSnapshot(nextChartObj);
+					if(txt){
+						evt.detail.snapshotText = txt;
+					}
+				});
+				return;
+			}
 			const txt = this.saveFirdariaSnapshot();
 			if(txt){
 				evt.detail.snapshotText = txt;
@@ -774,6 +912,7 @@ class AstroDirectMain extends Component{
 		if(this.isActive()){
 			this.syncCurrentSubTab();
 			this.ensurePrimaryDirectionReady();
+			this.ensureFirdariaReady();
 			this.saveDirectionSnapshot();
 		}
 	}
@@ -797,6 +936,7 @@ class AstroDirectMain extends Component{
 				}
 				this.syncCurrentSubTab();
 				this.ensurePrimaryDirectionReady();
+				this.ensureFirdariaReady();
 				this.saveDirectionSnapshot();
 			}
 			return;
@@ -831,6 +971,7 @@ class AstroDirectMain extends Component{
 			|| prevProps.fields !== this.props.fields
 		){
 			this.ensurePrimaryDirectionReady();
+			this.ensureFirdariaReady();
 		}
 	}
 
@@ -843,6 +984,7 @@ class AstroDirectMain extends Component{
 			if(this.isActive()){
 				this.syncCurrentSubTab();
 				this.ensurePrimaryDirectionReady();
+				this.ensureFirdariaReady();
 				this.saveDirectionSnapshot();
 			}
 			if(hook[nextTab].fun){
@@ -952,6 +1094,8 @@ class AstroDirectMain extends Component{
 						<AstroFirdaria 
 								value={this.props.chartObj} 
 								height={height}
+								loading={this.state.firdariaLoading}
+								error={this.state.firdariaError}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>

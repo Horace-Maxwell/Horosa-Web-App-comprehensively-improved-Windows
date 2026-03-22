@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { Row, Col, Table, Divider, } from 'antd';
+import { Row, Col, Table, Divider, Empty, Spin, Alert, } from 'antd';
 import {randomStr} from '../../utils/helper';
 import AstroObjectLabel from './AstroObjectLabel';
 import {TableOddRowBgColor} from '../../utils/constants'
@@ -86,6 +86,21 @@ class AstroFirdaria extends Component{
 		return dom;
 	}
 
+	renderStatus(style, message){
+		return (
+			<div className={styles.scrollbar} style={style}>
+				<div style={{
+					minHeight: 220,
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					padding: '16px',
+				}}>
+					{message}
+				</div>
+			</div>
+		);
+	}
 
 	render(){
 		let chart = this.props.value ? this.props.value : {};
@@ -98,6 +113,15 @@ class AstroFirdaria extends Component{
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};
+		if(this.props.loading){
+			return this.renderStatus(style, <Spin tip='法达数据加载中...' />);
+		}
+		if(this.props.error){
+			return this.renderStatus(style, <Alert type='warning' showIcon message={this.props.error} />);
+		}
+		if(!Array.isArray(firdaria) || firdaria.length === 0){
+			return this.renderStatus(style, <Empty description='暂无法达数据' />);
+		}
 
 		let doms = [];
 		let rows = [];

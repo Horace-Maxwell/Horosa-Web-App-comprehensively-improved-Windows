@@ -34,7 +34,7 @@ const VALID_MAIN_TABS = [
 const STRICT_SUB_TABS = {
 	cntradition: ['bazi', 'ziwei', '74'],
 	cnyibu: ['suzhan', 'guazhan', 'liureng', 'jinkou', 'dunjia', 'taiyi', 'tongshefa'],
-	direction: ['primarydirect', 'primarydirchart'],
+	direction: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials'],
 };
 const DEFAULT_SUB_TAB = {
 	cntradition: 'bazi',
