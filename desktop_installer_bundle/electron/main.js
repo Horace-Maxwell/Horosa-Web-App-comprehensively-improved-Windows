@@ -21,6 +21,8 @@ const DEFAULT_UPDATE_PUBLISH_CONFIG = Object.freeze({
   owner: 'Horace-Maxwell',
   repo: 'Horosa-Web-App-comprehensively-improved-Windows',
 });
+const AUTO_UPDATE_ENABLED = false;
+const AUTO_UPDATE_DISABLED_MESSAGE = '当前安装包版不启用应用内自动更新，请从 GitHub Release 下载新版安装器。';
 
 app.setPath('userData', horosaDataRoot);
 
@@ -42,8 +44,8 @@ let isQuitting = false;
 let isShuttingDown = false;
 let shutdownPromise = null;
 let updateState = {
-  status: app.isPackaged ? 'idle' : 'unsupported',
-  message: app.isPackaged ? '等待检查更新' : '开发模式下不启用自动更新',
+  status: app.isPackaged && AUTO_UPDATE_ENABLED ? 'idle' : 'unsupported',
+  message: app.isPackaged && AUTO_UPDATE_ENABLED ? '等待检查更新' : AUTO_UPDATE_DISABLED_MESSAGE,
 };
 
 function createUpdaterLogger() {
@@ -106,7 +108,7 @@ function getConfiguredPublishOptions() {
 }
 
 function ensureAutoUpdater() {
-  if (!app.isPackaged) {
+  if (!app.isPackaged || !AUTO_UPDATE_ENABLED) {
     return null;
   }
 
@@ -176,10 +178,10 @@ function applyUpdateErrorState(error, { manual = false } = {}) {
 }
 
 async function runUpdateCheck({ manual = false } = {}) {
-  if (!app.isPackaged) {
+  if (!app.isPackaged || !AUTO_UPDATE_ENABLED) {
     setUpdateState({
       status: 'unsupported',
-      message: '开发模式下不启用自动更新',
+      message: AUTO_UPDATE_DISABLED_MESSAGE,
     });
     return updateState;
   }
@@ -960,7 +962,11 @@ function createAppMenu() {
 }
 
 function configureAutoUpdater() {
-  if (!app.isPackaged) {
+  if (!app.isPackaged || !AUTO_UPDATE_ENABLED) {
+    setUpdateState({
+      status: 'unsupported',
+      message: AUTO_UPDATE_DISABLED_MESSAGE,
+    });
     return;
   }
 
@@ -1022,7 +1028,7 @@ function configureAutoUpdater() {
 }
 
 function queueUpdateCheck() {
-  if (!app.isPackaged || updateCheckTimer) {
+  if (!app.isPackaged || !AUTO_UPDATE_ENABLED || updateCheckTimer) {
     return;
   }
 
