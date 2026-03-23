@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } = require('electron');
+const { NsisUpdater } = require('electron-updater');
 const packageMetadata = require('../package.json');
 const { createLogger } = require('./logger');
 const { RuntimeManager } = require('./service-manager');
@@ -15,17 +16,21 @@ const DEFAULT_ZOOM_FACTOR = 0.8;
 const MIN_ZOOM_FACTOR = 0.6;
 const MAX_ZOOM_FACTOR = 1.6;
 const ZOOM_STEP = 0.1;
-const FOREGROUND_RESET_DELAY_MS = 150;
-const APP_QUIT_TIMEOUT_MS = 15000;
-const LATEST_RELEASE_URL = 'https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest';
-const MANUAL_INSTALLER_UPDATE_MESSAGE = '当前版本改为通过 GitHub Releases 下载完整安装器更新，请下载最新 Horosa-Setup 安装包后覆盖安装。';
+const DEFAULT_UPDATE_PUBLISH_CONFIG = Object.freeze({
+  provider: 'github',
+  owner: 'Horace-Maxwell',
+  repo: 'Horosa-Web-App-comprehensively-improved-Windows',
+});
 
 app.setPath('userData', horosaDataRoot);
 
 let mainWindow = null;
 let runtimeManager = null;
 let logger = null;
+let autoUpdater = null;
 let runtimeBootPromise = null;
+let updateCheckTimer = null;
+let updateCheckContext = 'idle';
 let currentWindowBoundsMode = 'default-maximized-80';
 let currentPage = 'loading';
 let windowStateSaveTimer = null;
@@ -33,54 +38,171 @@ let initialWindowNormalizationTimers = [];
 let hasAppliedInitialWindowState = false;
 let lastNormalWindowBounds = null;
 let currentZoomFactor = DEFAULT_ZOOM_FACTOR;
-let quitRequested = false;
-let isForceExiting = false;
-let quitFlowPromise = null;
-let pendingRelaunch = false;
-let quitForceExitTimer = null;
-let suppressWindowCloseQuit = false;
-let windowRecreationInProgress = false;
+let isQuitting = false;
+let isShuttingDown = false;
+let shutdownPromise = null;
 let updateState = {
-  status: app.isPackaged ? 'manual-installer-only' : 'unsupported',
-  message: app.isPackaged ? MANUAL_INSTALLER_UPDATE_MESSAGE : '开发模式下不启用安装器更新',
-  latestReleaseUrl: app.isPackaged ? LATEST_RELEASE_URL : null,
+  status: app.isPackaged ? 'idle' : 'unsupported',
+  message: app.isPackaged ? '等待检查更新' : '开发模式下不启用自动更新',
 };
 
-function buildManualInstallerUpdateState(options = {}) {
-  const { opened = false } = options;
+function createUpdaterLogger() {
   return {
-    status: 'manual-installer-only',
-    message: opened
-      ? '已打开 GitHub Releases 下载页，请下载安装最新 Horosa-Setup 安装包。'
-      : MANUAL_INSTALLER_UPDATE_MESSAGE,
-    latestReleaseUrl: LATEST_RELEASE_URL,
+    info(...args) {
+      if (logger) {
+        logger.info('[updater]', ...args);
+      }
+    },
+    warn(...args) {
+      if (logger) {
+        logger.warn('[updater]', ...args);
+      }
+    },
+    error(...args) {
+      if (logger) {
+        logger.error('[updater]', ...args);
+      }
+    },
+    debug(...args) {
+      if (logger) {
+        logger.info('[updater]', ...args);
+      }
+    },
   };
+}
+
+function logLifecycle(message, payload) {
+  if (logger) {
+    logger.info(message, payload || {});
+  }
+}
+
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+function getConfiguredPublishOptions() {
+  const publishConfig = packageMetadata && packageMetadata.build ? packageMetadata.build.publish : null;
+  const firstPublishConfig = Array.isArray(publishConfig) ? publishConfig[0] : publishConfig;
+  if (!firstPublishConfig || firstPublishConfig.provider !== 'github') {
+    return { ...DEFAULT_UPDATE_PUBLISH_CONFIG };
+  }
+
+  return {
+    ...DEFAULT_UPDATE_PUBLISH_CONFIG,
+    ...firstPublishConfig,
+  };
+}
+
+function ensureAutoUpdater() {
+  if (!app.isPackaged) {
+    return null;
+  }
+
+  if (autoUpdater) {
+    return autoUpdater;
+  }
+
+  const publishConfig = getConfiguredPublishOptions();
+  autoUpdater = new NsisUpdater(publishConfig);
+  autoUpdater.logger = createUpdaterLogger();
+  if (logger) {
+    logger.info('Configured NSIS updater', publishConfig);
+  }
+  return autoUpdater;
+}
+
+function isOfflineUpdateError(message) {
+  const normalizedMessage = String(message || '').toLowerCase();
+  return [
+    'enetunreach',
+    'econnreset',
+    'econnrefused',
+    'etimedout',
+    'err_internet_disconnected',
+    'internet disconnected',
+    'net::err_network_changed',
+    'net::err_name_not_resolved',
+    'enotfound',
+    'network request failed',
+    'socket hang up',
+    'timeout',
+  ].some((pattern) => normalizedMessage.includes(pattern));
+}
+
+function formatUpdateErrorMessage(error, { manual = false } = {}) {
+  const rawMessage = error && error.message ? error.message : String(error || '');
+
+  if (rawMessage.includes('app-update.yml')) {
+    return manual
+      ? '更新功能初始化失败，请安装最新完整安装包后重试。'
+      : '更新暂不可用，已跳过后台检查。';
+  }
+
+  if (isOfflineUpdateError(rawMessage)) {
+    return manual
+      ? '网络不可用，暂时无法检查更新。'
+      : '当前网络不可用，已跳过后台更新检查。';
+  }
+
+  return manual
+    ? `检查更新失败：${rawMessage || '请稍后重试。'}`
+    : '更新暂不可用，已跳过后台检查。';
+}
+
+function applyUpdateErrorState(error, { manual = false } = {}) {
+  const rawMessage = error && error.message ? error.message : String(error || '检查更新失败');
+  if (logger) {
+    logger.warn('Auto update failed', {
+      manual,
+      message: rawMessage,
+    });
+  }
+  setUpdateState({
+    status: manual ? 'error' : 'unavailable',
+    message: formatUpdateErrorMessage(error, { manual }),
+  });
 }
 
 async function runUpdateCheck({ manual = false } = {}) {
   if (!app.isPackaged) {
     setUpdateState({
       status: 'unsupported',
-      message: '开发模式下不启用安装器更新',
-      latestReleaseUrl: null,
+      message: '开发模式下不启用自动更新',
     });
     return updateState;
   }
 
-  try {
-    if (manual) {
-      await shell.openExternal(LATEST_RELEASE_URL);
-    }
-    setUpdateState(buildManualInstallerUpdateState({ opened: manual }));
-  } catch (error) {
-    if (logger) {
-      logger.warn('Failed to open installer release page', error && error.message ? error.message : String(error));
-    }
+  const updater = ensureAutoUpdater();
+  if (!updater) {
     setUpdateState({
-      status: 'manual-installer-only',
-      message: `请手动打开 GitHub Releases 下载最新 Horosa-Setup 安装包：${LATEST_RELEASE_URL}`,
-      latestReleaseUrl: LATEST_RELEASE_URL,
+      status: manual ? 'error' : 'unavailable',
+      message: manual ? '自动更新未启用。' : '更新暂不可用，已跳过后台检查。',
     });
+    return updateState;
+  }
+
+  const context = manual ? 'manual' : 'background';
+  updateCheckContext = context;
+
+  try {
+    await updater.checkForUpdates();
+  } catch (error) {
+    if (updateCheckContext === context) {
+      updateCheckContext = 'idle';
+      applyUpdateErrorState(error, { manual });
+    }
   }
 
   return updateState;
@@ -119,113 +241,6 @@ function getBootstrapConfig() {
     serverRoot: runtimeState.serverRoot || 'http://127.0.0.1:9999',
     userDataPath: app.getPath('userData'),
   };
-}
-
-function setMainWindowTitle(nextTitle) {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  try {
-    mainWindow.setTitle(nextTitle);
-  } catch (_error) {
-    // Ignore title sync failures on platforms that do not support it consistently.
-  }
-}
-
-function clearQuitForceExitTimer() {
-  if (!quitForceExitTimer) {
-    return;
-  }
-  clearTimeout(quitForceExitTimer);
-  quitForceExitTimer = null;
-}
-
-function getMainWindowDiagnostics() {
-  const browserWindowCount = BrowserWindow.getAllWindows().length;
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return {
-      exists: false,
-      browserWindowCount,
-    };
-  }
-
-  const webContents = mainWindow.webContents;
-  return {
-    exists: true,
-    browserWindowCount,
-    isDestroyed: mainWindow.isDestroyed(),
-    isVisible: mainWindow.isVisible(),
-    isMinimized: mainWindow.isMinimized(),
-    isFocused: mainWindow.isFocused(),
-    currentPage,
-    webContentsDestroyed: !webContents || webContents.isDestroyed(),
-    webContentsCrashed: webContents && typeof webContents.isCrashed === 'function' ? webContents.isCrashed() : false,
-    url: webContents && !webContents.isDestroyed() ? webContents.getURL() : null,
-  };
-}
-
-function hasUsableMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  const webContents = mainWindow.webContents;
-  if (!webContents || webContents.isDestroyed()) {
-    return false;
-  }
-  if (typeof webContents.isCrashed === 'function' && webContents.isCrashed()) {
-    return false;
-  }
-
-  return true;
-}
-
-function bringWindowToFront(reason = 'unknown') {
-  if (!hasUsableMainWindow()) {
-    return;
-  }
-
-  const wasMinimized = mainWindow.isMinimized();
-  const wasVisible = mainWindow.isVisible();
-
-  try {
-    if (wasMinimized) {
-      mainWindow.restore();
-    }
-    if (!wasVisible) {
-      mainWindow.show();
-    }
-
-    if (typeof mainWindow.moveTop === 'function') {
-      mainWindow.moveTop();
-    }
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
-    mainWindow.focus();
-    setTimeout(() => {
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return;
-      }
-      mainWindow.setAlwaysOnTop(false);
-    }, FOREGROUND_RESET_DELAY_MS);
-  } catch (error) {
-    if (logger) {
-      logger.warn('Failed to bring window to front', {
-        reason,
-        message: error && error.message ? error.message : String(error),
-      });
-    }
-    return;
-  }
-
-  if (logger) {
-    logger.info('Foreground activation path', {
-      reason,
-      page: currentPage,
-      wasMinimized,
-      wasVisible,
-    });
-  }
 }
 
 function broadcast(channel, payload) {
@@ -566,50 +581,134 @@ function resetZoomFactor() {
 }
 
 async function showLoadingScreen() {
-  if (!hasUsableMainWindow()) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
   currentPage = 'loading';
-  setMainWindowTitle('星阙启动中');
   await mainWindow.loadFile(loadingPagePath);
   publishCurrentStates();
 }
 
 async function loadRendererApp() {
-  if (!hasUsableMainWindow()) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
   currentPage = 'renderer';
-  setMainWindowTitle('星阙');
   await mainWindow.loadFile(getRendererIndexPath(), {
     hash: '/',
   });
   publishCurrentStates();
 }
 
-function showBootstrapWindow(bounds, reason = 'bootstrap') {
-  if (!hasUsableMainWindow()) {
+async function ensureMainWindowContent() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
-  applyStartupMaximizedWindowState(bounds, reason);
-  lastNormalWindowBounds = normalizeBounds(bounds);
-  if (!hasAppliedInitialWindowState) {
-    hasAppliedInitialWindowState = true;
-    scheduleInitialWindowNormalization(bounds);
-    queueWindowStateSave();
+  const runtimeState = runtimeManager ? runtimeManager.getState() : {};
+  if (runtimeState.status === 'ready') {
+    if (currentPage !== 'renderer') {
+      await loadRendererApp();
+    }
+    return;
   }
 
-  bringWindowToFront(reason);
-  if (logger) {
-    logger.info('Bootstrap window shown', {
-      reason,
-      bounds,
-      page: currentPage,
+  if (currentPage !== 'loading') {
+    await showLoadingScreen();
+  }
+
+  if (!runtimeBootPromise && runtimeManager) {
+    startRuntimeFlow().catch((error) => {
+      if (logger) {
+        logger.error('Failed to restart runtime while restoring main window', error);
+      }
     });
   }
+}
+
+async function restoreOrCreateMainWindow(reason) {
+  logLifecycle('Main window activation requested', {
+    reason,
+    hasMainWindow: Boolean(mainWindow),
+    isQuitting,
+    isShuttingDown,
+    currentPage,
+  });
+
+  if (isShuttingDown) {
+    return;
+  }
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    await createMainWindow();
+    await ensureMainWindowContent();
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  if (!mainWindow.isFocused()) {
+    mainWindow.focus();
+  }
+}
+
+async function requestAppQuit(reason) {
+  logLifecycle('Application shutdown requested', {
+    reason,
+    hasMainWindow: Boolean(mainWindow && !mainWindow.isDestroyed()),
+    runtimePage: currentPage,
+    runtimeStatus: runtimeManager ? runtimeManager.getState().status : 'uninitialized',
+  });
+
+  if (shutdownPromise) {
+    return shutdownPromise;
+  }
+
+  isQuitting = true;
+  isShuttingDown = true;
+
+  shutdownPromise = (async () => {
+    if (windowStateSaveTimer) {
+      clearTimeout(windowStateSaveTimer);
+      windowStateSaveTimer = null;
+    }
+    saveWindowState();
+
+    if (runtimeManager) {
+      try {
+        await withTimeout(
+          runtimeManager.stop(reason === 'before-quit' ? 'quit' : reason),
+          12000,
+          'Timed out waiting for local runtime shutdown'
+        );
+      } catch (error) {
+        if (logger) {
+          logger.error('Runtime shutdown failed or timed out', {
+            reason,
+            message: error && error.message ? error.message : String(error),
+          });
+        }
+      }
+    }
+  })()
+    .finally(() => {
+      logLifecycle('Finalizing application exit', { reason });
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.removeAllListeners('close');
+        mainWindow.destroy();
+      }
+      setImmediate(() => {
+        app.exit(0);
+      });
+    });
+
+  return shutdownPromise;
 }
 
 function createMainWindow() {
@@ -634,7 +733,7 @@ function createMainWindow() {
     maximizable: true,
     minimizable: true,
     fullscreenable: true,
-    title: '星阙启动中',
+    title: '星阙',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -713,7 +812,7 @@ function createMainWindow() {
           showLoadingScreen().catch(() => {});
           startRuntimeFlow({ restart: runtimeManager && runtimeManager.getState().status !== 'ready' }).catch(() => {});
         } else {
-          app.quit();
+          requestAppQuit('render-process-gone').catch(() => {});
         }
       })
       .catch(() => {});
@@ -733,7 +832,13 @@ function createMainWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
-    bringWindowToFront('ready-to-show');
+    applyStartupMaximizedWindowState(initialState.bounds, 'ready-to-show');
+    mainWindow.show();
+    mainWindow.focus();
+    lastNormalWindowBounds = normalizeBounds(initialState.bounds);
+    hasAppliedInitialWindowState = true;
+    scheduleInitialWindowNormalization(initialState.bounds);
+    queueWindowStateSave();
   });
 
   mainWindow.on('move', () => {
@@ -750,129 +855,25 @@ function createMainWindow() {
     queueWindowStateSave();
   });
   mainWindow.on('close', (event) => {
+    logLifecycle('Main window close event', {
+      isQuitting,
+      isShuttingDown,
+    });
     saveWindowState();
-    if (suppressWindowCloseQuit) {
-      suppressWindowCloseQuit = false;
-      return;
-    }
-    if (!quitRequested && !isForceExiting) {
+    if (!isQuitting) {
       event.preventDefault();
-      requestAppQuit('window-close');
+      requestAppQuit('window-close').catch(() => {});
     }
   });
   mainWindow.on('closed', () => {
+    logLifecycle('Main window closed', {
+      wasShuttingDown: isShuttingDown,
+    });
     clearInitialWindowNormalizationTimers();
-    if (logger) {
-      logger.info('Main window closed');
-    }
     mainWindow = null;
   });
 
-  showBootstrapWindow(initialState.bounds, 'initial-create');
   return showLoadingScreen();
-}
-
-async function recreateMainWindow(reason) {
-  if (logger) {
-    logger.warn('Recreating main window from existing instance', {
-      reason,
-      diagnostics: getMainWindowDiagnostics(),
-    });
-  }
-
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      windowRecreationInProgress = true;
-      suppressWindowCloseQuit = true;
-      mainWindow.destroy();
-    } catch (_error) {
-      windowRecreationInProgress = false;
-      suppressWindowCloseQuit = false;
-      // Ignore best-effort teardown failures before we recreate the window.
-    }
-  }
-  mainWindow = null;
-  try {
-    await createMainWindow();
-
-    if (!runtimeManager) {
-      return;
-    }
-
-    const runtimeState = runtimeManager.getState();
-    if (runtimeState.status === 'ready') {
-      await loadRendererApp();
-      bringWindowToFront(`${reason}-renderer-ready`);
-      return;
-    }
-
-    if (!runtimeBootPromise) {
-      startRuntimeFlow({
-        restart: runtimeState.status === 'failed' || runtimeState.status === 'stopped',
-      }).catch((error) => {
-        if (logger) {
-          logger.error('Failed to restart runtime while recreating window', error);
-        }
-      });
-    } else {
-      runtimeBootPromise.catch(() => {});
-    }
-
-    bringWindowToFront(`${reason}-loading`);
-  } finally {
-    windowRecreationInProgress = false;
-  }
-}
-
-async function ensureHealthyMainWindow(reason) {
-  if (hasUsableMainWindow()) {
-    bringWindowToFront(reason);
-    return true;
-  }
-
-  if (logger) {
-    logger.warn('Second-instance received but no healthy window found', {
-      reason,
-      diagnostics: getMainWindowDiagnostics(),
-    });
-  }
-
-  try {
-    await recreateMainWindow(reason);
-    return hasUsableMainWindow();
-  } catch (error) {
-    if (logger) {
-      logger.error('Failed to recover stale window state', error);
-    }
-    return false;
-  }
-}
-
-function requestAppQuit(reason, options = {}) {
-  const { relaunch = false } = options;
-  if (relaunch) {
-    pendingRelaunch = true;
-  }
-
-  if (!quitRequested) {
-    quitRequested = true;
-    if (logger) {
-      logger.info('Quit requested', {
-        reason,
-        relaunch: pendingRelaunch,
-      });
-    }
-  }
-
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      mainWindow.hide();
-    } catch (_error) {
-      // Ignore visibility sync failures during shutdown.
-    }
-  }
-
-  app.quit();
 }
 
 function createAppMenu() {
@@ -889,7 +890,9 @@ function createAppMenu() {
         {
           label: '退出',
           accelerator: 'Alt+F4',
-          click: () => requestAppQuit('menu-exit'),
+          click: () => {
+            requestAppQuit('menu-exit').catch(() => {});
+          },
         },
       ],
     },
@@ -938,7 +941,7 @@ function createAppMenu() {
       label: '帮助',
       submenu: [
         {
-          label: '下载最新安装包',
+          label: '检查更新',
           click: () => {
             runUpdateCheck({ manual: true }).catch(() => {});
           },
@@ -960,11 +963,73 @@ function configureAutoUpdater() {
   if (!app.isPackaged) {
     return;
   }
-  setUpdateState(buildManualInstallerUpdateState());
+
+  const updater = ensureAutoUpdater();
+  if (!updater) {
+    return;
+  }
+
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = false;
+
+  updater.on('checking-for-update', () => {
+    setUpdateState({
+      status: 'checking',
+      message: '正在检查更新',
+    });
+  });
+
+  updater.on('update-available', (info) => {
+    updateCheckContext = 'idle';
+    setUpdateState({
+      status: 'available',
+      message: `发现新版本 ${info.version}，正在下载`,
+      info,
+    });
+  });
+
+  updater.on('download-progress', (progress) => {
+    setUpdateState({
+      status: 'downloading',
+      message: '正在下载更新',
+      progress,
+    });
+  });
+
+  updater.on('update-not-available', (info) => {
+    updateCheckContext = 'idle';
+    setUpdateState({
+      status: 'not-available',
+      message: '当前已是最新版本',
+      info,
+    });
+  });
+
+  updater.on('update-downloaded', (info) => {
+    updateCheckContext = 'idle';
+    setUpdateState({
+      status: 'downloaded',
+      message: `更新 ${info.version} 已下载完成，重启即可安装`,
+      info,
+    });
+  });
+
+  updater.on('error', (error) => {
+    const manual = updateCheckContext === 'manual';
+    updateCheckContext = 'idle';
+    applyUpdateErrorState(error, { manual });
+  });
 }
 
 function queueUpdateCheck() {
-  return;
+  if (!app.isPackaged || updateCheckTimer) {
+    return;
+  }
+
+  updateCheckTimer = setTimeout(() => {
+    updateCheckTimer = null;
+    runUpdateCheck({ manual: false }).catch(() => {});
+  }, 15000);
 }
 
 function registerIpcHandlers() {
@@ -1000,10 +1065,20 @@ ipcMain.handle('desktop:get-app-info', async () => {
   });
 
   ipcMain.handle('desktop:install-downloaded-update', async () => {
+    const updater = ensureAutoUpdater();
+    if (!updater || updateState.status !== 'downloaded') {
+      return {
+        ok: false,
+        message: '当前没有可安装的已下载更新',
+      };
+    }
+
+    setImmediate(() => {
+      updater.quitAndInstall(false, true);
+    });
     return {
-      ok: false,
-      message: '当前发布渠道只提供完整安装器更新，请到 GitHub Releases 下载最新 Horosa-Setup 安装包后覆盖安装。',
-      latestReleaseUrl: LATEST_RELEASE_URL,
+      ok: true,
+      message: '即将退出并安装更新',
     };
   });
 
@@ -1099,7 +1174,6 @@ async function startRuntimeFlow({ restart = false } = {}) {
         logger.error('Runtime bootstrap failed', error);
       }
       await showLoadingScreen();
-      bringWindowToFront(restart ? 'runtime-restart-failed' : 'runtime-start-failed');
       publishCurrentStates();
       return runtimeManager.getState();
     } finally {
@@ -1108,65 +1182,6 @@ async function startRuntimeFlow({ restart = false } = {}) {
   })();
 
   return runtimeBootPromise;
-}
-
-async function performQuitFlow() {
-  if (quitFlowPromise) {
-    return quitFlowPromise;
-  }
-
-  quitFlowPromise = (async () => {
-    clearQuitForceExitTimer();
-    quitForceExitTimer = setTimeout(() => {
-      if (logger) {
-        logger.error('Quit flow timed out, forcing app exit', {
-          timeoutMs: APP_QUIT_TIMEOUT_MS,
-        });
-      }
-      if (pendingRelaunch) {
-        app.relaunch();
-      }
-      isForceExiting = true;
-      app.exit(0);
-    }, APP_QUIT_TIMEOUT_MS);
-    if (typeof quitForceExitTimer.unref === 'function') {
-      quitForceExitTimer.unref();
-    }
-
-    try {
-      if (windowStateSaveTimer) {
-        clearTimeout(windowStateSaveTimer);
-        windowStateSaveTimer = null;
-      }
-      saveWindowState();
-
-      if (runtimeManager) {
-        await runtimeManager.stop({
-          reason: pendingRelaunch ? 'relaunch' : 'quit',
-        }).catch((error) => {
-          if (logger) {
-            logger.error('Runtime stop failed during quit flow', error);
-          }
-        });
-      }
-
-      if (pendingRelaunch) {
-        app.relaunch();
-      }
-
-      if (logger) {
-        logger.info('App exiting', {
-          relaunch: pendingRelaunch,
-        });
-      }
-    } finally {
-      clearQuitForceExitTimer();
-      isForceExiting = true;
-      app.exit(0);
-    }
-  })();
-
-  return quitFlowPromise;
 }
 
 async function bootstrap() {
@@ -1191,23 +1206,18 @@ async function bootstrap() {
   });
 
   runtimeManager.on('runtime-error', async (error) => {
-    if (quitRequested || isForceExiting || pendingRelaunch) {
+    if (isQuitting || isShuttingDown) {
       if (logger) {
-        logger.warn('Ignoring runtime error during planned app exit', {
-          message: error && error.message ? error.message : String(error),
-          quitRequested,
-          isForceExiting,
-          pendingRelaunch,
+        logger.info('Ignoring runtime-error during planned app shutdown', {
+          message: error && error.message ? error.message : String(error || ''),
         });
       }
       return;
     }
-
     if (logger) {
       logger.error('Runtime error', error);
     }
     await showLoadingScreen();
-    bringWindowToFront('runtime-error');
     publishCurrentStates();
   });
 
@@ -1229,79 +1239,64 @@ async function bootstrap() {
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-  app.quit();
+  app.exit(0);
 } else {
   app.on('second-instance', () => {
-    app.whenReady().then(async () => {
-      const recovered = await ensureHealthyMainWindow('second-instance');
-      if (!recovered) {
-        if (logger) {
-          logger.error('Escalating to app relaunch after stale instance state', getMainWindowDiagnostics());
-        }
-        requestAppQuit('stale-instance-relaunch', { relaunch: true });
-      }
-    }).catch((error) => {
+    logLifecycle('second-instance received', {
+      hasMainWindow: Boolean(mainWindow && !mainWindow.isDestroyed()),
+      isShuttingDown,
+    });
+    restoreOrCreateMainWindow('second-instance').catch((error) => {
       if (logger) {
-        logger.error('Failed to process second-instance activation', error);
+        logger.error('Failed to restore main window for second instance', error);
       }
-      requestAppQuit('second-instance-recovery-failed', { relaunch: true });
     });
   });
 
   app.whenReady().then(bootstrap).catch((error) => {
     dialog.showErrorBox('星阙启动失败', error.message);
-    app.quit();
+    app.exit(1);
   });
 }
 
 app.on('activate', () => {
-  if (quitRequested || isForceExiting) {
-    return;
-  }
-  ensureHealthyMainWindow('activate').catch((error) => {
+  logLifecycle('Application activate event', {
+    hasMainWindow: Boolean(mainWindow && !mainWindow.isDestroyed()),
+    isShuttingDown,
+  });
+  restoreOrCreateMainWindow('activate').catch((error) => {
     if (logger) {
-      logger.error('Failed to recover window on activate', error);
+      logger.error('Failed to handle activate event', error);
     }
   });
 });
 
 app.on('window-all-closed', () => {
-  if (windowRecreationInProgress) {
-    if (logger) {
-      logger.info('Ignoring window-all-closed during window recreation');
-    }
-    return;
-  }
-  if (!quitRequested && !isForceExiting) {
-    requestAppQuit('window-all-closed');
+  logLifecycle('window-all-closed event', {
+    isQuitting,
+    isShuttingDown,
+  });
+  if (!isQuitting) {
+    requestAppQuit('window-all-closed').catch(() => {});
   }
 });
 
 app.on('before-quit', (event) => {
-  if (isForceExiting) {
-    return;
+  logLifecycle('before-quit event', {
+    isQuitting,
+    isShuttingDown,
+  });
+  if (!isQuitting) {
+    event.preventDefault();
+    requestAppQuit('before-quit').catch(() => {});
+  } else {
+    isShuttingDown = true;
   }
+});
 
-  event.preventDefault();
-  if (!quitRequested) {
-    quitRequested = true;
-    if (logger) {
-      logger.info('Quit requested', {
-        reason: 'before-quit',
-        relaunch: pendingRelaunch,
-      });
-    }
-  }
-
-  performQuitFlow().catch((error) => {
-    if (logger) {
-      logger.error('Quit flow failed unexpectedly', error);
-    }
-    clearQuitForceExitTimer();
-    if (pendingRelaunch) {
-      app.relaunch();
-    }
-    isForceExiting = true;
-    app.exit(1);
+app.on('will-quit', () => {
+  logLifecycle('will-quit event', {
+    isQuitting,
+    isShuttingDown,
   });
 });
