@@ -11,21 +11,53 @@ function findRcedit() {
     return process.env.RCEDIT_PATH;
   }
 
-  const cacheRoot = path.join(process.env.LOCALAPPDATA || "", "electron-builder", "Cache", "winCodeSign");
-  if (!fs.existsSync(cacheRoot)) {
-    return null;
+  const candidateRoots = new Set();
+  if (process.env.LOCALAPPDATA) {
+    candidateRoots.add(path.join(process.env.LOCALAPPDATA, "electron-builder", "Cache", "winCodeSign"));
+  }
+  if (process.env.USERPROFILE) {
+    candidateRoots.add(path.join(process.env.USERPROFILE, "AppData", "Local", "electron-builder", "Cache", "winCodeSign"));
+  }
+  if (process.env.ELECTRON_BUILDER_CACHE) {
+    candidateRoots.add(path.join(process.env.ELECTRON_BUILDER_CACHE, "winCodeSign"));
+    candidateRoots.add(process.env.ELECTRON_BUILDER_CACHE);
   }
 
+  const targetNames = new Set(["rcedit-x64.exe", "rcedit.exe"]);
   let newest = null;
-  for (const entry of fs.readdirSync(cacheRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const candidate = path.join(cacheRoot, entry.name, "rcedit-x64.exe");
-    if (!fs.existsSync(candidate)) continue;
-    const stat = fs.statSync(candidate);
-    if (!newest || stat.mtimeMs > newest.mtimeMs) {
-      newest = { file: candidate, mtimeMs: stat.mtimeMs };
+
+  for (const root of candidateRoots) {
+    if (!root || !fs.existsSync(root)) {
+      continue;
+    }
+
+    const queue = [root];
+    while (queue.length) {
+      const current = queue.shift();
+      let entries = [];
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch (_error) {
+        continue;
+      }
+
+      for (const entry of entries) {
+        const fullPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          queue.push(fullPath);
+          continue;
+        }
+        if (!targetNames.has(entry.name.toLowerCase())) {
+          continue;
+        }
+        const stat = fs.statSync(fullPath);
+        if (!newest || stat.mtimeMs > newest.mtimeMs) {
+          newest = { file: fullPath, mtimeMs: stat.mtimeMs };
+        }
+      }
     }
   }
+
   return newest ? newest.file : null;
 }
 
