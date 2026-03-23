@@ -11,6 +11,17 @@ function findRcedit() {
     return process.env.RCEDIT_PATH;
   }
 
+  const directCandidates = [
+    path.join(rootDir, "node_modules", "electron-winstaller", "vendor", "rcedit.exe"),
+    path.join(rootDir, "node_modules", "rcedit", "bin", "rcedit.exe"),
+    path.join(rootDir, "node_modules", "rcedit", "bin", "rcedit-x64.exe"),
+  ];
+  for (const candidate of directCandidates) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
   const candidateRoots = new Set();
   if (process.env.LOCALAPPDATA) {
     candidateRoots.add(path.join(process.env.LOCALAPPDATA, "electron-builder", "Cache", "winCodeSign"));
@@ -71,7 +82,7 @@ function main() {
 
   const rcedit = findRcedit();
   if (!rcedit) {
-    throw new Error("未找到 rcedit-x64.exe，请先运行一次 electron-builder 或设置 RCEDIT_PATH。");
+    throw new Error("未找到 rcedit.exe，请先安装依赖、运行 electron-builder，或设置 RCEDIT_PATH。");
   }
 
   console.log(`[patch:win-icon] exe=${exePath}`);
