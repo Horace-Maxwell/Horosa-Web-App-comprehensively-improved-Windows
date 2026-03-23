@@ -5,7 +5,7 @@ import * as AstroText from '../../constants/AstroText';
 import { splitDegree, convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import * as LRConst from '../liureng/LRConst';
-import ChuangChart from '../liureng/ChuangChart';
+import { buildLiuRengSanChuan, } from '../liureng/LRRuleHelper';
 import {
 	PAIPAN_OPTIONS,
 	ZHISHI_OPTIONS,
@@ -47,6 +47,7 @@ import {
 	XIAO_JU_REFERENCE_TAB_KEYS,
 } from '../lrzhan/LiuRengMain';
 import { TAB_BOTTOM_SAFE_GAP, getRectBottomLimit, normalizeContentHeight } from '../../utils/layout';
+import { calcViewportSquareSize, } from '../../utils/boardFit';
 import {
 	BAGONG_PALACE_ORDER,
 	BAGONG_PALACE_NAME,
@@ -222,6 +223,8 @@ const DAY_SWITCH_OPTIONS = [
 
 const SANSHI_BOARD_MIN = 380;
 const SANSHI_BOARD_MAX = 820;
+const SANSHI_BOARD_STACK_CHROME = 260;
+const SANSHI_BOTTOM_VISUAL_GAP = 28;
 const SANSHI_FAST_BUDGET_MS = 2200;
 const SANSHI_RECALC_DEFER_MS = 28;
 const SANSHI_SNAPSHOT_DEFER_MS = 120;
@@ -716,23 +719,13 @@ function buildSanChuan(layout, keRaw, chartObj){
 		return null;
 	}
 	try{
-		const helper = new ChuangChart({
-			owner: null,
-			chartObj: chartObj,
-			nongli: chartObj.nongli,
-			ke: keRaw,
-			liuRengChart: {
-				upZi: layout.upZi,
-				downZi: layout.downZi,
-				houseTianJiang: layout.houseTianJiang,
-			},
-			x: 0,
-			y: 0,
-			width: 0,
-			height: 0,
+		return buildLiuRengSanChuan({
+			dayGanZi: chartObj.nongli.dayGanZi,
+			upZi: layout.upZi,
+			downZi: layout.downZi,
+			houseTianJiang: layout.houseTianJiang,
+			keRaw,
 		});
-		helper.genCuangs();
-		return helper.cuangs || null;
 	}catch(e){
 		return null;
 	}
@@ -1441,6 +1434,9 @@ class SanShiUnitedMain extends Component{
 				taiyiAccum: 0,
 			},
 			leftBoardWidth: 0,
+			leftBoardHeight: 0,
+			boardTopHeight: 0,
+			boardBottomHeight: 0,
 			viewportHeight: getViewportHeight(),
 			rightTopHeight: 0,
 			rightPanelHeight: 0,
@@ -1460,6 +1456,8 @@ class SanShiUnitedMain extends Component{
 		this.liurengRefCache = new Map();
 		this.outerDataCache = { chartKey: '', data: null };
 		this.resizeObserver = null;
+		this.boardTopResizeObserver = null;
+		this.boardBottomResizeObserver = null;
 		this.rightTopResizeObserver = null;
 		this.prefetchSeedTimer = null;
 		this.awaitingChartSync = false;
@@ -1472,6 +1470,8 @@ class SanShiUnitedMain extends Component{
 		this.autoPlotTimer = null;
 		this.taiyiCache = new Map();
 		this.rootHost = null;
+		this.leftBoardViewportHost = null;
+		this.layoutMeasureFrame = null;
 
 		this.refreshAll = this.refreshAll.bind(this);
 		this.genParams = this.genParams.bind(this);
@@ -1503,8 +1503,12 @@ class SanShiUnitedMain extends Component{
 		this.restoreOptionsFromCurrentCase = this.restoreOptionsFromCurrentCase.bind(this);
 		this.captureRoot = this.captureRoot.bind(this);
 		this.captureLeftBoardHost = this.captureLeftBoardHost.bind(this);
+		this.captureLeftBoardViewport = this.captureLeftBoardViewport.bind(this);
+		this.captureBoardTopHost = this.captureBoardTopHost.bind(this);
+		this.captureBoardBottomHost = this.captureBoardBottomHost.bind(this);
 		this.captureRightPanel = this.captureRightPanel.bind(this);
 		this.captureRightTop = this.captureRightTop.bind(this);
+		this.scheduleWindowResizeMeasure = this.scheduleWindowResizeMeasure.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
 
 		if(this.props.hook){
@@ -1576,9 +1580,9 @@ class SanShiUnitedMain extends Component{
 	componentDidMount(){
 		this.unmounted = false;
 		this.restoreOptionsFromCurrentCase(true);
-		window.addEventListener('resize', this.handleWindowResize);
+		window.addEventListener('resize', this.scheduleWindowResizeMeasure);
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
-		this.handleWindowResize();
+		this.scheduleWindowResizeMeasure();
 		const activeFields = this.state.localFields || this.props.fields;
 		this.prefetchJieqiSeedForFields(activeFields);
 		this.prefetchNongliForFields(activeFields);
@@ -1604,8 +1608,12 @@ class SanShiUnitedMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
-		window.removeEventListener('resize', this.handleWindowResize);
+		window.removeEventListener('resize', this.scheduleWindowResizeMeasure);
 		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		if(this.layoutMeasureFrame){
+			cancelAnimationFrame(this.layoutMeasureFrame);
+			this.layoutMeasureFrame = null;
+		}
 		if(this.prefetchSeedTimer){
 			clearTimeout(this.prefetchSeedTimer);
 			this.prefetchSeedTimer = null;
@@ -1631,6 +1639,14 @@ class SanShiUnitedMain extends Component{
 			this.rightTopResizeObserver.disconnect();
 			this.rightTopResizeObserver = null;
 		}
+		if(this.boardTopResizeObserver){
+			this.boardTopResizeObserver.disconnect();
+			this.boardTopResizeObserver = null;
+		}
+		if(this.boardBottomResizeObserver){
+			this.boardBottomResizeObserver.disconnect();
+			this.boardBottomResizeObserver = null;
+		}
 	}
 
 	captureLeftBoardHost(node){
@@ -1639,13 +1655,12 @@ class SanShiUnitedMain extends Component{
 			this.resizeObserver = null;
 		}
 		this.leftBoardHost = node || null;
-		if(this.leftBoardHost && typeof ResizeObserver !== 'undefined'){
-			this.resizeObserver = new ResizeObserver(()=>{
-				this.handleWindowResize();
-			});
-			this.resizeObserver.observe(this.leftBoardHost);
-		}
-		this.handleWindowResize();
+		this.scheduleWindowResizeMeasure();
+	}
+
+	captureLeftBoardViewport(node){
+		this.leftBoardViewportHost = node || null;
+		this.scheduleWindowResizeMeasure();
 	}
 
 	captureRightTop(node){
@@ -1656,39 +1671,90 @@ class SanShiUnitedMain extends Component{
 		this.rightTopHost = node || null;
 		if(this.rightTopHost && typeof ResizeObserver !== 'undefined'){
 			this.rightTopResizeObserver = new ResizeObserver(()=>{
-				this.handleWindowResize();
+				this.scheduleWindowResizeMeasure();
 			});
 			this.rightTopResizeObserver.observe(this.rightTopHost);
 		}
-		this.handleWindowResize();
+		this.scheduleWindowResizeMeasure();
+	}
+
+	captureBoardTopHost(node){
+		this.boardTopHost = node || null;
+	}
+
+	captureBoardBottomHost(node){
+		this.boardBottomHost = node || null;
 	}
 
 	captureRoot(node){
+		if(this.resizeObserver){
+			this.resizeObserver.disconnect();
+			this.resizeObserver = null;
+		}
 		this.rootHost = node || null;
-		this.handleWindowResize();
+		if(this.rootHost && typeof ResizeObserver !== 'undefined'){
+			this.resizeObserver = new ResizeObserver(()=>{
+				this.scheduleWindowResizeMeasure();
+			});
+			this.resizeObserver.observe(this.rootHost);
+		}
+		this.scheduleWindowResizeMeasure();
 	}
 
 	captureRightPanel(node){
 		this.rightPanelHost = node || null;
-		this.handleWindowResize();
+		this.scheduleWindowResizeMeasure();
+	}
+
+	scheduleWindowResizeMeasure(){
+		if(this.layoutMeasureFrame){
+			cancelAnimationFrame(this.layoutMeasureFrame);
+		}
+		this.layoutMeasureFrame = requestAnimationFrame(()=>{
+			this.layoutMeasureFrame = null;
+			this.handleWindowResize();
+		});
 	}
 
 	handleWindowResize(){
 		const viewportHeight = getViewportHeight();
-		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
+		const leftRect = this.leftBoardHost && this.leftBoardHost.getBoundingClientRect
+			? this.leftBoardHost.getBoundingClientRect()
+			: null;
+		const leftViewportRect = this.leftBoardViewportHost && this.leftBoardViewportHost.getBoundingClientRect
+			? this.leftBoardViewportHost.getBoundingClientRect()
+			: null;
+		const leftBoardWidth = leftViewportRect && leftViewportRect.width > 0
+			? leftViewportRect.width
+			: (leftRect ? leftRect.width : (this.leftBoardHost ? this.leftBoardHost.clientWidth : 0));
+		const leftMeasureHost = this.leftBoardViewportHost || this.leftBoardHost;
+		const leftBoardBounds = getRectBottomLimit(
+			this.rootHost,
+			leftMeasureHost,
+			viewportHeight,
+			TAB_BOTTOM_SAFE_GAP
+		);
+		const fallbackLeftHeight = leftViewportRect && leftViewportRect.height > 0
+			? leftViewportRect.height
+			: (leftRect ? leftRect.height : (this.leftBoardHost ? this.leftBoardHost.clientHeight : 0));
+		const leftBoardHeight = leftBoardBounds.subjectTop > 0
+			? Math.max(0, leftBoardBounds.limit)
+			: fallbackLeftHeight;
 		const rightTopHeight = this.rightTopHost ? this.rightTopHost.clientHeight : 0;
 		const fallbackPanelHeight = Math.max(420, viewportHeight - 120);
-		const panelBounds = getRectBottomLimit(this.rootHost, this.rightPanelHost, viewportHeight, TAB_BOTTOM_SAFE_GAP)
+		const panelBounds = getRectBottomLimit(this.rootHost, this.rightPanelHost, viewportHeight, TAB_BOTTOM_SAFE_GAP);
 		const rightPanelHeight = panelBounds.subjectTop > 0
 			? Math.max(220, panelBounds.limit)
 			: fallbackPanelHeight;
 		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
+			|| Math.abs((this.state.leftBoardHeight || 0) - leftBoardHeight) >= 2
 			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2
 			|| Math.abs((this.state.rightTopHeight || 0) - rightTopHeight) >= 2
 			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2;
 		if(changed){
 			this.setState({
 				leftBoardWidth,
+				leftBoardHeight,
 				viewportHeight,
 				rightTopHeight,
 				rightPanelHeight,
@@ -2796,16 +2862,18 @@ class SanShiUnitedMain extends Component{
 	}
 
 	calcBoardSize(height){
-		const viewH = this.state.viewportHeight || 900;
-		const baseH = typeof height === 'number' ? height : viewH - 20;
-		// 高度优先：先保证不超出可视区，再按宽度做二次约束。
-		const hCap = Math.max(SANSHI_BOARD_MIN, Math.min(viewH - 320, baseH - 300));
-		const wCap = this.state.leftBoardWidth > 0 ? (this.state.leftBoardWidth - 8) : SANSHI_BOARD_MAX;
-		let target = hCap;
-		if(Number.isFinite(wCap) && wCap > 0){
-			target = Math.min(target, wCap);
-		}
-		return clamp(Math.round(target), SANSHI_BOARD_MIN, SANSHI_BOARD_MAX);
+		const viewportHeight = this.state.viewportHeight || 900;
+		const fallbackHeight = typeof height === 'number' ? height : viewportHeight;
+		const hostHeight = this.state.leftBoardHeight > 0 ? this.state.leftBoardHeight : fallbackHeight;
+		return calcViewportSquareSize({
+			hostWidth: this.state.leftBoardWidth,
+			hostHeight,
+			horizontalGap: 8,
+			verticalGap: SANSHI_BOARD_STACK_CHROME + SANSHI_BOTTOM_VISUAL_GAP,
+			chromeHeight: 0,
+			minSize: 0,
+			maxSize: SANSHI_BOARD_MAX,
+		});
 	}
 
 	renderTop(boardSize){
@@ -3474,10 +3542,28 @@ class SanShiUnitedMain extends Component{
 		}
 		const boardSize = this.calcBoardSize(height);
 		return (
-			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-				{this.renderTop(boardSize)}
+			<div
+				ref={this.captureLeftBoardViewport}
+				style={{
+					display: 'flex',
+					flexDirection: 'column',
+					alignItems: 'center',
+					gap: 10,
+					width: '100%',
+					height: '100%',
+					minHeight: 0,
+					overflow: 'hidden',
+					paddingBottom: SANSHI_BOTTOM_VISUAL_GAP,
+					boxSizing: 'border-box',
+				}}
+			>
+				<div ref={this.captureBoardTopHost} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+					{this.renderTop(boardSize)}
+				</div>
 				{this.renderMiddle(boardSize)}
-				{this.renderBottom(boardSize)}
+				<div ref={this.captureBoardBottomHost} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+					{this.renderBottom(boardSize)}
+				</div>
 			</div>
 		);
 	}
@@ -3939,7 +4025,14 @@ class SanShiUnitedMain extends Component{
 				<Spin spinning={this.state.loading}>
 					<Row gutter={6} style={{ alignItems: 'flex-start' }}>
 						<Col span={16}>
-							<div ref={this.captureLeftBoardHost}>
+							<div
+								ref={this.captureLeftBoardHost}
+								style={{
+									height,
+									maxHeight: height,
+									overflow: 'hidden',
+								}}
+							>
 								{this.renderLeftBoard(height)}
 							</div>
 						</Col>

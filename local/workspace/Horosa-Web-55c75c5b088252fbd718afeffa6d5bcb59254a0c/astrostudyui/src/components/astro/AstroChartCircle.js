@@ -5,7 +5,7 @@ import {splitDegree, whichTerm, convertLatToStr, convertLonToStr, getDignityText
 import {randomStr, detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
 import { appendAstroMeaningTips, buildSignMeaningTip, buildAspectMeaningTip } from './AstroMeaningData';
-import { getAstroParamLine } from '../../utils/astroParamDisplay';
+import { buildChartDisplaySummary } from '../../utils/chartDisplay';
 
 
 export default class AstroChartCircle {
@@ -1026,6 +1026,11 @@ export default class AstroChartCircle {
 	
 	drawBirthInfo(svg, margin, chartObj, chartid, inverse){
 		let params = chartObj.params;
+		const displaySummary = buildChartDisplaySummary({
+			zodiacal: params && params.zodiacal,
+			hsys: params && params.hsys,
+			includeDetail: true,
+		});
 		let chartType = chartObj.chart.isDiurnal ? '，日生盘' : '，夜生盘';
 		let commtxts = [
 			'经度：' + params.lon + '， ' + '纬度：' + params.lat,
@@ -1036,11 +1041,11 @@ export default class AstroChartCircle {
 			let suntm = '真太阳时：' + chartObj.chart.nongli.birth;
 			commtxts.push(suntm);
 		}
-		const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
-			preferDetailedSidereal: true,
-		});
-		if(paramLine){
-			commtxts.push(paramLine);
+		if(displaySummary.zodiacalValue === AstroConst.SIDEREAL){
+			commtxts.push(displaySummary.zodiacalLabel);
+			commtxts.push(displaySummary.houseSystemLabel);
+		}else{
+			commtxts.push(`${displaySummary.zodiacalLabel}，${displaySummary.houseSystemLabel}`);
 		}
 		commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 		commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);
@@ -1105,11 +1110,13 @@ export default class AstroChartCircle {
 			let suntime = '真太阳时：' + chartObj.chart.nongli.birth;
 			commtxts.push(suntime);
 		}
-		const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
-			preferDetailedSidereal: true,
-		});
-		if(paramLine){
-			commtxts.push(paramLine);
+		if(params.zodiacal === AstroConst.SIDEREAL){
+			commtxts.push(AstroText.AstroTxtMsg[params.zodiacal]);
+			let txt = AstroConst.HouseSys[params.hsys];
+			commtxts.push(txt)
+		}else{
+			let txt = AstroText.AstroMsg[params.zodiacal] + '，' + AstroConst.HouseSys[params.hsys]
+			commtxts.push(txt);
 		}
 		commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 		commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);

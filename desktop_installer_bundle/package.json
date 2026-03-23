@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "private": true,
   "description": "Horosa mature Windows desktop app bundle",
   "author": "Horosa",
@@ -16,6 +16,9 @@
     "start": "npm run build:desktop && electron .",
     "pack:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon",
     "dist:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon && electron-builder --win nsis --prepackaged release/win-unpacked"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
     "electron": "^35.0.1",
@@ -39,6 +42,13 @@
       {
         "from": "build/app-runtime",
         "to": "app-runtime"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Horace-Maxwell",
+        "repo": "Horosa-Web-App-comprehensively-improved-Windows"
       }
     ],
     "win": {

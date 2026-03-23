@@ -5,6 +5,8 @@ ManifestDPIAware true
 
 !define /ifndef INSTALL_REGISTRY_KEY "Software\${APP_GUID}"
 !define /ifndef UNINSTALL_REGISTRY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}"
+!define /ifndef CURRENT_SHORTCUT_FILE_NAME "Horosa.lnk"
+!define /ifndef LEGACY_BRAND_SHORTCUT_FILE_NAME "星阙.lnk"
 
 !ifndef BUILD_UNINSTALLER
 
@@ -30,10 +32,176 @@ Var ExistingInstallPageRadioCancel
 Var ExistingLegacyHasDataDir
 Var ExistingLegacyHasLogDir
 Var ExistingLegacyHasShortcut
+Var ShortcutHelperScriptPath
+Var ShellDesktopDir
+Var ShellProgramsDir
+Var ShortcutHelperExitCode
 Var ShortcutPathUnderTest
 Var ShortcutExpectedTarget
 Var ShortcutValidationResult
 Var ShortcutRepairWarning
+
+Function PrepareShortcutHelperScript
+  StrCpy $ShortcutHelperScriptPath "$TEMP\horosa-shortcut-helper.vbs"
+  Delete "$ShortcutHelperScriptPath"
+  ClearErrors
+  FileOpen $0 "$ShortcutHelperScriptPath" w
+  IfErrors shortcut_helper_write_failed
+  FileWrite $0 "Option Explicit$\r$\n"
+  FileWrite $0 "Dim mode$\r$\n"
+  FileWrite $0 "If WScript.Arguments.Count = 0 Then$\r$\n"
+  FileWrite $0 "  WScript.Echo $\"Missing mode$\"$\r$\n"
+  FileWrite $0 "  WScript.Quit 90$\r$\n"
+  FileWrite $0 "End If$\r$\n"
+  FileWrite $0 "mode = LCase(WScript.Arguments(0))$\r$\n"
+  FileWrite $0 "Select Case mode$\r$\n"
+  FileWrite $0 "  Case $\"getspecialfolder$\"$\r$\n"
+  FileWrite $0 "    If WScript.Arguments.Count < 2 Then$\r$\n"
+  FileWrite $0 "      WScript.Echo $\"Missing special folder name$\"$\r$\n"
+  FileWrite $0 "      WScript.Quit 91$\r$\n"
+  FileWrite $0 "    End If$\r$\n"
+  FileWrite $0 "    Dim specialShell$\r$\n"
+  FileWrite $0 "    Set specialShell = CreateObject($\"WScript.Shell$\")$\r$\n"
+  FileWrite $0 "    WScript.Echo specialShell.SpecialFolders(WScript.Arguments(1))$\r$\n"
+  FileWrite $0 "    WScript.Quit 0$\r$\n"
+  FileWrite $0 "  Case $\"ensureshortcut$\"$\r$\n"
+  FileWrite $0 "    Call EnsureShortcut()$\r$\n"
+  FileWrite $0 "  Case $\"checkshortcut$\"$\r$\n"
+  FileWrite $0 "    Call CheckShortcut()$\r$\n"
+  FileWrite $0 "  Case Else$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"Unknown mode: $\" & mode$\r$\n"
+  FileWrite $0 "    WScript.Quit 92$\r$\n"
+  FileWrite $0 "End Select$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "Sub EnsureFolder(folderPath)$\r$\n"
+  FileWrite $0 "  Dim ensureFso$\r$\n"
+  FileWrite $0 "  Set ensureFso = CreateObject($\"Scripting.FileSystemObject$\")$\r$\n"
+  FileWrite $0 "  If folderPath = $\"$\" Then Exit Sub$\r$\n"
+  FileWrite $0 "  If ensureFso.FolderExists(folderPath) Then Exit Sub$\r$\n"
+  FileWrite $0 "  Dim parentFolder$\r$\n"
+  FileWrite $0 "  parentFolder = ensureFso.GetParentFolderName(folderPath)$\r$\n"
+  FileWrite $0 "  If parentFolder <> $\"$\" And Not ensureFso.FolderExists(parentFolder) Then$\r$\n"
+  FileWrite $0 "    Call EnsureFolder(parentFolder)$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  ensureFso.CreateFolder folderPath$\r$\n"
+  FileWrite $0 "End Sub$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "Function Normalize(value)$\r$\n"
+  FileWrite $0 "  Normalize = LCase(Replace(Trim(CStr(value)), $\"/$\", Chr(92)))$\r$\n"
+  FileWrite $0 "End Function$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "Sub EnsureShortcut()$\r$\n"
+  FileWrite $0 "  If WScript.Arguments.Count < 6 Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"Missing shortcut arguments$\"$\r$\n"
+  FileWrite $0 "    WScript.Quit 93$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  Dim linkPath, targetPath, workingDir, iconLocation, description$\r$\n"
+  FileWrite $0 "  linkPath = WScript.Arguments(1)$\r$\n"
+  FileWrite $0 "  targetPath = WScript.Arguments(2)$\r$\n"
+  FileWrite $0 "  workingDir = WScript.Arguments(3)$\r$\n"
+  FileWrite $0 "  iconLocation = WScript.Arguments(4)$\r$\n"
+  FileWrite $0 "  description = WScript.Arguments(5)$\r$\n"
+  FileWrite $0 "  Dim shortcutFso, shortcutShell, shortcut$\r$\n"
+  FileWrite $0 "  Set shortcutFso = CreateObject($\"Scripting.FileSystemObject$\")$\r$\n"
+  FileWrite $0 "  Set shortcutShell = CreateObject($\"WScript.Shell$\")$\r$\n"
+  FileWrite $0 "  On Error Resume Next$\r$\n"
+  FileWrite $0 "  Call EnsureFolder(shortcutFso.GetParentFolderName(linkPath))$\r$\n"
+  FileWrite $0 "  If shortcutFso.FileExists(linkPath) Then shortcutFso.DeleteFile linkPath, True$\r$\n"
+  FileWrite $0 "  Err.Clear$\r$\n"
+  FileWrite $0 "  Set shortcut = shortcutShell.CreateShortcut(linkPath)$\r$\n"
+  FileWrite $0 "  shortcut.TargetPath = targetPath$\r$\n"
+  FileWrite $0 "  shortcut.WorkingDirectory = workingDir$\r$\n"
+  FileWrite $0 "  shortcut.IconLocation = iconLocation$\r$\n"
+  FileWrite $0 "  shortcut.Description = description$\r$\n"
+  FileWrite $0 "  shortcut.Save$\r$\n"
+  FileWrite $0 "  If Err.Number <> 0 Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"SAVE:$\" & Err.Description$\r$\n"
+  FileWrite $0 "    WScript.Quit 20$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  Err.Clear$\r$\n"
+  FileWrite $0 "  Set shortcut = shortcutShell.CreateShortcut(linkPath)$\r$\n"
+  FileWrite $0 "  If Normalize(shortcut.TargetPath) <> Normalize(targetPath) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"TARGET:$\" & shortcut.TargetPath$\r$\n"
+  FileWrite $0 "    WScript.Quit 21$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  If Normalize(shortcut.WorkingDirectory) <> Normalize(workingDir) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"WORKDIR:$\" & shortcut.WorkingDirectory$\r$\n"
+  FileWrite $0 "    WScript.Quit 22$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  If Normalize(shortcut.IconLocation) <> Normalize(iconLocation) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"ICON:$\" & shortcut.IconLocation$\r$\n"
+  FileWrite $0 "    WScript.Quit 23$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  WScript.Echo $\"OK$\"$\r$\n"
+  FileWrite $0 "  WScript.Quit 0$\r$\n"
+  FileWrite $0 "End Sub$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "Sub CheckShortcut()$\r$\n"
+  FileWrite $0 "  If WScript.Arguments.Count < 5 Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"Missing shortcut check arguments$\"$\r$\n"
+  FileWrite $0 "    WScript.Quit 94$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  Dim linkPath, targetPath, workingDir, iconLocation$\r$\n"
+  FileWrite $0 "  linkPath = WScript.Arguments(1)$\r$\n"
+  FileWrite $0 "  targetPath = WScript.Arguments(2)$\r$\n"
+  FileWrite $0 "  workingDir = WScript.Arguments(3)$\r$\n"
+  FileWrite $0 "  iconLocation = WScript.Arguments(4)$\r$\n"
+  FileWrite $0 "  Dim shortcutFso, shortcutShell, shortcut$\r$\n"
+  FileWrite $0 "  Set shortcutFso = CreateObject($\"Scripting.FileSystemObject$\")$\r$\n"
+  FileWrite $0 "  Set shortcutShell = CreateObject($\"WScript.Shell$\")$\r$\n"
+  FileWrite $0 "  If Not shortcutFso.FileExists(linkPath) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"MISSING$\"$\r$\n"
+  FileWrite $0 "    WScript.Quit 30$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  On Error Resume Next$\r$\n"
+  FileWrite $0 "  Set shortcut = shortcutShell.CreateShortcut(linkPath)$\r$\n"
+  FileWrite $0 "  If Err.Number <> 0 Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"READ:$\" & Err.Description$\r$\n"
+  FileWrite $0 "    WScript.Quit 31$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  If Normalize(shortcut.TargetPath) <> Normalize(targetPath) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"TARGET:$\" & shortcut.TargetPath$\r$\n"
+  FileWrite $0 "    WScript.Quit 32$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  If Normalize(shortcut.WorkingDirectory) <> Normalize(workingDir) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"WORKDIR:$\" & shortcut.WorkingDirectory$\r$\n"
+  FileWrite $0 "    WScript.Quit 33$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  If Normalize(shortcut.IconLocation) <> Normalize(iconLocation) Then$\r$\n"
+  FileWrite $0 "    WScript.Echo $\"ICON:$\" & shortcut.IconLocation$\r$\n"
+  FileWrite $0 "    WScript.Quit 34$\r$\n"
+  FileWrite $0 "  End If$\r$\n"
+  FileWrite $0 "  WScript.Echo $\"OK$\"$\r$\n"
+  FileWrite $0 "  WScript.Quit 0$\r$\n"
+  FileWrite $0 "End Sub$\r$\n"
+  FileClose $0
+  Return
+
+shortcut_helper_write_failed:
+  MessageBox MB_OK|MB_ICONSTOP "星阙安装器无法写入快捷方式校验脚本，安装已中止。"
+  Abort
+
+FunctionEnd
+
+Function ResolveShellDesktopDir
+  Call PrepareShortcutHelperScript
+  nsExec::ExecToStack '"$SYSDIR\cscript.exe" //Nologo "$ShortcutHelperScriptPath" getSpecialFolder "Desktop"'
+  Pop $ShortcutHelperExitCode
+  Pop $ShellDesktopDir
+  ${If} $ShortcutHelperExitCode != 0
+    StrCpy $ShellDesktopDir "$DESKTOP"
+  ${EndIf}
+FunctionEnd
+
+Function ResolveShellProgramsDir
+  Call PrepareShortcutHelperScript
+  nsExec::ExecToStack '"$SYSDIR\cscript.exe" //Nologo "$ShortcutHelperScriptPath" getSpecialFolder "Programs"'
+  Pop $ShortcutHelperExitCode
+  Pop $ShellProgramsDir
+  ${If} $ShortcutHelperExitCode != 0
+    StrCpy $ShellProgramsDir "$SMPROGRAMS"
+  ${EndIf}
+FunctionEnd
 
 Function DetectDesktopInstallRecord
   StrCpy $ExistingInstallTypeText ""
@@ -239,17 +407,27 @@ Function PrepareRepairMode
 FunctionEnd
 
 Function CleanupLegacyLauncherArtifacts
+  Delete "$DESKTOP\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$DESKTOP\Horosa.lnk"
   Delete "$DESKTOP\START_HERE*.lnk"
   Delete "$DESKTOP\Horosa Local*.lnk"
   Delete "$DESKTOP\Horosa Launcher*.lnk"
   Delete "$DESKTOP\Horosa Desktop*.lnk"
-  Delete "$DESKTOP\星阙*.lnk"
+  Delete "$DESKTOP\Horosa-cscript32.lnk"
+  Delete "$DESKTOP\Horosa-cscript64.lnk"
+  Delete "$DESKTOP\Horosa-longdesc.lnk"
+  Delete "$DESKTOP\Horosa-missing-target.lnk"
 
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\START_HERE*.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Local*.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Launcher*.lnk"
   Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop*.lnk"
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙*.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-cscript32.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-cscript64.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-longdesc.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-missing-target.lnk"
 
   RMDir /r "$SMPROGRAMS\Horosa Local"
   RMDir /r "$SMPROGRAMS\Horosa Launcher"
@@ -257,28 +435,106 @@ Function CleanupLegacyLauncherArtifacts
   RMDir /r "$SMPROGRAMS\Horosa Desktop"
 
   SetShellVarContext all
+  Delete "$SMPROGRAMS\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$SMPROGRAMS\Horosa.lnk"
   Delete "$SMPROGRAMS\START_HERE*.lnk"
   Delete "$SMPROGRAMS\Horosa Local*.lnk"
   Delete "$SMPROGRAMS\Horosa Launcher*.lnk"
   Delete "$SMPROGRAMS\Horosa Desktop*.lnk"
-  Delete "$SMPROGRAMS\星阙*.lnk"
   RMDir /r "$SMPROGRAMS\Horosa Local"
   RMDir /r "$SMPROGRAMS\Horosa Launcher"
   RMDir /r "$SMPROGRAMS\START_HERE"
   RMDir /r "$SMPROGRAMS\Horosa Desktop"
   SetShellVarContext current
+
+  Call ResolveShellDesktopDir
+  ${If} $ShellDesktopDir != ""
+    Delete "$ShellDesktopDir\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+    Delete "$ShellDesktopDir\Horosa.lnk"
+    Delete "$ShellDesktopDir\START_HERE*.lnk"
+    Delete "$ShellDesktopDir\Horosa Local*.lnk"
+    Delete "$ShellDesktopDir\Horosa Launcher*.lnk"
+    Delete "$ShellDesktopDir\Horosa Desktop*.lnk"
+  ${EndIf}
+
+  Call ResolveShellProgramsDir
+  ${If} $ShellProgramsDir != ""
+    Delete "$ShellProgramsDir\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+    Delete "$ShellProgramsDir\Horosa.lnk"
+    Delete "$ShellProgramsDir\START_HERE*.lnk"
+    Delete "$ShellProgramsDir\Horosa Local*.lnk"
+    Delete "$ShellProgramsDir\Horosa Launcher*.lnk"
+    Delete "$ShellProgramsDir\Horosa Desktop*.lnk"
+    Delete "$ShellProgramsDir\Horosa-cscript32.lnk"
+    Delete "$ShellProgramsDir\Horosa-cscript64.lnk"
+    Delete "$ShellProgramsDir\Horosa-longdesc.lnk"
+    Delete "$ShellProgramsDir\Horosa-missing-target.lnk"
+  ${EndIf}
+FunctionEnd
+
+Function CleanupInstallShortcutArtifacts
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-cscript32.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-cscript64.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-longdesc.lnk"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa-missing-target.lnk"
+  Delete "$DESKTOP\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$DESKTOP\Horosa.lnk"
+  Delete "$DESKTOP\Horosa Desktop.lnk"
+  Delete "$SMPROGRAMS\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$SMPROGRAMS\Horosa.lnk"
+  Delete "$SMPROGRAMS\Horosa Desktop.lnk"
+  Delete "$SMPROGRAMS\Horosa-cscript32.lnk"
+  Delete "$SMPROGRAMS\Horosa-cscript64.lnk"
+  Delete "$SMPROGRAMS\Horosa-longdesc.lnk"
+  Delete "$SMPROGRAMS\Horosa-missing-target.lnk"
+
+  Call ResolveShellDesktopDir
+  ${If} $ShellDesktopDir != ""
+    Delete "$ShellDesktopDir\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+    Delete "$ShellDesktopDir\Horosa.lnk"
+    Delete "$ShellDesktopDir\Horosa Desktop.lnk"
+    Delete "$ShellDesktopDir\Horosa-cscript32.lnk"
+    Delete "$ShellDesktopDir\Horosa-cscript64.lnk"
+    Delete "$ShellDesktopDir\Horosa-longdesc.lnk"
+    Delete "$ShellDesktopDir\Horosa-missing-target.lnk"
+  ${EndIf}
+
+  Call ResolveShellProgramsDir
+  ${If} $ShellProgramsDir != ""
+    Delete "$ShellProgramsDir\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+    Delete "$ShellProgramsDir\Horosa.lnk"
+    Delete "$ShellProgramsDir\Horosa Desktop.lnk"
+    Delete "$ShellProgramsDir\Horosa-cscript32.lnk"
+    Delete "$ShellProgramsDir\Horosa-cscript64.lnk"
+    Delete "$ShellProgramsDir\Horosa-longdesc.lnk"
+    Delete "$ShellProgramsDir\Horosa-missing-target.lnk"
+  ${EndIf}
 FunctionEnd
 
 Function CleanupCurrentDesktopShortcuts
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa.lnk"
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙.lnk"
-  Delete "$DESKTOP\Horosa Desktop.lnk"
-  Delete "$DESKTOP\Horosa.lnk"
-  Delete "$DESKTOP\星阙.lnk"
-  Delete "$SMPROGRAMS\Horosa Desktop.lnk"
-  Delete "$SMPROGRAMS\Horosa.lnk"
-  Delete "$SMPROGRAMS\星阙.lnk"
+  Call CleanupInstallShortcutArtifacts
+
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\${CURRENT_SHORTCUT_FILE_NAME}"
+  Delete "$DESKTOP\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$DESKTOP\${CURRENT_SHORTCUT_FILE_NAME}"
+  Delete "$SMPROGRAMS\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+  Delete "$SMPROGRAMS\${CURRENT_SHORTCUT_FILE_NAME}"
+
+  Call ResolveShellDesktopDir
+  ${If} $ShellDesktopDir != ""
+    Delete "$ShellDesktopDir\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+    Delete "$ShellDesktopDir\${CURRENT_SHORTCUT_FILE_NAME}"
+  ${EndIf}
+
+  Call ResolveShellProgramsDir
+  ${If} $ShellProgramsDir != ""
+    Delete "$ShellProgramsDir\${LEGACY_BRAND_SHORTCUT_FILE_NAME}"
+    Delete "$ShellProgramsDir\${CURRENT_SHORTCUT_FILE_NAME}"
+  ${EndIf}
 FunctionEnd
 
 Function ValidateShortcutTarget
@@ -327,7 +583,7 @@ Function CreateShortcutWithPowerShell
   FileClose $1
 
   ClearErrors
-  ExecWait '"$SYSDIR\cscript.exe" //NoLogo "$PLUGINSDIR\create-shortcut.vbs" "$ShortcutPathUnderTest" "$ShortcutExpectedTarget" "$INSTDIR" "$ShortcutExpectedTarget,0" "${APP_DESCRIPTION}"' $0
+  ExecWait '"$SYSDIR\cscript.exe" //NoLogo "$PLUGINSDIR\create-shortcut.vbs" "$ShortcutPathUnderTest" "$ShortcutExpectedTarget" "$INSTDIR" "$ShortcutExpectedTarget,0" "星阙"' $0
 FunctionEnd
 
 Function ExistingInstallPageCreate
@@ -437,7 +693,6 @@ FunctionEnd
   StrCpy $ShortcutExpectedTarget ""
   StrCpy $ShortcutValidationResult "0"
   StrCpy $ShortcutRepairWarning ""
-
   ${IfNot} ${Silent}
     Call BuildExistingInstallState
   ${EndIf}
@@ -449,7 +704,8 @@ FunctionEnd
 
 !macro customInstall
   Call CleanupCurrentDesktopShortcuts
-  StrCpy $ShortcutExpectedTarget "$INSTDIR\${APP_FILENAME}.exe"
+  StrCpy $ShortcutRepairWarning ""
+  StrCpy $ShortcutExpectedTarget "$INSTDIR\Horosa.exe"
   StrCpy $ShortcutPathUnderTest "$newStartMenuLink"
   Call CreateShortcutWithPowerShell
   Call ValidateShortcutTarget
@@ -462,7 +718,8 @@ FunctionEnd
       DetailPrint "WARNING: failed to validate Start Menu shortcut target -> $newStartMenuLink"
     ${EndIf}
   ${EndIf}
-  StrCpy $ShortcutExpectedTarget "$INSTDIR\${APP_FILENAME}.exe"
+
+  StrCpy $ShortcutExpectedTarget "$INSTDIR\Horosa.exe"
   StrCpy $ShortcutPathUnderTest "$newDesktopLink"
   Call CreateShortcutWithPowerShell
   Call ValidateShortcutTarget
@@ -479,7 +736,7 @@ FunctionEnd
       DetailPrint "WARNING: failed to validate Desktop shortcut target -> $newDesktopLink"
     ${EndIf}
   ${EndIf}
-  System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
+
   ${If} $ShortcutRepairWarning != ""
     ${IfNot} ${Silent}
       MessageBox MB_OK|MB_ICONEXCLAMATION "$ShortcutRepairWarning"
@@ -489,15 +746,12 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+Function .onInstSuccess
+  System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
+FunctionEnd
+
 !macro customUnInstall
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa Desktop.lnk"
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\Horosa.lnk"
-  Delete "$APPDATA\Microsoft\Windows\Start Menu\Programs\星阙.lnk"
-  Delete "$DESKTOP\Horosa Desktop.lnk"
-  Delete "$DESKTOP\Horosa.lnk"
-  Delete "$DESKTOP\星阙.lnk"
-  Delete "$SMPROGRAMS\Horosa.lnk"
-  Delete "$SMPROGRAMS\星阙.lnk"
+  Call CleanupCurrentDesktopShortcuts
 !macroend
 
 !endif

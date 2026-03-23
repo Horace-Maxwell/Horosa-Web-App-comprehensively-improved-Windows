@@ -1,7 +1,18 @@
+.rightPanelHost {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .rightPanel {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+
+.rightPanelStatic {
+  flex: 0 0 auto;
   min-height: 0;
 }
 
@@ -18,6 +29,12 @@
   color: #6b7280;
   font-size: 12px;
   line-height: 18px;
+}
+
+.rightPanelTabsHost {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panelTabs {
@@ -93,9 +110,17 @@
 
 .panelCard :global(.ant-card-body) {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.selfCheckMarker {
+  flex: 0 0 auto;
+  height: 1px;
+  width: 100%;
 }
 
 .metricRow {

@@ -1,0 +1,116 @@
+{
+  "cases": [
+    {
+      "type": "liureng-rule",
+      "label": "甲子旬旬丁为卯",
+      "input": {
+        "dayGanZi": "甲子",
+        "branch": "卯"
+      },
+      "expected": {
+        "xunMeta": {
+          "xunName": "甲子旬",
+          "xunDing": "卯",
+          "xunKong": ["戌", "亥"]
+        },
+        "branchDunGan": "丁"
+      }
+    },
+    {
+      "type": "liureng-rule",
+      "label": "丁未属甲辰旬且未遁丁",
+      "input": {
+        "dayGanZi": "丁未",
+        "branch": "未"
+      },
+      "expected": {
+        "xunMeta": {
+          "xunName": "甲辰旬",
+          "xunDing": "未"
+        },
+        "branchDunGan": "丁"
+      }
+    },
+    {
+      "type": "liureng-rule",
+      "label": "乙亥阴日别责初传为卯",
+      "input": {
+        "dayGanZi": "乙亥",
+        "shift": 1,
+        "keRaw": [
+          ["", "子", "乙"],
+          ["", "卯", "子"],
+          ["", "寅", "亥"],
+          ["", "卯", "寅"]
+        ]
+      },
+      "expected": {
+        "sanChuan": {
+          "name": "芜淫课",
+          "rawBranches": ["卯", "子", "子"],
+          "ruleStage": "别责"
+        }
+      }
+    },
+    {
+      "type": "ui-like-case",
+      "label": "节气盘文案不再出现undefined",
+      "input": {
+        "module": "jieqichart"
+      },
+      "expected": {
+        "status": "PASS"
+      }
+    },
+    {
+      "type": "ui-like-case",
+      "label": "主限法盘可见双盘SVG",
+      "input": {
+        "module": "primarydirchart"
+      },
+      "expected": {
+        "status": "PASS"
+      }
+    },
+    {
+      "type": "ui-like-case",
+      "label": "法达星限表格可见且不再空白",
+      "input": {
+        "module": "firdaria"
+      },
+      "expected": {
+        "status": "PASS"
+      }
+    },
+    {
+      "type": "ui-like-case",
+      "label": "大六壬默认空态且起课后可见左盘",
+      "input": {
+        "module": "liureng"
+      },
+      "expected": {
+        "status": "PASS"
+      }
+    },
+    {
+      "type": "ui-like-case",
+      "label": "三式合一盘面稳定且底部留空",
+      "input": {
+        "module": "sanshiunited"
+      },
+      "expected": {
+        "status": "PASS"
+      }
+    },
+    {
+      "type": "ui-like-case",
+      "label": "遁甲盘高度按窗口底边稳定缩放且右栏可滚动到底",
+      "input": {
+        "module": "dunjia"
+      },
+      "expected": {
+        "status": "PASS"
+      }
+    }
+  ]
+}

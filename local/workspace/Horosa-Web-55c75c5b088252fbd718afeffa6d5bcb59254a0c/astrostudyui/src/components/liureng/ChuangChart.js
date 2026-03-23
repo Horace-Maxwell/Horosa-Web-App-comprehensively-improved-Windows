@@ -1,5 +1,6 @@
 import * as AstroConst from '../../constants/AstroConst';
 import * as LRConst from './LRConst';
+import { buildLiuRengSanChuan, } from './LRRuleHelper';
 import {randomStr, creatTooltip,} from '../../utils/helper';
 import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj, } from './LRShenJiangDoc';
@@ -135,57 +136,29 @@ class ChuangChart {
 	}
 
 	genCuangs(){
-		let cuang = this.getSangCuang();
-		let tj = [];
-		let liuqin = [];
-		let gan = this.nongli.dayGanZi.substr(0, 1);
-		let ganIdx = LRConst.GanList.indexOf(gan);
-		let dayzi = this.nongli.dayGanZi.substr(1);
-		let dayziIdx = LRConst.ZiList.indexOf(dayzi);
-		let xun = LRConst.getXun(gan, dayzi);
-		let gz = [];
-		for(let i=0; i<3; i++){
-			let zi = cuang.cuang[i];
-			let idx = this.upZi.indexOf(zi);
-			tj[i] = this.tianJiang[idx];
-			liuqin[i] = LRConst.ZiLiuQin[zi][gan];
-			let ziIdx = LRConst.ZiList.indexOf(zi);
-			if(xun.indexOf(zi) >= 0){
-				let ganidx = (ziIdx - dayziIdx + ganIdx + 10) % 10;
-				gz[i] = LRConst.GanList[ganidx] + zi;
-			}else{
-				gz[i] = '空' + zi;
-			}
-		}
-		this.cuangs = cuang;
-		this.cuangs.cuang = gz;
-		this.cuangs.tianJiang = tj;
-		this.cuangs.liuQin = liuqin;
+		const cuang = buildLiuRengSanChuan({
+			dayGanZi: this.nongli && this.nongli.dayGanZi ? this.nongli.dayGanZi : '',
+			upZi: this.upZi,
+			downZi: this.downZi,
+			houseTianJiang: this.tianJiang,
+			keRaw: this.ke,
+		});
+		this.cuangs = cuang || {
+			name: '无课',
+			rawBranches: [],
+			cuang: ['无', '无', '无'],
+			tianJiang: ['无', '无', '无'],
+			liuQin: ['无', '无', '无'],
+		};
 	}
 
 	getSangCuang(){
-		let cuang = this.isFuYin();
-		if(cuang){
-			return cuang;
-		}
-
-		cuang = this.isFangYin();
-		if(cuang){
-			return cuang;
-		}
-
-		
-		cuang = this.isJinKe0();
+		let cuang = this.isJinKe0();
 		if(cuang){
 			return cuang;
 		}
 
 		cuang = this.isJinKe1();
-		if(cuang){
-			return cuang;
-		}
-
-		cuang = this.isBaZhuang();
 		if(cuang){
 			return cuang;
 		}
@@ -200,13 +173,27 @@ class ChuangChart {
 			return cuang;
 		}
 
+		cuang = this.isMaoXing();
+		if(cuang){
+			return cuang;
+		}
+
+		cuang = this.isFuYin();
+		if(cuang){
+			return cuang;
+		}
+
+		cuang = this.isFangYin();
+		if(cuang){
+			return cuang;
+		}
+
 		cuang = this.isBieZe();
 		if(cuang){
 			return cuang;
 		}
 
-		cuang = this.isMaoXing();
-		return cuang;
+		return this.isBaZhuang();
 	}
 
 	getCuang(cuang0){

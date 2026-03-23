@@ -1,4 +1,5 @@
 import * as LRConst from '../liureng/LRConst';
+import { getLiuRengXunMeta, } from '../liureng/LRRuleHelper';
 import {
 	appendQimenExplanation,
 	appendQimenPatternExplanation,
@@ -2436,6 +2437,7 @@ export function calcDunJia(fields, nongli, options, context){
 	const patternSummary = collectPatternSummary(cells);
 
 	const qmjuMeta = parseQmju(qmju);
+	const xunMeta = getLiuRengXunMeta(ganzhi.day);
 
 	return {
 		dateStr: calcDateParts.dateStr,
@@ -2449,6 +2451,7 @@ export function calcDunJia(fields, nongli, options, context){
 		lunarText: nongli ? `${nongli.year || ''}年${nongli.leap ? '闰' : ''}${nongli.month || ''}${nongli.day || ''}` : '',
 		jiedelta: nongli ? (nongli.jiedelta || '') : '',
 		ganzhi,
+		xunMeta,
 		fuTou: resolveFuTouByBacktrack(ganzhi.day),
 		jieqiText: `${jieqi || '未知节气'}${paiPanMeta.sanYuan || qmjuMeta.yuan}`,
 		yinYangDun: paiPanMeta.yinYangDun || (qmjuMeta.yy === '阴' ? '阴遁' : '阳遁'),
@@ -2456,6 +2459,8 @@ export function calcDunJia(fields, nongli, options, context){
 		juShu: juNumberToCn(paiPanMeta.juShu || (CNUMBER.indexOf(qmjuMeta.kook) + 1)),
 		juText: qmju,
 		xunShou: getXunHead(ganzhi.day),
+		xunDing: xunMeta.xunDing,
+		branchDunGanMap: xunMeta.branchDunGanMap,
 		kongWang,
 		zhiFu,
 		zhiShi,

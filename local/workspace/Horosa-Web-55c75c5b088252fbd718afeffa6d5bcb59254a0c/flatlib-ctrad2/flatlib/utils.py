@@ -126,4 +126,3 @@ def eqCoords0(lon, lat):
 def eqCoords(lon, lat):
     eq = sweCotrans(lon, lat, 1, const.ECLI2EQ_OBLIQUITY)
     return (eq[0], eq[1])
-

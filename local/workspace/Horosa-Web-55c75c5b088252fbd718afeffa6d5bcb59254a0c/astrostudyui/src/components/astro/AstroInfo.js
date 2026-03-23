@@ -4,8 +4,8 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import AstroObjectLabel from './AstroObjectLabel';
 import { randomStr} from '../../utils/helper'
+import { getHouseSystemDisplayText, getZodiacalDisplayText } from '../../utils/chartDisplay';
 import styles from '../../css/styles.less';
-import { getHouseSystemDisplay, getZodiacalDisplay } from '../../utils/astroParamDisplay';
 
 
 class AstroInfo extends Component{
@@ -55,8 +55,8 @@ class AstroInfo extends Component{
 			zone: fields.zone.value,
 			lat: fields.lat.value,
 			lon: fields.lon.value,
-			hsys: getHouseSystemDisplay(fields.hsys.value),
-			zodiacal: getZodiacalDisplay(fields.zodiacal.value),
+			hsys: getHouseSystemDisplayText(fields.hsys.value),
+			zodiacal: getZodiacalDisplayText(fields.zodiacal.value, { includeDetail: false }),
 			tradition: fields.tradition.value,
 			strongRecption: fields.strongRecption.value,
 			simpleAsp: fields.simpleAsp.value,
@@ -579,8 +579,19 @@ class AstroInfo extends Component{
 			overflowX:'hidden',
 		};
 
-		const zodiacal = getZodiacalDisplay(perchart.zodiacal) || fields.zodiacal;
-		const hsys = getHouseSystemDisplay(perchart.hsys) || fields.hsys;
+		let zodiacal = perchart.zodiacal;
+		if(zodiacal){
+			zodiacal = getZodiacalDisplayText(zodiacal, { includeDetail: false });
+		}else{
+			zodiacal = fields.zodiacal;
+		}
+
+		let hsys = perchart.hsys;
+		if(hsys){
+			hsys = getHouseSystemDisplayText(hsys);
+		}else{
+			hsys = fields.hsys;
+		}
 
 		return (
 			<div className={styles.scrollbar} style={astyle}>

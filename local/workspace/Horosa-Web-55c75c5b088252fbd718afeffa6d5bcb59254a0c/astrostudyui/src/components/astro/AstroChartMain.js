@@ -12,38 +12,27 @@ import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr} from './AstroHelper';
 import { getHousesOption } from '../comp/CompHelper'
 import { normalizeContentHeight } from '../../utils/layout';
-import { computeSquareChartHostHeight } from '../../utils/chartViewportLayout';
 
 const TabPane = Tabs.TabPane;
 const Option = Select.Option;
-const CHART_HOST_BOTTOM_GAP = 12;
 
 class AstroChartMain extends Component{
 
 	constructor(props) {
 		super(props);
 		this.state = {
-			chartHostHeight: null,
+
 		}
 
         this.tmHook = {
             getValue: null,
         }
 
-		this.chartColumnHost = null;
-		this.chartHost = null;
-		this.chartResizeObserver = null;
-
 		this.changeTime = this.changeTime.bind(this);
 		this.changeZodiacal = this.changeZodiacal.bind(this);
 		this.changeHsys = this.changeHsys.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.changeSouthChart = this.changeSouthChart.bind(this);
-		this.captureChartColumnHost = this.captureChartColumnHost.bind(this);
-		this.captureChartHost = this.captureChartHost.bind(this);
-		this.observeChartHostResize = this.observeChartHostResize.bind(this);
-		this.disconnectChartHostResize = this.disconnectChartHostResize.bind(this);
-		this.syncChartHostHeight = this.syncChartHostHeight.bind(this);
 
 		if(this.props.hook){
 			// Keep hook registration for compatibility; no extra fetch is needed here.
@@ -150,82 +139,6 @@ class AstroChartMain extends Component{
 		}
 	}
 
-	componentDidMount(){
-		window.addEventListener('resize', this.syncChartHostHeight);
-		this.observeChartHostResize();
-		this.syncChartHostHeight();
-	}
-
-	componentDidUpdate(prevProps){
-		if(prevProps.height !== this.props.height || prevProps.fitChartToViewport !== this.props.fitChartToViewport){
-			this.syncChartHostHeight();
-		}
-	}
-
-	componentWillUnmount(){
-		window.removeEventListener('resize', this.syncChartHostHeight);
-		this.disconnectChartHostResize();
-	}
-
-	captureChartColumnHost(node){
-		this.chartColumnHost = node || null;
-		this.observeChartHostResize();
-		this.syncChartHostHeight();
-	}
-
-	captureChartHost(node){
-		this.chartHost = node || null;
-		this.observeChartHostResize();
-		this.syncChartHostHeight();
-	}
-
-	disconnectChartHostResize(){
-		if(this.chartResizeObserver){
-			this.chartResizeObserver.disconnect();
-			this.chartResizeObserver = null;
-		}
-	}
-
-	observeChartHostResize(){
-		this.disconnectChartHostResize();
-		if(typeof ResizeObserver === 'undefined'){
-			return;
-		}
-		const targets = [this.chartColumnHost, this.chartHost].filter(Boolean);
-		if(targets.length === 0){
-			return;
-		}
-		this.chartResizeObserver = new ResizeObserver(()=>{
-			this.syncChartHostHeight();
-		});
-		targets.forEach((node)=>{
-			this.chartResizeObserver.observe(node);
-		});
-	}
-
-	syncChartHostHeight(){
-		if(!this.props.fitChartToViewport){
-			if(this.state.chartHostHeight !== null){
-				this.setState({ chartHostHeight: null });
-			}
-			return;
-		}
-		const host = this.chartHost || this.chartColumnHost;
-		if(!host){
-			return;
-		}
-		const containerWidth = host.clientWidth || 0;
-		const containerHeight = this.chartColumnHost ? this.chartColumnHost.clientHeight : host.clientHeight || 0;
-		const nextHeight = computeSquareChartHostHeight(containerWidth, containerHeight, {
-			bottomGap: this.props.chartBottomGap !== undefined ? this.props.chartBottomGap : CHART_HOST_BOTTOM_GAP,
-		});
-		if(Math.abs((this.state.chartHostHeight || 0) - nextHeight) >= 2){
-			this.setState({
-				chartHostHeight: nextHeight,
-			});
-		}
-	}
-
 	render(){
 		let chartObj = this.props.value;
 		let fields = this.props.fields;
@@ -269,36 +182,19 @@ class AstroChartMain extends Component{
 			indiahsys = true;
 			showhsys = false;
 		}
-		const fitChartToViewport = !!this.props.fitChartToViewport;
-		const chartHostHeight = fitChartToViewport
-			? (this.state.chartHostHeight || computeSquareChartHostHeight(0, height, {
-				bottomGap: this.props.chartBottomGap !== undefined ? this.props.chartBottomGap : CHART_HOST_BOTTOM_GAP,
-			}))
-			: height;
 
 		return (
 			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Row gutter={6} style={{ height: '100%' }}>
-					<Col span={17} style={{ height: '100%', overflow: 'hidden', minHeight: 0 }}>
-						<div ref={this.captureChartColumnHost} style={{ height: '100%', overflow: 'hidden' }}>
-							<div
-								ref={this.captureChartHost}
-								style={{
-									height: chartHostHeight,
-									maxHeight: '100%',
-									overflow: 'hidden',
-								}}
-							>
-								<AstroChart value={chartObj} 
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-									backgroundColor='aliceblue' 
-									height='100%'
-								/>
-							</div>
-						</div>
+					<Col span={17}>
+						<AstroChart value={chartObj} 
+							chartDisplay={this.props.chartDisplay}
+							planetDisplay={this.props.planetDisplay}
+							lotsDisplay={this.props.lotsDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
+							backgroundColor='aliceblue' 
+							height={height}
+						/>
 					</Col>
 					<Col span={7} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 						<Row gutter={0}>

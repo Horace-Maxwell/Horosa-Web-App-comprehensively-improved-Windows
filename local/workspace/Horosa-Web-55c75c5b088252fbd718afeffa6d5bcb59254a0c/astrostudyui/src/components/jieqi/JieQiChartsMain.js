@@ -22,8 +22,10 @@ import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
 import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
 import { normalizeContentHeight } from '../../utils/layout';
-import { getHouseSystemDisplay, getZodiacalDisplay } from '../../utils/astroParamDisplay';
-import { getReusableJieqiChart } from './jieqiChartReuse';
+import {
+	normalizeHouseSystemValue,
+	normalizeZodiacalValue,
+} from '../../utils/chartDisplay';
 
 const { MonthPicker, } = DatePicker
 const TabPane = Tabs.TabPane;
@@ -247,6 +249,38 @@ function getChartCacheKey(params, term, birth){
 		params && params.zodiacal,
 		params && params.doubingSu28,
 	].join('|');
+}
+
+function normalizeDoubingFlag(value){
+	if(value === true || value === '1' || value === 1){
+		return 1;
+	}
+	return 0;
+}
+
+function buildJieqiChartSignature(params, term, birth){
+	return {
+		title: `${term || ''}`,
+		birth: `${birth || ''}`.trim(),
+		hsys: normalizeHouseSystemValue(params && params.hsys),
+		zodiacal: normalizeZodiacalValue(params && params.zodiacal),
+		doubingSu28: normalizeDoubingFlag(params && params.doubingSu28),
+	};
+}
+
+function isJieqiChartMatch(chartObj, params, term, birth){
+	if(!chartObj || !chartObj.params){
+		return false;
+	}
+	const expected = buildJieqiChartSignature(params, term, birth);
+	const actual = buildJieqiChartSignature(chartObj.params, term, chartObj.params.birth || birth);
+	return (
+		expected.title === actual.title
+		&& expected.birth === actual.birth
+		&& expected.hsys === actual.hsys
+		&& expected.zodiacal === actual.zodiacal
+		&& expected.doubingSu28 === actual.doubingSu28
+	);
 }
 
 function splitBirthToDateTime(birth){
@@ -677,13 +711,11 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 	if(params.zone !== undefined && params.zone !== null){
 		lines.push(`时区：${params.zone}`);
 	}
-	const zodiacalText = getZodiacalDisplay(chart.zodiacal) || getZodiacalDisplay(params.zodiacal);
-	const hsysText = getHouseSystemDisplay(chart.hsys) || getHouseSystemDisplay(params.hsys);
-	if(zodiacalText){
-		lines.push(`黄道：${zodiacalText}`);
+	if(chart.zodiacal){
+		lines.push(`黄道：${msg(chart.zodiacal)}`);
 	}
-	if(hsysText){
-		lines.push(`宫制：${hsysText}`);
+	if(chart.hsys){
+		lines.push(`宫制：${msg(chart.hsys)}`);
 	}
 
 	if(withHeaders){
@@ -934,12 +966,21 @@ class JieQiChartsMain extends Component{
 		}
 		const titleInfo = parseJieQiTab(tab || this.state.currentTab, this.state.jieqis);
 		const title = titleInfo && titleInfo.title ? titleInfo.title : null;
-		const seedParams = this.genSeedParams();
-		const reusableChart = getReusableJieqiChart(this.state.result, title, seedParams);
-		if(reusableChart){
-			return Promise.resolve(reusableChart);
+		const reqParams = this.genSeedParams();
+		const rows = this.state.result && Array.isArray(this.state.result.jieqi24)
+			? this.state.result.jieqi24 : [];
+		const row = title ? findJieqiRow(rows, title) : null;
+		const birth = row && row.time ? row.time : '';
+		if(
+			title
+			&& birth
+			&& this.state.result
+			&& this.state.result.charts
+			&& isJieqiChartMatch(this.state.result.charts[title], reqParams, title, birth)
+		){
+			return Promise.resolve(this.state.result.charts[title]);
 		}
-		return this.requestJieQiCharts(seedParams, this.requestSeq);
+		return this.requestJieQiCharts(reqParams, this.requestSeq);
 	}
 
 	getSeedRequestKey(params){
@@ -992,11 +1033,6 @@ class JieQiChartsMain extends Component{
 		if(this.pendingChartRequest && this.pendingChartRequest.key === reqKey){
 			return this.pendingChartRequest.promise;
 		}
-		const reusableChart = getReusableJieqiChart(this.state.result, title, reqParams);
-		if(reusableChart){
-			this.lastChartResultKey = reqKey;
-			return reusableChart;
-		}
 		const seq = ++this.chartRequestSeq;
 		const reqPromise = (async()=>{
 			let rows = this.state.result && Array.isArray(this.state.result.jieqi24)
@@ -1014,6 +1050,14 @@ class JieQiChartsMain extends Component{
 			}
 			if(seq !== this.chartRequestSeq){
 				return null;
+			}
+			const existingChart = this.state.result
+				&& this.state.result.charts
+				? this.state.result.charts[title]
+				: null;
+			if(isJieqiChartMatch(existingChart, reqParams, title, row.time)){
+				this.lastChartResultKey = reqKey;
+				return existingChart;
 			}
 			const chartObj = await loadJieqiChart(reqParams, title, row.time);
 			if(!chartObj || this.unmounted){
@@ -1378,9 +1422,13 @@ class JieQiChartsMain extends Component{
 	genTabsDom(height){
 		let tabs = [];
 		const charts = this.state.result.charts || {};
+		const rows = Array.isArray(this.state.result.jieqi24) ? this.state.result.jieqi24 : [];
+		const reqParams = this.genSeedParams();
 		for(let i=0; i<this.state.jieqis.length; i++){
 			let title = this.state.jieqis[i];
-			let chart = getReusableJieqiChart(this.state.result, title, this.genSeedParams());
+			const row = findJieqiRow(rows, title);
+			const birth = row && row.time ? row.time : '';
+			let chart = isJieqiChartMatch(charts[title], reqParams, title, birth) ? charts[title] : null;
 			if(!chart){
 				tabs.push(
 					<TabPane tab={title+'星盘'} key={title}>

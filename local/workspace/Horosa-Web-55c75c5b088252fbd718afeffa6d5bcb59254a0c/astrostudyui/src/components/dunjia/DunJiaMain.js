@@ -39,6 +39,8 @@ import {
 	QIMEN_GOD_TOOLTIP_TEXT,
 } from '../../constants/QimenTooltipTexts';
 import { renderMarkdownLiteBlock } from '../../utils/markdownLiteReact';
+import { calcViewportScale, } from '../../utils/boardFit';
+import { getRectBottomLimit, } from '../../utils/layout';
 import styles from './DunJiaMain.less';
 const { Option } = Select;
 const TabPane = Tabs.TabPane;
@@ -86,6 +88,8 @@ const DUNJIA_SCALE_MIN = 0.48;
 const DUNJIA_SCALE_MAX = 1.22;
 const DUNJIA_FAST_PLOT_TIMEOUT_MS = 650;
 const DUNJIA_MIN_HEIGHT = 320;
+const DUNJIA_BOTTOM_VISUAL_GAP = 24;
+const DUNJIA_RIGHT_PANEL_MIN_HEIGHT = 320;
 
 function clamp(val, min, max){
 	return Math.max(min, Math.min(max, val));
@@ -527,6 +531,9 @@ class DunJiaMain extends Component {
 			rightPanelTab: 'overview',
 			selectedPalace: 1,
 			leftBoardWidth: 0,
+			leftBoardHeight: 0,
+			rightTopHeight: 0,
+			rightPanelHeight: 0,
 			viewportHeight: getViewportHeight(),
 			options: {
 				...DEFAULT_OPTIONS,
@@ -544,7 +551,14 @@ class DunJiaMain extends Component {
 		this.requestSeq = 0;
 		this.panCache = new Map();
 		this.resizeObserver = null;
+		this.rightTopResizeObserver = null;
 		this.prefetchSeedTimer = null;
+		this.layoutMeasureFrame = null;
+		this.rootHost = null;
+		this.leftBoardHost = null;
+		this.leftBoardViewportHost = null;
+		this.rightPanelHost = null;
+		this.rightTopHost = null;
 		this.onOptionChange = this.onOptionChange.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
@@ -567,7 +581,12 @@ class DunJiaMain extends Component {
 		this.getTimeFieldsFromSelector = this.getTimeFieldsFromSelector.bind(this);
 		this.restoreOptionsFromCurrentCase = this.restoreOptionsFromCurrentCase.bind(this);
 		this.parseCasePayload = this.parseCasePayload.bind(this);
+		this.captureRoot = this.captureRoot.bind(this);
 		this.captureLeftBoardHost = this.captureLeftBoardHost.bind(this);
+		this.captureLeftBoardViewport = this.captureLeftBoardViewport.bind(this);
+		this.captureRightPanel = this.captureRightPanel.bind(this);
+		this.captureRightTop = this.captureRightTop.bind(this);
+		this.scheduleWindowResizeMeasure = this.scheduleWindowResizeMeasure.bind(this);
 		this.handleWindowResize = this.handleWindowResize.bind(this);
 
 		if(this.props.hook){
@@ -658,8 +677,8 @@ class DunJiaMain extends Component {
 	componentDidMount(){
 		this.unmounted = false;
 		this.restoreOptionsFromCurrentCase(true);
-		window.addEventListener('resize', this.handleWindowResize);
-		this.handleWindowResize();
+		window.addEventListener('resize', this.scheduleWindowResizeMeasure);
+		this.scheduleWindowResizeMeasure();
 		this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields);
 		this.prefetchNongliForFields(this.state.localFields || this.props.fields);
 	}
@@ -670,7 +689,7 @@ class DunJiaMain extends Component {
 
 	componentWillUnmount(){
 		this.unmounted = true;
-		window.removeEventListener('resize', this.handleWindowResize);
+		window.removeEventListener('resize', this.scheduleWindowResizeMeasure);
 		if(this.prefetchSeedTimer){
 			clearTimeout(this.prefetchSeedTimer);
 			this.prefetchSeedTimer = null;
@@ -679,49 +698,136 @@ class DunJiaMain extends Component {
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
 		}
+		if(this.rightTopResizeObserver){
+			this.rightTopResizeObserver.disconnect();
+			this.rightTopResizeObserver = null;
+		}
+		if(this.layoutMeasureFrame){
+			cancelAnimationFrame(this.layoutMeasureFrame);
+			this.layoutMeasureFrame = null;
+		}
 	}
 
-	captureLeftBoardHost(node){
+	captureRoot(node){
 		if(this.resizeObserver){
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
 		}
-		this.leftBoardHost = node || null;
-		if(this.leftBoardHost && typeof ResizeObserver !== 'undefined'){
+		this.rootHost = node || null;
+		if(this.rootHost && typeof ResizeObserver !== 'undefined'){
 			this.resizeObserver = new ResizeObserver(()=>{
-				this.handleWindowResize();
+				this.scheduleWindowResizeMeasure();
 			});
-			this.resizeObserver.observe(this.leftBoardHost);
+			this.resizeObserver.observe(this.rootHost);
 		}
-		this.handleWindowResize();
+		this.scheduleWindowResizeMeasure();
+	}
+
+	captureLeftBoardHost(node){
+		this.leftBoardHost = node || null;
+		this.scheduleWindowResizeMeasure();
+	}
+
+	captureLeftBoardViewport(node){
+		this.leftBoardViewportHost = node || null;
+		this.scheduleWindowResizeMeasure();
+	}
+
+	captureRightPanel(node){
+		this.rightPanelHost = node || null;
+		this.scheduleWindowResizeMeasure();
+	}
+
+	captureRightTop(node){
+		if(this.rightTopResizeObserver){
+			this.rightTopResizeObserver.disconnect();
+			this.rightTopResizeObserver = null;
+		}
+		this.rightTopHost = node || null;
+		if(this.rightTopHost && typeof ResizeObserver !== 'undefined'){
+			this.rightTopResizeObserver = new ResizeObserver(()=>{
+				this.scheduleWindowResizeMeasure();
+			});
+			this.rightTopResizeObserver.observe(this.rightTopHost);
+		}
+		this.scheduleWindowResizeMeasure();
+	}
+
+	scheduleWindowResizeMeasure(){
+		if(this.layoutMeasureFrame){
+			cancelAnimationFrame(this.layoutMeasureFrame);
+		}
+		this.layoutMeasureFrame = requestAnimationFrame(()=>{
+			this.layoutMeasureFrame = null;
+			this.handleWindowResize();
+		});
 	}
 
 	handleWindowResize(){
 		const viewportHeight = getViewportHeight();
-		const leftBoardWidth = this.leftBoardHost ? this.leftBoardHost.clientWidth : 0;
+		const leftRect = this.leftBoardHost && this.leftBoardHost.getBoundingClientRect
+			? this.leftBoardHost.getBoundingClientRect()
+			: null;
+		const leftViewportRect = this.leftBoardViewportHost && this.leftBoardViewportHost.getBoundingClientRect
+			? this.leftBoardViewportHost.getBoundingClientRect()
+			: null;
+		const leftBoardWidth = leftViewportRect && leftViewportRect.width > 0
+			? leftViewportRect.width
+			: (leftRect ? leftRect.width : (this.leftBoardHost ? this.leftBoardHost.clientWidth : 0));
+		const leftMeasureHost = this.leftBoardViewportHost || this.leftBoardHost;
+		const leftBoardBounds = getRectBottomLimit(
+			this.rootHost,
+			leftMeasureHost,
+			viewportHeight,
+			DUNJIA_BOTTOM_VISUAL_GAP
+		);
+		const fallbackLeftHeight = leftViewportRect && leftViewportRect.height > 0
+			? leftViewportRect.height
+			: (leftRect ? leftRect.height : (this.leftBoardHost ? this.leftBoardHost.clientHeight : 0));
+		const leftBoardHeight = leftBoardBounds.subjectTop > 0
+			? Math.max(0, leftBoardBounds.limit)
+			: fallbackLeftHeight;
+		const rightTopHeight = this.rightTopHost ? this.rightTopHost.clientHeight : 0;
+		const panelBounds = getRectBottomLimit(
+			this.rootHost,
+			this.rightPanelHost,
+			viewportHeight,
+			DUNJIA_BOTTOM_VISUAL_GAP
+		);
+		const rightPanelLimit = panelBounds.limit;
+		const fallbackPanelHeight = Math.max(360, viewportHeight - 120);
+		const preferredPanelHeight = Math.min(fallbackPanelHeight, rightPanelLimit);
+		const minPanelHeight = Math.min(DUNJIA_RIGHT_PANEL_MIN_HEIGHT, rightPanelLimit);
+		const rightPanelHeight = panelBounds.subjectTop > 0
+			? Math.max(minPanelHeight, preferredPanelHeight)
+			: fallbackPanelHeight;
 		const changed = Math.abs((this.state.leftBoardWidth || 0) - leftBoardWidth) >= 2
+			|| Math.abs((this.state.leftBoardHeight || 0) - leftBoardHeight) >= 2
+			|| Math.abs((this.state.rightTopHeight || 0) - rightTopHeight) >= 2
+			|| Math.abs((this.state.rightPanelHeight || 0) - rightPanelHeight) >= 2
 			|| Math.abs((this.state.viewportHeight || 0) - viewportHeight) >= 2;
 		if(changed){
 			this.setState({
 				leftBoardWidth,
+				leftBoardHeight,
+				rightTopHeight,
+				rightPanelHeight,
 				viewportHeight,
 			});
 		}
 	}
 
 	calcBoardScale(){
-		const viewH = this.state.viewportHeight || 900;
-		const availW = this.state.leftBoardWidth > 0 ? (this.state.leftBoardWidth - 22) : DUNJIA_BOARD_BASE_WIDTH;
-		const widthScale = availW / DUNJIA_BOARD_BASE_WIDTH;
-		// 高度优先：先按可视高度给出主缩放，再用宽度做上限约束。
-		let rawScale = (viewH - 230) / DUNJIA_BOARD_BASE_HEIGHT;
-		if(Number.isFinite(widthScale) && widthScale > 0){
-			rawScale = Math.min(rawScale, widthScale);
-		}
-		if(!Number.isFinite(rawScale) || rawScale <= 0){
-			return 1;
-		}
-		return clamp(rawScale, DUNJIA_SCALE_MIN, DUNJIA_SCALE_MAX);
+		return calcViewportScale({
+			hostWidth: this.state.leftBoardWidth,
+			hostHeight: this.state.leftBoardHeight,
+			baseWidth: DUNJIA_BOARD_BASE_WIDTH,
+			baseHeight: DUNJIA_BOARD_BASE_HEIGHT,
+			horizontalGap: 22,
+			verticalGap: 0,
+			minScale: DUNJIA_SCALE_MIN,
+			maxScale: DUNJIA_SCALE_MAX,
+		});
 	}
 
 	parseCasePayload(raw){
@@ -1671,7 +1777,10 @@ class DunJiaMain extends Component {
 		return (
 			<Card bordered={false}>
 				<div style={{ width: scaledWidth, maxWidth: '100%' }}>
-					<div style={{ width: boardWidth, transform: `scale(${boardScale})`, transformOrigin: 'top left' }}>
+					<div
+						data-self-check="dunjia-board-visual"
+						style={{ width: boardWidth, transform: `scale(${boardScale})`, transformOrigin: 'top left' }}
+					>
 						<div
 							style={{
 								padding: 12,
@@ -1769,6 +1878,11 @@ class DunJiaMain extends Component {
 		const pan = this.state.pan;
 		const opt = this.state.options;
 		const panelTab = this.state.rightPanelTab;
+		const viewportHeight = this.state.viewportHeight || getViewportHeight();
+		const fallbackPanelLimit = Math.max(0, viewportHeight - DUNJIA_BOTTOM_VISUAL_GAP);
+		const rawPanelHeight = this.state.rightPanelHeight || Math.max(DUNJIA_RIGHT_PANEL_MIN_HEIGHT, viewportHeight - 120);
+		const rightPanelHeight = Math.min(rawPanelHeight, fallbackPanelLimit);
+		const tabsHeight = Math.max(0, rightPanelHeight - (this.state.rightTopHeight || 0) - 8);
 		const selectedPalace = this.state.selectedPalace || 1;
 		const palaceMap = {};
 		if(pan && Array.isArray(pan.cells)){
@@ -1842,190 +1956,209 @@ class DunJiaMain extends Component {
 		const cellXiongCount = selectedCell && selectedCell.xiongPatterns && selectedCell.xiongPatterns.length ? selectedCell.xiongPatterns.length : 0;
 		const cellLineCount = selectedCellLines.length;
 		return (
-			<div className={styles.rightPanel}>
-				<div className={styles.rightTopBlock}>
-					<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-						<div>
-							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} hook={this.timeHook} />
-						</div>
+			<div
+				ref={this.captureRightPanel}
+				className={styles.rightPanelHost}
+				data-self-check="dunjia-right-panel-host"
+				style={{ height: rightPanelHeight, maxHeight: fallbackPanelLimit, overflow: 'hidden', paddingRight: 2 }}
+			>
+				<div className={styles.rightPanel}>
+					<div ref={this.captureRightTop} className={styles.rightPanelStatic} data-self-check="dunjia-right-top">
+						<div className={styles.rightTopBlock}>
+							<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+								<div>
+									<PlusMinusTime value={datetm} onChange={this.onTimeChanged} hook={this.timeHook} />
+								</div>
 
-						<div style={{ display: 'flex', gap: 4 }}>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.kongMode} onChange={(v)=>this.onOptionChange('kongMode', v)} style={{ width: '100%' }}>
-									{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.yimaMode} onChange={(v)=>this.onOptionChange('yimaMode', v)} style={{ width: '100%' }}>
-									{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.qijuMethod} disabled={opt.paiPanType !== 3} onChange={(v)=>this.onOptionChange('qijuMethod', v)} style={{ width: '100%' }}>
-									{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.sex} onChange={this.onGenderChange} style={{ width: '100%' }}>
-									{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.onOptionChange('shiftPalace', v)} style={{ width: '100%' }}>
-									{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
+								<div style={{ display: 'flex', gap: 4 }}>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.kongMode} onChange={(v)=>this.onOptionChange('kongMode', v)} style={{ width: '100%' }}>
+											{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.yimaMode} onChange={(v)=>this.onOptionChange('yimaMode', v)} style={{ width: '100%' }}>
+											{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.qijuMethod} disabled={opt.paiPanType !== 3} onChange={(v)=>this.onOptionChange('qijuMethod', v)} style={{ width: '100%' }}>
+											{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.sex} onChange={this.onGenderChange} style={{ width: '100%' }}>
+											{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.onOptionChange('shiftPalace', v)} style={{ width: '100%' }}>
+											{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+								</div>
 
-						<div style={{ display: 'flex', gap: 4 }}>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.paiPanType} onChange={(v)=>this.onOptionChange('paiPanType', v)} style={{ width: '100%' }}>
-									{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)} style={{ width: '100%' }}>
-									{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.yueJiaQiJuType} disabled={opt.paiPanType !== 1} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} style={{ width: '100%' }}>
-									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
+								<div style={{ display: 'flex', gap: 4 }}>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.paiPanType} onChange={(v)=>this.onOptionChange('paiPanType', v)} style={{ width: '100%' }}>
+											{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)} style={{ width: '100%' }}>
+											{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.yueJiaQiJuType} disabled={opt.paiPanType !== 1} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} style={{ width: '100%' }}>
+											{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+								</div>
 
-						<div style={{ display: 'flex', gap: 4 }}>
-							<div style={{ flex: 1 }}>
-								<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-									<Select size="small" value={timeAlgValue} onChange={this.onTimeAlgChange} style={{ width: '100%' }}>
-										{TIME_ALG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-									</Select>
-									<GeoCoordModal onOk={this.changeGeo} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
-										<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
-									</GeoCoordModal>
+								<div style={{ display: 'flex', gap: 4 }}>
+									<div style={{ flex: 1 }}>
+										<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+											<Select size="small" value={timeAlgValue} onChange={this.onTimeAlgChange} style={{ width: '100%' }}>
+												{TIME_ALG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+											</Select>
+											<GeoCoordModal onOk={this.changeGeo} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
+												<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
+											</GeoCoordModal>
+										</div>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Select size="small" value={opt.fengJu ? 1 : 0} onChange={(v)=>this.onOptionChange('fengJu', v === 1)} style={{ width: '100%' }}>
+											{FENGJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+										</Select>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Button
+											size="small"
+											type="primary"
+											style={{ width: '100%' }}
+											onClick={this.clickPlot}
+											loading={this.state.loading}
+											disabled={this.state.loading}
+										>
+											起盘
+										</Button>
+									</div>
+									<div style={{ flex: 1 }}>
+										<Button size="small" style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
+									</div>
+								</div>
+								<div className={styles.coordText}>
+									<span>{fields.lon ? fields.lon.value : ''} {fields.lat ? fields.lat.value : ''}</span>
 								</div>
 							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.fengJu ? 1 : 0} onChange={(v)=>this.onOptionChange('fengJu', v === 1)} style={{ width: '100%' }}>
-									{FENGJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Button
-									size="small"
-									type="primary"
-									style={{ width: '100%' }}
-									onClick={this.clickPlot}
-									loading={this.state.loading}
-									disabled={this.state.loading}
-								>
-									起盘
-								</Button>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Button size="small" style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
-							</div>
-						</div>
-						<div className={styles.coordText}>
-							<span>{fields.lon ? fields.lon.value : ''} {fields.lat ? fields.lat.value : ''}</span>
 						</div>
 					</div>
-				</div>
 
-				<Tabs
-					activeKey={panelTab}
-					onChange={(key)=>this.setState({ rightPanelTab: key })}
-					className={styles.panelTabs}
-				>
-					<TabPane tab="概览" key="overview">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
-							<div className={styles.metricRow}>
-								<Tag color={jiCount ? 'green' : 'default'} className={styles.metricTag}>吉格 {jiCount}</Tag>
-								<Tag color={xiongCount ? 'red' : 'default'} className={styles.metricTag}>凶格 {xiongCount}</Tag>
-								<Tag color={shenshaCount ? 'blue' : 'default'} className={styles.metricTag}>神煞 {shenshaCount}</Tag>
-							</div>
-							<div className={styles.kvList}>
-								{overviewRows.map((row, idx)=>(
-									<div key={`dj_overview_${idx}`} className={styles.kvItem}>
-										<div className={styles.kvLabel}>{row.label}</div>
-										<div className={styles.kvValue}>{row.value}</div>
-									</div>
-								))}
-							</div>
-						</Card>
-					</TabPane>
-					<TabPane tab="格局" key="status">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
-							<div style={{ lineHeight: '26px' }}>
-								<div className={styles.sectionHint}>按宫位查看判断</div>
-								{selectedCell ? (
+					<div
+						className={styles.rightPanelTabsHost}
+						data-self-check="dunjia-right-tabs"
+						style={{ height: tabsHeight || undefined }}
+					>
+						<Tabs
+							activeKey={panelTab}
+							onChange={(key)=>this.setState({ rightPanelTab: key })}
+							className={styles.panelTabs}
+						>
+							<TabPane tab="概览" key="overview">
+								<Card bordered={false} className={styles.panelCard} data-self-check="dunjia-pane-overview" bodyStyle={{ padding: '10px 12px' }}>
 									<div className={styles.metricRow}>
-										<Tag color="geekblue" className={styles.metricTag}>当前 {selectedBagongRow ? selectedBagongRow.title : `${selectedCell.palaceName}${selectedCell.palaceNum}宫`}</Tag>
-										<Tag color={cellLineCount ? 'blue' : 'default'} className={styles.metricTag}>条目 {cellLineCount}</Tag>
-										<Tag color={cellJiCount ? 'green' : 'default'} className={styles.metricTag}>吉格 {cellJiCount}</Tag>
-										<Tag color={cellXiongCount ? 'red' : 'default'} className={styles.metricTag}>凶格 {cellXiongCount}</Tag>
+										<Tag color={jiCount ? 'green' : 'default'} className={styles.metricTag}>吉格 {jiCount}</Tag>
+										<Tag color={xiongCount ? 'red' : 'default'} className={styles.metricTag}>凶格 {xiongCount}</Tag>
+										<Tag color={shenshaCount ? 'blue' : 'default'} className={styles.metricTag}>神煞 {shenshaCount}</Tag>
 									</div>
-								) : null}
-								<div className={styles.palaceBtnGrid2}>
-									{bagongRows.map((row)=>(
-										<Button
-											key={`status_cell_btn_${row.cell.palaceNum}`}
-											size="small"
-											type={selectedBagongRow && selectedBagongRow.cell.palaceNum === row.cell.palaceNum ? 'primary' : 'default'}
-											onClick={()=>this.setState({ selectedPalace: row.cell.palaceNum })}
-										>
-											{row.shortTitle || row.title}
-										</Button>
-									))}
-								</div>
-								{selectedCell ? (
-									<div className={styles.bgSection}>
-										<div className={styles.bgTitle}>{selectedBagongRow ? selectedBagongRow.title : `${selectedCell.palaceName}${selectedCell.palaceNum}宫`}</div>
-											{selectedCellLines.map((line, idx)=>{
-												const txt = `${line || ''}`;
-												const colonIdx = txt.indexOf('：');
-												const label = colonIdx >= 0 ? txt.substring(0, colonIdx) : `判断${idx + 1}`;
-												const value = colonIdx >= 0 ? txt.substring(colonIdx + 1) : txt;
-												return (
-													<div key={`dj_status_row_${selectedCell.palaceNum}_${idx}`} className={styles.bgLineCard}>
-														<div className={styles.bgLineLabel}>{label}</div>
-														<div className={styles.bgLineValue}>{value}</div>
-													</div>
-												);
-											})}
+									<div className={styles.kvList}>
+										{overviewRows.map((row, idx)=>(
+											<div key={`dj_overview_${idx}`} className={styles.kvItem}>
+												<div className={styles.kvLabel}>{row.label}</div>
+												<div className={styles.kvValue}>{row.value}</div>
 											</div>
-									) : <div className={styles.emptyText}>暂无宫位判断数据</div>}
-								</div>
-						</Card>
-					</TabPane>
-					<TabPane tab="神煞" key="shensha">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
-							<div className={styles.shenshaGrid}>
-								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
-									? pan.shenSha.allItems.map((item)=>(
-										<div key={`ss_item_${item.name}`} className={styles.shenshaItem}>
-											<span className={styles.shenshaName}>{item.name}</span>
-											<span className={styles.shenshaValue}>{item.value}</span>
-										</div>
-									))
-									: <div className={styles.emptyText}>暂无神煞</div>}
-							</div>
-						</Card>
-					</TabPane>
-					<TabPane tab="历法" key="calendar">
-						<Card bordered={false} className={styles.panelCard} bodyStyle={{ padding: '10px 12px' }}>
-							<div className={styles.kvList}>
-								{calendarRows.map((row, idx)=>(
-									<div key={`dj_calendar_${idx}`} className={styles.kvItem}>
-										<div className={styles.kvLabel}>{row.label}</div>
-										<div className={styles.kvValue}>{row.value}</div>
+										))}
 									</div>
-								))}
-							</div>
-						</Card>
-					</TabPane>
-				</Tabs>
+									<div data-self-check="dunjia-pane-end-overview" className={styles.selfCheckMarker} />
+								</Card>
+							</TabPane>
+							<TabPane tab="格局" key="status">
+								<Card bordered={false} className={styles.panelCard} data-self-check="dunjia-pane-status" bodyStyle={{ padding: '10px 12px' }}>
+									<div style={{ lineHeight: '26px' }}>
+										<div className={styles.sectionHint}>按宫位查看判断</div>
+										{selectedCell ? (
+											<div className={styles.metricRow}>
+												<Tag color="geekblue" className={styles.metricTag}>当前 {selectedBagongRow ? selectedBagongRow.title : `${selectedCell.palaceName}${selectedCell.palaceNum}宫`}</Tag>
+												<Tag color={cellLineCount ? 'blue' : 'default'} className={styles.metricTag}>条目 {cellLineCount}</Tag>
+												<Tag color={cellJiCount ? 'green' : 'default'} className={styles.metricTag}>吉格 {cellJiCount}</Tag>
+												<Tag color={cellXiongCount ? 'red' : 'default'} className={styles.metricTag}>凶格 {cellXiongCount}</Tag>
+											</div>
+										) : null}
+										<div className={styles.palaceBtnGrid2}>
+											{bagongRows.map((row)=>(
+												<Button
+													key={`status_cell_btn_${row.cell.palaceNum}`}
+													size="small"
+													type={selectedBagongRow && selectedBagongRow.cell.palaceNum === row.cell.palaceNum ? 'primary' : 'default'}
+													onClick={()=>this.setState({ selectedPalace: row.cell.palaceNum })}
+												>
+													{row.shortTitle || row.title}
+												</Button>
+											))}
+										</div>
+										{selectedCell ? (
+											<div className={styles.bgSection}>
+												<div className={styles.bgTitle}>{selectedBagongRow ? selectedBagongRow.title : `${selectedCell.palaceName}${selectedCell.palaceNum}宫`}</div>
+												{selectedCellLines.map((line, idx)=>{
+													const txt = `${line || ''}`;
+													const colonIdx = txt.indexOf('：');
+													const label = colonIdx >= 0 ? txt.substring(0, colonIdx) : `判断${idx + 1}`;
+													const value = colonIdx >= 0 ? txt.substring(colonIdx + 1) : txt;
+													return (
+														<div key={`dj_status_row_${selectedCell.palaceNum}_${idx}`} className={styles.bgLineCard}>
+															<div className={styles.bgLineLabel}>{label}</div>
+															<div className={styles.bgLineValue}>{value}</div>
+														</div>
+													);
+												})}
+											</div>
+										) : <div className={styles.emptyText}>暂无宫位判断数据</div>}
+									</div>
+									<div data-self-check="dunjia-pane-end-status" className={styles.selfCheckMarker} />
+								</Card>
+							</TabPane>
+							<TabPane tab="神煞" key="shensha">
+								<Card bordered={false} className={styles.panelCard} data-self-check="dunjia-pane-shensha" bodyStyle={{ padding: '10px 12px' }}>
+									<div className={styles.shenshaGrid}>
+										{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
+											? pan.shenSha.allItems.map((item)=>(
+												<div key={`ss_item_${item.name}`} className={styles.shenshaItem}>
+													<span className={styles.shenshaName}>{item.name}</span>
+													<span className={styles.shenshaValue}>{item.value}</span>
+												</div>
+											))
+											: <div className={styles.emptyText}>暂无神煞</div>}
+									</div>
+									<div data-self-check="dunjia-pane-end-shensha" className={styles.selfCheckMarker} />
+								</Card>
+							</TabPane>
+							<TabPane tab="历法" key="calendar">
+								<Card bordered={false} className={styles.panelCard} data-self-check="dunjia-pane-calendar" bodyStyle={{ padding: '10px 12px' }}>
+									<div className={styles.kvList}>
+										{calendarRows.map((row, idx)=>(
+											<div key={`dj_calendar_${idx}`} className={styles.kvItem}>
+												<div className={styles.kvLabel}>{row.label}</div>
+												<div className={styles.kvValue}>{row.value}</div>
+											</div>
+										))}
+									</div>
+									<div data-self-check="dunjia-pane-end-calendar" className={styles.selfCheckMarker} />
+								</Card>
+							</TabPane>
+						</Tabs>
+					</div>
+				</div>
 			</div>
 		);
 	}
@@ -2057,25 +2190,31 @@ class DunJiaMain extends Component {
 		const height = resolveBoundedHeight(this.props.height);
 		if(this.state.moduleError){
 			return (
-				<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
+				<div ref={this.captureRoot} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 					{this.renderModuleError()}
 				</div>
 			);
 		}
 		return (
-			<div style={{ height, maxHeight: height, overflow: 'hidden' }}>
+			<div ref={this.captureRoot} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Spin spinning={this.state.loading}>
 					<Row gutter={6} style={{ height: '100%' }}>
 						<Col span={16} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
 							<div ref={this.captureLeftBoardHost} style={{ height: '100%', overflow: 'hidden' }}>
-								{this.renderBoard()}
+								<div
+									ref={this.captureLeftBoardViewport}
+									data-self-check="dunjia-board-viewport"
+									style={{ height: '100%', overflow: 'hidden' }}
+								>
+									{this.renderBoard()}
+								</div>
 							</div>
 						</Col>
-					<Col span={8} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
+						<Col span={8} style={{ height: '100%', overflow: 'hidden', minWidth: 0 }}>
 							<div style={{ height: '100%', maxHeight: height, overflow: 'hidden' }}>
 								{this.renderRight()}
 							</div>
-					</Col>
+						</Col>
 					</Row>
 				</Spin>
 			</div>

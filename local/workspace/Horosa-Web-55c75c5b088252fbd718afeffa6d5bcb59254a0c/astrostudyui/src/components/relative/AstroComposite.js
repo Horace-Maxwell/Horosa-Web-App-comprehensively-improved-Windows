@@ -76,7 +76,7 @@ class AstroComposite extends Component{
 		}
 
 		return (
-			<div style={{ height, maxHeight: height, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+			<div>
 				<AstroChartMain 
 					value={resobj} 
 					fields={fields} 
@@ -89,7 +89,6 @@ class AstroComposite extends Component{
 					planetDisplay={this.props.planetDisplay}
 					lotsDisplay={this.props.lotsDisplay}
 					showAstroMeaning={this.props.showAstroMeaning}
-					fitChartToViewport={true}
 				/>
 			</div>
 		);

@@ -3,7 +3,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import {detectOS, printArea, distanceInCircleAbs, creatTooltip} from '../../utils/helper';
 import { getSignAnnotation } from '../../constants/AstroInterpretation';
-import { getAstroParamLine } from '../../utils/astroParamDisplay';
+import { buildChartDisplaySummary } from '../../utils/chartDisplay';
 
 const ChartMargin = 20;
 const ChartMarginDelta = 55;
@@ -970,11 +970,13 @@ export function drawBirthInfo(svg, margin, chartObj, chartid, inverse){
 		let suntm = '真太阳时：' + chartObj.chart.nongli.birth;
 		commtxts.push(suntm);
 	}
-	const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
-		preferDetailedSidereal: true,
-	});
-	if(paramLine){
-		commtxts.push(paramLine);
+	if(params.zodiacal === AstroConst.SIDEREAL){
+		commtxts.push(AstroText.AstroTxtMsg[params.zodiacal]);
+		let txt = AstroConst.HouseSys[params.hsys];
+		commtxts.push(txt)
+	}else{
+		let txt = AstroText.AstroMsg[params.zodiacal] + '，' + AstroConst.HouseSys[params.hsys]
+		commtxts.push(txt);
 	}
 	commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 	commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);
@@ -1029,6 +1031,11 @@ export function drawBirthInfo(svg, margin, chartObj, chartid, inverse){
 
 export function drawBirthInfoInCircle(svg, r, firstX, firstY, chartObj, chartid){
 	let params = chartObj.params;
+	const displaySummary = buildChartDisplaySummary({
+		zodiacal: params && params.zodiacal,
+		hsys: params && params.hsys,
+		includeDetail: true,
+	});
 	let chartType = chartObj.chart.isDiurnal ? '，日生盘' : '，夜生盘';
 	let commtxts = [
 		params.lon + '，' + params.lat,
@@ -1039,11 +1046,11 @@ export function drawBirthInfoInCircle(svg, r, firstX, firstY, chartObj, chartid)
 		let suntime = '真阳时：' + chartObj.chart.nongli.birth;
 		commtxts.push(suntime);
 	}
-	const paramLine = getAstroParamLine(params.zodiacal, params.hsys, {
-		preferDetailedSidereal: true,
-	});
-	if(paramLine){
-		commtxts.push(paramLine);
+	if(displaySummary.zodiacalValue === AstroConst.SIDEREAL){
+		commtxts.push(displaySummary.zodiacalLabel);
+		commtxts.push(displaySummary.houseSystemLabel);
+	}else{
+		commtxts.push(`${displaySummary.zodiacalLabel}，${displaySummary.houseSystemLabel}`);
 	}
 	commtxts.push('日主星：' + AstroText.AstroMsgCN[chartObj.chart.dayerStar]);
 	commtxts.push('时主星：' + AstroText.AstroMsgCN[chartObj.chart.timerStar]);

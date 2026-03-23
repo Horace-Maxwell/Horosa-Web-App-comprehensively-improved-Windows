@@ -4,9 +4,10 @@ import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import {randomStr, randomNum, littleEndian,} from '../../utils/helper';
 import { memoizedJsonRequest } from '../../utils/apiMemo';
+import * as astroService from '../../services/astro';
 import * as LRConst from '../liureng/LRConst';
+import { buildLiuRengSanChuan, } from '../liureng/LRRuleHelper';
 import { ZSList, ZhangSheng, } from '../liureng/LRZhangSheng';
-import ChuangChart from '../liureng/ChuangChart';
 import LiuRengChart from './LiuRengChart';
 import LiuRengInput from './LiuRengInput';
 import LiuRengBirthInput from './LiuRengBirthInput';
@@ -27,6 +28,7 @@ import {
 import { renderMarkdownLiteBlock } from '../../utils/markdownLiteReact';
 import styles from './LiuRengMain.less';
 import { TAB_BOTTOM_SAFE_GAP, getRectBottomLimit, normalizeContentHeight } from '../../utils/layout';
+import { buildBaseChartParamsFromFields, } from '../../utils/chartRequestParams';
 
 
 const InputGroup = Input.Group;
@@ -476,28 +478,14 @@ function buildSanChuanData(layout, keRaw, nongli, chartObj){
 		return null;
 	}
 	try{
-		const helper = new ChuangChart({
-			owner: null,
-			chartObj: {
-				nongli: {
-					dayGanZi: nongli.dayGanZi,
-				},
-				isDiurnal: chartObj ? chartObj.isDiurnal : true,
-			},
-			nongli: nongli,
-			ke: keRaw,
-			liuRengChart: {
-				upZi: layout.upZi,
-				downZi: layout.downZi,
-				houseTianJiang: layout.houseTianJiang,
-			},
-			x: 0,
-			y: 0,
-			width: 0,
-			height: 0,
+		return buildLiuRengSanChuan({
+			dayGanZi: nongli.dayGanZi,
+			upZi: layout.upZi,
+			downZi: layout.downZi,
+			houseTianJiang: layout.houseTianJiang,
+			keRaw,
+			isDiurnal: chartObj ? chartObj.isDiurnal : true,
 		});
-		helper.genCuangs();
-		return helper.cuangs || null;
 	}catch(e){
 		return null;
 	}
@@ -646,11 +634,14 @@ class LiuRengMain extends Component{
 		let birth = buildBirthFields(this.props.fields, now);
 
 		this.state = {
+			localFields: this.props.fields || null,
+			plottedFields: null,
 			birth: birth,
 			liureng: null,
 			runyear: null,
 			wuxing: '土',
 			guireng: 2,
+			calcChartWrap: null,
 			calcChart: null,
 			isCalculating: false,
 			liurengSubTab: 'dage',
@@ -673,6 +664,7 @@ class LiuRengMain extends Component{
 		this.genRunYearParams = this.genRunYearParams.bind(this);
 		this.requestGods = this.requestGods.bind(this);
 		this.requestRunYear = this.requestRunYear.bind(this);
+		this.fetchChartSnapshot = this.fetchChartSnapshot.bind(this);
 		this.saveLiuRengAISnapshot = this.saveLiuRengAISnapshot.bind(this);
 		this.clickCalcCase = this.clickCalcCase.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
@@ -686,16 +678,19 @@ class LiuRengMain extends Component{
 	}
 
 	onFieldsChange(field){
-		if(this.props.dispatch && this.props.fields){
-			let flds = {
-				fields: {
-					...this.props.fields,
-					...field,
-				}
-			};
+		const nextFields = {
+			...(this.state.localFields || this.props.fields || {}),
+			...field,
+		};
+		this.setState({
+			localFields: nextFields,
+		});
+		if(this.props.dispatch){
 			this.props.dispatch({
-				type: 'astro/fetchByFields',
-				payload: flds.fields
+				type: 'astro/save',
+				payload: {
+					fields: nextFields,
+				},
 			});
 		}
 	}
@@ -730,12 +725,12 @@ class LiuRengMain extends Component{
 		if(!liureng){
 			return;
 		}
-		const flds = this.props.fields;
+		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
 		const baseParams = params ? params : (flds ? this.genGodsParams(flds) : null);
 		if(!baseParams){
 			return;
 		}
-		const chartObj = this.state.calcChart ? this.state.calcChart : (this.props.value && this.props.value.chart ? this.props.value.chart : null);
+		const chartObj = this.state.calcChart || null;
 		const finalZone = baseParams.zone !== undefined ? baseParams.zone : (flds && flds.zone ? flds.zone.value : '');
 		const finalLon = baseParams.lon !== undefined ? baseParams.lon : (flds && flds.lon ? flds.lon.value : '');
 		const finalLat = baseParams.lat !== undefined ? baseParams.lat : (flds && flds.lat ? flds.lat.value : '');
@@ -780,7 +775,7 @@ class LiuRengMain extends Component{
 
 	genGodsParams(fields){
 		let params = null;
-		let flds = fields ? fields : this.props.fields;
+		let flds = fields ? fields : (this.state.plottedFields || this.state.localFields || this.props.fields);
 		if(flds.params){
 			let dtparts = flds.params.birth.split(' ');
 			params = {
@@ -792,11 +787,17 @@ class LiuRengMain extends Component{
 		}else{
 			params = {
 				date: flds.date.value.format('YYYY-MM-DD'),
-				time: flds.time.value.format('HH:mm'),
+				time: flds.time.value.format('HH:mm:ss'),
 				zone: flds.date.value.zone,
 				ad: flds.date.value.ad,
 				lon: flds.lon.value,
 				lat: flds.lat.value,
+				gpsLat: flds.gpsLat && flds.gpsLat.value !== undefined ? flds.gpsLat.value : Constants.DefGpsLat,
+				gpsLon: flds.gpsLon && flds.gpsLon.value !== undefined ? flds.gpsLon.value : Constants.DefGpsLon,
+				timeAlg: flds.timeAlg && flds.timeAlg.value !== undefined ? flds.timeAlg.value : 0,
+				after23NewDay: flds.after23NewDay && flds.after23NewDay.value !== undefined ? flds.after23NewDay.value : 0,
+				adjustJieqi: flds.adjustJieqi && flds.adjustJieqi.value !== undefined ? flds.adjustJieqi.value : 0,
+				gender: flds.gender && flds.gender.value !== undefined ? flds.gender.value : 1,
 			};	
 		}
 
@@ -818,6 +819,23 @@ class LiuRengMain extends Component{
 		return params;
 	}
 
+	async fetchChartSnapshot(fields){
+		if(!fields){
+			return null;
+		}
+		const params = {
+			...buildBaseChartParamsFromFields(fields),
+			cid: null,
+		};
+		const rsp = await astroService.fetchChart(params, {
+			silent: true,
+		});
+		if(!rsp || !rsp.Result){
+			return null;
+		}
+		return cloneChartSnapshot(rsp.Result);
+	}
+
 	async requestGods(fields, chartSnapshot){
 		if(fields === undefined || fields === null){
 			return false;
@@ -837,7 +855,9 @@ class LiuRengMain extends Component{
 		const st = {
 			liureng: mergedLiureng,
 			wuxing: wx,
-			calcChart: chartSnapshot || null,
+			calcChartWrap: chartSnapshot || null,
+			calcChart: chartSnapshot && chartSnapshot.chart ? chartSnapshot.chart : null,
+			plottedFields: fields || this.state.plottedFields,
 		};
 
 		return new Promise((resolve)=>{
@@ -848,13 +868,14 @@ class LiuRengMain extends Component{
 		});
 	}
 
-	async requestRunYear(){
+	async requestRunYear(fields){
 		if(this.state.liureng === null){
 			return false;
 		}
 		
 		const params = this.genRunYearParams();
-		if(this.state.birth.date.value.year > this.props.fields.date.value.year){
+		const activeFields = fields || this.state.plottedFields || this.state.localFields || this.props.fields;
+		if(activeFields && activeFields.date && this.state.birth.date.value.year > activeFields.date.value.year){
 			Modal.error({
 				title: '出生年份必须小于卜卦年份'
 			});
@@ -867,7 +888,7 @@ class LiuRengMain extends Component{
 		});
 		const result = data[Constants.ResultKey]
 
-		let age = this.props.fields.date.value.year - this.state.birth.date.value.year;
+		let age = activeFields && activeFields.date ? activeFields.date.value.year - this.state.birth.date.value.year : 0;
 		age = Math.floor(age / 60) * 60 + result.age;
 		result.age = age;
 		
@@ -887,17 +908,33 @@ class LiuRengMain extends Component{
 		if(this.state.isCalculating){
 			return;
 		}
-		if(!this.props.fields){
+		const activeFields = this.state.localFields || this.props.fields;
+		if(!activeFields || !activeFields.date || !activeFields.time){
 			return;
 		}
-		const chartSnapshot = cloneChartSnapshot(this.props.value && this.props.value.chart ? this.props.value.chart : null);
 		this.setState({
 			isCalculating: true,
 		});
 		try{
-			const ok = await this.requestGods(this.props.fields, chartSnapshot);
+			const chartSnapshot = await this.fetchChartSnapshot(activeFields);
+			if(!chartSnapshot){
+				Modal.error({
+					title: '六壬起课失败：当前时间参数无法生成基础星盘。',
+				});
+				return;
+			}
+			if(this.props.dispatch){
+				this.props.dispatch({
+					type: 'astro/save',
+					payload: {
+						fields: activeFields,
+						chartObj: chartSnapshot,
+					},
+				});
+			}
+			const ok = await this.requestGods(activeFields, chartSnapshot);
 			if(ok){
-				await this.requestRunYear();
+				await this.requestRunYear(activeFields);
 			}
 		}finally{
 			if(!this.unmounted){
@@ -913,7 +950,7 @@ class LiuRengMain extends Component{
 			message.warning('请先完成起课后再保存');
 			return;
 		}
-		const flds = this.props.fields;
+		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
 		if(!flds){
 			return;
 		}
@@ -1007,7 +1044,7 @@ class LiuRengMain extends Component{
 	render(){
 		let height = normalizeContentHeight(this.props.height);
 
-		let chart = this.state.calcChart || (this.props.value && this.props.value.chart ? this.props.value.chart : null);
+		let chart = this.state.calcChart;
 		const liureng = this.state.liureng;
 		const nongli = liureng && liureng.nongli ? liureng.nongli : (chart && chart.nongli ? chart.nongli : null);
 		const lrLayout = (liureng && nongli) ? buildLiuRengLayout(chart, nongli, this.state.guireng) : null;
@@ -1057,19 +1094,25 @@ class LiuRengMain extends Component{
 			<div ref={this.captureRoot} style={{ height, maxHeight: height, overflow: 'hidden' }}>
 				<Row gutter={6} style={{ height: '100%' }}>
 					<Col span={16}>
-						<LiuRengChart 
-							value={chart} 
-							liureng={this.state.liureng}
-							runyear={this.state.runyear}
-							gender={this.state.birth.gender.value}
-							zhangshengElem={this.state.wuxing}
-							guireng={this.state.guireng}
-							showAstroMeaning={this.props.showAstroMeaning}
-							height={height} 
-							fields={this.props.fields}  
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-						/>
+						{chart && liureng ? (
+							<LiuRengChart 
+								value={chart} 
+								liureng={this.state.liureng}
+								runyear={this.state.runyear}
+								gender={this.state.birth.gender.value}
+								zhangshengElem={this.state.wuxing}
+								guireng={this.state.guireng}
+								showAstroMeaning={this.props.showAstroMeaning}
+								height={height} 
+								fields={this.state.plottedFields || this.state.localFields || this.props.fields}  
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+							/>
+						) : (
+							<Card bordered={false} style={{ height: '100%' }}>
+								点击右侧起课后显示六壬盘
+							</Card>
+						)}
 					</Col>
 					<Col span={8} style={{ height: '100%' }}>
 						<div
@@ -1081,7 +1124,7 @@ class LiuRengMain extends Component{
 								<Row className={styles.rightPanel}>
 									<Col span={24}>
 										<LiuRengInput 
-											fields={this.props.fields} 
+											fields={this.state.localFields || this.props.fields} 
 											onFieldsChange={this.onFieldsChange}
 										/>
 									</Col>

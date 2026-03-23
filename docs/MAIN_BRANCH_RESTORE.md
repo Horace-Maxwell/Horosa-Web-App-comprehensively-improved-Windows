@@ -82,11 +82,12 @@ START_HERE.bat
 这些脚本仍然保留给维护 / 发布场景：
 
 - `prepareruntime/Prepare_Runtime_Windows.ps1`
+- `desktop_installer_bundle/build_portable_release_zip.ps1`
 
 也就是说，`main` 的对外承诺是：
 
 - **首次恢复**：优先走 `START_HERE.bat`
-- **维护和发布**：需要时再显式使用 `prepareruntime/` 与桌面安装器打包脚本
+- **维护和发布**：需要时再显式使用 `prepareruntime/` 与桌面打包脚本
 
 ## 构建桌面安装版
 
@@ -107,18 +108,29 @@ npm run dist:win
 
 - `desktop_installer_bundle/release/`
 
+## 构建 portable 稳定版压缩包
+
+在仓库根目录准备好 runtime 后，可按 tag 版本号生成 portable 包：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\desktop_installer_bundle\build_portable_release_zip.ps1 -Version windows-stable-YYYY-MM-DD
+```
+
+预期产物位置：
+
+- `desktop_installer_bundle/release/HorosaPortableWindows-<tag>.zip`
+- `desktop_installer_bundle/release/HorosaPortableWindows-<tag>.manifest.json`
+
 ## GitHub Actions 发布链路
 
-当前 `.github/workflows/desktop-release.yml` 已按“源码重建后再打包桌面安装器”设计。
+当前 `.github/workflows/desktop-release.yml` 已按“源码重建后再打包”设计。
 
-也就是说，发布语义化版本安装器 tag 时，CI 会：
+也就是说，发布 portable stable tag 时，CI 会：
 
 1. 安装或准备工具链
 2. 重建前端 `dist-file`
 3. 重建后端 jar
 4. 运行 `Prepare_Runtime_Windows.ps1`
-5. 生成 `Horosa-Setup-*.exe`
-
-GitHub Release 页面只保留离线安装器，不上传 portable zip、源码快照或 `main` 分支相关产物。
+5. 生成 portable release zip
 
 因此 `main` 不需要保留上述大包或构建产物。

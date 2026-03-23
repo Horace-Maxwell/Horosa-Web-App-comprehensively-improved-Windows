@@ -24,6 +24,8 @@ class AstroDoubleChart extends Component{
 		this.chartCircle = null;
 		this.redrawTimer = null;
 		this.resizeObserver = null;
+		this.drawRetryAttempts = 0;
+		this.maxDrawRetryAttempts = 40;
 
 		this.drawChart = this.drawChart.bind(this);
 		this.handleResize = this.handleResize.bind(this);
@@ -111,13 +113,22 @@ class AstroDoubleChart extends Component{
 		let svgdom = document.getElementById(this.state.chartid);
 		if(svgdom && (svgdom.clientWidth === 0 || svgdom.clientHeight === 0)){
 			this.scheduleDrawRetry();
+		}else if(svgdom){
+			this.drawRetryAttempts = 0;
 		}
 	}
 
-	scheduleDrawRetry(){
+	scheduleDrawRetry(reset = false){
+		if(reset){
+			this.drawRetryAttempts = 0;
+		}
 		if(this.redrawTimer){
 			clearTimeout(this.redrawTimer);
 		}
+		if(this.drawRetryAttempts >= this.maxDrawRetryAttempts){
+			return;
+		}
+		this.drawRetryAttempts += 1;
 		this.redrawTimer = setTimeout(()=>{
 			this.drawChart();
 		}, 120);
@@ -135,6 +146,9 @@ class AstroDoubleChart extends Component{
 		this.resizeObserver.observe(svgdom);
 		if(svgdom.parentElement){
 			this.resizeObserver.observe(svgdom.parentElement);
+			if(svgdom.parentElement.parentElement){
+				this.resizeObserver.observe(svgdom.parentElement.parentElement);
+			}
 		}
 	}
 
@@ -149,12 +163,12 @@ class AstroDoubleChart extends Component{
 		this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
 		this.observeChartResize();
 		this.drawChart();
-		this.scheduleDrawRetry();
+		this.scheduleDrawRetry(true);
 	}
 
 	componentDidUpdate(){
 		this.drawChart();
-		this.scheduleDrawRetry();
+		this.scheduleDrawRetry(true);
 	}
 
 	componentWillUnmount() {

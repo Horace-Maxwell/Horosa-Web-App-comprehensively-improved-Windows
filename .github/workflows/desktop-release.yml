@@ -1,13 +1,13 @@
-name: Horosa Windows Installer Release
+name: Horosa Desktop Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing git tag to publish or repair
+        description: Existing semver tag to publish or repair
         required: true
         type: string
 
@@ -22,17 +22,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Enable Git long paths
-        shell: pwsh
-        run: |
-          git config --system core.longpaths true
-
       - name: Checkout repository
         if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0
+
       - name: Checkout requested tag
         if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/checkout@v4
@@ -40,6 +36,15 @@ jobs:
           lfs: true
           fetch-depth: 0
           ref: refs/tags/${{ env.RELEASE_TAG }}
+
+      - name: Derive release version
+        shell: pwsh
+        run: |
+          if (-not $env:RELEASE_TAG.StartsWith('v')) {
+            throw "Release tag must start with v: $env:RELEASE_TAG"
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -85,30 +90,12 @@ jobs:
           }
           "PROJECT_DIR=$($projectDir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Validate installer release tag
-        shell: pwsh
-        run: |
-          if (-not ($env:RELEASE_TAG -match '^v\d+\.\d+\.\d+$')) {
-            throw "Installer release tag must match v<major>.<minor>.<patch>. Current: $env:RELEASE_TAG"
-          }
-
       - name: Install frontend dependencies
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
           Push-Location (Join-Path $env:PROJECT_DIR 'astrostudyui')
-          try {
-            npm ci --no-audit --no-fund
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Standard npm ci hit a peer dependency conflict, retrying with --legacy-peer-deps..."
-              npm ci --no-audit --no-fund --legacy-peer-deps
-              if ($LASTEXITCODE -ne 0) {
-                throw "Frontend npm ci failed after --legacy-peer-deps retry."
-              }
-            }
-          } finally {
-            Pop-Location
-          }
+          npm ci --legacy-peer-deps
+          Pop-Location
 
       - name: Install desktop bundle dependencies
         shell: pwsh
@@ -127,7 +114,6 @@ jobs:
       - name: Build backend jar
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
           $serviceRoot = Join-Path $env:PROJECT_DIR 'astrostudysrv'
           $moduleBuildOrder = @(
             'boundless',
@@ -139,126 +125,50 @@ jobs:
             'astroreader',
             'astroesp'
           )
-
           foreach ($module in $moduleBuildOrder) {
             $pomPath = Join-Path $serviceRoot "$module\pom.xml"
-            Write-Host "Building backend module: $module"
             mvn -f $pomPath -DskipTests install
-            if ($LASTEXITCODE -ne 0) {
-              throw "Maven install failed for module: $module"
-            }
           }
-
           $bootPomPath = Join-Path $serviceRoot 'astrostudyboot\pom.xml'
-          Write-Host 'Packaging astrostudyboot'
           mvn -f $bootPomPath -DskipTests package
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Maven package failed for astrostudyboot'
-          }
 
       - name: Prepare runtime from source
         shell: pwsh
         run: |
-          $env:HOROSA_PROJECT_DIR = $env:PROJECT_DIR
-          $global:LASTEXITCODE = 0
-          & ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
-          if (-not $?) {
-            throw 'Prepare_Runtime_Windows.ps1 failed.'
-          }
-          $global:LASTEXITCODE = 0
+          ./prepareruntime/Prepare_Runtime_Windows.ps1 -NoPause
 
-      - name: Build installer release assets
+      - name: Build installer-only release artifacts
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
           Push-Location (Join-Path $env:GITHUB_WORKSPACE 'desktop_installer_bundle')
-          try {
-            npm run build:desktop
-            if ($LASTEXITCODE -ne 0) {
-              throw 'npm run build:desktop failed.'
-            }
+          npm run build:desktop
+          npx electron-builder --dir
+          npm run patch:win-icon
+          npx electron-builder --win nsis --prepackaged release/win-unpacked --publish never
+          Pop-Location
 
-            npx electron-builder --dir
-            if ($LASTEXITCODE -ne 0) {
-              throw 'electron-builder --dir failed.'
-            }
-
-            $cacheRoots = @(
-              $env:ELECTRON_BUILDER_CACHE,
-              (Join-Path ($env:LOCALAPPDATA ?? '') 'electron-builder\Cache'),
-              (Join-Path ($env:USERPROFILE ?? '') 'AppData\Local\electron-builder\Cache')
-            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
-
-            $rcedit = $null
-            foreach ($cacheRoot in $cacheRoots) {
-              if (-not (Test-Path $cacheRoot)) { continue }
-              $candidate = Get-ChildItem -Path $cacheRoot -Recurse -Filter 'rcedit-x64.exe' -ErrorAction SilentlyContinue |
-                Sort-Object LastWriteTimeUtc -Descending |
-                Select-Object -First 1
-              if ($candidate) {
-                $rcedit = $candidate.FullName
-                break
-              }
-            }
-
-            if (-not $rcedit) {
-              Write-Host 'rcedit not found in electron-builder cache; installing temporary npm fallback...'
-              npm install --no-save rcedit@5.0.2
-              if ($LASTEXITCODE -ne 0) {
-                throw 'Temporary rcedit install failed.'
-              }
-
-              $packageRcedit = Join-Path (Join-Path (Get-Location) 'node_modules\rcedit\bin') 'rcedit-x64.exe'
-              if (Test-Path $packageRcedit) {
-                $rcedit = $packageRcedit
-              }
-            }
-
-            if (-not $rcedit) {
-              throw 'Unable to locate rcedit-x64.exe in electron-builder cache or temporary npm fallback.'
-            }
-            Write-Host "Using RCEDIT_PATH=$rcedit"
-            $env:RCEDIT_PATH = $rcedit
-
-            npm run patch:win-icon
-            if ($LASTEXITCODE -ne 0) {
-              throw 'npm run patch:win-icon failed.'
-            }
-
-            npx electron-builder --win nsis --prepackaged release/win-unpacked
-            if ($LASTEXITCODE -ne 0) {
-              throw 'electron-builder NSIS packaging failed.'
-            }
-          } finally {
-            Pop-Location
-          }
-
-      - name: Create or update GitHub release
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Horosa Windows ${{ env.RELEASE_TAG }}
+          name: Horosa ${{ env.RELEASE_TAG }}
           body_path: ./docs/releases/${{ env.RELEASE_TAG }}.md
           draft: false
           prerelease: false
           overwrite_files: true
           fail_on_unmatched_files: true
           files: |
-            ./desktop_installer_bundle/release/Horosa-Setup-*.exe
+            ./desktop_installer_bundle/release/Horosa-Setup-${{ env.RELEASE_VERSION }}.exe
 
       - name: Remove non-installer release assets
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $release = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets | ConvertFrom-Json
-          $assets = @($release.assets)
+          $keep = "Horosa-Setup-$env:RELEASE_VERSION.exe"
+          $assets = gh release view $env:RELEASE_TAG --json assets --jq '.assets[].name'
           foreach ($asset in $assets) {
-            if ($asset.name -notlike 'Horosa-Setup-*.exe') {
-              Write-Host "Deleting disallowed release asset: $($asset.name)"
-              gh api `
-                --method DELETE `
-                -H "Accept: application/vnd.github+json" `
-                "/repos/$env:GITHUB_REPOSITORY/releases/assets/$($asset.id)"
+            if ($asset -and $asset -ne $keep) {
+              gh release delete-asset $env:RELEASE_TAG $asset --yes
             }
           }

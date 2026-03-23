@@ -7,6 +7,7 @@ import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
 import { saveAstroAISnapshot, } from '../utils/astroAiSnapshot';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
+import { buildChartParamsFromFields, } from '../utils/chartRequestParams';
 
 let dtm = new DateTime();
 const SAFE_MAIN_TAB = 'astrochart';
@@ -164,7 +165,7 @@ function newEmptyFields(){
 			name: ['houseStartMode'],
 		},
 				predictive: {
-					value: 1,
+					value: 0,
 					name: ['predictive'],
 				},
 				showPdBounds: {
@@ -257,41 +258,8 @@ function newEmptyFields(){
 	return fields;
 }
 
-function fieldsToParams(fields){
-	const params = {
-		cid: fields.cid.value,
-		ad: fields.date.value.ad,
-		date: fields.date.value.format('YYYY/MM/DD'),
-		time: fields.time.value.format('HH:mm:ss'),
-		zone: fields.date.value.zone,
-		lat: fields.lat.value,
-		lon: fields.lon.value,
-		gpsLat: fields.gpsLat.value,
-		gpsLon: fields.gpsLon.value,
-		hsys: fields.hsys.value,
-		southchart: fields.southchart.value,
-		zodiacal: fields.zodiacal.value,
-		tradition: fields.tradition.value,
-		doubingSu28: fields.doubingSu28.value,
-		strongRecption: fields.strongRecption.value,
-		simpleAsp: fields.simpleAsp.value,
-		virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
-		predictive: fields.predictive.value,
-		showPdBounds: fields.showPdBounds ? fields.showPdBounds.value : 1,
-		pdtype: fields.pdtype ? fields.pdtype.value : 0,
-		pdMethod: fields.pdMethod ? fields.pdMethod.value : 'astroapp_alchabitius',
-		pdTimeKey: fields.pdTimeKey ? fields.pdTimeKey.value : 'Ptolemy',
-		pdaspects: fields.pdaspects.value,
-		name: fields.name.value,
-		pos: fields.pos.value,
-		group: fields.group ? fields.group.value : null,
-	};
-
-	if(params.pdaspects && params.pdaspects instanceof String){
-		params.pdaspects = JSON.parse(params.pdaspects);
-	}
-
-	return params;
+function fieldsToParams(fields, options){
+	return buildChartParamsFromFields(fields, options);
 }
 
 function shouldIncludePrimaryDirection(state){
@@ -299,6 +267,14 @@ function shouldIncludePrimaryDirection(state){
 		state
 		&& state.currentTab === 'direction'
 		&& (state.currentSubTab === 'primarydirect' || state.currentSubTab === 'primarydirchart')
+	);
+}
+
+function shouldIncludePredictive(state){
+	return !!(
+		state
+		&& state.currentTab === 'direction'
+		&& state.currentSubTab !== 'primarydirchart'
 	);
 }
 
@@ -526,7 +502,7 @@ export default {
 				name: ['houseStartMode'],
 			},
 			predictive: {
-				value: 1,
+				value: 0,
 				name: ['predictive'],
 			},
 			showPdBounds: {
@@ -987,8 +963,10 @@ export default {
 				fields.group.value = values.group;
 			}
 			
-			const param = fieldsToParams(fields);
 			const astroState = yield select((allState)=>allState.astro);
+			const param = fieldsToParams(fields, {
+				includePredictive: shouldIncludePredictive(astroState),
+			});
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 			const rsp = yield call(service.fetchChart, param);
 			if(!isValidChartResponse(rsp)){
@@ -1073,9 +1051,11 @@ export default {
 			if(Object.prototype.hasOwnProperty.call(fieldValues, '__requestOptions')){
 				delete fieldValues.__requestOptions;
 			}
-			const param = fieldsToParams(fieldValues);
-			param.cid = null;
 			const astroState = yield select((state)=>state.astro);
+			const param = fieldsToParams(fieldValues, {
+				includePredictive: requestOptions.includePredictive === true || shouldIncludePredictive(astroState),
+			});
+			param.cid = null;
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param, requestOptions);
@@ -1127,8 +1107,10 @@ export default {
 			if(fields === undefined || fields === null){
 				fields = newEmptyFields();
 			}
-			const param = fieldsToParams(fields);
 			const astroState = yield select((state)=>state.astro);
+			const param = fieldsToParams(fields, {
+				includePredictive: shouldIncludePredictive(astroState),
+			});
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param);

@@ -34,8 +34,8 @@ function PageHeader(props){
 	const [desktopUpdateVisible, setDesktopUpdateVisible] = React.useState(false);
 	const [desktopAppInfo, setDesktopAppInfo] = React.useState(null);
 	const [desktopUpdateState, setDesktopUpdateState] = React.useState({
-		status: 'manual-installer-only',
-		message: '当前版本改为通过 GitHub Releases 下载完整安装器更新，请下载最新 Horosa-Setup 安装包后覆盖安装。',
+		status: 'idle',
+		message: '等待检查更新',
 	});
 	const [desktopRuntimeState, setDesktopRuntimeState] = React.useState(null);
 
@@ -535,7 +535,7 @@ function PageHeader(props){
 					</span>
 					{hasDesktopBridge() ? (
 					<span className={styles.action} >
-						<Button size='small' onClick={openDesktopUpdateModal}>下载更新</Button>
+						<Button size='small' onClick={openDesktopUpdateModal}>检查更新</Button>
 					</span>
 					) : null}
 					{hasDesktopBridge() ? (
@@ -623,13 +623,21 @@ function PageHeader(props){
 				) : null}
 			</Modal>
 			<Modal
-				title="桌面安装包下载"
+				title="桌面应用更新"
 				open={desktopUpdateVisible}
 				onCancel={()=>setDesktopUpdateVisible(false)}
 				footer={[
 					<Button key='logs' onClick={onOpenDesktopLogsClick}>打开日志目录</Button>,
 					<Button key='retry-runtime' onClick={onRetryDesktopRuntimeClick}>重试本地服务</Button>,
-					<Button key='check' type='primary' ghost onClick={onCheckDesktopUpdateClick}>打开 Release 下载页</Button>,
+					<Button key='check' type='primary' ghost onClick={onCheckDesktopUpdateClick}>检查更新</Button>,
+					<Button
+						key='install'
+						type='primary'
+						disabled={!desktopUpdateState || desktopUpdateState.status !== 'downloaded'}
+						onClick={onInstallDesktopUpdateClick}
+					>
+						重启并安装
+					</Button>,
 				]}
 				width={640}
 			>
@@ -637,13 +645,8 @@ function PageHeader(props){
 					当前版本：{desktopAppInfo && desktopAppInfo.version ? desktopAppInfo.version : '未知版本'}
 				</div>
 				<div style={{marginBottom: 10}}>
-					更新状态：{desktopUpdateState && desktopUpdateState.message ? desktopUpdateState.message : '请到 GitHub Releases 下载最新完整安装包'}
+					更新状态：{desktopUpdateState && desktopUpdateState.message ? desktopUpdateState.message : '等待检查更新'}
 				</div>
-				{desktopUpdateState && desktopUpdateState.latestReleaseUrl ? (
-					<div style={{marginBottom: 10}}>
-						下载页：{desktopUpdateState.latestReleaseUrl}
-					</div>
-				) : null}
 				{desktopRuntimeState && desktopRuntimeState.serverRoot ? (
 					<div style={{marginBottom: 10}}>
 						本地服务：{desktopRuntimeState.serverRoot}
@@ -659,9 +662,19 @@ function PageHeader(props){
 						最近一次后端启动耗时：{desktopRuntimeState.startupDurationMs} ms
 					</div>
 				) : null}
-				<div style={{marginTop: 16, color: '#666'}}>
-					当前发布渠道只提供离线安装器。若要升级，请打开 GitHub Releases 下载最新 `Horosa-Setup-*.exe` 覆盖安装。
-				</div>
+				{desktopUpdateState && desktopUpdateState.progress ? (
+					<div style={{marginTop: 16}}>
+						<Progress percent={desktopDownloadPercent} status={desktopUpdateState.status === 'error' ? 'exception' : 'active'} />
+						<div style={{fontSize: 12, color: '#666'}}>
+							已下载 {desktopUpdateState.progress.transferred || 0} / {desktopUpdateState.progress.total || 0} 字节
+						</div>
+					</div>
+				) : null}
+				{desktopUpdateState && desktopUpdateState.info && desktopUpdateState.info.version ? (
+					<div style={{marginTop: 16}}>
+						最新版本：{desktopUpdateState.info.version}
+					</div>
+				) : null}
 			</Modal>
 		</div>
 	);

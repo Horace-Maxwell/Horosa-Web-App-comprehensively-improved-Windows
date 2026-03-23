@@ -76,9 +76,69 @@ function parseCoord(value){
 	return Number.isFinite(num) ? num : 0;
 }
 
-function buildBirthDateTime(chartObj){
+function getFieldValue(fields, key){
+	return fields && fields[key] ? fields[key].value : undefined;
+}
+
+function formatFieldDate(dateValue, pattern){
+	if(!dateValue || typeof dateValue.format !== 'function'){
+		return '';
+	}
+	const primary = `${dateValue.format(pattern) || ''}`.trim();
+	if(primary){
+		return primary;
+	}
+	if(pattern === 'YYYY-MM-DD'){
+		return `${dateValue.format('YYYY/MM/DD') || ''}`.trim().replace(/\//g, '-');
+	}
+	return `${dateValue.format(pattern) || ''}`.trim();
+}
+
+function buildBirthSource(chartObj, fields){
 	const params = chartObj && chartObj.params ? chartObj.params : {};
-	const birth = `${params.birth || ''}`.trim();
+	const fieldDate = getFieldValue(fields, 'date');
+	const fieldTime = getFieldValue(fields, 'time') || fieldDate;
+	const fieldDateText = formatFieldDate(fieldDate, 'YYYY-MM-DD');
+	const fieldTimeText = formatFieldDate(fieldTime, 'HH:mm:ss');
+	const fieldBirth = fieldDateText && fieldTimeText ? `${fieldDateText} ${fieldTimeText}` : '';
+	const birth = `${params.birth || ''}`.trim() || fieldBirth;
+	const zone = params.zone !== undefined && params.zone !== null
+		? params.zone
+		: (getFieldValue(fields, 'zone') !== undefined && getFieldValue(fields, 'zone') !== null
+			? getFieldValue(fields, 'zone')
+			: (fieldDate && fieldDate.zone ? fieldDate.zone : ''));
+	const ad = params.ad !== undefined && params.ad !== null
+		? params.ad
+		: (getFieldValue(fields, 'ad') !== undefined && getFieldValue(fields, 'ad') !== null
+			? getFieldValue(fields, 'ad')
+			: (fieldDate && fieldDate.ad !== undefined && fieldDate.ad !== null ? fieldDate.ad : 1));
+	const lon = params.lon !== undefined && params.lon !== null ? params.lon : getFieldValue(fields, 'lon');
+	const lat = params.lat !== undefined && params.lat !== null ? params.lat : getFieldValue(fields, 'lat');
+	const gpsLon = params.gpsLon !== undefined && params.gpsLon !== null
+		? params.gpsLon
+		: (getFieldValue(fields, 'gpsLon') !== undefined && getFieldValue(fields, 'gpsLon') !== null
+			? getFieldValue(fields, 'gpsLon')
+			: lon);
+	const gpsLat = params.gpsLat !== undefined && params.gpsLat !== null
+		? params.gpsLat
+		: (getFieldValue(fields, 'gpsLat') !== undefined && getFieldValue(fields, 'gpsLat') !== null
+			? getFieldValue(fields, 'gpsLat')
+			: lat);
+	return {
+		params,
+		birth,
+		zone,
+		ad,
+		lon,
+		lat,
+		gpsLon,
+		gpsLat,
+	};
+}
+
+function buildBirthDateTime(chartObj, fields){
+	const birthSource = buildBirthSource(chartObj, fields);
+	const birth = `${birthSource.birth || ''}`.trim();
 	if(!birth){
 		return null;
 	}
@@ -93,8 +153,8 @@ function buildBirthDateTime(chartObj){
 	}
 	try{
 		dt.parse(text, 'YYYY-MM-DD HH:mm:ss');
-		if(params.zone){
-			dt.zone = params.zone;
+		if(birthSource.zone){
+			dt.zone = birthSource.zone;
 			dt.calcJdn();
 		}
 		return dt;
@@ -119,6 +179,81 @@ function parseDisplayDateTime(text, zone){
 	}catch(e){
 		return null;
 	}
+}
+
+function isValidDirectedDateTime(dt){
+	return !!(
+		dt
+		&& typeof dt.format === 'function'
+		&& Number.isFinite(Number(dt.year))
+		&& Number.isFinite(Number(dt.month))
+		&& Number.isFinite(Number(dt.date))
+		&& Number.isFinite(Number(dt.hour))
+		&& Number.isFinite(Number(dt.minute))
+		&& dt.year > 0
+	);
+}
+
+function extractDirectedChartPayload(data){
+	if(!data || typeof data !== 'object'){
+		return null;
+	}
+	const wrapped = data[Constants.ResultKey];
+	if(wrapped && typeof wrapped === 'object' && !Array.isArray(wrapped)){
+		return wrapped;
+	}
+	return data;
+}
+
+function isDirectedChartResult(result){
+	if(!result || typeof result !== 'object' || Array.isArray(result)){
+		return false;
+	}
+	if(result.err){
+		return false;
+	}
+	const chart = result.chart && typeof result.chart === 'object'
+		? result.chart
+		: (result.objects || result.houses ? result : null);
+	if(chart && Array.isArray(chart.objects) && chart.objects.length){
+		return true;
+	}
+	return (
+		Number.isFinite(Number(result.arc))
+		&& !!result.date
+		&& !!chart
+	);
+}
+
+function normalizeDirectedChartResult(result, natalChart){
+	if(!isDirectedChartResult(result)){
+		return null;
+	}
+	const rawChart = result.chart && typeof result.chart === 'object'
+		? result.chart
+		: result;
+	const natal = natalChart && typeof natalChart === 'object' ? natalChart : null;
+	const natalInnerChart = natal && natal.chart && typeof natal.chart === 'object' ? natal.chart : null;
+	const normalizedChart = {
+		...rawChart,
+		objects: Array.isArray(rawChart.objects) ? rawChart.objects.slice() : [],
+		houses: Array.isArray(rawChart.houses) && rawChart.houses.length
+			? rawChart.houses.slice()
+			: (natalInnerChart && Array.isArray(natalInnerChart.houses) ? natalInnerChart.houses.slice() : []),
+		isDiurnal: rawChart.isDiurnal !== undefined && rawChart.isDiurnal !== null
+			? rawChart.isDiurnal
+			: !!(natalInnerChart && natalInnerChart.isDiurnal),
+	};
+	return {
+		...result,
+		chart: normalizedChart,
+		dirChart: {
+			chart: normalizedChart,
+		},
+		lots: Array.isArray(result.lots) ? result.lots.slice() : [],
+		pos: result.pos && typeof result.pos === 'object' ? result.pos : null,
+		natalChart: natal,
+	};
 }
 
 function getPdJdnFromArc(birthDt, arc){
@@ -327,14 +462,15 @@ function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKey){
 	const fields = {
 		...(baseFields || {}),
 	};
-	const params = chartObj && chartObj.params ? chartObj.params : {};
-	const birth = `${params.birth || ''}`.trim();
+	const birthSource = buildBirthSource(chartObj, baseFields);
+	const params = birthSource.params || {};
+	const birth = `${birthSource.birth || ''}`.trim();
 	if(birth){
 		const birthDt = new DateTime();
 		try{
 			birthDt.parse(birth, 'YYYY-MM-DD HH:mm:ss');
-			if(params.zone){
-				birthDt.zone = params.zone;
+			if(birthSource.zone){
+				birthDt.zone = birthSource.zone;
 				birthDt.calcJdn();
 			}
 			fields.date = {
@@ -363,10 +499,10 @@ function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKey){
 			value: val !== undefined && val !== null ? val : fallback,
 		};
 	};
-	assign('lat', params.lat, fields.lat ? fields.lat.value : '');
-	assign('lon', params.lon, fields.lon ? fields.lon.value : '');
-	assign('gpsLat', params.gpsLat !== undefined && params.gpsLat !== null ? params.gpsLat : params.lat, fields.gpsLat ? fields.gpsLat.value : '');
-	assign('gpsLon', params.gpsLon !== undefined && params.gpsLon !== null ? params.gpsLon : params.lon, fields.gpsLon ? fields.gpsLon.value : '');
+	assign('lat', birthSource.lat, fields.lat ? fields.lat.value : '');
+	assign('lon', birthSource.lon, fields.lon ? fields.lon.value : '');
+	assign('gpsLat', birthSource.gpsLat, fields.gpsLat ? fields.gpsLat.value : '');
+	assign('gpsLon', birthSource.gpsLon, fields.gpsLon ? fields.gpsLon.value : '');
 	assign('hsys', params.hsys, fields.hsys ? fields.hsys.value : 0);
 	assign('zodiacal', params.zodiacal, fields.zodiacal ? fields.zodiacal.value : 0);
 	assign('tradition', params.tradition, fields.tradition ? fields.tradition.value : 0);
@@ -394,12 +530,14 @@ class AstroPrimaryDirectionChart extends Component{
 		const initialDateTime = this.buildDefaultDateTime(props.value);
 		this.unmounted = false;
 		this.requestSeq = 0;
+		this.lastRequestBlockReason = '';
 		this.state = {
 			datetime: initialDateTime,
 			birthKey: this.buildBirthKey(props.value),
 			pdMethodValue: this.normalizePdMethod(props.pdMethod),
 			pdTimeKeyValue: this.normalizePdTimeKey(props.pdTimeKey),
 			dirChart: null,
+			dirChartError: null,
 		};
 
 		this.handleTimeChanged = this.handleTimeChanged.bind(this);
@@ -433,6 +571,7 @@ class AstroPrimaryDirectionChart extends Component{
 						datetime: this.buildDefaultDateTime(chartObj),
 						birthKey: nextKey,
 						dirChart: null,
+						dirChartError: null,
 					}, ()=>{
 						this.requestDirectedChart();
 					});
@@ -477,6 +616,7 @@ class AstroPrimaryDirectionChart extends Component{
 				datetime: this.buildDefaultDateTime(this.props.value),
 				birthKey: nextBirthKey,
 				dirChart: null,
+				dirChartError: null,
 			}, ()=>{
 				this.requestDirectedChart();
 			});
@@ -505,18 +645,18 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	buildBirthKey(chartObj){
-		const params = chartObj && chartObj.params ? chartObj.params : {};
+		const birthSource = buildBirthSource(chartObj, this.props.fields);
 		return [
-			params.birth || '',
-			params.zone || '',
-			params.lon || '',
-			params.lat || '',
+			birthSource.birth || '',
+			birthSource.zone || '',
+			birthSource.lon || '',
+			birthSource.lat || '',
 			chartObj && chartObj.chartId ? chartObj.chartId : '',
 		].join('|');
 	}
 
 	buildDefaultDateTime(chartObj){
-		const birthDt = buildBirthDateTime(chartObj);
+		const birthDt = buildBirthDateTime(chartObj, this.props.fields);
 		const params = chartObj && chartObj.params ? chartObj.params : {};
 		const rows = buildDisplayRows(chartObj || {}, params.pdMethod || DEFAULT_PD_METHOD, params.showPdBounds);
 		for(let i=0; i<rows.length; i++){
@@ -641,7 +781,8 @@ class AstroPrimaryDirectionChart extends Component{
 	buildChartRequestParams(){
 		const chartObj = this.props.value || {};
 		const params = chartObj && chartObj.params ? chartObj.params : {};
-		const birth = `${params.birth || ''}`.trim();
+		const birthSource = buildBirthSource(chartObj, this.props.fields);
+		const birth = `${birthSource.birth || ''}`.trim();
 		if(!birth){
 			return null;
 		}
@@ -649,12 +790,12 @@ class AstroPrimaryDirectionChart extends Component{
 		return {
 			date: parts[0],
 			time: parts[1] || '00:00:00',
-			ad: params.ad !== undefined && params.ad !== null ? params.ad : 1,
-			zone: params.zone,
-			lon: params.lon,
-			lat: params.lat,
-			gpsLat: params.gpsLat !== undefined && params.gpsLat !== null ? params.gpsLat : params.lat,
-			gpsLon: params.gpsLon !== undefined && params.gpsLon !== null ? params.gpsLon : params.lon,
+			ad: birthSource.ad !== undefined && birthSource.ad !== null ? birthSource.ad : 1,
+			zone: birthSource.zone,
+			lon: birthSource.lon,
+			lat: birthSource.lat,
+			gpsLat: birthSource.gpsLat,
+			gpsLon: birthSource.gpsLon,
 			hsys: params.hsys,
 			zodiacal: params.zodiacal,
 			tradition: params.tradition,
@@ -752,21 +893,32 @@ class AstroPrimaryDirectionChart extends Component{
 	buildRequestParams(){
 		const chartObj = this.props.value || {};
 		const params = chartObj && chartObj.params ? chartObj.params : {};
+		const birthSource = buildBirthSource(chartObj, this.props.fields);
 		const currentDt = this.state.datetime ? this.state.datetime.clone() : this.buildDefaultDateTime(chartObj);
-		if(!params.birth || !currentDt){
+		this.lastRequestBlockReason = '';
+		if(!birthSource.birth || !isValidDirectedDateTime(currentDt)){
+			if(!birthSource.birth){
+				this.lastRequestBlockReason = '当前主限法盘暂未生成：缺少出生时间参数';
+			}else if(!isValidDirectedDateTime(currentDt)){
+				this.lastRequestBlockReason = '当前主限法盘暂未生成：当前推运时间无效';
+			}
 			return null;
 		}
-		const birthParts = `${params.birth}`.split(' ');
+		const birthParts = `${birthSource.birth}`.split(' ');
+		if(!birthParts[0]){
+			this.lastRequestBlockReason = '当前主限法盘暂未生成：出生日期格式无效';
+			return null;
+		}
 		return {
 			date: birthParts[0],
 			time: birthParts[1] || '00:00:00',
-			ad: params.ad ? params.ad : 1,
-			zone: params.zone,
-			dirZone: currentDt.zone || params.zone,
-			lon: params.lon,
-			lat: params.lat,
-			gpsLat: params.gpsLat,
-			gpsLon: params.gpsLon,
+			ad: birthSource.ad ? birthSource.ad : 1,
+			zone: birthSource.zone,
+			dirZone: currentDt.zone || birthSource.zone,
+			lon: birthSource.lon,
+			lat: birthSource.lat,
+			gpsLat: birthSource.gpsLat,
+			gpsLon: birthSource.gpsLon,
 			hsys: params.hsys,
 			zodiacal: params.zodiacal,
 			tradition: params.tradition,
@@ -781,6 +933,11 @@ class AstroPrimaryDirectionChart extends Component{
 	async requestDirectedChart(){
 		const params = this.buildRequestParams();
 		if(!params || !this.props.value){
+			if(!this.state.dirChart){
+				this.setState({
+					dirChartError: this.lastRequestBlockReason || '当前主限法盘暂未生成',
+				});
+			}
 			return;
 		}
 		const seq = ++this.requestSeq;
@@ -790,21 +947,24 @@ class AstroPrimaryDirectionChart extends Component{
 				body: JSON.stringify(params),
 				cache: 'no-store',
 			});
-			result = data[Constants.ResultKey];
+			result = normalizeDirectedChartResult(extractDirectedChartPayload(data), this.props.value);
 		}catch(e){
 			result = null;
 		}
 		if(this.unmounted || seq !== this.requestSeq){
 			return;
 		}
-		if(!result || result.err){
-			this.setState({
-				dirChart: null,
-			});
+		if(!isDirectedChartResult(result)){
+			if(!this.state.dirChart){
+				this.setState({
+					dirChartError: result && result.err ? `${result.err}` : '当前主限法盘暂未生成',
+				});
+			}
 			return;
 		}
 		this.setState({
 			dirChart: result,
+			dirChartError: null,
 		});
 	}
 
@@ -814,7 +974,7 @@ class AstroPrimaryDirectionChart extends Component{
 		const birthDt = buildBirthDateTime(chartObj);
 		const dirChart = this.state.dirChart ? {
 			...this.state.dirChart,
-			natalChart: chartObj,
+			natalChart: this.state.dirChart.natalChart || chartObj,
 		} : null;
 		const currentArc = dirChart && Number.isFinite(Number(dirChart.arc))
 			? Number(dirChart.arc)
@@ -896,15 +1056,32 @@ class AstroPrimaryDirectionChart extends Component{
 			<div>
 				<Row gutter={6}>
 					<Col span={17}>
+						{derived.dirChart ? (
 							<AstroDoubleChart
-							value={chartWrap}
-							height={height}
-							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}
-							chartDisplay={this.props.chartDisplay}
-							termHighlight={ascTermHighlight}
-							showAstroMeaning={this.props.showAstroMeaning}
-						/>
+								key={`primarydirchart-${derived.dirChart && derived.dirChart.date ? derived.dirChart.date : 'empty'}-${Math.round(derived.currentArc || 0)}`}
+								value={chartWrap}
+								height={height}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								chartDisplay={this.props.chartDisplay}
+								termHighlight={ascTermHighlight}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+						) : (
+							<div
+								style={{
+									height,
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									color: 'rgba(0, 0, 0, 0.65)',
+									background: '#fff',
+									border: '1px solid #f0f0f0',
+								}}
+							>
+								{this.state.dirChartError || '当前主限法盘暂未生成'}
+							</div>
+						)}
 					</Col>
 					<Col span={7}>
 						<div className={styles.scrollbar} style={style}>
