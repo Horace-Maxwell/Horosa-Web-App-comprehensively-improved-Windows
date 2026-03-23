@@ -143,3 +143,71 @@ test('active child unexpected exit still emits runtime-error', () => {
     true
   );
 });
+
+test('stop continues cleanup when AppCDS dump times out', async () => {
+  const logger = createLogger();
+  const runtimeManager = new RuntimeManager({
+    resourceRoot: 'unused',
+    userDataDir: 'unused',
+    logger,
+  });
+  const pythonChild = createChild(501);
+  const javaChild = createChild(502);
+  const callOrder = [];
+
+  runtimeManager.pythonProcess = pythonChild;
+  runtimeManager.javaProcess = javaChild;
+  runtimeManager.layout = { javaExe: 'unused' };
+  runtimeManager.appCdsContext = { archivePath: 'unused' };
+  runtimeManager.performAppCdsDynamicDump = async () => {
+    callOrder.push('dump');
+    return { status: 'timeout' };
+  };
+  runtimeManager.cleanupProcesses = async () => {
+    callOrder.push('cleanup');
+    runtimeManager.pythonProcess = null;
+    runtimeManager.javaProcess = null;
+  };
+
+  await runtimeManager.stop('quit');
+
+  assert.deepEqual(callOrder, ['dump', 'cleanup']);
+  assert.equal(runtimeManager.pythonProcess, null);
+  assert.equal(runtimeManager.javaProcess, null);
+  assert.equal(runtimeManager.getState().status, 'stopped');
+});
+
+test('stop still cleans up when AppCDS dump throws', async () => {
+  const logger = createLogger();
+  const runtimeManager = new RuntimeManager({
+    resourceRoot: 'unused',
+    userDataDir: 'unused',
+    logger,
+  });
+  const pythonChild = createChild(601);
+  const javaChild = createChild(602);
+  let cleanupCalled = false;
+
+  runtimeManager.pythonProcess = pythonChild;
+  runtimeManager.javaProcess = javaChild;
+  runtimeManager.layout = { javaExe: 'unused' };
+  runtimeManager.appCdsContext = { archivePath: 'unused' };
+  runtimeManager.performAppCdsDynamicDump = async () => {
+    throw new Error('jcmd hung');
+  };
+  runtimeManager.cleanupProcesses = async () => {
+    cleanupCalled = true;
+    runtimeManager.pythonProcess = null;
+    runtimeManager.javaProcess = null;
+  };
+
+  await runtimeManager.stop('quit');
+
+  assert.equal(cleanupCalled, true);
+  assert.equal(runtimeManager.pythonProcess, null);
+  assert.equal(runtimeManager.javaProcess, null);
+  assert.equal(
+    logger.entries.warn.some((entry) => entry.message === 'AppCDS dynamic dump failed before shutdown cleanup'),
+    true
+  );
+});

@@ -7,6 +7,7 @@ const { spawn, spawnSync } = require('child_process');
 
 const PROCESS_KILL_TIMEOUT_MS = 10000;
 const LOG_STREAM_CLOSE_TIMEOUT_MS = 4000;
+const APP_CDS_DUMP_TIMEOUT_MS = 1500;
 const STOP_TIMEOUT_MS = 12000;
 
 function waitForPort(port, timeoutMs = 60000) {
@@ -215,35 +216,114 @@ function isAppCdsArchiveReady(context) {
   }
 }
 
-function invokeAppCdsDynamicDump(processId, context, javaExe, logger) {
+async function invokeAppCdsDynamicDump(processId, context, javaExe, logger, timeoutMs = APP_CDS_DUMP_TIMEOUT_MS) {
   if (!context || processId <= 0 || isAppCdsArchiveReady(context)) {
-    return false;
+    return {
+      status: 'skipped',
+      reason: 'archive-ready-or-no-context',
+    };
   }
 
   const jcmdExe = getJcmdPath(javaExe);
   if (!jcmdExe) {
     logger.warn('AppCDS dynamic dump skipped because jcmd.exe is unavailable');
-    return false;
+    return {
+      status: 'skipped',
+      reason: 'jcmd-unavailable',
+    };
   }
 
   if (!ensureAppCdsCacheDir(context, logger)) {
-    return false;
+    return {
+      status: 'skipped',
+      reason: 'cache-dir-unavailable',
+    };
   }
 
-  const result = spawnSync(jcmdExe, [String(processId), 'VM.cds', 'dynamic_dump', context.archivePath], {
-    windowsHide: true,
-    encoding: 'utf8',
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const child = spawn(jcmdExe, [String(processId), 'VM.cds', 'dynamic_dump', context.archivePath], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
+      resolve(result);
+    };
+
+    if (child.stdout) {
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk;
+      });
+    }
+    if (child.stderr) {
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk;
+      });
+    }
+
+    child.once('error', (error) => {
+      logger.warn('AppCDS dynamic dump failed to start', error.message);
+      finish({
+        status: 'failed',
+        reason: error.message,
+      });
+    });
+
+    child.once('exit', (code, signal) => {
+      if (isAppCdsArchiveReady(context)) {
+        logger.info('AppCDS dynamic dump completed', context.archivePath);
+        finish({
+          status: 'completed',
+          code,
+          signal,
+        });
+        return;
+      }
+
+      const output = `${stdout || ''}\n${stderr || ''}`.trim();
+      logger.warn(
+        'AppCDS dynamic dump did not produce a usable archive',
+        output || `exit code=${code ?? 'null'} signal=${signal ?? 'null'}`
+      );
+      finish({
+        status: 'failed',
+        code,
+        signal,
+        reason: output || 'archive-not-created',
+      });
+    });
+
+    const timeoutId = setTimeout(() => {
+      const output = `${stdout || ''}\n${stderr || ''}`.trim();
+      logger.warn('AppCDS dynamic dump timed out during shutdown; continuing exit', {
+        timeoutMs,
+        archivePath: context.archivePath,
+        output: output || undefined,
+      });
+
+      if (child.pid) {
+        spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          windowsHide: true,
+        }).once('error', () => {});
+      }
+
+      finish({
+        status: 'timeout',
+        reason: `timeout-${timeoutMs}ms`,
+      });
+    }, timeoutMs);
   });
-
-  if (isAppCdsArchiveReady(context)) {
-    logger.info('AppCDS dynamic dump completed', context.archivePath);
-    return true;
-  }
-
-  const stderr = `${result.stderr || ''}`.trim();
-  const stdout = `${result.stdout || ''}`.trim();
-  logger.warn('AppCDS dynamic dump did not produce a usable archive', stdout || stderr || 'unknown result');
-  return false;
 }
 
 function isSameChildProcess(expectedChild, actualChild) {
@@ -645,6 +725,9 @@ class RuntimeManager extends EventEmitter {
 
     this.stopPromise = withTimeout(
       (async () => {
+        this.markExpectedProcessExit('python', this.pythonProcess, reason);
+        this.markExpectedProcessExit('java', this.javaProcess, reason);
+
         if (
           this.javaProcess &&
           this.javaProcess.pid &&
@@ -652,14 +735,17 @@ class RuntimeManager extends EventEmitter {
           this.layout &&
           !isAppCdsArchiveReady(this.appCdsContext)
         ) {
-          invokeAppCdsDynamicDump(this.javaProcess.pid, this.appCdsContext, this.layout.javaExe, this.logger);
+          try {
+            await this.performAppCdsDynamicDump();
+          } catch (error) {
+            this.logger.warn('AppCDS dynamic dump failed before shutdown cleanup', error.message);
+          }
         }
 
-        this.markExpectedProcessExit('python', this.pythonProcess, reason);
-        this.markExpectedProcessExit('java', this.javaProcess, reason);
         await this.cleanupProcesses();
         this.running = false;
         this.startPromise = null;
+        this.appCdsContext = null;
         this.layout = null;
         this.expectedProcessExits.python = null;
         this.expectedProcessExits.java = null;
@@ -687,6 +773,28 @@ class RuntimeManager extends EventEmitter {
     return {
       ...this.state,
     };
+  }
+
+  async performAppCdsDynamicDump() {
+    if (
+      !this.javaProcess ||
+      !this.javaProcess.pid ||
+      !this.appCdsContext ||
+      !this.layout ||
+      isAppCdsArchiveReady(this.appCdsContext)
+    ) {
+      return {
+        status: 'skipped',
+        reason: 'not-applicable',
+      };
+    }
+
+    return invokeAppCdsDynamicDump(
+      this.javaProcess.pid,
+      this.appCdsContext,
+      this.layout.javaExe,
+      this.logger
+    );
   }
 }
 
