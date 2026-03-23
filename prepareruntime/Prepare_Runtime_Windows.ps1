@@ -684,3 +684,5 @@ if ($validationErrors.Count -gt 0) {
 Write-Host ''
 Write-Host '[PASS] Runtime prepare completed with all required artifacts.'
 Pause-IfNeeded
+$global:LASTEXITCODE = 0
+exit 0
