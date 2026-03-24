@@ -9,6 +9,7 @@
 *.err
 *.tmp
 .tmp_*
+log/
 log/HOROSA_RUN_ISSUES.md
 
 # Local Horosa runtime artifacts
@@ -50,6 +51,8 @@ log/HOROSA_RUN_ISSUES.md
 # Bundled runtimes (too large for regular Git push)
 local/workspace/runtime/mac/java/
 local/workspace/runtime/mac/python/
+local/workspace/runtime/self-check/
+local/workspace/runtime/windows/appcds/
 local/workspace/runtime/windows/java/
 local/workspace/runtime/windows/maven/
 local/workspace/runtime/windows/node/
