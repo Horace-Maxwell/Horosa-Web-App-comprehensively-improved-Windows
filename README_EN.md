@@ -58,7 +58,9 @@ Like the macOS repo, the Windows repo should not force ordinary users to decode 
 
 ## Visual
 
-![Horosa Windows Installer Badge](desktop_installer_bundle/assets/horosa_setup_badge.png)
+| Main Workspace | Sanshi Workspace |
+| --- | --- |
+| ![Horosa Main Workspace](docs/assets/screenshots/main-workspace.png) | ![Horosa Sanshi Workspace](docs/assets/screenshots/sanshi-workspace.png) |
 
 ## Latest Release Docs
 

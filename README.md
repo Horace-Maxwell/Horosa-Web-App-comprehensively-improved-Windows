@@ -22,7 +22,9 @@
 
 ## Preview
 
-![Horosa Windows Installer Badge](desktop_installer_bundle/assets/horosa_setup_badge.png)
+| Main Workspace | Sanshi Workspace |
+| --- | --- |
+| ![Horosa Main Workspace](docs/assets/screenshots/main-workspace.png) | ![Horosa Sanshi Workspace](docs/assets/screenshots/sanshi-workspace.png) |
 
 ## Why This Repository Exists / 这个仓库的定位
 
