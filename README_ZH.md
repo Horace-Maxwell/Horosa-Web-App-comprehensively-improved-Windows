@@ -56,7 +56,9 @@ Windows 这边的目标和 macOS 一样：减少普通用户的选择成本。
 
 ## 视觉预览
 
-![Horosa Windows Installer Badge](desktop_installer_bundle/assets/horosa_setup_badge.png)
+| 主界面工作区 | 三式合一工作区 |
+| --- | --- |
+| ![Horosa Main Workspace](docs/assets/screenshots/main-workspace.png) | ![Horosa Sanshi Workspace](docs/assets/screenshots/sanshi-workspace.png) |
 
 ## 最新版本文档
 
