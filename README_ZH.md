@@ -56,9 +56,17 @@ Windows 这边的目标和 macOS 一样：减少普通用户的选择成本。
 
 ## 视觉预览
 
-| 主界面工作区 | 三式合一工作区 |
-| --- | --- |
-| ![Horosa Main Workspace](docs/assets/screenshots/main-workspace.png) | ![Horosa Sanshi Workspace](docs/assets/screenshots/sanshi-workspace.png) |
+<div align="center">
+  <p><strong>Main Workspace / 主界面工作区</strong></p>
+  <img src="docs/assets/screenshots/main-workspace.png" alt="Horosa Main Workspace" width="1200" />
+  <p><em>这是 Horosa 在 Windows 打包正式版中的核心桌面工作区，用来承载主盘面浏览、参数控制与日常使用。</em></p>
+</div>
+
+<div align="center">
+  <p><strong>Sanshi Workspace / 三式合一工作区</strong></p>
+  <img src="docs/assets/screenshots/sanshi-workspace.png" alt="Horosa Sanshi Workspace" width="960" />
+  <p><em>这里展示的是更偏高级功能的一面，用于体现三式合一与更深层的工具化分析场景。</em></p>
+</div>
 
 ## 最新版本文档
 

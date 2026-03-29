@@ -22,9 +22,17 @@
 
 ## Preview
 
-| Main Workspace | Sanshi Workspace |
-| --- | --- |
-| ![Horosa Main Workspace](docs/assets/screenshots/main-workspace.png) | ![Horosa Sanshi Workspace](docs/assets/screenshots/sanshi-workspace.png) |
+<div align="center">
+  <p><strong>Main Workspace / 主界面工作区</strong></p>
+  <img src="docs/assets/screenshots/main-workspace.png" alt="Horosa Main Workspace" width="1200" />
+  <p><em>The primary Horosa desktop workspace delivered through the packaged Windows installer. / 通过 Windows 安装器交付给用户的 Horosa 核心桌面工作区。</em></p>
+</div>
+
+<div align="center">
+  <p><strong>Sanshi Workspace / 三式合一工作区</strong></p>
+  <img src="docs/assets/screenshots/sanshi-workspace.png" alt="Horosa Sanshi Workspace" width="960" />
+  <p><em>An advanced workflow view that highlights Sanshi and deeper tool-driven analysis. / 用于展示三式合一与更深层工具分析场景的高级工作流界面。</em></p>
+</div>
 
 ## Why This Repository Exists / 这个仓库的定位
 
