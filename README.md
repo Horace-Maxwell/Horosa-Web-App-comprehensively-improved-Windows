@@ -1,65 +1,58 @@
-# 星阙 Horosa Windows 桌面版
+<div align="center">
 
-这个仓库同时服务两类人：
+# 星阙 Horosa for Windows
 
-- 普通 Windows 用户：从 GitHub Release 下载正式安装器
-- 开发者 / 维护者：从 `main` 获取源码、脚本和桌面打包工程，通过根目录 `START_HERE.bat` 自举启动本地环境
+### A Windows desktop delivery for Horosa with bundled runtime, one-click installer, and maintainable release docs
 
-## 普通用户下载哪个
+[![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D4)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+[![Runtime](https://img.shields.io/badge/runtime-bundled%20with%20installer-6f42c1)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-- 最新正式版 Release：
-  [https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-- Windows 10/11 x64 正式安装入口：
-  `Horosa-Setup-1.1.2.exe`
+[中文文档](README_ZH.md) | [English Guide](README_EN.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [版本说明](docs/releases/v1.1.2-zh.md) | [Release Notes](docs/releases/v1.1.2-en.md)
 
-Latest Release 只保留安装器，不需要手动处理其它发布附属文件。
+</div>
 
-## `v1.1.2` 重点修复
+## Start Here / 先看这里
 
-- 单独修复关系盘右侧五个子盘在全屏、普通窗口与偏矮窗口下的左侧星盘底边遮挡问题
-- 关系盘新增专用真实高度测量与网页 / 安装版 smoke 门槛，比较盘、组合盘、影响盘、时空中点盘、马克斯盘统一回归
-- 保留并验证此前 `v1.1.1` 已修复的遁甲、六壬、三式合一、节气盘、主限法、法达、安装版关闭链与图标链，不回退
+- End users: download `Horosa-Setup-1.1.2.exe` from the latest release page.
+- 普通用户：直接去 latest release 下载 `Horosa-Setup-1.1.2.exe`。
+- Developers and maintainers: start from the bilingual guides below, not from old release snippets.
+- 开发者与维护者：请直接看中英双语文档和版本化 release 文档，不要再靠旧 release 页面拼信息。
 
-## `v1.1.1` 重点修复
+## Preview
 
-- 遁甲盘主盘按窗口底边限高，右栏改为可滚动，超宽和偏矮窗口都能完整显示
-- 遁甲主盘底部补齐颜色 / 状态图例，明确提示击刑、入墓、门迫、空亡与驿马语义
-- 节气盘黄道 / 分宫制显示与切换重算恢复正常
-- 主限法、法达星限不再空白，后天宫位 / 主宰宫标注恢复
-- 六壬、三式合一的起课、旬法、遁干、三传等规则链统一修复
-- 六壬 / 三式合一补齐反吟近克显示语义，课式、盘式与三传说明保持一致
-- 安装版 Python 图表服务兼容新版 `swisseph.azalt(...)`，排盘不再误报本地服务未就绪
-- 安装器快捷方式创建修复，桌面与开始菜单入口指向正式 `Horosa.exe`
-- 正常关闭后不再残留进程导致下次无法打开
-- planned shutdown 不再误报 `Runtime error` / `Python chart service exited unexpectedly`
-- 桌面端图标链、关闭链、主限法、法达、节气盘、六壬、三式合一与遁甲等此前修复继续保留，不回退
+![Horosa Windows Installer Badge](desktop_installer_bundle/assets/horosa_setup_badge.png)
 
-## 安装与运行
+## Why This Repository Exists / 这个仓库的定位
 
-1. 下载 `Horosa-Setup-1.1.2.exe`
-2. 运行安装器，按中文向导完成安装
-3. 从桌面或开始菜单打开 `星阙`
+- Deliver Horosa as a Windows desktop installer instead of a loose source-only bundle.
+- 把 Horosa 作为真正的 Windows 桌面安装器交付，而不是只给源码。
+- Keep one public install recommendation for ordinary users.
+- 为普通用户保持单一、明确的安装入口。
+- Preserve developer and maintainer entrypoints for packaging, self-check, and release verification.
+- 同时保留开发者和维护者所需的打包、自检和发布验证入口。
 
-补充说明：
+## Recommended Download / 推荐下载
 
-- 安装包已包含 Electron、Java、Python、前后端资源
-- 默认安装路径：`%LocalAppData%\\Programs\\Horosa`
-- 用户数据目录：`%LocalAppData%\\HorosaDesktop`
-- 若本机已有旧版，安装器会进入维护页，可选择替换或修复
+- Public install entry: `Horosa-Setup-1.1.2.exe`
+- 当前公开安装入口：`Horosa-Setup-1.1.2.exe`
+- Best for: regular Windows users who want the packaged runtime and the standard install flow.
+- 适合：希望直接安装使用、由安装器带齐运行时的普通 Windows 用户。
 
-## 开发者入口
+## Documentation / 文档导航
 
-主要目录：
+- [README_ZH.md](README_ZH.md): 中文完整说明，包含下载安装、FAQ 与开发者入口。
+- [README_EN.md](README_EN.md): Full English guide for installation, packaging context, FAQ, and developer entry.
+- [docs/releases/v1.1.2-zh.md](docs/releases/v1.1.2-zh.md): 当前最新 Windows 版本说明。
+- [docs/releases/v1.1.2-en.md](docs/releases/v1.1.2-en.md): Current Windows release notes in English.
 
-- `desktop_installer_bundle/`：Electron 桌面壳、NSIS 安装器、发布脚本
-- `prepareruntime/`：运行时准备脚本
-- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`：主项目源码
-- `docs/`：发布说明、自检和结构文档
+<details>
+<summary><strong>Developer Entry / 开发者入口</strong></summary>
 
-常用入口：
+- Root bootstrap script: `START_HERE.bat`
+- Verification entry: `SELF_CHECK_HOROSA_WINDOWS.bat`
+- Versioned release docs: `docs/releases/`
+- Installer workspace: `desktop_installer_bundle/`
 
-- `START_HERE.bat`
-- `SELF_CHECK_HOROSA_WINDOWS.bat`
-- `docs/releases/v1.1.2.md`
-
-`main` 会保留源码、脚本、打包工程和文档；不会提交 `node_modules`、`desktop_installer_bundle/build/`、`desktop_installer_bundle/release/` 以及本地 runtime 大包和日志缓存。
+</details>
