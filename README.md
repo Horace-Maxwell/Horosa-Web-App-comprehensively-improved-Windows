@@ -34,6 +34,13 @@
   <p><em>An advanced workflow view that highlights Sanshi and deeper tool-driven analysis. / 用于展示三式合一与更深层工具分析场景的高级工作流界面。</em></p>
 </div>
 
+## Capability Snapshot / 能力快照
+
+- Horosa for Windows is not just an installer repo. It ships a bundled desktop metaphysics workstation that already combines Western astrology, timing systems, relationship charts, Chinese traditional methods, Sanshi workflows, Feng Shui, and AI-ready export controls.
+- Windows 版 Horosa 不是单纯的安装器仓库，而是把西方占星、推运体系、关系盘、中国传统术数、三式工作流、风水与 AI 导出控制一起交付出去的桌面玄学工作站。
+- What users actually get after install: natal and 3D charts, primary directions, relationship analysis, Jieqi charts, astrocartography, Qizheng Siyu, Hellenistic and Indian modules, Bazi, Ziwei, Liu Ren, Dun Jia, Tai Yi, Sanshi United, calendar tools, and AI export settings.
+- 用户安装后实际会看到：本命盘、三维盘、主/界限法、关系分析、节气盘、星体地图、七政四余、希腊与印度模块、八字、紫微、六壬、遁甲、太乙、三式合一、万年历工具与 AI 导出设置。
+
 ## Why This Repository Exists / 这个仓库的定位
 
 - Deliver Horosa as a Windows desktop installer instead of a loose source-only bundle.
@@ -42,6 +49,24 @@
 - 为普通用户保持单一、明确的安装入口。
 - Preserve developer and maintainer entrypoints for packaging, self-check, and release verification.
 - 同时保留开发者和维护者所需的打包、自检和发布验证入口。
+
+## Implemented Disciplines / 已实现功能矩阵
+
+- Western and global astrology: natal chart, 3D chart, directional systems, relationship charts, Jieqi charts, astrocartography, Qizheng Siyu, Hellenistic, Indian, and quantitative views.
+- 西方与全球占星：星盘、三维盘、推运体系、关系盘、节气盘、星体地图、七政四余、希腊星术、印度律盘与量化盘。
+- Timing and predictive layers: primary directions, primary direction chart, zodiacal releasing, firdaria, profection, solar arc, solar return, lunar return, annual methods, and decennials.
+- 时运与推断层：主/界限法、主限法盘、黄道星释、法达、小限、太阳弧、太阳返照、月亮返照、流年法与十年大运。
+- Chinese traditional methods: Bazi, Ziwei, gua-symbol references, twelve-palace tools, Bazi rule references, calendar, and Feng Shui.
+- 中国传统体系：八字、紫微斗数、八卦类象、十二串宫、八字规则、万年历与风水。
+- Yi and Sanshi stack: Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, plus the integrated Sanshi United surface with overview, shensha, six-ren references, and Bagong details.
+- 易与三式体系：宿盘、易卦、六壬、金口诀、遁甲、太乙、统摄法，以及整合了概览、神煞、六壬参考与八宫详解的三式合一界面。
+
+## Research Workflow / 分析与导出工作流
+
+- Workspace controls already exist for chart configuration, aspect selection, planet selection, chart components, utility tools, AI export, and AI export settings.
+- 现有工作流已经包含星盘配置、相位选择、行星选择、星盘组件、小工具、AI 导出与 AI 导出设置。
+- The Windows delivery differs only at the packaging layer. Inside the app, the goal is still the same cross-tradition analysis surface instead of a single-purpose calculator.
+- Windows 版与 macOS 版真正不同的只是交付层；进入应用后，核心仍然是同一个跨传统分析工作面，而不是单用途计算器。
 
 ## Recommended Download / 推荐下载
 
