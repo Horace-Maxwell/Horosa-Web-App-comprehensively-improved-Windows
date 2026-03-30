@@ -21,6 +21,12 @@ This repository is the Windows delivery layer for Horosa. It exists to serve two
 
 The emphasis here is not “here is some code.” It is “here is the Windows desktop delivery channel that turns Horosa into a real installable product.”
 
+## Why Horosa Is More Than a Single Chart Viewer
+
+Even though this repository looks packaging-heavy, the thing it actually delivers is not a thin installer shell. What users install is already a feature-dense metaphysics workstation that brings Western astrology, timing systems, relationship analysis, Chinese traditional methods, Yi and Sanshi workflows, Feng Shui, and export-oriented reading into one desktop surface.
+
+So the README should not stop at “download the `.exe`.” It should also show that the software behind that installer is already broad, layered, and real.
+
 ## What End Users Should Download
 
 Go to the latest release and download:
@@ -44,6 +50,17 @@ Current delivery profile:
 - installer-first public distribution
 - runtime bundled with the installer path
 - developer and maintainer tooling kept in the repo, but not required for ordinary users
+
+## What You Will Actually See in Horosa
+
+- A primary workspace built around natal charting and a dedicated 3D chart view.
+- A timing stack that already includes primary directions, a primary direction chart, zodiacal releasing, firdaria, profection, solar arc, solar return, lunar return, annual methods, and decennials.
+- A relationship layer with compare, composite, synastry, time-space midpoint, and Marks charts.
+- Broader astrology modules including Jieqi charts, astrocartography, Qizheng Siyu, Hellenistic, Indian, and quantitative views.
+- Chinese traditional modules including Bazi, Ziwei, gua-symbol references, twelve-palace tools, Bazi rule references, calendar, and Feng Shui.
+- An Yi and Sanshi stack covering Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, and Tong She Fa.
+- A Sanshi United workspace with overview, Tai Yi, shensha, Liu Ren, major patterns, sub-patterns, references, and Bagong details.
+- Workspace-level controls for chart configuration, aspect selection, planet selection, chart components, utilities, AI export, and AI export settings.
 
 ## What You Get
 
@@ -69,6 +86,36 @@ Like the macOS repo, the Windows repo should not force ordinary users to decode 
   <img src="docs/assets/screenshots/sanshi-workspace.png" alt="Horosa Sanshi Workspace" width="960" />
   <p><em>A more advanced view that spotlights Sanshi workflows and deeper tool-driven analysis inside the Windows desktop release.</em></p>
 </div>
+
+## Implemented Disciplines
+
+### Western and global astrology
+
+- Natal chart, 3D chart, and everyday chart-reading workspace
+- Predictive stack: primary directions, primary direction chart, zodiacal releasing, firdaria, profection, solar arc, solar return, lunar return, annual methods, and decennials
+- Relationship charts: compare, composite, synastry, time-space midpoint, and Marks
+- Jieqi charts, astrocartography, Qizheng Siyu, Hellenistic, Indian, and quantitative modules
+
+### Chinese traditional and divination systems
+
+- Bazi, Ziwei, gua-symbol references, twelve-palace tools, and Bazi rule references
+- Yi and Sanshi modules: Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, and Tong She Fa
+- Sanshi United as an integrated surface with overview, Tai Yi, shensha, Liu Ren, pattern references, and Bagong interpretation details
+- Calendar and Feng Shui as first-class desktop modules rather than side utilities
+
+## Research Workflow
+
+The Windows installer changes the delivery layer, not the product ambition. Once installed, Horosa is still meant to feel like a cross-tradition analysis surface where users can move from charting to timing, from relationship work to Chinese methods, and from calculation to export-ready interpretation without leaving the same desktop app.
+
+The current workflow surface already includes:
+
+- chart configuration
+- aspect selection
+- planet selection
+- chart components
+- utility tools
+- AI export
+- AI export settings
 
 ## Latest Release Docs
 
