@@ -2,14 +2,14 @@
 
 # Horosa for Windows
 
-### A desktop metaphysics workstation for Windows, delivered through a bundled installer with runtime included
+### A desktop metaphysics workstation for Windows, delivered through an installer with runtime included
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D4)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Runtime](https://img.shields.io/badge/runtime-bundled%20with%20installer-6f42c1)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-[Portal](README.md) | [中文](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+[Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 </div>
 
@@ -17,7 +17,7 @@
 
 Even though this repository looks packaging-heavy, what it delivers is not a thin installer shell. What users install is already a feature-dense metaphysics workstation that brings Western astrology, timing systems, relationship analysis, Chinese traditional methods, Yi and Sanshi workflows, Feng Shui, and export-oriented reading into one desktop surface.
 
-That is the real story of the Windows repo. The installer matters, but the stronger claim is that the software behind it already feels broad, layered, and product-like.
+That is the real story of the Windows repository. The installer matters, but the stronger claim is that the software behind it already feels broad, layered, and product-like.
 
 ## What You Can Actually Do
 
@@ -60,7 +60,7 @@ Why this path is the recommendation:
 
 ## Signature Workflows
 
-### Natal to Timing
+### Natal To Timing
 
 Horosa already supports a continuous predictive flow on Windows. Users can start with natal and 3D chart reading, then move into primary directions, zodiacal releasing, firdaria, profection, solar arc, returns, and annual methods without leaving the same desktop product.
 
@@ -72,45 +72,45 @@ The relationship layer is broader than a single compare screen. It already inclu
 
 Bazi, Ziwei, calendar, Feng Shui, and supporting references are already part of the same desktop environment, which makes Horosa feel like a broader Chinese traditional stack rather than a single-method utility.
 
-### Yi and Sanshi Depth
+### Yi And Sanshi Depth
 
-Yi and Sanshi are represented both as standalone modules and as a deeper integrated surface: Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and Sanshi United with overview, shensha, references, and Bagong interpretation detail.
+Yi and Sanshi go beyond standalone tabs. Horosa already includes Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and a deeper Sanshi United surface.
 
 ## Implemented Disciplines
 
-### Western astrology
+### Western Astrology
 
 The strength here is continuity from natal reading to timing and relationship work.
 
-- Natal chart and 3D chart
-- Primary directions, zodiacal releasing, firdaria, profection, solar arc, returns, annual methods
-- Compare, composite, synastry, time-space midpoint, and Marks charts
+- natal chart and 3D chart
+- primary directions, zodiacal releasing, firdaria, profection, solar arc, returns, and annual methods
+- compare, composite, synastry, time-space midpoint, and Marks charts
 
-### Global and specialty modules
+### Global And Specialty Modules
 
-Horosa goes well beyond the default packaged desktop astrology stack.
+Horosa goes beyond the default packaged desktop astrology stack.
 
 - Jieqi charts
-- Astrocartography and planetary maps
+- astrocartography and planetary maps
 - Qizheng Siyu, Hellenistic, Indian, and quantitative views
 
-### Chinese traditional systems
+### Chinese Traditional Systems
 
 The Chinese traditional layer is arranged as a genuine system of entrypoints and references.
 
 - Bazi, Ziwei, gua-symbol references, twelve-palace tools, and rule references
-- Calendar and Feng Shui as first-class modules
-- A workspace that allows cross-reading between different traditions
+- calendar and Feng Shui as first-class modules
+- a workspace that allows cross-reading between different traditions
 
-### Yi and Sanshi
+### Yi And Sanshi
 
-This layer gains its depth from the jump between standalone methods and a deeper integrated surface.
+This layer gains its depth from the jump between standalone methods and an integrated analysis surface.
 
-- Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa
+- Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, and Tong She Fa
 - Sanshi United with overview, Tai Yi, shensha, Liu Ren, major patterns, sub-patterns, references, and Bagong details
-- Integrated explanatory depth instead of placeholder tabs
+- integrated explanatory depth instead of placeholder tabs
 
-### Tools and export workflow
+### Tools And Export Workflow
 
 Horosa is not only about calculation. It also provides the controls needed for desktop research and export-ready interpretation.
 
@@ -124,31 +124,31 @@ Horosa is not only about calculation. It also provides the controls needed for d
 
 ## Desktop Delivery
 
-On Windows, the focus is bundled installer delivery rather than asking users to assemble their own environment.
+On Windows, the focus is installer-first delivery rather than asking users to assemble their own environment.
 
 - Windows 10 / 11 x64
 - installer-first public distribution
-- runtime bundled with the installer path
-- developer and maintainer tooling kept in the repo, but not required for ordinary users
+- runtime included with the installer path
+- developer and maintainer tooling kept in the repository, but not required for ordinary users
 
 The point is not “here is some code.” The point is “here is Horosa as a real installable desktop product.”
 
 ## Latest Release Docs
 
 - [v1.1.2 Release Notes (English)](docs/releases/v1.1.2-en.md)
-- [v1.1.2 中文版本说明](docs/releases/v1.1.2-zh.md)
+- [v1.1.2 Chinese Release Notes](docs/releases/v1.1.2-zh.md)
 
 ## FAQ
 
-### Do I need to clone the repo to use Horosa
+### Do I Need To Clone The Repository To Use Horosa
 
 No. Regular users should just download the installer from the latest release.
 
-### Do I need to install Python or Java myself
+### Do I Need To Install Python Or Java Myself
 
 Not on the intended public install path. The Windows delivery goal is to keep that complexity out of the normal user flow.
 
-### Why are `START_HERE.bat` and self-check scripts still in the repo
+### Why Are `START_HERE.bat` And Self-Check Scripts Still In The Repository
 
 Because the repository also serves maintainers. End users use the installer; maintainers use the scripts.
 
@@ -156,9 +156,9 @@ Because the repository also serves maintainers. End users use the installer; mai
 
 If you maintain the Windows delivery flow, start with the path that matches your goal:
 
-- Understand the public-facing repository layout: [README.md](README.md)
-- Read the full Chinese guide: [README_ZH.md](README_ZH.md)
-- Run verification and self-check: `SELF_CHECK_HOROSA_WINDOWS.bat`
-- Inspect versioned release notes and publishing context: `docs/releases/`
-- Enter the installer workspace: `desktop_installer_bundle/`
-- Inspect the mirrored application source used by packaging: `local/workspace/.../`
+- understand the public-facing repository layout: [README.md](README.md)
+- read the full Chinese guide: [README_ZH.md](README_ZH.md)
+- run verification and self-check: `SELF_CHECK_HOROSA_WINDOWS.bat`
+- inspect versioned release notes and publishing context: `docs/releases/`
+- enter the installer workspace: `desktop_installer_bundle/`
+- inspect the mirrored application source used by packaging: `local/workspace/.../`
