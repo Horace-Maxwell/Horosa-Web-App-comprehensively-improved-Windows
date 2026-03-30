@@ -2,22 +2,22 @@
 
 # 星阙 Horosa for Windows
 
-### 面向 Windows 的桌面玄学工作站，通过 bundled installer 和内置运行时交付
+### 面向 Windows 的桌面玄学工作站，通过内置运行时的安装器交付
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D4)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Runtime](https://img.shields.io/badge/runtime-bundled%20with%20installer-6f42c1)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-[入口页](README.md) | [English](README_EN.md) | [最新 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+[入口页](README.md) | [英文说明](README_EN.md) | [最新 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 </div>
 
-## 为什么 Horosa 不只是单一排盘器
+## 为什么 Horosa 与普通排盘器不同
 
 Windows 仓库虽然表面上更像交付层，但真正交付出去的并不是一个“只负责安装”的壳，而是一套已经实现了大量术数模块的桌面玄学工作站。普通用户安装以后进入的，是同一套 Horosa 主工作面，而不是一个为了桌面打包临时包起来的网页。
 
-所以这个 README 的目标也不该只停在“下载哪个 exe”，而应该让人清楚看见：Horosa 已经是一个跨传统、多工作流、可直接使用的桌面产品。
+所以这个 README 不该只回答“下载哪个安装器”，而应该让人清楚看见：Horosa 已经是一个跨传统、多工作流、可直接使用的桌面产品。
 
 ## 你可以直接拿它做什么
 
@@ -62,7 +62,7 @@ Windows 仓库虽然表面上更像交付层，但真正交付出去的并不是
 
 ### 本命到时运
 
-Horosa 的 Windows 版已经把本命盘到推运体系这条线接成一体。用户可以从本命盘与三维盘进入，再继续切到主/界限法、主限法盘、黄道星释、法达、小限、太阳弧、返照与流年法。
+Horosa 的 Windows 版已经把本命盘到推运体系这条线接成一体。用户可以从本命盘与三维盘进入，再继续切到主/界限法、黄道星释、法达、小限、太阳弧、返照与流年法。
 
 ### 关系分析
 
@@ -83,12 +83,12 @@ Horosa 的 Windows 版已经把本命盘到推运体系这条线接成一体。�
 这一层的优势不只是“能起盘”，而是从本命、推运到关系分析的连续链路。
 
 - 星盘、本命盘、三维盘构成主盘面
-- 推运盘覆盖主/界限法、主限法盘、黄道星释、法达、小限、太阳弧、太阳返照、月亮返照、流年法、十年大运
+- 推运盘覆盖主/界限法、黄道星释、法达、小限、太阳弧、返照与流年法
 - 关系盘覆盖比较盘、组合盘、影响盘、时空中点盘、马克斯盘
 
 ### 全球与专门模块
 
-Horosa 的桌面面比常见打包软件要宽很多。
+Horosa 的桌面面比常见打包软件更宽。
 
 - 节气盘
 - 星体地图
@@ -97,11 +97,11 @@ Horosa 的桌面面比常见打包软件要宽很多。
 - 印度律盘
 - 量化盘
 
-### 中国传统
+### 中国传统体系
 
 中国传统部分走的是系统化入口，而不是单点拼装。
 
-- 八字、紫微斗数、八卦类象、十二串宫、八字规则
+- 八字、紫微斗数、八卦类象、十二串宫、规则
 - 万年历与风水作为正式模块，而不是附属脚本
 - 同一桌面环境下可以连续切换不同传统
 
@@ -111,11 +111,11 @@ Horosa 的桌面面比常见打包软件要宽很多。
 
 - 宿盘、易卦、六壬、金口诀、遁甲、太乙、统摄法
 - 三式合一已经覆盖概览、太乙、神煞、六壬、大格、小局、、八宫
-- 奇门吉格、凶格、演卦等说明已经进入综合工作区
+- 多种说明性内容已经进入综合工作区，而不是只停留在占位页
 
-### 工具与导出
+### 工具与导出工作流
 
-Horosa 的 Windows 版虽然强调 installer delivery，但真正的产品体验来自这套桌面工作流。
+Horosa 的 Windows 版虽然强调安装器交付，但真正的产品体验来自这套桌面工作流。
 
 - 星盘配置
 - 相位选择
@@ -127,7 +127,7 @@ Horosa 的 Windows 版虽然强调 installer delivery，但真正的产品体验
 
 ## 桌面交付体验
 
-Windows 这边强调的是 bundled installer delivery，而不是让普通用户自己补环境。
+Windows 这边强调的是内置运行时的安装器交付，而不是让普通用户自己补环境。
 
 - 目标平台：Windows 10 / 11 x64
 - 安装器是公开主入口
