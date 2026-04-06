@@ -372,7 +372,7 @@ function Write-RuntimeManifest {
     product = 'Horosa Windows Stable'
     channel = 'stable'
     generatedAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ssK')
-    root = $Root
+    root = 'local/workspace'
     assets = $assets
   }
   $json = $manifest | ConvertTo-Json -Depth 6

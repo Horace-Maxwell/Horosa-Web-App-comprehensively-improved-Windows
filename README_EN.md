@@ -124,7 +124,7 @@ Useful entry points:
 
 - `START_HERE.bat`
 - `SELF_CHECK_HOROSA_WINDOWS.bat`
-- `docs/releases/v1.2.0.md`
+- `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0`
 
 ## Verification
 
@@ -144,7 +144,7 @@ npm run dist:win
 
 ## Governance And Docs
 
-- release notes: [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
+- release notes: [GitHub Release v1.2.0](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0)
 - architecture: [docs/architecture.md](docs/architecture.md)
 - progress: [docs/progress.md](docs/progress.md)
 - contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
