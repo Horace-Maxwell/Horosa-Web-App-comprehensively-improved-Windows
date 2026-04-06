@@ -2,163 +2,156 @@
 
 # Horosa for Windows
 
-### A desktop metaphysics workstation for Windows, delivered through an installer with runtime included
+### A local-first metaphysics workstation for Windows with a bundled desktop delivery path
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D4)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Runtime](https://img.shields.io/badge/runtime-bundled%20with%20installer-6f42c1)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml/badge.svg)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=social)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
 [Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 </div>
 
-## Why Horosa Feels Different
+## Release Snapshot
 
-Even though this repository looks packaging-heavy, what it delivers is not a thin installer shell. What users install is already a feature-dense metaphysics workstation that brings Western astrology, timing systems, relationship analysis, Chinese traditional methods, Yi and Sanshi workflows, Feng Shui, and export-oriented reading into one desktop surface.
+- current public release: `v1.2.0`
+- primary installer: `Horosa-Setup-1.2.0.exe`
+- end users should download from GitHub Releases instead of cloning the source repository
 
-That is the real story of the Windows repository. The installer matters, but the stronger claim is that the software behind it already feels broad, layered, and product-like.
+## What Horosa Delivers
 
-## What You Can Actually Do
+Horosa for Windows is not only a packaging shell. It delivers a full workstation that combines:
 
-<table>
-  <tr>
-    <td width="50%">
-      <strong>As an end user</strong><br />
-      Download the Windows installer, complete the standard setup flow, and open Horosa without manually assembling runtime dependencies.
-    </td>
-    <td width="50%">
-      <strong>As a maintainer</strong><br />
-      Use the same repository to inspect packaging, self-check scripts, versioned release docs, and the installer-side workspace behind the public delivery channel.
-    </td>
-  </tr>
-</table>
-
-Primary entry:
-
-- [Horosa-Setup-1.1.2.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.1.2.exe)
-
-Why this path is the recommendation:
-
-- one clear public install entry
-- runtime bundled with the installer
-- closer to the expected Windows desktop software experience
+- Western astrology and timing workflows
+- relationship charts and cross-reading surfaces
+- Chinese traditional systems and Sanshi depth
+- the new `AIAnalysis` workspace with streaming analysis, local history, materials, templates, bundles, provider diagnostics, and backup / restore
+- a Windows desktop shell, runtime bootstrap chain, installer, and update path
 
 ## Preview
 
 <div align="center">
   <p><strong>Main Workspace</strong></p>
   <img src="docs/assets/screenshots/main-workspace.png" alt="Horosa Main Workspace" width="1200" />
-  <p><em>The primary Horosa workspace shipped through the packaged Windows installer, built for chart reading, controls, and everyday desktop use.</em></p>
 </div>
 
 <div align="center">
   <p><strong>Sanshi Workspace</strong></p>
   <img src="docs/assets/screenshots/sanshi-workspace.png" alt="Horosa Sanshi Workspace" width="960" />
-  <p><em>A more advanced view that spotlights Sanshi workflows and deeper tool-driven analysis inside the Windows desktop release.</em></p>
 </div>
 
-## Signature Workflows
+This release also emphasizes:
 
-### Natal To Timing
+- `AIAnalysis - Analysis`
+- `AIAnalysis - History`
+- `AIAnalysis - Materials`
+- `AIAnalysis - Templates`
+- `AIAnalysis - Settings`
+- the Windows installer / update flow
 
-Horosa already supports a continuous predictive flow on Windows. Users can start with natal and 3D chart reading, then move into primary directions, zodiacal releasing, firdaria, profection, solar arc, returns, and annual methods without leaving the same desktop product.
+## What Is New In v1.2.0
 
-### Relationship Analysis
+- adds the formal `AIAnalysis` workspace entry with five right-side tabs: `Analysis / History / Materials / Templates / Settings`
+- upgrades the analysis chain to native streaming behavior and supports stop, regenerate, edit-last-message, and branch sessions
+- expands the materials library with full-text search, drag-and-drop upload, replace-file, backup / restore, and large-material RAG handling
+- expands history with filters, batch export, batch delete, favorites, archive, and continue-conversation flows
+- adds provider presets, model fetch, connection test, health status, and diagnostics to settings
+- keeps the shared web frontend for both web and desktop while adding native file / folder / backup IPC on Windows
+- fixes the bottom whitespace / scrolling issue under default scaling without breaking existing non-AI workspaces
 
-The relationship layer is broader than a single compare screen. It already includes compare, composite, synastry, time-space midpoint, and Marks charts as parallel ways to inspect the same relationship from different structural angles.
+## AIAnalysis Workspace
 
-### Chinese Traditional Stack
+`AIAnalysis` is a first-class Horosa workspace, not a lightweight chat overlay. It includes:
 
-Bazi, Ziwei, calendar, Feng Shui, and supporting references are already part of the same desktop environment, which makes Horosa feel like a broader Chinese traditional stack rather than a single-method utility.
+- streaming analysis directly from saved chart or case records
+- local-first history with search, export, branching, archive, favorites, and batch actions
+- a materials library for `.txt/.md/.doc/.docx/.pdf`
+- text / JSON templates with variables, versions, and reusable bundles
+- provider presets for mainstream protocol families such as OpenAI-compatible, DeepSeek, Anthropic, Gemini, and Ollama / LM Studio
+- workspace and material backup / restore
 
-### Yi And Sanshi Depth
-
-Yi and Sanshi go beyond standalone tabs. Horosa already includes Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and a deeper Sanshi United surface.
-
-## Implemented Disciplines
+## Capability Snapshot
 
 ### Western Astrology
 
-The strength here is continuity from natal reading to timing and relationship work.
-
-- natal chart and 3D chart
-- primary directions, zodiacal releasing, firdaria, profection, solar arc, returns, and annual methods
+- natal chart, 3D chart, timing stack, returns, solar arc, profections, and firdaria
 - compare, composite, synastry, time-space midpoint, and Marks charts
-
-### Global And Specialty Modules
-
-Horosa goes beyond the default packaged desktop astrology stack.
-
-- Jieqi charts
-- astrocartography and planetary maps
-- Qizheng Siyu, Hellenistic, Indian, and quantitative views
 
 ### Chinese Traditional Systems
 
-The Chinese traditional layer is arranged as a genuine system of entrypoints and references.
+- Bazi, Ziwei, calendar, Feng Shui, Yi and Sanshi workflows
+- Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and Sanshi United
 
-- Bazi, Ziwei, gua-symbol references, twelve-palace tools, and rule references
-- calendar and Feng Shui as first-class modules
-- a workspace that allows cross-reading between different traditions
+### Desktop Delivery
 
-### Yi And Sanshi
+- installer-first distribution with bundled runtime
+- desktop controls, AI export, AI export settings, and verification scripts
+- maintainers can validate the packaged flow and the shared frontend from the same repository
 
-This layer gains its depth from the jump between standalone methods and an integrated analysis surface.
+## Installation
 
-- Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, and Tong She Fa
-- Sanshi United with overview, Tai Yi, shensha, Liu Ren, major patterns, sub-patterns, references, and Bagong details
-- integrated explanatory depth instead of placeholder tabs
+1. Open the [latest release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
+2. Download `Horosa-Setup-1.2.0.exe`
+3. Run the installer and finish the setup wizard
+4. Launch `Horosa / 星阙` from the desktop or Start Menu
 
-### Tools And Export Workflow
+Notes:
 
-Horosa is not only about calculation. It also provides the controls needed for desktop research and export-ready interpretation.
+- the installer bundles Electron, Java, Python, and the frontend / backend runtime assets
+- default install path: `%LocalAppData%\\Programs\\Horosa`
+- user data path: `%LocalAppData%\\HorosaDesktop`
+- GitHub Release `v1.2.0` is the current latest public delivery entry
 
-- chart configuration
-- aspect selection
-- planet selection
-- chart components
-- utility tools
-- AI export
-- AI export settings
+## Recommended First Run Flow
 
-## Desktop Delivery
-
-On Windows, the focus is installer-first delivery rather than asking users to assemble their own environment.
-
-- Windows 10 / 11 x64
-- installer-first public distribution
-- runtime included with the installer path
-- developer and maintainer tooling kept in the repository, but not required for ordinary users
-
-The point is not “here is some code.” The point is “here is Horosa as a real installable desktop product.”
-
-## Latest Release Docs
-
-- [v1.1.2 Release Notes (English)](docs/releases/v1.1.2-en.md)
-- [v1.1.2 Chinese Release Notes](docs/releases/v1.1.2-zh.md)
-
-## FAQ
-
-### Do I Need To Clone The Repository To Use Horosa
-
-No. Regular users should just download the installer from the latest release.
-
-### Do I Need To Install Python Or Java Myself
-
-Not on the intended public install path. The Windows delivery goal is to keep that complexity out of the normal user flow.
-
-### Why Are `START_HERE.bat` And Self-Check Scripts Still In The Repository
-
-Because the repository also serves maintainers. End users use the installer; maintainers use the scripts.
+1. add a provider profile and fetch models in `Settings`
+2. import local materials in `Materials`
+3. save response templates or bundles in `Templates`
+4. select a chart / case record and attach materials or bundles in `Analysis`
+5. start a streaming analysis, then continue, export, archive, or branch it from `History`
 
 ## Developer Entry
 
-If you maintain the Windows delivery flow, start with the path that matches your goal:
+Main directories:
 
-- understand the public-facing repository layout: [README.md](README.md)
-- read the full Chinese guide: [README_ZH.md](README_ZH.md)
-- run verification and self-check: `SELF_CHECK_HOROSA_WINDOWS.bat`
-- inspect versioned release notes and publishing context: `docs/releases/`
-- enter the installer workspace: `desktop_installer_bundle/`
-- inspect the mirrored application source used by packaging: `local/workspace/.../`
+- `desktop_installer_bundle/`: Electron shell, NSIS installer, release scripts
+- `prepareruntime/`: Windows runtime preparation scripts
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`: main source workspace
+- `docs/`: release, verification, and architecture documentation
+
+Useful entry points:
+
+- `START_HERE.bat`
+- `SELF_CHECK_HOROSA_WINDOWS.bat`
+- `docs/releases/v1.2.0.md`
+
+## Verification
+
+```bash
+cd local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui
+npm ci
+npm test -- --runInBand src/utils/__tests__/aiAnalysisContext.test.js src/utils/__tests__/aiAnalysisRetrieval.test.js src/utils/__tests__/aiAnalysisStore.test.js src/utils/__tests__/aiProviderAdapters.test.js
+npm run build:file
+```
+
+```bash
+cd desktop_installer_bundle
+npm ci
+npm run pack:win
+npm run dist:win
+```
+
+## Governance And Docs
+
+- release notes: [docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
+- architecture: [docs/architecture.md](docs/architecture.md)
+- progress: [docs/progress.md](docs/progress.md)
+- contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- security: [SECURITY.md](SECURITY.md)
+- support: [SUPPORT.md](SUPPORT.md)
+- license: [LICENSE](LICENSE)
+
+For general usage questions, please use GitHub Discussions first:
+
+- [GitHub Discussions](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
