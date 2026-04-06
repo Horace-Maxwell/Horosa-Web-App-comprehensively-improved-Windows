@@ -124,7 +124,7 @@
 
 - `START_HERE.bat`
 - `SELF_CHECK_HOROSA_WINDOWS.bat`
-- `docs/releases/v1.2.0.md`
+- `https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0`
 
 ## 验证
 
@@ -144,7 +144,7 @@ npm run dist:win
 
 ## 文档与治理
 
-- 版本说明：[docs/releases/v1.2.0.md](docs/releases/v1.2.0.md)
+- 版本说明：[GitHub Release v1.2.0](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0)
 - 架构说明：[docs/architecture.zh.md](docs/architecture.zh.md)
 - 进度快照：[docs/progress.zh.md](docs/progress.zh.md)
 - 贡献说明：[CONTRIBUTING_ZH.md](CONTRIBUTING_ZH.md)
