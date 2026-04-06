@@ -542,48 +542,31 @@ Function ValidateShortcutTarget
 
   IfFileExists "$ShortcutPathUnderTest" 0 shortcut_validate_done
 
-  InitPluginsDir
-  FileOpen $1 "$PLUGINSDIR\validate-shortcut.ps1" w
-  FileWrite $1 "$$ErrorActionPreference = 'Stop'$\r$\n"
-  FileWrite $1 "$$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($$env:HOROSA_SHORTCUT_PATH)$\r$\n"
-  FileWrite $1 "if ($$shortcut.TargetPath -eq $$env:HOROSA_EXPECTED_TARGET) { exit 0 }$\r$\n"
-  FileWrite $1 "exit 1$\r$\n"
-  FileClose $1
-
-  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_SHORTCUT_PATH", "$ShortcutPathUnderTest").r0'
-  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_EXPECTED_TARGET", "$ShortcutExpectedTarget").r0'
+  Call PrepareShortcutHelperScript
+  Sleep 200
   ClearErrors
-  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\validate-shortcut.ps1"' $0
-  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_SHORTCUT_PATH", "").r0'
-  System::Call 'Kernel32::SetEnvironmentVariable(t, t) i ("HOROSA_EXPECTED_TARGET", "").r0'
+  nsExec::ExecToStack '"$SYSDIR\cscript.exe" //NoLogo "$ShortcutHelperScriptPath" checkshortcut "$ShortcutPathUnderTest" "$ShortcutExpectedTarget" "$INSTDIR" "$ShortcutExpectedTarget,0"'
+  Pop $ShortcutHelperExitCode
+  Pop $0
 
-  ${If} $0 == 0
+  ${If} $ShortcutHelperExitCode == 0
     StrCpy $ShortcutValidationResult "1"
+  ${Else}
+    DetailPrint "WARNING: shortcut validation helper failed -> $ShortcutPathUnderTest :: $0"
   ${EndIf}
 
 shortcut_validate_done:
 FunctionEnd
 
 Function CreateShortcutWithPowerShell
-  InitPluginsDir
-  FileOpen $1 "$PLUGINSDIR\create-shortcut.vbs" w
-  FileWrite $1 "Set fso = CreateObject($\"Scripting.FileSystemObject$\")$\r$\n"
-  FileWrite $1 "Set shell = CreateObject($\"WScript.Shell$\")$\r$\n"
-  FileWrite $1 "finalPath = WScript.Arguments.Item(0)$\r$\n"
-  FileWrite $1 "tempPath = fso.GetParentFolderName(finalPath) & $\"\\Horosa Shortcut.tmp.lnk$\"$\r$\n"
-  FileWrite $1 "If fso.FileExists(tempPath) Then fso.DeleteFile tempPath, True$\r$\n"
-  FileWrite $1 "If fso.FileExists(finalPath) Then fso.DeleteFile finalPath, True$\r$\n"
-  FileWrite $1 "Set shortcut = shell.CreateShortcut(tempPath)$\r$\n"
-  FileWrite $1 "shortcut.TargetPath = WScript.Arguments.Item(1)$\r$\n"
-  FileWrite $1 "shortcut.WorkingDirectory = WScript.Arguments.Item(2)$\r$\n"
-  FileWrite $1 "shortcut.IconLocation = WScript.Arguments.Item(3)$\r$\n"
-  FileWrite $1 "shortcut.Description = WScript.Arguments.Item(4)$\r$\n"
-  FileWrite $1 "shortcut.Save$\r$\n"
-  FileWrite $1 "fso.MoveFile tempPath, finalPath$\r$\n"
-  FileClose $1
-
+  Call PrepareShortcutHelperScript
   ClearErrors
-  ExecWait '"$SYSDIR\cscript.exe" //NoLogo "$PLUGINSDIR\create-shortcut.vbs" "$ShortcutPathUnderTest" "$ShortcutExpectedTarget" "$INSTDIR" "$ShortcutExpectedTarget,0" "星阙"' $0
+  nsExec::ExecToStack '"$SYSDIR\cscript.exe" //NoLogo "$ShortcutHelperScriptPath" ensureshortcut "$ShortcutPathUnderTest" "$ShortcutExpectedTarget" "$INSTDIR" "$ShortcutExpectedTarget,0" "星阙"'
+  Pop $ShortcutHelperExitCode
+  Pop $0
+  ${If} $ShortcutHelperExitCode != 0
+    DetailPrint "WARNING: shortcut creation helper failed -> $ShortcutPathUnderTest :: $0"
+  ${EndIf}
 FunctionEnd
 
 Function ExistingInstallPageCreate
