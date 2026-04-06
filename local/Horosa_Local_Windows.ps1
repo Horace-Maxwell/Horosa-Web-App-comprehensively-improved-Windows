@@ -1581,7 +1581,7 @@ function Ensure-BrowserProfileZoomPreference {
   param(
     [string]$ProfileRoot,
     [string]$TargetHost = '127.0.0.1',
-    [double]$ZoomLevel = -1.5778829311823859
+    [double]$ZoomLevel = -2.3627645774179684
   )
 
   if ([string]::IsNullOrWhiteSpace($ProfileRoot) -or [string]::IsNullOrWhiteSpace($TargetHost)) {
