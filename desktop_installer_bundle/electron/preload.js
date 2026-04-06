@@ -68,6 +68,29 @@ contextBridge.exposeInMainWorld('horosaDesktop', {
   resetZoom() {
     return ipcRenderer.invoke('desktop:reset-zoom');
   },
+  aiAnalysis: {
+    pickFiles(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:pick-files', payload || {});
+    },
+    selectImportDirectory(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:select-import-directory', payload || {});
+    },
+    importDirectory(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:import-directory', payload);
+    },
+    exportBackup(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:export-backup', payload);
+    },
+    importBackup(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:import-backup', payload || {});
+    },
+    selectSyncDirectory(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:select-sync-directory', payload || {});
+    },
+    syncWorkspace(payload) {
+      return ipcRenderer.invoke('desktop:ai-analysis:sync-workspace', payload);
+    },
+  },
   onUpdateState(callback) {
     return subscribe('desktop:update-state', callback);
   },

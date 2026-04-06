@@ -9,6 +9,8 @@
 *.err
 *.tmp
 .tmp_*
+output/
+out/
 log/
 log/HOROSA_RUN_ISSUES.md
 
@@ -59,6 +61,7 @@ local/workspace/runtime/windows/node/
 local/workspace/runtime/windows/python/
 local/workspace/runtime/windows/wheels/
 local/workspace/runtime/windows/bundle/astrostudyboot.jar
+local/workspace/runtime/windows/bundle/wheels/
 
 # Legacy path compatibility
 runtime/mac/java/
@@ -69,6 +72,7 @@ runtime/windows/node/
 runtime/windows/python/
 runtime/windows/wheels/
 runtime/windows/bundle/astrostudyboot.jar
+runtime/windows/bundle/wheels/
 
 # Local reference bundles and audit artifacts (not for release branch)
 Horosa-Web-App-comprehensively-improved-MacOS-main/

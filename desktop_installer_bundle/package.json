@@ -1,7 +1,8 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "private": true,
+  "license": "MIT",
   "description": "Horosa mature Windows desktop app bundle",
   "author": "Horosa",
   "main": "electron/main.js",

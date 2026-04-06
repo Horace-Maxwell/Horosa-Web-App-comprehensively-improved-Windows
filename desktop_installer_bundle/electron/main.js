@@ -1038,6 +1038,196 @@ function queueUpdateCheck() {
   }, 15000);
 }
 
+function normalizeExtensionSet(extensions) {
+  return new Set(
+    (Array.isArray(extensions) ? extensions : [])
+      .map((item) => `${item || ''}`.trim().toLowerCase())
+      .filter(Boolean)
+      .map((item) => (item.startsWith('.') ? item : `.${item}`))
+  );
+}
+
+function collectFilesRecursive(directoryPath, extensionSet, results = []) {
+  const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+  entries.forEach((entry) => {
+    const fullPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      collectFilesRecursive(fullPath, extensionSet, results);
+      return;
+    }
+    const extension = path.extname(entry.name).toLowerCase();
+    if (extensionSet.size && !extensionSet.has(extension)) {
+      return;
+    }
+    const buffer = fs.readFileSync(fullPath);
+    results.push({
+      fileName: entry.name,
+      name: entry.name,
+      path: fullPath,
+      extension,
+      byteSize: buffer.length,
+      mime:
+        extension === '.pdf'
+          ? 'application/pdf'
+          : extension === '.docx'
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : extension === '.doc'
+              ? 'application/msword'
+              : extension === '.md'
+                || extension === '.markdown'
+                ? 'text/markdown'
+                : 'text/plain',
+      base64: buffer.toString('base64'),
+    });
+  });
+  return results;
+}
+
+function collectSelectedFiles(filePaths, extensionSet) {
+  const results = [];
+  (Array.isArray(filePaths) ? filePaths : []).forEach((filePath) => {
+    if (!filePath || !fs.existsSync(filePath)) {
+      return;
+    }
+    const resolvedPath = path.resolve(filePath);
+    const extension = path.extname(resolvedPath).toLowerCase();
+    if (extensionSet.size && !extensionSet.has(extension)) {
+      return;
+    }
+    const buffer = fs.readFileSync(resolvedPath);
+    results.push({
+      fileName: path.basename(resolvedPath),
+      name: path.basename(resolvedPath),
+      path: resolvedPath,
+      extension,
+      byteSize: buffer.length,
+      mime:
+        extension === '.pdf'
+          ? 'application/pdf'
+          : extension === '.docx'
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : extension === '.doc'
+              ? 'application/msword'
+              : extension === '.md' || extension === '.markdown'
+                ? 'text/markdown'
+                : 'text/plain',
+      base64Data: buffer.toString('base64'),
+      base64: buffer.toString('base64'),
+    });
+  });
+  return results;
+}
+
+function buildBackupFilePayload(filePath) {
+  const resolvedPath = path.resolve(filePath);
+  const extension = path.extname(resolvedPath).toLowerCase();
+  const buffer = fs.readFileSync(resolvedPath);
+  const isZip = extension === '.zip';
+  return {
+    ok: true,
+    filePath: resolvedPath,
+    fileName: path.basename(resolvedPath),
+    extension,
+    mimeType: isZip ? 'application/zip' : 'application/json',
+    base64Data: buffer.toString('base64'),
+    content: isZip ? '' : buffer.toString('utf8'),
+  };
+}
+
+function resolveBackupWritePayload(payload) {
+  if (payload && payload.base64Data) {
+    return Buffer.from(payload.base64Data, 'base64');
+  }
+  if (payload && payload.binaryBase64) {
+    return Buffer.from(payload.binaryBase64, 'base64');
+  }
+  return Buffer.from(payload && payload.content ? payload.content : '{}', 'utf8');
+}
+
+const AI_ANALYSIS_WORKSPACE_STORES = [
+  'providerConfigs',
+  'materials',
+  'templates',
+  'bundles',
+  'sessions',
+  'materialFolders',
+  'tagGroups',
+  'materialChunks',
+  'materialIndex',
+  'templateVersions',
+  'workspaceMeta',
+];
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asText(value) {
+  return value == null ? '' : `${value}`;
+}
+
+function asTimestamp(value) {
+  const timestamp = new Date(asText(value)).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function asVersion(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function shouldPreferIncomingAIRecord(current, incoming) {
+  if (!current) {
+    return true;
+  }
+  const incomingTime = asTimestamp(incoming && (incoming.updatedAt || incoming.createdAt));
+  const currentTime = asTimestamp(current && (current.updatedAt || current.createdAt));
+  if (incomingTime !== currentTime) {
+    return incomingTime > currentTime;
+  }
+  const incomingSnapshotVersion = asVersion(incoming && (incoming.snapshotVersion || incoming.version));
+  const currentSnapshotVersion = asVersion(current && (current.snapshotVersion || current.version));
+  if (incomingSnapshotVersion !== currentSnapshotVersion) {
+    return incomingSnapshotVersion > currentSnapshotVersion;
+  }
+  const incomingMigrationVersion = asVersion(incoming && incoming.migrationVersion);
+  const currentMigrationVersion = asVersion(current && current.migrationVersion);
+  if (incomingMigrationVersion !== currentMigrationVersion) {
+    return incomingMigrationVersion > currentMigrationVersion;
+  }
+  return asText(incoming && incoming.updatedAt) >= asText(current && current.updatedAt);
+}
+
+function mergeAIWorkspaceStore(existingList, incomingList) {
+  const map = new Map();
+  asArray(existingList).forEach((item) => {
+    if (item && item.id) {
+      map.set(item.id, item);
+    }
+  });
+  asArray(incomingList).forEach((item) => {
+    if (!item || !item.id) {
+      return;
+    }
+    const current = map.get(item.id);
+    if (shouldPreferIncomingAIRecord(current, item)) {
+      map.set(item.id, item);
+    }
+  });
+  return Array.from(map.values());
+}
+
+function mergeAIAnalysisWorkspaces(existingWorkspace, incomingWorkspace) {
+  const existing = existingWorkspace && typeof existingWorkspace === 'object' ? existingWorkspace : {};
+  const incoming = incomingWorkspace && typeof incomingWorkspace === 'object' ? incomingWorkspace : {};
+  const merged = {};
+  AI_ANALYSIS_WORKSPACE_STORES.forEach((storeName) => {
+    merged[storeName] = mergeAIWorkspaceStore(existing[storeName], incoming[storeName]);
+  });
+  merged.schemaVersion = Math.max(asVersion(existing.schemaVersion), asVersion(incoming.schemaVersion), 2);
+  return merged;
+}
+
 function registerIpcHandlers() {
 ipcMain.on('desktop:get-bootstrap-config-sync', (event) => {
   event.returnValue = getBootstrapConfig();
@@ -1156,6 +1346,140 @@ ipcMain.handle('desktop:get-app-info', async () => {
       ok: true,
       message: `诊断报告已导出到 ${saveResult.filePath}`,
       filePath: saveResult.filePath,
+    };
+  });
+
+  ipcMain.handle('desktop:ai-analysis:pick-files', async (_event, payload) => {
+    const extensionSet = normalizeExtensionSet(payload && payload.extensions);
+    const filters = extensionSet.size
+      ? [{ name: 'AI Analysis Files', extensions: Array.from(extensionSet).map((item) => item.replace(/^\./, '')) }]
+      : [];
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      filters,
+    });
+    if (result.canceled) {
+      return { ok: false, canceled: true, files: [] };
+    }
+    return {
+      ok: true,
+      files: collectSelectedFiles(result.filePaths, extensionSet),
+    };
+  });
+
+  ipcMain.handle('desktop:ai-analysis:select-import-directory', async (_event, payload) => {
+    const requestedPath = payload && payload.directoryPath ? path.resolve(payload.directoryPath) : '';
+    if (requestedPath) {
+      return {
+        canceled: false,
+        directoryPath: requestedPath,
+      };
+    }
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+    });
+    return {
+      canceled: result.canceled,
+      directoryPath: result.canceled ? '' : result.filePaths[0],
+    };
+  });
+
+  ipcMain.handle('desktop:ai-analysis:import-directory', async (_event, payload) => {
+    const directoryPath = payload && payload.directoryPath ? path.resolve(payload.directoryPath) : '';
+    if (!directoryPath || !fs.existsSync(directoryPath)) {
+      return { ok: false, files: [], message: '目录不存在' };
+    }
+    const files = collectFilesRecursive(directoryPath, normalizeExtensionSet(payload && payload.extensions));
+    return {
+      ok: true,
+      files,
+      directoryPath,
+    };
+  });
+
+  ipcMain.handle('desktop:ai-analysis:export-backup', async (_event, payload) => {
+    const directFilePath = payload && payload.filePath ? path.resolve(payload.filePath) : '';
+    const writeBuffer = resolveBackupWritePayload(payload);
+    if (directFilePath) {
+      fs.mkdirSync(path.dirname(directFilePath), { recursive: true });
+      fs.writeFileSync(directFilePath, writeBuffer);
+      return { ok: true, filePath: directFilePath, bypassedDialog: true };
+    }
+    const defaultPath = path.join(app.getPath('documents'), payload && payload.fileName ? payload.fileName : `horosa-ai-backup-${Date.now()}.zip`);
+    const saveResult = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'AI Analysis Backup', extensions: ['zip', 'json'] }],
+    });
+    if (saveResult.canceled || !saveResult.filePath) {
+      return { ok: false, canceled: true };
+    }
+    fs.writeFileSync(saveResult.filePath, writeBuffer);
+    return { ok: true, filePath: saveResult.filePath };
+  });
+
+  ipcMain.handle('desktop:ai-analysis:import-backup', async (_event, payload) => {
+    const directFilePath = payload && payload.filePath ? path.resolve(payload.filePath) : '';
+    if (directFilePath && fs.existsSync(directFilePath)) {
+      return {
+        ...buildBackupFilePayload(directFilePath),
+        bypassedDialog: true,
+      };
+    }
+    const openResult = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'AI Analysis Backup', extensions: ['zip', 'json'] }],
+    });
+    if (openResult.canceled || !openResult.filePaths[0]) {
+      return { ok: false, canceled: true };
+    }
+    return buildBackupFilePayload(openResult.filePaths[0]);
+  });
+
+  ipcMain.handle('desktop:ai-analysis:select-sync-directory', async (_event, payload) => {
+    const requestedPath = payload && payload.directoryPath ? path.resolve(payload.directoryPath) : '';
+    if (requestedPath) {
+      fs.mkdirSync(requestedPath, { recursive: true });
+      return {
+        canceled: false,
+        directoryPath: requestedPath,
+      };
+    }
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return {
+      canceled: result.canceled,
+      directoryPath: result.canceled ? '' : result.filePaths[0],
+    };
+  });
+
+  ipcMain.handle('desktop:ai-analysis:sync-workspace', async (_event, payload) => {
+    const directoryPath = payload && payload.directoryPath ? path.resolve(payload.directoryPath) : '';
+    if (!directoryPath) {
+      return { ok: false, message: '未提供同步目录' };
+    }
+    fs.mkdirSync(directoryPath, { recursive: true });
+    const filePath = path.join(directoryPath, 'horosa-ai-workspace.json');
+    let existingWorkspace = {};
+    if (fs.existsSync(filePath)) {
+      try {
+        existingWorkspace = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch (error) {
+        return {
+          ok: false,
+          message: `同步目录中的工作区文件损坏：${error && error.message ? error.message : error}`,
+          filePath,
+        };
+      }
+    }
+    const mergedWorkspace = mergeAIAnalysisWorkspaces(existingWorkspace, payload && payload.workspace ? payload.workspace : {});
+    fs.writeFileSync(filePath, JSON.stringify(mergedWorkspace, null, 2), 'utf8');
+    return {
+      ok: true,
+      filePath,
+      directoryPath,
+      merged: true,
+      workspace: mergedWorkspace,
     };
   });
 }

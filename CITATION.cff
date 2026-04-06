@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: Horosa Web App Comprehensively Improved Windows
+message: If you use this repository in academic or technical work, please cite it.
+type: software
+version: 1.2.0
+authors:
+  - given-names: Horace
+    family-names: Maxwell
+    email: maxwelldhx@gmail.com
+repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
+url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
+license: MIT
+abstract: >-
+  Horosa for Windows is a local-first metaphysics workstation that combines charting,
+  traditional Chinese methods, AI-assisted analysis, and a Windows desktop delivery pipeline.

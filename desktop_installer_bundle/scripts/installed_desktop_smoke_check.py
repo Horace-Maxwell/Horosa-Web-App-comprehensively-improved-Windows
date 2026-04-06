@@ -276,11 +276,52 @@ def count_horosa_windows() -> int:
     return total
 
 
+def find_horosa_windows(process_id: int | None = None) -> list:
+    matched = []
+    for window in Desktop(backend="uia").windows():
+        try:
+            title = window.window_text()
+            pid = window.process_id()
+        except Exception:
+            continue
+        if "星阙" not in title:
+            continue
+        if process_id is not None and pid != process_id:
+            continue
+        matched.append(window)
+    return matched
+
+
 def wait_for_horosa_window(timeout_seconds: int = 60) -> bool:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
         if count_horosa_windows() >= 1:
             return True
+        time.sleep(1)
+    return False
+
+
+def resize_horosa_window(process_id: int | None = None, width: int = 1600, height: int = 1200) -> bool:
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        windows = find_horosa_windows(process_id)
+        if not windows:
+            time.sleep(1)
+            continue
+        for window in windows:
+            try:
+                window.restore()
+            except Exception:
+                pass
+            try:
+                window.move_window(0, 0, width, height, repaint=True)
+                return True
+            except Exception:
+                try:
+                    window.set_focus()
+                    return True
+                except Exception:
+                    continue
         time.sleep(1)
     return False
 
@@ -426,7 +467,7 @@ def main() -> None:
 
     snapshot = collect_snapshot()
     exe_path = Path(args.exe_path).resolve() if args.exe_path else DEFAULT_EXE
-    if snapshot.install_location:
+    if (not args.exe_path) and snapshot.install_location:
         candidate = Path(snapshot.install_location) / "Horosa.exe"
         if candidate.exists():
             exe_path = candidate
