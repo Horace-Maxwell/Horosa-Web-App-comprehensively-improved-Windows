@@ -253,13 +253,89 @@ function Resolve-MavenCmd {
   return $null
 }
 
+function Get-LatestWriteTimeUtc {
+  param(
+    [string[]]$Paths,
+    [string[]]$ExcludeFragments = @('\target\', '\.git\', '\node_modules\', '\dist\', '\dist-file\')
+  )
+
+  $latest = $null
+  foreach ($candidate in $Paths) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if (-not (Test-Path $candidate)) { continue }
+
+    $items = @()
+    try {
+      $item = Get-Item -LiteralPath $candidate -ErrorAction Stop
+      if ($item.PSIsContainer) {
+        $items = @(
+          Get-ChildItem -LiteralPath $candidate -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {
+              $full = $_.FullName
+              foreach ($fragment in $ExcludeFragments) {
+                if ($fragment -and $full.IndexOf($fragment, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                  return $false
+                }
+              }
+              return $true
+            }
+        )
+      } else {
+        $items = @($item)
+      }
+    } catch {
+      continue
+    }
+
+    foreach ($file in $items) {
+      if (-not $latest -or $file.LastWriteTimeUtc -gt $latest) {
+        $latest = $file.LastWriteTimeUtc
+      }
+    }
+  }
+
+  return $latest
+}
+
+function Test-BackendJarNeedsBuild {
+  param(
+    [string]$ProjDir,
+    [string]$TargetJarPath
+  )
+
+  if (-not (Test-Path $TargetJarPath)) {
+    return $true
+  }
+
+  $backendRoot = Join-Path $ProjDir 'astrostudysrv'
+  if (-not (Test-Path $backendRoot)) {
+    return $false
+  }
+
+  $watchPaths = @(
+    (Join-Path $backendRoot 'pom.xml'),
+    (Join-Path $backendRoot 'astrostudyboot\pom.xml'),
+    (Join-Path $backendRoot 'astrostudyboot\src'),
+    (Join-Path $backendRoot 'astrostudy\src'),
+    (Join-Path $backendRoot 'boundless\src'),
+    (Join-Path $backendRoot 'basecomm\src')
+  )
+
+  $latestSourceWrite = Get-LatestWriteTimeUtc -Paths $watchPaths
+  if (-not $latestSourceWrite) {
+    return $false
+  }
+
+  $jarWrite = (Get-Item $TargetJarPath).LastWriteTimeUtc
+  return ($latestSourceWrite -gt $jarWrite)
+}
+
 function Try-BuildBackendJar {
   param(
     [string]$ProjDir,
     [string]$TargetJarPath
   )
 
-  if (Test-Path $TargetJarPath) { return $true }
   $bootDir = Join-Path $ProjDir 'astrostudysrv\astrostudyboot'
   if (-not (Test-Path $bootDir)) {
     Write-Host ("[WARN] Backend build folder not found: {0}" -f $bootDir)
@@ -559,12 +635,16 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
   Write-Host 'Python runtime not found. Set HOROSA_PYTHON_HOME then rerun.'
 }
 
-if (-not (Test-Path $JarSrc)) {
-  Write-Host ("[WARN] Backend jar not found: {0}" -f $JarSrc)
-  Write-Host '[INFO] Trying local Maven build fallback...'
+if (Test-BackendJarNeedsBuild -ProjDir $ProjectDir -TargetJarPath $JarSrc) {
+  if (Test-Path $JarSrc) {
+    Write-Host ("[INFO] Backend source is newer than packaged jar; rebuilding: {0}" -f $JarSrc)
+  } else {
+    Write-Host ("[WARN] Backend jar not found: {0}" -f $JarSrc)
+  }
+  Write-Host '[INFO] Trying local Maven build...'
   $builtJar = Try-BuildBackendJar -ProjDir $ProjectDir -TargetJarPath $JarSrc
   if (-not $builtJar) {
-    Write-Host '[WARN] Maven build fallback did not produce astrostudyboot.jar.'
+    Write-Host '[WARN] Maven build did not produce astrostudyboot.jar.'
   }
 }
 

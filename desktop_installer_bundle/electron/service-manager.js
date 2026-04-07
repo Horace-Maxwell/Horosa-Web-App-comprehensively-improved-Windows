@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
 const fs = require('fs');
+const http = require('http');
 const net = require('net');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
@@ -9,6 +10,29 @@ const PROCESS_KILL_TIMEOUT_MS = 10000;
 const LOG_STREAM_CLOSE_TIMEOUT_MS = 4000;
 const APP_CDS_DUMP_TIMEOUT_MS = 1500;
 const STOP_TIMEOUT_MS = 12000;
+const STARTUP_HTTP_TIMEOUT_MS = 5000;
+const STARTUP_READY_TIMEOUT_MS = 120000;
+const STARTUP_RETRY_DELAY_MS = 500;
+const STARTUP_CHART_PROBE_PAYLOAD = {
+  date: '2028/04/06',
+  time: '09:33:00',
+  zone: '+00:00',
+  lat: '41n26',
+  lon: '174w30',
+  gpsLat: -41.433333,
+  gpsLon: 174.5,
+  hsys: 1,
+  tradition: false,
+  predictive: true,
+  zodiacal: 0,
+  simpleAsp: false,
+  strongRecption: false,
+  virtualPointReceiveAsp: true,
+  southchart: false,
+  ad: 1,
+  name: 'Horosa Startup Probe',
+  pos: 'Wellington',
+};
 
 function waitForPort(port, timeoutMs = 60000) {
   const start = Date.now();
@@ -55,6 +79,130 @@ async function findPort(preferredPort, host = '127.0.0.1', attempts = 50) {
 
 function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function requestHttp({ url, method = 'GET', headers = {}, body = null, timeoutMs = STARTUP_HTTP_TIMEOUT_MS }) {
+  return new Promise((resolve, reject) => {
+    let target;
+    try {
+      target = new URL(url);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    const request = http.request(
+      {
+        protocol: target.protocol,
+        hostname: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method,
+        headers,
+      },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on('end', () => {
+          resolve({
+            statusCode: response.statusCode || 0,
+            headers: response.headers,
+            body: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      }
+    );
+
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new Error(`Request timed out after ${timeoutMs}ms: ${url}`));
+    });
+    request.once('error', reject);
+    if (body) {
+      request.write(body);
+    }
+    request.end();
+  });
+}
+
+function normalizeHttpBody(text, maxLength = 240) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+async function waitForBackendHeartbeat(serverRoot, timeoutMs = STARTUP_READY_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = 'timeout';
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await requestHttp({
+        url: `${serverRoot.replace(/\/$/, '')}/heartbeat`,
+      });
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {
+          ok: true,
+          statusCode: response.statusCode,
+          bodyExcerpt: normalizeHttpBody(response.body),
+        };
+      }
+      lastError = `status=${response.statusCode} body=${normalizeHttpBody(response.body)}`;
+    } catch (error) {
+      lastError = error.message;
+    }
+    await delay(STARTUP_RETRY_DELAY_MS);
+  }
+
+  throw new Error(`Backend heartbeat probe failed: ${lastError}`);
+}
+
+async function waitForChartProbe(chartPort, timeoutMs = STARTUP_READY_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
+  const body = JSON.stringify(STARTUP_CHART_PROBE_PAYLOAD);
+  let lastError = 'timeout';
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await requestHttp({
+        url: `http://127.0.0.1:${chartPort}/`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=utf-8',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        body,
+        timeoutMs: STARTUP_HTTP_TIMEOUT_MS * 2,
+      });
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        const payload = JSON.parse(response.body || '{}');
+        const birth = payload && payload.params && payload.params.birth;
+        if (birth) {
+          return {
+            ok: true,
+            statusCode: response.statusCode,
+            birth,
+          };
+        }
+        lastError = `missing params.birth body=${normalizeHttpBody(response.body)}`;
+      } else {
+        lastError = `status=${response.statusCode} body=${normalizeHttpBody(response.body)}`;
+      }
+    } catch (error) {
+      lastError = error.message;
+    }
+    await delay(STARTUP_RETRY_DELAY_MS);
+  }
+
+  throw new Error(`Chart service probe failed: ${lastError}`);
 }
 
 function withTimeout(promise, timeoutMs, timeoutMessage) {
@@ -657,6 +805,17 @@ class RuntimeManager extends EventEmitter {
 
         this.attachUnexpectedExitHandlers(logDir);
         await Promise.all([waitForPort(chartPort, 60000), waitForPort(backendPort, 60000)]);
+        this.updateState({
+          status: 'verifying-runtime',
+          message: '正在验证本地服务可用性',
+          backendPort,
+          chartPort,
+          logDir,
+        });
+        const [backendProbe, chartProbe] = await Promise.all([
+          waitForBackendHeartbeat(`http://127.0.0.1:${backendPort}`),
+          waitForChartProbe(chartPort),
+        ]);
 
         this.running = true;
         this.updateState({
@@ -669,6 +828,10 @@ class RuntimeManager extends EventEmitter {
           logFiles: {
             python: pythonLog,
             java: javaLog,
+          },
+          readinessChecks: {
+            backendHeartbeat: backendProbe,
+            chartProbe,
           },
           resourceRoot: this.resourceRoot,
           startupDurationMs: Date.now() - startupStartedAt,
