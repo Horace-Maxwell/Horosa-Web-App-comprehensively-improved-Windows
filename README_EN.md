@@ -7,7 +7,7 @@
 ### A desktop metaphysics workstation for Windows x64, delivered through an installer-first release channel with bundled runtime
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
@@ -29,6 +29,8 @@
 [Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 **Current release:** `v1.2.0`
+
+**Licensing note:** the public repository is now distributed under `AGPL-3.0` because the released stack integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories keep their own upstream notices.
 
 </div>
 

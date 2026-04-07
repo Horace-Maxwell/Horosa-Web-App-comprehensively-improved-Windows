@@ -7,7 +7,7 @@
 ### 面向 Windows x64 的桌面玄学工作站，以安装器优先发布链路和随包运行时交付
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
@@ -29,6 +29,8 @@
 [入口页](README.md) | [英文说明](README_EN.md) | [最新 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
 **当前版本：** `v1.2.0`
+
+**许可证说明：** 当前公开仓库已切换为 `AGPL-3.0`，原因是发布栈中集成了 Swiss Ephemeris / `pyswisseph`。第三方子目录仍保留各自上游原始许可证说明。
 
 </div>
 

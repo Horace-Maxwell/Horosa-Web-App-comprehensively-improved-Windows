@@ -65,6 +65,11 @@ Small, reviewable commits are preferred. Use imperative commit subjects, for exa
 - `Add Windows AIAnalysis backup zip support`
 - `Fix AIAnalysis layout gap under default scale`
 
+
+## Licensing Note
+
+Horosa is now on an explicit AGPL-3.0 open-source release track. The repository-level license is [AGPL-3.0](LICENSE). This change is aligned with the public release stack that integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories may continue to carry their own original upstream notices, so do not overwrite those files when preparing contributions.
+
 ## Security
 
 Do not open public issues for security-sensitive findings. Follow [SECURITY.md](SECURITY.md) instead.

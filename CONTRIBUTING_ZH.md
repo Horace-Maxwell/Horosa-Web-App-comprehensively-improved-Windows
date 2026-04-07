@@ -65,6 +65,11 @@ npm run pack:win
 - `Add Windows AIAnalysis backup zip support`
 - `Fix AIAnalysis layout gap under default scale`
 
+
+## 许可证说明
+
+Horosa 现已明确采用 [AGPL-3.0](LICENSE) 作为仓库级源码许可证，这次调整与公开发布栈中集成 Swiss Ephemeris / `pyswisseph` 的实际情况保持一致。第三方子目录仍可能保留各自上游原始许可证说明，提交时不要把这些上游文件强行改写成仓库级许可证。
+
 ## 安全问题
 
 安全相关问题不要开公开 issue。请按 [SECURITY_ZH.md](SECURITY_ZH.md) 中的方式私下报告。

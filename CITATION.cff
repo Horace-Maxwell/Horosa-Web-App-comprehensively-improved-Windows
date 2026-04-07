@@ -9,7 +9,7 @@ authors:
     email: maxwelldhx@gmail.com
 repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
-license: MIT
+license: AGPL-3.0-only
 abstract: >-
   Horosa for Windows is a local-first metaphysics workstation that combines charting,
   traditional Chinese methods, AI-assisted analysis, and a Windows desktop delivery pipeline.
