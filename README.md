@@ -8,7 +8,7 @@
 ### 面向 Windows x64 的桌面玄学工作站
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
@@ -32,6 +32,8 @@
 <p>Horosa on Windows is delivered as an installer-first desktop product with bundled runtime, a shared web/app workspace, and a clear public release path.</p>
 <p>Windows 版 Horosa 以安装器优先、运行时随包交付、Web/App 共用工作区的正式桌面产品形态发布。</p>
 <p><strong>Current release train / 当前发布线：v1.2.0</strong></p>
+<p><strong>Licensing note:</strong> the public repository is now distributed under <code>AGPL-3.0</code> because the released stack integrates Swiss Ephemeris / <code>pyswisseph</code>. Third-party subdirectories keep their own upstream notices.</p>
+<p><strong>许可证说明：</strong> 当前公开仓库已切换为 <code>AGPL-3.0</code>，原因是发布栈中集成了 Swiss Ephemeris / <code>pyswisseph</code>。第三方子目录仍保留各自上游原始许可证说明。</p>
 
 </div>
 
