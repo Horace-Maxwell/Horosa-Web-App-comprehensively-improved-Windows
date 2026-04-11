@@ -11,11 +11,11 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.2.0.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.2.1.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![AIAnalysis](https://img.shields.io/badge/AIAnalysis-streaming%20%7C%20history%20%7C%20materials-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0)
-[![Runtime](https://img.shields.io/badge/runtime-1.2.0--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![AIAnalysis](https://img.shields.io/badge/AIAnalysis-streaming%20%7C%20history%20%7C%20materials-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.1)
+[![Runtime](https://img.shields.io/badge/runtime-1.2.1--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -28,7 +28,7 @@
 
 [Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-**Current release:** `v1.2.0`
+**Current release:** `v1.2.1`
 
 **Licensing note:** the public repository is now distributed under `AGPL-3.0` because the released stack integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories keep their own upstream notices.
 
@@ -57,7 +57,7 @@ That is the main idea this README should communicate. The installer matters, the
 
 Primary entry:
 
-- [Horosa-Setup-1.2.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.2.0.exe)
+- [Horosa-Setup-1.2.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.2.1.exe)
 
 Best fit:
 
@@ -144,9 +144,9 @@ Horosa is not only about calculation. It also provides the controls needed for d
 - AI export
 - AI export settings
 
-## New In v1.2.0: AIAnalysis
+## Updated In v1.2.1: AIAnalysis
 
-`AIAnalysis` is now a full workspace rather than a narrow export helper. Version `1.2.0` adds a dedicated tab stack for `Analyze`, `History`, `Materials`, `Templates`, and `Settings`, all designed around local-first persistence and shared between the web runtime and the desktop runtime.
+`AIAnalysis` is now a full workspace rather than a narrow export helper. Version `1.2.1` keeps the dedicated tab stack and folds in the latest Ollama context-budget fix for `Analyze`, `History`, `Materials`, `Templates`, and `Settings`, all designed around local-first persistence and shared between the web runtime and the desktop runtime.
 
 Key additions in this release:
 
@@ -169,7 +169,7 @@ The point is not "here is a codebase, please assemble it yourself." The point is
 
 ## Latest Release
 
-- [GitHub Release v1.2.0](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0)
+- [GitHub Release v1.2.1](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.1)
 - [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 ## FAQ
@@ -197,6 +197,6 @@ If you maintain this stack, start with the path that matches your goal:
 - understand the public-facing repository layout: [README.md](README.md)
 - read the full Chinese guide: [README_ZH.md](README_ZH.md)
 - inspect desktop bundle internals and publishing flow: [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md)
-- read the current version release page: [GitHub Release v1.2.0](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.0)
+- read the current version release page: [GitHub Release v1.2.1](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.2.1)
 - enter the application source tree: `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
 - inspect bundled runtime and verification notes: `local/workspace/runtime/windows/`, `docs/PROJECT_STRUCTURE.md`, and `docs/SELFCHECK_LOG.md`
