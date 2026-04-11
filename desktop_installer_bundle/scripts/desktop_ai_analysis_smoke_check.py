@@ -232,7 +232,7 @@ def main() -> None:
                     json.dumps(
                         {
                             "type": "horosa-ai-analysis-workspace-backup",
-                            "version": "1.2.0",
+                            "version": "1.2.1",
                             "workspace": backup_payload,
                         },
                         ensure_ascii=False,
