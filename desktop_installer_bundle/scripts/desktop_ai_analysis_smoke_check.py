@@ -47,28 +47,21 @@ def wait_for_file(path_value: Path, timeout_seconds: int = 20) -> bool:
     return False
 
 
-def click_material_action(page, card_text: str, action_index: int) -> None:
-    card = page.locator(".ant-card").filter(has_text=card_text).first
+def click_material_action(page, card_text: str, action_label: str) -> None:
+    card = page.locator(".ant-card:visible").filter(has_text=card_text).first
     card.wait_for(timeout=15000)
-    action = card.locator(".ant-card-actions li").nth(action_index)
-    try:
-        action.click(force=True)
-    except Exception:
-        action.evaluate(
-            """
-            (node) => {
-              node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-              node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-              node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              const child = node.querySelector('span[role="img"], .anticon, svg');
-              if (child) {
-                child.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-                child.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-                child.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              }
-            }
-            """
-        )
+    named_button = card.get_by_role("button", name=action_label)
+    if named_button.count():
+        named_button.first.click(force=True)
+        page.wait_for_timeout(500)
+        return
+    if action_label == "删除":
+        delete_button = card.locator(".ant-card-actions button, .ant-card-actions .ant-btn").last
+        if delete_button.count():
+            delete_button.click(force=True)
+            page.wait_for_timeout(500)
+            return
+    raise RuntimeError(f"material action not found: {card_text} / {action_label}")
     page.wait_for_timeout(500)
 
 
@@ -232,7 +225,7 @@ def main() -> None:
                     json.dumps(
                         {
                             "type": "horosa-ai-analysis-workspace-backup",
-                            "version": "1.2.1",
+                            "version": "1.3.0",
                             "workspace": backup_payload,
                         },
                         ensure_ascii=False,
@@ -273,12 +266,28 @@ def main() -> None:
             DEEP.BASE.expect_card(page, "desktop-md")
             DEEP.BASE.expect_card(page, "desktop-pdf")
             DEEP.BASE.expect_card(page, "desktop-doc")
-            click_material_action(page, "desktop-doc", 3)
+            click_material_action(page, "desktop-doc", "删除")
             removed = False
-            for _ in range(20):
+            for _ in range(30):
                 page.wait_for_timeout(500)
+                dismiss_blocking_modals(page)
                 remaining_cards = DEEP.BASE.active_pane(page).locator(".ant-card").filter(has_text="desktop-doc")
-                if remaining_cards.count() == 0:
+                workspace_state = page.evaluate(
+                    """
+                    () => {
+                      try{
+                        return JSON.parse(localStorage.getItem('horosa_ai_analysis_workspace_v2') || '{}');
+                      }catch(e){
+                        return {};
+                      }
+                    }
+                    """
+                )
+                workspace_removed = not any(
+                    (item.get("name") or "") == "desktop-doc"
+                    for item in (workspace_state.get("materials") or [])
+                )
+                if remaining_cards.count() == 0 and workspace_removed:
                     removed = True
                     break
             if not removed:
@@ -295,11 +304,11 @@ def main() -> None:
             result["checks"].append({"name": "desktop-sync-settings-visibility", "status": "PASS"})
 
             DEEP.BASE.click_inner_tab(page, "分析")
-            page.get_by_role("button", name="新会话").click()
-            DEEP.BASE.select_in_active_pane(page, 2, "深度命盘案例 / 命盘 / 2024-02-02 08:00:00")
-            DEEP.BASE.select_in_active_pane(page, 3, "desktop-note")
+            page.get_by_role("button", name="新对话").click()
+            DEEP.BASE.select_in_active_pane(page, 1, "深度命盘案例 / 命盘 / 2024-02-02 08:00:00")
+            DEEP.BASE.select_in_active_pane(page, 2, "资料 · desktop-note")
             DEEP.BASE.active_pane(page).locator("textarea").last.fill("请做一次桌面端 AI 分析。")
-            DEEP.BASE.active_pane(page).get_by_role("button", name="发送").click()
+            DEEP.BASE.active_pane(page).get_by_role("button", name="发送分析").click()
             DEEP.BASE.active_pane(page).get_by_text("深度根会话", exact=False).wait_for(timeout=15000)
             result["checks"].append({"name": "desktop-analysis-stream-smoke", "status": "PASS"})
 

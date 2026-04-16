@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptRoot
 $releaseRoot = Join-Path $scriptRoot 'release'
-$portableRoot = Join-Path $releaseRoot 'portable-staging'
+$portableRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("horosa-portable-staging-" + [guid]::NewGuid().ToString())
 
 function Resolve-TagValue {
   param([string]$RawVersion)
@@ -111,6 +111,85 @@ function Get-Sha256 {
   return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function Remove-DirectoryTree {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+
+  for ($attempt = 0; $attempt -lt 3; $attempt++) {
+    try {
+      Get-ChildItem -LiteralPath $Path -Force -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending |
+        ForEach-Object {
+          try {
+            Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction Stop
+          }
+          catch {
+          }
+        }
+
+      Remove-Item -LiteralPath $Path -Force -Recurse -ErrorAction Stop
+      return
+    }
+    catch {
+      Start-Sleep -Milliseconds 500
+    }
+  }
+
+  if (Test-Path -LiteralPath $Path) {
+    throw "Unable to remove directory tree: $Path"
+  }
+}
+
+function New-ZipArchive {
+  param(
+    [string]$SourceDir,
+    [string]$ZipPath
+  )
+
+  $pythonScript = @'
+import os
+import sys
+import zipfile
+
+source_dir = sys.argv[1]
+zip_path = sys.argv[2]
+
+def win_long_path(path: str) -> str:
+    if os.name != 'nt':
+        return path
+    absolute = os.path.abspath(path)
+    if absolute.startswith('\\\\?\\'):
+        return absolute
+    if absolute.startswith('\\\\'):
+        return '\\\\?\\UNC\\' + absolute[2:]
+    return '\\\\?\\' + absolute
+
+with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9, allowZip64=True) as archive:
+    for root, _, files in os.walk(source_dir):
+        for name in files:
+            path = os.path.join(root, name)
+            arcname = os.path.relpath(path, source_dir)
+            archive.write(win_long_path(path), arcname)
+'@
+
+  $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) ("horosa-portable-zip-" + [guid]::NewGuid().ToString() + ".py")
+  try {
+    Set-Content -Path $tempScript -Value $pythonScript -Encoding UTF8
+    & python $tempScript $SourceDir $ZipPath
+    if ($LASTEXITCODE -ne 0) {
+      throw "python zip packaging failed with exit code $LASTEXITCODE"
+    }
+  }
+  finally {
+    if (Test-Path $tempScript) {
+      Remove-Item -Force $tempScript
+    }
+  }
+}
+
 $releaseTag = Resolve-TagValue -RawVersion $Version
 if ($RequireTagMatch -and -not ($releaseTag -like 'windows-stable-*')) {
   throw "Portable stable release tag must match windows-stable-*. Current: $releaseTag"
@@ -125,9 +204,6 @@ if (-not (Test-Path $runtimeRoot)) {
   throw "Portable runtime not found: $runtimeRoot"
 }
 
-if (Test-Path $portableRoot) {
-  Remove-Item -Recurse -Force $portableRoot
-}
 New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
 
 $packageRoot = Join-Path $portableRoot "HorosaPortableWindows-$releaseTag"
@@ -174,7 +250,7 @@ $guideTemplate = @'
 ## 说明
 
 - 这是非 App 版稳定入口，基于本地浏览器 `--app` 壳启动
-- 安装版用户请下载 GitHub Release 中的 `Horosa-Setup-1.0.4.exe`
+- 安装版用户请下载 GitHub Release 中的 `Horosa-Setup-__TAG__.exe`
 '@
 $guideContent = $guideTemplate.Replace('__TAG__', $releaseTag)
 $guidePath = Join-Path $packageRoot "使用说明-$releaseTag.md"
@@ -186,7 +262,7 @@ $zipPath = Join-Path $releaseRoot $zipName
 if (Test-Path $zipPath) {
   Remove-Item -Force $zipPath
 }
-Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zipPath -CompressionLevel Optimal
+New-ZipArchive -SourceDir $packageRoot -ZipPath $zipPath
 
 $manifestName = "HorosaPortableWindows-$releaseTag.manifest.json"
 $manifestPath = Join-Path $releaseRoot $manifestName

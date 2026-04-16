@@ -10,9 +10,15 @@ const PROCESS_KILL_TIMEOUT_MS = 10000;
 const LOG_STREAM_CLOSE_TIMEOUT_MS = 4000;
 const APP_CDS_DUMP_TIMEOUT_MS = 1500;
 const STOP_TIMEOUT_MS = 12000;
+const RESOURCE_PREP_TIMEOUT_MS = 15 * 60 * 1000;
 const STARTUP_HTTP_TIMEOUT_MS = 5000;
 const STARTUP_READY_TIMEOUT_MS = 120000;
+const TRUSTED_FAST_PATH_READY_TIMEOUT_MS = 60000;
 const STARTUP_RETRY_DELAY_MS = 500;
+const PACKED_PAYLOAD_MANIFEST_FILE = 'payload-manifest.json';
+const PACKED_PAYLOAD_READY_FILE = '.payload-ready.json';
+const RUNTIME_HEALTH_CACHE_FILE = '.runtime-health-cache.json';
+const RUNTIME_FAST_PATH_FILE = '.runtime-fast-path.json';
 const STARTUP_CHART_PROBE_PAYLOAD = {
   date: '2028/04/06',
   time: '09:33:00',
@@ -79,6 +85,10 @@ async function findPort(preferredPort, host = '127.0.0.1', attempts = 50) {
 
 function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
+}
+
+function rmrf(targetPath) {
+  fs.rmSync(targetPath, { recursive: true, force: true });
 }
 
 function delay(ms) {
@@ -303,6 +313,97 @@ function fileExists(filePath) {
   }
 }
 
+function readJsonFile(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function writeJsonFile(filePath, value) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
+}
+
+function getFileSignature(filePath) {
+  const stat = fs.statSync(filePath);
+  return {
+    path: filePath,
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+  };
+}
+
+function runCommand(command, args, { cwd = undefined, env = undefined, timeoutMs = RESOURCE_PREP_TIMEOUT_MS } = {}) {
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timeoutId = null;
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    const finish = (error, result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(result);
+    };
+
+    if (child.stdout) {
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk;
+      });
+    }
+    if (child.stderr) {
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk;
+      });
+    }
+
+    child.once('error', (error) => {
+      finish(error);
+    });
+
+    child.once('exit', (code, signal) => {
+      if (code === 0) {
+        finish(null, { code, signal, stdout, stderr });
+        return;
+      }
+      finish(
+        new Error(
+          `${command} ${args.join(' ')} failed with code=${code ?? 'null'} signal=${signal ?? 'null'}: ${(stderr || stdout || '').trim()}`
+        )
+      );
+    });
+
+    timeoutId = setTimeout(() => {
+      if (child.pid) {
+        spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+          stdio: 'ignore',
+          windowsHide: true,
+        }).once('error', () => {});
+      }
+      finish(new Error(`${command} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+}
+
+async function extractTarArchive(archivePath, targetDir) {
+  await runCommand('tar', ['-xf', archivePath, '-C', targetDir], {
+    timeoutMs: RESOURCE_PREP_TIMEOUT_MS,
+  });
+}
+
 function getJavaVersionText(javaExe) {
   const result = spawnSync(javaExe, ['-version'], {
     windowsHide: true,
@@ -524,6 +625,7 @@ class RuntimeManager extends EventEmitter {
   constructor({ resourceRoot, userDataDir, logger }) {
     super();
     this.resourceRoot = resourceRoot;
+    this.resolvedResourceRoot = resourceRoot;
     this.userDataDir = userDataDir;
     this.logger = logger.child('runtime');
     this.running = false;
@@ -545,10 +647,131 @@ class RuntimeManager extends EventEmitter {
     };
   }
 
-  resolveLayout() {
-    const runtimeWindowsDir = path.join(this.resourceRoot, 'runtime', 'windows');
+  getResolvedResourceRoot() {
+    return this.resolvedResourceRoot || this.resourceRoot;
+  }
+
+  getPackedPayloadManifestPath() {
+    return path.join(this.resourceRoot, PACKED_PAYLOAD_MANIFEST_FILE);
+  }
+
+  readPackedPayloadManifest() {
+    const manifestPath = this.getPackedPayloadManifestPath();
+    if (!fileExists(manifestPath)) {
+      return null;
+    }
+
+    const manifest = readJsonFile(manifestPath);
+    const payload = manifest && manifest.payload;
+    if (!manifest || !manifest.payloadId || !payload || !payload.relativePath) {
+      throw new Error(`Invalid packed payload manifest: ${manifestPath}`);
+    }
+
+    const payloadPath = path.join(this.resourceRoot, ...String(payload.relativePath).split('/'));
+    if (!fileExists(payloadPath)) {
+      throw new Error(`Packed payload archive missing: ${payloadPath}`);
+    }
+
+    return {
+      ...manifest,
+      payloadPath,
+    };
+  }
+
+  getPackedPayloadCacheRoot(manifest) {
+    return path.join(this.userDataDir, 'embedded-runtime', manifest.payloadId);
+  }
+
+  isPackedPayloadReady(targetRoot, manifest) {
+    try {
+      const readyPath = path.join(targetRoot, PACKED_PAYLOAD_READY_FILE);
+      if (!fileExists(readyPath)) {
+        return false;
+      }
+      const ready = readJsonFile(readyPath);
+      if (!ready || ready.payloadId !== manifest.payloadId || ready.sha256 !== manifest.payload.sha256) {
+        return false;
+      }
+      this.resolveLayout(targetRoot);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  async ensurePackagedPayloadReady() {
+    this.resolvedResourceRoot = this.resourceRoot;
+    const manifest = this.readPackedPayloadManifest();
+    if (!manifest) {
+      return {
+        mode: 'direct',
+        resourceRoot: this.resourceRoot,
+      };
+    }
+
+    const targetRoot = this.getPackedPayloadCacheRoot(manifest);
+    if (this.isPackedPayloadReady(targetRoot, manifest)) {
+      this.resolvedResourceRoot = targetRoot;
+      return {
+        mode: 'cached',
+        resourceRoot: targetRoot,
+        payloadId: manifest.payloadId,
+        payloadBytes: manifest.payload.bytes,
+      };
+    }
+
+    const stagingRoot = `${targetRoot}.tmp-${process.pid}-${Date.now()}`;
+    rmrf(stagingRoot);
+    ensureDir(stagingRoot);
+    const startedAt = Date.now();
+
+    this.updateState({
+      status: 'preparing-runtime-payload',
+      message: '正在准备内置运行时（首次启动可能较慢）',
+      packagedPayload: true,
+      payloadId: manifest.payloadId,
+    });
+
+    try {
+      await extractTarArchive(manifest.payloadPath, stagingRoot);
+      this.resolveLayout(stagingRoot);
+      fs.writeFileSync(
+        path.join(stagingRoot, PACKED_PAYLOAD_READY_FILE),
+        JSON.stringify(
+          {
+            payloadId: manifest.payloadId,
+            sha256: manifest.payload.sha256,
+            preparedAt: new Date().toISOString(),
+            payloadBytes: manifest.payload.bytes,
+          },
+          null,
+          2
+        ),
+        'utf8'
+      );
+
+      rmrf(targetRoot);
+      ensureDir(path.dirname(targetRoot));
+      fs.renameSync(stagingRoot, targetRoot);
+      this.resolvedResourceRoot = targetRoot;
+
+      return {
+        mode: 'extracted',
+        resourceRoot: targetRoot,
+        payloadId: manifest.payloadId,
+        payloadBytes: manifest.payload.bytes,
+        extractionDurationMs: Date.now() - startedAt,
+      };
+    } catch (error) {
+      rmrf(stagingRoot);
+      throw new Error(`Embedded runtime prepare failed: ${error.message}`);
+    }
+  }
+
+  resolveLayout(resourceRoot = this.getResolvedResourceRoot()) {
+    const runtimeWindowsDir = path.join(resourceRoot, 'runtime', 'windows');
     const bundleRoot = path.join(runtimeWindowsDir, 'bundle');
-    const projectRoot = path.join(this.resourceRoot, 'project');
+    const projectRoot = path.join(resourceRoot, 'project');
 
     const layout = {
       runtimeWindowsDir,
@@ -579,6 +802,116 @@ class RuntimeManager extends EventEmitter {
     }
 
     return layout;
+  }
+
+  getRuntimeHealthCachePath() {
+    return path.join(this.userDataDir, RUNTIME_HEALTH_CACHE_FILE);
+  }
+
+  getRuntimeFastPathPath() {
+    return path.join(this.userDataDir, RUNTIME_FAST_PATH_FILE);
+  }
+
+  readRuntimeCache(filePath) {
+    try {
+      if (!fileExists(filePath)) {
+        return null;
+      }
+      return readJsonFile(filePath);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  buildRuntimeFingerprint(layout, resourcePreparation = {}) {
+    const stableResourceMode =
+      resourcePreparation && resourcePreparation.mode === 'direct'
+        ? 'direct'
+        : 'packaged-payload';
+    const manifestPath = this.getPackedPayloadManifestPath();
+    const manifestSignature = fileExists(manifestPath) ? getFileSignature(manifestPath) : null;
+    const payloadReadyPath = path.join(this.getResolvedResourceRoot(), PACKED_PAYLOAD_READY_FILE);
+    const payloadReadySignature = fileExists(payloadReadyPath) ? getFileSignature(payloadReadyPath) : null;
+    const manifest = this.readPackedPayloadManifest();
+    const fingerprint = {
+      resourceMode: stableResourceMode,
+      resourceRoot: this.getResolvedResourceRoot(),
+      packagedResourceRoot: this.resourceRoot,
+      payloadId: manifest && manifest.payloadId ? manifest.payloadId : (resourcePreparation && resourcePreparation.payloadId) || '',
+      payloadSha256:
+        manifest && manifest.payload && manifest.payload.sha256
+          ? manifest.payload.sha256
+          : '',
+      manifestSignature,
+      payloadReadySignature,
+      pythonSignature: getFileSignature(layout.pythonExe),
+      javaSignature: getFileSignature(layout.javaExe),
+      jarSignature: getFileSignature(layout.jarPath),
+    };
+    return {
+      ...fingerprint,
+      id: crypto.createHash('sha1').update(JSON.stringify(fingerprint)).digest('hex'),
+    };
+  }
+
+  readRuntimeHealthCache(fingerprint = null) {
+    const cache = this.readRuntimeCache(this.getRuntimeHealthCachePath());
+    if (!cache) {
+      return null;
+    }
+    if (fingerprint && cache.fingerprintId !== fingerprint.id) {
+      return null;
+    }
+    return cache;
+  }
+
+  readRuntimeFastPath(fingerprint = null) {
+    const cache = this.readRuntimeCache(this.getRuntimeFastPathPath());
+    if (!cache) {
+      return null;
+    }
+    if (fingerprint && cache.fingerprintId !== fingerprint.id) {
+      return null;
+    }
+    return cache;
+  }
+
+  getTrustedRuntimeContext(layout, resourcePreparation = {}) {
+    const fingerprint = this.buildRuntimeFingerprint(layout, resourcePreparation);
+    const healthCache = this.readRuntimeHealthCache(fingerprint);
+    const fastPathCache = this.readRuntimeFastPath(fingerprint);
+    const trusted =
+      Boolean(healthCache && fastPathCache && fastPathCache.trusted)
+      && Boolean(healthCache.readinessChecks && healthCache.readinessChecks.backendHeartbeat && healthCache.readinessChecks.chartProbe);
+    return {
+      fingerprint,
+      healthCache,
+      fastPathCache,
+      trusted,
+    };
+  }
+
+  persistRuntimeCaches({ fingerprint, readinessChecks, resourcePreparation, startupDurationMs, trustedRuntime }) {
+    if (!fingerprint) {
+      return;
+    }
+    const updatedAt = new Date().toISOString();
+    writeJsonFile(this.getRuntimeHealthCachePath(), {
+      fingerprintId: fingerprint.id,
+      fingerprint,
+      updatedAt,
+      readinessChecks,
+      resourcePreparation,
+      startupDurationMs,
+    });
+    writeJsonFile(this.getRuntimeFastPathPath(), {
+      fingerprintId: fingerprint.id,
+      trusted: Boolean(trustedRuntime),
+      updatedAt,
+      startupDurationMs,
+      resourceMode: resourcePreparation && resourcePreparation.mode ? resourcePreparation.mode : 'direct',
+      resourceRoot: this.getResolvedResourceRoot(),
+    });
   }
 
   updateState(nextState) {
@@ -694,13 +1027,18 @@ class RuntimeManager extends EventEmitter {
     }
   }
 
-  buildJavaArgs(layout, backendPort, chartPort, javaLogBase) {
+  buildJavaArgs(layout, backendPort, chartPort, javaLogBase, options = {}) {
+    const trustedRuntime = Boolean(options && options.trustedRuntime);
     const javaArgs = [
       `-Dhorosa.log.basedir=${javaLogBase}`,
       '-Dhorosa.mongo.serverSelectionTimeoutMS=180',
       '-Dhorosa.mongo.connectTimeoutMS=180',
       '-Dhorosa.mongo.readTimeoutMS=220',
     ];
+
+    if (trustedRuntime) {
+      javaArgs.push('-Dhorosa.trustedRuntime=true', '-Dhorosa.desktop.fastPath=true');
+    }
 
     if (this.appCdsContext && ensureAppCdsCacheDir(this.appCdsContext, this.logger)) {
       if (isAppCdsArchiveReady(this.appCdsContext)) {
@@ -742,7 +1080,11 @@ class RuntimeManager extends EventEmitter {
       let logDir = path.join(this.userDataDir, 'logs', 'runtime');
 
       try {
+        const resourcePreparation = await this.ensurePackagedPayloadReady();
         const layout = this.resolveLayout();
+        const runtimeTrustContext = this.getTrustedRuntimeContext(layout, resourcePreparation);
+        const trustedRuntime = runtimeTrustContext.trusted;
+        const readyTimeoutMs = trustedRuntime ? TRUSTED_FAST_PATH_READY_TIMEOUT_MS : STARTUP_READY_TIMEOUT_MS;
         this.layout = layout;
         const javaLogBase = path.join(logDir, 'java');
         ensureDir(logDir);
@@ -757,6 +1099,7 @@ class RuntimeManager extends EventEmitter {
           status: 'starting-python',
           message: '正在启动 Python 本地服务',
           logDir,
+          trustedRuntimeCandidate: trustedRuntime,
         });
 
         const pythonBootstrap = [
@@ -773,6 +1116,10 @@ class RuntimeManager extends EventEmitter {
           PYTHONPATH: [layout.astropyDir, layout.flatlibDir].join(path.delimiter),
           PYTHONUTF8: '1',
           SE_EPHE_PATH: layout.swephDir,
+          HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
+          HOROSA_TRUSTED_RUNTIME: trustedRuntime ? '1' : '0',
+          HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? '1' : '0',
+          HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? '1' : '0',
         };
 
         this.pythonProcess = spawn(layout.pythonExe, ['-c', pythonBootstrap], {
@@ -788,15 +1135,20 @@ class RuntimeManager extends EventEmitter {
           message: '正在启动 Java 本地服务',
           chartPort,
           logDir,
+          trustedRuntimeCandidate: trustedRuntime,
         });
 
-        const javaArgs = this.buildJavaArgs(layout, backendPort, chartPort, javaLogBase);
+        const javaArgs = this.buildJavaArgs(layout, backendPort, chartPort, javaLogBase, { trustedRuntime });
         this.javaProcess = spawn(layout.javaExe, javaArgs, {
           cwd: layout.projectRoot,
           env: {
             ...process.env,
             HOROSA_CHART_PORT: String(chartPort),
             HOROSA_SERVER_PORT: String(backendPort),
+            HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
+            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? '1' : '0',
+            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? '1' : '0',
+            HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? '1' : '0',
           },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
@@ -807,15 +1159,26 @@ class RuntimeManager extends EventEmitter {
         await Promise.all([waitForPort(chartPort, 60000), waitForPort(backendPort, 60000)]);
         this.updateState({
           status: 'verifying-runtime',
-          message: '正在验证本地服务可用性',
+          message: trustedRuntime ? '正在走可信 fast-path 验证本地服务' : '正在验证本地服务可用性',
           backendPort,
           chartPort,
           logDir,
+          trustedRuntimeCandidate: trustedRuntime,
         });
         const [backendProbe, chartProbe] = await Promise.all([
-          waitForBackendHeartbeat(`http://127.0.0.1:${backendPort}`),
-          waitForChartProbe(chartPort),
+          waitForBackendHeartbeat(`http://127.0.0.1:${backendPort}`, readyTimeoutMs),
+          waitForChartProbe(chartPort, readyTimeoutMs),
         ]);
+        this.persistRuntimeCaches({
+          fingerprint: runtimeTrustContext.fingerprint,
+          readinessChecks: {
+            backendHeartbeat: backendProbe,
+            chartProbe,
+          },
+          resourcePreparation,
+          startupDurationMs: Date.now() - startupStartedAt,
+          trustedRuntime: true,
+        });
 
         this.running = true;
         this.updateState({
@@ -833,7 +1196,15 @@ class RuntimeManager extends EventEmitter {
             backendHeartbeat: backendProbe,
             chartProbe,
           },
-          resourceRoot: this.resourceRoot,
+          resourceRoot: this.getResolvedResourceRoot(),
+          packagedResourceRoot: this.resourceRoot,
+          resourcePreparation,
+          trustedRuntime,
+          runtimeFingerprintId: runtimeTrustContext.fingerprint.id,
+          runtimeCachePaths: {
+            health: this.getRuntimeHealthCachePath(),
+            fastPath: this.getRuntimeFastPathPath(),
+          },
           startupDurationMs: Date.now() - startupStartedAt,
           appCds: this.appCdsContext
             ? {

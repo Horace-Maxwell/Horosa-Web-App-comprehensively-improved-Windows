@@ -217,8 +217,15 @@ function getResourceRoot() {
   return path.join(__dirname, '..', 'build', 'app-runtime');
 }
 
+function getActiveResourceRoot() {
+  if (runtimeManager && typeof runtimeManager.getResolvedResourceRoot === 'function') {
+    return runtimeManager.getResolvedResourceRoot();
+  }
+  return getResourceRoot();
+}
+
 function getRendererIndexPath() {
-  const resourceRoot = getResourceRoot();
+  const resourceRoot = getActiveResourceRoot();
   const bundleRoot = path.join(resourceRoot, 'runtime', 'windows', 'bundle');
   const distFileIndex = path.join(bundleRoot, 'dist-file', 'index.html');
   const distIndex = path.join(bundleRoot, 'dist', 'index.html');
@@ -1327,14 +1334,15 @@ ipcMain.handle('desktop:get-app-info', async () => {
     }
 
     const payload = {
-      appInfo: {
-        version: app.getVersion(),
-        platform: process.platform,
-        arch: process.arch,
-        hostname: os.hostname(),
-        userDataPath: app.getPath('userData'),
-        resourceRoot: getResourceRoot(),
-      },
+        appInfo: {
+          version: app.getVersion(),
+          platform: process.platform,
+          arch: process.arch,
+          hostname: os.hostname(),
+          userDataPath: app.getPath('userData'),
+          packagedResourceRoot: getResourceRoot(),
+          activeResourceRoot: getActiveResourceRoot(),
+        },
       runtimeState,
       updateState,
       rendererSnapshot: snapshotPayload || {},

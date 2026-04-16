@@ -1,4 +1,4 @@
-# Windows 桌面版发布流程（`v1.0.4` 口径）
+# Windows 桌面版发布流程（语义化版本口径）
 
 ## 1. 发布目标
 
@@ -57,7 +57,7 @@
 
 ## 5. Release 资产要求
 
-正式版 `v1.0.4` 及后续语义化版本，至少上传这些文件：
+正式版 `v<major>.<minor>.<patch>` 至少上传这些文件：
 
 - `Horosa-Setup-<version>.exe`
 - `latest.yml`

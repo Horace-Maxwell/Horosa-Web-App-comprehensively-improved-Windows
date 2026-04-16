@@ -253,6 +253,10 @@ def wait_for_process_exit(timeout_seconds: int = 60) -> bool:
 
 
 def count_horosa_processes() -> int:
+    return len(list_horosa_pids())
+
+
+def list_horosa_pids() -> list[int]:
     result = subprocess.run(
         ["tasklist", "/FI", "IMAGENAME eq Horosa.exe"],
         capture_output=True,
@@ -261,32 +265,47 @@ def count_horosa_processes() -> int:
         errors="replace",
         check=False,
     )
-    return sum(1 for line in result.stdout.splitlines() if line.strip().startswith("Horosa.exe"))
+    pids: set[int] = set()
+    for line in result.stdout.splitlines():
+        text = line.strip()
+        if not text.startswith("Horosa.exe"):
+            continue
+        parts = text.split()
+        if len(parts) < 2:
+            continue
+        pid_text = parts[1].replace(",", "")
+        if pid_text.isdigit():
+            pids.add(int(pid_text))
+    return sorted(pids)
+
+
+def is_horosa_window(window, allowed_pids: set[int] | None = None, process_id: int | None = None) -> bool:
+    try:
+        title = window.window_text()
+        pid = window.process_id()
+    except Exception:
+        return False
+    if process_id is not None and pid != process_id:
+        return False
+    if allowed_pids is not None and pid not in allowed_pids:
+        return False
+    return "星阙" in title or "Horosa" in title
 
 
 def count_horosa_windows() -> int:
+    horosa_pids = set(list_horosa_pids())
     total = 0
     for window in Desktop(backend="uia").windows():
-        try:
-            title = window.window_text()
-        except Exception:
-            continue
-        if "星阙" in title:
+        if is_horosa_window(window, allowed_pids=horosa_pids):
             total += 1
     return total
 
 
 def find_horosa_windows(process_id: int | None = None) -> list:
+    horosa_pids = None if process_id is not None else set(list_horosa_pids())
     matched = []
     for window in Desktop(backend="uia").windows():
-        try:
-            title = window.window_text()
-            pid = window.process_id()
-        except Exception:
-            continue
-        if "星阙" not in title:
-            continue
-        if process_id is not None and pid != process_id:
+        if not is_horosa_window(window, allowed_pids=horosa_pids, process_id=process_id):
             continue
         matched.append(window)
     return matched
@@ -356,15 +375,9 @@ def verify_single_instance_shortcut(shortcut_path: str) -> tuple[bool, str]:
 def close_app_window(process_id: int | None = None) -> bool:
     deadline = time.time() + 30
     while time.time() < deadline:
+        horosa_pids = None if process_id is not None else set(list_horosa_pids())
         for window in Desktop(backend="uia").windows():
-            try:
-                title = window.window_text()
-                pid = window.process_id()
-            except Exception:
-                continue
-            if process_id is not None and pid != process_id:
-                continue
-            if "星阙" not in title:
+            if not is_horosa_window(window, allowed_pids=horosa_pids, process_id=process_id):
                 continue
             try:
                 window.close()
