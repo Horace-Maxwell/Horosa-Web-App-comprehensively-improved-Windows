@@ -64,9 +64,12 @@
 - `Horosa-Setup-<version>.exe.blockmap`
 - `SHA256SUMS.txt`
 
-建议再附：
+说明类 Markdown 不进入 Release `Assets`：
 
-- 中文安装说明，如 `安装说明-<version>.md`
+- `安装说明-<version>.md`
+- `发布说明-<version>.md`
+
+这些文档只保留在 Release 正文或仓库文档里，不单独作为附件上传。
 
 ## 6. Release 正文要求
 
@@ -82,6 +85,8 @@ Release 正文统一写中文，至少包含：
 建议把正文来源固定在：
 
 - `docs/releases/<version>.md`
+
+如果需要单独准备安装说明或中文发布说明，也只作为正文撰写参考，不进入 Release `Assets`。
 
 ## 7. `main` 分支提交边界
 
