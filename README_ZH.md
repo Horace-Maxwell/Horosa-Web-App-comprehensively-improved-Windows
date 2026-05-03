@@ -11,11 +11,11 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.0.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.1.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![AIAnalysis](https://img.shields.io/badge/AIAnalysis-streaming%20%7C%20history%20%7C%20materials-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.0)
-[![Runtime](https://img.shields.io/badge/runtime-1.3.0--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![Primary Directions](https://img.shields.io/badge/Primary%20Directions-Pars%20Fortuna-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.1)
+[![Runtime](https://img.shields.io/badge/runtime-1.3.1--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY_ZH.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT_ZH.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -28,7 +28,7 @@
 
 [入口页](README.md) | [英文说明](README_EN.md) | [最新 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-**当前版本：** `v1.3.0`
+**当前版本：** `v1.3.1`
 
 **许可证说明：** 当前公开仓库已切换为 `AGPL-3.0`，原因是发布栈中集成了 Swiss Ephemeris / `pyswisseph`。第三方子目录仍保留各自上游原始许可证说明。
 
@@ -57,7 +57,7 @@
 
 推荐入口：
 
-- [Horosa-Setup-1.3.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.0.exe)
+- [Horosa-Setup-1.3.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.1.exe)
 
 适合场景：
 
@@ -149,16 +149,16 @@ Horosa 的价值不只在计算，还在把研究流程做成可操作的桌面�
 - AI 导出
 - AI 导出设置
 
-## v1.3.0 更新重点：AI分析
+## v1.3.1 更新重点：主限法福点同步
 
-`AI分析` 继续作为 Web 与 Windows App 共用的本地优先工作区，`1.3.0` 这一条发布线则把当前 Windows 端的交付、打包和验收口径统一到了可以公开测试的状态。
+Horosa v1.3.1 把主限法福点支持同步到完整交付链路：后端计算、Java/API 线、表格与图表 UI、AI 导出别名、运行时打包和 Windows 安装器都使用同一套口径。
 
 这一版新增或收敛的关键能力包括：
 
-- 共享前端已经为 Mac 风格的 `分析 / 历史 / 资料 / 模版 / 设置` 五页签结构
-- `使用技法` 挂载链路已经收敛为“只带所选技法自己的结构化 AI 导出内容”，不会再混入别的技法
-- 按 provider 原生协议转发的流式 AI 输出，以及本地历史、资料、模版、组合、备份恢复、诊断仍保持在同一套工作区里
-- Windows 桌面端围绕当前 AI分析 交付链路重新完成了打包与已安装 app 验收
+- 福点可以在 Core-Alchabitius / Ptolemy 主限法流程里同时作为迫星与应星出现
+- Python 后端、Java controller、共享前端表格/图表逻辑与 AI 导出别名统一到 `pd_method_sync_v8`
+- `Horosa原方法` 继续保持独立，不被改成当前兼容分支
+- Windows 静态 Web 包、桌面 runtime payload、安装器与安装后 payload 已一起重建并验收
 
 ## 桌面交付体验
 
@@ -174,7 +174,7 @@ Windows 这边强调的是正式桌面交付，而不是“把网页勉强包起
 
 ## 最新版本
 
-- [GitHub Release v1.3.0](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.0)
+- [GitHub Release v1.3.1](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.1)
 - [所有 Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 ## 常见问题
@@ -202,6 +202,6 @@ Windows 这边强调的是正式桌面交付，而不是“把网页勉强包起
 - 想理解产品首页与用户入口：先看 [README.md](README.md)
 - 想看英文完整说明：看 [README_EN.md](README_EN.md)
 - 想理解桌面打包与发布链路：看 [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md)
-- 想看当前版本页面：看 [GitHub Release v1.3.0](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.0)
+- 想看当前版本页面：看 [GitHub Release v1.3.1](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.1)
 - 想进入主工程：看 `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
 - 想看共享运行时与自检文档：看 `local/workspace/runtime/windows/`、`docs/PROJECT_STRUCTURE.md` 与 `docs/SELFCHECK_LOG.md`
