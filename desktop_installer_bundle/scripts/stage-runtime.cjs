@@ -109,6 +109,45 @@ function pruneRuntimePayload(rootDir) {
   return removed;
 }
 
+function prunePythonCaches(rootDir) {
+  const removed = [];
+  if (!fs.existsSync(rootDir)) {
+    return removed;
+  }
+
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const currentPath = stack.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === '__pycache__') {
+          const stats = collectPathStats(entryPath);
+          rmrf(entryPath);
+          removed.push({
+            path: path.relative(rootDir, entryPath).replace(/\\/g, '/'),
+            files: stats.files,
+            bytes: stats.bytes,
+          });
+          continue;
+        }
+        stack.push(entryPath);
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith('.pyc')) {
+        const stats = collectPathStats(entryPath);
+        fs.rmSync(entryPath, { force: true });
+        removed.push({
+          path: path.relative(rootDir, entryPath).replace(/\\/g, '/'),
+          files: stats.files,
+          bytes: stats.bytes,
+        });
+      }
+    }
+  }
+  return removed;
+}
+
 function assertExists(targetPath, label) {
   if (!fs.existsSync(targetPath)) {
     throw new Error(`${label} not found: ${targetPath}`);
@@ -180,6 +219,7 @@ copyDir(runtimeWindowsDir, stageRuntimeDir);
 copyDir(path.join(projectDir, 'astropy'), path.join(stageProjectDir, 'astropy'));
 copyDir(path.join(projectDir, 'flatlib-ctrad2'), path.join(stageProjectDir, 'flatlib-ctrad2'));
 const prunedRuntimeEntries = pruneRuntimePayload(stageRuntimeDir);
+const prunedProjectPyCaches = prunePythonCaches(stageProjectDir);
 
 const manifest = {
   generatedAt: new Date().toISOString(),
@@ -190,6 +230,7 @@ const manifest = {
   sourceDistIndexMtime: fmtMtime(sourceDistIndex),
   stagedDistIndex,
   prunedRuntimeEntries,
+  prunedProjectPyCaches,
 };
 
 fs.writeFileSync(
@@ -226,6 +267,13 @@ if (prunedRuntimeEntries.length > 0) {
   const removedBytes = prunedRuntimeEntries.reduce((total, entry) => total + entry.bytes, 0);
   console.log(
     `[stage:runtime] pruned ${prunedRuntimeEntries.length} dev-only payload paths, ${removedFiles} files, ${(removedBytes / (1024 * 1024)).toFixed(2)} MB`
+  );
+}
+if (prunedProjectPyCaches.length > 0) {
+  const removedFiles = prunedProjectPyCaches.reduce((total, entry) => total + entry.files, 0);
+  const removedBytes = prunedProjectPyCaches.reduce((total, entry) => total + entry.bytes, 0);
+  console.log(
+    `[stage:runtime] pruned ${prunedProjectPyCaches.length} Python cache paths, ${removedFiles} files, ${(removedBytes / (1024 * 1024)).toFixed(2)} MB`
   );
 }
 console.log(
