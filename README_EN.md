@@ -11,11 +11,11 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.1.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.2.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![Primary Directions](https://img.shields.io/badge/Primary%20Directions-Pars%20Fortuna-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.1)
-[![Runtime](https://img.shields.io/badge/runtime-1.3.1--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![Primary Directions](https://img.shields.io/badge/Primary%20Directions-AI%20Export%20Sync-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.2)
+[![Runtime](https://img.shields.io/badge/runtime-1.3.2--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -28,7 +28,7 @@
 
 [Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-**Current release:** `v1.3.1`
+**Current release:** `v1.3.2`
 
 **Licensing note:** the public repository is now distributed under `AGPL-3.0` because the released stack integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories keep their own upstream notices.
 
@@ -57,7 +57,7 @@ That is the main idea this README should communicate. The installer matters, the
 
 Primary entry:
 
-- [Horosa-Setup-1.3.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.1.exe)
+- [Horosa-Setup-1.3.2.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.2.exe)
 
 Best fit:
 
@@ -144,16 +144,16 @@ Horosa is not only about calculation. It also provides the controls needed for d
 - AI export
 - AI export settings
 
-## Updated In v1.3.1: Pars Fortuna Primary Directions
+## Updated In v1.3.2: Part of Fortune AI Export Sync
 
-Horosa v1.3.1 synchronizes Pars Fortuna support through the full primary-direction delivery chain: backend calculation, Java/API wiring, table and chart UI, AI export aliases, packaged runtime, and the Windows installer.
+v1.3.2 completes Part of Fortune primary-direction coverage in AI export, keeping Web, App, table output, and export snapshots on the same result path.
 
 Key additions in this release:
 
-- Pars Fortuna appears as both promissor and significator in the Core-Alchabitius / Ptolemy primary-direction workflow
-- Python backend, Java controllers, shared frontend table/chart logic, and AI export aliases are aligned on `pd_method_sync_v8`
+- AI export snapshots now keep Pars Fortuna rows in the Core-Alchabitius / Ptolemy primary-direction workflow
+- the snapshot parser safely handles multi-word objects and mapped point rows such as `N_Pars Fortuna_0`, `A_Pars Fortuna`, and `C_Pars Fortuna`
+- Web and Windows App share the same fixed frontend/backend result path
 - `Horosa原方法` remains independent from the compatibility branch
-- Windows static web bundle, desktop runtime payload, installer, and installed-app payload were rebuilt and verified together
 
 ## Desktop Delivery
 
@@ -169,7 +169,7 @@ The point is not "here is a codebase, please assemble it yourself." The point is
 
 ## Latest Release
 
-- [GitHub Release v1.3.1](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.1)
+- [GitHub Release v1.3.2](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.2)
 - [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 ## FAQ
@@ -197,6 +197,6 @@ If you maintain this stack, start with the path that matches your goal:
 - understand the public-facing repository layout: [README.md](README.md)
 - read the full Chinese guide: [README_ZH.md](README_ZH.md)
 - inspect desktop bundle internals and publishing flow: [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md)
-- read the current version release page: [GitHub Release v1.3.1](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.1)
+- read the current version release page: [GitHub Release v1.3.2](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.2)
 - enter the application source tree: `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
 - inspect bundled runtime and verification notes: `local/workspace/runtime/windows/`, `docs/PROJECT_STRUCTURE.md`, and `docs/SELFCHECK_LOG.md`
