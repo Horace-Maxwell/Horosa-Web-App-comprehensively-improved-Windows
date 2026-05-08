@@ -175,22 +175,26 @@ English: Controls for shaping, filtering, inspecting, and exporting analysis ses
   <tr>
     <td width="50%">
       <strong>English</strong><br /><br />
-      Horosa v1.3.3 fixes Sanshi United chart-list switching after the first plot. Selecting another saved chart now syncs the right-side input panel and recalculates automatically across Web and Windows App.
+      Horosa v1.3.3 fixes Sanshi United chart-list switching after the first plot, including the saved-chart list button path. Selecting another saved chart now syncs the right-side input panel and recalculates automatically across Web and Windows App.
     </td>
     <td width="50%">
       <strong>中文</strong><br /><br />
-      Horosa v1.3.3 修复三式合一第一次起盘后从星盘列表切换命盘的同步问题。再次选择已保存命盘时，右侧输入栏会自动更新，并在 Web 与 Windows App 中自动重新计算。
+      Horosa v1.3.3 修复三式合一第一次起盘后从星盘列表按钮切换命盘的同步问题。再次选择已保存命盘时，右侧输入栏会自动更新，并在 Web 与 Windows App 中自动重新计算。
     </td>
   </tr>
   <tr>
     <td width="50%">
       - Sanshi United now detects external chart-field changes after an existing plot<br />
+      - saved-chart list button clicks now enter the same refresh path even when no internal chart sync is pending<br />
+      - stale Sanshi case restore state no longer blocks a current saved-chart selection<br />
       - the right-side time/input selector remounts only for saved-chart switches, clearing stale internal selector state<br />
       - Tai Yi, Dun Jia, and Liu Ren integrated results refresh from the newly selected saved chart<br />
       - Web bundle, Windows App runtime payload, installer, and update manifest are aligned to <code>1.3.3</code>
     </td>
     <td width="50%">
       - 三式合一会在已经起盘后继续识别外部星盘字段变化<br />
+      - 星盘列表按钮点击现在会进入同一套刷新链路，不再依赖内部同步等待状态<br />
+      - 旧三式合一案例恢复状态不再阻挡当前星盘列表命盘选择<br />
       - 右侧时间/输入选择器只在切换已保存命盘时重挂载，清掉旧命盘的内部选择状态<br />
       - 太乙、遁甲、六壬合并结果会根据新选中的命盘重新刷新<br />
       - Web 包、Windows App 运行时载荷、安装器与更新清单统一到 <code>1.3.3</code>

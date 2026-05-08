@@ -146,11 +146,13 @@ Horosa is not only about calculation. It also provides the controls needed for d
 
 ## Updated In v1.3.3: Sanshi United Chart Switching
 
-v1.3.3 fixes Sanshi United chart-list switching after the first plot. Selecting another saved chart now syncs the right-side input panel and recalculates automatically across Web and Windows App.
+v1.3.3 fixes Sanshi United chart-list switching after the first plot, including the saved-chart list button path. Selecting another saved chart now syncs the right-side input panel and recalculates automatically across Web and Windows App.
 
 Key additions in this release:
 
 - Sanshi United now detects external chart-field changes after an existing plot
+- saved-chart list button clicks now enter the same refresh path even when no internal chart sync is pending
+- stale Sanshi case restore state no longer blocks a current saved-chart selection
 - the right-side time/input selector remounts only for saved-chart switches, clearing stale internal selector state
 - Tai Yi, Dun Jia, and Liu Ren integrated results refresh from the newly selected saved chart
 - Web bundle, Windows App runtime payload, installer, and update manifest are aligned to `1.3.3`
