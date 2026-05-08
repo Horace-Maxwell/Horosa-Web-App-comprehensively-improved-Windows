@@ -11,11 +11,11 @@
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.3.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![Sanshi United](https://img.shields.io/badge/Sanshi%20United-Chart%20Switch%20Sync-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.3)
-[![Runtime](https://img.shields.io/badge/runtime-1.3.3--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![DunJia Tianpan](https://img.shields.io/badge/DunJia-Tianpan%20Sync-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4)
+[![Runtime](https://img.shields.io/badge/runtime-1.3.4--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -28,7 +28,7 @@
 
 [Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 
-**Current release:** `v1.3.3`
+**Current release:** `v1.3.4`
 
 **Licensing note:** the public repository is now distributed under `AGPL-3.0` because the released stack integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories keep their own upstream notices.
 
@@ -57,7 +57,7 @@ That is the main idea this README should communicate. The installer matters, the
 
 Primary entry:
 
-- [Horosa-Setup-1.3.3.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.3.exe)
+- [Horosa-Setup-1.3.4.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe)
 
 Best fit:
 
@@ -144,18 +144,18 @@ Horosa is not only about calculation. It also provides the controls needed for d
 - AI export
 - AI export settings
 
-## Updated In v1.3.3: Sanshi United Chart Switching
+## Updated In v1.3.4: Dun Jia Tianpan Sync
 
-v1.3.3 fixes Sanshi United chart-list switching after the first plot, including the saved-chart list button path. Selecting another saved chart now syncs the right-side input panel and recalculates automatically across Web and Windows App.
+v1.3.4 fixes the Dun Jia / Qimen tianpan heavenly-stem flying sequence. Standalone Dun Jia, Sanshi United, AI export, and AI analysis now read the same corrected calculation across Web and Windows App.
 
 Key additions in this release:
 
-- Sanshi United now detects external chart-field changes after an existing plot
-- saved-chart list button clicks now enter the same refresh path even when no internal chart sync is pending
-- stale Sanshi case restore state no longer blocks a current saved-chart selection
-- the right-side time/input selector remounts only for saved-chart switches, clearing stale internal selector state
-- Tai Yi, Dun Jia, and Liu Ren integrated results refresh from the newly selected saved chart
-- Web bundle, Windows App runtime payload, installer, and update manifest are aligned to `1.3.3`
+- Dun Jia tianpan now flies from the hour xun-head earth-palace source to the current hour-stem earth-palace target
+- the middle palace participates through Kun during the fly sequence and remains preserved as the middle palace afterward
+- Yang Dun and Yin Dun use the documented forward/reverse eight-palace order without touching earth pan, doors, stars, gods, ju selection, calendar, or ganzhi logic
+- Sanshi United continues to call the shared Dun Jia calculator instead of carrying a copied algorithm
+- Qimen and Sanshi AI snapshots now export corrected `tianGan` and nine-palace text
+- Web bundle, Windows App runtime payload, installer, and update manifest are aligned to `1.3.4`
 
 ## Desktop Delivery
 
@@ -171,7 +171,7 @@ The point is not "here is a codebase, please assemble it yourself." The point is
 
 ## Latest Release
 
-- [GitHub Release v1.3.3](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.3)
+- [GitHub Release v1.3.4](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4)
 - [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 ## FAQ
@@ -199,6 +199,6 @@ If you maintain this stack, start with the path that matches your goal:
 - understand the public-facing repository layout: [README.md](README.md)
 - read the full Chinese guide: [README_ZH.md](README_ZH.md)
 - inspect desktop bundle internals and publishing flow: [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md)
-- read the current version release page: [GitHub Release v1.3.3](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.3)
+- read the current version release page: [GitHub Release v1.3.4](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4)
 - enter the application source tree: `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
 - inspect bundled runtime and verification notes: `local/workspace/runtime/windows/`, `docs/PROJECT_STRUCTURE.md`, and `docs/SELFCHECK_LOG.md`
