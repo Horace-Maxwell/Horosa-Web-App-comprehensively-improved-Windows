@@ -2,6 +2,8 @@
 
 这个目录承载正式 Windows 桌面应用工程：
 
+- 当前发布版本：`1.3.4`
+
 - `electron/`：Electron 主进程、预加载脚本、运行时编排
 - `scripts/`：renderer 构建、runtime staging、项目路径解析
 - `assets/`：安装器、图标与 NSIS 定制资源
@@ -26,6 +28,6 @@
 
 ## 发布口径
 
-- 正式 GitHub Release 采用 installer-only 策略
-- 目标资产是 `Horosa-Setup-<version>.exe`
-- `latest.yml`、`.blockmap`、portable zip 这类辅助或历史资产不作为正式下载入口
+- 正式 GitHub Release 的公开下载入口是 `Horosa-Setup-<version>.exe`
+- 标准发布资产同步保留安装器、`.blockmap`、`latest.yml` 与 `SHA256SUMS.txt`
+- portable zip 这类辅助或历史资产不作为正式下载入口
