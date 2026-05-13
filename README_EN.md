@@ -202,3 +202,9 @@ If you maintain this stack, start with the path that matches your goal:
 - read the current version release page: [GitHub Release v1.3.4](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4)
 - enter the application source tree: `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
 - inspect bundled runtime and verification notes: `local/workspace/runtime/windows/`, `docs/PROJECT_STRUCTURE.md`, and `docs/SELFCHECK_LOG.md`
+
+## Acknowledgements
+
+This Windows edition is an improved distribution and integration work based on the Horosa App and Web released by Horosa-荀爽（Herakleios）. The lineage matters: Horosa was originally created by 郑大哥, with auxiliary design work from 荀爽（Herakleios）, and their public release made later study, maintenance, and extension possible.
+
+Please do not forget the contributions of 爽哥 and 郑大哥. This repository continues from their groundwork with respect, gratitude, and the hope that Horosa can remain useful to more people over time.

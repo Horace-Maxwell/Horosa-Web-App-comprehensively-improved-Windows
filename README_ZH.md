@@ -207,3 +207,9 @@ Windows 这边强调的是正式桌面交付，而不是“把网页勉强包起
 - 想看当前版本页面：看 [GitHub Release v1.3.4](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4)
 - 想进入主工程：看 `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`
 - 想看共享运行时与自检文档：看 `local/workspace/runtime/windows/`、`docs/PROJECT_STRUCTURE.md` 与 `docs/SELFCHECK_LOG.md`
+
+## 致谢
+
+本项目为参考星阙 Horosa-荀爽（Herakleios）所发布的星阙 App 和 Web，并在 Windows 交付、运行时打包、功能整合与使用体验上继续改良制作。源流不可忘：星阙 Horosa 最早由郑大哥一手创建，荀爽（Herakleios）曾参与辅助设计，并将相关 App 与 Web 版本公开出来供后来者研究、学习与延展。
+
+请不要忘记爽哥和郑大哥的贡献。这个 Windows 版本的继续整理与发布，建立在前人已经搭起的星阙体系、术数工作流和公开分享精神之上。也感谢所有持续测试、反馈、修复和推动 Horosa 变得更完整的人。

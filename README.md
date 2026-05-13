@@ -269,3 +269,13 @@ English: Controls for shaping, filtering, inspecting, and exporting analysis ses
 </table>
 
 </details>
+
+## Acknowledgements / 致谢
+
+本项目为参考星阙 Horosa-荀爽（Herakleios）所发布的星阙 App 和 Web，并在 Windows 交付、运行时打包、功能整合与使用体验上继续改良制作。源流不可忘：星阙 Horosa 最早由郑大哥一手创建，荀爽（Herakleios）曾参与辅助设计，并将相关 App 与 Web 版本公开出来供后来者研究、学习与延展。
+
+请不要忘记爽哥和郑大哥的贡献。这个 Windows 版本的继续整理与发布，建立在前人已经搭起的星阙体系、术数工作流和公开分享精神之上。也感谢所有持续测试、反馈、修复和推动 Horosa 变得更完整的人。
+
+This Windows edition is an improved distribution and integration work based on the Horosa App and Web released by Horosa-荀爽（Herakleios）. The lineage matters: Horosa was originally created by 郑大哥, with auxiliary design work from 荀爽（Herakleios）, and their public release made later study, maintenance, and extension possible.
+
+Please do not forget the contributions of 爽哥 and 郑大哥. This repository continues from their groundwork with respect, gratitude, and the hope that Horosa can remain useful to more people over time.
