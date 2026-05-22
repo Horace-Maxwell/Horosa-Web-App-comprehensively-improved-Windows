@@ -4,19 +4,19 @@
 
 # 星阙 Horosa for Windows
 
-### Horosa v2.0.0 Beta Mac Web parity release for Windows x64
-### 面向 Windows x64 的星阙 2.0 Beta 跨平台统一大版本
+### Horosa v2.0.1 Beta Mac Web parity release for Windows x64
+### 面向 Windows x64 的星阙 2.0.1 Beta 跨平台统一大版本
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![Beta Release](https://img.shields.io/badge/v2.0.0%20Beta-Mac%20Web%20Parity-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0)
-[![Runtime](https://img.shields.io/badge/runtime-2.0.0--beta--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![Beta Release](https://img.shields.io/badge/v2.0.1%20Beta-Mac%20Web%20Parity-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1)
+[![Runtime](https://img.shields.io/badge/runtime-2.0.1--beta--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -27,13 +27,15 @@
 [![Read In English](https://img.shields.io/badge/Read%20In-English-0f766e?labelColor=52525b)](README_EN.md)
 [![查看中文版](https://img.shields.io/badge/查看-中文版-0f766e?labelColor=52525b)](README_ZH.md)
 
-[中文完整版](README_ZH.md) | [English Guide](README_EN.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v2.0.0 Beta 版本页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0) | [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
+[中文完整版](README_ZH.md) | [English Guide](README_EN.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v2.0.1 Beta 版本页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1) | [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
-<p>Horosa v2.0.0 Beta brings the improved Mac Web product surface to Windows: UI shell, modules, frontend, Python backend, Java backend, assets, and desktop delivery are aligned into one cross-platform release line.</p>
-<p>Horosa v2.0.0 Beta 将新版 Mac Web 产品面完整同步到 Windows：UI 外壳、模块、前端、Python 后端、Java 后端、资源和桌面交付统一进入同一条跨平台发布线。</p>
-<p><strong>Current release train / 当前发布线：v2.0.0 Beta</strong></p>
-<p><strong>Beta note:</strong> this public installer is the v2.0.0 beta package. It is published as the visible current GitHub Release so Windows users can download and test the new unified Web/Desktop build directly.</p>
-<p><strong>Beta 说明：</strong> 当前公开安装器是 v2.0.0 beta 包。它会作为 GitHub Releases 中可直接看到的当前版本发布，方便 Windows 用户下载测试新版统一 Web/Desktop 构建。</p>
+<p>Horosa v2.0.1 Beta brings the improved Mac Web product surface to Windows: UI shell, modules, frontend, Python backend, Java backend, assets, and desktop delivery are aligned into one cross-platform release line.</p>
+<p>Horosa v2.0.1 Beta 将新版 Mac Web 产品面完整同步到 Windows：UI 外壳、模块、前端、Python 后端、Java 后端、资源和桌面交付统一进入同一条跨平台发布线。</p>
+<p><strong>Current release train / 当前发布线：v2.0.1 Beta</strong></p>
+<p><strong>Beta note:</strong> this public installer is the v2.0.1 beta package. It is published as the visible current GitHub Release so Windows users can download and test the new unified Web/Desktop build directly.</p>
+<p><strong>Beta 说明：</strong> 当前公开安装器是 v2.0.1 beta 包。它会作为 GitHub Releases 中可直接看到的当前版本发布，方便 Windows 用户下载测试新版统一 Web/Desktop 构建。</p>
+<p><strong>Release focus / 本次重点：</strong> v2.0.1 Beta keeps the Windows 2.0 desktop delivery track and syncs the latest Mac Qimen Dunjia fixes, aligning Chaibu/Zhirun Ju selection, accurate Jieqi switching, true-solar-time pillars, Tianpan stems, doors, gods, stars, and local calendar fallbacks with the Horosa mobile algorithm.</p>
+<p><strong>本次重点：</strong> v2.0.1 Beta 延续 Windows 2.0 桌面交付线，并同步 Mac 端最新奇门遁甲修复：拆补/置润起局、精确交节换节、真太阳时四柱、天盘干、门神星与本地历法回退都按 Horosa 手机版算法重新。</p>
 <p><strong>Licensing note:</strong> the public repository is distributed under <code>AGPL-3.0</code> because the released stack integrates Swiss Ephemeris / <code>pyswisseph</code>. Third-party subdirectories keep their own upstream notices.</p>
 <p><strong>许可证说明：</strong> 当前公开仓库使用 <code>AGPL-3.0</code>，原因是发布栈中集成了 Swiss Ephemeris / <code>pyswisseph</code>。第三方子目录仍保留各自上游原始许可证说明。</p>
 
@@ -45,13 +47,13 @@
   <tr>
     <td width="50%">
       <strong>English</strong><br /><br />
-      End users can download the v2.0.0 Beta Windows installer and open Horosa like a finished desktop app. A clean Windows 10/11 x64 machine does not need a separate Python, Java, Node.js, Maven, or frontend toolchain install.<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe"><strong>Download Horosa-Setup-2.0.0.exe</strong></a>
+      End users can download the v2.0.1 Beta Windows installer and open Horosa like a finished desktop app. A clean Windows 10/11 x64 machine does not need a separate Python, Java, Node.js, Maven, or frontend toolchain install.<br />
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe"><strong>Download Horosa-Setup-2.0.1.exe</strong></a>
     </td>
     <td width="50%">
       <strong>中文</strong><br /><br />
-      普通用户可以直接下载 v2.0.0 Beta Windows 安装器，像标准桌面软件一样安装和打开 Horosa。全新的 Windows 10/11 x64 机器不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe"><strong>下载 Horosa-Setup-2.0.0.exe</strong></a>
+      普通用户可以直接下载 v2.0.1 Beta Windows 安装器，像标准桌面软件一样安装和打开 Horosa。全新的 Windows 10/11 x64 机器不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。<br />
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe"><strong>下载 Horosa-Setup-2.0.1.exe</strong></a>
     </td>
   </tr>
   <tr>
@@ -87,17 +89,17 @@
   <p><em>三式、六壬、遁甲、太乙、神煞、八宫与细节面板现在共用同一套 Windows 桌面外壳。</em></p>
 </div>
 
-## What Changed In v2.0.0 Beta / v2.0.0 Beta 更新重点
+## What Changed In v2.0.1 Beta / v2.0.1 Beta 更新重点
 
 <table>
   <tr>
     <td width="50%">
       <strong>English</strong><br /><br />
-      v2.0.0 Beta is the cross-platform parity release. The improved Mac Web implementation is now reflected in the Windows Web and desktop package, while keeping the Windows-specific bundled runtime and launcher adaptations required for clean-machine use.
+      v2.0.1 Beta is the cross-platform parity release. The improved Mac Web implementation is now reflected in the Windows Web and desktop package, while keeping the Windows-specific bundled runtime and launcher adaptations required for clean-machine use.
     </td>
     <td width="50%">
       <strong>中文</strong><br /><br />
-      v2.0.0 Beta 是跨平台统一大版本。新版 Mac Web 中已经完成的产品面同步进入 Windows Web 与桌面安装包，同时保留 Windows 在全新机器上可直接运行所需的运行时与启动适配。
+      v2.0.1 Beta 是跨平台统一大版本。新版 Mac Web 中已经完成的产品面同步进入 Windows Web 与桌面安装包，同时保留 Windows 在全新机器上可直接运行所需的运行时与启动适配。
     </td>
   </tr>
   <tr>
@@ -108,6 +110,7 @@
       - AI analysis and export settings now cover more module snapshots and provider/material/chat/embedding/stream service paths<br />
       - Python backend includes <code>/astroextra</code>, <code>/planetarium</code>, star resources, Indian extensions, and supporting ephemeris services<br />
       - Java backend includes <code>/astroextra/*</code>, <code>/planetarium/state</code>, <code>/qizheng/moira</code>, and AI Analysis service wiring<br />
+      - Qimen Dunjia now follows the latest Mac/mobile-aligned calculation path for Chaibu and Zhirun, including accurate Jieqi minute boundaries, true-solar-time pillars, Tianpan stems, doors, gods, stars, and local calendar fallback data<br />
       - Windows release remains self-contained; the old Mac sync source folder is not required at runtime or build time
     </td>
     <td width="50%">
@@ -117,6 +120,7 @@
       - AI 分析与 AI 导出设置覆盖更多模块快照，并接入 provider/material/chat/embedding/stream 服务路径<br />
       - Python 后端包含 <code>/astroextra</code>、<code>/planetarium</code>、星表资源、印度占星扩展与星历支持服务<br />
       - Java 后端包含 <code>/astroextra/*</code>、<code>/planetarium/state</code>、<code>/qizheng/moira</code> 与 AI Analysis 服务接线<br />
+      - 奇门遁甲同步最新 Mac / 手机版路径，拆补与置润均覆盖精确交节分钟、真太阳时四柱、天盘干、门、神、星与本地历法回退数据<br />
       - Windows 发布包保持自包含；旧的 Mac 同步来源文件夹不再作为运行或构建依赖
     </td>
   </tr>
@@ -150,7 +154,7 @@ On Windows, the delivery layer is meant to feel installable and finished rather 
 Windows 交付目标是让 Horosa 像成品桌面软件一样安装、打开、更新和恢复，而不是让普通用户自己拼环境。
 
 - Windows 10/11 (`x64`)
-- NSIS installer: `Horosa-Setup-2.0.0.exe`
+- NSIS installer: `Horosa-Setup-2.0.1.exe`
 - Optional installation directory, with directory creation/write validation before install
 - Bundled Python, Java, Node/Web assets, and app runtime
 - No required external Python/Java/Node/Maven installation for normal users
@@ -165,8 +169,8 @@ Windows 交付目标是让 Horosa 像成品桌面软件一样安装、打开、�
       <strong>English</strong><br /><br />
       <a href="README_EN.md">README_EN.md</a>: full English guide<br />
       <a href="README_ZH.md">README_ZH.md</a>: Chinese full guide<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0">v2.0.0 Beta release page</a><br />
-      <a href="docs/releases/2.0.0.md">local v2.0.0 Beta release notes</a><br />
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1">v2.0.1 Beta release page</a><br />
+      <a href="docs/releases/2.0.1.md">local v2.0.1 Beta release notes</a><br />
       <a href="desktop_installer_bundle/README.md">Desktop bundle internals</a><br />
       <a href="docs/PROJECT_STRUCTURE.md">Project structure</a>
     </td>
@@ -174,8 +178,8 @@ Windows 交付目标是让 Horosa 像成品桌面软件一样安装、打开、�
       <strong>中文</strong><br /><br />
       <a href="README_ZH.md">README_ZH.md</a>：中文完整说明<br />
       <a href="README_EN.md">README_EN.md</a>：英文完整说明<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0">v2.0.0 Beta 版本页面</a><br />
-      <a href="docs/releases/2.0.0.md">本地 v2.0.0 Beta 发布说明</a><br />
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1">v2.0.1 Beta 版本页面</a><br />
+      <a href="docs/releases/2.0.1.md">本地 v2.0.1 Beta 发布说明</a><br />
       <a href="desktop_installer_bundle/README.md">桌面打包与安装器说明</a><br />
       <a href="docs/PROJECT_STRUCTURE.md">项目结构说明</a>
     </td>
@@ -186,9 +190,9 @@ Windows 交付目标是让 Horosa 像成品桌面软件一样安装、打开、�
 
 ### Do I Need To Clone The Repo / 普通用户需要克隆仓库吗
 
-No. Regular users should download `Horosa-Setup-2.0.0.exe` from the latest release.
+No. Regular users should download `Horosa-Setup-2.0.1.exe` from the latest release.
 
-不需要。普通用户直接在最新 Release 下载 `Horosa-Setup-2.0.0.exe` 即可。
+不需要。普通用户直接在最新 Release 下载 `Horosa-Setup-2.0.1.exe` 即可。
 
 ### Do I Need To Install Python Or Java / 需要自己安装 Python 或 Java 吗
 
@@ -198,9 +202,9 @@ No. The Windows installer is designed to carry the runtime pieces needed by the 
 
 ### Can I Choose The Install Directory / 可以选择安装目录吗
 
-Yes. The v2.0.0 Beta installer supports a normal assisted install flow with directory selection, write checks, and elevation when Windows requires it.
+Yes. The v2.0.1 Beta installer supports a normal assisted install flow with directory selection, write checks, and elevation when Windows requires it.
 
-可以。v2.0.0 Beta 安装器支持标准安装向导，可选择安装目录，并会在安装前做目录创建/写入检查；遇到 Windows 权限限制时可提权继续。
+可以。v2.0.1 Beta 安装器支持标准安装向导，可选择安装目录，并会在安装前做目录创建/写入检查；遇到 Windows 权限限制时可提权继续。
 
 ### Why Are There Other Files In The Release / Release 里为什么还有其他文件
 
@@ -217,3 +221,4 @@ Yes. The v2.0.0 Beta installer supports a normal assisted install flow with dire
 This Windows edition is an improved distribution and integration work based on the Horosa App and Web released by Horosa-荀爽（Herakleios）. The lineage matters: Horosa was originally created by 郑大哥, with auxiliary design work from 荀爽（Herakleios）, and their public release made later study, maintenance, and extension possible.
 
 Please do not forget the contributions of 爽哥 and 郑大哥. This repository continues from their groundwork with respect, gratitude, and the hope that Horosa can remain useful to more people over time.
+

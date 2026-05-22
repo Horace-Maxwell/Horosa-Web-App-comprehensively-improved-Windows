@@ -4,18 +4,18 @@
 
 # Horosa for Windows
 
-### v2.0.0 Beta Mac Web parity release for Windows x64, delivered as an installer-first desktop product
+### v2.0.1 Beta Mac Web parity release for Windows x64, delivered as an installer-first desktop product
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![Beta Release](https://img.shields.io/badge/v2.0.0%20Beta-Mac%20Web%20Parity-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0)
-[![Runtime](https://img.shields.io/badge/runtime-2.0.0--beta--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![Beta Release](https://img.shields.io/badge/v2.0.1%20Beta-Mac%20Web%20Parity-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1)
+[![Runtime](https://img.shields.io/badge/runtime-2.0.1--beta--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -26,25 +26,27 @@
 [![Read In Chinese](https://img.shields.io/badge/Read%20In-Chinese-0f766e?labelColor=52525b)](README_ZH.md)
 [![Portal](https://img.shields.io/badge/Portal-Bilingual-0f766e?labelColor=52525b)](README.md)
 
-[Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v2.0.0 Beta release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0)
+[Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v2.0.1 Beta release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1)
 
-**Current release:** `v2.0.0 Beta`
+**Current release:** `v2.0.1 Beta`
 
-**Beta note:** this public installer is the v2.0.0 beta package. It is published as the visible current GitHub Release so Windows users can download and test the new unified Web/Desktop build directly.
+**Beta note:** this public installer is the v2.0.1 beta package. It is published as the visible current GitHub Release so Windows users can download and test the new unified Web/Desktop build directly.
+
+**Release focus:** v2.0.1 Beta keeps the Windows 2.0 desktop delivery track and syncs the latest Mac Qimen Dunjia fixes, aligning Chaibu/Zhirun Ju selection, accurate Jieqi switching, true-solar-time pillars, Tianpan stems, doors, gods, stars, and local calendar fallbacks with the Horosa mobile algorithm.
 
 **Licensing note:** the public repository is distributed under `AGPL-3.0` because the released stack integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories keep their own upstream notices.
 
 </div>
 
-## Why v2.0.0 Beta Matters
+## Why v2.0.1 Beta Matters
 
-Horosa v2.0.0 Beta is the major Windows release that brings the comprehensively improved Mac Web product surface into the Windows Web and desktop package. It is not a small calculator fix. It aligns the UI shell, controls, module navigation, frontend pages, Python backend, Java backend, assets, AI analysis flow, export settings, and desktop runtime delivery into one cross-platform line.
+Horosa v2.0.1 Beta is the major Windows release that brings the comprehensively improved Mac Web product surface into the Windows Web and desktop package. It is not a small calculator fix. It aligns the UI shell, controls, module navigation, frontend pages, Python backend, Java backend, assets, AI analysis flow, export settings, and desktop runtime delivery into one cross-platform line.
 
 The Windows release remains self-contained. The Mac sync source folder is not required at runtime or build time, and clean Windows 10/11 x64 machines do not need users to install Python, Java, Node.js, Maven, or frontend build tools manually.
 
 ## Primary Entry
 
-- [Horosa-Setup-2.0.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe)
+- [Horosa-Setup-2.0.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe)
 
 Best fit:
 
@@ -75,7 +77,7 @@ The first launch can be slower while the bundled runtime initializes. Later laun
   <p><em>Sanshi, Liu Ren, Dun Jia, Tai Yi, shensha, Bagong, and related detail panels now share the same Windows desktop shell.</em></p>
 </div>
 
-## Updated In v2.0.0 Beta
+## Updated In v2.0.1 Beta
 
 ### Product Shell
 
@@ -96,6 +98,7 @@ The first launch can be slower while the bundled runtime initializes. Later laun
 - Bazi, Ziwei, calendar, Feng Shui, gua-symbol references, twelve-palace tools, and rule references
 - Su Zhan, Yi Gua, Liu Yao, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and Sanshi United
 - Sanshi workspace coverage for overview, Tai Yi, shensha, Liu Ren, major patterns, sub-patterns, references, Bagong details, and exportable snapshots
+- Qimen Dunjia now follows the latest Mac/mobile-aligned calculation path for Chaibu and Zhirun, including accurate Jieqi minute boundaries, true-solar-time pillars, Tianpan stems, doors, gods, stars, and local calendar fallback data
 
 ### AI Analysis And Export
 
@@ -113,7 +116,7 @@ The first launch can be slower while the bundled runtime initializes. Later laun
 ## Desktop Delivery
 
 - Windows 10/11 (`x64`)
-- NSIS installer: `Horosa-Setup-2.0.0.exe`
+- NSIS installer: `Horosa-Setup-2.0.1.exe`
 - optional installation directory with directory creation/write validation
 - bundled Python, Java, Node/Web assets, and app runtime
 - update manifest, blockmap, checksum file, and release notes prepared for GitHub Releases
@@ -123,8 +126,8 @@ The first launch can be slower while the bundled runtime initializes. Later laun
 
 The standard GitHub Release asset set is:
 
-- `Horosa-Setup-2.0.0.exe`
-- `Horosa-Setup-2.0.0.exe.blockmap`
+- `Horosa-Setup-2.0.1.exe`
+- `Horosa-Setup-2.0.1.exe.blockmap`
 - `latest.yml`
 - `SHA256SUMS.txt`
 
@@ -132,7 +135,7 @@ The standard GitHub Release asset set is:
 
 - [README.md](README.md): bilingual portal
 - [README_ZH.md](README_ZH.md): full Chinese guide
-- [docs/releases/2.0.0.md](docs/releases/2.0.0.md): local v2.0.0 Beta release notes
+- [docs/releases/2.0.1.md](docs/releases/2.0.1.md): local v2.0.1 Beta release notes
 - [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md): desktop bundle internals
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): project structure
 - [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -149,7 +152,7 @@ No. The public installer path is designed to carry the required runtime setup.
 
 ### Can I Choose The Install Directory
 
-Yes. The v2.0.0 Beta installer uses an assisted install flow with directory selection, write checks, and elevation when Windows requires it.
+Yes. The v2.0.1 Beta installer uses an assisted install flow with directory selection, write checks, and elevation when Windows requires it.
 
 ### Why Are There Other Files In The Release
 
@@ -164,3 +167,4 @@ No. App replacement and runtime switching are designed to update the program and
 This Windows edition is an improved distribution and integration work based on the Horosa App and Web released by Horosa-荀爽（Herakleios）. The lineage matters: Horosa was originally created by 郑大哥, with auxiliary design work from 荀爽（Herakleios）, and their public release made later study, maintenance, and extension possible.
 
 Please do not forget the contributions of 爽哥 and 郑大哥. This repository continues from their groundwork with respect, gratitude, and the hope that Horosa can remain useful to more people over time.
+
