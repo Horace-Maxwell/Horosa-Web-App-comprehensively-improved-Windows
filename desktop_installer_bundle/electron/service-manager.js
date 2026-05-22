@@ -1335,6 +1335,54 @@ class RuntimeManager extends EventEmitter {
     return this.start();
   }
 
+  async repairPreparedRuntime() {
+    await this.stop('repair');
+
+    const manifest = this.readPackedPayloadManifest();
+    if (!manifest) {
+      rmrf(this.getRuntimeHealthCachePath());
+      rmrf(this.getRuntimeFastPathPath());
+      this.updateState({
+        status: 'starting-window',
+        message: '已清理本地服务缓存，正在重新启动',
+      });
+      return this.start();
+    }
+
+    const targetRoot = this.getPackedPayloadCacheRoot(manifest);
+    this.updateState({
+      status: 'repairing-runtime',
+      message: '正在自检并修复内置运行时缓存',
+      packagedPayload: true,
+      payloadId: manifest.payloadId,
+      repairTarget: targetRoot,
+    });
+
+    if (this.logger) {
+      this.logger.warn('Repairing embedded runtime cache before restart', {
+        targetRoot,
+        payloadId: manifest.payloadId,
+      });
+    }
+
+    rmrf(targetRoot);
+    rmrf(`${targetRoot}.repair`);
+    rmrf(this.getRuntimeHealthCachePath());
+    rmrf(this.getRuntimeFastPathPath());
+    this.resolvedResourceRoot = this.resourceRoot;
+    this.layout = null;
+    this.appCdsContext = null;
+
+    this.updateState({
+      status: 'starting-window',
+      message: '已完成运行时缓存修复，正在重新启动',
+      packagedPayload: true,
+      payloadId: manifest.payloadId,
+    });
+
+    return this.start();
+  }
+
   async stop(reason = 'stop') {
     if (this.stopPromise) {
       return this.stopPromise;

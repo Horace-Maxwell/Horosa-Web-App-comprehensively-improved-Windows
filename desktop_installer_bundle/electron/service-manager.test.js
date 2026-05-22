@@ -511,3 +511,55 @@ test('trusted runtime cache markers are ignored when the runtime fingerprint cha
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }
 });
+
+test('repairPreparedRuntime clears cached payload and health markers before restart', async () => {
+  const logger = createLogger();
+  const fixture = createPackedRuntimeFixture();
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-runtime-userdata-'));
+
+  try {
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: fixture.root,
+      userDataDir,
+      logger,
+    });
+    const prepared = await runtimeManager.ensurePackagedPayloadReady();
+    const layout = runtimeManager.resolveLayout();
+    const trustContext = runtimeManager.getTrustedRuntimeContext(layout, prepared);
+
+    runtimeManager.persistRuntimeCaches({
+      fingerprint: trustContext.fingerprint,
+      readinessChecks: {
+        backendHeartbeat: { ok: true, statusCode: 200 },
+        chartProbe: { ok: true, statusCode: 200 },
+      },
+      resourcePreparation: prepared,
+      startupDurationMs: 1234,
+      trustedRuntime: true,
+    });
+
+    assert.equal(fs.existsSync(prepared.resourceRoot), true);
+    assert.equal(fs.existsSync(path.join(userDataDir, '.runtime-health-cache.json')), true);
+    assert.equal(fs.existsSync(path.join(userDataDir, '.runtime-fast-path.json')), true);
+
+    let startCalled = false;
+    runtimeManager.start = async () => {
+      startCalled = true;
+      return runtimeManager.getState();
+    };
+
+    await runtimeManager.repairPreparedRuntime();
+
+    assert.equal(startCalled, true);
+    assert.equal(fs.existsSync(prepared.resourceRoot), false);
+    assert.equal(fs.existsSync(path.join(userDataDir, '.runtime-health-cache.json')), false);
+    assert.equal(fs.existsSync(path.join(userDataDir, '.runtime-fast-path.json')), false);
+    assert.equal(
+      logger.entries.warn.some((entry) => entry.message === 'Repairing embedded runtime cache before restart'),
+      true
+    );
+  } finally {
+    fixture.cleanup();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});

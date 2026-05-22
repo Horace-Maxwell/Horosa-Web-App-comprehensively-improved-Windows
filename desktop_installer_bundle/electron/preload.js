@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld('horosaDesktop', {
   retryRuntime() {
     return ipcRenderer.invoke('desktop:retry-runtime');
   },
+  repairRuntime() {
+    return ipcRenderer.invoke('desktop:repair-runtime');
+  },
   getZoomFactor() {
     return ipcRenderer.invoke('desktop:get-zoom-factor');
   },

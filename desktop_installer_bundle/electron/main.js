@@ -95,6 +95,11 @@ function withTimeout(promise, timeoutMs, timeoutMessage) {
   });
 }
 
+function isNavigationAbortError(error) {
+  const message = error && error.message ? String(error.message) : String(error || '');
+  return message.includes('ERR_ABORTED') || message.includes('Error code: -3') || message.includes('(-3)');
+}
+
 function getConfiguredPublishOptions() {
   const publishConfig = packageMetadata && packageMetadata.build ? packageMetadata.build.publish : null;
   const firstPublishConfig = Array.isArray(publishConfig) ? publishConfig[0] : publishConfig;
@@ -606,7 +611,18 @@ async function showLoadingScreen() {
   }
 
   currentPage = 'loading';
-  await mainWindow.loadFile(loadingPagePath);
+  try {
+    await mainWindow.loadFile(loadingPagePath);
+  } catch (error) {
+    if (!isNavigationAbortError(error)) {
+      throw error;
+    }
+    if (logger) {
+      logger.warn('Loading screen navigation was aborted during page switch; keeping current window alive', {
+        message: error.message,
+      });
+    }
+  }
   publishCurrentStates();
 }
 
@@ -1324,6 +1340,12 @@ ipcMain.handle('desktop:get-app-info', async () => {
     return runtimeState;
   });
 
+  ipcMain.handle('desktop:repair-runtime', async () => {
+    await showLoadingScreen();
+    const runtimeState = await startRuntimeFlow({ repair: true });
+    return runtimeState;
+  });
+
   ipcMain.handle('desktop:get-zoom-factor', async () => currentZoomFactor);
   ipcMain.handle('desktop:set-zoom-factor', async (_event, nextZoomFactor) => ({
     zoomFactor: applyZoomFactor(nextZoomFactor),
@@ -1517,7 +1539,7 @@ ipcMain.handle('desktop:get-app-info', async () => {
   });
 }
 
-async function startRuntimeFlow({ restart = false } = {}) {
+async function startRuntimeFlow({ restart = false, repair = false } = {}) {
   if (!runtimeManager) {
     throw new Error('Runtime manager not initialized');
   }
@@ -1528,7 +1550,9 @@ async function startRuntimeFlow({ restart = false } = {}) {
 
   runtimeBootPromise = (async () => {
     try {
-      const runtimeState = restart ? await runtimeManager.restart() : await runtimeManager.start();
+      const runtimeState = repair
+        ? await runtimeManager.repairPreparedRuntime()
+        : (restart ? await runtimeManager.restart() : await runtimeManager.start());
       await loadRendererApp();
       queueUpdateCheck();
       return runtimeState;
@@ -1580,8 +1604,14 @@ async function bootstrap() {
     if (logger) {
       logger.error('Runtime error', error);
     }
-    await showLoadingScreen();
-    publishCurrentStates();
+    try {
+      await showLoadingScreen();
+      publishCurrentStates();
+    } catch (loadError) {
+      if (logger) {
+        logger.error('Failed to show loading screen after runtime error', loadError);
+      }
+    }
   });
 
   createAppMenu();

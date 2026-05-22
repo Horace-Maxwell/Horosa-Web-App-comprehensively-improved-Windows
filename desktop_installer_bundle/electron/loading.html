@@ -174,6 +174,7 @@
 
       <div class="actions">
         <button id="retry" class="primary" type="button">重试启动</button>
+        <button id="repair" class="secondary" type="button">自检修复并重试</button>
         <button id="openLogs" class="secondary" type="button">打开日志目录</button>
       </div>
     </main>
@@ -193,6 +194,7 @@
         serverRoot: document.getElementById('serverRoot'),
         runtimeStatus: document.getElementById('runtimeStatus'),
         retry: document.getElementById('retry'),
+        repair: document.getElementById('repair'),
         openLogs: document.getElementById('openLogs'),
       };
 
@@ -231,7 +233,9 @@
           els.spinner.classList.add('ready');
         }
 
-        els.retry.disabled = status === 'starting-python' || status === 'starting-java' || status === 'starting-window';
+        const runtimeBusy = status === 'starting-python' || status === 'starting-java' || status === 'starting-window' || status === 'repairing-runtime' || status === 'preparing-runtime-payload';
+        els.retry.disabled = runtimeBusy;
+        els.repair.disabled = runtimeBusy;
       }
 
       async function retryRuntime() {
@@ -254,7 +258,31 @@
         }
       }
 
+      async function repairRuntime() {
+        if (!bridge || typeof bridge.repairRuntime !== 'function') {
+          return;
+        }
+        els.retry.disabled = true;
+        els.repair.disabled = true;
+        els.message.textContent = '正在自检并修复本地运行时';
+        els.detail.textContent = '将清理已解压的本地运行时缓存，并从安装包重新恢复内置服务。';
+        try {
+          const state = await bridge.repairRuntime();
+          renderRuntimeState(state);
+        } catch (error) {
+          renderRuntimeState({
+            status: 'failed',
+            message: '自检修复失败',
+            error: error && error.message ? error.message : String(error),
+          });
+        } finally {
+          els.retry.disabled = false;
+          els.repair.disabled = false;
+        }
+      }
+
       els.retry.addEventListener('click', retryRuntime);
+      els.repair.addEventListener('click', repairRuntime);
       els.openLogs.addEventListener('click', async () => {
         if (bridge && typeof bridge.openLogsDirectory === 'function') {
           await bridge.openLogsDirectory();
