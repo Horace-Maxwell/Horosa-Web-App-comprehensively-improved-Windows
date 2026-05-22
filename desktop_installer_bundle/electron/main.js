@@ -351,6 +351,19 @@ function normalizeBounds(bounds) {
   return { x, y, width, height };
 }
 
+function boundsApproximatelyEqual(left, right, tolerance = 2) {
+  const lhs = normalizeBounds(left);
+  const rhs = normalizeBounds(right);
+  if (!lhs || !rhs) {
+    return false;
+  }
+
+  return Math.abs(lhs.x - rhs.x) <= tolerance
+    && Math.abs(lhs.y - rhs.y) <= tolerance
+    && Math.abs(lhs.width - rhs.width) <= tolerance
+    && Math.abs(lhs.height - rhs.height) <= tolerance;
+}
+
 function normalizeZoomFactor(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
@@ -544,6 +557,21 @@ function applyStartupMaximizedWindowState(bounds, reason = 'unknown') {
   }
 
   try {
+    const normalizedBounds = normalizeBounds(bounds);
+    if (mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
+      if (normalizedBounds) {
+        lastNormalWindowBounds = normalizedBounds;
+      }
+      if (boundsApproximatelyEqual(lastNormalWindowBounds, normalizedBounds)) {
+        if (logger) {
+          logger.info('Skipped redundant maximized startup window normalization', {
+            reason,
+            bounds: normalizedBounds,
+          });
+        }
+        return;
+      }
+    }
     if (mainWindow.isFullScreen()) {
       mainWindow.setFullScreen(false);
     }
