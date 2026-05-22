@@ -1,6 +1,40 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-21
+最后更新：2026-05-22
+
+## 2026-05-22 v2.0.1 Beta Qimen parity and Windows installer rebuild
+
+本轮以 Horosa `v2.0.1 Beta` 为目标，直接同步 Mac 端已通过的奇门遁甲修复文件，重点覆盖拆补 / 置润起局、精确交节、真太阳时四柱、本地历法回退、天盘干、门神星和值符值使输出。`Horosa-APP-main` 仅作为参考源使用，发布工程中未保留该文件夹作为运行或构建依赖。
+
+### 代码与构建检查
+
+- `npm test -- --runInBand`：`astrostudyui` 通过，23 suites / 91 tests。
+- `npm run build`：`astrostudyui` Web 构建通过。
+- `npm run build:file`：`astrostudyui` file 模式构建通过。
+- `mvn -DskipTests compile`：Java 后端 targeted compile 通过。
+- `node --test electron\\*.test.js`：桌面运行时单测通过，14 tests。
+- `npm run dist:win`：成功生成 v2.0.1 Windows `win-unpacked`、安装器、blockmap 与 `latest.yml`。
+- `Horosa-Setup-2.0.1.exe /S`：本机静默覆盖安装通过，exit code `0`，`%LocalAppData%\\Programs\\Horosa` 下主程序与卸载程序均存在。
+- 安装版真实启动检查：`Horosa.exe` 从 `%LocalAppData%\\Programs\\Horosa` 启动，随包 runtime 解压到 `%LocalAppData%\\HorosaDesktop\\embedded-runtime`，Python chart service 与 Java backend 均从 embedded runtime 运行，runtime state 到达 `ready`，renderer 成功加载最终 `dist-file`。
+
+### 发布资产
+
+- `desktop_installer_bundle/release/Horosa-Setup-2.0.1.exe`
+- `desktop_installer_bundle/release/Horosa-Setup-2.0.1.exe.blockmap`
+- `desktop_installer_bundle/release/latest.yml`
+- `desktop_installer_bundle/release/SHA256SUMS.txt`
+
+### SHA256
+
+- `Horosa-Setup-2.0.1.exe`: `fc406dae1501e975217851c82933c2d045acb81c8095e6a36da2fb2ebff0c708`
+- `Horosa-Setup-2.0.1.exe.blockmap`: `ecd1bd7e34e6d6c054e7db22005491612a27084640d99361b2fa1d9cad9b6dd9`
+- `latest.yml`: `2be5ad00c9eebf3348548d072677892070e65e81bc593fb33db281bdcc153832`
+
+### 注意事项
+
+- `latest.yml` 已显示 `version: 2.0.1` 且 `path: Horosa-Setup-2.0.1.exe`。
+- `Get-AuthenticodeSignature` 显示安装器为 `NotSigned`，符合本轮“不签名”的 Windows beta 发布方式。
+- 打包前曾因本地已启动的 Java/Python 服务占用运行时文件而失败；结束本仓库启动的本地后端进程后重新打包通过。
 
 ## 2026-05-21 v2.0.0 Beta Mac Web 对齐与发布前自检
 

@@ -1,17 +1,17 @@
-# Horosa Windows 2.0.0 Beta 项目结构说明
+# Horosa Windows 2.0.1 Beta 项目结构说明
 
-当前目录结构对应 Horosa v2.0.0 Beta Windows Web / Desktop 统一交付形态。这个版本已经把新版 Mac Web 的 UI、前端、Python 后端、Java 后端、资源与功能面同步到 Windows 本地工程；旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不再是运行或构建依赖。
+当前目录结构对应 Horosa v2.0.1 Beta Windows Web / Desktop 统一交付形态。这个版本已经把新版 Mac Web 的 UI、前端、Python 后端、Java 后端、资源与功能面同步到 Windows 本地工程；旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不再是运行或构建依赖。
 
 ## 普通用户入口
 
 - `START_HERE.bat`：仓库根目录的一键 Web 启动入口，适合解压式本地运行和维护自检。
-- `desktop_installer_bundle/release/Horosa-Setup-2.0.0.exe`：正式 Windows 安装包入口，适合 GitHub Release 发布。
-- `README.md` / `README_ZH.md` / `README_EN.md`：v2.0.0 Beta 用户说明、截图、功能介绍和下载入口。
+- `desktop_installer_bundle/release/Horosa-Setup-2.0.1.exe`：正式 Windows 安装包入口，适合 GitHub Release 发布。
+- `README.md` / `README_ZH.md` / `README_EN.md`：v2.0.1 Beta 用户说明、截图、功能介绍和下载入口。
 - `docs/给完全不会的人看的启动说明.txt`：完全不会命令行的用户说明。
 
 ## 根目录主要内容
 
-- `README.md`：双语入口页，展示 v2.0.0 Beta 三张新版截图和跨平台统一说明。
+- `README.md`：双语入口页，展示 v2.0.1 Beta 三张新版截图和跨平台统一说明。
 - `README_ZH.md` / `README_EN.md`：中文、英文完整说明。
 - `CITATION.cff`：软件引用元数据，版本号跟随当前发布版本。
 - `SECURITY.md` / `SUPPORT.md` / `CONTRIBUTING.md`：英文治理文档。
@@ -24,10 +24,10 @@
 
 ## docs/
 
-- `docs/assets/screenshots/horosa-2.0-main-workspace.png`：v2.0.0 主命盘工作区截图。
-- `docs/assets/screenshots/horosa-2.0-module-navigator.png`：v2.0.0 功能模块导航截图。
-- `docs/assets/screenshots/horosa-2.0-sanshi-workspace.png`：v2.0.0 三式工作区截图。
-- `docs/releases/2.0.0.md`：当前 Beta 版本发布说明与发布资产清单。
+- `docs/assets/screenshots/horosa-2.0-main-workspace.png`：v2.0.1 主命盘工作区截图。
+- `docs/assets/screenshots/horosa-2.0-module-navigator.png`：v2.0.1 功能模块导航截图。
+- `docs/assets/screenshots/horosa-2.0-sanshi-workspace.png`：v2.0.1 三式工作区截图。
+- `docs/releases/2.0.1.md`：当前 Beta 版本发布说明与发布资产清单。
 - `docs/SELFCHECK_LOG.md`：本地自检记录。
 - `docs/PROJECT_STRUCTURE.md`：当前文件。
 
@@ -38,7 +38,7 @@
 - `local/Horosa_Local_Windows.ps1`：Windows 本地 Web 一键启动主脚本。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`：当前实际使用的 Horosa 工作区。
 - `local/workspace/runtime/windows/`：Windows 运行时、缓存和启动优化相关内容。
-- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/`：v2.0.0 Beta 前端工程与构建产物。
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/`：v2.0.1 Beta 前端工程与构建产物。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/`：Python 星历、`/astroextra`、`/planetarium`、印度占星扩展与星表资源。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudysrv/`：Java 服务，包含 `/astroextra/*`、`/planetarium/state`、`/qizheng/moira` 和 AI Analysis 服务接线。
 
@@ -54,13 +54,13 @@
 
 正式桌面应用工程在这里：
 
-- `package.json` / `package-lock.json`：桌面打包工程版本与依赖，当前发布版本为 `2.0.0`。
+- `package.json` / `package-lock.json`：桌面打包工程版本与依赖，当前发布版本为 `2.0.1`。
 - `electron/`：Electron 主进程、预加载脚本和 Python/Java/Web 服务编排。
 - `scripts/`：renderer 构建、运行时 staging、项目路径解析和打包辅助脚本。
 - `assets/`：安装器图标与 NSIS 定制资源。
-- `release/`：本地构建输出目录。v2.0.0 Beta 标准发布资产为：
-  - `Horosa-Setup-2.0.0.exe`
-  - `Horosa-Setup-2.0.0.exe.blockmap`
+- `release/`：本地构建输出目录。v2.0.1 Beta 标准发布资产为：
+  - `Horosa-Setup-2.0.1.exe`
+  - `Horosa-Setup-2.0.1.exe.blockmap`
   - `latest.yml`
   - `SHA256SUMS.txt`
 
@@ -77,7 +77,8 @@
 
 ## 维护人记忆点
 
-- Mac 同步来源文件夹只曾作为迁移参考，v2.0.0 Beta 发布工程自身不应依赖它。
-- GitHub Release 正式用户入口是 `Horosa-Setup-2.0.0.exe`。
+- Mac 同步来源文件夹只曾作为迁移参考，v2.0.1 Beta 发布工程自身不应依赖它。
+- GitHub Release 正式用户入口是 `Horosa-Setup-2.0.1.exe`。
 - `latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 是更新和校验支持资产，不是普通用户的主入口。
 - 发布前至少检查 README 三张截图、版本号、安装器资产、校验和、`latest.yml` 版本与 Windows 一键启动路径。
+
