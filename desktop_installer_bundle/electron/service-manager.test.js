@@ -2,11 +2,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { EventEmitter } = require('events');
 const fs = require('fs');
+const http = require('http');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { RuntimeManager, classifyProcessExit } = require('./service-manager');
+const { RuntimeManager, classifyProcessExit, waitForBackendHeartbeat } = require('./service-manager');
 
 function createLogger() {
   const entries = {
@@ -93,6 +94,19 @@ function createPackedRuntimeFixture() {
       fs.rmSync(root, { recursive: true, force: true });
     },
   };
+}
+
+function createHttpServer(handler) {
+  const server = http.createServer(handler);
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      resolve({
+        server,
+        port: server.address().port,
+      });
+    });
+  });
 }
 
 test('classifyProcessExit treats planned stop metadata as non-unexpected', () => {
@@ -273,6 +287,22 @@ test('stop still cleans up when AppCDS dump throws', async () => {
   );
 });
 
+test('waitForBackendHeartbeat accepts unsigned backend auth probe response', async () => {
+  const { server, port } = await createHttpServer((_request, response) => {
+    response.writeHead(500, { 'Content-Type': 'application/json' });
+    response.end('{"ResultCode":9999,"Result":"no.register.app.in.sys.forapp%3A"}');
+  });
+
+  try {
+    const result = await waitForBackendHeartbeat(`http://127.0.0.1:${port}`, 1000);
+    assert.equal(result.ok, true);
+    assert.equal(result.acceptedAuthProbe, true);
+    assert.equal(result.statusCode, 500);
+  } finally {
+    server.close();
+  }
+});
+
 test('ensurePackagedPayloadReady extracts the packed runtime into userData cache', async () => {
   const logger = createLogger();
   const fixture = createPackedRuntimeFixture();
@@ -321,6 +351,78 @@ test('ensurePackagedPayloadReady reuses a prepared cache on the next launch', as
   } finally {
     fixture.cleanup();
     fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('ensurePackagedPayloadReady falls back to copy when Windows rename is locked', async () => {
+  const logger = createLogger();
+  const fixture = createPackedRuntimeFixture();
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-runtime-userdata-'));
+  const originalRenameSync = fs.renameSync;
+  let renameCalls = 0;
+
+  fs.renameSync = function renameSyncWithEpermOnce(sourcePath, targetPath) {
+    renameCalls += 1;
+    if (renameCalls <= 8) {
+      const error = new Error(`EPERM: operation not permitted, rename '${sourcePath}' -> '${targetPath}'`);
+      error.code = 'EPERM';
+      throw error;
+    }
+    return originalRenameSync.apply(this, arguments);
+  };
+
+  try {
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: fixture.root,
+      userDataDir,
+      logger,
+    });
+
+    const prepared = await runtimeManager.ensurePackagedPayloadReady();
+    assert.equal(prepared.mode, 'extracted');
+    assert.equal(prepared.installMove.mode, 'copy');
+    assert.equal(fs.existsSync(path.join(prepared.resourceRoot, '.payload-ready.json')), true);
+    assert.equal(fs.existsSync(path.join(prepared.resourceRoot, 'runtime', 'windows', 'bundle', 'astrostudyboot.jar')), true);
+    assert.equal(
+      logger.entries.warn.some((entry) => entry.message === 'Packed runtime rename failed; falling back to copy'),
+      true
+    );
+  } finally {
+    fs.renameSync = originalRenameSync;
+    fixture.cleanup();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('getPackedPayloadCacheRoot uses short fallback when embedded Python path is long', () => {
+  const logger = createLogger();
+  const longUserDataDir = path.join(
+    os.tmpdir(),
+    'horosa-runtime-userdata-' + 'deep-path-segment-'.repeat(16)
+  );
+  const fallbackBase = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-runtime-short-cache-'));
+  const previousFallback = process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR;
+  process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR = fallbackBase;
+
+  try {
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: 'unused',
+      userDataDir: longUserDataDir,
+      logger,
+    });
+    const cacheRoot = runtimeManager.getPackedPayloadCacheRoot({ payloadId: 'fixture-payload' });
+    assert.equal(cacheRoot, path.join(fallbackBase, 'fixture-payload'));
+    assert.equal(
+      logger.entries.warn.some((entry) => entry.message === 'Embedded runtime cache path is long; using short fallback path'),
+      true
+    );
+  } finally {
+    if (previousFallback === undefined) {
+      delete process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR;
+    } else {
+      process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR = previousFallback;
+    }
+    fs.rmSync(fallbackBase, { recursive: true, force: true });
   }
 });
 

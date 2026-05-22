@@ -4,19 +4,19 @@
 
 # 星阙 Horosa for Windows
 
-### A desktop metaphysics workstation for Windows x64
-### 面向 Windows x64 的桌面玄学工作站
+### Horosa v2.0.0 Beta Mac Web parity release for Windows x64
+### 面向 Windows x64 的星阙 2.0 Beta 跨平台统一大版本
 
 [![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
 [![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
 [![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe)
+[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![DunJia Tianpan](https://img.shields.io/badge/DunJia-Tianpan%20Sync-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4)
-[![Runtime](https://img.shields.io/badge/runtime-1.3.4--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
+[![Beta Release](https://img.shields.io/badge/v2.0.0%20Beta-Mac%20Web%20Parity-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0)
+[![Runtime](https://img.shields.io/badge/runtime-2.0.0--beta--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
 [![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
 [![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
 [![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
@@ -27,13 +27,15 @@
 [![Read In English](https://img.shields.io/badge/Read%20In-English-0f766e?labelColor=52525b)](README_EN.md)
 [![查看中文版](https://img.shields.io/badge/查看-中文版-0f766e?labelColor=52525b)](README_ZH.md)
 
-[中文完整版](README_ZH.md) | [English Guide](README_EN.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v1.3.4 版本页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4) | [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
+[中文完整版](README_ZH.md) | [English Guide](README_EN.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v2.0.0 Beta 版本页面](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0) | [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
-<p>Horosa on Windows is delivered as an installer-first desktop product with bundled runtime, a shared web/app workspace, and a clear public release path.</p>
-<p>Windows 版 Horosa 以安装器优先、运行时随包交付、Web/App 共用工作区的正式桌面产品形态发布。</p>
-<p><strong>Current release train / 当前发布线：v1.3.4</strong></p>
-<p><strong>Licensing note:</strong> the public repository is now distributed under <code>AGPL-3.0</code> because the released stack integrates Swiss Ephemeris / <code>pyswisseph</code>. Third-party subdirectories keep their own upstream notices.</p>
-<p><strong>许可证说明：</strong> 当前公开仓库已切换为 <code>AGPL-3.0</code>，原因是发布栈中集成了 Swiss Ephemeris / <code>pyswisseph</code>。第三方子目录仍保留各自上游原始许可证说明。</p>
+<p>Horosa v2.0.0 Beta brings the improved Mac Web product surface to Windows: UI shell, modules, frontend, Python backend, Java backend, assets, and desktop delivery are aligned into one cross-platform release line.</p>
+<p>Horosa v2.0.0 Beta 将新版 Mac Web 产品面完整同步到 Windows：UI 外壳、模块、前端、Python 后端、Java 后端、资源和桌面交付统一进入同一条跨平台发布线。</p>
+<p><strong>Current release train / 当前发布线：v2.0.0 Beta</strong></p>
+<p><strong>Beta note:</strong> this public installer is the v2.0.0 beta package. It is published as the visible current GitHub Release so Windows users can download and test the new unified Web/Desktop build directly.</p>
+<p><strong>Beta 说明：</strong> 当前公开安装器是 v2.0.0 beta 包。它会作为 GitHub Releases 中可直接看到的当前版本发布，方便 Windows 用户下载测试新版统一 Web/Desktop 构建。</p>
+<p><strong>Licensing note:</strong> the public repository is distributed under <code>AGPL-3.0</code> because the released stack integrates Swiss Ephemeris / <code>pyswisseph</code>. Third-party subdirectories keep their own upstream notices.</p>
+<p><strong>许可证说明：</strong> 当前公开仓库使用 <code>AGPL-3.0</code>，原因是发布栈中集成了 Swiss Ephemeris / <code>pyswisseph</code>。第三方子目录仍保留各自上游原始许可证说明。</p>
 
 </div>
 
@@ -43,21 +45,21 @@
   <tr>
     <td width="50%">
       <strong>English</strong><br /><br />
-      End users should download the Windows installer and open Horosa like a finished desktop app.<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe"><strong>Download the setup .exe</strong></a>
+      End users can download the v2.0.0 Beta Windows installer and open Horosa like a finished desktop app. A clean Windows 10/11 x64 machine does not need a separate Python, Java, Node.js, Maven, or frontend toolchain install.<br />
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe"><strong>Download Horosa-Setup-2.0.0.exe</strong></a>
     </td>
     <td width="50%">
       <strong>中文</strong><br /><br />
-      普通用户请直接下载 Windows 安装器，像标准桌面软件一样安装和打开 Horosa。<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe"><strong>下载 setup .exe</strong></a>
+      普通用户可以直接下载 v2.0.0 Beta Windows 安装器，像标准桌面软件一样安装和打开 Horosa。全新的 Windows 10/11 x64 机器不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。<br />
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.0.exe"><strong>下载 Horosa-Setup-2.0.0.exe</strong></a>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      Maintainers should start from the bilingual guides and the current GitHub Release page instead of guessing from asset names.
+      First launch can take longer while the bundled runtime settles. Later launches are optimized around the local runtime cache and should feel like a normal desktop app.
     </td>
     <td width="50%">
-      维护者请从双语说明和当前 GitHub Release 页面进入，不要只靠 release 资产名反推结构。
+      首次启动会因为运行时初始化而更慢；后续启动会复用本地运行时缓存，体验应接近正常桌面软件。
     </td>
   </tr>
 </table>
@@ -65,161 +67,94 @@
 ## Preview / 截图预览
 
 <div align="center">
-  <p><strong>Main Workspace / 主界面工作区</strong></p>
-  <img src="docs/assets/screenshots/main-workspace.png" alt="Horosa Main Workspace" width="1200" />
-  <p><em>The primary Horosa desktop workspace for chart reading, controls, and everyday use.</em></p>
-  <p><em>Horosa 的核心桌面工作区，用于盘面浏览、参数控制与日常使用。</em></p>
+  <p><strong>Horosa v2 Main Workspace / 星阙 2.0 本命盘工作区</strong></p>
+  <img src="docs/assets/screenshots/horosa-2.0-main-workspace.png" alt="Horosa v2 main astrology workspace" width="1200" />
+  <p><em>The new XQ shell, chart controls, side inspection panels, quick actions, theme controls, and desktop layout in one screen.</em></p>
+  <p><em>新版 XQ 外壳、命盘控制、右侧信息面板、底部快捷功能、主题控制与桌面布局整合在同一工作面。</em></p>
 </div>
 
 <div align="center">
-  <p><strong>Sanshi Workspace / 三式合一工作区</strong></p>
-  <img src="docs/assets/screenshots/sanshi-workspace.png" alt="Horosa Sanshi Workspace" width="960" />
-  <p><em>An advanced workflow view that highlights Sanshi and deeper tool-driven analysis.</em></p>
-  <p><em>更偏高级功能的一面，用于体现三式合一与更深层的工具化分析场景。</em></p>
+  <p><strong>Module Navigator / 功能模块导航</strong></p>
+  <img src="docs/assets/screenshots/horosa-2.0-module-navigator.png" alt="Horosa v2 module navigator" width="1100" />
+  <p><em>The dark module chooser gives fast access to astrology, timing, Bazi, Ziwei, Qizheng, Indian astrology, auxiliary charts, Sanshi, tools, AI analysis, and the planetarium.</em></p>
+  <p><em>深色模块选择器快速连接占星、星运、八字、紫微、七政、印占、辅盘、三式、小工具、AI 分析与天文馆。</em></p>
 </div>
 
-## At A Glance / 一眼看懂
+<div align="center">
+  <p><strong>Sanshi Workspace / 三式工作区</strong></p>
+  <img src="docs/assets/screenshots/horosa-2.0-sanshi-workspace.png" alt="Horosa v2 Sanshi workspace" width="1200" />
+  <p><em>Sanshi, Liu Ren, Dun Jia, Tai Yi, shensha, Bagong, and related detail panels now share the same Windows desktop shell.</em></p>
+  <p><em>三式、六壬、遁甲、太乙、神煞、八宫与细节面板现在共用同一套 Windows 桌面外壳。</em></p>
+</div>
+
+## What Changed In v2.0.0 Beta / v2.0.0 Beta 更新重点
 
 <table>
   <tr>
     <td width="50%">
       <strong>English</strong><br /><br />
-      Horosa combines Western astrology, timing systems, relationship charts, Chinese traditional methods, Yi and Sanshi workflows, Feng Shui, and AI-oriented export controls inside one desktop surface.
+      v2.0.0 Beta is the cross-platform parity release. The improved Mac Web implementation is now reflected in the Windows Web and desktop package, while keeping the Windows-specific bundled runtime and launcher adaptations required for clean-machine use.
     </td>
     <td width="50%">
       <strong>中文</strong><br /><br />
-      Horosa 把西方占星、推运体系、关系盘、中国传统术数、易与三式、风水与 AI 导出控制整合进同一个桌面工作面。
+      v2.0.0 Beta 是跨平台统一大版本。新版 Mac Web 中已经完成的产品面同步进入 Windows Web 与桌面安装包，同时保留 Windows 在全新机器上可直接运行所需的运行时与启动适配。
     </td>
   </tr>
   <tr>
     <td width="50%">
-      The Windows delivery is already shaped as a real desktop release: installer-first distribution, bundled runtime, update manifest, and a clear public download path.
+      - New XQ UI shell, icon system, navigation, module chooser, quick actions, day/night theme, settings, help, search, favorites, and history<br />
+      - Expanded astrology surface: natal, timing, relationship charts, auxiliary charts, Indian astrology extensions, Qizheng Moira, and planetarium/3D views<br />
+      - Chinese and divination workflows: Bazi, Ziwei, Yi, Liu Ren, Dun Jia, Tai Yi, Sanshi United, Feng Shui, calendar, and related reference panels<br />
+      - AI analysis and export settings now cover more module snapshots and provider/material/chat/embedding/stream service paths<br />
+      - Python backend includes <code>/astroextra</code>, <code>/planetarium</code>, star resources, Indian extensions, and supporting ephemeris services<br />
+      - Java backend includes <code>/astroextra/*</code>, <code>/planetarium/state</code>, <code>/qizheng/moira</code>, and AI Analysis service wiring<br />
+      - Windows release remains self-contained; the old Mac sync source folder is not required at runtime or build time
     </td>
     <td width="50%">
-      Windows 交付已经具备正式桌面产品的基本形态：安装器优先分发、运行时随包提供、更新清单与明确的公开下载入口。
+      - 新版 XQ UI 外壳、图标系统、导航、模块选择器、快捷功能、昼夜主题、设置、帮助、搜索、收藏与历史<br />
+      - 占星面扩展到本命、星运、关系盘、辅盘、印度占星扩展、七政 Moira 与天文馆 / 3D 视图<br />
+      - 中国传统与术数工作流覆盖八字、紫微、易、六壬、遁甲、太乙、三式合一、风水、万年历与相关参考面板<br />
+      - AI 分析与 AI 导出设置覆盖更多模块快照，并接入 provider/material/chat/embedding/stream 服务路径<br />
+      - Python 后端包含 <code>/astroextra</code>、<code>/planetarium</code>、星表资源、印度占星扩展与星历支持服务<br />
+      - Java 后端包含 <code>/astroextra/*</code>、<code>/planetarium/state</code>、<code>/qizheng/moira</code> 与 AI Analysis 服务接线<br />
+      - Windows 发布包保持自包含；旧的 Mac 同步来源文件夹不再作为运行或构建依赖
     </td>
   </tr>
 </table>
-
-## Signature Workflows / 代表性工作流
-
-### Natal To Timing / 从本命到时运
-
-English: Start from natal and 3D chart reading, then move into primary directions, zodiacal releasing, firdaria, profection, solar arc, returns, and annual methods without leaving the same desktop product.
-
-中文：从本命盘和三维盘进入，再继续切到主/界限法、黄道星释、法达、小限、太阳弧、返照与流年法，不需要离开同一个桌面产品。
-
-### Relationship Analysis / 关系分析
-
-English: The relationship layer already includes compare, composite, synastry, time-space midpoint, and Marks charts as parallel ways to inspect the same relationship.
-
-中文：关系分析层已经覆盖比较盘、组合盘、影响盘、时空中点盘与马克斯盘，用不同结构切同一段关系。
-
-### Chinese Traditional Stack / 中国传统术数栈
-
-English: Bazi, Ziwei, calendar, Feng Shui, and supporting references already live in the same workspace, so the product feels like a broader traditional stack rather than a single-method tool.
-
-中文：八字、紫微斗数、万年历、风水和配套参考入口已经进入同一工作面，所以它更像一整套中国传统术数栈，而不是某一术的单点工具。
-
-### Yi And Sanshi Depth / 易与三式纵深
-
-English: Yi and Sanshi go beyond standalone tabs through Su Zhan, Yi Gua, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and a deeper Sanshi United surface.
-
-中文：易与三式不只是单术入口，还包含宿盘、易卦、六壬、金口诀、遁甲、太乙、统摄法，以及更深的三式合一综合工作区。
 
 ## Capability Matrix / 功能矩阵
 
 ### Western Astrology / 西方占星
 
-English: A continuous chain from natal reading to timing and relationship work.
+- Natal chart, chart controls, aspects, planet selection, chart styling, and inspection panels / 本命盘、盘面控制、相位、行星选择、样式与信息面板
+- Timing stack: primary directions, zodiacal releasing, firdaria, profection, solar arc, solar/lunar returns, annual methods, and decennials / 星运体系覆盖主限、黄道星释、法达、小限、太阳弧、日月返照、流年法与十年大运
+- Relationship stack: compare, composite, synastry, time-space midpoint, Marks charts, and AI-ready snapshots / 关系盘覆盖比较盘、组合盘、影响盘、时空中点盘、马克斯盘与 AI 快照
+- Auxiliary and specialty charts including Jieqi, astrocartography, quantitative views, Hellenistic views, Indian astrology, Qizheng Siyu, and Moira / 辅盘与专门模块包含节气盘、星体地图、量化盘、希腊星术、印度占星、七政四余与 Moira
 
-中文：从本命阅读到推运、关系分析的连续链路。
+### Chinese Traditional And Sanshi / 中国传统与三式
 
-- Natal chart and 3D chart / 星盘、本命盘、三维盘
-- Timing stack including primary directions, returns, solar arc, and annual methods / 覆盖主限、返照、太阳弧与流年法的推运栈
-- Compare, composite, synastry, time-space midpoint, and Marks charts / 比较盘、组合盘、影响盘、时空中点盘、马克斯盘
+- Bazi, Ziwei, calendar, Feng Shui, gua-symbol references, twelve-palace tools, and rule references / 八字、紫微、万年历、风水、八卦类象、十二串宫与规则参考
+- Yi and divination entrypoints: Su Zhan, Yi Gua, Liu Yao, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and Sanshi United / 易与术数入口包含宿盘、易卦、六爻、六壬、金口诀、遁甲、太乙、统摄法与三式合一
+- Sanshi workspace with overview, Tai Yi, shensha, Liu Ren, major patterns, sub-patterns, references, Bagong details, and exportable snapshots / 三式工作区包含概览、太乙、神煞、六壬、大格、小局、参考、八宫详情与可导出快照
 
-### Global And Specialty Modules / 全球与专门模块
+### AI, Export, And Research Flow / AI、导出与研究流
 
-English: A broader surface than the default desktop astrology stack.
+- AI Analysis surface with local module context, provider settings, material handling, chat paths, embeddings, and stream-capable service wiring / AI 分析工作面支持本地模块上下文、供应商设置、材料处理、对话路径、embedding 与流式服务接线
+- AI export settings for chart sections, timing sections, traditional modules, Sanshi content, Qizheng, Indian astrology, and relationship views / AI 导出设置覆盖盘面、星运、传统模块、三式、七政、印度占星与关系盘
+- Search, favorites, history, settings, help, quick actions, and module navigator support repeated desktop work / 搜索、收藏、历史、设置、帮助、快捷功能与模块导航支撑长期桌面研究
 
-中文：比常见桌面占星软件更宽的专门模块面。
+## Desktop Delivery / 桌面交付
 
-- Jieqi charts / 节气盘
-- Astrocartography and planetary maps / 星体地图与地理占星
-- Qizheng Siyu, Hellenistic, Indian, and quantitative views / 七政四余、希腊星术、印度律盘、量化盘
+On Windows, the delivery layer is meant to feel installable and finished rather than improvised.
 
-### Chinese Traditional And Divination / 中国传统与术数
+Windows 交付目标是让 Horosa 像成品桌面软件一样安装、打开、更新和恢复，而不是让普通用户自己拼环境。
 
-English: A structured traditional system rather than a decorative side module.
-
-中文：系统化组织的传统术数层，而不是点缀式附属模块。
-
-- Bazi, Ziwei, gua-symbol references, twelve-palace tools, and rule references / 八字、紫微斗数、八卦类象、十二串宫、规则参考
-- Calendar and Feng Shui as first-class modules / 万年历与风水作为正式模块
-- Yi and Sanshi modules across standalone and integrated surfaces / 易与三式兼具单术入口与整合面
-
-### Desktop Workflow / 桌面工作流
-
-English: Controls for shaping, filtering, inspecting, and exporting analysis sessions.
-
-中文：围绕分析、筛选、检查与导出的桌面控制层。
-
-- Chart configuration, aspect selection, planet selection / 星盘配置、相位选择、行星选择
-- Chart components and utility tools / 星盘组件与小工具
-- AI export and AI export settings / AI 导出与 AI 导出设置
-
-## Updated In v1.3.4 / v1.3.4 更新重点
-
-<table>
-  <tr>
-    <td width="50%">
-      <strong>English</strong><br /><br />
-      Horosa v1.3.4 fixes the Dun Jia / Qimen tianpan heavenly-stem flying sequence. Standalone Dun Jia, Sanshi United, AI export, and AI analysis now read the same corrected calculation across Web and Windows App.
-    </td>
-    <td width="50%">
-      <strong>中文</strong><br /><br />
-      Horosa v1.3.4 修复遁甲 / 奇门天盘奇仪飞布逻辑。独立遁甲、三式合一、AI 导出与 AI 分析现在都会在 Web 与 Windows App 中读取同一个修复后的结果。
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      - Dun Jia tianpan now flies from the hour xun-head earth-palace source to the current hour-stem earth-palace target<br />
-      - the middle palace participates through Kun during the fly sequence and remains preserved as the middle palace afterward<br />
-      - Yang Dun and Yin Dun use the documented forward/reverse eight-palace order without touching earth pan, doors, stars, gods, ju selection, calendar, or ganzhi logic<br />
-      - Sanshi United continues to call the shared Dun Jia calculator instead of carrying a copied algorithm<br />
-      - Qimen and Sanshi AI snapshots now export corrected <code>tianGan</code> and nine-palace text<br />
-      - Web bundle, Windows App runtime payload, installer, and update manifest are aligned to <code>1.3.4</code>
-    </td>
-    <td width="50%">
-      - 遁甲天盘现在以时辰旬首六仪所在地盘宫为起点，以当前时干所在地盘宫为落点飞布<br />
-      - 中宫参与飞布时按坤宫处理，飞布结束后仍保留中宫原值<br />
-      - 阳遁、阴遁分别使用文档指定的顺逆八宫序列，不改地盘、门、星、神、起局、历法或干支逻辑<br />
-      - 三式合一继续调用共享遁甲计算器，不复制第二套算法<br />
-      - 奇门与三式合一 AI 快照现在导出修复后的 <code>tianGan</code> 与九宫文本<br />
-      - Web 包、Windows App 运行时载荷、安装器与更新清单统一到 <code>1.3.4</code>
-    </td>
-  </tr>
-</table>
-
-## Get Started / 下载与文档导航
-
-<table>
-  <tr>
-    <td width="50%">
-      <strong>English</strong><br /><br />
-      Public install entry: <code>Horosa-Setup-1.3.4.exe</code><br />
-      Best for Windows x64 users, weak-network environments, offline forwarding, and first-time installs.<br /><br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe"><strong>Open download</strong></a>
-    </td>
-    <td width="50%">
-      <strong>中文</strong><br /><br />
-      公开安装入口：<code>Horosa-Setup-1.3.4.exe</code><br />
-      适合 Windows x64、弱网环境、离线转发和第一次安装的普通用户。<br /><br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-1.3.4.exe"><strong>打开下载</strong></a>
-    </td>
-  </tr>
-</table>
+- Windows 10/11 (`x64`)
+- NSIS installer: `Horosa-Setup-2.0.0.exe`
+- Bundled Python, Java, Node/Web assets, and app runtime
+- No required external Python/Java/Node/Maven installation for normal users
+- Update manifest, blockmap, checksum file, and release notes prepared for GitHub Releases
+- Shared frontend and backend behavior across Web mode and Windows desktop mode
 
 ## Documentation / 文档导航
 
@@ -229,46 +164,42 @@ English: Controls for shaping, filtering, inspecting, and exporting analysis ses
       <strong>English</strong><br /><br />
       <a href="README_EN.md">README_EN.md</a>: full English guide<br />
       <a href="README_ZH.md">README_ZH.md</a>: Chinese full guide<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4">v1.3.4 release page</a><br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases">All releases</a><br />
-      <a href="desktop_installer_bundle/README.md">Desktop bundle internals</a>
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0">v2.0.0 Beta release page</a><br />
+      <a href="docs/releases/2.0.0.md">local v2.0.0 Beta release notes</a><br />
+      <a href="desktop_installer_bundle/README.md">Desktop bundle internals</a><br />
+      <a href="docs/PROJECT_STRUCTURE.md">Project structure</a>
     </td>
     <td width="50%">
       <strong>中文</strong><br /><br />
       <a href="README_ZH.md">README_ZH.md</a>：中文完整说明<br />
       <a href="README_EN.md">README_EN.md</a>：英文完整说明<br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4">v1.3.4 版本页面</a><br />
-      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases">所有 Release</a><br />
-      <a href="desktop_installer_bundle/README.md">桌面打包与安装器说明</a>
+      <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.0">v2.0.0 Beta 版本页面</a><br />
+      <a href="docs/releases/2.0.0.md">本地 v2.0.0 Beta 发布说明</a><br />
+      <a href="desktop_installer_bundle/README.md">桌面打包与安装器说明</a><br />
+      <a href="docs/PROJECT_STRUCTURE.md">项目结构说明</a>
     </td>
   </tr>
 </table>
 
-<details>
-<summary><strong>Developer Entry / 开发者入口</strong></summary>
+## FAQ / 常见问题
 
-<table>
-  <tr>
-    <td width="50%">
-      <strong>English</strong><br /><br />
-      Understand the public-facing repository layout: <a href="README.md">README.md</a><br />
-      Inspect desktop bundle internals and publishing flow: <a href="desktop_installer_bundle/README.md">desktop_installer_bundle/README.md</a><br />
-      Read the current version release page: <a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4">v1.3.4</a><br />
-      Enter the application source tree: <code>local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/</code><br />
-      Inspect runtime and verification notes: <code>local/workspace/runtime/windows/</code>, <a href="docs/PROJECT_STRUCTURE.md">docs/PROJECT_STRUCTURE.md</a>, <a href="docs/SELFCHECK_LOG.md">docs/SELFCHECK_LOG.md</a>
-    </td>
-    <td width="50%">
-      <strong>中文</strong><br /><br />
-      理解首页与用户入口：<a href="README.md">README.md</a><br />
-      查看桌面打包与发布链路：<a href="desktop_installer_bundle/README.md">desktop_installer_bundle/README.md</a><br />
-      阅读当前版本页面：<a href="https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v1.3.4">v1.3.4</a><br />
-      进入主工程源码：<code>local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/</code><br />
-      查看运行时与自检文档：<code>local/workspace/runtime/windows/</code>、<a href="docs/PROJECT_STRUCTURE.md">docs/PROJECT_STRUCTURE.md</a>、<a href="docs/SELFCHECK_LOG.md">docs/SELFCHECK_LOG.md</a>
-    </td>
-  </tr>
-</table>
+### Do I Need To Clone The Repo / 普通用户需要克隆仓库吗
 
-</details>
+No. Regular users should download `Horosa-Setup-2.0.0.exe` from the latest release.
+
+不需要。普通用户直接在最新 Release 下载 `Horosa-Setup-2.0.0.exe` 即可。
+
+### Do I Need To Install Python Or Java / 需要自己安装 Python 或 Java 吗
+
+No. The Windows installer is designed to carry the runtime pieces needed by the released app. The first launch can be slower because those pieces are initialized locally.
+
+不需要。Windows 安装器会携带发布版所需运行时。首次启动可能因本地初始化更慢，后续会复用缓存。
+
+### Why Are There Other Files In The Release / Release 里为什么还有其他文件
+
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support updater and verification workflows. The public install entry remains the setup `.exe`.
+
+`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。普通用户的公开安装入口仍然是 setup `.exe`。
 
 ## Acknowledgements / 致谢
 

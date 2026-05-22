@@ -3,6 +3,7 @@ const { EventEmitter } = require('events');
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
+const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
@@ -19,6 +20,7 @@ const PACKED_PAYLOAD_MANIFEST_FILE = 'payload-manifest.json';
 const PACKED_PAYLOAD_READY_FILE = '.payload-ready.json';
 const RUNTIME_HEALTH_CACHE_FILE = '.runtime-health-cache.json';
 const RUNTIME_FAST_PATH_FILE = '.runtime-fast-path.json';
+const WINDOWS_SAFE_RUNTIME_PATH_LENGTH = 220;
 const STARTUP_CHART_PROBE_PAYLOAD = {
   date: '2028/04/06',
   time: '09:33:00',
@@ -89,6 +91,46 @@ function ensureDir(targetPath) {
 
 function rmrf(targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true });
+}
+
+function isRetryableMoveError(error) {
+  return error && ['EPERM', 'EACCES', 'ENOTEMPTY'].includes(error.code);
+}
+
+async function moveDirectoryWithWindowsFallback(sourcePath, targetPath, logger) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    try {
+      fs.renameSync(sourcePath, targetPath);
+      return {
+        mode: 'rename',
+        attempts: attempt,
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableMoveError(error)) {
+        throw error;
+      }
+      await delay(150 * attempt);
+    }
+  }
+
+  if (logger) {
+    logger.warn('Packed runtime rename failed; falling back to copy', {
+      sourcePath,
+      targetPath,
+      code: lastError && lastError.code,
+      message: lastError && lastError.message,
+    });
+  }
+  rmrf(targetPath);
+  fs.cpSync(sourcePath, targetPath, { recursive: true, force: true });
+  rmrf(sourcePath);
+  return {
+    mode: 'copy',
+    attempts: 8,
+    fallbackReason: lastError ? lastError.code || lastError.message : 'unknown',
+  };
 }
 
 function delay(ms) {
@@ -165,7 +207,16 @@ async function waitForBackendHeartbeat(serverRoot, timeoutMs = STARTUP_READY_TIM
           bodyExcerpt: normalizeHttpBody(response.body),
         };
       }
-      lastError = `status=${response.statusCode} body=${normalizeHttpBody(response.body)}`;
+      const bodyExcerpt = normalizeHttpBody(response.body);
+      if (bodyExcerpt.includes('no.register.app.in.sys.forapp')) {
+        return {
+          ok: true,
+          statusCode: response.statusCode,
+          bodyExcerpt,
+          acceptedAuthProbe: true,
+        };
+      }
+      lastError = `status=${response.statusCode} body=${bodyExcerpt}`;
     } catch (error) {
       lastError = error.message;
     }
@@ -679,7 +730,34 @@ class RuntimeManager extends EventEmitter {
   }
 
   getPackedPayloadCacheRoot(manifest) {
-    return path.join(this.userDataDir, 'embedded-runtime', manifest.payloadId);
+    const defaultRoot = path.join(this.userDataDir, 'embedded-runtime', manifest.payloadId);
+    const pythonImportProbe = path.join(
+      defaultRoot,
+      'runtime',
+      'windows',
+      'python',
+      'Lib',
+      'site-packages',
+      'jaraco',
+      'collections',
+      '__init__.py'
+    );
+    if (pythonImportProbe.length <= WINDOWS_SAFE_RUNTIME_PATH_LENGTH) {
+      return defaultRoot;
+    }
+
+    const cacheBase = process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR
+      || process.env.HOROSA_RUNTIME_CACHE_DIR
+      || path.join(os.tmpdir(), 'HorosaDesktop', 'embedded-runtime');
+    const fallbackRoot = path.join(cacheBase, manifest.payloadId);
+    if (this.logger) {
+      this.logger.warn('Embedded runtime cache path is long; using short fallback path', {
+        defaultRoot,
+        fallbackRoot,
+        probeLength: pythonImportProbe.length,
+      });
+    }
+    return fallbackRoot;
   }
 
   isPackedPayloadReady(targetRoot, manifest) {
@@ -752,7 +830,7 @@ class RuntimeManager extends EventEmitter {
 
       rmrf(targetRoot);
       ensureDir(path.dirname(targetRoot));
-      fs.renameSync(stagingRoot, targetRoot);
+      const installMove = await moveDirectoryWithWindowsFallback(stagingRoot, targetRoot, this.logger);
       this.resolvedResourceRoot = targetRoot;
 
       return {
@@ -761,6 +839,7 @@ class RuntimeManager extends EventEmitter {
         payloadId: manifest.payloadId,
         payloadBytes: manifest.payload.bytes,
         extractionDurationMs: Date.now() - startedAt,
+        installMove,
       };
     } catch (error) {
       rmrf(stagingRoot);
@@ -1059,6 +1138,7 @@ class RuntimeManager extends EventEmitter {
       '--redis.pool.timeout=400',
       '--cachehelper.needcache=false',
       '--cachehelper.expireinsecond=300',
+      '--paramhash.cache.enable=false',
       '--needtranslog=false',
       '--mongo.statement.log=false'
     );
@@ -1108,6 +1188,8 @@ class RuntimeManager extends EventEmitter {
           `sys.path[0:0]=[${JSON.stringify(layout.astropyDir)}, ${JSON.stringify(layout.flatlibDir)}]`,
           `runpy.run_path(${JSON.stringify(layout.chartScript)}, run_name='__main__')`,
         ].join('; ');
+        const mongoFallbackDir = path.join(this.userDataDir, 'mongo-fallback');
+        ensureDir(mongoFallbackDir);
 
         const pythonEnv = {
           ...process.env,
@@ -1119,7 +1201,9 @@ class RuntimeManager extends EventEmitter {
           HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
           HOROSA_TRUSTED_RUNTIME: trustedRuntime ? '1' : '0',
           HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? '1' : '0',
+          HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
           HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? '1' : '0',
+          HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
         };
 
         this.pythonProcess = spawn(layout.pythonExe, ['-c', pythonBootstrap], {
@@ -1148,7 +1232,9 @@ class RuntimeManager extends EventEmitter {
             HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
             HOROSA_TRUSTED_RUNTIME: trustedRuntime ? '1' : '0',
             HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? '1' : '0',
+            HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
             HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? '1' : '0',
+            HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
           },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
@@ -1334,5 +1420,6 @@ class RuntimeManager extends EventEmitter {
 
 module.exports = {
   classifyProcessExit,
+  waitForBackendHeartbeat,
   RuntimeManager,
 };

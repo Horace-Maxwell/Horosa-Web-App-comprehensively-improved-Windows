@@ -75,7 +75,7 @@ runtime/windows/bundle/astrostudyboot.jar
 runtime/windows/bundle/wheels/
 
 # Local reference bundles and audit artifacts (not for release branch)
-Horosa-Web-App-comprehensively-improved-MacOS-main/
+*-MacOS-main/
 modules/
 /docs/reference-kit/
 /runtime/

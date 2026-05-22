@@ -4368,6 +4368,15 @@ $env:HOROSA_WEB_PORT = [string]$WebPort
 $env:HOROSA_CHART_PORT = [string]$ChartPort
 $env:HOROSA_SERVER_PORT = [string]$BackendPort
 $env:HOROSA_SERVER_ROOT = "http://127.0.0.1:$BackendPort"
+if ([string]::IsNullOrWhiteSpace($env:HOROSA_DESKTOP_MONGO_OPTIONAL)) {
+  $env:HOROSA_DESKTOP_MONGO_OPTIONAL = '1'
+}
+if ([string]::IsNullOrWhiteSpace($env:HOROSA_DESKTOP_MONGO_SKIP_PING)) {
+  $env:HOROSA_DESKTOP_MONGO_SKIP_PING = '1'
+}
+if ([string]::IsNullOrWhiteSpace($env:HOROSA_MONGO_FALLBACK_DIR)) {
+  $env:HOROSA_MONGO_FALLBACK_DIR = Join-Path $ProjectDir '.horosa-local-cache-win\mongo-fallback'
+}
 
 if (-not $NodeBin) {
   $NodeBin = Resolve-NodeJs

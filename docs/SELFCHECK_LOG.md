@@ -1,6 +1,57 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-03-17
+最后更新：2026-05-21
+
+## 2026-05-21 v2.0.0 Beta Mac Web 对齐与发布前自检
+
+本轮以 Horosa `v2.0.0 Beta` 大版本发布为目标，确认 Windows Web / Desktop 已完成新版 Mac Web 产品面对齐，并准备 GitHub Release 所需资产。安装器版本号保持 `2.0.0`，公开文案标明 Beta。
+
+### 本轮关键更新
+
+- README 三张软件示例图已替换为 `docs/assets/screenshots/horosa-2.0-main-workspace.png`、`horosa-2.0-module-navigator.png`、`horosa-2.0-sanshi-workspace.png`。
+- `README.md`、`README_EN.md`、`README_ZH.md` 已从旧的 v1.3.4 遁甲单点文案更新为 v2.0.0 Beta 跨平台统一大版本文案。
+- `CITATION.cff`、`desktop_installer_bundle/package.json`、`desktop_installer_bundle/package-lock.json`、`desktop_installer_bundle/README.md`、`docs/PROJECT_STRUCTURE.md`、`local/workspace/docs/PROJECT_STRUCTURE.md` 已同步到 `2.0.0` / `2.0.0 Beta` 发布口径。
+- 新增 `docs/releases/2.0.0.md`，包含功能范围、发布资产、SHA256 与自检摘要。
+- 发布目录已生成 `Horosa-Setup-2.0.0.exe`、`Horosa-Setup-2.0.0.exe.blockmap`、`latest.yml`、`SHA256SUMS.txt`。
+- 旧 `Horosa-Setup-1.3.4.exe` 与旧 blockmap 已从当前发布目录移除。
+
+### 发布资产
+
+- `desktop_installer_bundle/release/Horosa-Setup-2.0.0.exe`
+- `desktop_installer_bundle/release/Horosa-Setup-2.0.0.exe.blockmap`
+- `desktop_installer_bundle/release/latest.yml`
+- `desktop_installer_bundle/release/SHA256SUMS.txt`
+
+### SHA256
+
+- `Horosa-Setup-2.0.0.exe`: `0d352a75bba3f0ebacc7d29cc287a9941b398e476517b30216e665d3f0ca0a1d`
+- `Horosa-Setup-2.0.0.exe.blockmap`: `1808a4c3038e721903b870df634335b35bee0757cb2312cebcd2fc6e67df9445`
+- `latest.yml`: `5345c4d51a7b9605a6502229e8ff7a3efac6535ebd6e4d7e7294a278eece9786`
+
+### 本轮自检结果
+
+已完成并通过：
+
+- `npm test -- --runInBand`：23 个 test suites、86 个 tests 全部通过。
+- `python -m compileall -q astropy`：Python 后端语法编译通过。
+- `node --test desktop_installer_bundle/electron/service-manager.test.js`：13 个桌面服务编排测试通过。
+- `npm run dist:win`：成功生成 v2.0.0 Beta win-unpacked、安装器、blockmap 与 `latest.yml`。
+- `Get-AuthenticodeSignature`：`Horosa-Setup-2.0.0.exe` 为 `NotSigned`，符合本轮“不签名”要求。
+- `win-unpacked` 首启 smoke：runtime/renderer ready，0 console errors，0 page errors。
+- `win-unpacked` warm rerun：runtime `8542ms`，interactive `9635ms`，0 console errors，0 page errors。
+- `Horosa-Setup-2.0.0.exe /S` 静默安装：exit code `0`，注册表显示 `星阙 2.0.0`，安装目录、主程序与卸载程序存在。
+- 已安装 App 首启 smoke：runtime/renderer ready，0 console errors，0 page errors。
+- 已安装 App warm rerun：runtime `8542ms`，interactive `9635ms`，0 console errors，0 page errors。
+- 桌面快捷方式与开始菜单快捷方式均指向 `%LocalAppData%\Programs\Horosa\Horosa.exe`，工作目录和图标路径正确。
+
+### 本轮确认无新增问题
+
+- README 不再引用旧 `main-workspace.png` / `sanshi-workspace.png`。
+- 当前发布说明、README、项目结构、citation 和 desktop package 元数据不再指向 v1.3.4。
+- 当前发布目录不再保留旧 `Horosa-Setup-1.3.4.exe`。
+- 根目录不存在 `Horosa-Web-App-comprehensively-improved-MacOS-main`。
+- 代码、启动脚本和打包链路中未发现对旧 MacOS 同步来源文件夹的实际依赖；仅历史/说明文档中保留“不要依赖”的说明或旧迁移记录。
+- 检查结束时未发现残留 `Horosa.exe` 或 `Horosa-Setup-2.0.0.exe` 进程。
 
 ## 2026-03-17 稳定版收尾与启动链路自检
 

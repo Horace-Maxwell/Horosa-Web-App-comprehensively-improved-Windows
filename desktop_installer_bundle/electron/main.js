@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } = require('electron');
 const { NsisUpdater } = require('electron-updater');
 const packageMetadata = require('../package.json');
@@ -238,6 +239,16 @@ function getRendererIndexPath() {
   }
 
   throw new Error(`Renderer entry not found under ${bundleRoot}`);
+}
+
+function getRendererIndexUrl() {
+  const indexPath = getRendererIndexPath();
+  const rendererUrl = pathToFileURL(indexPath);
+  rendererUrl.hash = '/';
+  return {
+    indexPath,
+    url: rendererUrl.toString(),
+  };
 }
 
 function getBootstrapConfig() {
@@ -604,10 +615,24 @@ async function loadRendererApp() {
     return;
   }
 
+  const rendererEntry = getRendererIndexUrl();
+  if (logger) {
+    logger.info('Loading renderer app', {
+      indexPath: rendererEntry.indexPath,
+      url: rendererEntry.url,
+    });
+  }
   currentPage = 'renderer';
-  await mainWindow.loadFile(getRendererIndexPath(), {
-    hash: '/',
-  });
+  await withTimeout(
+    mainWindow.loadURL(rendererEntry.url),
+    45000,
+    `Timed out loading renderer app from ${rendererEntry.indexPath}`
+  );
+  if (logger) {
+    logger.info('Renderer app load completed', {
+      url: mainWindow.webContents.getURL(),
+    });
+  }
   publishCurrentStates();
 }
 
