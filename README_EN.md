@@ -114,6 +114,7 @@ The first launch can be slower while the bundled runtime initializes. Later laun
 
 - Windows 10/11 (`x64`)
 - NSIS installer: `Horosa-Setup-2.0.0.exe`
+- optional installation directory with directory creation/write validation
 - bundled Python, Java, Node/Web assets, and app runtime
 - update manifest, blockmap, checksum file, and release notes prepared for GitHub Releases
 - shared behavior between Web mode and Windows desktop mode
@@ -145,6 +146,10 @@ No. Regular users should go straight to the latest release and download the setu
 ### Do I Need To Install Python Or Java Myself
 
 No. The public installer path is designed to carry the required runtime setup.
+
+### Can I Choose The Install Directory
+
+Yes. The v2.0.0 Beta installer uses an assisted install flow with directory selection, write checks, and elevation when Windows requires it.
 
 ### Why Are There Other Files In The Release
 
