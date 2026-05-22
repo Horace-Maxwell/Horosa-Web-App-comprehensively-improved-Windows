@@ -32,6 +32,10 @@ Var ExistingInstallPageRadioCancel
 Var ExistingLegacyHasDataDir
 Var ExistingLegacyHasLogDir
 Var ExistingLegacyHasShortcut
+Var FirstInstallPageTitle
+Var FirstInstallPageSubtitle
+Var FirstInstallPageSummary
+Var FirstInstallPageInfo
 Var ShortcutHelperScriptPath
 Var ShellDesktopDir
 Var ShellProgramsDir
@@ -569,13 +573,84 @@ Function CreateShortcutWithPowerShell
   ${EndIf}
 FunctionEnd
 
+Function ValidateInstallDirectory
+  ${If} $INSTDIR == ""
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "请选择有效的星阙安装目录。"
+    ${Else}
+      DetailPrint "ERROR: empty install directory"
+    ${EndIf}
+    Abort
+  ${EndIf}
+
+  StrLen $0 "$INSTDIR"
+  ${If} $0 > 180
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONEXCLAMATION "当前安装目录路径较长，可能降低 Windows 兼容性：$\r$\n$INSTDIR$\r$\n$\r$\n建议选择更短的路径，例如 C:\Horosa 或用户目录下的 Horosa。"
+    ${Else}
+      DetailPrint "WARNING: long install directory path: $INSTDIR"
+    ${EndIf}
+  ${EndIf}
+
+  ClearErrors
+  CreateDirectory "$INSTDIR"
+  ${If} ${Errors}
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "无法创建安装目录：$\r$\n$INSTDIR$\r$\n$\r$\n请换一个目录，或使用有权限的账户重新运行安装器。"
+    ${Else}
+      DetailPrint "ERROR: cannot create install directory: $INSTDIR"
+    ${EndIf}
+    Abort
+  ${EndIf}
+
+  ClearErrors
+  FileOpen $0 "$INSTDIR\.horosa-install-write-test" w
+  ${If} ${Errors}
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "安装目录不可写：$\r$\n$INSTDIR$\r$\n$\r$\n请换一个目录，或以管理员权限重新运行安装器。"
+    ${Else}
+      DetailPrint "ERROR: install directory is not writable: $INSTDIR"
+    ${EndIf}
+    Abort
+  ${EndIf}
+  FileWrite $0 "Horosa installer write test"
+  FileClose $0
+  Delete "$INSTDIR\.horosa-install-write-test"
+FunctionEnd
+
+Function FirstInstallPageCreate
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 0 100% 12u "准备安装星阙"
+  Pop $FirstInstallPageTitle
+
+  ${NSD_CreateLabel} 0 14u 100% 20u "安装器将使用随包 Java / Python / Web 运行时，不依赖本机预装环境。您可以返回上一步选择安装目录。"
+  Pop $FirstInstallPageSubtitle
+
+  ${NSD_CreateGroupBox} 0 40u 100% 66u "安装位置与稳定性检查"
+  Pop $0
+
+  ${NSD_CreateLabel} 8u 54u 92% 34u "当前选择：$INSTDIR$\r$\n如选择父目录，安装器会自动创建 Horosa 子目录。安装前会检查目录是否可创建、可写，并在升级时保留用户数据。"
+  Pop $FirstInstallPageSummary
+
+  ${NSD_CreateLabel} 8u 88u 92% 16u "首次启动会解压内置运行时，之后会使用缓存快速启动；启动页提供“自检修复并重试”来恢复损坏缓存。"
+  Pop $FirstInstallPageInfo
+
+  nsDialogs::Show
+FunctionEnd
+
 Function ExistingInstallPageCreate
   ${If} ${Silent}
     Abort
   ${EndIf}
 
   ${If} $ExistingInstallState == "none"
-    Abort
+    Call FirstInstallPageCreate
+    Return
   ${EndIf}
 
   nsDialogs::Create 1018
@@ -632,6 +707,11 @@ Function ExistingInstallPageCreate
 FunctionEnd
 
 Function ExistingInstallPageLeave
+  ${If} $ExistingInstallState == "none"
+    Call ValidateInstallDirectory
+    Return
+  ${EndIf}
+
   ${NSD_GetState} $ExistingInstallPageRadioCancel $0
   ${If} $0 == ${BST_CHECKED}
     MessageBox MB_ICONQUESTION|MB_YESNO "确定退出安装器并保留当前安装吗？" IDYES +2
@@ -647,11 +727,13 @@ Function ExistingInstallPageLeave
       Abort
     ${EndIf}
     StrCpy $SelectedMaintenanceAction "repair"
+    Call ValidateInstallDirectory
     Call PrepareRepairMode
     Return
   ${EndIf}
 
   StrCpy $SelectedMaintenanceAction "replace"
+  Call ValidateInstallDirectory
   ${If} $ExistingLegacyMarkerSummary != "未发现"
     Call CleanupLegacyLauncherArtifacts
   ${EndIf}
@@ -686,6 +768,7 @@ FunctionEnd
 !macroend
 
 !macro customInstall
+  Call ValidateInstallDirectory
   Call CleanupCurrentDesktopShortcuts
   StrCpy $ShortcutRepairWarning ""
   StrCpy $ShortcutExpectedTarget "$INSTDIR\Horosa.exe"

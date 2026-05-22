@@ -30,6 +30,7 @@
 - 安装器输出到 `desktop_installer_bundle/release/`
 - Electron 会把完整运行时打进 `extraResources/app-runtime/`
 - 默认安装路径：`%LocalAppData%\Programs\Horosa`
+- 安装器支持用户选择安装目录；选择受限目录时可触发 Windows 提权，安装前会校验目录可创建、可写。
 - 正常用户不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。
 
 ## v2.0.0 Beta 发布口径

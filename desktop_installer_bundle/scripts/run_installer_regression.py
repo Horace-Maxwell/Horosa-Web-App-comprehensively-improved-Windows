@@ -104,13 +104,16 @@ def get_quiet_uninstall() -> str | None:
 def list_links(root: Path) -> list[str]:
     if not root.exists():
         return []
+    candidates: list[Path] = []
+    for name in ("Horosa.lnk", "星阙.lnk", "START_HERE.lnk"):
+        candidates.append(root / name)
+        candidates.append(root / "Horosa" / name)
+        candidates.append(root / "星阙" / name)
     matches: list[str] = []
-    for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() == ".lnk" and any(
-            token in path.name for token in ("星阙", "Horosa", "START_HERE")
-        ):
+    for path in candidates:
+        if path.exists() and path.is_file() and path.suffix.lower() == ".lnk":
             matches.append(str(path))
-    return sorted(matches)
+    return sorted(set(matches))
 
 
 def unique_paths(paths: list[Path]) -> list[Path]:

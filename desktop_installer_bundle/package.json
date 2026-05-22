@@ -70,8 +70,8 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowElevation": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
       "include": "installer.nsh",
       "installerIcon": "assets/horosa_setup.ico",
       "uninstallerIcon": "assets/horosa_setup.ico",
