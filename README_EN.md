@@ -1,170 +1,154 @@
 <div align="center">
 
-[简体中文](README_ZH.md) | English
+[简体中文](README_ZH.md) · English
 
-# Horosa for Windows
+<img src="desktop_installer_bundle/assets/horosa_setup_badge.png" alt="Horosa" width="128" />
 
-### v2.0.1 Beta Mac Web parity release for Windows x64, delivered as an installer-first desktop product
+# Horosa
 
-[![Latest Release](https://img.shields.io/github/v/release/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?display_name=tag&sort=semver)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626)](LICENSE)
-[![GitHub Repo stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20x64-black)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Distribution](https://img.shields.io/badge/distribution-NSIS%20Installer%20%2B%20Bundled%20Runtime-1f6feb)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest)
-[![Primary Download](https://img.shields.io/badge/download-setup%20exe-2ea043)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe)
-[![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
-[![GitHub Discussions](https://img.shields.io/badge/discussions-open-7c3aed)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/discussions)
-[![Beta Release](https://img.shields.io/badge/v2.0.1%20Beta-Mac%20Web%20Parity-0f766e)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1)
-[![Runtime](https://img.shields.io/badge/runtime-2.0.1--beta--windows--bundle-2563eb)](desktop_installer_bundle/README.md)
-[![Security](https://img.shields.io/badge/security-policy-dc2626)](SECURITY.md)
-[![Support](https://img.shields.io/badge/support-discussions%20%26%20email-4b5563)](SUPPORT.md)
-[![Citation](https://img.shields.io/badge/citation-CFF-a855f7)](CITATION.cff)
-[![Contributing](https://img.shields.io/badge/contributing-guide-0891b2)](CONTRIBUTING.md)
+**Western astrology and Chinese metaphysics, in one native Windows workstation**
 
-[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-3f3f46?logo=github&logoColor=white&labelColor=52525b)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows)
-[![GitHub Releases](https://img.shields.io/badge/GitHub-Releases-1d4ed8?logo=github&logoColor=white&labelColor=52525b)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
-[![Read In Chinese](https://img.shields.io/badge/Read%20In-Chinese-0f766e?labelColor=52525b)](README_ZH.md)
-[![Portal](https://img.shields.io/badge/Portal-Bilingual-0f766e?labelColor=52525b)](README.md)
+[![Version](https://img.shields.io/badge/version-2.1.1%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.1)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.1)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.1)
+[![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Portal](README.md) | [Chinese Guide](README_ZH.md) | [Latest Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest) | [v2.0.1 Beta release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.0.1)
-
-**Current release:** `v2.0.1 Beta`
-
-**Beta note:** this public installer is the v2.0.1 beta package. It is published as the visible current GitHub Release so Windows users can download and test the new unified Web/Desktop build directly.
-
-**Release focus:** v2.0.1 Beta keeps the Windows 2.0 desktop delivery track and syncs the latest Mac Qimen Dunjia fixes, aligning Chaibu/Zhirun Ju selection, accurate Jieqi switching, true-solar-time pillars, Tianpan stems, doors, gods, stars, and local calendar fallbacks with the Horosa mobile algorithm.
-
-**Licensing note:** the public repository is distributed under `AGPL-3.0` because the released stack integrates Swiss Ephemeris / `pyswisseph`. Third-party subdirectories keep their own upstream notices.
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.1.exe) ·
+[Portal](README.md) ·
+[中文说明](README_ZH.md) ·
+[All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 </div>
 
-## Why v2.0.1 Beta Matters
+---
 
-Horosa v2.0.1 Beta is the major Windows release that brings the comprehensively improved Mac Web product surface into the Windows Web and desktop package. It is not a small calculator fix. It aligns the UI shell, controls, module navigation, frontend pages, Python backend, Java backend, assets, AI analysis flow, export settings, and desktop runtime delivery into one cross-platform line.
+## What Horosa Is
 
-The Windows release remains self-contained. The Mac sync source folder is not required at runtime or build time, and clean Windows 10/11 x64 machines do not need users to install Python, Java, Node.js, Maven, or frontend build tools manually.
+Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native Windows application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download an offline NSIS installer and open a finished app.
 
-## Primary Entry
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.1.1.exe`).
 
-- [Horosa-Setup-2.0.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.0.1.exe)
+## Download
 
-Best fit:
+Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-- first-time installation on a clean Windows 10/11 x64 machine
-- weak-network or offline-forwarding use
-- users who want Horosa to open like a finished desktop app
-- maintainers preparing the GitHub Release asset set
+**[⬇︎ Horosa-Setup-2.1.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.1.exe)**
 
-The first launch can be slower while the bundled runtime initializes. Later launches are optimized around the local runtime cache and should feel much closer to a normal desktop app.
+Best for:
 
-## Preview
+- Windows 10 / 11 on `x64`
+- weak-network or fully offline environments
+- a first install, or forwarding the package to someone else
+- anyone who wants the first launch to work without a separate runtime download
+
+You do not need to install Python or Java yourself—the runtime ships inside the package. Updates replace the program and the shared runtime; they are not designed to touch your saved charts and cases.
+
+> The installer is not yet Authenticode-signed, so on first launch Windows SmartScreen may say "Windows protected your PC"—choose "More info → Run anyway" to continue.
+
+## Screenshots
 
 <div align="center">
-  <p><strong>Horosa v2 Main Workspace</strong></p>
-  <img src="docs/assets/screenshots/horosa-2.0-main-workspace.png" alt="Horosa v2 main astrology workspace" width="1200" />
-  <p><em>The new XQ shell, chart controls, side inspection panels, quick actions, theme controls, and desktop layout in one screen.</em></p>
+<img src="docs/assets/screenshots/horosa-2.0-main-workspace.png" alt="Astrology workspace" width="900" />
+<p><em>Astrology workspace — chart controls on the left, the wheel canvas in the center, and detail tabs (info, aspects, planets, classical, patterns) on the right.</em></p>
+
+<img src="docs/assets/screenshots/horosa-2.0-sanshi-workspace.png" alt="Sanshi workspace" width="900" />
+<p><em>Sanshi workspace — setup panel, the nine-palace plate, and overview tabs all visible at once.</em></p>
+
+<img src="docs/assets/screenshots/horosa-2.0-module-navigator.png" alt="Module navigator" width="900" />
+<p><em>The command overlay groups charts, Yi & Sanshi, and tools, with search and recents for fast switching.</em></p>
 </div>
 
-<div align="center">
-  <p><strong>Module Navigator</strong></p>
-  <img src="docs/assets/screenshots/horosa-2.0-module-navigator.png" alt="Horosa v2 module navigator" width="1100" />
-  <p><em>The dark module chooser gives fast access to astrology, timing, Bazi, Ziwei, Qizheng, Indian astrology, auxiliary charts, Sanshi, tools, AI analysis, and the planetarium.</em></p>
-</div>
+## What's Inside
 
-<div align="center">
-  <p><strong>Sanshi Workspace</strong></p>
-  <img src="docs/assets/screenshots/horosa-2.0-sanshi-workspace.png" alt="Horosa v2 Sanshi workspace" width="1200" />
-  <p><em>Sanshi, Liu Ren, Dun Jia, Tai Yi, shensha, Bagong, and related detail panels now share the same Windows desktop shell.</em></p>
-</div>
+The navigation organizes everything under three groups: **命** (charts & timing), **卜** (divination), and **工具** (tools). What follows is what each group actually ships—module names map directly to the in-app tabs.
 
-## Updated In v2.0.1 Beta
+### Charts & Timing (命)
 
-### Product Shell
+The strength here is continuity: you can read a natal chart, walk it forward through time, and bring in a second person, without leaving the same surface.
 
-- New XQ UI shell with aligned desktop layout
-- icon system, navigation structure, module selector, and quick actions
-- day/night theme controls
-- search, favorites, history, settings, help, AI export, and module routing
+- **Astrology (占星)** — natal chart plus a real-time 3D chart (Babylon.js), with multiple house systems and classical/modern planet sets
+- **Timing (星运)** — primary directions, zodiacal releasing, firdaria, profection, solar arc, solar and lunar returns, decennials, progressions, and an ephemeris
+- **Relationship (合盘)** — compare, composite, synastry, time-space midpoint, and Marks charts
+- **Specialty (辅盘)** — Hellenistic (bounds and lots), quantitative / midpoint trees (Hamburg / Uranian), astrocartography with interactive maps, and a harmonic lab
+- **Vedic (印占)** — North, South, and East Indian charts on the sidereal zodiac
+- **Qizheng (七政)** — Qizheng Siyu and Qizheng Moira
+- **Bazi (八字) · Ziwei (紫微)** — four-pillar charting, and Purple Star including the Sihua chart
+- **Numerology & more (数算 · 其他)** — Shaozi, Tieban, Yanqin and related numeric methods
 
-### Astrology And Specialty Modules
+### Divination (卜)
 
-- natal chart, chart controls, aspect/planet selection, and chart styling
-- timing stack: primary directions, zodiacal releasing, firdaria, profection, solar arc, solar/lunar returns, annual methods, and decennials
-- relationship stack: compare, composite, synastry, time-space midpoint, and Marks charts
-- auxiliary charts, Jieqi, astrocartography, quantitative views, Hellenistic views, Indian astrology extensions, Qizheng Siyu, Qizheng Moira, and planetarium/3D views
+Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
-### Chinese Traditional And Sanshi Workflows
+- **Sanshi United (三式)** — Qimen, Taiyi, and Liuren brought together: overview, Taiyi, shensha, Liuren, major patterns, sub-patterns, references, and the eight palaces
+- **Qimen (遁甲) · Liuren (六壬) · Taiyi (太乙)** — each of the three formulae also as its own standalone surface
+- **Liuyao (六爻) · Jieqi (分至) · Feng Shui (风水)** — najia hexagram casting, solar-term charts, and Feng Shui tools
+- **More (其他)** — Suzhao, Jinkou, Tongshefa, Huangji Jingshi, Wuzhao, Taixuan, Jingjue, and Shenyishu
 
-- Bazi, Ziwei, calendar, Feng Shui, gua-symbol references, twelve-palace tools, and rule references
-- Su Zhan, Yi Gua, Liu Yao, Liu Ren, Jin Kou, Dun Jia, Tai Yi, Tong She Fa, and Sanshi United
-- Sanshi workspace coverage for overview, Tai Yi, shensha, Liu Ren, major patterns, sub-patterns, references, Bagong details, and exportable snapshots
-- Qimen Dunjia now follows the latest Mac/mobile-aligned calculation path for Chaibu and Zhirun, including accurate Jieqi minute boundaries, true-solar-time pillars, Tianpan stems, doors, gods, stars, and local calendar fallback data
+### Tools (工具)
 
-### AI Analysis And Export
+- **AI Analysis (AI 分析)** — connects to OpenAI, Anthropic, Gemini, Ollama, OpenRouter, or a custom endpoint; supports streaming chat, conversation history, a materials library with vector retrieval, and structured export grouped by technique and tab
+- **Planetarium (天文馆)** — a real-time 3D sky view built on Babylon.js
+- **Almanac (黄历)** — lunar calendar, solar terms, and date selection
+- **References (辅助)** — gua-symbol classes, the twelve palaces, and quick rule lookups
 
-- AI Analysis surface with module context collection
-- provider, material, chat, embedding, and stream-capable service paths
-- AI export settings for astrology, timing, relationship charts, traditional modules, Sanshi, Qizheng, and Indian astrology
-- local module snapshots for export and analysis reuse
+Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-### Backend Parity
+## New in v2.1.1 beta
 
-- Python backend adds `/astroextra`, `/planetarium`, supporting ephemeris paths, Indian astrology extensions, star resources, and planetarium state data
-- Java backend adds `/astroextra/*`, `/planetarium/state`, `/qizheng/moira`, and AI Analysis service wiring
-- Windows launch and installer logic keep the local bundled runtime path stable
+This release syncs the latest Mac-side traditional methods into Windows and makes them durable—properly managed, exportable, persistent, and reliably launchable on a clean Windows machine—rather than merely runnable.
 
-## Desktop Delivery
+- **Broader traditional-method backends** — added and normalized engines for Taiyi, Jinkou, Huangji/Wangji, Wuzhao, Taixuan, Jingjue, Shenyishu, Kin Astro, Qizheng, and Qimen
+- **Fixed Sanshi-United routing** — Qimen and Taiyi route through the kentang backend while Liuren stays on the existing local implementation; the unsupported Qimen month-chart option was removed instead of silently falling back to the old calculation
+- **Full chart/case persistence** — new-method inputs, tags, snapshots, raw structured payloads, JSON import/export, and reopen behavior are all preserved
+- **Structured AI export** — export reads directly from structured backend data and exposes selectable groups per technique, tab, and page
+- **State that survives restarts** — user settings and desktop window size persist across close, reopen, and app updates
+- **Desktop polish** — a reworked startup screen with a step-by-step progress bar, a failure state that surfaces the real service log, and a copy-diagnostics action; the Ziwei Sihua chart hides star-brightness labels; and another pass over light/dark contrast
+- **Clean-machine readiness** — a self-contained bundled Python/Java/Web runtime with the VC++ runtime and a build-time dependency gate; the bundled Python now uses a pinned python-build-standalone build to remove build-machine drift, so a fresh Windows machine starts with no extra installs
 
-- Windows 10/11 (`x64`)
-- NSIS installer: `Horosa-Setup-2.0.1.exe`
-- optional installation directory with directory creation/write validation
-- bundled Python, Java, Node/Web assets, and app runtime
-- update manifest, blockmap, checksum file, and release notes prepared for GitHub Releases
-- shared behavior between Web mode and Windows desktop mode
+Full log on the [v2.1.1 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.1) and the [local release notes](docs/releases/2.1.1.md).
 
-## Release Assets
+## Under the Hood
 
-The standard GitHub Release asset set is:
+- **Frontend** — React 17 + Umi 3 + TypeScript with Ant Design; D3 for chart drawing, Babylon.js / Three.js for 3D, Plotly for astrocartography maps, and Monaco for editing AI-export templates
+- **Backend** — Java 17 / Spring Boot hosts the core astrology and Chinese-method services; a Python 3.11 service layer wraps Swiss Ephemeris (`pyswisseph`) and the vendored kentang traditional-method engines
+- **Desktop shell** — Electron, which starts the local Python/Java services in the background with health checks, and persists window, zoom, and settings state
+- **Runtime** — the bundled Python is a pinned python-build-standalone build (reproducible and self-contained), shipped with the VC++ runtime, offline wheels, and the backend jar; a native-dependency gate and a pre-release preflight guard the build
+- **Distribution** — an offline NSIS installer targeting Windows 10 / 11 (`x64`) with directory selection and upgrades; `latest.yml`, `.blockmap`, and `SHA256SUMS.txt` accompany the release
 
-- `Horosa-Setup-2.0.1.exe`
-- `Horosa-Setup-2.0.1.exe.blockmap`
-- `latest.yml`
-- `SHA256SUMS.txt`
-
-## Documentation
-
-- [README.md](README.md): bilingual portal
-- [README_ZH.md](README_ZH.md): full Chinese guide
-- [docs/releases/2.0.1.md](docs/releases/2.0.1.md): local v2.0.1 Beta release notes
-- [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md): desktop bundle internals
-- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): project structure
-- [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
+Continuous integration builds and tests the frontend (Node 20) and backend (Java 17 / Maven) plus a desktop renderer check on every push; the release pipeline (`desktop-release.yml`) produces the full installer on a Windows runner behind version, brand, and dependency gates.
 
 ## FAQ
 
-### Do I Need To Clone The Repo To Use Horosa
+**Do I need to clone the repo to use Horosa?**
+No. Download `Horosa-Setup-2.1.1.exe` from the latest release.
 
-No. Regular users should go straight to the latest release and download the setup executable.
+**Do I need to install Python or Java myself?**
+No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
 
-### Do I Need To Install Python Or Java Myself
+**Can I choose the install directory?**
+Yes. The v2.1.1 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
 
-No. The public installer path is designed to carry the required runtime setup.
+**Why are there other files in the release?**
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.1.1.exe` is the only thing that matters.
 
-### Can I Choose The Install Directory
+**Will updates remove my data?**
+No. App replacement and runtime switching update the program and shared runtime; they are not designed to erase your saved charts and cases.
 
-Yes. The v2.0.1 Beta installer uses an assisted install flow with directory selection, write checks, and elevation when Windows requires it.
+## For Maintainers
 
-### Why Are There Other Files In The Release
+Start from the entry point that matches your goal:
 
-`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support updater and verification workflows. The setup `.exe` remains the public install entry.
-
-### Will Updates Remove My User Data
-
-No. App replacement and runtime switching are designed to update the program and shared runtime, not erase user data.
+- public-facing layout and bilingual portal: [README.md](README.md)
+- the full Chinese guide: [README_ZH.md](README_ZH.md)
+- desktop bundle and installer internals: [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md)
+- project structure: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
+- clean-machine runtime fix and release notes: [docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md](docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md)
+- application source: `local/workspace/Horosa-Web-*/` — frontend in `astrostudyui`, backends in `astrostudysrv` and `astropy`, vendored engines in `vendor`
 
 ## Acknowledgements
 
-This Windows edition is an improved distribution and integration work based on the Horosa App and Web released by Horosa-荀爽（Herakleios）. The lineage matters: Horosa was originally created by 郑大哥, with auxiliary design work from 荀爽（Herakleios）, and their public release made later study, maintenance, and extension possible.
+The lineage matters. Horosa was originally created by **郑大哥**, with auxiliary design work by **荀爽 (Herakleios, 爽哥)**, who released the App and Web versions that made later study, maintenance, and extension possible. This Windows edition builds on that groundwork—adding the delivery layer, runtime packaging, integration, and a great deal of polish—and it would not exist without them. Thanks, too, to everyone who keeps testing, reporting, and fixing things to make Horosa more complete.
 
-Please do not forget the contributions of 爽哥 and 郑大哥. This repository continues from their groundwork with respect, gratitude, and the hope that Horosa can remain useful to more people over time.
-
+Special thanks to [kentang2017](https://github.com/kentang2017), whose long-running, openly shared Python projects power several of Horosa's calculation engines. Upstream projects identified as MIT-licensed retain their license texts in the corresponding vendored directories and `THIRD_PARTY_NOTICES.md`; projects without an explicit open-source license are listed separately, so no license is assumed where none was declared.
