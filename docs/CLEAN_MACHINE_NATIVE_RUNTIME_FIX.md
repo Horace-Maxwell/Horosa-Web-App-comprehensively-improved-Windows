@@ -247,6 +247,7 @@ npm run dist:win
 8. **Electron 文件不走 staging**：`loading.html / main.js / preload.js` 由 electron-builder 按 `electron/**/*` 直接打包，改完即生效。
 9. **内置 Python 现在默认是下载来的**（python-build-standalone，§3.8）：构建机需要能联网拉取一次（GH runner / 本机均可）；离线环境会自动回退系统 Python，或设 `HOROSA_PYTHON_RUNTIME_SOURCE=system`。升级 Python 改 `Get-StandalonePythonRuntime` 的 `$tag/$asset`，且 `msvcp140.dll` 仍要靠 §3.1–3.2 注入（standalone 不带它）。
 10. **应用名是“星阙”、可执行是 `Horosa.exe`**：别把 `executableName` 也改成中文（会牵连 `patch:win-icon`、asar 完整性、路径长度）。改显示名时记得同步 `installer.nsh` 的 `CURRENT/LEGACY_*_SHORTCUT_FILE_NAME`。
+11. **快捷方式别只依赖 VBScript/cscript**：旧逻辑只用 cscript 跑 `%TEMP%` 里的 `.vbs` 建快捷方式，写不出还会中止安装——在拦 cscript 的机器（AV/ASR、VBScript 弃用、OneDrive 桌面锁）上就建不出，表现为“干净 VM 能建、本地建不出”。现已加 NSIS 原生 `CreateShortCut` 兜底、不再中止、校验改存在性判定。**已在真实失败机（脚本宿主被拦、OneDrive 桌面）静默装包验证：原生兜底成功在桌面 + 开始菜单建出「星阙」快捷方式，指向 `C:\Horosa\Horosa.exe`**。（随下个版本发布）
 
 ---
 
@@ -272,7 +273,7 @@ npm run dist:win
 | `desktop_installer_bundle/assets/{horosa_setup.ico,installerHeader.bmp,installerSidebar.bmp,uninstallerSidebar.bmp}` | 重新生成（最新 logo + 新排版） |
 | `desktop_installer_bundle/scripts/release_preflight.py` | 新增：发布前闸门（版本一致 / 品牌资产未过期 / VC++ 运行时齐全 / 应用名=星阙） |
 | `desktop_installer_bundle/package.json` | 新增 `build:assets`、`verify` 脚本并把 `verify` 接进 `dist:win`；`productName`/`nsis.shortcutName` 改为 `星阙` |
-| `desktop_installer_bundle/assets/installer.nsh` | `CURRENT/LEGACY_*_SHORTCUT_FILE_NAME` 对调（当前=`星阙.lnk`、旧=`Horosa.lnk`） |
+| `desktop_installer_bundle/assets/installer.nsh` | `CURRENT/LEGACY_*_SHORTCUT_FILE_NAME` 对调（当前=`星阙.lnk`、旧=`Horosa.lnk`）；**快捷方式硬化**：cscript/VBScript 被拦或失败时回退 NSIS 原生 `CreateShortCut`，写不出 helper 不再中止安装，校验改存在性判定（已编译验证，随**下个版本**发布；已发布的 2.1.1 未含） |
 | `.github/workflows/desktop-release.yml` | 新增“重生品牌资产”和“verify 闸门”两步 |
 | `docs/PROJECT_STRUCTURE.md` | 同步：vendored VC 运行时、新脚本、命名约定、启动页、发布闸门 |
 | `README.md` / `README_ZH.md` / `README_EN.md` | 按 Mac 仓库 README 框架重写（Windows 化：NSIS / Electron / Python 3.11 standalone / Win10-11 x64），并去掉旧版冗余 badge 墙 |

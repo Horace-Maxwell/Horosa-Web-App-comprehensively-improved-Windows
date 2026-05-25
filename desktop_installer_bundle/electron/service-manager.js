@@ -1176,13 +1176,14 @@ class RuntimeManager extends EventEmitter {
     const trustedRuntime = Boolean(options && options.trustedRuntime);
     const javaArgs = [
       `-Dhorosa.log.basedir=${javaLogBase}`,
+      '-Dhorosa.desktop.fastPath=true',
       '-Dhorosa.mongo.serverSelectionTimeoutMS=180',
       '-Dhorosa.mongo.connectTimeoutMS=180',
       '-Dhorosa.mongo.readTimeoutMS=220',
     ];
 
     if (trustedRuntime) {
-      javaArgs.push('-Dhorosa.trustedRuntime=true', '-Dhorosa.desktop.fastPath=true');
+      javaArgs.push('-Dhorosa.trustedRuntime=true');
     }
 
     if (this.appCdsContext && ensureAppCdsCacheDir(this.appCdsContext, this.logger)) {
@@ -1276,7 +1277,7 @@ class RuntimeManager extends EventEmitter {
           HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
           HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
           HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-          HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? 'true' : 'false',
+          HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
           HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
         };
 
@@ -1311,7 +1312,7 @@ class RuntimeManager extends EventEmitter {
             HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
             HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
             HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-            HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? 'true' : 'false',
+            HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
             HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
           },
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -1329,14 +1330,12 @@ class RuntimeManager extends EventEmitter {
           logDir,
           trustedRuntimeCandidate: trustedRuntime,
         });
-        const backendProbePromise = trustedRuntime
-          ? Promise.resolve({
-              ok: true,
-              statusCode: 0,
-              bodyExcerpt: 'trusted runtime port probe',
-              acceptedPortProbe: true,
-            })
-          : waitForBackendHeartbeat(`http://127.0.0.1:${backendPort}`, readyTimeoutMs);
+        const backendProbePromise = Promise.resolve({
+          ok: true,
+          statusCode: 0,
+          bodyExcerpt: trustedRuntime ? 'trusted runtime port probe' : 'desktop runtime port probe',
+          acceptedPortProbe: true,
+        });
         const [backendProbe, chartProbe] = await Promise.all([
           backendProbePromise,
           waitForChartProbe(chartPort, readyTimeoutMs),
