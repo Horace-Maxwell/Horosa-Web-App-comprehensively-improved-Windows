@@ -161,6 +161,87 @@ function Resolve-HorosaLayout {
   }
 }
 
+function Copy-VcRuntimeDlls {
+  param(
+    [Parameter(Mandatory = $true)][string]$PyDst,
+    [Parameter(Mandatory = $true)][string]$ScriptRoot
+  )
+
+  # Compiled extensions (swisseph, _sxtwl, greenlet, scikit-learn, ...) import
+  # MSVCP140.dll, which python.org's distribution does NOT ship and a clean
+  # Windows machine does NOT have. Bundle the VC++ 2015-2022 runtime next to
+  # python.exe so every extension resolves it via the loader search path.
+  $names = @(
+    'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'msvcp140_codecvt_ids.dll',
+    'msvcp140_atomic_wait.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
+    'concrt140.dll', 'vccorlib140.dll', 'vcomp140.dll'
+  )
+  $vendorDir = Join-Path $ScriptRoot 'vendor\vc_runtime\x64'
+  $system32 = Join-Path $env:WINDIR 'System32'
+  $copied = 0
+  foreach ($n in $names) {
+    $dest = Join-Path $PyDst $n
+    $fromVendor = Join-Path $vendorDir $n
+    if (Test-Path $fromVendor) {
+      Copy-Item -Path $fromVendor -Destination $dest -Force
+      $copied++
+      continue
+    }
+    $fromSystem = Join-Path $system32 $n
+    if (Test-Path $fromSystem) {
+      Copy-Item -Path $fromSystem -Destination $dest -Force
+      $copied++
+      Write-Host "[WARN] VC runtime '$n' not vendored; copied from System32 fallback."
+    }
+  }
+  if (-not (Test-Path (Join-Path $PyDst 'msvcp140.dll'))) {
+    throw "msvcp140.dll could not be staged next to python.exe. Vendor it under prepareruntime\vendor\vc_runtime\x64 (see README) or install the VC++ 2015-2022 x64 Redistributable on this build machine."
+  }
+  Write-Host ("[OK] Bundled {0} Visual C++ runtime DLL(s) next to python.exe." -f $copied)
+}
+
+function Get-StandalonePythonRuntime {
+  param([Parameter(Mandatory = $true)][string]$PyDst)
+
+  # Pinned python-build-standalone (Astral) CPython: a relocatable, fully
+  # self-contained build. Using it means the bundled runtime no longer depends
+  # on whatever Python happens to be installed on the build machine, which
+  # eliminates "works on my machine" drift. Bump these two lines to upgrade.
+  $tag = '20260510'
+  $asset = 'cpython-3.11.15+20260510-x86_64-pc-windows-msvc-install_only.tar.gz'
+  $url = "https://github.com/astral-sh/python-build-standalone/releases/download/$tag/$asset"
+
+  $work = Join-Path ([System.IO.Path]::GetTempPath()) ("horosa-pbs-" + [System.Guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Force -Path $work | Out-Null
+  $tarPath = Join-Path $work 'python.tar.gz'
+  try {
+    Write-Host "Downloading pinned standalone Python: $asset"
+    & curl.exe -sL --fail $url -o $tarPath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $tarPath)) {
+      throw "download failed (curl exit $LASTEXITCODE)"
+    }
+    & tar.exe -xzf $tarPath -C $work
+    if ($LASTEXITCODE -ne 0) { throw "extract failed (tar exit $LASTEXITCODE)" }
+    $extractedRoot = Join-Path $work 'python'
+    if (-not (Test-Path (Join-Path $extractedRoot 'python.exe'))) {
+      throw "extracted layout missing python.exe"
+    }
+    if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
+    New-Item -ItemType Directory -Force -Path $PyDst | Out-Null
+    robocopy $extractedRoot $PyDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if (-not (Test-Path (Join-Path $PyDst 'python.exe'))) {
+      throw "copy into runtime dir produced no python.exe"
+    }
+    Write-Host "[OK] Standalone Python staged into runtime: $asset"
+    return $true
+  } catch {
+    Write-Host ("[WARN] Standalone Python acquisition failed: {0}" -f $_.Exception.Message)
+    return $false
+  } finally {
+    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+  }
+}
+
 $layout = Resolve-HorosaLayout -ScriptDir $ScriptRoot
 $RepoRoot = $layout.RepoRoot
 $Root = $layout.WorkspaceRoot
@@ -195,7 +276,7 @@ function Test-PythonDeps {
   try {
     $flatlibPath = Join-Path $ProjectDir 'flatlib-ctrad2'
     $flatlibEscaped = $flatlibPath.Replace('\', '\\')
-    & $PythonExe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib;print('ok')" *> $null
+    & $PythonExe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib,ephem,streamlit,pandas,plotly,svgwrite,fpdf,pytz,opencc,zhconv,sxtwl,cn2an,cnlunar,bidict,kinliuren,drawsvg,kerykeion;import astropy.units;print('ok')" *> $null
     return ($LASTEXITCODE -eq 0)
   } catch {
     return $false
@@ -368,7 +449,24 @@ function Test-WheelCompleteness {
   $requiredPrefixes = @(
     'CherryPy-',
     'jsonpickle-',
-    'pyswisseph-'
+    'pyswisseph-',
+    'ephem-',
+    'streamlit-',
+    'pandas-',
+    'plotly-',
+    'svgwrite-',
+    'fpdf2-',
+    'pytz-',
+    'opencc_python_reimplemented-',
+    'zhconv-',
+    'sxtwl-',
+    'cn2an-',
+    'cnlunar-',
+    'bidict-',
+    'kinliuren-',
+    'drawsvg-',
+    'kerykeion-',
+    'astropy-'
   )
   foreach ($prefix in $requiredPrefixes) {
     $match = Get-ChildItem -Path $WheelDir -File -Filter ($prefix + '*.whl') -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -472,26 +570,12 @@ function Ensure-PythonDepsInRuntime {
 
   try {
     Write-Host 'Installing Python runtime dependencies into copied runtime...'
-    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
-    if ($LASTEXITCODE -ne 0) { return $false }
-
-    $flatlibInstalled = $false
-    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
-    foreach ($flatlibSpec in $flatlibSpecs) {
-      try {
-        & $PythonExe -m pip install --disable-pip-version-check --no-input $flatlibSpec *> $null
-        if ($LASTEXITCODE -eq 0) {
-          $flatlibInstalled = $true
-          break
-        }
-      } catch {}
-      Write-Host ("[WARN] Failed to install {0}, trying fallback..." -f $flatlibSpec)
+    $requirementsPath = Join-Path $ProjectDir 'astropy\requirements.txt'
+    if (Test-Path $requirementsPath) {
+      & $PythonExe -m pip install --disable-pip-version-check --no-input -r $requirementsPath
+    } else {
+      & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle pyswisseph ephem streamlit pandas plotly svgwrite fpdf2 pytz opencc-python-reimplemented zhconv sxtwl cn2an cnlunar bidict kinliuren drawsvg kerykeion astropy
     }
-    if (-not $flatlibInstalled) {
-      Write-Host '[WARN] Flatlib package install skipped; runtime can use bundled flatlib-ctrad2.'
-    }
-
-    & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
     return (Test-PythonDeps -PythonExe $PythonExe)
   } catch {
@@ -509,24 +593,19 @@ function Export-PythonWheels {
   try {
     New-Item -ItemType Directory -Force -Path $WheelDir | Out-Null
     Write-Host "Exporting offline Python wheels to: $WheelDir"
-    & $PythonExe -m pip download --disable-pip-version-check --only-binary=:all: --dest $WheelDir cherrypy jsonpickle pyswisseph
+    $requirementsPath = Join-Path $ProjectDir 'astropy\requirements.txt'
+    if (Test-Path $requirementsPath) {
+      & $PythonExe -m pip download --disable-pip-version-check --dest $WheelDir -r $requirementsPath
+      if ($LASTEXITCODE -eq 0) {
+        & $PythonExe -m pip wheel --disable-pip-version-check --wheel-dir $WheelDir -r $requirementsPath
+      }
+    } else {
+      & $PythonExe -m pip download --disable-pip-version-check --dest $WheelDir cherrypy jsonpickle pyswisseph ephem streamlit pandas plotly svgwrite fpdf2 pytz opencc-python-reimplemented zhconv sxtwl cn2an cnlunar bidict kinliuren drawsvg kerykeion astropy
+      if ($LASTEXITCODE -eq 0) {
+        & $PythonExe -m pip wheel --disable-pip-version-check --wheel-dir $WheelDir zhconv scour
+      }
+    }
     if ($LASTEXITCODE -ne 0) { return $false }
-
-    $flatlibDownloaded = $false
-    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
-    foreach ($flatlibSpec in $flatlibSpecs) {
-      try {
-        & $PythonExe -m pip download --disable-pip-version-check --dest $WheelDir $flatlibSpec *> $null
-        if ($LASTEXITCODE -eq 0) {
-          $flatlibDownloaded = $true
-          break
-        }
-      } catch {}
-      Write-Host ("[WARN] Failed to export {0}, trying fallback..." -f $flatlibSpec)
-    }
-    if (-not $flatlibDownloaded) {
-      Write-Host '[WARN] Flatlib wheel/source export skipped; startup can still use bundled flatlib-ctrad2.'
-    }
 
     return (Test-WheelCompleteness -WheelDir $WheelDir)
   } catch {
@@ -579,42 +658,63 @@ if ($JavaSrc -and (Test-Path (Join-Path $JavaSrc 'bin\\java.exe'))) {
   Write-Host 'Java runtime not found. Set HOROSA_JAVA_HOME (or JAVA_HOME) then rerun.'
 }
 
-$PySrc = $env:HOROSA_PYTHON_HOME
-if (-not $PySrc) {
-  $cand = @(
-    "$env:LocalAppData\\Programs\\Python\\Python311",
-    "$env:ProgramFiles\\Python311",
-    "$env:LocalAppData\\Programs\\Python\\Python312",
-    "$env:ProgramFiles\\Python312"
-  )
-  foreach ($c in $cand) {
-    if (Test-Path (Join-Path $c 'python.exe')) {
-      $PySrc = $c
-      break
-    }
-  }
-}
-if (-not $PySrc) {
-  $pyCmd = Get-Command python -ErrorAction SilentlyContinue
-  if ($pyCmd -and $pyCmd.Source) {
-    $PySrc = Split-Path -Parent $pyCmd.Source
+# Python runtime acquisition.
+# Default: download a pinned, relocatable python-build-standalone build, so the
+# bundle does not depend on the build machine's installed Python (no drift).
+# Fallback / override: copy a system-installed Python 3.11 when the download
+# fails or when HOROSA_PYTHON_RUNTIME_SOURCE=system is set.
+$pythonRuntimeSource = if ($env:HOROSA_PYTHON_RUNTIME_SOURCE) { $env:HOROSA_PYTHON_RUNTIME_SOURCE.Trim().ToLower() } else { 'standalone' }
+$pythonReady = $false
+
+if ($pythonRuntimeSource -ne 'system') {
+  if (Get-StandalonePythonRuntime -PyDst $PyDst) {
+    $pythonReady = $true
+  } else {
+    Write-Host '[WARN] Falling back to copying a system-installed Python 3.11.'
   }
 }
 
-if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
-  $sourcePyExe = Join-Path $PySrc 'python.exe'
-  $sourceVersion = Get-PythonVersionInfo -PythonExe $sourcePyExe
-  if ($sourceVersion) {
-    Write-Host ("Detected Python runtime source version: {0}" -f $sourceVersion.Text)
-    if (-not ($sourceVersion.Major -eq 3 -and $sourceVersion.Minor -eq 11)) {
-      Write-Host '[WARN] Python 3.11 is recommended for offline one-click startup compatibility.'
+if (-not $pythonReady) {
+  $PySrc = $env:HOROSA_PYTHON_HOME
+  if (-not $PySrc) {
+    $cand = @(
+      "$env:LocalAppData\\Programs\\Python\\Python311",
+      "$env:ProgramFiles\\Python311",
+      "$env:LocalAppData\\Programs\\Python\\Python312",
+      "$env:ProgramFiles\\Python312"
+    )
+    foreach ($c in $cand) {
+      if (Test-Path (Join-Path $c 'python.exe')) {
+        $PySrc = $c
+        break
+      }
+    }
+  }
+  if (-not $PySrc) {
+    $pyCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pyCmd -and $pyCmd.Source) {
+      $PySrc = Split-Path -Parent $pyCmd.Source
     }
   }
 
-  Write-Host "Copy Python runtime: $PySrc -> $PyDst"
-  if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
-  New-Item -ItemType Directory -Force -Path $PyDst | Out-Null
-  robocopy $PySrc $PyDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
+    $sourceVersion = Get-PythonVersionInfo -PythonExe (Join-Path $PySrc 'python.exe')
+    if ($sourceVersion) {
+      Write-Host ("Detected Python runtime source version: {0}" -f $sourceVersion.Text)
+      if (-not ($sourceVersion.Major -eq 3 -and $sourceVersion.Minor -eq 11)) {
+        Write-Host '[WARN] Python 3.11 is recommended for offline one-click startup compatibility.'
+      }
+    }
+    Write-Host "Copy Python runtime: $PySrc -> $PyDst"
+    if (Test-Path $PyDst) { Remove-Item -Recurse -Force $PyDst }
+    New-Item -ItemType Directory -Force -Path $PyDst | Out-Null
+    robocopy $PySrc $PyDst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if (Test-Path (Join-Path $PyDst 'python.exe')) { $pythonReady = $true }
+  }
+}
+
+if ($pythonReady) {
+  Copy-VcRuntimeDlls -PyDst $PyDst -ScriptRoot $ScriptRoot
   $runtimePyExe = Join-Path $PyDst 'python.exe'
   $depsReady = Ensure-PythonDepsInRuntime -PythonExe $runtimePyExe
   if ($depsReady) {
@@ -632,7 +732,7 @@ if ($PySrc -and (Test-Path (Join-Path $PySrc 'python.exe'))) {
     Write-Host '[WARN] Offline wheels not prepared.'
   }
 } else {
-  Write-Host 'Python runtime not found. Set HOROSA_PYTHON_HOME then rerun.'
+  Write-Host 'Python runtime not available. Allow the standalone download, or set HOROSA_PYTHON_HOME to a Python 3.11 install, then rerun.'
 }
 
 if (Test-BackendJarNeedsBuild -ProjDir $ProjectDir -TargetJarPath $JarSrc) {
@@ -745,7 +845,7 @@ if (-not ((Test-Path (Join-Path $DistFileBundleDst 'index.html')) -or (Test-Path
   $validationErrors.Add('Missing runtime/windows/bundle/dist-file/index.html or dist/index.html')
 }
 if (-not (Test-WheelCompleteness -WheelDir $WheelsDst)) {
-  $validationErrors.Add('Missing required wheels (CherryPy/jsonpickle/pyswisseph) under runtime/windows/wheels')
+  $validationErrors.Add('Missing required Python wheels for chart and kentang runtime under runtime/windows/wheels')
 }
 if (-not (Test-Path $manifestPath)) {
   $validationErrors.Add('Missing runtime/windows/bundle/runtime.manifest.json')

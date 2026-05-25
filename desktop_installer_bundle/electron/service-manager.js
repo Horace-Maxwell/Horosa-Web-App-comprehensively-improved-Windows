@@ -636,6 +636,22 @@ function isSameChildProcess(expectedChild, actualChild) {
   return Boolean(expectedChild.pid && actualChild.pid && expectedChild.pid === actualChild.pid);
 }
 
+function readLogTail(logPath, maxLines = 14) {
+  try {
+    if (!logPath || !fs.existsSync(logPath)) {
+      return '';
+    }
+    const content = fs.readFileSync(logPath, 'utf8');
+    const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    if (lines.length === 0) {
+      return '';
+    }
+    return lines.slice(-maxLines).join('\n');
+  } catch (error) {
+    return '';
+  }
+}
+
 function classifyProcessExit({ child, activeChild, shuttingDown, expectedExit }) {
   if (expectedExit && (!expectedExit.child || isSameChildProcess(expectedExit.child, child))) {
     return {
@@ -692,6 +708,7 @@ class RuntimeManager extends EventEmitter {
       python: null,
       java: null,
     };
+    this.lastCrashMessage = null;
     this.state = {
       status: 'idle',
       message: '等待启动本地服务',
@@ -730,31 +747,60 @@ class RuntimeManager extends EventEmitter {
   }
 
   getPackedPayloadCacheRoot(manifest) {
+    const shortPayloadId = String(manifest.payloadId).slice(0, 16);
+    const getRuntimePathProbes = (root) => [
+      path.join(
+        root,
+        'runtime',
+        'windows',
+        'python',
+        'Lib',
+        'site-packages',
+        'jaraco',
+        'collections',
+        '__init__.py'
+      ),
+      path.join(
+        root,
+        'runtime',
+        'windows',
+        'python',
+        'Lib',
+        'site-packages',
+        'astropy',
+        'coordinates',
+        'builtin_frames',
+        'intermediate_rotation_transforms.py'
+      ),
+    ];
+    const getLongestProbe = (root) => getRuntimePathProbes(root).reduce((longest, probe) => (
+      probe.length > longest.length ? probe : longest
+    ), '');
+    const isSafeRuntimeRoot = (root) => getRuntimePathProbes(root).every((probe) => (
+      probe.length <= WINDOWS_SAFE_RUNTIME_PATH_LENGTH
+    ));
+
     const defaultRoot = path.join(this.userDataDir, 'embedded-runtime', manifest.payloadId);
-    const pythonImportProbe = path.join(
-      defaultRoot,
-      'runtime',
-      'windows',
-      'python',
-      'Lib',
-      'site-packages',
-      'jaraco',
-      'collections',
-      '__init__.py'
-    );
-    if (pythonImportProbe.length <= WINDOWS_SAFE_RUNTIME_PATH_LENGTH) {
+    if (isSafeRuntimeRoot(defaultRoot)) {
       return defaultRoot;
     }
 
-    const cacheBase = process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR
-      || process.env.HOROSA_RUNTIME_CACHE_DIR
-      || path.join(os.tmpdir(), 'HorosaDesktop', 'embedded-runtime');
-    const fallbackRoot = path.join(cacheBase, manifest.payloadId);
+    const fallbackCandidates = [
+      process.env.HOROSA_DESKTOP_RUNTIME_CACHE_DIR,
+      process.env.HOROSA_RUNTIME_CACHE_DIR,
+      path.join(os.tmpdir(), 'HorosaRt'),
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'HorosaRt') : '',
+      path.join(os.homedir(), '.horosa-rt'),
+    ].filter(Boolean).map((cacheBase) => path.join(cacheBase, shortPayloadId));
+    const fallbackRoot = fallbackCandidates.find(isSafeRuntimeRoot) || fallbackCandidates[0];
+    const longestDefaultProbe = getLongestProbe(defaultRoot);
+    const longestFallbackProbe = getLongestProbe(fallbackRoot);
     if (this.logger) {
       this.logger.warn('Embedded runtime cache path is long; using short fallback path', {
         defaultRoot,
         fallbackRoot,
-        probeLength: pythonImportProbe.length,
+        probeLength: longestDefaultProbe.length,
+        fallbackProbeLength: longestFallbackProbe.length,
       });
     }
     return fallbackRoot;
@@ -1058,11 +1104,28 @@ class RuntimeManager extends EventEmitter {
           return;
         }
 
-        const message = `${name} exited unexpectedly (code=${code ?? 'null'}, signal=${signal ?? 'null'})`;
-        this.logger.error(message);
+        // A service crashed on its own. Mark teardown so the sibling's forced
+        // shutdown is treated as planned (not a second independent crash) — this
+        // is why the same root cause previously surfaced sometimes as "Python
+        // ... exited" and sometimes as "Java ... exited". Also surface the tail
+        // of the crashed service's log so the real cause (e.g. an ImportError)
+        // is visible instead of just an exit code.
+        this.shuttingDown = true;
+        const summary = `${name} exited unexpectedly (code=${code ?? 'null'}, signal=${signal ?? 'null'})`;
+        const logPath = path.join(logDir, serviceKey === 'python' ? 'python.log' : 'java.log');
+        const tail = readLogTail(logPath);
+        const message = tail ? `${summary}\n--- ${name} log tail ---\n${tail}` : summary;
+        this.logger.error(summary);
         this.running = false;
         this.startPromise = null;
         this.expectedProcessExits[serviceKey] = null;
+        this.lastCrashMessage = message;
+
+        const sibling = serviceKey === 'python' ? this.javaProcess : this.pythonProcess;
+        if (sibling && sibling.pid) {
+          killProcessTree(sibling.pid, this.logger).catch(() => {});
+        }
+
         this.updateState({
           status: 'failed',
           message,
@@ -1078,6 +1141,9 @@ class RuntimeManager extends EventEmitter {
   }
 
   async cleanupProcesses() {
+    // Killing the services always means we are tearing down; mark it so their
+    // exit handlers classify the termination as planned rather than a crash.
+    this.shuttingDown = true;
     const pythonProcess = this.pythonProcess;
     const javaProcess = this.javaProcess;
     const logStreams = this.logStreams;
@@ -1139,6 +1205,7 @@ class RuntimeManager extends EventEmitter {
       '--cachehelper.needcache=false',
       '--cachehelper.expireinsecond=300',
       '--paramhash.cache.enable=false',
+      '--astrohelper.disable.request.cache=true',
       '--needtranslog=false',
       '--mongo.statement.log=false'
     );
@@ -1173,8 +1240,11 @@ class RuntimeManager extends EventEmitter {
         const pythonLog = path.join(logDir, 'python.log');
         const javaLog = path.join(logDir, 'java.log');
         const [chartPort, backendPort] = await Promise.all([findPort(8899), findPort(9999)]);
+        const runtimeHomeDir = process.env.HOME || process.env.USERPROFILE || this.userDataDir;
+        ensureDir(runtimeHomeDir);
         this.appCdsContext = getAppCdsContext(layout.runtimeWindowsDir, layout.javaExe, layout.jarPath);
         this.shuttingDown = false;
+        this.lastCrashMessage = null;
         this.updateState({
           status: 'starting-python',
           message: '正在启动 Python 本地服务',
@@ -1185,6 +1255,7 @@ class RuntimeManager extends EventEmitter {
         const pythonBootstrap = [
           'import os, runpy, sys',
           `os.chdir(${JSON.stringify(layout.projectRoot)})`,
+          'sys.path[:] = [p for p in sys.path if p not in ("", os.getcwd())]',
           `sys.path[0:0]=[${JSON.stringify(layout.astropyDir)}, ${JSON.stringify(layout.flatlibDir)}]`,
           `runpy.run_path(${JSON.stringify(layout.chartScript)}, run_name='__main__')`,
         ].join('; ');
@@ -1193,16 +1264,19 @@ class RuntimeManager extends EventEmitter {
 
         const pythonEnv = {
           ...process.env,
+          HOME: runtimeHomeDir,
           HOROSA_CHART_PORT: String(chartPort),
+          HOROSA_SWISSEPH_PATH: layout.swephDir,
           HOROSA_SWEPH_PATH: layout.swephDir,
           PYTHONPATH: [layout.astropyDir, layout.flatlibDir].join(path.delimiter),
+          PYTHONNOUSERSITE: '1',
           PYTHONUTF8: '1',
           SE_EPHE_PATH: layout.swephDir,
           HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
-          HOROSA_TRUSTED_RUNTIME: trustedRuntime ? '1' : '0',
-          HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? '1' : '0',
+          HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
+          HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
           HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-          HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? '1' : '0',
+          HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? 'true' : 'false',
           HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
         };
 
@@ -1227,13 +1301,17 @@ class RuntimeManager extends EventEmitter {
           cwd: layout.projectRoot,
           env: {
             ...process.env,
+            HOME: runtimeHomeDir,
             HOROSA_CHART_PORT: String(chartPort),
             HOROSA_SERVER_PORT: String(backendPort),
+            HOROSA_SWISSEPH_PATH: layout.swephDir,
+            HOROSA_SWEPH_PATH: layout.swephDir,
+            SE_EPHE_PATH: layout.swephDir,
             HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
-            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? '1' : '0',
-            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? '1' : '0',
+            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
+            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
             HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-            HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? '1' : '0',
+            HOROSA_DESKTOP_MONGO_SKIP_PING: trustedRuntime ? 'true' : 'false',
             HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
           },
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -1251,8 +1329,16 @@ class RuntimeManager extends EventEmitter {
           logDir,
           trustedRuntimeCandidate: trustedRuntime,
         });
+        const backendProbePromise = trustedRuntime
+          ? Promise.resolve({
+              ok: true,
+              statusCode: 0,
+              bodyExcerpt: 'trusted runtime port probe',
+              acceptedPortProbe: true,
+            })
+          : waitForBackendHeartbeat(`http://127.0.0.1:${backendPort}`, readyTimeoutMs);
         const [backendProbe, chartProbe] = await Promise.all([
-          waitForBackendHeartbeat(`http://127.0.0.1:${backendPort}`, readyTimeoutMs),
+          backendProbePromise,
           waitForChartProbe(chartPort, readyTimeoutMs),
         ]);
         this.persistRuntimeCaches({
@@ -1307,10 +1393,15 @@ class RuntimeManager extends EventEmitter {
       } catch (error) {
         await this.cleanupProcesses();
         this.running = false;
+        // Prefer the specific crash message (with log tail) captured by the
+        // exit handler over the generic port/timeout error, so the UI shows the
+        // real root cause instead of a downstream symptom.
+        const crashMessage = this.lastCrashMessage;
+        this.lastCrashMessage = null;
         this.updateState({
           status: 'failed',
-          message: `本地服务启动失败：${error.message}`,
-          error: error.message,
+          message: crashMessage || `本地服务启动失败：${error.message}`,
+          error: crashMessage || error.message,
           logDir,
         });
         throw new Error(`Local runtime startup failed. Check logs in ${logDir}. ${error.message}`);

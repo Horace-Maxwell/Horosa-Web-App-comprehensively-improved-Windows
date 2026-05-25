@@ -979,7 +979,8 @@ def main() -> None:
             if 'Live' not in history_text and 'live' not in history_text:
                 raise RuntimeError(f'live AI history row not found: {history_text}')
             result['checks'].append({'name': 'ai-history-save-live', 'status': 'PASS'})
-            browser.close()
+            # Do not call browser.close() for CDP-attached Electron. The finally
+            # block owns app shutdown; closing the remote browser can crash renderer.
 
         result['status'] = 'PASS'
     except Exception as exc:  # noqa: BLE001

@@ -567,8 +567,17 @@ function Test-ProcessOwnedByProject {
   ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
   foreach ($marker in $markers) {
-    if ($cmdline.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-      return $true
+    $markerVariants = @(
+      $marker,
+      ($marker -replace '\\', '\\'),
+      ($marker -replace '\\', '\\\\'),
+      ($marker -replace '\\', '/')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    foreach ($variant in $markerVariants) {
+      if ($cmdline.IndexOf($variant, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        return $true
+      }
     }
   }
 
@@ -932,6 +941,20 @@ function Stop-PidFile {
   param([string]$Name, [string]$Path)
   $procId = Get-PidFromFile -Path $Path
   if ($procId) {
+    $isProjectProcess = $false
+    try {
+      $null = Get-Process -Id $procId -ErrorAction Stop
+      $isProjectProcess = Test-ProcessOwnedByProject -ProcessId $procId
+    } catch {
+      $isProjectProcess = $false
+    }
+
+    if (-not $isProjectProcess) {
+      Write-Host "$Name stale pid $procId ignored"
+      if (Test-Path $Path) { Remove-Item -Force $Path }
+      return
+    }
+
     try {
       if ($Name -eq 'java' -and $script:AppCdsContext -and (-not (Test-HorosaAppCdsArchiveReady -Context $script:AppCdsContext))) {
         Invoke-HorosaAppCdsDynamicDump -ProcessId $procId -Context $script:AppCdsContext -JavaExe $script:JavaBin | Out-Null
@@ -1719,7 +1742,7 @@ function Test-PythonDepsReady {
   try {
     $flatlibPath = Join-Path $ProjectDir 'flatlib-ctrad2'
     $flatlibEscaped = $flatlibPath.Replace('\', '\\')
-    & $PythonCmdOrPath -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib;print('ok')" *> $null
+    & $PythonCmdOrPath -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib,ephem,streamlit,pandas,plotly,svgwrite,fpdf,pytz,opencc,zhconv,sxtwl,cn2an,cnlunar,bidict,kinliuren,drawsvg,kerykeion;import astropy.units;print('ok')" *> $null
     return ($LASTEXITCODE -eq 0)
   } catch {
     return $false
@@ -2968,7 +2991,7 @@ function Ensure-PythonRuntimeDeps {
     try {
       $flatlibPath = Join-Path $ProjRoot 'flatlib-ctrad2'
       $flatlibEscaped = $flatlibPath.Replace('\', '\\')
-      & $Exe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib;print('ok')" *> $null
+      & $Exe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib,ephem,streamlit,pandas,plotly,svgwrite,fpdf,pytz,opencc,zhconv,sxtwl,cn2an,cnlunar,bidict,kinliuren,drawsvg,kerykeion;import astropy.units;print('ok')" *> $null
       return ($LASTEXITCODE -eq 0)
     } catch {
       return $false
@@ -2980,7 +3003,12 @@ function Ensure-PythonRuntimeDeps {
     if (-not (Test-Path $WheelDir)) { return $false }
     try {
       Write-Host ("Installing Python dependencies from local wheelhouse: {0}" -f $WheelDir)
-      & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir cherrypy jsonpickle pyswisseph
+      $requirementsPath = Join-Path $ProjRoot 'astropy\requirements.txt'
+      if (Test-Path $requirementsPath) {
+        & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir -r $requirementsPath
+      } else {
+        & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir cherrypy jsonpickle pyswisseph ephem streamlit pandas plotly svgwrite fpdf2 pytz opencc-python-reimplemented zhconv sxtwl cn2an cnlunar bidict kinliuren drawsvg kerykeion astropy
+      }
       if ($LASTEXITCODE -ne 0) { return $false }
       return (& $checkDeps $Exe $ProjRoot)
     } catch {
@@ -3017,28 +3045,12 @@ function Ensure-PythonRuntimeDeps {
 
   try {
     Write-Host 'Installing Python dependencies for local runtime (online fallback)...'
-    & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle
-    if ($LASTEXITCODE -ne 0) { return $false }
-
-    $flatlibInstalled = $false
-    $flatlibSpecs = @('flatlib==0.2.3.post3', 'flatlib==0.2.3', 'flatlib')
-    foreach ($flatlibSpec in $flatlibSpecs) {
-      try {
-        & $PythonExe -m pip install --disable-pip-version-check --no-input $flatlibSpec *> $null
-        if ($LASTEXITCODE -eq 0) {
-          $flatlibInstalled = $true
-          break
-        }
-      } catch {
-        # try next fallback
-      }
-      Write-Host ("[WARN] Failed to install {0}, trying fallback..." -f $flatlibSpec)
+    $requirementsPath = Join-Path $ProjectRoot 'astropy\requirements.txt'
+    if (Test-Path $requirementsPath) {
+      & $PythonExe -m pip install --disable-pip-version-check --no-input -r $requirementsPath
+    } else {
+      & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle pyswisseph ephem streamlit pandas plotly svgwrite fpdf2 pytz opencc-python-reimplemented zhconv sxtwl cn2an cnlunar bidict kinliuren drawsvg kerykeion astropy
     }
-    if (-not $flatlibInstalled) {
-      Write-Host '[WARN] Flatlib package install skipped; launcher will use bundled flatlib-ctrad2.'
-    }
-
-    & $PythonExe -m pip install --disable-pip-version-check --no-input --only-binary=:all: pyswisseph
     if ($LASTEXITCODE -ne 0) { return $false }
     return (& $checkDeps $PythonExe $ProjectRoot)
   } catch {
@@ -4424,6 +4436,9 @@ if (-not $ReusingRunningServices) {
 }
 
 $oldPythonPath = $env:PYTHONPATH
+$oldPythonNoUserSite = $env:PYTHONNOUSERSITE
+$oldPythonUtf8 = $env:PYTHONUTF8
+$oldHorosaSwissephPath = $env:HOROSA_SWISSEPH_PATH
 $oldHorosaSwephPath = $env:HOROSA_SWEPH_PATH
 $oldSeEphePath = $env:SE_EPHE_PATH
 $proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
@@ -4441,8 +4456,11 @@ if ($oldPythonPath) {
 } else {
   $env:PYTHONPATH = $pyPathPrefix
 }
+$env:PYTHONNOUSERSITE = '1'
+$env:PYTHONUTF8 = '1'
 $swephPath = Join-Path $ProjectDir 'flatlib-ctrad2\flatlib\resources\swefiles'
 if (Test-Path $swephPath) {
+  $env:HOROSA_SWISSEPH_PATH = $swephPath
   $env:HOROSA_SWEPH_PATH = $swephPath
   if (-not $oldSeEphePath) {
     $env:SE_EPHE_PATH = $swephPath
@@ -4471,7 +4489,7 @@ try {
       "'" + (($_ -replace '\\', '\\\\') -replace "'", "\'") + "'"
     }
     $pyBootstrapList = ($pyBootstrapPaths -join ', ')
-    $pyBootstrap = "import os, runpy, sys; os.chdir('" + $pyBootstrapProjectDir + "'); sys.path[0:0]=[" + $pyBootstrapList + "]; runpy.run_path('" + $pyBootstrapScriptPath + "', run_name='__main__')"
+    $pyBootstrap = "import os, runpy, sys; os.chdir('" + $pyBootstrapProjectDir + "'); sys.path[:] = [p for p in sys.path if p not in ('', os.getcwd())]; sys.path[0:0]=[" + $pyBootstrapList + "]; runpy.run_path('" + $pyBootstrapScriptPath + "', run_name='__main__')"
     $null = Start-Background -FilePath $PythonBin -Arguments @('-c', (Quote-Arg $pyBootstrap)) -LogPath $PyLog -PidFile $PyPidFile
 
     $mongoSelectTimeoutMs = if ($PerfMode) { 180 } else { 800 }
@@ -4484,7 +4502,9 @@ try {
       "-Dhorosa.log.basedir=$HorosaLogBaseDir",
       "-Dhorosa.mongo.serverSelectionTimeoutMS=$mongoSelectTimeoutMs",
       "-Dhorosa.mongo.connectTimeoutMS=$mongoConnectTimeoutMs",
-      "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs"
+      "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs",
+      '-Dhorosa.trustedRuntime=true',
+      '-Dhorosa.desktop.fastPath=true'
     )
     if ($AppCdsContext) {
       if (Test-HorosaAppCdsArchiveReady -Context $AppCdsContext) {
@@ -4510,7 +4530,9 @@ try {
       '--redis.ip=127.0.0.1',
       "--redis.pool.timeout=$redisPoolTimeoutMs",
       '--cachehelper.needcache=false',
-      "--cachehelper.expireinsecond=$cacheExpireSeconds"
+      "--cachehelper.expireinsecond=$cacheExpireSeconds",
+      '--paramhash.cache.enable=false',
+      '--astrohelper.disable.request.cache=true'
     )
     if ($PerfMode) {
       $javaArgs += @(
@@ -4596,8 +4618,9 @@ try {
 
   $serverRoot = "http://127.0.0.1:$BackendPort"
   $encodedServerRoot = [System.Uri]::EscapeDataString($serverRoot)
+  $encodedChartRoot = [System.Uri]::EscapeDataString("http://127.0.0.1:$ChartPort")
   $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-  $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&v=$cacheBust"
+  $url = "http://127.0.0.1:$WebPort/index.html?srv=$encodedServerRoot&chartSrv=$encodedChartRoot&kentangSrv=$encodedChartRoot&v=$cacheBust"
 
   Write-Host '[3/4] Opening browser...'
   if ($env:HOROSA_NO_BROWSER -eq '1') {
@@ -4674,6 +4697,21 @@ try {
   }
   Restore-EnvSnapshot -Snapshot $proxyEnvSnapshot
   $env:PYTHONPATH = $oldPythonPath
+  if ($null -ne $oldPythonNoUserSite) {
+    $env:PYTHONNOUSERSITE = $oldPythonNoUserSite
+  } else {
+    Remove-Item Env:PYTHONNOUSERSITE -ErrorAction SilentlyContinue
+  }
+  if ($null -ne $oldPythonUtf8) {
+    $env:PYTHONUTF8 = $oldPythonUtf8
+  } else {
+    Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue
+  }
+  if ($null -ne $oldHorosaSwissephPath) {
+    $env:HOROSA_SWISSEPH_PATH = $oldHorosaSwissephPath
+  } else {
+    Remove-Item Env:HOROSA_SWISSEPH_PATH -ErrorAction SilentlyContinue
+  }
   if ($null -ne $oldHorosaSwephPath) {
     $env:HOROSA_SWEPH_PATH = $oldHorosaSwephPath
   } else {

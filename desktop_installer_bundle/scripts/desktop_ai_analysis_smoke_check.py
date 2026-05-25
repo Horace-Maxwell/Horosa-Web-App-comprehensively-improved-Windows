@@ -313,14 +313,14 @@ def main() -> None:
             result["checks"].append({"name": "desktop-analysis-stream-smoke", "status": "PASS"})
 
             result["status"] = "PASS"
-            browser.close()
+            # Do not close the CDP-attached Electron browser from Playwright;
+            # the app process is closed explicitly in finally.
     except Exception:
         try:
             with sync_playwright() as p:
                 browser = p.chromium.connect_over_cdp(f"http://127.0.0.1:{args.remote_debugging_port}")
                 page = browser.contexts[0].pages[0]
                 page.screenshot(path=str(failure_screenshot), full_page=True)
-                browser.close()
         except Exception:
             pass
         raise

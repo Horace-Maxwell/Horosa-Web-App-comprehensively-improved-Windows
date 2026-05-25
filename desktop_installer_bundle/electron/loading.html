@@ -11,171 +11,208 @@
     <style>
       :root {
         color-scheme: dark;
+        --bg-0: #0b1120;
+        --bg-1: #0f172a;
+        --ink: #eef4ff;
+        --ink-soft: #9fb0c8;
+        --ink-dim: #6b7c97;
+        --accent: #38bdf8;
+        --accent-2: #818cf8;
+        --ok: #34d399;
+        --bad: #fb7185;
+        --line: rgba(148, 163, 184, 0.16);
+        --panel: rgba(148, 163, 184, 0.06);
       }
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
       body {
         margin: 0;
-        min-height: 100vh;
-        font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+        font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+        color: var(--ink);
         background:
-          radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 36%),
-          linear-gradient(180deg, #0f172a 0%, #111827 100%);
-        color: #e5eefb;
+          radial-gradient(720px 480px at 18% -8%, rgba(56, 189, 248, 0.20), transparent 60%),
+          radial-gradient(680px 520px at 92% 8%, rgba(129, 140, 248, 0.18), transparent 58%),
+          radial-gradient(900px 700px at 50% 120%, rgba(45, 212, 191, 0.10), transparent 60%),
+          linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+        -webkit-font-smoothing: antialiased;
         display: flex;
         align-items: center;
         justify-content: center;
+        overflow: hidden;
       }
-      .shell {
-        width: min(720px, calc(100vw - 48px));
-        padding: 36px;
-        border-radius: 24px;
-        background: rgba(15, 23, 42, 0.86);
-        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-        border: 1px solid rgba(148, 163, 184, 0.16);
-      }
-      .title {
+      .stage {
+        width: min(640px, calc(100vw - 64px));
         display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 10px;
+        flex-direction: column;
+        gap: 26px;
+      }
+
+      /* Brand */
+      .brand { display: flex; align-items: center; gap: 16px; }
+      .logo-wrap {
+        position: relative;
+        width: 60px; height: 60px;
+        flex: 0 0 auto;
       }
       .logo {
-        width: 52px;
-        height: 52px;
-        border-radius: 14px;
+        width: 60px; height: 60px;
+        border-radius: 16px;
         object-fit: cover;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+        box-shadow: 0 10px 30px rgba(8, 17, 31, 0.55);
       }
-      h1 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 700;
+      .logo-wrap::after {
+        content: "";
+        position: absolute; inset: -6px;
+        border-radius: 22px;
+        background: radial-gradient(circle, rgba(56, 189, 248, 0.35), transparent 70%);
+        filter: blur(8px);
+        z-index: -1;
+        opacity: 0.9;
       }
-      .subtitle {
-        margin: 0 0 24px;
-        color: #9fb0c8;
+      .brand h1 { margin: 0; font-size: 25px; font-weight: 750; letter-spacing: 0.2px; }
+      .brand .sub { margin: 4px 0 0; color: var(--ink-soft); font-size: 13.5px; }
+
+      /* Status headline */
+      .headline { display: flex; align-items: center; gap: 13px; min-height: 26px; }
+      .dot {
+        width: 12px; height: 12px; border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.55);
+        animation: pulse 1.6s ease-out infinite;
+        flex: 0 0 auto;
       }
-      .status {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 14px;
+      .headline.is-ready .dot { background: var(--ok); animation: none; }
+      .headline.is-failed .dot { background: var(--bad); animation: none; }
+      .headline .msg { font-size: 17px; font-weight: 650; }
+
+      /* Stepper */
+      .steps { display: flex; align-items: flex-start; gap: 0; }
+      .step { flex: 1 1 0; position: relative; text-align: center; }
+      .step .node {
+        width: 26px; height: 26px; border-radius: 50%;
+        margin: 0 auto 9px;
+        display: grid; place-items: center;
+        border: 2px solid var(--line);
+        background: var(--bg-1);
+        color: var(--ink-dim);
+        font-size: 12px; font-weight: 700;
+        position: relative; z-index: 1;
+        transition: all 0.35s ease;
       }
-      .spinner {
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        border: 3px solid rgba(148, 163, 184, 0.2);
-        border-top-color: #38bdf8;
-        animation: spin 0.9s linear infinite;
+      .step .bar {
+        position: absolute; top: 13px; left: calc(-50% + 13px); right: calc(50% + 13px);
+        height: 2px; background: var(--line); z-index: 0;
+        transition: background 0.35s ease;
       }
-      .spinner.failed,
-      .spinner.ready {
-        animation: none;
-        border-color: transparent;
-        width: 14px;
-        height: 14px;
-        background: #f87171;
+      .step:first-child .bar { display: none; }
+      .step .label { font-size: 12px; color: var(--ink-dim); transition: color 0.35s ease; }
+      .step.done .node { border-color: var(--accent); background: var(--accent); color: #06121f; }
+      .step.done .bar { background: var(--accent); }
+      .step.done .label { color: var(--ink-soft); }
+      .step.active .node {
+        border-color: var(--accent); color: var(--accent); background: var(--bg-1);
+        box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.16);
       }
-      .spinner.ready {
-        background: #34d399;
-      }
-      .message {
-        font-size: 18px;
-        font-weight: 600;
-      }
+      .step.active .label { color: var(--ink); font-weight: 650; }
+      .step.error .node { border-color: var(--bad); color: var(--bad); box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.16); }
+      .step.error .label { color: var(--bad); font-weight: 650; }
+
+      /* Detail / diagnostics */
       .detail {
-        min-height: 48px;
-        margin: 0 0 18px;
-        color: #c2d0e5;
-        line-height: 1.6;
-        white-space: pre-wrap;
-      }
-      .meta {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 14px;
+        padding: 14px 16px;
         display: grid;
         gap: 10px;
-        margin-bottom: 20px;
       }
-      .meta-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        font-size: 13px;
-        color: #9fb0c8;
+      .meta-row { display: flex; justify-content: space-between; gap: 16px; font-size: 12.5px; }
+      .meta-row .k { color: var(--ink-dim); }
+      .meta-row .v { color: var(--ink-soft); text-align: right; word-break: break-all; }
+      .errbox {
+        display: none;
+        margin-top: 2px;
+        max-height: 168px; overflow: auto;
+        font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+        font-size: 11.5px; line-height: 1.55;
+        white-space: pre-wrap; word-break: break-word;
+        color: #ffd9de;
+        background: rgba(251, 113, 133, 0.07);
+        border: 1px solid rgba(251, 113, 133, 0.25);
+        border-radius: 10px;
+        padding: 10px 12px;
       }
-      .meta-row span:last-child {
-        color: #d8e3f3;
-        text-align: right;
-      }
-      .actions {
-        display: flex;
-        gap: 12px;
-      }
+      .errbox.show { display: block; }
+
+      /* Actions */
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; }
       button {
-        border: 0;
-        border-radius: 12px;
+        border: 0; border-radius: 11px;
         padding: 10px 16px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
+        cursor: pointer; font-size: 13.5px; font-weight: 650;
+        font-family: inherit;
+        transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease, background 0.2s ease;
       }
-      .primary {
-        color: #08111f;
-        background: #38bdf8;
+      button:active { transform: translateY(1px); }
+      .primary { color: #06121f; background: linear-gradient(180deg, #5ccbf6, var(--accent)); }
+      .primary:hover { filter: brightness(1.06); }
+      .ghost { color: var(--ink); background: rgba(148, 163, 184, 0.12); }
+      .ghost:hover { background: rgba(148, 163, 184, 0.2); }
+      button:disabled { opacity: 0.45; cursor: default; transform: none; filter: none; }
+      .actions.hidden-soft { opacity: 0.55; }
+
+      .foot { display: flex; justify-content: space-between; color: var(--ink-dim); font-size: 11.5px; }
+      .foot .hint { color: var(--ink-dim); }
+      .copied { color: var(--ok); }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.5); }
+        70% { box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
       }
-      .secondary {
-        color: #e5eefb;
-        background: rgba(148, 163, 184, 0.14);
-      }
-      button:disabled {
-        opacity: 0.55;
-        cursor: default;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
+      @media (prefers-reduced-motion: reduce) {
+        .dot { animation: none; }
+        button { transition: none; }
+        .step .node, .step .bar, .step .label { transition: none; }
       }
     </style>
   </head>
   <body>
-    <main class="shell">
-      <div class="title">
-        <img class="logo" src="../assets/horosa_setup_badge.png" alt="星阙图标" />
+    <main class="stage">
+      <div class="brand">
+        <div class="logo-wrap">
+          <img class="logo" src="../assets/horosa_setup_badge.png" alt="星阙" />
+        </div>
         <div>
-          <h1>星阙正在启动</h1>
-          <p class="subtitle">先显示原生桌面窗口，再在后台拉起本地服务。</p>
+          <h1>星阙 Horosa</h1>
+          <p class="sub">正在启动本地服务，请稍候。窗口已就绪，服务在后台拉起。</p>
         </div>
       </div>
 
-      <div class="status">
-        <div id="spinner" class="spinner"></div>
-        <div id="message" class="message">正在准备桌面窗口</div>
+      <div id="headline" class="headline">
+        <div class="dot"></div>
+        <div id="message" class="msg">正在准备桌面窗口</div>
       </div>
 
-      <p id="detail" class="detail">请稍候，正在启动 Java 与 Python 本地服务。</p>
+      <div id="steps" class="steps"></div>
 
-      <section class="meta">
-        <div class="meta-row">
-          <span>窗口模式</span>
-          <span id="windowMode">default-80</span>
-        </div>
-        <div class="meta-row">
-          <span>本地服务</span>
-          <span id="serverRoot">等待分配端口</span>
-        </div>
-        <div class="meta-row">
-          <span>运行状态</span>
-          <span id="runtimeStatus">starting-window</span>
-        </div>
+      <section class="detail">
+        <div class="meta-row"><span class="k">运行状态</span><span id="runtimeStatus" class="v">starting-window</span></div>
+        <div class="meta-row"><span class="k">本地服务</span><span id="serverRoot" class="v">等待分配端口</span></div>
+        <div class="meta-row"><span class="k">日志目录</span><span id="logDir" class="v">—</span></div>
+        <pre id="errbox" class="errbox"></pre>
       </section>
 
-      <div class="actions">
+      <div id="actions" class="actions">
         <button id="retry" class="primary" type="button">重试启动</button>
-        <button id="repair" class="secondary" type="button">自检修复并重试</button>
-        <button id="openLogs" class="secondary" type="button">打开日志目录</button>
+        <button id="repair" class="ghost" type="button">自检修复并重试</button>
+        <button id="openLogs" class="ghost" type="button">打开日志目录</button>
+        <button id="copyDiag" class="ghost" type="button">复制诊断信息</button>
+      </div>
+
+      <div class="foot">
+        <span id="versionLabel" class="hint">星阙桌面版</span>
+        <span id="copyState" class="hint"></span>
       </div>
     </main>
 
@@ -186,93 +223,158 @@
         window.__HOROSA_DESKTOP_CONFIG__ ||
         {};
 
+      const STEPS = [
+        { key: 'prepare', label: '准备运行时' },
+        { key: 'python', label: '启动 Python' },
+        { key: 'java', label: '启动 Java' },
+        { key: 'verify', label: '验证服务' },
+        { key: 'ready', label: '就绪' },
+      ];
+
+      // Map each runtime status to the step index it represents.
+      const STATUS_STEP = {
+        'idle': 0,
+        'preparing-runtime-payload': 0,
+        'repairing-runtime': 0,
+        'starting-window': 0,
+        'starting-python': 1,
+        'starting-java': 2,
+        'verifying-runtime': 3,
+        'ready': 4,
+      };
+      const BUSY = new Set([
+        'starting-window', 'starting-python', 'starting-java',
+        'verifying-runtime', 'preparing-runtime-payload', 'repairing-runtime', 'idle',
+      ]);
+
       const els = {
-        spinner: document.getElementById('spinner'),
+        headline: document.getElementById('headline'),
         message: document.getElementById('message'),
-        detail: document.getElementById('detail'),
-        windowMode: document.getElementById('windowMode'),
-        serverRoot: document.getElementById('serverRoot'),
+        steps: document.getElementById('steps'),
         runtimeStatus: document.getElementById('runtimeStatus'),
+        serverRoot: document.getElementById('serverRoot'),
+        logDir: document.getElementById('logDir'),
+        errbox: document.getElementById('errbox'),
+        actions: document.getElementById('actions'),
         retry: document.getElementById('retry'),
         repair: document.getElementById('repair'),
         openLogs: document.getElementById('openLogs'),
+        copyDiag: document.getElementById('copyDiag'),
+        versionLabel: document.getElementById('versionLabel'),
+        copyState: document.getElementById('copyState'),
       };
 
-      function toDisplayText(value, fallback) {
+      // Build the stepper nodes once.
+      STEPS.forEach((s, i) => {
+        const el = document.createElement('div');
+        el.className = 'step';
+        el.dataset.index = String(i);
+        el.innerHTML =
+          '<div class="bar"></div>' +
+          '<div class="node">' + (i + 1) + '</div>' +
+          '<div class="label">' + s.label + '</div>';
+        els.steps.appendChild(el);
+      });
+      const stepEls = Array.from(els.steps.children);
+
+      let lastDiagnostics = '';
+
+      function text(value, fallback) {
         return value == null || value === '' ? fallback : String(value);
       }
 
-      function renderRuntimeState(state) {
-        const runtimeState = state || bootstrapConfig.runtimeStatus || {};
-        const status = toDisplayText(runtimeState.status, 'starting-window');
-        const message = toDisplayText(runtimeState.message, '正在准备桌面窗口');
-        const detailParts = [];
+      function inferFailedStep(state) {
+        const blob = `${state.error || ''} ${state.message || ''}`.toLowerCase();
+        if (blob.includes('python')) return 1;
+        if (blob.includes('java')) return 2;
+        if (typeof state.__lastActive === 'number') return state.__lastActive;
+        return 0;
+      }
 
-        if (runtimeState.logDir) {
-          detailParts.push(`日志目录：${runtimeState.logDir}`);
-        }
-        if (runtimeState.error) {
-          detailParts.push(runtimeState.error);
-        }
-        if (runtimeState.startupDurationMs) {
-          detailParts.push(`后端启动耗时：${runtimeState.startupDurationMs} ms`);
-        }
+      function renderSteps(state) {
+        const status = state.status || 'starting-window';
+        const failed = status === 'failed' || status === 'error';
+        let active = STATUS_STEP[status];
+        if (active == null) active = renderSteps.lastActive ?? 0;
+        if (!failed) renderSteps.lastActive = active;
 
-        els.windowMode.textContent = toDisplayText(bootstrapConfig.windowBoundsMode, 'default-80');
-        els.serverRoot.textContent = toDisplayText(runtimeState.serverRoot, '等待分配端口');
+        const failedStep = failed
+          ? inferFailedStep({ ...state, __lastActive: renderSteps.lastActive ?? 0 })
+          : -1;
+
+        stepEls.forEach((el, i) => {
+          el.classList.remove('done', 'active', 'error');
+          if (status === 'ready') {
+            el.classList.add('done');
+          } else if (failed && i === failedStep) {
+            el.classList.add('error');
+          } else if (failed && i < failedStep) {
+            el.classList.add('done');
+          } else if (!failed && i < active) {
+            el.classList.add('done');
+          } else if (!failed && i === active) {
+            el.classList.add('active');
+          }
+        });
+      }
+
+      function buildDiagnostics(state) {
+        const lines = [
+          `状态: ${text(state.status, 'unknown')}`,
+          `消息: ${text(state.message, '')}`,
+          `本地服务: ${text(state.serverRoot, '')}`,
+          `日志目录: ${text(state.logDir, '')}`,
+          `窗口模式: ${text(bootstrapConfig.windowBoundsMode, 'default-80')}`,
+        ];
+        if (state.error) lines.push('', state.error);
+        return lines.join('\n');
+      }
+
+      function renderRuntimeState(incoming) {
+        const state = incoming || bootstrapConfig.runtimeStatus || {};
+        const status = text(state.status, 'starting-window');
+        const failed = status === 'failed' || status === 'error';
+        const ready = status === 'ready';
+
+        els.headline.classList.toggle('is-failed', failed);
+        els.headline.classList.toggle('is-ready', ready);
+        els.message.textContent = text(state.message, '正在准备桌面窗口');
         els.runtimeStatus.textContent = status;
-        els.message.textContent = message;
-        els.detail.textContent = detailParts.length
-          ? detailParts.join('\n')
-          : '请稍候，正在启动 Java 与 Python 本地服务。';
+        els.serverRoot.textContent = text(state.serverRoot, '等待分配端口');
+        els.logDir.textContent = text(state.logDir, '—');
 
-        els.spinner.className = 'spinner';
-        if (status === 'failed' || status === 'error') {
-          els.spinner.classList.add('failed');
-        } else if (status === 'ready') {
-          els.spinner.classList.add('ready');
+        renderSteps(state);
+
+        // Error / diagnostics box: show the captured error (which may include a
+        // log tail) so the real cause is visible, not just an exit code.
+        if (failed && state.error) {
+          els.errbox.textContent = String(state.error);
+          els.errbox.classList.add('show');
+        } else {
+          els.errbox.classList.remove('show');
+          els.errbox.textContent = '';
         }
 
-        const runtimeBusy = status === 'starting-python' || status === 'starting-java' || status === 'starting-window' || status === 'repairing-runtime' || status === 'preparing-runtime-payload';
-        els.retry.disabled = runtimeBusy;
-        els.repair.disabled = runtimeBusy;
+        lastDiagnostics = buildDiagnostics(state);
+
+        const busy = BUSY.has(status);
+        els.retry.disabled = busy;
+        els.repair.disabled = busy;
+        els.actions.classList.toggle('hidden-soft', busy && !failed);
       }
 
-      async function retryRuntime() {
-        if (!bridge || typeof bridge.retryRuntime !== 'function') {
-          return;
-        }
-        els.retry.disabled = true;
-        els.message.textContent = '正在重新启动本地服务';
-        try {
-          const state = await bridge.retryRuntime();
-          renderRuntimeState(state);
-        } catch (error) {
-          renderRuntimeState({
-            status: 'failed',
-            message: '重试启动失败',
-            error: error && error.message ? error.message : String(error),
-          });
-        } finally {
-          els.retry.disabled = false;
-        }
-      }
-
-      async function repairRuntime() {
-        if (!bridge || typeof bridge.repairRuntime !== 'function') {
-          return;
-        }
+      async function guarded(button, busyMessage, fn) {
+        if (!bridge || typeof fn !== 'function') return;
         els.retry.disabled = true;
         els.repair.disabled = true;
-        els.message.textContent = '正在自检并修复本地运行时';
-        els.detail.textContent = '将清理已解压的本地运行时缓存，并从安装包重新恢复内置服务。';
+        els.message.textContent = busyMessage;
         try {
-          const state = await bridge.repairRuntime();
+          const state = await fn();
           renderRuntimeState(state);
         } catch (error) {
           renderRuntimeState({
             status: 'failed',
-            message: '自检修复失败',
+            message: busyMessage + '失败',
             error: error && error.message ? error.message : String(error),
           });
         } finally {
@@ -281,13 +383,48 @@
         }
       }
 
-      els.retry.addEventListener('click', retryRuntime);
-      els.repair.addEventListener('click', repairRuntime);
+      els.retry.addEventListener('click', () =>
+        guarded(els.retry, '正在重新启动本地服务', bridge && bridge.retryRuntime && bridge.retryRuntime.bind(bridge)));
+      els.repair.addEventListener('click', () =>
+        guarded(els.repair, '正在自检并修复本地运行时', bridge && bridge.repairRuntime && bridge.repairRuntime.bind(bridge)));
       els.openLogs.addEventListener('click', async () => {
         if (bridge && typeof bridge.openLogsDirectory === 'function') {
           await bridge.openLogsDirectory();
         }
       });
+      els.copyDiag.addEventListener('click', async () => {
+        const payload = lastDiagnostics || '';
+        let ok = false;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(payload);
+            ok = true;
+          }
+        } catch (e) { ok = false; }
+        if (!ok) {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = payload;
+            document.body.appendChild(ta);
+            ta.select();
+            ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+          } catch (e) { ok = false; }
+        }
+        els.copyState.textContent = ok ? '已复制诊断信息' : '复制失败，请手动选择';
+        els.copyState.className = 'hint' + (ok ? ' copied' : '');
+        setTimeout(() => { els.copyState.textContent = ''; }, 2600);
+      });
+
+      if (bridge && typeof bridge.getAppInfo === 'function') {
+        Promise.resolve(bridge.getAppInfo())
+          .then((info) => {
+            if (info && info.version) {
+              els.versionLabel.textContent = `星阙桌面版 v${info.version}`;
+            }
+          })
+          .catch(() => {});
+      }
 
       if (bridge && typeof bridge.onRuntimeState === 'function') {
         bridge.onRuntimeState(renderRuntimeState);

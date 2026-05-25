@@ -547,7 +547,8 @@ def main() -> None:
 
             close_attempted = close_app_window(app_proc.pid)
             graceful_close = close_attempted and wait_for_process_exit(60)
-            browser.close()
+            # Do not call browser.close() on a CDP-attached Electron app.
+            # It can close/crash the renderer instead of only detaching the harness.
 
         if not graceful_close:
             kill_running_app()

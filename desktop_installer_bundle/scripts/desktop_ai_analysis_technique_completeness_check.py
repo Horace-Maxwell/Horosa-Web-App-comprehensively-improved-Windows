@@ -150,14 +150,13 @@ def main() -> None:
 			dismiss_blocking_modals(page)
 			WEB_CHECK.run_check(page, result)
 			result["status"] = "PASS"
-			browser.close()
+			# Leave the CDP-attached Electron renderer alone; finally closes the app.
 	except Exception:
 		try:
 			with sync_playwright() as playwright:
 				browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{args.remote_debugging_port}")
 				page = browser.contexts[0].pages[0]
 				page.screenshot(path=str(failure_screenshot), full_page=True)
-				browser.close()
 				result["artifacts"]["failureScreenshot"] = str(failure_screenshot)
 		except Exception:
 			pass

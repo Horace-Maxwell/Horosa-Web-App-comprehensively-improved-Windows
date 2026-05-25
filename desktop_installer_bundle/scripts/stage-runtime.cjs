@@ -16,6 +16,13 @@ const packedPayloadDir = path.join(packedStageRoot, 'payload');
 const sourceDistIndex = path.join(runtimeWindowsDir, 'bundle', 'dist-file', 'index.html');
 const stagedDistIndex = path.join(stageRuntimeDir, 'bundle', 'dist-file', 'index.html');
 const packedPayloadTar = path.join(packedPayloadDir, 'app-runtime.tar');
+const vcRuntimeVendorDir = path.join(repoRoot, 'prepareruntime', 'vendor', 'vc_runtime', 'x64');
+const nativeDepCheckScript = path.join(repoRoot, 'desktop_installer_bundle', 'scripts', 'check_runtime_native_deps.py');
+const VC_RUNTIME_DLLS = [
+  'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll', 'msvcp140_codecvt_ids.dll',
+  'msvcp140_atomic_wait.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
+  'concrt140.dll', 'vccorlib140.dll', 'vcomp140.dll',
+];
 const runtimePruneTargets = [
   'python/Doc',
   'python/Tools',
@@ -148,6 +155,36 @@ function prunePythonCaches(rootDir) {
   return removed;
 }
 
+function prunePdbFiles(rootDir) {
+  // .pdb are MSVC debug symbols (the standalone Python ships ~77 MB of them).
+  // They are never needed at runtime, so drop them to slim the installer.
+  const removed = [];
+  if (!fs.existsSync(rootDir)) {
+    return removed;
+  }
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const currentPath = stack.pop();
+    for (const entry of fs.readdirSync(currentPath, { withFileTypes: true })) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(entryPath);
+        continue;
+      }
+      if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdb')) {
+        const stats = collectPathStats(entryPath);
+        fs.rmSync(entryPath, { force: true });
+        removed.push({
+          path: path.relative(rootDir, entryPath).replace(/\\/g, '/'),
+          files: stats.files,
+          bytes: stats.bytes,
+        });
+      }
+    }
+  }
+  return removed;
+}
+
 function assertExists(targetPath, label) {
   if (!fs.existsSync(targetPath)) {
     throw new Error(`${label} not found: ${targetPath}`);
@@ -194,6 +231,57 @@ function fmtMtime(targetPath) {
   }
 }
 
+function ensureVcRuntime(stagedPythonDir) {
+  // Compiled extensions (swisseph, _sxtwl, greenlet, scikit-learn, ...) import
+  // MSVCP140.dll, which python.org does not ship and a clean Windows machine
+  // lacks. Guarantee the VC++ runtime sits next to python.exe so the loader
+  // finds it for every extension. Vendored copies win; otherwise reuse whatever
+  // the prepare step already placed there.
+  let copied = 0;
+  for (const name of VC_RUNTIME_DLLS) {
+    const from = path.join(vcRuntimeVendorDir, name);
+    if (fs.existsSync(from)) {
+      fs.copyFileSync(from, path.join(stagedPythonDir, name));
+      copied += 1;
+    }
+  }
+  const msvcp = path.join(stagedPythonDir, 'msvcp140.dll');
+  if (!fs.existsSync(msvcp)) {
+    throw new Error(
+      'msvcp140.dll is missing from the staged Python runtime. Vendor the VC++ ' +
+      'runtime under prepareruntime/vendor/vc_runtime/x64 (see its README) so ' +
+      'the desktop app starts on a clean Windows machine.'
+    );
+  }
+  console.log(`[stage:runtime] ensured ${copied} bundled VC++ runtime DLL(s) next to python.exe`);
+}
+
+function runNativeDepCheck(stagedPythonDir) {
+  if (!fs.existsSync(nativeDepCheckScript)) {
+    return;
+  }
+  const pythonExe = path.join(stagedPythonDir, 'python.exe');
+  if (!fs.existsSync(pythonExe)) {
+    return;
+  }
+  const result = spawnSync(pythonExe, [nativeDepCheckScript, stagedPythonDir], {
+    windowsHide: true,
+    encoding: 'utf8',
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      'Native dependency check failed: the bundled Python runtime has unresolved ' +
+      'DLL imports that would crash on a clean Windows machine (see output above).'
+    );
+  }
+}
+
 assertExists(runtimeWindowsDir, 'Runtime windows directory');
 
 const requiredPaths = [
@@ -203,6 +291,7 @@ const requiredPaths = [
   [path.join(runtimeWindowsDir, 'python', 'python.exe'), 'Bundled Python runtime'],
   [path.join(projectDir, 'astropy', 'websrv', 'webchartsrv.py'), 'Python chart service'],
   [path.join(projectDir, 'flatlib-ctrad2', 'flatlib', 'resources', 'swefiles'), 'Swiss ephemeris data'],
+  [path.join(projectDir, 'vendor', 'kinastro'), 'Kentang/kinastro vendor modules'],
 ];
 
 for (const [targetPath, label] of requiredPaths) {
@@ -216,10 +305,19 @@ rmrf(stageRoot);
 ensureDir(stageRoot);
 
 copyDir(runtimeWindowsDir, stageRuntimeDir);
+ensureVcRuntime(path.join(stageRuntimeDir, 'python'));
 copyDir(path.join(projectDir, 'astropy'), path.join(stageProjectDir, 'astropy'));
 copyDir(path.join(projectDir, 'flatlib-ctrad2'), path.join(stageProjectDir, 'flatlib-ctrad2'));
+copyDir(path.join(projectDir, 'vendor'), path.join(stageProjectDir, 'vendor'));
+const thirdPartyNotices = path.join(projectDir, 'THIRD_PARTY_NOTICES.md');
+if (!fs.existsSync(thirdPartyNotices)) {
+  throw new Error(`Missing required third-party notices file: ${thirdPartyNotices}`);
+}
+fs.copyFileSync(thirdPartyNotices, path.join(stageProjectDir, 'THIRD_PARTY_NOTICES.md'));
 const prunedRuntimeEntries = pruneRuntimePayload(stageRuntimeDir);
 const prunedProjectPyCaches = prunePythonCaches(stageProjectDir);
+const prunedRuntimePdb = prunePdbFiles(stageRuntimeDir);
+runNativeDepCheck(path.join(stageRuntimeDir, 'python'));
 
 const manifest = {
   generatedAt: new Date().toISOString(),
@@ -274,6 +372,12 @@ if (prunedProjectPyCaches.length > 0) {
   const removedBytes = prunedProjectPyCaches.reduce((total, entry) => total + entry.bytes, 0);
   console.log(
     `[stage:runtime] pruned ${prunedProjectPyCaches.length} Python cache paths, ${removedFiles} files, ${(removedBytes / (1024 * 1024)).toFixed(2)} MB`
+  );
+}
+if (prunedRuntimePdb.length > 0) {
+  const removedBytes = prunedRuntimePdb.reduce((total, entry) => total + entry.bytes, 0);
+  console.log(
+    `[stage:runtime] pruned ${prunedRuntimePdb.length} .pdb debug-symbol files, ${(removedBytes / (1024 * 1024)).toFixed(2)} MB`
   );
 }
 console.log(

@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "2.0.1",
+  "version": "2.1.1",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Horosa mature Windows desktop app bundle",
@@ -12,11 +12,13 @@
     "stage:runtime": "node scripts/stage-runtime.cjs",
     "build:desktop": "npm run build:renderer && npm run prepare:runtime && npm run stage:runtime",
     "patch:win-icon": "node scripts/patch-win-exe-icon.cjs",
+    "build:assets": "python scripts/generate_brand_assets.py",
+    "verify": "node --test electron/service-manager.test.js && python scripts/release_preflight.py",
     "dev": "npm run build:renderer && npm run stage:runtime && electron .",
     "dev:fast": "npm run stage:runtime && electron .",
     "start": "npm run build:desktop && electron .",
     "pack:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon",
-    "dist:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon && electron-builder --win nsis --prepackaged release/win-unpacked"
+    "dist:win": "npm run verify && npm run build:desktop && electron-builder --dir && npm run patch:win-icon && electron-builder --win nsis --prepackaged release/win-unpacked"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
@@ -81,7 +83,7 @@
       "uninstallerSidebar": "assets/uninstallerSidebar.bmp",
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Horosa",
+      "shortcutName": "星阙",
       "displayLanguageSelector": false,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true

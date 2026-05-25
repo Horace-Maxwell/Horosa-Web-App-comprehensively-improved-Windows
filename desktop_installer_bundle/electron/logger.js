@@ -1,6 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 
+function isBrokenConsolePipe(error) {
+  return Boolean(error && (error.code === 'EPIPE' || error.code === 'EBADF'));
+}
+
+function attachConsolePipeGuard(stream) {
+  if (!stream || stream.__horosaPipeGuarded) {
+    return;
+  }
+  stream.__horosaPipeGuarded = true;
+  stream.on('error', (error) => {
+    if (!isBrokenConsolePipe(error)) {
+      throw error;
+    }
+  });
+}
+
+attachConsolePipeGuard(process.stdout);
+attachConsolePipeGuard(process.stderr);
+
 function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
 }
@@ -32,7 +51,13 @@ function createLogger(logDir, scope = 'main') {
     const line = formatMessage(level, scope, args);
     fs.appendFileSync(logFile, `${line}\n`, 'utf8');
     const sink = level === 'ERROR' ? console.error : console.log;
-    sink(line);
+    try {
+      sink(line);
+    } catch (error) {
+      if (!isBrokenConsolePipe(error)) {
+        throw error;
+      }
+    }
   }
 
   return {

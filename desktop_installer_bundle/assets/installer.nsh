@@ -5,8 +5,8 @@ ManifestDPIAware true
 
 !define /ifndef INSTALL_REGISTRY_KEY "Software\${APP_GUID}"
 !define /ifndef UNINSTALL_REGISTRY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}"
-!define /ifndef CURRENT_SHORTCUT_FILE_NAME "Horosa.lnk"
-!define /ifndef LEGACY_BRAND_SHORTCUT_FILE_NAME "星阙.lnk"
+!define /ifndef CURRENT_SHORTCUT_FILE_NAME "星阙.lnk"
+!define /ifndef LEGACY_BRAND_SHORTCUT_FILE_NAME "Horosa.lnk"
 
 !ifndef BUILD_UNINSTALLER
 

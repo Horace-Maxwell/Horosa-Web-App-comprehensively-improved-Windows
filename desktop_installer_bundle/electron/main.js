@@ -249,6 +249,15 @@ function getRendererIndexPath() {
 function getRendererIndexUrl() {
   const indexPath = getRendererIndexPath();
   const rendererUrl = pathToFileURL(indexPath);
+  const runtimeState = runtimeManager ? runtimeManager.getState() : {};
+  const serverRoot = runtimeState.serverRoot || 'http://127.0.0.1:9999';
+  const chartRoot = runtimeState.chartPort
+    ? `http://127.0.0.1:${runtimeState.chartPort}`
+    : 'http://127.0.0.1:8899';
+  rendererUrl.searchParams.set('srv', serverRoot);
+  rendererUrl.searchParams.set('chartSrv', chartRoot);
+  rendererUrl.searchParams.set('kentangSrv', chartRoot);
+  rendererUrl.searchParams.set('v', String(Date.now()));
   rendererUrl.hash = '/';
   return {
     indexPath,
@@ -264,6 +273,10 @@ function getBootstrapConfig() {
     zoomFactor: currentZoomFactor,
     runtimeStatus: runtimeState,
     serverRoot: runtimeState.serverRoot || 'http://127.0.0.1:9999',
+    chartRoot: runtimeState.chartPort ? `http://127.0.0.1:${runtimeState.chartPort}` : 'http://127.0.0.1:8899',
+    kentangRoot: runtimeState.chartPort ? `http://127.0.0.1:${runtimeState.chartPort}` : 'http://127.0.0.1:8899',
+    backendPort: runtimeState.backendPort || 9999,
+    chartPort: runtimeState.chartPort || 8899,
     userDataPath: app.getPath('userData'),
   };
 }

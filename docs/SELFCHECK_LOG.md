@@ -1,6 +1,89 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-22
+最后更新：2026-05-25
+
+## 2026-05-25 v2.1.1 Beta 干净 Windows 原生运行时修复与发布重打
+
+本轮以 Horosa `v2.1.1 Beta` 为目标，在 v2.1.0 Mac 2.1.0 beta 对齐功能面之上，重点固化全新 Windows 机器无需额外安装 VC++ Redistributable、Python 或 Java 即可启动的运行时修复。GitHub Release 按用户要求使用 Beta 标题与说明，但发布属性保持 `prerelease=false`，让普通用户能在 GitHub 右侧 Releases 区域直接看到并下载。
+
+### 代码与构建检查
+
+- `npm run dist:win`：成功生成 v2.1.1 Windows `win-unpacked`、安装器、blockmap 与 `latest.yml`。
+- `node --test electron/service-manager.test.js`：14 tests passed。
+- `python scripts/release_preflight.py`：版本、品牌资产、vendored VC++ runtime 与应用显示名检查通过。
+- `stage-runtime.cjs`：确认 10 个 VC++ runtime DLL 已复制到 bundled `python.exe` 同级。
+- `check_runtime_native_deps.py`：打包 staging 阶段扫描 192 个原生模块通过；本地 runtime survey 扫描 195 个 PE 文件通过。
+- bundled Python import smoke：`swisseph`、`_sxtwl`、`sxtwl`、`ephem`、`pendulum`、`kerykeion`、`astropy`、`pandas`、`streamlit` 导入通过。
+- `Get-AuthenticodeSignature`：`Horosa-Setup-2.1.1.exe` 为 `NotSigned`，符合本轮“不签名”的打包要求。
+
+### 发布资产
+
+- `desktop_installer_bundle/release/Horosa-Setup-2.1.1.exe`
+- `desktop_installer_bundle/release/Horosa-Setup-2.1.1.exe.blockmap`
+- `desktop_installer_bundle/release/latest.yml`
+- `desktop_installer_bundle/release/SHA256SUMS.txt`
+
+### SHA256
+
+- `Horosa-Setup-2.1.1.exe`: `e389cd144d84ab3df9daf371560a5bf92891000fd16a650356b3e81212ed3284`
+- `Horosa-Setup-2.1.1.exe.blockmap`: `e2f193b0b3927626e702cd60db858fd813c18788519296ab318f5aaa75b07481`
+- `latest.yml`: `93c38b49e5aaf49ae9b161a692723dcacc4cd9bf2a3cae5191625792bcfd8815`
+
+### 注意事项
+
+- `latest.yml` 已显示 `version: 2.1.1` 且 `path: Horosa-Setup-2.1.1.exe`，安装器大小为 `1193739830` bytes。
+- runtime payload tar 大小为 `2695476224` bytes。
+- `docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md` 已纳入当前 release gate；未来新增 Python 原生依赖时必须继续跑 native dependency scan。
+- 用户/其他 agent 已在全新 Windows 11 VM 手测确认 standalone-Python 安装包可启动、命盘可渲染、Python 图表服务与 Java 后端均正常运行；本轮重打包保留同一修复链路并通过构建期原生依赖闸门。
+- `README.md`、`README_ZH.md`、`README_EN.md`、`docs/releases/2.1.1.md`、`docs/PROJECT_STRUCTURE.md`、`desktop_installer_bundle/README.md` 与 `CITATION.cff` 已更新到 v2.1.1 Beta 发布口径。
+
+## 2026-05-24 v2.1.0 Beta Mac 2.1.0 同步、Windows 安装器与干净机器复查
+
+本轮以 Horosa `v2.1.0 Beta` 为目标，继续把 Mac 2.1.0 beta 的传统命法/卜法后端、AI 导出、命盘/事盘管理、窗口与设置持久化、启动控制台、紫微/八字 UI 修复和 Windows 安装器加固同步进 Windows Web / Desktop 交付。发布工程仍不依赖 Mac 专属命令、Mac runtime 或 Mac 同步来源文件夹。
+
+### 代码与构建检查
+
+- `npm run build:file`：`astrostudyui` file 模式构建通过。
+- `npm run dist:win`：成功生成 v2.1.0 Windows `win-unpacked`、安装器、blockmap 与 `latest.yml`。
+- `python -m py_compile desktop_installer_bundle/scripts/clean_machine_cold_warm_check.py`：新增干净机器冷/热启动脚本语法检查通过。
+- `Get-AuthenticodeSignature`：`Horosa-Setup-2.1.0.exe` 为 `NotSigned`，符合本轮“不签名”的打包要求。
+
+### Web 与后端自检
+
+- 一键 Web 预检确认使用随仓库/随包运行时：Python `3.11.9`、OpenJDK `17.0.10`、Node `v20.20.2`。
+- `verify_kentang_runtime_endpoints.py`：17 个 kentang/kin `/pan` 端点全通过，并在之后回打普通 `/chart` 多时间样例通过。
+- `verifyHorosaRuntimeFull.js`：Java 后端主要模块返回有效结构。
+- 浏览器自检 8 个重点 UI 用例通过，`pageErrors=0`，`consoleErrors=0`。
+
+### 安装器与安装版自检
+
+- `installer_custom_dir_smoke.py`：自定义安装目录、主程序、卸载程序、桌面快捷方式和开始菜单快捷方式均有效。
+- `installed_desktop_smoke_check.py`：安装版 runtime shell ready、renderer chart ready、正常关闭、快捷方式重启、单实例检查和 8 个 UI 用例通过。
+- 安装版自检结果：`pageErrors=0`，`consoleErrors=0`，desktop/Python forbidden 日志均为 `0`。
+- `clean_machine_cold_warm_check.py`：隔离 `LOCALAPPDATA`、`APPDATA`、`TEMP`、`TMP` 后冷/热启动通过。
+  - 冷启动：`extracted`，`24250ms`，runtime payload `2994307584` bytes。
+  - 热启动：`cached`，`9120ms`，低于 10 秒。
+  - backend/chart probes ready，forbidden log matches 为空，8899/9999/9464 停止后无监听。
+
+### 发布资产
+
+- `desktop_installer_bundle/release/Horosa-Setup-2.1.0.exe`
+- `desktop_installer_bundle/release/Horosa-Setup-2.1.0.exe.blockmap`
+- `desktop_installer_bundle/release/latest.yml`
+- `desktop_installer_bundle/release/SHA256SUMS.txt`
+
+### SHA256
+
+- `Horosa-Setup-2.1.0.exe`: `5b5e5bdc1f8a163a52ffa08460732e3d98ce6f8f3e0d057503bad48e96c4712d`
+- `Horosa-Setup-2.1.0.exe.blockmap`: `8127b10f0f80152a3a401a68752460a74242b2d7b4617e1c806870a153a860d8`
+- `latest.yml`: `93094594159eb2c4e56b107911aa1593bbb314d7bd264d5d9efb47c9485163de`
+
+### 注意事项
+
+- `latest.yml` 已显示 `version: 2.1.0` 且 `path: Horosa-Setup-2.1.0.exe`。
+- `SHA256SUMS.txt` 已在最终重打安装包之后重新生成。
+- `README.md`、`README_ZH.md`、`README_EN.md`、`docs/releases/2.1.0.md`、`docs/PROJECT_STRUCTURE.md`、`desktop_installer_bundle/README.md` 与 `CITATION.cff` 已更新到 v2.1.0 Beta 发布口径。
+- 当前 release 资产按用户要求未做 Authenticode 签名；干净 Windows 可能出现 SmartScreen 信任提示，但这不等同于 Java/Python/接口不匹配。
 
 ## 2026-05-22 v2.0.1 Beta Qimen parity and Windows installer rebuild
 
