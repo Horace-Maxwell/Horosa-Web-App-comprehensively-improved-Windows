@@ -8,14 +8,14 @@
 
 **把占星与中国术数，收进一个原生 Windows 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.1.4%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4)
+[![Version](https://img.shields.io/badge/version-2.1.5%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.5)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.5)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.5)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.4.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.5.exe) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -28,13 +28,13 @@
 
 星阙 Horosa 是一套桌面端的玄学工作站。西方占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙这些中国传统术数，被放进同一个原生 Windows 应用里。它要解决的事其实很朴素：不必在十几个网页排盘器之间来回切，也不必自己拼装底层的 Python、Java 与历表运行时——你下载一个离线 NSIS 安装包，打开的就是一个成品。
 
-这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.1.4.exe`）的发布链路。
+这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.1.5.exe`）的发布链路。
 
 ## 下载
 
 普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Setup-2.1.4.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.4.exe)**
+**[⬇︎ Horosa-Setup-2.1.5.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.5.exe)**
 
 适合场景：
 
@@ -95,17 +95,18 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.1.4 beta 更新
+## v2.1.5 beta 更新
 
-这一版把 Mac 端最新的 **AI 分析后台调用修复** 同步到 Windows（对应 GitHub issues 反馈的"AI 后台调用有问题"）。
+这一版把 Mac 端最新的 **AI 分析页全面修复** 同步到 Windows（供应商切换 / 鉴权、发送安全、静默失败透出）。
 
-- **兼容 OpenAI 推理模型** —— `gpt-5.x` / `o1` / `o3` / `o4`（含 openrouter 的 `openai/gpt-5` 写法）只接受默认 temperature 且用 `max_completion_tokens`；现在命中这类模型时自动省略 `temperature`、改用 `max_completion_tokens`，其它模型（如 `gpt-4.1`）不变
-- **上游错误透传** —— 后端把上游 provider 的真实错误体并入错误信息，前端流式处理 `error` 事件；调用失败显示**真实原因**，不再一律"模型未返回可用内容"
-- **凭据脱敏** —— 出站请求失败时，错误信息 / 日志里的 `Authorization` / `x-api-key` 等敏感头显示为 `***redacted***`，URL 去掉 `?key=`
-- **后端已重编** —— Java 改动（`AIAnalysisProxyService` + 共享库 `boundless`）已重新构建并打包进 `astrostudyboot.jar`
-- **仍含 2.1.3 / 2.1.2 / 2.1.1** —— 八字时间修复、AI 分析重做、干净机器加固原样保留
+- **多供应商切换更顺** —— 供应商卡片可点击 + 「设为当前」按钮；切换供应商类型清空旧 API key；删除当前供应商自动补选另一个
+- **Gemini 直连修复** —— 原生 Gemini 走 URL `?key=`，不再误加 `Authorization`（此前报 `ACCESS_TOKEN_TYPE_UNSUPPORTED`）；custom 可用 `providerOptions.authHeaderName` / `authPrefix` 自定义鉴权头；推理前缀加 `o5`
+- **发送更稳** —— 流式中再按回车不并发重发；切换 / 删除会话先中止流；新消息自动滚到底
+- **失败不再静默** —— 嵌入 / 分块失败有提示；Markdown 解析失败退回纯文本；超时可由 `providerOptions.requestTimeoutMs` 配置；本地存储配额超限记录日志而非吞掉
+- **后端已重编** —— `AIAnalysisProxyService` 改动已重新构建打包进 `astrostudyboot.jar`
+- **仍含 2.1.4 / 2.1.3 / 2.1.2 / 2.1.1** —— 供应商兼容、八字时间、AI 分析重做、干净机器加固原样保留
 
-完整改动见 [v2.1.4 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4) 与 [本地发布说明](docs/releases/2.1.4.md)。
+完整改动见 [v2.1.5 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.5) 与 [本地发布说明](docs/releases/2.1.5.md)。
 
 ## 技术构成
 
@@ -120,16 +121,16 @@
 ## 常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-2.1.4.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-2.1.5.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
 
 **可以选择安装目录吗？**
-可以。v2.1.4 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
+可以。v2.1.5 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
 
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.1.4.exe`。
+`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.1.5.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。

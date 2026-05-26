@@ -2,6 +2,28 @@
 
 最后更新：2026-05-26
 
+## 2026-05-26 v2.1.5 Beta AI 分析页全面修复（供应商切换/鉴权 + 发送安全 + 静默失败透出）
+
+把 Mac main（`dbd0659` / `8f3371f`）的 AI 分析页修复同步到 Windows。前端为主 + 后端少量（`AIAnalysisProxyService.java`，故重建 jar）。
+
+### 移植与构建检查
+- 用 Mac 2.1.4→2.1.5 精确 commit diff 确认改动恰为 5 个文件（后端 `AIAnalysisProxyService.java` + 其测试；前端 `AIAnalysisMain.js` / `services/aianalysis.js` / `utils/aiAnalysisStore.js`）。WIN-vs-Mac 的 stat 与 commit-range stat 完全一致 → 这 5 文件均处 Mac 2.1.4 基线、无 Windows 分叉，逐字节移植只引入 2.1.5 改动。其余后端大量 Windows-vs-Mac 差异是既有 Windows 基线分叉，**未动**。
+- 后端仅改 astrostudy 模块：`install astrostudy` → `clean package astrostudyboot`；fat jar 内 `AIAnalysisProxyService.class` 含 `authHeaderName`（target / staged bundle / 最终 `build/app-runtime` 三处均核对）。
+- Java `AIAnalysisProxyServiceTest` 16/16；前端 `umi-test` 28 suites / 129；`npm run verify` preflight 2.1.5 通过；`npm run dist:win` exit 0；原生闸门 192 模块。
+
+### 发布自检闸门（dist:win 末尾自动执行，全 PASS）
+`release_selfcheck.py` 在 `dist:win` 末尾运行并 **5/5 通过**：版本一致、13 文件哨兵（本轮新增 `authHeaderName` + `resolveRequestTimeout`）、staged jar 不过期、staged 前端不过期、发布资产+哈希一致。本轮还修正闸门：SHA256SUMS 在 dist:win 末尾尚未重生成时按"待重生成"放行（不误失败），重生成 SHA256SUMS 后再跑则做完整哈希核对（已二次跑通）。
+
+### 发布资产 + SHA256
+- `Horosa-Setup-2.1.5.exe`（`1194431203` bytes）+ `.exe.blockmap` + `latest.yml`（version `2.1.5`）+ `SHA256SUMS.txt`（已为 2.1.5 重新生成）。
+- `Horosa-Setup-2.1.5.exe`: `647a96ab698f21ce0a9bb98baa63c87521863397d174fe8ea343a07f2237260f`
+- `Horosa-Setup-2.1.5.exe.blockmap`: `3ed8bdc2fb153877ce9d5ebaf351ae102007e1352bac25add5eb1f5eda68d689`
+- `latest.yml`: `261d5355427b0f397decd99eb37a1eb1fc1bc6d79c7867c62f4756b45ade9fc0`
+
+### 注意事项
+- 行为面（供应商切换/鉴权、发送安全、静默失败透出）由 Java 单测 + 前端单测覆盖；真实 provider 往返（尤其 Gemini 直连、custom 自定义鉴权头）建议用真 key 在 App 内复测。
+- 推 v* tag 不会自动覆盖（workflow 为 `workflow_dispatch`-only）。
+
 ## 2026-05-26 v2.1.4 Beta AI 分析后台调用修复（供应商兼容 + 错误透传 + 凭据脱敏）+ 自检闸门固化
 
 本轮把 Mac main（`65f2711`）的 AI 分析后台调用修复同步到 Windows，并新增一个变更无关的发布自检闸门 `release_selfcheck.py`，把历轮发现的漏洞固化成自动检查，确保以后每次发布都能稳定发现问题、不再静默复发。
