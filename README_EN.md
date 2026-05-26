@@ -8,14 +8,14 @@
 
 **Western astrology and Chinese metaphysics, in one native Windows workstation**
 
-[![Version](https://img.shields.io/badge/version-2.1.3%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3)
+[![Version](https://img.shields.io/badge/version-2.1.4%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.3.exe) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.4.exe) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -28,13 +28,13 @@
 
 Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native Windows application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download an offline NSIS installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.1.3.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.1.4.exe`).
 
 ## Download
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-2.1.3.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.3.exe)**
+**[⬇︎ Horosa-Setup-2.1.4.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.4.exe)**
 
 Best for:
 
@@ -95,17 +95,17 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## New in v2.1.3 beta
+## New in v2.1.4 beta
 
-This release syncs the latest Mac-side **BaZi time-display fix** into Windows.
+This release syncs the latest Mac-side **AI Analysis backend-call fixes** into Windows (addressing reported GitHub issues that the AI backend call was broken).
 
-- **BaZi "direct time / true solar time" no longer jumps** — toggling the left-column time algorithm used to make the "true solar time" value shift (and the label was hardcoded to "true solar time"); now both times are shown as stable values (direct = clock input, true solar = always corrected for longitude + equation of time), and the toggle only changes the calculation basis (the chart still computes per the chosen basis)
-- **Longitude actually matters** — when the birth longitude differs from the time zone's central meridian, true solar time differs from direct time (earlier to the west, later to the east); even on the meridian it differs by a few minutes due to the equation of time
-- **Frontend/backend consistent** — BaZi is computed client-side, so the primary fix is in `baziLunarLocal.js`; the Java backend `BaZi.java` writes `clockTime`/`solarTime` too, covering the local-calc fallback and AI-export path (rebuilt into `astrostudyboot.jar`)
-- **Unified display (4 places)** — the new-UI center/right info cards, the legacy XingQue header, and the AI structured snapshot all now show "direct time / true solar time / calculation basis"
-- **Still includes 2.1.2 / 2.1.1** — the 2.1.2 AI Analysis rework and the 2.1.1 clean-machine hardening are retained
+- **OpenAI reasoning-model compatibility** — `gpt-5.x` / `o1` / `o3` / `o4` (incl. the `openai/gpt-5` openrouter form) only accept the default temperature and use `max_completion_tokens`; the request now omits `temperature` and uses `max_completion_tokens` for these models, while others (e.g. `gpt-4.1`) are unchanged
+- **Upstream error surfacing** — the backend merges the upstream provider's real error body into the error, and the frontend handles a streamed `error` event; a failed call now shows the real reason instead of the generic "no usable content"
+- **Credential redaction** — on a failed outbound request, sensitive headers (`Authorization` / `x-api-key` …) in error messages / logs are shown as `***redacted***`, and `?key=` is stripped from logged URLs
+- **Backend rebuilt** — the Java changes (`AIAnalysisProxyService` + the shared `boundless` lib) were rebuilt into `astrostudyboot.jar`
+- **Still includes 2.1.3 / 2.1.2 / 2.1.1** — the BaZi time fix, the AI Analysis rework, and the clean-machine hardening are retained
 
-Full log on the [v2.1.3 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3) and the [local release notes](docs/releases/2.1.3.md).
+Full log on the [v2.1.4 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.4) and the [local release notes](docs/releases/2.1.4.md).
 
 ## Under the Hood
 
@@ -120,16 +120,16 @@ Continuous integration builds and tests the frontend (Node 20) and backend (Java
 ## FAQ
 
 **Do I need to clone the repo to use Horosa?**
-No. Download `Horosa-Setup-2.1.3.exe` from the latest release.
+No. Download `Horosa-Setup-2.1.4.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
 
 **Can I choose the install directory?**
-Yes. The v2.1.3 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
+Yes. The v2.1.4 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.1.3.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.1.4.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. App replacement and runtime switching update the program and shared runtime; they are not designed to erase your saved charts and cases.

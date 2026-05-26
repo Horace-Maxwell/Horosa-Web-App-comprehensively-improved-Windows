@@ -393,13 +393,20 @@ function Test-BackendJarNeedsBuild {
     return $false
   }
 
+  # Watch EVERY source module that goes into the boot fat jar, not just a few. A change confined to e.g.
+  # astrostudycn (BaZi.java, v2.1.3) or boundless (v2.1.4) must trigger a rebuild too.
   $watchPaths = @(
     (Join-Path $backendRoot 'pom.xml'),
     (Join-Path $backendRoot 'astrostudyboot\pom.xml'),
     (Join-Path $backendRoot 'astrostudyboot\src'),
     (Join-Path $backendRoot 'astrostudy\src'),
+    (Join-Path $backendRoot 'astrostudycn\src'),
     (Join-Path $backendRoot 'boundless\src'),
-    (Join-Path $backendRoot 'basecomm\src')
+    (Join-Path $backendRoot 'basecomm\src'),
+    (Join-Path $backendRoot 'image\src'),
+    (Join-Path $backendRoot 'astrodeeplearn\src'),
+    (Join-Path $backendRoot 'astroreader\src'),
+    (Join-Path $backendRoot 'astroesp\src')
   )
 
   $latestSourceWrite = Get-LatestWriteTimeUtc -Paths $watchPaths
@@ -417,7 +424,8 @@ function Try-BuildBackendJar {
     [string]$TargetJarPath
   )
 
-  $bootDir = Join-Path $ProjDir 'astrostudysrv\astrostudyboot'
+  $backendRoot = Join-Path $ProjDir 'astrostudysrv'
+  $bootDir = Join-Path $backendRoot 'astrostudyboot'
   if (-not (Test-Path $bootDir)) {
     Write-Host ("[WARN] Backend build folder not found: {0}" -f $bootDir)
     return $false
@@ -429,14 +437,57 @@ function Try-BuildBackendJar {
     return $false
   }
 
-  Write-Host ("[mvn] package astrostudyboot via {0}" -f $mvn)
-  try {
-    Push-Location $bootDir
-    & $mvn -DskipTests package
-  } catch {
-    Write-Host ("[WARN] Maven build failed: {0}" -f $_.Exception.Message)
-  } finally {
-    Pop-Location
+  # Maven needs a JDK (javac), not a JRE. Prefer an explicit JDK; otherwise search common install roots.
+  $jdkHome = $null
+  foreach ($cand in @($env:HOROSA_JAVA_HOME, $env:JAVA_HOME)) {
+    if ($cand -and (Test-Path (Join-Path $cand 'bin\javac.exe'))) { $jdkHome = $cand; break }
+  }
+  if (-not $jdkHome) {
+    $searchRoots = @(
+      (Join-Path $env:LOCALAPPDATA 'Programs\Microsoft'),
+      (Join-Path $env:ProgramFiles 'Microsoft'),
+      (Join-Path $env:ProgramFiles 'Eclipse Adoptium'),
+      (Join-Path $env:ProgramFiles 'Java')
+    )
+    foreach ($root in $searchRoots) {
+      if ($root -and (Test-Path $root)) {
+        $found = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+          Where-Object { Test-Path (Join-Path $_.FullName 'bin\javac.exe') } |
+          Sort-Object Name -Descending | Select-Object -First 1
+        if ($found) { $jdkHome = $found.FullName; break }
+      }
+    }
+  }
+  if (-not $jdkHome) {
+    Write-Host '[WARN] No JDK (with javac) found for the Maven build. Set HOROSA_JAVA_HOME or JAVA_HOME to a JDK 17.'
+    return $false
+  }
+  $env:JAVA_HOME = $jdkHome
+  Write-Host ("[mvn] using maven={0}; JDK={1}" -f $mvn, $jdkHome)
+
+  # No root reactor pom: `install` each source module in dependency order, then clean-package the boot fat jar.
+  # The install steps are REQUIRED -- a change in a dependency module (astrostudy / astrostudycn / boundless / ...)
+  # does NOT enter the boot fat jar via a bare `mvn package` in astrostudyboot (module versions are fixed, so it
+  # silently reuses stale .m2 artifacts). Order mirrors CI. `clean` on boot is required for the same reason.
+  $moduleOrder = @('boundless','image','basecomm','astrostudy','astrostudycn','astrodeeplearn','astroreader','astroesp')
+  $buildOk = $true
+  foreach ($m in $moduleOrder) {
+    $pom = Join-Path $backendRoot ("{0}\pom.xml" -f $m)
+    if (-not (Test-Path $pom)) { continue }
+    Write-Host ("[mvn] install {0}" -f $m)
+    & $mvn -q -DskipTests -f $pom install
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host ("[WARN] Maven install failed for module: {0}" -f $m)
+      $buildOk = $false
+      break
+    }
+  }
+  if ($buildOk) {
+    Write-Host '[mvn] clean package astrostudyboot'
+    & $mvn -q -DskipTests -f (Join-Path $bootDir 'pom.xml') clean package
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host '[WARN] Maven clean package failed for astrostudyboot.'
+    }
   }
 
   return (Test-Path $TargetJarPath)
@@ -745,6 +796,11 @@ if (Test-BackendJarNeedsBuild -ProjDir $ProjectDir -TargetJarPath $JarSrc) {
   $builtJar = Try-BuildBackendJar -ProjDir $ProjectDir -TargetJarPath $JarSrc
   if (-not $builtJar) {
     Write-Host '[WARN] Maven build did not produce astrostudyboot.jar.'
+  }
+  # Fail loudly rather than silently ship a stale jar: if backend source is STILL newer than the (target) jar
+  # after the rebuild attempt, the jar does not contain the latest backend change -- do NOT fall back to it.
+  if (Test-BackendJarNeedsBuild -ProjDir $ProjectDir -TargetJarPath $JarSrc) {
+    throw "astrostudyboot.jar is stale (backend source is newer than the built jar) and could not be rebuilt. Build it manually (see .claude/skills/horosa-dev/SKILL.md section 5) or set HOROSA_JAVA_HOME to a JDK 17, then rerun."
   }
 }
 

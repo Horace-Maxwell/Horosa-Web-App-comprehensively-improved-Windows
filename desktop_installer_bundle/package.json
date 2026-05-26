@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Horosa mature Windows desktop app bundle",
@@ -14,11 +14,12 @@
     "patch:win-icon": "node scripts/patch-win-exe-icon.cjs",
     "build:assets": "python scripts/generate_brand_assets.py",
     "verify": "node --test electron/service-manager.test.js && python scripts/release_preflight.py",
+    "selfcheck": "python scripts/release_selfcheck.py",
     "dev": "npm run build:renderer && npm run stage:runtime && electron .",
     "dev:fast": "npm run stage:runtime && electron .",
     "start": "npm run build:desktop && electron .",
     "pack:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon",
-    "dist:win": "npm run verify && npm run build:desktop && electron-builder --dir && npm run patch:win-icon && electron-builder --win nsis --prepackaged release/win-unpacked"
+    "dist:win": "npm run verify && npm run build:desktop && electron-builder --dir && npm run patch:win-icon && electron-builder --win nsis --prepackaged release/win-unpacked && npm run selfcheck"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"

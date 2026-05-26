@@ -1,6 +1,39 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-25
+最后更新：2026-05-26
+
+## 2026-05-26 v2.1.4 Beta AI 分析后台调用修复（供应商兼容 + 错误透传 + 凭据脱敏）+ 自检闸门固化
+
+本轮把 Mac main（`65f2711`）的 AI 分析后台调用修复同步到 Windows，并新增一个变更无关的发布自检闸门 `release_selfcheck.py`，把历轮发现的漏洞固化成自动检查，确保以后每次发布都能稳定发现问题、不再静默复发。
+
+### 移植与构建检查
+- 经 Mac 2.1.3→2.1.4 diff 确认改动恰为 5 个文件（`AIAnalysisProxyService.java`、`HttpUriRequestHystrixCommand.java`(boundless)、`AIAnalysisMain.js` + 2 个测试），逐字节移植，无 Windows-ahead 回退。
+- Java 单测（内置 Maven + JDK17）：`HttpUriRequestHystrixCommandTest` 2/2、`AIAnalysisProxyServiceTest` 14/14，BUILD SUCCESS。
+- `astrostudyboot.jar` 按 boundless→astrostudy→astrostudyboot(clean package) 链路重建；fat jar 内 `AIAnalysisProxyService.class` 含 `max_completion_tokens`、`HttpUriRequestHystrixCommand.class` 含 `redacted`（target jar、staged bundle jar、最终打包 build/app-runtime jar 三处均已核对）。
+- `astrostudyui` `npm run build:file` 通过；`umi-test` 28 suites / 129 tests 通过；打包后前端 bundle 含 2.1.4 `streamError` 改动。
+- `npm run verify`：service-manager 14/14 + `release_preflight.py`（版本同步 2.1.4、品牌资产、VC++）通过。
+- `npm run dist:win`：exit 0；原生依赖闸门 192 模块全可解析。
+
+### 新增：变更无关发布自检闸门（防止历轮漏洞复发）
+- 新增 `desktop_installer_bundle/scripts/release_selfcheck.py`，并接入 `dist:win` 末尾（`npm run selfcheck`）。本轮在 2.1.4 实测 5 项全 PASS：版本一致、Windows-ahead/已移植修复哨兵（12 文件）、staged jar 不过期、staged 前端不过期、发布资产+哈希一致。
+- 同时根治"静默发旧 jar"陷阱：`Prepare_Runtime_Windows.ps1` 的 jar 自动构建改为「全模块按依赖序 install + JDK 探测 + boot clean package」，并在仍过期时硬失败而非回退旧 jar；watchPaths 扩到全部后端源模块（补上 astrostudycn 等）。已用完整 8 模块链 offline 实测产出含双标记的 jar。
+- 行为面：A 参数兼容 / B 后端错误透传 / C 凭据脱敏均由 Java 单测覆盖；前端 `error` 事件渲染与真实 provider 往返建议由用户用真 key 在 App 内复测（reasoning 模型 happy-path 需真 key）。
+
+### 发布资产
+- `desktop_installer_bundle/release/Horosa-Setup-2.1.4.exe`（`1194416512` bytes）+ `.exe.blockmap` + `latest.yml`（version `2.1.4`）+ `SHA256SUMS.txt`（已为 2.1.4 重新生成）。
+
+### SHA256
+- `Horosa-Setup-2.1.4.exe`: `84c6fb9ce94d6cf23f9b02d899ba0fc0b1a81e211817b56a5ba938a9189b487c`
+- `Horosa-Setup-2.1.4.exe.blockmap`: `ec676ba79fbb356616466a0a34f2ff08c0c375568d6c131d5c8d2f62b7df5047`
+- `latest.yml`: `87df91ad6591aa3e4e1b02d031adf60b7363b562d2b51ca7deea92190d362abe`
+
+### 注意事项
+- 后端 Java 改了就必须重建 jar；`dist:win` 的自动 jar 构建现已能正确处理（全模块链），且 `release_selfcheck.py` 会拦截过期 jar。
+- 发布走成熟手动流程；推 v* tag 不会自动覆盖（workflow 为 `workflow_dispatch`-only）。
+
+## 2026-05-25/26 v2.1.2 / v2.1.3 Beta 回填记录
+- **v2.1.2**（AI 分析重做：反挂错盘 + 9 技法按盘复算 + 事盘不重算 + Markdown）：已发布，commit `30153e7`、tag `v2.1.2`、`Horosa-Setup-2.1.2.exe` sha256 `9ad30107…`。期间踩到 CI workflow 自动覆盖坑，已改为 dispatch-only（`3bb2552`）；含一处冷启动 service-manager 修复。
+- **v2.1.3**（八字「直接时间/真太阳时」显示修复，前端为主 + `BaZi.java`）：已发布，commit `88f526c`、tag `v2.1.3`、`Horosa-Setup-2.1.3.exe` sha256 `02fbc787…`；首次按 astrostudycn→boot 链路重建 jar；用户已在 App 内实测确认修好。
 
 ## 2026-05-25 v2.1.1 Beta 干净 Windows 原生运行时修复与发布重打
 

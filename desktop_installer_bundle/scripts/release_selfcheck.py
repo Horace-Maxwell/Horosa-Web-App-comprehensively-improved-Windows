@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""Horosa Windows release self-check gate (change-agnostic).
+
+Philosophy: every vulnerability we have ever hit becomes a PERMANENT automated check here,
+so it can never silently recur. The checks verify CLASSES of problems (staleness, version
+drift, reverted fixes, asset/hash mismatch) rather than one release's specific change, so this
+script does NOT need editing every release -- only when a NEW class of bug is discovered (then
+add a new check / sentinel, per .claude/skills/horosa-dev/SKILL.md).
+
+Run it as the final gate after `npm run dist:win` (it is also wired into the `dist:win` script):
+    python scripts/release_selfcheck.py
+Exit code 0 = all gates pass; non-zero = a release-blocking problem was found.
+
+Past bugs encoded as gates:
+- silent stale jar  -> staged astrostudyboot.jar must be newer than all astrostudysrv/**/*.java
+- forgot rebuild FE -> staged dist-file must be newer than astrostudyui/src
+- version-bump miss -> all download/badge/tag refs must equal package.json version
+- reverted Win fix  -> Windows-ahead + ported-fix sentinels must still be present
+- bad release set   -> 4 assets present, SHA256SUMS matches files, latest.yml version matches
+"""
+import os, re, sys, glob, hashlib
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BUNDLE = os.path.dirname(SCRIPT_DIR)                       # desktop_installer_bundle
+REPO = os.path.dirname(BUNDLE)                             # repo root
+
+def _ws():
+    cands = glob.glob(os.path.join(REPO, "local", "workspace", "Horosa-Web-*"))
+    cands = [c for c in cands if os.path.isdir(os.path.join(c, "astrostudyui"))]
+    if not cands:
+        raise RuntimeError("Cannot locate local/workspace/Horosa-Web-* workspace dir")
+    return sorted(cands)[0]
+
+WS = _ws()
+UI = os.path.join(WS, "astrostudyui")
+SRV = os.path.join(WS, "astrostudysrv")
+BUNDLE_RUNTIME = os.path.join(REPO, "local", "workspace", "runtime", "windows", "bundle")
+
+results = []  # (name, ok, detail)
+def record(name, ok, detail=""):
+    results.append((name, ok, detail))
+
+def read(path):
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+def newest_mtime(root, exts, skip_substr=()):
+    newest = 0.0
+    newest_path = None
+    for dirpath, _dirs, files in os.walk(root):
+        if any(s in dirpath.replace("\\", "/") for s in skip_substr):
+            continue
+        for fn in files:
+            if exts and not fn.lower().endswith(exts):
+                continue
+            p = os.path.join(dirpath, fn)
+            try:
+                m = os.path.getmtime(p)
+            except OSError:
+                continue
+            if m > newest:
+                newest, newest_path = m, p
+    return newest, newest_path
+
+def pkg_version():
+    import json
+    with open(os.path.join(BUNDLE, "package.json"), "r", encoding="utf-8") as f:
+        return json.load(f)["version"]
+
+# ---------------------------------------------------------------- checks
+def check_version_consistency(V):
+    bad = []
+    # CITATION.cff
+    cff = read(os.path.join(REPO, "CITATION.cff"))
+    m = re.search(r"^version:\s*(.+)$", cff, re.MULTILINE)
+    if not m or m.group(1).strip() != V:
+        bad.append(f"CITATION.cff version = {m.group(1).strip() if m else 'missing'} != {V}")
+    # bundle README "当前发布版本：`X Beta`（安装器版本号为 `X`）"
+    bre = read(os.path.join(BUNDLE, "README.md"))
+    for mm in re.finditer(r"当前发布版本：`([\d.]+) Beta`（安装器版本号为 `([\d.]+)`）", bre):
+        if mm.group(1) != V or mm.group(2) != V:
+            bad.append(f"bundle README current-version = {mm.group(1)}/{mm.group(2)} != {V}")
+    # README download / badge / tag refs must all == V (historical 'includes X' prose & docs/releases/X.md links are bare and untouched)
+    pat = [(r"Horosa-Setup-([\d.]+)\.exe", "download exe"),
+           (r"version-([\d.]+)%20beta", "version badge"),
+           (r"releases/tag/v([\d.]+)", "tag link")]
+    for fn in ("README.md", "README_ZH.md", "README_EN.md", os.path.join("desktop_installer_bundle", "README.md")):
+        txt = read(os.path.join(REPO, fn))
+        for rx, label in pat:
+            for mm in re.finditer(rx, txt):
+                if mm.group(1) != V:
+                    bad.append(f"{fn}: stale {label} -> {mm.group(1)} (expect {V})")
+    record("version consistency", not bad, "; ".join(bad) if bad else f"all refs == {V}")
+
+def check_sentinels():
+    # file (relative to WS unless absolute) -> required substrings (a reverted fix removes these)
+    SENT = {
+        os.path.join(UI, "src/components/fengshui/FengShuiMain.js"): ['src="fengshui/index.html'],
+        os.path.join(UI, "src/utils/windowSizePersistence.js"): ["isDesktopShellWindow"],
+        os.path.join(UI, "src/components/ziwei/ZWHouse.js"): ["kinastroBorrowed"],
+        os.path.join(UI, "src/pages/index.js"): ["ensureField"],
+        os.path.join(UI, "src/utils/aiAnalysisContext.js"): ["compatible !== false", "regenerateChartTechniqueSnapshot"],
+        os.path.join(UI, "src/components/aianalysis/AIAnalysisMain.js"): ["renderMarkdownToHtml", "DOMPurify", "streamError"],
+        os.path.join(UI, "src/integrations/kentang/serviceRoot.js"): ["LOCAL_KENTANG_CHART_PORT"],
+        os.path.join(UI, "src/utils/baziLunarLocal.js"): ["clockTime", "solarTime"],
+        os.path.join(BUNDLE, "electron/service-manager.js"): ["desktop runtime port probe"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel"],
+        os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
+        os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/model/BaZi.java"): ["clockTime", "solarTime"],
+    }
+    missing = []
+    for path, needles in SENT.items():
+        if not os.path.exists(path):
+            missing.append(f"MISSING FILE {os.path.relpath(path, REPO)}")
+            continue
+        txt = read(path)
+        for n in needles:
+            if n not in txt:
+                missing.append(f"{os.path.relpath(path, REPO)} lost '{n}'")
+    record("windows-ahead / ported-fix sentinels", not missing, "; ".join(missing) if missing else f"{len(SENT)} files OK")
+
+def check_jar_not_stale():
+    jar = os.path.join(BUNDLE_RUNTIME, "astrostudyboot.jar")
+    if not os.path.exists(jar):
+        record("staged jar not stale", False, "bundle astrostudyboot.jar MISSING")
+        return
+    jar_m = os.path.getmtime(jar)
+    src_m, src_p = newest_mtime(SRV, (".java",), skip_substr=("/target/",))
+    ok = src_m <= jar_m
+    detail = "jar newer than all .java" if ok else f"STALE: {os.path.relpath(src_p, REPO)} is newer than the staged jar (jar not rebuilt from current backend source)"
+    record("staged jar not stale", ok, detail)
+
+def check_distfile_not_stale():
+    idx = os.path.join(BUNDLE_RUNTIME, "dist-file", "index.html")
+    if not os.path.exists(idx):
+        record("staged dist-file not stale", False, "bundle dist-file/index.html MISSING")
+        return
+    idx_m = os.path.getmtime(idx)
+    src_m, src_p = newest_mtime(os.path.join(UI, "src"), (".js", ".jsx", ".ts", ".tsx", ".less"), skip_substr=("/.umi/", "/.umi-production/"))
+    ok = src_m <= idx_m
+    detail = "dist-file newer than astrostudyui/src" if ok else f"STALE: {os.path.relpath(src_p, REPO)} newer than staged dist-file (frontend not rebuilt)"
+    record("staged dist-file not stale", ok, detail)
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def check_release_assets(V):
+    rel = os.path.join(BUNDLE, "release")
+    exe = os.path.join(rel, f"Horosa-Setup-{V}.exe")
+    if not os.path.exists(exe):
+        record("release assets", True, "SKIPPED (installer not built yet for this version)")
+        return
+    bad = []
+    assets = [f"Horosa-Setup-{V}.exe", f"Horosa-Setup-{V}.exe.blockmap", "latest.yml", "SHA256SUMS.txt"]
+    for a in assets:
+        if not os.path.exists(os.path.join(rel, a)):
+            bad.append(f"missing asset {a}")
+    ly = os.path.join(rel, "latest.yml")
+    if os.path.exists(ly):
+        lytxt = read(ly)
+        m = re.search(r"^version:\s*(.+)$", lytxt, re.MULTILINE)
+        if not m or m.group(1).strip() != V:
+            bad.append(f"latest.yml version {m.group(1).strip() if m else '?'} != {V}")
+        if f"Horosa-Setup-{V}.exe" not in lytxt:
+            bad.append("latest.yml url != current exe")
+    sums = os.path.join(rel, "SHA256SUMS.txt")
+    if os.path.exists(sums):
+        recorded = {}
+        for line in read(sums).splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                recorded[parts[1]] = parts[0].lower()
+        for a in (f"Horosa-Setup-{V}.exe", f"Horosa-Setup-{V}.exe.blockmap", "latest.yml"):
+            p = os.path.join(rel, a)
+            if a not in recorded:
+                bad.append(f"SHA256SUMS missing {a}")
+            elif os.path.exists(p) and sha256(p) != recorded[a]:
+                bad.append(f"SHA256 mismatch for {a}")
+    record("release assets + hashes", not bad, "; ".join(bad) if bad else "4 assets, hashes + latest.yml consistent")
+
+def main():
+    try:
+        V = pkg_version()
+    except Exception as e:
+        print(f"[selfcheck] FATAL: {e}")
+        return 2
+    print(f"[selfcheck] Horosa Windows release self-check - version {V}\n")
+    check_version_consistency(V)
+    check_sentinels()
+    check_jar_not_stale()
+    check_distfile_not_stale()
+    check_release_assets(V)
+    width = max(len(n) for n, _, _ in results)
+    failed = 0
+    for name, ok, detail in results:
+        tag = "PASS" if ok else "FAIL"
+        if not ok:
+            failed += 1
+        print(f"  [{tag}] {name.ljust(width)}  {detail}")
+    print()
+    if failed:
+        print(f"[selfcheck] {failed} gate(s) FAILED - do not release.")
+        return 1
+    print("[selfcheck] OK - all release gates passed.")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
