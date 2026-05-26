@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.1.2
+version: 2.1.3
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -11,8 +11,8 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v2.1.2 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side AI Analysis rework, astrology modules, traditional Chinese methods,
+  Horosa for Windows v2.1.3 beta is a local-first metaphysics workstation that aligns the
+  latest Mac-side fixes (BaZi true-solar-time display) and AI Analysis rework, astrology modules, traditional Chinese methods,
   kentang/kin backend integrations, AI-assisted structured export, Python and Java
   services, and self-contained Windows desktop delivery into one cross-platform
   release line.
