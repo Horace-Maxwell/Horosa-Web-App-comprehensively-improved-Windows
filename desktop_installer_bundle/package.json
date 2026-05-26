@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Horosa mature Windows desktop app bundle",

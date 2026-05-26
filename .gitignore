@@ -48,7 +48,10 @@ log/HOROSA_RUN_ISSUES.md
 # IDE
 .vscode/
 .idea/
-.claude/
+# Local agent config: keep the shared project skill tracked, ignore machine-specific settings
+.claude/*
+!.claude/skills/
+.claude/settings.local.json
 
 # Bundled runtimes (too large for regular Git push)
 local/workspace/runtime/mac/java/

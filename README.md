@@ -9,14 +9,14 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.1.2%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.2)
+[![Version](https://img.shields.io/badge/version-2.1.3%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.2)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.2)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.2.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.3.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -35,7 +35,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.1.2.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.2.exe)**
+**[⬇︎ Horosa-Setup-2.1.3.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.3.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -96,20 +96,18 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.1.2 beta
+## 本次更新 · What's New in v2.1.3 beta
 
-这一版把 Mac 端最新的 **AI 分析** 重做同步到 Windows，并修掉一个会“挂错盘”的严重问题：
+这一版把 Mac 端最新的**八字时间显示修复**同步到 Windows：
 
-- **修复挂错盘**：选中命盘后勾选技法，过去可能挂载“上次看过的那张盘”；现在出生 / 起盘签名不匹配的快照一律被硬过滤，绝不挂错盘。
-- **命盘按盘无头复算**：每个勾选的技法都按该盘出生数据实时复算，已接入 9 个（星盘 / 印度占星 / 八字 / 紫微 / 法达 / 主限法 / 七政四余 / 宿占 / 量化盘）。
-- **事盘绝不按时间重算**：占卜盘只挂载起盘那一刻保存的卦 / 课，勾选其它技法显示“缺失”。
-- **挂载面板重做**：折叠面板 + 完整内容 + 状态标签 + 出生签名，便于核对挂的是不是这张盘；新加技法面板自动展开。
-- **Markdown 渲染**：AI 回复用 `marked` + `DOMPurify` 渲染（标题 / 列表 / 表格 / 代码 / 引用），并做 XSS 净化，不再是一团 `**`。
-- **布局与历史页**：系统提示移到右列上方，按钮行移到底部发送键左侧；历史页移除两个空白日期框。
+- **八字「直接时间 / 真太阳时」不再跳动**：切换左栏「时间算法」时，过去「真太阳时」一栏会随之跳变、标签也写死成「真太阳时」。现在**两个时间都恒定显示**（直接时间 = 钟表输入、真太阳时 = 始终按经度 + 均时差校正），切换只改变「计算基准」，排盘仍按所选基准计算。
+- **经纬度真正生效**：只要出生地经度偏离所在时区中央经线，真太阳时就与直接时间不同（西边更早、东边更晚）；即便正好在中央经线，也会因均时差相差几分钟。
+- **前后端一致**：八字盘默认走前端本地计算（`lunar-javascript`），本次主修复在前端 `baziLunarLocal.js`；后端 `BaZi.java` 同步写入 `clockTime` / `solarTime`，覆盖本地计算异常回退与 AI 导出 / 分析取数路径（已重新构建并打包 `astrostudyboot.jar`）。
+- **四处显示统一**：新 UI 中栏 / 右栏信息卡、旧星阙 UI 表头、AI 结构化快照都改为「直接时间 / 真太阳时 / 计算基准」。
 
-2.1.1 的干净机器运行时加固（内置 Python、随包 VC++ 运行时、构建期依赖自检）原样保留。完整改动见 [v2.1.2 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.2) 与 [本地发布说明](docs/releases/2.1.2.md)。
+仍包含 2.1.2 的 AI 分析重做与 2.1.1 的干净机器运行时加固。完整改动见 [v2.1.3 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3) 与 [本地发布说明](docs/releases/2.1.3.md)。
 
-> This release syncs the latest Mac-side AI Analysis rework into Windows: a hard birth/cast signature filter that ends wrong-chart mounting, per-chart headless recomputation for nine techniques, event-charts that never recompute by time, a readable collapsible context panel with status and signature, and Markdown-rendered replies via `marked` + `DOMPurify`. The 2.1.1 clean-machine runtime hardening is kept unchanged. See the [v2.1.2 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.2) for the full log.
+> This release syncs the latest Mac-side **BaZi time-display fix** into Windows: the "direct time" and "true solar time" now show as two stable values that don't jump when you toggle the time algorithm (the toggle only changes the calculation basis), and true solar time properly reflects longitude + the equation of time. BaZi is computed client-side, so the primary fix is in the frontend (`baziLunarLocal.js`); the Java backend (`BaZi.java`, rebuilt into `astrostudyboot.jar`) is kept consistent for the local-calc fallback and AI-export path. It still includes the 2.1.2 AI Analysis rework and the 2.1.1 clean-machine hardening. See the [v2.1.3 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.3) for the full log.
 
 ## 技术构成 · Under the Hood
 
@@ -126,7 +124,7 @@
 - [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md) — 桌面打包与安装器说明 / installer internals
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) — 项目结构说明 / project structure
 - [docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md](docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md) — 干净 Windows 运行时修复与发布注意点 / clean-machine runtime notes
-- [docs/releases/2.1.2.md](docs/releases/2.1.2.md) · [docs/releases/2.1.1.md](docs/releases/2.1.1.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
+- [docs/releases/2.1.3.md](docs/releases/2.1.3.md) · [docs/releases/2.1.2.md](docs/releases/2.1.2.md) · [docs/releases/2.1.1.md](docs/releases/2.1.1.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
 - 源码 / source: `local/workspace/Horosa-Web-*/`（前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`）
 
 ## 致谢 · Acknowledgements

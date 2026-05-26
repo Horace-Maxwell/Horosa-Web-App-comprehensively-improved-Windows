@@ -3,6 +3,8 @@
 > 日期：2026-05-25 · 范围：把 Mac 仓库 `main` 的「AI 分析」重做同步到 Windows 交付工程，构建 2.1.2 安装包。
 > 目的：让其他 agent 能完整 catch up 本轮改动、理解 Windows 与 Mac 的架构差异、按既定流程验收，并据此执行 GitHub 发布。
 > 配套：用户可读发布说明见 [`docs/releases/2.1.2.md`](releases/2.1.2.md)；干净机器运行时背景见 [`docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md`](CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md)；目录结构见 [`docs/PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md)。
+>
+> **更新（后续版本）**：本文档记录 2.1.2 的 AI 分析同步。**操作规范（同步方法 / Windows 独有修复保留清单 / 必须用 PowerShell / `astrostudyboot.jar` 重建步骤 / 发布 runbook / CI 自动发布坑）已固化进 [`.claude/skills/horosa-dev/SKILL.md`](../.claude/skills/horosa-dev/SKILL.md)（Claude Code 自动加载），并要求每次遇到问题都同步更新该 skill 与对应 harness 文档。** 2.1.3（八字时间显示修复）见 [`docs/releases/2.1.3.md`](releases/2.1.3.md)。
 
 ---
 
