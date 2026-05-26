@@ -18,6 +18,7 @@
 - 新增 `desktop_installer_bundle/scripts/release_selfcheck.py`，并接入 `dist:win` 末尾（`npm run selfcheck`）。本轮在 2.1.4 实测 5 项全 PASS：版本一致、Windows-ahead/已移植修复哨兵（12 文件）、staged jar 不过期、staged 前端不过期、发布资产+哈希一致。
 - 同时根治"静默发旧 jar"陷阱：`Prepare_Runtime_Windows.ps1` 的 jar 自动构建改为「全模块按依赖序 install + JDK 探测 + boot clean package」，并在仍过期时硬失败而非回退旧 jar；watchPaths 扩到全部后端源模块（补上 astrostudycn 等）。已用完整 8 模块链 offline 实测产出含双标记的 jar。
 - 行为面：A 参数兼容 / B 后端错误透传 / C 凭据脱敏均由 Java 单测覆盖；前端 `error` 事件渲染与真实 provider 往返建议由用户用真 key 在 App 内复测（reasoning 模型 happy-path 需真 key）。
+- clean-machine 冷/热启动 smoke（新 boundless+astrostudy jar）：冷/热均 `backendReady`+`chartReady`、出盘正常、`forbiddenLogMatches` 为空、8899/9999/9464 停止后均释放——证明新 jar 能正常启动后端并服务。热启动 `10018ms` 略超 10s 软阈值（脚本据此 exit 1），与当时并行的 Maven 构建争用有关，非功能回归。
 
 ### 发布资产
 - `desktop_installer_bundle/release/Horosa-Setup-2.1.4.exe`（`1194416512` bytes）+ `.exe.blockmap` + `latest.yml`（version `2.1.4`）+ `SHA256SUMS.txt`（已为 2.1.4 重新生成）。
