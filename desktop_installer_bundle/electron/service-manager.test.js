@@ -7,7 +7,13 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { RuntimeManager, classifyProcessExit, waitForBackendHeartbeat } = require('./service-manager');
+const {
+  RuntimeManager,
+  classifyProcessExit,
+  waitForBackendHeartbeat,
+  sanitizeEmbeddedRuntimeEnv,
+  buildPythonRuntimeArgs,
+} = require('./service-manager');
 
 function createLogger() {
   const entries = {
@@ -108,6 +114,100 @@ function createHttpServer(handler) {
     });
   });
 }
+
+// --- Embedded-runtime env isolation (GitHub issue #2: "Windows 11 cannot run")
+// A host machine with its own Python/Java tooling configured used to crash our
+// embedded interpreters on boot (PYTHONHOME -> wrong stdlib -> "No module named
+// 'encodings'"; _JAVA_OPTIONS -> bad JVM flag -> init abort). These guard that
+// the spawn env strips that contamination and the interpreter runs isolated.
+function withPoisonedEnv(poison, fn) {
+  const saved = {};
+  for (const [key, value] of Object.entries(poison)) {
+    saved[key] = Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : undefined;
+    process.env[key] = value;
+  }
+  try {
+    return fn();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+test('sanitizeEmbeddedRuntimeEnv strips host PYTHON* vars from the Python child env', () => {
+  withPoisonedEnv(
+    {
+      PYTHONHOME: 'C:\\Python311',
+      PYTHONSTARTUP: 'C:\\evil.py',
+      PYTHONPATH: 'C:\\some\\other\\path',
+      PYTHONCASEOK: '1',
+      PYTHON_GIL: '0',
+    },
+    () => {
+      const env = sanitizeEmbeddedRuntimeEnv(
+        { PYTHONPATH: 'D:\\astropy', PYTHONNOUSERSITE: '1', PYTHONUTF8: '1' },
+        'python'
+      );
+      // The killer var (and all unmanaged PYTHON*) must be gone.
+      assert.equal(env.PYTHONHOME, undefined);
+      assert.equal(env.PYTHONSTARTUP, undefined);
+      assert.equal(env.PYTHONCASEOK, undefined);
+      assert.equal(env.PYTHON_GIL, undefined);
+      // Our explicit overrides survive (host PYTHONPATH was replaced, not merged).
+      assert.equal(env.PYTHONPATH, 'D:\\astropy');
+      assert.equal(env.PYTHONNOUSERSITE, '1');
+      assert.equal(env.PYTHONUTF8, '1');
+      // Unrelated host vars (PATH etc.) are preserved so DLLs still resolve.
+      assert.equal(env.PATH, process.env.PATH);
+    }
+  );
+});
+
+test('sanitizeEmbeddedRuntimeEnv strips host JVM-injecting vars from the Java child env', () => {
+  withPoisonedEnv(
+    {
+      _JAVA_OPTIONS: '-Xmx999999999g',
+      JAVA_TOOL_OPTIONS: '-Dfoo=bar',
+      JDK_JAVA_OPTIONS: '-Dbaz=qux',
+      CLASSPATH: 'C:\\stray.jar',
+    },
+    () => {
+      const env = sanitizeEmbeddedRuntimeEnv({ HOROSA_SERVER_PORT: '9999' }, 'java');
+      assert.equal(env._JAVA_OPTIONS, undefined);
+      assert.equal(env.JAVA_TOOL_OPTIONS, undefined);
+      assert.equal(env.JDK_JAVA_OPTIONS, undefined);
+      assert.equal(env.CLASSPATH, undefined);
+      assert.equal(env.HOROSA_SERVER_PORT, '9999');
+      assert.equal(env.PATH, process.env.PATH);
+    }
+  );
+});
+
+test('sanitizeEmbeddedRuntimeEnv java mode does not strip PYTHON* (and vice versa)', () => {
+  withPoisonedEnv({ PYTHONHOME: 'C:\\Python311', _JAVA_OPTIONS: '-Xmx1g' }, () => {
+    const javaEnv = sanitizeEmbeddedRuntimeEnv({}, 'java');
+    // Java sanitizer only targets JVM vars; it should not touch PYTHON*.
+    assert.equal(javaEnv.PYTHONHOME, 'C:\\Python311');
+    assert.equal(javaEnv._JAVA_OPTIONS, undefined);
+    const pyEnv = sanitizeEmbeddedRuntimeEnv({}, 'python');
+    // Python sanitizer only targets PYTHON*; it should not touch JVM vars.
+    assert.equal(pyEnv.PYTHONHOME, undefined);
+    assert.equal(pyEnv._JAVA_OPTIONS, '-Xmx1g');
+  });
+});
+
+test('buildPythonRuntimeArgs launches the interpreter isolated from host PYTHON* vars', () => {
+  const args = buildPythonRuntimeArgs(['-c', 'print(1)']);
+  // -E (ignore PYTHON* incl PYTHONHOME), -s (skip user site), -X utf8 must come
+  // before the script so the interpreter is isolated at init time.
+  assert.deepEqual(args.slice(0, 4), ['-E', '-s', '-X', 'utf8']);
+  assert.deepEqual(args.slice(4), ['-c', 'print(1)']);
+});
 
 test('classifyProcessExit treats planned stop metadata as non-unexpected', () => {
   const child = createChild(101);

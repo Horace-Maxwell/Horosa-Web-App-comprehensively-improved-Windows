@@ -103,7 +103,16 @@ def check_sentinels():
         os.path.join(UI, "src/components/aianalysis/AIAnalysisMain.js"): ["renderMarkdownToHtml", "DOMPurify", "streamError"],
         os.path.join(UI, "src/integrations/kentang/serviceRoot.js"): ["LOCAL_KENTANG_CHART_PORT"],
         os.path.join(UI, "src/utils/baziLunarLocal.js"): ["clockTime", "solarTime"],
-        os.path.join(BUNDLE, "electron/service-manager.js"): ["desktop runtime port probe"],
+        os.path.join(BUNDLE, "electron/service-manager.js"): [
+            "desktop runtime port probe",
+            # issue #2 (Win11 won't run): embedded Python/Java must be spawned
+            # with host PYTHON*/_JAVA_OPTIONS contamination stripped + Python run
+            # isolated (-E -s -X utf8). Reverting any of these re-opens the bug.
+            "sanitizeEmbeddedRuntimeEnv",
+            "buildPythonRuntimeArgs",
+            "_JAVA_OPTIONS",
+            "'-E', '-s', '-X', 'utf8'",
+        ],
         os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName"],
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],

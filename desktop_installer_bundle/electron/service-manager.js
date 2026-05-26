@@ -42,6 +42,65 @@ const STARTUP_CHART_PROBE_PAYLOAD = {
   pos: 'Wellington',
 };
 
+// --- Embedded-runtime environment isolation ---------------------------------
+// The bundled Python and Java are fully self-contained. If we let them inherit
+// the host's ENTIRE environment, a machine that has its own Python/Java tooling
+// configured will poison our interpreters: a user-set PYTHONHOME makes the
+// embedded Python load the wrong stdlib and die instantly ("Fatal Python error:
+// init_fs_encoding ... ModuleNotFoundError: No module named 'encodings'"), and a
+// host _JAVA_OPTIONS / JAVA_TOOL_OPTIONS / JDK_JAVA_OPTIONS injects JVM flags
+// that abort startup. The backend then crashes the moment it launches, so the
+// desktop app never becomes usable -- but ONLY on that machine, which is exactly
+// why it slips past clean-VM testing. (GitHub issue #2: "Windows 11 cannot run"
+// reported on a box with system Python on PATH.)
+//
+// We therefore strip every host variable that can redirect/poison the embedded
+// runtime before spawning it. The Python interpreter is ALSO launched with
+// `-E -s` (see buildPythonRuntimeArgs) so it ignores PYTHON* at the C level even
+// if some new variable is ever missed by this allow-list. Any future check for
+// this class of bug lives in release_selfcheck.py + service-manager.test.js.
+const HOST_JAVA_POISON_ENV_VARS = [
+  '_JAVA_OPTIONS',
+  'JAVA_TOOL_OPTIONS',
+  'JDK_JAVA_OPTIONS',
+  'JAVA_OPTS',
+  'JAVA_COMPILER',
+  'CLASSPATH',
+  '_JAVA_SR_SIGNUM',
+];
+
+function sanitizeEmbeddedRuntimeEnv(overrides = {}, kind = 'python') {
+  const env = { ...process.env };
+  if (kind === 'python') {
+    // Drop EVERY host PYTHON* variable (PYTHONHOME, PYTHONPATH, PYTHONSTARTUP,
+    // PYTHONPLATLIBDIR, PYTHON_GIL, ...). The few we actually want
+    // (PYTHONPATH / PYTHONNOUSERSITE / PYTHONUTF8) are re-applied via overrides.
+    for (const key of Object.keys(env)) {
+      if (/^PYTHON/i.test(key)) {
+        delete env[key];
+      }
+    }
+  } else if (kind === 'java') {
+    // Env-var names are case-insensitive on Windows; match defensively.
+    for (const key of Object.keys(env)) {
+      if (HOST_JAVA_POISON_ENV_VARS.includes(key.toUpperCase())) {
+        delete env[key];
+      }
+    }
+  }
+  return { ...env, ...overrides };
+}
+
+// Interpreter-level isolation flags for the embedded Python:
+//   -E        ignore all PYTHON* env vars (incl. a host PYTHONHOME) during init
+//   -s        skip the per-user site-packages dir (embedded site-packages still load)
+//   -X utf8   force UTF-8 mode regardless of host locale / PYTHONUTF8
+// These replace relying solely on env hygiene and make the interpreter immune to
+// host contamination even if the env allow-list is ever incomplete.
+function buildPythonRuntimeArgs(extraArgs = []) {
+  return ['-E', '-s', '-X', 'utf8', ...extraArgs];
+}
+
 function waitForPort(port, timeoutMs = 60000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -459,6 +518,7 @@ function getJavaVersionText(javaExe) {
   const result = spawnSync(javaExe, ['-version'], {
     windowsHide: true,
     encoding: 'utf8',
+    env: sanitizeEmbeddedRuntimeEnv({}, 'java'),
   });
   return `${result.stderr || ''}\n${result.stdout || ''}`.trim();
 }
@@ -547,6 +607,7 @@ async function invokeAppCdsDynamicDump(processId, context, javaExe, logger, time
     const child = spawn(jcmdExe, [String(processId), 'VM.cds', 'dynamic_dump', context.archivePath], {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: sanitizeEmbeddedRuntimeEnv({}, 'java'),
     });
 
     const finish = (result) => {
@@ -1263,25 +1324,27 @@ class RuntimeManager extends EventEmitter {
         const mongoFallbackDir = path.join(this.userDataDir, 'mongo-fallback');
         ensureDir(mongoFallbackDir);
 
-        const pythonEnv = {
-          ...process.env,
-          HOME: runtimeHomeDir,
-          HOROSA_CHART_PORT: String(chartPort),
-          HOROSA_SWISSEPH_PATH: layout.swephDir,
-          HOROSA_SWEPH_PATH: layout.swephDir,
-          PYTHONPATH: [layout.astropyDir, layout.flatlibDir].join(path.delimiter),
-          PYTHONNOUSERSITE: '1',
-          PYTHONUTF8: '1',
-          SE_EPHE_PATH: layout.swephDir,
-          HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
-          HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
-          HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
-          HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-          HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
-          HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
-        };
+        const pythonEnv = sanitizeEmbeddedRuntimeEnv(
+          {
+            HOME: runtimeHomeDir,
+            HOROSA_CHART_PORT: String(chartPort),
+            HOROSA_SWISSEPH_PATH: layout.swephDir,
+            HOROSA_SWEPH_PATH: layout.swephDir,
+            PYTHONPATH: [layout.astropyDir, layout.flatlibDir].join(path.delimiter),
+            PYTHONNOUSERSITE: '1',
+            PYTHONUTF8: '1',
+            SE_EPHE_PATH: layout.swephDir,
+            HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
+            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
+            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
+            HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
+            HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
+            HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
+          },
+          'python'
+        );
 
-        this.pythonProcess = spawn(layout.pythonExe, ['-c', pythonBootstrap], {
+        this.pythonProcess = spawn(layout.pythonExe, buildPythonRuntimeArgs(['-c', pythonBootstrap]), {
           cwd: layout.projectRoot,
           env: pythonEnv,
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -1300,21 +1363,23 @@ class RuntimeManager extends EventEmitter {
         const javaArgs = this.buildJavaArgs(layout, backendPort, chartPort, javaLogBase, { trustedRuntime });
         this.javaProcess = spawn(layout.javaExe, javaArgs, {
           cwd: layout.projectRoot,
-          env: {
-            ...process.env,
-            HOME: runtimeHomeDir,
-            HOROSA_CHART_PORT: String(chartPort),
-            HOROSA_SERVER_PORT: String(backendPort),
-            HOROSA_SWISSEPH_PATH: layout.swephDir,
-            HOROSA_SWEPH_PATH: layout.swephDir,
-            SE_EPHE_PATH: layout.swephDir,
-            HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
-            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
-            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
-            HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-            HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
-            HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
-          },
+          env: sanitizeEmbeddedRuntimeEnv(
+            {
+              HOME: runtimeHomeDir,
+              HOROSA_CHART_PORT: String(chartPort),
+              HOROSA_SERVER_PORT: String(backendPort),
+              HOROSA_SWISSEPH_PATH: layout.swephDir,
+              HOROSA_SWEPH_PATH: layout.swephDir,
+              SE_EPHE_PATH: layout.swephDir,
+              HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
+              HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
+              HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
+              HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
+              HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
+              HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
+            },
+            'java'
+          ),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         });
@@ -1559,5 +1624,7 @@ class RuntimeManager extends EventEmitter {
 module.exports = {
   classifyProcessExit,
   waitForBackendHeartbeat,
+  sanitizeEmbeddedRuntimeEnv,
+  buildPythonRuntimeArgs,
   RuntimeManager,
 };

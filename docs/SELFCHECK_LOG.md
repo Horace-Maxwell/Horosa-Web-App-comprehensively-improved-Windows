@@ -2,6 +2,32 @@
 
 最后更新：2026-05-26
 
+## 2026-05-26 GitHub issue #2 修复：Win11 无法运行（内置运行时环境隔离）— 已修复，待批量发布
+
+修复 GitHub issue #2（用户在装有系统 Python/node/pnpm 的 Win11 机器上「装好却打不开」）。**仅 Windows 桌面层改动**（`desktop_installer_bundle/electron/service-manager.js`），按用户要求**先修不发**，与 Mac 即将同步的 #3/#4 合并到下一次发布。**未改版本号、未打包、未发布。**
+
+### 根因（已用内置解释器实测复现）
+内置 Python/Java 以 `...process.env` 启动，继承了用户**整个**系统环境。当宿主机自己装了 Python/Java 工具链时会污染我们自带的运行时——且**只在那台机器崩**，所以躲过了干净 VM 测试：
+- 宿主 `PYTHONHOME` → 内置 Python 去错误路径找标准库，启动即 `Fatal Python error: init_fs_encoding … ModuleNotFoundError: No module named 'encodings'`（已对 bundled `python.exe` 实测复现）。
+- 宿主 `_JAVA_OPTIONS`/`JAVA_TOOL_OPTIONS`/`JDK_JAVA_OPTIONS` → 注入 JVM 参数令启动中止（实测 `Picked up _JAVA_OPTIONS … Could not reserve enough space …`）。
+
+后端在启动瞬间崩溃 → 后端口永不就绪 → app 不可用。
+
+### 修复（`service-manager.js`，覆盖全部内置调用：python / java / `java -version` / jcmd）
+- 新增 `sanitizeEmbeddedRuntimeEnv(overrides, kind)`：python 剥离所有宿主 `PYTHON*`；java 剥离 `_JAVA_OPTIONS|JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS|JAVA_OPTS|CLASSPATH|JAVA_COMPILER|_JAVA_SR_SIGNUM`（再叠加我们自己的变量）。
+- 新增 `buildPythonRuntimeArgs`：Python 以 `-E -s -X utf8` 启动，解释器在 C 层忽略 `PYTHON*`（即便将来漏了某个变量也免疫）。
+- 二者均已 `module.exports` 以便单测。
+
+### 验证
+- 复现：poisoned `PYTHONHOME` 令 bundled `python.exe` 崩溃；加 `-E -s -X utf8` 后即便 poisoned 仍正常启动，且编译型依赖 `swisseph`/`sxtwl` 正常 import。
+- 单测：`node --test service-manager.test.js` **18/18**（新增 4 个：python 剥离、java 剥离、互不越界、`-E -s -X utf8` 参数序）。
+- 集成：用真实 `python.exe` 经真实导出的 `sanitizeEmbeddedRuntimeEnv`+`buildPythonRuntimeArgs`、在 poisoned 父环境下启动 → `BOOT_OK … isolated=1`，全部原生依赖 import 成功。
+- `release_selfcheck.py` **5/5**（仍在 2.1.5）；本轮新增**永久哨兵**：`service-manager.js` 必须含 `sanitizeEmbeddedRuntimeEnv` / `buildPythonRuntimeArgs` / `_JAVA_OPTIONS` / `'-E', '-s', '-X', 'utf8'`，回退即闸门失败。
+
+### 注意事项
+- 待 Mac 的 #3/#4 同步到位后，与本修复合并为同一个发布（版本号、打包、`dist:win`、`selfcheck`、SHA、tag、release 届时一次走完）。
+- 任何新增内置运行时 spawn 都必须经 `sanitizeEmbeddedRuntimeEnv`，不得再裸传 `...process.env`。
+
 ## 2026-05-26 v2.1.5 Beta AI 分析页全面修复（供应商切换/鉴权 + 发送安全 + 静默失败透出）
 
 把 Mac main（`dbd0659` / `8f3371f`）的 AI 分析页修复同步到 Windows。前端为主 + 后端少量（`AIAnalysisProxyService.java`，故重建 jar）。
