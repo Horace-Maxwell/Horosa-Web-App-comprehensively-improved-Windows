@@ -127,6 +127,15 @@ def check_sentinels():
         # v2.1.7 qimen/sanshi true-solar-time fix: fetchQimenPan must run the time-basis correction
         # (resolveCalcDateTime) so 真太阳时 casts at the corrected time, not raw clock time.
         os.path.join(UI, "src/components/dunjia/DunJiaCalc.js"): ["resolveCalcDateTime(baseDt"],
+        # v2.1.8 issue #6 (local Ollama stops mid-generation): the 120s AI-streaming hard cap
+        # must stay removed (SseEmitter(0L)); + Predictive/perchart pdYears passthrough.
+        os.path.join(SRV, "boundless/src/main/java/boundless/spring/help/interceptor/SseHelper.java"): ["new SseEmitter(0L)"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/PredictiveController.java"): ["pdYears"],
+        os.path.join(WS, "astropy/astrostudy/perchart.py"): ["pdYears"],
+        # v2.1.8 bazi month-pillar 交节 boundary across the other kentang engines (same class as 2.1.6 kinqimen).
+        os.path.join(WS, "vendor/kinwuzhao/jieqi.py"): ["getJieQiJD"],
+        os.path.join(WS, "vendor/kinastro/astro/bazi/calculator.py"): ["MONTH_JIE_INDICES"],
+        os.path.join(WS, "vendor/kintaiyi/src/kintaiyi/config.py"): ["getJieQiJD"],
     }
     missing = []
     for path, needles in SENT.items():

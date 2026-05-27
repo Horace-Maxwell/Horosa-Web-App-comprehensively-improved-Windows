@@ -2,6 +2,33 @@
 
 最后更新：2026-05-26
 
+## 2026-05-26 v2.1.8 Beta 批量（Mac UI/术数/Ollama 修复 + Tier-1 减重 + issue #6）
+
+合并发布：同步 Mac main（`56db820` / v2.1.8）一批修复，并带上此前暂存的 Tier-1 减重。**含 Java 改动 → 重建 jar。**
+
+### 移植与分类（精确 diff `907e841..56db820`，20 个共享文件）
+- 19 个与 Mac-2.1.7 基线逐字节一致（干净移植）；`layouts/app.less` 是 Windows-ahead（一处滚动条 tweak），用 **3-way merge**（`git merge-file`，base=Mac-2.1.7 / other=Mac-2.1.8）把 2.1.8 的 5 处 delta 应用上去——干净无冲突，git diff 仅 +25/-4，Windows tweak 保留；新增 `vendor/test_month_pillar_boundary.py` 纯 add。
+- 改动面：Ollama 流式（boundless `SseHelper` `SseEmitter(0L)` + `AIAnalysisProxyService` 条件超时，**issue #6**）、八字月柱交节边界（kinwuzhao/kinastro/kintaiyi）、太乙四柱时间、主限推运年数（前端 + `perchart/perpredict.py` + `PredictiveController.java`）、西洋符号几何居中、UI 明暗/紫微/合盘。
+
+### 重建 jar（boundless + astrostudy）
+- boundless install → astrostudy install → astrostudyboot clean package（内置 Maven + JDK17）。fat jar 内核对：`PredictiveController.class` 含 `pdYears`；`SseHelper.class` 反汇编为 `new SseEmitter` + `lconst_0`（= `SseEmitter(0L)`，旧 `120000L` 已消失）。已 staged 到 bundle。
+
+### 验证
+- 八字月柱边界测试（内置 python，`vendor/test_month_pillar_boundary.py`）：3 引擎 × 5 用例 **ALL PASS**（2005-05-05 16:30→庚辰 / 18:00→辛巳 / 立春年月柱）。注意 Windows 控制台 cp1252 会对中文报错,需 `PYTHONUTF8=1`/`-X utf8`（真实 app 已用 `-X utf8`,无此问题）。
+- 前端 `build:file` 编译 + `umi-test` 28 套通过。
+- `release_selfcheck.py` 新增哨兵：`SseHelper.java:new SseEmitter(0L)`、`PredictiveController.java/perchart.py:pdYears`、`kinwuzhao/kintaiyi:getJieQiJD`、`kinastro:MONTH_JIE_INDICES`。
+
+### 发布资产 + SHA256
+- `Horosa-Setup-2.1.8.exe`（`849092142` bytes ≈810 MiB，Tier-1 后由 ~1.14 GB 降下来）+ `.exe.blockmap`（`883041` bytes）+ `latest.yml`（2.1.8）+ `SHA256SUMS.txt`（已重生成）。
+- `Horosa-Setup-2.1.8.exe`: `b966c4ec1ecbea5bb46165bbd4e9ab1e78230d18c43cce1bed262cde2baf0f00`
+- `Horosa-Setup-2.1.8.exe.blockmap`: `2565fccd7c9ef105cf72089fb4a9c60231d7cc3304b196f626744f94f4ffd515`
+- `latest.yml`: `9ca2b31a64b7f3b08a76ac33982879a17c5cce8abe8725b86cf218bc73438fb0`
+- `dist:win` 末尾 selfcheck 全 PASS（version 2.1.8 / 24 哨兵 / jar / dist-file / payload-slimmed / assets）；重生成 SHA256SUMS 后复跑做完整哈希核对。打包载荷 jar 内 `pdYears` + `SseEmitter(0L)` 已核对。
+
+### 注意事项
+- 本次把 Tier-1（commit 80d1373）一起推送发布（main 此前领先 origin 1）。
+- Ollama 行为端到端需真 Ollama 复测;主限/太乙/符号居中建议 App 内肉眼复核。
+
 ## 2026-05-26 Tier-1 打包减重（Windows 侧，~600MB，未发布·待批量）
 
 把打包载荷里**构建期/重复/可重建**的产物从 staged payload 裁掉(只动打包载荷,`local/workspace/runtime/windows` 源保留,不影响构建)。**未升版本、未发布**,等下个修复一起发。完整审计见 `docs/PACKAGING_SIZE_AUDIT.md`。
