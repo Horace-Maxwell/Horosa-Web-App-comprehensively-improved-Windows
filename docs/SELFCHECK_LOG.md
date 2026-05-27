@@ -2,6 +2,13 @@
 
 最后更新：2026-05-27
 
+## 2026-05-27 v2.2.0 补丁（heluo 流年修订，原地覆盖 v2.2.0）
+
+Mac 在 `2ade4c6` 给 v2.2.0 打补丁并在该 commit 打 `v2.2.0` tag（`0ac85f0..2ade4c6`，1 commit）。**纯前端 2 文件，无 Java，不重编 jar，版本号仍 2.2.0。**
+- `astrostudyui/src/utils/heluoLocal.js`：河洛理数流年动爻按典籍重写——初版 `liuNian` 写死「从初爻数」，只在元堂=上九时偶合，其余大限流年全错；改为从上一年动爻**链式累变**（阳爻含首年/第二三年应爻规则）。`astrostudyui/scripts/_heluoTest.mjs` 断言 59→72。
+- 2 文件与 Mac-`2ade4c6` 逐字节一致（干净移植）；`_heluoTest.mjs` 经 esbuild bundle→node 实测 **72/72 全过**。
+- 按 owner 指示**原地覆盖** v2.2.0（不升 2.2.1）：`dist:win` 重打包 → 重生成 `SHA256SUMS.txt`（exe 哈希必变）→ `git tag -f v2.2.0` + force-push → `gh release upload v2.2.0 --clobber` 覆盖 4 资产 + 更新说明。⚠️ 同版本号二进制变更（已下载旧 2.2.0 者哈希不同），owner 确认可覆盖。
+
 ## 2026-05-27 v2.2.0 Beta（Mac 数算/调波/风水React/AI模型 + Windows issue #7 tar 修复）
 
 同步 Mac main（`0ac85f0` / v2.2.0，23 共享文件，+7342/-124）一批**功能**更新，并合入 Windows 侧 **issue #7**（`spawn tar ENOENT` 装好打不开）。**含 Java（AIAnalysisProxyService）→ 重建 jar。**
