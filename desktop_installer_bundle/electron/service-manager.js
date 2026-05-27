@@ -508,10 +508,43 @@ function runCommand(command, args, { cwd = undefined, env = undefined, timeoutMs
   });
 }
 
+// GitHub issue #7 ("windows版安装运行不了" / "Embedded runtime prepare failed: spawn tar ENOENT"):
+// the payload is extracted with the OS `tar` (Windows 10 1803+/11 ship bsdtar at System32\tar.exe).
+// Spawning a bare `tar` relies on PATH/PATHEXT resolution, which fails on some machines (stripped or
+// non-standard PATH, security tooling, etc.) -> ENOENT -> the runtime never prepares -> the app can't
+// launch. Resolve the absolute path to the built-in tar first; only fall back to a PATH lookup.
+function resolveTarExe() {
+  const sysRoot = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
+  const candidates = [
+    path.join(sysRoot, 'System32', 'tar.exe'),
+    path.join(sysRoot, 'Sysnative', 'tar.exe'), // 32-bit process on 64-bit Windows
+    path.join(sysRoot, 'tar.exe'),
+  ];
+  for (const candidate of candidates) {
+    if (fileExists(candidate)) {
+      return candidate;
+    }
+  }
+  return 'tar'; // last resort: rely on PATH (and surface a clear error if it is missing)
+}
+
 async function extractTarArchive(archivePath, targetDir) {
-  await runCommand('tar', ['-xf', archivePath, '-C', targetDir], {
-    timeoutMs: RESOURCE_PREP_TIMEOUT_MS,
-  });
+  const tarExe = resolveTarExe();
+  try {
+    await runCommand(tarExe, ['-xf', archivePath, '-C', targetDir], {
+      timeoutMs: RESOURCE_PREP_TIMEOUT_MS,
+    });
+  } catch (error) {
+    if (error && (error.code === 'ENOENT' || /ENOENT/.test(String(error.message)))) {
+      throw new Error(
+        `Could not run the Windows archive tool (tar). Tried "${tarExe}". ` +
+        'Windows 10 (1803+) and Windows 11 include it at %SystemRoot%\\System32\\tar.exe; ' +
+        'ensure that file exists and System32 is on PATH. Original error: ' +
+        (error && error.message ? error.message : String(error))
+      );
+    }
+    throw error;
+  }
 }
 
 function getJavaVersionText(javaExe) {
@@ -1626,5 +1659,6 @@ module.exports = {
   waitForBackendHeartbeat,
   sanitizeEmbeddedRuntimeEnv,
   buildPythonRuntimeArgs,
+  resolveTarExe,
   RuntimeManager,
 };

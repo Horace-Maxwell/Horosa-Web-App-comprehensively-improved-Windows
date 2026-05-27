@@ -13,6 +13,7 @@ const {
   waitForBackendHeartbeat,
   sanitizeEmbeddedRuntimeEnv,
   buildPythonRuntimeArgs,
+  resolveTarExe,
 } = require('./service-manager');
 
 function createLogger() {
@@ -199,6 +200,20 @@ test('sanitizeEmbeddedRuntimeEnv java mode does not strip PYTHON* (and vice vers
     assert.equal(pyEnv.PYTHONHOME, undefined);
     assert.equal(pyEnv._JAVA_OPTIONS, '-Xmx1g');
   });
+});
+
+test('resolveTarExe avoids the bare-tar PATH dependency (GitHub issue #7: spawn tar ENOENT)', () => {
+  const t = resolveTarExe();
+  if (process.platform === 'win32') {
+    // Must resolve to an existing ABSOLUTE tar.exe, not the bare 'tar' that relies on PATH
+    // resolution (which failed with ENOENT on some machines and made the app unable to launch).
+    assert.ok(path.isAbsolute(t), `expected an absolute tar path, got ${t}`);
+    assert.ok(t.toLowerCase().endsWith('tar.exe'), `expected a tar.exe, got ${t}`);
+    assert.ok(fs.existsSync(t), `resolved tar should exist on disk: ${t}`);
+    assert.notEqual(t, 'tar');
+  } else {
+    assert.equal(typeof t, 'string');
+  }
 });
 
 test('buildPythonRuntimeArgs launches the interpreter isolated from host PYTHON* vars', () => {

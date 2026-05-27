@@ -95,7 +95,10 @@ def check_version_consistency(V):
 def check_sentinels():
     # file (relative to WS unless absolute) -> required substrings (a reverted fix removes these)
     SENT = {
-        os.path.join(UI, "src/components/fengshui/FengShuiMain.js"): ['src="fengshui/index.html'],
+        # v2.2.0: Feng Shui was rewritten iframe -> React (fengshuiEngine canvas). The old
+        # Windows-ahead relative-iframe fix is OBSOLETED by the rewrite (no iframe = no desktop
+        # file:// path problem); guard that the React engine is wired (not a reverted iframe shell).
+        os.path.join(UI, "src/components/fengshui/FengShuiMain.js"): ["fengshuiEngine"],
         os.path.join(UI, "src/utils/windowSizePersistence.js"): ["isDesktopShellWindow"],
         os.path.join(UI, "src/components/ziwei/ZWHouse.js"): ["kinastroBorrowed"],
         os.path.join(UI, "src/pages/index.js"): ["ensureField"],
@@ -112,8 +115,11 @@ def check_sentinels():
             "buildPythonRuntimeArgs",
             "_JAVA_OPTIONS",
             "'-E', '-s', '-X', 'utf8'",
+            # issue #7: payload extraction must resolve tar to an absolute path, not bare `tar`
+            # (bare-tar PATH/PATHEXT resolution ENOENT'd on some machines -> app couldn't launch).
+            "resolveTarExe",
         ],
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel"],
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
         os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/model/BaZi.java"): ["clockTime", "solarTime"],

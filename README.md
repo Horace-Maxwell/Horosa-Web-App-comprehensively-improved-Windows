@@ -9,14 +9,14 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.1.8%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.8)
+[![Version](https://img.shields.io/badge/version-2.2.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.2.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.8)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.8)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.2.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.2.0)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.8.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.2.0.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -35,7 +35,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.1.8.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.8.exe)**
+**[⬇︎ Horosa-Setup-2.2.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.2.0.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -96,20 +96,19 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.1.8 beta
+## 本次更新 · What's New in v2.2.0 beta
 
-这一版同步 Mac 端一批 UI / 术数显示与 AI 流式修复，并把 Windows 安装包体积砍掉约三成：
+这一版同步 Mac 端的功能更新：数算两个新技法、调波盘绘制、风水模块 React 重写，以及 AI 模型选择修复。
 
-- **本地 Ollama 不再中途「停止生成」**（issue #6）：去掉 AI 流式 120s 硬上限（`SseEmitter(0L)`），慢速本地模型不再被掐断。
-- **八字月柱交节边界**：五兆 / kinastro / 太乙三个引擎的月柱改按精确交节时刻判定（交节前不跳新月，立春兼校年柱），与 2.1.6 奇门同款修法。
-- **太乙四柱随时间基准**：切「直接时间 / 真太阳时」太乙四柱随之重算，并同显两时间。
-- **主限法推运年数**：新增推运年数控件（默认 100，1–180），表格行数随之变；表头 / 页码 / 明暗细节修整。
-- **西洋盘符号几何居中**：所有西洋盘符号由 x-height 中线改为几何中心对齐，不再整体上偏。
-- **安装包减重 ~29%**：`Horosa-Setup-*.exe` 由 1.14 GB 降到约 810 MB（裁掉打包载荷里构建期 / 重复 / 可重建产物，功能不变）。
+- **数算 · 邵子参评数（金锁银匙）**：新增技法，古法 / 明法开关 + 本命 / 大运 / 流年（纯前端本地计算，四柱来自星阙八字）。
+- **数算 · 河洛理数**：新增技法，先天 / 后天卦象 + 元堂 + 爻辞，大限表点选联动流年，右栏命运篇判断。
+- **调波盘绘制**：辅盘调波（harmonic）盘改为完整星盘绘制（复用量化盘 UI），左大盘 + 右栏调波数控件与两表。
+- **风水纳气盘 React 重写**：由旧 iframe 独立站点改为一等 React 组件——跟随明暗主题、占满工作区、纳气盘延伸出图不被裁，保留上传 / 框选 / 旋转 / 门向 / 标记 / 撤销重做 / 缩放 / 导出与 AI 快照。
+- **AI 模型选择修复**：测试连接 / 下拉不再误用 embedding 模型当聊天模型（修 Gemini 仅预设 embedding 模型时 `:generateContent` 404）；Gemini 补默认聊天模型；后端加固拒绝把 embedding 模型用于对话。
 
-含后端 Java 改动（`SseEmitter` / `pdYears`），已重建 `astrostudyboot.jar`。仍包含 2.1.7 奇门/三式真太阳时、2.1.6 奇门历法 + 印度盘 + issue #2 运行时隔离，及更早全部修复。完整改动见 [v2.1.8 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.8) 与 [本地发布说明](docs/releases/2.1.8.md)。
+含后端 Java 改动（AI 模型加固），已重建 `astrostudyboot.jar`。仍包含 2.1.8 Ollama 流式 / 八字月柱 / 太乙 / 主限、2.1.7 奇门真太阳时、issue #2 运行时隔离 + Tier-1 减重（安装包 ~810 MB），及更早全部修复。完整改动见 [v2.2.0 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.2.0) 与 [本地发布说明](docs/releases/2.2.0.md)。
 
-> This release syncs a batch of Mac-side UI / divination-display and AI-streaming fixes, and trims the Windows installer by ~29%. Local Ollama no longer stops mid-generation (issue #6: the 120s AI-streaming hard cap is removed, `SseEmitter(0L)`). BaZi month-pillar now respects the precise 交节 (solar-term) crossing time across the kinwuzhao/kinastro/kintaiyi engines (same fix class as the 2.1.6 Qimen one; births before the crossing keep the previous month, 立春 also corrects the year pillar). Taiyi four-pillars recompute with the selected time basis (direct vs true-solar) and show both times. Primary Direction gains a years control (default 100, 1–180) that drives the table; Western-chart symbols are now geometrically centered (no upward drift); plus dark-mode / relative-page / ziwei polish. Backend Java changed (`SseEmitter` / `pdYears`), so `astrostudyboot.jar` was rebuilt. The installer drops from 1.14 GB to ~810 MB (build-only/duplicate/regenerable dirs pruned from the payload, no functional change). Still includes the 2.1.7 Qimen/Sanshi true-solar-time fix, 2.1.6 Qimen calendar + India + issue #2 runtime isolation, and all earlier work. See the [v2.1.8 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.8) for the full log.
+> This release syncs Mac-side feature work: two new 数算 (shù-suàn) methods, harmonic-chart rendering, a full React rewrite of the Feng Shui module, and an AI model-selection fix. **邵子参评数** (金锁银匙) and **河洛理数** are new front-end-only techniques (four pillars from Horosa's own BaZi, no kentang/Python backend). **Harmonic chart** (调波盘) now renders a full chart (reusing the harmonic-lab UI) with a left chart + right controls/tables. **Feng Shui 纳气盘** is rewritten from an embedded iframe site into a first-class React component — it follows the light/dark theme, fills the workspace, the qi-compass can extend past the floor-plan without clipping, and upload/select/rotate/door/markers/undo-redo/zoom/export and the AI snapshot are all preserved. **AI model selection** no longer mis-sends an embedding model as the chat model (fixing a Gemini `:generateContent` 404 when only an embedding model was preset); Gemini gets default chat models, and the backend defensively rejects embedding-as-chat. Backend Java changed (AI hardening), so `astrostudyboot.jar` was rebuilt. Still includes the 2.1.8 Ollama/BaZi/Taiyi/PD work, the 2.1.7 Qimen true-solar-time fix, the issue #2 runtime isolation + Tier-1 slimming (~810 MB installer), and all earlier work. See the [v2.2.0 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.2.0) for the full log.
 
 ## 技术构成 · Under the Hood
 
@@ -126,7 +125,7 @@
 - [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md) — 桌面打包与安装器说明 / installer internals
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) — 项目结构说明 / project structure
 - [docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md](docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md) — 干净 Windows 运行时修复与发布注意点 / clean-machine runtime notes
-- [docs/releases/2.1.8.md](docs/releases/2.1.8.md) · [docs/releases/2.1.7.md](docs/releases/2.1.7.md) · [docs/releases/2.1.6.md](docs/releases/2.1.6.md) · [docs/releases/2.1.5.md](docs/releases/2.1.5.md) · [docs/releases/2.1.4.md](docs/releases/2.1.4.md) · [docs/releases/2.1.3.md](docs/releases/2.1.3.md) · [docs/releases/2.1.2.md](docs/releases/2.1.2.md) · [docs/releases/2.1.1.md](docs/releases/2.1.1.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
+- [docs/releases/2.2.0.md](docs/releases/2.2.0.md) · [docs/releases/2.1.8.md](docs/releases/2.1.8.md) · [docs/releases/2.1.7.md](docs/releases/2.1.7.md) · [docs/releases/2.1.6.md](docs/releases/2.1.6.md) · [docs/releases/2.1.5.md](docs/releases/2.1.5.md) · [docs/releases/2.1.4.md](docs/releases/2.1.4.md) · [docs/releases/2.1.3.md](docs/releases/2.1.3.md) · [docs/releases/2.1.2.md](docs/releases/2.1.2.md) · [docs/releases/2.1.1.md](docs/releases/2.1.1.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
 - 源码 / source: `local/workspace/Horosa-Web-*/`（前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`）
 
 ## 致谢 · Acknowledgements

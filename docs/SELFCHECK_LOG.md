@@ -1,6 +1,32 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-26
+最后更新：2026-05-27
+
+## 2026-05-27 v2.2.0 Beta（Mac 数算/调波/风水React/AI模型 + Windows issue #7 tar 修复）
+
+同步 Mac main（`0ac85f0` / v2.2.0，23 共享文件，+7342/-124）一批**功能**更新，并合入 Windows 侧 **issue #7**（`spawn tar ENOENT` 装好打不开）。**含 Java（AIAnalysisProxyService）→ 重建 jar。**
+
+### Windows issue #7（装好运行不了）— 根因 + 修复
+- 现象（用户 V2.1.2 与 2.1.8 均现）：`本地服务启动失败：Embedded runtime prepare failed: spawn tar ENOENT`。
+- 根因：`service-manager.js` `extractTarArchive` 用裸 `spawn('tar')` 解包载荷，靠 PATH/PATHEXT 解析；该用户机器解析不到 `tar`（Win10 1803+/11 自带 `System32\tar.exe`，但 PATH 不含或解析失败）→ ENOENT → runtime 不就绪 → 打不开。**非我方改动回归（2.1.2 就有）。**
+- 修复：新增 `resolveTarExe()`，优先解析 `%SystemRoot%\System32\tar.exe`（+ Sysnative 回退），最后才退回 PATH `tar`；找不到给可操作错误。实测本机解析到 `C:\WINDOWS\System32\tar.exe`、`bsdtar` 可跑。`service-manager.test.js` 加 `resolveTarExe` 测试（19/19，**经 PowerShell 跑**——Bash/MSYS 跑 fixture 测试会因 tar/C:\ 误报 6 个，gotcha #1）。哨兵：service-manager.js 必须含 `resolveTarExe`。
+
+### Mac 功能同步
+- 数算 邵子参评数（canping）/ 河洛理数（heluo）：纯前端本地（`shusuan/{CanPingMain,HeLuoMain}.js` + `utils/{canpingLocal,heluoLocal}.js` + `utils/data/*.json` + `KinAstroMain` 接线），四柱来自 `baziLunarLocal`，不碰 Python/kentang。
+- 调波盘：Python `astropy/astrostudy/{thirteenthchart,astroextra}.py`（`HarmonicChart`/`build_harmonic` 返回完整盘）+ 前端 `auxchart/{AstroHarmonicLab,AuxChartMain}.js`。
+- 风水 iframe→React：新 `fengshui/fengshuiEngine.js` + 重写 `FengShuiMain.js`（删 iframe）+ `app.less :global{.horosa-fengshui-*}`。
+- AI 模型选择：前端 providers/AIAnalysisMain/context/export + 后端 `AIAnalysisProxyService`（`isEmbeddingModel` 拒绝 embedding 当聊天，修 Gemini 404）。
+
+### 移植与分类（精确 diff `56db820..0ac85f0`）
+- 23 文件：21 干净/纯新增；`FengShuiMain.js` **整取 Mac 版**（Windows-ahead 的相对 iframe 修复被 React 重写**取代/作废**——无 iframe 即无 desktop file:// 路径问题；哨兵由 `src="fengshui/index.html` 改为 `fengshuiEngine`）；`app.less` **3-way merge**（Mac-2.2.0 delta 叠加到 Windows 滚动条 tweak，干净 +273，tweak 保留）。
+- 重建 jar：astrostudy install → boot clean package；fat jar 内 `AIAnalysisProxyService.class` 含 `isEmbeddingModel`（已核对）。
+
+### 发布资产 + SHA256
+- `Horosa-Setup-2.2.0.exe`（`849344035` bytes ≈810 MiB，Tier-1 减重沿用）+ `.exe.blockmap`（`880693`）+ `latest.yml`（2.2.0）+ `SHA256SUMS.txt`（已重生成）。
+- `Horosa-Setup-2.2.0.exe`: `223256365897f15a180a99ddde643f368e26fec1b102b4141d98c1e7c3915f49`
+- `Horosa-Setup-2.2.0.exe.blockmap`: `1f1298dedbd643f37f3079202c306c6517a29da8ad7d7521d954b4a589a19fc4`
+- `latest.yml`: `75dc9c3efba60ae28535434436ef7a5ed63f5f0a3fc0d1cc3ac586e16749eaef`
+- `dist:win` selfcheck 全 PASS（version 2.2.0 / 24 哨兵 / jar / dist-file / payload-slimmed / assets）；打包载荷 jar 内 `isEmbeddingModel` 已核对。
 
 ## 2026-05-26 v2.1.8 Beta 批量（Mac UI/术数/Ollama 修复 + Tier-1 减重 + issue #6）
 
