@@ -1,17 +1,17 @@
-# Horosa Windows 2.1.5 Beta 项目结构说明
+# Horosa Windows 2.1.6 Beta 项目结构说明
 
-当前目录结构对应 Horosa v2.1.5 Beta Windows Web / Desktop 统一交付形态。这个版本已经把 Mac 2.1.0 beta 的 UI、前端、Python 后端、Java 后端、资源、AI 导出、传统命法/卜法后端与桌面交付修复同步到 Windows 本地工程；旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不再是运行或构建依赖。
+当前目录结构对应 Horosa v2.1.6 Beta Windows Web / Desktop 统一交付形态。这个版本已经把 Mac 2.1.0 beta 的 UI、前端、Python 后端、Java 后端、资源、AI 导出、传统命法/卜法后端与桌面交付修复同步到 Windows 本地工程；旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不再是运行或构建依赖。
 
 ## 普通用户入口
 
 - `START_HERE.bat`：仓库根目录的一键 Web 启动入口，适合解压式本地运行和维护自检。
-- `desktop_installer_bundle/release/Horosa-Setup-2.1.5.exe`：正式 Windows 安装包入口，适合 GitHub Release 发布。
-- `README.md` / `README_ZH.md` / `README_EN.md`：v2.1.5 Beta 用户说明、截图、功能介绍和下载入口。
+- `desktop_installer_bundle/release/Horosa-Setup-2.1.6.exe`：正式 Windows 安装包入口，适合 GitHub Release 发布。
+- `README.md` / `README_ZH.md` / `README_EN.md`：v2.1.6 Beta 用户说明、截图、功能介绍和下载入口。
 - `docs/给完全不会的人看的启动说明.txt`：完全不会命令行的用户说明。
 
 ## 根目录主要内容
 
-- `README.md`：双语入口页，展示新版 icon、截图、v2.1.5 Beta 功能介绍和下载入口。
+- `README.md`：双语入口页，展示新版 icon、截图、v2.1.6 Beta 功能介绍和下载入口。
 - `README_ZH.md` / `README_EN.md`：中文、英文完整说明。
 - `CITATION.cff`：软件引用元数据，版本号跟随当前发布版本。
 - `SECURITY.md` / `SUPPORT.md` / `CONTRIBUTING.md`：英文治理文档。
@@ -27,8 +27,9 @@
 - `docs/assets/screenshots/horosa-2.0-main-workspace.png`：主命盘工作区截图。
 - `docs/assets/screenshots/horosa-2.0-module-navigator.png`：功能模块导航截图。
 - `docs/assets/screenshots/horosa-2.0-sanshi-workspace.png`：三式工作区截图。
-- `docs/releases/2.1.5.md`：当前 Beta 版本发布说明与发布资产清单（AI 分析页全面修复：供应商切换/鉴权 + 发送安全 + 静默失败透出）。
-- `docs/releases/2.1.4.md`：上一版 Beta 发布说明（AI 供应商兼容 + 错误透传 + 凭据脱敏），保留作历史记录。
+- `docs/releases/2.1.6.md`：当前 Beta 版本发布说明与发布资产清单（奇门历法修复：月柱交节边界 + 置闰超神接气定局；印度盘地图选点修复；Windows 侧 issue #2 内置运行时环境隔离）。
+- `docs/releases/2.1.5.md`：上一版 Beta 发布说明（AI 分析页全面修复：供应商切换/鉴权 + 发送安全 + 静默失败透出），保留作历史记录。
+- `docs/releases/2.1.4.md`：更早的 Beta 发布说明（AI 供应商兼容 + 错误透传 + 凭据脱敏），保留作历史记录。
 - `docs/releases/2.1.3.md`：更早的 Beta 发布说明（八字时间显示修复），保留作历史记录。
 - `docs/releases/2.1.2.md`：更早的 Beta 发布说明（AI 分析同步），保留作历史记录。
 - `docs/releases/2.1.1.md`：更早的 Beta 发布说明，保留作历史记录。
@@ -44,7 +45,7 @@
 - `local/Horosa_Local_Windows.ps1`：Windows 本地 Web 一键启动主脚本。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/`：当前实际使用的 Horosa 工作区。
 - `local/workspace/runtime/windows/`：Windows 运行时、缓存和启动优化相关内容。
-- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/`：v2.1.5 Beta 前端工程与构建产物。
+- `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudyui/`：v2.1.6 Beta 前端工程与构建产物。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astropy/`：Python 星历、`/astroextra`、`/planetarium`、kentang/kin 后端、印度占星扩展与星表资源。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/astrostudysrv/`：Java 服务，包含 `/astroextra/*`、`/planetarium/state`、`/qizheng/moira`、AI Analysis 服务接线与传统术数相关接口。
 - `local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/vendor/`：太乙、金口诀、皇极经世、五兆、太玄、荆诀、神易数、Kin Astro 等第三方/参考引擎资源。
@@ -62,13 +63,13 @@
 
 正式桌面应用工程在这里：
 
-- `package.json` / `package-lock.json`：桌面打包工程版本与依赖，当前发布版本为 `2.1.5`。
+- `package.json` / `package-lock.json`：桌面打包工程版本与依赖，当前发布版本为 `2.1.6`。
 - `electron/`：Electron 主进程、预加载脚本、加载/错误页（`loading.html`，含启动分步进度、失败态日志结尾透出与“复制诊断信息”）、窗口管理、Python/Java/Web 服务编排（`service-manager.js`，含崩溃归因与 trusted fast-path）、运行时健康检查与日志。
 - `scripts/`：renderer 构建、运行时 staging（`stage-runtime.cjs`，会注入 VC++ 运行时并跑原生依赖自检）、`check_runtime_native_deps.py`（构建期 DLL 完整性闸门）、`generate_brand_assets.py`（从 logo 生成图标/安装器位图）、`release_preflight.py`（发布前版本/品牌资产/运行时一致性闸门，对应 `npm run verify`）、项目路径解析、安装器回归、安装后桌面 smoke、干净机器冷/热启动检查和 kentang 端点验证。
 - `assets/`：安装器图标与 NSIS 定制资源。唯一品牌源是 `horosa_setup_badge.png`（最新 logo）；`horosa_setup.ico`、`installerHeader.bmp`、`installerSidebar.bmp`、`uninstallerSidebar.bmp` 全部由 `scripts/generate_brand_assets.py` 从它派生，换 logo 后必须重跑该脚本。`installer.nsh` 为 NSIS 定制脚本（含安装目录校验、旧快捷方式清理）。
-- `release/`：本地构建输出目录。v2.1.5 Beta 标准发布资产为：
-  - `Horosa-Setup-2.1.5.exe`
-  - `Horosa-Setup-2.1.5.exe.blockmap`
+- `release/`：本地构建输出目录。v2.1.6 Beta 标准发布资产为：
+  - `Horosa-Setup-2.1.6.exe`
+  - `Horosa-Setup-2.1.6.exe.blockmap`
   - `latest.yml`
   - `SHA256SUMS.txt`
 
@@ -98,8 +99,8 @@
 
 ## 维护人记忆点
 
-- Mac 同步来源文件夹只作为迁移参考，v2.1.5 Beta 发布工程自身不应依赖它。
-- GitHub Release 正式用户入口是 `Horosa-Setup-2.1.5.exe`。
+- Mac 同步来源文件夹只作为迁移参考，v2.1.6 Beta 发布工程自身不应依赖它。
+- GitHub Release 正式用户入口是 `Horosa-Setup-2.1.6.exe`。
 - `latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 是更新和校验支持资产，不是普通用户的主入口。
 - 发布前至少检查 README icon、版本号、下载链接、安装器资产、校验和、`latest.yml` 版本、Windows 一键启动路径、安装后 smoke、干净机器冷/热启动和 Mac-only 文件残留。
 - 应用显示名为“星阙”：`build.productName` 与 `nsis.shortcutName` 均为 `星阙`（决定桌面/开始菜单快捷方式、Add/Remove Programs 显示名、窗口标题）；可执行文件刻意保留 `Horosa.exe`（ASCII，规避中文路径风险；`scripts/patch-win-exe-icon.cjs` 也按此名修补图标）。改名时需同步 `installer.nsh` 里的 `CURRENT/LEGACY_*_SHORTCUT_FILE_NAME`（用于卸载/升级时清理旧快捷方式）。

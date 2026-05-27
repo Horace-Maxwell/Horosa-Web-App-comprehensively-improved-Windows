@@ -2,7 +2,33 @@
 
 最后更新：2026-05-26
 
-## 2026-05-26 GitHub issue #2 修复：Win11 无法运行（内置运行时环境隔离）— 已修复，待批量发布
+## 2026-05-26 v2.1.6 Beta 奇门历法修复（月柱交节边界 + 置闰超神接气定局）+ 印度盘选点 + issue #2 批量
+
+把 Mac main（`494783d` / `v2.1.6`）的 **奇门历法底层修复** 与 **印度盘地图选点修复** 同步到 Windows，并合入本地已修的 Windows 侧 issue #2（内置运行时环境隔离）。**纯 Python（`vendor/kinqimen`）+ 前端，无 Java 改动 → 未重建 `astrostudyboot.jar`。**
+
+### 移植与分类
+- 精确 commit-range diff `8f3371f..494783d` 确认共享树改动恰为 5 个文件：`vendor/kinqimen/{jieqi.py,config.py,kinqimen.py,test_qimen_calendar.py(新)}` + 前端 `astrostudyui/src/components/astro/IndiaChartMain.js`。
+- 4 个被改文件在 Windows 与 Mac-2.1.5 基线**逐字节一致（零 Windows 分叉）**→ 复制 Mac-2.1.6 版只引入 2.1.6 改动；测试文件为纯新增。逐文件复制后再次核对 Windows == Mac-2.1.6（5/5 match）。
+- 机制：(A) `jieqi.gangzhi` 月柱按 sxtwl 精确交节时刻校正（交节前沿用前一日，立春兼校年柱）；新增 `jieqi.zhirun_jieqi`（超神接气置闰定局节气）。(B) `config` 重写 `qimen_ju_name_zhirun` + 新增 `dingju_jieqi`。(C) `kinqimen.pan()` 節氣标签改用 `config.dingju_jieqi(...,option)`。拆补法未改（本就正确）。印度盘 `changeGeo` 传扁平参数对齐父级 `changeCond`。
+
+### 验证
+- **奇门 11/11**：用**内置** `runtime/windows/python/python.exe` 跑 `vendor/kinqimen/test_qimen_calendar.py` 全通过（月柱 2005-05-05→庚辰 / 2021；交节后不回归；立春年柱+月柱；置闰 #62 立冬上元六局+标签；拆补不变；#43 拆补≠置闰；闰大雪；整盘双法不崩）。
+- 前端 `npm run build:file` 编译通过；`umi-test` 28 suites / 129 tests（含既有奇门拆补/置润/节气前端测试）全通过，无回归。
+- issue #2（合并）：`service-manager.test.js` 18/18（4 个新隔离测试）；真实 `python.exe` 经真实导出 helper 在 poisoned 环境下 `isolated=1`。
+- 版本一致性闸门：`release_selfcheck.py` 版本一致 **PASS（全 == 2.1.6）**；本轮新增哨兵守 `vendor/kinqimen/{jieqi.py:zhirun_jieqi, config.py:dingju_jieqi, kinqimen.py:config.dingju_jieqi}` + `IndiaChartMain.js:patch.tm`。staged dist-file 在打包前显示 STALE 属预期（dist:win 重建后清除）。
+
+### 发布资产 + SHA256
+- `Horosa-Setup-2.1.6.exe`（`1194424731` bytes）+ `.exe.blockmap`（`1234613` bytes）+ `latest.yml`（version `2.1.6`）+ `SHA256SUMS.txt`（已为 2.1.6 重新生成）。
+- `Horosa-Setup-2.1.6.exe`: `b9bbe60651e8c535a0e1b6bf4c5f29c109cb1066ea1f93085dc8fdfced2a09d3`
+- `Horosa-Setup-2.1.6.exe.blockmap`: `b71ab52bdade1b86e8bb9dca78e31b84f86713aa05982ebfa418d4d15d273935`
+- `latest.yml`: `408679416c3d7c0a96f7dc65c5c02b6f3e92ecd35e914d9d0328bcea3ad590ac`
+- `dist:win` 末尾 `release_selfcheck.py` 5/5（assets 当时为 SHA256SUMS 待重生成）；重生成后复跑应做完整哈希核对。
+
+### 注意事项
+- **纯 Python / vendor 改动不需重建 jar**，但必须确认随 runtime 打包带上（`build/app-runtime/.../vendor/kinqimen/`）——见 SKILL 坑位 #10。
+- 行为面（真实奇门排盘界面、印度盘地图选点）建议用户在 App 内复测；引擎逻辑已由 11 项单测覆盖。
+
+## 2026-05-26 GitHub issue #2 修复：Win11 无法运行（内置运行时环境隔离）— 已修复，随 v2.1.6 批量发布
 
 修复 GitHub issue #2（用户在装有系统 Python/node/pnpm 的 Win11 机器上「装好却打不开」）。**仅 Windows 桌面层改动**（`desktop_installer_bundle/electron/service-manager.js`），按用户要求**先修不发**，与 Mac 即将同步的 #3/#4 合并到下一次发布。**未改版本号、未打包、未发布。**
 

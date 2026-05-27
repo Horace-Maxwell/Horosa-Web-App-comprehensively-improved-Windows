@@ -117,6 +117,13 @@ def check_sentinels():
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
         os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/model/BaZi.java"): ["clockTime", "solarTime"],
+        # v2.1.6 qimen 历法 fix (issue #4): month-pillar 交节 boundary + 置闰超神接气 ju-determination
+        # in the vendored Python engine. Reverting these re-opens the calendar defect.
+        os.path.join(WS, "vendor/kinqimen/jieqi.py"): ["def zhirun_jieqi"],
+        os.path.join(WS, "vendor/kinqimen/config.py"): ["def dingju_jieqi", "zhirun_jieqi"],
+        os.path.join(WS, "vendor/kinqimen/kinqimen.py"): ["config.dingju_jieqi"],
+        # v2.1.6 India chart map-pick fix (issue #3): flat changeGeo patch matching parent changeCond.
+        os.path.join(UI, "src/components/astro/IndiaChartMain.js"): ["patch.tm"],
     }
     missing = []
     for path, needles in SENT.items():
