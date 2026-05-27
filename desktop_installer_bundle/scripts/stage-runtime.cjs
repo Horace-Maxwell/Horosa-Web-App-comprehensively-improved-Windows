@@ -33,6 +33,23 @@ const runtimePruneTargets = [
   'python/tcl',
   'java/jmods',
   'java/include',
+  // --- Tier-1 payload slimming (~600 MB): build-only / duplicate / regenerable artifacts that are
+  // NOT used at user runtime. Verified before adding (docs/PACKAGING_SIZE_AUDIT.md):
+  //   - electron/service-manager.js spawns only python/java/jcmd/taskkill — never node, never pip.
+  //   - AppCDS is regenerated per-user on first run (-XX:+RecordDynamicDumpInfo + jcmd VM.cds
+  //     dynamic_dump on shutdown); the shipped archives are just this build machine's warm cache.
+  //   - bundle/wheels is a byte-for-byte robocopy of wheels/ (Prepare_Runtime), and no runtime/repair
+  //     path pip-installs from either; maven is build-time only; the desktop loads bundle/dist-file
+  //     (file://), not the web-mode bundle/dist.
+  // These remain in local/workspace/runtime/windows for dev/build; only the shipped payload is slimmed.
+  // Guarded against regression by release_selfcheck.py check_payload_slimmed().
+  'node',
+  'maven',
+  'maven-extract',
+  'wheels',
+  'bundle/wheels',
+  'bundle/dist',
+  'appcds',
 ];
 
 function rmrf(targetPath) {

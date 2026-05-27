@@ -161,6 +161,25 @@ def check_distfile_not_stale():
     detail = "dist-file newer than astrostudyui/src" if ok else f"STALE: {os.path.relpath(src_p, REPO)} newer than staged dist-file (frontend not rebuilt)"
     record("staged dist-file not stale", ok, detail)
 
+def check_payload_slimmed():
+    # Tier-1 payload slimming (docs/PACKAGING_SIZE_AUDIT.md): these build-only / duplicate /
+    # regenerable dirs must NOT be in the staged runtime payload. If a future change re-includes
+    # them (e.g. the prune list in stage-runtime.cjs is reverted), the installer balloons ~600 MB.
+    stage = os.path.join(REPO, "desktop_installer_bundle", "build", "app-runtime", "runtime", "windows")
+    if not os.path.isdir(stage):
+        record("payload slimmed (Tier-1)", True, "SKIPPED (staged payload not built yet)")
+        return
+    must_be_absent = [
+        "node", "maven", "maven-extract", "wheels",
+        os.path.join("bundle", "wheels"), os.path.join("bundle", "dist"), "appcds",
+    ]
+    present = [p.replace("\\", "/") for p in must_be_absent if os.path.exists(os.path.join(stage, p))]
+    ok = not present
+    detail = "build-only/duplicate/regenerable dirs pruned from payload" if ok else \
+        f"NOT pruned -> ~600MB installer bloat: {', '.join(present)} (see stage-runtime.cjs runtimePruneTargets)"
+    record("payload slimmed (Tier-1)", ok, detail)
+
+
 def sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -226,6 +245,7 @@ def main():
     check_sentinels()
     check_jar_not_stale()
     check_distfile_not_stale()
+    check_payload_slimmed()
     check_release_assets(V)
     width = max(len(n) for n, _, _ in results)
     failed = 0

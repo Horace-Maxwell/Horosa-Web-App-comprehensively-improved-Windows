@@ -2,6 +2,29 @@
 
 最后更新：2026-05-26
 
+## 2026-05-26 Tier-1 打包减重（Windows 侧，~600MB，未发布·待批量）
+
+把打包载荷里**构建期/重复/可重建**的产物从 staged payload 裁掉(只动打包载荷,`local/workspace/runtime/windows` 源保留,不影响构建)。**未升版本、未发布**,等下个修复一起发。完整审计见 `docs/PACKAGING_SIZE_AUDIT.md`。
+
+### 改动
+- `stage-runtime.cjs` `runtimePruneTargets` 增加:`node`、`maven`、`maven-extract`、`wheels`、`bundle/wheels`、`bundle/dist`、`appcds`(共 ~603MB)。
+- `release_selfcheck.py` 新增 `check_payload_slimmed()`:上述目录若重现在 staged 载荷里则 FAIL(防 prune 列表被还原导致体积回弹)。
+
+### 安全核查(删前逐项确认运行时不用)
+- `electron/service-manager.js` 只 spawn python/java/jcmd/taskkill——**零** node/wheels/pip 引用;`Prepare_Runtime` 也不在运行时引用 node。
+- AppCDS 用户首启自重建(`-XX:+RecordDynamicDumpInfo` + 关闭时 `jcmd VM.cds dynamic_dump`);shipped 的是构建机暖缓存(5 个 stale 目录)。
+- `bundle/wheels` 是 `wheels` 的 robocopy 副本;无运行时/repair 走 pip 安装。
+- maven 仅构建期建 jar 用;桌面加载 `bundle/dist-file`(file://)而非 web 版 `bundle/dist`。
+
+### 验证(实测)
+- 安装包:**1.14 GB → 810 MB(−29%)**;解包载荷 **2.6 GB → 2.0 GB**(packed tar 2600→1976 MB);win-unpacked 2.8→2.3 GB。
+- `release_selfcheck.py`:**6/6 全绿**(含新增 `payload slimmed (Tier-1)` PASS)。新 slim exe sha256 `c0312a3fd6ee65e2da7706002599f61432a77db7b2ab719a6c821a878292fd80`(**未发布,仅本地**;批量发布时会升版本重算)。
+- 7 个 prune 目录已确认从载荷消失;python/java/dist-file/jar 等保留项完好。
+- **干净机器冷/热启动 smoke**(`win-unpacked\Horosa.exe`,隔离 LOCALAPPDATA/APPDATA/TEMP):**功能全绿**——冷启 23.5s(extract 13.4s)+ 热启 11.3s,两者 `backendReady`+`chartReady` 均 true、出盘正确(birth 2028-04-06 09:33)、`forbiddenLogMatches` 空、8899/9999/9464 停止后均释放。脚本 exit 1 仅因热启 11.3s > 10s **软阈值**(同 2.1.4 类软失败):smoke 强杀进程→不触发优雅关闭的 AppCDS dump,叠加本轮删了预暖 CDS + 构建机负载,故首次热启略慢;真实用户优雅关闭后会生成自有 CDS,后续热启回落——**非功能回归**。(首次传错 exe 把安装器当 app 的那次失败已排除,纯属调用参数错误。)
+
+### deferred
+- jlink 裁 JRE(228→~60M)本轮不做:Spring 反射/JNI 模块完整性风险高、smoke 难覆盖,留作单独一轮(配合后端逐功能验证)。
+
 ## 2026-05-26 v2.1.7 Beta 奇门/三式 真太阳时定盘修复（纯前端）
 
 把 Mac main（`907e841` / v2.1.7）的 **奇门/三式 真太阳时定盘修复** 同步到 Windows。**纯前端 1 文件，无 Java/Python 改动 → 未重建 `astrostudyboot.jar`。**

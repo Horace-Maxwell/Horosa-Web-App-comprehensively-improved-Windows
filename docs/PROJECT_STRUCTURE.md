@@ -66,7 +66,7 @@
 
 - `package.json` / `package-lock.json`：桌面打包工程版本与依赖，当前发布版本为 `2.1.7`。
 - `electron/`：Electron 主进程、预加载脚本、加载/错误页（`loading.html`，含启动分步进度、失败态日志结尾透出与“复制诊断信息”）、窗口管理、Python/Java/Web 服务编排（`service-manager.js`，含崩溃归因与 trusted fast-path）、运行时健康检查与日志。
-- `scripts/`：renderer 构建、运行时 staging（`stage-runtime.cjs`，会注入 VC++ 运行时并跑原生依赖自检）、`check_runtime_native_deps.py`（构建期 DLL 完整性闸门）、`generate_brand_assets.py`（从 logo 生成图标/安装器位图）、`release_preflight.py`（发布前版本/品牌资产/运行时一致性闸门，对应 `npm run verify`）、项目路径解析、安装器回归、安装后桌面 smoke、干净机器冷/热启动检查和 kentang 端点验证。
+- `scripts/`：renderer 构建、运行时 staging（`stage-runtime.cjs`，会注入 VC++ 运行时、跑原生依赖自检，并按 `runtimePruneTargets` 从打包载荷裁掉构建期/重复/可重建产物——node、maven、wheels、appcds、web 版 dist 等，详见 `docs/PACKAGING_SIZE_AUDIT.md`）、`check_runtime_native_deps.py`（构建期 DLL 完整性闸门）、`generate_brand_assets.py`（从 logo 生成图标/安装器位图）、`release_preflight.py`（发布前版本/品牌资产/运行时一致性闸门，对应 `npm run verify`）、项目路径解析、安装器回归、安装后桌面 smoke、干净机器冷/热启动检查和 kentang 端点验证。
 - `assets/`：安装器图标与 NSIS 定制资源。唯一品牌源是 `horosa_setup_badge.png`（最新 logo）；`horosa_setup.ico`、`installerHeader.bmp`、`installerSidebar.bmp`、`uninstallerSidebar.bmp` 全部由 `scripts/generate_brand_assets.py` 从它派生，换 logo 后必须重跑该脚本。`installer.nsh` 为 NSIS 定制脚本（含安装目录校验、旧快捷方式清理）。
 - `release/`：本地构建输出目录。v2.1.7 Beta 标准发布资产为：
   - `Horosa-Setup-2.1.7.exe`
