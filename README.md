@@ -9,14 +9,14 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.1.6%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6)
+[![Version](https://img.shields.io/badge/version-2.1.7%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.6.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.7.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -35,7 +35,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.1.6.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.6.exe)**
+**[⬇︎ Horosa-Setup-2.1.7.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.7.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -96,17 +96,17 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.1.6 beta
+## 本次更新 · What's New in v2.1.7 beta
 
-这一版把 Mac 端的 **奇门历法底层修复** 与 **印度盘地图选点修复** 同步到 Windows：
+这一版同步 Mac 端的 **奇门/三式 真太阳时定盘修复**：
 
-- **奇门月柱交节边界**：月柱改为按 sxtwl 精确交节时刻判定——交节当日、交节时刻之前的时间不再被错算进新月（立春同时校正年柱）。例：2005-05-05 16:30 月柱由辛巳更正为庚辰。
-- **奇门置闰超神接气定局**：置闰法定局改用「超神接气置闰后的节气」（新增 `zhirun_jieqi`），弃用旧农历启发式（旧实现约 45% 日期误用当日历法节气）。例：2027-10-31 由霜降更正为立冬上元六局；拆补法本就正确，未改。
-- **印度盘地图选点修复**：印度盘在地图上选点后排盘不再报错（`changeGeo` 传参对齐父级 `changeCond`）。
+- **奇门按真太阳时排盘**：之前选「真太阳时」时奇门盘仍按钟表时（直接时间）排，导致时柱错位；现已复用与前端自算 / 太乙一致的 `resolveCalcDateTime`，选真太阳时即按真太阳时刻发后端排盘。例：1993-02-01 11:24（真太阳时 10:46）时柱由戊午更正为丁巳。
+- **三式·六壬级联修复**：三式合一里六壬的日/时柱取自奇门四柱，奇门修好后六壬一并正确。
+- 太乙、紫微本就按所选口径，未变；顶部「直接时间 / 真太阳时」显示标签不变。
 
-奇门改的是随运行时打包的 vendored Python 引擎（`vendor/kinqimen`），**未动 Java，无需重建 `astrostudyboot.jar`**。仍包含 2.1.5 AI 分析页修复、2.1.4 供应商兼容 / 错误透传 / 脱敏、2.1.3 八字时间修复、2.1.2 AI 分析重做与 2.1.1 干净机器加固，并含本轮 Windows 侧 issue #2 修复（隔离内置 Python/Java 运行时不受系统环境污染，修复装有系统 Python 的 Win11 机器无法启动）。完整改动见 [v2.1.6 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6) 与 [本地发布说明](docs/releases/2.1.6.md)。
+纯前端改动（`components/dunjia/DunJiaCalc.js`），**未动 Java/Python，无需重建 `astrostudyboot.jar`**。仍包含 2.1.6 奇门历法 + 印度盘修复与 Windows issue #2 运行时隔离，以及 2.1.5/2.1.4/2.1.3/2.1.2/2.1.1 全部修复。完整改动见 [v2.1.7 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7) 与 [本地发布说明](docs/releases/2.1.7.md)。
 
-> This release syncs the Mac-side **Qimen (奇门) calendar fix** and **India chart map-pick fix** into Windows. Qimen month-pillar now respects the precise 交节 (solar-term) crossing time — births before the crossing are no longer pushed into the new month, and 立春 also corrects the year pillar (e.g. 2005-05-05 16:30 月柱 辛巳→庚辰); 置闰 ju-determination now uses the 超神接气置闰 solar term (new `zhirun_jieqi`) instead of the old lunar heuristic that was wrong ~45% of the time (e.g. 2027-10-31 霜降→立冬上元六局), while the 拆补 method was already correct and is unchanged. The India chart no longer errors after picking a location on the map (`changeGeo` now matches the parent `changeCond`). The Qimen changes live in the vendored Python engine (`vendor/kinqimen`) shipped with the runtime — no Java change, no jar rebuild. Still includes the 2.1.5 / 2.1.4 / 2.1.3 / 2.1.2 / 2.1.1 work, plus a Windows-side issue #2 fix isolating the embedded Python/Java runtime from a contaminated host environment (Win11 machines with system Python no longer fail to launch). See the [v2.1.6 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6) for the full log.
+> This release syncs the Mac-side **Qimen/Sanshi true-solar-time chart fix**. When 真太阳时 (true solar time) is selected, the Qimen chart was still cast by clock time, mis-placing the hour pillar; it now reuses the same `resolveCalcDateTime` as the front-end calc and Taiyi, so picking true solar time casts at the corrected time (e.g. 1993-02-01 11:24, true-solar 10:46: 时柱 戊午→丁巳). 三式 Liuren cascades from the Qimen four pillars, so it is fixed too; Taiyi/Ziwei already honored the selected basis and are unchanged. Frontend-only (`components/dunjia/DunJiaCalc.js`) — no Java/Python change, no jar rebuild. Still includes the 2.1.6 Qimen calendar + India fixes, the Windows issue #2 runtime isolation, and all 2.1.5 / 2.1.4 / 2.1.3 / 2.1.2 / 2.1.1 work. See the [v2.1.7 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7) for the full log.
 
 ## 技术构成 · Under the Hood
 
@@ -123,7 +123,7 @@
 - [desktop_installer_bundle/README.md](desktop_installer_bundle/README.md) — 桌面打包与安装器说明 / installer internals
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) — 项目结构说明 / project structure
 - [docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md](docs/CLEAN_MACHINE_NATIVE_RUNTIME_FIX.md) — 干净 Windows 运行时修复与发布注意点 / clean-machine runtime notes
-- [docs/releases/2.1.6.md](docs/releases/2.1.6.md) · [docs/releases/2.1.5.md](docs/releases/2.1.5.md) · [docs/releases/2.1.4.md](docs/releases/2.1.4.md) · [docs/releases/2.1.3.md](docs/releases/2.1.3.md) · [docs/releases/2.1.2.md](docs/releases/2.1.2.md) · [docs/releases/2.1.1.md](docs/releases/2.1.1.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
+- [docs/releases/2.1.7.md](docs/releases/2.1.7.md) · [docs/releases/2.1.6.md](docs/releases/2.1.6.md) · [docs/releases/2.1.5.md](docs/releases/2.1.5.md) · [docs/releases/2.1.4.md](docs/releases/2.1.4.md) · [docs/releases/2.1.3.md](docs/releases/2.1.3.md) · [docs/releases/2.1.2.md](docs/releases/2.1.2.md) · [docs/releases/2.1.1.md](docs/releases/2.1.1.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CITATION.cff](CITATION.cff)
 - 源码 / source: `local/workspace/Horosa-Web-*/`（前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`）
 
 ## 致谢 · Acknowledgements

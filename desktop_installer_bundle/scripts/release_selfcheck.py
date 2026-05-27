@@ -124,6 +124,9 @@ def check_sentinels():
         os.path.join(WS, "vendor/kinqimen/kinqimen.py"): ["config.dingju_jieqi"],
         # v2.1.6 India chart map-pick fix (issue #3): flat changeGeo patch matching parent changeCond.
         os.path.join(UI, "src/components/astro/IndiaChartMain.js"): ["patch.tm"],
+        # v2.1.7 qimen/sanshi true-solar-time fix: fetchQimenPan must run the time-basis correction
+        # (resolveCalcDateTime) so 真太阳时 casts at the corrected time, not raw clock time.
+        os.path.join(UI, "src/components/dunjia/DunJiaCalc.js"): ["resolveCalcDateTime(baseDt"],
     }
     missing = []
     for path, needles in SENT.items():

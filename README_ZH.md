@@ -8,14 +8,14 @@
 
 **把占星与中国术数，收进一个原生 Windows 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.1.6%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6)
+[![Version](https://img.shields.io/badge/version-2.1.7%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.6.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.7.exe) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -28,13 +28,13 @@
 
 星阙 Horosa 是一套桌面端的玄学工作站。西方占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙这些中国传统术数，被放进同一个原生 Windows 应用里。它要解决的事其实很朴素：不必在十几个网页排盘器之间来回切，也不必自己拼装底层的 Python、Java 与历表运行时——你下载一个离线 NSIS 安装包，打开的就是一个成品。
 
-这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.1.6.exe`）的发布链路。
+这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.1.7.exe`）的发布链路。
 
 ## 下载
 
 普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Setup-2.1.6.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.6.exe)**
+**[⬇︎ Horosa-Setup-2.1.7.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.1.7.exe)**
 
 适合场景：
 
@@ -95,18 +95,17 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.1.6 beta 更新
+## v2.1.7 beta 更新
 
-这一版把 Mac 端的 **奇门历法底层修复** 与 **印度盘地图选点修复** 同步到 Windows。
+这一版同步 Mac 端的 **奇门/三式 真太阳时定盘修复**。
 
-- **奇门月柱交节边界** —— 月柱按 sxtwl 精确交节时刻判定；交节当日、交节时刻之前不再被错算进新月（立春同时校正年柱）。例：2005-05-05 16:30 月柱 辛巳→庚辰
-- **奇门置闰超神接气定局** —— 置闰法改用「超神接气置闰后的节气」（新增 `zhirun_jieqi`），弃用旧农历启发式（旧实现约 45% 误用当日历法节气）。例：2027-10-31 霜降→立冬上元六局；拆补法本就正确，未改
-- **印度盘地图选点修复** —— 印度盘在地图上选点后排盘不再报错（`changeGeo` 对齐父级 `changeCond`）
-- **奇门改的是 vendored Python** —— `vendor/kinqimen` 随运行时打包，未动 Java，无需重建 `astrostudyboot.jar`
-- **仍含 2.1.6 / 2.1.4 / 2.1.3 / 2.1.2 / 2.1.1** —— AI 分析页修复、供应商兼容、八字时间、AI 分析重做、干净机器加固原样保留
-- **本轮 Windows 侧 issue #2 修复** —— 隔离内置 Python/Java 运行时不受系统环境污染，修复装有系统 Python 的 Win11 机器无法启动
+- **奇门按真太阳时排盘** —— 之前选「真太阳时」时奇门盘仍按钟表时排，时柱错位；现复用与前端自算 / 太乙一致的 `resolveCalcDateTime`，选真太阳时即按真太阳时刻排盘。例：1993-02-01 11:24（真太阳时 10:46）时柱 戊午→丁巳
+- **三式·六壬级联修复** —— 三式合一里六壬日/时柱取自奇门四柱，奇门修好后六壬一并正确
+- **太乙 / 紫微不变** —— 本就按所选口径；顶部「直接时间 / 真太阳时」显示标签不变
+- **纯前端** —— 仅 `components/dunjia/DunJiaCalc.js`，未动 Java/Python，无需重建 `astrostudyboot.jar`
+- **仍含 2.1.6 / 2.1.5 / 2.1.4 / 2.1.3 / 2.1.2 / 2.1.1** —— 奇门历法 + 印度盘、issue #2 运行时隔离、AI 分析页、供应商兼容、八字时间、AI 重做、干净机器加固原样保留
 
-完整改动见 [v2.1.6 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.6) 与 [本地发布说明](docs/releases/2.1.6.md)。
+完整改动见 [v2.1.7 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.1.7) 与 [本地发布说明](docs/releases/2.1.7.md)。
 
 ## 技术构成
 
@@ -121,16 +120,16 @@
 ## 常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-2.1.6.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-2.1.7.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
 
 **可以选择安装目录吗？**
-可以。v2.1.6 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
+可以。v2.1.7 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
 
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.1.6.exe`。
+`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.1.7.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。

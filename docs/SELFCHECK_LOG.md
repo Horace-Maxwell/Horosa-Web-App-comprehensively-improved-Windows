@@ -2,6 +2,31 @@
 
 最后更新：2026-05-26
 
+## 2026-05-26 v2.1.7 Beta 奇门/三式 真太阳时定盘修复（纯前端）
+
+把 Mac main（`907e841` / v2.1.7）的 **奇门/三式 真太阳时定盘修复** 同步到 Windows。**纯前端 1 文件，无 Java/Python 改动 → 未重建 `astrostudyboot.jar`。**
+
+### 移植与分类
+- 精确 commit-range diff `494783d..907e841` 确认共享树改动恰为 **1 个前端文件**：`astrostudyui/src/components/dunjia/DunJiaCalc.js`（+5/-2）。
+- 该文件在 Windows 与 Mac-2.1.6 基线**逐字节一致（零分叉）**→ 复制 Mac-2.1.7 版只引入本轮改动；复制后再核对 == Mac-2.1.7。
+- 机制：`fetchQimenPan` 改为复用既有 `resolveCalcDateTime(baseDt, nongli, opt, context)`——`timeAlg===0`（真太阳时）用 `nongli.birth` 校正时刻，`===1`（直接时间）用钟表时；与 `calcDunJia` / 太乙一致。此前漏用此校正，选真太阳时被当直接时间排盘（时柱错位）。三式六壬日/时柱取自奇门四柱，级联修复。`resolveCalcDateTime` 在同文件已定义（行 495），新代码只是调用既有函数，无新增 import。
+
+### 验证
+- 前端 `npm run build:file` 编译通过；`umi-test` 28 suites / 129 tests（含既有奇门拆补/置润/节气测试）全通过，无回归。
+- 逻辑核对：`resolveCalcDateTime({hour:11,minute:24},{birth:"1993-02-01 10:46"},{timeAlg:0})` → `{hour:10,minute:46}` → 后端 `kinqimen.Qimen(...,10,46)` → 巳时 → 丁巳時（vs 旧按钟表时 11:24 的戊午）。
+- 版本一致性闸门：`release_selfcheck.py` 版本一致（全 == 2.1.7）；本轮新增哨兵守 `DunJiaCalc.js: resolveCalcDateTime(baseDt`。
+
+### 发布资产 + SHA256
+- `Horosa-Setup-2.1.7.exe`（`1194425076` bytes）+ `.exe.blockmap`（`1234449` bytes）+ `latest.yml`（version `2.1.7`）+ `SHA256SUMS.txt`（已为 2.1.7 重新生成）。
+- `Horosa-Setup-2.1.7.exe`: `915b090e5291657849a392e7e850c4a00070681981427b0b8bd9a2adfc6ca285`
+- `Horosa-Setup-2.1.7.exe.blockmap`: `3910373b61247d440232b09aa79143bdcc4fa6e3b377b9dcd7d5af5c0bd2a8a4`
+- `latest.yml`: `9938e2c837b5317ea859d19b22e4ad940f13b31c7d00ca189ffac6882d5c1541`
+- `dist:win` 末尾 `release_selfcheck.py` 5/5（assets 当时为 SHA256SUMS 待重生成）；重生成后复跑做完整哈希核对。
+
+### 注意事项
+- **纯前端改动**：只需 `build:file` 重建前端 + 随包；不重建 jar、不动 vendor。
+- 行为面（三式/遁甲选真太阳时奇门时柱）建议用户在 App 内复核（1993-02-01 11:24 → 丁巳 / 切直接时间 → 戊午）。
+
 ## 2026-05-26 v2.1.6 Beta 奇门历法修复（月柱交节边界 + 置闰超神接气定局）+ 印度盘选点 + issue #2 批量
 
 把 Mac main（`494783d` / `v2.1.6`）的 **奇门历法底层修复** 与 **印度盘地图选点修复** 同步到 Windows，并合入本地已修的 Windows 侧 issue #2（内置运行时环境隔离）。**纯 Python（`vendor/kinqimen`）+ 前端，无 Java 改动 → 未重建 `astrostudyboot.jar`。**
