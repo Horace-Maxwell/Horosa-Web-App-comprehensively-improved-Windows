@@ -1,6 +1,27 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-27
+最后更新：2026-05-28
+
+## 2026-05-28 v2.2.1 Beta（Mac 同步：日界点·晚子时 + AI 连通性 + Windows 应用内自动更新启用 + #8 流式心跳）
+
+同步 Mac main `e712784`（v2.2.1），精确 diff `2ade4c6..e712784`：**90 共享文件（83 改 + 7 新），0 Windows-ahead 冲突**——全部与 Mac 基线逐字节一致（干净 take-from-Mac，无需任何 3-way merge）；Windows-ahead 文件（FengShuiMain / windowSizePersistence / ZWHouse / pages-index / app.less / service-manager）本轮未被 Mac 触碰，自动保留。
+
+### 内容（含 Java → 重建 jar）
+- **全局日界点·晚子时**：新增独立全局开关 `lateZiHourUseNextDay`（默认 nextDay），只在 23:00–24:00 影响时干，与 `after23NewDay` 独立；全技法一致。修 `ChartController` + 7 controller + 3 model 透传 bug。Java + 前端 + Python vendor 都改。
+- **AI 连通性**：Anthropic `content.type`（503 修）、测试连接中文提示、`HttpClientUtility` 系统代理属性回退。
+- **Windows Issue #8 AI 流式双修复**：catch 先 `QueueLog.error` 记一级异常 + `streamOpenAICompatible/Anthropic/Gemini` 三路 `withHeartbeat`（15s `: keep-alive`）。**已核验打包 jar 内 astrostudy 含 `keep-alive`**。
+- **Windows 本版上线**：应用内自动更新（`d510db5`，electron-updater + GitHub feed，VM 实测过）正式启用 + 帮助菜单整理。
+- 偏好精修；共享 `UpdateNotifier`（`isDesktopBridgeAvailable()` 仅 Tauri 下激活 → Windows Electron 下 inert，零冲突）。
+
+### 重建 jar + 哨兵
+- 3 模块改（`boundless` HttpClientUtility、`astrostudy` AIAnalysisProxyService/BaZiHelper/NongliHelper、`astrostudycn` BaZi/controllers/models）→ 链 `boundless install → astrostudy install → astrostudycn install → astrostudyboot clean package`（JDK17 内置 Maven）。核验：astrostudy `keep-alive`、astrostudycn `lateZiHourUseNextDay`。
+- `release_selfcheck.py` 新增哨兵：AIAnalysisProxyService `keep-alive` + `QueueLog.error(AppLoggers.ErrorLogger`；BaZi.java `lateZiHourUseNextDay`。selfcheck **8/8**。
+
+### 发布
+- commit `516974d`（101 文件 +3411/-431；连同 `d510db5` 一起 push）；tag `v2.2.1`；`prerelease=false`。
+- `Horosa-Setup-2.2.1.exe` = **849,316,760** bytes，SHA256 `2ba47e0571997ea32997406664f502e1b11c05b0d08849d46fd497e41b43a5af`；blockmap `6de12060…`；latest.yml `cfc0af98…`。**线上 latest.yml + SHA256SUMS 与本地逐字节一致。**
+- **引导前提**：线上 v2.2.0 更新器是关的，首个启用自动更新的版本（本版）需用户**手动装一次**；v2.2.1 起后续版本自动拉取。
+- 待 Windows 实测：#9 OpenAI 代理超时（本版带 HttpClientUtility 属性回退，完整方案待 Mac 加 `-Djava.net.useSystemProxies=true` 后同步）。
 
 ## 2026-05-27 v2.2.0 补丁（heluo 流年修订，原地覆盖 v2.2.0）
 
