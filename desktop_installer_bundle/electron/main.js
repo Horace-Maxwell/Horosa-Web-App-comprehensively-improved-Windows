@@ -944,6 +944,67 @@ function createMainWindow() {
   return showLoadingScreen();
 }
 
+const HOROSA_REPO_URL = 'https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows';
+const HOROSA_ISSUES_URL = `${HOROSA_REPO_URL}/issues`;
+
+// Shared by the Help menu and the renderer IPC, so diagnostics can be exported
+// from either place (the renderer passes its snapshot; the menu passes null).
+async function exportDiagnosticsReport(snapshotPayload) {
+  const runtimeState = runtimeManager ? runtimeManager.getState() : {};
+  const defaultPath = path.join(
+    app.getPath('documents'),
+    `Horosa-Diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+  );
+  const saveResult = await dialog.showSaveDialog(
+    mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    {
+      defaultPath,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    }
+  );
+  if (saveResult.canceled || !saveResult.filePath) {
+    return { ok: false, canceled: true, message: '已取消导出诊断报告' };
+  }
+  const payload = {
+    appInfo: {
+      version: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      hostname: os.hostname(),
+      userDataPath: app.getPath('userData'),
+      packagedResourceRoot: getResourceRoot(),
+      activeResourceRoot: getActiveResourceRoot(),
+    },
+    runtimeState,
+    updateState,
+    rendererSnapshot: snapshotPayload || {},
+    exportedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(saveResult.filePath, JSON.stringify(payload, null, 2), 'utf8');
+  return {
+    ok: true,
+    message: `诊断报告已导出到 ${saveResult.filePath}`,
+    filePath: saveResult.filePath,
+  };
+}
+
+function showAboutDialog() {
+  showUpdateModal({
+    type: 'info',
+    title: '关于星阙',
+    message: `星阙 Horosa 桌面版 v${app.getVersion()}`,
+    detail: '十项全能玄学术数工作站：紫微斗数 · 八字 · 占星 · 六壬 · 遁甲 · 太乙 · 六爻 · 统摄法 · 风水 · 主流推运技法 · 内置 AI 分析。\n\n于旧星阙 Horosa 基础上改良制作。',
+    buttons: ['访问项目主页', '确定'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  }).then((result) => {
+    if (result && result.response === 0) {
+      shell.openExternal(HOROSA_REPO_URL).catch(() => {});
+    }
+  }).catch(() => {});
+}
+
 function createAppMenu() {
   const template = [
     {
@@ -955,6 +1016,13 @@ function createAppMenu() {
             startRuntimeFlow({ restart: true }).catch(() => {});
           },
         },
+        {
+          label: '自检修复并重启服务',
+          click: () => {
+            startRuntimeFlow({ repair: true }).catch(() => {});
+          },
+        },
+        { type: 'separator' },
         {
           label: '退出',
           accelerator: 'Alt+F4',
@@ -990,7 +1058,7 @@ function createAppMenu() {
         },
         { type: 'separator' },
         {
-          label: '最大化窗口',
+          label: '最大化 / 还原窗口',
           accelerator: 'F11',
           click: () => {
             if (!mainWindow || mainWindow.isDestroyed()) {
@@ -1009,15 +1077,42 @@ function createAppMenu() {
       label: '帮助',
       submenu: [
         {
-          label: '检查更新',
+          label: '检查更新…',
           click: () => {
             runUpdateCheck({ manual: true }).catch(() => {});
           },
         },
+        { type: 'separator' },
         {
           label: '打开日志目录',
           click: () => {
             shell.openPath(path.join(app.getPath('userData'), 'logs')).catch(() => {});
+          },
+        },
+        {
+          label: '导出诊断报告…',
+          click: () => {
+            exportDiagnosticsReport(null).catch(() => {});
+          },
+        },
+        { type: 'separator' },
+        {
+          label: '反馈问题 / 提交 Issue',
+          click: () => {
+            shell.openExternal(HOROSA_ISSUES_URL).catch(() => {});
+          },
+        },
+        {
+          label: '访问项目主页',
+          click: () => {
+            shell.openExternal(HOROSA_REPO_URL).catch(() => {});
+          },
+        },
+        { type: 'separator' },
+        {
+          label: '关于星阙',
+          click: () => {
+            showAboutDialog();
           },
         },
       ],
@@ -1684,47 +1779,7 @@ ipcMain.handle('desktop:get-app-info', async () => {
   }));
 
   ipcMain.handle('desktop:export-diagnostics', async (_event, snapshotPayload) => {
-    const runtimeState = runtimeManager ? runtimeManager.getState() : {};
-    const defaultPath = path.join(
-      app.getPath('documents'),
-      `Horosa-Diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
-    );
-
-    const saveResult = await dialog.showSaveDialog({
-      defaultPath,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-
-    if (saveResult.canceled || !saveResult.filePath) {
-      return {
-        ok: false,
-        canceled: true,
-        message: '已取消导出诊断报告',
-      };
-    }
-
-    const payload = {
-        appInfo: {
-          version: app.getVersion(),
-          platform: process.platform,
-          arch: process.arch,
-          hostname: os.hostname(),
-          userDataPath: app.getPath('userData'),
-          packagedResourceRoot: getResourceRoot(),
-          activeResourceRoot: getActiveResourceRoot(),
-        },
-      runtimeState,
-      updateState,
-      rendererSnapshot: snapshotPayload || {},
-      exportedAt: new Date().toISOString(),
-    };
-
-    fs.writeFileSync(saveResult.filePath, JSON.stringify(payload, null, 2), 'utf8');
-    return {
-      ok: true,
-      message: `诊断报告已导出到 ${saveResult.filePath}`,
-      filePath: saveResult.filePath,
-    };
+    return exportDiagnosticsReport(snapshotPayload);
   });
 
   ipcMain.handle('desktop:ai-analysis:pick-files', async (_event, payload) => {

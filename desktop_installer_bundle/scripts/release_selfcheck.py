@@ -143,10 +143,14 @@ def check_sentinels():
             "update:progress",
             "update:done",
         ],
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel"],
+        # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
+        # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive
+        # heartbeat so a slow local model (Ollama long first-token) isn't cut off by an idle-timeout disconnect.
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger"],
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
-        os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/model/BaZi.java"): ["clockTime", "solarTime"],
+        # v2.2.1 global day-boundary: the late-zi-hour 时柱 second switch field must stay wired through the model.
+        os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/model/BaZi.java"): ["clockTime", "solarTime", "lateZiHourUseNextDay"],
         # v2.1.6 qimen 历法 fix (issue #4): month-pillar 交节 boundary + 置闰超神接气 ju-determination
         # in the vendored Python engine. Reverting these re-opens the calendar defect.
         os.path.join(WS, "vendor/kinqimen/jieqi.py"): ["def zhirun_jieqi"],
