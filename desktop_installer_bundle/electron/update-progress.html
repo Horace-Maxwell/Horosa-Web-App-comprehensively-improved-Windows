@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>正在下载更新</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    user-select: none;
+    -webkit-user-select: none;
+    padding: 18px 22px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin: 0 0 4px 0;
+  }
+  .sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin: 0 0 14px 0;
+    min-height: 16px;
+  }
+  .barbox {
+    background: #1e293b;
+    border-radius: 6px;
+    height: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+    transition: width 200ms ease-out;
+  }
+  .meta {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #94a3b8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .hint {
+    margin-top: 14px;
+    font-size: 11px;
+    color: #64748b;
+    text-align: center;
+    margin-bottom: 0;
+  }
+</style>
+</head>
+<body>
+  <p class="title" id="title">正在下载更新…</p>
+  <p class="sub" id="sub">连接 GitHub…</p>
+  <div class="barbox"><div class="bar" id="bar"></div></div>
+  <div class="meta">
+    <span id="pct">0.0%</span>
+    <span id="size"></span>
+  </div>
+  <p class="hint">下载完成后会弹窗提示您重启安装。关闭此窗口不会取消下载。</p>
+  <script>
+    const { ipcRenderer } = require('electron');
+    const $ = (id) => document.getElementById(id);
+    const titleEl = $('title');
+    const subEl = $('sub');
+    const bar = $('bar');
+    const pctEl = $('pct');
+    const sizeEl = $('size');
+    function fmtBytes(bytes) {
+      if (!bytes || !isFinite(bytes) || bytes < 0) return '';
+      const mb = bytes / (1024 * 1024);
+      if (mb >= 1024) return (mb / 1024).toFixed(2) + ' GB';
+      return mb.toFixed(1) + ' MB';
+    }
+    ipcRenderer.on('update:init', (_e, payload) => {
+      const ver = payload && payload.version ? String(payload.version) : '';
+      titleEl.textContent = ver ? `正在下载新版本 ${ver}` : '正在下载更新…';
+      subEl.textContent = '连接 GitHub…';
+    });
+    ipcRenderer.on('update:progress', (_e, p) => {
+      const percent = p && isFinite(p.percent) ? Math.max(0, Math.min(100, p.percent)) : 0;
+      bar.style.width = percent.toFixed(1) + '%';
+      pctEl.textContent = percent.toFixed(1) + '%';
+      subEl.textContent = '正在下载…';
+      const t = fmtBytes(p && p.transferred);
+      const total = fmtBytes(p && p.total);
+      const speed = p && p.bytesPerSecond ? `${fmtBytes(p.bytesPerSecond)}/s` : '';
+      sizeEl.textContent = t && total ? `${t} / ${total}${speed ? ' · ' + speed : ''}` : '';
+    });
+    ipcRenderer.on('update:done', () => {
+      bar.style.width = '100%';
+      pctEl.textContent = '100%';
+      subEl.textContent = '下载完成，准备安装…';
+    });
+  </script>
+</body>
+</html>

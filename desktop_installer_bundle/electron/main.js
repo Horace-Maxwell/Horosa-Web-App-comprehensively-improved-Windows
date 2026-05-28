@@ -7,6 +7,12 @@ const { NsisUpdater } = require('electron-updater');
 const packageMetadata = require('../package.json');
 const { createLogger } = require('./logger');
 const { RuntimeManager } = require('./service-manager');
+const {
+  formatUpdateErrorMessage,
+  shouldPromptForAvailableUpdate,
+  shouldAnnounceNoUpdate,
+  shouldAnnounceUpdateError,
+} = require('./update-flow');
 
 const localAppDataRoot = process.env.LOCALAPPDATA || app.getPath('appData');
 const horosaDataRoot = path.join(localAppDataRoot, 'HorosaDesktop');
@@ -22,8 +28,9 @@ const DEFAULT_UPDATE_PUBLISH_CONFIG = Object.freeze({
   owner: 'Horace-Maxwell',
   repo: 'Horosa-Web-App-comprehensively-improved-Windows',
 });
-const AUTO_UPDATE_ENABLED = false;
-const AUTO_UPDATE_DISABLED_MESSAGE = '当前安装包版不启用应用内自动更新，请从 GitHub Release 下载新版安装器。';
+const AUTO_UPDATE_ENABLED = true;
+const AUTO_UPDATE_DISABLED_MESSAGE = '开发模式下不启用自动更新（仅打包安装后可用）。';
+const UPDATE_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 app.setPath('userData', horosaDataRoot);
 
@@ -48,6 +55,13 @@ let updateState = {
   status: app.isPackaged && AUTO_UPDATE_ENABLED ? 'idle' : 'unsupported',
   message: app.isPackaged && AUTO_UPDATE_ENABLED ? '等待检查更新' : AUTO_UPDATE_DISABLED_MESSAGE,
 };
+let isInstallingUpdate = false;
+let isUpdateDialogOpen = false;
+let dismissedUpdateVersion = null;
+let lastCheckWasManual = false;
+let downloadedUpdateInfo = null;
+let updateRecheckTimer = null;
+let downloadProgressWindow = null;
 
 function createUpdaterLogger() {
   return {
@@ -131,44 +145,6 @@ function ensureAutoUpdater() {
   return autoUpdater;
 }
 
-function isOfflineUpdateError(message) {
-  const normalizedMessage = String(message || '').toLowerCase();
-  return [
-    'enetunreach',
-    'econnreset',
-    'econnrefused',
-    'etimedout',
-    'err_internet_disconnected',
-    'internet disconnected',
-    'net::err_network_changed',
-    'net::err_name_not_resolved',
-    'enotfound',
-    'network request failed',
-    'socket hang up',
-    'timeout',
-  ].some((pattern) => normalizedMessage.includes(pattern));
-}
-
-function formatUpdateErrorMessage(error, { manual = false } = {}) {
-  const rawMessage = error && error.message ? error.message : String(error || '');
-
-  if (rawMessage.includes('app-update.yml')) {
-    return manual
-      ? '更新功能初始化失败，请安装最新完整安装包后重试。'
-      : '更新暂不可用，已跳过后台检查。';
-  }
-
-  if (isOfflineUpdateError(rawMessage)) {
-    return manual
-      ? '网络不可用，暂时无法检查更新。'
-      : '当前网络不可用，已跳过后台更新检查。';
-  }
-
-  return manual
-    ? `检查更新失败：${rawMessage || '请稍后重试。'}`
-    : '更新暂不可用，已跳过后台检查。';
-}
-
 function applyUpdateErrorState(error, { manual = false } = {}) {
   const rawMessage = error && error.message ? error.message : String(error || '检查更新失败');
   if (logger) {
@@ -203,6 +179,7 @@ async function runUpdateCheck({ manual = false } = {}) {
 
   const context = manual ? 'manual' : 'background';
   updateCheckContext = context;
+  lastCheckWasManual = manual;
 
   try {
     await updater.checkForUpdates();
@@ -1050,6 +1027,109 @@ function createAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function logUpdaterWarn(message, error) {
+  if (logger) {
+    logger.warn(message, { message: error && error.message ? error.message : String(error || '') });
+  }
+}
+
+function showUpdateModal(options) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return dialog.showMessageBox(mainWindow, options);
+  }
+  return dialog.showMessageBox(options);
+}
+
+function showUpdateInfoDialog(title, message, type = 'info') {
+  showUpdateModal({
+    type,
+    title,
+    message,
+    buttons: ['确定'],
+    defaultId: 0,
+    noLink: true,
+  }).catch(() => {});
+}
+
+// Best-effort taskbar progress; never throws on platforms/states that don't support it.
+function setUpdateProgressBar(fraction) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  try {
+    mainWindow.setProgressBar(fraction < 0 ? -1 : Math.min(Math.max(fraction, 0), 1));
+  } catch (_error) {
+    // ignore — progress bar is a non-critical convenience
+  }
+}
+
+// Dedicated download-progress window. Non-modal so the user can keep using the
+// app while it downloads ~800MB; closable (closing does NOT cancel the download
+// — the taskbar progress + the "立即重启" dialog still notify them on completion).
+function showDownloadProgressWindow(info) {
+  if (downloadProgressWindow && !downloadProgressWindow.isDestroyed()) {
+    downloadProgressWindow.focus();
+    return;
+  }
+  downloadProgressWindow = new BrowserWindow({
+    width: 440,
+    height: 220,
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    modal: false,
+    resizable: false,
+    minimizable: true,
+    maximizable: false,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+    show: false,
+    title: '正在下载更新 - 星阙',
+    backgroundColor: '#0f172a',
+    icon: path.join(__dirname, '..', 'assets', 'horosa_setup.ico'),
+    skipTaskbar: false,
+    webPreferences: {
+      contextIsolation: false,
+      nodeIntegration: true,
+      sandbox: false,
+      spellcheck: false,
+    },
+  });
+  downloadProgressWindow.removeMenu();
+  downloadProgressWindow.loadFile(path.join(__dirname, 'update-progress.html')).catch((error) => {
+    logUpdaterWarn('Failed to load update-progress.html', error);
+  });
+  downloadProgressWindow.once('ready-to-show', () => {
+    if (downloadProgressWindow && !downloadProgressWindow.isDestroyed()) {
+      downloadProgressWindow.show();
+      downloadProgressWindow.webContents.send('update:init', { version: info && info.version });
+    }
+  });
+  downloadProgressWindow.on('closed', () => {
+    downloadProgressWindow = null;
+  });
+}
+
+function sendDownloadProgress(progress) {
+  if (downloadProgressWindow && !downloadProgressWindow.isDestroyed()) {
+    try {
+      downloadProgressWindow.webContents.send('update:progress', progress);
+    } catch (_error) {
+      // ignore — IPC to a closing window is best-effort
+    }
+  }
+}
+
+function closeDownloadProgressWindow() {
+  if (downloadProgressWindow && !downloadProgressWindow.isDestroyed()) {
+    try {
+      downloadProgressWindow.webContents.send('update:done');
+    } catch (_error) {
+      // ignore
+    }
+    downloadProgressWindow.destroy();
+  }
+  downloadProgressWindow = null;
+}
+
 function configureAutoUpdater() {
   if (!app.isPackaged || !AUTO_UPDATE_ENABLED) {
     setUpdateState({
@@ -1064,8 +1144,11 @@ function configureAutoUpdater() {
     return;
   }
 
-  updater.autoDownload = true;
-  updater.autoInstallOnAppQuit = false;
+  // Prompt before downloading the ~800MB installer; auto-install on next quit
+  // only as a fallback for an update the user downloaded but deferred.
+  updater.autoDownload = false;
+  updater.autoInstallOnAppQuit = true;
+  updater.disableWebInstaller = true;
 
   updater.on('checking-for-update', () => {
     setUpdateState({
@@ -1076,11 +1159,19 @@ function configureAutoUpdater() {
 
   updater.on('update-available', (info) => {
     updateCheckContext = 'idle';
+    const version = info && info.version ? String(info.version) : '';
     setUpdateState({
       status: 'available',
-      message: `发现新版本 ${info.version}，正在下载`,
+      message: `发现新版本 ${version}`,
       info,
     });
+    if (shouldPromptForAvailableUpdate({
+      manual: lastCheckWasManual,
+      version,
+      dismissedVersion: dismissedUpdateVersion,
+    })) {
+      promptForDownload(info).catch((error) => logUpdaterWarn('Update download prompt failed', error));
+    }
   });
 
   updater.on('download-progress', (progress) => {
@@ -1089,6 +1180,8 @@ function configureAutoUpdater() {
       message: '正在下载更新',
       progress,
     });
+    setUpdateProgressBar(progress && Number.isFinite(progress.percent) ? progress.percent / 100 : 0);
+    sendDownloadProgress(progress);
   });
 
   updater.on('update-not-available', (info) => {
@@ -1098,22 +1191,214 @@ function configureAutoUpdater() {
       message: '当前已是最新版本',
       info,
     });
+    if (shouldAnnounceNoUpdate({ manual: lastCheckWasManual })) {
+      showUpdateInfoDialog('检查更新', `当前已是最新版本（${app.getVersion()}）。`);
+    }
   });
 
   updater.on('update-downloaded', (info) => {
     updateCheckContext = 'idle';
+    downloadedUpdateInfo = info;
+    setUpdateProgressBar(-1);
+    closeDownloadProgressWindow();
+    const version = info && info.version ? String(info.version) : '';
     setUpdateState({
       status: 'downloaded',
-      message: `更新 ${info.version} 已下载完成，重启即可安装`,
+      message: `更新 ${version} 已下载完成，重启即可安装`,
       info,
     });
+    promptForInstall(info).catch((error) => logUpdaterWarn('Update install prompt failed', error));
   });
 
   updater.on('error', (error) => {
-    const manual = updateCheckContext === 'manual';
+    const manual = lastCheckWasManual;
     updateCheckContext = 'idle';
+    setUpdateProgressBar(-1);
+    closeDownloadProgressWindow();
     applyUpdateErrorState(error, { manual });
+    if (shouldAnnounceUpdateError({ manual })) {
+      showUpdateInfoDialog('检查更新失败', formatUpdateErrorMessage(error, { manual }), 'warning');
+    }
   });
+
+  startUpdateRecheckTimer();
+}
+
+async function promptForDownload(info) {
+  if (isUpdateDialogOpen || isInstallingUpdate) {
+    return;
+  }
+  // A download already in flight / finished must not spawn a second "download?" prompt
+  // (e.g. a manual "检查更新" during an active download).
+  if (updateState.status === 'downloading' || updateState.status === 'downloaded' || updateState.status === 'installing') {
+    return;
+  }
+  const updater = ensureAutoUpdater();
+  if (!updater) {
+    return;
+  }
+  const version = info && info.version ? String(info.version) : '';
+
+  isUpdateDialogOpen = true;
+  let response = 1;
+  try {
+    const result = await showUpdateModal({
+      type: 'info',
+      title: '发现新版本',
+      message: `发现新版本 ${version}`,
+      detail: `当前版本 ${app.getVersion()}。是否现在下载并安装更新？\n下载完成后会提示您重启应用。`,
+      buttons: ['下载并安装', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    response = result.response;
+  } catch (error) {
+    logUpdaterWarn('Update download prompt dialog failed', error);
+    return;
+  } finally {
+    isUpdateDialogOpen = false;
+  }
+
+  if (response !== 0) {
+    dismissedUpdateVersion = version || dismissedUpdateVersion;
+    setUpdateState({
+      status: 'available',
+      message: `已发现新版本 ${version}（已暂缓下载）`,
+      info,
+    });
+    return;
+  }
+
+  dismissedUpdateVersion = null;
+  setUpdateState({ status: 'downloading', message: '正在下载更新', info });
+  setUpdateProgressBar(0);
+  showDownloadProgressWindow(info);
+  try {
+    await updater.downloadUpdate();
+  } catch (error) {
+    closeDownloadProgressWindow();
+    setUpdateProgressBar(-1);
+    applyUpdateErrorState(error, { manual: true });
+    showUpdateInfoDialog('下载更新失败', formatUpdateErrorMessage(error, { manual: true }), 'warning');
+  }
+}
+
+async function promptForInstall(info) {
+  if (isUpdateDialogOpen || isInstallingUpdate) {
+    return;
+  }
+  const version = info && info.version ? String(info.version) : '';
+
+  isUpdateDialogOpen = true;
+  let response = 1;
+  try {
+    const result = await showUpdateModal({
+      type: 'info',
+      title: '更新已就绪',
+      message: `新版本 ${version} 已下载完成`,
+      detail: '需要重启应用以完成安装。立即重启吗？\n（选择“稍后”将在下次退出应用时自动安装。）',
+      buttons: ['立即重启并安装', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    response = result.response;
+  } catch (error) {
+    logUpdaterWarn('Update install prompt dialog failed', error);
+    return;
+  } finally {
+    isUpdateDialogOpen = false;
+  }
+
+  if (response === 0) {
+    await installUpdateNow();
+  } else {
+    setUpdateState({
+      status: 'downloaded',
+      message: `更新 ${version} 已就绪，下次退出时自动安装`,
+      info,
+    });
+  }
+}
+
+// Quit and hand off to the NSIS updater. CRITICAL ordering for THIS app:
+// the embedded Python/Java sidecars hold open handles on resources/app-runtime/**,
+// so they MUST be fully stopped before the installer overwrites the install dir,
+// otherwise the update fails on locked files (the classic instability here).
+async function installUpdateNow() {
+  if (isInstallingUpdate) {
+    return;
+  }
+  const updater = ensureAutoUpdater();
+  if (!updater || updateState.status !== 'downloaded') {
+    return;
+  }
+
+  isInstallingUpdate = true;
+  // We are committed to quitting; make the window/quit handlers treat this as a
+  // planned shutdown so they don't fight quitAndInstall's app.quit().
+  isQuitting = true;
+  isShuttingDown = true;
+  setUpdateState({ status: 'installing', message: '正在准备安装更新' });
+
+  if (windowStateSaveTimer) {
+    clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = null;
+  }
+  saveWindowState();
+  setUpdateProgressBar(-1);
+
+  if (runtimeManager) {
+    try {
+      await withTimeout(
+        runtimeManager.stop('update-install'),
+        13000,
+        'Timed out stopping local runtime before update install'
+      );
+    } catch (error) {
+      logUpdaterWarn('Runtime stop before update install failed/timed out', error);
+    }
+  }
+
+  // Brief settle so the OS releases the file handles freed by taskkill /F before
+  // NSIS starts overwriting app-runtime.
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.removeAllListeners('close');
+    mainWindow.destroy();
+  }
+
+  if (logger) {
+    logger.info('Quitting to install downloaded update', {
+      version: downloadedUpdateInfo && downloadedUpdateInfo.version,
+    });
+  }
+
+  // isSilent=true → run the NSIS installer silently (no wizard); isForceRunAfter=true → relaunch after install.
+  try {
+    updater.quitAndInstall(true, true);
+  } catch (error) {
+    logUpdaterWarn('quitAndInstall failed', error);
+    // Fall back to a normal quit; autoInstallOnAppQuit will apply the update.
+    requestAppQuit('update-install-fallback').catch(() => {});
+  }
+}
+
+function startUpdateRecheckTimer() {
+  if (!app.isPackaged || !AUTO_UPDATE_ENABLED || updateRecheckTimer) {
+    return;
+  }
+  updateRecheckTimer = setInterval(() => {
+    if (isInstallingUpdate || isShuttingDown) {
+      return;
+    }
+    runUpdateCheck({ manual: false }).catch(() => {});
+  }, UPDATE_RECHECK_INTERVAL_MS);
+  if (updateRecheckTimer.unref) {
+    updateRecheckTimer.unref();
+  }
 }
 
 function queueUpdateCheck() {
@@ -1350,17 +1635,14 @@ ipcMain.handle('desktop:get-app-info', async () => {
   });
 
   ipcMain.handle('desktop:install-downloaded-update', async () => {
-    const updater = ensureAutoUpdater();
-    if (!updater || updateState.status !== 'downloaded') {
+    if (updateState.status !== 'downloaded') {
       return {
         ok: false,
         message: '当前没有可安装的已下载更新',
       };
     }
 
-    setImmediate(() => {
-      updater.quitAndInstall(false, true);
-    });
+    installUpdateNow().catch((error) => logUpdaterWarn('Install downloaded update failed', error));
     return {
       ok: true,
       message: '即将退出并安装更新',
@@ -1595,7 +1877,6 @@ async function startRuntimeFlow({ restart = false, repair = false } = {}) {
         ? await runtimeManager.repairPreparedRuntime()
         : (restart ? await runtimeManager.restart() : await runtimeManager.start());
       await loadRendererApp();
-      queueUpdateCheck();
       return runtimeState;
     } catch (error) {
       if (logger) {
@@ -1667,6 +1948,10 @@ async function bootstrap() {
     }
   });
   configureAutoUpdater();
+  // Schedule the initial update check EVERY app open, independent of runtime success
+  // — if the runtime is broken, the user still gets the "new version" prompt (and the
+  // update may itself fix the broken boot).
+  queueUpdateCheck();
   publishCurrentStates();
   await startRuntimeFlow();
 }

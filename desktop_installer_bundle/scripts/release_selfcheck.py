@@ -17,8 +17,11 @@ Past bugs encoded as gates:
 - version-bump miss -> all download/badge/tag refs must equal package.json version
 - reverted Win fix  -> Windows-ahead + ported-fix sentinels must still be present
 - bad release set   -> 4 assets present, SHA256SUMS matches files, latest.yml version matches
+- broken auto-update-> latest.yml sha512/size/path must match the shipped exe byte-for-byte
+                       (a drifted latest.yml -- e.g. an overwrite-in-place re-release that forgot
+                        to regenerate it -- silently fails every client's electron-updater check)
 """
-import os, re, sys, glob, hashlib
+import os, re, sys, glob, hashlib, base64
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BUNDLE = os.path.dirname(SCRIPT_DIR)                       # desktop_installer_bundle
@@ -119,6 +122,27 @@ def check_sentinels():
             # (bare-tar PATH/PATHEXT resolution ENOENT'd on some machines -> app couldn't launch).
             "resolveTarExe",
         ],
+        # In-app auto-update must stay ENABLED (it was once disabled wholesale as
+        # "updater noise"), and the install handoff MUST stop the embedded Python/Java
+        # sidecars BEFORE quitAndInstall -- otherwise NSIS fails to overwrite the
+        # locked app-runtime files (the classic instability). Also guard that the
+        # visible download-progress window stays wired (without it the user can't tell
+        # the download is happening), and that the initial check is scheduled from
+        # bootstrap (runtime-independent, so it fires on every app open).
+        os.path.join(BUNDLE, "electron/main.js"): [
+            "AUTO_UPDATE_ENABLED = true",
+            "runtimeManager.stop('update-install')",
+            "quitAndInstall",
+            "showDownloadProgressWindow",
+        ],
+        # The download-progress window's UI (loaded from this file). The IPC channel
+        # names must match what main.js sends — if either side drifts, progress stops
+        # displaying. Sentinel the unique channel strings.
+        os.path.join(BUNDLE, "electron/update-progress.html"): [
+            "update:init",
+            "update:progress",
+            "update:done",
+        ],
         os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel"],
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
@@ -202,6 +226,70 @@ def sha256(path):
             h.update(chunk)
     return h.hexdigest()
 
+def sha512_base64(path):
+    h = hashlib.sha512()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return base64.b64encode(h.digest()).decode("ascii")
+
+def check_update_feed_consistency(V):
+    # electron-updater downloads the exe named in latest.yml and verifies it against
+    # latest.yml's sha512 + size. If latest.yml drifts from the actual exe (the classic
+    # failure after an "overwrite-in-place" re-release that forgot to regenerate latest.yml,
+    # since a rebuild always changes the exe hash), EVERY client's auto-update fails the
+    # integrity check -- silently breaking the whole feature. Gate it byte-for-byte.
+    rel = os.path.join(BUNDLE, "release")
+    exe = os.path.join(rel, f"Horosa-Setup-{V}.exe")
+    ly = os.path.join(rel, "latest.yml")
+    if not os.path.exists(exe) or not os.path.exists(ly):
+        record("update feed (latest.yml) matches exe", True, "SKIPPED (installer/latest.yml not built yet)")
+        return
+    lytxt = read(ly)
+    bad = []
+    m_path = re.search(r"^path:\s*(.+?)\s*$", lytxt, re.MULTILINE)          # top-level path
+    m_sha = re.search(r"^sha512:\s*(\S+)\s*$", lytxt, re.MULTILINE)         # top-level sha512 (column 0)
+    m_size = re.search(r"^\s+size:\s*(\d+)\s*$", lytxt, re.MULTILINE)       # files[].size (indented)
+    actual_sha = sha512_base64(exe)
+    actual_size = os.path.getsize(exe)
+    if not m_path or m_path.group(1).strip() != f"Horosa-Setup-{V}.exe":
+        bad.append(f"latest.yml path = {m_path.group(1).strip() if m_path else 'missing'} != Horosa-Setup-{V}.exe")
+    if not m_sha or m_sha.group(1).strip() != actual_sha:
+        bad.append("latest.yml sha512 != exe sha512 (clients would fail the auto-update integrity check)")
+    if not m_size or int(m_size.group(1)) != actual_size:
+        bad.append(f"latest.yml size = {m_size.group(1) if m_size else 'missing'} != exe size {actual_size}")
+    record("update feed (latest.yml) matches exe", not bad,
+           "; ".join(bad) if bad else "latest.yml path/sha512/size match the shipped exe")
+
+def check_app_update_yml():
+    # The packaged app MUST ship resources/app-update.yml so electron-updater can
+    # resolve the GitHub feed. The `electron-builder --dir` + `--win nsis --prepackaged`
+    # split skips electron-builder's own app-update.yml generation, so
+    # scripts/write-app-update-yml.cjs writes it (wired into dist:win). This gate
+    # ensures that step actually ran and the file matches package.json's publish config.
+    # win-unpacked is a build output (gitignored) -> SKIP if not built yet.
+    import json
+    wu_res = os.path.join(BUNDLE, "release", "win-unpacked", "resources")
+    if not os.path.isdir(wu_res):
+        record("packaged app-update.yml present", True, "SKIPPED (win-unpacked not built yet)")
+        return
+    auy = os.path.join(wu_res, "app-update.yml")
+    if not os.path.exists(auy):
+        record("packaged app-update.yml present", False,
+               "resources/app-update.yml MISSING -> electron-updater can't resolve the feed (write:update-config did not run)")
+        return
+    txt = read(auy)
+    with open(os.path.join(BUNDLE, "package.json"), "r", encoding="utf-8") as f:
+        pub = json.load(f).get("build", {}).get("publish", [])
+    pub = (pub[0] if isinstance(pub, list) and pub else pub) or {}
+    bad = []
+    for key in ("provider", "owner", "repo"):
+        want = pub.get(key, "")
+        if f"{key}: {want}" not in txt:
+            bad.append(f"app-update.yml {key} != package.json publish ({want!r})")
+    record("packaged app-update.yml present", not bad,
+           "; ".join(bad) if bad else "resources/app-update.yml present + matches publish config")
+
 def check_release_assets(V):
     rel = os.path.join(BUNDLE, "release")
     exe = os.path.join(rel, f"Horosa-Setup-{V}.exe")
@@ -262,6 +350,8 @@ def main():
     check_distfile_not_stale()
     check_payload_slimmed()
     check_release_assets(V)
+    check_update_feed_consistency(V)
+    check_app_update_yml()
     width = max(len(n) for n, _, _ in results)
     failed = 0
     for name, ok, detail in results:
