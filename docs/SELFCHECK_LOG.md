@@ -1,6 +1,31 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-28
+最后更新：2026-05-29
+
+## 2026-05-29 v2.3.0 Beta（Mac 大版本同步：占星地图 ACG 升级 + 卜卦/择日盘 + 河洛理数补全 + #9 系统代理 + 多项修复）
+
+同步 Mac main `a649287`（baseline `e712784`，8 commits），共享 `Horosa-Web/` 精确 diff：**69 共享文件——16/18 改动逐字节同 Mac 基线（clean port）+ 51 纯新增**；仅 2 个 Windows-ahead 文件 `pages/index.js`（`ensureField` + 字符串化 lat）与 `layouts/app.less`（滚动 padding）走 3-way merge（`git merge-file`，**0 冲突**，Windows 改动保留 + Mac delta 合入）。其余 Windows-ahead 未被 Mac 触碰自动保留；Mac-only `start_horosa_local.sh` 不移植（Windows 用 `service-manager.js` 等价加 flag）。**下次 Mac 同步基线 = `a649287`。**
+
+### 内容（含 Java → 重建 jar）
+- **占星地图 ACG**：`ACGraph.py` 解析法重写（GMST/RA-Dec、四轴线全球连续 + 极区闭合、Parans、Local Space、落点 `pointReport`）+ 新端点 `/location/acgpoint`（`AcgController` + `AstroHelper.getAcgPoint`，`getAcg` 改 `requestNoCache`）+ 前端 `AcgD3Map`/`AcgPointPanel`/`interpretations.zh`/`world.geo.json`。 `validate_acg.py` 内嵌 python worst **0.000000°**（Swiss Ephemeris `azalt()` 反验，10 行星 × 3 算例）。
+- **卜卦盘 + 择日盘**：辅盘新增（`src/divination/{data,engine,horary,election}` 40 文件 + `components/{horary,election,divination}` + `utils/divinationCaseSave.js`），**纯前端零后端**（消费现成 `/chart` 字段），事件盘双向存盘。
+- **河洛理数补全**：取化工法左栏 per-技法选项 + 运盘节气 label + 命运篇 5 判断；`_heluoTest.mjs` esbuild→node **96/96**。
+- **#9 AI 系统代理（三处缺一不可）**：`boundless/HttpClientUtility` `ProxySelector` 回退 + `astrostudy/AIAnalysisProxyService` `.proxy(ProxySelector.getDefault())` + Windows `service-manager.js buildJavaArgs` 加 `-Djava.net.useSystemProxies=true`（macOS 在 `start_horosa_local.sh`，Windows 壳不共享需各自加）。无系统代理时 DIRECT、localhost bypass，行为不变。
+- **六壬/三式合一 发三传顺序**（八专移到遥克之后，按典籍九法）+ 占星右栏 tab 下空白块 + 风水UI + 快捷dock 自适应（纯前端/CSS）。
+
+### 重建 jar + 哨兵
+- 2 模块改（`boundless` HttpClientUtility、`astrostudy` AIAnalysisProxyService/AcgController/AstroHelper）→ 链 `boundless install → astrostudy install → astrostudyboot clean package`（JDK17 内置 Maven）。**核验打包 jar 内 8 markers**：boundless `ProxySelector`+`api.openai.com`；astrostudy `ProxySelector`+`keep-alive`(v2.2.1 保留)+`isEmbeddingModel`(v2.2.0 保留)+AcgController `acgpoint`/`clickLat`+AstroHelper `getAcgPoint`。
+- `release_selfcheck.py` 新增 v2.3.0 哨兵：**#9 三处代理**（HttpClientUtility `ProxySelector` / AIAnalysisProxyService `ProxySelector` / service-manager `useSystemProxies`）、**ACG**（AcgController `acgpoint`+`clickLat` / AstroHelper `getAcgPoint`+`requestNoCache` / ACGraph.py `def pointReport`+`_parans` / AstroAcg.js `AcgD3Map`+`/location/acgpoint`）、**六壬** ChuangChart「遥克必须在八专之前」、**卜卦/择日**（localcases `value: 'horary'`/`'election'` + AuxChartMain `HoraryMain`/`ElectionMain`/`componentDidUpdate`）。
+
+### 验证
+- `npm run verify` **26/26**（service-manager 19 + update-flow 7，含新 `useSystemProxies` flag）；`npx umi-test` **29 套 141 测试全过**（含 ChuangChart 六壬 3/3 + 卜卦/择日 localStorage + 日界点矩阵）。
+- ACG `validate_acg.py` worst **0.000000°**；heluo `_heluoTest.mjs` **96/96**（esbuild→node；Node v24 直跑因 JSON import attribute 报错，须 esbuild 预打包，非移植问题）。
+- `dist:win` 一次过；`release_selfcheck.py` **8/8**（哨兵 **34 文件**全过；重生成 `SHA256SUMS.txt` 后复跑哈希门绿）；**staged 打包 jar 8 markers 复验通过**。
+
+### 发布
+- commit `16bada8`（release，81 文件）；tag `v2.3.0`；`prerelease=false`。本 SELFCHECK_LOG 条目随后续 `docs(selfcheck-log)` commit 记录。
+- `Horosa-Setup-2.3.0.exe` = **849,395,135** bytes，SHA256 `02e6ce7f64204bc707530b99340cf7e5802a377554fb09e00fdeea2fa1bd15cb`；blockmap `694ffc6c25d7692e75765c881c2d3af8fa14ea71b9ec982f373c2361f5b08242`（882,063 B）；latest.yml `ac1e86fd1b2e8a3dbac316c4e1988c9eea7c0acc3e556352b1a5d55fb832e0de`（341 B，version 2.3.0）。
+- **自动更新引导**：线上自 v2.2.1 起更新器已启用 → **v2.2.1 用户将自动收到 v2.3.0**（首个真正享受应用内自动更新的版本）；仍在 v2.2.0 及更早的用户需手动装一次。
 
 ## 2026-05-28 v2.2.1 Beta（Mac 同步：日界点·晚子时 + AI 连通性 + Windows 应用内自动更新启用 + #8 流式心跳）
 
