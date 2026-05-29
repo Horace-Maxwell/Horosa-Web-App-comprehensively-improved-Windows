@@ -2,6 +2,26 @@
 
 最后更新：2026-05-29
 
+## 2026-05-29 v2.3.1 Beta（Mac 同步 `fa6d9f3`：Issue #10 服务不稳定修复 — SSE 线程安全 SseChannel + SSE 标志跨请求污染）
+
+v2.3.0 的稳定性补丁。同步 Mac main `fa6d9f3`（baseline `a649287`）：共享树仅 **2 Java 文件**（均与基线逐字节一致 → clean port）+ 1 harness 脚本 `verifyHorosaRuntimeFull.js`。Mac-only `start_horosa_local.sh`（含「更新后启动卡顿」launcher 提速：后台预热 + 0.2s 快轮询 + pid 判存活）+ `AGENTS.md` **不移植**（Windows 壳用 `service-manager.js`，无对应 launcher 文件）。0 Windows-ahead 冲突。**下次 Mac 同步基线 = `fa6d9f3`。**
+
+### Issue #10 双修复（共享后端 Java → 重建 jar）
+- **(A) SSE emitter 线程不安全竞态**（DeepSeek「几句话之后停止」）：v2.2.1 #8 心跳线程 + 读流线程并发写非线程安全 `SseEmitter` → `ResponseBodyEmitter has already completed`(`AIAnalysisProxyService.java:995`) → 断流。修复：新增线程安全 `SseChannel` 包装 emitter（单锁串行化所有写 + `complete/completeWithError` 幂等；心跳不再自行 complete），`withHeartbeat/chatStream/stream{OpenAI,Anthropic,Gemini}/sendEvent` 全改走 channel。（Mac 独立得出同款 `SseChannel` 设计 = 与我先前确诊方案一致。）
+- **(B) SSE 标志跨请求污染**（间歇 `signature.error` / 排盘未就绪 / predict-200）：`__sse__` 标志挂 request 对象 attribute，Tomcat 池化复用 request 对象 → 上个 SSE 请求残留标志被后续排盘/predict/AI 复用 → 误当 SSE。修复：`boundless/RequestHeaderInterceptor.preHandle` 仅对 `DispatcherType.REQUEST` 解码+验签（async re-dispatch 放行，避免空 body 重算签名 → 那条 `signature.error`）+ 每请求 `setSSE(false)` 归零。
+
+### 重建 jar + 哨兵
+2 模块（`astrostudy` AIAnalysisProxyService + `boundless` RequestHeaderInterceptor）→ 链 `boundless install → astrostudy install → astrostudyboot clean package`（JDK17 内置 Maven）。**核验打包/staged jar 6 markers**：astrostudy `AIAnalysisProxyService$SseChannel.class` 存在 + 主类引用 `SseChannel`；boundless RequestHeaderInterceptor `DispatcherType`；v2.3.0 markers（ProxySelector / AcgController `acgpoint`）均在（**无回退**）。selfcheck 新增哨兵：AIAnalysisProxyService `SseChannel`、RequestHeaderInterceptor `DispatcherType.REQUEST`+`setSSE(false)`。**selfcheck 8/8（35 文件）。**
+
+### 发布（为何 v2.3.1 不覆盖 v2.3.0）
+线上自 v2.2.1 起应用内自动更新已启用 → 已更新到 v2.3.0 的用户**只有版本号变化才会再收推送**，故必须 bump v2.3.1（覆盖 v2.3.0 不触发更新）。
+- commit `8a3f9e1`（release，14 文件）；tag `v2.3.1`；`prerelease=false`。本 SELFCHECK_LOG 条目随后续 `docs(selfcheck-log)` commit 记录。
+- `Horosa-Setup-2.3.1.exe` = **849,395,230** bytes，SHA256 `35939839c8e9cb6f844b3fb51c74d2cdafd24b556884358c89f5520510cc7c8d`；blockmap `4729a4105894a4bc7468ff04cc7be67a0bdc9aef182c560ffc92f4c5f1dd6ed3`（883,485 B）；latest.yml `b630b948193a623072346bf5bc63c1c69cb79a11a62bc20ea2c5f964e0b7e43e`（341 B，version 2.3.1）。
+- 自动更新：**v2.2.1 / v2.3.0 用户自动收 v2.3.1**；v2.2.0 及更早需手动装一次。
+
+### #10 处置
+回复 + 关闭（owner 授权「按事实回复，可直接 close」；修复已随 v2.3.1 上线）。
+
 ## 2026-05-29 v2.3.0 Beta（Mac 大版本同步：占星地图 ACG 升级 + 卜卦/择日盘 + 河洛理数补全 + #9 系统代理 + 多项修复）
 
 同步 Mac main `a649287`（baseline `e712784`，8 commits），共享 `Horosa-Web/` 精确 diff：**69 共享文件——16/18 改动逐字节同 Mac 基线（clean port）+ 51 纯新增**；仅 2 个 Windows-ahead 文件 `pages/index.js`（`ensureField` + 字符串化 lat）与 `layouts/app.less`（滚动 padding）走 3-way merge（`git merge-file`，**0 冲突**，Windows 改动保留 + Mac delta 合入）。其余 Windows-ahead 未被 Mac 触碰自动保留；Mac-only `start_horosa_local.sh` 不移植（Windows 用 `service-manager.js` 等价加 flag）。**下次 Mac 同步基线 = `a649287`。**
