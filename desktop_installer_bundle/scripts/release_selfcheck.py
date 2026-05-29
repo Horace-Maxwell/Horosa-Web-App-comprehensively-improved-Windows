@@ -121,6 +121,11 @@ def check_sentinels():
             # issue #7: payload extraction must resolve tar to an absolute path, not bare `tar`
             # (bare-tar PATH/PATHEXT resolution ENOENT'd on some machines -> app couldn't launch).
             "resolveTarExe",
+            # v2.3.0 issue #9: the embedded JVM must honor the OS system proxy so AI providers
+            # (OpenAI/Anthropic/etc.) are reachable behind a corporate/system proxy. This launcher
+            # flag is the 3rd leg of the fix (with boundless+astrostudy ProxySelector); reverting it
+            # re-breaks AI for proxied users. The flag is inert when no system proxy is configured.
+            "useSystemProxies",
         ],
         # In-app auto-update must stay ENABLED (it was once disabled wholesale as
         # "updater noise"), and the install handoff MUST stop the embedded Python/Java
@@ -146,7 +151,7 @@ def check_sentinels():
         # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive
         # heartbeat so a slow local model (Ollama long first-token) isn't cut off by an idle-timeout disconnect.
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger", "ProxySelector"],
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
         # v2.2.1 global day-boundary: the late-zi-hour 时柱 second switch field must stay wired through the model.
@@ -170,6 +175,25 @@ def check_sentinels():
         os.path.join(WS, "vendor/kinwuzhao/jieqi.py"): ["getJieQiJD"],
         os.path.join(WS, "vendor/kinastro/astro/bazi/calculator.py"): ["MONTH_JIE_INDICES"],
         os.path.join(WS, "vendor/kintaiyi/src/kintaiyi/config.py"): ["getJieQiJD"],
+        # ---------------- v2.3.0 sync (Mac e712784..a649287) ----------------
+        # #9 AI system-proxy fix has THREE legs (all required; the launcher flag alone is inert):
+        #   (1) boundless HttpClientUtility ProxySelector.getDefault() fallback (here),
+        #   (2) streaming AIAnalysisProxyService .proxy(ProxySelector.getDefault()) (guarded above),
+        #   (3) launcher -Djava.net.useSystemProxies=true (service-manager.js, guarded above).
+        os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpClientUtility.java"): ["ProxySelector"],
+        # 占星地图 ACG: analytic RA/Dec rewrite (parans + click landing-point report) + the new
+        # /location/acgpoint endpoint (controller + helper getAcgPoint w/ requestNoCache) + the D3 map FE.
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/AcgController.java"): ["acgpoint", "clickLat"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java"): ["getAcgPoint", "requestNoCache"],
+        os.path.join(WS, "astropy/astrostudy/acg/ACGraph.py"): ["def pointReport", "_parans"],
+        os.path.join(UI, "src/components/acg/AstroAcg.js"): ["AcgD3Map", "/location/acgpoint"],
+        # 六壬 / 三式合一 发三传: 八专 must be evaluated AFTER 遥克 (classics' 九法 order). The guard
+        # comment documents why; reverting it reopens mis-classifying "八专结构 + 遥克" as 八专课.
+        os.path.join(UI, "src/components/liureng/ChuangChart.js"): ["遥克必须在八专之前"],
+        # 卜卦盘 + 择日盘 (new auxiliary charts): case-type registration + sub-charts wired into AuxChart
+        # with componentDidUpdate so applyCase can switch to the right sub-tab (else event-chart restore breaks).
+        os.path.join(UI, "src/utils/localcases.js"): ["value: 'horary'", "value: 'election'"],
+        os.path.join(UI, "src/components/auxchart/AuxChartMain.js"): ["HoraryMain", "ElectionMain", "componentDidUpdate"],
     }
     missing = []
     for path, needles in SENT.items():

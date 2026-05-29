@@ -1271,6 +1271,14 @@ class RuntimeManager extends EventEmitter {
     const javaArgs = [
       `-Dhorosa.log.basedir=${javaLogBase}`,
       '-Dhorosa.desktop.fastPath=true',
+      // v2.3.0 (Windows issue #9): let the embedded JVM honor the OS system proxy so AI
+      // providers (OpenAI / Anthropic / OpenRouter / etc.) are reachable when the user sits
+      // behind a corporate/system HTTP proxy. This is the Windows-shell equivalent of the macOS
+      // launcher's start_horosa_local.sh flag, and the third leg of the #9 fix alongside the
+      // boundless HttpClientUtility ProxySelector fallback + AIAnalysisProxyService .proxy().
+      // With no system proxy configured, ProxySelector resolves to DIRECT and localhost is
+      // bypassed, so the desktop's own 127.0.0.1 backend<->chart traffic is unaffected.
+      '-Djava.net.useSystemProxies=true',
       '-Dhorosa.mongo.serverSelectionTimeoutMS=180',
       '-Dhorosa.mongo.connectTimeoutMS=180',
       '-Dhorosa.mongo.readTimeoutMS=220',
