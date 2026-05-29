@@ -8,14 +8,14 @@
 
 **把占星与中国术数，收进一个原生 Windows 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.3.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0)
+[![Version](https://img.shields.io/badge/version-2.3.1%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.0.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.1.exe) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -28,13 +28,13 @@
 
 星阙 Horosa 是一套桌面端的玄学工作站。西方占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙这些中国传统术数，被放进同一个原生 Windows 应用里。它要解决的事其实很朴素：不必在十几个网页排盘器之间来回切，也不必自己拼装底层的 Python、Java 与历表运行时——你下载一个离线 NSIS 安装包，打开的就是一个成品。
 
-这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.3.0.exe`）的发布链路。
+这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.3.1.exe`）的发布链路。
 
 ## 下载
 
 普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Setup-2.3.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.0.exe)**
+**[⬇︎ Horosa-Setup-2.3.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.1.exe)**
 
 适合场景：
 
@@ -95,18 +95,15 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.3.0 beta 更新
+## v2.3.1 beta 更新
 
-这一版同步 Mac 端 v2.3.0，是一次大版本更新：占星地图（ACG）全面升级、辅盘新增「卜卦盘 + 择日盘」、河洛理数补全，外加 AI 系统代理（Issue #9）等多项修复。
+**v2.3.1 是 v2.3.0 的稳定性补丁**，修复 Windows Issue #10「服务不稳定」：AI 流式分析（DeepSeek 等）「几句话之后就停止」，以及升级后排盘 / AI 间歇报 `signature.error` / 「本地排盘服务未就绪」。v2.3.0 全部功能原样保留。
 
-- **占星地图 ACG 全面升级** —— D3-geo + 内置 GeoJSON + 赤经赤纬解析法重写：四轴线全球平滑连续（极区闭合、跨 180° 不留缝）、点击出落点分析、本地空间 Local Space、Parans、多线型与明暗主题反色标注（以 Swiss Ephemeris `azalt()` 回归自检 worst 0.000000°）
-- **卜卦盘 + 择日盘（辅盘新增）** —— 西洋卜卦（Sibly / Dorotheus / Sahl 断事规则库，右栏 5 tab：裁决 / 征象 / 完成 / 时空 / 描述）与择日（13 模块 + 红线中文分级 + 0–100 评分 + 27 用事专属 + 逐时 / 未来 14 日择优）；可「存为事件盘」并重开还原
-- **河洛理数补全** —— 取化工法做成左栏 per-技法选项、运盘流年 / 流月精确节气交时 label、命运篇 5 项判断补全（数名 / 众宗众疾 / 顺反数 / 对体凶 / 命格综合）
-- **AI 代理直连（Issue #9）** —— 内置 Java 走系统代理（`HttpClientUtility` ProxySelector 回退 + 流式 `.proxy()` + 启动器 `-Djava.net.useSystemProxies=true`，三处缺一不可），系统代理下 AI 供应商可正常连接
-- **多项修复** —— 六壬 / 三式合一 发三传顺序按典籍校正（八专移到遥克之后）；占星右栏 tab 下空白块填满；风水页排版精修；快捷功能 dock 自适应列数
-- **仍含 v2.2.1 / 2.2.0 / 2.1.8 / 2.1.7 / 2.1.6 / 2.1.5 / 2.1.4 / 2.1.3 / 2.1.2 / 2.1.1** —— 全局日界点·晚子时、Windows 应用内自动更新、本地 AI 流式 #8、数算两新技法、调波盘、风水 React、AI 模型选择、Ollama 流式、issue #2 隔离 + Tier-1 减重（~810 MB）原样保留
+- **服务稳定性修复（Issue #10，后端 Java）** —— ① AI 流式 SSE 改由线程安全 `SseChannel` 单锁串行化所有写 + 幂等完成，心跳与读流不再竞态触发 `ResponseBodyEmitter has already completed`（根治「几句话之后停止」）；② SSE 标志每请求归零 + async 重派发不重复验签，堵死「上一个 AI 流污染下一个排盘 / predict 请求」导致的间歇 `signature.error` / 服务未就绪
+- **本版包含 v2.3.0 全部功能** —— 占星地图 ACG 全面升级（D3-geo 解析法 + 落点 / Local Space / Parans / 明暗）、辅盘新增卜卦盘 + 择日盘、河洛理数补全、AI 系统代理（#9）、六壬发三传 / 占星右栏 / 风水UI / 快捷dock 等修复
+- **更早版本** —— v2.2.1 日界点·晚子时 + 应用内自动更新 + #8、v2.2.0 数算 / 调波 / 风水 React、2.1.x 全部原样保留
 
-含后端 Java 改动（ACG 端点 + #9 代理，已重建 `astrostudyboot.jar`）。完整改动见 [v2.3.0 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0) 与 [本地发布说明](docs/releases/2.3.0.md)；上一版详见 [docs/releases/2.2.1.md](docs/releases/2.2.1.md)。
+含后端 Java 改动（`AIAnalysisProxyService` + `boundless` 拦截器，已重建 `astrostudyboot.jar`）。完整改动见 [v2.3.1 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1) 与 [本地发布说明](docs/releases/2.3.1.md)；上一版详见 [docs/releases/2.3.0.md](docs/releases/2.3.0.md)。
 
 ## 技术构成
 
@@ -121,7 +118,7 @@
 ## 常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-2.3.0.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-2.3.1.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
@@ -130,7 +127,7 @@
 可以。v2.2.0 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
 
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.3.0.exe`。
+`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.3.1.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。

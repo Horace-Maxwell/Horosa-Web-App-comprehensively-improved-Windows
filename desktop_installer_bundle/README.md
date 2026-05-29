@@ -1,10 +1,10 @@
 # Horosa Windows Desktop Bundle
 
-这个目录承载 Horosa v2.3.0 Beta Windows 桌面应用工程。
+这个目录承载 Horosa v2.3.1 Beta Windows 桌面应用工程。
 
-- 当前发布版本：`2.3.0 Beta`（安装器版本号为 `2.3.0`）
-- 发布定位：Mac 端 v2.3.0 产品面同步后的 Windows Web / Desktop 自包含大版本
-- 用户入口：`release/Horosa-Setup-2.3.0.exe`
+- 当前发布版本：`2.3.1 Beta`（安装器版本号为 `2.3.1`）
+- 发布定位：Mac 端 v2.3.1 产品面同步后的 Windows Web / Desktop 自包含大版本
+- 用户入口：`release/Horosa-Setup-2.3.1.exe`
 - 图标资产：`assets/horosa_setup.ico` 与 `assets/horosa_setup_badge.png`
 
 ## 目录职责
@@ -40,9 +40,9 @@
 - 安装器支持用户选择安装目录；选择受限目录时可触发 Windows 提权，安装前会校验目录可创建、可写。
 - 正常用户不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。
 
-## v2.3.0 Beta 发布口径
+## v2.3.1 Beta 发布口径
 
-v2.3.0 Beta 对齐 Mac 端 v2.3.0 的最新产品面，但 Windows 发布包必须保持自包含。旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不应作为安装版、Web 启动或打包依赖。
+v2.3.1 Beta 对齐 Mac 端 v2.3.1 的最新产品面，但 Windows 发布包必须保持自包含。旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不应作为安装版、Web 启动或打包依赖。
 
 这一版重点包括：
 
@@ -55,11 +55,11 @@ v2.3.0 Beta 对齐 Mac 端 v2.3.0 的最新产品面，但 Windows 发布包必�
 
 正式 GitHub Release 的标准资产是：
 
-- `Horosa-Setup-2.3.0.exe`
-- `Horosa-Setup-2.3.0.exe.blockmap`
+- `Horosa-Setup-2.3.1.exe`
+- `Horosa-Setup-2.3.1.exe.blockmap`
 - `latest.yml`
 - `SHA256SUMS.txt`
 
-公开下载入口是 `Horosa-Setup-2.3.0.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
+公开下载入口是 `Horosa-Setup-2.3.1.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
 
 当前安装包按用户要求未做 Authenticode 签名。发布前仍需明确告知：这可能触发 Windows SmartScreen 提示，但不代表 Java/Python/接口不匹配。

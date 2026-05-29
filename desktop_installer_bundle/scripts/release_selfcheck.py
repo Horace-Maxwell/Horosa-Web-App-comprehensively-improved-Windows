@@ -151,7 +151,7 @@ def check_sentinels():
         # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive
         # heartbeat so a slow local model (Ollama long first-token) isn't cut off by an idle-timeout disconnect.
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger", "ProxySelector"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger", "ProxySelector", "SseChannel"],
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
         # v2.2.1 global day-boundary: the late-zi-hour 时柱 second switch field must stay wired through the model.
@@ -181,6 +181,15 @@ def check_sentinels():
         #   (2) streaming AIAnalysisProxyService .proxy(ProxySelector.getDefault()) (guarded above),
         #   (3) launcher -Djava.net.useSystemProxies=true (service-manager.js, guarded above).
         os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpClientUtility.java"): ["ProxySelector"],
+        # v2.3.1 issue #10 (服务不稳定): SSE streaming stability has TWO legs.
+        # (A) AIAnalysisProxyService routes all emitter writes through a thread-safe `SseChannel`
+        #     (guarded in the AIAnalysisProxyService needles above) so the keep-alive heartbeat thread
+        #     and the read loop can't race a non-thread-safe SseEmitter into "already completed".
+        # (B) RequestHeaderInterceptor must reset the SSE flag per request (setSSE(false)) and skip
+        #     body-decode + signature re-check on a non-REQUEST (async) dispatch (DispatcherType.REQUEST).
+        #     Else a prior AI stream's SSE flag leaks onto a pooled request object -> a later chart /
+        #     predict / AI request is mishandled as SSE -> intermittent signature.error / "not ready".
+        os.path.join(SRV, "boundless/src/main/java/boundless/spring/help/interceptor/RequestHeaderInterceptor.java"): ["DispatcherType.REQUEST", "setSSE(false)"],
         # 占星地图 ACG: analytic RA/Dec rewrite (parans + click landing-point report) + the new
         # /location/acgpoint endpoint (controller + helper getAcgPoint w/ requestNoCache) + the D3 map FE.
         os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/AcgController.java"): ["acgpoint", "clickLat"],

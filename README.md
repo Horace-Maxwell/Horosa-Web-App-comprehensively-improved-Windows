@@ -9,14 +9,14 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.3.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0)
+[![Version](https://img.shields.io/badge/version-2.3.1%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1)
 [![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.0.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.1.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -35,7 +35,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.3.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.0.exe)**
+**[⬇︎ Horosa-Setup-2.3.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.3.1.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -96,19 +96,18 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.3.0 beta
+## 本次更新 · What's New in v2.3.1 beta
 
-这一版同步 Mac 端 v2.3.0，是一次大版本更新：占星地图（ACG）全面升级、辅盘新增「卜卦盘 + 择日盘」、河洛理数补全，外加 AI 系统代理（Issue #9）等多项修复。
+**v2.3.1 是 v2.3.0 的稳定性补丁**，修复 Windows Issue #10「服务不稳定」：AI 流式分析（DeepSeek 等）「几句话之后就停止」，以及从旧版升级后排盘 / AI 间歇性报 `signature.error` / 「本地排盘服务未就绪」。v2.3.0 的全部功能原样保留。
 
-- **占星地图 ACG 全面升级**：用 D3-geo + 内置 GeoJSON + 赤经赤纬解析法重写——四轴线全球平滑连续（极区闭合、跨 180° 不留缝）、点击地图出落点分析、本地空间（Local Space）、Parans、多线型与明暗主题反色标注。
-- **卜卦盘 + 择日盘（辅盘新增）**：西洋卜卦（Sibly / Dorotheus / Sahl 等断事规则库，右栏 5 tab：裁决 / 征象 / 完成 / 时空 / 描述）与择日（13 模块 + 红线中文分级 + 0–100 评分 + 27 用事专属 + 逐时 / 未来 14 日择优）；可「存为事件盘」并重开还原。
-- **河洛理数补全**：取化工法做成左栏 per-技法选项、运盘流年 / 流月加精确节气交时 label、命运篇 5 项判断补全（数名 / 众宗众疾 / 顺反数 / 对体凶 / 命格综合）。
-- **AI 代理直连（Issue #9）**：内置 Java 走系统代理（`HttpClientUtility` ProxySelector 回退 + 流式 `.proxy()` + 启动器 `-Djava.net.useSystemProxies=true` 三处缺一不可），系统代理下 AI 供应商可正常连接。
-- **多项修复**：六壬 / 三式合一 发三传顺序按典籍校正（八专移到遥克之后）；占星右栏 tab 下空白块填满；风水页排版精修；快捷功能 dock 自适应列数。
+- **服务稳定性修复（Issue #10，后端 Java）**：
+  - ① AI 流式 SSE 改由线程安全的 `SseChannel` **单锁串行化所有写** + 幂等完成——心跳线程与读流线程不再并发写同一 emitter、不再竞态触发 `ResponseBodyEmitter has already completed`（根治「几句话之后停止」）。
+  - ② SSE 标志**每请求归零** + async 重派发**不重复验签**——堵死「上一个 AI 流的 SSE 标志污染到下一个排盘 / predict / AI 请求」导致的间歇 `signature.error` 与「服务未就绪」。
+- **本版包含 v2.3.0 全部功能**：占星地图 ACG 全面升级（D3-geo 解析法重写 + 落点 / Local Space / Parans / 明暗）、辅盘新增卜卦盘 + 择日盘、河洛理数补全、AI 系统代理（Issue #9）、六壬发三传顺序 / 占星右栏 / 风水UI / 快捷dock 等修复。
 
-本版含后端 Java 改动（ACG 端点 + #9 代理），已重建 `astrostudyboot.jar`；ACG 算法以 Swiss Ephemeris `azalt()` 回归自检（worst 0.000000°）。仍含 **v2.2.1** 全局日界点·晚子时、Windows 应用内自动更新、本地 AI 流式（#8）等全部既有能力（详见 [docs/releases/2.2.1.md](docs/releases/2.2.1.md)）。完整改动见 [v2.3.0 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0) 与 [本地发布说明](docs/releases/2.3.0.md)。
+含后端 Java 改动（`AIAnalysisProxyService` + `boundless` 请求拦截器，已重建 `astrostudyboot.jar`）。完整改动见 [v2.3.1 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1) 与 [本地发布说明](docs/releases/2.3.1.md)；上一版详见 [docs/releases/2.3.0.md](docs/releases/2.3.0.md)。
 
-> This release syncs Mac-side v2.3.0 — a major update: a full astrocartography (ACG) map upgrade, two new auxiliary charts (horary + electional), a Heluo Lishu completion, plus multiple fixes including AI system-proxy support (Issue #9). **ACG map** is rewritten with D3-geo + bundled GeoJSON + an analytic RA/Dec method: globally smooth angular lines (polar closure, no seam across 180°), click-to-analyze landing points, Local Space, Parans, multiple line styles and theme-aware labels (validated against Swiss Ephemeris `azalt()`, worst 0.000000°). **Horary + Electional charts** add Western judgment (Sibly / Dorotheus / Sahl rule packs, a 5-tab right panel) and date-selection (13 modules + graded red-lines + 0–100 score + per-hour / 14-day scan); both can be saved as event-charts and restored on reopen. **Heluo Lishu completion** adds the 取化工法 per-technique option, precise solar-term labels on luck/year rows, and five 命运篇 judgments. **AI proxy (Issue #9)**: the embedded JVM now honors the OS system proxy (boundless `HttpClientUtility` ProxySelector fallback + streaming `.proxy()` + the launcher `-Djava.net.useSystemProxies=true` flag), so AI providers are reachable behind a system proxy. **Other fixes**: corrected the Liuren / Sanshi three-transmissions order, filled the astrology right-panel blank area, refined the Feng Shui layout, and made the quick-action dock adaptive. Backend Java changed (ACG endpoints + #9 proxy) so `astrostudyboot.jar` was rebuilt. This release still includes everything from **v2.2.1** (global day-boundary / late-zi-hour, Windows in-app auto-update, local AI streaming #8). Full log: [v2.3.0 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.0).
+> v2.3.1 is a stability patch over v2.3.0 that fixes Windows Issue #10 ("service unstable"): streaming AI analysis (DeepSeek etc.) stopping "after a few sentences", plus intermittent `signature.error` / "local chart service not ready" on chart & AI requests after upgrading. Two root causes, both fixed at the source: (1) a concurrency race on the SSE emitter — the keep-alive heartbeat thread and the read loop both wrote a non-thread-safe `SseEmitter`; now every write goes through a thread-safe, idempotent `SseChannel`; (2) SSE-flag cross-request contamination — the SSE flag left on a pooled request object made a later chart/predict/AI request be mishandled as SSE; now the flag is reset per request and signature re-validation is skipped on async re-dispatch. All v2.3.0 features are retained (ACG map upgrade, horary + electional charts, Heluo completion, AI system-proxy #9, and the assorted fixes). Backend Java changed (`AIAnalysisProxyService` + the `boundless` request interceptor; `astrostudyboot.jar` rebuilt). Full log: [v2.3.1 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.3.1).
 
 ## 技术构成 · Under the Hood
 
