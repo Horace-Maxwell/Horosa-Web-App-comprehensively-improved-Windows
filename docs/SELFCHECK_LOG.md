@@ -21,7 +21,7 @@
 - `release_selfcheck.py` **8/8**（哨兵 40 文件；version 2.4.0；jar 不旧于 .java；payload-slimmed；重生成 `SHA256SUMS.txt` 后复跑哈希门绿）；**staged 打包 jar markers 复验通过**（v2.4.0 新增 + v2.3.1/2.3.0/2.2.x 守卫无回退）。
 
 ### 发布
-- commit `TODO`（release）；tag `v2.4.0`；`prerelease=false`。本 SELFCHECK_LOG 条目随后续 `docs(selfcheck-log)` commit 记录。
+- commit `ade56da`（release，55 文件 +9251/-86）；tag `v2.4.0`；`prerelease=false`。本 SELFCHECK_LOG 条目随后续 `docs(selfcheck-log)` commit 记录。GitHub 独立计算的发布 exe digest = `sha256:12ff7d8b…`，与本地 SHA256SUMS 一致；线上 latest.yml + SHA256SUMS 与本地逐字节一致。
 - `Horosa-Setup-2.4.0.exe` = **849,430,352** bytes，SHA256 `12ff7d8bc9e8d1a1755cd2b0c2907dcc80cecd18c68ab1b0d6b3f9e64936eedb`；blockmap `bada35855634452fa450d4b3a1bbe2732feb9f4d3d9b54563772acb0e6a7f7ea`（885,743 B）；latest.yml `8f00eb9785e7439b4e4d977ed692b7dfeb2132cfc6f706955b2f856b9f78ae30`（341 B，version 2.4.0；exe sha512 `Fnx1+enXkX60GkN+1pDIRBRNFdga/ojLEOKrxu9tRN5STpJ17Ctw1ZddUdYDNxwPGy9EjwBgoT+Hga3ePYN1aA==`）。
 - 自动更新：**v2.2.1 / v2.3.0 / v2.3.1 用户自动收 v2.4.0**；v2.2.0 及更早需手动装一次。
 
