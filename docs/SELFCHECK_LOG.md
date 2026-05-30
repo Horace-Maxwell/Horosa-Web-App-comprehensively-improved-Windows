@@ -2,6 +2,15 @@
 
 最后更新：2026-05-29
 
+## 2026-05-29 harness 加固（新增第 9 个发布门：release-doc hashes match assets）
+
+v2.4.0 同步中险些把**占位/伪造哈希**写进发布文档（`docs/releases/2.4.0.md` 在 `dist:win` 出真哈希之前先按格式起草，填了看似真实的假 hex）。既有门只校验 `SHA256SUMS.txt` / `latest.yml`，**从不校验散文发布文档里的哈希** → 假哈希可一路发到线上，误导每个用 SHA256SUMS 核验下载的用户。
+
+- **新增门 `check_release_doc_hashes(V)`**（`release_selfcheck.py`，commit `abc48fc`）：`docs/releases/{V}.md` 必须包含已构建 exe/blockmap/latest.yml 的**真实 sha256**；缺失/占位/陈旧 → FAIL。installer 未构建时 SKIP。**已正反测试**：正向 9/9 全过；负向（把 exe 哈希改成 `deadbeef…`）→ 该门 FAIL exit 1，报「real sha256 12ff7d8b… absent from doc」。
+- **纪律**：起草发布文档 / SELFCHECK_LOG 哈希一律用字面量 `TODO`，**绝不用貌似真实的假 hex**（这样该门会响亮报错，而非让假哈希蒙混过关）。
+- **门数 8 → 9**：v2.4.0 发布快照时为 8/8（该门尚未存在），自此 selfcheck = **9/9**。
+- 同时把本轮其它操作教训固化进 SKILL.md gotcha #14（Mac 仓 owner=`Horace-Maxwell`；clean-port 判定以 LF 归一化 `git hash-object` 为准，PowerShell `Out-String` 误判 CRLF；测试输出用 `cmd /c "… > log 2>&1"` 捕获而非 PS `*>&1|Out-File`；tag/release 用 `HEAD` 勿猜 SHA；依赖前一步结果的工具调用要分开发，避免批内取消级联）。
+
 ## 2026-05-29 v2.4.0 Beta（Mac 大版本同步 `d8fe575`：西占六技法全链路 AI + 容许度 orbs 存档 + 新增 dist/agepoint/greatconj 路由）
 
 同步 Mac main `d8fe575`（v2.4.0，baseline `fa6d9f3`，3 commits），共享 `Horosa-Web/` 精确 diff `fa6d9f3..d8fe575`：**42 共享产品文件 = 30 clean-port（与基线逐字节一致 → cp Mac HEAD）+ 11 纯新增 + 1 个 Windows-ahead 3-way merge** `pages/index.js`（Windows-ahead `ensureField` + 字符串化 lat 防御保留；Mac v2.4 `AstroOrbSetting` import + 容许度设置 Drawer 引入；`git merge-file` **0 冲突**，不同区段）。Mac-only `Horosa_Desktop_Installer/`（Tauri 外壳 + `main.rs` 更新后自启）+ `AGENTS.md` + Mac docs **不移植**。**下次 Mac 同步基线 = `d8fe575`。**
