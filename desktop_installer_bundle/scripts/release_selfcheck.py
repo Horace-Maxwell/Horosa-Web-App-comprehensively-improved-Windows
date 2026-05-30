@@ -388,6 +388,36 @@ def check_release_assets(V):
         detail = "4 assets, hashes + latest.yml consistent"
     record("release assets + hashes", not bad, detail)
 
+def check_release_doc_hashes(V):
+    # The per-release doc (docs/releases/X.Y.Z.md) publishes the exe/blockmap/latest.yml SHA256 so
+    # users can verify their download. In the v2.4.0 sync we nearly shipped PLACEHOLDER hashes: the
+    # doc was drafted (with plausible-looking fake hex) BEFORE the build produced the real ones, and
+    # nothing caught it -- the other asset gates only check SHA256SUMS.txt / latest.yml, never the prose
+    # doc. A wrong/placeholder/stale hash in the release doc misleads every user who checks their
+    # download. Gate: docs/releases/{V}.md MUST contain the REAL sha256 of each shipped asset.
+    # Discipline: while drafting, use the literal token "TODO" (never fake hex) so this gate fails
+    # loudly and obviously instead of a fabricated hash sneaking into a published release.
+    rel = os.path.join(BUNDLE, "release")
+    exe = os.path.join(rel, f"Horosa-Setup-{V}.exe")
+    doc = os.path.join(REPO, "docs", "releases", f"{V}.md")
+    if not os.path.exists(exe):
+        record("release-doc hashes match assets", True, "SKIPPED (installer not built yet)")
+        return
+    if not os.path.exists(doc):
+        record("release-doc hashes match assets", False, f"docs/releases/{V}.md MISSING (per-release doc required)")
+        return
+    txt = read(doc)
+    bad = []
+    for name in (f"Horosa-Setup-{V}.exe", f"Horosa-Setup-{V}.exe.blockmap", "latest.yml"):
+        p = os.path.join(rel, name)
+        if not os.path.exists(p):
+            continue
+        h = sha256(p)
+        if h not in txt:
+            bad.append(f"{name}: real sha256 {h[:12]}… absent from doc (placeholder/stale/missing TODO)")
+    record("release-doc hashes match assets", not bad,
+           "; ".join(bad) if bad else f"docs/releases/{V}.md carries the real sha256 of exe/blockmap/latest.yml")
+
 def main():
     try:
         V = pkg_version()
@@ -401,6 +431,7 @@ def main():
     check_distfile_not_stale()
     check_payload_slimmed()
     check_release_assets(V)
+    check_release_doc_hashes(V)
     check_update_feed_consistency(V)
     check_app_update_yml()
     width = max(len(n) for n, _, _ in results)
