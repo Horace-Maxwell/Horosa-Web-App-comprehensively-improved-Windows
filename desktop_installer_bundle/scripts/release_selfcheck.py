@@ -169,7 +169,7 @@ def check_sentinels():
         # v2.1.8 issue #6 (local Ollama stops mid-generation): the 120s AI-streaming hard cap
         # must stay removed (SseEmitter(0L)); + Predictive/perchart pdYears passthrough.
         os.path.join(SRV, "boundless/src/main/java/boundless/spring/help/interceptor/SseHelper.java"): ["new SseEmitter(0L)"],
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/PredictiveController.java"): ["pdYears"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/PredictiveController.java"): ["pdYears", "agepoint"],
         os.path.join(WS, "astropy/astrostudy/perchart.py"): ["pdYears"],
         # v2.1.8 bazi month-pillar 交节 boundary across the other kentang engines (same class as 2.1.6 kinqimen).
         os.path.join(WS, "vendor/kinwuzhao/jieqi.py"): ["getJieQiJD"],
@@ -193,7 +193,7 @@ def check_sentinels():
         # 占星地图 ACG: analytic RA/Dec rewrite (parans + click landing-point report) + the new
         # /location/acgpoint endpoint (controller + helper getAcgPoint w/ requestNoCache) + the D3 map FE.
         os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/AcgController.java"): ["acgpoint", "clickLat"],
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java"): ["getAcgPoint", "requestNoCache"],
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java"): ["getAcgPoint", "requestNoCache", "getAstroExtraGreatConj", "getAgePoint", "getDistribution"],
         os.path.join(WS, "astropy/astrostudy/acg/ACGraph.py"): ["def pointReport", "_parans"],
         os.path.join(UI, "src/components/acg/AstroAcg.js"): ["AcgD3Map", "/location/acgpoint"],
         # 六壬 / 三式合一 发三传: 八专 must be evaluated AFTER 遥克 (classics' 九法 order). The guard
@@ -203,6 +203,20 @@ def check_sentinels():
         # with componentDidUpdate so applyCase can switch to the right sub-tab (else event-chart restore breaks).
         os.path.join(UI, "src/utils/localcases.js"): ["value: 'horary'", "value: 'election'"],
         os.path.join(UI, "src/components/auxchart/AuxChartMain.js"): ["HoraryMain", "ElectionMain", "componentDidUpdate"],
+        # ---------------- v2.4.0 sync (Mac fa6d9f3..d8fe575): western 6-technique full-AI + orbs persistence ----------------
+        # Six Western techniques (dodecatemoria / dispositor / lifespan / distributions / age-point / mundane)
+        # wired end-to-end into AI: AI-mount snapshot + AI-export registers + event-chart storage. New backend
+        # routes (rebuilt jar): /predict/dist + /predict/agepoint (PredictiveController, guarded above),
+        # /astroextra/greatconj + /astroextra/draconic (AstroExtraController + AstroHelper getters, above),
+        # and orbs/orbScale passthrough in the astrostudycn ChartController whitelist. Reverting any of these
+        # silently drops a shipped Western technique or the orb-tolerance persistence.
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/controller/AstroExtraController.java"): ["greatconj", "getGreatConjParams"],
+        os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java"): ["orbs", "orbScale"],
+        # orbs/orbScale persist with the chart (mirrors the after23NewDay 5-point passthrough); zero-regression default.
+        os.path.join(UI, "src/utils/localcharts.js"): ["orbs"],
+        # The six Western techniques' AI-export six-register audit matrix (AI-mount != AI-export are two systems).
+        os.path.join(UI, "src/utils/aiExport.js"): ["getAIExportAuditMatrix"],
+        os.path.join(UI, "src/components/mundane/MundaneMain.js"): ["MundaneMain"],
     }
     missing = []
     for path, needles in SENT.items():

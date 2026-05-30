@@ -2,6 +2,29 @@
 
 最后更新：2026-05-29
 
+## 2026-05-29 v2.4.0 Beta（Mac 大版本同步 `d8fe575`：西占六技法全链路 AI + 容许度 orbs 存档 + 新增 dist/agepoint/greatconj 路由）
+
+同步 Mac main `d8fe575`（v2.4.0，baseline `fa6d9f3`，3 commits），共享 `Horosa-Web/` 精确 diff `fa6d9f3..d8fe575`：**42 共享产品文件 = 30 clean-port（与基线逐字节一致 → cp Mac HEAD）+ 11 纯新增 + 1 个 Windows-ahead 3-way merge** `pages/index.js`（Windows-ahead `ensureField` + 字符串化 lat 防御保留；Mac v2.4 `AstroOrbSetting` import + 容许度设置 Drawer 引入；`git merge-file` **0 冲突**，不同区段）。Mac-only `Horosa_Desktop_Installer/`（Tauri 外壳 + `main.rs` 更新后自启）+ `AGENTS.md` + Mac docs **不移植**。**下次 Mac 同步基线 = `d8fe575`。**
+
+### 内容（含 Java + Python → 重建 jar）
+- **西占六技法全链路 AI**：十二分度盘（`AstroDodeca.js`）、主宰星链（`AstroDispositor.js`）、寿命格局（`AstroLifespan.js` + `divination/lifespan/{lifespanData,lifespanEngine}.js`）、界行法分布（`AstroDistributions.js`）、年龄推进点（`AstroAgePoint.js`）、世俗占星盘（`mundane/MundaneMain.js`）各自接入 AI 分析挂载（`astroAiSnapshot.js` buildDodeca/Dispositor/Lifespan + `aiAnalysisContext.js` distributions/agepoint wired）+ AI 导出六张登记表（`aiExport.js` getAIExportAuditMatrix）+ 事件盘储存（`divinationCaseSave.js`/`DivinationChartShell.js`）；另加龙盘辅盘 `auxchart/AstroDraconicLab.js`。「AI 分析挂载 ≠ AI 导出」是两套独立系统，本轮工程师级复审补全导出侧。
+- **容许度（orbs/orbScale）随命盘存档**：占星盘「容许度设置」抽屉（`AstroOrbSetting.js`，挂 `pages/index.js`）随命盘保存/还原——镜像 `after23NewDay` 五点对称透传（`models/user.js`/`utils/localcharts.js`/`models/astro.js`），默认 `undefined` 零回归，未触 pdMethod/主限法。
+- **Java（重建 jar）**：`astrostudy` `PredictiveController` 新增 `/predict/dist`（界推运）+ `/predict/agepoint`（年龄推进点）；`AstroExtraController` 新增 `/astroextra/greatconj`（木土大合，仅 startYear/endYear）+ `/astroextra/draconic`（龙盘）；`AstroHelper` 加 Distribution/AgePoint/Draconic/GreatConj 常量 + getter。`astrostudycn` `ChartController.getParams()` 白名单加 `orbs`/`orbScale`。
+- **Python**：`astropy/astrostudy/{perpredict（getDistributions/getAgePoint）, agepoint.py（新建·Koch 宫 houses_ex2 b'K'）, astroextra（compute_great_conjunctions）, perchart, thirteenthchart}` + `websrv/{webpredictsrv（dist/agepoint）, webastroextrasrv（greatconj/draconic）}` + `flatlib-ctrad2/flatlib/{object.py, tools/arabicparts.py}`。
+
+### 重建 jar + 哨兵
+- 2 模块改（`astrostudy` + `astrostudycn`）→ 链 `astrostudy install → astrostudycn install → astrostudyboot clean package`（JDK17 内置 Maven，`clean` 必须）。**`javap` 核验内嵌 jar**（非 mtime——内嵌 mtime 是 Maven reproducible-build 固定戳）：astrostudy `AstroHelper` 含 `/predict/dist`+`/predict/agepoint`+`/astroextra/draconic`+`/astroextra/greatconj`+4 getter；`PredictiveController` dist/agepoint；`AstroExtraController` draconic/greatconj/getGreatConjParams；astrostudycn `ChartController` orbs/orbScale。**v2.3.1 回归守卫无回退**：astrostudy `keep-alive`+`SseChannel` 内部类、boundless `DispatcherType`+`setSSE`+`HttpClientUtility ProxySelector` 均在（staged bundle jar 复验）。
+- `release_selfcheck.py` 新增 v2.4.0 哨兵：PredictiveController `agepoint`（并入既有 pdYears）、AstroHelper `getAstroExtraGreatConj`+`getAgePoint`+`getDistribution`（并入既有 getAcgPoint）、AstroExtraController `greatconj`+`getGreatConjParams`、astrostudycn ChartController `orbs`+`orbScale`、localcharts.js `orbs`、aiExport.js `getAIExportAuditMatrix`、mundane/MundaneMain.js `MundaneMain`。**哨兵 40 文件全过。**
+
+### 验证
+- `npm run verify` **26/26**（service-manager 19 + update-flow 7）；`npm run build:file` 绿；`npx umi-test` **29 套 141 测试全过**。
+- `release_selfcheck.py` **8/8**（哨兵 40 文件；version 2.4.0；jar 不旧于 .java；payload-slimmed；重生成 `SHA256SUMS.txt` 后复跑哈希门绿）；**staged 打包 jar markers 复验通过**（v2.4.0 新增 + v2.3.1/2.3.0/2.2.x 守卫无回退）。
+
+### 发布
+- commit `TODO`（release）；tag `v2.4.0`；`prerelease=false`。本 SELFCHECK_LOG 条目随后续 `docs(selfcheck-log)` commit 记录。
+- `Horosa-Setup-2.4.0.exe` = **849,430,352** bytes，SHA256 `12ff7d8bc9e8d1a1755cd2b0c2907dcc80cecd18c68ab1b0d6b3f9e64936eedb`；blockmap `bada35855634452fa450d4b3a1bbe2732feb9f4d3d9b54563772acb0e6a7f7ea`（885,743 B）；latest.yml `8f00eb9785e7439b4e4d977ed692b7dfeb2132cfc6f706955b2f856b9f78ae30`（341 B，version 2.4.0；exe sha512 `Fnx1+enXkX60GkN+1pDIRBRNFdga/ojLEOKrxu9tRN5STpJ17Ctw1ZddUdYDNxwPGy9EjwBgoT+Hga3ePYN1aA==`）。
+- 自动更新：**v2.2.1 / v2.3.0 / v2.3.1 用户自动收 v2.4.0**；v2.2.0 及更早需手动装一次。
+
 ## 2026-05-29 v2.3.1 Beta（Mac 同步 `fa6d9f3`：Issue #10 服务不稳定修复 — SSE 线程安全 SseChannel + SSE 标志跨请求污染）
 
 v2.3.0 的稳定性补丁。同步 Mac main `fa6d9f3`（baseline `a649287`）：共享树仅 **2 Java 文件**（均与基线逐字节一致 → clean port）+ 1 harness 脚本 `verifyHorosaRuntimeFull.js`。Mac-only `start_horosa_local.sh`（含「更新后启动卡顿」launcher 提速：后台预热 + 0.2s 快轮询 + pid 判存活）+ `AGENTS.md` **不移植**（Windows 壳用 `service-manager.js`，无对应 launcher 文件）。0 Windows-ahead 冲突。**下次 Mac 同步基线 = `fa6d9f3`。**

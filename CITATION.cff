@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.3.1
+version: 2.4.0
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -11,8 +11,8 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v2.3.1 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side work (a full astrocartography/ACG map upgrade with an analytic RA/Dec rewrite, landing-point/Local-Space/Parans analysis and theme-aware labels; new horary and electional auxiliary charts with Western judgment rule packs and event-chart save/restore; a Heluo Lishu completion; AI system-proxy support for Issue #9; the Liuren three-transmissions order fix and assorted UI fixes; plus the prior global day-boundary / late-zi-hour model, in-app auto-update, 数算 methods 邵子参评数 / 河洛理数, harmonic 调波 chart, Feng Shui React rewrite, AI connectivity/model-selection, Ollama-streaming, BaZi/Taiyi/PD, Qimen and clean-machine fixes) and AI Analysis rework, astrology modules, traditional Chinese methods,
+  Horosa for Windows v2.4.0 beta is a local-first metaphysics workstation that aligns the
+  latest Mac-side work (six Western-astrology techniques wired end-to-end into AI analysis — twelfth-parts/dodecatemoria, dispositor chains, lifespan/length-of-life, term/bound directions distribution, the age point, and mundane charts — each with AI-mount, AI-export registers and event-chart storage; chart-orb/orbScale persistence; new /predict/dist, /predict/agepoint and /astroextra/greatconj·draconic backend routes with a rebuilt astrostudyboot.jar; plus the prior astrocartography/ACG map upgrade with an analytic RA/Dec rewrite, landing-point/Local-Space/Parans analysis and theme-aware labels; horary and electional auxiliary charts with Western judgment rule packs and event-chart save/restore; a Heluo Lishu completion; AI system-proxy support for Issue #9; the Liuren three-transmissions order fix; the SSE thread-safety / signature-pollution service-stability fix for Issue #10; the global day-boundary / late-zi-hour model, in-app auto-update, 数算 methods 邵子参评数 / 河洛理数, harmonic 调波 chart, Feng Shui React rewrite, AI connectivity/model-selection, Ollama-streaming, BaZi/Taiyi/PD, Qimen and clean-machine fixes) and AI Analysis rework, astrology modules, traditional Chinese methods,
   kentang/kin backend integrations, AI-assisted structured export, Python and Java
   services, and self-contained Windows desktop delivery into one cross-platform
   release line.
