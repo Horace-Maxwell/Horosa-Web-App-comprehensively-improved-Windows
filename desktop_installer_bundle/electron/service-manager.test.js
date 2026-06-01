@@ -14,6 +14,8 @@ const {
   sanitizeEmbeddedRuntimeEnv,
   buildPythonRuntimeArgs,
   resolveTarExe,
+  isPortConflictError,
+  waitForServicesReadyOrExit,
 } = require('./service-manager');
 
 function createLogger() {
@@ -222,6 +224,84 @@ test('buildPythonRuntimeArgs launches the interpreter isolated from host PYTHON*
   // before the script so the interpreter is isolated at init time.
   assert.deepEqual(args.slice(0, 4), ['-E', '-s', '-X', 'utf8']);
   assert.deepEqual(args.slice(4), ['-c', 'print(1)']);
+});
+
+// --- Startup port-conflict resilience (v2.5.0) -------------------------------
+// A bind conflict (a port stolen in the TOCTOU window between findPort's probe and
+// the child binding) is the only startup failure we retry with a fresh port pair.
+// isPortConflictError gates that decision, so it MUST match real bind errors and
+// MUST NOT false-match normal output (a Spring banner / --server.port= line).
+test('isPortConflictError matches real bind errors across platforms', () => {
+  assert.equal(isPortConflictError('java.net.BindException: Address already in use'), true);
+  assert.equal(isPortConflictError('Web server failed to start. Port 9999 was already in use.'), true);
+  assert.equal(isPortConflictError('OSError: [WinError 10048] only one usage of each socket address'), true);
+  assert.equal(isPortConflictError('error while attempting to bind on address'), true);
+  assert.equal(isPortConflictError('Error: listen EADDRINUSE: address already in use 127.0.0.1:8899'), true);
+  assert.equal(isPortConflictError('OSError: [Errno 48] Address already in use'), true);
+});
+
+test('isPortConflictError does NOT false-match normal port output', () => {
+  // The macOS rule: match exact tokens only, NEVER a bare "port" — otherwise a
+  // Spring banner or a --server.port= flag would be misread as a conflict and
+  // trigger an endless, pointless port-retry loop.
+  assert.equal(isPortConflictError('Tomcat started on port(s): 9999 (http)'), false);
+  assert.equal(isPortConflictError('--server.port=9999 --astrosrv=http://127.0.0.1:8899'), false);
+  assert.equal(isPortConflictError('Started AstroStudyProgram in 8.2 seconds'), false);
+  assert.equal(isPortConflictError(''), false);
+  assert.equal(isPortConflictError(null), false);
+  assert.equal(isPortConflictError(undefined), false);
+});
+
+test('waitForServicesReadyOrExit resolves ready when both ports are listening', async () => {
+  const chart = await createHttpServer((_request, response) => response.end('ok'));
+  const backend = await createHttpServer((_request, response) => response.end('ok'));
+  const pythonProcess = createChild(11);
+  const javaProcess = createChild(12);
+  try {
+    const outcome = await waitForServicesReadyOrExit({
+      chartPort: chart.port,
+      backendPort: backend.port,
+      pythonProcess,
+      javaProcess,
+      pythonLog: 'python.log',
+      javaLog: 'java.log',
+      timeoutMs: 3000,
+    });
+    assert.equal(outcome.type, 'ready');
+  } finally {
+    chart.server.close();
+    backend.server.close();
+  }
+});
+
+test('waitForServicesReadyOrExit reports an early child exit (the retry trigger)', async () => {
+  // Use a port nothing listens on so the only way to settle is the child exiting.
+  const probe = await createHttpServer(() => {});
+  const freePort = probe.port;
+  await new Promise((resolve) => probe.server.close(resolve));
+
+  const pythonProcess = createChild(21);
+  const javaProcess = createChild(22);
+  const promise = waitForServicesReadyOrExit({
+    chartPort: freePort,
+    backendPort: freePort,
+    pythonProcess,
+    javaProcess,
+    pythonLog: 'python.log',
+    javaLog: 'java.log',
+    timeoutMs: 500,
+  });
+  // Listeners are attached synchronously before the first await, so this exit wins.
+  pythonProcess.emit('exit', 1, null);
+  const outcome = await promise;
+  assert.equal(outcome.type, 'exit');
+  assert.equal(outcome.who, 'Python chart service');
+  assert.equal(outcome.logPath, 'python.log');
+  assert.equal(outcome.code, 1);
+  // The exit listener must be detached afterwards so the post-bind crash handler
+  // owns the process cleanly (no double-fire).
+  assert.equal(pythonProcess.listenerCount('exit'), 0);
+  assert.equal(javaProcess.listenerCount('exit'), 0);
 });
 
 test('classifyProcessExit treats planned stop metadata as non-unexpected', () => {

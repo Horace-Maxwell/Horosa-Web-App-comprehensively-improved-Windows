@@ -1,0 +1,32 @@
+--- a/astrostudyui/src/utils/windowSizePersistence.js (Mac 1c463718)
++++ b/astrostudyui/src/utils/windowSizePersistence.js (Windows-adapted)
+@@ -96,8 +96,17 @@
+ 	return Boolean(win && (win.__TAURI__ || win.__TAURI_INTERNALS__));
+ }
+ 
++// Windows-ahead fix: the Electron desktop shell self-manages window bounds, so doing
++// web-layer window-size persistence on top of it caused startup resize jitter. The
++// Electron preload exposes `window.horosaDesktop` (desktop_installer_bundle/electron/preload.js),
++// which is the reliable in-renderer signal that we are inside the desktop shell. This is
++// the Electron counterpart of isTauriWindow above. Guarded by release_selfcheck.py.
++function isDesktopShellWindow(win){
++	return Boolean(win && win.horosaDesktop);
++}
++
+ export function restoreWindowSize(win = typeof window !== 'undefined' ? window : null){
+-	if(!win || isTauriWindow(win)){
++	if(!win || isTauriWindow(win) || isDesktopShellWindow(win)){
+ 		return false;
+ 	}
+ 	const saved = readSavedWindowSize(win);
+@@ -122,7 +131,9 @@
+ }
+ 
+ export function installWindowSizePersistence(win = typeof window !== 'undefined' ? window : null){
+-	if(!win || win.__horosaWindowSizePersistenceInstalled){
++	// In the Electron desktop shell, do NOT install web-layer persistence at all — the
++	// shell owns the window bounds; installing it caused startup resize jitter.
++	if(!win || win.__horosaWindowSizePersistenceInstalled || isDesktopShellWindow(win)){
+ 		return false;
+ 	}
+ 	win.__horosaWindowSizePersistenceInstalled = true;

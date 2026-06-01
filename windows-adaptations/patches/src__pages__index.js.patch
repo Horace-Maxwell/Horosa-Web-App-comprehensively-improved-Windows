@@ -1,0 +1,31 @@
+--- a/astrostudyui/src/pages/index.js (Mac 1c463718)
++++ b/astrostudyui/src/pages/index.js (Windows-adapted)
+@@ -243,6 +243,14 @@
+     }
+ 
+     function changeCond(values){
++        // Windows-ahead defensive guard: a restored/imported chart payload may omit a
++        // form field or carry a numeric `lat`; ensureField guarantees the field object
++        // exists, and `lat` is String()-coerced before .toLowerCase() below (a numeric
++        // lat would otherwise throw). Guarded by release_selfcheck.py.
++        const ensureField = (obj, name) => {
++            if(obj && !obj[name]){ obj[name] = { value: undefined }; }
++            return obj ? obj[name] : { value: undefined };
++        };
+         let flds = {
+             ...fields,
+         };  
+@@ -273,10 +281,10 @@
+         if(values.southchart !== undefined && values.southchart !== null){
+             flds.southchart.value = values.southchart;
+         }
+-        if(flds.lat.value >= 0){
+-            let lat = flds.lat.value;
++        if(ensureField(flds, 'lat').value >= 0){
++            let lat = String(flds.lat.value);
+             if(lat.toLowerCase().indexOf('n') >= 0){
+-                flds.southchart.value = 0;
++                ensureField(flds, 'southchart').value = 0;
+             }
+         }
+ 

@@ -8,14 +8,13 @@
 
 **Western astrology and Chinese metaphysics, in one native Windows workstation**
 
-[![Version](https://img.shields.io/badge/version-2.4.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.4.0)
+[![Version](https://img.shields.io/badge/version-2.5.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.4.0)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.4.0)
-[![CI](https://img.shields.io/github/actions/workflow/status/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/actions/workflows/ci.yml)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.4.0.exe) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.0.exe) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -28,13 +27,13 @@
 
 Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native Windows application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download an offline NSIS installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.4.0.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.5.0.exe`).
 
 ## Download
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-2.4.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.4.0.exe)**
+**[⬇︎ Horosa-Setup-2.5.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.0.exe)**
 
 Best for:
 
@@ -95,16 +94,17 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## New in v2.4.0 beta
+## New in v2.5.0 beta
 
-**v2.4.0 is a feature release.** It wires six Western-astrology techniques end-to-end into AI analysis (AI-mount + AI-export registers + event-chart storage), adds chart-orb persistence, and ships new backend routes (with a rebuilt `astrostudyboot.jar`). All v2.3.x features are retained.
+**v2.5.0 is a feature release.** It adds seven Western progression/direction techniques (all wired into AI analysis & export), a Part-of-Fortune whole-sign house system, automatic timezone/DST correction, Zi Wei progression depth and Liuren casting methods, and a hardened local-service launch (rebuilt `astrostudyboot.jar`). All v2.4.x and earlier features are retained.
 
-- **Six Western techniques, full AI pipeline** — twelfth-parts/dodecatemoria, dispositor chains, lifespan/length-of-life, term-direction distribution, the age point, and mundane charts, each wired into AI-mount, AI-export registers, and event-chart storage; plus a Draconic auxiliary chart
-- **Chart-orb persistence** — the astrology "orb settings" (orbs / orbScale) save and restore with the chart, defaulting to zero regression
-- **New backend routes (jar rebuilt)** — `/predict/dist` (term directions), `/predict/agepoint` (age point), `/astroextra/greatconj` (great conjunctions), `/astroextra/draconic` (draconic) + `ChartController` orb passthrough
-- **Includes all v2.3.x features** — ACG map upgrade, horary + electional charts, Heluo completion, AI system-proxy (#9), the SSE service-stability fix (#10), and all earlier v2.2.x / 2.1.x
+- **Seven Western progression/direction techniques** — Persian directions (double-wheel), planetary arc, Vedic progressions, Jayne declination directions, planetary ages, true-129-year, and Balbillus; all wired into AI-mount and AI-export
+- **Part-of-Fortune whole-sign houses + auto timezone/DST** — new global whole-sign house system; the birth/chart/case forms resolve the IANA zone from latitude/longitude offline and auto-correct daylight saving
+- **Jin Kou Jue interpretation layer + Qi Zheng (Moira) fidelity** — shensha verdicts, four-position generation/control, timing, categorized use-gods, xing/chong/he/hai/po, Taixuan numbers; 28-mansion ring, display options, multi-tab, major periods
+- **Zi Wei progression depth + Liuren Phase 4** — new "运限/格局" tabs (BaZi-style cascading periods + stacked four-transformation cards + automatic pattern detection; backend `/ziwei/luck`); Liuren Qi-Zheng integration + casting methods / general-swap / day-night division
+- **Hardened local-service launch** — fresh-port retry on conflict, chart-service pre-warm, automatic chart-request retry on a dropped connection, and a non-blocking reconnect banner (fixes "port already in use" / "backend not started")
 
-Backend Java + Python changed (`astrostudyboot.jar` rebuilt). Full log on the [v2.4.0 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.4.0) and the [local release notes](docs/releases/2.4.0.md); previous version at [docs/releases/2.3.1.md](docs/releases/2.3.1.md).
+Backend Java + Python changed (`astrostudyboot.jar` rebuilt). Full log on the [v2.5.0 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0) and the [local release notes](docs/releases/2.5.0.md); previous version at [docs/releases/2.4.0.md](docs/releases/2.4.0.md).
 
 ## Under the Hood
 
@@ -114,12 +114,10 @@ Backend Java + Python changed (`astrostudyboot.jar` rebuilt). Full log on the [v
 - **Runtime** — the bundled Python is a pinned python-build-standalone build (reproducible and self-contained), shipped with the VC++ runtime, offline wheels, and the backend jar; a native-dependency gate and a pre-release preflight guard the build
 - **Distribution** — an offline NSIS installer targeting Windows 10 / 11 (`x64`) with directory selection and upgrades; `latest.yml`, `.blockmap`, and `SHA256SUMS.txt` accompany the release
 
-Continuous integration builds and tests the frontend (Node 20) and backend (Java 17 / Maven) plus a desktop renderer check on every push; the release pipeline (`desktop-release.yml`) produces the full installer on a Windows runner behind version, brand, and dependency gates.
-
 ## FAQ
 
 **Do I need to clone the repo to use Horosa?**
-No. Download `Horosa-Setup-2.4.0.exe` from the latest release.
+No. Download `Horosa-Setup-2.5.0.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
@@ -128,7 +126,7 @@ No. The Windows installer carries the runtime the released app needs. The first 
 Yes. The v2.2.0 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.4.0.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.5.0.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. App replacement and runtime switching update the program and shared runtime; they are not designed to erase your saved charts and cases.

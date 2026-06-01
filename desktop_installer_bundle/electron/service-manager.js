@@ -16,6 +16,12 @@ const STARTUP_HTTP_TIMEOUT_MS = 5000;
 const STARTUP_READY_TIMEOUT_MS = 120000;
 const TRUSTED_FAST_PATH_READY_TIMEOUT_MS = 60000;
 const STARTUP_RETRY_DELAY_MS = 500;
+// Startup port-conflict resilience (v2.5.0). How long to wait for both services to
+// bind their ports before treating the attempt as failed, and how many fresh-port
+// retries to allow when a child dies on a port/bind error. Mirrors the macOS
+// launcher's PORT_RETRY_MAX.
+const PORT_BIND_WAIT_TIMEOUT_MS = 60000;
+const MAX_PORT_RETRY_ATTEMPTS = 5;
 const PACKED_PAYLOAD_MANIFEST_FILE = 'payload-manifest.json';
 const PACKED_PAYLOAD_READY_FILE = '.payload-ready.json';
 const RUNTIME_HEALTH_CACHE_FILE = '.runtime-health-cache.json';
@@ -323,6 +329,81 @@ async function waitForChartProbe(chartPort, timeoutMs = STARTUP_READY_TIMEOUT_MS
   }
 
   throw new Error(`Chart service probe failed: ${lastError}`);
+}
+
+// --- Startup port-conflict resilience (v2.5.0) -------------------------------
+// Windows mirror of the macOS launcher's start_runtime_with_port_retry. findPort()
+// already scans for a free port, but a TOCTOU race remains: between canListen()
+// releasing its probe socket and the spawned python/java actually binding it, another
+// process can steal the port. The child then dies on a bind error and the runtime
+// never comes up — the "端口被占用 / 后端未启动" symptom. When (and ONLY when) that
+// precise failure happens we retry the whole launch with a fresh port pair, exactly
+// like the macOS launcher. Every other startup failure behaves as before.
+// The chart/backend ports are the ONLY ports in the retry loop: the Electron shell
+// serves its own renderer (there is no separate static-server port), so the macOS
+// rule "the web/static-server port must never enter the retry loop" holds by
+// construction here — there is simply no such port to mis-cycle.
+function isPortConflictError(text) {
+  if (!text) {
+    return false;
+  }
+  // Exact tokens only — NEVER a bare "port" (a Spring banner or a --server.port=
+  // line would false-match and turn normal output into a phantom conflict). Covers
+  // Windows (WinError 10048 / "only one usage of each socket address"), Java
+  // (BindException / "Port N was already in use") and POSIX (EADDRINUSE / Errno 48).
+  return /Address already in use|BindException|Port\s+\d+\s+was already in use|EADDRINUSE|WinError\s*10048|only one usage of each socket address|error while attempting to bind on address|Errno\s*48/i.test(
+    String(text)
+  );
+}
+
+function onceChildExit(child) {
+  let handler = null;
+  const promise = new Promise((resolve) => {
+    handler = (code, signal) => resolve({ code, signal });
+    child.once('exit', handler);
+  });
+  return {
+    promise,
+    detach() {
+      if (handler) {
+        child.removeListener('exit', handler);
+        handler = null;
+      }
+    },
+  };
+}
+
+// Race "both services reachable" against "a service exited early". Resolves to
+//   { type: 'ready' }                                   -> both ports listening
+//   { type: 'exit', who, code, signal, logPath }        -> a child died first
+//   { type: 'timeout', message }                        -> neither happened in time
+// The early-exit listeners are always detached so the post-bind crash handler
+// (attachUnexpectedExitHandlers) owns the processes cleanly afterwards.
+async function waitForServicesReadyOrExit({
+  chartPort,
+  backendPort,
+  pythonProcess,
+  javaProcess,
+  pythonLog,
+  javaLog,
+  timeoutMs,
+}) {
+  const pyExit = onceChildExit(pythonProcess);
+  const javaExit = onceChildExit(javaProcess);
+  const ready = Promise.all([waitForPort(chartPort, timeoutMs), waitForPort(backendPort, timeoutMs)]).then(
+    () => ({ type: 'ready' }),
+    (error) => ({ type: 'timeout', message: error.message })
+  );
+  try {
+    return await Promise.race([
+      ready,
+      pyExit.promise.then((e) => ({ type: 'exit', who: 'Python chart service', logPath: pythonLog, ...e })),
+      javaExit.promise.then((e) => ({ type: 'exit', who: 'Java backend', logPath: javaLog, ...e })),
+    ]);
+  } finally {
+    pyExit.detach();
+    javaExit.detach();
+  }
 }
 
 function withTimeout(promise, timeoutMs, timeoutMessage) {
@@ -1271,6 +1352,13 @@ class RuntimeManager extends EventEmitter {
     const javaArgs = [
       `-Dhorosa.log.basedir=${javaLogBase}`,
       '-Dhorosa.desktop.fastPath=true',
+      // v2.5.0 startup hardening: tag our embedded backend so it can be positively
+      // identified by its command line (the Windows mirror of the macOS launcher's
+      // -Dhorosa.runtime.owner=horosa-desktop). findPort already side-steps an
+      // orphaned backend's ports, so we don't actively scan-and-kill here (avoiding
+      // the mis-kill risk the macOS doc flags); this marker makes a future
+      // signature-verified reclaim — or a manual `tasklist`/`wmic` check — unambiguous.
+      '-Dhorosa.runtime.owner=horosa-desktop',
       // v2.3.0 (Windows issue #9): let the embedded JVM honor the OS system proxy so AI
       // providers (OpenAI / Anthropic / OpenRouter / etc.) are reachable when the user sits
       // behind a corporate/system HTTP proxy. This is the Windows-shell equivalent of the macOS
@@ -1316,6 +1404,153 @@ class RuntimeManager extends EventEmitter {
     return javaArgs;
   }
 
+  // Launch the Python chart service + Java backend, retrying with a FRESH port pair
+  // if a child dies on a port/bind conflict (v2.5.0 startup hardening — the Windows
+  // mirror of the macOS launcher's start_runtime_with_port_retry). Returns
+  // { chartPort, backendPort } on success; throws (after cleanup) on the first
+  // non-retryable failure or once the retries are exhausted. The unexpected-exit
+  // crash handler is intentionally NOT attached here: start() attaches it only after
+  // the ports are confirmed listening, so a bind failure during this loop is recovered
+  // by retry instead of tearing the runtime down. On the common no-contention path
+  // this binds on the first attempt and is behaviourally identical to before.
+  async launchServicesWithPortRetry({
+    layout,
+    trustedRuntime,
+    runtimeHomeDir,
+    mongoFallbackDir,
+    pythonBootstrap,
+    logDir,
+    javaLogBase,
+    pythonLog,
+    javaLog,
+  }) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= MAX_PORT_RETRY_ATTEMPTS; attempt += 1) {
+      // Reset teardown state for this attempt. findPort re-scans and skips any port
+      // currently occupied (including one a prior attempt just lost the race for).
+      this.shuttingDown = false;
+      this.lastCrashMessage = null;
+      const [chartPort, backendPort] = await Promise.all([findPort(8899), findPort(9999)]);
+
+      this.updateState({
+        status: 'starting-python',
+        message:
+          attempt > 1
+            ? `正在重试启动本地服务（第 ${attempt}/${MAX_PORT_RETRY_ATTEMPTS} 次，更换端口）`
+            : '正在启动 Python 本地服务',
+        logDir,
+        trustedRuntimeCandidate: trustedRuntime,
+      });
+
+      const pythonEnv = sanitizeEmbeddedRuntimeEnv(
+        {
+          HOME: runtimeHomeDir,
+          HOROSA_CHART_PORT: String(chartPort),
+          HOROSA_SWISSEPH_PATH: layout.swephDir,
+          HOROSA_SWEPH_PATH: layout.swephDir,
+          PYTHONPATH: [layout.astropyDir, layout.flatlibDir].join(path.delimiter),
+          PYTHONNOUSERSITE: '1',
+          PYTHONUTF8: '1',
+          SE_EPHE_PATH: layout.swephDir,
+          HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
+          HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
+          HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
+          HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
+          HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
+          HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
+        },
+        'python'
+      );
+
+      this.pythonProcess = spawn(layout.pythonExe, buildPythonRuntimeArgs(['-c', pythonBootstrap]), {
+        cwd: layout.projectRoot,
+        env: pythonEnv,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+      this.logStreams.push(pipeChildOutput(this.pythonProcess, pythonLog));
+
+      this.updateState({
+        status: 'starting-java',
+        message: '正在启动 Java 本地服务',
+        chartPort,
+        logDir,
+        trustedRuntimeCandidate: trustedRuntime,
+      });
+
+      const javaArgs = this.buildJavaArgs(layout, backendPort, chartPort, javaLogBase, { trustedRuntime });
+      this.javaProcess = spawn(layout.javaExe, javaArgs, {
+        cwd: layout.projectRoot,
+        env: sanitizeEmbeddedRuntimeEnv(
+          {
+            HOME: runtimeHomeDir,
+            HOROSA_CHART_PORT: String(chartPort),
+            HOROSA_SERVER_PORT: String(backendPort),
+            HOROSA_SWISSEPH_PATH: layout.swephDir,
+            HOROSA_SWEPH_PATH: layout.swephDir,
+            SE_EPHE_PATH: layout.swephDir,
+            HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
+            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
+            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
+            HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
+            HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
+            HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
+          },
+          'java'
+        ),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+      this.logStreams.push(pipeChildOutput(this.javaProcess, javaLog));
+
+      const outcome = await waitForServicesReadyOrExit({
+        chartPort,
+        backendPort,
+        pythonProcess: this.pythonProcess,
+        javaProcess: this.javaProcess,
+        pythonLog,
+        javaLog,
+        timeoutMs: PORT_BIND_WAIT_TIMEOUT_MS,
+      });
+
+      if (outcome.type === 'ready') {
+        return { chartPort, backendPort };
+      }
+
+      // Attempt failed before both ports came up. Retry with a fresh pair ONLY if a
+      // child died on a bind conflict; anything else surfaces as a normal failure.
+      let summary;
+      let retryable = false;
+      if (outcome.type === 'exit') {
+        const tail = readLogTail(outcome.logPath);
+        retryable = isPortConflictError(tail) || isPortConflictError(outcome.message);
+        summary = `${outcome.who} exited during startup (code=${outcome.code ?? 'null'}, signal=${outcome.signal ?? 'null'})`;
+        if (tail) {
+          summary += `\n--- ${outcome.who} log tail ---\n${tail}`;
+        }
+      } else {
+        // timeout: ports never bound though the children are alive — a new port pair
+        // would not help, so do not retry (matches the previous timeout behaviour).
+        summary = `本地服务在 ${PORT_BIND_WAIT_TIMEOUT_MS}ms 内未就绪：${outcome.message || 'timeout'}`;
+        retryable = false;
+      }
+
+      lastError = new Error(summary);
+      await this.cleanupProcesses();
+
+      if (retryable && attempt < MAX_PORT_RETRY_ATTEMPTS) {
+        this.logger.warn('Port conflict during startup; retrying with a fresh port pair', {
+          attempt,
+          chartPort,
+          backendPort,
+        });
+        continue;
+      }
+      throw lastError;
+    }
+    throw lastError || new Error('Local services failed to start after port retries');
+  }
+
   async start() {
     if (this.running) {
       return this.getState();
@@ -1342,18 +1577,9 @@ class RuntimeManager extends EventEmitter {
 
         const pythonLog = path.join(logDir, 'python.log');
         const javaLog = path.join(logDir, 'java.log');
-        const [chartPort, backendPort] = await Promise.all([findPort(8899), findPort(9999)]);
         const runtimeHomeDir = process.env.HOME || process.env.USERPROFILE || this.userDataDir;
         ensureDir(runtimeHomeDir);
         this.appCdsContext = getAppCdsContext(layout.runtimeWindowsDir, layout.javaExe, layout.jarPath);
-        this.shuttingDown = false;
-        this.lastCrashMessage = null;
-        this.updateState({
-          status: 'starting-python',
-          message: '正在启动 Python 本地服务',
-          logDir,
-          trustedRuntimeCandidate: trustedRuntime,
-        });
 
         const pythonBootstrap = [
           'import os, runpy, sys',
@@ -1365,69 +1591,22 @@ class RuntimeManager extends EventEmitter {
         const mongoFallbackDir = path.join(this.userDataDir, 'mongo-fallback');
         ensureDir(mongoFallbackDir);
 
-        const pythonEnv = sanitizeEmbeddedRuntimeEnv(
-          {
-            HOME: runtimeHomeDir,
-            HOROSA_CHART_PORT: String(chartPort),
-            HOROSA_SWISSEPH_PATH: layout.swephDir,
-            HOROSA_SWEPH_PATH: layout.swephDir,
-            PYTHONPATH: [layout.astropyDir, layout.flatlibDir].join(path.delimiter),
-            PYTHONNOUSERSITE: '1',
-            PYTHONUTF8: '1',
-            SE_EPHE_PATH: layout.swephDir,
-            HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
-            HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
-            HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
-            HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-            HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
-            HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
-          },
-          'python'
-        );
-
-        this.pythonProcess = spawn(layout.pythonExe, buildPythonRuntimeArgs(['-c', pythonBootstrap]), {
-          cwd: layout.projectRoot,
-          env: pythonEnv,
-          stdio: ['ignore', 'pipe', 'pipe'],
-          windowsHide: true,
-        });
-        this.logStreams.push(pipeChildOutput(this.pythonProcess, pythonLog));
-
-        this.updateState({
-          status: 'starting-java',
-          message: '正在启动 Java 本地服务',
-          chartPort,
+        // Launch both services, auto-retrying with a fresh port pair on a bind
+        // conflict (v2.5.0). The crash handler is attached only AFTER the ports are
+        // confirmed listening below, so a bind failure here is recovered by retry.
+        const { chartPort, backendPort } = await this.launchServicesWithPortRetry({
+          layout,
+          trustedRuntime,
+          runtimeHomeDir,
+          mongoFallbackDir,
+          pythonBootstrap,
           logDir,
-          trustedRuntimeCandidate: trustedRuntime,
+          javaLogBase,
+          pythonLog,
+          javaLog,
         });
-
-        const javaArgs = this.buildJavaArgs(layout, backendPort, chartPort, javaLogBase, { trustedRuntime });
-        this.javaProcess = spawn(layout.javaExe, javaArgs, {
-          cwd: layout.projectRoot,
-          env: sanitizeEmbeddedRuntimeEnv(
-            {
-              HOME: runtimeHomeDir,
-              HOROSA_CHART_PORT: String(chartPort),
-              HOROSA_SERVER_PORT: String(backendPort),
-              HOROSA_SWISSEPH_PATH: layout.swephDir,
-              HOROSA_SWEPH_PATH: layout.swephDir,
-              SE_EPHE_PATH: layout.swephDir,
-              HOROSA_REQUIRE_EMBEDDED_RUNTIME: '1',
-              HOROSA_TRUSTED_RUNTIME: trustedRuntime ? 'true' : 'false',
-              HOROSA_SKIP_RUNTIME_WARMUP: trustedRuntime ? 'true' : 'false',
-              HOROSA_DESKTOP_MONGO_OPTIONAL: '1',
-              HOROSA_DESKTOP_MONGO_SKIP_PING: 'true',
-              HOROSA_MONGO_FALLBACK_DIR: mongoFallbackDir,
-            },
-            'java'
-          ),
-          stdio: ['ignore', 'pipe', 'pipe'],
-          windowsHide: true,
-        });
-        this.logStreams.push(pipeChildOutput(this.javaProcess, javaLog));
 
         this.attachUnexpectedExitHandlers(logDir);
-        await Promise.all([waitForPort(chartPort, 60000), waitForPort(backendPort, 60000)]);
         this.updateState({
           status: 'verifying-runtime',
           message: trustedRuntime ? '正在走可信 fast-path 验证本地服务' : '正在验证本地服务可用性',
@@ -1668,5 +1847,7 @@ module.exports = {
   sanitizeEmbeddedRuntimeEnv,
   buildPythonRuntimeArgs,
   resolveTarExe,
+  isPortConflictError,
+  waitForServicesReadyOrExit,
   RuntimeManager,
 };

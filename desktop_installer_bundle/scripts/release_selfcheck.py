@@ -126,6 +126,14 @@ def check_sentinels():
             # flag is the 3rd leg of the fix (with boundless+astrostudy ProxySelector); reverting it
             # re-breaks AI for proxied users. The flag is inert when no system proxy is configured.
             "useSystemProxies",
+            # v2.5.0 startup hardening (mirror of macOS start_runtime_with_port_retry): on a port/bind
+            # conflict the launcher retries with a fresh port pair (launchServicesWithPortRetry +
+            # isPortConflictError gating the retry decision), and tags the embedded backend
+            # (-Dhorosa.runtime.owner) so it is positively identifiable. Reverting these re-opens the
+            # "端口被占用 / 后端未启动" symptom the release fixes.
+            "launchServicesWithPortRetry",
+            "isPortConflictError",
+            "-Dhorosa.runtime.owner=horosa-desktop",
         ],
         # In-app auto-update must stay ENABLED (it was once disabled wholesale as
         # "updater noise"), and the install handoff MUST stop the embedded Python/Java
