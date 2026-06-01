@@ -1,6 +1,23 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-31
+最后更新：2026-06-01
+
+## 2026-06-01 v2.5.1 Beta（Mac 同步 `1c463718→270eb01e`：AI 分析页翻新/技法全接入/即时起盘/地点时区校准 + GitHub issue #14 Windows 系统代理排盘修复）
+
+**同步**：Mac main `270eb01e`（baseline `1c463718` = 上版 v2.5.0），`compare 1c463718..270eb01e` = **纯前端**（astrostudyui，Mac delta 内 0 Java/Python）。新模型「纯构建外壳」：整树覆盖 `astrostudyui/src` + 新增 `scripts/build-cities.js`（无新 npm 依赖、无文件删除）→ 跑 `windows-adaptations/apply.sh` 恢复全部 7 项适配（patches #6/#7 干净应用，Mac delta 未触这两文件）。Mac-only `Horosa_Desktop_Installer/`/`AGENTS.md`/`CITATION.cff`/`UPGRADE_LOG.md` 不移植。**下次 Mac 同步基线 = `270eb01e`。**
+
+**Features（用户面，纯前端）**：AI 分析页系统性翻新（Chat 式 + 挂载设置抽屉 + 测试连接状态机 + 复制/重生成 + 严格签名挂载）；全部技法接入 AI 挂载/导出（西占推运全套 + 数算补逐年流年 + 演禽/策天/皇极）；新增「起课时间」「命盘时间」即时起盘入口；地点与时区全面校准（34k 城市离线 atlas + DMS + 时区自动/手动随盘存档 + 西经/南纬/小负值修正 + 选地点实时重排）；七政四余 Moira / 紫微右栏空白与点宫位神煞 / 天文馆沉浸 / 星运 tab 修复。
+
+**GitHub issue #14（Windows 系统代理排盘失败）= 两半修复**：
+- **共享前端半**（Mac `270eb01e`，clean-port）：`services/astro.js` `fetchChart` 加 `retry:{retries:6,backoff:[400,800,1200,2000,3000,4000]}` —— 仅对连接被拒（后端不可达）透明退避重试，桥接服务重启/启动窗口。
+- **Windows 特有半**（本轮新增，**共享后端 boundless → 重建 jar**）：根因 = 开系统代理（Clash/v2ray）时内置 JVM 把内部 `127.0.0.1:8899` 排盘调用也塞进系统代理（`doCmd` 无条件 `setProxy(getHttpHost())`；`getHttpHost` 在 `useSystemProxies=true` 下经 `ProxySelector.select(URI("https://api.openai.com"))` 取回系统代理静态返回，Apache 显式代理无视 `nonProxyHosts`）→ 12-17s 卡顿 → 「本地排盘服务未就绪」。修复：`doCmd` 对 loopback（`isLoopbackTarget`：localhost/127.*/::1）`setProxy(null)`，外部 AI 主机仍走代理（#9 不变）。**无纯启动器修法**（不能去 useSystemProxies；nonProxyHosts 对 Apache 显式代理无效，且 getHttpHost 与目标无关）。诊断显示「ready」是因主进程 chartProbe 直连 8899（Node，不走 JVM 代理）。
+- **固化**（杜绝再同步丢失）：`windows-adaptations/` 新增**适配 #8**（`patches/boundless__HttpUriRequestHystrixCommand.java.patch` + apply.sh 步骤 + README，含「BACKEND→须重建 jar」警示）+ `release_selfcheck.py` 哨兵（HttpUriRequestHystrixCommand 加 `isLoopbackTarget`）+ SKILL gotcha #18。**跨平台 bug**（Mac 启动器同设 useSystemProxies）→ 建议 Mac boundless 也加 isLoopbackTarget，两端收敛后 overlay 补丁标记守卫自动 no-op。
+
+**jar**：boundless 改 → 链 `boundless install → astrostudy install → astrostudycn install → astrostudyboot clean package`（JDK17 内置 Maven）。**核验打包 + staged jar**：nested `boundless-1.2.1.2.jar` `HttpUriRequestHystrixCommand.class` 含 `isLoopbackTarget`；v2.1.4 `redactSensitiveHeaders`/`stripQuery`（#9 脱敏）无回退；staged jar（`build/app-runtime/.../bundle/`）复验含 `isLoopbackTarget`。
+
+**验证**：umi-test **32 套/173 过**（v2.5.0 为 146，v2.5.1 加 geo/timezone/AI-provider 测试）；`npm run verify` service-manager **30/30** + preflight OK；`release_selfcheck.py` **9/9**（哨兵 40 文件含 isLoopbackTarget；version 2.5.1；jar 不旧；payload-slimmed；4 资产 + 哈希一致；release-doc 真哈希；latest.yml 匹配 exe；packaged app-update.yml 在）。
+
+**发布**：commit `7356a14`（13 跟踪文件 +189/-75）；tag `v2.5.1`（指 `7356a14`）；`prerelease=false`、`isDraft=false`、`/releases/latest → v2.5.1`。`Horosa-Setup-2.5.1.exe` = **743,440,114** B，SHA256 `d3d39b4ca34dee62d083afa1cafc9196bf184e98ef30de577b91609a71609ff1`；blockmap `1ea41399d578dcfed3431dc8ca206d3143dde356c956fa8d875119d0e4c8b756`（773,089 B）；latest.yml `d687f18e5ced9033f001aa9afe7202a997a8a3a2218063626956c89def0d655a`（341 B）。**GitHub 独立计算 4 资产 digest = 本地逐字节一致**；线上 latest.yml + SHA256SUMS IDENTICAL。**自动更新：v2.2.1+ 用户自动收 v2.5.1**；v2.2.0 及更早需手动装一次。**#14 已回复 + 关闭（completed，comment 4597392410）。**
 
 ## 2026-05-31 v2.5.0 Beta 重做并发布（灾后 — Mac `1c463718` 全量同步；改用「纯构建外壳」仓库模型 + windows-adaptations 覆盖层）
 
