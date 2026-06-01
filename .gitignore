@@ -48,10 +48,14 @@ log/HOROSA_RUN_ISSUES.md
 # IDE
 .vscode/
 .idea/
-# Local agent config: keep the shared project skill tracked, ignore machine-specific settings
+# Local agent config + internal-only folders (kept on local disk, NOT published to GitHub):
+# ignore most of .claude, the internal horosa-dev dev-skill guide, and the whole .github folder
+# (CI workflows + issue/PR templates). The horosa-dev skill still loads locally from disk.
 .claude/*
 !.claude/skills/
+.claude/skills/horosa-dev/
 .claude/settings.local.json
+/.github/
 
 # Bundled runtimes (too large for regular Git push)
 local/workspace/runtime/mac/java/
