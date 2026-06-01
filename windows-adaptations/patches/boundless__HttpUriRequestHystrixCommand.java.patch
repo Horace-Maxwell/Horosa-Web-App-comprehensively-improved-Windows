@@ -1,0 +1,53 @@
+--- a/astrostudysrv/boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java (Mac 270eb01e — original boundless)
++++ b/astrostudysrv/boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java (Windows-adapted: #14 loopback proxy bypass)
+@@ -4,6 +4,7 @@
+ import java.util.Map;
+ import java.util.Map.Entry;
+ 
++import org.apache.http.HttpHost;
+ import org.apache.http.auth.AuthScope;
+ import org.apache.http.auth.UsernamePasswordCredentials;
+ import org.apache.http.client.CredentialsProvider;
+@@ -71,6 +72,22 @@
+         return "";  
+     }  
+ 	
++	// #14: 127.0.0.1 / localhost / ::1 are loopback targets — never routed through the system proxy (see doCmd).
++	private static boolean isLoopbackTarget(HttpUriRequest request){
++		try{
++			java.net.URI uri = (request == null) ? null : request.getURI();
++			String host = (uri == null) ? null : uri.getHost();
++			if(host == null){
++				return false;
++			}
++			String h = host.toLowerCase();
++			return h.equals("localhost") || h.equals("127.0.0.1") || h.startsWith("127.")
++				|| h.equals("::1") || h.equals("[::1]") || h.equals("0:0:0:0:0:0:0:1");
++		}catch(Exception ex){
++			return false;
++		}
++	}
++
+ 	public static String doCmd(String user, String password, HttpUriRequest request,
+ 			Map<String, String> headers, String contenttype, int timeoutMS, HttpStatusCode status, SSLConnectionSocketFactory sslFactory) {
+ 		return doCmd(user, password, request, headers, contenttype, timeoutMS, status, null, sslFactory);
+@@ -80,7 +97,18 @@
+ 			Map<String, String> headers, String contenttype, int timeoutMS, HttpStatusCode status, Map<String, String> respHeadMap, 
+ 			SSLConnectionSocketFactory sslFactory){
+ 		try{
+-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost()).build();
++			// #14 (Windows issue): never tunnel loopback / local chart-service calls (127.0.0.1:8899,
++			// localhost) through the system proxy. The Windows launcher sets -Djava.net.useSystemProxies=true
++			// so AI providers stay reachable behind a system proxy (#9); but getHttpHost() then resolves the
++			// OS proxy and Apache HttpClient applies an explicit RequestConfig proxy UNCONDITIONALLY (it does
++			// NOT honor http.nonProxyHosts), so the embedded backend's internal HTTP calls to the Python chart
++			// service would tunnel through the user's system proxy (Clash/v2ray, ubiquitous on CN Windows),
++			// which mishandles 127.0.0.1 -> 12-17s stalls -> "本地排盘服务未就绪". External hosts keep the proxy.
++			HttpHost proxyHost = HttpClientUtility.getHttpHost();
++			if(proxyHost != null && isLoopbackTarget(request)){
++				proxyHost = null;
++			}
++			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(proxyHost).build();
+ 			HttpClientBuilder builder = null;
+ 			if(BraveHelper.existZipkin()){
+ 				builder = BraveHelper.getHttpClientBuilder(request.getURI().toString());

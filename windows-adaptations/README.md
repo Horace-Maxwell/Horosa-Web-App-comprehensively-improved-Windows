@@ -19,7 +19,7 @@ then `cd desktop_installer_bundle && npm run selfcheck` — the `windows-ahead /
 gate must be **40/40**. Every item below is guarded by a `release_selfcheck.py` sentinel, so a drop is
 caught before release.
 
-## The adaptations (7)
+## The adaptations (8)
 
 | # | Target (in workspace) | What / Why | How restored |
 |---|---|---|---|
@@ -30,11 +30,19 @@ caught before release.
 | 5 | `THIRD_PARTY_NOTICES.md` (workspace root) | Mac keeps it at the **repo root** (sibling of `Horosa-Web/`), so a Horosa-Web-only replace misses it; `stage-runtime.cjs` hard-requires it at the workspace root or `dist:win` dies in stage:runtime. | `apply.sh` copies from the Mac clone root |
 | 6 | `astrostudyui/src/utils/windowSizePersistence.js` | Add `isDesktopShellWindow(win)` (Electron mirror of Mac's `isTauriWindow`, via `window.horosaDesktop`) + skip web-layer window persistence in the desktop shell — Electron self-manages window bounds; web persistence caused **startup resize jitter**. | `patches/src__utils__windowSizePersistence.js.patch` |
 | 7 | `astrostudyui/src/pages/index.js` | Add `ensureField(flds,name)` defensive guard + `String()`-coerce `lat` in `changeCond` — a restored/imported chart payload may omit a field or carry a **numeric lat**, which would crash `lat.toLowerCase()`. | `patches/src__pages__index.js.patch` |
+| 8 | `astrostudysrv/boundless/.../net/http/HttpUriRequestHystrixCommand.java` | **BACKEND — needs a jar rebuild.** Windows issue #14: the embedded JVM was tunnelling its **internal `127.0.0.1:8899` chart-service calls through the system proxy**. `doCmd` set `RequestConfig.setProxy(getHttpHost())` unconditionally; with the launcher's `-Djava.net.useSystemProxies=true` (for AI reachability, #9) `getHttpHost()` resolves the OS proxy, and Apache HttpClient applies an explicit proxy **ignoring `http.nonProxyHosts`** → Clash/v2ray (ubiquitous on CN Windows) mishandles `127.0.0.1` → 12–17 s stalls → "本地排盘服务未就绪". Fix: skip the proxy for loopback targets (`isLoopbackTarget`); external AI hosts still use it (#9 preserved). **The shared frontend connection-refused retry (Mac `270eb01e`, `services/astro.js`) only covers the restart/startup window — it does NOT cover this proxy stall, which is the Windows-specific half of #14.** | `patches/boundless__HttpUriRequestHystrixCommand.java.patch` |
 
 ## Notes
-- **#1–#5 are robust** (full copies / idempotent ops). **#6–#7 are patches** against Mac `1c463718`; if a
+- **#1–#5 are robust** (full copies / idempotent ops). **#6–#8 are patches** against Mac `1c463718`/`270eb01e`; if a
   future Mac change touches the same region the patch may not apply cleanly — `apply.sh` warns, and the
   exact changes are also visible in the `.patch` files (diff `--- Mac ... +++ Windows-adapted`). Re-apply by hand if so.
+- **#8 is BACKEND (boundless) → it needs a jar rebuild every time it's (re-)applied.** `apply.sh` only patches the
+  source; `prepare:runtime`'s auto-build pulls boundless from `.m2` (stale) so it will NOT pick the patch up. After
+  `apply.sh`, rebuild per SKILL gotcha #5: `boundless install → astrostudy install → astrostudycn install →
+  astrostudyboot clean package`, then copy `target/astrostudyboot.jar` to `local/workspace/runtime/windows/bundle/`.
+  **Recommended: also land this fix upstream in Mac's boundless** (it's a cross-platform proxy bug, not truly
+  Windows-only — Mac's launcher sets the same `-Djava.net.useSystemProxies=true`); once Mac has `isLoopbackTarget`,
+  `apply.sh`'s marker guard makes this patch a harmless no-op and the two trees converge.
 - The launcher mirror (service-manager.js port-retry etc.) is NOT here — it lives in the **tracked**
   `desktop_installer_bundle/electron/service-manager.js`, so it's already git-safe.
 - When you ADD a new Windows adaptation in a future sync: drop the file/patch here, wire it into `apply.sh`,

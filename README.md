@@ -9,13 +9,13 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.5.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0)
+[![Version](https://img.shields.io/badge/version-2.5.1%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.0.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.1.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -34,7 +34,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.5.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.0.exe)**
+**[⬇︎ Horosa-Setup-2.5.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.1.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -95,19 +95,19 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.5.0 beta
+## 本次更新 · What's New in v2.5.1 beta
 
-**v2.5.0 是一次功能大版本**：补齐七个西洋推运/向运技法（全部接入 AI 分析与导出），新增福点整宫制与时区/夏令时自动校正，深化紫微斗数运限/格局与六壬起课法，并根治「端口被占用 / 后端未启动」的启动稳健性（已重建 `astrostudyboot.jar`）。v2.4.x 及更早全部功能原样保留。
+**v2.5.1 是一次体验与稳定性更新**：AI 分析页系统性翻新、全部技法接入 AI 挂载/导出、新增即时起盘入口、地点与时区全面校准，并修复部分 Windows 机器在开启系统代理时排盘报「本地服务未就绪」的问题。v2.5.0 及更早全部功能保留。
 
-- **西占推运补全 7 技法** —— 波斯向运（双圈盘）、行星弧、Vedic 推进、Jayne 赤纬向运、行星年龄、真 129 年法、Balbillus；全部接入 AI 分析挂载与 AI 导出
-- **福点整宫制 + 时区/DST 自动校正** —— 新增 Part-of-Fortune 整宫制全局宫制；出生/命盘/事盘三表单按经纬度离线求 IANA 时区并自动校正夏令时
-- **金口诀解读层 + 七政四余 Moira 还原度** —— 神煞判语 / 四位生克 / 应期 / 分类用神 / 刑冲合害破 / 太玄数；28 宿环、显示选项、多 tab、大限
-- **紫微斗数运限深化 + 六壬 Phase4** —— 新增「运限 / 格局」Tab（八字大运式级联运限 + 多层四化卡 + 格局自动识别，后端新增 `/ziwei/luck`）；六壬七政接入 + 起课法 / 换将 / 分昼夜
-- **启动机制稳健化** —— 端口被占用自动换口重试、就绪前预热排盘、排盘连接中断自动重试、非阻塞「正在重连」横幅（根治「端口被占用 / 后端未启动」）
+- **AI 分析页系统性翻新** —— 主流 Chat 式对话（空态居中输入、限宽消息流）；顶栏三步「配置 → 测试连接 → 对话」，技法/资料/系统提示收进「挂载设置」抽屉；每条回复可复制全文/重新生成；换命盘/事盘后挂载内容严格对应所选盘
+- **全部技法接入 AI 挂载/导出** —— 西占全套推运、数算（邵子参评数/河洛理数，补齐逐年流年）、演禽/策天飞星/皇极经世，导出可逐技法逐段勾选
+- **新增「起课时间」「命盘时间」即时起盘入口** —— 仅凭时间+地点即时起盘（六壬/金口诀/奇门/太乙/三式/卜卦/择日 与 八字/紫微/星盘/各推运），内置地图选点/时区/一键存盘
+- **地点与时区全面校准** —— 内置 3.4 万城市离线 atlas（中/英搜索）、坐标按度分秒显示、时区自动推断或手动微调并随盘存档；修正西经/南纬/小负值坐标；选地点或改时区即实时重排
+- **排盘可靠性修复（Windows · #14）** —— 修复开启系统代理（如 Clash / v2ray）时排盘报「本地排盘服务未就绪」「请求超时」：内置后端对本地服务的调用不再被系统代理拦截，并对服务重启/启动窗口加透明退避重试
 
-含后端 Java + Python 改动（已重建 `astrostudyboot.jar`）。完整改动见 [v2.5.0 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0) 与 [本地发布说明](docs/releases/2.5.0.md)；上一版详见 [docs/releases/2.4.0.md](docs/releases/2.4.0.md)。
+完整改动见 [v2.5.1 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1) 与 [本地发布说明](docs/releases/2.5.1.md)；上一版 v2.5.0 详见 [docs/releases/2.5.0.md](docs/releases/2.5.0.md)。
 
-> v2.5.0 is a feature release: seven Western progression/direction techniques (Persian directions, planetary arc, Vedic, Jayne declination, planetary ages, true-129-year, Balbillus — all wired into AI analysis & export); a Part-of-Fortune whole-sign house system and automatic timezone/DST correction; a Jin Kou Jue interpretation layer and Qi Zheng (Moira) fidelity; Zi Wei progression depth (cascading periods + pattern detection, new `/ziwei/luck`) and Liuren casting-method Phase 4; and a hardened local-service launch that fixes "port already in use" / "backend not started". Rebuilt `astrostudyboot.jar`; all v2.4.x and earlier features retained. Full log: [v2.5.0 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.0).
+> v2.5.1 is an experience-and-stability update: a full AI-analysis page overhaul; every technique wired into AI mount/export; two new instant-cast entries (cast-time / natal-time); a thorough location & timezone calibration with a built-in 34k-city offline atlas; and a Windows reliability fix for charting failing with "local service not ready" / "request timeout" when a system proxy (Clash/v2ray) is on — the embedded backend's internal localhost calls no longer route through the system proxy. All v2.5.0 and earlier features retained. Full log: [v2.5.1 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1).
 
 ## 技术构成 · Under the Hood
 

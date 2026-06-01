@@ -160,7 +160,10 @@ def check_sentinels():
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive
         # heartbeat so a slow local model (Ollama long first-token) isn't cut off by an idle-timeout disconnect.
         os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger", "ProxySelector", "SseChannel"],
-        os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery"],
+        # v2.5.1 Windows issue #14: loopback (127.0.0.1 chart service) must NEVER be tunnelled through the system
+        # proxy — doCmd skips the proxy for loopback targets (isLoopbackTarget) while external AI hosts keep it (#9).
+        # See windows-adaptations/patches/boundless__HttpUriRequestHystrixCommand.java.patch (BACKEND -> jar rebuild).
+        os.path.join(SRV, "boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java"): ["redactSensitiveHeaders", "stripQuery", "isLoopbackTarget"],
         os.path.join(UI, "src/services/aianalysis.js"): ["resolveRequestTimeout"],
         # v2.2.1 global day-boundary: the late-zi-hour 时柱 second switch field must stay wired through the model.
         os.path.join(SRV, "astrostudycn/src/main/java/spacex/astrostudycn/model/BaZi.java"): ["clockTime", "solarTime", "lateZiHourUseNextDay"],

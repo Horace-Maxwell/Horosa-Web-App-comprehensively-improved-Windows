@@ -58,4 +58,11 @@ apply_patch(){ # $1=marker $2=target-rel $3=patchfile
 apply_patch isDesktopShellWindow astrostudyui/src/utils/windowSizePersistence.js src__utils__windowSizePersistence.js.patch
 apply_patch ensureField           astrostudyui/src/pages/index.js                 src__pages__index.js.patch
 
+echo "== 6. backend patch (boundless #14: loopback NEVER via the system proxy) — REQUIRES a jar rebuild =="
+apply_patch isLoopbackTarget     astrostudysrv/boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java boundless__HttpUriRequestHystrixCommand.java.patch
+echo "   ^^ boundless is BACKEND Java. After this patch you MUST rebuild astrostudyboot.jar (SKILL gotcha #5):"
+echo "      boundless install -> astrostudy install -> astrostudycn install -> astrostudyboot clean package,"
+echo "      then copy target/astrostudyboot.jar to local/workspace/runtime/windows/bundle/. apply.sh does NOT rebuild it,"
+echo "      and prepare:runtime's auto-build pulls boundless from .m2 (stale) — so the manual rebuild is mandatory."
+
 echo "== done. Verify: npm run selfcheck (windows-ahead sentinels must be 40/40). =="
