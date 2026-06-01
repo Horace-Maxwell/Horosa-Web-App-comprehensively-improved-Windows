@@ -1,6 +1,32 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-05-29
+最后更新：2026-05-31
+
+## 2026-05-31 v2.5.0 Beta 重做并发布（灾后 — Mac `1c463718` 全量同步；改用「纯构建外壳」仓库模型 + windows-adaptations 覆盖层）
+
+**背景**：v2.5.0 曾发布后被 owner 要求撤销（改用重整后的新 Mac repo 重做），`main` 一度回退到 `2b80271`（=v2.4.0）。本轮从重整历史（SHA 全变）的新 Mac repo **重新 clone**（不可在旧克隆 `git pull`），找到史内 baseline `ecc987c4f`（首个 v2.5.0 commit 之父）。
+
+### 仓库模型转变（根因修复，杜绝再次「灭顶」）
+- 旧模型把产品源藏在 `.git/info/exclude`（非提交的 .gitignore）→ 一次 `reset --hard`/擦除即**无 git 可恢复**，正是 v2.5.0 浩劫成因。
+- **新模型 = 纯构建外壳**：产品源（`local/workspace/Horosa-Web-*/`）以 Mac `Horosa-Web/` 为准**整树覆盖**、`.gitignore` 显式提交 `/local/workspace/`（不入库），本仓只跟踪构建外壳 + 文档 + 适配。
+- **新增 `windows-adaptations/` 覆盖层（已跟踪，57 文件）**：Windows 专属文件全拷贝（`umi-runner.js`/`loadCryptoDeps.js`/`scripts/vendor/` 50 个 crypto 文件）+ 2 共享文件补丁（`isDesktopShellWindow`/`ensureField`）+ `apply.sh`（幂等：拷文件 + 去 flatlib 钉 + 合 package.json name/scripts + 复制 THIRD_PARTY_NOTICES + 打补丁）+ README（7 项适配逐条 + why + 恢复法）。**整树覆盖后跑一行 `apply.sh` 确定性恢复全部 Windows 适配**。已幂等跑验证通过。
+
+### 内容（同 Mac v2.5.0，5 分支收敛 + 白屏热修；含 Java + Python → 重建 jar）
+西占推运补全 7 技法（波斯向运/行星弧/Vedic/Jayne 赤纬/行星年龄/真 129/Balbillus）全链路 AI + 福点整宫制（`perchart` `house.hsys` 须 `HOUSES_WHOLE_SIGN`）；时区/DST 自动校正（新依赖 `tz-lookup`）；金口诀解读层 + 七政四余 Moira 还原度；紫微运限/格局深化（新后端 `/ziwei/luck` + `ZiWeiLuck`/`ZiWeiPattern` + `ziweige`/`ziweiliuchangqu` JSON）+ 六壬起课法 Phase4；启动机制稳健化（前端 `serviceStatus`/`chartFetch`/`ServiceStatusBanner` + `fetchWithRetryConnRefused`，SSE `requestStream` 绝不重试；Windows 启动器镜像 `service-manager.js` `launchServicesWithPortRetry`+`isPortConflictError`+`-Dhorosa.runtime.owner`）；星运/主限法旧存盘 `pdMethod` 无限 `setState` 白屏热修。
+
+### 重建 jar + 验证
+- 链 `boundless+astrostudy+astrostudycn → astrostudyboot clean package`（JDK17 内置 Maven）。**解包核验内嵌 fat jar**：`ZiWeiController` `/luck` + `ZiWeiLuck.class`/`ZiWeiPattern.class` + `ziweige.json`/`ziweiliuchangqu.json`，`PredictiveController` `persianchart`/`planetaryarc` 均在。
+- 内置 python 重生（python-build-standalone）+ 全依赖装齐（cherrypy/pyswisseph/sxtwl/astropy/kerykeion/cnlunar）；打包载荷核验完整（全部 kin 引擎 + flatlib 星历 + jar markers）。exe 742MB（比 v2.4.0 849MB 小 = 全新精简 python 运行时，非缺功能）。
+- `umi-test` **146 测试全过**；`service-manager.test.js` **23/23**；`release_selfcheck.py` **9/9**（哨兵 40 文件 + 启动稳健化哨兵 + release-doc-hash 门）。**owner 全新机手测通过后才发布**（本轮特例：浩劫后 owner 要求先手测再发）。
+
+### 文档清理（owner 指示）
+发布面文档去除内部口径：移除「6 张金标准盘校准」「安装器回归（→ 校验）」「Mac 历史整理/整树同步/构建适配」同步方法学句；移除坏掉的 CI badge 与失效 CI 描述（`.github` 不上 GitHub → badge 404）。
+
+### 发布
+- commit `fdc9b91`（release，69 文件：12 改 + 57 新含 windows-adaptations）；tag `v2.5.0`（指向 `fdc9b91`）；`prerelease=false`、`isDraft=false`、`/releases/latest → v2.5.0`。
+- `Horosa-Setup-2.5.0.exe` = **742,950,251** bytes，SHA256 `38398b1199f5bfe603c4c1360c649808829ca678d2d81ca11132f3416d0817ab`；blockmap `9233f73bb6fd7d394779085eec7a307ec1fc6d250a3822d44ef8c6c77b1baafe`（773,624 B）；latest.yml `d2cef33652bde25cd66bb85ff5605c4268a0d79863330e6e880c54b836d33afc`（341 B，version 2.5.0，exe sha512 `0EuYUdL334hHcJ0SPJWaSjzN9dZpnlqSdzGtLhr/j0DY+l1gCdK32aJh73jzHR470/fAACQ+oMY6mA1OBHYIAw==`）。**GitHub 独立计算的 4 资产 digest = 本地逐字节一致**；线上 latest.yml 与本地 byte-identical。
+- 自动更新：**v2.2.1+ 用户自动收 v2.5.0**；v2.2.0 及更早需手动装一次。
+- 教训固化进 SKILL.md gotcha #16（重整历史重 clone 勿 pull；纯构建外壳模型 + windows-adaptations 覆盖层；wholesale-replace + 保留 Windows 适配；flatlib 钉移除；THIRD_PARTY_NOTICES 在工作区根；浩劫后「先手测再发」门）。
 
 ## 2026-05-29 harness 加固（新增第 9 个发布门：release-doc hashes match assets）
 
