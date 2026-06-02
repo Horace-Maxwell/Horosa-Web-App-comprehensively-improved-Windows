@@ -96,12 +96,17 @@ Charts and cases save locally with tags, snapshots, and raw backend payloads. Ev
 
 ## New in v2.5.3 beta
 
-**v2.5.3 is a small patch release** that fixes two UX issues introduced by the new 90° midpoint dial in v2.5.2: the dial's bottom edge being clipped by the bottom Dock, and the left/right side panels being unable to scroll in smaller windows. All v2.5.2 features (the Hamburg 90° dial, Naibod primary directions, AI chat-embedding model decoupling + advanced params, Ollama native endpoints honouring `num_ctx`, Da-Liu-Ren / Three-style-united AI mount fix) are retained as-is.
+**v2.5.3 supersedes v2.5.2** — aligns the version number with the macOS build and ships two layout polishes on top of v2.5.2. This release ships a new midpoint-dial (Hamburg-school) technique, Naibod added to the primary-direction table, decoupled chat / embedding models for AI with native `num_ctx` support, and an astronomical correction on the primary-direction chart — plus two layout fixes for the 90°-dial page.
 
-- **Dial no longer clipped by the bottom Dock** — dial size now clamps to `min(props.height, viewport − 260, 960)` so its bottom edge sits clear of the Dock
-- **Side panels can scroll independently in small windows** — left/right side columns wrapped with `maxHeight + overflowY: auto`; a `resize` listener keeps the viewport calculation live
+- **New "90° midpoint dial" technique** (Aux → Quantitative) — folded and multi-ring modulus forms, three stacked rings (natal / transit / solar arc, natal locked as the innermost), eight hypothetical points (Cu / Ha / Ze / Kr / Ap / Ad / Vu / Po), harmonic bases H1..H512, and a draggable red pointer that emits live planet / midpoint / planetary-picture readouts plus a midpoint tree
+- **Dial-page layout polish** (replaces v2.5.2) — the center dial now leaves a safety gap above the bottom Dock (size three-way clamped by viewport: `min(props.height, vh − 260, 960)`), and on narrow windows (vh < 800) the left / right cards each scroll independently instead of being clipped or overlapped
+- **Naibod added to the primary-direction table** — Ptolemy / Alcabitius paths stay byte-identical; with Naibod selected the table scales the date by 0.9856473, the chart projection scales accordingly, and converse reuses the same parameter chain. The four-angle declination bug on the primary-direction chart (ASC / MC / DESC / IC mistakenly treating geographic latitude as ecliptic latitude) is fixed at the root
+- **AI Analysis: chat / embedding model decoupling + advanced parameters (Windows #13)** — pick chat and embedding models independently in the top bar (e.g. DeepSeek for chat, local Ollama for embeddings); a "Parameters" drawer exposes thinking level / temperature / top_p
+- **Ollama (local inference) uses the native endpoints (fixes Windows #15)** — chat and embeddings switched to `/api/chat` and `/api/embed`; `num_ctx / num_predict / top_k / top_p / repeat_penalty` nested under `options:{}` so Ollama actually honours them; long astrology context no longer truncates at the default 4096
+- **Da-Liu-Ren / Three-style-united AI mount fix + Liu-yao added to time-cast whitelist** (still honours "never recast saved hexagrams from time alone")
+- **Midpoint-dial AI four-way sync** — AI export presets, export-settings version (14→15), AI analysis mount, and chart / case storage all carry the new `[90°中点盘]` section
 
-Full log on the [v2.5.3 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3) and the [local release notes](docs/releases/2.5.3.md); the full v2.5.2 feature list lives at [docs/releases/2.5.2.md](docs/releases/2.5.2.md).
+Full log on the [v2.5.3 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3) and the [local release notes](docs/releases/2.5.3.md); the v2.5.2 release page (superseded but retained on GitHub) is at [docs/releases/2.5.2.md](docs/releases/2.5.2.md).
 
 ## Under the Hood
 

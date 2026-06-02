@@ -96,12 +96,17 @@
 
 ## v2.5.3 beta 更新
 
-**v2.5.3 是一个小补丁版本**：修复 v2.5.2 新引入的量化盘 90° 中点盘的两处体验问题——盘下端被底部 Dock 遮挡、左右栏在小窗口下无法滚动。v2.5.2 的全部功能（汉堡 90° 中点盘 / 主限法 Naibod / AI 聊天-嵌入模型解耦 + 高级参数 / Ollama 原生口让 `num_ctx` 真正生效 / 大六壬 + 三式合一 AI 挂载修复）原样保留。
+**v2.5.3 替代 v2.5.2** —— 与 macOS 端版本号统一，并在 v2.5.2 基础上补 90° 中点盘的两处布局修。本版聚焦量化盘（汉堡学派）新技法、主限法新选项、AI 模型解耦与本地推理上下文，以及主限法盘的天文修正。
 
-- **修中点盘下端被底部 Dock 遮挡** —— 盘体 size 改为三方钳位 `min(props.height, viewport−260, 960)`，盘下沿不再压到底部 Dock 上
-- **修左右栏小窗口无法下滑** —— 左 / 右侧栏加 `maxHeight + overflowY: auto`，窗口高度不足时各栏可独立滚动；监听 `resize` 实时重算
+- **新增「90°中点盘」技法**（辅盘 → 量化盘）—— 折叠盘与多环模数盘双形态、三层叠盘（本命 / 行运 / 太阳弧，本命环锁定为最内圈）、八虚星（Cu / Ha / Ze / Kr / Ap / Ad / Vu / Po）、谐波盘基 H1..H512、可拖动红色指针实时输出星体 / 中点 / 行星图读数与中点树
+- **量化盘布局收尾**（替代 v2.5.2）—— 中点盘 size 按 viewport 三方钳位 `min(props.height, vh−260, 960)`，盘下沿与底部 Dock 之间留出安全呼吸距离；左 / 右栏卡片在窗口过小（vh < 800）时各自独立下滑，不再被遮挡或截断
+- **主限法表格新增 Naibod 度数换算选项** —— 既有 Ptolemy / Alcabitius 链路完全不变；选 Naibod 时表格按 0.9856473 缩放日期、盘投射同步缩放、converse 复用同一参数链。同时修复主限法盘 ASC / MC / DESC / IC 四角赤纬（原误以地理纬度作黄纬导致赤纬越界）
+- **AI 分析：聊天 / 嵌入模型解耦 + 高级参数（#13）** —— 顶栏可独立指定聊天与嵌入模型（例如聊天用 DeepSeek、嵌入用本地 Ollama bge-m3）；「参数」抽屉提供思考档位 / temperature / top_p
+- **Ollama 本地推理走原生口（修 Windows #15）** —— Ollama 聊天 / 嵌入分别切到 `/api/chat` 与 `/api/embed`，`num_ctx / num_predict / top_k / top_p / repeat_penalty` 嵌入 `options:{}` 后真正生效；长玄学上下文不再默认 4096 截断
+- **大六壬 / 三式合一 AI 挂载修复 + 六爻接入时间起卦白名单**（仍守「永不按时间重算已存卦」铁律）
+- **量化盘 AI 四同步** —— AI 导出预设、导出设置版本（14→15）、AI 分析挂载、命盘 / 事盘储存全部接入新增的 `[90°中点盘]` 段
 
-完整改动见 [v2.5.3 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3) 与 [本地发布说明](docs/releases/2.5.3.md)；上一版 v2.5.2 的完整功能列表详见 [docs/releases/2.5.2.md](docs/releases/2.5.2.md)。
+完整改动见 [v2.5.3 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3) 与 [本地发布说明](docs/releases/2.5.3.md)；上一版 v2.5.2（被本版 v2.5.3 替代但 release 在 GitHub 上保留）详见 [docs/releases/2.5.2.md](docs/releases/2.5.2.md)。
 
 ## 技术构成
 
