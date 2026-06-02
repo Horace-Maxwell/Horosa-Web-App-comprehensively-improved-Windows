@@ -2,6 +2,22 @@
 
 最后更新：2026-06-02
 
+## 2026-06-02 v2.5.3 Beta（Mac 同步 `a3153f349→94b6e277c`：量化盘 90°中点盘 UX 小补丁；bump 而非覆盖，以触发已装 v2.5.2 用户自动更新）
+
+**同步**：Mac main `94b6e277c`（baseline `a3153f349` = 数小时前的 v2.5.2 ship），`compare a3153f349..94b6e277c` = **1 commit, 1 文件**：`fix(germany/dial): 中点盘下端被底部 Dock 遮挡 + 左右栏小窗口无法下滑;runtime → 2.5.2-runtime2`，仅改 `astrostudyui/src/components/germany/UranianDialMain.js`（+28/-6）。Mac-only `release_config.json` 不移植。Mac 同时 bump 到 v2.5.3 → 两端版本号继续对齐。**下次 Mac 同步基线 = `94b6e277c`（或 Mac 接下来的 v2.5.3 HEAD，下次同步前重 ls-remote 取准）。**
+
+**Features（单文件 UX patch）**：
+- 中点盘下端被底部 Dock 遮挡修复：盘体 `size` 由原「单参数 `props.height`」改为**三方钳位** `max(420, min(props.height, vh-260, 960))`；`vh = window.innerHeight` 监听 `resize` 实时更新；盘容器加 `paddingBottom: 24`。原因：`props.height` 含 Dock 占位但未减它，大屏 vh=1220 下盘 1000 → bottom 离视窗只剩 84px 不够 Dock 高度。
+- 左右栏小窗口无法下滑修复：两个侧栏内层 div 包 `maxHeight: max(380, vh-220) + overflowY: auto`；inner div `width: 100%` 防收缩 h=0。
+
+**关键决策（gotcha #20 固化）**：owner 起先要求「覆盖发布」（同版本号覆盖 v2.5.2），随后追加「确保已经下载了旧版本的人能收到这个更新」。两条诉求互相矛盾——`electron-updater` 按**版本号**比对（非 hash），同版本号 → `Update for version 2.5.2 is not available`（#14 诊断 JSON 中已亲见此行）。覆盖发布只对**新下载**用户生效。立即 `TaskStop` 跑中的 `dist:win`、还原 `docs/releases/2.5.2.md` 到原始已发状态（线上 v2.5.2 release 不动）、bump 到 v2.5.3、写 `docs/releases/2.5.3.md` 作为 patch release notes、重 build → 标准 patch release 流程。**Mac 也 bump 到 v2.5.3，两端版本号对齐。**
+
+**无 Java/Python 改动 → 无需重建 jar**。`staged jar not stale` 门 PASS（v2.5.2 jar 沿用，已含全部 #14 + #15 + #9 marker 无回退）；apply.sh idempotent 再跑确认 8 适配全在；selfcheck 哨兵 40 文件全过。
+
+**验证**：umi-test **33 套/184 测试**（与 v2.5.2 同，patch 不动测试）；`release_selfcheck.py` **9/9**。
+
+**发布**：commit `d9401e9`（9 跟踪文件 +94/-75；其中新增 `docs/releases/2.5.3.md`）；tag `v2.5.3`（指 `d9401e9`）；`prerelease=false`、`isDraft=false`、`/releases/latest → v2.5.3`。`Horosa-Setup-2.5.3.exe` = **743,476,882** B，SHA256 `b5aef7755854d9628081adb5572e8a15495bbf1846d71a94182c23592afb5533`；blockmap `0de8c26ef973a71afeb016626d172c0e64fe64e83cce14f91c33def9dea4e65d`（774,907 B）；latest.yml `352ffa2a6018c646b7fc3ef4cf3d1db5221dea9d432aac681792f56daf869d10`（341 B）。**自动更新：v2.2.1–v2.5.2 用户自动收 v2.5.3**（这正是 bump 而非覆盖的目的）。**SKILL gotcha #20 已加**：固化「同版本覆盖 vs bump」决策规则——除非确认无人下载，否则一律 bump。
+
 ## 2026-06-02 v2.5.2 Beta（Mac 同步 `270eb01e→a3153f349`：汉堡 90°中点盘 + 主限法 Naibod + AI 模型解耦 + Ollama 原生口 → GitHub #13/#15 修复）
 
 **同步**：Mac main `a3153f349`（baseline `270eb01e` = 上版 v2.5.1），`compare 270eb01e..a3153f349` = **3 commits**：(1) `4f046844` 「fix(boundless/#14): 本地回环出站不走系统代理（跨平台同步 Windows）」(2) `b36523d9`「docs(README): 三主 README v2.5.1」(3) `a3153f349`「release(v2.5.2)」。改动型态：**Java（boundless+astrostudy）+ Python（perpredict/webgermanysrv/webchartsrv/webpredictsrv/flatlib const+swe）+ 前端（新 6 文件 UranianDial* + AI 分析翻新 + 主限法 Naibod）** → **需重建 jar + stage Python + build:file**。`apply.sh` 第 6 步检出 Mac 自带 `isLoopbackTarget` 自动 no-op，**两端 #14 在代码层面收敛**（boundless 仍属 backend → 重建 jar）。Mac-only `Horosa_Desktop_Installer/`/`AGENTS.md`/`CITATION.cff`/`README*.md`/`UPGRADE_LOG.md`/`docs/windows-sync-handoff.md` 不移植。**下次 Mac 同步基线 = `a3153f349`。**
