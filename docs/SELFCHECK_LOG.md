@@ -2,6 +2,20 @@
 
 最后更新：2026-06-02
 
+## 2026-06-02 v2.5.3 Beta — Doc 综合化补丁（`gh release edit --notes-file`，无代码/binary 改动）
+
+发布 v2.5.3 后 owner 提示「核对一下 Mac 最新 README 看看有没遗漏」。重 ls-remote Mac main = `49179c8cc`（在我 v2.5.3 baseline `94b6e277c` 之上又前进 1 commit，**纯 release bookkeeping**：CITATION/Mac Tauri 配置/Mac release_notes/README/UPGRADE_LOG/handoff；代码 `astrostudyui`/`astrostudysrv`/`astropy`/`flatlib-ctrad2` **0 改动**——代码层完整）。
+
+**发现的文档 gap**：Mac 把 v2.5.3 写为「替代 v2.5.2 的综合版本」，README/release_notes 列出 v2.5.2 全部大特性（90°dial / Naibod / AI 模型解耦 / Ollama 原生口 / 大六壬 AI 挂载修复 / 量化盘 AI 四同步）+ v2.5.3 布局两修。Windows 原把 v2.5.3 写为纯小补丁，仅提布局两修。**问题**：从 v2.5.1 直接跳 v2.5.3 的用户（electron-updater 看 `/releases/latest`），应用更新提示只会展示 v2.5.3 release notes → 只读到「布局两修」→ 完全错过 90°dial / Naibod / AI 解耦 / Ollama #15 修复等大功能。
+
+**修复（纯 doc 更新，无代码/binary/tag/exe sha 变化）**：
+- `docs/releases/2.5.3.md` 改为 Mac 综合口径，列出 v2.5.2→v2.5.3 全部用户面变化 + 布局两修；保留资产哈希表（与 GitHub 线上一致）。
+- 3 个 README（README.md / README_EN.md / README_ZH.md）What's New 段同步改为综合口径。
+- `gh release edit v2.5.3 --repo ... --notes-file docs/releases/2.5.3.md` → 线上 release 页文案同步更新（核验：关键特性 90°dial/Naibod/嵌入模型解耦/Ollama/大六壬 在线上 notes 出现 12 次）。
+- commit `0bf1fae`（4 跟踪文件 +59/-21）pushed。
+
+**SKILL gotcha #20 扩展**：固化「release notes 给跳级用户也要看得见全貌」规则——superseding/patch release 必须 cover **自上一个有 meaningful 用户群的 release 以来的全部变化**（不是仅 delta from immediately-prior）；**发布前 cross-check Mac 同版本 release notes 作为口径校验**，Mac 的 framing 往往是正确的用户面模型，能抓到 Windows 侧会遗漏的 gap。
+
 ## 2026-06-02 v2.5.3 Beta（Mac 同步 `a3153f349→94b6e277c`：量化盘 90°中点盘 UX 小补丁；bump 而非覆盖，以触发已装 v2.5.2 用户自动更新）
 
 **同步**：Mac main `94b6e277c`（baseline `a3153f349` = 数小时前的 v2.5.2 ship），`compare a3153f349..94b6e277c` = **1 commit, 1 文件**：`fix(germany/dial): 中点盘下端被底部 Dock 遮挡 + 左右栏小窗口无法下滑;runtime → 2.5.2-runtime2`，仅改 `astrostudyui/src/components/germany/UranianDialMain.js`（+28/-6）。Mac-only `release_config.json` 不移植。Mac 同时 bump 到 v2.5.3 → 两端版本号继续对齐。**下次 Mac 同步基线 = `94b6e277c`（或 Mac 接下来的 v2.5.3 HEAD，下次同步前重 ls-remote 取准）。**
