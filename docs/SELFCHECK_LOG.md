@@ -1,6 +1,29 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-01
+最后更新：2026-06-02
+
+## 2026-06-02 v2.5.2 Beta（Mac 同步 `270eb01e→a3153f349`：汉堡 90°中点盘 + 主限法 Naibod + AI 模型解耦 + Ollama 原生口 → GitHub #13/#15 修复）
+
+**同步**：Mac main `a3153f349`（baseline `270eb01e` = 上版 v2.5.1），`compare 270eb01e..a3153f349` = **3 commits**：(1) `4f046844` 「fix(boundless/#14): 本地回环出站不走系统代理（跨平台同步 Windows）」(2) `b36523d9`「docs(README): 三主 README v2.5.1」(3) `a3153f349`「release(v2.5.2)」。改动型态：**Java（boundless+astrostudy）+ Python（perpredict/webgermanysrv/webchartsrv/webpredictsrv/flatlib const+swe）+ 前端（新 6 文件 UranianDial* + AI 分析翻新 + 主限法 Naibod）** → **需重建 jar + stage Python + build:file**。`apply.sh` 第 6 步检出 Mac 自带 `isLoopbackTarget` 自动 no-op，**两端 #14 在代码层面收敛**（boundless 仍属 backend → 重建 jar）。Mac-only `Horosa_Desktop_Installer/`/`AGENTS.md`/`CITATION.cff`/`README*.md`/`UPGRADE_LOG.md`/`docs/windows-sync-handoff.md` 不移植。**下次 Mac 同步基线 = `a3153f349`。**
+
+**Features**：
+- **量化盘新增汉堡 90°中点盘技法**（辅盘 → 量化盘，前端 6 文件）：折叠盘 + 多环模数盘 + 三层叠盘（本命/行运/太阳弧，本命锁内圈）+ 八虚星（Cu/Ha/Ze/Kr/Ap/Ad/Vu/Po）+ 谐波盘基 H1..H512 + 拖动指针实时输出星体/中点/行星图读数 + 中点树。**6 关键不变量**（AGENTS §9）：font/glyph from `AstroChartFont`+`AstroMsg[名]`；单透明 hit 圈 + `pointerdown/move/up`+`setPointerCapture`；`getBoundingClientRect` 求中心+缩放比；本命环锁定；`onSaArc` 仅 `emit=true` 回调防死循环；TNP 关时 `filterByTnp` 出口过滤。AI 四同步（导出预设/导出设置 14→15/AI 挂载/盘存储均接入 `[90°中点盘]` 段）。
+- **主限法 Naibod 度数换算**（前端+Python）：`AstroPrimaryDirection.js` 新增 Naibod option；`AstroPrimaryDirectionChart.js` `getTablePdTimeKey()` Naibod→Ptolemy 钳位；`perpredict.appendDateStr` Naibod `arc/0.9856473354`；`getPrimaryDirectionChartByDate` Naibod `arc*0.9856473354`（互逆，表格 Ptolemy/Alcabitius byte-identical）；converse 复用同一参数链（`directed_arc=-current_arc`）。
+- **主限法盘四角赤纬归正**（`perpredict._pdChartBuildAnglesAndHouses`）：ASC/MC/DESC/IC 一律 `_pdChartEqCoords(lon, 0.0, obliquity)`（修长期误用地理纬度作黄纬导致赤纬>23.5°）。
+- **大六壬/三式合一 AI 挂载修复 + 六爻接入时间起卦白名单**（仍守「永不按时间重算已存卦」铁律）。
+- **NaN 护栏**：`webchartsrv`/`webgermanysrv` 入口；前端 `AstroDirectMain.buildPrimaryDirectionFetchFields/Request` 加 NaN 守。
+
+**GitHub issue #13 修（AI 聊天/嵌入分供应商 + 高级参数）**：`AIAnalysisMain.js` 顶栏新增嵌入模型 Select +「参数」Popover（THINKING_LEVELS/temperature/top_p）；`aiAnalysisProviders.js` 加 `applyThinkingLevel`/`isReasoningModel`；**关键解耦**：`AIAnalysisMain.js` L1504 注释「issue #13：嵌入用「独立选择的嵌入 provider」，与聊天 provider 解耦」，L1505 `eProfile = embeddingTarget.profile` → L1510-1515 `providerType/apiKey/baseUrl/providerOptions` 全部从 `eProfile` 取，与聊天 profile 完全独立 → 报告者诉求「DeepSeek 聊天 + Ollama bge-m3 嵌入」精确实现。
+
+**GitHub issue #15 修（Ollama num_ctx 默认 4096 截断长玄学上下文，**共享后端 → 重建 jar**）**：根因 = Ollama OpenAI-兼容口 `/v1/chat/completions` 与 `/v1/embeddings` **静默忽略 `num_ctx`** → 默认 4096 截断。修复：`AIAnalysisProxyService.chatStream` 与 `embeddings` 在 `isOpenAICompatible(providerType)` 之前**前置拦截** `"ollama".equals(providerType)`（因 ollama 也满足兼容口分类）→ 分别走 `streamOllamaNative`（`/api/chat` NDJSON + `options:{num_ctx, num_predict, top_k, top_p, repeat_penalty, temperature}` + `keep_alive` 顶层）+ `embeddingsOllamaNative`（`/api/embed` 批量 input + `options:{}` 不带 temperature/num_predict）。新增 helpers：`ollamaNativeBase()` 去除 baseUrl 末尾 `/v1`、`extractOllamaEmbedVectors()` 解析 `{embeddings:[[...]]}`（与 OpenAI 的 `{data:[{embedding}]}` 不同）、`readNdjsonStream()` NDJSON 逐行回调。其它 provider 完全不变。**release_selfcheck.py 新增 4 个 Ollama native 哨兵**（`streamOllamaNative`/`embeddingsOllamaNative`/`extractOllamaEmbedVectors`/`ollamaNativeBase`），并入 AIAnalysisProxyService 既有哨兵。
+
+**跨平台 #14 收敛达成**：Mac commit `4f046844` 在 `boundless/HttpUriRequestHystrixCommand.java` 自加 `isLoopbackTarget`（byte-identical API：同方法名、同 host 列表 `localhost`/`127.*`/`::1`/`[::1]`/`0:0:0:0:0:0:0:1`）。整树覆盖后 `apply.sh` 适配 #8 标记守卫检出已存在自动跳过补丁。**Windows 端 #14 无后续动作**，但 boundless 仍是 backend 改动 → 任何 backend-touching 同步均须重建 jar。
+
+**jar**：`boundless install → astrostudy install → astrostudycn install → astrostudyboot clean package`（JDK17 内置 Maven）。**核验打包 + staged installer payload jar 4+1 markers**：nested `astrostudy-1.0.0.jar` `AIAnalysisProxyService.class` 含 `streamOllamaNative`/`embeddingsOllamaNative`/`extractOllamaEmbedVectors`/`ollamaNativeBase`/`readNdjsonStream`；nested `boundless-1.2.1.2.jar` `HttpUriRequestHystrixCommand.class` 含 `isLoopbackTarget`（v2.5.1 #14 无回退）+ `redactSensitiveHeaders`/`stripQuery`（v2.1.4 #9 脱敏无回退）。jar size 324,243,095 B（+1,979 B vs v2.5.1，对应新 5 个 native 方法）。
+
+**验证**：umi-test **33 套/184 测试**（v2.5.1 173 → +11 例 `uranianDial.test.js`）；`npm run verify` service-manager **30/30** + preflight OK；`release_selfcheck.py` **9/9**（哨兵 40 文件 + 新 4 Ollama native；version 2.5.2；jar 不旧；payload-slimmed；4 资产 + 哈希一致；release-doc 真哈希；latest.yml 匹配 exe；packaged app-update.yml 在）。
+
+**发布**：commit `237b1ca`（10 跟踪文件 +130/-73）；tag `v2.5.2`（指 `237b1ca`）；`prerelease=false`、`isDraft=false`、`/releases/latest → v2.5.2`。`Horosa-Setup-2.5.2.exe` = **743,489,563** B，SHA256 `e546b748affe9aeae4ee7eed60e8becf90263523eb6393781b3c3ee630fb18cd`；blockmap `3f2d4ec6e2a9ab94ae4ac28f724a40b7a7a750fe370ac650690626a0b7414730`（774,454 B）；latest.yml `a2fd560eb9ceb1099b2b79a1f5d5dc1e31680da2811ded836cfe6580d3416352`（341 B）。**GitHub 独立计算 4 资产 digest = 本地逐字节一致**（待 release 上传后核验）；**自动更新：v2.2.1+ 用户自动收 v2.5.2**。**#13 + #15 待 release 上线后回复+关闭（completed）。SKILL gotcha #19 已加。**
 
 ## 2026-06-01 v2.5.1 Beta（Mac 同步 `1c463718→270eb01e`：AI 分析页翻新/技法全接入/即时起盘/地点时区校准 + GitHub issue #14 Windows 系统代理排盘修复）
 
