@@ -159,7 +159,10 @@ def check_sentinels():
         # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive
         # heartbeat so a slow local model (Ollama long first-token) isn't cut off by an idle-timeout disconnect.
-        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger", "ProxySelector", "SseChannel"],
+        # v2.5.2 Windows issue #15: Ollama must use its NATIVE /api/chat + /api/embed endpoints (the OpenAI-compatible
+        # /v1/... endpoints silently ignore num_ctx -> default 4096 truncation of long astrology context). The native
+        # path puts num_ctx/num_predict/top_k/top_p/repeat_penalty under options:{} so Ollama actually honours them.
+        os.path.join(SRV, "astrostudy/src/main/java/spacex/astrostudy/service/AIAnalysisProxyService.java"): ["max_completion_tokens", "isOpenAIReasoningModel", "authHeaderName", "isEmbeddingModel", "keep-alive", "QueueLog.error(AppLoggers.ErrorLogger", "ProxySelector", "SseChannel", "streamOllamaNative", "embeddingsOllamaNative", "extractOllamaEmbedVectors", "ollamaNativeBase"],
         # v2.5.1 Windows issue #14: loopback (127.0.0.1 chart service) must NEVER be tunnelled through the system
         # proxy — doCmd skips the proxy for loopback targets (isLoopbackTarget) while external AI hosts keep it (#9).
         # See windows-adaptations/patches/boundless__HttpUriRequestHystrixCommand.java.patch (BACKEND -> jar rebuild).

@@ -8,13 +8,13 @@
 
 **Western astrology and Chinese metaphysics, in one native Windows workstation**
 
-[![Version](https://img.shields.io/badge/version-2.5.1%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1)
+[![Version](https://img.shields.io/badge/version-2.5.2%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.2)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.2)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.2)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.1.exe) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.2.exe) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -27,13 +27,13 @@
 
 Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native Windows application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download an offline NSIS installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.5.1.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.5.2.exe`).
 
 ## Download
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-2.5.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.1.exe)**
+**[⬇︎ Horosa-Setup-2.5.2.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.2.exe)**
 
 Best for:
 
@@ -94,17 +94,18 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## New in v2.5.1 beta
+## New in v2.5.2 beta
 
-**v2.5.1 is an experience-and-stability update.** A full AI-analysis page overhaul; every technique wired into AI mount/export; two new instant-cast entries; a thorough location & timezone calibration; and a Windows reliability fix for charting failing with "local service not ready" when a system proxy is on. All v2.5.0 and earlier features are retained.
+**v2.5.2 is a features-and-fixes update.** A new 90° midpoint dial (Hamburg / Uranian) in the quantitative chart family; Naibod added as a primary-direction degree key; chat / embedding model decoupling with advanced parameters in AI analysis (Windows #13); Ollama local inference switched to its native endpoints so `num_ctx` is actually honoured (fixes Windows #15 — the 4096 context truncation); and an AI-mount fix for Da-Liu-Ren / Three-style-united. All v2.5.1 and earlier features are retained.
 
-- **AI-analysis page overhaul** — mainstream chat UI (centered empty-state input, width-bounded message stream); a three-step top bar (configure → test connection → chat) with techniques/materials/system-prompt collapsed into a "Mount settings" drawer; copy-full-text & regenerate per reply; after switching chart/case the mounted content strictly matches the selected one
-- **Every technique wired into AI mount/export** — the full Western progression set, numerology (Shao-zi Can-ping / He-luo, with annual hexagrams), Yan-qin / Ce-tian / Huang-ji; per-technique, per-section export toggles
-- **Two new instant-cast entries** — cast a chart from just time + location (Liuren/Jin-kou/Qimen/Taiyi/three-styles/horary/electional and BaZi/Zi-wei/Western/progressions), with a built-in map picker / timezone / one-click save
-- **Thorough location & timezone calibration** — built-in 34k-city offline atlas (CN/EN search), DMS coordinates, timezone auto-inferred or hand-tuned and saved with the chart; fixed western/southern/near-zero coordinate strings; live re-cast on location/timezone change
-- **Charting reliability fix (Windows · #14)** — fixes charting reporting "local service not ready" / "request timeout" when a system proxy (Clash/v2ray) is on: the embedded backend's internal localhost calls no longer route through the system proxy, plus transparent backoff retry across the service restart/startup window
+- **New 90° midpoint dial (Hamburg / Uranian)** — folded and multi-ring modulus forms; three stacked rings (natal / transit / solar arc, natal locked as the innermost); eight hypothetical points (Cu/Ha/Ze/Kr/Ap/Ad/Vu/Po); harmonic bases H1..H512; a draggable red pointer with live planet / midpoint / planetary-picture readouts and a midpoint tree
+- **Naibod added to primary directions** — Ptolemy / Alcabitius paths stay byte-identical; with Naibod selected the table scales the date by 0.9856473, the chart projection scales accordingly, and converse reuses the same parameter chain
+- **Primary-direction-chart four-angle declination fix** — ASC / MC / DESC / IC no longer treat geographic latitude as ecliptic latitude (which produced declinations beyond 23.5°)
+- **AI analysis: chat / embedding model decoupling + advanced params (Windows #13)** — pick chat and embedding models independently in the top bar (e.g. DeepSeek for chat, local Ollama for embeddings); a "Parameters" drawer exposes thinking level / temperature / top_p
+- **Ollama local inference uses the native endpoints (fixes Windows #15)** — chat and embeddings switched to `/api/chat` and `/api/embed`; `num_ctx / num_predict / top_k / top_p / repeat_penalty` nested under `options:{}` so Ollama actually honours them; long astrology context no longer truncates at the default 4096
+- **Da-Liu-Ren / Three-style-united AI mount fix + Liu-yao added to time-cast whitelist** (still honours "never recast saved hexagrams from time alone")
 
-Full log on the [v2.5.1 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.1) and the [local release notes](docs/releases/2.5.1.md); previous version at [docs/releases/2.5.0.md](docs/releases/2.5.0.md).
+Full log on the [v2.5.2 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.2) and the [local release notes](docs/releases/2.5.2.md); previous version at [docs/releases/2.5.1.md](docs/releases/2.5.1.md).
 
 ## Under the Hood
 
@@ -117,7 +118,7 @@ Full log on the [v2.5.1 release page](https://github.com/Horace-Maxwell/Horosa-W
 ## FAQ
 
 **Do I need to clone the repo to use Horosa?**
-No. Download `Horosa-Setup-2.5.1.exe` from the latest release.
+No. Download `Horosa-Setup-2.5.2.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
@@ -126,7 +127,7 @@ No. The Windows installer carries the runtime the released app needs. The first 
 Yes. The v2.2.0 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.5.1.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.5.2.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. App replacement and runtime switching update the program and shared runtime; they are not designed to erase your saved charts and cases.
