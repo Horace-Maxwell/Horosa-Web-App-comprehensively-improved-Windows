@@ -13,14 +13,15 @@
     "build:desktop": "npm run build:renderer && npm run prepare:runtime && npm run stage:runtime",
     "patch:win-icon": "node scripts/patch-win-exe-icon.cjs",
     "write:update-config": "node scripts/write-app-update-yml.cjs",
+    "sign:update": "node scripts/sign-update.cjs sign-release",
     "build:assets": "python scripts/generate_brand_assets.py",
-    "verify": "node --test electron/service-manager.test.js electron/update-flow.test.js && python scripts/release_preflight.py",
+    "verify": "node --test electron/service-manager.test.js electron/update-flow.test.js electron/update-signature.test.js && python scripts/release_preflight.py",
     "selfcheck": "python scripts/release_selfcheck.py",
     "dev": "npm run build:renderer && npm run stage:runtime && electron .",
     "dev:fast": "npm run stage:runtime && electron .",
     "start": "npm run build:desktop && electron .",
     "pack:win": "npm run build:desktop && electron-builder --dir && npm run patch:win-icon && npm run write:update-config",
-    "dist:win": "npm run verify && npm run build:desktop && electron-builder --dir && npm run patch:win-icon && npm run write:update-config && electron-builder --win nsis --prepackaged release/win-unpacked && npm run selfcheck"
+    "dist:win": "npm run verify && npm run build:desktop && electron-builder --dir && npm run patch:win-icon && npm run write:update-config && electron-builder --win nsis --prepackaged release/win-unpacked && npm run sign:update && npm run selfcheck"
   },
   "dependencies": {
     "electron-updater": "^6.6.2",

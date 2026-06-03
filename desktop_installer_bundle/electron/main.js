@@ -13,6 +13,9 @@ const {
   shouldAnnounceNoUpdate,
   shouldAnnounceUpdateError,
 } = require('./update-flow');
+const crypto = require('crypto');
+const https = require('https');
+const { verifyUpdateSignature } = require('./update-signature');
 
 const localAppDataRoot = process.env.LOCALAPPDATA || app.getPath('appData');
 const horosaDataRoot = path.join(localAppDataRoot, 'HorosaDesktop');
@@ -28,6 +31,14 @@ const DEFAULT_UPDATE_PUBLISH_CONFIG = Object.freeze({
   owner: 'Horace-Maxwell',
   repo: 'Horosa-Web-App-comprehensively-improved-Windows',
 });
+// H-7 (v2.5.4): bounded auto-restart of the local backend on an UNEXPECTED runtime crash, before falling
+// back to the manual "自检修复并重试" repair UI. Mature supervised services self-heal; restart goes through
+// startRuntimeFlow({restart}) which re-acquires ports AND reloads the renderer with the new ports.
+const MAX_RUNTIME_AUTO_RESTARTS = 2;
+const RUNTIME_AUTO_RESTART_BACKOFF_MS = [1500, 4000];
+const RUNTIME_AUTO_RESTART_STABILITY_MS = 45000;
+let runtimeAutoRestartAttempts = 0;
+let runtimeAutoRestartStabilityTimer = null;
 const AUTO_UPDATE_ENABLED = true;
 const AUTO_UPDATE_DISABLED_MESSAGE = '开发模式下不启用自动更新（仅打包安装后可用）。';
 const UPDATE_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -1239,11 +1250,22 @@ function configureAutoUpdater() {
     return;
   }
 
-  // Prompt before downloading the ~800MB installer; auto-install on next quit
-  // only as a fallback for an update the user downloaded but deferred.
+  // Prompt before downloading the ~800MB installer. P0-1: ALL installs flow through our verified
+  // installUpdateNow() path, and autoInstallOnAppQuit is OFF — so a downloaded-but-UNVERIFIED update can
+  // never be silently applied on quit (fail-closed; the app is not Authenticode-signed so the Ed25519
+  // metadata signature is the only thing gating an auto-installed RCE — see verifyDownloadedUpdate).
   updater.autoDownload = false;
-  updater.autoInstallOnAppQuit = true;
+  updater.autoInstallOnAppQuit = false;
   updater.disableWebInstaller = true;
+  // P1-4: keep blockmap-based DIFFERENTIAL downloads ON (electron-updater default) — between versions the
+  // Chromium runtime + most python wheels are unchanged, so clients fetch only the changed blocks of the
+  // ~750MB installer. Set explicitly to document intent + prevent accidental disabling.
+  updater.disableDifferentialDownload = false;
+  // P1-3: channel stays 'latest' (all current builds are "Beta" on the latest channel); allowPrerelease can
+  // be flipped to opt a user into a future `beta.yml` channel. Staged rollout is applied at RELEASE time by
+  // injecting `stagingPercentage` into latest.yml (scripts/set-staging.cjs) — electron-updater reads it from
+  // the feed and self-buckets by user id. allowDowngrade off so a pulled staged release can't roll users back.
+  updater.allowDowngrade = false;
 
   updater.on('checking-for-update', () => {
     setUpdateState({
@@ -1293,16 +1315,37 @@ function configureAutoUpdater() {
 
   updater.on('update-downloaded', (info) => {
     updateCheckContext = 'idle';
-    downloadedUpdateInfo = info;
     setUpdateProgressBar(-1);
     closeDownloadProgressWindow();
     const version = info && info.version ? String(info.version) : '';
-    setUpdateState({
-      status: 'downloaded',
-      message: `更新 ${version} 已下载完成，重启即可安装`,
-      info,
+    // P0-1 fail-closed: verify the release's Ed25519 signature of the downloaded installer BEFORE marking
+    // it installable. status becomes 'downloaded' (the precondition installUpdateNow requires, and with
+    // autoInstallOnAppQuit off the ONLY install path) ONLY on a verified signature; a bad/unverifiable
+    // update is dropped (downloadedUpdateInfo=null) and never installed.
+    setUpdateState({ status: 'verifying-update', message: `正在校验更新 ${version}…`, info });
+    verifyDownloadedUpdate(info).then((result) => {
+      if (!result.ok) {
+        downloadedUpdateInfo = null;
+        logUpdaterWarn('Update signature verification FAILED — refusing to install', new Error(result.reason));
+        setUpdateState({ status: 'error', message: `更新校验未通过，已暂停安装（${version}）。`, info });
+        if (shouldAnnounceUpdateError({ manual: lastCheckWasManual })) {
+          showUpdateInfoDialog(
+            '更新校验失败',
+            `下载的更新包未通过安全校验，为保护你的设备已暂停本次安装。\n原因：${result.reason}\n请到 GitHub Releases 手动下载最新完整安装包。`,
+            'warning'
+          );
+        }
+        return;
+      }
+      downloadedUpdateInfo = info;
+      if (logger) { logger.info('[updater] Update signature verified — safe to install', { version }); }
+      setUpdateState({ status: 'downloaded', message: `更新 ${version} 已下载完成，重启即可安装`, info });
+      promptForInstall(info).catch((error) => logUpdaterWarn('Update install prompt failed', error));
+    }).catch((error) => {
+      downloadedUpdateInfo = null;
+      logUpdaterWarn('Update signature verification threw — refusing to install', error);
+      setUpdateState({ status: 'error', message: `更新校验异常，已暂停安装（${version}）。`, info });
     });
-    promptForInstall(info).catch((error) => logUpdaterWarn('Update install prompt failed', error));
   });
 
   updater.on('error', (error) => {
@@ -1421,6 +1464,74 @@ async function promptForInstall(info) {
 // the embedded Python/Java sidecars hold open handles on resources/app-runtime/**,
 // so they MUST be fully stopped before the installer overwrites the install dir,
 // otherwise the update fails on locked files (the classic instability here).
+// ---- P0-1: Ed25519 update-signature verification (fail-closed) ----
+
+// Stream the base64 SHA-512 of a (large, ~750MB) file without loading it into memory.
+function sha512Base64OfFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha512');
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', reject);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('base64')));
+  });
+}
+
+// GET text following GitHub's redirects (releases/download -> objects.githubusercontent.com). Capped 64KB / 15s.
+function httpsGetText(url, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'Horosa-Updater' } }, (res) => {
+      const status = res.statusCode || 0;
+      if (status >= 300 && status < 400 && res.headers.location) {
+        res.resume();
+        if (redirectsLeft <= 0) { reject(new Error('too many redirects')); return; }
+        resolve(httpsGetText(res.headers.location, redirectsLeft - 1));
+        return;
+      }
+      if (status !== 200) { res.resume(); reject(new Error(`HTTP ${status}`)); return; }
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => {
+        data += c;
+        if (data.length > 64 * 1024) { req.destroy(); reject(new Error('signature asset too large')); }
+      });
+      res.on('end', () => resolve(data));
+    });
+    req.on('error', reject);
+    req.setTimeout(15000, () => req.destroy(new Error('signature fetch timeout')));
+  });
+}
+
+// Fetch the horosa-update.sig asset for <version> from the configured GitHub release.
+async function fetchUpdateSignatureAsset(version) {
+  const cfg = getConfiguredPublishOptions();
+  const url = `https://github.com/${cfg.owner}/${cfg.repo}/releases/download/v${version}/horosa-update.sig`;
+  return httpsGetText(url);
+}
+
+// Verify the DOWNLOADED installer against the release's Ed25519 signature. Fail-closed: ANY failure
+// (missing sig, hash mismatch, fetch error, bad signature, missing downloadedFile) returns ok=false.
+async function verifyDownloadedUpdate(info) {
+  try {
+    const file = info && info.downloadedFile;
+    const version = info && info.version ? String(info.version) : '';
+    if (!version) return { ok: false, reason: 'update version missing' };
+    if (!file || !fs.existsSync(file)) {
+      return { ok: false, reason: 'downloadedFile path not available from electron-updater' };
+    }
+    const fileSha512Base64 = await sha512Base64OfFile(file);
+    let signatureText;
+    try {
+      signatureText = await fetchUpdateSignatureAsset(version);
+    } catch (e) {
+      return { ok: false, reason: `signature fetch failed: ${e && e.message ? e.message : e}` };
+    }
+    return verifyUpdateSignature({ version, fileSha512Base64, signature: signatureText });
+  } catch (e) {
+    return { ok: false, reason: `verify exception: ${e && e.message ? e.message : String(e)}` };
+  }
+}
+
 async function installUpdateNow() {
   if (isInstallingUpdate) {
     return;
@@ -1476,7 +1587,8 @@ async function installUpdateNow() {
     updater.quitAndInstall(true, true);
   } catch (error) {
     logUpdaterWarn('quitAndInstall failed', error);
-    // Fall back to a normal quit; autoInstallOnAppQuit will apply the update.
+    // P0-1: autoInstallOnAppQuit is OFF, so this fallback quit will NOT apply the update — the verified
+    // download stays cached and re-prompts (after re-verification) on next launch; user can retry from the menu.
     requestAppQuit('update-install-fallback').catch(() => {});
   }
 }
@@ -1981,6 +2093,54 @@ async function bootstrap() {
     if (logger) {
       logger.error('Runtime error', error);
     }
+
+    // H-7: bounded auto-restart before surfacing the manual repair UI. A crashed backend (Python/Java
+    // exiting after ready) is retried up to MAX_RUNTIME_AUTO_RESTARTS times with backoff. Restarting via
+    // startRuntimeFlow({restart}) re-acquires ports + reloads the renderer with the new ports. If the
+    // runtime stays up for the stability window the counter resets; if the budget is exhausted (or a
+    // restart never reaches 'ready') we fall through to the manual loading/repair screen.
+    if (runtimeAutoRestartAttempts < MAX_RUNTIME_AUTO_RESTARTS) {
+      runtimeAutoRestartAttempts += 1;
+      const attempt = runtimeAutoRestartAttempts;
+      const backoff = RUNTIME_AUTO_RESTART_BACKOFF_MS[Math.min(attempt - 1, RUNTIME_AUTO_RESTART_BACKOFF_MS.length - 1)];
+      if (logger) {
+        logger.warn(`[runtime] auto-restart after crash (attempt ${attempt}/${MAX_RUNTIME_AUTO_RESTARTS}) in ${backoff}ms`);
+      }
+      try {
+        runtimeManager.updateState({
+          status: 'restarting',
+          message: `本地服务异常，正在自动重启（${attempt}/${MAX_RUNTIME_AUTO_RESTARTS}）…`,
+        });
+        publishCurrentStates();
+      } catch (stateError) { /* non-fatal */ }
+
+      await new Promise((resolve) => setTimeout(resolve, backoff));
+      if (isQuitting || isShuttingDown) { return; } // user quit during backoff
+
+      let restartedState = null;
+      try {
+        restartedState = await startRuntimeFlow({ restart: true });
+      } catch (restartError) {
+        if (logger) { logger.error(`[runtime] auto-restart attempt ${attempt} threw`, restartError); }
+      }
+      if (restartedState && restartedState.status === 'ready') {
+        if (logger) { logger.info(`[runtime] auto-restart attempt ${attempt} reached ready`); }
+        // Stability window: if it stays up, forgive the attempt budget for the next independent crash.
+        if (runtimeAutoRestartStabilityTimer) { clearTimeout(runtimeAutoRestartStabilityTimer); }
+        runtimeAutoRestartStabilityTimer = setTimeout(() => {
+          if (runtimeManager && runtimeManager.getState().status === 'ready') {
+            runtimeAutoRestartAttempts = 0;
+            if (logger) { logger.info('[runtime] stable after auto-restart — reset attempt counter'); }
+          }
+        }, RUNTIME_AUTO_RESTART_STABILITY_MS);
+        return; // recovered — renderer already reloaded by startRuntimeFlow
+      }
+      if (logger) { logger.warn(`[runtime] auto-restart attempt ${attempt} did not reach ready — surfacing manual repair`); }
+      // fall through to the manual repair UI
+    } else if (logger) {
+      logger.warn(`[runtime] auto-restart budget exhausted (${MAX_RUNTIME_AUTO_RESTARTS}) — surfacing manual repair`);
+    }
+
     try {
       await showLoadingScreen();
       publishCurrentStates();

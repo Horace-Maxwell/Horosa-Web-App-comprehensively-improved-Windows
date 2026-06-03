@@ -21,7 +21,7 @@ Past bugs encoded as gates:
                        (a drifted latest.yml -- e.g. an overwrite-in-place re-release that forgot
                         to regenerate it -- silently fails every client's electron-updater check)
 """
-import os, re, sys, glob, hashlib, base64
+import os, re, sys, glob, hashlib, base64, subprocess
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BUNDLE = os.path.dirname(SCRIPT_DIR)                       # desktop_installer_bundle
@@ -173,6 +173,27 @@ def check_sentinels():
             "runtimeManager.stop('update-install')",
             "quitAndInstall",
             "showDownloadProgressWindow",
+            # P0-1 (v2.5.4): fail-closed Ed25519 update-signature verification before install, and
+            # autoInstallOnAppQuit OFF so an unverified update can never be silently applied on quit.
+            # Reverting either re-opens the unsigned-auto-update RCE channel.
+            "verifyDownloadedUpdate",
+            "autoInstallOnAppQuit = false",
+            # H-7 (v2.5.4): bounded auto-restart of a crashed backend before the manual repair UI.
+            "MAX_RUNTIME_AUTO_RESTARTS",
+            # P1-4: differential (delta) downloads kept ON explicitly.
+            "disableDifferentialDownload = false",
+        ],
+        # P0-1 (v2.5.4): Ed25519 update-signature verifier (pure node crypto, shared by main.js +
+        # scripts/sign-update.cjs). Must keep the verify primitive + the embedded public key.
+        os.path.join(BUNDLE, "electron/update-signature.js"): [
+            "verifyUpdateSignature",
+            "crypto.verify",
+            "UPDATE_PUBLIC_KEY_PEM",
+            "ed25519",
+        ],
+        os.path.join(BUNDLE, "scripts/sign-update.cjs"): [
+            "sign-release",
+            "createPrivateKey",
         ],
         # The download-progress window's UI (loaded from this file). The IPC channel
         # names must match what main.js sends — if either side drifts, progress stops
@@ -352,6 +373,32 @@ def check_update_feed_consistency(V):
     record("update feed (latest.yml) matches exe", not bad,
            "; ".join(bad) if bad else "latest.yml path/sha512/size match the shipped exe")
 
+def check_update_signature(V):
+    # P0-1 (v2.5.4): the release MUST ship `horosa-update.sig` (an Ed25519 signature of the exe) and it MUST
+    # verify against the public key embedded in electron/update-signature.js. The shipped client is fail-closed:
+    # it refuses any update without a valid signature, so publishing an unsigned/non-verifying release would
+    # brick auto-update for every client. Verify via the SAME node verifier the client uses.
+    rel = os.path.join(BUNDLE, "release")
+    exe = os.path.join(rel, f"Horosa-Setup-{V}.exe")
+    sig = os.path.join(rel, "horosa-update.sig")
+    if not os.path.exists(exe):
+        record("update signature (Ed25519)", True, "SKIPPED (installer not built yet)")
+        return
+    if not os.path.exists(sig):
+        record("update signature (Ed25519)", False,
+               "horosa-update.sig MISSING -> run `npm run sign:update`; fail-closed clients would refuse this release")
+        return
+    try:
+        r = subprocess.run(
+            ["node", os.path.join(SCRIPT_DIR, "sign-update.cjs"), "verify", exe, V, sig],
+            capture_output=True, text=True, cwd=BUNDLE, timeout=180)
+        ok = (r.returncode == 0)
+        detail = "horosa-update.sig verifies against the embedded public key" if ok else \
+                 (r.stderr.strip() or r.stdout.strip() or "verify failed")[:200]
+    except Exception as e:
+        ok, detail = False, f"verify exec failed: {e}"
+    record("update signature (Ed25519)", ok, detail)
+
 def check_app_update_yml():
     # The packaged app MUST ship resources/app-update.yml so electron-updater can
     # resolve the GitHub feed. The `electron-builder --dir` + `--win nsis --prepackaged`
@@ -473,6 +520,7 @@ def main():
     check_release_assets(V)
     check_release_doc_hashes(V)
     check_update_feed_consistency(V)
+    check_update_signature(V)
     check_app_update_yml()
     width = max(len(n) for n, _, _ in results)
     failed = 0
