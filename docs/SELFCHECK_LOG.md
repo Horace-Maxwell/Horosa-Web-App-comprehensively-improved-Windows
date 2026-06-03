@@ -2,6 +2,34 @@
 
 最后更新：2026-06-02
 
+## 2026-06-03 v2.5.4 Beta（Mac 同步 `94b6e277c→54f3c42d` 8 commits 大版本：七政宿度三制 + 主限法 v10 全方位法 + 量化盘汉堡补全 + Windows 启动稳健化镜像 ①②③）
+
+**同步**：Mac main `54f3c42d`（baseline `94b6e277c` = 上版 v2.5.3），`compare 94b6e277c..54f3c42d` = **8 commits, Java + Python + 前端 + 测试 + 文档**。Mac 也已 bump 到 v2.5.4（Mac 端本地标记 + 推到 GitHub main，但 Mac handoff 自标「未发到 GitHub Releases，等用户签字后各自发」→ 用户「走完整流程发布」即签字 → Windows 立即发）。**下次 Mac 同步基线 = `54f3c42d`**（或下次 ls-remote 取 Mac v2.5.4+ HEAD）。
+
+**Features（共享代码）**：
+- **七政四余「二十八宿度」三制对齐**（perchart.py 主修）：回归今制（活体距星严格岁差）/ 回归古制（开禧基值 + 岁差）/ 恒星制（郑氏恒星基值原值）。修复回归今制原误用郑氏恒星冻结值 15.9（偏 ~18°）→ 现为活体距星；实拍核对恒星制 10 颗到角分。
+- **主限法 v10 全方位法**（pd_engine.py NEW + perpredict.py + perchart.py + Java PredictiveController.java + 前端 PD pages）：六方位法（Alchabitius / Placidus（半弧）/ Regiomontanus / Campanus / Topocentric / Horosa 原方法）+ 真太阳弧 + 顺逆同选 + 映点 + 界。**根治「推运方向选了没用」真因**：Java `getParams()` 此前只透传 pdtype/pdMethod/pdTimeKey 而丢弃 pdDirect/pdConverse/pdAntiscia/pdTerms，叠加 `AstroHelper.request()` 用 `ParamHashCache(键=params哈希, 24h)`，导致 direct/converse params 哈希相同 → 命中同缓存 → 切换无效。修法 = Java getParams 补 4 个透传 + `_wireRev` v8→v10（让旧缓存全失效）→ **重建 jar**。time-key 收敛回 Ptolemy/Naibod/真太阳弧（撤拟合常数 Cardano/Plantiko/Wöllner/SymbolicSolarArc + 删 `fit_pd_constants.py`）。Ptolemy/Alchabitius 路径**逐字节对拍通过**（540 case 0 偏差 + tests/test_pd_alcabitius_byteperfect.py）。
+- **量化盘汉堡补全**：新增 `UranianGraphicEphemeris.js`（图形星历）+ 11 例新测试。
+- **主限法盘四角赤纬归正**：ASC/MC/DESC/IC 一律 `_pdChartEqCoords(lon, 0.0, obliquity)`（修长期误用地理纬度作黄纬致赤纬越界）。
+- **启动稳健化共享前端 P0**：`components/common/StartupGate.js` NEW + backend ready contract 完善。
+- **AI 四同步**：`AI_EXPORT_SETTINGS_VERSION` 15→16（触发旧 presets 回收）+ aiAnalysisContext.js 不再硬编码覆盖 pdMethod/pdTimeKey（透传 chartObj.params 实选）+ PD_SYNC_REV 升 `pd_method_sync_v10`。
+
+**Windows 启动稳健化镜像 ①②③（Windows 独有，service-manager.js + 新 job-object.js）**：见 `docs/windows-启动稳健化-镜像清单.md`。
+- **① 修「白屏 / 进不去主界面」**：原 trusted 快路径 `Promise.resolve({bodyExcerpt:'trusted runtime port probe'...})` 仅端口探测 → 端口 open ≠ Java 真就绪 → trusted 缓存命中遇 Java 半坏 → UI 先加载 → 白屏。修法 = 在 trusted 路径也跑**真 HTTP `/heartbeat`**（短超时 ≤8s，失败退回完整 `STARTUP_READY_TIMEOUT_MS` 等待）。镜像 macOS `start_horosa_local.sh` 一律轮询 HTTP 的口径。哨兵 = `trustedRuntimeServerRoot`（新 local var）替 obsolete `'desktop runtime port probe'` literal。
+- **② 修「端口被占用 / 孤儿后端」**：Electron 崩溃 / OOM / 外部 taskkill → spawn 出的 python.exe + java.exe 变孤儿、持续占口。Node `process.on('exit'/'SIGINT'/'beforeExit')` 仅 graceful 路径触发，不抗崩溃。修法 = 新 `electron/job-object.js`，用 **koffi**（^2.14.1，ffi-napi 维护中替代）调 Win32 API：`CreateJobObjectW` → `SetInformationJobObject(JobObjectExtendedLimitInformation, LimitFlags |= JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE 0x2000)` → `AssignProcessToJobObject(job, GetCurrentProcess())`；在 `service-manager.js` 模块顶层调一次 `attachJobObject(console)`，所有 spawn 子进程随 Electron 死。全 try/catch 包裹，koffi 缺/Win32 失败/Win8- 沙箱拒绝时静默回退到现状 taskkill + findPort。**保留 job handle 在模块级**（关 handle 即触发 KILL_ON_JOB_CLOSE 是自杀）。**幂等**。镜像 macOS main.rs setpgid + killpg。
+- **③ 修首启「防火墙弹窗」**：Spring Boot 默认 `0.0.0.0` → 首启 Windows Firewall 弹窗（吓退非技术用户 / 可能挡启动）。修法 = `buildJavaArgs` 加 `--server.address=127.0.0.1`（Spring CLI 优先级 > properties，桌面专属、零波及共享 application.properties）。镜像 macOS launcher。
+
+**jar 重建**：链 `boundless install → astrostudy install → astrostudycn install → astrostudyboot clean package`（JDK17 内置 Maven）。**核验打包 + staged installer payload jar markers**：PredictiveController.class 含 `pdDirect / pdConverse / pdAntiscia / pdTerms / pd_method_sync_v10` 全 v10 marker；回归无变 → AIAnalysisProxyService.class 含全 5 Ollama natives（#15）；HttpUriRequestHystrixCommand.class 含 `isLoopbackTarget`（#14）+ `redactSensitiveHeaders / stripQuery`（#9 脱敏）全无回退。jar 324,243,192 B（+97 B vs v2.5.3 = PredictiveController 4 个新 getParam 字段编译差）。
+
+**固化**（杜绝再回归）：
+- `desktop_installer_bundle/package.json` 新增 dep `koffi ^2.14.1`（npm install 1 包 / +~200KB）。
+- `release_selfcheck.py` 新增/调整哨兵：service-manager.js 加 `trustedRuntimeServerRoot`（替 obsolete `'desktop runtime port probe'`）+ `--server.address=127.0.0.1` + `attachJobObject`；**新增独立文件哨兵** `electron/job-object.js` 守 `attachJobObject / JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE / CreateJobObjectW / AssignProcessToJobObject`。**哨兵 41 files OK**（v2.5.3 40 → +1 文件）。
+- **SKILL gotcha #21 已加**：「Windows 启动稳健化镜像清单 ①②③ — Mac launcher hardening → Electron mirror 的标准模板」(trusted-path 真 /heartbeat + Job Object + bind-127；koffi try/catch 兜底实践；与 Node 纯 process.on 替代方案对比；下次 Mac 出新 launcher 改动按此清单镜像)。
+
+**验证**：umi-test **33 套 / 195 测试**（v2.5.3 184 → +11 例 PD v10 + uranianDial 配套）；`npm run verify` service-manager **30/30** + preflight OK；`release_selfcheck.py` **9/9**（哨兵 41 文件含 ①②③ 全 marker；version 2.5.4；jar 不旧；payload-slimmed；4 资产 + 哈希一致；release-doc 真哈希；latest.yml 匹配 exe；packaged app-update.yml 在）。
+
+**发布**：commit `e26ff04`（12 跟踪文件 +362/-86；新增 `desktop_installer_bundle/electron/job-object.js` + `docs/releases/2.5.4.md`）；tag `v2.5.4`（指 `e26ff04`）；`prerelease=false`、`isDraft=false`、`/releases/latest → v2.5.4`。`Horosa-Setup-2.5.4.exe` = **756,182,867** B（+12.7MB vs v2.5.3 = koffi + 新 PD v10 + UranianGraphicEphemeris 等组件，**非膨胀**），SHA256 `d863264eadfd1d1e44e66edb4701b1be5fd90e7fc3dc51214161bb32ca8d71d1`；blockmap `32a4891d232347474d7e2790262229f9dbe1b65f1723cf91427b4189f96791fa`（788,305 B）；latest.yml `17a208c4d51a6648684ddf77bb80647a4d254bf4cb3f751c1018f445e848f9b6`（341 B）。GitHub 独立计算 4 资产 digest = 本地逐字节一致；线上 latest.yml + SHA256SUMS IDENTICAL。**自动更新：v2.2.1–v2.5.3 用户自动收 v2.5.4**。
+
 ## 2026-06-02 v2.5.3 Beta — Doc 综合化补丁（`gh release edit --notes-file`，无代码/binary 改动）
 
 发布 v2.5.3 后 owner 提示「核对一下 Mac 最新 README 看看有没遗漏」。重 ls-remote Mac main = `49179c8cc`（在我 v2.5.3 baseline `94b6e277c` 之上又前进 1 commit，**纯 release bookkeeping**：CITATION/Mac Tauri 配置/Mac release_notes/README/UPGRADE_LOG/handoff；代码 `astrostudyui`/`astrostudysrv`/`astropy`/`flatlib-ctrad2` **0 改动**——代码层完整）。
