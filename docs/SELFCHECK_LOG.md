@@ -1,6 +1,23 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-02
+最后更新：2026-06-03
+
+## 2026-06-03 v2.5.4 加固补丁（原地覆盖重发 · Windows 安装/更新/健康检查对齐成熟软件，无版本号 bump）
+
+**触发**：owner `/deep-research`「全面检查 Windows 独有的安装和更新检查机制，完全和成熟软件对齐」。研究结论：健康检查层已强于多数 Electron 应用（多数不内嵌 Python+Java），真正 gap 在**安装签名（SmartScreen）/ 更新链路安全 / 发布安全（无灰度）/ 带宽（750MB 全量）/ 分发面（无 winget）**。owner 决策：**暂缓代码签名**（便宜的 Azure Trusted Signing GA 2026-04 仅 US/CA/EU/UK 主体可用、中国不可用；不买 EV 证书）→ 预算投更新链路安全；**原地覆盖 v2.5.4 不 bump**。全部落在已跟踪 build-harness / electron 层，**未动 windows-adaptations / 无 jar 重建 / 无前端重建**（产品功能与 v2.5.4 完全一致）。
+
+**5 项加固（全部 fallback-safe，最坏退回现状）**：
+- **P0-1 更新链路安全 — Ed25519 签名更新元数据（fail-closed）**：此前自动更新唯一完整性 = 未签名 latest.yml 的 sha512 + GitHub HTTPS → 教科书级 Electron updater RCE 通道（release 被换 / rogue-CA MITM → 恶意 exe 用户权限自动装）。修法仿 Sparkle EdDSA / Doyensec SafeUpdater：① 新 `electron/update-signature.js` 内置公钥 + `crypto.verify(null,...)` 验签器（纯 Node 无 electron 依赖）；② 新 `scripts/sign-update.cjs` 用离线私钥（`~/.horosa-release/update-ed25519-private.pem`，**永不进仓/CI**）签规范消息 `Horosa-Update-v1\n<version>\n<sha512(exe)>` → 写 `release/horosa-update.sig`，签后用内置公钥**自验否则 abort**（防密钥漂移）；③ `main.js` `update-downloaded` → `verifyDownloadedUpdate`：流式算下载包 sha512 → 拉 release 的 `horosa-update.sig` → 内置公钥验 `版本+哈希`，**验过才置 status 'downloaded'**（installUpdateNow 唯一前置），任何失败（缺签名/哈希不符/拉取失败/算哈希异常）一律 `downloadedUpdateInfo=null` + 拒装不 quitAndInstall + 提示手动下完整包。**关键耦合**：`autoInstallOnAppQuit` true→**false**，关掉「退出自动装」绕过验签的第二条安装路径。`dist:win` 末尾自动跑 `sign:update`。
+- **H-7 运行期后端崩溃自动重启（supervisor）**：`main.js` `runtime-error` 处理器加有界自动重启（`MAX_RUNTIME_AUTO_RESTARTS=2` + 退避 `[1500,4000]ms`，经 `startRuntimeFlow({restart:true})` 重拿端口 + 重载 renderer；稳定 45s 清零预算给下次独立崩溃；`isQuitting/isShuttingDown` 守卫 + 退避后再查 → 计划内关闭/更新期不重启；耗尽落原手动 repair UI）。Job Object（v2.5.4）自动纳管重启出的新子进程。放 main.js 而非 service-manager.js，因重启须重载 renderer（端口变）这一编排在 main.js。
+- **P1-3 灰度发布**：新 `scripts/set-staging.cjs` 给线上 latest.yml 注入 `stagingPercentage`（10→25→50→100% ramp，撤坏灰度须 bump）；`allowDowngrade=false` 显式。**不接 dist:win**（对线上 yml 的发布时操作）。
+- **P1-4 差分下载**：`disableDifferentialDownload=false` 显式保持开启 + 每版发 blockmap。
+- **P2-5 winget**：新 `scripts/winget-manifest.cjs` 生成 3 manifest（`winget/manifests/h/HoraceMaxwell/Horosa/2.5.4/`，InstallerType nullsoft、Scope user、未签 EXE + SHA256），加 `winget install HoraceMaxwell.Horosa` 路径（不替换 NSIS）。
+
+**固化**：`release_selfcheck.py` 新增 `check_update_signature` gate（shells `node sign-update.cjs verify <exe> <ver> <sig>` 实测对当前 exe 验签通过）+ main.js 哨兵（verifyDownloadedUpdate / `autoInstallOnAppQuit = false` / MAX_RUNTIME_AUTO_RESTARTS / `disableDifferentialDownload = false`）+ 新文件哨兵 update-signature.js（verifyUpdateSignature/crypto.verify/UPDATE_PUBLIC_KEY_PEM/ed25519）+ sign-update.cjs（sign-release/createPrivateKey）→ **哨兵 43 文件**（v2.5.4 41 → +2）。新单测 `electron/update-signature.test.js` 9 例（临时密钥经 publicKeyPem 覆盖测验签逻辑：正常过/篡改哈希拒/换版本拒/换密钥拒/翻字节拒/坏 schema·alg 拒/垃圾输入永不抛 fail-closed/内置公钥不认陌生签名）接入 `npm run verify`。**SKILL gotcha #22 已加**（cert-less 更新链路安全 + autoInstallOnAppQuit 必关 + 验签器先于更新=可覆盖不 bump + overwrite-with-resign 三资产 + H-7 归属 main.js + release-time-only 脚本不入 dist:win）。
+
+**验证**：`npm run verify` **39/39**（service-manager 30 + update-flow + update-signature 9，经 PowerShell——Bash/MSYS GNU tar 把 `C:\` 当远程主机使 fixture 失败）；`release_selfcheck.py` **10/10**（含新 `update signature (Ed25519)` gate PASS + 43 哨兵；version 2.5.4 不变 → version-consistency 绿；jar/dist 不旧——本轮无 jar/前端改动）；Ed25519 sign→verify 链正反测通过；私钥↔内置公钥一致性预检通过。**未动启动 boot 路径**（改动只在 updater + runtime-error handler，均 fail-safe）→ 正常启动稳定性不受影响。
+
+**发布（原地覆盖）**：commit `e083cb3`（13 跟踪文件 +833/-20）；`git tag -f v2.5.4`（e26ff04→e083cb3）+ `git push -f origin v2.5.4`（**仅 force tag，main 正常 fast-forward `600de33→e083cb3` 不 force**）；`gh release upload v2.5.4 --clobber`（exe 先 / latest.yml 后，5 资产）+ `gh release edit --notes-file`（同步加固补丁口径）。**新 exe** = **756,172,998** B（vs 旧 756,182,867 = electron 代码变 −9,869 B），sha256 `92fc71b2db43b34ceb87fd53a95ab4b57b7a1e760ae5fc2065c99bdb00025fa3`，sha512(b64) `MYFbvZv9LSf4o8vS90ylcxegeuOD4N6wgdrQPUCMIrRIz2OcXunsEqeEJ2ONthrPT2tF5eBrm6/KyQC1Iyy4bQ==`；blockmap `01319972037f2ddc75279c1a2873c8e48a6e5e678b5ec8874d123bf0b0f517fd`（785,401 B）；latest.yml `aee1e70ba5086c39d23734909f1d9b9bd5c1a369dfd019a86e76af1f81d4a93b`（341 B）；**新增第 5 资产 horosa-update.sig** `2a989117cf69ebc462fe679f128ab34ddcb5addbf45f2c920d37d2e22863c269`（260 B）。`prerelease=false`、`isDraft=false`、`/releases/latest → v2.5.4`；GitHub 独立计算 5 资产 digest = 本地逐字节一致。**自动更新口径**：本轮覆盖只对**新下载**生效；验签器随下个真版本 v2.5.5 签名发布时铺开（届时新装/覆盖的 v2.5.4 客户端即验签 v2.5.5）。**下次 Mac 同步基线仍 = `54f3c42d`**（本轮纯 Windows 加固，无 Mac 同步）。
 
 ## 2026-06-03 v2.5.4 Beta（Mac 同步 `94b6e277c→54f3c42d` 8 commits 大版本：七政宿度三制 + 主限法 v10 全方位法 + 量化盘汉堡补全 + Windows 启动稳健化镜像 ①②③）
 
