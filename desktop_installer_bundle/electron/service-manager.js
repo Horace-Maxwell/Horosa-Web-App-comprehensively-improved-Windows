@@ -7,6 +7,14 @@ const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
+// v2.5.4 启动稳健化 ②: Windows Job Object — see ./job-object.js + docs/windows-启动稳健化-镜像清单.md ②.
+// Attaches the current Electron process to a job with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE so spawned
+// children die with the parent (incl. crash / OOM / external taskkill). Wrapped in try/catch + falls
+// back to current taskkill/findPort cleanup if koffi is missing or any Win32 call fails. Idempotent.
+// Called at module load — runs ONCE before any ServiceManager / spawn.
+const { attachJobObject } = require('./job-object');
+attachJobObject(console);
+
 const PROCESS_KILL_TIMEOUT_MS = 10000;
 const LOG_STREAM_CLOSE_TIMEOUT_MS = 4000;
 const APP_CDS_DUMP_TIMEOUT_MS = 1500;
@@ -1389,6 +1397,14 @@ class RuntimeManager extends EventEmitter {
       layout.jarPath,
       `--server.port=${backendPort}`,
       `--astrosrv=http://127.0.0.1:${chartPort}`,
+      // v2.5.4 启动稳健化 ③: bind Spring Boot to 127.0.0.1 ONLY. Spring Boot defaults to 0.0.0.0
+      // which triggers a Windows Firewall prompt on first launch (frightens non-technical users /
+      // may block startup). Java is only reached by the renderer over 127.0.0.1; Mongo / Redis / AI
+      // are client-side outbound, unaffected by server.address. Command-line arg (Spring priority >
+      // properties) keeps this desktop-only — does NOT change the shared application.properties
+      // (which a server-deploy repo may still need to keep at 0.0.0.0). Mirror of macOS launcher
+      // start_horosa_local.sh — see docs/windows-启动稳健化-镜像清单.md ③.
+      '--server.address=127.0.0.1',
       '--mongodb.ip=127.0.0.1',
       '--mongodb.host=127.0.0.1',
       '--redis.ip=127.0.0.1',
@@ -1615,12 +1631,23 @@ class RuntimeManager extends EventEmitter {
           logDir,
           trustedRuntimeCandidate: trustedRuntime,
         });
-        const backendProbePromise = Promise.resolve({
-          ok: true,
-          statusCode: 0,
-          bodyExcerpt: trustedRuntime ? 'trusted runtime port probe' : 'desktop runtime port probe',
-          acceptedPortProbe: true,
-        });
+        // v2.5.4 启动稳健化 ①: even on the trusted fast-path, run a REAL backend HTTP heartbeat
+        // (not just port-open). Port open ≠ Java truly ready — if a trusted-cached runtime hits
+        // slower-than-usual Java boot or a half-broken state, the UI used to load PRE-ready → 白屏.
+        // Now: try a short (<=8s) heartbeat; if that fails (cache stale / Java truly slow), fall back
+        // to the FULL backend-heartbeat wait — NEVER short-circuit to "ready". Worst case = a few
+        // extra seconds before UI loads. Mirror of macOS `start_horosa_local.sh` which always polls
+        // HTTP, never "just port" — see docs/windows-启动稳健化-镜像清单.md ①.
+        const trustedRuntimeServerRoot = `http://127.0.0.1:${backendPort}`;
+        const backendProbePromise = (async () => {
+          try {
+            return await waitForBackendHeartbeat(trustedRuntimeServerRoot, Math.min(8000, readyTimeoutMs));
+          } catch (e) {
+            // Trusted cache lied / Java truly slow: don't release UI on a port-only signal — fall
+            // back to the same full wait the non-trusted path uses.
+            return await waitForBackendHeartbeat(trustedRuntimeServerRoot, STARTUP_READY_TIMEOUT_MS);
+          }
+        })();
         const [backendProbe, chartProbe] = await Promise.all([
           backendProbePromise,
           waitForChartProbe(chartPort, readyTimeoutMs),

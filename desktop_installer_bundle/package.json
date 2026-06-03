@@ -1,6 +1,6 @@
 {
   "name": "horosa-desktop-bundle",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Horosa mature Windows desktop app bundle",
@@ -23,7 +23,8 @@
     "dist:win": "npm run verify && npm run build:desktop && electron-builder --dir && npm run patch:win-icon && npm run write:update-config && electron-builder --win nsis --prepackaged release/win-unpacked && npm run selfcheck"
   },
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "koffi": "^2.14.1"
   },
   "devDependencies": {
     "electron": "^35.0.1",

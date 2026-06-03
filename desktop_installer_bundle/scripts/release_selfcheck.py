@@ -110,7 +110,11 @@ def check_sentinels():
         os.path.join(UI, "src/integrations/kentang/serviceRoot.js"): ["LOCAL_KENTANG_CHART_PORT"],
         os.path.join(UI, "src/utils/baziLunarLocal.js"): ["clockTime", "solarTime"],
         os.path.join(BUNDLE, "electron/service-manager.js"): [
-            "desktop runtime port probe",
+            # v2.5.4 启动稳健化 ①: the trusted fast-path no longer uses 'Promise.resolve(...port probe...)' —
+            # it now runs a REAL waitForBackendHeartbeat against trustedRuntimeServerRoot with short-timeout
+            # then full-timeout fallback. The presence of this variable name is the marker that the trusted-path
+            # probe goes through real HTTP /heartbeat (not just port-open) — reverting breaks the white-screen fix.
+            "trustedRuntimeServerRoot",
             # issue #2 (Win11 won't run): embedded Python/Java must be spawned
             # with host PYTHON*/_JAVA_OPTIONS contamination stripped + Python run
             # isolated (-E -s -X utf8). Reverting any of these re-opens the bug.
@@ -134,6 +138,28 @@ def check_sentinels():
             "launchServicesWithPortRetry",
             "isPortConflictError",
             "-Dhorosa.runtime.owner=horosa-desktop",
+            # v2.5.4 启动稳健化 ③: Spring Boot must bind 127.0.0.1 only (NOT default 0.0.0.0)
+            # otherwise Windows Firewall prompts on first launch / may block startup.
+            # Mirror of macOS start_horosa_local.sh; see docs/windows-启动稳健化-镜像清单.md ③.
+            "--server.address=127.0.0.1",
+            # v2.5.4 启动稳健化 ①: even on trusted fast-path the backend probe must do a REAL
+            # HTTP /heartbeat (not just port-open) — port open ≠ Java truly ready, otherwise UI
+            # loads PRE-ready → 白屏. Falls back to full STARTUP_READY_TIMEOUT_MS wait on first
+            # try failure (never short-circuits). See docs/windows-启动稳健化-镜像清单.md ①.
+            "waitForBackendHeartbeat(trustedRuntimeServerRoot",
+            # v2.5.4 启动稳健化 ②: Windows Job Object KILL_ON_JOB_CLOSE so children (python/java)
+            # die with parent Electron on crash/OOM/external kill. Implemented in job-object.js,
+            # wired at top-level of service-manager.js. Failure falls back to taskkill/findPort.
+            "attachJobObject",
+        ],
+        # v2.5.4 启动稳健化 ②: the Job Object module itself — KILL_ON_JOB_CLOSE flag + koffi binding
+        # to CreateJobObjectW / SetInformationJobObject / AssignProcessToJobObject. Reverting breaks
+        # the cleanup-on-crash guarantee that prevents 孤儿 python.exe/java.exe → port-occupied bugs.
+        os.path.join(REPO, "desktop_installer_bundle/electron/job-object.js"): [
+            "attachJobObject",
+            "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+            "CreateJobObjectW",
+            "AssignProcessToJobObject",
         ],
         # In-app auto-update must stay ENABLED (it was once disabled wholesale as
         # "updater noise"), and the install handoff MUST stop the embedded Python/Java

@@ -9,13 +9,13 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.5.3%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3)
+[![Version](https://img.shields.io/badge/version-2.5.4%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.3.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.4.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -34,7 +34,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.5.3.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.3.exe)**
+**[⬇︎ Horosa-Setup-2.5.4.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.4.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -95,20 +95,19 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.5.3 beta
+## 本次更新 · What's New in v2.5.4 beta
 
-**v2.5.3 替代 v2.5.2** —— 与 macOS 端版本号统一，并在 v2.5.2 基础上补 90° 中点盘的两处布局修。本版聚焦量化盘（汉堡学派）新技法、主限法新选项、AI 模型解耦与本地推理上下文，以及主限法盘的天文修正。
+**v2.5.4 = 七政四余「二十八宿度」三制 + 主限法 v10 全方位法 + 量化盘汉堡补全 + Windows 启动稳健化镜像清单**。v2.5.3 及更早全部功能保留。
 
-- **新增「90°中点盘」技法**（辅盘 → 量化盘）—— 折叠盘与多环模数盘双形态、三层叠盘（本命 / 行运 / 太阳弧，本命环锁定为最内圈）、八虚星（Cu / Ha / Ze / Kr / Ap / Ad / Vu / Po）、谐波盘基 H1..H512、可拖动红色指针实时输出星体 / 中点 / 行星图读数与中点树
-- **量化盘布局收尾**（替代 v2.5.2）—— 盘 size 按 viewport 三方钳位 `min(props.height, vh−260, 960)`，盘下沿与底部 Dock 之间留出安全呼吸距离；左 / 右栏卡片在窗口过小（vh < 800）时各自独立下滑
-- **主限法表格新增 Naibod 度数换算** —— 既有 Ptolemy / Alcabitius 链路逐字节不变；同时修复主限法盘 ASC / MC / DESC / IC 四角赤纬越界（原误以地理纬度作黄纬）
-- **AI 分析：聊天 / 嵌入模型解耦 + 高级参数（#13）** —— 顶栏可独立指定聊天与嵌入模型（例如聊天用 DeepSeek、嵌入用本地 Ollama bge-m3）；「参数」抽屉提供思考档位 / temperature / top_p
-- **Ollama 本地推理走原生口（修 Windows #15）** —— Ollama 聊天 / 嵌入分别切到 `/api/chat` 与 `/api/embed`，`num_ctx` 等嵌入 `options:{}` 后真正生效；长玄学上下文不再默认 4096 截断
-- **大六壬 / 三式合一 AI 挂载修复 + 六爻接入时间起卦白名单** + 量化盘 AI 四同步（导出预设 / 导出设置 14→15 / AI 挂载 / 命盘事盘储存）
+- **七政四余「二十八宿度」三制对齐** —— 回归今制 / 回归古制 / 恒星制三制并立；修复回归今制原误用恒星冻结值（偏 ~18°）；命度红线加宿度带
+- **主限法 v10 全方位法** —— 六方位法（Alchabitius / Placidus / Regiomontanus / Campanus / Topocentric / Horosa 原方法）+ 真太阳弧 + 顺逆同选 + 映点 + 界；time-key 收敛为可证 Ptolemy / Naibod / 真太阳弧。**根治「推运方向选了没用」**（Java 透传补 + ParamHashCache 失效）；已重建 jar
+- **主限法盘四角赤纬归正** —— ASC / MC / DESC / IC 不再误用地理纬度作黄纬
+- **量化盘汉堡补全** —— 新增 `UranianGraphicEphemeris` 图形星历 + 11 例新测试
+- **Windows 启动稳健化（三项独有）** —— ① **修「白屏 / 进不去主界面」**：trusted 路径改发真 `/heartbeat`；② **修「端口被占用 / 孤儿后端」**：加 Windows Job Object KILL_ON_JOB_CLOSE，Electron 退出 OS 自动连带终止子进程；③ **修首启「防火墙弹窗」**：Java 绑 `--server.address=127.0.0.1`
 
-完整改动见 [v2.5.3 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3) 与 [本地发布说明](docs/releases/2.5.3.md)；上一版 v2.5.2（被本版替代但 release 保留）详见 [docs/releases/2.5.2.md](docs/releases/2.5.2.md)。
+完整改动见 [v2.5.4 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4) 与 [本地发布说明](docs/releases/2.5.4.md)；上一版 v2.5.3 详见 [docs/releases/2.5.3.md](docs/releases/2.5.3.md)。
 
-> v2.5.3 supersedes v2.5.2 — aligns the version number with the macOS build and ships two layout polishes on top of v2.5.2. The release ships the new 90°-dial (Hamburg-school) technique with eight hypothetical points and harmonic bases H1..H512, two layout fixes for the dial page (bottom Dock safety gap + independent scroll on narrow side columns), Naibod added to the primary-direction table (Ptolemy / Alcabitius byte-identical), the four-angle declination bug on the primary-direction chart fixed, decoupled chat / embedding models in the AI panel with a thinking-level / temperature / top-p drawer (Windows #13), Ollama switched to native `/api/chat` and `/api/embed` so `num_ctx` actually applies (fixes Windows #15 — the 4096 context truncation), and the AI snapshot mount repaired for Da-Liu-Ren / Three-style-united. All v2.5.1 and earlier features retained. Full log: [v2.5.3 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.3).
+> v2.5.4 ships Qi-Zheng 28-mansion three-system alignment, full Primary Directions v10 (all six house systems + true solar arc + forward/converse both + antiscia/terms; rebuilt jar), Hamburg / Uranian dial completion, and the Windows startup-stability mirror checklist — three Windows-only fixes: real /heartbeat probe on trusted fast-path (no more white-screen), Job Object KILL_ON_JOB_CLOSE (no more orphan backend), and binding Java to 127.0.0.1 (no more Firewall prompt). All v2.5.3 and earlier features retained. Full log: [v2.5.4 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4).
 
 ## 技术构成 · Under the Hood
 
