@@ -8,13 +8,13 @@
 
 **Western astrology and Chinese metaphysics, in one native Windows workstation**
 
-[![Version](https://img.shields.io/badge/version-2.5.4%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4)
+[![Version](https://img.shields.io/badge/version-2.5.5%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.4.exe) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.5.exe) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -27,13 +27,13 @@
 
 Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native Windows application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download an offline NSIS installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.5.4.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.5.5.exe`).
 
 ## Download
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-2.5.4.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.4.exe)**
+**[⬇︎ Horosa-Setup-2.5.5.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.5.exe)**
 
 Best for:
 
@@ -94,17 +94,18 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## New in v2.5.4 beta
+## New in v2.5.5 beta
 
-**v2.5.4 ships Qi-Zheng 28-mansion three-system alignment, full Primary Directions v10 (all six house systems + true solar arc + forward/converse both + antiscia/terms), Hamburg / Uranian dial completion, and a Windows startup-stability mirror checklist** — three Windows-only fixes derived from the macOS launcher hardening: real /heartbeat probe on trusted fast-path, Job Object KILL_ON_JOB_CLOSE preventing orphaned backend processes, and binding Java to 127.0.0.1 to suppress the Windows Firewall prompt. All v2.5.3 and earlier features retained.
+**v2.5.5 refines the planetarium (projection matched to astronomical truth + every star clickable / searchable by name + sharper text), adds smoothness caching, and hardens the primary-direction golden guard.** Every technique's chart output is identical to v2.5.4 (the default Alcabitius + Ptolemy primary-direction path is verified byte-for-byte against v2.5.3 across all 540 cases); all v2.5.4 and earlier features retained. Desktop-app-only update — runtime components are unchanged from v2.5.4 (no runtime re-download).
 
-- **Qi-Zheng 28-mansion three-system alignment** — modern-tropical (live distance-star + strict precession) / classical-tropical (Kaixi epoch base + precession) / sidereal (Zheng's frozen value); fixes the modern-tropical path that mistakenly used the sidereal frozen value (~18° off). The natal-degree red line gets a mansion strip.
-- **Primary Directions v10, all six house systems** — Alchabitius / Placidus / Regiomontanus / Campanus / Topocentric / Horosa-original + true solar arc + forward & converse both selectable + antiscia + terms. Alchabitius path stays **byte-identical** to v2.5.3 (golden-tested). Time-key collapses to provable Ptolemy / Naibod / true-solar-arc only (fitted constants removed). **Root-fixes "direction toggle not taking effect"**: Java `getParams` now passes through `pdDirect/pdConverse/pdAntiscia/pdTerms` + `_wireRev` v10 invalidates stale `ParamHashCache`. Rebuilt jar.
-- **Primary-direction chart four-angle declination fix** — ASC / MC / DESC / IC no longer treat geographic latitude as ecliptic latitude
-- **Hamburg / Uranian dial completion** — new `UranianGraphicEphemeris` (graphic ephemeris) plus 11 new tests
-- **Windows startup-stability mirror (three Windows-only)** — ① **fix "white-screen / can't reach main UI"**: the trusted fast-path now runs a REAL HTTP `/heartbeat` (not just port-open), with full-timeout fallback; UI never loads pre-ready; ② **fix "port occupied / orphaned backend"**: adds **Windows Job Object KILL_ON_JOB_CLOSE** (Win32 via koffi). When Electron exits (incl. crash / OOM / external taskkill), the OS automatically terminates all spawned children — no more orphan `python.exe / java.exe` holding ports; ③ **fix "Windows Firewall prompt on first launch"**: Java binds `--server.address=127.0.0.1` only
+- **Planetarium — projection matched to astronomical truth** — constellation / house / lunar-mansion sector labels no longer drift; during time playback the ecliptic / mansions no longer "snap then rotate." The front-end projection now uses date-of obliquity + apparent sidereal time + atmospheric refraction, exactly matching the backend `swisseph.azalt`; the initial / paused frame is back-computed once to remove residual offset.
+- **28 mansions back on the equator** — mansion boundaries are placed by determinant-star right ascension (equatorial), no longer mis-pinned to the ecliptic.
+- **Planetarium — every star clickable + search by name** — click any star (including faint ones) to see its name / Bayer designation / constellation / magnitude / RA-Dec; the search box autocompletes and locates by Chinese proper name, Western proper name, or HR number (e.g. Vega, Sirius), like mature planetarium apps.
+- **Sharper text** — planetarium label textures are DPR-supersampled with trilinear filtering — no blur when zoomed.
+- **Smoothness (zero functional regression)** — deterministic pure-compute techniques (e.g. Guolao seven-luminaries) gain same-params reuse + in-flight dedup caching — reopening the same chart or switching back and forth is instant from the second time on, value-for-value identical to a direct request; a shared request-dedup utility was factored out for heavy-technique services.
+- **Primary-direction guard hardened** — the default Alcabitius + Ptolemy output was proven byte-for-byte identical to v2.5.3 across the full corpus; a stale regression baseline was corrected, and the release gate `[32]` now **actually runs** a byte-perfect subset (previously it only checked the file exists). **The primary-direction code itself is unchanged.**
 
-Full log on the [v2.5.4 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.4) and the [local release notes](docs/releases/2.5.4.md); previous version at [docs/releases/2.5.3.md](docs/releases/2.5.3.md).
+Full log on the [v2.5.5 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5) and the [local release notes](docs/releases/2.5.5.md); previous version v2.5.4 (28-mansion three-system alignment + Primary Directions v10 + Uranian dial + startup stability) at [docs/releases/2.5.4.md](docs/releases/2.5.4.md).
 
 ## Under the Hood
 
@@ -117,7 +118,7 @@ Full log on the [v2.5.4 release page](https://github.com/Horace-Maxwell/Horosa-W
 ## FAQ
 
 **Do I need to clone the repo to use Horosa?**
-No. Download `Horosa-Setup-2.5.4.exe` from the latest release.
+No. Download `Horosa-Setup-2.5.5.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
@@ -126,7 +127,7 @@ No. The Windows installer carries the runtime the released app needs. The first 
 Yes. The v2.2.0 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.5.4.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.5.5.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. App replacement and runtime switching update the program and shared runtime; they are not designed to erase your saved charts and cases.
