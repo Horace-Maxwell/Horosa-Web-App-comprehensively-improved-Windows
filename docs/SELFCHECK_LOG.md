@@ -1,6 +1,26 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-03
+最后更新：2026-06-04
+
+## 2026-06-04 v2.5.5 Beta（Mac 同步 `54f3c42d→5349b96b` v2.5.5：天文馆精修 + 恒星点击/搜索 + 流畅度 + 主限法 golden 校正 — 纯前端 + Python 测试夹具，**无 Java/算法/命盘改动 → 不重建 jar**）
+
+**同步**：Mac main `54f3c42d`（v2.5.4 基线）→ `5349b96b`（v2.5.5），`compare` = 2 commits（`515c2f41e` CITATION date bookkeeping + `5349b96b` 功能）。Mac handoff 明确「**无任何 Java/算法/命盘数值改动**，`astrostudyboot.jar` 维持 v2.5.4 基线，Windows **不需重编 jar**」；所有技法命盘输出与 v2.5.4 完全相同（默认 Alcabitius+Ptolemy 经全 540 例逐字节验证与 v2.5.3 一致）。**下次 Mac 同步基线 = `5349b96b`**。
+
+**Features（共享前端，astrostudyui → 重建前端包）**：
+- **天文馆投影对齐天文真值**：前端投影改用逐日黄赤交角 + 视恒星时 + 大气折射（Saemundsson），与后端 `swisseph.azalt` 完全一致 → 消星座/宫位/星宿名称偏移 + 时间回放瞬跳；初始/暂停帧补算一次。新增 BABYLON-free 投影核 `planetariumProjection.js`。**二十八宿回赤道**（按距星赤经定宿，赤道宿度，不再误贴黄道）。`Engine` `adaptToDeviceRatio` + 标签 DPR 超采样 + TRILINEAR → 文字清晰。
+- **天文馆每颗恒星可点击 + 按名搜索**：点任意恒星（含暗星，射线夹角 `nearestPointToRay` 兜底）弹名称/拜耳/星座/星等/赤经赤纬；搜索中文/英文专名/HR 编号自动补全定位。新增 `planetariumStarSearch.js`（纯函数）+ `planetariumStarNames.js`（亮星专名表）。`PlanetariumBabylon.js` 接线（建 starIndex / POINTERTAP 兜底 pickNearestStar / flyTo 兜底 findStarByName）。
+- **流畅度（零降级）**：七政四余等确定性纯计算技法加同参复用 LRU(48) + 在途合并（深拷贝返回，逐值等价）；抽通用请求去重工具 `services/_requestCache.js`，`services/qizheng.js` 的 `fetchKinastroQizheng` 包 `kinMem`。
+- 改 `PlanetariumBabylon.js` / `services/qizheng.js` 均 **clean-port**（LF-normalized `git hash-object` 核 win-current == mac-baseline `54f3c42d`，非 Windows-ahead）。
+
+**Python（仅测试夹具/守卫，无 runtime .py 改动 → 不影响 shipped 行为）**：`astropy/tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v253.ndjson.gz` 重生（旧夹具自 `883855d` 起与代码不一致的过期数据；按当前 PD 代码重算，**PD 算法不动**）+ 新增 `astropy/tests/test_planetarium_su28.py`（守二十八宿默认 REAL 模式真赤道 ra≠lon）。Mac preflight `[32]` 改实跑 byteperfect 子集是 **Mac 专属**，Windows release_preflight.py 不跑 Python byteperfect → N/A。
+
+**同步法**：`gh api compare` 取精确文件清单（26 改，11 在 `Horosa-Web/` 产品树，其余 `Horosa_Desktop_Installer/` Tauri 外壳 + READMEs/CITATION/UPGRADE_LOG/handoff 均 Mac 专属不同步）。targeted copy（gotcha #20b：few-file 前端可 cp 具体文件不必整树）：planetarium 整目录 + 2 services + 2 astropy 测试 + AGENTS.md；7 文件 LF-hash 核对 == Mac-new、golden 夹具 binary-identical。`windows-adaptations/apply.sh` 全程 **no-op**（umi-runner/loadCryptoDeps/vendor/package.json/requirements.txt/THIRD_PARTY_NOTICES + 5 patch 标记全在；**#8 isLoopbackTarget 已收敛 no-op → 二次确认无 jar 改动**）。
+
+**版本 bump** 2.5.4→2.5.5：package.json + package-lock.json（2 行）+ CITATION.cff + README×3（badge/下载链接/What's New 重写为 v2.5.5 口径 + 保留 v2.5.4 跳级指针）+ desktop README + PROJECT_STRUCTURE + 新增 `docs/releases/2.5.5.md` + winget 2.5.5 manifest。
+
+**验证**：umi-test **35 套 / 221 测试绿**（含新 planetariumProjection.test.js + planetariumStarSearch.test.js；与 Mac 一致）；`npm run verify` **39/39** + preflight 版本同步 OK；`release_selfcheck.py` **10/10**（含 `update signature (Ed25519)` gate PASS + 43 哨兵；version 2.5.5；jar 不旧——无 Java 改动复用 v2.5.4 jar；dist-file 不旧——前端重建；4 资产 + 哈希一致；release-doc 真哈希；latest.yml 匹配 exe；app-update.yml 在）。
+
+**发布**：release commit `e72653f`（12 跟踪文件 +177/-72；产品前端源在 gitignored workspace 不入 commit，随 exe 交付）+ 本条 selfcheck-log 随后 commit；tag `v2.5.5`（新 tag，指 `e72653f`）；`gh release create`（5 资产 exe/blockmap/SHA256SUMS/horosa-update.sig/latest.yml，latest.yml 末上）。**新 exe** `Horosa-Setup-2.5.5.exe` = **756,217,885** B（vs v2.5.4 加固版 756,172,998 = 新 planetarium 前端 +44,887 B），sha256 `f3bec89657ccf52cd819a90f0b6278222938779c5fc61d05e1dfa4c067cd7378`，sha512(b64) `DwS3kvF3LzM2JsGvmyjVDO8ahoLAhNtiu+Z3wuXIVNxBE/e5h4Zp6ypmfHO9jvMpW6O4V3hwMGCieNfRXkvjDw==`；blockmap `4afe90220ed785a95ee00beecf0a1208ac6f4cd63158631eb170ff8b23c09dfe`（786,524 B）；latest.yml `077c6671834921508704222e8d08506bab7b9cc36634af3a881f8a9b139ae1ea`（341 B）；**horosa-update.sig（第 5 资产）** `5a6de7e908aa99533c3a8cf2026ad8907306ff805f04dba408171d4aa3db99ae`（260 B）。`isPrerelease=false`、`/releases/latest=v2.5.5`、GitHub 独立计算 5 资产 digest = 本地逐字节一致；LIVE horosa-update.sig 经客户端 URL 拉取对 shipped exe 验签 OK。**自动更新：v2.2.1–v2.5.4 用户自动收 v2.5.5**（纯前端/桌面更新，运行时与 v2.5.4 一致）。
 
 ## 2026-06-03 v2.5.4 加固补丁（原地覆盖重发 · Windows 安装/更新/健康检查对齐成熟软件，无版本号 bump）
 
