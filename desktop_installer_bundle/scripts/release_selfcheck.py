@@ -203,6 +203,20 @@ def check_sentinels():
             "update:progress",
             "update:done",
         ],
+        # Win issue #18 (升级安装从来都没有成功过，只能卸载后再装): the NSIS installer must
+        # FORCE-terminate a running Horosa before the upgrade's uninstall-old/extract step.
+        # electron-builder's default _CHECK_APP_RUNNING relies on a polite WM_CLOSE (which
+        # main.js vetoes via event.preventDefault for async shutdown) + a $INSTDIR-path /
+        # USERNAME-filtered taskkill (breaks on the Chinese "星阙" path) -> "无法关闭" ->
+        # "Failed to uninstall old application files: 2". We override customCheckAppRunning
+        # to (1) taskkill /F /IM Horosa.exe (image-direct, no /T, no path filter) and
+        # (2) Stop-Process ONLY the embedded sidecars under the unique embedded-runtime dir.
+        # Reverting any of these re-opens the "upgrade never succeeds" bug.
+        os.path.join(BUNDLE, "assets/installer.nsh"): [
+            "customCheckAppRunning",
+            'taskkill.exe" /F /IM',
+            "embedded-runtime",
+        ],
         # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive
         # heartbeat so a slow local model (Ollama long first-token) isn't cut off by an idle-timeout disconnect.

@@ -8,13 +8,13 @@
 
 **Western astrology and Chinese metaphysics, in one native Windows workstation**
 
-[![Version](https://img.shields.io/badge/version-2.5.5%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5)
+[![Version](https://img.shields.io/badge/version-2.6.0%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.0)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.5.exe) ·
+[Download](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.0.exe) ·
 [Portal](README.md) ·
 [中文说明](README_ZH.md) ·
 [All Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -27,13 +27,13 @@
 
 Horosa is a desktop workstation for traditional cosmology. Western astrology—natal reading, the full timing chain, and relationship work—sits beside Chinese systems like Bazi, Ziwei, Qimen, Liuren, and Taiyi, all inside one native Windows application. The point is that you stop juggling a dozen single-purpose web tools, and you never hand-assemble the Python, Java, and ephemeris pieces underneath. You download an offline NSIS installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.5.5.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Electron desktop shell, and the publishing flow that turns all of it into a single NSIS installer (`Horosa-Setup-2.6.0.exe`).
 
 ## Download
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-2.5.5.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.5.5.exe)**
+**[⬇︎ Horosa-Setup-2.6.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.0.exe)**
 
 Best for:
 
@@ -94,18 +94,20 @@ Yi and Sanshi go past standalone tabs into a genuinely integrated surface.
 
 Charts and cases save locally with tags, snapshots, and raw backend payloads. Everything supports JSON import/export and restores its full state when you reopen it.
 
-## New in v2.5.5 beta
+## New in v2.6.0 beta
 
-**v2.5.5 refines the planetarium (projection matched to astronomical truth + every star clickable / searchable by name + sharper text), adds smoothness caching, and hardens the primary-direction golden guard.** Every technique's chart output is identical to v2.5.4 (the default Alcabitius + Ptolemy primary-direction path is verified byte-for-byte against v2.5.3 across all 540 cases); all v2.5.4 and earlier features retained. Desktop-app-only update — runtime components are unchanged from v2.5.4 (no runtime re-download).
+**v2.6.0 adds a Liuren "Bi Fa 100" interpretation layer, a comprehensive Zi Wei Dou Shu P0–P2 enhancement, a Qi Men "Fa Qi Men" overlay, a Western-astrology build-out (mundane / horary / electional / star-transit), professional city search, and fixes three reported issues — #16 (DeepSeek reasoner multi-turn), #17 (casting time), and the Windows-only #18 (in-place upgrade install).** Backend Java changed → `astrostudyboot.jar` rebuilt; all v2.5.5 and earlier features retained.
 
-- **Planetarium — projection matched to astronomical truth** — constellation / house / lunar-mansion sector labels no longer drift; during time playback the ecliptic / mansions no longer "snap then rotate." The front-end projection now uses date-of obliquity + apparent sidereal time + atmospheric refraction, exactly matching the backend `swisseph.azalt`; the initial / paused frame is back-computed once to remove residual offset.
-- **28 mansions back on the equator** — mansion boundaries are placed by determinant-star right ascension (equatorial), no longer mis-pinned to the ecliptic.
-- **Planetarium — every star clickable + search by name** — click any star (including faint ones) to see its name / Bayer designation / constellation / magnitude / RA-Dec; the search box autocompletes and locates by Chinese proper name, Western proper name, or HR number (e.g. Vega, Sirius), like mature planetarium apps.
-- **Sharper text** — planetarium label textures are DPR-supersampled with trilinear filtering — no blur when zoomed.
-- **Smoothness (zero functional regression)** — deterministic pure-compute techniques (e.g. Guolao seven-luminaries) gain same-params reuse + in-flight dedup caching — reopening the same chart or switching back and forth is instant from the second time on, value-for-value identical to a direct request; a shared request-dedup utility was factored out for heavy-technique services.
-- **Primary-direction guard hardened** — the default Alcabitius + Ptolemy output was proven byte-for-byte identical to v2.5.3 across the full corpus; a stale regression baseline was corrected, and the release gate `[32]` now **actually runs** a byte-perfect subset (previously it only checked the file exists). **The primary-direction code itself is unchanged.**
+- **Liuren — "Bi Fa 100" interpretation layer** — imagery, the 100 methods (93 auto-matched + 7 reading-key mnemonics), a divination guide, common shen-sha, three-transmission relation diagrams, timing, and noble-spirit states. Front-end only, wired into the AI four-way sync.
+- **Zi Wei Dou Shu — comprehensive P0–P2 enhancement** — the four-transformation chart now shows auxiliary lucky/unlucky stars + the twelve spirits; flow-stars descend to every layer + annual "flow-general/flow-year" markers + minor-limit yin-yang direction toggle; pattern-hit detail expansion + 6 new patterns (34→40); school-specific four-transformation tables (Beipai default / Zhongzhou / custom); Tian-Shang / Tian-Shi (backend → rebuilt jar). Zero regression: the default school is byte-identical, and saved charts don't persist a school field.
+- **Qi Men Dun Jia — "Fa Qi Men" (Xun Shuang) overlay** — two new right panels ("resolution" + "use-god") with shen-sha verdict hovers and earthly-branch / palace imagery. Pure front-end, no engine change, no jar rebuild.
+- **Western astrology — mundane / horary / electional / star-transit build-out** — a mundane moment pipeline + lunation-phase judgment, electional hard-flags / mundane integration, a horary question guide, plus solar/lunar returns, key degrees, triplicity rulers and more — wired into the AI four-way sync.
+- **Professional city search** — traditional⇄simplified (opencc) + pinyin (pinyin-pro) build an offline match index so place selection is more accurate and faster; zero new runtime dependency (data is pre-generated).
+- **AI deep-thinking compatibility (fixes #16)** — deepseek-reasoner multi-turn first (uncached) requests no longer fail / return empty. Root cause: (1) the backend dropped `reasoning_content` (a thinking phase that shows nothing looked like a failure); (2) the reasoner was wrongly sent `temperature` (can 400). Fix: pass `reasoning_content` through to a collapsible "thinking" bubble; never send sampling params to reasoning models; the 4 stream sites retry only before the first byte (connection / 429 / 5xx, exponential backoff) and **never retry a stream that already emitted tokens**; the front end adds an idle watchdog (only a true silence is treated as stuck).
+- **Casting / chart time refreshes on selection (fixes #17)** — choosing the "casting time / chart time" radio under "select case" now gives you the time **at the moment you click**, not the time the app was opened (which was frozen at component mount).
+- **In-place upgrade install fix (#18, Windows-only)** — the installer now **force-closes a running Horosa** (including its embedded Java/Python runtime, scoped precisely by the app's install / runtime path so it never kills the user's other Java/Python) before an over-the-top upgrade, so upgrades no longer hit "Horosa cannot be closed" / "Failed to uninstall old application files" and **no longer require uninstalling the old version first**.
 
-Full log on the [v2.5.5 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.5.5) and the [local release notes](docs/releases/2.5.5.md); previous version v2.5.4 (28-mansion three-system alignment + Primary Directions v10 + Uranian dial + startup stability) at [docs/releases/2.5.4.md](docs/releases/2.5.4.md).
+Full log on the [v2.6.0 release page](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.0) and the [local release notes](docs/releases/2.6.0.md); previous version v2.5.5 (planetarium refinements + clickable/searchable stars + smoothness) at [docs/releases/2.5.5.md](docs/releases/2.5.5.md).
 
 ## Under the Hood
 
@@ -118,7 +120,7 @@ Full log on the [v2.5.5 release page](https://github.com/Horace-Maxwell/Horosa-W
 ## FAQ
 
 **Do I need to clone the repo to use Horosa?**
-No. Download `Horosa-Setup-2.5.5.exe` from the latest release.
+No. Download `Horosa-Setup-2.6.0.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
@@ -127,7 +129,7 @@ No. The Windows installer carries the runtime the released app needs. The first 
 Yes. The v2.2.0 Beta installer offers an assisted flow with directory selection, write checks, shortcut repair, and elevation when Windows requires it.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.5.5.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, and `SHA256SUMS.txt` support the updater and verification flows. For end users, `Horosa-Setup-2.6.0.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. App replacement and runtime switching update the program and shared runtime; they are not designed to erase your saved charts and cases.

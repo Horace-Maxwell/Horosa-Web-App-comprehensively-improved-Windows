@@ -73,7 +73,7 @@ InstallModes:
   - silent
   - silentWithProgress
 UpgradeBehavior: install
-ReleaseDate: 2026-06-03
+ReleaseDate: 2026-06-05
 Installers:
   - Architecture: x64
     InstallerUrl: ${installerUrl}

@@ -2,7 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.5.5
+version: 2.6.0
+date-released: 2026-06-05
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -11,9 +12,27 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v2.5.5 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side work (seven Western progression/direction techniques wired end-to-end into AI analysis — Persian directions, planetary arc, Vedic progressions, Jayne declination directions, planetary ages, the true-129-year method, and Balbillus — plus a Part-of-Fortune whole-sign house system, automatic timezone/DST correction across the birth/chart/case forms, a Jin Kou Jue interpretation layer, Qi Zheng (Moira) fidelity, Zi Wei Dou Shu progression depth with cascading periods and automatic pattern detection (new /ziwei/luck route), Liuren casting-method Phase 4, and a hardened local-service launch that auto-retries on a port conflict with a non-blocking reconnect banner — shipped with a rebuilt astrostudyboot.jar; building on the prior six Western-astrology AI techniques and chart-orb persistence, the astrocartography/ACG map, horary/electional charts, the Heluo Lishu completion, AI system-proxy support for Issue #9, the SSE service-stability fix for Issue #10, the global day-boundary / late-zi-hour model, in-app auto-update, 数算 methods, the harmonic chart, the Feng Shui React rewrite, and clean-machine fixes) and AI Analysis rework, astrology modules, traditional Chinese methods,
-  kentang/kin backend integrations, AI-assisted structured export, Python and Java
-  services, and self-contained Windows desktop delivery into one cross-platform
+  Horosa for Windows v2.6.0 beta is a local-first metaphysics workstation that aligns the
+  latest Mac-side work (a Liuren "Bi Fa 100" interpretation layer with imagery / casting-guide /
+  shen-sha / three-transmission diagrams; a comprehensive Zi Wei Dou Shu P0–P2 enhancement —
+  miscellaneous-star display, school-specific four-transformation tables, cascading flow-stars,
+  pattern detail and new patterns, Tian-Shang / Tian-Shi — with rebuilt astrostudyboot.jar; a Qi
+  Men Dun Jia "Fa Qi Men" (Xun Shuang) overlay for resolution / use-god / imagery; a Western
+  astrology build-out across mundane / horary / electional / star-transit with engineering fixes;
+  professional city search with traditional/simplified + pinyin matching; and two reported
+  Windows fixes — issue #16, DeepSeek deep-thinking (reasoner) multi-turn compatibility, by
+  passing through reasoning_content and not sending sampling params to reasoning models plus a
+  first-byte-only stream retry and an idle watchdog; and issue #17, the casting time now
+  refreshing to the moment of selection instead of app-open time) together with a Windows-only
+  installer fix for issue #18 — the NSIS installer now force-terminates a running Horosa and its
+  scoped embedded sidecars before an in-place upgrade, so over-the-top upgrades no longer fail
+  ("Failed to uninstall old application files") and no longer require a manual uninstall first;
+  building on the prior planetarium projection refinements, the seven Western progression
+  techniques wired into AI analysis, the astrocartography/ACG map, horary/electional charts,
+  the Heluo Lishu completion, AI system-proxy support, the SSE service-stability fix, the global
+  day-boundary / late-zi-hour model, the Ed25519-signed in-app auto-update, 数算 methods, the
+  harmonic chart, and clean-machine fixes) and AI Analysis rework, astrology modules,
+  traditional Chinese methods, kentang/kin backend integrations, AI-assisted structured export,
+  Python and Java services, and self-contained Windows desktop delivery into one cross-platform
   release line.
 

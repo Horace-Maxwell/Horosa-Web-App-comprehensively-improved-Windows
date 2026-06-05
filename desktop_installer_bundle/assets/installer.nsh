@@ -8,6 +8,72 @@ ManifestDPIAware true
 !define /ifndef CURRENT_SHORTCUT_FILE_NAME "星阙.lnk"
 !define /ifndef LEGACY_BRAND_SHORTCUT_FILE_NAME "Horosa.lnk"
 
+; ============================================================================
+; Win issue #18 — "升级安装从来都没有成功过，只能卸载之后再安装才能成功"
+; ----------------------------------------------------------------------------
+; electron-builder's default _CHECK_APP_RUNNING (allowOnlyOneInstallerInstance.nsh)
+; sends a polite WM_CLOSE then a taskkill scoped by `$_.Path.StartsWith('$INSTDIR')`
+; (PowerShell) / `/FI "USERNAME eq %USERNAME%"` (cmd). On real machines this FAILS:
+;   * electron/main.js intercepts window 'close' with event.preventDefault() to run
+;     an async runtime shutdown first, so the polite WM_CLOSE never terminates
+;     Horosa.exe; and
+;   * the $INSTDIR PowerShell .StartsWith filter mis-handles the Chinese product
+;     path ("星阙"), and the USERNAME filter can miss — so neither default kill lands.
+; Result: "星阙 无法关闭" -> $INSTDIR\Horosa.exe stays locked -> "Failed to uninstall
+; old application files: 2" -> the in-place upgrade can NEVER succeed (issue #18).
+;
+; Override the hook with a robust, path-INDEPENDENT force-termination:
+;   (1) taskkill /F /IM Horosa.exe — kills the app image directly (main + renderer +
+;       gpu + utility), releasing the $INSTDIR file locks. NO /T (so the auto-update
+;       installer, if ever a Horosa.exe descendant, is never tree-killed) and NO
+;       path/USERNAME filter (those are exactly what break the default macro).
+;   (2) Stop ONLY Horosa's embedded sidecars — java.exe/python.exe whose path is under
+;       our unique "embedded-runtime" extraction dir — so the user's own Java/Python is
+;       never touched (v2.5.4+ already cascades these via the Job Object; this also
+;       covers pre-2.5.4 orphans and any machine where the Job Object failed).
+;   (3) Bounded verify+re-kill loop (settles NTFS handles); only as a last resort fall
+;       back to the manual-close prompt (mirrors the default macro's safety net, and is
+;       skipped under ${Silent} so an in-app auto-update is never blocked by a dialog).
+; ============================================================================
+!macro customCheckAppRunning
+  ${If} ${isUpdated}
+    ; in-app auto-update: the app called quitAndInstall and is stopping its own
+    ; sidecars + exiting — give that graceful path a moment before forcing anything.
+    Sleep 1200
+  ${EndIf}
+  DetailPrint "正在结束正在运行的星阙实例以完成安装（升级无需先卸载）…"
+  ; (1) force-kill the app image — load-bearing, path/encoding independent.
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}"'
+  Pop $0
+  Sleep 600
+  ; (2) best-effort: kill ONLY Horosa's embedded sidecars (scoped by path token).
+  nsExec::Exec `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { ($$_.Name -eq 'java.exe' -or $$_.Name -eq 'python.exe') -and $$_.Path -like '*embedded-runtime*' } | ForEach-Object { try { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue } catch {} }"`
+  Pop $0
+  Sleep 400
+  ; (3) verify the app image is gone; re-force-kill up to 5x, settling handles.
+  StrCpy $R1 0
+  horosa_killloop:
+    IntOp $R1 $R1 + 1
+    nsExec::Exec `"$SYSDIR\cmd.exe" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /NH | "$SYSDIR\find.exe" /I "${APP_EXECUTABLE_FILENAME}"`
+    Pop $R0
+    ${If} $R0 == 0
+      ; still running -> force-kill again + wait for handle release
+      nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}"'
+      Pop $0
+      Sleep 1000
+      ${If} $R1 < 5
+        Goto horosa_killloop
+      ${Else}
+        ${IfNot} ${Silent}
+          MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法自动结束正在运行的星阙。$\r$\n请手动退出星阙（含系统托盘 / 任务管理器中的 Horosa.exe）后点击“重试”。" /SD IDCANCEL IDRETRY horosa_killloop
+          Quit
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  ; app image confirmed gone (or best-effort under silent); final short settle.
+  Sleep 300
+!macroend
+
 !ifndef BUILD_UNINSTALLER
 
 Var ExistingInstallState
