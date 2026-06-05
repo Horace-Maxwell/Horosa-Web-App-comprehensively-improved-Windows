@@ -1,6 +1,31 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-04
+最后更新：2026-06-05
+
+## 2026-06-05 v2.6.0 Beta（Mac 同步 `5349b96b→af5126db3` 11 commits：六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + 城市搜索 + AI#16/#17；**后端 Java 改动 → 重建 jar**；含 Windows 独有 #18 升级安装修复）
+
+**同步**：Mac main `5349b96b`（v2.5.5 基线）→ `af5126db3`（HEAD），`gh api compare` = 11 commits / 111 文件（105 在 `Horosa-Web/` 产品树；`Horosa_Desktop_Installer/` Tauri 外壳 + Mac docs 不同步）。**owner 指定 Windows 版本 = v2.6.0**（minor bump，scope 大；Mac handoff 内部标 v2.5.6 是其 runtimeVersion 簿记，非 Windows 产品版本）。**下次 Mac 同步基线 = `af5126db3`**。
+
+**Features（共享）**：
+- **六壬毕法一百法解读层**（纯前端，AI 四同步）：取象 / 毕法 100 法（93 自动 + 7 读法心诀）/ 占断向导 / 常用神煞 / 三传关系图 / 应期 / 贵神态；天将取法系统性复核（13 matcher）。
+- **紫微斗数全面增强 P0–P2**（前端为主 + 后端 `astrostudycn` → 重建 jar）：主四化盘补显杂吉/杂凶 + 十二神纳音格；流曜下沉全层 + 流年流将前/流岁前 + 小限阴阳顺逆；格局详情 + 6 新格局（34→**40**）；四化流派表（北派默认/中州/自定义）；`ZiWeiPattern`（`inOpp`/`sandwichHua`）+ `ZiWeiChart.setupStarsTianShangShi`（天伤天使）+ `ziweige.json`=40 + `zwrules.json` RuleStars=108。**零回归**：默认 beipai 逐字一致、genParams 仅非默认附 sihua、存档不落流派字段。
+- **奇门遁甲法奇门叠加层（荀爽）**（纯前端，不重编 jar）：化解 / 用神 两右栏 + 神煞判语 + 地支/宫名取象。
+- **占星世俗/卜卦/择日/星运全链路**（前端 + Python `astroextra.py`/`webastroextrasrv.py` + Java `AstroExtraController`/`AstroHelper`）：世俗瞬时管线 + 月相 + 择日硬性标记/世俗整合 + 卜卦提问向导 + 回归盘/关键度/三分主星/月相；AI 四同步。
+- **城市搜索专业化**：opencc-js + pinyin-pro **构建期**生成 `cityTradSimpMap.json`，运行时 `cityMatch.js` 纯查表（**运行时零新依赖**，2 dep 仅 `scripts/build-cities.js` 用、Windows scripts 无 build:cities）。
+- **AI #16（后端 Java，重建 jar）**：deepseek-reasoner 多轮首次易失败/空。真因：①丢弃 `reasoning_content`（思考期零输出被当失败）②reasoner 误发 temperature 致 400。修：`extractOpenAIStreamReasoning` 透传 reasoning_content → 独立可折叠「思考过程」气泡；`isReasoningModel` + `stripReasoningUnsupportedParams` 不发采样参数；4 stream 站点 `sendStreamWithRetry` 仅首字节前（连接/429/5xx）退避重试、已出 token 绝不重试；前端 `aianalysis.js` 空闲看门狗。`AIAnalysisProxyServiceTest` **20/20**。
+- **#17（纯前端）**：`AIAnalysisMain.js` source 选择器 onChange 选中即重算 `formatTimepointNow()` → 起课/命盘时间得「点击此刻」而非打开软件时刻。
+
+**Win#18（Windows 独有，安装器层）— NSIS 升级安装从未成功修复**：截图实证「**星阙 无法关闭**」→「**Failed to uninstall old application files: 2**」。根因：electron-builder 默认 `_CHECK_APP_RUNNING` 客气 WM_CLOSE 被 `main.js` 的 `close` `preventDefault`（异步收尾）拦下进程不退；其按 `$INSTDIR` 路径（PowerShell `.StartsWith`，中文「星阙」路径错配）/ USERNAME 过滤的 taskkill 也失效 → `Horosa.exe` 占用 `$INSTDIR` → 卸旧失败。sidecar 实际在 `userData/embedded-runtime/`（非 $INSTDIR），故唯一占锁者 = `Horosa.exe`。**修**（`assets/installer.nsh` 覆盖 `customCheckAppRunning`，置 `!ifndef BUILD_UNINSTALLER` 外覆盖安装+卸载）：① `taskkill /F /IM Horosa.exe`（映像直杀，**无 /T**[防误杀作子进程的自更新安装器]、**无路径/USERNAME 过滤**[正是默认失效处]）；② 仅杀 `$_.Path -like '*embedded-runtime*'` 的 java/python（绝不动用户其它 Java/Python；v2.5.4+ Job Object 本级联，兼顾旧版孤儿）；③ 有界校验+重杀循环沉降句柄，`${IfNot} ${Silent}` 末兜底才弹手动关闭。`executableName=Horosa`（exe=`Horosa.exe`，非显示名 星阙）；NSIS `$$_`/反引号串/label section 作用域已处理。新增 `release_selfcheck.py` 哨兵（`customCheckAppRunning` + `taskkill.exe" /F /IM` + `embedded-runtime`，→ 哨兵 43→**44 文件**）。**NSIS 宏仅能由 dist:win makensis 编译验证**（无 electron-builder defines 不能 standalone）→ 本轮 nsis build 通过 = 宏语法正确。SKILL gotcha #23。
+
+**重建 jar**：astrostudy（AI#16 + AstroExtra）+ astrostudycn（紫微）改 → astrostudy install → astrostudycn install → boot clean package（offline）。验内嵌：`astrostudy-1.0.0.jar`（extractOpenAIStreamReasoning/isReasoningModel/stripReasoningUnsupportedParams/sendStreamWithRetry）+ `astrostudycn-1.0.0.jar`（inOpp/sandwichHua/setupStarsTianShangShi、ziweige=40、zwrules RuleStars=108）；新 jar **324,249,515** B 覆盖 bundle，staged payload jar 复验同 marker。
+
+**同步法**：clean v2.5.5 baseline 核对（7 历史易分叉文件 LF-hash == Mac@5349b96b）→ wholesale overlay-copy（`cp -rf Mac/Horosa-Web/. WS/`，无 rename/delete）+ `windows-adaptations/apply.sh`（umi-runner/loadCryptoDeps/vendor/flatlib-pin/package.json name+scripts/THIRD_PARTY/isDesktopShellWindow+ensureField 重补；boundless `isLoopbackTarget` 已收敛 **no-op**）。package.json 保 Mac 新 dep（opencc-js/pinyin-pro 构建期）+ Windows scripts。
+
+**版本 bump** 2.5.5→2.6.0：package.json + lock + CITATION（+date-released + 摘要重写）+ README×3（badge/下载/What's New 重写 + v2.5.5 跳级指针）+ desktop README + PROJECT_STRUCTURE + 新增 `docs/releases/2.6.0.md` + winget 2.6.0（ReleaseDate 2026-06-05）。SKILL gotcha #23（#18）+ #24（v2.6.0 同步）。
+
+**验证**：umi-test **50 套 / 364 测试绿**（Mac 引 222 为 #16 commit 时子集，全套更高，全绿即可）；`npm run verify` **39/39** + preflight 版本同步 OK；私钥↔内置公钥 derived==embedded；`release_selfcheck.py` **10/10**（version 2.6.0；**44 哨兵**含 installer.nsh #18；jar 不旧；dist-file 不旧；4 资产 + 哈希一致；release-doc 真哈希；latest.yml 匹配 exe；Ed25519 sig PASS；app-update.yml 在）。`dist:win` nsis 编译通过（#18 宏语法验证）。
+
+**发布**：release commit `65b717b`（15 文件 +300/-79；产品源在 gitignored workspace 不入 commit，随 exe 交付）+ 本条 selfcheck-log 随后 commit；tag `v2.6.0`（新，指 `65b717b`）；`gh release create`（5 资产）。**exe** `Horosa-Setup-2.6.0.exe` = **756,610,996** B，sha256 `9635bb1f3ba9e7d31079c6e406c46a2e6a206c58b1269717f320e95e53cfac27`；blockmap `a0c6b676eaf51a46b5ccab1afa51dc458714864f870a45cd4271ea779ee08963`（789,906 B）；latest.yml `9188d1404cb831cc9dcf97431e6705c9b8a121e521bf9fc45c264e989afc8d82`（341 B）；**horosa-update.sig（第 5 资产）** `88ee5756803fb4451ed0fdace0926f9e6ccbb2316e52fdd4193822650054c565`（260 B）；SHA256SUMS.txt `92f9baaeecbba0cf2c9dd46a9858c8c8338fa29add6cf436d5235801bee3ff59`。`isPrerelease=false`、`/releases/latest=v2.6.0`、GitHub 独立计算 **5 资产 digest = 本地逐字节一致**；LIVE horosa-update.sig 经客户端 download URL 拉取对 shipped exe `sign-update.cjs verify` = **VERIFY OK**（fail-closed 验签器第三次生产核验：v2.5.4 铺开 → v2.5.5/v2.6.0 实证）。**自动更新：v2.2.1–v2.5.5 用户自动收 v2.6.0**（后端运行时含重建 jar，更新会带上新前端 + 新 jar）。**GitHub issues #16/#17/#18 发布后回复 + 关闭。**
 
 ## 2026-06-04 v2.5.5 Beta（Mac 同步 `54f3c42d→5349b96b` v2.5.5：天文馆精修 + 恒星点击/搜索 + 流畅度 + 主限法 golden 校正 — 纯前端 + Python 测试夹具，**无 Java/算法/命盘改动 → 不重建 jar**）
 
