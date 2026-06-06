@@ -2,6 +2,18 @@
 
 最后更新：2026-06-05
 
+## 2026-06-05 v2.6.1 Beta（Mac 同步 `af5126db3→fc7ab745b`：AI 挂载全选项 + 多时段/区间扫描 + 风水八卦阳宅法 v2 + 跨模块修复 — 前端为主 + 一处后端 → 重建 jar）
+
+**同步**：Mac `af5126db3`(v2.6.0)→`fc7ab745b`(v2.6.1)。产品改动 = 前端 `astrostudyui/**`（含 `public/fengshui/skins/*.png`）+ **唯一后端** `astrostudycn/.../ChartController.java`。**下次 Mac 同步基线 = `fc7ab745b`**。
+
+**Features**：① AI 挂载全选项 = 新 `utils/techniqueMountSettings.js`(TECHNIQUE_SETTINGS_SCHEMA 驱动齿轮抽屉) + `AIAnalysisMain.{js,less}`(每技法设置抽屉 + 内容勾选 + 多时段日期/区间扫描)，零回归「默认即现状」(等默认项 prune,快照逐字节不变)。② **后端 pdYears 转发(重建 jar)**：`ChartController.getParams()`(`/chart` 挂载路径)此前丢弃 `pdYears`+`pdDirect/pdConverse/pdAntiscia/pdTerms` → 挂载主限法选项不生效；改条件转发(缺省零回归)+`_wireRev pd_method_sync_v8→v9`(旧 ParamHashCache 失效)。③ 风水八卦阳宅法 v2(倪海厦,纯前端)= `fengshui/{FengShuiMain,fengshuiEngine}.js`+新 `{baguaCore,baguaData,naqiRules,fengshuiGeom}.js`+罗盘皮肤；默认仍 `techMode='naqi'` 逐字节零回归。④ 多盘/多时段补全(astro 推运 builder/PD 盘表拆分/紫微/八字/六爻全装卦)。⑤ 跨模块修复(`DivinationChartShell.changeChartStyle` 误用事件对象 / `AstroRelative` 中点盘 `:9999→:8899` 端口兜底 / `app.less` 主题布局)。`perpredict.py`/`perchart.py` 零改动 → 命盘计算与 v2.6.0 字节级一致。
+
+**重建 jar**：astrostudycn install → boot clean package；验内嵌 `astrostudycn-1.0.0.jar` 的 ChartController 含 `pdYears`/`pd_method_sync_v9`；新 jar **324,249,719B** 覆盖 bundle + 复验。**同步法**：clean v2.6.0 baseline 核(ZWHouse/app.less/ChartController LF-hash==Mac@af5126db3)→ overlay-copy + `apply.sh`(全恢复,boundless no-op)。
+
+**验证**：umi-test **59 套/520 绿**；`build:file` 绿；私钥↔内置公钥不变(match)；sentinels 44 文件 OK(at-risk: AIAnalysisMain/aiAnalysisContext/aiExport/baziLunarLocal/localcharts/ChartController 全在)；`selfcheck` **10/10**(version 2.6.1;jar/dist-file 不旧;5 资产 + 哈希;release-doc 真哈希;latest.yml 匹配 exe;Ed25519 sig PASS;app-update.yml 在)。
+
+**发布**：release commit `c8a3b40`(+ selfcheck-log 随后) tag `v2.6.1`(new)；`gh release create`(5 资产)。**exe** `Horosa-Setup-2.6.1.exe` **758,299,764B** sha256 `976e324c849ed652e72fbb16d1b99ebfdc3fe8f5725d69c5ef29908af2452cdc`；blockmap `fb2a7aff6bd3f5e8ba083083f21380539868a3f3afec21d2363027366ccc0ded`(790,848B)；latest.yml `617da0782305de9f51927573fc159d03d7f5f2c0988219e3c24d76eec509218a`(341B)；horosa-update.sig `99b2e059efcc1e1c0493922025a89cb05298901651fec2c152366fdc8113633f`(260B)；SHA256SUMS `e565d8b9ee91ab6014a70738952d8331052e0b945ae71ce1325689e6fc8f583c`。`isPrerelease=false`、`/releases/latest=v2.6.1`、GitHub 5 资产 digest = 本地逐字节一致；**LIVE sig 经客户端 URL 对 shipped exe `sign-update.cjs verify` = VERIFY OK**(Ed25519 第四次生产核验)。**自动更新 v2.2.1–v2.6.0 → v2.6.1**(含重建 jar)。无新 issue。
+
 ## 2026-06-05 v2.6.0 Beta（Mac 同步 `5349b96b→af5126db3` 11 commits：六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + 城市搜索 + AI#16/#17；**后端 Java 改动 → 重建 jar**；含 Windows 独有 #18 升级安装修复）
 
 **同步**：Mac main `5349b96b`（v2.5.5 基线）→ `af5126db3`（HEAD），`gh api compare` = 11 commits / 111 文件（105 在 `Horosa-Web/` 产品树；`Horosa_Desktop_Installer/` Tauri 外壳 + Mac docs 不同步）。**owner 指定 Windows 版本 = v2.6.0**（minor bump，scope 大；Mac handoff 内部标 v2.5.6 是其 runtimeVersion 簿记，非 Windows 产品版本）。**下次 Mac 同步基线 = `af5126db3`**。
