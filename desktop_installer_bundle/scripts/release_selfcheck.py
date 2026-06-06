@@ -212,10 +212,20 @@ def check_sentinels():
         # to (1) taskkill /F /IM Horosa.exe (image-direct, no /T, no path filter) and
         # (2) Stop-Process ONLY the embedded sidecars under the unique embedded-runtime dir.
         # Reverting any of these re-opens the "upgrade never succeeds" bug.
+        #
+        # #18 round 2: a reboot proves no process is alive yet the upgrade STILL fails with
+        # "...files: 2" — that 2 is the OLD (pre-2.6.0, on-disk) uninstaller's exit code, which an
+        # in-place upgrade is forced to run; app-builder-lib's handleUninstallResult then does
+        # SetErrorLevel 2; Quit. customCheckAppRunning hardens only the NEW installer, never the OLD
+        # uninstaller. The fix is customUnInstallCheck: it is inserted INSTEAD of that fatal default,
+        # force-cleans the stale program dir ourselves, and continues the upgrade. Reverting it
+        # re-opens "upgrade never succeeds even after reboot / on a Chinese Windows username".
         os.path.join(BUNDLE, "assets/installer.nsh"): [
             "customCheckAppRunning",
             'taskkill.exe" /F /IM',
             "embedded-runtime",
+            "customUnInstallCheck",
+            "horosa_unchk_clean",
         ],
         # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive

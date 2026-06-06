@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.6.1
-date-released: 2026-06-05
+version: 2.6.2
+date-released: 2026-06-06
 authors:
   - given-names: Horace
     family-names: Maxwell

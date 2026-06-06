@@ -1,10 +1,10 @@
 # Horosa Windows Desktop Bundle
 
-这个目录承载 Horosa v2.6.1 Beta Windows 桌面应用工程。
+这个目录承载 Horosa v2.6.2 Beta Windows 桌面应用工程。
 
-- 当前发布版本：`2.6.1 Beta`（安装器版本号为 `2.6.1`）
-- 发布定位：Mac 端 v2.6.1 产品面同步（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + AI#16/#17 修复）后的 Windows Web / Desktop 自包含大版本，并含 Windows 独有的升级安装修复（#18）
-- 用户入口：`release/Horosa-Setup-2.6.1.exe`
+- 当前发布版本：`2.6.2 Beta`（安装器版本号为 `2.6.2`）
+- 发布定位：**Windows 安装器专属补丁**——彻底修复 issue #18「升级安装从未成功」（新增 NSIS `customUnInstallCheck`，让安装器对失败的旧版本卸载器有韧性）。命盘 / 前端 / `astrostudyboot.jar` 与 v2.6.1 **逐字节一致**，不涉及任何 Mac 产品源同步（Mac HEAD 仍 `fc7ab745b`）。v2.6.1 起的产品面（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + AI 挂载全选项 + 风水八卦阳宅法 v2）全部保留
+- 用户入口：`release/Horosa-Setup-2.6.2.exe`
 - 图标资产：`assets/horosa_setup.ico` 与 `assets/horosa_setup_badge.png`
 
 ## 目录职责
@@ -40,9 +40,9 @@
 - 安装器支持用户选择安装目录；选择受限目录时可触发 Windows 提权，安装前会校验目录可创建、可写。
 - 正常用户不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。
 
-## v2.6.1 Beta 发布口径
+## v2.6.2 Beta 发布口径
 
-v2.6.1 Beta 对齐 Mac 端最新产品面（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + 城市搜索专业化 + AI#16/#17），后端 Java 有改动 → 已重建 `astrostudyboot.jar`；并含 Windows 独有的升级安装修复（#18：安装器覆盖升级前自动结束运行中的星阙与内置运行时）。Windows 发布包必须保持自包含，旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不应作为安装版、Web 启动或打包依赖。
+v2.6.2 Beta 是 **Windows 安装器专属补丁**：彻底修复 issue #18「升级安装从未成功，只能先卸载再装」。**无 Mac 产品源同步**（Mac HEAD 仍 `fc7ab745b`），**不重建 jar**、不改前端——安装包载荷与 v2.6.1 **逐字节一致**，仅 NSIS 安装器外壳 + 版本号不同。修复点 = 新增 `customUnInstallCheck`：一次原地升级会先运行**已安装版本**的旧卸载器，旧卸载器在中文用户名（`/FI "USERNAME eq %USERNAME%"` 失配）/ 中文安装路径 `…\星阙` 下文件被杀软占用时返回非零，app-builder-lib 默认即 `SetErrorLevel 2; Quit` 中止升级；`customUnInstallCheck` 接管该失败路径——强杀残留星阙 + 自行清理旧程序目录后继续安装（用户数据零影响）。v2.6.0 的 `customCheckAppRunning` 只能加固「新」安装器，改不到被迫调用的「旧」卸载器，故重启也无效——这正是本补丁的根因修复。Windows 发布包必须保持自包含，旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不应作为安装版、Web 启动或打包依赖。
 
 这一版重点包括：
 
@@ -55,11 +55,11 @@ v2.6.1 Beta 对齐 Mac 端最新产品面（六壬毕法100法 + 紫微 P0–P2 
 
 正式 GitHub Release 的标准资产是：
 
-- `Horosa-Setup-2.6.1.exe`
-- `Horosa-Setup-2.6.1.exe.blockmap`
+- `Horosa-Setup-2.6.2.exe`
+- `Horosa-Setup-2.6.2.exe.blockmap`
 - `latest.yml`
 - `SHA256SUMS.txt`
 
-公开下载入口是 `Horosa-Setup-2.6.1.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
+公开下载入口是 `Horosa-Setup-2.6.2.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
 
 当前安装包按用户要求未做 Authenticode 签名。发布前仍需明确告知：这可能触发 Windows SmartScreen 提示，但不代表 Java/Python/接口不匹配。

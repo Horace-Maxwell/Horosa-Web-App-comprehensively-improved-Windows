@@ -841,6 +841,107 @@ FunctionEnd
   Page Custom ExistingInstallPageCreate ExistingInstallPageLeave
 !macroend
 
+; ============================================================================
+; Win issue #18 (round 2) — in-place upgrade STILL fails AFTER the v2.6.0
+; customCheckAppRunning fix, and even after a full reboot. The reporter:
+;   "程序都关了，关机重启，再运行安装程序也报这个错" -> "Failed to uninstall old
+;   application files: 2".
+; ----------------------------------------------------------------------------
+; A reboot proves NO Horosa process is alive, yet the upgrade still dies. That
+; "2" is the *old* uninstaller's exit code, surfaced by app-builder-lib's
+; handleUninstallResult (node_modules/.../include/installUtil.nsh): an in-place
+; upgrade first runs the PREVIOUSLY-INSTALLED uninstaller
+;   old-uninstaller.exe /S /KEEP_APP_DATA --updated _?=$INSTDIR
+; and on a non-zero exit the DEFAULT handler does `SetErrorLevel 2; Quit`,
+; aborting the whole upgrade. That old uninstaller is the binary already on disk
+; -> built from the version the user currently has (typically PRE-2.6.0) -> it
+; still carries electron-builder's buggy defaults that our v2.6.0 fix could only
+; repair in the NEW installer/uninstaller, never in the OLD one:
+;   * its KILL_PROCESS fallback filters by `/FI "USERNAME eq %USERNAME%"`, which
+;     mis-matches a non-ASCII (Chinese) Windows username, so it never kills the
+;     app; and/or
+;   * un.atomicRMDir aborts the moment ANY file under the Chinese "…\星阙" install
+;     dir is briefly locked (360/Defender real-time scan, OneDrive, an autostart
+;     relaunch) -> returns non-zero.
+; customCheckAppRunning runs in the NEW installer and cannot help here, because
+; the failure is the OLD uninstaller's own logic, not a live process the new
+; installer could kill.
+;
+; The mature fix is to make the INSTALLER resilient to a failing prior
+; uninstaller instead of surrendering. handleUninstallResult offers exactly one
+; lever: when `customUnInstallCheck` is defined it is inserted INSTEAD of the
+; default `SetErrorLevel 2; Quit`. We take over: on a non-zero old-uninstaller
+; exit we force-terminate any lingering app + OUR embedded runtime, then forcibly
+; clear the stale PROGRAM directory ourselves (retrying to ride out AV/handle
+; release) and CONTINUE — the fresh files are about to be written over the same
+; $INSTDIR. Only a genuinely unbreakable lock falls back to a clear, actionable
+; message (manual install) or a real non-zero exit (silent auto-update) — never
+; the cryptic "code 2". User data (userData / %APPDATA%) is never touched: we
+; only clear the program install dir, and only when it actually contains our exe.
+; ============================================================================
+!macro customUnInstallCheck
+  ; $R0 = exit code of the OLD uninstaller app-builder-lib just ran (0 = success).
+  ${If} $R0 == 0
+    Goto horosa_unchk_done
+  ${EndIf}
+
+  ; The dir the old uninstaller failed to clear == this in-place upgrade's target.
+  ; (Must use the built-in $INSTDIR, NOT app-builder-lib's $installationDir: that
+  ; global is declared inside uninstallOldVersion, which the NSIS compiler reaches
+  ; AFTER handleUninstallResult where this macro is inserted -> "not declared".)
+  StrCpy $R2 "$INSTDIR"
+  ; Safety: only act when this really is a Horosa program dir (contains our exe).
+  ; Otherwise the failure wasn't a locked program file -> don't risk a broad
+  ; RMDir; the fresh install overwrites anything stale anyway.
+  ${IfNot} ${FileExists} "$R2\${APP_EXECUTABLE_FILENAME}"
+    DetailPrint "旧版本主程序不存在或路径未知，跳过强制清理，继续安装。"
+    Goto horosa_unchk_done
+  ${EndIf}
+
+  DetailPrint "旧版本卸载器返回 $R0；改用内置清理流程继续升级（无需先手动卸载）…"
+
+  ; Force-terminate any lingering app image + Horosa's OWN embedded runtime only
+  ; (path/encoding independent — same proven approach as customCheckAppRunning).
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}"'
+  Pop $0
+  nsExec::Exec `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { ($$_.Name -eq 'java.exe' -or $$_.Name -eq 'python.exe') -and $$_.Path -like '*embedded-runtime*' } | ForEach-Object { try { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue } catch {} }"`
+  Pop $0
+  Sleep 800
+
+  ; Forcibly clear the stale program dir ourselves, retrying to outlast AV /
+  ; handle release. Only the program dir is removed — NOT user data.
+  StrCpy $R1 0
+  horosa_unchk_clean:
+    IntOp $R1 $R1 + 1
+    ; re-kill in case an autostart entry relaunched the app between tries.
+    nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXECUTABLE_FILENAME}"'
+    Pop $0
+    RMDir /r "$R2"
+    ${IfNot} ${FileExists} "$R2\${APP_EXECUTABLE_FILENAME}"
+      ; the load-bearing exe is gone -> $INSTDIR is safe to overwrite. Done.
+      DetailPrint "旧版本程序文件已清理，继续安装新版本。"
+      Goto horosa_unchk_done
+    ${EndIf}
+    ${If} $R1 < 6
+      Sleep 1200
+      Goto horosa_unchk_clean
+    ${EndIf}
+
+    ; Still locked after retries (e.g. AV holding a handle). Be honest & helpful.
+    ; (Falls through from the loop above — no label here: NSIS /WX flags unused labels.)
+    ${IfNot} ${Silent}
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "无法清理旧版本安装目录：$\r$\n$R2$\r$\n$\r$\n通常是安全软件（如 360 / Defender 实时防护）或仍在运行的星阙正占用文件。$\r$\n请暂时关闭安全软件实时防护、或手动删除上述文件夹后点击“重试”。" /SD IDCANCEL IDRETRY horosa_unchk_reset
+    ${EndIf}
+    DetailPrint "ERROR: 无法清理旧版本安装目录 $R2（文件被占用）。"
+    SetErrorLevel 2
+    Quit
+  horosa_unchk_reset:
+    StrCpy $R1 0
+    Goto horosa_unchk_clean
+
+  horosa_unchk_done:
+!macroend
+
 !macro customInstall
   Call ValidateInstallDirectory
   Call CleanupCurrentDesktopShortcuts
