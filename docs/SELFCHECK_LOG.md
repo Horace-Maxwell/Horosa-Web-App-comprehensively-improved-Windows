@@ -1,6 +1,18 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-05
+最后更新：2026-06-06
+
+## 2026-06-06 v2.6.2 Beta（Windows 安装器补丁：彻底修复 issue #18「升级安装从未成功」第二轮；纯 NSIS，jar/前端与 v2.6.1 字节级一致，无 Mac 同步）
+
+**背景**：报告者(`1574802103`)在 v2.6.0 修复后仍反馈「关掉程序、**关机重启**、再装仍报 `Failed to uninstall old application files: 2`」。重启证明无活进程 → v2.6.0 的进程强杀(`customCheckAppRunning`)在其场景=空操作，修复不彻底。
+
+**根因（工程定位：app-builder-lib NSIS 模板逐行）**：那个 `2` 是**旧版本卸载器的退出码**，由 `include/installUtil.nsh:handleUninstallResult` 抛出。一次原地升级先运行**已安装版本**自带卸载器 `old-uninstaller.exe /S /KEEP_APP_DATA --updated _?=$INSTDIR`；返回非零时默认 `SetErrorLevel 2; Quit` **中止整个升级**。旧卸载器=磁盘上早于 v2.6.0 的二进制 → 仍带 electron-builder 默认缺陷：① `KILL_PROCESS` 回退按 `/FI "USERNAME eq %USERNAME%"` 过滤（**中文 Windows 用户名失配**）；② `un.atomicRMDir` 在中文路径 `…\星阙` 下任一文件被 360/Defender 实时扫描/OneDrive/开机自启短暂占用即 `Abort` 返回非零。`customCheckAppRunning` 只加固「新」安装器，**改不到一次升级被迫调用的「旧」卸载器** → 重启也无效。
+
+**修复（`assets/installer.nsh` 新增 `customUnInstallCheck`）**：`handleUninstallResult` 在该宏被定义时**以它替换**默认 `SetErrorLevel 2; Quit`。旧卸载器返回非零(`$R0!=0`)时不再中止 → **接管**：强杀 `Horosa.exe`(映像直杀无路径/USERNAME 过滤) + 仅清 `embedded-runtime` 下 java/python，再自行 `RMDir /r $INSTDIR`（6 次重试熬过杀软/句柄释放）后**继续安装**；仅当 `$INSTDIR\Horosa.exe` 存在才清理(防误删)，用户数据 userData/%APPDATA% **零影响**；死锁给可操作提示(手动)/真实非零退出(静默)，不再 code 2。**关键工程坑**：必须用内建 `$INSTDIR` 而非 app-builder-lib 的 `$installationDir`（后者在 `uninstallOldVersion` 内 `Var /GLOBAL` 声明，**编译序在 `handleUninstallResult` 之后** → makensis「variable not declared」）；删 `horosa_unchk_stuck:` 未用标签（electron-builder makensis `/WX` → `warning 6012: label not used` 即错）。新增哨兵 `customUnInstallCheck`+`horosa_unchk_clean`（并入 installer.nsh 哨兵项，仍 **44 文件**）。
+
+**构建/验证**：首次 `dist:win` 因 `warning 6012`(/WX) 失败于末 makensis；删标签后**仅重跑 nsis 尾**(`electron-builder --win nsis --prepackaged release/win-unpacked` + `sign:update`，复用已 staged `win-unpacked` + 757MB `.7z`，省 ~6min 重 stage)→ makensis 清编译(`NSIS_OK`)。`selfcheck` **10/10**(version 2.6.2；44 哨兵；jar/dist-file 不旧；4 资产+哈希；release-doc 真哈希；latest.yml 匹配 exe；Ed25519 sig PASS；app-update.yml 在)；sign self-verify PASS。
+
+**发布**：release commit `cb49438`(+ selfcheck-log 随后) tag `v2.6.2`(new)；`gh release create`(5 资产)。**exe** `Horosa-Setup-2.6.2.exe` **758,300,981B**(+1,217B vs v2.6.1 = 新宏代码) sha256 `362b83c39e9e91832aa90fdba472e73a0b3633919793bab9fed9c1d79394f772`；blockmap `5a743c15d93c14ce325dbf87e727ea0e28feed3a36d1a8481a2de8d4cb8ec207`(790,839B)；latest.yml `328d69f2248200eaaf8855388c6f35b9e67759c8d2bf6e381d408f74cc525a94`(341B)；horosa-update.sig `a5126b9035749ddc0faccc5f8975650f268300e93449953ba9fe3b4eed96e82d`(260B)；SHA256SUMS `6f63fa88c98292eb35cce153ae1a214442df7dceaab5389a7843de9e7bcca452`(348B)。`isPrerelease=false`、`/releases/latest=v2.6.2`、GitHub 5 资产 digest=本地逐字节一致；**LIVE sig 经 release URL 对 shipped exe `sign-update.cjs verify` = VERIFY OK**(Ed25519 第五次生产核验)。**自动更新 v2.2.1–v2.6.1 → v2.6.2**。**#18 已回复(澄清真因 + 致歉早先「这是你电脑的问题」误判) + 保持 closed**。Mac HEAD 仍 `fc7ab745b`（无同步）；**下次 Mac 同步基线 = `fc7ab745b`**。SKILL gotcha #25（customUnInstallCheck 升级韧性 + `$installationDir` 编译序坑 + `/WX` 未用标签 + 仅重跑 nsis 尾省 stage）。
 
 ## 2026-06-05 v2.6.1 Beta（Mac 同步 `af5126db3→fc7ab745b`：AI 挂载全选项 + 多时段/区间扫描 + 风水八卦阳宅法 v2 + 跨模块修复 — 前端为主 + 一处后端 → 重建 jar）
 
