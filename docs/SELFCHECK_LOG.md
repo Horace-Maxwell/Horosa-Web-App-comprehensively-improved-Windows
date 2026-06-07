@@ -1,6 +1,26 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-06
+最后更新：2026-06-07
+
+## 2026-06-07 v2.6.3 Beta（Mac 同步 `fc7ab745b→15df8e35`：AI 分析深度打磨 + Qizheng/五兆类补 AI 挂载 + 分至盘修复；**修 Windows issue #20**）
+
+**同步**：Mac `fc7ab745b`(v2.6.2)→`15df8e35`(v2.6.3) 3 commits（Mac#10/#11 修复 + Mac 内部 v2.6.2 簿记 + v2.6.3）。36 文件 = 15 在 `Horosa-Web/`（产品树）+ 18 在 `Horosa_Desktop_Installer/`（Mac Tauri 外壳, Win 不同步） + 3 Mac docs。改动 = 1 后端 Java（`AIAnalysisProxyService.java` +344/-9）+ 14 前端/测试/AGENTS。**下次 Mac 同步基线 = `15df8e35`**。
+
+**Features**（共享代码）：① AI 分析聊天 UX（代码块复制+高亮 highlight.js / 上滚暂停滚 + 跳到最新浮按 / 推理流完折叠 + 复制思考 / 图片拖拽-粘贴入对话栏 / 首回**真 AI 生成 6-14 字短标题** / 对话内导出 Markdown/JSON/Word / 错误改 Alert+重试 / Markdown 渲染补 LaTeX KaTeX）。② AI 分析设置（API Key Password 输入 + 眼睛切换 + 粘贴去空白 / 连接 chip 显延迟+失败 Tooltip / Provider 高级三段折叠 / 列表卡片-紧凑切换 / 新 Provider 保存自动拉模型列表）。③ AI 分析资料/模板/组合（全 pane 拖拽 + 非阻塞批量队列 + 重复文件一次性决策 / 文件夹 CRUD Drawer / 模板变量推断侧栏 + JSON Schema 校验 + 版本 diff / 组合包应用预览）。④ **AI 分析后端补齐（需重编 jar，已重编）** = 用量/费用计量 SSE 新 `usage` 事件覆盖 OpenAI/Anthropic/Gemini/Ollama / Gemini 视觉补齐 `inlineData/fileData` / 停止序列/JSON 模式/思考档**显式映射**而非透传 / `isReasoningModel` 前后端同步覆盖 gpt-5/6/7、o1/3/4/5/6/7。⑤ 历史 tab 重做（紧凑表头 + 列宽固定 + 操作收成「导出 ▾」下拉 + 独立空态）。⑥ **导出/挂载补齐**：七政四余「政余格局/相位」补出导/挂（`AI_EXPORT_SETTINGS_VERSION` 22→23 自动迁移）；五兆/太玄筮法/荆诀/神易数补 AI 挂载（4 个确定性起卦术此前已可存事盘却挂不上）。⑦ 修复：「分至」星盘样式按钮失效（`<JieQiChartsMain>` ↔ `<AstroChartMain>` 漏传 `chartStyle`/`dispatch`）；Dropdown unmounted 内存泄漏；模板版本 diff 空版本兜底；图片上传 onerror + 10MB/张上限。所有技法命盘计算与 v2.6.2 字节级一致。
+
+**Win#20 修复**（@zuojun1991 2026-06-07）：「AI 工具挂载阶段聊天挂载新内容易被截断 + 太阳返照 AI 用本命盘信息」=（A）截断 = AI 后端思考档/JSON 模式/停止序列原 generic pass-through，Anthropic/Gemini/Ollama 实际要**显式映射**字段；错配时长 context 请求体溢出某些 Provider 静默截掉超长 messages → 本版后端显式映射 + SSE `usage` 事件计量后稳定；（B）太阳返照 AI 用本命盘 = 七政四余右栏 Moira「政余格局/相位」此前显示但未进 AI 导出 → 本版补齐（`AI_EXPORT_SETTINGS_VERSION` 22→23 自动迁移）。
+
+**同步法 + 工程坑**：
+- clean v2.6.2 baseline 核（5 关键共享文件 LF-hash == Mac@fc7ab745b：AIAnalysisMain.js / aiAnalysisContext.js / aiExport.js / ZiWeiMain.js / AIAnalysisProxyService.java 全 CLEAN）→ overlay-copy `cp -rf tmp/mac-sync-2.6.3/Horosa-Web/. WS/` → `apply.sh "$WS" "$MAC"`。Mac `Horosa_Desktop_Installer/` 是 Tauri 外壳（Mac 独有 `prompt/confirm/alert` 在 Tauri 下 Unhandled Rejection 的修复 Windows Electron 不受影响）→ **不同步**；Mac 的 v2.6.3 release notes 提到的 7 处 Modal 替代是 Tauri-only。
+- **apply.sh patch 步骤 OR-chain 假成功**（**SKILL gotcha #26**）：`git apply ... || patch -p1 --silent` 对 Mac 改飘后的 `pages/index.js` 这次没打印 `[auto-patch FAILED]` 警告但 marker `ensureField`/`isDesktopShellWindow` 未真落（patch 可能以 fuzz/offset 命中无关位置或两条命令都失败但 `--silent` 吞下 exit code）→ 必须用 selfcheck `windows-ahead / ported-fix sentinels` 作为权威而非 apply.sh 输出；本轮 selfcheck FAIL 后手动 re-port 两处（`isDesktopShellWindow` helper 在 `isTauriWindow` 后 + 两处 `||` 条件 / `ensureField` helper 在 `changeCond` 开头 + 3 处 `flds.lat`/`flds.southchart` 改写）→ 重 build:file → selfcheck PASS。**下次同步必加**「apply.sh 后立刻跑 selfcheck，FAIL 立即手动 re-port，不信 `[ok] patched`」。
+- **新 npm runtime deps 必须 install**（非 build-only）：Mac v2.6.3 引入 `highlight.js@^11.9.0` + `katex@^0.16.10`，apply.sh 仅在 package.json 中保留 Mac deps 但 **不跑 npm install** → 第一次 build:file 失败「Module not found: highlight.js/lib/common, katex/dist/katex.min.css」→ `npm install --no-audit --no-fund highlight.js@^11.9.0 katex@^0.16.10` 后通过。区别于 v2.6.0 的 `opencc-js/pinyin-pro`（那两个 Mac 仅 `scripts/build-cities.js` 用、运行时 `cityMatch.js` 纯查表零 import 故可不装），本次的 2 dep 是 AIAnalysisMain.js 运行时 import，必装。
+- **bundled `mvn.cmd` 不在 PATH**：直接 PowerShell 跑 `mvn -o install` 报 "term not recognized" → 必用 `local\workspace\runtime\windows\maven\bin\mvn.cmd` 完整路径（SKILL 已记）。
+- **staged dist-file 单独路径**：`local/workspace/runtime/windows/bundle/dist-file/` 与 `astrostudyui/dist-file/` 是**两份**；build:file 只写后者，selfcheck `check_distfile_not_stale()` 读前者 → 必须 `cp -r .../astrostudyui/dist-file/. .../bundle/dist-file/` 同步；否则 selfcheck `staged dist-file not stale` FAIL 看似前端没重建实是没同步。
+- **重建 jar**：`astrostudy install → astrostudycn install → boot clean package`（offline）→ 新 jar **324,253,974B**（+4,255 vs v2.6.1 = AI 后端新代码）→ 复制到 `local/workspace/runtime/windows/bundle/astrostudyboot.jar`。jar 内 `BOOT-INF/lib/astrostudy-1.0.0.jar` 验证 3 标记（SSE `usage` 字符串 / `gpt-5` / `inlineData` 均 PASS）。
+
+**验证**：umi-test **59 套 / 522 绿**（v2.6.1 是 520，+2 新测试）；build:file 绿；私钥↔内置公钥 match；sentinels 44 文件 OK；`selfcheck` **10/10**（version 2.6.3 / 44 哨兵 / jar 不旧 / dist-file 不旧 / 4 资产 + 哈希 / release-doc 真哈希 / latest.yml 匹配 exe / Ed25519 sig PASS / app-update.yml 在）。
+
+**发布**：release commit `bdf9779`（+ selfcheck-log 随后） tag `v2.6.3`(new)；`gh release create`(5 资产)。**exe** `Horosa-Setup-2.6.3.exe` **759,209,586B** sha256 `354c51072e58daf5bd1aa4d00a1f2b2d92b00ee7f737e91cc9f08a25dd3925b2`；blockmap `f0dade4a478a2863b2589fec3b09b46aebba6e5fc731437ca9fb730db5d849b6`(791,184B)；latest.yml `53cc7153d8a1a52e20a36258a27a336e294d422cca38b30ace026c35f2634aeb`(341B)；horosa-update.sig `4ab68517e61267cd91537078478a9c49e0c235ffeebc303234a81f4a2763bde9`(260B)；SHA256SUMS `9aa9b62a17dd102a0efd674894976db3d994a58428741c77298dbe4c0ba99909`(348B)。`isPrerelease=false`、`/releases/latest=v2.6.3`、GitHub 5 资产 digest = 本地逐字节一致；**LIVE sig 经 release URL 对 shipped exe `sign-update.cjs verify` = VERIFY OK**（Ed25519 第六次生产核验）。**自动更新 v2.2.1–v2.6.2 → v2.6.3**（含重建 jar + 新前端 + 2 新 npm runtime dep）。**#20 已回复（解释两个真因 + 升级路径）+ closed**。SKILL gotcha #26（apply.sh OR-chain 假成功 + 新 npm runtime dep 必装 + staged dist-file 双路径）。
 
 ## 2026-06-06 v2.6.2 Beta（Windows 安装器补丁：彻底修复 issue #18「升级安装从未成功」第二轮；纯 NSIS，jar/前端与 v2.6.1 字节级一致，无 Mac 同步）
 
