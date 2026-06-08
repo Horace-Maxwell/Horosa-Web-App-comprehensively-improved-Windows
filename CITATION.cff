@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.6.3
-date-released: 2026-06-07
+version: 2.6.4
+date-released: 2026-06-08
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,27 +12,32 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v2.6.1 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side work (a Liuren "Bi Fa 100" interpretation layer with imagery / casting-guide /
-  shen-sha / three-transmission diagrams; a comprehensive Zi Wei Dou Shu P0–P2 enhancement —
-  miscellaneous-star display, school-specific four-transformation tables, cascading flow-stars,
-  pattern detail and new patterns, Tian-Shang / Tian-Shi — with rebuilt astrostudyboot.jar; a Qi
-  Men Dun Jia "Fa Qi Men" (Xun Shuang) overlay for resolution / use-god / imagery; a Western
-  astrology build-out across mundane / horary / electional / star-transit with engineering fixes;
-  professional city search with traditional/simplified + pinyin matching; and two reported
-  Windows fixes — issue #16, DeepSeek deep-thinking (reasoner) multi-turn compatibility, by
-  passing through reasoning_content and not sending sampling params to reasoning models plus a
-  first-byte-only stream retry and an idle watchdog; and issue #17, the casting time now
-  refreshing to the moment of selection instead of app-open time) together with a Windows-only
-  installer fix for issue #18 — the NSIS installer now force-terminates a running Horosa and its
-  scoped embedded sidecars before an in-place upgrade, so over-the-top upgrades no longer fail
-  ("Failed to uninstall old application files") and no longer require a manual uninstall first;
-  building on the prior planetarium projection refinements, the seven Western progression
-  techniques wired into AI analysis, the astrocartography/ACG map, horary/electional charts,
-  the Heluo Lishu completion, AI system-proxy support, the SSE service-stability fix, the global
-  day-boundary / late-zi-hour model, the Ed25519-signed in-app auto-update, 数算 methods, the
-  harmonic chart, and clean-machine fixes) and AI Analysis rework, astrology modules,
-  traditional Chinese methods, kentang/kin backend integrations, AI-assisted structured export,
-  Python and Java services, and self-contained Windows desktop delivery into one cross-platform
-  release line.
+  Horosa for Windows v2.6.4 beta is a local-first metaphysics workstation that aligns the
+  latest Mac-side work: a full-stack sidereal zodiac expansion (Western charts get a unified
+  tropical-or-47-ayanāṃśa zodiac selector built on Swiss Ephemeris, propagated through the
+  frontend, eight Java controllers, the Python chart kernel and response echo, and persisted
+  storage; Western sidereal mode now also shows lunar mansions / Nakshatra); Indian astrology
+  completion (ayanāṃśa 6→47, house systems 4→24, dropdown occlusion fix); a four-way
+  AI-Analysis synchronization across export, export-settings, mounting and chart/case storage
+  with dual-chart-technique support (Solar Return, Lunar Return, Solar Arc, Given Year,
+  Profections, Planetary Arc, Primary Direction, Vedic Jaynes progressions) plus an
+  AI_EXPORT_SETTINGS_VERSION 23→24 auto-migration; an integrated AI Analysis "report"
+  generation v1 (6 pre-built Bazi/Ziwei templates, sequential streaming, embedded chart
+  capture via html-to-image, four export formats); a comprehensive startup-robustness pass
+  (transparent retry window extended 12s→30s to cover slow-machine first-boot, persistent
+  backend health-light indicator in the lower-right corner with on-demand restart/retry/
+  diagnostics, a rich service-unready Modal listing four likely causes and four one-click
+  actions, and phased startup-overlay copy that surfaces actionable buttons after 6s/15s/30s
+  of stalled boot); and the Windows-side issue #21 fix — "本地排盘服务未就绪" startup
+  failures the user could not self-diagnose now have visible health state, a rich error
+  dialog, longer transparent retry, and an actionable banner. Builds on prior planetarium
+  projection refinements, the seven Western progression techniques wired into AI analysis,
+  the astrocartography/ACG map, horary/electional charts, the Heluo Lishu completion, AI
+  system-proxy support, the SSE service-stability fix, the global day-boundary /
+  late-zi-hour model, the Ed25519-signed in-app auto-update, 数算 methods, the harmonic
+  chart, clean-machine fixes, and the Windows-only NSIS installer hardening (issue #18 —
+  upgrades over the top no longer fail and no longer require a manual uninstall first) — and
+  AI Analysis rework, astrology modules, traditional Chinese methods, kentang/kin backend
+  integrations, AI-assisted structured export, Python and Java services, and self-contained
+  Windows desktop delivery into one cross-platform release line.
 

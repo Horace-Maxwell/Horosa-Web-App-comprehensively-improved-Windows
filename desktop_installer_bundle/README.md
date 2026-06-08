@@ -1,10 +1,10 @@
 # Horosa Windows Desktop Bundle
 
-这个目录承载 Horosa v2.6.3 Beta Windows 桌面应用工程。
+这个目录承载 Horosa v2.6.4 Beta Windows 桌面应用工程。
 
-- 当前发布版本：`2.6.3 Beta`（安装器版本号为 `2.6.3`）
-- 发布定位：Mac 端 v2.6.3 产品面同步（AI 分析一轮深度打磨：聊天 UX / 设置 / Provider 矩阵 / 视觉 / 用量 / JSON 模式全补齐 + 七政四余「政余格局/相位」出导/挂 + 五兆/太玄/荆诀/神易数补 AI 挂载 + 分至盘样式修复 + 稳定性修复）。后端 Java 改动 → 已重建 `astrostudyboot.jar`；命盘计算与 v2.6.2 字节级一致；v2.6.2 的 #18 升级安装修复 + v2.6.1 前所有功能全部保留。修复 Windows issue #20「聊天挂载内容被截断 + 太阳返照 AI 用本命盘信息」
-- 用户入口：`release/Horosa-Setup-2.6.3.exe`
+- 当前发布版本：`2.6.4 Beta`（安装器版本号为 `2.6.4`）
+- 发布定位：Mac 端 v2.6.4 产品面同步（恒星黄道 47 岁差全栈 + 西洋月宿 + 印占补齐 + AI 四同步双盘双配置 + AI 报告生成 v1 + 启动健壮性大批加固）。后端 Java 改动（8 个控制器 `getParams()` 全栈透传 `siderealAyanamsa`）→ 已重建 `astrostudyboot.jar`；命盘计算默认行为与 v2.6.3 字节级一致；v2.6.3 之前所有功能全部保留。修复 Windows issue #21「点击排盘提示『本地排盘服务未就绪』，无处查看状态、自检修复失效」
+- 用户入口：`release/Horosa-Setup-2.6.4.exe`
 - 图标资产：`assets/horosa_setup.ico` 与 `assets/horosa_setup_badge.png`
 
 ## 目录职责
@@ -40,9 +40,9 @@
 - 安装器支持用户选择安装目录；选择受限目录时可触发 Windows 提权，安装前会校验目录可创建、可写。
 - 正常用户不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。
 
-## v2.6.3 Beta 发布口径
+## v2.6.4 Beta 发布口径
 
-v2.6.3 Beta 对齐 Mac 端 `fc7ab745b→15df8e35` 产品面（AI 分析深度打磨：聊天 UX/设置/Provider 矩阵/视觉/用量/JSON 模式全补齐 + Qizheng 七政四余「政余格局/相位」补出导/挂 [`AI_EXPORT_SETTINGS_VERSION` 22→23 自动迁移] + 五兆/太玄/荆诀/神易数补 AI 挂载 + 分至盘样式按钮修复 + 多处稳定性修复），后端 Java（`AIAnalysisProxyService` +344/-9，SSE `usage` 事件、Gemini 视觉、显式停止序列/JSON 模式/思考档映射）有改动 → 已重建 `astrostudyboot.jar`（324,253,974B）。命盘计算与 v2.6.2 字节级一致；v2.6.2 的 #18 升级安装修复（`customUnInstallCheck`）+ v2.6.1 前所有功能全部保留；并**修复 Windows issue #20**「AI 工具挂载新内容易被截断 + 太阳返照 AI 用本命盘信息」。Windows 发布包必须保持自包含，旧的 `Horosa-Web-App-comprehensively-improved-MacOS-main` 同步来源文件夹不应作为安装版、Web 启动或打包依赖。
+v2.6.4 Beta 对齐 Mac 端 `15df8e3→15a21bb` 产品面（恒星黄道全栈：西洋盘「黄道」从 回归/恒星 二元扩为 **回归 + 47 ayanāṃśa** [复用印占注册表，每制经 Swiss Ephemeris 真实位移] 覆盖全西洋技法盘 + 西洋盘月宿(Nakshatra) + 印占岁差 6→47 / 分宫 4→24 + 印占左栏下拉遮挡修复 + AI 四同步双盘双配置 [`AI_EXPORT_SETTINGS_VERSION` 23→24 自动迁移] + AI 报告生成 v1 [6 模板 + 9 流派 + 分节流式 + 嵌图 + 4 导出] + 启动健壮性加固 [常驻健康灯 + 富错误 Modal + 透明重试 12s→30s + StartupGate 分阶段]），后端 Java（8 个控制器 `getParams()` 全栈透传 `siderealAyanamsa`：astrostudycn 的 `ChartController` / `QueryChartController` / `JieQiController` / `PlanetariumController` + astrostudy 的 `GermanyTechController` / `ModernChartController` / `AstroExtraController` / `PredictiveController`）→ 已重建 `astrostudyboot.jar`（324,254,239B）。命盘计算默认行为与 v2.6.3 字节级一致；v2.6.3 / v2.6.2（#18 升级安装修复）/ v2.6.1 前所有功能全部保留；并**修复 Windows issue #21**「点击排盘提示『本地排盘服务未就绪』，无处查看状态、自检修复失效」。Windows 发布包必须保持自包含。
 
 这一版重点包括：
 
@@ -55,11 +55,11 @@ v2.6.3 Beta 对齐 Mac 端 `fc7ab745b→15df8e35` 产品面（AI 分析深度打
 
 正式 GitHub Release 的标准资产是：
 
-- `Horosa-Setup-2.6.3.exe`
-- `Horosa-Setup-2.6.3.exe.blockmap`
+- `Horosa-Setup-2.6.4.exe`
+- `Horosa-Setup-2.6.4.exe.blockmap`
 - `latest.yml`
 - `SHA256SUMS.txt`
 
-公开下载入口是 `Horosa-Setup-2.6.3.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
+公开下载入口是 `Horosa-Setup-2.6.4.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
 
 当前安装包按用户要求未做 Authenticode 签名。发布前仍需明确告知：这可能触发 Windows SmartScreen 提示，但不代表 Java/Python/接口不匹配。

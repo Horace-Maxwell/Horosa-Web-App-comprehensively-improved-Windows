@@ -9,13 +9,13 @@
 **把占星与中国术数，收进一个原生 Windows 工作站**<br />
 *Western astrology and Chinese metaphysics, in one native Windows workstation*
 
-[![Version](https://img.shields.io/badge/version-2.6.3%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.3)
+[![Version](https://img.shields.io/badge/version-2.6.4%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.4)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.3)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.3)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.4)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.4)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.3.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.4.exe) ·
 [完整中文说明](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -34,7 +34,7 @@
 
 > Regular users grab the offline installer and open it like any finished Windows app. No Python or Java to install yourself—the runtime ships inside the package—and updates replace the program and shared runtime without wiping your saved charts. The first launch is a little slower while the runtime is extracted and verified; later launches reuse the local cache.
 
-**[⬇︎ Horosa-Setup-2.6.3.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.3.exe)**
+**[⬇︎ Horosa-Setup-2.6.4.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.4.exe)**
 
 适合：Windows 10/11 · `x64` · 弱网 / 离线环境 · 首次安装 · 转发给他人。
 
@@ -95,27 +95,37 @@
 
 > Charts and cases save locally—tags, snapshots, raw backend payloads, JSON import/export, and full restore on reopen.
 
-## 本次更新 · What's New in v2.6.3 beta
+## 本次更新 · What's New in v2.6.4 beta
 
-**v2.6.3 = AI 分析一轮深度打磨（聊天 UX / 设置 / Provider 矩阵 / 视觉 / 用量 / JSON 模式全补齐）+ Qizheng 七政四余「政余格局/相位」补出导/挂 + 五兆/太玄/荆诀/神易数补 AI 挂载 + 分至盘样式修复 + 多处稳定性修复**。后端 Java 改动 → 已重建 `astrostudyboot.jar`；所有技法命盘计算与 v2.6.2 字节级一致；v2.6.2 的 #18 升级安装修复 + v2.6.1 前所有功能全部保留。**修复 Windows issue #20**「聊天挂载内容被截断 + 太阳返照 AI 用本命盘信息」。
+**v2.6.4 = 恒星黄道 47 岁差全栈 + 西洋月宿 + 印占补齐 + AI 四同步双盘双配置 + AI 报告生成 v1 + 启动健壮性大批加固**。后端 Java 改动（8 个控制器 `getParams()` 全栈透传 `siderealAyanamsa`）→ 已重建 `astrostudyboot.jar`；命盘计算默认行为与 v2.6.3 字节级一致；v2.6.3 之前所有功能全部保留。**修复 Windows issue #21**「点击排盘提示『本地排盘服务未就绪』，无处查看状态、自检修复失效」。
 
-- **AI 分析 · 聊天 UX** —— 代码块复制 + 语法高亮（highlight.js）、上滚暂停自动滚 + 「跳到最新」浮按、推理流完自动折叠 + 「复制思考」、图片拖拽/粘贴入对话栏、首回 AI 完整后**生成 6-14 字短标题**（不再截开头废话）、对话内直接导出（Markdown/JSON/Word）、错误改 Alert + 重试、Markdown 渲染补 LaTeX（KaTeX）
-- **AI 分析 · 设置与接口** —— API Key 改 Password 输入（眼睛切换 + 粘贴去空白）、连接 chip 显延迟与失败详情 Tooltip、Provider「高级」三段折叠（模型/鉴权/请求体）、Provider 列表「卡片/紧凑」视图切换、新 Provider 保存自动拉模型列表
-- **AI 分析 · 资料 / 模板 / 组合** —— 资料全 pane 拖拽上传 + 非阻塞批量队列 + 重复文件一次性决策、资料卡片/列表切换、文件夹 CRUD Drawer、模板编辑加变量推断 + JSON Schema 校验 + 版本 diff、组合包「应用预览」
-- **AI 分析 · 后端补齐（重建 jar）** —— 用量/费用计量（SSE `usage` 事件覆盖 OpenAI/Anthropic/Gemini/Ollama, 显示 token + 估算成本）；Gemini 视觉补齐（`inlineData/fileData`）；停止序列 / JSON 模式 / 思考档**显式映射**而非透传；`isReasoningModel` 覆盖 gpt-5/6/7、o1/3/4/5/6/7
-- **AI 分析 · 历史 tab 重做** —— 表头紧凑、列宽固定、操作收成「导出 ▾」下拉；空态独立渲染
-- **导出/挂载 · 七政四余补「政余格局/相位」** —— 右栏 Moira 此前显示但未导出/挂载的两段补齐（`AI_EXPORT_SETTINGS_VERSION` 22→23 自动迁移）
-- **导出/挂载 · 五兆/太玄筮法/荆诀/神易数补 AI 挂载** —— 四种确定性起卦术此前可存事盘却挂不上，本版补齐
-- **修复 · 「分至」星盘样式按钮失效** —— 根因 `<JieQiChartsMain>` 与内层 `<AstroChartMain>` 漏传 `chartStyle`/`dispatch`，补两处 props 即修
-- **修复 · Dropdown unmounted 内存泄漏 + 模板版本 diff 空版本兜底 + 图片上传 onerror + 10MB/张上限**
+—— 以下 v2.6.4 主要更新 ——
 
-> v2.6.3 — a deep polish pass on AI Analysis (chat UX, settings, provider matrix, vision, usage/cost, JSON mode), plus mountable exports for Qizheng Siyu "patterns/aspects" and four deterministic divination methods (Wuzhao / Taixuan / Jingjue / Shenyishu), the "Jieqi" chart-style button fix, and a wave of stability fixes. Backend Java touched → `astrostudyboot.jar` rebuilt; chart math is byte-identical to v2.6.2; the v2.6.2 #18 in-place upgrade fix and every v2.6.1-and-earlier feature are retained. **Fixes Windows issue #20** (mounted chat content getting truncated + Solar-Return AI seeing only the natal chart).
+- **恒星黄道全栈补齐（重建 jar）** —— 西洋盘「黄道」从 回归/恒星 二元扩为 **回归 + 47 ayanāṃśa**（复用印占注册表），每制经 Swiss Ephemeris 真实位移；覆盖全西洋技法盘（命占/合盘/中点/3D/卜卦/三式/节气）。**siderealAyanamsa 贯穿前端 + Java 8 控制器 + Python 排盘 + 响应回显 + 储存。**
+- **西洋盘月宿（Nakshatra）** —— 恒星黄道模式下显示 27 宿（新 `astropy/astrostudy/nakshatra.py`）
+- **印占补齐** —— 左栏下拉遮挡修复 + 岁差 6→47 / 分宫 4→24（`SE_SIDM 0–46`）
+- **AI 四同步（导出 / 导出设置 / 挂载 / 储存）** —— 双盘技法（**返照 / 小限 / 太阳弧 / 流年 / 行星弧 / 主限法盘 / Vedic·Jayne 推运**）补「本命盘 + 时段盘」双配置；印占 / 七政四余(su28) / 西洋盘挂载设置补齐可调项；波斯向运加「应期年数」开关；**`AI_EXPORT_SETTINGS_VERSION` 23→24 自动迁移**
+- **AI 报告生成 v1（纯前端，零后端改动）** —— AI 分析右栏「📄 报告」标签：6 套预置模板（八字 8/12/20 节 + 紫微 8/12/20 节）+ 9 套流派 guideline + 分节顺序流式生成 + 命盘截图嵌入（`html-to-image`）+ 4 种导出格式（Markdown / PDF / Word / HTML）；IndexedDB schema v3→v4 自动 migrate（新增 `report_templates` + `report_instances` 两 stores + 资料 `schools` 字段）
+- **启动健壮性大批加固（修复 issue #21）** ——
+  - **右下角常驻后端健康灯** 🟢/🟡/🔴 圆点 + Popover 显示后端地址 / 延迟 / 「立即重试 / 重启后端 / 打开诊断 / 复制信息」按钮
+  - **「排盘失败」Modal 大改** —— 列 4 类常见原因 + 4 个一键操作（重试 / 重启后端 / 打开诊断 / 复制信息），不再只是干巴巴的「请确认 Horosa 本地服务仍在运行」
+  - **透明重试时间窗 6→10 次（累计 12s→30s）** —— 覆盖慢机器首启 35-60s 的解压窗口
+  - **断线横幅加操作按钮** —— 从「操作将自动重试…」升级到带「立即重试 / 重启后端 / 打开诊断」
+  - **StartupGate 分阶段文案** —— 6s 内安静等；6-15s 加「重试」按钮；15-30s 提示首启较慢 + 「重启后端」；30s+ 显示后端地址 + 「打开诊断中心」
+- **AI 报告 v1.2–v1.4 工程级修复（已并入本版）** —— 命盘截图 `ChartCaptureMount` 加 ErrorBoundary + fetch 15s 超时 + 串行化 captureLock；ConcurrentQueue 暴露 `getErrors()/getStats()`，drain 后 successRate<40% 跳过辅助节；isContentTruncated 加 ELLIPSIS 检测；续写循环最多 2 次；renderTemplateVars 防嵌套；resolveSchoolPrompt 未知流派给通用 fallback；INTRO/OUTRO maxTokens 贴近实际产出；ChartServiceErrorModal/BackendStatusDot/ServiceStatusBanner 全 async + 真实反馈；ReportGenerator/ReportPane 防 stale closure race + 防双击重复触发
+- **测试** —— jest **638 通过 / 68 suites**（v2.6.3: 522）；service-manager + update-signature **39 通过**
 
-—— 以下为 v2.6.2 引入的修复（v2.6.3 全部保留）——
+> v2.6.4 — full-stack sidereal zodiac expansion (Western charts now offer tropical + 47 ayanāṃśa via Swiss Ephemeris, plumbed through frontend / 8 Java controllers / Python kernel / response echo / storage; Western sidereal mode adds lunar mansions / Nakshatra), Indian astrology completion (ayanāṃśa 6→47, house systems 4→24, dropdown fix), four-way AI Analysis sync with dual-chart-technique support (Solar/Lunar Return, Solar Arc, Given Year, Profections, Planetary Arc, Primary Direction, Vedic Jaynes — natal + period sub-chart configs), an integrated AI Analysis "report" generator v1 (6 templates, sequential streaming, embedded chart capture via html-to-image, 4 export formats), and a comprehensive startup-robustness pass (a persistent backend health-light, a rich service-unready Modal with four likely causes and four one-click actions, the transparent-retry window extended 12s→30s, and phased StartupGate copy with actionable buttons after 6s/15s/30s). Backend Java touched (8 controllers forward `siderealAyanamsa`) → `astrostudyboot.jar` rebuilt; default chart math is byte-identical to v2.6.3; every v2.6.3-and-earlier feature is retained. **Fixes Windows issue #21** ("本地排盘服务未就绪" startup failure with no visible state and no self-repair).
+
+—— 以下为 v2.6.3 引入的功能（v2.6.4 全部保留）——
+
+**v2.6.3 = AI 分析一轮深度打磨（聊天 UX / 设置 / Provider 矩阵 / 视觉 / 用量 / JSON 模式全补齐）+ Qizheng 七政四余「政余格局/相位」出导/挂 + 五兆/太玄/荆诀/神易数补 AI 挂载 + 分至盘样式修复 + 多处稳定性修复**；**修复 Windows issue #20**「聊天挂载内容被截断 + 太阳返照 AI 用本命盘信息」。
+
+—— 以下为 v2.6.2 引入的修复（v2.6.4 全部保留）——
 
 **v2.6.2 = v2.6.1 的全部功能 + Windows「升级安装从未成功（issue #18）」彻底修复**。纯安装器补丁（NSIS `customUnInstallCheck`），覆盖升级时若旧版本卸载器返回非零（中文用户名 / 中文安装路径 + 杀软占用）→ 安装器接管：强制结束残留星阙 + 仅清理旧「程序目录」后继续升级，用户数据零影响。
 
-—— 以下为 v2.6.1 引入的功能（v2.6.3 全部保留）——
+—— 以下为 v2.6.1 引入的功能（v2.6.4 全部保留）——
 
 **v2.6.1 = AI 挂载全选项打磨（每技法「设置」齿轮抽屉，schema 驱动，无遗漏）+ 多时段 / 区间扫描输出 + 风水八卦阳宅法 v2（倪海厦，纯前端）+ 一批跨模块修复**。唯一后端改动 = `ChartController.getParams()` 转发 `pdYears`（挂载主限法年数生效的真因）→ 已重建 `astrostudyboot.jar`；所有技法命盘计算与 v2.6.0 字节级一致，v2.6.0 及更早全部功能保留。
 
@@ -125,9 +135,9 @@
 - **多盘 / 多时段补全** —— 占星各推运 builder、主限法盘表拆分、紫微 / 八字挂载、六爻三卦全装卦 + 一键挂载
 - **跨模块修复** —— 辅盘样式切换失效（误把事件对象当值）、三式「时空」中点盘端口兜底（:9999→:8899）、主题 / 布局 / 暗黑双色快修
 
-完整改动见 [v2.6.3 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.3) 与 [本地发布说明](docs/releases/2.6.3.md)（v2.6.2 安装器补丁见 [docs/releases/2.6.2.md](docs/releases/2.6.2.md), v2.6.1 功能见 [docs/releases/2.6.1.md](docs/releases/2.6.1.md)）；上一版 v2.6.0（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + #16/#17/#18 修复）详见 [docs/releases/2.6.0.md](docs/releases/2.6.0.md)。
+完整改动见 [v2.6.4 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.4) 与 [本地发布说明](docs/releases/2.6.4.md)（v2.6.3 见 [docs/releases/2.6.3.md](docs/releases/2.6.3.md), v2.6.2 安装器补丁见 [docs/releases/2.6.2.md](docs/releases/2.6.2.md), v2.6.1 功能见 [docs/releases/2.6.1.md](docs/releases/2.6.1.md)）；上一版 v2.6.0（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + #16/#17/#18 修复）详见 [docs/releases/2.6.0.md](docs/releases/2.6.0.md)。
 
-> v2.6.1 polishes **AI-mount full options** (a per-technique settings drawer driven by a schema, with nothing missed) plus **multi-moment / range-scan output**, adds a **Feng Shui "Bagua Yang-dwelling" method v2** (Ni Haisha, front-end only, default still the Naqi plate — byte-identical), and lands a batch of cross-module fixes. The one backend change forwards `pdYears` (+ `pdDirect/pdConverse/pdAntiscia/pdTerms`) in `ChartController.getParams()` — the real reason the AI-mounted primary-direction year options didn't take — so the jar is rebuilt. All technique chart math is byte-identical to v2.6.0; every v2.6.0 and earlier feature is retained. Full log: [v2.6.3 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.3).
+> v2.6.1 polishes **AI-mount full options** (a per-technique settings drawer driven by a schema) plus **multi-moment / range-scan output**, adds a **Feng Shui "Bagua Yang-dwelling" method v2** (front-end only, default unchanged — byte-identical). The one backend change forwards `pdYears` (+ `pdDirect/pdConverse/pdAntiscia/pdTerms`) in `ChartController.getParams()` so the jar is rebuilt. Full log: [v2.6.4 release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.4).
 
 ## 技术构成 · Under the Hood
 
