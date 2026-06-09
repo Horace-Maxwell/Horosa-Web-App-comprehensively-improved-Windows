@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.6.4
+version: 2.6.5
 date-released: 2026-06-08
 authors:
   - given-names: Horace
@@ -12,25 +12,29 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v2.6.4 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side work: a full-stack sidereal zodiac expansion (Western charts get a unified
-  tropical-or-47-ayanāṃśa zodiac selector built on Swiss Ephemeris, propagated through the
-  frontend, eight Java controllers, the Python chart kernel and response echo, and persisted
-  storage; Western sidereal mode now also shows lunar mansions / Nakshatra); Indian astrology
-  completion (ayanāṃśa 6→47, house systems 4→24, dropdown occlusion fix); a four-way
-  AI-Analysis synchronization across export, export-settings, mounting and chart/case storage
-  with dual-chart-technique support (Solar Return, Lunar Return, Solar Arc, Given Year,
-  Profections, Planetary Arc, Primary Direction, Vedic Jaynes progressions) plus an
-  AI_EXPORT_SETTINGS_VERSION 23→24 auto-migration; an integrated AI Analysis "report"
-  generation v1 (6 pre-built Bazi/Ziwei templates, sequential streaming, embedded chart
-  capture via html-to-image, four export formats); a comprehensive startup-robustness pass
-  (transparent retry window extended 12s→30s to cover slow-machine first-boot, persistent
-  backend health-light indicator in the lower-right corner with on-demand restart/retry/
-  diagnostics, a rich service-unready Modal listing four likely causes and four one-click
-  actions, and phased startup-overlay copy that surfaces actionable buttons after 6s/15s/30s
-  of stalled boot); and the Windows-side issue #21 fix — "本地排盘服务未就绪" startup
-  failures the user could not self-diagnose now have visible health state, a rich error
-  dialog, longer transparent retry, and an actionable banner. Builds on prior planetarium
+  Horosa for Windows v2.6.5 beta is a local-first metaphysics workstation that aligns the
+  latest Mac-side work: a comprehensive rebuild of the synastry/relationship-chart
+  interaction chain (all five sub-charts — Synastry, Composite, Marks, Time-Space and the
+  relationship score — restored to working order by routing chart requests back to the Java
+  modern-chart backend, with ResizeObserver-measured heights, chartStyle/dispatch/onChange
+  propagation, direct field writes on change, and a fixed-width 50/50 zodiac selector);
+  an AI "casting-time" mounting expansion from 8 to 13 techniques (Taixuan, Jingjue,
+  Wuzhao and Shenyishu deterministic methods each gain a snapshot builder so their cast
+  charts can now be mounted into AI analysis, with the technique registry and one-click
+  mount copy synchronized to the full thirteen); and Python chart-engine numeric-geo
+  fault-tolerance (helper.py and realsuntime.py accept float longitude/latitude/time-zone
+  values from map-pick selections instead of assuming string input). It also folds in
+  navigation search keywords across all twenty-two modules, a real About-dialog app icon,
+  Persian-directed year-count table linkage, and a batch of small chart/ephemeris/styling
+  fixes. Builds on the v2.6.4 full-stack sidereal zodiac expansion (Western charts get a
+  unified tropical-or-47-ayanāṃśa zodiac selector built on Swiss Ephemeris, propagated
+  through the frontend, eight Java controllers, the Python chart kernel and response echo,
+  and persisted storage; Western sidereal mode shows lunar mansions / Nakshatra), Indian
+  astrology completion (ayanāṃśa 6→47, house systems 4→24), the four-way AI-Analysis
+  synchronization with dual-chart-technique support and AI_EXPORT_SETTINGS_VERSION 23→24
+  auto-migration, AI Analysis "report" generation v1, the startup-robustness pass and the
+  Windows-side issue #21 fix ("本地排盘服务未就绪" now has visible health state, a rich
+  error dialog, longer transparent retry, and an actionable banner). Builds further on prior planetarium
   projection refinements, the seven Western progression techniques wired into AI analysis,
   the astrocartography/ACG map, horary/electional charts, the Heluo Lishu completion, AI
   system-proxy support, the SSE service-stability fix, the global day-boundary /
