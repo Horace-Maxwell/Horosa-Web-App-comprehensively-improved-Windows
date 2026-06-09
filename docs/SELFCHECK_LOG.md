@@ -2,7 +2,25 @@
 
 最后更新：2026-06-08
 
-## 2026-06-08 v2.6.4 Beta（Mac 同步 `15df8e35→15a21bb`：恒星黄道 47 岁差全栈 + 西洋月宿 + 印占补齐 + AI 四同步双盘双配置 + AI 报告生成 v1 + 启动健壮性大批加固；**修 Windows issue #21**）
+## 2026-06-08 v2.6.5 Beta（Mac 同步 `15a21bb→dbac0ed`：合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法 + Python 数值经纬度容错；**无 Java / 无 jar 重建**；0 open issues）
+
+**同步**：Mac `15a21bb`(v2.6.4)→`dbac0ed`(v2.6.5) 单 commit。46 文件在 `Horosa-Web/`（合盘交互链 7 + AI 起课时间 6 + Python 2 + 导航搜索/图标/小修若干 + 3 新测试）。**Mac `Horosa_Desktop_Installer/`（Tauri 外壳 + 其 runtime 簿记）不同步**。**下次 Mac 同步基线 = `dbac0ed`**。Mac 端 `docs/windows-sync-handoff.md` 明确「Windows 必做一件 = 同步 Python 2 文件；Java 本版未改不需重编 jar」。
+
+**Features**（共享代码）：① **合盘 / 关系盘交互链全面重建** —— 五子盘（合盘 Synastry / 组合中点 Composite / Marks / 时空盘 Time-Space / 关系评分）全部恢复可用。根因 = v2.6.1(fc7ab74) 误把合盘排盘端点从 `Constants.ServerRoot`(:9999 Java) 改成 `resolveKentangServiceRoot('taiyi')`(:8899 Python)，而 `request()` 对 body 做 RSA 加密、仅 Java 后端有解密拦截器并回 `{result}` 信封（Python chart 服务收到密文→json_in 400→net::ERR_FAILED）→「合盘每技法都用不了」。本版 `AstroRelative.js`（注意在 `components/astro/` 不在 `components/relative/`）恢复 `${Constants.ServerRoot}/modern/relative` + try/catch 优雅吞错（后端未就绪不崩成空白）；并 ResizeObserver 实测高度、`chartStyle/dispatch/onChange` 透传、change 直写 fields、`paramsToFields` 不覆盖宫制/黄道、黄道 Select 局部 CSS 定宽 50/50。② **AI「起课时间」挂载 8→13 技法** —— 太玄/荆决/五兆/神易数各补 `buildXxxSnapshotForFields` 快照构造器，`aiAnalysisContext.js` 加 5 imports+5 case + `TIMEPOINT_CASTABLE_SET`/`listAnalysisTechniqueOptions` 两份同步含 13 项 + `buildFieldObject` 兜底 `record.divTime` + `techniqueMountSettings.js` 4 法升 `kind:'payload'`。③ **Python 数值经纬度容错** —— `helper.py` `convertLonStrToDegree/convertLatStrToDegree`(lat@75/lon@104) + `realsuntime.py` `getBaseLonByZone`(zone@164) 加 `isinstance(..,(int,float))` 数值分支（地图选点存浮点经纬度/时区，旧代码假设字符串会抛错）。④ **顺手修** —— 全 22 模块导航搜索补 keywords；关于框真 `appicon.png`；波斯向运应期年数联动表格；UranianDial glyph 描边；测天字重；星历/额外盘/巴比伦星空一批小修。命盘计算默认行为与 v2.6.4 字节级一致。
+
+**关键 Windows 风险核验（2 项，均 clear）**：
+- **合盘 `:8899→:9999` 端点在 Windows 动态端口下是否正确** —— 合盘走 `Constants.ServerRoot`，= 全 app 每个排盘请求（八字/紫微/占星）都用的同一个全局。`constants.js` `resolveLocalServerRoot()` 优先级链：`?srv=` query → localStorage → `deriveFromPagePort()`(webPort+1999) → 硬编码 `:9999` 兜底。Windows electron 壳 `main.js:getRendererIndexUrl()` 在 loadURL 时 `searchParams.set('srv', runtimeState.serverRoot)` 注入**真实 findPort 分配的动态后端端口**（service-manager `findPort(9999)` ±50）→ renderer 启动即从 `?srv=` 拿到正确端口。**合盘随 app 已验证的同一机制走，Windows 零额外适配即生效**（核 main.js:245/263 + constants.js:73-78/103）。
+- **Python must-sync 2 文件** —— `helper.py` + `realsuntime.py` 数值分支已落 + LF-hash 与 Mac@dbac0ed 字节一致。
+
+**无 Java / 无 jar 重建（关键省时）**：`git diff 15a21bb..dbac0ed` **0 个 `.java`**；合盘端点恢复是前端改 URL，`ModernChartController` 自 v2.6.4 已在 jar。沿用 v2.6.4 的 `astrostudyboot.jar`（324,254,239B，核内嵌 astrostudycn/astrostudy 各 4 个 siderealAyanamsa 标记不变）。**坑（已处理）**：wholesale `cp -rf` overlay 给所有 WS `.java` 刷新 mtime → selfcheck「staged jar not stale」误判 STALE（DoorLockController.java newer than jar）。因 0 java 内容变更，`touch` staged jar 恢复 mtime 不变式（诚实修：jar 内容确为当前，仅 mtime 被 cp 顶起）→ 复跑 selfcheck PASS。**无新 npm 依赖**（`astrostudyui/package.json` 依赖块 0 变化）。
+
+**同步法**：clean v2.6.4 baseline 核（aiAnalysisContext.js / AstroSynastry.js / AstroComposite.js / helper.py / realsuntime.py / techniqueMountSettings.js LF-hash==Mac@15a21bb 全 CLEAN；`pages/index.js` 仅差 Windows-ahead `ensureField` 适配=预期非漂移）→ overlay-copy `cp -rf tmp/mac-sync-2.6.5/Horosa-Web/. WS/` + `apply.sh "$WS" "$MAC"`（**本轮 patch 步真落 isDesktopShellWindow=3/ensureField=4，sentinels 44/44 PASS，无需手动 re-port**；boundless isLoopbackTarget Mac 已收敛 auto-no-op）→ build:file + `cp -rf astrostudyui/dist-file/. bundle/dist-file/`。
+
+**验证**：umi-test **658 通过 / 70 suites**（v2.6.4=638，+20=合盘端点/起课时间 13 技法/导航搜索/波斯向运用例）；service-manager+update-signature **39 通过**；sentinels 44 文件 OK；`selfcheck` **10/10**（version 2.6.5 / 44 哨兵 / jar 不旧[touch 后] / dist-file 不旧 / 4 资产+哈希 / release-doc 真哈希 / latest.yml 匹配 exe / Ed25519 sig PASS / app-update.yml 在）。
+
+**发布**：release commit `77108ae`（12 跟踪文件：版本 bump + READMEx3 + bundle README + winget-manifest.cjs ReleaseDate + docs/releases/2.6.5.md + winget/manifests/2.6.5/×3；产品源 gitignored 随 exe 交付）+ selfcheck-log 随后；tag `v2.6.5`(new，指 `77108ae`)；`gh release create`(5 资产)。**exe** `Horosa-Setup-2.6.5.exe` **759,533,502 B** sha256 `d485d5a5aa482f876be9e1acedd7d9d1d918c4fc501b9e3b7a046c78c256a6f9`；blockmap `b7a867111dd44abfb04a7cd1407e34d37e45c5f8f70959648e068ea6524904c8`(790,439 B)；latest.yml `50ab09c02eea96158181113c4bfedaccbfcea6bdd7503e8beca7c6e4e83a930f`(341 B)；horosa-update.sig `b245451e87531e860ae089f3e4de8dac3ba5a7bb08ff02fa4d5823608e3430eb`(260 B)；SHA256SUMS 348 B。`isPrerelease=false`、`/releases/latest=v2.6.5`、GitHub 5 资产 digest=本地逐字节一致（含 759MB exe 全量下载比对 IDENTICAL）；**LIVE sig 经 release download URL 拉取对 downloaded exe `sign-update.cjs verify` = VERIFY OK**（Ed25519 第八次生产核验）。**自动更新 v2.2.1–v2.6.4 → v2.6.5**（纯前端 + 2 Python；无 jar 变更）。**winget 2.6.5 manifest 已生成**（`node scripts/winget-manifest.cjs`，补上 v2.6.4 漏建的缺口）。**0 open issues**（本轮无可关）。
+
+
 
 **同步**：Mac `15df8e35`(v2.6.3)→`15a21bb`(v2.6.4) 单 commit（合并 启动健壮性#12 + AI 报告 v1 两套 Mac 此前「未发版」批次 + 恒星黄道全栈 + AI 四同步）。115 文件在 `Horosa-Web/`（8 后端 Java 控制器 + Python 排盘核心 + 100+ 前端/测试/资源）。**Mac `Horosa_Desktop_Installer/`（Tauri 外壳 + 其 runtime-2.6.4-runtime1 簿记）不同步**。**下次 Mac 同步基线 = `15a21bb`**。
 
