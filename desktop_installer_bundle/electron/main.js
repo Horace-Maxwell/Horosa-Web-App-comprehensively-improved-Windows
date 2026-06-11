@@ -170,6 +170,13 @@ function applyUpdateErrorState(error, { manual = false } = {}) {
   });
 }
 
+// Serialize concurrent checks: the 15s bootstrap timer, the 6h background
+// interval and the manual menu item can otherwise interleave and clobber
+// updateCheckContext mid-flight (e.g. a background tick landing while a
+// manual check's dialog decision is pending). Re-entrant calls join the
+// in-flight check instead of starting a second one.
+let updateCheckInFlight = null;
+
 async function runUpdateCheck({ manual = false } = {}) {
   if (!app.isPackaged || !AUTO_UPDATE_ENABLED) {
     setUpdateState({
@@ -179,29 +186,41 @@ async function runUpdateCheck({ manual = false } = {}) {
     return updateState;
   }
 
-  const updater = ensureAutoUpdater();
-  if (!updater) {
-    setUpdateState({
-      status: manual ? 'error' : 'unavailable',
-      message: manual ? '自动更新未启用。' : '更新暂不可用，已跳过后台检查。',
-    });
-    return updateState;
+  if (updateCheckInFlight) {
+    return updateCheckInFlight;
   }
 
-  const context = manual ? 'manual' : 'background';
-  updateCheckContext = context;
-  lastCheckWasManual = manual;
+  updateCheckInFlight = (async () => {
+    try {
+      const updater = ensureAutoUpdater();
+      if (!updater) {
+        setUpdateState({
+          status: manual ? 'error' : 'unavailable',
+          message: manual ? '自动更新未启用。' : '更新暂不可用，已跳过后台检查。',
+        });
+        return updateState;
+      }
 
-  try {
-    await updater.checkForUpdates();
-  } catch (error) {
-    if (updateCheckContext === context) {
-      updateCheckContext = 'idle';
-      applyUpdateErrorState(error, { manual });
+      const context = manual ? 'manual' : 'background';
+      updateCheckContext = context;
+      lastCheckWasManual = manual;
+
+      try {
+        await updater.checkForUpdates();
+      } catch (error) {
+        if (updateCheckContext === context) {
+          updateCheckContext = 'idle';
+          applyUpdateErrorState(error, { manual });
+        }
+      }
+
+      return updateState;
+    } finally {
+      updateCheckInFlight = null;
     }
-  }
+  })();
 
-  return updateState;
+  return updateCheckInFlight;
 }
 
 function getResourceRoot() {
@@ -822,10 +841,18 @@ function createMainWindow() {
   lastNormalWindowBounds = normalizeBounds(initialState.bounds);
   currentZoomFactor = normalizeZoomFactor(initialState.zoomFactor);
 
+  // minWidth/minHeight are DIPs: on a small or heavily scaled screen
+  // (1024x768 @125% => 819-DIP-wide work area) a fixed 900 forces the window
+  // wider than the screen, pushing buttons off-screen. Clamp the minimums to
+  // the work area so the window always fits the display it opens on.
+  const minSizeWorkArea = getPreferredDisplay().workArea || { width: 900, height: 620 };
+  const effectiveMinWidth = Math.min(900, Math.max(320, minSizeWorkArea.width));
+  const effectiveMinHeight = Math.min(620, Math.max(240, minSizeWorkArea.height));
+
   mainWindow = new BrowserWindow({
     ...initialState.bounds,
-    minWidth: 900,
-    minHeight: 620,
+    minWidth: effectiveMinWidth,
+    minHeight: effectiveMinHeight,
     show: false,
     center: false,
     autoHideMenuBar: false,
@@ -1226,8 +1253,13 @@ function showDownloadProgressWindow(info) {
     icon: path.join(__dirname, '..', 'assets', 'horosa_setup.ico'),
     skipTaskbar: false,
     webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
+      // Same hardened posture as the main window: the page consumes IPC via
+      // the tiny contextBridge API in update-progress-preload.js instead of a
+      // Node-enabled renderer context (this used to be the only window with
+      // nodeIntegration:true).
+      preload: path.join(__dirname, 'update-progress-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
       sandbox: false,
       spellcheck: false,
     },
@@ -1536,10 +1568,21 @@ function httpsGetText(url, redirectsLeft = 5) {
 }
 
 // Fetch the horosa-update.sig asset for <version> from the configured GitHub release.
-async function fetchUpdateSignatureAsset(version) {
+async function fetchUpdateSignatureAsset(version, attemptsLeft = 2) {
   const cfg = getConfiguredPublishOptions();
   const url = `https://github.com/${cfg.owner}/${cfg.repo}/releases/download/v${version}/horosa-update.sig`;
-  return httpsGetText(url);
+  try {
+    return await httpsGetText(url);
+  } catch (error) {
+    // One transient network blip used to fail the whole verification ("更新校验
+    // 失败") until the next 6h background check. A brief retry absorbs the blip;
+    // exhausting retries still propagates -> the caller stays fail-closed.
+    if (attemptsLeft > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return fetchUpdateSignatureAsset(version, attemptsLeft - 1);
+    }
+    throw error;
+  }
 }
 
 // Verify the DOWNLOADED installer against the release's Ed25519 signature. Fail-closed: ANY failure
@@ -2147,10 +2190,57 @@ async function startRuntimeFlow({ restart = false, repair = false } = {}) {
   return runtimeBootPromise;
 }
 
+// Process-level safety net: any async throw that escapes every local
+// try/catch would otherwise kill the main process SILENTLY — the app just
+// vanishes with zero diagnostics. The net logs (file + best-effort dialog)
+// so users/issues carry a stack instead of "它自己消失了". unhandledRejection
+// is log-only (many are benign); uncaughtException exits after flushing —
+// Electron would have died anyway, but now with a trace and a message.
+function installProcessSafetyNet() {
+  process.on('unhandledRejection', (reason) => {
+    try {
+      const detail = reason instanceof Error ? `${reason.message}\n${reason.stack || ''}` : String(reason);
+      if (logger) {
+        logger.error('Unhandled promise rejection in main process', { detail });
+      }
+    } catch (_e) {
+      // the safety net must never throw
+    }
+  });
+  process.on('uncaughtException', (error) => {
+    try {
+      const message = error && error.message ? error.message : String(error);
+      if (logger) {
+        logger.error('Uncaught exception in main process', { message, stack: error && error.stack });
+      }
+      if (!isShuttingDown && app.isReady()) {
+        try {
+          dialog.showErrorBox(
+            '星阙遇到内部错误',
+            `主进程发生未处理的异常，应用即将退出。\n\n${message}\n\n诊断日志：${logger ? logger.logFile : '(未初始化)'}`
+          );
+        } catch (_e) {
+          // dialog can fail during teardown; the log line above is the record
+        }
+      }
+    } catch (_e) {
+      // never throw from the handler
+    }
+    setImmediate(() => {
+      try {
+        app.exit(1);
+      } catch (_e) {
+        process.exit(1);
+      }
+    });
+  });
+}
+
 async function bootstrap() {
   fs.mkdirSync(horosaDataRoot, { recursive: true });
   fs.mkdirSync(path.join(app.getPath('userData'), 'logs'), { recursive: true });
   logger = createLogger(path.join(app.getPath('userData'), 'logs'));
+  installProcessSafetyNet();
   logger.info('Starting Horosa desktop app');
 
   runtimeManager = new RuntimeManager({

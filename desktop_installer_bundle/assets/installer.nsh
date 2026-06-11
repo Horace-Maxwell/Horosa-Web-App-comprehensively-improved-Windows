@@ -1,5 +1,11 @@
 !include "LogicLib.nsh"
 !include "nsDialogs.nsh"
+; Both are include-guarded (___WINVER__NSH___ / FILEFUNC_INCLUDED) — the
+; electron-builder template re-includes them later via common.nsh/multiUser.nsh
+; as a warning-free no-op under /WX. Needed HERE because this file is parsed
+; first and Function bodies compile at parse time.
+!include "WinVer.nsh"    ; ${AtLeastWin10}
+!include "FileFunc.nsh"  ; ${GetRoot} ${DriveSpace}
 
 ManifestDPIAware true
 
@@ -7,6 +13,15 @@ ManifestDPIAware true
 !define /ifndef UNINSTALL_REGISTRY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}"
 !define /ifndef CURRENT_SHORTCUT_FILE_NAME "星阙.lnk"
 !define /ifndef LEGACY_BRAND_SHORTCUT_FILE_NAME "Horosa.lnk"
+
+; Disk-space preflight thresholds (MB). The unpacked app is ~2.05 GB and first
+; boot extracts another ~1.35 GB runtime into %LOCALAPPDATA%\HorosaDesktop —
+; without a preflight, a low-disk install fails midway (or first boot half-
+; extracts) and the user sees a cryptic "本地排盘服务未就绪" instead of the
+; real cause. Overridable per-build via /D.
+!define /ifndef HOROSA_MIN_FREE_INSTALL_MB 3072
+!define /ifndef HOROSA_MIN_FREE_DATA_MB 3072
+!define /ifndef HOROSA_MIN_FREE_COMBINED_MB 6144
 
 ; ============================================================================
 ; Win issue #18 — "升级安装从来都没有成功过，只能卸载之后再安装才能成功"
@@ -72,6 +87,47 @@ ManifestDPIAware true
     ${EndIf}
   ; app image confirmed gone (or best-effort under silent); final short settle.
   Sleep 300
+!macroend
+
+; ============================================================================
+; TRUE-uninstall-only cache cleanup. The electron-builder template inserts this
+; into Section "un.Uninstall" (uninstaller.nsh `!insertmacro customUnInstall`),
+; which is compiled ONLY in the BUILD_UNINSTALLER pass — so this macro MUST
+; live here, OUTSIDE the `!ifndef BUILD_UNINSTALLER` guard below. (The previous
+; customUnInstall definition sat inside that guard and was therefore DEAD CODE
+; for the uninstaller — and uninstall left the multi-GB runtime cache + logs +
+; updater cache behind forever.)
+;
+; An in-place upgrade runs THIS (old) uninstaller as
+;     old-uninstaller.exe /S /KEEP_APP_DATA --updated _?=<dir>
+; (app-builder-lib installUtil.nsh) -> ${isUpdated} is true -> skip everything;
+; same idiom as the template's own app-data block (uninstaller.nsh).
+;
+; User charts/settings (Local Storage / IndexedDB) live DIRECTLY under
+; $LOCALAPPDATA\HorosaDesktop and MUST survive: only regenerable caches/logs
+; are removed; NEVER RMDir HorosaDesktop itself.
+;
+; WARNING to future editors: removing the ${ifNot} ${isUpdated} guard would
+; delete the 1.35 GB runtime cache on EVERY auto-update.
+; ============================================================================
+!macro customUnInstall
+  ${ifNot} ${isUpdated}
+    ; $LOCALAPPDATA is shell-var-context sensitive; the caches are per-user.
+    ; Mirror the template's context dance for legacy per-machine installs.
+    ${if} $installMode == "all"
+      SetShellVarContext current
+    ${endif}
+    DetailPrint "正在清理星阙运行时缓存与日志（约 1-3 GB，可能需要一点时间）…"
+    RMDir /r "$LOCALAPPDATA\HorosaDesktop\embedded-runtime"
+    RMDir /r "$LOCALAPPDATA\HorosaDesktop\logs"
+    RMDir /r "$LOCALAPPDATA\HorosaRt"
+    RMDir /r "$TEMP\HorosaRt"
+    RMDir /r "$PROFILE\.horosa-rt"
+    RMDir /r "$LOCALAPPDATA\horosa-desktop-bundle-updater"
+    ${if} $installMode == "all"
+      SetShellVarContext all
+    ${endif}
+  ${endif}
 !macroend
 
 !ifndef BUILD_UNINSTALLER
@@ -647,6 +703,82 @@ Function CreateShortcutWithPowerShell
 shortcut_create_done:
 FunctionEnd
 
+; ============================================================================
+; Disk-space preflight. The unpacked app (~2.05 GB) + first-boot runtime
+; extraction (~1.35 GB into %LOCALAPPDATA%\HorosaDesktop) + updater cache need
+; real headroom; the template's SectionSetSize check covers only the install
+; drive, interactively, with zero margin. If a drive cannot be measured
+; (nonexistent letter, exotic UNC) the gate is SKIPPED — the CreateDirectory/
+; write probes in ValidateInstallDirectory still catch unusable targets.
+; Exit code 112 = ERROR_DISK_FULL (self-documenting in electron-updater logs).
+; ============================================================================
+Function CheckHorosaDiskSpace
+  ${GetRoot} "$INSTDIR" $0
+  ${If} $0 == ""
+    Return
+  ${EndIf}
+  StrCpy $0 "$0\"
+  ${GetRoot} "$LOCALAPPDATA" $1
+  StrCpy $1 "$1\"
+
+  ClearErrors
+  ${DriveSpace} "$0" "/D=F /S=M" $2
+  ${If} ${Errors}
+  ${OrIf} $2 == ""
+    Return
+  ${EndIf}
+
+  ${If} $0 == $1
+    ; Same drive: one combined threshold. >9 digits of free MB (~ >1 PB)
+    ; would wrap the 32-bit IntCmp below — treat as plenty and skip.
+    StrLen $3 $2
+    ${If} $3 > 9
+      Return
+    ${EndIf}
+    ${If} $2 < ${HOROSA_MIN_FREE_COMBINED_MB}
+      ${IfNot} ${Silent}
+        MessageBox MB_OK|MB_ICONSTOP "磁盘空间不足，无法安装星阙。$\r$\n$\r$\n驱动器 $0 需要至少 6 GB 可用空间（程序约 2 GB，另有首次启动解压的内置运行时约 1.4 GB 及更新缓存），当前仅剩 $2 MB。$\r$\n$\r$\n请清理磁盘空间，或返回上一步选择其他驱动器后重试。"
+        Abort
+      ${EndIf}
+      DetailPrint "ERROR: insufficient disk space on $0 (need ${HOROSA_MIN_FREE_COMBINED_MB} MB, have $2 MB)"
+      SetErrorLevel 112
+      Quit
+    ${EndIf}
+    Return
+  ${EndIf}
+
+  ; Different drives: per-drive thresholds.
+  StrLen $3 $2
+  ${If} $3 < 10
+  ${AndIf} $2 < ${HOROSA_MIN_FREE_INSTALL_MB}
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "安装目标驱动器 $0 空间不足。$\r$\n$\r$\n安装星阙需要该驱动器至少 3 GB 可用空间，当前仅剩 $2 MB。$\r$\n请清理磁盘空间，或返回上一步选择其他安装位置。"
+      Abort
+    ${EndIf}
+    DetailPrint "ERROR: insufficient disk space on install drive $0 ($2 MB free)"
+    SetErrorLevel 112
+    Quit
+  ${EndIf}
+
+  ClearErrors
+  ${DriveSpace} "$1" "/D=F /S=M" $4
+  ${If} ${Errors}
+  ${OrIf} $4 == ""
+    Return
+  ${EndIf}
+  StrLen $5 $4
+  ${If} $5 < 10
+  ${AndIf} $4 < ${HOROSA_MIN_FREE_DATA_MB}
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "系统数据盘 $1 空间不足。$\r$\n$\r$\n星阙首次启动会在本地应用数据目录（HorosaDesktop）解压约 1.4 GB 的内置运行时，需要该驱动器至少 3 GB 可用空间，当前仅剩 $4 MB。$\r$\n请先清理该驱动器的空间后重试。"
+      Abort
+    ${EndIf}
+    DetailPrint "ERROR: insufficient disk space on data drive $1 ($4 MB free)"
+    SetErrorLevel 112
+    Quit
+  ${EndIf}
+FunctionEnd
+
 Function ValidateInstallDirectory
   ${If} $INSTDIR == ""
     ${IfNot} ${Silent}
@@ -656,6 +788,8 @@ Function ValidateInstallDirectory
     ${EndIf}
     Abort
   ${EndIf}
+
+  Call CheckHorosaDiskSpace
 
   StrLen $0 "$INSTDIR"
   ${If} $0 > 180
@@ -814,6 +948,29 @@ Function ExistingInstallPageLeave
 FunctionEnd
 
 !macro customInit
+  ; --- Windows 10+ 门槛（在任何 UI/状态检测之前）。Electron 35 仅支持 Win10+，
+  ; 老系统装完即首启黑屏闪退且无任何提示。1633 = ERROR_INSTALL_PLATFORM_UNSUPPORTED.
+  ${IfNot} ${AtLeastWin10}
+    ${IfNot} ${Silent}
+      MessageBox MB_OK|MB_ICONSTOP "星阙桌面版需要 Windows 10 或更高版本。$\r$\n$\r$\n当前系统版本过旧（Windows 8.1 及更早版本无法运行内置运行时），安装已取消。"
+    ${EndIf}
+    SetErrorLevel 1633
+    Quit
+  ${EndIf}
+  ; --- 仅提示（不拦截、仅交互式）：Win10 内部版本低于 1809 (17763)。
+  ; SetRegView 64 已由模板的 check64BitAndSetRegView 在 customInit 之前设置。
+  ${IfNot} ${Silent}
+    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuild"
+    ${If} $0 != ""
+    ${AndIf} $0 < 17763
+      MessageBox MB_OK|MB_ICONEXCLAMATION "检测到您的 Windows 10 版本较旧（内部版本 $0，低于 1809）。$\r$\n星阙仍可安装，但建议升级 Windows 以获得更好的兼容性（如系统级长路径支持）。" /SD IDOK
+    ${EndIf}
+  ${EndIf}
+  ; --- 静默流（/S 与应用内自动更新）唯一的解压前钩子：磁盘空间预检。
+  ; 交互流由 ValidateInstallDirectory（目录页 leave）覆盖，可返回换盘。
+  ${If} ${Silent}
+    Call CheckHorosaDiskSpace
+  ${EndIf}
   StrCpy $ExistingInstallState "none"
   StrCpy $ExistingInstallTypeText ""
   StrCpy $ExistingDesktopInstallPath "未记录"
@@ -991,8 +1148,11 @@ Function .onInstSuccess
   System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
 FunctionEnd
 
-!macro customUnInstall
-  Call CleanupCurrentDesktopShortcuts
-!macroend
+; NOTE: the customUnInstall macro that used to be defined HERE was dead code —
+; it sat inside this !ifndef BUILD_UNINSTALLER guard while the template only
+; inserts customUnInstall in the BUILD_UNINSTALLER pass (and it Call'd a
+; non-un. function, which could never compile there anyway). The live
+; definition now sits near the top of this file, OUTSIDE the guard. Defining a
+; second one here would be a duplicate-macro compile error.
 
 !endif

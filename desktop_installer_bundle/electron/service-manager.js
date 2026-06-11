@@ -15,7 +15,13 @@ const { spawn, spawnSync } = require('child_process');
 const { attachJobObject } = require('./job-object');
 attachJobObject(console);
 
+const { rotateLogIfLarge } = require('./logger');
+
 const PROCESS_KILL_TIMEOUT_MS = 10000;
+// python.log / java.log are opened append-only every launch; cap each at 50MB
+// (one rotated .1 generation, see logger.rotateLogIfLarge) so a long-lived
+// install can't grow them without bound.
+const MAX_SERVICE_LOG_BYTES = 50 * 1024 * 1024;
 const LOG_STREAM_CLOSE_TIMEOUT_MS = 4000;
 const APP_CDS_DUMP_TIMEOUT_MS = 1500;
 const STOP_TIMEOUT_MS = 12000;
@@ -164,6 +170,19 @@ function ensureDir(targetPath) {
 
 function rmrf(targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true });
+}
+
+// Names the app itself generates under an embedded-runtime cache parent: a
+// bare hex payload id (40-char sha1 for the default root, 16-char short id
+// for long-path fallback roots; 16-64 accepted) plus our own staging/repair
+// suffixes (`<id>.tmp-<pid>-<ts>` from ensurePackagedPayloadReady, `<id>.repair`
+// from repairPreparedRuntime). The startup sweep deletes ONLY matching names,
+// so foreign entries in a user-configured HOROSA_DESKTOP_RUNTIME_CACHE_DIR
+// base can never be touched.
+const SWEEPABLE_PAYLOAD_ENTRY_RE = /^[0-9a-f]{16,64}(\.tmp-\d+-\d+|\.repair)?$/i;
+
+function isSweepablePayloadEntryName(name) {
+  return SWEEPABLE_PAYLOAD_ENTRY_RE.test(String(name || ''));
 }
 
 function isRetryableMoveError(error) {
@@ -883,6 +902,7 @@ class RuntimeManager extends EventEmitter {
     this.startPromise = null;
     this.stopPromise = null;
     this.restartPromise = null;
+    this.cacheSweepPromise = null;
     this.pythonProcess = null;
     this.javaProcess = null;
     this.logStreams = [];
@@ -1075,6 +1095,74 @@ class RuntimeManager extends EventEmitter {
       rmrf(stagingRoot);
       throw new Error(`Embedded runtime prepare failed: ${error.message}`);
     }
+  }
+
+  // Sweep stale embedded-runtime caches: sibling payload ids left behind by
+  // previous versions (each update extracts ~1.35GB under a NEW payloadId and
+  // nothing ever deleted the old one — long-term users accumulated 10GB+),
+  // orphaned `*.tmp-<pid>-<ts>` staging (power loss during extraction) and
+  // `*.repair` leftovers — keeping ONLY the active payload.
+  // Concurrency: safe because main.js holds app.requestSingleInstanceLock()
+  // (keyed on the shared %LOCALAPPDATA%\HorosaDesktop userData) for the whole
+  // process lifetime BEFORE start() runs, so no other Horosa instance can be
+  // extracting from or running out of a sibling we delete.
+  // Contract: never rejects — failures are logged and retried next launch.
+  async sweepStalePayloadCaches(resourcePreparation) {
+    const summary = { removed: [], failed: [], skipped: false };
+    try {
+      if (!resourcePreparation || resourcePreparation.mode === 'direct' || !resourcePreparation.resourceRoot) {
+        summary.skipped = true; // dev/direct mode: resourceRoot is the build tree, never sweep around it
+        return summary;
+      }
+      const activeRoot = path.resolve(resourcePreparation.resourceRoot);
+      const activeName = path.basename(activeRoot).toLowerCase();
+      const activeParent = path.dirname(activeRoot);
+      const defaultParent = path.resolve(this.userDataDir, 'embedded-runtime');
+      const parents = [{ dir: activeParent, keep: activeName }];
+      if (defaultParent.toLowerCase() !== activeParent.toLowerCase()) {
+        // A long-path fallback root is active -> every cache under the default
+        // parent is stale (the fallback decision is deterministic per machine).
+        parents.push({ dir: defaultParent, keep: null });
+      }
+      for (const { dir, keep } of parents) {
+        let entries;
+        try {
+          entries = await fs.promises.readdir(dir);
+        } catch (_error) {
+          continue; // parent absent -> nothing to sweep
+        }
+        for (const entry of entries) {
+          if (keep && entry.toLowerCase() === keep) {
+            continue;
+          }
+          if (!isSweepablePayloadEntryName(entry)) {
+            continue;
+          }
+          const target = path.join(dir, entry);
+          try {
+            await fs.promises.rm(target, { recursive: true, force: true });
+            summary.removed.push(target);
+          } catch (error) {
+            summary.failed.push({ target, code: (error && error.code) || null });
+          }
+        }
+      }
+      if (summary.removed.length) {
+        this.logger.info('Swept stale embedded-runtime caches', { removed: summary.removed });
+      }
+      if (summary.failed.length) {
+        this.logger.warn('Some stale embedded-runtime caches could not be removed (will retry next launch)', {
+          failed: summary.failed,
+        });
+      }
+    } catch (error) {
+      try {
+        this.logger.warn('Payload cache sweep failed', { message: error && error.message });
+      } catch (_e) {
+        // logging must never break startup
+      }
+    }
+    return summary;
   }
 
   resolveLayout(resourceRoot = this.getResolvedResourceRoot()) {
@@ -1583,6 +1671,10 @@ class RuntimeManager extends EventEmitter {
 
       try {
         const resourcePreparation = await this.ensurePackagedPayloadReady();
+        // Fire-and-forget by design: the method never rejects, the deletion
+        // I/O overlaps the python/java boot wait, so startup latency is
+        // unaffected. Kept on the instance so tests/diagnostics can await it.
+        this.cacheSweepPromise = this.sweepStalePayloadCaches(resourcePreparation);
         const layout = this.resolveLayout();
         const runtimeTrustContext = this.getTrustedRuntimeContext(layout, resourcePreparation);
         const trustedRuntime = runtimeTrustContext.trusted;
@@ -1594,6 +1686,10 @@ class RuntimeManager extends EventEmitter {
 
         const pythonLog = path.join(logDir, 'python.log');
         const javaLog = path.join(logDir, 'java.log');
+        // Before any stream opens on them (pipeChildOutput appends): cap the
+        // service logs so long-lived installs can't grow them without bound.
+        rotateLogIfLarge(pythonLog, MAX_SERVICE_LOG_BYTES);
+        rotateLogIfLarge(javaLog, MAX_SERVICE_LOG_BYTES);
         const runtimeHomeDir = process.env.HOME || process.env.USERPROFILE || this.userDataDir;
         ensureDir(runtimeHomeDir);
         this.appCdsContext = getAppCdsContext(layout.runtimeWindowsDir, layout.javaExe, layout.jarPath);
@@ -1896,6 +1992,7 @@ module.exports = {
   buildPythonRuntimeArgs,
   resolveTarExe,
   isPortConflictError,
+  isSweepablePayloadEntryName,
   waitForServicesReadyOrExit,
   RuntimeManager,
 };

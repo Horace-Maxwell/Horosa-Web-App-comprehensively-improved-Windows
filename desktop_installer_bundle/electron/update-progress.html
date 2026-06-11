@@ -67,7 +67,11 @@
   </div>
   <p class="hint">下载完成后会弹窗提示您重启安装。关闭此窗口不会取消下载。</p>
   <script>
-    const { ipcRenderer } = require('electron');
+    // IPC arrives via the contextBridge API exposed by update-progress-preload.js
+    // (this window runs contextIsolation:true / nodeIntegration:false — no
+    // require() here). Channel names update:init/progress/done are pinned by
+    // release_selfcheck.py sentinels.
+    const bridge = window.horosaUpdateProgress || null;
     const $ = (id) => document.getElementById(id);
     const titleEl = $('title');
     const subEl = $('sub');
@@ -80,12 +84,13 @@
       if (mb >= 1024) return (mb / 1024).toFixed(2) + ' GB';
       return mb.toFixed(1) + ' MB';
     }
-    ipcRenderer.on('update:init', (_e, payload) => {
+    if (bridge) {
+    bridge.onInit((payload) => { /* update:init */
       const ver = payload && payload.version ? String(payload.version) : '';
       titleEl.textContent = ver ? `正在下载新版本 ${ver}` : '正在下载更新…';
       subEl.textContent = '连接 GitHub…';
     });
-    ipcRenderer.on('update:progress', (_e, p) => {
+    bridge.onProgress((p) => { /* update:progress */
       const percent = p && isFinite(p.percent) ? Math.max(0, Math.min(100, p.percent)) : 0;
       bar.style.width = percent.toFixed(1) + '%';
       pctEl.textContent = percent.toFixed(1) + '%';
@@ -95,11 +100,12 @@
       const speed = p && p.bytesPerSecond ? `${fmtBytes(p.bytesPerSecond)}/s` : '';
       sizeEl.textContent = t && total ? `${t} / ${total}${speed ? ' · ' + speed : ''}` : '';
     });
-    ipcRenderer.on('update:done', () => {
+    bridge.onDone(() => { /* update:done */
       bar.style.width = '100%';
       pctEl.textContent = '100%';
       subEl.textContent = '下载完成，准备安装…';
     });
+    }
   </script>
 </body>
 </html>

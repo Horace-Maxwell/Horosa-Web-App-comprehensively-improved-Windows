@@ -15,8 +15,10 @@ const {
   buildPythonRuntimeArgs,
   resolveTarExe,
   isPortConflictError,
+  isSweepablePayloadEntryName,
   waitForServicesReadyOrExit,
 } = require('./service-manager');
+const { rotateLogIfLarge } = require('./logger');
 
 function createLogger() {
   const entries = {
@@ -756,5 +758,243 @@ test('repairPreparedRuntime clears cached payload and health markers before rest
   } finally {
     fixture.cleanup();
     fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// sweepStalePayloadCaches — old payload-id caches must be deleted at startup
+// (each update extracted a fresh ~1.35GB tree under a new payloadId and
+// nothing ever removed the previous one), while foreign names and the active
+// payload are never touched.
+// ---------------------------------------------------------------------------
+
+test('isSweepablePayloadEntryName matches only our generated cache names', () => {
+  assert.equal(isSweepablePayloadEntryName('a'.repeat(40)), true);
+  assert.equal(isSweepablePayloadEntryName('0123456789abcdef'), true); // 16-char short id
+  assert.equal(isSweepablePayloadEntryName(`${'b'.repeat(40)}.tmp-123-456`), true);
+  assert.equal(isSweepablePayloadEntryName(`${'c'.repeat(16)}.repair`), true);
+  assert.equal(isSweepablePayloadEntryName('0123456789abcde'), false); // 15 chars: too short
+  assert.equal(isSweepablePayloadEntryName('fixture-payload'), false); // test fixture id shape
+  assert.equal(isSweepablePayloadEntryName('README.txt'), false);
+  assert.equal(isSweepablePayloadEntryName(''), false);
+  assert.equal(isSweepablePayloadEntryName(`${'d'.repeat(40)}.tmp-x-y`), false); // malformed suffix
+});
+
+test('sweepStalePayloadCaches removes stale siblings and keeps active + foreign entries', async () => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-sweep-'));
+  try {
+    const parent = path.join(userDataDir, 'embedded-runtime');
+    const activeId = 'a'.repeat(40);
+    const staleId = 'f'.repeat(40);
+    const activeRoot = path.join(parent, activeId);
+    fs.mkdirSync(path.join(activeRoot, 'runtime'), { recursive: true });
+    fs.mkdirSync(path.join(parent, staleId, 'runtime'), { recursive: true });
+    fs.mkdirSync(path.join(parent, `${activeId}.tmp-123-456`), { recursive: true });
+    fs.mkdirSync(path.join(parent, `${staleId}.repair`), { recursive: true });
+    fs.mkdirSync(path.join(parent, 'not-a-payload-dir'), { recursive: true });
+
+    const logger = createLogger();
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: 'unused',
+      userDataDir,
+      logger,
+    });
+
+    const summary = await runtimeManager.sweepStalePayloadCaches({
+      mode: 'cached',
+      resourceRoot: activeRoot,
+      payloadId: activeId,
+    });
+
+    assert.equal(summary.skipped, false);
+    assert.equal(summary.failed.length, 0);
+    assert.equal(summary.removed.length, 3);
+    assert.equal(fs.existsSync(activeRoot), true);
+    assert.equal(fs.existsSync(path.join(parent, 'not-a-payload-dir')), true);
+    assert.equal(fs.existsSync(path.join(parent, staleId)), false);
+    assert.equal(fs.existsSync(path.join(parent, `${activeId}.tmp-123-456`)), false);
+    assert.equal(fs.existsSync(path.join(parent, `${staleId}.repair`)), false);
+    assert.equal(
+      logger.entries.info.some((entry) => entry.message === 'Swept stale embedded-runtime caches'),
+      true
+    );
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('sweepStalePayloadCaches skips dev/direct mode entirely', async () => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-sweep-direct-'));
+  try {
+    const parent = path.join(userDataDir, 'embedded-runtime');
+    fs.mkdirSync(path.join(parent, 'f'.repeat(40)), { recursive: true });
+
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: 'unused',
+      userDataDir,
+      logger: createLogger(),
+    });
+
+    const summary = await runtimeManager.sweepStalePayloadCaches({
+      mode: 'direct',
+      resourceRoot: userDataDir,
+    });
+
+    assert.equal(summary.skipped, true);
+    assert.equal(fs.existsSync(path.join(parent, 'f'.repeat(40))), true);
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('sweepStalePayloadCaches with an active fallback root also clears the default parent', async () => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-sweep-fb-'));
+  const fallbackBase = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-rt-fb-'));
+  try {
+    const defaultParent = path.join(userDataDir, 'embedded-runtime');
+    fs.mkdirSync(path.join(defaultParent, 'e'.repeat(40)), { recursive: true });
+    fs.mkdirSync(path.join(defaultParent, 'user-notes'), { recursive: true });
+
+    const activeShortId = '0123456789abcdef';
+    const staleShortId = 'fedcba9876543210';
+    const activeRoot = path.join(fallbackBase, activeShortId);
+    fs.mkdirSync(activeRoot, { recursive: true });
+    fs.mkdirSync(path.join(fallbackBase, staleShortId), { recursive: true });
+    fs.mkdirSync(path.join(fallbackBase, 'unrelated-tool'), { recursive: true });
+
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: 'unused',
+      userDataDir,
+      logger: createLogger(),
+    });
+
+    const summary = await runtimeManager.sweepStalePayloadCaches({
+      mode: 'cached',
+      resourceRoot: activeRoot,
+      payloadId: 'irrelevant-here',
+    });
+
+    assert.equal(summary.skipped, false);
+    assert.equal(fs.existsSync(activeRoot), true);
+    assert.equal(fs.existsSync(path.join(fallbackBase, staleShortId)), false);
+    assert.equal(fs.existsSync(path.join(fallbackBase, 'unrelated-tool')), true);
+    assert.equal(fs.existsSync(path.join(defaultParent, 'e'.repeat(40))), false);
+    assert.equal(fs.existsSync(path.join(defaultParent, 'user-notes')), true);
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+    fs.rmSync(fallbackBase, { recursive: true, force: true });
+  }
+});
+
+test('sweepStalePayloadCaches never rejects when deletion fails', async () => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-sweep-eperm-'));
+  const originalRm = fs.promises.rm;
+  try {
+    const parent = path.join(userDataDir, 'embedded-runtime');
+    const activeId = 'a'.repeat(40);
+    const activeRoot = path.join(parent, activeId);
+    fs.mkdirSync(activeRoot, { recursive: true });
+    fs.mkdirSync(path.join(parent, 'f'.repeat(40)), { recursive: true });
+
+    fs.promises.rm = async () => {
+      const error = new Error('EPERM: operation not permitted');
+      error.code = 'EPERM';
+      throw error;
+    };
+
+    const logger = createLogger();
+    const runtimeManager = new RuntimeManager({
+      resourceRoot: 'unused',
+      userDataDir,
+      logger,
+    });
+
+    const summary = await runtimeManager.sweepStalePayloadCaches({
+      mode: 'cached',
+      resourceRoot: activeRoot,
+    });
+
+    assert.equal(summary.failed.length, 1);
+    assert.equal(summary.failed[0].code, 'EPERM');
+    assert.equal(
+      logger.entries.warn.some((entry) =>
+        entry.message === 'Some stale embedded-runtime caches could not be removed (will retry next launch)'),
+      true
+    );
+  } finally {
+    fs.promises.rm = originalRm;
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// rotateLogIfLarge — the desktop/python/java logs were append-only with no
+// cap; rotation keeps one .1 generation and must never throw.
+// ---------------------------------------------------------------------------
+
+test('rotateLogIfLarge rotates an oversized file to .1 and replaces a previous .1', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-rotate-'));
+  try {
+    const logFile = path.join(dir, 'horosa-desktop.log');
+    fs.writeFileSync(logFile, 'NEW-'.repeat(8)); // 32 bytes
+    fs.writeFileSync(`${logFile}.1`, 'ancient generation');
+
+    assert.equal(rotateLogIfLarge(logFile, 16), true);
+    assert.equal(fs.existsSync(logFile), false); // next append recreates it
+    assert.equal(fs.readFileSync(`${logFile}.1`, 'utf8').startsWith('NEW-'), true);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('rotateLogIfLarge leaves small files alone and tolerates missing files', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-rotate-small-'));
+  try {
+    const logFile = path.join(dir, 'python.log');
+    fs.writeFileSync(logFile, 'tiny');
+
+    assert.equal(rotateLogIfLarge(logFile, 1024), false);
+    assert.equal(fs.readFileSync(logFile, 'utf8'), 'tiny');
+    assert.equal(fs.existsSync(`${logFile}.1`), false);
+
+    assert.equal(rotateLogIfLarge(path.join(dir, 'missing.log'), 1024), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('rotateLogIfLarge falls back to copy+truncate when rename is blocked', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'horosa-rotate-eperm-'));
+  const originalRename = fs.renameSync;
+  try {
+    const logFile = path.join(dir, 'java.log');
+    fs.writeFileSync(logFile, 'LOCKED-'.repeat(4)); // 28 bytes
+
+    fs.renameSync = () => {
+      const error = new Error('EPERM: operation not permitted');
+      error.code = 'EPERM';
+      throw error;
+    };
+
+    assert.equal(rotateLogIfLarge(logFile, 16), true);
+    assert.equal(fs.readFileSync(`${logFile}.1`, 'utf8').startsWith('LOCKED-'), true);
+    assert.equal(fs.statSync(logFile).size, 0); // truncated in place
+  } finally {
+    fs.renameSync = originalRename;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('rotateLogIfLarge never throws even when stat fails', () => {
+  const originalStat = fs.statSync;
+  try {
+    fs.statSync = () => {
+      const error = new Error('EACCES');
+      error.code = 'EACCES';
+      throw error;
+    };
+    assert.equal(rotateLogIfLarge(path.join(os.tmpdir(), 'whatever.log'), 1024), false);
+  } finally {
+    fs.statSync = originalStat;
   }
 });

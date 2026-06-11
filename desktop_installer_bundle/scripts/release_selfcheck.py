@@ -156,6 +156,13 @@ def check_sentinels():
             # interleaves stop()/start() (stop's finally nulls startPromise mid-start) and can
             # spawn + leak a duplicate python/java pair until app exit.
             "restartPromise",
+            # v2.6.6+ hardening batch (local, ships with next release):
+            # startup sweep of stale embedded-runtime payload caches — every update used to
+            # leave the previous ~1.35GB extraction behind forever (10GB+ on long-term users).
+            "sweepStalePayloadCaches",
+            # python.log/java.log size cap (one .1 generation) — they were append-only
+            # with no bound.
+            "rotateLogIfLarge",
         ],
         # v2.5.4 启动稳健化 ②: the Job Object module itself — KILL_ON_JOB_CLOSE flag + koffi binding
         # to CreateJobObjectW / SetInformationJobObject / AssignProcessToJobObject. Reverting breaks
@@ -192,6 +199,16 @@ def check_sentinels():
             # read-back the user's zoom silently reset to default on every launch — the
             # Windows mirror of the macOS shell's preferences.json zoom restore).
             "persistedState.zoomFactor",
+            # v2.6.6+ hardening batch (local, ships with next release):
+            # process-level safety net — without it an escaped async throw kills the
+            # main process SILENTLY (app vanishes, zero diagnostics).
+            "uncaughtException",
+            # download-progress window runs hardened (contextIsolation:true) via this
+            # preload instead of the old nodeIntegration:true renderer.
+            "update-progress-preload.js",
+            # concurrent update checks (15s bootstrap timer / 6h interval / manual menu)
+            # are serialized — re-entrant calls join the in-flight check.
+            "updateCheckInFlight",
         ],
         # P0-1 (v2.5.4): Ed25519 update-signature verifier (pure node crypto, shared by main.js +
         # scripts/sign-update.cjs). Must keep the verify primitive + the embedded public key.
@@ -212,6 +229,13 @@ def check_sentinels():
             "update:init",
             "update:progress",
             "update:done",
+        ],
+        # v2.6.6+ hardening: the progress window's contextBridge preload — the page no
+        # longer has a Node-enabled context; these markers pin the bridge + channels.
+        os.path.join(BUNDLE, "electron/update-progress-preload.js"): [
+            "contextBridge",
+            "horosaUpdateProgress",
+            "update:progress",
         ],
         # Win issue #18 (升级安装从来都没有成功过，只能卸载后再装): the NSIS installer must
         # FORCE-terminate a running Horosa before the upgrade's uninstall-old/extract step.
@@ -236,6 +260,19 @@ def check_sentinels():
             "embedded-runtime",
             "customUnInstallCheck",
             "horosa_unchk_clean",
+            # v2.6.6+ hardening (local batch, ships with next release):
+            # disk-space preflight — low-disk installs/first-boots used to fail midway
+            # with a cryptic "服务未就绪" instead of the real cause.
+            "CheckHorosaDiskSpace",
+            # Windows 10+ gate — Electron 35 doesn't run below Win10; older systems
+            # used to install fine then crash black on first launch.
+            "AtLeastWin10",
+            # TRUE-uninstall-only cache cleanup. The ${ifNot} ${isUpdated} guard is
+            # load-bearing: without it every auto-update would delete the 1.35GB
+            # runtime cache. (The pre-2.6.6 customUnInstall was dead code — defined
+            # inside !ifndef BUILD_UNINSTALLER which the uninstaller pass never sees.)
+            "${ifNot} ${isUpdated}",
+            "HorosaDesktop\\embedded-runtime",
         ],
         # v2.2.1 Issue #8 AI-streaming double-fix (Mac handoff requests the same grep sentinel on Windows):
         # catch MUST log the primary exception first (QueueLog.error), and all 3 stream paths MUST keep-alive

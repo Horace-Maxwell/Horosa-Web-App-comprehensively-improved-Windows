@@ -49,6 +49,14 @@ function formatUpdateErrorMessage(error, { manual = false } = {}) {
       : '当前网络不可用，已跳过后台更新检查。';
   }
 
+  // Downloading the ~760MB installer into the updater cache can hit a full
+  // disk (ENOSPC); name the real cause instead of a generic failure.
+  if (/ENOSPC|not enough space|no space left|disk full/i.test(rawMessage)) {
+    return manual
+      ? '磁盘空间不足，无法下载更新。请清理磁盘空间（建议预留至少 3 GB）后重试。'
+      : '磁盘空间不足，已跳过后台更新下载。';
+  }
+
   return manual
     ? `检查更新失败：${rawMessage || '请稍后重试。'}`
     : '更新暂不可用，已跳过后台检查。';
