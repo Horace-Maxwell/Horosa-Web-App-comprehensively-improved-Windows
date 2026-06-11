@@ -151,6 +151,11 @@ def check_sentinels():
             # die with parent Electron on crash/OOM/external kill. Implemented in job-object.js,
             # wired at top-level of service-manager.js. Failure falls back to taskkill/findPort.
             "attachJobObject",
+            # v2.6.6: concurrent-restart latch — the health-light popover / error modal /
+            # offline banner each expose "重启后端"; without the latch a rapid double-trigger
+            # interleaves stop()/start() (stop's finally nulls startPromise mid-start) and can
+            # spawn + leak a duplicate python/java pair until app exit.
+            "restartPromise",
         ],
         # v2.5.4 启动稳健化 ②: the Job Object module itself — KILL_ON_JOB_CLOSE flag + koffi binding
         # to CreateJobObjectW / SetInformationJobObject / AssignProcessToJobObject. Reverting breaks
@@ -182,6 +187,11 @@ def check_sentinels():
             "MAX_RUNTIME_AUTO_RESTARTS",
             # P1-4: differential (delta) downloads kept ON explicitly.
             "disableDifferentialDownload = false",
+            # v2.6.6 zoom persistence: resolveInitialWindowState must READ the persisted
+            # window-state.json back (saveWindowState always wrote zoomFactor; without this
+            # read-back the user's zoom silently reset to default on every launch — the
+            # Windows mirror of the macOS shell's preferences.json zoom restore).
+            "persistedState.zoomFactor",
         ],
         # P0-1 (v2.5.4): Ed25519 update-signature verifier (pure node crypto, shared by main.js +
         # scripts/sign-update.cjs). Must keep the verify primitive + the embedded public key.
@@ -472,7 +482,6 @@ def check_release_assets(V):
         if f"Horosa-Setup-{V}.exe" not in lytxt:
             bad.append("latest.yml url != current exe")
     sums = os.path.join(rel, "SHA256SUMS.txt")
-    pending_sums = False
     if os.path.exists(sums):
         recorded = {}
         for line in read(sums).splitlines():
@@ -480,10 +489,14 @@ def check_release_assets(V):
             if len(parts) == 2:
                 recorded[parts[1]] = parts[0].lower()
         if f"Horosa-Setup-{V}.exe" not in recorded:
-            # SHA256SUMS.txt has not been regenerated for THIS version yet (expected at the end of dist:win,
-            # before the manual `Get-FileHash` regen step). Don't fail here; the hash match is enforced when
-            # `npm run selfcheck` is run after regenerating SHA256SUMS.
-            pending_sums = True
+            # SHA256SUMS.txt still lists a PREVIOUS version. This used to be an advisory
+            # pass ("pending regen"), which opened a false-10/10 hole: fill the release-doc
+            # hashes but forget to regenerate SHA256SUMS and every gate went green while a
+            # stale SUMS shipped -- telling every verifying user their (correct) download is
+            # corrupted. Phase 1 of dist:win already exits 1 on the release-doc gate, so
+            # failing here too costs nothing mid-flow and makes the final selfcheck
+            # operator-proof.
+            bad.append(f"SHA256SUMS.txt not regenerated for v{V} (still lists a previous version)")
         else:
             for a in (f"Horosa-Setup-{V}.exe", f"Horosa-Setup-{V}.exe.blockmap", "latest.yml"):
                 p = os.path.join(rel, a)
@@ -491,12 +504,7 @@ def check_release_assets(V):
                     bad.append(f"SHA256SUMS missing {a}")
                 elif os.path.exists(p) and sha256(p) != recorded[a]:
                     bad.append(f"SHA256 mismatch for {a}")
-    if bad:
-        detail = "; ".join(bad)
-    elif pending_sums:
-        detail = "exe/blockmap/latest.yml present + latest.yml consistent; SHA256SUMS pending regen for this version (run selfcheck again after regenerating it)"
-    else:
-        detail = "4 assets, hashes + latest.yml consistent"
+    detail = "; ".join(bad) if bad else "4 assets, hashes + latest.yml consistent"
     record("release assets + hashes", not bad, detail)
 
 def check_release_doc_hashes(V):

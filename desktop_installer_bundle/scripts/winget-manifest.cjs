@@ -40,6 +40,11 @@ function readSha256FromSums(version) {
 
 function main() {
   const version = process.argv[2] || readVersion();
+  // The generator runs on release day (right after the build), so "today" IS the
+  // release date. This used to be a hardcoded literal that needed a manual bump
+  // every release -- v2.6.4 forgot winget entirely and v2.6.5 shipped manifests
+  // carrying the previous version's date until edited by hand.
+  const releaseDate = new Date().toISOString().slice(0, 10);
   let sha256 = process.argv[3] || readSha256FromSums(version);
   if (!sha256) {
     console.error(`[winget] could not resolve SHA-256 for v${version} (no release/SHA256SUMS.txt and none passed).`);
@@ -73,7 +78,7 @@ InstallModes:
   - silent
   - silentWithProgress
 UpgradeBehavior: install
-ReleaseDate: 2026-06-08
+ReleaseDate: ${releaseDate}
 Installers:
   - Architecture: x64
     InstallerUrl: ${installerUrl}

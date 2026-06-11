@@ -437,11 +437,23 @@ function resolveInitialWindowState() {
   const preferredDisplay = getPreferredDisplay();
   const defaultBounds = buildDefaultBounds(preferredDisplay);
 
+  // v2.6.6 zoom persistence: saveWindowState() has always written zoomFactor to
+  // window-state.json (on every zoom change via applyZoomFactor -> queueWindowStateSave,
+  // and on quit), but nothing ever read it back -- so the user's zoom reset to the
+  // default on every launch. Mirror of the macOS shell's preferences.json zoom restore.
+  // Window-bounds policy is intentionally unchanged (always open default-maximized-80);
+  // normalizeZoomFactor clamps/defaults any corrupt persisted value, so this is fail-safe.
+  const persistedState = readWindowState();
+  const zoomFactor =
+    persistedState && persistedState.zoomFactor !== undefined && persistedState.zoomFactor !== null
+      ? normalizeZoomFactor(persistedState.zoomFactor)
+      : getDefaultZoomFactor();
+
   return {
     bounds: defaultBounds,
     mode: 'default-maximized-80',
     maximizeAfterShow: true,
-    zoomFactor: getDefaultZoomFactor(),
+    zoomFactor,
   };
 }
 
@@ -757,6 +769,18 @@ async function requestAppQuit(reason) {
       clearTimeout(windowStateSaveTimer);
       windowStateSaveTimer = null;
     }
+    if (updateCheckTimer) {
+      clearTimeout(updateCheckTimer);
+      updateCheckTimer = null;
+    }
+    if (updateRecheckTimer) {
+      clearInterval(updateRecheckTimer);
+      updateRecheckTimer = null;
+    }
+    if (runtimeAutoRestartStabilityTimer) {
+      clearTimeout(runtimeAutoRestartStabilityTimer);
+      runtimeAutoRestartStabilityTimer = null;
+    }
     saveWindowState();
 
     if (runtimeManager) {
@@ -991,7 +1015,16 @@ async function exportDiagnosticsReport(snapshotPayload) {
     rendererSnapshot: snapshotPayload || {},
     exportedAt: new Date().toISOString(),
   };
-  fs.writeFileSync(saveResult.filePath, JSON.stringify(payload, null, 2), 'utf8');
+  try {
+    fs.mkdirSync(path.dirname(saveResult.filePath), { recursive: true });
+    fs.writeFileSync(saveResult.filePath, JSON.stringify(payload, null, 2), 'utf8');
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error);
+    if (logger) {
+      logger.warn('Diagnostics export failed', { filePath: saveResult.filePath, message });
+    }
+    return { ok: false, message: `导出诊断报告失败：${message}` };
+  }
   return {
     ok: true,
     message: `诊断报告已导出到 ${saveResult.filePath}`,
@@ -1628,8 +1661,47 @@ function normalizeExtensionSet(extensions) {
   );
 }
 
+// One unreadable file must not abort a whole directory import: OneDrive
+// offline placeholders, AV-quarantined files and permission-denied entries all
+// throw on read, and a user-picked folder routinely contains a few of those.
+// Oversized files are skipped too -- the whole batch is base64'd into renderer
+// memory, so a stray video/archive would OOM the app.
+const MAX_COLLECTED_FILE_BYTES = 64 * 1024 * 1024;
+
+function readCollectableFile(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile() || stat.size > MAX_COLLECTED_FILE_BYTES) {
+      if (logger && stat.isFile()) {
+        logger.warn('Skipped oversized file during collection', { filePath, size: stat.size });
+      }
+      return null;
+    }
+    return fs.readFileSync(filePath);
+  } catch (error) {
+    if (logger) {
+      logger.warn('Skipped unreadable file during collection', {
+        filePath,
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+    return null;
+  }
+}
+
 function collectFilesRecursive(directoryPath, extensionSet, results = []) {
-  const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+  let entries;
+  try {
+    entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+  } catch (error) {
+    if (logger) {
+      logger.warn('Skipped unreadable directory during collection', {
+        directoryPath,
+        message: error && error.message ? error.message : String(error),
+      });
+    }
+    return results;
+  }
   entries.forEach((entry) => {
     const fullPath = path.join(directoryPath, entry.name);
     if (entry.isDirectory()) {
@@ -1640,7 +1712,10 @@ function collectFilesRecursive(directoryPath, extensionSet, results = []) {
     if (extensionSet.size && !extensionSet.has(extension)) {
       return;
     }
-    const buffer = fs.readFileSync(fullPath);
+    const buffer = readCollectableFile(fullPath);
+    if (!buffer) {
+      return;
+    }
     results.push({
       fileName: entry.name,
       name: entry.name,
@@ -1675,7 +1750,10 @@ function collectSelectedFiles(filePaths, extensionSet) {
     if (extensionSet.size && !extensionSet.has(extension)) {
       return;
     }
-    const buffer = fs.readFileSync(resolvedPath);
+    const buffer = readCollectableFile(resolvedPath);
+    if (!buffer) {
+      return;
+    }
     results.push({
       fileName: path.basename(resolvedPath),
       name: path.basename(resolvedPath),
@@ -1958,7 +2036,16 @@ ipcMain.handle('desktop:get-app-info', async () => {
     if (saveResult.canceled || !saveResult.filePath) {
       return { ok: false, canceled: true };
     }
-    fs.writeFileSync(saveResult.filePath, writeBuffer);
+    try {
+      fs.mkdirSync(path.dirname(saveResult.filePath), { recursive: true });
+      fs.writeFileSync(saveResult.filePath, writeBuffer);
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      if (logger) {
+        logger.warn('AI analysis backup export failed', { filePath: saveResult.filePath, message });
+      }
+      return { ok: false, message: `导出失败：${message}` };
+    }
     return { ok: true, filePath: saveResult.filePath };
   });
 

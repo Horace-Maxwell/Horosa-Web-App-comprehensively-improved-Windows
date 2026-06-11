@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 2.6.5
-date-released: 2026-06-08
+version: 2.6.6
+date-released: 2026-06-11
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,21 +12,31 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v2.6.5 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side work: a comprehensive rebuild of the synastry/relationship-chart
-  interaction chain (all five sub-charts — Synastry, Composite, Marks, Time-Space and the
-  relationship score — restored to working order by routing chart requests back to the Java
-  modern-chart backend, with ResizeObserver-measured heights, chartStyle/dispatch/onChange
-  propagation, direct field writes on change, and a fixed-width 50/50 zodiac selector);
-  an AI "casting-time" mounting expansion from 8 to 13 techniques (Taixuan, Jingjue,
-  Wuzhao and Shenyishu deterministic methods each gain a snapshot builder so their cast
-  charts can now be mounted into AI analysis, with the technique registry and one-click
-  mount copy synchronized to the full thirteen); and Python chart-engine numeric-geo
-  fault-tolerance (helper.py and realsuntime.py accept float longitude/latitude/time-zone
-  values from map-pick selections instead of assuming string input). It also folds in
-  navigation search keywords across all twenty-two modules, a real About-dialog app icon,
-  Persian-directed year-count table linkage, and a batch of small chart/ephemeris/styling
-  fixes. Builds on the v2.6.4 full-stack sidereal zodiac expansion (Western charts get a
+  Horosa for Windows v2.6.6 beta is a local-first metaphysics workstation that aligns the
+  latest Mac-side work and adds a Windows-shell hardening pass. Mac-side: a chart-math
+  correction batch across the Python engine (degree-minute string parsing, equation-of-time
+  table fixes plus "±HH:MM" half-hour time zones in true solar time, solar/lunar-return
+  seeding and cross-0° aspect normalization, composite midpoints taking the short arc,
+  besiegement orb isolation, hour-ruler flooring); a primary-directions upgrade (precise
+  display windows, Vertex promissor support, per-chart time keys, year horizon raised to
+  3000 with multi-revolution recurrences, wire-protocol rev v12 across four Java
+  controllers); the root-cause fix for Windows issues #24/#25 (the chat send button passed
+  the click event object into the send path, so messages became the literal string
+  "[object Object]" — now type-guarded), plus chat advanced parameters actually taking
+  effect for OpenAI-family providers, thinking-level coverage for newer reasoning models,
+  and two extra report thinking tiers; the fix for Windows issue #23 (Gemini 400: sampling
+  parameters moved inside generationConfig, jar rebuilt); a UI bug-sweep batch
+  (white-screen guards on corrupt localStorage, dark-mode contrast, stable list keys,
+  Retina canvas sharpness, report-capture serialization). Windows-shell hardening (this
+  repo): interface zoom now persists across restarts (the saved zoom factor was written
+  but never read back); AI-material imports skip unreadable or oversized files instead of
+  aborting whole batches; diagnostics/backup exports surface write failures gracefully;
+  a concurrent-restart latch prevents duplicate embedded-runtime pairs; runtime repair
+  invalidates trust caches before deletion; update timers are cleared on shutdown; the
+  winget manifest stamps its real release date; and the release self-check now fails
+  loudly on a stale SHA256SUMS file. Builds on the v2.6.5 synastry interaction-chain
+  rebuild and casting-time mounting expansion, and the v2.6.4 full-stack sidereal zodiac
+  expansion (Western charts get a
   unified tropical-or-47-ayanāṃśa zodiac selector built on Swiss Ephemeris, propagated
   through the frontend, eight Java controllers, the Python chart kernel and response echo,
   and persisted storage; Western sidereal mode shows lunar mansions / Nakshatra), Indian

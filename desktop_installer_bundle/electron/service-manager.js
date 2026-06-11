@@ -882,6 +882,7 @@ class RuntimeManager extends EventEmitter {
     this.shuttingDown = false;
     this.startPromise = null;
     this.stopPromise = null;
+    this.restartPromise = null;
     this.pythonProcess = null;
     this.javaProcess = null;
     this.logStreams = [];
@@ -1729,12 +1730,28 @@ class RuntimeManager extends EventEmitter {
   }
 
   async restart() {
-    await this.stop('restart');
-    this.updateState({
-      status: 'starting-window',
-      message: '正在重新准备本地服务',
-    });
-    return this.start();
+    // Serialize concurrent restarts: the health-light popover, the error modal
+    // and the offline banner each expose a "重启后端" button, so a rapid
+    // double-trigger is realistic. Without this latch the second stop() lands
+    // while the first start() is mid-flight (stop's finally nulls startPromise),
+    // letting two start bodies spawn two python/java pairs -- the first pair's
+    // refs are overwritten and leak until app exit (Job Object cleanup).
+    if (this.restartPromise) {
+      return this.restartPromise;
+    }
+    this.restartPromise = (async () => {
+      try {
+        await this.stop('restart');
+        this.updateState({
+          status: 'starting-window',
+          message: '正在重新准备本地服务',
+        });
+        return await this.start();
+      } finally {
+        this.restartPromise = null;
+      }
+    })();
+    return this.restartPromise;
   }
 
   async repairPreparedRuntime() {
@@ -1767,10 +1784,14 @@ class RuntimeManager extends EventEmitter {
       });
     }
 
-    rmrf(targetRoot);
-    rmrf(`${targetRoot}.repair`);
+    // Invalidate the trust caches BEFORE deleting the runtime tree: rmrf on the
+    // big tree can throw mid-way (AV lock / EBUSY / disk full), and if the caches
+    // survived such a partial delete the next start would fast-path-trust a
+    // half-deleted runtime. Cache files are tiny so deleting them first is safe.
     rmrf(this.getRuntimeHealthCachePath());
     rmrf(this.getRuntimeFastPathPath());
+    rmrf(targetRoot);
+    rmrf(`${targetRoot}.repair`);
     this.resolvedResourceRoot = this.resourceRoot;
     this.layout = null;
     this.appCdsContext = null;

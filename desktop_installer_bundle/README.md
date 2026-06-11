@@ -1,10 +1,10 @@
 # Horosa Windows Desktop Bundle
 
-这个目录承载 Horosa v2.6.5 Beta Windows 桌面应用工程。
+这个目录承载 Horosa v2.6.6 Beta Windows 桌面应用工程。
 
-- 当前发布版本：`2.6.5 Beta`（安装器版本号为 `2.6.5`）
-- 发布定位：Mac 端 v2.6.5 产品面同步（合盘交互链全面重建 5 子盘全可用 + AI「起课时间」挂载 8→13 技法 + Python 数值经纬度容错 + 导航搜索关键词 + 关于框真图标）。**本版无后端 Java 改动 / 无需重建 jar**（合盘端点恢复 = 前端把请求路由回 Java modern-chart 后端 `:9999`，`ModernChartController` v2.6.4 已在）；命盘计算默认行为与 v2.6.4 字节级一致；v2.6.4（恒星黄道 47 岁差全栈 + AI 四同步 + AI 报告 v1 + 启动健壮性 + #21）/ v2.6.3 之前所有功能全部保留
-- 用户入口：`release/Horosa-Setup-2.6.5.exe`
+- 当前发布版本：`2.6.6 Beta`（安装器版本号为 `2.6.6`）
+- 发布定位：Mac 端 v2.6.6 产品面同步（排盘计算修正批 + 主限法大升级 宿命点应星/年数 3000/`_wireRev` v12 + 修 Windows #23 Gemini 400 / #24+#25 聊天发送 `[object Object]` + 全 UI 扫雷）+ **Windows 壳层加固 9 项**（界面缩放持久化 / AI 资料导入抗损 / 导出加固 / 重启串行化 / 修复顺序加固 / 计时器清理 / winget 真实日期 / 自检堵漏）。后端 Java 改动（`AIAnalysisProxyService` Gemini 参数修正 + 4 控制器 `_wireRev` v12）→ 已重建 `astrostudyboot.jar`（324,254,540 B）；v2.6.5 之前所有功能全部保留
+- 用户入口：`release/Horosa-Setup-2.6.6.exe`
 - 图标资产：`assets/horosa_setup.ico` 与 `assets/horosa_setup_badge.png`
 
 ## 目录职责
@@ -40,9 +40,9 @@
 - 安装器支持用户选择安装目录；选择受限目录时可触发 Windows 提权，安装前会校验目录可创建、可写。
 - 正常用户不需要额外安装 Python、Java、Node.js、Maven 或前端工具链。
 
-## v2.6.5 Beta 发布口径
+## v2.6.6 Beta 发布口径
 
-v2.6.5 Beta 对齐 Mac 端 `15a21bb→dbac0ed` 产品面（合盘 / 关系盘交互链全面重建：五子盘 合盘 Synastry / 组合中点 Composite / Marks / 时空盘 Time-Space / 关系评分 全部恢复可用 [请求路由回 Java modern-chart 后端 `:9999` + ResizeObserver 实测高度 + `chartStyle/dispatch/onChange` 全透传 + change 直写 fields + `paramsToFields` 不再覆盖宫制/黄道 + 黄道 Select 局部 CSS 定宽 50/50] + AI「起课时间」挂载 8→13 技法 [太玄/荆诀/五兆/神易数各补 `buildXxxSnapshotForFields` + 技法注册表两份同步 13 项 + 4 法升 `kind:'payload'`] + Python 排盘数值经纬度容错 [`helper.py` `convertLonStrToDegree/convertLatStrToDegree` + `realsuntime.py` `getBaseLonByZone` 接受地图选点浮点经纬度/时区] + 全 22 模块导航搜索 keywords + 关于框真 `appicon.png` 图标 + 波斯向运应期年数联动表格 + 一批小修）。**本版无后端 Java 改动 / 无需重建 jar**（合盘端点恢复是前端改路由，`ModernChartController` v2.6.4 已在；沿用 v2.6.4 的 `astrostudyboot.jar` 324,254,239B，selfcheck 已核 jar 标记 + 内容不变）。命盘计算默认行为与 v2.6.4 字节级一致；v2.6.4（恒星黄道 47 岁差全栈 + AI 四同步 + AI 报告 v1 + 启动健壮性 + #21）/ v2.6.3 / v2.6.2（#18 升级安装修复）/ v2.6.1 前所有功能全部保留。Windows 发布包必须保持自包含。
+v2.6.6 Beta 对齐 Mac 端 `dbac0ed→47f59a4`（重写史等效基线，旧 `dbac0ed` = 新 `f401bfe`）产品面（**排盘计算修正批**：度分串解析改标准 `deg+min/60` + 均时差表 3 区修正 + 「±HH:MM」半小时时区 + 日返寻根顺行弧 + 返照/合盘相位/映点归一化 [0,180] + 组合中点短弧 + 围攻 orb 隔离 + 时主星 floor + 反平行首伙伴漏加修复；**主限法大升级**：显示窗 pre-norm 精确化 + 宿命点 Vertex 应星闭式 + 每盘时间钥匙 + 太阳弧钥匙正逆函数 + 年数上限 1000→3000 多圈复发 + golden 校准语料 v266；**修 Windows #23**：`buildGeminiBody()` 采样参数移入 `generationConfig`；**修 Windows #24/#25**：聊天发送按钮 `onClick={handleSend}` 事件对象串化 `[object Object]`，按钮改箭头函数 + `overrideText` 只认字符串；**聊天高级参数真正生效**：`isOpenAiFamily()` 修判定永假 + 思考档覆盖 gpt-5.5/6/7、o6/o7；**全 UI 扫雷**：AI 挂载 C 类临时写入用毕还原 + 白屏防护 + 暗色可读性 + 列表 key 稳定化 + 一批渲染修复）+ **Windows 壳层加固 9 项（本仓独有）**：界面缩放持久化（只写不读 → 启动恢复）/ AI 资料导入跳过不可读·超大文件 / 诊断·备份导出加固 / 「重启后端」串行化 / 修复先失效缓存再删树 / 退出清理计时器 / winget 真实日期 / 自检对过期 SHA256SUMS 响亮 FAIL。后端 Java 改动（`AIAnalysisProxyService` Gemini 修正 + `PredictiveController`/`IndiaChartController`/astrostudycn `ChartController`/`QueryChartController` `_wireRev` v12）→ **已重建 `astrostudyboot.jar`（324,254,540 B）**。v2.6.5（合盘交互链重建 + 起课时间 13 技法）/ v2.6.4（恒星黄道 47 岁差全栈 + AI 四同步 + AI 报告 v1 + 启动健壮性 + #21）/ v2.6.3 / v2.6.2（#18 升级安装修复）/ v2.6.1 前所有功能全部保留。Windows 发布包必须保持自包含。
 
 这一版重点包括：
 
@@ -55,11 +55,11 @@ v2.6.5 Beta 对齐 Mac 端 `15a21bb→dbac0ed` 产品面（合盘 / 关系盘交
 
 正式 GitHub Release 的标准资产是：
 
-- `Horosa-Setup-2.6.5.exe`
-- `Horosa-Setup-2.6.5.exe.blockmap`
+- `Horosa-Setup-2.6.6.exe`
+- `Horosa-Setup-2.6.6.exe.blockmap`
 - `latest.yml`
 - `SHA256SUMS.txt`
 
-公开下载入口是 `Horosa-Setup-2.6.5.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
+公开下载入口是 `Horosa-Setup-2.6.6.exe`。`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验流程。
 
 当前安装包按用户要求未做 Authenticode 签名。发布前仍需明确告知：这可能触发 Windows SmartScreen 提示，但不代表 Java/Python/接口不匹配。

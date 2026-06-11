@@ -8,13 +8,13 @@
 
 **把占星与中国术数，收进一个原生 Windows 工作站**
 
-[![Version](https://img.shields.io/badge/version-2.6.5%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.5)
+[![Version](https://img.shields.io/badge/version-2.6.6%20beta-b45309?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.6)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.5)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.5)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.6)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.6)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.5.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.6.exe) ·
 [入口页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -27,13 +27,13 @@
 
 星阙 Horosa 是一套桌面端的玄学工作站。西方占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙这些中国传统术数，被放进同一个原生 Windows 应用里。它要解决的事其实很朴素：不必在十几个网页排盘器之间来回切，也不必自己拼装底层的 Python、Java 与历表运行时——你下载一个离线 NSIS 安装包，打开的就是一个成品。
 
-这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.6.5.exe`）的发布链路。
+这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-2.6.6.exe`）的发布链路。
 
 ## 下载
 
 普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Setup-2.6.5.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.5.exe)**
+**[⬇︎ Horosa-Setup-2.6.6.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-2.6.6.exe)**
 
 适合场景：
 
@@ -94,7 +94,20 @@
 
 命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
 
-## v2.6.5 beta 更新
+## v2.6.6 beta 更新
+
+**v2.6.6 = 排盘计算修正批 + 主限法大升级（宿命点应星 / 年数 3000）+ 修复 Windows issues #23 / #24 / #25 + 全 UI 扫雷 + Windows 壳层加固 9 项（界面缩放持久化等）**。后端 Java 改动（`AIAnalysisProxyService` Gemini 参数修正 + 4 控制器 `_wireRev` v12）→ 已重建 `astrostudyboot.jar`；v2.6.5 之前所有功能全部保留。
+
+- **修复 Windows issue #24 / #25「gpt5.5 上传失败」** —— 真因与模型无关：发送按钮 `onClick={handleSend}` 直挂、antd 把点击事件对象当首参传入 → 消息串化成 `[object Object]`。按钮改箭头函数 + `overrideText` 只认字符串双保险
+- **修复 Windows issue #23「Gemini 格式错误（400）」** —— 采样参数从请求顶层移入 `generationConfig`（重编 jar）
+- **聊天高级参数真正生效** —— `isOpenAiFamily()` 修判定永假（`'openai'` vs 实际 `'openai-compatible'`）；思考档正则覆盖 gpt-5.5/6/7、o6/o7；报告流错误不再吞；已取消请求不再补发
+- **排盘计算修正批（从错到对，结果会变）** —— 度分串解析改 `deg+min/60`；均时差表 3 区修正 + 「±HH:MM」半小时时区（印度 +05:30）；日返寻根顺行弧；返照 / 合盘相位归一化跨 0° 不漏报；组合中点短弧；围攻 orb 隔离；时主星 floor
+- **主限法大升级（重编 jar，`_wireRev` v12）** —— 显示窗精确化、宿命点（Vertex）应星、每盘时间钥匙、**年数上限 1000→3000** 多圈复发、golden 语料 v266
+- **全 UI 扫雷** —— AI 挂载 C 类设置临时写入用毕还原；白屏防护全兜底（localStorage parse）；暗色可读性；列表 key 稳定化；宿度环 / ACG / 风水 Retina / 报告截图一批渲染修复
+- **Windows 壳层加固 9 项（本仓独有）** —— **界面缩放持久化**（此前只写不读、每次启动复位）；AI 资料导入跳过不可读 / 超大文件不再中止整批；诊断 / 备份导出优雅报错；「重启后端」双击串行化；运行时修复先失效缓存再删树；退出清理计时器；winget 真实日期；自检堵假 10/10 漏洞
+- **测试** —— jest **682 通过 / 72 suites**（v2.6.5: 658）；Python pytest 59/60（golden 钉经容差核验 540/540 全等 = 纯浮点噪声）；service-manager + update-signature **39 通过**
+
+—— 以下为 v2.6.5 引入的功能（v2.6.6 全部保留）——
 
 **v2.6.5 = 合盘交互链全面重建（5 子盘全可用）+ AI「起课时间」挂载 8→13 技法 + Python 数值经纬度容错 + 导航搜索关键词 + 关于框真图标**。本版**无后端 Java 改动 / 无需重建 jar**（合盘端点恢复 = 前端把请求路由回 Java modern-chart 后端 `:9999`，`ModernChartController` v2.6.4 已在）；命盘计算默认行为与 v2.6.4 字节级一致；v2.6.4 之前所有功能全部保留。
 
@@ -104,7 +117,7 @@
 - **顺手修** —— 全 22 模块导航搜索补 keywords；关于框真 `appicon.png` 图标；波斯向运「应期年数」联动表格；UranianDial glyph 描边修复；测天字重微调；星历 / 额外盘 / 巴比伦星空一批小修
 - **测试** —— jest **658 通过 / 70 suites**（v2.6.4: 638）；service-manager + update-signature **39 通过**
 
-—— 以下为 v2.6.4 引入的功能（v2.6.5 全部保留）——
+—— 以下为 v2.6.4 引入的功能（v2.6.6 全部保留）——
 
 **v2.6.4 = 恒星黄道 47 岁差全栈 + 西洋月宿 + 印占补齐 + AI 四同步双盘双配置 + AI 报告生成 v1 + 启动健壮性大批加固**。后端 Java 改动（8 个控制器 `getParams()` 全栈透传 `siderealAyanamsa`）→ 已重建 `astrostudyboot.jar`；命盘计算默认行为与 v2.6.3 字节级一致；v2.6.3 之前所有功能全部保留。**修复 Windows issue #21**「点击排盘提示『本地排盘服务未就绪』，无处查看状态、自检修复失效」。
 
@@ -116,19 +129,19 @@
 - **启动健壮性大批加固（修复 issue #21）** —— 右下角常驻后端健康灯 🟢/🟡/🔴；「排盘失败」Modal 4 类原因 + 4 个一键操作；透明重试 12s→30s 覆盖慢机首启；StartupGate 6s/15s/30s 分阶段文案 + 操作按钮
 - **测试** —— jest **638 通过 / 68 suites**（v2.6.3: 522）；service-manager + update-signature **39 通过**
 
-—— 以下为 v2.6.3 引入的功能（v2.6.5 全部保留）——
+—— 以下为 v2.6.3 引入的功能（v2.6.6 全部保留）——
 
 **v2.6.3 = AI 分析一轮深度打磨 + Qizheng 七政四余「政余格局/相位」出导/挂 + 五兆/太玄/荆诀/神易数补 AI 挂载 + 分至盘样式修复 + 多处稳定性修复**；**修复 Windows issue #20**「聊天挂载内容被截断 + 太阳返照 AI 用本命盘信息」。
 
-—— 以下为 v2.6.2 引入的修复（v2.6.5 全部保留）——
+—— 以下为 v2.6.2 引入的修复（v2.6.6 全部保留）——
 
 **v2.6.2 = v2.6.1 全部功能 + Windows「升级安装从未成功（issue #18）」彻底修复**。纯安装器补丁（NSIS `customUnInstallCheck`），覆盖升级时若旧版本卸载器返回非零（中文用户名 / 中文安装路径 + 杀软占用）→ 安装器接管：强制结束残留星阙 + 仅清理旧「程序目录」后继续升级，用户数据零影响。
 
-—— 以下为 v2.6.1 引入的功能（v2.6.5 全部保留）——
+—— 以下为 v2.6.1 引入的功能（v2.6.6 全部保留）——
 
 **v2.6.1 = AI 挂载全选项打磨 + 多时段 / 区间扫描输出 + 风水八卦阳宅法 v2（倪海厦，纯前端）+ 一批跨模块修复**；唯一后端改动 = `ChartController.getParams()` 转发 `pdYears`（挂载主限法年数生效的真因）→ 已重建 `astrostudyboot.jar`。
 
-完整改动见 [v2.6.5 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.5) 与 [本地发布说明](docs/releases/2.6.5.md)（v2.6.4 见 [docs/releases/2.6.4.md](docs/releases/2.6.4.md), v2.6.3 见 [docs/releases/2.6.3.md](docs/releases/2.6.3.md), v2.6.2 安装器补丁见 [docs/releases/2.6.2.md](docs/releases/2.6.2.md), v2.6.1 功能见 [docs/releases/2.6.1.md](docs/releases/2.6.1.md)）；上一版 v2.6.0（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + #16/#17/#18 修复）详见 [docs/releases/2.6.0.md](docs/releases/2.6.0.md)。
+完整改动见 [v2.6.6 Beta Release](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v2.6.6) 与 [本地发布说明](docs/releases/2.6.6.md)（v2.6.5 见 [docs/releases/2.6.5.md](docs/releases/2.6.5.md), v2.6.4 见 [docs/releases/2.6.4.md](docs/releases/2.6.4.md), v2.6.3 见 [docs/releases/2.6.3.md](docs/releases/2.6.3.md), v2.6.2 安装器补丁见 [docs/releases/2.6.2.md](docs/releases/2.6.2.md), v2.6.1 功能见 [docs/releases/2.6.1.md](docs/releases/2.6.1.md)）；上一版 v2.6.0（六壬毕法100法 + 紫微 P0–P2 + 奇门法奇门 + 占星 buildout + #16/#17/#18 修复）详见 [docs/releases/2.6.0.md](docs/releases/2.6.0.md)。
 
 ## 技术构成
 
@@ -141,7 +154,7 @@
 ## 常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-2.6.5.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-2.6.6.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
@@ -150,7 +163,7 @@
 可以。v2.2.0 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
 
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.6.5.exe`。
+`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-2.6.6.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。
