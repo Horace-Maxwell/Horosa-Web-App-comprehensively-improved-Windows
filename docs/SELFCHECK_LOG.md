@@ -1,8 +1,34 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-08
+最后更新：2026-06-11
 
-## 2026-06-08 v2.6.5 Beta（Mac 同步 `15a21bb→dbac0ed`：合盘交互链全面重建 + AI「起课时间」挂载 8→13 技法 + Python 数值经纬度容错；**无 Java / 无 jar 重建**；0 open issues）
+## 2026-06-11 v2.6.6 Beta（Mac 同步 `dbac0ed→47f59a4`（重写史）：排盘计算修正批 + 主限法 3000/宿命点/v12 + 修 Win#23/#24/#25 + UI 扫雷 + **Windows 壳层深扫加固 9 项**；重建 jar；首次 Windows pytest 门）
+
+**Mac 历史重写处理（本轮首遇）**：Mac 端重写了提交历史 —— 旧 v2.6.5 `dbac0ed` 在新史中 = `f401bfe`，**且树不等**（重写顺带带入部分 PD 早期工作 + 删除 `Horosa-Web/AGENTS.md`、`UPGRADE_LOG.md` 等 -8349 行，疑似 redaction）。处置：真实差集以**旧 `dbac0ed` → 新 HEAD `47f59a4`** 在「保有两侧对象的旧 clone（tmp/mac-sync-2.6.5，fetch 后新旧 SHA 共存）」中计算 = 91 个 `Horosa-Web/` 文件（6 Java + 21 Python + ~60 前端 + golden v266）+ 2 删除（AGENTS.md + golden v253，已镜像 rm）；基线核验同在旧 clone 对旧 `dbac0ed` 做（8 关键文件 LF-hash 全 CLEAN）。**新鲜 clone 没有旧 SHA → 老 clone 是桥**。**下次 Mac 同步基线 = `47f59a4`**。
+
+**同步面**：① **排盘计算修正批**（Python 8 文件，从错到对结果会变）：helper.py 度分串解析 `deg+min/60`（原 `'116e24'→116.04` 错）+ distance/absDistance 短弧单式 + splitDegree 60′ 进位；realsuntime.py 均时差 3 区转录修正 + `±HH:MM` 半小时时区（印度 +05:30 原被当 +05:00）；perpredict.py 日返寻根顺行弧 + 返照相位归一化 [0,180] + 骰子盘跨 0° 宫；perchart.py 反平行首伙伴漏加 + 恒星合相跨 0° + 围攻独立 pairOrb + 时主星 floor；chartcomposite.py 组合中点短弧；chartcomp.py 合盘相位/映点归一化；jieqiconst/TimeDecider 死码修复。② **主限法大升级**：显示窗 pre-norm + 宿命点 Vertex 应星闭式 + 每盘时间钥匙 + pd_engine 太阳弧钥匙正逆 + **年数 1000→3000** 多圈复发 + golden 语料 v253→v266；**4 控制器 `_wireRev` 升 v12**（PredictiveController/IndiaChartController/astrostudycn ChartController/QueryChartController）。③ **修 Win#23**（@ecliptic0618「格式错误」= Gemini 400）：`AIAnalysisProxyService.buildGeminiBody()` 采样参数从顶层移入 `generationConfig`。④ **修 Win#24/#25**（@wangzejin45-spec「gpt5.5 上传失败」双报）：真因=聊天发送按钮 `onClick={handleSend}` 直挂 → antd 把 click 事件对象当首参 → 串化 `[object Object]`（Enter 不触发故时好时坏，与模型无关）；修=按钮 `onClick={()=>handleSend()}`（源 4332 行核）+ `overrideText` 只认字符串。⑤ 聊天高级参数真正生效（`isOpenAiFamily()` 修 `==='openai'` vs 实际 `'openai-compatible'` 判定永假）+ 思考档覆盖 gpt-5.5/6/7、o6/o7 + 报告流错误不吞 + 已取消请求不补发。⑥ 全 UI 扫雷（AI 挂载 C 类临时写入用毕还原 / 白屏防护 localStorage parse 全兜底 / 暗色可读性 / 列表 key 稳定化 / Su28 字号 d3 this / ACG zoom 重放 / 风水 Retina / 报告截图串行锁）。**Mac `Horosa_Desktop_Installer/`（Tauri + preflight [41][42] + runtime 身份验明）不同步**。
+
+**重建 jar**：astrostudy install → astrostudycn install → boot clean package（offline，bundled mvn.cmd）→ **324,254,540 B** 覆盖 bundle；标记核验 `pd_method_sync_v12`（astrostudycn grep -ac =2 + astrostudy =2）+ `generationConfig`（=1，Gemini 修正）全 PASS。无新 npm 依赖。
+
+**首次把 Python 全量 pytest 纳入 Windows 同步门**：pytest 装到 `tmp/pytest-lib`（`pip install --target`，**不污染随包 runtime**），PYTHONPATH=`astropy;flatlib-ctrad2`（注意 flatlib 包在 `flatlib-ctrad2/` 下），sweph 数据=`flatlib-ctrad2/flatlib/resources/swefiles`（service-manager layout.swephDir 同源；先用 `runtime/windows/sweph` 误猜 → seas_18.se1 not found）。结果 **59/60**；唯一 FAIL=`test_pd_alcabitius_byteperfect`（540 例全失配）——**判定=纯跨平台浮点噪声而非回归**，证据（自写 tmp/pd_golden_tolerance_check.py 容差核验）：540/540 行数一致、0 真实字段差异、max |弧差| **2.08e-08°**、1248 处 ±1 秒日期舍入翻转（弧噪声跨秒界）、280 处对称方向对代表翻转（A@180→B 与 B@180→A 同事件，1e-10 tie-break 选边漂移）。**该 golden 是 Mac 引擎回归钉（Mac-internal pin），非跨平台契约**——Windows 侧用容差等价核验替代。
+
+**Windows 壳层深扫（用户点名「高级软件工程师标准彻底扫描 Windows 独有 bug」）**：3 个并行 Explore agent 扫 electron 壳 / service-manager / NSIS+发布脚本 → 16 候选 → **逐条本人核验** → 9 真修 + 7 拒（false-positive/by-design/低值）：
+- **修 ①（Mac handoff 点名的 Windows 必做）界面缩放持久化**：`saveWindowState()` 一直写 zoomFactor（applyZoomFactor→queueWindowStateSave 每次缩放都存），但 `readWindowState()` 是**从未被调用的死代码** → 每次启动复位默认 0.65。修=`resolveInitialWindowState()` 读回 + `normalizeZoomFactor` 钳制（窗口 bounds 策略不动=仍 default-maximized-80）。哨兵 `persistedState.zoomFactor`。
+- **修 ②③** 诊断导出（main.js:994）+ AI 备份导出对话框分支：补 `mkdirSync(dirname)` + try/catch 返回 `{ok:false,message}`（直接路径分支本就有 mkdir，对话框分支漏 = 内部不一致实证）。
+- **修 ④** `collectFilesRecursive`/`collectSelectedFiles`：抽 `readCollectableFile()`（statSync+64MB 上限+try/catch 跳过+记日志）+ readdirSync 兜底 —— OneDrive 离线占位/杀软锁/无权限单文件不再中止整批导入；空扩展集递归读全目录的 OOM 面同收。
+- **修 ⑤** requestAppQuit 清 `updateCheckTimer`(15s)/`updateRecheckTimer`(6h interval)/`runtimeAutoRestartStabilityTimer`(45s)（回调本有 isShuttingDown 守卫，属卫生修）。
+- **修 ⑥** `restart()` 加 `restartPromise` latch：坏交错=restartB.stop() 落在 startPromiseA 飞行中（stop 的 finally 把 startPromise 置 null）→ 第二个 start 体并发 spawn 双 python/java 对、首对引用被覆盖泄漏到退出；健康灯/Modal/横幅三处「重启后端」都可双击触发。哨兵 `restartPromise`。
+- **修 ⑦** `repairPreparedRuntime` 顺序：**先**删 health/fast-path 信任缓存**再** rmrf 运行时大树（大树 rmrf 可中途抛 EBUSY/磁盘满，原顺序失败时留「信任半删运行时」缓存）。
+- **修 ⑧** winget `ReleaseDate` 由生成时动态写（原硬编码，v2.6.5 曾带旧日期需手改、v2.6.4 整个忘了 winget）。
+- **修 ⑨** selfcheck `release assets + hashes` gate：SHA256SUMS 仍是上一版时由「pending 提示放行」改 **FAIL**（原假 10/10 漏洞：补了 doc 哈希忘 regen SUMS → 全绿 + 过期校验文件上线；phase-1 本就 exit 1 故流程零损）。
+- **拒 7**：logStreams 跨重试泄漏（误读：cleanupProcesses L1332-34 快照+立即清空）；崩溃 handler 晚挂（L1610 注释明示 by-design，retry 兜底）；fast-path 缓存失效写回（低值+并发写风险）；probe/crash 双 kill 竞态（killProcessTree 幂等无害）；NSIS 双路径静默（极罕见+makensis /WX 改动风险>收益）；HKLM/HKCU 错配（从未发过 per-machine 版）；**stale sig 假过**（agent 漏看 L415-424：gate 真 subprocess `sign-update.cjs verify` 对当前 exe 全量验签，stale sig 必 FAIL）。
+- 验证：node --check ×3 + `npm run verify` **39/39** + selfcheck 哨兵含 2 新标记全过。**坑（差点踩）**：往 sentinel dict 加第二个 `service-manager.js` key 会静默覆盖 L112 既有条目丢光老哨兵（Python dict 字面量后键胜）→ 改并入既有条目。
+
+**验证**：umi-test **682 通过 / 72 suites**（v2.6.5=658，+24）；pytest 59/60 + golden 容差等价 540/540；verify 39/39；sentinels 44 文件 OK；`selfcheck` **10/10**（新 SUMS gate 在 phase-1 正确响亮 FAIL = 修 ⑨ 自证）。staged payload 核：jar 标记 v12×4+generationConfig、built bundle 含本批 escaped unicode（宿命点）。
+
+**发布**：release commit `784226e`（15 跟踪文件：版本/docs + main.js + service-manager.js + release_selfcheck.py + winget-manifest.cjs + docs/releases/2.6.6.md + winget 2.6.6×3；amend 修一处 commit msg 西里尔字符 typo，未推前 amend 安全）+ selfcheck-log 随后；tag `v2.6.6`(指 `784226e`)；5 资产。**exe** `Horosa-Setup-2.6.6.exe` **760,014,971 B** sha256 `a4bda973c2fad4f8815a64f3d098c7a939a28dc38293293112ceb72a4ccdf2f5`；blockmap `32e0ec1ed441…`(789,256 B)；latest.yml `c9d19464fa00…`(341 B)；horosa-update.sig `0c3501c0b30f…`(260 B)。`isPrerelease=false`、`/releases/latest=v2.6.6`、5 资产线上 digest=本地逐字节一致（含 760MB exe 全量下载 IDENTICAL）；**LIVE sig 经 release URL 对 downloaded exe verify = VERIFY OK**（Ed25519 第九次生产核验）。winget 2.6.6 manifest `ReleaseDate: 2026-06-11`（动态生成自证）。**自动更新 v2.2.1–v2.6.5 → v2.6.6**（重建 jar + 新前端 + 壳层 9 修）。**#23 回复+closed(completed)；#24 回复+closed(completed)；#25 回复+closed(duplicate of #24)；0 open issues**。
+
+
 
 **同步**：Mac `15a21bb`(v2.6.4)→`dbac0ed`(v2.6.5) 单 commit。46 文件在 `Horosa-Web/`（合盘交互链 7 + AI 起课时间 6 + Python 2 + 导航搜索/图标/小修若干 + 3 新测试）。**Mac `Horosa_Desktop_Installer/`（Tauri 外壳 + 其 runtime 簿记）不同步**。**下次 Mac 同步基线 = `dbac0ed`**。Mac 端 `docs/windows-sync-handoff.md` 明确「Windows 必做一件 = 同步 Python 2 文件；Java 本版未改不需重编 jar」。
 
