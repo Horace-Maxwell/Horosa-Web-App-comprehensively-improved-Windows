@@ -1,6 +1,16 @@
 # Horosa Windows 自检日志
 
-最后更新：2026-06-11
+最后更新：2026-06-12
+
+## 2026-06-12 v2.6.6 原地覆盖重发（Windows 壳层/安装器 10 项加固批次；同版本号；只 force tag 不 force main）
+
+**决策**：owner 拍板原地覆盖 v2.6.6（不 bump）——口径同 v2.5.4 先例（gotcha #20 传播口径）：安装器侧加固（磁盘预检/Win10 门槛/真卸载清缓存）本就只对**新下载**生效，覆盖即全量受益；壳层侧（缓存清扫/日志轮转/crash 兜底等）已更新用户随下一版自动补上，无需为此 bump。**本批纯 Windows 独有，不涉 Mac repo**。
+
+**加固 10 项**（3 并行审计 16 候选 → 逐条亲核 10 真修 + 6 否决留档）：① `sweepStalePayloadCaches` 启动清扫 `embedded-runtime` 旧 payloadId 兄弟目录 + `.tmp-*`/`.repair` 残留（**每次升级遗留 ~1.35GB 的根治**，老用户已累积 10GB+；形状门控正则 `^[0-9a-f]{16,64}(\.tmp-\d+-\d+|\.repair)?$` 只删自家命名；fire-and-forget 永不 reject；单实例锁保并发安全；长路径回退基活动时连默认父目录一起清） ② `rotateLogIfLarge` 日志轮转（主 20MB / python·java 各 50MB 单代 `.1`；EPERM/EBUSY 回退 copy+truncate；永不 throw） ③ NSIS 磁盘预检 `CheckHorosaDiskSpace`（安装盘/数据盘 3GB、同盘 6144MB；`${GetRoot}`+`${DriveSpace} /S=M`；交互式中文弹窗+Abort 可回页换盘，静默 `SetErrorLevel 112`+Quit；customInit 静默钩 + ValidateInstallDirectory 交互钩——**customInstall 在解压后不可作预检点**） ④ `customUnInstall` 真卸载清缓存：**旧宏在 `!ifndef BUILD_UNINSTALLER` 守卫内 = 模板只在 UNINSTALLER pass 插入 → 多年死代码（已删）**；新宏守卫外 + `${ifNot} ${isUpdated}`（升级绝不删）+ 只清 embedded-runtime/logs/HorosaRt(LOCALAPPDATA+TEMP)/.horosa-rt/updater 缓存，**HorosaDesktop 本体（用户命盘）永不触碰** ⑤ process 级 `uncaughtException`（log+对话框+exit(1)）/`unhandledRejection`（仅 log）兜底 ⑥ Win10+ 门槛（`AtLeastWin10`，1633）+ CurrentBuild<17763 仅提示 ⑦ 进度窗 `contextIsolation:true` + 新 `update-progress-preload.js`（contextBridge，通道名 update:init/progress/done 不变） ⑧ `runUpdateCheck` 并发闩 `updateCheckInFlight` ⑨ 签名拉取重试 ×2（2s 退避，fail-closed 不变） ⑩ 小屏/高缩放 minWidth/minHeight 钳制到 workArea；附 update-flow ENOSPC→「磁盘空间不足」明确文案。**否决留档**：trusted 缓存写回（劣化慢机）/差分回退（updater 自带 AppUpdater.js:704）/TEMP 多用户碰撞（per-user TEMP 前提不成立）/NSIS 装饰打印/修复模式 VBScript 探测/进度窗 RCE 降级（仅本地文件）。
+
+**验证**：verify **48/48**（+9 新测试：清扫×4+正则表+轮转×4，真 fs + 单函数 monkey-patch 同house style）；selfcheck **10/10**（哨兵 **45 文件**，+9 新标记：sweepStalePayloadCaches/rotateLogIfLarge/uncaughtException/update-progress-preload.js/updateCheckInFlight/CheckHorosaDiskSpace/AtLeastWin10/`${ifNot} ${isUpdated}`/新 preload 文件条目）；makensis `/WX` 双 pass 清编译（删死宏无重复定义、WinVer/FileFunc include-guard 重包含零警告）；**磁盘门槛端到端实测**：膨胀阈值（999999MB）测试安装器 `/S` → exit **112**、Programs 目录零变化、注册表未动；**asar 标记核验**：重打的 app.asar 内 8 个加固标记全在（sweep=11/rotate=18/preload=4/latch=6/crash=2/bridge=2/zoom=2/restart=6）。**工程坑（本轮）**：(a) NSIS 快环 `--prepackaged` 产物用旧 win-unpacked = **asar 仍旧 JS**，覆盖发布必须全量 dist:win 重打 asar；(b) `--prepackaged` 会**clobber 本地已发布资产** → 先备份 5 资产、测试后逐字节还原（已验 a4bda973 复原）；(c) NSIS 二进制层验证卸载器代码不可行（LZMA 固实压缩 + 新版 7-Zip 不提取脚本）——编译级证据已确凿（宏双 pass 定义 + 模板 uninstaller.nsh:156-158 强制插入 + /WX exit 0）。
+
+**发布**：加固 commit `438a16c` + 覆盖簿记 `8a3569c`（2.6.6.md 覆盖说明+加固详单+新哈希表 + winget installer.yaml 新 sha/动态日期自证 2026-06-12）；main **正常 fast-forward** `defc7fe→8a3569c`；tag v2.6.6 **force-move** `784226e→8a3569c`（**只 force tag**）；`gh release upload --clobber` 5 资产 + `gh release edit` 新说明。**新 exe 760,017,116 B sha256 `6e2cb7436757e2a7dc1e42756eae5ab194d0ffd0f71b0cacd73d05d91e62db00`**（取代首发 `a4bda973…`）；blockmap `44bd65defdba…`(790,381B)；latest.yml `2390000b189d…`(341B)；horosa-update.sig `21936db6bdce…`(260B)。线上 5 资产 digest=本地逐字节一致（含 760MB exe 全量下载 IDENTICAL）；**LIVE sig 经 release URL 对 downloaded exe verify = VERIFY OK**（Ed25519 第十次生产核验）。**遗留**：干净 VM 矩阵（装/卸[缓存清+命盘留]/升级[--updated 缓存不删]/低盘交互式弹窗）仍列下一版发布前清单。
 
 ## 2026-06-11 v2.6.6 Beta（Mac 同步 `dbac0ed→47f59a4`（重写史）：排盘计算修正批 + 主限法 3000/宿命点/v12 + 修 Win#23/#24/#25 + UI 扫雷 + **Windows 壳层深扫加固 9 项**；重建 jar；首次 Windows pytest 门）
 
