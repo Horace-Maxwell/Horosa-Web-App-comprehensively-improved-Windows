@@ -12,10 +12,10 @@ InstallModes:
   - silent
   - silentWithProgress
 UpgradeBehavior: install
-ReleaseDate: 2026-06-11
+ReleaseDate: 2026-06-12
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v2.6.6/Horosa-Setup-2.6.6.exe
-    InstallerSha256: A4BDA973C2FAD4F8815A64F3D098C7A939A28DC38293293112CEB72A4CCDF2F5
+    InstallerSha256: 6E2CB7436757E2A7DC1E42756EAE5AB194D0FFD0F71B0CACD73D05D91E62DB00
 ManifestType: installer
 ManifestVersion: 1.6.0
