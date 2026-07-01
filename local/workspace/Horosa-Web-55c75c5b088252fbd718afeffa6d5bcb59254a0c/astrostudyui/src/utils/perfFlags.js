@@ -82,3 +82,9 @@ export function planetariumTimeEditDebounceEnabled(){
 export function techniqueResultCacheEnabled(){
 	return flagEnabled('horosa.perf.techniqueResultCache');
 }
+
+// 首屏并行化:把页面首次加载时**互不依赖**的后端请求从「串行瀑布」改为并行发起(纯发起时机,内容/结果不变)。
+// 例:玄学史 总览/玄典/名家/事件 4 个 fetch 同时发;占星首屏独立预取并行。关掉即回到原串行顺序。
+export function firstLoadParallelEnabled(){
+	return flagEnabled('horosa.perf.firstLoadParallel');
+}

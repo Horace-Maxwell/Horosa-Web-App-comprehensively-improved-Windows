@@ -42,7 +42,17 @@ public class QueueLog {
     	});
     }
     
+    // v3.0.1 perf ROUND-3 (queuelog_caller_location_v1): appending the caller's "(Class.method:line)" to every
+    // log message required a Thread.getStackTrace() **on the request thread, synchronously, for EVERY info/debug
+    // call** — a per-request tax that shows up on the ~1s Windows floor. The suffix is purely cosmetic, so it is
+    // OFF by default (return the format unchanged). Restore with -Dhorosa.queuelog.callerLocation=true. Read as a
+    // JVM system property (not a Spring property) so there is no init-order dependency during startup.
+    private static final boolean LOG_CALLER_LOCATION = Boolean.getBoolean("horosa.queuelog.callerLocation");
+
     private static String processLog(String format, Thread threadobj){
+    	if(!LOG_CALLER_LOCATION){
+    		return format;
+    	}
     	int idx = -1;
     	Thread thread = threadobj;
     	if(thread == null) {

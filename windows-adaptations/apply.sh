@@ -84,4 +84,14 @@ apply_patch CHART_PERF_SEG_REV             astrostudysrv/astrostudycn/src/main/j
 echo "   ^^ astrostudycn is BACKEND Java. After this patch you MUST rebuild astrostudyboot.jar (SKILL gotcha #5):"
 echo "      astrostudycn install -> astrostudyboot clean package, then copy target/astrostudyboot.jar to bundle."
 
+echo "== 10. v3.0.1 perf round-3 (首屏并行 + 每请求日志栈回溯去除;均带 kill-switch、功能零降级) =="
+# 前端:首屏并行化开关(firstLoadParallelEnabled)——须先应用上面的 perfFlags 补丁(本补丁上下文含其行)。
+apply_patch firstLoadParallelEnabled       astrostudyui/src/utils/perfFlags.js                          src__utils__perfFlags.firstLoadParallel.js.patch
+# 前端:玄学史首屏 4 请求并行(总览/玄典/名家/事件),首开更快。
+apply_patch firstLoadParallelEnabled       astrostudyui/src/components/xuanshi/XuanShiMain.js           src__components__xuanshi__XuanShiMain.js.patch
+echo "== 11. backend perf: QueueLog 去掉每条日志的同步栈回溯(默认关,-Dhorosa.queuelog.callerLocation=true 恢复)— REQUIRES a jar rebuild =="
+apply_patch "horosa.queuelog.callerLocation" astrostudysrv/boundless/src/main/java/boundless/log/QueueLog.java boundless__QueueLog.java.patch
+echo "   ^^ boundless is BACKEND Java (base of all modules). After this patch rebuild astrostudyboot.jar (SKILL gotcha #5):"
+echo "      boundless install -> astrostudy install -> astrostudycn install -> astrostudyboot clean package, then copy to bundle."
+
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="
