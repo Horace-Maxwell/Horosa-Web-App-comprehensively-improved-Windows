@@ -8,8 +8,8 @@ additionally reconstructible from session records. See windows-adaptations/READM
 
 | file | sha256 | bytes | git | purpose |
 |---|---|---|---|---|
-| `.claude/skills/horosa-dev/SKILL.md` | `3d72939d8b586aadddd11940717a8781b8b4151d725a08e43eaaabc26bd35d09` | 16621 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
-| `.claude/skills/horosa-dev/references/gotchas-full.md` | `c6b9d344adf17e8213e20ec7439ae1323bf3ae3d8c8023a520c1067ea8a986e1` | 201411 | gitignored | the full 49-gotcha institutional archive (verbatim history + topic index; new gotchas append HERE) |
+| `.claude/skills/horosa-dev/SKILL.md` | `9827b8635018a68ca78b8f14f7faa10dce5dd8a07f064d73b7445fa1300cf83f` | 16910 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
+| `.claude/skills/horosa-dev/references/gotchas-full.md` | `9028dcd4584f35dc762c90ea8ecaa0b3a416631230f9e46b1aca41aae4b6447c` | 205784 | gitignored | the full 49-gotcha institutional archive (verbatim history + topic index; new gotchas append HERE) |
 | `CLAUDE.md` | `d1863226e4081c00177f5ea1dac88590673337ec87970d281c0228f0d680bc7c` | 3641 | gitignored | repo-root session baseline (paths, red lines, verification entry points; local-only) |
 | `desktop_installer_bundle/assets/installer.nsh` | `a29b59b7bd03f8a15abcc900766642b804b4ae94eb9ed152fcf77b2f6ccc8435` | 69141 | gitignored | NSIS hooks: disk-space gate, uninstall cleanup, OS gate, details-visible install log + phase banners |
 | `desktop_installer_bundle/electron/build-uber-jar.py` | `350016fb4d41b2f60644737e37cf7e3e7a698849efd1d4824cdfefe177e7f9cc` | 19280 | gitignored | fat-jar -> single uber jar merge (classpath.idx first-wins + SPI union + dir entries) enabling fast static CDS |
