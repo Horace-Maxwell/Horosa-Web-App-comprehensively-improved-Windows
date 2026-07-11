@@ -9,7 +9,7 @@ additionally reconstructible from session records. See windows-adaptations/READM
 | file | sha256 | bytes | git | purpose |
 |---|---|---|---|---|
 | `.claude/skills/horosa-dev/SKILL.md` | `c1ef262fa59db10e5713f24b895f3962379f6601498ea76c00a0e50536b8f747` | 17773 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
-| `.claude/skills/horosa-dev/references/gotchas-full.md` | `d464528f9b8297829214a56b7b887585d2edfcaf7a446439f0fc8864647c6fe3` | 234283 | gitignored | the full 49-gotcha institutional archive (verbatim history + topic index; new gotchas append HERE) |
+| `.claude/skills/horosa-dev/references/gotchas-full.md` | `ace2fbb6475b44170c23b289432763058b008879baf97e65a6386da1e8b37b9d` | 239645 | gitignored | the full 49-gotcha institutional archive (verbatim history + topic index; new gotchas append HERE) |
 | `CLAUDE.md` | `d1863226e4081c00177f5ea1dac88590673337ec87970d281c0228f0d680bc7c` | 3641 | gitignored | repo-root session baseline (paths, red lines, verification entry points; local-only) |
 | `desktop_installer_bundle/assets/installer.nsh` | `d498b15245491634c0a1291b6d2cd0a968087188afccb8a976386965e1903d97` | 76829 | gitignored | NSIS hooks: disk-space gate, uninstall cleanup, OS gate, details-visible install log + phase banners |
 | `desktop_installer_bundle/electron/build-uber-jar.py` | `350016fb4d41b2f60644737e37cf7e3e7a698849efd1d4824cdfefe177e7f9cc` | 19280 | gitignored | fat-jar -> single uber jar merge (classpath.idx first-wins + SPI union + dir entries) enabling fast static CDS |
