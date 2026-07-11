@@ -28,6 +28,7 @@ import addFormats from 'ajv-formats';
 import { marked } from 'marked';
 import { normalizeMarkdown } from '../../utils/reportMarkdownNormalize';
 import { classifyQuestion, referencesSpecificCase } from '../../utils/aiAnalysisStarterPrompts';
+import { copyTextSmart } from '../../utils/clipboardText';
 import { buildSoftwareHelpContext } from '../../utils/aiAnalysisHelpDocs';
 import DOMPurify from 'dompurify';
 // 仅引「common」子集（~50KB gzipped 含 js/ts/py/java/go/rust/sh/sql/json/yaml/xml/html/css/md/c/cpp/cs/php/rb/swift/kotlin 等），不引全语言。
@@ -1631,13 +1632,15 @@ function AIAnalysisMain(props){
 			const code = wrap ? wrap.querySelector('pre code') : null;
 			const text = code ? code.textContent || '' : '';
 			if(!text){ return; }
-			try{
-				navigator.clipboard.writeText(text).then(()=>{
+			copyTextSmart(text).then((ok)=>{
+				if(ok){
 					message.success('已复制代码', 1);
 					btn.classList.add('xq-code-copy--ok');
 					setTimeout(()=>btn.classList.remove('xq-code-copy--ok'), 1200);
-				}, ()=>{ message.error('复制失败', 1.5); });
-			}catch(_){ message.error('复制失败', 1.5); }
+				}else{
+					message.error('复制失败', 1.5);
+				}
+			});
 		};
 		el.addEventListener('click', onClick);
 		return ()=>{ el.removeEventListener('click', onClick); };
@@ -3286,31 +3289,14 @@ function AIAnalysisMain(props){
 		}
 	}
 
-	function fallbackCopyText(text){
-		try{
-			const ta = document.createElement('textarea');
-			ta.value = text;
-			ta.style.position = 'fixed';
-			ta.style.left = '-9999px';
-			document.body.appendChild(ta);
-			ta.select();
-			document.execCommand('copy');
-			document.body.removeChild(ta);
-			message.success('已复制全文');
-		}catch(e){
-			message.error('复制失败，请手动选择文本复制');
-		}
-	}
-
-	// A: 复制该条消息全文。navigator.clipboard 在桌面壳/非 HTTPS 可能不可用 → execCommand 兜底。
+	// A: 复制该条消息全文(copyTextSmart:桌面原生 → navigator.clipboard → execCommand 三级)。
 	function handleCopyMessage(item){
 		const text = item && item.content ? `${item.content}` : '';
 		if(!text){ return; }
-		if(typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText){
-			navigator.clipboard.writeText(text).then(()=>message.success('已复制全文')).catch(()=>fallbackCopyText(text));
-		}else{
-			fallbackCopyText(text);
-		}
+		copyTextSmart(text).then((ok)=>{
+			if(ok){ message.success('已复制全文'); }
+			else{ message.error('复制失败，请手动选择文本复制'); }
+		});
 	}
 
 	// A: 重新生成「任意一条」AI 回复——删除该条及其之后的所有消息,以它之前最近的用户提问重答。
@@ -4434,9 +4420,10 @@ function AIAnalysisMain(props){
 																		icon={<XQIcon name="copy" />}
 																		onClick={(e)=>{
 																			e.stopPropagation();
-																			try{
-																				navigator.clipboard.writeText(item.reasoning || '').then(()=>message.success('已复制思考', 1));
-																			}catch(_){ message.error('复制失败', 1.5); }
+																			copyTextSmart(item.reasoning || '').then((ok)=>{
+																				if(ok){ message.success('已复制思考', 1); }
+																				else{ message.error('复制失败', 1.5); }
+																			});
 																		}}
 																	/>
 																</Tooltip>

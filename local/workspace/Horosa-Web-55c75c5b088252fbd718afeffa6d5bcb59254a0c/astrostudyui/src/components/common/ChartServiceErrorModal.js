@@ -2,6 +2,8 @@ import React from 'react';
 import { Modal, message } from 'antd';
 import { ServerRoot } from '../../utils/constants';
 import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
+import { invokeLightServiceRestart } from '../../utils/serviceRecovery';
+import { copyTextSmart } from '../../utils/clipboardText';
 
 // Mac issue #12 / Win #11 #14: 排盘失败 → 本地服务未就绪 时的可操作对话框。
 // 把「重试 / 重启后端 / 打开诊断中心 / 复制诊断信息」全部集成,
@@ -38,6 +40,21 @@ async function tauriInvoke(cmd, successMsg, errorMsg) {
   } catch (e) {
     message.error(errorMsg || `命令失败：${(e && e.message) || e}`);
     return false;
+  }
+}
+
+// [V-6] 「重启后端」统一走轻量命令(与横幅/状态灯同源;此前错线到全量修复,过重且慢)。
+async function handleLightRestart() {
+  if (typeof window === 'undefined' || !window.__TAURI__) {
+    message.warning('当前不在桌面应用中,无法执行此操作');
+    return;
+  }
+  try {
+    const api = window.__TAURI__.core || window.__TAURI__;
+    const mode = await invokeLightServiceRestart(api);
+    message.info(mode === 'light' ? '已请求重启后端,约 10 秒内恢复' : '已请求完整修复,请等待 10-60 秒');
+  } catch (e) {
+    message.error(`重启后端失败：${(e && e.message) || e}`);
   }
 }
 
@@ -80,17 +97,11 @@ export function showChartServiceError(extraDetail) {
   const diagText = buildDiagText(root, extraDetail);
 
   // audit 修:clipboard.writeText 是 async,之前不 await 用户看到假成功。
+  // copyTextSmart:先试桌面桥(APP 内 navigator.clipboard 被拦),再标准剪贴板/execCommand。
   const handleCopyDiag = async () => {
-    if (!navigator || !navigator.clipboard) {
-      message.warning('当前环境不支持剪贴板,请手动复制');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(diagText);
-      message.success('诊断信息已复制,可粘贴到 issue');
-    } catch (e) {
-      message.error(`复制失败：${(e && e.message) || '权限不足或非 HTTPS 上下文'}`);
-    }
+    const ok = await copyTextSmart(diagText);
+    if (ok) { message.success('诊断信息已复制,可粘贴到 issue'); }
+    else { message.error('复制失败：权限不足或非 HTTPS 上下文,请手动复制'); }
   };
 
   const content = (
@@ -113,7 +124,7 @@ export function showChartServiceError(extraDetail) {
     <div style={footerWrap}>
       <div style={footerLeft}>
         {hasTauri ? (
-          <button type="button" onClick={() => tauriInvoke('trigger_runtime_repair_command', '已请求重启后端,请等待 10-60 秒', '重启后端失败')} style={btn}>🔧 重启后端</button>
+          <button type="button" onClick={handleLightRestart} style={btn}>🔧 重启后端</button>
         ) : null}
         {hasTauri ? (
           <button type="button" onClick={() => tauriInvoke('open_diagnostics_window_command', null, '打开诊断中心失败')} style={btn}>🔍 打开诊断中心</button>

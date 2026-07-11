@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# [U-I G1] locale 兜底:GUI(LaunchServices)拉起的进程通常无 LANG——非 ASCII(中文
+# 用户名)home 路径在 Java/Python 子进程里有编解码风险;仅缺失时兜底,不覆盖显式设置。
+if [ -z "${LANG:-}" ]; then export LANG=zh_CN.UTF-8; fi
+
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG_ROOT="${HOROSA_LOG_ROOT:-${ROOT}/.horosa-local-logs}"
 # 启动账本:Rust 壳在场时沿用其 HOROSA_RUN_TAG(四层同 run 聚合);独立跑脚本时自建。
@@ -927,8 +931,8 @@ if [ "${JAVA_EXPLODED_MODE}" = "1" ] && [ "${HOROSA_JAVA_CDS:-1}" = "1" ] && [ -
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
     "${JAVA_BIN}" -XX:SharedArchiveFile="${CDS_JSA}" -Xlog:cds=off
-    -Djava.net.useSystemProxies=true -Dhorosa.runtime.owner=horosa-desktop
-    -Duser.language=zh -Duser.country=CN -Dparamhash.cache.redis.enable=false
+    -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
+    -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
@@ -941,8 +945,8 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   diag_log "java launch: exploded (no CDS yet)"
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
-    "${JAVA_BIN}" -Djava.net.useSystemProxies=true -Dhorosa.runtime.owner=horosa-desktop
-    -Duser.language=zh -Duser.country=CN -Dparamhash.cache.redis.enable=false
+    "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
+    -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
@@ -953,7 +957,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   )
 else
   JAVA_LAUNCH_CMD+=(
-    "${JAVA_BIN}" -Djava.net.useSystemProxies=true -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dparamhash.cache.redis.enable=false -jar "${JAR}"
+    "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -jar "${JAR}"
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
     --astrosrv=http://127.0.0.1:${CHART_PORT}

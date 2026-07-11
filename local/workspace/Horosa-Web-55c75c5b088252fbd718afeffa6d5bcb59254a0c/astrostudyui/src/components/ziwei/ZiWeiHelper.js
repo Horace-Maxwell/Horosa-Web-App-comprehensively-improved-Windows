@@ -202,16 +202,20 @@ export function getLayerSihua(chartObj, gan){
 	return res;
 }
 
-// 运限三方四正(用户修正): 给定运命宫索引, 返回三合两宫索引 [运财帛宫, 运官禄宫]
-// 紫微十二宫从命宫起**逆时针**排: 命/兄/夫/子/财(+4)/疾/迁(+6)/交/官(+8)/田/福/父
-// chart.houses 数组按地支固定顺序 (子=0..亥=11), 所以 +4 = 运财帛, +6 = 运迁移(对宫), +8 = 运官禄
-// 用户指正:之前标错"三合宫(财帛/官禄)/(夫妻/迁移)"让 AI 困惑;实际两个三合宫各自有明确身份。
+// 运限三方四正: 给定运命宫索引, 返回三合两宫索引 [运财帛宫, 运官禄宫]
+// 🔴 方向铁律:紫微十二宫自命宫沿地支**逆行**排布(命→兄→夫→子→财→疾→迁→友→官→田→福→父),
+//   chart.houses 数组按地支固定序(子=0..亥=11)⇒ 传统宫序 = 数组 index **递减**方向。
+//   因此 财帛 = 命−4 ≡ (命+8)%12、迁移 = 命±6、官禄 = 命−8 ≡ (命+4)%12。
+//   与 ZWChart 主盘「运X」角标(delta = dirIndex − i)/ luckRoleChar / ZWCenterHouse.drawSangheLine
+//   (caiIdx=fromIdx−4 / guanIdx=fromIdx+4)三处正确参照同口径。
+//   历史 bug:曾误当 index 递增 = 传统序写成 财=+4/官=+8,恰好整体对调(右栏「运限三合」与
+//   AI 挂载的运财帛/运官禄互换)——jest 一致性测试 + 发布自检哨兵 双守卫,勿再反向。
 // 本宫和对宫已在 head 行("命宫【X】·对宫【Y】"),三方四正块只补两个三合宫即可,不重复。
 export function getSanheIndices(mingIdx){
 	if(typeof mingIdx !== 'number' || mingIdx < 0) return [];
 	const idx = ((mingIdx % 12) + 12) % 12;
-	const caibo = (idx + 4) % 12;    // 运财帛宫
-	const guanlu = (idx + 8) % 12;   // 运官禄宫
+	const caibo = (idx + 8) % 12;    // 运财帛宫(= 命−4,地支逆行 4 宫)
+	const guanlu = (idx + 4) % 12;   // 运官禄宫(= 命−8,地支逆行 8 宫)
 	return [caibo, guanlu];
 }
 

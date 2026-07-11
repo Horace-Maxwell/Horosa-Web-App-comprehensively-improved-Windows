@@ -315,8 +315,22 @@ public class TransData {
 			HttpServletResponse response = getResponseObject();
 			TransLogHelper.logTrans(request, response);
 		}
-		
+
 		pureClearTransData();
+	}
+
+	/**
+	 * 池化 worker 线程专用的彻底清场:清空五张上下文 Map 并从 ThreadLocal 卸载。
+	 * setRequestData 是 merge 语义(空 Map 传入不会摘掉已存的 Request/Response 引用),
+	 * 池线程若靠它"清理"会把 servlet 对象滞留到下一次复用——worker 开头与 finally 都应调本方法。
+	 */
+	public static void clearThreadContext(){
+		pureClearTransData();
+		requestHeadThreadLocal.remove();
+		requestMapThreadLocal.remove();
+		orgReqMapThreadLocal.remove();
+		responseHeadThreadLocal.remove();
+		responseMapThreadLocal.remove();
 	}
 	
 	public static boolean hasPagination(){
@@ -991,6 +1005,10 @@ public class TransData {
 	
 	public static void setReqeustAttribute(String attr, Object obj){
 		HttpServletRequest request = (HttpServletRequest)getRequestHeader(KeyConstants.RequestObject);
+		// 无 Request 绑定的线程(池化 worker/定时器)写属性直接 NPE;与 getReqeustAttribute 对称容错。
+		if(request == null) {
+			return;
+		}
 		request.setAttribute(attr, obj);
 	}
 	

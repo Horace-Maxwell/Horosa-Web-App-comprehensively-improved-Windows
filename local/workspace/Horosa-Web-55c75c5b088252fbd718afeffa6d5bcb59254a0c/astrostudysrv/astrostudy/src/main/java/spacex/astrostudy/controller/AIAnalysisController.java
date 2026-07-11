@@ -4,9 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,13 +45,15 @@ public class AIAnalysisController {
 	public SseEmitter chatStream(){
 		final Map<String, Object> params = readParams();
 		final SseEmitter emitter = SseHelper.push(UUID.randomUUID().toString());
-		final HttpServletRequest request = TransData.getRequestObject();
-		final HttpServletResponse response = TransData.getResponseObject();
+		// [并发根修] worker 与 servlet 对象彻底解耦:不再捕获/绑定 request、response,也不再
+		// markCurrentThread——流式期间客户端一旦中断,Tomcat 会回收 Request 并复用给并发中的
+		// 下一个请求,池线程继续持有/书写它就是跨请求污染(空响应/NPE)的根源。worker 只需要
+		// params 与 emitter;__sse__ 已由 servlet 线程在 SseHelper.push() 对真请求设置。
 		// 有界池替代每请求 new Thread(无界直建 burst 下线程堆积);池见 AIAnalysisProxyService.streamWorkerPool()。
 		AIAnalysisProxyService.streamWorkerPool().execute(()->{
-			TransData.setRequestData(new LinkedHashMap<String, Object>(), new LinkedHashMap<String, Object>());
-			TransData.setRequestObject(request, response);
-			SseHelper.markCurrentThread();
+			// 池线程复用:开头与 finally 都彻底清场(clearThreadContext 才是真清;
+			// setRequestData 是 merge 语义,清不掉滞留的 servlet 引用与 MB 级挂载快照)。
+			TransData.clearThreadContext();
 			try {
 				try {
 					// Give the servlet async pipeline a moment to fully enter SSE mode
@@ -66,9 +65,7 @@ public class AIAnalysisController {
 				}
 				service.chatStream(params, emitter);
 			} finally {
-				// 池线程复用:清掉 ThreadLocal 里的请求数据(解密后的挂载快照可达 MB 级),
-				// 避免滞留到该线程下一次复用。
-				TransData.setRequestData(new LinkedHashMap<String, Object>(), new LinkedHashMap<String, Object>());
+				TransData.clearThreadContext();
 			}
 		});
 		return emitter;

@@ -30,6 +30,11 @@ FILES = {
     "desktop_installer_bundle/electron/job-object.js": "Windows Job Object KILL_ON_JOB_CLOSE so children die with the shell",
     "desktop_installer_bundle/electron/logger.js": "shell logger + rotation",
     "desktop_installer_bundle/electron/preload.js": "renderer bridge (window.horosaDesktop)",
+    # SELF-HEAL-R3:两张 harness UI 页此前只被哨兵门守住内容、却不在校验和清单里(silent loss
+    # 不可见)。loading.html 现在承载修复屏的可行动按钮与 'restarting' 状态,必须收编。
+    "desktop_installer_bundle/electron/loading.html": "startup/repair screen (stepper, retry/repair/open-logs/copy-diag + download-full-installer action, runtime-state renderer)",
+    "desktop_installer_bundle/electron/update-progress.html": "update download-progress window UI",
+    "desktop_installer_bundle/scripts/e2e_loading_screen.cjs": "SELF-HEAL-R3 E2E: drives the real loading.html through the real preload bridge (button visibility / click routing / BUSY states / crashed-webContents reload contract)",
     "desktop_installer_bundle/electron/update-flow.js": "auto-update flow (sidecar-stop-before-install, progress window)",
     "desktop_installer_bundle/electron/update-signature.js": "Ed25519 update-signature verify",
     "desktop_installer_bundle/electron/update-progress-preload.js": "download-progress window preload",

@@ -173,7 +173,9 @@ public class AIAnalysisProxyService {
 				return;
 			}
 			try {
-				SseHelper.markCurrentThread();
+				// [并发根修] 这里绝不能做「mark 当前线程」(SseHelper 的旧调用):心跳线程无 Request 绑定,
+				// 旧实现首个 tick 即 NPE 被吞 → stopped=true → keep-alive 自池化改造以来一直是死的。
+				// __sse__ 标志由 servlet 线程在 SseHelper.push() 时对真正的请求对象设置,与心跳无关。
 				// 修复 #10(A):经 SseChannel 串行化写;已关闭则返回 false。心跳不再自行 complete,
 				// 收尾统一交给 chatStream 主流程,避免心跳 complete 与读流 send 竞态(keep-alive 帧本身不变)。
 				if (!channel.send(SseEmitter.event().comment("keep-alive"))) {
@@ -1850,7 +1852,10 @@ public class AIAnalysisProxyService {
 
 	private void sendEvent(SseChannel channel, String eventName, Map<String, Object> payload){
 		try{
-			SseHelper.markCurrentThread();
+			// [并发根修] 每 token 在池化 worker 线程写请求属性(旧「mark 当前线程」调用)是并发空响应/NPE 主凶:
+			// 客户端中断后 Tomcat 回收该 Request 分配给下一个请求,worker 仍在向"别人的请求"写 __sse__,
+			// 穿插的 JSON 请求被误判为 event-stream → 一字节正文不写;撞上 recycle() 清属性则 NPE。
+			// __sse__ 已由 servlet 线程在 SseHelper.push() 设置;afterCompletion 另有 SseEmitter 返回类型兜底。
 			channel.send(SseEmitter.event()
 				.name(eventName)
 				.data(JsonUtility.encode(payload)));

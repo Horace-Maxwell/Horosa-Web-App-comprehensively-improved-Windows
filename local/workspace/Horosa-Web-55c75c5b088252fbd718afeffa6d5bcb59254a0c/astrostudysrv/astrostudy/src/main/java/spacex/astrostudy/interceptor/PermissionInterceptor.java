@@ -26,6 +26,11 @@ public class PermissionInterceptor implements HandlerInterceptor {
 	
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+		// [SSE 并发根修·配套] async 重派发不再重跑业务校验:RequestHeaderInterceptor 对重派发早退,
+		// 此时 ThreadLocal 上下文为空,继续校验只会误判/抛错并把 JSON 错误写进未关的 event-stream。
+		if (request.getDispatcherType() != javax.servlet.DispatcherType.REQUEST) {
+			return true;
+		}
 		String path = request.getRequestURI();
 		String ctx = request.getServletContext().getContextPath();
 		path = path.substring(ctx.length());

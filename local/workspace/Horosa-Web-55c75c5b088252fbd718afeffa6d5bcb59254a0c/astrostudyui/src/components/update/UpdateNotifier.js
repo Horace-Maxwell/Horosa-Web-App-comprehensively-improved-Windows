@@ -110,6 +110,15 @@ export function reduceUpdateEvent(state, payload){
 	if(phase === 'uptodate'){
 		return { phase: PHASE_IDLE, toast: '已是最新版本' };
 	}
+	if(phase === 'check-failed'){
+		// 自动检查失败:低打扰 toast(不改 phase、不打断任何进行中的下载 UI);
+		// 旧壳不发此 phase,零影响。
+		return { toast: payload.message || '更新检查未完成，稍后会自动重试' };
+	}
+	if(phase === 'downgrade-blocked'){
+		// 线上版本低于本机(防降级拦截):同样只 toast 提示,不进入更新流程。
+		return { toast: payload.message || '线上版本低于本机，已跳过本次更新' };
+	}
 	if(phase === 'error'){
 		return { phase: PHASE_ERROR, message: payload.message || '更新失败' };
 	}

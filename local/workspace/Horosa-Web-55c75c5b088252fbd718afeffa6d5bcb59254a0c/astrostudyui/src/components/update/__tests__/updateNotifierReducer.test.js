@@ -65,6 +65,19 @@ describe('reduceUpdateEvent 兼容矩阵', ()=>{
 		expect(reduceUpdateEvent(BASE, null)).toBeNull();
 	});
 
+	test('check-failed/downgrade-blocked 低打扰 toast:不改 phase、不打断下载 UI', ()=>{
+		const failed = reduceUpdateEvent(BASE, { phase: 'check-failed', message: '更新检查未完成（网络或更新源暂不可达）' });
+		expect(failed.toast).toContain('更新检查未完成');
+		expect(failed.phase).toBeUndefined(); // 只出 toast,phase 保持原态
+		expect(reduceUpdateEvent(BASE, { phase: 'check-failed' }).toast).toBe('更新检查未完成，稍后会自动重试');
+		const blocked = reduceUpdateEvent(BASE, { phase: 'downgrade-blocked', message: '线上运行环境版本低于本机' });
+		expect(blocked.toast).toContain('低于本机');
+		expect(blocked.phase).toBeUndefined();
+		// 下载中收到 check-failed:补丁无 phase 字段 → 下载卡不被打断(组件层 merge 语义)
+		const during = reduceUpdateEvent({ ...BASE, phase: 'downloading' }, { phase: 'check-failed' });
+		expect(during.phase).toBeUndefined();
+	});
+
 	test('applying 安装阶段:带消息/缺消息兜底;未知 phase 返回 null', ()=>{
 		const applying = reduceUpdateEvent(BASE, { phase: 'applying', message: '部件 2/7·web-app:解压 43% · 1024 个文件' });
 		expect(applying.phase).toBe('applying');

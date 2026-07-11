@@ -1,5 +1,6 @@
 import { getStore, } from './storageutil';
-import { copyDesktopClipboard } from './aiAnalysisDesktop';
+import { copyTextSmart } from './clipboardText';
+import { withUtf8Bom } from './aiAnalysisExport';
 import request from './request';
 import * as ExportConstants from './constants';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from './dayBoundary';
@@ -4997,14 +4998,9 @@ function formatStamp(date){
 }
 
 function downloadBlob(filename, content, mime){
-	// 🔧 文字类导出补 UTF-8 BOM:macOS TextEdit / Windows 记事本 / 旧版 Word 对无 BOM 的 UTF-8 文件会按
-	//   本地默认编码(MacRoman/GBK)猜测 → 中文全乱(如「技术」UTF-8 字节 E6 8A 80 … 被 MacRoman 解码成
-	//   「ÊäÄ…」)。BOM(EF BB BF)显式标记 UTF-8,各平台文本编辑器/Word 均正确识别。
-	//   仅给人读的文本/Word 加;JSON/CSV 等机读格式不加(BOM 会破坏 JSON.parse / 首列名)。
-	let payload = content;
-	if(typeof content === 'string' && /text\/plain|msword|text\/markdown/i.test(mime) && content.charCodeAt(0) !== 0xFEFF){
-		payload = String.fromCharCode(0xFEFF) + content;
-	}
+	// 🔧 文字类导出补 UTF-8 BOM(政策单源 aiAnalysisExport.withUtf8Bom:仅人读的 txt/Word/markdown 加,
+	//   json/csv/pdf 等机读或二进制不加;content 非字符串时原样透传,天然安全)。
+	const payload = withUtf8Bom(content, mime);
 	const blob = new Blob([payload], { type: mime });
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
@@ -5017,32 +5013,67 @@ function downloadBlob(filename, content, mime){
 	setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
 
-async function copyText(text){
-	// 1) Tauri 桌面剪贴板:webview 里 navigator.clipboard/execCommand 被拦,走原生 pbcopy 命令(invoke)。
-	try{ if(await copyDesktopClipboard(text)){ return true; } }catch(e){ /* 回退 */ }
-	// 2) 标准剪贴板(需安全上下文 + 文档焦点;异步后用户手势可能已失效,失败即回退)。
-	if(navigator.clipboard && window.isSecureContext){
-		try{ await navigator.clipboard.writeText(text); return true; }catch(e){ /* 回退 */ }
-	}
-	// 3) execCommand 回退:先抢回窗口/选区焦点(导出多由菜单触发、焦点已散)。
-	try{ window.focus(); }catch(e){}
-	const ta = document.createElement('textarea');
-	ta.value = text;
-	ta.setAttribute('readonly', '');
-	ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
-	document.body.appendChild(ta);
-	ta.focus();
-	ta.select();
-	try{ ta.setSelectionRange(0, ta.value.length); }catch(e){}
-	let ok = false;
-	try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
-	document.body.removeChild(ta);
-	return ok;
-}
+// 复制统一走共享件 clipboardText.copyTextSmart(三级降级;原私有 copyText 逐字平移过去)。
 
 // v2.6.10:弃用 window.open 打印窗(桌面 webview 拦截 + 浏览器弹窗拦截)。
 // 改为离屏 DOM → html-to-image → jsPDF 分页直接下载 .pdf:无窗口、CJK 安全(走系统字体渲染成图)、
-// 浏览器与 Tauri 一致(downloadBlob/save 路径既有,TXT/Word 同款已验证可用)。
+// 浏览器与 Tauri 一致(downloadBlob 路径既有,TXT/Word 同款已验证可用)。
+// [E3] 修「PDF 全空白」:html-to-image 是克隆节点(内联样式)→ SVG foreignObject 栅格化,宿主若用
+//   大负值离屏偏移,克隆携带该定位 → 画到视口外全白(html2canvas 的同坑修法见 reportExport.js
+//   exportReportPdf,机制不同不能照抄:那边靠 onclone 复位,这边靠 style 克隆覆盖)。三层防线:
+//   ① toCanvas 的 style 选项把克隆定位归零(顺带绕 WebKit foreignObject 定位层老 bug);
+//   ② 宿主 fixed(0,0)+z-index:-1+pointer-events:none(即使 ① 回归,克隆 fixed(0,0) 落 SVG 原点仍出图);
+//   ③ 墨迹守卫 + blob 尺寸守卫:空白绝不落盘假成功(失败由调用方降级 TXT)。
+
+// [E3] 位图导出墨迹守卫:从顶向下按块扫描,命中非白像素即停(payload 恒以标题/header 行开篇 →
+// 正常路径首块即命中,~1ms)。阈值沿 reportExport 同款实战值;canvas 异常按无墨迹处理(保守降级)。
+function canvasHasInk(canvas){
+	try{
+		if(!canvas || !canvas.width || !canvas.height){ return false; }
+		const ctx = canvas.getContext('2d', { willReadFrequently: true });
+		if(!ctx){ return false; }
+		const step = 64;
+		const maxScan = Math.min(canvas.height, 4000);
+		for(let y = 0; y < maxScan; y += step){
+			const h = Math.min(step, maxScan - y);
+			const data = ctx.getImageData(0, y, canvas.width, h).data;
+			for(let i = 0; i < data.length; i += 4){
+				if(data[i + 3] > 8 && (data[i] < 244 || data[i + 1] < 244 || data[i + 2] < 244)){
+					return true;
+				}
+			}
+		}
+		return false;
+	}catch(e){
+		return false;
+	}
+}
+
+const PDF_HOST_WIDTH = 794;                 // A4 宽 @96dpi
+const PDF_MAX_CANVAS_EDGE = 16000;          // 设备px;浏览器 canvas 单边硬上限 32767,留足余量防静默空白/截断
+const PDF_CHUNK_HEIGHT = 8000;              // CSS px;超限时按行分块逐块渲染续页
+
+// [E3] PDF 内容分块(纯逻辑,可测):把 text 按「物理行占实测总高 fullH 的比例」摊成多块,
+// 每块目标 CSS 高 ≈ chunkHeight。title 只进第 0 块。fullH<=0 或 chunkHeight<=0 → 单块(不分)。
+// 关键:比例摊法对「少数超长物理行折成很多视觉行」也稳健——总高大而物理行少时每块自动收到 1 行,
+// 不会像固定行数那样把长折行塞成超上限的块(退回静默空白/截断)。
+export function planPdfChunks(text, title, fullH, chunkHeight){
+	const head = title ? `${title}\n\n` : '';
+	const body = `${text == null ? '' : text}`;
+	const lines = body.split('\n');
+	if(!(fullH > 0) || !(chunkHeight > 0)){
+		return [`${head}${body}`];
+	}
+	const linesPerChunk = Math.max(1, Math.floor((chunkHeight * lines.length) / fullH));
+	const chunks = [];
+	for(let i = 0; i < lines.length; i += linesPerChunk){
+		chunks.push(lines.slice(i, i + linesPerChunk).join('\n'));
+	}
+	if(chunks.length){ chunks[0] = `${head}${chunks[0]}`; }
+	else{ chunks.push(head); }
+	return chunks;
+}
+
 async function exportPdf(payload){
 	const title = payload.tech || '';
 	const text = payload.text || '';
@@ -5054,29 +5085,74 @@ async function exportPdf(payload){
 		const jsPDF = jspdfMod.jsPDF || jspdfMod.default || jspdfMod;
 		if(!toCanvas || !jsPDF){ return false; }
 		host = document.createElement('div');
-		host.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;padding:48px 56px;box-sizing:border-box;background:#ffffff;color:#111111;font:13px/1.7 "PingFang SC","Microsoft YaHei",Arial,sans-serif;white-space:pre-wrap;word-break:break-word;z-index:-1;';
+		host.style.cssText = `position:fixed;left:0;top:0;width:${PDF_HOST_WIDTH}px;padding:48px 56px;box-sizing:border-box;background:#ffffff;color:#111111;font:13px/1.7 "PingFang SC","Microsoft YaHei",Arial,sans-serif;white-space:pre-wrap;word-break:break-word;z-index:-1;pointer-events:none;`;
 		host.textContent = `${title ? title + '\n\n' : ''}${text}`;
 		document.body.appendChild(host);
-		const canvas = await toCanvas(host, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+
+		// 自适应清晰度 + 超长分块:canvas 高 = CSS 高 × pixelRatio,超上限即静默空白——先降 PR,再按行切块。
+		const fullH = host.offsetHeight || 0;
+		const pixelRatio = (fullH * 2 <= PDF_MAX_CANVAS_EDGE) ? 2 : 1;
+		const contents = (fullH * pixelRatio > PDF_MAX_CANVAS_EDGE)
+			? planPdfChunks(text, title, fullH, PDF_CHUNK_HEIGHT)
+			: [`${title ? title + '\n\n' : ''}${text}`];
+
+		const renderChunk = async (content)=>{
+			host.textContent = content;
+			// style 覆盖作用于「克隆节点」:定位归零到普通流(防线①);skipFonts:纯 textContent+系统字体,
+			// 免 html-to-image 在 WKWebView 抓全文档 @font-face 失败/挂起一类问题。
+			return toCanvas(host, {
+				pixelRatio,
+				backgroundColor: '#ffffff',
+				cacheBust: true,
+				skipFonts: true,
+				style: { position: 'static', left: '0', top: '0', margin: '0' },
+			});
+		};
+
 		const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
 		const margin = 10;
 		const cwMm = pdf.internal.pageSize.getWidth() - margin * 2;     // 内容宽(mm)
 		const chMm = pdf.internal.pageSize.getHeight() - margin * 2;    // 内容高(mm)
-		const pxPerMm = canvas.width / cwMm;
-		const pageHpx = Math.floor(chMm * pxPerMm);
-		let y = 0, first = true;
-		while(y < canvas.height){
-			const sliceH = Math.min(pageHpx, canvas.height - y);
-			const slice = document.createElement('canvas');
-			slice.width = canvas.width; slice.height = sliceH;
-			slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-			if(!first) pdf.addPage();
-			pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, cwMm, sliceH / pxPerMm);
-			first = false; y += sliceH;
+		let first = true;
+		for(let ci = 0; ci < contents.length; ci++){
+			let canvas = await renderChunk(contents[ci]);
+			// 墨迹守卫覆盖「每一块」(非仅首块):任何本应有内容的块渲染空白 → 重试一次 → 仍空白则整份放弃降级 TXT,
+			// 绝不把空白页当正常页 addImage(续块在 WKWebView 大 canvas 内存压力/超上限 clamp 下也会偶发空白)。
+			// 「本应有墨迹」= 该块去空白后非空(首块含 header 恒 true;尾部纯空行块合法空白,跳过墨迹校验只查尺寸)。
+			const expectInk = `${contents[ci]}`.trim().length > 0;
+			if(expectInk && !canvasHasInk(canvas)){
+				canvas = await renderChunk(contents[ci]);
+				if(!canvasHasInk(canvas)){
+					console.error(`[aiExport] PDF 第 ${ci} 块渲染空白(重试后仍无墨迹),放弃落盘`);
+					return false;
+				}
+			}
+			if(!canvas || !canvas.width || !canvas.height){
+				console.error('[aiExport] PDF 渲染 canvas 尺寸为 0,放弃落盘');
+				return false;
+			}
+			const pxPerMm = canvas.width / cwMm;
+			const pageHpx = Math.floor(chMm * pxPerMm);
+			let y = 0;
+			while(y < canvas.height){
+				const sliceH = Math.min(pageHpx, canvas.height - y);
+				const slice = document.createElement('canvas');
+				slice.width = canvas.width; slice.height = sliceH;
+				slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+				if(!first) pdf.addPage();
+				pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, cwMm, sliceH / pxPerMm);
+				first = false; y += sliceH;
+			}
 		}
-		pdf.save(`${payload.filenameBase}.pdf`);
+		const blob = pdf.output('blob');
+		if(!blob || blob.size < 5000){
+			console.error(`[aiExport] PDF blob 异常(size=${blob && blob.size}),放弃落盘`);
+			return false;
+		}
+		downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf');
 		return true;
 	}catch(e){
+		console.error('[aiExport] PDF 导出失败:', e);
 		return false;
 	}finally{
 		if(host && host.parentNode){ try{ host.parentNode.removeChild(host); }catch(e){} }
@@ -5623,7 +5699,7 @@ export async function runAIExport(action){
 		}
 
 		if(action === 'copy'){
-			const ok = await copyText(payload.text);
+			const ok = await copyTextSmart(payload.text);
 			if(ok){ return { ok: true, message: 'AI纯文字已复制。' }; }
 			// 剪贴板不可用(桌面 webview / 非聚焦 / 安全上下文)→ 自动导出 TXT,用户必有产物。
 			exportTxt(payload);
@@ -5639,10 +5715,13 @@ export async function runAIExport(action){
 		}
 		if(action === 'pdf'){
 			const ok = await exportPdf(payload);
-			return { ok: ok, message: ok ? 'PDF 已导出。' : 'PDF 生成失败，请改用 Word/TXT。' };
+			if(ok){ return { ok: true, message: 'PDF 已导出。' }; }
+			// PDF 生成失败(渲染空白/异常)→ 自动导出 TXT,用户必有产物(同 copy 分支降级先例)。
+			exportTxt(payload);
+			return { ok: true, message: 'PDF 生成失败，已自动导出 TXT（内容相同，可改用 Word）。' };
 		}
 		if(action === 'all'){
-			const copied = await copyText(payload.text);
+			const copied = await copyTextSmart(payload.text);
 			exportTxt(payload);
 			exportWord(payload);
 			const pdfOk = await exportPdf(payload);
@@ -5658,3 +5737,6 @@ export async function runAIExport(action){
 		return { ok: false, message: msg };
 	}
 }
+
+// 仅供 jest 注入测试(照 services/aianalysis.js __testing__ 先例);生产代码勿 import。
+export const __aiExportTesting__ = { exportPdf, canvasHasInk, planPdfChunks };

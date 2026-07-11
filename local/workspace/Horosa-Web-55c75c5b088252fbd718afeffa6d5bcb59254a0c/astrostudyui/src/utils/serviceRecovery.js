@@ -1,0 +1,53 @@
+// [自愈] 本地服务离线期的自动恢复轮询编排(纯定时器逻辑,fake-timer 可测)。
+// 横幅显示期间每 intervalMs 探一次:probe() 解析为 true → onOnline() 单次回调并停;
+// false → 继续轮询。返回 stop 句柄(幂等)。probe/onOnline 由调用方注入(组件里组装
+// verifyBackendIdentity + renegotiateLocalServerRoot),本模块不 import 网络层。
+export function startRecoveryPolling(opts) {
+  const options = opts || {};
+  const intervalMs = options.intervalMs || 10000;
+  const probe = options.probe;
+  const onOnline = options.onOnline;
+  let stopped = false;
+  let timer = null;
+  const tick = () => {
+    if (stopped) return;
+    Promise.resolve()
+      .then(() => probe())
+      .catch(() => false)
+      .then((ok) => {
+        if (stopped) return;
+        if (ok) {
+          try { onOnline(); } catch (_) {}
+          return; // 恢复即停(单次回调)
+        }
+        timer = setTimeout(tick, intervalMs);
+      });
+  };
+  timer = setTimeout(tick, intervalMs);
+  return () => {
+    stopped = true;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+}
+
+// 默认探测组装:先验当前服务根身份;不过 → 触发地址再协商(verify-to-switch,
+// 自带单飞+5s 节流)后再验一次。恒返回布尔,绝不抛。
+export function buildDefaultRecoveryProbe(deps) {
+  const verifyBackendIdentity = deps.verifyBackendIdentity;
+  const renegotiateLocalServerRoot = deps.renegotiateLocalServerRoot;
+  const getServerRoot = deps.getServerRoot;
+  return async () => {
+    try {
+      const first = await verifyBackendIdentity(getServerRoot());
+      if (first && first.ok) return true;
+      await renegotiateLocalServerRoot('banner-recovery');
+      const second = await verifyBackendIdentity(getServerRoot());
+      return !!(second && second.ok);
+    } catch (_) {
+      return false;
+    }
+  };
+}

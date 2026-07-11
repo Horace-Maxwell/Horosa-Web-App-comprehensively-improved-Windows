@@ -124,17 +124,25 @@ public class TransCodeAppAuthInterceptor implements HandlerInterceptor {
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+		// [SSE 并发根修·配套] async 重派发(SSE complete 后 Tomcat ASYNC dispatch)会把拦截器链再跑一遍,
+		// 而 RequestHeaderInterceptor 对重派发早退、不再解析头 → 本拦截器读到的 transcode 为 null,
+		// transcode.contains(...) 直接 NPE → 错误 JSON 被追加进还开着的 event-stream 尾部(垃圾尾巴)。
+		// REQUEST 首派发已完成鉴权,重派发一律放行(与 RequestHeaderInterceptor #10(B) 同款门)。
+		if (request.getDispatcherType() != javax.servlet.DispatcherType.REQUEST) {
+			return true;
+		}
 		if(!needCheck) {
 			return true;
 		}
-		
+
 		String app = TransData.getClientApp();
 		if(superApps.contains(app) || superApps.contains(app.toLowerCase())) {
 			return true;
 		}
-		
+
 		String transcode = TransData.getTransCode();
-		if(commonTrans.contains(transcode) || transcode.contains("/common/")) {
+		// null 卫生:REQUEST 派发下 transcode 必由 RequestHeaderInterceptor 设置;防御异常路径。
+		if(transcode != null && (commonTrans.contains(transcode) || transcode.contains("/common/"))) {
 			return true;
 		}
 		

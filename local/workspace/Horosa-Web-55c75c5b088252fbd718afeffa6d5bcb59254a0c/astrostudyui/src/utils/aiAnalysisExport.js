@@ -32,8 +32,20 @@ export function blobToBase64(blob){
 	});
 }
 
+// [E4] 文字类导出 BOM 政策单源:macOS TextEdit / Windows 记事本 / 旧版 Word 对无 BOM 的 UTF-8 文件
+// 按本地默认编码(MacRoman/GBK)猜测 → 中文全乱(「技术」E6 8A 80… 被 MacRoman 解码成「ÊäÄ…」);
+// BOM(EF BB BF)显式标记 UTF-8,各平台文本编辑器/Word 均正确识别。
+// 仅给人读的 txt/Word(.doc html 壳)/markdown 加;JSON/CSV/docx(zip)/html 等机读或自带声明的格式
+// 不加(BOM 会破坏 JSON.parse / 首列名)。幂等:已带 BOM 不重复。
+export function withUtf8Bom(content, mime){
+	if(typeof content === 'string' && /text\/plain|msword|text\/markdown/i.test(`${mime || ''}`) && content.charCodeAt(0) !== 0xFEFF){
+		return String.fromCharCode(0xFEFF) + content;
+	}
+	return content;
+}
+
 export function downloadTextFile(fileName, content, type = 'text/plain;charset=utf-8'){
-	downloadBlob(fileName, new Blob([content], { type }));
+	downloadBlob(fileName, new Blob([withUtf8Bom(content, type)], { type }));
 }
 
 export async function exportConversationDocx(conversation, messages){
@@ -87,7 +99,7 @@ export async function exportConversationByFormat(conversation, messages, format)
 		const body = (messages || []).map((item)=>`## ${item.role}\n\n${item.content || ''}`).join('\n\n');
 		return {
 			fileName: `${conversation.title || 'conversation'}.md`,
-			blob: new Blob([`# ${conversation.title || 'AI分析会话'}\n\n${body}`], { type: 'text/markdown;charset=utf-8' }),
+			blob: new Blob([withUtf8Bom(`# ${conversation.title || 'AI分析会话'}\n\n${body}`, 'text/markdown')], { type: 'text/markdown;charset=utf-8' }),
 		};
 	}
 	if(format === 'docx'){
@@ -98,7 +110,7 @@ export async function exportConversationByFormat(conversation, messages, format)
 	}
 	return {
 		fileName: `${conversation.title || 'conversation'}.txt`,
-		blob: new Blob([(messages || []).map((item)=>`[${item.role}] ${item.content || ''}`).join('\n\n')], { type: 'text/plain;charset=utf-8' }),
+		blob: new Blob([withUtf8Bom((messages || []).map((item)=>`[${item.role}] ${item.content || ''}`).join('\n\n'), 'text/plain')], { type: 'text/plain;charset=utf-8' }),
 	};
 }
 

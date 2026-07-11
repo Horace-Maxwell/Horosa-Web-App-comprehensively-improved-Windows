@@ -314,3 +314,6 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 		throw e;
 	}
 }
+
+// [B-A7] 测试钩:SSE 解析器纯函数(不触网)。
+export const __testing__ = { createSseParser };

@@ -1,4 +1,6 @@
 import { AI_ANALYSIS_STORES, bulkPutStoreRecords, listStoreRecords } from './aiAnalysisStore';
+import { requestEmbeddingVectors } from '../services/aianalysis';
+import { parseModelSelection } from './aiAnalysisProviders';
 
 const DEFAULT_CHUNK_SIZE = 1200;
 const DEFAULT_CHUNK_OVERLAP = 180;
@@ -189,4 +191,87 @@ export function rankChunksByKeywordWithExtra(query, extraKeywords, chunkEntries)
 			totalScore: base + extra * 1.8,
 		};
 	}).sort((a, b)=>b.totalScore - a.totalScore);
+}
+
+// ============ 向量嵌入共享件(对话与报告同源,避免两处各养一套) ============
+
+// 解析「嵌入(向量)模型」目标,三态向后兼容:
+//   1) UI 显式选了独立嵌入模型(embeddingSelection="profileId::model")→ 用它;
+//   2) 未选 → 沿用聊天 profile 自带嵌入模型(embeddingModelIds[0]);
+//   3) 都没有 → null,调用方退关键词排序。
+export function resolveEmbeddingTargetFromPrefs({ embeddingSelection, providerProfiles, chatProfile }){
+	const parsed = parseModelSelection(embeddingSelection || '');
+	const explicit = (providerProfiles || []).find((p)=>p && p.id === parsed.profileId && p.enabled !== false);
+	if(explicit && parsed.model){ return { profile: explicit, model: parsed.model }; }
+	const list = (chatProfile && Array.isArray(chatProfile.embeddingModelIds)) ? chatProfile.embeddingModelIds : [];
+	const m = `${list.find((x)=>`${x || ''}`.trim()) || ''}`.trim();
+	return (chatProfile && m) ? { profile: chatProfile, model: m } : null;
+}
+
+// 为 chunk 列表补齐向量:IndexedDB materialEmbeddings 缓存命中直接用,缺的批量请求 embedding 并落库。
+// (平移自对话路径,保持行为逐字一致:缓存键 = chunkId × profileId × embeddingModel。)
+export async function ensureChunkEmbeddings(profile, embeddingModel, chunks){
+	if(!profile || !embeddingModel || !(chunks || []).length){
+		return chunks || [];
+	}
+	const allEmbeddings = await listStoreRecords(AI_ANALYSIS_STORES.materialEmbeddings);
+	const enriched = [];
+	const missing = [];
+	(chunks || []).forEach((chunk)=>{
+		const found = allEmbeddings.find((item)=>item.chunkId === chunk.id && item.providerProfileId === profile.id && item.embeddingModel === embeddingModel);
+		if(found && Array.isArray(found.vector) && found.vector.length){
+			enriched.push({
+				...chunk,
+				vector: found.vector,
+			});
+		}else{
+			missing.push(chunk);
+		}
+	});
+	if(missing.length){
+		const rsp = await requestEmbeddingVectors({
+			providerType: profile.providerType,
+			apiKey: profile.apiKey,
+			baseUrl: profile.baseUrl,
+			model: embeddingModel,
+			embeddingModel,
+			providerOptions: profile.providerOptions || {},
+			input: missing.map((item)=>item.content),
+		});
+		const vectors = rsp && rsp.Result && Array.isArray(rsp.Result.vectors) ? rsp.Result.vectors : [];
+		const saved = await bulkPutStoreRecords(AI_ANALYSIS_STORES.materialEmbeddings, missing.map((chunk, idx)=>({
+			id: `emb-${profile.id}-${embeddingModel}-${chunk.id}`,
+			materialId: chunk.materialId,
+			chunkId: chunk.id,
+			providerProfileId: profile.id,
+			embeddingModel,
+			vector: vectors[idx] || [],
+		})), 'emb');
+		saved.forEach((item)=>{
+			const chunk = missing.find((one)=>one.id === item.chunkId);
+			if(chunk){
+				enriched.push({
+					...chunk,
+					vector: item.vector,
+				});
+			}
+		});
+	}
+	return enriched;
+}
+
+// 查询向量便捷封装:返回查询串的 embedding 向量(失败/空返 null,调用方退关键词)。
+export async function embedQueryVector(target, query){
+	if(!target || !target.profile || !target.model || !`${query || ''}`.trim()) return null;
+	const rsp = await requestEmbeddingVectors({
+		providerType: target.profile.providerType,
+		apiKey: target.profile.apiKey,
+		baseUrl: target.profile.baseUrl,
+		model: target.model,
+		embeddingModel: target.model,
+		providerOptions: target.profile.providerOptions || {},
+		input: [`${query}`],
+	});
+	const v = rsp && rsp.Result && Array.isArray(rsp.Result.vectors) ? rsp.Result.vectors[0] : null;
+	return (Array.isArray(v) && v.length) ? v : null;
 }

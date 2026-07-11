@@ -1,25 +1,71 @@
 import React from 'react';
-import { subscribeServiceStatus, markServiceOnline } from '../../utils/serviceStatus';
+import { subscribeServiceStatus, markServiceOnline, markServiceOffline } from '../../utils/serviceStatus';
+import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
+import { startRecoveryPolling, buildDefaultRecoveryProbe } from '../../utils/serviceRecovery';
 import { ServerRoot } from '../../utils/constants';
 
 // 修法6（升级版,Mac issue #12 增强）:非阻塞「本地服务连接中断」重连横幅。
 //
 // 在线时渲染 null(零 DOM、对正常路径零影响);
-// 离线时显示在顶部居中的横幅,带可操作按钮:「立即重试」「重启后端」「打开诊断」(Tauri 环境)。
+// 离线时显示在顶部居中的横幅,带可操作按钮:「立即重试」「重启服务」「打开诊断」(Tauri 环境)。
 // 按钮区域 pointerEvents:auto;横幅其余部分 pointerEvents:none,不拦截背景点击。
 //
 // 离线 / 在线状态由 utils/serviceStatus 驱动:request.js / chartFetch.js 在确认后端不可达时置离线、
-// 在收到任何后端响应时置在线。本组件主动按下「立即重试」会探测 /heartbeat,成功→ markServiceOnline。
+// 在收到任何后端响应时置在线。
+// [自愈增强] ①横幅显示期间每 10s 自动做身份探测(verify→不过则地址再协商→再 verify),
+//   后端自愈/换根成功即自动消横幅——不再要求用户手点或等下一次业务请求撞见;
+// ②监听壳侧服务监督事件(supervisor_gave_up):自动修复超限暂停时,横幅文案升级并
+//   保证可见(即便还没有业务请求失败);③「重启服务」走轻量 restart_local_services_command
+//   (只重启后端进程;老壳无此命令时回退全量修复命令,代数差安全)。
 //
 // 配色取中性告警色(琥珀),非术数语义色,明暗主题下均可读。
 export default function ServiceStatusBanner() {
   const [online, setOnline] = React.useState(true);
   const [retrying, setRetrying] = React.useState(false);
+  const [gaveUpMsg, setGaveUpMsg] = React.useState('');
 
   React.useEffect(() => {
     const unsub = subscribeServiceStatus((v) => setOnline(v));
     return unsub;
   }, []);
+
+  // 壳侧服务监督事件(__horosaServiceEvent;老壳不发=本钩子静默)。挂载时补读 pending。
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handle = (payload) => {
+      if (!payload || payload.kind !== 'supervisor_gave_up') return;
+      setGaveUpMsg(payload.message || '本地服务多次自动重启未果，已暂停自动修复。');
+      // gave_up 时服务必然不可达:主动置离线,保证横幅立即可见(不等业务请求撞见)
+      markServiceOffline();
+    };
+    window.__horosaServiceEvent = handle;
+    if (window.__horosaPendingServiceEvent) {
+      try { handle(window.__horosaPendingServiceEvent); } catch (_) {}
+    }
+    return () => {
+      if (window.__horosaServiceEvent === handle) {
+        window.__horosaServiceEvent = null;
+      }
+    };
+  }, []);
+
+  // 离线期自动恢复轮询:自愈成功即自动消横幅(在线时零定时器)。
+  React.useEffect(() => {
+    if (online) return undefined;
+    const stop = startRecoveryPolling({
+      intervalMs: 10000,
+      probe: buildDefaultRecoveryProbe({
+        verifyBackendIdentity,
+        renegotiateLocalServerRoot,
+        getServerRoot: () => ServerRoot,
+      }),
+      onOnline: () => {
+        setGaveUpMsg('');
+        markServiceOnline();
+      },
+    });
+    return stop;
+  }, [online]);
 
   const hasTauri = typeof window !== 'undefined' && !!window.__TAURI__;
 
@@ -27,25 +73,39 @@ export default function ServiceStatusBanner() {
     if (!ServerRoot || retrying) return;
     setRetrying(true);
     try {
-      const url = `${String(ServerRoot).replace(/\/$/, '')}/heartbeat`;
-      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-      const t = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 3500) : null;
-      await fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
-      if (t) clearTimeout(t);
-      markServiceOnline();
+      // 与自动轮询同源:身份探测(而非裸 /heartbeat——任何 HTTP 响应都 200 的陌生进程会骗过它)
+      const outcome = await verifyBackendIdentity(ServerRoot);
+      if (outcome && outcome.ok) {
+        setGaveUpMsg('');
+        markServiceOnline();
+      } else {
+        await renegotiateLocalServerRoot('banner-retry');
+        const second = await verifyBackendIdentity(ServerRoot);
+        if (second && second.ok) {
+          setGaveUpMsg('');
+          markServiceOnline();
+        }
+      }
     } catch (_) {
-      // 仍不可达;横幅继续显示
+      // 仍不可达;横幅继续显示(自动轮询也在跑)
     } finally {
       setRetrying(false);
     }
   }, [retrying]);
 
-  // audit 修:await + 反馈,避免 silent fail
+  // 「重启服务」:轻量命令只重启后端进程(此前错线到 trigger_runtime_repair_command
+  // =全量修复流,会走资产复核/可能重装 runtime,对「服务死了」场景过重)。
+  // 老壳(runtime-only 更新不换壳)无新命令 → invoke 抛错 → 回退旧全量修复命令。
   const handleRestart = React.useCallback(async () => {
     if (!hasTauri) return;
     try {
       const api = window.__TAURI__.core || window.__TAURI__;
-      if (api && api.invoke) {
+      if (!api || !api.invoke) return;
+      try {
+        await api.invoke('restart_local_services_command');
+        setGaveUpMsg('');
+      } catch (e) {
+        // 代数差回退:老壳没有轻量命令
         await api.invoke('trigger_runtime_repair_command');
       }
     } catch (e) {
@@ -103,12 +163,16 @@ export default function ServiceStatusBanner() {
   return (
     <div style={wrapStyle} aria-live="polite">
       <div style={barStyle}>
-        <span>⚠️ 本地服务暂时不可达，操作会自动重试。</span>
+        <span>
+          {gaveUpMsg
+            ? `⚠️ ${gaveUpMsg}`
+            : '⚠️ 本地服务暂时不可达，正在自动探测恢复，操作会自动重试。'}
+        </span>
         <button type="button" disabled={retrying} onClick={handleRetry} style={btnStyle}>
           {retrying ? '正在重试…' : '立即重试'}
         </button>
         {hasTauri ? (
-          <button type="button" onClick={handleRestart} style={btnStyle}>🔧 重启后端</button>
+          <button type="button" onClick={handleRestart} style={btnStyle}>🔧 重启服务</button>
         ) : null}
         {hasTauri ? (
           <button type="button" onClick={handleDiag} style={btnStyle}>🔍 打开诊断</button>

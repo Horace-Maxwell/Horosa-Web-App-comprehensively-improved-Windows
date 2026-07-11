@@ -2,6 +2,9 @@ import React from 'react';
 import { Popover, Button, Space, message } from 'antd';
 import { subscribeServiceStatus, markServiceOnline, markServiceOffline } from '../../utils/serviceStatus';
 import { ServerRoot } from '../../utils/constants';
+import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
+import { invokeLightServiceRestart } from '../../utils/serviceRecovery';
+import { copyTextSmart } from '../../utils/clipboardText';
 
 // Mac issue #12 增强:常驻「后端健康指示灯」。
 //
@@ -12,7 +15,9 @@ import { ServerRoot } from '../../utils/constants';
 //   · 红色实心圆 = 后端不可达(markServiceOffline 已被调用)
 // 位置:fixed 右下角,可点击展开 Popover 显详情 + 操作。
 //
-// 自检:首次挂载主动探测一次 /heartbeat;之后被动跟随 serviceStatus 订阅。
+// 自检:首次挂载主动做一次身份握手探测;之后被动跟随 serviceStatus 订阅。
+// [V-6] 弃 heartbeat 裸 fetch:主后端无该 HTTP 路由(404 也 markOnline=灯撒谎),
+// 且任何陌生进程的 200 都会点绿——改 verifyBackendIdentity(fail-closed,与横幅同源)。
 // 仅在 ServerRoot 有效(桌面 app)时挂载;纯网页托管返回 null。
 export default function BackendStatusDot() {
   const [online, setOnline] = React.useState(true);
@@ -33,15 +38,15 @@ export default function BackendStatusDot() {
     let cancelled = false;
     const probe = async () => {
       try {
-        const url = `${String(ServerRoot).replace(/\/$/, '')}/heartbeat`;
         const t0 = Date.now();
-        const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-        const t = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 4000) : null;
-        await fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
-        if (t) clearTimeout(t);
+        const outcome = await verifyBackendIdentity(ServerRoot);
         if (cancelled) return;
-        setLatencyMs(Date.now() - t0);
-        markServiceOnline();
+        if (outcome && outcome.ok) {
+          setLatencyMs(Date.now() - t0);
+          markServiceOnline();
+        } else {
+          markServiceOffline();
+        }
       } catch (_) {
         if (cancelled) return;
         markServiceOffline();
@@ -61,15 +66,23 @@ export default function BackendStatusDot() {
     if (retrying) return;
     setRetrying(true);
     try {
-      const url = `${String(ServerRoot).replace(/\/$/, '')}/heartbeat`;
+      // 与横幅同源:身份握手;不过 → 地址再协商(verify-to-switch)后再验一次
       const t0 = Date.now();
-      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-      const t = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 3500) : null;
-      await fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
-      if (t) clearTimeout(t);
-      setLatencyMs(Date.now() - t0);
-      markServiceOnline();
-      message.success('后端已在线');
+      const first = await verifyBackendIdentity(ServerRoot);
+      let ok = !!(first && first.ok);
+      if (!ok) {
+        await renegotiateLocalServerRoot('statusdot-retry');
+        const second = await verifyBackendIdentity(ServerRoot);
+        ok = !!(second && second.ok);
+      }
+      if (ok) {
+        setLatencyMs(Date.now() - t0);
+        markServiceOnline();
+        message.success('后端已在线');
+      } else {
+        markServiceOffline();
+        message.warning('仍不可达,请检查后端或代理设置');
+      }
     } catch (_) {
       markServiceOffline();
       message.warning('仍不可达,请检查后端或代理设置');
@@ -79,14 +92,13 @@ export default function BackendStatusDot() {
   };
 
   // audit 修:tauriInvoke 需 await + 真实成功/失败反馈,不再 fire-and-forget
+  // [V-6] 统一走轻量重启(此前错线到全量修复命令,对「服务死了」场景过重且慢)
   const handleRestart = async () => {
     if (!hasTauri) return;
     try {
       const api = window.__TAURI__.core || window.__TAURI__;
-      if (api && api.invoke) {
-        await api.invoke('trigger_runtime_repair_command');
-        message.info('已请求重启后端,请等待 10-60 秒');
-      }
+      const mode = await invokeLightServiceRestart(api);
+      message.info(mode === 'light' ? '已请求重启后端,约 10 秒内恢复' : '已请求完整修复,请等待 10-60 秒');
     } catch (e) {
       message.error(`重启失败：${(e && e.message) || e}`);
     }
@@ -113,7 +125,10 @@ export default function BackendStatusDot() {
       `延迟: ${latencyMs != null ? latencyMs + ' ms' : 'N/A'}`,
       `用户代理: ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`,
     ].join('\n');
-    try { navigator.clipboard.writeText(txt); message.success('诊断信息已复制'); } catch (_) {}
+    copyTextSmart(txt).then((ok) => {
+      if (ok) { message.success('诊断信息已复制'); }
+      else { message.error('复制失败，请手动选择文本复制'); }
+    });
   };
 
   if (!ServerRoot) return null;
