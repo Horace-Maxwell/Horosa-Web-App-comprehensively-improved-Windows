@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { message } from 'antd';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
@@ -185,21 +186,24 @@ function houseFullLabel(house, idx, ascSignIndex){
 	return `${zi}—${area}—${signName}座—${houseName}`;
 }
 
-function buildHouseObjectLines(chart){
+export function buildHouseObjectLines(chart){
 	const lines = [];
 	const houses = chart.houses || [];
 	const objects = chart.objects || [];
+	if(houses.length === 0){
+		return lines;
+	}
+	lines.push('| 宫位 | 星体 | 度 | 座 | 分 | 宿 |');
+	lines.push('| --- | --- | --- | --- | --- | --- |');
 	houses.forEach((house)=>{
-		lines.push(`${msg(house.id)}`);
 		const inHouse = objects.filter((obj)=>obj.house === house.id);
 		if(inHouse.length === 0){
-			lines.push('星体：无');
+			lines.push(`| ${msg(house.id)} | 无 | — | — | — | — |`);
 			return;
 		}
-		inHouse.forEach((obj)=>{
+		inHouse.forEach((obj, k)=>{
 			const sd = splitDegree(obj.signlon);
-			const su28 = obj.su28 ? `，宿:${obj.su28}` : '';
-			lines.push(`星体：${msg(obj.id)} ${sd[0]}˚${msg(obj.sign)}${sd[1]}分${su28}`);
+			lines.push(`| ${k === 0 ? msg(house.id) : '—'} | ${msg(obj.id)} | ${sd[0]} | ${msg(obj.sign)} | ${sd[1]} | ${obj.su28 || '—'} |`);
 		});
 	});
 	return lines;
@@ -344,6 +348,40 @@ function buildHouseSuLines(rootObj, chart, planetDisplay, fields){
 	return lines;
 }
 
+// [v2 排版] 宫宿三行组(宫位：/二十八宿：/星曜：×12 宫)折叠成 GFM 表行(经归一器直通、docx/PDF 渲染真表)。
+// 单一真值仍是 buildHouseSuLines(UI「宫宿」tab 与本表同源共用,故不动原函数,只做排版折叠):
+// 单元格值=原行全角冒号后文本逐字搬运(一宫多宿/多曜以「、」并列;空宫沿用原「无」),数值零变更。
+function foldHouseSuLinesToTable(suLines){
+	const rows = [];
+	let cur = null;
+	(suLines || []).forEach((line)=>{
+		const t = `${line || ''}`;
+		if(t.indexOf('宫位：') === 0){
+			cur = { house: t.slice('宫位：'.length), su: [], stars: [] };
+			rows.push(cur);
+			return;
+		}
+		if(!cur){
+			return;
+		}
+		if(t.indexOf('二十八宿：') === 0){
+			cur.su.push(t.slice('二十八宿：'.length));
+			return;
+		}
+		if(t.indexOf('星曜：') === 0){
+			cur.stars.push(t.slice('星曜：'.length));
+		}
+	});
+	if(!rows.length){
+		return [];
+	}
+	const out = ['| 宫位 | 二十八宿 | 星曜 |', '| --- | --- | --- |'];
+	rows.forEach((r)=>{
+		out.push(`| ${r.house} | ${r.su.join('、') || '无'} | ${r.stars.join('、') || '无'} |`);
+	});
+	return out;
+}
+
 export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 	const lines = [];
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
@@ -373,7 +411,7 @@ export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 
 	lines.push('');
 	lines.push('[宿盘宫位与二十八宿星曜]');
-	lines.push(...buildHouseSuLines(chartObj, chart, planetDisplay, fields));
+	lines.push(...foldHouseSuLinesToTable(buildHouseSuLines(chartObj, chart, planetDisplay, fields)));
 
 	return lines.join('\n');
 }
@@ -485,18 +523,18 @@ class SuZhanMain extends Component{
 		});
 		if(patch.szchart){
 			SZConst.SZChart.chart = parseInt(patch.szchart.value, 10);
-			localStorage.setItem('suzhanChartType', patch.szchart.value);
+			safeLocalStorageSet('suzhanChartType', patch.szchart.value);
 		}
 		if(patch.szshape){
 			SZConst.SZChart.shape = parseInt(patch.szshape.value, 10);
-			localStorage.setItem('suzhanChartShape', patch.szshape.value);
+			safeLocalStorageSet('suzhanChartShape', patch.szshape.value);
 		}
 		if(patch.houseStartMode){
 			const houseStartMode = parseInt(patch.houseStartMode.value, 10) === SZConst.SZHouseStart_ASC
 				? SZConst.SZHouseStart_ASC : SZConst.SZHouseStart_Bazi;
 			patch.houseStartMode.value = houseStartMode;
 			SZConst.SZChart.houseStartMode = houseStartMode;
-			localStorage.setItem('suzhanHouseStartMode', houseStartMode);
+			safeLocalStorageSet('suzhanHouseStartMode', houseStartMode);
 		}
 		this.lastRestoredCaseId = saved.caseVersion;
 		if(Object.keys(patch).length > 0 && this.props.dispatch){

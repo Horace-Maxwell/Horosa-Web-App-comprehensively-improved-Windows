@@ -1,3 +1,4 @@
+import { safeLocalStorageSet } from './safeStorage';
 // 玄史模块 UI 状态持久化:记住当前子页 + 各子页过滤组合(localStorage)。
 const LS_KEY = 'horosa.xuanshi.state.v1';
 
@@ -58,6 +59,6 @@ export function loadXuanShiState() {
 
 export function saveXuanShiState(state) {
 	try {
-		localStorage.setItem(LS_KEY, JSON.stringify(state));
+		safeLocalStorageSet(LS_KEY, JSON.stringify(state));
 	} catch (e) { /* ignore quota/availability */ }
 }

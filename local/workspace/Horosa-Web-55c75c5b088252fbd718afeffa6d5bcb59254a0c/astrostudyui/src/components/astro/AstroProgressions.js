@@ -3,7 +3,7 @@ import { Spin, Select } from 'antd';
 import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle } from './AstroExtraCommon';
+import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import ProgMethodPanel, { MINOR_VARIANT_OPTIONS } from './AstroProgChart';
 
 const TabPane = Tabs.TabPane;
@@ -39,12 +39,12 @@ class AstroProgressions extends Component{
 
 	componentDidUpdate(){
 		const key = chartRequestKey(this.props.value, `progressions|${this.state.targetDate}|${this.state.targetTime}|${this.state.minorVariant}`);
-		if(key && key !== this.state.requestKey && !this.state.loading){ this.load(); }
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){ this.load(); }
 	}
 
 	ensureLoaded(){
 		const key = chartRequestKey(this.props.value, `progressions|${this.state.targetDate}|${this.state.targetTime}|${this.state.minorVariant}`);
-		if(key && key !== this.state.requestKey && !this.state.loading){ setTimeout(this.load, 0); }
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){ setTimeout(this.load, 0); }
 	}
 
 	async load(){
@@ -63,10 +63,13 @@ class AstroProgressions extends Component{
 				timeoutMs: 45000,
 			});
 			if(!this._mounted) return;
+			clearLoadFailure(this);
 			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key });
 		}catch(e){
+			// 失败不把 key 记成已完成(改日期失败=永远没反应);泊车该 key,窗口期后自动重试。
+			parkLoadFailure(this, key);
 			if(!this._mounted) return;
-			this.setState({ loading: false, requestKey: key });
+			this.setState({ loading: false });
 		}
 	}
 
@@ -93,6 +96,8 @@ class AstroProgressions extends Component{
 								<ProgMethodPanel
 									value={this.props.value}
 									method={method}
+									targetDate={this.state.targetDate}
+									targetTime={this.state.targetTime}
 									mode="tropical"
 									height={panelH}
 									chartDisplay={this.props.chartDisplay}

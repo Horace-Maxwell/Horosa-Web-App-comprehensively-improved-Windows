@@ -18,7 +18,10 @@ import {
 	CHOROGRAPHY_QUARTERS, CHOROGRAPHY_REGIONS,
 } from '../../divination/data/egyptianData';
 
-const TabPane = XQTabs.TabPane;
+// jest partial-mock 防御:本文件因 buildEgyptSectionLines 被 astroAiSnapshot 引入更多测试模块链,
+// 个别套件对 xq-ui 做部分 mock(XQTabs=undefined)→ 顶层取值炸整链。可选链兜底:mock 环境只调
+// 纯函数不渲染组件;生产 XQTabs 恒真,行为零差。
+const TabPane = (XQTabs || {}).TabPane;
 const norm360 = (x) => ((x % 360) + 360) % 360;
 const sn = (s) => (SIGNS[s] && SIGNS[s].cn) || s || '-';
 // 座 glyph 走项目 ywastro 字体(同行星 glyph),而非 Unicode 星座符号(系统会渲成彩色 emoji)。
@@ -42,6 +45,44 @@ function pointsFrom(chartObj){
 		if(o && o.lon != null) out.push({ id, lon: norm360(o.lon) });
 	});
 	return out;
+}
+
+/* ============================================================
+ * AI 导出:埃及历派生段(纯函数,零 React/零渲染依赖;组件行为不变)
+ * ------------------------------------------------------------
+ * 只导「本盘命中/派生值」:各点落旬(旬环+旬塔罗的本盘命中口径)+ 上升旬详情(名录/塔罗/护符)。
+ * 36 旬全库名录、对角星钟全表(纯授时表,不吃 chartObj)、数字占(需手动输入希腊字母名)、
+ * 吉凶日结构、星名对照、民用历结构均属静态参考陈列 → 不入导出。
+ * 供 utils/astroAiSnapshot buildAstroSnapshotContent 拼[埃及历]段;数据缺 → 返回 [] 不产段。
+ * ============================================================ */
+export function buildEgyptSectionLines(chartObj){
+	const lines = [];
+	const pts = pointsFrom(chartObj);
+	if(!pts.length){
+		return lines;
+	}
+	// ◆ 各行星落旬:逐点 旬序/旬位/埃及名/面主 + 旬星塔罗(与 renderDecanRing/renderTarot 本盘列同源同算)
+	lines.push('◆ 各行星落旬');
+	pts.forEach((p) => {
+		const d = EGYPT_DECANS[greekDecan(p.lon) - 1];
+		if(!d) return;
+		lines.push(`${POINT_CN[p.id] || p.id}：第${d.greek}旬 ${sn(d.signId)}${d.decanInSign}(${d.range})·埃及名 ${d.egyptName}·面主${POINT_CN[d.face] || d.face}·塔罗${TAROT_SUIT_CN[d.tarotSuit]}${d.tarotPip}「${d.tarotTitle}」`);
+	});
+	// ◆ 上升旬详情:上升所落旬完整派生(跨流派旬名/原位序/星认定/塔罗含义/护符 melothesia),
+	// 与页首「当前上升旬」卡 + 名录/护符高亮行同源(ascDecanIdx 同一 greekDecan 算法)。
+	const asc = pts.find((p) => p.id === 'Asc');
+	const ad = asc ? EGYPT_DECANS[greekDecan(asc.lon) - 1] : null;
+	if(ad){
+		lines.push('◆ 上升旬详情');
+		lines.push(`第${ad.greek}旬 ${sn(ad.signId)}${ad.decanInSign}(${ad.range})·原位(古代恒星序)第${ad.ancient}旬·星认定 ${ad.star}`);
+		lines.push(`旬名：埃及名 ${ad.egyptName} / 科普特-希腊名 ${ad.copticGreek} / 赫尔墨斯名 ${ad.hermesName};面主${POINT_CN[ad.face] || ad.face}`);
+		lines.push(`塔罗：${TAROT_SUIT_CN[ad.tarotSuit]}${ad.tarotPip}(${TAROT_SUIT_ELEMENT[ad.tarotSuit]})「${ad.tarotTitle}」——${ad.tarotMeaning}`);
+		const tal = talismanByDecan(ad.greek);
+		if(tal){
+			lines.push(`护符：秘名 ${tal.secretName};身体部位 ${tal.bodyPart};主管疾病 ${tal.disease}`);
+		}
+	}
+	return lines;
 }
 
 class AstroEgypt extends Component {

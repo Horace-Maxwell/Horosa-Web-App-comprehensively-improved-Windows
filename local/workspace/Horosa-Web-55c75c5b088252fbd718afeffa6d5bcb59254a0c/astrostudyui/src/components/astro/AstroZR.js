@@ -9,6 +9,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { fetchChart } from '../../services/astro';
 import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
@@ -170,7 +171,65 @@ function appendBirthAndChart(lines, chartObj, params){
 	}
 }
 
+// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
+// 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
+const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
+
+// [YB v42] ZR 期起讫定位:期起=date('YYYY-MM-DD'),期讫=下一期起(末期回退 date+days 天);解析失败即跳过。
+function zrPeriodStartMs(item){
+	const t = Date.parse(`${(item && item.date) || ''}`.trim().replace(/\//g, '-'));
+	return Number.isNaN(t) ? null : t;
+}
+function zrLocateCurrent(items, nowMs){
+	const list = Array.isArray(items) ? items : [];
+	for(let i = 0; i < list.length; i++){
+		const start = zrPeriodStartMs(list[i]);
+		if(start === null){ continue; }
+		const next = i + 1 < list.length ? list[i + 1] : null;
+		const nextStart = next ? zrPeriodStartMs(next) : null;
+		const days = Number(list[i] && list[i].days);
+		const end = nextStart !== null ? nextStart : (Number.isFinite(days) ? start + days * 86400000 : null);
+		if(end !== null && nowMs >= start && nowMs < end){
+			// 起讫优先用后端原样日期串(Date.parse 按 UTC 解、按本地时区回格式会漂 1 天);仅末期讫日需自算。
+			return {
+				item: list[i],
+				startText: `${list[i].date}`,
+				endText: nextStart !== null ? `${next.date}` : zrFmtDayUTC(end),
+			};
+		}
+	}
+	return null;
+}
+function zrFmtDayUTC(ms){
+	const d = new Date(ms);
+	const p2 = (n)=>(n < 10 ? `0${n}` : `${n}`);
+	return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+}
+// 「当前所处：L1 X期（…至…）/ L2 Y期（…至…）」——用 timeline 数据找含今日的期;找不到返 ''(该行省略)。
+function zrCurrentPeriodLine(list){
+	const now = Date.now();
+	const l1 = zrLocateCurrent(list, now);
+	if(!l1){ return ''; }
+	let text = `当前所处：L1 ${signName(l1.item.sign)}期（${l1.startText} 至 ${l1.endText}）`;
+	const l2 = zrLocateCurrent(l1.item.sublevel, now);
+	if(l2){
+		text += ` / L2 ${signName(l2.item.sign)}期（${l2.startText} 至 ${l2.endText}）`;
+	}
+	return text;
+}
+
+// [YB v42] 外壳:内核正文(多路 return,逐字不动)+ 尾部 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
 function buildZRAISnapshot(chartObj, params, basePoint, list, aiState){
+	const body = buildZRAISnapshotBody(chartObj, params, basePoint, list, aiState);
+	const cur = zrCurrentPeriodLine(list);
+	const lines = [body, ''];
+	lines.push(...safeHelperLines(buildCurrentMomentLines, chartObj, cur ? [cur] : []));
+	lines.push(...safeHelperLines(buildMethodNoteLines, 'zodialrelease'));
+	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
+	return lines.join('\n');
+}
+
+function buildZRAISnapshotBody(chartObj, params, basePoint, list, aiState){
 	const lines = [];
 	appendBirthAndChart(lines, chartObj, params);
 
@@ -492,6 +551,7 @@ class AstroZR extends Component{
 			body: JSON.stringify(params),
 		});
 		if(this.unmounted){ return; }
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey] || {};
 
 		this.setState({

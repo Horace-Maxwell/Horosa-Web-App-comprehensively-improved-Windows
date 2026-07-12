@@ -241,6 +241,25 @@
         }
     }
 
+    /* ── 全站悬浮层不透明基座(制度铁律:任何 tooltip/popover/悬浮卡一律不透明底)──
+       背景变量只取 :root 级 --horosa-surface-solid(纯色不透明,亮 #ffffff/暗 #090b0e),
+       fallback 也是不透明十六进制 → 无论浮层挂在容器内还是 portal 到 body,
+       变量都解析得到、解析不到也有不透明兜底,结构上不可能透明。
+       新建浮层一律挂本类(或复制本组声明);禁止用容器作用域变量当浮层背景
+       (portal 后断链=透明,GuoLaoMoiraWheel tooltip 曾中招)。 */
+    .horosa-floating-surface {
+        background: var(--horosa-surface-solid, #ffffff);
+        color: var(--horosa-text, #262626);
+        border: 1px solid var(--horosa-border-strong, #d9d9d9);
+        box-shadow: var(--horosa-small-shadow, 0 8px 24px rgba(0, 0, 0, 0.16));
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-floating-surface {
+        background: var(--horosa-surface-solid, #090b0e);
+        color: var(--horosa-text, #edf5f2);
+        border-color: var(--horosa-border-strong, rgba(231, 189, 117, 0.42));
+    }
+
     body {
         letter-spacing: 0;
         -webkit-font-smoothing: antialiased;
@@ -9916,7 +9935,8 @@
     .horosa-workspace-shell .horosa-guolao-redesign .horosa-guolao-chart-panel-moira {
         align-items: center;
         justify-content: center;
-        container-type: size;
+        /* container-type: size 已删——全仓零 @container 消费(轮子尺寸走 ResizeObserver),
+           它却会把中栏变成 fixed 后代的包含块+新 stacking context,正是悬浮窗被右栏压层裁剪的根因 */
         overscroll-behavior: contain;
         scrollbar-gutter: auto;
     }

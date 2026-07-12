@@ -86,7 +86,8 @@ function fmtValue(value){
 	return formatHumanValue(value);
 }
 
-function buildSnapshotText(pan, xinyi){
+// opts(可选)：{ classicSectionIndex } —— 选中典籍章节序号(与右栏「典籍」选择联动);缺省取首章(与 UI 初始态一致)。
+export function buildSnapshotText(pan, xinyi, opts){
 	if(!pan){
 		return '暂无皇极经世数据';
 	}
@@ -102,6 +103,39 @@ function buildSnapshotText(pan, xinyi){
 		lines.push('[心易发微]');
 		Object.keys(xinyi.result).forEach((key)=>{
 			lines.push(`${key}：${fmtValue(xinyi.result[key])}`);
+		});
+	}
+	// [经典原文] doctrine 段(默认关段:builder 恒产,导出层按设置控)：与右栏「典籍」renderClassics 同源 pan.classics。
+	// 全书体量过大(百万字级)→ 快照口径=典籍 meta+章节目录(仅标题)+选中章节全文;正文原样引用零改写;无数据不产段。
+	const classics = pan.classics && Array.isArray(pan.classics.sections) && pan.classics.sections.length ? pan.classics : null;
+	if(classics){
+		const meta = (classics.meta || []).find((item)=>item.key === classics.selectedKey);
+		const rawIdx = opts && Number.isFinite(Number(opts.classicSectionIndex)) ? Number(opts.classicSectionIndex) : 0;
+		const idx = Math.max(0, Math.min(rawIdx, classics.sections.length - 1));
+		const selected = classics.sections[idx];
+		lines.push('');
+		lines.push('[经典原文]');
+		if(meta){
+			lines.push(`典籍：${fmtValue(meta.title)}（${fmtValue(meta.author)}）`);
+			lines.push(`说明：${fmtValue(meta.description)}`);
+		}
+		lines.push(`章节目录（共${classics.sections.length}节，快照仅含选中章节全文）：${classics.sections.map((s)=>s.title).join('、')}`);
+		if(selected){
+			lines.push(`◆ ${selected.title}`);
+			lines.push(`${selected.content || '本节无正文内容'}`);
+		}
+	}
+	// [历史年表] 兜底段：后端 pan.sections 正常已含同名节(上方循环已出,避免重复段头);仅当缺失时按
+	// pan.history 逐行「年份：事」补产(与右栏「年表」renderHistory 同源),防止老盘/缺节数据丢失该段。
+	const hasHistorySection = (pan.sections || []).some((s)=>s && s.title === '历史年表');
+	const historyRecords = Array.isArray(pan.history) ? pan.history : [];
+	if(!hasHistorySection && historyRecords.length){
+		lines.push('');
+		lines.push('[历史年表]');
+		lines.push('| 起始年 | 历时 | 朝代 | 称号 | 名 | 年号 |');
+		lines.push('| --- | --- | --- | --- | --- | --- |');
+		historyRecords.forEach((rec)=>{
+			lines.push(`| ${fmtValue(rec.start_year)} | ${fmtValue(rec.duration)} | ${fmtValue(rec.dynasty)} | ${fmtValue(rec.title)} | ${fmtValue(rec.name)} | ${fmtValue(rec.era)} |`);
 		});
 	}
 	return lines.join('\n').trim();
@@ -219,7 +253,7 @@ class HuangJiMain extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildSnapshotText(this.state.pan, this.state.xinyi) || ''}`.trim();
+			text = `${buildSnapshotText(this.state.pan, this.state.xinyi, { classicSectionIndex: this.state.classicSectionIndex }) || ''}`.trim();
 		}catch(e){
 			text = '';
 		}
@@ -258,7 +292,8 @@ class HuangJiMain extends Component{
 		}, ()=>{
 			const pan = this.state.pan;
 			const xinyi = this.state.xinyi;
-			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi));
+			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
+			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
 		});
 		return true;
 	}
@@ -343,7 +378,8 @@ class HuangJiMain extends Component{
 				return;
 			}
 			this.setState({ pan, xinyi, loading: false }, ()=>{
-				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi));
+				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
+				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
 			});
 		}catch(e){
 			console.warn('kinwangji backend failed', e);
@@ -373,7 +409,8 @@ class HuangJiMain extends Component{
 		if(updateState && !this.unmounted && seq === this.xinyiSeq){
 			this.setState({ xinyi }, ()=>{
 				const pan = this.state.pan;
-				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi));
+				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
+				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
 			});
 		}
 		return xinyi;
@@ -395,7 +432,7 @@ class HuangJiMain extends Component{
 				},
 				pan: this.state.pan,
 				xinyi: this.state.xinyi,
-				snapshot: buildSnapshotText(this.state.pan, this.state.xinyi),
+				snapshot: buildSnapshotText(this.state.pan, this.state.xinyi, { classicSectionIndex: this.state.classicSectionIndex }),
 			},
 		});
 	}

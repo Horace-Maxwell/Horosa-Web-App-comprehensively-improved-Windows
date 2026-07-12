@@ -4,6 +4,8 @@ import {
 	buildHouseCuspLines,
 	buildStarAndLotPositionLines,
 	buildInfoSection,
+	buildPredictiveBirthLines,
+	buildMethodNoteLines,
 } from './astroAiSnapshot';
 import { appendPlanetHouseInfoById, } from './planetHouseInfo';
 const DEFAULT_PLANET_INFO_EXPORT = {
@@ -216,14 +218,21 @@ function buildDirectedChartLines(result){
 	return lines;
 }
 
-export function buildPredictiveSnapshotText(natalChartObj, params, result){
+// [YB] 第 4 参 methodKey(profection/solararc/solarreturn/lunarreturn/givenyear):出 [方法说明] 段;
+// 缺省不出段(向前兼容)。生辰行并入 [本命盘配置] 段头部(此前只有星位无生辰,AI 不知在分析谁;
+// 不新开 [起盘信息] 段——本函数既有 [起盘信息] 承载的是推运时间语义,撞名会被段过滤误并)。
+export function buildPredictiveSnapshotText(natalChartObj, params, result, methodKey){
 	const lines = [];
 
 	lines.push('[本命盘配置]');
+	const birthLines = buildPredictiveBirthLines(natalChartObj);
+	if(birthLines.length){
+		lines.push(...birthLines);
+	}
 	const starLines = buildStarInfoLines(natalChartObj);
 	if(starLines.length){
 		lines.push(...starLines);
-	}else{
+	}else if(!birthLines.length){
 		lines.push('无');
 	}
 
@@ -252,6 +261,12 @@ export function buildPredictiveSnapshotText(natalChartObj, params, result){
 		lines.push(...aspectLines);
 	}else{
 		lines.push('无');
+	}
+
+	const methodLines = buildMethodNoteLines(methodKey);
+	if(methodLines.length){
+		lines.push('');
+		lines.push(...methodLines);
 	}
 
 	return lines.join('\n');

@@ -17,6 +17,7 @@
 //  - type:'switch' 的值用 0/1（与 buildFieldObject 既有写法一致）。
 
 import * as AstroConst from '../constants/AstroConst';
+import { safeLocalStorageSet } from './safeStorage';
 import {
 	SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_TIME_KEYS,
@@ -1193,7 +1194,7 @@ export function saveMountTechniqueDefaults(key, options){
 	}
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
-			window.localStorage.setItem(MOUNT_TECHNIQUE_DEFAULTS_KEY, JSON.stringify(all));
+			safeLocalStorageSet(MOUNT_TECHNIQUE_DEFAULTS_KEY, JSON.stringify(all));
 		}
 	}catch(e){ /* 存储失败静默 */ }
 	return all;
@@ -1241,7 +1242,7 @@ export function applyLocalStorageSettings(key, options){
 			return;
 		}
 		if(Object.prototype.hasOwnProperty.call(pruned, field.name)){
-			try{ window.localStorage.setItem(field.storageKey, `${pruned[field.name]}`); }catch(e){ /* ignore */ }
+			try{ safeLocalStorageSet(field.storageKey, `${pruned[field.name]}`); }catch(e){ /* ignore */ }
 		}
 	});
 }
@@ -1274,7 +1275,7 @@ export function restoreLocalStorageSettings(snapshot){
 			if(prev === null || prev === undefined){
 				window.localStorage.removeItem(storageKey);
 			}else{
-				window.localStorage.setItem(storageKey, prev);
+				safeLocalStorageSet(storageKey, prev);
 			}
 		}catch(e){ /* ignore */ }
 	});

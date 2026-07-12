@@ -18,9 +18,11 @@ export function buildElectionSnapshot(j){
 	if(j.hard_flags.length){ j.hard_flags.forEach((f) => L.push(`- [${f.severity}] ${f.message}`)); }
 	else L.push('无红线命中。');
 	L.push('[分项]');
+	L.push('| 项 | 分 | 要点 |');
+	L.push('| --- | --- | --- |');
 	j.sections.forEach((s) => {
-		L.push(`${s.title}（${s.score}/100）`);
-		(s.findings || []).forEach((f) => L.push('  · ' + (f.text_zh || f.message)));
+		const pts = (s.findings || []).map((f) => f.text_zh || f.message).join('；') || '—';
+		L.push(`| ${s.title} | ${s.score}/100 | ${pts} |`);
 	});
 	if(j.topicPack && j.topicPack.items && j.topicPack.items.length){
 		L.push('[用事专属]');
@@ -34,7 +36,9 @@ export function buildElectionSnapshot(j){
 	}
 	L.push('[应期]');
 	if(j.timing && j.timing.length){
-		j.timing.forEach((t) => L.push(`- 月亮 ${t.angle}° ${t.otherCn}（误差 ${t.orb != null ? Number(t.orb).toFixed(1) : '-'}°，越紧越近发动）`));
+		L.push('| 月相 | 目标 | 误差 |');
+		L.push('| --- | --- | --- |');
+		j.timing.forEach((t) => L.push(`| 月亮 ${t.angle}° | ${t.otherCn} | 误差 ${t.orb != null ? Number(t.orb).toFixed(1) : '-'}°，越紧越近发动 |`));
 	}else{
 		L.push('月亮无紧密相位，应期不显。');
 	}

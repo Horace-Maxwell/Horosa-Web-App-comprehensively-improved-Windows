@@ -1,3 +1,4 @@
+import { safeLocalStorageSet } from './safeStorage';
 const PROVIDER_PRESET_ORDER = [
 	'openai',
 	'deepseek',
@@ -308,5 +309,5 @@ export function getPersistedThinkingLevel(){
 	try{ return localStorage.getItem(THINKING_LS_KEY) || 'off'; }catch(_){ return 'off'; }
 }
 export function setPersistedThinkingLevel(v){
-	try{ localStorage.setItem(THINKING_LS_KEY, v || 'off'); }catch(_){}
+	try{ safeLocalStorageSet(THINKING_LS_KEY, v || 'off'); }catch(_){}
 }

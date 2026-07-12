@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Component } from 'react';
 import { Input, InputNumber, Spin, message } from 'antd';
 import XQIcon from '../xq-icons';
@@ -190,10 +191,12 @@ export function buildGeomancySnapshotText(result){
 	if(houses.length){
 		lines.push('');
 		lines.push('[十二宫·图形入宫]');
+		lines.push('| 宫 | 宫名 | 角色 | 图形 | 断语 |');
+		lines.push('| --- | --- | --- | --- | --- |');
 		houses.forEach((h)=>{
 			const fig = h.figure || {};
 			const role = (h.roles || []).indexOf('quesited') >= 0 ? '【所问】' : ((h.roles || []).indexOf('querent') >= 0 ? '【问者】' : '');
-			lines.push(`第${h.house}宫(${h.nameZh || ''})${role}：${fig.nameZh || fig.nameEn || ''}${h.reading ? ' — ' + h.reading : ''}`);
+			lines.push(`| 第${h.house}宫 | ${h.nameZh || '—'} | ${role || '—'} | ${fig.nameZh || fig.nameEn || '—'} | ${h.reading || '—'} |`);
 		});
 	}
 	const figs = reading.figures16 || [];
@@ -201,8 +204,36 @@ export function buildGeomancySnapshotText(result){
 		lines.push('');
 		lines.push('[十六图形]');
 		const slot = ['母一', '母二', '母三', '母四', '女一', '女二', '女三', '女四', '甥一', '甥二', '甥三', '甥四', '右证', '左证', '判官', '调和'];
+		lines.push('| 位 | 图形 | 行星 | 元素 |');
+		lines.push('| --- | --- | --- | --- |');
 		figs.forEach((f, i)=>{
-			lines.push(`${slot[i] || `图${i + 1}`}：${f.nameZh || f.nameEn}（${f.planetZh || ''}${f.elementZh ? '·' + f.elementZh : ''}）`);
+			lines.push(`| ${slot[i] || `图${i + 1}`} | ${f.nameZh || f.nameEn} | ${f.planetZh || '—'} | ${f.elementZh || '—'} |`);
+		});
+	}
+	// [图形释义] doctrine 段(默认关段:builder 恒产,导出层按设置控)：与右栏「十六图形」renderFigureCatalog 同源
+	// result.figures(16 图形完整象意库,含逐域断语 meanings);象意原文零改写;无目录数据不产段。
+	const catalog = Array.isArray(result.figures) ? result.figures : [];
+	if(catalog.length){
+		lines.push('');
+		lines.push('[图形释义]');
+		const TONE_ZH = { good: '吉', bad: '凶', neutral: '中' };
+		catalog.forEach((f)=>{
+			const tone = TONE_ZH[f.tone] || '';
+			lines.push(`◆ ${f.nameZh || f.latin || f.nameEn}${tone ? `（${tone}）` : ''}${f.nameEn ? ` ${f.nameEn}` : ''}${f.points ? ` · ${f.points}点` : ''}`);
+			const attrLine = [f.planetZh, f.elementZh, f.signZh].filter(Boolean).join(' · ');
+			if(attrLine){ lines.push(attrLine); }
+			const bodyLine = [f.elementOuterZh ? `外元素${f.elementOuterZh}` : '', f.bodyPart ? `身体${f.bodyPart}` : '', f.color || ''].filter(Boolean).join(' · ');
+			if(bodyLine){ lines.push(bodyLine); }
+			if(f.keywordsZh){ lines.push(`象意：${f.keywordsZh}`); }
+			if(f.meanings){
+				const domainText = Object.keys(f.meanings)
+					.filter((k)=>k !== 'name_zh' && k !== 'tone')
+					.map((k)=>`${k}：${f.meanings[k]}`)
+					.join('；');
+				if(domainText){ lines.push(domainText); }
+			}
+			const altLine = [f.nameArabic ? `阿:${f.nameArabic}` : '', f.nameGreek ? `希:${f.nameGreek}` : '', f.nameHebrew ? `伯:${f.nameHebrew}` : ''].filter(Boolean).join('　');
+			if(altLine){ lines.push(altLine); }
 		});
 	}
 	return lines.join('\n').trim();
@@ -319,7 +350,7 @@ class GeomancyMain extends Component{
 			if(Array.isArray(prev)){ next = [entry, ...prev]; }
 		}catch(e){ /* ignore */ }
 		next = next.slice(0, HISTORY_MAX);
-		try{ window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); }catch(e){ /* ignore */ }
+		try{ safeLocalStorageSet(HISTORY_KEY, JSON.stringify(next)); }catch(e){ /* ignore */ }
 		this.setState({ history: next });
 	}
 

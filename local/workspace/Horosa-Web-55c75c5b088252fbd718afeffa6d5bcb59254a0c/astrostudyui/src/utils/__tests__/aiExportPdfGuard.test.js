@@ -15,7 +15,9 @@ import { toCanvas } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { __aiExportTesting__ } from '../aiExport';
 
-const { exportPdf, canvasHasInk, planPdfChunks } = __aiExportTesting__;
+// 本套守的是「经典纯文本栅格路径」契约(v2 默认开后它仍是 v1 回退阀 + 样式化失败的防线④,永不许死代码化)。
+// 直接测 exportPdfPlain;包装层 exportPdf 的 v2 分流由 aiExportGentleBeautify/preview 实抓覆盖。
+const { exportPdfPlain: exportPdf, canvasHasInk, planPdfChunks } = __aiExportTesting__;
 
 // 每块 CSS 高 = (块物理行数 / 总物理行数) × fullH,必须 ≤ MAX(=16000)才不触发 canvas 上限静默空白。
 function maxChunkCssHeight(chunks, totalLines, fullH){

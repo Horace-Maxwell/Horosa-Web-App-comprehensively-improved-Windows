@@ -86,6 +86,16 @@ function fmtValue(value){
 	return `${value}`;
 }
 
+// GFM 表化同构数据行(空 cell → —),供 AI 导出/挂载可读化;数据层零变化——表行可逆变换逐字复原旧格式行。
+const MD_DASH = '—';
+function pushMdRows(lines, header, rows){
+	lines.push(`| ${header.join(' | ')} |`);
+	lines.push(`| ${header.map(()=>'---').join(' | ')} |`);
+	rows.forEach((cells)=>{
+		lines.push(`| ${cells.map((c)=>(c === undefined || c === null || c === '' ? MD_DASH : `${c}`)).join(' | ')} |`);
+	});
+}
+
 function cleanKey(key){
 	const txt = `${key || ''}`;
 	const idx = txt.indexOf('(');
@@ -384,11 +394,11 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 		if(jinkouData.yongYao && jinkouData.yongYao.label){
 			lines.push(`用爻判定：${jinkouData.yongYao.reason || ''}；取${jinkouData.yongYao.label}${jinkouData.yongYao.sign ? `(${jinkouData.yongYao.sign})` : ''}`);
 		}
-		for(let i=0; i<jinkouData.rows.length; i++){
-			const row = jinkouData.rows[i];
-			const nayin = row.nayin ? `；纳音=${fmtValue(row.nayin)}` : '';
-			lines.push(`${row.label}：天干=${fmtValue(row.gan)}；内容=${fmtValue(row.content)}；神将=${fmtValue(row.shenjiang)}；状态=${fmtValue(row.power)}；空亡=${fmtValue(row.kong)}${nayin}`);
-		}
+		// 四位(人元/贵神/将神/地分)→ GFM 表:位/天干/内容/神将/状态/空亡/纳音(纳音缺 → —)。
+		const siWeiRows = jinkouData.rows.map((row)=>[
+			row.label, fmtValue(row.gan), fmtValue(row.content), fmtValue(row.shenjiang), fmtValue(row.power), fmtValue(row.kong), row.nayin ? fmtValue(row.nayin) : '',
+		]);
+		pushMdRows(lines, ['位', '天干', '内容', '神将', '状态', '空亡', '纳音'], siWeiRows);
 	}else{
 		lines.push('无');
 	}
@@ -396,10 +406,11 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 
 	lines.push('[金口诀三盘]');
 	if(jinkouData && jinkouData.ready && jinkouData.plates && jinkouData.plates.length){
-		for(let i=0; i<jinkouData.plates.length; i++){
-			const row = jinkouData.plates[i];
-			lines.push(`${fmtValue(row.di)}：天盘=${fmtValue(row.tian)}；将神=${fmtValue(row.jiang)}；神盘=${fmtValue(row.shen)}；贵神=${fmtValue(row.gui)}`);
-		}
+		// 三盘逐地分 → GFM 表:地分/天盘/将神/神盘/贵神。
+		const plateRows = jinkouData.plates.map((row)=>[
+			fmtValue(row.di), fmtValue(row.tian), fmtValue(row.jiang), fmtValue(row.shen), fmtValue(row.gui),
+		]);
+		pushMdRows(lines, ['地分', '天盘', '将神', '神盘', '贵神'], plateRows);
 	}else{
 		lines.push('无');
 	}
@@ -424,10 +435,9 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	const jkDongSnap = jinkouData && jinkouData.dong ? jinkouData.dong : { wu: [], san: [] };
 	const jkAllDong = [].concat(jkDongSnap.wu || [], jkDongSnap.san || []);
 	if(jkAllDong.length){
-		for(let i=0; i<jkAllDong.length; i++){
-			const d = jkAllDong[i];
-			lines.push(`${d.type}动（${d.from}→${d.to}${d.kong ? '·逢空' : ''}）：${d.text || ''}`);
-		}
+		// 五动/三动 → GFM 表:动象/起→落/逢空/断语(逢空缺、断语缺 → —)。
+		const dongRows = jkAllDong.map((d)=>[`${d.type}动`, `${d.from}→${d.to}`, d.kong ? '逢空' : '', d.text || '']);
+		pushMdRows(lines, ['动象', '起→落', '逢空', '断语'], dongRows);
 	}else{
 		lines.push('四位无显著动象');
 	}
@@ -445,10 +455,9 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 
 	lines.push('[四位生克]');
 	if(jinkouData && jinkouData.relations && jinkouData.relations.length){
-		for(let i=0; i<jinkouData.relations.length; i++){
-			const r = jinkouData.relations[i];
-			lines.push(`${r.from}${r.rel}${r.to}：${r.text || ''}`);
-		}
+		// 四位生克 → GFM 表:主/关系/宾/断语(断语缺 → —)。
+		const relRows = jinkouData.relations.map((r)=>[r.from, r.rel, r.to, r.text || '']);
+		pushMdRows(lines, ['主', '关系', '宾', '断语'], relRows);
 	}else{
 		lines.push('无');
 	}
@@ -473,10 +482,9 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 
 	lines.push('[太岁月建]');
 	if(jinkouData && jinkouData.nianYueRi && jinkouData.nianYueRi.length){
-		for(let i=0; i<jinkouData.nianYueRi.length; i++){
-			const it = jinkouData.nianYueRi[i];
-			lines.push(`${it.name}${it.zhi}${it.hit ? '（入课）' : ''}：${it.text}`);
-		}
+		// 太岁月建 → GFM 表:名/地支/入课/断语(未入课 → —)。
+		const nyrRows = jinkouData.nianYueRi.map((it)=>[it.name, it.zhi, it.hit ? '入课' : '', it.text]);
+		pushMdRows(lines, ['名', '地支', '入课', '断语'], nyrRows);
 	}else{
 		lines.push('无');
 	}
@@ -557,13 +565,23 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 
 	lines.push('[十二长生]');
 	if(wuxing){
-		for(let i=0; i<ZSList.length; i++){
-			const item = ZSList[i];
-			const key = `${wuxing}_${item}`;
-			lines.push(`${item}：${fmtValue(ZhangSheng.wxphase[key])}`);
-		}
+		// 十二长生 → GFM 表:阶段/地支。
+		const zsRows = ZSList.map((item)=>[item, fmtValue(ZhangSheng.wxphase[`${wuxing}_${item}`])]);
+		pushMdRows(lines, ['阶段', '地支'], zsRows);
 	}else{
 		lines.push('无');
+	}
+
+	// [YA v42] A 类硬缺:分析 tab「数理 · 太玄数」(renderTaixuan)显示了却不入快照。
+	// 取数与 UI 同源(jinkouData.taixuan,行文案同 renderTaixuan 的 value 拼法);无数据不产段。
+	const jkTaixuan = jinkouData && jinkouData.taixuan && jinkouData.taixuan.length ? jinkouData.taixuan : [];
+	if(jkTaixuan.length){
+		lines.push('');
+		lines.push('[数理]');
+		for(let i=0; i<jkTaixuan.length; i++){
+			const t = jkTaixuan[i];
+			lines.push(`${t.label}：${t.tokens || '—'}　太玄数 ${t.num}`);
+		}
 	}
 	return lines.join('\n').trim();
 }

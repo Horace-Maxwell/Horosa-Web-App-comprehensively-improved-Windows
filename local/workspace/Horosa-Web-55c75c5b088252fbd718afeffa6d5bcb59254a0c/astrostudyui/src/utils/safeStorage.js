@@ -17,13 +17,41 @@ const NON_CRITICAL_KEYS = [
 	'commtoolstab',
 ];
 
-function isQuotaError(e){
+export function isQuotaError(e){
 	if(!e) return false;
 	if(e.name === 'QuotaExceededError') return true;
 	if(e.code === 22) return true; // legacy DOMException code
 	if(e.code === 1014) return true; // Firefox NS_ERROR_DOM_QUOTA_REACHED
 	const msg = (e.message || '').toLowerCase();
 	return msg.indexOf('quota') >= 0 || msg.indexOf('exceeded') >= 0;
+}
+
+// 可再生缓存前缀(配额满/自愈清理时可整体清除,清了只是重算,零用户数据损失)。
+// ⚠ 绝不含 localCases/localCharts/挂载设置等用户数据前缀。
+const RECOVERABLE_CACHE_PREFIXES = [
+	'horosa.localcalc.',
+	'horosa.reader.chapter.',
+];
+
+// 配额自愈单点:清 localStorage 里全部可再生缓存键 + 白名单非关键键。
+// TechniqueErrorBoundary 的「一键清理缓存」与 quota 重试路径共用,返回清掉的键数。
+export function clearRecoverableCaches(){
+	let cleared = 0;
+	try{
+		if(typeof window === 'undefined' || !window.localStorage) return 0;
+		const doomed = [];
+		for(let i = 0; i < window.localStorage.length; i++){
+			const k = window.localStorage.key(i);
+			if(k && RECOVERABLE_CACHE_PREFIXES.some((p)=>k.indexOf(p) === 0)){
+				doomed.push(k);
+			}
+		}
+		NON_CRITICAL_KEYS.forEach((k)=>doomed.push(k));
+		doomed.forEach((k)=>{
+			try{ window.localStorage.removeItem(k); cleared++; }catch(e){ /* 单键失败继续 */ }
+		});
+	}catch(e){ /* 静默:自愈尽力而为 */ }
+	return cleared;
 }
 
 export function safeLocalStorageGet(key){
@@ -44,13 +72,12 @@ export function safeLocalStorageSet(key, value){
 		if(!isQuotaError(e)){
 			return false;
 		}
-		// 配额满 → 先清掉白名单内非关键键(除当前要写的 key)
+		// 配额满 → 清掉全部可再生缓存+白名单非关键键(除当前要写的 key)再重试一次
 		try{
-			NON_CRITICAL_KEYS.forEach((k)=>{
-				if(k !== key){
-					try{ window.localStorage.removeItem(k); }catch(_){}
-				}
-			});
+			clearRecoverableCaches();
+			if(NON_CRITICAL_KEYS.indexOf(key) >= 0){
+				// 当前 key 恰在白名单里被清了也没关系,下面立即重写。
+			}
 			window.localStorage.setItem(key, value);
 			return true;
 		}catch(e2){

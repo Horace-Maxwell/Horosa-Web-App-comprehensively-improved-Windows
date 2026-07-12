@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
 import { DatePicker, Radio, Spin, Empty, Checkbox } from 'antd';
 import request from '../../utils/request';
@@ -122,7 +123,7 @@ export default class UranianGraphicEphemeris extends Component {
 	hideTip(){ if (!this.unmounted && this.state.tip) this.setState({ tip: null }); }
 	_measure(){ if (this.unmounted || !this._wrap) return; const w = this._wrap.clientWidth - 16; if (w > 0 && Math.abs(w - this.state.cw) > 2) this.setState({ cw: w }); }
 
-	saveDisp(patch, cb){ this.setState(patch, cb); try { const cur = JSON.parse(localStorage.getItem('horosa.uranian.gephem.v1') || '{}') || {}; localStorage.setItem('horosa.uranian.gephem.v1', JSON.stringify({ ...cur, ...patch })); } catch (e) { /* noop */ } }
+	saveDisp(patch, cb){ this.setState(patch, cb); try { const cur = JSON.parse(localStorage.getItem('horosa.uranian.gephem.v1') || '{}') || {}; safeLocalStorageSet('horosa.uranian.gephem.v1', JSON.stringify({ ...cur, ...patch })); } catch (e) { /* noop */ } }
 
 	planetSet(){ return this.state.includeMoon ? [AstroConst.MOON, ...DEFAULT_PLANETS] : DEFAULT_PLANETS; }
 
@@ -296,7 +297,7 @@ export default class UranianGraphicEphemeris extends Component {
 							))}
 						</svg>
 						{this.state.tip ? (
-							<div style={{ position: 'absolute', left: this.state.tip.x, top: this.state.tip.y, pointerEvents: 'none', zIndex: 6, background: 'var(--horosa-surface-raised)', color: 'var(--horosa-text)', border: '1px solid var(--horosa-border)', borderRadius: 6, padding: '3px 9px', fontSize: 13, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 10px rgba(0,0,0,0.18)' }}>
+							<div style={{ position: 'absolute', left: this.state.tip.x, top: this.state.tip.y, pointerEvents: 'none', zIndex: 6, background: 'var(--horosa-surface-solid, #ffffff)', color: 'var(--horosa-text)', border: '1px solid var(--horosa-border)', borderRadius: 6, padding: '3px 9px', fontSize: 13, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 10px rgba(0,0,0,0.18)' }}>
 								<span style={{ width: 9, height: 9, borderRadius: '50%', background: this.state.tip.color, display: 'inline-block', flex: '0 0 auto' }} />
 								<span>{planetName(this.state.tip.id)}（{this.state.tip.kind}）</span>
 							</div>

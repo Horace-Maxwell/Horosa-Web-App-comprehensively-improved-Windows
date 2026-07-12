@@ -112,7 +112,9 @@ describe('六爻穷尽压测 · 全流派×全开关×代表卦', () => {
 		const yy = mk('yiyin', {});
 		expect(zs).not.toContain('卦身：');
 		expect(yy).toContain('卦身：');
-		expect(yy).toMatch(/神煞:/);
+		// 神煞已表化到逐爻表「神煞」列:易隐有值(天乙贵人)、增删卜易关神煞则该列全 —。
+		expect(yy).toContain('天乙贵人');
+		expect(zs).not.toContain('天乙贵人');
 	});
 
 	test('左栏每个设置改变都触发重算(getLiuyaoOptionsKey 变)→ 中(d3)+右(页签)必同步刷新', () => {

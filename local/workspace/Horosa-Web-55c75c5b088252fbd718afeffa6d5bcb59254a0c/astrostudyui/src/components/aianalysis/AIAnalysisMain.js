@@ -41,6 +41,8 @@ import styles from './AIAnalysisMain.less';
 import MonacoEditor from './MonacoField';
 import XQIcon from '../xq-icons';
 import TechniqueSettingsFields from './TechniqueSettingsFields';
+import SectionChecklist from './SectionChecklist';
+import { groupMountTechniqueOptions } from './mountTechniqueGroups';
 import {
 	XQButton as Button,
 	XQCard as Card,
@@ -81,10 +83,10 @@ import {
 	saveUiPrefs,
 } from '../../utils/aiAnalysisStore';
 import {
+	AI_CONTEXT_MAX_CHARS,
 	TIME_CASTABLE_DIVINATION,
 	buildContextLayers,
-	buildPromptContext,
-	clipContextLayers,
+	clipContextLayersDetailed,
 	getAnalysisSourceContext,
 	getAnalysisTechniqueContexts,
 	listAnalysisSources,
@@ -105,6 +107,7 @@ import {
 	saveAIExportSettings,
 	getAIExportEffectiveSectionsForTechnique,
 	listAIExportTechniqueSettings,
+	getSectionGroupsForTechnique,
 } from '../../utils/aiExport';
 import * as Constants from '../../utils/constants';
 import { parseMaterialFile } from '../../utils/aiAnalysisMaterial';
@@ -890,6 +893,8 @@ function AIAnalysisMain(props){
 	// 组合包待挂载技法：套用组合时若尚未选案例，先缓存于此，待选定 source 后由 effect 取交集落入 selectedTechniqueKeys。
 	const [pendingBundleTechniqueKeys, setPendingBundleTechniqueKeys] = React.useState([]);
 	const [techniqueContexts, setTechniqueContexts] = React.useState([]);
+	// [挂载预算] 最近一次发送的上下文裁剪账本 {byKey,dropped,stats}：预览卡「已裁剪/超预算」Tag + banner 字数用。
+	const [promptClipStats, setPromptClipStats] = React.useState(null);
 	const [prompt, setPrompt] = React.useState('');
 	// 2F：待发送图片（多媒体输入），元素 {url: dataURL, name}；随用户消息以 images 字段发往后端（仅视觉模型有效）。
 	const [pendingImages, setPendingImages] = React.useState([]);
@@ -1072,6 +1077,10 @@ function AIAnalysisMain(props){
 	const techniqueOptions = React.useMemo(()=>{
 		return activeSource ? listAnalysisTechniqueOptions(activeSource) : [];
 	}, [activeSource]);
+	// 技法多选下拉按术数域 OptGroup 分组(仅当前可挂集内的键;未归组键落「其他」)。
+	const groupedTechniqueOptions = React.useMemo(()=>{
+		return groupMountTechniqueOptions(techniqueOptions);
+	}, [techniqueOptions]);
 	const techniqueLabelMap = React.useMemo(()=>{
 		return new Map((techniqueOptions || []).map((item)=>[item.value, item.label]));
 	}, [techniqueOptions]);
@@ -2143,21 +2152,22 @@ function AIAnalysisMain(props){
 			conversationMessages: visibleMessages,
 			systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt, extraSystemContext].filter(Boolean).join('\n\n'),
 		});
-		const clippedLayers = clipContextLayers(layers, { maxChars: 20000 });
+		// [挂载预算] 单次裁剪消双算：同一份 layers 只过一遍 clipContextLayersDetailed（旧代码这里
+		// clipContextLayers + buildPromptContext 同输入各算一遍）。fairShare 让多技法触界时
+		// 公平分摊而非低序技法整层静默丢；账本 {byKey,dropped,stats} 落 state 供预览卡/banner 可见化。
+		const clipDetail = clipContextLayersDetailed(layers, { maxChars: AI_CONTEXT_MAX_CHARS, fairShare: true });
+		if(isMountedRef.current){
+			setPromptClipStats({
+				byKey: (clipDetail.stats && clipDetail.stats.byKey) || {},
+				dropped: clipDetail.dropped || [],
+				stats: clipDetail.stats || null,
+			});
+		}
 		return {
-			systemPrompt: buildPromptContext({
-				sourceContext: ctx,
-				techniqueContexts: resolvedTechniqueContexts,
-				materials: retrieval.directMaterials,
-				bundles: resolvedRefs.bundles,
-				templates: resolvedRefs.templates,
-				retrievedChunks: retrieval.retrievedChunks,
-				conversationMessages: visibleMessages,
-				systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt, extraSystemContext].filter(Boolean).join('\n\n'),
-				maxChars: 20000,
-			}),
+			// join 表达式与 buildPromptContext 逐字同式（prompt 结构零漂移）。
+			systemPrompt: clipDetail.kept.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim(),
 			retrieval,
-			clippedLayers,
+			clippedLayers: clipDetail.kept,
 		};
 	}
 
@@ -3765,23 +3775,18 @@ function AIAnalysisMain(props){
 						<XQSectionTitle>纳入内容</XQSectionTitle>
 						{sectionOptions.length ? (
 							<React.Fragment>
-								<XQToolbar compact className={styles.techSettingsActions}>
-									<Button size="small" onClick={()=>selectAllSectionsForTech(key, sectionOptions)}>全选</Button>
-									<Button size="small" onClick={()=>clearSectionsForTech(key)}>清空</Button>
-									<Button size="small" onClick={()=>resetSectionsForTech(key)}>恢复默认</Button>
-								</XQToolbar>
-								<XQCheckList columns={2} className={styles.techSectionChecks}>
-									{sectionOptions.map((sec)=>(
-										<XQCheckItem
-											key={sec}
-											compact
-											checked={selectedSections.indexOf(sec) >= 0}
-											onClick={()=>toggleSectionForTech(key, sec)}
-										>
-											{sec}
-										</XQCheckItem>
-									))}
-								</XQCheckList>
+								<SectionChecklist
+									options={sectionOptions}
+									selected={selectedSections}
+									groups={getSectionGroupsForTechnique(key, sectionOptions)}
+									onToggle={(sec)=>toggleSectionForTech(key, sec)}
+									onSelectAll={()=>selectAllSectionsForTech(key, sectionOptions)}
+									onClear={()=>clearSectionsForTech(key)}
+									onReset={()=>resetSectionsForTech(key)}
+									toolbarClassName={styles.techSettingsActions}
+									checklistClassName={styles.techSectionChecks}
+									groupTitleClassName={styles.techSettingGroupTitle}
+								/>
 								{exportMeta && exportMeta.supportsPlanetInfo && planetInfo ? (
 									<div>
 										<div className={styles.techSettingGroupTitle}>星曜后天信息</div>
@@ -3898,8 +3903,12 @@ function AIAnalysisMain(props){
 							style={{ width: '100%' }}
 							onChange={(vals)=>setSelectedTechniqueKeys(vals || [])}
 						>
-							{techniqueOptions.map((item)=>(
-								<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
+							{groupedTechniqueOptions.map((group)=>(
+								<Select.OptGroup key={group.title} label={group.title}>
+									{group.items.map((item)=>(
+										<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
+									))}
+								</Select.OptGroup>
 							))}
 						</Select>
 					</div>
@@ -3946,6 +3955,9 @@ function AIAnalysisMain(props){
 									? item.key.slice('technique:'.length)
 									: '';
 								const techCustomized = !!(techKey && effectiveTechniqueOptions[techKey] && Object.keys(effectiveTechniqueOptions[techKey]).length);
+								// [挂载预算] 最近一次发送的裁剪账本按层 key 对齐（案例前提层 key 在发送层里是 'source'）。
+								const clipStatKey = typeof item.key === 'string' && item.key.indexOf('source:') === 0 ? 'source' : item.key;
+								const clipStat = promptClipStats && promptClipStats.byKey ? promptClipStats.byKey[clipStatKey] : null;
 								return (
 									<Collapse.Panel
 										key={item.key}
@@ -3969,6 +3981,16 @@ function AIAnalysisMain(props){
 													<Tag>{item.type}</Tag>
 													<Tag color={statusMeta.color}>{statusMeta.text}</Tag>
 													{techCustomized ? <Tag color="purple">已自定义</Tag> : null}
+													{clipStat && clipStat.dropped ? (
+														<Tooltip title="最近一次发送时上下文超出预算，该层整层未纳入。可减少挂载技法或在「设置」里精简纳入内容。">
+															<Tag color="red">超预算未纳入</Tag>
+														</Tooltip>
+													) : null}
+													{clipStat && !clipStat.dropped && clipStat.clipped ? (
+														<Tooltip title="最近一次发送时上下文超出预算，该层按段边界公平裁剪后纳入。">
+															<Tag color="orange">已裁剪 {clipStat.raw}→{clipStat.kept}字</Tag>
+														</Tooltip>
+													) : null}
 												</span>
 												{signature ? <span className={styles.contextPanelSig}>{signature}</span> : null}
 											</div>
@@ -4004,6 +4026,14 @@ function AIAnalysisMain(props){
 				<span className={styles.contextBannerItem} title={activeSource.title}>{activeSource.sourceType === 'chart' ? '📊' : '📋'} {activeSource.title}</span>
 				{tCnt > 0 ? <span className={styles.contextBannerItem}>🧮 {tCnt} 技法</span> : null}
 				{refCnt > 0 ? <span className={styles.contextBannerItem}>📚 {refCnt} 资料/组合</span> : null}
+				{promptClipStats && promptClipStats.stats ? (
+					<span
+						className={styles.contextBannerItem}
+						title={`最近一次发送给模型的上下文字数 / 预算上限${promptClipStats.stats.droppedCount ? `；有 ${promptClipStats.stats.droppedCount} 层超预算未纳入（见挂载预览）` : ''}`}
+					>
+						上下文约 {promptClipStats.stats.totalKept}/{AI_CONTEXT_MAX_CHARS} 字
+					</span>
+				) : null}
 				<a className={styles.contextBannerEdit} onClick={()=>setMountDrawerOpen(true)}>编辑</a>
 			</div>
 		);
@@ -4318,8 +4348,12 @@ function AIAnalysisMain(props){
 									className={styles.sourceSelect}
 									onChange={(vals)=>setSelectedTechniqueKeys(vals || [])}
 								>
-									{techniqueOptions.map((item)=>(
-										<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
+									{groupedTechniqueOptions.map((group)=>(
+										<Select.OptGroup key={group.title} label={group.title}>
+											{group.items.map((item)=>(
+												<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
+											))}
+										</Select.OptGroup>
 									))}
 								</Select>
 							) : null}

@@ -7,6 +7,13 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
 import * as AstroText from '../../constants/AstroText';
+// [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+// 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 
 // AI 快照用中文名(astroSymbol 字形在纯文本里不可读)。
 function apName(id){
@@ -30,6 +37,8 @@ export async function buildAgePointSnapshotText(chartObj){
 	}
 	if(!points.length){ return ''; }  // 无年龄推进点数据=该技法在本盘缺失,挂载显示「缺失」而非空表头。
 	const lines = [];
+	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
+	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[年龄推进点（Age Point / Huber）]');
 	lines.push('年龄点自上升点起，沿 Koch 宫顺行，每宫 6 年、72 年回归上升；落于本命星处（合相）为人生关键节点。');
 	const keyAges = points.filter((p) => p.aspectTo);
@@ -44,6 +53,26 @@ export async function buildAgePointSnapshotText(chartObj){
 		const sign = `${apName(p.sign)}${(p.signlon !== undefined && p.signlon !== null) ? ' ' + p.signlon + '°' : ''}`;
 		lines.push(`| ${p.age}岁 | ${sign} | ${p.house}宫 | ${p.aspectTo ? apName(p.aspectTo) : '—'} |`);
 	});
+	// [YB] 尾部 [当前时点]+[方法说明];定位行=当前年龄对应的年龄点行(取 age≤当前年龄的最大行)。
+	const extraLines = [];
+	const birthRaw = (chartObj && chartObj.params && chartObj.params.birth) ? `${chartObj.params.birth}`.trim() : '';
+	const birthMs = birthRaw ? Date.parse(birthRaw.replace(/\//g, '-').replace(' ', 'T')) : NaN;
+	if(Number.isFinite(birthMs)){
+		const curAge = (Date.now() - birthMs) / (365.2425 * 24 * 3600 * 1000);
+		let curPoint = null;
+		points.forEach((p)=>{
+			if(Number(p.age) <= curAge && (!curPoint || Number(p.age) > Number(curPoint.age))){ curPoint = p; }
+		});
+		if(curPoint){
+			const curSign = `${apName(curPoint.sign)}${(curPoint.signlon !== undefined && curPoint.signlon !== null) ? ' ' + curPoint.signlon + '°' : ''}`;
+			extraLines.push(`当前年龄点：${curPoint.age}岁 落${curSign}，第${curPoint.house}宫${curPoint.aspectTo ? `，合本命${apName(curPoint.aspectTo)}` : ''}`);
+		}
+	}
+	const tail = [...currentMomentLines(chartObj, extraLines), ...methodNoteLines('agepoint')];
+	if(tail.length){
+		lines.push('');
+		lines.push(...tail);
+	}
 	return lines.join('\n');
 }
 

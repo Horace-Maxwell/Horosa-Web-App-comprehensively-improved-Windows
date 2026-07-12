@@ -23,6 +23,7 @@ import {
 	getDecennialStartLabel,
 } from '../../utils/decennials';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { buildMeaningTipByCategory, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
@@ -148,7 +149,35 @@ function appendBirthAndChart(lines, chartObj, params){
 	}
 }
 
+// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
+// 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
+const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
+
+// [YB v42] 「当前所处：L1 X期（…至…）/ L2 Y期（…至…）」——buildDecennialTimeline 已算好 active 旗标,
+// 直接取当前 L1/L2(startText/endText 为期起讫);定位不到(如 timeline 未含今日)返 ''(该行省略)。
+function decennialCurrentPeriodLine(list){
+	const l1 = (Array.isArray(list) ? list : []).find((item)=>item && item.active);
+	if(!l1){ return ''; }
+	let text = `当前所处：L1 ${getDecennialPlanetLongName(l1.planet)}期（${l1.startText || '无'} 至 ${l1.endText || '无'}）`;
+	const l2 = (Array.isArray(l1.sublevel) ? l1.sublevel : []).find((item)=>item && item.active);
+	if(l2){
+		text += ` / L2 ${getDecennialPlanetLongName(l2.planet)}期（${l2.startText || '无'} 至 ${l2.endText || '无'}）`;
+	}
+	return text;
+}
+
+// [YB v42] 外壳:内核正文(多路 return,逐字不动)+ 尾部 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
 function buildDecennialAISnapshot(chartObj, params, settings, timelineMeta, list, aiState){
+	const body = buildDecennialAISnapshotBody(chartObj, params, settings, timelineMeta, list, aiState);
+	const cur = decennialCurrentPeriodLine(list);
+	const lines = [body, ''];
+	lines.push(...safeHelperLines(buildCurrentMomentLines, chartObj, cur ? [cur] : []));
+	lines.push(...safeHelperLines(buildMethodNoteLines, 'decennials'));
+	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
+	return lines.join('\n');
+}
+
+function buildDecennialAISnapshotBody(chartObj, params, settings, timelineMeta, list, aiState){
 	const lines = [];
 	appendBirthAndChart(lines, chartObj, params);
 

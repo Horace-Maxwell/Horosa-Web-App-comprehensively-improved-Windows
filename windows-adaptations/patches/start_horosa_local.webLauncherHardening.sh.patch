@@ -1,8 +1,8 @@
 diff --git a/start_horosa_local.sh b/start_horosa_local.sh
-index 481f541..d6a36eb 100644
+index d098451..c094243 100644
 --- a/start_horosa_local.sh
 +++ b/start_horosa_local.sh
-@@ -696,11 +696,13 @@ reclaim_stale_port() {
+@@ -709,11 +709,13 @@ reclaim_stale_port() {
  if ! reclaim_stale_port "${CHART_PORT}" "webchartsrv"; then
    diag_log "blocked: port ${CHART_PORT} still in use after reclaim -> exit 3 (retryable)"
    echo "port ${CHART_PORT} is already in use."
@@ -16,7 +16,7 @@ index 481f541..d6a36eb 100644
    exit 3
  fi
  
-@@ -850,11 +852,14 @@ PY
+@@ -863,11 +865,14 @@ PY
  }
  
  cd "${ROOT}"
@@ -33,7 +33,7 @@ index 481f541..d6a36eb 100644
  # pid 文件读取防御:文件缺失/为空/非数字时不得把空串喂给 kill -0(会报 usage 错→被误读成「进程已退出」)。
  pid_alive() {
    local f="$1" pid
-@@ -872,7 +877,10 @@ if ! pid_alive "${PY_PID_FILE}"; then
+@@ -885,7 +890,10 @@ if ! pid_alive "${PY_PID_FILE}"; then
  fi
  ledger_log sh.python_spawned
  
@@ -45,7 +45,20 @@ index 481f541..d6a36eb 100644
    HOROSA_DESKTOP_MONGO_OPTIONAL="${DESKTOP_MONGO_OPTIONAL}" \
    HOROSA_DESKTOP_MONGO_SKIP_PING="${DESKTOP_MONGO_SKIP_PING}" \
    HOROSA_MONGO_FALLBACK_DIR="${MONGO_FALLBACK_DIR}" \
-@@ -1033,6 +1041,7 @@ if [ "${ready}" -ne 1 ]; then
+@@ -990,8 +998,10 @@ READY_STALL_SECS="${HOROSA_READY_STALL_SECS:-90}"
+ READY_TOTAL_CAP_SECS="${HOROSA_READY_TOTAL_CAP_SECS:-900}"
+ _progress_fingerprint() {
+   local pyb jab pyc jac ll pypid japid
+-  pyb="$(stat -f%z "${PY_LOG}" 2>/dev/null || echo 0)"
+-  jab="$(stat -f%z "${JAVA_LOG}" 2>/dev/null || echo 0)"
++  # horosa_web_portable_stat_v1:BSD(-f,macOS)优先,GNU(-c,Linux/Git Bash)回退 ——
++  # 否则 Git Bash 下日志字节数恒 0,进展指纹只剩账本行数一个弱信号。
++  pyb="$(stat -f%z "${PY_LOG}" 2>/dev/null || stat -c%s "${PY_LOG}" 2>/dev/null || echo 0)"
++  jab="$(stat -f%z "${JAVA_LOG}" 2>/dev/null || stat -c%s "${JAVA_LOG}" 2>/dev/null || echo 0)"
+   pypid="$(cat "${PY_PID_FILE}" 2>/dev/null || true)"
+   japid="$(cat "${JAVA_PID_FILE}" 2>/dev/null || true)"
+   pyc=""
+@@ -1095,6 +1105,7 @@ if [ "${ready}" -ne 1 ]; then
    bind_err_re='Address already in use|Errno 48|BindException|Port [0-9]+ was already in use'
    if { tail -n 160 "${PY_LOG}" 2>/dev/null || true; tail -n 160 "${JAVA_LOG}" 2>/dev/null || true; } | grep -Eq "${bind_err_re}"; then
      diag_log "===== run end (failed: port bind conflict, exit 3 retryable) ====="
@@ -53,7 +66,7 @@ index 481f541..d6a36eb 100644
      exit 3
    fi
    diag_log "===== run end (failed) ====="
-@@ -1118,3 +1127,14 @@ echo "html:     ${HTML_PATH}"
+@@ -1180,3 +1191,14 @@ echo "html:     ${HTML_PATH}"
  echo "logs:     ${LOG_DIR}"
  echo ""
  echo "stop:     ${ROOT}/stop_horosa_local.sh"

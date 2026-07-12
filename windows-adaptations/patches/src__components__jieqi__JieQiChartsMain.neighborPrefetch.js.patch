@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index 8cb6c55..09409f2 100644
+index 080c060..d5ed30a 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 @@ -23,7 +23,7 @@ import * as Su28Helper from '../su28/Su28Helper';
@@ -11,7 +11,7 @@ index 8cb6c55..09409f2 100644
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
  
-@@ -1127,6 +1127,11 @@ export class JieQiChartsMain extends Component{
+@@ -1129,6 +1129,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);

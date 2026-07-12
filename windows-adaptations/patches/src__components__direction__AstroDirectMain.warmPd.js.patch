@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index 4bf6e65..b06e78e 100644
+index 392a8b7..bd1fd5d 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
-@@ -499,6 +499,131 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
+@@ -530,6 +530,131 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
  	return fields;
  }
  
@@ -134,7 +134,7 @@ index 4bf6e65..b06e78e 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -653,106 +778,13 @@ class AstroDirectMain extends Component{
+@@ -684,106 +809,13 @@ class AstroDirectMain extends Component{
  	}
  
  	getDesiredPdConfig(chartObj, override = {}){

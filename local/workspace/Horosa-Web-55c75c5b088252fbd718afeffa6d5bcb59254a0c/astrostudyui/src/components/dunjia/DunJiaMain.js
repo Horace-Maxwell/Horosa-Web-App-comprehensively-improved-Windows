@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -289,7 +290,7 @@ function loadPatternInterpretationPreference(){
 function savePatternInterpretationPreference(value){
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
-			window.localStorage.setItem(QIMEN_PATTERN_INTERPRETATION_STORAGE_KEY, value ? '1' : '0');
+			safeLocalStorageSet(QIMEN_PATTERN_INTERPRETATION_STORAGE_KEY, value ? '1' : '0');
 		}
 	}catch(e){
 	}
@@ -318,7 +319,7 @@ function loadFaAskTopic(){
 function saveFaAskTopic(value){
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
-			window.localStorage.setItem(QIMEN_FA_ASK_TOPIC_KEY, value);
+			safeLocalStorageSet(QIMEN_FA_ASK_TOPIC_KEY, value);
 		}
 	}catch(e){
 	}

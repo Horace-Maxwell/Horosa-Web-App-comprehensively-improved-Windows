@@ -54,7 +54,8 @@ class HoraryJudgment extends Component{
 	componentDidUpdate(){ this.saveSnap(); }
 	saveSnap(){
 		if(!this._j) return;
-		try{ const t = buildHorarySnapshot(this._j); if(t && t !== _lastHorarySnap){ _lastHorarySnap = t; saveModuleAISnapshot('horary', t, {}); } }catch(e){ /* noop */ }
+		// [YA v42] 第二参传 chart:快照补 [古典接纳](chart.receptions/mutuals,古典 tab 同源数据)。
+		try{ const t = buildHorarySnapshot(this._j, this.props.chart); if(t && t !== _lastHorarySnap){ _lastHorarySnap = t; saveModuleAISnapshot('horary', t, {}); } }catch(e){ /* noop */ }
 	}
 	render(){
 		const { chart, category, schoolId } = this.props;

@@ -61,6 +61,10 @@ export function reduceUpdateEvent(state, payload){
 			mode: payload.mode || '',
 			estimateBytes: payload.downloadBytes != null ? payload.downloadBytes : null,
 			reusePct: payload.reusePct != null ? payload.reusePct : null,
+			// 无 sha 可校验(更新清单不可得):只通知不自动下载,卡片把「立即更新」换「打开发布页」。
+			// 老壳不发此字段 → 判空退化为 false(照常显示下载),行为与今天一致。
+			notifyOnly: payload.notifyOnly === true,
+			message: payload.message || '',
 		};
 	}
 	if(phase === 'planning'){
@@ -110,6 +114,19 @@ export function reduceUpdateEvent(state, payload){
 	if(phase === 'uptodate'){
 		return { phase: PHASE_IDLE, toast: '已是最新版本' };
 	}
+	if(phase === 'notify-only'){
+		// 后台下载被 notify-only 短路(老前端点了「立即更新」也会走到这里):
+		// 回到 available 卡并切成「打开发布页」形态,绝不停留在假的下载中状态。
+		return {
+			phase: PHASE_AVAILABLE,
+			minimized: false,
+			notifyOnly: true,
+			latestVersion: payload.latestVersion || state.latestVersion,
+			releaseUrl: payload.releaseUrl || state.releaseUrl,
+			message: payload.message || '',
+			toast: payload.message || '更新清单暂不可获取，已暂停自动下载',
+		};
+	}
 	if(phase === 'check-failed'){
 		// 自动检查失败:低打扰 toast(不改 phase、不打断任何进行中的下载 UI);
 		// 旧壳不发此 phase,零影响。
@@ -139,6 +156,7 @@ class UpdateNotifier extends React.Component {
 			currentVersion: '',
 			notes: '',
 			releaseUrl: '',
+			notifyOnly: false, // 无 sha 可校验时=true:只通知不自动下载
 			toast: '',
 			// 可视化 v2(全部可空,空即退回老样式)
 			mode: '',            // 'incremental' | 'full'
@@ -217,6 +235,7 @@ class UpdateNotifier extends React.Component {
 					mode: res.updateMode,
 					downloadBytes: res.downloadBytes,
 					reusePct: res.reusePct,
+					notifyOnly: res.notifyOnly === true,
 				});
 			}else{
 				this.showToast('已是最新版本');
@@ -302,8 +321,12 @@ class UpdateNotifier extends React.Component {
 		let body = null;
 		if(phase === PHASE_AVAILABLE){
 			// 「本次需下载约 63 MB(增量更新,复用 90%)」/「完整更新,约 611 MB」/「大小待定」
+			// notifyOnly:无资产尺寸可估(URL 皆空),改显停止自动下载的原因。
 			let sizeLine = null;
-			if(v2){
+			if(this.state.notifyOnly){
+				sizeLine = this.state.message
+					|| '更新清单暂不可获取，为确保安装包完整性已暂停自动下载。';
+			}else if(v2){
 				const mb = fmtMB(estimateBytes);
 				if(mode === 'incremental'){
 					sizeLine = mb
@@ -315,14 +338,20 @@ class UpdateNotifier extends React.Component {
 			}
 			body = (
 				<React.Fragment>
-					<div className={styles.title}>发现新版本 v{latestVersion}{badge}</div>
+					<div className={styles.title}>发现新版本 v{latestVersion}{this.state.notifyOnly ? null : badge}</div>
 					<div className={styles.sub}>当前 v{currentVersion} → 新版 v{latestVersion}</div>
 					{sizeLine ? <div className={styles.sizeLine}>{sizeLine}</div> : null}
 					{notes ? <div className={styles.notes}>{notes}</div> : null}
 					<div className={styles.actions}>
-						<button type="button" className={styles.btnPrimary} onClick={this.onUpdate}>立即更新</button>
+						{this.state.notifyOnly ? (
+							<button type="button" className={styles.btnPrimary} onClick={this.onViewNotes}>打开发布页</button>
+						) : (
+							<button type="button" className={styles.btnPrimary} onClick={this.onUpdate}>立即更新</button>
+						)}
 						<button type="button" className={styles.btnGhost} onClick={this.onLater}>稍后</button>
-						<button type="button" className={styles.btnLink} onClick={this.onViewNotes}>查看更新内容</button>
+						{this.state.notifyOnly ? null : (
+							<button type="button" className={styles.btnLink} onClick={this.onViewNotes}>查看更新内容</button>
+						)}
 					</div>
 				</React.Fragment>
 			);

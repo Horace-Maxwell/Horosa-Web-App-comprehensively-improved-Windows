@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col, Divider } from 'antd';
 import { XQButton as Button } from '../xq-ui';
 import BaZiFineChart from './BaZiFineChart';
@@ -31,7 +32,7 @@ class PaiBaZi extends Component{
 		this.setState({
 			chartStyle,
 		}, ()=>{
-			localStorage.setItem(BAZI_CHART_STYLE_KEY, chartStyle);
+			safeLocalStorageSet(BAZI_CHART_STYLE_KEY, chartStyle);
 		});
 	}
 

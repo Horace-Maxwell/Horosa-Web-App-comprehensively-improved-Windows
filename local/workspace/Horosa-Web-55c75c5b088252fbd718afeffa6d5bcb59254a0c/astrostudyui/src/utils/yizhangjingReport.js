@@ -3,6 +3,10 @@
 import { calcYizhangjing, BRANCHES, ZODIAC, gradeOf, wuxingState, xiaoxianStarAt, xunShenAt } from './yizhangjingLocal';
 import DATA from './data/yizhangjingData.json';
 import SHENSHA from './data/yizhangjingShensha.json';
+import LORE from './data/yizhangjingLore.json';
+
+// 农历月序 → 文献层月诗键（与 YiZhangJingMain 的 MONTH_LABELS 同表；1 起）。
+const LORE_MONTH_LABELS = ['', '正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
 
 const ZODIAC_TO_BRANCH = {};
 ZODIAC.forEach((z, i) => { ZODIAC_TO_BRANCH[z] = BRANCHES[i]; });
@@ -220,7 +224,7 @@ export function listShensha() {
 	return Object.keys((SHENSHA && SHENSHA.rows) || {});
 }
 
-// AI 快照文本：计算盘 + 核心断语（文献层古本诗/逐星全文属显示层，不入快照）
+// AI 快照文本：计算盘 + 核心断语 + 文献层【诗文】【四柱文献】（后两段登记为默认关段：builder 恒产，导出层按设置控）
 export function buildYizhangjingSnapshotText(model) {
 	if (!model) return '';
 	const c = model.chart;
@@ -241,7 +245,9 @@ export function buildYizhangjingSnapshotText(model) {
 	L.push('');
 	L.push('【命宫与人事十二宫】');
 	L.push(`命宫 ${c.mingBranch}宫·${c.mingStar}`);
-	L.push(model.renshi.map((g) => `${g.palace}=${g.branch}${g.star}`).join('　'));
+	L.push('| 宫位 | 星曜 |');
+	L.push('| --- | --- |');
+	model.renshi.forEach((g) => { L.push(`| ${g.palace} | ${g.branch}${g.star} |`); });
 	L.push('');
 	L.push('【格局判定】');
 	L.push(`四宫等第：${c.fourPalaceRank}　命格：${c.mingGe}　九品估：${c.nineGrade}　（上品×${c.gradeCount.up} 中品×${c.gradeCount.mid} 下品×${c.gradeCount.down}）`);
@@ -266,8 +272,10 @@ export function buildYizhangjingSnapshotText(model) {
 	L.push('');
 	L.push('【大限】');
 	L.push(`从月宫起·一宫${c.opts.N}年·${c.dirText}`);
+	L.push('| 年龄 | 地支 | 星 | 道 | 品级 | 五行 | 运势 |');
+	L.push('| --- | --- | --- | --- | --- | --- | --- |');
 	model.dayun.forEach((d) => {
-		L.push(`${d.from}-${d.to}岁 ${d.branch}·${d.star}(${d.dao}·${d.grade}${d.wuxing ? '·' + d.wuxing : ''})：${d.yunshi}`);
+		L.push(`| ${d.from}-${d.to}岁 | ${d.branch} | ${d.star} | ${d.dao} | ${d.grade} | ${d.wuxing || '—'} | ${d.yunshi || '—'} |`);
 	});
 	L.push('');
 	const xiaoLabel = c.xiaoStartLabel || '日柱宫';
@@ -294,9 +302,49 @@ export function buildYizhangjingSnapshotText(model) {
 			if (!grouped[h.palace]) { grouped[h.palace] = { branch: h.branch, star: h.star, items: [] }; order.push(h.palace); }
 			grouped[h.palace].items.push(h);
 		});
+		L.push('| 宫位 | 坐 | 神煞 | 断语 |');
+		L.push('| --- | --- | --- | --- |');
 		order.forEach((pal) => {
 			const g = grouped[pal];
-			L.push(`${pal}(${g.branch}·${g.star})：` + g.items.map((it) => `${it.name}—${it.text || '（无断语）'}`).join('；'));
+			g.items.forEach((it, ii) => {
+				const palCell = ii === 0 ? pal : '—';
+				const seatCell = ii === 0 ? `${g.branch}·${g.star}` : '—';
+				L.push(`| ${palCell} | ${seatCell} | ${it.name} | ${it.text || '（无断语）'} |`);
+			});
+		});
+	}
+	// 【诗文】doctrine 段（默认关段：builder 恒产，导出层按设置控）：与右栏「诗文」tab renderLore 同口径，
+	// 只取本盘命中的月诗（真实农历生月）与时文（生时支），非全库；原文引自 yizhangjingLore.json 零改写。
+	const loreMonthKey = LORE_MONTH_LABELS[model.input.lunarMonth || c.input.month] || '';
+	const loreMonthPoem = (LORE.poems && LORE.poems.month && LORE.poems.month[loreMonthKey]) || null;
+	const loreHourMain = (LORE.poems && LORE.poems.hourMain && LORE.poems.hourMain[c.input.hourBranch]) || null;
+	if (loreMonthPoem || (loreHourMain && loreHourMain.text)) {
+		L.push('');
+		L.push('【诗文】');
+		L.push('（古本诗文含旧时代观念，仅作文献保留）');
+		if (loreMonthPoem) {
+			L.push(`◆ 本月生人诗（${loreMonthKey}）`);
+			if (loreMonthPoem.poem) L.push(loreMonthPoem.poem);
+			if (loreMonthPoem.prose) L.push(loreMonthPoem.prose);
+		}
+		if (loreHourMain && loreHourMain.text) {
+			L.push(`◆ 本时生人（${c.input.hourBranch}时${loreHourMain.range ? '·' + loreHourMain.range : ''}）`);
+			L.push(loreHourMain.text);
+		}
+	}
+	// 【四柱文献】doctrine 段（默认关段）：与右栏「四柱文献」tab renderSiZhuLore 同口径，
+	// 只取本盘四柱各主星的逐星全文（非全库十二星）；原文零改写；全缺不产段。
+	const loreSizhuLabels = ['年柱 · 祖上', '月柱 · 父母事业', '日柱 · 夫妻', '时柱 · 自身主星'];
+	const loreStarBlocks = (model.pillars || [])
+		.map((p, i) => ({ label: loreSizhuLabels[i] || '', star: p.star, full: (LORE.starFull && LORE.starFull[p.star]) || '' }))
+		.filter((b) => b.full);
+	if (loreStarBlocks.length) {
+		L.push('');
+		L.push('【四柱文献】');
+		L.push('（各柱主星逐星全文·古本文献层）');
+		loreStarBlocks.forEach((b) => {
+			L.push(`◆ ${b.label} · ${b.star}`);
+			L.push(b.full);
 		});
 	}
 	return L.join('\n');

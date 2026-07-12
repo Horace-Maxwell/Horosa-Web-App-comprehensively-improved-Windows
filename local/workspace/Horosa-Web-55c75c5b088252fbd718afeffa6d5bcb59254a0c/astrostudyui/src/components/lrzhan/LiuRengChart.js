@@ -174,7 +174,7 @@ class LiuRengChart extends Component{
 				'overflow-y': 'auto',
 				padding: '8px 10px',
 				font: '13px sans-serif',
-				background: 'var(--horosa-surface-raised, #ffffff)',
+				background: 'var(--horosa-surface-solid, #ffffff)',  // 悬浮层铁律:绝对不透明(raised 带 0.97 透明)
 				color: 'var(--horosa-text, #262626)',
 				border: '1px solid var(--horosa-border, #e8e8e8)',
 				'border-radius': '8px',

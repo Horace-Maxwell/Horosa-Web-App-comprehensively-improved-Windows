@@ -145,7 +145,8 @@ function formatLuckLayerLines(chart, layer, levelLabel, subText){
 	const lines = [];
 	const mingIdx = layer.mingIndex;
 	const oppIdx = ((mingIdx % 12) + 6) % 12;
-	const head = `${levelLabel}：${layer.ganzi || ''}${subText ? `（${subText}）` : ''}`
+	// [v2 试点] 头行加 ◆ 子题标记:呈现层(docx/PDF)映射 Heading3;纯文本仍整行可读(substring 断言不受影响)。
+	const head = `◆ ${levelLabel}：${layer.ganzi || ''}${subText ? `（${subText}）` : ''}`
 		+ `，命宫【${luckHouseName(chart, mingIdx, true)}】·对宫【${luckHouseName(chart, oppIdx, true)}】`;
 	lines.push(head);
 	const sihua = ZiWeiHelper.getLayerSihua(chart, layer.gan) || [];
@@ -244,7 +245,7 @@ function buildZiweiPeriodLines(chart, period){
 				pushSeg(seg);
 			}
 		}else{
-			pushSeg([`流年：${year}年（超出大限范围，未列流年）`]);
+			pushSeg([`◆ 流年：${year}年（超出大限范围，未列流年）`]);
 		}
 	});
 
@@ -363,23 +364,46 @@ function buildZiWeiSnapshotText(params, result){
 	if(lifeGan){
 		lines.push(`命宫天干：${lifeGan}`);
 	}
+	// [v2 试点·补硬缺] 左栏「基本信息/四柱」卡内容并入起盘信息(审计:显示了但快照没有)。
+	// 全部 best-effort 纯增行(数据缺省不产行 → 既有夹具/挂载字节不变);同 buildZiWeiInfoData 取数口径。
+	const infoBz = chart.bazi && chart.bazi.bazi ? chart.bazi.bazi : null;
+	if(infoBz){
+		const pillars = ['year', 'month', 'day', 'time']
+			.map((k)=>(infoBz[k] && infoBz[k].ganzi ? infoBz[k].ganzi : ''))
+			.filter(Boolean);
+		if(pillars.length === 4){
+			lines.push(`四柱：${pillars.join(' ')}`);
+		}
+	}
+	if(chart.lifeMaster){ lines.push(`命主：${chart.lifeMaster}`); }
+	if(chart.bodyMaster){ lines.push(`身主：${chart.bodyMaster}`); }
+	if(chart.zidou){ lines.push(`子斗：${chart.zidou}`); }
+	if(chart.doujun){ lines.push(`斗君：${chart.doujun}`); }
+	const infoJu = `${ZWText.ZWMsg[chart.yearPolar] || ''}${ZWText.ZWMsg[chart.gender] || ''} ${chart.wuxingJuText || ''}`.trim();
+	if(infoJu){ lines.push(`命局：${infoJu}`); }
+	const infoNl = chart.nongli || {};
+	if(infoNl.year){
+		lines.push(`农历：${`${infoNl.year}年 ${infoNl.leap ? '闰' : ''}${infoNl.month || ''}${infoNl.day || ''}${infoNl.time ? ` ${`${infoNl.time}`.charAt(1)}时` : ''}`.trim()}`);
+	}
 
 	lines.push('');
+	// [v2 试点·表化] 12 宫同构数据改 GFM 表(宫/干支/大限/星曜四列;值口径与旧键值行逐字同源:
+	// name/ganzi/direction/formatStarSiHua 全复用)。表块经 v1/v2 归一器直通、docx/PDF 渲染真表。
 	lines.push('[宫位总览]');
+	lines.push('| 宫位 | 干支 | 大限 | 星曜（四化括注） |');
+	lines.push('| --- | --- | --- | --- |');
 	houses.forEach((house, idx)=>{
 		const name = house.name || house.id || `宫位${idx + 1}`;
 		const ganzi = house.ganzi || '';
 		const palaceGan = ganzi ? normalizeGan(ganzi) : '';
 		const direction = house.direction && house.direction.length === 2 ? `${house.direction[0]}~${house.direction[1]}` : '';
 		const stars = collectHouseStars(house);
-		lines.push(`${name}：大限=${direction || '无'}，干支=${ganzi || '无'}`);
-		if(stars.length > 0){
-			lines.push(`星曜：${stars.map((starName)=>formatStarSiHua(starName, yearGan, lifeGan, palaceGan)).join('、')}`);
-		}else{
-			lines.push('星曜：无');
-		}
-		lines.push('');
+		const starText = stars.length > 0
+			? stars.map((starName)=>formatStarSiHua(starName, yearGan, lifeGan, palaceGan)).join('、')
+			: '无';
+		lines.push(`| ${name} | ${ganzi || '无'} | ${direction || '无'} | ${starText} |`);
 	});
+	lines.push('');
 
 	if(yearGan){
 		const laiyin = houses.filter((house)=> house.ganzi && house.ganzi.charAt(0) === yearGan)
@@ -673,6 +697,13 @@ class ZiWeiMain extends Component{
 				}),
 			ziweirulesCached({}),
 		]);
+		// 🔴 空载荷守卫:request() 网络层失败会吞错 resolve undefined(非 reject)。
+		// 缺守卫时 data[ResultKey]/rules[ResultKey] 直接崩(Unhandled Rejection)→ 生产白屏/选项永无反应。
+		// 口径与「失败不 setState」一致:人话提示 + return,后端就绪后用户重试即恢复。
+		if(!data || !rules){
+			message.error('后端服务尚未就绪,请稍后重试');
+			return;
+		}
 		const result = data[Constants.ResultKey]
 
 		// 本地引擎双路(传本开关):任一开关非默认 → 用本地 ZiweiCalc 重排中盘(Java 不支持大限跨度/天马/星集/三盘等);

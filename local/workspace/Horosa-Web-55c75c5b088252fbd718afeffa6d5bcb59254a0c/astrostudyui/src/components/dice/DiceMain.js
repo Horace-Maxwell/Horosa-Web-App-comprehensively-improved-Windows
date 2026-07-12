@@ -65,7 +65,7 @@ function splitDegree(degree){
 	return [deg, min];
 }
 
-function buildChartObjectLines(chartObj){
+export function buildChartObjectLines(chartObj){
 	const lines = [];
 	const chart = chartObj && chartObj.chart ? chartObj.chart : null;
 	if(!chart){
@@ -73,16 +73,20 @@ function buildChartObjectLines(chartObj){
 	}
 	const houses = chart.houses || [];
 	const objects = chart.objects || [];
+	if(houses.length === 0){
+		return lines;
+	}
+	lines.push('| 宫位 | 星体 | 度 | 座 | 分 |');
+	lines.push('| --- | --- | --- | --- | --- |');
 	houses.forEach((house)=>{
-		lines.push(`${msg(house.id)}`);
 		const inHouse = objects.filter((obj)=>obj.house === house.id);
 		if(inHouse.length === 0){
-			lines.push('星体：无');
+			lines.push(`| ${msg(house.id)} | 无 | — | — | — |`);
 			return;
 		}
-		inHouse.forEach((obj)=>{
+		inHouse.forEach((obj, k)=>{
 			const sd = splitDegree(obj.signlon);
-			lines.push(`星体：${msg(obj.id)} ${sd[0]}˚${msg(obj.sign)}${sd[1]}分`);
+			lines.push(`| ${k === 0 ? msg(house.id) : '—'} | ${msg(obj.id)} | ${sd[0]} | ${msg(obj.sign)} | ${sd[1]} |`);
 		});
 	});
 	return lines;
@@ -232,6 +236,7 @@ class DiceMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/predict/dice`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 
 		const st = {

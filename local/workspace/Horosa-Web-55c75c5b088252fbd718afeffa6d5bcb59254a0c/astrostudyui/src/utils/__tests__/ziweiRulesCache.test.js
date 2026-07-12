@@ -38,6 +38,17 @@ describe('ziweirulesCached 会话缓存', ()=>{
 		expect(request).toHaveBeenCalledTimes(2);
 	});
 
+	it('🔴 吞错型失败(resolve undefined)同样不缓存:抛错+下次重试(防会话投毒)', async ()=>{
+		// request() 网络层失败会吞错 resolve undefined(非 reject);若被当成功缓存,
+		// App 启动 prime(后端温启动中)一次失败即毒化整个会话——紫微选项永远选不中。
+		request.mockResolvedValueOnce(undefined);
+		await expect(ziweirulesCached({})).rejects.toThrow('响应为空');
+		request.mockResolvedValueOnce({ Result: { ok: 2 } });
+		const r = await ziweirulesCached({});
+		expect(r.Result.ok).toBe(2);
+		expect(request).toHaveBeenCalledTimes(2);   // 第二次真发了请求 = 未被投毒
+	});
+
 	it('不同 body 分键缓存(后端将来带参也天然正确)', async ()=>{
 		request.mockResolvedValue({ Result: {} });
 		await ziweirulesCached({});

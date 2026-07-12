@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col } from 'antd';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as SZConst from './SZConst';
@@ -91,7 +92,7 @@ class SuZhanInput extends Component{
 
 	onChartTypeChange(val){
 		SZConst.SZChart.chart = val;
-		localStorage.setItem('suzhanChartType', val);
+		safeLocalStorageSet('suzhanChartType', val);
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				szchart: {
@@ -103,7 +104,7 @@ class SuZhanInput extends Component{
 
 	onChartShapeChange(val){
 		SZConst.SZChart.shape = val;
-		localStorage.setItem('suzhanChartShape', val);
+		safeLocalStorageSet('suzhanChartShape', val);
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				szshape: {
@@ -125,7 +126,7 @@ class SuZhanInput extends Component{
 
 	onHouseStartModeChange(val){
 		SZConst.SZChart.houseStartMode = val;
-		localStorage.setItem('suzhanHouseStartMode', val);
+		safeLocalStorageSet('suzhanHouseStartMode', val);
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				houseStartMode: {

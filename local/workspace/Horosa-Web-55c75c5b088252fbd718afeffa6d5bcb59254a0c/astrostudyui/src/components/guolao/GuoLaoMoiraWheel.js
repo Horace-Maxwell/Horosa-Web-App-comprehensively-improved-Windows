@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { createPortal } from 'react-dom';
 import * as AstroConst from '../../constants/AstroConst';
 import { GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, getStoredGuolaoLifeMode, normalizeGuolaoLifeMode, } from './GuoLaoChartStyle';
 import { computeRingPositions, ringCollapsed } from './moiraWheelLayout';
@@ -2276,7 +2277,13 @@ const curAge = (this.props.transitParams && this.props.transitParams.date ? birt
 		if(!tooltip){
 			return null;
 		}
-		return (
+		// portal 挂 body(照 IndiaChartMain renderDashaFloatingPopover):中栏容器的 container-type/overflow
+		// 会把 position:fixed 的包含块重锚进中栏并新建 stacking context → 被右栏压层+裁剪;
+		// 单抬 z-index 无效,必须让浮层脱离该容器。坐标本就是 clientX/clientY 视口系,portal 后口径不变。
+		if(typeof document === 'undefined' || !document.body){
+			return null;
+		}
+		return createPortal(
 			<div
 				className="horosa-guolao-moira-tooltip"
 				style={{
@@ -2285,7 +2292,8 @@ const curAge = (this.props.transitParams && this.props.transitParams.date ? birt
 				}}
 			>
 				{tooltip.text}
-			</div>
+			</div>,
+			document.body
 		);
 	}
 

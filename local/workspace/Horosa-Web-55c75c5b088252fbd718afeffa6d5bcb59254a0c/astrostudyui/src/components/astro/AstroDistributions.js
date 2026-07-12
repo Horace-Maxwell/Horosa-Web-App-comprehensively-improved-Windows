@@ -6,6 +6,13 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
 import * as AstroText from '../../constants/AstroText';
+// [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+// 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 
 // AI 快照用中文名(astroSymbol 的字形在纯文本里不可读)。
 function distName(id){
@@ -29,6 +36,8 @@ export async function buildDistributionsSnapshotText(chartObj){
 	}
 	if(!rows.length){ return ''; }  // 无界推运数据=该技法在本盘缺失,挂载显示「缺失」而非空表头。
 	const lines = [];
+	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
+	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[界推运（分配法 / Distributions）]');
 	lines.push('上升点经主限运动穿越各埃及界；分配星=界主星，参与星=该期间内上升点触及的行星。');
 	lines.push('');
@@ -40,6 +49,22 @@ export async function buildDistributionsSnapshotText(chartObj){
 			: '—';
 		lines.push(`| ${distName(row.distributor)} | ${distName(row.sign)} | ${participants} | ${row.startDate || '-'} | ${row.endDate || '-'} |`);
 	});
+	// [YB] 尾部 [当前时点]+[方法说明];定位行=今日所在分配段(起止日期可解析且含今日才出,防后端日期格式变体误判)。
+	const extraLines = [];
+	const nowMs = Date.now();
+	const curRow = rows.find((row)=>{
+		const s = Date.parse(`${row.startDate || ''}`.replace(/\//g, '-'));
+		const e = Date.parse(`${row.endDate || ''}`.replace(/\//g, '-'));
+		return Number.isFinite(s) && Number.isFinite(e) && nowMs >= s && nowMs <= e;
+	});
+	if(curRow){
+		extraLines.push(`当前分配星：${distName(curRow.distributor)}（${distName(curRow.sign)} 界，${curRow.startDate || '-'} ~ ${curRow.endDate || '-'}）`);
+	}
+	const tail = [...currentMomentLines(chartObj, extraLines), ...methodNoteLines('distributions')];
+	if(tail.length){
+		lines.push('');
+		lines.push(...tail);
+	}
 	return lines.join('\n');
 }
 

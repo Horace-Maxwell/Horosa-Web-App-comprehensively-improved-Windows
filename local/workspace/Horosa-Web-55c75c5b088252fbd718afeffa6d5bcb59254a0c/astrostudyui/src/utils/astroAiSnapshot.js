@@ -10,6 +10,7 @@ import { runLifespan } from '../divination/lifespan/lifespanEngine';
 import { bodyPartsOf, degreePosition } from '../divination/data/bodyParts';
 import { buildPatternOverview } from './astroPatternOverview';
 import { SIGNS } from '../divination/data/signs';
+import { buildEgyptSectionLines } from '../components/astro/AstroEgypt'; // [埃及历]段本盘派生(纯函数;已验证无环:AstroEgypt 不回 import 本文件)
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -384,35 +385,57 @@ function buildBaseInfoLines(chartObj, fields){
 	return lines;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// [v2 排版批量·表化] 七函数(宫头/星与虚点/相位/行星/希腊点/12分度/主宰星链·宫神星)逐条行改 GFM 表。
+// 铁律:值表达式逐字复用(零信息丢失),仅排版骨架换 表头+分隔行+数据行;段头 [X] 零变更;
+// 空值 cell 用 '—'(em dash,不进 fact token 正则),值本身为空串('')时保留空 cell 以区分「行存在但值空」;
+// 绝不输出 undefined/NaN/null 字面量;列固定不因盘裁列;某实体全属性缺 → 不出该行。
+// 等价证明:astroV2FactEquivalence.test.js(L1 逆变换/fact-tuple-set/逐实体属性字典)对照改前基线 fixture。
+// ══════════════════════════════════════════════════════════════════════════════
+const EMPTY_CELL = '—';
+
+// 表骨架:零行 → [](不产孤表头);cell 内容为本文件自产文本,天然无 '|' 与换行,不做转义。
+function gfmTableLines(headers, rows){
+	if(!rows || !rows.length){
+		return [];
+	}
+	return [
+		`| ${headers.join(' | ')} |`,
+		`| ${headers.map(()=>'---').join(' | ')} |`,
+		...rows.map((cells)=>`| ${cells.join(' | ')} |`),
+	];
+}
+
 export function buildHouseCuspLines(chartObj){
-	const lines = [];
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
 	const houses = chart.houses || [];
+	const rows = [];
 	for(let i=0; i<houses.length; i++){
 		const h = houses[i];
 		if(!h || h.lon === undefined || h.lon === null){
 			continue;
 		}
-		lines.push(`${msg(h.id)} 宫头：${lonToSignDegree(h.lon)}`);
+		rows.push([msg(h.id), lonToSignDegree(h.lon)]);
 	}
-	return lines;
+	return gfmTableLines(['宫位', '宫头'], rows);
 }
 
 export function buildStarAndLotPositionLines(chartObj){
-	const lines = [];
 	const objectMap = getObjectsMap(chartObj);
+	const rows = [];
 	const pushOne = (id)=>{
 		const obj = objectMap[id];
 		if(!obj || obj.sign === undefined || obj.signlon === undefined){
 			return;
 		}
-		lines.push(`${msgWithHouse(id, chartObj)}：${formatSignDegree(obj.sign, obj.signlon)}${formatRetrogradeText(obj)}`);
+		// 逆行列=原 retro 后缀字面量('；逆行')或 '—'。
+		rows.push([msgWithHouse(id, chartObj), formatSignDegree(obj.sign, obj.signlon), formatRetrogradeText(obj) || EMPTY_CELL]);
 	};
 
 	AstroConst.LIST_OBJECTS.forEach((id)=>pushOne(id));
 	AstroConst.LOTS.forEach((id)=>pushOne(id));
 
-	return lines;
+	return gfmTableLines(['点位', '位置', '逆行'], rows);
 }
 
 export function buildInfoSection(chartObj, fields, options = {}){
@@ -562,6 +585,8 @@ export function buildInfoSection(chartObj, fields, options = {}){
 	return lines;
 }
 
+// [v2 排版批量·表化] 三 ◆ 子块各成一表;事实五元组(主体,相位,对象,相态,误差)/(主体,相位,对象)零变化,
+// 相态=入相/离相 原字(Exact 与 Separative 同 v1 折为「离相」),None 相态列 '—'。子块头照 v1 无数据也保留。
 function buildAspectSection(chartObj){
 	const lines = [];
 	const aspects = chartObj && chartObj.aspects ? chartObj.aspects : {};
@@ -569,51 +594,63 @@ function buildAspectSection(chartObj){
 	const immediate = aspects.immediateAsp || {};
 	const signAsp = aspects.signAsp || {};
 
-	lines.push('标准相位');
+	const normalRows = [];
 	AstroConst.LIST_POINTS.forEach((id)=>{
 		const one = normal[id];
 		if(!one){
 			return;
 		}
-		lines.push(msgWithHouse(id, chartObj));
+		const subject = msgWithHouse(id, chartObj);
 		(one.Applicative || []).forEach((asp)=>{
-			lines.push(`${aspectText(asp.asp)} ${msgWithHouse(asp.id, chartObj)} 入相 误差${round3(asp.orb)}`);
+			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '入相', round3(asp.orb)]);
 		});
 		(one.Exact || []).forEach((asp)=>{
-			lines.push(`${aspectText(asp.asp)} ${msgWithHouse(asp.id, chartObj)} 离相 误差${round3(asp.orb)}`);
+			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '离相', round3(asp.orb)]);
 		});
 		(one.Separative || []).forEach((asp)=>{
-			lines.push(`${aspectText(asp.asp)} ${msgWithHouse(asp.id, chartObj)} 离相 误差${round3(asp.orb)}`);
+			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '离相', round3(asp.orb)]);
 		});
 		(one.None || []).forEach((asp)=>{
-			lines.push(`${aspectText(asp.asp)} ${msgWithHouse(asp.id, chartObj)} 误差${round3(asp.orb)}`);
+			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), EMPTY_CELL, round3(asp.orb)]);
 		});
 	});
+	lines.push('◆ 标准相位');
+	lines.push(...gfmTableLines(['主体', '相位', '对象', '相态', '误差'], normalRows));
 
-	lines.push('立即相位');
+	const immediateRows = [];
 	AstroConst.LIST_OBJECTS.forEach((id)=>{
 		const one = immediate[id];
 		if(!one || one.length < 2){
 			return;
 		}
-		lines.push(`${msgWithHouse(id, chartObj)} ${aspectText(one[0].asp)} ${msgWithHouse(one[0].id, chartObj)} 离相 误差${round3(one[0].orb)}；${aspectText(one[1].asp)} ${msgWithHouse(one[1].id, chartObj)} 入相 误差${round3(one[1].orb)}`);
+		const subject = msgWithHouse(id, chartObj);
+		immediateRows.push([subject, aspectText(one[0].asp), msgWithHouse(one[0].id, chartObj), '离相', round3(one[0].orb)]);
+		immediateRows.push([subject, aspectText(one[1].asp), msgWithHouse(one[1].id, chartObj), '入相', round3(one[1].orb)]);
 	});
+	lines.push('◆ 立即相位');
+	lines.push(...gfmTableLines(['主体', '相位', '对象', '相态', '误差'], immediateRows));
 
-	lines.push('星座相位');
+	const signRows = [];
 	AstroConst.LIST_OBJECTS.forEach((id)=>{
 		const one = signAsp[id];
 		if(!one || !one.length){
 			return;
 		}
-		lines.push(`主体：${msgWithHouse(id, chartObj)}`);
+		const subject = msgWithHouse(id, chartObj);
 		one.forEach((asp)=>{
-			lines.push(`与 ${msgWithHouse(asp.id, chartObj)} 成 ${aspectText(asp.asp)} 相位`);
+			signRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj)]);
 		});
 	});
+	lines.push('◆ 星座相位');
+	lines.push(...gfmTableLines(['主体', '相位', '对象'], signRows));
 
 	return lines;
 }
 
+// [v2 排版批量·表化] 每星 ~24 属性 → 一段五块:◆位置与速度 / ◆坐标 / ◆尊贵与主宰 / ◆映点与东西 各成一表,
+// ◆汇合恒星 保持 kv 行组(不定长列表不进表,星名行=v1 星曜行原文,恒星行值零变化)。
+// 每 cell 值表达式与 v1 对应行冒号后逐字一致(坐标 cell 含 ˚ 同 v1);v1 行缺 → cell '—';
+// v1 行存在但值为空串(如 东出星：)→ cell 保留空串。块内全行皆缺的星不出该行,块零行不出块。
 function buildPlanetSection(chartObj){
 	const lines = [];
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
@@ -622,42 +659,60 @@ function buildPlanetSection(chartObj){
 	const orientOccident = chart.orientOccident || {};
 	const nakshatras = (chart && chart.nakshatras) || chartObj.nakshatras || {};
 
+	const posRows = [];
+	const coordRows = [];
+	const dignityRows = [];
+	const antisciaRows = [];
+	const starGroups = [];
+
 	AstroConst.LIST_OBJECTS.forEach((id)=>{
 		const obj = objectMap[id];
 		if(!obj){
 			return;
 		}
-		lines.push(msgWithHouse(id, chartObj));
-		// FIX-12 落座行附加 29°歧度 / 燃烧之路 / 压抑之路 临界标(参 AstroPlanet.js:181,193,196)。
-		let signDegLine = `落座：${formatSignDegree(obj.sign, obj.signlon)}`;
+		const name = msgWithHouse(id, chartObj);
+
+		// ◆ 位置与速度 —— FIX-12 落座 cell 内联 29°歧度 / 燃烧之路 / 压抑之路 临界标(字面量原样保留,
+		// 参 AstroPlanet.js:181,193,196)。落座列同 v1 无条件产出(星曜存在即有行)。
+		let signDegCell = `${formatSignDegree(obj.sign, obj.signlon)}`;
 		const extras = [];
 		if(typeof obj.signlon === 'number' && Math.floor(obj.signlon) === 29){ extras.push('位于歧度'); }
 		if(obj.isViaCombust){ extras.push('位于燃烧之路'); }
 		if(obj.isViaRepression){ extras.push('位于压抑之路'); }
-		if(extras.length){ signDegLine += '；' + extras.join('；'); }
-		lines.push(signDegLine);
-		if(obj.house){
-			lines.push(`落宫：${msg(obj.house)}`);
-		}
+		if(extras.length){ signDegCell += '；' + extras.join('；'); }
 		// FIX-7 月宿 nakshatra(印度盘场景关键;参 AstroPlanet.js:155,205)。lord 中文化用 AstroConst.NAK_LORD_CN
 		// (含 7 行星 + Rahu/Ketu),勿用 AstroMsg(那是星历字体 glyph,会输出 'A/B/C')。
 		const nak = nakshatras[id];
+		let nakCell = EMPTY_CELL;
 		if(nak && nak.index){
 			const lordCn = AstroConst.NAK_LORD_CN && AstroConst.NAK_LORD_CN[nak.lord] ? AstroConst.NAK_LORD_CN[nak.lord] : (nak.lord || '');
-			lines.push(`月宿：第${nak.index}宿 ${nak.name || ''}${nak.label ? `（${nak.label}）` : ''} 第${nak.pada || '?'}步·宿主${lordCn}`);
+			nakCell = `第${nak.index}宿 ${nak.name || ''}${nak.label ? `（${nak.label}）` : ''} 第${nak.pada || '?'}步·宿主${lordCn}`;
 		}
-		if(obj.antisciaPoint){
-			lines.push(`映点：${formatSignDegree(obj.antisciaPoint.sign, obj.antisciaPoint.signlon)}`);
+		posRows.push([
+			name,
+			signDegCell,
+			obj.house ? msg(obj.house) : EMPTY_CELL,
+			nakCell,
+			obj.meanSpeed !== undefined ? round3(obj.meanSpeed) : EMPTY_CELL,
+			obj.lonspeed !== undefined ? formatSpeed(obj) : EMPTY_CELL,
+		]);
+
+		// ◆ 坐标(cell 含 ˚,与 v1 行值逐字一致)
+		const coordCells = [
+			obj.lon !== undefined ? `${round3(obj.lon)}˚` : EMPTY_CELL,
+			obj.lat !== undefined ? `${round3(obj.lat)}˚` : EMPTY_CELL,
+			obj.ra !== undefined ? `${round3(obj.ra)}˚` : EMPTY_CELL,
+			obj.decl !== undefined ? `${round3(obj.decl)}˚` : EMPTY_CELL,
+			obj.altitudeTrue !== undefined ? `${round3(obj.altitudeTrue)}˚` : EMPTY_CELL,
+			obj.altitudeAppa !== undefined ? `${round3(obj.altitudeAppa)}˚` : EMPTY_CELL,
+			obj.azimuth !== undefined ? `${round3(obj.azimuth)}˚` : EMPTY_CELL,
+		];
+		if(coordCells.some((c)=>c !== EMPTY_CELL)){
+			coordRows.push([name, ...coordCells]);
 		}
-		if(obj.cantisciaPoint){
-			lines.push(`反映点：${formatSignDegree(obj.cantisciaPoint.sign, obj.cantisciaPoint.signlon)}`);
-		}
-		if(obj.meanSpeed !== undefined){
-			lines.push(`平均速度：${round3(obj.meanSpeed)}`);
-		}
-		if(obj.lonspeed !== undefined){
-			lines.push(`当前速度：${formatSpeed(obj)}`);
-		}
+
+		// ◆ 尊贵与主宰
+		let dignityCell = EMPTY_CELL;
 		if(obj.selfDignity){
 			let dg = dignityText(obj.selfDignity);
 			if(obj.hayyiz && obj.hayyiz !== 'None'){
@@ -666,91 +721,102 @@ function buildPlanetSection(chartObj){
 			if(obj.isVOC){
 				dg += '，空亡';
 			}
-			lines.push(`禀赋：${dg}`);
+			dignityCell = dg;
 		}
-		if(obj.score !== undefined){
-			lines.push(`分值：${obj.score}`);
-		}
-		if(obj.altitudeTrue !== undefined){
-			lines.push(`真地平纬度：${round3(obj.altitudeTrue)}˚`);
-		}
-		if(obj.altitudeAppa !== undefined){
-			lines.push(`视地平纬度：${round3(obj.altitudeAppa)}˚`);
-		}
-		if(obj.azimuth !== undefined){
-			lines.push(`地坪经度：${round3(obj.azimuth)}˚`);
-		}
-		if(obj.lon !== undefined){
-			lines.push(`黄经：${round3(obj.lon)}˚`);
-		}
-		if(obj.lat !== undefined){
-			lines.push(`黄纬：${round3(obj.lat)}˚`);
-		}
-		if(obj.ra !== undefined){
-			lines.push(`赤经：${round3(obj.ra)}˚`);
-		}
-		if(obj.decl !== undefined){
-			lines.push(`赤纬：${round3(obj.decl)}˚`);
-		}
-		if(obj.moonPhase !== undefined){
-			lines.push(`月限：${msg(obj.moonPhase)}`);
-		}
-		if(obj.sunPos !== undefined){
-			lines.push(`太阳关系：${msg(obj.sunPos)}`);
-		}
-		if(obj.ruleHouses && obj.ruleHouses.length){
-			lines.push(`入垣宫：${asNameList(obj.ruleHouses)}`);
-		}
-		if(obj.exaltHouse){
-			lines.push(`擢升宫：${msg(obj.exaltHouse)}`);
-		}
+		let governCell = EMPTY_CELL;
 		if(obj.governSign){
-			let govern = msg(obj.governSign);
+			governCell = msg(obj.governSign);
 			if(obj.governPlanets && obj.governPlanets.length){
-				govern += ` , ${asNameList(obj.governPlanets)}`;
+				governCell += ` , ${asNameList(obj.governPlanets)}`;
 			}
-			lines.push(`宰制星座：${govern}`);
+		}
+		const dignityCells = [
+			dignityCell,
+			obj.score !== undefined ? `${obj.score}` : EMPTY_CELL,
+			(obj.ruleHouses && obj.ruleHouses.length) ? asNameList(obj.ruleHouses) : EMPTY_CELL,
+			obj.exaltHouse ? msg(obj.exaltHouse) : EMPTY_CELL,
+			governCell,
+			obj.moonPhase !== undefined ? msg(obj.moonPhase) : EMPTY_CELL,
+			obj.sunPos !== undefined ? msg(obj.sunPos) : EMPTY_CELL,
+		];
+		if(dignityCells.some((c)=>c !== EMPTY_CELL)){
+			dignityRows.push([name, ...dignityCells]);
 		}
 
+		// ◆ 映点与东西(occ 存在时 东出/西入 cell 同 v1 可为空串)
 		const occ = orientOccident[id];
-		if(occ){
-			const oc = (occ.occidental || []).map((x)=>x.id);
-			const or = (occ.oriental || []).map((x)=>x.id);
-			lines.push(`东出星：${asNameList(or)}`);
-			lines.push(`西入星：${asNameList(oc)}`);
+		const antisciaCells = [
+			obj.antisciaPoint ? formatSignDegree(obj.antisciaPoint.sign, obj.antisciaPoint.signlon) : EMPTY_CELL,
+			obj.cantisciaPoint ? formatSignDegree(obj.cantisciaPoint.sign, obj.cantisciaPoint.signlon) : EMPTY_CELL,
+			occ ? asNameList((occ.oriental || []).map((x)=>x.id)) : EMPTY_CELL,
+			occ ? asNameList((occ.occidental || []).map((x)=>x.id)) : EMPTY_CELL,
+		];
+		if(obj.antisciaPoint || obj.cantisciaPoint || occ){
+			antisciaRows.push([name, ...antisciaCells]);
 		}
 
 		const stars = starsMap[id] || [];
 		if(stars.length){
-			lines.push('汇合恒星：');
-			lines.push(...formatStarsLines(stars));
+			starGroups.push({ name, stars });
 		}
 	});
+
+	if(posRows.length){
+		lines.push('◆ 位置与速度');
+		lines.push(...gfmTableLines(['星曜', '落座', '落宫', '月宿', '平均速度', '当前速度'], posRows));
+	}
+	if(coordRows.length){
+		lines.push('◆ 坐标');
+		lines.push(...gfmTableLines(['星曜', '黄经', '黄纬', '赤经', '赤纬', '真地平纬度', '视地平纬度', '地坪经度'], coordRows));
+	}
+	if(dignityRows.length){
+		lines.push('◆ 尊贵与主宰');
+		lines.push(...gfmTableLines(['星曜', '禀赋', '分值', '入垣宫', '擢升宫', '宰制星座', '月限', '太阳关系'], dignityRows));
+	}
+	if(antisciaRows.length){
+		lines.push('◆ 映点与东西');
+		lines.push(...gfmTableLines(['星曜', '映点', '反映点', '东出星', '西入星'], antisciaRows));
+	}
+	if(starGroups.length){
+		lines.push('◆ 汇合恒星');
+		starGroups.forEach((group)=>{
+			lines.push(group.name);
+			lines.push(...formatStarsLines(group.stars));
+		});
+	}
 
 	return lines;
 }
 
+// [v2 排版批量·表化] 希腊点 → 表(点位|落座|落宫) + ◆汇合恒星 kv 行组(同 buildPlanetSection 约定)。
 function buildLotsSection(chartObj){
 	const lines = [];
 	const objectMap = getObjectsMap(chartObj);
 	const starsMap = getStarsMap(chartObj);
 
+	const rows = [];
+	const starGroups = [];
 	AstroConst.LOTS.forEach((id)=>{
 		const obj = objectMap[id];
 		if(!obj){
 			return;
 		}
-		lines.push(msgWithHouse(id, chartObj));
-		lines.push(`落座：${formatSignDegree(obj.sign, obj.signlon)}`);
-		if(obj.house){
-			lines.push(`落宫：${msg(obj.house)}`);
-		}
+		const name = msgWithHouse(id, chartObj);
+		rows.push([name, formatSignDegree(obj.sign, obj.signlon), obj.house ? msg(obj.house) : EMPTY_CELL]);
 		const stars = starsMap[id] || [];
 		if(stars.length){
-			lines.push('汇合恒星：');
-			lines.push(...formatStarsLines(stars));
+			starGroups.push({ name, stars });
 		}
 	});
+
+	lines.push(...gfmTableLines(['点位', '落座', '落宫'], rows));
+	if(starGroups.length){
+		lines.push('◆ 汇合恒星');
+		starGroups.forEach((group)=>{
+			lines.push(group.name);
+			lines.push(...formatStarsLines(group.stars));
+		});
+	}
 
 	return lines;
 }
@@ -795,9 +861,10 @@ function rulerIdOfLon(lon){
 }
 
 // 12 分度(Dodekatemoria):每星本命黄经 → floor(度/30)*30 + (度%30)*12 落入的分度座。
+// [v2 排版批量·表化] 表(曜|本命|12分度),两位置 cell 值与 v1 行内片段逐字一致。
 function buildDodecaSection(chartObj){
-	const lines = [];
 	const objectMap = getObjectsMap(chartObj);
+	const rows = [];
 	AstroConst.LIST_OBJECTS.forEach((id)=>{
 		const lon = objAbsLon(objectMap[id]);
 		if(lon === null){
@@ -808,9 +875,9 @@ function buildDodecaSection(chartObj){
 		if(!natal || !dodeca){
 			return;
 		}
-		lines.push(`${msg(id)}：本命 ${natal} → 12分度 ${dodeca}`);
+		rows.push([msg(id), natal, dodeca]);
 	});
-	return lines;
+	return gfmTableLines(['曜', '本命', '12分度'], rows);
 }
 
 // 主宰星链(dispositor chains):七政各落星座的庙主,顺链至「落自家星座」的终极主宰(或互容成环)。
@@ -863,20 +930,22 @@ function buildDispositorSection(chartObj){
 			rows.push({ houseNum, sign: h.sign });
 		});
 		rows.sort((a, b)=> a.houseNum - b.houseNum);
+		// [v2 排版批量·表化] 宫神星子块改表(宫|宫头座|宫主|宫主落宫|宫主落座);链行(变长)保持原样。
+		// 宫主对象存在但缺落宫/落座 → 空串 cell(对应 v1「落  座」空位);宫主对象整体缺 → '—'。
 		rows.forEach(({ houseNum, sign })=>{
 			const ruler = SIGN_RULER[sign];
 			const rulerObj = ruler ? objectMap[ruler] : null;
 			if(ruler && rulerObj){
 				const rh = rulerObj.house ? msg(rulerObj.house) : '';
 				const rs = rulerObj.sign ? msg(rulerObj.sign) : '';
-				houseLines.push(`${houseNum}宫(${msg(sign)})：宫主 ${msg(ruler)} 落 ${rh} ${rs}`);
+				houseLines.push([`${houseNum}宫`, msg(sign), msg(ruler), rh, rs]);
 			} else if(ruler){
-				houseLines.push(`${houseNum}宫(${msg(sign)})：宫主 ${msg(ruler)}`);
+				houseLines.push([`${houseNum}宫`, msg(sign), msg(ruler), EMPTY_CELL, EMPTY_CELL]);
 			}
 		});
 		if(houseLines.length){
-			lines.push('宫神星(houseRows)：');
-			lines.push(...houseLines);
+			lines.push('◆ 宫神星(houseRows)');
+			lines.push(...gfmTableLines(['宫', '宫头座', '宫主', '宫主落宫', '宫主落座'], houseLines));
 		}
 	}
 	return lines;
@@ -1449,6 +1518,9 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	sections.push(buildSectionText('12分度', buildDodecaSection(chartObj)));
 	sections.push(buildSectionText('主宰星链', buildDispositorSection(chartObj)));
 	sections.push(buildSectionText('古典', buildClassicalSection(chartObj)));
+	// [埃及历]:各点落旬/上升旬详情(本盘派生);数据缺 → [] 不产段。在 builder 本体内,同步/惰性两路径自然一致。
+	const egyptLines = buildEgyptSectionLines(chartObj);
+	if(egyptLines.length){ sections.push(buildSectionText('埃及历', egyptLines)); }
 	sections.push(buildSectionText('寿命格局', buildLifespanSection(chartObj)));
 	sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));
 	return sections.filter(Boolean).join('\n\n').trim();
@@ -1653,4 +1725,178 @@ export function getAstroAISnapshotForCurrent(chartObj, fields, options = {}){
 		return null;
 	}
 	return snap;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// [YB 星运族共享] 21 个推运键的三段补厚单源(此前 5 份重复生辰块各写各的且多数键零盘境,
+// AI 拿不到"在分析谁的盘/现在处于何时")。builder 侧在快照头部 prepend 三组行;
+// 段名(起盘信息/当前时点/方法说明)须与 aiExport PRESET 登记一致(roundtrip 哨兵守)。
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 盘主生辰+黄道宫制盘型 裸行(口径=AstroDirectMain.appendBirthAndChartInfo 同源合并版)。
+// 两种用法:A 组零盘境键用包装版自成 [起盘信息] 段;B/C 组已有 [本命盘配置] 段的键把裸行
+// 并入该段头部(段内纯增,避免与 C 组既有 [起盘信息](推运时间语义)撞段名)。
+export function buildPredictiveBirthLines(chartObj){
+	const obj = chartObj || {};
+	const params = obj.params || {};
+	const chart = obj.chart || {};
+	const lines = [];
+	if(params.birth){
+		lines.push(`出生时间：${params.birth}${chart.dayofweek ? ` ${chart.dayofweek}` : ''}`);
+	}
+	if(chart.nongli && chart.nongli.birth){
+		lines.push(`真太阳时：${chart.nongli.birth}`);
+	}
+	if(params.lon || params.lat){
+		lines.push(`经纬度：${`${params.lon || ''} ${params.lat || ''}`.trim()}`);
+	}
+	if(params.zone !== undefined && params.zone !== null && params.zone !== ''){
+		lines.push(`时区：${params.zone}`);
+	}
+	const zodiacalRaw = chart.zodiacal || AstroConst.ZODIACAL[`${params.zodiacal}`];
+	if(zodiacalRaw){
+		const ayanKey = params.siderealAyanamsa || chart.siderealAyanamsa || '';
+		const zodiacalTxt = typeof AstroConst.zodiacalDisplayText === 'function'
+			? AstroConst.zodiacalDisplayText(zodiacalRaw, ayanKey)
+			: zodiacalRaw;
+		lines.push(`黄道：${zodiacalTxt}`);
+	}
+	const hsys = AstroConst.HouseSys[`${params.hsys}`] || chart.hsys;
+	if(hsys){
+		lines.push(`宫制：${hsys}`);
+	}
+	if(chart.isDiurnal !== undefined && chart.isDiurnal !== null){
+		lines.push(`盘型：${chart.isDiurnal ? '日生盘' : '夜生盘'}`);
+	}
+	return lines;
+}
+
+// [起盘信息] 包装版(A 组零盘境键用):无任何盘境数据 → 返 [](不产空段头,免 available 误报)。
+export function buildPredictiveBirthHeaderLines(chartObj){
+	const lines = buildPredictiveBirthLines(chartObj);
+	if(!lines.length){
+		return [];
+	}
+	return ['[起盘信息]', ...lines, ''];
+}
+
+// [当前时点] 基线两行(导出时刻+盘主当前年龄);各键 timeline 定位行经 extraLines 追加
+// (如「当前处于 X 限,距切换 Y」——由各 builder 用自己的时间轴自算)。
+export function buildCurrentMomentLines(chartObj, extraLines){
+	const obj = chartObj || {};
+	const params = obj.params || {};
+	const now = new Date();
+	const pad2m = (n)=>(n < 10 ? `0${n}` : `${n}`);
+	const lines = [`导出时刻：${now.getFullYear()}-${pad2m(now.getMonth() + 1)}-${pad2m(now.getDate())} ${pad2m(now.getHours())}:${pad2m(now.getMinutes())}`];
+	if(params.birth){
+		const birthMs = Date.parse(`${params.birth}`.trim().replace(/\//g, '-').replace(' ', 'T'));
+		if(!Number.isNaN(birthMs)){
+			const age = (now.getTime() - birthMs) / (365.2425 * 24 * 3600 * 1000);
+			if(Number.isFinite(age) && age > -1 && age < 200){
+				lines.push(`盘主当前年龄：${Math.round(age * 100) / 100} 岁`);
+			}
+		}
+	}
+	(Array.isArray(extraLines) ? extraLines : []).forEach((l)=>{ if(l){ lines.push(`${l}`); } });
+	return ['[当前时点]', ...lines, ''];
+}
+
+// [方法说明] 每键 2-4 行公开通行机理与读法(零书名零章节;种子=各 builder 原引言行,统一扩写)。
+export const PREDICTIVE_METHOD_NOTES = {
+	primarydirect: [
+		'主限法：天体按周日运动(赤经/方位弧)推进,约 1 度合 1 年;迫星抵达应星的弧量换算年龄,用于判大事应期。',
+		'读法：表中每行=一次抵达事件;以应星宫职与迫星性质合断吉凶主题。',
+	],
+	zodialrelease: [
+		'黄道释放：自精神点(或幸运点)起,按行星大年逐层释放,划分人生篇章(一级期)与子期(二级期)。',
+		'读法：期主星及其本命状态定该段主题;跳宫(LB)为重大转折;与幸运点十度关系看顺逆。',
+	],
+	firdaria: [
+		'法达大限：波斯行星期法,日生盘自太阳、夜生盘自月亮起,诸星依序各主政若干年,内再均分子期。',
+		'读法：主期星定大主题、子期星定阶段事项,两星本命状态与彼此关系定吉凶成色。',
+	],
+	distributions: [
+		'界推运(分配法)：上升(或选定释放点)按主限速率行经黄道各界,界主星即该段"分配星"。',
+		'读法：分配星与其间同行的本命星(参与星)共同定该段境遇;换界即换阶段。',
+	],
+	agepoint: [
+		'年龄推进点：心理占星年龄点每宫约 6 年匀速推进,逐宫走完十二宫。',
+		'读法：落宫定人生课题场域,与本命星的合相/相位标记该年龄的关键事件与心理主题。',
+	],
+	profection: [
+		'小限(年限)：每满一岁命宫顺推一宫,该宫为当年小限宫,其宫主星为年主星。',
+		'读法：年主星本命状态与流年动态定当年吉凶;小限宫宫职指示当年主战场。',
+	],
+	solararc: [
+		'太阳弧向运：全盘诸点按太阳年均约 1 度的弧量整体推进。',
+		'读法：推进点与本命点形成的入相位(容许度约 1 度)标记事件年份;点性组合定事件性质。',
+	],
+	solarreturn: [
+		'太阳返照(日返)：太阳每年回归本命黄经时刻起盘,该盘统领此后一个太阳年。',
+		'读法：返照盘上升与其主星定年度基调;返照盘行星落本命宫位看事项落点。',
+	],
+	lunarreturn: [
+		'太阴返照(月返)：月亮每月回归本命黄经时刻起盘,统领此后一个太阴月。',
+		'读法：与日返同理,颗粒度为月;月亮状态与四轴最要紧。',
+	],
+	givenyear: [
+		'指定年推运盘：按指定年份取推运时刻起盘,与本命对照。',
+		'读法：推运盘行星落本命宫位与两盘相位定该年主题。',
+	],
+	decennials: [
+		'十年大运(Decennials)：希腊期法,诸星依序轮值主政各 129 个月(约 10.75 年),内按行星小年分子期。',
+		'读法：主政星+子期星组合定阶段主题;换主政为人生大节点。',
+	],
+	planetaryages: [
+		'行星年龄段：人生依序由月亮/水星/金星/太阳/火星/木星/土星主政固定年岁段(4/10/8/19/15/12/30 年制式)。',
+		'读法：当前年龄所处主政星定人生阶段基调;主政星本命状态定该阶段顺逆。',
+	],
+	vedicprog: [
+		'恒星推运：以恒星黄道计的推运(含二次推运一日抵一年),叠加本命对照。',
+		'读法：推运位与本命位的星座宫位迁移及相位,按恒星制口径判断。',
+	],
+	jaynesprog: [
+		'赤纬推运：只看推运星与本命星的赤纬平行(同纬同侧)与反平行(同纬异侧)。',
+		'读法：平行视作强合相、反平行视作强对冲;成对年份即应期。',
+	],
+	planetaryarc: [
+		'行星弧向运：同太阳弧原理,但以选定行星的推进速率作弧量整体前移。',
+		'读法：弧主星的性质给全部触发事件染色;入相位年份为应期。',
+	],
+	persiandirected: [
+		'波斯向运：中世纪波斯法,诸点按约 1 度/年向前推进与本命点会照。',
+		'读法：向运点与本命点的相位事件按年龄排布;近期命中(距今最近)优先解读。',
+	],
+	yearsystem129: [
+		'129 年系统：以行星大年合计 129 年为总周期,先按大年切主限,再按比例切子限。',
+		'读法：主限星定大阶段,子限星定小阶段,起讫日期定应期窗口。',
+	],
+	balbillus: [
+		'主/子限期法(Balbillus)：罗马期法,行星大年定主限时长,主限内按诸星小年比例切子限。',
+		'读法：主限星与子限星组合断该段主题;换限日期为节点。',
+	],
+	triplicityrulers: [
+		'三分主星推运：命度三分性的三位主星(日/夜/伴)依序主管人生前/中/后三段。',
+		'读法：各段主星的本命状态(庙旺陷落/宫位/受克)直接定该人生阶段的整体成色。',
+	],
+	keypoints: [
+		'数字相位推运(120 关键点)：以 120 的调和因数(2/3/4/5/6/8/10/12…)生成关键年龄激活序列。',
+		'读法：命中因数年龄=激活年;因数越小事件越重;结合被激活点的本命性质定主题。',
+	],
+	lunationphase: [
+		'月相推运：二次推运的日月相位约 30 年走完一轮朔望循环,分八相。',
+		'读法：新月=起始、上弦=建设、满月=显化、下弦=释放;当前相定人生大节奏。',
+	],
+	extrareturns: [
+		'多重回归：木星/土星等回归本命位置的时刻表(含 1/4、1/2 周期)。',
+		'读法：整回归=大周期重启(如土星回归约 29.5 岁);半/四分之一回归为阶段检查点。',
+	],
+};
+
+export function buildMethodNoteLines(methodKey){
+	const notes = PREDICTIVE_METHOD_NOTES[`${methodKey || ''}`];
+	if(!Array.isArray(notes) || !notes.length){
+		return [];
+	}
+	return ['[方法说明]', ...notes, ''];
 }

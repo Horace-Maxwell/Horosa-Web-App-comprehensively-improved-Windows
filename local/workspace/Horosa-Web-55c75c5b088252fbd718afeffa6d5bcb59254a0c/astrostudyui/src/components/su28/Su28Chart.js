@@ -77,7 +77,7 @@ class Su28Chart {
 				padding: '2px',
 				'padding-left': '10px',
 				font: '13px sans-serif',
-				background: 'var(--horosa-surface-raised, lightsteelblue)',
+				background: 'var(--horosa-surface-solid, lightsteelblue)',  // 悬浮层铁律:绝对不透明(raised 带 0.97 透明)
 				color: 'var(--horosa-text, #1f1f1f)',
 				border: '0px',
 				'border-radius': '8px',

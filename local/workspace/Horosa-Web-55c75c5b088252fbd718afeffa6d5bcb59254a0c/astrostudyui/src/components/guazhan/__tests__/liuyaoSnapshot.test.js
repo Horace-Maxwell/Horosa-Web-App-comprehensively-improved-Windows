@@ -19,7 +19,8 @@ describe('六爻断卦结构快照(WP-M)', () => {
 		expect(lines).toContain('用神');
 		expect(lines).toContain('卦身：申(不上卦)'); // 古籍§3.16
 		expect(lines).toContain('变卦：');
-		expect(lines).toMatch(/第3爻动：/);
+		// 动变行已表化(| 爻 | 本卦 | 变卦 | 标记 |):第3爻动 兄弟午火→妻财酉金 值零变化。
+		expect(lines).toMatch(/\| 第3爻 \| 兄弟午火 \| 妻财酉金 \| — \|/);
 	});
 
 	test('buildGuaSnapshotText 追加结构段且既有段保留(零回归)', () => {
@@ -39,7 +40,7 @@ describe('六爻断卦结构快照(WP-M)', () => {
 		const def = liuyaoStructLines(mkSt('火水未济', 2, nongli, { school: 'default' })).join('\n');
 		const zs = liuyaoStructLines(mkSt('火水未济', 2, nongli, { school: 'zengshan', guashen: false, shensha: { on: false } })).join('\n');
 		expect(def).toContain('卦身：');
-		expect(def).toContain('神煞:');           // 默认带神煞
+		expect(def).toContain('天乙贵人');          // 默认带神煞(逐爻表「神煞」列有值,天乙贵人为其一)
 		expect(zs).not.toContain('卦身：');         // 增删卜易弃卦身
 	});
 

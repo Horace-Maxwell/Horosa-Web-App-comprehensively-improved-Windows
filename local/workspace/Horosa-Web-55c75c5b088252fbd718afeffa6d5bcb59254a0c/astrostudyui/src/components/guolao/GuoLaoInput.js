@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
@@ -126,7 +127,7 @@ class GuoLaoInput extends Component{
 
 	onChartShapeChange(val){
 		SZConst.SZChart.shape = val;
-		localStorage.setItem('suzhanChartShape', val);
+		safeLocalStorageSet('suzhanChartShape', val);
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
 			this.props.onFieldsChange({

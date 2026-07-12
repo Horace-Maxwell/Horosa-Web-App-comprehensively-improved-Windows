@@ -1,3 +1,4 @@
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 // 汉堡 90°中点盘显示偏好 = 组件 state + 专用 localStorage（镜像 GuoLaoChartStyle）。
 // 显示偏好不进 app.js globalSetup（那是跨技法全局开关专用）；切换即时重绘、不触发后端重取。
 
@@ -106,7 +107,7 @@ export function getStoredUranianDisplay(){
 export function saveUranianDisplay(next){
 	try {
 		const merged = { ...getStoredUranianDisplay(), ...(next || {}) };
-		if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(merged));
+		if (typeof localStorage !== 'undefined') safeLocalStorageSet(KEY, JSON.stringify(merged));
 		return merged;
 	} catch (e) {
 		return { ...getStoredUranianDisplay(), ...(next || {}) };

@@ -418,6 +418,14 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 			relative: '合盘需两张盘,单记录挂载不适用',
 			otherbu: '骰子随机不可复算,无事盘存储',
 			fengshui: '风水按宅盘交互起盘,无事盘存储',
+			calendar: '黄历为日期工具页,无盘主记录语义,照 jieqi/fengshui 先例只导出不挂载',
+			// [YD 拆键] 六衍生盘导出键独立(段勾选可分盘),挂载语义仍走 astrochart_like 聚合键(主盘族重算)。
+			hellenastro: '衍生盘挂载走 astrochart_like 聚合键',
+			dwadasamsa: '衍生盘挂载走 astrochart_like 聚合键',
+			harmonic: '衍生盘挂载走 astrochart_like 聚合键',
+			draconic: '衍生盘挂载走 astrochart_like 聚合键',
+			relocation: '衍生盘挂载走 astrochart_like 聚合键',
+			locastro: '衍生盘挂载走 astrochart_like 聚合键',
 		};
 		const mountable = new Set([...ANALYSIS_CHART_TECHNIQUES, ...ANALYSIS_CASE_TECHNIQUES]);
 		const leftovers = getAIExportPresetKeys()

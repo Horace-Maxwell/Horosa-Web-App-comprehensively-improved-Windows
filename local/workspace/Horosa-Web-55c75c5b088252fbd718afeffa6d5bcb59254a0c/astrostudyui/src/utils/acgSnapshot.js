@@ -13,6 +13,8 @@ const MODE_CN = { mundo: '本体(in-mundo·真黄纬)', zodiac: '黄道度(β=0)
 const COORD_CN = { geo: '地心', helio: '日心' };
 const REL_CN = { davison: '戴维森时空中点盘', composite: '中点合盘', synastry: '双人叠加' };
 const KIND_CN = { transit: '行运', progressed: '二次推运' };
+// 交映事件中文(后端 PARAN_EVENTS:rise/set/mc/ic = 两星同时角化的各自事件)
+const PARAN_EVENT_CN = { rise: '升', set: '落', mc: '中天', ic: '天底' };
 
 let latest = null;
 
@@ -33,6 +35,14 @@ function fmtLon(v){
 	}
 	const abs = Math.abs(v).toFixed(2);
 	return `${abs}°${v >= 0 ? 'E' : 'W'}`;
+}
+
+function fmtLat(v){
+	if(v === undefined || v === null || !isFinite(v)){
+		return '—';
+	}
+	const abs = Math.abs(v).toFixed(2);
+	return `${abs}°${v >= 0 ? 'N' : 'S'}`;
 }
 
 function ascAnchor(pts){
@@ -115,6 +125,46 @@ export function buildAcgSectionText(){
 		lines.push(`落点分析(${Math.abs(point.lat).toFixed(2)}°${point.lat >= 0 ? 'N' : 'S'} ${fmtLon(point.lon)},orb ${point.orb}°):` + (point.hits.length
 			? point.hits.map((h) => `${PLANET_CN[h.planet] || h.planet}${({ Asc: '上升', Desc: '下降', MC: '中天', IC: '天底' })[h.angle] || h.angle}线(偏差 ${h.orb}°)`).join('、')
 			: '无行星线经过'));
+	}
+	// ◆ 行星交映 Parans:条件子块(仅当图层开关开启且后端有数据;与「落点分析」同风格)。
+	// 数据=后端响应 d.parans(两行星同时角化的纬度线);过滤(lum=仅日月对)与 1° 去重口径同 AcgD3Map 图面。
+	const ui = latest.uiState || {};
+	if(ui.paranMode && ui.paranMode !== 'off' && Array.isArray(d.parans) && d.parans.length){
+		const isLum = (p) => p.a === 'Sun' || p.b === 'Sun' || p.a === 'Moon' || p.b === 'Moon';
+		const list = ui.paranMode === 'all' ? d.parans : d.parans.filter(isLum);
+		const seen = new Set();
+		const rows = [];
+		list.forEach((p) => {
+			const k = Math.round(p.lat);   // 同图面:重叠纬线 1° 去重,首见者代表
+			if(seen.has(k)) return;
+			seen.add(k);
+			rows.push(`| ${PLANET_CN[p.a] || p.a} | ${PARAN_EVENT_CN[p.aEvent] || p.aEvent} | ${PLANET_CN[p.b] || p.b} | ${PARAN_EVENT_CN[p.bEvent] || p.bEvent} | ${fmtLat(p.lat)} |`);
+		});
+		if(rows.length){
+			lines.push(`◆ 行星交映(${ui.paranMode === 'all' ? '全部行星对' : '仅日月对'},同图 1° 去重,共 ${rows.length} 条纬线):`);
+			lines.push('| 星A | 事件 | 星B | 事件 | 纬度 |');
+			lines.push('| --- | --- | --- | --- | --- |');
+			lines.push(...rows);
+		}
+	}
+	// ◆ 固定星交映:恒星×行星同时角化纬线;双 opt-in(固定星线+交映开关)同 AcgD3Map;星名取 d.stars key→name。
+	if(ui.showStarParans && Array.isArray(d.starParans) && d.starParans.length){
+		const starCN = {};
+		(Array.isArray(d.stars) ? d.stars : []).forEach((s) => { starCN[s.key] = s.name; });
+		const seen = new Set();
+		const rows = [];
+		d.starParans.forEach((p) => {
+			const k = Math.round(p.lat);   // 同图面 1° 去重
+			if(seen.has(k)) return;
+			seen.add(k);
+			rows.push(`| ${starCN[p.star] || p.star} | ${PARAN_EVENT_CN[p.sEvent] || p.sEvent} | ${PLANET_CN[p.planet] || p.planet} | ${PARAN_EVENT_CN[p.pEvent] || p.pEvent} | ${fmtLat(p.lat)} |`);
+		});
+		if(rows.length){
+			lines.push(`◆ 固定星交映(同图 1° 去重,共 ${rows.length} 条纬线):`);
+			lines.push('| 星A | 事件 | 星B | 事件 | 纬度 |');
+			lines.push('| --- | --- | --- | --- | --- |');
+			lines.push(...rows);
+		}
 	}
 	return lines.join('\n');
 }

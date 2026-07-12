@@ -60,8 +60,16 @@
 }
 
 .horosa-guolao-moira-tooltip {
+	/* 🔴 变量必须自带(断链根修):tooltip 已 portal 挂 body,不再是 .horosa-guolao-moira-wheel
+	   后代——容器作用域里的 --moira-tooltip-* 解析不到 → background 失效=透明底(用户实告)。
+	   此处按「全站悬浮层不透明基座」口径重定义:bg 用 :root 级 surface-solid(纯色不透明),
+	   fallback 亦为不透明十六进制;暗色段见文件尾 :root[data-horosa-appearance='dark'] 块。 */
+	--moira-tooltip-bg: var(--horosa-surface-solid, #ffffed);
+	--moira-tooltip-text: var(--horosa-text, #000000);
+	--moira-tooltip-border: var(--horosa-border-strong, #333333);
 	position: fixed;
-	z-index: 12;
+	/* portal 挂 body 后与 setupFloatingTooltip(helper.js) 同层:2600 稳压 app chrome */
+	z-index: 2600;
 	width: max-content;
 	min-width: 220px;
 	max-width: min(420px, calc(100vw - 32px));
@@ -137,4 +145,12 @@
 	--moira-ele-now: #7fb0ff;
 	--moira-ele-below: #ff8078;
 	--moira-ele-mark: #cf9a8d;
+}
+
+/* tooltip 暗色段(变量自带,与亮色段同理:portal 挂 body 后容器作用域不可达)。
+   bg 用 surface-solid 纯色不透明;fallback #11100d 亦不透明。 */
+:root[data-horosa-appearance='dark'] .horosa-guolao-moira-tooltip {
+	--moira-tooltip-bg: var(--horosa-surface-solid, #11100d);
+	--moira-tooltip-text: var(--horosa-text, #edf5f2);
+	--moira-tooltip-border: var(--horosa-border-strong, rgba(231, 189, 117, 0.42));
 }

@@ -1,4 +1,5 @@
 import { history } from 'umi';
+import { safeLocalStorageSet } from '../utils/safeStorage';
 import { Modal,  } from 'antd';
 import {getStore, } from '../utils/storageutil';
 import * as Constants from '../utils/constants';
@@ -118,7 +119,7 @@ function shouldMigrateHouseSystemDefault(hsys){
 
 function markHouseSystemDefaultMigrated(){
     try{
-        localStorage.setItem(HouseSystemDefaultVersionKey, `${HouseSystemDefaultsVersion}`);
+        safeLocalStorageSet(HouseSystemDefaultVersionKey, `${HouseSystemDefaultsVersion}`);
     }catch(e){
         // Ignore storage failures; the in-memory default still applies for this session.
     }
@@ -277,7 +278,7 @@ export default {
                 planetDisplayDefaultsVersion: PlanetDisplayDefaultsVersion,
             };
             let json = JSON.stringify(globalSetup);
-            localStorage.setItem(Constants.GlobalSetupKey, json);
+            safeLocalStorageSet(Constants.GlobalSetupKey, json);
 
             return st;
         },
@@ -299,7 +300,7 @@ export default {
 
         *login({payload: values}, {call, put}){
             if(values.rememberMe){
-                localStorage.setItem(Constants.LoginIdKey, values.loginId);
+                safeLocalStorageSet(Constants.LoginIdKey, values.loginId);
             }else{
                 localStorage.removeItem(Constants.LoginIdKey);
             }
@@ -310,7 +311,7 @@ export default {
             };
             const {Result} = yield call(appService.login, params);
  
-            localStorage.setItem(Constants.TokenKey, Result.Token);
+            safeLocalStorageSet(Constants.TokenKey, Result.Token);
 
             const usrdata = {
                 token: Result.Token,
@@ -372,7 +373,7 @@ export default {
             };
             const {Result} = yield call(appService.register, params, headers);
 
-            localStorage.setItem(Constants.TokenKey, Result.Token);
+            safeLocalStorageSet(Constants.TokenKey, Result.Token);
 
             const usrdata = {
                 token: Result.Token,
@@ -485,7 +486,7 @@ export default {
                 return;
             }
             
-            localStorage.setItem(Constants.TokenKey, Result.Token);
+            safeLocalStorageSet(Constants.TokenKey, Result.Token);
 
             const usrdata = {
                 token: Result.Token,
@@ -560,7 +561,7 @@ export default {
             }
             const Result = rsp.Result;
             
-            localStorage.setItem(Constants.TokenKey, Result.Token);
+            safeLocalStorageSet(Constants.TokenKey, Result.Token);
 
             const usrdata = {
                 token: Result.Token,
@@ -704,12 +705,12 @@ export default {
             let aspects = localStorage.getItem(AstroConst.AspKey);
             if(aspects === undefined || aspects === null){
                 aspects = AstroConst.DEFAULT_ASPECTS;
-                localStorage.setItem(AstroConst.AspKey, JSON.stringify(aspects));
+                safeLocalStorageSet(AstroConst.AspKey, JSON.stringify(aspects));
             }else{
                 // 启动订阅里的损坏值会让整个 app 起不来 → 回默认并自愈重写(画盘端读取已有同款守卫)
                 try{ aspects = JSON.parse(aspects); }catch(e){
                     aspects = AstroConst.DEFAULT_ASPECTS;
-                    try{ localStorage.setItem(AstroConst.AspKey, JSON.stringify(aspects)); }catch(e2){ /* ignore */ }
+                    try{ safeLocalStorageSet(AstroConst.AspKey, JSON.stringify(aspects)); }catch(e2){ /* ignore */ }
                 }
             }
             if(!Array.isArray(aspects)){

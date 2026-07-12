@@ -1,8 +1,8 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index fd0838f..de04646 100644
+index 194743f..e586a5c 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
-@@ -572,6 +572,22 @@ def _run_warmups():
+@@ -590,6 +590,22 @@ def _run_warmups():
      except Exception:
          traceback.print_exc()
      STARTUP_GATE.set()

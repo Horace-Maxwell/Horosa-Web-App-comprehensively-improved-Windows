@@ -77,12 +77,33 @@ function fmtValue(value){
 	return formatHumanValue(value);
 }
 
+// [太玄经全文] doctrine 段(默认关段:builder 恒产,导出层按设置控)：与右栏「全文」tab renderAllLines 同源
+// pan.taixuan.allLines(当值首九赞初一…上九逐条全文),经文原样引用零改写;数据缺失不产段。
+// 独立成块:后端 /taixuan/pan 恒写 pan.snapshot(早返回路径),全文段必须两条路径都拼——
+// 初版只挂在 sections 循环之后=永不执行的死码(独立复核咬出)。
+function buildTaixuanQuanwenBlock(pan){
+	const allLines = pan && pan.taixuan && Array.isArray(pan.taixuan.allLines) ? pan.taixuan.allLines : [];
+	if(!allLines.length){
+		return '';
+	}
+	const lines = ['[太玄经全文]'];
+	const headName = pan.taixuan && pan.taixuan.gua && pan.taixuan.gua.name ? pan.taixuan.gua.name : '';
+	if(headName){
+		lines.push(`当值首：${fmtValue(headName)}`);
+	}
+	allLines.forEach((item)=>{
+		lines.push(`◆ ${item.name}：${fmtValue(item.content)}`);
+	});
+	return lines.join('\n');
+}
+
 function buildSnapshotText(pan){
 	if(!pan){
 		return '暂无太玄数据';
 	}
+	const quanwen = buildTaixuanQuanwenBlock(pan);
 	if(pan.snapshot){
-		return pan.snapshot;
+		return quanwen ? `${pan.snapshot}\n\n${quanwen}` : pan.snapshot;
 	}
 	const lines = [];
 	(pan.sections || []).forEach((section)=>{
@@ -92,6 +113,10 @@ function buildSnapshotText(pan){
 		});
 		lines.push('');
 	});
+	if(quanwen){
+		lines.push(quanwen);
+		lines.push('');
+	}
 	return lines.join('\n').trim();
 }
 

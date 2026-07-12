@@ -261,7 +261,7 @@ export async function buildGermanySnapshotForFields(fields){
 	return buildGermanySnapshotText(params, chartObj, result, fields);
 }
 
-function buildGermanySnapshotText(params, chartObj, result, fields){
+export function buildGermanySnapshotText(params, chartObj, result, fields){
 	const lines = [];
 	const midpoints = result && result.midpoints ? result.midpoints : [];
 	const aspects = result && result.aspects ? result.aspects : {};
@@ -289,8 +289,13 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 	if(midpoints.length === 0){
 		lines.push('暂无中点数据');
 	}else{
+		// [v2 排版] 中点逐行改 GFM 表(经 v1/v2 归一器直通、docx/PDF 渲染真表)。
+		// 单元格值表达式逐字同源:msg(idA)/msg(idB)/formatSignDegree;
+		// 因子对分隔「|」→「/」(GFM 单元格不容裸竖线,与本文[中点列表]既有对记号一致)。
+		lines.push('| 中点 | 位置 |');
+		lines.push('| --- | --- |');
 		midpoints.forEach((item)=>{
-			lines.push(`${msg(item.idA)} | ${msg(item.idB)} = ${formatSignDegree(item.sign, item.signlon)}`);
+			lines.push(`| ${msg(item.idA)} / ${msg(item.idB)} | ${formatSignDegree(item.sign, item.signlon)} |`);
 		});
 	}
 
@@ -300,8 +305,10 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 	if(tnpList.length === 0){
 		lines.push('暂无 TNP 数据');
 	}else{
+		lines.push('| 星体 | 位置 |');
+		lines.push('| --- | --- |');
 		tnpList.forEach((item)=>{
-			lines.push(`${msg(item.id)} = ${formatSignDegree(item.sign, item.signlon)}`);
+			lines.push(`| ${msg(item.id)} | ${formatSignDegree(item.sign, item.signlon)} |`);
 		});
 	}
 
@@ -311,20 +318,20 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 	if(aspectKeys.length === 0){
 		lines.push('暂无中点相位数据');
 	}else{
+		lines.push('| 主体 | 中点 | 相位 | 误差 |');
+		lines.push('| --- | --- | --- | --- |');
 		aspectKeys.forEach((key)=>{
 			const arr = aspects[key] || [];
-			lines.push(`主体：${msg(key)}`);
 			if(arr.length === 0){
-				lines.push('无');
+				lines.push(`| ${msg(key)} | 无 | — | — |`);
 				return;
 			}
-			arr.forEach((asp)=>{
+			arr.forEach((asp, k)=>{
 				const mid = asp.midpoint || {};
 				const idA = mid.idA !== undefined ? mid.idA : asp.idA;
 				const idB = mid.idB !== undefined ? mid.idB : asp.idB;
-				lines.push(`与中点(${msg(idA)} | ${msg(idB)}) 成 ${aspectText(asp.aspect)} 相位，误差${round3(asp.delta)}`);
+				lines.push(`| ${k === 0 ? msg(key) : '—'} | ${msg(idA)}·${msg(idB)} | ${aspectText(asp.aspect)} | ${round3(asp.delta)} |`);
 			});
-			lines.push('');
 		});
 	}
 
@@ -346,8 +353,11 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 		lines.push('暂无可折叠因子');
 	}else{
 		lines.push('（盘基 90°；各因子折叠位相近者互成硬相位 0/90/180/270）');
+		// [v2 排版] 折叠位逐行改 GFM 表(单元格值表达式逐字同源:msg(f.id)/f.fold.toFixed(2))。
+		lines.push('| 因子 | 折叠位 |');
+		lines.push('| --- | --- |');
 		dialFactors.sort((a, b)=>a.fold - b.fold).forEach((f)=>{
-			lines.push(`${msg(f.id)} = ${f.fold.toFixed(2)}°`);
+			lines.push(`| ${msg(f.id)} | ${f.fold.toFixed(2)}° |`);
 		});
 	}
 
@@ -372,7 +382,10 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 		lines.push('暂无行星图');
 	}else{
 		lines.push('（敏感点和差式 A+B−C=D，含个人点/TNP 优先）');
-		pics.forEach((p)=>lines.push(`${msg(p.a)} + ${msg(p.b)} − ${msg(p.c)} = ${msg(p.d)}（误差${p.sep.toFixed(2)}°）`));
+		// [v2 排版] 和差式逐行改 GFM 表(单元格值表达式逐字同源:msg(a/b/c/d)/p.sep.toFixed(2))。
+		lines.push('| 和差式 A+B−C | 落点 D | 误差 |');
+		lines.push('| --- | --- | --- |');
+		pics.forEach((p)=>lines.push(`| ${msg(p.a)} + ${msg(p.b)} − ${msg(p.c)} | ${msg(p.d)} | ${p.sep.toFixed(2)}° |`));
 	}
 
 	lines.push('');
@@ -382,7 +395,10 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 		lines.push('暂无映点接触');
 	}else{
 		lines.push('（Spiegelpunkt 回照接触；90°盘上回照与对映折叠重合）');
-		sp.forEach((s)=>lines.push(`${msg(s.a)} ⟷ ${msg(s.b)}（误差${s.sep.toFixed(2)}°）`));
+		// [v2 排版] 映点接触逐行改 GFM 表(单元格值表达式逐字同源:msg(s.a)/msg(s.b)/s.sep.toFixed(2))。
+		lines.push('| 映点对 | 误差 |');
+		lines.push('| --- | --- |');
+		sp.forEach((s)=>lines.push(`| ${msg(s.a)} ⟷ ${msg(s.b)} | ${s.sep.toFixed(2)}° |`));
 	}
 
 	lines.push('');
@@ -391,7 +407,10 @@ function buildGermanySnapshotText(params, chartObj, result, fields){
 	if(mpl.length === 0){
 		lines.push('暂无中点');
 	}else{
-		mpl.slice(0, 120).forEach((m)=>lines.push(`${msg(m.a)} / ${msg(m.b)} = ${m.lon.toFixed(2)}°`));
+		// [v2 排版] 中点列表逐行改 GFM 表(单元格值表达式逐字同源:msg(m.a)/msg(m.b)/m.lon.toFixed(2))。
+		lines.push('| 因子 | 折叠位 |');
+		lines.push('| --- | --- |');
+		mpl.slice(0, 120).forEach((m)=>lines.push(`| ${msg(m.a)} / ${msg(m.b)} | ${m.lon.toFixed(2)}° |`));
 	}
 
 	// 汉堡学派要素(WP-8):流派/六宫框/差值/医学/赤纬,仅用户介入汉堡功能时附加(默认 classic 零回归)。

@@ -7,6 +7,13 @@ import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../util
 import { buildMeaningTipByCategory, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+// [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+// 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 import styles from '../../css/styles.less';
 import { XQTable as Table } from '../xq-ui';
 
@@ -18,6 +25,8 @@ export function buildYearSystem129SnapshotText(chartObj){
 	if(data.length === 0){ return ''; }
 	const cn = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 	const lines = [];
+	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
+	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[129年系统表格]');
 	lines.push('七政各管其小年（土30木12火15日19金8水20月25 = 129 年一轮），按 sect 起始、含子限。（succession 序实验性，待校准）');
 	lines.push('');
@@ -33,6 +42,12 @@ export function buildYearSystem129SnapshotText(chartObj){
 			lines.push(`| ${cn(main.mainDirect)} | ${cn(sub.subDirect)} | ${sub.date || '-'} |`);
 		});
 	});
+	// [YB] 尾部 [当前时点]+[方法说明](表内日期即应期窗口,按导出时刻自查,不另加定位行)。
+	const tail = [...currentMomentLines(chartObj), ...methodNoteLines('yearsystem129')];
+	if(tail.length){
+		lines.push('');
+		lines.push(...tail);
+	}
 	return lines.join('\n');
 }
 

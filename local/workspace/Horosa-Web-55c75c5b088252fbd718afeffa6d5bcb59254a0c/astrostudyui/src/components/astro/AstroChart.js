@@ -4,6 +4,7 @@ import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Constants from '../../utils/constants';
 import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+import { watchChartSvgResize } from '../../utils/chartDrawGuard';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import AstroChartCircle from './AstroChartCircle';
 
@@ -161,18 +162,22 @@ class AstroChart extends Component{
 		if(this.props.chartDisplay !== undefined && this.props.chartDisplay !== null){
 			disp = this.props.chartDisplay;
 		}
-		let planetDisp = new Set();
-		if(this.props.planetDisplay !== undefined && this.props.planetDisplay !== null){
-			for(let i=0; i<this.props.planetDisplay.length; i++){
-				let id = this.props.planetDisplay[i];
-				planetDisp.add(id);
-			}
+		// 【漏传≠全空盘】漏传(undefined/null)回落默认集;空数组=有意全隐藏,不回落。
+		// 同款治本见 AstroDoubleChart(历史事故:推运 TabPane 漏传 → 有框架无星体)。
+		let planetSrc = this.props.planetDisplay;
+		if(planetSrc === undefined || planetSrc === null){
+			planetSrc = AstroConst.DEFAULT_OBJECTS;
 		}
-		if(this.props.lotsDisplay !== undefined && this.props.lotsDisplay !== null){
-			for(let i=0; i<this.props.lotsDisplay.length; i++){
-				let id = this.props.lotsDisplay[i];
-				planetDisp.add(id);
-			}
+		let lotsSrc = this.props.lotsDisplay;
+		if(lotsSrc === undefined || lotsSrc === null){
+			lotsSrc = AstroConst.DEFAULT_LOTS;
+		}
+		let planetDisp = new Set();
+		for(let i=0; i<planetSrc.length; i++){
+			planetDisp.add(planetSrc[i]);
+		}
+		for(let i=0; i<lotsSrc.length; i++){
+			planetDisp.add(lotsSrc[i]);
 		}
 
 		let keyplanets = null;
@@ -247,6 +252,9 @@ class AstroChart extends Component{
 			this._appearanceObserver = new MutationObserver(()=>{ this.drawChart(); });
 			this._appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
 		}
+		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制被尺寸早退吞掉,切回 tab 无 React 更新
+		// 可触发重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。
+		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 	}
 
 	shouldComponentUpdate(nextProps, nextState){
@@ -275,6 +283,7 @@ class AstroChart extends Component{
 			this._appearanceObserver.disconnect();
 			this._appearanceObserver = null;
 		}
+		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

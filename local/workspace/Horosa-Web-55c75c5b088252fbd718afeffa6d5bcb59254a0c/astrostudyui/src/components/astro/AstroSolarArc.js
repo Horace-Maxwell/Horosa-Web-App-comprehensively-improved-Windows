@@ -143,6 +143,7 @@ class AstroSolarArc extends Component{
 		const data = await request(`${Constants.ServerRoot}/predict/solararc`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey]
 
 		let tm = new DateTime();
@@ -160,7 +161,7 @@ class AstroSolarArc extends Component{
 
 		this.setState(st, ()=>{
 			const chartValue = this.props.value;
-			saveModuleAISnapshotLazy('solararc', ()=>buildPredictiveSnapshotText(chartValue, st.params, result), {
+			saveModuleAISnapshotLazy('solararc', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solararc'), {
 				module: 'solararc',
 			});
 		});
@@ -311,7 +312,7 @@ class AstroSolarArc extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildPredictiveSnapshotText(chartValue, this.state.params, dirChart) || ''}`.trim();
+			text = `${buildPredictiveSnapshotText(chartValue, this.state.params, dirChart, 'solararc') || ''}`.trim();
 		}catch(e){
 			text = '';
 		}

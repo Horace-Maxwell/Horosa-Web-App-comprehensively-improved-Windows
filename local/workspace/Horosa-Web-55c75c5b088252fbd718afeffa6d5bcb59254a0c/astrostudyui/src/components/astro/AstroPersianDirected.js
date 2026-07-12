@@ -7,6 +7,13 @@ import * as AstroText from '../../constants/AstroText';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+// [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+// 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 import { SmallTable, symbolWithMeaning } from './AstroExtraCommon';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
@@ -97,6 +104,8 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
 	const asp = (deg) => (AstroText.AstroTxtMsg['Asp' + deg] || `${deg}°`);
 	const lines = [];
+	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
+	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[波斯向运（Persian Directed）]');
 	lines.push('黄经象征向运(1°/年)：所有行星/点每年 +1°,本命宫头不动；下表为向运星触及本命的应期。');
 	lines.push('');
@@ -105,6 +114,39 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	hits.slice(0, Math.max(200, maxYears * 4)).forEach((h) => {
 		lines.push(`| ${h.age} | ${h.date || '-'} | ${sym(h.promittor)} | ${asp(h.aspect)} | ${sym(h.significator)} |`);
 	});
+	// 当前向运年龄:组件传入的推运时间优先(与页面「当前推运 X 岁」同口径 directedAgeYears);
+	// 无头挂载(opts 无 datetime)按导出时刻距出生推算。无生时 → null,不聚焦(同 UI)。
+	const birthStr = (chartObj && chartObj.params) ? chartObj.params.birth : '';
+	const dtRaw = o.datetime;
+	const dtStr = (dtRaw && dtRaw.format) ? dtRaw.format('YYYY-MM-DD HH:mm:ss') : (dtRaw ? `${dtRaw}` : '');
+	let currentAge = dtStr ? directedAgeYears(birthStr, dtStr) : null;
+	let ageBasis = `按推运时间 ${dtStr}`;
+	if(currentAge === null){
+		currentAge = directedAgeYears(birthStr, moment().format('YYYY-MM-DD HH:mm:ss'));
+		ageBasis = '按导出时刻';
+	}
+	// bug 修:UI「邻近应期（距今最近）」表此前未导出 → 复用 selectNearbyPersianHits(同 UI limit 12),
+	// 行格式同主表,并入本段尾 ◆ 子块。
+	const nearHits = selectNearbyPersianHits(hits, currentAge, 12);
+	if(nearHits.length){
+		lines.push('');
+		lines.push('◆ 近期命中（距今最近）');
+		lines.push('| 年龄 | 日期 | 向运星 | 相位 | 本命对象 |');
+		lines.push('| --- | --- | --- | --- | --- |');
+		nearHits.forEach((h) => {
+			lines.push(`| ${h.age} | ${h.date || '-'} | ${sym(h.promittor)} | ${asp(h.aspect)} | ${sym(h.significator)} |`);
+		});
+	}
+	// [YB] 尾部 [当前时点]+[方法说明];定位行=当前向运年龄(directedAgeYears 推出)。
+	const extraLines = [];
+	if(currentAge !== null && Number.isFinite(currentAge)){
+		extraLines.push(`当前向运年龄：${Math.round(currentAge * 100) / 100} 岁（${ageBasis}）`);
+	}
+	const tail = [...currentMomentLines(chartObj, extraLines), ...methodNoteLines('persiandirected')];
+	if(tail.length){
+		lines.push('');
+		lines.push(...tail);
+	}
 	return lines.join('\n');
 }
 
@@ -241,6 +283,7 @@ class AstroPersianDirected extends Component{
 	async requestDirection(params){
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/persianchart`, { body: JSON.stringify(params) });
+			if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 			const result = data[Constants.ResultKey];
 			const tm = new DateTime();
 			const dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');

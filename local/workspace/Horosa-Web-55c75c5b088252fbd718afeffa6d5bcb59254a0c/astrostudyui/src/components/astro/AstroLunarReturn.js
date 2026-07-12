@@ -161,6 +161,7 @@ class AstroLunarReturn extends Component{
 		const data = await request(`${Constants.ServerRoot}/predict/lunarreturn`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey]
 
 		let tm = new DateTime();
@@ -183,7 +184,7 @@ class AstroLunarReturn extends Component{
 
 		this.setState(st, ()=>{
 			const chartValue = this.props.value;
-			saveModuleAISnapshotLazy('lunarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result), {
+			saveModuleAISnapshotLazy('lunarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'lunarreturn'), {
 				module: 'lunarreturn',
 			});
 		});
@@ -353,7 +354,7 @@ class AstroLunarReturn extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, result) || ''}`.trim();
+			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, result, 'lunarreturn') || ''}`.trim();
 		}catch(e){
 			text = '';
 		}

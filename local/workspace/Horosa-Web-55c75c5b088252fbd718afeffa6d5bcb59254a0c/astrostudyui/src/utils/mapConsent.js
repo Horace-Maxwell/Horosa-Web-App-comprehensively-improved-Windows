@@ -1,3 +1,4 @@
+import { safeLocalStorageSet } from './safeStorage';
 // 在线地图(高德)加载前的一次性知情同意:加载第三方地图脚本会向其服务器发送
 // 用户 IP 与地图交互请求(服务器位于中国境内)。按 PIPL「向第三方提供」的单独
 // 同意要求与 GDPR 最小化原则,首次使用地图前须经用户显式确认;拒绝不影响
@@ -20,7 +21,7 @@ export function hasMapConsent(){
 export function grantMapConsent(){
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
-			window.localStorage.setItem(MAP_CONSENT_KEY, '1');
+			safeLocalStorageSet(MAP_CONSENT_KEY, '1');
 		}
 	}catch(e){
 		// 配额满/私有模式写入失败:本次会话按已同意继续(setState 已切换),下次启动再询问一次。

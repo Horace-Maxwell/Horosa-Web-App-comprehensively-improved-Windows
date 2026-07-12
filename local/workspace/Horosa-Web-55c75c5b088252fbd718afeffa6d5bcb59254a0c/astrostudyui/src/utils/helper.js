@@ -794,7 +794,9 @@ export function setupFloatingTooltip(divTooltip, overrideStyles){
 		'max-height': 'min(460px, calc(100vh - 28px))',
 		padding: '14px 16px',
 		font: '14px/1.6 "PingFang SC", "Microsoft YaHei", sans-serif',
-		background: 'var(--horosa-surface-raised, #ffffff)',
+		// 铁律:悬浮层背景必须绝对不透明——surface-solid 是纯色(亮 #ffffff/暗 #090b0e),
+		// 且为 :root 级变量(浮层挂 body 也解析得到);raised 带 0.97 透明度会轻微透底,不用。
+		background: 'var(--horosa-surface-solid, #ffffff)',
 		color: 'var(--horosa-text, #262626)',
 		border: '1px solid var(--horosa-border, #e8e8e8)',
 		'border-radius': '8px',

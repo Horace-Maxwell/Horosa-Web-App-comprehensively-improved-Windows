@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { XQModal, XQTabs as Tabs } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -101,7 +102,7 @@ function getStoredGuolaoEngineMode(){
 function setStoredGuolaoEngineMode(value){
 	const next = value === 'kinastro' ? 'kinastro' : 'horosa';
 	try{
-		localStorage.setItem(GUOLAO_ENGINE_STORAGE_KEY, next);
+		safeLocalStorageSet(GUOLAO_ENGINE_STORAGE_KEY, next);
 	}catch(e){}
 	return next;
 }
@@ -155,7 +156,7 @@ function setStoredKinastroQizhengOptions(value){
 	next.currentYear = Math.max(1, Math.min(9999, Number(next.currentYear) || new Date().getFullYear()));
 	next.electionalDays = Math.max(1, Math.min(60, Number(next.electionalDays) || 30));
 	try{
-		localStorage.setItem(GUOLAO_KIN_OPTIONS_STORAGE_KEY, JSON.stringify(next));
+		safeLocalStorageSet(GUOLAO_KIN_OPTIONS_STORAGE_KEY, JSON.stringify(next));
 	}catch(e){}
 	return next;
 }
@@ -1414,6 +1415,8 @@ export async function warmGuolaoNatal(fields){
 	}
 }
 
+// ⚠️ 死代码(零调用,同类自检 v42 定性):主链=buildGuolaoSnapshotTextV2;本函数段头(宫位与星体/宫位二十八宿)
+// 未登 preset 属死码段——若复活必须先登记 preset+migration(全树段头哨兵会咬)。
 function buildGuolaoSnapshotText(params, result){
 	const lines = [];
 	const chart = result && result.chart ? result.chart : {};
@@ -1618,7 +1621,9 @@ function houseFullLabel(house, idx, ascSignIndex){
 	return `${zi}—${area}—${signName}座—${houseName}`;
 }
 
-function buildHouseSuAndGodsSection(result, planetDisplay, fields){
+// GFM 表化(段内排版,值零变化):行=宫×宿(空宫一行 无/无),宫内星列表一 cell 内联「；」相接,
+// 星字串(曜 d˚宿m分)与旧「星曜：」行逐字同。(宫位,宿,星)元组集合证明见 guolaoSnapshotTables.test.js。
+export function buildHouseSuAndGodsSection(result, planetDisplay, fields){
 	const chart = result && result.chart ? result.chart : {};
 	const houses = chart && chart.houses ? chart.houses : [];
 	const objects = chart && chart.objects ? chart.objects : [];
@@ -1630,7 +1635,7 @@ function buildHouseSuAndGodsSection(result, planetDisplay, fields){
 	const lines = [];
 
 	houses.forEach((house, idx)=>{
-		lines.push(`宫位：${houseFullLabel(house, idx, ascSignIndex)}`);
+		const label = houseFullLabel(house, idx, ascSignIndex);
 		let inHouse = objects.filter((obj)=>{
 			if(obj.house !== house.id){
 				return false;
@@ -1647,12 +1652,8 @@ function buildHouseSuAndGodsSection(result, planetDisplay, fields){
 			return a.ra - b.ra;
 		});
 
-		const sign = signFromLon(house.lon);
-
 		if(inHouse.length === 0){
-			lines.push('二十八宿：无');
-			lines.push('星曜：无');
-			lines.push('');
+			lines.push(`| ${label} | 无 | 无 |`);
 			return;
 		}
 		const suMap = new Map();
@@ -1681,8 +1682,7 @@ function buildHouseSuAndGodsSection(result, planetDisplay, fields){
 
 		suKeys.forEach((su)=>{
 			const list = suMap.get(su) || [];
-			lines.push(`二十八宿：${su}`);
-			list.forEach((obj)=>{
+			const stars = list.map((obj)=>{
 				let radeg = Number(objectLon(obj));
 				if(!Number.isNaN(radeg)){
 					const suRef = (chart.fixedStarSu28 || []).find((it)=>it.name === su);
@@ -1698,12 +1698,15 @@ function buildHouseSuAndGodsSection(result, planetDisplay, fields){
 					radeg = Number(obj.signlon);
 				}
 				const sd = splitDegree(radeg);
-				lines.push(`星曜：${msg(obj.id)} ${sd[0]}˚${su}${sd[1]}分`);
+				return `${msg(obj.id)} ${sd[0]}˚${su}${sd[1]}分`;
 			});
+			lines.push(`| ${label} | ${su} | ${stars.join('；') || '无'} |`);
 		});
-		lines.push('');
 	});
-	return lines.join('\n').trim();
+	if(!lines.length){
+		return '';
+	}
+	return ['| 宫位 | 二十八宿 | 星曜 |', '| --- | --- | --- |'].concat(lines).join('\n').trim();
 }
 
 function buildHouseGodsSection(result, fields){
@@ -1774,7 +1777,10 @@ function buildRulesGodsSection(moiraRules){
 
 // AI 快照·星曜庙旺与星点动态段（与右栏「星点动态」表同源函数 glStarDignity/glStarMotion，单一真值）：
 // 每点 曜｜地支｜所属(殿垣庙旺乐喜怒)｜速度态(顺逆留伏迟速)。天海冥无庙旺、升顶无庙旺无自行 → '-'。
-function buildStarDignityMotionSection(result, fields){
+// GFM 表化(段内排版,值零变化):所属/速度态字串(glStarDignity·连、glStarMotion)与旧「所属:X 速度:Y」逐字同,
+// 仅去内联「所属:」「速度:」标签移入表头。31 golden(guolaoDignityMotion.test.js)锚的是底层算法值、不受排版影响;
+// (曜,地支,所属,速度态) 元组集合证明见 guolaoSnapshotTables.test.js。
+export function buildStarDignityMotionSection(result, fields){
 	const chart = result && result.chart ? result.chart : {};
 	const objects = Array.isArray(chart.objects) ? chart.objects : [];
 	if(!objects.length){ return ''; }
@@ -1803,16 +1809,113 @@ function buildStarDignityMotionSection(result, fields){
 		const combust = glStarCombust(name, lon, sunLon);   // Moira 合日 3°(单一真值,与右栏星点动态同源)
 		const belong = glStarDignity(name, zhi, atPeak).join('·') || '-';
 		const motion = glStarMotion(name, Number(obj.lonspeed), combust) || '-';
-		rows.push(`${name} ${zhi} 所属:${belong} 速度:${motion}`);
+		rows.push(`| ${name} | ${zhi} | ${belong} | ${motion} |`);
 	});
 	ANGLE_POINTS.forEach(([name, id])=>{
 		const obj = objects.find((o)=>o && o.id === id);
 		if(!obj){ return; }
 		const lon = lonOf(obj);
 		if(!Number.isFinite(lon)){ return; }
-		rows.push(`${name} ${ziOf(lon)} 所属:- 速度:-`);
+		rows.push(`| ${name} | ${ziOf(lon)} | - | - |`);
 	});
-	return rows.join('\n');
+	if(!rows.length){
+		return '';
+	}
+	return ['| 曜 | 地支 | 所属 | 速度态 |', '| --- | --- | --- | --- |'].concat(rows).join('\n');
+}
+
+// AI 快照·流年流曜段（右栏「流曜」快捷面板已显示但此前未导出）：与 renderQuickTransitStars 同一取数——
+// 流年干支=rules.yearStars.transit.yearPole（缺则按 UI 同式 stemBranchForYear(流年时间之年) 兜底）；
+// 流年化曜=rules.yearStars.transit.planetRows（曜/化曜/同归项）；流曜落宫=rules.transitYearStars（宫名/化曜/曜名/宫性）。
+// 流年时间口径=UI 默认（paramsWithMoiraTransit 缺省走 makeDefaultMoiraTransitTime，即「当前流年」）。
+// 无规则层或无流年数据（未起盘/headless 复算）→ 返回 ''（不产段）；异常降级 ''，不影响既有段。
+// [虚实] 段(v44 硬缺修):虚实 tab 整层此前显示了完全导不出——虚宫(四柱旬空推)/实宫(四柱地支定)
+// 是果老明确断项。值与 renderQuickWeakSolid 主路同源(moiraRules.weakSolid.houses);无数据不产段。
+export function buildGuolaoWeakSolidSection(moiraRules){
+	try{
+		const rows = safeList(safeMap(safeMap(moiraRules).weakSolid).houses);
+		if(!rows.length){
+			return '';
+		}
+		const out = [];
+		out.push('| 宫位 | 虚实 | 虚柱 | 实柱 |');
+		out.push('| --- | --- | --- | --- |');
+		rows.forEach((house)=>{
+			out.push(`| ${house.house || '—'} | ${house.label || '—'} | ${joinNames(house.weakPillars) || '—'} | ${joinNames(house.solidPillars) || '—'} |`);
+		});
+		out.push('口径：虚宫按四柱旬空推虚；实宫按年、月、日、时四柱地支定实。');
+		return out.join('\n');
+	}catch(e){
+		return '';
+	}
+}
+
+// [本命化曜] 段(v44 半缺修):化曜 tab 此前只导流年侧——本命化曜为核心,十神序/天禄至天权为参考表。
+// 值与 renderQuickYearStars 的本命侧同源(moiraRules.yearStars.birth);无数据不产段。
+export function buildGuolaoBirthStarsSection(moiraRules){
+	try{
+		const birthYearStars = safeMap(safeMap(safeMap(moiraRules).yearStars).birth);
+		const planetRows = safeList(birthYearStars.planetRows);
+		if(!planetRows.length){
+			return '';
+		}
+		const out = [];
+		if(birthYearStars.yearPole){
+			out.push(`本命年柱：${birthYearStars.yearPole}`);
+		}
+		out.push('◆ 本命化曜');
+		planetRows.forEach((row)=>{
+			const items = safeList(row.items).length ? joinNames(row.items) : '';
+			out.push(`${row.star}：化${row.changeTo || '-'}${items && items !== '无' ? `（同归：${items}）` : ''}`);
+		});
+		out.push('◆ 十神序（参考）');
+		out.push(`原十神序：${MOIRA_TEN_GOD_ORG.join('、')}`);
+		out.push(`替代十神序：${MOIRA_TEN_GOD_ALT.join('、')}`);
+		out.push('◆ 天禄至天权（年曜主项）');
+		MOIRA_YEAR_INFO_GROUPS.forEach((items)=>{
+			out.push(`${items[0]}：${items.slice(1).join('、') || '主项'}`);
+		});
+		return out.join('\n');
+	}catch(e){
+		return '';
+	}
+}
+
+function buildGuolaoTransitStarsSection(fields, moiraRules){
+	try{
+		if(!moiraRules){
+			return '';
+		}
+		const currentYearStars = safeMap(safeMap(moiraRules.yearStars).transit);
+		const planetRows = safeList(currentYearStars.planetRows);
+		const signRows = safeList(moiraRules.transitYearStars);
+		if(!planetRows.length && !signRows.length){
+			return '';
+		}
+		const out = [];
+		const yearGz = currentYearStars.yearPole
+			|| stemBranchForYear(yearFromParams(paramsWithMoiraTransit(fields, null)));
+		if(yearGz){
+			out.push(`流年干支：${yearGz}`);
+		}
+		if(planetRows.length){
+			out.push('◆ 流年化曜');
+			planetRows.forEach((row)=>{
+				const items = safeList(row.items).length ? joinNames(row.items) : '';
+				out.push(`${row.star}：化${row.changeTo || '-'}${items && items !== '无' ? `（同归：${items}）` : ''}`);
+			});
+		}
+		if(signRows.length){
+			out.push('◆ 流曜落宫');
+			signRows.forEach((row)=>{
+				const pos = [row.quality, row.zi, row.signName].filter(Boolean).join(' · ');
+				out.push(`${row.name}：${row.star || '-'}（${row.shortName || '-'}${pos ? `；${pos}` : ''}）`);
+			});
+		}
+		return out.join('\n');
+	}catch(e){
+		return '';
+	}
 }
 
 function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraRules){
@@ -1861,6 +1964,27 @@ function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraR
 	lines.push('[大限]');
 	lines.push(buildGuolaoLimitSection(chart, fields, params, _gDisp.minorLimitType || '', _gDisp.tongxianBase || 'tong10') || '无');
 	lines.push('');
+	// 虚实段（v44 硬缺补挂，纯增）：有 weakSolid 规则数据才产段，缺数据时既有输出逐字不变。
+	const weakSolidSection = buildGuolaoWeakSolidSection(moiraRules);
+	if(weakSolidSection){
+		lines.push('[虚实]');
+		lines.push(weakSolidSection);
+		lines.push('');
+	}
+	// 本命化曜段（v44 半缺补挂，纯增）：此前只导流年侧。
+	const birthStarsSection = buildGuolaoBirthStarsSection(moiraRules);
+	if(birthStarsSection){
+		lines.push('[本命化曜]');
+		lines.push(birthStarsSection);
+		lines.push('');
+	}
+	// 流年流曜段（A 类硬缺补挂，纯增）：有流年规则数据才产段，缺数据时既有输出逐字不变。
+	const transitStarsSection = buildGuolaoTransitStarsSection(fields, moiraRules);
+	if(transitStarsSection){
+		lines.push('[流年流曜]');
+		lines.push(transitStarsSection);
+		lines.push('');
+	}
 	lines.push('[政余格局]');
 	lines.push(buildGuolaoPatternSection(result, fields, params) || '无');
 	lines.push('');
@@ -1895,7 +2019,7 @@ function buildGuolaoPatternSection(result, fields, params){
 }
 
 // AI 快照·相位段（右栏「相位」面板已显示但此前未导出）：复用 buildAspectRows，与盘面相位表同源；异常降级「无」。
-function buildGuolaoAspectSection(result){
+export function buildGuolaoAspectSection(result){
 	try{
 		const chart = getChart(result);
 		const aspects = (chart && chart.aspects) || (result && result.aspects) || null;
@@ -1903,9 +2027,15 @@ function buildGuolaoAspectSection(result){
 		if(!rows || !rows.length){
 			return '无';
 		}
-		return rows.map((row)=>(
-			`${row.from} ${row.aspect} ${row.to}（${row.state}${row.orb ? `，误差${row.orb}` : ''}）`
-		)).join('\n');
+		// GFM 表化(段内排版,值零变化):五元组(主体/相位/对象/状态/误差)与旧行一一对应,
+		// 无误差值 cell='—'(旧行该情形整个省略「，误差X」)。元组集合证明见 guolaoSnapshotTables.test.js。
+		const out = [];
+		out.push('| 主体 | 相位 | 对象 | 状态 | 误差 |');
+		out.push('| --- | --- | --- | --- | --- |');
+		rows.forEach((row)=>{
+			out.push(`| ${row.from} | ${row.aspect} | ${row.to} | ${row.state} | ${row.orb || '—'} |`);
+		});
+		return out.join('\n');
 	}catch(e){
 		return '无';
 	}
@@ -1913,17 +2043,21 @@ function buildGuolaoAspectSection(result){
 
 // AI 快照·大限段：复用 Moira 命盘轮的命度→十二宫大限算法（moiraBuildLimitTable/lifeDegree），
 // 保证导出/挂载与盘面「命身与限度·大限」列表完全同口径。出生年取自 params.date（YYYY/MM/DD）。
-function buildGuolaoLimitSection(chart, fields, params, minorLimitType, tongxianBase){
+export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, tongxianBase){
 	try{
 		const lifeDeg = lifeDegree(chart, fields);
 		const birthYear = Number(String(params.date || '').split('/')[0]) || 0;
 		const rows = buildLimitTable(lifeDeg, birthYear);
 		const out = [];
 		if(rows && rows.length){
+			// GFM 表化(段内排版,值零变化):cell 沿用旧行字面片段(第N限/a-b岁/a-b年/约N年),
+			// fact-multiset 证明见 guolaoSnapshotTables.test.js。
 			out.push('古度限度法（命度十二宫大限）：');
-			out.push(rows.map((row)=>(
-				`第${row.index}限 ${row.palace}：${row.fromAge}-${row.toAge}岁（${row.fromYear}-${row.toYear}年），约${row.years}年`
-			)).join('\n'));
+			out.push('| 限 | 宫 | 起讫岁 | 起讫年 | 年数 |');
+			out.push('| --- | --- | --- | --- | --- |');
+			rows.forEach((row)=>{
+				out.push(`| 第${row.index}限 | ${row.palace || '—'} | ${row.fromAge}-${row.toAge}岁 | ${row.fromYear}-${row.toYear}年 | 约${row.years}年 |`);
+			});
 		}
 		// WP-E：所选行运法(类B minorLimitType)结构同入快照——洞微大限含飞星吊度,童限顺排,小限/月限注明法。
 		const mlt = String(minorLimitType || '');
@@ -1933,9 +2067,11 @@ function buildGuolaoLimitSection(chart, fields, params, minorLimitType, tongxian
 				const dw = glDongwei(((Number(sun.lon) % 30) + 30) % 30);
 				out.push('');
 				out.push(`洞微大限（命宫顺行·飞星吊度·起限${dw.startAge}岁）：`);
-				out.push(dw.rows.map((r)=>(
-					`第${r.index}限 ${r.palace}：${r.fromAge}-${r.toAge}岁，${r.years}年（入${r.entryDeg}°·每年吊度${r.perYearDeg}°）`
-				)).join('\n'));
+				out.push('| 限 | 宫 | 起讫岁 | 年数 | 吊度 |');
+				out.push('| --- | --- | --- | --- | --- |');
+				dw.rows.forEach((r)=>{
+					out.push(`| 第${r.index}限 | ${r.palace || '—'} | ${r.fromAge}-${r.toAge}岁 | ${r.years}年 | 入${r.entryDeg}°·每年吊度${r.perYearDeg}° |`);
+				});
 			}
 		}else if(mlt === 'tong'){
 			const sun = findChartObject(chart, AstroConst.SUN);

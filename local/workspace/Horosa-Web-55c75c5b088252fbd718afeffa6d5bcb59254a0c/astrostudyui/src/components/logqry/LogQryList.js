@@ -71,6 +71,7 @@ class LogQryList extends Component{
 		const data = await request(`${Constants.ServerRoot}/log/20001`, {
 			body: JSON.stringify(param),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const Result = data[Constants.ResultKey];
 		const { TransLogs, Total } = Result;
 		const stdata = {
@@ -90,6 +91,7 @@ class LogQryList extends Component{
 		const data = await request(`${Constants.ServerRoot}/log/20002`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const Result = data[Constants.ResultKey];
 		const { TransCode } = Result;
 		this.setState({

@@ -110,6 +110,9 @@ class AstroAcg extends Component {
 		this.toggleProjection = this.toggleProjection.bind(this);
 		this.cycleStyle = this.cycleStyle.bind(this);
 		this.cycleParan = this.cycleParan.bind(this);
+		this.snapshotUiState = this.snapshotUiState.bind(this);
+		this.syncSnapshotUi = this.syncSnapshotUi.bind(this);
+		this.toggleStarParans = this.toggleStarParans.bind(this);
 		this.cycleMode = this.cycleMode.bind(this);
 		this.cycleLsMode = this.cycleLsMode.bind(this);
 		this.changeHsys = this.changeHsys.bind(this);
@@ -147,7 +150,26 @@ class AstroAcg extends Component {
 	cycleParan() {
 		const order = ['off', 'lum', 'all'];
 		const i = order.indexOf(this.state.paranMode);
-		this.setState({ paranMode: order[(i + 1) % order.length] });
+		this.setState({ paranMode: order[(i + 1) % order.length] }, this.syncSnapshotUi);
+	}
+
+	// AI 导出 uiState:落点报告 + 交映开关(交映是纯渲染开关、不触发后端重算,须写进快照,导出才知道开没开)
+	snapshotUiState(pointReport) {
+		return {
+			pointReport,
+			paranMode: this.state.paranMode,
+			showStarParans: this.state.showStars && this.state.showStarParans,   // 双 opt-in 口径同 AcgD3Map
+		};
+	}
+
+	// 纯前端交映开关变更后重发快照:数据(后端响应)不变,仅刷新 uiState;acgData 未就绪时无事可发
+	syncSnapshotUi() {
+		if (this.state.acgData) setAcgSnapshot(this.state.acgData, this.snapshotUiState(this.state.pointReport));
+	}
+
+	// 星曜交映纬线开关(纯渲染):切换后同步 AI 快照的交映 uiState
+	toggleStarParans() {
+		this.setState({ showStarParans: !this.state.showStarParans }, this.syncSnapshotUi);
 	}
 
 	toggle(key) {
@@ -169,10 +191,11 @@ class AstroAcg extends Component {
 		const seq = (this._acgSeq = (this._acgSeq || 0) + 1);
 		const data = await request(`${Constants.ServerRoot}/location/acg`, { body: JSON.stringify(params) });
 		if (this.unmounted || seq !== this._acgSeq) return;
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const acgData = data[Constants.ResultKey];
 		this.setState({ acgData });
 		// AI 导出真值:发布"最近一次地图状态"(单一真值源=后端响应,导出时拼【占星地图】段)
-		setAcgSnapshot(acgData, { pointReport: this.state.pointReport });
+		setAcgSnapshot(acgData, this.snapshotUiState(this.state.pointReport));
 	}
 
 	async onMapClick(lat, lon) {
@@ -181,9 +204,10 @@ class AstroAcg extends Component {
 			const params = { ...this.genParams(), clickLat: lat, clickLon: lon, orb: 2, hsys: this.state.hsys };
 			const data = await request(`${Constants.ServerRoot}/location/acgpoint`, { body: JSON.stringify(params) });
 			if (this.unmounted) return;
+			if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 			const pointReport = data[Constants.ResultKey];
 			this.setState({ pointReport, pointLoading: false });
-			if (this.state.acgData) setAcgSnapshot(this.state.acgData, { pointReport });
+			if (this.state.acgData) setAcgSnapshot(this.state.acgData, this.snapshotUiState(pointReport));
 		} catch (e) {
 			if (!this.unmounted) this.setState({ pointLoading: false });
 		}
@@ -234,6 +258,7 @@ class AstroAcg extends Component {
 			const params = { kind, direction: 'next', fromDate: fieldsToParams(this.props.fields).date };
 			const data = await request(`${Constants.ServerRoot}/location/acgevent`, { body: JSON.stringify(params) });
 			if (this.unmounted) return;
+			if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 			const ev = data[Constants.ResultKey];
 			if (!ev || !ev.date) return;
 			this.setState({
@@ -435,7 +460,7 @@ class AstroAcg extends Component {
 							))}
 							{row('行星交映 Parans', seg(s.paranMode, [
 								{ value: 'off', label: '关' }, { value: 'lum', label: '日月' }, { value: 'all', label: '全部' },
-							], (v) => this.setState({ paranMode: v })))}
+							], (v) => this.setState({ paranMode: v }, this.syncSnapshotUi)))}
 						</>
 					))}
 					{sec('衍生线型', '只对已选中主线的行星绘制', (
@@ -451,7 +476,7 @@ class AstroAcg extends Component {
 					{sec('固定星与寻宝图', null, (
 						<>
 							{row('固定星线(18 亮星)', <XQSwitch size="small" checked={s.showStars} onChange={this.toggleStars} />)}
-							{s.showStars ? row('星曜交映纬线', <XQSwitch size="small" checked={s.showStarParans} onChange={() => this.toggle('showStarParans')} />) : null}
+							{s.showStars ? row('星曜交映纬线', <XQSwitch size="small" checked={s.showStarParans} onChange={this.toggleStarParans} />) : null}
 							{row('寻宝图评分热力', <XQSwitch size="small" checked={s.showTreasure} onChange={() => this.toggle('showTreasure')} />)}
 						</>
 					))}

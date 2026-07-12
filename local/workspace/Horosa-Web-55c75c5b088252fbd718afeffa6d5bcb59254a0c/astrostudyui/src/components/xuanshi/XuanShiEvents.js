@@ -1,4 +1,5 @@
 import React from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Empty, Input } from 'antd';
 import { fetchEvents, fetchEvent, fetchEventsMeta } from '../../services/xuanshi';
 import { marked } from 'marked';
@@ -85,7 +86,7 @@ export default class XuanShiEvents extends React.Component {
 
 	setDensity(d) {
 		this.setState({ density: d });
-		try { localStorage.setItem('xuanshi:density:events', d); } catch (e) { /* noop */ }
+		try { safeLocalStorageSet('xuanshi:density:events', d); } catch (e) { /* noop */ }
 	}
 
 	async openDetail(id) {

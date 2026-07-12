@@ -177,9 +177,13 @@ export function buildSnapshotText(result, opts = {}) {
 	lines.push(`逆 ${v.numNi}：${v.textNi}`);
 	lines.push('');
 	lines.push('[大运·歲運]');
+	// [v2 排版批量·表化] 同构逐条行改 GFM 表(紫微宫位总览范式):段头/值表达式零变更
+	// (ageStart-ageEnd岁/branch/顺numShun/textShun/逆numNi/textNi 逐字复用),仅排版骨架换表头+分隔行+数据行。
+	lines.push('| 歲段 | 大运支 | 顺 | 顺辞 | 逆 | 逆辞 |');
+	lines.push('| --- | --- | --- | --- | --- | --- |');
 	(result.dayun || []).forEach((d) => {
 		const dv = d.verses || {};
-		lines.push(`${d.ageStart}-${d.ageEnd}岁 ${d.branch}：顺${dv.numShun} ${dv.textShun} ／ 逆${dv.numNi} ${dv.textNi}`);
+		lines.push(`| ${d.ageStart}-${d.ageEnd}岁 | ${d.branch} | 顺${dv.numShun} | ${dv.textShun} | 逆${dv.numNi} | ${dv.textNi} |`);
 	});
 	const ynRows = opts && Array.isArray(opts.liunianRows) ? opts.liunianRows : null;
 	if (ynRows && ynRows.length) {
@@ -187,10 +191,14 @@ export function buildSnapshotText(result, opts = {}) {
 		// 挂载/导出都缺流年。改由调用方喂入 liunianSeries(...).rows,逐岁出 太岁/大运/顺逆数(紧凑,不含逐句判语避免过长)。
 		lines.push('');
 		lines.push('[流年·歲運]');
+		// [v2 排版批量·表化] 1-120 岁全表改 GFM 表:值表达式逐字复用(age岁/yzz/太岁taisuiBranch/
+		// 大运dayunBranch/顺numShun/逆numNi),仅排版骨架变化;单行 else 分支(非同构全表)保持原样。
+		lines.push('| 歲 | 年·干支 | 太岁 | 大运 | 顺 | 逆 |');
+		lines.push('| --- | --- | --- | --- | --- | --- |');
 		ynRows.forEach((row) => {
 			const rv = row.verses || {};
 			const yzz = row.year ? `${row.year}·${row.ganzhi}` : '';
-			lines.push(`${row.age}岁${yzz ? ` ${yzz}` : ''} 太岁${row.taisuiBranch || '-'}·大运${row.dayunBranch || '-'} 顺${rv.numShun}/逆${rv.numNi}`);
+			lines.push(`| ${row.age}岁 | ${yzz} | 太岁${row.taisuiBranch || '-'} | 大运${row.dayunBranch || '-'} | 顺${rv.numShun} | 逆${rv.numNi} |`);
 		});
 	} else if (result.liunian) {
 		const lv = result.liunian.verses || {};

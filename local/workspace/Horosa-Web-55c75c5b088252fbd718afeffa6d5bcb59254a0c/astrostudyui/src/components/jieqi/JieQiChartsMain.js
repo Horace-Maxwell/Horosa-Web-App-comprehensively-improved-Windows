@@ -705,6 +705,8 @@ function buildJieQiSuSection(chartObj, fields, planetDisplay){
 	return lines.join('\n').trim();
 }
 
+// ⚠️ withHeaders=true 分支为死分支(仓内唯一调用传 false;同类自检 v42 定性):其段头
+// (起盘信息/宫位宫头/行星与点)未登 jieqi preset——若启用必须先登记(全树段头哨兵会咬)。
 function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
 	const params = chartObj && chartObj.params ? chartObj.params : {};

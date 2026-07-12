@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Modal, message, Tag } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -125,7 +126,9 @@ function cleanKey(key){
 	return txt;
 }
 
-function appendMapSection(lines, title, obj){
+// 神煞 6 段(旬日/旺衰/基础神煞/干煞/月煞/支煞)共用:段头=preset 键,段内 GFM 2 列表化(值零变化,
+// 键仍过 cleanKey、值仍过 fmtValue——事实 token 与旧「键：值」行逐字同,证明测试 liurengSnapshotTables.test.js)。
+export function appendMapSection(lines, title, obj){
 	lines.push(`[${title}]`);
 	if(!obj || typeof obj !== 'object'){
 		lines.push('无');
@@ -138,8 +141,10 @@ function appendMapSection(lines, title, obj){
 		lines.push('');
 		return;
 	}
+	lines.push('| 神煞 | 值 |');
+	lines.push('| --- | --- |');
 	keys.forEach((key)=>{
-		lines.push(`${cleanKey(key)}：${fmtValue(obj[key])}`);
+		lines.push(`| ${cleanKey(key)} | ${fmtValue(obj[key])} |`);
 	});
 	lines.push('');
 }
@@ -4210,6 +4215,58 @@ function buildSanChuanData(layout, keRaw, chartObj, castOverride){
 	}
 }
 
+// ---- AI 快照·段内容行 builder(纯函数,导出供证明测试)：段头 [X] 仍由 buildLiuRengSnapshotText 内联推入 ----
+// GFM 表化(段内排版,值零变化):事实 token 与旧「行式」逐字同,仅列结构化,fact-multiset 证明见
+// liurengSnapshotTables.test.js。空值 cell 统一 '—'(旧式无空值路径的沿用原字面,如 '无')。
+// [十二地盘/十二天盘/十二贵神对应] 内容行 → | 序 | 地盘 | 天盘 | 贵神 |。
+export function buildLiuRengPanRows(layout){
+	const rows = [];
+	rows.push('| 序 | 地盘 | 天盘 | 贵神 |');
+	rows.push('| --- | --- | --- | --- |');
+	for(let i=0; i<12; i++){
+		rows.push(`| ${i + 1} | ${layout.downZi[i] || '—'} | ${layout.upZi[i] || '—'} | ${layout.houseTianJiang[i] || '—'} |`);
+	}
+	return rows;
+}
+
+// [三传] 三行内容(课式行不在此,仍内联)→ | 传 | 干支 | 六亲 | 贵神 |;缺项沿用旧字面 '无'。
+export function buildLiuRengSanChuanRows(sanChuan){
+	const rows = [];
+	rows.push('| 传 | 干支 | 六亲 | 贵神 |');
+	rows.push('| --- | --- | --- | --- |');
+	const names = ['初传', '中传', '末传'];
+	for(let i=0; i<3; i++){
+		const gz = sanChuan.cuang && sanChuan.cuang[i] ? sanChuan.cuang[i] : '无';
+		const lq = sanChuan.liuQin && sanChuan.liuQin[i] ? sanChuan.liuQin[i] : '无';
+		const gs = sanChuan.tianJiang && sanChuan.tianJiang[i] ? sanChuan.tianJiang[i] : '无';
+		rows.push(`| ${names[i]} | ${gz} | ${lq} | ${gs} |`);
+	}
+	return rows;
+}
+
+// [岁煞] 内容行(LRConst.TaiSui 七煞序)→ | 神煞 | 值 |;缺值 fmtValue 已产 '无'。
+export function buildLiuRengSuiShaRows(yearGods){
+	const rows = [];
+	rows.push('| 神煞 | 值 |');
+	rows.push('| --- | --- |');
+	LRConst.TaiSui.forEach((name)=>{
+		rows.push(`| ${name} | ${fmtValue(yearGods[name])} |`);
+	});
+	return rows;
+}
+
+// [十二长生] 内容行(所选五行 × 十二位)→ | 长生位 | 地支 |。
+export function buildLiuRengZhangShengRows(zhangshengElem){
+	const rows = [];
+	rows.push('| 长生位 | 地支 |');
+	rows.push('| --- | --- |');
+	ZSList.forEach((item)=>{
+		const key = `${zhangshengElem}_${item}`;
+		rows.push(`| ${item} | ${fmtValue(ZhangSheng.wxphase[key])} |`);
+	});
+	return rows;
+}
+
 export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, guirengType, zhangshengElem, gender, castOpts){
 	const lines = [];
 	const _castOpts = castOpts || {};
@@ -4262,9 +4319,7 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 
 	lines.push('[十二地盘/十二天盘/十二贵神对应]');
 	if(layout){
-		for(let i=0; i<12; i++){
-			lines.push(`${i + 1}. 地盘${layout.downZi[i]} -> 天盘${layout.upZi[i]} -> 贵神${layout.houseTianJiang[i]}`);
-		}
+		buildLiuRengPanRows(layout).forEach((l)=>lines.push(l));
 	}else{
 		lines.push('无');
 	}
@@ -4281,13 +4336,7 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 	lines.push('[三传]');
 	if(sanChuan){
 		lines.push(`课式：${fmtValue(sanChuan.name)}`);
-		const names = ['初传', '中传', '末传'];
-		for(let i=0; i<3; i++){
-			const gz = sanChuan.cuang && sanChuan.cuang[i] ? sanChuan.cuang[i] : '无';
-			const lq = sanChuan.liuQin && sanChuan.liuQin[i] ? sanChuan.liuQin[i] : '无';
-			const gs = sanChuan.tianJiang && sanChuan.tianJiang[i] ? sanChuan.tianJiang[i] : '无';
-			lines.push(`${names[i]}：干支=${gz}；六亲=${lq}；贵神=${gs}`);
-		}
+		buildLiuRengSanChuanRows(sanChuan).forEach((l)=>lines.push(l));
 	}else{
 		lines.push('无');
 	}
@@ -4313,9 +4362,7 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 	lines.push('[岁煞]');
 	const yearGods = liureng && liureng.godsYear ? liureng.godsYear.taisui1 : null;
 	if(yearGods){
-		LRConst.TaiSui.forEach((name)=>{
-			lines.push(`${name}：${fmtValue(yearGods[name])}`);
-		});
+		buildLiuRengSuiShaRows(yearGods).forEach((l)=>lines.push(l));
 	}else{
 		lines.push('无');
 	}
@@ -4323,10 +4370,7 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 
 	lines.push('[十二长生]');
 	if(zhangshengElem){
-		ZSList.forEach((item)=>{
-			const key = `${zhangshengElem}_${item}`;
-			lines.push(`${item}：${fmtValue(ZhangSheng.wxphase[key])}`);
-		});
+		buildLiuRengZhangShengRows(zhangshengElem).forEach((l)=>lines.push(l));
 	}else{
 		lines.push('无');
 	}
@@ -4426,6 +4470,54 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 			lines.push(`三传提示：${zd.sanChuanTip || ''}`);
 			lines.push('');
 		}
+
+		// [取象] doctrine 段(默认关段:builder 恒产,导出层按设置控)：与右栏「取象」卡同源 buildXiangContext,
+		// 只导本盘四课三传在位地支的 类象/五行/方位/六亲/刑冲合害/长生旺衰 条目(非全库十二支),象意原文零改写。
+		const xiangBranches = Array.isArray(_ctx.courseBranches) ? _ctx.courseBranches : [];
+		const xiangLines = [];
+		xiangBranches.forEach((z)=>{
+			const cx = buildXiangContext(z, _ctx.dayGan, zhangshengElem);
+			if(!cx){
+				return;
+			}
+			// 在位标注(初/中/末传、N课上/下)——派生定位信息,便于 AI 对位取象。
+			const roles = [];
+			(_ctx.sanChuanBranches || []).forEach((b, i)=>{ if(b === z){ roles.push(`${['初', '中', '末'][i] || ''}传`); } });
+			(_ctx.keUpBranches || []).forEach((b, i)=>{ if(b === z){ roles.push(`${i + 1}课上`); } });
+			(_ctx.keDownBranches || []).forEach((b, i)=>{ if(b === z){ roles.push(`${i + 1}课下`); } });
+			xiangLines.push(`◆ ${cx.branch}${cx.shenName ? `（${cx.shenName}）` : ''}${roles.length ? `——${roles.join('、')}` : ''}`);
+			const rowParts = [];
+			if(cx.wuxing){ rowParts.push(`五行：${cx.wuxing}${cx.wuxingXiang ? `（${cx.wuxingXiang.keyword}）` : ''}`); }
+			if(cx.direction){ rowParts.push(`方位：${cx.direction}`); }
+			if(cx.liuqin){ rowParts.push(`六亲：${cx.liuqin}`); }
+			if(cx.zhangsheng){ rowParts.push(`${cx.zhangshengElem}·长生：${cx.zhangsheng}`); }
+			if(cx.yima){ rowParts.push(`驿马：${cx.yima}`); }
+			if(rowParts.length){ xiangLines.push(rowParts.join('　')); }
+			if(cx.symbol){ xiangLines.push(`类象：${cx.symbol}`); }
+			if(cx.relations && cx.relations.length){ xiangLines.push(`刑冲合害：${cx.relations.join('　')}`); }
+			if(cx.relationNotes && cx.relationNotes.length){ xiangLines.push(`断用：${cx.relationNotes.map((r)=>`${r.type}—${r.note}`).join('；')}`); }
+			if(cx.wuxingXiang){ xiangLines.push(`五行取象：人物：${cx.wuxingXiang.person}；身体：${cx.wuxingXiang.body}；事：${cx.wuxingXiang.affair}`); }
+		});
+		if(xiangLines.length){
+			lines.push('[取象]');
+			lines.push('（本盘四课三传在位地支类象，供合盘断之）');
+			xiangLines.forEach((l)=>lines.push(l));
+			lines.push('');
+		}
+	}
+
+	// [七政] 段(v44 硬缺修):七政 tab 整层此前显示了完全导不出——日月五星临宫/五行/度/逆行/月将
+	// 是大六壬七政四余合参的独立断法层。值与 tab 网格同源(buildQiZhengItems);无星历数据不产段(零字节变化)。
+	const qizhengItems = buildQiZhengItems(chartObj);
+	if(qizhengItems.length){
+		lines.push('[七政]');
+		lines.push('| 七政 | 临支 | 五行 | 度数 | 逆行 | 备注 |');
+		lines.push('| --- | --- | --- | --- | --- | --- |');
+		qizhengItems.forEach((item)=>{
+			const deg = item.deg != null ? `${item.deg.toFixed(0)}°` : '—';
+			lines.push(`| ${item.name} | ${item.branch || '—'} | ${item.wx || '—'} | ${deg} | ${item.retro ? '逆' : '—'} | ${item.isYue ? '月将(太阳过宫)' : '—'} |`);
+		});
+		lines.push('');
 	}
 
 	return lines.join('\n').trim();
@@ -5246,7 +5338,7 @@ class LiuRengMain extends Component{
 	onToggleXiang(checked){
 		const on = !!checked;
 		if(typeof localStorage !== 'undefined'){
-			try{ localStorage.setItem('liurengXiangOn', on ? '1' : '0'); }catch(e){ /* 忽略 */ }
+			try{ safeLocalStorageSet('liurengXiangOn', on ? '1' : '0'); }catch(e){ /* 忽略 */ }
 		}
 		this.setState({ xiangOn: on });
 	}

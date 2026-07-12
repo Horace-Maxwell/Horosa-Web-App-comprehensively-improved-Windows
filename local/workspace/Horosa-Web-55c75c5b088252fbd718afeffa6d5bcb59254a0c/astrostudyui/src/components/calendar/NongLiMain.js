@@ -11,7 +11,87 @@ import DateTime from '../comp/DateTime';
 import NongLi from './NongLi';
 import GuaChartDiv from '../gua/GuaChartDiv';
 import {Week} from '../../msg/types';
+import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 
+// AI 导出/挂载快照 builder（纯函数,jest 直测）。四同步:段头须与 aiExport preset('calendar') 逐字一致。
+// 月历行只收与 days[0] 同月的项(days 可能带下月补位);字段均后端真值直引,不在前端重算。
+export function buildNongliSnapshotText(state){
+	const st = state || {};
+	const days = Array.isArray(st.days) ? st.days : [];
+	const lines = [];
+	const monthOf = (d)=>{
+		const birth = `${d && d.birth ? d.birth : ''}`;
+		return birth.slice(0, 7);
+	};
+	const dayOf = (d)=>{
+		const birth = `${d && d.birth ? d.birth : ''}`;
+		return birth.slice(5, 10);
+	};
+
+	const queryMonth = st.date && st.date.format ? st.date.format('YYYY-MM') : (days[0] ? monthOf(days[0]) : '');
+	lines.push('[起盘信息]');
+	if(queryMonth){ lines.push(`查询月份：${queryMonth}`); }
+	if(st.date && st.date.zone !== undefined && st.date.zone !== null && `${st.date.zone}` !== ''){
+		lines.push(`时区：东${st.date.zone}区`);
+	}
+	if(st.lon){ lines.push(`历算经度：${st.lon}`); }
+
+	if(days.length){
+		const curMonth = monthOf(days[0]);
+		const rows = days.filter((d)=>d && monthOf(d) === curMonth);
+		if(rows.length){
+			lines.push('');
+			lines.push('[当月月历]');
+			lines.push('| 公历 | 星期 | 农历 | 日干支 | 节气/朔望 |');
+			lines.push('| --- | --- | --- | --- | --- |');
+			rows.forEach((d)=>{
+				let nl = `${d.day || ''}`;
+				if(d.dayInt === 1){
+					nl = `${d.leap ? '闰' : ''}${d.month || ''}${d.day || ''}`;
+				}
+				const notes = [];
+				if(d.jieqi){ notes.push(`${d.jieqi} ${d.jieqiTime || ''}`.trim()); }
+				if(d.moonTime){
+					const mt = d.dayInt === 1 ? '朔' : (d.dayInt === 15 ? '望' : '月相');
+					notes.push(`${mt} ${d.moonTime}`.trim());
+				}
+				lines.push(`| ${dayOf(d)} | ${Week[`${d.dayOfWeek}`] || ''} | ${nl} | ${d.dayGanZi || ''} | ${notes.join('；')} |`);
+			});
+		}
+	}
+
+	const sel = st.dateSelected;
+	if(sel && sel.birth){
+		lines.push('');
+		lines.push('[选中日详情]');
+		lines.push(`公历：${sel.birth.split(' ')[0]} ${Week[`${sel.dayOfWeek}`] || ''}`);
+		let selMonth = `${sel.month || ''}`;
+		if(sel.leap){ selMonth = `闰${selMonth}`; }
+		lines.push(`农历：${sel.year || ''}年${selMonth}${sel.day || ''}`);
+		if(sel.yearNaying){ lines.push(`年纳音：${sel.yearNaying}`); }
+		lines.push(`干支：${sel.yearJieqi || ''}年 ${sel.monthGanZi || ''}月 ${sel.dayGanZi || ''}日 ${sel.time || ''}时`);
+		if(sel.jiedelta || sel.chef){ lines.push(`节候：${[sel.jiedelta, sel.chef].filter(Boolean).join('，')}`); }
+		if(sel.jieqi){ lines.push(`节气：${sel.jieqi} ${sel.jieqiTime || ''}${sel.jieqiJdn ? `（jdn ${sel.jieqiJdn}）` : ''}`); }
+		if(sel.moonTime){
+			const mt = sel.dayInt === 1 ? '朔月' : (sel.dayInt === 15 ? '望月' : '月相');
+			lines.push(`${mt}：${sel.date || ''} ${sel.moonTime}${sel.moonJdn ? `（jdn ${sel.moonJdn}）` : ''}`);
+		}
+		if(sel.qimengYearGua){
+			const gua = st.yearGua;
+			lines.push(`奇门年卦：${sel.qimengYearGua}${gua && gua.desc ? `（${gua.desc}）` : ''}`);
+		}
+	}
+
+	if(lines.length <= 1){
+		return '';
+	}
+	lines.push('');
+	lines.push('[方法说明]');
+	lines.push('月干支：以当天正午12点是否已跨节气决定归属月。');
+	lines.push('年柱口径：干支年以节气（立春）为界；农历年月日以朔望月与置闰为准，两者并列显示。');
+	lines.push('节气/朔望时刻为该历算经度下的真时刻；jdn 为对应儒略日数。');
+	return lines.join('\n');
+}
 
 class NongLiMain extends Component{
 	constructor(props) {
@@ -36,6 +116,29 @@ class NongLiMain extends Component{
 		this.clickDate = this.clickDate.bind(this);
 		this.clickYearGua = this.clickYearGua.bind(this);
 		this.requestYearGua = this.requestYearGua.bind(this);
+		this.saveAISnapshot = this.saveAISnapshot.bind(this);
+		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+	}
+
+	// AI 导出实时取数(同太乙机制):导出侧派发 refresh 事件,这里按当前 state 即时构建快照回填,
+	// 保证「显示什么就导出什么」,不依赖懒存缓存是否已物化。
+	handleSnapshotRefreshRequest(evt){
+		const moduleName = evt && evt.detail ? evt.detail.module : '';
+		if(moduleName !== 'calendar'){
+			return;
+		}
+		const snapshotText = this.saveAISnapshot();
+		if(snapshotText && evt && evt.detail && typeof evt.detail === 'object'){
+			evt.detail.snapshotText = snapshotText;
+		}
+	}
+
+	saveAISnapshot(){
+		const snapshotText = `${buildNongliSnapshotText(this.state) || ''}`.trim();
+		if(snapshotText){
+			saveModuleAISnapshot('calendar', snapshotText);
+		}
+		return snapshotText;
 	}
 
 	genParams(){
@@ -53,6 +156,7 @@ class NongLiMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/calendar/month`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 
 		const st = {
@@ -61,7 +165,7 @@ class NongLiMain extends Component{
 			dateSelected: null,
 		};
 
-		this.setState(st);
+		this.setState(st, this.saveAISnapshot);
 	}
 
 	async requestYearGua(){
@@ -80,13 +184,14 @@ class NongLiMain extends Component{
 		const data = await request(`${Constants.ServerRoot}/gua/desc`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 
 		const st = {
 			yearGua: result[gua],
 		};
 
-		this.setState(st);
+		this.setState(st, this.saveAISnapshot);
 	}
 
 	onTimeChanged(dt){
@@ -136,6 +241,7 @@ class NongLiMain extends Component{
 			if(!same){
 				this.requestYearGua();
 			}
+			this.saveAISnapshot();
 		});
 	}
 
@@ -247,7 +353,16 @@ class NongLiMain extends Component{
 	}
 
 	componentDidMount(){
+		if(typeof window !== 'undefined'){
+			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
 		this.requestNongli();
+	}
+
+	componentWillUnmount(){
+		if(typeof window !== 'undefined'){
+			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
 	}
 
 

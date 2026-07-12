@@ -14,7 +14,10 @@ import {
 	loadAIExportSettings,
 	saveAIExportSettings,
 	listAIExportTechniqueSettings,
+	listAIExportTechniqueSettingGroups,
+	getSectionGroupsForTechnique,
 	getCurrentAIExportContext,
+	getAIExportEffectiveSectionsForTechnique,
 	AI_EXPORT_SETTINGS_VERSION,
 } from '../../utils/aiExport';
 import {
@@ -95,6 +98,12 @@ function PageHeader(props){
 		const sections = aiSettingData && aiSettingData.sections ? aiSettingData.sections : {};
 		if(Array.isArray(sections[aiSettingKey])){
 			return sections[aiSettingKey];
+		}
+		// [独立复核修] 未自定义基底=有效段(剔默认关段),与挂载侧面板同源(AIAnalysisMain 同款)。
+		// 否则默认关段谎报已勾,且用户取消任一普通段保存后默认关段被静默转显式开(机制第四点破口)。
+		const effective = getAIExportEffectiveSectionsForTechnique(aiSettingKey, aiSettingData);
+		if(Array.isArray(effective) && effective.length){
+			return effective;
 		}
 		return currentSettingOptions.slice(0);
 	})();
@@ -259,6 +268,19 @@ function PageHeader(props){
 			? currentSettingSelected.filter((rec)=>rec !== key)
 			: currentSettingSelected.concat([key]);
 		onAISettingOptionsChange(next);
+	}
+
+	// [v2 底座] 全局导出偏好(格式 v1/v2 · PDF/Word 附页面截图):非 per-technique,随设置对象整体保存。
+	function onAISettingPrefChange(patch){
+		setAiSettingData((prev)=>{
+			const next = {
+				...(prev || {}),
+				version: AI_EXPORT_SETTINGS_VERSION,
+				prefs: { ...((prev && prev.prefs) || {}), ...(patch || {}) },
+			};
+			aiSettingDataRef.current = next;
+			return next;
+		});
 	}
 
 	function onAISettingSelectAll(){
@@ -659,15 +681,39 @@ function PageHeader(props){
 					)}
 				>
 					<div className={styles.aiSettingModal}>
+						<XQSectionTitle>通用（全部技法）</XQSectionTitle>
+						<XQCheckList columns={2}>
+							<XQCheckItem
+								compact
+								checked={(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) === 'v2'}
+								onClick={()=>onAISettingPrefChange({ format: (aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) === 'v2' ? 'v1' : 'v2' })}
+							>
+								新版导出格式 v2（表格化排版）
+							</XQCheckItem>
+							<XQCheckItem
+								compact
+								checked={!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.attachScreenshot === false)}
+								onClick={()=>onAISettingPrefChange({ attachScreenshot: (aiSettingData && aiSettingData.prefs && aiSettingData.prefs.attachScreenshot === false) })}
+							>
+								PDF/Word 附当前页面截图
+							</XQCheckItem>
+						</XQCheckList>
 						<XQSectionTitle>选择技法</XQSectionTitle>
 						<XQSelect
 						size='small'
 						style={{width: '100%'}}
 						value={aiSettingKey}
+						showSearch
+						optionFilterProp='children'
 						onChange={(val)=>setAiSettingKey(val)}
 						>
-							{aiSettingTechs.map((item)=>(
-								<Option key={item.key} value={item.key}>{item.label}</Option>
+							{/* [YE] 73 项按术数域分组(+搜索);数据仍以 aiSettingTechs 为真值,分组只是展示。 */}
+							{listAIExportTechniqueSettingGroups().map((group)=>(
+								<XQSelect.OptGroup key={group.title} label={group.title}>
+									{group.items.map((item)=>(
+										<Option key={item.key} value={item.key}>{item.label}</Option>
+									))}
+								</XQSelect.OptGroup>
 							))}
 						</XQSelect>
 						<XQToolbar compact className={styles.aiSettingActions}>
@@ -676,20 +722,33 @@ function PageHeader(props){
 							<XQButton size='small' onClick={onAISettingResetDefault}>恢复默认</XQButton>
 						</XQToolbar>
 						<XQSectionTitle>导出分段</XQSectionTitle>
-						{currentSettingOptions.length ? (
-							<XQCheckList columns={2} className={styles.aiSettingChecks}>
-								{currentSettingOptions.map((item)=>(
-									<XQCheckItem
-										key={item}
-										compact
-										checked={currentSettingSelected.indexOf(item) >= 0}
-										onClick={()=>onAISettingToggleOption(item)}
-									>
-										{item}
-									</XQCheckItem>
-								))}
-							</XQCheckList>
-						) : (
+						{currentSettingOptions.length ? (()=>{
+							// [YE] 厚技法(印占/三式)段清单按 tab 语义两级分组渲染;无规则技法平铺现状。纯展示层,存储零变更。
+							const sectionGroups = getSectionGroupsForTechnique(aiSettingKey, currentSettingOptions);
+							const renderChecks = (items)=>(
+								<XQCheckList columns={2} className={styles.aiSettingChecks}>
+									{items.map((item)=>(
+										<XQCheckItem
+											key={item}
+											compact
+											checked={currentSettingSelected.indexOf(item) >= 0}
+											onClick={()=>onAISettingToggleOption(item)}
+										>
+											{item}
+										</XQCheckItem>
+									))}
+								</XQCheckList>
+							);
+							if(!sectionGroups){
+								return renderChecks(currentSettingOptions);
+							}
+							return sectionGroups.map((group)=>(
+								<div key={group.title}>
+									<div className={styles.aiSettingGroupTitle}>{group.title}</div>
+									{renderChecks(group.items)}
+								</div>
+							));
+						})() : (
 							<div className={styles.aiSettingEmpty}>当前技法暂未检测到可选分段，请先在该技法完成一次排盘后再设置。</div>
 						)}
 						{currentSettingSupportsPlanetInfo ? (

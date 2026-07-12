@@ -36,7 +36,12 @@ import * as AstroHelper from '../astro/AstroHelper';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
+
+// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出(如 aiAnalysisContext.test),
+// 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
+const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
 import {
 	PD_SYNC_REV,
 	DEFAULT_PD_METHOD,
@@ -284,6 +289,27 @@ function buildPrimaryDirectSnapshotText(chartObj){
 			lines.push(`| ${degree || '无'} | ${promittor || '无'} | ${significator || '无'} | ${date || '无'} |`);
 		});
 	}
+	// [YB v42] 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset;只动 primarydirect 这一支 builder)。
+	// extraLines 提示行:表中日期距今最近的 arc 行(帮 AI 从长表中锚定当下应期;解析不出日期则省略)。
+	let nearestLine = '';
+	if(pds.length){
+		const nowMs = Date.now();
+		let best = null;
+		pds.forEach((pd)=>{
+			const t = Date.parse(`${(pd && pd[4]) || ''}`.trim().replace(/\//g, '-'));
+			if(Number.isNaN(t)){ return; }
+			const dist = Math.abs(t - nowMs);
+			if(!best || dist < best.dist){ best = { pd, dist }; }
+		});
+		if(best){
+			const bpd = best.pd;
+			nearestLine = `表中距今最近行：${degreeText(bpd && bpd[0], pdMethod) || '无'}（${directionObjText(bpd && bpd[1], obj) || '无'} → ${directionObjText(bpd && bpd[2], obj) || '无'}，${bpd && bpd[4] ? `${bpd[4]}` : '无'}）`;
+		}
+	}
+	lines.push('');
+	lines.push(...safeHelperLines(buildCurrentMomentLines, obj, nearestLine ? [nearestLine] : []));
+	lines.push(...safeHelperLines(buildMethodNoteLines, 'primarydirect'));
+	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
 	return lines.join('\n');
 }
 
@@ -329,6 +355,11 @@ function buildFirdariaSnapshotText(chartObj){
 			if(interp){ lines.push(`· ${interp.mainShort}主限 — ${interp.mainTheme}`); }
 		});
 	}
+	// [独立复核修] v42 preset 已声明 当前时点/方法说明——D/E 组补厚唯独漏接 firdaria(死段:勾了导不出)。
+	lines.push('');
+	lines.push(...safeHelperLines(buildCurrentMomentLines, obj, []));
+	lines.push(...safeHelperLines(buildMethodNoteLines, 'firdaria'));
+	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
 	return lines.join('\n');
 }
 
@@ -1156,6 +1187,9 @@ class AstroDirectMain extends Component{
 							<AstroJaynesProgressions
 								value={this.props.chartObj}
 								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 						</FreezeInactive>
@@ -1166,6 +1200,9 @@ class AstroDirectMain extends Component{
 							<AstroVedicProgressions
 								value={this.props.chartObj}
 								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 						</FreezeInactive>
@@ -1176,6 +1213,10 @@ class AstroDirectMain extends Component{
 							<AstroProgressions
 								value={this.props.chartObj}
 								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 						</FreezeInactive>
 						</TabPane>
@@ -1291,7 +1332,7 @@ class AstroDirectMain extends Component{
 
 					<TabPane tab="小限法" key="profection">
 						<FreezeInactive active={this.state.currentTab === "profection"}>
-						<AstroProfection
+						<AstroProfection 
 							value={this.props.chartObj} 
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
@@ -1299,7 +1340,7 @@ class AstroDirectMain extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-								hook={this.state.hook.profection}
+								hook={this.state.hook.profection} 
 							/>
 
 						</FreezeInactive>
@@ -1307,7 +1348,7 @@ class AstroDirectMain extends Component{
 
 					<TabPane tab="太阳弧" key="solararc">
 						<FreezeInactive active={this.state.currentTab === "solararc"}>
-						<AstroSolarArc
+						<AstroSolarArc 
 							value={this.props.chartObj} 
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
@@ -1315,7 +1356,7 @@ class AstroDirectMain extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-								hook={this.state.hook.solararc}
+								hook={this.state.hook.solararc} 
 							/>
 
 						</FreezeInactive>
@@ -1323,7 +1364,7 @@ class AstroDirectMain extends Component{
 
 					<TabPane tab="太阳返照" key="solarreturn">
 						<FreezeInactive active={this.state.currentTab === "solarreturn"}>
-						<AstroSolarReturn
+						<AstroSolarReturn 
 							value={this.props.chartObj} 
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
@@ -1331,14 +1372,14 @@ class AstroDirectMain extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-								hook={this.state.hook.solarreturn}
+								hook={this.state.hook.solarreturn} 
 							/>
 						</FreezeInactive>
 					</TabPane>
 
 					<TabPane tab="月亮返照" key="lunarreturn">
 						<FreezeInactive active={this.state.currentTab === "lunarreturn"}>
-						<AstroLunarReturn
+						<AstroLunarReturn 
 							value={this.props.chartObj} 
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
@@ -1346,14 +1387,14 @@ class AstroDirectMain extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-								hook={this.state.hook.lunarreturn}
+								hook={this.state.hook.lunarreturn} 
 							/>
 						</FreezeInactive>
 					</TabPane>
 
 					<TabPane tab="流年法" key="givenyear">
 						<FreezeInactive active={this.state.currentTab === "givenyear"}>
-						<AstroGivenYear
+						<AstroGivenYear 
 							value={this.props.chartObj} 
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
@@ -1361,15 +1402,15 @@ class AstroDirectMain extends Component{
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
-								hook={this.state.hook.givenyear}
+								hook={this.state.hook.givenyear} 
 							/>
 						</FreezeInactive>
 					</TabPane>
 
 					<TabPane tab="法达星限" key="firdaria">
 						<FreezeInactive active={this.state.currentTab === "firdaria"}>
-						<AstroFirdaria
-								value={this.props.chartObj}
+						<AstroFirdaria 
+								value={this.props.chartObj} 
 								height={height}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
@@ -1394,9 +1435,9 @@ class AstroDirectMain extends Component{
 
 					<TabPane tab="黄道星释" key="zodialrelease">
 						<FreezeInactive active={this.state.currentTab === "zodialrelease"}>
-						<AstroZR
-							value={this.props.chartObj}
-							height={this.props.height}
+						<AstroZR  
+							value={this.props.chartObj} 
+							height={this.props.height} 
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}
@@ -1451,6 +1492,7 @@ class AstroDirectMain extends Component{
 								value={this.props.chartObj}
 								height={height}
 								showAstroMeaning={this.props.showAstroMeaning}
+								tripSystem={this.props.tripSystem}
 							/>
 							</FreezeInactive>
 						</TabPane>

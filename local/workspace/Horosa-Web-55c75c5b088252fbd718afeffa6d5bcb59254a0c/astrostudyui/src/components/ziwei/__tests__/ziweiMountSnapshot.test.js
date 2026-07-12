@@ -78,7 +78,9 @@ describe('紫微挂载 round-trip：四化流派 + 运限', () => {
 	it('默认（无 sihuaSchool / 无 period）：含[宫位总览]大限、不含[运限]段，四化流派=通用·飞星', async () => {
 		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
 		expect(text).toContain('[宫位总览]');
-		expect(text).toContain('大限=');            // 大限逐宫区间一直都有
+		// v2 表化(2026-07-11 试点):宫位总览=GFM 表,大限区间在「大限」列(值口径不变,数值不变证明见 ziweiV2FactEquivalence.test)。
+		expect(text).toContain('| 宫位 | 干支 | 大限 | 星曜（四化括注） |');
+		expect(text).toContain('| 6~11 |');          // 首宫大限区间仍逐宫在列
 		expect(text).not.toContain('[运限]');        // 默认不追加运限段
 		expect(text).toContain('四化流派：通用·飞星');   // 规格正名:现状表实为通用/飞星(非北派天相忌)
 		// sihuaSchool / period 不应泄漏到后端请求体（仅前端本地消费）。

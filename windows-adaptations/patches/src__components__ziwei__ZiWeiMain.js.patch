@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiMain.js b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-index 242018b..08db506 100644
+index e2bbc37..2d1c375 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiMain.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiMain.js
 @@ -31,6 +31,8 @@ import * as ZWConst from '../../constants/ZWConst';
@@ -11,7 +11,7 @@ index 242018b..08db506 100644
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { calcZiwei, deriveSanPan } from './ZiweiCalc';
  import { detectPatterns } from './ziweiPatterns';
-@@ -660,10 +662,15 @@ class ZiWeiMain extends Component{
+@@ -684,10 +686,15 @@ class ZiWeiMain extends Component{
  		// 并行 + rules 会话缓存:rules 与本盘无关(body 恒 {}),原串行瀑布白付一次 RTT;
  		// 启动已 prime 缓存(models/app.js dispatch rules/ziwei),此处通常零成本命中。
  		// 任一失败整体 throw、不 setState,与原「串行中途失败不 setState」口径一致。
@@ -29,4 +29,4 @@ index 242018b..08db506 100644
 +				}),
  			ziweirulesCached({}),
  		]);
- 		const result = data[Constants.ResultKey]
+ 		// 🔴 空载荷守卫:request() 网络层失败会吞错 resolve undefined(非 reject)。

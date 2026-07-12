@@ -29,7 +29,7 @@ function readItem(key){
 function writeItem(key, val){
 	const storage = getStorage();
 	if(storage){
-		storage.setItem(key, val);
+		try{ storage.setItem(key, val); }catch(e){ /* 配额满等静默:设置丢失可重选,绝不炸渲染 */ }
 	}
 }
 

@@ -15,6 +15,7 @@ import { yarrowYao } from '../gua/LiuYaoConst';
 import { analyzeLiuyao } from '../gua/liuyaoFacade';
 import { normalizeLiuyaoSettings, applyPreset, setOption, LIUYAO_SCHOOL_OPTIONS, LIUYAO_PRESETS } from '../gua/liuyaoSchools';
 import { YONGSHEN_CATEGORIES } from '../gua/liuyaoYongShen';
+import { CHISHI_JUE, FADONG_JUE, LIUSHEN_FADONG, YAOWEI_XIANG, ZHANLEI_GANGYAO } from '../gua/liuyaoReference';
 import { SHENSHA_META, DEFAULT_SHENSHA_SET } from '../gua/liuyaoShenSha';
 import { LiuYaoZhuangTable, LiuYaoYongShenView, LiuYaoDongBianView, LiuYaoRelatedCards, LiuYaoShenShaView, LiuYaoReference, LiuYaoXunKong } from './LiuYaoBoard';
 import DateTime from '../comp/DateTime';
@@ -82,6 +83,16 @@ export function buildTimeGua(nongli){
 	return { yao, currentGua: guaidx, nongli };
 }
 
+// GFM 表化同构数据行(空 cell → —),供 AI 导出/挂载可读化;数据层零变化——表行可逆变换逐字复原旧格式行。
+const MD_DASH = '—';
+function pushMdRows(lines, header, rows){
+	lines.push(`| ${header.join(' | ')} |`);
+	lines.push(`| ${header.map(()=>'---').join(' | ')} |`);
+	rows.forEach((cells)=>{
+		lines.push(`| ${cells.map((c)=>(c === undefined || c === null || c === '' ? MD_DASH : `${c}`)).join(' | ')} |`);
+	});
+}
+
 // 六爻断卦结构段(流派/用神/旺衰/飞伏/卦身/动变/神煞/六神),供 AI 挂载/导出/储存复用(单一真值源=analyzeLiuyao)。
 // st 缺 liuyaoSettings 时用默认设置(默认全显,零回归既有行只追加)。
 export function liuyaoStructLines(st){
@@ -118,23 +129,24 @@ export function liuyaoStructLines(st){
 			if(ys.roles){ lines.push(`原神：${ys.roles.yuan}(${loc(ys.located.yuan)})　忌神：${ys.roles.ji}(${loc(ys.located.ji)})　仇神：${ys.roles.chou}(${loc(ys.located.chou)})`); }
 		}
 		if(a.guaShen){ lines.push(`卦身：${a.guaShen.body}${a.guaShen.onChart ? '(上卦)' : '(不上卦)'}`); }
-		// 逐爻结构(初→上)
-		lines.push('逐爻(初→上)：六神│伏神│本爻│世应│旺衰│状态│神煞');
-		a.yaos.forEach((y, i)=>{
+		// 逐爻结构(初→上)→ GFM 表:爻/六神/地支/五行/六亲/世应/旺衰/状态/伏神/神煞(空 cell —);旧「逐爻(初→上)：六神│…」图例行由表头承接。
+		const yaoRows = a.yaos.map((y, i)=>{
 			const liu = a.liuShen && a.liuShen[i] ? a.liuShen[i].liushen : '';
 			const fu = (a.fushenAll && a.fushenAll[i]) || y.fushen;
 			const fuTxt = fu && fu.liuqin ? `伏${fu.liuqin}${fu.zhi}${fu.wuxing}` : '';
 			const sha = a.shenSha && a.shenSha.perYao && a.shenSha.perYao[i] ? (a.shenSha.perYao[i].shensha || []).join(',') : '';
 			const stat = [y.yuePo ? '月破' : '', y.xunKong ? (y.voidKind || '旬空') : '', y.ruMu ? '入墓' : '', y.changsheng === '长生' || y.changsheng === '帝旺' || y.changsheng === '绝' ? y.changsheng : ''].filter(Boolean).join(',');
-			lines.push(`第${y.pos}爻：${liu ? liu + ' ' : ''}${y.zhi}${y.wuxing}${y.liuqin}${y.shiYing ? '(' + y.shiYing + ')' : ''} ${y.wangShuai}${stat ? ' ' + stat : ''}${fuTxt ? ' ' + fuTxt : ''}${sha ? ' 神煞:' + sha : ''}`);
+			return [`第${y.pos}爻`, liu, y.zhi, y.wuxing, y.liuqin, y.shiYing, y.wangShuai, stat, fuTxt, sha];
 		});
-		// 动变
+		pushMdRows(lines, ['爻', '六神', '地支', '五行', '六亲', '世应', '旺衰', '状态', '伏神', '神煞'], yaoRows);
+		// 动变 → GFM 表:爻/本卦/变卦/标记(空 cell —)
 		if(a.dongBian && a.dongBian.movingCount > 0){
 			lines.push(`变卦：${a.dongBian.bianGua ? a.dongBian.bianGua.name : ''}${a.dongBian.guaFuYin ? '(卦伏吟)' : ''}${a.dongBian.guaFanYin ? '(卦反吟)' : ''}`);
-			a.dongBian.moves.forEach((m)=>{
+			const moveRows = a.dongBian.moves.map((m)=>{
 				const tags = [m.jinShen ? '进神' : '', m.tuiShen ? '退神' : '', m.fanYin ? '反吟' : '', m.fuYin ? '伏吟' : '', m.huiTou.sheng ? '回头生' : '', m.huiTou.ke ? '回头克' : '', m.huiTou.chong ? '回头冲' : '', m.huiTou.he ? '回头合' : '', m.huaKong ? '化空' : '', m.huaPo ? '化破' : '', m.huaMu ? '化墓' : '', m.huaJue ? '化绝' : ''].filter(Boolean).join('·');
-				lines.push(`第${m.pos}爻动：${m.ben.liuqin}${m.ben.zhi}${m.ben.wuxing} → ${m.bian.liuqin}${m.bian.zhi}${m.bian.wuxing}${tags ? ' ' + tags : ''}`);
+				return [`第${m.pos}爻`, `${m.ben.liuqin}${m.ben.zhi}${m.ben.wuxing}`, `${m.bian.liuqin}${m.bian.zhi}${m.bian.wuxing}`, tags];
 			});
+			pushMdRows(lines, ['爻', '本卦', '变卦', '标记'], moveRows);
 		}
 		return lines;
 	}catch(e){
@@ -291,6 +303,22 @@ export function buildGuaSnapshotText(fields, st){
 		});
 		lines.push('');
 	});
+
+	// [判语库·参考诀表] doctrine 段(默认关段:builder 恒产,导出层按设置控)：与右栏「参考」页 LiuYaoReference 同源,
+	// 五表原文引自 liuyaoReference 常量(诸爻持世诀/六亲发动诀/六神发动歌/爻位象/常见占类断法纲要),判语零改写。
+	const refLiuqinList = ['父母', '兄弟', '子孙', '妻财', '官鬼'];
+	const refLiushenList = ['青龙', '朱雀', '勾陈', '螣蛇', '白虎', '玄武'];
+	lines.push('[判语库·参考诀表]');
+	lines.push('◆ 诸爻持世诀');
+	refLiuqinList.forEach((lq)=>lines.push(`${lq}持世：${CHISHI_JUE[lq]}`));
+	lines.push('◆ 六亲发动诀(发动必生一克一)');
+	refLiuqinList.forEach((lq)=>lines.push(`${lq}动：${FADONG_JUE[lq].ke}　${FADONG_JUE[lq].sheng}`));
+	lines.push('◆ 六神发动歌');
+	refLiushenList.forEach((sn)=>lines.push(`${sn}动：${LIUSHEN_FADONG[sn]}`));
+	lines.push('◆ 爻位象(身/宅/人事)');
+	YAOWEI_XIANG.forEach((y)=>lines.push(`${['初', '二', '三', '四', '五', '上'][y.pos - 1]}爻：${y.body}｜${y.home}｜${y.person}`));
+	lines.push('◆ 常见占类断法纲要');
+	ZHANLEI_GANGYAO.forEach((z)=>lines.push(`${z.name}：用神${z.yong}；吉：${z.ji}；凶：${z.xiong}`));
 
 	return lines.join('\n');
 }
@@ -634,6 +662,7 @@ class GuaZhanMain extends Component{
 				body: JSON.stringify(params),
 			});
 	
+			if(!descdata){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 			const descresult = descdata[Constants.ResultKey];
 	
 			desc = {

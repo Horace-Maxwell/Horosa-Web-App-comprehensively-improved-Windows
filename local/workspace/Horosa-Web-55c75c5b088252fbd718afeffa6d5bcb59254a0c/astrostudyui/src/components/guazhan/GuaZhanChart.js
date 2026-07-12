@@ -4,7 +4,7 @@ import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import GZChart from './GZChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize } from '../../utils/chartDrawGuard';
 
 class GuaZhanChart extends Component{
 	constructor(props) {
@@ -90,10 +90,14 @@ class GuaZhanChart extends Component{
 		window.addEventListener('resize', this.handleResize)
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
 		this.drawChart();
+		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制停旧画面,切回 tab 无 React 更新可触发
+		// 重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。
+		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize)
+		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

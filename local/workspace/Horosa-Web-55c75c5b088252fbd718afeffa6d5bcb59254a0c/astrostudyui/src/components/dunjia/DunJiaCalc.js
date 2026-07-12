@@ -1,6 +1,6 @@
 import * as LRConst from '../liureng/LRConst';
 import { Solar } from 'lunar-javascript';
-import { buildQimenBaGongSnapshotLines, buildQimenFuShiYiGua, buildQimenOverviewSummary } from './DunJiaBaGongRules';
+import { buildQimenBaGongSnapshotLines, buildQimenBaGongKeYingSnapshotLines, buildQimenFuShiYiGua, buildQimenOverviewSummary } from './DunJiaBaGongRules';
 import { buildFaQimenAnalysis } from './DunJiaFaCalc';
 import { LUOSHU_NUM } from './DunJiaFaDoc';
 import request from '../../utils/request';
@@ -2260,6 +2260,16 @@ export function calcDunJia(fields, nongli, options, context){
 	};
 }
 
+// GFM 表化同构数据行(空 cell → —),供 AI 导出/挂载可读化;数据层零变化——表行可逆变换逐字复原旧格式行。
+const MD_DASH = '—';
+function pushMdRows(lines, header, rows){
+	lines.push(`| ${header.join(' | ')} |`);
+	lines.push(`| ${header.map(()=>'---').join(' | ')} |`);
+	rows.forEach((cells)=>{
+		lines.push(`| ${cells.map((c)=>(c === undefined || c === null || c === '' ? MD_DASH : `${c}`)).join(' | ')} |`);
+	});
+}
+
 export function buildDunJiaSnapshotText(pan){
 	if(!pan){
 		return '';
@@ -2355,10 +2365,18 @@ export function buildDunJiaSnapshotText(pan){
 		lines.push('');
 	}
 
+	// [八宫克应] doctrine 段(默认关段:builder 恒产,导出层按设置控)——克应/主应释义原文,可独立于[八宫详解]勾选。
+	const bagongKeYingLines = buildQimenBaGongKeYingSnapshotLines(pan);
+	if(bagongKeYingLines && bagongKeYingLines.length){
+		lines.push(...bagongKeYingLines);
+		lines.push('');
+	}
+
 	lines.push('[九宫方盘]');
-	pan.cells.forEach((cell)=>{
-		lines.push(`${cell.palaceName}${LUOSHU_NUM[cell.palaceName]}宫：${cell.tianGan || '—'} ${cell.god || '—'} ${cell.door || '—'} ${cell.tianXing || '—'} ${cell.diGan || '—'}`);
-	});
+	// 九宫 → GFM 表:宫/天干/神/门/天星/地干(空位源即 —,逐字保留)。
+	pushMdRows(lines, ['宫', '天干', '神', '门', '天星', '地干'], pan.cells.map((cell)=>[
+		`${cell.palaceName}${LUOSHU_NUM[cell.palaceName]}宫`, cell.tianGan || '—', cell.god || '—', cell.door || '—', cell.tianXing || '—', cell.diGan || '—',
+	]));
 
 	// 旺相休囚死(§17.1):以月令五行定各符号能量,供「看旺衰」断盘——旺相则吉力大凶有挡,休囚死则吉力弱凶更凶。
 	const wangShuai = buildQimenWangShuai(pan);
@@ -2366,9 +2384,10 @@ export function buildDunJiaSnapshotText(pan){
 		lines.push('');
 		lines.push('[旺相休囚死·月令能量]');
 		lines.push(`月令：${wangShuai.monthBranch}（${wangShuai.monthElem}令）。当令者旺、我生者相、生我者休、克我者囚、我克者死；旺相有力，休囚死无力。`);
-		wangShuai.palaces.forEach((p)=>{
-			lines.push(`${p.palaceName}${LUOSHU_NUM[p.palaceName]}宫：星${p.star || '—'}(${p.starWuxing || '—'}·${p.starWangShuai || '—'}) 门${p.door || '—'}(${p.doorWuxing || '—'}·${p.doorWangShuai || '—'}) 宫(${p.gongWuxing || '—'}·${p.gongWangShuai || '—'})`);
-		});
+		// 各宫 → GFM 表:宫/星/星五行/星旺衰/门/门五行/门旺衰/宫五行/宫旺衰(空位源即 —)。
+		pushMdRows(lines, ['宫', '星', '星五行', '星旺衰', '门', '门五行', '门旺衰', '宫五行', '宫旺衰'], wangShuai.palaces.map((p)=>[
+			`${p.palaceName}${LUOSHU_NUM[p.palaceName]}宫`, p.star || '—', p.starWuxing || '—', p.starWangShuai || '—', p.door || '—', p.doorWuxing || '—', p.doorWangShuai || '—', p.gongWuxing || '—', p.gongWangShuai || '—',
+		]));
 	}
 
 	// —— 法奇门叠加层（六害 / 化解 / 八门化气大阵 / 用神分论 / 七要 / 孤辰寡宿）；全量输出供 AI 导出·挂载·储存 ——
@@ -2379,7 +2398,8 @@ export function buildDunJiaSnapshotText(pan){
 		lines.push('[六害总览]');
 		if(fa.dangers.length){
 			lines.push('危害递减：击刑＞入墓＞庚＞白虎＞门迫＞空亡；天干＞一切，先解击刑天干。');
-			fa.dangers.forEach((d)=>lines.push(`${d.type}·${d.palaceName}${LUOSHU_NUM[d.palaceName]}宫(${d.direction})｜${d.symbol}`));
+			// 六害 → GFM 表:危害/宫位/符号。
+			pushMdRows(lines, ['危害', '宫位', '符号'], fa.dangers.map((d)=>[d.type, `${d.palaceName}${LUOSHU_NUM[d.palaceName]}宫(${d.direction})`, d.symbol]));
 		}else{
 			lines.push('本局四纲八宫未现六害。');
 		}
@@ -2388,20 +2408,25 @@ export function buildDunJiaSnapshotText(pan){
 		lines.push('');
 		lines.push('[化解方案]');
 		if(fa.jieHua.length){
-			fa.jieHua.forEach((j)=>{
+			// 化解 → GFM 表:宫位/危害/天盘干/化解(灭象·布阵·时机·备注合并;还原时补回 「：」后单空格)。
+			pushMdRows(lines, ['宫位', '危害', '天盘干', '化解'], fa.jieHua.map((j)=>{
 				const dz = j.dangers.map((x)=>x.type).join('+');
 				const mieTxt = j.mie.length ? ' 灭象：' + j.mie.join(' ') : '';
 				const buTxt = j.placements.length ? ' 布阵：' + j.placements.map((p)=>p.where + p.text).join('；') : '';
 				const shiTxt = ` 时机:本宫${j.benZhi || ''}日/${j.ben || ''} 对宫${j.duiZhi || ''}日/${j.dui || ''}`;
-				lines.push(`${j.palaceName}${LUOSHU_NUM[j.palaceName]}宫·${j.direction}（${dz}，天盘干${j.tianGan}）：${mieTxt}${buTxt}${shiTxt}${j.notes.length ? '｜' + j.notes.join(' ') : ''}`);
-			});
+				const notesTxt = j.notes.length ? '｜' + j.notes.join(' ') : '';
+				return [`${j.palaceName}${LUOSHU_NUM[j.palaceName]}宫·${j.direction}`, dz, j.tianGan, `${mieTxt}${buTxt}${shiTxt}${notesTxt}`.trim()];
+			}));
 		}else{
 			lines.push('无需化解。');
 		}
 
 		lines.push('');
 		lines.push('[八门化气大阵]');
-		fa.protect.forEach((r)=>lines.push(`${r.label}${r.gan ? '(' + r.gan + ')' : ''}：${r.palaceNum ? r.palaceName + LUOSHU_NUM[r.palaceName] + '宫·' + r.direction : '未现'}${r.hazards.length ? ' [' + r.hazards.join('/') + ']' : ' [平稳]'}`));
+		// 八门保护 → GFM 表:门/落宫/状态。
+		pushMdRows(lines, ['门', '落宫', '状态'], fa.protect.map((r)=>[
+			`${r.label}${r.gan ? '(' + r.gan + ')' : ''}`, r.palaceNum ? r.palaceName + LUOSHU_NUM[r.palaceName] + '宫·' + r.direction : '未现', r.hazards.length ? '[' + r.hazards.join('/') + ']' : '[平稳]',
+		]));
 
 		lines.push('');
 		lines.push('[用神分论]');
@@ -2415,7 +2440,8 @@ export function buildDunJiaSnapshotText(pan){
 		lines.push('');
 		lines.push('[财富七要]');
 		if(fa.wealth){
-			fa.wealth.items.forEach((it)=>lines.push(`${it.name}:${posTxt(it)}${it.hazards && it.hazards.length ? '[' + it.hazards.join('/') + ']' : ''}`));
+			// 财富用神 → GFM 表:用神/落宫/危害(无危害 → —)。月令/干财为汇总散文,保持原样。
+			pushMdRows(lines, ['用神', '落宫', '危害'], fa.wealth.items.map((it)=>[it.name, posTxt(it), it.hazards && it.hazards.length ? '[' + it.hazards.join('/') + ']' : '']));
 			lines.push(`月令:${fa.wealth.month.zhi}(${fa.wealth.month.wuxing}) ${fa.wealth.month.relation}`);
 			if(fa.wealth.ganCai.length){ lines.push(`干财:${fa.wealth.ganCai.map((c)=>c.src + c.symbol + posTxt(c)).join(' ')}`); }
 		}
@@ -2423,7 +2449,8 @@ export function buildDunJiaSnapshotText(pan){
 		lines.push('');
 		lines.push('[事业七要]');
 		if(fa.career){
-			fa.career.items.forEach((it)=>lines.push(`${it.name}:${posTxt(it)}${it.hazards && it.hazards.length ? '[' + it.hazards.join('/') + ']' : ''}`));
+			// 事业用神 → GFM 表:用神/落宫/危害(无危害 → —)。符使/诸干/行业取象为汇总散文,保持原样。
+			pushMdRows(lines, ['用神', '落宫', '危害'], fa.career.items.map((it)=>[it.name, posTxt(it), it.hazards && it.hazards.length ? '[' + it.hazards.join('/') + ']' : '']));
 			lines.push(`符使:${fa.career.fuShi.map((r)=>r.rel + posTxt(r)).join(' ')}`);
 			lines.push(`诸干:${fa.career.zhuGan.map((r)=>r.rel.split('·')[1] + r.symbol + posTxt(r)).join(' ')}`);
 			if(fa.career.industryHint){ lines.push(fa.career.industryHint); }

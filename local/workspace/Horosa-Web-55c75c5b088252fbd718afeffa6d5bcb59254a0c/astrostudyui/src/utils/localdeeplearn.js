@@ -1,4 +1,5 @@
 import ev10000 from '../data/deeplearn/10000.json';
+import { safeLocalStorageSet } from '../utils/safeStorage';
 import ev20000 from '../data/deeplearn/20000.json';
 import ev30000 from '../data/deeplearn/30000.json';
 import ev40000 from '../data/deeplearn/40000.json';
@@ -63,7 +64,7 @@ function readLocalStore(){
 
 function writeLocalStore(data){
     try{
-        localStorage.setItem(LocalDeepLearnKey, JSON.stringify(data));
+        safeLocalStorageSet(LocalDeepLearnKey, JSON.stringify(data));
     }catch(e){
     }
 }

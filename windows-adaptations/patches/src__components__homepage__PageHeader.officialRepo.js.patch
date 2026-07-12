@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/homepage/PageHeader.js b/astrostudyui/src/components/homepage/PageHeader.js
-index 1f34d52..bcd90d3 100644
+index bf45c4f..4acab1a 100644
 --- a/astrostudyui/src/components/homepage/PageHeader.js
 +++ b/astrostudyui/src/components/homepage/PageHeader.js
-@@ -32,7 +32,8 @@ import XQIcon from '../xq-icons';
+@@ -35,7 +35,8 @@ import XQIcon from '../xq-icons';
  import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, DAY_BOUNDARY_AFTER24, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY, LATE_ZI_HOUR_TODAY, lateZiHourModeToBit } from '../../utils/dayBoundary';
  import styles from './PageHeader.less';
  

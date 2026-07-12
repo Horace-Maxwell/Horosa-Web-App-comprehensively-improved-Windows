@@ -170,12 +170,15 @@ describe('AI 四同步补齐 16 项 GAP — 用户名条目逐一覆盖', ()=>{
 	it('FIX-1 宫神星(houseRows) 出现在主宰星链', ()=>{
 		const out = buildAstroSnapshotContent(fullChart, null);
 		expect(out).toContain('宫神星(houseRows)');
-		expect(out).toMatch(/1宫\(.+\)：宫主/);
+		// [v2 表化重钉] v1 行「1宫(座)：宫主 X 落 …」→ GFM 表行「| 1宫 | 座 | 宫主 | 落宫 | 落座 |」。
+		expect(out).toMatch(/\| 1宫 \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \|/);
 	});
 
 	it('FIX-7 月宿 nakshatra 出现在行星段', ()=>{
 		const out = buildAstroSnapshotContent(fullChart, null);
-		expect(out).toContain('月宿：第18宿 Jyeshtha');
+		// [v2 表化重钉] v1 行「月宿：第18宿 …」→ ◆位置与速度 表「月宿」列 cell(值零变化)。
+		expect(out).toContain('月宿');
+		expect(out).toMatch(/\|[^|\n]*第18宿 Jyeshtha（心宿） 第2步·宿主水星[^|\n]*\|/);
 	});
 
 	it('FIX-12 29°歧度 + 燃烧之路 + 压抑之路 在落座行', ()=>{

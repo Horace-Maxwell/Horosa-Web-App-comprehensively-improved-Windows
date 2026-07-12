@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize } from '../../utils/chartDrawGuard';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
@@ -104,18 +104,24 @@ class AstroDoubleChart extends Component{
 			this._pendingDrawSig = sig;
 		}
 		
-		let planetDisp = new Set();
-		if(this.props.planetDisplay !== undefined && this.props.planetDisplay !== null){
-			for(let i=0; i<this.props.planetDisplay.length; i++){
-				let id = this.props.planetDisplay[i];
-				planetDisp.add(id);
-			}
+		// 【漏传≠全空盘】planetDisplay/lotsDisplay 是显示白名单(desposeStars 按 has() 过滤)。
+		// 调用方漏传(undefined/null)时回落默认集(与 models/app 初值同源),与下方 chartDisplay
+		// 的 CHART_DEFAULTOPTS 回落同款语义;空数组([])是「有意全隐藏」,不回落。
+		// 历史事故:推运 TabPane 漏传 planetDisplay → 双盘有框架无星体。
+		let planetSrc = this.props.planetDisplay;
+		if(planetSrc === undefined || planetSrc === null){
+			planetSrc = AstroConst.DEFAULT_OBJECTS;
 		}
-		if(this.props.lotsDisplay !== undefined && this.props.lotsDisplay !== null){
-			for(let i=0; i<this.props.lotsDisplay.length; i++){
-				let id = this.props.lotsDisplay[i];
-				planetDisp.add(id);
-			}
+		let lotsSrc = this.props.lotsDisplay;
+		if(lotsSrc === undefined || lotsSrc === null){
+			lotsSrc = AstroConst.DEFAULT_LOTS;
+		}
+		let planetDisp = new Set();
+		for(let i=0; i<planetSrc.length; i++){
+			planetDisp.add(planetSrc[i]);
+		}
+		for(let i=0; i<lotsSrc.length; i++){
+			planetDisp.add(lotsSrc[i]);
 		}
 		let chartDisplay = this.props.chartDisplay;
 		if(chartDisplay === undefined || chartDisplay === null){
@@ -149,6 +155,9 @@ class AstroDoubleChart extends Component{
 		this.chartCircle = new AstroChartCircle(option);
 		this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
 		this.drawChart();
+		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时 drawDoubleChart 尺寸早退留旧画面,
+		// 切回 tab 又无 React 更新可触发重画 → 表新盘旧;尺寸变化(含 0→非0)时补一次 drawChart。
+		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 	}
 
 	componentDidUpdate(){
@@ -157,6 +166,7 @@ class AstroDoubleChart extends Component{
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize);
+		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

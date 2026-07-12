@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { createPortal } from 'react-dom';
 import {
 	MOIRA_WHEEL_R as R,
 	MOIRA_WHEEL_VIEW as VIEW,
@@ -860,13 +861,18 @@ class GuoLaoMoiraPickWheel extends Component{
 		if(!tooltip){
 			return null;
 		}
-		return (
+		// portal 挂 body:同 GuoLaoMoiraWheel(中栏 container-type 收纳陷阱),择日轮共用同一 class 同一根因。
+		if(typeof document === 'undefined' || !document.body){
+			return null;
+		}
+		return createPortal(
 			<div
 				className="horosa-guolao-moira-tooltip"
 				style={{left: tooltip.x, top: tooltip.y}}
 			>
 				{tooltip.text}
-			</div>
+			</div>,
+			document.body
 		);
 	}
 

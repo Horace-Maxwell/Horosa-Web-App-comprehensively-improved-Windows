@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col } from 'antd';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as LRConst from '../liureng/LRConst';
@@ -100,7 +101,7 @@ class LiuRengInput extends Component{
 	}
 
 	onChartTypeChange(val){
-		localStorage.setItem('liurengPanView', val);
+		safeLocalStorageSet('liurengPanView', val);
 		if(this.props.onChartTypeChange){
 			this.props.onChartTypeChange(val);
 		}

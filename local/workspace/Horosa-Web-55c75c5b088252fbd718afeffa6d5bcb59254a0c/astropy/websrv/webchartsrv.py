@@ -105,16 +105,21 @@ class WebChartSrv:
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
-    def horosaIdentity(self):
+    def horosaIdentity(self, deep=None):
         # 身份握手端点:前端在采用任何本地服务地址(query/存储/端口推导)之前,先 GET 本端点核验
         # app 标记(+壳注入的每次启动 nonce)——防端口被其它进程占用时把「陌生 200 响应」误当后端
         # (症状:排盘失败但 statusCode:200)。明文、免签名,与 Java 侧 /horosaIdentity 同构。
+        # deep=1:附带一次微型真算(flatlib 儒略日,零 I/O)——看门狗借此看见
+        # 「身份线程活着但算力已死」的灰区;proto 升 2 表示支持 deep 维度。
         enable_crossdomain()
         _nonce = os.environ.get('HOROSA_LAUNCH_NONCE', '') or ''
         # 与 Java 侧同构的 ASCII 白名单(str.isalnum 会放行 CJK,不可用)。
         _nonce = ''.join(ch for ch in _nonce
                          if ('a' <= ch <= 'z') or ('A' <= ch <= 'Z') or ('0' <= ch <= '9') or ch in '_-')
-        return jsonpickle.encode({'app': 'horosa-chart', 'proto': 1, 'nonce': _nonce}, unpicklable=False)
+        payload = {'app': 'horosa-chart', 'proto': 2, 'nonce': _nonce}
+        if deep:
+            payload['deep'] = 'ok' if _identity_deep_ok() else 'fail'
+        return jsonpickle.encode(payload, unpicklable=False)
 
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
@@ -385,6 +390,19 @@ class WebChartSrv:
         finally:
             pop_request_trip(_trip_orig)
             pop_request_terms(_terms_orig)
+
+
+def _identity_deep_ok():
+    """身份深探真算:flatlib 儒略日(真业务库、纯计算零 I/O)。
+    任何异常收敛为 False(探针绝不把服务打崩);HOROSA_IDENTITY_DEEP_FAIL=1 为 dev 注错钩。"""
+    try:
+        if os.environ.get('HOROSA_IDENTITY_DEEP_FAIL') == '1':
+            return False
+        from flatlib.datetime import Datetime as _IdDt
+        jd = _IdDt('2000/01/01', '12:00', '+00:00').jd
+        return abs(float(jd) - 2451545.0) < 1e-6
+    except Exception:
+        return False
 
 
 def CORS():

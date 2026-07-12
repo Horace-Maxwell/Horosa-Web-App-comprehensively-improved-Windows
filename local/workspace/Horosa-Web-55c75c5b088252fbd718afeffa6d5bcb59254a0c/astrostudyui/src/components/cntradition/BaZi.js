@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { XQTabs as Tabs } from '../xq-ui';
 import CnTraditionInput from './CnTraditionInput';
 import * as Constants from '../../utils/constants';
@@ -14,7 +15,7 @@ import BaZiAppInfoPanel from './BaZiAppInfoPanel';
 import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { Solar } from 'lunar-javascript';
-import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear } from '../../utils/baziLunarLocal';
+import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo } from '../../utils/baziLunarLocal';
 
 const TabPane = Tabs.TabPane;
 
@@ -31,6 +32,61 @@ function gzText(zhu){
 	const relGan = zhu.stem && zhu.stem.relative ? `，干十神:${zhu.stem.relative}` : '';
 	const relZhi = zhu.branch && zhu.branch.relative ? `，支十神:${zhu.branch.relative}` : '';
 	return `${gan}${zhi}${relGan}${relZhi}`;
+}
+
+// 四柱与三元段·每柱补充明细（段内纯增）：藏干/纳音/星运/自坐/空亡，与中栏四柱板（BaZiFineChart）同源——
+// 藏干=zhu.stemInBranch（hiddenStemText 同式「干+十神」）、纳音=zhu.naying、星运=getSelfZuo(日干,本柱支)、
+// 自坐=getSelfZuo(本柱干,本柱支)（BaZiFineChart 星运/自坐行同式）、空亡=zhu.xunEmpty（Zhu 旬空同字段）。
+// 子项缺数据即省略；全空返回 ''（不产占位）。仅四柱行调用（gzText 本体不动，流年/大运等其它调用处输出零变化）。
+function gzDetailText(zhu, dayGan){
+	if(!zhu){
+		return '';
+	}
+	const parts = [];
+	const hidden = Array.isArray(zhu.stemInBranch)
+		? zhu.stemInBranch.map((item)=>`${(item && item.cell) || ''}${(item && item.relative) || ''}`).filter(Boolean)
+		: [];
+	if(hidden.length){
+		parts.push(`藏干：${hidden.join('、')}`);
+	}
+	if(zhu.naying){
+		parts.push(`纳音：${zhu.naying}`);
+	}
+	const stemCell = zhu.stem && zhu.stem.cell ? zhu.stem.cell : '';
+	const branchCell = zhu.branch && zhu.branch.cell ? zhu.branch.cell : '';
+	const xingYun = getSelfZuo(dayGan, branchCell);
+	if(xingYun){
+		parts.push(`星运：${xingYun}`);
+	}
+	const ziZuo = getSelfZuo(stemCell, branchCell);
+	if(ziZuo){
+		parts.push(`自坐：${ziZuo}`);
+	}
+	if(zhu.xunEmpty){
+		parts.push(`空亡：${zhu.xunEmpty}`);
+	}
+	return parts.length ? `（${parts.join('；')}）` : '';
+}
+
+// [四柱与三元]4 主柱 GFM 表化用:把 gzText/gzDetailText 的同源值逐字拆成单元格(干支/藏干/十神/纳音/星运/自坐/空亡)。
+// 值表达式与 gzText/gzDetailText 逐字同源(stem.cell/branch.cell/relative、stemInBranch、naying、getSelfZuo、xunEmpty)。
+function gzCells(zhu, dayGan){
+	const gan = zhu && zhu.stem && zhu.stem.cell ? zhu.stem.cell : '';
+	const zhi = zhu && zhu.branch && zhu.branch.cell ? zhu.branch.cell : '';
+	const stemRel = zhu && zhu.stem && zhu.stem.relative ? zhu.stem.relative : '';
+	const branchRel = zhu && zhu.branch && zhu.branch.relative ? zhu.branch.relative : '';
+	const hidden = zhu && Array.isArray(zhu.stemInBranch)
+		? zhu.stemInBranch.map((item)=>`${(item && item.cell) || ''}${(item && item.relative) || ''}`).filter(Boolean)
+		: [];
+	return {
+		ganzhi: `${gan}${zhi}` || '—',
+		cang: hidden.length ? hidden.join('、') : '—',
+		shishen: [stemRel, branchRel].filter(Boolean).join('·') || '—',
+		naying: (zhu && zhu.naying) || '—',
+		xingYun: getSelfZuo(dayGan, zhi) || '—',
+		ziZuo: getSelfZuo(gan, zhi) || '—',
+		kong: (zhu && zhu.xunEmpty) || '—',
+	};
 }
 
 // 多运限段数封顶（批A）：流年/流月/流日/流时合计封顶，防快照爆；超限截断 + 提示行。
@@ -306,10 +362,14 @@ function buildBaziSnapshotText(params, result){
 
 	lines.push('');
 	lines.push('[四柱与三元]');
-	lines.push(`年柱：${gzText(four.year)}`);
-	lines.push(`月柱：${gzText(four.month)}`);
-	lines.push(`日柱：${gzText(four.day)}`);
-	lines.push(`时柱：${gzText(four.time)}`);
+	// 每柱行尾补明细括注（藏干/纳音/星运/自坐/空亡，中栏四柱板同源）；行首「干支+干支十神」前缀逐字不动（段内纯增）。
+	const dayGanCell = four.day && four.day.stem ? four.day.stem.cell : '';
+	lines.push('| 柱 | 干支 | 藏干 | 十神 | 纳音 | 星运 | 自坐 | 空亡 |');
+	lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
+	[['年柱', four.year], ['月柱', four.month], ['日柱', four.day], ['时柱', four.time]].forEach(([label, zhu])=>{
+		const c = gzCells(zhu, dayGanCell);
+		lines.push(`| ${label} | ${c.ganzhi} | ${c.cang} | ${c.shishen} | ${c.naying} | ${c.xingYun} | ${c.ziZuo} | ${c.kong} |`);
+	});
 	lines.push(`胎元：${gzText(four.tai)}`);
 	lines.push(`命宫：${gzText(four.ming)}（起法：${(params && params.minggongMethod === 'shufa') ? '子平数法' : '通行版'}）`);
 	lines.push(`身宫：${gzText(four.shen)}`);
@@ -331,7 +391,9 @@ function buildBaziSnapshotText(params, result){
 		lines.push(st.cangVersion === 'fenye'
 			? '（分野加权：天干100/本气100/中气60/余气30；月柱仅当令司令吃月令×1.5，余月支藏干不加月乘）'
 			: '（通行示例权重：天干100/本气100/中气60/余气30/月令×1.5）');
-		lines.push(`分布：${st.scores.map((s)=>`${s.label}${s.percent}%`).join('　')}`);
+		lines.push('| 五行 | 占比 |');
+		lines.push('| --- | --- |');
+		st.scores.forEach((s)=>{ lines.push(`| ${s.label} | ${s.percent}% |`); });
 		lines.push(`最旺：${st.dominant}　最弱：${st.weakest}`);
 		if(st.dayMaster){
 			lines.push(`日主${st.dayMaster.element}：${st.dayMaster.verdict}（同党印比 ${st.dayMaster.samePercent}% · 异党 ${Math.round((100 - st.dayMaster.samePercent) * 10) / 10}%）`);
@@ -349,8 +411,10 @@ function buildBaziSnapshotText(params, result){
 		}
 		if(Array.isArray(gy.schools) && gy.schools.length){
 			lines.push('多派用神对照：');
+			lines.push('| 流派 | 喜用 | 忌 | 备注 |');
+			lines.push('| --- | --- | --- | --- |');
 			gy.schools.forEach((s)=>{
-				lines.push(`· ${s.school}${s.verdict ? `·${s.verdict}` : ''}：喜用 ${(s.xi && s.xi.join('·')) || '—'}　忌 ${(s.ji && s.ji.length ? s.ji.join('·') : '—')}；${s.note}`);
+				lines.push(`| ${s.school}${s.verdict ? `·${s.verdict}` : ''} | ${(s.xi && s.xi.join('·')) || '—'} | ${(s.ji && s.ji.length ? s.ji.join('·') : '—')} | ${s.note} |`);
 			});
 		}else if(gy.yongshen){
 			const yo = gy.yongshen;
@@ -398,16 +462,24 @@ function buildBaziSnapshotText(params, result){
 	if(bazi.mainDirection && bazi.mainDirection.length){
 		lines.push('');
 		lines.push('[大运]');
+		// [v2 排版批量·表化] 同构逐条行改 GFM 表（紫微宫位总览范式）：段头/值表达式零变更
+		// （第N步/item.year/getGz 逐字复用），仅排版骨架换表头+分隔行+数据行；归一器/docx/PDF 表块直通。
+		lines.push('| 步序 | 起运年 | 干支 |');
+		lines.push('| --- | --- | --- |');
 		bazi.mainDirection.forEach((item, idx)=>{
 			const y = item.year !== undefined ? `${item.year}` : '';
 			const gz = getGz(item);
-			lines.push(`第${idx + 1}步：${y} ${gz}`);
+			lines.push(`| 第${idx + 1}步 | ${y} | ${gz} |`);
 		});
 	}
 
 	if(bazi.direction && bazi.direction.length){
 		lines.push('');
 		lines.push('[流年行运概略]');
+		// [v2 排版批量·表化] 每板块「概略+流年」两行并为一表行：值表达式逐字复用
+		// （startYear/startAge/dayunGz/yearGzs 组装式不动），旧行标签词（起始年/起始年龄/大运/流年）上移表头。
+		lines.push('| 板块 | 起始年 | 起始年龄 | 大运 | 流年 |');
+		lines.push('| --- | --- | --- | --- | --- |');
 		bazi.direction.forEach((block, idx)=>{
 			const startYear = block && block.startYear !== undefined ? `${block.startYear}` : '';
 			const startAge = block && block.age !== undefined ? `${block.age}` : '';
@@ -426,10 +498,7 @@ function buildBaziSnapshotText(params, result){
 					return gz;
 				})
 				.filter(Boolean);
-			lines.push(`板块${idx + 1}：起始年${startYear}，起始年龄${startAge}岁，大运${dayunGz}`);
-			if(yearGzs.length){
-				lines.push(`流年：${yearGzs.join(' ')}`);
-			}
+			lines.push(`| 板块${idx + 1} | ${startYear} | ${startAge}岁 | ${dayunGz} | ${yearGzs.join(' ')} |`);
 		});
 	}
 
@@ -726,7 +795,7 @@ class BaZi extends Component{
 		this.setState({
 			baziOpt: opt,
 		}, ()=>{
-			localStorage.setItem(BaZiOptKey, JSON.stringify(opt));
+			safeLocalStorageSet(BaZiOptKey, JSON.stringify(opt));
 			if(needRefetch){
 				this.requestBazi(this.props.fields);
 			}
@@ -737,7 +806,7 @@ class BaZi extends Component{
 		this.setState({
 			chartStyle,
 		}, ()=>{
-			localStorage.setItem(BAZI_CHART_STYLE_KEY, chartStyle);
+			safeLocalStorageSet(BAZI_CHART_STYLE_KEY, chartStyle);
 		});
 	}
 

@@ -1,4 +1,5 @@
 import { getStore, } from './storageutil';
+import { safeLocalStorageSet } from './safeStorage';
 import { copyTextSmart } from './clipboardText';
 import { withUtf8Bom } from './aiAnalysisExport';
 import request from './request';
@@ -12,6 +13,11 @@ import * as AstroText from '../constants/AstroText';
 import { buildMeaningTipByCategory, buildAspectMeaningTip, } from '../components/astro/AstroMeaningData';
 import { buildQimenXiangTipObj, } from '../components/dunjia/QimenXiangDoc';
 import { buildLiuRengShenTipObj, buildLiuRengHouseTipObj, } from '../components/liureng/LRShenJiangDoc';
+// v2 呈现层底座(纯函数/轻量,jest 安全);重件 docx 渲染器走动态 import(exportDocx/exportPdfStyled 内)。
+import { packBlocksIntoChunks } from './aiExportDocModel';
+import { isDocxTableSep, isTableBodyLine } from './mdTableParse';
+import { buildAIExportLegendSection } from './aiExportLegend';
+import { capturePageScreenshotForExport } from './pageScreenshot';
 
 const SYMBOL_MAP = {
 	'☉': '日',
@@ -147,12 +153,35 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 //        MIGRATION_VERSION 升至 == SETTINGS_VERSION 以覆盖曾在 v31 自定义过风水导出段的老用户(否则五新段被 filterContentByWantedSections 静默删)。
 // v36 补:一掌经神煞合参层由静态 21×12 表改为按盘计算落宫(生年支/日干/月支/日柱旬定位)→导出新增「神煞合参」段。
 //        yizhangjing 已在 MIGRATION_KEYS;MIGRATION_VERSION 升至 == SETTINGS_VERSION 以覆盖曾自定义过一掌经导出段(v33-35)的老用户(否则神煞合参段被静默删)。
-export const AI_EXPORT_SETTINGS_VERSION = 40;
-const AI_EXPORT_SECTION_MIGRATION_VERSION = 40;
+// v41: 仅升 SETTINGS_VERSION 作「prefs.format 中间态残留重置窗口」(见 normalizeAIExportSettings)。
+// v42: [YB] 星运族 21 键补厚段(起盘信息/当前时点/方法说明)入 preset → SETTINGS/MIGRATION 同升 42
+//      (union 并入老用户设置,同 v22-v40 范式,不删用户项)。
+export const AI_EXPORT_SETTINGS_VERSION = 44;
+const AI_EXPORT_SECTION_MIGRATION_VERSION = 42;
+const AI_EXPORT_PREFS_FORMAT_RESET_VERSION = 41;
+// [v2 底座] 导出格式偏好:'v1'=经典(逐行项目符 beautifyForAI + 纯文本 .doc/裸文本栅格 PDF),
+// 'v2'=表格化温和归一 + 真 docx + 样式化 PDF + 元数据头/图例。
+// 默认 'v2'(用户拍板 2026-07-11:紫微试点验证后默认开);「AI导出设置·通用」保留 v1 经典格式回退开关
+// 一个大版本(出问题一键回退,v1 路径全量保留且有测试钉死)。
+const AI_EXPORT_FORMAT_DEFAULT = 'v2';
+// [YD 拆键] 星盘衍生盘 7 键族:六衍生盘(十三/十二分盘/谐波/黄道分盘/换置盘/占星地图)从
+// astrochart_like 拆出独立导出键(此前六盘塌一键,段勾选永远无法分盘)。astrochart_like 保留=
+// 老用户设置遗产 + AI挂载聚合键(衍生盘挂载语义仍走它,四同步豁免已登)。抽取/缓存/派生附加等
+// 判断一律走本谓词,禁再散写 === 'astrochart_like'。
+const ASTRO_LIKE_EXPORT_KEYS = ['astrochart_like', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro'];
+function isAstroLikeExportKey(key){
+	return ASTRO_LIKE_EXPORT_KEYS.includes(`${key || ''}`);
+}
 const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v18 补:占星/星运核心 + 卜卦/择日(此前漏登记)。务必与新增「有 preset 的技法」同步(aiExport.test 跨系统自检守)。
 	'astrochart',
 	'astrochart_like',
+	'hellenastro',
+	'dwadasamsa',
+	'harmonic',
+	'draconic',
+	'relocation',
+	'locastro',
 	'indiachart',
 	'mundane',
 	'relative',
@@ -221,6 +250,9 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'canping',
 	'heluo',
 	'yizhangjing',
+	// v43 补:黄历(工具组首个导出键,只导出不挂载照 jieqi/fengshui 先例)。
+	// v44 补:六壬[七政]/果老[虚实][本命化曜] 三段(键已在册,union 自动并入自定义)。
+	'calendar',
 ];
 const AI_EXPORT_PLANET_INFO_DEFAULT = {
 	showHouse: 1,
@@ -295,7 +327,13 @@ const JIEQI_SPLIT_TECHNIQUES = [
 const AI_EXPORT_TECHNIQUES = [
 	{ key: 'astrochart', label: '星盘' },
 	{ key: 'indiachart', label: '印度占星' },
-	{ key: 'astrochart_like', label: '十三分盘/占星地图' },
+	{ key: 'astrochart_like', label: '星盘衍生·通用（旧设置）' },
+	{ key: 'hellenastro', label: '十三分盘' },
+	{ key: 'dwadasamsa', label: '十二分盘' },
+	{ key: 'harmonic', label: '调波盘' },
+	{ key: 'draconic', label: '龙盘' },
+	{ key: 'relocation', label: '换置盘' },
+	{ key: 'locastro', label: '占星地图' },
 	{ key: 'mundane', label: '世俗盘' },
 	{ key: 'relative', label: '合盘' },
 	{ key: 'primarydirect', label: '星运-主限法' },
@@ -358,54 +396,74 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'fengshui', label: '风水' },
 	{ key: 'horary', label: '卜卦盘' },
 	{ key: 'election', label: '择日盘' },
+	{ key: 'calendar', label: '黄历' },
 	{ key: 'generic', label: '其他页面' },
 ];
 
 export const AI_EXPORT_PRESET_SECTIONS = {
-	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·X'],
+	// [YA v42] +古典接纳/征象力量:引擎已算(chart.receptions/尊贵力量)却被判词-only 快照丢弃。
+	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·X', '古典接纳', '征象力量'],
 	election: ['起盘信息', '总评', '红线', '分项', '用事专属', '危象日参照', '应期', '本命合参', '时势合参', '建议'],
-	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '寿命格局', '可能性'],
+	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性'],
 	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '古典', '可能性', '大运Dasha',
 		// buildJyotishSnapshotLines 无条件派生段(约 40 段,条件产出⊆语义):此前未登记→自定义过 india 导出段的用户被静默删、纳入面板勾不到。
-		'Panchanga 五要素', '卡拉卡（8 Chara Karakas）', '节点主照（Rasi Drishti）', '星曜状态', '分盘吉位 Vimśopaka', '八分点 SAV', 'Sodhya Pinda 凝量', 'Shadbala 六力', 'Ishta/Kashta 吉凶果', 'Vimśopaka 分盘 20 分力', 'Hora 行星时', 'Choghadia 民用择时', '择时 Panchaka/Abhijit', 'Mūla 大运', 'Sudarśana Chakra 大运', 'Naisargika 自然大运', '补充上升（Supplementary Lagnas）', 'Nāḍī · Bhrigu Bindu 福点', 'Nāḍī · D150 纳地盘', 'Āyurdāya 寿命基础', '特殊上升 Special Lagnas', 'D60 六十分盘吉凶', '分盘变体对照', '功能吉凶（Functional Nature）', '宫位力（Bhava Bala）', '星曜战（Graha Yuddha）', '扩展大运（Conditional / Chara）', 'Kartari 夹击格局', 'Sudarshana 三盘（命/日/月起）', 'KP 宫头次主星 CSL', 'KP 意义者 Significators', 'KP 六级细分 / 当令星', '敌友（复合五分）', '行运 Gochara（从月·八分点）', '化解（信息·非处方）', 'Jaimini Argala 干涉', 'Tajika Harsha Bala', 'Tajika Pancha-Vargeeya', 'Tajika Mudda 年运', '行运 Gochara（从命）', '座运·X'],
-	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '寿命格局', '可能性', '占星地图'],
-	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '寿命格局', '可能性'],
-	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
-	primarydirect: ['出生时间', '星盘信息', '主限法设置', '主限法表格', '主/界限法设置', '主/界限法表格'],
-	distributions: ['界推运（分配法 / Distributions）'],
-	agepoint: ['年龄推进点（Age Point / Huber）'],
+		'Panchanga 五要素', '卡拉卡（8 Chara Karakas）', '节点主照（Rasi Drishti）', '星曜状态', '分盘吉位 Vimśopaka', '八分点 SAV', 'Sodhya Pinda 凝量', 'Shadbala 六力', 'Ishta/Kashta 吉凶果', 'Vimśopaka 分盘 20 分力', 'Hora 行星时', 'Choghadia 民用择时', '择时 Panchaka/Abhijit', 'Mūla 大运', 'Sudarśana Chakra 大运', 'Naisargika 自然大运', '补充上升（Supplementary Lagnas）', 'Nāḍī · Bhrigu Bindu 福点', 'Nāḍī · D150 纳地盘', 'Āyurdāya 寿命基础', '特殊上升 Special Lagnas', 'D60 六十分盘吉凶', '分盘变体对照', '功能吉凶（Functional Nature）', '宫位力（Bhava Bala）', '星曜战（Graha Yuddha）', '扩展大运（Conditional / Chara）', 'Kartari 夹击格局', 'Sudarshana 三盘（命/日/月起）', 'KP 宫头次主星 CSL', 'KP 意义者 Significators', 'KP 六级细分 / 当令星', '敌友（复合五分）', '行运 Gochara（从月·八分点）', '化解（信息·非处方）', 'Jaimini Argala 干涉', 'Tajika Harsha Bala', 'Tajika Pancha-Vargeeya', 'Tajika Mudda 年运', '行运 Gochara（从命）', '座运·X',
+		// [YA v42] A 类硬缺:Yoga 面板成立清单/副星本体位置(含外行星) 显示了却不入快照。
+		'瑜伽格局 Yogas', '副星 Upagraha'],
+	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
+	// [YD 拆键] 六衍生盘独立段表:占星地图含[占星地图]段;其余五盘无该段。改黄道框架的四盘
+	// (hellenastro/dwadasamsa/harmonic/draconic)在派生分析 skip 名单(buildPayload skipClassical),
+	// 其 preset 不列「古典格局」——列了=死勾选项(独立复核咬出);relocation/locastro 不 skip 故保留。
+	hellenastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	dwadasamsa: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	harmonic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	draconic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	relocation: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性'],
+	locastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
+	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	// [YD v42] 时空中点/马克斯 独立段名(此前与组合盘/影响盘撞名,永远无法分选、导出不辨盘型)。
+	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '时空中点·合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '马克斯·影响图盘-星盘A', '马克斯·影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
+	// [YB v42] 星运族 21 键补厚三段(起盘信息/当前时点/方法说明,builder=astroAiSnapshot 共享 helper):
+	//   A 组(此前零盘境)加全三段;B/C 组生辰行并入既有 [本命盘配置](段内纯增,不撞 C 组 [起盘信息]=推运时间);
+	//   D/E 组已有生辰,只补 当前时点/方法说明;primarydirchart 三项天然齐全不动。
+	primarydirect: ['出生时间', '星盘信息', '主限法设置', '主限法表格', '主/界限法设置', '主/界限法表格', '当前时点', '方法说明'],
+	distributions: ['起盘信息', '界推运（分配法 / Distributions）', '当前时点', '方法说明'],
+	agepoint: ['起盘信息', '年龄推进点（Age Point / Huber）', '当前时点', '方法说明'],
 	primarydirchart: ['出生时间', '星盘信息', '主限法盘设置', '本命盘配置', '主限法盘配置', '主限法盘说明'],
-	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运'],
-	firdaria: ['出生时间', '星盘信息', '法达星限表格'],
-	profection: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
-	solararc: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
-	solarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
-	lunarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
-	givenyear: ['本命盘配置', '起盘信息', '时段盘配置', '相位'],
-	decennials: ['起盘信息', '星盘信息', '十年大运设置', '基于X起运'],
-	planetaryages: ['行星年龄（Ages of Man）'],
-	vedicprog: ['恒星推运（Vedic Sidereal）', '本命盘配置', '时段盘配置 二次推运位置'],
-	jaynesprog: ['赤纬推运（Declination）', '本命盘配置', '时段盘 赤纬平行/反平行'],
-	planetaryarc: ['行星弧（Planetary Arc）', '本命盘配置', '时段盘配置', '相位'],
-	persiandirected: ['波斯向运（Persian Directed）'],
-	yearsystem129: ['129年系统表格'],
-	balbillus: ['Balbillus'],
-	triplicityrulers: ['三分主星推运'],
-	keypoints: ['数字相位推运'],
-	lunationphase: ['月相推运'],
-	extrareturns: ['多重回归'],
+	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运', '当前时点', '方法说明'],
+	firdaria: ['出生时间', '星盘信息', '法达星限表格', '当前时点', '方法说明'],
+	profection: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
+	solararc: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
+	solarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
+	lunarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
+	givenyear: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
+	decennials: ['起盘信息', '星盘信息', '十年大运设置', '基于X起运', '当前时点', '方法说明'],
+	planetaryages: ['起盘信息', '行星年龄（Ages of Man）', '当前时点', '方法说明'],
+	vedicprog: ['恒星推运（Vedic Sidereal）', '本命盘配置', '时段盘配置 二次推运位置', '当前时点', '方法说明'],
+	jaynesprog: ['赤纬推运（Declination）', '本命盘配置', '时段盘 赤纬平行/反平行', '当前时点', '方法说明'],
+	planetaryarc: ['行星弧（Planetary Arc）', '本命盘配置', '时段盘配置', '相位', '当前时点', '方法说明'],
+	persiandirected: ['起盘信息', '波斯向运（Persian Directed）', '当前时点', '方法说明'],
+	yearsystem129: ['起盘信息', '129年系统表格', '当前时点', '方法说明'],
+	balbillus: ['起盘信息', 'Balbillus', '当前时点', '方法说明'],
+	triplicityrulers: ['起盘信息', '三分主星推运', '当前时点', '方法说明'],
+	keypoints: ['起盘信息', '数字相位推运', '当前时点', '方法说明'],
+	lunationphase: ['起盘信息', '月相推运', '当前时点', '方法说明'],
+	extrareturns: ['起盘信息', '多重回归', '当前时点', '方法说明'],
 	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '五行力量', '格局·用神', '盲派结构', '月令司令（分野）', '大运', '流年行运概略', '多运限·指定时段'],
 	ziwei: ['起盘信息', '宫位总览', '来因宫', '命中格局', '运限'],
 	suzhan: ['起盘信息', '宿盘宫位与二十八宿星曜'],
-	sixyao: ['起盘信息', '卦象', '六爻与动爻', '断卦结构', '卦辞与断语'],
-	tongshefa: ['本卦', '六爻', '潜藏', '亲和'],
-	huangji: ['起盘', '元会运世', '天道卦', '人事卦', '心易发微', '历史年表'],
+	// [YC v42] 判语库·参考诀表=默认关段(持世诀/发动诀/六神歌/爻位象/占类纲要;体量大,设置面可勾)。
+	sixyao: ['起盘信息', '卦象', '六爻与动爻', '断卦结构', '卦辞与断语', '判语库·参考诀表'],
+	// [YA v42] A 类硬缺全场最薄:纳甲筮法 tab 整个计算分析层(世应/左右五行/五友/大局升降爻变)此前不入快照。
+	tongshefa: ['本卦', '六爻', '潜藏', '亲和', '世应', '五行关系', '五友', '大局与动变'],
+	huangji: ['起盘', '元会运世', '天道卦', '人事卦', '心易发微', '经典原文', '历史年表'],
 	wuzhao: ['起盘', '揲筮', '兆', '木乡', '火乡', '土乡', '金乡', '水乡', '特殊标记'],
-	taixuan: ['起盘', '玄首', '方州部家', '表'],
+	// [YC v42] 太玄经全文=默认关段(81 首全文体量大;当值首已在概览,设置面可勾全量)。
+	taixuan: ['起盘', '玄首', '方州部家', '表', '太玄经全文'],
 	jingjue: ['起课', '卦辞', '三分', '十六卦'],
 	shenyishu: ['起盘', '干支与五行', '神卦', '五行法则', '兵占', '主客判断', '神煞', '长生', '吉凶'],
-	geomancy: ['判定', '解读技法', '十二宫·图形入宫', '十六图形'],
-	tarot: ['牌阵综览', '逐牌详解', '综合断语', '定局', '生命牌'],
+	geomancy: ['判定', '解读技法', '十二宫·图形入宫', '十六图形', '图形释义'],
+	tarot: ['牌阵综览', '逐牌详解', '综合断语', '定局', '生命牌', '组合读法'],
 	liureng: [
 		'起盘信息',
 		'十二盘式',
@@ -439,6 +497,10 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'年命上神',
 		'占断向导',
 		'毕法（已命中）',
+		// [v44] 七政:七政 tab 整层硬缺补挂(日月五星临宫/五行/度/逆/月将,GFM 表)。
+		'七政',
+		// [YC v42] 取象=doctrine 默认关段(象意库,设置面可勾)。
+		'取象',
 	],
 	jinkou: [
 		'起盘信息',
@@ -465,6 +527,8 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'支煞',
 		'岁煞',
 		'十二长生',
+		// [YA v42] A 类硬缺:分析 tab 数理·太玄数显示了却不在快照。
+		'数理',
 	],
 	taiyi: [
 		'起盘信息',
@@ -482,7 +546,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'命宫行限',
 		'十六宫标记',
 	],
-	qimen: ['起盘信息', '盘型', '全局速览', '盘面要素', '奇门演卦', '八宫详解', '九宫方盘', '旺相休囚死·月令能量', '六害总览', '化解方案', '八门化气大阵', '用神分论', '财富七要', '事业七要', '恋爱姻缘', '孤辰寡宿'],
+	qimen: ['起盘信息', '盘型', '全局速览', '盘面要素', '奇门演卦', '八宫详解', '八宫克应', '九宫方盘', '旺相休囚死·月令能量', '六害总览', '化解方案', '八门化气大阵', '用神分论', '财富七要', '事业七要', '恋爱姻缘', '孤辰寡宿'],
 	sanshiunited: [
 		'起盘信息',
 		'概览',
@@ -536,8 +600,13 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'奇门事业七要',
 		'奇门恋爱姻缘',
 		'奇门孤辰寡宿',
+		// [YA v42] A 类硬缺:紫微四化叠加 tab(SanShiZiWeiSihua 独立计算)显示了却不入快照。
+		'紫微四化',
 	],
-	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '神煞', '大限', '政余格局', '相位'],
+	// [YA v42] 补漏登:星曜庙旺段 builder 一直无条件产出却不在 preset(v22 同类坑,自定义过导出段的
+	// 用户被静默删);流年流曜=本轮新段(A 类硬缺:右栏流曜 tab 显示了导不出)。
+	// [v44] 虚实(硬缺:虚宫旬空/实宫四柱)+本命化曜(半缺:此前只导流年侧;含十神序/天禄至天权参考表)。
+	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '星曜庙旺与星点动态（殿垣庙旺乐喜怒 · 顺逆留伏迟速）', '神煞', '大限', '虚实', '本命化曜', '流年流曜', '政余格局', '相位'],
 	qizhengkin: ['起盘', '四柱', '星曜', '十二宫', '神煞', '年限', '流时', '择日', '张果断语', '命宫解读', '今制宿度', '古制宿度'],
 	shaozi: ['起盘', '四柱', '四位起数', '河洛纳音', '完整结构', '64钥匙', '元会运世', '条文'],
 	tieban: ['起盘', '四柱', '算盘定部', '条文', '计算摘要', '命身刻分', '神数号码', '十二宫', '十二宫条文', '紫微安星', '条文库', '大运', '六亲佐证', '框架·流派刻制', '框架·考刻六亲', '框架·八卦滚', '框架·批断顺序', '框架·借用子系统'],
@@ -554,7 +623,9 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议', '风水·纳气盘', '风水·八卦阳宅', '风水·八宅大游年', '风水·玄空飞星', '风水·三合水法', '风水·金锁玉关', '风水·乾坤国宝', '风水·紫白飞星', '风水·辅星水法', '风水·净阴净阳', '风水·玄空大卦', '风水·形势峦头', '风水·择日选择'],
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
 	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '大限·岁运', '流年·岁运', '断验'],
-	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '格局判定', '重犯', '交互格', '职业适性', '大限', '小限与流年十二神', '流年总论', '神煞合参'],
+	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '格局判定', '重犯', '交互格', '职业适性', '大限', '小限与流年十二神', '流年总论', '神煞合参', '诗文', '四柱文献'],
+	// 黄历:段名与 NongLiMain.buildNongliSnapshotText 的 [X] 段头一一对应(v43;refresh-event 实时快照)。
+	calendar: ['起盘信息', '当月月历', '选中日详情', '方法说明'],
 	generic: ['起盘信息'],
 };
 
@@ -818,6 +889,17 @@ function extractSectionTitles(content){
 	return uniqueArray(titles);
 }
 
+// [v2 底座] 全局导出偏好(非 per-technique):format=v1/v2;attachScreenshot=PDF/Word 附当前页面截图
+// (用户拍板:默认开);legend=[图例]段(注册表为空时天然无输出)。未知值一律回默认(前向兼容)。
+function normalizeAIExportPrefs(prefs){
+	const src = prefs && typeof prefs === 'object' ? prefs : {};
+	return {
+		format: src.format === 'v2' ? 'v2' : (src.format === 'v1' ? 'v1' : AI_EXPORT_FORMAT_DEFAULT),
+		attachScreenshot: src.attachScreenshot !== false,
+		legend: src.legend !== false,
+	};
+}
+
 function normalizeAIExportSettings(settings){
 	const sourceVersion = settings && typeof settings === 'object'
 		? parseInt(`${settings.version || 0}`, 10) || 0
@@ -827,7 +909,15 @@ function normalizeAIExportSettings(settings){
 		sections: {},
 		planetInfo: {},
 		astroMeaning: {},
+		prefs: normalizeAIExportPrefs(settings && settings.prefs),
 	};
+	// [v41 一次性迁移] prefs.format='v1' 且来源版本 <41 = 未发布中间态构建的持久化残留
+	// (prefs 字段 v40 期间短暂默认过 'v1',任何设置保存都会把它显式落盘;翻默认后残留值
+	//  合法压过 v2——用户实测「复制没差别」正是此坑)。一次性重置回默认;v41 起用户在
+	// 设置面显式选 v1 会以 version=41 落盘,不再进本窗口,永久尊重。
+	if(sourceVersion < AI_EXPORT_PREFS_FORMAT_RESET_VERSION && normalized.prefs.format === 'v1'){
+		normalized.prefs = { ...normalized.prefs, format: AI_EXPORT_FORMAT_DEFAULT };
+	}
 	if(!settings || typeof settings !== 'object'){
 		return normalized;
 	}
@@ -842,9 +932,14 @@ function normalizeAIExportSettings(settings){
 				return;
 			}
 			const preset = Array.isArray(AI_EXPORT_PRESET_SECTIONS[key]) ? AI_EXPORT_PRESET_SECTIONS[key] : [];
+			// [YC] union 排除默认关段:否则升级把 doctrine 段硬并进已自定义用户的选择=变相默认开。
+			const offSet = getAIExportDefaultOffSet(key);
 			const merged = uniqueArray([
 				...(normalized.sections[key] || []),
-				...preset.map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+				...preset
+					.map((item)=>normalizeSectionTitle(item))
+					.filter(Boolean)
+					.filter((item)=>!offSet || !offSet.has(item)),
 			]);
 			normalized.sections[key] = merged;
 		});
@@ -864,6 +959,32 @@ function normalizeAIExportSettings(settings){
 		normalized.astroMeaning[key] = normalizeAstroMeaningSetting(astroMeaning[key]);
 	});
 	return normalized;
+}
+
+// [v2 底座] 偏好读取口(设置面/导出链共用;normalize 已填默认,这里再兜一层防手改 localStorage 脏值)。
+export function getAIExportFormatPreference(settings = loadAIExportSettings()){
+	const prefs = settings && settings.prefs;
+	return prefs && prefs.format === 'v2' ? 'v2' : (prefs && prefs.format === 'v1' ? 'v1' : AI_EXPORT_FORMAT_DEFAULT);
+}
+
+export function isAIExportScreenshotEnabled(settings = loadAIExportSettings()){
+	const prefs = settings && settings.prefs;
+	return !(prefs && prefs.attachScreenshot === false);
+}
+
+export function isAIExportLegendEnabled(settings = loadAIExportSettings()){
+	const prefs = settings && settings.prefs;
+	return !(prefs && prefs.legend === false);
+}
+
+export function updateAIExportPrefs(patch){
+	const settings = loadAIExportSettings();
+	const next = {
+		...settings,
+		prefs: normalizeAIExportPrefs({ ...(settings && settings.prefs), ...(patch && typeof patch === 'object' ? patch : {}) }),
+	};
+	saveAIExportSettings(next);
+	return next;
 }
 
 function snapshotModuleKeyByContextKey(key){
@@ -950,7 +1071,7 @@ async function requestModuleSnapshotRefresh(moduleName){
 }
 
 function getCachedContentForTechnique(key){
-	if(key === 'astrochart' || key === 'astrochart_like'){
+	if(key === 'astrochart' || isAstroLikeExportKey(key)){
 		return getAstroCachedContent();
 	}
 	if(key === 'indiachart'){
@@ -981,7 +1102,7 @@ function getOptionsForTechniqueKey(key){
 	return uniqueArray([...preset, ...cachedTitles].filter((item)=>!forbidden || !forbidden.has(normalizeSectionTitle(item))));
 }
 
-function splitContentSections(content){
+export function splitContentSections(content){
 	const lines = `${content || ''}`.split('\n');
 	const sections = [];
 	let currentTitle = '';
@@ -1233,10 +1354,25 @@ function applyUserSectionFilter(content, key){
 	const settings = loadAIExportSettings();
 	const selected = settings.sections[key];
 	if(!Array.isArray(selected)){
+		// [YC] 默认关段豁免(导出主链):未自定义 → preset−默认关 过滤。与挂载封装
+		// applyAIExportSectionFilterToSnapshot 的豁免分支同一语义——live 实抓曾咬出只改了
+		// 挂载封装、漏了本主链(六爻判语库段默认漏进导出),两处必须同步,勿再漂移。
+		const offSet = getAIExportDefaultOffSet(key);
+		if(offSet){
+			const defaults = getAIExportEffectiveSectionsForTechnique(key, settings);
+			const wantedDefaults = new Set(uniqueArray(defaults || []));
+			if(wantedDefaults.size){
+				const trimmed = filterContentByWantedSections(stripForbiddenSections(content, key), wantedDefaults);
+				if(`${trimmed || ''}`.trim()){
+					return trimmed;
+				}
+			}
+		}
 		return stripForbiddenSections(content, key);
 	}
 	const preset = Array.isArray(AI_EXPORT_PRESET_SECTIONS[key]) ? AI_EXPORT_PRESET_SECTIONS[key] : [];
-	const picked = selected.length ? selected.slice(0) : preset.slice(0);
+	// [YC] 空数组自定义(清空后保存)与未自定义同待遇:走 effective(=preset−默认关)。
+	const picked = selected.length ? selected.slice(0) : getAIExportEffectiveSectionsForTechnique(key, settings);
 	if(key === 'jinkou'){
 		picked.push('金口诀速览');
 	}else if(key === 'liureng'){
@@ -1564,19 +1700,73 @@ function beautifyForAI(text){
 		out.push('');
 	};
 
-	srcLines.forEach((line)=>{
+	for(let li = 0; li < srcLines.length; li++){
+		const line = srcLines[li];
 		if(!line){
-			return;
+			continue;
+		}
+		// [v2 试点连带] GFM 表块直通:builder(如紫微宫位总览)开始产表后,v1 经典回退阀也不得逐行
+		// bulletize 撕表(| 行加 `- ` + 插空行 = 表结构全毁)。既有内容从无 |---| 分隔行 → 本分支对
+		// 历史文本零字节影响;表行合法"重复",不进 canonicalLine 去重。
+		if(isTableBodyLine(line) && isDocxTableSep(srcLines[li + 1])){
+			if(out.length && out[out.length - 1] !== ''){ out.push(''); }
+			let tj = li;
+			while(tj < srcLines.length && isTableBodyLine(srcLines[tj])){
+				out.push(`${srcLines[tj]}`.trim());
+				tj++;
+			}
+			out.push('');
+			li = tj - 1;
+			continue;
 		}
 		// 长句按常见断句符拆分，提高可读性
 		const broken = line.length > 100 ? line.replace(/([。；;！？!?])/g, '$1\n') : line;
 		broken.split('\n').forEach((seg)=>pushLine(seg));
-	});
+	}
 
 	while(out.length && !out[out.length - 1]){
 		out.pop();
 	}
 
+	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// [v2] 温和归一器:保留 v1 的 去噪/段头整形/段内去重/空行压缩,去掉 逐行 `- ` 项目符+逐行插空行+长句强拆
+// (v1 这三样使导出文本约 2 倍膨胀,纯耗 token;人读排版交给 docx/PDF 派生视图)。
+// GFM 表块整块直通(表头行+分隔行前瞻):表行合法"重复",严禁进去重/改写。v1 路径原样保留(经典格式回退阀)。
+function beautifyForAIGentle(text){
+	const srcLines = (text || '').split('\n');
+	const out = [];
+	let sectionSeen = new Set();
+	for(let i = 0; i < srcLines.length; i++){
+		const raw = srcLines[i] == null ? '' : `${srcLines[i]}`;
+		const val = raw.trim();
+		if(!val){
+			if(out.length && out[out.length - 1] !== ''){ out.push(''); }
+			continue;
+		}
+		if(isTableBodyLine(raw) && isDocxTableSep(srcLines[i + 1])){
+			let j = i;
+			while(j < srcLines.length && isTableBodyLine(srcLines[j])){
+				out.push(`${srcLines[j]}`.trim());
+				j++;
+			}
+			i = j - 1;
+			continue;
+		}
+		if(isNoiseLine(val)){ continue; }
+		if(/^\[.+\]$/.test(val)){
+			if(out.length && out[out.length - 1] !== ''){ out.push(''); }
+			out.push(val);
+			sectionSeen = new Set();
+			continue;
+		}
+		const key = canonicalLine(val);
+		if(key && sectionSeen.has(key)){ continue; }
+		if(key){ sectionSeen.add(key); }
+		out.push(val);
+	}
+	while(out.length && !out[out.length - 1]){ out.pop(); }
 	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -1913,11 +2103,12 @@ function resolveActiveContext(){
 			{ label: '卜卦盘', key: 'horary', name: '卜卦盘' },
 			{ label: '择日盘', key: 'election', name: '择日盘' },
 			{ label: '世俗盘', key: 'mundane', name: '世俗盘' },
-			{ label: '十三分盘', key: 'astrochart_like', name: '十三分盘' },
-			{ label: '十二分盘', key: 'astrochart_like', name: '十二分盘' },
-			{ label: '占星地图', key: 'astrochart_like', name: '占星地图' },
-			{ label: '调波盘', key: 'astrochart_like', name: '调波盘' },
-			{ label: '龙盘', key: 'astrochart_like', name: '龙盘' },
+			{ label: '十三分盘', key: 'hellenastro', name: '十三分盘' },
+			{ label: '十二分盘', key: 'dwadasamsa', name: '十二分盘' },
+			{ label: '占星地图', key: 'locastro', name: '占星地图' },
+			{ label: '调波盘', key: 'harmonic', name: '调波盘' },
+			{ label: '龙盘', key: 'draconic', name: '龙盘' },
+			{ label: '换置盘', key: 'relocation', name: '换置盘' },
 			{ label: '骰子', key: 'otherbu', name: '骰子' },
 			{ label: '量化盘', key: 'germany', name: '量化盘' },
 		];
@@ -1955,10 +2146,14 @@ function resolveActiveContext(){
 		context.displayName = '印度占星';
 		return context;
 	}
-	if(topLabel.includes('十三分盘') || topLabel.includes('希腊星术')
-		|| topLabel.includes('占星地图') || topLabel.includes('星体地图')){
-		context.key = 'astrochart_like';
-		context.displayName = topLabel.includes('十三分盘') ? '十三分盘' : (topLabel.includes('占星地图') ? '占星地图' : '十三分盘 / 占星地图');
+	if(topLabel.includes('十三分盘') || topLabel.includes('希腊星术')){
+		context.key = 'hellenastro';
+		context.displayName = '十三分盘';
+		return context;
+	}
+	if(topLabel.includes('占星地图') || topLabel.includes('星体地图')){
+		context.key = 'locastro';
+		context.displayName = '占星地图';
 		return context;
 	}
 	if(topLabel.includes('合盘') || topLabel.includes('关系盘')){
@@ -2163,13 +2358,13 @@ function resolveContextByAstroState(){
 		};
 		const auxchartMap = {
 			germanytech: { key: 'germany', displayName: '量化盘' },
-			hellenastro: { key: 'astrochart_like', displayName: '十三分盘' },
+			hellenastro: { key: 'hellenastro', displayName: '十三分盘' },
 			// 十二分盘/谐波盘/黄道分盘/换置盘 皆由本命盘派生的占星式衍生盘,导出复用星盘式预设。
-			dwadasamsa: { key: 'astrochart_like', displayName: '十二分盘' },
-			harmonic: { key: 'astrochart_like', displayName: '谐波盘' },
-			draconic: { key: 'astrochart_like', displayName: '黄道分盘' },
-			relocation: { key: 'astrochart_like', displayName: '换置盘' },
-			locastro: { key: 'astrochart_like', displayName: '占星地图' },
+			dwadasamsa: { key: 'dwadasamsa', displayName: '十二分盘' },
+			harmonic: { key: 'harmonic', displayName: '谐波盘' },
+			draconic: { key: 'draconic', displayName: '黄道分盘' },
+			relocation: { key: 'relocation', displayName: '换置盘' },
+			locastro: { key: 'locastro', displayName: '占星地图' },
 			otherbu: { key: 'otherbu', displayName: '骰子' },
 			mundane: { key: 'mundane', displayName: '世俗盘' },
 			// 卜卦盘/择日盘 在辅盘页亦可单开(与顶层同术),各归本预设,勿 fallback 到量化盘。
@@ -2218,9 +2413,9 @@ function resolveContextByAstroState(){
 		case 'jieqichart':
 			return { key: 'jieqi', displayName: '节气盘' };
 		case 'locastro':
-			return { key: 'astrochart_like', displayName: '占星地图' };
+			return { key: 'locastro', displayName: '占星地图' };
 		case 'hellenastro':
-			return { key: 'astrochart_like', displayName: '十三分盘' };
+			return { key: 'hellenastro', displayName: '十三分盘' };
 		case 'indiachart':
 			return { key: 'indiachart', displayName: '印度占星' };
 		case 'cntradition':
@@ -2258,6 +2453,8 @@ function resolveContextByAstroState(){
 			return { key: 'fengshui', displayName: '风水' };
 		case 'sanshiunited':
 			return { key: 'sanshiunited', displayName: '三式合一', domain: 'sanshiunited' };
+		case 'calendar':
+			return { key: 'calendar', displayName: '黄历' };
 		case 'astroreader':
 			return { key: 'generic', displayName: '书籍阅读' };
 		default:
@@ -2446,11 +2643,71 @@ export function saveAIExportSettings(settings){
 	const normalized = normalizeAIExportSettings(settings);
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
-			window.localStorage.setItem(AI_EXPORT_SETTINGS_KEY, JSON.stringify(normalized));
+			safeLocalStorageSet(AI_EXPORT_SETTINGS_KEY, JSON.stringify(normalized));
 		}
 	}catch(e){
 	}
 	return normalized;
+}
+
+// [YE] 技法下拉分组:73 项扁平列表按术数域分五组(设置面 OptGroup 渲染)。
+// 键归组按域硬编码;未列键自动落「其他」——新增技法漏归组不隐身、只是分组粗。
+const AI_EXPORT_TECHNIQUE_GROUPS = [
+	{ title: '西方占星', keys: ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'astrochart_like', 'relative', 'mundane', 'germany', 'horary', 'election', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi'] },
+	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'] },
+	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan'] },
+	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'fengshui', 'calendar'] },
+];
+
+export function listAIExportTechniqueSettingGroups(){
+	const items = listAIExportTechniqueSettings();
+	const byKey = new Map(items.map((item)=>[item.key, item]));
+	const used = new Set();
+	const groups = AI_EXPORT_TECHNIQUE_GROUPS.map((group)=>({
+		title: group.title,
+		items: group.keys.map((key)=>{ used.add(key); return byKey.get(key); }).filter(Boolean),
+	})).filter((group)=>group.items.length > 0);
+	const rest = items.filter((item)=>!used.has(item.key));
+	if(rest.length){
+		groups.push({ title: '其他', items: rest });
+	}
+	return groups;
+}
+
+// [YE] 厚技法「段两级分组」纯展示层(段名/设置存储零变更):印占 40+ 段/三式 60+ 段在设置面按
+// 右栏 tab 语义分组小标题渲染。matcher 按段名前缀/词典;未命中段落落「其他段」组,永不隐身。
+const AI_EXPORT_SECTION_GROUP_RULES = {
+	sanshiunited: [
+		{ title: '太乙', test: (s)=>s.startsWith('太乙') },
+		{ title: '奇门', test: (s)=>s.startsWith('奇门') },
+		{ title: '六壬·断卦', test: (s)=>['大六壬', '四课', '三传', '课体结构', '三传旺衰', '空亡真假', '旬空落点', '陷空', '遁干特殊', '年命上神', '毕法（已命中）', '占断向导', '大格', '小局', '参考'].some((k)=>s.startsWith(k) || s === k) },
+		{ title: '神煞·基础', test: (s)=>s.includes('神煞') || ['行年', '旬日', '旺衰', '干煞', '月煞', '支煞', '岁煞', '十二长生', '概览', '起盘信息', '紫微四化'].includes(s) },
+	],
+	indiachart: [
+		{ title: '大运与年运', test: (s)=>s.includes('大运') || s.startsWith('Tajika') || s.includes('年运') || s.startsWith('行运') || s.startsWith('座运') },
+		{ title: '力量与吉凶', test: (s)=>['Shadbala 六力', 'Ishta/Kashta 吉凶果', '宫位力（Bhava Bala）', '星曜战（Graha Yuddha）', '功能吉凶（Functional Nature）', '敌友（复合五分）', '星曜状态'].includes(s) },
+		{ title: '分盘与点位', test: (s)=>s.includes('分盘') || s.includes('上升') || s.startsWith('Nāḍī') || s.includes('八分点') || s.includes('Pinda') || s.includes('卡拉卡') || s.includes('副星') },
+		{ title: 'KP 与择时', test: (s)=>s.startsWith('KP') || s.includes('择时') || s.includes('Hora') || s.includes('Choghadia') },
+		{ title: '格局与其他', test: (s)=>s.includes('格局') || s.includes('Yoga') || s.includes('Kartari') || s.includes('Argala') || s.includes('化解') || s.includes('主照') || s.includes('五要素') || s.includes('寿命') },
+	],
+};
+
+export function getSectionGroupsForTechnique(key, options){
+	const rules = AI_EXPORT_SECTION_GROUP_RULES[normalizeExportKey(key)];
+	const list = Array.isArray(options) ? options : [];
+	if(!rules || list.length < 16){
+		return null; // 无规则/段少 → 平铺现状
+	}
+	const groups = rules.map((rule)=>({ title: rule.title, items: [] }));
+	const rest = { title: '其他段', items: [] };
+	list.forEach((section)=>{
+		const hit = rules.findIndex((rule)=>{ try{ return rule.test(`${section}`); }catch(_){ return false; } });
+		if(hit >= 0){ groups[hit].items.push(section); }
+		else{ rest.items.push(section); }
+	});
+	const out = groups.filter((group)=>group.items.length > 0);
+	if(rest.items.length){ out.push(rest); }
+	return out.length > 1 ? out : null;
 }
 
 export function listAIExportTechniqueSettings(){
@@ -2473,7 +2730,7 @@ export function listAIExportTechniqueSettings(){
 
 function getExtractorKindByExportKey(key){
 	const exportKey = normalizeExportKey(key);
-	if(exportKey === 'astrochart' || exportKey === 'astrochart_like' || exportKey === 'indiachart'){
+	if(exportKey === 'astrochart' || isAstroLikeExportKey(exportKey) || exportKey === 'indiachart'){
 		return 'astro';
 	}
 	if(exportKey === 'mundane'){
@@ -2512,7 +2769,7 @@ function getExtractorKindByExportKey(key){
 		|| exportKey === 'beiji' || exportKey === 'nanji' || exportKey === 'chunzi' || exportKey === 'xianqin'
 		|| exportKey === 'cetian' || exportKey === 'qizhengkin' || exportKey === 'guolao' || exportKey === 'suzhan'
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
-		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'yizhangjing'){
+		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'yizhangjing' || exportKey === 'calendar'){
 		return `module:${snapshotModuleKeyByContextKey(exportKey)}`;
 	}
 	if(exportKey === 'taiyi'){
@@ -2535,7 +2792,7 @@ function getExtractorKindByExportKey(key){
 
 function getStructuredSnapshotKeysByExportKey(key){
 	const exportKey = normalizeExportKey(key);
-	if(exportKey === 'astrochart' || exportKey === 'astrochart_like'){
+	if(exportKey === 'astrochart' || isAstroLikeExportKey(exportKey)){
 		return ['astro'];
 	}
 	if(exportKey === 'mundane'){
@@ -2595,6 +2852,28 @@ export function getAIExportAuditMatrix(){
 	}));
 }
 
+// [YC] 默认关段注册表:判语库/象意/古籍全文等 doctrine 型段——体量大且非逐盘事实,登记进 preset
+// (设置面可勾、勾了=显式自定义永久尊重),但「用户未自定义时」默认不纳入导出/挂载。
+// 这是「未自定义=全量 preset」铁律的唯一受控豁免面;migration union 也排除这些段(见 normalize),
+// 否则升级会把它们硬并进已自定义用户的选择=变相默认开。段名须与 builder 段头/PRESET 逐字一致。
+const AI_EXPORT_DEFAULT_OFF_SECTIONS = {
+	sixyao: ['判语库·参考诀表'],
+	taixuan: ['太玄经全文'],
+	huangji: ['经典原文', '历史年表'],
+	geomancy: ['图形释义'],
+	yizhangjing: ['诗文', '四柱文献'],
+	qimen: ['八宫克应'],
+	liureng: ['取象'],
+};
+
+export function getAIExportDefaultOffSet(key){
+	const list = AI_EXPORT_DEFAULT_OFF_SECTIONS[normalizeExportKey(key)];
+	if(!Array.isArray(list) || !list.length){
+		return null;
+	}
+	return new Set(list.map((item)=>normalizeSectionTitle(item)));
+}
+
 export function getAIExportEffectiveSectionsForTechnique(key, settings = loadAIExportSettings()){
 	const exportKey = normalizeExportKey(key);
 	if(exportKey === 'jieqi' || isJieQiSplitSettingKey(exportKey)){
@@ -2606,7 +2885,11 @@ export function getAIExportEffectiveSectionsForTechnique(key, settings = loadAIE
 		: {};
 	const selected = Array.isArray(source[exportKey]) ? source[exportKey] : [];
 	const preset = Array.isArray(AI_EXPORT_PRESET_SECTIONS[exportKey]) ? AI_EXPORT_PRESET_SECTIONS[exportKey] : [];
-	const picked = selected.length ? selected : preset;
+	// [YC] 未自定义 → preset 剔除默认关段;显式自定义 → 完全尊重用户所选(含勾了默认关段)。
+	const offSet = getAIExportDefaultOffSet(exportKey);
+	const picked = selected.length
+		? selected
+		: (offSet ? preset.filter((item)=>!offSet.has(normalizeSectionTitle(item))) : preset);
 	const forbidden = getForbiddenSectionSet(exportKey);
 	return uniqueArray(picked
 		.map((item)=>mapLegacySectionTitle(exportKey, item))
@@ -2625,7 +2908,19 @@ export function applyAIExportSectionFilterToSnapshot(key, content, settings = lo
 	const exportKey = normalizeExportKey(key);
 	const sectionsCfg = settings && settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
 	if(!Array.isArray(sectionsCfg[exportKey]) || sectionsCfg[exportKey].length === 0){
-		return content;
+		// [YC] 「未自定义→原样返回」铁律的唯一受控豁免:该技法登记了默认关段 → 按 preset−默认关
+		// 过滤(把 doctrine 大段挡在默认导出/挂载之外);过滤空回退原文的兜底沿用下方同款。
+		const offSet = getAIExportDefaultOffSet(exportKey);
+		if(!offSet){
+			return content;
+		}
+		const defaults = getAIExportEffectiveSectionsForTechnique(key, settings);
+		const wantedDefaults = new Set(uniqueArray(defaults || []));
+		if(wantedDefaults.size === 0){
+			return content;
+		}
+		const trimmed = filterContentByWantedSections(text, wantedDefaults);
+		return `${trimmed || ''}`.trim() ? trimmed : content;
 	}
 	const picked = getAIExportEffectiveSectionsForTechnique(key, settings);
 	const wanted = new Set(uniqueArray(picked || []));
@@ -3307,7 +3602,7 @@ function getIndiaCachedContent(activeLabel){
 }
 
 async function extractAstroContent(context){
-	const isAstroLike = context && context.key === 'astrochart_like';
+	const isAstroLike = !!(context && isAstroLikeExportKey(context.key));
 	const topLabel = context && context.topLabel ? context.topLabel : '';
 	const isIndia = (context && context.key === 'indiachart') || topLabel.includes('印度占星') || topLabel.includes('印度律盘');
 	if(!isIndia){
@@ -4073,7 +4368,7 @@ function replaceKnownSymbols(text, domain){
 	return output;
 }
 
-function normalizeText(text, domain){
+function normalizeText(text, domain, format){
 	let output = replaceKnownSymbols(text, domain);
 	output = output.replace(/\r\n/g, '\n');
 	output = output
@@ -4092,7 +4387,8 @@ function normalizeText(text, domain){
 	if(output.length > 120000){
 		return normalizeWhitespace(output);
 	}
-	output = beautifyForAI(output);
+	// [v2] 温和归一(无 bulletize/表直通);v1 = 经典 beautify(回退阀,字节不变)。
+	output = format === 'v2' ? beautifyForAIGentle(output) : beautifyForAI(output);
 	return output.trim();
 }
 
@@ -5074,7 +5370,50 @@ export function planPdfChunks(text, title, fullH, chunkHeight){
 	return chunks;
 }
 
-async function exportPdf(payload){
+// [WP-C] PDF 首页附「当前页面截图」(用户拍板:技法三栏整页,默认开):独立首页放整图,正文从次页起。
+// 截图缺失/损坏一律静默跳过——附图绝不阻断导出。返回 true=第一页已被截图占用。
+function addScreenshotPageIfAny(pdf, payload, margin){
+	const shot = payload && payload.screenshot;
+	if(!shot || !shot.dataUrl){ return false; }
+	try{
+		const cwMm = pdf.internal.pageSize.getWidth() - margin * 2;
+		const chMm = pdf.internal.pageSize.getHeight() - margin * 2;
+		const w = Math.max(1, Number(shot.width) || 1);
+		const h = Math.max(1, Number(shot.height) || 1);
+		let wMm = cwMm;
+		let hMm = wMm * (h / w);
+		if(hMm > chMm){ hMm = chMm; wMm = hMm * (w / h); }
+		pdf.addImage(shot.dataUrl, 'JPEG', margin + (cwMm - wMm) / 2, margin, wMm, hMm);
+		return true;
+	}catch(e){
+		console.warn('[aiExport] PDF 附页面截图失败,跳过附图继续导出:', e && e.message);
+		return false;
+	}
+}
+
+// canvas 按 A4 页高切片入 pdf(plain/styled 两路共用;逻辑自原 exportPdf 逐字抽出)。返回更新后的 first。
+function addCanvasSlicesToPdf(pdf, canvas, margin, first){
+	const cwMm = pdf.internal.pageSize.getWidth() - margin * 2;     // 内容宽(mm)
+	const chMm = pdf.internal.pageSize.getHeight() - margin * 2;    // 内容高(mm)
+	const pxPerMm = canvas.width / cwMm;
+	const pageHpx = Math.floor(chMm * pxPerMm);
+	let y = 0;
+	let isFirst = first;
+	while(y < canvas.height){
+		const sliceH = Math.min(pageHpx, canvas.height - y);
+		const slice = document.createElement('canvas');
+		slice.width = canvas.width; slice.height = sliceH;
+		slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+		if(!isFirst) pdf.addPage();
+		pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, cwMm, sliceH / pxPerMm);
+		isFirst = false; y += sliceH;
+	}
+	return isFirst;
+}
+
+// v1 经典路径:纯文本栅格(行为与历史 exportPdf 逐字一致,仅切片循环抽为共用函数+截图首页)。
+// 同时是 v2 样式化路径的防线④兜底——样式化任何环节失败都整体回退到这里。
+async function exportPdfPlain(payload){
 	const title = payload.tech || '';
 	const text = payload.text || '';
 	let host = null;
@@ -5111,9 +5450,8 @@ async function exportPdf(payload){
 
 		const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
 		const margin = 10;
-		const cwMm = pdf.internal.pageSize.getWidth() - margin * 2;     // 内容宽(mm)
-		const chMm = pdf.internal.pageSize.getHeight() - margin * 2;    // 内容高(mm)
 		let first = true;
+		if(addScreenshotPageIfAny(pdf, payload, margin)){ first = false; }
 		for(let ci = 0; ci < contents.length; ci++){
 			let canvas = await renderChunk(contents[ci]);
 			// 墨迹守卫覆盖「每一块」(非仅首块):任何本应有内容的块渲染空白 → 重试一次 → 仍空白则整份放弃降级 TXT,
@@ -5131,18 +5469,7 @@ async function exportPdf(payload){
 				console.error('[aiExport] PDF 渲染 canvas 尺寸为 0,放弃落盘');
 				return false;
 			}
-			const pxPerMm = canvas.width / cwMm;
-			const pageHpx = Math.floor(chMm * pxPerMm);
-			let y = 0;
-			while(y < canvas.height){
-				const sliceH = Math.min(pageHpx, canvas.height - y);
-				const slice = document.createElement('canvas');
-				slice.width = canvas.width; slice.height = sliceH;
-				slice.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-				if(!first) pdf.addPage();
-				pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, cwMm, sliceH / pxPerMm);
-				first = false; y += sliceH;
-			}
+			first = addCanvasSlicesToPdf(pdf, canvas, margin, first);
 		}
 		const blob = pdf.output('blob');
 		if(!blob || blob.size < 5000){
@@ -5159,11 +5486,114 @@ async function exportPdf(payload){
 	}
 }
 
+// [v2] 样式化 PDF:IR → 块级 DOM(段头条/真表格/键值/子题)→ 按块装箱分块栅格。
+// 防线:①克隆定位归零+skipFonts(同 plain) ②逐块墨迹守卫+重试 ③blob 尺寸守卫
+//      ④任何失败(含单块超限/装箱不适用)→ 返 false,由 exportPdf 包装层整体回退 plain 路径。
+async function exportPdfStyled(payload){
+	let host = null;
+	try{
+		const htiMod = await import('html-to-image');
+		const toCanvas = htiMod.toCanvas || (htiMod.default && htiMod.default.toCanvas);
+		const jspdfMod = await import('jspdf');
+		const jsPDF = jspdfMod.jsPDF || jspdfMod.default || jspdfMod;
+		const renderer = await import('./aiExportDocRender');
+		if(!toCanvas || !jsPDF || !renderer || !renderer.renderExportDocToPdfNodes){ return false; }
+		const nodes = renderer.renderExportDocToPdfNodes(payload);
+		if(!nodes || !nodes.length){ return false; }
+		host = document.createElement('div');
+		host.style.cssText = `position:fixed;left:0;top:0;width:${PDF_HOST_WIDTH}px;padding:40px 48px;box-sizing:border-box;background:#ffffff;color:#111111;z-index:-1;pointer-events:none;`;
+		nodes.forEach((n)=>host.appendChild(n));
+		document.body.appendChild(host);
+
+		const heights = nodes.map((n)=>{
+			const rect = n.getBoundingClientRect ? n.getBoundingClientRect() : { height: n.offsetHeight || 0 };
+			let mt = 0; let mb = 0;
+			try{
+				const cs = window.getComputedStyle(n);
+				mt = parseFloat(cs.marginTop) || 0;
+				mb = parseFloat(cs.marginBottom) || 0;
+			}catch(_){ /* jsdom/异常按 0 */ }
+			return (rect.height || 0) + mt + mb;
+		});
+		const fullH = host.offsetHeight || 0;
+		const pixelRatio = (fullH * 2 <= PDF_MAX_CANVAS_EDGE) ? 2 : 1;
+		let chunkRanges;
+		if(fullH * pixelRatio > PDF_MAX_CANVAS_EDGE){
+			chunkRanges = packBlocksIntoChunks(heights, PDF_CHUNK_HEIGHT, Math.floor(PDF_MAX_CANVAS_EDGE / pixelRatio) - 96);
+			if(!chunkRanges){
+				console.warn('[aiExport] 样式化 PDF:存在单块超限内容,回退纯文本栅格路径');
+				return false;
+			}
+		}else{
+			chunkRanges = [{ start: 0, end: nodes.length }];
+		}
+
+		const renderRange = async (range)=>{
+			while(host.firstChild){ host.removeChild(host.firstChild); }
+			for(let k = range.start; k < range.end; k++){ host.appendChild(nodes[k]); }
+			return toCanvas(host, {
+				pixelRatio,
+				backgroundColor: '#ffffff',
+				cacheBust: true,
+				skipFonts: true,
+				style: { position: 'static', left: '0', top: '0', margin: '0' },
+			});
+		};
+
+		const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+		const margin = 10;
+		let first = true;
+		if(addScreenshotPageIfAny(pdf, payload, margin)){ first = false; }
+		for(let ci = 0; ci < chunkRanges.length; ci++){
+			let canvas = await renderRange(chunkRanges[ci]);
+			if(!canvasHasInk(canvas)){
+				canvas = await renderRange(chunkRanges[ci]);
+				if(!canvasHasInk(canvas)){
+					console.error(`[aiExport] 样式化 PDF 第 ${ci} 块渲染空白(重试后仍无墨迹),回退纯文本路径`);
+					return false;
+				}
+			}
+			if(!canvas || !canvas.width || !canvas.height){
+				console.error('[aiExport] 样式化 PDF canvas 尺寸为 0,回退纯文本路径');
+				return false;
+			}
+			first = addCanvasSlicesToPdf(pdf, canvas, margin, first);
+		}
+		const blob = pdf.output('blob');
+		if(!blob || blob.size < 5000){
+			console.error(`[aiExport] 样式化 PDF blob 异常(size=${blob && blob.size}),回退纯文本路径`);
+			return false;
+		}
+		downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf');
+		return true;
+	}catch(e){
+		console.error('[aiExport] 样式化 PDF 失败,回退纯文本路径:', e);
+		return false;
+	}finally{
+		if(host && host.parentNode){ try{ host.parentNode.removeChild(host); }catch(e){} }
+	}
+}
+
+// 包装层:v2 先走样式化,失败整体回退经典纯文本栅格(防线④);v1 直走经典路径(字节级不变)。
+async function exportPdf(payload){
+	if(getAIExportFormatPreference() === 'v2'){
+		const styledOk = await exportPdfStyled(payload);
+		if(styledOk){ return true; }
+	}
+	return exportPdfPlain(payload);
+}
+
 function exportTxt(payload){
 	downloadBlob(`${payload.filenameBase}.txt`, payload.text, 'text/plain;charset=utf-8');
 }
 
+// 经典 .doc(HTML 壳):v2 下降级兜底(docx 构建失败时),v1 下仍是「Word」主路径。
+// [WP-C] 顶部按需内嵌页面截图(data URI;Word 2016+ 解析 HTML 内嵌 base64 图)。
 function exportWord(payload){
+	const shot = payload && payload.screenshot;
+	const shotImg = shot && shot.dataUrl
+		? `<p><img src="${shot.dataUrl}" style="max-width:100%;" alt="当前页面截图" /></p>\n`
+		: '';
 	const html = `<!doctype html>
 <html>
 <head>
@@ -5171,10 +5601,29 @@ function exportWord(payload){
 <title>${escapeHtml(payload.tech)}</title>
 </head>
 <body>
-<pre style="white-space: pre-wrap; word-break: break-word; font-family: 'Microsoft YaHei', Arial, sans-serif; line-height: 1.5;">${escapeHtml(payload.text)}</pre>
+${shotImg}<pre style="white-space: pre-wrap; word-break: break-word; font-family: 'Microsoft YaHei', Arial, sans-serif; line-height: 1.5;">${escapeHtml(payload.text)}</pre>
 </body>
 </html>`;
 	downloadBlob(`${payload.filenameBase}.doc`, html, 'application/msword;charset=utf-8');
+}
+
+// [v2] 真 docx 导出(标题层级/真 Word 表/封面截图);失败返 false 由调用方降级 .doc 壳。
+// docx 渲染器(含 'docx' 依赖)恒走动态 import——主包严禁静态引(代码分包,同 exportPdf 先例)。
+async function exportDocx(payload){
+	try{
+		const renderer = await import('./aiExportDocRender');
+		if(!renderer || !renderer.buildExportDocxBlob){ return false; }
+		const blob = await renderer.buildExportDocxBlob(payload, { screenshot: (payload && payload.screenshot) || null });
+		if(!blob || blob.size < 2000){
+			console.error(`[aiExport] DOCX blob 异常(size=${blob && blob.size}),降级 .doc`);
+			return false;
+		}
+		downloadBlob(`${payload.filenameBase}.docx`, blob, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+		return true;
+	}catch(e){
+		console.error('[aiExport] DOCX 导出失败,降级 .doc 壳:', e);
+		return false;
+	}
 }
 
 function normalizeExportKey(key){
@@ -5232,7 +5681,7 @@ function isAstroFamilyExportKey(key){
 		return true;
 	}
 	return val === 'astrochart'
-		|| val === 'astrochart_like'
+		|| isAstroLikeExportKey(val)
 		|| val === 'indiachart'
 		|| val === 'relative'
 		|| val === 'germany'
@@ -5432,7 +5881,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
 
 async function extractContentByKey(exportKey, context){
-	if(exportKey === 'astrochart' || exportKey === 'astrochart_like' || exportKey === 'indiachart'){
+	if(exportKey === 'astrochart' || isAstroLikeExportKey(exportKey) || exportKey === 'indiachart'){
 		return extractAstroContent(context);
 	}
 	if(exportKey === 'germany'){
@@ -5504,6 +5953,10 @@ async function extractContentByKey(exportKey, context){
 	}
 	if(exportKey === 'huangji'){
 		return extractSimpleModuleContent('huangji');
+	}
+	if(exportKey === 'calendar'){
+		// 黄历:NongLiMain 监听 refresh-event 按当前月历/选中日即时构建快照(同太乙机制)。
+		return extractSimpleModuleContent('calendar');
 	}
 	if(exportKey === 'wuzhao' || exportKey === 'taixuan' || exportKey === 'jingjue' || exportKey === 'shenyishu'
 		|| exportKey === 'shaozi' || exportKey === 'tieban' || exportKey === 'fendjing' || exportKey === 'beiji'
@@ -5626,8 +6079,16 @@ async function buildPayload(){
 		}
 	}
 
-	// 古典格局派生分析按需拼入(仅西占主盘/十三分盘),置于段过滤前 → 受「古典格局」导出段开关控制、不遗漏。
-	if(usedExportKey === 'astrochart' || usedExportKey === 'astrochart_like'){
+	// 古典格局派生分析按需拼入,置于段过滤前 → 受「古典格局」导出段开关控制、不遗漏。
+	// [YD 口径修] 改变黄道读数框架的派生盘(十三/十二分盘/调波/龙盘)跳过:后端 /astroextra/analysis
+	// 按常规黄道以本命参数重算,挂到这些盘上=本命结论冒充派生盘结论(审计实锚:13分盘导出的
+	// 「古典格局」实为本命口径)。占星地图/重置盘保留(本命语义仍成立)。
+	const CLASSICAL_SKIP_KEYS = ['hellenastro', 'dwadasamsa', 'harmonic', 'draconic'];
+	const CLASSICAL_SKIP_DERIVED = ['十三分', '十二分', '调波', '谐波', '龙盘', '黄道分盘'];
+	const derivedName = `${(context && context.displayName) || ''}`;
+	const skipClassical = CLASSICAL_SKIP_KEYS.includes(usedExportKey)
+		|| (usedExportKey === 'astrochart_like' && CLASSICAL_SKIP_DERIVED.some((word)=>derivedName.includes(word)));
+	if((usedExportKey === 'astrochart' || isAstroLikeExportKey(usedExportKey)) && !skipClassical){
 		const classicalAnalysis = await fetchAstroClassicalAnalysisSectionForExport();
 		if(classicalAnalysis){
 			content = `${`${content || ''}`.trim()}\n\n${classicalAnalysis}`.trim();
@@ -5635,7 +6096,7 @@ async function buildPayload(){
 	}
 	// 占星地图专属真值(仅当前上下文=占星地图 tab):最近一次地图状态(口径/线经度/CCG/关系盘/落点),
 	// 单一真值源=后端 ACGraph 响应;置于段过滤前 → 受「占星地图」导出段开关控制。无快照优雅降级。
-	if(usedExportKey === 'astrochart_like' && context && context.displayName === '占星地图'){
+	if(usedExportKey === 'locastro' || (usedExportKey === 'astrochart_like' && context && context.displayName === '占星地图')){
 		try{
 			const acgSection = buildAcgSectionText();
 			if(acgSection){
@@ -5643,6 +6104,7 @@ async function buildPayload(){
 			}
 		}catch(e){ /* graceful */ }
 	}
+	const exportFormat = getAIExportFormatPreference();
 	const rawSnapshotContent = stripForbiddenSections(content, usedExportKey);
 	content = applyUserSectionFilterByContext(rawSnapshotContent, usedExportKey);
 	let planetSettingKey = usedExportKey;
@@ -5653,15 +6115,25 @@ async function buildPayload(){
 	}
 	content = applyPlanetInfoFilterByContext(content, planetSettingKey);
 	const normalizeDomain = isKentangRawExportKey(usedExportKey) ? 'kentang_raw' : context.domain;
-	content = normalizeText(content, normalizeDomain);
+	content = normalizeText(content, normalizeDomain, exportFormat);
 	content = applyAstroMeaningFilterByContext(content, planetSettingKey)
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();
 	if(!content && rawSnapshotContent){
 		// 兜底：设置过滤链条异常时，回退到计算快照原文，避免“无可导出文本”误报。
-		content = applyAstroMeaningFilterByContext(normalizeText(rawSnapshotContent, normalizeDomain), planetSettingKey)
+		content = applyAstroMeaningFilterByContext(normalizeText(rawSnapshotContent, normalizeDomain, exportFormat), planetSettingKey)
 			.replace(/\n{3,}/g, '\n\n')
 			.trim();
+	}
+	// [v2] 导出范围统计(先于 [图例] 追加,图例属附注不计入):让 AI/读者知道内容是否被「AI导出设置」裁剪过。
+	const totalSectionCount = extractSectionTitles(rawSnapshotContent).length;
+	const keptSectionCount = extractSectionTitles(content).length;
+	// [v2] [图例] 段(payload 层拼装,不进 builder/挂载/储存;注册表空 → 天然无输出)。
+	if(exportFormat === 'v2' && content && isAIExportLegendEnabled()){
+		const legendSection = buildAIExportLegendSection(usedExportKey);
+		if(legendSection){
+			content = `${content}\n\n${legendSection}`;
+		}
 	}
 	const displayName = getTechniqueLabelByKey(usedExportKey) || context.displayName || '当前技术';
 	const stamp = formatStamp(now);
@@ -5671,15 +6143,24 @@ async function buildPayload(){
 	const a23 = defaultAfter23NewDay();
 	const lzh = defaultLateZiHourUseNextDay();
 	const dayRule = `排盘规则: 日界点【${a23 === 0 ? '24点算第二天·日柱守今' : '23点算第二天·日柱进位次日'}】, 晚子时·时柱起干【${lzh === 0 ? '按当日柱·今日干起子时' : '按次日柱·次日干起子时'}】(仅 23:00–23:59 影响日柱/时柱)`;
-	const header = [
-		`技术: ${displayName}`,
-		`导出时间: ${time}`,
-		`页面: ${window.location.href}`,
-		'说明: 当前激活技术面板专属导出；符号已转为AI可识别文本。',
-		dayRule,
-		'',
-		'========== 内容开始 =========='
-	].join('\n');
+	// [v2] 元数据头(纯增行,v1 头逐字不变):格式版本锚 + 导出范围(防"AI 不知道内容被裁剪");
+	// 盘主/生辰不进头(正文 [起盘信息] 已有,跨段去重原则)。
+	const headerLines = [];
+	if(exportFormat === 'v2'){
+		headerLines.push('格式: horosa-ai-export/2');
+	}
+	headerLines.push(`技术: ${displayName}`);
+	headerLines.push(`导出时间: ${time}`);
+	headerLines.push(`页面: ${window.location.href}`);
+	if(exportFormat === 'v2' && totalSectionCount > 0){
+		// 少段两因(用户裁剪/默认关段)统一一句,指路设置面即可。
+		headerLines.push(`导出范围: ${keptSectionCount}/${totalSectionCount} 段${keptSectionCount < totalSectionCount ? '（部分段未纳入，可在「AI导出设置」调整）' : '（未裁剪）'}`);
+	}
+	headerLines.push('说明: 当前激活技术面板专属导出；符号已转为AI可识别文本。');
+	headerLines.push(dayRule);
+	headerLines.push('');
+	headerLines.push('========== 内容开始 ==========');
+	const header = headerLines.join('\n');
 	const text = `${header}\n${content}\n========== 内容结束 ==========`;
 
 	return {
@@ -5690,6 +6171,55 @@ async function buildPayload(){
 	};
 }
 
+// [WP-C] Word/PDF 动作前按设置抓「当前页面截图」(三栏整页)。失败/降级恒 null——绝不阻断导出;
+// note 用于 toast 说明(如 WebGL 页降级)。copy/txt 不抓(纯文本形态无附图位,免无谓开销)。
+// [Y0 加固] 复制成功 toast 附「盘面时间」:用户先复制、后改盘重排、再拿旧文本对照新盘,会误判
+// 「导出与盘对不上」(2026-07-11 实测复盘:导出恒与复制那一刻的盘面一致,属时序误会)。
+// toast 直接亮出所复制盘的时刻,新旧一眼可辨。键优先级:会随改盘变动的时刻行优先——
+// 推运时间(推运族目标时刻)>起课时间(卜类)>日期/时间(命盘起盘信息);出生时间仅最后兜底
+// (YB 补厚后推运快照首段是 [本命盘配置] 含出生时间,平铺首匹配会恒显不变的出生时刻,失去分辨力——独立复核咬出)。
+function chartMomentSuffix(content){
+	const txt = `${content || ''}`;
+	const keys = ['推运时间', '起课时间', '日期', '时间', '出生时间'];
+	for(let i = 0; i < keys.length; i += 1){
+		const m = txt.match(new RegExp(`^${keys[i]}：([^\n]+)$`, 'm'));
+		if(m && m[1] && `${m[1]}`.trim()){
+			return `（盘面时间 ${m[1].trim()}）`;
+		}
+	}
+	return '';
+}
+
+async function attachScreenshotIfEnabled(payload, action){
+	if(action !== 'pdf' && action !== 'word' && action !== 'all'){
+		return '';
+	}
+	try{
+		if(!isAIExportScreenshotEnabled()){
+			return '';
+		}
+		const { shot, note } = await capturePageScreenshotForExport();
+		if(shot){
+			payload.screenshot = shot;
+		}
+		return note || '';
+	}catch(e){
+		return '';
+	}
+}
+
+// Word 动作:v2 = 真 docx(失败降级经典 .doc 壳);v1 = 经典 .doc(字节级不变)。
+async function exportWordByFormat(payload){
+	if(getAIExportFormatPreference() === 'v2'){
+		const docxOk = await exportDocx(payload);
+		if(docxOk){ return { ok: true, label: 'Word(docx)' }; }
+		exportWord(payload);
+		return { ok: true, label: 'Word(.doc 兼容格式)' };
+	}
+	exportWord(payload);
+	return { ok: true, label: 'Word' };
+}
+
 export async function runAIExport(action){
 	try{
 		const payload = await buildPayload();
@@ -5697,10 +6227,12 @@ export async function runAIExport(action){
 		if(!pure){
 			return { ok: false, message: '当前页面没有可导出文本。' };
 		}
+		const shotNote = await attachScreenshotIfEnabled(payload, action);
+		const shotSuffix = shotNote ? `（${shotNote}）` : '';
 
 		if(action === 'copy'){
 			const ok = await copyTextSmart(payload.text);
-			if(ok){ return { ok: true, message: 'AI纯文字已复制。' }; }
+			if(ok){ return { ok: true, message: `AI纯文字已复制。${chartMomentSuffix(payload.content)}` }; }
 			// 剪贴板不可用(桌面 webview / 非聚焦 / 安全上下文)→ 自动导出 TXT,用户必有产物。
 			exportTxt(payload);
 			return { ok: true, message: '剪贴板不可用，已自动导出 TXT 文件。' };
@@ -5710,12 +6242,12 @@ export async function runAIExport(action){
 			return { ok: true, message: 'TXT 已导出。' };
 		}
 		if(action === 'word'){
-			exportWord(payload);
-			return { ok: true, message: 'Word 已导出。' };
+			const word = await exportWordByFormat(payload);
+			return { ok: true, message: `${word.label} 已导出。${shotSuffix}` };
 		}
 		if(action === 'pdf'){
 			const ok = await exportPdf(payload);
-			if(ok){ return { ok: true, message: 'PDF 已导出。' }; }
+			if(ok){ return { ok: true, message: `PDF 已导出。${shotSuffix}` }; }
 			// PDF 生成失败(渲染空白/异常)→ 自动导出 TXT,用户必有产物(同 copy 分支降级先例)。
 			exportTxt(payload);
 			return { ok: true, message: 'PDF 生成失败，已自动导出 TXT（内容相同，可改用 Word）。' };
@@ -5723,12 +6255,13 @@ export async function runAIExport(action){
 		if(action === 'all'){
 			const copied = await copyTextSmart(payload.text);
 			exportTxt(payload);
-			exportWord(payload);
+			const word = await exportWordByFormat(payload);
 			const pdfOk = await exportPdf(payload);
-			const got = ['TXT', 'Word'].concat(pdfOk ? ['PDF'] : []);
+			const got = ['TXT', word.label].concat(pdfOk ? ['PDF'] : []);
 			let message = `已导出 ${got.join(' / ')}${copied ? '，并复制到剪贴板' : ''}。`;
 			if(!copied){ message += '（剪贴板不可用，全文已在 TXT 内）'; }
 			if(!pdfOk){ message += '（PDF 生成失败，可用 Word）'; }
+			if(shotSuffix){ message += shotSuffix; }
 			return { ok: true, message };
 		}
 		return { ok: false, message: '未知导出动作。' };
@@ -5739,4 +6272,7 @@ export async function runAIExport(action){
 }
 
 // 仅供 jest 注入测试(照 services/aianalysis.js __testing__ 先例);生产代码勿 import。
-export const __aiExportTesting__ = { exportPdf, canvasHasInk, planPdfChunks };
+export const __aiExportTesting__ = {
+	exportPdf, exportPdfPlain, exportPdfStyled, canvasHasInk, planPdfChunks,
+	beautifyForAIGentle, addScreenshotPageIfAny, normalizeAIExportPrefs,
+};

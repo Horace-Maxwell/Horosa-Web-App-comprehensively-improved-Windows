@@ -1,4 +1,4 @@
-import { startRecoveryPolling, buildDefaultRecoveryProbe } from '../serviceRecovery';
+import { startRecoveryPolling, buildDefaultRecoveryProbe, invokeLightServiceRestart } from '../serviceRecovery';
 
 // 微任务冲刷:probe 的 Promise 链在 fake timers 下需要手动放行
 const flushPromises = () => Promise.resolve().then(() => Promise.resolve()).then(() => Promise.resolve());
@@ -106,5 +106,30 @@ describe('buildDefaultRecoveryProbe 探测组装', () => {
 			getServerRoot: () => 'http://127.0.0.1:9999',
 		});
 		await expect(probeThrow()).resolves.toBe(false);
+	});
+});
+
+describe('invokeLightServiceRestart(横幅/状态灯/弹窗三处统一入口)', ()=>{
+	test('轻量命令成功 → light,不碰全量修复', async ()=>{
+		const calls = [];
+		const api = { invoke: async (cmd)=>{ calls.push(cmd); } };
+		await expect(invokeLightServiceRestart(api)).resolves.toBe('light');
+		expect(calls).toEqual(['restart_local_services_command']);
+	});
+	test('老壳无轻量命令 → 回退全量修复(代数差安全)→ full', async ()=>{
+		const calls = [];
+		const api = { invoke: async (cmd)=>{
+			calls.push(cmd);
+			if(cmd === 'restart_local_services_command'){ throw new Error('unknown command'); }
+		} };
+		await expect(invokeLightServiceRestart(api)).resolves.toBe('full');
+		expect(calls).toEqual(['restart_local_services_command', 'trigger_runtime_repair_command']);
+	});
+	test('两者皆失败 → 抛错(调用方报「重启失败」)', async ()=>{
+		const api = { invoke: async ()=>{ throw new Error('boom'); } };
+		await expect(invokeLightServiceRestart(api)).rejects.toThrow('boom');
+	});
+	test('无桥 → 立即抛(非桌面环境)', async ()=>{
+		await expect(invokeLightServiceRestart(null)).rejects.toThrow();
 	});
 });

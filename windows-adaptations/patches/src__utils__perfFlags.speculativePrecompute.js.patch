@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/perfFlags.js b/astrostudyui/src/utils/perfFlags.js
-index a344fe4..72b0f13 100644
+index 2d529b2..84987e0 100644
 --- a/astrostudyui/src/utils/perfFlags.js
 +++ b/astrostudyui/src/utils/perfFlags.js
-@@ -59,3 +59,61 @@ export function techniqueCacheEnabled(){
+@@ -60,3 +60,61 @@ export function techniqueCacheEnabled(){
  export function idleWarmQueueEnabled(){
  	return flagEnabled('horosa.perf.idleWarmQueue');
  }

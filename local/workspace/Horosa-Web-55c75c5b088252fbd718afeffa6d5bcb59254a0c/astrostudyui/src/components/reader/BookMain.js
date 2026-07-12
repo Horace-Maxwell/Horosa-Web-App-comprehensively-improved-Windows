@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import BookReader from './BookReader';
 import BookList from './BookList';
 import MyBookList from './MyBookList';
@@ -45,7 +46,7 @@ class BookMain extends Component{
 	}
 
 	selectBook(rec){
-		localStorage.setItem('readerBook', JSON.stringify(rec));
+		safeLocalStorageSet('readerBook', JSON.stringify(rec));
 		this.setState({
 			book: rec,
 			domType: 1,

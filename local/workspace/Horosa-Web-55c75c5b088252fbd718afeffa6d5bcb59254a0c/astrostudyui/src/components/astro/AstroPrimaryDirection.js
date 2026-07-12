@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Checkbox } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -303,7 +304,7 @@ class AstroPrimaryDirection extends Component{
 					ref={node => {
 						this.searchInput = node;
 					}}
-					placeholder={`输入年份`}
+					placeholder={`输入年数`}
 					value={selectedKeys[0]}
 					onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
 					onPressEnter={() => this.handleSearch(selectedKeys, confirm)}
@@ -959,7 +960,7 @@ class AstroPrimaryDirection extends Component{
 									this.setState({ pdPageSize: pageSize });
 									try{
 										if(typeof window !== 'undefined' && window.localStorage){
-											window.localStorage.setItem(PD_PAGE_SIZE_KEY, `${pageSize}`);
+											safeLocalStorageSet(PD_PAGE_SIZE_KEY, `${pageSize}`);
 										}
 									}catch(e){
 										// 持久化失败不影响本会话生效

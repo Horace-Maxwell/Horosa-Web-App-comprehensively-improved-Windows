@@ -1,9 +1,11 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col, List, Typography, Dropdown, Menu, Slider, Popover} from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import { requestRaw, } from '../../utils/request';
 import { randomStr, launchFullScreen, exitFullScreen, checkFullScreen, selectText } from '../../utils/helper';
+import { idbGet, idbScheduleWrite } from '../../utils/idbCacheStore';
 import { ColorTheme, ReaderThemeKey, ReaderFontSizeKey,ReaderScrollTopKey, ReaderBookKey, TTSOptKey,} from '../../constants/ReaderConst';
 import styles from '../../css/styles.less';
 import { XQDrawer, XQSelect } from '../xq-ui';
@@ -126,29 +128,42 @@ class BookReader extends Component{
 		this.handleScroll = this.handleScroll.bind(this);
 	}
 
-	readLocalStorage(bookid, ord){
-		let str = localStorage.getItem(bookid);
+	// 章节缓存(整章正文,单章可达数十 KB)住 IndexedDB——存储分层治理:每本书一键的旧
+	// localStorage 方案会随阅读量无限累积,直至写满 origin 级 5MB 配额、全 App setItem 连坐炸。
+	// 读:IDB 优先;miss 再查 localStorage 旧键(老用户既有缓存),命中即搬进 IDB 并删旧键(渐进迁移)。
+	async readLocalStorage(bookid, ord){
+		const applyRec = (rec)=>{
+			let chapter = rec && rec.chapter;
+			if(chapter && bookid === chapter.bookId && ord === chapter.ord){
+				this.setState({ chapter: chapter, showCatalog: false }, ()=>{
+					const el = document.getElementById(this.state.divId);
+					if(el){ el.scrollTop = rec.scroll; }
+					this.lineNo = this.getLineNo();
+				});
+				return true;
+			}
+			return false;
+		};
+		const idbKey = 'horosa.reader.chapter.' + bookid;
+		try{
+			const idbStr = await idbGet(idbKey);
+			if(idbStr){
+				let rec = null;
+				try{ rec = JSON.parse(idbStr); }catch(e){ rec = null; }
+				if(rec && applyRec(rec)){ return true; }
+			}
+		}catch(e){ /* IDB 不可用降级走旧键/网络 */ }
+		let str = null;
+		try{ str = localStorage.getItem(bookid); }catch(e){ str = null; }
 		if(str){
 			let rec = null;
 			// 缓存损坏 → 清掉自愈、走网络重取，别抛错断掉翻章
-			try{ rec = JSON.parse(str); }catch(e){ localStorage.removeItem(bookid); return false; }
-			let chapter = rec && rec.chapter;
-			if(chapter){
-				if(bookid === chapter.bookId && ord === chapter.ord){
-					const st = {
-						chapter: chapter,
-						showCatalog: false,
-					};
-
-					this.setState(st, ()=>{
-						const el = document.getElementById(this.state.divId);
-						if(el){ el.scrollTop = rec.scroll; }
-						this.lineNo = this.getLineNo();
-					});
-					return true;
-				}
-
+			try{ rec = JSON.parse(str); }catch(e){ try{ localStorage.removeItem(bookid); }catch(_){} return false; }
+			if(rec && rec.chapter){
+				idbScheduleWrite(idbKey, ()=>JSON.stringify(rec));
+				try{ localStorage.removeItem(bookid); }catch(_){}
 			}
+			if(applyRec(rec)){ return true; }
 		}
 		return false;
 	}
@@ -162,6 +177,7 @@ class BookReader extends Component{
 		const data = await request(`${Constants.ServerRoot}/astroreader/getchapter`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 		let chapter = result.Chapter;
 		if(chapter){
@@ -176,7 +192,7 @@ class BookReader extends Component{
 						chapter: chapter,
 						scroll: 0,
 					}
-					localStorage.setItem(bookid, JSON.stringify(rec));
+					idbScheduleWrite('horosa.reader.chapter.' + bookid, ()=>JSON.stringify(rec));
 				}
 			}
 			this.props.book.currentOrd = ord;
@@ -215,6 +231,7 @@ class BookReader extends Component{
 		const data = await request(`${Constants.ServerRoot}/astroreader/readprogress`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 		result.Books.map((book, idx)=>{
 			if(typeof book.catalog === 'string'){
@@ -224,7 +241,7 @@ class BookReader extends Component{
 		let books = result.Books;
 
 		this.props.book.currentOrd = ord;
-		localStorage.setItem(ReaderBookKey, JSON.stringify(this.props.book));
+		safeLocalStorageSet(ReaderBookKey, JSON.stringify(this.props.book));
 
 		if(this.props.dispatch){
 			this.props.dispatch({
@@ -245,11 +262,9 @@ class BookReader extends Component{
 			return;
 		}
 
-		if(this.readLocalStorage(book.bookId, rec.ord)){
-			return;
-		}
-		
-		this.requestChapter(book.bookId, rec.ord);
+		this.readLocalStorage(book.bookId, rec.ord).then((hit)=>{
+			if(!hit){ this.requestChapter(book.bookId, rec.ord); }
+		});
 	}
 
 	prevChapter(){
@@ -280,7 +295,7 @@ class BookReader extends Component{
 		if(size > 30){
 			size = 30;
 		}
-		localStorage.setItem(ReaderFontSizeKey, size);
+		safeLocalStorageSet(ReaderFontSizeKey, size);
 		this.setState({
 			fontSize: size,
 		});
@@ -293,7 +308,7 @@ class BookReader extends Component{
 		}
 
 		let size = sz - 2;
-		localStorage.setItem(ReaderFontSizeKey, size);
+		safeLocalStorageSet(ReaderFontSizeKey, size);
 		this.setState({
 			fontSize: size,
 		});
@@ -423,7 +438,7 @@ class BookReader extends Component{
 	}
 
 	changeTheme(rec){
-		localStorage.setItem(ReaderThemeKey, JSON.stringify(rec));
+		safeLocalStorageSet(ReaderThemeKey, JSON.stringify(rec));
 		this.setState({
 			theme: rec,
 		});
@@ -592,7 +607,7 @@ class BookReader extends Component{
 				chapter: this.state.chapter,
 				scroll: document.getElementById(this.state.divId).scrollTop,
 			}
-			localStorage.setItem(this.props.book.bookId, JSON.stringify(rec));	
+			safeLocalStorageSet(this.props.book.bookId, JSON.stringify(rec));	
 		}
 	}
 
@@ -775,7 +790,7 @@ class BookReader extends Component{
 	changeSpeed(val){
 		let opt = this.state.ttsOpt;
 		opt.speed = val;
-		localStorage.setItem(TTSOptKey, JSON.stringify(opt));
+		safeLocalStorageSet(TTSOptKey, JSON.stringify(opt));
 		this.setState({
 			ttsOpt: opt,
 		});
@@ -784,7 +799,7 @@ class BookReader extends Component{
 	changePitch(val){
 		let opt = this.state.ttsOpt;
 		opt.pitch = val;
-		localStorage.setItem(TTSOptKey, JSON.stringify(opt));
+		safeLocalStorageSet(TTSOptKey, JSON.stringify(opt));
 		this.setState({
 			ttsOpt: opt,
 		});
@@ -793,7 +808,7 @@ class BookReader extends Component{
 	changeOverlap(val){
 		let opt = this.state.ttsOpt;
 		opt.overlap = val;
-		localStorage.setItem(TTSOptKey, JSON.stringify(opt));
+		safeLocalStorageSet(TTSOptKey, JSON.stringify(opt));
 		this.setState({
 			ttsOpt: opt,
 		});
@@ -802,7 +817,7 @@ class BookReader extends Component{
 	changeVoice(val){
 		let opt = this.state.ttsOpt;
 		opt.voice = val;
-		localStorage.setItem(TTSOptKey, JSON.stringify(opt));
+		safeLocalStorageSet(TTSOptKey, JSON.stringify(opt));
 		this.setState({
 			ttsOpt: opt,
 		});
@@ -841,11 +856,9 @@ class BookReader extends Component{
 			let bookid = this.props.book.bookId;
 			let ord = this.props.book.currentOrd;
 
-			if(this.readLocalStorage(bookid, ord)){
-				return;
-			}
-	
-			this.requestChapter(bookid, ord);
+			this.readLocalStorage(bookid, ord).then((hit)=>{
+				if(!hit){ this.requestChapter(bookid, ord); }
+			});
 		}
 
 	}

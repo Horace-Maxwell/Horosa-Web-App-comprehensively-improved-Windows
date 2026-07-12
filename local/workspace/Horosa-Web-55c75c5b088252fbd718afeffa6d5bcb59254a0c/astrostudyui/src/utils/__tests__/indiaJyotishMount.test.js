@@ -33,10 +33,11 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 		expect(Object.keys(out)).toEqual(['Panchanga 五要素', '卡拉卡（8 Chara Karakas）', '节点主照（Rasi Drishti）']);
 		expect(out['Panchanga 五要素'].join('\n')).toMatch(/月宿\(Nakshatra\)：娄宿/);
 		expect(out['Panchanga 五要素'].join('\n')).toMatch(/月相\(Tithi\)：Shukla Panchami（第 5 日）/);
-		// 罗睺逆量用度随真值显示（不硬编码）。
-		expect(out['卡拉卡（8 Chara Karakas）'][0]).toBe('AK Atmakaraka：罗睺（巨蟹 28.28°，用度 28.28°）');
-		expect(out['卡拉卡（8 Chara Karakas）']).toHaveLength(2);
-		expect(out['节点主照（Rasi Drishti）']).toEqual(['罗睺 → 天蝎', '计都 → 金牛']);
+		// [v2 表化] 格式锚随 GFM 表更新(值零变化：罗睺逆量用度 28.28 逐字仍在，数据行位移至 [2])。
+		expect(out['卡拉卡（8 Chara Karakas）'][0]).toBe('| 卡拉卡 | 星曜 | 本命落座 | 用度 |');
+		expect(out['卡拉卡（8 Chara Karakas）'][2]).toBe('| AK Atmakaraka | 罗睺 | 巨蟹 28.28° | 用度 28.28° |');
+		expect(out['卡拉卡（8 Chara Karakas）']).toHaveLength(4);
+		expect(out['节点主照（Rasi Drishti）']).toEqual(['| 给照 | 受照 |', '| --- | --- |', '| 罗睺 | 天蝎 |', '| 计都 | 金牛 |']);
 	});
 
 	it('部分缺失（只有卡拉卡）→ 只出该段', ()=>{
@@ -61,10 +62,12 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 		} };
 		const out = buildJyotishSnapshotLines(chartObj);
 		expect(Object.keys(out)).toEqual(['星曜状态', '八分点 SAV', 'Shadbala 六力']);
-		expect(out['星曜状态'][0]).toMatch(/木星：巨蟹 5\.2°·宫4·exaltation·青年·PushyaP1·Vargottama/);
-		expect(out['星曜状态'][1]).toMatch(/逆行\/燃烧/);
+		// [v2 表化] 格式锚随 GFM 表更新(值零变化：木星巨蟹5.2°宫4·水星逆行/燃烧 逐字仍在，[2]/[3] 为数据行)。
+		expect(out['星曜状态'][2]).toBe('| 木星 | 巨蟹 5.2°·宫4 | exaltation·青年·PushyaP1 | Vargottama |');
+		expect(out['星曜状态'][3]).toContain('逆行/燃烧');
 		expect(out['八分点 SAV'][0]).toBe('总点数 58（标准 337）');
-		expect(out['Shadbala 六力']).toEqual(['木星：7.50 Rupa', '水星：5.20 Rupa']);
+		// [YG 表化] 格式锚随 GFM 表更新(值零变化:木星 7.50/水星 5.20 逐字仍在)。
+		expect(out['Shadbala 六力']).toEqual(['| 星曜 | 总力 |', '| --- | --- |', '| 木星 | 7.50 Rupa |', '| 水星 | 5.20 Rupa |']);
 	});
 
 	it('P0-6/7/8 新段：Sodhya Pinda / Vimśopaka / Hora 各自成段（AI 同步）', ()=>{
@@ -82,9 +85,10 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 			] } },
 		} };
 		const out = buildJyotishSnapshotLines(chartObj);
-		expect(out['Sodhya Pinda 凝量']).toEqual(['日：160（座120+曜40）', '月：120（座90+曜30）']);
-		expect(out['Vimśopaka 分盘 20 分力']).toEqual(['日：六12.5/七11/十13/十六10.5']);
-		expect(out['Hora 行星时']).toEqual(['1.火星 06:11', '2.太阳 07:00']);
+		// [v2 表化] 格式锚随 GFM 表更新(值零变化：各段数值/首字逐字仍在)。
+		expect(out['Sodhya Pinda 凝量']).toEqual(['| 曜 | 凝量 | 座+曜 |', '| --- | --- | --- |', '| 日 | 160 | 座120+曜40 |', '| 月 | 120 | 座90+曜30 |']);
+		expect(out['Vimśopaka 分盘 20 分力']).toEqual(['| 曜 | 六 | 七 | 十 | 十六 |', '| --- | --- | --- | --- | --- |', '| 日 | 六12.5 | 七11 | 十13 | 十六10.5 |']);
+		expect(out['Hora 行星时']).toEqual(['| 序主星 | 起 |', '| --- | --- |', '| 1.火星 | 06:11 |', '| 2.太阳 | 07:00 |']);
 	});
 
 	it('P1 Choghadia 民用择时成段（AI 同步，标注吉凶）', ()=>{
@@ -93,7 +97,8 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 			{ index: 1, period: 'night', key: 'Amrit', cn: '甘露', nature: 'good', planet: 'Moon', start: '2026-06-23 18:30:00' },
 			{ index: 2, period: 'night', key: 'Kaal', cn: '时', nature: 'bad', planet: 'Saturn', start: '2026-06-23 19:20:00' },
 		] } } } });
-		expect(out['Choghadia 民用择时']).toEqual(['昼1.吉(吉) 06:00', '夜1.甘露(吉) 18:30', '夜2.时(凶) 19:20']);
+		// [v2 表化] 格式锚随 GFM 表更新(值零变化：昼夜index.cn/吉凶/起时逐字仍在)。
+		expect(out['Choghadia 民用择时']).toEqual(['| 时段 | 吉凶 | 起 |', '| --- | --- | --- |', '| 昼1.吉 | 吉 | 06:00 |', '| 夜1.甘露 | 吉 | 18:30 |', '| 夜2.时 | 凶 | 19:20 |']);
 	});
 
 	it('P1 Naisargika 自然大运成段（AI 同步，年龄段）', ()=>{
@@ -101,9 +106,12 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 			{ planet: 'Moon', planetCN: '月', years: 1, startAge: 0, endAge: 1, start: '1990-03-15', end: '1991-03-15' },
 			{ planet: 'Saturn', planetCN: '土', years: 50, startAge: 70, endAge: 120, start: '2060-03-14', end: '2110-03-15' },
 		] } } } });
+		// [v2 表化] 格式锚随 GFM 表更新(值零变化：曜/年数/年龄段/起止日期逐字仍在)。
 		expect(out['Naisargika 自然大运']).toEqual([
-			'月 1年（0–1岁）1990-03-15→1991-03-15',
-			'土 50年（70–120岁）2060-03-14→2110-03-15',
+			'| 曜 | 年数 | 年龄段 | 起 | 止 |',
+			'| --- | --- | --- | --- | --- |',
+			'| 月 | 1年 | 0–1岁 | 1990-03-15 | 1991-03-15 |',
+			'| 土 | 50年 | 70–120岁 | 2060-03-14 | 2110-03-15 |',
 		]);
 	});
 
@@ -113,10 +121,13 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 			karakamsa: { key: 'karakamsa', label: 'Karakamsa', sign: 'Scorpio', signLabel: '天蝎' },
 			induLagna: { key: 'induLagna', label: 'Indu 财富上升', sign: 'Aquarius', signLabel: '水瓶', sumKala: 20, stepS: 8 },
 		} } });
+		// [v2 表化] 格式锚随 GFM 表更新(值零变化：座名/Indu Kala和 20·第8座 逐字仍在；空附注渲染为空单元格)。
 		expect(out['补充上升（Supplementary Lagnas）']).toEqual([
-			'月上升：巨蟹',
-			'Karakamsa：天蝎',
-			'Indu 财富上升：水瓶（Kala和 20·第8座）',
+			'| 上升 | 座 | 附注 |',
+			'| --- | --- | --- |',
+			'| 月上升 | 巨蟹 |  |',
+			'| Karakamsa | 天蝎 |  |',
+			'| Indu 财富上升 | 水瓶 | Kala和 20·第8座 |',
 		]);
 	});
 

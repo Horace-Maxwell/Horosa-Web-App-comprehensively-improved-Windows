@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import { Spin, Row, Col } from 'antd';
-import { unwrapResult, symbolWithMeaning, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { unwrapResult, symbolWithMeaning, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import { fetchChart } from '../../services/astro';
 import AstroDoubleChart from './AstroDoubleChart';
 import AstroDeclinationLadder from './AstroDeclinationLadder';
@@ -30,6 +30,14 @@ function splitDateTime(s){
 }
 function typeLabel(t){ return t === 'contraparallel' ? '反平行' : '平行'; }
 
+// 推运时刻 ≠ 目标日期是推运法的本义(如二次推运「一日行一年」:目标日期折算成出生后第 N 天的天象)。
+// 只显示派生的推运时刻会被误读为「没吃我选的日期」(用户实告)——标题必须双日期+折算口径。
+const METHOD_RATE_NOTE = {
+	secondary: '一日行一年',
+	tertiary: '一日行一月',
+	minor: '一月行一年',
+};
+
 class ProgMethodPanel extends Component{
 	constructor(props){
 		super(props);
@@ -39,7 +47,10 @@ class ProgMethodPanel extends Component{
 
 	componentDidMount(){ this._mounted = true; this.load(); }
 	componentWillUnmount(){ this._mounted = false; }
-	componentDidUpdate(){ if(this.buildKey() !== this.state.key && !this.state.loading){ this.load(); } }
+	componentDidUpdate(){
+		const key = this.buildKey();
+		if(key !== this.state.key && !this.state.loading && !loadParked(this, key)){ this.load(); }
+	}
 
 	buildKey(){
 		const m = this.props.method || {};
@@ -66,6 +77,7 @@ class ProgMethodPanel extends Component{
 				sidereal ? fetchChart(natalBody) : Promise.resolve(null),
 			]);
 			if(!this._mounted){ return; }
+			clearLoadFailure(this);
 			this.setState({
 				dirChart: unwrapResult(dirRsp) || null,
 				natalChart: sidereal ? (unwrapResult(natalRsp) || null) : null,
@@ -73,7 +85,10 @@ class ProgMethodPanel extends Component{
 				key,
 			});
 		}catch(e){
-			if(this._mounted){ this.setState({ loading: false, key }); }
+			// 失败绝不把 key 记成已完成(否则右表已换新目标、左盘停旧数据且永不重试);
+			// 泊车该 key,窗口期后下一次更新自动重试,新 key 立即放行。
+			parkLoadFailure(this, key);
+			if(this._mounted){ this.setState({ loading: false }); }
 		}
 	}
 
@@ -121,7 +136,12 @@ class ProgMethodPanel extends Component{
 					</Col>
 					<Col span={7} className="horosa-scrollbar" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 6 }}>
 						<div style={cardStyle}>
-							<div className="horosa-info-card-title">{m.label || '推运'}{decl ? '（赤纬）' : ''}{m.progressedDate ? `：${m.progressedDate.datetime}` : ''}</div>
+							<div className="horosa-info-card-title">{m.label || '推运'}{decl ? '（赤纬）' : ''}{this.props.targetDate ? `：目标 ${this.props.targetDate}${this.props.targetTime ? ` ${this.props.targetTime}` : ''}` : (m.progressedDate ? `：${m.progressedDate.datetime}` : '')}</div>
+							{this.props.targetDate && m.progressedDate ? (
+								<div style={{ fontSize: '0.85em', color: 'var(--horosa-text-soft)', margin: '2px 0 6px' }}>
+									推运时刻：{m.progressedDate.datetime}{METHOD_RATE_NOTE[m.method] ? `（${METHOD_RATE_NOTE[m.method]}，由目标日期折算）` : '（由目标日期折算）'}
+								</div>
+							) : null}
 							{decl ? (
 								<SmallTable
 									rows={m.declinations || []}

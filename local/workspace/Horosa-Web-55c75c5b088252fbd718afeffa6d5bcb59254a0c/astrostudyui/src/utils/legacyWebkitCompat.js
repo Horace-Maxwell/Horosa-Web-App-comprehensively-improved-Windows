@@ -1,3 +1,4 @@
+import { safeLocalStorageSet } from './safeStorage';
 // legacyWebkitCompat.js —— macOS 12.0-12.2(WKWebView = Safari 15.0-15.3)兼容层。
 //
 // 两部分,均「缺特性才激活」,现代引擎零行为差异、零开销:
@@ -10,7 +11,7 @@
 //    此处成对——改任一侧须同步另一侧。
 //
 // kill-switch(与 perfFlags 同约定,默认开;控制台执行后刷新):
-//   localStorage.setItem('horosa.compat.hasFallback', '0')  // 关闭 :has 类回退
+//   safeLocalStorageSet('horosa.compat.hasFallback', '0')  // 关闭 :has 类回退
 
 function compatFlagEnabled(key){
     try{

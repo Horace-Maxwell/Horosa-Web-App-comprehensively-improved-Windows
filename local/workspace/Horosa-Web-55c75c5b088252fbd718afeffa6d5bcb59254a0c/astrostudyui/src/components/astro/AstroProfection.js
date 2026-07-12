@@ -269,7 +269,7 @@ class AstroProfection extends Component{
 
 		this.setState(st, ()=>{
 			const chartValue = this.props.value;
-			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, st.params, result), {
+			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'profection'), {
 				module: 'profection',
 			});
 		});
@@ -424,7 +424,7 @@ class AstroProfection extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, this.state.dirChart) || ''}`.trim();
+			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, this.state.dirChart, 'profection') || ''}`.trim();
 		}catch(e){
 			text = '';
 		}

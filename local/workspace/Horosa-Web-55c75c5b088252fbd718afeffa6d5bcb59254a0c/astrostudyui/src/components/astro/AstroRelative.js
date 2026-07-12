@@ -69,19 +69,19 @@ function pushAspectArray(lines, title, list){
 	}
 	lines.push('');
 	lines.push(`[${title}]`);
+	lines.push('| 星A | 星B | 相位 | 误差 |');
+	lines.push('| --- | --- | --- | --- |');
 	list.forEach((obj)=>{
 		const objId = obj.id !== undefined ? obj.id : obj.directId;
-		lines.push(`主体：${msg(objId)}`);
 		const objs = obj.objects || [];
 		if(objs.length === 0){
-			lines.push('无');
+			lines.push(`| ${msg(objId)} | 无 | — | — |`);
 			return;
 		}
-		objs.forEach((natalObj)=>{
+		objs.forEach((natalObj, k)=>{
 			const natalId = natalObj.id !== undefined ? natalObj.id : natalObj.natalId;
-			lines.push(`与 ${msg(natalId)} 成 ${aspectText(natalObj.aspect)} 相位，误差${round3(natalObj.delta)}`);
+			lines.push(`| ${k === 0 ? msg(objId) : '—'} | ${msg(natalId)} | ${aspectText(natalObj.aspect)} | ${round3(natalObj.delta)} |`);
 		});
-		lines.push('');
 	});
 }
 
@@ -95,18 +95,18 @@ function pushMidpointMap(lines, title, mapObj){
 	}
 	lines.push('');
 	lines.push(`[${title}]`);
+	lines.push('| 星A | 中点 | 相位 | 误差 |');
+	lines.push('| --- | --- | --- | --- |');
 	keys.forEach((key)=>{
 		const arr = mapObj[key] || [];
-		lines.push(`主体：${msg(key)}`);
 		if(arr.length === 0){
-			lines.push('无');
+			lines.push(`| ${msg(key)} | 无 | — | — |`);
 			return;
 		}
-		arr.forEach((asp)=>{
+		arr.forEach((asp, k)=>{
 			const midpoint = asp.midpoint || {};
-			lines.push(`与中点(${msg(midpoint.idA)} | ${msg(midpoint.idB)}) 成 ${aspectText(asp.aspect)} 相位，误差${round3(asp.delta)}`);
+			lines.push(`| ${k === 0 ? msg(key) : '—'} | ${msg(midpoint.idA)}·${msg(midpoint.idB)} | ${aspectText(asp.aspect)} | ${round3(asp.delta)} |`);
 		});
-		lines.push('');
 	});
 }
 
@@ -116,8 +116,10 @@ function pushAntisciaArray(lines, title, arr, typeLabel){
 	}
 	lines.push('');
 	lines.push(`[${title}]`);
+	lines.push('| 星A | 星B | 相位 | 误差 |');
+	lines.push('| --- | --- | --- | --- |');
 	arr.forEach((item)=>{
-		lines.push(`${msg(item.idA)} 与 ${msg(item.idB)} 成${typeLabel}，误差${round3(item.delta)}`);
+		lines.push(`| ${msg(item.idA)} | ${msg(item.idB)} | ${typeLabel} | ${round3(item.delta)} |`);
 	});
 }
 
@@ -152,21 +154,25 @@ export function buildRelativeSnapshotText(comp){
 		pushAntisciaArray(lines, 'B对A反映点', res.outToInCAnti, '反映点');
 	}
 
+	// [YD] 段名按盘型拆分:时空中点盘/马克斯盘此前与组合盘/影响盘共用段名 → 设置面永远无法
+	// 分开勾选、导出文本不辨盘型。组合盘/影响盘保持原段名(老用户勾选/旧快照零影响),
+	// 时空/马克斯用独立段名(纯增,已登 preset)。
 	if((comp.currentTab === 'Composite' || comp.currentTab === 'TimeSpace') && res.chart){
 		lines.push('');
-		lines.push('[合成图盘]');
+		lines.push(comp.currentTab === 'TimeSpace' ? '[时空中点·合成图盘]' : '[合成图盘]');
 		lines.push(buildAstroSnapshotContent(res, null));
 	}
 
 	if((comp.currentTab === 'Synastry' || comp.currentTab === 'Marks') && (res.inner || res.outer)){
+		const marks = comp.currentTab === 'Marks';
 		if(res.inner && res.inner.chart){
 			lines.push('');
-			lines.push('[影响图盘-星盘A]');
+			lines.push(marks ? '[马克斯·影响图盘-星盘A]' : '[影响图盘-星盘A]');
 			lines.push(buildAstroSnapshotContent(res.inner, null));
 		}
 		if(res.outer && res.outer.chart){
 			lines.push('');
-			lines.push('[影响图盘-星盘B]');
+			lines.push(marks ? '[马克斯·影响图盘-星盘B]' : '[影响图盘-星盘B]');
 			lines.push(buildAstroSnapshotContent(res.outer, null));
 		}
 	}
@@ -182,8 +188,10 @@ export function buildRelativeSnapshotText(comp){
 			}
 			lines.push('');
 			lines.push(`[${title}]`);
+			lines.push('| 星A | 星B | 相位 | 权重 | 误差 |');
+			lines.push('| --- | --- | --- | --- | --- |');
 			arr.forEach((it)=>{
-				lines.push(`${msg(it.a)} 与 ${msg(it.b)} 成 ${aspectText(it.aspect)} 相位（权重${round3(it.impact)}，误差${round3(it.orb)}）`);
+				lines.push(`| ${msg(it.a)} | ${msg(it.b)} | ${aspectText(it.aspect)} | ${round3(it.impact)} | ${round3(it.orb)} |`);
 			});
 		};
 		pushScoreAsps('顺畅连接', res.highlights);

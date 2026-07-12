@@ -2,7 +2,7 @@ import DateTime from '../components/comp/DateTime';
 import request from './request';
 import * as Constants from './constants';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from './dayBoundary';
-import { applyAIExportSectionFilterToSnapshot } from './aiExport';
+import { applyAIExportSectionFilterToSnapshot, splitContentSections } from './aiExport';
 import {
 	getTechniqueSettingsSchema,
 	mergeOptionsIntoRecord,
@@ -92,7 +92,9 @@ import { Solar as HeluoSolar } from 'lunar-javascript';
 import { getPdMethodLabel, getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY } from './primaryDirectionSync';
 
 const DEFAULT_PD_ASPECTS = [0, 60, 90, 120, 180];
-const DEFAULT_CONTEXT_CHAR_LIMIT = 18000;
+// [挂载预算] 上下文字数预算单一真值：发送路径（AIAnalysisMain）与默认裁剪上限共用，消灭散落的字面量。
+export const AI_CONTEXT_MAX_CHARS = 20000;
+const DEFAULT_CONTEXT_CHAR_LIMIT = AI_CONTEXT_MAX_CHARS;
 const MODULE_SNAPSHOT_PREFIX = 'horosa.ai.snapshot.module.v1.';
 const DEFAULT_QIMEN_OPTIONS = {
 	jieQiType: 1,
@@ -1380,7 +1382,8 @@ async function regenerateHorarySnapshot(record, options){
 		const horarySchool = (options && typeof options === 'object'
 			&& (options.horarySchool || (options.extra && options.extra.horarySchool))) || undefined;
 		const j = runHorary(chart, topicId, horaryJudgeOpts(horarySchool));
-		return j ? (buildHorarySnapshot(j) || '') : '';
+		// [YA v42] 第二参传 chart:挂载再生快照同页面口径,补 [古典接纳](chart.receptions/mutuals)。
+		return j ? (buildHorarySnapshot(j, chart) || '') : '';
 	}catch(e){
 		return '';
 	}
@@ -1673,7 +1676,8 @@ async function buildPredictivePeriodSnapshot(chartObj, key, opts){
 			if(!result){
 				return '';
 			}
-			return buildPredictiveSnapshotText(chartObj, params, result) || '';
+			// [独立复核修] methodKey 必传:漏传时挂载快照缺 [方法说明],与导出侧(组件全部传参)四同步破缺。
+			return buildPredictiveSnapshotText(chartObj, params, result, key) || '';
 		}catch(e){
 			return '';
 		}
@@ -3188,39 +3192,231 @@ export function buildContextLayers({
 	}));
 }
 
-export function clipContextLayers(layers, options = {}){
+// [挂载预算] 旧版部分裁剪 marker（legacy 分支 / 无段结构回退共用，字面与历史输出逐字节一致）。
+const LEGACY_CLIP_MARKER = '\n...[已裁剪]';
+// fairShare 下每个技法层的保底字数：低于它宁可整层记入 dropped（绝不静默丢）。
+const MIN_TECH_KEEP = 600;
+// fairShare 下给非技法的 rest 层（模版/资料/检索/历史）预留的尾仓比例。
+const RESERVE_TAIL_RATIO = 0.15;
+
+// [挂载预算] 段对齐裁剪：按 [段] 边界整段收纳（尾注计入预算，产出总长 ≤ budget）；
+// 无 [段] 结构时回退字符 slice + 旧 marker（slice 点为 budget 减 marker 长，同样不超预算）。
+function clipContentToBudget(content, budget){
+	const sections = splitContentSections(content);
+	const hasSectionStructure = sections.some((sec)=>sec.title);
+	if(hasSectionStructure){
+		const parts = sections.map((sec)=>sec.lines.join('\n'));
+		let cut = 0;
+		let used = 0;
+		for(let i = 0; i < parts.length; i++){
+			const add = parts[i].length + (cut > 0 ? 1 : 0);
+			if(used + add > budget){
+				break;
+			}
+			used += add;
+			cut = i + 1;
+		}
+		const buildNote = (cutIdx)=>{
+			const omitted = sections.slice(cutIdx);
+			const names = omitted.slice(0, 3).map((sec)=>sec.title || '前言');
+			const extra = omitted.length > 3 ? '等' : '';
+			return `\n...[已裁剪:预算不足,略去${omitted.length}段(${names.join('、')}${extra})]`;
+		};
+		let note = buildNote(cut);
+		while(cut > 0 && parts.slice(0, cut).join('\n').length + note.length > budget){
+			cut -= 1;
+			note = buildNote(cut);
+		}
+		if(cut > 0){
+			return { text: `${parts.slice(0, cut).join('\n')}${note}`, sectionAligned: true };
+		}
+		// 一段都放不下 → 落到无段结构的字符 slice 保底。
+	}
+	return {
+		text: `${content.slice(0, Math.max(0, budget - LEGACY_CLIP_MARKER.length))}${LEGACY_CLIP_MARKER}`,
+		sectionAligned: false,
+	};
+}
+
+// [挂载预算] 裁剪主引擎：返回 { kept, dropped, stats }，kept 即旧 clipContextLayers 的输出位。
+// - 快路径（总量 ≤ maxChars，含等号）：全保留，与旧算法逐字节等价。
+// - 触界且未开 fairShare：旧贪心逻辑原样（输出逐字节等价），仅把被丢层记进 dropped。
+// - 触界且 fairShare===true：mandatory 全额优先 → rest 预留尾仓 → 技法层 max-min 水位公平分摊，
+//   被裁技法层段对齐裁剪；预算连保底都不够时整层移入 dropped（有账可查，绝不静默）。
+export function clipContextLayersDetailed(layers, options = {}){
 	const maxChars = options.maxChars || DEFAULT_CONTEXT_CHAR_LIMIT;
 	const sorted = (layers || []).slice(0).sort((a, b)=>b.priority - a.priority);
-	const kept = [];
-	let totalChars = 0;
+	// 与旧算法同口径：trim 后计长；空层直接忽略（不入 kept 也不入 dropped）。
+	const nonEmpty = [];
 	sorted.forEach((item)=>{
 		const content = `${item.content || ''}`.trim();
-		if(!content){
+		if(content){
+			nonEmpty.push({ ...item, content });
+		}
+	});
+	const totalRaw = nonEmpty.reduce((sum, item)=>sum + item.content.length, 0);
+	const finalize = (kept, dropped)=>{
+		const byKey = {};
+		nonEmpty.forEach((item)=>{
+			byKey[item.key] = {
+				title: item.title,
+				raw: item.content.length,
+				kept: 0,
+				clipped: false,
+				dropped: false,
+			};
+		});
+		kept.forEach((item)=>{
+			if(byKey[item.key]){
+				byKey[item.key].kept = item.content.length;
+				byKey[item.key].clipped = !!item.clipped;
+			}
+		});
+		dropped.forEach((item)=>{
+			if(byKey[item.key]){
+				byKey[item.key].dropped = true;
+			}
+		});
+		return {
+			kept,
+			dropped,
+			stats: {
+				maxChars,
+				totalRaw,
+				totalKept: kept.reduce((sum, item)=>sum + item.content.length, 0),
+				keptCount: kept.length,
+				clippedCount: kept.filter((item)=>item.clipped).length,
+				droppedCount: dropped.length,
+				fairShare: options.fairShare === true,
+				byKey,
+			},
+		};
+	};
+	// 快路径：总量未触界（含等号，与旧 nextChars <= maxChars 语义一致）→ 全保留。
+	if(totalRaw <= maxChars){
+		return finalize(nonEmpty.map((item)=>({ ...item, clipped: false })), []);
+	}
+	if(options.fairShare !== true){
+		// legacy 分支：旧贪心实现体原样（kept 输出逐字节等价），只额外把被丢层记账。
+		const kept = [];
+		const dropped = [];
+		let totalChars = 0;
+		sorted.forEach((item)=>{
+			const content = `${item.content || ''}`.trim();
+			if(!content){
+				return;
+			}
+			const nextChars = totalChars + content.length;
+			if(nextChars <= maxChars){
+				kept.push({
+					...item,
+					content,
+					clipped: false,
+				});
+				totalChars = nextChars;
+				return;
+			}
+			if(kept.length === 0 || item.priority >= 90){
+				const remain = Math.max(0, maxChars - totalChars);
+				if(remain > 120){
+					kept.push({
+						...item,
+						content: `${content.slice(0, remain)}${LEGACY_CLIP_MARKER}`,
+						clipped: true,
+					});
+					totalChars = maxChars;
+					return;
+				}
+			}
+			dropped.push(item);
+		});
+		return finalize(kept, dropped);
+	}
+	// fairShare 分支。
+	const isTechnique = (item)=>typeof item.key === 'string' && item.key.indexOf('technique:') === 0;
+	const mandatory = nonEmpty.filter((item)=>!isTechnique(item) && item.priority >= 94);
+	const techLayers = nonEmpty.filter(isTechnique);
+	const restLayers = nonEmpty.filter((item)=>!isTechnique(item) && item.priority < 94);
+	const kept = [];
+	const dropped = [];
+	let used = 0;
+	// 1) mandatory（系统提示/案例前提/排盘规则）逐层收纳；超限沿用旧部分裁剪语义。
+	mandatory.forEach((item)=>{
+		if(used + item.content.length <= maxChars){
+			kept.push({ ...item, clipped: false });
+			used += item.content.length;
 			return;
 		}
-		const nextChars = totalChars + content.length;
-		if(nextChars <= maxChars){
-			kept.push({
-				...item,
-				content,
-				clipped: false,
-			});
-			totalChars = nextChars;
+		const remain = Math.max(0, maxChars - used);
+		if(remain > 120){
+			kept.push({ ...item, content: `${item.content.slice(0, remain)}${LEGACY_CLIP_MARKER}`, clipped: true });
+			used = maxChars;
+			return;
+		}
+		dropped.push(item);
+	});
+	// 2) rest 层尾仓预留：技法层不许吃光全部余量。
+	const restTotal = restLayers.reduce((sum, item)=>sum + item.content.length, 0);
+	const reserveTail = Math.min(restTotal, Math.floor(maxChars * RESERVE_TAIL_RATIO));
+	const techBudget = Math.max(0, maxChars - used - reserveTail);
+	// 3) 技法层：预算连每层保底 min(len, MIN_TECH_KEEP) 都给不起时，从 idx 最大者
+	//    （priority 最低=挂载顺序最后）整层移入 dropped，直到保底可满足。
+	const minNeedOf = (arr)=>arr.reduce((sum, item)=>sum + Math.min(item.content.length, MIN_TECH_KEEP), 0);
+	let activeTech = techLayers.slice(0);
+	while(activeTech.length && minNeedOf(activeTech) > techBudget){
+		let worst = activeTech[0];
+		activeTech.forEach((item)=>{
+			if(item.priority < worst.priority){
+				worst = item;
+			}
+		});
+		activeTech = activeTech.filter((item)=>item !== worst);
+		dropped.push(worst);
+	}
+	// max-min 水位公平分摊：按 content.length 升序，短层全保，长层按水位（不低于保底）截。
+	const techAsc = activeTech.slice(0).sort((a, b)=>a.content.length - b.content.length);
+	let budgetLeft = techBudget;
+	let layersLeft = techAsc.length;
+	techAsc.forEach((item)=>{
+		const share = layersLeft > 0 ? Math.floor(budgetLeft / layersLeft) : 0;
+		const take = Math.min(item.content.length, Math.max(share, MIN_TECH_KEEP));
+		const alloc = Math.min(take, budgetLeft);
+		if(alloc >= item.content.length){
+			kept.push({ ...item, clipped: false });
+			budgetLeft -= item.content.length;
+		}else{
+			const cut = clipContentToBudget(item.content, alloc);
+			kept.push({ ...item, content: cut.text, clipped: true });
+			budgetLeft -= cut.text.length;
+		}
+		layersLeft -= 1;
+	});
+	used += techBudget - budgetLeft;
+	// 4) rest 层用余量（尾仓+技法层没花完的水位）按旧贪心顺序（priority 降序）收纳，
+	//    装不下按旧语义部分裁剪或记入 dropped。
+	restLayers.forEach((item)=>{
+		if(used + item.content.length <= maxChars){
+			kept.push({ ...item, clipped: false });
+			used += item.content.length;
 			return;
 		}
 		if(kept.length === 0 || item.priority >= 90){
-			const remain = Math.max(0, maxChars - totalChars);
+			const remain = Math.max(0, maxChars - used);
 			if(remain > 120){
-				kept.push({
-					...item,
-					content: `${content.slice(0, remain)}\n...[已裁剪]`,
-					clipped: true,
-				});
-				totalChars = maxChars;
+				kept.push({ ...item, content: `${item.content.slice(0, remain)}${LEGACY_CLIP_MARKER}`, clipped: true });
+				used = maxChars;
+				return;
 			}
 		}
+		dropped.push(item);
 	});
-	return kept;
+	// 5) 输出顺序 = 原 priority 降序（稳定排序：同 priority 保持 技法层在 rest 层前，与旧序一致）。
+	kept.sort((a, b)=>b.priority - a.priority);
+	return finalize(kept, dropped);
+}
+
+export function clipContextLayers(layers, options = {}){
+	return clipContextLayersDetailed(layers, options).kept;
 }
 
 export function buildPromptContext({
@@ -3233,6 +3429,7 @@ export function buildPromptContext({
 	conversationMessages,
 	systemPrompt,
 	maxChars,
+	fairShare,
 }) {
 	const layers = buildContextLayers({
 		sourceContext,
@@ -3244,6 +3441,6 @@ export function buildPromptContext({
 		conversationMessages,
 		systemPrompt,
 	});
-	const clippedLayers = clipContextLayers(layers, { maxChars });
+	const clippedLayers = clipContextLayers(layers, { maxChars, fairShare });
 	return clippedLayers.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim();
 }

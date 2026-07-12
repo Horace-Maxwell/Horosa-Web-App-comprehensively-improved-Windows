@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoChartMain.js b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-index 70e2eaa..b257975 100644
+index 857e157..41240f9 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-@@ -1397,6 +1397,23 @@ async function fetchGuolaoChartCached(params, options){
+@@ -1398,6 +1398,23 @@ async function fetchGuolaoChartCached(params, options){
  	return clonePlain(result);
  }
  
@@ -23,6 +23,6 @@ index 70e2eaa..b257975 100644
 +	}
 +}
 +
+ // ⚠️ 死代码(零调用,同类自检 v42 定性):主链=buildGuolaoSnapshotTextV2;本函数段头(宫位与星体/宫位二十八宿)
+ // 未登 preset 属死码段——若复活必须先登记 preset+migration(全树段头哨兵会咬)。
  function buildGuolaoSnapshotText(params, result){
- 	const lines = [];
- 	const chart = result && result.chart ? result.chart : {};

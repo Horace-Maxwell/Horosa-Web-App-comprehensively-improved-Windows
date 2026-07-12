@@ -42,3 +42,36 @@ export function chartDrawnAtNonZeroSize(chartid){
 	const svgdom = (typeof document !== 'undefined' && chartid) ? document.getElementById(chartid) : null;
 	return !!(svgdom && svgdom.clientWidth > 0 && svgdom.clientHeight > 0);
 }
+
+// 可见性感知重画(历史事故):上面「隐藏期不记签名」隐含假设「变可见时组件必再 render」。
+// 该假设在 antd Tabs 下不成立——切 tab 只切 CSS,TabPane children element 引用不变,React bail out,
+// 子树零 render;隐藏期(svg 0×0,draw 尺寸早退)已更新过数据的盘从此停在旧画面 → 表新盘旧。
+// ResizeObserver 是唯一不依赖 React 更新链的可见性信号:尺寸 0→非0(tab 显示/抽屉展开)或任何
+// 尺寸变化 → rAF 合并后调 redraw。redraw 侧有签名守卫(数据/尺寸没变=跳过),不会引起重画风暴。
+// 返回 detach 函数;无 ResizeObserver(极老 WebView)/无 DOM 环境返回 no-op,行为退化为现状。
+export function watchChartSvgResize(chartid, redraw){
+	if(typeof ResizeObserver === 'undefined' || typeof document === 'undefined' || !chartid || typeof redraw !== 'function'){
+		return ()=>{};
+	}
+	const svgdom = document.getElementById(chartid);
+	if(!svgdom){
+		return ()=>{};
+	}
+	let pending = false;   // 标志先行,与 schedule 返回时序无关(同步/异步调度器皆安全)
+	let rafHandle = 0;
+	const schedule = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : (cb)=>setTimeout(cb, 16);
+	const ro = new ResizeObserver(()=>{
+		if(pending){ return; }
+		pending = true;
+		rafHandle = schedule(()=>{
+			pending = false;
+			try{ redraw(); }catch(e){ /* 重画失败不上抛:下一次真实更新仍会画 */ }
+		});
+	});
+	try{ ro.observe(svgdom); }catch(e){ return ()=>{}; }
+	return ()=>{
+		try{ ro.disconnect(); }catch(e){ /* noop */ }
+		if(pending && rafHandle && typeof cancelAnimationFrame === 'function'){ cancelAnimationFrame(rafHandle); }
+		pending = false;
+	};
+}

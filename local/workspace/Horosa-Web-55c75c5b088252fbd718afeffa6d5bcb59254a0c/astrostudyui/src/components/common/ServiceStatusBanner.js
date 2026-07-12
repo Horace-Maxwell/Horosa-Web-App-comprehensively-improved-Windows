@@ -1,7 +1,7 @@
 import React from 'react';
 import { subscribeServiceStatus, markServiceOnline, markServiceOffline } from '../../utils/serviceStatus';
 import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
-import { startRecoveryPolling, buildDefaultRecoveryProbe } from '../../utils/serviceRecovery';
+import { startRecoveryPolling, buildDefaultRecoveryProbe, invokeLightServiceRestart } from '../../utils/serviceRecovery';
 import { ServerRoot } from '../../utils/constants';
 
 // 修法6（升级版,Mac issue #12 增强）:非阻塞「本地服务连接中断」重连横幅。
@@ -23,6 +23,9 @@ export default function ServiceStatusBanner() {
   const [online, setOnline] = React.useState(true);
   const [retrying, setRetrying] = React.useState(false);
   const [gaveUpMsg, setGaveUpMsg] = React.useState('');
+  // 信息级提示(非故障):如「本机组件已被另一会话更新,重启后生效」。
+  // 与离线横幅独立:在线也显示,可手动关闭,不置离线。
+  const [infoMsg, setInfoMsg] = React.useState('');
 
   React.useEffect(() => {
     const unsub = subscribeServiceStatus((v) => setOnline(v));
@@ -33,7 +36,17 @@ export default function ServiceStatusBanner() {
   React.useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const handle = (payload) => {
-      if (!payload || payload.kind !== 'supervisor_gave_up') return;
+      if (!payload || !payload.kind) return;
+      if (payload.kind === 'runtime_updated_elsewhere') {
+        setInfoMsg(payload.message || '本机组件已在另一会话中更新，重启星阙后生效。');
+        return;
+      }
+      // 磁盘水位告知(壳侧闩住只发一次;清理回升后再次跌破会再提醒)
+      if (payload.kind === 'disk_low') {
+        setInfoMsg(payload.message || '磁盘可用空间不足，可能影响排盘与自动更新，请清理磁盘。');
+        return;
+      }
+      if (payload.kind !== 'supervisor_gave_up') return;
       setGaveUpMsg(payload.message || '本地服务多次自动重启未果，已暂停自动修复。');
       // gave_up 时服务必然不可达:主动置离线,保证横幅立即可见(不等业务请求撞见)
       markServiceOffline();
@@ -100,14 +113,8 @@ export default function ServiceStatusBanner() {
     if (!hasTauri) return;
     try {
       const api = window.__TAURI__.core || window.__TAURI__;
-      if (!api || !api.invoke) return;
-      try {
-        await api.invoke('restart_local_services_command');
-        setGaveUpMsg('');
-      } catch (e) {
-        // 代数差回退:老壳没有轻量命令
-        await api.invoke('trigger_runtime_repair_command');
-      }
+      const mode = await invokeLightServiceRestart(api);
+      if (mode === 'light') setGaveUpMsg('');
     } catch (e) {
       try { console.warn('[ServiceStatusBanner] restart failed', e); } catch (_) {}
     }
@@ -125,7 +132,7 @@ export default function ServiceStatusBanner() {
     }
   }, [hasTauri]);
 
-  if (online) return null;
+  if (online && !infoMsg) return null;
 
   // audit 修:pointerEvents 父 none 会吞掉子元素事件 → 改为父 auto + 用 transparent 占位让背景能透过点击。
   // 关键:把横幅本身放进一个 fit-content 的内联块,周围空白用 pointer-events:none 包裹。
@@ -135,6 +142,42 @@ export default function ServiceStatusBanner() {
     display: 'flex', justifyContent: 'center',
     pointerEvents: 'none', // 整个 wrap 让点击穿透
   };
+
+  // 在线 + 仅信息提示:渲染中性信息横幅(蓝灰),可关闭,不带故障操作钮。
+  if (online && infoMsg) {
+    const infoBar = {
+      marginTop: 8,
+      maxWidth: '96%',
+      padding: '8px 14px',
+      borderRadius: 8,
+      fontSize: 13,
+      lineHeight: 1.4,
+      color: '#1d4e78',
+      background: 'rgba(230, 242, 252, 0.97)',
+      border: '1px solid rgba(84, 141, 191, 0.55)',
+      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.12)',
+      pointerEvents: 'auto',
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      cursor: 'default',
+    };
+    const infoBtn = {
+      padding: '3px 10px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
+      border: '1px solid rgba(84, 141, 191, 0.7)',
+      background: 'rgba(255, 255, 255, 0.7)',
+      color: '#1d4e78',
+    };
+    return (
+      <div style={wrapStyle} aria-live="polite">
+        <div style={infoBar}>
+          <span>ℹ️ {infoMsg}</span>
+          <button type="button" onClick={() => setInfoMsg('')} style={infoBtn}>知道了</button>
+        </div>
+      </div>
+    );
+  }
   const barStyle = {
     marginTop: 8,
     maxWidth: '96%',

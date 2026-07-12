@@ -47,6 +47,15 @@ DESKTOP_MONGO_SKIP_PING="${HOROSA_DESKTOP_MONGO_SKIP_PING:-0}"
 DESKTOP_SPRING_LAZY_INIT="${HOROSA_DESKTOP_SPRING_LAZY_INIT:-1}"
 DESKTOP_JAVA_FAST_START="${HOROSA_DESKTOP_JAVA_FAST_START:-1}"
 DESKTOP_JAVA_EXTRA_TOOL_OPTIONS="${HOROSA_DESKTOP_JAVA_EXTRA_TOOL_OPTIONS:--XX:+UseSerialGC -Xverify:none -Xms128m -Xmx512m}"
+# 软 OOM 转硬死:JVM 默认 OOM 后进程苟活(抛 OOM 的线程死、身份线程仍答)——
+# 看门狗探针恒 Ok,业务却半死。ExitOnOutOfMemoryError 让 OOM 即进程退 → TcpDead →
+# 既有看门狗 40s 内自动拉起(前端自动换根+恢复提示)。HOROSA_JAVA_EXIT_ON_OOM=0 关。
+if [ "${HOROSA_JAVA_EXIT_ON_OOM:-1}" = "1" ]; then
+  case "${DESKTOP_JAVA_EXTRA_TOOL_OPTIONS}" in
+    *ExitOnOutOfMemoryError*) : ;;
+    *) DESKTOP_JAVA_EXTRA_TOOL_OPTIONS="${DESKTOP_JAVA_EXTRA_TOOL_OPTIONS} -XX:+ExitOnOutOfMemoryError" ;;
+  esac
+fi
 TRUSTED_RUNTIME="${HOROSA_TRUSTED_RUNTIME:-0}"
 ENABLE_STARTUP_CRON="${HOROSA_ENABLE_STARTUP_CRON:-0}"
 ENABLE_STARTUP_TRANSGROUP_INIT="${HOROSA_ENABLE_STARTUP_TRANSGROUP_INIT:-0}"
@@ -980,6 +989,29 @@ ready=0
 # 账本观察位(不改就绪判据):各服务首个 http 响应各打一次,latch 后不再探。
 py_seen=0
 java_seen=0
+# progress-aware 就绪门:预算耗尽但服务仍在推进(冷 JVM/杀软全量扫描/慢盘)时
+# 「有进展就续命」,只有真停滞(STALL 窗零进展)或触总 cap 才判死。
+# 进展指纹 = PY/JAVA 日志字节数 + 双 pid CPU 时间 + 账本行数拼串,任一变化即有进展。
+# 全 stat/ps/wc 进程级轻命令(禁 lsof——慢且曾把探测拖死);bash3.2+set -u 全标量安全。
+READY_EXTEND="${HOROSA_READY_PROGRESS_EXTEND:-1}"
+READY_STALL_SECS="${HOROSA_READY_STALL_SECS:-90}"
+READY_TOTAL_CAP_SECS="${HOROSA_READY_TOTAL_CAP_SECS:-900}"
+_progress_fingerprint() {
+  local pyb jab pyc jac ll pypid japid
+  # horosa_web_portable_stat_v1:BSD(-f,macOS)优先,GNU(-c,Linux/Git Bash)回退 ——
+  # 否则 Git Bash 下日志字节数恒 0,进展指纹只剩账本行数一个弱信号。
+  pyb="$(stat -f%z "${PY_LOG}" 2>/dev/null || stat -c%s "${PY_LOG}" 2>/dev/null || echo 0)"
+  jab="$(stat -f%z "${JAVA_LOG}" 2>/dev/null || stat -c%s "${JAVA_LOG}" 2>/dev/null || echo 0)"
+  pypid="$(cat "${PY_PID_FILE}" 2>/dev/null || true)"
+  japid="$(cat "${JAVA_PID_FILE}" 2>/dev/null || true)"
+  pyc=""
+  jac=""
+  if [ -n "${pypid}" ]; then pyc="$(ps -o cputime= -p "${pypid}" 2>/dev/null | tr -d ' ' || true)"; fi
+  if [ -n "${japid}" ]; then jac="$(ps -o cputime= -p "${japid}" 2>/dev/null | tr -d ' ' || true)"; fi
+  ll="$(wc -l < "${LEDGER_FILE}" 2>/dev/null | tr -d ' ' || echo 0)"
+  printf '%s|%s|%s|%s|%s' "${pyb}" "${jab}" "${pyc}" "${jac}" "${ll}"
+}
+
 ledger_log sh.ready_poll_begin
 # 提速(更新后卡顿)B:轮询间隔与 trusted 解耦——更新后首启(trusted=0)同样用 0.2s 快轮询,
 # 服务一就绪就被探测到,不再被旧的 1s 粒度白等近一秒。trusted 仍可用更细的 0.1s。
@@ -990,7 +1022,10 @@ if [ "${TRUSTED_RUNTIME}" = "1" ]; then
   progress_interval="100"
 fi
 elapsed_checks=0
-deadline_epoch=$(( $(date +%s) + STARTUP_TIMEOUT ))
+start_epoch=$(date +%s)
+deadline_epoch=$(( start_epoch + STARTUP_TIMEOUT ))
+last_fp=""
+last_progress_epoch=${start_epoch}
 while true; do
   elapsed_checks=$((elapsed_checks + 1))
   if ! pid_alive "${PY_PID_FILE}"; then
@@ -1023,15 +1058,40 @@ while true; do
   if [ $((elapsed_checks % progress_interval)) -eq 0 ]; then
     echo "waiting services... ${elapsed_checks} checks (${CHART_PORT}:$( (port_listening "${CHART_PORT}" && echo up) || echo down), ${BACKEND_PORT}:$( (port_listening "${BACKEND_PORT}" && echo up) || echo down))"
   fi
+  # 进展指纹采样:每 150 轮(0.2s 轮询≈30s / 0.1s≈15s)一次,开销可忽略。
+  if [ "${READY_EXTEND}" = "1" ] && [ $((elapsed_checks % 150)) -eq 0 ]; then
+    fp="$(_progress_fingerprint)"
+    if [ "${fp}" != "${last_fp}" ]; then
+      last_fp="${fp}"
+      last_progress_epoch=$(date +%s)
+    fi
+  fi
   if [ "$(date +%s)" -ge "${deadline_epoch}" ]; then
+    # 续命判定:最近 STALL 窗内有进展 且 未触总 cap → 延 60s;否则判死。
+    # 判死分支必须引用 last_progress_epoch([110] 反向锚:防有人把续命删回硬超时)。
+    now_epoch=$(date +%s)
+    if [ "${READY_EXTEND}" = "1" ] \
+       && [ $(( now_epoch - last_progress_epoch )) -lt "${READY_STALL_SECS}" ] \
+       && [ $(( now_epoch - start_epoch )) -lt "${READY_TOTAL_CAP_SECS}" ]; then
+      deadline_epoch=$(( now_epoch + 60 ))
+      # 续命不得越过总 cap(否则最后一跳会超冲至多 59s 才判死)
+      cap_epoch=$(( start_epoch + READY_TOTAL_CAP_SECS ))
+      if [ "${deadline_epoch}" -gt "${cap_epoch}" ]; then
+        deadline_epoch="${cap_epoch}"
+      fi
+      ledger_log sh.ready_extend "{\"waited\":$(( now_epoch - start_epoch )),\"progressAge\":$(( now_epoch - last_progress_epoch ))}"
+      echo "services still making progress; extending readiness window (waited $(( now_epoch - start_epoch ))s)"
+      continue
+    fi
+    ledger_log sh.ready_giveup "{\"waited\":$(( now_epoch - start_epoch )),\"progressAge\":$(( now_epoch - last_progress_epoch ))}"
     break
   fi
   sleep "${poll_interval}"
 done
 
 if [ "${ready}" -ne 1 ]; then
-  diag_log "startup timeout after ${STARTUP_TIMEOUT}s"
-  echo "services did not become ready in ${STARTUP_TIMEOUT}s (need both ${CHART_PORT} and ${BACKEND_PORT})."
+  diag_log "startup timeout after $(( $(date +%s) - start_epoch ))s (budget ${STARTUP_TIMEOUT}s + progress extensions)"
+  echo "services did not become ready in $(( $(date +%s) - start_epoch ))s (budget ${STARTUP_TIMEOUT}s; need both ${CHART_PORT} and ${BACKEND_PORT})."
   echo "tip: increase timeout by setting HOROSA_STARTUP_TIMEOUT=300 if this machine is slow on first run."
   echo "--- python log tail ---"
   tail -n 40 "${PY_LOG}" || true

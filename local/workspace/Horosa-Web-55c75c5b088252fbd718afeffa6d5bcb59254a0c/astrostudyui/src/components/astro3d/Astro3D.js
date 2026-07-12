@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
@@ -828,32 +829,32 @@ class Astro3D {
 		let folder = this.gui.addFolder('摄像机');
 		let camrot = folder.add(this.chartOpt, '摄像机旋转');
 		camrot.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.orbits.autoRotate = val;
 		});
 
 		let camfov = folder.add(this.chartOpt, '摄像机视野', 30 , 120);
 		camfov.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.camera.fov = val;
 			this.camera.updateProjectionMatrix();
 		})
 
 		let camlon = folder.add(this.chartOpt, '摄像机天球经度', 0 , 360);
 		camlon.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.setupCameraPos();
 		})
 
 		let camlat = folder.add(this.chartOpt, '摄像机天球纬度', -90 , 90);
 		camlat.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.setupCameraPos();
 		})
 
 		let camdist = folder.add(this.chartOpt, '摄像机与球心距离', this.radius * 2 , this.radius * this.maxCamDistRatio);
 		camdist.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.setupCameraPos();
 		})
 
@@ -864,14 +865,14 @@ class Astro3D {
 
 		const encodingCtrl = earthFolder.add(this.chartOpt, '纹理编码', ['sRGB', 'Linear']);
 		encodingCtrl.onChange(()=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.updateTextureEncoding();
 		});
 
 		let minR = getPlanetRadius(AstroConst.VENUS);
 		let earthR = earthFolder.add(this.chartOpt, '地球半径', minR, this.chartOpt.maxEarthRadius);
 		earthR.onChange(()=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.initEarth();
 			if(this.chartOpt['隐藏地球附近星体']){
 				this.hideEarthPlanets()
@@ -880,7 +881,7 @@ class Astro3D {
 
 		let cloud = earthFolder.add(this.chartOpt, '有云地球');
 		cloud.onChange(()=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.initEarth();
 			if(this.chartOpt['隐藏地球附近星体']){
 				this.hideEarthPlanets()
@@ -889,19 +890,19 @@ class Astro3D {
 
 		let hideEarth = earthFolder.add(this.chartOpt, '隐藏地球');
 		hideEarth.onChange(()=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.hideEarth()
 		});
 
 		let earthAx = earthFolder.add(this.chartOpt, '地球自转轴');
 		earthAx.onChange(()=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.hideEarthAxes()
 		});
 
 		let hideEarthPlanets = earthFolder.add(this.chartOpt, '隐藏地球附近星体');
 		hideEarthPlanets.onChange(()=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.hideEarthPlanets()
 		});
 
@@ -912,7 +913,7 @@ class Astro3D {
 
 		let bk = colorFolder.addColor(this.chartOpt, '星盘背景');
 		bk.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			let color = val;
 			if(this.renderer){
 				this.renderer.setClearColor(color);
@@ -921,7 +922,7 @@ class Astro3D {
 
 		let sunC = colorFolder.addColor(this.chartOpt, '太阳光颜色');
 		sunC.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			let value = val;
 			if ( typeof value === 'string' ) {
 				value = value.replace( '#', '0x' );
@@ -930,13 +931,13 @@ class Astro3D {
 		});
 		let sunIns = colorFolder.add(this.chartOpt, '太阳光强度', 0, 10);
 		sunIns.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.sunDirectLight.intensity = val;
 		});
 
 		let ambC = colorFolder.addColor(this.chartOpt, '环境光颜色');
 		ambC.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			let value = val;
 			if ( typeof value === 'string' ) {
 				value = value.replace( '#', '0x' );
@@ -949,7 +950,7 @@ class Astro3D {
 		});
 		let ambIns = colorFolder.add(this.chartOpt, '环境光强度', 0, 2);
 		ambIns.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.lightGroup.children.map((item, idx)=>{
 				if(item.name && item.name === 'AmbientLight'){
 					item.intensity = val;
@@ -959,7 +960,7 @@ class Astro3D {
 
 		let txtC = colorFolder.addColor(this.chartOpt, '文本颜色');
 		txtC.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			let value = val;
 			if ( typeof value === 'string' ) {
 				value = value.replace( '#', '0x' );
@@ -977,19 +978,19 @@ class Astro3D {
 		let starFolder = this.gui.addFolder('恒星');
 		let starDist = starFolder.add(this.chartOpt, '恒星距离行星圈', 0, 500);
 		starDist.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.distStars(val);
 		});
 
 		let starRadius = starFolder.add(this.chartOpt, '恒星半径', 0.5, 8);
 		starRadius.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt))
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.scaleStars(val);
 		});
 
 		let su28Type = starFolder.add(this.chartOpt, '使用虚拟28宿');
 		su28Type.onChange((val)=>{
-			localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt));
+			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt));
 			this.selectSu28();
 		});
 
@@ -1031,7 +1032,7 @@ class Astro3D {
 	}
 
 	hideStars(val, group1, group2){
-		localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt));
+		safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt));
 		if(group1){
 			if(val){
 				this.group.remove(group1);
@@ -1066,7 +1067,7 @@ class Astro3D {
 	}
 
 	showDoubing(val){
-		localStorage.setItem(ChartOptKey, JSON.stringify(this.chartOpt));
+		safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt));
 		if(val){
 			let found = false;
 			this.group.children.map((item, idx)=>{

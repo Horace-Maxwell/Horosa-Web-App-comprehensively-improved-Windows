@@ -1453,8 +1453,19 @@ class PlanetariumRenderer {
 				x: evt.clientX,
 				y: evt.clientY,
 			};
+			// 🆕 按下即解除「锁定跟随」(双保险):此前只在 pointermove 里解除——WKWebView/WebView2 的
+			// pointer 事件模型差异(pointerId 生命周期/合成事件)可能让 move 链失效,锁定就永远退不出
+			// (用户实测:App 定位星体后鼠标拖动无效、无法取消居中;Chrome preview 正常)。
+			// 按下(准备拖动)本身就是明确的「用户要接管视角」意图,Stellarium 同款语义。
+			if(this._followMesh || this._followStar){
+				this._followMesh = null;
+				this._followStar = null;
+				if(this.camera){ this.camera.lockedTarget = null; }
+			}
+			// setPointerCapture 必须防御:对无效 pointerId 抛 NotFoundError(合成事件/部分 WebView 实测会炸),
+			// 裸抛会中断 handler;capture 失败只影响「指针移出 canvas 仍拖动」的体验,绝不该炸主链。
 			if(this.canvas.setPointerCapture){
-				this.canvas.setPointerCapture(evt.pointerId);
+				try{ this.canvas.setPointerCapture(evt.pointerId); }catch(e){ /* capture 失败可拖动降级 */ }
 			}
 		};
 		this.pointerMoveHandler = (evt)=>{

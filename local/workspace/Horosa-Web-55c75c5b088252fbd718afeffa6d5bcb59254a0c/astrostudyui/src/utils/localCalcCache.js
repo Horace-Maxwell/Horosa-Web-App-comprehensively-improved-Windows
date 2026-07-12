@@ -1,4 +1,12 @@
-import { scheduleStorageWrite } from './deferredStorage';
+// 存储分层治理(FL 级事故后改造):派生缓存从 localStorage 迁 IndexedDB。
+// 旧方案把逐月农历/节气结果写 localStorage(仅条目数上限、无字节账),数月累积 3.6MB
+// 后顶死 origin 级 5MB 配额 → 全 App 一切 setItem 抛 QuotaExceededError,页页炸错误卡。
+// 现方案:读路径不变(全走内存镜像);落盘换 idbCacheStore(磁盘级配额+字节预算+LRU);
+// 首启迁移器把 localStorage 里的历史 horosa.localcalc.* 全部搬走并删除(含 v1 尸键),
+// 老设备装新版第一次启动即自动痊愈。IndexedDB 不可用时自动降级纯内存,缓存 miss=多算一次。
+import { idbScheduleWrite, idbGetAllByPrefix } from './idbCacheStore';
+import { safeLocalStorageRemove } from './safeStorage';
+const LOCAL_CALC_PREFIX = 'horosa.localcalc.';
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
 const JIE_QI_NS = 'horosa.localcalc.jieqi.v2';
 const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v2';
@@ -39,41 +47,76 @@ function buildKey(params, keys){
 	return keys.map((k)=>toKeyPart(k, params && params[k])).join('|');
 }
 
-function loadIfNeeded(){
-	if(loaded || !canUseLocalStorage()){
+const MEM_BY_NS = {};
+
+function parseInto(target, raw){
+	if(!raw){
 		return;
 	}
-	loaded = true;
 	try{
-		const nongliRaw = window.localStorage.getItem(NONG_LI_NS);
-		const jieqiRaw = window.localStorage.getItem(JIE_QI_NS);
-		const jieqiYearRaw = window.localStorage.getItem(JIE_QI_YEAR_NS);
-		const birthGanzhiRaw = window.localStorage.getItem(BIRTH_GANZI_NS);
-		const liurengRunyearRaw = window.localStorage.getItem(LIURENG_RUNYEAR_NS);
-		nongliMem = nongliRaw ? (JSON.parse(nongliRaw) || {}) : {};
-		jieqiMem = jieqiRaw ? (JSON.parse(jieqiRaw) || {}) : {};
-		jieqiYearMem = jieqiYearRaw ? (JSON.parse(jieqiYearRaw) || {}) : {};
-		birthGanzhiMem = birthGanzhiRaw ? (JSON.parse(birthGanzhiRaw) || {}) : {};
-		liurengRunyearMem = liurengRunyearRaw ? (JSON.parse(liurengRunyearRaw) || {}) : {};
-	}catch(e){
-		nongliMem = {};
-		jieqiMem = {};
-		jieqiYearMem = {};
-		birthGanzhiMem = {};
-		liurengRunyearMem = {};
-	}
+		const parsed = JSON.parse(raw);
+		if(parsed && typeof parsed === 'object'){
+			// 内存里已有的条目(预载窗口内新写的)比磁盘旧值新,不覆盖。
+			Object.keys(parsed).forEach((k)=>{
+				if(!(k in target)){
+					target[k] = parsed[k];
+				}
+			});
+		}
+	}catch(e){ /* 损坏即弃,缓存可再生 */ }
 }
 
-function saveNS(ns, data){
+// 首启迁移器(幂等):把 localStorage 里的历史 horosa.localcalc.* 全部搬进 IndexedDB 并删除
+// ——含现行五键与一切旧版尸键(如 jieqiYear.v1)。老设备装新版首启即释放 localStorage 配额。
+function migrateLegacyLocalStorage(){
 	if(!canUseLocalStorage()){
 		return;
 	}
 	try{
-		// 流畅度:缓存落盘移到空闲时段(读路径全走 *Mem 内存镜像)。
-		scheduleStorageWrite(ns, ()=>JSON.stringify(data));
-	}catch(e){
-		// Ignore storage quota and serialization errors; memory cache still works.
+		const legacy = [];
+		for(let i = 0; i < window.localStorage.length; i++){
+			const k = window.localStorage.key(i);
+			if(k && k.indexOf(LOCAL_CALC_PREFIX) === 0){
+				legacy.push(k);
+			}
+		}
+		legacy.forEach((k)=>{
+			const raw = window.localStorage.getItem(k);
+			const mem = MEM_BY_NS[k];
+			if(mem){
+				parseInto(mem, raw);
+				saveNS(k, mem);
+			}
+			safeLocalStorageRemove(k);
+		});
+	}catch(e){ /* 迁移失败不影响使用,下次启动重试 */ }
+}
+
+function loadIfNeeded(){
+	if(loaded){
+		return;
 	}
+	loaded = true;
+	MEM_BY_NS[NONG_LI_NS] = nongliMem;
+	MEM_BY_NS[JIE_QI_NS] = jieqiMem;
+	MEM_BY_NS[JIE_QI_YEAR_NS] = jieqiYearMem;
+	MEM_BY_NS[BIRTH_GANZI_NS] = birthGanzhiMem;
+	MEM_BY_NS[LIURENG_RUNYEAR_NS] = liurengRunyearMem;
+	// 异步预载 IndexedDB → 内存镜像(同步路径立即返回:预载完成前 miss=现算,零正确性影响)。
+	idbGetAllByPrefix(LOCAL_CALC_PREFIX).then((entries)=>{
+		entries.forEach((raw, ns)=>{
+			const mem = MEM_BY_NS[ns];
+			if(mem){
+				parseInto(mem, raw);
+			}
+		});
+		migrateLegacyLocalStorage();
+	}).catch(()=>{});
+}
+
+function saveNS(ns, data){
+	// 流畅度:缓存落盘移到空闲时段(读路径全走 *Mem 内存镜像);后端=IndexedDB(字节预算+LRU)。
+	idbScheduleWrite(ns, ()=>JSON.stringify(data));
 }
 
 function trimByCount(mapObj, maxCount){

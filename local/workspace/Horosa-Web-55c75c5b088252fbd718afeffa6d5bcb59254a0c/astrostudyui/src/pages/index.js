@@ -606,7 +606,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     const isFullHeightWorkspaceTab = fullHeightWorkspaceTabs.has(activeMainTab);
     const rootTabsHeight = isFullHeightWorkspaceTab ? 'calc(100vh - 72px)' : height;
 
+	// 顶层兜底:TabPane 之外的 chrome(导航/抽屉/快捷坞)崩溃也不白屏(技法页级隔离见 FreezeInactive)
 	return (
+		<TechniqueErrorBoundary label="应用">
 		<div style={idxstyle}>
         <Spin spinning={loading} size="large" tip={tip}>
             <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
@@ -1542,6 +1544,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
         </Spin>
 		</div>
+		</TechniqueErrorBoundary>
 	);
 }
 

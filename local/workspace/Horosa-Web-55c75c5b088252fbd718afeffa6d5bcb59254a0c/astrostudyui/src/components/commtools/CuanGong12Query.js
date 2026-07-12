@@ -46,6 +46,7 @@ export default class CuanGong12Query extends Component{
 		const data = await request(`${Constants.ServerRoot}/common/gong12`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey]
 
         let gong12 = result.gong12;

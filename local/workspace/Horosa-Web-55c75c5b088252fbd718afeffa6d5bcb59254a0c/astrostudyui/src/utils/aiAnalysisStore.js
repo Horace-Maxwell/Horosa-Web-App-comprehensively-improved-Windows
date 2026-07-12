@@ -1,3 +1,4 @@
+import { safeLocalStorageSet } from './safeStorage';
 import {
 	getProviderDefaultChatModels,
 	getProviderDefaultEmbeddingModels,
@@ -554,7 +555,7 @@ export function saveUiPrefs(next){
 			...loadUiPrefs(),
 			...(next || {}),
 		};
-		window.localStorage.setItem(UI_PREF_KEY, JSON.stringify(merged));
+		safeLocalStorageSet(UI_PREF_KEY, JSON.stringify(merged));
 		return merged;
 	}catch(e){
 		// 多为本地存储配额超限:此处不静默吞掉,记录以便定位(UI 提示交由调用方)。

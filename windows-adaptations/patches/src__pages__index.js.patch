@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index dddf321..ce2ac84 100644
+index fd7470d..b698745 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
 @@ -340,7 +340,50 @@ function AstroIndex({dispatch, astro, app, user, rules, }){

@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { XQCheckItem, XQCheckList } from '../xq-ui';
@@ -15,7 +16,7 @@ class AspSelector extends Component{
 
 	onChange(checkedValues){
 		let json = JSON.stringify(checkedValues);
-		localStorage.setItem(AstroConst.AspKey, json);
+		safeLocalStorageSet(AstroConst.AspKey, json);
 		if(this.props.dispatch){
 			this.props.dispatch({
 				type: 'app/save',
@@ -31,13 +32,13 @@ class AspSelector extends Component{
 		let val = localStorage.getItem(AstroConst.AspKey);
 		if(val === undefined || val === null){
 			val = AstroConst.DEFAULT_ASPECTS;
-			localStorage.setItem(AstroConst.AspKey, JSON.stringify(val));
+			safeLocalStorageSet(AstroConst.AspKey, JSON.stringify(val));
 			return val;
 		}
 		try{
 			return JSON.parse(val);
 		}catch(err){
-			localStorage.setItem(AstroConst.AspKey, JSON.stringify(AstroConst.DEFAULT_ASPECTS));
+			safeLocalStorageSet(AstroConst.AspKey, JSON.stringify(AstroConst.DEFAULT_ASPECTS));
 			return AstroConst.DEFAULT_ASPECTS;
 		}
 	}

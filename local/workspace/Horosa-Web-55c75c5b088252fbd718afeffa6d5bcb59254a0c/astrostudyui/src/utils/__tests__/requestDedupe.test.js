@@ -73,6 +73,22 @@ describe('dedupedRequest 行为', () => {
 		expect(calls).toBe(2);
 		expect(b.ok).toBe(true);
 	});
+	it('🔴 吞错型失败(resolve undefined)不入 L1/L2 缓存:透传后下次重新执行(防投毒)', async () => {
+		// request() 网络层失败会吞错 resolve undefined(非 reject);若存进 done(30s)/warm(10min),
+		// 后端重启窗口内一次失败会把该参数组合投毒 10 分钟——同参请求全部秒回 undefined。
+		let calls = 0;
+		const runner = () => {
+			calls += 1;
+			return calls === 1 ? Promise.resolve(undefined) : Promise.resolve({ ok: true });
+		};
+		const a = await dedupedRequest(URL_ACG, { body: BODY_A }, runner);
+		expect(a).toBeUndefined();                    // 原样透传,交调用方守卫
+		expect(__dedupeStats().done).toBe(0);         // L1 未被投毒
+		expect(__dedupeStats().warm).toBe(0);         // L2 未被投毒
+		const b = await dedupedRequest(URL_ACG, { body: BODY_A }, runner);
+		expect(calls).toBe(2);                        // 第二次真执行 = 未命中毒缓存
+		expect(b.ok).toBe(true);
+	});
 });
 
 describe('L2 技法结果缓存(horosa.perf.techniqueCache)', () => {

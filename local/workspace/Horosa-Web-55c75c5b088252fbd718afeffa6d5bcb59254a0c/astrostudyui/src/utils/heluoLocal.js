@@ -713,7 +713,11 @@ export function buildSnapshotText(chart, jg, dy, extra = {}) {
 	if (dy && dy.all) {
 		lines.push('');
 		lines.push('[大限·岁运]');
-		dy.all.forEach((s) => { lines.push(`${s.ageStart}-${s.ageEnd}岁 ${s.gua} ${yaoName(s.lines, s.pos)}（${s.yang ? '阳9' : '阴6'}）`); });
+		// [v2 排版批量·表化] 同构逐条行改 GFM 表(紫微宫位总览范式):段头/值表达式零变更
+		// (ageStart-ageEnd岁/gua/yaoName/阳9|阴6 逐字复用),仅排版骨架换表头+分隔行+数据行。
+		lines.push('| 岁段 | 卦 | 爻 | 爻性 |');
+		lines.push('| --- | --- | --- | --- |');
+		dy.all.forEach((s) => { lines.push(`| ${s.ageStart}-${s.ageEnd}岁 | ${s.gua} | ${yaoName(s.lines, s.pos)} | ${s.yang ? '阳9' : '阴6'} |`); });
 		// 流年卦(全生涯):此前 buildSnapshotText 从不调用 liuNian → 挂载/导出都丢了整层流年卦(用户反馈「缺一大部分流年卦」)。
 		// birthYear 由 dy.all[0].yearStart 反推(daYun 传 birthYear 时 segs 带 yearStart);缺则流年仍出 岁/卦/动爻(year/干支为空)。
 		const birthYear = (dy.all[0] && dy.all[0].yearStart) ? (dy.all[0].yearStart - dy.all[0].ageStart + 1) : 0;
@@ -722,9 +726,13 @@ export function buildSnapshotText(chart, jg, dy, extra = {}) {
 		if (ynRows.length) {
 			lines.push('');
 			lines.push('[流年·岁运]');
+			// [v2 排版批量·表化] 全生涯流年卦改 GFM 表:值表达式逐字复用(age岁/yzz/gua/yaoName),
+			// 仅排版骨架变化;诗文类段([先天卦·元堂爻辞] 等)不表化保持原样。
+			lines.push('| 岁 | 年·干支 | 卦 | 爻 |');
+			lines.push('| --- | --- | --- | --- |');
 			ynRows.forEach((r) => {
 				const yzz = r.year ? `${r.year}·${r.ganzhi}` : (r.ganzhi || '');
-				lines.push(`${r.age}岁${yzz ? ` ${yzz}` : ''} ${r.gua} ${yaoName(r.lines, r.pos)}`);
+				lines.push(`| ${r.age}岁 | ${yzz} | ${r.gua} | ${yaoName(r.lines, r.pos)} |`);
 			});
 		}
 	}

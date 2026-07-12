@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
-import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { Document, Packer, Paragraph, TextRun, ImageRun } from 'docx';
+import { dataUrlToUint8Array } from './docxCommon';
 
 export function downloadBlob(fileName, blob){
 	const url = (window.URL || window.webkitURL).createObjectURL(blob);
@@ -48,7 +49,10 @@ export function downloadTextFile(fileName, content, type = 'text/plain;charset=u
 	downloadBlob(fileName, new Blob([withUtf8Bom(content, type)], { type }));
 }
 
-export async function exportConversationDocx(conversation, messages){
+// [WP-C] opts.pageScreenshot={dataUrl,width,height}:文档头附「当前页面截图」。
+// 截图由调用方(AIAnalysisMain)按「AI导出设置·附页面截图」开关抓取后传入——本文件被 aiExport 引用,
+// 不能反向 import aiExport 读设置(防循环);图缺失/损坏一律跳过,绝不阻断导出。
+export async function exportConversationDocx(conversation, messages, opts){
 	const title = conversation && conversation.title ? conversation.title : 'AI分析会话';
 	const lines = [];
 	lines.push(new Paragraph({
@@ -60,6 +64,17 @@ export async function exportConversationDocx(conversation, messages){
 			}),
 		],
 	}));
+	const pageShot = opts && opts.pageScreenshot;
+	if(pageShot && pageShot.dataUrl){
+		const shotU8 = dataUrlToUint8Array(pageShot.dataUrl);
+		if(shotU8){
+			const shotW = Math.min(600, pageShot.width || 600);
+			const shotH = Math.max(1, Math.round((pageShot.height || shotW) * (shotW / Math.max(1, pageShot.width || shotW))));
+			try{
+				lines.push(new Paragraph({ children: [new ImageRun({ data: shotU8, transformation: { width: shotW, height: shotH } })] }));
+			}catch(_){ /* 图损坏忽略 */ }
+		}
+	}
 	(messages || []).forEach((item)=>{
 		lines.push(new Paragraph({
 			children: [
@@ -83,7 +98,7 @@ export async function exportConversationDocx(conversation, messages){
 	return Packer.toBlob(doc);
 }
 
-export async function exportConversationByFormat(conversation, messages, format){
+export async function exportConversationByFormat(conversation, messages, format, opts){
 	if(format === 'json'){
 		return {
 			fileName: `${conversation.title || 'conversation'}.json`,
@@ -105,7 +120,7 @@ export async function exportConversationByFormat(conversation, messages, format)
 	if(format === 'docx'){
 		return {
 			fileName: `${conversation.title || 'conversation'}.docx`,
-			blob: await exportConversationDocx(conversation, messages),
+			blob: await exportConversationDocx(conversation, messages, opts),
 		};
 	}
 	return {

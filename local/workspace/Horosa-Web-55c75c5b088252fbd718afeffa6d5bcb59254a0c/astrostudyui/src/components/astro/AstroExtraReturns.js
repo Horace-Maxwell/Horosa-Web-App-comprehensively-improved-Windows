@@ -5,6 +5,13 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, chartParams, chartRequestKey, astroSymbol } from './AstroExtraCommon';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+// [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+// 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 import * as AstroConst from '../../constants/AstroConst';
 import styles from '../../css/styles.less';
 
@@ -30,15 +37,33 @@ async function fetchReturns(chartObj, body, count){
 // AI 快照（请求型，内部拉三体返照）。section 头 [多重回归] 与 aiExport preset 对齐。
 export async function buildExtraReturnsSnapshotText(chartObj){
 	if(!chartObj){ return ''; }
-	const lines = ['[多重回归]'];
+	const bodyLines = [];
 	for(let i = 0; i < BODIES.length; i++){
 		const b = BODIES[i];
-		const r = await fetchReturns(chartObj, b.key, 4);
+		// bug 修:导出此前只取 4 回而 UI 取 5 回(组件 state.count=5)→ 对齐 5。
+		const r = await fetchReturns(chartObj, b.key, 5);
 		const rows = (r && r.returns) || [];
 		if(!rows.length){ continue; }
-		lines.push(`${b.cn}（${b.period}）：` + rows.map((x) => `第${x.which}回 ${x.date}`).join('，'));
+		// bug 修:导出此前缺各回 time 与本命黄经 natalLon(UI 逐行/页脚均有)→ 补进每行;
+		// 既有「第N回 日期」字段顺序不变,新字段(时刻表+本命黄经,口径同 UI toFixed(1))追加在行尾。
+		const datesTxt = rows.map((x) => `第${x.which}回 ${x.date}`).join('，');
+		const timesTxt = rows.map((x) => `第${x.which}回 ${x.time || '-'}`).join('，');
+		const natalLonTxt = (r && r.natalLon !== undefined && r.natalLon !== null) ? `；本命黄经 ${Number(r.natalLon).toFixed(1)}°` : '';
+		bodyLines.push(`${b.cn}（${b.period}）：${datesTxt}；时刻：${timesTxt}${natalLonTxt}`);
 	}
-	return lines.length > 1 ? lines.join('\n') : '';
+	if(!bodyLines.length){ return ''; }
+	const lines = [];
+	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
+	lines.push(...birthHeaderLines(chartObj));
+	lines.push('[多重回归]');
+	lines.push(...bodyLines);
+	// [YB] 尾部 [当前时点]+[方法说明](返照日期表即周期节点,按导出时刻自查,不另加定位行)。
+	const tail = [...currentMomentLines(chartObj), ...methodNoteLines('extrareturns')];
+	if(tail.length){
+		lines.push('');
+		lines.push(...tail);
+	}
+	return lines.join('\n');
 }
 
 class AstroExtraReturns extends Component{

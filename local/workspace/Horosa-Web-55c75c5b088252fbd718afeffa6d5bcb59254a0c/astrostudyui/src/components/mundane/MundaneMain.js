@@ -184,6 +184,23 @@ function ascRuler(chart){
 	return { signKey: key, signCn: sign.cn, modality: sign.modality, rulerKey: sign.domicile, rulerCn: PLANET_CN[sign.domicile] || sign.domicile };
 }
 
+// AI 快照段:世俗宫义/地理分野 逐行 → GFM 表(v1/v2 归一器直通、docx/PDF 渲染真表)。
+// 单元格值表达式与旧逐字同源(planetCn/house/houseMeaning/signTemper/text · a.cn/countries),只改排版;
+// 抽为模块级纯函数供 buildAiSnapshot 调用并可单测(数值不变证明)。宫号保「第N宫」原子 token。
+export function formatMundaneHouseTable(rows){
+	const out = ['| 星 | 宫 | 宫义 | 星座 | 判读 |', '| --- | --- | --- | --- | --- |'];
+	(rows || []).forEach((r) => {
+		const zodiac = r.signTemper ? `${r.sign || ''}·${r.signTemper.modeElement}` : '—';
+		out.push(`| ${r.planetCn} | 第${r.house}宫 | ${r.houseMeaning} | ${zodiac} | ${r.text} |`);
+	});
+	return out.join('\n');
+}
+export function formatMundaneChorographyTable(axes){
+	const out = ['| 星座 | 分野 |', '| --- | --- |'];
+	(axes || []).forEach((a) => { out.push(`| ${a.cn} | ${a.regions.countries.slice(0, 4).join('、')} |`); });
+	return out.join('\n');
+}
+
 const CARD = {
 	border: '1px solid var(--horosa-border, rgba(128,128,128,0.16))',
 	borderRadius: 12,
@@ -1511,7 +1528,7 @@ class MundaneMain extends Component{
 		try{
 			const facts = buildFacts(chart);
 			const rows = describeMundaneChart(facts);
-			if(rows && rows.length){ judge = '[世俗宫义]\n' + rows.map((r) => `${r.planetCn} 第${r.house}宫(${r.houseMeaning})${r.signTemper ? ' ['+(r.sign||'')+'·'+r.signTemper.modeElement+']' : ''}：${r.text}`).join('\n'); }
+			if(rows && rows.length){ judge = '[世俗宫义]\n' + formatMundaneHouseTable(rows); }
 			const v = describeMundaneVictor(facts, ex.mundaneRuleset);
 			if(v){ extraSecs.push(`[定局·年主/盘主]\n年主星：${v.victorCn}（累分 ${v.maxScore}）${v.victorMundane ? ' · ' + v.victorMundane.powerRole : ''}；取点 ${v.points.join(' / ')}`); }
 			if(type === 'ingress'){
@@ -1520,7 +1537,7 @@ class MundaneMain extends Component{
 			}
 			if(type === 'ingress' || type === 'region'){
 				const ch = describeChorography(facts, rulesetConfig(ex.mundaneRuleset).chorographyDataset);
-				if(ch && ch.axes.length){ extraSecs.push('[地理分野]\n数据集：' + ch.datasetMeta.label + '\n' + ch.axes.map((a) => `${a.cn}：${a.regions.countries.slice(0, 4).join('、')}`).join('\n') + '\n（多源综合·传统占星学术参考,非现实地缘断言）'); }
+				if(ch && ch.axes.length){ extraSecs.push('[地理分野]\n数据集：' + ch.datasetMeta.label + '\n' + formatMundaneChorographyTable(ch.axes) + '\n（多源综合·传统占星学术参考,非现实地缘断言）'); }
 			}
 			if(type === 'region'){
 				const founding = (this.state.progFoundingYear != null) ? this.state.progFoundingYear : (ex.regionFoundingYear || null);

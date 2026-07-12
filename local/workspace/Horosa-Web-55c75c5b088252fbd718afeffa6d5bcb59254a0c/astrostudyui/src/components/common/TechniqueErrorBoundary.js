@@ -1,4 +1,8 @@
-import { Component } from 'react';
+// React 默认导出必须显式引入:本文件 JSX 在 classic runtime(jest/umi-test)下编译为
+// React.createElement,缺省会 ReferenceError(app 的 automatic runtime 侥幸不炸=配置漂移地雷)。
+import React, { Component } from 'react';
+import { isQuotaError, clearRecoverableCaches } from '../../utils/safeStorage';
+import { idbClearByPrefix } from '../../utils/idbCacheStore';
 
 /**
  * 技法面板级 React Error Boundary。
@@ -15,6 +19,7 @@ export default class TechniqueErrorBoundary extends Component {
 		super(props);
 		this.state = { hasError: false, err: null, info: null, resetKey: 0 };
 		this.handleRetry = this.handleRetry.bind(this);
+		this.handleClearCacheRetry = this.handleClearCacheRetry.bind(this);
 	}
 
 	static getDerivedStateFromError(err){
@@ -31,6 +36,18 @@ export default class TechniqueErrorBoundary extends Component {
 
 	handleRetry(){
 		this.setState({ hasError: false, err: null, info: null });
+	}
+
+	// 配额自愈:清全部可再生缓存(localStorage 前缀键+IndexedDB 缓存层)后重挂子树。
+	// 缓存是纯派生数据,清了只是重算;用户命盘/设置一律不动。
+	handleClearCacheRetry(){
+		try{ clearRecoverableCaches(); }catch(e){ /* 尽力而为 */ }
+		const done = ()=>this.setState({ hasError: false, err: null, info: null });
+		try{
+			idbClearByPrefix('horosa.localcalc.').then(done, done);
+		}catch(e){
+			done();
+		}
 	}
 
 	// 汇总可读错误文本(消息 + JS 栈 + 组件栈),供「技术详情」展示与「复制」。
@@ -54,6 +71,7 @@ export default class TechniqueErrorBoundary extends Component {
 	render(){
 		if(this.state.hasError){
 			const label = this.props.label ? `「${this.props.label}」` : '';
+			const quota = isQuotaError(this.state.err);
 			return (
 				<div
 					style={{
@@ -70,7 +88,9 @@ export default class TechniqueErrorBoundary extends Component {
 						该面板{label}加载出错
 					</div>
 					<div style={{ fontSize: 13, color: 'var(--horosa-text-soft, #8a8f99)', marginBottom: 12, lineHeight: 1.6 }}>
-						页面其它部分不受影响。可点「重试」重新加载本面板;若反复出现请重选参数或重新起盘。
+						{quota
+							? '本地缓存空间已满(浏览器存储配额用尽)。点击下方「一键清理缓存并恢复」即可释放空间并自动恢复——只清理可重新计算的缓存,您储存的命盘与设置不受影响。'
+							: '页面其它部分不受影响。可点「重试」重新加载本面板;若反复出现请重选参数或重新起盘。'}
 					</div>
 					{this.state.err ? (
 						<div style={{ marginBottom: 12 }}>
@@ -91,7 +111,7 @@ export default class TechniqueErrorBoundary extends Component {
 					) : null}
 					<button
 						type="button"
-						onClick={this.handleRetry}
+						onClick={quota ? this.handleClearCacheRetry : this.handleRetry}
 						style={{
 							cursor: 'pointer',
 							padding: '5px 16px',
@@ -102,7 +122,7 @@ export default class TechniqueErrorBoundary extends Component {
 							fontSize: 13,
 						}}
 					>
-						重试
+						{quota ? '一键清理缓存并恢复' : '重试'}
 					</button>
 				</div>
 			);

@@ -29,7 +29,7 @@ import {
 	buildDunJiaSnapshotText,
 } from '../dunjia/DunJiaCalc';
 import GeoCoordModal from '../amap/GeoCoordModal';
-import SanShiZiWeiSihua from './SanShiZiWeiSihua';
+import SanShiZiWeiSihua, { buildSanShiZiweiSihuaSnapshotLines } from './SanShiZiWeiSihua';
 import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
@@ -1333,6 +1333,8 @@ export function buildSanShiUnitedSnapshotText(data){
 		liurengChartForLr,
 		lrCastOverride,
 		liurengRunYear,
+		// [YA v42] 紫微四化 tab 上报的 {chart,daxianIdx,liunianIdx};缺省(旧调用/tab 未开)不产段。
+		ziweiSihua,
 	} = data || {};
 	if(!dunjia || !keData || !sanChuan || !lrLayout){
 		return '';
@@ -1534,6 +1536,15 @@ export function buildSanShiUnitedSnapshotText(data){
 	// (避免与六壬「概览」等碰撞)——独立遁甲页有、三式合一此前缺这 ~9 段。
 	const qimenSectionMap = parseSnapshotSections(buildDunJiaSnapshotText(dunjia));
 	appendPickedSections(lines, qimenSectionMap, SANSHI_QIMEN_EXTRA_SECTIONS, '奇门');
+	// [YA v42] A 类硬缺:紫微四化叠加 tab(SanShiZiWeiSihua 独立计算)显示了却不入快照。
+	// 复用该组件导出的同源纯函数取数(单一真值源,与 tab 同一套 getLayerSihua/ZWLuckPanel 计算);
+	// 无盘/无四化不产段(零回归——旧调用不带 ziweiSihua 时输出与此前逐字节一致)。
+	if(ziweiSihua && ziweiSihua.chart){
+		const ziweiSihuaLines = buildSanShiZiweiSihuaSnapshotLines(ziweiSihua.chart, ziweiSihua.daxianIdx, ziweiSihua.liunianIdx);
+		if(ziweiSihuaLines.length){
+			appendSection(lines, '紫微四化', ziweiSihuaLines);
+		}
+	}
 	return lines.join('\n').trim();
 }
 
@@ -1958,6 +1969,10 @@ class SanShiUnitedMain extends Component{
 		this.cancelPendingRecalc = this.cancelPendingRecalc.bind(this);
 		this.scheduleSnapshotSave = this.scheduleSnapshotSave.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+		// [YA v42] 紫微四化 tab 上报的盘+大运/流年选中态(实例字段,非 state:避免重渲循环);
+		// tab 未打开过(antd 懒渲染)保持 null → 快照不产 [紫微四化] 段。
+		this.ziweiSihuaSnapshotInput = null;
+		this.handleZiweiSihuaSnapshotState = this.handleZiweiSihuaSnapshotState.bind(this);
 		this.handleExternalFieldsSync = this.handleExternalFieldsSync.bind(this);
 		this.syncFields = this.syncFields.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
@@ -2868,6 +2883,7 @@ class SanShiUnitedMain extends Component{
 			liurengChartForLr: lrSnapInput.chartForLr,
 			lrCastOverride: lrSnapInput.lrCastOverride,
 			liurengRunYear: lrSnapInput.runYearRef,
+			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
 		});
 			const payload = {
 				module: 'sanshiunited',
@@ -3043,6 +3059,12 @@ class SanShiUnitedMain extends Component{
 		}, SANSHI_SNAPSHOT_DEFER_MS);
 	}
 
+	// [YA v42] 紫微四化 tab(SanShiZiWeiSihua)上报其盘与大运/流年选中态——落实例字段,
+	// 供快照三条路径(重算 scheduleSnapshotSave/存档 clickSave/导出刷新 handleSnapshotRefreshRequest)payload 带上。
+	handleZiweiSihuaSnapshotState(payload){
+		this.ziweiSihuaSnapshotInput = payload || null;
+	}
+
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
 		if(moduleName !== 'sanshiunited'){
@@ -3075,6 +3097,7 @@ class SanShiUnitedMain extends Component{
 			liurengChartForLr: lrSnapInput.chartForLr,
 			lrCastOverride: lrSnapInput.lrCastOverride,
 			liurengRunYear: lrSnapInput.runYearRef,
+			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
 		};
 		const snapshotText = buildSanShiUnitedSnapshotText(snapshotPayload);
 		if(!snapshotText){
@@ -3328,6 +3351,7 @@ class SanShiUnitedMain extends Component{
 			liurengChartForLr: liurengSnapshotInput.chartForLr,
 			lrCastOverride: liurengSnapshotInput.lrCastOverride,
 			liurengRunYear: liurengSnapshotInput.runYearRef,
+			ziweiSihua: this.ziweiSihuaSnapshotInput || null,
 		};
 		const snapshotMeta = {
 			date: flds && flds.date ? flds.date.value.format('YYYY-MM-DD') : '',
@@ -5235,7 +5259,8 @@ class SanShiUnitedMain extends Component{
 						</Card>
 					</TabPane>
 					<TabPane tab="紫微四化" key="ziweisihua">
-						<SanShiZiWeiSihua fields={this.getActiveFields()} />
+						{/* [YA v42] onSnapshotState:上报盘+大运/流年选中态 → 快照产 [紫微四化] 段 */}
+						<SanShiZiWeiSihua fields={this.getActiveFields()} onSnapshotState={this.handleZiweiSihuaSnapshotState} />
 					</TabPane>
 				</Tabs>
 			</div>

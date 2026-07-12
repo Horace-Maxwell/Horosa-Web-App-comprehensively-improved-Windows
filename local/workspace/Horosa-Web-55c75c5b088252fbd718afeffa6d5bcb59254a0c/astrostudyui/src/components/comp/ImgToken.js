@@ -28,6 +28,7 @@ class ImgToken extends Component{
 		const data = await request(`${Constants.ServerRoot}/common/imgToken`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const Result = data[Constants.ResultKey]
 
 		this.setState({

@@ -160,6 +160,7 @@ class AstroSolarReturn extends Component{
 		const data = await request(`${Constants.ServerRoot}/predict/solarreturn`, {
 			body: JSON.stringify(params),
 		});
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey]
 
 		let tm = new DateTime();
@@ -177,7 +178,7 @@ class AstroSolarReturn extends Component{
 
 		this.setState(st, ()=>{
 			const chartValue = this.props.value;
-			saveModuleAISnapshotLazy('solarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result), {
+			saveModuleAISnapshotLazy('solarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solarreturn'), {
 				module: 'solarreturn',
 			});
 		});
@@ -348,7 +349,7 @@ class AstroSolarReturn extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, this.state.dirChart) || ''}`.trim();
+			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, this.state.dirChart, 'solarreturn') || ''}`.trim();
 		}catch(e){
 			text = '';
 		}

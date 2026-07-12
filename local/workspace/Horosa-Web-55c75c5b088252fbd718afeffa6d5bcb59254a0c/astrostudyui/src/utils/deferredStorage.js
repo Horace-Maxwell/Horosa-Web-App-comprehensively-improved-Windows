@@ -1,3 +1,4 @@
+import { isQuotaError, clearRecoverableCaches } from './safeStorage';
 // deferredStorage.js —— localStorage 延迟落盘(流畅度优化)。
 //
 // 痛点:排盘完成后同步 JSON.stringify(整盘 1-5MB)+setItem 阻塞主线程 100-300ms,
@@ -22,10 +23,17 @@ function flushAll(){
 		try{
 			const text = factory();
 			if(typeof text === 'string' && typeof window !== 'undefined' && window.localStorage){
-				window.localStorage.setItem(key, text);
+				try{
+					window.localStorage.setItem(key, text);
+				}catch(e){
+					// 配额满 → 清可再生缓存后重试一次;仍失败静默(内存态仍可用)。
+					if(isQuotaError(e)){
+						try{ clearRecoverableCaches(); window.localStorage.setItem(key, text); }catch(e2){ /* 静默 */ }
+					}
+				}
 			}
 		}catch(e){
-			// 配额/序列化失败静默:内存态仍可用,与原同步写的容错一致。
+			// 序列化失败静默:内存态仍可用,与原同步写的容错一致。
 		}
 	});
 }

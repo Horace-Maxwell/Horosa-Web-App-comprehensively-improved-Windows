@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Checkbox, Collapse } from 'antd';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
@@ -117,7 +118,7 @@ class ZiWeiInput extends Component{
 
 	onChartTypeChange(val){
 		ZWCont.ZWChart.chart = val;
-		localStorage.setItem('ziweiChartType', val);
+		safeLocalStorageSet('ziweiChartType', val);
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
 			this.props.onFieldsChange({
@@ -214,7 +215,7 @@ class ZiWeiInput extends Component{
 
 	onTipsChange(e){
 		let val = e.target.checked;
-		localStorage.setItem('ziweiTips', val ? 1 : 0);
+		safeLocalStorageSet('ziweiTips', val ? 1 : 0);
 		this.setState({
 			showTips: val,
 		});
@@ -235,14 +236,14 @@ class ZiWeiInput extends Component{
 
 	onShowOthersChange(e){
 		let val = e.target.checked;
-		localStorage.setItem('ziweiShowOthers', val ? 1 : 0);
+		safeLocalStorageSet('ziweiShowOthers', val ? 1 : 0);
 		this.setState({ showOthers: val });
 		this.redrawChart();
 	}
 
 	onShowSmallChange(e){
 		let val = e.target.checked;
-		localStorage.setItem('ziweiShowSmall', val ? 1 : 0);
+		safeLocalStorageSet('ziweiShowSmall', val ? 1 : 0);
 		this.setState({ showSmall: val });
 		this.redrawChart();
 	}
@@ -250,7 +251,7 @@ class ZiWeiInput extends Component{
 	// P1-A 四化流派切换：写全局单例 + localStorage + 刷新兼容垫片 + 失效四化缓存 + 重绘。
 	applySihuaSchool(val){
 		ZWCont.ZWSchool.school = val;
-		localStorage.setItem('ziweiSihuaSchool', val);
+		safeLocalStorageSet('ziweiSihuaSchool', val);
 		ZWCont.refreshActiveSiHua();
 		ZiWeiHelper.resetHuaMap();
 	}
@@ -270,19 +271,19 @@ class ZiWeiInput extends Component{
 
 	// WP-D 流派预设:一键套全开关组合(四化 + 全 ZWEngineOptions)。custom 只标记;选 preset 套组合后可再手调单项(→自动判 custom)。
 	onPresetChange(val){
-		if(val === 'custom'){ this.setState({ zwPresetPicked: 'custom' }); localStorage.setItem('ziweiPreset', 'custom'); return; }
+		if(val === 'custom'){ this.setState({ zwPresetPicked: 'custom' }); safeLocalStorageSet('ziweiPreset', 'custom'); return; }
 		const p = ZIWEI_SCHOOL_PRESETS[val];
 		if(!p){ return; }
 		this.applySihuaSchool(p.sihua);
 		const lsMap = { daxianSpan: 'ziweiDaxianSpan', tianmaBasis: 'ziweiTianmaBasis', starSet: 'ziweiStarSet', sanPan: 'ziweiSanPan', shangShi: 'ziweiShangShi', leapMonth: 'ziweiLeapMonth', lateZi: 'ziweiLateZi', yearBoundary: 'ziweiYearBoundary', huoling: 'ziweiHuoling', kongNaming: 'ziweiKongNaming' };
-		Object.keys(lsMap).forEach((k)=>{ ZWEngineOptions[k] = p[k]; localStorage.setItem(lsMap[k], String(p[k])); });
-		localStorage.setItem('ziweiPreset', val);
+		Object.keys(lsMap).forEach((k)=>{ ZWEngineOptions[k] = p[k]; safeLocalStorageSet(lsMap[k], String(p[k])); });
+		safeLocalStorageSet('ziweiPreset', val);
 		this.setState({ zwPresetPicked: val, sihuaSchool: p.sihua, daxianSpan: p.daxianSpan, tianmaBasis: p.tianmaBasis, starSet: p.starSet, sanPan: p.sanPan, shangShi: p.shangShi, leapMonth: p.leapMonth, lateZi: p.lateZi, yearBoundary: p.yearBoundary, huoling: p.huoling, kongNaming: p.kongNaming });
 		this.redrawChart();
 	}
 
 	onSihuaCustomOk(table){
-		localStorage.setItem('ziweiSihuaCustom', JSON.stringify(table));
+		safeLocalStorageSet('ziweiSihuaCustom', JSON.stringify(table));
 		this.applySihuaSchool('custom');
 		this.setState({ sihuaSchool: 'custom', sihuaCustomOpen: false });
 		this.redrawChart();
@@ -301,22 +302,22 @@ class ZiWeiInput extends Component{
 	}
 
 	onXiaoxianModeChange(val){
-		localStorage.setItem('ziweiXiaoxianYinyang', val);
+		safeLocalStorageSet('ziweiXiaoxianYinyang', val);
 		this.setState({ xiaoxianMode: val });
 		this.redrawChart();
 	}
 
 	// 传本/排盘开关:写可变单例 ZWEngineOptions + localStorage,重绘(→requestZiWei 走本地引擎双路)。
-	onDaxianSpanChange(val){ ZWEngineOptions.daxianSpan = val; localStorage.setItem('ziweiDaxianSpan', String(val)); this.setState({ daxianSpan: val }); this.redrawChart(); }
-	onTianmaBasisChange(val){ ZWEngineOptions.tianmaBasis = val; localStorage.setItem('ziweiTianmaBasis', val); this.setState({ tianmaBasis: val }); this.redrawChart(); }
-	onStarSetChange(val){ ZWEngineOptions.starSet = val; localStorage.setItem('ziweiStarSet', val); this.setState({ starSet: val }); this.redrawChart(); }
-	onSanPanChange(val){ ZWEngineOptions.sanPan = val; localStorage.setItem('ziweiSanPan', val); this.setState({ sanPan: val }); this.redrawChart(); }
-	onShangShiChange(val){ ZWEngineOptions.shangShi = val; localStorage.setItem('ziweiShangShi', val); this.setState({ shangShi: val }); this.redrawChart(); }
-	onLeapMonthChange(val){ ZWEngineOptions.leapMonth = val; localStorage.setItem('ziweiLeapMonth', val); this.setState({ leapMonth: val }); this.redrawChart(); }
-	onLateZiChange(val){ ZWEngineOptions.lateZi = val; localStorage.setItem('ziweiLateZi', val); this.setState({ lateZi: val }); this.redrawChart(); }
-	onYearBoundaryChange(val){ ZWEngineOptions.yearBoundary = val; localStorage.setItem('ziweiYearBoundary', val); this.setState({ yearBoundary: val }); this.redrawChart(); }
-	onHuolingChange(val){ ZWEngineOptions.huoling = val; localStorage.setItem('ziweiHuoling', val); this.setState({ huoling: val }); this.redrawChart(); }
-	onKongNamingChange(val){ ZWEngineOptions.kongNaming = val; localStorage.setItem('ziweiKongNaming', val); this.setState({ kongNaming: val }); this.redrawChart(); }
+	onDaxianSpanChange(val){ ZWEngineOptions.daxianSpan = val; safeLocalStorageSet('ziweiDaxianSpan', String(val)); this.setState({ daxianSpan: val }); this.redrawChart(); }
+	onTianmaBasisChange(val){ ZWEngineOptions.tianmaBasis = val; safeLocalStorageSet('ziweiTianmaBasis', val); this.setState({ tianmaBasis: val }); this.redrawChart(); }
+	onStarSetChange(val){ ZWEngineOptions.starSet = val; safeLocalStorageSet('ziweiStarSet', val); this.setState({ starSet: val }); this.redrawChart(); }
+	onSanPanChange(val){ ZWEngineOptions.sanPan = val; safeLocalStorageSet('ziweiSanPan', val); this.setState({ sanPan: val }); this.redrawChart(); }
+	onShangShiChange(val){ ZWEngineOptions.shangShi = val; safeLocalStorageSet('ziweiShangShi', val); this.setState({ shangShi: val }); this.redrawChart(); }
+	onLeapMonthChange(val){ ZWEngineOptions.leapMonth = val; safeLocalStorageSet('ziweiLeapMonth', val); this.setState({ leapMonth: val }); this.redrawChart(); }
+	onLateZiChange(val){ ZWEngineOptions.lateZi = val; safeLocalStorageSet('ziweiLateZi', val); this.setState({ lateZi: val }); this.redrawChart(); }
+	onYearBoundaryChange(val){ ZWEngineOptions.yearBoundary = val; safeLocalStorageSet('ziweiYearBoundary', val); this.setState({ yearBoundary: val }); this.redrawChart(); }
+	onHuolingChange(val){ ZWEngineOptions.huoling = val; safeLocalStorageSet('ziweiHuoling', val); this.setState({ huoling: val }); this.redrawChart(); }
+	onKongNamingChange(val){ ZWEngineOptions.kongNaming = val; safeLocalStorageSet('ziweiKongNaming', val); this.setState({ kongNaming: val }); this.redrawChart(); }
 
 
 	changeGeo(rec){

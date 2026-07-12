@@ -797,10 +797,11 @@ export default class FengShuiEngine {
 			return { marker: m, ev, position };
 		});
 		const markerLines = this.markers.length
-			? details.map((d, i) => {
-				const st = d.marker.category === 'neutral' ? '观察' : d.ev.ok ? '位置合适' : '位置冲突';
-				return `${i + 1}. ${d.marker.label}：${d.position}（${st}）`;
-			})
+			? ['| 序 | 标记 | 位置 | 状态 |', '| --- | --- | --- | --- |',
+				...details.map((d, i) => {
+					const st = d.marker.category === 'neutral' ? '观察' : d.ev.ok ? '位置合适' : '位置冲突';
+					return `| ${i + 1}. | ${d.marker.label} | ${d.position} | ${st} |`;
+				})]
 			: ['暂无标记'];
 		const conflictLines = details.filter((d) => d.marker.category !== 'neutral' && d.ev.sector && !d.ev.ok)
 			.map((d) => `${d.marker.label}：${d.position}（期望 ${d.ev.expected === 'wind' ? '气位' : '水位'}）`);
@@ -827,9 +828,9 @@ export default class FengShuiEngine {
 		push('冲突清单', conflictLines.length ? conflictLines : ['暂无冲突标记']);
 		if (unknownLines.length) push('未定位标注', unknownLines);
 		const na = this.buildNaqiAnalysis();
-		const harmRows = na.markers.filter((x) => x.harm).map((x) => `${x.label}（${x.sector ? x.sector.name : ''}·${x.harm.label}）：${x.harm.affect}`);
-		na.houseHarms.forEach((h) => harmRows.push(`${h.label}：${h.affect}`));
-		if (harmRows.length) push('破局危害', harmRows);
+		const harmRows = na.markers.filter((x) => x.harm).map((x) => `| ${x.label} | ${(x.sector && x.sector.name) || '—'} | ${x.harm.label} | ${x.harm.affect} |`);
+		na.houseHarms.forEach((h) => harmRows.push(`| ${h.label} | — | — | ${h.affect} |`));
+		if (harmRows.length) push('破局危害', ['| 标记 | 方位 | 危害 | 影响 |', '| --- | --- | --- | --- |', ...harmRows]);
 		if (na.dragonTiger) push('龙虎灶台', [`${na.dragonTiger.pattern}·${na.dragonTiger.text}`]);
 		else if (na.dragonTigerHint) push('龙虎灶台', [na.dragonTigerHint]);
 		if (na.probe) push('移动盘', [`${na.probe.centerLabel}为太极：${na.probe.items.map((i) => `${i.label}在${i.sectorName}${i.windOrWater ? (i.windOrWater === 'wind' ? '·气位' : '·水位') : ''}`).join('；')}`]);

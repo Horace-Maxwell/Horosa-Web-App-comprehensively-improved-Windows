@@ -88,6 +88,49 @@ describe('reduceUpdateEvent 兼容矩阵', ()=>{
 	});
 });
 
+describe('notify-only(无 sha 不自动安装)', ()=>{
+	test('available 带 notifyOnly → 状态置真并带解释文案', ()=>{
+		const st = reduceUpdateEvent(BASE, {
+			phase: 'available',
+			latestVersion: '9.9.9',
+			currentVersion: '9.9.8',
+			releaseUrl: 'https://x/releases/tag/v9.9.9',
+			notifyOnly: true,
+			message: '更新清单暂不可获取',
+		});
+		expect(st.notifyOnly).toBe(true);
+		expect(st.message).toBe('更新清单暂不可获取');
+		expect(st.releaseUrl).toBe('https://x/releases/tag/v9.9.9');
+	});
+
+	test('老壳 available 不带该字段 → notifyOnly 判空退化为 false(照常可下载)', ()=>{
+		const st = reduceUpdateEvent(BASE, { phase: 'available', latestVersion: '9.9.9' });
+		expect(st.notifyOnly).toBe(false);
+	});
+
+	test('notify-only phase(后台下载被短路)→ 回 available 卡并切换形态,不停在假下载中', ()=>{
+		const downloading = { ...BASE, phase: 'downloading', latestVersion: '9.9.9', releaseUrl: 'u' };
+		const st = reduceUpdateEvent(downloading, {
+			phase: 'notify-only',
+			message: '已暂停自动下载',
+			latestVersion: '9.9.9',
+			releaseUrl: 'https://x/rel',
+		});
+		expect(st.phase).toBe('available');
+		expect(st.notifyOnly).toBe(true);
+		expect(st.releaseUrl).toBe('https://x/rel');
+		expect(st.toast).toBe('已暂停自动下载');
+	});
+
+	test('notify-only 缺字段时回退到既有 state(不产生 undefined)', ()=>{
+		const prev = { ...BASE, latestVersion: '1.2.3', releaseUrl: 'keep' };
+		const st = reduceUpdateEvent(prev, { phase: 'notify-only' });
+		expect(st.latestVersion).toBe('1.2.3');
+		expect(st.releaseUrl).toBe('keep');
+		expect(typeof st.toast).toBe('string');
+	});
+});
+
 describe('格式化器', ()=>{
 	test('fmtMB/fmtSpeed/fmtEta 数值与空值', ()=>{
 		expect(fmtMB(649 * 1048576)).toBe('649');

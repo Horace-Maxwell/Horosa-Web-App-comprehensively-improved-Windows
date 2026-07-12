@@ -8,7 +8,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { convertToArray } from '../../utils/helper';
 import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
-import { buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
+import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirthLines, buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
@@ -17,6 +17,10 @@ const Option = Select.Option;
 export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
 // AI 挂载「行星弧」可调项默认（=无头默认：月亮弧 / 截至今日 12:00 / 容许 1°）。不调任何项 → 输出逐字不变。
 const PLANETARY_ARC_DEFAULT_OPTS = { arcSource: AstroConst.MOON, datetime: '', asporb: 1 };
+
+// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
+// 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
+const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
 
 function natalParams(chartObj){
 	const q = chartObj ? (chartObj.params || {}) : {};
@@ -50,9 +54,12 @@ function formatArcSnapshot(result, title, intro, natalChartObj){
 	// 本命盘配置(内圈)
 	const natalStars = buildStarAndLotPositionLines(natalChartObj);
 	const natalHouses = buildHouseCuspLines(natalChartObj);
-	if(natalStars.length || natalHouses.length){
+	// [YB v42] 生辰行并入既有 [本命盘配置] 段头部(裸行版,不新开段;无生辰数据 → 输出与现状逐字一致)。
+	const natalBirth = safeHelperLines(buildPredictiveBirthLines, natalChartObj);
+	if(natalStars.length || natalHouses.length || natalBirth.length){
 		lines.push('');
 		lines.push('[本命盘配置]');
+		if(natalBirth.length){ lines.push(...natalBirth); }
 		if(natalStars.length){ lines.push('星与虚点'); lines.push(...natalStars); }
 		if(natalHouses.length){ lines.push('宫位宫头'); lines.push(...natalHouses); }
 	}
@@ -77,6 +84,11 @@ function formatArcSnapshot(result, title, intro, natalChartObj){
 			n += 1;
 		});
 	});
+	// [YB v42] 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset;组件存档路径无 natalChartObj 时优雅降级)。
+	lines.push('');
+	lines.push(...safeHelperLines(buildCurrentMomentLines, natalChartObj));
+	lines.push(...safeHelperLines(buildMethodNoteLines, 'planetaryarc'));
+	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
 	return lines.join('\n');
 }
 
@@ -92,6 +104,7 @@ export async function buildPlanetaryArcSnapshotText(chartObj, opts){
 		const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : 1;
 		const params = { ...natalParams(chartObj), datetime, asporb, arcSource };
 		const data = await request(`${Constants.ServerRoot}/predict/planetaryarc`, { body: JSON.stringify(params) });
+		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 		return formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧(默认月亮弧)：以所选天体的二次推运移动量为弧推进全盘，看向运星对本命的相位。', chartObj);
 	}catch(e){
@@ -129,6 +142,16 @@ class AstroPlanetaryArc extends Component{
 		this._mounted = false;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
+	}
+
+	componentDidUpdate(prevProps){
+		// 换盘/改生辰后本命参数变——本组件曾既无此钩子、容器也不传 hook,state.params 停留
+		// 构造时的旧盘 → 外圈行星弧盘与内圈本命(props.value 实时)不一致,须手动改时刻才恢复。
+		// 照 AstroPersianDirected 同款:value 引用变即重算本命参数(保留用户已设的向运时刻/弧源/容许度)并重取。
+		if(prevProps.value !== this.props.value){
+			const np = natalParams(this.props.value);
+			this.setState((s) => ({ params: { ...s.params, ...np } }), this.requestData);
 		}
 	}
 
