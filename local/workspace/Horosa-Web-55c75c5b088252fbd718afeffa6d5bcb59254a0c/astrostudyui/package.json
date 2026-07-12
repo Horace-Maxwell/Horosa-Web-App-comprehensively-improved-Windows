@@ -12,8 +12,8 @@
 	],
 	"scripts": {
 		"start": "node scripts/umi-runner.js dev",
-		"build": "node scripts/umi-runner.js build",
-		"build:file": "node scripts/umi-runner.js build --for-file",
+		"build": "node scripts/umi-runner.js build && node scripts/write-build-info.js dist",
+		"build:file": "node scripts/umi-runner.js build --for-file && node scripts/write-build-info.js dist-file",
 		"postinstall": "umi generate tmp",
 		"prettier": "prettier --write '**/*.{js,jsx,tsx,ts,less,md,json}'",
 		"test": "umi-test",
