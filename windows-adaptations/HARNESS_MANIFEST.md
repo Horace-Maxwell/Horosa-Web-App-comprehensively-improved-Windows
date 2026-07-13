@@ -8,9 +8,9 @@ additionally reconstructible from session records. See windows-adaptations/READM
 
 | file | sha256 | bytes | git | purpose |
 |---|---|---|---|---|
-| `.claude/skills/horosa-dev/SKILL.md` | `762f3f67b08fde04075b9e8b3f45fe4ea45c9922213f248b6141236a872986fe` | 18268 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
-| `.claude/skills/horosa-dev/references/gotchas-full.md` | `5eb6f579103d6da35e683057911a0b4cc38db9ce204b1b9a2152804cb3ddcd13` | 245446 | gitignored | the full 49-gotcha institutional archive (verbatim history + topic index; new gotchas append HERE) |
-| `CLAUDE.md` | `c8d639e9ea9fb7f4c03188a551724c6ff7855e676e2ae290b42391a0c6348bb1` | 3615 | gitignored | repo-root session baseline (paths, red lines, verification entry points; local-only) |
+| `.claude/skills/horosa-dev/SKILL.md` | `a066ac07792aba06d529db8e1cbc16651011c237682138d5152174cbfe49215d` | 18793 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
+| `.claude/skills/horosa-dev/references/gotchas-full.md` | `7c6b299a1bfa9bb9df6e8c5abb1501cc26d46d417044965faa7257e34af6d4b0` | 251268 | gitignored | the full 49-gotcha institutional archive (verbatim history + topic index; new gotchas append HERE) |
+| `CLAUDE.md` | `011ac60afc8298c6cf4c2d39ac4d5b593858fc44bf466bd0c9d9b2d954904bd0` | 3685 | gitignored | repo-root session baseline (paths, red lines, verification entry points; local-only) |
 | `desktop_installer_bundle/assets/installer.nsh` | `d498b15245491634c0a1291b6d2cd0a968087188afccb8a976386965e1903d97` | 76829 | gitignored | NSIS hooks: disk-space gate, uninstall cleanup, OS gate, details-visible install log + phase banners |
 | `desktop_installer_bundle/electron/build-uber-jar.py` | `350016fb4d41b2f60644737e37cf7e3e7a698849efd1d4824cdfefe177e7f9cc` | 19280 | gitignored | fat-jar -> single uber jar merge (classpath.idx first-wins + SPI union + dir entries) enabling fast static CDS |
 | `desktop_installer_bundle/electron/defender-exclusion.js` | `c9630a39c99e1abde7f5c5a847bfe7c2af8a9cfa5fb27dc979ba48048197c651` | 7369 | gitignored | consented Windows Defender exclusion of the app runtime (~500x on-access I/O tax fix) |
