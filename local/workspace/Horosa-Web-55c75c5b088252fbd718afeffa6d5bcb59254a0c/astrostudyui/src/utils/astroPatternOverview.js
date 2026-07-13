@@ -28,35 +28,44 @@ function dignToken(sd){
 	return '';
 }
 
-// 成格局四象(文档664-679)→ 有情/无情。非世俗宫=仅{8,12}(文档606),其余皆世俗。
-// 外交官模型(673):主宰星只为「所主宰宫」服务,在「所落宫」吸能带回所主宰宫。故按每星落座判有向四象:
-//   ①世俗主宰→世俗 ②玄主宰→玄 ③世俗主宰→玄(用玄手段谋世俗·有情·玄谋世俗) ④玄主宰→世俗(无情)。
-// 互换(互容)=纯粹交易→恒有情(文档511 拉康12R-8R玄纯粹 / 1006 施密特12R-5R玄世混合亦「极其有情」),
-//   无论双方落宫玄/世俗;互换直接覆盖 case④,realm 仅决定子标签。这是因为互换=双方各落入对方所主宰之宫的对等交换,
-//   而非「单向倾倒」(如文书企划金8R/水12R落10th无互换→case④无情)。
-// 注意:不做「主宰宫×对方宫」笛卡尔积 cross-link——只有2个非世俗宫,cross-link 会因某星兼主一个世俗宫而虚构 case④,
-//   把拉康那样纯粹的8-12互换错杀成无情。落座有向 + 互换覆盖才是文档原意。
-function realmOfHouse(h){ return (h != null && NON_MUNDANE.has(h)) ? '玄' : '世俗'; }
-function purityLabel(realm){ return realm === '玄谋世俗' ? '有情·玄谋世俗' : `有情·${realm}纯粹`; }
+// 成格局四象(有情/无情):①世俗主宰·落世俗=世俗纯粹 ②非世俗主宰·落非世俗=玄纯粹 ③世俗主宰·落非世俗=玄谋世俗(玄位谋世俗)
+//   ④非世俗主宰·落世俗=无情。非世俗宫=仅{8,12},其余皆世俗。严格化:一条连接(2星联结 或 N星主宰环)须「所有参与星同属一象」
+//   才成该有情纯档;任一星越界(异型混合 或 出现④)→ 无情。互换(互容)=双方各落对方所主宰之宫的对等交换=纯粹交易→恒有情,凌驾严格判。
+// 逐星分型:无主宰宫 或 无落宫 → null(不可分型)。rulesEso=主宰≥1个{8,12};fallEso=落{8,12}。
+//   T1(仅世俗主宰·落世俗) T2(≥1非世俗主宰·落非世俗) T3(仅世俗主宰·落非世俗) T4(≥1非世俗主宰·落世俗=case④)。
+function classifyStar(rules, fall){
+	const rs = (rules || []).filter((h)=> h != null);
+	if(!rs.length || fall == null){ return null; }
+	const rulesEso = rs.some((h)=> NON_MUNDANE.has(h));
+	const fallEso = NON_MUNDANE.has(fall);
+	if(!rulesEso && !fallEso){ return 'T1'; }
+	if(rulesEso && fallEso){ return 'T2'; }
+	if(!rulesEso && fallEso){ return 'T3'; }
+	return 'T4';
+}
 // parts = [{rules:[宫号...], fall:宫号|null}, ...](2 星联结 或 N 星主宰环皆可)。
+// ① 任一星不可分型 → 整条连接不显示有情无情(返 null)。
+// ② 互换(仅2星·各落对方所主宰之宫)=纯粹交易 → 恒有情(优先级高于严格判);子标签 全T1→世俗纯粹/全T2→玄纯粹/其余(含混合)→玄谋世俗。
+// ③ 非互换严格:全T1→世俗纯粹 / 全T2→玄纯粹 / 全T3→玄谋世俗 / 其余(任一T4 或 异型混合)→无情。
 function judgeRealmPurity(parts){
 	const ps = (parts || []).filter(Boolean);
 	if(!ps.length){ return null; }
-	// 互换(仅 2 星):双方各落入对方所主宰之宫 → 纯粹交易,恒有情。
+	const types = ps.map((p)=> classifyStar(p.rules, p.fall));
+	if(types.some((t)=> t == null)){ return null; }   // 任一星不可分型 → 整条不显示有情无情
+	const all = (t)=> types.every((x)=> x === t);
+	// 互换(仅 2 星):双方各落入对方所主宰之宫 → 恒有情,优先级高于严格判。
 	const swap = ps.length === 2 && ps[0].fall != null && ps[1].fall != null
 		&& (ps[0].rules || []).includes(ps[1].fall) && (ps[1].rules || []).includes(ps[0].fall);
 	if(swap){
-		const ra = realmOfHouse(ps[0].fall); const rb = realmOfHouse(ps[1].fall);
-		const realm = (ra === '玄' && rb === '玄') ? '玄' : (ra === '世俗' && rb === '世俗') ? '世俗' : '玄谋世俗';
-		return { pure: true, realm, label: purityLabel(realm), swap: true };
+		if(all('T1')){ return { pure: true, realm: '世俗', label: '有情·世俗纯粹', swap: true }; }
+		if(all('T2')){ return { pure: true, realm: '玄', label: '有情·玄纯粹', swap: true }; }
+		return { pure: true, realm: '玄谋世俗', label: '有情·玄谋世俗', swap: true };   // 含混合(玄世互换式)——恒有情
 	}
-	const rels = [];   // 每条 = [主宰宫realm, 落宫realm];仅各星自身落座,不做 cross-link
-	ps.forEach((p)=>{ if(p.fall == null){ return; } (p.rules || []).forEach((r)=>{ rels.push([realmOfHouse(r), realmOfHouse(p.fall)]); }); });
-	if(!rels.length){ return null; }
-	if(rels.some(([ru, tg])=> ru === '玄' && tg === '世俗')){ return { pure: false, realm: null, label: '无情', swap: false }; }   // case④ 非世俗主宰→世俗
-	if(rels.every(([ru, tg])=> ru === '世俗' && tg === '世俗')){ return { pure: true, realm: '世俗', label: '有情·世俗纯粹', swap: false }; }
-	if(rels.every(([ru, tg])=> ru === '玄' && tg === '玄')){ return { pure: true, realm: '玄', label: '有情·玄纯粹', swap: false }; }
-	return { pure: true, realm: '玄谋世俗', label: '有情·玄谋世俗', swap: false };   // 含 case③(世俗主宰→玄)、无 case④
+	// 非互换严格:全同型才成纯档,其余(任一T4 或 异型混合)→无情。
+	if(all('T1')){ return { pure: true, realm: '世俗', label: '有情·世俗纯粹', swap: false }; }
+	if(all('T2')){ return { pure: true, realm: '玄', label: '有情·玄纯粹', swap: false }; }
+	if(all('T3')){ return { pure: true, realm: '玄谋世俗', label: '有情·玄谋世俗', swap: false }; }
+	return { pure: false, realm: null, label: '无情', swap: false };
 }
 
 export function buildPatternOverview(perchart, chart, opts){

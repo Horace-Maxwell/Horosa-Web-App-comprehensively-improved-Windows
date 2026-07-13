@@ -121,8 +121,8 @@ describe('astroPatternOverview', () => {
 		expect(c.purity.swap).toBe(true);
 	});
 
-	test('有情/无情 四象③：世俗主宰落玄宫、非互换、全程无玄主宰→世俗 → 有情·玄谋世俗', () => {
-		// A=Sun 主10(世俗) 落8th(玄)=case③；B=Mars 主5 落3th 全世俗。非互换、无 case④ → 有情·玄谋世俗(用玄手段谋世俗)。
+	test('有情/无情 四象③(混合 T3+T1·严格化) → 无情', () => {
+		// A=Sun 主10(世俗)落8th(玄)=T3；B=Mars 主5(世俗)落3th(世俗)=T1。非互换、异型混合(非全同型) → 严格化判无情(此前旧规误判玄谋世俗)。
 		const objs = [
 			O('Sun', 10, 'Aries', 8, [10]), O('Mars', 200, 'Libra', 3, [5]),
 			O('Moon', 40, 'Taurus', 2), O('Mercury', 70, 'Gemini', 9), O('Venus', 100, 'Cancer', 4),
@@ -130,8 +130,48 @@ describe('astroPatternOverview', () => {
 		];
 		const mutuals = { normal: [{ planetA: { id: 'Sun' }, planetB: { id: 'Mars' } }], abnormal: [] };
 		const c = buildPatternOverview(chartWith(objs), wrap(chartWith(objs), { mutuals })).connections.mutual[0];
+		expect(c.purity.label).toBe('无情');
+		expect(c.purity.pure).toBe(false);
+	});
+
+	test('有情/无情 玄谋世俗(全 T3:皆仅世俗主宰·皆落非世俗宫) → 有情·玄谋世俗', () => {
+		// A=Sun 主10(世俗)落8th(玄)=T3；B=Mars 主11(世俗)落12th(玄)=T3。全 T3、非互换 → 有情·玄谋世俗。
+		const objs = [
+			O('Sun', 10, 'Aries', 8, [10]), O('Mars', 200, 'Libra', 12, [11]),
+			O('Moon', 40, 'Taurus', 2), O('Mercury', 70, 'Gemini', 9), O('Venus', 100, 'Cancer', 4),
+			O('Jupiter', 130, 'Leo', 3), O('Saturn', 160, 'Virgo', 7),
+		];
+		const mutuals = { normal: [{ planetA: { id: 'Sun' }, planetB: { id: 'Mars' } }], abnormal: [] };
+		const c = buildPatternOverview(chartWith(objs), wrap(chartWith(objs), { mutuals })).connections.mutual[0];
 		expect(c.purity.label).toBe('有情·玄谋世俗');
 		expect(c.purity.pure).toBe(true);
+		expect(c.purity.swap).toBe(false);
+	});
+
+	test('玄纯粹放宽主宰侧(核心迁移):两星皆 T2(其一兼主世俗宫)·非互换·皆落玄宫 → 有情·玄纯粹(旧规误判玄谋世俗)', () => {
+		// A=Sun 主12(玄)落8th=T2；B=Mars 主{8,3}(含8→rulesEso)落8th=T2。皆落玄、非全互换(火落8非日之主宫) → 全 T2 → 玄纯粹。
+		const objs = [
+			O('Sun', 10, 'Aries', 8, [12]), O('Mars', 200, 'Libra', 8, [8, 3]),
+			O('Moon', 40, 'Taurus', 2), O('Mercury', 70, 'Gemini', 9), O('Venus', 100, 'Cancer', 4),
+			O('Jupiter', 130, 'Leo', 11), O('Saturn', 160, 'Virgo', 7),
+		];
+		const mutuals = { normal: [{ planetA: { id: 'Sun' }, planetB: { id: 'Mars' } }], abnormal: [] };
+		const c = buildPatternOverview(chartWith(objs), wrap(chartWith(objs), { mutuals })).connections.mutual[0];
+		expect(c.purity.label).toBe('有情·玄纯粹');
+		expect(c.purity.realm).toBe('玄');
+		expect(c.purity.swap).toBe(false);
+	});
+
+	test('不可分型:参与星无主宰宫(rules=[]) → 整条连接不显示有情无情(purity=null)', () => {
+		// A=Sun 无主宰宫(rules=[]) → 不可分型 → 连接返 null(不显示有情无情)。
+		const objs = [
+			O('Sun', 10, 'Aries', 5, []), O('Mars', 200, 'Libra', 7, [11]),
+			O('Moon', 40, 'Taurus', 2), O('Mercury', 70, 'Gemini', 3), O('Venus', 100, 'Cancer', 4),
+			O('Jupiter', 130, 'Leo', 9), O('Saturn', 160, 'Virgo', 1),
+		];
+		const mutuals = { normal: [{ planetA: { id: 'Sun' }, planetB: { id: 'Mars' } }], abnormal: [] };
+		const c = buildPatternOverview(chartWith(objs), wrap(chartWith(objs), { mutuals })).connections.mutual[0];
+		expect(c.purity).toBeNull();
 	});
 
 	test('互换覆盖·拉康式:8-12 互换、即便一方兼主世俗宫(火3R) 仍判 有情·玄纯粹(不被 cross-link 错杀)', () => {

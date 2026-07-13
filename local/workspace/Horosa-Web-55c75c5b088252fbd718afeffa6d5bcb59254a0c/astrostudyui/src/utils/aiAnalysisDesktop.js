@@ -55,6 +55,7 @@ export async function pickDesktopFiles(){
 	return normalizeDesktopImportItems(await invoke('pick_ai_analysis_files_command'));
 }
 
+
 export async function pickDesktopFolder(){
 	if(!hasTauriInvoke()){
 		return [];
