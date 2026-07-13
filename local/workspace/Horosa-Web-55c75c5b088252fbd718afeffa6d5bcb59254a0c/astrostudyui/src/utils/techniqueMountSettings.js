@@ -1,4 +1,4 @@
-// AI 挂载·每技法「设置」schema（方案 §2.1）。集中定义「技法 → 可调项 → 默认值 → 如何套用重算」。
+// AI 挂载·每技法「设置」schema。集中定义「技法 → 可调项 → 默认值 → 如何套用重算」。
 //
 // 设计铁律（守「默认即现状」）：
 //  - 每个 field 的 default 必须 === 该技法组件/builder 里的现状默认（DunJiaCalc DEFAULT_OPTIONS /
@@ -6,7 +6,7 @@
 //  - merge* 函数返回副本，绝不改原 record/payload。
 //  - applyLocalStorageSettings 仅在用户显式设置时写 key；未设置 → 不碰全局默认。
 //
-// kind 分类（对应方案 §0.3 的 A/B/C/D 类）：
+// kind 分类（A/B/C/D 类）：
 //  - 'record'        → A 类：把 fields 写进重算用 record.*（buildFieldObject 读 record，强制 regenerate 生效）。
 //  - 'payload'       → B 类：把 options 写进重算用 payload（事盘 regenerate 已读 payload.options / payload.<field>）。
 //                      optionsPath:'options' = 写 payload.options.<name>；optionsPath:'' = 写 payload.<name>（顶层）。
@@ -212,7 +212,7 @@ const ELECTION_TOPICS = [
 ];
 
 // 奇门遁甲：镜像 DunJiaCalc/DunJiaMain DEFAULT_OPTIONS 与 aiAnalysisContext DEFAULT_QIMEN_OPTIONS 的关键排盘选项。
-// （faRelatedPeople 是「内容/数据」非排盘选项，不入此 schema——见方案坑 8。）
+// （faRelatedPeople 是「内容/数据」非排盘选项，不入此 schema。）
 // 直接复用 DunJiaCalc 的官方选项常量（值/标签 100% 与排盘引擎一致，杜绝手写错值喂坏 calcDunJia）。
 const QIMEN_FIELDS = [
 	{ name: 'paiPanType', label: '排盘体例', type: 'select', default: 3, group: '排盘', options: QIMEN_PAIPAN_OPTIONS },

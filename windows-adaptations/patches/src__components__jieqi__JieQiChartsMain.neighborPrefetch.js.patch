@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index 080c060..d5ed30a 100644
+index e1c600d..e9234b8 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 @@ -23,7 +23,7 @@ import * as Su28Helper from '../su28/Su28Helper';

@@ -369,12 +369,13 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 		expect(out).not.toContain('[希腊点]');
 	});
 
-	it('自定义为空数组(或与实际段全不匹配) → 回退原文，绝不输出空白（避免挂载空段）', ()=>{
+	it('[YF v45] 空数组=显式全清 → 全不纳入(空);段名全不匹配 → 回退原文防误伤', ()=>{
 		const { text } = buildSyntheticSnapshot('bazi');
-		// 空数组：getAIExportEffectiveSectionsForTechnique 回 preset → 仍全量(不致空)。
+		// 空数组 = 用户在设置里显式清空 → 该技法全不纳入(挂载卡与导出一并置空,所见即所得)。
+		// 旧语义(空数组回 preset 全量)正是「清空按钮点完复选框纹丝不动」的病根,勿回退。
 		const emptyOut = applyAIExportSectionFilterToSnapshot('bazi', text, { version: AI_EXPORT_SETTINGS_VERSION, sections: { bazi: [] } });
-		expect(`${emptyOut}`.trim().length).toBeGreaterThan(0);
-		// 全不匹配的段名：filter 后为空 → 回退原文。
+		expect(`${emptyOut}`.trim()).toBe('');
+		// 非空白名单但段名全不匹配(preset 与产出漂移):filter 后为空 → 回退原文(防段名失配惩罚用户)。
 		const mismatchOut = applyAIExportSectionFilterToSnapshot('bazi', text, { version: AI_EXPORT_SETTINGS_VERSION, sections: { bazi: ['不存在的段X'] } });
 		expect(mismatchOut).toBe(text);
 	});

@@ -838,7 +838,7 @@ function buildJieQiCurrentSnapshotText(currentTab, result, baseFields, jieqis, p
 	}else{
 		const panelName = info.type === 'astro3d' ? `${info.title}3D盘` : `${info.title}星盘`;
 		lines.push(`[${panelName}]`);
-		lines.push(buildAstroSnapshotContent(one, flds) || '无数据');
+		lines.push(buildAstroSnapshotContent(one, flds, { headerless: true }) || '无数据');
 	}
 	return lines.join('\n').trim();
 }

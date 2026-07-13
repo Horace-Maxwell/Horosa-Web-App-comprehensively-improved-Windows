@@ -156,9 +156,28 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v41: 仅升 SETTINGS_VERSION 作「prefs.format 中间态残留重置窗口」(见 normalizeAIExportSettings)。
 // v42: [YB] 星运族 21 键补厚段(起盘信息/当前时点/方法说明)入 preset → SETTINGS/MIGRATION 同升 42
 //      (union 并入老用户设置,同 v22-v40 范式,不删用户项)。
-export const AI_EXPORT_SETTINGS_VERSION = 44;
+// v45: [YF] 段勾选「所见即所得」两修:①空数组=显式清空(effective 返空、UI 全不勾、导出/挂载全不纳入;
+//      历史「点清空存下的 []」旧语义=未自定义,v<45 一次性删键清尸=与用户所见现状一致零回归);
+//      ②五技法(jinkou/liureng/qimen/sanshiunited/horary)运行时强推段改一次性 union 迁移进已自定义
+//      用户的选择(UI 从此显示勾着、取消=真取消),导出链删除运行时强推——挂载/导出同语义。
+export const AI_EXPORT_SETTINGS_VERSION = 45;
 const AI_EXPORT_SECTION_MIGRATION_VERSION = 42;
 const AI_EXPORT_PREFS_FORMAT_RESET_VERSION = 41;
+// [YF] 空数组语义切换 + 强推段迁移的版本窗口(v<45 的持久化进本窗口,见 normalizeAIExportSettings)。
+const AI_EXPORT_EMPTY_CLEAR_VERSION = 45;
+// [YF] 旧「导出主链运行时强推段」清单(与删除前 applyUserSectionFilter 内硬编码逐字一致)。
+// v<45 已自定义(非空)的用户 → union 进选择(=旧运行时行为显式化);v45 起用户取消这些段=真取消。
+const AI_EXPORT_FORCED_INCLUDE_SECTIONS = {
+	jinkou: ['金口诀速览'],
+	liureng: ['大格', '小局', '参考', '概览'],
+	qimen: ['盘面要素', '奇门演卦', '八宫详解'],
+	sanshiunited: ['六壬大格', '六壬小局', '六壬参考', '六壬概览', '八宫详解'],
+	horary: ['月亮的故事', '相位全览'],
+};
+// [MT parity] v45 preset 补真段的一次性 union(同窗同逻辑):preset 补 builder 实产段的技法登记于此
+// (拆段后 preset 失修类),v<45 已自定义用户不 union 会被白名单静默滤掉这批真内容段。
+const AI_EXPORT_V45_SECTION_UNION = {
+};
 // [v2 底座] 导出格式偏好:'v1'=经典(逐行项目符 beautifyForAI + 纯文本 .doc/裸文本栅格 PDF),
 // 'v2'=表格化温和归一 + 真 docx + 样式化 PDF + 元数据头/图例。
 // 默认 'v2'(用户拍板 2026-07-11:紫微试点验证后默认开);「AI导出设置·通用」保留 v1 经典格式回退开关
@@ -426,7 +445,9 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	// [YB v42] 星运族 21 键补厚三段(起盘信息/当前时点/方法说明,builder=astroAiSnapshot 共享 helper):
 	//   A 组(此前零盘境)加全三段;B/C 组生辰行并入既有 [本命盘配置](段内纯增,不撞 C 组 [起盘信息]=推运时间);
 	//   D/E 组已有生辰,只补 当前时点/方法说明;primarydirchart 三项天然齐全不动。
-	primarydirect: ['出生时间', '星盘信息', '主限法设置', '主限法表格', '主/界限法设置', '主/界限法表格', '当前时点', '方法说明'],
+	// [MT parity] 删「主/界限法设置/表格」两个死段头(builder 只产 [主限法设置]/[主限法表格],
+	// 全仓零 producer=用户面板两个永空复选框);老用户自定义里的死名经 mapLegacySectionTitle 迁真名。
+	primarydirect: ['出生时间', '星盘信息', '主限法设置', '主限法表格', '当前时点', '方法说明'],
 	distributions: ['起盘信息', '界推运（分配法 / Distributions）', '当前时点', '方法说明'],
 	agepoint: ['起盘信息', '年龄推进点（Age Point / Huber）', '当前时点', '方法说明'],
 	primarydirchart: ['出生时间', '星盘信息', '主限法盘设置', '本命盘配置', '主限法盘配置', '主限法盘说明'],
@@ -924,8 +945,31 @@ function normalizeAIExportSettings(settings){
 	const sections = settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
 	Object.keys(sections).forEach((key)=>{
 		const arr = Array.isArray(sections[key]) ? sections[key] : [];
-		normalized.sections[key] = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+		const cleaned = uniqueArray(arr.map((item)=>normalizeSectionTitle(item)).filter(Boolean));
+		// [YF v45 尸块清理] 旧版「清空」存下的空数组在旧语义=未自定义(effective/导出/挂载全按默认走),
+		// 一次性删键恢复未自定义 → 与老用户所见现状逐字一致(零回归);v45 起空数组=显式全清,原样保留。
+		if(!cleaned.length && sourceVersion < AI_EXPORT_EMPTY_CLEAR_VERSION){
+			return;
+		}
+		normalized.sections[key] = cleaned;
 	});
+	// [YF v45 强推段显式化] v<45 已自定义(非空)的五技法:把旧导出主链运行时强推清单 union 进用户选择
+	// (行为=旧导出输出不变,但 UI 从此显示勾着、用户取消=真取消);运行时强推已从 applyUserSectionFilter 删除。
+	// [MT parity] 同窗附带:v45 preset 补真段的技法同样 union——不并入则自定义用户的白名单静默滤掉实产内容段。
+	if(sourceVersion < AI_EXPORT_EMPTY_CLEAR_VERSION){
+		[AI_EXPORT_FORCED_INCLUDE_SECTIONS, AI_EXPORT_V45_SECTION_UNION].forEach((table)=>{
+			Object.keys(table).forEach((key)=>{
+				const existing = normalized.sections[key];
+				if(!Array.isArray(existing) || !existing.length){
+					return;
+				}
+				normalized.sections[key] = uniqueArray([
+					...existing,
+					...table[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+				]);
+			});
+		});
+	}
 	if(sourceVersion < AI_EXPORT_SECTION_MIGRATION_VERSION){
 		AI_EXPORT_SECTION_MIGRATION_KEYS.forEach((key)=>{
 			if(!Object.prototype.hasOwnProperty.call(sections, key)){
@@ -1012,6 +1056,23 @@ function snapshotModuleKeyByContextKey(key){
 		return map[key];
 	}
 	return key;
+}
+
+// [YF v45] 与 snapshotModuleKeyByContextKey 成对的反查:快照模块名 → AI导出设置键(段勾选的键)。
+// 供源上下文(case/chart 的 ctx.module)套「纳入内容」过滤时归一——六爻 module='guazhan' 而设置键='sixyao',
+// 不归一则该技法设置在源层永远打不中。命盘源 module='astrochart' 与设置键同名走兜底原样。
+export function exportSettingKeyForSnapshotModule(moduleName){
+	const name = `${moduleName || ''}`;
+	if(name === 'guazhan'){
+		return 'sixyao';
+	}
+	if(name.startsWith('kinastro-')){
+		return name.slice('kinastro-'.length);
+	}
+	if(name === 'guolao-qizhengkin'){
+		return 'qizhengkin';
+	}
+	return name;
 }
 
 function isJieQiSplitSettingKey(key){
@@ -1178,6 +1239,17 @@ function mapLegacySectionTitle(key, title){
 		// v31:首段名「赤纬推运（Jayne Declination）」对齐 builder 实产「赤纬推运（Declination）」(去 Jayne 死段);老用户存的旧段名迁移,避免被当陌生段过滤掉。
 		if(normalized === '赤纬推运（Jayne Declination）'){
 			return '赤纬推运（Declination）';
+		}
+		return normalized;
+	}
+	if(key === 'primarydirect'){
+		// [MT parity] 旧 preset 死名(builder 从未产出「主/界限法」形态)→ 迁到真段名,
+		// 老用户自定义里勾过死名的意图=选主限法设置/表格,迁移后不再被当陌生段丢内容。
+		if(normalized === '主/界限法设置'){
+			return '主限法设置';
+		}
+		if(normalized === '主/界限法表格'){
+			return '主限法表格';
 		}
 		return normalized;
 	}
@@ -1370,24 +1442,13 @@ function applyUserSectionFilter(content, key){
 		}
 		return stripForbiddenSections(content, key);
 	}
-	const preset = Array.isArray(AI_EXPORT_PRESET_SECTIONS[key]) ? AI_EXPORT_PRESET_SECTIONS[key] : [];
-	// [YC] 空数组自定义(清空后保存)与未自定义同待遇:走 effective(=preset−默认关)。
-	const picked = selected.length ? selected.slice(0) : getAIExportEffectiveSectionsForTechnique(key, settings);
-	if(key === 'jinkou'){
-		picked.push('金口诀速览');
-	}else if(key === 'liureng'){
-		// 格局参考为六壬导出的核心内容，避免被旧设置误过滤掉。
-		picked.push('大格', '小局', '参考', '概览');
-	}else if(key === 'qimen'){
-		// 新增分段可能被旧配置遗漏，默认保留遁甲关键输出。
-		picked.push('盘面要素', '奇门演卦', '八宫详解');
-	}else if(key === 'sanshiunited'){
-		// 新增三式合一分段：六壬格局参考与八宫详解。
-		picked.push('六壬大格', '六壬小局', '六壬参考', '六壬概览', '八宫详解');
-	}else if(key === 'horary'){
-		// 「月亮的故事 / 相位全览」为卜卦核心征象，避免被旧设置误过滤掉。
-		picked.push('月亮的故事', '相位全览');
+	// [YF v45] 空数组=用户显式全清(旧尸块已在 normalize 迁移删键) → 该技法全不纳入,输出空。
+	// 旧「五技法运行时强推段」已改为 normalize 的一次性 union 迁移(AI_EXPORT_FORCED_INCLUDE_SECTIONS),
+	// 此处不再 push 任何段 —— 用户在设置里取消的段,导出与挂载一律真取消(所见即所得)。
+	if(!selected.length){
+		return '';
 	}
+	const picked = selected.slice(0);
 	const forbidden = getForbiddenSectionSet(key);
 	const normalizedPicked = picked
 		.map((item)=>mapLegacySectionTitle(key, item))
@@ -1560,7 +1621,10 @@ function trimPlanetInfoBySetting(content, setting){
 		.replace(/\n{3,}/g, '\n\n');
 }
 
-function applyPlanetInfoFilterByContext(content, key){
+// [YF v45] export:挂载链(技法层+源层)也消费「星曜后天信息」开关——此前仅导出主链吃它,
+// 挂载抽屉却暴露同款勾选(显示星曜宫位/主宰宫),关了对发给 AI 的快照零效果=静默失效。
+// 非 planetInfo 技法/默认全开 → 原样返回(零回归)。
+export function applyPlanetInfoFilterByContext(content, key){
 	if(!isPlanetInfoTechnique(key)){
 		return content;
 	}
@@ -2883,11 +2947,14 @@ export function getAIExportEffectiveSectionsForTechnique(key, settings = loadAIE
 	const source = settings && settings.sections && typeof settings.sections === 'object'
 		? settings.sections
 		: {};
-	const selected = Array.isArray(source[exportKey]) ? source[exportKey] : [];
+	// [YF v45] 显式自定义的判据=键存在且为数组(含空数组=显式全清,返回空;与 getJieQiWantedSections 同语义)。
+	// 旧「空数组当未自定义」正是「清空按钮点完复选框纹丝不动」的病根:存了 [] 又被解释回 preset 全勾。
+	const hasCustom = Object.prototype.hasOwnProperty.call(source, exportKey) && Array.isArray(source[exportKey]);
+	const selected = hasCustom ? source[exportKey] : [];
 	const preset = Array.isArray(AI_EXPORT_PRESET_SECTIONS[exportKey]) ? AI_EXPORT_PRESET_SECTIONS[exportKey] : [];
-	// [YC] 未自定义 → preset 剔除默认关段;显式自定义 → 完全尊重用户所选(含勾了默认关段)。
+	// [YC] 未自定义 → preset 剔除默认关段;显式自定义 → 完全尊重用户所选(含勾了默认关段/全清)。
 	const offSet = getAIExportDefaultOffSet(exportKey);
-	const picked = selected.length
+	const picked = hasCustom
 		? selected
 		: (offSet ? preset.filter((item)=>!offSet.has(normalizeSectionTitle(item))) : preset);
 	const forbidden = getForbiddenSectionSet(exportKey);
@@ -2907,7 +2974,7 @@ export function applyAIExportSectionFilterToSnapshot(key, content, settings = lo
 	}
 	const exportKey = normalizeExportKey(key);
 	const sectionsCfg = settings && settings.sections && typeof settings.sections === 'object' ? settings.sections : {};
-	if(!Array.isArray(sectionsCfg[exportKey]) || sectionsCfg[exportKey].length === 0){
+	if(!Array.isArray(sectionsCfg[exportKey])){
 		// [YC] 「未自定义→原样返回」铁律的唯一受控豁免:该技法登记了默认关段 → 按 preset−默认关
 		// 过滤(把 doctrine 大段挡在默认导出/挂载之外);过滤空回退原文的兜底沿用下方同款。
 		const offSet = getAIExportDefaultOffSet(exportKey);
@@ -2921,6 +2988,10 @@ export function applyAIExportSectionFilterToSnapshot(key, content, settings = lo
 		}
 		const trimmed = filterContentByWantedSections(text, wantedDefaults);
 		return `${trimmed || ''}`.trim() ? trimmed : content;
+	}
+	// [YF v45] 空数组=显式全清 → 全不纳入(挂载卡与发送内容一并置空;与导出主链同语义)。
+	if(sectionsCfg[exportKey].length === 0){
+		return '';
 	}
 	const picked = getAIExportEffectiveSectionsForTechnique(key, settings);
 	const wanted = new Set(uniqueArray(picked || []));
@@ -6275,4 +6346,6 @@ export async function runAIExport(action){
 export const __aiExportTesting__ = {
 	exportPdf, exportPdfPlain, exportPdfStyled, canvasHasInk, planPdfChunks,
 	beautifyForAIGentle, addScreenshotPageIfAny, normalizeAIExportPrefs,
+	// [YF v45] 导出主链段过滤(内部函数)直测口:锁「空数组=全清」「强推段已死(取消=真取消)」两语义。
+	applyUserSectionFilter, normalizeAIExportSettings, AI_EXPORT_FORCED_INCLUDE_SECTIONS,
 };

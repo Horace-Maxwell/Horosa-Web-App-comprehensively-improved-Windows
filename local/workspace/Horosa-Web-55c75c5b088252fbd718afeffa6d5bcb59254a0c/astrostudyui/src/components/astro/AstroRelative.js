@@ -160,7 +160,7 @@ export function buildRelativeSnapshotText(comp){
 	if((comp.currentTab === 'Composite' || comp.currentTab === 'TimeSpace') && res.chart){
 		lines.push('');
 		lines.push(comp.currentTab === 'TimeSpace' ? '[时空中点·合成图盘]' : '[合成图盘]');
-		lines.push(buildAstroSnapshotContent(res, null));
+		lines.push(buildAstroSnapshotContent(res, null, { headerless: true }));
 	}
 
 	if((comp.currentTab === 'Synastry' || comp.currentTab === 'Marks') && (res.inner || res.outer)){
@@ -168,12 +168,12 @@ export function buildRelativeSnapshotText(comp){
 		if(res.inner && res.inner.chart){
 			lines.push('');
 			lines.push(marks ? '[马克斯·影响图盘-星盘A]' : '[影响图盘-星盘A]');
-			lines.push(buildAstroSnapshotContent(res.inner, null));
+			lines.push(buildAstroSnapshotContent(res.inner, null, { headerless: true }));
 		}
 		if(res.outer && res.outer.chart){
 			lines.push('');
 			lines.push(marks ? '[马克斯·影响图盘-星盘B]' : '[影响图盘-星盘B]');
-			lines.push(buildAstroSnapshotContent(res.outer, null));
+			lines.push(buildAstroSnapshotContent(res.outer, null, { headerless: true }));
 		}
 	}
 

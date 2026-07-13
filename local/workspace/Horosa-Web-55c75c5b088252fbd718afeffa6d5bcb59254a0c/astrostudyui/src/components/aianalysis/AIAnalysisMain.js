@@ -1283,7 +1283,10 @@ function AIAnalysisMain(props){
 				content: sourceContext && sourceContext.content ? sourceContext.content : '',
 				meta: sourceContext && sourceContext.meta ? sourceContext.meta : null,
 				status: sourceContext && sourceContext.content ? 'ready' : 'pending',
-				emptyHint: '将自动读取案例快照',
+				// [YF v45] 源全文也过「纳入内容」:显式全清与「读取中」分开提示。
+				emptyHint: sourceContext && sourceContext.sectionsCleared
+					? '该技法所有分段已在「纳入内容」中取消,案例前提未挂载任何内容;重新勾选即可恢复。'
+					: '将自动读取案例快照',
 			});
 		}
 		if(sessionSystemPrompt){
@@ -1303,9 +1306,12 @@ function AIAnalysisMain(props){
 				content: item.content || '',
 				meta: item.meta || null,
 				status: item.status || (item.content ? 'ready' : 'missing'),
-				emptyHint: item.status === 'missing'
-					? '当前未找到该技法可用快照，未挂载该技法内容。'
-					: '正在按已存案例/命盘数据自动补生成快照。',
+				// [YF v45] 显式全清(纳入内容一段未勾)与「快照缺失」分开提示,勿误导用户去排查排盘。
+				emptyHint: item.sectionsCleared
+					? '该技法所有分段已在「纳入内容」中取消,未挂载任何内容;到挂载设置重新勾选即可恢复。'
+					: (item.status === 'missing'
+						? '当前未找到该技法可用快照，未挂载该技法内容。'
+						: '正在按已存案例/命盘数据自动补生成快照。'),
 			});
 		});
 		resolved.materials.forEach((item)=>{
@@ -1449,7 +1455,10 @@ function AIAnalysisMain(props){
 		return ()=>{
 			cancelled = true;
 		};
-	}, [selectedSourceId, sources, sourceContextMode]);
+	// [YF v45] mountSettingsNonce:改「纳入内容」后源卡片(full 模式的事盘/命盘全文)也要重取——
+	// getAnalysisSourceContext 已改为读出后按当下设置过滤,重取即拿到新过滤结果(缓存命中也过滤,零额外成本)。
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [selectedSourceId, sources, sourceContextMode, mountSettingsNonce]);
 
 	React.useEffect(()=>{
 		if(!activeSource){

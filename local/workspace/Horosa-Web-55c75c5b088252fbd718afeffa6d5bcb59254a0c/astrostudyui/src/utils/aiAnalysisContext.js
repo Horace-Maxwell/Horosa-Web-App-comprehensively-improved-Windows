@@ -2,7 +2,7 @@ import DateTime from '../components/comp/DateTime';
 import request from './request';
 import * as Constants from './constants';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from './dayBoundary';
-import { applyAIExportSectionFilterToSnapshot, splitContentSections } from './aiExport';
+import { applyAIExportSectionFilterToSnapshot, splitContentSections, exportSettingKeyForSnapshotModule, applyPlanetInfoFilterByContext } from './aiExport';
 import {
 	getTechniqueSettingsSchema,
 	mergeOptionsIntoRecord,
@@ -2891,7 +2891,7 @@ async function regenerateAstroChartSnapshot(record){
 	return `${buildAstroSnapshotContent(rsp.Result, fields) || ''}`.trim();
 }
 
-// AI 挂载「每技法设置」核心入口（方案 §2.2）。
+// AI 挂载「每技法设置」核心入口。
 // options 非空 → 强制按新设置重算该技法快照（绕过 payload/cache 命中），返回 status='regenerated' 的技法上下文；
 // options 为空 → 直接走原 buildTechniqueContext（默认即现状，一行不改默认路径，守「默认即现状」铁律）。
 export async function getAnalysisTechniqueContextWithOptions(source, techniqueKey, options, baseSourceContext){
@@ -3009,7 +3009,18 @@ export async function getAnalysisTechniqueContexts(source, techniqueKeys, option
 		if(context){
 			// AI 挂载复用「AI导出设置」的按技法选段（达成四同步）。仅当用户显式自定义该技法段时才过滤，否则原样（默认即现状）。
 			if(context.content){
-				try{ context.content = applyAIExportSectionFilterToSnapshot(context.key || k, context.content); }catch(e){ /* 过滤失败保持原文 */ }
+				try{
+					const before = context.content;
+					const filterKey = context.key || k;
+					// [YF v45] 段过滤后串「星曜后天信息」开关(与导出主链同序同语义;非 planetInfo 技法原样)。
+					context.content = applyPlanetInfoFilterByContext(
+						applyAIExportSectionFilterToSnapshot(filterKey, context.content), filterKey);
+					// 原文非空但过滤后为空 = 用户在「纳入内容」显式全清 → 打标供挂载卡诚实提示
+					// (区别于「快照缺失」),内容置空自然不进 AI prompt(buildContextLayers 跳空 content)。
+					if(`${before || ''}`.trim() && !`${context.content || ''}`.trim()){
+						context.sectionsCleared = true;
+					}
+				}catch(e){ /* 过滤失败保持原文 */ }
 			}
 			results.push(context);
 		}
@@ -3032,6 +3043,35 @@ function buildTimepointContext(source){
 	};
 }
 
+// [YF v45] 源上下文(full 模式)也过「纳入内容」段过滤 —— 补上此前的裸奔面:
+// 无挂载技法时事盘/命盘走 source 前提层全文直发,用户在「纳入内容」取消的段照喂 AI(设置形同虚设)。
+// 过滤採「读出后过滤」:contextCache 永远存原文,返回前按**当下**设置过滤 → 改设置即刻生效、
+// 缓存零失效问题(与技法层 getAnalysisTechniqueContexts 同款成功模式);meta/timepoint 模式无段语义不滤。
+function filterSourceContextBySections(ctx, source, mode){
+	if(!ctx || !ctx.content || mode === 'meta' || (source && source.sourceType === 'timepoint')){
+		return ctx;
+	}
+	const key = exportSettingKeyForSnapshotModule(ctx.module);
+	if(!key){
+		return ctx;
+	}
+	try{
+		const before = ctx.content;
+		const filtered = applyPlanetInfoFilterByContext(applyAIExportSectionFilterToSnapshot(key, before), key);
+		if(filtered === before){
+			return ctx;
+		}
+		const out = { ...ctx, content: filtered };
+		// 原文非空但过滤后空 = 显式全清 → 打标供卡片诚实提示(与技法卡同语义)。
+		if(`${before || ''}`.trim() && !`${filtered || ''}`.trim()){
+			out.sectionsCleared = true;
+		}
+		return out;
+	}catch(e){
+		return ctx;
+	}
+}
+
 export async function getAnalysisSourceContext(source, options = {}){
 	if(!source){
 		return null;
@@ -3045,7 +3085,7 @@ export async function getAnalysisSourceContext(source, options = {}){
 	if(shouldPreferCache){
 		const cached = await getStoreRecord(AI_ANALYSIS_STORES.contextCache, cacheId);
 		if(cached && cached.sourceUpdatedAt === source.updatedAt && cached.content){
-			return cached;
+			return filterSourceContextBySections(cached, source, mode);
 		}
 	}
 	let built;
@@ -3069,7 +3109,7 @@ export async function getAnalysisSourceContext(source, options = {}){
 		updatedAt: new Date().toISOString(),
 	};
 	await putStoreRecord(AI_ANALYSIS_STORES.contextCache, next, 'ctx');
-	return next;
+	return filterSourceContextBySections(next, source, mode);
 }
 
 export function estimateTextTokens(text){

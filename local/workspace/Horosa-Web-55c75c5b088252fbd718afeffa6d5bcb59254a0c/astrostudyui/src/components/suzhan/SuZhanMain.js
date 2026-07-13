@@ -416,34 +416,10 @@ export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 	return lines.join('\n');
 }
 
-function buildQimenSnapshotText(chartObj, fields){
-	const lines = [];
-	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
-
-	lines.push('[起盘信息]');
-	if(fields && fields.date && fields.time){
-		lines.push(`日期：${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`);
-	}
-	if(fields && fields.zone){
-		lines.push(`时区：${fields.zone.value}`);
-	}
-	if(fields && fields.lon && fields.lat){
-		lines.push(`经纬度：${fields.lon.value} ${fields.lat.value}`);
-	}
-	lines.push('盘型：奇门(遁甲外盘)');
-	if(fields && fields.doubingSu28){
-		lines.push(`宿法：${fields.doubingSu28.value === 1 ? '斗柄定房法' : '现实距星法'}`);
-	}
-	if(fields && fields.houseStartMode){
-		lines.push(`人事十二宫起盘：${houseStartModeName(fields.houseStartMode.value)}`);
-	}
-
-	lines.push('');
-	lines.push('[九宫与宫内星体]');
-	lines.push(...buildHouseObjectLines(chart));
-
-	return lines.join('\n');
-}
+// [MU parity] 宿盘遁甲外盘曾把薄快照(仅 [起盘信息]+[九宫与宫内星体])写进共享奇门模块槽,
+// latest-wins 覆盖真奇门(DunJia)快照 → 奇门导出吐错内容+丢真奇门 17 段;且 [九宫与宫内星体] 是奇门
+// 旧段名(真奇门现产 [九宫方盘]/[旺相休囚死·月令能量]),不在奇门 preset。已删该跨模块写入与其专用 builder。
+// 遁甲外盘型已在 buildSuzhanSnapshotText 的 [起盘信息] 以「外盘：遁甲外盘」标注,足够 AI 识别。
 
 function fieldValue(fields, key, fallback = null){
 	if(!fields || !fields[key] || fields[key].value === undefined || fields[key].value === null){
@@ -583,10 +559,10 @@ class SuZhanMain extends Component{
 			const value = this.props.value;
 			const fields = this.props.fields;
 			const planetDisplay = this.props.planetDisplay;
+			// [MU parity] 只写自己的 'suzhan' 槽;遁甲外盘详情作为宿盘的图变体,不再写共享 'qimen' 槽
+			// (旧行为 latest-wins 把真奇门(DunJia)的快照覆盖成宿盘薄外盘 → qimen 导出吐错内容+丢真奇门段)。
+			// 外盘型已在 buildSuzhanSnapshotText 的 [起盘信息] 标注「外盘：遁甲外盘」。
 			saveModuleAISnapshotLazy('suzhan', ()=>buildSuzhanSnapshotText(value, fields, planetDisplay));
-			if(fields.szchart && fields.szchart.value === SZConst.SZChart_DunJiaChart){
-				saveModuleAISnapshotLazy('qimen', ()=>buildQimenSnapshotText(value, fields));
-			}
 		}
 	}
 
@@ -598,10 +574,8 @@ class SuZhanMain extends Component{
 			const value = this.props.value;
 			const fields = this.props.fields;
 			const planetDisplay = this.props.planetDisplay;
+			// [MU parity] 同上:只写 'suzhan' 槽,不污染共享 'qimen' 槽。
 			saveModuleAISnapshotLazy('suzhan', ()=>buildSuzhanSnapshotText(value, fields, planetDisplay));
-			if(fields && fields.szchart && fields.szchart.value === SZConst.SZChart_DunJiaChart){
-				saveModuleAISnapshotLazy('qimen', ()=>buildQimenSnapshotText(value, fields));
-			}
 		}
 	}
 
@@ -623,13 +597,9 @@ class SuZhanMain extends Component{
 				if(fields){
 					text = `${buildSuzhanSnapshotText(value, fields, planetDisplay) || ''}`.trim();
 				}
-			}else if(moduleName === 'qimen'){
-				const value = this.props.value;
-				const fields = this.props.fields;
-				if(fields && fields.szchart && fields.szchart.value === SZConst.SZChart_DunJiaChart){
-					text = `${buildQimenSnapshotText(value, fields) || ''}`.trim();
-				}
 			}else{
+				// [MU parity] SuZhan 不再响应 'qimen' 刷新请求(真奇门快照由 DunJia 组件供;
+				// 宿盘遁甲外盘只走自己的 'suzhan' 槽,不冒充/覆盖共享 'qimen')。
 				return;
 			}
 		}catch(e){

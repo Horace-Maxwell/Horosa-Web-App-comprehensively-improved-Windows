@@ -1523,7 +1523,15 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	if(egyptLines.length){ sections.push(buildSectionText('埃及历', egyptLines)); }
 	sections.push(buildSectionText('寿命格局', buildLifespanSection(chartObj)));
 	sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));
-	return sections.filter(Boolean).join('\n\n').trim();
+	const joined = sections.filter(Boolean).join('\n\n').trim();
+	// [MU parity] headerless:嵌入到父段(如合盘的[合成图盘]、节气的[春分3D盘])之下时,把本函数产的
+	// 整行 [X] 子段头转 `· X` 标签——否则 splitContentSections 把这些子段当顶层段拆出、自定义过父技法段的
+	// 用户按父段名过滤会把盘体删净只剩空壳头(relative/jieqi Type-B)。对齐整盘 jieqi 的 withHeaders=false 范式。
+	// 默认(headerless 缺省)行为逐字不变,仅 relative/jieqi 嵌入调用点显式传 true。
+	if(options.headerless){
+		return joined.replace(/^\[(.+?)\]$/gm, '· $1');
+	}
+	return joined;
 }
 
 export function saveAstroAISnapshot(chartObj, fields, options = {}){
