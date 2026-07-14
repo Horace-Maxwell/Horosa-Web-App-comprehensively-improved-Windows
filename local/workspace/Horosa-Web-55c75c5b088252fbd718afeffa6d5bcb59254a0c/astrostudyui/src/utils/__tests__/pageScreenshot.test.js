@@ -1,5 +1,34 @@
 // 页面截图守卫纯函数测试(导出附图三守卫:降倍率/WebGL 降级/墨迹;失败恒 null 不 throw)。
-import { pickPixelRatio, containsWebglCanvas, screenshotCanvasHasInk, capturePageScreenshot } from '../pageScreenshot';
+import { pickPixelRatio, containsWebglCanvas, screenshotCanvasHasInk, capturePageScreenshot, findActiveTechniquePane, buildScreenshotFontEmbedCSS } from '../pageScreenshot';
+
+// jsdom 无布局(offsetWidth/Height 恒 0),用 defineProperty 造尺寸模拟可见/隐藏面板。
+function makeActivePane(w, h, text){
+	const el = document.createElement('div');
+	el.className = 'ant-tabs-tabpane-active';
+	el.textContent = text || '';
+	Object.defineProperty(el, 'offsetWidth', { value: w, configurable: true });
+	Object.defineProperty(el, 'offsetHeight', { value: h, configurable: true });
+	document.body.appendChild(el);
+	return el;
+}
+
+describe('findActiveTechniquePane 选可见最大激活面板(避 0 尺寸陈旧面板 → #root 回退截到顶部导航)', ()=>{
+	afterEach(()=>{ document.body.innerHTML = ''; });
+	test('存在 0×0 陈旧激活面板(旧模块未卸载)时,仍选中可见大面板,不返 null 致整页回退', ()=>{
+		makeActivePane(0, 0, '陈旧AI分析面板');
+		const real = makeActivePane(1600, 1000, '技法三栏内容');
+		expect(findActiveTechniquePane()).toBe(real);
+	});
+	test('多个可见激活面板取面积最大(模块外层三栏 > 嵌套子面板)', ()=>{
+		const outer = makeActivePane(1655, 1081, '模块三栏');
+		makeActivePane(1400, 900, '嵌套子面板');
+		expect(findActiveTechniquePane()).toBe(outer);
+	});
+	test('全部过小 → null(交由 resolveCaptureTarget 回退 #root)', ()=>{
+		makeActivePane(100, 100, '太小');
+		expect(findActiveTechniquePane()).toBeNull();
+	});
+});
 
 describe('pickPixelRatio 尺寸守卫(单边×倍率 ≤ 8000)', ()=>{
 	test('小页 2 倍;中页 1 倍;超大页降采样仍出图', ()=>{
@@ -67,6 +96,55 @@ describe('screenshotCanvasHasInk 墨迹守卫(阈值同 aiExport.canvasHasInk)',
 		expect(screenshotCanvasHasInk(fakeCanvas(100, 200))).toBe(false);
 		expect(screenshotCanvasHasInk(fakeCanvas(100, 200, 5))).toBe(true);
 		expect(screenshotCanvasHasInk(null)).toBe(false);
+	});
+});
+
+// ★截图符号乱码守卫(2026-07-14):星盘符号是「字母→glyph」字体,截图不嵌该字体则回退裸字母(A/B/C/D…)。
+// 根因二:CSS url() 须相对**样式表**解析,相对页面会 fetch 到 SPA 兜底 index.html(200 但 HTML)→ 字体损坏。
+// 名不写死(动态取 @font-face family),三锚:①URL 经 sheet.href 解析;②magic-byte 挡 HTML兜底(不把 HTML 当字体);
+// ③尺寸上限挡 CJK 大字体(避 WKWebView 全量抓 hang)。反锚:改回 skipFonts / 相对页面解析 / 漏 magic·尺寸 → 立刻红。
+describe('buildScreenshotFontEmbedCSS 符号字体内嵌(截图 glyph 不成裸字母)', ()=>{
+	const origFetch = global.fetch;
+	const origSheets = Object.getOwnPropertyDescriptor(document, 'styleSheets');
+	function fakeFontSheet(href, faces){
+		return {
+			href,
+			cssRules: faces.map(([family, srcUrl])=>({
+				type: 5, // CSSRule.FONT_FACE_RULE
+				style: { getPropertyValue: (p)=> p === 'font-family' ? family : (p === 'src' ? `url("${srcUrl}") format("woff2")` : '') },
+			})),
+		};
+	}
+	const WOFF2 = new Uint8Array([0x77, 0x4F, 0x46, 0x32, 1, 2, 3, 4]).buffer;   // 'wOF2' 真字体
+	const HTML = new Uint8Array([0x3C, 0x21, 0x44, 0x4F, 0x43]).buffer;          // '<!DOC' SPA 兜底
+	const BIG = new Uint8Array(400 * 1024).buffer;                               // 超 300KB(CJK 类)
+	afterEach(()=>{
+		if(origSheets){ Object.defineProperty(document, 'styleSheets', origSheets); }
+		global.fetch = origFetch;
+	});
+	test('嵌同源小真字体 + URL 相对样式表解析 + magic 挡 HTML兜底 + 尺寸挡大字体', async ()=>{
+		const sheet = fakeFontSheet('http://app/static/umi.css', [
+			['glyphA', './static/glyphA.woff2'],   // 正常小真字体 → 嵌
+			['glyphB', './static/glyphB.woff2'],   // 正常小真字体 → 嵌
+			['brokenC', './static/brokenC.woff2'], // fetch 返 HTML(SPA 兜底)→ magic 挡
+			['bigCJK', './static/cjk.woff2'],      // 超大 → 尺寸挡
+		]);
+		Object.defineProperty(document, 'styleSheets', { value: [sheet], configurable: true });
+		const fetched = [];
+		global.fetch = jest.fn(async (url)=>{
+			url = String(url); fetched.push(url);
+			const body = /brokenC/.test(url) ? HTML : (/cjk/.test(url) ? BIG : WOFF2);
+			return { ok: true, status: 200, arrayBuffer: async ()=> body };
+		});
+		const css = await buildScreenshotFontEmbedCSS();
+		expect(css).toMatch(/font-family:'glyphA'/);
+		expect(css).toMatch(/font-family:'glyphB'/);
+		expect(css).not.toMatch(/brokenC/);   // ②HTML 兜底被 magic-byte 挡(绝不把 HTML 当字体内嵌)
+		expect(css).not.toMatch(/bigCJK/);    // ③大字体被尺寸上限挡
+		// ①URL 相对样式表(/static/umi.css)解析:./static/glyphA.woff2 → /static/static/glyphA.woff2(非相对页面)
+		expect(fetched.some((u)=> /\/static\/static\/glyphA\.woff2$/.test(u))).toBe(true);
+		// base64 data URI 内联(非 URL 引用 → html-to-image 无需再抓)
+		expect(css).toMatch(/src:url\(data:font\/woff2;base64,[A-Za-z0-9+/=]+\)/);
 	});
 });
 

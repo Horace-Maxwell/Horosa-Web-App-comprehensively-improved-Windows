@@ -693,16 +693,16 @@ class AstroPrimaryDirection extends Component{
 		const compactControls = viewportWidth < 1280;
 
 		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 50;
-		// 顶部工具栏强制单行(无第二行,否则会遮挡表格),空间不够时下拉收窄 + 横向滚动兜底。
-		const controlHeight = 56;
+		// 顶部工具栏强制单行(无第二行,否则会遮挡表格),空间不够时下拉收窄 + 横向滚动兜底;实测约 48px。
+		const controlHeight = 48;
 		const controlBottom = 10;
-		// 预留账目(用户两度实告,两个方向都踩过——多了表底大块空白、少了分页整行被裁不可见):
-		// scroll.y 只管表体;容器(overflow hidden)内实际还有 表头(size=small bordered ~39px) 与
-		// 分页行(24px 控件 + antd 上下 margin 16×2 = ~56px)。此前 114 漏算表头 → 总高超出 ~39px →
-		// 分页被推到裁切线外「看不见」。预留 = 56(控制行)+10(间距)+39(表头)+56(分页含margin)+8(安全) = 169。
-		const tableHeaderReserve = 39;
-		const paginationReserve = 56;
-		const bottomSafeReserve = 8;
+		// 预留账目(实测校准,两个方向都踩过——多了表底空白、少了分页整行被裁不可见):
+		// scroll.y 只管表体;容器(overflow hidden)内实际还有 工具栏(48+10mb=58)、表头(size=small ~35px)、
+		// 分页行(24px 控件 + margin-top 10 = 34px)。旧值 表头39/分页56(误按 16×2 margin)总超 ~42px →
+		// 页底残留 ~40px 空条(此前被「容器偏矮」的页底空白掩盖,测真高填满后暴露)。据实测校准至贴合。
+		const tableHeaderReserve = 35;
+		const paginationReserve = 34;
+		const bottomSafeReserve = 6;
 		const tableReserve = controlHeight + controlBottom + tableHeaderReserve + paginationReserve + bottomSafeReserve;
 		let tblY = height - tableReserve;
 		if(tblY < 200){

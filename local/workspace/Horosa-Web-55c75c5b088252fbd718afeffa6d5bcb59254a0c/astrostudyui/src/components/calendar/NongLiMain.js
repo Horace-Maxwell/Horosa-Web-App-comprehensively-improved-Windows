@@ -13,6 +13,10 @@ import GuaChartDiv from '../gua/GuaChartDiv';
 import {Week} from '../../msg/types';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 
+// 日干支五行着色（与八字模块同色变量 --horosa-bazi-*）。农历网格 dayExtra 用。
+const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
+const ZHI_WX = { 子: 'water', 丑: 'earth', 寅: 'wood', 卯: 'wood', 辰: 'earth', 巳: 'fire', 午: 'fire', 未: 'earth', 申: 'metal', 酉: 'metal', 戌: 'earth', 亥: 'water' };
+
 // AI 导出/挂载快照 builder（纯函数,jest 直测）。四同步:段头须与 aiExport preset('calendar') 逐字一致。
 // 月历行只收与 days[0] 同月的项(days 可能带下月补位);字段均后端真值直引,不在前端重算。
 export function buildNongliSnapshotText(state){
@@ -113,6 +117,7 @@ class NongLiMain extends Component{
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.genSelectDateDom = this.genSelectDateDom.bind(this);
+		this.dayExtra = this.dayExtra.bind(this);
 		this.clickDate = this.clickDate.bind(this);
 		this.clickYearGua = this.clickYearGua.bind(this);
 		this.requestYearGua = this.requestYearGua.bind(this);
@@ -249,6 +254,30 @@ class NongLiMain extends Component{
 		this.requestYearGua();
 	}
 
+	// 农历网格格内附加：当日干支（五行着色）+ 有节气者附节气精确时刻（时分秒）。
+	// 纯用后端 days 已带字段（dayGanZi/jieqi/jieqiTime），零逐格重算 → 不拖慢农历渲染。
+	dayExtra(date){
+		const gz = `${date.dayGanZi || ''}`;
+		const gan = gz[0];
+		const zhi = gz[1];
+		if(!gz && !(date.jieqi && date.jieqiTime)){ return null; }
+		// jieqiTime 后端为完整时刻串（"YYYY-MM-DD HH:mm:ss"）；格内日期已在，仅取时分秒。
+		const jqTime = date.jieqiTime ? (`${date.jieqiTime}`.split(' ')[1] || `${date.jieqiTime}`) : '';
+		return (
+			<span className='horosa-nongli-cellrich'>
+				{gz ? (
+					<span className='horosa-nl-cell-gz'>
+						<span className={`horosa-wx-${GAN_WX[gan] || 'earth'}`}>{gan}</span>
+						<span className={`horosa-wx-${ZHI_WX[zhi] || 'earth'}`}>{zhi}</span>
+					</span>
+				) : null}
+				{date.jieqi && jqTime ? (
+					<span className='horosa-nl-cell-jieqi'>{jqTime}</span>
+				) : null}
+			</span>
+		);
+	}
+
 	genSelectDateDom(){
 		if(this.state.dateSelected === undefined || this.state.dateSelected === null){
 			return null;
@@ -369,7 +398,7 @@ class NongLiMain extends Component{
 	render(){
 		let height = this.props.height ? this.props.height : 760;
 		if(height === '100%'){
-			height = 'calc(100% - 30px)'
+			height = '100%'   // 充满整块board面板(原 calc(100%-30px) 令农历网格矮30px→底部黑条)
 		}else{
 			height = height - 30;
 		}
@@ -378,14 +407,15 @@ class NongLiMain extends Component{
 
 		return (
 			<div className='horosa-calendar-workbench'>
-				<section className='horosa-calendar-board-panel'>
-						<NongLi 
+				<section className='horosa-calendar-board-panel horosa-nongli-board'>
+						<NongLi
 							height={height}
 							date={this.state.date}
 							days={this.state.days}
 							prevDays={this.state.prevDays}
 							focusDate={this.state.date}
 							onDateClick={this.clickDate}
+							dayExtra={this.dayExtra}
 						/>
 				</section>
 				<aside className='horosa-calendar-detail-panel'>

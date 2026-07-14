@@ -2408,7 +2408,7 @@ function getTechniqueLabel(key){
 	return ANALYSIS_TECHNIQUE_LABELS[normalizeTechniqueKey(key)] || `${key || ''}`.trim();
 }
 
-function getTechniqueAliasList(moduleName){
+export function getTechniqueAliasList(moduleName){
 	const name = normalizeTechniqueKey(moduleName);
 	if(!name){
 		return [];
@@ -2453,6 +2453,12 @@ function getTechniqueAliasList(moduleName){
 		set.add('jieqi_xiazhi');
 		set.add('jieqi_qiufen');
 		set.add('jieqi_dongzhi');
+	}
+	if(name === 'calendar'){
+		// 黄历四子 tab 快照别名（导出/挂载 alias 扫描一并纳入）。
+		set.add('calendar-huangli');
+		set.add('calendar-tongshu');
+		set.add('calendar-rizi');
 	}
 	return Array.from(set);
 }

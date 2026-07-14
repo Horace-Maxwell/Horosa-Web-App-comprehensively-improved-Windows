@@ -153,3 +153,19 @@ Horosa is distributed under the AGPL-3.0, satisfying the Swiss Ephemeris licensi
 - Use in Horosa: no code, assets, or data from Stellarium are bundled or vendored. Horosa's built-in planetarium independently implements its own rendering, camera controls, and time playback; certain user-facing interaction conventions (e.g. click-to-track an object with the camera, drag-to-release tracking, seamless time-based extrapolation between server samples) are inspired by long-standing planetarium UX as exemplified by Stellarium. Source-level references to the name appear only in code comments describing the design intent.
 
 No GPL-licensed source from Stellarium is incorporated; this notice is provided as an acknowledgment of design inspiration.
+
+## Noto Sans CJK SC (bundled subset)
+
+- Project: Noto Sans CJK (Simplified Chinese)
+- Repository: https://github.com/notofonts/noto-cjk
+- Copyright: Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. Noto is a trademark of Google LLC.
+- License: SIL Open Font License, Version 1.1 (OFL-1.1)
+- Use in Horosa: a size-reduced subset (GB2312 + Traditional + Korean hanzi/hangul + common symbols, `public/fonts/HorosaCJK-subset.ttf`) is embedded into locally generated AI-export PDFs so that Chinese text is selectable and searchable. The OFL permits bundling, embedding and modification; the font is used with glyph subsetting and a CFF→TrueType (glyf) outline conversion (cubic→quadratic) required for correct PDF embedding via pdf-lib.
+
+## pdf-lib
+
+- Project: pdf-lib (with `@pdf-lib/fontkit`)
+- Repository: https://github.com/Hopding/pdf-lib
+- Copyright: Copyright (c) 2019 Andrew Dillon
+- License: MIT License
+- Use in Horosa: pure-JavaScript, fully offline generation of selectable-text PDF export files (embedding the bundled CJK subset font above); no data leaves the machine.

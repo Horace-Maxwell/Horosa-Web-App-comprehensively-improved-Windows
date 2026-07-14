@@ -155,6 +155,11 @@ class NongLiDate extends Component{
 					<Row style={{textAlign: 'center'}}>
 						<Col span={24}>{nongli}</Col>
 					</Row>
+					{this.props.extra ? (
+						<Row style={{textAlign: 'center'}}>
+							<Col span={24}>{this.props.extra}</Col>
+						</Row>
+					) : null}
 				</div>
 			</Popover>
 		);

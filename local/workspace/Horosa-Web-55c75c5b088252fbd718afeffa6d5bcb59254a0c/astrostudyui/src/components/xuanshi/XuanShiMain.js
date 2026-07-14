@@ -340,10 +340,10 @@ export default class XuanShiMain extends React.Component {
 	}
 
 	render() {
-		const height = this.props.height || 800;
 		const { subpage } = this.state;
+		// 充满已撑满的父面板(原按 props.height 定死像素高 → 比容器矮 → 底部黑条,用户实指)。
 		return (
-			<div className="xuanshi-app" style={{ height: typeof height === 'number' ? `${height}px` : height }}>
+			<div className="xuanshi-app" style={{ height: '100%', minHeight: 0 }}>
 				<div className="xuanshi-side">
 					<div className="xuanshi-brand">
 						<span className="xuanshi-seal">玄</span>

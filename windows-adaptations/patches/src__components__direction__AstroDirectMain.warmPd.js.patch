@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index 392a8b7..bd1fd5d 100644
+index 6bf2e9e..b1d94b1 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
 @@ -530,6 +530,131 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime

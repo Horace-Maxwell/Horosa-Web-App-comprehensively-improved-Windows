@@ -645,8 +645,9 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
 	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '大限·岁运', '流年·岁运', '断验'],
 	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '格局判定', '重犯', '交互格', '职业适性', '大限', '小限与流年十二神', '流年总论', '神煞合参', '诗文', '四柱文献'],
-	// 黄历:段名与 NongLiMain.buildNongliSnapshotText 的 [X] 段头一一对应(v43;refresh-event 实时快照)。
-	calendar: ['起盘信息', '当月月历', '选中日详情', '方法说明'],
+	// 黄历:四子 tab(农历/老黄历/通书择日/日子馆)段名与各 buildXxxSnapshot 的 [X] 段头一一对应
+	// (农历走 NongLiMain.buildNongliSnapshotText;老黄历/通书走 huangliSnapshot;日子馆走 riziSnapshot)。
+	calendar: ['起盘信息', '当月月历', '选中日详情', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '通书择日', '日子馆·个性化择日', '当事人八字', '方法说明'],
 	generic: ['起盘信息'],
 };
 
@@ -3152,7 +3153,7 @@ function extractSnapshotText(raw){
 	return '';
 }
 
-function getModuleAliasList(moduleName){
+export function getModuleAliasList(moduleName){
 	const name = `${moduleName || ''}`.trim();
 	if(!name){
 		return [];
@@ -3247,6 +3248,12 @@ function getModuleAliasList(moduleName){
 		set.add('cetian');
 		set.add('kinastro-cetian');
 		set.add('mingother');
+	}
+	if(name === 'calendar'){
+		// 黄历四子 tab 快照别名（导出/挂载 alias 扫描一并纳入）。
+		set.add('calendar-huangli');
+		set.add('calendar-tongshu');
+		set.add('calendar-rizi');
 	}
 	return Array.from(set).filter(Boolean);
 }
@@ -5645,8 +5652,21 @@ async function exportPdfStyled(payload){
 	}
 }
 
-// 包装层:v2 先走样式化,失败整体回退经典纯文本栅格(防线④);v1 直走经典路径(字节级不变)。
+// 包装层:首选矢量可选中文字 PDF(内嵌中文子集字体);失败按 v2 样式化栅格 → v1 纯文本栅格回退(绝不无产物)。
 async function exportPdf(payload){
+	// 首选[顶级方案]:矢量可选中文字 PDF → downloadBlob 的 <a download>,桌面 webview 触发原生
+	// 「另存为」(选位置+改名)、dev 触发下载,全程不弹系统打印窗;文字可选可搜、非整页图片。
+	try{
+		const vec = await import('./aiExportPdfVector');
+		if(vec && vec.buildExportPdfVectorBlob){
+			const blob = await vec.buildExportPdfVectorBlob(payload);
+			if(blob && blob.size > 1200){
+				downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf');
+				return true;
+			}
+		}
+	}catch(e){ console.error('[aiExport] 矢量 PDF 失败,回退栅格:', e && e.message); }
+	// 回退:v2 先走样式化,失败整体回退经典纯文本栅格(防线④);v1 直走经典路径。
 	if(getAIExportFormatPreference() === 'v2'){
 		const styledOk = await exportPdfStyled(payload);
 		if(styledOk){ return true; }
@@ -5947,6 +5967,26 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	return keys;
 }
 
+// 黄历:四子 tab(农历/老黄历/通书择日/日子馆)各自独立模块快照;导出汇合已挂载(用户访问过)的子 tab。
+// 各子 tab 组件监听 refresh-event 按当前状态即时构建,未挂载的子 tab 返回空被跳过。
+async function extractCalendarContent(context){
+	void context;
+	const subs = [
+		{ mod: 'calendar', label: '农历' },
+		{ mod: 'calendar-huangli', label: '老黄历' },
+		{ mod: 'calendar-tongshu', label: '通书择日' },
+		{ mod: 'calendar-rizi', label: '日子馆' },
+	];
+	const parts = [];
+	for(let i = 0; i < subs.length; i++){
+		// eslint-disable-next-line no-await-in-loop
+		const text = await extractSimpleModuleContent(subs[i].mod);
+		const t = `${text || ''}`.trim();
+		if(t){ parts.push(`【${subs[i].label}】\n${t}`); }
+	}
+	return parts.join('\n\n');
+}
+
 // 「简单模块」预测技法：内容来自前端保存的模块快照(saveModuleAISnapshot)而非预测后端 payload。
 // 路由与自检共用此单一真值表 —— 防「登记进 predictive 却漏配 extractContentByKey 路由」(extrareturns 曾正是漏此条 → AI导出/挂载拿不到多重回归快照)。
 export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
@@ -6026,8 +6066,8 @@ async function extractContentByKey(exportKey, context){
 		return extractSimpleModuleContent('huangji');
 	}
 	if(exportKey === 'calendar'){
-		// 黄历:NongLiMain 监听 refresh-event 按当前月历/选中日即时构建快照(同太乙机制)。
-		return extractSimpleModuleContent('calendar');
+		// 黄历:四子 tab 各自独立模块快照,汇合导出(农历/老黄历/通书择日/日子馆);各子 tab 监听 refresh-event 即时构建。
+		return extractCalendarContent(context);
 	}
 	if(exportKey === 'wuzhao' || exportKey === 'taixuan' || exportKey === 'jingjue' || exportKey === 'shenyishu'
 		|| exportKey === 'shaozi' || exportKey === 'tieban' || exportKey === 'fendjing' || exportKey === 'beiji'

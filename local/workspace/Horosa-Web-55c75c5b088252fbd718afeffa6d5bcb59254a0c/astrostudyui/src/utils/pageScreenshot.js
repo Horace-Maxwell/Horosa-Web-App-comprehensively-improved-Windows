@@ -20,6 +20,86 @@ const CAPTURE_TIMEOUT_MS = 30000;
 
 let captureLock = Promise.resolve();
 
+// 截图字形字体内嵌:星盘里的行星/星座符号是「字母→glyph」映射字体(A→日符…),截图不嵌该字体则
+// canvas 回退裸字母(A/B/C/D…不成符号)。做法 = 只把**同源、可 fetch、体积小**的 @font-face 字体
+// 预取 + base64 内联成 fontEmbedCSS 传给 html-to-image:既避开「全量扫所有样式表 @font-face」的 WKWebView
+// 老坑(故不嵌 CJK 等大字体,中文/拉丁走系统字体渲染),又把符号字体嵌进截图。名不写死(从 @font-face 规则
+// 动态取 family),对新增符号字体天然生效。模块级缓存(字体不变)。任何失败返 ''(退回 skipFonts,不阻断)。
+const MAX_EMBED_FONT_BYTES = 300 * 1024;    // 单字体上限:符号字体皆很小(<50KB);挡意外大字体(CJK ~2.7MB)
+const MAX_TOTAL_EMBED_BYTES = 768 * 1024;   // 总量封顶(符号+KaTeX 数字体够用;挡病态几十上百字体撑爆 SVG)
+let _screenshotFontCssPromise = null;
+
+function arrayBufferToBase64(buf){
+	const bytes = new Uint8Array(buf);
+	let binary = '';
+	const chunk = 0x8000;
+	for(let i = 0; i < bytes.length; i += chunk){
+		binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+	}
+	return (typeof btoa === 'function') ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
+}
+
+// 收全部同源 @font-face(带真实字体文件 URL、非 data: 的),fetch+校验+base64 内联。导出便于单测。
+export async function buildScreenshotFontEmbedCSS(){
+	if(_screenshotFontCssPromise){ return _screenshotFontCssPromise; }
+	_screenshotFontCssPromise = (async ()=>{
+		if(typeof document === 'undefined'){ return ''; }
+		const faces = [];
+		const seen = new Set();
+		const sheets = Array.from(document.styleSheets || []);
+		for(let s = 0; s < sheets.length; s++){
+			let rules;
+			try{ rules = sheets[s].cssRules || sheets[s].rules; }catch(e){ continue; } // 跨域样式表读 cssRules 会抛
+			if(!rules){ continue; }
+			for(let r = 0; r < rules.length; r++){
+				const rule = rules[r];
+				if(!rule || !rule.style || rule.type !== 5){ continue; } // 5 = CSSRule.FONT_FACE_RULE
+				const fam = (rule.style.getPropertyValue('font-family') || '').replace(/["']/g, '').trim();
+				if(!fam || seen.has(fam)){ continue; }
+				const src = rule.style.getPropertyValue('src') || '';
+				const m = src.match(/url\(\s*["']?([^"')]+\.woff2)["']?\s*\)/i)
+					|| src.match(/url\(\s*["']?([^"')]+\.woff)["']?\s*\)/i)
+					|| src.match(/url\(\s*["']?([^"')]+\.ttf)["']?\s*\)/i);
+				if(!m){ continue; } // data: URI(浏览器已内联)或无文件 URL → 跳过
+				// 🔴 CSS url() 相对**样式表**解析,非相对页面。umi 产物 src='./static/x.woff2'、样式表在
+				// /static/umi.css → 真 URL=/static/static/x.woff2;相对页面 fetch 会拿到 SPA 兜底 index.html
+				// (200 但 HTML)→ 字体损坏。new URL(raw, sheet.href) 与浏览器 @font-face 同解。
+				let resolved = m[1];
+				try{ resolved = new URL(m[1], sheets[s].href || document.baseURI).href; }catch(e){ /* 保底用原值 */ }
+				seen.add(fam);
+				faces.push({ fam, url: resolved });
+			}
+		}
+		const parts = [];
+		let total = 0;
+		for(let i = 0; i < faces.length; i++){
+			const fam = faces[i].fam;
+			const url = faces[i].url;
+			try{
+				const res = await fetch(url);
+				if(!res || !res.ok){ continue; }
+				const buf = await res.arrayBuffer();
+				if(!buf || buf.byteLength === 0 || buf.byteLength > MAX_EMBED_FONT_BYTES){ continue; } // 挡空/大字体
+				if(total + buf.byteLength > MAX_TOTAL_EMBED_BYTES){ continue; } // 总量封顶(防病态多字体撑爆 SVG)
+				// 只收真字体:woff2='wOF2'、woff='wOFF'、ttf=0x00010000/'true'、otf='OTTO'。
+				// 关键副作用防线:SPA 兜底 index.html 首字节 '<'(0x3C)在此被挡,绝不把 HTML 当字体内嵌。
+				const h = new Uint8Array(buf);
+				const magic = String.fromCharCode(h[0], h[1], h[2], h[3]);
+				const isFont = magic === 'wOF2' || magic === 'wOFF' || magic === 'true' || magic === 'OTTO'
+					|| (h[0] === 0x00 && h[1] === 0x01 && h[2] === 0x00 && h[3] === 0x00);
+				if(!isFont){ continue; }
+				const b64 = arrayBufferToBase64(buf);
+				const fmt = /\.woff2$/i.test(url) ? 'woff2' : (/\.woff$/i.test(url) ? 'woff' : 'truetype');
+				const mime = fmt === 'truetype' ? 'font/ttf' : ('font/' + fmt);
+				parts.push(`@font-face{font-family:'${fam}';src:url(data:${mime};base64,${b64}) format('${fmt}');font-weight:normal;font-style:normal;}`);
+				total += buf.byteLength;
+			}catch(e){ /* 单个字体失败:跳过,不阻断其它 */ }
+		}
+		return parts.join('\n');
+	})();
+	return _screenshotFontCssPromise;
+}
+
 function withCaptureLock(fn){
 	const run = captureLock.then(()=>fn());
 	// 锁只用 timeout「放行队列」,不弃跑任务本身(reportChartCapture audit 4 修的同款语义)。
@@ -30,23 +110,29 @@ function withCaptureLock(fn){
 	return run;
 }
 
-// 顶层 .ant-tabs(不嵌套于另一 .ant-tabs 者)的激活面板 = 技法三栏整页容器。
-function findActiveTechniquePane(){
+// 当前技法三栏 = 「可见且面积最大」的激活面板。
+// 🔴 旧实现取顶层 tabs 的**首个**激活面板 → 病根:模块路由切换后,旧模块面板常仍带
+// `ant-tabs-tabpane-active` 类却塌成 0×0(隐藏未卸载),querySelector 先命中它 → 尺寸守卫失败
+// → 整体回退 #root(整页含顶部导航条)→ 用户所见「很多技法只截到顶部菜单栏、不是技法本身」。
+// 改:在**全部**激活面板中挑真正可见(≥MIN_TARGET_SIZE)且面积最大者——自然是当前模块三栏,
+// 天然排除 0 尺寸的陈旧/隐藏面板与更小的嵌套子面板。导出为纯函数便于单测。
+export function findActiveTechniquePane(){
 	if(typeof document === 'undefined'){
 		return null;
 	}
-	const allTabs = Array.from(document.querySelectorAll('.ant-tabs'));
-	const topTabs = allTabs.filter((el)=>{
-		const parent = el.parentElement;
-		return !(parent && parent.closest && parent.closest('.ant-tabs'));
-	});
-	for(let i = 0; i < topTabs.length; i++){
-		const pane = topTabs[i].querySelector('.ant-tabs-tabpane-active');
-		if(pane && pane.offsetWidth >= MIN_TARGET_SIZE && pane.offsetHeight >= MIN_TARGET_SIZE){
-			return pane;
+	const panes = Array.from(document.querySelectorAll('.ant-tabs-tabpane-active'));
+	let best = null;
+	let bestArea = 0;
+	for(let i = 0; i < panes.length; i++){
+		const pane = panes[i];
+		const w = pane.offsetWidth || 0;
+		const h = pane.offsetHeight || 0;
+		if(w >= MIN_TARGET_SIZE && h >= MIN_TARGET_SIZE){
+			const area = w * h;
+			if(area > bestArea){ bestArea = area; best = pane; }
 		}
 	}
-	return null;
+	return best;
 }
 
 export function resolveCaptureTarget(){
@@ -161,11 +247,18 @@ export async function capturePageScreenshot(options = {}){
 				return null;
 			}
 			const pixelRatio = pickPixelRatio(cssW, cssH);
+			// 符号字体内嵌:预置只含同源小字体的 fontEmbedCSS(base64 内联)。既避开 html-to-image
+			// 「全量扫所有样式表 @font-face」的 WKWebView 老坑(故不嵌 CJK 大字体,中文/拉丁走系统字体渲染),
+			// 又让符号字体的「字母→glyph」在截图里成真符号(否则回退裸字母 A/B/C/D…)。
+			// 取不到(异常/无匹配)→ 退回 skipFonts:true(不 hang,退化为裸字母但绝不阻断导出)。
+			let embedFontCss = '';
+			try{ embedFontCss = await buildScreenshotFontEmbedCSS(); }catch(e){ embedFontCss = ''; }
+			const fontOpts = embedFontCss ? { fontEmbedCSS: embedFontCss } : { skipFonts: true };
 			const canvas = await toCanvas(target, {
 				pixelRatio,
 				backgroundColor: currentBackgroundColor(),
 				cacheBust: true,
-				skipFonts: true, // WKWebView @font-face 抓取老问题的既有规避(同 exportPdf)
+				...fontOpts,
 			});
 			if(!canvas || !canvas.width || !canvas.height){
 				return null;

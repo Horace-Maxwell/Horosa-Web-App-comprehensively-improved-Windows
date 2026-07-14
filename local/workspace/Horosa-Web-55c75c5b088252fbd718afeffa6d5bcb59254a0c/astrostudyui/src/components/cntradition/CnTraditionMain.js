@@ -89,17 +89,16 @@ class CnTraditionMain extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		// 根 Tabs 改充满父面板（原 props.height-20 定死像素高 → 底部黑条）。
 		let tab = this.findTab();
 
 		return (
 			<div id={this.state.divId} className="horosa-cntradition-page">
-				<Tabs 
+				<Tabs
 					defaultActiveKey={tab} tabPosition='right'
 					activeKey={tab}
 					onChange={this.changeTab}
-					style={{ height: height }}
+					style={{ height: '100%', minHeight: 0 }}
 				>
 					<TabPane tab="八卦类象" key="guasym">
 						<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc /></TechniqueErrorBoundary>

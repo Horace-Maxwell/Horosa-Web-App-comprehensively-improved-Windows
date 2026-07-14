@@ -1037,6 +1037,23 @@ class AstroDirectMain extends Component{
 		this.syncCurrentSubTab();
 		this.ensurePrimaryDirectionReady();
 		this.saveDirectionSnapshot();
+		// 底部空白根治:静态 props.height-20 比实际工作区矮(链上全满仅本模块 inline 高偏矮)→ Tabs/表格
+		// 皆按偏矮值设死高度,页底留空白。改测根容器真高驱动各页签高度。
+		this.measureRootHeight();
+		if(typeof ResizeObserver !== 'undefined' && this.rootEl){
+			this._roRoot = new ResizeObserver(()=>{
+				if(this._rafRoot){ cancelAnimationFrame(this._rafRoot); }
+				this._rafRoot = requestAnimationFrame(()=> this.measureRootHeight());
+			});
+			this._roRoot.observe(this.rootEl);
+		}
+	}
+
+	// 测根容器真高(填满工作区);>120 才采信,变化才 setState(防抖风暴)。回退=静态 props.height-20。
+	measureRootHeight(){
+		if(this.unmounted || !this.rootEl){ return; }
+		const h = Math.round(this.rootEl.getBoundingClientRect().height);
+		if(h > 120 && h !== this.state.containerH){ this.setState({ containerH: h }); }
 	}
 
 	componentWillUnmount(){
@@ -1044,6 +1061,8 @@ class AstroDirectMain extends Component{
 		if(typeof window !== 'undefined' && window.removeEventListener){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+		if(this._roRoot){ try{ this._roRoot.disconnect(); }catch(e){} this._roRoot = null; }
+		if(this._rafRoot){ cancelAnimationFrame(this._rafRoot); this._rafRoot = null; }
 	}
 
 	componentDidUpdate(prevProps, prevState){
@@ -1151,8 +1170,10 @@ class AstroDirectMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 20;
+		// 测得的根容器真高优先(填满工作区、消页底空白);未测到时回退静态 props.height-20。
+		let height = (this.state.containerH && this.state.containerH > 120)
+			? this.state.containerH
+			: ((this.props.height ? this.props.height : 760) - 20);
 		const chartParams = this.props.chartObj && this.props.chartObj.params ? this.props.chartObj.params : {};
 		const appliedPdMethod = chartParams.pdMethod
 			? chartParams.pdMethod
@@ -1176,8 +1197,8 @@ class AstroDirectMain extends Component{
 		const appliedPdTerms = chartParams.pdTerms ? 1 : 0;
 
 		return (
-			<div className="horosa-direction-page xq-chart-renderer xq-chart-renderer-direction">
-				<Tabs 
+			<div className="horosa-direction-page xq-chart-renderer xq-chart-renderer-direction" ref={(el)=>{ this.rootEl = el; }} style={{ height: '100%', minHeight: 0 }}>
+				<Tabs
 					activeKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
 					style={{ height: height }}

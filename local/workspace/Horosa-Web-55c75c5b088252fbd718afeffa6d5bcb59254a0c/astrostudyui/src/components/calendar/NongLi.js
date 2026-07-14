@@ -50,10 +50,11 @@ class NongLi extends Component{
 		let col = (
 			// key 用日期本身:randomStr 每次渲染都变,整列子树反复重挂(丢状态+白耗)
 			<div key={date.birth} className={`horosa-calendar-cell-wrap ${ord === 0 || ord === 6 ? 'is-weekend' : ''}`}>
-				<NongLiDate 						
+				<NongLiDate
 					date={date}
 					hightLight={hightlight}
 					onClick={this.onDateClick}
+					extra={this.props.dayExtra ? this.props.dayExtra(date) : null}
 				/>
 			</div>
 		);
