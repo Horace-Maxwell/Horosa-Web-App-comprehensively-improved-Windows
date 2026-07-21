@@ -28,18 +28,41 @@ function Table({ head, rows }){
 	);
 }
 
+// horosa_guolao_doc_static_rows_v1(PERF-R9 Ship 6):六张表的行数据全部由**模块级静态常量**
+// (guolaoData 的 SU28/PALACE_LORD/…)派生,与 props/state 无关 —— 原先每次 render 都重算一遍
+// (七政左栏每次改选项/切时间都会重渲本组件),现提到模块级只算一次。行内容逐字节不变。
+const SU28_ROWS = SU28.map((s, i)=>[i + 1, s, SU28_DISTANCE[i] + '°', SU28_DEGREE_LORD[i]]);
+const PALACE_ROWS = DIZHI.map((z)=>{ const p = PALACE_LORD[z]; return [z, p[0], p[1], p[2] === '—' ? '—' : `${p[1]==='—'?'':''}${p[2]}${p[3]}`]; });
+const DIGNITY_ROWS = Object.keys(DIGNITY_TABLE).map((star)=>[star, ...DIGNITY_TABLE[star]]);
+const HUAYAO_ROWS = Object.keys(HUAYAO_A).map((g)=>[g, HUAYAO_A[g], KUIXING_B[g]]);
+const SIYU_ROWS = Object.keys(SIYU_DAILY_RATE).map((n)=>[n, SIYU_WUXING[n], `${SIYU_DAILY_RATE[n]}°/日`, `${SIYU_PERIOD_YEAR[n]}年`]);
+const SHIHUA_ROWS = SHIHUA_ORDER.map((o, i)=>[`${i + 1}.${o[0]}`, o[1], o[2] || '—']);
+const DONGWEI_ROWS = DONGWEI_PALACE_YEARS.map((d)=>[d[0], d[1] + ' 年']);
+
 export default class GuoLaoStarSectDoc extends Component {
 	constructor(props){
 		super(props);
 		this.state = { open: false };
+		// 首次打开前不构造 Modal 子树(未打开过=用户从没见过,不构成降级);打开过之后
+		// 永久保留(粘性),开关行为与今天逐帧一致。
+		this._everOpen = false;
+	}
+
+	// horosa_guolao_doc_scu_v1:本组件**零 props**(调用点 <GuoLaoStarSectDoc />),唯一输入是
+	// state.open。故父组件(GuoLaoInput→GuoLaoChartMain)因任何无关原因重渲时,本子树可完全跳过。
+	shouldComponentUpdate(nextProps, nextState){
+		return nextState.open !== this.state.open;
 	}
 
 	render(){
-		const su28Rows = SU28.map((s, i)=>[i + 1, s, SU28_DISTANCE[i] + '°', SU28_DEGREE_LORD[i]]);
-		const palaceRows = DIZHI.map((z)=>{ const p = PALACE_LORD[z]; return [z, p[0], p[1], p[2] === '—' ? '—' : `${p[1]==='—'?'':''}${p[2]}${p[3]}`]; });
-		const dignityRows = Object.keys(DIGNITY_TABLE).map((star)=>[star, ...DIGNITY_TABLE[star]]);
-		const huayaoRows = Object.keys(HUAYAO_A).map((g)=>[g, HUAYAO_A[g], KUIXING_B[g]]);
-		const siyuRows = Object.keys(SIYU_DAILY_RATE).map((n)=>[n, SIYU_WUXING[n], `${SIYU_DAILY_RATE[n]}°/日`, `${SIYU_PERIOD_YEAR[n]}年`]);
+		const su28Rows = SU28_ROWS;
+		const palaceRows = PALACE_ROWS;
+		const dignityRows = DIGNITY_ROWS;
+		const huayaoRows = HUAYAO_ROWS;
+		const siyuRows = SIYU_ROWS;
+		if(this.state.open){
+			this._everOpen = true;
+		}
 		return (
 			<>
 				<button
@@ -48,6 +71,7 @@ export default class GuoLaoStarSectDoc extends Component {
 					style={{ marginTop: 8, width: '100%', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12,
 						border: '1px solid var(--horosa-border-soft, rgba(231,189,117,0.2))', background: 'transparent', color: 'var(--horosa-text-soft, #c8c0b2)' }}
 				>七政四余 · 资料速查</button>
+				{!this._everOpen ? null : (
 				<Modal
 					open={this.state.open}
 					title="七政四余 · 资料速查（古法立成）"
@@ -73,7 +97,7 @@ export default class GuoLaoStarSectDoc extends Component {
 							<p className="horosa-guolao-doc-note"><strong>化曜诀(A)≠魁星诀(B)</strong>：起盘配十化用 A 诀；B 诀仅备注，勿混。A 诀(无日)：甲火乙孛丙木丁金戊土己太阴庚水辛炁壬计癸罗。</p>
 							<Table head={['天干', '化曜(A诀)', '魁星(B诀·非化曜)']} rows={huayaoRows} />
 							<p className="horosa-guolao-doc-note" style={{ marginTop: 10 }}>十化次序·所管宫·≈紫微四化：</p>
-							<Table head={['化名', '所管宫', '≈紫微']} rows={SHIHUA_ORDER.map((o, i)=>[`${i + 1}.${o[0]}`, o[1], o[2] || '—'])} />
+							<Table head={['化名', '所管宫', '≈紫微']} rows={SHIHUA_ROWS} />
 						</TabPane>
 						<TabPane tab="四余" key="siyu">
 							<p className="horosa-guolao-doc-note">古法立成(匀速平行)每日行度；今法走真交点/真拱点真算。罗火计土孛水炁木；计＝罗+180 对冲。</p>
@@ -81,7 +105,7 @@ export default class GuoLaoStarSectDoc extends Component {
 						</TabPane>
 						<TabPane tab="洞微大限" key="dongwei">
 							<p className="horosa-guolao-doc-note">自命宫顺行，各宫年数不等(合≈百六)；命宫起限＝floor(太阳在命宫内度数/3)+10。</p>
-							<Table head={['宫名', '年数']} rows={DONGWEI_PALACE_YEARS.map((d)=>[d[0], d[1] + ' 年'])} />
+							<Table head={['宫名', '年数']} rows={DONGWEI_ROWS} />
 						</TabPane>
 						<TabPane tab="流派对照" key="school">
 							<p className="horosa-guolao-doc-note">定盘相的是「设置组合」(盘制·安命基准·四余算法·真平太阳时)而非派名。</p>
@@ -89,6 +113,7 @@ export default class GuoLaoStarSectDoc extends Component {
 						</TabPane>
 					</Tabs>
 				</Modal>
+				)}
 			</>
 		);
 	}

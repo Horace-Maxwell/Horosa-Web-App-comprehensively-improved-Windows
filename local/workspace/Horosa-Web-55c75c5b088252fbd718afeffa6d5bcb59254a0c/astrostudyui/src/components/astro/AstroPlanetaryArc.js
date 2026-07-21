@@ -12,6 +12,7 @@ import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirth
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
 export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
@@ -183,6 +184,8 @@ class AstroPlanetaryArc extends Component{
 		if(params.dirZone){ dt.setZone(params.dirZone); }
 		if(!this._mounted) return;
 		this.setState({ dirChart: result, params: { ...params, datetime: dt } }, () => {
+			// horosa_panel_ready_v1:行星弧盘(中栏盘 + 右栏表同源于 dirChart)落定的那一次 setState。
+			markPanelReady('direction');
 			saveModuleAISnapshotLazy('planetaryarc', ()=>formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧：以所选天体的二次推运移动量为弧推进全盘。'), { module: 'planetaryarc' });
 		});
 	}

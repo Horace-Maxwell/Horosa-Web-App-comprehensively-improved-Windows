@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/idleWarmQueue.js b/astrostudyui/src/utils/idleWarmQueue.js
-index 468716b..dc7c2e4 100644
+index f6555a6..47a5c7b 100644
 --- a/astrostudyui/src/utils/idleWarmQueue.js
 +++ b/astrostudyui/src/utils/idleWarmQueue.js
 @@ -13,7 +13,7 @@
@@ -11,7 +11,7 @@ index 468716b..dc7c2e4 100644
  
  // 引擎层注册表:动态 import 高频技法的本地纯计算模块(与导航概率序同基准)。
  // 只列「用户首点该技法必然要初始化」的模块;新技法引擎按同格式追加。
-@@ -32,6 +32,8 @@ const ENGINE_WARM_IMPORTS = [
+@@ -40,6 +40,8 @@ const ENGINE_WARM_IMPORTS = [
  
  // 数据层任务注册(各技法自行登记「按当前命盘的真实取数」,如填 L1/L2/后端 paramhash 的
  // 幂等请求)。task: () => Promise<any>;name 仅用于诊断。
@@ -20,7 +20,43 @@ index 468716b..dc7c2e4 100644
  const DATA_WARM_TASKS = [];
  export function registerIdleWarmTask(name, task){
  	if(typeof task === 'function'){
-@@ -43,6 +45,67 @@ let started = false;
+@@ -47,10 +49,103 @@ export function registerIdleWarmTask(name, task){
+ 	}
+ }
+ 
++// —— horosa_data_warm_registry_v1(PERF-R9 Ship 7):排盘后数据层预热的【任务注册表】 ——
++// 病根:任务清单此前写死在 pages/index.js 的一个 4 条数组里 —— 与技法零关系的页面组件
++// 持有技法知识,漏项没人发现(紫微 /ziwei/birth 首点概率最高,却整轮不在组里)。
++// 改注册表后:追加一条 = 一行登记;Map 的插入序 = 首点概率序 = 执行序。
++// 登记方职责(本模块不校验,见上方纪律):确定性端点 + 技法自己的 builder/缓存入口 + silent。
++// ⚠️ 登记发生在模块 import 期(见 utils/dataWarmTasks.js),故 __resetIdleWarmQueue 【不】清它。
++const DATA_WARM_REGISTRY = new Map();
++
++/**
++ * @param {string} taskKey 诊断名(同名重登记=覆盖,顺序保持首次登记位)
++ * @param {function} fn (fields, chartObj) => Promise<any>
++ */
++export function registerDataWarmTask(taskKey, fn){
++	if(taskKey && typeof fn === 'function'){
++		DATA_WARM_REGISTRY.set(`${taskKey}`, fn);
++	}
++}
++
++/** 按登记序把注册表铺成 scheduleDataWarmGroup 吃的任务数组。 */
++export function buildRegisteredDataWarmTasks(fields, chartObj){
++	const tasks = [];
++	DATA_WARM_REGISTRY.forEach((fn, name)=>{
++		tasks.push({ name, task: ()=> fn(fields, chartObj) });
++	});
++	return tasks;
++}
++
++/** 测试/诊断:当前登记的任务名(即执行序)。 */
++export function __dataWarmRegistryKeys(){
++	return Array.from(DATA_WARM_REGISTRY.keys());
++}
++
+ let started = false;
  let paused = false;
  let pauseTimer = null;
  
@@ -88,7 +124,7 @@ index 468716b..dc7c2e4 100644
  function scheduleIdle(fn){
  	if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
  		window.requestIdleCallback(fn, { timeout: 4000 });
-@@ -110,7 +173,17 @@ export function __resetIdleWarmQueue(){
+@@ -118,7 +213,17 @@ export function __resetIdleWarmQueue(){
  	started = false;
  	paused = false;
  	DATA_WARM_TASKS.length = 0;

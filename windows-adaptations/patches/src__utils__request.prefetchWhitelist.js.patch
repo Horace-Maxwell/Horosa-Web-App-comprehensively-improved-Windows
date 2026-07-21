@@ -1,0 +1,27 @@
+diff --git a/astrostudyui/src/utils/request.js b/astrostudyui/src/utils/request.js
+index 9413b45..acafbc9 100644
+--- a/astrostudyui/src/utils/request.js
++++ b/astrostudyui/src/utils/request.js
+@@ -8,6 +8,9 @@ import { getErrMsg } from '../msg/errmsg';
+ import { markServiceOnline, markServiceOffline, isBackendUnreachableError } from './serviceStatus';
+ import { renegotiateLocalServerRoot } from './backendIdentity';
+ import { waitForBackendBoot } from './backendBootGate';
++// horosa_prefetch_runtime_whitelist_v1(PERF-R9 Ship 7):预取作用域内的 URL 闸(纵深防御)。
++// 非预取作用域恒放行 —— 用户真实请求逐字节零行为变化。
++import { guardPrefetchUrl } from './stepPrefetch';
+ 
+ var tmDelta = 0;
+ // eslint-disable-next-line import/no-cycle
+@@ -509,6 +512,12 @@ export async function healAndRetryOnce(url, options, err, replay){
+  * @return {object}           An object containing either "data" or "err"
+  */
+ export default async function request(url, options) {
++    // horosa_prefetch_runtime_whitelist_v1:仅当【步进预取任务正在同步起调】时才判定;
++    // 白名单外的端点直接拒发(返回 undefined —— 与本函数既有「网络失败吞错 resolve undefined」
++    // 同一语义,调用方既有空载荷守卫原样接住)。预取关闸/非预取路径:此判定恒 true,零影响。
++    if (!guardPrefetchUrl(url)) {
++        return undefined;
++    }
+     // 计算类幂等端点:同参进行中共享一次往返 + 30s 会话缓存(白名单内;返回深拷贝;
+     // perfFlag horosa.perf.requestDedupe 可关)。白名单外 100% 走原路径零差异。
+     if (dedupeEligible(url, options)) {

@@ -63,7 +63,73 @@ FILES = {
     # README's "web one-click from source" section can point to them — dropped from this manifest
     # (which only inventories GITIGNORED harness). check_local_launchers still pins them on disk
     # (existence / dual-engine parse / encoding / sentinels); git now guards against silent loss.
+
+    # ── PERF-R9 G6:以下 16 个 scripts/ 文件长期在清单之外(30 个只收编了 14 个)。
+    # 最危险的是 resolve-project.cjs —— build-renderer.cjs 与 stage-runtime.cjs 都 require 它,
+    # 丢了构建直接崩,而清单门当时看不见。下方 discover() 已把「漏登记」变成硬失败。
+    "desktop_installer_bundle/scripts/resolve-project.cjs": "locates the Horosa product workspace dir; HARD dependency of build-renderer.cjs + stage-runtime.cjs (losing it breaks the build)",
+    "desktop_installer_bundle/scripts/check_runtime_native_deps.py": "build-time guard: every native extension in the bundled Python resolves its DLLs on a CLEAN machine (no VC++ redist, no system Python)",
+    "desktop_installer_bundle/scripts/verify_kentang_runtime_endpoints.py": "release rule: every packaged kentang/kin technique endpoint must be represented here before publishing (installed-app checks drive it)",
+    "desktop_installer_bundle/scripts/clean_machine_cold_warm_check.py": "runs Horosa.exe with isolated user/temp dirs and measures cold/warm runtime startup (the startup-budget evidence source)",
+    "desktop_installer_bundle/scripts/installed_desktop_smoke_check.py": "smoke-checks the INSTALLED desktop app on this machine",
+    "desktop_installer_bundle/scripts/installer_custom_dir_smoke.py": "NSIS custom install-directory behaviour without GUI automation (dangerous-dir / MAX_PATH negative cases)",
+    "desktop_installer_bundle/scripts/run_installer_regression.py": "installer regression runner (drives the installer smoke matrix)",
+    "desktop_installer_bundle/scripts/desktop_ai_analysis_smoke_check.py": "AI-analysis desktop smoke check (offline/static path)",
+    "desktop_installer_bundle/scripts/desktop_ai_analysis_live_smoke_check.py": "AI-analysis smoke check against a LIVE provider",
+    "desktop_installer_bundle/scripts/desktop_ai_analysis_technique_completeness_check.py": "asserts every technique is represented in the AI-analysis mount/export registers",
+    "desktop_installer_bundle/scripts/start-standalone-runtime.cjs": "starts the embedded runtime standalone (prints HOROSA_RUNTIME_READY) for harness probes without the Electron shell",
+    "desktop_installer_bundle/scripts/patch-win-exe-icon.cjs": "stamps assets/horosa_setup.ico onto the built exe via rcedit",
+    "desktop_installer_bundle/scripts/winget-manifest.cjs": "generates the winget manifests for the current release (winget install path)",
+    "desktop_installer_bundle/scripts/set-staging.cjs": "staged-rollout helper: writes electron-updater's optional stagingPercentage into the published latest.yml",
+    "desktop_installer_bundle/scripts/_update_feed_probe.js": "manual auto-update FEED probe (diagnostic): runs the real NsisUpdater against the real GitHub feed with a forced-low currentVersion",
+    "desktop_installer_bundle/scripts/generate_brand_assets.py": "regenerates installer brand assets (icon + NSIS header/sidebar bitmaps) from the single source logo",
 }
+
+# PERF-R9 G6:刻意不收编的文件 + 理由。空理由/占位理由视同未登记。
+# 与 FILES 一起构成「discover() 发现的每个文件都必须被解释」的完备集。
+EXEMPT = {
+    "desktop_installer_bundle/electron/__pycache__": "Python 字节码副产物,非源文件",
+    "desktop_installer_bundle/scripts/__pycache__": "Python 字节码副产物,非源文件",
+}
+
+# 发现式核对的扫描面。清单此前是**纯手工白名单**,新增文件不登记也没人发现 ——
+# 这正是 16 个文件长期在外的机制原因(G6)。
+DISCOVER_DIRS = [
+    "desktop_installer_bundle/electron",
+    "desktop_installer_bundle/scripts",
+]
+DISCOVER_EXTRA_FILES = [
+    "desktop_installer_bundle/assets/installer.nsh",
+]
+
+
+def discover():
+    """枚举扫描面下的全部文件(repo 相对、正斜杠)。"""
+    found = set()
+    for d in DISCOVER_DIRS:
+        base = os.path.join(ROOT, d.replace("/", os.sep))
+        if not os.path.isdir(base):
+            continue
+        for name in sorted(os.listdir(base)):
+            p = os.path.join(base, name)
+            rel = f"{d}/{name}"
+            if os.path.isdir(p):
+                found.add(rel)          # 目录也要被解释(通常走 EXEMPT)
+            else:
+                found.add(rel)
+    for f in DISCOVER_EXTRA_FILES:
+        if os.path.isfile(os.path.join(ROOT, f.replace("/", os.sep))):
+            found.add(f)
+    return found
+
+
+def audit_coverage():
+    """返回 (未登记, 陈旧豁免) —— 供本脚本与 release_selfcheck 共用同一判据。"""
+    found = discover()
+    known = set(FILES) | set(EXEMPT)
+    unaccounted = sorted(f for f in found if f not in known)
+    stale_exempt = sorted(k for k in EXEMPT if not os.path.exists(os.path.join(ROOT, k.replace("/", os.sep))))
+    return unaccounted, stale_exempt
 
 
 def sha256(path):

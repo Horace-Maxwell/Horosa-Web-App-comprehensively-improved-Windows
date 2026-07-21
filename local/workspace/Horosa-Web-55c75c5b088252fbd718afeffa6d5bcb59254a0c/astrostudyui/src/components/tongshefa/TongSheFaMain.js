@@ -15,6 +15,9 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import styles from '../../css/styles.less';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -1081,6 +1084,21 @@ class TongSheFaMain extends Component{
 		}
 	}
 
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.restoreFromCurrentCase(true);
@@ -1091,6 +1109,13 @@ class TongSheFaMain extends Component{
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		// horosa_panel_ready_v1:统摄法之中栏(矩阵)与右栏(详情)全由 props.value/fields + state.selected
+		// 纯派生 —— 没有「取数落定」的那一次 setState,故就绪点=这三者变更所引发的这一次 commit。
+		// markPanelReady 内部按 generation 去重、且未开始交互时为空操作,重复调用无副作用。
+		if(prevProps.value !== this.props.value || prevProps.fields !== this.props.fields
+			|| prevState.selected !== this.state.selected){
+			markPanelReady('cnyibu');
+		}
 		if(prevState.selected !== this.state.selected){
 			this.saveSnapshot();
 		}
@@ -1966,6 +1991,8 @@ class TongSheFaMain extends Component{
 								</Select>
 							</Col>
 						</Row>
+						{/* horosa_freeze_subtabs_v1:四个详情页签(三十二观/三界/爻位/纳甲筮法)皆为长表,
+						    非激活者此前每次重渲都跟着重建。冻结≠卸载,切回即拿最新 model 立刻重画。 */}
 						<Tabs
 							activeKey={this.state.detailTab}
 							defaultActiveKey='observe32'
@@ -1975,16 +2002,16 @@ class TongSheFaMain extends Component{
 								style={{ height: tabheight }}
 							>
 							<TabPane tab='三十二观' key='observe32'>
-								{this.renderObserveTab(model, tabContentHeight)}
+								<FreezeSubTab active={this.state.detailTab === 'observe32'}>{() => this.renderObserveTab(model, tabContentHeight)}</FreezeSubTab>
 							</TabPane>
 							<TabPane tab='三界' key='sanjie'>
-								{this.renderSanJieTab(model, tabContentHeight)}
+								<FreezeSubTab active={this.state.detailTab === 'sanjie'}>{() => this.renderSanJieTab(model, tabContentHeight)}</FreezeSubTab>
 							</TabPane>
 							<TabPane tab='爻位' key='yaowei'>
-								{this.renderYaoWeiTab(model, tabContentHeight)}
+								<FreezeSubTab active={this.state.detailTab === 'yaowei'}>{() => this.renderYaoWeiTab(model, tabContentHeight)}</FreezeSubTab>
 							</TabPane>
 							<TabPane tab='纳甲筮法' key='najia'>
-								{this.renderNaJiaTab(model, tabContentHeight)}
+								<FreezeSubTab active={this.state.detailTab === 'najia'}>{() => this.renderNaJiaTab(model, tabContentHeight)}</FreezeSubTab>
 							</TabPane>
 						</Tabs>
 					</Col>

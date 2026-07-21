@@ -1,0 +1,92 @@
+diff --git a/astrostudyui/src/components/commtools/BaziPattern.js b/astrostudyui/src/components/commtools/BaziPattern.js
+index 70d8527..9e02c9f 100644
+--- a/astrostudyui/src/components/commtools/BaziPattern.js
++++ b/astrostudyui/src/components/commtools/BaziPattern.js
+@@ -1,11 +1,14 @@
+ import { Component } from 'react';
+ import { Row, Col, Divider, Popconfirm, message} from 'antd';
+ import { XQButton as Button, XQInput as Input, XQSelect as Select } from '../xq-ui';
+-import { randomStr, isNumber } from '../../utils/helper';
++import { isNumber } from '../../utils/helper';
+ // 八字格局完全本地化(localStorage 存读),不再依赖后端 → 删除 request/Constants 引用
+ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
+ import {BaziMonthTime, SixtyJiaZi} from '../../constants/ZWConst';
+ import RichEditor from '../RichEditor';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const { Option } = Select;
+ 
+@@ -355,12 +358,16 @@ export default class BaziPattern extends Component{
+     }
+ 
+     changeAttribute(key, val){
+-        let st = this.state;
+-        st[key] = val;
+-        this.setState(st, ()=>{
++        // horosa_no_state_mutation_v1:原实现是 `let st = this.state; st[key] = val; this.setState(st)`
++        // —— 直接**就地改写 this.state**。三重害处:① 当前 state 在 setState 之前就已被改掉,
++        // sCU/componentDidUpdate 拿到的 prevState 与 nextState 是同一个对象,任何「引用变了吗」
++        // 的比较(本仓 sCU 的通用范式)一律判「没变」→ 该更新时不更新;② 把整份 state 当补丁回传,
++        // 未来新增的瞬态字段会被无意义地重写一遍;③ React 严格模式下属未定义行为。
++        // 改为只提交单键补丁,值语义完全不变(setState 浅合并结果与原来逐字一致)。
++        this.setState({ [key]: val }, ()=>{
+             this.saveState();
+         });
+-       
++
+     }
+ 
+     genDom(){
+@@ -375,7 +382,7 @@ export default class BaziPattern extends Component{
+             let type = item.type;
+             if(type === 0){
+                 let col = (
+-                    <Col span={6} key={randomStr(8)}>
++                    <Col span={6} key={key}>
+                         {key}：
+                         <Select size='small' style={{width: '50%'}} value={this.state[key]}
+                             onChange={(val)=>{this.changeAttribute(key, val);}}
+@@ -391,7 +398,7 @@ export default class BaziPattern extends Component{
+                 cols.push(col);
+             }else if(type === 1){
+                 let col = (
+-                    <Col span={6} key={randomStr(8)}>
++                    <Col span={6} key={key}>
+                         {key}：
+                         <Select size='small' style={{width: '50%'}} value={this.state[key]}
+                             onChange={(val)=>{this.changeAttribute(key, val);}}
+@@ -425,7 +432,7 @@ export default class BaziPattern extends Component{
+         let monthes = BaziMonthTime.month[gan];
+         let opts = monthes.map((item, idx)=>{
+             return (
+-                <Option key={randomStr(8)} value={item}>{item}</Option>
++                <Option key={item} value={item}>{item}</Option>
+             );
+         })
+         return opts;
+@@ -440,7 +447,7 @@ export default class BaziPattern extends Component{
+         let times = BaziMonthTime.time[gan];
+         let opts = times.map((item, idx)=>{
+             return (
+-                <Option key={randomStr(8)} value={item}>{item}</Option>
++                <Option key={item} value={item}>{item}</Option>
+             );
+         })
+         return opts;
+@@ -457,12 +464,12 @@ export default class BaziPattern extends Component{
+         let dom = this.genDom();
+         let yopts = SixtyJiaZi.map((item, idx)=>{
+             return (
+-                <Option key={randomStr(8)} value={item}>{item}</Option>
++                <Option key={item} value={item}>{item}</Option>
+             )
+         });
+         let dopts = SixtyJiaZi.map((item, idx)=>{
+             return (
+-                <Option key={randomStr(8)} value={item}>{item}</Option>
++                <Option key={item} value={item}>{item}</Option>
+             )
+         });
+         let mopts = this.genMonthOptions();

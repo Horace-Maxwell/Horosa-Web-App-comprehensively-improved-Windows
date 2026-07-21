@@ -47,9 +47,24 @@ public class ParamHashCacheHelper {
 		}
 		return PropertyPlaceholder.getPropertyAsBool(key, def);
 	}
+	// horosa_paramhash_localdir_sysprop_v1:resolveBoolFlag 的字符串版,同样「先 -D 再属性文件」。
+	private static String resolveFlag(String key, String def) {
+		String sys = System.getProperty(key);
+		if(!StringUtility.isNullOrEmpty(sys)) {
+			return sys;
+		}
+		return PropertyPlaceholder.getProperty(key, def);
+	}
 	private static final int ExpireInSec = PropertyPlaceholder.getPropertyAsInt("paramhash.cache.expireinsecond", 86400);
 	private static final int AnnualExpireInSec = PropertyPlaceholder.getPropertyAsInt("paramhash.cache.annual.expireinsecond", 86400 * 180);
-	private static final String LocalDir = PropertyPlaceholder.getProperty("paramhash.cache.local.dir", defaultLocalDir());
+	// horosa_paramhash_localdir_sysprop_v1(PERF-R9):必须与 resolveBoolFlag 同源地先读 -D。
+	// 原实现只走 PropertyPlaceholder(**不读 -D**),于是启动器无法把缓存目录移出 payload 树 ——
+	// 而 defaultLocalDir() 落在 user.dir 下,桌面壳把 cwd 设成 astrostudyboot-exploded,
+	// 即 embedded-runtime/<payloadId>/ 之内:**每次应用更新换 payloadId,启动清扫会连缓存一起删掉,
+	// 于是每发一版所有用户都回到全冷**。改用 resolveFlag 后,启动器传
+	// -Dparamhash.cache.local.dir=<LOCALAPPDATA>\HorosaDesktop\cache\paramhash 即可跨更新存活。
+	// ★ 这正是本轮「-D vs -- vs PropertyPlaceholder」判别铁律的第二例:加开关前先确认目标怎么读它。
+	private static final String LocalDir = resolveFlag("paramhash.cache.local.dir", defaultLocalDir());
 	private static final DateTimeFormatter LdtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
 	private static final ICache RedisCache = CacheHelper.getCache();

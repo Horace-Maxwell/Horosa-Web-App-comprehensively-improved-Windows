@@ -1,0 +1,22 @@
+diff --git a/astrostudyui/src/components/astro/AstroReturnTimeline.js b/astrostudyui/src/components/astro/AstroReturnTimeline.js
+index 675b576..e2110bb 100644
+--- a/astrostudyui/src/components/astro/AstroReturnTimeline.js
++++ b/astrostudyui/src/components/astro/AstroReturnTimeline.js
+@@ -4,6 +4,7 @@ import { XQButton as Button } from '../xq-ui';
+ import request from '../../utils/request';
+ import * as Constants from '../../utils/constants';
+ import { unwrapResult, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ class AstroReturnTimeline extends Component{
+ 	constructor(props){
+@@ -58,7 +59,8 @@ class AstroReturnTimeline extends Component{
+ 				timeoutMs: 45000,
+ 			});
+ 			if(!this._mounted) return;
+-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
++			// horosa_panel_ready_v1:回归轴表(本技法唯一可见内容)落定的那一次 setState。
++			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
+ 		}catch(e){
+ 			if(!this._mounted) return;
+ 			this.setState({loading: false, requestKey: key});

@@ -1,0 +1,791 @@
+diff --git a/astrostudyui/src/components/astro/IndiaChartMain.js b/astrostudyui/src/components/astro/IndiaChartMain.js
+index 147706a..33dea71 100644
+--- a/astrostudyui/src/components/astro/IndiaChartMain.js
++++ b/astrostudyui/src/components/astro/IndiaChartMain.js
+@@ -1,8 +1,11 @@
+-import { Component } from 'react';
++import { Component, memo } from 'react';
+ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+ import { createPortal } from 'react-dom';
+ import moment from 'moment';
+ import IndiaChart, { fieldsToParams, requestIndiaChartData } from './IndiaChart';
++import { stepPrefetchEnabled } from '../../utils/perfFlags';
++import { markPanelReady } from '../../utils/perfMark';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+ import { resolveLagnaRefSignNumber } from './IndiaSouthChart';
+ import DateTime from '../comp/DateTime';
+ import QuickDockBar from '../common/QuickDockBar';
+@@ -818,6 +821,239 @@ function canBuildIndiaChartParams(fields){
+ 		&& (nullableKeys.indexOf(key) >= 0 || fields[key].value !== null));
+ }
+ 
++// ═══════════════════════════════════════════════════════════════════════════════
++// horosa_india_settings_memo_v1(PERF-R9 Ship 6):左栏「印占设置」提为 React.memo 子组件。
++//
++// 病灶:IndiaChartMain 是 3900 行、state 极多的单体,右栏的**纯局部**状态
++// (dashaExpandedAntarKey 展开某条小运、indiaAspectSource 点星高亮、dashaDrillPath 钻取、
++// jyotishTab 换子页签、tajakaYearInput 敲一个字符)每变一次就整树 render 一遍 ——
++// 连同左栏这 10 个 antd Select(岁差分组几十项、宫制分组、分盘 20 项、分盘集多选…)
++// 和 SpaceTimePanel 一起白重建。这些控件跟右栏那些 state **一个都不相干**。
++//
++// 修法:把左栏整块搬进 memo 子组件,props 只收它真正消费的那些值。
++//   · 全部 onXxx 都是构造期 bind 的稳定引用(原先唯一的 render 内联箭头已提为
++//     changeIndiaCounterClockwiseSelect),
++//   · fields / datetm / splitOptions 三个对象引用分别由 withIndiaOptionFields、
++//     resolveDateTime、resolveSplitItems 做 memo,不再每帧换新,
++//   → 默认浅比较即可命中:右栏局部交互时本块 0 次 render;而任何一项设置值或 fields 变化
++//     都会换掉对应 prop → 立即重渲。**不存在「该更新不更新」**:props 列表就是 JSX 里
++//     引用到的全集(新增控件时必须同步加 prop,否则会留陈旧显示)。
++const IndiaSettingsPanel = memo(function IndiaSettingsPanel(props){
++	const {
++		fields, datetm, onTimeChange, timeHook, onGeoChange,
++		indiaSchool, onSchoolChange,
++		indiaAyanamsa, onAyanamsaChange,
++		indiaHsys, onHsysChange,
++		indiaNodeType, onNodeTypeChange,
++		currentTab, onTabChange, splitOptions,
++		degreeDisplayMode, onDegreeDisplayModeChange,
++		vargaSetOpen, onToggleVargaSet, vargaSetFractals, onVargaSetFractalsChange,
++		indiaChartStyle, onChartStyleChange,
++		indiaLagnaRef, onLagnaRefChange,
++		indiaPlanetDisplayMode, onPlanetDisplayModeChange,
++		indiaCounterClockwise, onCounterClockwiseChange,
++	} = props;
++	return (
++		<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-india-input-panel">
++			<div className="horosa-india-input-stack">
++				<div className="horosa-side-panel-heading">
++					<div>
++						<div className="horosa-side-panel-title">印占设置</div>
++						<div className="horosa-side-panel-subtitle">时间、地点与分盘选项</div>
++					</div>
++				</div>
++				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
++				<SpaceTimePanel
++					fields={fields}
++					value={datetm}
++					onTimeChange={onTimeChange}
++					timeHook={timeHook}
++					onGeoChange={onGeoChange}
++				/>
++				</XQSideSection>
++				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="india.s1" className="horosa-side-input-section">
++						<div className="horosa-india-select-grid">
++							<div className="horosa-india-select-field horosa-india-school-field">
++								<span>流派</span>
++								<Select
++									size="small"
++									style={{width: '100%'}}
++									value={indiaSchool}
++									onChange={onSchoolChange}
++									dropdownMatchSelectWidth={false}
++								>
++									{AstroConst.INDIA_SCHOOL_OPTIONS.map((item)=>(
++										<Option value={item.value} key={item.value}>{item.label}</Option>
++									))}
++								</Select>
++							</div>
++							<div className="horosa-india-select-field">
++								<span>岁差制</span>
++								<Select
++									size="small"
++									style={{width: '100%'}}
++									value={indiaAyanamsa}
++									onChange={onAyanamsaChange}
++									dropdownMatchSelectWidth={false}
++								>
++									{AstroConst.groupOptions(AstroConst.INDIA_AYANAMSA_OPTIONS).map((grp)=>(
++										<OptGroup label={grp.group} key={grp.group}>
++											{grp.items.map((item)=>(
++												<Option value={item.value} key={item.value}>{item.label}</Option>
++											))}
++										</OptGroup>
++									))}
++								</Select>
++							</div>
++							<div className="horosa-india-select-field">
++								<span>分宫制</span>
++								<Select
++									size="small"
++									style={{width: '100%'}}
++									value={indiaHsys}
++									onChange={onHsysChange}
++									dropdownMatchSelectWidth={false}
++								>
++									{AstroConst.groupOptions(AstroConst.INDIA_HOUSE_SYSTEM_OPTIONS).map((grp)=>(
++										<OptGroup label={grp.group} key={grp.group}>
++											{grp.items.map((item)=>(
++												<Option value={item.value} key={item.value}>{item.label}</Option>
++											))}
++										</OptGroup>
++									))}
++								</Select>
++							</div>
++							<div className="horosa-india-select-field">
++								<span>交点</span>
++								<Select
++									size="small"
++									style={{width: '100%'}}
++									value={indiaNodeType}
++									onChange={onNodeTypeChange}
++									dropdownMatchSelectWidth={false}
++								>
++									{AstroConst.INDIA_NODE_TYPE_OPTIONS.map((item)=>(
++										<Option value={item.value} key={item.value}>{item.label}</Option>
++									))}
++								</Select>
++							</div>
++								<div className="horosa-india-select-field">
++									<span>当前分盘</span>
++									<Select
++									size="small"
++									style={{width: '100%'}}
++									value={currentTab}
++									onChange={onTabChange}
++									dropdownMatchSelectWidth={false}
++								>
++									{splitOptions.map((item)=>(
++										<Option value={item.value} key={item.value}>{item.label}</Option>
++									))}
++									</Select>
++								</div>
++								<div className="horosa-india-select-field">
++									<span>完整度数</span>
++									<Select
++										size="small"
++										style={{width: '100%'}}
++										value={degreeDisplayMode}
++										onChange={onDegreeDisplayModeChange} dropdownMatchSelectWidth={false}
++									>
++										{INDIA_DEGREE_DISPLAY_OPTIONS.map((item)=>(
++											<Option value={item.value} key={item.value}>{item.label}</Option>
++										))}
++									</Select>
++								</div>
++							</div>
++					<div className="horosa-india-vargaset-block">
++						<div className="horosa-india-vargaset-head">
++							<span className="horosa-side-section-title">分盘集</span>
++							<button
++								type="button"
++								className={`horosa-india-vargaset-toggle${vargaSetOpen ? ' is-active' : ''}`}
++								onClick={onToggleVargaSet}
++							>{vargaSetOpen ? '并列 2×2' : '单盘'}</button>
++						</div>
++						{vargaSetOpen ? (
++							<Select
++								mode="multiple"
++								size="small"
++								style={{width: '100%'}}
++								value={vargaSetFractals}
++								onChange={onVargaSetFractalsChange}
++								maxTagCount="responsive"
++								placeholder="选择分盘（最多 4）"
++								dropdownMatchSelectWidth={false}
++							>
++								{VARGA_GRID_OPTIONS.map((item)=>(
++									<Option
++										value={item.value}
++										key={item.value}
++										disabled={vargaSetFractals.length >= VARGA_GRID_MAX && vargaSetFractals.indexOf(item.value) < 0}
++									>{item.label}</Option>
++								))}
++							</Select>
++						) : null}
++					</div>
++					<div className="horosa-india-style-block">
++						<div className="horosa-side-section-title">盘式</div>
++						<Segmented
++							value={indiaChartStyle}
++							onChange={onChartStyleChange}
++							options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
++						/>
++					</div>
++					<div className="horosa-india-style-block">
++						<div className="horosa-side-section-title">第1宫参照</div>
++						<Select
++							size="small"
++							style={{ width: '100%' }}
++							value={indiaLagnaRef}
++							onChange={onLagnaRefChange}
++							dropdownMatchSelectWidth={false}
++						>
++							{AstroConst.INDIA_LAGNA_REF_OPTIONS.map((grp)=>(
++								<OptGroup key={grp.label} label={grp.label}>
++									{grp.options.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
++								</OptGroup>
++							))}
++						</Select>
++					</div>
++					<div className="horosa-india-select-grid">
++						<div className="horosa-india-select-field">
++							<span>星体</span>
++							<Select
++								size="small"
++								style={{ width: '100%' }}
++								value={indiaPlanetDisplayMode}
++								onChange={onPlanetDisplayModeChange}
++								dropdownMatchSelectWidth={false}
++							>
++								{AstroConst.INDIA_PLANET_DISPLAY_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
++							</Select>
++						</div>
++						{indiaChartStyle !== AstroConst.INDIA_CHART_STYLE_SOUTH ? (
++							<div className="horosa-india-select-field">
++								<span>显示方向</span>
++								<Select
++									size="small"
++									style={{ width: '100%' }}
++									value={indiaCounterClockwise ? 'ccw' : 'cw'}
++									onChange={onCounterClockwiseChange}
++									dropdownMatchSelectWidth={false}
++								>
++									<Option value="ccw">逆时针</Option>
++									<Option value="cw">顺时针</Option>
++								</Select>
++							</div>
++						) : null}
++					</div>
++				</XQSideSection>
++			</div>
++		</div>
++	);
++});
++
+ class IndiaChartMain extends Component{
+ 
+ 	constructor(props) {
+@@ -1007,9 +1243,19 @@ class IndiaChartMain extends Component{
+ 		this.hideDashaSubPopover = this.hideDashaSubPopover.bind(this);
+ 		this.changeJyotishTab = this.changeJyotishTab.bind(this);
+ 		this.handleMainChartLoad = this.handleMainChartLoad.bind(this);
++		this.changeIndiaCounterClockwiseSelect = this.changeIndiaCounterClockwiseSelect.bind(this);
+ 			this.lastDashaRequestKey = '';
+ 			this.lastObservedFieldsKey = '';
+ 			this.mainIndiaChartRef = null;
++			// horosa_india_fields_memo_v1 / horosa_india_settings_memo_v1 的实例级缓存槽
++			// (见 withIndiaOptionFields / resolveDateTime / resolveSplitItems 上的注释)。
++			this._optionFieldsMemo = null;
++			this._optionFieldsMemoSrc = null;
++			this._optionFieldsMemoKey = '';
++			this._datetmMemo = null;
++			this._datetmMemoKey = null;
++			this._splitItemsMemo = null;
++			this._splitOptionsMemo = null;
+ 
+ 		this.tmHook = {
+ 			getValue: null,
+@@ -1029,10 +1275,56 @@ class IndiaChartMain extends Component{
+ 				}
+ 				this.requestDashaChart(this.withIndiaOptionFields(fields));
+ 			};
++			// PERF-R9 Ship 7:/india/chart 与主 /chart 互不依赖(印占盘只吃 fields + 本页选项)——
++			// 在 /chart 返回【之前】并行发出:latency 从「网络 + 技法」变「max(网络, 技法)」。
++			// silent(requestIndiaChartData 内置)、丢结果、绝不 setState。
++			// 闸:horosa.perf.prewarmRequests(模型层判定,关=此函数不被调用,逐字节旧序)。
++			this.props.hook.prewarmRequests = (flds)=>{
++				try{
++					const params = this.buildIndiaPrefetchParams(flds || this.props.fields);
++					if(params){
++						requestIndiaChartData(params).catch(()=>{ /* 预热静默 */ });
++					}
++				}catch(e){ /* 预热失败无害 */ }
++			};
++			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):/india/chart 是确定性纯计算
++			// (同 生辰+分盘/大运体系 恒同盘)→ 登记步进预取。
++			// 🔴 登记必须在组件内:分盘号/大运体系/ayanamsa 全在 this.state,模块级构不出同键 body。
++			if(stepPrefetchEnabled()){
++				registerStepPrefetcher('indiachart', (steppedFields)=>{
++					const params = this.buildIndiaPrefetchParams(steppedFields);
++					if(!params){
++						return [];
++					}
++					return [{
++						name: 'india:chart',
++						path: '/india/chart',
++						run: ()=> requestIndiaChartData(params),
++					}];
++				});
++			}
+ 		}
+ 
+ 	}
+ 
++	// PERF-R9 Ship 7:预热/预取的构参权威入口 —— 与 requestDashaChart 首点【同一路径】
++	// (withIndiaOptionFields → cloneIndiaFieldsForJyotish → fieldsToParams + chartnum)。
++	// 差一个字节 indiaChartCache 的键就不同 = 白预取。构不出参时返 null(静默跳过)。
++	buildIndiaPrefetchParams(fields){
++		try{
++			const src = this.withIndiaOptionFields(fields || this.props.fields);
++			if(!canBuildIndiaChartParams(src)){
++				return null;
++			}
++			const jyotishFields = cloneIndiaFieldsForJyotish(src);
++			const params = fieldsToParams(jyotishFields);
++			params.chartnum = (jyotishFields.indiaActiveFractal && jyotishFields.indiaActiveFractal.value) || 1;
++			return params;
++		}catch(e){
++			return null;
++		}
++	}
++
+ 
+ 	changeTab(key){		
+ 		let hook = this.state.hook;
+@@ -1077,8 +1369,13 @@ class IndiaChartMain extends Component{
+ 		if(values && values.confirmed === false){
+ 			return;
+ 		}
+-		flds.chartnum = {};
+-		flds.chartnum.value = this.state.currentFractal;
++		// 🔴 复核修:withIndiaOptionFields 现在**会缓存并复用**返回对象(horosa_india_fields_memo_v1),
++		// 原地 `flds.chartnum = {}` 等于往那个被 render/子组件共享的缓存对象里塞键(改前每次都是新对象,
++		// 就地写无害)。改成不可变复制:内容逐字等价,且缓存对象保持只读、不被污染。
++		flds = {
++			...flds,
++			chartnum: { value: this.state.currentFractal },
++		};
+ 		let hook = this.state.hook[this.state.currentTab];
+ 		if(hook.fun){
+ 			hook.fun(flds);
+@@ -1276,6 +1573,59 @@ class IndiaChartMain extends Component{
+ 		this.setState({ indiaLockAquarius: !!checked });
+ 	}
+ 
++	// horosa_india_settings_memo_v1:原「显示方向」Select 的 onChange 是 render 内联箭头
++	// (每帧新函数 → 设置面板 memo 恒失配)。提为绑定方法,取值逻辑逐字照搬。
++	changeIndiaCounterClockwiseSelect(v){
++		this.changeIndiaCounterClockwise((v && v.target ? v.target.value : v) === 'ccw');
++	}
++
++	// horosa_india_settings_memo_v1:datetm 原来每帧 new 一个 DateTime,拿它当 prop 的
++	// SpaceTimePanel 于是每帧必重渲。按「日期|时刻|时区」三元组做实例级 memo:三者任一变即重建,
++	// 全同则复用同一实例(该实例只作为受控显示值下传,不由本组件写)。
++	resolveDateTime(fields){
++		const key = (fields && fields.date && fields.time)
++			? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}|${fields.zone ? fields.zone.value : ''}`
++			: '';
++		if(this._datetmMemo && this._datetmMemoKey === key){
++			return this._datetmMemo;
++		}
++		let datetm = new DateTime();
++		if(key){
++			datetm = datetm.parse(`${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`, 'YYYY-MM-DD HH:mm:ss');
++			if(fields.zone){
++				datetm.setZone(fields.zone.value);
++			}
++		}
++		this._datetmMemoKey = key;
++		this._datetmMemo = datetm;
++		return datetm;
++	}
++
++	// horosa_india_settings_memo_v1:分盘清单只由 state.hook 的 key/fractal/txt 派生,
++	// 而 hook 的这三项在构造后恒定(只有 fun 会被子盘实例回填,不进本清单)→ 算一次即可。
++	// 原来每帧重建两个数组,顺带让「当前分盘」Select 的 options 每帧换引用。
++	resolveSplitItems(){
++		if(!this._splitItemsMemo){
++			const splitItems = [];
++			for(let key in this.state.hook){
++				const hook = this.state.hook[key];
++				if(hook.fractal === 1){
++					continue;
++				}
++				splitItems.push({ key, ...hook });
++			}
++			this._splitItemsMemo = splitItems;
++			this._splitOptionsMemo = [
++				{ value: 'Natal', label: '命盘 D1' },
++				...splitItems.map((item)=>({
++					value: item.key,
++					label: `${item.fractal}分盘${item.txt ? ` · ${item.txt}` : ''}`,
++				})),
++			];
++		}
++		return this._splitItemsMemo;
++	}
++
+ 	// WP-B 换第1宫参照:纯显示重数房号(三盘 + 星曜面板宫位),零请求、零后端、不动黄经。
+ 	changeIndiaLagnaRef(value){
+ 		const next = value && value.target ? value.target.value : value;
+@@ -1301,10 +1651,40 @@ class IndiaChartMain extends Component{
+ 			</span>
+ 		);
+ 	}
++	// horosa_india_fields_memo_v1(PERF-R9 Ship 6):无 override 的调用(render 每帧一次 +
++	// 每次 componentDidUpdate 一次)此前**恒新建**一个 fields 对象 → 任何下游 memo/sCU 拿它做
++	// 引用比都必然失配,等于白比。这里对「无 override」路径做实例级 memo:
++	//   缓存键 = 源 fields 引用 + 本方法读取的全部 state 值(逐项列全 —— 漏一项就会返回陈旧对象,
++	//   那是「该更新时不更新」的正确性事故,比慢严重得多;新增读取的 state 必须同步加进 KEY)。
++	// 带 override 的调用(切流派/宫制/岁差/交点/年份/起座/过运日 的即时重取)一律绕过缓存:既不读也不写,
++	// 语义与改前逐字一致。
+ 	withIndiaOptionFields(fields, optionOverrides = {}){
+ 		if(!fields){
+ 			return fields;
+ 		}
++		// 🔴 复核修:memo 只有**一个**槽位,而 buildIndiaPrefetchParams(步进预取/预热)会拿
++		// steppedFields(另一个对象)来调本方法 —— 那会把 render 路径的槽位挤掉,下一帧 render 必然
++		// 未命中 → 重新造对象 → IndiaSettingsPanel 的 fields prop 每帧换引用,memo 白包。
++		// 故槽位只服务「当前 props.fields」这条渲染主路径;预取/其它源一律绕过(返回新对象,内容不变)。
++		const memoable = fields === this.props.fields
++			&& (!optionOverrides || Object.keys(optionOverrides).length === 0);
++		let memoKey = '';
++		if(memoable){
++			memoKey = [
++				this.state.indiaHsysValue,
++				this.state.indiaAyanamsaValue,
++				this.state.indiaNodeTypeValue,
++				this.state.indiaTajakaYearValue,
++				this.state.dashaSeed,
++				this.state.dashaSystem,
++				this.state.indiaSthiraStart,
++				this.state.indiaTransitDateValue,
++				this.effectiveFractal(),
++			].map((v)=>(v === null || v === undefined ? '~' : `${v}`)).join('|');
++			if(this._optionFieldsMemo && this._optionFieldsMemoSrc === fields && this._optionFieldsMemoKey === memoKey){
++				return this._optionFieldsMemo;
++			}
++		}
+ 		const indiaHsys = optionOverrides.indiaHsys !== undefined && optionOverrides.indiaHsys !== null
+ 			? AstroConst.normalizeIndiaHouseSystem(optionOverrides.indiaHsys)
+ 			: (this.state.indiaHsysValue !== null && this.state.indiaHsysValue !== undefined
+@@ -1341,7 +1721,7 @@ class IndiaChartMain extends Component{
+ 			: (this.state.indiaTransitDateValue !== null && this.state.indiaTransitDateValue !== undefined
+ 			? this.state.indiaTransitDateValue
+ 			: (fields.indiaTransitDate ? fields.indiaTransitDate.value : null));
+-		return {
++		const optionFields = {
+ 			...fields,
+ 			indiaHsys: {
+ 				...(fields.indiaHsys || { name: ['indiaHsys'] }),
+@@ -1380,6 +1760,12 @@ class IndiaChartMain extends Component{
+ 				value: this.effectiveFractal(),
+ 			},
+ 		};
++		if(memoable){
++			this._optionFieldsMemoSrc = fields;
++			this._optionFieldsMemoKey = memoKey;
++			this._optionFieldsMemo = optionFields;
++		}
++		return optionFields;
+ 	}
+ 
+ 	changeIndiaChartStyle(value){
+@@ -1407,6 +1793,18 @@ class IndiaChartMain extends Component{
+ 				this.setState({
+ 					activeJyotishFields: jyotishFields,
+ 					activeJyotishKey: dashaFieldsKey,
++				}, ()=>{
++					// horosa_panel_ready_v1:命中「已有可用盘」的短路分支 —— 本次交互不再发请求,
++					// 这一次 setState(切换 activeJyotishFields → 中盘 + 右栏 Jyotish 面板同批重画)
++					// 就是面板落定的最后一次。不接在这里,缓存命中的那些交互(切分盘/回切旧参数)
++					// 会永远量不到 panel-ready(markPanelReady 自身按 generation 去重,多点接入安全)。
++					// 🔴 复核修:本分支还有第二条进入路径 —— 同键请求**在途**(dashaLoading)。那时盘面
++					// 还是旧的、新数据没到,标 ready 是伪造的早点(且会吃掉 stepT0,让真正落定的那次
++					// 变成 no-op → 系统性低估印占耗时)。故只在「确有可用盘」时才标;在途那次不标,
++					// 等 1836 的真落定点标,样本不丢。
++					if(alreadyHasData){
++						markPanelReady('indiachart');
++					}
+ 				});
+ 			}
+ 			return;
+@@ -1446,6 +1844,12 @@ class IndiaChartMain extends Component{
+ 					lastChartObj: hasJyotishPayload(dashaChartObj) ? dashaChartObj : this.state.lastChartObj,
+ 					dashaLoading: false,
+ 					dashaUpdating: false,
++				}, ()=>{
++					// horosa_panel_ready_v1:印占面板落定的**唯一**权威点 —— 中盘(mainChartObj)与
++					// 右栏全部 Jyotish 技法(大运/五支/星曜/八分/Yoga…)吃的都是这同一个 dashaChartObj,
++					// 一次 setState 同批落地。请求发出(1475 的 dashaUpdating:true)不是落定,失败分支
++					// (下面 catch)也不是 —— 那次只收 loading 角标、盘面仍是上一次的旧盘,不代表新数据画完。
++					markPanelReady('indiachart');
+ 				});
+ 			}
+ 		}catch(e){
+@@ -3537,15 +3941,9 @@ class IndiaChartMain extends Component{
+ 			: AstroConst.INDIA_NODE_TYPE_DEFAULT;
+ 		let jyotishFields = this.state.activeJyotishFields || fields;
+ 		let chartHeight = '100%';
+-		let datetm = new DateTime();
+-		if(fields.date && fields.time){
+-			let str = fields.date.value.format('YYYY-MM-DD') + ' ' +
+-						fields.time.value.format('HH:mm:ss');
+-			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
+-			if(fields.zone){
+-				datetm.setZone(fields.zone.value);
+-			}
+-		}
++		// horosa_india_settings_memo_v1:原地 new DateTime() 改走实例 memo(逻辑逐字同源,
++		// 见 resolveDateTime),使左栏设置面板的 value prop 引用稳定。
++		const datetm = this.resolveDateTime(fields);
+ 			const currentHook = this.state.hook[this.state.currentTab] || this.state.hook.Natal;
+ 			const indiaChartStyle = AstroConst.normalizeIndiaChartStyle(this.props.indiaChartStyle);
+ 			const degreeDisplayMode = this.state.degreeDisplayMode || INDIA_DEGREE_DISPLAY_DEGREE;
+@@ -3553,226 +3951,51 @@ class IndiaChartMain extends Component{
+ 			const indiaCounterClockwise = this.state.indiaCounterClockwise !== false;
+ 			const indiaLockAquarius = !!this.state.indiaLockAquarius;
+ 			const indiaLagnaRef = AstroConst.normalizeIndiaLagnaRef(this.state.indiaLagnaRef);
+-			let splitItems = [];
+-		for(let key in this.state.hook){
+-			let hook = this.state.hook[key];
+-			if(hook.fractal === 1){
+-				continue;
+-			}
+-			splitItems.push({
+-				key,
+-				...hook,
+-				});
+-			}
+-			const splitOptions = [
+-				{ value: 'Natal', label: '命盘 D1' },
+-				...splitItems.map((item)=>({
+-					value: item.key,
+-					label: `${item.fractal}分盘${item.txt ? ` · ${item.txt}` : ''}`,
+-				})),
+-			];
++			// horosa_india_settings_memo_v1:splitItems/splitOptions 原每帧重建两个数组
++			// (内容恒定,只是引用每次都变 → 「当前分盘」Select 的 options 白重建、memo 恒失配)。
++			// 改走 resolveSplitItems 一次性 memo,内容逐字同源。
++			const splitItems = this.resolveSplitItems();
++			const splitOptions = this._splitOptionsMemo;
+ 
+ 			return (
+ 			<div className="horosa-india-chart-main horosa-astro-redesign horosa-india-redesign">
+ 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-india-redesign-layout">
+ 					<div className="horosa-astro-redesign-grid horosa-india-redesign-grid">
+-						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-india-input-panel">
+-							<div className="horosa-india-input-stack">
+-								<div className="horosa-side-panel-heading">
+-									<div>
+-										<div className="horosa-side-panel-title">印占设置</div>
+-										<div className="horosa-side-panel-subtitle">时间、地点与分盘选项</div>
+-									</div>
+-								</div>
+-								<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
+-								<SpaceTimePanel
+-									fields={fields}
+-									value={datetm}
+-									onTimeChange={this.changeTime}
+-									timeHook={this.tmHook}
+-									onGeoChange={this.changeGeo}
+-								/>
+-								</XQSideSection>
+-								<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="india.s1" className="horosa-side-input-section">
+-										<div className="horosa-india-select-grid">
+-											<div className="horosa-india-select-field horosa-india-school-field">
+-												<span>流派</span>
+-												<Select
+-													size="small"
+-													style={{width: '100%'}}
+-													value={this.state.indiaSchool}
+-													onChange={this.changeIndiaSchool}
+-													dropdownMatchSelectWidth={false}
+-												>
+-													{AstroConst.INDIA_SCHOOL_OPTIONS.map((item)=>(
+-														<Option value={item.value} key={item.value}>{item.label}</Option>
+-													))}
+-												</Select>
+-											</div>
+-											<div className="horosa-india-select-field">
+-												<span>岁差制</span>
+-												<Select
+-													size="small"
+-													style={{width: '100%'}}
+-													value={indiaAyanamsa}
+-													onChange={this.changeIndiaAyanamsa}
+-													dropdownMatchSelectWidth={false}
+-												>
+-													{AstroConst.groupOptions(AstroConst.INDIA_AYANAMSA_OPTIONS).map((grp)=>(
+-														<OptGroup label={grp.group} key={grp.group}>
+-															{grp.items.map((item)=>(
+-																<Option value={item.value} key={item.value}>{item.label}</Option>
+-															))}
+-														</OptGroup>
+-													))}
+-												</Select>
+-											</div>
+-											<div className="horosa-india-select-field">
+-												<span>分宫制</span>
+-												<Select
+-													size="small"
+-													style={{width: '100%'}}
+-													value={indiaHsys}
+-													onChange={this.changeHsys}
+-													dropdownMatchSelectWidth={false}
+-												>
+-													{AstroConst.groupOptions(AstroConst.INDIA_HOUSE_SYSTEM_OPTIONS).map((grp)=>(
+-														<OptGroup label={grp.group} key={grp.group}>
+-															{grp.items.map((item)=>(
+-																<Option value={item.value} key={item.value}>{item.label}</Option>
+-															))}
+-														</OptGroup>
+-													))}
+-												</Select>
+-											</div>
+-											<div className="horosa-india-select-field">
+-												<span>交点</span>
+-												<Select
+-													size="small"
+-													style={{width: '100%'}}
+-													value={indiaNodeType}
+-													onChange={this.changeIndiaNodeType}
+-													dropdownMatchSelectWidth={false}
+-												>
+-													{AstroConst.INDIA_NODE_TYPE_OPTIONS.map((item)=>(
+-														<Option value={item.value} key={item.value}>{item.label}</Option>
+-													))}
+-												</Select>
+-											</div>
+-												<div className="horosa-india-select-field">
+-													<span>当前分盘</span>
+-													<Select
+-													size="small"
+-													style={{width: '100%'}}
+-													value={this.state.currentTab}
+-													onChange={this.changeTab}
+-													dropdownMatchSelectWidth={false}
+-												>
+-													{splitOptions.map((item)=>(
+-														<Option value={item.value} key={item.value}>{item.label}</Option>
+-													))}
+-													</Select>
+-												</div>
+-												<div className="horosa-india-select-field">
+-													<span>完整度数</span>
+-													<Select
+-														size="small"
+-														style={{width: '100%'}}
+-														value={degreeDisplayMode}
+-														onChange={this.changeDegreeDisplayMode} dropdownMatchSelectWidth={false}
+-													>
+-														{INDIA_DEGREE_DISPLAY_OPTIONS.map((item)=>(
+-															<Option value={item.value} key={item.value}>{item.label}</Option>
+-														))}
+-													</Select>
+-												</div>
+-											</div>
+-									<div className="horosa-india-vargaset-block">
+-										<div className="horosa-india-vargaset-head">
+-											<span className="horosa-side-section-title">分盘集</span>
+-											<button
+-												type="button"
+-												className={`horosa-india-vargaset-toggle${this.state.vargaSetOpen ? ' is-active' : ''}`}
+-												onClick={this.toggleVargaSet}
+-											>{this.state.vargaSetOpen ? '并列 2×2' : '单盘'}</button>
+-										</div>
+-										{this.state.vargaSetOpen ? (
+-											<Select
+-												mode="multiple"
+-												size="small"
+-												style={{width: '100%'}}
+-												value={this.state.vargaSetFractals}
+-												onChange={this.changeVargaSetFractals}
+-												maxTagCount="responsive"
+-												placeholder="选择分盘（最多 4）"
+-												dropdownMatchSelectWidth={false}
+-											>
+-												{VARGA_GRID_OPTIONS.map((item)=>(
+-													<Option
+-														value={item.value}
+-														key={item.value}
+-														disabled={this.state.vargaSetFractals.length >= VARGA_GRID_MAX && this.state.vargaSetFractals.indexOf(item.value) < 0}
+-													>{item.label}</Option>
+-												))}
+-											</Select>
+-										) : null}
+-									</div>
+-									<div className="horosa-india-style-block">
+-										<div className="horosa-side-section-title">盘式</div>
+-										<Segmented
+-											value={indiaChartStyle}
+-											onChange={this.changeIndiaChartStyle}
+-											options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
+-										/>
+-									</div>
+-									<div className="horosa-india-style-block">
+-										<div className="horosa-side-section-title">第1宫参照</div>
+-										<Select
+-											size="small"
+-											style={{ width: '100%' }}
+-											value={indiaLagnaRef}
+-											onChange={this.changeIndiaLagnaRef}
+-											dropdownMatchSelectWidth={false}
+-										>
+-											{AstroConst.INDIA_LAGNA_REF_OPTIONS.map((grp)=>(
+-												<OptGroup key={grp.label} label={grp.label}>
+-													{grp.options.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+-												</OptGroup>
+-											))}
+-										</Select>
+-									</div>
+-									<div className="horosa-india-select-grid">
+-										<div className="horosa-india-select-field">
+-											<span>星体</span>
+-											<Select
+-												size="small"
+-												style={{ width: '100%' }}
+-												value={indiaPlanetDisplayMode}
+-												onChange={this.changeIndiaPlanetDisplayMode}
+-												dropdownMatchSelectWidth={false}
+-											>
+-												{AstroConst.INDIA_PLANET_DISPLAY_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+-											</Select>
+-										</div>
+-										{indiaChartStyle !== AstroConst.INDIA_CHART_STYLE_SOUTH ? (
+-											<div className="horosa-india-select-field">
+-												<span>显示方向</span>
+-												<Select
+-													size="small"
+-													style={{ width: '100%' }}
+-													value={indiaCounterClockwise ? 'ccw' : 'cw'}
+-													onChange={(v)=>this.changeIndiaCounterClockwise((v && v.target ? v.target.value : v) === 'ccw')}
+-													dropdownMatchSelectWidth={false}
+-												>
+-													<Option value="ccw">逆时针</Option>
+-													<Option value="cw">顺时针</Option>
+-												</Select>
+-											</div>
+-										) : null}
+-									</div>
+-								</XQSideSection>
+-							</div>
+-						</div>
++						{/* horosa_india_settings_memo_v1:左栏整块搬进 React.memo 子组件(JSX 逐字同源,
++						    只把 this.state/this.<handler> 换成同名 prop)。右栏局部 state(展开小运/点星高亮/
++						    钻取/换子页签/敲年份)变化时本块 props 全等 → 0 次重渲;设置值或 fields 一变即重渲。 */}
++						<IndiaSettingsPanel
++							fields={fields}
++							datetm={datetm}
++							onTimeChange={this.changeTime}
++							timeHook={this.tmHook}
++							onGeoChange={this.changeGeo}
++							indiaSchool={this.state.indiaSchool}
++							onSchoolChange={this.changeIndiaSchool}
++							indiaAyanamsa={indiaAyanamsa}
++							onAyanamsaChange={this.changeIndiaAyanamsa}
++							indiaHsys={indiaHsys}
++							onHsysChange={this.changeHsys}
++							indiaNodeType={indiaNodeType}
++							onNodeTypeChange={this.changeIndiaNodeType}
++							currentTab={this.state.currentTab}
++							onTabChange={this.changeTab}
++							splitOptions={splitOptions}
++							degreeDisplayMode={degreeDisplayMode}
++							onDegreeDisplayModeChange={this.changeDegreeDisplayMode}
++							vargaSetOpen={this.state.vargaSetOpen}
++							onToggleVargaSet={this.toggleVargaSet}
++							vargaSetFractals={this.state.vargaSetFractals}
++							onVargaSetFractalsChange={this.changeVargaSetFractals}
++							indiaChartStyle={indiaChartStyle}
++							onChartStyleChange={this.changeIndiaChartStyle}
++							indiaLagnaRef={indiaLagnaRef}
++							onLagnaRefChange={this.changeIndiaLagnaRef}
++							indiaPlanetDisplayMode={indiaPlanetDisplayMode}
++							onPlanetDisplayModeChange={this.changeIndiaPlanetDisplayMode}
++							indiaCounterClockwise={indiaCounterClockwise}
++							onCounterClockwiseChange={this.changeIndiaCounterClockwiseSelect}
++						/>
+ 						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-india-chart-panel${this.state.vargaSetOpen ? ' horosa-india-varga-grid-stage' : ''}`} style={{ position: 'relative' }}>
+ 							{/* keep-stale 轻量角标:后台重取中且有旧盘可显时,角落提示「更新中…」(非阻塞、不盖盘、不挡操作);
+ 							    替代原满屏「等待排盘数据/载入中/大运计算中」大框。首次加载(无 lastChartObj)走盘自身占位/dashaLoading。 */}

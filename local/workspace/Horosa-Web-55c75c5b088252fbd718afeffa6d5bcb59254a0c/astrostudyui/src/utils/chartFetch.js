@@ -11,6 +11,9 @@
 // 绝不可用于:login/注册/保存/AI predict(计费)/SSE 流/文件上传——那些非幂等,重试会双提交/双计费。
 
 import { markServiceOnline, isBackendUnreachableError } from './serviceStatus';
+// horosa_prefetch_runtime_whitelist_v1(PERF-R9 Ship 7):kentang 全族走的是本裸 fetch 路径
+// (不经 utils/request),没有这一闸整族就在任何白名单之外。非预取作用域恒放行,零行为变化。
+import { guardPrefetchUrl } from './stepPrefetch';
 
 const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF_MS = [300, 600];
@@ -22,6 +25,12 @@ function sleep(ms) {
 }
 
 export async function fetchChartWithRetry(url, opts, cfg) {
+  // horosa_prefetch_runtime_whitelist_v1:预取作用域内的非白名单 URL 直接拒发。
+  // 抛错而非返 undefined —— 调用方一律 `resp.ok` 取用,给假 Response 反而更危险;
+  // 预取路径的失败本就被调度器静默吞掉,正式请求(非预取作用域)恒放行不受影响。
+  if (!guardPrefetchUrl(url)) {
+    throw new Error('prefetch.blocked');
+  }
   const retries = cfg && cfg.retries != null ? cfg.retries : DEFAULT_RETRIES;
   const backoff = (cfg && cfg.backoff) || DEFAULT_BACKOFF_MS;
   let lastErr = null;

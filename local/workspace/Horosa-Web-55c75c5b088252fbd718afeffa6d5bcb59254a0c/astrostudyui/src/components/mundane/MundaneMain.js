@@ -23,6 +23,8 @@ import { allRegions, saveUserRegion, MUNDANE_CAPITALS, regionCandidates } from '
 import { astroSymbol, chartParams, fmtDegree, chartRequestKey } from '../astro/AstroExtraCommon';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
+import { FreezeSubTab } from '../comp/FreezeInactive';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = XQSelect.Option;
 const TabPane = XQTabs.TabPane;
@@ -1493,17 +1495,27 @@ class MundaneMain extends Component{
 		const tabs = this.mundaneRightTabList(type);
 		let active = this.state.mundaneRightTab || tabs[0].value;
 		if(!tabs.some((t) => t.value === active)){ active = tabs[0].value; }
+		// horosa_panel_ready_v1:世俗盘中栏(壳画的盘)+右栏卡片同源于 chart;本组件的
+		// 事件扫描/大合相/Barbault/返照/次限/重定位都是用户另点按钮的后台批算,不属于
+		// 「点击→画完」路径,故不在那 8 处 setState 上打点(会把几十秒的批算配到上一次交互起点上)。
+		if(chart && chart !== this._readyChart){
+			this._readyChart = chart;
+			markPanelReady('auxchart');
+		}
 		return (
 			<XQTabs activeKey={active} className="horosa-inspector-tabs horosa-content-tabs"
 				onChange={(k) => this.setState({ mundaneRightTab: k })}>
-				{tabs.map((t) => {
-					const content = this.mundaneTabContent(t.value, chart, extra, type);
-					return (
-						<TabPane tab={t.label} key={t.value}>
-							<div style={{ fontSize: 13 }}>{content || <div style={{ fontSize: 12, opacity: 0.5, padding: '8px 2px' }}>暂无内容,请先排盘。</div>}</div>
-						</TabPane>
-					);
-				})}
+				{/* horosa_freeze_subtabs_v1:右栏各组改【函数式】children —— 原先每次渲染都把
+				    全部 tab 的卡片组算一遍(每组各自 buildFacts + describeXXX + 恒星扫描),
+				    现在只有当前激活组求值;非激活组冻结保留已渲染 DOM,切回时用最新 chart 立刻重算。 */}
+				{tabs.map((t) => (
+					<TabPane tab={t.label} key={t.value}>
+						<FreezeSubTab active={active === t.value}>{()=>{
+							const content = this.mundaneTabContent(t.value, chart, extra, type);
+							return <div style={{ fontSize: 13 }}>{content || <div style={{ fontSize: 12, opacity: 0.5, padding: '8px 2px' }}>暂无内容,请先排盘。</div>}</div>;
+						}}</FreezeSubTab>
+					</TabPane>
+				))}
 			</XQTabs>
 		);
 	}

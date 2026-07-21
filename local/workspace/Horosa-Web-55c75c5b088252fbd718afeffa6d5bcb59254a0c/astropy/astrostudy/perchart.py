@@ -2704,6 +2704,18 @@ class PerChart:
                         res['contraParallel'][objA] = set()
                         res['contraParallel'][objA].add(objB)
 
+        # horosa_decl_parallel_stable_order_v1(PERF-R9;跨平台,建议上游化 Mac):
+        # 上面用 set 累积成员,而 set 的迭代顺序取决于哈希 —— 而 CPython 默认**开启哈希随机化**
+        # (发货的 app 不设 PYTHONHASHSEED),于是同一张盘在**每次启动**后返回的赤纬平行/反平行
+        # 列表顺序都可能不同。内容相同、顺序乱跳:用户侧是列表无故重排,工程侧是任何逐字节
+        # 回归比对都不可能稳定(本轮黄金台架实测:同一请求跨进程 23 处 leaf 差异,全是纯顺序)。
+        # ★ 此处按 const.LIST_ALL_POINTS 的规范行星次序排序,而**不是**字母序 —— 保持占星惯用
+        #   的行星排列,同时把「任意且不稳定」变成「确定且有意义」。成员集合逐元素不变。
+        # ★ 排序放在最后:构造期仍需 set 的去重与 `objA in pSet` 归并语义,不可提前转 list。
+        _order = {name: i for i, name in enumerate(planets)}
+        _rank = lambda n: _order.get(n, len(_order))
+        res['parallel'] = [sorted(pset, key=_rank) for pset in res['parallel']]
+        res['contraParallel'] = {k: sorted(v, key=_rank) for k, v in res['contraParallel'].items()}
         return res
 
     def getDayerStar(self):

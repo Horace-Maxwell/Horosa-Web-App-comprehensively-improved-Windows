@@ -2,11 +2,14 @@ import { Component } from 'react';
 import { Row, Col } from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
-import {randomStr, randomNum, littleEndian,} from '../../utils/helper';
+import {randomNum, littleEndian,} from '../../utils/helper';
 import { Gua8, getGua8, } from '../gua/GuaConst';
 import GuaSym from './GuaSym';
 import GuaChartDiv from './GuaChartDiv';
 import { XQSelect as Select } from '../xq-ui';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const { Option } = Select;
 
@@ -78,7 +81,7 @@ export default class MeiyiGuaSym extends Component{
     genGua8Dom(){
         let ops = Gua8.map((item, idx)=>{
             return (
-                <Option key={randomStr(8)} value={item.name} record={item}>{item.name}&nbsp;--&nbsp;{item.abrname}</Option>
+                <Option key={item.name} value={item.name} record={item}>{item.name}&nbsp;--&nbsp;{item.abrname}</Option>
             )
         });
         let dom = (

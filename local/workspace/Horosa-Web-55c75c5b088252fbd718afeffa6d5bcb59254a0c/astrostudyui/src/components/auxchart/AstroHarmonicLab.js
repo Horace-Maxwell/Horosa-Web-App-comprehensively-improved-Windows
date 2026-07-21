@@ -5,6 +5,7 @@ import { XQButton as Button } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
+import { markPanelReady } from '../../utils/perfMark';
 
 class AstroHarmonicLab extends Component{
 	constructor(props){
@@ -57,7 +58,11 @@ class AstroHarmonicLab extends Component{
 				timeoutMs: 30000,
 			});
 			if(!this._mounted) return;
-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+			// horosa_panel_ready_v1:调波盘中栏(调波整盘)+右栏(相位/位置表)全由 result 派生,
+			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{
+				markPanelReady('auxchart');
+			});
 		}catch(e){
 			if(!this._mounted) return;
 			this.setState({loading: false, requestKey: key});

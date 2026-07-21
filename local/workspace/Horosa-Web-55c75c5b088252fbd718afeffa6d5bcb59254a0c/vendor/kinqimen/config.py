@@ -175,7 +175,9 @@ def qimen_ju_name_chaibu(year, month, day, hour, minute):
     jieqi = jq(year, month, day, hour, minute)
     find_yingyang = multi_key_dict_get(yydun, jieqi)
     find_yuen = findyuen(year, month, day, hour, minute)
-    j_q = jq(year, month, day, hour, minute)
+    # horosa_qimen_cse_v1:原式对 jq() 用**完全相同的参数**调了两次(jieqi / j_q),
+    # 而 jq 会触发 sxtwl 的逐日游走。复用第一次的结果,取值必然相同。
+    j_q = jieqi
     jieqi_code = jieqicode_jq(j_q)
     return "{}{}局{}".format(find_yingyang,{
         "上":jieqi_code[0],
@@ -361,16 +363,40 @@ def pan_earth_minute(year, month, day, hour, minute):
 
 def pan_earth_min_r(year, month, day, hour, minute):
     """刻家奇門地盤(逆)設置"""
-    pan_earth_v = list(pan_earth_minute(year, month, day, hour, minute).values())
-    pan_earth_k = list(pan_earth_minute(year, month, day, hour, minute).keys())
+    # horosa_qimen_cse_v1:同一函数同参调两次(取 values 与 keys)。改取自同一 dict —— 顺序
+    # 一一对应的保证比原式更强(原式是两个独立构造的 dict,只是恰好相同)。
+    _pem = pan_earth_minute(year, month, day, hour, minute)
+    pan_earth_v = list(_pem.values())
+    pan_earth_k = list(_pem.keys())
     return dict(zip(pan_earth_v, pan_earth_k))
  
+def _select_ju(option, year, month, day, hour, minute):
+    """horosa_qimen_lazyju_v1(PERF-R9):按 option 选定局法并**只求值选中的那一个**。
+
+    原本有 **七处**(zhifu_pai / zhifu_pai_ke / zhishi_pai / zhishi_pai_ke /
+    pan_door / pan_star / pan_god)都写成
+        qmju = {1: chaibu(...), 2: zhirun(...), 3: maoshan(...), 4: wurun(...)}.get(option)
+    —— dict 字面量的值是**已经调用完**的结果,所以四种定局法全部求值、再丢弃三个。
+    而其中三种(置閏/茅山/无闰)都要走 sxtwl 的逐日游标:实测单个 /qimen/pan 请求里
+    `_anchor_solstice` 被调 168 次、`_sxtwl.Day_hasJieQi` 被调 32,166 次,这七处是主要放大器。
+
+    ★★ 刻意**不给** `.get` 默认值 —— 这一点不可想当然:
+       `kinqimen.py` 里的同类分派写的是 `.get(option, config.qimen_ju_name_chaibu)`(**带默认**),
+       但 config 侧原本**没有**默认值:option 越界时 qmju 为 None,调用方下一行 `qmju[0]`
+       抛 TypeError,webqimensrv 捕获后返回 `ResultCode -1` 错误信封。
+       若照抄 kinqimen 的带默认写法,越界请求会从「错误信封」悄悄变成「按拆补法出盘」——
+       那是**功能改变**,不是性能优化。黄金矩阵已钉住 option ∈ {0, 5} 的 -1 信封来守住这一点。
+    """
+    _juf = {1: qimen_ju_name_chaibu,
+            2: qimen_ju_name_zhirun,
+            3: qimen_ju_name_maoshan,
+            4: qimen_ju_name_wurun}.get(option)
+    return _juf(year, month, day, hour, minute) if _juf is not None else None
+
+
 #排值符
 def zhifu_pai(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     yinyang = qmju[0]
     kook =  qmju[2]
     pai = {"陽":{"一":"九八七一二三四五六",
@@ -397,10 +423,7 @@ def zhifu_pai(year, month, day, hour, minute, option):
             "陽":dict(zip(jiazi()[0::10], yanglist))}.get(yinyang)
 
 def zhifu_pai_ke(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     yinyang = qmju[0]
     kook =  qmju[2]
     pai = {"陽":{"一":"九八七一二三四五六",
@@ -429,10 +452,7 @@ def zhifu_pai_ke(year, month, day, hour, minute, option):
             "陽":dict(zip(jiazi()[0::10], yanglist))}.get(yinyang)
 #1拆補 #2置閏
 def zhishi_pai(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     yinyang = qmju[0]
     kook =  qmju[2]
     new_kook = new_list(cnumber, kook)
@@ -445,10 +465,7 @@ def zhishi_pai(year, month, day, hour, minute, option):
             "陽":dict(zip(jiazi()[0::10], yanglist1))}.get(yinyang)
 
 def zhishi_pai_ke(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     yinyang = qmju[0]
     kook = qmju[2]
     new_kook = new_list(cnumber, kook)
@@ -461,10 +478,7 @@ def zhishi_pai_ke(year, month, day, hour, minute, option):
             "陽":dict(zip(jiazi()[0::10], yanglist1))}.get(yinyang)
 #八門
 def pan_door(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     zfnzs = zhifu_n_zhishi(year, month, day, hour, minute, option)
     starting_door = zfnzs.get("值使門宮")[0]
     starting_gong = zfnzs.get("值使門宮")[1]
@@ -494,10 +508,7 @@ def pan_door_minute(year, month, day, hour, minute, option):
     return dict(zip(gong_reorder,yydict.get(qimen_ke[0])))
 #九星
 def pan_star(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     zhifunzhishi = zhifu_n_zhishi(year, month, day, hour, minute, option)
     star_r = list("蓬任沖輔英禽柱心")
     starting_star = zhifunzhishi.get("值符星宮")[0].replace("芮", "禽")
@@ -530,10 +541,7 @@ def pan_star_minute(year, month, day, hour, minute, option):
     return dict(zip(gong_reorder,star_reorder)), dict(zip(star_reorder, gong_reorder))
 #八神
 def pan_god(year, month, day, hour, minute, option):
-    qmju = {1:qimen_ju_name_chaibu(year, month, day, hour, minute),
-            2:qimen_ju_name_zhirun(year, month, day, hour, minute),
-            3:qimen_ju_name_maoshan(year, month, day, hour, minute),
-            4:qimen_ju_name_wurun(year, month, day, hour, minute)}.get(option)
+    qmju = _select_ju(option, year, month, day, hour, minute)   # horosa_qimen_lazyju_v1
     zfzs = zhifu_n_zhishi(year, month, day, hour, minute, option)
     starting_gong = zfzs.get("值符星宮")[1]
     rotate = {"陽":clockwise_eightgua,
@@ -566,10 +574,17 @@ def zhifu_n_zhishi(year, month, day, hour, minute, option):
     chour = multi_key_dict_get(liujiashun_dict(), gz[3])
     eg = list("休死傷杜中開驚生景")
     eight_gods = list("蓬芮沖輔禽心柱任英")
-    zspai_keys = list(zhishi_pai(year, month, day, hour, minute, option).keys())
-    zspai_values = list(zhishi_pai(year, month, day, hour, minute, option).values())
-    zf_keys = list(zhifu_pai(year, month, day, hour, minute, option).keys())
-    zf_values = list(zhifu_pai(year, month, day, hour, minute, option).values())
+    # horosa_qimen_cse_v1(PERF-R9):原式对 zhishi_pai / zhifu_pai **各调用两次**(一次取 keys、
+    # 一次取 values),而这两个函数内部都要做一次完整的定局推算。本函数每个 /qimen/pan 请求被调
+    # 15 次、每次实测 ~20ms —— 仅这一处就占请求的一大块。
+    # 等价性比原式**更强**:keys() 与 values() 现在取自**同一个** dict 对象,顺序必然一一对应;
+    # 原式是两个独立构造的 dict,只是恰好相同。
+    _zs = zhishi_pai(year, month, day, hour, minute, option)
+    _zf = zhifu_pai(year, month, day, hour, minute, option)
+    zspai_keys = list(_zs.keys())
+    zspai_values = list(_zs.values())
+    zf_keys = list(_zf.keys())
+    zf_values = list(_zf.values())
     a = list(map(lambda i: dict(zip(cnumber, eg)).get(i[0]), zspai_values))
     b = list(map(lambda i:dict(zip(cnumber, eight_gods)).get(i[0]) , zf_values))
     c = list(map(lambda i:gongs_code.get(i[hgan]), zf_values))

@@ -1,7 +1,12 @@
 import React from 'react';
 import { Spin, Empty, Select, Input } from 'antd';
-import { fetchMicrochronology } from '../../services/xuanshi';
+import { fetchMicrochronology, fetchMicrochronologyDetail } from '../../services/xuanshi';
 import { collapseSoftBreaks } from './xuanshiDate';
+
+// horosa_xuanshi_longtext_ondemand_v1:本页只渲染前 RENDER_CAP 条,故只向后端要这么多条
+// (后端 limit;summary 仍按全部命中行统计,页头计数与「仅显示前 N 条」提示口径分毫不变)。
+// 长文本(原文/白话)只随下发行走;超出部分若将来需要,经 fetchMicrochronologyDetail 按 event_id 取回。
+const RENDER_CAP = 300;
 
 // 天象微年表 —— 对齐标准版 参考天象微年表页:十年期事件密度柱状图(点柱筛选)+ 左栏按史书/按征兆类型
 // + 右栏事件列表(干支/公历/征兆/《史书》卷 chips + 原文 + 政治军事解读)。数据来自星象大典公开事件库。
@@ -21,6 +26,20 @@ export default class XuanShiMicro extends React.Component {
 		if (left < 12) { left = 12; }
 		const top = Math.min(Math.max(12, rect.top), window.innerHeight - 240);
 		this.setState({ hover: ev, hoverPos: { left, top } });
+		this.ensureEventText(ev);
+	}
+
+	// horosa_xuanshi_longtext_ondemand_v1:被 limit 截断的行不带长文本(original 字段缺席,
+	// 非 null)——悬停时按 event_id 补取一次并就地回填。当前 limit == RENDER_CAP,渲染行恒自带
+	// 正文,本路径不触发;它保证的是「正文只会迟到,不会丢」在渲染上限抬高时依然成立。
+	ensureEventText(ev) {
+		if (!ev || !ev.event_id || ev.original !== undefined) { return; }
+		fetchMicrochronologyDetail(ev.event_id).then((d) => {
+			if (!d || !d.event_id) { return; }
+			ev.original = d.original;
+			ev.interpretation = ev.interpretation || d.interpretation || '';
+			if (this.state.hover === ev) { this.forceUpdate(); }
+		}).catch(() => {});
 	}
 	hideHover() { this.setState({ hover: null }); }
 
@@ -35,6 +54,7 @@ export default class XuanShiMicro extends React.Component {
 				history: this.state.history || undefined,
 				omen_type: this.state.omen || undefined,
 				decade: this.state.decade != null ? this.state.decade : undefined,
+				limit: RENDER_CAP, // horosa_xuanshi_longtext_ondemand_v1
 			});
 			this.setState({ events: r.events || [], summary: r.summary || null, loading: false });
 		} catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
@@ -120,7 +140,7 @@ export default class XuanShiMicro extends React.Component {
 							<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
 						) : !events.length ? <div className="xuanshi-center"><Empty description="无匹配天象" /></div> : (
 							<>
-								{events.slice(0, 300).map((e, i) => (
+								{events.slice(0, RENDER_CAP).map((e, i) => (
 									<div className="xuanshi-evrow" key={`mev-${i}`} style={{ cursor: 'help' }}
 										onMouseEnter={(ev) => this.showHover(ev, e)} onMouseLeave={() => this.hideHover()}>
 										<div className="xuanshi-evrow-chips">
@@ -134,7 +154,8 @@ export default class XuanShiMicro extends React.Component {
 										{e.interpretation ? <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--jade)' }}>→ {e.interpretation}</p> : null}
 									</div>
 								))}
-								{events.length > 300 ? <div style={{ padding: '12px 18px', fontSize: 12, color: 'var(--ink-muted)', textAlign: 'center' }}>仅显示前 300 条;如需更细可结合左侧筛选。</div> : null}
+								{/* horosa_xuanshi_longtext_ondemand_v1:events 已按 limit 截断,命中总数改读 summary.total(与旧的 events.length 同值) */}
+								{(sm.total || 0) > RENDER_CAP ? <div style={{ padding: '12px 18px', fontSize: 12, color: 'var(--ink-muted)', textAlign: 'center' }}>仅显示前 300 条;如需更细可结合左侧筛选。</div> : null}
 							</>
 						)}
 					</div>

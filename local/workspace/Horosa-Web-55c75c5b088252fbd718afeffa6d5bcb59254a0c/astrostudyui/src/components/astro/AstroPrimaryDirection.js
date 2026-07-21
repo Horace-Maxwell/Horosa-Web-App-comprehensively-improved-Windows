@@ -12,6 +12,7 @@ import {TableOddRowBgColor} from '../../utils/constants'
 import styles from '../../css/styles.less';
 import { XQButton as Button, XQInput as Input, XQInputNumber as InputNumber, XQSelect as Select, XQTable as Table } from '../xq-ui';
 import XQIcon from '../xq-icons';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
 // 与 utils/primaryDirectionSync.js 保持一致（P0 曾漏改本地 v8→v9 致始终重算,P1 统一到 v10,主限法改进统一到 v11）。
@@ -134,6 +135,13 @@ class AstroPrimaryDirection extends Component{
 		}
 
 	componentDidUpdate(prevProps){
+		// horosa_panel_ready_v1:主限法(星运页默认子页签)无自有请求 —— 表整份来自
+		// chartObj.predictives.primaryDirection(由 AstroDirectMain 的 /predict/pd 经 dispatch 落新盘),
+		// 「数据落定」= 拿到新盘对象后的这一次渲染提交。★必须放在下面 pd 配置守卫的 early return 之前,
+		// 否则「只换时间、pd 配置不变」的绝大多数交互会被 return 掉、永远不打点。
+		if(prevProps.value !== this.props.value){
+			markPanelReady('direction');
+		}
 		// 仅当 props 真正变化时才从 props 同步本地 state（镜像 AstroPrimaryDirectionChart 的口径）。
 		// 旧逻辑「state≠normalize(props) 就 setState」会把用户对 度数换算/推运方法 的本地改选（如选 Naibod）
 		// 立刻反弹回全局旧值，导致表格上方的选项形同只读。改为 prevProps 守卫后：props 稳定→不同步（本地改选保留），

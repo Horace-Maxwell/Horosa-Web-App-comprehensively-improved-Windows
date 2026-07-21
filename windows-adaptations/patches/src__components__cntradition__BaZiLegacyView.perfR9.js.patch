@@ -1,0 +1,99 @@
+diff --git a/astrostudyui/src/components/cntradition/BaZiLegacyView.js b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
+index e275778..b848a6a 100644
+--- a/astrostudyui/src/components/cntradition/BaZiLegacyView.js
++++ b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
+@@ -9,6 +9,7 @@ import MainDirection from './MainDirection';
+ import SmallDirection from './SmallDirection';
+ import GanHeCong from './GanHeCong';
+ import ZiHeCong from './ZiHeCong';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const TabPane = Tabs.TabPane;
+ 
+@@ -510,38 +511,75 @@ export class BaZiLegacyMain extends Component{
+ }
+ 
+ export class BaZiLegacyInfoPanel extends Component{
++	// horosa_freeze_subtabs_v1 接线（八字·传统视图右栏 8 子页签）。
++	// 旧码是 defaultActiveKey 非受控 → 拿不到 active，无法冻结；先改受控（activeKey + onChange 记进
++	// 本地 state），行为与非受控一致（初值仍是 'overview'，点击仍切页），再逐个包 FreezeSubTab。
++	// 收益：切时间/改选项时，用户看不见的 7 个面板（大运/小运/神煞/卦释/十二长生/天干/地支，
++	// 每个都是整表渲染）不再陪着重渲。冻结≠卸载：切回时组件实例、DOM、内部 state
++	// （如 BaZiZhangSheng 的流派/天干下拉选择、滚动位置）原样保留，且立刻拿最新 value 渲一帧。
++	constructor(props){
++		super(props);
++		this.state = {
++			legacyTab: 'overview',
++		};
++		this.changeLegacyTab = this.changeLegacyTab.bind(this);
++	}
++
++	changeLegacyTab(key){
++		this.setState({
++			legacyTab: key,
++		});
++	}
++
+ 	render(){
+ 		const bazi = this.props.value || {};
+ 		const four = bazi.fourColumns || {};
+ 		const height = this.props.height || 760;
+ 		const legacyHeight = typeof height === 'number' ? height + 130 : height;
++		const cur = this.state.legacyTab;
+ 		return (
+-			<Tabs className="horosa-bazi-legacy-tabs" defaultActiveKey="overview">
++			<Tabs className="horosa-bazi-legacy-tabs" activeKey={cur} onChange={this.changeLegacyTab}>
+ 				<TabPane tab="行运概略" key="overview">
+-					<div className="horosa-bazi-legacy-overview-adapt">
+-						<MainDirectionSimple value={bazi} height={legacyHeight} />
+-					</div>
++					<FreezeSubTab active={cur === 'overview'}>{()=>(
++						<div className="horosa-bazi-legacy-overview-adapt">
++							<MainDirectionSimple value={bazi} height={legacyHeight} />
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="卦释" key="gua">
+-					<FourZhuGuaDesc value={four} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'gua'}>{()=>(
++						<FourZhuGuaDesc value={four} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="十二长生" key="zhangsheng">
+-					<BaZiZhangSheng value={bazi} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'zhangsheng'}>{()=>(
++						<BaZiZhangSheng value={bazi} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="神煞" key="gods">
+-					<Gods value={four} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'gods'}>{()=>(
++						<Gods value={four} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="大运" key="main">
+-					<MainDirection value={bazi} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'main'}>{()=>(
++						<MainDirection value={bazi} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="小运" key="small">
+-					<SmallDirection value={bazi} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'small'}>{()=>(
++						<SmallDirection value={bazi} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="天干" key="gan">
+-					<GanHeCong value={four} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'gan'}>{()=>(
++						<GanHeCong value={four} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="地支" key="zhi">
+-					<ZiHeCong value={four} height={legacyHeight} />
++					<FreezeSubTab active={cur === 'zhi'}>{()=>(
++						<ZiHeCong value={four} height={legacyHeight} />
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 		);

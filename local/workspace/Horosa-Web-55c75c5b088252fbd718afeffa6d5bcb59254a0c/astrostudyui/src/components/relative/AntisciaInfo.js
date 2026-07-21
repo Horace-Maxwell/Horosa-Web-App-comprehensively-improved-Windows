@@ -3,11 +3,13 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
-import { randomStr} from '../../utils/helper'
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import styles from '../../css/styles.less';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const LIST_POINTS = [
     AstroConst.ASC, AstroConst.MC, AstroConst.DESC, AstroConst.IC,
@@ -57,7 +59,7 @@ class AntisciaInfo extends Component{
 		let anti = chart.antiscias;
 
 		let divs = [];
-		let divider = (<Divider key={randomStr(8)} orientation="left">映点</Divider>);
+		let divider = (<Divider key="divider-antiscia" orientation="left">映点</Divider>);
 		divs.push(divider);
 		for(let idx=0; idx<anti.length; idx++){
 			let obj = anti[idx];
@@ -74,7 +76,7 @@ class AntisciaInfo extends Component{
 				this.props.showPlanetHouseInfo
 			);
 				let dom = (
-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`anti-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
 						{this.renderLabel(labelA, obj.idA)}&nbsp;与&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>
@@ -85,7 +87,7 @@ class AntisciaInfo extends Component{
 			divs.push(dom);
 		}
 
-		divider = (<Divider key={randomStr(8)} orientation="left">反映点</Divider>);
+		divider = (<Divider key="divider-cantiscia" orientation="left">反映点</Divider>);
 		divs.push(divider);
 		let canti = chart.cantiscias;
 		for(let idx=0; idx<canti.length; idx++){
@@ -102,8 +104,9 @@ class AntisciaInfo extends Component{
 				obj.idB,
 				this.props.showPlanetHouseInfo
 			);
+				// 与上方映点循环共用同一个 divs 数组，故 key 加前缀区分
 				let dom = (
-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`canti-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
 						{this.renderLabel(labelA, obj.idA)}&nbsp;与&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>

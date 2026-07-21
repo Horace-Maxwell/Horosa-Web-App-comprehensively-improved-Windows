@@ -1,0 +1,331 @@
+diff --git a/astrostudyui/src/components/dunjia/DunJiaMain.js b/astrostudyui/src/components/dunjia/DunJiaMain.js
+index 62eea11..160b953 100644
+--- a/astrostudyui/src/components/dunjia/DunJiaMain.js
++++ b/astrostudyui/src/components/dunjia/DunJiaMain.js
+@@ -1,5 +1,9 @@
+ import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
++import { stepPrefetchEnabled } from '../../utils/perfFlags';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+ import { safeLocalStorageSet } from '../../utils/safeStorage';
+ import { Spin, Tag, message, Popover, Modal } from 'antd';
+ import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+@@ -536,6 +540,102 @@ function extractIsDiurnalFromChartProp(val){
+ 	return null;
+ }
+ 
++// —— PERF-R9 Ship 7:遁甲 stage-1 构参的模块级纯函数(组件方法 genParams/genJieqiParams 纯委托
++//    于此)。抽出来的唯一目的:预热/预取要在【组件之外】构出与首点逐字节同键的 body ——
++//    差一个字节缓存就不是同一条,预热白打。语义与抽出前逐字节一致。
++function buildDunJiaNongliParamsPure(flds, options){
++	if(!flds){
++		return null;
++	}
++	const opts = options || DEFAULT_OPTIONS;
++	const genderValue = (flds.gender && flds.gender.value !== undefined && flds.gender.value !== null)
++		? flds.gender.value
++		: opts.sex;
++	const zoneValue = flds.zone && flds.zone.value !== undefined && flds.zone.value !== null
++		? flds.zone.value
++		: 8;
++	const adValue = flds.ad && flds.ad.value !== undefined && flds.ad.value !== null
++		? flds.ad.value
++		: 1;
++	const calcGeo = resolveCalcGeo(flds, opts);
++	return {
++		date: flds.date.value.format('YYYY-MM-DD'),
++		time: flds.time.value.format('HH:mm:ss'),
++		zone: zoneValue,
++		lon: calcGeo.lon,
++		lat: calcGeo.lat,
++		gpsLat: calcGeo.gpsLat,
++		gpsLon: calcGeo.gpsLon,
++		ad: adValue,
++		gender: genderValue,
++		timeAlg: normalizeTimeAlg(opts.timeAlg),
++		after23NewDay: getAfter23NewDayValue(opts),
++		// v2.2.1: 透传时柱开关给后端 /nongli/time;后端 NongliController 已读入并传给 OnlyFourColumns。
++		lateZiHourUseNextDay: opts && opts.lateZiHourUseNextDay !== undefined ? opts.lateZiHourUseNextDay : 1,
++	};
++}
++
++function buildDunJiaJieqiParamsPure(flds, year, options){
++	if(!flds){
++		return null;
++	}
++	const opts = options || DEFAULT_OPTIONS;
++	const calcGeo = resolveCalcGeo(flds, opts);
++	return {
++		year: `${year}`,
++		ad: flds.ad ? flds.ad.value : 1,
++		zone: flds.zone.value,
++		lon: calcGeo.lon,
++		lat: calcGeo.lat,
++		gpsLat: calcGeo.gpsLat,
++		gpsLon: calcGeo.gpsLon,
++		timeAlg: normalizeTimeAlg(opts.timeAlg),
++		hsys: 0,
++		zodiacal: 0,
++		doubingSu28: false,
++	};
++}
++
++// PERF-R9 Ship 7(数据层空闲预热的权威入口):遁甲 stage-1 = /nongli/time(真太阳时+四柱)
++// + /jieqi/year(节气种子,仅该流派需要时)。两者是【确定性历法计算】,同参恒同果、无随机、
++// 不依赖「现在」。options 取 normalizeKenQimenOptions() —— 与组件构造时的 initialOptions
++// 同一口径(未从既有盘恢复时),故 key/body 与用户首点逐字节一致。
++// 🔴 绝不预热 /qimen/pan 本身:它吃 stage-1 结果 + 组件态(流派/排盘法),提前构不出同键。
++// silent(两个 fetch 内置)、丢结果、绝不 dispatch/setState;失败静默。
++export async function warmDunJiaStage1(fields){
++	try{
++		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
++			return null;
++		}
++		const options = normalizeKenQimenOptions();
++		const params = buildDunJiaNongliParamsPure(fields, options);
++		if(!params){
++			return null;
++		}
++		const jobs = [Promise.resolve(fetchPreciseNongli(params)).catch(()=>null)];
++		const fixedOptions = {
++			...options,
++			jieQiType: 1,
++			yearGanZhiType: 2,
++			monthGanZhiType: 1,
++			dayGanZhiType: 1,
++		};
++		if(needJieqiYearSeed(fixedOptions)){
++			const year = parseInt(fields.date.value.format('YYYY'), 10);
++			if(year && !Number.isNaN(year)){
++				const seedParams = buildDunJiaJieqiParamsPure(fields, year, options);
++				if(seedParams){
++					jobs.push(Promise.resolve(fetchPreciseJieqiSeed(seedParams)).catch(()=>null));
++				}
++			}
++		}
++		await Promise.all(jobs);
++		return true;
++	}catch(e){
++		return null;   // 预热失败静默:首点回到冷即付的现状
++	}
++}
++
+ class DunJiaMain extends Component {
+ 	constructor(props){
+ 		super(props);
+@@ -620,6 +720,67 @@ class DunJiaMain extends Component {
+ 					this.prefetchNongliForFields(fields);
+ 				}
+ 			};
++			// PERF-R9 Ship 7:遁甲是【两段式】—— stage-1(/nongli/time 真太阳时+干支、
++			// /jieqi/year 节气种子)必须先回来,盘才能排。这两个端点与主 /chart 完全无关,
++			// 在 /chart 返回之前并行发出即可把 stage-1 从关键路径上摘掉。
++			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
++			this.props.hook.prewarmRequests = (flds)=>{
++				if(this.unmounted){
++					return;
++				}
++				try{
++					this.prefetchJieqiSeedForFields(flds || this.props.fields);
++					this.prefetchNongliForFields(flds || this.props.fields);
++				}catch(e){ /* 预热失败无害 */ }
++			};
++			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):只预取 stage-1(确定性历法计算)。
++			// 🔴 绝不预取 /qimen/pan 本身:它必须吃 stage-1 的结果,串行且随组件态(流派/排盘法)
++			//    变化 —— 强行预取要么构不出同键、要么把中间态钉进缓存。stage-1 暖了,
++			//    用户点下一步时 pan 的输入即时可得,这已是这条链上能提前付的全部。
++			if(stepPrefetchEnabled()){
++				registerStepPrefetcher('dunjia', (steppedFields)=>{
++					if(this.unmounted || !steppedFields){
++						return [];
++					}
++					const tasks = [];
++					let params = null;
++					try{
++						params = this.genParams(steppedFields);
++					}catch(e){
++						params = null;
++					}
++					if(params){
++						tasks.push({
++							name: 'dunjia:nongli',
++							path: '/nongli/time',
++							run: ()=> fetchPreciseNongli(params),
++						});
++					}
++					// 节气种子:与 requestNongli 同一 fixedOptions 口径(四个 GanZhiType 钉死),
++					// 否则 key 不同 = 白预取。仅在该流派真需要种子时才发。
++					try{
++						const fixedOptions = {
++							...this.state.options,
++							jieQiType: 1,
++							yearGanZhiType: 2,
++							monthGanZhiType: 1,
++							dayGanZhiType: 1,
++						};
++						if(needJieqiYearSeed(fixedOptions) && steppedFields.date && steppedFields.date.value){
++							const year = parseInt(steppedFields.date.value.format('YYYY'), 10);
++							const seedParams = (year && !Number.isNaN(year)) ? this.genJieqiParams(steppedFields, year) : null;
++							if(seedParams){
++								tasks.push({
++									name: 'dunjia:jieqiseed',
++									path: '/jieqi/year',
++									run: ()=> fetchPreciseJieqiSeed(seedParams),
++								});
++							}
++						}
++					}catch(e){ /* 种子构参失败静默跳过 */ }
++					return tasks;
++				});
++			}
+ 		}
+ 	}
+ 
+@@ -1193,36 +1354,12 @@ class DunJiaMain extends Component {
+ 	}
+ 
+ 	genParams(fields){
+-		const flds = fields || this.state.localFields || this.props.fields;
+-		if(!flds){
+-			return null;
+-		}
+-		const options = this.state.options || DEFAULT_OPTIONS;
+-		const genderValue = (flds.gender && flds.gender.value !== undefined && flds.gender.value !== null)
+-			? flds.gender.value
+-			: options.sex;
+-		const zoneValue = flds.zone && flds.zone.value !== undefined && flds.zone.value !== null
+-			? flds.zone.value
+-			: 8;
+-		const adValue = flds.ad && flds.ad.value !== undefined && flds.ad.value !== null
+-			? flds.ad.value
+-			: 1;
+-		const calcGeo = resolveCalcGeo(flds, options);
+-		return {
+-			date: flds.date.value.format('YYYY-MM-DD'),
+-			time: flds.time.value.format('HH:mm:ss'),
+-			zone: zoneValue,
+-			lon: calcGeo.lon,
+-			lat: calcGeo.lat,
+-			gpsLat: calcGeo.gpsLat,
+-			gpsLon: calcGeo.gpsLon,
+-			ad: adValue,
+-			gender: genderValue,
+-			timeAlg: normalizeTimeAlg(options.timeAlg),
+-			after23NewDay: getAfter23NewDayValue(options),
+-			// v2.2.1: 透传时柱开关给后端 /nongli/time;后端 NongliController 已读入并传给 OnlyFourColumns。
+-			lateZiHourUseNextDay: options && options.lateZiHourUseNextDay !== undefined ? options.lateZiHourUseNextDay : 1,
+-		};
++		// PERF-R9 Ship 7:构造原样抽为模块级纯函数(预热复用同一路径 ⇒ key/body 逐字节一致);
++		// 本方法保持既有签名与兜底语义(localFields/props 兜底),纯委托零行为变化。
++		return buildDunJiaNongliParamsPure(
++			fields || this.state.localFields || this.props.fields,
++			this.state.options || DEFAULT_OPTIONS
++		);
+ 	}
+ 
+ 	async recalc(fields, nongli, options, displaySolarTime){
+@@ -1259,6 +1396,10 @@ class DunJiaMain extends Component {
+ 			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
+ 			this.lastPanSignature = panSignature;
+ 			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{
++				// horosa_panel_ready_v1:奇门中栏九宫盘 + 右栏五页签全部派生自这一个 pan,
++				// 故本次 setState 落定 = 中栏+右栏画完(pan 为 null 时也算「本次交互到此为止」,
++				// 不记会让该次交互永远配不上对)。已在 panSignature 去重与 loading 置位之后。
++				markPanelReady('dunjia');
+ 				if(pan){
+ 					rememberDunJiaLiveState({
+ 						fieldKey: getFieldKey(flds),
+@@ -1285,25 +1426,12 @@ class DunJiaMain extends Component {
+ 	}
+ 
+ 	genJieqiParams(fields, year){
+-		const flds = fields || this.state.localFields || this.props.fields;
+-		if(!flds){
+-			return null;
+-		}
+-		const options = this.state.options || DEFAULT_OPTIONS;
+-		const calcGeo = resolveCalcGeo(flds, options);
+-		return {
+-			year: `${year}`,
+-			ad: flds.ad ? flds.ad.value : 1,
+-			zone: flds.zone.value,
+-			lon: calcGeo.lon,
+-			lat: calcGeo.lat,
+-			gpsLat: calcGeo.gpsLat,
+-			gpsLon: calcGeo.gpsLon,
+-			timeAlg: normalizeTimeAlg(options.timeAlg),
+-			hsys: 0,
+-			zodiacal: 0,
+-			doubingSu28: false,
+-		};
++		// PERF-R9 Ship 7:同上,抽为模块级纯函数,方法纯委托(兜底语义不变)。
++		return buildDunJiaJieqiParamsPure(
++			fields || this.state.localFields || this.props.fields,
++			year,
++			this.state.options || DEFAULT_OPTIONS
++		);
+ 	}
+ 
+ 	async resolveDisplaySolarTime(params, primaryResult){
+@@ -2595,7 +2723,14 @@ class DunJiaMain extends Component {
+ 					onChange={(key)=>this.setState({ rightPanelTab: key })}
+ 					style={{ marginTop: 8 }}
+ 				>
++					{/* horosa_freeze_subtabs_v1:右栏 5 面板 keep-alive。原先每次父重渲(切时间/改选项/
++					    点宫位/开关设置)都把「概览」的 buildQimenOverviewSummary、「神煞」的 Popover 阵、
++					    「八宫」的 buildQimenBaGongPanelData、化解/用神 全部重跑一遍(用户只看得见其中一个)。
++					    函数式 FreezeSubTab:非激活既不求值也不 reconcile;切回时拿本轮最新 children
++					    立刻渲一帧 —— 不卸载、不重取、不闪烁、组件内部 state(滚动/展开)原样保留。 */}
+ 					<TabPane tab="概览" key="overview">
++						<FreezeSubTab active={panelTab === 'overview'}>{()=>(
++						<>
+ 						{(()=>{
+ 							// 全局速览：一眼看出 值符值使落宫 / 贵格(三奇得使·九遁) / 六害源头 / 吉凶格品级。
+ 							const sum = pan ? buildQimenOverviewSummary(pan) : null;
+@@ -2692,8 +2827,11 @@ class DunJiaMain extends Component {
+ 								</Card>
+ 							);
+ 						})()}
++						</>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="神煞" key="shensha">
++						<FreezeSubTab active={panelTab === 'shensha'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+ 							<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', columnGap: 14, rowGap: 6, lineHeight: '24px' }}>
+ 								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
+@@ -2711,8 +2849,10 @@ class DunJiaMain extends Component {
+ 									: <div>暂无神煞</div>}
+ 							</div>
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="八宫" key="bagong">
++						<FreezeSubTab active={panelTab === 'bagong'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+ 							<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+ 								{BAGONG_PALACE_ORDER.map((num)=>(
+@@ -2800,16 +2940,21 @@ class DunJiaMain extends Component {
+ 								</Card>
+ 							)}
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="化解" key="jiehua">
++						<FreezeSubTab active={panelTab === 'jiehua'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+ 							{this.renderJieHuaPanel(pan)}
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="用神" key="yongshen">
++						<FreezeSubTab active={panelTab === 'yongshen'}>{()=>(
+ 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+ 							{this.renderYongShenPanel(pan)}
+ 						</Card>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 				</Tabs>
+ 			</div>

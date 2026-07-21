@@ -1,0 +1,117 @@
+diff --git a/astrostudyui/src/components/auxchart/AstroRelocationLab.js b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
+index 14eed51..629b5e2 100644
+--- a/astrostudyui/src/components/auxchart/AstroRelocationLab.js
++++ b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
+@@ -17,6 +17,8 @@ import {
+ 	formatLatDms, formatLonDms,
+ } from '../astro/AstroHelper';
+ import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const TabPane = XQTabs.TabPane;
+ 
+@@ -56,10 +58,17 @@ class AstroRelocationLab extends Component{
+ 			loading: false,
+ 			result: null,
+ 			requestKey: '',
++			// 右栏子页签改【受控】—— FreezeSubTab 需要 activeKey 才能判 active(原 defaultActiveKey="1")。
++			sideTab: '1',
+ 		};
+ 		this.load = this.load.bind(this);
+ 		this.handleGeoOk = this.handleGeoOk.bind(this);
+ 		this.renderContentPanel = this.renderContentPanel.bind(this);
++		this.changeSideTab = this.changeSideTab.bind(this);
++	}
++
++	changeSideTab(key){
++		this.setState({ sideTab: key });
+ 	}
+ 
+ 	componentDidMount(){
+@@ -118,7 +127,11 @@ class AstroRelocationLab extends Component{
+ 				timeoutMs: 30000,
+ 			});
+ 			if(!this._mounted) return;
+-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
++			// horosa_panel_ready_v1:重置盘中栏(异地整盘)+右栏(信息/相位/行星…六页签)全由 result 派生,
++			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
++			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{
++				markPanelReady('auxchart');
++			});
+ 		}catch(e){
+ 			if(!this._mounted) return;
+ 			this.setState({loading: false, requestKey: key});
+@@ -164,8 +177,13 @@ class AstroRelocationLab extends Component{
+ 	renderContentPanel(chartObj, fields, tabHeight){
+ 		return (
+ 			<div className="horosa-inspector-panel horosa-astro-content-panel">
+-				<XQTabs defaultActiveKey="1" tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
++				{/* horosa_freeze_subtabs_v1(PERF-R9 Ship 6 复核补齐):右栏六组面板此前全内联,
++				    每次父重渲(改地点 / 改时间 / 主盘换)都把六个都 reconcile 一遍(AstroInfo 两份 +
++				    相位表 + 行星/希腊点 + 可能性 + 格局)。受控化(activeKey→state.sideTab)后包 FreezeSubTab:
++				    只渲当前组;切走冻结不卸载(滚动位置/展开态全留);切回拿最新 chartObj 立即重渲。 */}
++				<XQTabs activeKey={this.state.sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
+ 					<TabPane tab="信息" key="1">
++						<FreezeSubTab active={this.state.sideTab === '1'}>{()=>(
+ 						<AstroInfo mode="summary" height={tabHeight}
+ 							value={chartObj} fields={fields}
+ 							planetDisplay={this.props.planetDisplay}
+@@ -173,8 +191,10 @@ class AstroRelocationLab extends Component{
+ 							showAstroMeaning={this.props.showAstroMeaning}
+ 							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
+ 						/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="相位" key="2">
++						<FreezeSubTab active={this.state.sideTab === '2'}>{()=>(
+ 						<AstroAspect
+ 							value={chartObj} height={tabHeight}
+ 							lotsDisplay={this.props.lotsDisplay}
+@@ -182,8 +202,10 @@ class AstroRelocationLab extends Component{
+ 							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+ 							showAstroMeaning={this.props.showAstroMeaning}
+ 						/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="行星" key="3">
++						<FreezeSubTab active={this.state.sideTab === '3'}>{()=>(
+ 						<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
+ 							<AstroPlanet
+ 								value={chartObj}
+@@ -196,8 +218,10 @@ class AstroRelocationLab extends Component{
+ 								<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
+ 							</div>
+ 						</div>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="古典" key="4">
++						<FreezeSubTab active={this.state.sideTab === '4'}>{()=>(
+ 						<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
+ 							<AstroInfo mode="classical" height={tabHeight}
+ 								value={chartObj} fields={fields}
+@@ -207,19 +231,24 @@ class AstroRelocationLab extends Component{
+ 								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
+ 							/>
+ 						</div>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="可能性" key="5">
++						<FreezeSubTab active={this.state.sideTab === '5'}>{()=>(
+ 						<AstroPredictPlanetSign height={tabHeight}
+ 							value={chartObj} fields={fields}
+ 							planetDisplay={this.props.planetDisplay}
+ 							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+ 						/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab="格局" key="6">
++						<FreezeSubTab active={this.state.sideTab === '6'}>{()=>(
+ 						<AstroAnalysisLab
+ 							value={chartObj}
+ 							height={tabHeight}
+ 						/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 				</XQTabs>
+ 			</div>

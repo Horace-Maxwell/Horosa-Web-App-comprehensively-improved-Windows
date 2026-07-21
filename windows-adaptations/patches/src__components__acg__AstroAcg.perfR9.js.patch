@@ -1,0 +1,25 @@
+diff --git a/astrostudyui/src/components/acg/AstroAcg.js b/astrostudyui/src/components/acg/AstroAcg.js
+index 9e8fdc4..1156eec 100644
+--- a/astrostudyui/src/components/acg/AstroAcg.js
++++ b/astrostudyui/src/components/acg/AstroAcg.js
+@@ -5,6 +5,7 @@ import AcgD3Map, { STYLES } from './AcgD3Map';
+ import AcgPointPanel from './AcgPointPanel';
+ import request from '../../utils/request';
+ import { setAcgSnapshot } from '../../utils/acgSnapshot';
++import { markPanelReady } from '../../utils/perfMark';
+ import DateTimeInfo from '../comp/DateTimeInfo';
+ import * as Constants from '../../utils/constants';
+ import AstroLinesSelector from './AstroLinesSelector';
+@@ -193,7 +194,11 @@ class AstroAcg extends Component {
+ 		if (this.unmounted || seq !== this._acgSeq) return;
+ 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
+ 		const acgData = data[Constants.ResultKey];
+-		this.setState({ acgData });
++		// horosa_panel_ready_v1:占星地图(辅盘·占星地图子页)的地图层 + 右栏线表全部由 acgData 派生,
++		// 这一次 setState 即「面板数据落定」。技法键=顶层页签 auxchart(唯一宿主 loc/LocAstroMain)。
++		this.setState({ acgData }, ()=>{
++			markPanelReady('auxchart');
++		});
+ 		// AI 导出真值:发布"最近一次地图状态"(单一真值源=后端响应,导出时拼【占星地图】段)
+ 		setAcgSnapshot(acgData, this.snapshotUiState(this.state.pointReport));
+ 	}

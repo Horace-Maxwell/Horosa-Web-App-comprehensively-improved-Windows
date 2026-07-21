@@ -1,0 +1,69 @@
+diff --git a/astrostudyui/src/components/gua/GuaSym.js b/astrostudyui/src/components/gua/GuaSym.js
+index c5cd74b..3f45cf1 100644
+--- a/astrostudyui/src/components/gua/GuaSym.js
++++ b/astrostudyui/src/components/gua/GuaSym.js
+@@ -1,7 +1,9 @@
+ import { Component } from 'react';
+ import { Typography, } from 'antd';
+-import {randomStr, } from '../../utils/helper';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const { Title, Paragraph, Text } = Typography;
+ 
+@@ -24,8 +26,9 @@ export default class GuaSym extends Component{
+         if(meiyi){
+             for(let key in meiyi){
+                 let list = meiyi[key];
+-                let title = (<Title level={4} key={randomStr(8)}>{key}</Title>);
+-                let ul = this.genSymList(list);
++                let title = (<Title level={4} key={`meiyi-title-${key}`}>{key}</Title>);
++                // 标题与列表并列推进同一个 res 数组，故用不同前缀 + 分类名保证兄弟唯一
++                let ul = this.genSymList(list, `meiyi-list-${key}`);
+                 res.push(title);
+                 res.push(ul);
+             }    
+@@ -33,15 +36,15 @@ export default class GuaSym extends Component{
+ 
+         let symbolize = val.symbolize;
+         if(symbolize && symbolize.length){
+-            let title = (<Title level={4} key={randomStr(8)}>未分类</Title>);
+-            let ul = this.genSymList(symbolize);
++            let title = (<Title level={4} key='sym-title'>未分类</Title>);
++            let ul = this.genSymList(symbolize, 'sym-list');
+             if(meiyi){
+                 res.push(title);
+             }
+             res.push(ul);
+         }
+         if(res.length === 0){
+-            let notxt = (<Text level={4} key={randomStr(8)}>还未有类象数据，请等待。。。</Text>);
++            let notxt = (<Text level={4} key='sym-empty'>还未有类象数据，请等待。。。</Text>);
+             res.push(notxt);
+         }
+ 
+@@ -49,19 +52,19 @@ export default class GuaSym extends Component{
+ 		return dom;
+     }
+ 
+-    genSymList(list){
++    genSymList(list, listKey){
+         // 🔒 防黑屏:类象某分类值非数组(数据缺/半成品)时 list.map 抛 TypeError → 无边界即整页空白。
+         if(!Array.isArray(list)){ return null; }
+         let lis = list.map((item, idx)=>{
+             return (
+-                <li key={randomStr(8)}>
++                <li key={idx}>
+                     <Text>{item}</Text>
+                 </li>
+             )
+         });
+ 
+         return (
+-            <Paragraph key={randomStr(8)}>
++            <Paragraph key={listKey}>
+                 <ul>
+                     {lis}
+                 </ul>

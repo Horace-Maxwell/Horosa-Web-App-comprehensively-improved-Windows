@@ -1,0 +1,70 @@
+diff --git a/astrostudyui/src/components/guazhan/GuaDesc.js b/astrostudyui/src/components/guazhan/GuaDesc.js
+index 23f0282..2529f5f 100644
+--- a/astrostudyui/src/components/guazhan/GuaDesc.js
++++ b/astrostudyui/src/components/guazhan/GuaDesc.js
+@@ -1,8 +1,10 @@
+ import { Component } from 'react';
+ import { Typography } from 'antd';
+-import {randomStr, } from '../../utils/helper';
+ import styles from '../../css/styles.less';
+ import { XQTabs as Tabs } from '../xq-ui';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const { Title, Paragraph, Text } = Typography;
+ const { TabPane } = Tabs;
+@@ -21,20 +23,21 @@ class GuaDesc extends Component{
+ 		}
+ 
+ 		let res = [];
++		// res 为固定次序的九段(标题/卦辞/爻辞/彖/象),每段各出现一次,故字面量键即稳定且互不重复。
+ 		let title = (
+-			<Title level={3} key={randomStr(8)}><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
++			<Title level={3} key="title"><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
+ 		);
+ 		res.push(title);
+ 
+-		let guacititle = (<Title level={4} key={randomStr(8)}>卦辞</Title>);
+-		let guaci = (<Paragraph key={randomStr(8)}><Text strong type='warning'>{gua['卦辞']}</Text></Paragraph>);
++		let guacititle = (<Title level={4} key="guaciTitle">卦辞</Title>);
++		let guaci = (<Paragraph key="guaci"><Text strong type='warning'>{gua['卦辞']}</Text></Paragraph>);
+ 		res.push(guacititle);
+ 		res.push(guaci);
+ 
+-		let yaotitle = (<Title level={4} key={randomStr(8)}>爻辞</Title>);
++		let yaotitle = (<Title level={4} key="yaoTitle">爻辞</Title>);
+ 		let yao = gua['爻辞'].map((item, idx)=>{
+ 			let dom = (
+-				<li key={randomStr(8)}>
++				<li key={idx}>
+ 					<Text strong mark>{item}</Text>
+ 					<div>象曰：{gua['爻象'][idx]}</div>
+ 				</li>
+@@ -43,7 +46,7 @@ class GuaDesc extends Component{
+ 			return dom
+ 		});
+ 		let yaoci = (
+-			<Paragraph key={randomStr(8)}>
++			<Paragraph key="yaoci">
+ 				<ul>
+ 					{yao}
+ 				</ul>
+@@ -52,13 +55,13 @@ class GuaDesc extends Component{
+ 		res.push(yaotitle);
+ 		res.push(yaoci)
+ 
+-		let zuantitle = (<Title level={4} key={randomStr(8)}>彖曰</Title>);
+-		let zuan = (<Paragraph key={randomStr(8)}>{gua['彖']}</Paragraph>);
++		let zuantitle = (<Title level={4} key="tuanTitle">彖曰</Title>);
++		let zuan = (<Paragraph key="tuan">{gua['彖']}</Paragraph>);
+ 		res.push(zuantitle);
+ 		res.push(zuan);
+ 
+-		let xiangtitle = (<Title level={4} key={randomStr(8)}>象曰</Title>);
+-		let xiang = (<Paragraph key={randomStr(8)}>{gua['象']}</Paragraph>);
++		let xiangtitle = (<Title level={4} key="xiangTitle">象曰</Title>);
++		let xiang = (<Paragraph key="xiang">{gua['象']}</Paragraph>);
+ 		res.push(xiangtitle);
+ 		res.push(xiang);
+ 

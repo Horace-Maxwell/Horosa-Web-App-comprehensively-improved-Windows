@@ -1,0 +1,311 @@
+diff --git a/astrostudyui/src/components/astro/AstroChartMain.js b/astrostudyui/src/components/astro/AstroChartMain.js
+index 3f86871..a6b9734 100644
+--- a/astrostudyui/src/components/astro/AstroChartMain.js
++++ b/astrostudyui/src/components/astro/AstroChartMain.js
+@@ -1,5 +1,7 @@
+ import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ import { Row, Col, Popover, Tooltip } from 'antd';
+ import AstroChart from './AstroChart';
+ import AstroInfo from './AstroInfo';
+@@ -57,6 +59,148 @@ function formatTrueSolarTime(value){
+ 	return `${value}`.replace(' ', '，');
+ }
+ 
++// ─────────────────────────────────────────────────────────────────────────────
++// horosa_freeze_subtabs_v1(占星本命右栏)+ 子页签 state 下沉。
++//
++// 病灶(普查):右栏 7 个 TabPane(信息/相位/行星/古典/可能性/格局/埃及)全部直接内联 children,
++// antd Tabs 是 keep-alive —— 任一面板被激活过之后就永久挂在 React 树里,此后 AstroChartMain
++// 每重渲一次(切时间 → chartObj 换引用),这 7 个面板【包括用户看不见的 6 个】全部 reconcile +
++// render 一遍(AstroInfo 古典分节、AstroAspect 的 planet×planet 表都不便宜),吃掉本该属于
++// 可见内容的预算。
++//
++// 两处修法:
++//  ① Tabs 改【受控】(activeKey + onChange)并给每个面板包 FreezeSubTab:非激活面板 sCU 返 false
++//     跳过重渲。冻结 ≠ 卸载 —— DOM/组件实例/滚动位置/展开态全部保留,切回时拿本轮父组件构造的
++//     【最新】children 立即渲一帧(不重新挂载、不重发请求、不闪烁、无陈旧)。children 传函数,
++//     从未激活过的面板连 React 元素都不创建。
++//  ② activeTab 的 state 下沉到本组件(而不是留在 AstroChartMain):切右栏子页签只重渲右栏,
++//     不再连带把左栏输入面板与中栏盘面容器整树重渲一遍。
++// props 侧 sCU 与 AstroChartMain 同款(wrapperPropsEqual 机械全覆盖浅比,函数型 props 跳过),
++// 取向仍是「宁可多渲、绝不漏渲」:任一数据 prop 引用变(chartObj/fields/显示开关)即照常重渲。
++class AstroContentPanel extends Component{
++
++	constructor(props){
++		super(props);
++		this.state = {
++			activeTab: '1',
++		};
++		this.changeTab = this.changeTab.bind(this);
++	}
++
++	changeTab(key){
++		this.setState({ activeTab: key });
++	}
++
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){
++			return true;
++		}
++		return !wrapperPropsEqual(this.props, nextProps);
++	}
++
++	render(){
++		const chartObj = this.props.value;
++		const fields = this.props.fields;
++		const tabHeight = this.props.tabHeight;
++		const showlots = this.props.showlots;
++		const activeTab = this.state.activeTab;
++		return (
++			<div className="horosa-inspector-panel horosa-astro-content-panel">
++				<XQTabs activeKey={activeTab} onChange={this.changeTab} tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
++					<TabPane tab="信息" key="1">
++						<FreezeSubTab active={activeTab === '1'}>{()=>(
++							<AstroInfo mode="summary" height={tabHeight}
++								value={chartObj} fields={fields}
++								planetDisplay={this.props.planetDisplay}
++								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
++								showAstroMeaning={this.props.showAstroMeaning}
++								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
++							/>
++						)}</FreezeSubTab>
++					</TabPane>
++					<TabPane tab="相位" key="2">
++						<FreezeSubTab active={activeTab === '2'}>{()=>(
++							<AstroAspect
++								value={chartObj} height={tabHeight}
++								lotsDisplay={this.props.lotsDisplay}
++								planetDisplay={this.props.planetDisplay}
++								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
++								showAstroMeaning={this.props.showAstroMeaning}
++							/>
++						)}</FreezeSubTab>
++					</TabPane>
++					<TabPane tab="行星" key="3">
++						<FreezeSubTab active={activeTab === '3'}>{()=>(
++							<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
++								<AstroPlanet
++									value={chartObj}
++									fill={true}
++									showPlanetHouseInfo={this.props.showPlanetHouseInfo}
++									showAstroMeaning={this.props.showAstroMeaning}
++								/>
++								{showlots ? (
++									<div className="horosa-lots-under-planets">
++										<div className="horosa-info-card-title">希腊点</div>
++										<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
++									</div>
++								) : null}
++							</div>
++						)}</FreezeSubTab>
++					</TabPane>
++					<TabPane tab="古典" key="4">
++						<FreezeSubTab active={activeTab === '4'}>{()=>(
++							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
++								<AstroInfo mode="classical" height={tabHeight}
++									value={chartObj} fields={fields}
++									planetDisplay={this.props.planetDisplay}
++									showPlanetHouseInfo={this.props.showPlanetHouseInfo}
++									showAstroMeaning={this.props.showAstroMeaning}
++									showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
++								/>
++								{/* 寿命/十二分度/主宰星链 已并入 AstroInfo 古典分节(状态/度数/格局补充/寿命),此处不再单列 */}
++								{/* 衍化分节:与 AstroInfo 古典分节同一卡片语汇(分节头 + 双语卡标题),排版统一 */}
++								<div className="horosa-classical-scroll">
++									<div className="horosa-classical-section">
++										<span className="horosa-classical-section-zh">衍化</span>
++										<span className="horosa-classical-section-en">Derivations</span>
++									</div>
++									<AstroThemaMundi />
++									<AstroDerivedHouses value={chartObj} />
++									<AstroEminence value={chartObj} />
++									<AstroKlimata value={chartObj} fields={fields} />
++								</div>
++							</div>
++						)}</FreezeSubTab>
++					</TabPane>
++					<TabPane tab="可能性" key="5">
++						<FreezeSubTab active={activeTab === '5'}>{()=>(
++							<AstroPredictPlanetSign height={tabHeight}
++								value={chartObj} fields={fields}
++								planetDisplay={this.props.planetDisplay}
++								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
++							/>
++						)}</FreezeSubTab>
++					</TabPane>
++					<TabPane tab="格局" key="6">
++						<FreezeSubTab active={activeTab === '6'}>{()=>(
++							<AstroAnalysisLab
++								value={chartObj}
++								height={tabHeight}
++								voidClassical={this.props.voidClassical}
++							/>
++						)}</FreezeSubTab>
++					</TabPane>
++					<TabPane tab="埃及" key="egypt">
++						<FreezeSubTab active={activeTab === 'egypt'}>{()=>(
++							<AstroEgypt value={chartObj} height={tabHeight} />
++						)}</FreezeSubTab>
++					</TabPane>
++				</XQTabs>
++			</div>
++		);
++	}
++}
++
+ class AstroChartMain extends Component{
+ 
+ 	constructor(props) {
+@@ -84,7 +228,6 @@ class AstroChartMain extends Component{
+ 		this.navigateDirectionTool = this.navigateDirectionTool.bind(this);
+ 		this.renderInputOptionPopovers = this.renderInputOptionPopovers.bind(this);
+ 		this.renderInputPanel = this.renderInputPanel.bind(this);
+-		this.renderContentPanel = this.renderContentPanel.bind(this);
+ 		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
+ 
+ 		if(this.props.hook){
+@@ -795,89 +938,6 @@ class AstroChartMain extends Component{
+ 		);
+ 	}
+ 
+-	renderContentPanel(chartObj, fields, tabHeight, showlots){
+-		return (
+-			<div className="horosa-inspector-panel horosa-astro-content-panel">
+-				<XQTabs defaultActiveKey="1" tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
+-					<TabPane tab="信息" key="1">
+-						<AstroInfo mode="summary" height={tabHeight}
+-							value={chartObj} fields={fields}
+-							planetDisplay={this.props.planetDisplay}
+-							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+-							showAstroMeaning={this.props.showAstroMeaning}
+-							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
+-						/>
+-					</TabPane>
+-					<TabPane tab="相位" key="2">
+-						<AstroAspect
+-							value={chartObj} height={tabHeight}
+-							lotsDisplay={this.props.lotsDisplay}
+-							planetDisplay={this.props.planetDisplay}
+-							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+-							showAstroMeaning={this.props.showAstroMeaning}
+-						/>
+-					</TabPane>
+-					<TabPane tab="行星" key="3">
+-						<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
+-							<AstroPlanet
+-								value={chartObj}
+-								fill={true}
+-								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+-								showAstroMeaning={this.props.showAstroMeaning}
+-							/>
+-							{showlots ? (
+-								<div className="horosa-lots-under-planets">
+-									<div className="horosa-info-card-title">希腊点</div>
+-									<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
+-								</div>
+-							) : null}
+-						</div>
+-					</TabPane>
+-						<TabPane tab="古典" key="4">
+-							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
+-								<AstroInfo mode="classical" height={tabHeight}
+-									value={chartObj} fields={fields}
+-								planetDisplay={this.props.planetDisplay}
+-								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+-								showAstroMeaning={this.props.showAstroMeaning}
+-								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
+-							/>
+-							{/* 寿命/十二分度/主宰星链 已并入 AstroInfo 古典分节(状态/度数/格局补充/寿命),此处不再单列 */}
+-							{/* 衍化分节:与 AstroInfo 古典分节同一卡片语汇(分节头 + 双语卡标题),排版统一 */}
+-							<div className="horosa-classical-scroll">
+-								<div className="horosa-classical-section">
+-									<span className="horosa-classical-section-zh">衍化</span>
+-									<span className="horosa-classical-section-en">Derivations</span>
+-								</div>
+-								<AstroThemaMundi />
+-								<AstroDerivedHouses value={chartObj} />
+-								<AstroEminence value={chartObj} />
+-								<AstroKlimata value={chartObj} fields={fields} />
+-							</div>
+-							</div>
+-					</TabPane>
+-						<TabPane tab="可能性" key="5">
+-							<AstroPredictPlanetSign height={tabHeight}
+-								value={chartObj} fields={fields}
+-							planetDisplay={this.props.planetDisplay}
+-								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+-							/>
+-						</TabPane>
+-						<TabPane tab="格局" key="6">
+-							<AstroAnalysisLab
+-								value={chartObj}
+-								height={tabHeight}
+-								voidClassical={this.props.voidClassical}
+-							/>
+-						</TabPane>
+-						<TabPane tab="埃及" key="egypt">
+-							<AstroEgypt value={chartObj} height={tabHeight} />
+-						</TabPane>
+-					</XQTabs>
+-				</div>
+-			);
+-	}
+-
+ 
+ 	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+ 	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+@@ -889,6 +949,31 @@ class AstroChartMain extends Component{
+ 		return !wrapperPropsEqual(this.props, nextProps);
+ 	}
+ 
++	// horosa_panel_ready_v1(占星本命):交互终点埋点。
++	// 本族是全仓唯一的「零请求、零 pan-state」技法 —— 中栏(AstroChart)与右栏(AstroInfo/
++	// AstroAspect/…)全部是 props.value(chartObj)的纯派生,组件内没有任何「面板数据落定的
++	// setState」可挂。等价落点就是 chartObj 换引用后的这次 componentDidUpdate:此刻 React 已
++	// 提交本轮 DOM,markPanelReady 内部再压两层 rAF 逼近「本帧已绘」,与 pages/index.js 的
++	// render-complete 口径一致。
++	// 三条约束:
++	//  · 只在 chartObj 真换引用时打(props 其它变化 = 显示开关,不是一次排盘落定);
++	//  · 只由【主命盘那一个实例】打 —— AstroChartMain 被合盘/节气/十三星座等多处复用,
++	//    showQuickActions===true 是 pages/index.js 占星页签独有的标识(全仓仅此一处传),
++	//    否则别的页签的交互会被记到 'astrochart' 名下;
++	//  · technique 固定 'astrochart' = 顶层页签 key,与 markInteractionStart(currentTab) 配对。
++	// markPanelReady 自身按 generation 去重且 kill-switch 同 horosa.perf.interactionMarks;
++	// 与 models/astro.js 的 markChartRefreshEnd 不重复计数(那条只打 performance.mark/measure,
++	// 不进 perfSummary 的聚合表)。
++	componentDidUpdate(prevProps){
++		if(this.props.showQuickActions !== true){
++			return;
++		}
++		if(prevProps.value === this.props.value || !this.props.value){
++			return;
++		}
++		markPanelReady('astrochart');
++	}
++
+ 	render(){
+ 		let chartObj = this.props.value;
+ 		let fields = this.props.fields;
+@@ -974,7 +1059,18 @@ class AstroChartMain extends Component{
+ 									)
+ 								}
+ 						</div>
+-						{this.renderContentPanel(chartObj, fields, tabHeight, showlots)}
++						<AstroContentPanel
++							value={chartObj}
++							fields={fields}
++							tabHeight={tabHeight}
++							showlots={showlots}
++							planetDisplay={this.props.planetDisplay}
++							lotsDisplay={this.props.lotsDisplay}
++							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
++							showAstroMeaning={this.props.showAstroMeaning}
++							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
++							voidClassical={this.props.voidClassical}
++						/>
+ 					</div>
+ 					{this.renderBottomQuickDock()}
+ 				</div>

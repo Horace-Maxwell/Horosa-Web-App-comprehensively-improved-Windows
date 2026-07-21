@@ -19,6 +19,7 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { markPanelReady } from '../../utils/perfMark';
 
 const STORE_KEY = 'horosa.guice.settings.v1';
 // 八卦 → 其三爻（自下而上）。取仓内既有之 Gua8.value，不另造一份（两份必漂）。
@@ -250,7 +251,9 @@ class GuiceMain extends Component {
 		});
 		if (!r) return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null });
 		if (r.error) return this.setState({ error: r.error, gua: null, frozenCtx: null });
-		this.setState({ gua: r, error: '', frozenCtx: null });
+		// horosa_panel_ready_v1:gua 落定 = 卦体(中栏)与演数/断法(右栏)画完的那一次 setState。
+		// 本处原无回调 —— 补一个只为埋点,不改任何既有语义。
+		this.setState({ gua: r, error: '', frozenCtx: null }, ()=>{ markPanelReady('cnyibu'); });
 	}
 
 	/**

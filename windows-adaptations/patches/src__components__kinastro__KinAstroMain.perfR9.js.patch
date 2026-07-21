@@ -1,0 +1,378 @@
+diff --git a/astrostudyui/src/components/kinastro/KinAstroMain.js b/astrostudyui/src/components/kinastro/KinAstroMain.js
+index 39a8811..edb8f26 100644
+--- a/astrostudyui/src/components/kinastro/KinAstroMain.js
++++ b/astrostudyui/src/components/kinastro/KinAstroMain.js
+@@ -31,13 +31,42 @@ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+ import { formatHumanValue } from '../../utils/humanReadableFields';
+ import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../../utils/kinAstroFieldsSync';
+ import UpdatingBadge from '../common/UpdatingBadge';
+-import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
++import { silentTechniquePanelsEnabled, techniqueResultCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
++import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { parseYearFromDateStr } from '../../utils/dateStrSafe';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const { TabPane } = Tabs;
+ const { Option } = Select;
+ 
++// horosa_kinastro_center_memo_v1(PERF-R9 Ship 6)—— 中栏盘面 memo 槽。
++//
++// 病灶:本类被数算九家 + 演禽 + 策天 + 一掌经共壳复用,左栏塞了上百个受控控件
++// (铁板六项、南极十余项、蠢子十项、神数正传十八项…)。任一控件 onChange → setState →
++// 恒真 sCU → **整棵树重渲**:中栏盘面(策天/演禽还要重跑 buildKinAstroZiWeiChart +
++// buildZiWeiRulesForChart 造整张紫微盘)、右栏全部子页签、底部快捷栏,一并白跑一遍。
++// 而这些控件里有大半(zhengchuan* / yizhangjing* / heluo* / canpingMethod 等 native 子技法项)
++// 压根不进 buildPayload,盘面【逐字节不变】。
++// ⚠️ 反例订正:cetian* 诸项(cetianMethod/LunarMode/StarOrder/show*)**是**进 buildPayload 的
++//    (见 buildPayload 内 serviceKey==='cetian' 分支),且其 onChange 带 clickPlot 回调 → 重排 →
++//    新 pan(引用必变)→ 本 memo 照常失效重渲。列它当「不进 payload」的例子是错的,已删。
++//
++// 修法:把中栏包进本 memo 槽,比较函数只在「盘 + fields 引用 + 影响盘面的选项签名」三者
++// 全同时跳过。三项任一不同 → 返 false 照常重渲(拿的是父组件本轮最新的 render 闭包,
++// 零陈旧)。sig 由 kinSig() 单点给出,漏一项就等于「改了不刷新」——故那里只许多写不许少写。
++// kill-switch:与全站重组件 sCU 同闸(horosa.perf.chartSCU 置 '0' → 比较函数恒返 false =
++// 逐字回到「中栏每次都重渲」的旧行为)。全站每一处渲染守卫都必须可一键回退,本处不例外。
++const MemoSlot = React.memo(function KinAstroMemoSlot(props){
++	return props.render();
++}, function kinAstroSlotEqual(prev, next){
++	if(!chartSCUEnabled()){
++		return false;
++	}
++	return prev.pan === next.pan && prev.fields === next.fields && prev.sig === next.sig;
++});
++
+ const TECHNIQUE_CONFIG = {
+ 	shaozi: {
+ 		pageTitle: '数算',
+@@ -223,7 +252,13 @@ const TECHNIQUE_CONFIG = {
+ // normBinaryGender / parseFieldsDateTime / computeKinFieldsResync 移至 utils/kinAstroFieldsSync
+ // （fields→state 同步层，纯函数可测；载入命例时 didUpdate 据此重同步性别/农历锚点，修透传断链）。
+ 
+-async function postKinAstro(serviceKey, payload){
++// horosa_kentang_result_cache_v1 —— 数算六家(邵子/铁板/鬼谷分定/北极/南极/蠢子)+ 演禽 + 策天飞星
++// 共用的 /{serviceKey}/pan 直连不经 utils/request(拿不到 requestDedupe/chartMem):切技法/切页再回来
++// 原样重付整趟往返。这里按 services/qizheng.js 同款做「同参复用 + 在途合并」LRU(48 条)。
++// 确定性论证:payload 全部来自 parseFieldsDateTime(fields)——'YYYY-MM-DD'/'HH:mm:ss' 格式化字串 +
++// 整数 + 性别/流派开关,无 Date 对象、无随机、无「现在时刻」依赖、后端无写库副作用 → 同 payload 必同盘。
++// 命中返回深拷贝(与直连逐值等价、只更快);关 horosa.perf.techniqueResultCache 即逐字回到下面的直连原函数。
++async function postKinAstroRaw(serviceKey, payload){
+ 	let rsp = null;
+ 	try{
+ 		const rawResponse = await fetch(buildKentangEndpoint(serviceKey, 'pan'), {
+@@ -251,6 +286,19 @@ async function postKinAstro(serviceKey, payload){
+ 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+ }
+ 
++function postKinAstro(serviceKey, payload){
++	const bodyKey = kentangCacheKey(payload);
++	if(!techniqueResultCacheEnabled() || !bodyKey){
++		return postKinAstroRaw(serviceKey, payload);
++	}
++	return cachedKentangCall(
++		'kinastro/pan',
++		payload,
++		()=>postKinAstroRaw(serviceKey, payload),
++		{ key: `${serviceKey}|${bodyKey}`, max: 48 }
++	);
++}
++
+ function fmtValue(value){
+ 	return formatHumanValue(value);
+ }
+@@ -1207,7 +1255,12 @@ class KinAstroMain extends Component{
+ 	async fetchPan(fields){
+ 		if(this.config.native){
+ 			this.requestSeq += 1;
+-			this.setState({ loading: false, pan: null });
++			// horosa_panel_ready_v1:原生技法(参评/河洛/正传/一掌经)不打后端,中右栏由子组件
++			// 就着 props.fields 同步自算 —— 本次 setState 提交时子组件已随新 fields 渲完,
++			// 故就在它的回调里盖章(markPanelReady 内部再双 rAF 逼近「本帧已绘」)。
++			this.setState({ loading: false, pan: null }, ()=>{
++				markPanelReady(this.config.serviceKey);
++			});
+ 			return;
+ 		}
+ 		const payload = this.buildPayload(fields);
+@@ -1233,6 +1286,10 @@ class KinAstroMain extends Component{
+ 				return;
+ 			}
+ 			this.setState({ pan, loading: false }, ()=>{
++				// horosa_panel_ready_v1:这一次 setState 才是「盘落定」——中栏盘面与右栏各段
++				// 都由 pan 派生,故本回调即「点击 → 中右栏画完」的终点。必须是首行:放在
++				// saveKinAstroAISnapshots 之后会把快照序列化的耗时算进交互预算里。
++				markPanelReady(this.config.serviceKey);
+ 				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan));
+ 			});
+ 		}catch(e){
+@@ -1258,6 +1315,100 @@ class KinAstroMain extends Component{
+ 		this.setState({ centerInfoVisible: false });
+ 	}
+ 
++	// ── horosa_kinastro_render_memo_v1(PERF-R9 Ship 6)──────────────────────────
++	// 「影响盘面/快照产出」的选项签名。中栏 memo 槽、快照缓存、可见页签缓存三处共用它。
++	// 🔴 只许多写不许少写:少一项 = 那项改了而中栏不刷新(功能降级),多一项只是少省一点。
++	//    收录判据 = 被 renderCenter/renderTiebanFramework/tiebanFrameworkOf 读到的 state。
++	//    (pan 自身与 props.fields 不进 sig,由 memo 槽按【引用】另行比较。)
++	kinSig(){
++		return [
++			this.config.serviceKey,
++			this.state.gender,
++			this.state.tiebanSchool, this.state.tiebanKeSystem, this.state.tiebanKe,
++			this.state.tiebanTwinFen, this.state.tiebanGuofang,
++		].join('|');
++	}
++
++	// 快照文本:此前 renderRightPanel 与 renderBottomQuickDock 各算一遍(每次重渲两趟
++	// buildSnapshotText 全段拼接 + tiebanFrameworkSuffix→buildTiebanFramework 整套框架推演)。
++	// 按 (pan 引用, kinSig) 缓存;二者任一变即重算,产出逐字节同前。
++	snapshotText(){
++		const pan = this.state.pan;
++		const sig = this.kinSig();
++		if(this._snapCache && this._snapCache.pan === pan && this._snapCache.sig === sig){
++			return this._snapCache.text;
++		}
++		const base = buildSnapshotText(pan);
++		const suffix = this.tiebanFrameworkSuffix(pan);
++		const text = suffix ? `${base}\n\n${suffix}` : base;
++		this._snapCache = { pan, sig, text };
++		return text;
++	}
++
++	// 可见子页签:同上,原先右栏与底部快捷栏各跑一遍(每个候选页签都要 getTabSections 过滤全段)。
++	visibleTabsOf(snapshot){
++		const pan = this.state.pan;
++		const sig = this.kinSig();
++		if(this._tabsCache && this._tabsCache.pan === pan && this._tabsCache.sig === sig
++			&& this._tabsCache.snapshot === snapshot){
++			return this._tabsCache.tabs;
++		}
++		const tabs = this.config.tabs.filter((item)=>{
++			if(item.key === 'yanfa'){
++				return this.config.serviceKey === 'xianqin';
++			}
++			if(!pan){
++				return item.key === 'overview' || item.key === 'snapshot';
++			}
++			if(item.key === 'snapshot'){
++				return !!snapshot;
++			}
++			if(item.key === 'classics'){
++				const classics = pan && pan.classics;
++				return !!(classics && classics.sections && classics.sections.length);
++			}
++			if(item.key === 'settings'){
++				return this.config.serviceKey === 'cetian';
++			}
++			if(item.key === 'framework'){
++				return this.config.serviceKey === 'tieban' && !!pan;
++			}
++			return this.getTabSections(item.key).length > 0;
++		});
++		this._tabsCache = { pan, sig, snapshot, tabs };
++		return tabs;
++	}
++
++	// 下传给 native 子技法的 opts:此前每次 render 都新造对象 → 子组件 props 引用必变 →
++	// 子组件那边任何 props 浅比 sCU 都恒失效。此处按 JSON 签名固定引用:值不变 = 引用不变。
++	// (值一变即换新对象 → 子组件照常重渲;不缓存计算结果,只稳定引用。)
++	memoOpts(name, obj){
++		const sig = JSON.stringify(obj);
++		const store = this._optsMemo || (this._optsMemo = {});
++		const cur = store[name];
++		if(cur && cur.sig === sig){
++			return cur.value;
++		}
++		store[name] = { sig, value: obj };
++		return obj;
++	}
++
++	// 中栏槽:后端盘技法走 memo(左栏改与盘无关的选项时不再重造整张盘);
++	// native 技法中栏是子组件、由其自身 sCU 把关,此处透传不加层。
++	renderCenterSlot(){
++		if(this.config.native){
++			return this.renderCenter();
++		}
++		return (
++			<MemoSlot
++				pan={this.state.pan}
++				fields={this.props.fields}
++				sig={this.kinSig()}
++				render={()=>this.renderCenter()}
++			/>
++		);
++	}
++
+ 	renderPillarOverrideFields(){
+ 		if(!['shaozi', 'tieban'].includes(this.config.serviceKey) || this.state.pillarOverride !== '1'){
+ 			return null;
+@@ -2713,7 +2864,7 @@ class KinAstroMain extends Component{
+ 	}
+ 
+ 	buildHeluoOpts(){
+-		return {
++		return this.memoOpts('heluo', {
+ 			ziShuMode: this.state.heluoZiShu,
+ 			jiGongMode: this.state.heluoJiGong,
+ 			zhiZunEnabled: this.state.heluoZhiZun,
+@@ -2721,7 +2872,7 @@ class KinAstroMain extends Component{
+ 			liunianStep2: this.state.heluoLiunianStep2,
+ 			huangdiOffset: parseInt(this.state.heluoHuangdiOffset, 10) || 2697,
+ 			showLiuRi: this.state.heluoShowLiuRi,
+-		};
++		});
+ 	}
+ 
+ 	/**
+@@ -2791,7 +2942,8 @@ class KinAstroMain extends Component{
+ 
+ 	buildZhengChuanOpts(){
+ 		// 汇总全部开关 → 单一 opts 下传;任一变则中/右栏重算 + AI 快照刷新(禁止只监听单项)。
+-		return {
++		// memoOpts 只稳定【引用】:任一项值变 → 新对象 → 子组件照常重算,契约逐字不变。
++		return this.memoOpts('zhengchuan', {
+ 			school: this.state.zhengchuanSchool,
+ 			askGz: this.state.zhengchuanAskGz,
+ 			fatherAge: this.state.zhengchuanFatherAge,
+@@ -2810,11 +2962,11 @@ class KinAstroMain extends Component{
+ 			gong: this.state.zhengchuanGong,
+ 			xqZhi: this.state.zhengchuanXqZhi,
+ 			xqYushu: this.state.zhengchuanXqYushu,
+-		};
++		});
+ 	}
+ 
+ 	buildYizhangjingOpts(){
+-		return {
++		return this.memoOpts('yizhangjing', {
+ 			shunniRule: this.state.yizhangjingShunni,
+ 			mingGongMethod: this.state.yizhangjingMingGong,
+ 			dayunLength: parseInt(this.state.yizhangjingDayunLen, 10) || 7,
+@@ -2824,7 +2976,7 @@ class KinAstroMain extends Component{
+ 			chongfanKou: this.state.yizhangjingChongfan,
+ 			dingYue: this.state.yizhangjingDingYue,
+ 			shenshaLayer: this.state.yizhangjingShensha,
+-		};
++		});
+ 	}
+ 
+ 	renderCenter(){
+@@ -3051,29 +3203,8 @@ class KinAstroMain extends Component{
+ 		if(this.config.serviceKey === 'yizhangjing'){
+ 			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} /></div>;
+ 		}
+-		const snapshot = (()=>{ const base = buildSnapshotText(this.state.pan); const suffix = this.tiebanFrameworkSuffix(this.state.pan); return suffix ? `${base}\n\n${suffix}` : base; })();
+-		const visibleTabs = this.config.tabs.filter((item)=>{
+-			if(item.key === 'yanfa'){
+-				return this.config.serviceKey === 'xianqin';
+-			}
+-			if(!this.state.pan){
+-				return item.key === 'overview' || item.key === 'snapshot';
+-			}
+-			if(item.key === 'snapshot'){
+-				return !!snapshot;
+-			}
+-			if(item.key === 'classics'){
+-				const classics = this.state.pan && this.state.pan.classics;
+-				return !!(classics && classics.sections && classics.sections.length);
+-			}
+-			if(item.key === 'settings'){
+-				return this.config.serviceKey === 'cetian';
+-			}
+-			if(item.key === 'framework'){
+-				return this.config.serviceKey === 'tieban' && !!this.state.pan;
+-			}
+-			return this.getTabSections(item.key).length > 0;
+-		});
++		const snapshot = this.snapshotText();
++		const visibleTabs = this.visibleTabsOf(snapshot);
+ 		const activeKey = visibleTabs.some((item)=>item.key === this.state.rightPanelTab)
+ 			? this.state.rightPanelTab
+ 			: (visibleTabs[0] ? visibleTabs[0].key : 'overview');
+@@ -3081,19 +3212,29 @@ class KinAstroMain extends Component{
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs horosa-kinastro-tabs">
+ 				{visibleTabs.map((item)=>(
+ 					<TabPane tab={item.label} key={item.key}>
+-						{item.key === 'snapshot' ? (
+-							<pre className="horosa-huangji-snapshot">{snapshot}</pre>
+-						) : item.key === 'classics' ? (
+-							<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
+-						) : item.key === 'settings' ? (
+-							<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
+-						) : item.key === 'yanfa' ? (
+-							<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} /></div>
+-						) : item.key === 'framework' ? (
+-							<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
+-						) : (
+-							<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
+-						)}
++						{/* horosa_freeze_subtabs_v1:右栏子页签冻结。此前每个 TabPane 的内容都在
++						    本方法里【当场求值】(getTabSections 过滤全段 + renderRows 造出全部行,
++						    铁板 7 目、南极 7 目、蠢子 7 目一次全造),而用户只看得见一目。
++						    改函数式:未激活的目连元素都不创建;已看过的目保持挂载(DOM/滚动位置/
++						    展开态全在),只是父组件重渲时不再穿透;切回去时拿本轮最新 children
++						    立刻渲一帧 —— 不重新挂载、不重取、不闪烁、零陈旧。 */}
++						<FreezeSubTab active={activeKey === item.key}>
++							{()=>(
++								item.key === 'snapshot' ? (
++									<pre className="horosa-huangji-snapshot">{snapshot}</pre>
++								) : item.key === 'classics' ? (
++									<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
++								) : item.key === 'settings' ? (
++									<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
++								) : item.key === 'yanfa' ? (
++									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} /></div>
++								) : item.key === 'framework' ? (
++									<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
++								) : (
++									<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
++								)
++							)}
++						</FreezeSubTab>
+ 					</TabPane>
+ 				))}
+ 			</Tabs>
+@@ -3101,29 +3242,10 @@ class KinAstroMain extends Component{
+ 	}
+ 
+ 	renderBottomQuickDock(){
+-		const snapshot = (()=>{ const base = buildSnapshotText(this.state.pan); const suffix = this.tiebanFrameworkSuffix(this.state.pan); return suffix ? `${base}\n\n${suffix}` : base; })();
+-		const visibleTabs = this.config.tabs.filter((item)=>{
+-			if(item.key === 'yanfa'){
+-				return this.config.serviceKey === 'xianqin';
+-			}
+-			if(!this.state.pan){
+-				return item.key === 'overview' || item.key === 'snapshot';
+-			}
+-			if(item.key === 'snapshot'){
+-				return !!snapshot;
+-			}
+-			if(item.key === 'classics'){
+-				const classics = this.state.pan && this.state.pan.classics;
+-				return !!(classics && classics.sections && classics.sections.length);
+-			}
+-			if(item.key === 'settings'){
+-				return this.config.serviceKey === 'cetian';
+-			}
+-			if(item.key === 'framework'){
+-				return this.config.serviceKey === 'tieban' && !!this.state.pan;
+-			}
+-			return this.getTabSections(item.key).length > 0;
+-		});
++		// 与右栏同源(snapshotText/visibleTabsOf 带缓存):此前这里把快照拼接与页签过滤
++		// 又整整算了第二遍,同一次重渲白付两倍。
++		const snapshot = this.snapshotText();
++		const visibleTabs = this.visibleTabsOf(snapshot);
+ 		const actions = [
+ 			{ label: '起盘', icon: 'quickPrimary', onClick: this.clickPlot },
+ 			...visibleTabs.map((item)=>({
+@@ -3225,7 +3347,7 @@ class KinAstroMain extends Component{
+ 							</div>
+ 							<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer${chartRendererClass}`} style={{ position: 'relative' }}>
+ 								{this.state.loading && this.state.pan && silentTechniquePanelsEnabled() ? <UpdatingBadge /> : null}
+-								<div className="horosa-huangji-board-host horosa-kinastro-board-host">{this.renderCenter()}</div>
++								<div className="horosa-huangji-board-host horosa-kinastro-board-host">{this.renderCenterSlot()}</div>
+ 							</div>
+ 							<div className="horosa-inspector-panel horosa-astro-content-panel horosa-huangji-info-panel">
+ 								<div className="horosa-side-panel-heading horosa-huangji-info-heading-main">

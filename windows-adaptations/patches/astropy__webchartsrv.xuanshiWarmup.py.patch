@@ -1,11 +1,51 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 194743f..e586a5c 100644
+index 896b922..f90acc3 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
-@@ -590,6 +590,22 @@ def _run_warmups():
+@@ -104,6 +104,9 @@ ledger_mark('py.imports_done', t0=_PY_T0)
+ # 请求级三段计时(HOROSA_PY_CHART_TIMING)并入启动账本:
+ # 开=对 /chart 记 init/build/encode 三段写账本;默认关=输出与响应逐字节不变。
+ _PY_CHART_TIMING = os.environ.get('HOROSA_PY_CHART_TIMING', '0').lower() in ('1', 'true', 'yes', 'on')
++# horosa_chart_no_stdout_dump_v1:默认关。置 1 恢复「每个 /chart 打印整个请求字典」的旧行为
++# (只应在本机排障时开 —— 该字典含出生日期/时间/经纬度/地名等个人数据)。
++_CHART_DEBUG_DUMP = os.environ.get('HOROSA_CHART_DEBUG_DUMP', '0').lower() in ('1', 'true', 'yes', 'on')
+ 
+ 
+ 
+@@ -187,7 +190,12 @@ class WebChartSrv:
+             _geoerr = validate_geo(data)
+             if _geoerr:
+                 return jsonpickle.encode(_geoerr, unpicklable=False)
+-            print(data)
++            # horosa_chart_no_stdout_dump_v1:原先每个 /chart 都 print(data) —— 把**整个请求字典**
++            # (含出生日期/时间/经纬度/地名等个人数据)同步写进 stdout。三重代价:①打包件里 stdout
++            # 经管道回主进程并落日志文件,写盘在请求路径上同步发生;②它是调试残留,产线无人读;
++            # ③把用户出生信息持续写进日志文件本身就不应该。需要时用下面的 _CHART_DEBUG_DUMP 显式开。
++            if _CHART_DEBUG_DUMP:
++                print(data, flush=True)
+ 
+             _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'))
+             _trip_orig = push_request_trip(data.get('triplicity'))
+@@ -641,6 +649,53 @@ def _run_warmups():
      except Exception:
          traceback.print_exc()
      STARTUP_GATE.set()
++    # horosa_kentang_prewarm_modules_v1:请求路径内惰性 import 的重模块(当前:太乙·博弈论,
++    # 实测冷导入 528ms / 温 0.001ms)。**刻意放在门之后** —— prewarm_kentang_services() 跑在
++    # 门之前,把这半秒并进去等于直接把启动门推迟 528ms;预热只许吃空闲,不许延长等待窗
++    # (与下面 xuanshi 预热同一条规矩)。只 import 不调用 ⇒ 任何请求输出逐字节不变。
++    # kill-switch:HOROSA_KENTANG_MODULE_PREWARM=0。
++    if os.environ.get('HOROSA_KENTANG_MODULE_PREWARM', '1').lower() not in ('0', 'false', 'no', 'off'):
++        try:
++            t5 = time.perf_counter()
++            from websrv.kentang.registry import prewarm_kentang_modules
++            _mw, _mf = prewarm_kentang_modules()
++            _mw_ms = (time.perf_counter() - t5) * 1000.0
++            print('kentang module prewarm ready in {0:.3f}s (warmed={1}, failed={2})'.format(
++                _mw_ms / 1000.0, _mw, _mf), flush=True)
++            ledger_mark('py.warmup_kentang_modules', t0=_PY_T0, ms=_mw_ms)
++        except Exception:
++            traceback.print_exc()
 +    # xuanshi_summary_warmup_v1:玄学史首点的最大一次性成本不在 XuanShiSrv 类加载
 +    # (上面的 kentang prewarm 已盖),而在 global_summary() 首算(全表 load_events()
 +    # SELECT + 译名 join + celestial 装载,冷 ~2.3s)。放在门开之后:绝不延长业务请求
@@ -20,6 +60,21 @@ index 194743f..e586a5c 100644
 +            _xs_ms = (time.perf_counter() - t3) * 1000.0
 +            print('xuanshi summary warmup ready in {0:.3f}s'.format(_xs_ms / 1000.0), flush=True)
 +            ledger_mark('py.warmup_xuanshi_summary', t0=_PY_T0, ms=_xs_ms)
++        except Exception:
++            pass
++        # horosa_xuanshi_longtext_ondemand_v1:上面那发只暖到 summary 端点(20KB/59ms,且客户端已去重),
++        # 天象微年表页首屏真正付的是 microchronology 无筛选那一发(全表扫 + 全量序列化)。它不走
++        # load_events memo,故 summary 预热盖不到 —— 这里按「前端进页时的同一组参数」
++        # (无筛选 + limit=MICRO_LIST_LIMIT)预热 celestial 模块自己的 micro memo:预热与首点命中
++        # 同一 memo 键、返回同一 dict,逐字节一致,只是把成本从可见点击路径挪进空闲。
++        # 失败静默 = 首点回到冷即付的现状;kill-switch 同上 HOROSA_XUANSHI_WARMUP=0。
++        try:
++            t4 = time.perf_counter()
++            from astrostudy.xuanshi import celestial as _xs_ce
++            _xs_ce.microchronology(limit=_xs_ce.MICRO_LIST_LIMIT)
++            _mc_ms = (time.perf_counter() - t4) * 1000.0
++            print('xuanshi microchronology warmup ready in {0:.3f}s'.format(_mc_ms / 1000.0), flush=True)
++            ledger_mark('py.warmup_xuanshi_micro', t0=_PY_T0, ms=_mc_ms)
 +        except Exception:
 +            pass
  

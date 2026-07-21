@@ -1,0 +1,222 @@
+diff --git a/astrostudyui/src/components/astro/AstroLunarReturn.js b/astrostudyui/src/components/astro/AstroLunarReturn.js
+index 4d7a2ba..3573460 100644
+--- a/astrostudyui/src/components/astro/AstroLunarReturn.js
++++ b/astrostudyui/src/components/astro/AstroLunarReturn.js
+@@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
+ import * as AstroHelper from './AstroHelper';
+ import request from '../../utils/request';
+ import * as Constants from '../../utils/constants';
+-import { randomStr, convertToArray} from '../../utils/helper';
++import { convertToArray} from '../../utils/helper';
+ import styles from '../../css/styles.less';
+ import DateTime from '../comp/DateTime';
+ import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+@@ -17,6 +17,11 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
+ import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
+ import UpdatingBadge from '../common/UpdatingBadge';
+ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const TabPane = Tabs.TabPane;
+ const Option = Select.Option;
+@@ -35,6 +40,7 @@ class AstroLunarReturn extends Component{
+ 		this.requestData = this.requestData.bind(this);
+ 		this.genAspectDom = this.genAspectDom.bind(this);
+ 		this.changeDblChartType = this.changeDblChartType.bind(this);
++		this.changeChartTab = this.changeChartTab.bind(this);
+ 		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
+ 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+ 
+@@ -68,6 +74,9 @@ class AstroLunarReturn extends Component{
+ 			dirChart: null,
+ 			inverse: true,
+ 			secDirChart: null,
++			// 受控子页签(原 defaultActiveKey 非受控):FreezeSubTab 需要知道哪一页在前台。
++			// 初值 = 原 defaultActiveKey='singlechart',首屏行为逐字不变。
++			chartTab: 'singlechart',
+ 		}
+ 
+ 		if(this.state.params.date){
+@@ -119,7 +128,13 @@ class AstroLunarReturn extends Component{
+ 	}
+ 
+ 	genNatalParams(chartObj){
+-		let qryparam = chartObj ? chartObj.params : {};
++		// horosa_no_mutate_chart_params_v1(PERF-R9 Ship 6):此前是 `let qryparam = chartObj.params`
++		// 然后直接 `qryparam.date = …` —— 就地变异**共享的盘对象**。副作用是真的:
++		// AstroExtraCommon.chartRequestKey 把 params.date/time 计入请求键,于是「本技法有没有被挂载过」
++		// 会改变其它技法的缓存键。改为在本地副本上派生(birth 仍是唯一真源,chartParams 侧本就有同款回退),
++		// 盘对象自此只读 —— 这也是任何按引用比较的 memo/sCU 能成立的前提。
++		const src = (chartObj && chartObj.params) ? chartObj.params : {};
++		let qryparam = { ...src };
+ 		let datetime = new DateTime();
+ 		if(qryparam.birth){
+ 			let parts = qryparam.birth.split(' ');
+@@ -201,6 +216,8 @@ class AstroLunarReturn extends Component{
+ 		}
+ 
+ 		this.setState(st, ()=>{
++			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
++			markPanelReady('direction');
+ 			const chartValue = this.props.value;
+ 			saveModuleAISnapshotLazy('lunarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'lunarreturn'), {
+ 				module: 'lunarreturn',
+@@ -265,7 +282,30 @@ class AstroLunarReturn extends Component{
+ 		});
+ 	}
+ 
++	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
++	// state.dirChart(推运结果对象,每次请求整体替换)、props.value(本命盘)、props.showPlanetHouseInfo
++	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
++	// 「更新中」角标开合、子页签切换、父组件重渲等与相位无关的重渲不再重建数百个 React 元素。
++	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
+ 	genAspectDom(){
++		const cache = this._aspectDomCache;
++		if(cache
++			&& cache.dir === this.state.dirChart
++			&& cache.natal === this.props.value
++			&& cache.phi === this.props.showPlanetHouseInfo){
++			return cache.dom;
++		}
++		const dom = this.buildAspectDom();
++		this._aspectDomCache = {
++			dir: this.state.dirChart,
++			natal: this.props.value,
++			phi: this.props.showPlanetHouseInfo,
++			dom: dom,
++		};
++		return dom;
++	}
++
++	buildAspectDom(){
+ 		if(this.state.dirChart === undefined || this.state.dirChart === null){
+ 			return null;
+ 		}
+@@ -311,7 +351,7 @@ class AstroLunarReturn extends Component{
+ 			if(i % 2 === 0){
+ 				if(i > 0){
+ 					let dom = (
+-						<div key={randomStr(8)}>
++						<div key={`row-${i}`}>
+ 							<Row>
+ 								{cols}
+ 							</Row>
+@@ -325,7 +365,7 @@ class AstroLunarReturn extends Component{
+ 			cols.push(divs[i]);
+ 		}
+ 		rows.push((
+-			<Row key={randomStr(8)}>
++			<Row key="row-last">
+ 				{cols}
+ 			</Row>
+ 		));
+@@ -344,6 +384,10 @@ class AstroLunarReturn extends Component{
+ 		});
+ 	}
+ 
++	changeChartTab(key){
++		this.setState({ chartTab: key });
++	}
++
+ 	componentDidMount(){
+ 		this.unmounted = false;
+ 		this.requestData();
+@@ -469,6 +513,12 @@ class AstroLunarReturn extends Component{
+ 			overflowX:'hidden',
+ 		};
+ 		let chartHeight = height - 50;
++		// 受控 activeKey 的可用键集合:第二返照(对比)盘是条件渲染的,盘不在时该键不存在 ——
++		// 受控 Tabs 若停在已消失的键会显示空白,故此处兜回首页签(非受控时代由 antd 内部兜)。
++		const availChartTabs = ['singlechart', 'nautalchart', 'doublechart'];
++		if(secRChart){ availChartTabs.push('secsinglechart'); }
++		if(secChartObj){ availChartTabs.push('secdoublechart'); }
++		const chartTab = availChartTabs.indexOf(this.state.chartTab) >= 0 ? this.state.chartTab : 'singlechart';
+ 
+ 		return (
+ 			<div>
+@@ -477,54 +527,67 @@ class AstroLunarReturn extends Component{
+ 						{/* keep-stale 角标:重取期间旧返照盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
+ 						<div style={{ position: 'relative' }}>
+ 						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
++						{/* horosa_freeze_subtabs_v1:最多五张盘此前全部常驻重渲(每次切时间/改选项都画 5 张)。
++						    改受控 + FreezeSubTab:只有前台那张参与重渲;切回时拿本轮最新 children 立即渲一帧,
++						    不卸载、不重发请求、不丢滚动位置。截图只取激活面板,AI 快照走数据不走 DOM。 */}
+ 						<Tabs
+-							defaultActiveKey='singlechart' tabPosition='bottom'
++							activeKey={chartTab} tabPosition='bottom'
++							onChange={this.changeChartTab}
+ 							style={{ height: height }}
+ 						>
+ 							<TabPane tab="返照盘" key="singlechart">
+-									<AstroChart value={rChart} 
++								<FreezeSubTab active={chartTab === 'singlechart'}>
++									<AstroChart value={rChart}
+ 										chartDisplay={this.props.chartDisplay}
+ 										planetDisplay={this.props.planetDisplay}
+ 										lotsDisplay={this.props.lotsDisplay}
+ 										showAstroMeaning={this.props.showAstroMeaning}
+ 										height={chartHeight}
+ 									/>
++								</FreezeSubTab>
+ 							</TabPane>
+ 							<TabPane tab="原命盘" key="nautalchart">
+-									<AstroChart value={chartObj.natualChart} 
++								<FreezeSubTab active={chartTab === 'nautalchart'}>
++									<AstroChart value={chartObj.natualChart}
+ 										chartDisplay={this.props.chartDisplay}
+ 										planetDisplay={this.props.planetDisplay}
+ 										lotsDisplay={this.props.lotsDisplay}
+ 										showAstroMeaning={this.props.showAstroMeaning}
+ 										height={chartHeight}
+ 									/>
++								</FreezeSubTab>
+ 							</TabPane>
+ 							<TabPane tab="对比盘" key="doublechart">
+-									<AstroDoubleChart value={chartObj} 
++								<FreezeSubTab active={chartTab === 'doublechart'}>
++									<AstroDoubleChart value={chartObj}
+ 										height={chartHeight}
+ 										planetDisplay={this.props.planetDisplay}
+ 										lotsDisplay={this.props.lotsDisplay}
+ 										chartDisplay={this.props.chartDisplay}
+ 										showAstroMeaning={this.props.showAstroMeaning}
+ 									/>
++								</FreezeSubTab>
+ 							</TabPane>
+ 							{
+ 								secRChart && (
+ 									<TabPane tab="第二返照盘" key="secsinglechart">
+-											<AstroChart value={secRChart} 
++										<FreezeSubTab active={chartTab === 'secsinglechart'}>
++											<AstroChart value={secRChart}
+ 												chartDisplay={this.props.chartDisplay}
+ 												planetDisplay={this.props.planetDisplay}
+ 												lotsDisplay={this.props.lotsDisplay}
+ 												showAstroMeaning={this.props.showAstroMeaning}
+ 												height={chartHeight}
+ 											/>
++										</FreezeSubTab>
+ 									</TabPane>
+-	
++
+ 								)
+ 							}
+ 							{
+ 								secChartObj && (
+ 									<TabPane tab="第二返照对比盘" key="secdoublechart">
++										<FreezeSubTab active={chartTab === 'secdoublechart'}>
+ 											<AstroDoubleChart value={secChartObj}
+ 												height={chartHeight}
+ 												planetDisplay={this.props.planetDisplay}
+@@ -532,6 +595,7 @@ class AstroLunarReturn extends Component{
+ 												chartDisplay={this.props.chartDisplay}
+ 												showAstroMeaning={this.props.showAstroMeaning}
+ 											/>
++										</FreezeSubTab>
+ 									</TabPane>
+ 								)
+ 							}

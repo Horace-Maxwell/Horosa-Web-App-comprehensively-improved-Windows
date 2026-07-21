@@ -1,9 +1,11 @@
 import { Component } from 'react';
 import { Row, Col, Popover} from 'antd';
-import { randomStr } from '../../utils/helper';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { resolveStarCharger } from './starChargerLazy';
 import DateTime from '../comp/DateTime';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 function gongName(gong12, palace, part){
 	return gong12 && gong12[palace] && gong12[palace][part] && gong12[palace][part].name
@@ -97,10 +99,10 @@ class MDSYear extends Component{
 				</div>
 			)
 			return (
-				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + nowage + '周岁'} key={randomStr(8)}
+				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + nowage + '周岁'} key={`year-${idx}`}
 					content={condom}
 				>
-					<Row key={randomStr(8)} style={{width: '100%'}}>
+					<Row key={`year-row-${idx}`} style={{width: '100%'}}>
 						<Col span={24} className={y >= now.year ? 'horosa-bazi-year-cell horosa-bazi-year-cell-future' : 'horosa-bazi-year-cell'} style={yStyle}>
 							<span>{sub.ganzi || ''}</span>
 						</Col>

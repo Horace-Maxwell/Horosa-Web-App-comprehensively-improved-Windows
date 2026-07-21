@@ -3,6 +3,7 @@
 Created on Thu Jan 16 09:49:35 2020
 @author: kentang
 """
+import os
 import re
 import time
 import itertools
@@ -13,6 +14,48 @@ from angan import Angan
 import config
 
 
+# ── horosa_qimen_pan_memo_v1(PERF-R9)────────────────────────────────────────────
+# 症状:`webqimensrv.pan` 先 `_mode_result(...)`(hour/overall 模式即 `qimen_obj.pan(...)`),
+# 紧接着又 `qimen_obj.overall(...)`,而 `overall()` 内部**再调一次** `self.pan(option, school)`
+# —— 同参数、同结果,整整算两遍。cProfile 实测 `pan()` ncalls=2、cumtime 0.563s,
+# 约占原始 ~375ms 请求的 **45%**。`ypan()` 同样被调两次(便宜,但同一形状)。
+#
+# 为什么实例级 memo 就等于请求级 memo(这是本改动全部安全性的地基):
+#   · `webqimensrv.py:217` **每个请求新建一个 Qimen 实例**;
+#   · 两个 thread-local 开关(日界 `after23` / 晚子时 `hour_gan_next`)在 `:199-207`
+#     即**实例构造之前**设定,实例存活期内不可能变;
+#   ⇒ 实例生命周期 == 请求生命周期,不存在跨请求、跨开关的串染面。
+#     这与仓库里已发货的 `perchart.py` 实例级 memo 是同一形状。
+#
+# 为什么共享对象不会泄漏到响应:`webqimensrv._json_safe`(:47-61)对 dict/list 一律**重建**,
+# 所以 `selected` 与 `all_raw` 仍是两棵互不相干的树,`:140` 的 `minute is not selected`
+# 身份判定结果不变。
+#
+# ★ 只 memo `Qimen` 的方法。`config.pan_sky_minute` **绝不可** memo ——
+#   本文件 `gong_chengsun_minute` 里 `del sky["中"]` 会**就地变异**它的返回值
+#   (已核实:那是本文件唯一一处就地变异,且 sky 来自 config 模块函数而非 Qimen 方法)。
+#
+# kill-switch:HOROSA_QIMEN_PAN_MEMO=0 → 整个 memo 退化为直通,逐字节回到改动前。
+_PAN_MEMO_ENABLED = os.environ.get('HOROSA_QIMEN_PAN_MEMO', '1').lower() not in ('0', 'false', 'no', 'off')
+
+
+def _instance_memo(fn):
+    """把方法结果缓存在实例上(键 = 方法名 + 位置参数)。仅用于纯计算、返回值只读的方法。"""
+    _name = fn.__name__
+
+    def _wrapper(self, *args):
+        memo = getattr(self, '_memo', None)
+        if memo is None:                      # kill-switch 关闭时 self._memo 就是 None
+            return fn(self, *args)
+        key = (_name,) + args
+        if key not in memo:
+            memo[key] = fn(self, *args)
+        return memo[key]
+
+    _wrapper.__name__ = _name
+    _wrapper.__doc__ = fn.__doc__
+    return _wrapper
+
 
 class Qimen:
     """奇門函數"""
@@ -22,6 +65,8 @@ class Qimen:
         self.day = day
         self.hour = hour
         self.minute = minute
+        # horosa_qimen_pan_memo_v1:实例 == 请求(见文件头),故这就是请求级 memo。
+        self._memo = {} if _PAN_MEMO_ENABLED else None
 
     def year_yuen(self):
         """搵上中下元"""
@@ -37,6 +82,7 @@ class Qimen:
             return [yuen1, yuen_list[yuen_list.index(yuen)-1]]
         return None
 
+    @_instance_memo
     def qimen_ju_day(self):
         """奇門局日"""
         ju_day_dict = {tuple(list("甲己")):"甲己日",
@@ -55,6 +101,7 @@ class Qimen:
             find_d = config.multi_key_dict_get(ju_day_dict, gz[2][1])
         return find_d
     #值符
+    @_instance_memo
     def hourganghzi_zhifu(self):
         """時干支值符"""
         gz = config.gangzhi(self.year,
@@ -80,6 +127,7 @@ class Qimen:
         b = list(map(lambda x: jz[0::10][x] + config.tian_gan[4:10][x],list(range(0,6))))
         return config.multi_key_dict_get(dict(zip(a,b)), gz[4])
     #地盤
+    @_instance_memo
     def pan_earth(self, option):
         """時家奇門地盤設置, option 1:拆補 2:置閏 3:茅山 4:無閏"""
         qmju = {1: config.qimen_ju_name_chaibu,
@@ -95,6 +143,7 @@ class Qimen:
                         {"陽遁":list("戊己庚辛壬癸丁丙乙"),
                          "陰遁":list("戊乙丙丁癸壬辛庚己")}.get(qmju[0:2])))
     #地盤
+    @_instance_memo
     def pan_earth_minute(self):
         """刻家奇門地盤設置"""
         ke = config.qimen_ju_name_ke(self.year,
@@ -107,18 +156,25 @@ class Qimen:
                         {"陽遁":list("戊己庚辛壬癸丁丙乙"),
                          "陰遁":list("戊乙丙丁癸壬辛庚己")}.get(ke[0:2])))
     #逆地盤
+    @_instance_memo
     def pan_earth_r(self, option):
         """時家奇門地盤(逆)設置, option 1:拆補 2:置閏"""
-        pan_earth_v = list(self.pan_earth(option).values())
-        pan_earth_k = list(self.pan_earth(option).keys())
+        # horosa_qimen_cse_v1(PERF-R9):同一函数同参调两次(取 values 与 keys)。改取自同一
+        # dict —— 顺序一一对应的保证比原式更强(原式是两个独立构造的 dict,只是恰好相同)。
+        _pe = self.pan_earth(option)
+        pan_earth_v = list(_pe.values())
+        pan_earth_k = list(_pe.keys())
         return dict(zip(pan_earth_v, pan_earth_k))
 
     def pan_earth_min_r(self):
         """刻家奇門地盤(逆)設置"""
-        pan_earth_v = list(self.pan_earth_minute().values())
-        pan_earth_k = list(self.pan_earth_minute().keys())
+        # horosa_qimen_cse_v1:同上。
+        _pem = self.pan_earth_minute()
+        pan_earth_v = list(_pem.values())
+        pan_earth_k = list(_pem.keys())
         return dict(zip(pan_earth_v, pan_earth_k))
     #天盤
+    @_instance_memo
     def pan_sky(self, option):
         qmju = {
             1: config.qimen_ju_name_chaibu,
@@ -147,9 +203,12 @@ class Qimen:
                             self.day,
                             self.hour,
                             self.minute)
-        fu_location = self.pan_earth_r(option).get(gz[3][0])
+        # horosa_qimen_cse_v1:pan_earth_r(option) 原本在此被同参调用两次,而它内部还要再算一次
+        # pan_earth(option) —— 复用同一结果,取值完全相同。
+        _per = self.pan_earth_r(option)
+        fu_location = _per.get(gz[3][0])
         fu_head_location = zhifu_n_zhishi.get("值符星宮")[1]
-        fu_head_location2 = self.pan_earth_r(option).get(fu_head)
+        fu_head_location2 = _per.get(fu_head)
         gan_head = zhifu_n_zhishi.get("值符天干")[1]
         zhifu = zhifu_n_zhishi["值符星宮"][0]
         earth = self.pan_earth(option)
@@ -253,6 +312,7 @@ class Qimen:
                 d[key] = {value: b[key][value]}
         return d
 
+    @_instance_memo
     def pan_feipan(self, option):
         """飛盤排盤(洛書飛布,九星九門九神含中宮);與前端 DunJiaCalc.panFeipan 同算法。
         option 定局法 1拆補/2置閏/3茅山/4無閏。輸出卦鍵 dict(坎坤震巽中乾兌艮離),與轉盤同格式,前端 merge 統一繁→簡。"""
@@ -318,6 +378,7 @@ class Qimen:
             },
         }
 
+    @_instance_memo   # horosa_qimen_pan_memo_v1:overall() 内部会再调一次同参 pan(),原本整整算两遍(~45%)
     def pan(self, option, school="轉盤"):#1拆補 #2置閏
         """時家奇門起盤綜合, option 1:拆補 2:置閏;school 轉盤(預設)/飛盤(洛書飛布九神)"""
         gz = config.gangzhi(self.year,
@@ -400,6 +461,7 @@ class Qimen:
             result["值符值使"] = fei["值符值使"]
         return result
 
+    @_instance_memo   # overall() 也会调它一次,与 _mode_result 的 minute 模式重合
     def pan_minute(self, option):
         """刻家奇門起盤綜合, option 1:拆補 2:置閏"""
         gz = config.gangzhi(self.year,
@@ -533,12 +595,14 @@ class Qimen:
                      i + '''</td>''' for i in list("艮坎乾")]) + "</tr></table></div>"
         return a + c + d
 
+    @_instance_memo   # webqimensrv 在 :220 与 :222(golden 模式)各调一次,同参
     def ypan(self):
         kok = {"上元甲子":"陰一局",
                "中元甲子":"陰四局",
                "下元甲子":"陰七局"}.get(self.year_yuen()[0])
         return kok
 
+    @_instance_memo   # _mode_result 的 golden 模式 + overall() 各一次
     def gpan(self):
         j_q = config.jq(self.year,
                         self.month,

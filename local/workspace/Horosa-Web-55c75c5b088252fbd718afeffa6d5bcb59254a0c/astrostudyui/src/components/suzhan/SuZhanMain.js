@@ -17,6 +17,9 @@ import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/mod
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
 import XQIcon from '../xq-icons';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
 
@@ -549,6 +552,21 @@ class SuZhanMain extends Component{
 		});
 	}
 
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this.unmounted = false;
 		if(typeof window !== 'undefined'){
@@ -569,6 +587,13 @@ class SuZhanMain extends Component{
 	}
 
 	componentDidUpdate(prevProps){
+		// horosa_panel_ready_v1:宿盘之中栏(SuZhanChart)与右栏(概览/宫宿/快照)全由 props 纯派生 ——
+		// 没有「取数落定」的那一次 setState,故就绪点=这些 props 变更所引发的这一次 commit。
+		// 放在 restoreFromCurrentCase 早退之前:载入事盘也是一次真实的画完。
+		if(prevProps.value !== this.props.value || prevProps.fields !== this.props.fields
+			|| prevProps.planetDisplay !== this.props.planetDisplay || prevProps.chartDisplay !== this.props.chartDisplay){
+			markPanelReady('cnyibu');
+		}
 		if(this.restoreFromCurrentCase(false)){
 			return;
 		}
@@ -688,21 +713,31 @@ class SuZhanMain extends Component{
 	}
 
 	renderRightPanel(){
-		const snapshot = buildSuzhanSnapshotText(this.props.value, this.props.fields, this.props.planetDisplay);
+		// horosa_freeze_subtabs_v1:右栏三页签冻结。
+		// 附带根治一处纯浪费:buildSuzhanSnapshotText(全盘转文本)原先在【每次】renderRightPanel 顶部
+		// 无条件求值,而它只被「快照」这一个页签消费 —— 现挪进该页签的函数式 children,
+		// 只在快照页真要画时才算。输出逐字不变(纯函数、同入参),故非降级。
+		const activeKey = this.state.rightPanelTab;
 		return (
-			<Tabs activeKey={this.state.rightPanelTab} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-suzhan-tabs">
+			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-suzhan-tabs">
 				<TabPane tab="概览" key="overview">
-					<div className="horosa-suzhan-info-card">
-						{this.renderInfoRows()}
-					</div>
+					<FreezeSubTab active={activeKey === 'overview'}>{() => (
+						<div className="horosa-suzhan-info-card">
+							{this.renderInfoRows()}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="宫宿" key="houses">
-					<div className="horosa-suzhan-line-list">
-						{this.renderHouseSuRows()}
-					</div>
+					<FreezeSubTab active={activeKey === 'houses'}>{() => (
+						<div className="horosa-suzhan-line-list">
+							{this.renderHouseSuRows()}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="快照" key="snapshot">
-					<pre className="horosa-suzhan-snapshot">{snapshot}</pre>
+					<FreezeSubTab active={activeKey === 'snapshot'}>{() => (
+						<pre className="horosa-suzhan-snapshot">{buildSuzhanSnapshotText(this.props.value, this.props.fields, this.props.planetDisplay)}</pre>
+					)}</FreezeSubTab>
 				</TabPane>
 			</Tabs>
 		);

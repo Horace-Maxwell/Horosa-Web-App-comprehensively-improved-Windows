@@ -5,6 +5,7 @@ import UranianDialMain from './UranianDialMain';
 import UranianGraphicEphemeris from './UranianGraphicEphemeris';
 import UranianHouseFrames from './UranianHouseFrames';
 import { getStoredUranianDisplay } from './UranianDialStyle';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const TabPane = Tabs.TabPane;
 
@@ -70,8 +71,14 @@ class AstroGermany extends Component{
 
 		return (
 			<div className="horosa-aux-module-page xq-chart-renderer xq-chart-renderer-germany">
+				{/* horosa_freeze_subtabs_v1(PERF-R9 Ship 6 复核补齐):量化盘四个子页各包一层 FreezeSubTab。
+				    本 Tabs 早已受控(activeKey),但 children 全内联 —— 只要在「行星中点」页动一下设置,
+				    隐藏着的 90°中点盘(千行 render + 盘 SVG)/图形星历/六宫框也会整棵 reconcile 一遍。
+				    函数式 children:未激活过的子页连元素都不建;激活过后切走只冻结不卸载(state/DOM 全留),
+				    切回时拿本轮最新 props 立刻渲一帧。kill-switch: horosa.perf.freezeSubTabs。 */}
 				<Tabs activeKey={activeKey} onChange={this.changeTab} className="horosa-content-tabs horosa-germany-subtabs">
 					<TabPane tab="行星中点" key="Midpoint">
+						<FreezeSubTab active={activeKey === 'Midpoint'}>{()=>(
 						<AstroMidpoint
 							onChange={this.onFieldsChange}
 							height={childHeight}
@@ -83,8 +90,10 @@ class AstroGermany extends Component{
 							showAstroMeaning={this.props.showAstroMeaning}
 							hook={hook.Midpoint}
 						/>
+						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="90°中点盘" key="Dial">
+						<FreezeSubTab active={activeKey === 'Dial'}>{()=>(
 						<UranianDialMain
 							height={childHeight}
 							fields={this.props.fields}
@@ -93,17 +102,21 @@ class AstroGermany extends Component{
 							planetDisplay={this.props.planetDisplay}
 							hook={hook.Dial}
 						/>
+						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="图形星历" key="GraphicEphem">
+						<FreezeSubTab active={activeKey === 'GraphicEphem'}>{()=>(
 						<UranianGraphicEphemeris
 							height={childHeight}
 							fields={this.props.fields}
 							chart={this.props.chart}
 							hook={hook.GraphicEphem}
 						/>
+						)}</FreezeSubTab>
 					</TabPane>
 					{showFrames ? (
 						<TabPane tab="六宫框" key="HouseFrames">
+							<FreezeSubTab active={activeKey === 'HouseFrames'}>{()=>(
 							<UranianHouseFrames
 								height={childHeight}
 								fields={this.props.fields}
@@ -114,6 +127,7 @@ class AstroGermany extends Component{
 								showAstroMeaning={this.props.showAstroMeaning}
 								hook={hook.HouseFrames}
 							/>
+							)}</FreezeSubTab>
 						</TabPane>
 					) : null}
 				</Tabs>

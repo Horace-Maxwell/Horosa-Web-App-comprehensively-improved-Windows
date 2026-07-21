@@ -1,0 +1,111 @@
+diff --git a/astrostudyui/src/components/cntradition/Gods.js b/astrostudyui/src/components/cntradition/Gods.js
+index 2b90ec9..01f7098 100644
+--- a/astrostudyui/src/components/cntradition/Gods.js
++++ b/astrostudyui/src/components/cntradition/Gods.js
+@@ -1,8 +1,10 @@
+ import { Component } from 'react';
+ import { Row, Col } from 'antd';
+ import { XQCard as Card } from '../xq-ui';
+-import { randomStr } from '../../utils/helper';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ function safeArray(value){
+ 	return Array.isArray(value) ? value : [];
+@@ -27,9 +29,10 @@ class Gods extends Component{
+ 		let ganCols = this.genGods(rec.stem, '天干');
+ 		let ziCols = this.genGods(rec.branch, '地支');
+ 		let doms = [];
++		// 整柱/天干/地支/太岁 四段各最多入 doms 一次,故字面量键即稳定且互不重复。
+ 		if(cols){
+ 			let row = (
+-				<Row gutter={12} key={randomStr(8)}>
++				<Row gutter={12} key="pillar">
+ 					{cols}
+ 				</Row>
+ 			);
+@@ -37,7 +40,7 @@ class Gods extends Component{
+ 		}
+ 		if(ganCols){
+ 			let row = (
+-				<Row gutter={12} key={randomStr(8)}>
++				<Row gutter={12} key="stem">
+ 					{ganCols}
+ 				</Row>
+ 			);
+@@ -45,7 +48,7 @@ class Gods extends Component{
+ 		}
+ 		if(ziCols){
+ 			let row = (
+-				<Row gutter={12} key={randomStr(8)}>
++				<Row gutter={12} key="branch">
+ 					{ziCols}
+ 				</Row>
+ 			);
+@@ -58,21 +61,21 @@ class Gods extends Component{
+ 		for(let i=0; i<taisuiGods.length; i++){
+ 			let str = taisuiGods[i];
+ 			let span = (
+-				<span key={randomStr(8)}>{str}&emsp;</span>
++				<span key={i}>{str}&emsp;</span>
+ 			);
+ 			spans.push(span);
+ 		}
+ 		if(spans.length > 0){
+-			let title = (<Col key={randomStr(8)} span={4}>太岁：</Col>);
++			let title = (<Col key="title" span={4}>太岁：</Col>);
+ 			taisuiCols.push(title);
+ 			let content = (
+-				<Col key={randomStr(8)} span={20}>{spans}</Col>
++				<Col key="content" span={20}>{spans}</Col>
+ 			);
+ 			taisuiCols.push(content);
+ 		}
+ 		if(taisuiCols.length > 0){
+ 			let row = (
+-				<Row gutter={12} key={randomStr(8)}>
++				<Row gutter={12} key="taisui">
+ 					{taisuiCols}
+ 				</Row>
+ 			);
+@@ -94,32 +97,33 @@ class Gods extends Component{
+ 		const goodGods = safeArray(rec.goodGods);
+ 		const neutralGods = safeArray(rec.neutralGods);
+ 		const badGods = safeArray(rec.badGods);
++		// 三个循环共用同一 spans 数组,下标区间重叠,故键须带 good/neutral/bad 前缀方能同层唯一。
+ 		for(let i=0; i<goodGods.length; i++){
+ 			let str = goodGods[i];
+ 			let span = (
+-				<span key={randomStr(8)}>{str}&emsp;</span>
++				<span key={`good-${i}`}>{str}&emsp;</span>
+ 			);
+ 			spans.push(span);
+ 		}
+ 		for(let i=0; i<neutralGods.length; i++){
+ 			let str = neutralGods[i];
+ 			let span = (
+-				<span key={randomStr(8)}>{str}&emsp;</span>
++				<span key={`neutral-${i}`}>{str}&emsp;</span>
+ 			);
+ 			spans.push(span);
+ 		}
+ 		for(let i=0; i<badGods.length; i++){
+ 			let str = badGods[i];
+ 			let span = (
+-				<span key={randomStr(8)}>{str}&emsp;</span>
++				<span key={`bad-${i}`}>{str}&emsp;</span>
+ 			);
+ 			spans.push(span);
+ 		}
+ 		if(spans.length > 0){
+-			let title = (<Col key={randomStr(8)} span={4}>{titleStr}：</Col>);
++			let title = (<Col key="title" span={4}>{titleStr}：</Col>);
+ 			cols.push(title);
+ 			let content = (
+-				<Col key={randomStr(8)} span={20}>{spans}</Col>
++				<Col key="content" span={20}>{spans}</Col>
+ 			);
+ 			cols.push(content);
+ 		}

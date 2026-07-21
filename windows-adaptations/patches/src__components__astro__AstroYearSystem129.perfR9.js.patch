@@ -1,0 +1,68 @@
+diff --git a/astrostudyui/src/components/astro/AstroYearSystem129.js b/astrostudyui/src/components/astro/AstroYearSystem129.js
+index 77989e6..0be7d38 100644
+--- a/astrostudyui/src/components/astro/AstroYearSystem129.js
++++ b/astrostudyui/src/components/astro/AstroYearSystem129.js
+@@ -1,12 +1,12 @@
+ import { Component } from 'react';
+ import { Row, Col, Divider, } from 'antd';
+-import { randomStr } from '../../utils/helper';
+ import * as AstroConst from '../../constants/AstroConst';
+ import * as AstroText from '../../constants/AstroText';
+ import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
+ import { buildMeaningTipByCategory, } from './AstroMeaningData';
+ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
+ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
++import { markPanelReady } from '../../utils/perfMark';
+ // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+ // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
+ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+@@ -16,6 +16,9 @@ const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentL
+ const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
+ import styles from '../../css/styles.less';
+ import { XQTable as Table } from '../xq-ui';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ // 129 年系统 AI 快照（同步，读 chartObj.predictives.yearsystem129）。无数据返回 ''。
+ export function buildYearSystem129SnapshotText(chartObj){
+@@ -82,6 +85,9 @@ class AstroYearSystem129 extends Component{
+ 
+ 	componentDidUpdate(prevProps){
+ 		if(prevProps.value !== this.props.value){
++			// horosa_panel_ready_v1:本技法无自有请求 —— 表格整份来自 chartObj.predictives.yearsystem129,
++			// 「数据落定」就是拿到新盘对象后的这一次渲染提交,与带回调的技法同口径。
++			markPanelReady('direction');
+ 			this.saveAISnapshot();
+ 		}
+ 	}
+@@ -135,9 +141,9 @@ class AstroYearSystem129 extends Component{
+ 		return ds;
+ 	}
+ 
+-	genDom(ds){
++	genDom(ds, idx){
+ 		return (
+-			<Table key={randomStr(8)} dataSource={ds} columns={this.state.columns} rowKey='date' pagination={false} bordered size='small' />
++			<Table key={`ys129-${idx}`} dataSource={ds} columns={this.state.columns} rowKey='date' pagination={false} bordered size='small' />
+ 		);
+ 	}
+ 
+@@ -153,12 +159,13 @@ class AstroYearSystem129 extends Component{
+ 		let rowobj = null;
+ 		for(let i = 0; i < data.length; i++){
+ 			if(i % 3 === 0){ rowobj = []; rows.push(rowobj); }
+-			rowobj.push(this.genDom(this.convertToDataSource(data[i])));
++			rowobj.push(this.genDom(this.convertToDataSource(data[i]), i));
+ 		}
+ 		for(let i = 0; i < rows.length; i++){
+-			const cols = rows[i].map((d) => <Col key={randomStr(8)} span={8}>{d}</Col>);
+-			doms.push(<Row key={randomStr(8)} gutter={12}>{cols}</Row>);
+-			if(i < rows.length - 1){ doms.push(<Divider key={randomStr(8)} dashed={true} />); }
++			const cols = rows[i].map((d, ci) => <Col key={ci} span={8}>{d}</Col>);
++			// Row 与 Divider 交替推进同一个 doms 数组，故各自带前缀避免撞 key
++			doms.push(<Row key={`row-${i}`} gutter={12}>{cols}</Row>);
++			if(i < rows.length - 1){ doms.push(<Divider key={`divider-${i}`} dashed={true} />); }
+ 		}
+ 
+ 		return (

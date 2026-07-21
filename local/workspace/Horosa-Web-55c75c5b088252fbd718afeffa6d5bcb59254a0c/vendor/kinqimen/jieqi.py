@@ -41,8 +41,17 @@ tian_gan = '甲乙丙丁戊己庚辛壬癸'
 di_zhi = '子丑寅卯辰巳午未申酉戌亥'
 
 #%% 甲子平支
+# horosa_qimen_jiazi_const_v1(PERF-R9):六十甲子是编译期常量,原实现却在**每次调用**重建整张表。
+# cProfile 实测:单个 /qimen/pan 请求调用 4,712 次 → 282,720 次 lambda + 286,319 次 str.format,
+# 占整个请求 profile 时间的 46%。
+# 安全性:20 个调用点已逐一审计(config.py 14 处 / jieqi.py 3 处 / kinqimen.py 5 处),
+# 全部只读 —— 切片、new_list 的 `olist[a:]+olist[:a]`、dict(zip(...))、split_list、repeat_list,
+# 无一处就地变异,故共享同一份常量与每次重建逐字节等价。
+# 回滚:把 return 改成 `list(_JIAZI_CONST)`(保留「每次新列表」的契约,仍省掉 format/lambda)。
+_JIAZI_CONST = ["{}{}".format(tian_gan[x % len(tian_gan)], di_zhi[x % len(di_zhi)]) for x in range(60)]
+
 def jiazi():
-    return list(map(lambda x: "{}{}".format(tian_gan[x % len(tian_gan)],di_zhi[x % len(di_zhi)]),list(range(60))))
+    return _JIAZI_CONST
 
 
 def multi_key_dict_get(d, k):

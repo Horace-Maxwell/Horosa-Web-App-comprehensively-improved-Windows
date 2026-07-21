@@ -1,0 +1,213 @@
+diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
+index c81ccf4..0761592 100644
+--- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
++++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
+@@ -2,6 +2,8 @@ import { Component } from 'react';
+ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { safeLocalStorageSet } from '../../utils/safeStorage';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
+ import { Modal, message, Tag } from 'antd';
+ import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
+ import XQIcon from '../xq-icons';
+@@ -37,7 +39,8 @@ import {
+ 	setLiurengRunyearLocalCache,
+ } from '../../utils/localCalcCache';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+-import { chartDrawGuardEnabled } from '../../utils/perfFlags';
++import { chartDrawGuardEnabled, techniqueResultCacheEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+ 
+ 
+ const {Option} = Select;
+@@ -4149,6 +4152,19 @@ function pushCache(map, key, val, max = 96){
+ 	}
+ }
+ 
++// horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear 的结果缓存**提升到模块级**。
++// 原为 per-instance(this.godsCache 等):每次切走六壬页 → 组件卸载 → 缓存连同在途 Promise 一起蒸发,
++// 切回来整趟往返重付。这两个端点是确定性纯计算(key=genGodsParams/genRunYearParams 的 JSON,
++// 即请求体本身:'YYYY-MM-DD'/'HH:mm' 格式化字串 + 经纬/时区/性别/日界开关,无 Date 对象、无随机、
++// 无「现在时刻」依赖),故跨实例复用与直连逐值等价。
++// ns 显式写死在下面四个常量名里(**不**由 URL 派生:ServerRoot 端口每次后端启动随机,URL 派生的
++// ns 会跨会话碎片化)。上限沿用原调用点的 72 / 96(pushCache 逐条传入,未改)。
++// 关 horosa.perf.techniqueResultCache → 构造函数回到 new Map()(=今日的 per-instance 行为,逐字一致)。
++const LIURENG_GODS_MEM = new Map();
++const LIURENG_GODS_INFLIGHT = new Map();
++const LIURENG_RUNYEAR_MEM = new Map();
++const LIURENG_RUNYEAR_INFLIGHT = new Map();
++
+ function buildKeData(layout, chartObj){
+ 	const result = {
+ 		raw: [],
+@@ -4563,10 +4579,12 @@ class LiuRengMain extends Component{
+ 		this.timeHook = {};
+ 		this.pendingFields = null;
+ 		this.birthYearGanZiCache = {};
+-		this.godsCache = new Map();
+-		this.godsInflight = new Map();
+-		this.runYearServerCache = new Map();
+-		this.runYearServerInflight = new Map();
++		// horosa_kentang_result_cache_v1:命中模块级 LRU(切页往返 0 请求);关闸=每实例独立 Map(旧行为)。
++		const lrShareCache = techniqueResultCacheEnabled();
++		this.godsCache = lrShareCache ? LIURENG_GODS_MEM : new Map();
++		this.godsInflight = lrShareCache ? LIURENG_GODS_INFLIGHT : new Map();
++		this.runYearServerCache = lrShareCache ? LIURENG_RUNYEAR_MEM : new Map();
++		this.runYearServerInflight = lrShareCache ? LIURENG_RUNYEAR_INFLIGHT : new Map();
+ 		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
+ 		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
+ 		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
+@@ -4606,6 +4624,53 @@ class LiuRengMain extends Component{
+ 				}
+ 				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
+ 			};
++			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
++			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
++			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
++			this.props.hook.prewarmRequests = (flds)=>{
++				if(this.unmounted){
++					return;
++				}
++				try{
++					const params = this.genGodsParams(flds || this.props.fields);
++					if(params){
++						request(`${Constants.ServerRoot}/liureng/gods`, {
++							body: JSON.stringify(params),
++							silent: true,
++							retry: { retries: 0 },
++						}).catch(()=>{ /* 预热静默 */ });
++					}
++				}catch(e){ /* 预热失败无害 */ }
++			};
++			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):/liureng/gods 是确定性纯计算
++			// (同 时间+地理+日界设置 恒同神将)→ 登记步进预取,结果落 requestDedupe L1/L2,
++			// 用户点下一步时 requestGods 里的 request() 即命中。
++			// 🔴 只登记「按时间起课」这条确定性链;六壬页若走随机/摇课起课路径,其参数不经本构造。
++			if(stepPrefetchEnabled()){
++				registerStepPrefetcher('liureng', (steppedFields)=>{
++					if(this.unmounted || !steppedFields){
++						return [];
++					}
++					let params = null;
++					try{
++						params = this.genGodsParams(steppedFields);
++					}catch(e){
++						return [];
++					}
++					if(!params){
++						return [];
++					}
++					return [{
++						name: 'liureng:gods',
++						path: '/liureng/gods',
++						run: ()=> request(`${Constants.ServerRoot}/liureng/gods`, {
++							body: JSON.stringify(params),
++							silent: true,
++							retry: { retries: 0 },
++						}),
++					}];
++				});
++			}
+ 		}
+ 	}
+ 
+@@ -5066,7 +5131,12 @@ class LiuRengMain extends Component{
+ 		};
+ 
+ 		this.setState(st, ()=>{
+-			this.requestRunYear();
++			// horosa_panel_ready_v1:六壬「画完」= 主盘(本次 st)+ 右栏「流年」段(requestRunYear 的
++			// 二段 setState)都落定,按 owner 口径(中栏+右栏全画完)记的是后者。requestRunYear 有多条
++			// 早退分支(liureng 为空 / 缺日期 / 年份校验 Modal),挂在其 promise 上两态都能收口;
++			// markPanelReady 自带 generation 去重,重复调用为空操作。
++			const markReady = ()=>{ markPanelReady('liureng'); };
++			Promise.resolve(this.requestRunYear()).then(markReady, markReady);
+ 			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
+ 		});
+ 	}
+@@ -5884,7 +5954,14 @@ class LiuRengMain extends Component{
+ 				onChange={(key)=>this.setState({ rightPanelTab: key })}
+ 				animated={false}
+ 			>
++				{/* horosa_freeze_subtabs_v1:右栏 8 面板 keep-alive(无 destroyInactiveTabPane),
++				    改前每次父重渲(切时间/改 13 项设置/换页签)都把 格局/信息/毕法(百余条条文 map)/
++				    参考/概览/占断/取象/七政 八个面板【全部】重跑一遍,而用户只看得见其中一个。
++				    函数式 FreezeSubTab:未激活过 → 连元素都不建;激活过但当前非激活 → sCU 跳过
++				    (DOM/实例/滚动位置/展开态全部保留,不卸载);切回 → 拿本轮最新 children 立刻渲一帧,
++				    不重发请求、不闪烁、无陈旧。kill-switch horosa.perf.freezeSubTabs=0 即回旧行为。 */}
+ 				<TabPane tab="格局" key="dage">
++					<FreezeSubTab active={activeTabKey === 'dage'}>{()=>(
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{refSummary ? (
+ 							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
+@@ -5930,8 +6007,10 @@ class LiuRengMain extends Component{
+ 							</Card>
+ 						)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="信息" key="meta">
++					<FreezeSubTab active={activeTabKey === 'meta'}>{()=>(
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{metaItems && metaItems.length ? metaItems.map((group)=>(
+ 							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
+@@ -5950,11 +6029,15 @@ class LiuRengMain extends Component{
+ 							</Card>
+ 						)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="毕法" key="bifa">
+-					{this.renderBiFaTab(ctx)}
++					<FreezeSubTab active={activeTabKey === 'bifa'}>{()=>(
++					this.renderBiFaTab(ctx)
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="参考" key="reference">
++					<FreezeSubTab active={activeTabKey === 'reference'}>{()=>(
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
+ 							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
+@@ -5975,8 +6058,10 @@ class LiuRengMain extends Component{
+ 							</Card>
+ 						)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="概览" key="overview">
++					<FreezeSubTab active={activeTabKey === 'overview'}>{()=>(
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{this.renderShenShaSection(ctx)}
+ 						{overviewItems.length ? overviewItems.map((item, idx)=>(
+@@ -6000,14 +6085,20 @@ class LiuRengMain extends Component{
+ 							</Card>
+ 						)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="占断" key="zhanduan">
+-					{this.renderZhanDuanTab(ctx)}
++					<FreezeSubTab active={activeTabKey === 'zhanduan'}>{()=>(
++					this.renderZhanDuanTab(ctx)
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="取象" key="xiang">
+-					{this.renderXiangTab(ctx)}
++					<FreezeSubTab active={activeTabKey === 'xiang'}>{()=>(
++					this.renderXiangTab(ctx)
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="七政" key="qizheng">
++					<FreezeSubTab active={activeTabKey === 'qizheng'}>{()=>(
+ 					<div className="horosa-liureng-reference-tab-body">
+ 						{qizhengItems && qizhengItems.length ? (
+ 							<Card size='small'>
+@@ -6061,6 +6152,7 @@ class LiuRengMain extends Component{
+ 							</Card>
+ 						)}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 		);

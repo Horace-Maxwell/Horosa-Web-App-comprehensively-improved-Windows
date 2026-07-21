@@ -1,6 +1,5 @@
 import { Component } from 'react';
 import { Row, Col, Divider, } from 'antd';
-import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
@@ -10,6 +9,10 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQTable as Table } from '../xq-ui';
 import { getFirdariaInterp } from '../../utils/firdariaInterp';
+import { markPanelReady } from '../../utils/perfMark';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 class AstroFirdaria extends Component{
 
@@ -51,6 +54,15 @@ class AstroFirdaria extends Component{
 			this.planetText = this.planetText.bind(this);
 			this.showMeaning = this.showMeaning.bind(this);
 		}
+
+	// horosa_panel_ready_v1:本技法无自有请求 —— 法达运期表整份来自 chartObj.predictives.firdaria,
+	// 「数据落定」就是拿到新盘对象后的这一次渲染提交(markPanelReady 内部再等双 rAF 逼近「已绘」)。
+	// 故接在 componentDidUpdate 的 value 变更分支上,与带回调的技法同口径。
+	componentDidUpdate(prevProps){
+		if(prevProps.value !== this.props.value){
+			markPanelReady('direction');
+		}
+	}
 
 	showMeaning(){
 		return isMeaningEnabled(this.props.showAstroMeaning);
@@ -94,7 +106,7 @@ class AstroFirdaria extends Component{
 
 	genFirdariaDom(ds){
 		let dom = (
-			<Table key={randomStr(8)}
+			<Table key='firdaria-table'
 				dataSource={ds} 
 				columns={this.state.columns} 
 				rowKey='date'
@@ -132,7 +144,7 @@ class AstroFirdaria extends Component{
 			let tbldom = this.genFirdariaDom(ds);
 			const interp = getFirdariaInterp(pd.mainDirect);
 			const cell = (
-				<div key={randomStr(8)}>
+				<div key={`firdaria-cell-${i}`}>
 					{interp ? (
 						<div style={{ fontSize: 11, opacity: 0.78, lineHeight: '16px', margin: '0 0 4px', padding: '4px 8px', background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', borderRadius: 6 }}>
 							<b>{interp.mainShort}主限</b> · {interp.mainTheme}
@@ -149,18 +161,19 @@ class AstroFirdaria extends Component{
 			let cols = [];
 			for(let j=0; j<rowobj.length; j++){
 				let dom = (
-					<Col key={randomStr(8)} span={8}>{rowobj[j]}</Col>
+					<Col key={j} span={8}>{rowobj[j]}</Col>
 				);
 				cols.push(dom);
 			}
 			let dom = (
-				<Row key={randomStr(8)} gutter={12}>
+				<Row key={`row-${i}`} gutter={12}>
 					{cols}
 				</Row>
 			);
 			doms.push(dom);
 			if(i < rows.length - 1){
-				let divider = <Divider key={randomStr(8)} dashed={true} />
+				// Row 与 Divider 推进同一个 doms 数组，故各自带前缀避免同 i 撞键
+				let divider = <Divider key={`divider-${i}`} dashed={true} />
 				doms.push(divider)	
 			}
 		}

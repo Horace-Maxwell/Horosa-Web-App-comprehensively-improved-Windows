@@ -1,0 +1,111 @@
+diff --git a/astrostudyui/src/components/dice/DiceMain.js b/astrostudyui/src/components/dice/DiceMain.js
+index 836a31e..e53f9e8 100644
+--- a/astrostudyui/src/components/dice/DiceMain.js
++++ b/astrostudyui/src/components/dice/DiceMain.js
+@@ -22,6 +22,9 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
+ import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+ import styles from '../../css/styles.less';
+ import DateTime from '../comp/DateTime';
++import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const TabPane = Tabs.TabPane;
+ const Option = Select.Option;
+@@ -168,6 +171,10 @@ class DiceMain extends Component{
+ 			planet: null,
+ 			sign: null,
+ 			house: null,
++			// horosa_freeze_subtabs_v1:中栏「骰子盘/天象盘」原为非受控 Tabs,无从判激活。
++			// 改受控(初值=原 defaultActiveKey,onChange 记进 state)—— 切页行为逐字不变,
++			// 只是让 FreezeSubTab 拿得到 active。
++			chartTab: 'touzichart',
+ 		}
+ 
+ 		if(this.props.hook){
+@@ -247,7 +254,9 @@ class DiceMain extends Component{
+ 			sign: result.sign,
+ 		};
+ 
+-		this.setState(st);
++		// horosa_panel_ready_v1:diceChart/chart/house/planet/sign 同批落定 = 骰子盘(中栏)与
++		// 星体表(右栏)画完的那一次 setState。本处原无回调 —— 补一个只为埋点,不改任何既有语义。
++		this.setState(st, ()=>{ markPanelReady('auxchart'); });
+ 		const diceTxt = this.state.txt;
+ 		this._lastDiceSnapshotInput = { params, result, text: diceTxt };
+ 		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), {
+@@ -522,6 +531,21 @@ class DiceMain extends Component{
+ 		}
+ 	}
+ 
++	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
++	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
++	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
++	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
++	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
++	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
++	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
++	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){
++			return true;
++		}
++		return !wrapperPropsEqual(this.props, nextProps);
++	}
++
+ 	componentDidMount(){
+ 		this.unmounted = false;
+ 		if(typeof window !== 'undefined'){
+@@ -561,28 +585,37 @@ class DiceMain extends Component{
+ 			<div className='horosa-dice-page'>
+ 				<Row gutter={14} className='horosa-dice-layout'>
+ 					<Col span={17} className='horosa-dice-chart-panel'>
++						{/* horosa_freeze_subtabs_v1:两张 AstroChart 是本页最重的两块;非激活那张此前每次重渲都跟着重画一遍。
++						    冻结≠卸载,切回即拿最新 state 立刻重画。Tabs 原为非受控 → 改受控(初值=原 defaultActiveKey,
++						    onChange 记进 state),切页行为逐字不变,只是让 FreezeSubTab 拿得到 active。 */}
+ 						<Tabs
++							activeKey={this.state.chartTab}
++							onChange={(k)=>this.setState({ chartTab: k })}
+ 							defaultActiveKey='touzichart' tabPosition='bottom'
+ 							style={{ height: height }}						
+ 						>
+ 								<TabPane tab="骰子盘" key="touzichart">
+-									<AstroChart value={this.state.diceChart} 
+-										keyPlanets={keyPlanets}
+-										chartDisplay={chartDisp}
+-										planetDisplay={planetDisp}
+-										lotsDisplay={this.props.lotsDisplay}
+-										showAstroMeaning={this.props.showAstroMeaning}
+-										height={chartHeight}
+-									/>
++									<FreezeSubTab active={this.state.chartTab === 'touzichart'}>{() => (
++										<AstroChart value={this.state.diceChart} 
++											keyPlanets={keyPlanets}
++											chartDisplay={chartDisp}
++											planetDisplay={planetDisp}
++											lotsDisplay={this.props.lotsDisplay}
++											showAstroMeaning={this.props.showAstroMeaning}
++											height={chartHeight}
++										/>
++									)}</FreezeSubTab>
+ 								</TabPane>
+ 								<TabPane tab="天象盘" key="chart">
+-									<AstroChart value={this.state.chart} 
+-										chartDisplay={this.props.chartDisplay}
+-										planetDisplay={this.props.planetDisplay}
+-										lotsDisplay={this.props.lotsDisplay}
+-										showAstroMeaning={this.props.showAstroMeaning}
+-										height={chartHeight}
+-									/>
++									<FreezeSubTab active={this.state.chartTab === 'chart'}>{() => (
++										<AstroChart value={this.state.chart} 
++											chartDisplay={this.props.chartDisplay}
++											planetDisplay={this.props.planetDisplay}
++											lotsDisplay={this.props.lotsDisplay}
++											showAstroMeaning={this.props.showAstroMeaning}
++											height={chartHeight}
++										/>
++									)}</FreezeSubTab>
+ 								</TabPane>
+ 						</Tabs>
+ 					</Col>

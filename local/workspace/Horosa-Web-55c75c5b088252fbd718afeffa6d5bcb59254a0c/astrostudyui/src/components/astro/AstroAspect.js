@@ -3,11 +3,13 @@ import { Row, Col, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
-import { randomStr} from '../../utils/helper'
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import { buildMeaningTipByCategory, buildAspectMeaningTip, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 let pars = new Set()
 let planets = new Set()
@@ -142,7 +144,7 @@ class AstroAspect extends Component{
 				continue;
 			}
 			groups.push(
-				<div key={randomStr(8)} className="horosa-aspect-group">
+				<div key={key} className="horosa-aspect-group">
 					<div className="horosa-aspect-group-title" style={{fontFamily: AstroConst.AstroFont}}>{this.planetLabel(key)}</div>
 					<div className="horosa-aspect-rows">{rows}</div>
 				</div>
@@ -175,7 +177,7 @@ class AstroAspect extends Component{
 			}
 
 			let dom = (
-				<div key={randomStr(8)} className="horosa-aspect-row horosa-aspect-row--immediate" style={{fontFamily: AstroConst.AstroFont}}>
+				<div key={key} className="horosa-aspect-row horosa-aspect-row--immediate" style={{fontFamily: AstroConst.AstroFont}}>
 					<span className="horosa-aspect-target">{this.planetLabel(key)}</span>
 					<span className="horosa-aspect-glyph">{this.aspectNode(obj[0].asp, key, obj[0].id)}</span>
 					<span className="horosa-aspect-target">{this.planetLabel(obj[0].id)}</span>

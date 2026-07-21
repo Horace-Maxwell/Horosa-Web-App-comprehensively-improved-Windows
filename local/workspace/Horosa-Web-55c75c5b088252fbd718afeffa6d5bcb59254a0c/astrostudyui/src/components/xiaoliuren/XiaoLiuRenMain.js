@@ -17,6 +17,9 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const TabPane = Tabs.TabPane;
 const STORE_KEY = 'horosa.xiaoliuren.settings.v1';
@@ -108,6 +111,21 @@ class XiaoLiuRenMain extends Component {
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 	}
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		if(typeof window !== 'undefined'){
@@ -203,7 +221,8 @@ class XiaoLiuRenMain extends Component {
 		}
 		const ke = qiKe({ m, d, h, school: settings.school });
 		if(!ke){ return this.setState({ error: '三数非法,不可起课', ke: null }); }
-		this.setState({ ke, error: '' }, ()=>this.saveSnap());
+		// horosa_panel_ready_v1:ke 落定 = 六宫课盘(中栏)与三传断语(右栏)画完的那一次 setState。
+		this.setState({ ke, error: '' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });
 	}
 	// 改流派:课(三数)冻结,按新环重排三传(重排≠重起——三数不变)。
 	setSetting(key, val){
@@ -413,41 +432,56 @@ class XiaoLiuRenMain extends Component {
 			</div>
 		);
 		return (
-			<Tabs size="small" className="horosa-xlr-aux horosa-cnx-aux">
+			// horosa_freeze_subtabs_v1:右栏辅目冻结。原为非受控 Tabs → 改受控
+			// (activeKey 取 state.auxTab,缺省即原首目;onChange 记进 state),切页行为逐字不变,
+			// 只是让 FreezeSubTab 拿得到 active。冻结≠卸载,切回即拿最新 children 立刻重画。
+			<Tabs size="small" className="horosa-xlr-aux horosa-cnx-aux"
+				activeKey={this.state.auxTab || 'duan'}
+				onChange={(k)=>this.setState({ auxTab: k })}>
 				<TabPane tab="直断" key="duan">
-					{!ke ? wait('左栏「起课」后显示三传断语。') : <>
-					{ke.chuan.map((c, i)=>palaceCard(c, { key: `chuan${i}`, seq: i + 1, role: STAGE_ROLES[i] }))}
-					{tl.map((t, i)=>(
-						<div key={`te${i}`} className="horosa-cnx-vcard is-te">
-							<div className="horosa-cnx-vcard-top"><span className="horosa-cnx-vcard-name">特例</span></div>
-							<div className="horosa-cnx-body"><p>{t.text}</p></div>
-						</div>
-					))}
-					</>}
+					<FreezeSubTab active={(this.state.auxTab || 'duan') === 'duan'}>{() => (<>
+						{!ke ? wait('左栏「起课」后显示三传断语。') : <>
+						{ke.chuan.map((c, i)=>palaceCard(c, { key: `chuan${i}`, seq: i + 1, role: STAGE_ROLES[i] }))}
+						{tl.map((t, i)=>(
+							<div key={`te${i}`} className="horosa-cnx-vcard is-te">
+								<div className="horosa-cnx-vcard-top"><span className="horosa-cnx-vcard-name">特例</span></div>
+								<div className="horosa-cnx-body"><p>{t.text}</p></div>
+							</div>
+						))}
+						</>}
+					</>)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="生克" key="shengke">
-					{!ke ? wait('起课后显示相邻两传生克。') : ke.school !== 'dao' ? <div className="horosa-cnx-note">主流六宫不调取五行生克(以各宫吉凶直断)。</div> : (
-						<>
-							{(a.pairs || []).length ? a.pairs.map((p, i)=>row(p.relText, p.duan || p.rel, i)) : <div className="horosa-cnx-note">相邻两传无生克。</div>}
-							{a.across && settings.showOneThree !== false ? row('一↔三', `${a.across.rel} —— ${ACROSS_NOTE}`) : null}
-							<div className="horosa-cnx-note horosa-cnx-note-foot">{TONG_SHEN_NOTE}</div>
-						</>
-					)}
+					<FreezeSubTab active={(this.state.auxTab || 'duan') === 'shengke'}>{() => (<>
+						{!ke ? wait('起课后显示相邻两传生克。') : ke.school !== 'dao' ? <div className="horosa-cnx-note">主流六宫不调取五行生克(以各宫吉凶直断)。</div> : (
+							<>
+								{(a.pairs || []).length ? a.pairs.map((p, i)=>row(p.relText, p.duan || p.rel, i)) : <div className="horosa-cnx-note">相邻两传无生克。</div>}
+								{a.across && settings.showOneThree !== false ? row('一↔三', `${a.across.rel} —— ${ACROSS_NOTE}`) : null}
+								<div className="horosa-cnx-note horosa-cnx-note-foot">{TONG_SHEN_NOTE}</div>
+							</>
+						)}
+					</>)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="化解" key="huajie">
-					{!ke ? wait('起课后显示被克之传与拜解。') : ((a.baiJie || []).length ? a.baiJie.map((b, i)=>row(`${b.victim}被${b.aggressor}克`, `拜 ${b.bai} 化解`, i)) : <div className="horosa-cnx-note">本课无被克之传,无需拜解。</div>)}
-					<div className="horosa-cnx-baitable-title">五行受克 · 拜解一览</div>
-					<div className="horosa-cnx-baitable">{Object.keys(BAI_JIE).map((k)=><div key={k} className="horosa-cnx-baitable-row"><span>{k}</span><i>拜</i><b>{BAI_JIE[k]}</b></div>)}</div>
+					<FreezeSubTab active={(this.state.auxTab || 'duan') === 'huajie'}>{() => (<>
+						{!ke ? wait('起课后显示被克之传与拜解。') : ((a.baiJie || []).length ? a.baiJie.map((b, i)=>row(`${b.victim}被${b.aggressor}克`, `拜 ${b.bai} 化解`, i)) : <div className="horosa-cnx-note">本课无被克之传,无需拜解。</div>)}
+						<div className="horosa-cnx-baitable-title">五行受克 · 拜解一览</div>
+						<div className="horosa-cnx-baitable">{Object.keys(BAI_JIE).map((k)=><div key={k} className="horosa-cnx-baitable-row"><span>{k}</span><i>拜</i><b>{BAI_JIE[k]}</b></div>)}</div>
+					</>)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="九神" key="jiushen">
-					{!ke ? wait('起课后显示九神/六宫。') : <>
-					{(isDao ? DAO_RING : MAIN_RING).map((n)=>palaceCard(n, { key: `nine${n}` }))}
-					{isDao ? <div className="horosa-cnx-note horosa-cnx-note-foot">{BING_FU_DISCREPANCY_NOTE}</div> : null}
-					</>}
+					<FreezeSubTab active={(this.state.auxTab || 'duan') === 'jiushen'}>{() => (<>
+						{!ke ? wait('起课后显示九神/六宫。') : <>
+						{(isDao ? DAO_RING : MAIN_RING).map((n)=>palaceCard(n, { key: `nine${n}` }))}
+						{isDao ? <div className="horosa-cnx-note horosa-cnx-note-foot">{BING_FU_DISCREPANCY_NOTE}</div> : null}
+						</>}
+					</>)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="法诀" key="fa">
-					<pre className="horosa-cnx-pre">{(this.state.settings.school === 'dao') ? DAO_FA_TEXT : MAIN_FA_TEXT}</pre>
-					<pre className="horosa-cnx-pre horosa-cnx-pre-soft">{SAN_JIE_TEXT}</pre>
+					<FreezeSubTab active={(this.state.auxTab || 'duan') === 'fa'}>{() => (<>
+						<pre className="horosa-cnx-pre">{(this.state.settings.school === 'dao') ? DAO_FA_TEXT : MAIN_FA_TEXT}</pre>
+						<pre className="horosa-cnx-pre horosa-cnx-pre-soft">{SAN_JIE_TEXT}</pre>
+					</>)}</FreezeSubTab>
 				</TabPane>
 			</Tabs>
 		);

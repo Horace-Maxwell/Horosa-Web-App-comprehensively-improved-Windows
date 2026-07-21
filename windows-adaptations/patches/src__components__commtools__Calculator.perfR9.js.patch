@@ -1,0 +1,121 @@
+diff --git a/astrostudyui/src/components/commtools/Calculator.js b/astrostudyui/src/components/commtools/Calculator.js
+index 96c497f..67c11a5 100644
+--- a/astrostudyui/src/components/commtools/Calculator.js
++++ b/astrostudyui/src/components/commtools/Calculator.js
+@@ -1,7 +1,7 @@
+ import { Component } from 'react';
+ import { Row, Col, Divider, Statistic, Modal, Tooltip } from 'antd';
+ import { XQButton as Button, XQInput as Input, XQSelect as Select } from '../xq-ui';
+-import { randomStr, isNumber } from '../../utils/helper';
++import { isNumber } from '../../utils/helper';
+ import { splitDegree, } from '../astro/AstroHelper';
+ import request from '../../utils/request';
+ import * as Constants from '../../utils/constants';
+@@ -9,6 +9,9 @@ import * as AstroConst from '../../constants/AstroConst';
+ import * as AstroText from '../../constants/AstroText';
+ import styles from '../../css/styles.less';
+ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const Option = Select.Option;
+ const { TextArea } = Input;
+@@ -203,56 +206,56 @@ export default class Calculator extends Component{
+             let item = this.state.formula[i];
+             if(item.type === '<Operator>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 opdom.push(opt);
+             }else if(item.type === '<Boolean Operator>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 boolopdom.push(opt);
+             }else if(item.type === '<Binary Relation>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 binreladom.push(opt);
+             }else if(item.type === '<Unary Function>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 unifundom.push(opt);
+             }else if(item.type === '<Binary Function>' && item.syntax !== 'EulerPol'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 binfundom.push(opt);
+             }else if(item.type === '<3-args Function>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 trifundom.push(opt);
+             }else if(item.type === '<Variadic Function>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 varfundom.push(opt);
+             }else if(item.type === '<Calculus Operator>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+@@ -262,28 +265,28 @@ export default class Calculator extends Component{
+                 let idx = prefix.length;
+                 let desc = item.desc.substr(idx);
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {desc}
+                     </Option>
+                 )    
+                 iterdom.push(opt);
+             }else if(item.type === '<Bitwise Operator>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={item.syntax}>
++                    <Option key={item.syntax} value={item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 bitwisedom.push(opt);
+             }else if(item.type === '<Constant Value>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={'*' + item.syntax}>
++                    <Option key={item.syntax} value={'*' + item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    
+                 constdom.push(opt);
+             }else if(item.type === '<Unit>'){
+                 let opt = (
+-                    <Option key={randomStr(8)} value={'*' + item.syntax}>
++                    <Option key={item.syntax} value={'*' + item.syntax}>
+                         {item.syntax} -- {item.desc}
+                     </Option>
+                 )    

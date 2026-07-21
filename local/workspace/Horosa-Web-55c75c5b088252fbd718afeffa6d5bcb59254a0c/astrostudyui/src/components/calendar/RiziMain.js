@@ -7,6 +7,8 @@ import { buildHuangliDay } from './huangliDay';
 import { personBazi, buildPersonalizedDates } from './riziEngine';
 import { buildRiziSnapshotText } from './riziSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
+import { calendarPanelShouldUpdate } from './NongLiMain';
 
 const MODULE = 'calendar-rizi';
 const ROLE_LABEL = { self: '本人', spouse: '配偶', family: '家人' };
@@ -18,6 +20,65 @@ function reasonTags(reasons) {
 		<Tag key={i} className={`horosa-huangli-tag ${r.t === 'good' ? 'is-good' : (r.t === 'bad' ? 'is-bad' : 'is-neutral')}`}>{r.text}</Tag>
 	));
 }
+
+// horosa_panel_scu_v1(日子馆拆片)—— 病灶:deferRecompute 先落一次 {computing:true} 让 tab
+// 立刻可切,但那一次 setState 会把【榜单全部行】(showAll 时至多 366 行 × 6 段)与【右栏详情】
+// (含一次 buildHuangliDay)整个重建一遍,而这两块的内容与 computing 毫无关系。
+// 拆成两个 React.memo 子件后,computing / persons 之类不影响可见内容的 state 变化不再穿透:
+//   · RiziRankingList 只吃 (list, selectedYmd, onPick) —— 榜单行的输出是这三者的纯函数;
+//   · RiziDetail     只吃 (list, selectedYmd)         —— 详情卡的输出是这两者的纯函数。
+// list 每次真重算都是新数组引用(buildPersonalizedDates 返回新对象),故「该更新时必更新」;
+// onPick 是构造期 bind 的稳定引用。默认浅比较即足,未自定义 areEqual(自定义才容易写错)。
+const RiziRankingList = React.memo(function RiziRankingList({ list, selectedYmd, onPick }) {
+	return (
+		<>
+			{list.map((d, i)=> (
+				<div key={d.ymd} className={`horosa-rizi-rankrow ${d.ymd === selectedYmd ? 'is-active' : ''}`} onClick={()=> onPick(d.ymd)}>
+					<span className={`horosa-rizi-rank-no ${i < 3 ? 'is-medal is-medal-' + (i + 1) : ''}`}>{i + 1}</span>
+					<span className='horosa-rizi-rank-date'>{d.ymd}</span>
+					<span className='horosa-rizi-rank-week'>周{d.week}</span>
+					<span className='horosa-rizi-rank-gz'>{d.ganzhi}</span>
+					<Tag className={`horosa-huangli-tag ${d.huangdao === '黄道' ? 'is-good' : 'is-neutral'}`}>{d.jianchu}</Tag>
+					<span className={`horosa-rizi-rank-score ${d.score >= 12 ? 'is-hi' : (d.score >= 10 ? 'is-mid' : 'is-lo')}`}>{d.score}分</span>
+				</div>
+			))}
+		</>
+	);
+});
+
+const RiziDetail = React.memo(function RiziDetail({ list, selectedYmd }) {
+	const d = list.find((x)=> x.ymd === selectedYmd);
+	if (!d) { return <div className='horosa-empty-hint'>选择吉日查看理由与完整日课</div>; }
+	const [y, m, dd] = d.ymd.split('-').map((n)=> parseInt(n, 10));
+	return (
+		<div className='horosa-rizi-detail'>
+			<div className='horosa-tongshu-detail-head'>
+				<span className='horosa-tongshu-detail-date'>{d.ymd} {d.lunar}</span>
+				<Tag className='horosa-huangli-gz'>{d.ganzhi}日</Tag>
+				<Tag className='horosa-huangli-tag is-good'>{d.score}分</Tag>
+			</div>
+			<div className='horosa-huangli-section'>
+				<div className='horosa-huangli-section-title'>为何吉 · 通书</div>
+				<div className='horosa-huangli-section-body'><div className='horosa-huangli-tags'>{reasonTags(d.tongshuReasons)}</div></div>
+			</div>
+			{(d.perPerson || []).map((pp, i)=> (
+				<div key={i} className='horosa-huangli-section'>
+					<div className='horosa-huangli-section-title'>{ROLE_LABEL[pp.role] || pp.role}{pp.name ? `（${pp.name}）` : ''} · 属{pp.shengxiao} · 得分 {pp.score}</div>
+					<div className='horosa-huangli-section-body'>
+						<div className='horosa-huangli-tags'>{(pp.reasons || []).length ? reasonTags(pp.reasons) : <span className='horosa-huangli-muted'>本命平和·无冲无扶</span>}</div>
+					</div>
+				</div>
+			))}
+			<div className='horosa-huangli-section'>
+				<div className='horosa-huangli-section-title'>完整老黄历日课</div>
+				<div className='horosa-huangli-section-body'><HuangLiDayCard day={buildHuangliDay(y, m, dd)} /></div>
+			</div>
+		</div>
+	);
+});
+
+// 空榜单的稳定空数组:`(result && result.list) || []` 每次造新数组会让 memo 恒失效。
+const EMPTY_LIST = [];
 
 class RiziMain extends Component {
 	constructor(props) {
@@ -38,6 +99,7 @@ class RiziMain extends Component {
 		this.onAddPerson = this.onAddPerson.bind(this);
 		this.onRemovePerson = this.onRemovePerson.bind(this);
 		this.recompute = this.recompute.bind(this);
+		this.selectRankRow = this.selectRankRow.bind(this);
 		this.deferRecompute = this.deferRecompute.bind(this);
 		this.saveAISnapshot = this.saveAISnapshot.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
@@ -80,22 +142,41 @@ class RiziMain extends Component {
 			// 选中：保留当前选择（若仍在榜），否则取榜首。
 			const list = result.list || [];
 			const keep = this.state.selectedYmd && list.some((d)=> d.ymd === this.state.selectedYmd);
-			if (!keep) { this.setState({ selectedYmd: list[0] ? list[0].ymd : null }, this.saveAISnapshot); }
-			else { this.saveAISnapshot(); }
+			// horosa_panel_ready_v1:榜单(中栏)+ 详情(右栏)在这一步全部落定,是本页最后一次 setState。
+			if (!keep) { this.setState({ selectedYmd: list[0] ? list[0].ymd : null }, ()=>{ this.saveAISnapshot(); markPanelReady('calendar'); }); }
+			else { this.saveAISnapshot(); markPanelReady('calendar'); }
 		});
 	}
 
-	onChange(patch) { this.setState(patch, this.deferRecompute); }
+	onChange(patch) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(改事项/换年)
+		this.setState(patch, this.deferRecompute);
+	}
 	onPersonChange(id, patch) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
 		this.setState({ persons: this.state.persons.map((p)=> (p.id === id ? { ...p, ...patch } : p)) }, this.deferRecompute);
 	}
 	onAddPerson(role) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
 		this.setState({ persons: [...this.state.persons, { id: nextId(), role, name: '', date: new DateTime(), gender: role === 'spouse' ? 0 : 1 }] }, this.deferRecompute);
 	}
 	onRemovePerson(id) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
 		this.setState({ persons: this.state.persons.filter((p)=> p.id !== id) }, this.deferRecompute);
 	}
-	toggleShowAll() { this.setState({ showAll: !this.state.showAll }, this.deferRecompute); }
+	toggleShowAll() {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
+		this.setState({ showAll: !this.state.showAll }, this.deferRecompute);
+	}
+
+	// 榜单行点击：只换选中项（右栏详情重算），中栏榜单数据不变。
+	selectRankRow(ymd) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
+		this.setState({ selectedYmd: ymd }, ()=>{
+			this.saveAISnapshot();
+			markPanelReady('calendar');   // horosa_panel_ready_v1:右栏详情落定
+		});
+	}
 
 	saveAISnapshot() {
 		const persons = this.state.personsWithBazi || this.state.persons.map((p)=> ({ ...p, bazi: this.baziOf(p) }));
@@ -120,9 +201,19 @@ class RiziMain extends Component {
 		if (this._recomputeTimer) { clearTimeout(this._recomputeTimer); this._recomputeTimer = null; }
 	}
 
+	// horosa_panel_scu_v1:本页【零消费】props.fields —— 渲染只看 state + props.height。
+	shouldComponentUpdate(nextProps, nextState) {
+		return calendarPanelShouldUpdate(this.props, nextProps, this.state, nextState);
+	}
+
+	currentList() {
+		const result = this.state.result;
+		return (result && result.list) || EMPTY_LIST;
+	}
+
 	renderRanking() {
 		const result = this.state.result;
-		const list = (result && result.list) || [];
+		const list = this.currentList();
 		if (this.state.computing && !list.length) { return <div className='horosa-empty-hint'>正在计算全年吉日…</div>; }
 		if (!list.length) { return <div className='horosa-empty-hint'>请输入当事人生辰，或本年该事项无合适吉日</div>; }
 		const total = result.count || list.length;
@@ -139,50 +230,13 @@ class RiziMain extends Component {
 						) : null}
 					</span>
 				</div>
-				{list.map((d, i)=> (
-					<div key={d.ymd} className={`horosa-rizi-rankrow ${d.ymd === this.state.selectedYmd ? 'is-active' : ''}`} onClick={()=> this.setState({ selectedYmd: d.ymd }, this.saveAISnapshot)}>
-						<span className={`horosa-rizi-rank-no ${i < 3 ? 'is-medal is-medal-' + (i + 1) : ''}`}>{i + 1}</span>
-						<span className='horosa-rizi-rank-date'>{d.ymd}</span>
-						<span className='horosa-rizi-rank-week'>周{d.week}</span>
-						<span className='horosa-rizi-rank-gz'>{d.ganzhi}</span>
-						<Tag className={`horosa-huangli-tag ${d.huangdao === '黄道' ? 'is-good' : 'is-neutral'}`}>{d.jianchu}</Tag>
-						<span className={`horosa-rizi-rank-score ${d.score >= 12 ? 'is-hi' : (d.score >= 10 ? 'is-mid' : 'is-lo')}`}>{d.score}分</span>
-					</div>
-				))}
+				<RiziRankingList list={list} selectedYmd={this.state.selectedYmd} onPick={this.selectRankRow} />
 			</div>
 		);
 	}
 
 	renderDetail() {
-		const list = (this.state.result && this.state.result.list) || [];
-		const d = list.find((x)=> x.ymd === this.state.selectedYmd);
-		if (!d) { return <div className='horosa-empty-hint'>选择吉日查看理由与完整日课</div>; }
-		const [y, m, dd] = d.ymd.split('-').map((n)=> parseInt(n, 10));
-		return (
-			<div className='horosa-rizi-detail'>
-				<div className='horosa-tongshu-detail-head'>
-					<span className='horosa-tongshu-detail-date'>{d.ymd} {d.lunar}</span>
-					<Tag className='horosa-huangli-gz'>{d.ganzhi}日</Tag>
-					<Tag className='horosa-huangli-tag is-good'>{d.score}分</Tag>
-				</div>
-				<div className='horosa-huangli-section'>
-					<div className='horosa-huangli-section-title'>为何吉 · 通书</div>
-					<div className='horosa-huangli-section-body'><div className='horosa-huangli-tags'>{reasonTags(d.tongshuReasons)}</div></div>
-				</div>
-				{(d.perPerson || []).map((pp, i)=> (
-					<div key={i} className='horosa-huangli-section'>
-						<div className='horosa-huangli-section-title'>{ROLE_LABEL[pp.role] || pp.role}{pp.name ? `（${pp.name}）` : ''} · 属{pp.shengxiao} · 得分 {pp.score}</div>
-						<div className='horosa-huangli-section-body'>
-							<div className='horosa-huangli-tags'>{(pp.reasons || []).length ? reasonTags(pp.reasons) : <span className='horosa-huangli-muted'>本命平和·无冲无扶</span>}</div>
-						</div>
-					</div>
-				))}
-				<div className='horosa-huangli-section'>
-					<div className='horosa-huangli-section-title'>完整老黄历日课</div>
-					<div className='horosa-huangli-section-body'><HuangLiDayCard day={buildHuangliDay(y, m, dd)} /></div>
-				</div>
-			</div>
-		);
+		return <RiziDetail list={this.currentList()} selectedYmd={this.state.selectedYmd} />;
 	}
 
 	render() {

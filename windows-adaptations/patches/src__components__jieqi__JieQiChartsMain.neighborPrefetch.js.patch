@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index e1c600d..e9234b8 100644
+index 65a58d9..7941ee4 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-@@ -23,7 +23,7 @@ import * as Su28Helper from '../su28/Su28Helper';
+@@ -23,13 +23,49 @@ import * as Su28Helper from '../su28/Su28Helper';
  import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
  import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
  import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
@@ -10,8 +10,116 @@ index e1c600d..e9234b8 100644
 +import { fetchPreciseJieqiYear, prefetchJieqiYearNeighbors } from '../../utils/preciseCalcBridge';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
+ import UpdatingBadge from '../common/UpdatingBadge';
+ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
++import { markPanelReady } from '../../utils/perfMark';
  
-@@ -1129,6 +1129,11 @@ export class JieQiChartsMain extends Component{
+ const TabPane = Tabs.TabPane;
++
++// horosa_shallow_scu_v1:逐键浅比较。**未知即"变了"** —— 键数不同 / 任一键引用不同 → 返回 false
++// (调用方据此 return true 照常渲染)。绝不做深比较,绝不放过任何不确定的字段。
++//
++// ★复核补丁(horosa_scu_arraywise_v1):只按引用比会让本 sCU **永久空转**。
++//   pages/index.js:667 `let aryfields = convertToArray(fields);` 在 AstroIndex 每次 render 里
++//   重新建数组 → 传下来的 fieldsAry 引用恒变 → shallowSame 恒 false → sCU 恒返 true,
++//   等于没加。而 convertToArray 只是把 fields 的**同一批子对象**塞进新数组(helper.js:548
++//   `res.push(obj[key])`),元素引用在 fields 未变时逐个不变。故对数组降一级做**逐元素引用**比:
++//   长度相等且每个元素 === → 判同。这仍然是纯引用语义(不看元素内部字段),
++//   与"宁可多渲、绝不漏渲"取向一致 —— 元素对象只要被换过引用就立刻判"变了"。
++//   同款问题在 utils/chartUpdateGuard.js 的 wrapperPropsEqual 上也存在(它对 fieldsAry 走
++//   Object.is),那是共享件、不在本轮授权范围,已在汇报里点名交主控。
++function sameArrayByRef(a, b){
++	if(a.length !== b.length){ return false; }
++	for(let i=0; i<a.length; i++){
++		if(a[i] !== b[i]){ return false; }
++	}
++	return true;
++}
++function shallowSame(a, b){
++	if(a === b){ return true; }
++	if(!a || !b || typeof a !== 'object' || typeof b !== 'object'){ return false; }
++	const ka = Object.keys(a);
++	const kb = Object.keys(b);
++	if(ka.length !== kb.length){ return false; }
++	for(let i=0; i<ka.length; i++){
++		const k = ka[i];
++		if(!Object.prototype.hasOwnProperty.call(b, k)){ return false; }
++		if(a[k] === b[k]){ continue; }
++		if(Array.isArray(a[k]) && Array.isArray(b[k]) && sameArrayByRef(a[k], b[k])){ continue; }
++		return false;
++	}
++	return true;
++}
+ const {Option, OptGroup} = Select
+ const JIEQI_STD = [
+ 	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
+@@ -238,6 +274,41 @@ function fieldsToState(fields){
+ 	return st;
+ }
+ 
++// PERF-R9 Ship 7(数据层空闲预热):分至图的 /jieqi/year 年表。
++// 构参与组件 genSeedParams(=genParams(false))【逐字段同序同值】—— 经 fieldsToState 拿到
++// 与组件挂载后完全相同的取数口径,再走 fetchPreciseJieqiYear(技法自己的 L1/localStorage/
++// inflight 三层入口)⇒ 用户首点分至页即命中。
++// ⚠️ 本条是【重端点】,故在预热组里排最后一位(前面的轻端点先付,交互随时让路)。
++// silent(fetchPreciseJieqiYear 内置)、丢结果、绝不 dispatch/setState;失败静默。
++export async function warmJieqiYear(fields){
++	try{
++		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
++			return null;
++		}
++		const st = fieldsToState(fields);
++		if(!st || !st.time || typeof st.time.format !== 'function'){
++			return null;
++		}
++		return await fetchPreciseJieqiYear({
++			year: st.time.format('YYYY'),
++			ad: st.ad,
++			zone: st.zone,
++			lon: st.lon,
++			lat: st.lat,
++			hsys: st.hsys,
++			zodiacal: st.zodiacal,
++			siderealAyanamsa: st.siderealAyanamsa,
++			gpsLat: st.gpsLat,
++			gpsLon: st.gpsLon,
++			doubingSu28: st.doubingSu28,
++			after23NewDay: defaultAfter23NewDay(),
++			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
++		});
++	}catch(e){
++		return null;   // 预热失败静默:首点回到冷即付的现状
++	}
++}
++
+ function getSeedCacheKey(params){
+ 	return [
+ 		params && params.year,
+@@ -1032,10 +1103,19 @@ export class JieQiChartsMain extends Component{
+ 		this.setState({
+ 			fields: flds,
+ 		});
+-		if(needsCharts){
+-			this.requestJieQiCharts(seedParams, seq, this.state.currentTab);
+-		}
+-		return this.requestJieQiBazi(seedParams, seq);
++		const chartsPromise = needsCharts
++			? this.requestJieQiCharts(seedParams, seq, this.state.currentTab)
++			: null;
++		const baziPromise = this.requestJieQiBazi(seedParams, seq);
++		// horosa_panel_ready_v1:本族的「画完」不是单点 —— 中栏 24 节气总览来自 bazi 请求,
++		// 右栏盘来自 charts 请求,两者各自 setState。故取**两者都落定**之后为就绪点
++		// (命中缓存的一路会立即 resolve,不影响另一路)。markPanelReady 内部双 rAF 逼近本帧已绘,
++		// 且同一次交互只记第一条;markInteractionStart 未打过时(挂载首刷)自动空转。
++		Promise.all([chartsPromise, baziPromise]).then(()=>{
++			if(this.unmounted){ return; }
++			markPanelReady('jieqichart');
++		}).catch(()=>{ /* 失败不记样本 */ });
++		return baziPromise;
+ 	}
+ 
+ 	async requestJieQiCharts(seedParams, seedSeq, tab){
+@@ -1144,6 +1224,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);
@@ -23,3 +131,45 @@ index e1c600d..e9234b8 100644
  			if(!fullResult || this.unmounted){
  				return fullResult;
  			}
+@@ -1430,7 +1515,15 @@ export class JieQiChartsMain extends Component{
+ 			return dom;
+ 		}
+ 
+-		let cols = this.state.result.jieqi24.map((item, idx)=>{
++		// horosa_jieqi24_memo_v1:中栏总览只取决于 jieqi24 这一个数组(纯数据 → 纯 JSX,无 props/state
++		// 其它入参)。数组引用没变时复用上次的元素树 —— 24 张卡 ×2 行干支/纳音的 map 不再重算,
++		// 也让 React 对这段直接走 bailout。数据一变(合并出新数组)引用即变,立刻重建,不会陈旧。
++		const src = this.state.result.jieqi24;
++		if(this._jieqi24Memo && this._jieqi24Memo.src === src){
++			return this._jieqi24Memo.dom;
++		}
++
++		let cols = src.map((item, idx)=>{
+ 			const fourCols = getJieqiFourColumns(item);
+ 			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
+ 			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
+@@ -1493,6 +1586,7 @@ export class JieQiChartsMain extends Component{
+ 				{cols}
+ 			</Row>
+ 		);
++		this._jieqi24Memo = { src, dom };
+ 		return dom;
+ 	}
+ 
+@@ -1672,6 +1766,16 @@ export class JieQiChartsMain extends Component{
+ 		}
+ 	}
+ 
++	// horosa_shallow_scu_v1:本组件此前**无 sCU**,父层(pages/index.js)任何一次 re-render 都会
++	// 让这棵 1800 行的树连同 24 张卡片 + 右栏盘整树重算。这里只做「props 与 state 都逐键同引用
++	// 才跳过」的最保守判断:任何键的引用变化(含 result/fields/time/hook)一律返回 true 照常渲染,
++	// 键数不同也返回 true。因此只会跳过**输入完全没变**的重复渲染,不可能漏更新。
++	shouldComponentUpdate(nextProps, nextState){
++		if(!shallowSame(this.props, nextProps)){ return true; }
++		if(!shallowSame(this.state, nextState)){ return true; }
++		return false;
++	}
++
+ 	componentDidUpdate(prevProps){
+ 		const fieldsChanged = prevProps.fields !== this.props.fields;
+ 		const planetChanged = prevProps.planetDisplay !== this.props.planetDisplay;

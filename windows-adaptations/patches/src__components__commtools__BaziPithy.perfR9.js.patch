@@ -1,0 +1,72 @@
+diff --git a/astrostudyui/src/components/commtools/BaziPithy.js b/astrostudyui/src/components/commtools/BaziPithy.js
+index 37e7b53..56aa356 100644
+--- a/astrostudyui/src/components/commtools/BaziPithy.js
++++ b/astrostudyui/src/components/commtools/BaziPithy.js
+@@ -1,11 +1,13 @@
+ import { Component } from 'react';
+ import { Row, Col, Divider } from 'antd';
+-import { randomStr } from '../../utils/helper';
+ import request from '../../utils/request';
+ import * as Constants from '../../utils/constants';
+ import {Gan, Zi} from '../../msg/bazimsg';
+ import { twoTextOneLine } from '../../utils/helper';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ export default class BaziPithy extends Component{
+ 	constructor(props) {
+@@ -45,8 +47,9 @@ export default class BaziPithy extends Component{
+             return (<li key={idx}>{line}</li>)
+         })
+ 
++        // 「从格」子项与 pithy 顶层段两处循环共用同一个 cols 数组,两组段名互不重叠 → 段名即兄弟唯一 key
+         let col = (
+-            <Col span={8} key={randomStr(8)}>
++            <Col span={8} key={key}>
+                 <Divider orientation='left'>{key}</Divider>
+                 <ul>
+                     {lis}
+@@ -69,12 +72,12 @@ export default class BaziPithy extends Component{
+         for(let i=0; i<10; i++){
+             let gan = Gan[i];
+             let li = (
+-                <li key={randomStr(8)}>{pithy['三字诀'][gan]}</li>
++                <li key={gan}>{pithy['三字诀'][gan]}</li>
+             );
+             colword3.push(li);
+ 
+             let li4 = (
+-                <li key={randomStr(8)}>{pithy['四字诀'][gan]}</li>
++                <li key={gan}>{pithy['四字诀'][gan]}</li>
+             )
+             colword4.push(li4);
+         }
+@@ -83,7 +86,7 @@ export default class BaziPithy extends Component{
+         for(let i=0; i<12; i++){
+             let zi = Zi[i];
+             let li = (
+-                <li key={randomStr(8)}>{pithy['三字诀'][zi]}</li>
++                <li key={zi}>{pithy['三字诀'][zi]}</li>
+             );
+             colword3zi.push(li);
+         }
+@@ -91,7 +94,7 @@ export default class BaziPithy extends Component{
+         let nayin = [];
+         for(let key in pithy['纳音断运']){
+             let li = (
+-                <li key={randomStr(8)}>{pithy['纳音断运'][key]}</li>
++                <li key={key}>{pithy['纳音断运'][key]}</li>
+             )
+             nayin.push(li);
+         }
+@@ -101,7 +104,7 @@ export default class BaziPithy extends Component{
+             let ary = pithy['五行颠倒'][key];
+ 
+             let li = (
+-                <li key={randomStr(8)}>{ary.join('，')}</li>
++                <li key={key}>{ary.join('，')}</li>
+             )
+             wxdom.push(li);
+         }

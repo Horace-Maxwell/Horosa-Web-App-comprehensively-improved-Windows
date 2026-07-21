@@ -49,6 +49,38 @@ export function registerIdleWarmTask(name, task){
 	}
 }
 
+// —— horosa_data_warm_registry_v1(PERF-R9 Ship 7):排盘后数据层预热的【任务注册表】 ——
+// 病根:任务清单此前写死在 pages/index.js 的一个 4 条数组里 —— 与技法零关系的页面组件
+// 持有技法知识,漏项没人发现(紫微 /ziwei/birth 首点概率最高,却整轮不在组里)。
+// 改注册表后:追加一条 = 一行登记;Map 的插入序 = 首点概率序 = 执行序。
+// 登记方职责(本模块不校验,见上方纪律):确定性端点 + 技法自己的 builder/缓存入口 + silent。
+// ⚠️ 登记发生在模块 import 期(见 utils/dataWarmTasks.js),故 __resetIdleWarmQueue 【不】清它。
+const DATA_WARM_REGISTRY = new Map();
+
+/**
+ * @param {string} taskKey 诊断名(同名重登记=覆盖,顺序保持首次登记位)
+ * @param {function} fn (fields, chartObj) => Promise<any>
+ */
+export function registerDataWarmTask(taskKey, fn){
+	if(taskKey && typeof fn === 'function'){
+		DATA_WARM_REGISTRY.set(`${taskKey}`, fn);
+	}
+}
+
+/** 按登记序把注册表铺成 scheduleDataWarmGroup 吃的任务数组。 */
+export function buildRegisteredDataWarmTasks(fields, chartObj){
+	const tasks = [];
+	DATA_WARM_REGISTRY.forEach((fn, name)=>{
+		tasks.push({ name, task: ()=> fn(fields, chartObj) });
+	});
+	return tasks;
+}
+
+/** 测试/诊断:当前登记的任务名(即执行序)。 */
+export function __dataWarmRegistryKeys(){
+	return Array.from(DATA_WARM_REGISTRY.keys());
+}
+
 let started = false;
 let paused = false;
 let pauseTimer = null;

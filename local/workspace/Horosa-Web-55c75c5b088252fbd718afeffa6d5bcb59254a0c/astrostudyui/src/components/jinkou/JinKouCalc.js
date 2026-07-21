@@ -18,6 +18,8 @@ import {
 } from './JinKouDoc';
 
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
 // 五行配色统一对齐八字模块的品牌色板(--horosa-bazi-*)，全 app 一套色。
 // 金口诀主盘走 SVG presentation 属性(attr fill)，CSS 变量在此不解析，故落为对应 hex；
 // 主盘底色随暗黑模式翻深，浅色板的水/木/火会过暗不可读 → 按主题在 access 时取浅/深板(Proxy)，
@@ -1953,25 +1955,12 @@ export function normalizeKinjinkouData(backendPan, fallbackData){
 	};
 }
 
-export async function fetchJinKouPan(fields, nongli, options){
-	const opt = options || {};
-	const dt = resolveCalculationDateTime(fields, nongli, opt);
-	if(!dt){
-		return null;
-	}
-	const payload = {
-		...dt,
-		zone: fields && fields.date && fields.date.value ? fields.date.value.zone : '',
-		difen: opt.diFen || '子',
-		yuejiang: opt.yueJiang && opt.yueJiang !== 'auto' ? opt.yueJiang : '',
-		zhanshi: opt.zhanShi && opt.zhanShi !== 'auto' ? opt.zhanShi : '',
-		timeBasis: opt.timeBasis || 'direct',
-		realSunTime: nongli ? (nongli.birth || '') : '',
-		jiedelta: nongli ? (nongli.jiedelta || '') : '',
-		// v2.2.1: 两个全局开关从事盘(起课)fields 透传给后端 /jinkou/pan,后端已读取应用。
-		after23NewDay: (fields && fields.after23NewDay && fields.after23NewDay.value !== undefined) ? fields.after23NewDay.value : defaultAfter23NewDay(),
-		lateZiHourUseNextDay: (fields && fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
-	};
+// horosa_kentang_result_cache_v1 —— 金口诀 /jinkou/pan 直连缓存(LRU 48)。
+// 确定性论证:payload 全由 resolveCalculationDateTime(格式化 'YYYY-MM-DD'/'HH:mm:ss' 与整数)
+// + 地分/月将/占时/时间口径/两个日界开关 + nongli 派生的真太阳时字串构成,无 Date 对象、无随机、
+// 无「现在时刻」依赖;后端 webjinkousrv.py 全文无 random/now(已 grep 核对)→ 同 payload 必同盘。
+// 关 horosa.perf.techniqueResultCache 即逐字回到下面的直连原函数。
+async function fetchJinKouPanRaw(payload){
 	let rsp = null;
 	try{
 		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('jinkou', 'pan'), {
@@ -1995,4 +1984,30 @@ export async function fetchJinKouPan(fields, nongli, options){
 		});
 	}
 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+}
+
+export async function fetchJinKouPan(fields, nongli, options){
+	const opt = options || {};
+	const dt = resolveCalculationDateTime(fields, nongli, opt);
+	if(!dt){
+		return null;
+	}
+	const payload = {
+		...dt,
+		zone: fields && fields.date && fields.date.value ? fields.date.value.zone : '',
+		difen: opt.diFen || '子',
+		yuejiang: opt.yueJiang && opt.yueJiang !== 'auto' ? opt.yueJiang : '',
+		zhanshi: opt.zhanShi && opt.zhanShi !== 'auto' ? opt.zhanShi : '',
+		timeBasis: opt.timeBasis || 'direct',
+		realSunTime: nongli ? (nongli.birth || '') : '',
+		jiedelta: nongli ? (nongli.jiedelta || '') : '',
+		// v2.2.1: 两个全局开关从事盘(起课)fields 透传给后端 /jinkou/pan,后端已读取应用。
+		after23NewDay: (fields && fields.after23NewDay && fields.after23NewDay.value !== undefined) ? fields.after23NewDay.value : defaultAfter23NewDay(),
+		lateZiHourUseNextDay: (fields && fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
+	};
+	const bodyKey = kentangCacheKey(payload);
+	if(!techniqueResultCacheEnabled() || !bodyKey){
+		return fetchJinKouPanRaw(payload);
+	}
+	return cachedKentangCall('jinkou/pan', payload, ()=>fetchJinKouPanRaw(payload), { key: bodyKey, max: 48 });
 }

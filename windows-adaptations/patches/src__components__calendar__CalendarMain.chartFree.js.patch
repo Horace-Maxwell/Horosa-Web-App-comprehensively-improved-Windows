@@ -1,0 +1,159 @@
+diff --git a/astrostudyui/src/components/calendar/CalendarMain.js b/astrostudyui/src/components/calendar/CalendarMain.js
+index 8428d19..3e69c7f 100644
+--- a/astrostudyui/src/components/calendar/CalendarMain.js
++++ b/astrostudyui/src/components/calendar/CalendarMain.js
+@@ -1,6 +1,8 @@
+ import { Component } from 'react';
+ import { XQTabs as Tabs } from '../xq-ui';
+ import { randomStr } from '../../utils/helper';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
+ import NongLiMain from './NongLiMain';
+ import HuangLiMain from './HuangLiMain';
+ import TongshuMain from './TongshuMain';
+@@ -37,6 +39,10 @@ class CalendarMain extends Component{
+ 		};
+ 
+ 		this.changeTab = this.changeTab.bind(this);
++		// horosa_panel_ready_v1:记录「哪些子页签已经挂载过」。已挂载的子页切回来在本次
++		// commit 内即完成绘制(子组件不再发请求/不再 setState),故由 changeTab 自己收尾;
++		// 首次挂载的子页(rc-tabs 惰性:点开才 mount)则由该子页自己的数据落定回调收尾。
++		this._visitedTabs = { nongli: true };
+ 
+ 		if(this.props.hook){
+ 			this.props.hook.fun = (fields)=>{
+@@ -45,12 +51,24 @@ class CalendarMain extends Component{
+ 					hook[this.state.currentTab].fun(fields);
+ 				}
+ 			};
++			// horosa_chart_free_declared_v1(PERF-R9 Ship 7 接线)—— 本行是本文件唯一的 Windows
++			// overlay 改动标记:下面这条 `hook.chartFree = true` 声明 + utils/techniqueChartFree.js
++			// 的同名登记,两者缺一即哨兵/契约测试红。Mac 同步冲掉它 = 黄历页退回「等一次 /chart」。
++			// 🔴 chartFree 契约(PERF-R9 Ship 7 接线):黄历页中右栏【零】消费共享 chartObj ——
++			// 本组件只做子页路由、只向下传 fields;子页全是本地历法计算。声明后 fetchByFields
++			// 对本页走快车道:fields 立即提交、不等 /chart 网络(整整省掉一次往返)。
++			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
++			this.props.hook.chartFree = true;
+ 		}
+ 
+ 	}
+ 
+ 	changeTab(key){
+ 		let hook = this.state.hook;
++		// horosa_panel_ready_v1:子页签切换也是 owner 验收口径里的「一次操作」,起点在此打。
++		markInteractionStart('calendar');
++		const wasVisited = !!this._visitedTabs[key];
++		this._visitedTabs[key] = true;
+ 		this.setState({
+ 			currentTab: key,
+ 		}, ()=>{
+@@ -64,7 +82,13 @@ class CalendarMain extends Component{
+ 						currentSubTab: key,
+ 					}
+ 				});
+-			}	
++			}
++			// horosa_panel_ready_v1:已挂载过的子页 —— 本次 commit 即把中右栏画完(冻结解除后
++			// 拿到最新 children 渲一帧),故在此收尾;首次挂载的子页留给它自己的落数回调,
++			// 否则会把「还在算/还在请求」的那段漏掉。
++			if(wasVisited){
++				markPanelReady('calendar');
++			}
+ 		});
+ 	}
+ 
+@@ -73,52 +97,65 @@ class CalendarMain extends Component{
+ 		// 填满整页高度（原按 props.height-20 固定像素，比实际页面矮 ~66px 留大片空白）；
+ 		// 子 main 皆已支持 '100%'（内部转 calc）。配合 CSS 让 tab 内容链 height:100% 逐层撑满。
+ 		const height = '100%';
+-
++		// horosa_freeze_subtabs_v1:Tabs 改【受控】(原 defaultActiveKey 非受控,FreezeSubTab
++		// 拿不到 active)。changeTab 本来就把 key 记进 state.currentTab,故受控化零行为变化。
++		const cur = this.state.currentTab;
++		// 注:承载子页的 rc-tabs(v12)本身就【惰性】—— 未激活过的 TabPane 经 rc-motion
++		// 渲染为 null(forceRender=false / removeOnLeave=false),激活过之后才常驻隐藏。
++		// 故 FreezeSubTab 在此只兑现「冻结」那一半;三个非默认子页在原实现里同样是
++		// 「点开才挂载」,AI 导出汇合已挂载子页的既有语义未被本轮改动影响。
+ 		return (
+ 			<div id={this.state.divId} className='horosa-calendar-page'>
+ 				<Tabs
+-					defaultActiveKey={this.state.currentTab} tabPosition='right'
+-					className="xq-tabs-rail"
++					activeKey={cur} tabPosition='right'
+ 					onChange={this.changeTab}
+ 					className='horosa-calendar-tabs'
+ 					style={{ height: '100%' }}
+ 				>
+ 					<TabPane tab="农历" key="nongli">
+-						<NongLiMain
+-							height={height}
+-							fields={this.props.fields}
+-							days={this.state.days}
+-							predDays={this.state.predDays}
+-							dispatch={this.props.dispatch}
+-							hook={this.state.hook.nongli}
+-						/>
++						<FreezeSubTab active={cur === 'nongli'}>{()=> (
++							<NongLiMain
++								height={height}
++								fields={this.props.fields}
++								days={this.state.days}
++								predDays={this.state.predDays}
++								dispatch={this.props.dispatch}
++								hook={this.state.hook.nongli}
++							/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 
+ 					<TabPane tab="老黄历" key="huangli">
+-						<HuangLiMain
+-							height={height}
+-							fields={this.props.fields}
+-							dispatch={this.props.dispatch}
+-							hook={this.state.hook.huangli}
+-						/>
++						<FreezeSubTab active={cur === 'huangli'}>{()=> (
++							<HuangLiMain
++								height={height}
++								fields={this.props.fields}
++								dispatch={this.props.dispatch}
++								hook={this.state.hook.huangli}
++							/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 
+ 					<TabPane tab="通书择日" key="tongshu">
+-						<TongshuMain
+-							height={height}
+-							fields={this.props.fields}
+-							dispatch={this.props.dispatch}
+-							hook={this.state.hook.tongshu}
+-						/>
++						<FreezeSubTab active={cur === 'tongshu'}>{()=> (
++							<TongshuMain
++								height={height}
++								fields={this.props.fields}
++								dispatch={this.props.dispatch}
++								hook={this.state.hook.tongshu}
++							/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 
+ 					<TabPane tab="日子馆" key="rizi">
+-						<RiziMain
+-							height={height}
+-							fields={this.props.fields}
+-							dispatch={this.props.dispatch}
+-							hook={this.state.hook.rizi}
+-						/>
++						<FreezeSubTab active={cur === 'rizi'}>{()=> (
++							<RiziMain
++								height={height}
++								fields={this.props.fields}
++								dispatch={this.props.dispatch}
++								hook={this.state.hook.rizi}
++							/>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 
+ 				</Tabs>

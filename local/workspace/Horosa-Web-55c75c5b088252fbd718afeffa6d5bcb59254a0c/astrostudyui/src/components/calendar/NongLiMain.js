@@ -12,6 +12,35 @@ import NongLi from './NongLi';
 import GuaChartDiv from '../gua/GuaChartDiv';
 import {Week} from '../../msg/types';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
+
+// horosa_panel_scu_v1:黄历族四个子页【零消费】共享 fields/chartObj(本页仅在 constructor
+// 读一次 fields.gpsLon/gpsLat 作初值,渲染路径完全不碰),但父链每次 dva dispatch 都会把它们
+// 重渲一遍。下面的 sCU 只在「自身 state 变了」或「除 fields 外的 props 变了」时放行。
+// fields/fieldsAry 被显式排除 —— 理由写死在这里,日后若本页开始在 render 里读 fields,
+// 必须把它从排除表拿掉,否则会出现「改了时间但本页不更新」的陈旧。
+const SCU_IGNORED_PROPS = { fields: 1, fieldsAry: 1 };
+
+export function calendarPanelShouldUpdate(prevProps, nextProps, prevState, nextState){
+	const pk = Object.keys(prevProps);
+	const nk = Object.keys(nextProps);
+	if(pk.length !== nk.length){ return true; }
+	for(let i = 0; i < nk.length; i++){
+		const k = nk[i];
+		if(SCU_IGNORED_PROPS[k]){ continue; }
+		if(prevProps[k] !== nextProps[k]){ return true; }
+	}
+	// state 逐键引用比较:任何一键引用变了即放行(本族所有 setState 都是「造新对象/新数组」,
+	// 无就地变异 —— 见各 handler)。键数不同也放行。
+	const ps = Object.keys(prevState || {});
+	const ns = Object.keys(nextState || {});
+	if(ps.length !== ns.length){ return true; }
+	for(let i = 0; i < ns.length; i++){
+		const k = ns[i];
+		if(!prevState || prevState[k] !== nextState[k]){ return true; }
+	}
+	return false;
+}
 
 // 日干支五行着色（与八字模块同色变量 --horosa-bazi-*）。农历网格 dayExtra 用。
 const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
@@ -171,16 +200,21 @@ class NongLiMain extends Component{
 			dateSelected: null,
 		};
 
-		this.setState(st, this.saveAISnapshot);
+		this.setState(st, ()=>{
+			this.saveAISnapshot();
+			markPanelReady('calendar');   // horosa_panel_ready_v1:月历网格数据落定 = 中栏画完
+		});
 	}
 
 	async requestYearGua(){
 		if(this.state.dateSelected === undefined || this.state.dateSelected === null){
+			markPanelReady('calendar');   // horosa_panel_ready_v1:无可查年卦,右栏已是终态
 			return null;
 		}
 		let date = this.state.dateSelected;
 		let gua = date.qimengYearGua;
 		if(gua === undefined || gua === null){
+			markPanelReady('calendar');   // horosa_panel_ready_v1:同上,不留悬空计时
 			return;
 		}
 
@@ -197,10 +231,14 @@ class NongLiMain extends Component{
 			yearGua: result[gua],
 		};
 
-		this.setState(st, this.saveAISnapshot);
+		this.setState(st, ()=>{
+			this.saveAISnapshot();
+			markPanelReady('calendar');   // horosa_panel_ready_v1:年卦是选中日详情的最后一块
+		});
 	}
 
 	onTimeChanged(dt){
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(本页时间条不经 pages/index.js)
 		this.setState({
 			date: dt.value,
 		}, ()=>{
@@ -209,6 +247,7 @@ class NongLiMain extends Component{
 	}
 
 	changeGeo(rec){
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
 		// 选新地点时按新坐标自动校正时区(未在 atlas 内手改时区时),genParams 读 this.state.date.zone。
 		// setZone 仅改时区标签、保留钟面时刻(见 DateTime.setZone),不移位时间。
 		const patch = {
@@ -241,6 +280,7 @@ class NongLiMain extends Component{
 		let lastGua = lastdt ? lastdt.qimengYearGua : null;
 		let same = lastGua === date.qimengYearGua;
 
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
 		this.setState({
 			dateSelected: date,
 		}, ()=>{
@@ -248,10 +288,16 @@ class NongLiMain extends Component{
 				this.requestYearGua();
 			}
 			this.saveAISnapshot();
+			if(same){
+				// horosa_panel_ready_v1:年卦未变 → 右栏这一帧即终态;年卦要重取时留给
+				// requestYearGua 的终点收尾(它每条出口都打点,不会悬空)。
+				markPanelReady('calendar');
+			}
 		});
 	}
 
 	clickYearGua(){
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
 		this.requestYearGua();
 	}
 
@@ -395,6 +441,11 @@ class NongLiMain extends Component{
 		}
 	}
 
+	// horosa_panel_scu_v1:见文件头注释。本页渲染只依赖 state + props.height,
+	// fields 仅在 constructor 读一次 → 父链 dispatch 不再穿透成整页重渲。
+	shouldComponentUpdate(nextProps, nextState){
+		return calendarPanelShouldUpdate(this.props, nextProps, this.state, nextState);
+	}
 
 	render(){
 		let height = this.props.height ? this.props.height : 760;

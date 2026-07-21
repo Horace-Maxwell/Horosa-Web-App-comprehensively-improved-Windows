@@ -5,6 +5,7 @@ import * as Constants from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
 import styles from '../../css/styles.less';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { markPanelReady } from '../../utils/perfMark';
 
 function fieldsToParams(fields){
 	const params = {
@@ -157,7 +158,11 @@ class AstroChart13 extends Component{
 			chartObj: result,
 		};
 
-		this.setState(st);
+		// horosa_panel_ready_v1:十三分/十二分盘的中栏盘 + 右栏信息全部由 chartObj 派生,
+		// 这一次 setState 就是「面板数据落定」的唯一那次(顶层页签 key = auxchart)。
+		this.setState(st, ()=>{
+			markPanelReady('auxchart');
+		});
 	}
 
 	genParams(){

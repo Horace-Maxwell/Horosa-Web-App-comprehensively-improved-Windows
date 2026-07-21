@@ -1,0 +1,25 @@
+diff --git a/astrostudyui/src/components/calendar/YearAuspiciousPanel.js b/astrostudyui/src/components/calendar/YearAuspiciousPanel.js
+index 0d6819a..6443d9e 100644
+--- a/astrostudyui/src/components/calendar/YearAuspiciousPanel.js
++++ b/astrostudyui/src/components/calendar/YearAuspiciousPanel.js
+@@ -21,7 +21,11 @@ export default function YearAuspiciousPanel({ year, visible, onPick, onClose })
+ 		[visible, year, events],
+ 	);
+ 
+-	const catOptions = (includeBurial ? EVENT_CATEGORIES : NON_SENSITIVE).map((c)=> ({ label: c.label, value: c.key }));
++	// 选项条只随「含丧葬」开关变化，无须每次父组件重渲都重建一遍数组。
++	const catOptions = useMemo(
++		()=> (includeBurial ? EVENT_CATEGORIES : NON_SENSITIVE).map((c)=> ({ label: c.label, value: c.key })),
++		[includeBurial],
++	);
+ 	const activeCat = buckets[cat] ? cat : (catOptions[0] && catOptions[0].value);
+ 	const list = (buckets[activeCat] && buckets[activeCat].list) || [];
+ 
+@@ -44,6 +48,7 @@ export default function YearAuspiciousPanel({ year, visible, onPick, onClose })
+ 				<List
+ 					size='small'
+ 					dataSource={list}
++					rowKey={(d)=> d.ymd}
+ 					locale={{ emptyText: '本年该事项无显著吉日' }}
+ 					renderItem={(d)=> (
+ 						<List.Item

@@ -14,6 +14,7 @@ import { fetchPreciseJieqiSeed } from '../../utils/preciseCalcBridge';
 import { WEST_SCHOOLS, WEST_SCHOOL_ORDER, schoolOf } from '../../divination/election/westernSchools';
 import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
 import moment from 'moment';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = XQSelect.Option;
 
@@ -259,6 +260,13 @@ class ElectionMain extends Component{
 	}
 
 	renderRight({ chart, extra }){
+		// horosa_panel_ready_v1:择日盘中栏(壳画的盘)+右栏(判读)同源于 chart，本组件不发主盘请求。
+		// 注意:逐时/14 日「择优扫描」(runScan)是用户另点按钮触发的后台批量排盘,**不是**
+		// 「点击→画完」路径,故不在其 setState 上打点(否则会把秒级扫描配到上一次交互的起点上,污染 p95)。
+		if(chart && chart !== this._readyChart){
+			this._readyChart = chart;
+			markPanelReady('auxchart');
+		}
 		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} westSchool={extra.westSchool || 'modern_main'} surgeryPart={extra.surgeryPart || null} crisisBase={extra.crisisBase || null} natalFacts={this.state.natalFacts} mundaneSet={this.state.mundaneSet} />;
 	}
 

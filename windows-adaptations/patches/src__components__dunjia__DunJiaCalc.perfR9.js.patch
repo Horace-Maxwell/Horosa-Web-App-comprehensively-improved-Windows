@@ -1,0 +1,83 @@
+diff --git a/astrostudyui/src/components/dunjia/DunJiaCalc.js b/astrostudyui/src/components/dunjia/DunJiaCalc.js
+index b519105..dfd2f85 100644
+--- a/astrostudyui/src/components/dunjia/DunJiaCalc.js
++++ b/astrostudyui/src/components/dunjia/DunJiaCalc.js
+@@ -7,6 +7,8 @@ import request from '../../utils/request';
+ import { ServerRoot, ResultKey } from '../../utils/constants';
+ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+ import { fetchChartWithRetry } from '../../utils/chartFetch';
++import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
++import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+ 
+ export const SEX_OPTIONS = [
+ 	{ value: 1, label: '男' },
+@@ -1134,27 +1136,13 @@ export function normalizeKinqimenData(backendPan, fallbackPan, options, nongli){
+ 	};
+ }
+ 
+-export async function fetchQimenPan(fields, nongli, options, context){
+-	const baseDt = parseDateTime(fields);
+-	if(!baseDt){
+-		return null;
+-	}
+-	const opt = options || {};
+-	// 按所选时间口径计算:真太阳时(timeAlg=0)用 nongli.birth 校正后的时刻,直接时间(=1)用钟表时。
+-	// 与前端 calcDunJia(resolveCalcDateTime)、太乙(resolveCalculationDateTime)一致;此前后端漏用此校正,真太阳时被当直接时间排盘。
+-	const dt = resolveCalcDateTime(baseDt, nongli, opt, context);
+-	const payload = {
+-		...dt,
+-		zone: fields && fields.date && fields.date.value ? fields.date.value.zone : '',
+-		qimenMode: getKinqimenMode(opt.paiPanType),
+-		qijuMethod: normalizeQijuMethod(opt.qijuMethod),
+-		option: normalizeQijuMethod(opt.qijuMethod) === 'zhirun' ? 2 : 1,
+-		school: normalizeSchool(opt.school),
+-		realSunTime: (context && context.displaySolarTime) || (nongli ? (nongli.birth || '') : ''),
+-		jiedelta: nongli ? (nongli.jiedelta || '') : '',
+-		after23NewDay: opt.after23NewDay !== undefined ? (opt.after23NewDay ? 1 : 0) : 1,
+-		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? (opt.lateZiHourUseNextDay ? 1 : 0) : 1,
+-	};
++// horosa_kentang_result_cache_v1 —— 奇门(时家转盘)/qimen/pan 直连缓存(LRU 48)。
++// 确定性论证:payload = resolveCalcDateTime(格式化字串+整数)+ qimenMode/qijuMethod/option/school
++// + 真太阳时/节气差字串 + 两个日界开关(0/1);无 Date 对象、无随机、无「现在时刻」依赖;
++// 后端 webqimensrv.py 全文无 random/now(已 grep 核对)→ 同 payload 必同盘。
++// ⚠️ 节气种子只影响**本地** calcDunJia 分支(DunJiaMain.panCache 那条),不进本 payload,故与本层无关。
++// 关 horosa.perf.techniqueResultCache 即逐字回到下面的直连原函数。
++async function fetchQimenPanRaw(payload){
+ 	let rsp = null;
+ 	try{
+ 		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('qimen', 'pan'), {
+@@ -1180,6 +1168,34 @@ export async function fetchQimenPan(fields, nongli, options, context){
+ 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+ }
+ 
++export async function fetchQimenPan(fields, nongli, options, context){
++	const baseDt = parseDateTime(fields);
++	if(!baseDt){
++		return null;
++	}
++	const opt = options || {};
++	// 按所选时间口径计算:真太阳时(timeAlg=0)用 nongli.birth 校正后的时刻,直接时间(=1)用钟表时。
++	// 与前端 calcDunJia(resolveCalcDateTime)、太乙(resolveCalculationDateTime)一致;此前后端漏用此校正,真太阳时被当直接时间排盘。
++	const dt = resolveCalcDateTime(baseDt, nongli, opt, context);
++	const payload = {
++		...dt,
++		zone: fields && fields.date && fields.date.value ? fields.date.value.zone : '',
++		qimenMode: getKinqimenMode(opt.paiPanType),
++		qijuMethod: normalizeQijuMethod(opt.qijuMethod),
++		option: normalizeQijuMethod(opt.qijuMethod) === 'zhirun' ? 2 : 1,
++		school: normalizeSchool(opt.school),
++		realSunTime: (context && context.displaySolarTime) || (nongli ? (nongli.birth || '') : ''),
++		jiedelta: nongli ? (nongli.jiedelta || '') : '',
++		after23NewDay: opt.after23NewDay !== undefined ? (opt.after23NewDay ? 1 : 0) : 1,
++		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? (opt.lateZiHourUseNextDay ? 1 : 0) : 1,
++	};
++	const bodyKey = kentangCacheKey(payload);
++	if(!techniqueResultCacheEnabled() || !bodyKey){
++		return fetchQimenPanRaw(payload);
++	}
++	return cachedKentangCall('qimen/pan', payload, ()=>fetchQimenPanRaw(payload), { key: bodyKey, max: 48 });
++}
++
+ function resolvePaiPanMeta(opts, ganzhi, jieqi, dateParts, context){
+ 	const paiPanType = normalizeNum(opts && opts.paiPanType, 3);
+ 	if(paiPanType === 0){

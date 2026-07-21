@@ -1,0 +1,219 @@
+diff --git a/astrostudyui/src/components/jinkou/JinKouMain.js b/astrostudyui/src/components/jinkou/JinKouMain.js
+index 3b5a554..07f7c9f 100644
+--- a/astrostudyui/src/components/jinkou/JinKouMain.js
++++ b/astrostudyui/src/components/jinkou/JinKouMain.js
+@@ -14,6 +14,9 @@ import JinKouRelationMini from './JinKouRelationMini';
+ import { buildJinKouData, fetchJinKouPan, normalizeKinjinkouData } from './JinKouCalc';
+ import { JINKOU_BASHE_DOC } from './JinKouDoc';
+ import { resolveJinKouDiFen } from './JinKouState';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
++import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+ import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+ import {
+@@ -29,7 +32,7 @@ import {
+ } from '../../utils/localCalcCache';
+ import XQIcon from '../xq-icons';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+-import { chartDrawGuardEnabled } from '../../utils/perfFlags';
++import { chartDrawGuardEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
+ 
+ const { Option } = Select;
+ const TabPane = Tabs.TabPane;
+@@ -677,6 +680,34 @@ function pushCache(map, key, val, max = 96){
+ 	}
+ }
+ 
++// horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear(金口诀复用六壬两端点)
++// 与出生年干支的结果缓存**提升到模块级**。原为 per-instance:切走金口页 → 组件卸载 → 缓存与在途
++// Promise 一起蒸发,切回来整趟往返重付。三者均为确定性纯计算(key = genGodsParams/genRunYearParams/
++// 出生 params 的 JSON,即请求体本身:'YYYY-MM-DD'/'HH:mm' 格式化字串 + 经纬/时区/性别/日界开关,
++// 无 Date 对象、无随机、无「现在时刻」依赖),跨实例复用与直连逐值等价。
++// ns 显式写死在常量名里(**不**由 URL 派生:ServerRoot 端口每次后端启动随机)。
++// 上限沿用原调用点传给 pushCache 的 72 / 96(未改);出生年干支表另有 localStorage 冷启层,见下。
++// 关 horosa.perf.techniqueResultCache → 构造函数回到 new Map()/{}(=今日 per-instance 行为,逐字一致)。
++const JINKOU_BIRTH_GANZI_MEM = {};
++const JINKOU_BIRTH_GANZI_MAX = 96;
++
++// 出生年干支表提到模块级后必须有界(原 per-instance 明文无上限,靠卸载「自然清零」);
++// 值只是两字干支串,96 条即够整轮命例来回,插入序淘汰最早一条。
++function rememberBirthGanZi(map, key, val){
++	if(!map || !key || !val){
++		return;
++	}
++	map[key] = val;
++	const keys = Object.keys(map);
++	if(keys.length > JINKOU_BIRTH_GANZI_MAX){
++		delete map[keys[0]];
++	}
++}
++const JINKOU_GODS_MEM = new Map();
++const JINKOU_GODS_INFLIGHT = new Map();
++const JINKOU_RUNYEAR_MEM = new Map();
++const JINKOU_RUNYEAR_INFLIGHT = new Map();
++
+ class JinKouMain extends Component{
+ 	constructor(props) {
+ 		super(props);
+@@ -711,16 +742,18 @@ class JinKouMain extends Component{
+ 		};
+ 
+ 		this.unmounted = false;
+-		this.birthYearGanZiCache = {};
++		// horosa_kentang_result_cache_v1:命中模块级 LRU(切页往返 0 请求);关闸=每实例独立(旧行为)。
++		const jkShareCache = techniqueResultCacheEnabled();
++		this.birthYearGanZiCache = jkShareCache ? JINKOU_BIRTH_GANZI_MEM : {};
+ 		// 金口数据装配缓存(单槽 last-result):render() 每次都调 assembleJinKouData→buildJinKouData(引擎)。
+ 		// 切右栏 tab(rightTab/rightPanelTab/analysisTab/auxTab)只改无关 state,却让引擎整盘重跑。
+ 		// 按「装配实际消费的全部输入(liureng/backendPan 引用 + 各流派/地分/贵神/月将/盘式开关)」做签名,
+ 		// 签名全等 → 复用上次实例(byte-perfect:同输入必同输出);任一变 → 真重算。kill-switch 复用 chartDrawGuard 闸。
+ 		this._jinkouDataCache = null;
+-		this.godsCache = new Map();
+-		this.godsInflight = new Map();
+-		this.runYearServerCache = new Map();
+-		this.runYearServerInflight = new Map();
++		this.godsCache = jkShareCache ? JINKOU_GODS_MEM : new Map();
++		this.godsInflight = jkShareCache ? JINKOU_GODS_INFLIGHT : new Map();
++		this.runYearServerCache = jkShareCache ? JINKOU_RUNYEAR_MEM : new Map();
++		this.runYearServerInflight = jkShareCache ? JINKOU_RUNYEAR_INFLIGHT : new Map();
+ 
+ 		this.onFieldsChange = this.onFieldsChange.bind(this);
+ 		this.onBirthChange = this.onBirthChange.bind(this);
+@@ -1052,7 +1085,7 @@ class JinKouMain extends Component{
+ 		}
+ 		const localHit = getBirthGanzhiLocalCache(key);
+ 		if(localHit){
+-			this.birthYearGanZiCache[key] = localHit;
++			rememberBirthGanZi(this.birthYearGanZiCache, key, localHit);
+ 			return localHit;
+ 		}
+ 		const params = {
+@@ -1075,7 +1108,7 @@ class JinKouMain extends Component{
+ 				lr && lr.fourColumns && lr.fourColumns.year ? lr.fourColumns.year.ganzi : ''
+ 			) || extractGanZi(lr && lr.nongli ? (lr.nongli.yearGanZi || lr.nongli.yearJieqi || lr.nongli.year) : '');
+ 			if(ganzi){
+-				this.birthYearGanZiCache[key] = ganzi;
++				rememberBirthGanZi(this.birthYearGanZiCache, key, ganzi);
+ 				setBirthGanzhiLocalCache(key, ganzi);
+ 			}
+ 			return ganzi;
+@@ -1232,7 +1265,12 @@ class JinKouMain extends Component{
+ 		};
+ 
+ 		this.setState(st, ()=>{
+-			this.requestRunYear();
++			// horosa_panel_ready_v1:金口诀「画完」= 中栏四位盘(本次 st)+ 右栏「流年」段(requestRunYear
++			// 的二段 setState)都落定。requestRunYear 有多条早退分支(缺出生/年份校验 Modal),挂在它
++			// 返回的 promise 上两态都能收口;markPanelReady 自带 generation 去重,重复调用为空操作。
++			// tabKey 用顶层页签 key 'cnyibu'(金口诀是「其他」页内的子页面),与 markInteractionStart 同名。
++			const markReady = ()=>{ markPanelReady('cnyibu'); };
++			Promise.resolve(this.requestRunYear()).then(markReady, markReady);
+ 			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng, diFen, jinkouPan);
+ 		});
+ 	}
+@@ -1493,6 +1531,19 @@ class JinKouMain extends Component{
+ 		});
+ 	}
+ 
++	// [A7·性能] 重 wrapper sCU —— 补齐本族唯一缺口(SanShiUnited/LiuReng/DunJia/TaiYi 早已有,
++	// JinKouMain 此前【无 sCU】:宿主 CnYiBuMain 任何 setState(切子页签/其它子技法 hook 变动)
++	// 都让这 2300 行整树白跑一遍)。语义与四个兄弟逐字同款:
++	//   · state 引用变(setState 恒换引用)→ 照常重渲,绝不漏渲;
++	//   · props 全键机械浅比,函数型视为恒等(详 wrapperPropsEqual);
++	//   · kill-switch horosa.perf.chartSCU=0 → wrapperPropsEqual 恒返 false = 恒重渲旧行为。
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){
++			return true;
++		}
++		return !wrapperPropsEqual(this.props, nextProps);
++	}
++
+ 	componentDidMount(){
+ 		this.unmounted = false;
+ 		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再触发重新起课
+@@ -2115,43 +2166,56 @@ class JinKouMain extends Component{
+ 			<div className="horosa-jinkou-rightpanel-wrap">
+ 			{this.renderJishi(jinkouData)}
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-jinkou-tabs">
++				{/* horosa_freeze_subtabs_v1:右栏 5 面板 keep-alive,原先每次父重渲都把
++				    概览/神煞/分析/用神/参考 全跑一遍。函数式:非激活不求值、不 reconcile;
++				    切回拿本轮最新 children 立刻渲一帧(不卸载、不重取、不闪烁)。 */}
+ 				<TabPane tab="概览" key="overview">
+-					{this.renderOverviewAll(jinkouData, displayRunYear, appliedBirth, chartFields)}
++					<FreezeSubTab active={activeKey === 'overview'}>{()=>(
++						this.renderOverviewAll(jinkouData, displayRunYear, appliedBirth, chartFields)
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="神煞" key="gods">
+-					<div className="horosa-jinkou-overview-stack">
+-						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
+-							<div className="horosa-jinkou-section-card__title">四位神煞</div>
+-							{this.renderShenshaRows(jinkouData)}
+-						</section>
+-						{this.renderShenshaGrid('支煞', godsZiRows)}
+-						{this.renderShenshaGrid('年煞', godsYearRows)}
+-						{this.renderShenshaGrid(`${this.state.wuxing}十二长生`, zsRows)}
+-					</div>
++					<FreezeSubTab active={activeKey === 'gods'}>{()=>(
++						<div className="horosa-jinkou-overview-stack">
++							<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
++								<div className="horosa-jinkou-section-card__title">四位神煞</div>
++								{this.renderShenshaRows(jinkouData)}
++							</section>
++							{this.renderShenshaGrid('支煞', godsZiRows)}
++							{this.renderShenshaGrid('年煞', godsYearRows)}
++							{this.renderShenshaGrid(`${this.state.wuxing}十二长生`, zsRows)}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="分析" key="analysis">
+-					<div className="horosa-jinkou-overview-stack">
+-						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
+-							<div className="horosa-jinkou-section-card__title">四位关系图</div>
+-							{this.renderBranchRelation(jinkouData)}
+-						</section>
+-						{this.renderAnalysisBasic(jinkouData)}
+-						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
+-							<div className="horosa-jinkou-section-card__title">四位生克</div>
+-							{this.renderRelations(jinkouData)}
+-						</section>
+-						{this.renderNianYueRi(jinkouData)}
+-						{this.renderTaixuan(jinkouData)}
+-					</div>
++					<FreezeSubTab active={activeKey === 'analysis'}>{()=>(
++						<div className="horosa-jinkou-overview-stack">
++							<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
++								<div className="horosa-jinkou-section-card__title">四位关系图</div>
++								{this.renderBranchRelation(jinkouData)}
++							</section>
++							{this.renderAnalysisBasic(jinkouData)}
++							<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
++								<div className="horosa-jinkou-section-card__title">四位生克</div>
++								{this.renderRelations(jinkouData)}
++							</section>
++							{this.renderNianYueRi(jinkouData)}
++							{this.renderTaixuan(jinkouData)}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="用神" key="aux">
+-					<div className="horosa-jinkou-overview-stack">
+-						{this.renderInfoTable('四位类象', roleRefRows)}
+-						{this.renderCategory(jinkouData)}
+-					</div>
++					<FreezeSubTab active={activeKey === 'aux'}>{()=>(
++						<div className="horosa-jinkou-overview-stack">
++							{this.renderInfoTable('四位类象', roleRefRows)}
++							{this.renderCategory(jinkouData)}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="参考" key="ref">
+-					{this.renderBaShe()}
++					<FreezeSubTab active={activeKey === 'ref'}>{()=>(
++						this.renderBaShe()
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 			</div>

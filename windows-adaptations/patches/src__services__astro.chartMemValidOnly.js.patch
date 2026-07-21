@@ -1,8 +1,20 @@
 diff --git a/astrostudyui/src/services/astro.js b/astrostudyui/src/services/astro.js
-index 82b428b..f980138 100644
+index ed9e778..f6afbb1 100644
 --- a/astrostudyui/src/services/astro.js
 +++ b/astrostudyui/src/services/astro.js
-@@ -40,11 +40,23 @@ function buildChartKey(values){
+@@ -2,7 +2,10 @@ import request from '../utils/request';
+ import { ServerRoot } from '../utils/constants';
+ import { chartCloneLiteEnabled } from '../utils/perfFlags';
+ 
+-const CHART_CACHE_MAX = 96;
++// PERF-R9 Ship 7:96 → 192。步进预取每 settle 最多灌 3 条 /chart,加上技法族的自有预取,
++// 96 条在「连点步进 + 来回拨」下会把用户刚看过的盘挤出去(命中率反降)。容量是纯内存
++// (单盘 JSON 量级 ~数十 KB,192 条上限仍在个位 MB),翻倍换稳定命中。
++const CHART_CACHE_MAX = 192;
+ const chartMem = new Map();
+ const chartInflight = new Map();
+ 
+@@ -52,11 +55,23 @@ function buildChartKey(values){
  	}
  }
  
@@ -26,7 +38,7 @@ index 82b428b..f980138 100644
  		return Promise.resolve(clonePlain(chartMem.get(key)));
  	}
  	if(key && chartInflight.has(key)){
-@@ -61,7 +73,10 @@ export function fetchChart(values, requestOptions){
+@@ -73,7 +88,10 @@ export function fetchChart(values, requestOptions){
  		body: JSON.stringify(values),
  		...opts,
  	}).then((rsp)=>{

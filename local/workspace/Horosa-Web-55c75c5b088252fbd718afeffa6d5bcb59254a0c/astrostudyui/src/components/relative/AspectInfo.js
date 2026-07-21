@@ -3,11 +3,13 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
-import { randomStr} from '../../utils/helper'
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import { buildMeaningTipByCategory, buildAspectMeaningTip, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import styles from '../../css/styles.less';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 let pars = new Set()
 let planets = new Set()
@@ -66,7 +68,7 @@ class AspectInfo extends Component{
 					this.props.showPlanetHouseInfo
 				);
 					let dom = (
-						<div key={randomStr(8)}>
+						<div key={j}>
 							<span style={{fontFamily: AstroConst.AstroFont}}>
 								&emsp;{
 									wrapWithMeaning(
@@ -108,7 +110,7 @@ class AspectInfo extends Component{
 			if(i % 2 === 0){
 				if(i > 0){
 					let dom = (
-						<div key={randomStr(8)}>
+						<div key={`rowgroup-${i}`}>
 							<Row>
 								{cols}
 							</Row>
@@ -122,7 +124,7 @@ class AspectInfo extends Component{
 			cols.push(divs[i]);
 		}
 		rows.push((
-			<Row key={randomStr(8)}>
+			<Row key="rowgroup-last">
 				{cols}
 			</Row>
 		));

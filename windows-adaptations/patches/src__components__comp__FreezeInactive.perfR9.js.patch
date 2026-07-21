@@ -1,0 +1,108 @@
+diff --git a/astrostudyui/src/components/comp/FreezeInactive.js b/astrostudyui/src/components/comp/FreezeInactive.js
+index bb832ef..2b1eab5 100644
+--- a/astrostudyui/src/components/comp/FreezeInactive.js
++++ b/astrostudyui/src/components/comp/FreezeInactive.js
+@@ -1,6 +1,6 @@
+ import React, { Component } from 'react';
+ import { safeLocalStorageSet } from '../../utils/safeStorage';
+-import { freezeInactiveTabsEnabled } from '../../utils/perfFlags';
++import { freezeInactiveTabsEnabled, freezeSubTabsEnabled, subTabDeferMountEnabled } from '../../utils/perfFlags';
+ import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
+ 
+ // FreezeInactive —— 冻结「非激活」TabPane 内容的重渲(切页流畅度最高杠杆)。
+@@ -45,4 +45,95 @@ class FreezeInactive extends Component{
+ 	}
+ }
+ 
++// ═══════════════════════════════════════════════════════════════════════════════
++// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):把上面的冻结语义下放到【子页签】。
++//
++// 病灶:FreezeInactive 只守【顶层】技法页签。技法内部的右栏/中栏子页签(星运 26、占星 7+3、
++// 辅盘 11、卜其他 14、三式两层共 18、七政/紫微/数算/黄历各若干)一律「children 直接内联」——
++// antd Tabs 是 keep-alive,首次激活后永久挂载,此后父组件每次重渲(切时间/改选项/换页签)
++// 都把【用户看不见的】那十几个面板一起 reconcile + render 一遍,吃掉本该属于可见内容的预算。
++//
++// FreezeSubTab = 同源 wrapper,三条语义:
++//   1) 【冻结 ≠ 卸载】已渲染过的面板永远保留 DOM 与组件实例(componentWillUnmount 不会跑),
++//      非激活期间只是 sCU 返 false 跳过 re-render。切回去时 sCU 返 true,拿到父组件本轮
++//      构造的【最新】children 立即渲一帧 —— 不重新挂载、不重发请求、不闪烁、组件 state
++//      (滚动位置/已展开折叠面板/用户输入)原样还在。这是「功能不得降级」的硬保证。
++//   2) 【从未激活过的面板延迟首次渲染】那本来就没画过、用户也没见过,不构成降级。
++//      children 传函数(() => node)时连 React 元素都不创建 = 真零成本;传节点时元素已由
++//      父组件创建(那只是 createElement,便宜),但不进 reconcile。
++//   3) 【防呆】active 传 undefined(调用方忘了接 activeKey)→ 一律透明渲染,绝不出现空白面板。
++//
++// 用法(子页签接线方照抄):
++//   import FreezeInactive, { FreezeSubTab } from '../comp/FreezeInactive';
++//   // A. 节点式(最省事,适合原地包住已有内联 children)
++//   <TabPane tab="相位" key="2">
++//     <FreezeSubTab active={this.state.rightTab === '2'}>{ ...原内联内容... }</FreezeSubTab>
++//   </TabPane>
++//   // B. 函数式(推荐:未激活过时连元素都不建;适合 map 配置数组 t.content())
++//   <TabPane tab={t.title} key={t.key}>
++//     <FreezeSubTab active={activeKey === t.key}>{() => t.content()}</FreezeSubTab>
++//   </TabPane>
++//   // C. 需要局部错误边界时(默认【不】包,避免在已有边界内多一层 DOM/组件):
++//   <FreezeSubTab active={...} boundaryName="六壬·占断">{...}</FreezeSubTab>
++//   // D. 该面板必须从一开始就存在(挂载副作用/对外注册)→ eager 关掉延迟首渲,只保留冻结:
++//   <FreezeSubTab active={...} eager>{...}</FreezeSubTab>
++//
++// 前提:承载它的 Tabs 必须是【受控】的(activeKey + onChange 记进 state),否则拿不到 active。
++//       非受控(defaultActiveKey)的 Tabs 由各技法接线方先改受控,本组件不代劳。
++//
++// kill-switch:
++//   safeLocalStorageSet('horosa.perf.freezeSubTabs','0')   → 冻结与延迟首渲【全关】,
++//                                                            回到今天的「全部子面板每次都重渲」。
++//   safeLocalStorageSet('horosa.perf.subTabDeferMount','0') → 只关「延迟首次渲染」(全部子面板
++//                                                            一开始就渲一次),冻结仍生效。
++class FreezeSubTab extends Component{
++	constructor(props){
++		super(props);
++		// 「曾经激活过」的粘性标记:一旦为 true 永不回落 —— 它只控制【首次】渲染时机,
++		// 之后无论激活与否都保持已挂载(冻结≠卸载)。
++		this._everActive = props.active === undefined || !!props.active || !!props.eager;
++	}
++
++	shouldComponentUpdate(nextProps){
++		if(!freezeSubTabsEnabled()){
++			return true; // kill-switch:回到无条件渲染的旧行为
++		}
++		if(nextProps.active === undefined){
++			return true; // 防呆:调用方没接 activeKey → 行为与未包裹时一致
++		}
++		if(!this._everActive && !subTabDeferMountEnabled()){
++			// 延迟首渲被单独关掉:尚未激活过的面板照常参与重渲(eager 面板 _everActive 在
++			// 构造期即为 true,走不到这条,故 eager 只免「延迟首渲」、冻结照常生效)。
++			return true;
++		}
++		// 即将激活 或 当前激活 → 渲染(切回时拿到最新 children,零陈旧);
++		// 两次都非激活(保持隐藏)→ 跳过,这一次父重渲不再穿透到本面板。
++		return !!nextProps.active || !!this.props.active;
++	}
++
++	render(){
++		const { active, children, boundaryName, eager } = this.props;
++		const flagOn = freezeSubTabsEnabled();
++		if(active){
++			this._everActive = true;
++		}
++		// 延迟首次渲染:仅限「从未激活过」且开关开着且未 eager 豁免的面板。
++		if(flagOn && !this._everActive && !eager && subTabDeferMountEnabled() && active !== undefined){
++			return null;
++		}
++		// children 支持函数式(未激活过时不求值 = 连 React 元素都不创建)。
++		const node = typeof children === 'function' ? children() : children;
++		if(boundaryName){
++			return (
++				<TechniqueErrorBoundary label={boundaryName}>
++					{node}
++				</TechniqueErrorBoundary>
++			);
++		}
++		// 默认不包边界、不加 DOM 层:透明返回,包裹前后的 DOM 结构逐字节一致。
++		return node === undefined ? null : node;
++	}
++}
++
++export { FreezeSubTab };
+ export default FreezeInactive;

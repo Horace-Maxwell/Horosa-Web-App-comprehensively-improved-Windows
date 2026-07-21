@@ -1,5 +1,7 @@
 import { Component } from 'react';
 import { safeJsonParseFromStorage } from '../../utils/safeStorage';
+import { stepPrefetchEnabled } from '../../utils/perfFlags';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { Row, Col, } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import DateTime from '../comp/DateTime';
@@ -659,6 +661,9 @@ export async function warmPrimaryDirection(chartObj, fields){
 			body: JSON.stringify(req),
 			cache: 'no-store',
 			silent: true,
+			// PERF-R9 Ship 7:预热/预取一律零重试(显式声明,不吃任何调用链上的重试默认值)——
+			// 后端重启窗口里 N 个深度预取绝不能变成 N×10 次退避重试风暴。
+			retry: { retries: 0 },
 		});
 	}catch(e){
 		return null; // 预热失败静默:首点回到冷即付的现状
@@ -802,6 +807,41 @@ class AstroDirectMain extends Component{
 					hook[this.state.currentTab].fun(chartobj);
 				}
 			};
+			// PERF-R9 Ship 7:星运页默认子页(主限 primarydirect)的 /predict/pd 与主 /chart
+			// 互不依赖(pd 的构参只吃 fields + 盘上的 pd 配置)—— 在 /chart 返回【之前】并行发出,
+			// latency 从「网络 + 技法」变「max(网络, 技法)」。silent、丢结果、绝不 setState。
+			// 闸:horosa.perf.prewarmRequests(模型层判定,关=此函数不被调用,逐字节旧序)。
+			this.props.hook.prewarmRequests = (flds)=>{
+				if(this.unmounted){
+					return;
+				}
+				if(!isPrimaryDirectionTabKey(this.state.currentTab)){
+					return;
+				}
+				try{
+					warmPrimaryDirection(this.props.chartObj, flds || this.props.fields);
+				}catch(e){ /* 预热失败无害:正式请求自兜底 */ }
+			};
+			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):主限推运 /predict/pd 是确定性纯计算
+			// (同 盘+主限配置 恒同表)→ 登记步进预取。构参走与首点同一 pure builder。
+			// 🔴 登记必须在组件内:pd 配置来自组件所在页的 props/盘面态,模块级构不出同键 body。
+			if(stepPrefetchEnabled()){
+				registerStepPrefetcher('direction', (steppedFields)=>{
+					if(this.unmounted || !isPrimaryDirectionTabKey(this.state.currentTab)){
+						return [];
+					}
+					// 只有 date/time 随步进走;pd 配置(方法/年数/顺逆)取当前盘面 —— 与用户
+					// 真点下一步时发出的 body 逐字节同键。
+					if(!buildPrimaryDirectionRequestPure(this.props.chartObj, steppedFields, {})){
+						return [];
+					}
+					return [{
+						name: 'direction:pd',
+						path: '/predict/pd',
+						run: ()=> warmPrimaryDirection(this.props.chartObj, steppedFields),
+					}];
+				});
+			}
 		}
 
 	}

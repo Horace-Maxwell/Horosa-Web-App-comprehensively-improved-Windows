@@ -1,0 +1,263 @@
+diff --git a/astrostudyui/src/components/astro/AstroInfo.js b/astrostudyui/src/components/astro/AstroInfo.js
+index 667af54..43e5ab9 100644
+--- a/astrostudyui/src/components/astro/AstroInfo.js
++++ b/astrostudyui/src/components/astro/AstroInfo.js
+@@ -2,7 +2,6 @@ import { Component } from 'react';
+ import { Row, Col, Divider, Popover, } from 'antd';
+ import * as AstroConst from '../../constants/AstroConst';
+ import * as AstroText from '../../constants/AstroText';
+-import { randomStr} from '../../utils/helper'
+ import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
+ import { bodyPartsOf, degreePosition, } from '../../divination/data/bodyParts';
+ import AstroLifespan from './AstroLifespan';
+@@ -16,6 +15,9 @@ import * as Constants from '../../utils/constants';
+ import { XQSegmented } from '../xq-ui';
+ import { monomoiriaTriplicity } from '../../divination/data/monomoiriaTriplicity';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ // G16 单度主星体系:迦勒底连续序(默认,后端算)/ 三分序(保罗式,前端派生)。
+ const MONOMOIRIA_SYSTEM_OPTIONS = [
+@@ -233,7 +235,7 @@ class AstroInfo extends Component{
+ 			let objs = item.map((obj, oidx)=>{
+ 				let decl = chart.planets[obj].decl;
+ 				let span = (
+-					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
++					<span style={{fontFamily: AstroConst.AstroFont}} key={obj}>
+ 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' }>
+ 						{this.planetLabel(obj, chart)}&emsp;
+ 						</Popover>
+@@ -242,7 +244,7 @@ class AstroInfo extends Component{
+ 				return span;
+ 			});
+ 			let row = (
+-				<Row gutter={6} key={randomStr(8)}>
++				<Row gutter={6} key={idx}>
+ 					<Col span={8}>平行星体{idx+1}</Col>
+ 					<Col span={16}>
+ 						{objs}
+@@ -258,7 +260,7 @@ class AstroInfo extends Component{
+ 			let objs = planet.map((obj, idx)=>{
+ 				let decl = chart.planets[obj].decl;
+ 				let span = (
+-					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
++					<span style={{fontFamily: AstroConst.AstroFont}} key={obj}>
+ 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' } >
+ 						{this.planetLabel(obj, chart)}&emsp;
+ 						</Popover>
+@@ -271,7 +273,7 @@ class AstroInfo extends Component{
+ 			}
+ 			let decl = chart.planets[id].decl;
+ 			let row = (
+-				<Row gutter={6} key={randomStr(8)}>
++				<Row gutter={6} key={id}>
+ 					<Col span={8}>
+ 						相对
+ 						<span style={{fontFamily: AstroConst.AstroFont}}>
+@@ -558,8 +560,9 @@ class AstroInfo extends Component{
+ 				continue;
+ 			}
+ 			if(this.canDisplayPlanet(MinDelta[0].id) && this.canDisplayPlanet(MinDelta[1].id)){
++				// 被围星 key 在 attacks 内唯一,四类围攻块每星最多各出现一次 → 「星-类别」组合即稳定唯一键。
+ 				let dom = (
+-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++					<div key={`${key}-minDelta`} style={{fontFamily: AstroConst.AstroFont}}>
+ 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
+ 						<span>
+ 							{this.planetLabel(MinDelta[0].id, this.props.value)}&nbsp;
+@@ -584,7 +587,7 @@ class AstroInfo extends Component{
+ 
+ 			if(MarsSaturn.length > 0 && this.canDisplayPlanet(MarsSaturn[0].id) && this.canDisplayPlanet(MarsSaturn[1].id)){
+ 				dom = (
+-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++					<div key={`${key}-marsSaturn`} style={{fontFamily: AstroConst.AstroFont}}>
+ 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
+ 						<span>
+ 							{this.planetLabel(MarsSaturn[0].id, this.props.value)}&nbsp;
+@@ -608,7 +611,7 @@ class AstroInfo extends Component{
+ 			}
+ 			if(SunMoon.length > 0 && this.canDisplayPlanet(SunMoon[0].id) && this.canDisplayPlanet(SunMoon[1].id)){
+ 				dom = (
+-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++					<div key={`${key}-sunMoon`} style={{fontFamily: AstroConst.AstroFont}}>
+ 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
+ 						<span>
+ 							{this.planetLabel(SunMoon[0].id, this.props.value)}&nbsp;
+@@ -632,7 +635,7 @@ class AstroInfo extends Component{
+ 			}
+ 			if(VenusJupiter.length > 0 && this.canDisplayPlanet(VenusJupiter[0].id) && this.canDisplayPlanet(VenusJupiter[1].id)){
+ 				dom = (
+-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++					<div key={`${key}-venusJupiter`} style={{fontFamily: AstroConst.AstroFont}}>
+ 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
+ 						<span>
+ 							{this.planetLabel(VenusJupiter[0].id, this.props.value)}&nbsp;
+@@ -677,7 +680,7 @@ class AstroInfo extends Component{
+ 				continue;
+ 			}
+ 			let dom = (
+-				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++				<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+ 					<span>{this.planetLabel(obj[0].id, this.props.value)}</span>&nbsp;与&nbsp;
+ 					<span>{this.planetLabel(obj[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
+ 					<span>{this.planetLabel(key, this.props.value)}</span>
+@@ -704,7 +707,7 @@ class AstroInfo extends Component{
+ 			}
+ 			if(key === 'BySunMoon' && this.canDisplayPlanet(obj.id)){
+ 				let dom = (
+-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++					<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+ 						<span>{this.planetLabel(AstroConst.SUN, this.props.value)}</span>&nbsp;与&nbsp;
+ 						<span>{this.planetLabel(AstroConst.MOON, this.props.value)}</span>&nbsp;夹&nbsp;
+ 						<span>{this.planetLabel(obj.id, this.props.value)}</span>
+@@ -718,7 +721,7 @@ class AstroInfo extends Component{
+ 				let dom = null;
+ 				if(obj.SunMoon){
+ 					dom = (
+-						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++						<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+ 							<span>{this.planetLabel(obj.SunMoon[0].id, this.props.value)}</span>&nbsp;与&nbsp;
+ 							<span>{this.planetLabel(obj.SunMoon[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
+ 							<span>{this.planetLabel(key, this.props.value)}</span>
+@@ -728,7 +731,7 @@ class AstroInfo extends Component{
+ 				}
+ 				if(dom === null && this.canDisplayPlanet(obj[0].id) && this.canDisplayPlanet(obj[1].id)){
+ 					dom = (
+-						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++						<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+ 							<span>{this.planetLabel(obj[0].id, this.props.value)}</span>&nbsp;与&nbsp;
+ 							<span>{this.planetLabel(obj[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
+ 							<span>{this.planetLabel(key, this.props.value)}</span>
+@@ -770,7 +773,7 @@ class AstroInfo extends Component{
+ 			if(span < 90){
+ 				if(!this.canDisplayPlanet(left.id) || !this.canDisplayPlanet(right.id) || !this.canDisplayPlanet(mid.id)){ continue; }   // 仅渲染层隐藏,不改几何
+ 				rows.push(
+-					<div key={randomStr(8)} className="horosa-classical-line">
++					<div key={mid.id} className="horosa-classical-line">
+ 						{this.planetLabel(left.id, this.props.value)}&nbsp;与&nbsp;{this.planetLabel(right.id, this.props.value)}&nbsp;围绕&nbsp;{this.planetLabel(mid.id, this.props.value)}
+ 						<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>（跨 {span.toFixed(1)}°）</span>
+ 					</div>
+@@ -789,7 +792,7 @@ class AstroInfo extends Component{
+ 			if(!this.canDisplayPlanet(obj.id)){ return; }
+ 			let ev = obj.phasisEvent ? `（${PHASIS_EVENT_LABEL[obj.phasisEvent] || obj.phasisEvent}）` : '';
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={obj.id} className="horosa-classical-line">
+ 					{this.planetLabel(obj.id, this.props.value)}&nbsp;{PHASE_LABEL[obj.phase] || obj.phase}
+ 					{obj.phasisElong != null ? <span style={{color:'var(--horosa-muted, #999)'}}>&nbsp;(距日 {Number(obj.phasisElong).toFixed(1)}°)</span> : null}
+ 					{ev}
+@@ -807,7 +810,7 @@ class AstroInfo extends Component{
+ 			if(!obj || !obj.joy){ return; }
+ 			if(!this.canDisplayPlanet(obj.id)){ return; }
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={obj.id} className="horosa-classical-line">
+ 					{this.planetLabel(obj.id, this.props.value)}&nbsp;喜乐&nbsp;（{obj.joyHouse}宫）
+ 				</div>
+ 			);
+@@ -827,16 +830,17 @@ class AstroInfo extends Component{
+ 			if(!obj || obj.ofSect === undefined || !this.canDisplayPlanet(obj.id)){ return; }
+ 			(obj.ofSect ? ofSect : contra).push(obj.id);
+ 		});
+-		const lbl = (id) => <span key={randomStr(8)}>{this.planetLabel(id, this.props.value)}</span>;
++		const lbl = (id) => <span key={id}>{this.planetLabel(id, this.props.value)}</span>;
+ 		const muted = { color: 'var(--horosa-muted, #999)' };
+ 		const line = (title, ids) => (
+-			<div key={randomStr(8)} className="horosa-classical-line">
+-				<span style={muted}>{title}：</span>{ids.length ? ids.map((id)=> <span key={randomStr(8)}>{lbl(id)}&nbsp;</span>) : <span>—</span>}
++			<div key={title} className="horosa-classical-line">
++				<span style={muted}>{title}：</span>{ids.length ? ids.map((id)=> <span key={id}>{lbl(id)}&nbsp;</span>) : <span>—</span>}
+ 			</div>
+ 		);
++		// 返回数组的前两项各只渲染一次(宗派光 / 同宗吉凶星),字面量键即稳定唯一;后两项由 line() 以标题为键。
+ 		return [
+-			<div key={randomStr(8)} className="horosa-classical-line"><span style={muted}>宗派光：</span>{lbl(lightId)}&nbsp;（{day ? '日盘' : '夜盘'}）</div>,
+-			<div key={randomStr(8)} className="horosa-classical-line"><span style={muted}>同宗吉/凶星：</span>{lbl(beneficId)}&nbsp;/&nbsp;{lbl(maleficId)}</div>,
++			<div key="sectLight" className="horosa-classical-line"><span style={muted}>宗派光：</span>{lbl(lightId)}&nbsp;（{day ? '日盘' : '夜盘'}）</div>,
++			<div key="sectBenefic" className="horosa-classical-line"><span style={muted}>同宗吉/凶星：</span>{lbl(beneficId)}&nbsp;/&nbsp;{lbl(maleficId)}</div>,
+ 			line('同宗', ofSect),
+ 			line('异宗', contra),
+ 		];
+@@ -850,7 +854,7 @@ class AstroInfo extends Component{
+ 			let o = objs.find((x)=> x && x.id === id);
+ 			if(!o || !o.feral || !this.canDisplayPlanet(id)){ return; }
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&nbsp;野逸
+ 				</div>
+ 			);
+@@ -863,7 +867,7 @@ class AstroInfo extends Component{
+ 		let objs = (perchart && perchart.objects) || [];
+ 		let find = (id) => objs.find((o)=> o && o.id === id);
+ 		let line = (label, o) => (o && o.mansion) ? (
+-			<div key={randomStr(8)} style={{marginBottom:2}}>
++			<div key={label} style={{marginBottom:2}}>
+ 				<span style={{color:'#999'}}>{label}：</span>第{o.mansion.idx}宿 {o.mansion.cn}<span style={{color:'#999'}}>（{o.mansion.nature} · {o.mansion.use}）</span>
+ 			</div>
+ 		) : null;
+@@ -895,7 +899,7 @@ class AstroInfo extends Component{
+ 			let o = objs.find((x)=> x && x.id === id);
+ 			if(!o || !this.canDisplayPlanet(id) || (!o.monomoiria && !o.ninthPart && !o.darijan)){ return; }
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&emsp;
+ 					<span style={m}>单度</span>&nbsp;{g(monoOf(o))}&ensp;
+ 					<span style={m}>九分</span>&nbsp;{g(o.ninthPart)}&ensp;
+@@ -915,7 +919,7 @@ class AstroInfo extends Component{
+ 			let o = objs.find((x)=> x && x.id === id);
+ 			if(!o || !o.degreeGender || !this.canDisplayPlanet(id)){ return; }
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&nbsp;{o.degreeGender === 'masculine' ? '阳性度' : '阴性度'}
+ 				</div>
+ 			);
+@@ -935,7 +939,7 @@ class AstroInfo extends Component{
+ 			if(!o || !o.degreeQuality || !this.canDisplayPlanet(id)){ return; }
+ 			let gender = o.degreeGender === 'masculine' ? '阳性度' : (o.degreeGender === 'feminine' ? '阴性度' : '');
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&nbsp;<span style={{color: COL[o.degreeQuality]}}>{Q[o.degreeQuality] || o.degreeQuality}</span>
+ 					<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>{TIP[o.degreeQuality] || ''}</span>
+ 					{gender ? <span style={{color: 'var(--horosa-muted, #999)', marginLeft: 8}}>· {gender}</span> : null}
+@@ -958,7 +962,7 @@ class AstroInfo extends Component{
+ 			let tags = Object.keys(o.specialDegree).filter((k)=> o.specialDegree[k]);
+ 			if(!tags.length){ return; }
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&nbsp;
+ 					{tags.map((k)=> <span key={k} style={{color: COL[k], marginRight: 8}}>{LBL[k] || k}<span style={{opacity: 0.6, fontSize: 11}}>（{TIP[k]}）</span></span>)}
+ 				</div>
+@@ -979,7 +983,7 @@ class AstroInfo extends Component{
+ 			if(!o || !o.apogeeDir || !this.canDisplayPlanet(id)){ return; }
+ 			let m = { color: 'var(--horosa-muted, #999)' };
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&nbsp;
+ 					<span style={{color: o.apogeeDir === 'rising' ? 'var(--horosa-gold, #b8860b)' : 'var(--horosa-jade, #3a9a6a)'}}>{DIR[o.apogeeDir] || o.apogeeDir}</span>
+ 					<span style={{...m, marginLeft: 8}}>{NUM[o.numberTrend] || ''}</span>
+@@ -1001,7 +1005,7 @@ class AstroInfo extends Component{
+ 			if(!parts || !parts.length){ return; }
+ 			let pos = (o.signlon != null) ? degreePosition(o.signlon) : '';
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={id} className="horosa-classical-line">
+ 					{this.planetLabel(id, this.props.value)}&emsp;
+ 					{pos ? <span style={{color:'var(--horosa-muted, #999)'}}>{pos}</span> : null}&nbsp;{parts.join('、')}
+ 				</div>
+@@ -1019,7 +1023,7 @@ class AstroInfo extends Component{
+ 			if(!this.canDisplayPlanet(obj.id)){ return; }
+ 			let modeTxt = (obj.id === 'Moon' && obj.oobMode) ? (obj.oobMode === 'going' ? '（远行）' : '（回归）') : '';
+ 			rows.push(
+-				<div key={randomStr(8)} className="horosa-classical-line">
++				<div key={obj.id} className="horosa-classical-line">
+ 					{this.planetLabel(obj.id, this.props.value)}&nbsp;出界&nbsp;+{Number(obj.oobDelta).toFixed(2)}°{modeTxt}
+ 				</div>
+ 			);

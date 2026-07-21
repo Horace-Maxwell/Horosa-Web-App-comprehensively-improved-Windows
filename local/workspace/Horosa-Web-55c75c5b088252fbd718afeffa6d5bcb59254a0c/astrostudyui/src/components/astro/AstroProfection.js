@@ -7,7 +7,7 @@ import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { randomStr, convertToArray} from '../../utils/helper';
+import { convertToArray} from '../../utils/helper';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
@@ -17,6 +17,10 @@ import { XQSegmented, XQSelect } from '../xq-ui';
 import { SIGNS } from '../../divination/data/signs';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { markPanelReady } from '../../utils/perfMark';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 // ===== G9 月/日小限 + 多起点(纯前端派生) =====
 // flatlib 后端小限盘已连续旋转(年盘自上升),此处的「年/月/日」摘要为离散古典口径的纯前端派生,
@@ -116,7 +120,9 @@ class AstroProfection extends Component{
 		super(props);
 		this.unmounted = false;
 
-		let qryparam = this.props.value ? this.props.value.params : {};
+		// horosa_no_mutate_chart_params_v1:同 genNatalParams —— 在副本上派生 date/time,不写共享盘对象。
+		const srcParams = (this.props.value && this.props.value.params) ? this.props.value.params : {};
+		let qryparam = { ...srcParams };
 		if(qryparam.birth){
 			let parts = qryparam.birth.split(' ');
 			qryparam.date = parts[0];
@@ -208,7 +214,13 @@ class AstroProfection extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
+		// horosa_no_mutate_chart_params_v1(PERF-R9 Ship 6):此前是 `let qryparam = chartObj.params`
+		// 然后直接 `qryparam.date = …` —— 就地变异**共享的盘对象**。副作用是真的:
+		// AstroExtraCommon.chartRequestKey 把 params.date/time 计入请求键,于是「本技法有没有被挂载过」
+		// 会改变其它技法的缓存键。改为在本地副本上派生(birth 仍是唯一真源,chartParams 侧本就有同款回退),
+		// 盘对象自此只读 —— 这也是任何按引用比较的 memo/sCU 能成立的前提。
+		const src = (chartObj && chartObj.params) ? chartObj.params : {};
+		let qryparam = { ...src };
 		if(qryparam.birth){
 			let parts = qryparam.birth.split(' ');
 			qryparam.date = parts[0];
@@ -277,6 +289,8 @@ class AstroProfection extends Component{
 		};
 
 		this.setState(st, ()=>{
+			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
+			markPanelReady('direction');
 			const chartValue = this.props.value;
 			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'profection'), {
 				module: 'profection',
@@ -331,7 +345,30 @@ class AstroProfection extends Component{
 		});
 	}
 
+	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
+	// state.dirChart(推运结果对象,每次请求整体替换)、props.value(本命盘)、props.showPlanetHouseInfo
+	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
+	// 「更新中」角标开合、其它右栏控件(如小限粒度/起点)改动等与相位无关的重渲不再重建数百个 React 元素。
+	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
 	genAspectDom(){
+		const cache = this._aspectDomCache;
+		if(cache
+			&& cache.dir === this.state.dirChart
+			&& cache.natal === this.props.value
+			&& cache.phi === this.props.showPlanetHouseInfo){
+			return cache.dom;
+		}
+		const dom = this.buildAspectDom();
+		this._aspectDomCache = {
+			dir: this.state.dirChart,
+			natal: this.props.value,
+			phi: this.props.showPlanetHouseInfo,
+			dom: dom,
+		};
+		return dom;
+	}
+
+	buildAspectDom(){
 		if(this.state.dirChart === undefined || this.state.dirChart === null){
 			return null;
 		}
@@ -377,7 +414,7 @@ class AstroProfection extends Component{
 			if(i % 2 === 0){
 				if(i > 0){
 					let dom = (
-						<div key={randomStr(8)}>
+						<div key={`row-${i}`}>
 							<Row>
 								{cols}
 							</Row>
@@ -391,7 +428,7 @@ class AstroProfection extends Component{
 			cols.push(divs[i]);
 		}
 		rows.push((
-			<Row key={randomStr(8)}>
+			<Row key="row-last">
 				{cols}
 			</Row>
 		));

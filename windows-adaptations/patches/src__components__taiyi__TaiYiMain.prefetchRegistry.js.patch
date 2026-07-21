@@ -1,0 +1,226 @@
+diff --git a/astrostudyui/src/components/taiyi/TaiYiMain.js b/astrostudyui/src/components/taiyi/TaiYiMain.js
+index 95ea4ce..f821301 100644
+--- a/astrostudyui/src/components/taiyi/TaiYiMain.js
++++ b/astrostudyui/src/components/taiyi/TaiYiMain.js
+@@ -9,6 +9,8 @@ import DateTime from '../comp/DateTime';
+ import QuickDockBar from '../common/QuickDockBar';
+ import SpaceTimePanel from '../comp/SpaceTimePanel';
+ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
+ import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
+ import { geoNameFieldPatch } from '../../utils/geoName';
+ import { resolveGeoZone } from '../../utils/timezone';
+@@ -31,7 +33,8 @@ import {
+ } from './TaiYiCalc';
+ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+-import { chartDrawGuardEnabled } from '../../utils/perfFlags';
++import { chartDrawGuardEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ 
+ const { Option } = Select;
+@@ -53,6 +56,47 @@ function withTimeout(promise, timeoutMs) {
+ 	]);
+ }
+ 
++// —— PERF-R9 Ship 7:太乙 stage-1(/nongli/time)构参的模块级纯函数(组件 genParams 纯委托)。
++//    抽出来的唯一目的:预热要在【组件之外】构出与首点逐字节同键的 body。语义逐字节不变。
++function buildTaiYiNongliParamsPure(flds, options) {
++	if (!flds) {
++		return null;
++	}
++	const opts = options || {};
++	return {
++		date: flds.date.value.format('YYYY-MM-DD'),
++		time: flds.time.value.format('HH:mm:ss'),
++		ad: (flds.ad && flds.ad.value !== undefined) ? flds.ad.value : (flds.date.value.ad || 1),
++		zone: flds.zone.value,
++		lon: flds.lon.value,
++		lat: flds.lat.value,
++		gpsLat: flds.gpsLat.value,
++		gpsLon: flds.gpsLon.value,
++		gender: flds.gender.value,
++		after23NewDay: opts.after23NewDay || 0,
++	};
++}
++
++// PERF-R9 Ship 7(数据层空闲预热):太乙 stage-1 = /nongli/time(确定性历法计算)。
++// after23NewDay 取 defaultAfter23NewDay() —— 与组件构造时 state.options 的初值同一口径,
++// 故 key/body 与用户首点逐字节一致。
++// 🔴 绝不预热 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/流派),提前构不出同键。
++// silent(fetchPreciseNongli 内置)、丢结果、绝不 dispatch/setState;失败静默。
++export async function warmTaiYiStage1(fields) {
++	try {
++		if (!fields || !fields.date || !fields.date.value || !fields.date.value.format) {
++			return null;
++		}
++		const params = buildTaiYiNongliParamsPure(fields, { after23NewDay: defaultAfter23NewDay() });
++		if (!params) {
++			return null;
++		}
++		return await fetchPreciseNongli(params);
++	} catch (e) {
++		return null;   // 预热失败静默:首点回到冷即付的现状
++	}
++}
++
+ class TaiYiMain extends Component {
+ 	constructor(props) {
+ 		super(props);
+@@ -112,6 +156,44 @@ class TaiYiMain extends Component {
+ 				}
+ 				this.requestNongli(fields || this.props.fields);
+ 			};
++			// PERF-R9 Ship 7:太乙同为【两段式】—— stage-1(/nongli/time)先回来盘才能推。
++			// 与主 /chart 无关,在 /chart 返回之前并行发出即把 stage-1 摘出关键路径。
++			// silent(fetchPreciseNongli 内置)、丢结果、绝不 setState。
++			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
++			this.props.hook.prewarmRequests = (flds) => {
++				if (this.unmounted) {
++					return;
++				}
++				try {
++					const params = this.genParams(flds || this.props.fields);
++					if (params) {
++						fetchPreciseNongli(params).catch(() => { /* 预热静默 */ });
++					}
++				} catch (e) { /* 预热失败无害 */ }
++			};
++			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):只预取 stage-1。
++			// 🔴 绝不预取 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/局数流派),串行不可提前构键。
++			if (stepPrefetchEnabled()) {
++				registerStepPrefetcher('taiyi', (steppedFields) => {
++					if (this.unmounted || !steppedFields) {
++						return [];
++					}
++					let params = null;
++					try {
++						params = this.genParams(steppedFields);
++					} catch (e) {
++						return [];
++					}
++					if (!params) {
++						return [];
++					}
++					return [{
++						name: 'taiyi:nongli',
++						path: '/nongli/time',
++						run: () => fetchPreciseNongli(params),
++					}];
++				});
++			}
+ 		}
+ 	}
+ 
+@@ -377,22 +459,9 @@ class TaiYiMain extends Component {
+ 	}
+ 
+ 	genParams(fields) {
+-		const flds = fields || this.props.fields;
+-		if (!flds) {
+-			return null;
+-		}
+-		return {
+-			date: flds.date.value.format('YYYY-MM-DD'),
+-			time: flds.time.value.format('HH:mm:ss'),
+-			ad: (flds.ad && flds.ad.value !== undefined) ? flds.ad.value : (flds.date.value.ad || 1),
+-			zone: flds.zone.value,
+-			lon: flds.lon.value,
+-			lat: flds.lat.value,
+-			gpsLat: flds.gpsLat.value,
+-			gpsLon: flds.gpsLon.value,
+-			gender: flds.gender.value,
+-			after23NewDay: this.state.options.after23NewDay || 0,
+-		};
++		// PERF-R9 Ship 7:构造原样抽为模块级纯函数(预热复用同一路径 ⇒ key/body 逐字节一致);
++		// 本方法保持既有签名与 props 兜底语义,纯委托零行为变化。
++		return buildTaiYiNongliParamsPure(fields || this.props.fields, this.state.options);
+ 	}
+ 
+ 	async recalc(fields, nongli, options) {
+@@ -421,6 +490,9 @@ class TaiYiMain extends Component {
+ 		const ov = pan ? applyTaiyiSchool(pan, nextOptions.school) : { pan, overrides: null };
+ 		const displayPan = ov.pan || pan;
+ 		this.setState({ pan: displayPan, schoolOverrides: ov.overrides, selectedPalace: null, loading: false }, () => {
++			// horosa_panel_ready_v1:太乙面板(中栏盘 + 右栏六页签)全部数据来自这一个 pan,
++			// 故本次 setState 落定 = 中栏+右栏画完。双 rAF 由 markPanelReady 内部完成。
++			markPanelReady('taiyi');
+ 			if (displayPan) {
+ 				saveModuleAISnapshotLazy('taiyi', ()=>buildTaiyiSnapshotText(displayPan));
+ 			}
+@@ -1234,40 +1306,55 @@ class TaiYiMain extends Component {
+ 		const activeKey = tabKeys.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
+ 		return (
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-taiyi-tabs">
++				{/* horosa_freeze_subtabs_v1:右栏六页签 keep-alive,原先每次父重渲(切时间/改选项/换页签)
++				    都把六个面板的 renderPalaceRows/renderSectionRows 全跑一遍。函数式 FreezeSubTab:
++				    非激活时既不求值也不 reconcile;切回时拿本轮最新 children 立即渲一帧(不卸载、不闪烁)。 */}
+ 				<TabPane tab="概览" key="overview">
+-					<div className="horosa-taiyi-overview-stack">
+-						{this.renderInfoRows()}
+-					</div>
++					<FreezeSubTab active={activeKey === 'overview'}>{()=>(
++						<div className="horosa-taiyi-overview-stack">
++							{this.renderInfoRows()}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="十六宫" key="palaces">
+-					<div className="horosa-taiyi-palace-list">
+-						{this.renderPalaceRows()}
+-					</div>
++					<FreezeSubTab active={activeKey === 'palaces'}>{()=>(
++						<div className="horosa-taiyi-palace-list">
++							{this.renderPalaceRows()}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="神煞" key="spirits">
+-					<div className="horosa-taiyi-section-list">
+-						{this.renderSectionRows(['太乙诸神', '风游', '十二神'])}
+-					</div>
++					<FreezeSubTab active={activeKey === 'spirits'}>{()=>(
++						<div className="horosa-taiyi-section-list">
++							{this.renderSectionRows(['太乙诸神', '风游', '十二神'])}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				{showDoorsTab && (
+ 					<TabPane tab="八门" key="doors">
+-						<div className="horosa-taiyi-section-list">
+-							{this.renderSectionRows(['八门与宿曜'])}
+-						</div>
++						<FreezeSubTab active={activeKey === 'doors'}>{()=>(
++							<div className="horosa-taiyi-section-list">
++								{this.renderSectionRows(['八门与宿曜'])}
++							</div>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 				)}
+ 				{showRulingsTab && (
+ 					<TabPane tab="断法" key="rulings">
+-						<div className="horosa-taiyi-section-list">
+-							{this.renderSectionRows(['断法', '七大兵法', '博弈'])}
+-						</div>
++						<FreezeSubTab active={activeKey === 'rulings'}>{()=>(
++							<div className="horosa-taiyi-section-list">
++								{this.renderSectionRows(['断法', '七大兵法', '博弈'])}
++							</div>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 				)}
+ 				{showLifeTab && (
+ 					<TabPane tab="命法" key="life">
+-						<div className="horosa-taiyi-section-list">
+-							{this.renderSectionRows(['命法', '命宫行限'])}
+-						</div>
++						<FreezeSubTab active={activeKey === 'life'}>{()=>(
++							<div className="horosa-taiyi-section-list">
++								{this.renderSectionRows(['命法', '命宫行限'])}
++							</div>
++						)}</FreezeSubTab>
+ 					</TabPane>
+ 				)}
+ 			</Tabs>

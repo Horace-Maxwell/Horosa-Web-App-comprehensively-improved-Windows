@@ -1,0 +1,30 @@
+diff --git a/astrostudyui/src/components/user/CaseList.js b/astrostudyui/src/components/user/CaseList.js
+index cbf1037..c033220 100644
+--- a/astrostudyui/src/components/user/CaseList.js
++++ b/astrostudyui/src/components/user/CaseList.js
+@@ -3,11 +3,13 @@ import { Row, Col, Popconfirm, message } from 'antd';
+ import * as AstroText from '../../constants/AstroText';
+ import { TableOddRowBgColor } from '../../utils/constants';
+ import { getStore } from '../../utils/storageutil';
+-import { randomStr } from '../../utils/helper';
+ import EditableTags from '../comp/EditableTags';
+ import { getCaseTypeLabel, exportLocalCasesBackup, importLocalCasesBackup } from '../../utils/localcases';
+ import { XQButton, XQPagination, XQSearch, XQSelect, XQTable } from '../xq-ui';
+ import XQIcon from '../xq-icons';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const Option = XQSelect.Option;
+ 
+@@ -258,8 +260,8 @@ class CaseList extends Component{
+ 		let tags = userstate.userInfo.group;
+ 		let dom = [];
+ 		if(tags){
+-			dom = tags.map((item)=>(
+-				<Option key={randomStr(8)} value={item}>{item}</Option>
++			dom = tags.map((item, idx)=>(
++				<Option key={idx} value={item}>{item}</Option>
+ 			));
+ 		}
+ 		return dom;

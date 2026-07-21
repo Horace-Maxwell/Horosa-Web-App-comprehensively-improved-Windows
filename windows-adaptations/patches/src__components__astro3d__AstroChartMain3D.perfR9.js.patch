@@ -1,0 +1,137 @@
+diff --git a/astrostudyui/src/components/astro3d/AstroChartMain3D.js b/astrostudyui/src/components/astro3d/AstroChartMain3D.js
+index db6bbd1..77be7ad 100644
+--- a/astrostudyui/src/components/astro3d/AstroChartMain3D.js
++++ b/astrostudyui/src/components/astro3d/AstroChartMain3D.js
+@@ -27,6 +27,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P2
+ import AstroPDSphere from './AstroPDSphere';
+ import * as AstroConst from '../../constants/AstroConst';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const TabPane = XQTabs.TabPane;
+ const Option = XQSelect.Option;
+@@ -60,7 +62,12 @@ class AstroChartMain3D extends Component{
+ 			centerMode: 'geo',
+ 			boardMode: _bm,
+ 			tabH: null,   // [右栏满高] 实测 tabs 内容高;null=回退旧扣高公式
++			// horosa_freeze_subtabs_v1:右栏 5 个子页签原为 defaultActiveKey(非受控),
++			// 拿不到 activeKey 就无法冻结。改受控:初值仍是 '1'(信息),onChange 记进 state,
++			// 用户可见行为逐字不变。
++			sideTab: '1',
+ 		}
++		this.changeSideTab = (key)=>{ this.setState({ sideTab: key }); };
+ 		// 右栏 tabs 实测高:写死扣高(height-252)与各卡实际高度脱节 → 底部大空白;RO 量真值。
+ 		this.attachSideTabsRO = (node)=>{
+ 			if(!node || node === this._sideTabsNode || typeof ResizeObserver === 'undefined'){ return; }
+@@ -253,6 +260,18 @@ class AstroChartMain3D extends Component{
+ 			&& this.props.value && !this.props.value.err){
+ 			this.applyCenterMode(this.state.centerMode);
+ 		}
++		// horosa_panel_ready_v1:3D 盘没有「数据落定的 setState」可挂 —— chartObj 由 models/astro
++		// 推给 props,右栏各表由它同步派生,中栏是 WebGL 画布(three.js 自有 rAF 循环)。
++		// 故就绪点取「携带新 chartObj 的这次 React 提交完成」,markPanelReady 内的双 rAF 再把
++		// 落点推到下一个绘制帧。⚠ 口径说明:它计入 React 侧右栏画完 + 引擎收到新数据后的首帧,
++		// 但**不**保证 3D 换系动画播完(那是动画时长,不属于「画完」预算)。
++		// ⚠ currentTab 守卫必需:本组件**同时**被 JieQiChartsMain 当作「XX3D盘」子页签复用
++		// (那里不传 currentTab)。markPanelReady 消费的是全局唯一的交互起点,不设防的话
++		// 节气页里的这个实例会把 'jieqichart' 那次交互抢走、记成 'astrochart3D' —— 记错格
++		// 比不记更坏。只有 pages/index.js 顶层那一个实例(传 currentTab)才打点。
++		if(this.props.currentTab === 'astrochart3D' && prevProps.value !== this.props.value){
++			markPanelReady('astrochart3D');
++		}
+ 	}
+ 
+ 	changeGeo(rec){
+@@ -318,7 +337,6 @@ class AstroChartMain3D extends Component{
+ 		let height = this.props.height ? this.props.height : 760;
+ 		let chartHeight = Math.max(360, height - 28);
+ 		let tabHeight = this.state.tabH || (height - 252);
+-
+ 		let showzodical = true;
+ 		let showhsys = true;
+ 		let showdateselector = true;
+@@ -349,6 +367,16 @@ class AstroChartMain3D extends Component{
+ 			showhsys = false;
+ 		}
+ 
++		// horosa_freeze_subtabs_v1 ★复核补丁(horosa_controlled_tab_clamp_v1):
++		// 右栏 Tabs 已从 defaultActiveKey(非受控)改为受控 activeKey。受控之下,
++		// 「希腊点」(key '4')是**条件渲染**的面板(showlots=false 时整个 TabPane 不存在)——
++		// 一旦 activeKey 指向一个不存在的面板,rc-tabs 的兜底(把 activeKey 拉回现存面板)
++		// 只写内部 state,受控模式下被外部 activeKey 覆盖回来 → 右栏**整块空白、无页签高亮**。
++		// 非受控时代 rc-tabs 自己就能纠偏,所以这是「受控化」带来的新风险,必须在这里补齐。
++		// 计算态钳位(不 setState,避免 render 里改状态):面板不存在就回落到「信息」。
++		// showlots 目前由静态 prop hidelots 决定(顶层实例恒 true),故正常路径下逐字不变。
++		const sideTab = (!showlots && this.state.sideTab === '4') ? '1' : this.state.sideTab;
++
+ 		let needChart3D = false;
+ 		if((this.props.currentTab && this.props.currentTab === 'astrochart3D') || this.props.needChart3D){
+ 			needChart3D = true;
+@@ -470,16 +498,24 @@ class AstroChartMain3D extends Component{
+ 						</XQToolbar>
+ 					) : null}
+ 					<div className="horosa-3d-tabs-fill" ref={this.attachSideTabsRO}>
+-					<XQTabs defaultActiveKey="1" tabPosition='top' className="horosa-3d-tabs">
++					{/* horosa_freeze_subtabs_v1：右栏 5 个面板此前全内联 —— 首次激活后永久挂载，
++					    此后每次改时间/改宫制/切中心体都把看不见的相位表、行星表、希腊点表一并重渲，
++					    直接吃掉「右栏画完」的预算。函数式 children：从未激活过的面板连元素都不建；
++					    已激活过的在非激活期跳过 re-render，切回时拿本轮最新 chartObj 立即渲一帧
++					    —— 不卸载、不重取、不丢滚动位置。 */}
++					<XQTabs activeKey={sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-3d-tabs">
+ 						<TabPane tab="信息" key="1">
++							<FreezeSubTab active={sideTab === '1'}>{()=>(
+ 							<AstroInfo height={tabHeight}
+ 								value={chartObj} fields={fields}
+ 								planetDisplay={this.props.planetDisplay}
+ 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+ 								showAstroMeaning={this.props.showAstroMeaning}
+ 							/>
++							)}</FreezeSubTab>
+ 						</TabPane>
+ 						<TabPane tab="相位" key="2">
++							<FreezeSubTab active={sideTab === '2'}>{()=>(
+ 							<AstroAspect
+ 								value={chartObj} height={tabHeight}
+ 								lotsDisplay={this.props.lotsDisplay}
+@@ -487,26 +523,36 @@ class AstroChartMain3D extends Component{
+ 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+ 								showAstroMeaning={this.props.showAstroMeaning}
+ 							/>
++							)}</FreezeSubTab>
+ 						</TabPane>
+ 						<TabPane tab="行星" key="3">
++							<FreezeSubTab active={sideTab === '3'}>{()=>(
+ 							<AstroPlanet
+ 								value={chartObj}
+ 								height={tabHeight}
+ 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
+ 								showAstroMeaning={this.props.showAstroMeaning}
+ 							/>
++							)}</FreezeSubTab>
+ 						</TabPane>
+ 						{showlots ? (
+ 							<TabPane tab="希腊点" key="4">
++								<FreezeSubTab active={sideTab === '4'}>{()=>(
+ 								<AstroLots value={chartObj} height={tabHeight} showAstroMeaning={this.props.showAstroMeaning}/>
++								)}</FreezeSubTab>
+ 							</TabPane>
+ 						) : null}
+ 						<TabPane tab="显示" key="5">
+ 							{/* WS-1:显示设置迁右栏(替代画布内 lil-gui);engineTick=chartObj 变化触发面板重同步 */}
+-							<Astro3DSettingsPanel
+-								getEngine={()=>this.chart3dRef && this.chart3dRef.astro3d}
+-								engineTick={chartObj ? chartObj.chartId : ''}
+-							/>
++							{/* ⚠ 本面板 eager：它挂载即向 3D 引擎同步显示开关（getEngine/engineTick 属对外注册型副作用），
++							    延迟首渲会让「显示」设置在用户第一次点开该页签之前不生效 —— 那是功能降级。
++							    故只取冻结语义（非激活期不重渲）、不取延迟首渲。 */}
++							<FreezeSubTab active={sideTab === '5'} eager>
++								<Astro3DSettingsPanel
++									getEngine={()=>this.chart3dRef && this.chart3dRef.astro3d}
++									engineTick={chartObj ? chartObj.chartId : ''}
++								/>
++							</FreezeSubTab>
+ 						</TabPane>
+ 					</XQTabs>
+ 					</div>

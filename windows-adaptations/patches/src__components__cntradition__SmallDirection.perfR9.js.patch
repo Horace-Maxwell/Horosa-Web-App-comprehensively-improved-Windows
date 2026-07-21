@@ -1,0 +1,57 @@
+diff --git a/astrostudyui/src/components/cntradition/SmallDirection.js b/astrostudyui/src/components/cntradition/SmallDirection.js
+index 71ae8b1..021e4e4 100644
+--- a/astrostudyui/src/components/cntradition/SmallDirection.js
++++ b/astrostudyui/src/components/cntradition/SmallDirection.js
+@@ -1,9 +1,11 @@
+ import { Component } from 'react';
+ import { Row, Col, Popover, Divider } from 'antd';
+-import { randomStr } from '../../utils/helper';
+ import { BaZiMsg } from '../../msg/bazimsg';
+ import { birthMonthDayFromBazi, resolveStarCharger } from './starChargerLazy';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ function safeArray(value){
+ 	return Array.isArray(value) ? value : [];
+@@ -39,10 +41,10 @@ class SmallDirection extends Component{
+ 		let ganCols = this.genGods(rec.stem, '干');
+ 		let ziCols = this.genGods(rec.branch, '支');
+ 		let doms = [];
+-		[cols, ganCols, ziCols].forEach((c)=>{ if(c){ doms.push(<Row key={randomStr(8)}>{c}</Row>); } });
++		[cols, ganCols, ziCols].forEach((c, ci)=>{ if(c){ doms.push(<Row key={`gods-${ci}`}>{c}</Row>); } });
+ 		const taisuiGods = safeArray(rec.branch && rec.branch.taisuiGods);
+ 		if(taisuiGods.length > 0){
+-			doms.push(<Row key={randomStr(8)}><Col span={24}><div>岁：&emsp;{taisuiGods.join('，')}</div></Col></Row>);
++			doms.push(<Row key="taisui"><Col span={24}><div>岁：&emsp;{taisuiGods.join('，')}</div></Col></Row>);
+ 		}
+ 		return doms.length > 0 ? doms : null;
+ 	}
+@@ -56,7 +58,7 @@ class SmallDirection extends Component{
+ 		safeArray(rec.neutralGods).length && spans.push(safeArray(rec.neutralGods).join('，'));
+ 		safeArray(rec.badGods).length && spans.push(safeArray(rec.badGods).join('，'));
+ 		if(spans.length > 0){
+-			return [<Col key={randomStr(8)} span={24}><div>{titleStr}：&emsp;{spans.join('，')}</div></Col>];
++			return [<Col key={`gods-col-${titleStr}`} span={24}><div>{titleStr}：&emsp;{spans.join('，')}</div></Col>];
+ 		}
+ 		return null;
+ 	}
+@@ -94,7 +96,7 @@ class SmallDirection extends Component{
+ 
+ 		return (
+ 			<div className={`${styles.scrollbar} horosa-bazi-xy-list`} style={style}>
+-				{dirs.map((dir)=>{
++				{dirs.map((dir, di)=>{
+ 					const d = dir || {};
+ 					const subdir = d.direct || {};
+ 					const yeardir = d.yearGanzi || {};
+@@ -119,7 +121,7 @@ class SmallDirection extends Component{
+ 						</div>
+ 					);
+ 					return (
+-						<div className="horosa-bazi-xy-item" key={randomStr(8)}>
++						<div className="horosa-bazi-xy-item" key={di}>
+ 							{this.renderPillarChip('小运', subdir, `小运：${subdir.ganzi || ''}`, popSub)}
+ 							{this.renderPillarChip('流年', yeardir, `流年：${yeardir.ganzi || ''} ${d.year || ''} ${d.age || ''}岁`, popYear)}
+ 							<div className="horosa-bazi-xy-meta">

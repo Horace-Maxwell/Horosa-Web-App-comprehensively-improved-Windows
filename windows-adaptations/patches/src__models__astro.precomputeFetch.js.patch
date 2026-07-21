@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index 90446fd..3d0146d 100644
+index 90446fd..15a6692 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
 @@ -7,7 +7,7 @@ import {randomStr,} from '../utils/helper';
@@ -36,7 +36,86 @@ index 90446fd..3d0146d 100644
  function newEmptyFields(){
  	const fields = {
  		cid: {
-@@ -1153,6 +1171,38 @@ export default {
+@@ -430,7 +448,12 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+ 		? [{ k: 1, dir: stepHint.dir }, { k: 2, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }]
+ 		: [{ k: 1, dir: 1 }, { k: 1, dir: -1 }];
+ 	const unit = (stepHint && stepHint.unit) || 'm';
+-	const tasks = [];
++	// Phase B:当前技法登记的端点(kentang pan 等)——用技法自己的请求函数,落其自己的缓存。
++	// 🔴 传给登记方的必须是【已步进到目标时间的 fields】(旧版传的是基准 fields,构出来的
++	//    是「此刻」的参数 —— 与用户下一步要看的盘不是同一张,预取白打)。
++	const extra = getStepPrefetcher(astroState.currentTab);
++	const chartTasks = [];
++	const techTasks = [];
+ 	for(const pl of plan){
+ 		let dt = dt0.clone();
+ 		for(let i = 0; i < pl.k; i += 1){
+@@ -441,28 +464,53 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+ 			date: { ...fieldValues.date, value: dt },
+ 			time: { ...fieldValues.time, value: dt },
+ 		};
++		const label = `${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`;
+ 		let param;
+ 		try{
+ 			param = fieldsToParams(f2);   // 🔴 与正式请求同一构参路径 —— 缓存键逐字节同键是预取生效的唯一前提
+ 		}catch(e){
+-			continue;                      // 非法日期(如越 startTime)静默跳过
++			chartTasks.push(null);         // 非法日期(如越 startTime)静默跳过(占位保序)
++			techTasks.push(null);
++			continue;
+ 		}
+ 		param.cid = null;
+ 		param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+-		tasks.push({
+-			name: `chart${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`,
++		chartTasks.push({
++			name: `chart${label}`,
++			path: '/chart',
+ 			// silent+零重试:预取失败静默、绝不退避风暴;结果自动进 chartMem+requestDedupe
+ 			run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
+ 		});
++		let mine = null;
++		if(extra){
++			try{
++				const more = extra(f2, stepHint);
++				if(Array.isArray(more) && more.length){
++					mine = more.map((t)=>({ ...t, name: `${(t && t.name) || 'tech'}${label}` }));
++				}
++			}catch(e){ /* 技法预取器出错不碍主流程 */ }
++		}
++		techTasks.push(mine);
+ 	}
+-	// Phase B:当前技法登记的端点(kentang pan 等)——用技法自己的请求函数,落其自己的缓存
+-	const extra = getStepPrefetcher(astroState.currentTab);
+-	if(extra){
+-		try{
+-			const more = extra(fieldValues, stepHint);
+-			if(Array.isArray(more)){ tasks.push(...more); }
+-		}catch(e){ /* 技法预取器出错不碍主流程 */ }
+-	}
++	// PERF-R9 Ship 7 —— 排序即价值:非占星页 gate 面板的是【技法端点】,而旧序把 chart±1
++	// 排在最前,技法任务恒被预算砍掉。新序 [技法+1, chart+1, 技法-1, chart-1, chart+2]。
++	// plan 有 dir 时 idx: 0=+1、1=+2、2=-1;无 dir 时 0=+1、1=-1。
++	const hasDir = !!(stepHint && stepHint.dir);
++	const iPlus1 = 0;
++	const iPlus2 = hasDir ? 1 : -1;
++	const iMinus1 = hasDir ? 2 : 1;
++	const tasks = [];
++	const pushAt = (arr, idx)=>{
++		if(idx < 0 || !arr[idx]){ return; }
++		if(Array.isArray(arr[idx])){ tasks.push(...arr[idx]); return; }
++		tasks.push(arr[idx]);
++	};
++	pushAt(techTasks, iPlus1);
++	pushAt(chartTasks, iPlus1);
++	pushAt(techTasks, iMinus1);
++	pushAt(chartTasks, iMinus1);
++	pushAt(chartTasks, iPlus2);
++	pushAt(techTasks, iPlus2);
+ 	return tasks;
+ }
+ 
+@@ -1153,6 +1201,38 @@ export default {
  		},
  
  
@@ -75,7 +154,7 @@ index 90446fd..3d0146d 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const param = {
  				...values,
-@@ -1184,11 +1234,12 @@ export default {
+@@ -1184,11 +1264,12 @@ export default {
  
              yield put({
                  type: 'save',
@@ -89,7 +168,7 @@ index 90446fd..3d0146d 100644
  
  			if(values.nohook){
  				return;
-@@ -1273,7 +1324,7 @@ export default {
+@@ -1273,7 +1354,7 @@ export default {
  			}
  			yield put({
                  type: 'save',
@@ -98,7 +177,7 @@ index 90446fd..3d0146d 100644
  					chartObj: Result,
  					fields: fields,
  					byChartData: true,
-@@ -1281,6 +1332,7 @@ export default {
+@@ -1281,6 +1362,7 @@ export default {
  					memoType: type,
                  },
              });
@@ -106,7 +185,19 @@ index 90446fd..3d0146d 100644
  
  			if(values.nohook){
  				return;
-@@ -1393,11 +1445,12 @@ export default {
+@@ -1384,6 +1466,11 @@ export default {
+ 					type: 'save',
+ 					payload: { chartObj: Result },
+ 				});
++				// horosa_interaction_span_v1(PERF-R9 Ship 0a):快车道过去在这里直接 return,
++				// **从不打 refresh-end** —— 而 chartObj.chartId 变了,pages/index.js 的
++				// render-complete 照样触发,于是它拿上一次的陈旧 end 做起点,八字/紫微/数算
++				// 三族一直在报**伪造**的渲染时间。补上这一行,三族的观测才是真的。
++				markChartRefreshEnd();
+ 				if(stepHint){
+ 					// settle 后预取「下一步」:用户已停手+主盘已回,天然错峰(风暴防护在调度器内)
+ 					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, stepHint, astroState));
+@@ -1393,11 +1480,12 @@ export default {
  
              yield put({
                  type: 'save',

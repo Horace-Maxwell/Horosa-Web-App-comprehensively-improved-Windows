@@ -1,13 +1,68 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index fd7470d..b698745 100644
+index d221a4b..c996a85 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
-@@ -340,7 +340,50 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -16,13 +16,14 @@ import CaseList from '../components/user/CaseList';
+ import AstroFormComp from '../components/astro/AstroFormComp';
+ import AstroChartMain from '../components/astro/AstroChartMain';
+ import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
++import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
+ 
+ // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
+ // 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
+ // WS-N3(2026-07-16):悬停预取注册表迁至 utils/navPreload.js —— 模块选择器/快捷坞等公共组件
+ // 也要消费,从 pages 导入会成 components ← pages 循环依赖;此处声明时登记,消费方 import util。
+ const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
+-// order: 1=hot(高频技法,先预载) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
++// order: 1=hot(高频技法,先预载) 1.5=城市大库(见下) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
+ function lazyPreloadable(factory, opts = {}){
+ 	// [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
+ 	// React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
+@@ -91,6 +92,20 @@ function startIdlePreload(){
+ 	}, 1000);
+ }
+ 
++// horosa_city_db_idle_preload_v1(PERF-R9 Ship 6):把最大的那块 chunk 提前。
++// 构建产物里 104.*.async.js = 3.85MB,内容就是 src/data/citiesFull.json(全量城市/地名库)。
++// 它此前【完全不在】任何空闲预载队列里 —— 只有用户打开经纬度选择器时
++// GeoCoordSelector.componentDidMount 才动态 import,于是「点开选地点」当场付 3.85MB 的
++// 取包 + JSON.parse,是全站最大的单次现付成本;而改出生地/事件地是首屏之后最常发生的操作之一。
++// 故登记进队列,order 1.5 = 排在全部 hot 技法 chunk 之后、normal 之前(队列本身仍是
++// requestIdleCallback 逐个执行、用户一交互就让路,不与首屏抢主线程)。
++// 只改「何时付」,不改任何取数/匹配/渲染语义:GeoCoordSelector 那边的 import() 一字未动,
++// 预载过则它秒回,未预载(或关闸)则完全是旧行为。
++// kill-switch:safeLocalStorageSet('horosa.perf.cityDbIdlePreload','0') 后刷新。
++if(cityDbIdlePreloadEnabled()){
++	LAZY_PRELOAD_QUEUE.push({ factory: () => import('../data/citiesFull.json'), order: 1.5 });
++}
++
+ // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
+ const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
+ const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
+@@ -139,6 +154,10 @@ import { APPEARANCE_DARK } from '../utils/appearance';
+ import XQIcon from '../components/xq-icons';
+ import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
+ import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
++// horosa_interaction_span_v1(PERF-R9 Ship 0a):交互起点打点。改之前 ':refresh-start' 全仓
++// 只有 changeTab 打过,切时间/改选项一次都不打 —— 于是 markChartRefreshEnd 拿上次切页签的
++// 陈旧 start 配 measure,量出秒级垃圾,「点击→显示」这个要验收的数根本量不出来。
++import { markInteractionStart, setCurrentTechnique } from '../utils/perfMark';
+ import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
+ 
+ const TabPane = XQTabs.TabPane;
+@@ -364,7 +383,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          caseTotal,
      } = user;
   	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
 -    const { ziwei, } = rules; 
 +    const { ziwei, } = rules;
++    // horosa_gesture_start_v1:把「当前是哪个技法」告诉观测层。perfMark 用一个捕获期
++    // pointerdown/keydown 监听给**所有**交互提供起点(技法内部的选项改动不经过 changeCond,
++    // 此前一律没有起点 ⇒ owner 验收口径里的「选项」那一半根本量不出来);监听本身拿不到
++    // 「现在在哪个技法」,故由这里推给它。纯观测,失败静默。
++    React.useEffect(()=>{
++        setCurrentTechnique(currentTab);
++    }, [currentTab]);
 +    // PERF-R8 P0(纯观测):chartObj 提交后 double-rAF 打 render-complete —— 两帧后浏览器
 +    // 必已完成本次提交的布局与绘制,与 refresh-end 配对量化前端渲染份额。失败静默。
 +    React.useEffect(()=>{
@@ -34,27 +89,22 @@ index fd7470d..b698745 100644
 +        if(!(chartObj && chartObj.chartId) || !fields || !(fields.date && fields.date.value)){ return; }
 +        const warmFields = fields;
 +        const warmChartObj = chartObj;
-+        import('../utils/idleWarmQueue').then((queue)=>{
++        // PERF-R9 Ship 7:任务清单从此处写死的 4 条数组,改为 utils/dataWarmTasks 的注册表
++        // (登记序=首点概率序=执行序)。页面组件不再持有技法知识 —— 新技法接线只需在
++        // dataWarmTasks 加一行登记,漏项一目了然(本轮就是这样补上紫微/遁甲/太乙/分至的)。
++        Promise.all([
++            import('../utils/idleWarmQueue'),
++            import('../utils/dataWarmTasks'),
++        ]).then(([queue, registry])=>{
 +            if(!queue || typeof queue.scheduleDataWarmGroup !== 'function'){ return; }
-+            // 顺序=首点概率序:星运(direction 默认子页 primarydirect 的 /predict/pd)→ 印占 →
-+            // 七政本命 → 量化盘(辅盘默认子页 germanytech)。全部轻端点白名单;重端点
-+            // (如 /jieqi/year)不入默认组,只在用户已进入该页后由邻位预取接手。
-+            queue.scheduleDataWarmGroup(chartObj.chartId, [
-+                { name: 'direction:pd', task: ()=>import('../components/direction/AstroDirectMain')
-+                    .then((m)=>m.warmPrimaryDirection(warmChartObj, warmFields)) },
-+                { name: 'india:birth', task: ()=>import('../components/astro/IndiaChart')
-+                    .then((m)=>m.requestIndiaChartData(m.buildIndiaWarmParams(warmFields))) },
-+                { name: 'guolao:natal', task: ()=>import('../components/guolao/GuoLaoChartMain')
-+                    .then((m)=>m.warmGuolaoNatal(warmFields)) },
-+                { name: 'germany:midpoint', task: ()=>import('../components/germany/AstroMidpoint')
-+                    .then((m)=>m.warmGermanyMidpoint(warmFields)) },
-+            ]);
++            if(!registry || typeof registry.buildDataWarmTasks !== 'function'){ return; }
++            queue.scheduleDataWarmGroup(chartObj.chartId, registry.buildDataWarmTasks(warmFields, warmChartObj));
 +        }).catch(()=>{ /* 预热不可用=回到现状 */ });
 +    }, [chartObj && chartObj.chartId]);
  
      
      function closeDrawer(){
-@@ -391,6 +434,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -415,6 +479,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
          if(needRefresh){
              tabRefreshSigRef.current[key] = currentSig;
@@ -64,9 +114,95 @@ index fd7470d..b698745 100644
              setTimeout(()=>{
                  if(!(predictHook[key] && predictHook[key].fun)){ return; }
                  if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-@@ -469,10 +515,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -438,65 +505,85 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+ 
+     }
+ 
++    // horosa_change_cond_no_mutate_v1 —— 就地变异根治。
++    // 旧写法 `{...fields}` **只拷了顶层**:`flds.date` 与 `fields.date` 是同一个对象,
++    // `flds.date.value = x` 改的是 state 里那个对象本身 ⇒ 「旧 fields」与「新 fields」的
++    // 嵌套对象引用完全相同,任何按引用比较的 React.memo / shouldComponentUpdate 都会判
++    // 「没变」而跳过重渲(或反过来:整树重渲,因为顶层引用永远是新的)。这正是本轮渲染
++    // 优化的**前提** —— 不修它,后面加多少 memo 都是白加。
++    // 与 models/astro.js 的 fetchByChartData 早已修好的是同一个 bug(注释见该文件 ~1260)。
++    // setFld 一律产出**新对象**;`{...(prev || {name:[name]})}` 保留原有 name 数组与其它
++    // 键,value 立即覆盖 ⇒ 与旧代码那几处「不存在则以默认值新建再赋值」逐字段等价。
++    const setFld = (obj, name, value) => {
++        obj[name] = { ...(obj[name] || { name: [name] }), value };
++        return obj[name];
++    };
++
+     function changeCond(values){
+         let flds = {
+             ...fields,
+-        };  
++        };
+         if(values.nohook){
+             flds.nohook = true;
+-        }  
++        }
+ 
+         if(values.tm !== undefined && values.tm != null){
+             let birth = values.tm;
+-            flds.date.value = birth.clone();
+-            flds.time.value = birth.clone();
+-            flds.ad.value = birth.ad;
+-            flds.zone.value = birth.zone
++            setFld(flds, 'date', birth.clone());
++            setFld(flds, 'time', birth.clone());
++            setFld(flds, 'ad', birth.ad);
++            setFld(flds, 'zone', birth.zone);
+         }
+ 
+         if(values.hsys !== undefined && values.hsys !== null){
+-            flds.hsys.value = values.hsys;
++            setFld(flds, 'hsys', values.hsys);
+         }
+         if(values.zodiacal !== undefined && values.zodiacal !== null){
+-            flds.zodiacal.value = values.zodiacal;
++            setFld(flds, 'zodiacal', values.zodiacal);
+         }
+         if(values.siderealAyanamsa !== undefined && values.siderealAyanamsa !== null){
+-            if(!flds.siderealAyanamsa){ flds.siderealAyanamsa = { value: '', name: ['siderealAyanamsa'] }; }
+-            flds.siderealAyanamsa.value = values.siderealAyanamsa;
++            setFld(flds, 'siderealAyanamsa', values.siderealAyanamsa);
+         }
+         if(values.termsVariant !== undefined && values.termsVariant !== null){
+             // 界系：流派预设(G20)一次性带入界 → 写 fields.termsVariant，由 fieldsToParams 条件透传(0 不下发，零回归)。
+             // 同时同步 app.termsVariant(界系 UI 记忆，与 ChartDisplaySelector 单改一致)。
+-            if(!flds.termsVariant){ flds.termsVariant = { value: 0, name: ['termsVariant'] }; }
+-            flds.termsVariant.value = values.termsVariant;
++            setFld(flds, 'termsVariant', values.termsVariant);
+             dispatch({ type: 'app/save', payload: { termsVariant: values.termsVariant } });
+         }
+         if(values.triplicity !== undefined && values.triplicity !== null){
+             // 三分集(G20-P2)：流派预设带入 → 写 fields.triplicity，由 fieldsToParams 条件透传(Dorothean 不下发，零回归)。
+             // 后端 push_request_trip 据此换尊贵表;同步 app.tripSystem(三分显示，与 G14 选择器一致)。
+-            if(!flds.triplicity){ flds.triplicity = { value: 'Dorothean', name: ['triplicity'] }; }
+-            flds.triplicity.value = values.triplicity;
++            setFld(flds, 'triplicity', values.triplicity);
+             dispatch({ type: 'app/save', payload: { tripSystem: values.triplicity } });
+         }
+         if(values.lon !== undefined && values.lon !== null){
+-            flds.lon.value = values.lon;
+-            flds.lat.value = values.lat;
+-            flds.gpsLon.value = values.gpsLon;
+-            flds.gpsLat.value = values.gpsLat;
++            setFld(flds, 'lon', values.lon);
++            setFld(flds, 'lat', values.lat);
++            setFld(flds, 'gpsLon', values.gpsLon);
++            setFld(flds, 'gpsLat', values.gpsLat);
+         }
+         if(values.pos !== undefined){
+             // 经纬度查找选点带回的地名 → 写 fields.pos(显示于「地点」+ 随盘储存 + 进 AI 快照);
+             // 空串=据实清空(地图裸点逆地理失败/手输经纬无地名),不带 pos 键=仅改时区不动地名。
+-            if(!flds.pos){ flds.pos = { value: '', name: ['pos'] }; }
+-            flds.pos.value = `${values.pos || ''}`;
++            setFld(flds, 'pos', `${values.pos || ''}`);
+         }
          if(values.southchart !== undefined && values.southchart !== null){
-             flds.southchart.value = values.southchart;
+-            flds.southchart.value = values.southchart;
++            setFld(flds, 'southchart', values.southchart);
          }
 -        if(flds.lat.value >= 0){
 -            let lat = flds.lat.value;
@@ -82,7 +218,34 @@ index fd7470d..b698745 100644
 +            let lat = String(flds.lat.value);
              if(lat.toLowerCase().indexOf('n') >= 0){
 -                flds.southchart.value = 0;
-+                ensureField(flds, 'southchart').value = 0;
++                // 同上(horosa_change_cond_no_mutate_v1):经 setFld 写新对象,
++                // 不再对 ensureField 取回的既有字段对象就地赋值。
++                setFld(flds, 'southchart', 0);
              }
          }
  
+@@ -510,6 +597,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+                 // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
+                 ...(values.step ? { __stepHint: values.step } : {}),
+             };
++            // 交互起点:必须在防抖调度**之前**打,否则量到的是「防抖之后」而不是「用户点下」。
++            markInteractionStart(currentTab);
+             // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
+             // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
+             // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
+@@ -526,6 +615,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+         // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
+         cancelPendingTimeDispatch();
+ 
++        markInteractionStart(currentTab);
+         dispatch({
+             type: 'astro/fetchByFields',
+             payload: flds,
+@@ -874,6 +964,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+                         height={height}
+                         fields={fields}
+                         fieldsAry={aryfields}
++                        hook={predictHook.fengshui}
+                         dispatch={dispatch}
+                     />
+                   </FreezeInactive>

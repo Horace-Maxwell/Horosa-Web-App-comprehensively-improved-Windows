@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Checkbox, Collapse } from 'antd';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
@@ -115,6 +116,24 @@ class ZiWeiInput extends Component{
 			ZWCont.ZWChart.chart = parseInt(type+'');
 		}
 
+	}
+
+	// horosa_ziwei_input_scu_v1(补接):左栏纯 props 浅比 sCU。
+	// 病灶:本组件 ~540 行(Collapse + 十余个 Select + SpaceTimePanel/DateTime),此前零 sCU ——
+	// 宿主 ZiWeiMain 的任意 setState(点星改 tips、updating 角标、换右栏页签、大限/流曜选取…)
+	// 都让整张左表重渲一遍,而左栏的输入只有 props.fields 一项。
+	// 语义:
+	//   - state 变一律返回 true(本组件自身 setState 恒新引用 → 十余个开关/流派预设/自定义四化弹层
+	//     的即时反馈零延迟;它们改的可变单例 ZWEngineOptions / ZWChart.chart / getActiveSiHuaGan()
+	//     也只由本组件自己写,且每次都紧跟 setState 或 onFieldsChange,故不存在「外部改了单例、
+	//     本组件却不重渲」的陈旧面)。
+	//   - props 用 wrapperPropsEqual 机械全覆盖浅比(免手抄 keys 的漏渲风险):props 只有
+	//     fields(dva 每次 astro/save 都 {...fields,...patch} 新建 → 引用必变)与函数型
+	//     onFieldsChange(视为恒等,详 wrapperPropsEqual)。
+	// kill-switch 同 chartSCU(horosa.perf.chartSCU 关 = 恒重渲的旧行为)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	onChartTypeChange(val){

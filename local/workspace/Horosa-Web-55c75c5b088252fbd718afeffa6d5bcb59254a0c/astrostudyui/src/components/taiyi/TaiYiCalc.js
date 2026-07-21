@@ -13,6 +13,8 @@ import { fetchChartWithRetry } from '../../utils/chartFetch';
 import buildLocalBaziResult from '../../utils/baziLunarLocal';
 import { defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
 
 export const STYLE_OPTIONS = [
 	...TAIYI_STYLE_OPTIONS.slice(),
@@ -267,27 +269,13 @@ function normalizeBackendPan(pan, options, nongli, baziLocal){
 	}, nongli, baziLocal);
 }
 
-export async function fetchTaiyiPan(fields, nongli, options){
-	const dt = resolveCalculationDateTime(fields, nongli, options || {});
-	if(!dt){
-		return null;
-	}
-	const opt = options || {};
-	const payload = {
-		...dt,
-		style: opt.style !== undefined ? opt.style : 3,
-		tn: opt.tn !== undefined ? opt.tn : 0,
-		sex: opt.sex || '男',
-		tenching: opt.tenching !== undefined ? opt.tenching : 0,
-		rotation: opt.rotation || '固定',
-		timeBasis: opt.timeBasis || 'direct',
-		after23NewDay: opt.after23NewDay !== undefined ? opt.after23NewDay : 0,
-		// v2.2.1: 之前漏传 lateZi 给后端 → 太乙 23 点切晚子时·时柱起干不变。后端 webtaiyisrv.py 已支持。
-		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? opt.lateZiHourUseNextDay : defaultLateZiHourUseNextDay(),
-		enableGameTheory: opt.gameTheory === 1,
-		realSunTime: nongli ? (nongli.birth || '') : '',
-		jiedelta: nongli ? (nongli.jiedelta || '') : '',
-	};
+// horosa_kentang_result_cache_v1 —— 太乙 /taiyi/pan 直连缓存(LRU 48)。缓存的是**后端原始 pan**
+// (ResultKey 剥壳后、normalizeBackendPan 之前),归一化/农历显示仍每次按当前 opt+nongli 现算,
+// 故切流派/切旋转等只改归一化的选项不会吃到错盘。
+// 确定性论证:payload = resolveCalculationDateTime(格式化字串+整数)+ style/tn/sex/tenching/rotation/
+// timeBasis/两个日界开关/enableGameTheory + nongli 派生真太阳时字串;无 Date 对象、无随机、无「现在时刻」;
+// 后端 webtaiyisrv.py 全文无 random/now(已 grep 核对)→ 同 payload 必同盘。关闸即逐字回到直连。
+async function fetchTaiyiPanRaw(payload){
 	let rsp = null;
 	try{
 		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('taiyi', 'pan'), {
@@ -310,7 +298,34 @@ export async function fetchTaiyiPan(fields, nongli, options){
 			retry: { retries: 2 },
 		});
 	}
-	const pan = rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+}
+
+export async function fetchTaiyiPan(fields, nongli, options){
+	const dt = resolveCalculationDateTime(fields, nongli, options || {});
+	if(!dt){
+		return null;
+	}
+	const opt = options || {};
+	const payload = {
+		...dt,
+		style: opt.style !== undefined ? opt.style : 3,
+		tn: opt.tn !== undefined ? opt.tn : 0,
+		sex: opt.sex || '男',
+		tenching: opt.tenching !== undefined ? opt.tenching : 0,
+		rotation: opt.rotation || '固定',
+		timeBasis: opt.timeBasis || 'direct',
+		after23NewDay: opt.after23NewDay !== undefined ? opt.after23NewDay : 0,
+		// v2.2.1: 之前漏传 lateZi 给后端 → 太乙 23 点切晚子时·时柱起干不变。后端 webtaiyisrv.py 已支持。
+		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? opt.lateZiHourUseNextDay : defaultLateZiHourUseNextDay(),
+		enableGameTheory: opt.gameTheory === 1,
+		realSunTime: nongli ? (nongli.birth || '') : '',
+		jiedelta: nongli ? (nongli.jiedelta || '') : '',
+	};
+	const bodyKey = kentangCacheKey(payload);
+	const pan = (!techniqueResultCacheEnabled() || !bodyKey)
+		? await fetchTaiyiPanRaw(payload)
+		: await cachedKentangCall('taiyi/pan', payload, ()=>fetchTaiyiPanRaw(payload), { key: bodyKey, max: 48 });
 	const baziLocal = buildTaiyiBaziLocal(fields, opt);
 	const normalized = normalizeBackendPan(pan, opt, nongli, baziLocal);
 	if(normalized && !normalized.clockTime && fields && fields.date && fields.date.value && fields.time && fields.time.value){

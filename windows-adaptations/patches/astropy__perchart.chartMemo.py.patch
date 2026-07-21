@@ -1,8 +1,8 @@
 diff --git a/astropy/astrostudy/perchart.py b/astropy/astrostudy/perchart.py
-index 05ccfe6..e7d59d4 100644
+index 534c45f..169e8c1 100644
 --- a/astropy/astrostudy/perchart.py
 +++ b/astropy/astrostudy/perchart.py
-@@ -836,6 +836,14 @@ class PerChart:
+@@ -856,6 +856,14 @@ class PerChart:
      def reinit(self):
          self.orientOccident = None
          self.orientOccidentHouses = None
@@ -17,7 +17,7 @@ index 05ccfe6..e7d59d4 100644
          self.dynchart = ChartDynamics(self.chart)
          self.dynchart.simpleAsp = self.simpleAsp
          self.applyOrbOverrides()
-@@ -1413,7 +1421,14 @@ class PerChart:
+@@ -1433,7 +1441,14 @@ class PerChart:
  
          return res
  
@@ -32,7 +32,7 @@ index 05ccfe6..e7d59d4 100644
          res = []
          planets = const.LIST_SEVEN_PLANETS.copy()
          if self.tradition == False:
-@@ -1664,8 +1679,7 @@ class PerChart:
+@@ -1684,8 +1699,7 @@ class PerChart:
              planets = self.objlists
          planets = planets.copy()
          planets.extend(const.LIST_ANGLES)
@@ -42,7 +42,7 @@ index 05ccfe6..e7d59d4 100644
          for planet in planets:
              fixstars = {
                  'id': planet,
-@@ -1857,7 +1871,15 @@ class PerChart:
+@@ -1877,7 +1891,15 @@ class PerChart:
              'MinDelta': [] if len(alltmp) == 0 else alltmp[0]
          }
  
@@ -58,9 +58,9 @@ index 05ccfe6..e7d59d4 100644
          res = {}
          planets = const.LIST_SEVEN_PLANETS.copy()
          # if self.tradition == False:
-@@ -2466,7 +2488,24 @@ class PerChart:
-                 continue
- 
+@@ -2494,7 +2516,24 @@ class PerChart:
+             self._rawSu28Cache = self.chart.getFixedStartsSu28()
+         return self._rawSu28Cache
  
 +    # v3.0.1 perf ROUND-5:同一请求 'fixedStarSu28' 与 'su28Adjust' 两个键各调一次本方法,每次都从
 +    # swisseph 重取 28 星再重做同一套 ra 调整(单次 ~50ms)。memo **成品列表**(★方法会原地改 star.ra,
@@ -83,7 +83,7 @@ index 05ccfe6..e7d59d4 100644
          stars = self.chart.getFixedStartsSu28()
          self.relocateSouthObjects(stars)
          res = []
-@@ -2537,9 +2576,19 @@ class PerChart:
+@@ -2565,9 +2604,19 @@ class PerChart:
          self.fillPlanetSu28(res)
          return res
  
@@ -105,7 +105,26 @@ index 05ccfe6..e7d59d4 100644
          res = []
          for id in const.LIST_FIXED_STARS:
              obj = stars.content[id]
-@@ -2634,7 +2683,15 @@ class PerChart:
+@@ -2655,6 +2704,18 @@ class PerChart:
+                         res['contraParallel'][objA] = set()
+                         res['contraParallel'][objA].add(objB)
+ 
++        # horosa_decl_parallel_stable_order_v1(PERF-R9;跨平台,建议上游化 Mac):
++        # 上面用 set 累积成员,而 set 的迭代顺序取决于哈希 —— 而 CPython 默认**开启哈希随机化**
++        # (发货的 app 不设 PYTHONHASHSEED),于是同一张盘在**每次启动**后返回的赤纬平行/反平行
++        # 列表顺序都可能不同。内容相同、顺序乱跳:用户侧是列表无故重排,工程侧是任何逐字节
++        # 回归比对都不可能稳定(本轮黄金台架实测:同一请求跨进程 23 处 leaf 差异,全是纯顺序)。
++        # ★ 此处按 const.LIST_ALL_POINTS 的规范行星次序排序,而**不是**字母序 —— 保持占星惯用
++        #   的行星排列,同时把「任意且不稳定」变成「确定且有意义」。成员集合逐元素不变。
++        # ★ 排序放在最后:构造期仍需 set 的去重与 `objA in pSet` 归并语义,不可提前转 list。
++        _order = {name: i for i, name in enumerate(planets)}
++        _rank = lambda n: _order.get(n, len(_order))
++        res['parallel'] = [sorted(pset, key=_rank) for pset in res['parallel']]
++        res['contraParallel'] = {k: sorted(v, key=_rank) for k, v in res['contraParallel'].items()}
+         return res
+ 
+     def getDayerStar(self):
+@@ -2662,7 +2723,15 @@ class PerChart:
          daystar = dayerStar[day]
          return daystar
  

@@ -11,6 +11,7 @@ import * as AstroText from '../../constants/AstroText';
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { markPanelReady } from '../../utils/perfMark';
 
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
 const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
@@ -126,7 +127,8 @@ class AstroDistributions extends Component {
 				this.setState({ loading: false, requestKey: k });
 				return;
 			}
-			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k });
+			// horosa_panel_ready_v1:界推运表(本技法唯一可见内容)落定的那一次 setState。
+			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
 		}catch(e){
 			if(!this._mounted) return;
 			this.setState({ loading: false, requestKey: k });

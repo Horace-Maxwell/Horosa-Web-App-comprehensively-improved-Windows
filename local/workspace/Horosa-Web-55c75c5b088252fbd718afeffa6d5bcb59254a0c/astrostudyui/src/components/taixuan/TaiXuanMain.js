@@ -12,6 +12,11 @@ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
 
@@ -45,7 +50,7 @@ function defaultSeed(){
 	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
 }
 
-async function postTaiXuan(path, payload){
+async function postTaiXuanRaw(path, payload){
 	let rsp = null;
 	try{
 		const rawResponse = await fetch(buildKentangEndpoint('taixuan', path), {
@@ -75,6 +80,24 @@ async function postTaiXuan(path, payload){
 		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'taixuan.fetch.failed');
 	}
 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+}
+
+// horosa_kentang_result_cache_v1 —— 太玄 /taixuan/pan 直连缓存(LRU 48)。
+// 确定性论证:揲筮的随机性**全部**收敛在 payload.seed 里 —— 后端 webtaixuansrv._with_seed 对
+// random 显式 seed(random.seed(seed) 前后存/复原全局 state),故「同 payload(含 seed) → 同卦」。
+// 「起筮」按钮走 randomizeSeed() 换新 seed → key 变 → 必重取真新卦(随机语义零损失);
+// 只有「同一 seed 反复看同一盘」(切页/切 tab 回来)才命中。关闸即逐字回到直连。
+function postTaiXuan(path, payload){
+	const bodyKey = kentangCacheKey(payload);
+	if(!techniqueResultCacheEnabled() || !bodyKey){
+		return postTaiXuanRaw(path, payload);
+	}
+	return cachedKentangCall(
+		'taixuan/pan',
+		payload,
+		()=>postTaiXuanRaw(path, payload),
+		{ key: `${path}|${bodyKey}`, max: 48 }
+	);
 }
 
 function fmtValue(value){
@@ -174,6 +197,21 @@ class TaiXuanMain extends Component{
 				}
 			};
 		}
+	}
+
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){
@@ -348,6 +386,8 @@ class TaiXuanMain extends Component{
 				return;
 			}
 			this.setState({ pan, loading: false }, ()=>{
+				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
+				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
@@ -563,23 +603,35 @@ class TaiXuanMain extends Component{
 		return (
 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
 				<TabPane tab="概览" key="overview">
-					<div className="horosa-huangji-section-list">
-						{/* 概览=「起盘」节(sections[0]);玄首/方州部家归各自页签,避免「玄首」节在两个页签重复显示。 */}
-						{this.renderRows(pan ? (pan.sections || []).slice(0, 1) : [])}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'overview'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{/* 概览=「起盘」节(sections[0]);玄首/方州部家归各自页签,避免「玄首」节在两个页签重复显示。 */}
+							{this.renderRows(pan ? (pan.sections || []).slice(0, 1) : [])}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="玄首" key="head">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(pan ? (pan.sections || []).slice(1, 3) : [])}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'head'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(pan ? (pan.sections || []).slice(1, 3) : [])}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="表" key="lines">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(pan ? (pan.sections || []).slice(3, 4) : [])}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'lines'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(pan ? (pan.sections || []).slice(3, 4) : [])}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="全文" key="fulltext">
-					<div className="horosa-huangji-section-list">{this.renderAllLines()}</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'fulltext'}>{() => (
+						<div className="horosa-huangji-section-list">{this.renderAllLines()}</div>
+					)}</FreezeSubTab>
 				</TabPane>
 			</Tabs>
 		);

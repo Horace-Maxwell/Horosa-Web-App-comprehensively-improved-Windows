@@ -1,0 +1,52 @@
+diff --git a/astrostudyui/src/components/ruleziwei/RuleHouses.js b/astrostudyui/src/components/ruleziwei/RuleHouses.js
+index 77ca700..b9f078e 100644
+--- a/astrostudyui/src/components/ruleziwei/RuleHouses.js
++++ b/astrostudyui/src/components/ruleziwei/RuleHouses.js
+@@ -1,7 +1,9 @@
+ import { Component } from 'react';
+ import { Row, Col, Divider, Popover, } from 'antd';
+-import {randomStr,} from '../../utils/helper';
+ import * as ZWConst from '../../constants/ZWConst';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ class RuleHouses extends Component{
+ 	constructor(props) {
+@@ -28,7 +30,7 @@ class RuleHouses extends Component{
+ 			let dom = this.genPopoverDom(rules);
+ 			let title = house + '';
+ 			let col = (
+-				<Col span={6} key={randomStr(8)}>
++				<Col span={6} key={house}>
+ 					<Popover content={dom} title={title}>
+ 						{house}
+ 					</Popover>					
+@@ -58,15 +60,15 @@ class RuleHouses extends Component{
+ 					)
+ 				}else{
+ 					li = (
+-						<li key={randomStr(8)}>{rule}</li>
++						<li key={i}>{rule}</li>
+ 					);	
+ 				}
+ 			}
+ 			lis.push(li);
+ 		}
+ 		let rulesDom = (
+-			<div key={randomStr(8)} style={{width: 400}}>
+-				<ul key={randomStr(8)}>
++			<div key="rules" style={{width: 400}}>
++				<ul key="list">
+ 					{lis}
+ 				</ul>
+ 			</div>
+@@ -87,7 +89,7 @@ class RuleHouses extends Component{
+ 			let rules = ZWRules.RuleHouseType[key];
+ 			let dom = this.genPopoverDom(rules);
+ 			let col = (
+-				<Col span={6} key={randomStr(8)}>
++				<Col span={6} key={key}>
+ 					<Popover content={dom} title={key}>
+ 						{key}
+ 					</Popover>					

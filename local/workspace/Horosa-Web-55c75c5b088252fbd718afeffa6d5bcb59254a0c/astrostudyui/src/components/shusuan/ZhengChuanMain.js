@@ -19,6 +19,8 @@ import { calcXinyi, bakeTable, xiangTable, xingqingTable, XINYI_GONG } from '../
 import { buildZhengChuanSnapshotText } from '../../utils/zhengchuanSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { SCHOOL_LABEL } from './zhengchuanSchools';
+import { FreezeSubTab } from '../comp/FreezeInactive';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { TabPane } = Tabs;
 
@@ -86,6 +88,16 @@ class ZhengChuanMain extends Component {
 		this.state = { verses: null, auxTab: '' };   // auxTab: 右栏所在之目（空 = 取首目）
 		this.lastSnapKey = '';
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+	}
+
+	// 中栏是整张盘 + 右栏动辄百余条条文卡(流年 108 年全列),且宿主渲染两遍(center/aux)。
+	// 此前零 sCU:宿主左栏任一控件(含与本技法无关的铁板/南极/蠢子诸项)一动就整套重造。
+	// props/state 任一变即照常重渲(零陈旧);opts 引用由宿主 memoOpts 稳定,值变即换新引用。
+	// ⚠️ opts 引用变时本 sCU 返 true → componentDidUpdate 照跑 → loadVerses 条文库按需载入不受影响。
+	// horosa_shusuan_native_scu_v1:复用 wrapperPropsEqual(全 props 机械浅比 + 同一 kill-switch)。
+	shouldComponentUpdate(nextProps, nextState) {
+		if (nextState !== this.state) { return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount() {
@@ -335,7 +347,15 @@ class ZhengChuanMain extends Component {
 				size="small"
 				className="horosa-huangji-tabs horosa-zhengchuan-tabs"
 			>
-				{list.map((x) => <TabPane tab={x.label} key={x.key} forceRender>{x.node}</TabPane>)}
+				{/* horosa_freeze_subtabs_v1:诸目【首渲照旧全渲】(eager —— forceRender 那条契约
+			    逐字保留:选项只影响某一目时,那一目首次也必已渲过),此后【非激活的目不再
+			    跟着父重渲】。冻结≠卸载:DOM/滚动位置/展开态全留,切回去拿本轮最新 children
+			    立刻渲一帧,不重挂载、不闪烁、零陈旧。 */}
+			{list.map((x) => (
+				<TabPane tab={x.label} key={x.key} forceRender>
+					<FreezeSubTab active={active === x.key} eager>{x.node}</FreezeSubTab>
+				</TabPane>
+			))}
 			</Tabs>
 		);
 	}

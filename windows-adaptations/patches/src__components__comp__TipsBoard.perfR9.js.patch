@@ -1,0 +1,52 @@
+diff --git a/astrostudyui/src/components/comp/TipsBoard.js b/astrostudyui/src/components/comp/TipsBoard.js
+index eee60c7..3c8ea24 100644
+--- a/astrostudyui/src/components/comp/TipsBoard.js
++++ b/astrostudyui/src/components/comp/TipsBoard.js
+@@ -1,8 +1,10 @@
+ import { Component } from 'react';
+ import { Divider } from 'antd';
+-import {randomStr,} from '../../utils/helper';
+ import styles from '../../css/styles.less';
+ import { XQCard } from '../xq-ui';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ 
+ export default class TipsBoard extends Component{
+@@ -28,28 +30,29 @@ export default class TipsBoard extends Component{
+                 if(item instanceof Array){
+                     let lis = item.map((li, idx)=>{
+                         if(li === '=='){
+-                            return (<Divider dashed={true} key={randomStr(8)} />)
++                            return (<Divider dashed={true} key={idx} />)
+                         }
+                         return (
+-                            <li key={randomStr(8)}>{li}</li>
++                            <li key={idx}>{li}</li>
+                         )
+                     });
+                     let res = (
+-                        <ul key={randomStr(8)}>
++                        // 此处 idx 为外层 tips.map 的下标(内层同名参数已出作用域)
++                        <ul key={idx}>
+                             {lis}
+                         </ul>                        
+                     )
+                     return res;
+                 }else{
+                     if(item === '=='){
+-                        return (<Divider dashed={true} key={randomStr(8)}/>)
++                        return (<Divider dashed={true} key={idx}/>)
+                     }
+-                    return (<li key={randomStr(8)}>{item}</li>)
++                    return (<li key={idx}>{item}</li>)
+                 }
+             });
+         }else{
+             itemdoms = (
+-                <li key={randomStr(8)}>{tips}</li>
++                <li key='tips-single'>{tips}</li>
+             )
+         }
+ 

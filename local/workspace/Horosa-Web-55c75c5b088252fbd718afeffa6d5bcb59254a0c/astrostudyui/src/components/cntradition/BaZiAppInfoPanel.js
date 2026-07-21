@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { calcFlowShenSha } from '../../utils/baziShenShaLocal';
+import { chartSCUEnabled } from '../../utils/perfFlags';
 
 const PILLAR_KEYS = [
 	['year', '年柱'],
@@ -68,7 +69,32 @@ function infoPair(label, value){
 	);
 }
 
-class BaZiAppInfoPanel extends Component{
+// ═══════════════════════════════════════════════════════════════════════════════
+// horosa_bazi_info_split_v1（PERF-R9 Ship 6·八字族）
+//
+// 病灶：右栏信息面板旧来是一个整块组件。用户在中栏下方行运条点一格（大运/流年/流月/流日）
+// 只改动 flowSelection，而 flowSelection **只被「神煞」一节消费**；旧结构却把
+// 起盘信息 / 五行力量 / 格局用神 / 盲派 / 纳音古法 / 月令司令 / 三元宫位 全部重渲一遍
+// —— 点一次就白跑一次，正好压在 owner 要的「点击→中右栏画完 ≤1s」预算上。
+//
+// 修法：按「输入依赖」把面板切成三个各自带 sCU 的相邻子块（DOM 顺序与旧版逐字一致）：
+//   1) BaZiInfoStaticSections —— 依赖 value / fields / school / zodiacBoundary
+//   2) BaZiFlowGodsSection    —— 依赖 value / flowSelection（点选行运时只有它重渲）
+//   3) BaZiInfoAuxSection     —— 依赖 value
+// 三个 sCU 一律「拿不准就判变」：任一列出的输入引用不等即返 true，父组件每次都用最新 props
+// 构造它们 —— 该更新时必更新，零陈旧、零降级。渲染方法体逐字照搬旧版（props 名不变）。
+// ═══════════════════════════════════════════════════════════════════════════════
+class BaZiInfoStaticSections extends Component{
+	shouldComponentUpdate(nextProps){
+		if(!chartSCUEnabled()){
+			return true;   // kill-switch 沿用既有 horosa.perf.chartSCU
+		}
+		return nextProps.value !== this.props.value
+			|| nextProps.fields !== this.props.fields
+			|| nextProps.school !== this.props.school
+			|| nextProps.zodiacBoundary !== this.props.zodiacBoundary;
+	}
+
 	renderBasic(bazi, fields){
 		const nongli = bazi.nongli || {};
 		const name = fields && fields.name ? fields.name.value : '';
@@ -294,58 +320,6 @@ class BaZiAppInfoPanel extends Component{
 		);
 	}
 
-	renderFlowGods(bazi){
-		// 神煞面板显示「当前所选 大运/流年/流月/流日」之神煞（四柱神煞已在细盘呈现，此处不重复）。
-		const four = bazi.fourColumns || {};
-		const sel = this.props.flowSelection || {};
-		const rows = [
-			['大运', sel.luckPillar],
-			['流年', sel.yearPillar],
-			['流月', sel.monthPillar],
-			['流日', sel.dayPillar],
-		];
-		// flowSelection 的 pillar 来自 normalizePillar：{ganzi, stem(字符串), branch(字符串), ...}
-		const pgan = (p) => p ? (typeof p.stem === 'string' ? p.stem : (p.stem && p.stem.cell) || (p.ganzi ? p.ganzi.charAt(0) : '')) : '';
-		const pzhi = (p) => p ? (typeof p.branch === 'string' ? p.branch : (p.branch && p.branch.cell) || (p.ganzi ? p.ganzi.charAt(1) : '')) : '';
-		const any = rows.some(([, p]) => pgan(p) || pzhi(p));
-		return (
-			<section className="horosa-bazi-info-card">
-				<h3>神煞 <em className="horosa-bazi-flow-tag">所选大运/流年/流月/流日</em></h3>
-				<div className="horosa-bazi-info-lines horosa-bazi-flow-lines">
-					{any ? rows.map(([label, p]) => {
-						const gan = pgan(p);
-						const zhi = pzhi(p);
-						if(!gan && !zhi){ return null; }
-						const gods = calcFlowShenSha(four, gan, zhi);
-						return <p key={label}><span className="horosa-bazi-flow-key">{label}<b>{gan}{zhi}</b></span><span className="horosa-bazi-flow-gods">{gods.length ? gods.join('、') : '—'}</span></p>;
-					}) : <p className="horosa-bazi-flow-empty">在下方大运/流年/流月/流日栏点选，查看其神煞。</p>}
-				</div>
-			</section>
-		);
-	}
-
-	renderAux(four){
-		const aux = [
-			['胎元', four.tai],
-			['命宫', four.ming],
-			['身宫', four.shen],
-			['串宫', four.ming12],
-		];
-		return (
-			<section className="horosa-bazi-info-card">
-				<h3>三元宫位</h3>
-				<div className="horosa-bazi-info-mini-grid">
-					{aux.map(([label, item])=>(
-						<div key={label}>
-							<span>{label}</span>
-							<strong>{label === '串宫' ? (item && item.zhi ? item.zhi : '') : getGanzi(item)}</strong>
-						</div>
-					))}
-				</div>
-			</section>
-		);
-	}
-
 	// 断命流派=纳音古法（禄命·纳音派）专属解读：以年柱纳音为纲、纳音五行生克链 + 纳音长生，
 	// 不以日干为我。否则选「纳音古法」与「传统综合」面板零差异（bug）。胎元列入第五柱。
 	renderNaYin(bazi){
@@ -395,17 +369,118 @@ class BaZiAppInfoPanel extends Component{
 
 	render(){
 		const bazi = this.props.value || {};
-		const four = bazi.fourColumns || {};
 		return (
-			<div className="horosa-bazi-app-info-panel">
+			<>
 				{this.renderBasic(bazi, this.props.fields || {})}
 				{this.renderWuxing(bazi)}
 				{this.renderGejuYongShen(bazi)}
 				{this.props.school === 'mangpai' ? this.renderMangPai(bazi) : null}
 				{this.props.school === 'nayin' ? this.renderNaYin(bazi) : null}
 				{this.renderFenYe(bazi)}
-				{this.props.showShenSha === false ? null : this.renderFlowGods(bazi)}
-				{this.renderAux(four)}
+			</>
+		);
+	}
+}
+
+class BaZiFlowGodsSection extends Component{
+	shouldComponentUpdate(nextProps){
+		if(!chartSCUEnabled()){
+			return true;   // kill-switch 沿用既有 horosa.perf.chartSCU
+		}
+		return nextProps.value !== this.props.value
+			|| nextProps.flowSelection !== this.props.flowSelection;
+	}
+
+	renderFlowGods(bazi){
+		// 神煞面板显示「当前所选 大运/流年/流月/流日」之神煞（四柱神煞已在细盘呈现，此处不重复）。
+		const four = bazi.fourColumns || {};
+		const sel = this.props.flowSelection || {};
+		const rows = [
+			['大运', sel.luckPillar],
+			['流年', sel.yearPillar],
+			['流月', sel.monthPillar],
+			['流日', sel.dayPillar],
+		];
+		// flowSelection 的 pillar 来自 normalizePillar：{ganzi, stem(字符串), branch(字符串), ...}
+		const pgan = (p) => p ? (typeof p.stem === 'string' ? p.stem : (p.stem && p.stem.cell) || (p.ganzi ? p.ganzi.charAt(0) : '')) : '';
+		const pzhi = (p) => p ? (typeof p.branch === 'string' ? p.branch : (p.branch && p.branch.cell) || (p.ganzi ? p.ganzi.charAt(1) : '')) : '';
+		const any = rows.some(([, p]) => pgan(p) || pzhi(p));
+		return (
+			<section className="horosa-bazi-info-card">
+				<h3>神煞 <em className="horosa-bazi-flow-tag">所选大运/流年/流月/流日</em></h3>
+				<div className="horosa-bazi-info-lines horosa-bazi-flow-lines">
+					{any ? rows.map(([label, p]) => {
+						const gan = pgan(p);
+						const zhi = pzhi(p);
+						if(!gan && !zhi){ return null; }
+						const gods = calcFlowShenSha(four, gan, zhi);
+						return <p key={label}><span className="horosa-bazi-flow-key">{label}<b>{gan}{zhi}</b></span><span className="horosa-bazi-flow-gods">{gods.length ? gods.join('、') : '—'}</span></p>;
+					}) : <p className="horosa-bazi-flow-empty">在下方大运/流年/流月/流日栏点选，查看其神煞。</p>}
+				</div>
+			</section>
+		);
+	}
+
+	render(){
+		return this.renderFlowGods(this.props.value || {});
+	}
+}
+
+class BaZiInfoAuxSection extends Component{
+	shouldComponentUpdate(nextProps){
+		if(!chartSCUEnabled()){
+			return true;   // kill-switch 沿用既有 horosa.perf.chartSCU
+		}
+		return nextProps.value !== this.props.value;
+	}
+
+	renderAux(four){
+		const aux = [
+			['胎元', four.tai],
+			['命宫', four.ming],
+			['身宫', four.shen],
+			['串宫', four.ming12],
+		];
+		return (
+			<section className="horosa-bazi-info-card">
+				<h3>三元宫位</h3>
+				<div className="horosa-bazi-info-mini-grid">
+					{aux.map(([label, item])=>(
+						<div key={label}>
+							<span>{label}</span>
+							<strong>{label === '串宫' ? (item && item.zhi ? item.zhi : '') : getGanzi(item)}</strong>
+						</div>
+					))}
+				</div>
+			</section>
+		);
+	}
+
+	render(){
+		const bazi = this.props.value || {};
+		return this.renderAux(bazi.fourColumns || {});
+	}
+}
+
+class BaZiAppInfoPanel extends Component{
+	render(){
+		// 组合层：DOM 顺序与旧版逐字一致（起盘…月令司令 → 神煞 → 三元宫位），
+		// 三个子块各自按输入依赖决定是否重渲（见 horosa_bazi_info_split_v1）。
+		return (
+			<div className="horosa-bazi-app-info-panel">
+				<BaZiInfoStaticSections
+					value={this.props.value}
+					fields={this.props.fields}
+					school={this.props.school}
+					zodiacBoundary={this.props.zodiacBoundary}
+				/>
+				{this.props.showShenSha === false ? null : (
+					<BaZiFlowGodsSection
+						value={this.props.value}
+						flowSelection={this.props.flowSelection}
+					/>
+				)}
+				<BaZiInfoAuxSection value={this.props.value} />
 			</div>
 		);
 	}

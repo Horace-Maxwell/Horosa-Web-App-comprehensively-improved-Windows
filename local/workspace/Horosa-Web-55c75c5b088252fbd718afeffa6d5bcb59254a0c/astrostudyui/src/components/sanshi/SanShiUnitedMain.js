@@ -1,4 +1,8 @@
 import { Component, Fragment } from 'react';
+import { stepPrefetchEnabled } from '../../utils/perfFlags';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { FreezeSubTab } from '../comp/FreezeInactive';
+import { markPanelReady } from '../../utils/perfMark';
 import { Spin, Divider, Tag, message } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -2002,6 +2006,56 @@ class SanShiUnitedMain extends Component{
 				this.restoreOptionsFromCurrentCase();
 				this.handleExternalFieldsSync(fields, chartObj);
 			};
+			// PERF-R9 Ship 7:三式合参同为【两段式】—— stage-1(/nongli/time)先回来才能推三盘。
+			// 与主 /chart 无关,在 /chart 返回之前并行发出即把 stage-1 摘出关键路径。
+			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
+			this.props.hook.prewarmRequests = (flds)=>{
+				if(this.unmounted){
+					return;
+				}
+				try{
+					this.prefetchNongliForFields(flds || this.props.fields);
+				}catch(e){ /* 预热失败无害 */ }
+			};
+			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):只预取 stage-1(确定性历法计算)。
+			// 🔴 绝不预取三盘本身:奇门/太乙/六壬三盘都吃 stage-1 结果 + 组件态(流派/局法/起课),
+			//    串行不可提前构键;stage-1 暖了,下一步的三盘输入即时可得。
+			if(stepPrefetchEnabled()){
+				registerStepPrefetcher('sanshiunited', (steppedFields)=>{
+					if(this.unmounted || !steppedFields){
+						return [];
+					}
+					const tasks = [];
+					let params = null;
+					try{
+						params = this.genParams(steppedFields);
+					}catch(e){
+						params = null;
+					}
+					if(params){
+						tasks.push({
+							name: 'sanshi:nongli',
+							path: '/nongli/time',
+							run: ()=> fetchPreciseNongli(params),
+						});
+					}
+					try{
+						const qimenOptions = this.getQimenOptions();
+						if(needJieqiYearSeed(qimenOptions) && steppedFields.date && steppedFields.date.value){
+							const year = parseInt(steppedFields.date.value.format('YYYY'), 10);
+							const seedParams = (year && !Number.isNaN(year)) ? this.genJieqiParams(steppedFields, year) : null;
+							if(seedParams){
+								tasks.push({
+									name: 'sanshi:jieqiseed',
+									path: '/jieqi/year',
+									run: ()=> fetchPreciseJieqiSeed(seedParams),
+								});
+							}
+						}
+					}catch(e){ /* 种子构参失败静默跳过 */ }
+					return tasks;
+				});
+			}
 		}
 	}
 
@@ -3381,6 +3435,11 @@ class SanShiUnitedMain extends Component{
 			keData: lrBundle.keData,
 			sanChuan: lrBundle.sanChuan,
 		}, ()=>{
+			// horosa_panel_ready_v1:三式合一的中栏(六壬/遁甲/太乙三盘)与右栏 5 页签全部派生自本次
+			// setState 的这一组字段,故这里 = 「中栏+右栏画完」。本行已在 recalcByNongli 的
+			// SANSHI_RECALC_DEFER_MS 去抖与 refreshSeq 竞态守卫【之后】(陈旧轮次在上游即已 return),
+			// 故不会给作废的那一轮记点;markPanelReady 自身另有 generation 去重兜底。
+			markPanelReady('sanshiunited');
 			this.scheduleSnapshotSave(snapshotPayload, snapshotMeta);
 		});
 		return true;
@@ -4899,7 +4958,15 @@ class SanShiUnitedMain extends Component{
 					className="horosa-sanshi-right-tabs"
 					style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}
 				>
+					{/* horosa_freeze_subtabs_v1:外层 5 页签。注意本组的 Tabs 已带 destroyInactiveTabPane —— 那
+					    只让 antd 不【挂载】非激活面板,但 children 是父 render 里的内联 JSX,**求值照跑**:
+					    「太乙」页那段 computeTaiyiShuli/computeGeju/computeVictory/computeFenye/computeShenSuan
+					    的 IIFE、「六壬」页 6 个内层面板、「遁甲」页 8 宫 buildQimenBaGongPanelData,以前每次父
+					    重渲(切时间/改选项/换任一页签)全部白跑一遍。函数式 FreezeSubTab 把求值推到「本面板
+					    真被渲染」那一刻:非激活 → 函数不调用 = 真零成本;激活 → 拿本轮最新 children 立刻渲,
+					    内容与旧行为逐字一致(冻结≠卸载,与 destroyInactiveTabPane 的既有卸载语义互不干涉)。 */}
 					<TabPane tab="概览" key="overview">
+						<FreezeSubTab active={rightPanelTab === 'overview'}>{()=>(
 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
 							<div style={{ lineHeight: '26px' }}>
 								<div>局数：{pan ? pan.juText : '—'}</div>
@@ -4926,8 +4993,10 @@ class SanShiUnitedMain extends Component{
 								</>
 							) : null}
 						</Card>
+						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="太乙" key="taiyi">
+						<FreezeSubTab active={rightPanelTab === 'taiyi'}>{()=>(
 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
 							<div style={{ lineHeight: '24px' }}>
 								{this.state.taiyi ? (()=>{
@@ -5011,8 +5080,10 @@ class SanShiUnitedMain extends Component{
 								)}
 							</div>
 						</Card>
+						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="六壬" key="liureng">
+						<FreezeSubTab active={rightPanelTab === 'liureng'}>{()=>(
 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
 							<Tabs
 								activeKey={this.state.liurengRefTab}
@@ -5155,8 +5226,10 @@ class SanShiUnitedMain extends Component{
 								</TabPane>
 							</Tabs>
 						</Card>
+						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="遁甲" key="bagong">
+						<FreezeSubTab active={rightPanelTab === 'bagong'}>{()=>(
 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
 							<Tabs
 								activeKey={this.state.bagongSubTab}
@@ -5260,10 +5333,16 @@ class SanShiUnitedMain extends Component{
 								</TabPane>
 							</Tabs>
 						</Card>
+						)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="紫微四化" key="ziweisihua">
 						{/* [YA v42] onSnapshotState:上报盘+大运/流年选中态 → 快照产 [紫微四化] 段 */}
-						<SanShiZiWeiSihua fields={this.getActiveFields()} onSnapshotState={this.handleZiweiSihuaSnapshotState} />
+						{/* eager:本面板 componentDidMount 会发紫微盘请求并经 onSnapshotState 回报快照段,
+						    绝不由本 wrapper 再加一层「延迟首渲」(挂载时机仍完全由外层 destroyInactiveTabPane
+						    决定,与改动前一字不差);只取「冻结非激活期重渲」这一项收益。 */}
+						<FreezeSubTab active={rightPanelTab === 'ziweisihua'} eager>
+							<SanShiZiWeiSihua fields={this.getActiveFields()} onSnapshotState={this.handleZiweiSihuaSnapshotState} />
+						</FreezeSubTab>
 					</TabPane>
 				</Tabs>
 			</div>

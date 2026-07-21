@@ -1,0 +1,60 @@
+diff --git a/astropy/websrv/kentang/registry.py b/astropy/websrv/kentang/registry.py
+index daeec3f..5b33935 100644
+--- a/astropy/websrv/kentang/registry.py
++++ b/astropy/websrv/kentang/registry.py
+@@ -137,11 +137,19 @@ KENTANG_SERVICE_SPECS = [
+ ]
+ 
+ 
++import importlib
+ import os
+ import sys
+ import threading
+ import traceback
+ 
++# horosa_kentang_prewarm_modules_v1:请求路径内惰性 import 的重模块,由后台预热线程提前装载。
++# 只 import 不调用 —— 零盘面副作用。新增条目前请先实测「首次 vs 之后」确有秒级差,否则不值当。
++KENTANG_PREWARM_MODULES = [
++    # 太乙·博弈论(793 行):仅在勾选 enableGameTheory 时才被 kintaiyi.pan 导入。
++    "kintaiyi.game_theory",
++]
++
+ 
+ class KentangServiceLoadError(RuntimeError):
+     """A kentang service failed to import / resolve its class / instantiate.
+@@ -303,4 +311,35 @@ def prewarm_kentang_services():
+             failed += 1
+             print("[kentang] prewarm failed %s" % spec.get("key"), flush=True)
+             traceback.print_exc()
++
+     return loaded, failed
++
++
++def prewarm_kentang_modules():
++    """horosa_kentang_prewarm_modules_v1:预装「请求路径内惰性 import」的重模块。
++
++    服务挂载之外还有一类成本:模块在**请求路径内**才被 import。典型是
++    kintaiyi.pan(enable_game_theory=True) 才 `from .game_theory import TaiyiGame`,
++    而 game_theory 是 793 行的重模块 —— 实测冷导入 **528ms**,温(sys.modules 命中)
++    0.001ms。用户在太乙里第一次勾「博弈论」白等的就是这 528ms,与算法无关。
++
++    ⚠️ **必须在 STARTUP_GATE 打开之后调**,绝不能并进 prewarm_kentang_services():
++    后者跑在门**之前**,把 528ms 加进去等于直接把启动门推迟 528ms(启动预算是硬线)。
++    同一文件里 xuanshi_summary_warmup_v1 立的就是这个规矩 —— 预热只许吃空闲,不许
++    延长任何人的等待窗。
++
++    其它约束:只 import、不调用任何函数 ⇒ 零盘面副作用,任何请求的输出逐字节不变;
++    吞错 ⇒ 失败时真实请求仍走原来的 import 并按原样报错(口径不分叉)。
++    返回 (warmed, failed) 计数供日志。
++    """
++    warmed = 0
++    failed = 0
++    for modname in KENTANG_PREWARM_MODULES:
++        try:
++            importlib.import_module(modname)
++            warmed += 1
++        except Exception:
++            failed += 1
++            print("[kentang] module prewarm failed %s" % modname, flush=True)
++            traceback.print_exc()
++    return warmed, failed

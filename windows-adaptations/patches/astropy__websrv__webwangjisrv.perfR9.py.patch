@@ -1,0 +1,91 @@
+diff --git a/astropy/websrv/webwangjisrv.py b/astropy/websrv/webwangjisrv.py
+index 578d72b..6bb435d 100644
+--- a/astropy/websrv/webwangjisrv.py
++++ b/astropy/websrv/webwangjisrv.py
+@@ -165,24 +165,44 @@ def _sanitize_history_records(records):
+     return clean
+ 
+ 
+-def _classic_payload(key):
++# horosa_wangji_classics_ondemand_v1:典籍全书(皇極經世書 ~980KB md)不再随每次 /wangji/pan 下发。
++# get_sections() 每次都重读 + 正则重切整册 md;这里加模块级解析缓存(数据随包只读、进程内恒定,
++# 命中即零 I/O),并按 with_content 分档:
++#   * /wangji/pan → 只出 level+title(章节目录,前端左栏下拉与 UI 初始渲染够用),盘体从 ~1.96MB 降到 ~12KB;
++#   * /wangji/classic → 出全文,前端按 classicKey 模块级缓存一次,合并回 state 里的 sections。
++# 章节切换/显示切换因此仍是纯本地(全文已在客户端),AI 快照亦不缺正文。
++_SECTIONS_CACHE = {}
++
++
++def _cached_sections(key):
++    cached = _SECTIONS_CACHE.get(key)
++    if cached is None:
++        cached = get_sections(key)
++        _SECTIONS_CACHE[key] = cached
++    return cached
++
++
++def _classic_payload(key, with_content=False):
+     meta = list_classics()
+     valid_keys = [item["key"] for item in meta]
+     selected = key if key in valid_keys else (valid_keys[0] if valid_keys else "")
+     sections = []
+     if selected:
+-        sections = get_sections(selected)
++        sections = _cached_sections(selected)
++    out = []
++    for item in sections:
++        row = {
++            "level": item.get("level"),
++            "title": item.get("title", ""),
++        }
++        if with_content:
++            row["content"] = item.get("content", "")
++        out.append(row)
+     return {
+         "meta": meta,
+         "selectedKey": selected,
+-        "sections": [
+-            {
+-                "level": item.get("level"),
+-                "title": item.get("title", ""),
+-                "content": item.get("content", ""),
+-            }
+-            for item in sections
+-        ],
++        "sections": out,
++        "withContent": bool(with_content),
+     }
+ 
+ 
+@@ -352,6 +372,8 @@ class WangJiSrv:
+                 "wangxiang": _json_safe(wangxiang),
+                 "historyYear": history_year,
+                 "history": history_records,
++                # horosa_wangji_classics_ondemand_v1:盘体只带典籍目录(level+title);
++                # 正文由前端 /wangji/classic 按 classicKey 取一次并本地缓存。
+                 "classics": _classic_payload(classic_key),
+                 "fullText": pan_text,
+                 "guaUnicode": GUA_UNICODE,
+@@ -402,6 +424,22 @@ class WangJiSrv:
+             traceback.print_exc()
+             return jsonpickle.encode({"ResultCode": -1, "Result": "wangji calculation failed"}, unpicklable=False)
+ 
++    # horosa_wangji_classics_ondemand_v1:典籍全文按需端点(纯只读、无随机/无 now、无副作用)。
++    # 入参 classicKey;回全 sections(level+title+content),供前端按 key 缓存一次后本地切章。
++    @cherrypy.expose
++    @cherrypy.config(**{"tools.cors.on": True})
++    @cherrypy.tools.json_in()
++    def classic(self):
++        enable_crossdomain()
++        try:
++            data = cherrypy.request.json or {}
++            classic_key = _clean_text(data.get("classicKey"), "huangji_jingshi_shu")
++            payload = _classic_payload(classic_key, with_content=True)
++            return jsonpickle.encode({"ResultCode": 0, "Result": payload}, unpicklable=False)
++        except Exception:
++            traceback.print_exc()
++            return jsonpickle.encode({"ResultCode": -1, "Result": "classic load failed"}, unpicklable=False)
++
+     @cherrypy.expose
+     @cherrypy.config(**{"tools.cors.on": True})
+     @cherrypy.tools.json_in()

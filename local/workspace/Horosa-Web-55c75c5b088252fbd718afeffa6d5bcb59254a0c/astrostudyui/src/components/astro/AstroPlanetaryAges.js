@@ -9,6 +9,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildPlanetaryAges, buildPlanetaryAgesSnapshotText, } from '../../utils/planetaryAges';
 import { PLANETARY_YEARS } from '../../divination/data/hellenisticData';
 import styles from '../../css/styles.less';
+import { markPanelReady } from '../../utils/perfMark';
 
 // 行星年四档：七政各有通用的四档年数（小/中/大/极大），按迦勒底序由土至月排列。
 const YEAR_BAND_ORDER = [
@@ -98,6 +99,8 @@ class AstroPlanetaryAges extends Component{
 
 	componentDidUpdate(prevProps){
 		if(prevProps.value !== this.props.value){
+			// horosa_panel_ready_v1:本技法无自有请求,数据整份派生自 chartObj —— 「落定」= 拿到新盘那次提交。
+			markPanelReady('direction');
 			this.saveAISnapshot();
 		}
 	}

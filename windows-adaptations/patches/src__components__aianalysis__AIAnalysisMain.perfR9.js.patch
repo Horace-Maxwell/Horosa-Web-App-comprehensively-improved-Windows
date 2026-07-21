@@ -1,0 +1,120 @@
+diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
+index 9db4fd1..5af0ec4 100644
+--- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
++++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
+@@ -163,6 +163,8 @@ import {
+ 	encodeModelSelection,
+ 	parseModelSelection,
+ } from '../../utils/aiAnalysisProviders';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const { TextArea, Search } = Input;
+ const { Title, Text } = Typography;
+@@ -734,6 +736,38 @@ function renderMarkdownToHtml(text){
+ 	}
+ }
+ 
++// horosa_markdown_lru_v1(PERF-R9):renderMarkdownToHtml 是本页最贵的纯函数
++// (normalizeMarkdown + 5 趟 LaTeX 正则 + marked.parse + DOMPurify.sanitize),
++// 而它在 visibleMessages.map 里**对每条 assistant 消息、每次 render 都重跑一遍** ——
++// 流式回答期间每来一个 token 就整屏重算一次全部历史消息的 Markdown。
++// 输出只取决于入参字符串(纯函数、无外部依赖、无副作用),故按内容做 LRU 记忆:
++// 命中即返回上次逐字节相同的 HTML,零行为差异。流式那一条每帧内容都在变=必然 miss
++// (它本来就必须重算),但它之前的历史消息从此每帧命中。
++// 容量有界(96 条)防长会话无限增长;命中时移到队尾,故churn 只发生在流式那一条上。
++const MARKDOWN_CACHE_MAX = 96;
++const markdownCache = new Map();
++function renderMarkdownToHtmlCached(text){
++	const key = `${text || ''}`;
++	if(!key.trim()){
++		return '';
++	}
++	if(markdownCache.has(key)){
++		const hit = markdownCache.get(key);
++		markdownCache.delete(key);
++		markdownCache.set(key, hit);   // LRU:命中即移到队尾
++		return hit;
++	}
++	const html = renderMarkdownToHtml(key);
++	markdownCache.set(key, html);
++	if(markdownCache.size > MARKDOWN_CACHE_MAX){
++		const oldest = markdownCache.keys().next();
++		if(!oldest.done){
++			markdownCache.delete(oldest.value);
++		}
++	}
++	return html;
++}
++
+ const CONTEXT_STATUS_META = {
+ 	ready: { text: '已就绪', color: 'green' },
+ 	regenerated: { text: '已按盘重算', color: 'blue' },
+@@ -1407,7 +1441,15 @@ function AIAnalysisMain(props){
+ 	React.useEffect(()=>{
+ 		if(props.hook){
+ 			props.hook.fun = ()=>{
+-				loadWorkspace({ keepConversation: true });
++				// horosa_panel_ready_v1:AI 分析是流式输出,没有「一次 setState 画完」的点;
++				// 但 owner 要验收的那个动作(左栏切时间/改选项)在本技法上的完整语义就是
++				// predictHook.fun —— 工作区按新盘重载(资料/模版/会话/挂载快照全部落 state)。
++				// loadWorkspace 的 finally 里 setWorkspaceLoading(false) 是最后一次状态提交,
++				// 故 await 之后即为面板落定;markPanelReady 内双 rAF 再推到下一绘制帧。
++				// 流式回答的逐 token 追加**不**计入(那是模型出字速度,不属于渲染预算)。
++				loadWorkspace({ keepConversation: true }).then(()=>{
++					markPanelReady('aianalysis');
++				}).catch(()=>{ /* 失败不记样本 */ });
+ 			};
+ 		}
+ 	}, [props.hook, loadWorkspace]);
+@@ -4478,7 +4520,7 @@ function AIAnalysisMain(props){
+ 												) : null}
+ 												{item.role === 'user'
+ 													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
+-													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(item.content) }} />}
++													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtmlCached(item.content) }} />}
+ 												{item.role === 'assistant' && item.errorInfo ? (
+ 													<Alert
+ 														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
+@@ -5088,6 +5130,11 @@ function AIAnalysisMain(props){
+ 				onChange={handleDesktopFolderInputChange}
+ 			/>
+ 			<Spin spinning={workspaceLoading}>
++				{/* horosa_freeze_subtabs_v1：五个 renderXxxPane() 此前在**每次** render 都被无条件调用 ——
++				    打一个字、流式回答每来一段、切任何设置，都会把「历史」「资料」「模版」「设置」四个
++				    看不见的面板(含各自的列表/表单/折叠面板)整套重建一遍。函数式 children 让未激活的
++				    面板连函数都不调用；已激活过的在非激活期跳过 re-render，切回时用本轮最新数据渲一帧，
++				    不卸载、不重取、不丢用户已填的表单与滚动位置。 */}
+ 				<Tabs
+ 					className={styles.workspaceTabs}
+ 					tabPosition="right"
+@@ -5096,19 +5143,29 @@ function AIAnalysisMain(props){
+ 					style={{ height }}
+ 				>
+ 					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">
++						<FreezeSubTab active={innerTab === 'analysis'}>{()=>(
+ 						<div className={styles.pane}>{renderAnalysisPane()}</div>
++					)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab={<span>{SECONDARY_TABS[1].icon}历史</span>} key="history">
++						<FreezeSubTab active={innerTab === 'history'}>{()=>(
+ 						<div className={styles.pane}>{renderHistoryPane()}</div>
++					)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab={<span>{SECONDARY_TABS[2].icon}资料</span>} key="materials">
++						<FreezeSubTab active={innerTab === 'materials'}>{()=>(
+ 						<div className={styles.pane}>{renderMaterialsPane()}</div>
++					)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab={<span>{SECONDARY_TABS[3].icon}模版</span>} key="templates">
++						<FreezeSubTab active={innerTab === 'templates'}>{()=>(
+ 						<div className={styles.pane}>{renderTemplatesPane()}</div>
++					)}</FreezeSubTab>
+ 					</TabPane>
+ 					<TabPane tab={<span>{SECONDARY_TABS[4].icon}设置</span>} key="settings">
++						<FreezeSubTab active={innerTab === 'settings'}>{()=>(
+ 						<div className={styles.pane}>{renderSettingsPane()}</div>
++					)}</FreezeSubTab>
+ 					</TabPane>
+ 				</Tabs>
+ 			</Spin>

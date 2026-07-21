@@ -1,0 +1,132 @@
+diff --git a/astrostudyui/src/components/cntradition/BaZi.js b/astrostudyui/src/components/cntradition/BaZi.js
+index 5b9f4dd..929bed0 100644
+--- a/astrostudyui/src/components/cntradition/BaZi.js
++++ b/astrostudyui/src/components/cntradition/BaZi.js
+@@ -1,5 +1,6 @@
+-import { Component } from 'react';
++import { Component, memo } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
+ import { safeLocalStorageSet } from '../../utils/safeStorage';
+ import { XQTabs as Tabs } from '../xq-ui';
+ import CnTraditionInput from './CnTraditionInput';
+@@ -21,6 +22,17 @@ import { parseDateParts } from '../../utils/dateStrSafe';
+ 
+ const TabPane = Tabs.TabPane;
+ 
++// horosa_bazi_child_memo_v1（PERF-R9 Ship 6·八字族）：左栏输入面板与行运面板【不消费】flowSelection，
++// 但它们是本页最重的两块 DOM(行运面板 = 大运×流年×流月×流日 四轴网格)。点一次大运格 → 顶层
++// setState({flowSelection}) → 整树重渲 → 这两块白跑。memo 默认浅比:props 引用全同才跳过,
++// 任一 props 变(fields/baziOpt/directResult/loading/error/jieqiParams…)照常重渲 → 零陈旧、零降级。
++// 前提(已满足):传给它们的回调都是构造函数里 bind 的稳定引用;jieqiParams 由 memoBaziParams 稳定化。
++const MemoCnTraditionInput = memo(CnTraditionInput);
++const MemoBaZiLuckFlowPanel = memo(BaZiLuckFlowPanel);
++// render 期的稳定空对象：原先每次 render 写字面量 {} 会让下游 memo/sCU 的引用比恒不等。
++const EMPTY_BAZI = {};
++const EMPTY_PARAMS = {};
++
+ const BaZiOptKey = 'baziopt';
+ const BAZI_CORE_ENDPOINT = '/bazi/birth';
+ const BAZI_DIRECT_ENDPOINT = '/bazi/direct';
+@@ -837,9 +849,18 @@ class BaZi extends Component{
+ 		});
+ 	}
+ 
+-	onFlowSelectionChange(flowSelection){
++	// horosa_panel_ready_v1(复核补接):行运条点格 = 中栏细盘高亮 + 右栏神煞两块同帧改写。
++	// 起点由 BaZiLuckFlowPanel.renderAxis 的点击处打(markInteractionStart('bazi')),终点即本次
++	// setState 落定 —— 这一次 setState 之后,PaiBaZi/BaZiFineChart 与 BaZiFlowGodsSection 都已拿到
++	// 新 flowSelection。userInitiated 为假(= resetSelection 在数据到位后自发的那次 emit)时不打点,
++	// 否则会抢走 requestBazi 那条真样本、把「改时间→出盘」量成一个偏小的假数。
++	onFlowSelectionChange(flowSelection, userInitiated){
+ 		this.setState({
+ 			flowSelection,
++		}, ()=>{
++			if(userInitiated){
++				markPanelReady('bazi');
++			}
+ 		});
+ 	}
+ 
+@@ -871,6 +892,32 @@ class BaZi extends Component{
+ 		return params;
+ 	}
+ 
++	// horosa_bazi_param_memo_v1：render 期的 genParams 结果稳定化。
++	// genParams 的全部输入 = fields（引用）+ this.state.baziOpt（引用）；两者同引用 ⇒ 输出逐字段相同，
++	// 直接复用旧对象。旧码每次 render 新建对象 → 作为 jieqiParams 传下去会让行运面板的 memo 恒失效。
++	memoBaziParams(fields){
++		const opt = this.state.baziOpt;
++		const cache = this._paramsCache;
++		if(cache && cache.fields === fields && cache.opt === opt){
++			return cache.out;
++		}
++		const out = this.genParams(fields);
++		this._paramsCache = { fields, opt, out };
++		return out;
++	}
++
++	// horosa_bazi_chartbazi_memo_v1：resolveChartBazi 在「core 无 direction」分支返回新对象字面量，
++	// 每次 render 都换引用 → 下游任何以 value 引用比的 sCU/memo 恒失效。输入两引用不变即复用旧输出。
++	memoChartBazi(coreBazi, directBazi){
++		const cache = this._chartBaziCache;
++		if(cache && cache.core === coreBazi && cache.direct === directBazi){
++			return cache.out;
++		}
++		const out = resolveChartBazi(coreBazi, directBazi);
++		this._chartBaziCache = { core: coreBazi, direct: directBazi, out };
++		return out;
++	}
++
+ 	async prefetchBazi(fields){
+ 		if(fields === undefined || fields === null){
+ 			return;
+@@ -907,7 +954,14 @@ class BaZi extends Component{
+ 			flowSelection: this.state.currentBaziKey === currentBaziKey ? this.state.flowSelection : null,
+ 		};
+ 
+-		this.setState(st);
++		// horosa_panel_ready_v1：这一次 setState 就是「中栏(细盘+行运)+右栏(信息面板)」的数据落定点
++		// ——result 一到位，PaiBaZi / BaZiLuckFlowPanel / BaZiAppInfoPanel 三者同一帧全部拿到新数据。
++		// markPanelReady 内部按 generation 去重 + 双 rAF 逼近「本帧已绘」。
++		// 「改时间/改选项 → 出盘」这条路径的终点唯此一处；另一条独立路径(行运条点格)的终点在
++		// onFlowSelectionChange，两者各自配自己的 markInteractionStart，互不抢样本。
++		this.setState(st, ()=>{
++			markPanelReady('bazi');
++		});
+ 		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
+ 		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
+ 		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school };
+@@ -1033,11 +1087,11 @@ class BaZi extends Component{
+ 		}
+ 		let tabHeight = height - 20;
+ 
+-		let bazi = this.state.result ? this.state.result.bazi : {};
++		let bazi = this.state.result ? this.state.result.bazi : EMPTY_BAZI;
+ 		const directBazi = this.state.directResult && this.state.directResult.bazi ? this.state.directResult.bazi : null;
+ 		// 细盘大运/流年列补源(BC/域外年 core 无 direction 时合入 /bazi/direct 结果);可靠年零回归。详见 resolveChartBazi。
+-		const chartBazi = resolveChartBazi(bazi, directBazi);
+-		const baziParams = this.props.fields ? this.genParams(this.props.fields) : {};
++		const chartBazi = this.memoChartBazi(bazi, directBazi);
++		const baziParams = this.props.fields ? this.memoBaziParams(this.props.fields) : EMPTY_PARAMS;
+ 		const isFineChart = this.state.chartStyle === 'fine' || this.state.chartStyle === 'ancient';
+ 		const isLegacyUi = this.state.baziOpt && this.state.baziOpt.uiMode === 'legacy';
+ 		const chartHeight = typeof height === 'number' ? Math.max(360, Math.round(height * 0.62)) : height;
+@@ -1048,7 +1102,7 @@ class BaZi extends Component{
+ 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-bazi-redesign-layout">
+ 					<div className="horosa-astro-redesign-grid horosa-bazi-redesign-grid">
+ 						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-bazi-input-panel">
+-							<CnTraditionInput
++							<MemoCnTraditionInput
+ 								fields={this.props.fields}
+ 								baziOpt={this.state.baziOpt}
+ 								onFieldsChange={this.onFieldsChange}
+@@ -1073,7 +1127,7 @@ class BaZi extends Component{
+ 										/>
+ 									</div>
+ 									<div className="horosa-bazi-main-flow-slot">
+-										<BaZiLuckFlowPanel
++										<MemoBaZiLuckFlowPanel
+ 											coreValue={bazi}
+ 											fullValue={directBazi}
+ 											height={flowHeight}

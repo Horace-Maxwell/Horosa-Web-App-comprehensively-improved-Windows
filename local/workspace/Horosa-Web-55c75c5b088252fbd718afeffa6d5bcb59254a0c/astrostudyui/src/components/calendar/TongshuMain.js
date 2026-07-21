@@ -13,38 +13,71 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
 import { wutuMonth } from './tongshu/wutu';
 import { xuankongDay, xuankongForHour } from './tongshu/xuankong';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
+import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
+import { calendarPanelShouldUpdate } from './NongLiMain';
 
 const MODULE = 'calendar-tongshu';
 
+// horosa_kentang_result_cache_v1(通书择日):本页每一次 setState(选日/换用事/换时辰/换流派)
+// 都把当前流派的中右栏【整体重算】一遍 —— 董公中栏是本月逐日 donggongDay + buildHuangliDay +
+// yongshiVerdict(31 天 × 3 次纯计算),三垣要跨 y-1/y/y+1 三年求加临点,玄空要排 12 时辰日课。
+// 这些全是**纯函数**:入参只有公历整数(+用事串/仙命年),无随机、无「现在时刻」依赖、无副作用
+// → 同键必同值,缓存与重算逐值等价。上限 256 条 LRU(≈8 个月的各流派派生)。
+// 关 horosa.perf.techniqueResultCache → 每次现算(=今日行为,逐字一致)。
+const TS_MEM = new Map();
+const TS_MEM_MAX = 256;
+function tsMemo(key, build) {
+	if (!techniqueResultCacheEnabled()) { return build(); }
+	if (TS_MEM.has(key)) { return TS_MEM.get(key); }
+	const val = build();
+	TS_MEM.set(key, val);
+	if (TS_MEM.size > TS_MEM_MAX) {
+		const first = TS_MEM.keys().next().value;
+		if (first !== undefined) { TS_MEM.delete(first); }
+	}
+	return val;
+}
+
 function verdictTone(level) { return level === 'good' ? 'is-good' : (level === 'bad' ? 'is-bad' : 'is-neutral'); }
+
+// 董公中栏逐日数据（纯计算部分，与「哪天被选中」无关 → 按 年-月-用事 缓存整月）。
+function donggongMonthData(y, m, event) {
+	return tsMemo(`dg|${y}|${m}|${event || ''}`, ()=>{
+		const days = new Date(y, m, 0).getDate();
+		const out = [];
+		for (let d = 1; d <= days; d++) {
+			out.push({
+				d,
+				ymd: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+				r: donggongDay({ y, m, d }),
+				yv: yongshiVerdict(buildHuangliDay(y, m, d), event),
+			});
+		}
+		return out;
+	});
+}
 
 // 董公中栏：本月逐日值日（建除 + 金神七煞/三吉星 + 所选用事宜/忌），点击选日。
 function DonggongMonth({ y, m, activeYmd, event, onPick }) {
-	const days = new Date(y, m, 0).getDate();
-	const rows = [];
-	for (let d = 1; d <= days; d++) {
-		const r = donggongDay({ y, m, d });
-		const yv = yongshiVerdict(buildHuangliDay(y, m, d), event);
-		const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-		rows.push(
-			<div key={d} className={`horosa-tongshu-dayrow ${ymd === activeYmd ? 'is-active' : ''} ${yv.level === 'yi' ? 'is-yi-day' : (yv.level === 'ji' ? 'is-ji-day' : '')}`} onClick={()=> onPick(ymd)}>
-				<span className='horosa-tongshu-dayrow-d'>{d}</span>
-				<span className='horosa-tongshu-dayrow-gz'>{r.dayGZ}</span>
-				<span className='horosa-tongshu-dayrow-jc'>{r.jianchu}</span>
-				{yv.level === 'yi' ? <Tag className='horosa-huangli-tag is-good'>宜{event}</Tag> : null}
-				{yv.level === 'ji' ? <Tag className='horosa-huangli-tag is-bad'>忌{event}</Tag> : null}
-				{r.jinshen.hit ? <Tag className='horosa-huangli-tag is-bad'>金神七煞</Tag> : null}
-				{r.sanxing ? <Tag className='horosa-huangli-tag is-good'>{r.sanxing}</Tag> : null}
-			</div>,
-		);
-	}
+	const rows = donggongMonthData(y, m, event).map(({ d, ymd, r, yv })=> (
+		<div key={d} className={`horosa-tongshu-dayrow ${ymd === activeYmd ? 'is-active' : ''} ${yv.level === 'yi' ? 'is-yi-day' : (yv.level === 'ji' ? 'is-ji-day' : '')}`} onClick={()=> onPick(ymd)}>
+			<span className='horosa-tongshu-dayrow-d'>{d}</span>
+			<span className='horosa-tongshu-dayrow-gz'>{r.dayGZ}</span>
+			<span className='horosa-tongshu-dayrow-jc'>{r.jianchu}</span>
+			{yv.level === 'yi' ? <Tag className='horosa-huangli-tag is-good'>宜{event}</Tag> : null}
+			{yv.level === 'ji' ? <Tag className='horosa-huangli-tag is-bad'>忌{event}</Tag> : null}
+			{r.jinshen.hit ? <Tag className='horosa-huangli-tag is-bad'>金神七煞</Tag> : null}
+			{r.sanxing ? <Tag className='horosa-huangli-tag is-good'>{r.sanxing}</Tag> : null}
+		</div>
+	));
 	return <div className='horosa-tongshu-month'>{rows}</div>;
 }
 
 // 董公右栏：选中日详断。
 function DonggongDetail({ y, m, d, event }) {
-	const r = donggongDay({ y, m, d });
-	const yv = yongshiVerdict(buildHuangliDay(y, m, d), event);
+	const r = tsMemo(`dgd|${y}|${m}|${d}`, ()=> donggongDay({ y, m, d }));
+	const yv = tsMemo(`yv|${y}|${m}|${d}|${event || ''}`, ()=> yongshiVerdict(buildHuangliDay(y, m, d), event));
 	const hitEvent = event && (yv.level !== 'neutral' || r.text.indexOf(event) >= 0);
 	return (
 		<div className='horosa-tongshu-detail'>
@@ -88,7 +121,7 @@ function DonggongDetail({ y, m, d, event }) {
 
 // 奇门叠数：12 时辰各自叠数与吉凶（出行择时），点击看诗解。选中时辰由 TongshuMain 持有。
 function QimenPanes({ y, m, d, selHour, onSelHour }) {
-	const r = qimenDieShuDay({ y, m, d });
+	const r = tsMemo(`qm|${y}|${m}|${d}`, ()=> qimenDieShuDay({ y, m, d }));
 	const active = selHour ? r.rows.find((x)=> x.hourZhi === selHour) : (r.rows.find((x)=> x.jx === '吉') || r.rows[0]);
 	return {
 		mid: (
@@ -130,14 +163,15 @@ function QimenPanes({ y, m, d, selHour, onSelHour }) {
 
 // 三垣列宿：本日天帝加临 + 距最近加临 + 十六吉曜按「用事类」高亮断语库。
 function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
-	const r = sanyuanLiexiuDay({ y, m, d });
-	const points = sanyuanYearPoints(y);
+	const r = tsMemo(`sy|${y}|${m}|${d}`, ()=> sanyuanLiexiuDay({ y, m, d }));
+	const yearPts = (yy)=> tsMemo(`syp|${yy}`, ()=> sanyuanYearPoints(yy));
+	const points = yearPts(y);
 	const hitNames = new Set(r.hitStars.map((s)=> s.name));
 	const USE_FIELDS = ['建宅', '安葬', '修造', '造命'];
 	const useField = USE_FIELDS.includes(use) ? use : '建宅';
 	// 距最近天帝加临日（含跨年前后）：跨 y-1/y/y+1 三年取全部点位求最小天差。
 	const sel = new Date(y, m - 1, d).getTime();
-	const allPts = [...sanyuanYearPoints(y - 1), ...points, ...sanyuanYearPoints(y + 1)];
+	const allPts = [...yearPts(y - 1), ...points, ...yearPts(y + 1)];
 	let nearest = null;
 	allPts.forEach((p)=>{
 		const [py, pm, pd] = p.ymd.split('-').map((n)=> parseInt(n, 10));
@@ -195,7 +229,7 @@ function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
 
 // 天元乌兔：本月逐日乌兔值星（太阳/太阴/九星），点击选日。
 function WutuPanes({ y, m, d, onPick }) {
-	const M = wutuMonth({ y, m, d });
+	const M = tsMemo(`wt|${y}|${m}|${d}`, ()=> wutuMonth({ y, m, d }));
 	const activeYmd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 	const active = M.rows.find((r)=> r.ymd === activeYmd) || M.rows[0];
 	const starCls = (jx)=> (jx === 'good' ? 'is-good' : 'is-bad');
@@ -246,9 +280,9 @@ function xkTagCls(jx) { return jx === 'good' ? 'is-good' : (jx === 'bad' ? 'is-b
 
 // 三元玄空：12 时辰玄空日课（五吉/日课吉凶），点击看四柱卦象。
 function XuankongPanes({ y, m, d, mingYear, selHour, onSelHour }) {
-	const D = xuankongDay({ y, m, d }, mingYear);
+	const D = tsMemo(`xk|${y}|${m}|${d}|${mingYear || ''}`, ()=> xuankongDay({ y, m, d }, mingYear));
 	const hz = selHour || (D.rows.find((x)=> x.level.jx === 'good') || D.rows[0]).hourZhi;
-	const full = xuankongForHour({ y, m, d, hourZhi: hz }, mingYear);
+	const full = tsMemo(`xkh|${y}|${m}|${d}|${hz}|${mingYear || ''}`, ()=> xuankongForHour({ y, m, d, hourZhi: hz }, mingYear));
 	const P = full.pillars;
 	// rel 为完整五机名（生入/克入/同旺/生成/合十/生出/克出/无关），按进神吉·退神凶着色。
 	const rowOf = (label, p, rel)=> (
@@ -310,23 +344,43 @@ class TongshuMain extends Component {
 		this.onSettingChange = this.onSettingChange.bind(this);
 		this.onDateChange = this.onDateChange.bind(this);
 		this.pickDay = this.pickDay.bind(this);
+		this.onSelHour = this.onSelHour.bind(this);
 		this.saveAISnapshot = this.saveAISnapshot.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
 	ymd() { return this.state.date.format('YYYY-MM-DD'); }
 
-	onSettingChange(patch) {
-		const settings = { ...this.state.settings, ...patch };
-		saveTongshuSettings(settings);
-		this.setState({ settings }, this.saveAISnapshot);
+	// horosa_panel_ready_v1:本页纯本地派生 —— setState 提交完成即中右栏画完,
+	// 故「落数回调」就是就绪点(无网络、无二次 setState)。
+	settle() {
+		this.saveAISnapshot();
+		markPanelReady('calendar');
 	}
 
-	onDateChange(dt) { this.setState({ date: dt.value }, this.saveAISnapshot); }
+	onSettingChange(patch) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(改选项)
+		const settings = { ...this.state.settings, ...patch };
+		saveTongshuSettings(settings);
+		this.setState({ settings }, ()=> this.settle());
+	}
+
+	onDateChange(dt) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(切时间)
+		this.setState({ date: dt.value }, ()=> this.settle());
+	}
 
 	pickDay(ymd) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(点选日期)
 		const dt = new DateTime().parse(`${ymd} 12:00:00`, 'yyyy-MM-dd HH:mm:ss');
-		this.setState({ date: dt }, this.saveAISnapshot);
+		this.setState({ date: dt }, ()=> this.settle());
+	}
+
+	// 时辰选择（奇门叠数 / 三元玄空共用）。原为 render 内联箭头 → 每次重渲都造新函数,
+	// 现绑定成稳定引用(顺带给下游 memo 化留出可能)。
+	onSelHour(h) {
+		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(换时辰)
+		this.setState({ qimenHour: h }, ()=> this.settle());
 	}
 
 	saveAISnapshot() {
@@ -347,12 +401,20 @@ class TongshuMain extends Component {
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
 		this.saveAISnapshot();
+		// horosa_panel_ready_v1:本页首次挂载是同步渲染(无请求、无二次 setState),
+		// 故挂载完成即「画完」;CalendarMain 换页签时为未挂载子页开的那次计时在此收尾。
+		markPanelReady('calendar');
 	}
 
 	componentWillUnmount() {
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+	}
+
+	// horosa_panel_scu_v1:本页【零消费】props.fields —— 渲染只看 state + props.height。
+	shouldComponentUpdate(nextProps, nextState) {
+		return calendarPanelShouldUpdate(this.props, nextProps, this.state, nextState);
 	}
 
 	renderPanes() {
@@ -366,7 +428,7 @@ class TongshuMain extends Component {
 			};
 		}
 		if (s.school === 'qimen') {
-			return QimenPanes({ y, m, d, selHour: this.state.qimenHour, onSelHour: (h)=> this.setState({ qimenHour: h }) });
+			return QimenPanes({ y, m, d, selHour: this.state.qimenHour, onSelHour: this.onSelHour });
 		}
 		if (s.school === 'sanyuanliexiu') {
 			return SanyuanPanes({ y, m, d, use: s.liexiuUse, onPick: this.pickDay });
@@ -375,7 +437,7 @@ class TongshuMain extends Component {
 			return WutuPanes({ y, m, d, onPick: this.pickDay });
 		}
 		if (s.school === 'sanyuan') {
-			return XuankongPanes({ y, m, d, mingYear: s.mingYear, selHour: this.state.qimenHour, onSelHour: (h)=> this.setState({ qimenHour: h }) });
+			return XuankongPanes({ y, m, d, mingYear: s.mingYear, selHour: this.state.qimenHour, onSelHour: this.onSelHour });
 		}
 		const school = TONGSHU_SCHOOL_MAP[s.school] || {};
 		const stub = <div className='horosa-empty-hint'>「{school.label}」正在开发中，敬请期待。</div>;

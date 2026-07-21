@@ -10,6 +10,7 @@ import * as AstroText from '../../constants/AstroText';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
 // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+import { markPanelReady } from '../../utils/perfMark';
 
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
 const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
@@ -121,7 +122,8 @@ class AstroAgePoint extends Component {
 				timeoutMs: 60000,
 			});
 			if(!this._mounted) return;
-			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k });
+			// horosa_panel_ready_v1:年龄推进点表(本技法唯一可见内容)落定的那一次 setState。
+			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
 		}catch(e){
 			if(!this._mounted) return;
 			this.setState({ loading: false, requestKey: k });

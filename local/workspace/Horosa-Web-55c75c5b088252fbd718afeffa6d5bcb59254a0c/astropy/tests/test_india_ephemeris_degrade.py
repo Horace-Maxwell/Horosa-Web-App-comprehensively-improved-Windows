@@ -70,6 +70,11 @@ def test_chiron_ephemeris_file_missing_degrades_gracefully():
 
     backup = seas + '.pytest_degrade_bak'
     original_size = os.path.getsize(seas)
+    # PERF-R9(horosa_ephe_path_fastpath_v1):ensureEphePath 现在会短路,不再每次 swe 调用
+    # 都重设星历路径 —— 而重设路径在 C 库里**顺带关闭已打开的星历文件**。短路后句柄常驻,
+    # Windows 不允许改名被打开的文件,这里的 os.rename 会 WinError 32。
+    # 这是**测试前置条件**的修正,不是断言的放宽:下面「文件缺失 → 优雅降级」的断言一字未动。
+    swe.closeEphemerisFiles()
     os.rename(seas, backup)
     try:
         kernel = _kernel(date='2000/01/01')           # 现代日期(Chiron 本应可算)

@@ -1,0 +1,66 @@
+diff --git a/astrostudyui/src/components/germany/UranianHouseFrames.js b/astrostudyui/src/components/germany/UranianHouseFrames.js
+index 2ae1971..82b42b4 100644
+--- a/astrostudyui/src/components/germany/UranianHouseFrames.js
++++ b/astrostudyui/src/components/germany/UranianHouseFrames.js
+@@ -16,6 +16,32 @@ import UranianFrameWheel from './UranianFrameWheel';
+ import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
+ import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
+ import { schoolToBackendParams } from './UranianSchools';
++import { markPanelReady } from '../../utils/perfMark';
++import { sameDisplayList } from '../../utils/chartUpdateGuard';
++import { chartSCUEnabled } from '../../utils/perfFlags';
++
++// horosa_frames_scu_v1(PERF-R9 Ship 6):六宫框 sCU(与 UranianDialMain 同款全键浅比)。
++// 父容器 AstroGermany 的子页签无冻结层 → 隐藏时也会随父重渲(内含标准盘 AstroChart + 落宫表)。
++// 全键浅比:漏键=该更新时不更新,故不用固定白名单;显示开关数组按内容比;state 变化一律照渲。
++const FRAMES_SCU_COMPARATORS = {
++	chartDisplay: sameDisplayList,
++	planetDisplay: sameDisplayList,
++	lotsDisplay: sameDisplayList,
++};
++function framesPropsEqual(a, b){
++	if (a === b) return true;
++	if (!a || !b) return false;
++	const ka = Object.keys(a);
++	const kb = Object.keys(b);
++	if (ka.length !== kb.length) return false;
++	for (let i = 0; i < ka.length; i++){
++		const k = ka[i];
++		const fn = FRAMES_SCU_COMPARATORS[k];
++		if (fn){ if (!fn(a[k], b[k])) return false; }
++		else if (!Object.is(a[k], b[k])) return false;
++	}
++	return true;
++}
+ 
+ // 标准盘所需的「宫头对象」结构:{id:'House1'..'House12', lon, size, sign, signlon}。
+ // AstroChartCircle.desposeHouses/getHouse 消费 lon/size/sign/signlon/id;此处从框的 cusps[12] 派生。
+@@ -149,6 +175,12 @@ export default class UranianHouseFrames extends Component {
+ 		this._measure = this._measure.bind(this);
+ 		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.load(); this._measure(); } };
+ 	}
++	shouldComponentUpdate(nextProps, nextState){
++		if (!chartSCUEnabled()) return true;  // kill-switch
++		if (nextState !== this.state) return true;
++		return !framesPropsEqual(this.props, nextProps);
++	}
++
+ 	componentDidMount(){
+ 		this.unmounted = false;
+ 		this.load();
+@@ -187,11 +219,13 @@ export default class UranianHouseFrames extends Component {
+ 			const m = (mid && mid[Constants.ResultKey]) ? mid[Constants.ResultKey] : mid;
+ 			const tnp = (m && m.tnp) || [];
+ 			const points = collectPoints(chartObj, tnp);
++			// horosa_panel_ready_v1:六宫框子盘的中栏(框盘)+右栏(落宫表)全部由 points/houseFrames 派生,
++			// 两个分支各自都是「面板数据落定」的那一次 setState。
+ 			if (m && m.houseFrames && m.houseFrames.frames){
+-				this.setState({ points, houseFrames: m.houseFrames, degraded: false, loading: false });
++				this.setState({ points, houseFrames: m.houseFrames, degraded: false, loading: false }, ()=>{ markPanelReady('auxchart'); });
+ 			} else {
+ 				// 后端缺 houseFrames(老服务)→ 前端等宫降级合成(子午局近似)。
+-				this.setState({ points, houseFrames: degradeFrames(points), degraded: true, loading: false });
++				this.setState({ points, houseFrames: degradeFrames(points), degraded: true, loading: false }, ()=>{ markPanelReady('auxchart'); });
+ 			}
+ 		} catch (e){
+ 			if (!this.unmounted) this.setState({ loading: false, note: '排盘失败,请稍后重试' });

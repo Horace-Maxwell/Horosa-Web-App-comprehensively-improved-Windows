@@ -1,17 +1,255 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiMain.js b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-index 0064973..fea5172 100644
+index 0064973..ab358ce 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiMain.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-@@ -34,6 +34,8 @@ import * as ZWConst from '../../constants/ZWConst';
+@@ -34,14 +34,56 @@ import * as ZWConst from '../../constants/ZWConst';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { ziweirulesCached } from '../../services/rules';
 +import { cachedPost } from '../../services/_requestCache';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
++import { techniqueResultCacheEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { calcZiwei, deriveSanPan } from './ZiweiCalc';
  import { detectPatterns } from './ziweiPatterns';
-@@ -698,10 +700,12 @@ class ZiWeiMain extends Component{
+ import { ZWEngineOptions, ziweiNeedsLocalEngine } from './ziweiOptions';
+ import { parseYearFromDateStr } from '../../utils/dateStrSafe';
++import { markPanelReady, markInteractionStart } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { chartSCUEnabled } from '../../utils/perfFlags';
+ 
+ const TabPane = Tabs.TabPane;
+ 
++// 稳定空值(避免每次 render 新建字面量 → 下游 sCU/绘制守卫的引用比恒不等)。
++// 三个消费者(ZiWeiChart.drawChart / ZWLuckPanel.render / buildZiWeiInfoData)在
++// houses/nongli 缺省时都提前 return,不会写入这两个对象,故共享安全。
++const ZW_EMPTY_CHART = {};
++const ZW_EMPTY_PATTERNS = [];
++
++// horosa_ziwei_state_slice_v1:本组件 render 实际消费的 state 键。
++// indicator(仅 ZWChart 指示器句柄回传,render 从不读)与 cnt(历史遗留,零读取)变化时,
++// 旧的「nextState !== this.state 即返 true」会把 12 宫 SVG + 右栏四页签全部重渲一遍。
++// 取向仍是「宁可多渲、绝不漏渲」:只有**确认 render 不读**的键才判无关,其余任何键(含未知新增键)一律判「变了」。
++const ZW_RENDER_IRRELEVANT_STATE_KEYS = { indicator: true, cnt: true };
++function ziweiStateAffectsRender(prev, next){
++	if(prev === next){
++		return false;
++	}
++	if(!prev || !next){
++		return true;
++	}
++	const prevKeys = Object.keys(prev);
++	const nextKeys = Object.keys(next);
++	if(prevKeys.length !== nextKeys.length){
++		return true;   // 键集合变了 → 保守判「变了」
++	}
++	for(let i = 0; i < nextKeys.length; i += 1){
++		const k = nextKeys[i];
++		if(prev[k] === next[k]){
++			continue;
++		}
++		if(ZW_RENDER_IRRELEVANT_STATE_KEYS[k]){
++			continue;
++		}
++		return true;
++	}
++	return false;
++}
++
+ function normalizeGan(value){
+ 	if(!value){
+ 		return '';
+@@ -437,6 +479,63 @@ function buildZiWeiSnapshotText(params, result){
+ 	return lines.join('\n');
+ }
+ 
++// —— PERF-R9 Ship 7:/ziwei/birth 构参的模块级纯函数(组件方法 genParams 纯委托于此)。
++//    抽出来的唯一目的:预热/预取要在【组件之外】构出与首点逐字节同键的 body。
++//    语义与抽出前逐字节一致(含「非默认流派才附 sihua」这条零回归约定)。
++export function buildZiweiBirthParams(flds){
++	if(!flds){
++		return null;
++	}
++	const timeAlg = (flds.timeAlg && flds.timeAlg.value !== undefined && flds.timeAlg.value !== null)
++		? flds.timeAlg.value
++		: 0;
++	const params = {
++		date: flds.date.value.format('YYYY-MM-DD'),
++		time: flds.time.value.format('HH:mm:ss'),
++		ad: (flds.ad && flds.ad.value !== undefined) ? flds.ad.value : (flds.date.value.ad || 1),
++		zone: flds.zone.value,
++		lon: flds.lon.value,
++		lat: flds.lat.value,
++		gpsLat: flds.gpsLat.value,
++		gpsLon: flds.gpsLon.value,
++		gender: flds.gender.value,
++		timeAlg: timeAlg === 1 ? 1 : 0,
++		after23NewDay: defaultAfter23NewDay(),
++		lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
++	}
++	// P2-1：非默认流派时附四化表，使后端格局判定随流派；beipai(现状)不附＝缓存键不变＝零回归。
++	const school = ZWConst.ZWSchool.school;
++	if(school && school !== 'beipai'){
++		params.sihua = ZWConst.getActiveSiHuaGan();
++	}
++	return params;
++}
++
++// PERF-R9 Ship 7(数据层空闲预热):紫微本盘 /ziwei/birth —— 首点概率最高的技法之一,
++// 却一直不在排盘后的预热组里(本轮补上)。走与 requestZiWei 完全同一入口(同 url、同 body、
++// 同缓存层)⇒ 用户首点即命中。silent、丢结果、绝不 dispatch/setState;失败静默。
++export async function warmZiweiBirth(fields){
++	try{
++		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
++			return null;
++		}
++		const params = buildZiweiBirthParams(fields);
++		if(!params){
++			return null;
++		}
++		const opts = { silent: true, retry: { retries: 0 } };
++		if(techniqueResultCacheEnabled()){
++			return await cachedPost(`${Constants.ServerRoot}/ziwei/birth`, params, opts, { ns: 'ziwei/birth' });
++		}
++		return await request(`${Constants.ServerRoot}/ziwei/birth`, {
++			body: JSON.stringify(params),
++			...opts,
++		});
++	}catch(e){
++		return null;   // 预热失败静默:首点回到冷即付的现状
++	}
++}
++
+ // 供 AI 分析无头复算：按出生参数取盘并生成紫微快照文本（不依赖组件挂载）。
+ export async function buildZiweiSnapshotForParams(params){
+ 	if(!params){
+@@ -575,6 +674,9 @@ class ZiWeiMain extends Component{
+ 			// 运限单一真值源（需求1）：命盘九宫格与运限 tab(ZWLuckPanel) 共读写；默认空＝无运限(本命四化+自化)。
+ 			// dirIndex / luckMingIndex / 各宫运限标签 / 四化滑窗 全由 luckSel 派生(见 render)。
+ 			luckSel: emptyLuckSel(),
++			// horosa_freeze_subtabs_v1:右栏四页签改【受控】(原 defaultActiveKey 非受控 → 无从冻结)。
++			// 初值 'info' 与原 defaultActiveKey 逐字一致 = 首屏所见零变化。
++			rightTab: 'info',
+ 		};
+ 
+ 		this.unmounted = false;
+@@ -594,6 +696,9 @@ class ZiWeiMain extends Component{
+ 		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
+ 		this.onLuckSelChange = this.onLuckSelChange.bind(this);
+ 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
++		// 稳定回调:原先是 render 内联箭头(每次 render 新引用)→ 下游 sCU 的 props 比恒不等,memo 形同虚设。
++		this.onRightTabChange = this.onRightTabChange.bind(this);
++		this.openAiAnalysis = this.openAiAnalysis.bind(this);
+ 
+ 		if(this.props.hook){
+ 			this.props.hook.fun = (fields)=>{
+@@ -607,6 +712,39 @@ class ZiWeiMain extends Component{
+ 			// 不等 /chart 网络 —— 本页从「等一次网络(~230ms)」变「点击即出(<100ms)」。
+ 			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
+ 			this.props.hook.chartFree = true;
++			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):/ziwei/birth 是确定性纯计算
++			// (同 生辰+流派 恒同盘;无随机、不依赖「现在」)→ 登记步进预取。
++			// 🔴 登记必须在组件内:genParams 吃组件态的流派设置(ZWConst.ZWSchool),
++			//    模块级登记构不出与真点同键的 body。闸:horosa.perf.stepPrefetch(关=零登记)。
++			if(stepPrefetchEnabled()){
++				registerStepPrefetcher('ziwei', (steppedFields)=>{
++					if(this.unmounted){
++						return [];
++					}
++					let params = null;
++					try{
++						params = this.genParams(steppedFields);
++					}catch(e){
++						return [];
++					}
++					if(!params){
++						return [];
++					}
++					// 与 requestZiWei 完全同一入口(同 url、同 body、同缓存层)—— 差一字节即白预取。
++					// silent + retry:0:后端重启窗口绝不退避风暴。
++					const opts = { silent: true, retry: { retries: 0 } };
++					return [{
++						name: 'ziwei:birth',
++						path: '/ziwei/birth',
++						run: ()=> (techniqueResultCacheEnabled()
++							? cachedPost(`${Constants.ServerRoot}/ziwei/birth`, params, opts, { ns: 'ziwei/birth' })
++							: request(`${Constants.ServerRoot}/ziwei/birth`, {
++								body: JSON.stringify(params),
++								...opts,
++							})),
++					}];
++				});
++			}
+ 		}
+ 	}
+ 
+@@ -619,6 +757,15 @@ class ZiWeiMain extends Component{
+ 			if(Object.prototype.hasOwnProperty.call(patch, '__confirmed')){
+ 				delete patch.__confirmed;
+ 			}
++			// horosa_panel_ready_v1 配对起点:紫微【左栏】(ZiWeiInput:改时间/流派/传本开关/杂曜显示…)
++			// 全部走本方法 → dispatch('astro/save') + 直调 requestZiWei,**不经** pages/index.js 的
++			// changeCond,故那里的 markInteractionStart 覆盖不到它 → 起点缺失时 markPanelReady 因
++			// stepT0===0 静默丢弃,左栏这条最高频路径将永远量不到一条样本。与 calendar 族
++			// (NongLiMain/TongshuMain「本页时间条不经 pages/index.js」)同一处置。
++			// 判据与下方真正触发重排的分支逐字同源,故不会为「只落 fields、不重排」的调用留悬空起点。
++			if(confirmed || !Object.prototype.hasOwnProperty.call(field || {}, '__confirmed')){
++				markInteractionStart('ziwei');
++			}
+ 			// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。
+ 			if(field && Object.prototype.hasOwnProperty.call(field, 'after23NewDay')){
+ 				this._after23BoundaryUserOverrode = true;
+@@ -650,39 +797,23 @@ class ZiWeiMain extends Component{
+ 		const sel = this.state.luckSel || emptyLuckSel();
+ 		const isSame = sel.daxian && sel.daxian.mingIndex === value;
+ 		const noDeeper = !sel.liunian && !sel.liuyue && !sel.liuri && !sel.liushi;
++		// horosa_panel_ready_v1 配对起点:点大限是【纯本地】setState(不发请求、不经 pages/index.js
++		// changeCond),此前起点/终点两头皆无 → 这条路径在验收台架里是**零样本**(既非通过也非失败,
++		// 而是根本没量)。起点紧贴真正会落数的 setState 之前打,早退分支不留悬空起点。
+ 		if(isSame && noDeeper){
+-			this.setState({ luckSel: emptyLuckSel() });
++			markInteractionStart('ziwei');
++			this.setState({ luckSel: emptyLuckSel() }, ()=>{ markPanelReady('ziwei'); });
+ 			return;
+ 		}
+ 		const item = buildDaxianItems(chart).find((d)=> d.mingIndex === value) || null;
+-		this.setState({ luckSel: luckSelectDaxian(chart, item, sel) });
++		markInteractionStart('ziwei');
++		this.setState({ luckSel: luckSelectDaxian(chart, item, sel) }, ()=>{ markPanelReady('ziwei'); });
+ 	}
+ 
+ 	genParams(fields){
+-		let flds = fields ? fields : this.props.fields;
+-		const timeAlg = (flds.timeAlg && flds.timeAlg.value !== undefined && flds.timeAlg.value !== null)
+-			? flds.timeAlg.value
+-			: 0;
+-		const params = {
+-			date: flds.date.value.format('YYYY-MM-DD'),
+-			time: flds.time.value.format('HH:mm:ss'),
+-			ad: (flds.ad && flds.ad.value !== undefined) ? flds.ad.value : (flds.date.value.ad || 1),
+-			zone: flds.zone.value,
+-			lon: flds.lon.value,
+-			lat: flds.lat.value,
+-			gpsLat: flds.gpsLat.value,
+-			gpsLon: flds.gpsLon.value,
+-			gender: flds.gender.value,
+-			timeAlg: timeAlg === 1 ? 1 : 0,
+-			after23NewDay: defaultAfter23NewDay(),
+-			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+-		}
+-		// P2-1：非默认流派时附四化表，使后端格局判定随流派；beipai(现状)不附＝缓存键不变＝零回归。
+-		const school = ZWConst.ZWSchool.school;
+-		if(school && school !== 'beipai'){
+-			params.sihua = ZWConst.getActiveSiHuaGan();
+-		}
+-		return params;
++		// PERF-R9 Ship 7:构造原样抽为模块级纯函数(预热/预取复用同一路径 ⇒ key/body 逐字节
++		// 一致);本方法保持既有签名与 props 兜底语义,纯委托零行为变化。
++		return buildZiweiBirthParams(fields ? fields : this.props.fields);
+ 	}
+ 
+ 	async requestZiWei(fields){
+@@ -698,10 +829,12 @@ class ZiWeiMain extends Component{
  		// 新盘到达单次 setState 整体替换)。关 silentTechniquePanels 开关=旧全屏。
  		this.setState({ updating: true });
  		const [data, rules] = await Promise.all([
@@ -28,3 +266,150 @@ index 0064973..fea5172 100644
  			ziweirulesCached({}),
  		]);
  		// 🔴 空载荷守卫:request() 网络层失败会吞错 resolve undefined(非 reject)。
+@@ -755,7 +888,14 @@ class ZiWeiMain extends Component{
+ 		};
+ 
+ 
+-		this.setState(st);
++		// horosa_panel_ready_v1:本次交互的**唯一**落数点 —— 中栏(12 宫 SVG,读 result/luckSel)与
++		// 右栏(命盘/运限/格局,读 result/rules/luckSel)同吃这一次 setState,故接在它的回调上即
++		// 「中栏+右栏都拿到最终数据」。上面本地引擎段(calcZiwei+deriveSanPan+detectPatterns,50-200ms)
++		// 是本次 setState **之前**的同步开销,因而被完整计入本段。markPanelReady 内部再用双 rAF
++		// 逼近「本帧已绘」。技法 key 用顶层页签的 'ziwei'(与 pages/index.js markInteractionStart 同源)。
++		this.setState(st, ()=>{
++			markPanelReady('ziwei');
++		});
+ 		// 惰性构建:12 宫×星曜×四化遍历挪出排盘关键路径(params/result 为本函数局部量,闭包安全;
+ 		// builder 读的全局流派 ZWConst.ZWSchool 若在 idle 前被切换,切换路径必经 requestZiWei
+ 		// 重排 → 新 save 覆盖本 pending,latest-wins 兜底)。
+@@ -855,9 +995,28 @@ class ZiWeiMain extends Component{
+ 		});
+ 	}
+ 
++	// horosa_freeze_subtabs_v1:右栏页签受控切换。仅记 rightTab,不触发任何请求/重排。
++	onRightTabChange(key){
++		if(key === this.state.rightTab){
++			return;
++		}
++		// horosa_panel_ready_v1 配对起点:owner 验收口径含「换页签」,而右栏换页签是纯本地 setState,
++		// 不经 changeCond → 不打起点就永远量不到。首次激活某页签时 FreezeSubTab 会在这一帧真正
++		// 首渲该面板(运限轴/格局全表),正是该被计入的那段开销。
++		markInteractionStart('ziwei');
++		this.setState({ rightTab: key }, ()=>{ markPanelReady('ziwei'); });
++	}
++
++	// 稳定引用的「AI解读」跳转(原为 ZWLuckPanel 的内联 onAi 箭头)。
++	openAiAnalysis(){
++		this.navigateFeature('aianalysis');
++	}
++
+ 	// 运限 tab(ZWLuckPanel) 受控上报：直接落 luckSel 单一真值源（与九宫格同源）。
+ 	onLuckSelChange(next){
+-		this.setState({ luckSel: next || emptyLuckSel() });
++		// horosa_panel_ready_v1 配对起点:运限页签点 大限/流年/流月/流日/流时 chip 的落点(纯本地)。
++		markInteractionStart('ziwei');
++		this.setState({ luckSel: next || emptyLuckSel() }, ()=>{ markPanelReady('ziwei'); });
+ 	}
+ 
+ 	openDrawer(key){
+@@ -908,7 +1067,9 @@ class ZiWeiMain extends Component{
+ 		if(ln){
+ 			sel = luckSelectLiunian(chart, ln, sel);
+ 		}
+-		this.setState({ luckSel: sel });
++		// horosa_panel_ready_v1 配对起点:快捷栏「运限对齐今天」(纯本地,同 onChangeDirection 口径)。
++		markInteractionStart('ziwei');
++		this.setState({ luckSel: sel }, ()=>{ markPanelReady('ziwei'); });
+ 	}
+ 
+ 	// 快捷栏契约:原 6 个占星推运跨页键(主限/法达/小限/返照/合盘/星运)=跨页导航滥用,全撤;
+@@ -926,7 +1087,7 @@ class ZiWeiMain extends Component{
+ 				hasResult={hasChart}
+ 				extras={[
+ 					{ key: 'luckToday', label: '运限对齐今天', icon: 'quickTransit', onClick: ()=>this.alignLuckToToday() },
+-					{ key: 'luckClear', label: '清除运限', icon: 'quickReturn', disabled: !hasChart || !hasLuck, onClick: ()=>this.setState({ luckSel: emptyLuckSel() }) },
++					{ key: 'luckClear', label: '清除运限', icon: 'quickReturn', disabled: !hasChart || !hasLuck, onClick: ()=>{ markInteractionStart('ziwei'); this.setState({ luckSel: emptyLuckSel() }, ()=>{ markPanelReady('ziwei'); }); } },
+ 					{ key: 'memo', label: '笔记', icon: 'quickNote', needsResult: false, onClick: ()=>this.openDrawer('memo') },
+ 				]}
+ 				dispatch={this.props.dispatch}
+@@ -980,9 +1141,18 @@ class ZiWeiMain extends Component{
+ 	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+ 	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+ 	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
++	// horosa_ziwei_state_slice_v1:state 由「引用比」细化为「按键浅比 + 白名单剔无关键」。
++	// 变化点仅一个:只有 indicator / cnt 变(render 不读它们)时不再整树重渲;其余任何 state 变化
++	// (result/rules/luckSel/updating/tips/centerInfoVisible/rightTab/未知新键)行为与之前逐字一致。
++	// kill-switch 同 chartSCU:关掉 → 回到「state 引用一变即重渲」的旧行为。
+ 	shouldComponentUpdate(nextProps, nextState){
+ 		if(nextState !== this.state){
+-			return true;
++			if(!chartSCUEnabled()){
++				return true;
++			}
++			if(ziweiStateAffectsRender(this.state, nextState)){
++				return true;
++			}
+ 		}
+ 		return !wrapperPropsEqual(this.props, nextProps);
+ 	}
+@@ -1116,7 +1286,8 @@ class ZiWeiMain extends Component{
+ 			height = height - 40
+ 		}
+ 
+-		let chart = this.state.result ? this.state.result.chart : {};
++		// 无盘时用模块级稳定空对象(原为每次 render 新建 {} → 下游引用比恒不等 → 白重绘)。
++		let chart = this.state.result ? this.state.result.chart : ZW_EMPTY_CHART;
+ 		const luckRender = this.buildLuckRender(chart);
+ 		let doms = this.genDirectionDom(chart);
+ 		let infoData = buildZiWeiInfoData(chart, this.props.fields);
+@@ -1159,23 +1330,40 @@ class ZiWeiMain extends Component{
+ 						</div>
+ 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-ziwei-info-panel">
+ 							{/* 星阙金 W1 试点:XQTabs 自带 xq-tabs 基线(金 ink-bar 2px+三态字色);W2 全量收编 content-tabs 族 */}
+-						<Tabs defaultActiveKey="info" tabPosition='top' className="horosa-content-tabs horosa-ziwei-tabs">
++						{/* horosa_freeze_subtabs_v1:受控 Tabs + 每面板 FreezeSubTab。
++						    非激活面板在父组件重渲(切时间/改选项/点大限)时跳过 re-render;
++						    冻结≠卸载 —— 已渲染过的面板保留 DOM/实例/滚动位置与展开态,切回即拿最新 children 渲一帧。*/}
++						<Tabs activeKey={this.state.rightTab} onChange={this.onRightTabChange} tabPosition='top' className="horosa-content-tabs horosa-ziwei-tabs">
+ 								<TabPane tab="命盘" key="info">
+-									{this.renderZiWeiInfoPanel(infoData, doms, tipheight)}
++									<FreezeSubTab active={this.state.rightTab === 'info'}>
++										{()=>this.renderZiWeiInfoPanel(infoData, doms, tipheight)}
++									</FreezeSubTab>
+ 								</TabPane>
+ 								<TabPane tab="运限" key="luck">
+-									<ZWLuckPanel
+-										chart={chart}
+-										value={this.state.luckSel}
+-										onChange={this.onLuckSelChange}
+-										onAi={()=>this.navigateFeature('aianalysis')}
+-									/>
++									<FreezeSubTab active={this.state.rightTab === 'luck'}>
++										{()=>(
++											<ZWLuckPanel
++												chart={chart}
++												value={this.state.luckSel}
++												onChange={this.onLuckSelChange}
++												onAi={this.openAiAnalysis}
++											/>
++										)}
++									</FreezeSubTab>
+ 								</TabPane>
+ 								<TabPane tab="格局" key="patterns">
+-									<ZWPatternPanel patterns={this.state.result ? this.state.result.patterns : []} />
++									<FreezeSubTab active={this.state.rightTab === 'patterns'}>
++										{()=>(
++											<ZWPatternPanel patterns={this.state.result ? this.state.result.patterns : ZW_EMPTY_PATTERNS} />
++										)}
++									</FreezeSubTab>
+ 								</TabPane>
+ 								<TabPane tab="资料参考" key="2">
+-									<ZWRuleMain height={height} rules={this.state.rules} />
++									<FreezeSubTab active={this.state.rightTab === '2'}>
++										{()=>(
++											<ZWRuleMain height={height} rules={this.state.rules} />
++										)}
++									</FreezeSubTab>
+ 								</TabPane>
+ 							</Tabs>
+ 						</div>

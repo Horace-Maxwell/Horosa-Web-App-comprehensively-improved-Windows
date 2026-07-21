@@ -2,7 +2,10 @@ import request from '../utils/request';
 import { ServerRoot } from '../utils/constants';
 import { chartCloneLiteEnabled } from '../utils/perfFlags';
 
-const CHART_CACHE_MAX = 96;
+// PERF-R9 Ship 7:96 → 192。步进预取每 settle 最多灌 3 条 /chart,加上技法族的自有预取,
+// 96 条在「连点步进 + 来回拨」下会把用户刚看过的盘挤出去(命中率反降)。容量是纯内存
+// (单盘 JSON 量级 ~数十 KB,192 条上限仍在个位 MB),翻倍换稳定命中。
+const CHART_CACHE_MAX = 192;
 const chartMem = new Map();
 const chartInflight = new Map();
 

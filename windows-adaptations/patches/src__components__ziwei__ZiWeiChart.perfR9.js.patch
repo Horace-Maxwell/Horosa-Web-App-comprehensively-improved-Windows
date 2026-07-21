@@ -1,0 +1,105 @@
+diff --git a/astrostudyui/src/components/ziwei/ZiWeiChart.js b/astrostudyui/src/components/ziwei/ZiWeiChart.js
+index 375f818..b232482 100644
+--- a/astrostudyui/src/components/ziwei/ZiWeiChart.js
++++ b/astrostudyui/src/components/ziwei/ZiWeiChart.js
+@@ -2,9 +2,51 @@ import * as d3 from 'd3';
+ import { Component } from 'react';
+ import {randomStr, setupFloatingTooltip} from '../../utils/helper';
+ import * as AstroConst from '../../constants/AstroConst';
+-import { chartDrawGuardEnabled } from '../../utils/perfFlags';
++import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+ import ZWChart from './ZWChart';
+ 
++// horosa_ziwei_chart_scu_v1:本组件 render 与 drawChart 实际消费的**全部** props。
++// 逐项相等 → 跳过这次 re-render(连带跳过 cDU→scheduleDrawChart 的双 rAF + getElementById +
++// clientWidth/clientHeight 强制回流);任一变化 → 照常渲染重绘。
++// 取向「宁可多渲、绝不漏渲」:除下面两个**派生数组**外一律参与比较,未知/新增 props 由键数比兜底。
++const ZW_CHART_DERIVED_ARRAY_PROPS = { luckSihuaLayers: true, luckLabelLayers: true };
++
++// 派生数组内容比(长度 + 逐元素逐字段)。它们由 ZiWeiMain.buildLuckRender 每次 render 新建
++// (引用恒变),用引用比会让 sCU 恒 true 形同虚设;元素是 3~5 个纯标量小对象,内容比极廉价且精确。
++function zwLuckArrayEqual(a, b){
++	if(a === b){
++		return true;
++	}
++	if(!Array.isArray(a) || !Array.isArray(b)){
++		return a === b;
++	}
++	if(a.length !== b.length){
++		return false;
++	}
++	for(let i = 0; i < a.length; i += 1){
++		const x = a[i];
++		const y = b[i];
++		if(x === y){
++			continue;
++		}
++		if(!x || !y || typeof x !== 'object' || typeof y !== 'object'){
++			return false;
++		}
++		const xk = Object.keys(x);
++		const yk = Object.keys(y);
++		if(xk.length !== yk.length){
++			return false;
++		}
++		for(let j = 0; j < xk.length; j += 1){
++			const k = xk[j];
++			if(x[k] !== y[k]){
++				return false;
++			}
++		}
++	}
++	return true;
++}
++
+ class ZiWeiChart extends Component{
+ 	constructor(props) {
+ 		super(props);
+@@ -166,6 +208,47 @@ class ZiWeiChart extends Component{
+ 		this.zwchart.draw();
+ 	}
+ 
++	// horosa_ziwei_chart_scu_v1:见文件头。父级因无关 state(updating 角标/tips/右栏页签切换)重渲时,
++	// 本组件不再走 render + cDU + 双 rAF + 强制回流。drawChart 内既有的签名守卫保持不动(它还兜
++	// resize/主题/内部交互等非 props 触发的重绘路径),两层互补、都以「输入未变才跳」为准。
++	shouldComponentUpdate(nextProps, nextState){
++		if(!chartSCUEnabled()){
++			return true;   // kill-switch:回到恒重渲的旧行为
++		}
++		if(nextState !== this.state){
++			return true;   // 本组件 state(chartid/tooltipId 等)一变即渲
++		}
++		const prev = this.props;
++		const next = nextProps;
++		if(prev === next){
++			return false;
++		}
++		if(!prev || !next){
++			return true;
++		}
++		const pk = Object.keys(prev);
++		const nk = Object.keys(next);
++		if(pk.length !== nk.length){
++			return true;   // 键集合变了 → 保守重渲
++		}
++		for(let i = 0; i < nk.length; i += 1){
++			const k = nk[i];
++			const a = prev[k];
++			const b = next[k];
++			if(a === b){
++				continue;
++			}
++			if(ZW_CHART_DERIVED_ARRAY_PROPS[k]){
++				if(zwLuckArrayEqual(a, b)){
++					continue;
++				}
++				return true;
++			}
++			return true;   // 其余任何 props(含 value/fields/rules/luckKey/回调)一变即渲
++		}
++		return false;
++	}
++
+ 	setupToolTip(divTooltip){
+ 		if(divTooltip){
+ 			setupFloatingTooltip(divTooltip, {

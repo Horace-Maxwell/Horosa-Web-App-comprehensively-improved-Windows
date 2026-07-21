@@ -1,0 +1,64 @@
+diff --git a/astrostudyui/src/components/commtools/CuanGong12Query.js b/astrostudyui/src/components/commtools/CuanGong12Query.js
+index 7a584e7..ef29398 100644
+--- a/astrostudyui/src/components/commtools/CuanGong12Query.js
++++ b/astrostudyui/src/components/commtools/CuanGong12Query.js
+@@ -1,10 +1,13 @@
+ import { Component } from 'react';
+ import { Row, Col, Divider, Popover} from 'antd';
+ import { XQSelect as Select } from '../xq-ui';
+-import { randomStr, isNumber } from '../../utils/helper';
++import { isNumber } from '../../utils/helper';
+ import request from '../../utils/request';
+ import * as Constants from '../../utils/constants';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const { Option } = Select;
+ 
+@@ -72,7 +75,7 @@ export default class CuanGong12Query extends Component{
+     genOptions(){
+         let opts = GZConst.map((item, idx)=>{
+             return (
+-                <Option key={randomStr(8)} value={item}>{item}</Option>
++                <Option key={item} value={item}>{item}</Option>
+             )
+         });
+         return opts;
+@@ -87,7 +90,7 @@ export default class CuanGong12Query extends Component{
+                 </div>
+             )
+             return (
+-                <Col key={randomStr(8)} span={5}>
++                <Col key={idx} span={5}>
+                     <span style={{fontWeight: 'bold'}}>{GZConst[idx+12]}：</span>
+                     <Popover content={tip}>
+                         {item.name}
+@@ -111,7 +114,7 @@ export default class CuanGong12Query extends Component{
+                 </div>
+             )
+             return (
+-                <Col key={randomStr(8)} span={5}>
++                <Col key={idx} span={5}>
+                     <span style={{fontWeight: 'bold'}}>{GZConst[idx]}：</span>
+                     <Popover content={tip}>
+                         {item.name}
+@@ -134,7 +137,7 @@ export default class CuanGong12Query extends Component{
+                 </div>
+             )
+             return (
+-                <Col key={randomStr(8)} span={5}>
++                <Col key={idx} span={5}>
+                     <span style={{fontWeight: 'bold'}}>{GZConst[idx+12]}：</span>
+                     <Popover content={tip}>
+                         {item.name}
+@@ -157,7 +160,7 @@ export default class CuanGong12Query extends Component{
+                 </div>
+             )
+             return (
+-                <Col key={randomStr(8)} span={5}>
++                <Col key={idx} span={5}>
+                     <span style={{fontWeight: 'bold'}}>{GZConst[idx]}：</span>
+                     <Popover content={tip}>
+                         {item.name}

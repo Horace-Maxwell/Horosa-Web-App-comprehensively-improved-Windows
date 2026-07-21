@@ -1,0 +1,21 @@
+diff --git a/astrostudyui/src/components/astro/AstroDecennials.js b/astrostudyui/src/components/astro/AstroDecennials.js
+index d215a57..c8c9399 100644
+--- a/astrostudyui/src/components/astro/AstroDecennials.js
++++ b/astrostudyui/src/components/astro/AstroDecennials.js
+@@ -28,6 +28,7 @@ import { buildMeaningTipByCategory, } from './AstroMeaningData';
+ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
+ import styles from '../../css/styles.less';
+ import { XQSelect as Select } from '../xq-ui';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const { Option } = Select;
+ const { TreeNode } = Tree;
+@@ -398,6 +399,8 @@ class AstroDecennials extends Component{
+ 
+ 	componentDidUpdate(prevProps, prevState){
+ 		if(prevProps.value !== this.props.value){
++			// horosa_panel_ready_v1:本技法无自有请求,数据整份派生自 chartObj —— 「落定」= 拿到新盘那次提交。
++			markPanelReady('direction');
+ 			const param = this.props.value ? this.genNatalParams(this.props.value) : {};
+ 			this.setState({
+ 				params: param,

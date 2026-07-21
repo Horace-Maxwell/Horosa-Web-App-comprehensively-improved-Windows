@@ -15,6 +15,8 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { FreezeSubTab } from '../comp/FreezeInactive';
+import { markPanelReady } from '../../utils/perfMark';
 
 const TabPane = Tabs.TabPane;
 
@@ -488,6 +490,10 @@ class AstroRelative extends Component{
 
 		if(!this._mounted) return;
 		this.setState(st, ()=>{
+			// horosa_panel_ready_v1:合盘结果落定(当前子页签的盘 + 其右栏皆由 hook[tab].result 派生)的提交点。
+			// ★ 顶层页签 key 是 'relativechart'(pages/index.js:829),不是 'direction' —— 必须与
+			// markInteractionStart(currentTab) 同名,否则合盘的样本会被记到星运名下(观测串族)。
+			markPanelReady('relativechart');
 			let hook = this.state.hook[this.state.currentTab];
 			if(hook && hook.fun){
 				hook.fun(res);
@@ -605,6 +611,10 @@ class AstroRelative extends Component{
 				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10, position: 'relative'}} ref={this.chartRowRef}>
 					<Col span={24}>
 						{this.state.updating && hook[this.state.currentTab] && hook[this.state.currentTab].result ? <UpdatingBadge /> : null}
+						{/* horosa_freeze_subtabs_v1:六个合盘子页签此前全部常驻重渲(每次排盘/改选项都画 6 套)。
+						    state.currentTab 本就由 changeTab 与 antd 同步,直接拿来做 active;
+						    Tabs 仍保持原非受控写法(defaultActiveKey),行为逐字不变。
+						    冻结≠卸载:切回时拿本轮最新 children 立即渲一帧,不重发请求、不丢状态。 */}
 						<Tabs 
 							defaultActiveKey={this.state.currentTab} tabPosition='right'
 							onChange={this.changeTab}
@@ -612,6 +622,7 @@ class AstroRelative extends Component{
 							style={{ height: height }}
 						>
 							<TabPane tab="比较盘" key="Comp">
+								<FreezeSubTab active={this.state.currentTab === 'Comp'}>
 									<AstroCompare
 										value={hook.Comp.result}
 									height={height}
@@ -628,8 +639,10 @@ class AstroRelative extends Component{
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Comp}	
 									/>
+								</FreezeSubTab>
 							</TabPane>
 							<TabPane tab="组合盘" key="Composite">
+								<FreezeSubTab active={this.state.currentTab === 'Composite'}>
 									<AstroComposite 
 										value={hook.Composite.result}
 									height={height}
@@ -646,8 +659,10 @@ class AstroRelative extends Component{
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Composite}	
 									/>
+								</FreezeSubTab>
 							</TabPane>
 							<TabPane tab="影响盘" key="Synastry">
+								<FreezeSubTab active={this.state.currentTab === 'Synastry'}>
 									<AstroSynastry 
 										value={hook.Synastry.result}
 									height={height}
@@ -664,8 +679,10 @@ class AstroRelative extends Component{
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Synastry}	
 									/>
+								</FreezeSubTab>
 							</TabPane>
 							<TabPane tab="时空中点盘" key="TimeSpace">
+								<FreezeSubTab active={this.state.currentTab === 'TimeSpace'}>
 									<AstroTimeSpace 
 										value={hook.TimeSpace.result}
 									height={height}
@@ -682,8 +699,10 @@ class AstroRelative extends Component{
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.TimeSpace}	
 									/>
+								</FreezeSubTab>
 							</TabPane>
 								<TabPane tab="马克斯盘" key="Marks">
+									<FreezeSubTab active={this.state.currentTab === 'Marks'}>
 										<AstroMarks 
 											value={hook.Marks.result}
 									height={height}
@@ -700,13 +719,16 @@ class AstroRelative extends Component{
 										showAstroMeaning={this.props.showAstroMeaning}
 										hook={hook.Marks}	
 										/>
+									</FreezeSubTab>
 								</TabPane>
 								<TabPane tab="关系量化" key="Score">
+									<FreezeSubTab active={this.state.currentTab === 'Score'}>
 										<AstroRelativeScore
 											params={this.genParams()}
 											height={height}
 											onResult={(r)=>{ hook.Score.result = r; this.saveRelativeSnapshot(); }}
 										/>
+									</FreezeSubTab>
 								</TabPane>
 
 							</Tabs>

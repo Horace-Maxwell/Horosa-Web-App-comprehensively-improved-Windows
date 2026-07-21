@@ -1,0 +1,22 @@
+diff --git a/astrostudyui/src/components/astro/AstroPersianDirected.js b/astrostudyui/src/components/astro/AstroPersianDirected.js
+index fa468f9..416904a 100644
+--- a/astrostudyui/src/components/astro/AstroPersianDirected.js
++++ b/astrostudyui/src/components/astro/AstroPersianDirected.js
+@@ -19,6 +19,7 @@ import styles from '../../css/styles.less';
+ import DateTime from '../comp/DateTime';
+ import PlusMinusTime from './PlusMinusTime';
+ import { XQSelect as Select } from '../xq-ui';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const Option = Select.Option;
+ const RATE = { persian: 1.0, prophected: 30.0, naibod: 0.9856473 };
+@@ -289,7 +290,8 @@ class AstroPersianDirected extends Component{
+ 			const dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
+ 			if(params.dirZone){ dt.setZone(params.dirZone); }
+ 			if(!this._mounted) return;
+-			this.setState({ dirChart: result, params: { ...params, datetime: dt } });
++			// horosa_panel_ready_v1:波斯向运盘(中栏盘 + 右栏表同源于 dirChart)落定的那一次 setState。
++			this.setState({ dirChart: result, params: { ...params, datetime: dt } }, ()=>{ markPanelReady('direction'); });
+ 		}catch(e){ /* ignore */ }
+ 	}
+ 

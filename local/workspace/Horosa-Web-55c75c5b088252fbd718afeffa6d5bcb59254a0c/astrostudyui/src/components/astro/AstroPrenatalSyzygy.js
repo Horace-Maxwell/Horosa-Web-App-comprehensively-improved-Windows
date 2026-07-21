@@ -4,6 +4,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { fetchChart } from '../../services/astro';
 import AstroChart from './AstroChart';
+import { markPanelReady } from '../../utils/perfMark';
 import {
 	unwrapResult, chartParams, chartRequestKey, fmtNum, fmtDegree,
 	cardStyle, SmallTable, symbolWithMeaning,
@@ -62,7 +63,8 @@ class AstroPrenatalSyzygy extends Component{
 			}catch(e){ chart = null; }
 		}
 		if(!this._mounted){ return; }
-		this.setState({ syzygy, chart, loading: false, key });
+		// horosa_panel_ready_v1:朔望摘要 + 朔望盘两件都已就绪的那一次 setState(中栏盘与右栏同源)。
+		this.setState({ syzygy, chart, loading: false, key }, ()=>{ markPanelReady('direction'); });
 		// TODO(AI 快照):产前朔望快照由主控统一接入(不在此写 aiAnalysisContext);
 		// 待接入点 = 此处 syzygy + chart 已就绪,可构建「产前朔望」模块快照。
 	}

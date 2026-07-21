@@ -184,27 +184,43 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{
 		indiahsys: false,
 	});
 
+	// ⚠️ 本 describe 里所有 sCU 调用**必须传第二参 `c.state`**。
+	// 缘由(PERF-R9 Ship 6 实测):MidpointMain 因接入 FreezeSubTab 而首次有了 state(sideTab),
+	// sCU 随之加了 `if(nextState !== this.state) return true`(子页签受控后,state 变化不照渲
+	// 会导致切子页签不动)。而旧测试用**单参数**调用 ⇒ `nextState === undefined` ⇒ 与 this.state
+	// 必然不等 ⇒ **恒返回 true**。
+	// 后果比"两条用例变红"严重得多:这个块里期望 true 的用例会**因为错误的原因而通过** ——
+	// 它们不再检验 props 比较,变成一批空转的假绿。真实 React 调 sCU 时**永远**会传 nextState,
+	// 所以传 `c.state`(props-only 变化时 React 传的正是当前 state)才是对现实的正确建模。
+	// 不要改成"放宽组件的 state 守卫来迁就单参调用"——那是拿产品代码迁就测试写法。
+	const scu = (c, nextProps)=> c.shouldComponentUpdate(nextProps, c.state);
+
 	it('value 外层引用变但两内部引用(midpoints/chartObj)不变 → false(跳过父每帧重建字面量)', ()=>{
 		const c = new MidpointMain(baseProps());
 		const next = { ...c.props, value: { midpoints: sharedMid.midpoints, chartObj: sharedChart } };
-		expect(c.shouldComponentUpdate(next)).toBe(false);
+		expect(scu(c, next)).toBe(false);
 	});
 
 	it('value.chartObj 引用变(西洋盘数据变)→ true', ()=>{
 		const c = new MidpointMain(baseProps());
 		const next = { ...c.props, value: { midpoints: sharedMid.midpoints, chartObj: { chart: {}, params: {} } } };
-		expect(c.shouldComponentUpdate(next)).toBe(true);
+		expect(scu(c, next)).toBe(true);
 	});
 
 	it('value.midpoints 引用变(中点结果变)→ true', ()=>{
 		const c = new MidpointMain(baseProps());
 		const next = { ...c.props, value: { midpoints: { midpoints: [], aspects: {} }, chartObj: sharedChart } };
-		expect(c.shouldComponentUpdate(next)).toBe(true);
+		expect(scu(c, next)).toBe(true);
 	});
 
 	it('fields 引用变(改黄道/宫制)→ true', ()=>{
 		const c = new MidpointMain(baseProps());
-		expect(c.shouldComponentUpdate({ ...c.props, fields: { zodiacal: { value: 1 } } })).toBe(true);
+		expect(scu(c, { ...c.props, fields: { zodiacal: { value: 1 } } })).toBe(true);
+	});
+
+	it('state 变(切右栏子页签)→ true(FreezeSubTab 受控化的前提)', ()=>{
+		const c = new MidpointMain(baseProps());
+		expect(c.shouldComponentUpdate({ ...c.props }, { ...c.state, sideTab: '2' })).toBe(true);
 	});
 
 	const MUT = {
@@ -222,19 +238,19 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{
 	Object.keys(MUT).forEach((key)=>{
 		it(`prop「${key}」变 → true`, ()=>{
 			const c = new MidpointMain(baseProps());
-			expect(c.shouldComponentUpdate({ ...c.props, [key]: MUT[key] })).toBe(true);
+			expect(scu(c, { ...c.props, [key]: MUT[key] })).toBe(true);
 		});
 	});
 
 	it('显示数组传新引用但内容同 → false(内容比)', ()=>{
 		const c = new MidpointMain(baseProps());
 		const next = { ...c.props, chartDisplay: [1], planetDisplay: ['Sun'], lotsDisplay: [] };
-		expect(c.shouldComponentUpdate(next)).toBe(false);
+		expect(scu(c, next)).toBe(false);
 	});
 
 	it('kill-switch=0 → 恒 true', ()=>{
 		window.localStorage.setItem('horosa.perf.chartSCU', '0');
 		const c = new MidpointMain(baseProps());
-		expect(c.shouldComponentUpdate({ ...c.props })).toBe(true);
+		expect(scu(c, { ...c.props })).toBe(true);
 	});
 });

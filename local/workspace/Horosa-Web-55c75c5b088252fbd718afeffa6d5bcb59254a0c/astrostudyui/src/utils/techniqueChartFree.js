@@ -18,11 +18,16 @@ export const CHART_FREE_DECLARED = {
 	'components/cntradition/BaZi.js': '八字(本地引擎 baziLunarLocal,fields 即算)',
 	'components/kinastro/KinAstroMain.js': '数算/其他命(native 技法本地算;pan 技法自发 kentang 请求,均只吃 fields)',
 	'components/ziwei/ZiWeiMain.js': '紫微(/ziwei/birth 只依赖 fields;本地引擎同)',
+	// —— horosa_chart_free_declared_v1(PERF-R9 Ship 7 接线;核毕子组件树:三者的 render
+	//    均不向下传 chart/value)。本表与三个组件里的 `hook.chartFree = true` 是**一对**:
+	//    只登记不声明 = 无效;只声明不登记 = chartFreeContract 契约测试红。——
+	'components/fengshui/FengShuiMain.js': '风水(纯本地 fengshuiEngine/LiqiWorkspace;本轮补接 hook 只为承载声明,不注册 .fun)',
+	'components/calendar/CalendarMain.js': '黄历(子页路由,只向下传 fields;全本地历法)',
+	'components/cntradition/CnTraditionMain.js': '辅助(子页路由,只向下传 fields;全本地)',
 };
 
 /** 已核实但尚未声明(候选,逐个核毕子组件树后迁入上表) */
 export const CHART_FREE_CANDIDATES = [
-	'components/fengshui/FengShuiMain.js',     // 纯本地 fengshuiEngine,无 hook 注册(无从声明,须先接 hook)
-	'components/calendar/CalendarMain.js',     // 黄历,本地
-	'components/cntradition/CnTraditionMain.js', // 辅助,本地
+	// (空)—— 上一轮的三个候选已于 PERF-R9 Ship 7 核毕并迁入 CHART_FREE_DECLARED。
+	// 新增候选务必按文件头的流程走:先 grep 子组件树确认零 chartObj 消费,再声明 + 登记。
 ];

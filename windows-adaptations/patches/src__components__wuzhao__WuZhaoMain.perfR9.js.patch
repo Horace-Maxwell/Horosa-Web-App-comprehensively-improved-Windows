@@ -1,0 +1,126 @@
+diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
+index 7c8e7e5..ad2fa85 100644
+--- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
++++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
+@@ -13,6 +13,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+ import { formatHumanValue } from '../../utils/humanReadableFields';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+ import { parseDateParts } from '../../utils/dateStrSafe';
++import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
++import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
++import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const { Option } = Select;
+ const { TabPane } = Tabs;
+@@ -63,7 +68,7 @@ function parseFieldsDateTime(fields){
+ 	};
+ }
+ 
+-async function postWuZhao(path, payload){
++async function postWuZhaoRaw(path, payload){
+ 	const roots = [];
+ 	const endpoints = [];
+ 	if(typeof window !== 'undefined'){
+@@ -123,6 +128,31 @@ async function postWuZhao(path, payload){
+ 	throw lastError || new Error('wuzhao.fetch.failed');
+ }
+ 
++// horosa_kentang_result_cache_v1 —— 五兆 /wuzhao/pan 直连缓存,**带确定性判据**。
++// 🔴 五兆并非整体确定性:后端 webwuzhaosrv._calculate 里
++//    day/hour/minute/tang 四种起盘在【未给手动折竹数】时走 kinwuzhao.WuzhaoCalculator.random_split
++//    (random.randint,每次不同)——对这条路缓存会把随机揲筮结果钉死 = 功能降级,严禁。
++//    只有 ① mode==='ganzhi'(干支数值法 gangzhi_paipan,纯计算)
++//        ② manual===true(手动折竹:manualSplits 全量入 payload,后端不再摇随机)
++//    这两种才是「同 payload 必同盘」。故下方 wuzhaoCacheable 为准入闸,不满足即直连(与今日逐字一致)。
++function wuzhaoCacheable(payload){
++	const p = payload || {};
++	return p.mode === 'ganzhi' || !!p.manual;
++}
++
++function postWuZhao(path, payload){
++	const bodyKey = kentangCacheKey(payload);
++	if(!techniqueResultCacheEnabled() || !wuzhaoCacheable(payload) || !bodyKey){
++		return postWuZhaoRaw(path, payload);
++	}
++	return cachedKentangCall(
++		'wuzhao/pan',
++		payload,
++		()=>postWuZhaoRaw(path, payload),
++		{ key: `${path}|${bodyKey}`, max: 48 }
++	);
++}
++
+ function fmtValue(value){
+ 	return formatHumanValue(value);
+ }
+@@ -204,6 +234,21 @@ class WuZhaoMain extends Component{
+ 		}
+ 	}
+ 
++	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
++	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
++	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
++	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
++	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
++	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
++	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
++	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){
++			return true;
++		}
++		return !wrapperPropsEqual(this.props, nextProps);
++	}
++
+ 	componentDidMount(){
+ 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
+ 		this.unmounted = false;
+@@ -383,6 +428,8 @@ class WuZhaoMain extends Component{
+ 				return;
+ 			}
+ 			this.setState({ pan, loading: false }, ()=>{
++				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
++				markPanelReady('cnyibu');
+ 				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
+ 			});
+ 		}catch(e){
+@@ -629,19 +676,28 @@ class WuZhaoMain extends Component{
+ 		return (
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
+ 				<TabPane tab="概览" key="overview">
+-					<div className="horosa-huangji-section-list">
+-						{this.renderRows(pan ? (pan.sections || []).slice(0, 2) : [])}
+-					</div>
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'overview'}>{() => (
++						<div className="horosa-huangji-section-list">
++							{this.renderRows(pan ? (pan.sections || []).slice(0, 2) : [])}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="六位" key="positions">
+-					<div className="horosa-huangji-section-list">
+-						{this.renderRows(pan ? (pan.sections || []).slice(2, 8) : [])}
+-					</div>
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'positions'}>{() => (
++						<div className="horosa-huangji-section-list">
++							{this.renderRows(pan ? (pan.sections || []).slice(2, 8) : [])}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="标记" key="flags">
+-					<div className="horosa-huangji-section-list">
+-						{this.renderRows([{ title: '孤虚关籥将军', rows: flagRows.length ? flagRows : [{ label: '标记', value: '无' }] }])}
+-					</div>
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'flags'}>{() => (
++						<div className="horosa-huangji-section-list">
++							{this.renderRows([{ title: '孤虚关籥将军', rows: flagRows.length ? flagRows : [{ label: '标记', value: '无' }] }])}
++						</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 		);

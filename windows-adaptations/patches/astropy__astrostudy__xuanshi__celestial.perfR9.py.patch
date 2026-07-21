@@ -1,0 +1,202 @@
+diff --git a/astropy/astrostudy/xuanshi/celestial.py b/astropy/astrostudy/xuanshi/celestial.py
+index b7adfbd..f8753f8 100644
+--- a/astropy/astrostudy/xuanshi/celestial.py
++++ b/astropy/astrostudy/xuanshi/celestial.py
+@@ -23,7 +23,15 @@ _CE_COLS = (
+     "has_crosswalk, day_delta, routing_theme, in_chapter"
+ )
+ 
+-_CACHE: dict[str, Any] = {"events": None}
++# horosa_xuanshi_longtext_ondemand_v1 —— 微年表长文本按需取 + 模块级 memo。
++# ``micro`` 子表：微年表结果按 (history, omen_type, decade, limit) 缓存。库是只读 bundle
++# （db.py 以 mode=ro 打开），无随机 / 无 now / 无副作用 → 同参恒同结果，缓存与现算逐字节一致。
++# ``MICRO_LIST_LIMIT``：无筛选总览列表的下发条数上限，必须与前端 XuanShiMicro 的渲染上限一致
++# （XuanShiMicro 只渲染 events.slice(0, 300)），warmup 亦按此值预热同一 memo 键。
++MICRO_LIST_LIMIT = 300
++_MICRO_CACHE_MAX = 32
++
++_CACHE: dict[str, Any] = {"events": None, "micro": {}}
+ 
+ 
+ def _row_to_event(r) -> dict[str, Any]:
+@@ -75,6 +83,8 @@ def load_events(force: bool = False) -> list[dict[str, Any]]:
+         rows = []
+     events = [_row_to_event(r) for r in rows]
+     _CACHE["events"] = events
++    if force:
++        _CACHE["micro"].clear()   # horosa_xuanshi_longtext_ondemand_v1：强制重载时一并弃 memo
+     return events
+ 
+ 
+@@ -320,11 +330,52 @@ def term_profile(omen_canonical: str) -> dict[str, Any]:
+ # 微年表 — 直接走 SQL（带 history/omen/decade 过滤）
+ # ============================================================
+ 
++# 列表查询只取短列：``original`` / ``interpretation`` / ``modern`` 三个长文本列被排除在
++# SELECT 之外（WHERE 里仍可引用它们，筛选语义分毫未变），全表扫描的 I/O 与序列化因此塌缩。
++# 真正要下发的那几百行，再按 rowid 走一次窄查询把长文本贴回去（``_micro_texts``）。
++_MICRO_LIST_COLS = (
++    "rowid AS _rid, event_id, source_file, row_index, history, volume_no, paragraph_no, "
++    "date_phrase, era, year, dynasty, omen, omen_raw, subject, action, target, "
++    "modern_date, modern_date_disp, routing_theme"
++)
++
++
++def _micro_texts(conn, rids: list[int]) -> dict[int, Any]:
++    """按 rowid 批量取长文本列（rowid 唯一；event_id 在本表并不唯一，不能作主键用）。"""
++    out: dict[int, Any] = {}
++    step = 400   # 远低于 SQLite 变量上限，避免 too many SQL variables
++    for i in range(0, len(rids), step):
++        chunk = rids[i:i + step]
++        ph = ",".join("?" * len(chunk))
++        sql = (
++            "SELECT rowid AS _rid, original, interpretation, modern "
++            f"FROM celestial_event WHERE rowid IN ({ph})"
++        )
++        for r in conn.execute(sql, chunk).fetchall():
++            out[r["_rid"]] = r
++    return out
++
++
+ def microchronology(
+     history: Optional[str] = None,
+     omen_type: Optional[str] = None,
+     decade: Optional[int] = None,
++    limit: Optional[int] = None,
+ ) -> dict[str, Any]:
++    """微年表。``limit``=下发事件条数上限（``None``=全量，天象大典年代下钻按此口径）。
++
++    horosa_xuanshi_longtext_ondemand_v1：summary 恒按**全部**命中行统计（total /
++    with_year / by_history / by_omen / by_decade 与旧版逐字段一致），只有 ``events``
++    数组按 ``limit`` 截断；长文本只贴给真正下发的那些行，其余可经
++    ``microchronology_detail(event_id)`` 按需取回（正文迟到，绝不丢失）。
++    结果按参数 memo，同参二次调用零查询。
++    """
++    lim = None if limit is None else max(0, int(limit))
++    ckey = (history or "", omen_type or "", decade, lim)
++    cached = _CACHE["micro"].get(ckey)
++    if cached is not None:
++        return cached
++
+     conn = db.public_conn()
+     where: list[str] = []
+     params: list[Any] = []
+@@ -338,11 +389,8 @@ def microchronology(
+     if decade is not None:
+         where.append("year>=? AND year<?")
+         params.extend([decade, decade + 10])
+-    sql = """
+-        SELECT event_id, source_file, row_index, history, volume_no, paragraph_no,
+-               date_phrase, era, year, dynasty, omen, omen_raw, subject, action, target,
+-               original, interpretation, modern, modern_date, modern_date_disp,
+-               routing_theme
++    sql = f"""
++        SELECT {_MICRO_LIST_COLS}
+         FROM celestial_event
+     """
+     if where:
+@@ -350,14 +398,34 @@ def microchronology(
+     sql += " ORDER BY year IS NULL, year, modern_date, history, row_index"
+     rows = conn.execute(sql, params).fetchall()
+ 
+-    events: list[dict[str, Any]] = []
+     by_hist: Counter = Counter()
+     by_omen: Counter = Counter()
+     by_decade: Counter = Counter()
+     decade_omens_map: dict[int, Counter] = defaultdict(Counter)
++    folded: list[str] = []
++    total = 0
++    with_year = 0
+     for r in rows:
++        total += 1
+         year = r["year"]
+         omen = fold_to_canonical(r["omen"] or r["omen_raw"])
++        folded.append(omen)
++        if r["history"]:
++            by_hist[r["history"]] += 1
++        if omen:
++            by_omen[omen] += 1
++        if year:
++            with_year += 1
++            d = (int(year) // 10) * 10
++            by_decade[d] += 1
++            if omen:
++                decade_omens_map[d][omen] += 1
++
++    kept = rows if lim is None else rows[:lim]
++    texts = _micro_texts(conn, [r["_rid"] for r in kept]) if kept else {}
++    events: list[dict[str, Any]] = []
++    for idx, r in enumerate(kept):
++        t = texts.get(r["_rid"])
+         events.append({
+             "event_id": r["event_id"],
+             "history": r["history"],
+@@ -365,36 +433,52 @@ def microchronology(
+             "paragraph_no": r["paragraph_no"],
+             "period": r["dynasty"],
+             "title": r["date_phrase"] or r["modern_date_disp"] or r["event_id"],
+-            "original": r["original"],
+-            "year": year,
++            "original": t["original"] if t is not None else None,
++            "year": r["year"],
+             "date_phrase": r["date_phrase"],
+             "era": r["era"] or r["modern_date_disp"] or "",
+-            "omen": omen,
++            "omen": folded[idx],
+             "omen_raw": r["omen_raw"] or "",
+-            "interpretation": r["interpretation"] or r["modern"] or "",
++            "interpretation": (t["interpretation"] or t["modern"] or "") if t is not None else "",
+             "routing_theme": r["routing_theme"] or "",
+             "subject": r["subject"] or "",
+             "target": r["target"] or "",
+             "modern_date_disp": r["modern_date_disp"] or "",
+         })
+-        if r["history"]:
+-            by_hist[r["history"]] += 1
+-        if omen:
+-            by_omen[omen] += 1
+-        if year:
+-            d = (int(year) // 10) * 10
+-            by_decade[d] += 1
+-            if omen:
+-                decade_omens_map[d][omen] += 1
+     summary = {
+         "by_history": by_hist.most_common(),
+         "by_omen": by_omen.most_common(30),
+         "by_decade": sorted(by_decade.items()),
+         "decade_omens": {d: dict(c) for d, c in decade_omens_map.items()},
+-        "total": len(events),
+-        "with_year": sum(1 for e in events if e["year"]),
++        "total": total,
++        "with_year": with_year,
++    }
++    res = {"events": events, "summary": summary}
++    if len(_CACHE["micro"]) >= _MICRO_CACHE_MAX:
++        _CACHE["micro"].clear()
++    _CACHE["micro"][ckey] = res
++    return res
++
++
++def microchronology_detail(event_id: str) -> dict[str, Any]:
++    """horosa_xuanshi_longtext_ondemand_v1：按 event_id 取回长文本（列表被 ``limit``
++    截断后的兜底取数路径）。只读、幂等，可安全客户端缓存。"""
++    if not event_id:
++        return {}
++    conn = db.public_conn()
++    row = conn.execute(
++        "SELECT event_id, original, interpretation, modern FROM celestial_event "
++        "WHERE event_id=? LIMIT 1",
++        (event_id,),
++    ).fetchone()
++    if row is None:
++        return {}
++    return {
++        "event_id": row["event_id"],
++        "original": row["original"],
++        "interpretation": row["interpretation"] or row["modern"] or "",
++        "modern": row["modern"] or "",
+     }
+-    return {"events": events, "summary": summary}
+ 
+ 
+ def decade_omens() -> dict[str, Any]:

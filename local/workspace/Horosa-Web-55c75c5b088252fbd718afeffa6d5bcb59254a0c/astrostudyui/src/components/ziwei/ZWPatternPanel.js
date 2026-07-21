@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { chartSCUEnabled } from '../../utils/perfFlags';
 
 const CAT_ORDER = ['富贵', '文贵', '武贵', '破格'];
 const CAT_CLASS = { 富贵: 'fugui', 文贵: 'wengui', 武贵: 'wugui', 破格: 'poge' };
@@ -69,6 +70,37 @@ class ZWPatternPanel extends Component {
 
 	toggle(name) {
 		this.setState((s) => ({ expanded: { ...s.expanded, [name]: !s.expanded[name] } }));
+	}
+
+	// horosa_ziwei_pattern_scu_v1:本面板输出只由 props.patterns(后端/本地引擎每次产新数组)与
+	// 本地展开态 state.expanded 决定。父级因无关 state 重渲时,原先会连带重跑数十条格局的
+	// sort + map + opToText 全量翻译。任一真正变化即照常渲染;未知/新增 props 由键数比兜底。
+	// kill-switch 同 chartSCU。
+	shouldComponentUpdate(nextProps, nextState) {
+		if (!chartSCUEnabled()) {
+			return true;
+		}
+		if (nextState !== this.state) {
+			return true;
+		}
+		const prev = this.props;
+		if (prev === nextProps) {
+			return false;
+		}
+		if (!prev || !nextProps) {
+			return true;
+		}
+		const pk = Object.keys(prev);
+		const nk = Object.keys(nextProps);
+		if (pk.length !== nk.length) {
+			return true;
+		}
+		for (let i = 0; i < nk.length; i += 1) {
+			if (prev[nk[i]] !== nextProps[nk[i]]) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	renderDetail(p) {

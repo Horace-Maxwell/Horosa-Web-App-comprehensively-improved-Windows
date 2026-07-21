@@ -1,7 +1,9 @@
 import { Component } from 'react';
 import { Row, Col, Popover, } from 'antd';
-import {randomStr,} from '../../utils/helper';
 import * as ZWConst from '../../constants/ZWConst';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 class RuleSihua extends Component{
 	constructor(props) {
@@ -18,7 +20,7 @@ class RuleSihua extends Component{
 		for(let g in gan){
 			let stars = gan[g];
 			let row = (
-				<Row key={randomStr(8)}>
+				<Row key={g}>
 					<Col span={4}>{g + '：'}</Col>
 					<Col span={5} style={ZWConst.SihuaColor[0]}>{stars[0]}</Col>
 					<Col span={5} style={ZWConst.SihuaColor[1]}>{stars[1]}</Col>
@@ -47,7 +49,7 @@ class RuleSihua extends Component{
 				let rule = rules[j];
 				if(rule === '=='){
 					li = (
-						<hr key={randomStr(8)} />
+						<hr key={j} />
 					);
 				}else{
 					if(rule instanceof Array){
@@ -61,16 +63,17 @@ class RuleSihua extends Component{
 						)
 					}else{
 						li = (
-							<li key={randomStr(8)}>{rule}</li>
+							<li key={j}>{rule}</li>
 						);	
 					}
 				}
 	
 				lis.push(li);
 			}
+			// 内层 ul 复合 i:它随外层化曜循环逐轮重建,裸字面量会跨轮撞键
 			rulesDom[i] = (
-				<div key={randomStr(8)} style={{width: 400}}>
-					<ul key={randomStr(8)}>
+				<div key={i} style={{width: 400}}>
+					<ul key={`rules-${i}`}>
 						{lis}
 					</ul>
 				</div>
@@ -87,7 +90,7 @@ class RuleSihua extends Component{
 
 		return (
 			<div>
-				<Row key={randomStr(8)}>
+				<Row key='sihua-header'>
 					<Col span={4}>天干</Col>
 					<Col span={5} style={ZWConst.SihuaColor[0]}>
 						<Popover content={rules[0]} title={'化' + ZWConst.SiHua.hua[0]}>

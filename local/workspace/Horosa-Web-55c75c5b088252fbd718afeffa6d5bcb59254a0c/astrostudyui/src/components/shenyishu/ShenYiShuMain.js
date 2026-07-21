@@ -13,6 +13,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -45,7 +50,7 @@ function parseFieldsDateTime(fields){
 	};
 }
 
-async function postShenYiShu(path, payload){
+async function postShenYiShuRaw(path, payload){
 	let rsp = null;
 	try{
 		const rawResponse = await fetch(buildKentangEndpoint('shenyishu', path), {
@@ -75,6 +80,23 @@ async function postShenYiShu(path, payload){
 		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'shenyishu.fetch.failed');
 	}
 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+}
+
+// horosa_kentang_result_cache_v1 —— 神易数 /shenyishu/pan 直连缓存(LRU 48)。
+// 确定性论证:payload = parseFieldsDateTime(fields)(格式化字串+整数)+ hourSource/manualHour/
+// seasonSource/manualSeason 四个显式选项;后端 webshenyishusrv.py 全文无 random / 无 datetime.now()
+// (已 grep 核对)→ 同 payload 必同盘。切 tab/切页回来即命中;关闸逐字回到直连。
+function postShenYiShu(path, payload){
+	const bodyKey = kentangCacheKey(payload);
+	if(!techniqueResultCacheEnabled() || !bodyKey){
+		return postShenYiShuRaw(path, payload);
+	}
+	return cachedKentangCall(
+		'shenyishu/pan',
+		payload,
+		()=>postShenYiShuRaw(path, payload),
+		{ key: `${path}|${bodyKey}`, max: 48 }
+	);
 }
 
 function fmtValue(value){
@@ -149,6 +171,21 @@ class ShenYiShuMain extends Component{
 				}
 			};
 		}
+	}
+
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){
@@ -336,6 +373,8 @@ class ShenYiShuMain extends Component{
 				return;
 			}
 			this.setState({ pan, loading: false }, ()=>{
+				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
+				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
@@ -601,25 +640,38 @@ class ShenYiShuMain extends Component{
 		return (
 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
 				<TabPane tab="概览" key="overview">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(sections.slice(0, 6))}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'overview'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(sections.slice(0, 6))}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="干支" key="pillars">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(sections.slice(1, 3))}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'pillars'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(sections.slice(1, 3))}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="五行" key="wuxing">
-					{this.renderWuxing()}
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'wuxing'}>{() => this.renderWuxing()}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="兵占" key="military">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(sections.slice(4, 6))}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'military'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(sections.slice(4, 6))}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="神煞" key="shensha">
-					<div className="horosa-huangji-section-list">{this.renderShensha()}{this.renderRows(sections.slice(7, 8))}</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'shensha'}>{() => (
+						<div className="horosa-huangji-section-list">{this.renderShensha()}{this.renderRows(sections.slice(7, 8))}</div>
+					)}</FreezeSubTab>
 				</TabPane>
 			</Tabs>
 		);

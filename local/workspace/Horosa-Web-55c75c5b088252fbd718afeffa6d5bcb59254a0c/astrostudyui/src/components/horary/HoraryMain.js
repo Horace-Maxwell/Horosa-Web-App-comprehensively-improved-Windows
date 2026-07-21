@@ -3,6 +3,7 @@ import { XQSelect, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import HoraryJudgment from './HoraryJudgment';
 import { HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, horaryBackendFields, presetOf, schoolOf } from '../../divination/horary/horarySchools';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = XQSelect.Option;
 
@@ -70,6 +71,13 @@ class HoraryMain extends Component{
 	}
 
 	renderRight({ chart, extra, fields }){
+		// horosa_panel_ready_v1:卜卦盘的中栏(DivinationChartShell 画的盘)与右栏(判读)同源于 chart。
+		// 本组件自身不发请求(壳负责),故「面板数据落定」= 拿到新 chart 的这一轮渲染;
+		// markPanelReady 内部双 rAF 后才记账,量到的是本帧已绘。只在 chart 真换了时打一次。
+		if(chart && chart !== this._readyChart){
+			this._readyChart = chart;
+			markPanelReady('auxchart');
+		}
 		return <HoraryJudgment chart={chart} category={extra.questionCategory || 'general'}
 			schoolId={activeSchoolId(extra, fields)} />;
 	}

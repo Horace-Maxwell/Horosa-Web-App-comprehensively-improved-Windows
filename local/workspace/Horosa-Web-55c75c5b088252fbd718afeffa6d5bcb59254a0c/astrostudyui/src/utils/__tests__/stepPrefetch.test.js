@@ -1,3 +1,9 @@
+// horosa_prefetch_registry_v1(PERF-R9 Ship 7 起本文件为 Windows overlay 目标)——
+// 本轮改动的三处断言,任一被 Mac 同步冲掉都意味着一条真实回归悄悄复活:
+//   · 任务序改「近端优先 + 技法端点先于同向 chart」(models/astro.js 的 buildStepPrefetchTasks);
+//   · 技法登记方收到的是【已步进】的 fields(旧版传基准 fields = 预取当前那张盘 = 白打);
+//   · 每个任务必须自带 `path` 声明 —— 它是 horosa_prefetch_runtime_whitelist_v1 运行时闸的唯一凭据。
+//
 // 步进预取(WP-P1)金标 —— 四条命门:
 // ① 键等性:预取构出的 param 与「用户真点下一步时 UI 将发出的 param」逐字节全等
 //    (缓存键=明文 JSON 精确串,差一个字节=白预取);含月末 clamp 链式用例;
@@ -70,11 +76,12 @@ describe('🔴 键等性:预取 param ≡ 用户真点会发出的 param', () =>
 		expect(jump.format('YYYY-MM-DD')).not.toBe(step.format('YYYY-MM-DD'));
 	});
 
-	test('同向 2 步任务的时间 = 连点两次的真序列', () => {
+	test('同向 2 步任务的时间 = 连点两次的真序列(PERF-R9 Ship 7 新序:近端优先)', () => {
 		const fields = mkFields(2026, 1, 31);
 		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 1 }, ASTRO_STATE);
-		// plan = [+1, +2, -1] → 3 个任务
-		expect(tasks.map((t) => t.name)).toEqual(['chart+1M', 'chart+2M', 'chart-1M']);
+		// plan = [+1, +2, -1] → 3 个 chart 任务;新序 [技法+1, chart+1, 技法-1, chart-1, chart+2],
+		// 本用例 currentTab=astrochart 无技法登记 → ['chart+1M', 'chart-1M', 'chart+2M']
+		expect(tasks.map((t) => t.name)).toEqual(['chart+1M', 'chart-1M', 'chart+2M']);
 	});
 
 	test('此刻(dir=0) → ±1 各一', () => {
@@ -82,16 +89,41 @@ describe('🔴 键等性:预取 param ≡ 用户真点会发出的 param', () =>
 		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'm', dir: 0 }, ASTRO_STATE);
 		expect(tasks.map((t) => t.name)).toEqual(['chart+1m', 'chart-1m']);
 	});
+
+	test('🔴 每个任务都自带 path 声明(运行时白名单的唯一凭据)', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 1 }, ASTRO_STATE);
+		expect(tasks.length).toBeGreaterThan(0);
+		tasks.forEach((t) => {
+			expect(t.path).toBe('/chart');
+		});
+	});
+
+	test('🔴 技法登记方拿到的是【已步进】的 fields(旧版传基准 fields = 预取当前那张盘 = 白打)', () => {
+		const fields = mkFields(2026, 7, 15);
+		const seen = [];
+		registerStepPrefetcher('astrochart', (steppedFields) => {
+			seen.push(steppedFields.date.value.format('YYYY-MM-DD'));
+			return [{ name: 'tech', path: '/qimen/pan', run: () => Promise.resolve() }];
+		});
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 1 }, ASTRO_STATE);
+		// 基准是 07-15;三步 = +1d / +2d / -1d,没有任何一次拿到基准日
+		expect(seen).toEqual(['2026-07-16', '2026-07-17', '2026-07-14']);
+		// 新序:技法端点排在同向 chart 之前(非占星页 gate 面板的是技法端点)
+		expect(tasks.map((t) => t.name)).toEqual([
+			'tech+1d', 'chart+1d', 'tech-1d', 'chart-1d', 'chart+2d', 'tech+2d',
+		]);
+	});
 });
 
 describe('🔴 预算与 latest-wins', () => {
-	test('每 settle ≤3;新一轮 submit 整队替换,旧代任务全弃', async () => {
+	test('每 settle ≤5;新一轮 submit 整队替换,旧代任务全弃', async () => {
 		const ran = [];
 		const mk = (tag, n) => Array.from({ length: n }, (_, i) => ({
-			name: `${tag}${i}`, run: () => { ran.push(`${tag}${i}`); return Promise.resolve(); },
+			name: `${tag}${i}`, path: '/chart', run: () => { ran.push(`${tag}${i}`); return Promise.resolve(); },
 		}));
 		// rIC 不存在于 jsdom → 降级 setTimeout(250);用真 timer 等
-		submitStepPrefetch(mk('old', 5));           // 超预算的 5 个 → 只留 3
+		submitStepPrefetch(mk('old', 9));           // 超预算的 9 个 → 只留 5
 		submitStepPrefetch(mk('new', 2));           // 立即换代
 		await new Promise((r) => setTimeout(r, 1400));
 		expect(ran.filter((x) => x.startsWith('old'))).toEqual([]);   // 旧代全弃
@@ -101,7 +133,7 @@ describe('🔴 预算与 latest-wins', () => {
 	test('kill-switch:关 = submit no-op', async () => {
 		window.localStorage.setItem('horosa.perf.stepPrefetch', '0');
 		const ran = [];
-		submitStepPrefetch([{ name: 'x', run: () => { ran.push('x'); return Promise.resolve(); } }]);
+		submitStepPrefetch([{ name: 'x', path: '/chart', run: () => { ran.push('x'); return Promise.resolve(); } }]);
 		await new Promise((r) => setTimeout(r, 500));
 		expect(ran).toEqual([]);
 	});
@@ -109,8 +141,8 @@ describe('🔴 预算与 latest-wins', () => {
 	test('任务抛错静默,不断后续任务', async () => {
 		const ran = [];
 		submitStepPrefetch([
-			{ name: 'boom', run: () => Promise.reject(new Error('x')) },
-			{ name: 'ok', run: () => { ran.push('ok'); return Promise.resolve(); } },
+			{ name: 'boom', path: '/chart', run: () => Promise.reject(new Error('x')) },
+			{ name: 'ok', path: '/chart', run: () => { ran.push('ok'); return Promise.resolve(); } },
 		]);
 		await new Promise((r) => setTimeout(r, 1200));
 		expect(ran).toEqual(['ok']);
@@ -119,7 +151,20 @@ describe('🔴 预算与 latest-wins', () => {
 
 describe('🔴 纪律:白名单绝不含随机/AI 端点', () => {
 	test('允许集快照(增删须过此关)', () => {
-		expect(PREFETCH_ALLOWED_PATHS).toEqual(['/chart', '/predict/', '/ziwei/', '/liureng/', '/pan']);
+		expect(PREFETCH_ALLOWED_PATHS).toEqual([
+			'/chart', '/chart3d', '/predict/', '/ziwei/', '/liureng/', '/india/', '/germany/',
+			'/modern/', '/astroextra/', '/calendar/', '/nongli/', '/jieqi/', '/bazi/',
+			'/qizheng/', '/common/',
+			'/qimen/pan', '/taiyi/pan', '/jinkou/pan', '/shaozi/pan', '/tieban/pan',
+			'/fendjing/pan', '/beiji/pan', '/nanji/pan', '/chunzi/pan', '/xianqin/pan',
+			'/cetian/pan', '/qizhengkin/pan', '/taixuan/pan', '/shenyishu/pan', '/wangji/pan',
+		]);
+	});
+	test('🔴 kentang pan 是逐条枚举,绝无通配 —— 随机族(地占/五兆)进不来', () => {
+		expect(PREFETCH_ALLOWED_PATHS).not.toContain('/pan');
+		expect(PREFETCH_ALLOWED_PATHS.some((p) => p.indexOf('*') >= 0)).toBe(false);
+		expect(PREFETCH_ALLOWED_PATHS).not.toContain('/geomancy/pan');
+		expect(PREFETCH_ALLOWED_PATHS).not.toContain('/wuzhao/pan');
 	});
 	test('允许集与禁词零交集', () => {
 		const hit = PREFETCH_ALLOWED_PATHS.filter((p) => PREFETCH_FORBIDDEN_MARKERS.some((m) => p.includes(m)));

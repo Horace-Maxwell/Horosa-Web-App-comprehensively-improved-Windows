@@ -14,6 +14,9 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -91,6 +94,82 @@ function fmtValue(value){
 	return formatHumanValue(value);
 }
 
+// horosa_wangji_classics_ondemand_v1 —— 典籍正文按需取。
+// 后端 /wangji/pan 只回典籍目录(level+title,~12KB);全书正文(皇極經世書 ~980KB)改由
+// /wangji/classic 按 classicKey 取一次,存进本模块级缓存,再合并回 state 里的 sections。
+// 因此:① 历史年/随机历史年/改典籍 触发的重新起盘不再各拖一份全书;② 章节切换(changeClassicSection)
+// 与显示切换(changeClassicView)仍是纯本地读 state,零网络、瞬时;③ AI 快照读的是同一份已合并
+// sections,正文一字不少(合并在 setState 之前完成,见 fetchPan / buildHuangJiSnapshotForFields)。
+const CLASSIC_SECTION_CACHE = {};
+const CLASSIC_SECTION_PENDING = {};
+
+function classicsHaveContent(classics){
+	if(!classics || !Array.isArray(classics.sections) || !classics.sections.length){
+		return true; // 无章节 = 无正文可缺(旧盘/空数据不触发取数)
+	}
+	return classics.sections.some((item)=>item && typeof item.content === 'string');
+}
+
+// 取(并缓存)某部典籍的全文 sections;同 key 并发只发一次请求。失败回 null(调用方降级为目录态)。
+function loadClassicSections(classicKey){
+	const key = classicKey || DEFAULT_CLASSIC;
+	if(CLASSIC_SECTION_CACHE[key]){
+		return Promise.resolve(CLASSIC_SECTION_CACHE[key]);
+	}
+	if(CLASSIC_SECTION_PENDING[key]){
+		return CLASSIC_SECTION_PENDING[key];
+	}
+	const task = postWangJi('classic', { classicKey: key }).then((res)=>{
+		const sections = res && Array.isArray(res.sections) ? res.sections : null;
+		if(sections){
+			CLASSIC_SECTION_CACHE[key] = sections;
+		}
+		delete CLASSIC_SECTION_PENDING[key];
+		return sections;
+	}).catch(()=>{
+		delete CLASSIC_SECTION_PENDING[key];
+		return null;
+	});
+	CLASSIC_SECTION_PENDING[key] = task;
+	return task;
+}
+
+// 把全文按章节序号合并进盘里的目录(就地写 content);长度/标题对不上则不写,宁缺勿错配。
+function mergeClassicContent(classics, sections){
+	if(!classics || !Array.isArray(classics.sections) || !Array.isArray(sections)){
+		return false;
+	}
+	if(classics.sections.length !== sections.length){
+		return false;
+	}
+	for(let i = 0; i < sections.length; i += 1){
+		if(!sections[i] || sections[i].title !== classics.sections[i].title){
+			return false;
+		}
+	}
+	classics.sections.forEach((item, idx)=>{
+		item.content = sections[idx].content || '';
+	});
+	classics.withContent = true;
+	return true;
+}
+
+// 已有正文即刻返回;否则取一次再合并。绝不抛(典籍取数失败不能拖垮主盘)。
+async function ensureClassicContent(pan){
+	const classics = pan && pan.classics ? pan.classics : null;
+	if(!classics || classicsHaveContent(classics)){
+		return pan;
+	}
+	try{
+		const sections = await loadClassicSections(classics.selectedKey || DEFAULT_CLASSIC);
+		mergeClassicContent(classics, sections);
+	}catch(e){
+		// 降级:右栏「经典」显示目录态,与后端不可达时的既有表现一致
+		console.warn('kinwangji classic fetch failed', e);
+	}
+	return pan;
+}
+
 // opts(可选)：{ classicSectionIndex } —— 选中典籍章节序号(与右栏「典籍」选择联动);缺省取首章(与 UI 初始态一致)。
 export function buildSnapshotText(pan, xinyi, opts){
 	if(!pan){
@@ -165,6 +244,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
 		if(!pan){
 			return '';
 		}
+		// horosa_wangji_classics_ondemand_v1:无头快照同样要拿到典籍正文([经典原文] 段读 sections[idx].content)。
+		await ensureClassicContent(pan);
 		let xinyi = null;
 		const xm = o.xinyiMethod && o.xinyiMethod !== 'none' ? o.xinyiMethod : '';
 		if(xm){
@@ -243,6 +324,21 @@ class HuangJiMain extends Component{
 		}
 	}
 
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
@@ -280,7 +376,14 @@ class HuangJiMain extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildSnapshotText(this.state.pan, this.state.xinyi, { classicSectionIndex: this.state.classicSectionIndex }) || ''}`.trim();
+			// horosa_wangji_classics_ondemand_v1:本回调是同步的,不能 await 取正文。
+			// 正常路径下 fetchPan/restore 已把正文合并进 state.pan;这里再做一次「模块缓存命中即同步补齐」
+			// 的兜底(命中即零延迟),确保 [经典原文] 段绝不因按需取而丢正文。
+			const pan = this.state.pan;
+			if(pan && pan.classics && !classicsHaveContent(pan.classics)){
+				mergeClassicContent(pan.classics, CLASSIC_SECTION_CACHE[pan.classics.selectedKey || DEFAULT_CLASSIC]);
+			}
+			text = `${buildSnapshotText(pan, this.state.xinyi, { classicSectionIndex: this.state.classicSectionIndex }) || ''}`.trim();
 		}catch(e){
 			text = '';
 		}
@@ -321,6 +424,17 @@ class HuangJiMain extends Component{
 			const xinyi = this.state.xinyi;
 			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
 			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
+			// horosa_wangji_classics_ondemand_v1:存档盘(clickSaveCase 存的是已合并的 state.pan)本就带正文;
+			// 万一是缺正文的旧档/降级档,这里异步补齐并重存快照——正文只会迟到,不会丢。
+			if(pan && pan.classics && !classicsHaveContent(pan.classics)){
+				ensureClassicContent(pan).then(()=>{
+					if(this.unmounted || this.state.pan !== pan){
+						return;
+					}
+					saveModuleAISnapshot('huangji', `${buildSnapshotText(pan, xinyi, snapOpts) || ''}`.trim());
+					this.forceUpdate();
+				}).catch(()=>{});
+			}
 		});
 		return true;
 	}
@@ -399,16 +513,23 @@ class HuangJiMain extends Component{
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
+			// horosa_wangji_classics_ondemand_v1:典籍正文与主盘并发取(首次)/走模块缓存(其后);
+			// 合并完成后才 setState —— state.pan 里的 sections 恒带 content,导出/切章无空窗。
+			const classicsTask = loadClassicSections(this.state.classicKey).catch(()=>null);
 			const pan = await postWangJi('pan', {
 				...dt,
 				historyYear: this.state.historyYear,
 				classicKey: this.state.classicKey,
 			});
+			await classicsTask;
+			await ensureClassicContent(pan);
 			const xinyi = await this.fetchXinyi(fields, false);
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}
 			this.setState({ pan, xinyi, loading: false }, ()=>{
+				// horosa_panel_ready_v1:主盘 + 心易同批落定 = 中栏与右栏画完的那一次 setState。
+				markPanelReady('cnyibu');
 				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
 				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
 			});
@@ -807,23 +928,38 @@ class HuangJiMain extends Component{
 		return (
 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
 				<TabPane tab="概览" key="overview">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(pan ? (pan.sections || []).slice(0, 2) : [])}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'overview'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(pan ? (pan.sections || []).slice(0, 2) : [])}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="卦象" key="gua">
-					<div className="horosa-huangji-section-list">
-						{this.renderRows(pan ? (pan.sections || []).slice(2, 4) : [])}
-					</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'gua'}>{() => (
+						<div className="horosa-huangji-section-list">
+							{this.renderRows(pan ? (pan.sections || []).slice(2, 4) : [])}
+						</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="心易" key="xinyi">
-					<div className="horosa-huangji-section-list">{this.renderXinyi()}</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'xinyi'}>{() => (
+						<div className="horosa-huangji-section-list">{this.renderXinyi()}</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="经典" key="classics">
-					<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'classics'}>{() => (
+						<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="年表" key="history">
-					<div className="horosa-huangji-section-list">{this.renderHistory()}</div>
+					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+					<FreezeSubTab active={activeKey === 'history'}>{() => (
+						<div className="horosa-huangji-section-list">{this.renderHistory()}</div>
+					)}</FreezeSubTab>
 				</TabPane>
 			</Tabs>
 		);

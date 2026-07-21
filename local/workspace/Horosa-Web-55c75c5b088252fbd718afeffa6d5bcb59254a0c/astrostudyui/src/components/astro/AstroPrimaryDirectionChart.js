@@ -23,6 +23,7 @@ import {
 	getPdTimeKeyLabel,
 } from '../../utils/primaryDirectionSync';
 import { XQButton as Button, XQSelect as Select } from '../xq-ui';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
 const PD_DISPLAY_ZONE = '+00:00';
@@ -895,6 +896,9 @@ class AstroPrimaryDirectionChart extends Component{
 		}
 		this.setState({
 			dirChart: result,
+		}, ()=>{
+			// horosa_panel_ready_v1:主限法盘(中栏盘 + 右栏表同源于 dirChart)落定的那一次 setState。
+			markPanelReady('direction');
 		});
 	}
 

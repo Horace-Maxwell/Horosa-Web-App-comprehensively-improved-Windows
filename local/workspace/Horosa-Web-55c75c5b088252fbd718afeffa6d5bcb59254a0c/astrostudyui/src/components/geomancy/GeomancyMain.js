@@ -15,6 +15,9 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, paramsFromFields, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields } from '../../utils/divinationTimeDraft';
 import './GeomancyMain.less';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -118,6 +121,10 @@ const ZODIAC_SYSTEM_OPTIONS = [
 	{ key: 'planetary', label: '行星归属体系' },
 ];
 
+// 🔴 故意【不加】horosa_kentang_result_cache_v1 结果缓存:地占起课带随机种 ——
+// 后端 webgeomancysrv 在 castMethod=random/dice/sand/coins/tablets 且未显式给 seed 时**服务端现摇**
+// 真随机种(见其 seedMode 分支注释),同 payload 不必同盘;缓存会把某一次随机卦象钉死 = 功能降级
+// (与 services/_requestCache.js 头部禁令一致)。
 async function postGeomancy(path, payload){
 	let rsp = null;
 	try{
@@ -342,6 +349,21 @@ class GeomancyMain extends Component{
 		}
 	}
 
+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.loadHistory();
@@ -474,6 +496,8 @@ class GeomancyMain extends Component{
 			const result = await postGeomancy('reading', payload);
 			if(this.unmounted || seq !== this.requestSeq){ return; }
 			this.setState({ loading: false, result }, ()=>{
+				// horosa_panel_ready_v1:result 落定 = 十六象盾局(中栏)与断法(右栏)画完的那一次 setState。
+				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() }));
 				this.pushHistory(result);
 			});
@@ -991,10 +1015,12 @@ class GeomancyMain extends Component{
 
 	renderRightPanel(){
 		return (
+			// horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children)。
+			// 十六图形目录是纯静态大表(16 象 × 四行),此前每次重渲都重建一遍。
 			<Tabs size="small" activeKey={this.state.rightPanelTab} onChange={this.setRightPanelTab} className="horosa-geomancy-aux horosa-cnx-aux">
-				<TabPane tab="解读" key="reading">{this.renderReading()}</TabPane>
-				<TabPane tab="十六图形" key="figures">{this.renderFigureCatalog()}</TabPane>
-				<TabPane tab="历史" key="history">{this.renderHistory()}</TabPane>
+				<TabPane tab="解读" key="reading"><FreezeSubTab active={this.state.rightPanelTab === 'reading'}>{() => this.renderReading()}</FreezeSubTab></TabPane>
+				<TabPane tab="十六图形" key="figures"><FreezeSubTab active={this.state.rightPanelTab === 'figures'}>{() => this.renderFigureCatalog()}</FreezeSubTab></TabPane>
+				<TabPane tab="历史" key="history"><FreezeSubTab active={this.state.rightPanelTab === 'history'}>{() => this.renderHistory()}</FreezeSubTab></TabPane>
 			</Tabs>
 		);
 	}

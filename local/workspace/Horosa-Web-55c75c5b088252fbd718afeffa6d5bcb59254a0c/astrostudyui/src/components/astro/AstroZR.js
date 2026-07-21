@@ -16,6 +16,7 @@ import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { markPanelReady } from '../../utils/perfMark';
 
 const RadioGroup = Radio.Group;
 const Option = Select.Option;
@@ -539,7 +540,12 @@ class AstroZR extends Component{
 	}
 
 	genNatalParams(chartObj){
-		let qryparam = chartObj ? chartObj.params : {};
+		// horosa_no_mutate_chart_params_v1(PERF-R9 Ship 6):此前是 `let qryparam = chartObj.params`
+		// 然后直接 `qryparam.date = …` —— 就地变异**共享的盘对象**。副作用是真的:
+		// AstroExtraCommon.chartRequestKey 把 params.date/time 计入请求键,于是「本技法有没有被挂载过」
+		// 会改变其它技法的缓存键。改为在本地副本上派生(birth 仍是唯一真源),盘对象自此只读。
+		const src = (chartObj && chartObj.params) ? chartObj.params : {};
+		let qryparam = { ...src };
 		if(qryparam.birth){
 			let parts = qryparam.birth.split(' ');
 			qryparam.date = parts[0];
@@ -584,6 +590,9 @@ class AstroZR extends Component{
 			// state.params 恒保 stopLevelIdx=3(全深目标);仅快取那次临时下发 0。保 3 供 AI 快照/再切基点取全深一致。
 			params: { ...params, stopLevelIdx: 3 },
 		}, ()=>{
+			// horosa_panel_ready_v1:期表(中栏盘高亮 + 右栏基点/AI 选择皆由 list 派生)落定的提交点。
+			// 快取那一枪也算就绪 —— 用户此刻已看到完整可读的期表,深取只是补深层级(补完再打一次即被去重丢弃)。
+			markPanelReady('direction');
 			if(isQuick){ this.scheduleDeepFetch(); }
 		});
 	}

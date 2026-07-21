@@ -81,15 +81,62 @@ def _candidateEphePath():
     return SEACTIVE_PATH
 
 
+# horosa_ephe_path_fastpath_v1(PERF-R9):记录「当前真正生效的星历路径」,让 ensureEphePath
+# 在无人改动时直接短路。这是安全的,因为 _guardedSetEphePath 自下方 `swisseph.set_ephe_path = ...`
+# 起就是**进程内唯一入口** —— 全部 vendor/kinastro 模块的 `swe.set_ephe_path("")` 都经运行时
+# 属性查找路由到这里,所以这个变量不可能落后于真实状态;一旦有人改了路径,下面的比较立刻失配、
+# 照旧恢复,语义与改动前完全一致。
+# 为什么值得:applySiderealMode 每次 swe 调用都会走一趟 ensureEphePath —— 实测单次
+# BirthJieQi.compute() 里 `swisseph.set_ephe_path` 被调 **680 次、耗时 82ms = 该端点的 61%**,
+# 而 /jieqi/birth 又是 /chart 里 baziAssemble 的最大单项。一处短路,整条链受益。
+# kill-switch:HOROSA_EPHE_PATH_FASTPATH=0 → 每次都照旧真正调用。
+_EPHE_PATH_ACTIVE = None
+_JPL_FILE_ACTIVE = None
+_EPHE_FASTPATH = os.environ.get('HOROSA_EPHE_PATH_FASTPATH', '1').lower() not in ('0', 'false', 'no', 'off')
+
+
 def _guardedSetEphePath(path):
     # Several bundled kinastro modules reset pyswisseph to its process default
     # with set_ephe_path(""). Keep the packaged swefiles path active instead.
+    global _EPHE_PATH_ACTIVE
     if path is None or str(path).strip() == '':
         path = _candidateEphePath() or ''
+    _EPHE_PATH_ACTIVE = path
     return _SET_EPHE_PATH(path)
 
 
 swisseph.set_ephe_path = _guardedSetEphePath
+
+
+# horosa_ephe_path_fastpath_v1 的第二半 —— 必须与短路成对存在,否则短路是不安全的。
+# 背景:`swe_set_ephe_path()` 在 C 库里会**顺带关闭已打开的星历文件**。原实现每次 swe 调用
+# 都重设路径,于是文件被反复关闭+重开(那正是被测出的 82ms 里的实际工作量)。短路之后
+# 文件句柄常驻 —— 这对性能是纯收益、对生产也无害(更新时安装器本就会先结束进程),
+# 但它带来一个必须堵住的洞:**任何人调用 swisseph.close() 之后,_EPHE_PATH_ACTIVE 就
+# 陈旧了**,ensureEphePath 会误以为路径还生效而跳过重设。
+# 因此把 close 也纳入守卫:一旦有人真的关了,追踪器立刻作废,下一次 ensureEphePath 照旧重设。
+# (当前产品代码无人调用它 —— 已 grep 确认;此举是为了让短路在结构上安全,而不是靠「没人调用」。)
+_SWE_CLOSE = getattr(swisseph, 'close', None)
+
+if _SWE_CLOSE is not None:
+    def _guardedClose():
+        global _EPHE_PATH_ACTIVE, _JPL_FILE_ACTIVE
+        _EPHE_PATH_ACTIVE = None
+        _JPL_FILE_ACTIVE = None
+        return _SWE_CLOSE()
+
+    swisseph.close = _guardedClose
+
+
+def closeEphemerisFiles():
+    """显式释放 swisseph 持有的星历文件句柄(并作废路径追踪器)。
+
+    生产代码不需要调用它 —— 句柄常驻是正常且更快的工作方式。
+    存在的意义:测试/工具需要**移动或删除 .se1 文件**时,Windows 不允许改名被打开的文件,
+    必须先显式关闭。调用后一切照旧:下一次 ensureEphePath 会重新建立路径。
+    """
+    if _SWE_CLOSE is not None:
+        swisseph.close()
 
 SE_SIDM_FAGAN_BRADLEY = getattr(swisseph, 'SIDM_FAGAN_BRADLEY', 0)
 SE_SIDM_LAHIRI = getattr(swisseph, 'SIDM_LAHIRI', 1)
@@ -252,11 +299,18 @@ def setPath(path):
 
 
 def ensureEphePath():
-    """Restore flatlib's Swiss Ephemeris path after shared-process callers change it."""
-    if SEACTIVE_PATH:
+    """Restore flatlib's Swiss Ephemeris path after shared-process callers change it.
+
+    horosa_ephe_path_fastpath_v1(PERF-R9):路径未被任何人改动时直接短路。
+    语义不变 —— 只要有外部调用者动过路径,_EPHE_PATH_ACTIVE 立刻与 SEACTIVE_PATH 失配,
+    这里照旧恢复(见 _guardedSetEphePath 处的说明:它是进程内唯一入口)。
+    """
+    global _JPL_FILE_ACTIVE
+    if SEACTIVE_PATH and (not _EPHE_FASTPATH or _EPHE_PATH_ACTIVE != SEACTIVE_PATH):
         swisseph.set_ephe_path(SEACTIVE_PATH)
-    if SEACTIVE_JPL_FILE:
+    if SEACTIVE_JPL_FILE and (not _EPHE_FASTPATH or _JPL_FILE_ACTIVE != SEACTIVE_JPL_FILE):
         swisseph.set_jpl_file(SEACTIVE_JPL_FILE)
+        _JPL_FILE_ACTIVE = SEACTIVE_JPL_FILE
 
 
 def getRuntimeConfig():

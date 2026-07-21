@@ -1,11 +1,13 @@
 import { Component } from 'react';
 import { Row, Col } from 'antd';
-import { randomStr } from '../../utils/helper';
 import { BaZiMsg } from '../../msg/bazimsg';
 import MDSDirect from './MDSDirect';
 import MDSYear from './MDSYear';
 import { birthMonthDayFromBazi } from './starChargerLazy';
 import styles from '../../css/styles.less';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 
 class MainDirectionSimple extends Component{
@@ -28,12 +30,12 @@ class MainDirectionSimple extends Component{
 				let dir = dirs[i];
 				if(i !== 0 && (i % 8 == 0)) {
 					let col = (
-						<Col span={24} key={randomStr(8)}><hr /></Col>
+						<Col span={24} key={`hr-${i}`}><hr /></Col>
 					);
 					dom.push(col);
 				}
 				let col = (
-					<Col span={span} key={randomStr(8)}>
+					<Col span={span} key={`dir-${i}`}>
 						<Row>
 							<Col span={24}><MDSDirect value={dir} /></Col>
 						</Row>

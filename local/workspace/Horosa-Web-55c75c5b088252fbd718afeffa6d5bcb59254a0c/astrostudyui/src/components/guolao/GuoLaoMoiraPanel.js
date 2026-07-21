@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { XQTabs as Tabs } from '../xq-ui';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { moiraMergeStellarRelationRows as mergeStellarRelationRows, moiraBuildLimitTable as buildLimitTable, moiraCurrentLimitIndex as currentLimitIndex, MOIRA_PLANET_DEFS, } from './GuoLaoMoiraWheel';
@@ -873,6 +875,10 @@ function buildPanelFallbackValue(rootValue){
 }
 
 export default function GuoLaoMoiraPanel(props){
+	// horosa_freeze_subtabs_v1 接线:本面板的 Tabs 原为【非受控】(defaultActiveKey),拿不到 active
+	// 就没法冻结 —— 按 FreezeSubTab 的前提先改受控(接线方自己改,组件不代劳)。
+	// hooks 必须在下面几处 early return 之前调用,故置于函数体最顶。
+	const [moiraTab, setMoiraTab] = useState('overview');
 	const rootValue = props.rootValue || {};
 	const value = props.value || ((!props.loading && hasRenderableChart(rootValue)) ? buildPanelFallbackValue(rootValue) : null);
 	const birthChart = rootValue.chart || {};
@@ -882,7 +888,10 @@ export default function GuoLaoMoiraPanel(props){
 	const transitParams = safeMap(props.transitParams);
 	const display = props.display || {};   // 类B 显示偏好:命主取法/留伏迟疾/五虎遁/行运法/定童限等
 	const limitChildBase = Number(display.limitChildBase) === 10 ? 10 : 9; // 定童限 base(9 九年/10 十年),与大限环同口径
-	// 宿主页注入的补充 tab(化曜/虚实/命曜/流曜/相位等)——信息常驻右栏,不再只藏在快捷弹层里
+	// 宿主页注入的补充 tab(化曜/虚实/命曜/流曜/相位等)——信息常驻右栏,不再只藏在快捷弹层里。
+	// 契约 { key, label, children }:children 既可是【节点】也可是【thunk `()=>节点`】——
+	// 两种形态都受支持(下方统一归一为 thunk 交给 FreezeSubTab 惰性求值)。推荐 thunk:
+	// 未激活过的 tab 连元素树都不构造(宿主 GuoLaoChartMain.buildMoiraExtraTabs 已改 thunk 侧)。
 	const extraTabs = Array.isArray(props.extraTabs) ? props.extraTabs.filter(Boolean) : [];
 
 	if(props.loading && !value){
@@ -938,10 +947,11 @@ export default function GuoLaoMoiraPanel(props){
 	const moonset = pickDeep(rootValue, ['moonset', 'moonSet', 'moonsetTime', 'moonSetTime', 'moon_set']);
 	const hasRiseSet = sunrise || sunset || moonrise || moonset;
 
-	return (
-		<div className="horosa-guolao-moira">
-			<Tabs className="horosa-content-tabs horosa-guolao-tabs horosa-guolao-moira-tabs" tabPosition="top" defaultActiveKey="overview" items={[
-				{ key: 'overview', label: '概览', children: (<>
+	// horosa_freeze_subtabs_v1:五个原生 tab 的 children 一律改为【惰性 thunk】—— 原先在 items
+	// 数组构造时就把全部五个面板的元素树造出来(其中「概览」内还有三处 (()=>{…})() 立即求值的
+	// 限度/小限/宫限计算),而用户只看得见 1 个。thunk 由 FreezeSubTab 在「本面板激活过」时才求值。
+	const rawItems = [
+				{ key: 'overview', label: '概览', children: ()=>(<>
 				<Section title="起盘与流年">
 				<KeyValueGrid items={[
 					{label: '计算法', value: '地心计算法'},
@@ -1171,7 +1181,7 @@ export default function GuoLaoMoiraPanel(props){
 				})()}
 
 				</>) },
-				{ key: 'stars', label: '星曜', children: (<>
+				{ key: 'stars', label: '星曜', children: ()=>(<>
 				<Section title="宫位化曜（本命 / 流年）">
 					<YearSignMergedTable natalRows={natalYearStars} transitRows={transitYearStars} />
 				</Section>
@@ -1225,7 +1235,7 @@ export default function GuoLaoMoiraPanel(props){
 			</Section>
 
 			</>) },
-				{ key: 'palace', label: '宫限', children: (<>
+				{ key: 'palace', label: '宫限', children: ()=>(<>
 				<Section title="十二宫位">
 				<div className="horosa-guolao-moira-house-list">
 					{houses.map((item)=>(
@@ -1243,7 +1253,7 @@ export default function GuoLaoMoiraPanel(props){
 				</Section>
 
 			</>) },
-				{ key: 'gods', label: '神煞', children: (<>
+				{ key: 'gods', label: '神煞', children: ()=>(<>
 				<Section title="神煞全表">
 				<div className="horosa-guolao-moira-gods">
 					{godHits.map((item)=>(
@@ -1279,7 +1289,7 @@ export default function GuoLaoMoiraPanel(props){
 				) : null}
 
 				</>) },
-				{ key: 'pattern', label: '格局', children: (
+				{ key: 'pattern', label: '格局', children: ()=>(
 				<Section title="政余格局">
 				{styleWarning ? <div className="horosa-guolao-moira-warning">{styleWarning}</div> : null}
 				{patterns.length ? (
@@ -1298,7 +1308,23 @@ export default function GuoLaoMoiraPanel(props){
 			</Section>
 				) },
 				...extraTabs,
-			]} />
+	];
+	// 受控化 + 防呆:activeKey 不在现存 tab 集内(如择日/搜索两 tab 随 chartStyle 出现/消失,
+	// 停在已消失的 key 上会显空白)→ 回落到第一个 tab。
+	const tabKeys = rawItems.map((item)=> item && item.key);
+	const activeKey = tabKeys.indexOf(moiraTab) >= 0 ? moiraTab : (tabKeys[0] || 'overview');
+	return (
+		<div className="horosa-guolao-moira">
+			<Tabs className="horosa-content-tabs horosa-guolao-tabs horosa-guolao-moira-tabs" tabPosition="top" activeKey={activeKey} onChange={setMoiraTab} items={rawItems.map((item)=>({
+				...item,
+				// 冻结 ≠ 卸载:非激活面板只是 sCU 跳过重渲,DOM/组件实例/滚动位置/展开态全留,
+				// 切回时拿本轮最新 thunk 立即渲一帧(不重挂载、不重取数、不闪烁)。
+				children: (
+					<FreezeSubTab active={activeKey === item.key}>
+						{typeof item.children === 'function' ? item.children : ()=> item.children}
+					</FreezeSubTab>
+				),
+			}))} />
 		</div>
 	);
 }

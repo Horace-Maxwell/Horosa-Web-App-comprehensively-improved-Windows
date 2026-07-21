@@ -7,6 +7,9 @@ import BaZiAncientChart from './BaZiAncientChart';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { randomStr,} from '../../utils/helper';
 import styles from '../../css/styles.less';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 export const BAZI_CHART_STYLE_KEY = 'baziChartStyle';
 
@@ -64,7 +67,7 @@ class PaiBaZi extends Component{
 				let mainDirect = dir.mainDirect;
 				let subdir = this.genSubDirectDom(dir.subDirect, startYear, age, mainDirect, directTime);
 				let maindirDom = (
-					<div key={randomStr(8)}>
+					<div key={i}>
 						<Divider orientation='left'>{startYear + ' ' + mainDirect.ganzi + ' ' + mainDirect.naying}</Divider>
 						<Row>
 							{subdir}
@@ -85,11 +88,11 @@ class PaiBaZi extends Component{
 			let sub = dir[i];
 			let y = startYear + i;
 			let dirtm = y;
-			let gancol = (<Col key={randomStr(8)} span={4}>{sub.ganzi}</Col>);
-			let nayingcol = (<Col key={randomStr(8)} span={6}>{sub.naying}</Col>);
-			let tmcol = (<Col key={randomStr(8)} span={14}>{dirtm}&emsp;{age + i}周岁</Col>);
+			let gancol = (<Col key="ganzi" span={4}>{sub.ganzi}</Col>);
+			let nayingcol = (<Col key="naying" span={6}>{sub.naying}</Col>);
+			let tmcol = (<Col key="time" span={14}>{dirtm}&emsp;{age + i}周岁</Col>);
 			let dom = (
-				<Col key={randomStr(8)} span={24}>
+				<Col key={i} span={24}>
 					<Row>
 						{gancol}
 						{nayingcol}
@@ -104,12 +107,12 @@ class PaiBaZi extends Component{
 			}
 		}
 		let row0 = (
-			<Col key={randomStr(8)} span={12}>
+			<Col key="col0" span={12}>
 				<Row>{dirdoms0}</Row>
 			</Col>
 		)
 		let row1 = (
-			<Col key={randomStr(8)} span={12}>
+			<Col key="col1" span={12}>
 				<Row>{dirdoms1}</Row>
 			</Col>
 		)
@@ -164,7 +167,11 @@ class PaiBaZi extends Component{
 		}
 		extraLine = [extraLine, tiaohou].filter(Boolean).join(' ');
 
-		let dirdoms = this.genDirDom(rec.direction, rec.directTime);
+		// horosa_bazi_deadwork_v1(PERF-R9 Ship 6 复核):此处原有一行
+		//   let dirdoms = this.genDirDom(rec.direction, rec.directTime);
+		// —— 返回值【从未被下面的 JSX 使用】(全文件仅此一处调用),却在每次 render 都把
+		// 整块大运表(约 10 个 Divider + 10 Row + 120 Col 的 antd 元素)重新 createElement 一遍。
+		// 纯死工:删除后 DOM 输出逐字节不变。genDirDom/genSubDirectDom 本体保留(公开方法,勿删)。
 		return (
 			<div className={`horosa-bazi-scroll ${styles.scrollbar}`} style={style} id={this.state.id}>
 				{showStyleSwitch ? (

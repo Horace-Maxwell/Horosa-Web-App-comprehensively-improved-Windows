@@ -1,8 +1,16 @@
 diff --git a/astrostudyui/src/components/germany/AstroMidpoint.js b/astrostudyui/src/components/germany/AstroMidpoint.js
-index cc096e6..814dac8 100644
+index 356874d..6044f6a 100644
 --- a/astrostudyui/src/components/germany/AstroMidpoint.js
 +++ b/astrostudyui/src/components/germany/AstroMidpoint.js
-@@ -216,6 +216,26 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb){
+@@ -10,6 +10,7 @@ import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections }
+ import { getStoredUranianDisplay } from './UranianDialStyle';
+ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './UranianSchools';
+ import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ // AI 快照口径:个人点集随「90°中点盘」当前流派派生(与盘交互层一致,防口径分叉);TNP 集恒定。
+ const SNAP_URANIAN = new Set(AstroConst.LIST_URANIAN);
+@@ -217,6 +218,28 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb){
  	return out;
  }
  
@@ -20,6 +28,8 @@ index cc096e6..814dac8 100644
 +		return await request(`${Constants.ServerRoot}/germany/midpoint`, {
 +			body: JSON.stringify({ ...params, ...schoolParams }),
 +			silent: true,
++			// PERF-R9 Ship 7:预热/预取一律零重试(显式声明,不吃调用链上的任何重试默认值)。
++			retry: { retries: 0 },
 +		});
 +	}catch(e){
 +		return null; // 预热失败静默:首点回到冷即付的现状
@@ -29,3 +39,91 @@ index cc096e6..814dac8 100644
  // 供 AI 分析无头复算：取本命西洋盘 + 中点盘，生成量化盘快照（不依赖组件挂载）。
  export async function buildGermanySnapshotForFields(fields){
  	if(!fields){
+@@ -445,9 +468,53 @@ class AstroMidpoint extends Component{
+ 			midpoints: result,
+ 		};
+ 
+-		this.setState(st);
+ 		this.lastSnapshotParams = params;
+-		this.saveGermanySnapshot(params, result);
++		// horosa_panel_ready_v1:量化盘(辅盘默认子页)中栏盘 + 右栏中点/相位列表全部由
++		// midpoints 派生,这一次 setState 即「面板数据落定」。
++		this.setState(st, ()=>{
++			markPanelReady('auxchart');
++		});
++		// AI 快照重建(planetaryPictures/midpointList/spiegelContacts 的 O(n²~n³) 扫描 + 全文拼装)
++		// 移出交互路径 → 空闲时段。导出/分析侧永远走 horosa:refresh-module-snapshot 事件同步重建
++		// (handleSnapshotRefreshRequest),故此处延后**不会**让 AI 拿到陈旧快照;卸载前同步兜底 flush。
++		this.scheduleSnapshotSave(params, result);
++	}
++
++	// horosa_snapshot_idle_v1(PERF-R9 Ship 6):快照重建合并到空闲时段,同一批多次触发只跑最后一次。
++	scheduleSnapshotSave(paramsOverride, resultOverride){
++		this._pendingSnapshot = { params: paramsOverride, result: resultOverride };
++		if(this._snapshotScheduled){
++			return;
++		}
++		this._snapshotScheduled = true;
++		const run = ()=>{
++			this._snapshotScheduled = false;
++			const pending = this._pendingSnapshot;
++			this._pendingSnapshot = null;
++			if(!pending || this.unmounted){
++				return;
++			}
++			this.saveGermanySnapshot(pending.params, pending.result);
++		};
++		try{
++			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
++				window.requestIdleCallback(run, { timeout: 1200 });
++			}else{
++				setTimeout(run, 200);
++			}
++		}catch(e){
++			run();
++		}
++	}
++
++	// 卸载/离开前把尚未落盘的快照同步补写(绝不丢:AI 导出可能在组件不在时读缓存)。
++	flushSnapshotSave(){
++		const pending = this._pendingSnapshot;
++		this._pendingSnapshot = null;
++		if(!pending){
++			return;
++		}
++		this.saveGermanySnapshot(pending.params, pending.result);
+ 	}
+ 
+ 	saveGermanySnapshot(paramsOverride, resultOverride){
+@@ -478,6 +545,8 @@ class AstroMidpoint extends Component{
+ 		if(!evt || !evt.detail || evt.detail.module !== 'germany'){
+ 			return;
+ 		}
++		// 导出/分析路径:一律**同步**用当前 state 重建(不吃空闲队列),口径与延后前逐字一致。
++		this._pendingSnapshot = null;
+ 		const snapshotText = this.saveGermanySnapshot();
+ 		if(snapshotText && evt.detail && typeof evt.detail === 'object'){
+ 			evt.detail.snapshotText = snapshotText;
+@@ -517,7 +586,7 @@ class AstroMidpoint extends Component{
+ 		if(typeof window !== 'undefined' && window.addEventListener){
+ 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+ 		}
+-		this.saveGermanySnapshot();
++		this.scheduleSnapshotSave(undefined, undefined);
+ 	}
+ 
+ 	componentDidUpdate(prevProps, prevState){
+@@ -526,11 +595,12 @@ class AstroMidpoint extends Component{
+ 			|| prevProps.chart !== this.props.chart
+ 			|| prevProps.fields !== this.props.fields
+ 		){
+-			this.saveGermanySnapshot();
++			this.scheduleSnapshotSave(undefined, undefined);
+ 		}
+ 	}
+ 
+ 	componentWillUnmount(){
++		this.flushSnapshotSave();
+ 		this.unmounted = true;
+ 		if(typeof window !== 'undefined' && window.removeEventListener){
+ 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);

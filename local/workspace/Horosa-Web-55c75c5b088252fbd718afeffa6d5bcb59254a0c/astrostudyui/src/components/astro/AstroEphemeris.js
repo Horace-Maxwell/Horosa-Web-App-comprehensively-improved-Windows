@@ -4,6 +4,8 @@ import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { FreezeSubTab } from '../comp/FreezeInactive';
+import { markPanelReady } from '../../utils/perfMark';
 
 const TabPane = Tabs.TabPane;
 
@@ -31,9 +33,12 @@ class AstroEphemeris extends Component{
 			loading: false,
 			result: null,
 			requestKey: '',
+			// 受控子页签(原 defaultActiveKey='events'):FreezeSubTab 需要知道哪一页在前台。
+			viewTab: 'events',
 		};
 		this.load = this.load.bind(this);
 		this.change = this.change.bind(this);
+		this.changeViewTab = this.changeViewTab.bind(this);
 	}
 
 	componentDidMount(){
@@ -59,6 +64,10 @@ class AstroEphemeris extends Component{
 		}
 	}
 
+	changeViewTab(key){
+		this.setState({ viewTab: key });
+	}
+
 	change(key, value){
 		this.setState({[key]: value});
 	}
@@ -80,7 +89,8 @@ class AstroEphemeris extends Component{
 				timeoutMs: 90000,
 			});
 			if(!this._mounted) return;
-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+			// horosa_panel_ready_v1:星历结果(四个子页签的内容全部同源于 result)落定的那一次 setState。
+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
 		}catch(e){
 			if(!this._mounted) return;
 			this.setState({loading: false, requestKey: key});
@@ -133,12 +143,20 @@ class AstroEphemeris extends Component{
 		this.ensureLoaded();
 		const result = this.state.result || {};
 		const height = this.props.height ? this.props.height - 20 : 720;
+		const viewTab = this.state.viewTab || 'events';
 		return (
 			<Spin spinning={this.state.loading}>
 				<div style={{height, overflow: 'auto', paddingRight: 8}}>
 					{this.renderToolbar()}
-					<Tabs defaultActiveKey="events" tabPosition="top">
+					{/* horosa_freeze_subtabs_v1:四个子页签此前全部常驻渲染 —— 其中「每日位置」最多 1500 行
+					    × 8 列的自绘表(SmallTable 无虚拟化),用户就算从没点开也每次重画。改受控 + FreezeSubTab:
+					    只画前台那一个,从未激活过的面板延迟首渲。★这里刻意**不做虚拟化**:该表要能被 Ctrl+F
+					    页内查找、被打印/截图完整取到,窗口化切片会真降级;延迟+冻结把成本降到零而不动可见语义。
+					    ★用**函数式** children:节点式会让 renderEvents/renderDaily 在父组件每次 render 时
+					    照样把整棵元素树建出来(1500 行 × 8 列),冻结就白做了;函数式则未渲染时根本不求值。 */}
+					<Tabs activeKey={viewTab} onChange={this.changeViewTab} tabPosition="top">
 						<TabPane tab="事件" key="events">
+							<FreezeSubTab active={viewTab === 'events'}>{() => (<>
 							<div style={cardStyle}>
 								<div className="horosa-info-card-title">入座</div>
 								{this.renderEvents(result.ingresses, [
@@ -175,8 +193,10 @@ class AstroEphemeris extends Component{
 									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{opacity: 0.6, fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
 								])}
 							</div>
+							</>)}</FreezeSubTab>
 						</TabPane>
 						<TabPane tab="行运触发" key="transits">
+							<FreezeSubTab active={viewTab === 'transits'}>{() => (<>
 							<div style={cardStyle}>
 								{this.renderEvents(result.transitAspects, [
 									{key: 'datetime', title: '时间'},
@@ -186,11 +206,15 @@ class AstroEphemeris extends Component{
 									{key: 'orb', title: '误差', render: (v)=>fmtNum(v, 3)},
 								])}
 							</div>
+							</>)}</FreezeSubTab>
 						</TabPane>
 						<TabPane tab="每日位置" key="daily">
+							<FreezeSubTab active={viewTab === 'daily'}>{() => (<>
 							<div style={cardStyle}>{this.renderDaily(result.dailyPositions)}</div>
+							</>)}</FreezeSubTab>
 						</TabPane>
 						<TabPane tab="升落现象" key="visibility">
+							<FreezeSubTab active={viewTab === 'visibility'}>{() => (<>
 							<div style={cardStyle}>
 								<div className="horosa-info-card-title">升落与中天</div>
 								{this.renderEvents(result.riseSet, [
@@ -219,6 +243,7 @@ class AstroEphemeris extends Component{
 									{key: 'setting', title: '偕日落', render: (v)=>v && v.datetime ? v.datetime : '-'},
 								])}
 							</div>
+							</>)}</FreezeSubTab>
 						</TabPane>
 					</Tabs>
 				</div>

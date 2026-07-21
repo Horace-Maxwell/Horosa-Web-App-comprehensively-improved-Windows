@@ -1,0 +1,236 @@
+diff --git a/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js b/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
+index 29c02c3..75c91ce 100644
+--- a/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
++++ b/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
+@@ -1,4 +1,5 @@
+ import { Component } from 'react';
++import { markInteractionStart } from '../../utils/perfMark';
+ import { julianDayIndex } from '../../utils/julianDayIndex';
+ import { Spin } from 'antd';
+ import { Solar, SolarMonth } from 'lunar-javascript';
+@@ -414,9 +415,55 @@ function buildDayItems(monthItem, dayStem){
+ 	});
+ }
+ 
++// horosa_bazi_flow_derive_memo_v1（PERF-R9 Ship 6·八字族）
++// 病灶：render / emitSelection / currentSelectedYear / 四个点击回调都各自把
++// buildLuckItems → buildYearItems → buildMonthItems → buildDayItems 这条链**从头重算一遍**。
++// 一次点击(流日格)= setState → 本组件 render + emitSelection ⇒ 链算两遍；其中 buildDayItems 要
++// 走 lunar-javascript 的 SolarMonth/getLunar 取整月每日干支（最贵的一段），buildMonthItems 还可能
++// 落到 buildFlowMonthsByYear。
++// 修法：纯函数结果按【全部输入】做小容量记忆（引用/标量逐项比）。四个构建器都是纯函数：
++//   buildLuckItems(value, dayStem, showXiaoyun, ageStyle)
++//   buildYearItems(luck, dayStem, ageStyle)
++//   buildMonthItems(yearItem, dayStem, jieqiYears)
++//   buildDayItems(monthItem, dayStem)
++// 键覆盖了每个构建器的全部形参，故「命中 ⇒ 输出逐字段相同」，不可能返回陈旧内容。
++// 另一重收益：命中时返回的是**同一个数组/同一批 item 对象**，于是下游一环的键（luck / year / month）
++// 也随之引用稳定，整条链一路命中。
++// 容量 4：足以同时容纳「render 口径(jieqiYears=undefined)」与「emitSelection 口径(this.state.jieqiYears)」
++// 两套调用，且不改任何调用点的实参（保持既有行为逐字不变）。
++const DERIVE_CACHE_MAX = 4;
++function memoDerive(store, keys, compute){
++	for(let i = 0; i < store.length; i++){
++		const entry = store[i];
++		if(entry.keys.length !== keys.length){
++			continue;
++		}
++		let same = true;
++		for(let k = 0; k < keys.length; k++){
++			if(entry.keys[k] !== keys[k]){
++				same = false;
++				break;
++			}
++		}
++		if(same){
++			return entry.out;
++		}
++	}
++	const out = compute();
++	store.unshift({ keys, out });
++	if(store.length > DERIVE_CACHE_MAX){
++		store.length = DERIVE_CACHE_MAX;
++	}
++	return out;
++}
++
+ class BaZiLuckFlowPanel extends Component{
+ 	constructor(props){
+ 		super(props);
++		this._luckStore = [];
++		this._yearStore = [];
++		this._monthStore = [];
++		this._dayStore = [];
+ 		this.state = {
+ 			luckId: '',
+ 			yearId: '',
+@@ -429,6 +476,27 @@ class BaZiLuckFlowPanel extends Component{
+ 		this.emitSelection = this.emitSelection.bind(this);
+ 	}
+ 
++	// horosa_bazi_flow_derive_memo_v1：四个纯构建器的记忆化入口（形参与被包裹函数一一对应）。
++	luckItemsOf(value, dayStem, showXiaoyun, ageStyle){
++		return memoDerive(this._luckStore, [value, dayStem, showXiaoyun, ageStyle],
++			()=>buildLuckItems(value, dayStem, showXiaoyun, ageStyle));
++	}
++
++	yearItemsOf(luck, dayStem, ageStyle){
++		return memoDerive(this._yearStore, [luck, dayStem, ageStyle],
++			()=>buildYearItems(luck, dayStem, ageStyle));
++	}
++
++	monthItemsOf(yearItem, dayStem, jieqiYears){
++		return memoDerive(this._monthStore, [yearItem, dayStem, jieqiYears],
++			()=>buildMonthItems(yearItem, dayStem, jieqiYears));
++	}
++
++	dayItemsOf(monthItem, dayStem){
++		return memoDerive(this._dayStore, [monthItem, dayStem],
++			()=>buildDayItems(monthItem, dayStem));
++	}
++
+ 	componentDidMount(){
+ 		if(!this.props.fullValue && this.props.onLoad){
+ 			this.props.onLoad();
+@@ -458,7 +526,7 @@ class BaZiLuckFlowPanel extends Component{
+ 
+ 	resetSelection(value){
+ 		const dayStem = this.getDayStem(value);
+-		const luckItems = buildLuckItems(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
++		const luckItems = this.luckItemsOf(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
+ 		const now = new Date();
+ 		let luck = luckItems.find((item)=>{
+ 			if(item.type === 'small'){
+@@ -467,11 +535,11 @@ class BaZiLuckFlowPanel extends Component{
+ 			}
+ 			return now.getFullYear() >= item.startYear && now.getFullYear() < item.startYear + 10;
+ 		}) || luckItems[0];
+-		const years = buildYearItems(luck, dayStem, this.props.ageStyle);
++		const years = this.yearItemsOf(luck, dayStem, this.props.ageStyle);
+ 		const year = years.find((item)=>item.year === now.getFullYear()) || years[0];
+-		const months = buildMonthItems(year, dayStem, this.state.jieqiYears);
++		const months = this.monthItemsOf(year, dayStem, this.state.jieqiYears);
+ 		const month = months.find((item)=>now >= item.startDate && now < item.endDate) || months[0];
+-		const days = buildDayItems(month, dayStem);
++		const days = this.dayItemsOf(month, dayStem);
+ 		const day = days.find((item)=>item.date && item.date.getFullYear() === now.getFullYear() && item.date.getMonth() === now.getMonth() && item.date.getDate() === now.getDate()) || days[0];
+ 		this.setState({
+ 			luckId: luck ? luck.id : '',
+@@ -487,18 +555,23 @@ class BaZiLuckFlowPanel extends Component{
+ 	}
+ 
+ 	emitSelection(){
++		// 本次 emit 是否由用户点格发起（见 renderAxis 的 horosa_panel_ready_v1 注释）；
++		// 【读后即清且置于早退之前】—— 否则一次「点了但 emit 早退」的调用会把标记留到下一次
++		// resetSelection 自发 emit 上，误标成用户交互。
++		const userInitiated = !!this._userFlowClick;
++		this._userFlowClick = false;
+ 		if(!this.props.onSelectionChange || !this.props.fullValue){
+ 			return;
+ 		}
+ 		const value = this.props.fullValue || {};
+ 		const dayStem = this.getDayStem(value);
+-		const luckItems = buildLuckItems(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
++		const luckItems = this.luckItemsOf(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
+ 		const luck = luckItems.find((item)=>item.id === this.state.luckId) || luckItems[0];
+-		const yearItems = buildYearItems(luck, dayStem, this.props.ageStyle);
++		const yearItems = this.yearItemsOf(luck, dayStem, this.props.ageStyle);
+ 		const year = yearItems.find((item)=>item.id === this.state.yearId) || yearItems[0];
+-		const monthItems = buildMonthItems(year, dayStem, this.state.jieqiYears);
++		const monthItems = this.monthItemsOf(year, dayStem, this.state.jieqiYears);
+ 		const month = monthItems.find((item)=>item.id === this.state.monthId) || monthItems[0];
+-		const dayItems = buildDayItems(month, dayStem);
++		const dayItems = this.dayItemsOf(month, dayStem);
+ 		const day = dayItems.find((item)=>item.id === this.state.dayId) || dayItems[0];
+ 		const isSmall = luck && luck.type === 'small';
+ 		this.props.onSelectionChange({
+@@ -516,15 +589,15 @@ class BaZiLuckFlowPanel extends Component{
+ 			yearPillar: year ? ((isSmall && year.liunianPillar) ? year.liunianPillar : year.pillar) : null,
+ 			monthPillar: month && month.pillar ? month.pillar : null,
+ 			dayPillar: day && day.pillar ? day.pillar : null,
+-		});
++		}, userInitiated);
+ 	}
+ 
+ 	currentSelectedYear(){
+ 		const value = this.props.fullValue || {};
+ 		const dayStem = this.getDayStem(value);
+-		const luckItems = buildLuckItems(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
++		const luckItems = this.luckItemsOf(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
+ 		const luck = luckItems.find((item)=>item.id === this.state.luckId) || luckItems[0];
+-		const yearItems = buildYearItems(luck, dayStem, this.props.ageStyle);
++		const yearItems = this.yearItemsOf(luck, dayStem, this.props.ageStyle);
+ 		const year = yearItems.find((item)=>item.id === this.state.yearId) || yearItems[0];
+ 		return year && year.year ? year.year : null;
+ 	}
+@@ -598,7 +671,18 @@ class BaZiLuckFlowPanel extends Component{
+ 					{badge ? <span>{badge}</span> : null}
+ 				</div>
+ 				<div className="horosa-bazi-flow-axis">
+-					{items.map((item)=>this.renderItem(item, item.id === selectedId, ()=>onClick(item)))}
++					{/* horosa_panel_ready_v1(复核补接·四轴唯一咽喉):点一格大运/流年/流月/流日会同时改写
++					    中栏细盘(BaZiFineChart 的 flowSelection 高亮/大运流年列)与右栏神煞(BaZiFlowGodsSection)
++					    —— 正是 owner 验收口径里的「任意单次操作」。但顶层 markInteractionStart 只在
++					    pages/index.js 的 fields 派发处打，这条路径此前【既无 start 也无 end】= 永远量不到。
++					    起点打在这里（用户点下的同步时刻，早于 setState 与整条构建链）；终点在
++					    BaZi.onFlowSelectionChange 的 setState 回调里，且只认 _userFlowClick 置起的这一次
++					    —— 避免 resetSelection（数据到位后自发的一次 emit）抢走 requestBazi 那条样本。 */}
++					{items.map((item)=>this.renderItem(item, item.id === selectedId, ()=>{
++						markInteractionStart('bazi');
++						this._userFlowClick = true;
++						onClick(item);
++					}))}
+ 				</div>
+ 			</div>
+ 		);
+@@ -653,13 +737,13 @@ class BaZiLuckFlowPanel extends Component{
+ 			);
+ 		}
+ 		const dayStem = this.getDayStem(value);
+-		const luckItems = buildLuckItems(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
++		const luckItems = this.luckItemsOf(value, dayStem, this.props.showXiaoyun !== false, this.props.ageStyle);
+ 		const luck = luckItems.find((item)=>item.id === this.state.luckId) || luckItems[0];
+-		const yearItems = buildYearItems(luck, dayStem, this.props.ageStyle);
++		const yearItems = this.yearItemsOf(luck, dayStem, this.props.ageStyle);
+ 		const year = yearItems.find((item)=>item.id === this.state.yearId) || yearItems[0];
+-		const monthItems = buildMonthItems(year, dayStem);
++		const monthItems = this.monthItemsOf(year, dayStem);
+ 		const month = monthItems.find((item)=>item.id === this.state.monthId) || monthItems[0];
+-		const dayItems = buildDayItems(month, dayStem);
++		const dayItems = this.dayItemsOf(month, dayStem);
+ 		const day = dayItems.find((item)=>item.id === this.state.dayId) || dayItems[0];
+ 		return (
+ 			<div
+@@ -667,9 +751,9 @@ class BaZiLuckFlowPanel extends Component{
+ 				style={{ maxHeight: typeof height === 'number' ? height - 22 : undefined }}
+ 			>
+ 				{this.renderAxis('大运', '起运', luckItems, luck ? luck.id : '', (item)=>{
+-					const years = buildYearItems(item, dayStem, this.props.ageStyle);
+-					const months = buildMonthItems(years[0], dayStem, this.state.jieqiYears);
+-					const days = buildDayItems(months[0], dayStem);
++					const years = this.yearItemsOf(item, dayStem, this.props.ageStyle);
++					const months = this.monthItemsOf(years[0], dayStem, this.state.jieqiYears);
++					const days = this.dayItemsOf(months[0], dayStem);
+ 					this.setState({
+ 						luckId: item.id,
+ 						yearId: years[0] ? years[0].id : '',
+@@ -678,8 +762,8 @@ class BaZiLuckFlowPanel extends Component{
+ 					}, this.emitSelection);
+ 				})}
+ 				{this.renderAxis('流年', '', yearItems, year ? year.id : '', (item)=>{
+-					const months = buildMonthItems(item, dayStem, this.state.jieqiYears);
+-					const days = buildDayItems(months[0], dayStem);
++					const months = this.monthItemsOf(item, dayStem, this.state.jieqiYears);
++					const days = this.dayItemsOf(months[0], dayStem);
+ 					this.setState({
+ 						yearId: item.id,
+ 						monthId: months[0] ? months[0].id : '',
+@@ -690,7 +774,7 @@ class BaZiLuckFlowPanel extends Component{
+ 					});
+ 				})}
+ 				{this.renderAxis('流月', '', monthItems, month ? month.id : '', (item)=>{
+-					const days = buildDayItems(item, dayStem);
++					const days = this.dayItemsOf(item, dayStem);
+ 					this.setState({
+ 						monthId: item.id,
+ 						dayId: days[0] ? days[0].id : '',

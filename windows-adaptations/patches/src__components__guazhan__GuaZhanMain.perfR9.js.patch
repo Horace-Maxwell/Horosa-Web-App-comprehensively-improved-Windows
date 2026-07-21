@@ -1,0 +1,82 @@
+diff --git a/astrostudyui/src/components/guazhan/GuaZhanMain.js b/astrostudyui/src/components/guazhan/GuaZhanMain.js
+index 491d70c..1a8d168 100644
+--- a/astrostudyui/src/components/guazhan/GuaZhanMain.js
++++ b/astrostudyui/src/components/guazhan/GuaZhanMain.js
+@@ -33,6 +33,8 @@ import { setNongliLocalCache } from '../../utils/localCalcCache';
+ import XQIcon from '../xq-icons';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const {Option} = Select;
+ const { TabPane } = Tabs;
+@@ -725,6 +727,12 @@ class GuaZhanMain extends Component{
+ 		let desc = await this.requestGuaDescReturn();
+ 		this.setState({
+ 			guaDesc: desc,
++		}, ()=>{
++			// horosa_panel_ready_v1:六爻的落定点。任何一次交互(改时间→requestNongli→genTimeGua、
++			// 点爻、起卦)最终都收束到「取卦辞回来」这一次 setState —— 中栏卦象(yao/currentGua)
++			// 在更早一次 setState 已落,右栏断卦(getLiuyaoAnalysis 由 yao+nongli 同步派生)与卦辞
++			// 面板在本次落完。故这里是本族最后一次绘制提交。
++			markPanelReady('guazhan');
+ 		});
+ 	}
+ 
+@@ -1820,7 +1828,12 @@ class GuaZhanMain extends Component{
+ 		const muted = { color: 'var(--horosa-astro-muted, #928b82)', fontSize: 13 };
+ 		return (
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-guazhan-tabs">
++				{/* horosa_freeze_subtabs_v1:右栏 6 个子面板此前全内联 —— 首次激活后永久挂载,
++				    之后每次改时间/点爻/切流派都把另外 5 个看不见的面板(装卦大表、断诀、占类、
++				    参考典籍)一并 reconcile。函数式 children:未激活过的面板连元素都不建;
++				    已激活过的切回时拿本轮最新 analysis 立即渲一帧,不卸载、不重取、不丢滚动位置。 */}
+ 				<TabPane tab="概览" key="overview">
++					<FreezeSubTab active={activeKey === 'overview'}>{()=>(
+ 					<div className="horosa-guazhan-info-card" style={scrollStyle}>
+ 						{analysis ? <LiuYaoXunKong analysis={analysis} /> : null}
+ 						{this.renderInfoRows()}
+@@ -1847,31 +1860,42 @@ class GuaZhanMain extends Component{
+ 							</div>
+ 						) : null}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="装卦" key="zhuang">
++					<FreezeSubTab active={activeKey === 'zhuang'}>{()=>(
+ 					<div className="horosa-guazhan-info-card" style={scrollStyle}>
+ 						{analysis ? (<div><LiuYaoZhuangTable analysis={analysis} movingSet={movingSet} hideXunKong /><LiuYaoRelatedCards analysis={analysis} /></div>) : <div style={muted}>请先起卦。</div>}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="断诀" key="duanjue">
++					<FreezeSubTab active={activeKey === 'duanjue'}>{()=>(
+ 					<div className="horosa-guazhan-info-card" style={scrollStyle}>
+ 						{analysis ? <LiuYaoDuanJueView analysis={analysis} ctx={this.getDuanJueCtx()} /> : <div style={muted}>请先起卦。</div>}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="占类" key="zhanlei">
++					<FreezeSubTab active={activeKey === 'zhanlei'}>{()=>(
+ 					<div className="horosa-guazhan-info-card" style={scrollStyle}>
+ 						<LiuYaoZhanLeiView analysis={analysis} currentGuaName={this.state.currentGua !== null && Gua64[this.state.currentGua] ? Gua64[this.state.currentGua].name : ''} castLines={(this.state.yao || []).map((y)=>y && y.value)} />
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="参考" key="ref">
++					<FreezeSubTab active={activeKey === 'ref'}>{()=>(
+ 					<div className="horosa-guazhan-info-card" style={scrollStyle}>
+ 						<LiuYaoReference analysis={analysis} />
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="卦辞" key="gua">
++					<FreezeSubTab active={activeKey === 'gua'}>{()=>(
+ 					<div className="horosa-guazhan-desc-panel">
+ 						<GuaDesc height={infoHeight} value={guadesc} />
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 		);

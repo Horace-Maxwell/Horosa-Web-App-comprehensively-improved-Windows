@@ -11,6 +11,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import * as AstroConst from '../../constants/AstroConst';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import { chartSCUEnabled } from '../../utils/perfFlags';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const TabPane = Tabs.TabPane;
 
@@ -53,20 +54,29 @@ class MidpointMain extends Component{
 	constructor(props) {
 		super(props);
 		this.state = {
-
+			// 右栏子页签(中点 / 相位)改【受控】—— FreezeSubTab 需要 activeKey 才能判 active。
+			sideTab: '1',
 		}
 
 		this.changeTime = this.changeTime.bind(this);
 		this.changeZodiacal = this.changeZodiacal.bind(this);
 		this.changeHsys = this.changeHsys.bind(this);
 		this.changeSouthChart = this.changeSouthChart.bind(this);
+		this.changeSideTab = this.changeSideTab.bind(this);
 	}
 
-	shouldComponentUpdate(nextProps){
+	shouldComponentUpdate(nextProps, nextState){
 		if(!chartSCUEnabled()){
 			return true; // kill-switch
 		}
+		if(nextState !== this.state){
+			return true; // ★ 本组件现在有 state(sideTab):state 变化一律照渲,否则切子页签会不动
+		}
 		return !shallowPropsEqual(this.props, nextProps, MIDPOINTMAIN_SCU_KEYS, MIDPOINTMAIN_SCU_COMPARATORS);
+	}
+
+	changeSideTab(key){
+		this.setState({ sideTab: key });
 	}
 
 	changeTime(tm){
@@ -232,20 +242,26 @@ class MidpointMain extends Component{
 							}
 						</Row>
 						</XQSideSection>
-						<Tabs defaultActiveKey="1" tabPosition='top' className="horosa-midpoint-side-tabs">
+						{/* horosa_freeze_subtabs_v1:中点/相位两个列表面板互为隐藏,隐藏者不再随本组件重渲。
+						    受控化(activeKey + onChange 落 state.sideTab)是 FreezeSubTab 的前提。 */}
+						<Tabs activeKey={this.state.sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-midpoint-side-tabs">
 							<TabPane tab="中点" key="1">
+									<FreezeSubTab active={this.state.sideTab === '1'}>{()=>(
 									<Midpoint height={height}
 										value={midpoints} fields={fields}
 										planetDisplay={this.props.planetDisplay}
 										showAstroMeaning={this.props.showAstroMeaning}
 									/>
+									)}</FreezeSubTab>
 								</TabPane>
 								<TabPane tab="相位" key="2">
-									<AspectToMidpoint 
+									<FreezeSubTab active={this.state.sideTab === '2'}>{()=>(
+									<AspectToMidpoint
 										value={aspects} height={height}
 										planetDisplay={this.props.planetDisplay}
 										showAstroMeaning={this.props.showAstroMeaning}
 									/>
+									)}</FreezeSubTab>
 								</TabPane>
 						</Tabs>
 					</Col>

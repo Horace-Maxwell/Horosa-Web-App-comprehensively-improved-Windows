@@ -1,0 +1,45 @@
+diff --git a/astrostudyui/src/components/astro3d/AstroPDSphere.js b/astrostudyui/src/components/astro3d/AstroPDSphere.js
+index 40a5d82..4caea4c 100644
+--- a/astrostudyui/src/components/astro3d/AstroPDSphere.js
++++ b/astrostudyui/src/components/astro3d/AstroPDSphere.js
+@@ -128,6 +128,21 @@ function computeReqKey(req){
+ 	}
+ }
+ 
++// horosa_shallow_scu_v1:逐键浅比较。**未知即"变了"** —— 键数不同 / 任一键引用不同 → false。
++function shallowSame(a, b){
++	if(a === b){ return true; }
++	if(!a || !b || typeof a !== 'object' || typeof b !== 'object'){ return false; }
++	const ka = Object.keys(a);
++	const kb = Object.keys(b);
++	if(ka.length !== kb.length){ return false; }
++	for(let i=0; i<ka.length; i++){
++		const k = ka[i];
++		if(!Object.prototype.hasOwnProperty.call(b, k)){ return false; }
++		if(a[k] !== b[k]){ return false; }
++	}
++	return true;
++}
++
+ class AstroPDSphere extends Component{
+ 
+ 	constructor(props){
+@@ -177,6 +192,18 @@ class AstroPDSphere extends Component{
+ 		this.setTlZoom = this.setTlZoom.bind(this);
+ 	}
+ 
++	// horosa_shallow_scu_v1:本组件此前**无 sCU** —— 宿主每次重渲(改任何选项/切子页签)都要重跑
++	// 一遍时间轴 SVG 的车道排布(packLanes)+ 上百个事件节点的 map,而绝大多数这类重渲的
++	// props/state 与上一次逐键同引用。这里只跳过「输入完全没变」的重复渲染:任何键引用不同、
++	// 键数不同、非对象 → 一律返回 true 照常渲染,不可能漏更新。
++	// 注意与 componentDidUpdate 的关系:跳过时 componentDidUpdate 不跑,故 fetchData 不被调用 ——
++	// 但那一次本来 props 也没变,fetchData 会被 lastReqKey 短路,行为完全一致。
++	shouldComponentUpdate(nextProps, nextState){
++		if(!shallowSame(this.props, nextProps)){ return true; }
++		if(!shallowSame(this.state, nextState)){ return true; }
++		return false;
++	}
++
+ 	componentDidMount(){
+ 		this.unmounted = false;
+ 		// [WP-B] 「播完回位」checkbox 与引擎行为同源 localStorage,挂载时同步显示态(引擎在播放时直读该键)。

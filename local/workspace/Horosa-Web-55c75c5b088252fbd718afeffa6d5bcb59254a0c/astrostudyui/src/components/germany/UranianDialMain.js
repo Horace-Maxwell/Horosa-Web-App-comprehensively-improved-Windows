@@ -16,6 +16,51 @@ import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, X
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams } from './UranianSchools';
 import { listLocalCharts } from '../../utils/localcharts';
+import { FreezeSubTab } from '../comp/FreezeInactive';
+import { markPanelReady } from '../../utils/perfMark';
+import { sameDisplayList } from '../../utils/chartUpdateGuard';
+import { chartSCUEnabled } from '../../utils/perfFlags';
+
+// horosa_lazy_right_panels_v1(PERF-R9 Ship 6):一次性惰性求值器。
+// 右栏五组 Tab 的重扫描(中点树 / 行星图 A+B−C=D / 中点列表 / 映点 / 太阳弧差值表 / 合盘接触)
+// 原先在 render 顶部**无条件全算**,不管用户当前看的是哪一组。包成 thunk 后只有真正被渲染的那
+// 一组会求值(未激活组由 FreezeSubTab 跳过 render);同一次 render 内多处引用只算一次。
+function lazyOnce(fn){
+	let value;
+	let done = false;
+	return ()=>{
+		if(!done){
+			value = fn();
+			done = true;
+		}
+		return value;
+	};
+}
+
+// horosa_dial_scu_v1(PERF-R9 Ship 6):90°中点盘 sCU。
+// 它的父容器 AstroGermany 的四个子页签没有冻结层,所以只要用户在「行星中点」页动一下设置,
+// 隐藏着的本盘(1000 行 render + 盘 SVG)也会整棵重渲一遍。这里自守一层。
+// 用【全键浅比】而非固定白名单:漏键=该更新时不更新(用户看到旧盘),比慢严重得多;
+// 三个显示开关数组按内容比(父级每帧重建字面量)。state 变化一律照渲。
+const DIAL_SCU_COMPARATORS = {
+	chartDisplay: sameDisplayList,
+	planetDisplay: sameDisplayList,
+	lotsDisplay: sameDisplayList,
+};
+function dialPropsEqual(a, b){
+	if (a === b) return true;
+	if (!a || !b) return false;
+	const ka = Object.keys(a);
+	const kb = Object.keys(b);
+	if (ka.length !== kb.length) return false;
+	for (let i = 0; i < ka.length; i++){
+		const k = ka[i];
+		const fn = DIAL_SCU_COMPARATORS[k];
+		if (fn){ if (!fn(a[k], b[k])) return false; }
+		else if (!Object.is(a[k], b[k])) return false;
+	}
+	return true;
+}
 
 const DIAL_BODY_IDS = new Set([
 	AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS,
@@ -240,6 +285,12 @@ export default class UranianDialMain extends Component {
 		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); this._measure(); } };
 	}
 
+	shouldComponentUpdate(nextProps, nextState){
+		if (!chartSCUEnabled()) return true;  // kill-switch
+		if (nextState !== this.state) return true;
+		return !dialPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this.unmounted = false;
 		this.requestNatalTnp();
@@ -305,7 +356,11 @@ export default class UranianDialMain extends Component {
 				if (Array.isArray(result.tnp)) patch.natalTnp = result.tnp;
 				// 赤纬接触(WP-11):后端缺该字段(declination:false 或老后端)→ 存 null,面板显「需后端赤纬数据」。
 				patch.natalDecl = (result.declination && typeof result.declination === 'object') ? result.declination : null;
-				this.setState(patch);
+				// horosa_panel_ready_v1:90°中点盘自有的后端数据(TNP + 赤纬)在此落定;
+				// 盘面其余点来自 props.chart(主盘),故这一次 setState 是本子盘「画完」的最后一次。
+				this.setState(patch, ()=>{
+					markPanelReady('auxchart');
+				});
 			}
 		} catch (e) { /* 静默 */ }
 	}
@@ -428,8 +483,10 @@ export default class UranianDialMain extends Component {
 
 	// 叠盘人 id → 唯一显示名(供环标签/接触表/读数 ring tag/色点共用一致文案)。
 	//   当前盘记 '人名(当前)';库盘记人名,库内同名或与当前盘撞名时后缀 ' ·库'/序号以保唯一(ringTone 按文案键控)。
-	personLabelMap(){
-		const list = buildPersonList(this.props.fieldsAry);
+	// personList 可由调用方传入 —— 它内部会读 localStorage 命盘库并 JSON.parse,
+	// 原先一次 render 里 buildRings/render 各自重建三遍;现在 render 顶部建一次全程复用。
+	personLabelMap(personList){
+		const list = personList || buildPersonList(this.props.fieldsAry);
 		const byId = {}; const used = {};
 		list.forEach((p) => {
 			let base = p.source === 'current' ? `${p.label}（当前）` : `${p.label}`;
@@ -441,7 +498,7 @@ export default class UranianDialMain extends Component {
 		return byId;
 	}
 
-	buildRings(){
+	buildRings(personLabelById){
 		const natalPts = this.natalPoints();
 		const rings = [{ key: 'natal', label: '本命', points: natalPts }];
 		if (this.state.showTransit && this.state.transitPoints) {
@@ -453,7 +510,7 @@ export default class UranianDialMain extends Component {
 		}
 		// WP-9 合盘人环(最多 SYN_MAX 人):每位选中且已拉到盘点的人各一环,TNP 过滤随全局开关。
 		//   环标签=人名(经 personLabelMap 去重),与右栏接触表/色点同源,ringTone 也按此键控。
-		const labelMap = this.personLabelMap();
+		const labelMap = personLabelById || this.personLabelMap();
 		(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => {
 			const pts = this.state.synastryPersonPoints[id];
 			if (Array.isArray(pts) && pts.length) {
@@ -582,7 +639,10 @@ export default class UranianDialMain extends Component {
 
 	render(){
 		const height = this.props.height ? this.props.height : 760;
-		const rings = this.buildRings();
+		// 叠盘人清单/显示名:全 render 只建一次(内含 localStorage 命盘库读取),传给 buildRings 复用。
+		const personList = buildPersonList(this.props.fieldsAry);
+		const personLabelById = this.personLabelMap(personList);
+		const rings = this.buildRings(personLabelById);
 		const natalPts = rings[0].points;
 		// 中间盘 size:按实测「中间列」的内容框最大化——取列宽、列高(减盘下 24 padding)较小者,填满方框且永不超出被裁。
 		// 列尺寸由 _measure(ResizeObserver)实测;未测得时用 viewport 估算兜底;vh-140 为防底部 Dock 的二级兜底。
@@ -598,28 +658,31 @@ export default class UranianDialMain extends Component {
 		// 全部派生项都从完整 state 计算:school/盘基/虚星/orb/orbPersonal 任一改变都全量重算重绘。
 		const personalSet = this.personalSet();
 		const treeOpts = { personal: personalSet, onlyPersonal: this.state.onlyPersonal, orbPersonal: this.state.orbPersonal };
-		const tree = this.state.showPicture ? midpointTree(natalPts, this.state.dialBase, this.state.orb, treeOpts) : {};
 		// 行星图(A+B−C=D)/中点列表/映点接触:都在本命点集上算(锚点=个人点∪TNP,排序同优先级)。
 		const scanOpts = { personal: personalSet, uranian: URANIAN_SET, orbPersonal: this.state.orbPersonal };
-		const pictures = this.state.showPlanetPicture ? planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 40 }) : [];
-		const mpList = this.state.showMidpointList ? midpointList(natalPts, this.state.dialBase, scanOpts) : [];
-		const spiegel = this.state.showAntiscia ? spiegelContacts(natalPts, this.state.dialBase, this.state.orb, scanOpts) : [];
+		// horosa_lazy_right_panels_v1:以下六项全部改惰性 —— 表达式与开关判断逐字未动,
+		// 只是推迟到「该组 Tab 真的要渲染」的那一刻才求值(未激活组由 FreezeSubTab 跳过)。
+		const getTree = lazyOnce(()=> (this.state.showPicture ? midpointTree(natalPts, this.state.dialBase, this.state.orb, treeOpts) : {}));
+		const getPictures = lazyOnce(()=> (this.state.showPlanetPicture ? planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 40 }) : []));
+		const getMpList = lazyOnce(()=> (this.state.showMidpointList ? midpointList(natalPts, this.state.dialBase, scanOpts) : []));
+		const getSpiegel = lazyOnce(()=> (this.state.showAntiscia ? spiegelContacts(natalPts, this.state.dialBase, this.state.orb, scanOpts) : []));
 		// WP-3 差值表:本命点集的太阳弧到期(全/半/倍 + 单因子白羊档),按 saKey 换算到期年龄,命中目标年龄高亮。
 		// maxAge=120 兜底(避免极大年龄行);targetAge 由 InputNumber 控制,win=1。
-		const diffRows = this.state.showDiffList
+		const getDiffRows = lazyOnce(()=> (this.state.showDiffList
 			? solarArcDirections(natalPts, this.state.dialBase, { saKey: this.state.saKey, targetAge: this.state.diffTargetAge, win: 1, maxAge: 120 })
-			: [];
-		// 叠盘人统一文案/上色基底:id→唯一显示名(personLabelMap)+ 候选清单(当前盘∪命盘库)。
-		const personLabelById = this.personLabelMap();
-		const personList = buildPersonList(this.props.fieldsAry);
-		const synContacts = [];
-		(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => {
-			const pts = this.state.synastryPersonPoints[id];
-			if (Array.isArray(pts) && pts.length){
-				const bPts = filterByTnp(pts, this.state.showTnp);
-				const cs = crossContacts(natalPts, bPts, this.state.dialBase, this.state.orb);
-				synContacts.push({ id, label: personLabelById[id] || id, tone: SYN_TONE[idx] || SYN_TONE[0], rows: cs });
-			}
+			: []));
+		// 叠盘人接触(crossContacts):同样惰性 —— 只有「接触」组被渲染时才算。
+		const getSynContacts = lazyOnce(()=>{
+			const out = [];
+			(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => {
+				const pts = this.state.synastryPersonPoints[id];
+				if (Array.isArray(pts) && pts.length){
+					const bPts = filterByTnp(pts, this.state.showTnp);
+					const cs = crossContacts(natalPts, bPts, this.state.dialBase, this.state.orb);
+					out.push({ id, label: personLabelById[id] || id, tone: SYN_TONE[idx] || SYN_TONE[0], rows: cs });
+				}
+			});
+			return out;
 		});
 		const natalAngleLon = (aid) => { const o = (natalPts || []).find((p) => p.id === aid); return o && Number.isFinite(Number(o.lon)) ? Number(o.lon) : null; };
 		const natalMc = natalAngleLon(AstroConst.MC);
@@ -759,7 +822,7 @@ export default class UranianDialMain extends Component {
 		);
 
 		// 指针读数:用短横线 '-' 标距(原希腊符像三角不友好);单行 nowrap 防换行;TNP 过滤已在源头完成(natalPoints/transit),此处直接信任。
-		const readoutBody = this.state.readout.length === 0
+		const readoutBody = ()=> (this.state.readout.length === 0
 			? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>拖动行运/太阳弧环或红指针，对齐处的星体/中点会列在这里。</div>
 			: this.state.readout.slice(0, 60).map((h, i) => {
 				// 中点='/'(近中点)、和点='+'(A+B)、差距='∠'(A∠B);body=单星;均按 sep 标距。
@@ -777,37 +840,40 @@ export default class UranianDialMain extends Component {
 							: <span>轴 = {glyphOf(h.a)}<span style={{ color: 'var(--horosa-text-soft)' }}>{op}</span>{glyphOf(h.b)} <span style={{ color: 'var(--horosa-text-soft)' }}>- {h.sep.toFixed(2)}°</span></span>}
 					</div>
 				);
-			});
+			}));
 
-		const treeData = this.buildTreeData(tree);
-		const treeBody = treeData.length === 0
-			? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>容许度内暂无中点结构</div>
-			: <Tree treeData={treeData} showLine={{ showLeafIcon: false }} blockNode selectable={false} defaultExpandedKeys={treeData.slice(0, 3).map((n) => n.key)} />;
+		const getTreeData = lazyOnce(()=> this.buildTreeData(getTree()));
+		const treeBody = ()=>{
+			const treeData = getTreeData();
+			return treeData.length === 0
+				? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>容许度内暂无中点结构</div>
+				: <Tree treeData={treeData} showLine={{ showLeafIcon: false }} blockNode selectable={false} defaultExpandedKeys={treeData.slice(0, 3).map((n) => n.key)} />;
+		};
 
 		const rowLine = { lineHeight: 1.9, fontSize: 13, whiteSpace: 'nowrap' };
 		const soft = { color: 'var(--horosa-text-soft)' };
 		const empty = (t) => <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>{t}</div>;
 		// 行星图 A+B−C=D:个人点/TNP 锚点,命中目标 D 高亮。
-		const pictureBody = pictures.length === 0 ? empty('容许度内暂无行星图')
+		const pictureBody = ()=>{ const pictures = getPictures(); return pictures.length === 0 ? empty('容许度内暂无行星图')
 			: pictures.map((p, i) => (
 				<div key={i} title={composeShort(p.a, p.b, p.d)} style={rowLine}>
 					{glyphOf(p.a)}<span style={soft}> + </span>{glyphOf(p.b)}<span style={soft}> − </span>{glyphOf(p.c)}<span style={soft}> = </span><b>{glyphOf(p.d)}</b><span style={soft}> · {p.sep.toFixed(2)}°</span>
 				</div>
-			));
+			)); };
 		// 中点扁平列表(含个人点 > TNP > 其他):显中点黄经位。
-		const mpListBody = mpList.length === 0 ? empty('暂无中点')
+		const mpListBody = ()=>{ const mpList = getMpList(); return mpList.length === 0 ? empty('暂无中点')
 			: mpList.slice(0, 150).map((m, i) => (
 				<div key={i} title={composeShort(m.a, m.b)} style={rowLine}>
 					{glyphOf(m.a)}<span style={soft}>/</span>{glyphOf(m.b)}<span style={soft}> · {m.lon.toFixed(2)}°</span>
 				</div>
-			));
+			)); };
 		// 映点 Spiegelpunkt 接触对。
-		const spiegelBody = spiegel.length === 0 ? empty('容许度内暂无映点接触')
+		const spiegelBody = ()=>{ const spiegel = getSpiegel(); return spiegel.length === 0 ? empty('容许度内暂无映点接触')
 			: spiegel.map((s, i) => (
 				<div key={i} title={composeShort(s.a, s.b)} style={rowLine}>
 					{glyphOf(s.a)}<span style={soft}> ⟷ </span>{glyphOf(s.b)}<span style={soft}> · {s.sep.toFixed(2)}°</span>
 				</div>
-			));
+			)); };
 		// 右栏:可收放卡片(antd Collapse),头部左为标题/副标、右为数量徽标;展开项持久化 openPanels。
 		const hdr = (title, sub, n) => (
 			<span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
@@ -826,7 +892,7 @@ export default class UranianDialMain extends Component {
 			{ title: '到期(岁)', dataIndex: 'age', key: 'age', width: 72, defaultSortOrder: 'ascend', sorter: (x, y) => x.age - y.age, render: (v) => v.toFixed(1) },
 			{ title: '到期', dataIndex: 'due', key: 'due', width: 44, render: (v) => (v ? <span style={{ color: 'var(--horosa-accent, #c0392b)', fontWeight: 600 }}>●</span> : <span style={soft}>·</span>) },
 		];
-		const diffBody = (
+		const diffBody = ()=>{ const diffRows = getDiffRows(); return (
 			<div>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
 					<span style={{ fontSize: 12 }}>目标年龄</span>
@@ -845,12 +911,12 @@ export default class UranianDialMain extends Component {
 						rowClassName={(r) => (r.due ? 'horosa-uranian-diff-due' : '')} />
 				)}
 			</div>
-		);
+		); };
 		// WP-9 合盘接触表(参照 relative/MidpointInfo 风格):每位叠盘人一组,B 因子落 A 单点/中点轴。
 		// 行式:glyph(a1)[/glyph(a2)] ← glyph(b) · sep°;落 日/月 中点轴最决定性(此处不另排序,纯按角距近者先)。
-		const synCount = synContacts.reduce((n, g) => n + g.rows.length, 0);
+		const getSynCount = lazyOnce(()=> getSynContacts().reduce((n, g) => n + g.rows.length, 0));
 		const isLuminaryAxis = (a1, a2) => a2 != null && ((a1 === AstroConst.SUN && a2 === AstroConst.MOON) || (a1 === AstroConst.MOON && a2 === AstroConst.SUN));
-		const contactBody = rings.length < 2 ? empty('开启行运/太阳弧或叠加合盘人后，此处列接触')
+		const contactBody = ()=>{ const synContacts = getSynContacts(); const synCount = getSynCount(); return rings.length < 2 ? empty('开启行运/太阳弧或叠加合盘人后，此处列接触')
 			: (synContacts.length === 0 || synCount === 0) ? empty('容许度内暂无合盘接触')
 			: synContacts.map((g) => (
 				<div key={g.id} style={{ marginBottom: 8 }}>
@@ -870,9 +936,9 @@ export default class UranianDialMain extends Component {
 						);
 					})}
 				</div>
-			));
+			)); };
 		// WP-10 校时工具(只读预览):独立组件,事件→弧→推进 MC/Asc 命中本命因子;不写回盘。
-		const rectifyBody = (
+		const rectifyBody = ()=> (
 			<UranianRectify
 				events={this.state.rectifyEvents}
 				onChange={this.onRectifyEventsChange}
@@ -902,7 +968,7 @@ export default class UranianDialMain extends Component {
 		const declTblRows = decl && decl.decls && typeof decl.decls === 'object'
 			? Object.keys(decl.decls).map((id) => ({ id, d: Number(decl.decls[id]) })).filter((r) => Number.isFinite(r.d))
 			: [];
-		const parallelBody = !decl
+		const parallelBody = ()=> (!decl
 			? empty('需后端赤纬数据（开启「赤纬接触」并重新排盘）')
 			: (
 				<div>
@@ -922,21 +988,23 @@ export default class UranianDialMain extends Component {
 							pagination={false} bordered={false} />
 					)}
 				</div>
-			);
+			));
 		// 右栏卡片定义(group=归属的分组 Tab)。受 showXXX/rings 控制的卡片仅在条件成立时入列。
 		// 分组:reading 读数(指针读数+中点树) / midpoint 中点(中点列表+行星图+映点) /
 		//       solararc 太阳弧(差值表) / contact 接触(合盘接触+赤纬接触) / rectify 校时(只读预览,独立成 Tab)。
+		// header 也改 thunk:数量徽标要读 pictures.length / diffRows.length 等,那正是重扫描的结果 ——
+		// 若在此处直接求值,惰性就白做了。renderGroup 只对【本组】卡片调用 header()/body()。
 		const panelDefs = [
-			{ key: 'readout', group: 'reading', header: hdr('指针读数', null, this.state.readout.length || null), body: readoutBody, mh: 0.5 },
-			{ key: 'tree', group: 'reading', header: hdr('中点树', null, treeData.length || null), body: treeBody, mh: 0.42 },
-			this.state.showMidpointList && { key: 'list', group: 'midpoint', header: hdr('中点列表', null, mpList.length), body: mpListBody, mh: 0.4 },
-			this.state.showPlanetPicture && { key: 'pic', group: 'midpoint', header: hdr('行星图', 'A+B−C=D', pictures.length), body: pictureBody, mh: 0.4 },
-			this.state.showAntiscia && { key: 'spiegel', group: 'midpoint', header: hdr('映点', 'Spiegelpunkt', spiegel.length), body: spiegelBody, mh: 0.36 },
-			this.state.showDiffList && { key: 'diff', group: 'solararc', header: hdr('差值表', '太阳弧到期', diffRows.length), body: diffBody, mh: 0.5 },
-			rings.length >= 2 && { key: 'contact', group: 'contact', header: hdr('合盘接触', null, synCount || null), body: contactBody, mh: 0.5 },
-			this.state.showDeclination && { key: 'parallel', group: 'contact', header: hdr('赤纬接触', '平行/反平行', decl ? (declParCount + declCpCount) || null : null), body: parallelBody, mh: 0.5 },
+			{ key: 'readout', group: 'reading', header: ()=>hdr('指针读数', null, this.state.readout.length || null), body: readoutBody, mh: 0.5 },
+			{ key: 'tree', group: 'reading', header: ()=>hdr('中点树', null, getTreeData().length || null), body: treeBody, mh: 0.42 },
+			this.state.showMidpointList && { key: 'list', group: 'midpoint', header: ()=>hdr('中点列表', null, getMpList().length), body: mpListBody, mh: 0.4 },
+			this.state.showPlanetPicture && { key: 'pic', group: 'midpoint', header: ()=>hdr('行星图', 'A+B−C=D', getPictures().length), body: pictureBody, mh: 0.4 },
+			this.state.showAntiscia && { key: 'spiegel', group: 'midpoint', header: ()=>hdr('映点', 'Spiegelpunkt', getSpiegel().length), body: spiegelBody, mh: 0.36 },
+			this.state.showDiffList && { key: 'diff', group: 'solararc', header: ()=>hdr('差值表', '太阳弧到期', getDiffRows().length), body: diffBody, mh: 0.5 },
+			rings.length >= 2 && { key: 'contact', group: 'contact', header: ()=>hdr('合盘接触', null, getSynCount() || null), body: contactBody, mh: 0.5 },
+			this.state.showDeclination && { key: 'parallel', group: 'contact', header: ()=>hdr('赤纬接触', '平行/反平行', decl ? (declParCount + declCpCount) || null : null), body: parallelBody, mh: 0.5 },
 			// 校时(WP-10)独立成 group=rectify Tab:与「接触」语义分离(事件→生时反推工作流,非接触相位)。
-			{ key: 'rectify', group: 'rectify', header: hdr('校时', '只读预览', (this.state.rectifyEvents || []).length || null), body: rectifyBody, mh: 0.6 },
+			{ key: 'rectify', group: 'rectify', header: ()=>hdr('校时', '只读预览', (this.state.rectifyEvents || []).length || null), body: rectifyBody, mh: 0.6 },
 		].filter(Boolean);
 		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'pic', 'list', 'spiegel', 'diff', 'contact', 'parallel', 'rectify'];
 		// 分组 Tab 定义(顺序固定);某卡片受开关控制为空时,对应 Tab 显空提示而非报错。
@@ -956,8 +1024,8 @@ export default class UranianDialMain extends Component {
 				<Collapse className="horosa-uranian-panels" activeKey={openKeys}
 					onChange={(keys) => this.saveDisp({ openPanels: Array.isArray(keys) ? keys : [keys] })}>
 					{cards.map((p) => (
-						<Collapse.Panel key={p.key} header={p.header}>
-							<div style={{ maxHeight: Math.round(size * p.mh), overflowY: 'auto', overflowX: 'auto' }}>{p.body}</div>
+						<Collapse.Panel key={p.key} header={p.header()}>
+							<div style={{ maxHeight: Math.round(size * p.mh), overflowY: 'auto', overflowX: 'auto' }}>{p.body()}</div>
 						</Collapse.Panel>
 					))}
 				</Collapse>
@@ -970,9 +1038,11 @@ export default class UranianDialMain extends Component {
 		const rightCol = (
 			<XQTabs className="horosa-uranian-right-tabs" size="small" activeKey={activeRightTab}
 				onChange={(k) => this.saveDisp({ activeRightTab: k })}>
+				{/* horosa_freeze_subtabs_v1:右栏五组。函数式 children —— 未激活组连 renderGroup 都不调用,
+				    于是上面那批 lazyOnce 扫描器也不会求值;切回该组时 sCU 返 true,用本轮最新数据立刻重算重渲。 */}
 				{RIGHT_TABS.map((t) => (
 					<XQTabs.TabPane tab={t.label} key={t.key}>
-						{renderGroup(t.key)}
+						<FreezeSubTab active={activeRightTab === t.key}>{()=>renderGroup(t.key)}</FreezeSubTab>
 					</XQTabs.TabPane>
 				))}
 			</XQTabs>

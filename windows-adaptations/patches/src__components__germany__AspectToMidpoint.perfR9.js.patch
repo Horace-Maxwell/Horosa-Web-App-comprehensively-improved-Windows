@@ -1,0 +1,47 @@
+diff --git a/astrostudyui/src/components/germany/AspectToMidpoint.js b/astrostudyui/src/components/germany/AspectToMidpoint.js
+index 8584e8e..ccd86b8 100644
+--- a/astrostudyui/src/components/germany/AspectToMidpoint.js
++++ b/astrostudyui/src/components/germany/AspectToMidpoint.js
+@@ -3,10 +3,12 @@ import { Row, Col, Divider, Popover, } from 'antd';
+ import * as AstroConst from '../../constants/AstroConst';
+ import * as AstroText from '../../constants/AstroText';
+ import * as AstroHelper from '../astro/AstroHelper';
+-import { randomStr} from '../../utils/helper'
+ import { buildMeaningTipByCategory, buildAspectMeaningTip, } from '../astro/AstroMeaningData';
+ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ const LIST_POINTS = [
+     AstroConst.ASC, AstroConst.MC, AstroConst.DESC, AstroConst.IC,
+@@ -48,7 +50,7 @@ class AspectToMidpoint extends Component{
+ 				continue;
+ 			}
+ 				let domtitle = (
+-					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++					<div key={`title-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
+ 						{wrapWithMeaning(
+ 							<span>{AstroText.AstroMsg[key]}</span>,
+ 							this.showMeaning(),
+@@ -61,8 +63,9 @@ class AspectToMidpoint extends Component{
+ 			for(let idx=0; idx<obj.length; idx++){
+ 				let asp = obj[idx];
+ 
++					// 标题/相位/空行同推 divs，故用外层行星 key 与内层序号组合避免撞 key
+ 					let dom = (
+-						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
++						<div key={`asp-${key}-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
+ 							<span>&emsp;{
+ 								wrapWithMeaning(
+ 									<span>{AstroText.AstroMsg['Asp' + asp.aspect]}&nbsp;</span>,
+@@ -92,7 +95,7 @@ class AspectToMidpoint extends Component{
+ 			}
+ 
+ 			let space = (
+-				<div key={randomStr(8)}><span>&nbsp;</span></div>
++				<div key={`space-${key}`}><span>&nbsp;</span></div>
+ 			);
+ 			divs.push(space);
+ 		}

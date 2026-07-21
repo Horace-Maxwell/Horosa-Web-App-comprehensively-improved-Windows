@@ -1,7 +1,9 @@
 import { Component } from 'react';
 import { Row, Col, } from 'antd';
-import { randomStr } from '../../utils/helper';
 import { BaZiMsg, BaZiColor } from '../../msg/bazimsg';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 class Zhu extends Component{
 	constructor(props) {
@@ -20,18 +22,19 @@ class Zhu extends Component{
 
 		let cols = stems.map((item, idx)=>{
 			return (
-				<Col span={24} style={{textAlign: 'center'}} key={randomStr(8)}>
+				<Col span={24} style={{textAlign: 'center'}} key={`stem-${idx}`}>
 					<span>{BaZiMsg[item.polar] + item.cell + BaZiMsg[item.element]}&bull;{BaZiMsg[item.relative]}</span>
 				</Col>
 			);
 		});
 		for(let i=cols.length; i<3; i++){
-			let emptycol = (<Col span={24} key={randomStr(8)}><span>&nbsp;</span></Col>);
+			// padding cols share the `cols` array with the mapped stems above, so use a distinct prefix
+			let emptycol = (<Col span={24} key={`empty-${i}`}><span>&nbsp;</span></Col>);
 			cols.push(emptycol);
 		}
 
 		let dom = (
-			<Row key={randomStr(8)}>
+			<Row key="stem-in-branch">
 				{cols}
 			</Row>
 		);

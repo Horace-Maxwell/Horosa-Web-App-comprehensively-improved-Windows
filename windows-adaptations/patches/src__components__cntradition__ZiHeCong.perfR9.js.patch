@@ -1,0 +1,66 @@
+diff --git a/astrostudyui/src/components/cntradition/ZiHeCong.js b/astrostudyui/src/components/cntradition/ZiHeCong.js
+index 7fa9e99..8b55f70 100644
+--- a/astrostudyui/src/components/cntradition/ZiHeCong.js
++++ b/astrostudyui/src/components/cntradition/ZiHeCong.js
+@@ -1,8 +1,10 @@
+ import { Component } from 'react';
+ import { Row, Col } from 'antd';
+ import { XQCard as Card } from '../xq-ui';
+-import { randomStr } from '../../utils/helper';
+ import styles from '../../css/styles.less';
++// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
++// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
++// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ 
+ function relationItemText(item){
+ 	if(!item){
+@@ -35,15 +37,16 @@ class ZiHeCong extends Component{
+ 			}
+ 			let spans = ary.map((item, idx)=>{
+ 				return (
+-					<span key={randomStr(8)}>{relationItemText(item)}&emsp;</span>
++					<span key={idx}>{relationItemText(item)}&emsp;</span>
+ 				)
+ 			});
++			// 尾部箭头段唯一,且字面量键不会与前面的数字下标键相撞。
+ 			let spanhe = (
+-				<span key={randomStr(8)}>&rarr;&emsp;{key}</span>
++				<span key="he">&rarr;&emsp;{key}</span>
+ 			);
+ 			spans.push(spanhe);
+ 			let row = (
+-				<Row key={randomStr(8)}>
++				<Row key={key}>
+ 					<Col offset={1} span={23}>
+ 						{spans}
+ 					</Col>
+@@ -64,11 +67,11 @@ class ZiHeCong extends Component{
+ 			if(!Array.isArray(ary) || ary.length < 2){
+ 				continue;
+ 			}
+-			let gan0 = (<span key={randomStr(8)}>{relationItemText(ary[0])}&emsp;</span>);
+-			let gan1 = (<span key={randomStr(8)}>{relationItemText(ary[1])}&emsp;</span>);
+-			let cong = (<span key={randomStr(8)}>冲</span>);
++			let gan0 = (<span key="gan0">{relationItemText(ary[0])}&emsp;</span>);
++			let gan1 = (<span key="gan1">{relationItemText(ary[1])}&emsp;</span>);
++			let cong = (<span key="cong">冲</span>);
+ 			let row = (
+-				<Row key={randomStr(8)}>
++				<Row key={key}>
+ 					<Col offset={1} span={23}>
+ 						{gan0} 
+ 						{cong} 
+@@ -93,11 +96,11 @@ class ZiHeCong extends Component{
+ 			}
+ 			let spans = ary.map((item, idx)=>{
+ 				return (
+-					<span key={randomStr(8)}>{relationItemText(item)}&emsp;</span>
++					<span key={idx}>{relationItemText(item)}&emsp;</span>
+ 				)
+ 			});
+ 			let row = (
+-				<Row key={randomStr(8)}>
++				<Row key={key}>
+ 					<Col offset={1} span={23}>
+ 						{spans}
+ 					</Col>

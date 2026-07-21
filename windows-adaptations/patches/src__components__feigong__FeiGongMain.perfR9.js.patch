@@ -1,0 +1,209 @@
+diff --git a/astrostudyui/src/components/feigong/FeiGongMain.js b/astrostudyui/src/components/feigong/FeiGongMain.js
+index cc675e7..c8277b4 100644
+--- a/astrostudyui/src/components/feigong/FeiGongMain.js
++++ b/astrostudyui/src/components/feigong/FeiGongMain.js
+@@ -16,6 +16,9 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
+ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
+ import { sideSectionIcon } from '../../constants/sideSectionIcons';
+ import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
++import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const TabPane = Tabs.TabPane;
+ const STORE_KEY = 'horosa.feigong.settings.v1';
+@@ -141,6 +144,21 @@ class FeiGongMain extends Component {
+ 		this.onTimeChanged = this.onTimeChanged.bind(this);
+ 		this.changeGeo = this.changeGeo.bind(this);
+ 	}
++	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
++	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
++	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
++	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
++	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
++	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
++	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
++	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){
++			return true;
++		}
++		return !wrapperPropsEqual(this.props, nextProps);
++	}
++
+ 	componentDidMount(){
+ 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
+ 		if(typeof window !== 'undefined'){
+@@ -244,7 +262,8 @@ class FeiGongMain extends Component {
+ 		const dayZhi = inputs.useDayGZ ? c.dayZhi : inputs.dayZhi;
+ 		const ju = buildJu({ zhi: qz, dayGan, dayZhi });
+ 		if(!ju){ return this.setState({ error: '起支非法,不可定局', ju: null }); }
+-		this.setState({ ju, error: '' }, ()=>this.saveSnap());
++		// horosa_panel_ready_v1:ju 落定 = 飞宫盘(中栏)与断语(右栏)画完的那一次 setState。
++		this.setState({ ju, error: '' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });
+ 	}
+ 	setSettings(patch){
+ 		const settings = { ...this.state.settings, ...patch };
+@@ -444,82 +463,97 @@ class FeiGongMain extends Component {
+ 		);
+ 		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
+ 		return (
+-			<Tabs size="small" className="horosa-fg-aux horosa-cnx-aux">
++			// horosa_freeze_subtabs_v1:右栏辅目冻结。原为非受控 Tabs → 改受控
++			// (activeKey 取 state.auxTab,缺省即原首目;onChange 记进 state),切页行为逐字不变,
++			// 只是让 FreezeSubTab 拿得到 active。冻结≠卸载,切回即拿最新 children 立刻重画。
++			<Tabs size="small" className="horosa-fg-aux horosa-cnx-aux"
++				activeKey={this.state.auxTab || 'zhuke'}
++				onChange={(k)=>this.setState({ auxTab: k })}>
+ 				<TabPane tab="主客" key="zhuke">
+-					{!ju ? wait('左栏择起支后「定局」,此处显示主客落宫。') : zk && (zk.zhuGong != null || zk.keGong != null) ? (
+-						<>
+-							{row('主(日干)', zk.zhuGong != null ? `${ju.dayGan} 落 ${zk.zhuGong} 宫(${GONG_GUA[zk.zhuGong] || '中'})` : '未录日干')}
+-							{row('客(日支)', zk.keGong != null ? `${ju.dayZhi} 落 ${zk.keGong} 宫(${GONG_GUA[zk.keGong] || '中'})` : '未录日支')}
+-							<div style={{ marginTop: 8, fontSize: 12, opacity: 0.8, whiteSpace: 'pre-wrap' }}>{zk.text}</div>
+-						</>
+-					) : <div style={{ opacity: 0.75 }}>未录日干支,主客不定(左栏「日干支」随盘或手动)。</div>}
++					<FreezeSubTab active={(this.state.auxTab || 'zhuke') === 'zhuke'}>{() => (<>
++						{!ju ? wait('左栏择起支后「定局」,此处显示主客落宫。') : zk && (zk.zhuGong != null || zk.keGong != null) ? (
++							<>
++								{row('主(日干)', zk.zhuGong != null ? `${ju.dayGan} 落 ${zk.zhuGong} 宫(${GONG_GUA[zk.zhuGong] || '中'})` : '未录日干')}
++								{row('客(日支)', zk.keGong != null ? `${ju.dayZhi} 落 ${zk.keGong} 宫(${GONG_GUA[zk.keGong] || '中'})` : '未录日支')}
++								<div style={{ marginTop: 8, fontSize: 12, opacity: 0.8, whiteSpace: 'pre-wrap' }}>{zk.text}</div>
++							</>
++						) : <div style={{ opacity: 0.75 }}>未录日干支,主客不定(左栏「日干支」随盘或手动)。</div>}
++					</>)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="宫面" key="gongmian">
+-					{!ju ? wait('定局后逐宫显示门/干/十二支落宫。') : FANG_WEI_RING.map((g, i)=>{
+-						const gd = gongDuan(ju, g);
+-						if(!gd){ return null; }
+-						return row(`${g} ${gd.gua}宫`, `门${gd.men || '—'} 干${(gd.gan || []).join('') || '—'} | ${gd.zhis.map((z)=>`${z.zhi}·${z.shen}·${z.xing}`).join(' ')}`, i);
+-					})}
++					<FreezeSubTab active={(this.state.auxTab || 'zhuke') === 'gongmian'}>{() => (<>
++						{!ju ? wait('定局后逐宫显示门/干/十二支落宫。') : FANG_WEI_RING.map((g, i)=>{
++							const gd = gongDuan(ju, g);
++							if(!gd){ return null; }
++							return row(`${g} ${gd.gua}宫`, `门${gd.men || '—'} 干${(gd.gan || []).join('') || '—'} | ${gd.zhis.map((z)=>`${z.zhi}·${z.shen}·${z.xing}`).join(' ')}`, i);
++						})}
++					</>)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="命宫·运气" key="minggong">
+-					{mg ? (
+-						<>
+-							{mg.gong != null ? row('命宫', `${mg.gong}(${GONG_GUA[mg.gong] || '中'}) · 调整数 ${mg.adjusted}${mg.zhiWu && mg.via ? ` · 值五宫看${mg.via.join('转')}` : ''}`) : row('命宫', '不可定宫')}
+-							{(mg.flags || []).map((f, i)=>row('注', f, i))}
+-						</>
+-					) : <div style={{ opacity: 0.75 }}>左栏录年龄性别即定命宫(十位减三加减法,五宫看干)。</div>}
+-					{/* [3B] 流年:从日支起,男顺女逆,一支一岁 */}
+-					{ju && ju.dayZhi ? (()=>{
+-						const ln = liuNian({ dayZhi: ju.dayZhi, gender: inputs.mingGender, maxAge: 12, ju });
+-						return (
+-							<div style={{ marginTop: 10 }}>
+-								<div style={{ fontSize: 12, fontWeight: 600, color: 'var(--horosa-huangji-accent, #c68f40)', margin: '4px 0 5px' }}>流年<span style={{ fontWeight: 400, opacity: 0.7 }}>（从日支{ju.dayZhi}起·{inputs.mingGender === 'female' ? '女逆' : '男顺'}·一支一岁）</span></div>
+-								<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px,1fr))', gap: 5, fontSize: 11.5 }}>
+-									{ln.map((y)=>(
+-										<div key={y.age} style={{ border: '1px solid var(--horosa-huangji-line, rgba(198,143,64,0.2))', borderRadius: 6, padding: '3px 6px', lineHeight: 1.4 }}>
+-											<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{y.age}岁</b> {y.zhi}<span style={{ opacity: 0.6 }}>·{y.gong}宫</span><br/>
+-											<span style={{ opacity: 0.85 }}>{y.shen}·{y.xing}·{y.men}门</span>
+-										</div>
+-									))}
++					<FreezeSubTab active={(this.state.auxTab || 'zhuke') === 'minggong'}>{() => (<>
++						{mg ? (
++							<>
++								{mg.gong != null ? row('命宫', `${mg.gong}(${GONG_GUA[mg.gong] || '中'}) · 调整数 ${mg.adjusted}${mg.zhiWu && mg.via ? ` · 值五宫看${mg.via.join('转')}` : ''}`) : row('命宫', '不可定宫')}
++								{(mg.flags || []).map((f, i)=>row('注', f, i))}
++							</>
++						) : <div style={{ opacity: 0.75 }}>左栏录年龄性别即定命宫(十位减三加减法,五宫看干)。</div>}
++						{/* [3B] 流年:从日支起,男顺女逆,一支一岁 */}
++						{ju && ju.dayZhi ? (()=>{
++							const ln = liuNian({ dayZhi: ju.dayZhi, gender: inputs.mingGender, maxAge: 12, ju });
++							return (
++								<div style={{ marginTop: 10 }}>
++									<div style={{ fontSize: 12, fontWeight: 600, color: 'var(--horosa-huangji-accent, #c68f40)', margin: '4px 0 5px' }}>流年<span style={{ fontWeight: 400, opacity: 0.7 }}>（从日支{ju.dayZhi}起·{inputs.mingGender === 'female' ? '女逆' : '男顺'}·一支一岁）</span></div>
++									<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px,1fr))', gap: 5, fontSize: 11.5 }}>
++										{ln.map((y)=>(
++											<div key={y.age} style={{ border: '1px solid var(--horosa-huangji-line, rgba(198,143,64,0.2))', borderRadius: 6, padding: '3px 6px', lineHeight: 1.4 }}>
++												<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{y.age}岁</b> {y.zhi}<span style={{ opacity: 0.6 }}>·{y.gong}宫</span><br/>
++												<span style={{ opacity: 0.85 }}>{y.shen}·{y.xing}·{y.men}门</span>
++											</div>
++										))}
++									</div>
+ 								</div>
+-							</div>
+-						);
+-					})() : null}
+-					{/* [3C] 流月:月建定月位,与命宫比较生克 */}
+-					{ju ? (()=>{
+-						const MO = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+-						const m = inputs.liuYueMonth || 1;
+-						const ly = liuYue({ ju, monthNum: m });
+-						const rel = (ly && mg && mg.gong != null) ? shengKeRel(wuXingOf(ly.zhi), wuXingOf(GONG_GUA[mg.gong])) : null;
+-						// [X1·P2-25] 推断四损益接线:吉星生我大吉/克我小吉、凶星生我小凶/克我大凶(以流月原神吉凶档论)。
+-						const sunyi = rel ? xingShenSunYi(YUAN_SHEN_JI_XIONG[ly.shen], rel) : null;
+-						return (
+-							<div style={{ marginTop: 10 }}>
+-								<div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 5px' }}>
+-									<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--horosa-huangji-accent, #c68f40)' }}>流月</span>
+-									<Select size="small" style={{ width: 92 }} value={m} onChange={(v)=>this.setState({ inputs: { ...inputs, liuYueMonth: v } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}
+-										options={MO.map((lab, i)=>({ value: i + 1, label: `${lab}月` }))}/>
++							);
++						})() : null}
++						{/* [3C] 流月:月建定月位,与命宫比较生克 */}
++						{ju ? (()=>{
++							const MO = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
++							const m = inputs.liuYueMonth || 1;
++							const ly = liuYue({ ju, monthNum: m });
++							const rel = (ly && mg && mg.gong != null) ? shengKeRel(wuXingOf(ly.zhi), wuXingOf(GONG_GUA[mg.gong])) : null;
++							// [X1·P2-25] 推断四损益接线:吉星生我大吉/克我小吉、凶星生我小凶/克我大凶(以流月原神吉凶档论)。
++							const sunyi = rel ? xingShenSunYi(YUAN_SHEN_JI_XIONG[ly.shen], rel) : null;
++							return (
++								<div style={{ marginTop: 10 }}>
++									<div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 5px' }}>
++										<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--horosa-huangji-accent, #c68f40)' }}>流月</span>
++										<Select size="small" style={{ width: 92 }} value={m} onChange={(v)=>this.setState({ inputs: { ...inputs, liuYueMonth: v } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}
++											options={MO.map((lab, i)=>({ value: i + 1, label: `${lab}月` }))}/>
++									</div>
++									{ly ? row(`${MO[m - 1]}月·建${ly.zhi}`, `${ly.gong}宫 · ${ly.shen}·${ly.xing}·${ly.men}门${rel ? ` · 月对命宫:${rel}${sunyi ? `(${sunyi})` : ''}` : ''}`) : null}
+ 								</div>
+-								{ly ? row(`${MO[m - 1]}月·建${ly.zhi}`, `${ly.gong}宫 · ${ly.shen}·${ly.xing}·${ly.men}门${rel ? ` · 月对命宫:${rel}${sunyi ? `(${sunyi})` : ''}` : ''}`) : null}
+-							</div>
+-						);
+-					})() : null}
++							);
++						})() : null}
++					</>)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="断语·应期" key="duan">
+-					{!ju ? wait('定局后显示日支原神/天星、主客门、应期、事项。') : null}
+-					{/* [3E] 事项路由:据问事高亮当看之原神/天星 */}
+-					{ju && inputs.askEvent ? (()=>{ const sx = shiXiangKey(inputs.askEvent, this.state.settings); return sx ? (
+-						<div style={{ padding: '4px 9px', marginBottom: 6, borderRadius: 6, background: 'var(--horosa-huangji-accent-soft, rgba(198,143,64,0.12))', fontSize: 12 }}>事项：<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{sx.hint}</b>{sx.shen ? `（重点看原神 ${sx.shen}）` : ''}{sx.xing ? `（重点看天星 ${sx.xing}）` : ''}</div>
+-					) : null; })() : null}
+-					{ju && ju.dayZhi ? row(`日支${ju.dayZhi}`, `${ju.yuanShen[ju.dayZhi]}(${YUAN_SHEN_JI_XIONG[ju.yuanShen[ju.dayZhi]] || ''}):${(shenDuan(ju.yuanShen[ju.dayZhi])||{}).text || ''}`) : null}
+-					{ju && ju.dayZhi ? (()=>{ const xd = xingDuan(ju.tianXing[ju.dayZhi], this.state.settings.heKuiKoujing) || {}; return row('天星', `${ju.tianXing[ju.dayZhi]}${xd.alias ? `·${xd.alias}` : ''}:${xd.text || ''}`); })() : null}
+-					{zk && zk.zhuGong != null ? (()=>{ const gd = gongDuan(ju, zk.zhuGong); return gd && gd.men ? row(`主宫${zk.zhuGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
+-					{zk && zk.keGong != null ? (()=>{ const gd = gongDuan(ju, zk.keGong); return gd && gd.men ? row(`客宫${zk.keGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
+-					{/* [3D] 应期:中宫定时/驿马/冲 + 日支冲合 */}
+-					{ju ? (()=>{ const yq = yingQi(ju); return yq ? row('应期', `中宫${yq.zhongGong.join('')} → ${yq.shi}${yq.yiMa ? '(驿马·动)' : yq.dingShi ? '(定时·合)' : ''};${yq.note}`) : null; })() : null}
++					<FreezeSubTab active={(this.state.auxTab || 'zhuke') === 'duan'}>{() => (<>
++						{!ju ? wait('定局后显示日支原神/天星、主客门、应期、事项。') : null}
++						{/* [3E] 事项路由:据问事高亮当看之原神/天星 */}
++						{ju && inputs.askEvent ? (()=>{ const sx = shiXiangKey(inputs.askEvent, this.state.settings); return sx ? (
++							<div style={{ padding: '4px 9px', marginBottom: 6, borderRadius: 6, background: 'var(--horosa-huangji-accent-soft, rgba(198,143,64,0.12))', fontSize: 12 }}>事项：<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{sx.hint}</b>{sx.shen ? `（重点看原神 ${sx.shen}）` : ''}{sx.xing ? `（重点看天星 ${sx.xing}）` : ''}</div>
++						) : null; })() : null}
++						{ju && ju.dayZhi ? row(`日支${ju.dayZhi}`, `${ju.yuanShen[ju.dayZhi]}(${YUAN_SHEN_JI_XIONG[ju.yuanShen[ju.dayZhi]] || ''}):${(shenDuan(ju.yuanShen[ju.dayZhi])||{}).text || ''}`) : null}
++						{ju && ju.dayZhi ? (()=>{ const xd = xingDuan(ju.tianXing[ju.dayZhi], this.state.settings.heKuiKoujing) || {}; return row('天星', `${ju.tianXing[ju.dayZhi]}${xd.alias ? `·${xd.alias}` : ''}:${xd.text || ''}`); })() : null}
++						{zk && zk.zhuGong != null ? (()=>{ const gd = gongDuan(ju, zk.zhuGong); return gd && gd.men ? row(`主宫${zk.zhuGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
++						{zk && zk.keGong != null ? (()=>{ const gd = gongDuan(ju, zk.keGong); return gd && gd.men ? row(`客宫${zk.keGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
++						{/* [3D] 应期:中宫定时/驿马/冲 + 日支冲合 */}
++						{ju ? (()=>{ const yq = yingQi(ju); return yq ? row('应期', `中宫${yq.zhongGong.join('')} → ${yq.shi}${yq.yiMa ? '(驿马·动)' : yq.dingShi ? '(定时·合)' : ''};${yq.note}`) : null; })() : null}
++					</>)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="推断" key="tuiduan">
+-					{TUI_DUAN.map((t, i)=>row(`第${i + 1}条`, t, i))}
++					<FreezeSubTab active={(this.state.auxTab || 'zhuke') === 'tuiduan'}>{() => (<>
++						{TUI_DUAN.map((t, i)=>row(`第${i + 1}条`, t, i))}
++					</>)}</FreezeSubTab>
+ 				</TabPane>
+ 			</Tabs>
+ 		);

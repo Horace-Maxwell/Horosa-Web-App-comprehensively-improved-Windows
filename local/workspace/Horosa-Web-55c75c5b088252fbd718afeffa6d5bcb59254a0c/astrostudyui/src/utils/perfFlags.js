@@ -8,7 +8,10 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.chartDrawGuard', '0') // 图面重绘签名守卫
 //   safeLocalStorageSet('horosa.perf.chartSCU', '0')       // 盘面重组件 shouldComponentUpdate
 //   safeLocalStorageSet('horosa.perf.hookRaf', '0')        // 排盘 hook rAF 化
-//   safeLocalStorageSet('horosa.perf.freezeInactiveTabs','0')// 冻结非激活 TabPane 重渲
+//   safeLocalStorageSet('horosa.perf.freezeInactiveTabs','0')// 冻结非激活 TabPane 重渲(顶层技法页签)
+//   safeLocalStorageSet('horosa.perf.freezeSubTabs','0')   // 冻结非激活【子页签】重渲(FreezeSubTab)
+//   safeLocalStorageSet('horosa.perf.subTabDeferMount','0')// 子页签「从未激活过则延迟首次渲染」
+//   safeLocalStorageSet('horosa.perf.cityDbIdlePreload','0')// 城市大库 chunk(3.85MB)空闲预载
 //   safeLocalStorageSet('horosa.perf.requestDedupe', '0')  // 计算请求 去重+短TTL缓存
 //   safeLocalStorageSet('horosa.perf.techniqueCache', '0') // L2 技法结果缓存(10min,来回拨参数≈0)
 //   safeLocalStorageSet('horosa.perf.idleWarmQueue', '0')  // 就绪后空闲预热队列(chunk/引擎/数据)
@@ -61,6 +64,24 @@ export function hookRafEnabled(){
 
 export function freezeInactiveTabsEnabled(){
 	return flagEnabled('horosa.perf.freezeInactiveTabs');
+}
+
+// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):子页签冻结总闸。
+// 关掉 → FreezeSubTab 的 sCU 恒真且不再延迟首渲,回到「技法内所有子面板每次父重渲都跟着重渲」的旧行为。
+export function freezeSubTabsEnabled(){
+	return flagEnabled('horosa.perf.freezeSubTabs');
+}
+
+// horosa_freeze_subtabs_v1 细闸:只管「从未激活过的子页签延迟到首次激活才渲染」。
+// 关掉 → 子面板一开始就渲一次(冻结仍生效),用于排查「某面板必须挂载才注册副作用」类问题。
+export function subTabDeferMountEnabled(){
+	return flagEnabled('horosa.perf.subTabDeferMount');
+}
+
+// horosa_city_db_idle_preload_v1(PERF-R9 Ship 6):3.85MB 城市大库 chunk 进空闲预载队列。
+// 关掉 → 回到「打开经纬度选择器时才现场下载+解析」的旧行为(取数与匹配逻辑两态完全一致)。
+export function cityDbIdlePreloadEnabled(){
+	return flagEnabled('horosa.perf.cityDbIdlePreload');
 }
 
 export function requestDedupeEnabled(){

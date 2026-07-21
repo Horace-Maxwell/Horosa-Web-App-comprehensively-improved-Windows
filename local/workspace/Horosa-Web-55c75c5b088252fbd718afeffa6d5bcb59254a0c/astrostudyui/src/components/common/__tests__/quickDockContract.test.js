@@ -182,6 +182,16 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
 		const container = read(path.join(COMPONENTS_DIR, 'cnyibu/CnYiBuMain.js'));
 		expect(container).toContain('getQuickDockConfig');
 		expect(container).not.toContain('runChildAction');
-		expect(container.includes("tab === 'suzhan'")).toBe(false);
+		// 「容器零硬编码分支」守的是:容器不得按子页 if/else 拼快捷栏配置(那会让新增子页
+		// 必须同时改容器,正是本契约要根除的耦合)。原判据用 `tab === 'suzhan'` 这个**字符串代理**
+		// 来表达它。PERF-R9 Ship 6 之后该代理会误伤:子页签冻结的可见性判定天然就是
+		// `<FreezeSubTab active={tab === 'xxx'}>`,那与快捷栏无关(它决定"哪个子页可见",
+		// 不决定"快捷栏放什么")。
+		// 因此这里**只剥掉 FreezeSubTab 的 active 判定**再查 —— 守卫对任何**其它**形式的
+		// 按子页硬编码分支仍然完全有效(已复核:容器内 14 处 `tab ===` 全部是 active 判定,
+		// runChildAction 为 0,配置仍由子页自述)。
+		// ⚠️ 不要把这条断言整条删掉:它是"新增子页不必改容器"这一架构性质的唯一自动守卫。
+		const dockRelevant = container.replace(/active=\{\s*tab === '[A-Za-z0-9_]+'\s*\}/g, '');
+		expect(dockRelevant.includes("tab === 'suzhan'")).toBe(false);
 	});
 });

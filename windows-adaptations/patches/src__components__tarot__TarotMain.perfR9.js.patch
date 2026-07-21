@@ -1,0 +1,94 @@
+diff --git a/astrostudyui/src/components/tarot/TarotMain.js b/astrostudyui/src/components/tarot/TarotMain.js
+index 2c16241..4de5536 100644
+--- a/astrostudyui/src/components/tarot/TarotMain.js
++++ b/astrostudyui/src/components/tarot/TarotMain.js
+@@ -17,6 +17,9 @@ import { kingScaleColor } from './engine/colorScales';
+ import { cardImageUrl, deckHasRealArt, deckArtIsMajorsOnly } from './engine/cardArt';
+ import { SIGN_CN, SUIT_CN, COURT_CN, COURT_ORDER, SUITS } from './decks/correspondences';
+ import { PUBLIC_DOMAIN_ATTRIBUTION } from './decks/meanings78';
++import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ 
+ const { TabPane } = Tabs;
+ const { Option, OptGroup } = Select;
+@@ -156,6 +159,21 @@ class TarotMain extends Component{
+ 		if(this.props.hook){ this.props.hook.fun = () => { if(!this.unmounted){ this.restoreFromCurrentCase(); } }; }
+ 	}
+ 
++	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
++	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
++	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
++	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
++	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
++	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
++	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
++	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
++	shouldComponentUpdate(nextProps, nextState){
++		if(nextState !== this.state){
++			return true;
++		}
++		return !wrapperPropsEqual(this.props, nextProps);
++	}
++
+ 	componentDidMount(){
+ 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
+ 		this.unmounted = false;
+@@ -187,6 +205,8 @@ class TarotMain extends Component{
+ 		if(seed === undefined || seed === null || seed === ''){ return; }
+ 		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
+ 		this.setState({ reading, lastSeed: `${seed}` }, () => {
++			// horosa_panel_ready_v1:reading 落定 = 牌阵(中栏)与释义(右栏)画完的那一次 setState。
++			markPanelReady('cnyibu');
+ 			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
+ 		});
+ 	}
+@@ -551,7 +571,9 @@ class TarotMain extends Component{
+ 		const summary = reading && reading.summary;
+ 		return (
+ 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-content-tabs horosa-tarot-tabs">
++				{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
+ 				<TabPane tab="总览" key="overview">
++					<FreezeSubTab active={activeKey === 'overview'}>{() => (
+ 					<div className="horosa-tarot-reading">
+ 						{this.state.question ? <div className="horosa-info-card"><div className="horosa-info-card-title">所问</div><div>{this.state.question}</div></div> : null}
+ 						{draws.length ? (
+@@ -567,8 +589,10 @@ class TarotMain extends Component{
+ 							</div>
+ 						) : <div className="horosa-tarot-empty">尚未抽牌</div>}
+ 					</div>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="牌位" key="positions">
++					<FreezeSubTab active={activeKey === 'positions'}>{() => (
+ 					<table className="horosa-tarot-table">
+ 						<thead><tr><th>位置</th><th>牌</th><th>正逆</th><th>含义</th></tr></thead>
+ 						<tbody>{draws.map((d) => (
+@@ -580,8 +604,10 @@ class TarotMain extends Component{
+ 							</tr>
+ 						))}</tbody>
+ 					</table>
++					)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="牌义" key="meanings">
++					<FreezeSubTab active={activeKey === 'meanings'}>{() => (
+ 					<table className="horosa-tarot-table">
+ 						<thead><tr><th>牌</th>{caps.reversals !== false ? <th>正逆</th> : null}{isTarot ? <th>对应</th> : null}{caps.dignities ? <th>尊位</th> : null}<th>关键义</th></tr></thead>
+ 						<tbody>{draws.map((d) => {
+@@ -597,11 +623,12 @@ class TarotMain extends Component{
+ 							);
+ 						})}</tbody>
+ 					</table>
++					)}</FreezeSubTab>
+ 				</TabPane>
+-				<TabPane tab="综合" key="synthesis">{this.renderSynthesis(summary)}</TabPane>
+-				{caps.readingMethod === 'lenormand' ? <TabPane tab="组合读法" key="lenormand">{this.renderLenormand(reading)}</TabPane> : null}
+-				{caps.readingMethod !== 'lenormand' ? <TabPane tab="定局" key="verdict">{this.renderVerdict(reading)}</TabPane> : null}
+-				{isTarot ? <TabPane tab="生命牌" key="birthcards">{this.renderBirthCards()}</TabPane> : null}
++				<TabPane tab="综合" key="synthesis"><FreezeSubTab active={activeKey === 'synthesis'}>{() => this.renderSynthesis(summary)}</FreezeSubTab></TabPane>
++				{caps.readingMethod === 'lenormand' ? <TabPane tab="组合读法" key="lenormand"><FreezeSubTab active={activeKey === 'lenormand'}>{() => this.renderLenormand(reading)}</FreezeSubTab></TabPane> : null}
++				{caps.readingMethod !== 'lenormand' ? <TabPane tab="定局" key="verdict"><FreezeSubTab active={activeKey === 'verdict'}>{() => this.renderVerdict(reading)}</FreezeSubTab></TabPane> : null}
++				{isTarot ? <TabPane tab="生命牌" key="birthcards"><FreezeSubTab active={activeKey === 'birthcards'}>{() => this.renderBirthCards()}</FreezeSubTab></TabPane> : null}
+ 			</Tabs>
+ 		);
+ 	}

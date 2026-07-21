@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
+import { chartSCUEnabled } from '../../utils/perfFlags';
 
 const GAN_HE = [
 	['甲', '己', '土'], ['乙', '庚', '金'], ['丙', '辛', '水'], ['丁', '壬', '木'], ['戊', '癸', '火'],
@@ -348,6 +349,25 @@ function layoutRelations(rels){
 }
 
 class BaZiFineChart extends Component{
+	// horosa_bazi_finechart_scu_v1（PERF-R9 Ship 6·八字族）：中栏四柱板无 state，输出**只**由下列
+	// 六个 props 决定（本文件全文的 this.props.* 恰为这六个：value / mode / flowSelection /
+	// showRelations / cangVersion / onlyZiGanShen —— 另有一个 fields 是传进来但从不读的）。
+	// 六者引用/值全同 ⇒ 输出逐字节相同，跳过这次重渲；任一不同即返 true 照渲（宁可多渲不可漏渲）。
+	// 收益：宿主 BaZi 因「只影响别处的 baziOpt/chartStyle/directLoading」重渲时，本板不再重跑
+	// buildColumns + 干支刑冲合害配对 + 关系分道布局。
+	// kill-switch 沿用既有 horosa.perf.chartSCU（置 '0' → 恒重渲的旧行为）。
+	shouldComponentUpdate(nextProps){
+		if(!chartSCUEnabled()){
+			return true;
+		}
+		return nextProps.value !== this.props.value
+			|| nextProps.mode !== this.props.mode
+			|| nextProps.flowSelection !== this.props.flowSelection
+			|| nextProps.showRelations !== this.props.showRelations
+			|| nextProps.cangVersion !== this.props.cangVersion
+			|| nextProps.onlyZiGanShen !== this.props.onlyZiGanShen;
+	}
+
 	hasDirection(rec){
 		return !!(rec && Array.isArray(rec.direction) && rec.direction.length);
 	}

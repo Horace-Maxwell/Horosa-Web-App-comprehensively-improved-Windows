@@ -1,0 +1,22 @@
+diff --git a/astrostudyui/src/components/astro/AstroExtraReturns.js b/astrostudyui/src/components/astro/AstroExtraReturns.js
+index d3488b4..2d77e07 100644
+--- a/astrostudyui/src/components/astro/AstroExtraReturns.js
++++ b/astrostudyui/src/components/astro/AstroExtraReturns.js
+@@ -14,6 +14,7 @@ const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentL
+ const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
+ import * as AstroConst from '../../constants/AstroConst';
+ import styles from '../../css/styles.less';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const Option = Select.Option;
+ const BODIES = [
+@@ -111,7 +112,8 @@ class AstroExtraReturns extends Component{
+ 		this.setState({ loading: true });
+ 		const r = await fetchReturns(this.props.value, this.state.body, this.state.count);
+ 		if(!this._mounted) return;
+-		this.setState({ data: r, loading: false, requestKey: key });
++		// horosa_panel_ready_v1:多重回归表(本技法唯一可见内容)落定的那一次 setState。
++		this.setState({ data: r, loading: false, requestKey: key }, ()=>{ markPanelReady('direction'); });
+ 	}
+ 
+ 	changeBody(v){ this.setState({ body: v, requestKey: '' }, this.load); }

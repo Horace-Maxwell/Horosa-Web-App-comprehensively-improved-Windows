@@ -1,0 +1,229 @@
+diff --git a/astrostudyui/src/components/fengshui/FengShuiMain.js b/astrostudyui/src/components/fengshui/FengShuiMain.js
+index b432d2e..a645110 100644
+--- a/astrostudyui/src/components/fengshui/FengShuiMain.js
++++ b/astrostudyui/src/components/fengshui/FengShuiMain.js
+@@ -3,9 +3,38 @@ import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
+ import { XQButton, XQToggle, XQSegmented, XQSelect, XQTabs } from '../xq-ui';
+ import FengShuiEngine, { MARKER_TYPES, BAGUA_MARKER_TYPES, DISK_SKINS } from './fengshuiEngine';
+ import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
+ import LiqiWorkspace, { SCHOOL_CN } from './LiqiWorkspace';
+ 
+ const { TabPane } = XQTabs;
++
++// horosa_panel_scu_v1:风水页【零消费】props.fields / chartObj(见 constructor 的 chartFree
++// 契约注释:全页走本地 fengshuiEngine / LiqiWorkspace)。但父链每次 dva dispatch 都会把这个
++// 600+ 行的组件连同画布工具栏、左栏面板、判定/卦象长列表整体重渲一遍。下面的 sCU 只放行
++// 「自身 state 变了」或「除 fields 外的 props 变了」。
++// 🔴 若日后本页开始在 render 里读 props.fields,必须把它从排除表里拿掉(否则改时间不更新)。
++const FS_IGNORED_PROPS = { fields: 1, fieldsAry: 1 };
++function fsShouldUpdate(prevProps, nextProps, prevState, nextState) {
++	const pk = Object.keys(prevProps);
++	const nk = Object.keys(nextProps);
++	if (pk.length !== nk.length) { return true; }
++	for (let i = 0; i < nk.length; i++) {
++		const k = nk[i];
++		if (FS_IGNORED_PROPS[k]) { continue; }
++		if (prevProps[k] !== nextProps[k]) { return true; }
++	}
++	// state 逐键引用比较。vm 每次都是 engine.getViewModel() 新建的对象字面量(无就地变异),
++	// controlTab/workspaceTab/school 是字符串 → 引用比较即可,不会漏更新。
++	const ps = Object.keys(prevState || {});
++	const ns = Object.keys(nextState || {});
++	if (ps.length !== ns.length) { return true; }
++	for (let i = 0; i < ns.length; i++) {
++		const k = ns[i];
++		if (!prevState || prevState[k] !== nextState[k]) { return true; }
++	}
++	return false;
++}
+ const { Option } = XQSelect;
+ const { Panel } = Collapse;
+ 
+@@ -101,11 +130,33 @@ class FengShuiMain extends Component {
+ 		this.state = { vm: null, controlTab: 'base', workspaceTab: 'canvas', school: 'naqi' };
+ 		this.canvasRef = createRef();
+ 		this.fileInputRef = createRef();
++		this.rootRef = createRef();   // horosa_panel_ready_v1:endSpan 的「本页当前可见吗」判据
+ 		this.engine = null;
+ 		this.resizeObserver = null;
+ 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
+ 		this.handleKeyDown = this.handleKeyDown.bind(this);
+ 		this.onVm = this.onVm.bind(this);
++		this.beginSpan = this.beginSpan.bind(this);
++		this.onRootPointerDown = this.onRootPointerDown.bind(this);
++		this.onControlTab = this.onControlTab.bind(this);
++		this.onWorkspaceTab = this.onWorkspaceTab.bind(this);
++		// horosa_panel_ready_v1:本页的交互计时【只由本页自己开启、也只由本页自己收尾】。
++		// 本组件是 keep-alive 常驻挂载的:用户切到别的技法后,ResizeObserver / 图片 onload
++		// 仍会 emit vm。若无条件收尾,会把别的技法正在计时的那次交互记成风水的 —— 观测被污染。
++		this._spanOpen = false;
++
++		if(this.props.hook){
++			// horosa_chart_free_declared_v1(PERF-R9 Ship 7 接线)—— 本行是本文件的 Windows overlay
++			// 改动标记:下面这条 `hook.chartFree = true` 声明 + utils/techniqueChartFree.js 的同名
++			// 登记,两者缺一即哨兵/契约测试红。Mac 同步冲掉它 = 风水页退回「等一次 /chart」。
++			// 🔴 chartFree 契约(PERF-R9 Ship 7 接线):风水页【零】消费共享 chartObj —— 全页
++			// 走本地 fengshuiEngine / LiqiWorkspace,只吃 fields。此前本页连 hook 都没接,
++			// 于是「无从声明」;现在接上 hook 只为承载这条声明(不注册 .fun ——本页不需要
++			// 命令式刷新,fields 从 props 直达)。声明后 fetchByFields 对本页走快车道:
++			// fields 立即提交、不等 /chart 网络。
++			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
++			this.props.hook.chartFree = true;
++		}
+ 	}
+ 
+ 	componentDidMount() {
+@@ -135,8 +186,52 @@ class FengShuiMain extends Component {
+ 		if (this.engine) this.engine.destroy();
+ 	}
+ 
++	// horosa_panel_ready_v1:交互起点。挂在本页根节点的 pointerdown 捕获上 —— 本页几乎所有
++	// 控件(快捷条/滑块/调色板/画布)都是「点一下 → 引擎 setXxx → emit(vm) → setState」这条同步链,
++	// 所以「按下」就是 owner 口径里的那个「点击」。
++	beginSpan() {
++		this._spanOpen = true;
++		markInteractionStart('fengshui');
++	}
++
++	// 根节点 pointerdown 捕获。理气派(LiqiWorkspace)自己维护 state、不经 onVm,
++	// 本组件收不到它的「画完」信号 —— 在那些流派下不开计时,免得留一个永不收尾的悬空起点
++	// 把后续某次 vm 记成超长样本。(换流派本身由 onSchoolChange 单独开计时,不受影响。)
++	onRootPointerDown() {
++		if (LIQI_SET.has(this.state.school)) { return; }
++		this.beginSpan();
++	}
++
++	// horosa_panel_ready_v1:终点。只有本页自己开过计时才收尾(见 constructor 的 _spanOpen 注释)。
++	// 🔴 _spanOpen 单独一个闸【不够】:pointerdown 打开的计时若那一下没产生 vm(点在空白处、
++	// 点「上传户型图」后取消对话框…),这个起点就一直挂着;等用户切到别的技法、别处正在计时时,
++	// 本页迟到的一次 emit(图片 onload 等)会把【别人】的 stepT0 消费掉 —— 既污染风水样本,
++	// 又让那个技法自己的 markPanelReady 变成空操作(perfMark 里 stepT0 一次性消费)。
++	// 故再加一道:本页 DOM 当前不可见(顶层页签切走 → 面板 display:none → 零 client rect)时,
++	// 只关闸不记数。
++	endSpan() {
++		if (!this._spanOpen) { return; }
++		this._spanOpen = false;
++		const root = this.rootRef.current;
++		if (root && typeof root.getClientRects === 'function' && root.getClientRects().length === 0) {
++			return;   // 本页已被切走/隐藏,这次 emit 不是用户看得见的「画完」
++		}
++		markPanelReady('fengshui');
++	}
++
++	onControlTab(k) {
++		this.beginSpan();
++		this.setState({ controlTab: k }, ()=> this.endSpan());
++	}
++
++	onWorkspaceTab(k) {
++		this.beginSpan();
++		this.setState({ workspaceTab: k }, ()=> this.endSpan());
++	}
++
+ 	onVm(vm) {
+-		this.setState({ vm });
++		// vm 落定 = 快捷条 + 左栏面板 + 判定/卦象右栏的数据源全部就位（本页渲染纯派生自 vm）。
++		this.setState({ vm }, ()=> this.endSpan());   // horosa_panel_ready_v1
+ 		// 🔴 理气/新派激活时，画布引擎(display:none 仍挂载)因 ResizeObserver 等仍会 emit vm；
+ 		// 不可让其画布快照覆盖 LiqiWorkspace 维护的当前流派快照(否则 AI 导出取到纳气盘而非当前理气派)。
+ 		if (vm && vm.snapshotText && !LIQI_SET.has(this.state.school)) {
+@@ -163,6 +258,11 @@ class FengShuiMain extends Component {
+ 	}
+ 
+ 	onFile(e) {
++		// horosa_panel_ready_v1:选图这条链是【异步且含用户时间】(点按钮 → 系统文件对话框 →
++		// 选中 → 解码 → onload → emit)。按钮上的 pointerdown 早已开了计时,若让 onload 的
++		// emit 去收尾,记下的是「对话框停留时长」这种几十秒的垃圾样本,会直接顶爆风水的 max/p95。
++		// 这里先关闸:上传路径不参与「点击→画完」的测量(它本来也不是 owner 验收口径里的单次操作)。
++		this._spanOpen = false;
+ 		const file = e.target.files && e.target.files[0];
+ 		if (file && this.engine) this.engine.loadImageFile(file);
+ 		e.target.value = '';
+@@ -170,7 +270,8 @@ class FengShuiMain extends Component {
+ 
+ 	// 流派切换：理气派走纯前端 LiqiWorkspace；户型图两法同步引擎 techMode 并重算画布尺寸。
+ 	onSchoolChange(v) {
+-		this.setState({ school: v });
++		this.beginSpan();   // horosa_panel_ready_v1 配对起点(换流派 = 改选项)
++		this.setState({ school: v }, ()=> this.endSpan());
+ 		if (v === 'naqi' || v === 'bagua') {
+ 			if (this.engine) {
+ 				this.engine.setTechMode(v);
+@@ -569,6 +670,11 @@ class FengShuiMain extends Component {
+ 		);
+ 	}
+ 
++	// horosa_panel_scu_v1:见文件头 fsShouldUpdate 注释。
++	shouldComponentUpdate(nextProps, nextState) {
++		return fsShouldUpdate(this.props, nextProps, this.state, nextState);
++	}
++
+ 	render() {
+ 		const vm = this.state.vm || {
+ 			status: '请上传户型图开始。', imgLoaded: false, rectRotation: 0,
+@@ -584,28 +690,42 @@ class FengShuiMain extends Component {
+ 		let height = this.props.height ? this.props.height : '100%';
+ 		if (typeof height === 'number') height = `${height}px`;
+ 		return (
+-			<div className="horosa-fengshui-app" style={{ height }}>
++			<div className="horosa-fengshui-app" style={{ height }} ref={this.rootRef} onPointerDownCapture={this.onRootPointerDown}>
+ 				<input ref={this.fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(ev) => this.onFile(ev)} />
+ 				{this.renderQuickbar(vm)}
+ 				{isLiqi ? <LiqiWorkspace school={this.state.school} /> : null}
+ 				<div className="horosa-fengshui-canvas-body" style={isLiqi ? { display: 'none' } : { display: 'contents' }}>
+ 				<Row gutter={8} className="horosa-fengshui-layout">
+ 					<Col span={6} className="horosa-fengshui-side">
++						{/* horosa_freeze_subtabs_v1:左栏两个控制页签。非激活的那个不再跟着每次
++						    vm 更新重渲(滑块/下拉/调色板整片);切回时拿本轮最新 vm 渲一帧,
++						    DOM 与组件实例全程保留 —— 不重挂、不闪、不丢滚动位。 */}
+ 						{isNaqi ? (
+-							<XQTabs size="small" activeKey={this.state.controlTab} onChange={(k) => this.setState({ controlTab: k })}>
+-								<TabPane tab="基础" key="base">{this.renderNaqiBasePanel(vm)}</TabPane>
+-								<TabPane tab="纳气盘" key="disk">{this.renderDiskPanel(vm)}</TabPane>
++							<XQTabs size="small" activeKey={this.state.controlTab} onChange={this.onControlTab}>
++								<TabPane tab="基础" key="base">
++									<FreezeSubTab active={this.state.controlTab === 'base'}>{()=> this.renderNaqiBasePanel(vm)}</FreezeSubTab>
++								</TabPane>
++								<TabPane tab="纳气盘" key="disk">
++									<FreezeSubTab active={this.state.controlTab === 'disk'}>{()=> this.renderDiskPanel(vm)}</FreezeSubTab>
++								</TabPane>
+ 							</XQTabs>
+ 						) : (
+-							<XQTabs size="small" activeKey={this.state.controlTab} onChange={(k) => this.setState({ controlTab: k })}>
+-								<TabPane tab="基础" key="base">{this.renderBaguaBasePanel(vm)}</TabPane>
+-								<TabPane tab="罗盘" key="disk">{this.renderBaguaDiskPanel(vm)}</TabPane>
++							<XQTabs size="small" activeKey={this.state.controlTab} onChange={this.onControlTab}>
++								<TabPane tab="基础" key="base">
++									<FreezeSubTab active={this.state.controlTab === 'base'}>{()=> this.renderBaguaBasePanel(vm)}</FreezeSubTab>
++								</TabPane>
++								<TabPane tab="罗盘" key="disk">
++									<FreezeSubTab active={this.state.controlTab === 'disk'}>{()=> this.renderBaguaDiskPanel(vm)}</FreezeSubTab>
++								</TabPane>
+ 							</XQTabs>
+ 						)}
+ 					</Col>
+ 					<Col span={18} className="horosa-fengshui-workspace">
+-						<XQTabs size="small" className="horosa-fengshui-workspace-tabs" activeKey={this.state.workspaceTab} onChange={(k) => this.setState({ workspaceTab: k })}>
++						<XQTabs size="small" className="horosa-fengshui-workspace-tabs" activeKey={this.state.workspaceTab} onChange={this.onWorkspaceTab}>
++							{/* 画布页必须从一开始就挂载(canvasRef → componentDidMount 建引擎),故 eager:
++							    只取冻结、不延迟首渲。 */}
+ 							<TabPane tab="画布" key="canvas">
++								<FreezeSubTab active={this.state.workspaceTab === 'canvas'} eager>{
+ 								<div className="horosa-fengshui-canvas-wrap">
+ 									<div className="horosa-fengshui-canvas-toolbar">
+ 										<div className="horosa-fengshui-legend">
+@@ -625,8 +745,11 @@ class FengShuiMain extends Component {
+ 										{!vm.imgLoaded ? <div className="horosa-fengshui-canvas-hint">上传户型图后开始操作</div> : null}
+ 									</div>
+ 								</div>
++								}</FreezeSubTab>
++							</TabPane>
++							<TabPane tab={isNaqi ? '判定' : '卦象'} key="analysis">
++								<FreezeSubTab active={this.state.workspaceTab === 'analysis'}>{()=> (isNaqi ? this.renderJudgePanel(vm) : this.renderBaguaPanel(vm))}</FreezeSubTab>
+ 							</TabPane>
+-							<TabPane tab={isNaqi ? '判定' : '卦象'} key="analysis">{isNaqi ? this.renderJudgePanel(vm) : this.renderBaguaPanel(vm)}</TabPane>
+ 						</XQTabs>
+ 					</Col>
+ 				</Row>

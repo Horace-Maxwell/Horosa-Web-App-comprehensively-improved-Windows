@@ -1,10 +1,12 @@
 import { Component } from 'react';
 import { Row, Col, Divider, Popover} from 'antd';
 import { XQCard as Card, XQTabs as Tabs } from '../xq-ui';
-import { randomStr } from '../../utils/helper';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { birthMonthDayFromBazi, resolveStarCharger } from './starChargerLazy';
 import styles from '../../css/styles.less';
+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const TabPane = Tabs.TabPane;
 
@@ -39,9 +41,10 @@ class MainDirection extends Component{
 		let ganCols = this.genGods(rec.stem, '干');
 		let ziCols = this.genGods(rec.branch, '支');
 		let doms = [];
+		// 柱/干/支/岁 四段各最多入 doms 一次,故字面量键即稳定且互不重复。
 		if(cols){
 			let row = (
-				<Row key={randomStr(8)}>
+				<Row key="pillar">
 					{cols}
 				</Row>
 			);
@@ -49,7 +52,7 @@ class MainDirection extends Component{
 		}
 		if(ganCols){
 			let row = (
-				<Row key={randomStr(8)}>
+				<Row key="stem">
 					{ganCols}
 				</Row>
 			);
@@ -57,7 +60,7 @@ class MainDirection extends Component{
 		}
 		if(ziCols){
 			let row = (
-				<Row key={randomStr(8)}>
+				<Row key="branch">
 					{ziCols}
 				</Row>
 			);
@@ -72,7 +75,7 @@ class MainDirection extends Component{
 			}
 		if(spans.length > 0){
 			let content = (
-				<Col key={randomStr(8)} span={24}>
+				<Col key="taisui" span={24}>
 					<div>岁：&emsp;{spans.join('，')}</div>
 				</Col>
 			);
@@ -80,7 +83,7 @@ class MainDirection extends Component{
 		}
 		if(taisuiCols.length > 0){
 			let row = (
-				<Row key={randomStr(8)}>
+				<Row key="taisui">
 					{taisuiCols}
 				</Row>
 			);
@@ -114,7 +117,7 @@ class MainDirection extends Component{
 
 		if(spans.length > 0){
 			let content = (
-				<Col key={randomStr(8)} span={24}>
+				<Col key={titleStr} span={24}>
 					<div>{titleStr}：&emsp;{spans.join('，')}</div>
 				</Col>
 			);
@@ -138,11 +141,11 @@ class MainDirection extends Component{
 				let starCharger = resolveStarCharger(sub.starCharger, sub.year != null ? sub.year : y, this._birthMonth, this._birthDay);
 				let popcontent = (
 					<div style={{width: 350}}>
-						<Row key={randomStr(8)} style={{width: 350}}>
-							<Col span={24} key={randomStr(8)}>
+						<Row key="stemBranch" style={{width: 350}}>
+							<Col span={24} key="stem">
 								{describeStemBranch(sub.stem)}
 							</Col>
-							<Col span={24} key={randomStr(8)}>
+							<Col span={24} key="branch">
 								{describeStemBranch(sub.branch)}
 							</Col>
 						</Row>
@@ -153,8 +156,8 @@ class MainDirection extends Component{
 					</div>
 				)
 				let titlerow = (
-					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + (age + i) + '岁'} key={randomStr(8)}>
-						<Row key={randomStr(8)}>
+					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + (age + i) + '岁'} key={i}>
+						<Row key={i}>
 							<Col span={4}>{sub.ganzi || ''}</Col>
 							<Col span={6}>{sub.naying || ''}</Col>
 							<Col span={9}>{dirtm}</Col>
@@ -169,14 +172,14 @@ class MainDirection extends Component{
 
 			let maingods = this.genGodsDom(mainDirect);
 			let title = (
-				<div key={randomStr(8)}>
+				<div key="mainDirect">
 					<Row>
 						<Col span={12}>{[mainDirect.ganzi, mainDirect.ganziPhase].filter(Boolean).join('-')}</Col>
 						<Col span={12}>{[mainDirect.naying, mainDirect.nayingPhase].filter(Boolean).join('-')}</Col>
-						<Col span={12} key={randomStr(8)}>
+						<Col span={12} key="stem">
 							{describeStemBranch(mainDirect.stem)}
 						</Col>
-						<Col span={12} key={randomStr(8)}>
+						<Col span={12} key="branch">
 							{describeStemBranch(mainDirect.branch)}
 						</Col>
 				</Row>

@@ -7,6 +7,7 @@ import { buildKeypoints, buildKeypointsSnapshotText, RELEASE_MODES, KEYPOINTS_DE
 import { symbolWithMeaning } from './AstroExtraCommon';
 import { XQSelect as Select } from '../xq-ui';
 import styles from '../../css/styles.less';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
 
@@ -29,7 +30,11 @@ class AstroKeypoints extends Component{
 	componentDidUpdate(prevProps){
 		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning){
 			this.rebuild();
-			if(prevProps.value !== this.props.value){ this.saveAISnapshot(); }
+			if(prevProps.value !== this.props.value){
+				// horosa_panel_ready_v1:本技法无自有请求,数据整份派生自 chartObj —— 「落定」= 拿到新盘那次提交。
+				markPanelReady('direction');
+				this.saveAISnapshot();
+			}
 		}
 	}
 

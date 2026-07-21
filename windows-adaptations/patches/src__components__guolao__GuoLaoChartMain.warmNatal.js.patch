@@ -1,8 +1,19 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoChartMain.js b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-index 857e157..41240f9 100644
+index b936beb..6a6226b 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-@@ -1398,6 +1398,23 @@ async function fetchGuolaoChartCached(params, options){
+@@ -1,5 +1,9 @@
+-import { Component } from 'react';
++import { Component, memo } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
++import { markPanelReady } from '../../utils/perfMark';
++import { FreezeSubTab } from '../comp/FreezeInactive';
++import { stepPrefetchEnabled } from '../../utils/perfFlags';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+ import { safeLocalStorageSet } from '../../utils/safeStorage';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+ import { XQModal, XQTabs as Tabs } from '../xq-ui';
+@@ -1399,6 +1403,23 @@ async function fetchGuolaoChartCached(params, options){
  	return clonePlain(result);
  }
  
@@ -26,3 +37,549 @@ index 857e157..41240f9 100644
  // ⚠️ 死代码(零调用,同类自检 v42 定性):主链=buildGuolaoSnapshotTextV2;本函数段头(宫位与星体/宫位二十八宿)
  // 未登 preset 属死码段——若复活必须先登记 preset+migration(全树段头哨兵会咬)。
  function buildGuolaoSnapshotText(params, result){
+@@ -2180,6 +2201,144 @@ function paramsWithMoiraTransit(fields, transitTime){
+ 	return params;
+ }
+ 
++// ── horosa_guolao_scu_slice_v1(PERF-R9 Ship 6)────────────────────────────────
++// 原 sCU 是「nextState !== this.state → true」的恒真型:任何一次 setState(哪怕写的是
++// render() 压根不读的字段)都要把 4000 行的整棵树 + SVG 大盘重渲一遍。
++// 白名单只收**经全文核对 render()/render 子例程从不读取**的字段;拿不准的一律不收(判「变了」)。
++//   · tips           —— 仅 onTipClick 写入(2213/2932 两处出现,零读取点);点星提示不该重画整盘。
++//   · electionLoading —— 仅做在途标记,渲染层无任何消费点。
++const GUOLAO_SCU_IGNORED_STATE = {
++	tips: true,
++	electionLoading: true,
++};
++
++function guolaoStateChangeMatters(prev, next){
++	if(prev === next){
++		return false;
++	}
++	if(!prev || !next){
++		return true; // 拿不准 → 判「变了」(正确性优先)
++	}
++	const keys = Object.keys(next);
++	if(keys.length !== Object.keys(prev).length){
++		return true; // 键集变化 → 判「变了」
++	}
++	for(let i = 0; i < keys.length; i += 1){
++		const k = keys[i];
++		if(Object.is(prev[k], next[k])){
++			continue;
++		}
++		if(!GUOLAO_SCU_IGNORED_STATE[k]){
++			return true;
++		}
++	}
++	return false;
++}
++
++function GuoLaoChartSkeleton(){
++	return (
++		<div className="horosa-guolao-chart-skeleton" aria-busy="true">
++			<div className="horosa-guolao-chart-skeleton-ring" />
++			<div className="horosa-guolao-chart-skeleton-ring is-mid" />
++			<div className="horosa-guolao-chart-skeleton-ring is-core" />
++			<div className="horosa-guolao-chart-skeleton-hint">排盘中…</div>
++		</div>
++	);
++}
++
++// ── horosa_guolao_stage_memo_v1(PERF-R9 Ship 6)───────────────────────────────
++// 中栏盘面(三种轮盘 + 骨架)独立成 React.memo 边界:GuoLaoMoiraWheel/PickWheel/GuoLaoChart
++// 三者**都没有 sCU**,此前 Main 每重渲一次就把整张 SVG 大盘从头算一遍(几何+神煞环+相位线)。
++// 边界内用到的每一个值都由 props 显式传入(无闭包读 this.state/this.props),故默认浅比较
++// 完备:任一可见输入变化必重渲,零陈旧。transitParams/declination 在 Main 侧做了按输入记忆化
++// (否则每次 render 现造新对象 → 浅比较必失效)。
++const GuoLaoChartStage = memo(function GuoLaoChartStage(props){
++	const {
++		variant, rootValue, value, transitValue, transitParams, transitLoading, moiraRules,
++		display, showMoiraTransitGods, election, electionData, declination, declinationOutOfRange,
++		height, fields, chartDisplay, planetDisplay, onTipClick, onAgeClick,
++	} = props;
++	if(variant === 'skeleton'){
++		return <GuoLaoChartSkeleton />;
++	}
++	if(variant === 'pick'){
++		return (
++			<GuoLaoMoiraPickWheel
++				rootValue={rootValue}
++				value={value}
++				transitValue={transitValue}
++				transitParams={transitParams}
++				transitLoading={transitLoading}
++				moiraRules={moiraRules}
++				aspectSet={display.aspects}
++				aspectOrbs={display.aspectOrbs}
++				hiddenPlanets={display.hiddenPlanets}
++				hiddenGodsBirth={display.hiddenGodsBirth}
++				hiddenGodsTransit={display.hiddenGodsTransit}
++				showDignity={display.dignity}
++				showMountains={display.mountains}
++				showBirthGods={display.birthGods}
++				showAgeRing={display.ageRing}
++				limitChildBase={display.limitChildBase}
++				onAgeClick={onAgeClick}
++				limitYearBoundary={display.limitYearBoundary}
++				election={election}
++				electionData={electionData}
++				declination={declination}
++				declinationOutOfRange={declinationOutOfRange}
++				height={height}
++				fields={fields}
++				chartDisplay={chartDisplay}
++				planetDisplay={planetDisplay}
++				onTipClick={onTipClick}
++			/>
++		);
++	}
++	if(variant === 'moira'){
++		return (
++			<GuoLaoMoiraWheel
++				rootValue={rootValue}
++				value={value}
++				election={election}
++				electionData={electionData}
++				transitValue={transitValue}
++				transitParams={transitParams}
++				transitLoading={transitLoading}
++				showAspectsMode={display.showAspects === true}
++				showMoiraTransitGods={showMoiraTransitGods}
++				moiraRules={moiraRules}
++				aspectSet={display.aspects}
++				aspectOrbs={display.aspectOrbs}
++				hiddenPlanets={display.hiddenPlanets}
++				hiddenGodsBirth={display.hiddenGodsBirth}
++				hiddenGodsTransit={display.hiddenGodsTransit}
++				showDignity={display.dignity}
++				showMountains={display.mountains}
++				showBirthGods={display.birthGods}
++				showAgeRing={display.ageRing}
++				limitChildBase={display.limitChildBase}
++				onAgeClick={onAgeClick}
++				limitYearBoundary={display.limitYearBoundary}
++				height={height}
++				fields={fields}
++				chartDisplay={chartDisplay}
++				planetDisplay={planetDisplay}
++				onTipClick={onTipClick}
++			/>
++		);
++	}
++	return (
++		<GuoLaoChart
++			value={value}
++			height={height}
++			fields={fields}
++			chartDisplay={chartDisplay}
++			planetDisplay={planetDisplay}
++			onTipClick={onTipClick}
++		/>
++	);
++});
++
+ 
+ class GuoLaoChartMain extends Component{
+ 	constructor(props) {
+@@ -2271,6 +2430,25 @@ class GuoLaoChartMain extends Component{
+ 					if(tp){ fetchGuolaoChartCached(tp, { silent: true }).catch(()=>{ /* 预热静默 */ }); }
+ 				}catch(e){ /* 预热失败无害 */ }
+ 			};
++			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):七政【本命盘】步进预取。
++			// 只暖本命 —— Moira 流年的默认过运时刻是「现在」(makeDefaultMoiraTransitTime),
++			// 预取它等于把「此刻」钉死成缓存值 = 功能性降级,按纪律禁入(白名单亦以 moira 禁词兜底)。
++			// 闭包吃组件态(engineMode/chartStyle 决定本命盘是否走这条路径);闸 horosa.perf.stepPrefetch。
++			if(stepPrefetchEnabled()){
++				registerStepPrefetcher('guolao', (steppedFields)=>{
++					if(this.unmounted || this.state.engineMode === 'kinastro'){
++						return [];
++					}
++					if(this.state.chartStyle === GUOLAO_CHART_STYLE_QIZHENG){
++						return [];
++					}
++					return [{
++						name: 'guolao:natal',
++						path: '/chart',
++						run: ()=> warmGuolaoNatal(steppedFields),
++					}];
++				});
++			}
+ 		}
+ 	}
+ 
+@@ -2429,6 +2607,10 @@ class GuoLaoChartMain extends Component{
+ 				qizhengKinPan: pan,
+ 				qizhengKinLoading: false,
+ 				qizhengKinError: '',
++			}, ()=>{
++				// horosa_panel_ready_v1:坚七政(kinastro 引擎)分支的唯一落定点 —— 中栏七政轮
++				// 与右栏信息 Tabs 同吃 qizhengKinPan,这一次 setState 之后两栏全部画完。
++				markPanelReady('guolao');
+ 			});
+ 			if(pan && pan.snapshot){
+ 				saveModuleAISnapshot('guolao-qizhengkin', pan.snapshot, {
+@@ -2445,6 +2627,9 @@ class GuoLaoChartMain extends Component{
+ 				this.setState({
+ 					qizhengKinLoading: false,
+ 					qizhengKinError: e && e.message ? e.message : '七政四余服务暂不可用',
++				}, ()=>{
++					// horosa_panel_ready_v1:坚七政失败终态(错误卡上屏即本次交互结束)。
++					markPanelReady('guolao');
+ 				});
+ 			}
+ 			return null;
+@@ -2520,6 +2705,10 @@ class GuoLaoChartMain extends Component{
+ 			moiraPanelTransitChartObj: clonePlain(transitChartObj || this.state.moiraTransitChartObj),
+ 			moiraPanelTransitParams: clonePlain(nextTransitParams),
+ 			moiraLoading: false,
++		}, ()=>{
++			// horosa_panel_ready_v1:旧多段路径的**唯一**终点(applyChartObj→requestMoiraTransitChart
++			// →requestMoiraRules 全部汇入此处),中栏盘面 + 右栏 rules 在这一次 setState 里一起落定。
++			markPanelReady('guolao');
+ 		});
+ 	}
+ 
+@@ -2606,6 +2795,9 @@ class GuoLaoChartMain extends Component{
+ 					moiraTransitChartObj: displayResult,
+ 					moiraTransitLoading: false,
+ 					moiraLoading: false,
++				}, ()=>{
++					// horosa_panel_ready_v1:无根盘/根参数的降级终点(不再走 commitMoiraPanel)。
++					markPanelReady('guolao');
+ 				});
+ 				this._pendingMoiraChartObj = null;
+ 				return result;
+@@ -2630,6 +2822,9 @@ class GuoLaoChartMain extends Component{
+ 					this.setState({
+ 						...(this._pendingMoiraChartObj ? { chartObj: this._pendingMoiraChartObj } : {}),
+ 						moiraLoading: false,
++					}, ()=>{
++						// horosa_panel_ready_v1:流年盘失败且无根盘的终点。
++						markPanelReady('guolao');
+ 					});
+ 					this._pendingMoiraChartObj = null;
+ 				}
+@@ -2754,7 +2949,11 @@ class GuoLaoChartMain extends Component{
+ 			this.saveGuolaoAISnapshot(params, chartObj);
+ 		}
+ 		if(!chartObj){
+-			this.setState({ moiraLoading: false, moiraTransitLoading: false });
++			// horosa_panel_ready_v1:取盘失败的终态也要收口,否则本次交互的计时会悬着、
++			// 被下一次交互错配(观测口径要求每次交互恰好一条 panel-ready)。
++			this.setState({ moiraLoading: false, moiraTransitLoading: false }, ()=>{
++				markPanelReady('guolao');
++			});
+ 			return;
+ 		}
+ 
+@@ -2804,6 +3003,10 @@ class GuoLaoChartMain extends Component{
+ 			moiraPanelTransitParams: transitParams,
+ 			moiraLoading: false,
+ 			moiraTransitLoading: false,
++		}, ()=>{
++			// horosa_panel_ready_v1:主路径(单闸门 requestGuolaoBundle)终点 —— 中栏命盘轮 + 流年环
++			// + 右栏 Moira 面板(rules/流曜/格局)全部落定的那一次 setState。
++			markPanelReady('guolao');
+ 		});
+ 	}
+ 
+@@ -2897,10 +3100,11 @@ class GuoLaoChartMain extends Component{
+ 
+ 
+ 	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+-	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
++	// state 变化改为**按字段**判定(horosa_guolao_scu_slice_v1):只有当变的字段全部落在
++	// 「render() 从不读」白名单里时才跳过,其余一律照旧重渲。
+ 	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
+ 	shouldComponentUpdate(nextProps, nextState){
+-		if(nextState !== this.state){
++		if(guolaoStateChangeMatters(this.state, nextState)){
+ 			return true;
+ 		}
+ 		return !wrapperPropsEqual(this.props, nextProps);
+@@ -3531,8 +3735,40 @@ class GuoLaoChartMain extends Component{
+ 		});
+ 	}
+ 
++	// horosa_guolao_render_memo_v1(PERF-R9 Ship 6):render() 内每次都现造的派生值做**按输入记忆化**。
++	// 三处调用点(择日表/择日轮/左栏)每渲一帧就跑三遍 paramsWithMoiraTransit + WMM 磁偏模型;
++	// 且每次返回新对象 → 下游 memo/浅比较必然失效。键=(fields, moiraTransitTime) 引用,
++	// 与既有 componentDidUpdate 的判变口径(prevState.moiraTransitTime !== this.state.moiraTransitTime)
++	// 完全一致:任一变化即重算,不存在陈旧。
++	memoTransitParams(){
++		const fields = this.props.fields;
++		const tm = this.state.moiraTransitTime;
++		if(this._tpValue && this._tpFields === fields && this._tpTime === tm){
++			return this._tpValue;
++		}
++		this._tpFields = fields;
++		this._tpTime = tm;
++		this._tpValue = paramsWithMoiraTransit(fields, tm);
++		return this._tpValue;
++	}
++
+ 	// 磁偏解析:自行修正=WMM(按择时年月);手动=输入值恒优先。超模型年限打标供角注警示。
++	// horosa_guolao_render_memo_v1:同帧多次调用只算一次(键=electionOptions/fields/moiraTransitTime 引用)。
+ 	resolveElectionDeclination(){
++		if(this._declValue !== undefined
++			&& this._declEle === this.state.electionOptions
++			&& this._declFields === this.props.fields
++			&& this._declTime === this.state.moiraTransitTime){
++			return this._declValue;
++		}
++		this._declEle = this.state.electionOptions;
++		this._declFields = this.props.fields;
++		this._declTime = this.state.moiraTransitTime;
++		this._declValue = this.computeElectionDeclination();
++		return this._declValue;
++	}
++
++	computeElectionDeclination(){
+ 		const ele = this.state.electionOptions || {};
+ 		if(ele.adjNorth === false){
+ 			if(this.state.electionDeclOutOfRange){
+@@ -3585,10 +3821,14 @@ class GuoLaoChartMain extends Component{
+ 
+ 	// 化曜/虚实/命曜/流曜/相位 五类信息面板原本没有——注入为右栏常驻 tab(信息不得仅在
+ 	// 快捷弹层可见);格局/神煞面板已有同源信息,不重复注入(格局弹窗仍留盘面徽标入口)。
++	// horosa_freeze_subtabs_v1:children 一律传【thunk `()=>节点`】(GuoLaoMoiraPanel 的 extraTabs
++	// 契约两种形态都吃,那边统一归一后交 FreezeSubTab)。原先是即时构造的节点 —— 择日表/择日搜索/
++	// 相位三块的元素树(含 resolveElectionDeclination()、memoTransitParams()、renderQuickAspects()
++	// 三次真计算)在每次本组件重渲时都跑一遍,而右栏同时只显 1 个 tab。
+ 	buildMoiraExtraTabs(){
+ 		const wrap = (node)=>(<div className="horosa-guolao-moira">{node}</div>);
+ 		const electionTabs = this.state.chartStyle === GUOLAO_CHART_STYLE_PICK ? [
+-			{ key: 'election', label: '择日', children: wrap(
++			{ key: 'election', label: '择日', children: ()=>wrap(
+ 				<GuoLaoElectionTable
+ 					electionData={this.state.electionData}
+ 					transitChartObj={this.state.moiraTransitChartObj}
+@@ -3597,10 +3837,10 @@ class GuoLaoChartMain extends Component{
+ 					declination={this.resolveElectionDeclination()}
+ 				/>
+ 			) },
+-			{ key: 'electionSearch', label: '搜索', children: wrap(
++			{ key: 'electionSearch', label: '搜索', children: ()=>wrap(
+ 				<GuoLaoElectionSearch
+ 					fields={this.props.fields}
+-					transitParams={paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime)}
++					transitParams={this.memoTransitParams()}
+ 					onPickMoment={(row)=>this.onPickElectionMoment(row)}
+ 				/>
+ 			) },
+@@ -3609,7 +3849,7 @@ class GuoLaoChartMain extends Component{
+ 		// 卡;命曜/流曜=星曜 tab 本命/流年两节已有——信息不重复设 tab(用户钦定)。
+ 		return [
+ 			...electionTabs,
+-			{ key: 'aspects', label: '相位', children: wrap(this.renderQuickAspects()) },
++			{ key: 'aspects', label: '相位', children: ()=>wrap(this.renderQuickAspects()) },
+ 		];
+ 	}
+ 
+@@ -3740,20 +3980,27 @@ class GuoLaoChartMain extends Component{
+ 		const options = this.state.kinastroOptions || {};
+ 		const zhangguo = safeMap(qz.zhangguo);
+ 		const mingGong = safeMap(qz.mingGong);
+-		const overviewContent = [
+-			sectionByTitle.get('起盘'),
+-			sectionByTitle.get('四柱'),
+-		].filter(Boolean).map((item)=>this.renderQizhengKinSection(item));
+-		if(options.showMingGong !== false){
+-			overviewContent.push(this.renderQizhengKinMingGongBlock(mingGong));
+-		}
++		// horosa_freeze_subtabs_v1 接线:content 一律改为**惰性 thunk**(原先在数组构造时就把
++		// 全部 9 个面板的元素树造出来 —— 用户只看得见 1 个)。thunk 由 FreezeSubTab 在
++		// 「本面板激活过」时才求值:未激活过=零成本;已激活过的面板切走后保留 DOM/组件实例,
++		// 切回时拿本轮最新 thunk 立即重渲(不重挂载、不重取数、不闪烁、不丢滚动位置)。
++		const overviewContent = ()=>{
++			const list = [
++				sectionByTitle.get('起盘'),
++				sectionByTitle.get('四柱'),
++			].filter(Boolean).map((item)=>this.renderQizhengKinSection(item));
++			if(options.showMingGong !== false){
++				list.push(this.renderQizhengKinMingGongBlock(mingGong));
++			}
++			return list;
++		};
+ 		const tabs = [
+ 			{key: 'overview', label: '概览', content: overviewContent},
+-			{key: 'planets', label: '星曜', content: this.renderQizhengKinSection(sectionByTitle.get('星曜') || {title: '星曜', rows: []})},
+-			{key: 'houses', label: '宫位', content: this.renderQizhengKinSection(sectionByTitle.get('十二宫') || {title: '十二宫', rows: []})},
+-			options.showShensha === false ? null : {key: 'shensha', label: '神煞', content: this.renderQizhengKinSection(sectionByTitle.get('神煞') || {title: '神煞', rows: []})},
+-			{key: 'dasha', label: '年限', content: this.renderQizhengKinSection(sectionByTitle.get('年限') || {title: '年限', rows: []})},
+-			options.showZhangguo === false ? null : {key: 'readings', label: '断语', content: (
++			{key: 'planets', label: '星曜', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('星曜') || {title: '星曜', rows: []})},
++			{key: 'houses', label: '宫位', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('十二宫') || {title: '十二宫', rows: []})},
++			options.showShensha === false ? null : {key: 'shensha', label: '神煞', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('神煞') || {title: '神煞', rows: []})},
++			{key: 'dasha', label: '年限', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('年限') || {title: '年限', rows: []})},
++			options.showZhangguo === false ? null : {key: 'readings', label: '断语', content: ()=>(
+ 				<div className="horosa-qizheng-kin-info-stack">
+ 					{this.renderQizhengKinReadingCards(sectionByTitle.get('张果断语') || {title: '张果断语', rows: []})}
+ 					<div className="horosa-qizheng-kin-info-card">
+@@ -3766,9 +4013,9 @@ class GuoLaoChartMain extends Component{
+ 					</div>
+ 				</div>
+ 			)},
+-			qz.transit ? {key: 'transit', label: '流时', content: this.renderQizhengKinSection(sectionByTitle.get('流时') || {title: '流时', rows: []})} : null,
+-			qz.electional ? {key: 'electional', label: '择日', content: this.renderQizhengKinSection(sectionByTitle.get('择日') || {title: '择日', rows: []})} : null,
+-			qz.mansions ? {key: 'mansion', label: '宿度', content: (
++			qz.transit ? {key: 'transit', label: '流时', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('流时') || {title: '流时', rows: []})} : null,
++			qz.electional ? {key: 'electional', label: '择日', content: ()=>this.renderQizhengKinSection(sectionByTitle.get('择日') || {title: '择日', rows: []})} : null,
++			qz.mansions ? {key: 'mansion', label: '宿度', content: ()=>(
+ 				<div className="horosa-qizheng-kin-info-stack">
+ 					{sections.filter((item)=>/宿度$/.test(item.title)).map((item)=>this.renderQizhengKinSection(item))}
+ 				</div>
+@@ -3786,9 +4033,13 @@ class GuoLaoChartMain extends Component{
+ 			>
+ 				{tabs.map((item)=>(
+ 					<TabPane tab={item.label} key={item.key}>
+-						<div className="horosa-qizheng-kin-info-stack">
+-							{item.content}
+-						</div>
++						<FreezeSubTab active={active === item.key}>
++							{()=>(
++								<div className="horosa-qizheng-kin-info-stack">
++									{item.content()}
++								</div>
++							)}
++						</FreezeSubTab>
+ 					</TabPane>
+ 				))}
+ 			</Tabs>
+@@ -3819,20 +4070,33 @@ class GuoLaoChartMain extends Component{
+ 		);
+ 	}
+ 
++	// 骨架已提为模块级 GuoLaoChartSkeleton(memo 边界内共用);此方法保留为同名转发,
++	// 结构逐字节不变。
+ 	renderGuolaoChartSkeleton(){
+-		return (
+-			<div className="horosa-guolao-chart-skeleton" aria-busy="true">
+-				<div className="horosa-guolao-chart-skeleton-ring" />
+-				<div className="horosa-guolao-chart-skeleton-ring is-mid" />
+-				<div className="horosa-guolao-chart-skeleton-ring is-core" />
+-				<div className="horosa-guolao-chart-skeleton-hint">排盘中…</div>
+-			</div>
+-		);
++		return <GuoLaoChartSkeleton />;
+ 	}
+ 
+ 	// 神煞筛选清单=数据驱动:从当前盘 godHits/transitGodHits 现场收集全字集(后端 rule 引擎
+ 	// 实际会画的字远多于固定序表——固定序只作排序前缀,新字追加,保证「选择全面+全联动」)。
++	// horosa_guolao_render_memo_v1:神煞全字集收集(遍历 godHits/transitGodHits ~107 字 + 排序)
++	// 原先**每帧**跑一次并返回新对象(左栏 GuoLaoInput 的 godNamePools prop 因此帧帧变新)。
++	// 键=(moiraRules, chartObj, moiraTransitChartObj) 引用 —— 三者正是收集函数读取的全部输入,
++	// 任一变化即重算,勾选↔盘面联动口径不变。
+ 	collectGodNamePools(){
++		const rules = this.state.moiraRules;
++		const co = this.state.chartObj;
++		const tco = this.state.moiraTransitChartObj;
++		if(this._godPools && this._godPoolsRules === rules && this._godPoolsChart === co && this._godPoolsTransit === tco){
++			return this._godPools;
++		}
++		this._godPoolsRules = rules;
++		this._godPoolsChart = co;
++		this._godPoolsTransit = tco;
++		this._godPools = this.computeGodNamePools();
++		return this._godPools;
++	}
++
++	computeGodNamePools(){
+ 		// 与盘面绝对同源:盘面神煞环已切到 rules 引擎(godHits/transitGodHits,Moira prop 规则本尊),
+ 		// 清单从同一 hits 收集(全集 ~107 字,勾选与盘一一联动);rules 未到回退历法 ziGods。
+ 		const rules = this.state.moiraRules || {};
+@@ -3888,8 +4152,10 @@ class GuoLaoChartMain extends Component{
+ 		const useMoiraLikeWheel = useMoiraWheel || usePickWheel;
+ 		const moiraPanelChartObj = this.state.moiraPanelChartObj || chartObj;
+ 		const moiraPanelTransitChartObj = this.state.moiraPanelTransitChartObj || this.state.moiraTransitChartObj;
+-		const moiraPanelTransitParams = this.state.moiraPanelTransitParams || paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime);
++		const moiraPanelTransitParams = this.state.moiraPanelTransitParams || this.memoTransitParams();
+ 		const useKinastroQizheng = this.state.engineMode === 'kinastro';
++		const stageTransitParams = this.memoTransitParams();
++		const stageDeclination = this.resolveElectionDeclination();
+ 
+ 		return (
+ 			<div className={`horosa-guolao-page horosa-astro-redesign horosa-guolao-redesign${useKinastroQizheng ? ' horosa-qizheng-kin-page' : ''}`}>
+@@ -3922,74 +4188,27 @@ class GuoLaoChartMain extends Component{
+ 							/>
+ 						</div>
+ 						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-guolao-chart-panel xq-chart-renderer xq-chart-renderer-guolao${useMoiraLikeWheel ? ' horosa-guolao-chart-panel-moira' : ''}`}>
+-							{useKinastroQizheng ? this.renderQizhengKinBoard() : (this.state.bundleLoading && !chartObj) ? this.renderGuolaoChartSkeleton() : usePickWheel ? (
+-								<GuoLaoMoiraPickWheel
++							{useKinastroQizheng ? this.renderQizhengKinBoard() : (
++								<GuoLaoChartStage
++									variant={(this.state.bundleLoading && !chartObj) ? 'skeleton' : usePickWheel ? 'pick' : useMoiraWheel ? 'moira' : 'classic'}
+ 									rootValue={chartObj}
+ 									value={chart}
+ 									transitValue={this.state.moiraTransitChartObj}
+-									transitParams={paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime)}
++									transitParams={stageTransitParams}
+ 									transitLoading={this.state.moiraTransitLoading}
+ 									moiraRules={this.state.moiraRules}
+-									aspectSet={this.state.guolaoDisplay.aspects}
+-									aspectOrbs={this.state.guolaoDisplay.aspectOrbs}
+-									hiddenPlanets={this.state.guolaoDisplay.hiddenPlanets}
+-									hiddenGodsBirth={this.state.guolaoDisplay.hiddenGodsBirth}
+-									hiddenGodsTransit={this.state.guolaoDisplay.hiddenGodsTransit}
+-									showDignity={this.state.guolaoDisplay.dignity}
+-									showMountains={this.state.guolaoDisplay.mountains}
+-									showBirthGods={this.state.guolaoDisplay.birthGods}
+-									showAgeRing={this.state.guolaoDisplay.ageRing}
+-									limitChildBase={this.state.guolaoDisplay.limitChildBase}
+-									onAgeClick={this.onLimitAgeClick}
+-									limitYearBoundary={this.state.guolaoDisplay.limitYearBoundary}
++									display={this.state.guolaoDisplay}
++									showMoiraTransitGods={this.state.showMoiraTransitGods}
+ 									election={this.state.electionOptions}
+ 									electionData={this.state.electionData}
+-									declination={this.resolveElectionDeclination()}
++									declination={stageDeclination}
+ 									declinationOutOfRange={this.state.electionDeclOutOfRange}
+ 									height={height}
+ 									fields={this.props.fields}
+ 									chartDisplay={this.props.chartDisplay}
+ 									planetDisplay={this.props.planetDisplay}
+ 									onTipClick={this.onTipClick}
+-								/>
+-							) : useMoiraWheel ? (
+-								<GuoLaoMoiraWheel
+-									rootValue={chartObj}
+-									value={chart}
+-									election={this.state.electionOptions}
+-									electionData={this.state.electionData}
+-									transitValue={this.state.moiraTransitChartObj}
+-									transitParams={paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime)}
+-									transitLoading={this.state.moiraTransitLoading}
+-									showAspectsMode={this.state.guolaoDisplay.showAspects === true}
+-									showMoiraTransitGods={this.state.showMoiraTransitGods}
+-									moiraRules={this.state.moiraRules}
+-									aspectSet={this.state.guolaoDisplay.aspects}
+-									aspectOrbs={this.state.guolaoDisplay.aspectOrbs}
+-									hiddenPlanets={this.state.guolaoDisplay.hiddenPlanets}
+-									hiddenGodsBirth={this.state.guolaoDisplay.hiddenGodsBirth}
+-									hiddenGodsTransit={this.state.guolaoDisplay.hiddenGodsTransit}
+-									showDignity={this.state.guolaoDisplay.dignity}
+-									showMountains={this.state.guolaoDisplay.mountains}
+-									showBirthGods={this.state.guolaoDisplay.birthGods}
+-									showAgeRing={this.state.guolaoDisplay.ageRing}
+-									limitChildBase={this.state.guolaoDisplay.limitChildBase}
+ 									onAgeClick={this.onLimitAgeClick}
+-									limitYearBoundary={this.state.guolaoDisplay.limitYearBoundary}
+-									height={height}
+-									fields={this.props.fields}
+-									chartDisplay={this.props.chartDisplay}
+-									planetDisplay={this.props.planetDisplay}
+-									onTipClick={this.onTipClick}
+-								/>
+-							) : (
+-								<GuoLaoChart
+-									value={chart}
+-									height={height}
+-									fields={this.props.fields}
+-									chartDisplay={this.props.chartDisplay}
+-									planetDisplay={this.props.planetDisplay}
+-									onTipClick={this.onTipClick}
+ 								/>
+ 							)}
+ 						</div>

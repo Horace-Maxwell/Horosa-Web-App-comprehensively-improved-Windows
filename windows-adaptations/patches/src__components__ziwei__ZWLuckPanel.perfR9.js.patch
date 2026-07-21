@@ -1,0 +1,48 @@
+diff --git a/astrostudyui/src/components/ziwei/ZWLuckPanel.js b/astrostudyui/src/components/ziwei/ZWLuckPanel.js
+index 93aa8ec..b0eecb5 100644
+--- a/astrostudyui/src/components/ziwei/ZWLuckPanel.js
++++ b/astrostudyui/src/components/ziwei/ZWLuckPanel.js
+@@ -2,6 +2,7 @@ import { Component } from 'react';
+ import { julianDayIndex } from '../../utils/julianDayIndex';
+ import { Lunar, LunarMonth } from 'lunar-javascript';
+ import * as ZWConst from '../../constants/ZWConst';
++import { chartSCUEnabled } from '../../utils/perfFlags';
+ import * as ZiWeiHelper from './ZiWeiHelper';
+ import { parseYearFromDateStr } from '../../utils/dateStrSafe';
+ 
+@@ -270,6 +271,35 @@ class ZWLuckPanel extends Component {
+ 	pickLiuri(item) { this.change(luckSelectLiuri(this.props.chart || {}, item, this.sel())); }
+ 	pickLiushi(item) { this.change(luckSelectLiushi(this.props.chart || {}, item, this.sel())); }
+ 
++	// horosa_ziwei_luck_scu_v1:本面板是**纯受控无 state** 组件 —— 输出完全由 props
++	// (chart / value=luckSel / onChange / onAi)决定。父级因无关 state(updating 角标 / tips /
++	// centerInfoVisible / 右栏页签)重渲时,原先会连带重跑 build*Items×5 + 全部 chip/卡片 reconcile。
++	// 逐 props 浅比(含函数型 —— 上游已全部改为构造期绑定的稳定引用),任一变化即照常渲染;
++	// 键集合变化保守判「变了」。取向:宁可多渲、绝不漏渲。kill-switch 同 chartSCU。
++	shouldComponentUpdate(nextProps) {
++		if (!chartSCUEnabled()) {
++			return true;
++		}
++		const prev = this.props;
++		if (prev === nextProps) {
++			return false;
++		}
++		if (!prev || !nextProps) {
++			return true;
++		}
++		const pk = Object.keys(prev);
++		const nk = Object.keys(nextProps);
++		if (pk.length !== nk.length) {
++			return true;
++		}
++		for (let i = 0; i < nk.length; i += 1) {
++			if (prev[nk[i]] !== nextProps[nk[i]]) {
++				return true;
++			}
++		}
++		return false;
++	}
++
+ 	renderAxis(label, items, selectedId, onClick, key) {
+ 		if (!items || !items.length) return null;
+ 		return (

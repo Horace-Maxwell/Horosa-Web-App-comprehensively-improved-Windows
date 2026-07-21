@@ -377,8 +377,11 @@ class YogaEngine:
             combust = self.combustion_modifier(planet)
             if combust:
                 modifiers.append(combust)
-            for malefic in NATURAL_MALEFICS:
-                if malefic != planet and self.has_aspect(malefic, planet):
+            # horosa_yoga_planet_order_v1:NATURAL_MALEFICS 是 set,直接遍历会让 modifiers 的
+            # 文案顺序随进程哈希变化(实测「金星受罗睺照射 / 金星受土星照射」两句跨进程互换)。
+            # 遍历有序的 YOGA_PLANETS(含罗睺/计都)再过滤;条数不变 ⇒ base_score 也不变。
+            for malefic in YOGA_PLANETS:
+                if malefic in NATURAL_MALEFICS and malefic != planet and self.has_aspect(malefic, planet):
                     modifiers.append('{0}受{1}照射'.format(planet_label(planet), planet_label(malefic)))
         return list(dict.fromkeys(modifiers))
 
@@ -875,7 +878,11 @@ class YogaEngine:
                 ['jupiter', 'venus', 'mercury']))
         # Chamara 拂尘:≥2 自然吉曜共居 1/7/9/10。
         for h in (1, 7, 9, 10):
-            bens = [p for p in NATURAL_BENEFICS if H.get(p) == h]
+            # horosa_yoga_planet_order_v1(PERF-R9):NATURAL_BENEFICS/MALEFICS 是 **set**,
+            # 直接遍历会继承哈希顺序 → 同一张盘每次启动后 yogas[].planets 排列可能不同
+            # (实测跨进程仅顺序有别)。改为遍历有序的 CLASSICAL_PLANETS 再按集合过滤 ——
+            # 成员逐元素等价,顺序变确定。本文件 963 行原本就是这个正确写法,此处补齐。
+            bens = [p for p in CLASSICAL_PLANETS if p in NATURAL_BENEFICS and H.get(p) == h]
             if len(bens) >= 2:
                 items.append(self.make_item(
                     'chamara', 'Chamara Yoga', '拂尘瑜伽', 'Benefic',
@@ -903,8 +910,9 @@ class YogaEngine:
         if all(sign in dual for sign in signs):
             items.append(self.make_item('nabhasa_nala', 'Nala Yoga', '芦管瑜伽', 'Nabhasa', 48, ['七曜皆在双体星座'], '主适应、学习、多重路径和弹性。', CLASSICAL_PLANETS, [], ['BPHS', 'BJ'], [], ['nabhasa']))
         kendras = {self.signs[p] for p in CLASSICAL_PLANETS if self.houses.get(p) in KENDRA}
-        benefic_kendra = [p for p in NATURAL_BENEFICS if self.houses.get(p) in KENDRA]
-        malefic_kendra = [p for p in NATURAL_MALEFICS if self.houses.get(p) in KENDRA and p in CLASSICAL_PLANETS]
+        # horosa_yoga_planet_order_v1:同上,遍历有序列表而非 set(顺序确定,成员不变)。
+        benefic_kendra = [p for p in CLASSICAL_PLANETS if p in NATURAL_BENEFICS and self.houses.get(p) in KENDRA]
+        malefic_kendra = [p for p in CLASSICAL_PLANETS if p in NATURAL_MALEFICS and self.houses.get(p) in KENDRA]
         if len(benefic_kendra) >= 2 and not malefic_kendra:
             items.append(self.make_item('nabhasa_mala', 'Mala Yoga', '花鬘瑜伽', 'Nabhasa', self.base_score(benefic_kendra, 50), ['吉星占据角宫，且角宫少凶星干扰'], '主舒适、名声、品德与社会支持。', benefic_kendra, list(KENDRA), ['BPHS', 'BJ'], self.affliction_modifiers(benefic_kendra), ['nabhasa', 'benefic']))
         if len(malefic_kendra) >= 2 and not benefic_kendra:
