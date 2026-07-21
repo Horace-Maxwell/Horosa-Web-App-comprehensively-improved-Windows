@@ -1,20 +1,20 @@
 {
-  "corpus_name": "pd_calibration_corpus",
-  "snapshot_version": "pure-formula-window-ra-vertex-v2",
-  "method": "core_alchabitius",
-  "time_key": "Ptolemy",
-  "pdtype": 0,
-  "pdYears": 100,
-  "pdaspects": [
-    0,
-    60,
-    90,
-    120,
-    180
-  ],
-  "hsys": "PLACIDUS",
-  "total_cases": 540,
-  "errors_encountered_in_last_run": 0,
-  "note": "Regenerated from the first-principles engine (mean eps + Delta-T(date), zero fitting); planet-pair display window keyed to the arc pre-normalization value; Vertex significator rows included.",
-  "golden_file": "golden_alcabitius_ptolemy_v266.ndjson.gz"
+ "corpus_name": "pd_calibration_corpus",
+ "snapshot_version": "pure-formula-window-ra-vertex-v2",
+ "method": "core_alchabitius",
+ "time_key": "Ptolemy",
+ "pdtype": 0,
+ "pdYears": 100,
+ "pdaspects": [
+  0,
+  60,
+  90,
+  120,
+  180
+ ],
+ "hsys": "PLACIDUS",
+ "total_cases": 540,
+ "errors_encountered_in_last_run": 0,
+ "note": "Regenerated from the first-principles engine (mean eps + Delta-T(date), zero fitting); planet-pair display window keyed to the arc pre-normalization value; Vertex significator rows included. Ephemeris data refreshed to upstream 2026-04-14 rebuild (DE441); drift adjudicated sub-arcsecond, see docs/DATA_ASSETS_LEDGER.md.",
+ "golden_file": "golden_alcabitius_ptolemy_v266.ndjson.gz"
 }

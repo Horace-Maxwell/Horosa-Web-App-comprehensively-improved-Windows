@@ -124,7 +124,7 @@ export default class XuanShiMain extends React.Component {
 		const rd = resolveChartDate(ev);
 		if (!rd) { return; }
 		const md = rd.md, mdDisp = rd.disp;
-		const m = /^(-?\d{1,4})-(\d{1,2})-(\d{1,2})/.exec(md);
+		const m = /^(-?\d{1,5})-(\d{1,2})-(\d{1,2})/.exec(md);
 		if (!m) { return; }
 		const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
 		if (!y || !mo || !da) { return; }

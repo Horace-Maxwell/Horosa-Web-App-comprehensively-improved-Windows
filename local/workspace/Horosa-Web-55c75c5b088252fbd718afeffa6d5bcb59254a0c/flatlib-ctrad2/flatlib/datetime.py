@@ -251,7 +251,19 @@ class Datetime:
         return Datetime(dateUTC, timeUTC)
 
     def getLocalGregoDate(self):
-        list = sweJdnDate(self.jd, self.utcoffset)
+        try:
+            list = sweJdnDate(self.jd, self.utcoffset)
+        except Exception:
+            # swisseph jdut1_to_utc 域限约至 9999 年;域外(如主限 100 年表跨入五位年)
+            # 用纯 JD 公式反算(UT1≈UTC,秒级差在远年显示场景可忽略;域内不走此支)。
+            localJD = self.jd + self.utcoffset.value / 24.0
+            jdn = round(localJD)
+            y, m, d = jdnDate(jdn)
+            secs = int(round((localJD + 0.5 - jdn) * 86400.0))
+            secs = max(0, min(86399, secs))
+            hh, rem = divmod(secs, 3600)
+            mi, ss = divmod(rem, 60)
+            list = [y, m, d, hh, mi, float(ss)]
         year = list[0]
         if year <= 0:
             year = year - 1

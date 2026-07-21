@@ -26,6 +26,9 @@ class Qimen:
     def year_yuen(self):
         """搵上中下元"""
         yuen_list = [(i * 60) + 4 for i in range(22,100)]
+        if self.year < yuen_list[0] or self.year > yuen_list[-1] - 1:
+            # 全年份域:表域(1324~5943)外沿用域内实际输出(域内任何年均返此值,内外一致不炸)
+            return ["下元甲子", yuen_list[-1]]
         three_yuen = itertools.cycle([i+"元甲子" for i in list("上中下")])
         for yuen in yuen_list:
             if self.year < yuen:

@@ -1,7 +1,8 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';
-import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { geoNameFieldPatch } from '../../utils/geoName';
@@ -21,6 +22,7 @@ import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { getStore } from '../../utils/storageutil';
@@ -656,6 +658,17 @@ class DunJiaMain extends Component {
 		}
 		const backendPan = await fetchQimenPan(fields, nongli, options, ctx);
 		return normalizeKinqimenData(backendPan, fallbackPan, options, nongli);
+	}
+
+
+	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){
@@ -2007,6 +2020,8 @@ class DunJiaMain extends Component {
 						<div className="horosa-side-panel-subtitle">时间、地点与起盘选项</div>
 					</div>
 				</div>
+				{/* [观象P1] 遁甲左栏两段式:时间地点(不折叠)/起盘选项(折叠记忆);内容结构零变 */}
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
 					value={datetm}
@@ -2014,11 +2029,9 @@ class DunJiaMain extends Component {
 					timeHook={this.timeHook}
 					onGeoChange={this.changeGeo}
 				/>
-				<div className="horosa-dunjia-input-section">
-					<div className="horosa-dunjia-field-title">
-						<XQIcon name="sliders" />
-						<span>选项</span>
-					</div>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="起盘选项" storageKey="dunjia.options" className="horosa-side-input-section">
+				<div className="horosa-side-fields-inner">
 					<div className="horosa-dunjia-select-grid">
 						<label className="horosa-dunjia-select-field">
 							<span>排盘</span>
@@ -2170,6 +2183,7 @@ class DunJiaMain extends Component {
 						<Button onClick={this.clickSaveCase}>保存</Button>
 					</div>
 				</div>
+				</XQSideSection>
 			</div>
 		);
 	}

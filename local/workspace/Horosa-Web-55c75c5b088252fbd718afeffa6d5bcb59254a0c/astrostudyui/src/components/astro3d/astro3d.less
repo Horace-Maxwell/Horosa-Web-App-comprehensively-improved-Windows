@@ -1,14 +1,48 @@
+/* WS-1b:悬浮信息卡主题化 —— 双主题走 --horosa-* token(旧硬编码深蓝半透明观感弃用);
+   fallback 值 = 明亮主题基色,极端场景(CSS var 未注入)不至于白底白字。 */
 .astro3dtap{
 	position: absolute;
-	background-color: MidnightBlue;
-	background-color:rgba(0,10,40);
-	border-top-left-radius: 10px;
-	border-bottom-right-radius:10px;
-	opacity: 0.5;
-	font-size: 14px;
-	color: aqua;
+	z-index: 6;
+	pointer-events: none;   /* 悬浮卡不截获点击,画布拾取/双击全屏不受遮挡 */
+	background: var(--horosa-panel-bg, rgba(255, 255, 255, 0.92));
+	border: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.2));
+	border-radius: 8px;
+	box-shadow: var(--horosa-small-shadow, 0 8px 24px rgba(0, 0, 0, 0.16));
+	backdrop-filter: blur(10px);
+	color: var(--horosa-text, #162033);
+	font-size: 12px;
+	line-height: 1.65;
 	width: 300px;
-	height: 180px;
-	padding: 1px 1px 1px;
+	padding: 8px 12px 10px;
+
+	ul{
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	li{
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		color: var(--horosa-text-soft, #52627a);
+	}
+	li span:last-child{
+		color: var(--horosa-text, #162033);
+		font-variant-numeric: tabular-nums;
+	}
 }
 
+.astro3dtapTitle{
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--horosa-text, #162033);
+	margin-bottom: 2px;
+}
+
+.astro3dtapDeg{
+	font-size: 12px;
+	color: var(--horosa-accent, #9a6a25);
+	margin-bottom: 6px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.2));
+}

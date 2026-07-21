@@ -1,18 +1,16 @@
 import os
+
 import flatlib
 from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from flatlib.chart import Chart
 from flatlib import const
-from flatlib.ephem import swe
 
 from astrostudy.helper import distance
 from . import jieqiconst
 
-# v3.0.1 perf ROUND-3 R1 (HOROSA_JIEQI_FAST_APPROACH): same fix as YearJieQi.approach — the Chart-per-iteration
-# pattern wastes ~100 swe calls each iteration just to read Sun.lon+lonspeed. Replaced with direct
-# swe.sweObject(SUN, jd, SEDEFAULT_FLAG). Convergence and result byte-identical. Kill-switch:
-# HOROSA_JIEQI_FAST_APPROACH=0 → fall back to the original Chart-based loop.
+# v3.0.1 perf ROUND-5 (HOROSA_JIEQI_FAST_APPROACH,与 NongLi/YearJieQi 同一开关):
+# _ascChart 的瘦 Chart 快路径开关。kill-switch 同 HOROSA_JIEQI_FAST_APPROACH=0。
 _JIEQI_FAST_APPROACH = os.environ.get('HOROSA_JIEQI_FAST_APPROACH', '1').lower() not in ('0', 'false', 'no', 'off')
 
 
@@ -40,6 +38,11 @@ class BirthJieQi:
             self.day = parts[2]
             if int(self.year) < 0:
                 self.ad = -1
+            elif int(data.get('ad', 1)) < 0:
+                # 显式 ad=-1 + 正年字符串('7040/07/19'):旧逻辑无条件按 AD 算,
+                # 节气窗整体错到 AD 侧 → 下游(Java BaZi.setup)窗口不包生辰而崩。
+                self.ad = -1
+                self.year = '-{0}'.format(self.year)
         else:
             self.ad = -1
             self.year = '-{0}'.format(parts[1])
@@ -61,20 +64,6 @@ class BirthJieQi:
                 self.byLon = 1
 
     def approach(self, dt, jieqiLon):
-        if _JIEQI_FAST_APPROACH:
-            sun = swe.sweObject(const.SUN, dt.jd, swe.SEDEFAULT_FLAG)
-            delta = distance(jieqiLon, sun['lon']) + 1/7200
-            deltatm = delta / sun['lonspeed']
-            newjd = dt.jd + deltatm
-            newtm = Datetime.fromJD(newjd, self.zone)
-            while abs(delta) > 0.0003:
-                sun = swe.sweObject(const.SUN, newtm.jd, swe.SEDEFAULT_FLAG)
-                delta = distance(jieqiLon, sun['lon']) + 1/7200
-                deltatm = delta / sun['lonspeed']
-                newjd = newtm.jd + deltatm
-                newtm = Datetime.fromJD(newjd, self.zone)
-            return newtm
-        # kill-switch fallback (HOROSA_JIEQI_FAST_APPROACH=0): original Chart-based loop
         chart = Chart(dt, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
         sun = chart.getObject(const.SUN)
         delta = distance(jieqiLon, sun.lon) + 1/7200
@@ -226,6 +215,9 @@ class BirthJieQi:
             if (month == 12 and m == 1) or (lastm == 12 and m == 1):
                 if noaddyear:
                     y = y + 1
+                    if y == 0:
+                        # 无公元 0 年:BC1(-1)跨年进到 AD1
+                        y = 1
                     noaddyear = False
                     hasaddyear = True
             if month == 1 and m == 12:
@@ -256,6 +248,36 @@ class BirthJieQi:
             jieqi24.append(obj)
 
         jieqi24.sort(key=takeTime)
+        # 包含性自愈:深古/远期年份(如 BC7040)节气初值系统性漂移可致整窗偏到生辰
+        # 一侧——下游(四柱交节定位)假设生辰落窗内,窗外即负索引崩。此处以已得窗口
+        # 为锚,沿黄经 ±15° 逐节气延伸,直到窗口包住生辰(带上限;正常年零迭代零变)。
+        birth_jd = self.dateTime.jd
+        guard = 0
+        # 下游先定位≤生辰的最后一个节气、逢「气」再退一格到「节」、再 ±2 取交节——最坏向前吃 3 格,两侧各保 ≥4 才绝对无越界。
+        while jieqi24 and guard < 30 and sum(1 for q in jieqi24 if q['jdn'] <= birth_jd) < 4:
+            first = jieqi24[0]
+            pidx = jieqiconst.JieQi.index(first['jieqi'])
+            pkey = jieqiconst.JieQi[(pidx - 1) % 24]
+            pinfo = jieqiconst.JieQiLon[pkey]
+            seed = Datetime.fromJD(first['jdn'] - 15.2, self.zone)
+            newtm = self.approach(seed, pinfo['lon'])
+            jieqi24.insert(0, {
+                'ord': pinfo['ord'], 'jieqi': pkey, 'jie': pinfo['jie'],
+                'time': newtm.toCNString(), 'ad': newtm.ad(), 'jdn': newtm.jd,
+            })
+            guard += 1
+        while jieqi24 and guard < 30 and sum(1 for q in jieqi24 if q['jdn'] > birth_jd) < 4:
+            last = jieqi24[-1]
+            nidx = jieqiconst.JieQi.index(last['jieqi'])
+            nkey = jieqiconst.JieQi[(nidx + 1) % 24]
+            ninfo = jieqiconst.JieQiLon[nkey]
+            seed = Datetime.fromJD(last['jdn'] + 15.2, self.zone)
+            newtm = self.approach(seed, ninfo['lon'])
+            jieqi24.append({
+                'ord': ninfo['ord'], 'jieqi': nkey, 'jie': ninfo['jie'],
+                'time': newtm.toCNString(), 'ad': newtm.ad(), 'jdn': newtm.jd,
+            })
+            guard += 1
         res['jieqi'] = self.adjustJieqi(jieqi24)
 
         if self.useLocalMao == 1:

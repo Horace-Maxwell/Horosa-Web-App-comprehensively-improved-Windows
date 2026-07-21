@@ -25,6 +25,36 @@ export function mdInlineToRuns(text, baseOpts){
 	return runs.length ? runs : [new TextRun({ ...base, text: '' })];
 }
 
+// [B2] dataURL 图片尺寸嗅探(PNG IHDR / JPEG SOF0-2):docx ImageRun 必须显式宽高,
+// 盲设会拉伸变形。解析失败返回 null → 调用方用保守默认。
+export function sniffImageSize(u8){
+	try{
+		if(!u8 || u8.length < 24){ return null; }
+		// PNG: 89 50 4E 47 … IHDR 宽高在 16..24
+		if(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4E && u8[3] === 0x47){
+			const w = (u8[16] << 24) | (u8[17] << 16) | (u8[18] << 8) | u8[19];
+			const h = (u8[20] << 24) | (u8[21] << 16) | (u8[22] << 8) | u8[23];
+			return (w > 0 && h > 0) ? { width: w, height: h } : null;
+		}
+		// JPEG: FF D8 … 扫段找 SOF0/1/2(C0/C1/C2),高宽在段内 3..7
+		if(u8[0] === 0xFF && u8[1] === 0xD8){
+			let i = 2;
+			while(i + 9 < u8.length){
+				if(u8[i] !== 0xFF){ i++; continue; }
+				const marker = u8[i + 1];
+				if(marker === 0xC0 || marker === 0xC1 || marker === 0xC2){
+					const h = (u8[i + 5] << 8) | u8[i + 6];
+					const w = (u8[i + 7] << 8) | u8[i + 8];
+					return (w > 0 && h > 0) ? { width: w, height: h } : null;
+				}
+				const len = (u8[i + 2] << 8) | u8[i + 3];
+				i += 2 + (len > 0 ? len : 1);
+			}
+		}
+	}catch(e){ /* 嗅探失败走默认 */ }
+	return null;
+}
+
 const DOCX_CELL_BORDER = { style: 'single', size: 4, color: 'BBBBBB' };
 
 export function makeDocxTableCell(text, opts){

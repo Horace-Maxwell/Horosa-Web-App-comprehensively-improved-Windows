@@ -57,6 +57,8 @@ public class AstroHelper {
 	public static final String AstroExtraEclipseDetail = PropertyPlaceholder.getProperty("astroextra.eclipsedetail", "/astroextra/eclipsedetail");
 	public static final String AstroExtraRelative = PropertyPlaceholder.getProperty("astroextra.relative", "/astroextra/relative");
 	public static final String PlanetariumState = PropertyPlaceholder.getProperty("planetarium.state", "/planetarium/state");
+	public static final String Chart3DState = PropertyPlaceholder.getProperty("chart3d.state", "/chart3d/state");
+	public static final String PrimaryDirection3D = PropertyPlaceholder.getProperty("pd3d", "/predict/pd3d");
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
 		if(Debug || DisableRequestCache) {
@@ -146,6 +148,7 @@ public class AstroHelper {
 	public static Map<String, Object> getIndiaChart(Map<String, Object> params){
 		return request(IndiaChart, params);
 	}
+
 	
 	public static Map<String, Object> getRelativeChart(Map<String, Object> params){
 		return request(RelativeChart, params);
@@ -260,5 +263,15 @@ public class AstroHelper {
 	public static Map<String, Object> getPlanetariumState(Map<String, Object> params){
 		return requestNoCache(PlanetariumState, params);
 	}
-		
+
+	public static Map<String, Object> getChart3DState(Map<String, Object> params){
+		// 与 Planetarium 相同机制:免 paramhash 缓存直连 Python(3D 视图交互态频繁变参,缓存收益低)
+		return requestNoCache(Chart3DState, params);
+	}
+
+	public static Map<String, Object> getPrimaryDirection3D(Map<String, Object> params){
+		// 照 /pd /pdchart 形态:参数全显式且结果确定,走 paramhash 缓存
+		return request(PrimaryDirection3D, params);
+	}
+
 	}

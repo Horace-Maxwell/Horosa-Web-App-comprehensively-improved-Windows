@@ -1,6 +1,7 @@
 import React from 'react';
 import { Dropdown } from 'antd';
 import XQIcon from '../xq-icons';
+import { preloadNavByKey } from '../../utils/navPreload';
 
 // 快捷功能栏(全站共享)。动词栏纪律:
 // · 页面上已可见的控件(页头的 AI 导出/帮助/新建与命例保存、左/中栏既有开关)一律
@@ -20,6 +21,7 @@ function DockButton({ item }){
 			key={item.key}
 			className={`horosa-bottom-quick-button${item.active ? ' is-active' : ''}`}
 			onClick={item.onClick}
+			onMouseEnter={item.onHover}
 			disabled={!!item.disabled}
 			title={item.title || item.label}
 		>
@@ -65,7 +67,8 @@ export default function QuickDockBar(props){
 		const onAi = typeof ai === 'function'
 			? ai
 			: ()=>{ if(dispatch){ dispatch({ type: 'astro/save', payload: { currentTab: 'aianalysis' } }); } };
-		tail.push({ key: 'ai', label: 'AI助手', icon: 'quickAi', onClick: onAi });
+		// WS-N3:悬停即预载 AI 分析 chunk(点击跳转时模块已就绪,零 Spin)
+		tail.push({ key: 'ai', label: 'AI助手', icon: 'quickAi', onClick: onAi, onHover: ()=>preloadNavByKey('aianalysis') });
 	}
 
 	const renderDropdown = (key, label, icon, menuItems, disabled)=>(

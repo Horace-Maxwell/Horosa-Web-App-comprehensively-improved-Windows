@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { XQModal, XQTabs as Tabs } from '../xq-ui';
@@ -2098,6 +2099,7 @@ function fieldsToParams(fields){
 	const params = {
 		date: fields.date.value.format('YYYY/MM/DD'),
 		time: fields.time.value.format('HH:mm:ss'),
+		ad: (fields.ad && fields.ad.value !== undefined) ? fields.ad.value : (fields.date.value.ad || 1),
 		zone: fields.zone.value,
 		lat: fields.lat.value,
 		lon: fields.lon.value,
@@ -2275,6 +2277,16 @@ class GuoLaoChartMain extends Component{
 					return;
 				}
 				this.requestChartObj(fields, chartObj);
+			};
+			// 时间变化即预热流年盘(与主 /chart 并行;正式流程到流年段时在途/缓存秒中)。
+			// 主 /chart 由模型层照发不重复;失败静默,正式请求自兜底。latency: 主盘+流年串行 → max(主盘,流年)。
+			this.props.hook.prewarmRequests = (flds)=>{
+				if(this.unmounted || this.state.engineMode === 'kinastro'){ return; }
+				if(this.state.chartStyle === GUOLAO_CHART_STYLE_QIZHENG){ return; }
+				try{
+					const tp = paramsWithMoiraTransit(flds || this.props.fields, this.state.moiraTransitTime);
+					if(tp){ fetchGuolaoChartCached(tp, { silent: true }).catch(()=>{ /* 预热静默 */ }); }
+				}catch(e){ /* 预热失败无害 */ }
 			};
 		}
 	}
@@ -2898,6 +2910,17 @@ class GuoLaoChartMain extends Component{
 		this.setState({
 			tips: tipobj,
 		});
+	}
+
+
+	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){

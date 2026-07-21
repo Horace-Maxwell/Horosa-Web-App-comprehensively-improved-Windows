@@ -1,21 +1,31 @@
-import { Component, createRef } from 'react';
+import React, { Component, createRef, Suspense } from 'react';
+import { Spin } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
-import SuZhanMain from '../suzhan/SuZhanMain';
-import JinKouMain from '../jinkou/JinKouMain';
-import TongSheFaMain from '../tongshefa/TongSheFaMain';
-import HuangJiMain from '../huangji/HuangJiMain';
-import WuZhaoMain from '../wuzhao/WuZhaoMain';
-import TaiXuanMain from '../taixuan/TaiXuanMain';
-import JingJueMain from '../jingjue/JingJueMain';
-import ShenYiShuMain from '../shenyishu/ShenYiShuMain';
-import GeomancyMain from '../geomancy/GeomancyMain';
-import TarotMain from '../tarot/TarotMain';
+// [C2·性能] 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
+// 其余子页首次点击才拉(idle 预取与悬停预取照旧);ref 经 React.lazy 透传,dock 判空自动降级。
+const SuZhanMain = React.lazy(() => import(/* webpackChunkName: "suzhan-main" */ '../suzhan/SuZhanMain'));
+const JinKouMain = React.lazy(() => import(/* webpackChunkName: "jinkou-main" */ '../jinkou/JinKouMain'));
+const TongSheFaMain = React.lazy(() => import(/* webpackChunkName: "tongshefa-main" */ '../tongshefa/TongSheFaMain'));
+const HuangJiMain = React.lazy(() => import(/* webpackChunkName: "huangji-main" */ '../huangji/HuangJiMain'));
+const WuZhaoMain = React.lazy(() => import(/* webpackChunkName: "wuzhao-main" */ '../wuzhao/WuZhaoMain'));
+const TaiXuanMain = React.lazy(() => import(/* webpackChunkName: "taixuan-main" */ '../taixuan/TaiXuanMain'));
+const JingJueMain = React.lazy(() => import(/* webpackChunkName: "jingjue-main" */ '../jingjue/JingJueMain'));
+const ShenYiShuMain = React.lazy(() => import(/* webpackChunkName: "shenyishu-main" */ '../shenyishu/ShenYiShuMain'));
+const GeomancyMain = React.lazy(() => import(/* webpackChunkName: "geomancy-main" */ '../geomancy/GeomancyMain'));
+const TarotMain = React.lazy(() => import(/* webpackChunkName: "tarot-main" */ '../tarot/TarotMain'));
+// 皇极轨策:组件级 lazy —— 其引擎(十二起卦法/演数/卦变/断法/十应/大定/历数)只随本页签走,
+// 不入本模块主 chunk。ref 经 React.lazy 透传至内层 class(getQuickDockConfig 等仍可用);
+// 未解析前 childRefs.guice.current 为 null,getActiveChild 本就判空 → dock 自动降级。
+const GuiceMain = React.lazy(() => import(/* webpackChunkName: "guice-main" */ '../guice/GuiceMain'));
+const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-main" */ '../xiaoliuren/XiaoLiuRenMain'));
+const XiaoChengTuMain = React.lazy(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain'));
+const FeiGongMain = React.lazy(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain'));
 import QuickDockBar from '../common/QuickDockBar';
 
 
 const TabPane = Tabs.TabPane;
-const CNYIBU_VALID_TABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot'];
+const CNYIBU_VALID_TABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong'];
 
 function getRuntimeCnYiBuTab(){
 	if(typeof window === 'undefined'){
@@ -61,6 +71,18 @@ class CnYiBuMain extends Component{
 				taixuan:{
 					fun: null
 				},
+				guice:{
+					fun: null
+				},
+				xiaoliuren:{
+					fun: null
+				},
+				xiaochengtu:{
+					fun: null
+				},
+				feigong:{
+					fun: null
+				},
 				jingjue:{
 					fun: null
 				},
@@ -83,6 +105,10 @@ class CnYiBuMain extends Component{
 			huangji: createRef(),
 			wuzhao: createRef(),
 			taixuan: createRef(),
+			guice: createRef(),
+			xiaoliuren: createRef(),
+			xiaochengtu: createRef(),
+			feigong: createRef(),
 			jingjue: createRef(),
 			shenyishu: createRef(),
 			geomancy: createRef(),
@@ -92,6 +118,7 @@ class CnYiBuMain extends Component{
 		this.changeTab = this.changeTab.bind(this);
 		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
 		this.wrapDockHandler = this.wrapDockHandler.bind(this);
+		this.refreshDock = this.refreshDock.bind(this);
 
 		if(this.props.hook){
 			this.props.hook.fun = (fields, chartObj)=>{
@@ -149,6 +176,36 @@ class CnYiBuMain extends Component{
 		}
 	}
 
+	/**
+	 * 子页 ref 之挂载钩 —— 真挂上那一刻补一拍，让 dock 跟上。
+	 *
+	 * 🔴 lazy 子页(轨策)的 ref 是【异步】挂上的:componentDidMount 补的那一拍跑在
+	 *    chunk 解析【之前】,彼时 ref.current 尚是 null → dock 拿着空 config 定格,
+	 *    此后再无人触发容器重渲 → 该子页的 dock 永劫只剩「AI助手」,起卦/保存全不见
+	 *    (轨策身为首个 lazy 子页,正栽于此;真机点开才现形,jest 只验了 ref 写在 JSX 上)。
+	 *    故改用 callback ref:null→实例那一刻补拍。此后任一子页改 lazy 皆自免此疫。
+	 */
+	attachChildRef(key){
+		if(!this._refCbs){
+			this._refCbs = {};
+		}
+		if(!this._refCbs[key]){
+			this._refCbs[key] = (el)=>{
+				const box = this.childRefs[key];
+				if(!box){
+					return;
+				}
+				const had = box.current;
+				box.current = el;
+				// 只在 null→实例时补(卸载置 null 不必);容器已卸则不动
+				if(!had && el && !this.unmounted){
+					this.forceUpdate();
+				}
+			};
+		}
+		return this._refCbs[key];
+	}
+
 	getActiveChild(){
 		const ref = this.childRefs[this.state.currentTab];
 		return ref && ref.current ? ref.current : null;
@@ -157,6 +214,13 @@ class CnYiBuMain extends Component{
 	// dock 不在子页渲染树内,子页 setState 不会连带重渲容器——动作后补拍 forceUpdate,
 	// 让 hasResult/禁用态跟上子页内部状态。补三拍(0/600/2500ms):起盘/起课类动作是异步的,
 	// 结果落地在网络/计算返回之后,单拍会读到旧态(dock 永远禁用的伪死)。
+	// 子页自述其态已变(如自左栏起了卦)时唤之 —— dock 不在子页渲染树内,不告则不知。
+	refreshDock(){
+		if(!this.unmounted){
+			this.forceUpdate();
+		}
+	}
+
 	wrapDockHandler(fn){
 		if(!fn){
 			return fn;
@@ -204,125 +268,202 @@ class CnYiBuMain extends Component{
 
 		return (
 			<div id={this.state.divId} className="horosa-cnyibu-page">
-				<Tabs 
+				<Tabs
 					defaultActiveKey={tab} tabPosition='right'
 					activeKey={tab}
 					onChange={this.changeTab}
+					className="xq-tabs-rail"
 					style={{ height: '100%', minHeight: 0 }}
 				>
 					<TabPane tab="宿盘" key="suzhan">
-						<SuZhanMain 
-							ref={this.childRefs.suzhan}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							chartDisplay={this.props.chartDisplay}
-							planetDisplay={this.props.planetDisplay}
-							hook={this.state.hook.suzhan}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<SuZhanMain 
+								ref={this.attachChildRef('suzhan')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								hook={this.state.hook.suzhan}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 
 					<TabPane tab="金口诀" key="jinkou">
-						<JinKouMain
-							ref={this.childRefs.jinkou}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.jinkou}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<JinKouMain
+								ref={this.attachChildRef('jinkou')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.jinkou}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 					<TabPane tab="统摄法" key="tongshefa">
-						<TongSheFaMain
-							ref={this.childRefs.tongshefa}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.tongshefa}
-							dispatch={this.props.dispatch}
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<TongSheFaMain
+								ref={this.attachChildRef('tongshefa')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.tongshefa}
+								dispatch={this.props.dispatch}
+							/>
+						</Suspense>
 					</TabPane>
 					<TabPane tab="皇极经世" key="huangji">
-						<HuangJiMain
-							ref={this.childRefs.huangji}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.huangji}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<HuangJiMain
+								ref={this.attachChildRef('huangji')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.huangji}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 					<TabPane tab="五兆" key="wuzhao">
-						<WuZhaoMain
-							ref={this.childRefs.wuzhao}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.wuzhao}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<WuZhaoMain
+								ref={this.attachChildRef('wuzhao')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.wuzhao}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 					<TabPane tab="太玄" key="taixuan">
-						<TaiXuanMain
-							ref={this.childRefs.taixuan}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.taixuan}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<TaiXuanMain
+								ref={this.attachChildRef('taixuan')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.taixuan}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
+					</TabPane>
+					<TabPane tab="皇极轨策" key="guice">
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<GuiceMain
+								ref={this.attachChildRef('guice')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.guice}
+								dispatch={this.props.dispatch}
+								onResultChange={this.refreshDock}
+								hideQuickDock
+							/>
+						</Suspense>
+					</TabPane>
+					<TabPane tab="小六壬" key="xiaoliuren">
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<XiaoLiuRenMain
+								ref={this.attachChildRef('xiaoliuren')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.xiaoliuren}
+								dispatch={this.props.dispatch}
+								onResultChange={this.refreshDock}
+								hideQuickDock
+							/>
+						</Suspense>
+					</TabPane>
+					<TabPane tab="小成图" key="xiaochengtu">
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<XiaoChengTuMain
+								ref={this.attachChildRef('xiaochengtu')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.xiaochengtu}
+								dispatch={this.props.dispatch}
+								onResultChange={this.refreshDock}
+								hideQuickDock
+							/>
+						</Suspense>
+					</TabPane>
+					<TabPane tab="飞宫小奇门" key="feigong">
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<FeiGongMain
+								ref={this.attachChildRef('feigong')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.feigong}
+								dispatch={this.props.dispatch}
+								onResultChange={this.refreshDock}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 					<TabPane tab="荆诀" key="jingjue">
-						<JingJueMain
-							ref={this.childRefs.jingjue}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.jingjue}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<JingJueMain
+								ref={this.attachChildRef('jingjue')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.jingjue}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 					<TabPane tab="神易数" key="shenyishu">
-						<ShenYiShuMain
-							ref={this.childRefs.shenyishu}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.shenyishu}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<ShenYiShuMain
+								ref={this.attachChildRef('shenyishu')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.shenyishu}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 
 					<TabPane tab="地占" key="geomancy">
-						<GeomancyMain
-							ref={this.childRefs.geomancy}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.geomancy}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<GeomancyMain
+								ref={this.attachChildRef('geomancy')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.geomancy}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 
 					<TabPane tab="塔罗" key="tarot">
-						<TarotMain
-							ref={this.childRefs.tarot}
-							value={this.props.chart}
-							height={contentHeight}
-							fields={this.props.fields}
-							hook={this.state.hook.tarot}
-							dispatch={this.props.dispatch}
-							hideQuickDock
-						/>
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<TarotMain
+								ref={this.attachChildRef('tarot')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.tarot}
+								dispatch={this.props.dispatch}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 
 				</Tabs>

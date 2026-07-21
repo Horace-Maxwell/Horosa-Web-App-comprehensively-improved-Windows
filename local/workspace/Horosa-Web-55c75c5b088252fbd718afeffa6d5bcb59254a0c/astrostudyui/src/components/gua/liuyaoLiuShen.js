@@ -1,4 +1,4 @@
-// 六爻六神取象 + 错综卦(WP-H)。六神按日干起(青龙序),取象忠于古典类象(§5.x);错卦=阴阳全变、综卦=上下颠倒。
+// 六爻六神取象 + 错综卦(WP-H)。六神按日干起(青龙序),取象忠于古典类象(x);错卦=阴阳全变、综卦=上下颠倒。
 import { littleEndian } from '../../utils/helper';
 import { getGua64 } from './GuaConst';
 import { LIUSHEN_CYCLE, LIUSHEN_START } from './LiuYaoConst';

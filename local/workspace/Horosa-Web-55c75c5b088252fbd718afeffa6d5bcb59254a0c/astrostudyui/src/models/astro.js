@@ -7,7 +7,8 @@ import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
 import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
-import { hookRafEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
+import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
+import { submitStepPrefetch, getStepPrefetcher } from '../utils/stepPrefetch';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
@@ -187,7 +188,9 @@ function newEmptyFields(){
 			name: ['lotReversal'],
 		},
 		houseStartMode: {
-			value: 0,
+			// [X1] 宿占「人事十二宫起盘」持久化读回:写侧存 localStorage(suzhanHouseStartMode),
+			// 初值曾硬编码 0 → 用户选 ASC 重启即静默回退八字公式起盘。SSR/jest 无 localStorage 时守 0。
+			value: (typeof localStorage !== 'undefined' && parseInt(localStorage.getItem('suzhanHouseStartMode'), 10) === 1) ? 1 : 0,
 			name: ['houseStartMode'],
 		},
 				predictive: {
@@ -358,10 +361,15 @@ function fieldsToParams(fields){
 }
 
 function shouldIncludePrimaryDirection(state){
+	// primarydirsphere = WS-3 主限天球(3D):与表格/盘同吃 PD 数据(/chart 携带
+	// predictives.primaryDirection),三件套登记之一(另两处:primaryDirectionSync
+	// VALID_DIRECTION_SUB_TABS + jest 枚举断言)。
 	return !!(
 		state
 		&& state.currentTab === 'direction'
-		&& (state.currentSubTab === 'primarydirect' || state.currentSubTab === 'primarydirchart')
+		&& (state.currentSubTab === 'primarydirect'
+			|| state.currentSubTab === 'primarydirchart'
+			|| state.currentSubTab === 'primarydirsphere')
 	);
 }
 
@@ -411,6 +419,70 @@ function closeAllDrawer(msg){
 
 // doHook rAF 合并用:未执行的上一帧任务句柄(latest-wins,见 *doHook)。
 let pendingHookFrame = null;
+// 「点时间→出盘」快车道之世代号:每次 fetchByFields 递增;/chart 返回时若已非当代,
+// 该响应作废(不 save 不弹错)——快速连拨时间时旧响应绝不覆写新状态(latest-wins)。
+// 只在 fieldsFastCommit 开关开启时参与判定:关开关=连丢弃行为一起回到旧序。
+let fieldsEpoch = 0;
+
+// —— WP-P1 步进预取:主请求 settle 后,把「下一步」的盘预先算好塞进缓存 ——
+// 步长套用与 DateTimeSelector 的 clickPlus/clickMinus 逐字节同法('m'档=±4 分钟);
+// 深度 k 的时间必须【克隆后逐次 add*】(月末 clamp 与用户连点出的真序列一致,
+// 1月31日+1M+1M=3月28日≠+2M —— 一步到位会臆造出用户永远点不出来的参数,预取即白打)。
+function applyPrefetchStep(dt, unit, dir){
+	if(unit === 'y'){ dt.addYear(dir); }
+	else if(unit === 'M'){ dt.addMonth(dir); }
+	else if(unit === 'd'){ dt.addDate(dir); }
+	else if(unit === 'h'){ dt.addHour(dir); }
+	else { dt.addMinute(4 * dir); }
+	return dt;
+}
+
+function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+	const dt0 = fieldValues && fieldValues.date && fieldValues.date.value;
+	if(!dt0 || typeof dt0.clone !== 'function'){
+		return [];
+	}
+	// 同向 2 步 + 反向 1 步(连点压倒性沿同方向;反向覆盖「拨过头往回」);
+	// 此刻(dir=0) → ±1 各一。
+	const plan = stepHint && stepHint.dir
+		? [{ k: 1, dir: stepHint.dir }, { k: 2, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }]
+		: [{ k: 1, dir: 1 }, { k: 1, dir: -1 }];
+	const unit = (stepHint && stepHint.unit) || 'm';
+	const tasks = [];
+	for(const pl of plan){
+		let dt = dt0.clone();
+		for(let i = 0; i < pl.k; i += 1){
+			dt = applyPrefetchStep(dt, unit, pl.dir);
+		}
+		const f2 = {
+			...fieldValues,
+			date: { ...fieldValues.date, value: dt },
+			time: { ...fieldValues.time, value: dt },
+		};
+		let param;
+		try{
+			param = fieldsToParams(f2);   // 🔴 与正式请求同一构参路径 —— 缓存键逐字节同键是预取生效的唯一前提
+		}catch(e){
+			continue;                      // 非法日期(如越 startTime)静默跳过
+		}
+		param.cid = null;
+		param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+		tasks.push({
+			name: `chart${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`,
+			// silent+零重试:预取失败静默、绝不退避风暴;结果自动进 chartMem+requestDedupe
+			run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
+		});
+	}
+	// Phase B:当前技法登记的端点(kentang pan 等)——用技法自己的请求函数,落其自己的缓存
+	const extra = getStepPrefetcher(astroState.currentTab);
+	if(extra){
+		try{
+			const more = extra(fieldValues, stepHint);
+			if(Array.isArray(more)){ tasks.push(...more); }
+		}catch(e){ /* 技法预取器出错不碍主流程 */ }
+	}
+	return tasks;
+}
 
 function hooking(hook, currentTab, fields, chartObj){
 	if(currentTab === 'indiachart' || currentTab === 'locastro'
@@ -438,6 +510,10 @@ function hooking(hook, currentTab, fields, chartObj){
 }
 
 let now = new DateTime();
+
+// 具名导出(仅供金标):键等性锁要机械验证「预取构出的 param ≡ 用户真点会发出的 param」,
+// 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
+export { fieldsToParams as __fieldsToParamsForTest, buildStepPrefetchTasks as __buildStepPrefetchTasksForTest };
 
 export default { 
 	namespace: 'astro',
@@ -645,7 +721,8 @@ export default {
 				name: ['guolaoNodeMode'],
 			},
 			houseStartMode: {
-				value: 0,
+				// [X1] 同上:重置态也读回持久化,免 reset 后又静默回退。
+				value: (typeof localStorage !== 'undefined' && parseInt(localStorage.getItem('suzhanHouseStartMode'), 10) === 1) ? 1 : 0,
 				name: ['houseStartMode'],
 			},
 			predictive: {
@@ -908,7 +985,7 @@ export default {
 
 		},
 
-		*openDrawer({ payload: values }, { call, put }){
+		*openDrawer({ payload: values }, { call, put, select }){
 			let drawer = closeAllDrawer('*openDrawer');
 			drawer[values.key] = true;
 
@@ -955,8 +1032,7 @@ export default {
 						},
 					});
 				}else{
-					const store = getStore();
-					const userstate = store.user;
+					const userstate = yield select((s)=>s.user);
 					if(userstate.currentCase && userstate.currentCase.cid && userstate.currentCase.cid.value){
 						let caze = userstate.currentCase;
 						record = {
@@ -999,8 +1075,7 @@ export default {
 						payload: record,
 					});		
 				}else{
-					const store = getStore();
-					const userstate = store.user;
+					const userstate = yield select((s)=>s.user);
 					if(userstate.currentChart.cid.value && userstate.currentChart.cid.value !== ''){
 						let chart = userstate.currentChart;
 						let tm = chart.birth.value.clone();
@@ -1038,8 +1113,7 @@ export default {
 						},
 					});		
 				}else{
-					const store = getStore();
-					const userstate = store.user;
+					const userstate = yield select((s)=>s.user);
 					if(userstate.currentChart.cid.value && userstate.currentChart.cid.value !== ''){
 						let chart = userstate.currentChart;
 						let tm = chart.birth.value.clone();
@@ -1171,8 +1245,7 @@ export default {
 				return;
 			}
 
-            const store = getStore();
-			const state = store.astro;
+            const state = yield select((s)=>s.astro);
 			yield put({
                 type: 'doHook',
                 payload: {  
@@ -1183,8 +1256,7 @@ export default {
 		},
 
 		*fetchByChartData({ payload: values }, { call, put, select }){
-            const store = getStore();
-			const state = store.astro;
+            const state = yield select((s)=>s.astro);
 			// 载入还原（不可变）：record 里保存的每个排盘选项键按 RECORD_FIELDS_RESTORE_MANIFEST 条件还原
 			// （record 缺键=保持当前值，legacy 零冲击）；命中键与下方核心键一律写「新 entry」——
 			// 旧实现 {...state.fields} 后就地改共享 entry，① 组件层 prevProps 与 props 同对象、值比对失明,
@@ -1295,12 +1367,56 @@ export default {
 			if(Object.prototype.hasOwnProperty.call(fieldValues, '__requestOptions')){
 				delete fieldValues.__requestOptions;
 			}
+			// 步进方向提示(WP-P1):只驱动 settle 后的预取,同 __requestOptions 一样绝不落 state.fields
+			const stepHint = fieldValues.__stepHint;
+			if(Object.prototype.hasOwnProperty.call(fieldValues, '__stepHint')){
+				delete fieldValues.__stepHint;
+			}
 			const param = fieldsToParams(fieldValues);
 			param.cid = null;
 			const astroState = yield select((state)=>state.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
+			// —— 「点时间→出盘」快车道(2026-07 极速化大修) ——
+			// 病根:此前 fields 的 save 排在 /chart 网络之后 → 纯本地技法(八字/数算/风水…)
+			// 也被迫等一次网络(实测热态 229ms 占总延迟 70%),网络失败则 fields 根本不更新。
+			// 修法:当前 tab 的 hook 自述 chartFree(=本页中右栏不消费 chartObj)时,fields 立即
+			// 提交+立即 doHook —— 本地技法一次性整体出(<100ms);/chart 照发,回来单独补 chartObj。
+			// 非 chartFree 页维持「到齐才 save{fields+chartObj}」的原子性(逐字节旧序),但先把
+			// 本页的请求集并行预热(prewarm,silent,经 requestDedupe 在途共享)→ latency=max 而非 sum。
+			const fastCommitOn = fieldsFastCommitEnabled();
+			const epoch = fastCommitOn ? ++fieldsEpoch : 0;
+			const activeHook = astroState.predictHook && astroState.predictHook[astroState.currentTab];
+			const fastPath = fastCommitOn && !!(activeHook && activeHook.chartFree === true);
+
+			let fld = {
+				...fieldValues,
+				nohook: false,
+			}
+
+			if(fastPath){
+				yield put({
+					type: 'save',
+					payload: { fields: fld },
+				});
+				if(!values.nohook){
+					// 喂旧 chartObj:chartFree 契约=hook 不读它(有静态哨兵守),只用 fields。
+					yield put({
+						type: 'doHook',
+						payload: { chartObj: astroState.chartObj, fields: fld },
+					});
+				}
+			}else if(fastCommitOn && prewarmRequestsEnabled() && activeHook && typeof activeHook.prewarmRequests === 'function'){
+				// fire-and-forget:组件自述的预热函数(silent 请求),失败静默——正式请求照常兜底。
+				try{ activeHook.prewarmRequests(fld); }catch(e){ /* 预热失败无害 */ }
+			}
+
 			const rsp = yield call(service.fetchChart, param, requestOptions);
+			if(fastCommitOn && epoch !== fieldsEpoch){
+				// 已有更新的一次时间变更在途/完成 —— 本响应作废,静默丢弃(连错误弹窗也不弹:
+				// 旧请求失败不该打断用户正在进行的新操作;新请求自有其成败路径)。
+				return;
+			}
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
@@ -1313,10 +1429,20 @@ export default {
 			Result.chartId = randomStr(8);
 			saveAstroAISnapshotLazy(Result, fieldValues);
 
-			let fld = {
-				...fieldValues,
-				nohook: false,
+			if(fastPath){
+				// fields 已先行提交且引用未变 —— 只补 chartObj,不重放 fields(免二次 didUpdate)、
+				// 不重发 doHook(chartFree 页不消费 chartObj;其余页由各自 tab 切换签名兜底)。
+				yield put({
+					type: 'save',
+					payload: { chartObj: Result },
+				});
+				if(stepHint){
+					// settle 后预取「下一步」:用户已停手+主盘已回,天然错峰(风暴防护在调度器内)
+					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, stepHint, astroState));
+				}
+				return;
 			}
+
             yield put({
                 type: 'save',
                 payload: {
@@ -1338,6 +1464,10 @@ export default {
                 },
             });
 
+			if(stepHint){
+				submitStepPrefetch(buildStepPrefetchTasks(fieldValues, stepHint, astroState));
+			}
+
 		},
 
 		*doHook({ payload: values }, { call, put }){
@@ -1347,7 +1477,11 @@ export default {
 			// (防延迟一帧后打到已切走的 tab/已注销的 hook);fields/chartObj 用触发时 payload
 			// (数据正确性)。已核查全部 5 个 dispatch 点之后均无依赖 hooking 同步完成的代码。
 			const runHooking = ()=>{
+				// rAF 回调内不可 yield select;getStore 需守卫(RootLayout 首渲染前为空,同 app.js 修法)
 				const store = getStore();
+				if(!store || !store.astro){
+					return;
+				}
 				const state = store.astro;
 				hooking(state.predictHook, state.currentTab, values.fields, values.chartObj);
 			};
@@ -1396,22 +1530,20 @@ export default {
                 },
             });
 
-            const store = getStore();
-			const state = store.astro;
+            const state = yield select((s)=>s.astro);
 			let hook = state.predictHook;
 			hooking(hook, state.currentTab, fields, Result);
 
 		},
 
-		*setHomePage({ payload: values }, { call, put }){
+		*setHomePage({ payload: values }, { call, put, select }){
 			if(values.path === undefined || values.path === null){
 				return;
 			}
 
 			let path = values.path;
 			if(path[0] === 'astroreader'){
-				const store = getStore();
-				const userState = store.user;
+				const userState = yield select((s)=>s.user);
 				if(userState.userInfo === undefined || userState.userInfo === null){
 					yield put({
 						type: 'save',
@@ -1488,9 +1620,8 @@ export default {
 
 		},
 
-		*deeplearn({ payload: values }, { call, put }){
-            const store = getStore();
-			const state = store.astro;
+		*deeplearn({ payload: values }, { call, put, select }){
+            const state = yield select((s)=>s.astro);
 			if(state.deeplearn){
 				let param = {
 					Cid: state.deeplearn.Cid,

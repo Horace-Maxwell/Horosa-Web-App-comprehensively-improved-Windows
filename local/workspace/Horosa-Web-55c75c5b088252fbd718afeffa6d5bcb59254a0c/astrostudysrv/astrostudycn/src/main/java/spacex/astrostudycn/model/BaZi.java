@@ -217,6 +217,9 @@ public class BaZi {
 		this.birthParts = DateTimeUtility.getDateTimeParts(this.birth);
 		this.birthAfter23 = DateTimeUtility.isAfter23Hour(this.birth);
 		
+		if(this.jieqiInfo.length < 5) {
+			throw new IllegalStateException("jieqi window too short: " + this.jieqiInfo.length + " for " + this.birth);
+		}
 		Map<String, Object> birthmonth = this.jieqiInfo[2];
 		int jieidx = 0;
 		for(int idx=0; idx<this.jieqiInfo.length; idx++) {
@@ -231,7 +234,11 @@ public class BaZi {
 		}
 		boolean isjie = (boolean) birthmonth.get("jie");
 		if(!isjie) {
-			jieidx -= 1;				
+			jieidx -= 1;
+			if(jieidx < 0) {
+				// 节气窗未包住生辰(上游窗口错位):明确报错进 err 链,绝不负索引裸崩/静默错算
+				throw new IllegalStateException("jieqi window misaligned before birth: " + this.birth);
+			}
 			birthmonth = this.jieqiInfo[jieidx];
 		}
 		int ord = (int) birthmonth.get("ord");
@@ -239,6 +246,14 @@ public class BaZi {
 		this.nongliMonth = ord / 2 + 1;
 		int prevjieidx = jieidx - 2;
 		int nextjieidx = jieidx + 2;
+		if(prevjieidx < 0 || nextjieidx > this.jieqiInfo.length - 1) {
+			throw new IllegalStateException(String.format(
+				"jieqi window too narrow around birth: %s (idx=%d, window=%d, birthJdn=%.5f, j0=%.5f, j1=%.5f, j2=%.5f)",
+				this.birth, jieidx, this.jieqiInfo.length, this.birthJdn,
+				(double)(Double)this.jieqiInfo[0].get("jdn"),
+				(double)(Double)this.jieqiInfo[1].get("jdn"),
+				(double)(Double)this.jieqiInfo[2].get("jdn")));
+		}
 		if(this.birthJdn < jiejdn) {
 			Map<String, Object> prevjie = this.jieqiInfo[prevjieidx];
 			double prevjiejdn = (double)prevjie.get("jdn");

@@ -108,7 +108,7 @@ export function chartParams(chartObj){
 	};
 }
 
-// 失败泊车(历史事故 第二路径):load 失败时绝不把 key 记成「已完成」——那会让表(props 已新)
+// 失败泊车(FL-20260712-5 第二路径):load 失败时绝不把 key 记成「已完成」——那会让表(props 已新)
 // 与盘(state 旧)永久分叉且永不重试;但失败后立即无限重试又会死循环(didUpdate→load→catch→setState→didUpdate)。
 // 语义:失败记 (key, 时刻),同 key 在窗口期内不自动重试;新 key(改日期/换盘)立即放行;窗口期过后
 // 下一次更新自然重试;成功后 clear。宿主组件在 componentDidUpdate/ensureLoaded 的重载条件里并入 !loadParked。
@@ -159,12 +159,15 @@ export function paramsRequestKey(params){
 	}
 }
 
+// [观象统一] 星历附卡对齐七政金标(原中性灰蓝 rgba(148,163,184,.28)/8radius →
+//   主题金丝边 var(--horosa-border)/6radius/中性面 var(--horosa-surface-solid));
+//   为 21 处星历附加面板(辅盘谐波/龙盘/换置等)共享,一处齐平全族与全 App 卡一致。
 export const cardStyle = {
-	border: '1px solid var(--horosa-border-soft, rgba(148, 163, 184, .28))',
-	borderRadius: 8,
+	border: '1px solid var(--horosa-border, rgba(215, 173, 105, .16))',
+	borderRadius: 6,
 	padding: 12,
 	marginBottom: 12,
-	background: 'var(--horosa-surface, rgba(255,255,255,.72))',
+	background: 'var(--horosa-surface-solid, rgba(255,255,255,.72))',
 };
 
 export const gridStyle = {

@@ -135,6 +135,14 @@ def compute_fendjing_chart(
     import sxtwl
     from datetime import date as _date, timedelta as _timedelta
 
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内 sxtwl 原路径零变)
+        from kin_year_domain import extreme_pillars
+        year_gz, month_gz, day_gz, hour_gz = extreme_pillars(
+            year, month, day, hour, minute or 0,
+            after23=(1 if after23_new_day else 0), hour_gan_next=1)[:4]
+        return _assemble_fendjing_result(year_gz, month_gz, day_gz, hour_gz)
+
     # 用戶語義（拍板,字面直覺版）：
     #   after23_new_day=1「23点算第二天」= 23時起日柱進位次日(壬寅)
     #   after23_new_day=0「24点算第二天」= 23時仍守今、24時才換日柱(辛丑)
@@ -165,12 +173,17 @@ def compute_fendjing_chart(
     month_gz = _find_lunar_month(year_gz).get(lunar_month, "丙寅")
     
     # 兩頭鉗 key：年干 + 時干
+    return _assemble_fendjing_result(year_gz, month_gz, day_gz, hour_gz)
+
+
+def _assemble_fendjing_result(year_gz, month_gz, day_gz, hour_gz):
+    """四柱→兩頭鉗排盤結果組裝(域內/全年份域回退共用,行為零變)。"""
     two_gan_key = year_gz[0] + hour_gz[0]
-    
+
     # 載入數據
     twogan_data = load_twogan_data()
     two_gan_text = twogan_data.get(two_gan_key, {})
-    
+
     result = {
         "year_gz": year_gz,
         "month_gz": month_gz,
@@ -186,7 +199,7 @@ def compute_fendjing_chart(
         "子息": two_gan_text.get("子息", ""),
         "收成": two_gan_text.get("收成", ""),
     }
-    
+
     return result
 
 

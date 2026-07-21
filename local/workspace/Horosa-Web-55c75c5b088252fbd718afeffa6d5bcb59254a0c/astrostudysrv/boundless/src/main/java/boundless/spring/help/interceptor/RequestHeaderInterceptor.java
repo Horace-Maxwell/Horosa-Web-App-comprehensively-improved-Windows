@@ -184,9 +184,11 @@ public class RequestHeaderInterceptor implements HandlerInterceptor {
 		
 		String trans = (String) header.get(KeyConstants.TransCode);
 		if(trans != null && trans.startsWith("/aianalysis/")) {
+			// Request bodies follow the app-level reqencrypt setting (same envelope as other
+			// endpoints); responses (JSON and SSE streams) always stay plaintext.
 			response.addHeader("Encrypted", "0");
 			response.setHeader("Encrypted", "0");
-			return false;
+			return reqenc;
 		}
 		if(trans != null && excludeCheckRSA.contains(trans)) {
 			if(!reqenc) {
@@ -232,6 +234,14 @@ public class RequestHeaderInterceptor implements HandlerInterceptor {
 		String transcode = (String)header.get(KeyConstants.TransCode);
 		if(!StringUtility.isNullOrEmpty(transcode) && transcode.contains("/common/")) {
 			forcetm = false;
+		}
+		String trimmedBody = body == null ? null : body.trim();
+		if(trimmedBody != null && (trimmedBody.startsWith("{") || trimmedBody.startsWith("["))) {
+			// Plaintext JSON passthrough: encrypted envelopes are base64 segments and can
+			// never start with a JSON token, so this only admits legitimately unencrypted
+			// bodies (legacy clients / transition traffic). Signature verification still
+			// applies either way.
+			return body;
 		}
 		try {
 			byte[] raw = SimpleWebSocketSecUtility.decrypt(body, modulus, privexp, forcetm);

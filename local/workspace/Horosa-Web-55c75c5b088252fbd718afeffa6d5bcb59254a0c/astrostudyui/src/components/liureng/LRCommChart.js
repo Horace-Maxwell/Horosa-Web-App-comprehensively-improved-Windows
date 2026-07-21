@@ -56,7 +56,8 @@ class LRCommChart {
 			AstroConst.AstroChartFont,
 			AstroConst.NormalFont,
 		];
-		this.timezi = (this.castOverride && this.castOverride.timeZhi) || this.nongli.time.substr(1);
+		// nongli 可能未就绪(后端瞬断/首载 race);缺失时空串兜底,与 :63 realTimeBranch 同款守卫,防构造期崩渲染
+		this.timezi = (this.castOverride && this.castOverride.timeZhi) || ((this.nongli && this.nongli.time) ? this.nongli.time.substr(1) : '');
 		// 高亮用「真实月将」「真实时支」:起课法只改 yue(天盘起支 X)/timezi(临位 Y) 来对齐上下盘,
 		// 但高亮恒标真实月将(actualYue)与真实占时(realTimeBranch),不随起课法漂移到 X/Y 的对齐格。
 		this.actualYue = (this.castOverride && this.castOverride.actualYue) || this.yue;

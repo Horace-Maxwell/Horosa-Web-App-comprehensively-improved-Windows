@@ -3,7 +3,7 @@
 import { getDeck, getDeckCards } from './deckRegistry.js';
 import { displayName, astroLine } from './cardSchema.js';
 import { orientationLabel } from './spreads.js';
-import { synthesizeText, yesNo, quintessence, birthCards, yearCard, majorByNumber } from './verdict.js';
+import { synthesizeText, yesNo, quintessence, birthCards, yearCard, majorByNumber, countingChain } from './verdict.js';
 
 function meaningOf(card, isReversed){
 	const m = card.meanings || {};
@@ -49,6 +49,9 @@ export function buildReadingText(reading, question){
 		const quint = quintessence(reading.draws, cards);
 		lines.push('[定局]');
 		lines.push(`Yes/No=${v.verdict}(${eff.verdictMode || 'majority'},score ${v.score})${quint ? ` · 精华牌 ${displayName(quint, deck)}` : ''}`);
+		// [X1·P2-34] 计数链与右栏定局 tab 同源(此前显示有而 AI 不见)。
+		const chain = countingChain(reading.draws, 0, Math.min(reading.draws.length, 8));
+		if(chain && chain.length > 1){ lines.push(`计数链:${chain.map((c)=>displayName(c, deck)).join(' → ')}`); }
 	}catch(e){ /* 定局可选,失败不阻断 */ }
 	// 生命牌(若给生日)
 	if(eff.birth && eff.birth.year && eff.birth.month && eff.birth.day){

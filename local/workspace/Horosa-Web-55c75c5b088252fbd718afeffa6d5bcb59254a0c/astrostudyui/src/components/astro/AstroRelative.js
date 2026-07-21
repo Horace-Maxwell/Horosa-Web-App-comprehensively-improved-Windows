@@ -13,6 +13,8 @@ import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 
 const TabPane = Tabs.TabPane;
 
@@ -455,16 +457,24 @@ class AstroRelative extends Component{
 		// 仅 Java 后端有解密拦截器并回标准 {result} 信封；chart 服务 :8899(Python) 既不解密(收到密文→json_in 400→无 CORS→net::ERR_FAILED)
 		// 也不回 {result} 信封。v2.6.1(fc7ab74) 误把此处改成 resolveKentangServiceRoot('taiyi')(→:8899) 导致「合盘每个技法都用不了」，此处恢复 :9999。
 		// 后端未就绪/请求失败时 request 可能抛错或返回 undefined → 必须优雅吞掉，否则 `data[ResultKey]` 抛错让整个合盘组件崩成空白、横幅自动重试也救不回。
+		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧盘留存+「更新中…」角标,
+		// 新盘到达单次 setState 整体替换)。关 silentTechniquePanels 开关=旧全屏。
+		this.setState({ updating: true });
 		let data = null;
 		try{
 			data = await request(`${Constants.ServerRoot}/modern/relative`, {
 				body: JSON.stringify(params),
+				silent: silentTechniquePanelsEnabled(),
 			});
 		}catch(e){
 			data = null;
 		}
 		if(!data || data[Constants.ResultKey] === undefined || data[Constants.ResultKey] === null){
-			return; // 服务未就绪 → 保持上次状态、等横幅自动重试再 doChart，不崩
+			// 服务未就绪 → 保持上次状态、等横幅自动重试再 doChart，不崩;只收角标
+			if(this._mounted){
+				this.setState({ updating: false });
+			}
+			return;
 		}
 
 		const res = data[Constants.ResultKey];
@@ -472,7 +482,8 @@ class AstroRelative extends Component{
 		let hook = this.state.hook;
 		hook[this.state.currentTab].result = res;
 		const st = {
-			hook: hook
+			hook: hook,
+			updating: false,
 		};
 
 		if(!this._mounted) return;
@@ -590,8 +601,10 @@ class AstroRelative extends Component{
 						<Button onClick={this.clickDoChart}>排盘</Button>
 					</Col>
 				</Row>
-				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10}} ref={this.chartRowRef}>
+				{/* position:relative=角标定位上下文;宿主收敛处统一发请求,故角标只挂盘容器一处、不进各子盘 */}
+				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10, position: 'relative'}} ref={this.chartRowRef}>
 					<Col span={24}>
+						{this.state.updating && hook[this.state.currentTab] && hook[this.state.currentTab].result ? <UpdatingBadge /> : null}
 						<Tabs 
 							defaultActiveKey={this.state.currentTab} tabPosition='right'
 							onChange={this.changeTab}

@@ -17,7 +17,10 @@ function extractFacts(text) {
 	const isSep = (s) => { const t = `${s || ''}`.trim(); return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.indexOf('-') >= 0; };
 	const kept = [];
 	for (let i = 0; i < lines.length; i++) { if (isSep(lines[i])) { kept.pop(); continue; } kept.push(lines[i]); }
-	const tokens = kept.join('\n').match(/[一-龥A-Za-z0-9~+.]+/g) || [];
+	// [X1·P2-34] 计数链是表化之后新增的独立事实行(定局段),不属「逐牌详解表化不改事实」的比较域:
+	// 基线为表化前冻结快照(不许含 GFM 表)无从含它,两侧一并剔除,守卫仍盯逐牌盘面值零变化。
+	const keptScoped = kept.filter((l) => !`${l}`.trim().startsWith('计数链:'));
+	const tokens = keptScoped.join('\n').match(/[一-龥A-Za-z0-9~+.]+/g) || [];
 	const m = new Map();
 	tokens.forEach((t) => { if (INLINE_LABELS.has(t)) { return; } m.set(t, (m.get(t) || 0) + 1); });
 	return m;

@@ -298,7 +298,7 @@ export default {
             });
         },
 
-        *login({payload: values}, {call, put}){
+        *login({payload: values}, { call, put, select }){
             if(values.rememberMe){
                 safeLocalStorageSet(Constants.LoginIdKey, values.loginId);
             }else{
@@ -321,7 +321,7 @@ export default {
                 admin: Result.IsAdmin ? true : false,
             };
 
-            const store = getStore();
+            const store = yield select((s)=>s);
             const astrost = store.astro;
             const appst = store.app;
 
@@ -359,8 +359,8 @@ export default {
 
        },
 
-        *register({payload: values}, {call, put}){
-            const store = getStore();
+        *register({payload: values}, { call, put, select }){
+            const store = yield select((s)=>s);
             const state = store.app;
 
             let params = {
@@ -394,13 +394,13 @@ export default {
             
         },
 
-		*resetPwd({ payload: values }, { call, put }){
+		*resetPwd({ payload: values }, { call, put, select }){
             let params = {
 				LoginId: values.loginId,
                 ImgToken: values.imgToken,
 			};
 			
-            const store = getStore();
+            const store = yield select((s)=>s);
             const state = store.app;
 
             let headers = {
@@ -419,7 +419,7 @@ export default {
 		},
 
 
-        *checkUser({ payload: values }, { call, put }) {
+        *checkUser({ payload: values }, { call, put, select }) {
             const param = {};
             let setupJson = localStorage.getItem(Constants.GlobalSetupKey);
             if(setupJson){
@@ -443,7 +443,7 @@ export default {
             const rsp = yield call(appService.checkUser, param);
             if(!rsp || !rsp.Result){
                 localStorage.removeItem(Constants.TokenKey);
-                const store = getStore();
+                const store = yield select((s)=>s);
                 const astrost = store.astro;
                 const appst = store.app;
                 const fld = {
@@ -470,7 +470,7 @@ export default {
             const Result = rsp.Result;
 
             if(Result.Token === undefined || Result.Token === null){
-                const store = getStore();
+                const store = yield select((s)=>s);
                 const astrost = store.astro;
                 const appst = store.app;
                 const fld = {
@@ -496,7 +496,7 @@ export default {
                 admin: Result.IsAdmin ? true : false,
             };
 
-            const store = getStore();            
+            const store = yield select((s)=>s);            
             const astrost = store.astro;
             const appst = store.app;
 
@@ -522,7 +522,7 @@ export default {
 
         },
 
-        *checkOnlyUser({ payload: values }, { call, put }) {
+        *checkOnlyUser({ payload: values }, { call, put, select }) {
             const param = {
                 PageIndex: 1,
                 PageSize: 30,
@@ -569,7 +569,7 @@ export default {
                 admin: Result.IsAdmin ? true : false,
             };
 
-            const store = getStore();
+            const store = yield select((s)=>s);
             const astrost = store.astro;
             const appst = store.app;
 
@@ -722,6 +722,7 @@ export default {
                 if(h < MinWorkspaceHeight){
                     return;
                 }
+                // 箭头函数内不可 yield;此处 getStore() 渲染期快照即可(下一行本就有 astro 存在性守卫)
                 const store = getStore();
                 const currentHeight = store && store.astro ? store.astro.height : null;
                 const hasExtraPayload = extraPayload && Object.keys(extraPayload).length > 0;

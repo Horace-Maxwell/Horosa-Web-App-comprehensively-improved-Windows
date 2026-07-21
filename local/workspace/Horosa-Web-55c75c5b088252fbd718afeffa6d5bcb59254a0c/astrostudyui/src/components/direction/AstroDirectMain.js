@@ -1,9 +1,11 @@
 import { Component } from 'react';
+import { safeJsonParseFromStorage } from '../../utils/safeStorage';
 import { Row, Col, } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import DateTime from '../comp/DateTime';
 import AstroPrimaryDirection from '../astro/AstroPrimaryDirection';
 import AstroPrimaryDirectionChart from '../astro/AstroPrimaryDirectionChart';
+import AstroPDSphere from '../astro3d/AstroPDSphere';
 import AstroZR from '../astro/AstroZR';
 import AstroFirdaria from '../astro/AstroFirdaria';
 import AstroDistributions from '../astro/AstroDistributions';
@@ -307,6 +309,14 @@ function buildPrimaryDirectSnapshotText(chartObj){
 		}
 	}
 	lines.push('');
+	// 主限天球可选行:用户最近在 3D 球上选中/播放的向运(≤24h 有效,防跨日陈旧)。
+	// 文本由 AstroPDSphere 从选中 row 既有字段拼好盖章,此处只读不再推导。
+	const sphereStamp = safeJsonParseFromStorage('horosa.pdsphere.aiCurrentRow');
+	if(sphereStamp && sphereStamp.txt && Number.isFinite(sphereStamp.ts) && (Date.now() - sphereStamp.ts) < 24 * 3600 * 1000){
+		lines.push('');
+		lines.push('[主限天球·当前动画所指]');
+		lines.push(`${sphereStamp.txt}`);
+	}
 	lines.push(...safeHelperLines(buildCurrentMomentLines, obj, nearestLine ? [nearestLine] : []));
 	lines.push(...safeHelperLines(buildMethodNoteLines, 'primarydirect'));
 	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
@@ -666,7 +676,8 @@ function unwrapPredictiveResponse(data){
 }
 
 function isPrimaryDirectionTabKey(key){
-	return key === 'primarydirect' || key === 'primarydirchart';
+	// primarydirsphere(主限天球)同吃 PD 表行:行数据是 AI 快照(复用主限表段)
+	return key === 'primarydirect' || key === 'primarydirchart' || key === 'primarydirsphere';
 }
 
 class AstroDirectMain extends Component{
@@ -682,6 +693,9 @@ class AstroDirectMain extends Component{
 					fun: null
 				},
 				primarydirchart:{
+					fun: null
+				},
+				primarydirsphere:{
 					fun: null
 				},
 				firdaria:{
@@ -1321,6 +1335,28 @@ class AstroDirectMain extends Component{
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}
 								hook={this.state.hook.primarydirchart}
+							/>
+						</FreezeInactive>
+					</TabPane>
+
+										<TabPane tab="主限天球" key="primarydirsphere">
+						<FreezeInactive active={this.state.currentTab === "primarydirsphere"}>
+							{/* AI 快照复用主限表既有段(buildPrimaryDirectSnapshotText→'primarydirect'),
+							    本组件零新增快照段 —— 防 AI 段表漂移;pd3d 构参直接复用
+							    buildPrimaryDirectionRequest(与 /predict/pd 同一构参函数,零复刻)。 */}
+							<AstroPDSphere
+								value={this.props.chartObj}
+								height={height}
+								active={this.state.currentTab === "primarydirsphere"}
+								pdMethod={appliedPdMethod}
+								pdTimeKey={appliedPdTimeKey}
+								pdYears={appliedPdYears}
+								pdType={appliedPdType}
+								pdDirect={appliedPdDirect}
+								pdConverse={appliedPdConverse}
+								pdAntiscia={appliedPdAntiscia}
+								pdTerms={appliedPdTerms}
+								buildRequest={this.buildPrimaryDirectionRequest}
 							/>
 						</FreezeInactive>
 					</TabPane>

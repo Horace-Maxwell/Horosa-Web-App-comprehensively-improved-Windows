@@ -243,6 +243,10 @@ export function buildLocalChartRecord(values){
 		cid: cid,
 		name: values.name ? values.name : '',
 		birth: birth ? birth : nowStr(),
+		// 🔴 ad 权威 = birth 串前导负号(birth 由 date.value.format 产出,必然反映真实公元前后)。
+		// values.ad 可能与 birth 不同步(调用方 fields.ad 未随 date.value.ad 更新 → BC 误存 ad:1,
+		// 载入端 setAd(1) 把 BC 强转 AD → "载入无反应")。故负号优先纠正,只有非负号才回退 values.ad。
+		ad: (birth && `${birth}`.trim().charAt(0) === '-') ? -1 : (values.ad !== undefined ? values.ad : 1),
 		zone: values.zone !== undefined && values.zone !== null ? values.zone : '+08:00',
 		lat: values.lat,
 		lon: values.lon,

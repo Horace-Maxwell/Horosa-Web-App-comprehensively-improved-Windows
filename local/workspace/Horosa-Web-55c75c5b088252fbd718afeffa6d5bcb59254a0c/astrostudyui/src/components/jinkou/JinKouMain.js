@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { message, Modal } from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -18,7 +19,7 @@ import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import {
 	XQButton as Button,
 	XQSelect as Select,
-	XQTabs as Tabs,
+	XQTabs as Tabs, XQSideSection 
 } from '../xq-ui';
 import {
 	getBirthGanzhiLocalCache,
@@ -372,6 +373,9 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	lines.push('[金口诀速览]');
 	if(jinkouData && jinkouData.ready){
 		lines.push(`地分：${fmtValue(jinkouData.topInfo.diFen)}`);
+		// [X1·P2-14] 月将/占时与中栏顶行同源入快照(此前 AI 看不到这两个排盘参数)。
+		if(jinkouData.topInfo.yuejiang){ lines.push(`月将：${fmtValue(jinkouData.topInfo.yuejiang)}`); }
+		if(jinkouData.topInfo.zhanshi){ lines.push(`占时：${fmtValue(jinkouData.topInfo.zhanshi)}`); }
 		lines.push(`空亡：${fmtValue(jinkouData.topInfo.xunKong)}`);
 		lines.push(`四大空亡：${fmtValue(jinkouData.topInfo.siDaKong)}`);
 		if(jinkouData.yongYao && jinkouData.yongYao.label){
@@ -389,6 +393,9 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	lines.push('[金口诀四位]');
 	if(jinkouData && jinkouData.ready){
 		lines.push(`地分：${fmtValue(jinkouData.topInfo.diFen)}`);
+		// [X1·P2-14] 月将/占时与中栏顶行同源入快照(此前 AI 看不到这两个排盘参数)。
+		if(jinkouData.topInfo.yuejiang){ lines.push(`月将：${fmtValue(jinkouData.topInfo.yuejiang)}`); }
+		if(jinkouData.topInfo.zhanshi){ lines.push(`占时：${fmtValue(jinkouData.topInfo.zhanshi)}`); }
 		lines.push(`空亡：${fmtValue(jinkouData.topInfo.xunKong)}`);
 		lines.push(`四大空亡：${fmtValue(jinkouData.topInfo.siDaKong)}`);
 		if(jinkouData.yongYao && jinkouData.yongYao.label){
@@ -412,7 +419,7 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 		]);
 		pushMdRows(lines, ['地分', '天盘', '将神', '神盘', '贵神'], plateRows);
 	}else{
-		lines.push('无');
+		lines.push((jinkouData && jinkouData.platesNote) || '无');
 	}
 	lines.push('');
 
@@ -862,7 +869,13 @@ class JinKouMain extends Component{
 
 	// 排盘流派切换(月将换将/贵人昼夜表/起贵神盘/盘式)：纯前端确定性重算，只触发重渲染(无需后端)。
 	onSchoolChange(key, val){
-		this.setState({ [key]: val });
+		this.setState({ [key]: val }, ()=>{
+			// [X1·P1-6] 与五行/贵人/地分 setter 同律:流派改后重存挂载快照,否则 AI 挂载读旧流派盘文
+			// (导出有 refresh 事件自愈,挂载路径读缓存无自愈)。
+			if(this.state.liureng){
+				this.saveJinKouSnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, this.state.diFen, this.state.jinkouPan);
+			}
+		});
 	}
 
 	// 组装显示用金口诀数据：流派非默认时以本地确定性重算为准(后端不解流派)；默认时走后端盘(零回归)。
@@ -901,6 +914,18 @@ class JinKouMain extends Component{
 				&& (this.state.schoolGuiPan || 'di') === 'di'
 				&& (this.state.panShi || 'yang') === 'yang';
 			result = isDefault ? normalizeKinjinkouData(backendPan, local) : local;
+			// [X1·P1-8] 本地引擎暂无三盘环:仅「盘式」偏离默认时环不受影响(阴阳盘只改用神取法),
+			// 透传后端环免右栏/AI 无谓空转;换将/贵人表/起贵神盘偏离则环已随派而变,诚实说明而非静默「暂无」。
+			if(!isDefault){
+				const ringsDefault = (this.state.schoolYueJiang || 'zhongqi') === 'zhongqi'
+					&& (this.state.schoolGuiTable || 'shiwu') === 'shiwu'
+					&& (this.state.schoolGuiPan || 'di') === 'di';
+				if(ringsDefault && backendPan && Array.isArray(backendPan.plates) && backendPan.plates.length){
+					result.plates = backendPan.plates;
+				}else if(!result.plates || !result.plates.length){
+					result.platesNote = '所选流派已改变月将/贵神起法,三盘环之本地流派实现待续 —— 先以上方四位盘为准';
+				}
+			}
 		}
 
 		if(guardOn){
@@ -1225,14 +1250,15 @@ class JinKouMain extends Component{
 			return;
 		}
 		const params = this.genRunYearParams();
-		if(birthFields.date.value.year > fields.date.value.year){
+		const birthSolarYear = getSolarYearFromField(birthFields.date);
+		const guaSolarYear = getSolarYearFromField(fields.date);
+		// 带符号天文年比较(公元前 3044 早于公元前 3040):绝不能用 abs 年,BC 侧会反向误判
+		if(Number.isFinite(birthSolarYear) && Number.isFinite(guaSolarYear) && birthSolarYear > guaSolarYear){
 			Modal.error({
 				title: '出生年份必须小于卜卦年份',
 			});
 			return;
 		}
-		const birthSolarYear = getSolarYearFromField(birthFields.date);
-		const guaSolarYear = getSolarYearFromField(fields.date);
 		const genderVal = birthFields && birthFields.gender ? birthFields.gender.value : 1;
 		let fallbackRunYear = null;
 		if(Number.isFinite(birthSolarYear) && Number.isFinite(guaSolarYear) && guaSolarYear >= birthSolarYear){
@@ -1372,6 +1398,20 @@ class JinKouMain extends Component{
 		if(p.runyear !== undefined && p.runyear !== null){
 			next.runyear = p.runyear;
 		}
+		// [X1·P1-7] 回放问测人出生(行年真源),免还原后一经重算行年被缺省 birth 打回默认。
+		if(p.birthSaved && p.birthSaved.date){
+			try{
+				const bt = new DateTime();
+				if(p.birthSaved.zone){ bt.setZone(p.birthSaved.zone); }
+				const parsed = bt.parse(`${p.birthSaved.date} ${p.birthSaved.time || '00:00:00'}`, 'YYYY-MM-DD HH:mm:ss');
+				const bf = buildBirthFields({
+					date: { value: parsed }, time: { value: parsed },
+					zone: { value: p.birthSaved.zone }, gender: { value: p.birthSaved.gender },
+				}, parsed);
+				next.birth = bf;
+				next.calcBirth = bf;
+			}catch(e){ /* 坏档忽略,保现状 */ }
+		}
 		if(!Object.keys(next).length){
 			return false;
 		}
@@ -1413,6 +1453,14 @@ class JinKouMain extends Component{
 			schoolGuiPan: this.state.schoolGuiPan,
 			panShi: this.state.panShi,
 			timeBasis: this.state.timeBasis,
+			// [X1·P1-7] 问测人出生(行年真源)随档:此前只存 displayRunYear 值,还原后一经重算
+			// (换字段/改流派触发)行年即被缺省 birth 打回默认。DateTime 不可直接 JSON,降维成串。
+			birthSaved: this.state.birth && this.state.birth.date && this.state.birth.date.value && this.state.birth.date.value.format ? {
+				date: this.state.birth.date.value.format('YYYY-MM-DD'),
+				time: this.state.birth.time && this.state.birth.time.value && this.state.birth.time.value.format ? this.state.birth.time.value.format('HH:mm:ss') : '00:00:00',
+				zone: this.state.birth.zone ? this.state.birth.zone.value : undefined,
+				gender: this.state.birth.gender ? this.state.birth.gender.value : 1,
+			} : null,
 		};
 		if(this.props.dispatch){
 			this.props.dispatch({
@@ -1560,8 +1608,7 @@ class JinKouMain extends Component{
 					<div className="horosa-side-panel-subtitle">起课时间、地分与问测人</div>
 				</div>
 
-				<div className="horosa-jinkou-input-section">
-					<div className="horosa-jinkou-field-title"><XQIcon name="clock" />起课时间与地点</div>
+				<XQSideSection iconName={sideSectionIcon('time')} title="起课时间与地点" collapsible={false}>
 					<div className="horosa-jinkou-input-embed">
 						<LiuRengInput
 							fields={this.props.fields}
@@ -1569,10 +1616,9 @@ class JinKouMain extends Component{
 							hideExtras
 						/>
 					</div>
-				</div>
+				</XQSideSection>
 
-				<div className="horosa-jinkou-input-section">
-					<div className="horosa-jinkou-field-title"><XQIcon name="target" />流派 / 盘法</div>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="流派 / 盘法" storageKey="jinkou.s1" className="horosa-jinkou-input-section">
 					<div className="horosa-jinkou-field-grid2">
 						<label className="horosa-jinkou-select-field">
 							<span>月将换将</span>
@@ -1603,10 +1649,9 @@ class JinKouMain extends Component{
 							</Select>
 						</label>
 					</div>
-				</div>
+				</XQSideSection>
 
-				<div className="horosa-jinkou-input-section">
-					<div className="horosa-jinkou-field-title"><XQIcon name="target" />地分与课式</div>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="地分与课式" storageKey="jinkou.s2" className="horosa-jinkou-input-section">
 					<div className="horosa-jinkou-field-grid2">
 						<label className="horosa-jinkou-select-field">
 							<span>地分</span>
@@ -1642,10 +1687,9 @@ class JinKouMain extends Component{
 							</Select>
 						</label>
 					</div>
-				</div>
+				</XQSideSection>
 
-				<div className="horosa-jinkou-input-section">
-					<div className="horosa-jinkou-field-title"><XQIcon name="user" />问测人出生时间</div>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="问测人出生时间" storageKey="jinkou.s3" className="horosa-jinkou-input-section">
 					<div className="horosa-jinkou-input-embed">
 						<LiuRengBirthInput
 							fields={this.state.birth}
@@ -1653,7 +1697,7 @@ class JinKouMain extends Component{
 							requireConfirm={true}
 						/>
 					</div>
-				</div>
+				</XQSideSection>
 
 				<div className="horosa-jinkou-action-row">
 					<Button type="primary" onClick={()=>this.requestGods(this.props.fields, this.props.value)}>起课</Button>
@@ -2024,7 +2068,7 @@ class JinKouMain extends Component{
 
 	renderPlateRows(jinkouData){
 		if(!jinkouData || !jinkouData.plates || !jinkouData.plates.length){
-			return this.renderEmpty('暂无三盘数据');
+			return this.renderEmpty((jinkouData && jinkouData.platesNote) || '暂无三盘数据');
 		}
 		return jinkouData.plates.map((row)=>(
 			<div className="horosa-jinkou-info-row" key={`plate_${row.index || row.di}`}>

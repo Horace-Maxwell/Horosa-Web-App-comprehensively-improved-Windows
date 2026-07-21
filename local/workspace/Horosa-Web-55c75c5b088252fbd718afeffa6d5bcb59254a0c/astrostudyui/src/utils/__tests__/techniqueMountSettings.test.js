@@ -32,7 +32,8 @@ import { SU28_MODE_GROUPS } from '../../components/guolao/guolaoData';
 //   命盘侧重算不受 schema.kind 影响)，去掉事盘上误显的 TIME_FIELDS 覆盖坏边界。
 // wuzhao/taixuan/jingjue/shenyishu 已从 sectionsOnly 升级为 payload(builder 收 opts → 用户挂载设置生效)。
 // huangji 保持 sectionsOnly:命盘侧 buildHuangJiSnapshotForFields 已按出生重算,事盘侧读已存 snapshot 不重算。
-const SECTIONS_ONLY = ['sixyao', 'tongshefa', 'mundane', 'huangji', 'geomancy', 'tarot', 'auxchart',
+const SECTIONS_ONLY = ['sixyao', 'tongshefa', 'mundane', 'geomancy', 'tarot', 'auxchart',
+	'relative', // [D2] 合盘:两盘技法只读(快照单源=合盘页,选项在合盘页改即重存)
 ];
 
 beforeEach(()=>{
@@ -46,7 +47,7 @@ describe('techniqueMountSettings schema 覆盖', ()=>{
 		expect(missing).toEqual([]);
 	});
 
-	it('sectionsOnly 集合 = {sixyao,tongshefa,mundane}(变更需显式改测试,防误把可重算技法标只读)', ()=>{
+	it('sectionsOnly 集合 = {sixyao,tongshefa,mundane,huangji,…,relative}(变更需显式改测试,防误把可重算技法标只读)', ()=>{
 		const flagged = Object.keys(TECHNIQUE_SETTINGS_SCHEMA)
 			.filter((key)=>TECHNIQUE_SETTINGS_SCHEMA[key].kind === 'sectionsOnly')
 			.sort();

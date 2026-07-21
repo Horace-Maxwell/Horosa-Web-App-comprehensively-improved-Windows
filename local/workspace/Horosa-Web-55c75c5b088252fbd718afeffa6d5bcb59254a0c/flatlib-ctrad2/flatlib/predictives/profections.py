@@ -25,7 +25,10 @@ def compute(chart, date, fixedObjects=False, nodeRetrograde=False):
     nextSr = ephem.nextSolarReturn(date, sun.lon, chart.flags)
     
     # In one year, rotate chart 30º
-    rotation = 30 * (date.jd - prevSr.jd) / (nextSr.jd - prevSr.jd)
+    # 目标时刻恰为返照点时 prevSr==nextSr(分母为 0,如生日当天整点起小限):
+    # 此时年内行度=0(新一年起点),不做除法。
+    span = nextSr.jd - prevSr.jd
+    rotation = 30 * (date.jd - prevSr.jd) / span if span > 1e-9 else 0.0
     
     # Include 30º for each previous year
     age = math.floor((date.jd - chart.date.jd) / 365.2421904)

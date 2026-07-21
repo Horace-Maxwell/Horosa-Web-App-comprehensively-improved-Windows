@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import sys
 import traceback
 from numbers import Integral, Real
@@ -140,8 +141,14 @@ def _with_seed(seed, func):
 
 
 def _verdict(text):
-    has_ji = "吉" in text
-    has_xiong = "凶" in text
+    # [X1] 末句显式定谳优先:古文正文常带语境性吉凶字(「凶事盡除」「前如凶,後乃吉光」),
+    # 全文单字双扫会把明写「吉。」终判的卦误报「吉凶并见」;结尾 大/小吉凶 直接采信,无终判才回落旧扫描。
+    t = (text or "").strip()
+    m = re.search(r"([大小]?[吉凶])[。．\s]*$", t)
+    if m:
+        return m.group(1)
+    has_ji = "吉" in t
+    has_xiong = "凶" in t
     if has_ji and has_xiong:
         return "吉凶并见"
     if has_ji:
@@ -152,10 +159,15 @@ def _verdict(text):
 
 
 def _spirit_note(text):
-    idx = text.rfind("祟")
-    if idx < 0:
+    # [X1·P2-31] 旧版自最后一个「祟」字起向后切片:「X為祟」句式丢主语出垃圾(如丢「泰父」只剩「祟,凶」)。
+    # 改取【含祟之整句】(以。断句),保住「泰父為祟」类完整表述;无祟句回落 —。
+    t = text or ""
+    if "祟" not in t:
         return "—"
-    return text[idx:].strip("。，；; ")
+    sentences = [seg.strip("，；; ") for seg in t.split("。") if "祟" in seg]
+    if not sentences:
+        return "—"
+    return "。".join(sentences).strip("。，；; ")
 
 
 def _gua_table():
@@ -181,8 +193,15 @@ def _cast(seed):
         stalks_first = 30
         divider = sorted(random.sample(range(10, stalks_first), 1))[0]
         top_count = divider - 10
+        # [X1·P2-32] divider=10 时 top=0(同类物理不可能):仅无效时合法域重抽,有效种子字节不变。
+        if top_count < 1:
+            top_count = sorted(random.sample(range(1, 20), 1))[0]
         remainder_pool = stalks_first - top_count
         lower_cut = sorted(random.sample(range(1, 17), 1))[0]
+        # [X1·P2-32] top>13 时 pool<17,旧抽样可产负/零中分(30 算实分三堆物理不可能):
+        # 仅首抽无效时在合法域重抽 —— 有效种子字节不变,4.7% 垃圾态转为合法分堆。
+        if remainder_pool - lower_cut < 1:
+            lower_cut = sorted(random.sample(range(1, max(2, remainder_pool)), 1))[0]
         middle_count = remainder_pool - lower_cut
         bottom_count = lower_cut
         counts = [top_count, middle_count, bottom_count]

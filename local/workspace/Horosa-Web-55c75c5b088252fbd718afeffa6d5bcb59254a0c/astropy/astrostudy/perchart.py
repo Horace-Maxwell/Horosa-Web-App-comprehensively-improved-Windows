@@ -272,6 +272,26 @@ LIST_OBJECTS_NOCHIRON = [
     const.SOUTH_NODE, const.SYZYGY, const.PARS_FORTUNA, const.DARKMOON, const.PURPLE_CLOUDS,
 ]
 
+# 窄域天体的星历数据域(JD,二分实测后各收 1 天安全边;其余天体与主行星同全域)。
+# 按各自域精确取舍:域内在场、域外缺席,PerChart 下游对 objlists 内任何星的取用都保证命中。
+BODY_JD_DOMAIN = {
+    const.CHIRON: (1967602.5, 3419436.2),      # AD 675 ~ 4649
+    const.PHOLUS: (640648.6, 4390615.4),       # BC 2960 ~ AD 7308
+    const.INTP_APOG: (625000.6, 2817999.5),    # BC 3002 ~ AD 3003
+    const.INTP_PERG: (625000.6, 2817999.5),
+}
+
+
+def objectsForJD(jd):
+    """按儒略日筛全星表:窄域天体仅在其数据域内纳入。"""
+    res = []
+    for o in const.LIST_OBJECTS:
+        dom = BODY_JD_DOMAIN.get(o)
+        if dom and not (dom[0] <= jd <= dom[1]):
+            continue
+        res.append(o)
+    return res
+
 
 def getHSys(house):
     try:
@@ -625,10 +645,10 @@ class PerChart:
         self.objlists = []
 
         jd = self.dateTime.jd
-        if jd > 3419437.5 or jd < 1967601.5:
-            self.objlists.extend(LIST_OBJECTS_NOCHIRON)
-        else:
+        if 1967601.5 <= jd <= 3419437.5:
             self.objlists.extend(const.LIST_OBJECTS)
+        else:
+            self.objlists.extend(objectsForJD(jd))
 
         if 'objlists' in data.keys():
             self.objlists = data['objlists']
@@ -2487,6 +2507,14 @@ class PerChart:
             except:
                 continue
 
+
+    def getRawFixedStarSu28Cached(self):
+        # 同一请求内 guo74.virtualSu28 逐星取 decl 时对同批 28 星重复取数。缓存一次**原始批**
+        # (未 relocate、未调 ra;同 (star, jd, flags) 的 decl 确定性,重复取数逐字节等值)。
+        # 与 getAdjustFixedStarSu28 的成品缓存严格分离:成品路径自取一批再变异,绝不共享对象。
+        if getattr(self, '_rawSu28Cache', None) is None:
+            self._rawSu28Cache = self.chart.getFixedStartsSu28()
+        return self._rawSu28Cache
 
     # v3.0.1 perf ROUND-5:同一请求 'fixedStarSu28' 与 'su28Adjust' 两个键各调一次本方法,每次都从
     # swisseph 重取 28 星再重做同一套 ra 调整(单次 ~50ms)。memo **成品列表**(★方法会原地改 star.ra,

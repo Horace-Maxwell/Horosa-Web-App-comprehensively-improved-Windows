@@ -463,6 +463,10 @@ def find_jq_date1(
 
 
 def jq(year: int, month: int, day: int, hour: int, minute: int) -> str:
+    if year < 1 or year > 9999:
+        # 全年份域回退:swe 太阳视黄经直映射节气名(与主链定气口径一致;域内原路径零变)
+        from kin_year_domain import solar_term_name
+        return solar_term_name(year, month, day, hour, minute)
     """Determine the current solar term (節氣) for the given date and time.
 
     Compares the input datetime against the start of the surrounding solar

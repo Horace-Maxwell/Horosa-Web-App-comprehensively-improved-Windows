@@ -92,7 +92,7 @@ export function synthesize(draws){
 	draws.forEach((d) => {
 		const c = d.card;
 		if(d.isReversed){ rev += 1; }
-		if(c.arcana === 'major'){ majors += 1; }
+		if(isTrumpArcana(c.arcana)){ majors += 1; }   // [X1] *_trump 历史大牌同归大牌族,勿当小牌污染花色/重复数字
 		else{
 			if(suitCount[c.suit] !== undefined){ suitCount[c.suit] += 1; }
 			if(c.court){ courts += 1; }
@@ -131,7 +131,7 @@ export function pairings(draws){
 // --- 3.7/6.10 计时(花色→单位,数字→数量;一种通行口径,可声明) ---
 const SUIT_TIME_UNIT = { wands: '日', cups: '周', swords: '时辰/小时', pentacles: '月' };
 export function timing(card){
-	if(!card || card.arcana === 'major'){ return card && card.arcana === 'major' ? '大牌:时机由命运定,难以精确计时' : '—'; }
+	if(!card || isTrumpArcana(card.arcana)){ return card && isTrumpArcana(card.arcana) ? '大牌:时机由命运定,难以精确计时' : '—'; }
 	const unit = SUIT_TIME_UNIT[card.suit];
 	if(!unit){ return '—'; }
 	const qty = card.court ? '一段时期' : `${card.number || '?'}`;

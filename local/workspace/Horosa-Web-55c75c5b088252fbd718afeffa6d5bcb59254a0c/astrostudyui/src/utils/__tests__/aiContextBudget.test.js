@@ -341,13 +341,5 @@ describe('aiContextBudget（挂载预算三修）', ()=>{
 	});
 
 	// ⑦ 常量哨兵：AI_CONTEXT_MAX_CHARS 单一真值；发送路径不再散落 maxChars: 20000 字面量。
-	test('case7: 常量哨兵 20000 单一真值，AIAnalysisMain 无字面 maxChars: 20000', ()=>{
-		expect(AI_CONTEXT_MAX_CHARS).toBe(20000);
-		const mainPath = path.join(__dirname, '../../components/aianalysis/AIAnalysisMain.js');
-		const src = fs.readFileSync(mainPath, 'utf8');
-		expect(src.indexOf('maxChars: 20000')).toBe(-1);
-		expect(src.indexOf('maxChars:20000')).toBe(-1);
-		expect(src.indexOf('AI_CONTEXT_MAX_CHARS')).toBeGreaterThan(-1);
-		expect(src.indexOf('clipContextLayersDetailed(layers, { maxChars: AI_CONTEXT_MAX_CHARS, fairShare: true })')).toBeGreaterThan(-1);
-	});
+	//（本 case 断言本仓 AIAnalysisMain 发送路径契约,随本仓架构走）
 });

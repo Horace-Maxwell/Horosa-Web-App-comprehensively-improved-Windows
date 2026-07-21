@@ -142,7 +142,7 @@ class AuxChartMain extends Component{
 						defaultActiveKey={tab} tabPosition='right'
 						activeKey={tab}
 						onChange={this.changeTab}
-						className="horosa-auxchart-tabs"
+						className="xq-tabs-rail horosa-auxchart-tabs"
 						style={{ height: '100%' }}
 					>
 						<TabPane tab="量化盘" key="germanytech">

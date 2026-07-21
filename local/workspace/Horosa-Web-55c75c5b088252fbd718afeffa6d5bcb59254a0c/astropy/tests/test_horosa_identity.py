@@ -5,7 +5,7 @@
 前端误判成服务未就绪且重试死循环。前端自愈依赖本端点返回稳定的 app 标记 + 壳注入的
 启动 nonce(HOROSA_LAUNCH_NONCE)——本测试钉死其响应契约:
   · app == 'horosa-chart'(与 Java 侧 'horosa-backend' 区分);
-  · proto == 2(起支持 deep 真算维度;旧断言 proto==1 已随协议升级);
+  · proto == 2([V-5] 起支持 deep 真算维度;旧断言 proto==1 已随协议升级);
   · nonce 原样回显且只允许 [A-Za-z0-9_-](其余字符过滤,无注入面);
   · 无 nonce 环境(浏览器直连 dev)回空串。
 """
@@ -44,7 +44,7 @@ def _call_identity_deep():
 
 
 def test_horosa_identity_deep_ok(monkeypatch):
-    # deep=1 → 真算通过时 deep:ok + proto:2;不带 deep 的响应无 deep 字段(向后兼容)
+    # [V-5] deep=1 → 真算通过时 deep:ok + proto:2;不带 deep 的响应无 deep 字段(向后兼容)
     monkeypatch.delenv('HOROSA_IDENTITY_DEEP_FAIL', raising=False)
     data = _call_identity_deep()
     assert data['proto'] == 2

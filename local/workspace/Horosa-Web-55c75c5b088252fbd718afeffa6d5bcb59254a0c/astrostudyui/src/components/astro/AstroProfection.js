@@ -15,6 +15,8 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import { XQSegmented, XQSelect } from '../xq-ui';
 import { SIGNS } from '../../divination/data/signs';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 
 // ===== G9 月/日小限 + 多起点(纯前端派生) =====
 // flatlib 后端小限盘已连续旋转(年盘自上升),此处的「年/月/日」摘要为离散古典口径的纯前端派生,
@@ -243,15 +245,21 @@ class AstroProfection extends Component{
 		// 空回包/请求失败防御:后端未就绪、无效生辰等场景 request 可能抛错或返回空——
 		// 静默保持现盘,不产生 Unhandled Rejection(此前 data 为 undefined 时读 Result 直接炸红屏)。
 		let data = null;
+		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧盘留存+「更新中…」角标,
+		// 新盘到达单次 setState 整体替换 —— 印占同款范式)。关 silentTechniquePanels 开关=旧全屏。
+		this.setState({ updating: true });
 		try{
 			data = await request(`${Constants.ServerRoot}/predict/profection`, {
 				body: JSON.stringify(params),
+				silent: silentTechniquePanelsEnabled(),
 			});
 		}catch(e){
+			this.setState({ updating: false });
 			return;
 		}
 		const result = data ? data[Constants.ResultKey] : null;
 		if(!result){
+			this.setState({ updating: false });
 			return;
 		}
 		let tm = new DateTime();
@@ -261,6 +269,7 @@ class AstroProfection extends Component{
 		}
 		const st = {
 			dirChart: result,
+			updating: false,
 			params: {
 				...params,
 				datetime: dt,
@@ -565,6 +574,8 @@ class AstroProfection extends Component{
 			<div>
 				<Row gutter={6}>
 					<Col span={17}>
+						<div style={{ position: 'relative' }}>
+							{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
 							<AstroDoubleChart value={chartObj} 
 								height={height}
 								planetDisplay={this.props.planetDisplay}
@@ -572,6 +583,7 @@ class AstroProfection extends Component{
 								chartDisplay={this.props.chartDisplay}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
+						</div>
 					</Col>
 					<Col span={7}>
 						<div className={styles.scrollbar} style={style}>

@@ -48,7 +48,16 @@ class MidPoint:
                     self.personalOrb = po
             except (TypeError, ValueError):
                 self.personalOrb = None
-        self.objects = [self.perchart.chart.getObject(id) for id in LIST_OBJ]
+        # 逐星取:个别小体在其星历物理域外(如凯龙 AD675-4649)时该星缺席,
+        # 其余照常(域内全员在场,行为与旧实现一致)。
+        self.objects = []
+        for _oid in LIST_OBJ:
+            try:
+                _obj = self.perchart.chart.getObject(_oid)
+            except KeyError:
+                continue
+            if _obj is not None:
+                self.objects.append(_obj)
         self.tnpObjs = []
         if self.uranian:
             chart = perchart.chart

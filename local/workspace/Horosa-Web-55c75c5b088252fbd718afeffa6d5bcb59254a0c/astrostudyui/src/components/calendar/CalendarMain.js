@@ -78,6 +78,7 @@ class CalendarMain extends Component{
 			<div id={this.state.divId} className='horosa-calendar-page'>
 				<Tabs
 					defaultActiveKey={this.state.currentTab} tabPosition='right'
+					className="xq-tabs-rail"
 					onChange={this.changeTab}
 					className='horosa-calendar-tabs'
 					style={{ height: '100%' }}

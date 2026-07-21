@@ -21,30 +21,50 @@ export default {
 					chunks: 'async',
 					minSize: 30000,
 					maxInitialRequests: 12,
-					maxAsyncRequests: 16,
+					// WS-N1(2026-07-16):16 → 40。16 时恰好顶格:两个最大页面根(46/47 chunk)的
+					// Promise.all 恰 16 项,共享的 9-10 个独立 chunk 文件在场却因请求预算引用不了,
+					// 内容被【回灌】进两根各存一份(94 共有模块/重复 2.48MB,dist 白胖 ~5MB)。
+					// 首试 30 仍被用满(p__index 组=30 顶格,check-chunk-dup 哨兵实咬)→ 40 留余量。
+					// 2026-07-19:40 再顶格(P5 懒化把 CnYiBu 子技法/AstroRelative/ChartMemo 全转
+					// async,p__index 组=40 == 上限,哨兵咬)→ 56 续留余量,同判据同回退。
+					// 判据:任何组的 Promise.all 长度 == 本值即再次顶格(scripts/check-chunk-dup.js
+					// 哨兵盯)。请求数多 = 桌面本地协议零成本/web 静态托管可并发,回灌才是真税。
+					// 回退 kill-switch:HOROSA_SPLIT_MAXREQ=16。
+					maxAsyncRequests: Number(process.env.HOROSA_SPLIT_MAXREQ || 56),
 					cacheGroups: {
 						vendorsGl: {
 							name: 'vendors-gl',
-							test: /[\\/]node_modules[\\/](three)[\\/]/,
+							test: /[\\/]node_modules[\\/](three|astronomy-engine)[\\/]/,
 							chunks: 'async',
 							priority: 30,
 							minChunks: 2,
 							reuseExistingChunk: true,
 						},
+						// WS-N5:minChunks 2→1。echarts 现仅玄学史一个 async 消费者,minChunks:2 恒
+						// 不命中 → 内容匿名内联在数字 id chunk(66),增删 chunk 时数字 id 重排 = hash
+						// 全变,更新包/HTTP 缓存被无谓击穿。1 = 收编为稳定命名 vendors-viz(字节不变,
+						// 只换名);未来出现第二消费者语义依旧正确。
 						vendorsViz: {
 							name: 'vendors-viz',
 							test: /[\\/]node_modules[\\/](echarts|zrender|d3|d3-[^\\/]+|@antv)[\\/]/,
 							chunks: 'async',
 							priority: 28,
-							minChunks: 2,
+							minChunks: 1,
 							reuseExistingChunk: true,
 						},
-						vendorsCalendar: {
-							name: 'vendors-calendar',
-							test: /[\\/]node_modules[\\/](lunar-javascript|sxtwl)[\\/]/,
+						// (WS-N5)原 vendorsCalendar 规则已删:lunar-javascript/sxtwl 被 eager 八字带进
+						// p__index/vendors~p__index(有意),async 子 chunk 因父可用性优化不再含它 →
+						// 规则永不命中,是死配置(2026-07-16 dist 逆向证实,勿凭它推断 calendar 已提取)。
+						// 神数正传:引擎 + 秘数表(~250KB)。其文件在 src/utils/ 下 → 会被 sharedTechnique 的
+						// test 命中,且被组件 chunk 与挂载 builder 两处引用即满足 minChunks:2 → 遭提取进
+						// shared-technique(全技法共载)。此处以更高 priority 的窄规则截下,令其只随本技法走。
+						// 条文库另有 magic comment 的 zhengchuan-verses-* chunk,不受此规则影响。
+						zhengchuanEngine: {
+							name: 'zhengchuan-engine',
+							test: /[\\/]src[\\/]utils[\\/](zhengchuan[A-Za-z]+\.js|data[\\/]zhengchuan(?!.*Verses)[A-Za-z]+\.json)$/,
 							chunks: 'async',
-							priority: 26,
-							minChunks: 2,
+							priority: 24,
+							minChunks: 1,
 							reuseExistingChunk: true,
 						},
 						sharedTechnique: {

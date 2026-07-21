@@ -113,6 +113,19 @@ function loadFromMemoryAndGlobal(moduleName){
 	return null;
 }
 
+// [D1-sidecar] 结构化真值随载契约:meta.structuredGT = 引擎真值对象(schema 四类:
+// elements/timeline/patterns/keyFactors 任意子集)。下游 GT 消费端
+// 与事实核对(reportFactCheck)优先吃 sidecar,缺则回落文本解析 —— 渐进增强,不注册恒零回归。
+export function loadModuleStructuredGT(moduleName){
+	try{
+		const snap = loadModuleAISnapshot(moduleName);
+		const gt = snap && snap.meta && snap.meta.structuredGT;
+		return (gt && typeof gt === 'object') ? gt : null;
+	}catch(_){
+		return null;
+	}
+}
+
 export function saveModuleAISnapshot(moduleName, content, meta){
 	try{
 		if(!moduleName){

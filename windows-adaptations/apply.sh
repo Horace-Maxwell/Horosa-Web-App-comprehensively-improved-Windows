@@ -243,5 +243,8 @@ echo "== 25. QuickDockBar 契约测试跨平台修复(path.relative 归一 POSIX
 # 白名单页(QuickDockBar/AstroChartMain/KinAstroMain)被误判为 offender、契约两测假红。修:relPosix()
 # 归一到 POSIX 分隔符再比对(macOS path.sep='/' 时 split/join 为 no-op,行为逐字节不变)。
 apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/common/__tests__/quickDockContract.test.js src__components__common__quickDockContract.pathsep.test.js.patch
+# Mac v3.5.0 新增的 chartFreeContract 源码扫描契约测试同类:path.relative(SRC_ROOT,fp) 收集「.hook.chartFree=true」声明者
+# 相对路径,与正斜杠期望表 toEqual 一一比对;Windows 反斜杠 → found != entries 假红。同法 split(path.sep).join('/') 归一。
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/chartFreeContract.test.js src__utils__chartFreeContract.pathsep.test.js.patch
 
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="

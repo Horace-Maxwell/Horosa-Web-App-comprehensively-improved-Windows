@@ -247,7 +247,8 @@ def _normalize_result(raw, year, month, day, hour, minute, second, date_str, tim
             "yinyang": {"陽": "阳", "陰": "阴"}.get(item.get("陰陽"), item.get("陰陽")),
         })
 
-    shensha_items = [{"label": _display_text(key), "value": _display_text(value)} for key, value in shensha.items()]
+    # [X1] 貴人表仅甲/乙年干支载(vendor 上游残表);未载返 None → 诚实标「原表未载」,不伪造卦名。
+    shensha_items = [{"label": _display_text(key), "value": _display_text(value) or "原表未载"} for key, value in shensha.items()]
     year_gz = ganzhi.get("年", "")
     shensha_items.append({"label": "正禄羊刃", "value": _display_text(shenyishu_core.get_zhenglu_yangren(year_gz))})
     shensha_items.append({"label": "饮泉食谷", "value": "是" if shenyishu_core.is_yinquan_shigu(year_gz) else "否"})
@@ -427,7 +428,8 @@ class ShenYiShuSrv:
             season = _normalize_season(raw_season, month)
             date_str = data.get("date") or f"{year:04d}-{month:02d}-{day:02d}"
             time_str = data.get("time") or f"{hour:02d}:{minute:02d}:{second:02d}"
-            result = shenyishu_core.Shenyishu(year, month, day, hour, _to_int(data.get("after23NewDay"), 1)).get_bingzhan_result()
+            # [X1] lateZiHourUseNextDay 全局开关透传(默认 1=旧行为字节不变)。
+            result = shenyishu_core.Shenyishu(year, month, day, hour, _to_int(data.get("after23NewDay"), 1), _to_int(data.get("lateZiHourUseNextDay"), 1)).get_bingzhan_result()
             normalized = _normalize_result(result, year, month, day, hour, minute, second, date_str, time_str, hour_source, season_source, season)
             return jsonpickle.encode({"ResultCode": 0, "Result": normalized}, unpicklable=False)
         except Exception:

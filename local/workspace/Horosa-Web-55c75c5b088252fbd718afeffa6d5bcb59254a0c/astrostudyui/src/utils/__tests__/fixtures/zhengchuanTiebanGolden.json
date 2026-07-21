@@ -1,0 +1,946 @@
+{
+ "cases": [
+  {
+   "name": "算例一",
+   "input": {
+    "yearGz": "辛卯",
+    "monthGz": "戊戌",
+    "dayGz": "丁亥",
+    "hourGz": "己酉",
+    "gender": "男",
+    "lunarMonth": 9,
+    "lunarDay": 14,
+    "isLeapMonth": false,
+    "askGz": "丙辰"
+   },
+   "benming": {
+    "xianTian": 2,
+    "wuYin": "宮",
+    "wuYinNum": 5,
+    "riMing": 2,
+    "shiYun": 5,
+    "ke": "正刻",
+    "benMingShu": 794,
+    "biGua": "大壯",
+    "base": 440,
+    "xuShu": 430,
+    "items": {
+     "性格": [
+      8319,
+      1796
+     ],
+     "才能前程": [
+      4699
+     ],
+     "财运": [
+      6017
+     ],
+     "兄弟个数": [
+      7314
+     ]
+    }
+   },
+   "houTian": 4,
+   "liunian": [
+    {
+     "age": 1,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "問",
+     "num": 2133
+    },
+    {
+     "age": 3,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "分",
+     "num": 3188
+    },
+    {
+     "age": 5,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "粉",
+     "num": 4009
+    },
+    {
+     "age": 7,
+     "tianSiSheng": "七",
+     "mark": "閉",
+     "letter": "尾",
+     "num": 2265
+    },
+    {
+     "age": 9,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "離",
+     "num": 4579
+    },
+    {
+     "age": 11,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "物",
+     "num": 3712
+    },
+    {
+     "age": 13,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "問",
+     "num": 3141
+    },
+    {
+     "age": 15,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "分",
+     "num": 2611
+    },
+    {
+     "age": 17,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "粉",
+     "num": 2477
+    },
+    {
+     "age": 19,
+     "tianSiSheng": "七",
+     "mark": "閉",
+     "letter": "尾",
+     "num": 3713
+    },
+    {
+     "age": 21,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "離",
+     "num": 5007
+    },
+    {
+     "age": 23,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "物",
+     "num": 7964
+    },
+    {
+     "age": 25,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "問",
+     "num": 2683
+    },
+    {
+     "age": 27,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "分",
+     "num": 2422
+    },
+    {
+     "age": 29,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "粉",
+     "num": 1995
+    },
+    {
+     "age": 31,
+     "tianSiSheng": "七",
+     "mark": "閉",
+     "letter": "尾",
+     "num": 4140
+    },
+    {
+     "age": 33,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "離",
+     "num": 5939
+    },
+    {
+     "age": 35,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "物",
+     "num": 6732
+    },
+    {
+     "age": 37,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "問",
+     "num": 2501
+    },
+    {
+     "age": 39,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "分",
+     "num": 1433
+    },
+    {
+     "age": 2,
+     "tianSiSheng": "四",
+     "mark": "開",
+     "letter": "動",
+     "num": 3274
+    },
+    {
+     "age": 4,
+     "tianSiSheng": "七",
+     "mark": "發",
+     "letter": "和",
+     "num": 8992
+    },
+    {
+     "age": 6,
+     "tianSiSheng": "四",
+     "mark": "閉",
+     "letter": "屯",
+     "num": 5625
+    },
+    {
+     "age": 8,
+     "tianSiSheng": "五",
+     "mark": "水",
+     "letter": "西",
+     "num": 8254
+    },
+    {
+     "age": 10,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "坷",
+     "num": 9348
+    },
+    {
+     "age": 14,
+     "tianSiSheng": "四",
+     "mark": "開",
+     "letter": "動",
+     "num": 7478
+    },
+    {
+     "age": 16,
+     "tianSiSheng": "七",
+     "mark": "發",
+     "letter": "和",
+     "num": 7012
+    },
+    {
+     "age": 18,
+     "tianSiSheng": "四",
+     "mark": "閉",
+     "letter": "屯",
+     "num": 8377
+    },
+    {
+     "age": 20,
+     "tianSiSheng": "五",
+     "mark": "水",
+     "letter": "西",
+     "num": 8507
+    },
+    {
+     "age": 22,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "坷",
+     "num": 5114
+    },
+    {
+     "age": 24,
+     "tianSiSheng": "六",
+     "mark": "石",
+     "letter": "坷",
+     "num": 11292
+    },
+    {
+     "age": 26,
+     "tianSiSheng": "四",
+     "mark": "開",
+     "letter": "動",
+     "num": 6034
+    },
+    {
+     "age": 30,
+     "tianSiSheng": "四",
+     "mark": "閉",
+     "letter": "屯",
+     "num": 5798
+    },
+    {
+     "age": 32,
+     "tianSiSheng": "五",
+     "mark": "水",
+     "letter": "西",
+     "num": 7134
+    },
+    {
+     "age": 34,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "坷",
+     "num": 5079
+    },
+    {
+     "age": 36,
+     "tianSiSheng": "六",
+     "mark": "石",
+     "letter": "坷",
+     "num": 8509
+    },
+    {
+     "age": 38,
+     "tianSiSheng": "四",
+     "mark": "開",
+     "letter": "動",
+     "num": 6644
+    }
+   ]
+  },
+  {
+   "name": "算例二",
+   "input": {
+    "yearGz": "甲子",
+    "monthGz": "庚午",
+    "dayGz": "乙丑",
+    "hourGz": "甲申",
+    "gender": "男",
+    "lunarMonth": 5,
+    "lunarDay": 15,
+    "isLeapMonth": false,
+    "askGz": "己巳"
+   },
+   "benming": {
+    "xianTian": 11,
+    "wuYin": "徵",
+    "wuYinNum": 2,
+    "riMing": 4,
+    "shiYun": 3,
+    "ke": "初刻",
+    "benMingShu": 345,
+    "biGua": "泰",
+    "base": 430,
+    "xuShu": 470,
+    "items": {
+     "性格": [
+      9760,
+      1353
+     ],
+     "才能前程": null,
+     "财运": [
+      10606
+     ],
+     "兄弟个数": [
+      1559
+     ]
+    }
+   },
+   "houTian": 4,
+   "liunian": [
+    {
+     "age": 1,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 2408
+    },
+    {
+     "age": 2,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "和",
+     "num": 8151
+    },
+    {
+     "age": 3,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "福",
+     "num": 3188
+    },
+    {
+     "age": 4,
+     "tianSiSheng": "七",
+     "mark": "石",
+     "letter": "玄",
+     "num": 8992
+    },
+    {
+     "age": 5,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 2919
+    },
+    {
+     "age": 6,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 5625
+    },
+    {
+     "age": 7,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 6226
+    },
+    {
+     "age": 8,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "吏",
+     "num": 8874
+    },
+    {
+     "age": 9,
+     "tianSiSheng": "六",
+     "mark": "閉",
+     "letter": "神",
+     "num": 8952
+    },
+    {
+     "age": 10,
+     "tianSiSheng": "五",
+     "mark": "閉",
+     "letter": "西",
+     "num": 7754
+    },
+    {
+     "age": 11,
+     "tianSiSheng": "六",
+     "mark": "水",
+     "letter": "腎",
+     "num": 1082
+    },
+    {
+     "age": 12,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "器",
+     "num": 5641
+    },
+    {
+     "age": 13,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 2239
+    },
+    {
+     "age": 14,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "和",
+     "num": 4116
+    },
+    {
+     "age": 15,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "福",
+     "num": 1614
+    },
+    {
+     "age": 16,
+     "tianSiSheng": "七",
+     "mark": "石",
+     "letter": "玄",
+     "num": 7012
+    },
+    {
+     "age": 17,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 3162
+    },
+    {
+     "age": 18,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 7783
+    },
+    {
+     "age": 19,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 5525
+    },
+    {
+     "age": 20,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "吏",
+     "num": 7191
+    },
+    {
+     "age": 21,
+     "tianSiSheng": "六",
+     "mark": "閉",
+     "letter": "神",
+     "num": 1073
+    },
+    {
+     "age": 22,
+     "tianSiSheng": "五",
+     "mark": "閉",
+     "letter": "西",
+     "num": 6953
+    },
+    {
+     "age": 23,
+     "tianSiSheng": "六",
+     "mark": "水",
+     "letter": "腎",
+     "num": 7479
+    },
+    {
+     "age": 24,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "器",
+     "num": 9340
+    },
+    {
+     "age": 25,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 7787
+    },
+    {
+     "age": 26,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "和",
+     "num": 4051
+    },
+    {
+     "age": 27,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "福",
+     "num": 1320
+    },
+    {
+     "age": 29,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 4043
+    },
+    {
+     "age": 30,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 5462
+    },
+    {
+     "age": 31,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 4013
+    },
+    {
+     "age": 32,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "吏",
+     "num": 8373
+    },
+    {
+     "age": 33,
+     "tianSiSheng": "六",
+     "mark": "閉",
+     "letter": "神",
+     "num": 1241
+    },
+    {
+     "age": 34,
+     "tianSiSheng": "五",
+     "mark": "閉",
+     "letter": "西",
+     "num": 8920
+    },
+    {
+     "age": 35,
+     "tianSiSheng": "六",
+     "mark": "水",
+     "letter": "腎",
+     "num": 5484
+    },
+    {
+     "age": 36,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "器",
+     "num": 7377
+    },
+    {
+     "age": 37,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 1880
+    },
+    {
+     "age": 38,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "和",
+     "num": 4480
+    },
+    {
+     "age": 39,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "福",
+     "num": 1072
+    },
+    {
+     "age": 40,
+     "tianSiSheng": "七",
+     "mark": "石",
+     "letter": "玄",
+     "num": 8046
+    },
+    {
+     "age": 41,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 3051
+    },
+    {
+     "age": 42,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 5547
+    },
+    {
+     "age": 43,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 5347
+    },
+    {
+     "age": 44,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "吏",
+     "num": 4431
+    },
+    {
+     "age": 46,
+     "tianSiSheng": "五",
+     "mark": "閉",
+     "letter": "西",
+     "num": 7322
+    },
+    {
+     "age": 47,
+     "tianSiSheng": "六",
+     "mark": "水",
+     "letter": "腎",
+     "num": 3935
+    },
+    {
+     "age": 48,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "器",
+     "num": 1639
+    },
+    {
+     "age": 49,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 6849
+    },
+    {
+     "age": 50,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "和",
+     "num": 10438
+    },
+    {
+     "age": 51,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "福",
+     "num": 1038
+    },
+    {
+     "age": 52,
+     "tianSiSheng": "七",
+     "mark": "石",
+     "letter": "玄",
+     "num": 5570
+    },
+    {
+     "age": 53,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 2346
+    },
+    {
+     "age": 54,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 4817
+    },
+    {
+     "age": 55,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 3858
+    },
+    {
+     "age": 56,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "吏",
+     "num": 4106
+    },
+    {
+     "age": 57,
+     "tianSiSheng": "六",
+     "mark": "閉",
+     "letter": "神",
+     "num": 1261
+    },
+    {
+     "age": 58,
+     "tianSiSheng": "五",
+     "mark": "閉",
+     "letter": "西",
+     "num": 8447
+    },
+    {
+     "age": 59,
+     "tianSiSheng": "六",
+     "mark": "水",
+     "letter": "腎",
+     "num": 1190
+    },
+    {
+     "age": 60,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "器",
+     "num": 5087
+    },
+    {
+     "age": 61,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 1866
+    },
+    {
+     "age": 62,
+     "tianSiSheng": "七",
+     "mark": "土",
+     "letter": "和",
+     "num": 8437
+    },
+    {
+     "age": 64,
+     "tianSiSheng": "七",
+     "mark": "石",
+     "letter": "玄",
+     "num": 8433
+    },
+    {
+     "age": 65,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 2508
+    },
+    {
+     "age": 66,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 5911
+    },
+    {
+     "age": 67,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 5595
+    },
+    {
+     "age": 68,
+     "tianSiSheng": "四",
+     "mark": "收",
+     "letter": "吏",
+     "num": 6845
+    },
+    {
+     "age": 69,
+     "tianSiSheng": "六",
+     "mark": "閉",
+     "letter": "神",
+     "num": 1193
+    },
+    {
+     "age": 70,
+     "tianSiSheng": "五",
+     "mark": "閉",
+     "letter": "西",
+     "num": 11782
+    },
+    {
+     "age": 71,
+     "tianSiSheng": "六",
+     "mark": "水",
+     "letter": "腎",
+     "num": 3318
+    },
+    {
+     "age": 72,
+     "tianSiSheng": "六",
+     "mark": "火",
+     "letter": "器",
+     "num": 7589
+    },
+    {
+     "age": 73,
+     "tianSiSheng": "五",
+     "mark": "火",
+     "letter": "滯",
+     "num": 3818
+    },
+    {
+     "age": 75,
+     "tianSiSheng": "四",
+     "mark": "石",
+     "letter": "福",
+     "num": 1820
+    },
+    {
+     "age": 76,
+     "tianSiSheng": "七",
+     "mark": "石",
+     "letter": "玄",
+     "num": 7010
+    },
+    {
+     "age": 77,
+     "tianSiSheng": "七",
+     "mark": "開",
+     "letter": "尾",
+     "num": 3519
+    },
+    {
+     "age": 78,
+     "tianSiSheng": "四",
+     "mark": "發",
+     "letter": "魯",
+     "num": 5349
+    },
+    {
+     "age": 79,
+     "tianSiSheng": "五",
+     "mark": "發",
+     "letter": "誓",
+     "num": 4611
+    }
+   ]
+  },
+  {
+   "name": "算例三",
+   "input": {
+    "yearGz": "丙寅",
+    "monthGz": "丁亥",
+    "dayGz": "丁酉",
+    "hourGz": "壬寅",
+    "gender": "男",
+    "lunarMonth": 10,
+    "lunarDay": 6,
+    "isLeapMonth": false,
+    "askGz": "丁酉"
+   },
+   "benming": {
+    "xianTian": 10,
+    "wuYin": "徵",
+    "wuYinNum": 2,
+    "riMing": 5,
+    "shiYun": 2,
+    "ke": "初刻",
+    "benMingShu": 336,
+    "biGua": "剝",
+    "base": 510,
+    "xuShu": 380,
+    "items": null
+   },
+   "houTian": 2,
+   "liunian": []
+  }
+ ],
+ "errata": [
+  {
+   "case": "算例一",
+   "age": 12,
+   "reason": "算例值 2778 全表不存在（表载 5278）"
+  },
+  {
+   "case": "算例一",
+   "age": 28,
+   "reason": "算例值 5994 全表不存在（表载 5554）"
+  },
+  {
+   "case": "算例一",
+   "age": 40,
+   "reason": "算例值 7716 全表不存在（表载 4201）"
+  },
+  {
+   "case": "算例二",
+   "age": 28,
+   "reason": "算例误读邻列：取第7校正数之值，字母「玄」实为第8"
+  },
+  {
+   "case": "算例二",
+   "age": 45,
+   "reason": "算例误读邻列：取第2校正数之值，字母「神」实为第3"
+  },
+  {
+   "case": "算例二",
+   "age": 63,
+   "reason": "算例整行错贴：用第3校正数的加数与值，字母却写作第1"
+  },
+  {
+   "case": "算例二",
+   "age": 74,
+   "reason": "古籍未印该表块（偶数岁72-80 之第11-20校正数）"
+  },
+  {
+   "case": "算例二",
+   "age": 80,
+   "reason": "古籍未印该表块（偶数岁72-80 之第11-20校正数）"
+  }
+ ],
+ "note": "金标取自古籍「实例演算」自印的过程表；errata 为算例与古籍自身数表冲突之行，以数表为准。"
+}

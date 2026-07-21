@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { singleTriggerPredictiveEnabled } from '../../utils/perfFlags';
 import { Row, Col, Radio, Divider, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -13,6 +14,8 @@ import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astr
 import { fetchChart } from '../../services/astro';
 import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 
 const RadioGroup = Radio.Group;
 const Option = Select.Option;
@@ -365,9 +368,11 @@ export async function buildZodialReleaseSnapshotText(chartObj, opts){
 			startSign = pnt ? pnt.sign : null;
 		}
 		const params = zrNatalParamsStandalone(chartObj, startSign);
+		// WP-C 极速化:无头快照复算也走 silent,不触发全局满屏 Spin 压暗(失败经外层 catch 回 '')。
 		const data = await request(`${Constants.ServerRoot}/predict/zr`, {
 			body: JSON.stringify(params),
 			timeoutMs: 60000,
+			silent: silentTechniquePanelsEnabled(),
 		});
 		const result = (data && data[Constants.ResultKey]) || {};
 		const list = Array.isArray(result.zr) ? result.zr : [];
@@ -516,6 +521,14 @@ class AstroZR extends Component{
 		const raw = chartObj.params || {};
 		const natal = this.genNatalParams(chartObj);   // 由 birth 规整出 date/time,保证齐全
 		const wsParams = { ...raw, ...natal, hsys: 0 };
+		// WP-G 双触发收敛:hook.fun 与 componentDidUpdate(value 引用变恒真)两路各调一次本函数,
+		// 同参第二次白跑(网络层被 chartMem 兜成 0,但解包+setState 重渲照付)。同签名直接跳过;
+		// 参数真变(换生辰/宫制)→ 签名变照常重取。关 singleTriggerPredictive 开关=旧双跑。
+		const sig = JSON.stringify(wsParams);
+		if(singleTriggerPredictiveEnabled() && this._wsSig === sig){
+			return;
+		}
+		this._wsSig = sig;
 		// fetchChart 回的是信封 {ResultCode, Result, headers};真正盘对象在 Result(本命盘 this.props.value 亦是已解包的 Result)。
 		// 必须解包 rsp[ResultKey] 再取 .chart——直接读 rsp.chart 恒 undefined 会静默回退本命盘(本命非整宫 → 宫线不落座界)。
 		fetchChart(wsParams).then((rsp)=>{
@@ -547,15 +560,27 @@ class AstroZR extends Component{
 	}
 
 	async requestDirection(params, isQuick){
-		const data = await request(`${Constants.ServerRoot}/predict/zr`, {
-			body: JSON.stringify(params),
-		});
+		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧期表留存+「更新中…」角标,
+		// 新数据到达单次 setState 整体替换 —— 印占同款范式)。关 silentTechniquePanels 开关=旧全屏。
+		this.setState({ updating: true });
+		let data = null;
+		try{
+			data = await request(`${Constants.ServerRoot}/predict/zr`, {
+				body: JSON.stringify(params),
+				silent: silentTechniquePanelsEnabled(),
+			});
+		}catch(e){
+			// 请求失败防御:静默保持现有期表,不产生 Unhandled Rejection。
+			if(!this.unmounted){ this.setState({ updating: false }); }
+			return;
+		}
 		if(this.unmounted){ return; }
-		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
+		if(!data){ this.setState({ updating: false }); return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey] || {};
 
 		this.setState({
 			list: Array.isArray(result.zr) ? result.zr : [],
+			updating: false,
 			// state.params 恒保 stopLevelIdx=3(全深目标);仅快取那次临时下发 0。保 3 供 AI 快照/再切基点取全深一致。
 			params: { ...params, stopLevelIdx: 3 },
 		}, ()=>{
@@ -779,6 +804,9 @@ class AstroZR extends Component{
 			<div>
 				<Row gutter={6}>
 					<Col span={14}>
+						{/* keep-stale 角标:重取期间旧期表留存,主盘右上角提示「更新中…」;首次加载(无旧期表)不显示 */}
+						<div style={{ position: 'relative' }}>
+							{this.state.updating && this.state.list && this.state.list.length > 0 ? <UpdatingBadge /> : null}
 							<AstroChart value={this.state.wsChartObj || this.props.value}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
@@ -788,6 +816,7 @@ class AstroZR extends Component{
 								chartStyle={AstroConst.CHART_STYLE_ORIGINAL}
 								height={height}
 							/>
+						</div>
 
 					</Col>
 					<Col span={6}>

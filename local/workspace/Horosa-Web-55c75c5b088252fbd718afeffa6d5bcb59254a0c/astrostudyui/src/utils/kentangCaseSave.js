@@ -47,6 +47,8 @@ export function openKentangCaseDrawer({ dispatch, fields, module, label, payload
 				gpsLat: getFieldValue(fields, 'gpsLat'),
 				gpsLon: getFieldValue(fields, 'gpsLon'),
 				pos: getFieldValue(fields, 'pos'),
+				// [X1] 性别随档(applyCase 读 record.gender 还原;无则 null → 载入跳过不改现状)。
+				gender: getFieldValue(fields, 'gender', null),
 				payload: {
 					module,
 					version: 1,

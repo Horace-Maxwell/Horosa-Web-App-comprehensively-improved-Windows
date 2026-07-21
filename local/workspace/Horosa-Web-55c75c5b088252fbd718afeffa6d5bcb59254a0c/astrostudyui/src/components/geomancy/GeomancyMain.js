@@ -3,7 +3,7 @@ import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Component } from 'react';
 import { Input, InputNumber, Spin, message } from 'antd';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { AstroFont } from '../../constants/AstroConst';
@@ -11,6 +11,9 @@ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 import { getSignSymbol } from '../astro/IndiaSouthChart';
+import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
+import { subscribeRemoteNongli, paramsFromFields, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields } from '../../utils/divinationTimeDraft';
 import './GeomancyMain.less';
 
 const { TabPane } = Tabs;
@@ -69,17 +72,26 @@ const SEED_MODE_OPTIONS = [
 	{ key: 'manual', label: '手工指定种子' },
 ];
 
-// 时间起卦确定性种子:取当前本地时间(精确到分)的年月日时分拼成一个稳定 int(0..2147483647)。
+// 时间起卦确定性种子:取起卦时间(精确到分)的年月日时分拼成一个稳定 int(0..2147483647)。
 // 同一分钟内重复起卦 → 同种子 → 同盘(可复现);不同时刻 → 不同种子。
 // 喂给后端 timeSeed,后端按其取值优先级落定 effective_seed 并回传,避免退化真随机。
-function computeTimeSeed(){
-	const d = new Date();
+// [自由起盘] 传入左栏所选时间的 fields(date/time)则按其算种子;缺省回退当前系统时间。
+function computeTimeSeed(fields){
+	let y; let mo; let da; let h; let mi;
+	const dv = fields && fields.date && fields.date.value;
+	const tv = fields && fields.time && fields.time.value;
+	if(dv && dv.format && tv && tv.format){
+		y = parseInt(dv.format('YYYY'), 10);
+		mo = parseInt(dv.format('MM'), 10);
+		da = parseInt(dv.format('DD'), 10);
+		h = parseInt(tv.format('HH'), 10);
+		mi = parseInt(tv.format('mm'), 10);
+	}else{
+		const d = new Date();
+		y = d.getFullYear(); mo = d.getMonth() + 1; da = d.getDate(); h = d.getHours(); mi = d.getMinutes();
+	}
 	// (YYMMDDHHmm) 折叠进 32 位有符号正整数域;乘子混合各分量避免低位塌缩。
-	const v = ((d.getFullYear() % 100) * 100000000)
-		+ ((d.getMonth() + 1) * 1000000)
-		+ (d.getDate() * 10000)
-		+ (d.getHours() * 100)
-		+ d.getMinutes();
+	const v = ((y % 100) * 100000000) + (mo * 1000000) + (da * 10000) + (h * 100) + mi;
 	return v % 2147483647;
 }
 
@@ -87,7 +99,8 @@ function computeTimeSeed(){
 const TRADITION_OPTIONS = [
 	{ key: 'european_classical', label: '古典定局派' },
 	{ key: 'european_planetary', label: '行星共鸣派' },
-	{ key: 'european_modern', label: '现代综合派' },
+	// [X1·P1-21] 现代综合派引擎口径与古典定局同(traditions 仅 id/label 异);label 如实标注,不臆造分歧。
+	{ key: 'european_modern', label: '现代综合派(判读同古典口径)' },
 	{ key: 'arabic_raml', label: '阿拉伯沙占派' },
 	{ key: 'india_ramal', label: '印度骰占派' },
 	{ key: 'sikidy', label: '异或表盘(Sikidy)' },
@@ -157,13 +170,15 @@ export function buildGeomancySnapshotText(result){
 		lines.push('');
 	}
 	// 传本(非默认才注记,供 AI 知本盘传本口径)
-	const TRAD = { european_classical: '古典定局派', european_planetary: '行星共鸣派', european_modern: '现代综合派', arabic_raml: '阿拉伯沙占派', india_ramal: '印度骰占派', sikidy: '异或表盘', hakata: '四片盘' };
+	const TRAD = { european_classical: '古典定局派', european_planetary: '行星共鸣派', european_modern: '现代综合派(同古典口径)', arabic_raml: '阿拉伯沙占派', india_ramal: '印度骰占派', sikidy: '异或表盘', hakata: '四片盘' };
 	const tb = [];
 	if(reading.profileId && reading.profileId !== 'european_classical'){ tb.push(`流派=${TRAD[reading.profileId] || reading.profileId}`); }
 	if(reading.zodiacSystem === 'planetary'){ tb.push('黄道=行星归属体系'); }
 	if(reading.readingScope && reading.readingScope !== 'L3'){ tb.push(`范围=${reading.readingScope}`); }
 	if(tb.length){ lines.push(`传本设置：${tb.join('、')}`); }
 	lines.push('[判定]');
+	// [X1·P1-22] 首母中止警示(约 1/8 盘触发,后端早已算出而前端/AI 双盲):传统口径此占应中止另占。
+	if(reading.haltedOnFirstMother){ lines.push('⚠ 首母中止：首母落 Rubeus/Cauda 之属,依所选传本传统应中止本占、另择时再占(以下判读仅作参考)。'); }
 	const j = figureLine(reading.judge, '判官');
 	if(j){ lines.push(j); }
 	const r = figureLine(reading.reconciler, '调和者');
@@ -171,6 +186,16 @@ export function buildGeomancySnapshotText(result){
 	if(reading.rightWitness){ lines.push(figureLine(reading.rightWitness, '右证(过去/问者)')); }
 	if(reading.leftWitness){ lines.push(figureLine(reading.leftWitness, '左证(现在/所问)')); }
 	if(reading.primaryHouse){ lines.push(`主宫：第 ${reading.primaryHouse} 宫`); }
+	// [X1·P1-23] sikidy/hakata 流派中栏特有结论入快照(此前 AI 全盲):三道校验/红 Sikidy/诸侯列;四片开合/断语。
+	if(reading.sikidy){
+		const sk = reading.sikidy;
+		lines.push(`异或表盘：三道校验${sk.valid ? '通过' : '未过'}${sk.red_sikidy ? '；红 Sikidy(大凶)' : ''}${Array.isArray(sk.princes) && sk.princes.length ? `；诸侯列:${sk.princes.join('、')}` : ''}`);
+	}
+	if(reading.hakata){
+		const hk = reading.hakata;
+		const tb = (hk.tablets || []).map((t)=>`${t.name || ''}${t.open ? '开' : '合'}`).join(' ');
+		lines.push(`四片盘：${tb || '—'} → ${hk.figure_zh || hk.figure || '—'}${hk.reading ? `；${hk.reading}` : ''}${hk.orientation ? `；${hk.orientation}` : ''}`);
+	}
 	// 解读技法(可计算)
 	const t = reading.technique;
 	if(t){
@@ -290,9 +315,14 @@ class GeomancyMain extends Component{
 			rightPanelTab: 'reading',
 			centerView: 'square',
 			history: [],
+			// [自由起盘] 本地时间地理草稿(null=跟主命盘;非空=用户左栏自选时间/经纬:时间起卦按此算种子,
+			// 经纬/时间随事盘存储 + 透传后端占星盘)。
+			localFields: null,
 		};
 		this.unmounted = false;
 		this.requestSeq = 0;
+		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.changeGeo = this.changeGeo.bind(this);
 		this.clickCast = this.clickCast.bind(this);
 		this.clickReproduce = this.clickReproduce.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
@@ -313,12 +343,14 @@ class GeomancyMain extends Component{
 	}
 
 	componentDidMount(){
+		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.loadHistory();
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		this.restoreFromCurrentCase();
 	}
 
 	componentWillUnmount(){
+		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
 		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 	}
@@ -389,17 +421,35 @@ class GeomancyMain extends Component{
 			zodiacSystem: options.zodiacSystem || this.state.zodiacSystem,
 		}, ()=>{
 			const result = this.state.result;
-			if(result){ saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result)); }
+			// [X1·P2-40] 快照带时地 meta:命盘挂载缓存路径可确凿命中,免每次挂载都复算。
+			if(result){ saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() })); }
 		});
 		return true;
 	}
 
+	// 当前生效 fields:本地草稿优先,否则主命盘 fields。
+	activeFields(){
+		return this.state.localFields || this.props.fields || {};
+	}
+	// [自由起盘] 左栏时间选择 → 写本地草稿(不 dispatch)。时间起卦即用此时刻算种子;占星盘用此时刻。
+	onTimeChanged(value){
+		const dt = value && value.time;
+		if(!dt){ return; }
+		const base = this.state.localFields || this.props.fields || {};
+		this.setState({ localFields: { ...base, ...timePatchFromDateTime(dt) } });
+	}
+	// [自由起盘] 左栏经纬度选择 → 写本地草稿(经纬 + 时区自动校正 + 重锚时间 + 地名);占星盘用此地点。
+	changeGeo(rec){
+		const base = this.state.localFields || this.props.fields || {};
+		this.setState({ localFields: { ...base, ...geoPatchFromRec(rec, base) } });
+	}
 	async clickCast(pinnedSeed){
 		const seq = ++this.requestSeq;
 		const seedMode = this.state.seedMode;
 		// pinnedSeed(有限数)= 用既有母图种子定盘重算:同护盾盘、赋义随流派/范围/黄道变,不重新揲卦。
 		// (onClick 透传的是 event 对象,Number.isFinite 自然过滤掉,不会误当种子。)
 		const pinned = Number.isFinite(pinnedSeed) ? Math.floor(pinnedSeed) : null;
+		const af = this.activeFields();
 		const payload = {
 			question: this.state.question || '',
 			questionType: this.state.questionType || 'custom',
@@ -408,17 +458,23 @@ class GeomancyMain extends Component{
 			readingScope: this.state.readingScope || 'L3',
 			zodiacSystem: this.state.zodiacSystem || 'classical',
 		};
+		// [自由起盘] 透传所选时间地理:占星定局(L4)/十二宫(L3)的星盘按此时刻地点起(后端不识则忽略,无害)。
+		const gp = paramsFromFields(af);
+		if(gp){
+			payload.date = gp.date; payload.time = gp.time; payload.zone = gp.zone;
+			payload.lon = gp.lon; payload.lat = gp.lat;
+		}
 		if(pinned !== null){ payload.seed = pinned; }
 		else if(seedMode === 'manual'){ payload.seed = this.state.manualSeed || 0; }
-		// 时间起卦:由当前时间(精确到分)算确定性种子塞 timeSeed,使同一时刻起卦可复现;
+		// 时间起卦:由左栏所选时间(精确到分)算确定性种子塞 timeSeed,使同一时刻起卦可复现;
 		// 不塞则后端走 secrets.randbelow 退化真随机,刷新即变盘(后端 webgeomancysrv.py 已就绪接收 timeSeed)。
-		else if(seedMode === 'time_seed'){ payload.timeSeed = computeTimeSeed(); }
+		else if(seedMode === 'time_seed'){ payload.timeSeed = computeTimeSeed(af); }
 		this.setState({ loading: true });
 		try{
 			const result = await postGeomancy('reading', payload);
 			if(this.unmounted || seq !== this.requestSeq){ return; }
 			this.setState({ loading: false, result }, ()=>{
-				saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result));
+				saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() }));
 				this.pushHistory(result);
 			});
 		}catch(e){
@@ -443,7 +499,8 @@ class GeomancyMain extends Component{
 		}
 		openKentangCaseDrawer({
 			dispatch: this.props.dispatch,
-			fields: this.props.fields,
+			// 存事盘用生效 fields:改过时间地理则存草稿值(divTime/经纬/地名来自草稿,不写主命盘)。
+			fields: this.activeFields(),
 			module: 'geomancy',
 			label: '天文地占',
 			payload: {
@@ -506,8 +563,17 @@ class GeomancyMain extends Component{
 					<div className="horosa-side-panel-title">天文地占</div>
 					<div className="horosa-side-panel-subtitle">护盾盘 · 16 图形 · 判官</div>
 				</div>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="note" />问题</div>
+				{/* [自由起盘] 时间与地点:独立草稿。「时间起卦」按此时刻算种子;占星定局按此时刻地点起星盘(不写主命盘) */}
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
+					<SpaceTimePanel
+						fields={this.activeFields()}
+						value={buildDateTimeFromFields(this.activeFields())}
+						onTimeChange={this.onTimeChanged}
+						onGeoChange={this.changeGeo}
+					/>
+				</XQSideSection>
+				{/* [左栏统一] 三节收编 XQSideSection(原图标语义保留,卡片类透传) */}
+				<XQSideSection iconName="note" title="问题" storageKey="geomancy.question" className="horosa-huangji-input-section">
 					<TextArea
 						value={this.state.question}
 						onChange={(e)=>this.setState({ question: e.target.value })}
@@ -515,9 +581,8 @@ class GeomancyMain extends Component{
 						autoSize={{ minRows: 2, maxRows: 4 }}
 						maxLength={200}
 					/>
-				</div>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="target" />起卦选项</div>
+				</XQSideSection>
+				<XQSideSection iconName="target" title="起卦选项" storageKey="geomancy.cast" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field is-wide">
 							<span>问类</span>
@@ -538,9 +603,8 @@ class GeomancyMain extends Component{
 							</label>
 						) : null}
 					</div>
-				</div>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="target" />流派 · 传本设置</div>
+				</XQSideSection>
+				<XQSideSection iconName="target" title="流派 · 传本设置" storageKey="geomancy.school" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field is-wide">
 							<span>流派预设</span>
@@ -561,7 +625,7 @@ class GeomancyMain extends Component{
 							</Select>
 						</label>
 					</div>
-				</div>
+				</XQSideSection>
 				{r ? (
 					<div className="horosa-geomancy-seed-row">
 						<span>本盘种子：<strong>{r.seed}</strong></span>
@@ -785,8 +849,19 @@ class GeomancyMain extends Component{
 		if(!result){ return <div className="horosa-huangji-empty">暂无地占数据</div>; }
 		const r = result.reading || {};
 		const houses = r.houses || [];
+		// [X1·P1-20] 读取范围真门控:L0 仅判官 / L1 +解读技法 / L2 盾牌全局(中栏恒在,解读同 L1) /
+		// L3 +十二宫(默认,字节不变) / L4 = L3 并标注占星定局体系(黄道体系选择器所出,不臆造新层)。
+		const depth = ({ L0: 0, L1: 1, L2: 2, L3: 3, L4: 4 })[this.state.readingScope];
+		const lvl = depth === undefined ? 3 : depth;
 		return (
 			<div className="horosa-geomancy-reading">
+				{/* [X1·P1-22] 首母中止警示:后端算出而此前前端零渲染(约 1/8 盘触发) */}
+				{r.haltedOnFirstMother ? (
+					<div className="horosa-geomancy-card" style={{ borderColor: 'var(--horosa-danger, #cf1322)' }}>
+						<div className="horosa-geomancy-card-title" style={{ color: 'var(--horosa-danger, #cf1322)' }}>⚠ 首母中止</div>
+						<div style={{ fontSize: 12.5, lineHeight: 1.6 }}>首母落 Rubeus/Cauda 之属——依所选传本传统,此占应中止、另择时再占;以下判读仅作参考。</div>
+					</div>
+				) : null}
 				<div className="horosa-geomancy-card">
 					<div className="horosa-geomancy-card-title">本占概要</div>
 					<div className="horosa-geomancy-summary">
@@ -804,7 +879,19 @@ class GeomancyMain extends Component{
 						{this.renderFigureCard(r.ascendantFigure, '命主')}
 					</div>
 				</div>
-				{this.renderTechniqueCard(r)}
+				{lvl >= 1 ? this.renderTechniqueCard(r) : null}
+				{lvl >= 4 ? (
+					<div className="horosa-geomancy-card">
+						<div className="horosa-geomancy-card-title">占星定局(L4)</div>
+						<div style={{ fontSize: 12.5, lineHeight: 1.6 }}>本盘按「{this.state.zodiacSystem === 'planetary' ? '行星归属体系' : '古典定局体系'}」定十二宫星座(见下十二宫各行星座列);上升 {r.ascendantSignZh || '—'}。</div>
+					</div>
+				) : null}
+				{lvl < 3 ? (
+					<div className="horosa-geomancy-card">
+						<div style={{ fontSize: 12, opacity: 0.7 }}>读取范围 {this.state.readingScope}:更深层(解读技法/十二宫)已按档隐藏,切至 L3/L4 展开全部。</div>
+					</div>
+				) : null}
+				{lvl >= 3 ? (
 				<div className="horosa-geomancy-card">
 					<div className="horosa-geomancy-card-title">十二宫（图形入宫 · 断语）</div>
 					<div className="horosa-geomancy-house-list">
@@ -827,6 +914,7 @@ class GeomancyMain extends Component{
 						})}
 					</div>
 				</div>
+				) : null}
 			</div>
 		);
 	}
@@ -903,7 +991,7 @@ class GeomancyMain extends Component{
 
 	renderRightPanel(){
 		return (
-			<Tabs activeKey={this.state.rightPanelTab} onChange={this.setRightPanelTab} className="horosa-content-tabs">
+			<Tabs size="small" activeKey={this.state.rightPanelTab} onChange={this.setRightPanelTab} className="horosa-geomancy-aux horosa-cnx-aux">
 				<TabPane tab="解读" key="reading">{this.renderReading()}</TabPane>
 				<TabPane tab="十六图形" key="figures">{this.renderFigureCatalog()}</TabPane>
 				<TabPane tab="历史" key="history">{this.renderHistory()}</TabPane>

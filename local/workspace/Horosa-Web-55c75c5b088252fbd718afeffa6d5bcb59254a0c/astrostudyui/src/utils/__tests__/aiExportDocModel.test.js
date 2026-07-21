@@ -72,8 +72,13 @@ describe('packBlocksIntoChunks 装箱(整块最小单位)', ()=>{
 		const chunks = packBlocksIntoChunks([3000, 3000, 3000, 3000, 3000], 8000, 15000);
 		expect(chunks).toEqual([{ start: 0, end: 2 }, { start: 2, end: 4 }, { start: 4, end: 5 }]);
 	});
-	test('单块超 hardMax → null(调用方回退纯文本路径)', ()=>{
-		expect(packBlocksIntoChunks([3000, 20000, 100], 8000, 15000)).toBeNull();
+	test('[B2] 单块超 hardMax → 独占一段带 split 标记(不再 null 整份降级)', ()=>{
+		const chunks = packBlocksIntoChunks([3000, 20000, 100], 8000, 15000);
+		expect(chunks).toEqual([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 2, split: 2 },
+			{ start: 2, end: 3 },
+		]);
 	});
 	test('单块 > chunkHeight 但 ≤ hardMax → 独占一箱(不 null)', ()=>{
 		const chunks = packBlocksIntoChunks([1000, 12000, 1000], 8000, 15000);

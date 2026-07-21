@@ -1,5 +1,5 @@
 // 页面截图守卫纯函数测试(导出附图三守卫:降倍率/WebGL 降级/墨迹;失败恒 null 不 throw)。
-import { pickPixelRatio, containsWebglCanvas, screenshotCanvasHasInk, capturePageScreenshot, findActiveTechniquePane, buildScreenshotFontEmbedCSS } from '../pageScreenshot';
+import { pickPixelRatio, containsWebglCanvas, screenshotCanvasHasInk, capturePageScreenshot, findActiveTechniquePane, buildScreenshotFontEmbedCSS, registerWebglFrameProvider, captureWebglEngineFrame } from '../pageScreenshot';
 
 // jsdom 无布局(offsetWidth/Height 恒 0),用 defineProperty 造尺寸模拟可见/隐藏面板。
 function makeActivePane(w, h, text){
@@ -163,5 +163,39 @@ describe('capturePageScreenshot 失败恒 null 铁律', ()=>{
 		const target = { querySelectorAll: ()=>[], offsetWidth: 40, offsetHeight: 40 };
 		const ret = await capturePageScreenshot({ target });
 		expect(ret).toBeNull();
+	});
+});
+
+// [WP-5.4] WebGL 引擎自渲染帧通道:注册 provider 后,WebGL 页不再一刀降级——先取引擎帧。
+describe('[WP-5.4] registerWebglFrameProvider 引擎帧通道', ()=>{
+	const FRAME = { dataUrl: `data:image/png;base64,${'A'.repeat(2100)}`, width: 800, height: 600 };
+	const webglTarget = ()=>({
+		querySelectorAll: ()=>[{ getAttribute: ()=>'', width: 10, height: 10, getContext: (t)=>(t === '2d' ? null : {}) }],
+		offsetWidth: 800,
+		offsetHeight: 600,
+	});
+	test('①栈尾优先+反注册干净(僵尸 provider 不残留)', ()=>{
+		const unregA = registerWebglFrameProvider(()=>({ ...FRAME, width: 1 }));
+		const unregB = registerWebglFrameProvider(()=>({ ...FRAME, width: 2 }));
+		expect(captureWebglEngineFrame().width).toBe(2); // 后挂载者优先
+		unregB();
+		expect(captureWebglEngineFrame().width).toBe(1);
+		unregA();
+		expect(captureWebglEngineFrame()).toBeNull();
+	});
+	test('②provider 抛错/短帧被守卫吞掉,不拖累其余', ()=>{
+		const unregA = registerWebglFrameProvider(()=>FRAME);
+		const unregB = registerWebglFrameProvider(()=>{ throw new Error('boom'); });
+		const unregC = registerWebglFrameProvider(()=>({ dataUrl: 'data:,', width: 1, height: 1 }));
+		expect(captureWebglEngineFrame().width).toBe(800);
+		unregA(); unregB(); unregC();
+	});
+	test('③WebGL 页+provider 在场 → 出引擎帧(engineFrame 标记);无 provider → 原 degraded 行为', async ()=>{
+		const unreg = registerWebglFrameProvider(()=>FRAME);
+		const withProvider = await capturePageScreenshot({ target: webglTarget() });
+		expect(withProvider).toMatchObject({ engineFrame: true, width: 800, height: 600 });
+		unreg();
+		const without = await capturePageScreenshot({ target: webglTarget() });
+		expect(without).toMatchObject({ degraded: true, reason: 'webgl' });
 	});
 });

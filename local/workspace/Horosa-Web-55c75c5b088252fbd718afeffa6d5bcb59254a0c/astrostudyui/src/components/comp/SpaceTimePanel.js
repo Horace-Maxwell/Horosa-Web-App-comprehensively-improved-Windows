@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Popover } from 'antd';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import PlusMinusTime from '../astro/PlusMinusTime';

@@ -10,6 +10,8 @@ import BackendStatusDot from '../components/common/BackendStatusDot';
 import {
     APPEARANCE_DARK,
     applyAppearanceToDocument,
+    applyLightFlavorToDocument,
+    getStoredLightFlavor,
     resolveAppearance,
 } from '../utils/appearance';
 import styles from './app.less';
@@ -52,6 +54,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
 
     React.useEffect(()=>{
         applyAppearanceToDocument(appearanceMode, resolvedAppearance);
+        applyLightFlavorToDocument(getStoredLightFlavor()); // 亮色配色档(宣纸/经典白)开机回放
         if(dispatch){
             dispatch({
                 type: 'app/save',

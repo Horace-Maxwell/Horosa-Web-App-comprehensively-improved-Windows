@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Row, Col, Divider, Tag, message } from 'antd';
 import { littleEndian } from '../../utils/helper';
 import { Gua8, Gua64, getGua64 } from '../gua/GuaConst';
@@ -9,7 +9,11 @@ import {
 	XQCard as Card,
 	XQSelect as Select,
 	XQTabs as Tabs,
+	XQSideSection,
 } from '../xq-ui';
+import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
+import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import styles from '../../css/styles.less';
 
 const { Option } = Select;
@@ -793,6 +797,7 @@ function buildTongSheFaSnapshot(model){
 	// UI 已显示(renderNaJiaTab 系列卡片)却此前不入快照。段名已登记 AI_EXPORT_PRESET_SECTIONS.tongshefa;
 	// 取数与 UI 严格同源(同 model 派生、同 relationByElem/groupFiveFriendItems/fmtRise 等函数);空数据不产段。
 	[
+		buildObserve32Section(model),
 		buildShiYingSection(model),
 		buildWuXingRelationSection(model),
 		buildFiveFriendSection(model),
@@ -882,6 +887,24 @@ function patternExplanation(context, type){
 		return `${context}上见全局相合：有混元一切的倾向。对于事实、行为、遭遇，一口吞下，平等看待，认为万物一体，混同你我。`;
 	}
 	return '';
+}
+
+// [X1·P1-1] 三十二观(右栏默认首 tab 的核心观文层)入快照 —— 与 renderObserveTab 严格同源
+// (同 POSITION_KEYS/META、同 OBSERVE_32 取文);此前 AI 只见卦名不见本法核心解读。
+function buildObserve32Section(model){
+	const out = [];
+	if(!model || !model.selected){ return out; }
+	out.push('【三十二观】');
+	POSITION_KEYS.forEach((posKey)=>{
+		const meta = POSITION_META[posKey];
+		const trigram = model.selected[posKey];
+		const bagua = getBagua(trigram);
+		if(!meta || !bagua){ return; }
+		const observe = OBSERVE_32[meta.observeKey];
+		const desc = observe && observe.items ? observe.items[bagua.key] : '';
+		if(desc){ out.push(`${meta.label}·${bagua.symbol || ''}${bagua.cname || ''}:${observe.intro || ''}${desc}`); }
+	});
+	return out.length > 1 ? out : [];
 }
 
 // ——以下四个函数为 AI 快照新增段(纳甲筮法 tab 的计算分析层),供 buildTongSheFaSnapshot 调用——
@@ -1030,6 +1053,8 @@ class TongSheFaMain extends Component{
 			selected: { ...DEFAULT_SELECTION },
 			showMatrixBorder: true,
 			detailTab: 'observe32',
+			// [自由起盘] 占问时刻·地点草稿(统摄法手选八卦不吃占时;此仅作事盘的时地上下文,不改卦象)。
+			localFields: null,
 		};
 
 		this.unmounted = false;
@@ -1039,6 +1064,8 @@ class TongSheFaMain extends Component{
 		this.changeSelect = this.changeSelect.bind(this);
 		this.changeDetailTab = this.changeDetailTab.bind(this);
 		this.clickSaveCase = this.clickSaveCase.bind(this);
+		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.changeGeo = this.changeGeo.bind(this);
 		this.parseCasePayload = this.parseCasePayload.bind(this);
 		this.restoreFromCurrentCase = this.restoreFromCurrentCase.bind(this);
 		this.saveSnapshot = this.saveSnapshot.bind(this);
@@ -1055,6 +1082,7 @@ class TongSheFaMain extends Component{
 	}
 
 	componentDidMount(){
+		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.restoreFromCurrentCase(true);
 		this.saveSnapshot();
 		if(typeof window !== 'undefined'){
@@ -1069,6 +1097,7 @@ class TongSheFaMain extends Component{
 	}
 
 	componentWillUnmount(){
+		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -1190,8 +1219,23 @@ class TongSheFaMain extends Component{
 		};
 	}
 
+	// 当前生效 fields:本地草稿优先,否则主命盘 fields。
+	activeFields(){
+		return this.state.localFields || this.props.fields || {};
+	}
+	// [自由起盘] 占问时刻/地点选择 → 写本地草稿(仅入事盘,不改卦象;不写主命盘)。
+	onTimeChanged(value){
+		const dt = value && value.time;
+		if(!dt){ return; }
+		const base = this.state.localFields || this.props.fields || {};
+		this.setState({ localFields: { ...base, ...timePatchFromDateTime(dt) } });
+	}
+	changeGeo(rec){
+		const base = this.state.localFields || this.props.fields || {};
+		this.setState({ localFields: { ...base, ...geoPatchFromRec(rec, base) } });
+	}
 	clickSaveCase(){
-		const flds = this.props.fields;
+		const flds = this.activeFields();
 		if(!flds || !flds.date || !flds.time){
 			message.warning('缺少时间参数，暂无法保存');
 			return;
@@ -1858,7 +1902,16 @@ class TongSheFaMain extends Component{
 							</div>
 						</Col>
 						<Col span={8} className="horosa-tongshefa-right-col">
-							<Row>
+							{/* [自由起盘] 占问时刻·地点:统摄法手选八卦不吃占时,此处记录占问的时地入事盘(不改卦象;原仅能取主命盘时间) */}
+							<XQSideSection iconName={sideSectionIcon('time')} title="占问时刻 · 地点" collapsible={false}>
+								<SpaceTimePanel
+									fields={this.activeFields()}
+									value={buildDateTimeFromFields(this.activeFields())}
+									onTimeChange={this.onTimeChanged}
+									onGeoChange={this.changeGeo}
+								/>
+							</XQSideSection>
+							<Row style={{ marginTop: 8 }}>
 								<Col span={24}>
 								<div style={{ marginBottom: 2 }}>是否显示边框</div>
 								<Select

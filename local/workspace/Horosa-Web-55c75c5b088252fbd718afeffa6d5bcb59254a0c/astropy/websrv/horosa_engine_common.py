@@ -264,27 +264,74 @@ def row(label, value, extra=None):
     return item
 
 
+class ParsedDT:
+    """任意年份的轻量日期时刻承载(stdlib datetime 只到 9999 年,大年/极端年会丢)。
+    消费方(策天/春子/分金/北极/七政kin)只读字段与 dateStr/timeStr 兜底 strftime。"""
+
+    __slots__ = ("year", "month", "day", "hour", "minute", "second")
+
+    def __init__(self, year, month, day, hour=0, minute=0, second=0):
+        self.year = year
+        self.month = month
+        self.day = day
+        self.hour = hour
+        self.minute = minute
+        self.second = second
+
+    def strftime(self, fmt):
+        return (fmt.replace("%Y", "%04d" % self.year)
+                   .replace("%m", "%02d" % self.month)
+                   .replace("%d", "%02d" % self.day)
+                   .replace("%H", "%02d" % self.hour)
+                   .replace("%M", "%02d" % self.minute)
+                   .replace("%S", "%02d" % self.second))
+
+    def __repr__(self):
+        return "%04d-%02d-%02d %02d:%02d:%02d" % (
+            self.year, self.month, self.day, self.hour, self.minute, self.second)
+
+
 def parse_datetime(data):
+    # 手写解析,支持 1~5 位年(strptime 承载 datetime 上限 9999,大年会静默失败,
+    # 旧实现随后回落 year=2025 → 用户输入远年得到 2025 的盘,零提示。此处根治)。
     date_text = clean_text(data.get("date")).replace("/", "-")
     time_text = clean_text(data.get("time"))
+    y = m = d = None
     if date_text:
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        parts = date_text.split("-")
+        if len(parts) == 3:
             try:
-                source = f"{date_text} {time_text}".strip() if "%H" in fmt else date_text
-                return datetime.strptime(source, fmt)
+                y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
             except Exception:
-                pass
-    year = to_int(data.get("year"), 2025)
-    month = max(1, min(12, to_int(data.get("month"), 1)))
-    day = max(1, min(31, to_int(data.get("day"), 1)))
-    hour = max(0, min(23, to_int(data.get("hour"), 0)))
-    minute = max(0, min(59, to_int(data.get("minute"), 0)))
-    second = max(0, min(59, to_int(data.get("second"), 0)))
-    try:
-        dt = datetime(year, month, day, hour, minute, second)
-    except ValueError:
-        dt = datetime(year, month, 1, hour, minute, second)
-    return dt
+                y = None
+    hh = mm = ss = 0
+    if time_text:
+        tp = time_text.split(":")
+        try:
+            hh = int(tp[0]) if len(tp) > 0 and tp[0] != "" else 0
+            mm = int(tp[1]) if len(tp) > 1 else 0
+            ss = int(tp[2]) if len(tp) > 2 else 0
+        except Exception:
+            hh = mm = ss = 0
+    if y is None:
+        y = to_int(data.get("year"), 2025)
+        m = max(1, min(12, to_int(data.get("month"), 1)))
+        d = max(1, min(31, to_int(data.get("day"), 1)))
+        hh = max(0, min(23, to_int(data.get("hour"), hh)))
+        mm = max(0, min(59, to_int(data.get("minute"), mm)))
+        ss = max(0, min(59, to_int(data.get("second"), ss)))
+    m = max(1, min(12, m))
+    d = max(1, min(31, d))
+    hh = max(0, min(23, hh))
+    mm = max(0, min(59, mm))
+    ss = max(0, min(59, ss))
+    # stdlib 域内仍返回真 datetime(下游行为与旧实现逐字节一致);域外用轻量承载。
+    if 1 <= y <= 9999:
+        try:
+            return datetime(y, m, d, hh, mm, ss)
+        except ValueError:
+            return datetime(y, m, 1, hh, mm, ss)
+    return ParsedDT(y, m, d, hh, mm, ss)
 
 
 def gender_cn(value, default="男"):

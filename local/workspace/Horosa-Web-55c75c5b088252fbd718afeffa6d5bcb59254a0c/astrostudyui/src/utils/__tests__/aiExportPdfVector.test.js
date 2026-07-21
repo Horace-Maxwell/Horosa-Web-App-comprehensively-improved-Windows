@@ -118,6 +118,25 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		expect(info.sizeKB).toBeGreaterThan(3);
 	});
 
+	// [A3] 跨页表头重绘契约:长表跨到的每一页,该页首个表行必须是表头(与打印路径
+	// `<thead>` 每页重复对齐)。旧缺陷=表头只画首页,第二页起裸行。
+	test('[A3] 长表跨页:每页首个表行=表头', async () => {
+		const rows = [];
+		const blob = await buildExportPdfVectorBlob(
+			{ tech: '跨页表', filenameBase: 'x', text: `【全年吉日】\n\n${bigTable(80, 5)}` },
+			{ onTableRow: (r)=> rows.push(r) },
+		);
+		expect(pdfInfo(await blobBytes(blob)).valid).toBe(true);
+		const pagesSeen = [...new Set(rows.map((r)=> r.pageIndex))];
+		expect(pagesSeen.length).toBeGreaterThan(1);   // 真跨页了
+		pagesSeen.forEach((p)=>{
+			const firstOnPage = rows.find((r)=> r.pageIndex === p);
+			expect(`p${p}:${firstOnPage.isHeader}`).toBe(`p${p}:true`);
+		});
+		// 表头出现次数 = 跨到的页数(每页恰一枚,不多画)
+		expect(rows.filter((r)=> r.isHeader).length).toBe(pagesSeen.length);
+	});
+
 	test('含截图 dataUrl(1x1 JPEG)：截图页 + 正文', async () => {
 		// 最小合法 JPEG(1x1) base64
 		const jpg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAA//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8AB//Z';

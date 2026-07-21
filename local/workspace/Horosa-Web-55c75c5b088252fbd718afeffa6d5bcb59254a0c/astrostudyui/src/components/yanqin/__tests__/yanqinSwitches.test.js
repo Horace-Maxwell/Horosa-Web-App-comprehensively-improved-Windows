@@ -9,9 +9,11 @@ import {
 	YANQIN_PRESETS, YANQIN_OPTION_META, YANQIN_SCHOOL_OPTIONS,
 } from '../yanqinSchools';
 
-const ANCHOR = dayNumber(1996, 1, 28);
+// 从锚日(1996-01-28,现代 Gregorian)加 diff 天反推测试日期。此前用 (dayNumber(锚)+diff)*86400000
+// 当 Unix 毫秒——依赖 dayNumber 返回 Unix epoch day;dayNumber 已改返儒略/格里 JDN(全年份域根修),
+// 故直接以 Date.UTC(锚)+diff 天反推(现代域两口径 diff 逐日等价,断言值不变)。
 function dateFromDiff(diff) {
-	const dt = new Date((ANCHOR + diff) * 86400000);
+	const dt = new Date(Date.UTC(1996, 0, 28) + diff * 86400000);
 	return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
 }
 const GENGWU = dateFromDiff(66);   // 庚午二元(旬头位移≠0,曜=水)

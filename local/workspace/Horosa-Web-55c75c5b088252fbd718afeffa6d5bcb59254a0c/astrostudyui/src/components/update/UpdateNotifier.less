@@ -12,7 +12,7 @@
 	border-radius: @radius;
 	border: 1px solid var(--horosa-border);
 	background:
-		radial-gradient(circle at 16% 0%, var(--horosa-cyan-soft, rgba(47, 125, 241, 0.12)), transparent 40%),
+		radial-gradient(circle at 16% 0%, var(--horosa-cyan-soft, rgba(184, 137, 63, 0.12)), transparent 40%),
 		linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 46%),
 		var(--horosa-surface-raised, var(--horosa-surface, #fff));
 	color: var(--horosa-text);
@@ -89,8 +89,8 @@
 	padding: 7px 16px;
 	// accent 实底必须配 on-accent(暗色下 accent 是浅金,白字会隐形)
 	color: var(--horosa-on-accent, #fff);
-	background: linear-gradient(180deg, var(--horosa-accent, #2f7df1), var(--horosa-accent-strong, #2666cf));
-	box-shadow: 0 6px 16px rgba(47, 125, 241, 0.32);
+	background: linear-gradient(180deg, var(--horosa-accent, #9a6a25), var(--horosa-accent-strong, #7a541c));
+	box-shadow: 0 6px 16px rgba(154, 106, 37, 0.32);
 
 	&:hover { filter: brightness(1.06); transform: translateY(-1px); }
 	&:active { transform: translateY(0); }
@@ -108,7 +108,7 @@
 .btnLink {
 	margin-left: auto;
 	padding: 7px 4px;
-	color: var(--horosa-accent, #2f7df1);
+	color: var(--horosa-accent, #9a6a25);
 	background: transparent;
 
 	&:hover { text-decoration: underline; }
@@ -140,7 +140,7 @@
 .progressFill {
 	height: 100%;
 	border-radius: 999px;
-	background: linear-gradient(90deg, var(--horosa-accent, #2f7df1), var(--horosa-accent-strong, #56a0ff));
+	background: linear-gradient(90deg, var(--horosa-accent, #9a6a25), var(--horosa-accent-strong, #7a541c));
 	transition: width 0.25s ease;
 }
 
@@ -170,7 +170,7 @@
 	height: 14px;
 	border-radius: 50%;
 	border: 2px solid var(--horosa-border);
-	border-top-color: var(--horosa-accent, #2f7df1);
+	border-top-color: var(--horosa-accent, #9a6a25);
 	animation: horosaUpdateSpin 0.8s linear infinite;
 }
 

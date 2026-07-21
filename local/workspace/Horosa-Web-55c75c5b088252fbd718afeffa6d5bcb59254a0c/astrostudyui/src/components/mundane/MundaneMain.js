@@ -6,7 +6,7 @@
 // 解读层：divination/mundane/describe（行星落世俗宫判词、食的元素/分度判词）。
 import { Component, Fragment } from 'react';
 import { InputNumber, Spin, Input } from 'antd';
-import { XQSelect, XQButton, XQTabs } from '../xq-ui';
+import { XQSelect, XQButton, XQTabs, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import DateTime from '../comp/DateTime';
 import { fetchPreciseJieqiSeed } from '../../utils/preciseCalcBridge';
@@ -544,19 +544,12 @@ class MundaneMain extends Component{
 			const fields = this._fields; const setTime = this._setTime;
 			if(!fields || !fields.date || !fields.date.value || !setTime){ return; }
 			const dtv = fields.date.value;
-			const dateStr = dtv.format ? dtv.format('YYYY-MM-DD') : null;
-			const timeStr = dtv.format ? dtv.format('HH:mm:ss') : null;
-			if(!dateStr || !timeStr){ return; }
-			const dp = dateStr.split('-').map(Number);
-			const tp = timeStr.split(':').map(Number);
-			const d = new Date(dp[0], dp[1] - 1, dp[2], tp[0], tp[1] + deltaMin, tp[2] || 0);
-			const pad = (n) => String(n).padStart(2, '0');
-			const newStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-			const zone = (fields.zone && fields.zone.value) || dtv.zone || '+08:00';
-			const dt = new DateTime();
-			dt.parse(newStr, 'YYYY-MM-DD HH:mm:ss');
-			dt.zone = zone;
-			if(dt.calcJdn){ dt.calcJdn(); }
+			if(!dtv || !dtv.clone || !dtv.addMinute){ return; }
+			// 用 DateTime 自带 addMinute 进位链(含公元前与 1582 儒略切换):
+			// 旧 new Date() 路径对 BC/五位年 Invalid → 步进静默失效
+			const dt = dtv.clone();
+			dt.zone = (fields.zone && fields.zone.value) || dtv.zone || '+08:00';
+			dt.addMinute(deltaMin);
 			setTime(dt);
 		}catch(e){ /* noop */ }
 	}
@@ -651,6 +644,7 @@ class MundaneMain extends Component{
 		const ruleset = extra.mundaneRuleset || 'modern';
 		this._setTime = setTime; this._fields = fields; this._setExtra = setExtra;   // 供右栏校正/会合起盘用
 		return (
+			<XQSideSection iconName="sliders" title="世俗盘设置" storageKey="mundane.opts" className="horosa-side-input-section">
 			<div className="horosa-field-block horosa-mundane-left">
 				<div className="horosa-field-label">世运规则集</div>
 				<XQSelect style={{ width: '100%' }} size="small" value={ruleset}
@@ -669,6 +663,7 @@ class MundaneMain extends Component{
 					{type === 'cycles' ? (<div className="horosa-mundane-hint">「行星周期」在右栏设定年段，计算木土大合相时代纪元。</div>) : null}
 				</div>
 			</div>
+			</XQSideSection>
 		);
 	}
 

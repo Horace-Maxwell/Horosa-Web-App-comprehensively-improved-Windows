@@ -1,6 +1,7 @@
 import { Component } from 'react';
+import { fetchPd3D } from '../../services/astroPd3d'; // pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
 import { safeLocalStorageSet } from '../../utils/safeStorage';
-import { Checkbox } from 'antd';
+import { Checkbox, Popover } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
@@ -681,6 +682,59 @@ class AstroPrimaryDirection extends Component{
 		return txt;
 	}
 
+	ensureLensPoints(){
+		if(this._lensLoading || (this.state && this.state.lensPoints)){ return; }
+		const chart = this.props.value || {};
+		const p = chart.params || {};
+		if(!p.birth && !p.date){ return; }
+		const birthParts = `${p.birth || ''}`.trim().split(/\s+/);
+		const req = {
+			date: (p.date || (birthParts[0] || '').replace(/-/g, '/')),
+			time: (p.time || birthParts[1] || '12:00:00'),
+			ad: p.ad !== undefined ? p.ad : 1,
+			zone: p.zone, lat: p.lat, lon: p.lon, gpsLat: p.gpsLat, gpsLon: p.gpsLon,
+			hsys: p.hsys !== undefined ? p.hsys : 0, southchart: p.southchart || 0,
+			zodiacal: p.zodiacal || 0, siderealAyanamsa: p.siderealAyanamsa || '',
+			tradition: 0, predictive: true, includePrimaryDirection: true,
+			showPdBounds: 1,
+			pdtype: this.props.pdType || 0,
+			pdMethod: this.props.pdMethod || 'core_alchabitius',
+			pdTimeKey: this.props.pdTimeKey || 'Ptolemy',
+			pdYears: this.props.pdYears || 100,
+			pdDirect: 1, pdConverse: 1,
+			pdAntiscia: this.props.pdAntiscia || 0, pdTerms: this.props.pdTerms || 0,
+			pdaspects: [0, 60, 90, 120, 180],
+		};
+		this._lensLoading = true;
+		fetchPd3D(req).then((res)=>{
+			this._lensLoading = false;
+			const r = res && (res.Result || res);
+			if(r && r.points){ this.setState({ lensPoints: r.points }); }
+		}).catch(()=>{ this._lensLoading = false; });
+	}
+	lensCoordText(id){
+		const pts = (this.state && this.state.lensPoints) || null;
+		const pt = pts && pts[id];
+		if(!pt){ return pts ? '(引擎点表无此 id)' : '坐标载入中…(hover 稍候)'; }
+		const f = (v)=>{ const d = Math.floor(Math.abs(v)); const mn = Math.round((Math.abs(v) - d) * 60); return `${v < 0 ? '-' : ''}${d}°${mn < 10 ? '0' : ''}${mn}′`; };
+		return `λ=${f(((Number(pt.lon) % 360) + 360) % 360)} β=${f(Number(pt.lat) || 0)} · α=${f(Number(pt.ra))} δ=${f(Number(pt.decl))}${Number.isFinite(Number(pt.raZ)) ? ` · 投影α=${f(Number(pt.raZ))} δ=${f(Number(pt.declZ))}` : ''}`;
+	}
+	renderLensPopover(text, record){
+		return (
+			<Popover trigger="hover" mouseEnterDelay={0.35}
+				onOpenChange={(open)=>{ if(open){ this.ensureLensPoints(); } }}
+				content={
+					<div style={{ fontSize: 12, lineHeight: 1.8, maxWidth: 380 }}>
+						<div><b>迫星</b> {this.convertText(record.Promittor)}：{this.lensCoordText(record.Promittor)}</div>
+						<div><b>应星</b> {this.convertText(record.Significator)}：{this.lensCoordText(record.Significator)}</div>
+						<div style={{ opacity: 0.65 }}>引擎坐标与主限天球/表格同源(pd3d);λβ=黄道 αδ=赤道,投影=β取0。</div>
+					</div>
+				}>
+				<span style={{ cursor: 'help' }}>{this.convertText(text)}</span>
+			</Popover>
+		);
+	}
+
 	render(){
 		let chart = this.props.value ? this.props.value : {};
 		let predictives = chart.predictives ? chart.predictives : {};
@@ -808,7 +862,7 @@ class AstroPrimaryDirection extends Component{
 			key: 'Promittor',
 			width: '25%',
 			render: (text, record)=>{
-				return this.convertText(text);
+				return this.renderLensPopover(text, record); // hover 透镜:迫星/应星引擎坐标
 			},
 			...this.genStarColFilter('Promittor', filterKeys)
 		},{

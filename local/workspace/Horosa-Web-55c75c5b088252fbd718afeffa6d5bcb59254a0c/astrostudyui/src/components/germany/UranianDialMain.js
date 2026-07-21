@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import moment from 'moment';
-import { Row, Col, Select, Switch, Slider, Tree, Card, Radio, DatePicker, InputNumber, Collapse, Table } from 'antd';
+import { Row, Col, Slider, Tree, Collapse, Table } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
@@ -12,11 +12,10 @@ import UranianRectify from './UranianRectify';
 import { midpointTree, planetaryPictures, midpointList, spiegelContacts, solarArcDirections, crossContacts } from '../../utils/uranianDial';
 import { factorLabel, composeShort } from '../../data/uranianMeanings';
 import { getStoredUranianDisplay, saveUranianDisplay, URANIAN_DIAL_BASES, dialBaseLabel } from './UranianDialStyle';
-import { XQSelect, XQTabs } from '../xq-ui';
+import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, XQInputNumber } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams } from './UranianSchools';
 import { listLocalCharts } from '../../utils/localcharts';
-
-const Option = Select.Option;
 
 const DIAL_BODY_IDS = new Set([
 	AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS,
@@ -85,7 +84,7 @@ function fieldsToParams(fields){
 	if (!fields) return null;
 	return {
 		date: fmt(fv(fields, 'date'), 'YYYY/MM/DD'), time: fmt(fv(fields, 'time'), 'HH:mm:ss'),
-		zone: fv(fields, 'zone'), lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
+		zone: fv(fields, 'zone') || '+08:00', lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa') || '', tradition: false, predictive: 0,
 		name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
@@ -569,11 +568,11 @@ export default class UranianDialMain extends Component {
 				<div style={headStyle}>地点（空=同本命）</div>
 				<div style={{ display: 'flex', gap: 8 }}>
 					<div style={cell}>
-						<InputNumber size="small" placeholder={natalLat != null ? `${natalLat}` : '纬度'} value={this.state[latKey]}
+						<XQInputNumber size="small" placeholder={natalLat != null ? `${natalLat}` : '纬度'} value={this.state[latKey]}
 							onChange={set(latKey)} step={0.001} style={{ width: '100%' }} controls={false} />
 					</div>
 					<div style={cell}>
-						<InputNumber size="small" placeholder={natalLon != null ? `${natalLon}` : '经度'} value={this.state[lonKey]}
+						<XQInputNumber size="small" placeholder={natalLon != null ? `${natalLon}` : '经度'} value={this.state[lonKey]}
 							onChange={set(lonKey)} step={0.001} style={{ width: '100%' }} controls={false} />
 					</div>
 				</div>
@@ -645,8 +644,7 @@ export default class UranianDialMain extends Component {
 			libOpts.length ? { label: '命盘库', options: libOpts } : null,
 		].filter(Boolean);
 		const personOptionCount = curOpts.length + libOpts.length;
-		// 卡片头/体样式下放到 .horosa-uranian-card CSS(令牌化,暗黑/明亮协调);此处仅留间距。
-		const cardProps = { size: 'small', bordered: true, className: 'horosa-uranian-card', style: { marginBottom: 10 } };
+		// 观象左栏 P2:左栏四节统一 XQSideSection(图标+可折叠,horosa-uranian-section 管节间距与行文字色)。
 		const rowSty = { display: 'flex', justifyContent: 'space-between', alignItems: 'center' };
 		const layers = this.layerRows();
 
@@ -654,24 +652,22 @@ export default class UranianDialMain extends Component {
 			<div style={{ width: '100%' }}>
 				{/* 流派软预设(WP-1):选派=套该派默认(虚星/盘基/容许度/十字指针/宫框/盘式),之下控件可逐项微调。 */}
 				{/* 下拉栏(XQSelect=antd Select)更紧凑;onChange 直接给 value(非 e.target.value)。changeSchool 逻辑不变。 */}
-				<Card {...cardProps} title="流派">
+				<XQSideSection iconName={sideSectionIcon('school')} title="流派" storageKey="germany.school" className="horosa-uranian-section horosa-side-input-section">
 					<XQSelect value={this.state.school} options={SCHOOL_OPTIONS} onChange={(v) => this.changeSchool(v)} className="horosa-uranian-school" size="small" style={{ width: '100%' }} />
 					<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 6 }}>
 						选派套该派默认；下方控件可逐项覆盖。
 					</div>
-				</Card>
+				</XQSideSection>
 
-				<Card {...cardProps} title="盘式与盘基">
-					{/* 盘式三态互斥:折叠盘 / 多环模数盘 / 宇宙图。 */}
-					<Radio.Group size="small" value={this.state.dialStyle} onChange={(e) => this.saveDisp({ dialStyle: e.target.value, cosmogram: e.target.value === 'cosmogram' })} style={{ width: '100%', marginBottom: 10 }}>
-						<Radio.Button value="folded" style={{ width: '34%', textAlign: 'center' }}>折叠盘</Radio.Button>
-						<Radio.Button value="modulus" style={{ width: '33%', textAlign: 'center' }}>模数盘</Radio.Button>
-						<Radio.Button value="cosmogram" style={{ width: '33%', textAlign: 'center' }}>宇宙图</Radio.Button>
-					</Radio.Group>
+				<XQSideSection iconName={sideSectionIcon('chartStyle')} title="盘式与盘基" storageKey="germany.dial" className="horosa-uranian-section horosa-side-input-section">
+					{/* 盘式三态互斥:折叠盘 / 多环模数盘 / 宇宙图(XQSegmented onChange 同 Radio.Group:e.target.value)。 */}
+					<div className="horosa-uranian-dialstyle">
+						<XQSegmented size="small" value={this.state.dialStyle} onChange={(e) => this.saveDisp({ dialStyle: e.target.value, cosmogram: e.target.value === 'cosmogram' })}
+							options={[{ value: 'folded', label: '折叠盘' }, { value: 'modulus', label: '模数盘' }, { value: 'cosmogram', label: '宇宙图' }]} />
+					</div>
 					<div style={{ color: 'var(--horosa-text-soft)', fontSize: 12, marginBottom: 4 }}>盘基（模数）</div>
-					<Select value={this.state.dialBase} onChange={(v) => this.saveDisp({ dialBase: Number(v) })} style={{ width: '100%' }} size="small">
-						{URANIAN_DIAL_BASES.map((b) => <Option key={b} value={b}>{dialBaseLabel(b)} 盘</Option>)}
-					</Select>
+					<XQSelect value={this.state.dialBase} onChange={(v) => this.saveDisp({ dialBase: Number(v) })} style={{ width: '100%' }} size="small"
+						options={URANIAN_DIAL_BASES.map((b) => ({ value: b, label: `${dialBaseLabel(b)} 盘` }))} />
 					{/* 常用盘基快捷:90°(H4 默认)/45°(H8 宇宙生物学)/22.5°(H16)。 */}
 					<div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
 						{QUICK_BASES.map((b) => (
@@ -684,9 +680,9 @@ export default class UranianDialMain extends Component {
 							</button>
 						))}
 					</div>
-				</Card>
+				</XQSideSection>
 
-				<Card {...cardProps} title="叠盘层（除本命外可拖动）">
+				<XQSideSection iconName={sideSectionIcon('planets')} title="叠盘层（除本命外可拖动）" storageKey="germany.layers" className="horosa-uranian-section horosa-side-input-section">
 					{layers.map((L) => (
 						<div key={L.key} style={{ ...rowSty, padding: '5px 0', borderBottom: L.key !== 'solararc' ? '1px solid var(--horosa-border-soft, rgba(0,0,0,0.04))' : 'none' }}>
 							<div style={{ minWidth: 0, flex: 1 }}>
@@ -694,13 +690,13 @@ export default class UranianDialMain extends Component {
 								{/* 不截断:换行而非省略号(用户验收口径)。 */}
 								<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginLeft: 16, wordBreak: 'break-word', whiteSpace: 'normal' }}>{L.info}</div>
 							</div>
-							{L.locked ? <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>内圈</span> : <Switch size="small" checked={L.on} onChange={L.toggle} />}
+							{L.locked ? <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>内圈</span> : <XQSwitch size="small" checked={L.on} onChange={L.toggle} />}
 						</div>
 					))}
 					{this.state.showTransit ? (
 						<div style={{ marginTop: 8 }}>
 							<div style={{ fontSize: 11, color: 'var(--horosa-text-soft)', marginBottom: 3 }}>行运时刻</div>
-							<DatePicker size="small" showTime format="YYYY-MM-DD HH:mm" value={this.state.transitTime}
+							<XQDatePicker size="small" showTime format="YYYY-MM-DD HH:mm" value={this.state.transitTime}
 								placeholder="此刻" style={{ width: '100%' }}
 								onChange={(v) => this.setState({ transitTime: v }, () => this.requestTransit())} />
 							<div style={{ marginTop: 6 }}>{this.renderLocOverride('transitLat', 'transitLon', () => this.requestTransit())}</div>
@@ -710,10 +706,8 @@ export default class UranianDialMain extends Component {
 						<div style={{ marginTop: 10 }}>
 							<div style={rowSty}>
 								<span style={{ fontSize: 11, color: 'var(--horosa-text-soft)' }}>太阳弧换算</span>
-								<Radio.Group size="small" value={this.state.saKey} onChange={(e) => { const k = e.target.value; this.saveDisp({ saKey: k }); const rate = k === 'oneDeg' ? 1.0 : 0.9856473354; this.setState({ saAge: (this.state.saArcDirected || 0) / rate }); }}>
-									<Radio.Button value="naibod">Naibod</Radio.Button>
-									<Radio.Button value="oneDeg">1°/年</Radio.Button>
-								</Radio.Group>
+								<XQSegmented size="small" value={this.state.saKey} onChange={(e) => { const k = e.target.value; this.saveDisp({ saKey: k }); const rate = k === 'oneDeg' ? 1.0 : 0.9856473354; this.setState({ saAge: (this.state.saArcDirected || 0) / rate }); }}
+									options={[{ value: 'naibod', label: 'Naibod' }, { value: 'oneDeg', label: '1°/年' }]} />
 							</div>
 							<div style={{ marginTop: 6 }}>{this.renderLocOverride('saLat', 'saLon')}</div>
 						</div>
@@ -737,30 +731,30 @@ export default class UranianDialMain extends Component {
 							</div>
 						) : null}
 					</div>
-				</Card>
+				</XQSideSection>
 
-				<Card {...cardProps} title="显示与读数">
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>TNP 虚星</span><Switch size="small" checked={this.state.showTnp} onChange={(v) => this.saveDisp({ showTnp: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点树扫描</span><Switch size="small" checked={this.state.showPicture} onChange={(v) => this.saveDisp({ showPicture: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>仅含个人点</span><Switch size="small" checked={this.state.onlyPersonal} onChange={(v) => this.saveDisp({ onlyPersonal: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>行星图解算 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A+B−C=D</span></span><Switch size="small" checked={this.state.showPlanetPicture} onChange={(v) => this.saveDisp({ showPlanetPicture: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点列表</span><Switch size="small" checked={this.state.showMidpointList} onChange={(v) => this.saveDisp({ showMidpointList: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>映点 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>Spiegelpunkt</span></span><Switch size="small" checked={this.state.showAntiscia} onChange={(v) => this.saveDisp({ showAntiscia: v })} /></div>
+				<XQSideSection iconName={sideSectionIcon('display')} title="显示与读数" storageKey="germany.display" className="horosa-uranian-section horosa-side-input-section">
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>TNP 虚星</span><XQSwitch size="small" checked={this.state.showTnp} onChange={(v) => this.saveDisp({ showTnp: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点树扫描</span><XQSwitch size="small" checked={this.state.showPicture} onChange={(v) => this.saveDisp({ showPicture: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>仅含个人点</span><XQSwitch size="small" checked={this.state.onlyPersonal} onChange={(v) => this.saveDisp({ onlyPersonal: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>行星图解算 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A+B−C=D</span></span><XQSwitch size="small" checked={this.state.showPlanetPicture} onChange={(v) => this.saveDisp({ showPlanetPicture: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点列表</span><XQSwitch size="small" checked={this.state.showMidpointList} onChange={(v) => this.saveDisp({ showMidpointList: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>映点 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>Spiegelpunkt</span></span><XQSwitch size="small" checked={this.state.showAntiscia} onChange={(v) => this.saveDisp({ showAntiscia: v })} /></div>
 					{/* WP-5:指针读数追加和点(A+B)/差距(A∠B)项;默认关→cursorReadout 行为零回归。 */}
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>和点读数 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A+B</span></span><Switch size="small" checked={this.state.showSumPoints} onChange={(v) => this.saveDisp({ showSumPoints: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>差距读数 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A∠B</span></span><Switch size="small" checked={this.state.showArcOpenings} onChange={(v) => this.saveDisp({ showArcOpenings: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>和点读数 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A+B</span></span><XQSwitch size="small" checked={this.state.showSumPoints} onChange={(v) => this.saveDisp({ showSumPoints: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>差距读数 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A∠B</span></span><XQSwitch size="small" checked={this.state.showArcOpenings} onChange={(v) => this.saveDisp({ showArcOpenings: v })} /></div>
 					{/* WP-3:差值表(太阳弧到期 全/半/倍 + 目标年龄高亮);开启时一并展开 diff 面板。 */}
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>差值表 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>太阳弧到期</span></span><Switch size="small" checked={this.state.showDiffList} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('diff') < 0) op.push('diff'); this.saveDisp({ showDiffList: v, openPanels: op }); }} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>差值表 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>太阳弧到期</span></span><XQSwitch size="small" checked={this.state.showDiffList} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('diff') < 0) op.push('diff'); this.saveDisp({ showDiffList: v, openPanels: op }); }} /></div>
 					{/* 流派盘面附加(随流派默认,可逐项覆盖):十字指针 22.5° 四向辅助 / 六宫框。 */}
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>十字指针 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>22.5°</span></span><Switch size="small" checked={this.state.crossPointer} onChange={(v) => this.saveDisp({ crossPointer: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>六宫框</span><Switch size="small" checked={this.state.showHouseFrames} onChange={(v) => this.saveDisp({ showHouseFrames: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 10 }}><span>赤纬接触 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>平行/反平行</span></span><Switch size="small" checked={this.state.showDeclination} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('parallel') < 0) op.push('parallel'); this.saveDisp({ showDeclination: v, openPanels: op }); if (v) { this.requestNatalTnp(); } }} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>十字指针 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>22.5°</span></span><XQSwitch size="small" checked={this.state.crossPointer} onChange={(v) => this.saveDisp({ crossPointer: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>六宫框</span><XQSwitch size="small" checked={this.state.showHouseFrames} onChange={(v) => this.saveDisp({ showHouseFrames: v })} /></div>
+					<div style={{ ...rowSty, marginBottom: 10 }}><span>赤纬接触 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>平行/反平行</span></span><XQSwitch size="small" checked={this.state.showDeclination} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('parallel') < 0) op.push('parallel'); this.saveDisp({ showDeclination: v, openPanels: op }); if (v) { this.requestNatalTnp(); } }} /></div>
 					<div style={{ marginBottom: 2, fontSize: 12 }}>容许度 <b>{this.state.orb}°</b></div>
 					<Slider min={0.5} max={3} step={0.5} value={this.state.orb} onChange={(v) => this.saveDisp({ orb: v })} />
 					{/* 个人点放宽容许度(Basic Five;下发后端 personalOrb,且前端读数/树/图同口径放宽)。 */}
 					<div style={{ marginTop: 8, marginBottom: 2, fontSize: 12 }}>个人点容许度 <b>{this.state.orbPersonal}°</b></div>
 					<Slider min={0.5} max={6} step={0.5} value={this.state.orbPersonal} onChange={(v) => this.saveDisp({ orbPersonal: v })} />
-				</Card>
+				</XQSideSection>
 			</div>
 		);
 
@@ -836,7 +830,7 @@ export default class UranianDialMain extends Component {
 			<div>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
 					<span style={{ fontSize: 12 }}>目标年龄</span>
-					<InputNumber size="small" min={0} max={120} step={1} value={this.state.diffTargetAge}
+					<XQInputNumber size="small" min={0} max={120} step={1} value={this.state.diffTargetAge}
 						onChange={(v) => this.saveDisp({ diffTargetAge: (v == null ? 0 : Number(v)) })} style={{ width: 78 }} />
 					<button type="button" disabled={curAge == null}
 						onClick={() => { if (curAge != null) this.saveDisp({ diffTargetAge: curAge }); }}

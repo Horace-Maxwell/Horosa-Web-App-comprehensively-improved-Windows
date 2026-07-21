@@ -10,18 +10,30 @@ import {
 	HESU_OF, TOUTAI_BIRDS, WUXING_KE,
 } from './yanqinConst';
 
-// 锚点:1996-01-28 = 甲子日 = 虚日鼠(序11) = 周日 = 一元一将(七元甲子最干净起点)。
-// 大全§1.7/§10.2 程序实测坐实;不照抄网文常数。
-const ANCHOR_DAY_NUMBER = Math.floor(Date.UTC(1996, 0, 28) / 86400000);
 const ANCHOR_MANSION_IDX = 11; // 虚日鼠
 const ANCHOR_GANZHI = 0;       // 甲子
 
 function mod(n, m) { return ((n % m) + m) % m; }
 
-// 任意 {year,month,day} → 连续日序(UTC 天数,自动含格里高利改历偏移由锚点吸收)
+// 🔴 连续日序 = 儒略/格里 JDN(含 1582-10-15 切换),而非 JS Date.UTC(proleptic Gregorian)。
+// 后者对 1582 前(尤其 BC)与真实儒略历日序偏差(实测 BC12026 日禽/日干支偏约 28 位,全错);
+// year=带符号显示年(BC 负、无 0 年)→ 天文年(BC1=0)。现代域(1582 后)走格里分支,与旧 Date.UTC
+// 差常数、diff 不变=零回归(golden 用现代日期不受影响);BC/1582 前走儒略分支,日序修正。
 export function dayNumber(year, month, day) {
-	return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+	const ay = year < 0 ? year + 1 : year;
+	const a = Math.floor((14 - month) / 12);
+	const y = ay + 4800 - a;
+	const m = month + 12 * a - 3;
+	const isGreg = year > 1582 || (year === 1582 && (month > 10 || (month === 10 && day >= 15)));
+	if (isGreg) {
+		return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+	}
+	return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
 }
+
+// 锚点:1996-01-28 = 甲子日 = 虚日鼠(序11) = 一元一将(七元甲子最干净起点)。以同一 JDN 函数
+// 求锚,现代域 diff = dayNumber - ANCHOR 与旧 Date.UTC 口径逐日一致(零回归);大全§1.7/§10.2 实测坐实。
+const ANCHOR_DAY_NUMBER = dayNumber(1996, 1, 28);
 
 // —— 日禽:周历机制(一日一换,28日一轮)✅ ——
 // 序号 = ((日序 − 锚点日序 + 锚点宿序 − 1) mod 28) + 1

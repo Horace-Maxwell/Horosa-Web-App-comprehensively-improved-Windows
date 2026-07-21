@@ -63,7 +63,9 @@ class Taixuan:
             
     def getdz_date(self):
         pyear = self.year -1 
-        pdz_m_d = cnlunar.Lunar(datetime.datetime(pyear, self.month, self.day, self.hour, 0)).thisYearSolarTermsDic.get("冬至")
+        # [X1] 前一年冬至只查该年节气表,与具体日无关;闰日 2/29 在非闰前年不存在 → 钉 28 免 ValueError。
+        pday = 28 if (self.month == 2 and self.day == 29) else self.day
+        pdz_m_d = cnlunar.Lunar(datetime.datetime(pyear, self.month, pday, self.hour, 0)).thisYearSolarTermsDic.get("冬至")
         pdz = datetime.datetime(pyear, pdz_m_d[0], pdz_m_d[1])
         dz_m_d = cnlunar.Lunar(datetime.datetime(self.year, self.month, self.day, self.hour, 0)).thisYearSolarTermsDic.get("冬至")
         dz = datetime.datetime(self.year, dz_m_d[0], dz_m_d[1])
@@ -76,7 +78,9 @@ class Taixuan:
             
     def getdz(self):
         pyear = self.year -1 
-        pdz_m_d = cnlunar.Lunar(datetime.datetime(pyear, self.month, self.day, self.hour, 0)).thisYearSolarTermsDic.get("冬至")
+        # [X1] 同 getdz_date:闰日钩 28 免非闰前年 ValueError。
+        pday = 28 if (self.month == 2 and self.day == 29) else self.day
+        pdz_m_d = cnlunar.Lunar(datetime.datetime(pyear, self.month, pday, self.hour, 0)).thisYearSolarTermsDic.get("冬至")
         pdz = datetime.datetime(pyear, pdz_m_d[0], pdz_m_d[1])
         dz_m_d = cnlunar.Lunar(datetime.datetime(self.year, self.month, self.day, self.hour, 0)).thisYearSolarTermsDic.get("冬至")
         dz = datetime.datetime(self.year, dz_m_d[0], dz_m_d[1])

@@ -358,21 +358,21 @@ class RengChart {
 		if(fields.date && fields.date.value && fields.time && fields.time.value){
 			const dateText = `${fields.date.value.format ? fields.date.value.format('YYYY-MM-DD HH:mm:ss') : fields.date.value}`;
 			const timeText = `${fields.time.value.format ? fields.time.value.format('YYYY-MM-DD HH:mm:ss') : fields.time.value}`;
-			const dateMatch = dateText.match(/(-?\d{1,4})-(\d{1,2})-(\d{1,2})/);
+			const dateMatch = dateText.match(/(-?\d{1,5})-(\d{1,2})-(\d{1,2})/);
 			const timeMatch = timeText.match(/(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
 			if(dateMatch){
 				return `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')} ${timeMatch ? timeMatch[1].padStart(2, '0') : '00'}:${timeMatch ? timeMatch[2].padStart(2, '0') : '00'}:${timeMatch && timeMatch[3] ? timeMatch[3].padStart(2, '0') : '00'}`;
 			}
 		}
 		if(fields.params && fields.params.birth){
-			const match = `${fields.params.birth}`.match(/(-?\d{1,4})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+			const match = `${fields.params.birth}`.match(/(-?\d{1,5})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
 			if(match){
 				return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')} ${match[4].padStart(2, '0')}:${match[5].padStart(2, '0')}:${match[6] ? match[6].padStart(2, '0') : '00'}`;
 			}
 			return `${fields.params.birth}`.substr(0, 16);
 		}
 		if(this.nongli && this.nongli.birth){
-			const match = `${this.nongli.birth}`.match(/(-?\d{1,4})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+			const match = `${this.nongli.birth}`.match(/(-?\d{1,5})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
 			if(match){
 				return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')} ${match[4].padStart(2, '0')}:${match[5].padStart(2, '0')}:${match[6] ? match[6].padStart(2, '0') : '00'}`;
 			}
@@ -461,7 +461,7 @@ class RengChart {
 	formatTrueSolarTime(){
 		// 真太阳时 = 后端按经度校正后的起课时刻(this.nongli.birth);六壬默认按真太阳时定时辰/三传。
 		if(this.nongli && this.nongli.birth){
-			const m = `${this.nongli.birth}`.match(/(-?\d{1,4})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+			const m = `${this.nongli.birth}`.match(/(-?\d{1,5})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
 			if(m){
 				return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')} ${m[4].padStart(2, '0')}:${m[5].padStart(2, '0')}:${m[6] ? m[6].padStart(2, '0') : '00'}`;
 			}

@@ -39,6 +39,10 @@ class DateTime {
 	}
 
 	getZoneJdn() {
+		// zone 可能为 undefined/非字符串(如上游部分态盘对象 setZone(undefined)),按 0 偏移兜底
+		if(typeof this.zone !== 'string' || !this.zone){
+			return 0;
+		}
 		let parts = this.zone.split(':');
 		let h = parts[0];
 		let sym = 1;
@@ -298,6 +302,11 @@ class DateTime {
 	}
 
 	setZone(val){
+		// zone 语义=改时区;undefined/null/空串一律保持原值(历史上 setZone(undefined) 会把
+		// zone 洗成 undefined → 全局 fields 污染 → 请求缺 zone 键(Java miss.zone)。
+		if(val === undefined || val === null || val === ''){
+			return;
+		}
 		this.zone = val;
 		this.calcJdn();
 	}

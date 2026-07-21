@@ -1,16 +1,19 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
+import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection  } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { parseDateParts } from '../../utils/dateStrSafe';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -30,7 +33,9 @@ function parseFieldsDateTime(fields){
 	}
 	const dateStr = fields.date.value.format('YYYY-MM-DD');
 	const timeStr = fields.time.value.format('HH:mm:ss');
-	const d = dateStr.split('-').map((item)=>parseInt(item, 10));
+	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
+	const _dp = parseDateParts(dateStr);
+	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
 	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
 	if(d.length < 3 || t.length < 2){
 		return null;
@@ -143,21 +148,40 @@ export function buildSnapshotText(pan, xinyi, opts){
 
 // 皇极经世 AI 快照(无头):按出生 fields 经 ken 后端起元会运世盘(默认皇极经世书)→ buildSnapshotText。
 // aiAnalysisContext 复算用;心易发微(xinyi)属占断叠加,挂载默认不带(传 null);无 pan 即返 ''。
-export async function buildHuangJiSnapshotForFields(fields){
+export async function buildHuangJiSnapshotForFields(fields, opts){
 	try{
 		const dt = parseFieldsDateTime(fields);
 		if(!dt){
 			return '';
 		}
+		// [挂载设置] opts 可覆盖:classicKey 典籍;xinyiMethod 心易起卦法(缺省不算=现状零回归),
+		// 其余为对应法参数——与页面 xinyiOptions 同名同义,单源双端(页面/挂载)一致。
+		const o = opts && typeof opts === 'object' ? opts : {};
 		const pan = await postWangJi('pan', {
 			...dt,
 			historyYear: dt.year,
-			classicKey: DEFAULT_CLASSIC,
+			classicKey: o.classicKey || DEFAULT_CLASSIC,
 		});
 		if(!pan){
 			return '';
 		}
-		return buildSnapshotText(pan, null) || '';
+		let xinyi = null;
+		const xm = o.xinyiMethod && o.xinyiMethod !== 'none' ? o.xinyiMethod : '';
+		if(xm){
+			try{
+				xinyi = await postWangJi('xinyi', {
+					...dt,
+					method: xm,
+					upperNum: o.upperNum != null ? o.upperNum : 5,
+					lowerNum: o.lowerNum != null ? o.lowerNum : 10,
+					upperStrokes: o.upperStrokes != null ? o.upperStrokes : 5,
+					lowerStrokes: o.lowerStrokes != null ? o.lowerStrokes : 8,
+					objectGua: o.objectGua || '離',
+					direction: o.direction || '南',
+				});
+			}catch(e){ xinyi = null; /* 心易失败不拖主盘 */ }
+		}
+		return buildSnapshotText(pan, xinyi) || '';
 	}catch(e){
 		return '';
 	}
@@ -190,6 +214,7 @@ class HuangJiMain extends Component{
 		this.timeHook = {};
 		this.requestSeq = 0;
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.changeGeo = this.changeGeo.bind(this);
 		this.getTimeFieldsFromSelector = this.getTimeFieldsFromSelector.bind(this);
 		this.clickPlot = this.clickPlot.bind(this);
 		this.fetchPan = this.fetchPan.bind(this);
@@ -219,6 +244,7 @@ class HuangJiMain extends Component{
 	}
 
 	componentDidMount(){
+		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -237,6 +263,7 @@ class HuangJiMain extends Component{
 	}
 
 	componentWillUnmount(){
+		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -311,6 +338,10 @@ class HuangJiMain extends Component{
 		}
 	}
 
+	// [自由起盘] 左栏经纬度选择 → 经纬 + 时区自动校正 + 重锚时间 + 地名(经度影响真太阳时→时柱)。
+	changeGeo(rec){
+		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
+	}
 	onTimeChanged(value){
 		const dt = value.time;
 		this.onFieldsChange({
@@ -503,10 +534,9 @@ class HuangJiMain extends Component{
 					timeText={formatSpaceTime(fields, '---- -- -- --:--:--')}
 					onTimeChange={this.onTimeChanged}
 					timeHook={this.timeHook}
-					showLocation={false}
+					onGeoChange={this.changeGeo}
 				/>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="other" />皇极选项</div>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="皇极选项" storageKey="huangji.s0" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field">
 							<span>历史年</span>
@@ -538,9 +568,8 @@ class HuangJiMain extends Component{
 							<Button onClick={this.randomHistoryYear}>随机历史年</Button>
 						</label>
 					</div>
-				</div>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="quickComposite" />心易发微</div>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="心易发微" storageKey="huangji.s1" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field is-wide">
 							<span>起卦法</span>
@@ -589,7 +618,7 @@ class HuangJiMain extends Component{
 							</>
 						) : null}
 					</div>
-				</div>
+				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起盘</Button>
 					<Button onClick={()=>this.fetchXinyi(this.props.fields)}>起心易</Button>

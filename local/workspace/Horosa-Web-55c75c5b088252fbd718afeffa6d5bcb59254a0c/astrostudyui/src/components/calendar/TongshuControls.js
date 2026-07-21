@@ -1,7 +1,8 @@
 // 通书择日左栏控件：流派 + 用事/坐山向/主事仙命 + 日期（按流派 needs 显隐）。
 // 受控组件：props.settings + props.onChange(patch)；日期走 props.dateValue + props.onDateChange。
 import React, { Component } from 'react';
-import { XQSelect as Select } from '../xq-ui';
+import { XQSelect as Select, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import { TONGSHU_SCHOOLS, TONGSHU_SCHOOL_MAP, schoolNeeds, LIEXIU_USE_OPTIONS } from './tongshuSchools';
 import { TONGSHU_TERMS, TONGSHU_TERM_CATEGORIES } from './tongshuData';
@@ -20,16 +21,17 @@ export default class TongshuControls extends Component {
 
 		return (
 			<div className='horosa-tongshu-controls'>
-				<div className='horosa-huangji-field-title'>通书择日</div>
-
+				{/* 观象左栏 P2:field-title 双节收编 XQSideSection(标题进节头,字段原顺序零变)。 */}
+				<XQSideSection iconName={sideSectionIcon('school')} title="通书择日" storageKey="tongshu.school" className="horosa-side-input-section">
 				<label className='horosa-huangji-select-field is-wide'>
 					<span>流派</span>
 					<Select value={s.school} dropdownMatchSelectWidth={false}
 						onChange={(v)=> onChange({ school: v })} options={SCHOOL_OPTIONS} />
 				</label>
 				<div className='horosa-tongshu-school-note'>{school.note || ''}</div>
+				</XQSideSection>
 
-				<div className='horosa-huangji-field-title' style={{ marginTop: 8 }}>用事日期</div>
+				<XQSideSection iconName={sideSectionIcon('date')} title="用事日期" collapsible={false}>
 				<div className='horosa-tongshu-date'>
 					<DateTimeSelector value={dateValue} defaultTimeType='d' showTime={false} showAdjust={true} onChange={onDateChange} />
 				</div>
@@ -70,6 +72,7 @@ export default class TongshuControls extends Component {
 							onChange={(v)=> onChange({ mingYear: v })} options={MING_OPTIONS} showSearch />
 					</label>
 				) : null}
+				</XQSideSection>
 			</div>
 		);
 	}

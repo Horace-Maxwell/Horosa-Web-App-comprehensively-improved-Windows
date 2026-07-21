@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import XQIcon from './xq-icons';
+import { preloadNavByKey } from '../utils/navPreload';
 
 const Pages = [{
 	path: ['astrochart'],
@@ -211,7 +212,7 @@ class HomePageSetup extends Component{
 						<div className="xq-nav-recent">
 							<div className="xq-nav-recent-title">最近使用</div>
 							{recentPages.map((rec)=>(
-								<button type="button" className="xq-nav-recent-chip" key={rec.key} onClick={()=>this.clickPage(rec)}>
+								<button type="button" className="xq-nav-recent-chip" key={rec.key} onClick={()=>this.clickPage(rec)} onMouseEnter={()=>preloadNavByKey(rec.key)}>
 									{rec.label}
 								</button>
 							))}
@@ -230,6 +231,7 @@ class HomePageSetup extends Component{
 												key={rec.key}
 												className={`xq-nav-card ${currentKey === rec.key ? 'xq-nav-card-active' : ''}`}
 												onClick={()=>{ this.clickPage(rec); }}
+													onMouseEnter={()=>preloadNavByKey(rec.key)}
 												title={hit ? `${rec.label} · 含 ${hit}` : rec.label}
 											>
 												<span className="xq-nav-card-label">
@@ -246,6 +248,7 @@ class HomePageSetup extends Component{
 												type="button"
 												className="xq-nav-tool-button"
 												onClick={this.clickTools}
+													onMouseEnter={()=>preloadNavByKey('commtools')}
 											>
 												<span>小工具</span>
 											</button>

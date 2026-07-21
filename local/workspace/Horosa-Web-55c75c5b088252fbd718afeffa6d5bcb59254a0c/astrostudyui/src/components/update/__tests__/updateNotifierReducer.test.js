@@ -88,7 +88,7 @@ describe('reduceUpdateEvent 兼容矩阵', ()=>{
 	});
 });
 
-describe('notify-only(无 sha 不自动安装)', ()=>{
+describe('[V-3] notify-only(无 sha 不自动安装)', ()=>{
 	test('available 带 notifyOnly → 状态置真并带解释文案', ()=>{
 		const st = reduceUpdateEvent(BASE, {
 			phase: 'available',

@@ -411,6 +411,9 @@ def find_wx_relation(zhi1, zhi2):
 
 #換算干支
 def gangzhi1(year, month, day, hour, minute):
+    # 全年份域:域外走全域回退(见 _gangzhi_extreme;返回同形五元)
+    if year < 1 or year > 9999:
+        return _gangzhi_extreme(year, month, day, hour, minute)
     # v2.2.1: 共享 jieqi.py 的 thread-local 开关
     from . import jieqi as _jq_module
     _after23 = _jq_module._get_after23()
@@ -490,7 +493,21 @@ def gpan1(year, month, day, hour, minute):
     return [middle, [[a, b, f'{c}門'] for a, b, c in zip(pan_eg, star, door)]]
 
 #換算干支
+def _gangzhi_extreme(year, month, day, hour, minute):
+    """全年份域四柱回退(共享件 kin_year_domain,口径与主链一致);分柱沿本引擎表。"""
+    from . import jieqi as _jq_module
+    from kin_year_domain import extreme_pillars
+    yTG, mTG, dTG, hTG, zi = extreme_pillars(
+        year, month, day, hour, minute,
+        after23=_jq_module._get_after23(), hour_gan_next=_jq_module._get_hour_gan_next())
+    gangzhi_minute = minutes_jiazi_d(zi).get(str(hour) + ":" + str(minute))
+    return [yTG, mTG, dTG, hTG, gangzhi_minute]
+
+
 def gangzhi(year, month, day, hour, minute):
+    # 全年份域:公元前/万年后走全域回退(与主链口径一致);域内 sxtwl 原路径零变。
+    if year < 1 or year > 9999:
+        return _gangzhi_extreme(year, month, day, hour, minute)
     # v2.2.1: 共享 jieqi.py 的 thread-local 开关
     from . import jieqi as _jq_module
     _after23 = _jq_module._get_after23()

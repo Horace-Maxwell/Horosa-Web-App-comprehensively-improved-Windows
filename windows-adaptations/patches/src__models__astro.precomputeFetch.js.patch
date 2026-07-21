@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index 7aede5b..e78468a 100644
+index 90446fd..3d0146d 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
 @@ -7,7 +7,7 @@ import {randomStr,} from '../utils/helper';
  import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
  import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
  import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
--import { hookRafEnabled } from '../utils/perfFlags';
-+import { hookRafEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
+-import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled } from '../utils/perfFlags';
++import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
+ import { submitStepPrefetch, getStepPrefetcher } from '../utils/stepPrefetch';
  import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
  import * as AstroConst from '../constants/AstroConst';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
-@@ -16,6 +16,24 @@ import { applyRecordToFields } from '../utils/recordFieldsRestore';
+@@ -17,6 +17,24 @@ import { applyRecordToFields } from '../utils/recordFieldsRestore';
  let dtm = new DateTime();
  const DefaultHouseSystem = 1;
  
@@ -36,7 +36,7 @@ index 7aede5b..e78468a 100644
  function newEmptyFields(){
  	const fields = {
  		cid: {
-@@ -1079,6 +1097,38 @@ export default {
+@@ -1153,6 +1171,38 @@ export default {
  		},
  
  
@@ -75,7 +75,7 @@ index 7aede5b..e78468a 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const param = {
  				...values,
-@@ -1110,11 +1160,12 @@ export default {
+@@ -1184,11 +1234,12 @@ export default {
  
              yield put({
                  type: 'save',
@@ -89,7 +89,7 @@ index 7aede5b..e78468a 100644
  
  			if(values.nohook){
  				return;
-@@ -1201,7 +1252,7 @@ export default {
+@@ -1273,7 +1324,7 @@ export default {
  			}
  			yield put({
                  type: 'save',
@@ -98,7 +98,7 @@ index 7aede5b..e78468a 100644
  					chartObj: Result,
  					fields: fields,
  					byChartData: true,
-@@ -1209,6 +1260,7 @@ export default {
+@@ -1281,6 +1332,7 @@ export default {
  					memoType: type,
                  },
              });
@@ -106,8 +106,8 @@ index 7aede5b..e78468a 100644
  
  			if(values.nohook){
  				return;
-@@ -1267,11 +1319,12 @@ export default {
- 			}
+@@ -1393,11 +1445,12 @@ export default {
+ 
              yield put({
                  type: 'save',
 -                payload: {  

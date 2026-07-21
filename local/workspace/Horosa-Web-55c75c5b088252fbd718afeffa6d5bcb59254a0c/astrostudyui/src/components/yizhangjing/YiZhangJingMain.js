@@ -1,4 +1,7 @@
 import { Component } from 'react';
+import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
+import { createSignatureMemo } from '../../utils/memoBySignature';
+import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty, Select } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
@@ -23,6 +26,26 @@ function fieldVal(fields, key, fallback = '') {
 
 // 受控：opts 由上层左栏（KinAstroMain）提供；slot: 'center'(主·盘) | 'aux'(右·子tab明细)。
 // 四柱农历来自 baziLunarLocal（星阙自己的农历，不走后端）；岁首=正月初一（异八字立春）。
+
+// WP-F 极速化:模块级共享模型 memo —— 宿主把本组件渲染【两次】(center 与 aux 两实例),
+// 各自的实例 memo 互不相通 → 同一次时间变更本地引擎白算两遍。此层跨实例共享:
+// center 先算、aux 同签名直接命中(4 槽足够:两实例只差 slot,签名同源)。
+// 共享引用只读契约:各消费方 render 不就地改写 model(dev 下深冻结保险丝);关开关=各算各的旧行为。
+const sharedModelMemo = createSignatureMemo(4);
+const devFreeze = (v) => {
+	if(process.env.NODE_ENV !== 'production' && v && typeof v === 'object'){
+		try{ deepFreeze(v); }catch(e){ /* 冻结失败不碍事 */ }
+	}
+	return v;
+};
+function deepFreeze(o){
+	Object.freeze(o);
+	Object.keys(o).forEach((k) => {
+		const c = o[k];
+		if(c && typeof c === 'object' && !Object.isFrozen(c)){ deepFreeze(c); }
+	});
+}
+
 class YiZhangJingMain extends Component {
 	constructor(props) {
 		super(props);
@@ -40,6 +63,13 @@ class YiZhangJingMain extends Component {
 			window.addEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+		// 全年份域:域外远程农历回包后清实例 memo 重渲(域内桥不触发,零影响)
+		this._unsubRemoteNongli = subscribeRemoteNongli(() => {
+			if (this._unmounted) return;
+			this._modelKey = null;
+			delete this._modelCache;
+			this.forceUpdate();
+		});
 	}
 	componentDidUpdate() { this.saveSnap(); }
 	componentWillUnmount() {
@@ -49,6 +79,7 @@ class YiZhangJingMain extends Component {
 			if (this._lateZiHourListener) window.removeEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
+		if (this._unsubRemoteNongli) { try { this._unsubRemoteNongli(); } catch (e) { /* noop */ } }
 	}
 
 	// AI 导出/挂载实时取数：导出侧派发 refresh 事件，这里即时构建快照回填（与 saveSnap 同源）。
@@ -85,9 +116,36 @@ class YiZhangJingMain extends Component {
 		const opts = this.props.opts || {};
 		const sig = JSON.stringify({ ...params, opts });
 		if (this._modelKey === sig && Object.prototype.hasOwnProperty.call(this, '_modelCache')) return this._modelCache;
-		const cache = (v) => { this._modelKey = sig; this._modelCache = v; return v; };
+		// WP-F:实例 memo miss → 先查模块级共享(另一实例可能已算过同签名)
+		if (sharedNativeModelEnabled()) {
+			const sharedHit = sharedModelMemo.get(sig);
+			if (sharedHit !== undefined) {
+				this._modelKey = sig; this._modelCache = sharedHit;
+				return sharedHit;
+			}
+		}
+		const cache = (v) => {
+			this._modelKey = sig; this._modelCache = v;
+			// WP-F:存入模块级共享(另一实例同签名直接命中);dev 深冻结当只读保险丝。
+			if (sharedNativeModelEnabled()) { sharedModelMemo.set(sig, devFreeze(v)); }
+			return v;
+		};
 		let bazi;
-		try { bazi = buildLocalBaziResult(params).bazi; } catch (e) { return cache(null); }
+		try { bazi = buildLocalBaziResult(params).bazi; } catch (e) { bazi = null; }
+		if (!bazi) {
+			// 全年份域:lunar-js 域(AD1~9999)外走远程农历桥(域内行为零变;远程首回 null,
+			// 回包经 subscribeRemoteNongli 触发重渲后补全)。桥产出含正月初一口径年干支
+			// (yearGZByLunar)+四柱+农历月日,resolveLunarInput 所需俱全。
+			const nl = deriveNongliUniversalSync(this.props.fields);
+			if (nl) {
+				bazi = { nongli: nl, fourColumns: nl.bazi, gender: params.gender };
+			} else {
+				// 远程在途:绝不把 null 落实例/模块级 memo(否则回包后 sharedModelMemo 仍回放 null,
+				// 重渲永远空态);等回包重渲时再算再缓存。
+				return null;
+			}
+		}
+		if (!bazi) { return cache(null); }
 		let model = null;
 		try { model = buildYizhangjingModel(bazi, opts); } catch (e) { model = null; }
 		return cache(model);
@@ -435,10 +493,29 @@ class YiZhangJingMain extends Component {
 		);
 	}
 
+	// 空态右栏:子 tab 条恒在(与有盘时同构),各页内容区放空提示——用户在任何 tab 下切换/停留
+	// 都能看到完整信息架构,不因未排盘整块消失。
+	renderAuxEmpty() {
+		const TAB_ALIAS = { chongfan: 'geju', flow: 'dayun' };
+		const activeTab = TAB_ALIAS[this.state.tab] || this.state.tab;
+		const empty = <div style={{ padding: 24 }}><Empty description="请先在左侧输入出生时间" /></div>;
+		return (
+			<div className="horosa-yizhangjing-aux">
+				<Tabs activeKey={activeTab} onChange={(k) => this.setState({ tab: k })} tabPosition="top" className="horosa-yizhangjing-tabs">
+					<TabPane tab="概览" key="overview">{empty}</TabPane>
+					<TabPane tab="格局" key="geju">{empty}</TabPane>
+					<TabPane tab="运限" key="dayun">{empty}</TabPane>
+					<TabPane tab="诗文" key="lore">{empty}</TabPane>
+					<TabPane tab="四柱文献" key="sizhu">{empty}</TabPane>
+				</Tabs>
+			</div>
+		);
+	}
+
 	render() {
 		const m = this.getModel();
 		if (!m) {
-			if (this.props.slot === 'aux') return null;
+			if (this.props.slot === 'aux') return this.renderAuxEmpty();
 			return <div style={{ padding: 24 }}><Empty description="请先在左侧输入出生时间" /></div>;
 		}
 		return this.props.slot === 'aux' ? this.renderAux(m) : this.renderCenter(m);

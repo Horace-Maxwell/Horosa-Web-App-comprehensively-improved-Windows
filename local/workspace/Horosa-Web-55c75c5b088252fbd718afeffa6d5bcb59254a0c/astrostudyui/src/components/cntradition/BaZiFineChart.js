@@ -166,6 +166,7 @@ function makeColumn(title, rec, kind, dayGan){
 		stem: stemCell,
 		branch: branchCell,
 		stemRel: shortRel(item.stem),
+		branchRel: shortRel(item.branch), // 地支本气十神(副星);流年大运精简记录无 relative 时为空,无害
 		hidden: hiddenStemText({ stemInBranch }),
 		shenSha: collectGods(item),
 		naying: item.naying || '',
@@ -597,6 +598,8 @@ class BaZiFineChart extends Component{
 					{this.renderHConnOverlay(cols, 'branch')}
 				</div>
 				{this.renderRelationLayer(branchRelations, 'horosa-bazi-fine-branch-relations', cols.length)}
+				{/* 副星=地支本气十神;仅在「只显示地支藏干十神」取消勾选时另立一行(默认勾选=不显=字节不变)。 */}
+				{this.props.onlyZiGanShen === false ? this.renderSimpleRow('副星', cols, (item)=><strong>{item.branchRel}</strong>, 'horosa-bazi-fine-main-star-row') : null}
 				{this.renderHiddenRow(cols)}
 				{isSimple ? this.renderShenShaRow(cols) : null}
 				{!isSimple ? this.renderSimpleRow('纳音', cols, (item)=><strong>{item.naying}</strong>, 'horosa-bazi-fine-info-row') : null}

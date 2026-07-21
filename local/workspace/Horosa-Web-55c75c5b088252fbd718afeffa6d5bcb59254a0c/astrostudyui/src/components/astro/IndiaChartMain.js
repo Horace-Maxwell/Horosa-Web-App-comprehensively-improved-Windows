@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { createPortal } from 'react-dom';
 import moment from 'moment';
 import IndiaChart, { fieldsToParams, requestIndiaChartData } from './IndiaChart';
@@ -10,7 +11,7 @@ import {convertLatToStr, convertLonToStr} from './AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameRawPatch } from '../../utils/geoName';
 import * as AstroConst from '../../constants/AstroConst';
-import { XQSegmented as Segmented, XQSelect as Select, XQTabs as Tabs, XQDatePicker as DatePicker, XQInputNumber as InputNumber } from '../xq-ui';
+import { XQSegmented as Segmented, XQSelect as Select, XQTabs as Tabs, XQDatePicker as DatePicker, XQInputNumber as InputNumber, XQSideSection  } from '../xq-ui';
 import XQIcon from '../xq-icons';
 
 const TabPane = Tabs.TabPane;
@@ -105,6 +106,20 @@ function getMoonObject(chartObj){
 function momentFromFieldValue(value, fallbackFormat){
 	if(!value){
 		return null;
+	}
+	// DateTime(ad/year 分离存储)必须走对象构造:公元前/五位年的字符串 parse 在 moment 的
+	// YYYY token 下 Invalid(负号被撕/贪吃 4 位)→静默 null→dasha 年龄标签与缓存键坏(串盘)。
+	// moment 对象构造支持任意整数年(BC 用天文年 -abs+1),全域安全。
+	if(value.ad !== undefined && value.year !== undefined && value.month !== undefined){
+		return moment({
+			year: value.ad < 0 ? -Math.abs(value.year) + 1 : Math.abs(value.year),
+			month: Math.max(0, (value.month || 1) - 1),
+			date: value.date !== undefined ? value.date : 1,
+			hour: value.hour || 0,
+			minute: value.minute || 0,
+			second: value.second || 0,
+			millisecond: 0,
+		});
 	}
 	if(value.format){
 		const formatted = fallbackFormat ? value.format(fallbackFormat) : value.format('YYYY-MM-DD HH:mm:ss');
@@ -758,10 +773,13 @@ function buildDashaFieldsKey(fields){
 	if(!fields || !fields.date || !fields.time){
 		return '';
 	}
-	const dateMoment = momentFromFieldValue(fields.date.value, 'YYYY-MM-DD');
+	// date 位直接用 DateTime 自身 format(带符号年,BC/五位年保真)——不经 moment,
+	// 消灭「不同 BC 生日撞同一 dasha 缓存键」的串盘面。
+	const dateText = (fields.date.value && fields.date.value.format)
+		? fields.date.value.format('YYYY-MM-DD') : '';
 	const timeMoment = momentFromFieldValue(fields.time.value, 'HH:mm:ss');
 	return [
-		dateMoment ? dateMoment.format('YYYY-MM-DD') : '',
+		dateText,
 		timeMoment ? timeMoment.format('HH:mm:ss') : '',
 		fields.ad ? fields.ad.value : '',
 		fields.zone ? fields.zone.value : '',
@@ -2252,11 +2270,7 @@ class IndiaChartMain extends Component{
 			{ key: '13', icon: 'target', title: '敌友', sub: 'Maitri' },
 		];
 		return (
-			<div className="horosa-india-input-section horosa-india-jyotish-nav">
-				<div className="horosa-india-field-title">
-					<XQIcon name="target" />
-					<span>高级印占</span>
-				</div>
+			<XQSideSection iconName={sideSectionIcon('switches')} title="高级印占" storageKey="india.s0" className="horosa-india-input-section horosa-india-jyotish-nav">
 				<div className="horosa-india-jyotish-buttons">
 					{items.map((item)=>(
 						<button
@@ -2271,7 +2285,7 @@ class IndiaChartMain extends Component{
 						</button>
 					))}
 				</div>
-			</div>
+			</XQSideSection>
 		);
 	}
 
@@ -3570,6 +3584,7 @@ class IndiaChartMain extends Component{
 										<div className="horosa-side-panel-subtitle">时间、地点与分盘选项</div>
 									</div>
 								</div>
+								<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 								<SpaceTimePanel
 									fields={fields}
 									value={datetm}
@@ -3577,11 +3592,8 @@ class IndiaChartMain extends Component{
 									timeHook={this.tmHook}
 									onGeoChange={this.changeGeo}
 								/>
-								<div className="horosa-india-input-section">
-									<div className="horosa-india-field-title">
-										<XQIcon name="sliders" />
-										<span>选项</span>
-									</div>
+								</XQSideSection>
+								<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="india.s1" className="horosa-side-input-section">
 										<div className="horosa-india-select-grid">
 											<div className="horosa-india-select-field horosa-india-school-field">
 												<span>流派</span>
@@ -3758,7 +3770,7 @@ class IndiaChartMain extends Component{
 											</div>
 										) : null}
 									</div>
-								</div>
+								</XQSideSection>
 							</div>
 						</div>
 						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-india-chart-panel${this.state.vargaSetOpen ? ' horosa-india-varga-grid-stage' : ''}`} style={{ position: 'relative' }}>

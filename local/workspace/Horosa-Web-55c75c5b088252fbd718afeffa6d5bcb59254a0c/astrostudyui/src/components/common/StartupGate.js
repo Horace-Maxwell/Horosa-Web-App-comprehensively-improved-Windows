@@ -126,13 +126,13 @@ export default function StartupGate() {
   const spinner = {
     margin: '0 auto 14px', width: 30, height: 30, borderRadius: '50%',
     border: '3px solid var(--horosa-border, rgba(0,0,0,0.15))',
-    borderTopColor: 'var(--horosa-accent, #2f7df1)', animation: 'horosaStartupSpin 0.8s linear infinite',
+    borderTopColor: 'var(--horosa-accent, #9a6a25)', animation: 'horosaStartupSpin 0.8s linear infinite',
   };
   const btnPrimary = {
     fontSize: 13, padding: '5px 18px', borderRadius: 8, cursor: 'pointer',
-    border: '1px solid var(--horosa-accent, #2f7df1)',
-    background: 'var(--horosa-accent-soft, rgba(47,125,241,0.12))',
-    color: 'var(--horosa-accent-strong, #2167d4)',
+    border: '1px solid var(--horosa-accent, #9a6a25)',
+    background: 'var(--horosa-accent-soft, rgba(154,106,37,0.12))',
+    color: 'var(--horosa-accent-strong, #7a541c)',
   };
   const btnSecondary = {
     fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',

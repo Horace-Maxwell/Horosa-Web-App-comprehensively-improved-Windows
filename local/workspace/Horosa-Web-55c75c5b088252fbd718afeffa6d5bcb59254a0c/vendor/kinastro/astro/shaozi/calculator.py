@@ -229,6 +229,21 @@ def calculate_ganzhi_from_datetime(birth_dt: datetime, after23_new_day: int = 1,
       hour_gan_use_next_day=0：時柱用日柱所在 cdate 的日干（== 跟日柱一致）
     只在 hour==23 時兩開關生效；其它 23 小時完全 NO-OP。
     """
+    # 🔴 四柱來源統一走權威 kin_year_domain.extreme_pillars(與八字/主鏈完全一致:天文年連續
+    # 紀年 AD4=甲子、立春年界、定氣月柱、儒略/格里 JDN 日柱)。舊 _year/_month/_day 簡化公式
+    # (公曆年無立春界、公曆月無節氣、格里 JD 對 BC 儒略歷錯)在立春前/節氣邊界/BC 全錯
+    # (用戶實測 BC12026:蕭子甲午辛未丁未辛亥 ≠ 八字乙未庚辰己卯乙亥)→ 根治為單一權威源。
+    try:
+        from kin_year_domain import extreme_pillars
+        _mi = getattr(birth_dt, 'minute', 0) or 0
+        yTG, mTG, dTG, hTG, _zi = extreme_pillars(
+            birth_dt.year, birth_dt.month, birth_dt.day, birth_dt.hour, _mi,
+            after23=(1 if after23_new_day else 0),
+            hour_gan_next=(1 if hour_gan_use_next_day else 0))
+        return {"year": yTG, "month": mTG, "day": dTG, "hour": hTG}
+    except Exception:
+        # 星歷不可用(純庫/離線)兜底:回退簡化公式(生產環境恒走上面權威;本分支僅防崩)。
+        pass
     day_dt = birth_dt + timedelta(days=1) if (after23_new_day and birth_dt.hour == 23) else birth_dt
     year_gz = _year_ganzhi(day_dt.year)
     month_gz = _month_ganzhi(day_dt.year, day_dt.month)

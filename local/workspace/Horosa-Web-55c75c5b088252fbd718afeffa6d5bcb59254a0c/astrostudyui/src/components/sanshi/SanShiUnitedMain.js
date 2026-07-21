@@ -1,6 +1,6 @@
 import { Component, Fragment } from 'react';
 import { Spin, Divider, Tag, message } from 'antd';
-import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -100,6 +100,7 @@ import {
 } from '../dunjia/DunJiaMain';
 import styles from './SanShiUnitedMain.less';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option, OptGroup } = Select;
 const TabPane = Tabs.TabPane;
@@ -2150,6 +2151,14 @@ class SanShiUnitedMain extends Component{
 		// 默认全 default → applyTaiyiSchool 为空操作,字节不变(零回归)。
 		const ov = applyTaiyiSchool(pan, options && options.taiyiSchool);
 		return ov.pan || pan;
+	}
+
+	// [A7·性能] 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
+	// 开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲(setState 恒换引用)。
+	// 收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){
@@ -4318,11 +4327,8 @@ class SanShiUnitedMain extends Component{
 					timeHook={this.timeHook}
 					onGeoChange={this.changeGeo}
 				/>
-				<div className="horosa-sanshi-input-section">
-					<div className="horosa-sanshi-field-title">
-						<XQIcon name="sliders" />
-						<span>选项</span>
-					</div>
+				{/* 观象左栏 P2:四 field-title 节各自收编 XQSideSection(原语义图标保留),每节一卡与 P1 母版同构。 */}
+				<XQSideSection iconName="sliders" title="选项" storageKey="sanshi.options" className="horosa-sanshi-input-section">
 					<div className="horosa-sanshi-select-grid">
 						<label className="horosa-sanshi-select-field">
 							<span>模式</span>
@@ -4392,11 +4398,10 @@ class SanShiUnitedMain extends Component{
 						</label>
 					</div>
 
-					{/* 奇门遁甲流派/起局补充(对齐独立·默认零回归):盘式 + 阴盘报数 + 封局 + 置闰天数 */}
-					<div className="horosa-sanshi-field-title" style={{ marginTop: 10 }}>
-						<XQIcon name="qimen" />
-						<span>奇门流派</span>
-					</div>
+				</XQSideSection>
+
+				{/* 奇门遁甲流派/起局补充(对齐独立·默认零回归):盘式 + 阴盘报数 + 封局 + 置闰天数 */}
+				<XQSideSection iconName="qimen" title="奇门流派" storageKey="sanshi.qimen" className="horosa-sanshi-input-section">
 					<div className="horosa-sanshi-select-grid">
 						<label className="horosa-sanshi-select-field">
 							<span>盘式</span>
@@ -4457,11 +4462,10 @@ class SanShiUnitedMain extends Component{
 						) : null}
 					</div>
 
-					{/* 太乙流派(对齐独立·默认全 default=从盘字节不变):博弈 + 计神/文昌/客算间辰/三基/游神五开关 */}
-					<div className="horosa-sanshi-field-title" style={{ marginTop: 10 }}>
-						<XQIcon name="taiyi" />
-						<span>太乙流派</span>
-					</div>
+				</XQSideSection>
+
+				{/* 太乙流派(对齐独立·默认全 default=从盘字节不变):博弈 + 计神/文昌/客算间辰/三基/游神五开关 */}
+				<XQSideSection iconName="taiyi" title="太乙流派" storageKey="sanshi.taiyi" className="horosa-sanshi-input-section">
 					<div className="horosa-sanshi-select-grid">
 						<label className="horosa-sanshi-select-field">
 							<span>博弈</span>
@@ -4480,11 +4484,10 @@ class SanShiUnitedMain extends Component{
 						))}
 					</div>
 
-					{/* 大六壬流派(对齐独立·默认零回归):换将/分昼夜/涉害取舍·起讫·始入/年神排序/昼夜阳阴/土旺衰 */}
-					<div className="horosa-sanshi-field-title" style={{ marginTop: 10 }}>
-						<XQIcon name="liureng" />
-						<span>六壬流派</span>
-					</div>
+				</XQSideSection>
+
+				{/* 大六壬流派(对齐独立·默认零回归):换将/分昼夜/涉害取舍·起讫·始入/年神排序/昼夜阳阴/土旺衰 */}
+				<XQSideSection iconName="liureng" title="六壬流派" storageKey="sanshi.liureng" className="horosa-sanshi-input-section">
 					<div className="horosa-sanshi-select-grid">
 						<label className="horosa-sanshi-select-field">
 							<span>换将</span>
@@ -4535,11 +4538,11 @@ class SanShiUnitedMain extends Component{
 							</Select>
 						</label>
 					</div>
+				</XQSideSection>
 
-					<div className="horosa-sanshi-action-row">
-						<Button type="primary" onClick={this.clickPlot} loading={this.state.loading} disabled={this.state.loading}>起盘</Button>
-						<Button onClick={this.clickSave}>保存</Button>
-					</div>
+				<div className="horosa-sanshi-action-row">
+					<Button type="primary" onClick={this.clickPlot} loading={this.state.loading} disabled={this.state.loading}>起盘</Button>
+					<Button onClick={this.clickSave}>保存</Button>
 				</div>
 			</div>
 		);

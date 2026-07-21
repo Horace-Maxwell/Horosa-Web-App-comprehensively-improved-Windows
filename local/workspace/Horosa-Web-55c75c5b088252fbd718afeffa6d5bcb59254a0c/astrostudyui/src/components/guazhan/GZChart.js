@@ -78,6 +78,11 @@ class GZChart {
 		let realW = width - this.margin * 2;
 		let realH = height - this.margin * 2;
 
+		// 主题令牌每次绘制现取:AstroColor 是随 data-horosa-appearance 热替的活绑定(见 app.js setColorTheme)。
+		// 构造期缓存会令「亮↔暗切换后」中盘停在旧主题色(用户实测:切主题中盘不重适配)——故绘制时重读。
+		this.bgColor = AstroConst.AstroColor.Fill;
+		this.color = AstroConst.AstroColor.Stroke;
+
 		this.hasDrawGua = false;
 		let svgid = '#' + this.chartId;
 		this.svg = d3.select(svgid);

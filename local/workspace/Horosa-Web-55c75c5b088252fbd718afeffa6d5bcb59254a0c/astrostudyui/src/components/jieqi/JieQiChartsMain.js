@@ -26,6 +26,8 @@ import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 import { fetchPreciseJieqiYear, prefetchJieqiYearNeighbors } from '../../utils/preciseCalcBridge';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { appendPlanetHouseInfo, appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 
 const TabPane = Tabs.TabPane;
 const {Option, OptGroup} = Select
@@ -481,8 +483,10 @@ async function loadJieqiChart(params, term, birth){
 	}
 	const dt = splitBirthToDateTime(birth);
 	const reqParams = buildChartRequestParams(params, birth);
+	// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(角标由调用方 requestJieQiCharts 统一管理)
 	const data = await request(`${Constants.ServerRoot}/chart`, {
 		body: JSON.stringify(reqParams),
+		silent: silentTechniquePanelsEnabled(),
 	});
 	const chartObj = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 	if(!chartObj){
@@ -1075,20 +1079,31 @@ export class JieQiChartsMain extends Component{
 			if(seq !== this.chartRequestSeq){
 				return null;
 			}
-			const chartObj = await loadJieqiChart(reqParams, title, row.time);
-			if(!chartObj || this.unmounted){
+			// keep-stale:旧盘留存,后台重取期间盘网格挂统一角标;抛错/空回包(request 失败可能
+			// resolve undefined)吞掉只收角标,绝不清旧盘
+			this.setState({ updating: true });
+			let chartObj = null;
+			try{
+				chartObj = await loadJieqiChart(reqParams, title, row.time);
+			}catch(e){
+				chartObj = null;
+			}
+			if(this.unmounted){
 				return chartObj;
 			}
-			if(seedSeq !== undefined && seedSeq !== this.requestSeq){
-				return chartObj;
-			}
+			// 本轮已被更新一轮盘请求顶掉:角标交由新请求收尾,这里不动(避免旧请求回来掐灭新一轮角标)
 			if(seq !== this.chartRequestSeq){
+				return chartObj;
+			}
+			if(!chartObj || (seedSeq !== undefined && seedSeq !== this.requestSeq)){
+				this.setState({ updating: false });
 				return chartObj;
 			}
 			this.lastChartResultKey = reqKey;
 			this.setState((prev)=>{
 				const prevResult = prev.result || {};
 				return {
+					updating: false,
 					result: {
 						...prevResult,
 						charts: {
@@ -1713,7 +1728,9 @@ export class JieQiChartsMain extends Component{
 		}
 
 		return (
-			<div id={this.state.divid} className="horosa-jieqi-page">
+			// position:relative=角标定位上下文;多盘网格统一一枚角标(不逐张小盘各挂)
+			<div id={this.state.divid} className="horosa-jieqi-page" style={{position: 'relative'}}>
+				{this.state.updating && this.state.result && this.state.result.charts && Object.keys(this.state.result.charts).length > 0 ? <UpdatingBadge /> : null}
 				{
 					showInput && (
 					<Row className="horosa-jieqi-toolbar" gutter={6} align="middle">

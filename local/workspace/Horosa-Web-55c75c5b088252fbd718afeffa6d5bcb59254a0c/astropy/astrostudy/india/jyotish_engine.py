@@ -387,8 +387,26 @@ class JyotishEngine:
         self.d1_sun = safe_get(self.d1_chart, const.SUN)
         self.d1_moon = safe_get(self.d1_chart, const.MOON)
 
+    def _dasha_block(self):
+        """七体系大运块:逐体系容错(个别体系在极端年份炸时置 None,不拖垮整块)。"""
+        block = {}
+        for key, fn in [
+            ('vimshottari', self.vimshottari), ('yogini', self.yogini),
+            ('ashtottari', self.ashtottari), ('naisargika', self.naisargika_dasha),
+            ('tribhagi', self.tribhagi), ('mula', self.mula_dasha),
+            ('sudarshanaChakra', self.sudarshana_chakra_dasha),
+        ]:
+            try:
+                block[key] = fn()
+            except Exception:
+                block[key] = None
+        return block
+
     def compute(self):
-        return {
+        # 逐键安全组装:任一子块在极端年份(如凯龙域外/极地历法边界)失败时,
+        # 该键置 None 并记入 partialErrors,其余子块照常输出——绝不整包丢失。
+        # 正常年份全部成功 ⇒ 键序与键值与旧实现完全一致(零回归),且不出现 partialErrors 键。
+        res = {
             'engine': {
                 'name': 'Horosa JyotishEngine',
                 'version': '0.1.0',
@@ -396,48 +414,35 @@ class JyotishEngine:
                 'source': 'chart_json_only',
                 'chartnum': self.chartnum,
             },
-            'panchanga': self.panchanga(),
-            'nakshatras': self.nakshatras(),
-            'yogas': self.yogas(),
-            'dasha': {
-                'vimshottari': self.vimshottari(),
-                'yogini': self.yogini(),
-                'ashtottari': self.ashtottari(),
-                'naisargika': self.naisargika_dasha(),
-                'tribhagi': self.tribhagi(),
-                'mula': self.mula_dasha(),
-                'sudarshanaChakra': self.sudarshana_chakra_dasha(),
-            },
-            'rasiDasha': self.rasi_dashas(),
-            'grahaDrishti': self.graha_drishti(),
-            'nodeRasiDrishti': self.node_rasi_drishti(),
-            'ashtakavarga': self.ashtakavarga(),
-            'shadbala': self.shadbala(),
-            'shadbalaBphs': self.shadbala_bphs(),
-            'strengths': self.strengths(),
-            'jaimini': self.jaimini(),
-            'arudha': self.arudha(),
-            'kp': self.kp(),
-            'prasna': self.prasna(),
-            'muhurta': self.muhurta(),
-            'transit': self.transit_notes(),
-            'upagraha': self.upagraha(),
-            'supplementaryLagnas': self.supplementary_lagnas(),
-            'remedies': self.remedies(),
-            'functionalNature': self.functional_nature(),
-            'bhavaBala': self.bhava_bala(),
-            'extendedDashas': self.extended_dashas(),
-            'grahaYuddha': self.graha_yuddha(),
-            'kartari': self.kartari(),
-            'sudarshana': self.sudarshana(),
-            'grahaMaitri': self.graha_maitri(),
-            'outerPlanets': self.outer_planets(),
-            'compatibility': self.compatibility_shell(),
-            'nadi': self.nadi(),
-            'shashtiamsa': self.shashtiamsa(),
-            'vargaVariants': self.varga_variants(),
-            'ayurdaya': self.ayurdaya(),
         }
+        errs = []
+        for key, fn in [
+            ('panchanga', self.panchanga), ('nakshatras', self.nakshatras),
+            ('yogas', self.yogas), ('dasha', self._dasha_block),
+            ('rasiDasha', self.rasi_dashas), ('grahaDrishti', self.graha_drishti),
+            ('nodeRasiDrishti', self.node_rasi_drishti), ('ashtakavarga', self.ashtakavarga),
+            ('shadbala', self.shadbala), ('shadbalaBphs', self.shadbala_bphs),
+            ('strengths', self.strengths), ('jaimini', self.jaimini),
+            ('arudha', self.arudha), ('kp', self.kp),
+            ('prasna', self.prasna), ('muhurta', self.muhurta),
+            ('transit', self.transit_notes), ('upagraha', self.upagraha),
+            ('supplementaryLagnas', self.supplementary_lagnas), ('remedies', self.remedies),
+            ('functionalNature', self.functional_nature), ('bhavaBala', self.bhava_bala),
+            ('extendedDashas', self.extended_dashas), ('grahaYuddha', self.graha_yuddha),
+            ('kartari', self.kartari), ('sudarshana', self.sudarshana),
+            ('grahaMaitri', self.graha_maitri), ('outerPlanets', self.outer_planets),
+            ('compatibility', self.compatibility_shell), ('nadi', self.nadi),
+            ('shashtiamsa', self.shashtiamsa), ('vargaVariants', self.varga_variants),
+            ('ayurdaya', self.ayurdaya),
+        ]:
+            try:
+                res[key] = fn()
+            except Exception:
+                res[key] = None
+                errs.append(key)
+        if errs:
+            res['partialErrors'] = errs
+        return res
 
     # Āyurdāya(寿命)Piṇḍāyu:满寿(深庙旺)年 + 庙旺点黄经(度)。落陷=庙旺+180°,半值。
     PINDAYU_FULL = {const.SUN: 19, const.MOON: 25, const.MARS: 15, const.MERCURY: 12,

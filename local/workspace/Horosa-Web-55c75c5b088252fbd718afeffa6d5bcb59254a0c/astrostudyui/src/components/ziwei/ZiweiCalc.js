@@ -231,7 +231,11 @@ export function assembleNatalChart(ctx){
 	}
 
 	// (17) 命主 / 身主 / 斗君
-	const lifeMaster = LIFE_MASTER[z(lifeIdx)] || LIFE_MASTER[yearZi];
+	// 命主取键两法:默认按命宫地支(经典法);year_branch=按生年支(Java /ziwei/birth 同源,
+	// ZiWeiChart.setup 用 StarsLifeMaster.get(yearZi))——双引擎对拍 Java 兼容档用。
+	const lifeMaster = ctx.lifeMasterBy === 'year_branch'
+		? (LIFE_MASTER[yearZi] || LIFE_MASTER[z(lifeIdx)])
+		: (LIFE_MASTER[z(lifeIdx)] || LIFE_MASTER[yearZi]);
 	const bodyMaster = BODY_MASTER[yearZi];
 	const zidou = (DOUJUN[monthCn] && DOUJUN[monthCn][timeZi]) || null;
 	const doujun = zidou != null ? z((zi(zidou) + yearZiIdx) % 12) : null;
@@ -327,9 +331,12 @@ export function calcZiwei(birth, options = {}){
 	// 晚子时·紫微所用农历(月/日/闰):after23NewDay=1 且本命落 23 点子时段时,日柱已进位次日,
 	// 紫微落宫/命宫/农历日须随之进位——否则 zi_chu/midnight_split/zi_zheng 三方案紫微全同(死)。
 	// ziweiMonthNum/ziweiDayNum/ziweiLeap 由 baziLunarLocal 按日柱口径派生,默认==monthNum/dayNum/leap(零回归)。
-	const zwMonth = nl.ziweiMonthNum != null ? nl.ziweiMonthNum : nl.monthNum;
-	const zwDay = nl.ziweiDayNum != null ? nl.ziweiDayNum : nl.dayNum;
-	const zwLeap = nl.ziweiLeap != null ? nl.ziweiLeap : nl.leap;
+	// ziweiLunarBasis='calendar':安命/安紫微改用【日历口径】农历日(23:30 不进日)——Java 同源
+	// (ZiWeiChart 的 nongli.day 即日历日,八字四柱仍进日,属「柱进盘不进」混合口径);对拍 Java 兼容档用。
+	const calBasis = options.ziweiLunarBasis === 'calendar';
+	const zwMonth = (!calBasis && nl.ziweiMonthNum != null) ? nl.ziweiMonthNum : nl.monthNum;
+	const zwDay = (!calBasis && nl.ziweiDayNum != null) ? nl.ziweiDayNum : nl.dayNum;
+	const zwLeap = (!calBasis && nl.ziweiLeap != null) ? nl.ziweiLeap : nl.leap;
 	const chart = assembleNatalChart({
 		yearGan: yg.charAt(0), yearZi: yg.charAt(1),
 		monthInt: zwMonth, leap: zwLeap, dayInt: zwDay, timeZi: tg.charAt(1),
@@ -337,6 +344,7 @@ export function calcZiwei(birth, options = {}){
 		daxianSpan: options.daxianSpan, tianmaBasis: options.tianmaBasis, starSet: options.starSet,
 		shangShi: options.shangShi, leapMonth: options.leapMonth,
 		huoling: options.huoling, kongNaming: options.kongNaming,
+		lifeMasterBy: options.lifeMasterBy,
 	});
 	chart.nongli = nl;
 	chart.fourColumns = fc;

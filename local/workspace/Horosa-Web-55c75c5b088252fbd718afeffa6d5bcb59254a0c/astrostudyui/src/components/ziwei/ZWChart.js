@@ -5,6 +5,7 @@ import ZWCenterHouse from './ZWCenterHouse';
 import ZWIndicator from './ZWIndicator';
 import * as ZWConst from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
+import { parseDateParts } from '../../utils/dateStrSafe';
 
 class ZWChart {
 	constructor(chartid, chartObj, fields, tooltipId, onTipClick, onCenterInfoClick){
@@ -36,8 +37,9 @@ class ZWChart {
 		let yearzi = this.chartObj.yearZi;
 		let yearidx = ZiWeiHelper.getHouseZiIndex(yearzi);
 
-		let birthY = parseInt(this.chartObj.birth.substr(0, 4));
-		let birthM = parseInt(this.chartObj.birth.substr(5, 2));
+		const _bp = parseDateParts(this.chartObj.birth) || {};
+		let birthY = _bp.year;
+		let birthM = _bp.month;
 		let nongliM = this.chartObj.nongli.month;
 		if(birthM <= 2 && (nongliM === '腊月' || nongliM === '冬月')){
 			birthY = birthY - 1;

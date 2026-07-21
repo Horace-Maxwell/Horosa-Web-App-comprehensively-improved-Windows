@@ -9,6 +9,8 @@ import * as AstroText from '../../constants/AstroText';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
 // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
 const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
@@ -25,9 +27,11 @@ export async function buildDistributionsSnapshotText(chartObj){
 	if(!chartObj){ return ''; }
 	let rows = [];
 	try{
+		// WP-C 极速化:无头快照复算也走 silent,不触发全局满屏 Spin 压暗(失败经外层 catch 回 '')。
 		const data = await request(`${Constants.ServerRoot}/predict/dist`, {
 			body: JSON.stringify({ ...chartParams(chartObj) }),
 			timeoutMs: 60000,
+			silent: silentTechniquePanelsEnabled(),
 		});
 		const r = unwrapResult(data) || {};
 		rows = r.dist || [];
@@ -106,13 +110,22 @@ class AstroDistributions extends Component {
 	async load(){
 		if(!this.props.value){ return; }
 		const k = chartRequestKey(this.props.value, 'dist');
+		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧表留存+「更新中…」角标,
+		// 新表到达单次 setState 整体替换 —— 印占同款范式)。关 silentTechniquePanels 开关=旧全屏。
 		this.setState({ loading: true });
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/dist`, {
 				body: JSON.stringify({ ...chartParams(this.props.value) }),
 				timeoutMs: 60000,
+				silent: silentTechniquePanelsEnabled(),
 			});
 			if(!this._mounted) return;
+			// 空载荷守卫:request() 吞错 resolve undefined(网络层失败)——此前 `|| {}` 会把旧表冲成空表,
+			// keep-stale 要求保留旧结果,此次不更新、重试即恢复。
+			if(!data){
+				this.setState({ loading: false, requestKey: k });
+				return;
+			}
 			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k });
 		}catch(e){
 			if(!this._mounted) return;
@@ -127,7 +140,10 @@ class AstroDistributions extends Component {
 		const height = this.props.height ? this.props.height - 20 : 700;
 		const sym = (id) => astroSymbol(id);
 		return (
-			<Spin spinning={this.state.loading}>
+			// keep-stale:局部 Spin 只留给首次加载(无旧表可显);重取期间旧表原样可读,右上角「更新中…」角标提示。
+			<Spin spinning={this.state.loading && !this.state.result}>
+				<div style={{ position: 'relative' }}>
+				{this.state.loading && this.state.result ? <UpdatingBadge /> : null}
 				<div style={{ height, overflow: 'auto', paddingRight: 8 }}>
 					<div style={cardStyle}>
 						<div className="horosa-info-card-title">界推运（分配法 / Distributions）</div>
@@ -144,6 +160,7 @@ class AstroDistributions extends Component {
 						/>
 						<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>上升点经主限运动穿越各埃及界；分配星=界主星，参与星=该期间内上升点触及的行星。</div>
 					</div>
+				</div>
 				</div>
 			</Spin>
 		);

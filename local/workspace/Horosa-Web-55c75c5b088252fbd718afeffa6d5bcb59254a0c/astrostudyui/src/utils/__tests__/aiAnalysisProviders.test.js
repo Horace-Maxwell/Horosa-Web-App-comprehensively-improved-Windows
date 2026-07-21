@@ -17,7 +17,8 @@ describe('aiAnalysisProviders', ()=>{
 		expect(preset.baseUrl).toBe('https://api.deepseek.com');
 		expect(getProviderDisplayName('deepseek')).toBe('DeepSeek');
 		expect(getProviderProtocolFamily('deepseek')).toBe('openai-compatible');
-		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-chat', 'deepseek-reasoner']);
+		// [C3] 2026-07 现役目录:v4 直连置顶,chat/reasoner 别名暂留兼容(官方 2026-07-24 弃用)。
+		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
 		expect(getProviderDefaultEmbeddingModels('deepseek')).toEqual([]);
 	});
 
@@ -32,7 +33,8 @@ describe('aiAnalysisProviders', ()=>{
 		const preset = getProviderPreset('gemini');
 		expect(preset.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
 		expect(getProviderProtocolFamily('gemini')).toBe('gemini');
-		expect(getProviderDefaultChatModels('gemini')).toEqual(['gemini-2.5-flash', 'gemini-2.5-pro']);
+		// [C3] 3.x 现役置顶;2.5 官方 2026-10-16 退役前暂留。
+		expect(getProviderDefaultChatModels('gemini')).toEqual(['gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro']);
 		// text-embedding-004 已于 2026-01-14 关停,官方迁移目标 gemini-embedding-001。
 		expect(getProviderDefaultEmbeddingModels('gemini')).toEqual(['gemini-embedding-001']);
 	});
@@ -101,5 +103,33 @@ describe('aiAnalysisProviders', ()=>{
 		// 非 OpenAI 推理系不带 reasoning_effort（gpt-4o 非推理；deepseek-reasoner 无该参数,友好降级）
 		expect(applyThinkingLevel({}, 'high', 'openai', 'gpt-4o').reasoning_effort).toBeUndefined();
 		expect(applyThinkingLevel({}, 'high', 'deepseek', 'deepseek-reasoner').reasoning_effort).toBeUndefined();
+	});
+});
+
+// [E2] 思考预算自定义数值档
+describe('[E2] applyThinkingLevel custom 数值档', () => {
+	const { applyThinkingLevel } = require('../aiAnalysisProviders');
+	test("custom:<n> → anthropic budget_tokens=clamp 值;maxTokens 保护仍生效", () => {
+		const o = applyThinkingLevel({}, 'custom:12000', 'anthropic', 'claude-sonnet-5', 32000);
+		expect(o.thinking).toEqual({ type: 'enabled', budget_tokens: 12000 });
+		// clamp 上限
+		const hi = applyThinkingLevel({}, 'custom:99999999', 'anthropic', 'claude-sonnet-5', 200000);
+		expect(hi.thinking.budget_tokens).toBe(65536);
+		// clamp 下限
+		const lo = applyThinkingLevel({}, 'custom:1', 'anthropic', 'claude-sonnet-5', 32000);
+		expect(lo.thinking.budget_tokens).toBe(1024);
+	});
+	test('custom 数值折 effort 档(OpenAI reasoning_effort);非法值滚 medium 不抛', () => {
+		const hi = applyThinkingLevel({}, 'custom:20000', 'openai', 'gpt-5.2', 32000);
+		expect(hi.reasoning_effort).toBe('high'); // xhigh 封顶 high
+		const lo = applyThinkingLevel({}, 'custom:2048', 'openai', 'gpt-5.2', 32000);
+		expect(lo.reasoning_effort).toBe('low');
+		const bad = applyThinkingLevel({}, 'custom:abc', 'anthropic', 'claude-sonnet-5', 32000);
+		expect(bad.thinking.budget_tokens).toBe(8192); // 落回 medium(正则不匹配)
+	});
+	test('负锚:既有枚举档行为字节不变', () => {
+		const o = applyThinkingLevel({}, 'high', 'anthropic', 'claude-sonnet-5', 32000);
+		expect(o.thinking.budget_tokens).toBe(16000);
+		expect(applyThinkingLevel({}, 'off', 'anthropic', 'x', 32000)).toEqual({});
 	});
 });

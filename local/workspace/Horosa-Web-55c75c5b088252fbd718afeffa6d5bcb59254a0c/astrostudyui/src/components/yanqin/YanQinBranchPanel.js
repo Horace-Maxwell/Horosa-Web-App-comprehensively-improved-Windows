@@ -16,6 +16,9 @@ import {
 	FENLEI_ZHAN, ZHANDUAN_ZONGZE,
 } from './yanqinData';
 import './yanqinPanel.less';
+import { parseDateParts } from '../../utils/dateStrSafe';
+import { isLunarJsYearReliable } from '../../utils/lunarDomainGuard';
+import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 
 const { TabPane } = Tabs;
 const WUXING_COLOR = { 木: '#3a7d44', 火: '#c0392b', 土: '#b8860b', 金: '#9a8478', 水: '#2c6e9b' };
@@ -61,8 +64,16 @@ export default class YanQinBranchPanel extends Component {
 		this.state = { sub: props.initialSub || 'zeri', shiClass: 'hunyin' };
 		this._onStore = () => this.forceUpdate();
 	}
-	componentDidMount() { this._unsub = subscribeYanqin(this._onStore); }
-	componentWillUnmount() { if (this._unsub) { this._unsub(); } }
+	componentDidMount() {
+		this._unsub = subscribeYanqin(this._onStore);
+		// 全年份域:BC/域外农历月(月禽/投胎)经远程桥;桥远程回包后触发重渲补全(域内 lunar-js 无桥)。
+		this._unsubRemoteNongli = subscribeRemoteNongli(() => { if (!this._ymUnmounted) { this.forceUpdate(); } });
+	}
+	componentWillUnmount() {
+		this._ymUnmounted = true;
+		if (this._unsub) { this._unsub(); }
+		if (this._unsubRemoteNongli) { this._unsubRemoteNongli(); }
+	}
 
 	// 复用左栏(主命盘)时间/性别。fields.date/time.value 是 app 的 DateTime 对象(非 moment):
 	// 用 .format() 取值(同 KinAstroMain.parseFieldsDateTime),不用 .year() 方法。
@@ -71,9 +82,13 @@ export default class YanQinBranchPanel extends Component {
 		if (!f || !f.date || !f.date.value || !f.time || !f.time.value) { return null; }
 		const dv = f.date.value; const tv = f.time.value;
 		if (typeof dv.format !== 'function' || typeof tv.format !== 'function') { return null; }
-		const dm = dv.format('YYYY-MM-DD').split('-').map((n) => parseInt(n, 10));
+		const _dp = parseDateParts(dv.format('YYYY-MM-DD'));
+		const dm = _dp ? [_dp.year, _dp.month, _dp.day] : [];
 		const hour = parseInt(tv.format('HH:mm:ss').split(':')[0], 10);
-		if (!(dm[0] > 0) || !(dm[1] > 0) || !(dm[2] > 0) || isNaN(hour)) { return null; }
+		// 🔴 全年份域:年可为公元前(负,无 0 年)——旧 `dm[0] > 0` 把 BC 整段拦成 null → 演法面板
+		// (起禽/择日/占卜/投胎)对 BC 全空。演禽引擎日禽/年禽/时禽/翻禽全走 dayNumber(儒略/格里 JDN)
+		// BC 安全;放行负年(仅排除 0 年/非数)即可渲染。农历月(月禽/投胎)另经 lunarMonthOf 走桥。
+		if (!Number.isFinite(dm[0]) || dm[0] === 0 || !(dm[1] > 0) || !(dm[2] > 0) || isNaN(hour)) { return null; }
 		const hb = hourToBranch(hour);
 		return {
 			year: dm[0], month: dm[1], day: dm[2], hourBranch: hb,
@@ -88,10 +103,19 @@ export default class YanQinBranchPanel extends Component {
 		return castQinChart(ft.year, ft.month, ft.day, ft.hourBranch, { useXun: s.xunOffset, huoYaoVariant: s.huoYaoVariant });
 	}
 
-	// 左栏公历 → 农历月(投胎/月禽用)
+	// 左栏公历 → 农历月(投胎/月禽用)。域内(AD1~9999)走 lunar-js;域外(BC/万年后)lunar-js 节气
+	// 静默错位 → 月禽/投胎错,改走远程农历桥(与八字/紫微/一掌经同源;桥远程回包由 subscribeRemoteNongli
+	// 触发重渲补全,首回退月公历月兜底不崩)。桥 monthInt 已修 BC civil 无 0 年同轴(BC12026=三月)。
 	lunarMonthOf(ft) {
-		try { return mod(Math.abs(Solar.fromYmd(ft.year, ft.month, ft.day).getLunar().getMonth()) - 1, 12) + 1; }
-		catch (e) { return ft.month; }
+		if (isLunarJsYearReliable(ft.year)) {
+			try { return mod(Math.abs(Solar.fromYmd(ft.year, ft.month, ft.day).getLunar().getMonth()) - 1, 12) + 1; }
+			catch (e) { return ft.month; }
+		}
+		try {
+			const nl = deriveNongliUniversalSync(this.props.fields);
+			if (nl && nl.monthInt) { return nl.monthInt; }
+		} catch (e) { /* 远程在途/失败 → 兜底 */ }
+		return ft.month; // 桥远程在途:退公历月;回包后重渲取真农历月
 	}
 
 	renderInfoBar(ft) {

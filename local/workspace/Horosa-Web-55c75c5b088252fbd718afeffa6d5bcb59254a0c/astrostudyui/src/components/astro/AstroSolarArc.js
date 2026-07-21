@@ -13,6 +13,8 @@ import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 
 class AstroSolarArc extends Component{
 
@@ -140,11 +142,26 @@ class AstroSolarArc extends Component{
 	}
 
 	async requestDirection(params){
-		const data = await request(`${Constants.ServerRoot}/predict/solararc`, {
-			body: JSON.stringify(params),
-		});
-		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
-		const result = data[Constants.ResultKey]
+		// 空回包/请求失败防御:后端未就绪、无效生辰等场景 request 可能抛错或返回空——
+		// 静默保持现盘,不产生 Unhandled Rejection(request 失败 resolve undefined 是全仓契约)。
+		let data = null;
+		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧盘留存+「更新中…」角标,
+		// 新盘到达单次 setState 整体替换 —— 印占同款范式)。关 silentTechniquePanels 开关=旧全屏。
+		this.setState({ updating: true });
+		try{
+			data = await request(`${Constants.ServerRoot}/predict/solararc`, {
+				body: JSON.stringify(params),
+				silent: silentTechniquePanelsEnabled(),
+			});
+		}catch(e){
+			this.setState({ updating: false });
+			return;
+		}
+		const result = data ? data[Constants.ResultKey] : null;
+		if(!result){
+			this.setState({ updating: false });
+			return;
+		}
 
 		let tm = new DateTime();
 		let dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
@@ -153,6 +170,7 @@ class AstroSolarArc extends Component{
 		}
 		const st = {
 			dirChart: result,
+			updating: false,
 			params: {
 				...params,
 				datetime: dt,
@@ -396,13 +414,16 @@ class AstroSolarArc extends Component{
 			<div>
 				<Row gutter={6}>
 					<Col span={17}>
-							<AstroDoubleChart value={chartObj} 
+						<div style={{ position: 'relative' }}>
+							{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
+							<AstroDoubleChart value={chartObj}
 								height={height}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}
 								chartDisplay={this.props.chartDisplay}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
+						</div>
 					</Col>
 					<Col span={7}>
 						<div className={styles.scrollbar} style={style}>

@@ -1,7 +1,9 @@
 import { Component } from 'react';
+import { julianDayIndex } from '../../utils/julianDayIndex';
 import { Lunar, LunarMonth } from 'lunar-javascript';
 import * as ZWConst from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
+import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 
 const DIZI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GANS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -32,11 +34,11 @@ function hourGan(dayGan, hourIdx /*0=子*/) {
 	return GANS[(si + hourIdx) % 10];
 }
 // 连续 JDN → 日干支（锚点 2026-05-18=壬辰[jiazi 28]，与 BaZiLuckFlowPanel 同源，绝对单调）
-const DAY_ANCHOR_UNIX = Math.floor(Date.UTC(2026, 4, 18) / 86400000);
+const DAY_ANCHOR_JDI = julianDayIndex(2026, 5, 18);
 const DAY_ANCHOR_IDX = 28;
 function dayGanziByDate(date) {
-	const unix = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
-	const idx = (((unix - DAY_ANCHOR_UNIX + DAY_ANCHOR_IDX) % 60) + 60) % 60;
+	const jdi = julianDayIndex(date.getFullYear(), date.getMonth() + 1, date.getDate());
+	const idx = (((jdi - DAY_ANCHOR_JDI + DAY_ANCHOR_IDX) % 60) + 60) % 60;
 	return GANS[idx % 10] + DIZI[idx % 12];
 }
 // 小限起宫(虚岁一岁)：寅午戌→辰、申子辰→戌、亥卯未→丑、巳酉丑→未
@@ -58,7 +60,7 @@ function houseName(chart, idx, short) {
 }
 function birthYearOf(chart) {
 	if (chart && chart.birth) {
-		const y = parseInt(`${chart.birth}`.substr(0, 4), 10);
+		const y = parseYearFromDateStr(`${chart.birth}`);
 		if (!Number.isNaN(y)) return y;
 	}
 	return 2000;

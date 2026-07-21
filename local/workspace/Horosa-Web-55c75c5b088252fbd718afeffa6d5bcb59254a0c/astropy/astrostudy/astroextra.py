@@ -28,6 +28,7 @@ PLANET_SWISS_IDS = {
     const.PLUTO: swisseph.PLUTO,
 }
 
+
 DEFAULT_EVENT_PLANETS = [
     const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS,
     const.JUPITER, const.SATURN, const.URANUS, const.NEPTUNE, const.PLUTO

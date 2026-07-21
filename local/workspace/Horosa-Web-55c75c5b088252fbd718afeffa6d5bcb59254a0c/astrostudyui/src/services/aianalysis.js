@@ -6,6 +6,9 @@ import {
 	TokenKey,
 } from '../utils/constants';
 import { signRequest } from '../utils/request';
+import { encryptRSA } from '../utils/rsahelper';
+import { NeedEncrypt } from '../utils/constants';
+import { aiBodyEncryptEnabled } from '../utils/perfFlags';
 
 function safeParseJson(text, defVal = null){
 	try{
@@ -115,6 +118,18 @@ function getTokenSafe(){
 	return '';
 }
 
+// [G2] 请求体 RSA 会话束封套(与排盘 API 同机制):AES 密文 + 会话钥 RSA 块。
+// Signature 仍按明文计算(后端解封后核签,校验链不变);SSE/JSON 响应不加密。
+// NeedEncrypt=false 或回退阀关 → 明文(后端明文直通宽容,双向兼容)。
+function encryptAIAnalysisBody(bodyText){
+	if(!NeedEncrypt || !bodyText || !aiBodyEncryptEnabled()){ return bodyText; }
+	try{
+		return encryptRSA(bodyText);
+	}catch(_){
+		return bodyText;   // 加密失败宁走明文,不断 AI 功能
+	}
+}
+
 function buildAIAnalysisHeaders(bodyText = '', extraHeaders = {}){
 	return {
 		'Content-Type': 'application/json; charset=UTF-8',
@@ -165,7 +180,7 @@ async function requestJson(url, values, options = {}){
 			method: 'POST',
 			cache: 'no-store',
 			headers: buildAIAnalysisHeaders(bodyText, options.headers),
-			body: bodyText,
+			body: encryptAIAnalysisBody(bodyText),
 			signal,
 		});
 		const text = await response.text();
@@ -220,7 +235,7 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 			method: 'POST',
 			cache: 'no-store',
 			headers: buildAIAnalysisHeaders(bodyText),
-			body: bodyText,
+			body: encryptAIAnalysisBody(bodyText),
 			signal,
 		});
 		if(!rsp.ok){

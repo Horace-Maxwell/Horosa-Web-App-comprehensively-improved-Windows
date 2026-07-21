@@ -487,3 +487,26 @@ class PredictSrv:
                 'err': 'param error'
             }
             return jsonpickle.encode(obj, unpicklable=False)
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def pd3d(self):
+        # 主限法 3D 天球数据(WS-3):表行走既有 getPrimaryDirectionByZ(弧零重算),
+        # 附每个 id 的引擎真实坐标(points)/应星位置圈(circles)/天球框架(frame)。
+        enable_crossdomain()
+        try:
+            data = cherrypy.request.json
+            _geoerr = validate_geo(data)
+            if _geoerr:
+                return jsonpickle.encode(_geoerr, unpicklable=False)
+            perchart = PerChart(data)
+            predict = perchart.getPredict()
+            res = predict.getPrimaryDirection3D()
+            return jsonpickle.encode(res, unpicklable=False)
+        except:
+            traceback.print_exc()
+            obj = {
+                'err': 'param error'
+            }
+            return jsonpickle.encode(obj, unpicklable=False)

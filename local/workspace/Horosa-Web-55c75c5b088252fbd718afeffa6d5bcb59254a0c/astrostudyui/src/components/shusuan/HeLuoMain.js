@@ -1,4 +1,7 @@
 import { Component } from 'react';
+import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
+import { createSignatureMemo } from '../../utils/memoBySignature';
+import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty } from 'antd';
 import { Solar } from 'lunar-javascript';
 import { XQTabs as Tabs } from '../xq-ui';
@@ -12,6 +15,7 @@ import calc, {
 } from '../../utils/heluoLocal';
 import { Gua64 } from '../gua/GuaConst';   // 复用 六爻/统摄法 的纳甲六亲世应
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { parseDateParts, parseYearFromDateStr } from '../../utils/dateStrSafe';
 
 // 纳甲天干（内卦/外卦）：仅乾坤内外异，余卦内外同
 const NAJIA_GAN = { 乾: ['甲', '壬'], 坤: ['乙', '癸'], 震: ['庚', '庚'], 巽: ['辛', '辛'], 坎: ['戊', '戊'], 離: ['己', '己'], 艮: ['丙', '丙'], 兌: ['丁', '丁'] };
@@ -26,6 +30,26 @@ function fieldVal(fields, key, fallback = '') {
 const LI_TERMS = ['立春', '立夏', '立秋', '立冬'];
 
 // slot: 'center'(主信息·滑动) | 'aux'(辅助信息·卡片)。四柱来自 baziLunarLocal（星阙自己的八字，不走后端）。
+
+// WP-F 极速化:模块级共享模型 memo —— 宿主把本组件渲染【两次】(center 与 aux 两实例),
+// 各自的实例 memo 互不相通 → 同一次时间变更本地引擎白算两遍。此层跨实例共享:
+// center 先算、aux 同签名直接命中(4 槽足够:两实例只差 slot,签名同源)。
+// 共享引用只读契约:各消费方 render 不就地改写 model(dev 下深冻结保险丝);关开关=各算各的旧行为。
+const sharedModelMemo = createSignatureMemo(4);
+const devFreeze = (v) => {
+	if(process.env.NODE_ENV !== 'production' && v && typeof v === 'object'){
+		try{ deepFreeze(v); }catch(e){ /* 冻结失败不碍事 */ }
+	}
+	return v;
+};
+function deepFreeze(o){
+	Object.freeze(o);
+	Object.keys(o).forEach((k) => {
+		const c = o[k];
+		if(c && typeof c === 'object' && !Object.isFrozen(c)){ deepFreeze(c); }
+	});
+}
+
 class HeLuoMain extends Component {
 	constructor(props) {
 		super(props);
@@ -43,7 +67,13 @@ class HeLuoMain extends Component {
 			window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 			window.addEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
-		}
+		}		// 全年份域:域外远程农历回包后清实例 memo 重渲(域内桥不触发,零影响)
+		this._unsubRemoteNongli = subscribeRemoteNongli(() => {
+			if (this._unmounted) return;
+			this._modelKey = null;
+			delete this._modelCache;
+			this.forceUpdate();
+		});
 	}
 	componentDidUpdate() { this.saveSnap(); }
 	componentWillUnmount() {
@@ -56,7 +86,7 @@ class HeLuoMain extends Component {
 				window.removeEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
 			}
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
-		}
+		}		if (this._unsubRemoteNongli) { try { this._unsubRemoteNongli(); } catch (e) { /* noop */ } }
 	}
 
 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示盘即时构建快照并回填,
@@ -89,7 +119,8 @@ class HeLuoMain extends Component {
 	// 真实节气：化工(象限+土用) + 三候(节气内 5 日一候)。
 	solarTerm(dateStr) {
 		try {
-			const [y, m, d] = dateStr.split('-').map((x) => parseInt(x, 10));
+			const _hp = parseDateParts(dateStr) || {};
+			const y = _hp.year, m = _hp.month, d = _hp.day;
 			const solar = Solar.fromYmd(y, m, d);
 			const lunar = solar.getLunar();
 			const prev = lunar.getPrevJieQi(true);
@@ -145,16 +176,40 @@ class HeLuoMain extends Component {
 		if (this._modelKey === sig && Object.prototype.hasOwnProperty.call(this, '_modelCache')) {
 			return this._modelCache;
 		}
-		const cache = (v) => { this._modelKey = sig; this._modelCache = v; return v; };
+		// WP-F:实例 memo miss → 先查模块级共享(另一实例可能已算过同签名)
+		if (sharedNativeModelEnabled()) {
+			const sharedHit = sharedModelMemo.get(sig);
+			if (sharedHit !== undefined) {
+				this._modelKey = sig; this._modelCache = sharedHit;
+				return sharedHit;
+			}
+		}
+		const cache = (v) => {
+			this._modelKey = sig; this._modelCache = v;
+			// WP-F:存入模块级共享(另一实例同签名直接命中);dev 深冻结当只读保险丝。
+			if (sharedNativeModelEnabled()) { sharedModelMemo.set(sig, devFreeze(v)); }
+			return v;
+		};
 		let bazi;
-		try { bazi = buildLocalBaziResult(params).bazi; } catch (e) { return cache(null); }
+		try { bazi = buildLocalBaziResult(params).bazi; } catch (e) { bazi = null; }
+		if (!bazi) {
+			// 全年份域:lunar-js 域(AD1~9999)外走远程农历桥(域内行为零变;远程回包经
+			// subscribeRemoteNongli 触发重渲后补全),四柱/农历自桥产同形对象取。
+			const nl = deriveNongliUniversalSync(this.props.fields);
+			if (nl) { bazi = { nongli: nl, fourColumns: nl.bazi, gender: params.gender }; }
+			else {
+				// 远程在途:绝不把 null 落实例/模块级 memo(否则回包后共享缓存仍回放 null)
+				return null;
+			}
+		}
+		if (!bazi) { return cache(null); }
 		const fc = (bazi && bazi.fourColumns) || {};
 		const gz = (p) => (p && (p.ganzi || p.ganZhi)) || '';
 		const fourPillars = { year: gz(fc.year), month: gz(fc.month), day: gz(fc.day), hour: gz(fc.time) };
 		if (!fourPillars.year || !fourPillars.month || !fourPillars.day || !fourPillars.hour) return cache(null);
 		const monthZhi = fourPillars.month.charAt(1);
 		const hourZhi = fourPillars.hour.charAt(1);
-		const birthYear = parseInt(dateStr.slice(0, 4), 10) || 0;
+		const birthYear = parseYearFromDateStr(dateStr) || 0;
 		const gender = bazi.gender === 'Female' ? '女' : '男';
 		let chart;
 		try { chart = calc({ fourPillars, gender, hourZhi, birthYear, monthZhi, opts: this.props.opts || {} }); } catch (e) { return cache(null); }

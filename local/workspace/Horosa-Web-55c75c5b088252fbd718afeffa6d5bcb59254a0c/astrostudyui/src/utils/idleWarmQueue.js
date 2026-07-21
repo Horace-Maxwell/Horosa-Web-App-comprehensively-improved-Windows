@@ -26,6 +26,14 @@ const ENGINE_WARM_IMPORTS = [
 	() => import('../components/dunjia/DunJiaCalc'),    // 奇门排盘引擎
 	() => import('../components/taiyi/TaiYiCalc'),      // 太乙本地推演
 	() => import('./heluoLocal'),              // 河洛理数
+	() => import('./zhengchuanTiebanLocal'),   // 神数正传·铁板(秘数表)
+	() => import('./zhengchuanShaoziLocal'),   // 神数正传·邵子(卦数/气数/太玄玉景)
+	() => import('./zhengchuanLiuqinLocal'),   // 神数正传·六亲(姓氏谱/遁甲盘/四象)
+	() => import('./zhengchuanXinyiLocal'),    // 神数正传·心易(八刻分命/条文秘数表)
+	() => import('../components/guice/GuiceMain'),      // 皇极轨策(起卦十二法/演数/断法/十应/大定;组件级 lazy → 预热即首点不等)
+	() => import('../components/xiaochengtu/XiaoChengTuMain'), // 小成图(九宫布图/正旁推/股市卦)
+	() => import('../components/feigong/FeiGongMain'),  // 飞宫小奇门(十二局/命宫/月运流年)
+	() => import('../components/xiaoliuren/XiaoLiuRenMain'), // 小六壬(两派掌诀/三传)
 	() => import('../divination/horary/horaryEngine'),  // 卜卦盘引擎
 	() => import('../divination/election/electionEngine'), // 择日引擎
 ];

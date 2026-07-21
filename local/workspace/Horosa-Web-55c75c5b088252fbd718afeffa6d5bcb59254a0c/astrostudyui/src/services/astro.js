@@ -1,5 +1,6 @@
 import request from '../utils/request';
 import { ServerRoot } from '../utils/constants';
+import { chartCloneLiteEnabled } from '../utils/perfFlags';
 
 const CHART_CACHE_MAX = 96;
 const chartMem = new Map();
@@ -8,6 +9,17 @@ const chartInflight = new Map();
 function clonePlain(obj){
 	if(obj === undefined || obj === null){
 		return obj;
+	}
+	// WP-H 拷贝减层:structuredClone 比 JSON 往返快数倍。/chart 响应是网络来的纯 JSON
+	// (无 undefined 属性/函数/循环引用),两种克隆结果【严格等价】——只快不同。
+	// ⚠️ 绝不能改成「冻结共享引用」:fetchByFields 会就地写 Result.chartId/params.name,
+	//    冻结即炸;各消费方拿的必须是可写的私有副本(此为既有契约,不动)。
+	if(chartCloneLiteEnabled() && typeof structuredClone === 'function'){
+		try{
+			return structuredClone(obj);
+		}catch(e){
+			// 落回 JSON(结果等价,只是慢)
+		}
 	}
 	try{
 		return JSON.parse(JSON.stringify(obj));
@@ -87,6 +99,12 @@ export function fetchChart(values, requestOptions){
 	});
 	if(key){
 		chartInflight.set(key, req);
+	}
+	if(chartCloneLiteEnabled()){
+		// WP-H 拷贝减层:miss 的【发起方】直接拿网络原件(整盘省一次全量深拷贝)——原件本就
+		// 归他所有(缓存里存的是上面 pushCache 的独立克隆,绝不与之共享);同 key 的在途
+		// 搭车方(chartInflight 分支)仍各拿克隆,互不串写。开关关=每方各克隆的旧行为。
+		return req;
 	}
 	return req.then((rsp)=>clonePlain(rsp));
 }

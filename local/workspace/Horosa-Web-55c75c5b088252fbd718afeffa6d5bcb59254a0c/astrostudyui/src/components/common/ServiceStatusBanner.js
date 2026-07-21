@@ -23,7 +23,7 @@ export default function ServiceStatusBanner() {
   const [online, setOnline] = React.useState(true);
   const [retrying, setRetrying] = React.useState(false);
   const [gaveUpMsg, setGaveUpMsg] = React.useState('');
-  // 信息级提示(非故障):如「本机组件已被另一会话更新,重启后生效」。
+  // [V-2/V11] 信息级提示(非故障):如「本机组件已被另一会话更新,重启后生效」。
   // 与离线横幅独立:在线也显示,可手动关闭,不置离线。
   const [infoMsg, setInfoMsg] = React.useState('');
 
@@ -41,7 +41,7 @@ export default function ServiceStatusBanner() {
         setInfoMsg(payload.message || '本机组件已在另一会话中更新，重启星阙后生效。');
         return;
       }
-      // 磁盘水位告知(壳侧闩住只发一次;清理回升后再次跌破会再提醒)
+      // [V-7] 磁盘水位告知(壳侧闩住只发一次;清理回升后再次跌破会再提醒)
       if (payload.kind === 'disk_low') {
         setInfoMsg(payload.message || '磁盘可用空间不足，可能影响排盘与自动更新，请清理磁盘。');
         return;
@@ -143,7 +143,7 @@ export default function ServiceStatusBanner() {
     pointerEvents: 'none', // 整个 wrap 让点击穿透
   };
 
-  // 在线 + 仅信息提示:渲染中性信息横幅(蓝灰),可关闭,不带故障操作钮。
+  // [V-2/V11] 在线 + 仅信息提示:渲染中性信息横幅(蓝灰),可关闭,不带故障操作钮。
   if (online && infoMsg) {
     const infoBar = {
       marginTop: 8,

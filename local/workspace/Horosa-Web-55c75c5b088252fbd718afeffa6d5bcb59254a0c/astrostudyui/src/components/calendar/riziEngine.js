@@ -97,6 +97,16 @@ function scoreDayForPerson(day, p, opts = {}) {
 	return { score, reasons, hardBlock };
 }
 
+// 折线曲线专用薄包装(P1):单日 × 单命主评分——组装 buildHuangliDay 的 day 结构后
+// 直转 scoreDayForPerson;不改任何既有逻辑,只暴露新入口(共享引擎「只 import 不改」的加法豁免)。
+export function scoreDateForPersonExport(dateStr, person, opts = {}) {
+	const parts = String(dateStr || '').split(/[-/]/).map(Number);
+	if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) { return null; }
+	const day = buildHuangliDay(parts[0], parts[1], parts[2]);
+	if (!day || !day.lunar) { return null; }
+	return scoreDayForPerson(day, person, opts);
+}
+
 // 个性化吉日：通书基线 × 各命主八字，交集评分排序。
 // persons=[{role, name, bazi:personBazi(...)}]；缺 bazi 的命主跳过评分（不阻断）。
 export function buildPersonalizedDates({ event = 'marriage', persons = [], year, topN = 15, strongOnly = false }) {

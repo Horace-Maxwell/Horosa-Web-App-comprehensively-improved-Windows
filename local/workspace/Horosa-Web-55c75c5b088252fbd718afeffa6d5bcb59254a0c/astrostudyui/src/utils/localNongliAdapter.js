@@ -1,4 +1,5 @@
 import { Solar } from 'lunar-javascript';
+import { isLunarJsYearReliable } from './lunarDomainGuard';
 
 const GAN = '甲乙丙丁戊己庚辛壬癸'.split('');
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
@@ -53,14 +54,21 @@ function cloneJson(obj){
 	}
 }
 
-function getOnlyDateNum(year, month, day){
+export function getOnlyDateNum(year, month, day){
 	let a = Math.floor((14 - month) / 12);
 	let y = year + 4800 - a;
 	let m = month + 12 * a - 3;
-	return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+	// 🔴 1582-10-15 儒略→格里切换:此前恒用格里公式(-32045),对 1582 前(尤其公元前)与真实儒略历
+	// 日序偏差数十日 → 日柱错(远程农历桥 getDayGanZhi 所有域外技法 BC 日柱偏,如神数正传日柱辛亥
+	// 应己卯)。year 为天文年(公元前为负);含切换后与后端 extreme_pillars/_jdn 逐日同轴。
+	const isGreg = year > 1582 || (year === 1582 && (month > 10 || (month === 10 && day >= 15)));
+	if(isGreg){
+		return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+	}
+	return day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
 }
 
-function getDayGanZhi(year, month, day){
+export function getDayGanZhi(year, month, day){
 	const jdn = getOnlyDateNum(year, month, day);
 	let idx = (jdn + 49) % 60;
 	if(idx < 0){
@@ -160,6 +168,10 @@ export function extractNongliFromChartWrap(chartWrap, fields){
 export function buildLocalJieqiYearSeed(year, zone){
 	const y = parseInt(year, 10);
 	if(Number.isNaN(y)){
+		return null;
+	}
+	// lunar-javascript 可靠域外(AD1~9999 之外)节气表静默错位 → 返 null 走后端实算,绝不出错种子
+	if(!isLunarJsYearReliable(y)){
 		return null;
 	}
 	const seed = {};

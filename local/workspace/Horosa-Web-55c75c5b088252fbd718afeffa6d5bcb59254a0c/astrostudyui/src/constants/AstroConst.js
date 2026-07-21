@@ -1504,26 +1504,28 @@ export const Astro3DColor = {
     EarthFill: 0x00ffff,
     AxesColor: 0x00ffff,
 };
-Astro3DColor['Mercury'] = '#FFFF00';
-Astro3DColor['Venus'] = '#FFFF00';
-Astro3DColor['Mars'] = '#FFFF00';
-Astro3DColor['Jupiter'] = '#FFFF00';
-Astro3DColor['Saturn'] = '#FFFF00';
-Astro3DColor['Sun'] = '#FFFF00';
-Astro3DColor['Moon'] = '#FFFF00';
-Astro3DColor['Dark Moon'] = '#FFFF00';
-Astro3DColor['Purple Clouds'] = '#FFFF00';
-Astro3DColor['North Node'] = '#FFFF00';
-Astro3DColor['South Node'] = '#FFFF00';
-Astro3DColor['Uranus'] = '#FFFF00';
-Astro3DColor['Neptune'] = '#FFFF00';
-Astro3DColor['Chiron'] = '#FFFF00';
-Astro3DColor['Syzygy'] = '#FFFF00';
-Astro3DColor['Pluto'] = '#FFFF00';
-Astro3DColor['Asc'] = '#FFFF00';
-Astro3DColor['Desc'] = '#FFFF00';
-Astro3DColor['MC'] = '#FFFF00';
-Astro3DColor['IC'] = '#FFFF00';
+// [WP-3] 行星真色(与 2D 主盘语义一致化;此前全员 #FFFF00 同色不可辨=体检「中」项):
+// 日金/月银白/水灰蓝/金暖白/火赤/木橙/土土黄/天青/海蓝/冥暗紫;交点紫灰、四轴亮金。
+Astro3DColor['Mercury'] = '#9db4d8';
+Astro3DColor['Venus'] = '#f2e6c9';
+Astro3DColor['Mars'] = '#e05a4e';
+Astro3DColor['Jupiter'] = '#e8a04c';
+Astro3DColor['Saturn'] = '#c9b178';
+Astro3DColor['Sun'] = '#ffd24d';
+Astro3DColor['Moon'] = '#e8ecf2';
+Astro3DColor['Dark Moon'] = '#b08bc9';
+Astro3DColor['Purple Clouds'] = '#b08bc9';
+Astro3DColor['North Node'] = '#a99ac6';
+Astro3DColor['South Node'] = '#8d80a8';
+Astro3DColor['Uranus'] = '#6fd6d0';
+Astro3DColor['Neptune'] = '#5f8fe0';
+Astro3DColor['Chiron'] = '#c9a2d8';
+Astro3DColor['Syzygy'] = '#d0d6de';
+Astro3DColor['Pluto'] = '#9a6fb0';
+Astro3DColor['Asc'] = '#ffd700';
+Astro3DColor['Desc'] = '#ffd700';
+Astro3DColor['MC'] = '#ffd700';
+Astro3DColor['IC'] = '#ffd700';
 
 Astro3DColor['Aries'] = '#FFFF00';
 Astro3DColor['Taurus'] = '#948e33';

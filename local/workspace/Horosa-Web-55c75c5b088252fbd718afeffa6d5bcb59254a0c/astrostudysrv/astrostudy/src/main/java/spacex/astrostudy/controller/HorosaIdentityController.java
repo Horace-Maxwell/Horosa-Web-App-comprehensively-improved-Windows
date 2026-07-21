@@ -32,7 +32,7 @@ public class HorosaIdentityController {
 		if (nonce == null) {
 			nonce = "";
 		}
-		// deep=1:附带一次微型真算结果——看门狗借此区分「身份线程活着」与
+		// [V-5] deep=1:附带一次微型真算结果——看门狗借此区分「身份线程活着」与
 		// 「计算还能跑」(软 OOM/线程池 wedge 时前者恒真、后者已死)。proto 升 2 表示
 		// 本端点支持 deep 维度(旧壳不发 deep 参数,响应对其向后兼容)。
 		String deepField = "";
@@ -50,7 +50,7 @@ public class HorosaIdentityController {
 	}
 
 	/**
-	 * 微型真算:儒略日往返(纯算术,零依赖零 I/O)+ 一次 64KB 短命分配——
+	 * [V-5] 微型真算:儒略日往返(纯算术,零依赖零 I/O)+ 一次 64KB 短命分配——
 	 * 验证「还能算、还能分配」。软 OOM 下分配即抛 → fail;任何 Throwable 都收敛为
 	 * fail(探针绝不把服务打崩)。HOROSA_IDENTITY_DEEP_FAIL=1 为 dev 注错钩。
 	 */

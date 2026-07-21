@@ -6,6 +6,11 @@ import {
 	getAppearanceLabel,
 	getNextAppearanceMode,
 	normalizeAppearanceMode,
+	LIGHT_FLAVOR_CLASSIC,
+	LIGHT_FLAVOR_PAPER,
+	applyLightFlavorToDocument,
+	getLightFlavorLabel,
+	getStoredLightFlavor,
 } from '../../utils/appearance';
 import { isDesktopBridgeAvailable as hasUpdateBridge, updateCheckSilent } from '../../utils/aiAnalysisDesktop';
 import { getTechniqueHelpDoc } from '../help/techniqueHelpRegistry';
@@ -71,6 +76,11 @@ const PAGE_LABELS = {
 	astroreader: '书籍阅读',
 	liveplayer: '星阙直播',
 	admintools: '管理工具',
+	// 2026-07-16 补缺:以下五键此前漏登 → 页头模块名 fallback 显示「导航」(与 navigationPages 对齐)
+	astrochart3D: '3D星盘',
+	planetarium: '天文馆',
+	xuanshi: '玄学史',
+	astrodata: '数据库',
 };
 
 function PageHeader(props){
@@ -142,6 +152,14 @@ function PageHeader(props){
 
 	function cycleAppearanceMode(){
 		changeAppearanceMode(getNextAppearanceMode(props.appearanceMode));
+	}
+
+	// 亮色配色档(古典宣纸 ↔ 经典白色):纯 CSS 变量层切换,localStorage 记忆;仅亮色下显示按钮。
+	const [lightFlavor, setLightFlavor] = React.useState(()=>getStoredLightFlavor());
+	function cycleLightFlavor(){
+		const next = lightFlavor === LIGHT_FLAVOR_CLASSIC ? LIGHT_FLAVOR_PAPER : LIGHT_FLAVOR_CLASSIC;
+		setLightFlavor(next);
+		applyLightFlavorToDocument(next);
 	}
 
 	function changeDayBoundary(value){
@@ -485,7 +503,7 @@ function PageHeader(props){
 	const isDarkAvatar = (props.resolvedAppearance || props.appearanceMode) === 'dark';
 	const avatarInline = {
 		background: isDarkAvatar ? '#0b0d10' : '#ffffff',
-		color: isDarkAvatar ? '#f2cf91' : '#2167d4',
+		color: isDarkAvatar ? '#f2cf91' : '#7a541c',
 		border: isDarkAvatar ? '1px solid rgba(218, 177, 111, 0.32)' : '1px solid rgba(0,0,0,0.12)',
 	};
 	let avatarcomp = null;
@@ -634,6 +652,14 @@ function PageHeader(props){
 					<XQButton className={styles.astroHeaderCommand} size="small" iconName="help" onClick={()=>setAstroHelpVisible(true)}>帮助</XQButton>
 				</div>
 				<div className={styles.astroUtilityBar}>
+					{/* 亮色配色档切换(仅亮色显示):古典宣纸 ↔ 经典白色,只换配色变量其余零动。
+					    放在主题钮【左侧】—— 主题钮紧贴分隔线位置恒定,配色钮只在其左侧长出/隐去,
+					    切换昼夜时主题钮不移位(用户诉求:主题钮固定不动)。 */}
+					{(props.resolvedAppearance || props.appearanceMode) !== 'dark' ? (
+						<Tooltip title={`亮色配色：${getLightFlavorLabel(lightFlavor)}。点击切换 古典宣纸 / 经典白色。`}>
+							<XQIconButton className={styles.astroRoundButton} size="small" iconName="sideStyle" onClick={cycleLightFlavor} />
+						</Tooltip>
+					) : null}
 					<Tooltip title={`主题：${appearanceLabel}。点击切换昼夜模式。`}>
 						<XQIconButton className={styles.astroRoundButton} size="small" iconName="theme" onClick={cycleAppearanceMode} />
 					</Tooltip>

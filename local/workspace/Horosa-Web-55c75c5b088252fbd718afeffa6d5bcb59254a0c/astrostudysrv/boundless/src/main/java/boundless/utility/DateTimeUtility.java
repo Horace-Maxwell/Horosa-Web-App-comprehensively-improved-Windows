@@ -235,12 +235,7 @@ public class DateTimeUtility {
     public static boolean isLeap(int ad, Calendar cal){
 		int y = Math.abs(cal.get(Calendar.YEAR));
 		if(ad < 0) {
-			if(y > 172800 && y % 172800 == 0) {
-				return true;
-			}
-			if(y > 3200 && y % 3200 == 1) {
-				return false;
-			}
+			// proleptic Julian:BC 闰年恒为 |y|%4==1(与 Python 引擎/前端承诺口径一致,无 3200/172800 例外)
 			if(y % 4 == 1) {
 				return true;
 			}
@@ -632,10 +627,11 @@ public class DateTimeUtility {
 			isGrego = false;
 		}
 		
+		// y/4 须为地板除:y<0(BC4800 前)时 Java 截断除会使儒略日序整体 +1 天;y>0 两者等值。
 		if(isGrego) {
-			return day + (153*m + 2)/5 + 365*y + y/4 - y/100 + y/400 - 32045;
+			return day + (153*m + 2)/5 + 365*y + Math.floorDiv(y, 4) - Math.floorDiv(y, 100) + Math.floorDiv(y, 400) - 32045;
 		}else {
-			return day + (153*m + 2)/5 + 365*y + y/4 - 32083;
+			return day + (153*m + 2)/5 + 365*y + Math.floorDiv(y, 4) - 32083;
 		}
 		
 	}

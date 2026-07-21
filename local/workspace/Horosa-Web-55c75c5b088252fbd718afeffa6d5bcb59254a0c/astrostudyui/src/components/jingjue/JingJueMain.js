@@ -3,13 +3,15 @@ import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
+import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
+import { parseDateParts } from '../../utils/dateStrSafe';
 
 const { TabPane } = Tabs;
 
@@ -19,7 +21,9 @@ function parseFieldsDateTime(fields){
 	}
 	const dateStr = fields.date.value.format('YYYY-MM-DD');
 	const timeStr = fields.time.value.format('HH:mm:ss');
-	const d = dateStr.split('-').map((item)=>parseInt(item, 10));
+	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
+	const _dp = parseDateParts(dateStr);
+	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
 	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
 	if(d.length < 3 || t.length < 2){
 		return null;
@@ -122,6 +126,7 @@ class JingJueMain extends Component{
 		this.timeHook = {};
 		this.requestSeq = 0;
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.changeGeo = this.changeGeo.bind(this);
 		this.getTimeFieldsFromSelector = this.getTimeFieldsFromSelector.bind(this);
 		this.clickPlot = this.clickPlot.bind(this);
 		this.randomizeSeed = this.randomizeSeed.bind(this);
@@ -144,6 +149,7 @@ class JingJueMain extends Component{
 	}
 
 	componentDidMount(){
+		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -169,6 +175,7 @@ class JingJueMain extends Component{
 	}
 
 	componentWillUnmount(){
+		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -235,6 +242,10 @@ class JingJueMain extends Component{
 		}
 	}
 
+	// [自由起盘] 左栏经纬度选择 → 经纬 + 时区自动校正 + 重锚时间 + 地名(经度影响真太阳时→时柱)。
+	changeGeo(rec){
+		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
+	}
 	onTimeChanged(value){
 		const dt = value.time;
 		this.onFieldsChange({
@@ -349,10 +360,10 @@ class JingJueMain extends Component{
 					timeText={formatSpaceTime(fields, '---- -- -- --:--:--')}
 					onTimeChange={this.onTimeChanged}
 					timeHook={this.timeHook}
-					showLocation={false}
+					onGeoChange={this.changeGeo}
 				/>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="quickNote" />荆诀选项</div>
+				{/* [左栏统一] 收编 XQSideSection(原图标保留,卡片类透传) */}
+				<XQSideSection iconName="quickNote" title="荆诀选项" storageKey="jingjue.opts" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field is-wide">
 							<span>起筮种子</span>
@@ -360,7 +371,7 @@ class JingJueMain extends Component{
 						</label>
 					</div>
 					<div className="horosa-taixuan-note">上游荆诀使用随机三十算起课。星阙用种子固定本课，点击“重起”会换一组新三分。</div>
-				</div>
+				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起课</Button>
 					<Button onClick={this.randomizeSeed}>重起</Button>

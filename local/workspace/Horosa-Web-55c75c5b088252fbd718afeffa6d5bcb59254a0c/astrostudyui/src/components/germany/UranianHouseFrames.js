@@ -86,7 +86,7 @@ function fieldsToParams(fields){
 	if (!fields) return null;
 	return {
 		date: fmt(fv(fields, 'date'), 'YYYY/MM/DD'), time: fmt(fv(fields, 'time'), 'HH:mm:ss'),
-		zone: fv(fields, 'zone'), lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
+		zone: fv(fields, 'zone') || '+08:00', lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa') || '',
 		tradition: false, predictive: 0, name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',

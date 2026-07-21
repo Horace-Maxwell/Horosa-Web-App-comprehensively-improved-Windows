@@ -100,8 +100,9 @@
             <mvc:exclude-mapping path="/jieqi/**"/> 
             <mvc:exclude-mapping path="/jdn/**"/> 
             <mvc:exclude-mapping path="/location/**"/> 
-            <mvc:exclude-mapping path="/astroextra/**"/> 
-            <mvc:exclude-mapping path="/planetarium/**"/> 
+            <mvc:exclude-mapping path="/astroextra/**"/>
+            <mvc:exclude-mapping path="/planetarium/**"/>
+            <mvc:exclude-mapping path="/chart3d/**"/>
             <mvc:exclude-mapping path="/bazi/**"/> 
             <mvc:exclude-mapping path="/qizheng/**"/> 
             <mvc:exclude-mapping path="/ziwei/**"/> 

@@ -110,7 +110,19 @@ public class AIAnalysisProxyService {
 	 * 单锁串行化所有写;complete/completeWithError 幂等;一旦关闭,后续 send 返回 false(不抛、也不再
 	 * complete),心跳与读流再不会互相踩。
 	 */
-	private static final class SseChannel {
+	/**
+	 * 客户端已断开(用户点「停止」/关页/网络断)。读流环收到本异常立即终止,
+	 * try-with-resources 随之关闭上游 InputStream → 上游 LLM 连接断开、生成即停。
+	 * 旧行为:sendEvent 忽略 send() 的 false 返回值,通道关闭后读流仍把上游整段吸完
+	 * ——推理模型 token 间隔长时,用户停止后计费照常烧完全程。
+	 */
+	static final class ClientGoneException extends RuntimeException {
+		ClientGoneException() {
+			super("SSE client gone");
+		}
+	}
+
+	static final class SseChannel {
 		private final SseEmitter emitter;
 		private final Object lock = new Object();
 		private boolean closed = false;
@@ -254,7 +266,28 @@ public class AIAnalysisProxyService {
 		result.put("content", extractChatContent(providerType, payload));
 		result.put("model", model);
 		result.put("providerType", providerType);
+		// 非流式同样透传 usage(与流式 "usage" 事件同键口径):规划/审核/评委等短请求
+		// 此前的 token 消耗全被丢弃,成本不可观测。上游无 usage 字段时缺省不放(零回归)。
+		Map<String, Object> usage = extractNonStreamUsage(providerType, payload);
+		if(usage != null) {
+			result.put("usage", usage);
+		}
 		return result;
+	}
+
+	/** 非流式响应的 usage 提取:各家非流式 payload 与流式末帧同形,直接复用流式提取器。 */
+	static Map<String, Object> extractNonStreamUsage(String providerType, Map<String, Object> payload){
+		if("anthropic".equals(providerType)) {
+			// 非流式 message 对象顶层就带 usage,与 message_delta 帧同位。
+			return extractAnthropicUsage("message_delta", payload);
+		}
+		if("gemini".equals(providerType)) {
+			return extractGeminiUsage(payload);
+		}
+		if(isOpenAICompatible(providerType)) {
+			return extractOpenAIUsage(payload);
+		}
+		return null;
 	}
 
 	public void chatStream(Map<String, Object> params, SseEmitter emitter){
@@ -282,6 +315,18 @@ public class AIAnalysisProxyService {
 			}
 			sendEvent(channel, "done", buildMap("providerType", providerType, "model", model));
 			channel.complete();   // 幂等:SseChannel 保证只 complete 一次,客户端已断也不抛
+		}catch(ClientGoneException e){
+			// [A1 止损] 客户端主动断开(停止按钮/关页):读流已被本异常提前打断,上游 InputStream
+			// 随 try-with-resources 关闭 → 上游生成即停、计费即止。这不是错误——不发 error 事件
+			// (对端已不在)、不 completeWithError,info 级记账后幂等收尾。
+			try {
+				QueueLog.info(AppLoggers.InfoLogger, String.format(
+					"AIAnalysisProxyService.chatStream client gone (upstream cut): providerType=%s, model=%s",
+					providerType, model));
+			}catch(Throwable logEx){
+				// 日志层异常永远不能让 catch 自己炸。
+			}
+			channel.complete();
 		}catch(Exception e){
 			// Issue #8 Fix 1: catch 第一件事必须是把"一级"异常写日志。
 			// 之前这一步缺失，导致 ClientAbort 二级异常掩盖了 Ollama 上游真实失败，
@@ -464,6 +509,7 @@ public class AIAnalysisProxyService {
 	// Ollama 原生 body：messages 同 OpenAI({role,content})；num_ctx/num_predict/top_k/top_p/repeat_penalty/temperature
 	// 一律嵌入 options:{}（原生口才读 options），keep_alive 留顶层。
 	Map<String, Object> buildOllamaNativeBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
+		messages = stripCacheMarkersInMessages(messages); // WS-A：本地推理无前缀缓存概念，剥标记防污染正文
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
 		body.put("model", model);
 		List<Map<String, Object>> norm = new ArrayList<Map<String, Object>>();
@@ -553,7 +599,7 @@ public class AIAnalysisProxyService {
 	// NDJSON 流：每行一个 JSON 对象（Ollama 原生流式），逐行回调。
 	// try-with-resources:客户端中途断开时 handler 上抛 IOException,底层 socket 流必须随之关闭,
 	// 否则每次「停止生成/断网」泄漏一个 fd,长跑后 too many open files。
-	private void readNdjsonStream(InputStream stream, NdjsonLineHandler handler) throws IOException{
+	void readNdjsonStream(InputStream stream, NdjsonLineHandler handler) throws IOException{
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
 			String line;
 			while((line = reader.readLine()) != null) {
@@ -564,7 +610,7 @@ public class AIAnalysisProxyService {
 	}
 
 	@FunctionalInterface
-	private interface NdjsonLineHandler { void onLine(String line); }
+	interface NdjsonLineHandler { void onLine(String line); }
 
 	private void streamAnthropic(Map<String, Object> params, String model, List<Map<String, Object>> messages, SseChannel channel) throws Exception{
 		withHeartbeat(channel, () -> {
@@ -1239,7 +1285,44 @@ public class AIAnalysisProxyService {
 		return out;
 	}
 
+	// WS-A：前端报告管线 promptLayout='cached' 在 system 文本里埋的中性断点标记
+	// （与前端 reportPipeline.PROMPT_CACHE_BP 逐字节一致，两端契约测试各自锁定）。
+	// Anthropic：按标记把 system 切成数组块并打 cache_control（provider 前缀缓存，节间命中）；
+	// 其余 provider（OpenAI 家族自动前缀缓存 / Gemini / Ollama）：剥标记后原文直连。
+	// 文本不含标记（legacy 布局/其它调用方）＝所有路径字节零变。
+	static final String PROMPT_CACHE_BP = "[[__CACHE_BP__]]";
+
+	static String stripCacheMarkers(String text){
+		if(text == null || text.indexOf(PROMPT_CACHE_BP) < 0) { return text; }
+		// 先归一前端 '\n\n<标记>\n\n' 包裹形态（避免剥后遗留四连换行），再兜底裸标记。
+		return text.replace("\n\n" + PROMPT_CACHE_BP + "\n\n", "\n\n").replace(PROMPT_CACHE_BP, "");
+	}
+
+	// 非 Anthropic 的 builder 入口统一剥标记；无标记时原 list 直返（零拷贝零变）。
+	static List<Map<String, Object>> stripCacheMarkersInMessages(List<Map<String, Object>> messages){
+		if(messages == null) { return null; }
+		boolean any = false;
+		for(Map<String, Object> one : messages) {
+			String c = stringVal(one, "content");
+			if(c != null && c.indexOf(PROMPT_CACHE_BP) >= 0) { any = true; break; }
+		}
+		if(!any) { return messages; }
+		List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+		for(Map<String, Object> one : messages) {
+			String c = stringVal(one, "content");
+			if(c != null && c.indexOf(PROMPT_CACHE_BP) >= 0) {
+				Map<String, Object> copy = new LinkedHashMap<String, Object>(one);
+				copy.put("content", stripCacheMarkers(c));
+				out.add(copy);
+			} else {
+				out.add(one);
+			}
+		}
+		return out;
+	}
+
 	static Map<String, Object> buildOpenAIChatBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
+		messages = stripCacheMarkersInMessages(messages); // WS-A：OpenAI 家族自动前缀缓存，标记剥除即可
 		Map<String, Object> requestBody = new LinkedHashMap<String, Object>();
 		requestBody.put("model", model);
 		requestBody.put("messages", toOpenAIVisionMessages(messages)); // 2F：含图片消息转多模态 content；纯文本原样
@@ -1281,6 +1364,13 @@ public class AIAnalysisProxyService {
 		if(inT > 0) { out.put("input_tokens", inT); }
 		if(outT > 0) { out.put("output_tokens", outT); }
 		if(total > 0) { out.put("total_tokens", total); }
+		// WS-A：OpenAI 自动前缀缓存命中数（prompt_tokens_details.cached_tokens），
+		// 字段名对齐 Anthropic 口径让前端单键读取；无缓存时缺省=零变。
+		Object ptd = mu.get("prompt_tokens_details");
+		if(ptd instanceof Map) {
+			long cached = numLong(((Map)ptd).get("cached_tokens"));
+			if(cached > 0) { out.put("cache_read_input_tokens", cached); }
+		}
 		if(out.isEmpty()) { return null; }
 		return out;
 	}
@@ -1309,6 +1399,11 @@ public class AIAnalysisProxyService {
 		long outT = numLong(mu.get("output_tokens"));
 		if(inT > 0) { out.put("input_tokens", inT); }
 		if(outT > 0) { out.put("output_tokens", outT); }
+		// WS-A：前缀缓存写入/命中计数透传（message_start.usage 携带；无缓存时字段缺省=零变）。
+		long cacheW = numLong(mu.get("cache_creation_input_tokens"));
+		long cacheR = numLong(mu.get("cache_read_input_tokens"));
+		if(cacheW > 0) { out.put("cache_creation_input_tokens", cacheW); }
+		if(cacheR > 0) { out.put("cache_read_input_tokens", cacheR); }
 		if(out.isEmpty()) { return null; }
 		if(out.containsKey("input_tokens") && out.containsKey("output_tokens")) {
 			out.put("total_tokens", inT + outT);
@@ -1386,7 +1481,41 @@ public class AIAnalysisProxyService {
 			normalized.add(item);
 		}
 		if(!systemParts.isEmpty()) {
-			body.put("system", String.join("\n\n", systemParts));
+			String joinedSystem = String.join("\n\n", systemParts);
+			if(joinedSystem.indexOf(PROMPT_CACHE_BP) < 0) {
+				body.put("system", joinedSystem); // legacy/无标记：字符串形态字节零变
+			} else {
+				// WS-A：按断点标记切 system 数组块，非末块打 cache_control(ephemeral)。
+				// Anthropic 上限 4 个 cache_control → 块数>5 时溢出段并入末块（不再加断点）。
+				String[] rawSegs = joinedSystem.split(java.util.regex.Pattern.quote(PROMPT_CACHE_BP));
+				List<String> segs = new ArrayList<String>();
+				for(String s : rawSegs) {
+					String t = s == null ? "" : s.trim(); // trim 掉标记两侧的 '\n\n' 包裹
+					if(!t.isEmpty()) { segs.add(t); }
+				}
+				if(segs.size() <= 1) {
+					body.put("system", segs.isEmpty() ? "" : segs.get(0));
+				} else {
+					if(segs.size() > 5) {
+						List<String> merged = new ArrayList<String>(segs.subList(0, 4));
+						merged.add(String.join("\n\n", segs.subList(4, segs.size())));
+						segs = merged;
+					}
+					List<Object> sysBlocks = new ArrayList<Object>();
+					for(int i = 0; i < segs.size(); i++) {
+						Map<String, Object> blk = new LinkedHashMap<String, Object>();
+						blk.put("type", "text");
+						blk.put("text", segs.get(i));
+						if(i < segs.size() - 1) {
+							Map<String, Object> cc = new LinkedHashMap<String, Object>();
+							cc.put("type", "ephemeral");
+							blk.put("cache_control", cc);
+						}
+						sysBlocks.add(blk);
+					}
+					body.put("system", sysBlocks);
+				}
+			}
 		}
 		Map<String, Object> aprov = buildProviderBodyOptions(params);
 		// 2B/2G/2H：Anthropic 显式映射停止序列、思考档。
@@ -1449,6 +1578,7 @@ public class AIAnalysisProxyService {
 
 	@SuppressWarnings({"rawtypes","unchecked"})
 	private static Map<String, Object> buildGeminiBody(Map<String, Object> params, List<Map<String, Object>> messages){
+		messages = stripCacheMarkersInMessages(messages); // WS-A：Gemini 无显式缓存标，剥标记防污染正文
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
 		List<Map<String, Object>> normalized = new ArrayList<Map<String, Object>>();
 		List<String> systemParts = new ArrayList<String>();
@@ -1819,7 +1949,7 @@ public class AIAnalysisProxyService {
 	}
 
 	// try-with-resources:同 readNdjsonStream —— 中途断流(用户停止/网络抖动)时关闭底层 socket,防 fd 泄漏。
-	private void readSseStream(InputStream stream, SseLineHandler handler) throws IOException{
+	void readSseStream(InputStream stream, SseLineHandler handler) throws IOException{
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
 			String line;
 			String eventName = "";
@@ -1850,15 +1980,22 @@ public class AIAnalysisProxyService {
 		}
 	}
 
-	private void sendEvent(SseChannel channel, String eventName, Map<String, Object> payload){
+	void sendEvent(SseChannel channel, String eventName, Map<String, Object> payload){
 		try{
 			// [并发根修] 每 token 在池化 worker 线程写请求属性(旧「mark 当前线程」调用)是并发空响应/NPE 主凶:
 			// 客户端中断后 Tomcat 回收该 Request 分配给下一个请求,worker 仍在向"别人的请求"写 __sse__,
 			// 穿插的 JSON 请求被误判为 event-stream → 一字节正文不写;撞上 recycle() 清属性则 NPE。
 			// __sse__ 已由 servlet 线程在 SseHelper.push() 设置;afterCompletion 另有 SseEmitter 返回类型兜底。
-			channel.send(SseEmitter.event()
+			boolean delivered = channel.send(SseEmitter.event()
 				.name(eventName)
 				.data(JsonUtility.encode(payload)));
+			// [A1 止损] 通道已关(心跳先撞死连接置 closed / 已幂等收尾)= 客户端不在了:
+			// 抛专用异常打断读流环,别再把上游流吸完白烧计费。
+			if(!delivered) {
+				throw new ClientGoneException();
+			}
+		}catch(ClientGoneException e){
+			throw e;
 		}catch(Exception e){
 			throw new RuntimeException(e);
 		}
@@ -2057,7 +2194,7 @@ public class AIAnalysisProxyService {
 		}
 	}
 
-	private interface SseLineHandler {
+	interface SseLineHandler {
 		void onEvent(String eventName, String dataText) throws IOException;
 	}
 }

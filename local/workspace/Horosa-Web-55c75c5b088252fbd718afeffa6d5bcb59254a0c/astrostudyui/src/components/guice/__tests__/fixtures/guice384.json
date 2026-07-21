@@ -1,0 +1,3845 @@
+{
+"_note": "古籍全表 384 爻（64卦×6爻）。本表不入引擎，只作 golden —— 引擎由公式派生，此表验其零误差。",
+"rows": [
+{
+"name": "坤为地",
+"up": "坤",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 144,
+"ceShu": 11825,
+"yuanGui": 672,
+"guiShu": 14789
+},
+{
+"name": "坤为地",
+"up": "坤",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 144,
+"ceShu": 11970,
+"yuanGui": 672,
+"guiShu": 15462
+},
+{
+"name": "坤为地",
+"up": "坤",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 144,
+"ceShu": 12115,
+"yuanGui": 672,
+"guiShu": 16135
+},
+{
+"name": "坤为地",
+"up": "坤",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 144,
+"ceShu": 7076,
+"yuanGui": 672,
+"guiShu": 28904
+},
+{
+"name": "坤为地",
+"up": "坤",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 144,
+"ceShu": 8517,
+"yuanGui": 672,
+"guiShu": 35625
+},
+{
+"name": "坤为地",
+"up": "坤",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 144,
+"ceShu": 9958,
+"yuanGui": 672,
+"guiShu": 42346
+},
+{
+"name": "山地剥",
+"up": "艮",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 156,
+"ceShu": 12808,
+"yuanGui": 688,
+"guiShu": 15147
+},
+{
+"name": "山地剥",
+"up": "艮",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 156,
+"ceShu": 12965,
+"yuanGui": 688,
+"guiShu": 15836
+},
+{
+"name": "山地剥",
+"up": "艮",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 156,
+"ceShu": 13122,
+"yuanGui": 688,
+"guiShu": 16525
+},
+{
+"name": "山地剥",
+"up": "艮",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 156,
+"ceShu": 7507,
+"yuanGui": 688,
+"guiShu": 33726
+},
+{
+"name": "山地剥",
+"up": "艮",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 156,
+"ceShu": 9068,
+"yuanGui": 688,
+"guiShu": 40607
+},
+{
+"name": "山地剥",
+"up": "艮",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 156,
+"ceShu": 10629,
+"yuanGui": 688,
+"guiShu": 47488
+},
+{
+"name": "水地比",
+"up": "坎",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 156,
+"ceShu": 12807,
+"yuanGui": 688,
+"guiShu": 15140
+},
+{
+"name": "水地比",
+"up": "坎",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 156,
+"ceShu": 12964,
+"yuanGui": 688,
+"guiShu": 15829
+},
+{
+"name": "水地比",
+"up": "坎",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 156,
+"ceShu": 13121,
+"yuanGui": 688,
+"guiShu": 16518
+},
+{
+"name": "水地比",
+"up": "坎",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 156,
+"ceShu": 7350,
+"yuanGui": 688,
+"guiShu": 28903
+},
+{
+"name": "水地比",
+"up": "坎",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 156,
+"ceShu": 8911,
+"yuanGui": 688,
+"guiShu": 35784
+},
+{
+"name": "水地比",
+"up": "坎",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 156,
+"ceShu": 10472,
+"yuanGui": 688,
+"guiShu": 42665
+},
+{
+"name": "风地观",
+"up": "巽",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 13790,
+"yuanGui": 704,
+"guiShu": 15495
+},
+{
+"name": "风地观",
+"up": "巽",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 13959,
+"yuanGui": 704,
+"guiShu": 16200
+},
+{
+"name": "风地观",
+"up": "巽",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 14128,
+"yuanGui": 704,
+"guiShu": 16905
+},
+{
+"name": "风地观",
+"up": "巽",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7745,
+"yuanGui": 704,
+"guiShu": 31690
+},
+{
+"name": "风地观",
+"up": "巽",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9426,
+"yuanGui": 704,
+"guiShu": 38731
+},
+{
+"name": "风地观",
+"up": "巽",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11107,
+"yuanGui": 704,
+"guiShu": 45772
+},
+{
+"name": "雷地豫",
+"up": "震",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 156,
+"ceShu": 12805,
+"yuanGui": 688,
+"guiShu": 15142
+},
+{
+"name": "雷地豫",
+"up": "震",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 156,
+"ceShu": 12962,
+"yuanGui": 688,
+"guiShu": 15831
+},
+{
+"name": "雷地豫",
+"up": "震",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 156,
+"ceShu": 13119,
+"yuanGui": 688,
+"guiShu": 16520
+},
+{
+"name": "雷地豫",
+"up": "震",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 156,
+"ceShu": 7036,
+"yuanGui": 688,
+"guiShu": 30281
+},
+{
+"name": "雷地豫",
+"up": "震",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 156,
+"ceShu": 8597,
+"yuanGui": 688,
+"guiShu": 37162
+},
+{
+"name": "雷地豫",
+"up": "震",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 156,
+"ceShu": 10158,
+"yuanGui": 688,
+"guiShu": 44043
+},
+{
+"name": "火地晋",
+"up": "离",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 13788,
+"yuanGui": 704,
+"guiShu": 15500
+},
+{
+"name": "火地晋",
+"up": "离",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 13957,
+"yuanGui": 704,
+"guiShu": 16205
+},
+{
+"name": "火地晋",
+"up": "离",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 14126,
+"yuanGui": 704,
+"guiShu": 16910
+},
+{
+"name": "火地晋",
+"up": "离",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7407,
+"yuanGui": 704,
+"guiShu": 35215
+},
+{
+"name": "火地晋",
+"up": "离",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9088,
+"yuanGui": 704,
+"guiShu": 42256
+},
+{
+"name": "火地晋",
+"up": "离",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 10769,
+"yuanGui": 704,
+"guiShu": 49297
+},
+{
+"name": "泽地萃",
+"up": "兑",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 13787,
+"yuanGui": 704,
+"guiShu": 15498
+},
+{
+"name": "泽地萃",
+"up": "兑",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 13956,
+"yuanGui": 704,
+"guiShu": 16203
+},
+{
+"name": "泽地萃",
+"up": "兑",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 14125,
+"yuanGui": 704,
+"guiShu": 16908
+},
+{
+"name": "泽地萃",
+"up": "兑",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7238,
+"yuanGui": 704,
+"guiShu": 33805
+},
+{
+"name": "泽地萃",
+"up": "兑",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 8919,
+"yuanGui": 704,
+"guiShu": 40846
+},
+{
+"name": "泽地萃",
+"up": "兑",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 10600,
+"yuanGui": 704,
+"guiShu": 47887
+},
+{
+"name": "天地否",
+"up": "乾",
+"lo": "坤",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 14770,
+"yuanGui": 720,
+"guiShu": 15849
+},
+{
+"name": "天地否",
+"up": "乾",
+"lo": "坤",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 14951,
+"yuanGui": 720,
+"guiShu": 16570
+},
+{
+"name": "天地否",
+"up": "乾",
+"lo": "坤",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 15132,
+"yuanGui": 720,
+"guiShu": 17291
+},
+{
+"name": "天地否",
+"up": "乾",
+"lo": "坤",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7573,
+"yuanGui": 720,
+"guiShu": 33852
+},
+{
+"name": "天地否",
+"up": "乾",
+"lo": "坤",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9374,
+"yuanGui": 720,
+"guiShu": 41053
+},
+{
+"name": "天地否",
+"up": "乾",
+"lo": "坤",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11175,
+"yuanGui": 720,
+"guiShu": 48254
+},
+{
+"name": "地山谦",
+"up": "坤",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 156,
+"ceShu": 11248,
+"yuanGui": 688,
+"guiShu": 56427
+},
+{
+"name": "地山谦",
+"up": "坤",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 156,
+"ceShu": 11405,
+"yuanGui": 688,
+"guiShu": 57116
+},
+{
+"name": "地山谦",
+"up": "坤",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 156,
+"ceShu": 11562,
+"yuanGui": 688,
+"guiShu": 57805
+},
+{
+"name": "地山谦",
+"up": "坤",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 156,
+"ceShu": 7663,
+"yuanGui": 688,
+"guiShu": 29598
+},
+{
+"name": "地山谦",
+"up": "坤",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 156,
+"ceShu": 9224,
+"yuanGui": 688,
+"guiShu": 36479
+},
+{
+"name": "地山谦",
+"up": "坤",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 156,
+"ceShu": 10785,
+"yuanGui": 688,
+"guiShu": 43360
+},
+{
+"name": "艮为山",
+"up": "艮",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 12111,
+"yuanGui": 704,
+"guiShu": 57745
+},
+{
+"name": "艮为山",
+"up": "艮",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 12280,
+"yuanGui": 704,
+"guiShu": 58450
+},
+{
+"name": "艮为山",
+"up": "艮",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 12449,
+"yuanGui": 704,
+"guiShu": 59155
+},
+{
+"name": "艮为山",
+"up": "艮",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 8082,
+"yuanGui": 704,
+"guiShu": 34516
+},
+{
+"name": "艮为山",
+"up": "艮",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9763,
+"yuanGui": 704,
+"guiShu": 41557
+},
+{
+"name": "艮为山",
+"up": "艮",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11444,
+"yuanGui": 704,
+"guiShu": 48598
+},
+{
+"name": "水山蹇",
+"up": "坎",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 12110,
+"yuanGui": 704,
+"guiShu": 57738
+},
+{
+"name": "水山蹇",
+"up": "坎",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 12279,
+"yuanGui": 704,
+"guiShu": 58443
+},
+{
+"name": "水山蹇",
+"up": "坎",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 12448,
+"yuanGui": 704,
+"guiShu": 59148
+},
+{
+"name": "水山蹇",
+"up": "坎",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7913,
+"yuanGui": 704,
+"guiShu": 29581
+},
+{
+"name": "水山蹇",
+"up": "坎",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9594,
+"yuanGui": 704,
+"guiShu": 36622
+},
+{
+"name": "水山蹇",
+"up": "坎",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11275,
+"yuanGui": 704,
+"guiShu": 43663
+},
+{
+"name": "风山渐",
+"up": "巽",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 12973,
+"yuanGui": 720,
+"guiShu": 59053
+},
+{
+"name": "风山渐",
+"up": "巽",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 13154,
+"yuanGui": 720,
+"guiShu": 59774
+},
+{
+"name": "风山渐",
+"up": "巽",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 13335,
+"yuanGui": 720,
+"guiShu": 60495
+},
+{
+"name": "风山渐",
+"up": "巽",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8296,
+"yuanGui": 720,
+"guiShu": 32416
+},
+{
+"name": "风山渐",
+"up": "巽",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10097,
+"yuanGui": 720,
+"guiShu": 39617
+},
+{
+"name": "风山渐",
+"up": "巽",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11898,
+"yuanGui": 720,
+"guiShu": 46818
+},
+{
+"name": "雷山小过",
+"up": "震",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 12108,
+"yuanGui": 704,
+"guiShu": 57740
+},
+{
+"name": "雷山小过",
+"up": "震",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 12277,
+"yuanGui": 704,
+"guiShu": 58445
+},
+{
+"name": "雷山小过",
+"up": "震",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 12446,
+"yuanGui": 704,
+"guiShu": 59150
+},
+{
+"name": "雷山小过",
+"up": "震",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7575,
+"yuanGui": 704,
+"guiShu": 30991
+},
+{
+"name": "雷山小过",
+"up": "震",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9256,
+"yuanGui": 704,
+"guiShu": 38032
+},
+{
+"name": "雷山小过",
+"up": "震",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 10937,
+"yuanGui": 704,
+"guiShu": 45073
+},
+{
+"name": "火山旅",
+"up": "离",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 12971,
+"yuanGui": 720,
+"guiShu": 59058
+},
+{
+"name": "火山旅",
+"up": "离",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 13152,
+"yuanGui": 720,
+"guiShu": 59779
+},
+{
+"name": "火山旅",
+"up": "离",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 13333,
+"yuanGui": 720,
+"guiShu": 60500
+},
+{
+"name": "火山旅",
+"up": "离",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7934,
+"yuanGui": 720,
+"guiShu": 36021
+},
+{
+"name": "火山旅",
+"up": "离",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9735,
+"yuanGui": 720,
+"guiShu": 43222
+},
+{
+"name": "火山旅",
+"up": "离",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11536,
+"yuanGui": 720,
+"guiShu": 50423
+},
+{
+"name": "泽山咸",
+"up": "兑",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 12970,
+"yuanGui": 720,
+"guiShu": 59056
+},
+{
+"name": "泽山咸",
+"up": "兑",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 13151,
+"yuanGui": 720,
+"guiShu": 59777
+},
+{
+"name": "泽山咸",
+"up": "兑",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 13332,
+"yuanGui": 720,
+"guiShu": 60498
+},
+{
+"name": "泽山咸",
+"up": "兑",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7753,
+"yuanGui": 720,
+"guiShu": 34579
+},
+{
+"name": "泽山咸",
+"up": "兑",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9554,
+"yuanGui": 720,
+"guiShu": 41780
+},
+{
+"name": "泽山咸",
+"up": "兑",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11355,
+"yuanGui": 720,
+"guiShu": 48981
+},
+{
+"name": "天山遯",
+"up": "乾",
+"lo": "艮",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 13833,
+"yuanGui": 736,
+"guiShu": 60367
+},
+{
+"name": "天山遯",
+"up": "乾",
+"lo": "艮",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 14026,
+"yuanGui": 736,
+"guiShu": 61104
+},
+{
+"name": "天山遯",
+"up": "乾",
+"lo": "艮",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 14219,
+"yuanGui": 736,
+"guiShu": 61841
+},
+{
+"name": "天山遯",
+"up": "乾",
+"lo": "艮",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8076,
+"yuanGui": 736,
+"guiShu": 34610
+},
+{
+"name": "天山遯",
+"up": "乾",
+"lo": "艮",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 9997,
+"yuanGui": 736,
+"guiShu": 41971
+},
+{
+"name": "天山遯",
+"up": "乾",
+"lo": "艮",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 11918,
+"yuanGui": 736,
+"guiShu": 49332
+},
+{
+"name": "地水师",
+"up": "坤",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 156,
+"ceShu": 9687,
+"yuanGui": 688,
+"guiShu": 8260
+},
+{
+"name": "地水师",
+"up": "坤",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 156,
+"ceShu": 9844,
+"yuanGui": 688,
+"guiShu": 8949
+},
+{
+"name": "地水师",
+"up": "坤",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 156,
+"ceShu": 10001,
+"yuanGui": 688,
+"guiShu": 9638
+},
+{
+"name": "地水师",
+"up": "坤",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 156,
+"ceShu": 7662,
+"yuanGui": 688,
+"guiShu": 29591
+},
+{
+"name": "地水师",
+"up": "坤",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 156,
+"ceShu": 9223,
+"yuanGui": 688,
+"guiShu": 36472
+},
+{
+"name": "地水师",
+"up": "坤",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 156,
+"ceShu": 10784,
+"yuanGui": 688,
+"guiShu": 43353
+},
+{
+"name": "山水蒙",
+"up": "艮",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 10430,
+"yuanGui": 704,
+"guiShu": 8458
+},
+{
+"name": "山水蒙",
+"up": "艮",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 10599,
+"yuanGui": 704,
+"guiShu": 9163
+},
+{
+"name": "山水蒙",
+"up": "艮",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 10768,
+"yuanGui": 704,
+"guiShu": 9868
+},
+{
+"name": "山水蒙",
+"up": "艮",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 8081,
+"yuanGui": 704,
+"guiShu": 34509
+},
+{
+"name": "山水蒙",
+"up": "艮",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9762,
+"yuanGui": 704,
+"guiShu": 41550
+},
+{
+"name": "山水蒙",
+"up": "艮",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11443,
+"yuanGui": 704,
+"guiShu": 48591
+},
+{
+"name": "坎为水",
+"up": "坎",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 10429,
+"yuanGui": 704,
+"guiShu": 8451
+},
+{
+"name": "坎为水",
+"up": "坎",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 10598,
+"yuanGui": 704,
+"guiShu": 9156
+},
+{
+"name": "坎为水",
+"up": "坎",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 10767,
+"yuanGui": 704,
+"guiShu": 9861
+},
+{
+"name": "坎为水",
+"up": "坎",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7912,
+"yuanGui": 704,
+"guiShu": 29574
+},
+{
+"name": "坎为水",
+"up": "坎",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9593,
+"yuanGui": 704,
+"guiShu": 36615
+},
+{
+"name": "坎为水",
+"up": "坎",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11274,
+"yuanGui": 704,
+"guiShu": 43656
+},
+{
+"name": "风水涣",
+"up": "巽",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 11172,
+"yuanGui": 720,
+"guiShu": 8646
+},
+{
+"name": "风水涣",
+"up": "巽",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 11353,
+"yuanGui": 720,
+"guiShu": 9367
+},
+{
+"name": "风水涣",
+"up": "巽",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 11534,
+"yuanGui": 720,
+"guiShu": 10088
+},
+{
+"name": "风水涣",
+"up": "巽",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8295,
+"yuanGui": 720,
+"guiShu": 32409
+},
+{
+"name": "风水涣",
+"up": "巽",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10096,
+"yuanGui": 720,
+"guiShu": 39610
+},
+{
+"name": "风水涣",
+"up": "巽",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11897,
+"yuanGui": 720,
+"guiShu": 46811
+},
+{
+"name": "雷水解",
+"up": "震",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 10427,
+"yuanGui": 704,
+"guiShu": 8453
+},
+{
+"name": "雷水解",
+"up": "震",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 10596,
+"yuanGui": 704,
+"guiShu": 9158
+},
+{
+"name": "雷水解",
+"up": "震",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 10765,
+"yuanGui": 704,
+"guiShu": 9863
+},
+{
+"name": "雷水解",
+"up": "震",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7574,
+"yuanGui": 704,
+"guiShu": 30984
+},
+{
+"name": "雷水解",
+"up": "震",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9255,
+"yuanGui": 704,
+"guiShu": 38025
+},
+{
+"name": "雷水解",
+"up": "震",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 10936,
+"yuanGui": 704,
+"guiShu": 45066
+},
+{
+"name": "火水未济",
+"up": "离",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 11170,
+"yuanGui": 720,
+"guiShu": 8651
+},
+{
+"name": "火水未济",
+"up": "离",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 11351,
+"yuanGui": 720,
+"guiShu": 9372
+},
+{
+"name": "火水未济",
+"up": "离",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 11532,
+"yuanGui": 720,
+"guiShu": 10093
+},
+{
+"name": "火水未济",
+"up": "离",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7933,
+"yuanGui": 720,
+"guiShu": 36014
+},
+{
+"name": "火水未济",
+"up": "离",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9734,
+"yuanGui": 720,
+"guiShu": 43215
+},
+{
+"name": "火水未济",
+"up": "离",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11535,
+"yuanGui": 720,
+"guiShu": 50416
+},
+{
+"name": "泽水困",
+"up": "兑",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 11169,
+"yuanGui": 720,
+"guiShu": 8649
+},
+{
+"name": "泽水困",
+"up": "兑",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 11350,
+"yuanGui": 720,
+"guiShu": 9370
+},
+{
+"name": "泽水困",
+"up": "兑",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 11531,
+"yuanGui": 720,
+"guiShu": 10091
+},
+{
+"name": "泽水困",
+"up": "兑",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7752,
+"yuanGui": 720,
+"guiShu": 34572
+},
+{
+"name": "泽水困",
+"up": "兑",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9553,
+"yuanGui": 720,
+"guiShu": 41773
+},
+{
+"name": "泽水困",
+"up": "兑",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11354,
+"yuanGui": 720,
+"guiShu": 48974
+},
+{
+"name": "天水讼",
+"up": "乾",
+"lo": "坎",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 11912,
+"yuanGui": 736,
+"guiShu": 8840
+},
+{
+"name": "天水讼",
+"up": "乾",
+"lo": "坎",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 12105,
+"yuanGui": 736,
+"guiShu": 9577
+},
+{
+"name": "天水讼",
+"up": "乾",
+"lo": "坎",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 12298,
+"yuanGui": 736,
+"guiShu": 10314
+},
+{
+"name": "天水讼",
+"up": "乾",
+"lo": "坎",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8075,
+"yuanGui": 736,
+"guiShu": 34603
+},
+{
+"name": "天水讼",
+"up": "乾",
+"lo": "坎",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 9996,
+"yuanGui": 736,
+"guiShu": 41964
+},
+{
+"name": "天水讼",
+"up": "乾",
+"lo": "坎",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 11917,
+"yuanGui": 736,
+"guiShu": 49325
+},
+{
+"name": "地风升",
+"up": "坤",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 8750,
+"yuanGui": 704,
+"guiShu": 29575
+},
+{
+"name": "地风升",
+"up": "坤",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 8919,
+"yuanGui": 704,
+"guiShu": 30280
+},
+{
+"name": "地风升",
+"up": "坤",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 9088,
+"yuanGui": 704,
+"guiShu": 30985
+},
+{
+"name": "地风升",
+"up": "坤",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 8249,
+"yuanGui": 704,
+"guiShu": 30282
+},
+{
+"name": "地风升",
+"up": "坤",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9930,
+"yuanGui": 704,
+"guiShu": 37323
+},
+{
+"name": "地风升",
+"up": "坤",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11611,
+"yuanGui": 704,
+"guiShu": 44364
+},
+{
+"name": "山风蛊",
+"up": "艮",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 9373,
+"yuanGui": 720,
+"guiShu": 30253
+},
+{
+"name": "山风蛊",
+"up": "艮",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 9554,
+"yuanGui": 720,
+"guiShu": 30974
+},
+{
+"name": "山风蛊",
+"up": "艮",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 9735,
+"yuanGui": 720,
+"guiShu": 31695
+},
+{
+"name": "山风蛊",
+"up": "艮",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8656,
+"yuanGui": 720,
+"guiShu": 35296
+},
+{
+"name": "山风蛊",
+"up": "艮",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10457,
+"yuanGui": 720,
+"guiShu": 42497
+},
+{
+"name": "山风蛊",
+"up": "艮",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12258,
+"yuanGui": 720,
+"guiShu": 49698
+},
+{
+"name": "水风井",
+"up": "坎",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 9372,
+"yuanGui": 720,
+"guiShu": 30246
+},
+{
+"name": "水风井",
+"up": "坎",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 9553,
+"yuanGui": 720,
+"guiShu": 30967
+},
+{
+"name": "水风井",
+"up": "坎",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 9734,
+"yuanGui": 720,
+"guiShu": 31688
+},
+{
+"name": "水风井",
+"up": "坎",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8475,
+"yuanGui": 720,
+"guiShu": 30249
+},
+{
+"name": "水风井",
+"up": "坎",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10276,
+"yuanGui": 720,
+"guiShu": 37450
+},
+{
+"name": "水风井",
+"up": "坎",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12077,
+"yuanGui": 720,
+"guiShu": 44651
+},
+{
+"name": "巽为风",
+"up": "巽",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 9995,
+"yuanGui": 736,
+"guiShu": 30921
+},
+{
+"name": "巽为风",
+"up": "巽",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 10188,
+"yuanGui": 736,
+"guiShu": 31658
+},
+{
+"name": "巽为风",
+"up": "巽",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 10381,
+"yuanGui": 736,
+"guiShu": 32395
+},
+{
+"name": "巽为风",
+"up": "巽",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8846,
+"yuanGui": 736,
+"guiShu": 33132
+},
+{
+"name": "巽为风",
+"up": "巽",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10767,
+"yuanGui": 736,
+"guiShu": 40493
+},
+{
+"name": "巽为风",
+"up": "巽",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12688,
+"yuanGui": 736,
+"guiShu": 47854
+},
+{
+"name": "雷风恒",
+"up": "震",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 9370,
+"yuanGui": 720,
+"guiShu": 30248
+},
+{
+"name": "雷风恒",
+"up": "震",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 9551,
+"yuanGui": 720,
+"guiShu": 30969
+},
+{
+"name": "雷风恒",
+"up": "震",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 9732,
+"yuanGui": 720,
+"guiShu": 31690
+},
+{
+"name": "雷风恒",
+"up": "震",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8113,
+"yuanGui": 720,
+"guiShu": 31691
+},
+{
+"name": "雷风恒",
+"up": "震",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9914,
+"yuanGui": 720,
+"guiShu": 38892
+},
+{
+"name": "雷风恒",
+"up": "震",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11715,
+"yuanGui": 720,
+"guiShu": 46093
+},
+{
+"name": "火风鼎",
+"up": "离",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 9993,
+"yuanGui": 736,
+"guiShu": 30926
+},
+{
+"name": "火风鼎",
+"up": "离",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 10186,
+"yuanGui": 736,
+"guiShu": 31663
+},
+{
+"name": "火风鼎",
+"up": "离",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 10379,
+"yuanGui": 736,
+"guiShu": 32400
+},
+{
+"name": "火风鼎",
+"up": "离",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8460,
+"yuanGui": 736,
+"guiShu": 36817
+},
+{
+"name": "火风鼎",
+"up": "离",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10381,
+"yuanGui": 736,
+"guiShu": 44178
+},
+{
+"name": "火风鼎",
+"up": "离",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12302,
+"yuanGui": 736,
+"guiShu": 51539
+},
+{
+"name": "泽风大过",
+"up": "兑",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 9992,
+"yuanGui": 736,
+"guiShu": 30924
+},
+{
+"name": "泽风大过",
+"up": "兑",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 10185,
+"yuanGui": 736,
+"guiShu": 31661
+},
+{
+"name": "泽风大过",
+"up": "兑",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 10378,
+"yuanGui": 736,
+"guiShu": 32398
+},
+{
+"name": "泽风大过",
+"up": "兑",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8267,
+"yuanGui": 736,
+"guiShu": 35343
+},
+{
+"name": "泽风大过",
+"up": "兑",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10188,
+"yuanGui": 736,
+"guiShu": 42704
+},
+{
+"name": "泽风大过",
+"up": "兑",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12109,
+"yuanGui": 736,
+"guiShu": 50065
+},
+{
+"name": "天风姤",
+"up": "乾",
+"lo": "巽",
+"dongYao": 1,
+"yuanCe": 204,
+"ceShu": 10615,
+"yuanGui": 752,
+"guiShu": 31595
+},
+{
+"name": "天风姤",
+"up": "乾",
+"lo": "巽",
+"dongYao": 2,
+"yuanCe": 204,
+"ceShu": 10820,
+"yuanGui": 752,
+"guiShu": 32348
+},
+{
+"name": "天风姤",
+"up": "乾",
+"lo": "巽",
+"dongYao": 3,
+"yuanCe": 204,
+"ceShu": 11025,
+"yuanGui": 752,
+"guiShu": 33101
+},
+{
+"name": "天风姤",
+"up": "乾",
+"lo": "巽",
+"dongYao": 4,
+"yuanCe": 204,
+"ceShu": 8578,
+"yuanGui": 752,
+"guiShu": 35358
+},
+{
+"name": "天风姤",
+"up": "乾",
+"lo": "巽",
+"dongYao": 5,
+"yuanCe": 204,
+"ceShu": 10619,
+"yuanGui": 752,
+"guiShu": 42879
+},
+{
+"name": "天风姤",
+"up": "乾",
+"lo": "巽",
+"dongYao": 6,
+"yuanCe": 204,
+"ceShu": 12660,
+"yuanGui": 752,
+"guiShu": 50400
+},
+{
+"name": "地雷复",
+"up": "坤",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 156,
+"ceShu": 6565,
+"yuanGui": 688,
+"guiShu": 22022
+},
+{
+"name": "地雷复",
+"up": "坤",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 156,
+"ceShu": 6722,
+"yuanGui": 688,
+"guiShu": 22711
+},
+{
+"name": "地雷复",
+"up": "坤",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 156,
+"ceShu": 6879,
+"yuanGui": 688,
+"guiShu": 23400
+},
+{
+"name": "地雷复",
+"up": "坤",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 156,
+"ceShu": 7660,
+"yuanGui": 688,
+"guiShu": 29593
+},
+{
+"name": "地雷复",
+"up": "坤",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 156,
+"ceShu": 9221,
+"yuanGui": 688,
+"guiShu": 36474
+},
+{
+"name": "地雷复",
+"up": "坤",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 156,
+"ceShu": 10782,
+"yuanGui": 688,
+"guiShu": 43355
+},
+{
+"name": "山雷颐",
+"up": "艮",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 7068,
+"yuanGui": 704,
+"guiShu": 22540
+},
+{
+"name": "山雷颐",
+"up": "艮",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 7237,
+"yuanGui": 704,
+"guiShu": 23245
+},
+{
+"name": "山雷颐",
+"up": "艮",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 7406,
+"yuanGui": 704,
+"guiShu": 23950
+},
+{
+"name": "山雷颐",
+"up": "艮",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 8079,
+"yuanGui": 704,
+"guiShu": 34511
+},
+{
+"name": "山雷颐",
+"up": "艮",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9760,
+"yuanGui": 704,
+"guiShu": 41552
+},
+{
+"name": "山雷颐",
+"up": "艮",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11441,
+"yuanGui": 704,
+"guiShu": 48593
+},
+{
+"name": "水雷屯",
+"up": "坎",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 7067,
+"yuanGui": 704,
+"guiShu": 22533
+},
+{
+"name": "水雷屯",
+"up": "坎",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 7236,
+"yuanGui": 704,
+"guiShu": 23238
+},
+{
+"name": "水雷屯",
+"up": "坎",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 7405,
+"yuanGui": 704,
+"guiShu": 23943
+},
+{
+"name": "水雷屯",
+"up": "坎",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7910,
+"yuanGui": 704,
+"guiShu": 29576
+},
+{
+"name": "水雷屯",
+"up": "坎",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9591,
+"yuanGui": 704,
+"guiShu": 36617
+},
+{
+"name": "水雷屯",
+"up": "坎",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11272,
+"yuanGui": 704,
+"guiShu": 43658
+},
+{
+"name": "风雷益",
+"up": "巽",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 7570,
+"yuanGui": 720,
+"guiShu": 23048
+},
+{
+"name": "风雷益",
+"up": "巽",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 7751,
+"yuanGui": 720,
+"guiShu": 23769
+},
+{
+"name": "风雷益",
+"up": "巽",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 7932,
+"yuanGui": 720,
+"guiShu": 24490
+},
+{
+"name": "风雷益",
+"up": "巽",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8293,
+"yuanGui": 720,
+"guiShu": 32411
+},
+{
+"name": "风雷益",
+"up": "巽",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10094,
+"yuanGui": 720,
+"guiShu": 39612
+},
+{
+"name": "风雷益",
+"up": "巽",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11895,
+"yuanGui": 720,
+"guiShu": 46813
+},
+{
+"name": "震为雷",
+"up": "震",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 7065,
+"yuanGui": 704,
+"guiShu": 22535
+},
+{
+"name": "震为雷",
+"up": "震",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 7234,
+"yuanGui": 704,
+"guiShu": 23240
+},
+{
+"name": "震为雷",
+"up": "震",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 7403,
+"yuanGui": 704,
+"guiShu": 23945
+},
+{
+"name": "震为雷",
+"up": "震",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 7572,
+"yuanGui": 704,
+"guiShu": 30986
+},
+{
+"name": "震为雷",
+"up": "震",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9253,
+"yuanGui": 704,
+"guiShu": 38027
+},
+{
+"name": "震为雷",
+"up": "震",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 10934,
+"yuanGui": 704,
+"guiShu": 45068
+},
+{
+"name": "火雷噬嗑",
+"up": "离",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 7568,
+"yuanGui": 720,
+"guiShu": 23053
+},
+{
+"name": "火雷噬嗑",
+"up": "离",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 7749,
+"yuanGui": 720,
+"guiShu": 23774
+},
+{
+"name": "火雷噬嗑",
+"up": "离",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 7930,
+"yuanGui": 720,
+"guiShu": 24495
+},
+{
+"name": "火雷噬嗑",
+"up": "离",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7931,
+"yuanGui": 720,
+"guiShu": 36016
+},
+{
+"name": "火雷噬嗑",
+"up": "离",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9732,
+"yuanGui": 720,
+"guiShu": 43217
+},
+{
+"name": "火雷噬嗑",
+"up": "离",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11533,
+"yuanGui": 720,
+"guiShu": 50418
+},
+{
+"name": "泽雷随",
+"up": "兑",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 7567,
+"yuanGui": 720,
+"guiShu": 23051
+},
+{
+"name": "泽雷随",
+"up": "兑",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 7748,
+"yuanGui": 720,
+"guiShu": 23772
+},
+{
+"name": "泽雷随",
+"up": "兑",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 7929,
+"yuanGui": 720,
+"guiShu": 24493
+},
+{
+"name": "泽雷随",
+"up": "兑",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 7750,
+"yuanGui": 720,
+"guiShu": 34574
+},
+{
+"name": "泽雷随",
+"up": "兑",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9551,
+"yuanGui": 720,
+"guiShu": 41775
+},
+{
+"name": "泽雷随",
+"up": "兑",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11352,
+"yuanGui": 720,
+"guiShu": 48976
+},
+{
+"name": "天雷无妄",
+"up": "乾",
+"lo": "震",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 8070,
+"yuanGui": 736,
+"guiShu": 23562
+},
+{
+"name": "天雷无妄",
+"up": "乾",
+"lo": "震",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 8263,
+"yuanGui": 736,
+"guiShu": 24299
+},
+{
+"name": "天雷无妄",
+"up": "乾",
+"lo": "震",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 8456,
+"yuanGui": 736,
+"guiShu": 25036
+},
+{
+"name": "天雷无妄",
+"up": "乾",
+"lo": "震",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8073,
+"yuanGui": 736,
+"guiShu": 34605
+},
+{
+"name": "天雷无妄",
+"up": "乾",
+"lo": "震",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 9994,
+"yuanGui": 736,
+"guiShu": 41966
+},
+{
+"name": "天雷无妄",
+"up": "乾",
+"lo": "震",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 11915,
+"yuanGui": 736,
+"guiShu": 49327
+},
+{
+"name": "地火明夷",
+"up": "坤",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 5388,
+"yuanGui": 704,
+"guiShu": 64780
+},
+{
+"name": "地火明夷",
+"up": "坤",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 5557,
+"yuanGui": 704,
+"guiShu": 65485
+},
+{
+"name": "地火明夷",
+"up": "坤",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 5726,
+"yuanGui": 704,
+"guiShu": 66190
+},
+{
+"name": "地火明夷",
+"up": "坤",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 8247,
+"yuanGui": 704,
+"guiShu": 30287
+},
+{
+"name": "地火明夷",
+"up": "坤",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9928,
+"yuanGui": 704,
+"guiShu": 37328
+},
+{
+"name": "地火明夷",
+"up": "坤",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11609,
+"yuanGui": 704,
+"guiShu": 44369
+},
+{
+"name": "山火贲",
+"up": "艮",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 5771,
+"yuanGui": 720,
+"guiShu": 66258
+},
+{
+"name": "山火贲",
+"up": "艮",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 5952,
+"yuanGui": 720,
+"guiShu": 66979
+},
+{
+"name": "山火贲",
+"up": "艮",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 6133,
+"yuanGui": 720,
+"guiShu": 67700
+},
+{
+"name": "山火贲",
+"up": "艮",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8654,
+"yuanGui": 720,
+"guiShu": 35301
+},
+{
+"name": "山火贲",
+"up": "艮",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10455,
+"yuanGui": 720,
+"guiShu": 42502
+},
+{
+"name": "山火贲",
+"up": "艮",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12256,
+"yuanGui": 720,
+"guiShu": 49703
+},
+{
+"name": "水火既济",
+"up": "坎",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 5770,
+"yuanGui": 720,
+"guiShu": 66251
+},
+{
+"name": "水火既济",
+"up": "坎",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 5951,
+"yuanGui": 720,
+"guiShu": 66972
+},
+{
+"name": "水火既济",
+"up": "坎",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 6132,
+"yuanGui": 720,
+"guiShu": 67693
+},
+{
+"name": "水火既济",
+"up": "坎",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8473,
+"yuanGui": 720,
+"guiShu": 30254
+},
+{
+"name": "水火既济",
+"up": "坎",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10274,
+"yuanGui": 720,
+"guiShu": 37455
+},
+{
+"name": "水火既济",
+"up": "坎",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12075,
+"yuanGui": 720,
+"guiShu": 44656
+},
+{
+"name": "风火家人",
+"up": "巽",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 6153,
+"yuanGui": 736,
+"guiShu": 67726
+},
+{
+"name": "风火家人",
+"up": "巽",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 6346,
+"yuanGui": 736,
+"guiShu": 68463
+},
+{
+"name": "风火家人",
+"up": "巽",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 6539,
+"yuanGui": 736,
+"guiShu": 69200
+},
+{
+"name": "风火家人",
+"up": "巽",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8844,
+"yuanGui": 736,
+"guiShu": 33137
+},
+{
+"name": "风火家人",
+"up": "巽",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10765,
+"yuanGui": 736,
+"guiShu": 40498
+},
+{
+"name": "风火家人",
+"up": "巽",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12686,
+"yuanGui": 736,
+"guiShu": 47859
+},
+{
+"name": "雷火丰",
+"up": "震",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 5768,
+"yuanGui": 720,
+"guiShu": 66253
+},
+{
+"name": "雷火丰",
+"up": "震",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 5949,
+"yuanGui": 720,
+"guiShu": 66974
+},
+{
+"name": "雷火丰",
+"up": "震",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 6130,
+"yuanGui": 720,
+"guiShu": 67695
+},
+{
+"name": "雷火丰",
+"up": "震",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8111,
+"yuanGui": 720,
+"guiShu": 31696
+},
+{
+"name": "雷火丰",
+"up": "震",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9912,
+"yuanGui": 720,
+"guiShu": 38897
+},
+{
+"name": "雷火丰",
+"up": "震",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11713,
+"yuanGui": 720,
+"guiShu": 46098
+},
+{
+"name": "离为火",
+"up": "离",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 6151,
+"yuanGui": 736,
+"guiShu": 67731
+},
+{
+"name": "离为火",
+"up": "离",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 6344,
+"yuanGui": 736,
+"guiShu": 68468
+},
+{
+"name": "离为火",
+"up": "离",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 6537,
+"yuanGui": 736,
+"guiShu": 69205
+},
+{
+"name": "离为火",
+"up": "离",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8458,
+"yuanGui": 736,
+"guiShu": 36822
+},
+{
+"name": "离为火",
+"up": "离",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10379,
+"yuanGui": 736,
+"guiShu": 44183
+},
+{
+"name": "离为火",
+"up": "离",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12300,
+"yuanGui": 736,
+"guiShu": 51544
+},
+{
+"name": "泽火革",
+"up": "兑",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 6150,
+"yuanGui": 736,
+"guiShu": 67729
+},
+{
+"name": "泽火革",
+"up": "兑",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 6343,
+"yuanGui": 736,
+"guiShu": 68466
+},
+{
+"name": "泽火革",
+"up": "兑",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 6536,
+"yuanGui": 736,
+"guiShu": 69203
+},
+{
+"name": "泽火革",
+"up": "兑",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8265,
+"yuanGui": 736,
+"guiShu": 35348
+},
+{
+"name": "泽火革",
+"up": "兑",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10186,
+"yuanGui": 736,
+"guiShu": 42709
+},
+{
+"name": "泽火革",
+"up": "兑",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12107,
+"yuanGui": 736,
+"guiShu": 50070
+},
+{
+"name": "天火同人",
+"up": "乾",
+"lo": "离",
+"dongYao": 1,
+"yuanCe": 204,
+"ceShu": 6533,
+"yuanGui": 752,
+"guiShu": 69200
+},
+{
+"name": "天火同人",
+"up": "乾",
+"lo": "离",
+"dongYao": 2,
+"yuanCe": 204,
+"ceShu": 6738,
+"yuanGui": 752,
+"guiShu": 69953
+},
+{
+"name": "天火同人",
+"up": "乾",
+"lo": "离",
+"dongYao": 3,
+"yuanCe": 204,
+"ceShu": 6943,
+"yuanGui": 752,
+"guiShu": 70706
+},
+{
+"name": "天火同人",
+"up": "乾",
+"lo": "离",
+"dongYao": 4,
+"yuanCe": 204,
+"ceShu": 8576,
+"yuanGui": 752,
+"guiShu": 35363
+},
+{
+"name": "天火同人",
+"up": "乾",
+"lo": "离",
+"dongYao": 5,
+"yuanCe": 204,
+"ceShu": 10617,
+"yuanGui": 752,
+"guiShu": 42884
+},
+{
+"name": "天火同人",
+"up": "乾",
+"lo": "离",
+"dongYao": 6,
+"yuanCe": 204,
+"ceShu": 12658,
+"yuanGui": 752,
+"guiShu": 50405
+},
+{
+"name": "地泽临",
+"up": "坤",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 168,
+"ceShu": 3707,
+"yuanGui": 704,
+"guiShu": 50698
+},
+{
+"name": "地泽临",
+"up": "坤",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 168,
+"ceShu": 3876,
+"yuanGui": 704,
+"guiShu": 51403
+},
+{
+"name": "地泽临",
+"up": "坤",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 168,
+"ceShu": 4045,
+"yuanGui": 704,
+"guiShu": 52108
+},
+{
+"name": "地泽临",
+"up": "坤",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 168,
+"ceShu": 8246,
+"yuanGui": 704,
+"guiShu": 30285
+},
+{
+"name": "地泽临",
+"up": "坤",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 168,
+"ceShu": 9927,
+"yuanGui": 704,
+"guiShu": 37326
+},
+{
+"name": "地泽临",
+"up": "坤",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 168,
+"ceShu": 11608,
+"yuanGui": 704,
+"guiShu": 44367
+},
+{
+"name": "山泽损",
+"up": "艮",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 3970,
+"yuanGui": 720,
+"guiShu": 51856
+},
+{
+"name": "山泽损",
+"up": "艮",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 4151,
+"yuanGui": 720,
+"guiShu": 52577
+},
+{
+"name": "山泽损",
+"up": "艮",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 4332,
+"yuanGui": 720,
+"guiShu": 53298
+},
+{
+"name": "山泽损",
+"up": "艮",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8653,
+"yuanGui": 720,
+"guiShu": 35299
+},
+{
+"name": "山泽损",
+"up": "艮",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10454,
+"yuanGui": 720,
+"guiShu": 42500
+},
+{
+"name": "山泽损",
+"up": "艮",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12255,
+"yuanGui": 720,
+"guiShu": 49701
+},
+{
+"name": "水泽节",
+"up": "坎",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 3969,
+"yuanGui": 720,
+"guiShu": 51849
+},
+{
+"name": "水泽节",
+"up": "坎",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 4150,
+"yuanGui": 720,
+"guiShu": 52570
+},
+{
+"name": "水泽节",
+"up": "坎",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 4331,
+"yuanGui": 720,
+"guiShu": 53291
+},
+{
+"name": "水泽节",
+"up": "坎",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8472,
+"yuanGui": 720,
+"guiShu": 30252
+},
+{
+"name": "水泽节",
+"up": "坎",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10273,
+"yuanGui": 720,
+"guiShu": 37453
+},
+{
+"name": "水泽节",
+"up": "坎",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12074,
+"yuanGui": 720,
+"guiShu": 44654
+},
+{
+"name": "风泽中孚",
+"up": "巽",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 4232,
+"yuanGui": 736,
+"guiShu": 53004
+},
+{
+"name": "风泽中孚",
+"up": "巽",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 4425,
+"yuanGui": 736,
+"guiShu": 53741
+},
+{
+"name": "风泽中孚",
+"up": "巽",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 4618,
+"yuanGui": 736,
+"guiShu": 54478
+},
+{
+"name": "风泽中孚",
+"up": "巽",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8843,
+"yuanGui": 736,
+"guiShu": 33135
+},
+{
+"name": "风泽中孚",
+"up": "巽",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10764,
+"yuanGui": 736,
+"guiShu": 40496
+},
+{
+"name": "风泽中孚",
+"up": "巽",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12685,
+"yuanGui": 736,
+"guiShu": 47857
+},
+{
+"name": "雷泽归妹",
+"up": "震",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 3967,
+"yuanGui": 720,
+"guiShu": 51851
+},
+{
+"name": "雷泽归妹",
+"up": "震",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 4148,
+"yuanGui": 720,
+"guiShu": 52572
+},
+{
+"name": "雷泽归妹",
+"up": "震",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 4329,
+"yuanGui": 720,
+"guiShu": 53293
+},
+{
+"name": "雷泽归妹",
+"up": "震",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8110,
+"yuanGui": 720,
+"guiShu": 31694
+},
+{
+"name": "雷泽归妹",
+"up": "震",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 9911,
+"yuanGui": 720,
+"guiShu": 38895
+},
+{
+"name": "雷泽归妹",
+"up": "震",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 11712,
+"yuanGui": 720,
+"guiShu": 46096
+},
+{
+"name": "火泽睽",
+"up": "离",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 4230,
+"yuanGui": 736,
+"guiShu": 53009
+},
+{
+"name": "火泽睽",
+"up": "离",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 4423,
+"yuanGui": 736,
+"guiShu": 53746
+},
+{
+"name": "火泽睽",
+"up": "离",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 4616,
+"yuanGui": 736,
+"guiShu": 54483
+},
+{
+"name": "火泽睽",
+"up": "离",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8457,
+"yuanGui": 736,
+"guiShu": 36820
+},
+{
+"name": "火泽睽",
+"up": "离",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10378,
+"yuanGui": 736,
+"guiShu": 44181
+},
+{
+"name": "火泽睽",
+"up": "离",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12299,
+"yuanGui": 736,
+"guiShu": 51542
+},
+{
+"name": "兑为泽",
+"up": "兑",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 4229,
+"yuanGui": 736,
+"guiShu": 53007
+},
+{
+"name": "兑为泽",
+"up": "兑",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 4422,
+"yuanGui": 736,
+"guiShu": 53744
+},
+{
+"name": "兑为泽",
+"up": "兑",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 4615,
+"yuanGui": 736,
+"guiShu": 54481
+},
+{
+"name": "兑为泽",
+"up": "兑",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8264,
+"yuanGui": 736,
+"guiShu": 35346
+},
+{
+"name": "兑为泽",
+"up": "兑",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10185,
+"yuanGui": 736,
+"guiShu": 42707
+},
+{
+"name": "兑为泽",
+"up": "兑",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12106,
+"yuanGui": 736,
+"guiShu": 50068
+},
+{
+"name": "天泽履",
+"up": "乾",
+"lo": "兑",
+"dongYao": 1,
+"yuanCe": 204,
+"ceShu": 4492,
+"yuanGui": 752,
+"guiShu": 54158
+},
+{
+"name": "天泽履",
+"up": "乾",
+"lo": "兑",
+"dongYao": 2,
+"yuanCe": 204,
+"ceShu": 4697,
+"yuanGui": 752,
+"guiShu": 54911
+},
+{
+"name": "天泽履",
+"up": "乾",
+"lo": "兑",
+"dongYao": 3,
+"yuanCe": 204,
+"ceShu": 4902,
+"yuanGui": 752,
+"guiShu": 55664
+},
+{
+"name": "天泽履",
+"up": "乾",
+"lo": "兑",
+"dongYao": 4,
+"yuanCe": 204,
+"ceShu": 8575,
+"yuanGui": 752,
+"guiShu": 35361
+},
+{
+"name": "天泽履",
+"up": "乾",
+"lo": "兑",
+"dongYao": 5,
+"yuanCe": 204,
+"ceShu": 10616,
+"yuanGui": 752,
+"guiShu": 42882
+},
+{
+"name": "天泽履",
+"up": "乾",
+"lo": "兑",
+"dongYao": 6,
+"yuanCe": 204,
+"ceShu": 12657,
+"yuanGui": 752,
+"guiShu": 50403
+},
+{
+"name": "地天泰",
+"up": "坤",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 180,
+"ceShu": 2170,
+"yuanGui": 720,
+"guiShu": 44649
+},
+{
+"name": "地天泰",
+"up": "坤",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 180,
+"ceShu": 2351,
+"yuanGui": 720,
+"guiShu": 45370
+},
+{
+"name": "地天泰",
+"up": "坤",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 180,
+"ceShu": 2532,
+"yuanGui": 720,
+"guiShu": 46091
+},
+{
+"name": "地天泰",
+"up": "坤",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 180,
+"ceShu": 8833,
+"yuanGui": 720,
+"guiShu": 30972
+},
+{
+"name": "地天泰",
+"up": "坤",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 180,
+"ceShu": 10634,
+"yuanGui": 720,
+"guiShu": 38173
+},
+{
+"name": "地天泰",
+"up": "坤",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 180,
+"ceShu": 12435,
+"yuanGui": 720,
+"guiShu": 45374
+},
+{
+"name": "山天大畜",
+"up": "艮",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 2313,
+"yuanGui": 736,
+"guiShu": 45647
+},
+{
+"name": "山天大畜",
+"up": "艮",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 2506,
+"yuanGui": 736,
+"guiShu": 46384
+},
+{
+"name": "山天大畜",
+"up": "艮",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 2699,
+"yuanGui": 736,
+"guiShu": 47121
+},
+{
+"name": "山天大畜",
+"up": "艮",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 9228,
+"yuanGui": 736,
+"guiShu": 36082
+},
+{
+"name": "山天大畜",
+"up": "艮",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 11149,
+"yuanGui": 736,
+"guiShu": 43443
+},
+{
+"name": "山天大畜",
+"up": "艮",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 13070,
+"yuanGui": 736,
+"guiShu": 50804
+},
+{
+"name": "水天需",
+"up": "坎",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 2312,
+"yuanGui": 736,
+"guiShu": 45640
+},
+{
+"name": "水天需",
+"up": "坎",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 2505,
+"yuanGui": 736,
+"guiShu": 46377
+},
+{
+"name": "水天需",
+"up": "坎",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 2698,
+"yuanGui": 736,
+"guiShu": 47114
+},
+{
+"name": "水天需",
+"up": "坎",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 9035,
+"yuanGui": 736,
+"guiShu": 30923
+},
+{
+"name": "水天需",
+"up": "坎",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10956,
+"yuanGui": 736,
+"guiShu": 38284
+},
+{
+"name": "水天需",
+"up": "坎",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12877,
+"yuanGui": 736,
+"guiShu": 45645
+},
+{
+"name": "风天小畜",
+"up": "巽",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 204,
+"ceShu": 2455,
+"yuanGui": 752,
+"guiShu": 46635
+},
+{
+"name": "风天小畜",
+"up": "巽",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 204,
+"ceShu": 2660,
+"yuanGui": 752,
+"guiShu": 47388
+},
+{
+"name": "风天小畜",
+"up": "巽",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 204,
+"ceShu": 2865,
+"yuanGui": 752,
+"guiShu": 48141
+},
+{
+"name": "风天小畜",
+"up": "巽",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 204,
+"ceShu": 9394,
+"yuanGui": 752,
+"guiShu": 33854
+},
+{
+"name": "风天小畜",
+"up": "巽",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 204,
+"ceShu": 11435,
+"yuanGui": 752,
+"guiShu": 41375
+},
+{
+"name": "风天小畜",
+"up": "巽",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 204,
+"ceShu": 13476,
+"yuanGui": 752,
+"guiShu": 48896
+},
+{
+"name": "雷天大壮",
+"up": "震",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 192,
+"ceShu": 2310,
+"yuanGui": 736,
+"guiShu": 45642
+},
+{
+"name": "雷天大壮",
+"up": "震",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 192,
+"ceShu": 2503,
+"yuanGui": 736,
+"guiShu": 46379
+},
+{
+"name": "雷天大壮",
+"up": "震",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 192,
+"ceShu": 2696,
+"yuanGui": 736,
+"guiShu": 47116
+},
+{
+"name": "雷天大壮",
+"up": "震",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 192,
+"ceShu": 8649,
+"yuanGui": 736,
+"guiShu": 32397
+},
+{
+"name": "雷天大壮",
+"up": "震",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 192,
+"ceShu": 10570,
+"yuanGui": 736,
+"guiShu": 39758
+},
+{
+"name": "雷天大壮",
+"up": "震",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 192,
+"ceShu": 12491,
+"yuanGui": 736,
+"guiShu": 47119
+},
+{
+"name": "火天大有",
+"up": "离",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 204,
+"ceShu": 2453,
+"yuanGui": 752,
+"guiShu": 46640
+},
+{
+"name": "火天大有",
+"up": "离",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 204,
+"ceShu": 2658,
+"yuanGui": 752,
+"guiShu": 47393
+},
+{
+"name": "火天大有",
+"up": "离",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 204,
+"ceShu": 2863,
+"yuanGui": 752,
+"guiShu": 48146
+},
+{
+"name": "火天大有",
+"up": "离",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 204,
+"ceShu": 8984,
+"yuanGui": 752,
+"guiShu": 37619
+},
+{
+"name": "火天大有",
+"up": "离",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 204,
+"ceShu": 11025,
+"yuanGui": 752,
+"guiShu": 45140
+},
+{
+"name": "火天大有",
+"up": "离",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 204,
+"ceShu": 13066,
+"yuanGui": 752,
+"guiShu": 52661
+},
+{
+"name": "泽天夬",
+"up": "兑",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 204,
+"ceShu": 2452,
+"yuanGui": 752,
+"guiShu": 46638
+},
+{
+"name": "泽天夬",
+"up": "兑",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 204,
+"ceShu": 2657,
+"yuanGui": 752,
+"guiShu": 47391
+},
+{
+"name": "泽天夬",
+"up": "兑",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 204,
+"ceShu": 2862,
+"yuanGui": 752,
+"guiShu": 48144
+},
+{
+"name": "泽天夬",
+"up": "兑",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 204,
+"ceShu": 8779,
+"yuanGui": 752,
+"guiShu": 36113
+},
+{
+"name": "泽天夬",
+"up": "兑",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 204,
+"ceShu": 10820,
+"yuanGui": 752,
+"guiShu": 43634
+},
+{
+"name": "泽天夬",
+"up": "兑",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 204,
+"ceShu": 12861,
+"yuanGui": 752,
+"guiShu": 51155
+},
+{
+"name": "乾为天",
+"up": "乾",
+"lo": "乾",
+"dongYao": 1,
+"yuanCe": 216,
+"ceShu": 2595,
+"yuanGui": 768,
+"guiShu": 47629
+},
+{
+"name": "乾为天",
+"up": "乾",
+"lo": "乾",
+"dongYao": 2,
+"yuanCe": 216,
+"ceShu": 2812,
+"yuanGui": 768,
+"guiShu": 48398
+},
+{
+"name": "乾为天",
+"up": "乾",
+"lo": "乾",
+"dongYao": 3,
+"yuanCe": 216,
+"ceShu": 3029,
+"yuanGui": 768,
+"guiShu": 49167
+},
+{
+"name": "乾为天",
+"up": "乾",
+"lo": "乾",
+"dongYao": 4,
+"yuanCe": 216,
+"ceShu": 9078,
+"yuanGui": 768,
+"guiShu": 36112
+},
+{
+"name": "乾为天",
+"up": "乾",
+"lo": "乾",
+"dongYao": 5,
+"yuanCe": 216,
+"ceShu": 11239,
+"yuanGui": 768,
+"guiShu": 43793
+},
+{
+"name": "乾为天",
+"up": "乾",
+"lo": "乾",
+"dongYao": 6,
+"yuanCe": 216,
+"ceShu": 13400,
+"yuanGui": 768,
+"guiShu": 51474
+}
+]
+}

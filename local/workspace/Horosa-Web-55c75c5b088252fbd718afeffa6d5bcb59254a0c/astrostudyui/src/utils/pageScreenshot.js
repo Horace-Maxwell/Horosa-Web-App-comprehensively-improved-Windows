@@ -150,6 +150,33 @@ export function resolveCaptureTarget(){
 	return null;
 }
 
+// [WP-5.4] WebGL 引擎自渲染帧通道:html-to-image 永远拿不到 WebGL framebuffer(守卫②),
+// 但引擎自己「render 后同步 toDataURL」是可靠的。3D 组件挂载时注册 provider(返回
+// { dataUrl(PNG), width, height } 或 null),截图命中 WebGL 守卫时先问 provider,全空才降级放弃。
+// 栈式多实例:后挂载者优先(尾→头取第一个非空);反注册用返回的函数,unmount 必调防僵尸。
+const webglFrameProviders = [];
+export function registerWebglFrameProvider(fn){
+	if(typeof fn !== 'function'){
+		return ()=>{};
+	}
+	webglFrameProviders.push(fn);
+	return ()=>{
+		const i = webglFrameProviders.indexOf(fn);
+		if(i >= 0){ webglFrameProviders.splice(i, 1); }
+	};
+}
+export function captureWebglEngineFrame(){
+	for(let i = webglFrameProviders.length - 1; i >= 0; i -= 1){
+		try{
+			const frame = webglFrameProviders[i]();
+			if(frame && frame.dataUrl && `${frame.dataUrl}`.length >= 2000){
+				return frame;
+			}
+		}catch(e){ /* 单 provider 失败不拖累其余 */ }
+	}
+	return null;
+}
+
 // WebGL 探测(守卫②)。导出为纯函数便于单测。
 export function containsWebglCanvas(target){
 	if(!target || typeof target.querySelectorAll !== 'function'){
@@ -234,6 +261,11 @@ export async function capturePageScreenshot(options = {}){
 				return null;
 			}
 			if(containsWebglCanvas(target)){
+				// [WP-5.4] 先问引擎帧 provider(3D 组件在场即注册);拿到=真帧,拿不到才降级放弃。
+				const engineFrame = captureWebglEngineFrame();
+				if(engineFrame){
+					return { dataUrl: engineFrame.dataUrl, width: engineFrame.width || 0, height: engineFrame.height || 0, engineFrame: true };
+				}
 				return { degraded: true, reason: 'webgl', dataUrl: '' };
 			}
 			const htiMod = await import('html-to-image');
@@ -286,6 +318,9 @@ export async function capturePageScreenshotForExport(options = {}){
 	}
 	if(shot.degraded){
 		return { shot: null, note: shot.reason === 'webgl' ? '当前页面含 3D 实时画面,截图不支持,已略过附图。' : '' };
+	}
+	if(shot.engineFrame){
+		return { shot, note: '已附 3D 视图当前帧(文字面板不含在内)。' };
 	}
 	return { shot, note: '' };
 }

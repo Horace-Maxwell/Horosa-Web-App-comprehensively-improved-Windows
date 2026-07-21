@@ -461,7 +461,16 @@ class NanJiShenShu:
             minute: 分（0-59，不影響柱）
             gender: 性別（男/女）
         """
-        if _HAS_SXTWL:
+        if year < 1 or year > 9999:
+            # 全年份域回退(共享件,口径与主链一致;域内 sxtwl 原路径零变)
+            from kin_year_domain import extreme_pillars
+            _p = extreme_pillars(year, month, day, hour, minute or 0,
+                                 after23=(1 if after23_new_day else 0), hour_gan_next=1)
+            y_stem, y_branch = _p[0][0], _p[0][1]
+            m_stem, m_branch = _p[1][0], _p[1][1]
+            d_stem, d_branch = _p[2][0], _p[2][1]
+            h_stem, h_branch = _p[3][0], _p[3][1]
+        elif _HAS_SXTWL:
             # 用戶語義（拍板,字面直覺版）：
             #   after23_new_day=1「23点算第二天」= 23時起日柱進位次日(壬寅)
             #   after23_new_day=0「24点算第二天」= 23時仍守今、24時才換日柱(辛丑)

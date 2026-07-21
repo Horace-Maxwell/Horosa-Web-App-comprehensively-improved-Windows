@@ -10,6 +10,8 @@
 // 性别归一：命类技法只用二元性别（男/女）；载入的命盘可能带未知性别（-1 等），而性别下拉只有
 // 男/女两项 → antd 会把无匹配原始值「-1」直接显示出来。一律归「女=0，其余（含未知/-1/缺失)=男=1」，
 // 与算法引擎口径一致（未知作男），杜绝显示层出现「-1」。
+import { parseDateParts } from './dateStrSafe';
+
 export function normBinaryGender(g){
 	const s = `${g === undefined || g === null ? '' : g}`.trim();
 	return (s === '0' || s === '女' || s === 'Female' || s === 'female' || s === 'F') ? '0' : '1';
@@ -21,15 +23,17 @@ export function parseFieldsDateTime(fields){
 	}
 	const dateStr = fields.date.value.format('YYYY-MM-DD');
 	const timeStr = fields.time.value.format('HH:mm:ss');
-	const d = dateStr.split('-').map((item)=>parseInt(item, 10));
+	// 🔴 BC 串('-12026-07-19')裸 split('-') 会撕成 year=NaN/month=12026 —— NaN 还会让
+	// resync 的相等检测(NaN!==NaN)永真,didUpdate→fetchPan 无限风暴;统一走带符号安全解析。
+	const dp = parseDateParts(dateStr);
 	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
-	if(d.length < 3 || t.length < 2){
+	if(!dp || !Number.isFinite(dp.year) || t.length < 2){
 		return null;
 	}
 	return {
-		year: d[0],
-		month: d[1],
-		day: d[2],
+		year: dp.year,
+		month: dp.month,
+		day: dp.day,
 		hour: t[0],
 		minute: t[1],
 		second: t[2] || 0,

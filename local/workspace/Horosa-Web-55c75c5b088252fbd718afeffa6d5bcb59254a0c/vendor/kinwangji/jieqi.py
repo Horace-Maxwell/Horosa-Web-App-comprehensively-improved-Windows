@@ -463,6 +463,10 @@ def find_jq_date1(
 
 
 def jq(year: int, month: int, day: int, hour: int, minute: int) -> str:
+    if year < 1 or year > 9999:
+        # 全年份域回退:swe 太阳视黄经直映射节气名(与主链定气口径一致;域内原路径零变)
+        from kin_year_domain import solar_term_name
+        return solar_term_name(year, month, day, hour, minute)
     """Determine the current solar term (節氣) for the given date and time.
 
     Compares the input datetime against the start of the surrounding solar
@@ -681,6 +685,15 @@ def gangzhi1(
     Returns:
         List ``[year_gz, month_gz, day_gz, hour_gz]``.
     """
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
     if hour == 23:
         d = ephem.Date(round(ephem.Date(
             f"{year:04d}/{month:02d}/{day + 1:02d} 00:00:00.00"
@@ -722,6 +735,15 @@ def gangzhi(
         List ``[year_gz, month_gz, day_gz, hour_gz, minute_gz]``, each a
         two-character stems-branches string.
     """
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
     if hour == 23:
         d = ephem.Date(round(ephem.Date(
             f"{year:04d}/{month:02d}/{day + 1:02d} 00:00:00.00"

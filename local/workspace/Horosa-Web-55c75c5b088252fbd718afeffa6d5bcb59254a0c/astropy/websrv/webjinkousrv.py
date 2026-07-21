@@ -254,7 +254,13 @@ class JinKouSrv:
             difen = _branch(data.get("difen"), "子")
             yuejiang = _branch(data.get("yuejiang")) or None
             zhanshi = _branch(data.get("zhanshi")) or None
-            dt = pendulum.datetime(year, month, day, hour, minute, second, tz=_pendulum_tz(data.get("zone")))
+            if 1 <= year <= 9999:
+                dt = pendulum.datetime(year, month, day, hour, minute, second, tz=_pendulum_tz(data.get("zone")))
+            else:
+                # 全年份域:pendulum 域限 1~9999;下游 paipan 只读 y/m/d/h/min 五字段,
+                # 域外用轻量承载(gangzhi1 已接全域回退,BC/远期口径与主链一致)
+                from types import SimpleNamespace
+                dt = SimpleNamespace(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
             api = JinkoujueApi()
             raw = _json_safe(api.paipan(dt, difen=difen, yuejiang=yuejiang, zhanshi=zhanshi))
             text = api.print_pan() or ""

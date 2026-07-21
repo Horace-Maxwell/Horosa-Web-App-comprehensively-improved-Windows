@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { XQTabs as Tabs } from '../xq-ui';
 import CnTraditionInput from './CnTraditionInput';
@@ -16,6 +17,7 @@ import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { Solar } from 'lunar-javascript';
 import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo } from '../../utils/baziLunarLocal';
+import { parseDateParts } from '../../utils/dateStrSafe';
 
 const TabPane = Tabs.TabPane;
 
@@ -139,7 +141,8 @@ function buildBaziPeriodLines(bazi, period, params){
 	let birthSolar = null;
 	try{
 		if(params && params.date){
-			const [by, bm, bd] = `${params.date}`.split('-').map((v)=>Number(v));
+			const _bp = parseDateParts(`${params.date}`) || {};
+			const by = _bp.year, bm = _bp.month, bd = _bp.day;
 			if(Number.isFinite(by) && Number.isFinite(bm) && Number.isFinite(bd)){
 				birthSolar = Solar.fromYmd(by, bm, bd);
 			}
@@ -589,6 +592,25 @@ function normalizeBaziResult(result, params){
 	return next;
 }
 
+// 🔴 全年份域·细盘大运/流年列补源(真机症:极端年份「大运/流年」两列空)。
+// 根因:BC/lunar-js 不可靠域,前端 buildLocalBaziResult 抛错回退 Java /bazi/birth,其 core 无 direction;
+// 细盘 getCurrentDirection(rec.direction) 拿不到大运块 → 两列空。此时把独立 /bazi/direct(directBazi,
+// 流年面板 componentDidMount 即自动拉取并成功消费)的 direction/directTime/smallDirection 合入喂细盘的 rec。
+// 可靠年 core 自带 direction(buildLocalBaziResult) → coreHasDirection 真 → 返回原 core 引用,字节零回归。
+export function resolveChartBazi(coreBazi, directBazi){
+	const core = coreBazi || {};
+	const coreHasDirection = Array.isArray(core.direction) && core.direction.length > 0;
+	if(coreHasDirection || !directBazi || !Array.isArray(directBazi.direction) || !directBazi.direction.length){
+		return core;
+	}
+	return {
+		...core,
+		direction: directBazi.direction,
+		directTime: directBazi.directTime,
+		smallDirection: directBazi.smallDirection,
+	};
+}
+
 function buildBaziKey(params){
 	try{
 		return JSON.stringify(params || {});
@@ -728,6 +750,11 @@ class BaZi extends Component{
 				}
 				this.requestBazi(fields);
 			};
+			// 🔴 chartFree 契约(极速化快车道):本页中右栏【零】消费共享 chartObj(全部由 fields
+			// 驱动本组件自算/自取)。声明后 fetchByFields 对本页走快车道:fields 立即提交、
+			// 不等 /chart 网络 —— 本页从「等一次网络(~230ms)」变「点击即出(<100ms)」。
+			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
+			this.props.hook.chartFree = true;
 		}
 
 	}
@@ -821,6 +848,8 @@ class BaZi extends Component{
 		const params = {
 			date: flds.date.value.format('YYYY-MM-DD'),
 			time: flds.time.value.format('HH:mm:ss'),
+			// 公元前显式传 ad(date 串负号之外的双保险;后端各历法端点吃 ad 键)
+			ad: (flds.ad && flds.ad.value !== undefined) ? flds.ad.value : (flds.date.value.ad || 1),
 			zone: flds.zone.value,
 			lon: flds.lon.value,
 			lat: flds.lat.value,
@@ -965,6 +994,17 @@ class BaZi extends Component{
 		}
 	}
 
+
+	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	componentDidMount(){
 		this.unmounted = false;
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -995,6 +1035,8 @@ class BaZi extends Component{
 
 		let bazi = this.state.result ? this.state.result.bazi : {};
 		const directBazi = this.state.directResult && this.state.directResult.bazi ? this.state.directResult.bazi : null;
+		// 细盘大运/流年列补源(BC/域外年 core 无 direction 时合入 /bazi/direct 结果);可靠年零回归。详见 resolveChartBazi。
+		const chartBazi = resolveChartBazi(bazi, directBazi);
 		const baziParams = this.props.fields ? this.genParams(this.props.fields) : {};
 		const isFineChart = this.state.chartStyle === 'fine' || this.state.chartStyle === 'ancient';
 		const isLegacyUi = this.state.baziOpt && this.state.baziOpt.uiMode === 'legacy';
@@ -1020,7 +1062,7 @@ class BaZi extends Component{
 								<div className={`horosa-bazi-main-stack ${isFineChart ? 'horosa-bazi-main-stack-fine' : ''}`}>
 									<div className="horosa-bazi-main-chart-slot" data-capture-chart-only>
 										<PaiBaZi
-											value={bazi}
+											value={chartBazi}
 											height={isFineChart ? 'auto' : chartHeight}
 											fields={this.props.fields}
 											baziOpt={this.state.baziOpt}

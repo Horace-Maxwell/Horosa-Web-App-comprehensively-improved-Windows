@@ -1,7 +1,6 @@
 import { history } from 'umi';
 import { Modal, } from 'antd';
 import * as service from '../services/user';
-import {getStore} from '../utils/storageutil';
 import DateTime from '../components/comp/DateTime';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
 import { getPagedLocalCharts, upsertLocalChart, removeLocalChart } from '../utils/localcharts';
@@ -487,9 +486,8 @@ export default {
 	},
 
 	effects: {
-		*newCurrentChart({ payload: values }, { call, put }){
-			const store = getStore();
-			const astrostate = store.astro;
+		*newCurrentChart({ payload: values }, { call, put, select }){
+			const astrostate = yield select((s)=>s.astro);
 			const fld = astrostate.fields;
 			let date = fld.date.value.format('YYYY-MM-DD');
 			let time = fld.date.value.format('HH:mm:ss');
@@ -648,9 +646,8 @@ export default {
 
 		},
 
-		*newCurrentCase({ payload: values }, { call, put }){
-			const store = getStore();
-			const astrostate = store.astro;
+		*newCurrentCase({ payload: values }, { call, put, select }){
+			const astrostate = yield select((s)=>s.astro);
 			const fld = astrostate.fields;
 			const caze = newEmptyCaseFields();
 			let tm = new DateTime();
@@ -771,12 +768,11 @@ export default {
 			}
 		},
 
-		*fetchCases({ payload: values }, { call, put }){
+		*fetchCases({ payload: values }, { call, put, select }){
 			const param = {
 				...values,
 			};
-			const store = getStore();
-			const state = store.user;
+			const state = yield select((s)=>s.user);
 			if(param.PageIndex === undefined || param.PageIndex === null){
 				param.PageIndex = state.casePageIndex;
 				param.PageSize = state.casePageSize;
@@ -793,12 +789,11 @@ export default {
 			});
 		},
 
-		*searchCases({ payload: values }, { call, put }){
+		*searchCases({ payload: values }, { call, put, select }){
 			const param = {
 				...values,
 			};
-			const store = getStore();
-			const state = store.user;
+			const state = yield select((s)=>s.user);
 			if(param.PageIndex === undefined || param.PageIndex === null){
 				param.PageIndex = state.casePageIndex;
 				param.PageSize = state.casePageSize;
@@ -871,9 +866,16 @@ export default {
 			}
 		},
 
-		*deleteCase({ payload: values }, { call, put }){
+		*deleteCase({ payload: values }, { call, put, select }){
 			try{
 				removeLocalCase(values.cid);
+				// [X1·P2-43] 删的是当前已应用事盘 → 清 currentCase;否则技法页 restoreFromCurrentCase
+				// 与 AI 挂载 getKentangSavedCasePayload 继续命中已删档(幽灵还原)。
+				const cur = yield select((s)=>s.user && s.user.currentCase);
+				const curCid = cur && cur.cid && cur.cid.value !== undefined && cur.cid.value !== null ? `${cur.cid.value}` : null;
+				if(curCid !== null && `${values.cid}` === curCid){
+					yield put({ type: 'save', payload: { currentCase: null } });
+				}
 				yield put({
 					type: 'astro/openDrawer',
 					payload: {
@@ -888,7 +890,7 @@ export default {
 			}
 		},
 
-		*applyCase({ payload: values }, { call, put }){
+		*applyCase({ payload: values }, { call, put, select }){
 			yield put({
 				type: 'setCurrentCase',
 				payload: values,
@@ -898,8 +900,7 @@ export default {
 				type: 'astro/closeDrawer',
 				payload: {},
 			});
-			const store = getStore();
-			const astrostate = store.astro;
+			const astrostate = yield select((s)=>s.astro);
 			const flds = {
 				...astrostate.fields,
 			};
@@ -937,10 +938,18 @@ export default {
 			// 储存全字段保真:与 astro/fetchByChartData(命盘还原)同口径,案例/事盘还原也补回性别 +
 			// 影响盘的设置(日界点/晚子时/时间算法/容许度),否则沿用当前全局值致还原盘错位
 			// (如保存时求测人性别=女、还原时全局=男 → 用神/乾坤造错位)。存档无该字段则跳过、不改现状。
+			// 🔴 [X1 审计] 事盘经 openKentangCaseDrawer 存的这些口径在 payload.fieldSnapshot(嵌套),
+			// 顶层同名键永不存在 → 此前全仓只写不读、载入必回落全局当前值;读取补嵌套回退(顶层优先兼容旧档)。
+			const caseFieldSnap = (values.payload && values.payload.fieldSnapshot && typeof values.payload.fieldSnapshot === 'object') ? values.payload.fieldSnapshot : {};
+			const pickCaseField = (k)=>{
+				const v = values[k] !== undefined && values[k] !== null && values[k] !== '' ? values[k] : caseFieldSnap[k];
+				return v === undefined || v === null || v === '' ? null : v;
+			};
 			if(values.gender !== undefined && values.gender !== null){ setF('gender', parseInt(values.gender + '', 10)); }
-			if(values.after23NewDay !== undefined && values.after23NewDay !== null){ setF('after23NewDay', parseInt(values.after23NewDay + '', 10)); }
-			if(values.lateZiHourUseNextDay !== undefined && values.lateZiHourUseNextDay !== null){ setF('lateZiHourUseNextDay', parseInt(values.lateZiHourUseNextDay + '', 10)); }
-			if(values.timeAlg !== undefined && values.timeAlg !== null){ setF('timeAlg', parseInt(values.timeAlg + '', 10)); }
+			if(pickCaseField('after23NewDay') !== null){ setF('after23NewDay', parseInt(pickCaseField('after23NewDay') + '', 10)); }
+			if(pickCaseField('lateZiHourUseNextDay') !== null){ setF('lateZiHourUseNextDay', parseInt(pickCaseField('lateZiHourUseNextDay') + '', 10)); }
+			if(pickCaseField('guaAfter23NewDay') !== null){ setF('guaAfter23NewDay', parseInt(pickCaseField('guaAfter23NewDay') + '', 10)); }
+			if(pickCaseField('timeAlg') !== null){ setF('timeAlg', parseInt(pickCaseField('timeAlg') + '', 10)); }
 			if(values.orbs && typeof values.orbs === 'object'){ setF('orbs', values.orbs); }
 			if(values.orbScale !== undefined && values.orbScale !== null){ setF('orbScale', values.orbScale); }
 			const typeMeta = getCaseTypeMeta(values.caseType || values.sourceModule);
@@ -959,12 +968,11 @@ export default {
 			});
 		},
 
-		*searchCharts({ payload: values }, { call, put }){
+		*searchCharts({ payload: values }, { call, put, select }){
 			const param = {
 				...values,
 			};
-			const store = getStore();
-			const state = store.user;
+			const state = yield select((s)=>s.user);
 			if(param.PageIndex === undefined || param.PageIndex === null){
 				param.PageIndex = state.pageIndex;
 				param.PageSize = state.pageSize;
@@ -990,12 +998,11 @@ export default {
 
 		},
 
-		*fetchCharts({ payload: values }, { call, put }){
+		*fetchCharts({ payload: values }, { call, put, select }){
 			const param = {
 				...values,
 			};
-			const store = getStore();
-			const state = store.user;
+			const state = yield select((s)=>s.user);
 			if(param.PageIndex === undefined || param.PageIndex === null){
 				param.PageIndex = state.pageIndex;
 				param.PageSize = state.pageSize;
@@ -1047,7 +1054,7 @@ export default {
 
 		*addLocalChartQuiet({ payload: values }, { put }){
 			// 静默入库(名人库「加入命盘」等场景):不弹「星盘列表」抽屉、不导航,仅落库 + 刷新列表 state。
-			// addChart 面向保存表单(打开列表抽屉且假定 birth 为 moment);此处 payload.birth 多为字符串
+			// addChart 面向保存表单(打开列表抽屉且birth 为 DateTime(带符号年,BC/五位年安全));此处 payload.birth 多为字符串
 			// ("YYYY-MM-DD HH:mm:ss"),upsertLocalChart/buildLocalChartRecord 本就容忍字符串,直接落库。
 			try{
 				upsertLocalChart(values);
@@ -1097,9 +1104,8 @@ export default {
 
 		},
 
-		*saveMemo({ payload: values }, { call, put }){
-            const store = getStore();
-			const currentChart = store.user.currentChart;
+		*saveMemo({ payload: values }, { call, put, select }){
+            const currentChart = yield select((s)=>s.user.currentChart);
 			let type = values.type;
 			if(type === 0){
 				currentChart.memoAstro.value = values.orgMemo;
@@ -1257,9 +1263,8 @@ export default {
             });
 		},
 
-		*updateBook({ payload: values }, { call, put }){
-			const store = getStore();
-			const userstate = store.user;   // getStore() 是 dva 拍平表(.user/.astro/.app),无 .getState();原 .getState().user 触发 TypeError(同文件其余 effect 一律 store.user 直取,见 779/801/955)。
+		*updateBook({ payload: values }, { call, put, select }){
+			const userstate = yield select((s)=>s.user);
 			const fld = userstate.bookFields;
             let params = {
 				BookId: fld.bookId.value,

@@ -139,6 +139,16 @@ def _hour_stem_wuzhao(year, month, day, hour, after23_new_day, hour_gan_use_next
     return tian_gan[(day_tg_idx % 5 * 2 + 0) % 10] + di_zhi[0]
 
 def gangzhi1(year, month, day, hour, minute, after23_new_day=1, hour_gan_use_next_day=1):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=after23_new_day, hour_gan_next=hour_gan_use_next_day)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     # 日柱: after23_new_day=1 + hour==23 進位到次日; 否則守今。
     if hour == 23 and after23_new_day:
         d = Date(round((Date("{}/{}/{} {}:00:00.00".format(str(year).zfill(4), str(month).zfill(2), str(day+1).zfill(2), str(0).zfill(2)))), 3))
@@ -165,6 +175,16 @@ def gangzhi1(year, month, day, hour, minute, after23_new_day=1, hour_gan_use_nex
 
 #換算干支
 def gangzhi(year, month, day, hour, minute, after23_new_day=1, hour_gan_use_next_day=1):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=after23_new_day, hour_gan_next=hour_gan_use_next_day)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     if year == 0:
         return ["無效"]
     if year < 0:

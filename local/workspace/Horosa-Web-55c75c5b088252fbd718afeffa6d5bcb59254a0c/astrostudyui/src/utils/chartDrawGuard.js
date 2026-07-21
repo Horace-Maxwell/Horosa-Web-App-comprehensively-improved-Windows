@@ -43,7 +43,7 @@ export function chartDrawnAtNonZeroSize(chartid){
 	return !!(svgdom && svgdom.clientWidth > 0 && svgdom.clientHeight > 0);
 }
 
-// 可见性感知重画(历史事故):上面「隐藏期不记签名」隐含假设「变可见时组件必再 render」。
+// 可见性感知重画(FL-20260712-5):上面「隐藏期不记签名」隐含假设「变可见时组件必再 render」。
 // 该假设在 antd Tabs 下不成立——切 tab 只切 CSS,TabPane children element 引用不变,React bail out,
 // 子树零 render;隐藏期(svg 0×0,draw 尺寸早退)已更新过数据的盘从此停在旧画面 → 表新盘旧。
 // ResizeObserver 是唯一不依赖 React 更新链的可见性信号:尺寸 0→非0(tab 显示/抽屉展开)或任何

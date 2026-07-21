@@ -96,6 +96,7 @@ class CnTraditionMain extends Component{
 			<div id={this.state.divId} className="horosa-cntradition-page">
 				<Tabs
 					defaultActiveKey={tab} tabPosition='right'
+					className="xq-tabs-rail"
 					activeKey={tab}
 					onChange={this.changeTab}
 					style={{ height: '100%', minHeight: 0 }}

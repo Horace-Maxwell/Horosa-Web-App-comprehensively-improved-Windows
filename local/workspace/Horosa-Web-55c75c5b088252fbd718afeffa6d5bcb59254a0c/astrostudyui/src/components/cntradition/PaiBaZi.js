@@ -147,7 +147,8 @@ class PaiBaZi extends Component{
 			const formClock = (fields.date && fields.time) ? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}` : '';
 			const clockTm = rec.nongli.clockTime || formClock || rec.nongli.birth || '';
 			const solarTm = rec.nongli.solarTime || rec.nongli.birth || '';
-			realtm = `直接时间:${clockTm}　真太阳时:${solarTm}　计算基准:${timeAlgNames[timeAlgVal] || '真太阳时'}`;
+			// 三段各自不可内断:窄容器/极端长年份时在词组边界整段换行,不再把「真太阳时」拦腰割裂
+			realtm = [`直接时间:${clockTm}`, `真太阳时:${solarTm}`, `计算基准:${timeAlgNames[timeAlgVal] || '真太阳时'}`];
 			chef = rec.nongli.chef || '';
 			jiedelta = rec.nongli.jiedelta || '';
 		}
@@ -181,7 +182,9 @@ class PaiBaZi extends Component{
 							<span>{name}</span>&nbsp;
 							<span>农历:</span>
 						<span>{nongli}</span>&nbsp;
-						<span>{realtm}</span><br />
+						{Array.isArray(realtm) ? realtm.map((seg)=>(
+							<span key={seg} style={{whiteSpace: 'nowrap', marginRight: 8, display: 'inline-block'}}>{seg}</span>
+						)) : <span>{realtm}</span>}<br />
 						<span>{extraLine}</span>
 								</div>
 								{this.renderStyleButtons(chartStyle)}
@@ -198,6 +201,7 @@ class PaiBaZi extends Component{
 						flowSelection={this.props.flowSelection}
 						showRelations={!(this.props.baziOpt && this.props.baziOpt.showRelations === false)}
 						cangVersion={(this.props.baziOpt && this.props.baziOpt.cangVersion) || 'common'}
+						onlyZiGanShen={!!(this.props.baziOpt && this.props.baziOpt.onlyZiGanShen)}
 					/>
 				)}
 			</div>

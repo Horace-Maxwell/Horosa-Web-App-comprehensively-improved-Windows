@@ -7,6 +7,7 @@ import { encryptRSA, decryptRSA, } from './rsahelper';
 import { getErrMsg } from '../msg/errmsg';
 import { markServiceOnline, markServiceOffline, isBackendUnreachableError } from './serviceStatus';
 import { renegotiateLocalServerRoot } from './backendIdentity';
+import { waitForBackendBoot } from './backendBootGate';
 
 var tmDelta = 0;
 // eslint-disable-next-line import/no-cycle
@@ -517,6 +518,9 @@ export default async function request(url, options) {
 }
 
 async function requestCore(url, options) {
+    // [B1] 桌面壳提前导航(URL 带 early=1)时,后端可能尚未监听:发 fetch 前按目标根探活排队。
+    // 非 early 模式同步 no-op;L1/L2/L3 缓存命中在 dedupedRequest 层先返回,不经此门。
+    await waitForBackendBoot(url);
     const silent = !!(options && (options.silent || options.disableLoading));
     if(dispatch && !silent){
         dispatch({

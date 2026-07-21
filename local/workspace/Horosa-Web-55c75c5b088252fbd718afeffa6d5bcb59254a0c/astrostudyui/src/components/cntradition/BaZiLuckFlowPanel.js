@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { julianDayIndex } from '../../utils/julianDayIndex';
 import { Spin } from 'antd';
 import { Solar, SolarMonth } from 'lunar-javascript';
 import { BaziMonthTime, NaYin, SixtyJiaZi } from '../../constants/ZWConst';
@@ -139,10 +140,10 @@ function normalizePillar(pillar, dayStem){
 }
 
 const DAY_REF_INDEX = SixtyJiaZi.indexOf('壬辰');
-const DAY_OFFSET = mod(DAY_REF_INDEX - Math.floor(Date.UTC(2026, 4, 18) / 86400000), 60);
+const DAY_OFFSET = mod(DAY_REF_INDEX - julianDayIndex(2026, 5, 18), 60);
 
 function dayGanzi(date){
-	const days = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+	const days = julianDayIndex(date.getFullYear(), date.getMonth() + 1, date.getDate());
 	return SixtyJiaZi[mod(days + DAY_OFFSET, 60)];
 }
 
@@ -250,13 +251,18 @@ function buildLuckItems(value, dayStem, showXiaoyun, ageStyle){
 	return items;
 }
 
-function buildSmallYears(value, birthYear, firstStartYear, dayStem, ageStyle){
+export function buildSmallYears(value, birthYear, firstStartYear, dayStem, ageStyle){
 	const small = Array.isArray(value.smallDirection) ? value.smallDirection : [];
 	const total = Math.max(1, firstStartYear - birthYear);
 	return Array.from({ length: total }).map((_, idx)=>{
 		const year = birthYear + idx;
 		const src = small[idx] || small.find((item)=>num(item.year, -1) === year);
-		const pillar = normalizePillar(src || yearGanzi(year), dayStem);
+		// 🔴 小运干支源统一:Java /bazi/direct 的 smallDirection 元素小运柱在 src.direct(顶层无 ganzi),
+		// 前端 buildLocalBaziResult 的 src.direct 亦为小运柱(且顶层另有 ganzi)。旧码 normalizePillar(src)
+		// 对 Java 结构取不到 ganzi → 小运期「大运」列空(真机症:BC/极端年八字大运列没内容)。
+		// 优先取 src.direct(两结构其 .ganzi 均为小运干支)→ 零回归修复。
+		const smallSrc = (src && src.direct) ? src.direct : src;
+		const pillar = normalizePillar(smallSrc || yearGanzi(year), dayStem);
 		// 该年真正的流年（小运期：小运干支入「大运」列、流年入「流年」列）。
 		const liunianPillar = normalizePillar((src && src.yearGanzi) ? src.yearGanzi : yearGanzi(year), dayStem);
 		return {

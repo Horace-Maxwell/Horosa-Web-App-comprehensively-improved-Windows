@@ -91,7 +91,10 @@ describe('金口诀 六段表化等价', ()=>{
 	const txt = buildFixtureText();
 
 	it('逆变换:新快照全部表反拼 v1 旧行,逐字节 == 冻结基线', ()=>{
-		expect(inverse(txt)).toBe(BASELINE);
+		// [X1·P2-14] 月将/占时是表化【之后】新增的速览事实行(与中栏顶行同源),不属「表化等价」
+		// 比较域 —— 基线冻结于新增前且严禁重生成,故仅在本断言剔除这两行;表化等价守卫职责不变。
+		const stripAddedFacts = (t)=>t.split('\n').filter((l)=>!/^(月将|占时)：/.test(l)).join('\n');
+		expect(inverse(stripAddedFacts(txt))).toBe(BASELINE);
 	});
 
 	it('[金口诀四位] 元组集 == 旧行独立解析元组集(空亡=— 真值 vs 纳音缺 — 两义分辨)', ()=>{

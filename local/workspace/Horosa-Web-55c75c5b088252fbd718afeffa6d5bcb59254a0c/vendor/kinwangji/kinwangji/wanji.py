@@ -126,8 +126,8 @@ wangji_gua2: Dict[int, str] = dict(
 _SPECIAL_GUA_NEIGHBOR: Dict[str, str] = {"乾": "姤", "坤": "復", "離": "革", "坎": "蒙"}
 
 # Supported year range.
-_MIN_YEAR: int = -4712
-_MAX_YEAR: int = 9999
+_MIN_YEAR: int = -12999   # 全年份域:与星阙历法承诺域一致(元会运世为 129600 年周期模运算,全域可推)
+_MAX_YEAR: int = 16799
 
 
 def _rotate_gua_cycle(target: str) -> List[str]:
@@ -449,6 +449,19 @@ def gangzhi(
     """
     if year == 0:
         return ["無效"]
+
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内 ephem+sxtwl 原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(
+            year, month, day, hour, minute,
+            after23=(1 if _is_after23_active() else 0),
+            hour_gan_next=(1 if _is_hour_gan_next_day() else 0))
+        try:
+            _gm = minutes_jiazi_d().get(f"{hour}:{minute}")
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
 
     if year < 0:
         year = year + 1

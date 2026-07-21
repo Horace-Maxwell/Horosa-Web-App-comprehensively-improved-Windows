@@ -1,8 +1,10 @@
 import { Component } from 'react';
+import { singleTriggerPredictiveEnabled } from '../../utils/perfFlags';
 import { Row, Col, Divider } from 'antd';
 import AstroDoubleChart from './AstroDoubleChart';
 import PlusMinusTime from './PlusMinusTime';
 import * as AstroConst from '../../constants/AstroConst';
+import { termsTableForVariant } from '../../divination/data/hellenisticData';
 import * as AstroText from '../../constants/AstroText';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { saveAstroAISnapshot, buildStarAndLotPositionLines, buildHouseCuspLines, } from '../../utils/astroAiSnapshot';
@@ -284,7 +286,11 @@ function buildAscTermHighlight(dirChart){
 	if(!sign || degree === null){
 		return null;
 	}
-	const terms = AstroConst.EGYPTIAN_TERMS[sign];
+	// 界高亮按所选界系(含迦勒底,按昼夜);dirChart 无 termsVariant 时回退埃及零回归。
+	const _tt = termsTableForVariant(
+		dirChart && dirChart.params ? dirChart.params.termsVariant : 0,
+		chart.isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS);
+	const terms = _tt[sign];
 	if(!Array.isArray(terms) || terms.length === 0){
 		return null;
 	}
@@ -779,6 +785,11 @@ class AstroPrimaryDirectionChart extends Component{
 		if(this.unmounted || !Array.isArray(pdRows)){
 			return;
 		}
+		// base 盘不完整时绝不落盘部分态对象(同 AstroDirectMain.savePrimaryDirectionRows 守卫,
+		// 防污染全局 astro.chartObj 崩宿占/3D;2026-07-16 诊断实证链)。
+		if(!chartObj || !chartObj.chart){
+			return;
+		}
 		const nextChartObj = mergePrimaryDirectionChartObj(chartObj, {
 			pdRows,
 			showPdBounds: req.showPdBounds,
@@ -851,6 +862,16 @@ class AstroPrimaryDirectionChart extends Component{
 		if(!params || !this.props.value){
 			return;
 		}
+		// WP-G 双触发收敛:hook.fun 与 componentDidUpdate 两路常同拍触发本函数
+		// (chartObj 每次换新引用,didUpdate 的引用比恒真)。同【参数签名】第二路直接跳过 ——
+		// requestSeq 只兜「网络乱序」,兜不住「同参重复发」。签名含生辰+法+时键+向+时刻,
+		// 任何真实变更都会换签名照常重取。关 singleTriggerPredictive 开关=旧双发(靠 seq 兜)。
+		const syncSig = JSON.stringify(params);
+		if(singleTriggerPredictiveEnabled() && this._syncSig === syncSig && this._syncSigInFlight){
+			return;
+		}
+		this._syncSig = syncSig;
+		this._syncSigInFlight = true;
 		const seq = ++this.requestSeq;
 		let result = null;
 		try{
@@ -862,6 +883,7 @@ class AstroPrimaryDirectionChart extends Component{
 		}catch(e){
 			result = null;
 		}
+		this._syncSigInFlight = false;   // settle:同签名的下一次真实请求可再发(如手动刷新同参)
 		if(this.unmounted || seq !== this.requestSeq){
 			return;
 		}

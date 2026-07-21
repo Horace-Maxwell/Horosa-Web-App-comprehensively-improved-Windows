@@ -4,6 +4,14 @@ import React, { Component } from 'react';
 import { isQuotaError, clearRecoverableCaches } from '../../utils/safeStorage';
 import { idbClearByPrefix } from '../../utils/idbCacheStore';
 
+// [P0] chunk 级失败判据:React.lazy 对已 settle 的工厂 promise 永久缓存(React 17),
+// 边界内「重试」重挂子树救不回这类错 —— 唯一可靠恢复=整页刷新(HMR 撕裂/更新中途换包/
+// 分包丢失同类;真机实爆:星运整页 Lazy resolves to undefined,重试无效)。
+export function isChunkError(err){
+	const msg = `${(err && (err.message || err)) || ''}`;
+	return /Lazy element type|resolves to: undefined|Loading chunk|ChunkLoadError|dynamically imported module|Lazy chunk resolved empty/i.test(msg);
+}
+
 /**
  * 技法面板级 React Error Boundary。
  * 用途:包住单个技法/子页内容,使其内部任何 render 期异常被局部捕获、显示友好回退卡片,
@@ -72,6 +80,7 @@ export default class TechniqueErrorBoundary extends Component {
 		if(this.state.hasError){
 			const label = this.props.label ? `「${this.props.label}」` : '';
 			const quota = isQuotaError(this.state.err);
+			const chunk = !quota && isChunkError(this.state.err);
 			return (
 				<div
 					style={{
@@ -90,7 +99,9 @@ export default class TechniqueErrorBoundary extends Component {
 					<div style={{ fontSize: 13, color: 'var(--horosa-text-soft, #8a8f99)', marginBottom: 12, lineHeight: 1.6 }}>
 						{quota
 							? '本地缓存空间已满(浏览器存储配额用尽)。点击下方「一键清理缓存并恢复」即可释放空间并自动恢复——只清理可重新计算的缓存,您储存的命盘与设置不受影响。'
-							: '页面其它部分不受影响。可点「重试」重新加载本面板;若反复出现请重选参数或重新起盘。'}
+							: chunk
+								? '页面分包在加载途中被更新或损坏(常见于版本更新/开发热更中途)。点「刷新重载」整页刷新即可恢复;您储存的命盘与设置不受影响。'
+								: '页面其它部分不受影响。可点「重试」重新加载本面板;若反复出现请重选参数或重新起盘。'}
 					</div>
 					{this.state.err ? (
 						<div style={{ marginBottom: 12 }}>
@@ -111,7 +122,7 @@ export default class TechniqueErrorBoundary extends Component {
 					) : null}
 					<button
 						type="button"
-						onClick={quota ? this.handleClearCacheRetry : this.handleRetry}
+						onClick={quota ? this.handleClearCacheRetry : (chunk ? ()=>{ try{ window.location.reload(); }catch(e){ /* noop */ } } : this.handleRetry)}
 						style={{
 							cursor: 'pointer',
 							padding: '5px 16px',
@@ -122,7 +133,7 @@ export default class TechniqueErrorBoundary extends Component {
 							fontSize: 13,
 						}}
 					>
-						{quota ? '一键清理缓存并恢复' : '重试'}
+						{quota ? '一键清理缓存并恢复' : (chunk ? '刷新重载' : '重试')}
 					</button>
 				</div>
 			);

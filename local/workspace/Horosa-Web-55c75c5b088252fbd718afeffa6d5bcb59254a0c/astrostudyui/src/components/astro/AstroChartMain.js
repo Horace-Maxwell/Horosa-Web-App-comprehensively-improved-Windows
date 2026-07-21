@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, Popover, Tooltip } from 'antd';
 import AstroChart from './AstroChart';
 import AstroInfo from './AstroInfo';
@@ -20,12 +21,14 @@ import DateTime from '../comp/DateTime';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr} from './AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
+import { preloadNavByKey } from '../../utils/navPreload';
 import { geoNameRawPatch } from '../../utils/geoName';
 import { getHousesOption } from '../comp/CompHelper'
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, presetOf } from './schoolPresets';
-import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle } from '../xq-ui';
+import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1] 图标语义映射单源
 import XQIcon from '../xq-icons';
 
 const TabPane = XQTabs.TabPane;
@@ -99,6 +102,7 @@ class AstroChartMain extends Component{
 				ad: tm.ad,
 				zone: tm.time.zone,
 				confirmed: tm.confirmed,
+				...(tm.step ? { step: tm.step } : {}),   // 步进方向提示(WP-P1 预取)原样透传
 			});
 		}
 	}
@@ -384,134 +388,6 @@ class AstroChartMain extends Component{
 		};
 	}
 
-	renderFeatureLinks(){
-		const links = this.props.featureLinks || [];
-		if(!links.length){
-			return null;
-		}
-		const iconMap = {
-			direction: <XQIcon name="direction" />,
-			auxchart: <XQIcon name="aux" />,
-			relativechart: <XQIcon name="composite" />,
-			jieqichart: <XQIcon name="solstice" />,
-		};
-		return (
-			<div className="horosa-astro-feature-links">
-				<div className="horosa-side-section-title">相关功能</div>
-				<div className="horosa-feature-link-stack">
-					{links.map((item)=>(
-						<XQButton
-							key={item.key}
-							size="small"
-							className="horosa-feature-link-button"
-							icon={iconMap[item.key] || <XQIcon name="other" />}
-							onClick={()=>this.navigateFeature(item.key)}
-						>
-							<span className="horosa-feature-link-copy">
-								<span className="horosa-feature-link-label">{item.label}</span>
-								{item.desc ? <span className="horosa-feature-link-desc">{item.desc}</span> : null}
-							</span>
-						</XQButton>
-					))}
-				</div>
-			</div>
-		);
-	}
-
-	renderContextPanel(meta){
-		const isIndiaChart = !!this.props.indiahsys;
-		const chartStyle = AstroConst.normalizeChartStyle(this.props.chartStyle);
-		const indiaChartStyle = AstroConst.normalizeIndiaChartStyle(this.props.indiaChartStyle);
-		const currentDisplay = Array.isArray(this.props.chartDisplay) ? this.props.chartDisplay : [];
-		const chartTools = [
-			{ label: '组件', key: 'selectchartdisplay' },
-			{ label: '行星', key: 'selectplanet' },
-			{ label: '相位', key: 'selectasp' },
-		];
-		const quickToggles = [
-			{ label: '相位线', opt: AstroConst.CHART_ASP_LINES },
-			{ label: '四角连线', opt: AstroConst.CHART_ANGLELINE },
-			{ label: '行星度数', opt: AstroConst.CHART_TXTPLANET },
-			{ label: '埃及界', opt: AstroConst.CHART_TERM },
-		];
-		return (
-			<div className="horosa-astro-context-panel">
-				<div className="horosa-context-heading">
-					<div className="horosa-context-title">
-						<span>{meta.title}</span>
-						<span className="horosa-context-sect">{meta.sect}</span>
-					</div>
-					<div className="horosa-context-mode">{meta.hsys} | {meta.zodiacal}</div>
-				</div>
-				<div className="horosa-context-lines">
-					<div>{meta.birth}</div>
-					<div className="horosa-context-line-pair">
-						<span>时区 {meta.zone}</span>
-						<span>{meta.location}</span>
-					</div>
-					<div className="horosa-context-line-pair">
-						<span>经度 {meta.lon}</span>
-						<span>纬度 {meta.lat}</span>
-					</div>
-					{meta.trueSolarTime ? (
-						<div>
-							<Tooltip title={`真太阳时：${formatTrueSolarTime(meta.trueSolarTime)}`} placement="right">
-								<XQButton className="horosa-true-solar-button" size="small">真太阳时</XQButton>
-							</Tooltip>
-						</div>
-					) : null}
-				</div>
-				<div className={`horosa-chart-style-block${isIndiaChart ? ' horosa-india-style-block' : ''}`}>
-					<div className="horosa-side-section-title">星盘样式</div>
-					{isIndiaChart ? (
-						<XQSegmented
-							value={indiaChartStyle}
-							onChange={this.changeIndiaChartStyle}
-							options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
-						/>
-					) : (
-						<XQSegmented
-							value={chartStyle}
-							onChange={this.changeChartStyle}
-							options={AstroConst.CHART_STYLE_OPTIONS}
-						/>
-					)}
-				</div>
-				<div className="horosa-context-actions">
-					<XQButton size="small" iconName="aiExport" onClick={()=>this.openDrawer('chartadd')}>存为命盘</XQButton>
-					<XQButton size="small" iconName="newChart" onClick={this.newChart}>此刻</XQButton>
-					<XQButton size="small" iconName="note" onClick={()=>this.openDrawer('memo')}>笔记</XQButton>
-				</div>
-				<div className="horosa-context-tool-stack">
-					{chartTools.map((item)=>(
-						<XQButton key={item.key} size="small" autoInsertSpace={false} onClick={()=>this.openDrawer(item.key)}>
-							<span className="horosa-context-tool-text">{item.label}</span>
-						</XQButton>
-					))}
-				</div>
-				<div className="horosa-chart-quick-toggles">
-					<div className="horosa-side-section-title">快捷显示</div>
-					<div className="horosa-chart-toggle-grid">
-						{quickToggles.map((item)=>{
-							const active = currentDisplay.includes(item.opt);
-							return (
-								<XQToggle
-									key={item.opt}
-									size="small"
-									active={active}
-									onClick={()=>this.toggleChartDisplayOption(item.opt)}
-								>
-									{item.label}
-								</XQToggle>
-							);
-						})}
-					</div>
-				</div>
-				{this.renderFeatureLinks()}
-			</div>
-		);
-	}
-
 	renderInputPanel(meta, dt, options){
 		const isIndiaChart = !!this.props.indiahsys;
 		const chartStyle = AstroConst.normalizeChartStyle(this.props.chartStyle);
@@ -546,7 +422,9 @@ class AstroChartMain extends Component{
 					<button type="button" className="is-active">单盘</button>
 					<button type="button" onClick={()=>this.navigateFeature('relativechart')}>多盘</button>
 				</div>
+				{/* [观象P1] InputPanel 五段式:时间地点(核心不折叠)/盘制流派/样式/显示/重算 */}
 				{showdateselector ? (
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">时间</div>
 						<Popover content={timeEditor} trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover">
@@ -560,8 +438,6 @@ class AstroChartMain extends Component{
 							<PlusMinusTime value={dt} onChange={this.changeTime} hook={this.tmHook} adjustOnly />
 						</div>
 					</div>
-				) : null}
-				{showdateselector ? (
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">地点</div>
 						<GeoCoordModal
@@ -579,7 +455,9 @@ class AstroChartMain extends Component{
 							</button>
 						</GeoCoordModal>
 					</div>
+				</XQSideSection>
 				) : null}
+				<XQSideSection iconName={sideSectionIcon('school')} title="盘制与流派" storageKey="astro.input.system" className="horosa-side-input-section">
 				{(showzodical || showhsys) && !indiahsys ? (
 					<div className="horosa-field-block horosa-school-preset-block">
 						<div className="horosa-field-label">流派预设</div>
@@ -635,38 +513,42 @@ class AstroChartMain extends Component{
 						</div>
 					) : null}
 				</div>
-				<div className={`horosa-chart-style-block${isIndiaChart ? ' horosa-india-style-block' : ''}`}>
-					<div className="horosa-side-section-title">星盘样式</div>
-					{isIndiaChart ? (
-						<XQSegmented
-							value={indiaChartStyle}
-							onChange={this.changeIndiaChartStyle}
-							options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
-						/>
-					) : (
-						<XQSegmented
-							value={chartStyle}
-							onChange={this.changeChartStyle}
-							options={AstroConst.CHART_STYLE_OPTIONS}
-						/>
-					)}
-				</div>
-				{this.renderInputOptionPopovers(options, quickToggles, currentDisplay)}
-				<div className="horosa-inline-toggle-row">
-					{quickToggles.map((item)=>{
-						const active = currentDisplay.includes(item.opt);
-						return (
-							<XQToggle
-								key={item.opt}
-								size="small"
-								active={active}
-								onClick={()=>this.toggleChartDisplayOption(item.opt)}
-							>
-								{item.label}
-							</XQToggle>
-						);
-					})}
-				</div>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('chartStyle')} title="星盘样式" storageKey="astro.style" className="horosa-side-input-section">
+					<div className={`horosa-chart-style-block${isIndiaChart ? ' horosa-india-style-block' : ''}`}>
+						{isIndiaChart ? (
+							<XQSegmented
+								value={indiaChartStyle}
+								onChange={this.changeIndiaChartStyle}
+								options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
+							/>
+						) : (
+							<XQSegmented
+								value={chartStyle}
+								onChange={this.changeChartStyle}
+								options={AstroConst.CHART_STYLE_OPTIONS}
+							/>
+						)}
+					</div>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('display')} title="显示" storageKey="astro.quick" className="horosa-side-input-section">
+					{this.renderInputOptionPopovers(options, quickToggles, currentDisplay)}
+					<div className="horosa-inline-toggle-row">
+						{quickToggles.map((item)=>{
+							const active = currentDisplay.includes(item.opt);
+							return (
+								<XQToggle
+									key={item.opt}
+									size="small"
+									active={active}
+									onClick={()=>this.toggleChartDisplayOption(item.opt)}
+								>
+									{item.label}
+								</XQToggle>
+							);
+						})}
+					</div>
+				</XQSideSection>
 				<XQButton className="horosa-recalculate-button" size="small" iconName="refresh" onClick={this.newChart}>
 					重算星盘
 				</XQButton>
@@ -994,6 +876,17 @@ class AstroChartMain extends Component{
 					</XQTabs>
 				</div>
 			);
+	}
+
+
+	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	render(){

@@ -9,9 +9,10 @@ function byName(n){ return Gua64.find((g) => g.name === n); }
 const CTX = { dayGan: '甲', dayZhi: '子', monthZhi: '午', yearGan: '丙', yearZhi: '午' };
 
 describe('六爻流派体系·WP-J 预设/开关', () => {
-	test('5 预设 + default 共 6;选项齐', () => {
-		expect(Object.keys(LIUYAO_PRESETS)).toEqual(['default', 'zengshan', 'bushi', 'yiyin', 'xinpai', 'mangpai']);
-		expect(LIUYAO_SCHOOL_OPTIONS).toHaveLength(6);
+	test('6 预设 + default 共 7;选项齐', () => {
+		// [六爻补齐] 新增 tianji 预设(古籍综合断诀档,中性键)
+		expect(Object.keys(LIUYAO_PRESETS)).toEqual(['default', 'zengshan', 'bushi', 'yiyin', 'xinpai', 'mangpai', 'tianji']);
+		expect(LIUYAO_SCHOOL_OPTIONS).toHaveLength(7);
 	});
 	test('增删卜易:弃卦身+几弃神煞', () => {
 		const s = applyPreset('zengshan');

@@ -6,7 +6,8 @@ import AspectToMidpoint from './AspectToMidpoint';
 import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import { getHousesOption } from '../comp/CompHelper'
-import { XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import * as AstroConst from '../../constants/AstroConst';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import { chartSCUEnabled } from '../../utils/perfFlags';
@@ -163,6 +164,8 @@ class MidpointMain extends Component{
 							/>
 					</Col>
 					<Col span={6} className="horosa-midpoint-side-col">
+						{/* 观象左栏 P2:时间/盘设常用控制区收编 XQSideSection(常展开不折叠);控制格既有布局类保形态。 */}
+						<XQSideSection iconName={sideSectionIcon('time')} title="时间与盘设" collapsible={false} className="horosa-midpoint-controls">
 						<Row className="horosa-midpoint-control-grid">
 							{
 								showdateselector && (
@@ -228,6 +231,7 @@ class MidpointMain extends Component{
 								)
 							}
 						</Row>
+						</XQSideSection>
 						<Tabs defaultActiveKey="1" tabPosition='top' className="horosa-midpoint-side-tabs">
 							<TabPane tab="中点" key="1">
 									<Midpoint height={height}

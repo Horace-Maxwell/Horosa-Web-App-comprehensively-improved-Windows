@@ -1,0 +1,15 @@
+diff --git a/astrostudyui/src/utils/__tests__/chartFreeContract.test.js b/astrostudyui/src/utils/__tests__/chartFreeContract.test.js
+index 95e4ada..9b47005 100644
+--- a/astrostudyui/src/utils/__tests__/chartFreeContract.test.js
++++ b/astrostudyui/src/utils/__tests__/chartFreeContract.test.js
+@@ -49,7 +49,9 @@ describe('🔴 chartFree 契约:声明者源码零 chartObj 消费', () => {
+ 				if(!e.name.endsWith('.js')) return;
+ 				const src = fs.readFileSync(fp, 'utf8');
+ 				if(/\.hook\.chartFree = true/.test(src)){
+-					found.push(path.relative(SRC_ROOT, fp));
++					// horosa_win_pathsep_posix_v1:path.relative 在 Windows 返回反斜杠分隔,与期望表(POSIX 分隔)
++					// 比对必失配;归一到 POSIX 分隔符再比(macOS path.sep='/' 时 no-op,逐字节不变;跨平台 bug,建议上游化 Mac)。
++					found.push(path.relative(SRC_ROOT, fp).split(path.sep).join('/'));
+ 				}
+ 			});
+ 		};

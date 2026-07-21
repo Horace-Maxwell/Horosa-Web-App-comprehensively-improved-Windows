@@ -93,11 +93,18 @@ class GuaZhanChart extends Component{
 		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制停旧画面,切回 tab 无 React 更新可触发
 		// 重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
+		// 主题(亮↔暗)切换:<html data-horosa-appearance> 变 → 调色板热替,但本组件不会自动 re-render,
+		// 中盘会停在旧主题色。观察该属性,变则强制重画(GZChart.draw 现取调色板)+ forceUpdate 更新 svg 背景。
+		if(typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement){
+			this._themeObs = new MutationObserver(()=>{ this._lastDrawnSig = null; this.forceUpdate(); });
+			this._themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
+		}
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize)
 		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
+		if(this._themeObs){ this._themeObs.disconnect(); this._themeObs = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

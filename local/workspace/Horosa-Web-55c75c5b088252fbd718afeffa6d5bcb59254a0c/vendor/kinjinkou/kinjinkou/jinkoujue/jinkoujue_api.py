@@ -87,6 +87,15 @@ def find_lunar_month(year):
     return dict(zip(range(1,13),new_list(jiazi(), result)[:12]))
 #換算干支
 def gangzhi1(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)——本函数返回 dict 形
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(
+            year, month, day, hour, minute,
+            after23=_get_after23_jk(), hour_gan_next=_get_late_zi_jk())
+        return {'类别': '干支', '年柱': _y, '月柱': _m, '日柱': _d, '时柱': _h,
+                '五柱类型': '', '五柱内容': '', '文本': f"干支：{_y} {_m} {_d} {_h} 空亡："}
+
     # v2.2.1: 用 thread-local 决定 hour==23 时是否进位日柱(after23)和起子时用哪日干(lateZi)。
     _after23 = _get_after23_jk()
     _late_zi = _get_late_zi_jk()

@@ -37,7 +37,8 @@ describe('aiAnalysisStore ui prefs', ()=>{
 		});
 		expect(migrated.protocolFamily).toBe('openai-compatible');
 		expect(migrated.name).toBe('DeepSeek');
-		expect(migrated.chatModelIds).toEqual(['deepseek-chat', 'deepseek-reasoner']);
+		// [C3] 2026-07 现役目录(v4 置顶,别名暂留兼容),迁移取键与 preset 单源。
+		expect(migrated.chatModelIds).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
 		expect(migrated.embeddingModelIds).toEqual([]);
 		expect(migrated.providerOptions.requestTimeoutMs).toBe(120000);
 		expect(migrated.healthStatus).toBe('unknown');

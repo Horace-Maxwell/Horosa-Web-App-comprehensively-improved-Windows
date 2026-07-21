@@ -1,7 +1,7 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Row, Col } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
-import { randomStr } from '../../utils/helper';
+
 import DateTime from './DateTime';
 
 const Option = Select.Option;
@@ -20,6 +20,9 @@ class DateTimeSelector extends Component{
 		this.state = {
 			timeType: tmType,
 			tik: 0,
+			// 年份输入草稿:输入期间不提交(旧行为每键立即重排盘,4/5 位年被打断截半,
+			// 如输 7040 只吃到 70)。失焦/回车才 flush 到 changeYear。
+			yearDraft: null,
 		};
 
 		this.datetime = new DateTime();
@@ -28,6 +31,8 @@ class DateTimeSelector extends Component{
 		this.changeAD = this.changeAD.bind(this);
 		this.changeZone = this.changeZone.bind(this);
 		this.changeYear = this.changeYear.bind(this);
+		this.stageYear = this.stageYear.bind(this);
+		this.flushYear = this.flushYear.bind(this);
 		this.changeMonth = this.changeMonth.bind(this);
 		this.changeDate = this.changeDate.bind(this);
 		this.changeHour = this.changeHour.bind(this);
@@ -115,6 +120,21 @@ class DateTimeSelector extends Component{
 	}
 
 	clickOk(){
+		// 🔴 先落未提交的年份草稿(输入不被截半):年份是半受控草稿(yearDraft),仅失焦/回车 flush。
+		// 用户输入年份后未失焦直接点「确定」时(尤其点确定未必触发 InputNumber blur),草稿未落 →
+		// getCurrentValue 读旧 this.datetime → 年份截半退回旧年(如输 12026 变 2026)。此处同步把草稿
+		// 落到 this.datetime(clone+setYear,不走 changeYear→onChanged;showAdjust=false 路径 onDirectChanged
+		// 会再调 clickOk,走 onChanged 会递归)。月/日/时是 Select 即时提交,无此问题。
+		const draft = this.state.yearDraft;
+		if(draft !== null && draft !== undefined && draft !== ''){
+			const n = Number(draft);
+			if(Number.isFinite(n) && n >= 1 && n !== this.datetime.year){
+				const dt = this.datetime.clone();
+				dt.setYear(n);
+				this.datetime = dt;
+			}
+			if(this.state.yearDraft !== null){ this.setState({ yearDraft: null }); }
+		}
 		const res = {
 			...this.getCurrentValue(),
 			confirmed: true,
@@ -138,7 +158,7 @@ class DateTimeSelector extends Component{
 		});
 	}
 
-	onChanged(val){
+	onChanged(val, step){
 		let needAjust = this.props.showAdjust ? true : false;
 		if(needAjust === false){
 			this.onDirectChanged(val);
@@ -153,6 +173,10 @@ class DateTimeSelector extends Component{
 					this.props.onChange({
 						...this.getCurrentValue(),
 						confirmed: !!this.props.confirmOnAdjust,
+						// 步进预取(WP-P1)的方向提示:仅步进/此刻点击附带 {unit,dir},
+						// 供下游预取「下一步」盘;非步进路径(格子编辑)不带 —— 纯多余字段,
+						// 消费方(changeCond)剥离后不落 fields,别的 onChange 消费者零影响。
+						...(step ? { step } : {}),
 					});
 				}
 				this.setState({
@@ -163,7 +187,7 @@ class DateTimeSelector extends Component{
 
 	clickNow(){
 		let dt = new DateTime();
-		this.onChanged(dt);
+		this.onChanged(dt, { unit: this.state.timeType, dir: 0 });
 	}
 
 	changeTimeType(val){
@@ -193,7 +217,7 @@ class DateTimeSelector extends Component{
 			}
 		}
 
-		this.onChanged(dt);
+		this.onChanged(dt, { unit: ctype, dir: -1 });
 	}
 
 	clickPlus(){
@@ -210,7 +234,7 @@ class DateTimeSelector extends Component{
 		}else if(ctype === 'm'){
 			dt.addMinute(4)
 		}
-		this.onChanged(dt);
+		this.onChanged(dt, { unit: ctype, dir: 1 });
 
 	}
 
@@ -239,6 +263,26 @@ class DateTimeSelector extends Component{
 		let dt = this.datetime.clone();
 		dt.setYear(val);
 		this.onChanged(dt);
+	}
+
+	// 年份输入三段:onChange 暂存草稿 → 失焦/回车 flush 提交 → 清草稿
+	stageYear(val){
+		this.setState({ yearDraft: val });
+	}
+
+	flushYear(){
+		const v = this.state.yearDraft;
+		this.setState({ yearDraft: null });
+		if(v === undefined || v === null || v === ''){
+			return;
+		}
+		const n = Number(v);
+		if(!Number.isFinite(n) || n < 1){
+			return;
+		}
+		if(n !== this.datetime.year){
+			this.changeYear(n);
+		}
 	}
 
 	changeMonth(val){
@@ -346,63 +390,63 @@ class DateTimeSelector extends Component{
 
 	genZone(){
 		let dom = [(
-			<Option key={randomStr(8)} value="+00:00">东0区</Option>
+			<Option value="+00:00" key="+00:00">东0区</Option>
 		),(
-			<Option key={randomStr(8)} value="+01:00">东1区</Option>
+			<Option value="+01:00" key="+01:00">东1区</Option>
 		),(
-			<Option key={randomStr(8)} value="+02:00">东2区</Option>
+			<Option value="+02:00" key="+02:00">东2区</Option>
 		),(
-			<Option key={randomStr(8)} value="+03:00">东3区</Option>
+			<Option value="+03:00" key="+03:00">东3区</Option>
 		),(
-			<Option key={randomStr(8)} value="+04:00">东4区</Option>
+			<Option value="+04:00" key="+04:00">东4区</Option>
 		),(
-			<Option key={randomStr(8)} value="+04:30">东4.5</Option>
+			<Option value="+04:30" key="+04:30">东4.5</Option>
 		),(
-			<Option key={randomStr(8)} value="+05:00">东5区</Option>
+			<Option value="+05:00" key="+05:00">东5区</Option>
 		),(
-			<Option key={randomStr(8)} value="+05:30">东5.5</Option>
+			<Option value="+05:30" key="+05:30">东5.5</Option>
 		),(
-			<Option key={randomStr(8)} value="+06:00">东6区</Option>
+			<Option value="+06:00" key="+06:00">东6区</Option>
 		),(
-			<Option key={randomStr(8)} value="+07:00">东7区</Option>
+			<Option value="+07:00" key="+07:00">东7区</Option>
 		),(
-			<Option key={randomStr(8)} value="+08:00">东8区</Option>
+			<Option value="+08:00" key="+08:00">东8区</Option>
 		),(
-			<Option key={randomStr(8)} value="+09:00">东9区</Option>
+			<Option value="+09:00" key="+09:00">东9区</Option>
 		),(
-			<Option key={randomStr(8)} value="+10:00">东10</Option>
+			<Option value="+10:00" key="+10:00">东10</Option>
 		),(
-			<Option key={randomStr(8)} value="+11:00">东11</Option>
+			<Option value="+11:00" key="+11:00">东11</Option>
 		),(
-			<Option key={randomStr(8)} value="+12:00">东12</Option>
+			<Option value="+12:00" key="+12:00">东12</Option>
 		),(
-			<Option key={randomStr(8)} value="-01:00">西1区</Option>
+			<Option value="-01:00" key="-01:00">西1区</Option>
 		),(
-			<Option key={randomStr(8)} value="-02:00">西2区</Option>
+			<Option value="-02:00" key="-02:00">西2区</Option>
 		),(
-			<Option key={randomStr(8)} value="-03:00">西3区</Option>
+			<Option value="-03:00" key="-03:00">西3区</Option>
 		),(
-			<Option key={randomStr(8)} value="-04:00">西4区</Option>
+			<Option value="-04:00" key="-04:00">西4区</Option>
 		),(
-			<Option key={randomStr(8)} value="-04:30">西4.5</Option>
+			<Option value="-04:30" key="-04:30">西4.5</Option>
 		),(
-			<Option key={randomStr(8)} value="-05:00">西5区</Option>
+			<Option value="-05:00" key="-05:00">西5区</Option>
 		),(
-			<Option key={randomStr(8)} value="-05:30">西5.5</Option>
+			<Option value="-05:30" key="-05:30">西5.5</Option>
 		),(
-			<Option key={randomStr(8)} value="-06:00">西6区</Option>
+			<Option value="-06:00" key="-06:00">西6区</Option>
 		),(
-			<Option key={randomStr(8)} value="-07:00">西7区</Option>
+			<Option value="-07:00" key="-07:00">西7区</Option>
 		),(
-			<Option key={randomStr(8)} value="-07:30">西7.5</Option>
+			<Option value="-07:30" key="-07:30">西7.5</Option>
 		),(
-			<Option key={randomStr(8)} value="-08:00">西8区</Option>
+			<Option value="-08:00" key="-08:00">西8区</Option>
 		),(
-			<Option key={randomStr(8)} value="-09:00">西9区</Option>
+			<Option value="-09:00" key="-09:00">西9区</Option>
 		),(
-			<Option key={randomStr(8)} value="-10:00">西10</Option>
+			<Option value="-10:00" key="-10:00">西10</Option>
 		),(
-			<Option key={randomStr(8)} value="-11:00">西11</Option>
+			<Option value="-11:00" key="-11:00">西11</Option>
 		)];
 
 		return dom;
@@ -410,53 +454,53 @@ class DateTimeSelector extends Component{
 
 	genHour(){
 		let opts = [(
-			<Option key={randomStr(8)} value={0}>0点子</Option>
+			<Option value={0} key={0}>0点子</Option>
 		),(
-			<Option key={randomStr(8)} value={1}>1点</Option>
+			<Option value={1} key={1}>1点</Option>
 		),(
-			<Option key={randomStr(8)} value={2}>2点丑</Option>
+			<Option value={2} key={2}>2点丑</Option>
 		),(
-			<Option key={randomStr(8)} value={3}>3点</Option>
+			<Option value={3} key={3}>3点</Option>
 		),(
-			<Option key={randomStr(8)} value={4}>4点寅</Option>
+			<Option value={4} key={4}>4点寅</Option>
 		),(
-			<Option key={randomStr(8)} value={5}>5点</Option>
+			<Option value={5} key={5}>5点</Option>
 		),(
-			<Option key={randomStr(8)} value={6}>6点卯</Option>
+			<Option value={6} key={6}>6点卯</Option>
 		),(
-			<Option key={randomStr(8)} value={7}>7点</Option>
+			<Option value={7} key={7}>7点</Option>
 		),(
-			<Option key={randomStr(8)} value={8}>8点辰</Option>
+			<Option value={8} key={8}>8点辰</Option>
 		),(
-			<Option key={randomStr(8)} value={9}>9点</Option>
+			<Option value={9} key={9}>9点</Option>
 		),(
-			<Option key={randomStr(8)} value={10}>10点巳</Option>
+			<Option value={10} key={10}>10点巳</Option>
 		),(
-			<Option key={randomStr(8)} value={11}>11点</Option>
+			<Option value={11} key={11}>11点</Option>
 		),(
-			<Option key={randomStr(8)} value={12}>12点午</Option>
+			<Option value={12} key={12}>12点午</Option>
 		),(
-			<Option key={randomStr(8)} value={13}>13点</Option>
+			<Option value={13} key={13}>13点</Option>
 		),(
-			<Option key={randomStr(8)} value={14}>14点未</Option>
+			<Option value={14} key={14}>14点未</Option>
 		),(
-			<Option key={randomStr(8)} value={15}>15点</Option>
+			<Option value={15} key={15}>15点</Option>
 		),(
-			<Option key={randomStr(8)} value={16}>16点申</Option>
+			<Option value={16} key={16}>16点申</Option>
 		),(
-			<Option key={randomStr(8)} value={17}>17点</Option>
+			<Option value={17} key={17}>17点</Option>
 		),(
-			<Option key={randomStr(8)} value={18}>18点酉</Option>
+			<Option value={18} key={18}>18点酉</Option>
 		),(
-			<Option key={randomStr(8)} value={19}>19点</Option>
+			<Option value={19} key={19}>19点</Option>
 		),(
-			<Option key={randomStr(8)} value={20}>20点戌</Option>
+			<Option value={20} key={20}>20点戌</Option>
 		),(
-			<Option key={randomStr(8)} value={21}>21点</Option>
+			<Option value={21} key={21}>21点</Option>
 		),(
-			<Option key={randomStr(8)} value={22}>22点亥</Option>
+			<Option value={22} key={22}>22点亥</Option>
 		),(
-			<Option key={randomStr(8)} value={23}>23点</Option>
+			<Option value={23} key={23}>23点</Option>
 		)];
 
 		let dom = (
@@ -531,34 +575,34 @@ class DateTimeSelector extends Component{
 				onChange={this.changeZone}
 				filterOption={this.filterOption}				
 			>
-				<Option value="+00:00">东0区</Option>
-				<Option value="+01:00">东1区</Option>
-				<Option value="+02:00">东2区</Option>
-				<Option value="+03:00">东3区</Option>
-				<Option value="+04:00">东4区</Option>
-				<Option value="+04:30">东4.5</Option>
-				<Option value="+05:00">东5区</Option>
-				<Option value="+05:30">东5.5</Option>
-				<Option value="+06:00">东6区</Option>
-				<Option value="+07:00">东7区</Option>
-				<Option value="+08:00">东8区</Option>
-				<Option value="+09:00">东9区</Option>
-				<Option value="+10:00">东10</Option>
-				<Option value="+11:00">东11</Option>
-				<Option value="+12:00">东12</Option>
-				<Option value="-01:00">西1区</Option>
-				<Option value="-02:00">西2区</Option>
-				<Option value="-03:00">西3区</Option>
-				<Option value="-04:00">西4区</Option>
-				<Option value="-05:00">西5区</Option>
-				<Option value="-05:30">西5.5</Option>
-				<Option value="-06:00">西6区</Option>
-				<Option value="-07:00">西7区</Option>
-				<Option value="-07:30">西7.5</Option>
-				<Option value="-08:00">西8区</Option>
-				<Option value="-09:00">西9区</Option>
-				<Option value="-10:00">西10</Option>
-				<Option value="-11:00">西11</Option>
+				<Option value="+00:00" key="+00:00">东0区</Option>
+				<Option value="+01:00" key="+01:00">东1区</Option>
+				<Option value="+02:00" key="+02:00">东2区</Option>
+				<Option value="+03:00" key="+03:00">东3区</Option>
+				<Option value="+04:00" key="+04:00">东4区</Option>
+				<Option value="+04:30" key="+04:30">东4.5</Option>
+				<Option value="+05:00" key="+05:00">东5区</Option>
+				<Option value="+05:30" key="+05:30">东5.5</Option>
+				<Option value="+06:00" key="+06:00">东6区</Option>
+				<Option value="+07:00" key="+07:00">东7区</Option>
+				<Option value="+08:00" key="+08:00">东8区</Option>
+				<Option value="+09:00" key="+09:00">东9区</Option>
+				<Option value="+10:00" key="+10:00">东10</Option>
+				<Option value="+11:00" key="+11:00">东11</Option>
+				<Option value="+12:00" key="+12:00">东12</Option>
+				<Option value="-01:00" key="-01:00">西1区</Option>
+				<Option value="-02:00" key="-02:00">西2区</Option>
+				<Option value="-03:00" key="-03:00">西3区</Option>
+				<Option value="-04:00" key="-04:00">西4区</Option>
+				<Option value="-05:00" key="-05:00">西5区</Option>
+				<Option value="-05:30" key="-05:30">西5.5</Option>
+				<Option value="-06:00" key="-06:00">西6区</Option>
+				<Option value="-07:00" key="-07:00">西7区</Option>
+				<Option value="-07:30" key="-07:30">西7.5</Option>
+				<Option value="-08:00" key="-08:00">西8区</Option>
+				<Option value="-09:00" key="-09:00">西9区</Option>
+				<Option value="-10:00" key="-10:00">西10</Option>
+				<Option value="-11:00" key="-11:00">西11</Option>
 			</Select>
 
 		);
@@ -572,7 +616,7 @@ class DateTimeSelector extends Component{
 			if(this.props.needZone){
 				let zone = this.genZone();
 				let zdom = (
-					<Col key={randomStr(8)} lg={8} xl={8}>
+					<Col key="dts-zone-only" lg={8} xl={8}>
 						{zone}
 					</Col>
 				);
@@ -583,7 +627,7 @@ class DateTimeSelector extends Component{
 		}else if(this.props.yearMonth){
 			let month = this.genMonth();
 			let m = (
-				<Col key={randomStr(8)} lg={12} xl={8}>
+				<Col key="dts-month-ym" lg={12} xl={8}>
 					{month}
 				</Col>
 			);	
@@ -594,14 +638,14 @@ class DateTimeSelector extends Component{
 
 		let month = this.genMonth();
 		let m = (
-			<Col key={randomStr(8)} lg={12} xl={6}>
+			<Col key="dts-month" lg={12} xl={6}>
 				{month}
 			</Col>
 		);
 
 		let date = this.genDate()
 		let d = (
-			<Col key={randomStr(8)} lg={12} xl={6}>
+			<Col key="dts-date" lg={12} xl={6}>
 				{date}
 			</Col>
 		);
@@ -620,28 +664,28 @@ class DateTimeSelector extends Component{
 
 		let zn = this.genZone();
 		let zone = (
-			<Col key={randomStr(8)} lg={12} xl={6}>
+			<Col key="dts-zone" lg={12} xl={6}>
 				{zn}
 			</Col>
 		);
 		
 		let hour = this.genHour();
 		let h = (
-			<Col key={randomStr(8)} lg={12} xl={6}>
+			<Col key="dts-hour" lg={12} xl={6}>
 				{hour}
 			</Col>
 		);
 
 		let minu = this.genMinute();
 		let m = (
-			<Col key={randomStr(8)} lg={12} xl={6}>
+			<Col key="dts-minute" lg={12} xl={6}>
 				{minu}
 			</Col>
 		);
 		
 		let sec = this.genSecond();
 		let s = (
-			<Col key={randomStr(8)} lg={12} xl={6}>
+			<Col key="dts-second" lg={12} xl={6}>
 				{sec}
 			</Col>
 		);
@@ -694,7 +738,7 @@ class DateTimeSelector extends Component{
 	genAdjustDom(){
 		let timetypedom = this.genTimeTypeDom();
 		let row = (
-			<Row key={randomStr(8)}>
+			<Row>
 				<Col span={4}>
 					<Button size='small' iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
 				</Col>
@@ -718,7 +762,7 @@ class DateTimeSelector extends Component{
 		);
 		if(this.props.onlyYear){
 			row = (
-				<Row key={randomStr(8)}>
+				<Row>
 					<Col span={5}>
 						<Button size='small' iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
 					</Col>
@@ -738,7 +782,7 @@ class DateTimeSelector extends Component{
 		}else if(this.props.yearMonth){
 			let zone = this.genZone();
 			row = (
-				<Row key={randomStr(8)}>
+				<Row>
 					<Col span={8}>
 						{zone}
 					</Col>
@@ -828,13 +872,23 @@ class DateTimeSelector extends Component{
 								onChange={this.changeAD}
 								style={{width: '100%'}}
 							>
-								<Option value={-1}>BC</Option>
-								<Option value={1}>AD</Option>
+								<Option value={-1} key={-1}>BC</Option>
+								<Option value={1} key={1}>AD</Option>
 							</Select>
 						</Col>
 
 						<Col lg={yearspan} xl={yearspanLg}>
-							<InputNumber style={{width: '100%'}} size='small' min={1} max={12000} value={this.datetime.year} onChange={this.changeYear} placeholder='年' />
+							<InputNumber
+								style={{width: '100%'}}
+								size='small'
+								min={1}
+								max={this.datetime.ad < 0 ? 12999 : 16799}
+								value={this.state.yearDraft !== null ? this.state.yearDraft : this.datetime.year}
+								onChange={this.stageYear}
+								onBlur={this.flushYear}
+								onPressEnter={this.flushYear}
+								placeholder='年'
+							/>
 						</Col>
 						{mdDom}
 					</Row>

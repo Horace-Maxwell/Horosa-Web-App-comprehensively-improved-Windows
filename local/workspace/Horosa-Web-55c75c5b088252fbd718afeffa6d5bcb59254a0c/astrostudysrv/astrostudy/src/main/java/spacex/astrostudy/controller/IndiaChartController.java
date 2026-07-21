@@ -41,6 +41,7 @@ public class IndiaChartController {
 		TransData.set(res);
 	}
 	
+
 	private Map<String, Object> getParams(){
 		Map<String, Object> params = new HashMap<String, Object>();
 		if(!TransData.containsParam("date")) {

@@ -102,7 +102,14 @@ def getObject(ID, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
 
 def getObjectList(IDs, date, pos, height=150, flags=swe.SEDEFAULT_FLAG):
     """ Returns a list of objects. """
-    objList = [getObject(ID, date, pos, height, flags) for ID in IDs]
+    objList = []
+    for ID in IDs:
+        try:
+            objList.append(getObject(ID, date, pos, height, flags))
+        except Exception:
+            # 个别天体在其星历物理域外(如凯龙限 AD675-4649)时跳过该星,
+            # 整盘照常(与 ACG 单星降级同语义);域内任何星不会走到这里。
+            continue
     res = ObjectList(objList)
     try:
         if IDs.index(const.SUN) >= 0 and IDs.index(const.MOON) >= 0:

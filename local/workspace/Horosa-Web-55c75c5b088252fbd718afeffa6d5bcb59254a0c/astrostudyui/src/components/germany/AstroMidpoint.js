@@ -18,7 +18,8 @@ function fieldsToParams(fields){
 	const params = {
 		date: fields.date.value.format('YYYY/MM/DD'),
 		time: fields.time.value.format('HH:mm:ss'),
-		zone: fields.zone.value,
+		// zone 出口兜底:坏态(undefined)时与界面时区选择器显示一致落 +08:00,绝不发缺键请求(Java miss.zone)
+		zone: fields.zone.value || '+08:00',
 		lat: fields.lat.value,
 		lon: fields.lon.value,
 		gpsLat: fields.gpsLat.value,

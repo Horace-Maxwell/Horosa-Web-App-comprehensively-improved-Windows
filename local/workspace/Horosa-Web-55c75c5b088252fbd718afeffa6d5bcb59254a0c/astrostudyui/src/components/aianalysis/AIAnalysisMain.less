@@ -251,6 +251,28 @@
 
 .sourceSelect {
 	min-width: 220px;
+
+	// 暗黑适配:antd 多选标签(ant-select-selection-item)默认亮灰底(#f5f5f5),
+	// 暗黑下亮底浅字几乎看不清(实测标签 bg rgb(245,245,245)+ 字 rgb(185,199,201))。
+	// 改用 --horosa 令牌(随明亮/暗黑自适配),与 .connChip 等 chip 同口径。
+	// 🔴 仅作用多选(ant-select-multiple)标签;单选 case 选择器的值不套 chip 底(否则值文字罩层底色)。
+	&:global(.ant-select-multiple) {
+		:global(.ant-select-selection-item) {
+			background: var(--horosa-panel-soft);
+			border-color: var(--horosa-border);
+			color: var(--horosa-text-soft);
+		}
+
+		:global(.ant-select-selection-item-remove) {
+			color: var(--horosa-text-soft);
+			opacity: 0.65;
+
+			&:hover {
+				opacity: 1;
+				color: var(--horosa-text);
+			}
+		}
+	}
 }
 
 .connChip {
@@ -758,6 +780,7 @@
 	.tagGroupCard,
 	.materialGrid :global(.ant-card),
 	.templateGrid :global(.ant-card),
+	/* 观象 P2:暗黑段字面色改引核心 astro token(fallback=原值,渲染值零变);无等值 token 的(#fff/#b9b2a6)保留。 */
 	.settingsGrid :global(.ant-card),
 	.composer,
 	.composerBubble,
@@ -765,9 +788,9 @@
 	.summaryBlock,
 	.messageAssistant {
 		border-color: rgba(215, 173, 105, 0.18) !important;
-		background: #090b0e !important;
-		background-color: #090b0e !important;
-		color: #efe4d2 !important;
+		background: var(--horosa-astro-panel, #090b0e) !important;
+		background-color: var(--horosa-astro-panel, #090b0e) !important;
+		color: var(--horosa-astro-text, #efe4d2) !important;
 	}
 
 	.uploadCard :global(.ant-card-body) {
@@ -778,25 +801,25 @@
 		border-color: rgba(215, 173, 105, 0.24) !important;
 		background:
 			linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 60%),
-			#090b0e !important;
-		color: #efe4d2 !important;
+			var(--horosa-astro-panel, #090b0e) !important;
+		color: var(--horosa-astro-text, #efe4d2) !important;
 	}
 
 	.uploadCard :global(.ant-upload.ant-upload-drag:hover) {
 		border-color: rgba(231, 189, 117, 0.52) !important;
 		background:
 			linear-gradient(180deg, rgba(231, 189, 117, 0.08), transparent 66%),
-			#0d1014 !important;
+			var(--horosa-astro-panel-2, #0d1014) !important;
 	}
 
 	.uploadCard :global(.ant-upload-drag-icon),
 	.uploadCard :global(.ant-upload-text),
 	.materialEmpty :global(.ant-empty-description) {
-		color: #efe4d2 !important;
+		color: var(--horosa-astro-text, #efe4d2) !important;
 	}
 
 	.uploadHint {
-		color: #928b82 !important;
+		color: var(--horosa-astro-muted, #928b82) !important;
 	}
 
 	.materialEmpty :global(.ant-empty-image svg) {
@@ -806,7 +829,7 @@
 
 	.messageUser {
 		background: rgba(231, 189, 117, 0.10) !important;
-		color: #efe4d2;
+		color: var(--horosa-astro-text, #efe4d2);
 	}
 
 	/* 「当前挂载」卡片(contextBanner)暗色适配:此前暗色块漏覆盖,chip 默认用页面 --horosa-bg(近黑)→隐于深底看不清。 */
@@ -821,10 +844,10 @@
 	}
 	.contextBannerItem {
 		background: rgba(255, 255, 255, 0.08) !important;
-		color: #efe4d2 !important;
+		color: var(--horosa-astro-text, #efe4d2) !important;
 	}
 	.contextBannerEdit {
-		color: #e7bd75 !important;
+		color: var(--horosa-astro-gold, #e7bd75) !important;
 	}
 }
 

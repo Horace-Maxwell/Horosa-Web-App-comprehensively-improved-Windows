@@ -43,7 +43,7 @@ async function tauriInvoke(cmd, successMsg, errorMsg) {
   }
 }
 
-// 「重启后端」统一走轻量命令(与横幅/状态灯同源;此前错线到全量修复,过重且慢)。
+// [V-6] 「重启后端」统一走轻量命令(与横幅/状态灯同源;此前错线到全量修复,过重且慢)。
 async function handleLightRestart() {
   if (typeof window === 'undefined' || !window.__TAURI__) {
     message.warning('当前不在桌面应用中,无法执行此操作');

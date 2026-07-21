@@ -47,7 +47,7 @@ DESKTOP_MONGO_SKIP_PING="${HOROSA_DESKTOP_MONGO_SKIP_PING:-0}"
 DESKTOP_SPRING_LAZY_INIT="${HOROSA_DESKTOP_SPRING_LAZY_INIT:-1}"
 DESKTOP_JAVA_FAST_START="${HOROSA_DESKTOP_JAVA_FAST_START:-1}"
 DESKTOP_JAVA_EXTRA_TOOL_OPTIONS="${HOROSA_DESKTOP_JAVA_EXTRA_TOOL_OPTIONS:--XX:+UseSerialGC -Xverify:none -Xms128m -Xmx512m}"
-# 软 OOM 转硬死:JVM 默认 OOM 后进程苟活(抛 OOM 的线程死、身份线程仍答)——
+# [V-5] 软 OOM 转硬死:JVM 默认 OOM 后进程苟活(抛 OOM 的线程死、身份线程仍答)——
 # 看门狗探针恒 Ok,业务却半死。ExitOnOutOfMemoryError 让 OOM 即进程退 → TcpDead →
 # 既有看门狗 40s 内自动拉起(前端自动换根+恢复提示)。HOROSA_JAVA_EXIT_ON_OOM=0 关。
 if [ "${HOROSA_JAVA_EXIT_ON_OOM:-1}" = "1" ]; then
@@ -146,12 +146,29 @@ cleanup_metadata_files() {
   if [ ! -d "${root}" ]; then
     return 0
   fi
-  cleaned="$(find "${root}" \( -name '._*' -o -name '.DS_Store' \) -print 2>/dev/null | wc -l | tr -d ' ')"
+  # -prune 排除 .git/node_modules(dev 机几十万文件的无谓 stat;装机无这些目录,子句无害)
+  cleaned="$(find "${root}" \( -name .git -o -name node_modules \) -prune -o \( -name '._*' -o -name '.DS_Store' \) -print 2>/dev/null | wc -l | tr -d ' ')"
   if [ "${cleaned}" = "0" ]; then
     return 0
   fi
-  find "${root}" \( -name '._*' -o -name '.DS_Store' \) -exec rm -rf {} + 2>/dev/null || true
+  find "${root}" \( -name .git -o -name node_modules \) -prune -o \( -name '._*' -o -name '.DS_Store' \) -exec rm -rf {} + 2>/dev/null || true
   diag_log "removed ${cleaned} metadata junk entries under ${root}"
+}
+
+# WS-S1(2026-07-16):上面的全树递归 find 曾同步挡在启动前,实测是 preflight 97% 的税
+# (冷 6.5s/暖 6.0s,runtime 79k 文件 stat 风暴,ladder 子段标记实证)。而 2026-03-09 事故
+# (v1.0.1「backend start failed」)的真实致命面只有一处:内置 Python site-packages【顶层】
+# 的 AppleDouble `.pth`(如 `._distutils-precedence.pth`)——Python site 模块只读目录顶层
+# 的 .pth(非递归),读它必崩。其余 ._*/.DS_Store 对启动无害,只是垃圾。
+# 故拆两段:同步只清致命面(毫秒级 glob),全树递归转后台(服务照常起,垃圾照清不留残)。
+cleanup_critical_metadata() {
+  local d
+  for d in "${ROOT_PARENT}"/runtime/mac/python/lib/python*/site-packages \
+           "${ROOT_PARENT}"/runtime/mac/python/Python.framework/Versions/*/lib/python*/site-packages \
+           "${ROOT_PARENT}"/.runtime/mac/venv/lib/python*/site-packages; do
+    [ -d "${d}" ] || continue
+    rm -f "${d}"/._* "${d}"/.DS_Store 2>/dev/null || true
+  done
 }
 
 cleanup_stale_pid_file() {
@@ -173,7 +190,26 @@ for stale_pid_file in "${ROOT}"/.horosa_py.pid "${ROOT}"/.horosa_java.pid \
   [ -e "${stale_pid_file}" ] || continue
   cleanup_stale_pid_file "${stale_pid_file}"
 done
-cleanup_metadata_files "${ROOT_PARENT}"
+# 元数据清理三档(kill-switch:HOROSA_METADATA_CLEANUP_MODE):
+#   fast(默认)=同步清致命面+全树转后台;full=旧行为全树同步(回退档);off=全关(排障)。
+META_CLEANUP_MODE="${HOROSA_METADATA_CLEANUP_MODE:-fast}"
+case "${META_CLEANUP_MODE}" in
+  full)
+    cleanup_metadata_files "${ROOT_PARENT}"
+    ;;
+  off)
+    diag_log "metadata cleanup skipped (mode=off)"
+    ;;
+  *)
+    cleanup_critical_metadata
+    # 裸后台子 shell(同 maybe_train_cds_background 范式):脚本退出不 HUP,清理自行跑完
+    ( cleanup_metadata_files "${ROOT_PARENT}" ) >/dev/null 2>&1 &
+    diag_log "metadata cleanup: critical swept sync, full tree in background (mode=fast)"
+    ;;
+esac
+# preflight 子段标记(2026-07-16):sh.begin→sh.preflight_done 曾是 13.2s 黑盒,无法归因。
+# 各嫌疑段后打点,ladder 汇总即可读出段长(相邻标记 t_ms 差)。
+ledger_log sh.meta_cleanup_done
 
 port_listening() {
   local port="$1"
@@ -706,20 +742,25 @@ reclaim_stale_port() {
   port_listening "${port}" && return 1 || return 0
 }
 
-if ! reclaim_stale_port "${CHART_PORT}" "webchartsrv"; then
+# [S2] 双端口回收并行:两次 netstat 互不依赖,并行省一截串行等待(语义逐口不变,exit 3 照旧)。
+reclaim_stale_port "${CHART_PORT}" "webchartsrv" &
+_rc_chart_pid=$!
+reclaim_stale_port "${BACKEND_PORT}" "astrostudyboot" &
+_rc_backend_pid=$!
+_rc_chart=0; wait "${_rc_chart_pid}" || _rc_chart=$?
+_rc_backend=0; wait "${_rc_backend_pid}" || _rc_backend=$?
+if [ "${_rc_chart}" != "0" ]; then
   diag_log "blocked: port ${CHART_PORT} still in use after reclaim -> exit 3 (retryable)"
   echo "port ${CHART_PORT} is already in use."
   echo "端口冲突(退出码 3=可重试):换端口重试,或先运行 stop_horosa_local.sh。Port conflict (exit 3 = retryable)."
   exit 3
 fi
-if ! reclaim_stale_port "${BACKEND_PORT}" "astrostudyboot"; then
+if [ "${_rc_backend}" != "0" ]; then
   diag_log "blocked: port ${BACKEND_PORT} still in use after reclaim -> exit 3 (retryable)"
   echo "port ${BACKEND_PORT} is already in use."
   echo "端口冲突(退出码 3=可重试):换端口重试,或先运行 stop_horosa_local.sh。Port conflict (exit 3 = retryable)."
   exit 3
 fi
-
-ensure_frontend_build
 
 JAR="${ROOT}/astrostudysrv/astrostudyboot/target/astrostudyboot.jar"
 BUNDLE_JAR="${ROOT}/../runtime/mac/bundle/astrostudyboot.jar"
@@ -735,11 +776,15 @@ if [ "${HOROSA_JAVA_EXPLODED:-1}" = "1" ] && [ -f "${BOOT_EXPLODED}/org/springfr
   # 自动回退 fat-jar 路径,绝不跑旧代码。用户机无 target jar,不触发。
   if [ -f "${JAR}" ] && [ "${JAR}" -nt "${BOOT_EXPLODED}/META-INF/MANIFEST.MF" ]; then
     diag_log "java exploded stale vs target jar -> fallback to fat-jar path"
+    diag_log "  (dev 机修复: bash Horosa_Desktop_Installer/scripts/refresh_boot_exploded.sh)"
     JAVA_EXPLODED_MODE=0
   else
     diag_log "java exploded mode ON: ${BOOT_EXPLODED}"
   fi
 fi
+# 🔴 档位入账:fat-jar 回退与 exploded 是两条性能宇宙(7.0s vs 2.6s)。2026-07-15 曾整轮
+# ladder 全跑在回退档还当装机真值分析 —— 档位必须进账本,ladder 汇总据此醒目告警。
+ledger_log sh.java_mode "{\"exploded\":${JAVA_EXPLODED_MODE}}"
 
 if [ "${JAVA_EXPLODED_MODE}" != "1" ] && [ -f "${BUNDLE_JAR}" ]; then
   if [ ! -f "${JAR}" ]; then
@@ -789,6 +834,7 @@ if [ "${TRUSTED_RUNTIME}" = "1" ] && [ "${REQUIRE_EMBEDDED_RUNTIME}" = "1" ] && 
   diag_log "java trusted-runtime fast path enabled: ${JAVA_BIN}"
 fi
 diag_log "java resolved: ${JAVA_BIN}"
+ledger_log sh.java_resolve_done
 
 if ! resolve_python_bin; then
   diag_log "python resolve failed: ${PYTHON_BIN}"
@@ -807,19 +853,24 @@ if [ -n "${PY_ROOT}" ] && [ -f "${PY_ROOT}/Python" ] && [ -d "${PY_ROOT}/lib" ];
   diag_log "python launch isolation enabled for embedded runtime: ${PY_ROOT}"
 fi
 
-PY_MINOR="$("${PYTHON_BIN}" - <<'PY'
+# [S2] PY_MINOR 探测下沉:嵌入式隔离(PYTHON_LAUNCH_NOUSERSITE=1,桌面 trusted 常态)下
+# EXTRA_PY_SITE 根本不进 PYTHONPATH —— 旧式无条件 spawn 一次 python 纯属白付(~50-80ms)。
+# 仅非隔离(dev 系统 python)才探测用户 site 目录;行为对两种模式逐字节不变。
+if [ "${PYTHON_LAUNCH_NOUSERSITE}" != "1" ]; then
+  PY_MINOR="$("${PYTHON_BIN}" - <<'PY'
 import sys
 print(f"{sys.version_info.major}.{sys.version_info.minor}")
 PY
 )"
-EXTRA_PY_SITE="${HOME}/Library/Python/${PY_MINOR}/lib/python/site-packages"
-
-if [ "${PYTHON_LAUNCH_NOUSERSITE}" != "1" ] && [ -d "${EXTRA_PY_SITE}" ]; then
-  PYTHONPATH_ASTRO="${PYTHONPATH_ASTRO}:${EXTRA_PY_SITE}"
+  EXTRA_PY_SITE="${HOME}/Library/Python/${PY_MINOR}/lib/python/site-packages"
+  if [ -d "${EXTRA_PY_SITE}" ]; then
+    PYTHONPATH_ASTRO="${PYTHONPATH_ASTRO}:${EXTRA_PY_SITE}"
+  fi
+  if [ -n "${PYTHONPATH:-}" ]; then
+    PYTHONPATH_ASTRO="${PYTHONPATH_ASTRO}:${PYTHONPATH}"
+  fi
 fi
-if [ "${PYTHON_LAUNCH_NOUSERSITE}" != "1" ] && [ -n "${PYTHONPATH:-}" ]; then
-  PYTHONPATH_ASTRO="${PYTHONPATH_ASTRO}:${PYTHONPATH}"
-fi
+ledger_log sh.python_resolve_done
 
 cleanup_on_fail() {
   local code=$?
@@ -865,14 +916,6 @@ PY
 }
 
 cd "${ROOT}"
-# horosa_web_python_utf8_v1:①剥离宿主 PYTHONHOME/PYTHONSTARTUP/PYTHONUSERBASE(经典
-# init_fs_encoding 杀手与用户级注入面;PYTHONPATH 本行显式覆盖=天然免疫);② -X utf8 CLI 旗
-# 优先级高于任何继承环境(宿主 PYTHONUTF8=0 也压不掉),CJK 路径/非 UTF-8 码页机器行为一致。
-PYTHON_LAUNCH_CMD=(env -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONUSERBASE PYTHONPATH="${PYTHONPATH_ASTRO}" HOROSA_CHART_PORT="${CHART_PORT}")
-if [ "${PYTHON_LAUNCH_NOUSERSITE}" = "1" ]; then
-  PYTHON_LAUNCH_CMD+=(PYTHONNOUSERSITE=1)
-fi
-PYTHON_LAUNCH_CMD+=("${PYTHON_BIN}" -X utf8 "${ROOT}/astropy/websrv/webchartsrv.py")
 # pid 文件读取防御:文件缺失/为空/非数字时不得把空串喂给 kill -0(会报 usage 错→被误读成「进程已退出」)。
 pid_alive() {
   local f="$1" pid
@@ -881,15 +924,11 @@ pid_alive() {
   case "${pid}" in (''|*[!0-9]*) return 1 ;; esac
   kill -0 "${pid}" >/dev/null 2>&1
 }
-ledger_log sh.preflight_done
-launch_detached "${PY_LOG}" "${PYTHON_LAUNCH_CMD[@]}" >"${PY_PID_FILE}"
-if ! pid_alive "${PY_PID_FILE}"; then
-  diag_log "python launch FAILED: pid 文件为空/进程未存活 (pidfile='$(cat "${PY_PID_FILE}" 2>/dev/null || echo "<unreadable>")', 日志目录可写? 磁盘?)"
-  echo "python service failed to launch (see ${PY_LOG})"
-  exit 1
-fi
-ledger_log sh.python_spawned
 
+# [S1] Java 早生:Java 是启动唯一大墙(spawn→http ready ~2.5s),旧序里它在 前端检查/
+# Python 组装/Python spawn 之后才出生(账本实测 ~468ms)。此处把 Java 组装+spawn 提到
+# 最前(其全部前置=pid/端口回收+java/python resolve+trap,均已就绪),前端检查与 Python
+# 组装转到 Java 出生之后进行 —— 纯重排零语义变化;失败路径由既有 trap cleanup_on_fail 兜。
 # horosa_web_java_env_sanitize_v1:宿主毒化变量剥离 —— 装了 IDE/安卓工具链的机器常见全局
 # _JAVA_OPTIONS/JAVA_TOOL_OPTIONS(如 -Xmx32m),JVM 会无条件并入启动参数;CLASSPATH 同理。
 # 与桌面启动器 sanitizeEmbeddedRuntimeEnv 同语义;env -u 在 macOS/Git Bash 均支持。
@@ -902,7 +941,8 @@ JAVA_LAUNCH_CMD=(env -u _JAVA_OPTIONS -u JAVA_TOOL_OPTIONS -u JDK_JAVA_OPTIONS -
   needtranslog="${NEED_TRANSLOG}")
 
 if [ "${DESKTOP_JAVA_FAST_START}" = "1" ]; then
-  JAVA_FAST_TOOL_OPTIONS="-Dlog4j2.statusLevel=WARN -Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -Dspring.backgroundpreinitializer.ignore=true"
+  # [S3] banner-mode=off:省 Spring 启动横幅的构造/打日志(纯装饰输出,语义零变化)。
+  JAVA_FAST_TOOL_OPTIONS="-Dlog4j2.statusLevel=WARN -Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -Dspring.backgroundpreinitializer.ignore=true -Dspring.main.banner-mode=off"
   if [ "${JAVA_EXPLODED_MODE}" != "1" ]; then
     # 旧 fat-jar 路径原样保留 C1 快启;exploded 路径不再限档(C2 全速:启动 2.6s 仍远快于旧 7.0s,
     # 计算吞吐实测 641→680 rps,双赢。实测表见 perf 基线 CSV)。
@@ -976,6 +1016,7 @@ else
   )
 fi
 
+ledger_log sh.preflight_done
 launch_detached "${JAVA_LOG}" env \
   "${JAVA_LAUNCH_CMD[@]}" >"${JAVA_PID_FILE}"
 if ! pid_alive "${JAVA_PID_FILE}"; then
@@ -985,11 +1026,30 @@ if ! pid_alive "${JAVA_PID_FILE}"; then
 fi
 ledger_log sh.java_spawned
 
+ensure_frontend_build
+ledger_log sh.fe_check_done
+
+# horosa_web_python_utf8_v1:①剥离宿主 PYTHONHOME/PYTHONSTARTUP/PYTHONUSERBASE(经典
+# init_fs_encoding 杀手与用户级注入面;PYTHONPATH 本行显式覆盖=天然免疫);② -X utf8 CLI 旗
+# 优先级高于任何继承环境(宿主 PYTHONUTF8=0 也压不掉),CJK 路径/非 UTF-8 码页机器行为一致。
+PYTHON_LAUNCH_CMD=(env -u PYTHONHOME -u PYTHONSTARTUP -u PYTHONUSERBASE PYTHONPATH="${PYTHONPATH_ASTRO}" HOROSA_CHART_PORT="${CHART_PORT}")
+if [ "${PYTHON_LAUNCH_NOUSERSITE}" = "1" ]; then
+  PYTHON_LAUNCH_CMD+=(PYTHONNOUSERSITE=1)
+fi
+PYTHON_LAUNCH_CMD+=("${PYTHON_BIN}" -X utf8 "${ROOT}/astropy/websrv/webchartsrv.py")
+launch_detached "${PY_LOG}" "${PYTHON_LAUNCH_CMD[@]}" >"${PY_PID_FILE}"
+if ! pid_alive "${PY_PID_FILE}"; then
+  diag_log "python launch FAILED: pid 文件为空/进程未存活 (pidfile='$(cat "${PY_PID_FILE}" 2>/dev/null || echo "<unreadable>")', 日志目录可写? 磁盘?)"
+  echo "python service failed to launch (see ${PY_LOG})"
+  exit 1
+fi
+ledger_log sh.python_spawned
+
 ready=0
 # 账本观察位(不改就绪判据):各服务首个 http 响应各打一次,latch 后不再探。
 py_seen=0
 java_seen=0
-# progress-aware 就绪门:预算耗尽但服务仍在推进(冷 JVM/杀软全量扫描/慢盘)时
+# [V-4] progress-aware 就绪门:预算耗尽但服务仍在推进(冷 JVM/杀软全量扫描/慢盘)时
 # 「有进展就续命」,只有真停滞(STALL 窗零进展)或触总 cap 才判死。
 # 进展指纹 = PY/JAVA 日志字节数 + 双 pid CPU 时间 + 账本行数拼串,任一变化即有进展。
 # 全 stat/ps/wc 进程级轻命令(禁 lsof——慢且曾把探测拖死);bash3.2+set -u 全标量安全。
@@ -1058,7 +1118,7 @@ while true; do
   if [ $((elapsed_checks % progress_interval)) -eq 0 ]; then
     echo "waiting services... ${elapsed_checks} checks (${CHART_PORT}:$( (port_listening "${CHART_PORT}" && echo up) || echo down), ${BACKEND_PORT}:$( (port_listening "${BACKEND_PORT}" && echo up) || echo down))"
   fi
-  # 进展指纹采样:每 150 轮(0.2s 轮询≈30s / 0.1s≈15s)一次,开销可忽略。
+  # [V-4] 进展指纹采样:每 150 轮(0.2s 轮询≈30s / 0.1s≈15s)一次,开销可忽略。
   if [ "${READY_EXTEND}" = "1" ] && [ $((elapsed_checks % 150)) -eq 0 ]; then
     fp="$(_progress_fingerprint)"
     if [ "${fp}" != "${last_fp}" ]; then
@@ -1067,7 +1127,7 @@ while true; do
     fi
   fi
   if [ "$(date +%s)" -ge "${deadline_epoch}" ]; then
-    # 续命判定:最近 STALL 窗内有进展 且 未触总 cap → 延 60s;否则判死。
+    # [V-4] 续命判定:最近 STALL 窗内有进展 且 未触总 cap → 延 60s;否则判死。
     # 判死分支必须引用 last_progress_epoch([110] 反向锚:防有人把续命删回硬超时)。
     now_epoch=$(date +%s)
     if [ "${READY_EXTEND}" = "1" ] \

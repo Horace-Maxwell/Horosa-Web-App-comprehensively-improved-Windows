@@ -8,7 +8,7 @@ import { Gua64 } from '../../gua/GuaConst';
 function byName(n){ return Gua64.find((g) => g.name === n); }
 
 describe('六爻用神体系·WP-E', () => {
-	test('原神/忌神/仇神(古籍§5.2 五六亲全验)', () => {
+	test('原神/忌神/仇神(古籍五六亲全验)', () => {
 		expect(relativeRoles('妻财')).toEqual({ yuan: '子孙', ji: '兄弟', chou: '父母' }); // 古籍例
 		expect(relativeRoles('父母')).toEqual({ yuan: '官鬼', ji: '妻财', chou: '子孙' });
 		expect(relativeRoles('子孙')).toEqual({ yuan: '兄弟', ji: '父母', chou: '官鬼' });
@@ -65,8 +65,19 @@ describe('六爻用神体系·WP-E', () => {
 		const ay = analyzeYongShen(res.yaos, 'career', { monthZhi: '午', dayZhi: '子' });
 		expect(ay.yong).toBe('官鬼');
 		expect(ay.located.yong.candidates.length).toBe(0); // 官鬼不上卦
-		// 第3爻伏神为官鬼(古籍§3.16)
+		// 第3爻伏神为官鬼(古籍)
 		expect(res.yaos[2].fushen).toMatchObject({ liuqin: '官鬼', zhi: '亥' });
+	});
+
+	test('手动选用神:override 覆盖占测事项自动取用,按该六亲重派原/忌/仇;不传则零回归', () => {
+		const res = analyzeGua(byName('坤为地'), {});
+		const r = analyzeYongShen(res.yaos, 'wealth', {}, '官鬼'); // 求财自动=妻财,手选官鬼
+		expect(r.yong).toBe('官鬼');
+		expect(r.manual).toBe(true);
+		expect(r.roles.yuan).toBe('妻财'); // 妻财生官鬼=原神
+		const r0 = analyzeYongShen(res.yaos, 'wealth', {}); // 不传 override
+		expect(r0.yong).toBe('妻财');
+		expect(r0.manual).toBe(false);
 	});
 
 	test('独发加权:动爻唯一时该爻得「独发」标', () => {

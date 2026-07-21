@@ -2,6 +2,7 @@
 // 古典寿命格局面板（生命主/寿主星寿数/盘主体系/行星状态/医疗危机）。
 // 纯前端：buildFacts(本命chartObj) → runLifespan；嵌于本命「古典」tab 底部，不新开 tab。
 import { Component } from 'react';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import buildFacts from '../../divination/engine/chartFacts';
 import { runLifespan } from '../../divination/lifespan/lifespanEngine';
 import { PLANETARY_YEARS } from '../../divination/lifespan/lifespanData';
@@ -53,7 +54,10 @@ const kv = { display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12, l
 class AstroLifespan extends Component {
 	constructor(props){
 		super(props);
-		this.state = { method: 'ptolemy', timelineOpen: false };
+		// [D4] method 持久化:快照(astroAiSnapshot 无头构建)读同键——否则组件换法后 AI 快照恒 Ptolemy(名实不符)。
+		let _m = 'ptolemy';
+		try{ const v = localStorage.getItem('horosa.lifespan.method'); if(v){ _m = v; } }catch(_){ }
+		this.state = { method: _m, timelineOpen: false };
 	}
 
 	render(){
@@ -89,7 +93,7 @@ class AstroLifespan extends Component {
 						{METHODS.map((m) => (
 							<span
 								key={m.value}
-								onClick={() => this.setState({ method: m.value })}
+								onClick={() => { this.setState({ method: m.value }); safeLocalStorageSet('horosa.lifespan.method', m.value); }}
 								style={{
 									cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
 									border: '1px solid rgba(148,163,184,.4)',

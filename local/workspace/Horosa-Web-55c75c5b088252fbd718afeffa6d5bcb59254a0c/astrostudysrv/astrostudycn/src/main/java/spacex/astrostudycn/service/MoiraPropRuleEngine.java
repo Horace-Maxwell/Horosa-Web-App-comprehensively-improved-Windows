@@ -730,8 +730,14 @@ class MoiraPropRuleEngine {
 
 	private int yearFromParams(Map<String, Object> params) {
 		String date = stringValue(params == null ? null : params.get("date")).replace('/', '-');
-		if(date.length() >= 4) {
-			return intValue(date.substring(0, 4), 2000);
+		// 年段=首个 '-' 分隔段(公元前带前导负号、五位年均正确;旧 substring(0,4) 会把 -7040 截成 -704)
+		boolean neg = date.startsWith("-");
+		String body = neg ? date.substring(1) : date;
+		int cut = body.indexOf('-');
+		String yearText = cut > 0 ? body.substring(0, cut) : body;
+		if(yearText.length() > 0) {
+			int y = intValue(yearText, 2000);
+			return neg ? -y : y;
 		}
 		return 2000;
 	}

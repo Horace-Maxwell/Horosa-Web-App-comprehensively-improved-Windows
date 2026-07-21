@@ -20,7 +20,7 @@ class LRChart extends LRCommChart {
 			y: this.y + this.innerChartOffsetY,
 			width: this.width - this.innerChartOffsetX * 2,
 			height: this.height - this.innerChartOffsetY * 2,
-			timezi: this.nongli.time.substr(1),
+			timezi: (this.nongli && this.nongli.time) ? this.nongli.time.substr(1) : '', // nongli 未就绪守卫(同 LRCommChart)
 			panStyleName: option.panStyleName || '',
 			onHouse: (group, idx, branch)=>{
 				this.bindShenTooltip(group, branch);

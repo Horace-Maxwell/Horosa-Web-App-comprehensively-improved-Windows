@@ -43,13 +43,13 @@ describe('六爻引擎·WP-B 装卦结构', () => {
 	test('卦身:火水未济 → 申(不上卦);乾为天 → 巳(不上卦)', () => {
 		const wj = guaShenOf(byName('火水未济'));
 		expect(wj.body).toBe('申');
-		expect(wj.onChart).toBe(false); // 古籍§3.16:卦身申不上卦
+		expect(wj.onChart).toBe(false); // 古籍:卦身申不上卦
 		const qian = guaShenOf(byName('乾为天'));
 		expect(qian.body).toBe('巳');
 		expect(qian.onChart).toBe(false);
 	});
 
-	test('飞伏:火水未济 缺官鬼 → 第3爻伏亥水官鬼(古籍§3.16)', () => {
+	test('飞伏:火水未济 缺官鬼 → 第3爻伏亥水官鬼(古籍)', () => {
 		const fu = fushenForGua(byName('火水未济'));
 		const pos3 = fu[2];
 		expect(pos3.liuqin).toBe('官鬼');
@@ -102,7 +102,7 @@ describe('六爻引擎·WP-D 月破/旬空/长生入墓', () => {
 		expect(changshengOf('金', '巳', 'off')).toBe('');
 	});
 
-	test('真空/假空(§5.6):无气不动不生不临=真空;旺/动/逢生/临日月=假空', () => {
+	test('真空/假空(古籍通例):无气不动不生不临=真空;旺/动/逢生/临日月=假空', () => {
 		const ctx = { dayZhi: '子', monthZhi: '午' };
 		// 真空:旬空+囚+不动+不被日生+不临日月
 		expect(voidKindOf({ xunKong: true, wangShuai: '囚', moving: false, yuePo: false, dayRel: { sheng: false, same: false }, zhi: '戌' }, ctx)).toBe('真空');
@@ -118,7 +118,7 @@ describe('六爻引擎·WP-D 月破/旬空/长生入墓', () => {
 		expect(voidKindOf({ xunKong: false, wangShuai: '囚', zhi: '戌' }, ctx)).toBe('');
 	});
 
-	test('六冲卦/六合卦(§5.7):八纯=六冲、地天泰=六合、火水未济=皆非', () => {
+	test('六冲卦/六合卦(古籍通例):八纯=六冲、地天泰=六合、火水未济=皆非', () => {
 		expect(guaChongHe(byName('乾为天'))).toBe('六冲卦');
 		expect(guaChongHe(byName('坎为水'))).toBe('六冲卦');
 		expect(guaChongHe(byName('天雷无妄'))).toBe('六冲卦'); // 非八纯但六冲
@@ -128,7 +128,7 @@ describe('六爻引擎·WP-D 月破/旬空/长生入墓', () => {
 		expect(guaChongHe(byName('火水未济'))).toBe('');
 	});
 
-	test('三合局/三会方(§1.5):坎为水含申子辰水局+寅午戌火局,初爻寅动→寅午戌成局', () => {
+	test('三合局/三会方(古籍通例):坎为水含申子辰水局+寅午戌火局,初爻寅动→寅午戌成局', () => {
 		const all = guaSanHeHui(byName('坎为水'), new Set([1])); // 初爻=寅 动
 		const zhis = all.map((x) => x.zhis);
 		expect(zhis).toContain('申子辰');

@@ -1,6 +1,6 @@
 import { Component, createRef } from 'react';
 import { message, Spin } from 'antd';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -8,6 +8,7 @@ import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { geoNameFieldPatch } from '../../utils/geoName';
 import { resolveGeoZone } from '../../utils/timezone';
@@ -31,6 +32,7 @@ import {
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -113,6 +115,16 @@ class TaiYiMain extends Component {
 		}
 	}
 
+
+	// [A7·性能] 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
+	// 详 wrapperPropsEqual;开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲
+	// (setState 恒换引用)。收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
 	componentDidMount() {
 		this.unmounted = false;
 		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再覆盖
@@ -372,6 +384,7 @@ class TaiYiMain extends Component {
 		return {
 			date: flds.date.value.format('YYYY-MM-DD'),
 			time: flds.time.value.format('HH:mm:ss'),
+			ad: (flds.ad && flds.ad.value !== undefined) ? flds.ad.value : (flds.date.value.ad || 1),
 			zone: flds.zone.value,
 			lon: flds.lon.value,
 			lat: flds.lat.value,
@@ -902,6 +915,8 @@ class TaiYiMain extends Component {
 					<div className="horosa-side-panel-subtitle">时间、地点与起盘选项</div>
 				</div>
 
+{/* [观象P1] 太乙左栏分段:时间地点(不折叠)/盘式选项(折叠记忆) */}
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
 					value={datetm}
@@ -909,9 +924,8 @@ class TaiYiMain extends Component {
 					timeHook={this.timeHook}
 					onGeoChange={this.changeGeo}
 				/>
-
-				<div className="horosa-taiyi-input-section">
-					<div className="horosa-taiyi-field-title"><XQIcon name="taiyi" />盘式选项</div>
+				</XQSideSection>
+				<XQSideSection iconName="taiyi" title="盘式选项" storageKey="taiyi.panshi" className="horosa-taiyi-input-section">
 					<div className="horosa-taiyi-select-grid">
 						<label className="horosa-taiyi-select-field">
 							<span>{isLifeStyle ? '命法性别' : '性别'}</span>
@@ -963,11 +977,11 @@ class TaiYiMain extends Component {
 								</Select>
 							</label>
 					</div>
-				</div>
+				</XQSideSection>
 
 				{!isLifeStyle && (
-					<div className="horosa-taiyi-input-section">
-						<div className="horosa-taiyi-field-title"><XQIcon name="taiyi" /><span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>流派设置</span><span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-muted, #8a8a8a)', marginLeft: 6 }}>默认=从盘·字节不变;改则前端古法重算</span></div>
+					<XQSideSection iconName="taiyi" title="流派设置" storageKey="taiyi.school" className="horosa-taiyi-input-section">
+						<div style={{ fontSize: 11, color: 'var(--horosa-text-muted, #8a8a8a)', marginBottom: 4 }}>默认=从盘·字节不变;改则前端古法重算</div>
 						<div className="horosa-taiyi-select-grid">
 							{[['jishen', '计神方向'], ['wenchang', '文昌重留'], ['keJianChen', '客算间辰'], ['sanji', '三基起宫'], ['youshen', '游神方向']].map(([k, label]) => (
 								<label className="horosa-taiyi-select-field" key={`school-${k}`}>
@@ -978,9 +992,8 @@ class TaiYiMain extends Component {
 								</label>
 							))}
 						</div>
-					</div>
+					</XQSideSection>
 				)}
-
 				<div className="horosa-taiyi-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起盘</Button>
 					<Button onClick={this.clickSaveCase}>保存</Button>

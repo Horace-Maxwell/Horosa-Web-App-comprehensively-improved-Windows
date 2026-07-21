@@ -174,6 +174,10 @@ def get_next_jieqi_start_date(year, month, day, hour, minute):
 
 
 def jq(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退:swe 太阳视黄经直映射节气名(与主链定气口径一致;域内原路径零变)
+        from kin_year_domain import solar_term_name
+        return solar_term_name(year, month, day, hour, minute)
     """當前時刻所處節氣名(時刻感知)。
 
     修(2026-07-04 事故复盘: Bug①):舊實現以 get_jieqi_start_date(按日粒度,交節日尚未到刻
@@ -248,6 +252,9 @@ def _zhirun_effective_date(year, month, day, hour):
 
 def zhirun_jieqi(year, month, day, hour, minute):
     """置閏轉盤定局所用節氣(超神接氣置閏後);可能與當日曆法節氣 jq() 不同。"""
+    if year < 2 or year > 9998:
+        # 全年份域:置閏鏈依賴 sxtwl 逐日游標(域外不可用)→ 按曆法節氣定局(既有保底口徑)
+        return jq(year, month, day, hour, minute)
     ey, em, ed = _zhirun_effective_date(year, month, day, hour)
     znm, zday = _anchor_solstice(ey, em, ed)
     if znm is None:
@@ -263,6 +270,8 @@ def zhirun_jieqi(year, month, day, hour, minute):
 
 def zhirun_jieqi_noleap(year, month, day, hour, minute):
     """无闰定局所用節氣(超神接氣,不置閏):同 zhirun_jieqi 但跳過大雪/芒種≥9天的置閏重複。"""
+    if year < 2 or year > 9998:
+        return jq(year, month, day, hour, minute)
     ey, em, ed = _zhirun_effective_date(year, month, day, hour)
     znm, zday = _anchor_solstice(ey, em, ed)
     if znm is None:
@@ -390,6 +399,16 @@ def _hour_stem_for_late_zi(year, month, day, hour, after23_new_day, hour_gan_use
 
 #換算干支
 def gangzhi1(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_next_day=None):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=(1 if after23_new_day is None else after23_new_day), hour_gan_next=(1 if hour_gan_use_next_day is None else hour_gan_use_next_day))
+        try:
+            _gm = ke_jiazi_d(_zi).get(str(hour) + ":" + str(minute // 10) + "0")
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     after23_new_day = _get_after23(after23_new_day)
     hour_gan_use_next_day = _get_hour_gan_next(hour_gan_use_next_day)
     d = _cdate_for_day(year, month, day, hour, after23_new_day)
@@ -420,6 +439,16 @@ def gangzhi1(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_
     return [yTG, mTG1, dTG, hTG1]
 
 def gangzhi(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_next_day=None):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=(1 if after23_new_day is None else after23_new_day), hour_gan_next=(1 if hour_gan_use_next_day is None else hour_gan_use_next_day))
+        try:
+            _gm = ke_jiazi_d(_zi).get(str(hour) + ":" + str(minute // 10) + "0")
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     after23_new_day = _get_after23(after23_new_day)
     hour_gan_use_next_day = _get_hour_gan_next(hour_gan_use_next_day)
     d = _cdate_for_day(year, month, day, hour, after23_new_day)

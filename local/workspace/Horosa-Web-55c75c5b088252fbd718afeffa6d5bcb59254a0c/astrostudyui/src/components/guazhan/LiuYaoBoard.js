@@ -1,7 +1,8 @@
 // 六爻装卦表 + 用神 + 动变 + 旬空(展示层)。纯展示:吃 analyzeLiuyao 产出,流派/开关一变即随之刷新。
 // 配色统一走 --horosa-* 暗黑令牌 + 五行(八字)色板,明暗两态均清晰。
 import React from 'react';
-import { CHISHI_JUE, FADONG_JUE, LIUSHEN_FADONG, YAOWEI_XIANG, ZHANLEI_GANGYAO } from '../gua/liuyaoReference';
+import { CHISHI_JUE, FADONG_JUE, LIUSHEN_FADONG, YAOWEI_XIANG, ZHANLEI_GANGYAO, GU_FU, MINGJIA_TABLE } from '../gua/liuyaoReference';
+import { ZHI_CANGGAN, TIANGAN_HE, TIANGAN_HE_HUA, LIUCHONG, LIUHE, SANHE, SANHUI, HAI, PO, DIZHI, TIANGAN, CHANGSHENG_START, CHANGSHENG_START_ALT, LIUSHEN_START } from '../gua/LiuYaoConst';
 
 // 设计令牌(暗黑友好,带回落)
 const C = {
@@ -28,6 +29,13 @@ const WX_COLOR = {
 const WANGSHUAI_COLOR = { 旺: C.jade, 相: C.jade, 休: C.muted, 囚: C.danger, 死: C.danger };
 
 function yaoSymbol(yin){ return yin ? '⚋' : '⚊'; }
+// 爻题(阳爻九/阴爻六 + 位):初九/九二/九三/九四/九五/上九(阴则六)
+function yaoTi(pos, yin){
+	const yy = yin ? '六' : '九';
+	if(pos === 1){ return '初' + yy; }
+	if(pos === 6){ return '上' + yy; }
+	return yy + ['', '', '二', '三', '四', '五'][pos];
+}
 
 function Cell({ children, style, title, align }){
 	return (
@@ -61,7 +69,7 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 	const showSha = !!(settings && settings.shensha && settings.shensha.on);
 	const showLiu = !!(settings && settings.sixGods);
 	const showBian = moving.size > 0;
-	const rows = yaos.slice().reverse(); // 上爻在上
+	const rows = (settings && settings.writeDir === 'topDown') ? yaos.slice() : yaos.slice().reverse(); // 上爻在上(默认)/初爻在上
 	return (
 		<div>
 			{title ? <div style={{ fontSize: 13, fontWeight: 600, color: C.label, margin: '2px 0 6px' }}>{title}</div> : null}
@@ -75,6 +83,7 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 							<Th>本卦六爻</Th>
 							<Th style={{ textAlign: 'center' }}>世应</Th>
 							<Th style={{ textAlign: 'center' }}>旺衰</Th>
+							<Th>日·月</Th>
 							<Th>状态</Th>
 							{showSha ? <Th>神煞</Th> : null}
 							{showBian ? <Th>动→变</Th> : null}
@@ -88,11 +97,19 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 							const liu = showLiu && liuShen && liuShen[idx] ? liuShen[idx].liushen : '';
 							const shaList = shaPer && shaPer[idx] ? shaPer[idx].shensha : [];
 							const statusTags = [];
-							if(y.yuePo){ statusTags.push({ t: '月破' + (settings && settings.yuepoMode === 'always' ? '·长期' : '·当月'), c: C.danger }); }
-							if(y.xunKong){ statusTags.push({ t: y.voidKind || '旬空', c: y.voidKind === '真空' ? C.danger : C.accent }); }
+							if(y.yuePo){ statusTags.push({ t: '月破' + (settings && settings.yuepoMode === 'always' ? '·长期' : '·当月'), c: C.danger, title: (y.yuepoDetail && y.yuepoDetail.note) || '' }); }
+							if(y.xunKong){ statusTags.push({ t: y.voidKind || '旬空', c: y.voidKind === '真空' ? C.danger : C.accent, title: y.zhenKongJue || '' }); }
 							if(y.ruMu){ statusTags.push({ t: '入墓', c: C.accent }); }
-							if(y.changsheng === '长生' || y.changsheng === '帝旺'){ statusTags.push({ t: y.changsheng, c: C.jade }); }
-							else if(y.changsheng === '绝'){ statusTags.push({ t: '绝', c: C.danger }); }
+							// WP-5:十二长生完整阶段,受 changshengUse 控制(off 不显 / four 只生旺墓绝 / full12 全 12 宫);原硬编只显 3 个已修。
+							const _csUse = (settings && settings.changshengUse) || 'four';
+							if(_csUse !== 'off' && y.changsheng && (_csUse === 'full12' || ['长生', '帝旺', '墓', '绝'].indexOf(y.changsheng) >= 0)){
+								const _c = (y.changsheng === '长生' || y.changsheng === '帝旺') ? C.jade
+									: (['墓', '绝', '死', '病'].indexOf(y.changsheng) >= 0 ? C.danger : C.muted);
+								statusTags.push({ t: y.changsheng, c: _c });
+							}
+							if(y.anDong === '暗动'){ statusTags.push({ t: '暗动', c: C.jade }); }
+							(y.sanCeng || []).forEach((t)=>{ if(t === '岁破' || t === '日破'){ statusTags.push({ t, c: C.danger }); } });
+							if(y.yuqiStrong){ statusTags.push({ t: '余气强', c: C.jade }); }
 							const isShen = shenBody && y.zhi === shenBody;
 							return (
 								<tr key={y.pos} style={isMoving ? { background: C.accentSoft } : null}>
@@ -102,15 +119,18 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 									</Cell>
 									<Cell>
 										<span style={{ fontFamily: 'monospace', fontSize: 16, color: isMoving ? C.accent : C.text, marginRight: 6 }}>{yaoSymbol(y.yin)}</span>
-										<span style={{ color: WX_COLOR[y.wuxing] || C.text, fontWeight: 600 }}>{y.zhi}{y.wuxing}</span>
+										<span title={ZHI_CANGGAN[y.zhi] ? `藏干 ${ZHI_CANGGAN[y.zhi]}` : undefined} style={{ color: WX_COLOR[y.wuxing] || C.text, fontWeight: 600, cursor: ZHI_CANGGAN[y.zhi] ? 'help' : undefined }}>{(analysis.gans && analysis.gans[idx]) || ''}{y.zhi}{y.wuxing}</span>
 										<span style={{ color: C.text, marginLeft: 2 }}>{y.liuqin}</span>
+											<span style={{ color: C.muted, marginLeft: 6, fontSize: 11 }}>{yaoTi(y.pos, y.yin)}</span>
 										{isMoving ? <span style={{ color: C.accent, marginLeft: 4, fontSize: 12 }}>{y.yin ? '✕' : '○'}</span> : null}
 										{isShen ? <span title="卦身" style={{ marginLeft: 4, color: C.cinnabar }}>★</span> : null}
+									{analysis.shiShen && analysis.shiShen.pos === y.pos ? <span title="世身" style={{ marginLeft: 4, color: C.accent }}>◆</span> : null}
 									</Cell>
 									<Cell align="center" style={{ fontWeight: 700, color: y.shiYing === '世' ? C.cinnabar : (y.shiYing === '应' ? C.accent : C.muted) }}>{y.shiYing || ''}</Cell>
 									<Cell align="center" style={{ color: WANGSHUAI_COLOR[y.wangShuai] || C.text, fontWeight: 600 }}>{y.wangShuai}</Cell>
+									<Cell style={{ fontSize: 11, lineHeight: 1.5 }}>{riYueMiniCell(analysis, idx)}</Cell>
 									<Cell style={{ fontSize: 12 }}>
-										{statusTags.length ? statusTags.map((s, i) => (<span key={i} style={{ color: s.c, marginRight: 5 }}>{s.t}</span>)) : <span style={{ color: C.muted }}>—</span>}
+										{statusTags.length ? statusTags.map((s, i) => (<span key={i} title={s.title || undefined} style={{ color: s.c, marginRight: 5, cursor: s.title ? 'help' : undefined }}>{s.t}</span>)) : <span style={{ color: C.muted }}>—</span>}
 									</Cell>
 									{showSha ? <Cell style={{ fontSize: 12, color: C.muted }}>{(shaList || []).join('·') || '—'}</Cell> : null}
 									{showBian ? <Cell style={{ fontSize: 12 }}>{renderBianCell(analysis, y.pos)}</Cell> : null}
@@ -128,6 +148,24 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 			</div>
 		</div>
 	);
+}
+
+// [F1] 装卦表紧凑「日·月」列:两行小标签(生=jade/克冲破=danger/合=accent/值=cinnabar),完整 why 走 title。
+function ryTagTone(tone){ return tone === 'bad' ? C.danger : tone === 'good' ? C.jade : C.accent; }
+function ryMiniLine(label, rel){
+	const tags = (rel && rel.tags) || [];
+	const why = tags.map((t) => t.why).filter(Boolean).join('·');
+	return (
+		<div title={why || undefined} style={{ cursor: why ? 'help' : undefined }}>
+			<span style={{ color: C.muted }}>{label}</span>
+			{tags.length ? tags.map((t, i) => <span key={i} style={{ color: ryTagTone(t.tone), marginLeft: 3 }}>{t.t}</span>) : <span style={{ color: C.muted, marginLeft: 3 }}>—</span>}
+		</div>
+	);
+}
+function riYueMiniCell(analysis, idx){
+	const ry = analysis.riYue && analysis.riYue.perYao ? analysis.riYue.perYao[idx] : null;
+	if(!ry){ return <span style={{ color: C.muted }}>—</span>; }
+	return (<span>{ryMiniLine('日', ry.day)}{ryMiniLine('月', ry.month)}</span>);
 }
 
 function renderBianCell(analysis, pos){
@@ -163,7 +201,7 @@ export function LiuYaoRelatedCards({ analysis }){
 	if(!analysis || !analysis.related){ return null; }
 	const r = analysis.related;
 	const cards = [
-		{ key: 'bian', label: '之卦', a: r.bian },
+		{ key: 'bian', label: '之卦', a: (analysis.settings && analysis.settings.biangua === 'movingOnly') ? null : r.bian },
 		{ key: 'hu', label: '互卦', a: r.hu },
 		{ key: 'fu', label: '伏神卦', a: r.fu },
 		{ key: 'zong', label: '综卦', a: r.zong },
@@ -245,6 +283,178 @@ export function LiuYaoShenShaView({ analysis }){
 	);
 }
 
+// ── 典籍补齐:共用小卡/命中标签/日月引动行(概览与断诀 tab 同一渲染,防口径分叉) ──
+const YAO_NAME = { 6: '上爻', 5: '五爻', 4: '四爻', 3: '三爻', 2: '二爻', 1: '初爻' };
+function MCard({ title, sub, children }){
+	return (
+		<div style={{ marginBottom: 12 }}>
+			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>{title}{sub ? <span style={{ color: C.muted, fontWeight: 400 }}>　{sub}</span> : null}</div>
+			<div style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, color: C.text }}>{children}</div>
+		</div>
+	);
+}
+const MHit = ({ children, tone }) => (
+	<span style={{ display: 'inline-block', margin: '2px 6px 2px 0', padding: '1px 8px', borderRadius: 10, fontSize: 12, background: C.accentSoft, color: tone === 'bad' ? C.danger : tone === 'good' ? C.jade : C.accent }}>{children}</span>
+);
+// 日辰/月建对某爻的引动(生=jade/克冲破=danger/合=accent/值=cinnabar,why 走文尾)
+function RiYueLine({ label, rel }){
+	const tags = (rel && rel.tags) || [];
+	const whys = [];
+	tags.forEach((t) => { if(t.why && whys.indexOf(t.why) < 0){ whys.push(t.why); } });
+	return (
+		<div style={{ display: 'flex', gap: 6, padding: '2px 0', fontSize: 12, alignItems: 'baseline' }}>
+			<span style={{ width: 32, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>{label}</span>
+			<span style={{ flex: 1 }}>
+				{tags.length
+					? tags.map((t, i) => <MHit key={i} tone={t.tone === 'bad' ? 'bad' : t.tone === 'good' ? 'good' : undefined}>{t.t}</MHit>)
+					: <span style={{ color: C.muted }}>不生不克(平)</span>}
+				{whys.length ? <span style={{ color: C.muted, marginLeft: 2 }}>{whys.join('·')}</span> : null}
+			</span>
+		</div>
+	);
+}
+
+// [F1] 日辰·月建对六爻引动(概览+断诀共用);始终渲染(核心外力,不加开关)。
+export function LiuYaoRiYueView({ analysis }){
+	const ry = analysis && analysis.riYue;
+	if(!ry || !ry.perYao || !ry.perYao.length){ return null; }
+	return (
+		<MCard title="日辰 · 月建 对六爻的引动">
+			<div style={{ fontSize: 12, color: C.muted, marginBottom: 6, lineHeight: 1.7 }}>
+				日辰 <b style={{ color: C.cinnabar }}>{ry.dayGan}{ry.dayZhi}</b> 为断卦之君,能生克冲合全卦;月建 <b style={{ color: C.jade }}>{ry.monthGan}{ry.monthZhi}</b> 司令,主一月旺衰。铁律:爻不反作用于月日。
+			</div>
+			<div style={{ display: 'grid', gap: 6 }}>
+				{ry.perYao.slice().reverse().map((p) => (
+					<div key={p.pos} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 8px' }}>
+						<div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
+							<b style={{ color: C.accent }}>{YAO_NAME[p.pos] || `第${p.pos}爻`}</b>
+							<span style={{ color: C.text, fontWeight: 600 }}>{p.gan}{p.zhi}</span>
+							<span style={{ color: C.label }}>{p.liuqin}</span>
+						</div>
+						<RiYueLine label="日辰" rel={p.day} />
+						<RiYueLine label="月建" rel={p.month} />
+					</div>
+				))}
+			</div>
+		</MCard>
+	);
+}
+
+// [F1] 扩展神煞·月令神煞逐爻(受 shenshaEx.on gating,由 facade 决定是否有数据)。
+export function LiuYaoShenShaExView({ analysis }){
+	const ex = analysis && analysis.shenShaEx;
+	if(!ex || !ex.perYao || !ex.perYao.some((p) => p.shensha.length)){ return null; }
+	return (
+		<MCard title="扩展神煞 · 月令神煞(逐爻)">
+			{ex.perYao.slice().reverse().filter((p) => p.shensha.length).map((p) => (
+				<div key={p.pos} style={{ padding: '2px 0', fontSize: 12 }}>
+					<b style={{ color: C.accent }}>{YAO_NAME[p.pos] || `第${p.pos}爻`}</b>
+					<span style={{ color: C.label, margin: '0 6px' }}>{p.zhi}</span>
+					{p.shensha.map((nm) => <MHit key={nm}>{nm}</MHit>)}
+				</div>
+			))}
+		</MCard>
+	);
+}
+
+// [F1] 月建六神(月令定局):本月六神各值一支(定局),再看卦中何爻临之。
+// 六神只落六支,卦中未必爻爻皆临 → 列全六爻(临者标神、不临标「不临」),并先给出本月定局全表,免「只四个」之惑。
+export function LiuYaoYueLiuShenView({ analysis }){
+	const yl = analysis && analysis.yueLiuShenAnn;
+	if(!yl || !yl.perYao || !yl.perYao.length){ return null; }
+	const map = yl.map || {};
+	const yaos = (analysis && analysis.yaos) || [];
+	const GODS = ['青龙', '朱雀', '勾陈', '螣蛇', '白虎', '玄武'];
+	const GOD_COLOR = { 青龙: C.jade, 朱雀: C.cinnabar, 勾陈: C.accent, 螣蛇: C.accent, 白虎: C.danger, 玄武: C.muted };
+	const anyHit = yl.perYao.some((p) => p.hits.length);
+	return (
+		<MCard title="月建六神(月令定局)">
+			{/* 本月六神所值之支(定局全表) */}
+			<div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8, paddingBottom: 7, borderBottom: `1px dashed ${C.line}` }}>
+				{GODS.map((g) => (
+					<span key={g} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 8px', borderRadius: 10, fontSize: 12, border: `1px solid ${C.line}`, background: C.accentSoft }}>
+						<b style={{ color: GOD_COLOR[g] || C.accent }}>{g}</b><span style={{ color: C.text }}>{map[g] || '—'}</span>
+					</span>
+				))}
+			</div>
+			{/* 逐爻:临本月六神者标出,不临者标「不临」——六爻全列,不再只显命中 */}
+			<div>
+				{yl.perYao.slice().reverse().map((p) => {
+					const zhi = (yaos[p.pos - 1] || {}).zhi || '';
+					return (
+						<div key={p.pos} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '2px 0', fontSize: 12 }}>
+							<b style={{ color: C.accent, minWidth: 34 }}>{YAO_NAME[p.pos] || `第${p.pos}爻`}</b>
+							<span style={{ color: C.label, minWidth: 18 }}>{zhi}</span>
+							<span>{p.hits.length ? p.hits.map((nm) => <MHit key={nm} tone={GOD_COLOR[nm] === C.jade ? 'good' : GOD_COLOR[nm] === C.danger ? 'bad' : undefined}>{nm}</MHit>) : <span style={{ color: C.muted }}>不临</span>}</span>
+						</div>
+					);
+				})}
+			</div>
+			{!anyHit ? <div style={{ color: C.muted, fontSize: 11.5, marginTop: 4 }}>本卦六爻地支皆不落本月六神之支(六神只值六支,未临属常态)。</div> : null}
+		</MCard>
+	);
+}
+
+// [A1-A4] 世应关系 / 卦变吉凶 / 动态四态 / 间爻(概览显要位置)。
+const REL_TONE = { 世应相冲: 'bad', 应克世: 'bad', 世克应: 'good', 应生世: 'good', 世应相合: 'good', 世生应: undefined, 比和: undefined };
+export function LiuYaoManualCards({ analysis }){
+	if(!analysis){ return null; }
+	const sy = analysis.shiYingRel;
+	const gb = analysis.guaBianDuan;
+	const dt = analysis.dongTai;
+	const jy = analysis.jianYao || [];
+	const yaoBox = (y, who, wtone) => (
+		<span>
+			<span style={{ color: C.muted, fontSize: 11 }}>{who}</span>
+			<b style={{ color: wtone, marginLeft: 3 }}>{y.liuqin}</b>
+			<span style={{ color: WX_COLOR[y.wuxing] || C.text, marginLeft: 2 }}>{y.zhi}{y.wuxing}</span>
+		</span>
+	);
+	return (
+		<MCard title="世应 · 卦变 · 动态 · 间爻">
+			{sy ? (
+				<div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0', flexWrap: 'wrap' }}>
+					<div style={{ width: 60, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>世应关系</div>
+					<div style={{ flex: 1 }}>
+						{yaoBox(sy.shiYao, `世${sy.shiPos}`, C.cinnabar)}
+						<MHit tone={REL_TONE[sy.rel]}>{sy.rel || '—'}</MHit>
+						{yaoBox(sy.yingYao, `应${sy.yingPos}`, C.accent)}
+						{sy.bothVoid ? <span style={{ color: C.danger, marginLeft: 6, fontSize: 12 }}>世应俱空</span> : null}
+						{sy.note ? <span style={{ color: C.muted, marginLeft: 6, fontSize: 12 }}>{sy.note}</span> : null}
+					</div>
+				</div>
+			) : null}
+			{gb ? (
+				<div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0', flexWrap: 'wrap' }}>
+					<div style={{ width: 60, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>卦变</div>
+					<div style={{ flex: 1 }}>
+						<span style={{ color: C.accent }}>{gb.ben}</span><span style={{ color: C.muted, margin: '0 4px' }}>→</span><span style={{ color: C.accent }}>{gb.bian}</span>
+						<MHit tone={gb.duan.indexOf('成') >= 0 && gb.duan.indexOf('后成') >= 0 ? 'good' : undefined}>{gb.duan}</MHit>
+					</div>
+				</div>
+			) : null}
+			{dt ? (
+				<div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0', flexWrap: 'wrap' }}>
+					<div style={{ width: 60, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>动态</div>
+					<div style={{ flex: 1 }}>
+						<MHit tone={dt.tai === '独发' ? 'good' : undefined}>{dt.tai}</MHit>
+						<span style={{ color: C.muted, fontSize: 12 }}>{dt.count}爻动{dt.note ? `　${dt.note}` : ''}</span>
+					</div>
+				</div>
+			) : null}
+			{jy.length ? (
+				<div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0', flexWrap: 'wrap' }}>
+					<div style={{ width: 60, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>间爻</div>
+					<div style={{ flex: 1 }}>
+						{jy.map((j) => <span key={j.pos} style={{ marginRight: 10 }}><span style={{ color: C.muted, fontSize: 11 }}>{YAO_NAME[j.pos]}</span> <b style={{ color: C.text }}>{j.liuqin}</b><span style={{ color: C.muted }}>{j.zhi}</span></span>)}
+						<span style={{ color: C.muted, fontSize: 12 }}>世应之间·中介/媒人/第三方</span>
+					</div>
+				</div>
+			) : null}
+		</MCard>
+	);
+}
+
 // ── 动变视图 ──
 export function LiuYaoDongBianView({ analysis }){
 	if(!analysis || !analysis.dongBian){ return null; }
@@ -317,6 +527,126 @@ function RefRow({ k, v, hi, i, n }){
 		</div>
 	);
 }
+// [T8·顶级美化] 爻位象:三分栏表(身/宅/人事列头分色),取代原「足｜宅基｜…」挤压一格。
+function YaoWeiXiangBlock(){
+	const cols = '46px 1fr 1fr 1.15fr';
+	return (
+		<div style={{ marginBottom: 12 }}>
+			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>爻位象<span style={{ color: C.muted, fontWeight: 400 }}>（身 / 宅 / 人事）</span></div>
+			<div style={{ border: `1px solid ${C.line}`, borderRadius: 8, overflow: 'hidden' }}>
+				<div style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 11, fontWeight: 600, background: 'rgba(127,127,127,0.07)', borderBottom: `1px solid ${C.line}` }}>
+					<div style={{ padding: '4px 8px', color: C.muted }}>爻位</div>
+					<div style={{ padding: '4px 8px', color: C.accent }}>身</div>
+					<div style={{ padding: '4px 8px', color: C.jade }}>宅</div>
+					<div style={{ padding: '4px 8px', color: C.cinnabar }}>人事</div>
+				</div>
+				{YAOWEI_XIANG.slice().reverse().map((y, i) => (
+					<div key={y.pos} style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 12, background: i % 2 ? 'transparent' : 'rgba(127,127,127,0.035)', borderBottom: i < 5 ? `1px solid ${C.line}` : 'none' }}>
+						<div style={{ padding: '5px 8px', color: C.label, fontWeight: 600 }}>{['初', '二', '三', '四', '五', '上'][y.pos - 1]}爻</div>
+						<div style={{ padding: '5px 8px', color: C.text }}>{y.body}</div>
+						<div style={{ padding: '5px 8px', color: C.text }}>{y.home}</div>
+						<div style={{ padding: '5px 8px', color: C.text }}>{y.person}</div>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+// [T8·顶级美化] 常见占类断法纲要:每类一张卡(占类名+用神药丸,吉/凶分色两段),取代原挤压一行。
+function ZhanLeiGangYaoBlock(){
+	return (
+		<div style={{ marginBottom: 12 }}>
+			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>常见占类断法纲要</div>
+			<div style={{ display: 'grid', gap: 6 }}>
+				{ZHANLEI_GANGYAO.map((z) => (
+					<div key={z.key} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 9px', background: 'rgba(127,127,127,0.03)' }}>
+						<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+							<span style={{ fontWeight: 700, color: C.label, fontSize: 12.5 }}>{z.name}</span>
+							<span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11.5, background: C.accentSoft, color: C.cinnabar, fontWeight: 600 }}>用神 {z.yong}</span>
+						</div>
+						<div style={{ display: 'flex', gap: 14, fontSize: 12, flexWrap: 'wrap', lineHeight: 1.5 }}>
+							<span style={{ flex: '1 1 40%', minWidth: 0 }}><span style={{ color: C.jade, fontWeight: 700 }}>吉</span>&nbsp;<span style={{ color: C.text }}>{z.ji}</span></span>
+							<span style={{ flex: '1 1 40%', minWidth: 0 }}><span style={{ color: C.danger, fontWeight: 700 }}>凶</span>&nbsp;<span style={{ color: C.text }}>{z.xiong}</span></span>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+// [B2] 断卦总纲·古赋(折叠长文)
+function GuFuBlock(){
+	return (
+		<div style={{ marginBottom: 12 }}>
+			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>断卦总纲 · 古赋</div>
+			<div style={{ display: 'grid', gap: 6 }}>
+				{GU_FU.map((g) => (
+					<details key={g.name} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 9px', background: 'rgba(127,127,127,0.03)' }}>
+						<summary style={{ cursor: 'pointer', color: C.label, fontWeight: 600, fontSize: 12.5 }}>{g.name}<span style={{ color: C.muted, fontWeight: 400, marginLeft: 8 }}>{g.tag}</span></summary>
+						<div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.85, color: C.text }}>{g.text}</div>
+						{g.note ? <div style={{ marginTop: 5, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{g.note}</div> : null}
+					</details>
+				))}
+			</div>
+		</div>
+	);
+}
+// [B3] 代表性名家与地域支系(表)
+function MingjiaBlock(){
+	const cols = '1.1fr 1.5fr 0.8fr';
+	return (
+		<div style={{ marginBottom: 12 }}>
+			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>名家支系<span style={{ color: C.muted, fontWeight: 400 }}>（断法侧重·起盘同一）</span></div>
+			<div style={{ border: `1px solid ${C.line}`, borderRadius: 8, overflow: 'hidden' }}>
+				<div style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 11, fontWeight: 600, background: 'rgba(127,127,127,0.07)', borderBottom: `1px solid ${C.line}` }}>
+					<div style={{ padding: '4px 8px', color: C.muted }}>名家/支系</div>
+					<div style={{ padding: '4px 8px', color: C.accent }}>侧重</div>
+					<div style={{ padding: '4px 8px', color: C.jade }}>备注</div>
+				</div>
+				{MINGJIA_TABLE.map((m, i) => (
+					<div key={m.name} style={{ display: 'grid', gridTemplateColumns: cols, fontSize: 12, background: i % 2 ? 'transparent' : 'rgba(127,127,127,0.035)', borderBottom: i < MINGJIA_TABLE.length - 1 ? `1px solid ${C.line}` : 'none' }}>
+						<div style={{ padding: '5px 8px', color: C.label, fontWeight: 600 }}>{m.name}</div>
+						<div style={{ padding: '5px 8px', color: C.text }}>{m.focus}</div>
+						<div style={{ padding: '5px 8px', color: C.muted }}>{m.note}</div>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+// [数据表查用] 地支关系/藏干/天干五合/十二长生起例/六神起例(引擎已有数据,纯只读查用)
+function relPairs(map){ const seen = new Set(); const out = []; DIZHI.forEach((z) => { const t = map[z]; if(!t || seen.has(z + t) || seen.has(t + z)){ return; } seen.add(z + t); out.push(`${z}${t}`); }); return out.join('　'); }
+function DataTablesBlock(){
+	const row = (k, v) => (
+		<div style={{ display: 'flex', padding: '5px 9px', fontSize: 12, borderBottom: `1px solid ${C.line}` }}>
+			<div style={{ width: 66, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>{k}</div>
+			<div style={{ flex: 1, color: C.text, lineHeight: 1.6 }}>{v}</div>
+		</div>
+	);
+	return (
+		<div style={{ marginBottom: 12 }}>
+			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>数据表 · 查用<span style={{ color: C.muted, fontWeight: 400 }}>（起例速查）</span></div>
+			<details style={{ border: `1px solid ${C.line}`, borderRadius: 8, overflow: 'hidden' }}>
+				<summary style={{ cursor: 'pointer', padding: '6px 9px', color: C.label, fontWeight: 600, fontSize: 12.5, background: 'rgba(127,127,127,0.05)' }}>地支关系 · 藏干 · 天干五合 · 长生起例 · 六神起例</summary>
+				<div>
+					{row('六冲', relPairs(LIUCHONG))}
+					{row('六合', relPairs(LIUHE))}
+					{row('三合局', Object.keys(SANHE).map((k) => `${k}${SANHE[k]}`).join('　'))}
+					{row('三会方', Object.keys(SANHUI).map((k) => `${k}${SANHUI[k]}`).join('　'))}
+					{row('六害', relPairs(HAI))}
+					{row('相破', relPairs(PO))}
+					{row('地支藏干', DIZHI.map((z) => `${z}藏${ZHI_CANGGAN[z]}`).join('　'))}
+					{row('天干五合', Object.keys(TIANGAN_HE_HUA).map((k) => `${k}合${TIANGAN_HE_HUA[k]}`).join('　'))}
+					{row('长生起例', `金长生巳·木长生亥·水长生申·火长生寅·土长生${CHANGSHENG_START['土']}(水土同宫,异说火土同宫在${CHANGSHENG_START_ALT['土']})`)}
+					<div style={{ display: 'flex', padding: '5px 9px', fontSize: 12 }}>
+						<div style={{ width: 66, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>六神起例</div>
+						<div style={{ flex: 1, color: C.text, lineHeight: 1.6 }}>{TIANGAN.map((g) => `${g}起${LIUSHEN_START[g]}`).join('　')}<span style={{ color: C.muted }}>　(按日干,自初爻起顺排青龙→玄武)</span></div>
+					</div>
+				</div>
+			</details>
+		</div>
+	);
+}
 export function LiuYaoReference({ analysis }){
 	const chiShi = analysis && analysis.yaos ? (analysis.yaos.find((y) => y.shiYing === '世') || {}).liuqin : '';
 	const liuqinList = ['父母', '兄弟', '子孙', '妻财', '官鬼'];
@@ -332,12 +662,11 @@ export function LiuYaoReference({ analysis }){
 			<RefBlock title="六神发动歌">
 				{liushenList.map((sn, i) => (<RefRow key={sn} k={sn + '动'} v={LIUSHEN_FADONG[sn]} i={i} n={liushenList.length} />))}
 			</RefBlock>
-			<RefBlock title="爻位象(身/宅/人事)">
-				{YAOWEI_XIANG.slice().reverse().map((y, i) => (<RefRow key={y.pos} k={['初', '二', '三', '四', '五', '上'][y.pos - 1] + '爻'} v={`${y.body}｜${y.home}｜${y.person}`} i={i} n={6} />))}
-			</RefBlock>
-			<RefBlock title="常见占类断法纲要">
-				{ZHANLEI_GANGYAO.map((z, i) => (<RefRow key={z.key} k={z.name} v={<span>用神<b style={{ color: C.cinnabar }}>{z.yong}</b>;<span style={{ color: C.jade }}>吉</span>:{z.ji};<span style={{ color: C.danger }}>凶</span>:{z.xiong}</span>} i={i} n={ZHANLEI_GANGYAO.length} />))}
-			</RefBlock>
+			<YaoWeiXiangBlock />
+			<ZhanLeiGangYaoBlock />
+			<GuFuBlock />
+			<MingjiaBlock />
+			<DataTablesBlock />
 		</div>
 	);
 }

@@ -206,6 +206,15 @@ def _lunar_payload(year, month, day, hour):
 
 
 def _ganzhi_payload(year, month, day, hour):
+    # 🔴 四柱统一走权威 extreme_pillars(与八字/主链一致:天文年立春界/定气月/儒略JDN)。
+    # cnlunar 域限 1~9999(BC datetime 越域)且远古口径异;现代域两者一致(已验 AD2026=丙午乙未
+    # 甲午乙亥),故全域换权威=现代零回归+修 BC(旧:庚子癸未…≠八字乙未庚辰己卯)。
+    try:
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, 0)
+        return {"year": _y, "month": _m, "day": _d, "hour": _h, "raw": [_y, _m, _d, _h]}
+    except Exception:
+        pass
     lunar = cnlunar.Lunar(datetime.datetime(year, month, day, hour, 0))
     return {
         "year": lunar.year8Char,
@@ -369,11 +378,16 @@ class TaiXuanSrv:
             if cherrypy.request.method == "OPTIONS":
                 return jsonpickle.encode({"ResultCode": 0, "Result": "ok"}, unpicklable=False)
             data = cherrypy.request.json or {}
-            year = max(1500, min(2100, _to_int(data.get("year"), 2026)))
+            # [X1·P2-8] cnlunar 历表支持域 1900-2100:旧下限 1500 令 1500-1899 年起筮恒后端失败。
+            # 🔴 raw_year=原始年(四柱/seed 用,走权威 extreme_pillars 全域正确);year=clamp 年(仅
+            #    cnlunar 农历/冬至辅助显示用,历表域限妥协)。此前四柱也用 clamp 年 → BC/远古四柱当
+            #    1900 算(庚子癸未…≠八字乙未庚辰己卯);太玄起卦本为随机蓍草,与年份无关不受影响。
+            raw_year = _to_int(data.get("year"), 2026)
+            year = max(1900, min(2100, raw_year))
             month = max(1, min(12, _to_int(data.get("month"), 1)))
             day = max(1, min(31, _to_int(data.get("day"), 1)))
             hour = max(0, min(23, _to_int(data.get("hour"), 0)))
-            seed = _to_int(data.get("seed"), year * 1000000 + month * 10000 + day * 100 + hour)
+            seed = _to_int(data.get("seed"), raw_year * 1000000 + month * 10000 + day * 100 + hour)
             datetime.datetime(year, month, day, hour, 0)
 
             taixuan = _calculate(year, month, day, hour, seed)
@@ -388,7 +402,7 @@ class TaiXuanSrv:
                 "hour": hour,
                 "seed": seed,
                 "lunarDate": _lunar_payload(year, month, day, hour),
-                "ganzhi": _ganzhi_payload(year, month, day, hour),
+                "ganzhi": _ganzhi_payload(raw_year, month, day, hour),
                 "winterSolstice": _winter_solstice_payload(year, month, day, hour),
                 "taixuan": taixuan,
                 "classics": _source_sections(),

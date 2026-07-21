@@ -149,6 +149,7 @@ class NongLiMain extends Component{
 	genParams(){
 		const params = {
 			date: this.state.date.format('YYYY-MM-DD'),
+			ad: this.state.date.ad || 1,
 			zone: this.state.date.zone,
 			lon: this.state.lon,
 		}

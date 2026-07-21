@@ -1,26 +1,39 @@
-import { Component } from 'react';
+import React, { Component, Suspense } from 'react';   // React/Suspense:神数正传组件级 lazy 所需
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { Input, InputNumber, Modal, Spin, Switch } from 'antd';
+import { Collapse, Input, InputNumber, Modal, Spin, Switch } from 'antd';
 import DateTime from '../comp/DateTime';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
 import CanPingMain from '../shusuan/CanPingMain';
 import HeLuoMain from '../shusuan/HeLuoMain';
+// 神数正传:组件级 lazy —— 引擎与秘数表(~250KB)随组件走独立 chunk,不点这条 rail 即零成本。
+// 条文库(465KB+598KB)另在引擎内动态 import,条文号先出、正文到达后填(见 zhengchuan*Local)。
+const ZhengChuanMain = React.lazy(() => import(/* webpackChunkName: "zhengchuan-main" */ '../shusuan/ZhengChuanMain'));
+// 🔴 流派名表须自【独立常量文件】引 —— 直引那个 lazy 组件会成循环依赖:
+//    宿主 → ZhengChuanMain → …，其时该导出解析为 undefined，整页当场崩
+//    「Element type is invalid … got: undefined」(实测栽过);且会把其引擎拖回本 chunk。
+import { SCHOOL_LABEL as ZHENGCHUAN_SCHOOL_LABEL } from '../shusuan/zhengchuanSchools';
 import YiZhangJingMain from '../yizhangjing/YiZhangJingMain';
 import YanQinBranchPanel from '../yanqin/YanQinBranchPanel';
 import YanQinControls from '../yanqin/YanQinControls';
 import { buildYanqinYanfaSnapshot } from '../yanqin/yanqinSnapshot';
+import { deriveLocalNongliAsync } from '../../utils/divinationTimeDraft';
 import { buildTiebanFramework, buildTiebanFrameworkSnapshot, TIEBAN_SCHOOLS, TIEBAN_KE_SYSTEMS } from '../../utils/tiebanFrameworkLocal';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import ZiWeiChart from '../ziwei/ZiWeiChart';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../../utils/kinAstroFieldsSync';
+import UpdatingBadge from '../common/UpdatingBadge';
+import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -147,6 +160,17 @@ const TECHNIQUE_CONFIG = {
 		serviceKey: 'heluo',
 		moduleKey: 'shusuan',
 		techniqueLabel: '河洛理数',
+		native: true,
+		showRail: true,
+		tabs: [],
+	},
+	zhengchuan: {
+		pageTitle: '数算',
+		infoTitle: '数算信息',
+		infoSubTitle: '神数正传、铁板邵子大定与条文',
+		serviceKey: 'zhengchuan',
+		moduleKey: 'shusuan',
+		techniqueLabel: '神数正传',
 		native: true,
 		showRail: true,
 		tabs: [],
@@ -282,7 +306,13 @@ export async function buildKinAstroSnapshotForFields(fields, serviceKey){
 	// 演禽:追加右栏「演法」内容(起禽四禽/择日/占卜/投胎 + 当前流派),纯前端,后端不可达也出。
 	if(serviceKey === 'xianqin'){
 		try{
-			const yanfa = buildYanqinYanfaSnapshot(payload);
+			// 全年份域:BC/域外农历月(月禽/投胎)lunar-js 静默错 → 经远程桥取权威 monthInt 注入快照 payload。
+			const yanfaPayload = { ...payload };
+			try{
+				const nl = await deriveLocalNongliAsync(fields);
+				if(nl && nl.monthInt){ yanfaPayload.lunarMonth = nl.monthInt; }
+			}catch(e){ /* 桥失败 → snapshot 内域内 lunar-js/公历月兜底 */ }
+			const yanfa = buildYanqinYanfaSnapshot(yanfaPayload);
 			if(yanfa){ text = text ? (text + '\n\n' + yanfa) : yanfa; }
 		}catch(e){ /* 演法失败不影响命盘快照 */ }
 	}
@@ -816,6 +846,25 @@ class KinAstroMain extends Component{
 				heluoLiunianStep2: 'ying',     // 流年第二步【分歧H】ying 应爻法★ / sequential 顺行
 				heluoHuangdiOffset: '2697',    // 纪年基准【分歧J】黄帝纪元差,公历+此=黄帝年(默认 2697)
 				heluoShowLiuRi: true,          // 流日显示(展开流月后是否列 30 日)
+				zhengchuanSchool: 'tieban',    // 流派:铁板神数★ / 邵子神数 / 大定神数
+				zhengchuanAskGz: '',           // 求测时辰干支(铁板必需;留空则取本人时柱)
+				zhengchuanFatherAge: '27',     // 父生我时年龄(邵子必需)
+				zhengchuanMotherAge: '26',     // 母生我时年龄(邵子必需)
+				zhengchuanYuan: 'zhong',       // 元运(邵子先天命卦余5特例):上元/中元★/下元
+				zhengchuanDadingYear: '',      // 所推之流年(大定;主控 —— 虚岁/大运/小运/岁君尽由此派生)
+				zhengchuanAge: '',             // 虚岁(大定;留空由流年派生。手填者优先,留作古法特例)
+				                               // 🔴 默认须【空】:留 '40' 则「手订」恒真、且恒压过流年派生 —— 那还是老样子
+				zhengchuanDayun: '',           // 大运干支(大定;留空取月柱)
+				zhengchuanXiaoyun: '',         // 小运干支(大定;留空取时柱)
+				zhengchuanSuijun: '',          // 岁君干支(大定;留空取年柱)
+				zhengchuanAskHourZhi: '',      // 演算时辰支(六亲·玄机卦;留空取本人时支)
+				zhengchuanEnv: '',             // 演算时天象(六亲·玄机卦;留空按时辰取天/地四象首项)
+				zhengchuanItem: '父母',        // 查询项目(心易)★
+				zhengchuanSound: '日',         // 声音(心易)★
+				zhengchuanKe: '一刻',          // 刻数(心易·八刻分命)★
+				zhengchuanGong: '乾',          // 八宫(心易·八刻分命)★
+				zhengchuanXqZhi: '子',         // 性情项地支(心易)★
+				zhengchuanXqYushu: '1',        // 性情项余数 1..12(心易)★
 				yizhangjingShunni: 'yangNanYinNv',  // 顺逆规则:阳男阴女★ / 男顺女逆
 				yizhangjingMingGong: 'shiShang',    // 命宫定法:时上起命★ / 数至卯
 				yizhangjingDayunLen: '7',           // 大限运长:7年★ / 10年
@@ -848,7 +897,20 @@ class KinAstroMain extends Component{
 				}
 				this.fetchPan(fields || this.props.fields);
 			};
+			// 🔴 chartFree 契约(极速化快车道):本页中右栏【零】消费共享 chartObj(全部由 fields
+			// 驱动本组件自算/自取)。声明后 fetchByFields 对本页走快车道:fields 立即提交、
+			// 不等 /chart 网络 —— 本页从「等一次网络(~230ms)」变「点击即出(<100ms)」。
+			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
+			this.props.hook.chartFree = true;
 		}
+	}
+
+	// [A7·性能] 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
+	// 开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲(setState 恒换引用)。
+	// 收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){
@@ -1228,17 +1290,20 @@ class KinAstroMain extends Component{
 					<div className="horosa-side-panel-title">{this.config.pageTitle}设置</div>
 					<div className="horosa-side-panel-subtitle">时间、命盘与技法选项</div>
 				</div>
-				<SpaceTimePanel
-					fields={fields}
-					value={datetm}
-					timeText={formatSpaceTime(fields, '---- -- -- --:--:--')}
-					onTimeChange={this.onTimeChanged}
-					onGeoChange={this.changeGeo}
-					timeHook={this.timeHook}
-					showLocation={this.config.serviceKey === 'cetian'}
-				/>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="quickPrimary" />{this.config.techniqueLabel}</div>
+				{/* [观象P1] KinAstro 母版分段:时间地点(不折叠)/技法选项(折叠记忆);内容结构零变 */}
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
+					<SpaceTimePanel
+						fields={fields}
+						value={datetm}
+						timeText={formatSpaceTime(fields, '---- -- -- --:--:--')}
+						onTimeChange={this.onTimeChanged}
+						onGeoChange={this.changeGeo}
+						timeHook={this.timeHook}
+						showLocation={this.config.serviceKey === 'cetian'}
+					/>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('switches')} title={`${this.config.techniqueLabel}选项`} storageKey={`kin.${this.config.serviceKey}.options`} className="horosa-side-input-section">
+				<div className="horosa-side-fields-inner">
 					<div className={`horosa-huangji-select-grid horosa-kinastro-select-grid horosa-kinastro-select-grid-${this.config.serviceKey}`}>
 						{this.config.serviceKey !== 'xianqin' ? (
 							<label className="horosa-huangji-select-field">
@@ -1384,11 +1449,125 @@ class KinAstroMain extends Component{
 									</label>
 									<label className="horosa-huangji-select-field is-wide">
 										<span>纪年基准（黄帝纪元差，默认 2697）</span>
-										<InputNumber min={0} max={9999} value={parseInt(this.state.heluoHuangdiOffset, 10) || 2697} onChange={(v)=>this.setState({ heluoHuangdiOffset: `${v || 2697}` })} />
+										<InputNumber min={0} max={16799} value={parseInt(this.state.heluoHuangdiOffset, 10) || 2697} onChange={(v)=>this.setState({ heluoHuangdiOffset: `${v || 2697}` })} />
 									</label>
 									<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">诸法分歧：默认取「成对全取 · 三元表」（古本/经典主流）。改设置即时重排先后天卦、元堂图、旺相休囚死、十吉与纪年。占事卦/日课本轮未开，命卦为唯一用途。</div>
 								</>
 							) : null}
+							{this.config.serviceKey === 'zhengchuan' ? (
+									<>
+										<label className="horosa-huangji-select-field is-wide">
+											<span>流派</span>
+											<Select value={this.state.zhengchuanSchool} onChange={(value)=>this.setState({ zhengchuanSchool: value })}>
+												{Object.keys(ZHENGCHUAN_SCHOOL_LABEL).map((k)=>(
+													<Option key={k} value={k}>{ZHENGCHUAN_SCHOOL_LABEL[k]}</Option>
+												))}
+											</Select>
+										</label>
+										{this.state.zhengchuanSchool === 'tieban' ? (
+											<label className="horosa-huangji-select-field is-wide">
+												<span>求测时辰（干支，留空取本人时柱）</span>
+												<Input value={this.state.zhengchuanAskGz} maxLength={2} placeholder="如 丙辰"
+													onChange={(e)=>this.setState({ zhengchuanAskGz: e.target.value })} />
+											</label>
+										) : null}
+										{this.state.zhengchuanSchool === 'shaozi' ? (
+											<>
+												<label className="horosa-huangji-select-field">
+													<span>父生我时年龄</span>
+													<InputNumber min={12} max={99} value={parseInt(this.state.zhengchuanFatherAge, 10) || 27}
+														onChange={(v)=>this.setState({ zhengchuanFatherAge: `${v || 27}` })} />
+												</label>
+												<label className="horosa-huangji-select-field">
+													<span>母生我时年龄</span>
+													<InputNumber min={12} max={99} value={parseInt(this.state.zhengchuanMotherAge, 10) || 26}
+														onChange={(v)=>this.setState({ zhengchuanMotherAge: `${v || 26}` })} />
+												</label>
+												<label className="horosa-huangji-select-field">
+													<span>元运（先天命卦余五特例）</span>
+													<Select value={this.state.zhengchuanYuan} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanYuan: value })}>
+														<Option value="shang">上元</Option>
+														<Option value="zhong">中元</Option>
+														<Option value="xia">下元</Option>
+													</Select>
+												</label>
+											</>
+										) : null}
+										{this.state.zhengchuanSchool === 'dading' ? this.renderDadingYearFields() : null}
+										{this.state.zhengchuanSchool === 'liuqin' ? (
+											<>
+											<label className="horosa-huangji-select-field">
+												<span>演算时辰（留空取本人时支）</span>
+												<Select value={this.state.zhengchuanAskHourZhi} dropdownMatchSelectWidth={false}
+													onChange={(value)=>this.setState({ zhengchuanAskHourZhi: value, zhengchuanEnv: '' })}>
+													<Option value="">（取本人时支）</Option>
+													{['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'].map((z)=>(
+														<Option key={z} value={z}>{z}时{'卯辰巳午未申'.indexOf(z) >= 0 ? '（白天·天四象）' : '（昼夜·地四象）'}</Option>
+													))}
+												</Select>
+											</label>
+											<label className="horosa-huangji-select-field">
+												<span>演算时天象</span>
+												<Select value={this.state.zhengchuanEnv} dropdownMatchSelectWidth={false}
+													onChange={(value)=>this.setState({ zhengchuanEnv: value })}>
+													<Option value="">（按时辰取首项）</Option>
+													{('卯辰巳午未申'.indexOf(this.state.zhengchuanAskHourZhi) >= 0
+														? [['晴','晴'],['陰','阴'],['雨','雨'],['雪','雪']]
+														: [['明','明（见月光）'],['晦','晦（无月光）'],['雨','雨'],['雪','雪']]
+													).map(([v, t])=>(<Option key={v} value={v}>{t}</Option>))}
+												</Select>
+											</label>
+											</>
+										) : null}
+										{this.state.zhengchuanSchool === 'xinyi' ? (
+											<>
+											<label className="horosa-huangji-select-field">
+												<span>查询项目</span>
+												<Select value={this.state.zhengchuanItem} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanItem: value })}>
+													{['父母','兄弟','姻緣','子孫','官祿','疾病'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
+												</Select>
+											</label>
+											<label className="horosa-huangji-select-field">
+												<span>声音</span>
+												<Select value={this.state.zhengchuanSound} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanSound: value })}>
+													{['日','月','星','辰','水','火','土','石','平','上','去','入','開','發','收','閉'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
+												</Select>
+											</label>
+											<label className="horosa-huangji-select-field">
+												<span>刻数</span>
+												<Select value={this.state.zhengchuanKe} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanKe: value })}>
+													{['一刻','二刻','三刻','四刻','五刻','六刻','七刻','八刻'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
+												</Select>
+											</label>
+											<label className="horosa-huangji-select-field">
+												<span>八宫</span>
+												<Select value={this.state.zhengchuanGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanGong: value })}>
+													{['乾','兌','離','震','巽','坎','艮','坤'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
+												</Select>
+											</label>
+											<label className="horosa-huangji-select-field">
+												<span>性情项 · 地支</span>
+												<Select value={this.state.zhengchuanXqZhi} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanXqZhi: value })}>
+													{['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
+												</Select>
+											</label>
+											<label className="horosa-huangji-select-field">
+												<span>性情项 · 余数</span>
+												<Select value={this.state.zhengchuanXqYushu} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanXqYushu: value })}>
+													{Array.from({ length: 12 }, (_, i)=>`${i + 1}`).map((x)=>(<Option key={x} value={x}>{x}</Option>))}
+												</Select>
+											</label>
+											</>
+										) : null}
+										<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">
+											{this.state.zhengchuanSchool === 'xinyi'
+												? '本支古籍只出部分口诀与部分图表，未出起数入口（由生辰求声音／卦气／余数之法全未载），故据实作查询层：自择项目与声音即出条文号，不作自动推算。其条文正文亦未载，只出号。'
+												: (this.state.zhengchuanSchool === 'liuqin'
+													? '本支配十二宫与遁甲盘演六亲属相、妻室姓氏。改设置即时重排中右栏与 AI 快照。古籍未载之格（心法上卦须秘咒／成数序须卦谱／动爻落阴支之遁法）显式标缺，不臆补。'
+													: '三支同出一系：大定数为条文类神数之底层，铁板与邵子各据其上另立条文体系。改设置即时重排中右栏与 AI 快照。古籍原缺之格显式标「原缺」，不外推。')}
+										</div>
+									</>
+								) : null}
 							{this.config.serviceKey === 'yizhangjing' ? (
 								<>
 									<label className="horosa-huangji-select-field">
@@ -1516,19 +1695,19 @@ class KinAstroMain extends Component{
 								{this.renderPillarOverrideFields()}
 								<label className="horosa-huangji-select-field">
 									<span>父亲生年</span>
-									<InputNumber min={1} max={9999} value={this.state.fatherBirthYear} onChange={(value)=>this.setState({ fatherBirthYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.fatherBirthYear} onChange={(value)=>this.setState({ fatherBirthYear: value })} />
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>父亲卒年</span>
-									<InputNumber min={1} max={9999} value={this.state.fatherDeathYear} onChange={(value)=>this.setState({ fatherDeathYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.fatherDeathYear} onChange={(value)=>this.setState({ fatherDeathYear: value })} />
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>母亲生年</span>
-									<InputNumber min={1} max={9999} value={this.state.motherBirthYear} onChange={(value)=>this.setState({ motherBirthYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.motherBirthYear} onChange={(value)=>this.setState({ motherBirthYear: value })} />
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>母亲卒年</span>
-									<InputNumber min={1} max={9999} value={this.state.motherDeathYear} onChange={(value)=>this.setState({ motherDeathYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.motherDeathYear} onChange={(value)=>this.setState({ motherDeathYear: value })} />
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>兄弟信息</span>
@@ -1660,7 +1839,7 @@ class KinAstroMain extends Component{
 										<>
 											<label className="horosa-huangji-select-field">
 												<span>历年</span>
-												<InputNumber min={1} max={9999} value={this.state.nanjiLunarYear} onChange={(value)=>this.setState({ nanjiLunarYear: value || 2026 })} />
+												<InputNumber min={1} max={16799} value={this.state.nanjiLunarYear} onChange={(value)=>this.setState({ nanjiLunarYear: value || 2026 })} />
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>节月</span>
@@ -1793,7 +1972,7 @@ class KinAstroMain extends Component{
 								<div className="horosa-kinastro-xianqin-option-row is-lunar">
 									<label className="horosa-huangji-select-field">
 										<span>农历年</span>
-										<InputNumber min={1} max={9999} value={this.state.lunarYear} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setState({ lunarYear: value || 2026 })} />
+										<InputNumber min={1} max={16799} value={this.state.lunarYear} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setState({ lunarYear: value || 2026 })} />
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>农历月</span>
@@ -1809,6 +1988,7 @@ class KinAstroMain extends Component{
 						) : null}
 					</div>
 				</div>
+				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起盘</Button>
 				</div>
@@ -1997,7 +2177,7 @@ class KinAstroMain extends Component{
 		const pillars = pan.pillars || [];
 		const gz = (k, i)=>{ const byKey = pillars.find((pp)=>pp.key === k); return (byKey && byKey.ganzhi) || (pillars[i] && pillars[i].ganzhi) || ''; };
 		const fourPillars = { year: gz('year', 0), month: gz('month', 1), day: gz('day', 2), hour: gz('hour', 3) };
-		const birthYear = parseInt(`${pan.dateStr || ''}`.slice(0, 4), 10) || 0;
+		const birthYear = parseYearFromDateStr(`${pan.dateStr || ''}`) || 0;
 		return buildTiebanFramework(fourPillars, { school: this.state.tiebanSchool, keSystem: this.state.tiebanKeSystem, ke: this.state.tiebanKe, gender: this.state.gender, birthYear });
 	}
 
@@ -2544,6 +2724,95 @@ class KinAstroMain extends Component{
 		};
 	}
 
+	/**
+	 * 大定推命之「所推流年」—— 主控一项，余者尽自其派生。
+	 *
+	 * 🔴 从前此处要用户手填【虚岁 + 大运/小运/岁君三个干支】,而这四者本可自生辰与流年推得:
+	 *    用户得自己算虚岁、自己排大运、自己查太岁,方能推一年 —— 换一年又得重来一遍。
+	 *    今只取一年,余者由 ZhengChuanMain 自八字既有之推运表派生(与八字盘同出一源,不另造)。
+	 *    手填诸格仍在,收于「手订七位」之下:古法偶有特例(如虚岁按他说、大运另取),留其路。
+	 */
+	renderDadingYearFields(){
+		const f = this.props.fields || {};
+		const dv = f.date && f.date.value;
+		// 🔴 此处 date.value 是【朴素对象】{year,month,date,...},不是 moment ——
+		//    而同一字段到了 ZhengChuanMain 那边却是 moment(其调 dv.format())。
+		//    两处形状不同,照抄邻居即取空(实测:一度恒报「先定生辰」)。故两种皆吃。
+		const birthYear = (() => {
+			if (!dv) return null;
+			if (typeof dv.year === 'function') return dv.year();       // moment
+			return Number.isFinite(Number(dv.year)) ? Number(dv.year) : null;   // 朴素对象
+		})();
+		const nowYear = new Date().getFullYear();
+		const cur = parseInt(this.state.zhengchuanDadingYear, 10);
+		const manual = [this.state.zhengchuanAge, this.state.zhengchuanDayun,
+			this.state.zhengchuanXiaoyun, this.state.zhengchuanSuijun].filter((x)=>`${x || ''}`.trim()).length;
+		return (
+			<>
+				<label className="horosa-huangji-select-field is-wide">
+					<span>所推流年（余者自出）</span>
+					<InputNumber
+						min={birthYear || 1} max={(birthYear || nowYear) + 120}
+						value={Number.isFinite(cur) ? cur : undefined}
+						placeholder={`${nowYear}`}
+						onChange={(v)=>this.setState({ zhengchuanDadingYear: v ? `${v}` : '' })} />
+				</label>
+				<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">
+					{birthYear ? '择一年，其虚岁·大运·小运·岁君即自本命推运表出（与八字盘同源）；留空则三运取本命月/时/年柱。' : '先定生辰，方可推年。'}
+				</div>
+				<Collapse ghost className="horosa-huangji-sub-collapse horosa-heluo-diverge-hint">
+					<Collapse.Panel key="manual" header={`手订七位${manual ? `（已订 ${manual} 项）` : ''}`}>
+						<label className="horosa-huangji-select-field">
+							<span>虚岁（留空自出）</span>
+							<InputNumber min={1} max={120} value={parseInt(this.state.zhengchuanAge, 10) || undefined}
+								placeholder="自流年出"
+								onChange={(v)=>this.setState({ zhengchuanAge: v ? `${v}` : '' })} />
+						</label>
+						<label className="horosa-huangji-select-field">
+							<span>大运（干支）</span>
+							<Input value={this.state.zhengchuanDayun} maxLength={2} placeholder="自流年出，未起运取月柱"
+								onChange={(e)=>this.setState({ zhengchuanDayun: e.target.value })} />
+						</label>
+						<label className="horosa-huangji-select-field">
+							<span>小运（干支）</span>
+							<Input value={this.state.zhengchuanXiaoyun} maxLength={2} placeholder="自流年出"
+								onChange={(e)=>this.setState({ zhengchuanXiaoyun: e.target.value })} />
+						</label>
+						<label className="horosa-huangji-select-field">
+							<span>岁君（干支）</span>
+							<Input value={this.state.zhengchuanSuijun} maxLength={2} placeholder="自流年出，即当年太岁"
+								onChange={(e)=>this.setState({ zhengchuanSuijun: e.target.value })} />
+						</label>
+					</Collapse.Panel>
+				</Collapse>
+			</>
+		);
+	}
+
+	buildZhengChuanOpts(){
+		// 汇总全部开关 → 单一 opts 下传;任一变则中/右栏重算 + AI 快照刷新(禁止只监听单项)。
+		return {
+			school: this.state.zhengchuanSchool,
+			askGz: this.state.zhengchuanAskGz,
+			fatherAge: this.state.zhengchuanFatherAge,
+			motherAge: this.state.zhengchuanMotherAge,
+			yuan: this.state.zhengchuanYuan,
+			dadingYear: this.state.zhengchuanDadingYear,
+			age: this.state.zhengchuanAge,
+			dayun: this.state.zhengchuanDayun,
+			xiaoyun: this.state.zhengchuanXiaoyun,
+			suijun: this.state.zhengchuanSuijun,
+			askHourZhi: this.state.zhengchuanAskHourZhi,
+			env: this.state.zhengchuanEnv,
+			item: this.state.zhengchuanItem,
+			sound: this.state.zhengchuanSound,
+			ke: this.state.zhengchuanKe,
+			gong: this.state.zhengchuanGong,
+			xqZhi: this.state.zhengchuanXqZhi,
+			xqYushu: this.state.zhengchuanXqYushu,
+		};
+	}
+
 	buildYizhangjingOpts(){
 		return {
 			shunniRule: this.state.yizhangjingShunni,
@@ -2564,6 +2833,11 @@ class KinAstroMain extends Component{
 		}
 		if(this.config.serviceKey === 'heluo'){
 			return <HeLuoMain slot="center" fields={this.props.fields} gender={this.state.gender} quHuaGong={this.state.heluoQuHuaGong} opts={this.buildHeluoOpts()} />;
+		}
+		if(this.config.serviceKey === 'zhengchuan'){
+			return <Suspense fallback={<div className="horosa-zhengchuan-loading"><Spin size="small" /> 载入中</div>}>
+					<ZhengChuanMain slot="center" fields={this.props.fields} opts={this.buildZhengChuanOpts()} />
+				</Suspense>;
 		}
 		if(this.config.serviceKey === 'yizhangjing'){
 			return <YiZhangJingMain slot="center" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} />;
@@ -2767,6 +3041,13 @@ class KinAstroMain extends Component{
 		if(this.config.serviceKey === 'heluo'){
 			return <div className="horosa-huangji-section-list"><HeLuoMain slot="aux" fields={this.props.fields} gender={this.state.gender} quHuaGong={this.state.heluoQuHuaGong} opts={this.buildHeluoOpts()} /></div>;
 		}
+		if(this.config.serviceKey === 'zhengchuan'){
+			return <div className="horosa-huangji-section-list">
+					<Suspense fallback={<div className="horosa-zhengchuan-loading"><Spin size="small" /> 载入中</div>}>
+						<ZhengChuanMain slot="aux" fields={this.props.fields} opts={this.buildZhengChuanOpts()} />
+					</Suspense>
+				</div>;
+		}
 		if(this.config.serviceKey === 'yizhangjing'){
 			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} /></div>;
 		}
@@ -2904,6 +3185,7 @@ class KinAstroMain extends Component{
 					{ key: 'chunzi', label: '蠢子数' },
 					{ key: 'canping', label: '邵子参评数' },
 					{ key: 'heluo', label: '河洛理数' },
+					{ key: 'zhengchuan', label: '神数正传' },
 				]
 			: [{ key: this.props.technique || this.config.serviceKey, label: this.config.techniqueLabel }];
 		return (
@@ -2934,12 +3216,15 @@ class KinAstroMain extends Component{
 		return (
 			<div className={`horosa-huangji-page horosa-astro-redesign horosa-huangji-redesign horosa-kinastro-redesign horosa-kinastro-module-${this.config.moduleKey} horosa-kinastro-${this.config.serviceKey}-redesign${embedded ? ' horosa-huangji-embedded' : ''}`} style={pageStyle}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-huangji-redesign-layout">
-					<Spin spinning={this.state.loading}>
-						<div className={`horosa-astro-redesign-grid horosa-huangji-redesign-grid horosa-kinastro-grid${showTechniqueRail ? ' has-technique-rail' : ''}`}>
+					{/* WP-C keep-stale:重取时【有旧盘】就不压暗(Spin 只在首载兜底),角标代之 ——
+					    旧盘全程可读可操作,新盘到达单次 setState 整体替换(印占同款)。开关关=旧局部 Spin。 */}
+					<Spin spinning={this.state.loading && (!silentTechniquePanelsEnabled() || !this.state.pan)}>
+						<div className={`horosa-astro-redesign-grid horosa-huangji-redesign-grid horosa-kinastro-grid${showTechniqueRail ? ' has-technique-rail' : ''}`} style={{ position: 'relative' }}>
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-huangji-input-panel">
 								{this.renderInputPanel()}
 							</div>
-							<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer${chartRendererClass}`}>
+							<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer${chartRendererClass}`} style={{ position: 'relative' }}>
+								{this.state.loading && this.state.pan && silentTechniquePanelsEnabled() ? <UpdatingBadge /> : null}
 								<div className="horosa-huangji-board-host horosa-kinastro-board-host">{this.renderCenter()}</div>
 							</div>
 							<div className="horosa-inspector-panel horosa-astro-content-panel horosa-huangji-info-panel">

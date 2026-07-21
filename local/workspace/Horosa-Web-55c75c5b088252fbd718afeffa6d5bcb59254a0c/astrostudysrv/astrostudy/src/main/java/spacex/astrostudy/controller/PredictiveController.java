@@ -221,6 +221,14 @@ public class PredictiveController {
 		Map<String, Object> res = AstroHelper.getPrimaryDirectionChart(params);
 		TransData.set(res);
 	}
+
+	@ResponseBody
+	@RequestMapping("/pd3d")
+	public void pd3d(){
+		Map<String, Object> params = getParams();
+		Map<String, Object> res = AstroHelper.getPrimaryDirection3D(params);
+		TransData.set(res);
+	}
 	
 	@ResponseBody
 	@RequestMapping("/zr")

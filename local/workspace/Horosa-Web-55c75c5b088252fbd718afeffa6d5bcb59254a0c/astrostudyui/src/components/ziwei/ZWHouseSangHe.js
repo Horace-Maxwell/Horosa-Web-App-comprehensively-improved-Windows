@@ -88,8 +88,10 @@ class ZWHouseSangHe extends ZWCommHouse {
 				.attr('width', w).attr('height', h);
 		this.drawKinastroCornerMark(container, x, y, w, h);
 		let data = [];
-		for(let i=0; i<(this.houseObj.starsSmall || []).length; i++){
-			let star = this.houseObj.starsSmall[i];
+		// 「显示十二神」全局开关:与四化盘 ZWHouse.drawSihuaSmallStars 同口径——关则不绘长生/博士/将前/岁前十二神。
+		const smalls = ZiWeiHelper.zwShowSmall() ? (this.houseObj.starsSmall || []) : [];
+		for(let i=0; i<smalls.length; i++){
+			let star = smalls[i];
 			let sy = y + i*h/3;
 			data[0] = star.name.substr(0,1);
 			data[1] = star.name.substr(1,1);
@@ -244,8 +246,10 @@ class ZWHouseSangHe extends ZWCommHouse {
 		const main = this.houseObj.starsMain || [];
 		const assist = this.houseObj.starsAssist || [];
 		const evil = this.houseObj.starsEvil || [];
-		const othersGood = this.houseObj.starsOthersGood || [];
-		const othersBad = this.houseObj.starsOthersBad || [];
+		// 「显示杂曜」全局开关:与四化盘 ZWHouse.drawSihuaStars 同口径——关则不绘杂吉/杂凶(纯显示,不动排盘数据)。
+		const showOthers = ZiWeiHelper.zwShowOthers();
+		const othersGood = showOthers ? (this.houseObj.starsOthersGood || []) : [];
+		const othersBad = showOthers ? (this.houseObj.starsOthersBad || []) : [];
 		const protectedCount = main.length + assist.length + evil.length;
 		const othersCount = othersGood.length + othersBad.length;
 		const total = protectedCount + othersCount;

@@ -9,7 +9,8 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import ZWSihuaCustomModal from './ZWSihuaCustomModal';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
-import { XQSelect as Select } from '../xq-ui';
+import { XQSelect as Select, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import XQIcon from '../xq-icons';
 import { ZWEngineOptions, DAXIAN_SPAN_OPTIONS, TIANMA_BASIS_OPTIONS, STAR_SET_OPTIONS, SANPAN_OPTIONS, SHANGSHI_OPTIONS, LEAP_MONTH_OPTIONS, LATE_ZI_OPTIONS, YEAR_BOUNDARY_OPTIONS, HUOLING_OPTIONS, KONG_NAMING_OPTIONS } from './ziweiOptions';
 import { ZIWEI_SCHOOL_PRESETS, ZIWEI_PRESET_OPTIONS, presetOf } from './ziweiPresets';
@@ -397,6 +398,7 @@ class ZiWeiInput extends Component{
 					</div>
 				</div>
 
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
 					value={datetm}
@@ -404,12 +406,9 @@ class ZiWeiInput extends Component{
 					timeHook={this.tmHook}
 					onGeoChange={this.changeGeo}
 				/>
+				</XQSideSection>
 
-				<div className="horosa-ziwei-input-section">
-					<div className="horosa-ziwei-field-title">
-						<XQIcon name="sliders" />
-						<span>选项</span>
-					</div>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="ziwei.options" className="horosa-side-input-section">
 					<div className="horosa-ziwei-select-grid">
 						<label className="horosa-ziwei-select-field">
 							<span>性别</span>
@@ -535,7 +534,7 @@ class ZiWeiInput extends Component{
 						onOk={this.onSihuaCustomOk}
 						onCancel={this.onSihuaCustomCancel}
 					/>
-				</div>
+				</XQSideSection>
 			</div>
 		);
 	}

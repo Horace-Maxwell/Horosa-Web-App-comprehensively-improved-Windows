@@ -261,7 +261,7 @@ export default function LiqiWorkspace({ school }) {
 		}
 		if (school === 'fuxing') {
 			const p = result.palaces.map((x)=>({ gong: x.gong, gua: x.gua, dir: x.dir, primary: x.star, secondary: x.water === 'come' ? '来' : (x.water === 'go' ? '去' : x.youxing), jx: x.verdictJx !== 'neutral' ? x.verdictJx : x.jx }));
-			return <EightPalaceDisk palaces={p} centerLabel={`辅星 起${fx.benGua}`} size={620} />;
+			return <EightPalaceDisk palaces={p} centerLabel={`辅星 起${result.startGua || fx.benGua}`} size={620} />;
 		}
 		if (school === 'jingyin') {
 			return <TwentyFourShanRing ring={null} zuoShan={result.items[0].shan} xiangShan={result.items[1].shan} size={700} />;
@@ -322,7 +322,7 @@ export default function LiqiWorkspace({ school }) {
 				{result.remedies.length ? card('化解', result.remedies.map((r, i)=>row(`化解${i + 1}`, r))) : null}</>);
 		}
 		if (school === 'fuxing') {
-			return (<>{card(`辅星水法（${(FROM_OPTS.find((o)=>o.value === result.qiFrom) || {}).label || '向卦'}起${result.benGua}·${result.heFa ? '合法' : '待核'}）`, result.palaces.map((p)=>row(`${p.gua} ${p.youxing}(${p.star})`, p.result, p.verdictJx !== 'neutral' ? p.verdictJx : p.jx)))}
+			return (<>{card(`辅星水法（${(FROM_OPTS.find((o)=>o.value === result.qiFrom) || {}).label || '向卦'}起${result.startGua || result.benGua}·${result.heFa ? '合法' : '待核'}）`, result.palaces.map((p)=>row(`${p.gua} ${p.youxing}(${p.star})`, p.result, p.verdictJx !== 'neutral' ? p.verdictJx : p.jx)))}
 				<div className="horosa-fengshui-liqi-note">{result.note}</div></>);
 		}
 		if (school === 'jingyin') {
@@ -433,7 +433,7 @@ function buildSnapshot(school, r) {
 		L.push(`得位${r.deCount}/8 ${r.score}分`);
 		L.push(r.palaces.map((p)=>`${p.gua}${p.deWei ? '得位' : (p.actual === 'flat' ? '平' : '失位')}`).join(' '));
 	} else if (school === 'fuxing') {
-		L.push(`辅星${(FROM_OPTS.find((o)=>o.value === r.qiFrom) || {}).label || '向卦'}起${r.benGua}${r.heFa ? '·合法' : ''}`);
+		L.push(`辅星${(FROM_OPTS.find((o)=>o.value === r.qiFrom) || {}).label || '向卦'}起${r.startGua || r.benGua}${r.heFa ? '·合法' : ''}`);
 		L.push(r.palaces.map((p)=>`${p.gua}${p.youxing}${p.water ? (p.water === 'come' ? '来' : '去') : ''}`).join(' '));
 	} else if (school === 'jingyin') {
 		L.push(`龙${r.items[0].shan}${r.items[0].yy || ''}/向${r.items[1].shan}${r.items[1].yy || ''}/水${r.items[2].shan}${r.items[2].yy || ''} · ${r.verdict.text}`);

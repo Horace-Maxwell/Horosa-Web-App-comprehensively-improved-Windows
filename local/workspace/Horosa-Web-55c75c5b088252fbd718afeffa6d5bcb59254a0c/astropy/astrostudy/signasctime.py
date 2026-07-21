@@ -246,6 +246,10 @@ class SignAscTime:
             return self.birth.jd + magnitude * 365.2421904
 
         years = int(math.floor(magnitude + 1e-12))
+        # stdlib datetime 域至 9999 年:周年插值会跨出(如 9999 年生人的百年主限表)时,
+        # 退回与 `_birth_local is None` 分支相同的回归年常数近似;域内不触发,golden 零变。
+        if self._birth_local.year + years + 1 > 9999:
+            return self.birth.jd + magnitude * 365.2421904
         fraction = magnitude - years
 
         birth_utc = self._birth_local.astimezone(timezone.utc)

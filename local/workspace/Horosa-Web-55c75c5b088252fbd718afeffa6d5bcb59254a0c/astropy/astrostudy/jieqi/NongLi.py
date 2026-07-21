@@ -185,8 +185,13 @@ class NongLi:
             if dparts[1] != '12' and dparts[2] != '01':
                 eidx = eidx + 1
         else:
-            if dparts[2] != '12' and dparts[2] != '01':
+            # 公元前日期串形如 '-7039-12-18',split 后首段为空、月/日整体右移一位:
+            # 月=dparts[2]、日=dparts[3]。旧写法把 dparts[2] 双用(月又当日),
+            # 部分 BC 年份 eidx 误进 → 越界崩 / 冬月错标(静默错月,更隐蔽)。
+            if dparts[2] != '12' and dparts[3] != '01':
                 eidx = eidx + 1
+        if eidx >= len(months):
+            eidx = len(months) - 1
 
         months[eidx]['name'] = MonthNames[10]
         eidx = eidx - 1
@@ -261,7 +266,12 @@ class NongLi:
             tm = Datetime.fromJD(tm['tm'].jd + 29, self.zone)
             dtstr = tm.toCNString()
             parts = dtstr.split(' ')
-            tm = self.computeNewMoon(parts[0])
+            try:
+                tm = self.computeNewMoon(parts[0])
+            except Exception:
+                # 星历数据域尽头(如 AD16799 年末):朔序列在界内截断,已得朔表照常成表;
+                # 覆盖不足所需月份时由 setupMonth/上层报明确超域,而非整年炸。
+                break
             if cnt == 0:
                 if tm['date'] == self.prevDongZi['date']:
                     nongliMoon = [tm]

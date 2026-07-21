@@ -17,7 +17,7 @@
 //  - type:'switch' 的值用 0/1（与 buildFieldObject 既有写法一致）。
 
 import * as AstroConst from '../constants/AstroConst';
-import { safeLocalStorageSet } from './safeStorage';
+import { safeLocalStorageSet } from '../utils/safeStorage';
 import {
 	SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_TIME_KEYS,
@@ -830,7 +830,32 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// 皇极经世：双栖——命盘侧按出生重算(buildHuangJiSnapshotForFields)，又可存事盘(报数/起例确定性结果)。
 	// 与五兆/太玄/荆诀/神易数 同列 sectionsOnly：事盘按 payload.snapshot 出正文不重算，且去掉事盘上误显的
 	// TIME_FIELDS 覆盖(对已定型存案无意义、覆盖重算会落空)；命盘侧重算不受 schema.kind 影响(buildTechniqueContext chart 分支仍重算)。
-	huangji: { kind: 'sectionsOnly', reason: '皇极经世按时间确定起盘(命盘侧按出生重算、事盘读已存结果)，仅可勾选纳入内容、不按挂载覆盖重算。' },
+	huangji: { kind: 'payload', optionsPath: '', fields: [
+		{ name: 'classicKey', label: '典籍', type: 'select', default: 'huangji_jingshi_shu', group: '典籍',
+			options: [
+				{ value: 'huangji_jingshi_shu', label: '皇極經世書(邵雍)' },
+				{ value: 'xinyi_fawei', label: '心易發微(楊體仁)' },
+				{ value: 'guanwu_yanyi', label: '觀物外篇衍義(張行成)' },
+			] },
+		{ name: 'xinyiMethod', label: '心易起卦', type: 'select', default: 'none', group: '心易發微',
+			options: [
+				{ value: 'none', label: '不算心易(默认)' },
+				{ value: 'datetime', label: '年月日时起卦' },
+				{ value: 'number', label: '两数起卦' },
+				{ value: 'strokes', label: '字画起卦' },
+				{ value: 'object', label: '物象+方位起卦' },
+			] },
+		{ name: 'upperNum', label: '上卦数', type: 'number', default: 5, min: 1, max: 999, group: '心易發微', showWhen: (d)=>d && d.xinyiMethod === 'number' },
+		{ name: 'lowerNum', label: '下卦数', type: 'number', default: 10, min: 1, max: 999, group: '心易發微', showWhen: (d)=>d && d.xinyiMethod === 'number' },
+		{ name: 'upperStrokes', label: '上字笔画', type: 'number', default: 5, min: 1, max: 99, group: '心易發微', showWhen: (d)=>d && d.xinyiMethod === 'strokes' },
+		{ name: 'lowerStrokes', label: '下字笔画', type: 'number', default: 8, min: 1, max: 99, group: '心易發微', showWhen: (d)=>d && d.xinyiMethod === 'strokes' },
+		{ name: 'objectGua', label: '物象卦', type: 'select', default: '離', group: '心易發微', showWhen: (d)=>d && d.xinyiMethod === 'object',
+			options: ['乾', '兌', '離', '震', '巽', '坎', '艮', '坤'].map((g)=>({ value: g, label: g })) },
+		{ name: 'direction', label: '方位', type: 'select', default: '南', group: '心易發微', showWhen: (d)=>d && d.xinyiMethod === 'object',
+			options: ['南', '北', '東', '西', '東南', '東北', '西南', '西北'].map((g)=>({ value: g, label: g })) },
+	] },
+	// [D2] 合盘:两盘技法无法单命主重算,快照单源=合盘页所存(选项在合盘页改即重存)。
+	relative: { kind: 'sectionsOnly', reason: '合盘须两张盘,挂载读合盘页当前所存快照;要改关系类型/两盘请到合盘页操作,改后即自动更新。' },
 
 	// ---- A 类：星运（主限法 + 三分主星 / Balbillus / 关键点 可调；其余推运参数固定=现状则空 schema）----
 	// 拆分（P5）：表格用年限范围(pdYears,无 datetime)，盘用单一时刻(datetime,无 pdYears)。
@@ -951,6 +976,44 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// ---- A 类：数算（时间换算 + 流派）----
 	// 邵子参评数 method(明法/古法)：buildCanpingSnapshotForRecord/canpingLiunianSeries 透传 opts.method →
 	// dayPalace(canpingLocal) 改命宫取法(明法=月支反向 / 古法=日支)，真改快照(round-trip 通)。默认 ming === 现状。
+	// 神数正传 zc*：流派/求测时辰/父母年龄/元运/虚岁 → record.zc* → builder opts。
+	// 缺省 → builder 回默认（铁板 + 本人时柱作求测时辰）＝现状，字节级一致。
+	zhengchuan: { kind: 'record', fields: [
+		...TIME_FIELDS,
+		{ name: 'zcSchool', label: '流派', type: 'select', default: 'tieban', group: '流派', options: [
+			{ value: 'tieban', label: '铁板神数（默认）' },
+			{ value: 'shaozi', label: '邵子神数' },
+			{ value: 'dading', label: '大定神数' },
+			{ value: 'liuqin', label: '六亲属相姓氏断' },
+			{ value: 'xinyi', label: '铁算心易（查询）' },
+		] },
+		{ name: 'zcAskGz', label: '求测时辰（干支）', type: 'text', default: '', group: '铁板' },
+		{ name: 'zcFatherAge', label: '父生我时年龄', type: 'number', default: 27, group: '邵子' },
+		{ name: 'zcMotherAge', label: '母生我时年龄', type: 'number', default: 26, group: '邵子' },
+		{ name: 'zcYuan', label: '元运（先天命卦余五特例）', type: 'select', default: 'zhong', group: '邵子', options: [
+			{ value: 'shang', label: '上元' },
+			{ value: 'zhong', label: '中元（默认）' },
+			{ value: 'xia', label: '下元' },
+		] },
+		// 大定七位:四柱由生辰定，余三位(大运/小运/岁君)与虚岁皆由【所推之流年】派生 ——
+		// 故此处主控亦是流年一项，下四格留作古法特例之手订(留空即自出)。
+		{ name: 'zcDadingYear', label: '所推流年（余者自出）', type: 'number', default: 0, group: '大定' },
+		{ name: 'zcAge', label: '虚岁（留空自出）', type: 'number', default: 0, group: '大定' },
+		{ name: 'zcDayun', label: '大运（干支，留空自出）', type: 'text', default: '', group: '大定' },
+		{ name: 'zcXiaoyun', label: '小运（干支，留空自出）', type: 'text', default: '', group: '大定' },
+		{ name: 'zcSuijun', label: '岁君（干支，留空自出即当年太岁）', type: 'text', default: '', group: '大定' },
+		{ name: 'zcAskHourZhi', label: '演算时辰（支）', type: 'text', default: '', group: '六亲' },
+		{ name: 'zcEnv', label: '演算时天象', type: 'text', default: '', group: '六亲' },
+		{ name: 'zcItem', label: '查询项目', type: 'select', default: '父母', group: '心易', options: [
+			{ value: '父母', label: '父母（默认）' }, { value: '兄弟', label: '兄弟' }, { value: '姻緣', label: '姻缘' },
+			{ value: '子孫', label: '子孙' }, { value: '官祿', label: '官禄' }, { value: '疾病', label: '疾病' },
+		] },
+		{ name: 'zcSound', label: '声音', type: 'text', default: '日', group: '心易' },
+		{ name: 'zcKe', label: '刻数', type: 'text', default: '一刻', group: '心易' },
+		{ name: 'zcGong', label: '八宫', type: 'text', default: '乾', group: '心易' },
+		{ name: 'zcXqZhi', label: '性情项·地支', type: 'text', default: '子', group: '心易' },
+		{ name: 'zcXqYushu', label: '性情项·余数', type: 'text', default: '1', group: '心易' },
+	] },
 	canping: { kind: 'record', fields: [
 		...TIME_FIELDS,
 		{ name: 'method', label: '取法', type: 'select', default: 'ming', group: '取法', options: [
@@ -1026,6 +1089,54 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// ---- B 类：事盘 options 驱动 ----
 	qimen: { kind: 'payload', optionsPath: 'options', fields: QIMEN_FIELDS },
 	taiyi: { kind: 'payload', optionsPath: 'options', fields: TAIYI_FIELDS },
+	// 皇极轨策：🔴 kind='payload' —— 起卦所得(卦与动爻)是报数/字占/时辰之冻结值，永不按挂载重算
+	// （重算即伪造一个不同之卦）；然其后诸演算(演数/卦变/断法/十应)皆自已冻结之卦派生 → 可随 options 重算。
+	guice: { kind: 'payload', optionsPath: 'options', group: '皇极轨策', fields: [
+		{ name: 'yanshuFa', label: '演数', type: 'select', default: 'ce', group: '演数', options: [
+			{ value: 'ce', label: '策数（默认）' }, { value: 'gui', label: '轨数' },
+		] },
+		{ name: 'qiguaShu', label: '数字配卦', type: 'select', default: 'xiantian', group: '演数', options: [
+			{ value: 'xiantian', label: '五行生成数（默认）' }, { value: 'houtian', label: '后天正数' }, { value: 'jiuchou', label: '九畴数' },
+		] },
+		{ name: 'jiGongMode', label: '五·十寄宫', type: 'select', default: 'ganrou', group: '演数', options: [
+			{ value: 'ganrou', label: '刚柔日动态（默认）' }, { value: 'wuGen', label: '五寄艮·十寄坤' }, { value: 'wuKun', label: '五寄坤·十寄艮' },
+		] },
+		{ name: 'shiyingSet', label: '十应名目', type: 'select', default: 'xinyifawei', group: '断法', options: [
+			{ value: 'xinyifawei', label: '心易发微版（默认）' }, { value: 'meihua', label: '梅花原书版' }, { value: 'rizhen', label: '日辰秘文版' },
+		] },
+		{ name: 'dadingTable', label: '六十甲子定数', type: 'select', default: 'xinyifawei', group: '断法', options: [
+			{ value: 'xinyifawei', label: '心易发微本（默认）' }, { value: 'dading', label: '大定本' },
+		] },
+		// 🔴 数系/时方/神煞 三项此前【漏登】—— 面板里根本调不着，而它们是九开关中的三个。
+		//    (schema 会渲染成挂载设置面板里的真设置项，漏登=用户在挂载设置里见不到此项。)
+		//    起卦法不登:其决定卦本身，而卦是【冻结值】—— 按挂载重起即伪造一个用户没见过的卦。
+		{ name: 'shuXi', label: '数系', type: 'select', default: 'zhouyi', group: '断法', options: [
+			{ value: 'zhouyi', label: '周易数（默认·参时方）' }, { value: 'meihua', label: '梅花（不用时方）' },
+		] },
+		{ name: 'shiFang', label: '参时方（方应）', type: 'switch', default: false, group: '断法' },
+		{ name: 'shenSha', label: '参时方神煞（古籍未载其表，只出名目）', type: 'switch', default: false, group: '断法' },
+	] },
+	// 小六壬:课(三数)=冻结值不登;流派可重排(换环重排三传,三数不变)。
+	xiaoliuren: { kind: 'payload', optionsPath: 'options', group: '小六壬', fields: [
+		{ name: 'school', label: '流派', type: 'select', default: 'main', group: '起课', options: [
+			{ value: 'main', label: '主流六宫（默认）' }, { value: 'dao', label: '道门九宫' },
+		] },
+		{ name: 'showOneThree', label: '一↔三关系行(文档无定论,仅列关系)', type: 'switch', default: true, group: '判读' },
+	] },
+	// 小成图:卦(起卦所出)=冻结值,起卦法/配数流派皆不登(重配=伪造卦);用宫可重排推演。
+	xiaochengtu: { kind: 'payload', optionsPath: 'options', group: '小成图', fields: [
+		{ name: 'yongGong', label: '用宫(推演起点)', type: 'select', default: 1, group: '推演', options: [
+			{ value: 1, label: '1 坎宫（默认）' }, { value: 2, label: '2 坤宫' }, { value: 3, label: '3 震宫' }, { value: 4, label: '4 巽宫' },
+			{ value: 6, label: '6 乾宫' }, { value: 7, label: '7 兑宫' }, { value: 8, label: '8 艮宫' }, { value: 9, label: '9 离宫' },
+		] },
+	] },
+	// 飞宫小奇门:局(起支)=冻结值不登;命宫年龄性别只重排命宫目,不动局。
+	feigong: { kind: 'payload', optionsPath: 'options', group: '飞宫小奇门', fields: [
+		{ name: 'mingAge', label: '命宫年龄', type: 'number', default: null, group: '命宫' },
+		{ name: 'mingGender', label: '命宫性别', type: 'select', default: 'male', group: '命宫', options: [
+			{ value: 'male', label: '男（值五看戊）' }, { value: 'female', label: '女（值五看己）' },
+		] },
+	] },
 	liureng: { kind: 'payload', optionsPath: '', fields: LIURENG_FIELDS },
 	jinkou: { kind: 'payload', optionsPath: '', fields: JINKOU_FIELDS },
 	sanshiunited: { kind: 'payload', optionsPath: 'options', fields: SANSHI_UNITED_FIELDS },

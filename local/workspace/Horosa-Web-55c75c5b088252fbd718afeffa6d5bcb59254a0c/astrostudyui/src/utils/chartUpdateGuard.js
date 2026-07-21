@@ -12,6 +12,8 @@
 //  - 仅「小的显示开关数组」(chartDisplay / planetDisplay / lotsDisplay / keyPlanets)用 sameDisplayList
 //    做内容比:父级常每次 render 传新数组字面量(引用恒变),用引用比会让 sCU 形同虚设(恒 true)。
 
+import { chartSCUEnabled } from './perfFlags';
+
 // 显示开关列表比较:用于 chartDisplay / planetDisplay / lotsDisplay / keyPlanets。
 //  - 同引用 → true(含都为同一对象 / 都 undefined / 都 null)。
 //  - 都是数组 → 长度相等且逐元素 ===(浅比;元素是字符串/数字 id,严格相等即内容相等)。
@@ -55,6 +57,37 @@ export function shallowPropsEqual(a, b, keys, comparators){
 				return false;
 			}
 		}else if(!Object.is(a[k], b[k])){
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * 重 wrapper 通用 sCU(WP-H-2):全部自有 props 机械浅比 —— 任一数据 prop 引用变即重渲;
+ * 【函数型 props 视为恒等】(changeCond/changeTab 等是宿主每次 render 新建的闭包,
+ * 引用永远在变,不排除则浅比恒 false、sCU 形同虚设。其行为由所捕获的数据 props 表达:
+ * 数据变必触发重渲,重渲时自然拿到新闭包 —— 故跳过安全)。
+ * 机械全覆盖,免手抄 keys 的漏渲风险(「宁可多渲、绝不漏渲」取向不变);state 由调用方另比。
+ * kill-switch 同 chartSCU:关 = 恒重渲旧行为。
+ */
+export function wrapperPropsEqual(prev, next){
+	if(!chartSCUEnabled()){
+		return false;
+	}
+	const pk = Object.keys(prev);
+	const nk = Object.keys(next);
+	if(pk.length !== nk.length){
+		return false;
+	}
+	for(let i = 0; i < nk.length; i += 1){
+		const k = nk[i];
+		const a = prev[k];
+		const b = next[k];
+		if(typeof a === 'function' && typeof b === 'function'){
+			continue;
+		}
+		if(a !== b){
 			return false;
 		}
 	}

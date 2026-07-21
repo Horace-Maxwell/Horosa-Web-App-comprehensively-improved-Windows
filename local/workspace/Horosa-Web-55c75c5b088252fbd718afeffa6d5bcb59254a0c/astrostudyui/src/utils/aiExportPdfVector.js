@@ -72,11 +72,11 @@ function wrapText(text, font, size, maxWidth){
 }
 
 // 主入口：payload → PDF Blob（可选中文字）。失败抛出由上层回退。
-export async function buildExportPdfVectorBlob(payload){
+export async function buildExportPdfVectorBlob(payload, hooks){
 	const pdfLib = await import('pdf-lib');
 	const fontkitMod = await import('@pdf-lib/fontkit');
 	const fontkit = fontkitMod.default || fontkitMod;
-	const { PDFDocument, rgb } = pdfLib;
+	const { PDFDocument, rgb, degrees } = pdfLib;
 	const fontBytes = await loadFontBytes();
 
 	const pdf = await PDFDocument.create();
@@ -125,7 +125,7 @@ export async function buildExportPdfVectorBlob(payload){
 		const pad = 3;
 		const cellMaxW = colW - 2 * pad;
 		const lh = size * 1.35;
-		const drawRow = (cells, isHeader)=>{
+		const measureRow = (cells)=>{
 			const wrapped = [];
 			let maxLines = 1;
 			for(let c = 0; c < cols; c++){
@@ -134,8 +134,10 @@ export async function buildExportPdfVectorBlob(payload){
 				wrapped.push(ls);
 				if(ls.length > maxLines){ maxLines = ls.length; }
 			}
-			const rowH = maxLines * lh + 2 * pad;
-			ensure(rowH);
+			return { wrapped, rowH: maxLines * lh + 2 * pad };
+		};
+		const paintRow = (measured, isHeader)=>{
+			const { wrapped, rowH } = measured;
 			const top = y;
 			if(isHeader){ page.drawRectangle({ x: M, y: top - rowH, width: contentW, height: rowH, color: rgb(0.93, 0.945, 0.965) }); }
 			for(let c = 0; c < cols; c++){
@@ -149,15 +151,118 @@ export async function buildExportPdfVectorBlob(payload){
 				}
 			}
 			y -= rowH;
+			if(hooks && typeof hooks.onTableRow === 'function'){
+				hooks.onTableRow({ pageIndex: pdf.getPageCount() - 1, isHeader, firstCell: (measured.wrapped[0] || [''])[0] || '' });
+			}
 		};
-		if(block.headers && block.headers.length){ drawRow(block.headers, true); }
-		(block.rows || []).forEach((r)=> drawRow(r, false));
+		const headerMeasured = (block.headers && block.headers.length) ? measureRow(block.headers) : null;
+		// [A3] 跨页表头重绘:长表 body 行触底换页后,新页首行必须先重画表头(与打印路径
+		// `<thead>` 每页重复的行为对齐)。旧式表头只画一次,第二页起裸行无表头。
+		const ensureRowWithHeader = (rowH)=>{
+			if(y - rowH < M + FOOT){
+				newPage();
+				if(headerMeasured){ paintRow(headerMeasured, true); }
+			}
+		};
+		if(headerMeasured){
+			ensure(headerMeasured.rowH + lh);   // 表头至少带上一行 body 的空间,防「页底孤表头」
+			paintRow(headerMeasured, true);
+		}
+		(block.rows || []).forEach((r)=>{
+			const measured = measureRow(r);
+			ensureRowWithHeader(measured.rowH);
+			paintRow(measured, false);
+		});
 		y -= 5;
 	};
 
-	const drawBlock = (block)=>{
+	// [B2] 新块型渲染:code/quote/list(有序·嵌套)/image/hr —— 与 IR 解析器同步扩面。
+	const drawCode = (block)=>{
+		const size = 8.5;
+		const lh = size * 1.5;
+		const pad = 6;
+		const srcLines = `${block.text || ''}`.split('\n');
+		const wrapped = [];
+		srcLines.forEach((l)=>{ wrapText(l, font, size, contentW - 2 * pad).forEach((w)=>wrapped.push(w)); });
+		if(!wrapped.length){ wrapped.push(''); }
+		let idx = 0;
+		while(idx < wrapped.length){
+			// 每页一段:量可容行数,画底色矩形再落行(跨页各自有底色,零裁字)
+			ensure(lh + 2 * pad);
+			const avail = Math.floor((y - (M + FOOT) - 2 * pad) / lh);
+			const take = Math.max(1, Math.min(avail, wrapped.length - idx));
+			const boxH = take * lh + 2 * pad;
+			page.drawRectangle({ x: M, y: y - boxH, width: contentW, height: boxH, color: rgb(0.955, 0.955, 0.96) });
+			let ty = y - pad - size;
+			for(let k = 0; k < take; k++){
+				if(wrapped[idx + k] !== ''){ page.drawText(wrapped[idx + k], { x: M + pad, y: ty, size, font, color: rgb(0.2, 0.2, 0.25) }); }
+				ty -= lh;
+			}
+			y -= boxH;
+			idx += take;
+			if(idx < wrapped.length){ newPage(); }
+		}
+		y -= 5;
+	};
+	const drawQuote = (block)=>{
+		const startY = y;
+		drawLines(block.text || '', 9.8, MUTED, { x: M + 10, maxW: contentW - 10, lh: 1.55 });
+		// 左侧引用条(同页段内;跨页段的条只画首页段——视觉可接受,文字完整优先)
+		const barH = Math.max(0, startY - y - 2);
+		if(barH > 0){ page.drawRectangle({ x: M + 2, y: y + 2, width: 2.4, height: barH, color: rgb(0.72, 0.72, 0.76) }); }
+		y -= 4;
+	};
+	const drawList = (block)=>{
+		const size = 10.5;
+		const counters = [0, 0, 0, 0, 0];
+		(block.items || []).forEach((item)=>{
+			const depth = Math.max(0, Math.min(4, Number(item.depth) || 0));
+			for(let d = depth + 1; d < counters.length; d++){ counters[d] = 0; }
+			let marker = '•';
+			if(item.ordered){ counters[depth] += 1; marker = `${counters[depth]}.`; }
+			const indent = M + depth * 14;
+			const markerW = font.widthOfTextAtSize(`${marker} `, size);
+			const textX = indent + markerW;
+			const lines = wrapText(`${item.text || ''}`, font, size, contentW - (textX - M));
+			ensure(size * 1.6);
+			page.drawText(marker, { x: indent, y: y - size, size, font, color: INK });
+			for(let li = 0; li < lines.length; li++){
+				if(li > 0){ ensure(size * 1.6); }
+				if(lines[li] !== ''){ page.drawText(lines[li], { x: textX, y: y - size, size, font, color: INK }); }
+				y -= size * 1.6;
+			}
+		});
+		y -= 4;
+	};
+	const drawImageBlock = async (block)=>{
+		const src = `${block.src || ''}`;
+		if(!/^data:image\//.test(src)){ drawLines(`[图]${block.alt || src}`, 9.5, MUTED, {}); return; }
+		try{
+			const img = /^data:image\/png/i.test(src) ? await pdf.embedPng(src) : await pdf.embedJpg(src);
+			const maxW = contentW;
+			const maxH = PAGE_H - 2 * M - FOOT - 20;
+			const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+			const w = img.width * scale;
+			const h = img.height * scale;
+			ensure(h + 6);
+			page.drawImage(img, { x: M + (contentW - w) / 2, y: y - h, width: w, height: h });
+			y -= h + 8;
+		}catch(e){ drawLines(`[图未嵌入]${block.alt || ''}`, 9.5, MUTED, {}); }
+	};
+	const drawHr = ()=>{
+		ensure(12);
+		page.drawRectangle({ x: M, y: y - 6, width: contentW, height: 0.7, color: rgb(0.8, 0.8, 0.82) });
+		y -= 14;
+	};
+
+	const drawBlock = async (block)=>{
 		if(!block){ return; }
 		if(block.type === 'table'){ drawTable(block); return; }
+		if(block.type === 'code'){ drawCode(block); return; }
+		if(block.type === 'quote'){ drawQuote(block); return; }
+		if(block.type === 'list'){ drawList(block); return; }
+		if(block.type === 'image'){ await drawImageBlock(block); return; }
+		if(block.type === 'hr'){ drawHr(); return; }
 		if(block.type === 'subhead'){
 			ensure(16);
 			page.drawRectangle({ x: M, y: y - 13, width: 3, height: 13, color: rgb(0.29, 0.44, 0.65) });
@@ -186,23 +291,26 @@ export async function buildExportPdfVectorBlob(payload){
 	}
 
 	// —— 标题 + 头部 ——
-	drawLines(`${(payload && payload.tech) || '导出'} · AI 导出`, 18, INK, { lh: 1.4 });
+	// [B1] 报告链直供 IR(__docOverride):跳过纯文本反推,标题不再带「· AI 导出」尾缀。
+	const docOverride = payload && payload.__docOverride;
+	drawLines(docOverride ? `${(payload && payload.tech) || '报告'}` : `${(payload && payload.tech) || '导出'} · AI 导出`, 18, INK, { lh: 1.4 });
 	y -= 4;
-	const doc = parseAiExportDocument(payload && payload.text);
+	const doc = docOverride || parseAiExportDocument(payload && payload.text);
 	if(doc.preamble){ drawLines(doc.preamble, 9.5, MUTED, { lh: 1.55 }); y -= 6; }
 
 	// —— 分区 + 段块 ——
-	(doc.sections || []).forEach((sec)=>{
+	for(const sec of (doc.sections || [])){
 		ensure(22);
 		const barH = 18;
 		page.drawRectangle({ x: M, y: y - barH + 3, width: contentW, height: barH, color: SECBG });
 		page.drawText(`${sec.title || ''}`, { x: M + 7, y: y - barH + 8, size: 11, font, color: rgb(1, 1, 1) });
 		y -= barH + 7;
-		(sec.blocks || []).forEach((b)=> drawBlock(b));
+		for(const b of (sec.blocks || [])){ await drawBlock(b); }   // [B2] image 块 embed 为异步
 		y -= 5;
-	});
+	}
 
-	// —— 页码 ——
+	// —— 页码 + [B3] 导出主题(水印/页眉/页脚,每页绘制;theme 缺省=只画页码,零变)——
+	const theme = (hooks && hooks.theme) || null;
 	const pages = pdf.getPages();
 	const total = pages.length;
 	for(let i = 0; i < total; i++){
@@ -210,6 +318,28 @@ export async function buildExportPdfVectorBlob(payload){
 		let lw = 0;
 		try{ lw = font.widthOfTextAtSize(label, 9); }catch(e){ lw = 24; }
 		pages[i].drawText(label, { x: (PAGE_W - lw) / 2, y: 18, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
+		if(theme && theme.headerText){
+			let hw = 0;
+			try{ hw = font.widthOfTextAtSize(`${theme.headerText}`, 8.5); }catch(e){ hw = 40; }
+			pages[i].drawText(`${theme.headerText}`, { x: (PAGE_W - hw) / 2, y: PAGE_H - 22, size: 8.5, font, color: rgb(0.62, 0.62, 0.66) });
+		}
+		if(theme && theme.footerText){
+			pages[i].drawText(`${theme.footerText}`, { x: M, y: 18, size: 8, font, color: rgb(0.65, 0.65, 0.68) });
+		}
+		if(theme && theme.watermarkText){
+			const wm = `${theme.watermarkText}`;
+			let ww = 0;
+			try{ ww = font.widthOfTextAtSize(wm, 42); }catch(e){ ww = 200; }
+			pages[i].drawText(wm, {
+				x: (PAGE_W - ww * 0.72) / 2,
+				y: PAGE_H / 2 - 20,
+				size: 42,
+				font,
+				color: rgb(0.55, 0.55, 0.58),
+				opacity: 0.12,
+				rotate: degrees(28),
+			});
+		}
 	}
 
 	const bytes = await pdf.save();

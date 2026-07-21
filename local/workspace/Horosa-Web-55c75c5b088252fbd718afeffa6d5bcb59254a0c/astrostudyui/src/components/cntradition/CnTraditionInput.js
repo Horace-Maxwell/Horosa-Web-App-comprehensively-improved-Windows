@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { Checkbox } from 'antd';
-import { XQSelect as Select } from '../xq-ui';
+import { XQSelect as Select, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
@@ -417,12 +418,13 @@ class CnTraditionInput extends Component{
 
 			return (
 				<div className="horosa-bazi-input-stack">
-					<div className="horosa-panel-head">
+					<div className="horosa-side-panel-heading">
 						<div>
-							<div className="horosa-panel-kicker">八字设置</div>
-							<div className="horosa-panel-title">时间、地点与排盘选项</div>
+							<div className="horosa-side-panel-title">八字设置</div>
+							<div className="horosa-side-panel-subtitle">时间、地点与排盘选项</div>
 						</div>
 					</div>
+					<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<SpaceTimePanel
 						className="horosa-bazi-time-control"
 						fields={fields}
@@ -431,6 +433,8 @@ class CnTraditionInput extends Component{
 						timeHook={this.tmHook}
 						onGeoChange={this.changeGeo}
 					/>
+					</XQSideSection>
+					<XQSideSection iconName={sideSectionIcon('switches')} title="起盘选项" storageKey="bazi.options" className="horosa-side-input-section">
 					<div className="horosa-field-grid">
 						<div className="horosa-field-block">
 							<div className="horosa-field-label">性别</div>
@@ -450,7 +454,6 @@ class CnTraditionInput extends Component{
 							</Select>
 						</div>
 					</div>
-					<div className="horosa-panel-kicker">起盘选项</div>
 					<div className="horosa-field-grid">
 						<div className="horosa-field-block">
 							<div className="horosa-field-label">长生</div>
@@ -522,7 +525,8 @@ class CnTraditionInput extends Component{
 							</Select>
 						</div>
 					</div>
-					<div className="horosa-panel-kicker">断命流派</div>
+					</XQSideSection>
+					<XQSideSection iconName={sideSectionIcon('school')} title="断命流派" storageKey="bazi.school" className="horosa-side-input-section">
 					<div className="horosa-bazi-school-field">
 						<div className="horosa-field-label">主用流派</div>
 						<Select value={(this.props.baziOpt && this.props.baziOpt.school) || 'zonghe'} onChange={this.onSchoolChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
@@ -535,7 +539,8 @@ class CnTraditionInput extends Component{
 							<Option value="nayin">纳音古法</Option>
 						</Select>
 					</div>
-					<div className="horosa-panel-kicker">显示</div>
+					</XQSideSection>
+					<XQSideSection iconName={sideSectionIcon('display')} title="显示" storageKey="bazi.display" className="horosa-side-input-section">
 					<div className="horosa-field-grid">
 						<div className="horosa-field-block">
 							<div className="horosa-field-label">刑冲破害</div>
@@ -576,6 +581,7 @@ class CnTraditionInput extends Component{
 					<div className="horosa-bazi-option-card">
 						<Checkbox checked={this.props.baziOpt.onlyZiGanShen} onChange={this.onOnlyZiganChange}>只显示地支藏干十神</Checkbox>
 					</div>
+					</XQSideSection>
 				</div>
 
 			);

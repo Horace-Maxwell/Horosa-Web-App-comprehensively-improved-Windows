@@ -5,7 +5,7 @@
 // 输入恒为「既有导出纯文本」经 aiExportDocModel 解析出的 IR——纯文本仍是单一真值,这里只做派生视图。
 
 import { Document, Packer, Paragraph, TextRun, ImageRun } from 'docx';
-import { makeDocxTable, dataUrlToUint8Array } from './docxCommon';
+import { makeDocxTable, dataUrlToUint8Array, mdInlineToRuns, sniffImageSize } from './docxCommon';
 import { parseAiExportDocument } from './aiExportDocModel';
 
 const HEADING = { 1: 'Heading1', 2: 'Heading2', 3: 'Heading3' }; // docx 枚举 jest 下不稳,字面量(reportExport 先例)
@@ -30,18 +30,61 @@ function kvParagraph(block){
 }
 
 function pParagraphs(block){
+	// [A2] 正文/项目符号统一走 mdInlineToRuns:**粗**/*斜*/`码` 转真样式 run。
+	// 此前只有表格单元格走(makeDocxTableCell),正文却裸 TextRun 原样输出星号——同文件自相矛盾。
 	return `${block.text || ''}`.split('\n').map((line)=>{
 		const t = line.trim();
 		if(/^- /.test(t)){
-			return new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: t.replace(/^- /, '') })] });
+			return new Paragraph({ bullet: { level: 0 }, children: mdInlineToRuns(t.replace(/^- /, '')) });
 		}
-		return new Paragraph({ children: [new TextRun({ text: t })] });
+		return new Paragraph({ children: mdInlineToRuns(t) });
 	});
 }
 
 function blockToDocxChildren(block){
 	if(block.type === 'table'){
 		return [makeDocxTable(block.headers || [], block.rows || [], block.aligns || []), new Paragraph({ children: [new TextRun('')] })];
+	}
+	// [B2] 与 IR 解析器同步的五型:code/quote/list/image/hr。
+	if(block.type === 'code'){
+		return `${block.text || ''}`.split('\n').map((l)=>new Paragraph({
+			shading: { type: 'clear', color: 'auto', fill: 'F4F4F6' },
+			children: [new TextRun({ text: l, font: 'Courier New', size: 18, color: '333340' })],
+		})).concat([new Paragraph({ children: [new TextRun('')] })]);
+	}
+	if(block.type === 'quote'){
+		return `${block.text || ''}`.split('\n').map((l)=>new Paragraph({
+			indent: { left: 360 },
+			children: mdInlineToRuns(l, { italics: true, color: '666666' }),
+		}));
+	}
+	if(block.type === 'list'){
+		return (block.items || []).map((item)=>{
+			const depth = Math.max(0, Math.min(4, Number(item.depth) || 0));
+			if(item.ordered){
+				// 有序:文本序标+缩进(docx numbering 配置重且与 bullet 混排易串号,文本序稳定)
+				return new Paragraph({
+					indent: { left: 240 + depth * 240 },
+					children: [new TextRun({ text: `${item.marker && /\d/.test(item.marker) ? item.marker : '1.'} `, bold: false })].concat(mdInlineToRuns(item.text || '')),
+				});
+			}
+			return new Paragraph({ bullet: { level: depth }, children: mdInlineToRuns(item.text || '') });
+		});
+	}
+	if(block.type === 'image'){
+		const u8 = /^data:image\//.test(`${block.src || ''}`) ? dataUrlToUint8Array(block.src) : null;
+		if(u8){
+			const nat = sniffImageSize(u8) || { width: 480, height: 360 };
+			const maxW = 600;
+			const scale = Math.min(1, maxW / nat.width);
+			try{
+				return [new Paragraph({ children: [new ImageRun({ data: u8, transformation: { width: Math.round(nat.width * scale), height: Math.round(nat.height * scale) } })] })];
+			}catch(e){ /* 嵌图失败落占位 */ }
+		}
+		return [new Paragraph({ children: [new TextRun({ text: `[图]${block.alt || ''}`, color: '888888' })] })];
+	}
+	if(block.type === 'hr'){
+		return [new Paragraph({ border: { bottom: { style: 'single', size: 6, color: 'CCCCCC', space: 4 } }, children: [new TextRun('')] })];
 	}
 	if(block.type === 'subhead'){
 		return [new Paragraph({ heading: HEADING[3], children: [new TextRun({ text: block.text || '' })] })];
@@ -127,7 +170,9 @@ function blockToPdfNode(block){
 		return tableNode(block);
 	}
 	if(block.type === 'subhead'){
-		return el('div', `font:600 13.5px/1.6 ${PDF_FONT};color:#1a2a4a;margin:10px 0 4px;padding-left:8px;border-left:3px solid #4a6fa5;`, block.text || '');
+		const sh = el('div', `font:600 13.5px/1.6 ${PDF_FONT};color:#1a2a4a;margin:10px 0 4px;padding-left:8px;border-left:3px solid #4a6fa5;`, block.text || '');
+		sh.className = 'exp-subhead';   // 打印路径:段头避免落在页脚成孤行(page-break-after:avoid)
+		return sh;
 	}
 	if(block.type === 'note'){
 		return el('div', `font:italic 12px/1.6 ${PDF_FONT};color:#777777;margin:2px 0;white-space:pre-wrap;word-break:break-word;`, block.text || '');
@@ -151,7 +196,9 @@ export function renderExportDocToPdfNodes(payload){
 		nodes.push(el('div', `font:11.5px/1.6 ${PDF_FONT};color:#666666;margin:0 0 10px;white-space:pre-wrap;word-break:break-word;`, pre.join('\n')));
 	}
 	(doc.sections || []).forEach((section)=>{
-		nodes.push(el('div', `font:600 14px/1.7 ${PDF_FONT};color:#ffffff;background:#3d5578;margin:12px 0 6px;padding:3px 10px;border-radius:3px;`, section.title));
+		const secTitle = el('div', `font:600 14px/1.7 ${PDF_FONT};color:#ffffff;background:#3d5578;margin:12px 0 6px;padding:3px 10px;border-radius:3px;`, section.title);
+		secTitle.className = 'exp-sec';   // 打印路径:段头避免落在页脚成孤行(page-break-after:avoid)
+		nodes.push(secTitle);
 		(section.blocks || []).forEach((block)=>{
 			nodes.push(blockToPdfNode(block));
 		});

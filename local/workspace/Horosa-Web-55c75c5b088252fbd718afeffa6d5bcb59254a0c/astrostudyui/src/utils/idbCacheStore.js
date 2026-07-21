@@ -14,7 +14,9 @@
 const DB_NAME = 'horosa-cache-v1';
 const DB_VERSION = 1;
 const STORE = 'kv';
-const TOTAL_BUDGET_BYTES = 8 * 1024 * 1024;
+// [A1] 8→32MB:L3 网络结果缓存(net. 前缀)入驻共享店;IndexedDB 是磁盘量级配额,
+// 32MB 仍九牛一毛;LRU 逐出保护不变,既有住户(nongli/节气等)只多不少。
+const TOTAL_BUDGET_BYTES = 32 * 1024 * 1024;
 
 let dbPromise = null;
 let idbBroken = false; // 一旦 open/事务连续失败,本会话降级纯内存,不再反复尝试

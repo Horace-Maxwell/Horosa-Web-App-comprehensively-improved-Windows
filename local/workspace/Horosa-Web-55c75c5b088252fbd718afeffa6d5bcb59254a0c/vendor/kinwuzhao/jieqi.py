@@ -98,6 +98,10 @@ def distancejq(year, month, day, hour, minute, jq):
 
 
 def jq(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退:swe 太阳视黄经直映射节气名(与主链定气口径一致;域内原路径零变)
+        from kin_year_domain import solar_term_name
+        return solar_term_name(year, month, day, hour, minute)
     """計算指定日期時間所在的節氣。
 
     從指定時間向前推算，找到最近的三個節氣交界點，
@@ -235,6 +239,16 @@ def minutes_jiazi_d():
      
 #換算干支
 def gangzhi1(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     if hour == 23:
         d = ephem.Date(round((ephem.Date("{}/{}/{} {}:00:00.00".format(
             str(year).zfill(4),
@@ -266,6 +280,16 @@ def gangzhi1(year, month, day, hour, minute):
     return [yTG, mTG1, dTG, hTG1]
 
 def gangzhi(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     if hour == 23:
         d = ephem.Date(round((ephem.Date("{}/{}/{} {}:00:00.00".format(
             str(year).zfill(4),

@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { XQSelect } from '../xq-ui';
+import { XQSelect, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import HoraryJudgment from './HoraryJudgment';
 import { HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, horaryBackendFields, presetOf, schoolOf } from '../../divination/horary/horarySchools';
@@ -36,7 +36,7 @@ class HoraryMain extends Component{
 		const schoolId = activeSchoolId(extra, fields);
 		const sch = schoolOf(schoolId);
 		return (
-			<div>
+			<XQSideSection iconName="target" title="卜卦设置" storageKey="horary.opts" className="horosa-side-input-section">
 				<div className="horosa-field-block">
 					<div className="horosa-field-label">流派</div>
 					<XQSelect style={{ width: '100%' }} size="small"
@@ -65,7 +65,7 @@ class HoraryMain extends Component{
 						{HORARY_CATEGORIES.map((c)=>(<Option key={c.value} value={c.value}>{c.label}</Option>))}
 					</XQSelect>
 				</div>
-			</div>
+			</XQSideSection>
 		);
 	}
 

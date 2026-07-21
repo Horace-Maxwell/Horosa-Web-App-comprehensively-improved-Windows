@@ -323,6 +323,28 @@ def row(label, value, extra=None):
     return item
 
 
+class ExtremeDateTime:
+    """全年份域轻量时间承载(stdlib datetime 域限 1~9999;BC/万年后用本类)。
+
+    只承诺 kinastro 系 srv 实际消费面:year/month/day/hour/minute/second 属性 +
+    strftime(%Y/%m/%d/%H/%M/%S,%Y 带符号原样)。域内仍返 stdlib datetime,行为零变。
+    """
+
+    def __init__(self, year, month, day, hour=0, minute=0, second=0):
+        self.year = year
+        self.month = month
+        self.day = day
+        self.hour = hour
+        self.minute = minute
+        self.second = second
+
+    def strftime(self, fmt):
+        out = fmt.replace("%Y", str(self.year))
+        out = out.replace("%m", "%02d" % self.month).replace("%d", "%02d" % self.day)
+        out = out.replace("%H", "%02d" % self.hour).replace("%M", "%02d" % self.minute)
+        return out.replace("%S", "%02d" % self.second)
+
+
 def parse_datetime(data):
     date_text = clean_text(data.get("date")).replace("/", "-")
     time_text = clean_text(data.get("time"))
@@ -339,6 +361,9 @@ def parse_datetime(data):
     hour = max(0, min(23, to_int(data.get("hour"), 0)))
     minute = max(0, min(59, to_int(data.get("minute"), 0)))
     second = max(0, min(59, to_int(data.get("second"), 0)))
+    if year < 1 or year > 9999:
+        # BC/万年后:stdlib datetime 越域,轻量承载(带符号年直传引擎;strftime 面已覆盖)
+        return ExtremeDateTime(year, month, day, hour, minute, second)
     try:
         dt = datetime(year, month, day, hour, minute, second)
     except ValueError:

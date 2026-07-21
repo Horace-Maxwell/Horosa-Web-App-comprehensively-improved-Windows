@@ -423,4 +423,90 @@ public class AIAnalysisProxyServiceTest {
 		}
 		return map;
 	}
+
+	// [C1] 非流式 usage 提取:三家 payload 形状各取其位,键统一 input/output_tokens。
+	@Test
+	public void extractNonStreamUsageCoversProviderShapes() {
+		Map<String, Object> openai = buildMap("usage", buildMap("prompt_tokens", 120, "completion_tokens", 45, "total_tokens", 165));
+		Map<String, Object> u1 = AIAnalysisProxyService.extractNonStreamUsage("deepseek", openai);
+		assertEquals(120L, u1.get("input_tokens"));
+		assertEquals(45L, u1.get("output_tokens"));
+
+		Map<String, Object> anthropic = buildMap("usage", buildMap("input_tokens", 300, "output_tokens", 88, "cache_read_input_tokens", 250));
+		Map<String, Object> u2 = AIAnalysisProxyService.extractNonStreamUsage("anthropic", anthropic);
+		assertEquals(300L, u2.get("input_tokens"));
+		assertEquals(88L, u2.get("output_tokens"));
+		assertEquals(250L, u2.get("cache_read_input_tokens"));
+
+		Map<String, Object> gemini = buildMap("usageMetadata", buildMap("promptTokenCount", 77, "candidatesTokenCount", 33, "totalTokenCount", 110));
+		Map<String, Object> u3 = AIAnalysisProxyService.extractNonStreamUsage("gemini", gemini);
+		assertEquals(77L, u3.get("input_tokens"));
+		assertEquals(33L, u3.get("output_tokens"));
+
+		// 无 usage 字段 → null(前端缺省不显,零回归)
+		assertTrue(AIAnalysisProxyService.extractNonStreamUsage("deepseek", buildMap("choices", "x")) == null);
+	}
+
+	/** [A1 止损] 可观测上游流:记录 close 与消费情况。 */
+	private static final class TrackingInputStream extends java.io.ByteArrayInputStream {
+		volatile boolean closed = false;
+
+		TrackingInputStream(String text) {
+			super(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		}
+
+		@Override
+		public void close() throws java.io.IOException {
+			closed = true;
+			super.close();
+		}
+	}
+
+	// [A1 止损] 通道预关(模拟心跳先判死/用户已停止)→ 首个事件 sendEvent 即抛
+	// ClientGoneException 打断读流环;try-with-resources 必须把上游流关掉(计费即止);
+	// 后续事件绝不再被消费(旧缺陷:整段吸完照常计费)。
+	@Test
+	public void clientGoneStopsUpstreamReadAndClosesStream() {
+		AIAnalysisProxyService service = new AIAnalysisProxyService();
+		AIAnalysisProxyService.SseChannel channel = new AIAnalysisProxyService.SseChannel(
+			new org.springframework.web.servlet.mvc.method.annotation.SseEmitter());
+		channel.complete();   // closed=true
+		TrackingInputStream stream = new TrackingInputStream(
+			"data: {\"a\":1}\n\n" +
+			"data: {\"a\":2}\n\n" +
+			"data: {\"a\":3}\n\n");
+		final java.util.concurrent.atomic.AtomicInteger handled = new java.util.concurrent.atomic.AtomicInteger();
+		boolean clientGone = false;
+		try {
+			service.readSseStream(stream, (eventName, dataText) -> {
+				handled.incrementAndGet();
+				service.sendEvent(channel, "delta", buildMap("delta", dataText));
+			});
+		} catch (AIAnalysisProxyService.ClientGoneException expected) {
+			clientGone = true;
+		} catch (Exception other) {
+			throw new AssertionError("expected ClientGoneException, got " + other, other);
+		}
+		assertTrue("must raise ClientGoneException", clientGone);
+		assertEquals("读流环必须在首个事件即断,不吸完上游", 1, handled.get());
+		assertTrue("上游流必须已关闭(止损计费的根据)", stream.closed);
+	}
+
+	// [A1] 正常流不受影响:通道未关时全部事件照常消费与下发,流末正常关闭、零异常。
+	@Test
+	public void normalStreamDeliversAllEventsUnaffected() throws Exception {
+		AIAnalysisProxyService service = new AIAnalysisProxyService();
+		AIAnalysisProxyService.SseChannel channel = new AIAnalysisProxyService.SseChannel(
+			new org.springframework.web.servlet.mvc.method.annotation.SseEmitter());
+		TrackingInputStream stream = new TrackingInputStream(
+			"data: {\"a\":1}\n\n" +
+			"data: {\"a\":2}\n\n");
+		final java.util.List<String> got = new java.util.ArrayList<String>();
+		service.readSseStream(stream, (eventName, dataText) -> {
+			got.add(dataText);
+			service.sendEvent(channel, "delta", buildMap("delta", dataText));
+		});
+		assertEquals(2, got.size());
+		assertTrue(stream.closed);
+	}
 }

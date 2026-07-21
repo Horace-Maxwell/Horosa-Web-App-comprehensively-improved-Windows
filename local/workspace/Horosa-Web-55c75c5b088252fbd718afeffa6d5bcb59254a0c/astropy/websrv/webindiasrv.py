@@ -41,6 +41,7 @@ class IndiaAstroSrv:
         enable_crossdomain()
 
 
+
     @cherrypy.expose
     @cherrypy.config(**{'tools.cors.on': True})
     @cherrypy.tools.json_in()

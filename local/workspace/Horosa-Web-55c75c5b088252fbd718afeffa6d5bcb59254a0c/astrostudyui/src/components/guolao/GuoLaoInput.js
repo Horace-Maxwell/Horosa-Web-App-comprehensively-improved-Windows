@@ -8,7 +8,8 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as SZConst from '../suzhan/SZConst';
 import * as AstroConst from '../../constants/AstroConst';
 import { Checkbox, InputNumber, Radio } from 'antd';
-import { XQSelect as Select, XQToggle, XQModal } from '../xq-ui';
+import { XQSelect as Select, XQToggle, XQModal, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { MOIRA_PLANET_DEFS, MOIRA_ASPECT_DEFS, MOIRA_BIRTH_GOD_ORDER, MOIRA_TRANSIT_GOD_ORDER } from './GuoLaoMoiraWheel';
 import { parseMagneticDms, formatMagneticDms } from './electionGeomag';
 import GuoLaoStarSectDoc from './GuoLaoStarSectDoc';
@@ -583,6 +584,7 @@ class GuoLaoInput extends Component{
 					</div>
 				</div>
 
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
 					value={datetm}
@@ -590,12 +592,9 @@ class GuoLaoInput extends Component{
 					timeHook={this.tmHook}
 					onGeoChange={this.changeGeo}
 				/>
+				</XQSideSection>
 
-				<div className="horosa-guolao-input-section">
-					<div className="horosa-guolao-field-title">
-						<XQIcon name="sliders" />
-						<span>选项</span>
-					</div>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="guolao.s0" className="horosa-guolao-input-section">
 					{engineMode === 'kinastro' ? (
 					<div className="horosa-guolao-select-grid horosa-guolao-kinastro-options">
 						<label className="horosa-guolao-select-field">
@@ -850,14 +849,10 @@ class GuoLaoInput extends Component{
 						{hsysField}
 					</div>
 					)}
-				</div>
+				</XQSideSection>
 
 				{engineMode !== 'kinastro' && (chartStyle === GUOLAO_CHART_STYLE_MOIRA || chartStyle === GUOLAO_CHART_STYLE_PICK) ? (
-					<div className="horosa-guolao-input-section horosa-guolao-moira-transit-section">
-						<div className="horosa-guolao-field-title">
-							<XQIcon name="clock" />
-							<span>{chartStyle === GUOLAO_CHART_STYLE_PICK ? '天星择日动盘' : 'Moira流年'}</span>
-						</div>
+					<XQSideSection iconName={sideSectionIcon('time')} title={chartStyle === GUOLAO_CHART_STYLE_PICK ? '天星择日动盘' : 'Moira流年'} storageKey="guolao.s1" className="horosa-guolao-input-section horosa-guolao-moira-transit-section">
 						<SpaceTimePanel
 							className="horosa-guolao-moira-transit-time"
 							value={this.props.moiraTransitTime}
@@ -867,14 +862,10 @@ class GuoLaoInput extends Component{
 							needZone={false}
 						/>
 
-					</div>
+					</XQSideSection>
 				) : null}
 				{engineMode !== 'kinastro' && chartStyle === GUOLAO_CHART_STYLE_PICK ? (
-					<div className="horosa-guolao-input-section">
-						<div className="horosa-guolao-field-title">
-							<XQIcon name="target" />
-							<span>天星择日</span>
-						</div>
+					<XQSideSection iconName={sideSectionIcon('target')} title="天星择日" storageKey="guolao.s2" className="horosa-guolao-input-section">
 						<div className="horosa-guolao-election-grid">
 						<label className="horosa-guolao-select-field">
 							<span>动盘选择</span>
@@ -944,14 +935,12 @@ class GuoLaoInput extends Component{
 								/>
 							)}
 						</label>
-					</div>
+					</XQSideSection>
 				) : null}
 				{engineMode !== 'kinastro' && (chartStyle === GUOLAO_CHART_STYLE_MOIRA || chartStyle === GUOLAO_CHART_STYLE_PICK) ? (
-					<div className="horosa-guolao-input-section">
-						<div className="horosa-guolao-field-title">
-							<XQIcon name="sliders" />
-							<span>显示</span>
-						</div>
+					<XQSideSection iconName={sideSectionIcon('display')} title="显示" storageKey="guolao.s3" className="horosa-guolao-input-section">
+						{/* 天星择日(PICK)盘不绘相位网 → 隐藏相位类型药丸,避免死开关观感;Moira圆盘正常显示。 */}
+						{chartStyle !== GUOLAO_CHART_STYLE_PICK ? (
 						<div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8}}>
 							{GUOLAO_ALL_ASPECTS.map((asp)=>{
 								const on = (display.aspects || []).indexOf(asp) >= 0;
@@ -974,6 +963,7 @@ class GuoLaoInput extends Component{
 								);
 							})}
 						</div>
+						) : null}
 						<div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8}}>
 							{MOIRA_PLANET_DEFS.map((def)=>{
 								const hidden = ((display.hiddenPlanets || []).indexOf(def.label) >= 0);
@@ -999,7 +989,9 @@ class GuoLaoInput extends Component{
 						</div>
 						<div className="horosa-guolao-toggle-grid">
 							<XQToggle size="small" iconName="sideSwitch" active={display.dignity !== false} onClick={()=>this.onDisplayToggle('dignity')}>庙旺标注</XQToggle>
+								{chartStyle !== GUOLAO_CHART_STYLE_PICK ? (
 								<XQToggle size="small" iconName="sideSwitch" active={display.showAspects === true} onClick={()=>this.onDisplayToggle('showAspects')}>显示相位</XQToggle>
+								) : null}
 							<XQToggle size="small" iconName="sideSwitch" active={false} onClick={()=>this.setState({ displayFilterOpen: true })}>神煞筛选</XQToggle>
 							{this.props.onOpenPatternDialog ? (
 								<XQToggle size="small" iconName="sideSwitch" active={false} onClick={this.props.onOpenPatternDialog}>格局档位</XQToggle>
@@ -1007,7 +999,7 @@ class GuoLaoInput extends Component{
 						</div>
 						{this.renderDisplayFilterModal(display)}
 						<GuoLaoStarSectDoc />
-					</div>
+					</XQSideSection>
 				) : null}
 			</div>
 		);

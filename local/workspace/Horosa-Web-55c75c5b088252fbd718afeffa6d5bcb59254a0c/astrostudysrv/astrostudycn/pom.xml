@@ -16,6 +16,19 @@
 	</properties>
 	
 	<dependencies>
+		<!-- 仅测试:NongliHelper→QiMengHelper 静态块需 POI;test scope 不进产物 -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>5.2.5</version>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-api</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 		<!-- junit测试包 -->
         <dependency>
             <groupId>junit</groupId>

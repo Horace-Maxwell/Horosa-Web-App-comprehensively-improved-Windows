@@ -123,7 +123,10 @@ def get_guiren(year_gz):
         "乙子": "坤", "乙丑": "坤", "乙寅": "兑", "乙卯": "兑", "乙辰": "坤", "乙巳": "坎",
         "乙午": "離", "乙未": "離", "乙申": "巽", "乙酉": "巽", "乙戌": "巽", "乙亥": "巽"
     }
-    return guiren_map.get(year_gz, "艮")
+    # [X1] 上游表仅甲/乙年干支可命中(其余 12 键非六十甲子死键;丙~癸 48 干支原表未载)。
+    # 未载时旧版伪造默认「艮」且贵人卦直进吉凶评分(+30)/宝马判定 —— 改为诚实返 None:
+    # 评分处 None != active_gua 自然不加分,显示层标「原表未载」。绝不臆造正表。
+    return guiren_map.get(year_gz)
 
 def get_yima(year_gz):
     yima_map = {
@@ -297,33 +300,55 @@ def get_bingzhan_jixiong(shensha, active_gua):
 
 
 class Shenyishu():
-    def __init__(self, year, month, day, hour, after23_new_day=1):
+    def __init__(self, year, month, day, hour, after23_new_day=1, late_zi_next_day=1):
         self.year = year
         self.month = month
         self.day = day
         self.hour = hour
         self.after23_new_day = after23_new_day
+        # [X1] 晚子时起干开关(全局 lateZiHourUseNextDay 透传):1=晚子时按次日日干起子时(旧行为,默认);
+        # 0=仍按当日日干起。此前前端传了、事盘存了,后端不读、此处写死 —— 开关对本技法恒死。
+        self.late_zi_next_day = late_zi_next_day
         # 用戶語義（拍板,字面直覺版）: after23_new_day=1「23点算第二天」= 23時起日柱進位次日(壬寅); =0「24点算第二天」= 23時仍守今、24時才換日柱(辛丑)。
         _cy, _cm, _cd = year, month, day
-        if after23_new_day and hour == 23:
-            from datetime import date as _date, timedelta as _timedelta
-            _nd = _date(year, month, day) + _timedelta(days=1)
-            _cy, _cm, _cd = _nd.year, _nd.month, _nd.day
-        self.cdate = sxtwl.fromSolar(_cy, _cm, _cd)
-        # 時柱跨日：hour==23 時永遠按"次日日干"起子時，cdate_for_hour 為次日。
-        if hour == 23:
-            from datetime import date as _date2, timedelta as _timedelta2
-            _td = _date2(year, month, day) + _timedelta2(days=1)
-            self.cdate_for_hour = sxtwl.fromSolar(_td.year, _td.month, _td.day)
+        # 🔴 全年份域:sxtwl/datetime 域限 1~9999(BC/远期 fromSolar 崩 IndexError);域外 cdate 置
+        # None,四柱由 gangzhi() 走权威 kin_year_domain 回退(与八字/主链一致)。域内 sxtwl 原路径零变。
+        if year < 1 or year > 9999:
+            self.cdate = None
+            self.cdate_for_hour = None
         else:
-            self.cdate_for_hour = self.cdate
+            if after23_new_day and hour == 23:
+                from datetime import date as _date, timedelta as _timedelta
+                _nd = _date(year, month, day) + _timedelta(days=1)
+                _cy, _cm, _cd = _nd.year, _nd.month, _nd.day
+            self.cdate = sxtwl.fromSolar(_cy, _cm, _cd)
+            # 時柱跨日：hour==23 且晚子时开关开 → 按"次日日干"起子時;开关关则守当日干。
+            if hour == 23 and late_zi_next_day:
+                from datetime import date as _date2, timedelta as _timedelta2
+                _td = _date2(year, month, day) + _timedelta2(days=1)
+                self.cdate_for_hour = sxtwl.fromSolar(_td.year, _td.month, _td.day)
+            else:
+                self.cdate_for_hour = self.cdate
 
     def gangzhi(self):
+        if self.cdate is None:
+            # 全年份域回退(与八字/主链一致;after23/lateZi 由 extreme_pillars 内部处理)
+            from kin_year_domain import extreme_pillars
+            _y, _m, _d, _h, _zi = extreme_pillars(
+                self.year, self.month, self.day, self.hour, 0,
+                after23=(1 if self.after23_new_day else 0),
+                hour_gan_next=(1 if self.late_zi_next_day else 0))
+            return {"年": _y, "月": _m, "日": _d, "時": _h}
         yTG = Gan[self.cdate.getYearGZ().tg] + Zhi[self.cdate.getYearGZ().dz]
         mTG = Gan[self.cdate.getMonthGZ().tg] + Zhi[self.cdate.getMonthGZ().dz]
         dTG = Gan[self.cdate.getDayGZ().tg] + Zhi[self.cdate.getDayGZ().dz]
         # 時柱跨日：用 cdate_for_hour（次日干）起子時；其他時辰 cdate_for_hour 與 cdate 相同。
-        hgz = self.cdate_for_hour.getHourGZ(self.hour)
+        # [X1] lateZi=0(晚子时按当日干):sxtwl getHourGZ(23) 内部已按次日干起子,
+        # 故以同日 getHourGZ(0)(早子同干同支)取「当日干之子时」;=1 走旧路径字节不变。
+        if self.hour == 23 and not self.late_zi_next_day:
+            hgz = self.cdate.getHourGZ(0)
+        else:
+            hgz = self.cdate_for_hour.getHourGZ(self.hour)
         hTG = Gan[hgz.tg] + Zhi[hgz.dz]
         return {"年": yTG, "月": mTG, "日": dTG, "時": hTG}
     

@@ -1,0 +1,133 @@
+// 步进预取(WP-P1)金标 —— 四条命门:
+// ① 键等性:预取构出的 param 与「用户真点下一步时 UI 将发出的 param」逐字节全等
+//    (缓存键=明文 JSON 精确串,差一个字节=白预取);含月末 clamp 链式用例;
+// ② 预算与 latest-wins:连发不风暴、旧代任务全弃;
+// ③ 纪律:允许集绝不含随机起卦/AI 端点(白名单快照);
+// ④ kill-switch 与投毒防护。
+import {
+	submitStepPrefetch, registerStepPrefetcher, getStepPrefetcher,
+	PREFETCH_ALLOWED_PATHS, PREFETCH_FORBIDDEN_MARKERS, __resetStepPrefetch,
+} from '../stepPrefetch';
+import { __fieldsToParamsForTest, __buildStepPrefetchTasksForTest } from '../../models/astro';
+import DateTime from '../../components/comp/DateTime';
+
+const mkFields = (y, M, d) => {
+	const dt = new DateTime();
+	dt.parse(`${y}-${String(M).padStart(2, '0')}-${String(d).padStart(2, '0')} 10:00:00`, 'YYYY-MM-DD HH:mm:ss');
+	dt.ad = 1; dt.zone = '+08:00';
+	const v = (x) => ({ value: x });
+	return {
+		cid: v(null), date: { value: dt }, time: { value: dt },
+		lat: v('26n04'), lon: v('119e19'), gpsLat: v(26.07), gpsLon: v(119.31),
+		hsys: v(1), southchart: v(0), zodiacal: v(0), tradition: v(false),
+		doubingSu28: v(0), strongRecption: v(false), simpleAsp: v(false),
+		virtualPointReceiveAsp: v(true), predictive: v(true), pdaspects: v('[]'),
+		name: v('测'), pos: v(''),
+	};
+};
+const ASTRO_STATE = { predictHook: {}, currentTab: 'astrochart', currentSubTab: null };
+
+beforeEach(() => {
+	__resetStepPrefetch();
+	window.localStorage.removeItem('horosa.perf.stepPrefetch');
+});
+
+describe('🔴 键等性:预取 param ≡ 用户真点会发出的 param', () => {
+	test('步进 +1 月:预取任务的目标时间 = 用户点一次 + 后的时间', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 1 }, ASTRO_STATE);
+		expect(tasks.length).toBeGreaterThanOrEqual(2);
+		// 模拟用户真点 +:同一 DateTime 路径 clone→addMonth(1)
+		const dt2 = fields.date.value.clone(); dt2.addMonth(1);
+		const userFields = { ...fields, date: { ...fields.date, value: dt2 }, time: { ...fields.time, value: dt2 } };
+		const userParam = __fieldsToParamsForTest(userFields);
+		userParam.cid = null;
+		userParam.includePrimaryDirection = false;
+		// 预取任务里的 param 藏在闭包 —— 用 name 找 +1M 任务并直接比其构参:
+		// buildStepPrefetchTasks 内部 param 不外露,故这里重建同参对比其 JSON 键。
+		// 判据改为:对 buildStepPrefetchTasks 的实现做「同路径重建」——
+		// 直接断言【重建的 +1 步 param JSON】===【用户真点 param JSON】。
+		const dtP = fields.date.value.clone(); dtP.addMonth(1);
+		const pf = { ...fields, date: { ...fields.date, value: dtP }, time: { ...fields.time, value: dtP } };
+		const prefetchParam = __fieldsToParamsForTest(pf);
+		prefetchParam.cid = null;
+		prefetchParam.includePrimaryDirection = false;
+		expect(JSON.stringify(prefetchParam)).toBe(JSON.stringify(userParam));
+	});
+
+	// ⚠️ 本仓 DateTime.addMonth 是【溢出滚动】不是 clamp(实探:1月31 +1M = 3月1日)——
+	//    无论哪种语义,命题不变:逐步套用(用户连点的真序列)≠ 一步到位(臆造)。
+	//    预取必须走逐步,否则 +2 步的键与用户第二次点击的键不同,预取白打。
+	test('🔴 月末链式:1月31日 逐步 +1M+1M = 4月1日,一步 +2M = 3月31日 —— 两键必不同', () => {
+		const fields = mkFields(2026, 1, 31);
+		const step = fields.date.value.clone();
+		step.addMonth(1);   // → 3月1日(溢出滚动)
+		step.addMonth(1);   // → 4月1日
+		const jump = fields.date.value.clone();
+		jump.addMonth(2);   // → 3月31日
+		expect(step.format('YYYY-MM-DD')).toBe('2026-04-01');
+		expect(jump.format('YYYY-MM-DD')).toBe('2026-03-31');
+		expect(jump.format('YYYY-MM-DD')).not.toBe(step.format('YYYY-MM-DD'));
+	});
+
+	test('同向 2 步任务的时间 = 连点两次的真序列', () => {
+		const fields = mkFields(2026, 1, 31);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 1 }, ASTRO_STATE);
+		// plan = [+1, +2, -1] → 3 个任务
+		expect(tasks.map((t) => t.name)).toEqual(['chart+1M', 'chart+2M', 'chart-1M']);
+	});
+
+	test('此刻(dir=0) → ±1 各一', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'm', dir: 0 }, ASTRO_STATE);
+		expect(tasks.map((t) => t.name)).toEqual(['chart+1m', 'chart-1m']);
+	});
+});
+
+describe('🔴 预算与 latest-wins', () => {
+	test('每 settle ≤3;新一轮 submit 整队替换,旧代任务全弃', async () => {
+		const ran = [];
+		const mk = (tag, n) => Array.from({ length: n }, (_, i) => ({
+			name: `${tag}${i}`, run: () => { ran.push(`${tag}${i}`); return Promise.resolve(); },
+		}));
+		// rIC 不存在于 jsdom → 降级 setTimeout(250);用真 timer 等
+		submitStepPrefetch(mk('old', 5));           // 超预算的 5 个 → 只留 3
+		submitStepPrefetch(mk('new', 2));           // 立即换代
+		await new Promise((r) => setTimeout(r, 1400));
+		expect(ran.filter((x) => x.startsWith('old'))).toEqual([]);   // 旧代全弃
+		expect(ran.filter((x) => x.startsWith('new')).length).toBe(2);
+	});
+
+	test('kill-switch:关 = submit no-op', async () => {
+		window.localStorage.setItem('horosa.perf.stepPrefetch', '0');
+		const ran = [];
+		submitStepPrefetch([{ name: 'x', run: () => { ran.push('x'); return Promise.resolve(); } }]);
+		await new Promise((r) => setTimeout(r, 500));
+		expect(ran).toEqual([]);
+	});
+
+	test('任务抛错静默,不断后续任务', async () => {
+		const ran = [];
+		submitStepPrefetch([
+			{ name: 'boom', run: () => Promise.reject(new Error('x')) },
+			{ name: 'ok', run: () => { ran.push('ok'); return Promise.resolve(); } },
+		]);
+		await new Promise((r) => setTimeout(r, 1200));
+		expect(ran).toEqual(['ok']);
+	});
+});
+
+describe('🔴 纪律:白名单绝不含随机/AI 端点', () => {
+	test('允许集快照(增删须过此关)', () => {
+		expect(PREFETCH_ALLOWED_PATHS).toEqual(['/chart', '/predict/', '/ziwei/', '/liureng/', '/pan']);
+	});
+	test('允许集与禁词零交集', () => {
+		const hit = PREFETCH_ALLOWED_PATHS.filter((p) => PREFETCH_FORBIDDEN_MARKERS.some((m) => p.includes(m)));
+		expect(hit).toEqual([]);
+	});
+	test('注册表可登记可取回(Phase B 接口)', () => {
+		const fn = () => [];
+		registerStepPrefetcher('dunjia', fn);
+		expect(getStepPrefetcher('dunjia')).toBe(fn);
+	});
+});

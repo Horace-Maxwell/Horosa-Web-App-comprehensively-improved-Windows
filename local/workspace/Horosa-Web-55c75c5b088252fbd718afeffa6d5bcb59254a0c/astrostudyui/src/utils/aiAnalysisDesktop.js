@@ -48,6 +48,11 @@ export function isDesktopBridgeAvailable(){
 	return hasTauriInvoke();
 }
 
+// 通用命令直通(secureKeyStore 等按需调桌面命令;浏览器 dev 无桥时抛 desktop.bridge.unavailable)。
+export async function invokeDesktopCommand(command, args){
+	return invoke(command, args);
+}
+
 export async function pickDesktopFiles(){
 	if(!hasTauriInvoke()){
 		return [];

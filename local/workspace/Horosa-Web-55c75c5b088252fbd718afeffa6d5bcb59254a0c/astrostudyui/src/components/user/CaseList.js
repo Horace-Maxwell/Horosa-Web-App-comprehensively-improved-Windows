@@ -249,9 +249,10 @@ class CaseList extends Component{
 	}
 
 	genTagsOption(){
+		// render 内直读全局 store:首个 mapStateToProps 前为空表,需守卫(防 jest 单挂载/时序变动露馅)
 		const store = getStore();
-		const userstate = store.user;
-		if(userstate.userInfo === undefined || userstate.userInfo === null){
+		const userstate = store && store.user;
+		if(!userstate || userstate.userInfo === undefined || userstate.userInfo === null){
 			return [];
 		}
 		let tags = userstate.userInfo.group;

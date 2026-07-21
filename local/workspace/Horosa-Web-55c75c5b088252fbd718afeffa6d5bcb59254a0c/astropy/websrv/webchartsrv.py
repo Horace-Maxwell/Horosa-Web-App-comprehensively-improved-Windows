@@ -45,20 +45,59 @@ from astrostudy.thirteenthchart import ThirteenthChart, HarmonicChart
 from astrostudy.helper import getPredictivesObj
 from websrv.helper import enable_crossdomain
 from websrv._guards import validate_geo
-from websrv.webpredictsrv import PredictSrv
-from websrv.webindiasrv import IndiaAstroSrv, warmup_india
-from websrv.webmodernsrv import ModernAstroSrv
-from websrv.webgermanysrv import GermanyAstroSrv
-from websrv.webjieqisrv import JieQiSrv
-from websrv.webjdn import WebJdnSrv
-from websrv.webcalc import WebCalcSrv
-from websrv.webacgsrv import AcgSrv
-from websrv.webastroextrasrv import AstroExtraSrv
-from websrv.webplanetariumsrv import PlanetariumSrv
-# 策天飞星:已按《十八飞星策天紫微斗数》全面重写为自有引擎,从 kentang 摘出,直接挂载(不再走 kentang registry)。
-from websrv.webcetiansrv import CeTianSrv
-from websrv.webqizhengelectionsrv import QiZhengElectionSrv
-from websrv.kentang.registry import mount_kentang_services
+# [B5] 14 个非 kentang 服务改惰性挂载(复用 kentang _LazyMountedService 通用代理):
+# 此前顶层同步 import 是 py.interp_start→imports_done 的主墙(每个服务各拖自家引擎链),
+# 现挂载零导入、监听提前;warmup 线程在开门前逐个预装(prewarm)——任何业务 POST 的最早
+# 可服务时刻不晚于旧方案(单一 STARTUP_GATE 语义不变,sid_mode 并发安全同旧)。
+# kill-switch:HOROSA_CORE_LAZY=0 回退旧饿加载(eager import + 直挂)。
+from websrv.kentang.registry import mount_kentang_services, _LazyMountedService, _load_service
+
+CORE_SERVICE_SPECS = [
+    {"key": "predict", "mount": "/predict", "module": "websrv.webpredictsrv", "class_name": "PredictSrv"},
+    {"key": "india", "mount": "/india", "module": "websrv.webindiasrv", "class_name": "IndiaAstroSrv"},
+    {"key": "modern", "mount": "/modern", "module": "websrv.webmodernsrv", "class_name": "ModernAstroSrv"},
+    {"key": "germany", "mount": "/germany", "module": "websrv.webgermanysrv", "class_name": "GermanyAstroSrv"},
+    {"key": "jieqi", "mount": "/jieqi", "module": "websrv.webjieqisrv", "class_name": "JieQiSrv"},
+    {"key": "chart3d", "mount": "/chart3d", "module": "websrv.webchart3dsrv", "class_name": "Chart3DSrv"},
+    {"key": "jdn", "mount": "/jdn", "module": "websrv.webjdn", "class_name": "WebJdnSrv"},
+    {"key": "calc", "mount": "/calc", "module": "websrv.webcalc", "class_name": "WebCalcSrv"},
+    {"key": "qizhengelection", "mount": "/qizhengelection", "module": "websrv.webqizhengelectionsrv", "class_name": "QiZhengElectionSrv"},
+    {"key": "acg", "mount": "/location", "module": "websrv.webacgsrv", "class_name": "AcgSrv"},
+    # 策天飞星:自有引擎(已从 kentang 摘出),同走惰性挂载。
+    {"key": "cetian", "mount": "/cetian", "module": "websrv.webcetiansrv", "class_name": "CeTianSrv"},
+    {"key": "astroextra", "mount": "/astroextra", "module": "websrv.webastroextrasrv", "class_name": "AstroExtraSrv"},
+    {"key": "planetarium", "mount": "/planetarium", "module": "websrv.webplanetariumsrv", "class_name": "PlanetariumSrv"},
+]
+
+
+def _core_lazy_enabled():
+    return os.environ.get('HOROSA_CORE_LAZY', '1') not in ('0', 'false', 'no', 'off')
+
+
+def mount_core_services():
+    lazy = _core_lazy_enabled()
+    for spec in CORE_SERVICE_SPECS:
+        if lazy:
+            cherrypy.tree.mount(_LazyMountedService(spec), spec["mount"])
+        else:
+            cherrypy.tree.mount(_load_service(spec), spec["mount"])
+
+
+def prewarm_core_services():
+    loaded = 0
+    failed = 0
+    for spec in CORE_SERVICE_SPECS:
+        try:
+            app = cherrypy.tree.apps.get(spec["mount"])
+            root = getattr(app, "root", None)
+            if isinstance(root, _LazyMountedService):
+                root._horosa_load()
+                loaded += 1
+        except Exception:
+            failed += 1
+            print("[core] prewarm failed %s" % spec.get("key"), flush=True)
+            traceback.print_exc()
+    return loaded, failed
 
 ledger_mark('py.imports_done', t0=_PY_T0)
 
@@ -109,7 +148,7 @@ class WebChartSrv:
         # 身份握手端点:前端在采用任何本地服务地址(query/存储/端口推导)之前,先 GET 本端点核验
         # app 标记(+壳注入的每次启动 nonce)——防端口被其它进程占用时把「陌生 200 响应」误当后端
         # (症状:排盘失败但 statusCode:200)。明文、免签名,与 Java 侧 /horosaIdentity 同构。
-        # deep=1:附带一次微型真算(flatlib 儒略日,零 I/O)——看门狗借此看见
+        # [V-5] deep=1:附带一次微型真算(flatlib 儒略日,零 I/O)——看门狗借此看见
         # 「身份线程活着但算力已死」的灰区;proto 升 2 表示支持 deep 维度。
         enable_crossdomain()
         _nonce = os.environ.get('HOROSA_LAUNCH_NONCE', '') or ''
@@ -393,7 +432,7 @@ class WebChartSrv:
 
 
 def _identity_deep_ok():
-    """身份深探真算:flatlib 儒略日(真业务库、纯计算零 I/O)。
+    """[V-5] 身份深探真算:flatlib 儒略日(真业务库、纯计算零 I/O)。
     任何异常收敛为 False(探针绝不把服务打崩);HOROSA_IDENTITY_DEEP_FAIL=1 为 dev 注错钩。"""
     try:
         if os.environ.get('HOROSA_IDENTITY_DEEP_FAIL') == '1':
@@ -566,9 +605,21 @@ def _run_warmups():
         ledger_mark('py.warmup_pd', t0=_PY_T0, ms=_pd_ms)
     except Exception:
         traceback.print_exc()
+    # [B5] 核心 14 服务预装(开门前):挂载阶段零导入的债在此偿清 —— 门保证业务 POST
+    # 必在预装后,任何请求最早可服务时刻不晚于旧方案;失败留给首个真实请求响亮 500。
+    try:
+        t_core = time.perf_counter()
+        _c_loaded, _c_failed = prewarm_core_services()
+        _core_ms = (time.perf_counter() - t_core) * 1000.0
+        print('core services prewarm ready in {0:.3f}s (loaded={1}, failed={2})'.format(
+            _core_ms / 1000.0, _c_loaded, _c_failed), flush=True)
+        ledger_mark('py.warmup_core', t0=_PY_T0, ms=_core_ms)
+    except Exception:
+        traceback.print_exc()
     # 印度盘预热:把 india 各子算法冷路径载入,消除首次进入印度占星的 ~3s 冷启动;
     # 与业务请求的并发由启动门隔离(门开前无业务 POST 进入)。失败静默不影响服务。
     try:
+        from websrv.webindiasrv import warmup_india   # [B5] 下沉:india 链离开 import 墙
         t1 = time.perf_counter()
         warmup_india()
         _in_ms = (time.perf_counter() - t1) * 1000.0
@@ -625,18 +676,7 @@ if __name__ == '__main__':
     cherrypy.config.update({'tools.startup_gate.on': True})
 
     cherrypy.tree.mount(WebChartSrv(), '/')
-    cherrypy.tree.mount(PredictSrv(), '/predict')
-    cherrypy.tree.mount(IndiaAstroSrv(), '/india')
-    cherrypy.tree.mount(ModernAstroSrv(), '/modern')
-    cherrypy.tree.mount(GermanyAstroSrv(), '/germany')
-    cherrypy.tree.mount(JieQiSrv(), '/jieqi')
-    cherrypy.tree.mount(WebJdnSrv(), '/jdn')
-    cherrypy.tree.mount(WebCalcSrv(), '/calc')
-    cherrypy.tree.mount(QiZhengElectionSrv(), '/qizhengelection')
-    cherrypy.tree.mount(AcgSrv(), '/location')
-    cherrypy.tree.mount(CeTianSrv(), '/cetian')
-    cherrypy.tree.mount(AstroExtraSrv(), '/astroextra')
-    cherrypy.tree.mount(PlanetariumSrv(), '/planetarium')
+    mount_core_services()
     mount_kentang_services(cherrypy)
     ledger_mark('py.mounts_done', t0=_PY_T0)
 

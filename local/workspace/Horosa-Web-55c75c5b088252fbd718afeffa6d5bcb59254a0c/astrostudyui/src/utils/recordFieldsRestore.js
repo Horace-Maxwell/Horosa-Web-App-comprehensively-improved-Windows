@@ -12,12 +12,14 @@
 //   不在 astro.fields 消费面，走 buildFieldObject/挂载链，已有 aiExportRoundtrip 哨兵。
 // - 元数据信封（isPub/creator/updateTime/payload/sourceModule/chartType）。
 // - 手工还原核心（cid/birth→date/time/ad/zone/lat/lon/name/pos + memo×8）：无条件覆盖语义，留在 saga。
-// 另注：guolaoZiqiMode 在 fields schema 但功能冻结（恒 'real'，不下发不保存）；record 不保存 ad
-// （公元前盘 ad 载入回退 1 为既有独立问题，不在本清单范围）。
+// 另注：guolaoZiqiMode 在 fields schema 但功能冻结（恒 'real'，不下发不保存）。
+// ad(公元前=-1)自全年份域工程起显式保存并在此还原:旧记录无 ad 键→跳过(零回归),
+// 新记录与 birth 串前导负号一致(幂等双保险)。
 
 // parse: 'int'|'num'|'str'|'raw'|'object' —— 与 buildLocalChartRecord 保存侧强转一一对应。
 export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	// ── 既有手写条件块迁入（行为等价）─────────────────────────────
+	{ key: 'ad', parse: 'int' },
 	{ key: 'gender', parse: 'int' },
 	{ key: 'group', parse: 'raw' },
 	{ key: 'after23NewDay', parse: 'int' },

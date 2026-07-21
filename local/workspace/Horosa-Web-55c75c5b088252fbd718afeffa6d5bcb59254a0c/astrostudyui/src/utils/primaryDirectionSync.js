@@ -72,6 +72,7 @@ export function getPdTimeKeyLabel(value){
 const VALID_DIRECTION_SUB_TABS = new Set([
 	'primarydirect',
 	'primarydirchart',
+	'primarydirsphere',
 	'firdaria',
 	'profection',
 	'solararc',

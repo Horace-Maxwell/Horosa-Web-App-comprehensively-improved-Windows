@@ -266,7 +266,9 @@ public class BaZiHelper {
 		params.put("zone", zone);
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
-		
+		// 节气窗算法代次(窗口包含性自愈版):参与 paramhash 缓存键,旧代次污染缓存自然失效
+		params.put("_v", "w4");
+
 		Map<String, Object> res = AstroHelper.getJieQiBirth(params);
 		return res;
 	}
@@ -285,7 +287,8 @@ public class BaZiHelper {
 		params.put("zone", zone);
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
-		
+		params.put("_v", "w4");
+
 		Map<String, Object> res = AstroHelper.requestNoCache(AstroHelper.JieQiBirth, params);
 		return res;
 	}
@@ -562,12 +565,7 @@ public class BaZiHelper {
 		int[] dtparts = DateTimeUtility.getDateTimeParts(dt);
 		int y = Math.abs(dtparts[0]);
 		if(ad < 0) {
-			if(y > 172800 && y % 172800 == 0) {
-				return true;
-			}
-			if(y > 3200 && y % 3200 == 1) {
-				return false;
-			}
+			// proleptic Julian:BC 闰年恒为 |y|%4==1(与 Python 引擎/前端承诺口径一致,无 3200/172800 例外)
 			if(y % 4 == 1) {
 				return true;
 			}
@@ -604,15 +602,9 @@ public class BaZiHelper {
 		int y = dtparts[0];
 		if(ad < 0) {
 			int ty = Math.abs(y);
-			int cnt = (ty-1) / 4;
-			if(ty > 3200) {
-				int delta = (ty - 1) / 3200;
-				cnt -= delta;
-			}
-			if(ty > 172800) {
-				int delta = (ty - 1) / 172800;
-				cnt += delta;
-			}
+			// proleptic Julian:BC 闰年为 |y|%4==1(1,5,9,…),不含当年的个数=ceil((ty-1)/4)=(ty+2)/4;
+			// 旧式 (ty-1)/4 每逢边界少计 1 个,使 BC 全域日柱与连续干支序(JDN 锚)错位一天;无 3200/172800 例外。
+			int cnt = (ty + 2) / 4;
 			return cnt;
 		}
 		

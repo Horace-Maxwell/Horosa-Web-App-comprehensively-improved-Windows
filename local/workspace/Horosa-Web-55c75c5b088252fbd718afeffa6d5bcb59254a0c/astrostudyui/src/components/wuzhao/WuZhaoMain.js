@@ -3,14 +3,16 @@ import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../comp/SpaceTimePanel';
+import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { parseDateParts } from '../../utils/dateStrSafe';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -39,7 +41,9 @@ function parseFieldsDateTime(fields){
 	}
 	const dateStr = fields.date.value.format('YYYY-MM-DD');
 	const timeStr = fields.time.value.format('HH:mm:ss');
-	const d = dateStr.split('-').map((item)=>parseInt(item, 10));
+	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
+	const _dp = parseDateParts(dateStr);
+	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
 	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
 	if(d.length < 3 || t.length < 2){
 		return null;
@@ -176,6 +180,7 @@ class WuZhaoMain extends Component{
 		this.timeHook = {};
 		this.requestSeq = 0;
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.changeGeo = this.changeGeo.bind(this);
 		this.getTimeFieldsFromSelector = this.getTimeFieldsFromSelector.bind(this);
 		this.clickPlot = this.clickPlot.bind(this);
 		this.fetchPan = this.fetchPan.bind(this);
@@ -200,6 +205,7 @@ class WuZhaoMain extends Component{
 	}
 
 	componentDidMount(){
+		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -220,7 +226,8 @@ class WuZhaoMain extends Component{
 			return;
 		}
 		if(prevState.mode !== this.state.mode
-			|| prevState.number !== this.state.number
+			// [X1·P1-9] 报数只在干支起盘参算:其余模式改之不得触发重取(自动揲筮无 seed,重取=随机重掷假「生效」)。
+			|| (prevState.number !== this.state.number && this.state.mode === 'ganzhi')
 			|| prevState.manual !== this.state.manual
 			|| prevState.manualSplits !== this.state.manualSplits){
 			this.fetchPan(this.props.fields);
@@ -228,6 +235,7 @@ class WuZhaoMain extends Component{
 	}
 
 	componentWillUnmount(){
+		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -266,7 +274,10 @@ class WuZhaoMain extends Component{
 			return false;
 		}
 		if(!force && this.lastRestoredCaseId === saved.caseVersion){
-			return false;
+			// 🔴 [X1] 去重命中曾返 false → componentDidUpdate 落 else 分支 fetchPan,
+			// 把已还原的冻结盘网络重取覆盖:manual=false 的自动揲筮无 seed,重取=重掷,还原盘≠保存盘。
+			// 已持有冻结盘 → 返 true 拦下重取;盘确实丢了才放行向下重还原。
+			if(this.state.pan){ return true; }
 		}
 		const payload = saved.payload;
 		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
@@ -300,6 +311,10 @@ class WuZhaoMain extends Component{
 		}
 	}
 
+	// [自由起盘] 左栏经纬度选择 → 经纬 + 时区自动校正 + 重锚时间 + 地名(经度影响真太阳时→时柱)。
+	changeGeo(rec){
+		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
+	}
 	onTimeChanged(value){
 		const dt = value.time;
 		this.onFieldsChange({
@@ -437,10 +452,9 @@ class WuZhaoMain extends Component{
 					timeText={formatSpaceTime(fields, '---- -- -- --:--:--')}
 					onTimeChange={this.onTimeChanged}
 					timeHook={this.timeHook}
-					showLocation={false}
+					onGeoChange={this.changeGeo}
 				/>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="other" />五兆选项</div>
+				<XQSideSection iconName="other" title="五兆选项" storageKey="wuzhao.opts" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
 						<label className="horosa-huangji-select-field is-wide">
 							<span>起盘方式</span>
@@ -450,7 +464,10 @@ class WuZhaoMain extends Component{
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>报数</span>
-							<InputNumber value={this.state.number} min={0} max={90} onChange={(v)=>this.setState({ number: v || 0 })} />
+							{/* [X1·P1-9] 报数仅「干支起盘」参算(vendor five_zhao_paipan 不吃 num);其余模式禁用免「改了触发随机重掷」假生效。
+							    max 收 9:后端 >9 即 mod9,曾致左栏显 45 而概览/AI 显 0 同屏矛盾(0-9 已覆盖全等价域)。 */}
+							<InputNumber value={this.state.number} min={0} max={9} disabled={this.state.mode !== 'ganzhi'} onChange={(v)=>this.setState({ number: v || 0 })} />
+							{this.state.mode !== 'ganzhi' ? <em className="horosa-guice-hint">本起盘方式不吃报数(仅干支起盘参算)</em> : null}
 						</label>
 						<label className="horosa-huangji-select-field is-wide">
 							<span>揲筮模式</span>
@@ -461,9 +478,8 @@ class WuZhaoMain extends Component{
 							</Select>
 						</label>
 					</div>
-				</div>
-				<div className="horosa-huangji-input-section">
-					<div className="horosa-huangji-field-title"><XQIcon name="quickComposite" />手动六数</div>
+				</XQSideSection>
+				<XQSideSection iconName="quickComposite" title="手动六数" storageKey="wuzhao.manual" className="horosa-huangji-input-section">
 					<div className="horosa-wuzhao-split-grid">
 						{POSITION_ORDER.map((item, idx)=>(
 							<label className="horosa-huangji-select-field" key={item}>
@@ -481,7 +497,7 @@ class WuZhaoMain extends Component{
 					<div className="horosa-wuzhao-split-note">
 						{canUseManualSplits ? '手动复现只在选择“手动复现”后参与日干、时干、分干与唐代正法计算。' : '干支起盘使用年月日时分干支与报数计算，不调用手动六数。'}
 					</div>
-				</div>
+				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起盘</Button>
 				</div>

@@ -6,9 +6,9 @@ import {
 } from '../yanqinEngine';
 import { mansionByIdx, WEEKDAY_TO_YAO, YAO_TO_WEEKDAY, DIZHI_TO_IDX } from '../yanqinConst';
 
-const ANCHOR = dayNumber(1996, 1, 28);
+const ANCHOR_UNIX = Math.floor(Date.UTC(1996, 0, 28) / 86400000); // Unix day 锚(反推/星期用;dayNumber 已改返儒略/格里 JDN,不可当 Unix day)
 function dateFromDiff(diff) {
-	const dt = new Date((ANCHOR + diff) * 86400000);
+	const dt = new Date((ANCHOR_UNIX + diff) * 86400000);
 	return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
 }
 
@@ -93,7 +93,7 @@ describe('日禽相位锁定 + 420周期 + 干支锚', () => {
 		for (let diff = 0; diff < 20000; diff++) {
 			const { y, m, d } = dateFromDiff(diff);
 			const mansion = mansionOfDay(y, m, d);
-			const weekday = new Date((ANCHOR + diff) * 86400000).getUTCDay();
+			const weekday = new Date((ANCHOR_UNIX + diff) * 86400000).getUTCDay();
 			expect(YAO_TO_WEEKDAY[mansion.yao]).toBe(weekday);
 			expect(WEEKDAY_TO_YAO[weekday]).toBe(mansion.yao);
 		}
@@ -108,7 +108,7 @@ describe('日禽相位锁定 + 420周期 + 干支锚', () => {
 	test('锚点 1996-01-28 = 甲子 = 虚日鼠 = 周日 = 一元一将', () => {
 		expect(ganzhiOfDay(1996, 1, 28)).toBe('甲子');
 		expect(mansionOfDay(1996, 1, 28).name).toBe('虚日鼠');
-		expect(new Date(ANCHOR * 86400000).getUTCDay()).toBe(0);
+		expect(new Date(ANCHOR_UNIX * 86400000).getUTCDay()).toBe(0);
 		expect(yuanJiangOfDay(1996, 1, 28)).toEqual({ yuan: 1, jiang: 1 });
 		// 2002-02-10 己酉 = 二元四将 = 房日兔(大全§1.7 程序更正值)
 		expect(ganzhiOfDay(2002, 2, 10)).toBe('己酉');
@@ -158,6 +158,15 @@ describe('时禽 §4.3 基准表 + 旬头位移 ⚠️(两模式各锁文档锚)
 		expect(ganzhiOfDay(y, m, d)).toBe('乙未');
 		expect(mansionOfDay(y, m, d).name).toBe('井木犴');
 		expect(hourQin(y, m, d, DIZHI_TO_IDX['午'], false).name).toBe('心月狐');
+	});
+	// 🔴 全年份域日序权威金标(真机根因):dayNumber 旧用 Date.UTC(JS proleptic Gregorian),1582 前
+	// (尤其 BC)与真实儒略历日序偏差(实测 BC12026 日禽/日干支偏~28 位全错)。改用儒略/格里 JDN
+	// (含 1582-10-15 切换)后,日干支 = 全局权威(extreme_pillars 儒略 JDN 同轴);现代域两口径逐日等价。
+	test('🔴 BC/极端年日干支 = 儒略JDN权威(非 JS proleptic Gregorian)', () => {
+		expect(ganzhiOfDay(-12026, 7, 19)).toBe('己卯');  // 用户实测 BC(旧 Date.UTC 得丙午,偏 28)
+		expect(ganzhiOfDay(-1, 12, 31)).toBe('丙子');     // 公元前1年岁末(干支连续锚,同 Java 金标)
+		expect(ganzhiOfDay(1, 1, 1)).toBe('丁丑');        // 公元1年元旦(儒略,JDN1721424)
+		expect(ganzhiOfDay(2026, 7, 19)).toBe('甲午');    // 现代基线(零回归)
 	});
 });
 

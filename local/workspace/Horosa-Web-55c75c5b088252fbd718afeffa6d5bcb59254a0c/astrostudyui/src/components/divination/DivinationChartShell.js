@@ -7,7 +7,8 @@ import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameRawPatch } from '../../utils/geoName';
 import { getHousesOption } from '../comp/CompHelper';
-import { XQButton, XQSegmented, XQSelect, XQTabs } from '../xq-ui';
+import { XQButton, XQSegmented, XQSelect, XQTabs, XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
 import { fetchChart } from '../../services/astro';
@@ -210,9 +211,28 @@ class DivinationChartShell extends Component{
 		this.patchFields({
 			date: dt,
 			time: dt.clone ? dt.clone() : dt,
-			zone: dt.zone,
+			// zone 兜底:部分态 DateTime 缺 zone 时保留原值,防 undefined 入 fields(请求缺 zone 键)
+			zone: dt.zone || (this.state.fields.zone && this.state.fields.zone.value),
 			ad: res.ad,
 		});
+		// 步进方向预取(主链 WP-P1 同款下放):连续步进第二击起在途/缓存命中,出盘近乎瞬间。
+		// 预取失败无害(正式请求照常);fetchChart cache:true 经请求缓存在途共享。
+		if(res.step && res.step.unit && res.step.dir && dt.clone){
+			try{
+				const nd = dt.clone();
+				const n = res.step.dir;
+				if(res.step.unit === 'y'){ nd.addYear(n); }
+				else if(res.step.unit === 'M'){ nd.addMonth(n); }
+				else if(res.step.unit === 'd'){ nd.addDate(n); }
+				else if(res.step.unit === 'h'){ nd.addHour(n); }
+				else if(res.step.unit === 'm'){ nd.addMinute(4 * n); }
+				else { return; }
+				const nextFields = { ...this.state.fields };
+				nextFields.date = { value: nd, name: ['date'] };
+				nextFields.time = { value: nd.clone ? nd.clone() : nd, name: ['time'] };
+				fetchChart(buildChartParams(nextFields), { cache: true, silent: true }).catch(()=>{ /* 预取静默 */ });
+			}catch(e){ /* 预取失败无害 */ }
+		}
 	}
 
 	castNow(){
@@ -282,6 +302,7 @@ class DivinationChartShell extends Component{
 					</div>
 				</div>
 
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				{!this.props.hideTime ? (
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">时间</div>
@@ -319,11 +340,13 @@ class DivinationChartShell extends Component{
 						</button>
 					</GeoCoordModal>
 				</div>
+				</XQSideSection>
 
 				{typeof this.props.renderLeftExtra === 'function'
 					? this.props.renderLeftExtra({ extra: this.state.extra, setExtra: this.setExtra, fields, chart: this.state.chart, setTime: this.setTimeDt, patchFields: this.patchFields })
 					: null}
 
+				<XQSideSection iconName={sideSectionIcon('school')} title="盘面参数" storageKey="divination.chartopts" className="horosa-side-input-section">
 				<div className="horosa-field-grid">
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">黄道</div>
@@ -348,7 +371,7 @@ class DivinationChartShell extends Component{
 					</div>
 				</div>
 
-				<div className="horosa-chart-style-block">
+				<div className="horosa-chart-style-block" style={{ marginTop: 12 }}>
 					<div className="horosa-side-section-title">星盘样式</div>
 					<XQSegmented
 						value={this.state.chartStyle}
@@ -356,6 +379,7 @@ class DivinationChartShell extends Component{
 						options={AstroConst.CHART_STYLE_OPTIONS}
 					/>
 				</div>
+				</XQSideSection>
 
 				<XQButton className="horosa-recalculate-button" size="small" iconName="refresh"
 					onClick={this.refetch} loading={this.state.busy}>

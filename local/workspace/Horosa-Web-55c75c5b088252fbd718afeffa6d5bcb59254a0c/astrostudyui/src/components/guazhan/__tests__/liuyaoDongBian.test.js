@@ -6,7 +6,7 @@ import { Gua64 } from '../../gua/GuaConst';
 
 function byName(n){ return Gua64.find((g) => g.name === n); }
 
-describe('六爻动变·WP-G 进退神/反伏吟(§3.13/§3.14)', () => {
+describe('六爻动变·WP-G 进退神/反伏吟(古籍通例)', () => {
 	test('化进神(同五行顺进)', () => {
 		expect(isJinShen('寅', '卯')).toBe(true); // 木
 		expect(isJinShen('巳', '午')).toBe(true); // 火
@@ -32,7 +32,7 @@ describe('六爻动变·WP-G 进退神/反伏吟(§3.13/§3.14)', () => {
 	});
 });
 
-describe('六爻动变·WP-G 回头作用(§5.5)', () => {
+describe('六爻动变·WP-G 回头作用(古籍通例)', () => {
 	test('回头生/克/冲/合', () => {
 		// 子水 化 丑土:土克水=回头克;子丑合=回头合
 		const r1 = huiTouOf('子', '水', '丑', '土');

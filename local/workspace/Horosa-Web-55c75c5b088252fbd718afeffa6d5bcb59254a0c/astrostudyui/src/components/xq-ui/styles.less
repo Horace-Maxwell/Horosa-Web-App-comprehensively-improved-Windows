@@ -93,29 +93,44 @@
         line-height: 1;
     }
 
+    /* ── 星阙金 W1·角色③「分段控件」连续轨+滑块 ──────────────────────────
+       连续轨(track):整组一条浅槽,项间无缝;滑块(thumb):JS 测量位移的绝对定位
+       金块(XQSegmented 内部渲染,ResizeObserver 驱动,34px 高度由 --horosa-control-height
+       统一);测量不可用(jsdom/老环境)时无 .xq-segmented-sliding 类 → 自动落回
+       「选中项实底」CSS 兜底,交互零损。 */
     .xq-segmented.ant-radio-group {
+        position: relative;
         display: grid;
         width: 100%;
         grid-auto-flow: column;
         grid-auto-columns: 1fr;
-        gap: 5px;
+        gap: 0;
+        padding: 3px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 9px;
+        background: var(--horosa-tab-seg-track, var(--horosa-panel-soft));
     }
 
     .xq-segmented .ant-radio-button-wrapper {
+        position: relative;
+        z-index: 1;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        height: var(--horosa-control-height);
+        height: calc(var(--horosa-control-height) - 6px);
         padding: 0 10px;
-        border: 1px solid var(--horosa-border) !important;
+        border: none !important;
         border-radius: 7px !important;
-        background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent),
-            var(--horosa-panel-soft);
-        color: var(--horosa-text);
+        background: transparent;
+        color: var(--horosa-tab-inactive-text, var(--horosa-text));
         line-height: 1;
         text-align: center;
-        box-shadow: none;
+        box-shadow: none !important;
+        transition: color var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    .xq-segmented .ant-radio-button-wrapper:hover {
+        color: var(--horosa-tab-hover-text, var(--horosa-text));
     }
 
     .xq-segmented .ant-radio-button-wrapper::before {
@@ -123,12 +138,51 @@
     }
 
     .xq-segmented .ant-radio-button-wrapper-checked {
-        border-color: var(--horosa-accent) !important;
+        color: var(--horosa-tab-on-thumb, var(--horosa-on-accent, #fff)) !important;
+    }
+
+    /* CSS 兜底:无 JS 滑块(测量不可用)时选中项自己实底
+       (高光渐变与描边走变量:暗档关高光+金描边=「金软底+金字+金边」;亮档 fallback 原值零变) */
+    .xq-segmented:not(.xq-segmented-sliding) .ant-radio-button-wrapper-checked {
         background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent),
-            var(--horosa-accent) !important;
-        color: var(--horosa-on-accent, #fff) !important;
-        box-shadow: 0 0 0 3px var(--horosa-cyan-soft) !important;
+            linear-gradient(180deg, var(--horosa-tab-seg-gloss, rgba(255, 255, 255, 0.24)), transparent),
+            var(--horosa-tab-seg-thumb, var(--horosa-accent)) !important;
+        box-shadow:
+            inset 0 0 0 1px var(--horosa-tab-seg-ring, transparent),
+            0 0 6px var(--horosa-tab-glow, transparent) !important;
+    }
+
+    /* JS 滑块:绝对定位金块,transform 由 XQSegmented 内联样式驱动
+       (暗档 seg-thumb=金软底+seg-ring 金描边+gloss 关高光=「简盘」primary 同族观感;亮档 fallback 零变) */
+    .xq-segmented-thumb {
+        position: absolute;
+        z-index: 0;
+        top: 3px;
+        left: 0;
+        bottom: 3px;
+        border-radius: 7px;
+        background:
+            linear-gradient(180deg, var(--horosa-tab-seg-gloss, rgba(255, 255, 255, 0.24)), transparent),
+            var(--horosa-tab-seg-thumb, var(--horosa-accent));
+        box-shadow:
+            inset 0 0 0 1px var(--horosa-tab-seg-ring, transparent),
+            0 0 6px var(--horosa-tab-glow, transparent);
+        transition: transform var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            width var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+        pointer-events: none;
+    }
+
+    .xq-segmented .ant-radio-button-wrapper input:focus-visible + span {
+        outline: none;
+        border-radius: 6px;
+        box-shadow: 0 0 0 3px var(--horosa-tab-focus-ring, var(--horosa-cyan-soft));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .xq-segmented .ant-radio-button-wrapper,
+        .xq-segmented-thumb {
+            transition: none;
+        }
     }
 
     .xq-panel {
@@ -521,15 +575,84 @@
         background: var(--horosa-panel-soft);
     }
 
+    /* ── 星阙金 W1·角色①「下划线 tabs」基线 ─────────────────────────────
+       token 组 --horosa-tab-*(app.less 亮暗齐);ink-bar 2px 圆头+微光(微光只落
+       指示条,禁大面积 shadow);三态字色 inactive/hover/active;键盘 focus-visible
+       可见环;prefers-reduced-motion 关滑动动效。 */
     .xq-tabs.ant-tabs .ant-tabs-tab {
         margin: 0 18px 0 0;
         padding: 10px 0;
-        color: var(--horosa-text-soft);
+        color: var(--horosa-tab-inactive-text, var(--horosa-text-soft));
         font-weight: 600;
+        transition: color var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    .xq-tabs.ant-tabs .ant-tabs-tab:hover {
+        color: var(--horosa-tab-hover-text, var(--horosa-text));
     }
 
     .xq-tabs.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
-        color: var(--horosa-accent-strong);
+        color: var(--horosa-tab-active-text, var(--horosa-accent-strong));
+    }
+
+    .xq-tabs.ant-tabs .ant-tabs-ink-bar {
+        height: 2px;
+        border-radius: 999px;
+        background: var(--horosa-tab-ink, var(--horosa-accent));
+        box-shadow: 0 0 6px var(--horosa-tab-glow, transparent);
+        transition: width var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            left var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            transform var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    .xq-tabs.ant-tabs .ant-tabs-tab-btn:focus-visible {
+        outline: none;
+        border-radius: 4px;
+        box-shadow: 0 0 0 3px var(--horosa-tab-focus-ring, var(--horosa-cyan-soft));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .xq-tabs.ant-tabs .ant-tabs-ink-bar,
+        .xq-tabs.ant-tabs .ant-tabs-tab {
+            transition: none;
+        }
+    }
+
+    /* ── 星阙金 W1·角色②「竖栏 rail」皮(配 tabPosition='right'/'left') ────
+       选中行:3px 圆头边条(伪元素,吃 ink token)+浅金底;行高统一;与角色①同
+       动效 token。宿主加 className="xq-tabs xq-tabs-rail"。 */
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab {
+        position: relative;
+        margin: 2px 0;
+        padding: 8px 14px;
+        border-radius: 8px;
+        transition: color var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease),
+            background var(--horosa-tab-motion, 200ms) var(--horosa-tab-ease, ease);
+    }
+
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab:hover {
+        background: var(--horosa-tab-hover-bg, transparent);
+    }
+
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab-active {
+        background: var(--horosa-tab-rail-active-bg, transparent);
+    }
+
+    /* [去竖条] 原激活态左缘 3px 金色竖条(用户嫌丑)——移除;激活态改由整块圆角背景高亮指示,足够清晰。 */
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab::before {
+        content: none;
+    }
+
+    /* rail 皮下原生竖向 ink-bar 隐藏(边条替代,避免双指示) */
+    .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-ink-bar {
+        display: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab,
+        .xq-tabs-rail.ant-tabs > .ant-tabs-nav .ant-tabs-tab::before {
+            transition: none;
+        }
     }
 
     .xq-nav-list {
@@ -1234,5 +1357,176 @@
 
     .xq-datetime-adjust-only .ant-btn {
         min-width: 34px;
+    }
+
+    // —— 观象左栏设计语言:小节容器 XQSideSection ————————————————
+    .xq-side-section {
+        min-width: 0;
+    }
+
+    .xq-side-section-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 4px;
+        border-radius: 7px;
+        transition: background 0.18s ease, color 0.18s ease;
+    }
+
+    .xq-side-section-header-collapsible {
+        cursor: pointer;
+    }
+
+    .xq-side-section-header-collapsible:hover {
+        background: var(--horosa-accent-soft);
+    }
+
+    .xq-side-section-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        padding: 4px 2px;
+        border: 0;
+        background: transparent;
+        color: var(--horosa-text);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 650;
+        text-align: left;
+        cursor: inherit;
+    }
+
+    .xq-side-section-icon {
+        font-size: 14px;
+        color: var(--horosa-gold);
+    }
+
+    .xq-side-section-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .xq-side-section-extra {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
+    }
+
+    // 折叠箭头:180ms 旋转(展开朝下,折叠转 -180°)
+    .xq-side-section-arrow {
+        flex: 0 0 auto;
+        font-size: 14px;
+        color: var(--horosa-text-soft);
+        transition: transform 0.18s ease;
+    }
+
+    .xq-side-section-header-collapsible:hover .xq-side-section-arrow {
+        color: var(--horosa-accent-strong);
+    }
+
+    .xq-side-section-collapsed .xq-side-section-arrow {
+        transform: rotate(-180deg);
+    }
+
+    // 🔴 折叠=纯 CSS 高度过渡(grid 1fr→0fr),children 恒挂载不卸载(防表单状态丢/防重算);
+    //    不支持 fr 过渡的旧 WebView 优雅降级为瞬时开合,布局仍正确。
+    .xq-side-section-body {
+        display: grid;
+        grid-template-rows: 1fr;
+        transition: grid-template-rows 0.18s ease;
+    }
+
+    .xq-side-section-body-inner {
+        min-height: 0;
+        overflow: hidden;
+        /* [左栏统一] 节头与内容全局留距(此前紧贴,标题与首行控件挤在一起);
+           参与 grid 高度 → 折叠 0fr 时随体整体收起,无残缝 */
+        padding-top: 6px;
+    }
+
+    .xq-side-section-collapsed .xq-side-section-body {
+        grid-template-rows: 0fr;
+    }
+
+    // —— 面板头 XQPanelHeader:kicker 小题 + 金 hairline 右渐隐装饰线 ————
+    .xq-panel-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 2px 0;
+    }
+
+    // 装饰线走伪元素,order 插在 kicker(0)与 extra(2)之间,吃掉剩余宽度右渐隐
+    .xq-panel-header::after {
+        content: '';
+        order: 1;
+        flex: 1 1 auto;
+        height: 1px;
+        background: linear-gradient(90deg, var(--horosa-gold), var(--horosa-gold-soft) 55%, transparent);
+    }
+
+    .xq-panel-header-kicker {
+        order: 0;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        // 衬线点缀:宋体参与栈,落不到再回系统衬线
+        font-family: "Songti SC", "STSong", "Noto Serif SC", serif;
+        font-size: 12px;
+        font-weight: 650;
+        letter-spacing: 0.12em;
+        color: var(--horosa-gold);
+    }
+
+    .xq-panel-header-extra {
+        order: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
+    }
+
+    // 无障碍:系统减动效时全部过渡归零(箭头/高度/hover 反馈)
+    @media (prefers-reduced-motion: reduce) {
+        .xq-side-section-header,
+        .xq-side-section-arrow,
+        .xq-side-section-body {
+            transition: none;
+        }
+    }
+
+    /* —— [选中态可读性大修] 暗黑下「黄底选中态」全族统一为「金软底 + 金字 + 金描边」——
+       金实底(accent #e7bd75)上无论白字还是深墨字都曾看不清/突兀;与 antd primary 暗黑观感
+       (深底金字金边)同族化。范围=**选中态**(Toggle active / 裸 Radio.Button checked /
+       antd Segmented 选中;XQSegmented 走 --horosa-tab-seg-* 变量已在暗档同改);
+       行动号召按钮(XQButton primary,如「起盘/重算」)保持金实底不动。亮档零变。 —— */
+    :root:not([data-horosa-appearance='light']) .xq-button.xq-toggle-active.ant-btn {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent-soft, rgba(231, 189, 117, 0.14));
+        color: var(--horosa-accent);
+        font-weight: 650;
+    }
+    :root:not([data-horosa-appearance='light']) .horosa-workspace-shell .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent-soft, rgba(231, 189, 117, 0.14));
+        color: var(--horosa-accent);
+        box-shadow: inset 0 0 0 1px rgba(231, 189, 117, 0.35);
+    }
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-thumb,
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-item-selected {
+        background: var(--horosa-accent-soft, rgba(231, 189, 117, 0.16));
+        box-shadow: inset 0 0 0 1px rgba(231, 189, 117, 0.60);
+    }
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-item-selected .ant-segmented-item-label,
+    :root:not([data-horosa-appearance='light']) .ant-segmented .ant-segmented-thumb .ant-segmented-item-label {
+        color: var(--horosa-accent) !important;
     }
 }

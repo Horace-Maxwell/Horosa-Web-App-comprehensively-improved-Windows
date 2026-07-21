@@ -12,6 +12,7 @@ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { fetchChartWithRetry } from '../../utils/chartFetch';
 import buildLocalBaziResult from '../../utils/baziLunarLocal';
 import { defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { parseDateParts } from '../../utils/dateStrSafe';
 
 export const STYLE_OPTIONS = [
 	...TAIYI_STYLE_OPTIONS.slice(),
@@ -186,8 +187,14 @@ export function calcTaiyi(fields, nongli, options){
 		return null;
 	}
 	const baziLocal = buildTaiyiBaziLocal(fields, opt);
+	// 直接时间=用户输入的钟表时,恒可自 fields 直出;极端年(lunar-js 域外 baziLocal 缺席、
+	// 后端 pan 无 clockTime)也不许显示「—」。
+	const clockFallback = (fields && fields.date && fields.date.value && fields.time && fields.time.value)
+		? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`
+		: '';
 	return applyNongliDisplay({
 		...pan,
+		clockTime: pan.clockTime || clockFallback,
 		tenching: opt.tenching !== undefined ? opt.tenching : 0,
 		rotation: opt.rotation || '固定',
 		options: buildOptions(opt, pan),
@@ -201,7 +208,9 @@ function parseFieldsDateTime(fields){
 	}
 	const dateStr = fields.date.value.format('YYYY-MM-DD');
 	const timeStr = fields.time.value.format('HH:mm:ss');
-	const d = dateStr.split('-').map((item)=>parseInt(item, 10));
+	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
+	const _dp = parseDateParts(dateStr);
+	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
 	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
 	if(d.length < 3 || t.length < 2){
 		return null;
@@ -303,7 +312,13 @@ export async function fetchTaiyiPan(fields, nongli, options){
 	}
 	const pan = rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
 	const baziLocal = buildTaiyiBaziLocal(fields, opt);
-	return normalizeBackendPan(pan, opt, nongli, baziLocal);
+	const normalized = normalizeBackendPan(pan, opt, nongli, baziLocal);
+	if(normalized && !normalized.clockTime && fields && fields.date && fields.date.value && fields.time && fields.time.value){
+		// 直接时间=用户输入的钟表时,恒可自 fields 直出;极端年(lunar-js 域外 baziLocal 缺席、
+		// 后端 pan 无 clockTime)也不许显示「—」。
+		normalized.clockTime = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
+	}
+	return normalized;
 }
 
 export function buildTaiyiSnapshotText(pan){

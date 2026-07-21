@@ -121,7 +121,7 @@ class LRCircleChart extends LRCommChart {
 		let y = this.oy - this.step;
 		let w = this.step*2;
 		let h = fontsize;
-		let data = this.nongli.dayGanZi.split('');
+		let data = ((this.nongli && this.nongli.dayGanZi) ? this.nongli.dayGanZi : '').split(''); // nongli 未就绪守卫
 		data.push('日');
 		drawTextH(house, data, x, y, w, h, 2, this.color);
 

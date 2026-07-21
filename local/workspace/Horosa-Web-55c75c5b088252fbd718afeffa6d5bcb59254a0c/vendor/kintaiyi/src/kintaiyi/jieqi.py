@@ -109,6 +109,10 @@ def get_next_jieqi_start_date(year, month, day, hour, minute):
 
 
 def jq(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退:swe 太阳视黄经直映射节气名(与主链定气口径一致;域内原路径零变)
+        from kin_year_domain import solar_term_name
+        return solar_term_name(year, month, day, hour, minute)
     try:
         current_datetime = datetime.datetime(year, month, day, hour, minute)
         jq_start_dict = get_jieqi_start_date(year, month, day, hour, minute)
@@ -261,6 +265,16 @@ def _hour_stem_override_taiyi(year, month, day, hour, cdate_day):
 
 #換算干支
 def gangzhi1(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     d = _cdate_for_day_taiyi(year, month, day, hour)
     dd = list(d.tuple())
     cdate = fromSolar(dd[0], dd[1], dd[2])
@@ -287,6 +301,16 @@ def gangzhi1(year, month, day, hour, minute):
     return [yTG, mTG1, dTG, hTG1]
 
 def gangzhi(year, month, day, hour, minute):
+    if year < 1 or year > 9999:
+        # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
+        from kin_year_domain import extreme_pillars
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1)
+        try:
+            _gm = minutes_jiazi_d(_zi).get(str(hour) + ":" + str(minute))
+        except Exception:
+            _gm = None
+        return [_y, _m, _d, _h, _gm]
+
     d = _cdate_for_day_taiyi(year, month, day, hour)
     dd = list(d.tuple())
     cdate = fromSolar(dd[0], dd[1], dd[2])

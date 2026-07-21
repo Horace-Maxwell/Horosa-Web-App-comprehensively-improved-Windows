@@ -1,7 +1,9 @@
 import { Component } from 'react';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Modal, message, Tag } from 'antd';
-import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch } from '../xq-ui';
+import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -5083,14 +5085,15 @@ class LiuRengMain extends Component{
 		if(!birthFields || !birthFields.date || !birthFields.date.value){
 			return;
 		}
-		if(birthFields.date.value.year > fields.date.value.year){
+		const birthSolarYear = getSolarYearFromField(birthFields.date);
+		const guaSolarYear = getSolarYearFromField(fields.date);
+		// 带符号天文年比较(公元前 3044 早于公元前 3040):绝不能用 abs 年,BC 侧会反向误判
+		if(Number.isFinite(birthSolarYear) && Number.isFinite(guaSolarYear) && birthSolarYear > guaSolarYear){
 			Modal.error({
 				title: '出生年份必须小于卜卦年份'
 			});
 			return;
 		}
-		const birthSolarYear = getSolarYearFromField(birthFields.date);
-		const guaSolarYear = getSolarYearFromField(fields.date);
 		const genderVal = birthFields && birthFields.gender ? birthFields.gender.value : 1;
 		let fallbackRunYear = null;
 		if(Number.isFinite(birthSolarYear) && Number.isFinite(guaSolarYear) && guaSolarYear >= birthSolarYear){
@@ -5303,6 +5306,17 @@ class LiuRengMain extends Component{
 		});
 		return res;
 
+	}
+
+
+	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
+	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
+	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){
@@ -5716,11 +5730,7 @@ class LiuRengMain extends Component{
 						<div className="horosa-side-panel-subtitle">时间、地点与起课选项</div>
 					</div>
 				</div>
-				<div className="horosa-liureng-input-section">
-					<div className="horosa-liureng-field-title">
-						<XQIcon name="clock" />
-						<span>时间与地点</span>
-					</div>
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<LiuRengInput
 						fields={this.props.fields}
 						onFieldsChange={this.onFieldsChange}
@@ -5728,23 +5738,15 @@ class LiuRengMain extends Component{
 						chartType={this.state.chartType}
 						onChartTypeChange={this.onChartTypeChange}
 					/>
-				</div>
-				<div className="horosa-liureng-input-section">
-					<div className="horosa-liureng-field-title">
-						<XQIcon name="user" />
-						<span>卜卦人出生时间</span>
-					</div>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('time')} title="卜卦人出生时间" storageKey="liureng.s1" className="horosa-liureng-input-section">
 					<LiuRengBirthInput
 						fields={this.state.birth}
 						onFieldsChange={this.onBirthChange}
 						requireConfirm={true}
 					/>
-				</div>
-				<div className="horosa-liureng-input-section">
-					<div className="horosa-liureng-field-title">
-						<XQIcon name="sliders" />
-						<span>选项</span>
-					</div>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="liureng.s2" className="horosa-liureng-input-section">
 					<div className="horosa-liureng-select-grid">
 							<label className="horosa-liureng-select-field">
 								<span>十二长生</span>
@@ -5857,7 +5859,7 @@ class LiuRengMain extends Component{
 						<Button type='primary' onClick={this.clickStartPaiPan}>起课</Button>
 						<Button onClick={this.clickSaveCase}>保存</Button>
 					</div>
-				</div>
+				</XQSideSection>
 			</div>
 		);
 	}

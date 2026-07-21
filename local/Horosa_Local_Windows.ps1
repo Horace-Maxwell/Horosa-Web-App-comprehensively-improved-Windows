@@ -4485,7 +4485,8 @@ $oldSeEphePath = $env:SE_EPHE_PATH
 $proxyEnvSnapshot = Enable-LocalLoopbackProxyBypass
 $pyPathItems = @(
   (Join-Path $ProjectDir 'astropy'),
-  (Join-Path $ProjectDir 'flatlib-ctrad2')
+  (Join-Path $ProjectDir 'flatlib-ctrad2'),
+  (Join-Path $ProjectDir 'vendor')
 ) | Where-Object { $_ -and (Test-Path $_) }
 $pyPathPrefix = ($pyPathItems -join ';')
 if ($oldPythonPath) {
@@ -4523,9 +4524,12 @@ try {
     # Embedded Python ignores PYTHONPATH, so inject project roots explicitly.
     $pyBootstrapProjectDir = $ProjectDir -replace '\\', '\\\\' -replace "'", "\'"
     $pyBootstrapScriptPath = $pyScript -replace '\\', '\\\\' -replace "'", "\'"
+    # horosa_vendor_syspath_v1: vendor/ root so kin_year_domain (全年份域四柱回退, v3.5.0 新增,
+    # kentang 引擎顶层 import) resolves under the embedded interpreter (which ignores PYTHONPATH).
     $pyBootstrapPaths = @(
       (Join-Path $ProjectDir 'astropy'),
-      (Join-Path $ProjectDir 'flatlib-ctrad2')
+      (Join-Path $ProjectDir 'flatlib-ctrad2'),
+      (Join-Path $ProjectDir 'vendor')
     ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object {
       "'" + (($_ -replace '\\', '\\\\') -replace "'", "\'") + "'"
     }

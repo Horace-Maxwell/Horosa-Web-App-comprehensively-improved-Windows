@@ -109,7 +109,7 @@ describe('buildDefaultRecoveryProbe 探测组装', () => {
 	});
 });
 
-describe('invokeLightServiceRestart(横幅/状态灯/弹窗三处统一入口)', ()=>{
+describe('[V-6] invokeLightServiceRestart(横幅/状态灯/弹窗三处统一入口)', ()=>{
 	test('轻量命令成功 → light,不碰全量修复', async ()=>{
 		const calls = [];
 		const api = { invoke: async (cmd)=>{ calls.push(cmd); } };

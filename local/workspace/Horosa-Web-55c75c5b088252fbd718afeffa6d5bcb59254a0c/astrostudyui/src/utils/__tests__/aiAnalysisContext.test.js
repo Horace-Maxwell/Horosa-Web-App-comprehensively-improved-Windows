@@ -219,6 +219,7 @@ jest.mock('../../components/guazhan/GuaZhanMain', ()=>({
 	buildGuaSnapshotText: jest.fn(()=> '自动生成的六爻快照'),
 }));
 
+
 jest.mock('../../divination/horary/horaryEngine', ()=>({
 	runHorary: jest.fn(()=>({ verdict: { leaning: 'even' } })),
 	ASPECT_CN: {},
@@ -345,10 +346,19 @@ describe('aiAnalysisContext', ()=>{
 		expect(chartOptions).toContain('astrochart');
 		expect(chartOptions).toContain('primarydirect');
 		expect(chartOptions).toContain('guolao');
-		expect(chartOptions).not.toContain('liureng');
-		// 真空壳技法已从下拉移除（选了挂不出内容）：合盘/节气盘×6/辅助(cntradition)/骰子(otherbu)/风水
+		expect(chartOptions).not.toContain('liureng');   // 卜技法归占卜挂载(起课时间/事盘源),不混入命盘清单
+		// [起课时间源单源化] 下拉=TIMEPOINT_CASTABLE_SET 展开——此前手抄清单漏 小六壬/飞宫(集内却挂不了)
+		const tpOptions = listAnalysisTechniqueOptions({ sourceType: 'timepoint' }).map((item)=>item.value);
+		expect(tpOptions).toContain('xiaoliuren');
+		expect(tpOptions).toContain('feigong');
+		expect(tpOptions).toContain('liureng');
+		expect(tpOptions).toContain('sixyao');
+		expect(tpOptions).toContain('huangli');
+		expect(tpOptions).not.toContain('tongshefa');    // 非时间可推仍不进(挂事盘)
+		// 真空壳技法已从下拉移除（选了挂不出内容）：节气盘×6/辅助(cntradition)/骰子(otherbu)/风水
+		// [D2] relative 已回归清单:buildTechniqueContext 特判读合盘页模块快照(可挂出内容,不再空壳)。
 		expect(chartOptions).not.toContain('cntradition');
-		expect(chartOptions).not.toContain('relative');
+		expect(chartOptions).toContain('relative');
 		expect(chartOptions).not.toContain('jieqi');
 		expect(chartOptions).not.toContain('otherbu');
 		expect(chartOptions).not.toContain('fengshui');
@@ -398,7 +408,7 @@ describe('aiAnalysisContext', ()=>{
 			expect(opts).toContain('shenyishu');
 		});
 
-		// 起课时间源:必含 huangji + 4 个报数法,与 TIMEPOINT_CASTABLE_SET 同步。少一个 = 实现说明 §G 的下拉里
+		// 起课时间源:必含 huangji + 4 个报数法,与 TIMEPOINT_CASTABLE_SET 同步。少一个 = AGENTS.md §G 的下拉里
 		// 看到但点了显「缺失」真因。改 listAnalysisTechniqueOptions(timepoint) 必同改 TIMEPOINT_CASTABLE_SET。
 		test('listAnalysisTechniqueOptions(timepoint) 必含全 13 项 (8 时确定 + 6 报数/起例) — 与 TIMEPOINT_CASTABLE_SET 同步', ()=>{
 			const opts = listAnalysisTechniqueOptions({ sourceType: 'timepoint' }).map((o)=>o.value);
@@ -630,8 +640,8 @@ describe('aiAnalysisContext', ()=>{
 					expect(contexts[0].content).not.toBe('');
 				}
 			}else{
-				expect(contexts[0].available).toBe(false);
-				expect(contexts[0].status).toBe('missing');
+				expect({ key, available: contexts[0].available }).toEqual({ key, available: false });
+				expect({ key, status: contexts[0].status }).toEqual({ key, status: 'missing' });
 			}
 		}
 	});

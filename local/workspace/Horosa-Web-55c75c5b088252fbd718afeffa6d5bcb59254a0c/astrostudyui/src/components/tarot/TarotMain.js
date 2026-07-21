@@ -1,6 +1,9 @@
-import { Component } from 'react';
-import { Input, InputNumber, message } from 'antd';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSwitch, XQSegmented, XQSectionTitle } from '../xq-ui';
+import React, { Component } from 'react';
+import { Input, InputNumber, message, Checkbox } from 'antd';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSwitch, XQSegmented, XQSectionTitle , XQSideSection } from '../xq-ui';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P2]
+import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
+import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
@@ -145,18 +148,22 @@ class TarotMain extends Component{
 			birth: { year: '', month: '', day: '', refYear: '' },
 			verdictMode: 'majority',
 			artStyle: 'symbol', // 'symbol' 简约符号(默认,零网络) | 'image' 真实牌面(仅 PD 牌组,onError 回退符号)
+			// [自由起盘] 本地时间地理草稿(null=跟主命盘;非空=用户左栏自选:「出生信息」种子按此时地算,亦入事盘)。
+			localFields: null,
 		};
 		this.unmounted = false;
-		['drawCards', 'clickReproduce', 'clickSaveCase', 'restoreFromCurrentCase', 'setRightPanelTab', 'changeSpread', 'changeDeck', 'handleSnapshotRefreshRequest', 'applyRecompute'].forEach((m) => { this[m] = this[m].bind(this); });
+		['drawCards', 'clickReproduce', 'clickSaveCase', 'restoreFromCurrentCase', 'setRightPanelTab', 'changeSpread', 'changeDeck', 'handleSnapshotRefreshRequest', 'applyRecompute', 'changeVerdictMode', 'onTimeChanged', 'changeGeo'].forEach((m) => { this[m] = this[m].bind(this); });
 		if(this.props.hook){ this.props.hook.fun = () => { if(!this.unmounted){ this.restoreFromCurrentCase(); } }; }
 	}
 
 	componentDidMount(){
+		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		if(!this.restoreFromCurrentCase()){ this.drawCards(); }
 	}
 	componentWillUnmount(){
+		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
 		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 	}
@@ -181,6 +188,22 @@ class TarotMain extends Component{
 		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
 		this.setState({ reading, lastSeed: `${seed}` }, () => {
 			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
+		});
+	}
+
+	// [X1] 定局法切换:牌(seed 所出)冻结不重抽,仅按新 mode 重建 reading.settings 并重存快照
+	// (旧版只 setState → UI 活算新 mode、快照仍旧 mode,两处 Yes/No 可相互矛盾)。
+	changeVerdictMode(mode){
+		this.setState({ verdictMode: mode }, () => {
+			const seed = this.state.lastSeed;
+			if(seed !== undefined && seed !== null && seed !== ''){ this.applyRecompute(); return; }
+			const r = this.state.reading;
+			if(r && r.settings){
+				const reading = { ...r, settings: { ...r.settings, verdictMode: mode } };
+				this.setState({ reading }, () => {
+					saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
+				});
+			}
 		});
 	}
 
@@ -229,7 +252,7 @@ class TarotMain extends Component{
 	changeSetting(patch){ this.setState(patch, () => this.applyRecompute()); }
 
 	drawCards(){
-		const seed = resolveSeed(this.state.seedMode, this.state.manualSeed, this.props.fields);
+		const seed = resolveSeed(this.state.seedMode, this.state.manualSeed, this.activeFields());
 		this.applyRecompute(seed);
 	}
 	clickReproduce(){
@@ -246,10 +269,27 @@ class TarotMain extends Component{
 		};
 	}
 
+	// 当前生效 fields:本地草稿优先,否则主命盘 fields。
+	activeFields(){
+		return this.state.localFields || this.props.fields || {};
+	}
+	// [自由起盘] 左栏时间选择 → 写本地草稿。「出生信息」种子模式按此时刻算种子(可复现)。
+	onTimeChanged(value){
+		const dt = value && value.time;
+		if(!dt){ return; }
+		const base = this.state.localFields || this.props.fields || {};
+		this.setState({ localFields: { ...base, ...timePatchFromDateTime(dt) } }, ()=>{ if(this.state.seedMode === 'birth'){ this.drawCards(); } });
+	}
+	// [自由起盘] 左栏经纬度选择 → 写本地草稿(经纬 + 时区 + 地名)。生辰种子含经纬熵;亦入事盘。
+	changeGeo(rec){
+		const base = this.state.localFields || this.props.fields || {};
+		this.setState({ localFields: { ...base, ...geoPatchFromRec(rec, base) } }, ()=>{ if(this.state.seedMode === 'birth'){ this.drawCards(); } });
+	}
+
 	clickSaveCase(){
 		if(!this.state.reading){ message.info('请先抽牌'); return; }
 		openKentangCaseDrawer({
-			dispatch: this.props.dispatch, fields: this.props.fields, module: 'tarot', label: '塔罗',
+			dispatch: this.props.dispatch, fields: this.activeFields(), module: 'tarot', label: '塔罗',
 			payload: {
 				options: {
 					deckId: this.state.deckId, spreadType: this.state.spreadType,
@@ -375,6 +415,17 @@ class TarotMain extends Component{
 		const allowedSpreads = (caps.spreads || Object.keys(SPREADS)).filter((k) => SPREADS[k]);
 		return (
 			<div className="horosa-huangji-input-stack horosa-tarot-input-stack">
+				{/* [自由起盘] 时间与地点:「出生信息」种子按此时地算(可复现);亦作占问时刻·地点入事盘(不写主命盘) */}
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
+					<SpaceTimePanel
+						fields={this.activeFields()}
+						value={buildDateTimeFromFields(this.activeFields())}
+						onTimeChange={this.onTimeChanged}
+						onGeoChange={this.changeGeo}
+					/>
+				</XQSideSection>
+				{/* [观象P2] tarot 左栏四段式:牌组牌阵(不折叠)/高级/指示牌/种子所问(折叠记忆) */}
+				<XQSideSection iconName={sideSectionIcon('school')} title="流派与牌阵" collapsible={false}>
 				<div className="horosa-tarot-field">
 					<label>流派 / 牌组</label>
 					<Select value={s.deckId} onChange={this.changeDeck} size="small" style={{ width: '100%' }} dropdownMatchSelectWidth={false} dropdownClassName="horosa-tarot-deck-dropdown" listHeight={420}>
@@ -392,7 +443,8 @@ class TarotMain extends Component{
 					</Select>
 				</div>
 
-				<XQSectionTitle>高级设置</XQSectionTitle>
+				</XQSideSection>
+				<XQSideSection iconName={sideSectionIcon('advanced')} title="高级设置" storageKey="tarot.advanced" className="horosa-side-input-section">
 				{deckHasRealArt(s.deckId) ? (
 					<div className="horosa-tarot-field">
 						<label>牌面样式</label>
@@ -402,15 +454,18 @@ class TarotMain extends Component{
 						) : null}
 					</div>
 				) : null}
-				{caps.reversals !== false ? (
-					<div className="horosa-tarot-toggle"><span>逆位</span><XQSwitch checked={!!s.useReversals} onChange={(v) => this.changeSetting({ useReversals: v })} size="small" /></div>
-				) : null}
-				{caps.dignities ? (
-					<div className="horosa-tarot-toggle"><span>元素尊位</span><XQSwitch checked={!!s.useDignities} onChange={(v) => this.changeSetting({ useDignities: v })} size="small" /></div>
-				) : null}
-				{caps.variant ? (
-					<div className="horosa-tarot-toggle"><span>显示进阶对应</span><XQSwitch checked={!!s.showCorrespondences} onChange={(v) => this.changeSetting({ showCorrespondences: v })} size="small" /></div>
-				) : null}
+				{/* [塔罗开关=六爻同款芯片] 逆位/元素尊位/进阶对应改 Checkbox 芯片网格(与六爻/紫微显示项统一);caps 决定各芯片是否出现。 */}
+				<div className="horosa-guazhan-toggle-grid horosa-tarot-toggle-grid">
+					{caps.reversals !== false ? (
+						<Checkbox checked={!!s.useReversals} onChange={(e) => this.changeSetting({ useReversals: e.target.checked })}>逆位</Checkbox>
+					) : null}
+					{caps.dignities ? (
+						<Checkbox checked={!!s.useDignities} onChange={(e) => this.changeSetting({ useDignities: e.target.checked })}>元素尊位</Checkbox>
+					) : null}
+					{caps.variant ? (
+						<Checkbox checked={!!s.showCorrespondences} onChange={(e) => this.changeSetting({ showCorrespondences: e.target.checked })}>显示进阶对应</Checkbox>
+					) : null}
+				</div>
 				{caps.variant && s.showCorrespondences ? (
 					<div className="horosa-tarot-field">
 						<label>字母/路径变体</label>
@@ -418,9 +473,10 @@ class TarotMain extends Component{
 					</div>
 				) : null}
 
+				</XQSideSection>
 				{caps.significator ? (
+					<XQSideSection iconName={sideSectionIcon('target')} title="指示牌" storageKey="tarot.sig" className="horosa-side-input-section">
 					<>
-						<XQSectionTitle>指示牌</XQSectionTitle>
 						<div className="horosa-tarot-field">
 							<label>选取方式</label>
 							<Select value={s.sig.mode} onChange={(v) => this.changeSetting({ sig: { ...s.sig, mode: v } })} size="small" style={{ width: '100%' }}>
@@ -454,9 +510,9 @@ class TarotMain extends Component{
 							</div>
 						) : null}
 					</>
+					</XQSideSection>
 				) : null}
-
-				<XQSectionTitle>种子与所问</XQSectionTitle>
+				<XQSideSection iconName={sideSectionIcon('input')} title="种子与所问" storageKey="tarot.seed" className="horosa-side-input-section">
 				<div className="horosa-tarot-field">
 					<label>种子来源</label>
 					<Select value={s.seedMode} onChange={(v) => this.setState({ seedMode: v })} size="small" style={{ width: '100%' }}>
@@ -474,6 +530,7 @@ class TarotMain extends Component{
 					<label>所问之事(可选)</label>
 					<Input value={s.question} onChange={(e) => this.setState({ question: e.target.value })} onBlur={() => this.applyRecompute()} size="small" placeholder="如:这段关系的走向" />
 				</div>
+				</XQSideSection>
 				<div className="horosa-tarot-actions">
 					<Button type="primary" size="small" iconName="quickPrimary" onClick={this.drawCards}>抽牌</Button>
 					<Button size="small" iconName="quickFirdaria" onClick={this.clickReproduce}>锁定复现</Button>
@@ -626,7 +683,7 @@ class TarotMain extends Component{
 		return (
 			<div className="horosa-tarot-reading">
 				<div className="horosa-tarot-field"><label>Yes/No 定局法</label>
-					<XQSegmented value={this.state.verdictMode} onChange={(e) => this.setState({ verdictMode: e.target.value })} options={[{ label: '多数', value: 'majority' }, { label: '朝向', value: 'orientation' }, { label: '首牌', value: 'single' }, { label: '极性', value: 'polarity' }]} />
+					<XQSegmented value={this.state.verdictMode} onChange={(e) => this.changeVerdictMode(e.target.value)} options={[{ label: '多数', value: 'majority' }, { label: '朝向', value: 'orientation' }, { label: '首牌', value: 'single' }, { label: '极性', value: 'polarity' }]} />
 				</div>
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">Yes / No</div>

@@ -17,8 +17,13 @@ export function deckNameKey(deck){
 export function cardNumber(card, deck){
 	if(card.arcana !== 'major'){ return null; }
 	const ov = NUM_OVERRIDE[card.sid];
+	if(!ov){ return card.number; }
 	const deckId = (deck && deck.id) || 'rws';
-	if(ov && ov[deckId] !== undefined){ return ov[deckId]; }
+	if(ov[deckId] !== undefined){ return ov[deckId]; }
+	// [X1] 换号随【命名体系】走:wirth/egyptian/visconti 等 nameKey='tdm' 的牌组按大陆序
+	// (正义8·力量11),此前按 deck.id 查表(表内无其 id)恒回落 RWS 序,与其自declared命名矛盾。
+	const nk = deckNameKey(deck);
+	if(ov[nk] !== undefined){ return ov[nk]; }
 	return card.number;
 }
 

@@ -1,5 +1,5 @@
 /**
- * 盘面「隐藏期数据更新 → 切回 tab 不重画(表新盘旧)」根治的两道防线金标(历史事故):
+ * 盘面「隐藏期数据更新 → 切回 tab 不重画(表新盘旧)」根治的两道防线金标(FL-20260712-5):
  * 1) watchChartSvgResize:svg 尺寸变化(含 0→非0)必触发 redraw(rAF 合并),detach 后不再触发;
  *    无 ResizeObserver 环境静默 no-op(退化为现状,绝不 throw)。
  * 2) 失败泊车 parkLoadFailure/loadParked:load 失败绝不把 key 记成「已完成」;同 key 窗口期内

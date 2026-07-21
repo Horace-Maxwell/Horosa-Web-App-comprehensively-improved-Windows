@@ -167,7 +167,7 @@ public class FourColumns {
 		String zi = StemBranch.Branches[ziIdx];
 		
 		int delta = StemBranch.ZiMonth.get(zi) - nongliMonth;
-		int ganidx = (StemBranch.StemIndex.get(this.month.stem.cell) + delta + 10) % 10;
+		int ganidx = Math.floorMod(StemBranch.StemIndex.get(this.month.stem.cell) + delta, 10); // delta 域 [-11,11],旧 +10 偏移对 -11 不足
 		String gan = StemBranch.Stems[ganidx];
 		this.ming = new GanZi(gan, zi, phaseType);
 		
@@ -185,7 +185,7 @@ public class FourColumns {
 		String zi = StemBranch.Branches[ziIdx];
 		
 		int delta = StemBranch.ZiMonth.get(zi) - nongliMonth;
-		int ganidx = (StemBranch.StemIndex.get(this.month.stem.cell) + delta + 10) % 10;
+		int ganidx = Math.floorMod(StemBranch.StemIndex.get(this.month.stem.cell) + delta, 10); // delta 域 [-11,11],旧 +10 偏移对 -11 不足
 		String gan = StemBranch.Stems[ganidx];
 		this.shen = new GanZi(gan, zi, phaseType);
 

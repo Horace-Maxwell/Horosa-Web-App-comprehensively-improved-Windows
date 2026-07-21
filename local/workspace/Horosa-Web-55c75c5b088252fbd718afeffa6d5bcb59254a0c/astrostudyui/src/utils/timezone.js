@@ -25,11 +25,43 @@ export function ianaTimezoneAt(lat, lng){
 	}
 }
 
+// IANA tzdb 新版规则先于系统 ICU 落地时的前瞻覆盖表(系统 ICU 跟上后覆盖值与 Intl 一致,自然冗余无害)。
+// 每条:zone → [{ since:'YYYY-MM-DD'(当日起恒定), offset:'+HH:mm' }];仅收「永久废除夏令时」类已立法规则。
+// 来源:IANA tzdb NEWS 2026b/2026c(实测 macOS WebView ICU 尚未包含,未来日期会差 1 小时)。
+const TZ_RULE_OVERRIDES = {
+	// 2026c:Alberta 永久 -06(法定 2026-06-18;模型化=取消 2026-11-01 02:00 回落)
+	'America/Edmonton': [{ since: '2026-11-01', offset: '-06:00' }],
+	// 2026b:British Columbia 永久 -07(模型化=取消 2026-11-01 02:00 回落)
+	'America/Vancouver': [{ since: '2026-11-01', offset: '-07:00' }],
+	// 2026c:摩洛哥+西撒哈拉 2026-09-20 02:00 起永久 +00
+	'Africa/Casablanca': [{ since: '2026-09-20', offset: '+00:00' }],
+	'Africa/El_Aaiun': [{ since: '2026-09-20', offset: '+00:00' }],
+};
+
+function overrideOffsetFor(zone, dateStr){
+	const rules = TZ_RULE_OVERRIDES[zone];
+	if(!rules || !/^\d{4}-\d{2}-\d{2}/.test(dateStr || '')){
+		return null;
+	}
+	const day = dateStr.slice(0, 10);
+	for(let i = 0; i < rules.length; i++){
+		if(day >= rules[i].since){
+			return rules[i].offset;
+		}
+	}
+	return null;
+}
+
 // IANA 时区 + 日期(YYYY-MM-DD) → 含夏令时的 UTC 偏移字符串 "+HH:mm"。
-// 用浏览器原生 Intl(内置完整 IANA tz 历史库,含 1918 等历史夏令时规则),无需任何 tz 数据库依赖。
+// 用浏览器原生 Intl(内置完整 IANA tz 历史库,含 1918 等历史夏令时规则),无需任何 tz 数据库依赖;
+// 新近立法而 ICU 未及收录的规则走 TZ_RULE_OVERRIDES 前瞻覆盖。
 export function offsetForZoneAtDate(zone, dateStr){
 	if(!zone || !dateStr){
 		return null;
+	}
+	const ov = overrideOffsetFor(zone, dateStr);
+	if(ov){
+		return ov;
 	}
 	try{
 		// 取当日正午 UTC 作判定锚点,避开 DST 切换瞬间(凌晨)的歧义

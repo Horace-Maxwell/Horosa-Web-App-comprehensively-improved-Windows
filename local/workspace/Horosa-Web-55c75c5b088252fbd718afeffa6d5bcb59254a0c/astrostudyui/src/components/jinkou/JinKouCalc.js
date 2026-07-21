@@ -5,6 +5,7 @@ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { fetchChartWithRetry } from '../../utils/chartFetch';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import {
+
 	JINKOU_SHENSHA_DOC,
 	JINKOU_RELATION_DOC,
 	JINKOU_BIHE_DOC,
@@ -16,6 +17,7 @@ import {
 	JINKOU_YUEJIANG_DOC,
 } from './JinKouDoc';
 
+import { parseDateParts } from '../../utils/dateStrSafe';
 // 五行配色统一对齐八字模块的品牌色板(--horosa-bazi-*)，全 app 一套色。
 // 金口诀主盘走 SVG presentation 属性(attr fill)，CSS 变量在此不解析，故落为对应 hex；
 // 主盘底色随暗黑模式翻深，浅色板的水/木/火会过暗不可读 → 按主题在 access 时取浅/深板(Proxy)，
@@ -1798,6 +1800,9 @@ export function buildJinKouData(liureng, options){
 			diFen: diFen,
 			xunKong: xunKongBranches.length ? xunKongBranches.join('') : '无',
 			siDaKong: siDaKong ? siDaKong : '无',
+			// [X1·P2-13] 月将/占时补齐:此前本地(非默认流派)路径中栏顶行画「—」、课情行显「无」。
+			yuejiang: jiangZi ? `${jiangZi}${jiang && jiang.name ? `·${jiang.name}` : ''}` : '',
+			zhanshi: timeZi || '',
 		},
 	};
 }
@@ -1812,7 +1817,9 @@ function parseFieldsDateTime(fields){
 	}
 	const dateStr = fields.date.value.format('YYYY-MM-DD');
 	const timeStr = fields.time.value.format('HH:mm:ss');
-	const d = dateStr.split('-').map((item)=>parseInt(item, 10));
+	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
+	const _dp = parseDateParts(dateStr);
+	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
 	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
 	if(d.length < 3 || t.length < 2){
 		return null;

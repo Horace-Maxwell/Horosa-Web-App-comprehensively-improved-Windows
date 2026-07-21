@@ -1,6 +1,7 @@
 // 演禽「演法」AI 快照:把右栏演法结果(起禽四禽/择日值日/占卜我彼/投胎 + 当前流派)
 // 序列化成文本,追加到 xianqin 挂载快照,供 AI 分析/导出消费(单一真值源=引擎+store,所见即所得)。
 import { Solar } from 'lunar-javascript';
+import { isLunarJsYearReliable } from '../../utils/lunarDomainGuard';
 import { DIZHI } from './yanqinConst';
 import { castQinChart, monthQin, toutaiDu, qinKeByWuxing, wuxingOfMansion } from './yanqinEngine';
 import { YANQIN_PRESETS, resolveWoBi } from './yanqinSchools';
@@ -12,11 +13,16 @@ const KE_TEXT = { meWin: '我克彼→吉(我胜)', theyWin: '彼克我→凶(�
 
 // payload = parseFieldsDateTime 结果 {year,month,day,hour,...}
 export function buildYanqinYanfaSnapshot(payload) {
-	if (!payload || !(payload.year > 0)) { return ''; }
+	// 全年份域:年可为公元前(负,无 0 年);旧 `year > 0` 把 BC 演法快照整段吞成 ''。
+	if (!payload || !Number.isFinite(payload.year) || payload.year === 0) { return ''; }
 	const s = getYanqinSettings();
 	const hourBranch = Math.floor((((payload.hour || 0) + 1) % 24) / 2);
-	let lunarMonth = payload.month;
-	try { lunarMonth = mod(Math.abs(Solar.fromYmd(payload.year, payload.month, payload.day).getLunar().getMonth()) - 1, 12) + 1; } catch (e) { /* fallback */ }
+	// 农历月(月禽/投胎):域外(BC/万年后)由调用方经远程桥注入 payload.lunarMonth(lunar-js 域外静默错);
+	// 域内走 lunar-js;两者皆缺则退公历月兜底不崩。
+	let lunarMonth = (payload.lunarMonth && payload.lunarMonth > 0) ? payload.lunarMonth : payload.month;
+	if (!(payload.lunarMonth > 0) && isLunarJsYearReliable(payload.year)) {
+		try { lunarMonth = mod(Math.abs(Solar.fromYmd(payload.year, payload.month, payload.day).getLunar().getMonth()) - 1, 12) + 1; } catch (e) { /* fallback */ }
+	}
 	const cast = castQinChart(payload.year, payload.month, payload.day, hourBranch, { useXun: s.xunOffset, huoYaoVariant: s.huoYaoVariant });
 	if (!cast || !cast.dayQin) { return ''; }
 	const mq = monthQin(payload.year, lunarMonth, s.monthVerse);

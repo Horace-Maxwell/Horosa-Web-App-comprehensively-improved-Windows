@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiMain.js b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-index e2bbc37..2d1c375 100644
+index 0064973..fea5172 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiMain.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-@@ -31,6 +31,8 @@ import * as ZWConst from '../../constants/ZWConst';
+@@ -34,6 +34,8 @@ import * as ZWConst from '../../constants/ZWConst';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { ziweirulesCached } from '../../services/rules';
@@ -11,21 +11,19 @@ index e2bbc37..2d1c375 100644
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { calcZiwei, deriveSanPan } from './ZiweiCalc';
  import { detectPatterns } from './ziweiPatterns';
-@@ -684,10 +686,15 @@ class ZiWeiMain extends Component{
- 		// 并行 + rules 会话缓存:rules 与本盘无关(body 恒 {}),原串行瀑布白付一次 RTT;
- 		// 启动已 prime 缓存(models/app.js dispatch rules/ziwei),此处通常零成本命中。
- 		// 任一失败整体 throw、不 setState,与原「串行中途失败不 setState」口径一致。
-+		// v3.0.1 perf F1:/ziwei/birth 确定性纯计算(同 params 必产同结果)→ 同参复用 + 在途合并,切到紫微/来回切命中即秒回。
-+		// 命中返回同一结果深拷贝(与直连逐值等价、只更快);每调用者拿独立深拷贝,故下方 result.chart/patterns 改写不污染缓存。
-+		// 关开关(localStorage horosa.perf.techniqueResultCache=0)即回到每次直连。
+@@ -698,10 +700,12 @@ class ZiWeiMain extends Component{
+ 		// 新盘到达单次 setState 整体替换)。关 silentTechniquePanels 开关=旧全屏。
+ 		this.setState({ updating: true });
  		const [data, rules] = await Promise.all([
 -			request(`${Constants.ServerRoot}/ziwei/birth`, {
 -				body: JSON.stringify(params),
+-				silent: silentTechniquePanelsEnabled(),
 -			}),
 +			techniqueResultCacheEnabled()
-+				? cachedPost(`${Constants.ServerRoot}/ziwei/birth`, params, {}, { ns: 'ziwei/birth' })
++				? cachedPost(`${Constants.ServerRoot}/ziwei/birth`, params, { silent: silentTechniquePanelsEnabled() }, { ns: 'ziwei/birth' })
 +				: request(`${Constants.ServerRoot}/ziwei/birth`, {
 +					body: JSON.stringify(params),
++					silent: silentTechniquePanelsEnabled(),
 +				}),
  			ziweirulesCached({}),
  		]);

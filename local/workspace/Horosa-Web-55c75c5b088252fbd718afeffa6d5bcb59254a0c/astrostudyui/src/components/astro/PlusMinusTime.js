@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Row, Col } from 'antd';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import DateTime from '../comp/DateTime';
@@ -19,6 +19,8 @@ class PlusMinusTime extends Component{
 			time: val.value,
 			ad: val.ad,
 			confirmed: !!val.confirmed,
+			// 步进方向提示(WP-P1 预取用),仅步进/此刻点击才有 —— 原样透传,不消费
+			...(val.step ? { step: val.step } : {}),
 		}
 		if(this.props.onChange){
 			this.props.onChange(res);

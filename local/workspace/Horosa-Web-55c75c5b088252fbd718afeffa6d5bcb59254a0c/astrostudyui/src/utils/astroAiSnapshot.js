@@ -233,23 +233,8 @@ function asNameList(ids){
 	return ids.map((id)=>msg(id)).filter(Boolean).join(' , ');
 }
 
-function getObjectsMap(chartObj){
-	const map = {};
-	const chart = chartObj && chartObj.chart ? chartObj.chart : null;
-	if(chart && chart.objects){
-		for(let i=0; i<chart.objects.length; i++){
-			const obj = chart.objects[i];
-			map[obj.id] = obj;
-		}
-	}
-	if(chartObj && chartObj.lots){
-		for(let i=0; i<chartObj.lots.length; i++){
-			const obj = chartObj.lots[i];
-			map[obj.id] = obj;
-		}
-	}
-	return map;
-}
+// [WP-34] 收敛单源(fortuneChartPrimitives)
+const { getObjectsMapPure: getObjectsMap } = require('./fortuneChartPrimitives');
 
 function getStarsMap(chartObj){
 	const map = {};
@@ -998,7 +983,10 @@ function buildLifespanSection(chartObj){
 	let res = null;
 	try {
 		const facts = buildFacts(chartObjWithFactsMaps(chartObj));
-		res = facts ? runLifespan(facts, { method: 'ptolemy' }) : null;
+		// [D4] method 与组件同键传导(用户换取主法快照即跟),缺省 ptolemy 零回归。
+		let _lifespanMethod = 'ptolemy';
+		try{ _lifespanMethod = localStorage.getItem('horosa.lifespan.method') || 'ptolemy'; }catch(_){ }
+		res = facts ? runLifespan(facts, { method: _lifespanMethod }) : null;
 	} catch(e){
 		return lines;
 	}

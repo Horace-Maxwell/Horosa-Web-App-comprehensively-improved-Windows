@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import { Modal } from 'antd';
-import { XQSelect, XQButton } from '../xq-ui';
+import { XQSelect, XQButton, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import ElectionJudgment from './ElectionJudgment';
 import { fetchChart } from '../../services/astro';
@@ -177,7 +177,7 @@ class ElectionMain extends Component{
 		this._elecOpts = { westSchool: this._westSchool, surgeryPart: extra.surgeryPart || null, crisisBase: extra.crisisBase || null };
 		const curSchool = schoolOf(this._westSchool);
 		return (
-			<div className="horosa-field-block">
+			<XQSideSection iconName="target" title="择日设置" storageKey="election.opts" className="horosa-side-input-section horosa-election-opts">
 				<div className="horosa-field-label">西方流派</div>
 				<XQSelect style={{ width: '100%' }} size="small"
 					value={this._westSchool}
@@ -228,7 +228,7 @@ class ElectionMain extends Component{
 				{/* 本命合参 + 时势合参:并排两列(已选态为紧凑 chip,姓名省略号 + × 清除) */}
 				<div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
 					<div style={{ flex: 1, minWidth: 0 }}>
-						<div className="horosa-field-label">本命合参（可选）</div>
+						<div className="horosa-field-label" style={{ marginBottom: 6 }}>本命合参（可选）</div>
 						{this.state.natalRec ? (
 							<div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, padding: '4px 6px 4px 9px', borderRadius: 8, background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', border: '1px solid var(--horosa-border-soft, rgba(184,134,11,0.18))' }}
 								title={`${this.state.natalRec.name || '本命'} · ${this.state.natalRec.birth}`}>
@@ -242,7 +242,7 @@ class ElectionMain extends Component{
 						)}
 					</div>
 					<div style={{ flex: 1, minWidth: 0 }}>
-						<div className="horosa-field-label">时势合参（可选）</div>
+						<div className="horosa-field-label" style={{ marginBottom: 6 }}>时势合参（可选）</div>
 						{this.state.mundaneSet ? (
 							<div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, padding: '4px 6px 4px 9px', borderRadius: 8, background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', border: '1px solid var(--horosa-border-soft, rgba(184,134,11,0.18))' }}
 								title="已拉时势盘（入宫 / 新满月 / 食）">
@@ -254,7 +254,7 @@ class ElectionMain extends Component{
 						)}
 					</div>
 				</div>
-			</div>
+			</XQSideSection>
 		);
 	}
 

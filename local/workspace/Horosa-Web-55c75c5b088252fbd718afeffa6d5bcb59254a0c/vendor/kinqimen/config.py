@@ -36,6 +36,8 @@ def split_list(lst, chunk_size):
     return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 def multi_key_dict_get(d, k):
+    if k is None:
+        return None
     for keys, v in d.items():
         if k in keys:
             return v
@@ -153,8 +155,8 @@ def hourkong_minutekong(year, month, day, hour, minute):
             '甲午':{'孤':'辰巳', '虛':'戌亥'},
             '甲辰':{'孤':'寅卯', '虛':'申酉'},
             '甲寅':{'孤':'子丑', '虛':'午未'}}
-    daykong = multi_key_dict_get(guxu, g3).get("孤")
-    shikong = multi_key_dict_get(guxu, g4).get("孤")
+    daykong = (multi_key_dict_get(guxu, g3) or {}).get("孤")
+    shikong = (multi_key_dict_get(guxu, g4) or {}).get("孤")
     return {"日空":daykong, "時空":shikong}
 
 def find_shier_luck(gan):
@@ -184,6 +186,10 @@ def qimen_ju_name_chaibu(year, month, day, hour, minute):
 
 #奇門排局置閏除虫用
 def qimen_ju_name_zhirun_raw(year, month, day, hour, minute):
+    if year < 2 or year > 9998:
+        # 全年份域:置閏/茅山/无闰鏈依賴 sxtwl 逐日游標(域外不可用;AD1/9999 的錨点回看/前探
+        # 也會越 sxtwl 界 → 貼邊各讓 1 年)→ 統一落拆補口徑
+        return qimen_ju_name_chaibu(year, month, day, hour, minute)
     Jieqi = jq(year, month, day, hour, minute)
     jlist = split_list(jiazi(), 5)
     new_jq = new_list(jieqi_name, Jieqi)[1]
@@ -243,6 +249,10 @@ def qimen_ju_name_zhirun_raw(year, month, day, hour, minute):
 # 超神接氣置閏校正(超神時提前換到下一節氣;芒種/大雪≥9天置閏)。修正上游 #62/#43:舊版以
 # 農曆月日啟發式判斷,約 45% 日期誤用曆法節氣而非超神節氣。
 def qimen_ju_name_zhirun(year, month, day, hour, minute):
+    if year < 2 or year > 9998:
+        # 全年份域:置閏/茅山/无闰鏈依賴 sxtwl 逐日游標(域外不可用;AD1/9999 的錨点回看/前探
+        # 也會越 sxtwl 界 → 貼邊各讓 1 年)→ 統一落拆補口徑
+        return qimen_ju_name_chaibu(year, month, day, hour, minute)
     jieqi = zhirun_jieqi(year, month, day, hour, minute)
     yydun = {tuple(new_list(jieqi_name, "冬至")[0:12]): "陽遁",
              tuple(new_list(jieqi_name, "夏至")[0:12]): "陰遁"}
@@ -257,6 +267,10 @@ def qimen_ju_name_zhirun(year, month, day, hour, minute):
 
 #奇門排局茅山:曆法節氣定陰陽遁,元由「距交節之時辰數」定(不問符頭、不置閏);與時家前端 qimenJuNameMaoshan 同口徑
 def qimen_ju_name_maoshan(year, month, day, hour, minute):
+    if year < 2 or year > 9998:
+        # 全年份域:置閏/茅山/无闰鏈依賴 sxtwl 逐日游標(域外不可用;AD1/9999 的錨点回看/前探
+        # 也會越 sxtwl 界 → 貼邊各讓 1 年)→ 統一落拆補口徑
+        return qimen_ju_name_chaibu(year, month, day, hour, minute)
     yydun = {tuple(new_list(jieqi_name, "冬至")[0:12]): "陽遁",
              tuple(new_list(jieqi_name, "夏至")[0:12]): "陰遁"}
     # 時刻感知取「當前所處節氣」及其交節時刻(修節氣當天未到點誤取下一節氣→shichen負數鉗0→錯判上元的邊界bug)
@@ -283,6 +297,10 @@ def qimen_ju_name_maoshan(year, month, day, hour, minute):
 
 #奇門排局無閏:超神接氣定局但不置閏(同置閏管道,節氣改用 zhirun_jieqi_noleap);與時家前端 qimenJuNameWurun 同口徑
 def qimen_ju_name_wurun(year, month, day, hour, minute):
+    if year < 2 or year > 9998:
+        # 全年份域:置閏/茅山/无闰鏈依賴 sxtwl 逐日游標(域外不可用;AD1/9999 的錨点回看/前探
+        # 也會越 sxtwl 界 → 貼邊各讓 1 年)→ 統一落拆補口徑
+        return qimen_ju_name_chaibu(year, month, day, hour, minute)
     jieqi = zhirun_jieqi_noleap(year, month, day, hour, minute)
     yydun = {tuple(new_list(jieqi_name, "冬至")[0:12]): "陽遁",
              tuple(new_list(jieqi_name, "夏至")[0:12]): "陰遁"}

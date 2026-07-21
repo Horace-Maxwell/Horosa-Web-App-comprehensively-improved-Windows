@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { message } from 'antd';
 import DateTime from '../comp/DateTime';
@@ -14,7 +15,7 @@ import SuZhanInput from './SuZhanInput';
 import SuZhanChart from './SuZhanChart';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
-import { XQTabs as Tabs } from '../xq-ui';
+import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
 import XQIcon from '../xq-icons';
 
 const { TabPane } = Tabs;
@@ -284,9 +285,10 @@ function buildHouseSuLines(rootObj, chart, planetDisplay, fields){
 			return AstroConst.isTraditionPlanet(obj.id);
 		});
 		inHouse = inHouse.sort((a, b)=>{
-			if(a.ra > 300 && b.ra < 30){
-				return -1;
-			}
+			// [X1·P2-12] 环形序须对称全序:跨 0°RA 的宫,300°+ 侧在前、30°- 侧在后,两向都要判;
+			// 旧版只判一侧(非对称比较器,Array.sort 行为未定义 → 宫内列序随实现漂移)。
+			if(a.ra > 300 && b.ra < 30){ return -1; }
+			if(b.ra > 300 && a.ra < 30){ return 1; }
 			return a.ra - b.ra;
 		});
 		if(inHouse.length === 0){
@@ -626,15 +628,14 @@ class SuZhanMain extends Component{
 					<div className="horosa-side-panel-title">宿盘设置</div>
 					<div className="horosa-side-panel-subtitle">时间、地点与宿盘选项</div>
 				</div>
-				<div className="horosa-suzhan-input-section">
-					<div className="horosa-suzhan-field-title"><XQIcon name="clock" />时间、地点与选项</div>
+				<XQSideSection iconName={sideSectionIcon('time')} title="时间、地点与选项" storageKey="suzhan.s0" className="horosa-suzhan-input-section">
 					<div className="horosa-suzhan-input-embed">
 						<SuZhanInput
 							fields={this.props.fields}
 							onFieldsChange={this.onFieldsChange}
 						/>
 					</div>
-				</div>
+				</XQSideSection>
 			</div>
 		);
 	}
@@ -750,9 +751,11 @@ class SuZhanMain extends Component{
 		}
 
 		let chartObj = this.props.value;
-		let chart = chartObj ? chartObj.chart : {};
+		// chartObj 可能是部分态(有 params 无 chart,如 PD 先行落盘的历史脏数据)——按 .chart
+		// 存在性守卫;浅拷贝后再挂 aspects/lots,不就地改 store 里的对象。
+		let chart = (chartObj && chartObj.chart) ? { ...chartObj.chart } : {};
 		chart.aspects = chartObj ? chartObj.aspects : {};
-			chart.lots = chartObj ? chartObj.lots : [];
+		chart.lots = chartObj ? chartObj.lots : [];
 
 			return (
 				<div className={`horosa-suzhan-page horosa-astro-redesign horosa-suzhan-redesign${this.props.hideQuickDock ? ' horosa-suzhan-embedded' : ''}`} style={{ height: height, minHeight: height, overflow: 'hidden' }}>

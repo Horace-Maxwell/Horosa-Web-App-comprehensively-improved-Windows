@@ -67,6 +67,10 @@ def test_cetian_moved_out_of_registry_and_directly_mounted():
     钉:registry 无 cetian;webchartsrv 直挂 /cetian。"""
     keys = {spec["key"] for spec in KENTANG_SERVICE_SPECS}
     assert "cetian" not in keys
-    src = open(os.path.join(ROOT, "websrv", "webchartsrv.py"), encoding="utf-8").read()
-    assert re.search(r"tree\.mount\(\s*CeTianSrv\(\)\s*,\s*'/cetian'", src), (
-        "webchartsrv 应直挂 CeTianSrv 于 /cetian")
+    # [B5] 直挂已升级为 CORE_SERVICE_SPECS 惰性挂载(webchartsrv 自持,不回 registry):
+    # 断言按语义查表 —— cetian 在核心 spec 表且落 /cetian、指向自有引擎模块。
+    from websrv.webchartsrv import CORE_SERVICE_SPECS
+    core = {sp["key"]: sp for sp in CORE_SERVICE_SPECS}
+    assert "cetian" in core, "cetian 应在 webchartsrv 核心服务表"
+    assert core["cetian"]["mount"] == "/cetian"
+    assert core["cetian"]["module"] == "websrv.webcetiansrv"

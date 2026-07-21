@@ -16,7 +16,7 @@ import { copyTextSmart } from '../../utils/clipboardText';
 // 位置:fixed 右下角,可点击展开 Popover 显详情 + 操作。
 //
 // 自检:首次挂载主动做一次身份握手探测;之后被动跟随 serviceStatus 订阅。
-// 弃 heartbeat 裸 fetch:主后端无该 HTTP 路由(404 也 markOnline=灯撒谎),
+// [V-6] 弃 heartbeat 裸 fetch:主后端无该 HTTP 路由(404 也 markOnline=灯撒谎),
 // 且任何陌生进程的 200 都会点绿——改 verifyBackendIdentity(fail-closed,与横幅同源)。
 // 仅在 ServerRoot 有效(桌面 app)时挂载;纯网页托管返回 null。
 export default function BackendStatusDot() {
@@ -92,7 +92,7 @@ export default function BackendStatusDot() {
   };
 
   // audit 修:tauriInvoke 需 await + 真实成功/失败反馈,不再 fire-and-forget
-  // 统一走轻量重启(此前错线到全量修复命令,对「服务死了」场景过重且慢)
+  // [V-6] 统一走轻量重启(此前错线到全量修复命令,对「服务死了」场景过重且慢)
   const handleRestart = async () => {
     if (!hasTauri) return;
     try {

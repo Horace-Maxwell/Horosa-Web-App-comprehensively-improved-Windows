@@ -13,7 +13,9 @@ function setClipboard(writeText){
 	});
 }
 function setSecureContext(v){
-	Object.defineProperty(window, 'isSecureContext', { value: v, configurable: true });
+	// writable:true 必带:jsdom Window 代理对「重定义不可写 value 属性」静默失败(返 false 不抛),
+	// 缺它则首次 define 后取值被冻住,true→false 切换全部无效(本套件第 5 例曾因此假红)。
+	Object.defineProperty(window, 'isSecureContext', { value: v, configurable: true, writable: true });
 }
 
 describe('copyTextSmart 三级降级', ()=>{

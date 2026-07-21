@@ -19,14 +19,30 @@ import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary'
 
 // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
 // 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
+// WS-N3(2026-07-16):悬停预取注册表迁至 utils/navPreload.js —— 模块选择器/快捷坞等公共组件
+// 也要消费,从 pages 导入会成 components ← pages 循环依赖;此处声明时登记,消费方 import util。
 const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
-const NAV_PRELOAD_FACTORIES = new Map();   // navKey -> factory(悬停预取)
 // order: 1=hot(高频技法,先预载) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
 function lazyPreloadable(factory, opts = {}){
-	const C = React.lazy(factory);
-	LAZY_PRELOAD_QUEUE.push({ factory, order: opts.order || 2 });
+	// [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
+	// React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
+	// 工厂层自愈:坏结果不进缓存(下次真正重试 import),并抛明确错误交边界卡走「刷新重载」路。
+	let cachedGood = null;
+	const healingFactory = ()=>{
+		if(cachedGood){ return cachedGood; }
+		const p = Promise.resolve().then(factory).then((m)=>{
+			if(!m || !m.default){
+				throw new Error('Lazy chunk resolved empty (stale HMR / 更新中途换包): 请刷新页面');
+			}
+			cachedGood = p;
+			return m;
+		});
+		return p;
+	};
+	const C = React.lazy(healingFactory);
+	LAZY_PRELOAD_QUEUE.push({ factory: healingFactory, order: opts.order || 2 });
 	if(opts.navKey){
-		NAV_PRELOAD_FACTORIES.set(opts.navKey, factory);
+		registerNavPreload(opts.navKey, healingFactory);
 	}
 	// 🔒 黑屏根因修复:外层 <React.Suspense>(本文件 ~541 行)仅罩住主工作区,而抽屉(小工具/辅助/
 	//   印度盘等,渲染于 1400+ 行)在其作用域之外 → lazy chunk 尚未空闲预载完就打开抽屉时,组件 suspend
@@ -80,14 +96,16 @@ const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/Ast
 const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
 const AuxChartMain = lazyPreloadable(() => import('../components/auxchart/AuxChartMain'), { order: 1, navKey: 'auxchart' });
 const IndiaChartMain = lazyPreloadable(() => import('../components/astro/IndiaChartMain'), { order: 1, navKey: 'indiachart' });
-import AstroRelative from '../components/astro/AstroRelative';
+// [B6] 合盘转 lazy(此前 eager 拖整组件进首屏;快照链亦已在 aiAnalysisContext 动态化,饿链全断)。
+const AstroRelative = lazyPreloadable(() => import('../components/astro/AstroRelative'), { order: 2, navKey: 'relativechart' });
 const AstroDirectMain = lazyPreloadable(() => import('../components/direction/AstroDirectMain'), { order: 1, navKey: 'direction' });
 import AspSelector from '../components/astro/AspSelector';
 import AstroOrbSetting from '../components/astro/AstroOrbSetting';
 import PlanetSelector from '../components/astro/PlanetSelector';
 import ChartDisplaySelector from '../components/astro/ChartDisplaySelector';
 import ChartsGps from '../components/user/ChartsGps';
-import ChartMemo from '../components/comp/ChartMemo';
+// [B6] 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
+const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
@@ -98,11 +116,13 @@ const CalendarMain = lazyPreloadable(() => import('../components/calendar/Calend
 const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
 const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
 const AIAnalysisMain = lazyPreloadable(() => import('../components/aianalysis/AIAnalysisMain'), { order: 1, navKey: 'aianalysis' });
-const BookMain = lazyPreloadable(() => import('../components/reader/BookMain'), { order: 3 });
-const MediaMain = lazyPreloadable(() => import('../components/multimedia/MediaMain'), { order: 3 });
-const AdminToolsMain = lazyPreloadable(() => import('../components/admintools/AdminToolsMain'), { order: 3 });
+// WS-N3:此前四项无 navKey → 不在悬停预取注册表,主导航/抽屉/dock 掠过恒 no-op,只能等
+// order 2/3 的 idle 队列殿后 —— 补 navKey(与 drawerNavigationPages/openDrawer 的 key 同名)。
+const BookMain = lazyPreloadable(() => import('../components/reader/BookMain'), { order: 3, navKey: 'astroreader' });
+const MediaMain = lazyPreloadable(() => import('../components/multimedia/MediaMain'), { order: 3, navKey: 'liveplayer' });
+const AdminToolsMain = lazyPreloadable(() => import('../components/admintools/AdminToolsMain'), { order: 3, navKey: 'admintools' });
 const GuoLaoChartMain = lazyPreloadable(() => import('../components/guolao/GuoLaoChartMain'), { order: 1, navKey: 'guolao' });
-const CommToolsMain = lazyPreloadable(() => import('../components/commtools/CommToolsMain'), { order: 2 });
+const CommToolsMain = lazyPreloadable(() => import('../components/commtools/CommToolsMain'), { order: 2, navKey: 'commtools' });
 import DLFeature from '../components/deeplearn/DLFeature';
 import HomePageSetup from '../components/HomePageSetup';
 import BaZi from '../components/cntradition/BaZi';
@@ -118,9 +138,10 @@ import {convertToArray} from '../utils/helper';
 import { APPEARANCE_DARK } from '../utils/appearance';
 import XQIcon from '../components/xq-icons';
 import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
+import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
+import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
 
 const TabPane = XQTabs.TabPane;
-let fetchByFieldsTimer = null;
 
 const mainTabIcons = {
     占星: <XQIcon name="astro" />,
@@ -171,7 +192,7 @@ const navigationPages = [
     { label: '印占', key: 'indiachart', icon: 'vedic', group: '命', keywords: '印度占星 吠陀 Vedic 分宫制 岁差 ayanamsa 月宿 nakshatra 北印 南印 东印 印度盘 分盘 vargas 十六分盘 D9 D10 D60 Vimshottari Yogini Ashtottari 大运 dasha KP 副星 Shadbala 沙宾力 Yoga 瑜伽 Gulika 上升 Lagna Muhurta Tajika Argala Gochara Prasna 副星虚点' },
     { label: '辅盘', key: 'auxchart', icon: 'aux', group: '命', keywords: '卜卦盘 择日盘 世俗盘 十三分盘 十二分盘 调波盘 谐波盘 龙盘 中点盘 量化盘 汉堡盘 占星地图 星体地图 astrocartography ACG 重置盘 骰子 卜卦 择日' },
     { label: '合盘', key: 'relativechart', icon: 'composite', group: '命', keywords: '合盘 关系盘 比较盘 组合盘 影响盘 时空中点盘 马克斯盘 关系量化 中点合成 synastry composite davison marks' },
-    { label: '数算', key: 'shusuan', icon: 'quickPrimary', group: '命', keywords: '邵子神数 铁板神数 河洛理数 参评数 北极神数 南极神数 蠢子数' },
+    { label: '数算', key: 'shusuan', icon: 'quickPrimary', group: '命', keywords: '邵子神数 铁板神数 河洛理数 参评数 北极神数 南极神数 蠢子数 神数正传 大定神数 条文 秘数 十二辟卦 太玄玉景 起数' },
     { label: '其他', key: 'mingother', icon: 'other', group: '命', keywords: '演禽 仙禽 策天 策天飞星 一掌经 掌经 十二星 六道 yizhangjing' },
     { label: '三式', key: 'sanshiunited', icon: 'sanshi', group: '卜', keywords: '三式合一 六壬 奇门 太乙' },
     { label: '六壬', key: 'liureng', icon: 'liureng', group: '卜', keywords: '大六壬 六壬 三传 四课 神煞 七政' },
@@ -180,7 +201,7 @@ const navigationPages = [
     { label: '太乙', key: 'taiyi', icon: 'taiyi', group: '卜', keywords: '太乙神数 太乙' },
     { label: '分至', key: 'jieqichart', icon: 'solstice', group: '卜', keywords: '节气盘 分至 二分二至' },
     { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜', keywords: '风水 纳气盘 八卦阳宅 阳宅 理气 罗盘 八宅 大游年 东西四宅 门主灶 玄空 玄空飞星 兼向 替卦 三合 十二长生 水法 立向 黄泉 拨砂 穿山 透地 分金 金锁玉关 过路阴阳 乾坤国宝 龙门八局 紫白 紫白飞星 辅星水法 翻卦 净阴净阳 纳甲 玄空大卦 六十四卦 卦运 形势 峦头 龙穴砂水向 择日 造命 太岁 三煞 岁破 坐向 元运' },
-    { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法 地占 天文地占 护盾盘 判官 调和者 16图形 盾牌盘 四片盘 Hakata 异或表盘 Sikidy 塔罗 tarot 韦特 RWS 马赛 托特 Thoth 雷诺曼 Lenormand 埃及塔罗 扑克占卜 大牌 小牌 权杖 圣杯 宝剑 星币 凯尔特十字' },
+    { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法 地占 天文地占 护盾盘 判官 调和者 16图形 盾牌盘 四片盘 Hakata 异或表盘 Sikidy 塔罗 tarot 韦特 RWS 马赛 托特 Thoth 雷诺曼 Lenormand 埃及塔罗 扑克占卜 大牌 小牌 权杖 圣杯 宝剑 星币 凯尔特十字 皇极轨策 轨策 策数 轨数 万物数 周易数 梅花易数 体用 互卦 三要十应 大定神数 元会运世 邵子 小成图 小成圖 股市卦 飞宫小奇门 小奇门 飞宫 小六壬 掌诀 大安 留连 速喜 赤口 小吉 空亡' },
     { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具', keywords: 'AI 分析 挂载 报告 大模型' },
     { label: '天文馆', key: 'planetarium', icon: 'globe', group: '工具', keywords: '天文馆 星空 观星 星图 babylon' },
     { label: '黄历', key: 'calendar', icon: 'calendar', group: '工具', keywords: '黄历 农历 老黄历 择日 宜忌 节气' },
@@ -192,7 +213,13 @@ const navigationPages = [
 
 // 悬停预取:鼠标掠过导航项即预载对应 lazy chunk(React.lazy 幂等,重复调用零成本;
 // 已预载/主包组件 = no-op)。「其他」在命/卜两组重名 → 两个 key 都取。
-const NAV_LABEL_TO_KEYS = {};
+// 主导航渲染 label(mainTab),预取按 key —— navigationPages 之外的三个主 tab
+// (内容/管理组,不进模块选择器)手工补映射,否则其悬停恒 no-op。
+const NAV_LABEL_TO_KEYS = {
+	书籍阅读: ['astroreader'],
+	星阙直播: ['liveplayer'],
+	管理工具: ['admintools'],
+};
 for(const page of navigationPages){
 	if(!NAV_LABEL_TO_KEYS[page.label]){
 		NAV_LABEL_TO_KEYS[page.label] = [];
@@ -205,10 +232,7 @@ function preloadNavByLabel(label){
 		return;
 	}
 	for(const key of keys){
-		const factory = NAV_PRELOAD_FACTORIES.get(key);
-		if(factory){
-			Promise.resolve().then(factory).catch(()=>{});
-		}
+		preloadNavByKey(key);
 	}
 }
 
@@ -532,29 +556,29 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
         const isUnconfirmedTime = values && values.tm !== undefined && values.tm !== null && values.confirmed === false;
         if(isUnconfirmedTime){
-            if(fetchByFieldsTimer){
-                clearTimeout(fetchByFieldsTimer);
-            }
             const queuedPayload = {
                 ...flds,
                 __requestOptions: {
                     silent: true,
                 },
+                // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
+                ...(values.step ? { __stepHint: values.step } : {}),
             };
-            fetchByFieldsTimer = setTimeout(()=>{
+            // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
+            // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
+            // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
+            // (index.js 闭包无法 fake-timers 单测;开关 horosa.perf.leadingDebounce 在其内)。
+            scheduleUnconfirmedTimeDispatch((payload)=>{
                 dispatch({
                     type: 'astro/fetchByFields',
-                    payload: queuedPayload,
+                    payload,
                 });
-                fetchByFieldsTimer = null;
-            }, 180);
+            }, queuedPayload);
             return flds;
         }
 
-        if(fetchByFieldsTimer){
-            clearTimeout(fetchByFieldsTimer);
-            fetchByFieldsTimer = null;
-        }
+        // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
+        cancelPendingTimeDispatch();
 
         dispatch({
             type: 'astro/fetchByFields',
@@ -589,6 +613,28 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         tip = loadingText;
     }
 
+    // [更新徽标定位] 把「更新中…」小徽标钉到当前技法中间盘的右上角(而非窗口角);找不到盘则回退 CSS 默认(窗口右上)。
+    // ref 回调:徽标挂载即测量当前可见的中盘容器 rect,就地定位——一处改,全技法通用。
+    const positionUpdatingBadge = (el)=>{
+        if(!el || typeof document === 'undefined'){ return; }
+        try{
+            const vis = (s)=> s && s.offsetParent !== null && s.getBoundingClientRect().width > 120;
+            let stage = null;
+            const cand = document.querySelectorAll('.horosa-chart-stage-redesign, .horosa-chart-stage');
+            for(let i = 0; i < cand.length; i++){ if(vis(cand[i])){ stage = cand[i]; break; } }
+            if(!stage){
+                const grids = document.querySelectorAll('.horosa-astro-redesign-grid');
+                for(let j = 0; j < grids.length; j++){ const mid = grids[j].children[1]; if(vis(mid)){ stage = mid; break; } }
+            }
+            if(stage){
+                const r = stage.getBoundingClientRect();
+                el.style.top = Math.round(r.top + 10) + 'px';
+                el.style.right = Math.round(window.innerWidth - r.right + 12) + 'px';
+                el.style.left = 'auto';
+            }
+        }catch(e){ /* 定位失败回退 CSS 默认位置 */ }
+    };
+
     let aryfields = convertToArray(fields);
     let arychartflds = convertToArray(currentChart);
     let arycaseflds = convertToArray(currentCase);
@@ -610,7 +656,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	return (
 		<TechniqueErrorBoundary label="应用">
 		<div style={idxstyle}>
-        <Spin spinning={loading} size="large" tip={tip}>
+        {/* [连续调整不打断] 去满屏压暗遮罩:请求进行中改为右上角非阻塞「更新中…」小徽标;
+            盘面 keep-stale(各技法本就在重算时保留旧盘态,不清空),故调时间可连续不闪。 */}
+        {loading ? <div className="horosa-workspace-updating" ref={positionUpdatingBadge}>{tip || '更新中…'}</div> : null}
+        <Spin spinning={false}>
             <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
             <XQTabs
                 defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}

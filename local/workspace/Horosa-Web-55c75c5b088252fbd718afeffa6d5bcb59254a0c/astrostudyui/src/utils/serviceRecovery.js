@@ -52,7 +52,7 @@ export function buildDefaultRecoveryProbe(deps) {
   };
 }
 
-// 「重启服务」统一入口(横幅/状态灯/排盘失败弹窗三处共用,杜绝轻重不一):
+// [V-6] 「重启服务」统一入口(横幅/状态灯/排盘失败弹窗三处共用,杜绝轻重不一):
 // 轻量 restart_local_services_command 只重启后端进程(秒级);老壳(runtime-only 更新
 // 不换壳)无此命令 → invoke 抛错 → 回退全量修复命令(代数差安全,但会走资产复核,慢)。
 // 返回 'light' | 'full'(调用方据此定文案);两者皆失败才抛。
