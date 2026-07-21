@@ -50,14 +50,35 @@ You do not need to install Python or Java yourself—the runtime ships inside th
 
 ## Screenshots
 
+<table>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-astrology-workspace.png" alt="Astrology workspace" /><br/><sub><b>Astrology (Western natal)</b> — setup params & tradition presets on the left, chart canvas in the center, info / aspects / planets / classical / patterns tabs on the right.</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-bazi-workspace.png" alt="BaZi" /><br/><sub><b>BaZi (Four Pillars)</b> — simple / detailed / classical triple charts, Five-Element strength, structure & useful god, monthly command, luck / year / month / day cycles linked.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-vedic-vargas.png" alt="Vedic divisional charts" /><br/><sub><b>Vedic (Jyotish)</b> — D1–D60 divisional-chart grids side by side, South / North / East styles, Chitrapaksha ayanamsa, shashtiamsa dignities.</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-primary-directions-sphere.png" alt="Primary directions sphere" /><br/><sub><b>Primary Directions · Celestial Sphere</b> — ecliptic / equator / horizon / meridian / prime-vertical circles in 3D, event timeline indexed by age.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-astrocartography.png" alt="Astrocartography" /><br/><sub><b>Astrocartography (ACG)</b> — planetary ASC / MC / DSC / IC lines projected on the world map, equidistant projection & multiple house systems.</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-planetarium.png" alt="Planetarium" /><br/><sub><b>Planetarium</b> — surface-observer / celestial-sphere dual mode, live stars, obliquity, sidereal time, Babylon 3D dome.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-sanshi-workspace.png" alt="Three Rites combined" /><br/><sub><b>Three Rites in one</b> — Taiyi / Liuren / Qimen on one screen, nine-palace plate with overview / Taiyi / Liuren / Qimen / Ziwei-sihua tabs.</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-qimen-workspace.png" alt="Qimen Dunjia" /><br/><sub><b>Qimen Dunjia</b> — hour-chart leap arrangement, nine-palace star / gate / spirit / stem, overview / spirits / eight-palace / resolution / useful-god tabs.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-liuren-workspace.png" alt="Da Liu Ren" /><br/><sub><b>Da Liu Ren</b> — three transmissions & four lessons with the twelve generals, structure / bifa / judgment / imagery / seven-governors multi-school reading.</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-liuyao-workspace.png" alt="Liu Yao Najia" /><br/><sub><b>Liu Yao (Najia)</b> — original / changed / hidden / mutual hexagrams, self & response with changing lines, mounting / verdicts / query-type / text.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-geomancy-workspace.png" alt="Astrological geomancy" /><br/><sub><b>Astrological Geomancy</b> — sixteen shield-chart figures, four mothers / daughters / nieces / judge / reconciler, planet-in-house verdicts.</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-almanac-workspace.png" alt="Chinese almanac" /><br/><sub><b>Almanac (Tongshu)</b> — daily do's & don'ts, day officers & lunar mansions, Peng Zu taboos, auspicious / inauspicious spirits, clash & fetal-spirit directions, date selection.</sub></td>
+</tr>
+</table>
+
 <div align="center">
-<img src="assets/screenshots/horosa-2.0-main-workspace.png" alt="Astrology workspace" width="900" />
-<p><em>Astrology workspace — chart controls on the left, the wheel canvas in the center, and detail tabs (info, aspects, planets, classical, patterns) on the right.</em></p>
-
-<img src="assets/screenshots/horosa-2.0-sanshi-workspace.png" alt="Sanshi workspace" width="900" />
-<p><em>Sanshi workspace — setup panel, the nine-palace plate, and overview tabs all visible at once.</em></p>
-
-<img src="assets/screenshots/horosa-2.0-module-navigator.png" alt="Module navigator" width="900" />
+<img src="assets/screenshots/horosa-navigation-overlay.png" alt="Navigation overlay" width="900" />
 <p><em>The command overlay groups charts, Yi & Sanshi, and tools, with search and recents for fast switching.</em></p>
 </div>
 

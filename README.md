@@ -52,14 +52,35 @@
 
 ### 截图
 
+<table>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-astrology-workspace.png" alt="占星工作区" /><br/><sub><b>占星（西方本命盘）</b>—— 左栏起盘参数与流派预设，中栏图盘画布，右栏信息 / 相位 / 行星 / 古典 / 格局页签。</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-bazi-workspace.png" alt="八字工作区" /><br/><sub><b>八字</b>—— 简 / 细 / 古法三盘，五行力量、格局用神、月令司令，大运 / 流年 / 流月 / 流日联动。</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-vedic-vargas.png" alt="印度占星分盘" /><br/><sub><b>印度占星（吠陀）</b>—— D1–D60 分盘网格并列，南 / 北 / 东印盘式，Chitrapaksha 岁差、六十分盘吉凶。</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-primary-directions-sphere.png" alt="主限天球" /><br/><sub><b>主限法 · 天球</b>—— 黄道 / 赤道 / 地平 / 子午 / 卯酉圈三维呈现，事件时间轴按年龄检索表行。</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-astrocartography.png" alt="占星地图" /><br/><sub><b>占星地图（ACG）</b>—— 行星 ASC / MC / DSC / IC 线投影于世界地图，等距投影与多种宫制切换。</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-planetarium.png" alt="天文馆" /><br/><sub><b>天文馆</b>—— 地表观测 / 天球外观双模，实时恒星、黄赤交角、恒星时，Babylon 三维天穹。</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-sanshi-workspace.png" alt="三式合一" /><br/><sub><b>三式合一</b>—— 太乙 / 六壬 / 遁甲同屏，九宫盘面与概览 / 太乙 / 六壬 / 遁甲 / 紫微四化页签。</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-qimen-workspace.png" alt="奇门遁甲" /><br/><sub><b>奇门遁甲</b>—— 时家转盘置闰，九宫星 / 门 / 神 / 干，概览 / 神煞 / 八宫 / 化解 / 用神页签。</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-liuren-workspace.png" alt="大六壬" /><br/><sub><b>大六壬</b>—— 三传四课与十二天将，格局 / 毕法 / 占断 / 取象 / 七政多流派判读。</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-liuyao-workspace.png" alt="六爻纳甲" /><br/><sub><b>六爻纳甲</b>—— 本卦 / 之卦 / 伏神 / 互卦，世应卦变动态间爻，装卦 / 断诀 / 占类 / 卦辞。</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screenshots/horosa-geomancy-workspace.png" alt="天文地占" /><br/><sub><b>天文地占</b>—— 护盾方盘十六图形，四母 / 四女 / 四甥 / 判官 / 调和者，行星入宫断语。</sub></td>
+<td width="50%"><img src="assets/screenshots/horosa-almanac-workspace.png" alt="黄历通书" /><br/><sub><b>黄历通书</b>—— 老黄历宜忌、值神值宿、彭祖百忌、吉神凶煞、冲煞胎神方位与通书择日。</sub></td>
+</tr>
+</table>
+
 <div align="center">
-<img src="assets/screenshots/horosa-2.0-main-workspace.png" alt="Astrology workspace" width="900" />
-<p><em>占星工作区 — 左栏起盘参数，中栏图盘画布，右栏信息 / 相位 / 行星 / 古典 / 格局页签。</em></p>
-
-<img src="assets/screenshots/horosa-2.0-sanshi-workspace.png" alt="Sanshi workspace" width="900" />
-<p><em>三式工作区 — 起盘参数、九宫盘面、概览 / 太乙 / 神煞 / 六壬 / 八宫页签同屏。</em></p>
-
-<img src="assets/screenshots/horosa-2.0-module-navigator.png" alt="Navigation overlay" width="900" />
+<img src="assets/screenshots/horosa-navigation-overlay.png" alt="导航弹层" width="900" />
 <p><em>导航弹层 — 命盘推运、易与三式、工具工作台分组，支持搜索与最近使用。</em></p>
 </div>
 
@@ -177,7 +198,8 @@
 - 玄空进阶（替卦兼向 / 城门 / 七星打劫 / 流月）；元运 / 坐向 / 流年流月 / 水口 / 坐卦 / 命。
 
 #### 其他（卜）
-- **宿占**（28 / 27 宿月宿 + 宿主 + 纳音）、**统摄法**（四象映八卦）、**皇极经世**（四起卦法 + 时空盘）、**五兆**（五起盘法 + 五分法）、**太玄**（太玄经 81 首揲筮 + 读卦深度）、**荆诀**、**神易数**。
+- **宿占**（28 / 27 宿月宿 + 宿主 + 纳音）、**统摄法**（四象映八卦）、**皇极经世 / 皇极轨策**（四起卦法 + 时空盘）、**五兆**（五起盘法 + 五分法）、**太玄**（太玄经 81 首揲筮 + 读卦深度）、**荆诀**、**神易数**。
+- **飞宫**（飞宫排盘）、**小成图**（大衍筮法，两分 / 三分变体）、**小六壬**（掌诀六神）。
 - **金口诀**（多流派）：贵人体系 / 月将换将 / 盘式；五动三动 / 格局 / 四位生克 / 用神 / 神煞 / 应期 / 地分 / 空亡 / 纳音。
 - **地占（天文地占）**：16 图盾牌（四母四女四甥 + 判官 + 调和者 + 两见证）/ 宫位图形入宫 / 占星定局 / 完美相位同伴。**多流派**（古典定局 / 行星共鸣 / 现代综合 / 阿拉伯沙占 / 印度骰占 / Sikidy / Hakata）；范围 L0–L4 / 黄道（古典 / 行星）/ 起卦（随机 / 时间 seed 可复现 / 手工 seed）；断语逐图含义。
 - **塔罗**：**多牌组**（核心四套 + BOTA / Wirth / Egyptian / Etteilla / Lenormand 36 / Grand Tableau / Kipper 36 / Sibilla 52 / 扑克 52 / Visconti / Minchiate 97）；**多牌阵**；定局法（是否 / 精华 / 生命牌 / 年牌 / 计数链 / 合成叙事）；变体 A/B/C / 尊位 / 同 seed 跨流派一致。
