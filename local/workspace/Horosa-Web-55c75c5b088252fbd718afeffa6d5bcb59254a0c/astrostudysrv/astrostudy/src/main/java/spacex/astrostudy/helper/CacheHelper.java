@@ -8,10 +8,27 @@ import boundless.spring.help.PropertyPlaceholder;
 import boundless.types.ICache;
 import boundless.types.cache.CacheFactory;
 import boundless.utility.CacheUtility;
+import boundless.utility.ConvertUtility;
+import boundless.utility.StringUtility;
 
 public class CacheHelper {
-	
-	private static boolean NeedCache = PropertyPlaceholder.getPropertyAsBool("cachehelper.needcache", true);
+
+	// horosa_cachehelper_needcache_sysprop_v1(PERF-R10 B3):与 ParamHashCacheHelper 同源的
+	// 「先 -D 再属性文件」。PropertyPlaceholder 不读 -D ⇒ 桌面启动器此前无法关掉 comm 缓存;
+	// 而桌面机器上没有 Redis,/ziwei/birth、/calendar/month、/nongli/time 每次 miss 都要付
+	// 一次连接异常 + JedisPool 重建 + 两行错误日志(System.gc 已被 -XX:+DisableExplicitGC 中和,
+	// 但异常/重连/并发 reconnect 竞态仍在)。桌面传 -Dcachehelper.needcache=false 后:
+	// 语义 == 今日「无 Redis」的净效果(恒 miss、必算 fun),输出字节全等;
+	// Web/Mac 不传 -D ⇒ 属性文件路径原样,零变化。
+	private static boolean resolveBoolFlag(String key, boolean def) {
+		String sys = System.getProperty(key);
+		if(!StringUtility.isNullOrEmpty(sys)) {
+			return ConvertUtility.getValueAsBool(sys, def);
+		}
+		return PropertyPlaceholder.getPropertyAsBool(key, def);
+	}
+
+	private static boolean NeedCache = resolveBoolFlag("cachehelper.needcache", true);
 	private static int ExpInSec = PropertyPlaceholder.getPropertyAsInt("cachehelper.expireinsecond", 1800);
 	private static final String Prefix = PropertyPlaceholder.getProperty("cachehelper.prjprefix", "astrostudy_");
 	private static ICache cache = CacheFactory.getCache("comm");

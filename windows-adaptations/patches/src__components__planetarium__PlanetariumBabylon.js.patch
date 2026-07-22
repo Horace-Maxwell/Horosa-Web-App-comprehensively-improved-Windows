@@ -1,12 +1,13 @@
 diff --git a/astrostudyui/src/components/planetarium/PlanetariumBabylon.js b/astrostudyui/src/components/planetarium/PlanetariumBabylon.js
-index 26eeb51..0d485b6 100644
+index 26eeb51..cee6d17 100644
 --- a/astrostudyui/src/components/planetarium/PlanetariumBabylon.js
 +++ b/astrostudyui/src/components/planetarium/PlanetariumBabylon.js
-@@ -1,6 +1,13 @@
+@@ -1,6 +1,14 @@
  import { Component, createRef, memo } from 'react';
  import DateTime from '../comp/DateTime';
  import DateTimeSelector from '../comp/DateTimeSelector';
 +import { planetariumRenderGatingEnabled, planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled, planetariumTimeEditDebounceEnabled } from '../../utils/perfFlags';
++import { markPanelReady } from '../../utils/perfMark';
 +
 +// perf:planetariumRenderGating —— 天文馆渲染时机门控参数(只动时机不动内容):
 +//   IDLE_FRAME_MS:静止时降帧间隔(~10fps);静止画面在任何帧率下视觉一致,留出 CPU 给主线程消除卡顿。
@@ -16,7 +17,7 @@ index 26eeb51..0d485b6 100644
  
  // 时间编辑器隔离壳:天文馆每秒上百次 metrics/FPS 重渲,会带着 DateTimeSelector 一起重渲;
  // 而 DateTimeSelector 内部 Option 用 randomStr 每渲生成新 key → Select 下拉项被不断 remount → 下拉无法停留。
-@@ -1320,6 +1327,16 @@ class PlanetariumRenderer {
+@@ -1320,6 +1328,16 @@ class PlanetariumRenderer {
  		this.onPick = onPick;
  		this.onMetrics = onMetrics;
  		this.onInteraction = onInteraction;
@@ -33,7 +34,7 @@ index 26eeb51..0d485b6 100644
  		this.engine = new BABYLON.Engine(canvas, true, {
  			preserveDrawingBuffer: false,
  			stencil: false,
-@@ -1414,6 +1431,7 @@ class PlanetariumRenderer {
+@@ -1414,6 +1432,7 @@ class PlanetariumRenderer {
  				return;
  			}
  			evt.preventDefault();
@@ -41,7 +42,7 @@ index 26eeb51..0d485b6 100644
  			if(this.viewMode === 'orbit'){
  				this.camera.radius = clamp(this.camera.radius + (evt.deltaY > 0 ? 64 : -64), ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS);
  				return;
-@@ -1429,6 +1447,7 @@ class PlanetariumRenderer {
+@@ -1429,6 +1448,7 @@ class PlanetariumRenderer {
  			if(this.onInteraction){
  				this.onInteraction();
  			}
@@ -49,7 +50,7 @@ index 26eeb51..0d485b6 100644
  			this.pointerDrag = {
  				id: evt.pointerId,
  				x: evt.clientX,
-@@ -1464,6 +1483,7 @@ class PlanetariumRenderer {
+@@ -1464,6 +1484,7 @@ class PlanetariumRenderer {
  				if(this.camera){ this.camera.lockedTarget = null; }
  			}
  			evt.preventDefault();
@@ -57,7 +58,7 @@ index 26eeb51..0d485b6 100644
  			if(this.viewMode === 'orbit'){
  				if(this.onInteraction){
  					this.onInteraction();
-@@ -1591,21 +1611,8 @@ class PlanetariumRenderer {
+@@ -1591,21 +1612,8 @@ class PlanetariumRenderer {
  			}
  		});
  
@@ -81,7 +82,7 @@ index 26eeb51..0d485b6 100644
  		this.resizeHandler = ()=>{
  			if(this.engine){
  				// Keep the backing store at full device resolution; re-apply on resize so
-@@ -4223,8 +4230,108 @@ class PlanetariumRenderer {
+@@ -4223,8 +4231,108 @@ class PlanetariumRenderer {
  		return true;
  	}
  
@@ -190,7 +191,7 @@ index 26eeb51..0d485b6 100644
  		window.removeEventListener('resize', this.resizeHandler);
  		if(this.wheelHandler){
  			this.canvas.removeEventListener('wheel', this.wheelHandler);
-@@ -4397,7 +4504,11 @@ class PlanetariumBabylon extends Component{
+@@ -4397,7 +4505,11 @@ class PlanetariumBabylon extends Component{
  		this.renderer.onMeasure = (info)=>{ if(this._isUnmounted){ return; } this.setState({ measureInfo: info }); };
  		this.renderer.onSkyReadout = (readout)=>{ if(this._isUnmounted){ return; } this.setState({ skyReadout: readout, selected: null }); };
  		this.renderer.setMagLimit(this.state.magLimit);
@@ -202,7 +203,7 @@ index 26eeb51..0d485b6 100644
  	}
  
  	componentDidUpdate(prevProps, prevState){
-@@ -4427,6 +4538,8 @@ class PlanetariumBabylon extends Component{
+@@ -4427,6 +4539,8 @@ class PlanetariumBabylon extends Component{
  		}
  		if(prevState.speed !== this.state.speed){
  			this.setupPlayback();
@@ -211,7 +212,7 @@ index 26eeb51..0d485b6 100644
  		}
  		if(prevState.viewMode !== this.state.viewMode && this.renderer){
  			this.renderer.setViewMode(this.state.viewMode);
-@@ -4451,6 +4564,14 @@ class PlanetariumBabylon extends Component{
+@@ -4451,6 +4565,14 @@ class PlanetariumBabylon extends Component{
  			document.removeEventListener('fullscreenchange', this._onFullscreenChange);
  			this._onFullscreenChange = null;
  		}
@@ -226,7 +227,7 @@ index 26eeb51..0d485b6 100644
  		this.pushPerfLog('release', { canvasReleased: true });
  		if(this.playTimer){
  			cancelAnimationFrame(this.playTimer);
-@@ -4474,6 +4595,24 @@ class PlanetariumBabylon extends Component{
+@@ -4474,6 +4596,24 @@ class PlanetariumBabylon extends Component{
  		this.lastInteractionAt = nowMs();
  	}
  
@@ -251,7 +252,17 @@ index 26eeb51..0d485b6 100644
  	scheduleBackgroundFull(options = {}){
  		if(this._isUnmounted){
  			return;
-@@ -4759,12 +4898,27 @@ class PlanetariumBabylon extends Component{
+@@ -4571,6 +4711,9 @@ class PlanetariumBabylon extends Component{
+ 				catalogCount: data.meta ? data.meta.renderedCatalogCount : 0,
+ 			},
+ 		}), ()=>{
++			// horosa_panel_ready_v1:数据已应用到 3D 场景与右栏,本次提交即「点击→画完」终点。
++			// 播放帧的 setState({time}) 不经此路,不会刷样本;归属键=页签键 'planetarium'。
++			markPanelReady('planetarium');
+ 			this.requestInFlight = false;
+ 			this.flushPendingRequest();
+ 			if(followupFull && !this._isUnmounted){
+@@ -4759,12 +4902,27 @@ class PlanetariumBabylon extends Component{
  			try{ document.body.classList.remove('planetarium-time-editing'); }catch(e){ /* no-op */ }
  			document.removeEventListener('mousedown', this._onTimeEditorDocMouseDown, true);
  		}
@@ -281,3 +292,13 @@ index 26eeb51..0d485b6 100644
  	}
  
  	// 时间编辑面板:自控开合(不用 antd Popover,避免其受控 click-outside 与嵌套 Select 下拉互相抢闭)。
+@@ -5096,6 +5254,9 @@ class PlanetariumBabylon extends Component{
+ 				syncing: false,
+ 				syncLabel: '',
+ 				error: data && data.err ? data.err : '天文馆数据载入失败',
++			}, ()=>{
++				// 错误横幅画出同样终结本次交互(失败终态盖章,与七政各失败终态先例同)。
++				markPanelReady('planetarium');
+ 			});
+ 			this.requestInFlight = false;
+ 			this.flushPendingRequest();

@@ -7,8 +7,15 @@ import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
 import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
-import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
+import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled, stepPrefetchArmEnabled, stepPrefetchDepth } from '../utils/perfFlags';
 import { submitStepPrefetch, getStepPrefetcher } from '../utils/stepPrefetch';
+// PERF-R10 horosa_step_prefetch_arm_v1:「选步长即武装」——构造器经 registerArmPlanBuilder
+// 注入(utils 不反向 import models);settle 兜底武装的档位来自 reportStepUnit 的记录。
+import { registerArmPlanBuilder, reportStepUnit, currentStepUnit, shouldArmForTab } from '../utils/stepPrefetchArm';
+// PERF-R10 S2(horosa_boot_chart_restore_v1):出盘 settle 后落「上次工作现场」快照(空闲写)。
+import { saveBootChartSnapshot } from '../utils/bootChartRestore';
+// PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm。
+import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
@@ -439,15 +446,43 @@ function applyPrefetchStep(dt, unit, dir){
 
 function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	const dt0 = fieldValues && fieldValues.date && fieldValues.date.value;
-	if(!dt0 || typeof dt0.clone !== 'function'){
+	// 🔴 能力守卫必须查全步进方法,不能只查 clone:预取是优化,任何「不像 DateTime」的
+	// 日期态(异常来源/测试替身)都必须让它整体静默让路,而不是把 TypeError 抛进
+	// fetchByFields 主流程(全量 umi 抓过一次:mock date 缺 addMinute 直接崩主 saga)。
+	if(!dt0 || typeof dt0.clone !== 'function'
+		|| typeof dt0.addYear !== 'function' || typeof dt0.addMonth !== 'function'
+		|| typeof dt0.addDate !== 'function' || typeof dt0.addHour !== 'function'
+		|| typeof dt0.addMinute !== 'function'){
 		return [];
 	}
-	// 同向 2 步 + 反向 1 步(连点压倒性沿同方向;反向覆盖「拨过头往回」);
-	// 此刻(dir=0) → ±1 各一。
-	const plan = stepHint && stepHint.dir
-		? [{ k: 1, dir: stepHint.dir }, { k: 2, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }]
-		: [{ k: 1, dir: 1 }, { k: 1, dir: -1 }];
+	// 计划(数组序 == 提交序):
+	//   有向(用户已点 ±):[+1, -1, +2..+depth] —— 同向连点压倒性,反向覆盖「拨过头往回」;
+	//     depth 缺省 2 时逐字节等于旧 [+1,+2,-1] 的提交序(tech+1,chart+1,tech-1,chart-1,chart+2,tech+2)。
+	//   武装(PERF-R10 horosa_step_prefetch_arm_v1,dir=0 且带 depth):[±1, ±2, .. ±depth]
+	//     对称交错(+ 先)—— 选完步长 +/− 概率对等,±1 即时命中,远窗吃空闲。
+	//   旧调用(无 depth、无向):[±1] 各一,行为不变。
+	const depth = stepHint && Number.isFinite(stepHint.depth)
+		? Math.max(0, Math.min(5, Math.floor(stepHint.depth)))
+		: 0;
+	let plan;
+	if(stepHint && stepHint.dir){
+		const d = Math.max(2, depth || 2);
+		plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
+		for(let k = 2; k <= d; k += 1){
+			plan.push({ k, dir: stepHint.dir });
+		}
+	}else if(depth > 0){
+		plan = [];
+		for(let k = 1; k <= depth; k += 1){
+			plan.push({ k, dir: 1 });
+			plan.push({ k, dir: -1 });
+		}
+	}else{
+		plan = [{ k: 1, dir: 1 }, { k: 1, dir: -1 }];
+	}
 	const unit = (stepHint && stepHint.unit) || 'm';
+	// 本地漏斗技法(紫微/遁甲)的武装:/chart 不在其步进路径上,预取它纯属浪费 —— 只做技法端点。
+	const skipChart = !!(stepHint && stepHint.skipChart);
 	// Phase B:当前技法登记的端点(kentang pan 等)——用技法自己的请求函数,落其自己的缓存。
 	// 🔴 传给登记方的必须是【已步进到目标时间的 fields】(旧版传的是基准 fields,构出来的
 	//    是「此刻」的参数 —— 与用户下一步要看的盘不是同一张,预取白打)。
@@ -455,18 +490,22 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	const chartTasks = [];
 	const techTasks = [];
 	for(const pl of plan){
-		let dt = dt0.clone();
-		for(let i = 0; i < pl.k; i += 1){
-			dt = applyPrefetchStep(dt, unit, pl.dir);
-		}
-		const f2 = {
-			...fieldValues,
-			date: { ...fieldValues.date, value: dt },
-			time: { ...fieldValues.time, value: dt },
-		};
-		const label = `${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`;
+		// 整个单步构造包进 try:clone 出来的对象若丢了步进能力(能力守卫只能查 dt0 自身)、
+		// 或构参路径抛任何异常,都只作废这一个占位 —— 预取构造永不外抛。
+		let f2;
+		let label;
 		let param;
 		try{
+			let dt = dt0.clone();
+			for(let i = 0; i < pl.k; i += 1){
+				dt = applyPrefetchStep(dt, unit, pl.dir);
+			}
+			f2 = {
+				...fieldValues,
+				date: { ...fieldValues.date, value: dt },
+				time: { ...fieldValues.time, value: dt },
+			};
+			label = `${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`;
 			param = fieldsToParams(f2);   // 🔴 与正式请求同一构参路径 —— 缓存键逐字节同键是预取生效的唯一前提
 		}catch(e){
 			chartTasks.push(null);         // 非法日期(如越 startTime)静默跳过(占位保序)
@@ -475,12 +514,16 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 		}
 		param.cid = null;
 		param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-		chartTasks.push({
-			name: `chart${label}`,
-			path: '/chart',
-			// silent+零重试:预取失败静默、绝不退避风暴;结果自动进 chartMem+requestDedupe
-			run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
-		});
+		if(skipChart){
+			chartTasks.push(null);   // 本地漏斗武装:占位保序,只发技法端点
+		}else{
+			chartTasks.push({
+				name: `chart${label}`,
+				path: '/chart',
+				// silent+零重试:预取失败静默、绝不退避风暴;结果自动进 chartMem+requestDedupe
+				run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
+			});
+		}
 		let mine = null;
 		if(extra){
 			try{
@@ -492,25 +535,26 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 		}
 		techTasks.push(mine);
 	}
-	// PERF-R9 Ship 7 —— 排序即价值:非占星页 gate 面板的是【技法端点】,而旧序把 chart±1
-	// 排在最前,技法任务恒被预算砍掉。新序 [技法+1, chart+1, 技法-1, chart-1, chart+2]。
-	// plan 有 dir 时 idx: 0=+1、1=+2、2=-1;无 dir 时 0=+1、1=-1。
-	const hasDir = !!(stepHint && stepHint.dir);
-	const iPlus1 = 0;
-	const iPlus2 = hasDir ? 1 : -1;
-	const iMinus1 = hasDir ? 2 : 1;
+	// PERF-R9 Ship 7 排序结论保持「排序即价值」:近窗(k==1)技法端点先于 chart(非占星页
+	// gate 面板的是技法端点,旧序 chart 在前时技法任务恒被预算砍掉);远窗(k>=2)chart 先把
+	// 共享底盘备好、技法端点跟队。plan 数组序即提交序,经典有向 [+1,-1,+2] 在此规则下的输出
+	// 与旧实现([技法+1, chart+1, 技法-1, chart-1, chart+2, 技法+2])逐字节同序。
 	const tasks = [];
-	const pushAt = (arr, idx)=>{
-		if(idx < 0 || !arr[idx]){ return; }
-		if(Array.isArray(arr[idx])){ tasks.push(...arr[idx]); return; }
-		tasks.push(arr[idx]);
+	const emit = (arr, idx)=>{
+		const v = arr[idx];
+		if(!v){ return; }
+		if(Array.isArray(v)){ tasks.push(...v); return; }
+		tasks.push(v);
 	};
-	pushAt(techTasks, iPlus1);
-	pushAt(chartTasks, iPlus1);
-	pushAt(techTasks, iMinus1);
-	pushAt(chartTasks, iMinus1);
-	pushAt(chartTasks, iPlus2);
-	pushAt(techTasks, iPlus2);
+	for(let i = 0; i < plan.length; i += 1){
+		if(plan[i].k <= 1){
+			emit(techTasks, i);
+			emit(chartTasks, i);
+		}else{
+			emit(chartTasks, i);
+			emit(techTasks, i);
+		}
+	}
 	return tasks;
 }
 
@@ -544,6 +588,24 @@ let now = new DateTime();
 // 具名导出(仅供金标):键等性锁要机械验证「预取构出的 param ≡ 用户真点会发出的 param」,
 // 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
 export { fieldsToParams as __fieldsToParamsForTest, buildStepPrefetchTasks as __buildStepPrefetchTasksForTest };
+
+// PERF-R10 horosa_step_prefetch_arm_v1:把任务构造器注入武装模块(utils 不反向 import models)。
+// 选步长/切页/本地漏斗 settle 的武装全部经由它,与真点步进共用同一 fieldsToParams 路径 ——
+// 「预取参数与用户真点逐字节同键」的纪律因此自动继承。
+registerArmPlanBuilder((fieldValues, hint, astroState)=>buildStepPrefetchTasks(fieldValues, hint, astroState));
+
+// PERF-R10 horosa_option_prefetch_v1:选项投机的 /chart 变体任务构造器 —— 与真点/步进预取
+// 共用同一 fieldsToParams 路径(键逐字节同是命中的唯一前提)。
+registerOptionChartTaskBuilder((variantFields, astroState)=>{
+	const param = fieldsToParams(variantFields);
+	param.cid = null;
+	param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+	return {
+		name: 'chart',
+		path: '/chart',
+		run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
+	};
+});
 
 export default { 
 	namespace: 'astro',
@@ -1363,6 +1425,11 @@ export default {
                 },
             });
 			markChartRefreshEnd();
+			// horosa_boot_chart_restore_v1(载入命盘也刷新现场)。util 内部构不出合法 record
+			// 会自答 null,此处仍包 try:快照是优化,任何异常不许碰载入主流程。
+			try{
+				saveBootChartSnapshot(fields, state.currentTab);
+			}catch(e){ /* optimization only — never surface */ }
 
 			if(values.nohook){
 				return;
@@ -1370,7 +1437,7 @@ export default {
 
 			yield put({
                 type: 'doHook',
-                payload: {  
+                payload: {
 					chartObj: Result,
 					fields: fields,
 					drawerVisible: values.drawerVisible,
@@ -1471,10 +1538,22 @@ export default {
 				// render-complete 照样触发,于是它拿上一次的陈旧 end 做起点,八字/紫微/数算
 				// 三族一直在报**伪造**的渲染时间。补上这一行,三族的观测才是真的。
 				markChartRefreshEnd();
-				if(stepHint){
-					// settle 后预取「下一步」:用户已停手+主盘已回,天然错峰(风暴防护在调度器内)
-					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, stepHint, astroState));
-				}
+				// 快照+武装+投机全是优化:整块 try —— 任何异常静默,绝不许碰快车道主流程。
+				try{
+					saveBootChartSnapshot(fieldValues, astroState.currentTab);   // horosa_boot_chart_restore_v1
+					if(stepHint){
+						// settle 后预取「下一步」:用户已停手+主盘已回,天然错峰(风暴防护在调度器内)
+						reportStepUnit(astroState.currentTab, stepHint.unit);
+						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
+					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
+						// PERF-R10 horosa_step_prefetch_arm_v1:无向 settle(初盘/确定/改设置/切回)
+						// 也武装当前档位 ±depth —— 单位取该技法最近一次选择/步进的档位,不再硬编码 'm',
+						// 于是「不选步长直接点 ±」的第一下也命中。
+						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { unit: currentStepUnit(astroState.currentTab), dir: 0, depth: stepPrefetchDepth() }, astroState));
+					}
+					// horosa_option_prefetch_v1:选项二值轴的 Hamming-1 变体走空闲通道(与步进泵分队)。
+					speculateChartOptions(fieldValues, astroState);
+				}catch(e){ /* optimization only — never surface */ }
 				return;
 			}
 
@@ -1486,6 +1565,9 @@ export default {
                 },
             });
 			markChartRefreshEnd();
+			try{
+				saveBootChartSnapshot(fieldValues, astroState.currentTab);   // horosa_boot_chart_restore_v1
+			}catch(e){ /* optimization only — never surface */ }
 
 			if(values.nohook){
 				return;
@@ -1499,9 +1581,18 @@ export default {
                 },
             });
 
-			if(stepHint){
-				submitStepPrefetch(buildStepPrefetchTasks(fieldValues, stepHint, astroState));
-			}
+			// 同快车道分支:优化整块 try,异常静默不碰主流程。
+			try{
+				if(stepHint){
+					reportStepUnit(astroState.currentTab, stepHint.unit);
+					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
+				}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
+					// 同快车道分支:无向 settle 也武装(horosa_step_prefetch_arm_v1)。
+					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { unit: currentStepUnit(astroState.currentTab), dir: 0, depth: stepPrefetchDepth() }, astroState));
+				}
+				// horosa_option_prefetch_v1:同快车道分支。
+				speculateChartOptions(fieldValues, astroState);
+			}catch(e){ /* optimization only — never surface */ }
 
 		},
 

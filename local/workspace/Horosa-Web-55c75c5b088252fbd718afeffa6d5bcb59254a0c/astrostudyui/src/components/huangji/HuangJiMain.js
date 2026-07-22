@@ -17,6 +17,8 @@ import { parseDateParts } from '../../utils/dateStrSafe';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -88,6 +90,22 @@ async function postWangJi(path, payload){
 		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wangji.fetch.failed');
 	}
 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+}
+
+// horosa_kentang_result_cache_v1(PERF-R10 补裸点)—— /wangji/pan 直连缓存(LRU 48)。
+// 确定性论证:payload = parseFieldsDateTime(fields)(格式化字串+整数)+ historyYear/classicKey
+// 两个显式选项;webwangjisrv 无 random / 无 datetime.now()(PY-6 轮已核)→ 同 payload 必同盘。
+// 只包 'pan':classic 正文有模块级 CLASSIC_SECTION_CACHE,xinyi 轻且选项面大,均保持直连。
+// 没有这一层,步进预取的结果无处可落(真点读不到)= 白取。
+function postWangJiCached(path, payload){
+	if(path !== 'pan'){
+		return postWangJi(path, payload);
+	}
+	const bodyKey = kentangCacheKey(payload);
+	if(!techniqueResultCacheEnabled() || !bodyKey){
+		return postWangJi(path, payload);
+	}
+	return cachedKentangCall('wangji/pan', payload, ()=>postWangJi(path, payload), { key: bodyKey, max: 48 });
 }
 
 function fmtValue(value){
@@ -505,6 +523,24 @@ class HuangJiMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
+	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
+	// 只报 pan(单阶段、确定性);构参与 fetchPan 同源(parseFieldsDateTime + 当前
+	// historyYear/classicKey)⇒ 缓存键逐字节同键;classic 正文有模块缓存不需预取。
+	getStepPrefetchTasks(steppedFields){
+		try{
+			const dt = parseFieldsDateTime(steppedFields);
+			if(!dt){ return []; }
+			const payload = { ...dt, historyYear: this.state.historyYear, classicKey: this.state.classicKey };
+			return [{
+				name: 'wangji',
+				path: '/wangji/pan',
+				run: ()=> postWangJiCached('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
+			}];
+		}catch(e){
+			return [];
+		}
+	}
+
 	async fetchPan(fields){
 		const dt = parseFieldsDateTime(fields);
 		if(!dt){
@@ -516,7 +552,7 @@ class HuangJiMain extends Component{
 			// horosa_wangji_classics_ondemand_v1:典籍正文与主盘并发取(首次)/走模块缓存(其后);
 			// 合并完成后才 setState —— state.pan 里的 sections 恒带 content,导出/切章无空窗。
 			const classicsTask = loadClassicSections(this.state.classicKey).catch(()=>null);
-			const pan = await postWangJi('pan', {
+			const pan = await postWangJiCached('pan', {
 				...dt,
 				historyYear: this.state.historyYear,
 				classicKey: this.state.classicKey,

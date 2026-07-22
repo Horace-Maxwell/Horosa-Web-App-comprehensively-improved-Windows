@@ -107,23 +107,70 @@ describe('🔴 键等性:预取 param ≡ 用户真点会发出的 param', () =>
 			return [{ name: 'tech', path: '/qimen/pan', run: () => Promise.resolve() }];
 		});
 		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 1 }, ASTRO_STATE);
-		// 基准是 07-15;三步 = +1d / +2d / -1d,没有任何一次拿到基准日
-		expect(seen).toEqual(['2026-07-16', '2026-07-17', '2026-07-14']);
-		// 新序:技法端点排在同向 chart 之前(非占星页 gate 面板的是技法端点)
+		// 基准是 07-15;三步 = +1d / -1d / +2d(PERF-R10:plan 数组序 == 提交序),
+		// 没有任何一次拿到基准日 —— 「已步进 fields」纪律不变。
+		expect(seen).toEqual(['2026-07-16', '2026-07-14', '2026-07-17']);
+		// 序不变量:技法端点排在同向 chart 之前(非占星页 gate 面板的是技法端点);
+		// 该输出与 R9 旧实现逐字节同序(近窗 tech 先、远窗 chart 先)。
 		expect(tasks.map((t) => t.name)).toEqual([
 			'tech+1d', 'chart+1d', 'tech-1d', 'chart-1d', 'chart+2d', 'tech+2d',
 		]);
 	});
+
+	// —— PERF-R10 horosa_step_prefetch_arm_v1 新计划形状 ——
+	test('🔴 武装计划(dir=0+depth=3):±1,±2,±3 对称交错,+ 先;时间=逐步累加真序列', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 0, depth: 3 }, ASTRO_STATE);
+		expect(tasks.map((t) => t.name)).toEqual([
+			'chart+1d', 'chart-1d', 'chart+2d', 'chart-2d', 'chart+3d', 'chart-3d',
+		]);
+	});
+
+	test('🔴 有向 + depth=3:[+1, -1, +2, +3](反向只留 ±1,深窗全给同向)', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 1, depth: 3 }, ASTRO_STATE);
+		expect(tasks.map((t) => t.name)).toEqual([
+			'chart+1d', 'chart-1d', 'chart+2d', 'chart+3d',
+		]);
+	});
+
+	test('🔴 skipChart(本地漏斗武装):零 chart 任务,只发技法端点', () => {
+		const fields = mkFields(2026, 7, 15);
+		registerStepPrefetcher('astrochart', () => [
+			{ name: 'tech', path: '/ziwei/birth', run: () => Promise.resolve() },
+		]);
+		const tasks = __buildStepPrefetchTasksForTest(
+			fields, { unit: 'd', dir: 0, depth: 2, skipChart: true }, ASTRO_STATE
+		);
+		expect(tasks.length).toBe(4);   // ±1、±2 各一条技法任务
+		tasks.forEach((t) => {
+			expect(t.path).toBe('/ziwei/birth');
+			expect(t.name.startsWith('tech')).toBe(true);
+		});
+	});
+
+	test('武装计划月末链式:±2 月的时间 = 连点两次的真序列(逐步 add,不一步到位)', () => {
+		const fields = mkFields(2026, 1, 31);
+		registerStepPrefetcher('astrochart', (steppedFields) => [{
+			name: `t@${steppedFields.date.value.format('YYYY-MM-DD')}`,
+			path: '/chart', run: () => Promise.resolve(),
+		}]);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 0, depth: 2 }, ASTRO_STATE);
+		const techDates = tasks.filter((t) => t.name.startsWith('t@')).map((t) => t.name.slice(2, 12));
+		// 溢出滚动语义逐步推演:+1M=03-01、-1M=12-31、+2M=03-01→04-01(绝非一步 +2M 的 03-31)、
+		// -2M=12-31→11-31 溢出滚到 12-01(绝非一步 -2M 的 11-30)—— 与用户连点两次的真序列一致。
+		expect(techDates).toEqual(['2026-03-01', '2025-12-31', '2026-04-01', '2025-12-01']);
+	});
 });
 
 describe('🔴 预算与 latest-wins', () => {
-	test('每 settle ≤5;新一轮 submit 整队替换,旧代任务全弃', async () => {
+	test('每 settle ≤12(PERF-R10 扩容);新一轮 submit 整队替换,旧代任务全弃', async () => {
 		const ran = [];
 		const mk = (tag, n) => Array.from({ length: n }, (_, i) => ({
 			name: `${tag}${i}`, path: '/chart', run: () => { ran.push(`${tag}${i}`); return Promise.resolve(); },
 		}));
 		// rIC 不存在于 jsdom → 降级 setTimeout(250);用真 timer 等
-		submitStepPrefetch(mk('old', 9));           // 超预算的 9 个 → 只留 5
+		submitStepPrefetch(mk('old', 14));          // 超预算的 14 个 → 只留 12(且随后整队被换代)
 		submitStepPrefetch(mk('new', 2));           // 立即换代
 		await new Promise((r) => setTimeout(r, 1400));
 		expect(ran.filter((x) => x.startsWith('old'))).toEqual([]);   // 旧代全弃

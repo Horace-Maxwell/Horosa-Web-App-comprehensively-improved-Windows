@@ -3,6 +3,7 @@ import { message } from 'antd';
 import AstroChart3D from './AstroChart3D';
 import Astro3DSettingsPanel from './Astro3DSettingsPanel';
 import { fetchChart3DState } from '../../services/astro3d';
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import AstroInfo from '../astro/AstroInfo';
 import AstroAspect from '../astro/AstroAspect';
 import AstroPlanet from '../astro/AstroPlanet';
@@ -167,9 +168,10 @@ class AstroChartMain3D extends Component{
 
 	// —— WS-2 全行星中心盘(中心体切换) ——
 
-	/** /chart3d/state 构参:props.fields 的 date/time/zone/ad/lat/lon(与 fieldsToParams 同格式) */
-	buildChart3DParams(center){
-		const f = this.props.fields;
+	/** /chart3d/state 构参:fields 的 date/time/zone/ad/lat/lon(与 fieldsToParams 同格式)。
+	 *  fieldsOverride 供步进预取传【已步进 fields】——与真点共用同一构参路径 = 缓存键逐字节同键。 */
+	buildChart3DParams(center, fieldsOverride){
+		const f = fieldsOverride || this.props.fields;
 		if(!f || !f.date || !f.date.value || !f.time || !f.time.value || !f.lat || !f.lon){
 			return null;
 		}
@@ -313,7 +315,36 @@ class AstroChartMain3D extends Component{
 		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
-	componentWillUnmount(){ clearTimeout(this._sideROT); if(this._sideRO){ try{ this._sideRO.disconnect(); }catch(e){} } }
+	componentDidMount(){
+		// horosa_prefetch_registry_v1(PERF-R10 P6):3D 星盘步进预取 —— 仅非地心中心盘打后端
+		// (geo=纯前端引擎零网络);构参与真点同一 buildChart3DParams 路径(fieldsOverride 版),
+		// fetchChart3DState 自带 stateMem+在途合流,叠加 dedupe '/chart3d' 前缀三层落桶。
+		this._stepPrefetcher = (steppedFields)=>{
+			try{
+				const center = this.state.centerMode;
+				if(!center || center === 'geo'){ return []; }
+				const params = this.buildChart3DParams(center, steppedFields);
+				if(!params){ return []; }
+				return [{
+					name: `chart3d:${center}`,
+					path: '/chart3d/state',
+					run: ()=> fetchChart3DState(params, { silent: true, retry: { retries: 0 } }).catch(()=>{ /* 预取失败静默 */ }),
+				}];
+			}catch(e){
+				return [];
+			}
+		};
+		registerStepPrefetcher('astrochart3D', this._stepPrefetcher);
+	}
+
+	componentWillUnmount(){
+		clearTimeout(this._sideROT);
+		if(this._sideRO){ try{ this._sideRO.disconnect(); }catch(e){} }
+		if(this._stepPrefetcher){
+			unregisterStepPrefetcher('astrochart3D', this._stepPrefetcher);
+			this._stepPrefetcher = null;
+		}
+	}
 
 	render(){
 		let chartObj = this.props.value;

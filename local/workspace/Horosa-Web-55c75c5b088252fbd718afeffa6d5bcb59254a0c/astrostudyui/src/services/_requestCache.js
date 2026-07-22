@@ -62,7 +62,10 @@ function storeFor(ns, max){
 }
 
 // 确定性纯计算 POST + 同参去重 + LRU 结果缓存。
-// cacheOptions: { ns?: string(默认=url), max?: number, enabled?: boolean }
+// cacheOptions: { ns?: string(默认=url), max?: number, enabled?: boolean,
+//                 key?: string —— 显式缓存键(PERF-R10 horosa_moira_stable_key_v1:body 里携带
+//                 非确定性字段[随机 chartId 等]时,调用方以「决定响应的最小参数集」自供键,
+//                 否则同参永不命中 = 缓存退化) }
 // requestOptions.cache === false 也可临时关闭缓存(与 astro.js fetchChart 行为一致)。
 export function cachedPost(url, values, requestOptions, cacheOptions){
 	const opts = requestOptions || {};
@@ -70,7 +73,7 @@ export function cachedPost(url, values, requestOptions, cacheOptions){
 	const ns = cfg.ns || url;
 	const store = storeFor(ns, cfg.max);
 	const disableCache = opts.cache === false || cfg.enabled === false;
-	const key = disableCache ? '' : buildKey(values);
+	const key = disableCache ? '' : (cfg.key !== undefined && cfg.key !== null ? `${cfg.key}` : buildKey(values));
 	if(key && store.mem.has(key)){
 		return Promise.resolve(clonePlain(store.mem.get(key)));
 	}

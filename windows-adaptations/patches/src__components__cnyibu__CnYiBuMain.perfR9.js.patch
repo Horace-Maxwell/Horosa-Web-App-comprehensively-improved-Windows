@@ -1,16 +1,57 @@
 diff --git a/astrostudyui/src/components/cnyibu/CnYiBuMain.js b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-index c6a9e8a..9557072 100644
+index c6a9e8a..df42cab 100644
 --- a/astrostudyui/src/components/cnyibu/CnYiBuMain.js
 +++ b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-@@ -22,6 +22,7 @@ const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-
+@@ -22,10 +22,18 @@ const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-
  const XiaoChengTuMain = React.lazy(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain'));
  const FeiGongMain = React.lazy(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain'));
  import QuickDockBar from '../common/QuickDockBar';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
++import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
  
  
  const TabPane = Tabs.TabPane;
-@@ -276,194 +277,236 @@ class CnYiBuMain extends Component{
+ const CNYIBU_VALID_TABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong'];
++// horosa_prefetch_registry_v1(PERF-R10 P6):可步进预取的确定性子页,显式枚举 ——
++// 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/tarot/xiaoliuren/guice/dice 类)绝不入列
++//(预取=把随机结果钉死;端点级 FORBIDDEN 双闸仍兜底);jinkou 两阶段(pan 需 nongli 真太阳时
++// 种子,来源不走共享桥)暂不入列,待 P0 实测数据决定接线方式;suzhan/tongshefa/feigong 等
++// 吃 props.chart(主 /chart±N 武装已覆盖其上游)。
++const CNYIBU_PREFETCH_TABS = new Set(['huangji', 'taixuan', 'shenyishu']);
+ 
+ function getRuntimeCnYiBuTab(){
+ 	if(typeof window === 'undefined'){
+@@ -155,10 +163,29 @@ class CnYiBuMain extends Component{
+ 		this.unmounted = false;
+ 		// 首渲时子页 ref 尚未挂上,取不到 getQuickDockConfig;挂载后补一拍让 dock 内容就位
+ 		this.forceUpdate();
++		// horosa_prefetch_registry_v1(PERF-R10 P6):cnyibu 单键注册,按活跃子页转发到子组件的
++		// getStepPrefetchTasks(lazy 子页 ref 未挂/未实现该方法/非确定性子页 → [],零网络)。
++		this._stepPrefetcher = (steppedFields)=>{
++			try{
++				const key = this.state.currentTab;
++				if(!CNYIBU_PREFETCH_TABS.has(key)){ return []; }
++				const inst = this.childRefs[key] && this.childRefs[key].current;
++				if(!inst || typeof inst.getStepPrefetchTasks !== 'function'){ return []; }
++				const tasks = inst.getStepPrefetchTasks(steppedFields);
++				return Array.isArray(tasks) ? tasks : [];
++			}catch(e){
++				return [];
++			}
++		};
++		registerStepPrefetcher('cnyibu', this._stepPrefetcher);
+ 	}
+ 
+ 	componentWillUnmount(){
+ 		this.unmounted = true;
++		if(this._stepPrefetcher){
++			unregisterStepPrefetcher('cnyibu', this._stepPrefetcher);
++			this._stepPrefetcher = null;
++		}
+ 	}
+ 
+ 	componentDidUpdate(prevProps){
+@@ -276,194 +303,236 @@ class CnYiBuMain extends Component{
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab="宿盘" key="suzhan">

@@ -13,6 +13,34 @@ public class AstroHelper {
 	private static final boolean DisableRequestCache = PropertyPlaceholder.getPropertyAsBool("astrohelper.disable.request.cache", false);
 	private static final int RequestCacheExpInSec = PropertyPlaceholder.getPropertyAsInt("astrohelper.request.cache.expireinsecond", 86400);
 
+	// horosa_astrohelper_skip_inner_v1(PERF-R10 B7):外层已被 ParamHashCacheHelper 包裹的
+	// 五个路径("/"=/chart、Chart13、Chart12、IndiaChart、JieQiYear),内层 request() 再包一次
+	// = 同 scope 同参数 ⇒ **内外两层写同一个缓存文件**:冷路径多付一次 hash+persistable+同步
+	// 文件写;更险的是 /chart13 等外层装配(补 nongli 等)后覆写同一文件 —— 装配 lambda 若在
+	// 内层已写、外层未写之间抛异常,下一个请求会把未装配的 Python 原始响应当外层命中直接返回。
+	// 桌面传 -Dastrohelper.skip.inner.cached.paths=true 让这五个路径的内层直通(响应字节不变:
+	// 外层保存前有自己的 persistable() 归一)。保守枚举绝不通配:/jieqi/birth、/predict/* 等
+	// 无外层包裹者,内层缓存是它们唯一的缓存,一个都不能跳。
+	// 开关读取与 ParamHashCacheHelper.resolveBoolFlag 同源(先 -D 再属性文件;
+	// PropertyPlaceholder 不读 -D,-- 程序参数只能覆盖已存在键 —— 判别铁律①)。
+	private static boolean resolveBoolFlag(String key, boolean def) {
+		String sys = System.getProperty(key);
+		if(sys != null && sys.length() > 0) {
+			return "true".equalsIgnoreCase(sys) || "1".equals(sys);
+		}
+		return PropertyPlaceholder.getPropertyAsBool(key, def);
+	}
+	private static final boolean SkipInnerForOuterWrapped = resolveBoolFlag("astrohelper.skip.inner.cached.paths", false);
+	private static java.util.Set<String> OuterWrappedPaths = null;
+	private static java.util.Set<String> outerWrappedPaths(){
+		// 惰性:路径常量在本类更靠后的静态段初始化,惰性求值免去对字段文本顺序的依赖。
+		if(OuterWrappedPaths == null){
+			OuterWrappedPaths = new java.util.HashSet<String>(java.util.Arrays.asList(
+				"/", Chart13, Chart12, IndiaChart, JieQiYear));
+		}
+		return OuterWrappedPaths;
+	}
+
 	public static final String AstroSrvUrl = PropertyPlaceholder.getProperty("astrosrv", "http://127.0.0.1:8899");
 	public static final String SolarReturn = PropertyPlaceholder.getProperty("solarreturn", "/predict/solarreturn");
 	public static final String LunarReturn = PropertyPlaceholder.getProperty("lunarreturn", "/predict/lunarreturn");
@@ -62,6 +90,11 @@ public class AstroHelper {
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
 		if(Debug || DisableRequestCache) {
+			return requestNoCache(path, params);
+		}
+		if(SkipInnerForOuterWrapped && outerWrappedPaths().contains(path)) {
+			// horosa_astrohelper_skip_inner_v1:外层 Controller 已包 ParamHashCacheHelper,
+			// 内层直通 —— 见类头注释(撞键隐患 + 冷路径双写)。
 			return requestNoCache(path, params);
 		}
 		Object obj = ParamHashCacheHelper.get(path, params, (args)->{

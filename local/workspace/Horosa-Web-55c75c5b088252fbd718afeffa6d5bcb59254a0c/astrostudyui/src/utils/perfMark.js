@@ -189,12 +189,13 @@ export function markPanelReady(technique){
 	if(technique && stepTech && stepTech !== '-' && technique !== stepTech){ return; }
 	// 跨度上限:悬空起点 + 很久以后的一次 ready = 垃圾。丢弃并清掉起点,避免它继续污染后续。
 	if((nowMs() - stepT0) > MAX_SPAN_MS){ stepT0 = 0; return; }
-	const gen = stepGen;
 	const t0 = stepT0;
 	const tech = technique || stepTech;
 	stepT0 = 0;   // 立刻消费,后续 setState 不再记
+	// horosa_panel_ready_no_gen_void_v1:t0/tech 在此已定格,「这次点击→这次绘制」的事实
+	// 不因双 rAF 窗口(~32ms)内出现新 pointerdown 而改变。旧守卫(gen 变化即弃)防的只是
+	// ≤2 帧的膨胀,却让快节奏连点下几乎每条样本作废 —— 慢面板技法(七政/印占)因此恒零样本。
 	const finish = ()=>{
-		if(gen !== stepGen && stepT0){ return; }   // 期间又来了新交互 → 本条作废
 		record(tech, 'interaction', 'panel-ready', nowMs() - t0);
 		try{
 			if(typeof performance !== 'undefined' && performance.mark){

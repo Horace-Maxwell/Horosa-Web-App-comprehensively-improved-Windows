@@ -94,9 +94,17 @@ def repeat_list(n, thelist):
     return [repetition for i in thelist for repetition in repeat(i,n)]
 
 #%% 甲子平支
+# horosa_kin_jiazi_const_v1(PERF-R10 B2):编译期常量提升,copy-return 等价。
+import os as _os
+_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
+_JIAZI_CONST = ["{}{}".format('甲乙丙丁戊己庚辛壬癸'[x % 10], '子丑寅卯辰巳午未申酉戌亥'[x % 12]) for x in range(60)]
+_MINUTES_JIAZI_CACHE = {}
+
 def jiazi():
-    Gan, Zhi = '甲乙丙丁戊己庚辛壬癸', '子丑寅卯辰巳午未申酉戌亥'
-    return list(map(lambda x: "{}{}".format(Gan[x % len(Gan)], Zhi[x % len(Zhi)]), list(range(60))))
+    if not _KIN_CONST_ON:
+        Gan, Zhi = '甲乙丙丁戊己庚辛壬癸', '子丑寅卯辰巳午未申酉戌亥'
+        return list(map(lambda x: "{}{}".format(Gan[x % len(Gan)], Zhi[x % len(Zhi)]), list(range(60))))
+    return list(_JIAZI_CONST)
 
 
 def generate_ranges(start, n, num_ranges):
@@ -259,6 +267,13 @@ def find_lunar_minute(hour):
     return new_list(jiazi(), result)
 #分干支
 def minutes_jiazi_d(hour):
+    if _KIN_CONST_ON:
+        cached = _MINUTES_JIAZI_CACHE.get(hour)
+        if cached is None:
+            t = [f"{h}:{m}" for h in range(24) for m in range(60)]
+            cached = dict(zip(t, cycle(repeat_list(1, find_lunar_minute(hour)))))
+            _MINUTES_JIAZI_CACHE[hour] = cached
+        return dict(cached)
     t = [f"{h}:{m}" for h in range(24) for m in range(60)]
     minutelist = dict(zip(t, cycle(repeat_list(1, find_lunar_minute(hour)))))
     return minutelist

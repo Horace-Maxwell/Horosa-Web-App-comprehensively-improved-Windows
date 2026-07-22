@@ -216,12 +216,29 @@ def find_lunar_ke(hour):
         result = multi_key_dict_get(fivehourses, hour[0])
     return new_list(jiazi(), result)
      
+# horosa_kin_jiazi_const_v1(PERF-R10 B2):编译期常量提升,copy-return 等价;
+# 表缓存按参数键,dict() 浅拷贝保「每次新容器」契约。kill:HOROSA_KIN_JIAZI_CONST=0。
+import os as _os
+_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
+_JIAZI_CONST = [tiangan[x % len(tiangan)] + dizhi[x % len(dizhi)] for x in range(60)]
+_KE_JIAZI_CACHE = {}
+_MINUTES_JIAZI_CONST = None
+
 def ke_jiazi_d(hour):
+    if _KIN_CONST_ON:
+        cached = _KE_JIAZI_CACHE.get(hour)
+        if cached is None:
+            t = [f"{h}:{m}0" for h in range(24) for m in range(6)]
+            cached = dict(zip(t, cycle(repeat_list(1, find_lunar_ke(hour)))))
+            _KE_JIAZI_CACHE[hour] = cached
+        return dict(cached)
     t = [f"{h}:{m}0" for h in range(24) for m in range(6)]
     minutelist = dict(zip(t, cycle(repeat_list(1, find_lunar_ke(hour)))))
     return minutelist
 
 def jiazi():
+    if _KIN_CONST_ON:
+        return list(_JIAZI_CONST)
     jiazi = [tiangan[x % len(tiangan)] + dizhi[x % len(dizhi)] for x in range(60)]
     return jiazi
      
@@ -229,6 +246,15 @@ def repeat_list(n, thelist):
     return [repetition for i in thelist for repetition in repeat(i,n) ]
 #分干支
 def minutes_jiazi_d():
+    global _MINUTES_JIAZI_CONST
+    if _KIN_CONST_ON:
+        if _MINUTES_JIAZI_CONST is None:
+            t = []
+            for h in range(0,24):
+                for m in range(0,60):
+                    t.append(str(h)+":"+str(m))
+            _MINUTES_JIAZI_CONST = dict(zip(t, cycle(repeat_list(2, jiazi()))))
+        return dict(_MINUTES_JIAZI_CONST)
     t = []
     for h in range(0,24):
         for m in range(0,60):

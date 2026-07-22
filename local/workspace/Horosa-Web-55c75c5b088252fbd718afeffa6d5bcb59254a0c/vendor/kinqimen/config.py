@@ -875,3 +875,32 @@ if __name__ == '__main__':
 
 
 
+
+
+# horosa_qimen_req_memo_v1(PERF-R10 B1)—— 请求级 memo 重绑定(机制在 jieqi._req_memo,
+# 键含两个日界开关;webqimensrv 每请求 begin 即清)。kinqimen.py 走 `import config` 的
+# 属性查找 ⇒ 调用时拿到的就是包装体;本模块内互调经 globals 同理。
+# ★ pan_sky_minute 永不得入 memo:kinqimen.py 对其返回值 `del sky["中"]` 就地变异,
+#   memo 会让第二次调用拿到已被挖掉「中」的共享盘(隐蔽功能改变)。谁想「补全这一套」,
+#   先读 kinqimen.py 顶部同名警示。
+import jieqi as _memo_host
+findyuen = _memo_host._req_memo(findyuen)
+findyuen_minute = _memo_host._req_memo(findyuen_minute)
+findyuen_dict = _memo_host._req_memo(findyuen_dict)
+minutes_jiazi_d = _memo_host._req_memo(minutes_jiazi_d)
+qimen_ju_name_chaibu = _memo_host._req_memo(qimen_ju_name_chaibu)
+qimen_ju_name_zhirun_raw = _memo_host._req_memo(qimen_ju_name_zhirun_raw)
+qimen_ju_name_zhirun = _memo_host._req_memo(qimen_ju_name_zhirun)
+qimen_ju_name_maoshan = _memo_host._req_memo(qimen_ju_name_maoshan)
+qimen_ju_name_wurun = _memo_host._req_memo(qimen_ju_name_wurun)
+dingju_jieqi = _memo_host._req_memo(dingju_jieqi)
+qimen_ju_name_ke = _memo_host._req_memo(qimen_ju_name_ke)
+pan_earth_minute = _memo_host._req_memo(pan_earth_minute)
+pan_earth_min_r = _memo_host._req_memo(pan_earth_min_r)
+zhifu_pai = _memo_host._req_memo(zhifu_pai)
+zhifu_pai_ke = _memo_host._req_memo(zhifu_pai_ke)
+zhishi_pai = _memo_host._req_memo(zhishi_pai)
+zhishi_pai_ke = _memo_host._req_memo(zhishi_pai_ke)
+zhifu_n_zhishi = _memo_host._req_memo(zhifu_n_zhishi)
+zhifu_tiangan = _memo_host._req_memo(zhifu_tiangan)
+zhifu_n_zhishi_ke = _memo_host._req_memo(zhifu_n_zhishi_ke)

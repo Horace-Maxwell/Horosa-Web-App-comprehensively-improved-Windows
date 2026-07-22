@@ -623,4 +623,62 @@ apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/ton
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js      src__components__xiaochengtu__XiaoChengTuMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js        src__components__xiaoliuren__XiaoLiuRenMain.perfR9.js.patch
 
+echo "== 33. PERF-R10 Ship2「选步长即武装」预取(horosa_step_prefetch_arm_v1)=="
+# 病根:预取单位只来自上一次步进 hint(无 hint 硬编码 'm'),选完新步长的第一下必 miss(owner
+# 原话「第一下卡之后不卡」);且紫微/遁甲步进走本地漏斗不经 fetchByFields,登记的预取器从未触发。
+# 武装 = 四个时机(选步长/settle/本地漏斗/切页签)按当前档位预好 ±1..±depth:
+#   · stepPrefetchArm.js 是 **Windows 原创新文件** → 全量拷贝层(同 §31d 理由);其余 12 个
+#     目标的改动已并入各自累积补丁(guard 取最新 marker,gotcha #48,本节不重复开行);
+#   · DateTimeSelector 是全站唯一步长入口,首次进契约 → 新补丁行在下方;
+#   · kill-switch:horosa.perf.stepPrefetchArm(关=只剩 R9 步进后预取)/ stepPrefetchDepth(0..5)。
+cp "$OV/files/astrostudyui/src/utils/stepPrefetchArm.js"                      "$WS/astrostudyui/src/utils/stepPrefetchArm.js"                      && ok "stepPrefetchArm.js"
+cp "$OV/files/astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js"       "$WS/astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js"       && ok "stepPrefetchArm.test.js"
+cp "$OV/files/astrostudyui/src/utils/__tests__/perfMark.test.js"              "$WS/astrostudyui/src/utils/__tests__/perfMark.test.js"              && ok "perfMark.test.js"
+apply_patch horosa_step_prefetch_arm_v1          astrostudyui/src/components/comp/DateTimeSelector.js            src__components__comp__DateTimeSelector.stepArm.js.patch
+# ---- 33b PERF-R10 Ship5/6 前端缓存统一 + 温启现场恢复 ----
+#   · kentang L3(horosa_kentang_l3_v1)在 _kentangResultCache.js 内 —— 该文件本就走 §1 的
+#     files/ 全量拷贝,不另开行(files/ 副本与工作区已同步,双份纪律见 CONTRACT_EXEMPTIONS 耦合表);
+#   · moira 稳定键(horosa_moira_stable_key_v1):chartObj.chartId 每盘随机 → 旧键同参永不命中;
+#   · bootChartRestore(horosa_boot_chart_restore_v1,owner 拍板默认开):温启按上次快照重放
+#     fetchByChartData —— L3 命中时后端未就绪也能先画(「秒开上次工作现场」)。
+mkdir -p "$WS/astrostudyui/src/services/__tests__"
+cp "$OV/files/astrostudyui/src/utils/bootChartRestore.js"                     "$WS/astrostudyui/src/utils/bootChartRestore.js"                     && ok "bootChartRestore.js"
+cp "$OV/files/astrostudyui/src/utils/__tests__/bootChartRestore.test.js"      "$WS/astrostudyui/src/utils/__tests__/bootChartRestore.test.js"      && ok "bootChartRestore.test.js"
+cp "$OV/files/astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js"  "$WS/astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js"  && ok "perfR10CacheUnify.test.js"
+# 选项 Hamming-1 投机(horosa_option_prefetch_v1):首铺二值轴(零域风险);多值轴(hsys/
+# ayanamsa/学派等)值域在各表单组件,待接入时由组件登记 —— 绝不在 util 里臆造值域。
+cp "$OV/files/astrostudyui/src/utils/optionPrefetch.js"                       "$WS/astrostudyui/src/utils/optionPrefetch.js"                       && ok "optionPrefetch.js"
+cp "$OV/files/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        "$WS/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        && ok "optionPrefetch.test.js"
+apply_patch horosa_boot_chart_restore_v1         astrostudyui/src/models/app.js                                   src__models__app.bootChartRestore.js.patch
+apply_patch horosa_moira_stable_key_v1           astrostudyui/src/services/qizheng.js                             src__services__qizheng.moiraStableKey.js.patch
+apply_patch horosa_moira_stable_key_v1           astrostudyui/src/services/_requestCache.js                       src__services___requestCache.cfgKey.js.patch
+
+echo "== 34. PERF-R10 Ship3 后端 Python 五连(奇门请求级 memo / kin 常量全族 / display translate / 高纬度限界 / fastjson)=="
+# 全部五项:黄金全矩阵 3823 例 ZERO DRIFT + 五开关合并置 0 复跑同样 ZERO DRIFT;
+# B1 另有 soak_qimen.py 8 线程×1600 请求并发浸泡零漂移(tracked,golden/ 下常备金丝雀)。
+# 实测:全矩阵墙钟 252.7s→96.4s(-62%);north-hi 整盘 8417ms→185ms(45×,响应字节不变)。
+# ★ 累积补丁 guard 一律取文件内最新 marker(gotcha #48);kinqimen 两件/kinastro_common/
+#   perchart/webchartsrv 为既有补丁就地更新,不另开行。
+apply_patch horosa_qimen_req_memo_v1             astropy/websrv/webqimensrv.py                                    astropy__webqimensrv.reqMemo.py.patch
+apply_patch horosa_fast_json_encode_v1           astropy/websrv/webpredictsrv.py                                  astropy__webpredictsrv.fastJson.py.patch
+# —— kin 常量 copy-return 全族(HOROSA_KIN_JIAZI_CONST 一把闸)——
+apply_patch horosa_kin_jiazi_const_v1            vendor/kintaiyi/src/kintaiyi/jieqi.py                            vendor__kintaiyi__jieqi.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/kintaiyi/src/kintaiyi/config.py                           vendor__kintaiyi__config.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/kintaiyi/src/kintaiyi/kinliuren.py                        vendor__kintaiyi__kinliuren.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/kinwuzhao/jieqi.py                                        vendor__kinwuzhao__jieqi.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/kinwuzhao/config.py                                       vendor__kinwuzhao__config.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/shenyishu/shenyishu.py                                    vendor__shenyishu__shenyishu.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py            vendor__kinjinkou__jinkoujue_api.kinConst.py.patch
+apply_patch horosa_kin_jiazi_const_v1            vendor/kinastro/astro/fendjing/fendjing_calculator.py            vendor__kinastro__fendjing_calculator.kinConst.py.patch
+# translate 等价金标(astropy/tests 是 Mac 基线树,新测试文件走全量拷贝层)
+mkdir -p "$WS/astropy/tests"
+cp "$OV/files/astropy/tests/test_kentang_display_fast.py" "$WS/astropy/tests/test_kentang_display_fast.py" && ok "test_kentang_display_fast.py"
+
+echo "== 35. PERF-R10 Ship4 后端 Java 双项(comm 缓存 -D 豁免 / chart 家族内层缓存跳过+撞键根治;REQUIRES a jar rebuild)=="
+# 响应字节不变(三臂 A/B:LIVE 旧 jar vs 新 jar+旗标 vs 新 jar 无旗标,四端点冷/温逐字节等);
+# 未动模块零回归铁证:boundless/basecomm nested jar sha == LIVE。启动器新增两条 -D:
+#   -Dcachehelper.needcache=false / -Dastrohelper.skip.inner.cached.paths=true(service-manager.js)。
+apply_patch cachehelper.needcache                astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/CacheHelper.java   astrostudy__CacheHelper.needcacheSysprop.java.patch
+apply_patch astrohelper.skip.inner.cached.paths  astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java   astrostudy__AstroHelper.skipInnerCache.java.patch
+
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="

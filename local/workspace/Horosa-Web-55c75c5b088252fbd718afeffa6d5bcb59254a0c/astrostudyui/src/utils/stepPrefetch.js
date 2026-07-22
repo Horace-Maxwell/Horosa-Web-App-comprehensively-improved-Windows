@@ -79,7 +79,10 @@ export const PREFETCH_FORBIDDEN_MARKERS = [
 ];
 
 // 预算:技法端点必须排在 chart 之前(非占星页是技法端点在 gate 面板)。
-const BUDGET_PER_SETTLE = 5;
+// PERF-R10 horosa_step_prefetch_arm_v1:5→12 —— 武装深度 ±3 时一轮最多 6 目标 ×(chart+技法)
+// ≈ 12 任务;串行泵 + 自适应间隔即节流阀(后端 CherryPy 池 30、最坏并发 ~13,余量 >2× 已核),
+// 已在缓存里的目标由 chartMem/L1 即时吸收,真实网络数远小于任务数。
+const BUDGET_PER_SETTLE = 12;
 // 自适应间隔下限:任务间至少 80ms;实际间隔取 max(80, 上个任务耗时) —— 重端点自然拉长错峰。
 const MIN_GAP_MS = 80;
 

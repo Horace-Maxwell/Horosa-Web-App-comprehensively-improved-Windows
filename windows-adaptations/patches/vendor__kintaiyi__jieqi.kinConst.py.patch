@@ -1,0 +1,42 @@
+diff --git a/vendor/kintaiyi/src/kintaiyi/jieqi.py b/vendor/kintaiyi/src/kintaiyi/jieqi.py
+index b168280..5569523 100644
+--- a/vendor/kintaiyi/src/kintaiyi/jieqi.py
++++ b/vendor/kintaiyi/src/kintaiyi/jieqi.py
+@@ -21,8 +21,22 @@ tian_gan = '甲乙丙丁戊己庚辛壬癸'
+ di_zhi = '子丑寅卯辰巳午未申酉戌亥'
+ 
+ #%% 甲子平支
++# horosa_kin_jiazi_const_v1(PERF-R10 B2):六十甲子/刻表是编译期常量,原实现每次调用重建
++# (60 次 lambda+format / 每刻表 144 键 dict)。copy-return(list(_C)/dict(cached))与逐次
++# 重建逐字节等价 —— 「每次新容器」契约保持,调用点变异审计降级为纵深防御。
++# kill:HOROSA_KIN_JIAZI_CONST=0 ⇒ 原实现原文路径。
++# 勿重复劳动:kinwangji 两树与 kinastro/astro/wangji、kinastro/astro/bazi 上游已做
++# (@lru_cache/_JIAZI_SEQ);kinjinkou 平铺 jieqi.py 与 kinastro/astro/sanshi/kinliuren*.py
++# 是服务死代码(import 图核实,只被 streamlit app 引用)。
++import os as _os
++_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
++_JIAZI_CONST = ["{}{}".format(tian_gan[x % len(tian_gan)], di_zhi[x % len(di_zhi)]) for x in range(60)]
++_KE_JIAZI_CACHE = {}
++
+ def jiazi():
+-    return list(map(lambda x: "{}{}".format(tian_gan[x % len(tian_gan)],di_zhi[x % len(di_zhi)]),list(range(60))))
++    if not _KIN_CONST_ON:
++        return list(map(lambda x: "{}{}".format(tian_gan[x % len(tian_gan)],di_zhi[x % len(di_zhi)]),list(range(60))))
++    return list(_JIAZI_CONST)
+ 
+ 
+ def multi_key_dict_get(d, k):
+@@ -144,6 +158,13 @@ def jq(year, month, day, hour, minute):
+         raise ValueError(f"Error in jq for {year}-{month}-{day} {hour}:{minute}: {str(e)}")
+ 
+ def ke_jiazi_d(hour):
++    if _KIN_CONST_ON:
++        cached = _KE_JIAZI_CACHE.get(hour)
++        if cached is None:
++            t = [f"{h}:{m}0" for h in range(24) for m in range(6)]
++            cached = dict(zip(t, cycle(repeat_list(1, find_lunar_ke(hour)))))
++            _KE_JIAZI_CACHE[hour] = cached
++        return dict(cached)
+     t = [f"{h}:{m}0" for h in range(24) for m in range(6)]
+     minutelist = dict(zip(t, cycle(repeat_list(1, find_lunar_ke(hour)))))
+     return minutelist

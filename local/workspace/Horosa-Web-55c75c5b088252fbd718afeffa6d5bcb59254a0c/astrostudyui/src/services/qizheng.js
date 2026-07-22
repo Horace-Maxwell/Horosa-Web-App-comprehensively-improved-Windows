@@ -7,8 +7,25 @@ import { cachedPost } from './_requestCache';
 // 七政四余是确定性纯计算(同 params 必产同结果);对其加「同参复用 + 在途合并」让重开/来回切瞬时,
 // 命中返回的是同一结果的深拷贝(与直连逐值等价、只更快)。不同 params → 不同 key → 重新请求。
 
+// horosa_moira_stable_key_v1(PERF-R10 Ship5):body 里的 chartObj/transitChartObj 携带
+// 每次出盘随机的 chartId(models/astro.js `Result.chartId = randomStr(8)`)⇒ 以整个 body 为键
+// **同参永不命中**(缓存退化为纯开销,还要先付一次 ~420KB 的 JSON.stringify)。
+// 响应由 (params, transitParams) 完备决定 —— chartObj 本身就是 params 的纯函数(黄金已证),
+// 故键取双 params 签名;moira 仍在 PREFETCH_FORBIDDEN(默认过运=「此刻」),本修只救同参重放。
+function stableMoiraKey(values){
+	try{
+		const v = values || {};
+		return JSON.stringify({ params: v.params || null, transitParams: v.transitParams || null });
+	}catch(e){
+		return '';   // 构键失败 ⇒ 空键 = 不缓存(fail-open 到直连,绝不误共享)
+	}
+}
+
 export function fetchMoiraQizhengRules(values, requestOptions){
-	return cachedPost(`${ServerRoot}/qizheng/moira`, values || {}, requestOptions, { ns: 'qizheng/moira' });
+	return cachedPost(`${ServerRoot}/qizheng/moira`, values || {}, requestOptions, {
+		ns: 'qizheng/moira',
+		key: stableMoiraKey(values),
+	});
 }
 
 // ken 后端 /qizhengkin/pan 不走 AstroHelper 缓存层 → 这里在前端做同参去重 + LRU(48 条)。

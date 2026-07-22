@@ -21,6 +21,18 @@ from astro.i18n import t, auto_cn
 TIANGAN = list("甲乙丙丁戊己庚辛壬癸")
 DIZHI = list("子丑寅卯辰巳午未申酉戌亥")
 
+# horosa_kin_jiazi_const_v1(PERF-R10 B2):两处嵌套 def jiazi() 每次调用重建六十甲子 →
+# 提升为模块常量;_jiazi_seq() 的返回只进 new_list(index+切片拼接,产新列表,零变异),
+# 共享常量安全。kill:HOROSA_KIN_JIAZI_CONST=0 ⇒ 逐次重建旧路径。
+import os as _os
+_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
+_JIAZI_SEQ_CONST = [TIANGAN[x % len(TIANGAN)] + DIZHI[x % len(DIZHI)] for x in range(60)]
+
+def _jiazi_seq():
+    if _KIN_CONST_ON:
+        return _JIAZI_SEQ_CONST
+    return [TIANGAN[x % len(TIANGAN)] + DIZHI[x % len(DIZHI)] for x in range(60)]
+
 # 十二宮名稱
 TWELVE_PALACES: list[str] = [
     "命宮", "兄弟", "夫妻", "子女",
@@ -67,15 +79,12 @@ def _find_lunar_month(year_gz: str) -> dict[int, str]:
     if result is None:
         result = "丙寅"
     
-    # 生成 12 個月的干支
-    def jiazi():
-        return [TIANGAN[x % len(TIANGAN)] + DIZHI[x % len(DIZHI)] for x in range(60)]
-    
+    # 生成 12 個月的干支(horosa_kin_jiazi_const_v1:嵌套重建 → 模块常量,new_list 产新列表零变异)
     def new_list(olist, o):
         a = olist.index(o)
         return olist[a:] + olist[:a]
-    
-    month_list = new_list(jiazi(), result)[:12]
+
+    month_list = new_list(_jiazi_seq(), result)[:12]
     return dict(zip(range(1, 13), month_list))
 
 
@@ -99,14 +108,11 @@ def _find_lunar_hour(day_gz: str) -> dict[str, str]:
     if result is None:
         result = "甲子"
     
-    def jiazi():
-        return [TIANGAN[x % len(TIANGAN)] + DIZHI[x % len(DIZHI)] for x in range(60)]
-    
     def new_list(olist, o):
         a = olist.index(o)
         return olist[a:] + olist[:a]
-    
-    hour_list = new_list(jiazi(), result)[:12]
+
+    hour_list = new_list(_jiazi_seq(), result)[:12]
     return dict(zip(DIZHI, hour_list))
 
 

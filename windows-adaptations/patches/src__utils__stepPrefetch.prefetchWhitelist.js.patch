@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/stepPrefetch.js b/astrostudyui/src/utils/stepPrefetch.js
-index ba357b5..528edb2 100644
+index ba357b5..a5ce2b6 100644
 --- a/astrostudyui/src/utils/stepPrefetch.js
 +++ b/astrostudyui/src/utils/stepPrefetch.js
 @@ -1,4 +1,4 @@
@@ -8,7 +8,7 @@ index ba357b5..528edb2 100644
  //
  // 原理:点步进(±步长)时「下一步」的时间完全可预测。主请求 settle 后,空闲时把相邻
  // 1-2 步的 /chart(及当前技法登记的端点)预先算好塞进既有缓存(chartMem/requestDedupe)——
-@@ -9,34 +9,158 @@
+@@ -9,34 +9,161 @@
  //   ② latest-wins 代际令牌:新一轮 submit 整队替换,旧代排队任务全弃
  //      (已在途的网络请求不 abort —— 结果仍可入缓存,无害);
  //   ③ requestIdleCallback 调度(降级 setTimeout 250ms) + 串行并发 1;
@@ -86,7 +86,10 @@ index ba357b5..528edb2 100644
 -const BUDGET_PER_SETTLE = 3;
 -const MIN_GAP_MS = 150;
 +// 预算:技法端点必须排在 chart 之前(非占星页是技法端点在 gate 面板)。
-+const BUDGET_PER_SETTLE = 5;
++// PERF-R10 horosa_step_prefetch_arm_v1:5→12 —— 武装深度 ±3 时一轮最多 6 目标 ×(chart+技法)
++// ≈ 12 任务;串行泵 + 自适应间隔即节流阀(后端 CherryPy 池 30、最坏并发 ~13,余量 >2× 已核),
++// 已在缓存里的目标由 chartMem/L1 即时吸收,真实网络数远小于任务数。
++const BUDGET_PER_SETTLE = 12;
 +// 自适应间隔下限:任务间至少 80ms;实际间隔取 max(80, 上个任务耗时) —— 重端点自然拉长错峰。
 +const MIN_GAP_MS = 80;
  
@@ -171,7 +174,7 @@ index ba357b5..528edb2 100644
  
  function scheduleIdle(fn){
  	if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
-@@ -62,29 +186,56 @@ function pump(){
+@@ -62,29 +189,56 @@ function pump(){
  			pump();
  			return;
  		}
@@ -232,7 +235,7 @@ index ba357b5..528edb2 100644
  	pump();
  }
  
-@@ -94,7 +245,10 @@ const REGISTRY = new Map();
+@@ -94,7 +248,10 @@ const REGISTRY = new Map();
  
  /**
   * @param {string} tabKey 主 tab 键(state.astro.currentTab 口径)
@@ -244,7 +247,7 @@ index ba357b5..528edb2 100644
   */
  export function registerStepPrefetcher(tabKey, fn){
  	if(tabKey && typeof fn === 'function'){
-@@ -102,6 +256,12 @@ export function registerStepPrefetcher(tabKey, fn){
+@@ -102,6 +259,12 @@ export function registerStepPrefetcher(tabKey, fn){
  	}
  }
  
@@ -257,7 +260,7 @@ index ba357b5..528edb2 100644
  export function getStepPrefetcher(tabKey){
  	return REGISTRY.get(tabKey);
  }
-@@ -111,5 +271,8 @@ export function __resetStepPrefetch(){
+@@ -111,5 +274,8 @@ export function __resetStepPrefetch(){
  	generation += 1;
  	queue = [];
  	running = false;

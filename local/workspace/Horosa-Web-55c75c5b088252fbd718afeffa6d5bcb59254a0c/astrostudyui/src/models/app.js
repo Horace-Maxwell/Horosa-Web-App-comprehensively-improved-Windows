@@ -6,6 +6,7 @@ import * as Constants from '../utils/constants';
 import * as appService from '../services/app';
 import {setDispatch} from '../utils/request';
 import {detectPlatform} from '../utils/helper';
+import { loadBootChartSnapshot } from '../utils/bootChartRestore';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
 import { normalizeAppearanceMode } from '../utils/appearance';
@@ -769,7 +770,22 @@ export default {
             dispatch({
                 type: 'rules/ziwei',
                 payload:{},
-            });                           
+            });
+
+            // horosa_boot_chart_restore_v1(PERF-R10 S2):温启恢复上次工作现场 —— 快照按
+            // fetchByChartData 的 record 口径重放(与「手动载入命盘」逐字节同管线:选项条件
+            // 还原/memo 覆盖/hook 全套)。L3 命中时后端未就绪也能先画;miss 时经 boot 门排队,
+            // 与用户手动出盘无异。仅桌面壳 + 7 天窗 + kill-switch,全部在 loadBootChartSnapshot
+            // 内裁决;用户启动瞬间手动出盘 → fieldsEpoch latest-wins 作废恢复响应,零打架。
+            try{
+                const bootSnap = loadBootChartSnapshot();
+                if(bootSnap){
+                    if(bootSnap.currentTab){
+                        dispatch({ type: 'astro/save', payload: { currentTab: bootSnap.currentTab } });
+                    }
+                    dispatch({ type: 'astro/fetchByChartData', payload: bootSnap.record });
+                }
+            }catch(e){ /* 恢复是优化不是功能,失败静默回空白默认态 */ }
 
             return ()=>{
                 window.removeEventListener('resize', handleResize);

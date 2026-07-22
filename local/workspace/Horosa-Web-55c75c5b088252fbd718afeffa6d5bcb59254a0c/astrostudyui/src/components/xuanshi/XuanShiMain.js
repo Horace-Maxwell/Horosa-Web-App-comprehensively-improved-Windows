@@ -7,6 +7,7 @@ import {
 } from '../../utils/xuanshiState';
 import { fetchSummary, fetchEvents, fetchDaily, fetchFigures } from '../../services/xuanshi';
 import { firstLoadParallelEnabled } from '../../utils/perfFlags';
+import { markPanelReady } from '../../utils/perfMark';
 import XuanShiEvents from './XuanShiEvents';
 import XuanShiCelestial from './XuanShiCelestial';
 import XuanShiMicro from './XuanShiMicro';
@@ -174,9 +175,11 @@ export default class XuanShiMain extends React.Component {
 		if (parallel) { fireTasters(); }
 		try {
 			const summary = await fetchSummary();
-			this.setState({ summary, summaryLoading: false });
+			// horosa_panel_ready_v1:总览门控主体渲染,summary 落定即首屏「画完」终点
+			// (其余 3 路到达即填充,不门控);失败终态同样盖章 —— 错误横幅画出也终结本次交互。
+			this.setState({ summary, summaryLoading: false }, () => { markPanelReady('xuanshi'); });
 		} catch (e) {
-			this.setState({ summaryLoading: false, summaryErr: `${e && e.message ? e.message : e}` });
+			this.setState({ summaryLoading: false, summaryErr: `${e && e.message ? e.message : e}` }, () => { markPanelReady('xuanshi'); });
 		}
 		if (!parallel) { fireTasters(); }
 	}

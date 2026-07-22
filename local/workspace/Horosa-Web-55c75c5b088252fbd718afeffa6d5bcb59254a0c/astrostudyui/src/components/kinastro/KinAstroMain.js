@@ -33,6 +33,8 @@ import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '.
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled, techniqueResultCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
@@ -961,9 +963,42 @@ class KinAstroMain extends Component{
 		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
+	// horosa_prefetch_registry_v1(PERF-R10 P6):数算/其他/演禽 的步进预取登记。
+	// 「已步进 fields」走与真点完全相同的 buildPayload+postKinAstro 路径(缓存键
+	// serviceKey|payload 逐字节同键);native 技法(参评/河洛/正传/一掌经,本地引擎)
+	// 与构参失败一律返回 [](零网络)。登记键 = 页签 moduleKey;换轨跨模块键
+	// (mingother↔yanqin)时必须迁移登记,否则新键查不到预取器。
+	_syncStepPrefetcher(){
+		const key = this.config.moduleKey;
+		if(this._stepPrefetchKey === key && this._stepPrefetcher){
+			return;
+		}
+		if(this._stepPrefetchKey && this._stepPrefetcher){
+			unregisterStepPrefetcher(this._stepPrefetchKey, this._stepPrefetcher);
+		}
+		this._stepPrefetcher = (steppedFields)=>{
+			try{
+				if(this.config.native){ return []; }
+				const payload = this.buildPayload(steppedFields);
+				if(!payload){ return []; }
+				const sk = this.config.serviceKey;
+				return [{
+					name: sk,
+					path: `/${sk}/pan`,
+					run: ()=> postKinAstro(sk, payload).catch(()=>{ /* 预取失败静默 */ }),
+				}];
+			}catch(e){
+				return [];
+			}
+		};
+		this._stepPrefetchKey = key;
+		registerStepPrefetcher(key, this._stepPrefetcher);
+	}
+
 	componentDidMount(){
 		this.unmounted = false;
 		setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+		this._syncStepPrefetcher();
 		// fields→state 首次同步（性别+农历锚点）；此后 didUpdate 用同一 helper 做标记式重同步，
 		// 载入命例（fields 变）时性别/锚点必随记录刷新（修透传断链），手动切换不被无关变化冲掉。
 		const nextState = computeKinFieldsResync(this.props.fields, this.state.fieldsSyncSrc) || {};
@@ -992,6 +1027,7 @@ class KinAstroMain extends Component{
 		if(prevProps.technique !== this.props.technique){
 			this.config = TECHNIQUE_CONFIG[this.props.technique || 'shaozi'] || TECHNIQUE_CONFIG.shaozi;
 			setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+			this._syncStepPrefetcher();
 			this.requestSeq += 1;
 			this.setState({
 				pan: null,
@@ -1037,6 +1073,11 @@ class KinAstroMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		if(this._stepPrefetchKey && this._stepPrefetcher){
+			unregisterStepPrefetcher(this._stepPrefetchKey, this._stepPrefetcher);
+			this._stepPrefetchKey = null;
+			this._stepPrefetcher = null;
+		}
 		if(typeof window !== 'undefined' && this._dayBoundaryListener){
 			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 		}
@@ -1258,8 +1299,11 @@ class KinAstroMain extends Component{
 			// horosa_panel_ready_v1:原生技法(参评/河洛/正传/一掌经)不打后端,中右栏由子组件
 			// 就着 props.fields 同步自算 —— 本次 setState 提交时子组件已随新 fields 渲完,
 			// 故就在它的回调里盖章(markPanelReady 内部再双 rAF 逼近「本帧已绘」)。
+			// horosa_panel_ready_attribution_key_v1:参数必须是页签归属键(moduleKey ==
+			// currentTab:shusuan/mingother/yanqin),不是 serviceKey('shaozi' 等)——
+			// perfMark 的归属校验按 currentTab 配对,键不一致时样本被静默丢弃(验收恒零样本)。
 			this.setState({ loading: false, pan: null }, ()=>{
-				markPanelReady(this.config.serviceKey);
+				markPanelReady(this.config.moduleKey);
 			});
 			return;
 		}
@@ -1289,8 +1333,12 @@ class KinAstroMain extends Component{
 				// horosa_panel_ready_v1:这一次 setState 才是「盘落定」——中栏盘面与右栏各段
 				// 都由 pan 派生,故本回调即「点击 → 中右栏画完」的终点。必须是首行:放在
 				// saveKinAstroAISnapshots 之后会把快照序列化的耗时算进交互预算里。
-				markPanelReady(this.config.serviceKey);
+				// 键契约同上(horosa_panel_ready_attribution_key_v1):moduleKey 而非 serviceKey。
+				markPanelReady(this.config.moduleKey);
 				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan));
+				// horosa_step_prefetch_arm_v1(b′):换轨/改选项后的 settle 也按当前技法武装 ±N
+				//(fetchByFields settle 只覆盖时间派发路径;/chart 不在本页步进路径上)。
+				try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
 			});
 		}catch(e){
 			if(this._inFlightSig === sig){

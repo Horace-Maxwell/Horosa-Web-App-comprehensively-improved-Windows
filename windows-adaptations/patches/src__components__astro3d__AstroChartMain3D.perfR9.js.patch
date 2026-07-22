@@ -1,8 +1,16 @@
 diff --git a/astrostudyui/src/components/astro3d/AstroChartMain3D.js b/astrostudyui/src/components/astro3d/AstroChartMain3D.js
-index db6bbd1..77be7ad 100644
+index db6bbd1..d5a5e90 100644
 --- a/astrostudyui/src/components/astro3d/AstroChartMain3D.js
 +++ b/astrostudyui/src/components/astro3d/AstroChartMain3D.js
-@@ -27,6 +27,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P2
+@@ -3,6 +3,7 @@ import { message } from 'antd';
+ import AstroChart3D from './AstroChart3D';
+ import Astro3DSettingsPanel from './Astro3DSettingsPanel';
+ import { fetchChart3DState } from '../../services/astro3d';
++import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+ import AstroInfo from '../astro/AstroInfo';
+ import AstroAspect from '../astro/AstroAspect';
+ import AstroPlanet from '../astro/AstroPlanet';
+@@ -27,6 +28,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P2
  import AstroPDSphere from './AstroPDSphere';
  import * as AstroConst from '../../constants/AstroConst';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -11,7 +19,7 @@ index db6bbd1..77be7ad 100644
  
  const TabPane = XQTabs.TabPane;
  const Option = XQSelect.Option;
-@@ -60,7 +62,12 @@ class AstroChartMain3D extends Component{
+@@ -60,7 +63,12 @@ class AstroChartMain3D extends Component{
  			centerMode: 'geo',
  			boardMode: _bm,
  			tabH: null,   // [右栏满高] 实测 tabs 内容高;null=回退旧扣高公式
@@ -24,7 +32,21 @@ index db6bbd1..77be7ad 100644
  		// 右栏 tabs 实测高:写死扣高(height-252)与各卡实际高度脱节 → 底部大空白;RO 量真值。
  		this.attachSideTabsRO = (node)=>{
  			if(!node || node === this._sideTabsNode || typeof ResizeObserver === 'undefined'){ return; }
-@@ -253,6 +260,18 @@ class AstroChartMain3D extends Component{
+@@ -160,9 +168,10 @@ class AstroChartMain3D extends Component{
+ 
+ 	// —— WS-2 全行星中心盘(中心体切换) ——
+ 
+-	/** /chart3d/state 构参:props.fields 的 date/time/zone/ad/lat/lon(与 fieldsToParams 同格式) */
+-	buildChart3DParams(center){
+-		const f = this.props.fields;
++	/** /chart3d/state 构参:fields 的 date/time/zone/ad/lat/lon(与 fieldsToParams 同格式)。
++	 *  fieldsOverride 供步进预取传【已步进 fields】——与真点共用同一构参路径 = 缓存键逐字节同键。 */
++	buildChart3DParams(center, fieldsOverride){
++		const f = fieldsOverride || this.props.fields;
+ 		if(!f || !f.date || !f.date.value || !f.time || !f.time.value || !f.lat || !f.lon){
+ 			return null;
+ 		}
+@@ -253,6 +262,18 @@ class AstroChartMain3D extends Component{
  			&& this.props.value && !this.props.value.err){
  			this.applyCenterMode(this.state.centerMode);
  		}
@@ -43,7 +65,45 @@ index db6bbd1..77be7ad 100644
  	}
  
  	changeGeo(rec){
-@@ -318,7 +337,6 @@ class AstroChartMain3D extends Component{
+@@ -294,7 +315,36 @@ class AstroChartMain3D extends Component{
+ 		return !wrapperPropsEqual(this.props, nextProps);
+ 	}
+ 
+-	componentWillUnmount(){ clearTimeout(this._sideROT); if(this._sideRO){ try{ this._sideRO.disconnect(); }catch(e){} } }
++	componentDidMount(){
++		// horosa_prefetch_registry_v1(PERF-R10 P6):3D 星盘步进预取 —— 仅非地心中心盘打后端
++		// (geo=纯前端引擎零网络);构参与真点同一 buildChart3DParams 路径(fieldsOverride 版),
++		// fetchChart3DState 自带 stateMem+在途合流,叠加 dedupe '/chart3d' 前缀三层落桶。
++		this._stepPrefetcher = (steppedFields)=>{
++			try{
++				const center = this.state.centerMode;
++				if(!center || center === 'geo'){ return []; }
++				const params = this.buildChart3DParams(center, steppedFields);
++				if(!params){ return []; }
++				return [{
++					name: `chart3d:${center}`,
++					path: '/chart3d/state',
++					run: ()=> fetchChart3DState(params, { silent: true, retry: { retries: 0 } }).catch(()=>{ /* 预取失败静默 */ }),
++				}];
++			}catch(e){
++				return [];
++			}
++		};
++		registerStepPrefetcher('astrochart3D', this._stepPrefetcher);
++	}
++
++	componentWillUnmount(){
++		clearTimeout(this._sideROT);
++		if(this._sideRO){ try{ this._sideRO.disconnect(); }catch(e){} }
++		if(this._stepPrefetcher){
++			unregisterStepPrefetcher('astrochart3D', this._stepPrefetcher);
++			this._stepPrefetcher = null;
++		}
++	}
+ 
+ 	render(){
+ 		let chartObj = this.props.value;
+@@ -318,7 +368,6 @@ class AstroChartMain3D extends Component{
  		let height = this.props.height ? this.props.height : 760;
  		let chartHeight = Math.max(360, height - 28);
  		let tabHeight = this.state.tabH || (height - 252);
@@ -51,7 +111,7 @@ index db6bbd1..77be7ad 100644
  		let showzodical = true;
  		let showhsys = true;
  		let showdateselector = true;
-@@ -349,6 +367,16 @@ class AstroChartMain3D extends Component{
+@@ -349,6 +398,16 @@ class AstroChartMain3D extends Component{
  			showhsys = false;
  		}
  
@@ -68,7 +128,7 @@ index db6bbd1..77be7ad 100644
  		let needChart3D = false;
  		if((this.props.currentTab && this.props.currentTab === 'astrochart3D') || this.props.needChart3D){
  			needChart3D = true;
-@@ -470,16 +498,24 @@ class AstroChartMain3D extends Component{
+@@ -470,16 +529,24 @@ class AstroChartMain3D extends Component{
  						</XQToolbar>
  					) : null}
  					<div className="horosa-3d-tabs-fill" ref={this.attachSideTabsRO}>
@@ -94,7 +154,7 @@ index db6bbd1..77be7ad 100644
  							<AstroAspect
  								value={chartObj} height={tabHeight}
  								lotsDisplay={this.props.lotsDisplay}
-@@ -487,26 +523,36 @@ class AstroChartMain3D extends Component{
+@@ -487,26 +554,36 @@ class AstroChartMain3D extends Component{
  								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  								showAstroMeaning={this.props.showAstroMeaning}
  							/>

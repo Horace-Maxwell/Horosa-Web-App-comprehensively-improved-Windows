@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/perfFlags.js b/astrostudyui/src/utils/perfFlags.js
-index b0c52e0..00e627d 100644
+index b0c52e0..f4607f9 100644
 --- a/astrostudyui/src/utils/perfFlags.js
 +++ b/astrostudyui/src/utils/perfFlags.js
 @@ -8,7 +8,10 @@ import { safeLocalStorageSet } from './safeStorage';
@@ -14,7 +14,19 @@ index b0c52e0..00e627d 100644
  //   safeLocalStorageSet('horosa.perf.requestDedupe', '0')  // 计算请求 去重+短TTL缓存
  //   safeLocalStorageSet('horosa.perf.techniqueCache', '0') // L2 技法结果缓存(10min,来回拨参数≈0)
  //   safeLocalStorageSet('horosa.perf.idleWarmQueue', '0')  // 就绪后空闲预热队列(chunk/引擎/数据)
-@@ -63,6 +66,24 @@ export function freezeInactiveTabsEnabled(){
+@@ -21,6 +24,11 @@ import { safeLocalStorageSet } from './safeStorage';
+ //   safeLocalStorageSet('horosa.perf.sharedNativeModel', '0')     // native 技法 center/aux 共享模型 memo
+ //   safeLocalStorageSet('horosa.perf.singleTriggerPredictive','0')// PD/ZR hook+didUpdate 同签名去重
+ //   safeLocalStorageSet('horosa.perf.stepPrefetch', '0')          // 时间步进方向预取
++//   safeLocalStorageSet('horosa.perf.stepPrefetchArm', '0')       // PERF-R10:选步长/出盘/切页即武装 ±N 步预取(关=只剩步进后预取)
++//   safeLocalStorageSet('horosa.perf.stepPrefetchDepth', '2')     // PERF-R10:武装深度 ±N(默认 3,合法 0..5,0=等效关)
++//   safeLocalStorageSet('horosa.perf.kentangL3', '0')             // PERF-R10:kentang 结果缓存的 IndexedDB 持久位(关=纯内存 LRU)
++//   safeLocalStorageSet('horosa.perf.bootChartRestore', '0')      // PERF-R10:温启恢复上次的盘(关=启动回空白默认态)
++//   safeLocalStorageSet('horosa.perf.optionPrefetch', '0')        // PERF-R10:选项 Hamming-1 投机预取(关=零任务)
+ //   safeLocalStorageSet('horosa.perf.chartCloneLite', '0')        // 出盘缓存冻结共享引用(关=每次深拷贝)
+ //   safeLocalStorageSet('horosa.perf.hoverPrefetch', '0')         // 导航悬停预取 chunk(关=点击才载)
+ //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
+@@ -63,6 +71,24 @@ export function freezeInactiveTabsEnabled(){
  	return flagEnabled('horosa.perf.freezeInactiveTabs');
  }
  
@@ -39,7 +51,55 @@ index b0c52e0..00e627d 100644
  export function requestDedupeEnabled(){
  	return flagEnabled('horosa.perf.requestDedupe');
  }
-@@ -170,3 +191,61 @@ export function astro3dMorphEnabled(){
+@@ -143,6 +169,47 @@ export function stepPrefetchEnabled(){
+ 	return flagEnabled('horosa.perf.stepPrefetch');
+ }
+ 
++// —— PERF-R10 Ship2(horosa_step_prefetch_arm_v1):「选步长即武装」 ——
++// 病根:预取单位只来自上一次步进 hint(无 hint 硬编码 'm'),选完新步长的第一下必 miss
++// (owner 原话「第一下卡之后不卡」)。武装 = 不等步进,先按当前档位把 ±1..±depth 预好。
++export function stepPrefetchArmEnabled(){
++	return flagEnabled('horosa.perf.stepPrefetchArm');
++}
++
++// PERF-R10 Ship5(horosa_kentang_l3_v1):kentang 结果缓存的 IndexedDB 持久位。
++export function kentangL3Enabled(){
++	return flagEnabled('horosa.perf.kentangL3');
++}
++
++// PERF-R10 S2(horosa_boot_chart_restore_v1):温启恢复上次工作现场(owner 拍板默认开)。
++export function bootChartRestoreEnabled(){
++	return flagEnabled('horosa.perf.bootChartRestore');
++}
++
++// PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项空间 Hamming-1 投机预取。
++export function optionPrefetchEnabled(){
++	return flagEnabled('horosa.perf.optionPrefetch');
++}
++
++// 武装深度 ±N。默认 3(±1 即时命中,±2/±3 吃空闲窗);合法 0..5,0=等效关;
++// 非法值一律回默认 —— 现场只需 safeLocalStorageSet('horosa.perf.stepPrefetchDepth','2') 即可调。
++export function stepPrefetchDepth(){
++	try{
++		if(typeof window !== 'undefined' && window.localStorage){
++			const raw = window.localStorage.getItem('horosa.perf.stepPrefetchDepth');
++			if(raw !== null && raw !== undefined && raw !== ''){
++				const n = parseInt(raw, 10);
++				if(Number.isFinite(n) && n >= 0 && n <= 5){
++					return n;
++				}
++			}
++		}
++	}catch(e){
++		// localStorage 不可用时走默认
++	}
++	return 3;
++}
++
+ export function chartCloneLiteEnabled(){
+ 	return flagEnabled('horosa.perf.chartCloneLite');
+ }
+@@ -170,3 +237,61 @@ export function astro3dMorphEnabled(){
  	// 新位(~600ms),不走全量重建;关=旧全量 disposeMesh+重建
  	return flagEnabled('horosa.perf.astro3dMorph');
  }

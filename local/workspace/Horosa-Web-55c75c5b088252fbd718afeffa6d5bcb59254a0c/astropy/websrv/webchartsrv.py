@@ -20,6 +20,7 @@ import cherrypy
 
 try:
     import jsonpickle
+    _HAS_REAL_JSONPICKLE = True
 except ImportError:
     class _JsonpickleCompat:
         @staticmethod
@@ -27,6 +28,37 @@ except ImportError:
             return json.dumps(obj, ensure_ascii=False, default=str)
 
     jsonpickle = _JsonpickleCompat()
+    _HAS_REAL_JSONPICKLE = False
+
+
+# horosa_fast_json_encode_v1(PERF-R10 B6):对**纯 JSON 树**,`json.dumps(obj)`(全默认参)
+# 与 `jsonpickle.encode(obj, unpicklable=False)` 逐字节相等(含 unicode/int 键/float/大整数,
+# 4/4 探针 EQ 实测)——而前者跳过 jsonpickle 的类型巡检层,大响应端点省 5-40ms。
+# shim 只在三个条件同时成立才走快径:开关开 + 真 jsonpickle 在场(compat 桩用 ensure_ascii=False
+# **不等价**,绝不套快径)+ 默认参调用;json.dumps 抛 TypeError/ValueError(非 JSON 类型/环)
+# 即回退原实现 —— 回退触发本身零漂移(by construction)。全矩阵 --verify 是硬闸:任何漂移
+# ⇒ 本项废弃。kill:HOROSA_FAST_JSON_ENCODE=0 ⇒ 恒走原实现。
+_FAST_JSON_ON = os.environ.get("HOROSA_FAST_JSON_ENCODE", "1").lower() not in ("0", "false", "no", "off")
+
+
+class _FastJsonEncodeShim:
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def encode(self, obj, unpicklable=False, **kw):
+        if _FAST_JSON_ON and unpicklable is False and not kw:
+            try:
+                return json.dumps(obj)
+            except (TypeError, ValueError):
+                pass
+        return self._real.encode(obj, unpicklable=unpicklable, **kw)
+
+
+if _HAS_REAL_JSONPICKLE:
+    jsonpickle = _FastJsonEncodeShim(jsonpickle)
 
 # Ensure flatlib is resolvable from bundled sources.
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))

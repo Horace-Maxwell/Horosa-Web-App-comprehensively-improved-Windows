@@ -1,0 +1,39 @@
+diff --git a/vendor/kintaiyi/src/kintaiyi/kinliuren.py b/vendor/kintaiyi/src/kintaiyi/kinliuren.py
+index 6dbd77d..339daf8 100644
+--- a/vendor/kintaiyi/src/kintaiyi/kinliuren.py
++++ b/vendor/kintaiyi/src/kintaiyi/kinliuren.py
+@@ -8,9 +8,18 @@ Created on Sun Dec  22 16:22:37 2019
+ from collections import Counter
+ import re, itertools, time
+ 
++# horosa_kin_jiazi_const_v1(PERF-R10 B2):同族常量提升,copy-return 等价;
++# 实例方法版按 (Gan,Zhi) 键缓存 —— 不预设类属性不可定制,自定义干支照样正确。
++import os as _os
++_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
++_JIAZI_CONST = ["{}{}".format('甲乙丙丁戊己庚辛壬癸'[x % 10], '子丑寅卯辰巳午未申酉戌亥'[x % 12]) for x in range(60)]
++_JIAZI_BY_GZ = {}
++
+ def jiazi():
+-    Gan, Zhi = '甲乙丙丁戊己庚辛壬癸', '子丑寅卯辰巳午未申酉戌亥'
+-    return list(map(lambda x: "{}{}".format(Gan[x % len(Gan)], Zhi[x % len(Zhi)]), list(range(60))))
++    if not _KIN_CONST_ON:
++        Gan, Zhi = '甲乙丙丁戊己庚辛壬癸', '子丑寅卯辰巳午未申酉戌亥'
++        return list(map(lambda x: "{}{}".format(Gan[x % len(Gan)], Zhi[x % len(Zhi)]), list(range(60))))
++    return list(_JIAZI_CONST)
+ 
+ def new_list(olist, o):
+     a = olist.index(o)
+@@ -136,6 +145,13 @@ class Liuren():
+     def jiazi(self):
+         tiangan = self.Gan
+         dizhi = self.Zhi
++        if _KIN_CONST_ON:
++            k = (str(tiangan), str(dizhi))
++            cached = _JIAZI_BY_GZ.get(k)
++            if cached is None:
++                cached = [tiangan[x % len(tiangan)] + dizhi[x % len(dizhi)] for x in range(60)]
++                _JIAZI_BY_GZ[k] = cached
++            return list(cached)
+         jiazi = [tiangan[x % len(tiangan)] + dizhi[x % len(dizhi)] for x in range(60)]
+         return jiazi
+     

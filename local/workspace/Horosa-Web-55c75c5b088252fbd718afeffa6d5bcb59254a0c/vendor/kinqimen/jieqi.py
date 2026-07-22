@@ -34,6 +34,62 @@ def _get_hour_gan_next(explicit=None):
     return getattr(_TLS, 'hour_gan_next', 1)
 
 
+# horosa_qimen_req_memo_v1(PERF-R10 B1)—— 请求级纯函数 memo(Tier-2)。
+# 剩余热点是同参跨函数重复:gangzhi 在 pan/gpan/ypan/qimen_ju_day/gong_chengsun… 一次
+# /qimen/pan 里被同参调用十余次(每次 sxtwl+ephem 重算),zhifu_n_zhishi 15 次,
+# dingju_jieqi/zhirun_jieqi 链每次重走 _anchor_solstice 游标。这些函数对
+# (实参 + 两个 thread-local 日界开关) 是纯函数 —— 同请求内重复调用 = 纯浪费。
+# 机制:与 _TLS 同宿的 per-request dict;webqimensrv 在设完两个开关之后 begin。
+#   · begin 即清:键含开关值且函数纯 ⇒ 上一请求残留在语义上无害(同键必同值),
+#     清只为内存有界;异常路径不需要 finally(下一请求 begin 即清,泄漏上界 =
+#     每空闲线程一份单请求 memo)。
+#   · 键不可哈希(如 sxtwl Day 对象)→ 直通原函数(fail-open,memo 是优化不是功能)。
+#   · list/dict 出参发浅拷贝 —— 与「每次重算返回新容器」的契约一致(元素为字符串/
+#     标量,R9 Tier-2 已逐调用点审计零深层变异)。
+#   · kill-switch:HOROSA_QIMEN_REQ_MEMO=0 ⇒ begin 不建容器 ⇒ 全体直通,逐字节旧行为。
+import os as _os
+_REQ_MEMO_ON = _os.environ.get('HOROSA_QIMEN_REQ_MEMO', '1').lower() not in ('0', 'false', 'no', 'off')
+_MEMO_MISS = object()
+
+def begin_request_memo():
+    if _REQ_MEMO_ON:
+        _TLS.req_memo = {}
+    else:
+        try:
+            del _TLS.req_memo
+        except AttributeError:
+            pass
+
+def end_request_memo():
+    try:
+        del _TLS.req_memo
+    except AttributeError:
+        pass
+
+def _req_memo(fn):
+    _name = fn.__name__
+    def _wrapped(*args):
+        m = getattr(_TLS, 'req_memo', None)
+        if m is None:
+            return fn(*args)
+        try:
+            k = (_name, getattr(_TLS, 'after23', 1), getattr(_TLS, 'hour_gan_next', 1)) + args
+            v = m.get(k, _MEMO_MISS)
+        except TypeError:
+            return fn(*args)
+        if v is _MEMO_MISS:
+            v = fn(*args)
+            m[k] = v
+        if type(v) is list:
+            return list(v)
+        if type(v) is dict:
+            return dict(v)
+        return v
+    _wrapped.__name__ = _name
+    _wrapped.__doc__ = fn.__doc__
+    return _wrapped
+
+
 jqmc = ['小寒', '大寒', '立春', '雨水', '驚蟄', '春分', '清明', '穀雨', '立夏', '小滿', '芒種', '夏至', '小暑', '大暑', '立秋', '處暑', '白露', '秋分', '寒露', '霜降', '立冬', '小雪', '大雪', '冬至']
 # 12「節」(每月之首,逢之換月柱;立春兼換年柱)。其餘12「氣」不換月柱。
 JIE_TERMS = {'立春', '驚蟄', '清明', '立夏', '芒種', '小暑', '立秋', '白露', '寒露', '立冬', '大雪', '小寒'}
@@ -514,6 +570,25 @@ def gangzhi(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_n
     hourminute = str(hour)+":"+str(reminute)
     gangzhi_minute = ke_jiazi_d(zi).get(hourminute)
     return [yTG, mTG1, dTG, hTG1, gangzhi_minute]
+
+# horosa_qimen_req_memo_v1 —— 模块尾统一重绑定(单插入点,免逐 def 装饰)。
+# config.py 的按名 import 发生在本模块执行完之后 ⇒ 拿到的就是包装体;kinqimen.py 走
+# `import config` 的属性查找同理;模块内互调经 globals 在调用时解析 ⇒ 同样命中包装体。
+# 名单 = R9 Tier-2 审计清单。★刻意剔除 _last_shangyuan_before:实参是 sxtwl Day 对象
+# (身份哈希,键永不复现 = 零命中纯开销),其收益由外层 _anchor_solstice(标量键)承接。
+get_jieqi_start_date = _req_memo(get_jieqi_start_date)
+get_current_jieqi_start_date = _req_memo(get_current_jieqi_start_date)
+jq = _req_memo(jq)
+_anchor_solstice = _req_memo(_anchor_solstice)
+zhirun_jieqi = _req_memo(zhirun_jieqi)
+zhirun_jieqi_noleap = _req_memo(zhirun_jieqi_noleap)
+ke_jiazi_d = _req_memo(ke_jiazi_d)
+find_lunar_month = _req_memo(find_lunar_month)
+find_lunar_hour = _req_memo(find_lunar_hour)
+find_lunar_ke = _req_memo(find_lunar_ke)
+lunar_date_d = _req_memo(lunar_date_d)
+gangzhi1 = _req_memo(gangzhi1)
+gangzhi = _req_memo(gangzhi)
 
 if __name__ == '__main__':
     year = 2005

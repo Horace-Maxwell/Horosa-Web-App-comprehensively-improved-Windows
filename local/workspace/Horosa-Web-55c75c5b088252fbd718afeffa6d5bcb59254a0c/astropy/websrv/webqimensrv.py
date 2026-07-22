@@ -196,6 +196,9 @@ class QiMenSrv:
             late_zi_hour_use_next_day = _to_int(data.get("lateZiHourUseNextDay"), 1)
             # v2.2.1: 通过 sys.modules 拿到已经被 config.py/kinqimen.py 加载的 jieqi 模块。
             # 这是 vendor/kinqimen/jieqi.py (sys.path 加在 module load 时)。
+            # ★ 预初始化 None:try 体若在赋值前抛,下面的 memo 分支不得 UnboundLocalError
+            #   (webchartsrv.py:291 同类前科)。
+            _qm_jieqi = None
             try:
                 import sys as _sys
                 _qm_jieqi = _sys.modules.get('jieqi')
@@ -205,6 +208,11 @@ class QiMenSrv:
                     _qm_jieqi.set_hour_gan_use_next_day(late_zi_hour_use_next_day)
             except Exception:
                 pass
+            # horosa_qimen_req_memo_v1:必须在两个开关设定**之后** begin(键含开关值只是纵深
+            # 防御);begin 即清 ⇒ 异常路径无需 finally(纯函数+含开关键,残留在语义上无害,
+            # 下一请求 begin 即清;kill-switch HOROSA_QIMEN_REQ_MEMO 在 jieqi 模块内裁决)。
+            if _qm_jieqi is not None and hasattr(_qm_jieqi, 'begin_request_memo'):
+                _qm_jieqi.begin_request_memo()
             # 定局法 → option:1拆补/2置闰/3茅山/4无闰(qijuMethod 优先,缺则回退数字 option,默认 2 置闰保持旧默认)
             _qm_option_map = {"chaibu": 1, "zhirun": 2, "maoshan": 3, "wurun": 4}
             option = _qm_option_map.get(_clean_text(data.get("qijuMethod")), _to_int(data.get("option"), 2))

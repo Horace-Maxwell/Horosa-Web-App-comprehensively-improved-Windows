@@ -1,34 +1,33 @@
 diff --git a/astropy/websrv/kentang/kinastro_common.py b/astropy/websrv/kentang/kinastro_common.py
-index 0e51472..07b0dd6 100644
+index 90d8375..1d221e5 100644
 --- a/astropy/websrv/kentang/kinastro_common.py
 +++ b/astropy/websrv/kentang/kinastro_common.py
-@@ -35,6 +35,19 @@ def _ensure_streamlit_stub():
+@@ -260,10 +260,26 @@ DISPLAY_REPLACEMENTS = {
+ }
  
-     class _StubModule(types.ModuleType):
-         def __getattr__(self, _name):
-+            # stub_dunder_guard_v1:dunder(双下划线)探测一律按「属性不存在」拒答,
-+            # 绝不能返回函数。此前对任意属性返回 _noop 函数,导致 __file__ 也拿到函数:
-+            # inspect.getmodule() 会遍历 sys.modules 逐个读模块 __file__(期望 str),
-+            # 真 astropy(PyPI 天文库,kintaiyi 太乙引擎的依赖)导入期恰好走这条内省 →
-+            # 桩在场时 `filename.endswith` 炸 AttributeError → kintaiyi 导入永久失败,
-+            # CherryPy 把 AttributeError 当「无此路由」→ /taiyi/pan 整进程静默 404
-+            # (v3.2.0 太乙事故的真实根因;七政/玄学史预热先注入桩、太乙首点必在其后,
-+            # 故 Windows 必现)。dunder 拒答后 hasattr(stub,'__file__')=False,
-+            # inspect/pickle/copy 等标准内省安全跳过;vendor 计算路径只用具名属性
-+            # (st.cache_data/st.warning 等),桩语义不变。
-+            if _name.startswith("__") and _name.endswith("__"):
-+                raise AttributeError(_name)
+ 
++# horosa_display_trans_v1(PERF-R10 B4):DISPLAY_REPLACEMENTS 全部 1字→1字 ⇒ 逐项
++# str.replace(每字符串 ~125 次全串遍历)可无损换成**单遍** C 级 str.translate。等价条件:
++#   ① 全键值单字符 —— _DISPLAY_TRANS_OK 在 import 时机械核验;未来有人混入多字符项,
++#     自动整体退回旧循环(双保险,勿删);
++#   ② 无链式替换(某项的**值**又是另一项的**键**)—— 键全繁体、值全简体,唯一交集是
++#     恒等对「逆」;astropy/tests/test_kentang_display_fast.py 以不变量断言钉死,
++#     改表破坏该性质会立即红。
++# kill:HOROSA_DISPLAY_TRANS=0 ⇒ 旧循环路径,逐字节旧行为。
++_DISPLAY_TRANS_ON = os.environ.get("HOROSA_DISPLAY_TRANS", "1").lower() not in ("0", "false", "no", "off")
++_DISPLAY_TRANS_OK = all(len(k) == 1 and len(v) == 1 for k, v in DISPLAY_REPLACEMENTS.items())
++_DISPLAY_TRANS = str.maketrans(DISPLAY_REPLACEMENTS) if _DISPLAY_TRANS_OK else None
 +
-             def _noop(*_args, **_kw):
-                 return None
-             return _noop
-@@ -45,6 +58,9 @@ def _ensure_streamlit_stub():
-     stub.cache_resource = _cache_data
-     components = _StubModule("streamlit.components")
-     v1 = _StubModule("streamlit.components.v1")
-+    # 子桩同带哨兵标记(显式实例属性,不经 __getattr__,dunder 拒答不影响读取)。
-+    components.__horosa_slim_stub__ = True
-+    v1.__horosa_slim_stub__ = True
-     stub.components = components
-     components.v1 = v1
-     sys.modules["streamlit"] = stub
++
+ def display_text(value):
+     text = clean_text(value)
+-    for old, new in DISPLAY_REPLACEMENTS.items():
+-        text = text.replace(old, new)
++    if _DISPLAY_TRANS_ON and _DISPLAY_TRANS is not None:
++        text = text.translate(_DISPLAY_TRANS)
++    else:
++        for old, new in DISPLAY_REPLACEMENTS.items():
++            text = text.replace(old, new)
+     if zh_convert:
+         try:
+             text = zh_convert(text, "zh-cn")

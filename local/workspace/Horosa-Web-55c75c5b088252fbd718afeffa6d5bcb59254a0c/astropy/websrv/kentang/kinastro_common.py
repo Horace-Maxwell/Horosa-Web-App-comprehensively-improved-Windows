@@ -260,10 +260,26 @@ DISPLAY_REPLACEMENTS = {
 }
 
 
+# horosa_display_trans_v1(PERF-R10 B4):DISPLAY_REPLACEMENTS 全部 1字→1字 ⇒ 逐项
+# str.replace(每字符串 ~125 次全串遍历)可无损换成**单遍** C 级 str.translate。等价条件:
+#   ① 全键值单字符 —— _DISPLAY_TRANS_OK 在 import 时机械核验;未来有人混入多字符项,
+#     自动整体退回旧循环(双保险,勿删);
+#   ② 无链式替换(某项的**值**又是另一项的**键**)—— 键全繁体、值全简体,唯一交集是
+#     恒等对「逆」;astropy/tests/test_kentang_display_fast.py 以不变量断言钉死,
+#     改表破坏该性质会立即红。
+# kill:HOROSA_DISPLAY_TRANS=0 ⇒ 旧循环路径,逐字节旧行为。
+_DISPLAY_TRANS_ON = os.environ.get("HOROSA_DISPLAY_TRANS", "1").lower() not in ("0", "false", "no", "off")
+_DISPLAY_TRANS_OK = all(len(k) == 1 and len(v) == 1 for k, v in DISPLAY_REPLACEMENTS.items())
+_DISPLAY_TRANS = str.maketrans(DISPLAY_REPLACEMENTS) if _DISPLAY_TRANS_OK else None
+
+
 def display_text(value):
     text = clean_text(value)
-    for old, new in DISPLAY_REPLACEMENTS.items():
-        text = text.replace(old, new)
+    if _DISPLAY_TRANS_ON and _DISPLAY_TRANS is not None:
+        text = text.translate(_DISPLAY_TRANS)
+    else:
+        for old, new in DISPLAY_REPLACEMENTS.items():
+            text = text.replace(old, new)
     if zh_convert:
         try:
             text = zh_convert(text, "zh-cn")

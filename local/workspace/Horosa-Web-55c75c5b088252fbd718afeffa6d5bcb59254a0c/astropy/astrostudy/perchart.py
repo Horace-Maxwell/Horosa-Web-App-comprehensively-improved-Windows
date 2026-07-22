@@ -941,6 +941,44 @@ class PerChart:
         if abs(ae - arcus) <= 5.0:
             planet.phasisEvent = self._phasis_event(obj)
 
+    # horosa_phasis_bounded_v1(PERF-R10 B5)—— 高纬度整盘 8-16 秒的根治。
+    # 病根:heliacal_ut 从 birth_jd-15 起**无上界**前搜(默认最多扫 5 个会合周期),而 :955 的
+    # 采用窗只有 ±7 天 —— 极昼下窗内根本不存在事件,单次搜索 2.03s、两事件×多星占整盘 99.7%。
+    # 两层限界,各自独立字节安全(响应只携带 label/None,窗外与异常本就恒 None):
+    #   ① 可行性预筛:偕日事件时刻要求太阳俯角 ≥ arcus(最弱 Venus 5.0°);若 [birth±8.5d]
+    #     内太阳**最深**高度 > -1.0°(5.0 - 模型余量 2.0 - 采样余量 2.0),窗内不可能有事件
+    #     时刻 ⇒ 直接 None(≡ 旧「搜到窗外事件→丢弃→None」/「抛→None」)。逐小时采样:
+    #     极区近地平的高度极小值是**平的**(太阳擦边走),小时步距误差远小于 4° 余量;
+    #     结果挂 self 盘内缓存(两事件×五星共享一次预筛)。任何异常 → True(不筛,fail-open)。
+    #   ② HELFLAG_SEARCH_1_PERIOD:被采用的事件必在首个会合周期内(jd ≤ start+22d,而最短
+    #     会合周期=水星 115.9d);首周期找不到 ⇒ heliacal_ut 抛 ⇒ except ⇒ None(≡ 旧路径的
+    #     远事件→丢弃→None)。把默认 5 周期的扫描截到 1 个。
+    # kill:HOROSA_PHASIS_BOUNDED=0 ⇒ 两层全关,逐字节旧路径。黄金矩阵含 north-hi 用例钉住。
+    _PHASIS_BOUNDED = __import__('os').environ.get('HOROSA_PHASIS_BOUNDED', '1').lower() not in ('0', 'false', 'no', 'off')
+    _PHASIS_SEARCH_1_PERIOD = getattr(swisseph, 'HELFLAG_SEARCH_1_PERIOD', 2048)
+
+    def _phasisWindowFeasible(self):
+        cached = getattr(self, '_phasisFeasibleWin', None)
+        if cached is not None:
+            return cached
+        feasible = True
+        try:
+            geopos = (float(self.pos.lon), float(self.pos.lat), 0.0)
+            birth_jd = self.dateTime.jd
+            deepest = 90.0
+            jd = birth_jd - 8.5
+            while jd <= birth_jd + 8.5:
+                xx = swisseph.calc_ut(jd, swisseph.SUN, swisseph.FLG_SWIEPH)[0]
+                alt = swisseph.azalt(jd, swisseph.ECL2HOR, geopos, 1013.25, 15.0, (xx[0], xx[1]))[1]
+                if alt < deepest:
+                    deepest = alt
+                jd += 1.0 / 24.0
+            feasible = deepest <= -1.0
+        except Exception:
+            feasible = True
+        self._phasisFeasibleWin = feasible
+        return feasible
+
     def _phasis_event(self, obj):
         """birth 临近(≤7 天)该星偕日升→morningRising(晨星初现);偕日没→eveningSetting(昏星初没)。任何异常返 None。"""
         try:
@@ -949,6 +987,10 @@ class PerChart:
             observer = [36.0, 1.0, 0.0, 0.0, 0.0, 0.0]
             birth_jd = self.dateTime.jd
             flag = swisseph.FLG_SWIEPH | swisseph.HELFLAG_HIGH_PRECISION
+            if self._PHASIS_BOUNDED:
+                if not self._phasisWindowFeasible():
+                    return None
+                flag |= self._PHASIS_SEARCH_1_PERIOD
             for event, label in ((swisseph.HELIACAL_RISING, 'morningRising'), (swisseph.HELIACAL_SETTING, 'eveningSetting')):
                 tret = swisseph.heliacal_ut(birth_jd - 15.0, geopos, atmo, observer, obj, event, flag)
                 jd = tret[0] if isinstance(tret, (list, tuple)) else tret

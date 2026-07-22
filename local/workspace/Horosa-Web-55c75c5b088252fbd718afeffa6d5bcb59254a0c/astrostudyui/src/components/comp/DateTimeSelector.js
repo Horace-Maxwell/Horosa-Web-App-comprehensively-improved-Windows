@@ -3,6 +3,9 @@ import { Row, Col } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
 
 import DateTime from './DateTime';
+// PERF-R10 horosa_step_prefetch_arm_v1:本控件是全站唯一步长入口 —— 选完档位立即武装
+// 前后 ±N 步预取,owner 点名的「选完步长第一下也不能卡」在此接线(单点覆盖所有技法)。
+import { notifyStepUnitSelected } from '../../utils/stepPrefetchArm';
 
 const Option = Select.Option;
 
@@ -194,6 +197,10 @@ class DateTimeSelector extends Component{
 		this.setState({
 			timeType: val
 		});
+		// horosa_step_prefetch_arm_v1:选完步长立即武装该档位 ±N 步(第一下点击即命中)。
+		// this.datetime = 本时间条当前编辑值 —— 武装模块用它做语境闸:与主盘时间不同分钟
+		// 的旁路时间条(moira 流年/案例编辑)不武装主盘,失败静默不碍选择本身。
+		try{ notifyStepUnitSelected(val, this.datetime); }catch(e){ /* 武装是优化不是功能 */ }
 	}
 
 	clickMinus(){

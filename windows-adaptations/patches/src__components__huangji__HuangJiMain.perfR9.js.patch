@@ -1,18 +1,40 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index 3a5cfa6..e7b2199 100644
+index 3a5cfa6..fbe0114 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
-@@ -14,6 +14,9 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -14,6 +14,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
 +import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
++import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
++import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -91,6 +94,82 @@ function fmtValue(value){
+@@ -87,10 +92,102 @@ async function postWangJi(path, payload){
+ 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+ }
+ 
++// horosa_kentang_result_cache_v1(PERF-R10 补裸点)—— /wangji/pan 直连缓存(LRU 48)。
++// 确定性论证:payload = parseFieldsDateTime(fields)(格式化字串+整数)+ historyYear/classicKey
++// 两个显式选项;webwangjisrv 无 random / 无 datetime.now()(PY-6 轮已核)→ 同 payload 必同盘。
++// 只包 'pan':classic 正文有模块级 CLASSIC_SECTION_CACHE,xinyi 轻且选项面大,均保持直连。
++// 没有这一层,步进预取的结果无处可落(真点读不到)= 白取。
++function postWangJiCached(path, payload){
++	if(path !== 'pan'){
++		return postWangJi(path, payload);
++	}
++	const bodyKey = kentangCacheKey(payload);
++	if(!techniqueResultCacheEnabled() || !bodyKey){
++		return postWangJi(path, payload);
++	}
++	return cachedKentangCall('wangji/pan', payload, ()=>postWangJi(path, payload), { key: bodyKey, max: 48 });
++}
++
+ function fmtValue(value){
  	return formatHumanValue(value);
  }
  
@@ -95,7 +117,7 @@ index 3a5cfa6..e7b2199 100644
  // opts(可选)：{ classicSectionIndex } —— 选中典籍章节序号(与右栏「典籍」选择联动);缺省取首章(与 UI 初始态一致)。
  export function buildSnapshotText(pan, xinyi, opts){
  	if(!pan){
-@@ -165,6 +244,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
+@@ -165,6 +262,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
  		if(!pan){
  			return '';
  		}
@@ -104,7 +126,7 @@ index 3a5cfa6..e7b2199 100644
  		let xinyi = null;
  		const xm = o.xinyiMethod && o.xinyiMethod !== 'none' ? o.xinyiMethod : '';
  		if(xm){
-@@ -243,6 +324,21 @@ class HuangJiMain extends Component{
+@@ -243,6 +342,21 @@ class HuangJiMain extends Component{
  		}
  	}
  
@@ -126,7 +148,7 @@ index 3a5cfa6..e7b2199 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -280,7 +376,14 @@ class HuangJiMain extends Component{
+@@ -280,7 +394,14 @@ class HuangJiMain extends Component{
  		}
  		let text = '';
  		try{
@@ -142,7 +164,7 @@ index 3a5cfa6..e7b2199 100644
  		}catch(e){
  			text = '';
  		}
-@@ -321,6 +424,17 @@ class HuangJiMain extends Component{
+@@ -321,6 +442,17 @@ class HuangJiMain extends Component{
  			const xinyi = this.state.xinyi;
  			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
@@ -160,14 +182,40 @@ index 3a5cfa6..e7b2199 100644
  		});
  		return true;
  	}
-@@ -399,16 +513,23 @@ class HuangJiMain extends Component{
+@@ -391,6 +523,24 @@ class HuangJiMain extends Component{
+ 		this.fetchPan(nextFields);
+ 	}
+ 
++	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
++	// 只报 pan(单阶段、确定性);构参与 fetchPan 同源(parseFieldsDateTime + 当前
++	// historyYear/classicKey)⇒ 缓存键逐字节同键;classic 正文有模块缓存不需预取。
++	getStepPrefetchTasks(steppedFields){
++		try{
++			const dt = parseFieldsDateTime(steppedFields);
++			if(!dt){ return []; }
++			const payload = { ...dt, historyYear: this.state.historyYear, classicKey: this.state.classicKey };
++			return [{
++				name: 'wangji',
++				path: '/wangji/pan',
++				run: ()=> postWangJiCached('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
++			}];
++		}catch(e){
++			return [];
++		}
++	}
++
+ 	async fetchPan(fields){
+ 		const dt = parseFieldsDateTime(fields);
+ 		if(!dt){
+@@ -399,16 +549,23 @@ class HuangJiMain extends Component{
  		const reqSeq = ++this.requestSeq;
  		this.setState({ loading: true });
  		try{
+-			const pan = await postWangJi('pan', {
 +			// horosa_wangji_classics_ondemand_v1:典籍正文与主盘并发取(首次)/走模块缓存(其后);
 +			// 合并完成后才 setState —— state.pan 里的 sections 恒带 content,导出/切章无空窗。
 +			const classicsTask = loadClassicSections(this.state.classicKey).catch(()=>null);
- 			const pan = await postWangJi('pan', {
++			const pan = await postWangJiCached('pan', {
  				...dt,
  				historyYear: this.state.historyYear,
  				classicKey: this.state.classicKey,
@@ -184,7 +232,7 @@ index 3a5cfa6..e7b2199 100644
  				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
  			});
-@@ -807,23 +928,38 @@ class HuangJiMain extends Component{
+@@ -807,23 +964,38 @@ class HuangJiMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

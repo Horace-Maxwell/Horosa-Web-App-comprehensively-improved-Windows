@@ -27,8 +27,15 @@ JIAZI_CODE_TABLE = {
     "戊午": 56, "己未": 156, "庚申": 78, "辛酉": 80, "壬戌": 117, "癸亥": 289
 }
 
+# horosa_kin_jiazi_const_v1(PERF-R10 B2):编译期常量提升,copy-return 等价。
+import os as _os
+_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
+_JIAZI_CONST = [f"{Gan[i % 10]}{Zhi[i % 12]}" for i in range(60)]
+
 def jiazi():
-    return [f"{Gan[i % 10]}{Zhi[i % 12]}" for i in range(60)]
+    if not _KIN_CONST_ON:
+        return [f"{Gan[i % 10]}{Zhi[i % 12]}" for i in range(60)]
+    return list(_JIAZI_CONST)
 
 def get_jiazi_code(jz):
     return JIAZI_CODE_TABLE.get(jz, 0)

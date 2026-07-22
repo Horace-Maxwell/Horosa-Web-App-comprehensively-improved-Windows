@@ -32,6 +32,41 @@
 | manifest | `desktop_installer_bundle/electron/__pycache__` | Python 字节码副产物,非源文件;内容随解释器版本变化,收编只会制造无意义的 sha 漂移 |
 | manifest | `desktop_installer_bundle/scripts/__pycache__` | Python 字节码副产物,非源文件;与 electron/ 下那个同理,内容随解释器版本变化,收编只会制造无意义的 sha 漂移 |
 
+## P5 观测覆盖层(`check_perf_observation_coverage`)—— 动态归属映射与豁免
+
+> 键 = `pages/index.js` `navigationPages` 的技法键。`dynamic:<UI 相对路径>` 表示该键的
+> `markPanelReady` 归属由所指文件按 config 动态分发(门会核验该文件同时含
+> `markPanelReady(` 与 `moduleKey: '<键>'`);普通行 = 真豁免(该技法结构上不可打点)。
+
+| 层 | 键 | 理由 |
+| --- | --- | --- |
+| p5-observation | `shusuan` | dynamic:src/components/kinastro/KinAstroMain.js —— 数算 9 个子技法共用一个宿主组件,归属键经 `this.config.moduleKey` 动态给出('shusuan');打字面量会退化成 serviceKey 类错键(PERF-R9 实测恒零样本的根因) |
+| p5-observation | `mingother` | dynamic:src/components/kinastro/KinAstroMain.js —— 与 shusuan 同宿主:策天/一掌经的 `moduleKey: 'mingother'`、演禽为伪页签 'yanqin',全部经 config 动态分发,同一文件同一机制 |
+| p5-observation | `astrodata` | 名人库是 iframe 装载的离线独立页(public/astrodata/index.html,sql.js 浏览器内查询):宿主侧 perfMark 无法进入其文档,且 iframe 内交互不触发宿主捕获期 pointerdown ⇒ 起点/终点两头都不存在,结构上不可测;其加载性能由「首次点开才挂载 + 38MB 不入启动」策略单独治理 |
+
+## P6 预取覆盖层(`check_prefetch_registry_coverage`)—— 动态登记映射与豁免
+
+> 键 = navigationPages 技法键。`dynamic:<UI 相对路径>` 同 P5 语义(门核验该文件同时含
+> `registerStepPrefetcher(` 与 `moduleKey: '<键>'`);普通行 = 结构性豁免。
+> 想加豁免先问:这个技法的「下一步」真的不可预算吗?
+
+| 层 | 键 | 理由 |
+| --- | --- | --- |
+| p6-prefetch | `shusuan` | dynamic:src/components/kinastro/KinAstroMain.js —— 数算 9 子技法共用宿主,登记键经 `this.config.moduleKey` 动态给出并随换轨迁移(_syncStepPrefetcher);字面量登记会在 mingother/yanqin 换轨时指错键 |
+| p6-prefetch | `mingother` | dynamic:src/components/kinastro/KinAstroMain.js —— 与 shusuan 同宿主同机制;演禽伪页签 'yanqin' 的登记也由该文件的键迁移逻辑承接 |
+| p6-prefetch | `astrochart` | 主盘 /chart 的 ±N 预取内建于 models/astro.js 的 buildStepPrefetchTasks(chartTasks 恒在,不经技法注册表)——再登记一份 = 同一端点双份任务白占预算 |
+| p6-prefetch | `bazi` | chartFree 纯本地引擎(lunar-javascript/sxtwl 前端自算),时间步进零网络请求 —— 没有可预取的端点;/chart 底盘由内建 chartTasks 覆盖 |
+| p6-prefetch | `fengshui` | chartFree 纯本地(玄空引擎前端自算),步进零网络;与 bazi 同理无端点可登记 |
+| p6-prefetch | `calendar` | chartFree,黄历月历/日课走确定性历法端点但首点已由 dataWarmTasks 注册表暖(FE-16),步进语义是「换日期看月历」= /calendar/month 经 dedupe 白名单缓存,±N 预取收益已被月粒度缓存覆盖 |
+| p6-prefetch | `cntradition` | chartFree 纯本地页(卦象符号/穿宫十二式/口诀速查全部前端自算),时间步进零网络请求,没有可登记的预取端点;/chart 底盘由内建 chartTasks 覆盖 |
+| p6-prefetch | `guazhan` | 六爻随机起卦 —— 预取 = 把随机结果钉死进缓存(功能性降级,比慢更糟);gua 端点同时在 PREFETCH_FORBIDDEN_MARKERS 双闸 |
+| p6-prefetch | `jieqichart` | 年份邻位预取由专门机制 prefetchJieqiYearNeighbors(FE-6)承担(year±1 粒度与本表 ±N 步进不同轴);/jieqi/ 在 dedupe 白名单,重复登记会双份取数 |
+| p6-prefetch | `relativechart` | 合盘双人参数(另一人的生辰)不可从单侧 fields 步进推出 —— 预算「下一步」无定义;/modern/relative 在 dedupe 白名单,同参重放已覆盖 |
+| p6-prefetch | `planetarium` | 取现时(实时天象),步进预取会把「此刻」钉死;NO_ARM_TABS + FORBIDDEN 双闸 |
+| p6-prefetch | `aianalysis` | SSE 流式对话,无确定性「下一步」可预算;NO_ARM_TABS + FORBIDDEN 双闸 |
+| p6-prefetch | `astrodata` | iframe 装载的离线名人库(sql.js 浏览器内查询 38MB 本地库),零后端端点、无时间步进语义,预取注册表对它没有任何可做的事 |
+| p6-prefetch | `xuanshi` | 浏览/查询型(朝代/人物/事件树),交互是导航不是时间步进;首点由 PY-13 服务端预热覆盖 |
+
 ## 与 apply.sh 的耦合(改一处必须同时改另一处)
 
 | 耦合 | 说明 |

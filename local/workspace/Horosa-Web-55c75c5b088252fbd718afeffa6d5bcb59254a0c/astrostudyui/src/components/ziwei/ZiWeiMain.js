@@ -37,6 +37,7 @@ import { ziweirulesCached } from '../../services/rules';
 import { cachedPost } from '../../services/_requestCache';
 import { techniqueResultCacheEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { calcZiwei, deriveSanPan } from './ZiweiCalc';
 import { detectPatterns } from './ziweiPatterns';
@@ -895,6 +896,10 @@ class ZiWeiMain extends Component{
 		// 逼近「本帧已绘」。技法 key 用顶层页签的 'ziwei'(与 pages/index.js markInteractionStart 同源)。
 		this.setState(st, ()=>{
 			markPanelReady('ziwei');
+			// horosa_step_prefetch_arm_v1(b′):紫微步进走本地漏斗(onFieldsChange→astro/save+
+			// 直调本方法,不经 fetchByFields)⇒ settle 武装必须在这里自己做,否则登记的
+			// /ziwei/birth 预取器在本页步进路径上永不触发。skipChart:/chart 不在本页步进路径上。
+			try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
 		});
 		// 惰性构建:12 宫×星曜×四化遍历挪出排盘关键路径(params/result 为本函数局部量,闭包安全;
 		// builder 读的全局流派 ZWConst.ZWSchool 若在 idle 前被切换,切换路径必经 requestZiWei

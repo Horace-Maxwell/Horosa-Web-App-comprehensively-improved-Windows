@@ -1,18 +1,19 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaMain.js b/astrostudyui/src/components/dunjia/DunJiaMain.js
-index 62eea11..160b953 100644
+index 62eea11..f3867d2 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaMain.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaMain.js
-@@ -1,5 +1,9 @@
+@@ -1,5 +1,10 @@
  import { Component } from 'react';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
++import { armStepPrefetch } from '../../utils/stepPrefetchArm';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import { Spin, Tag, message, Popover, Modal } from 'antd';
  import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-@@ -536,6 +540,102 @@ function extractIsDiurnalFromChartProp(val){
+@@ -536,6 +541,102 @@ function extractIsDiurnalFromChartProp(val){
  	return null;
  }
  
@@ -115,7 +116,7 @@ index 62eea11..160b953 100644
  class DunJiaMain extends Component {
  	constructor(props){
  		super(props);
-@@ -620,6 +720,67 @@ class DunJiaMain extends Component {
+@@ -620,6 +721,67 @@ class DunJiaMain extends Component {
  					this.prefetchNongliForFields(fields);
  				}
  			};
@@ -183,7 +184,18 @@ index 62eea11..160b953 100644
  		}
  	}
  
-@@ -1193,36 +1354,12 @@ class DunJiaMain extends Component {
+@@ -1073,6 +1235,10 @@ class DunJiaMain extends Component {
+ 			}
+ 			this.prefetchJieqiSeedForFields(localFields);
+ 			this.prefetchNongliForFields(localFields);
++			// horosa_step_prefetch_arm_v1(b′):遁甲未确认步进只落 localFields、不经
++			// fetchByFields ⇒ settle 武装在此自己做(±N 的 stage-1 种子经登记的预取器构造);
++			// skipChart:/chart 不在本页步进路径上。
++			try{ armStepPrefetch('local-settle', { fieldsOverride: localFields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
+ 		}, 120);
+ 	}
+ 
+@@ -1193,36 +1359,12 @@ class DunJiaMain extends Component {
  	}
  
  	genParams(fields){
@@ -226,7 +238,7 @@ index 62eea11..160b953 100644
  	}
  
  	async recalc(fields, nongli, options, displaySolarTime){
-@@ -1259,6 +1396,10 @@ class DunJiaMain extends Component {
+@@ -1259,6 +1401,10 @@ class DunJiaMain extends Component {
  			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
  			this.lastPanSignature = panSignature;
  			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{
@@ -237,7 +249,7 @@ index 62eea11..160b953 100644
  				if(pan){
  					rememberDunJiaLiveState({
  						fieldKey: getFieldKey(flds),
-@@ -1285,25 +1426,12 @@ class DunJiaMain extends Component {
+@@ -1285,25 +1431,12 @@ class DunJiaMain extends Component {
  	}
  
  	genJieqiParams(fields, year){
@@ -269,7 +281,7 @@ index 62eea11..160b953 100644
  	}
  
  	async resolveDisplaySolarTime(params, primaryResult){
-@@ -2595,7 +2723,14 @@ class DunJiaMain extends Component {
+@@ -2595,7 +2728,14 @@ class DunJiaMain extends Component {
  					onChange={(key)=>this.setState({ rightPanelTab: key })}
  					style={{ marginTop: 8 }}
  				>
@@ -284,7 +296,7 @@ index 62eea11..160b953 100644
  						{(()=>{
  							// 全局速览：一眼看出 值符值使落宫 / 贵格(三奇得使·九遁) / 六害源头 / 吉凶格品级。
  							const sum = pan ? buildQimenOverviewSummary(pan) : null;
-@@ -2692,8 +2827,11 @@ class DunJiaMain extends Component {
+@@ -2692,8 +2832,11 @@ class DunJiaMain extends Component {
  								</Card>
  							);
  						})()}
@@ -296,7 +308,7 @@ index 62eea11..160b953 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', columnGap: 14, rowGap: 6, lineHeight: '24px' }}>
  								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
-@@ -2711,8 +2849,10 @@ class DunJiaMain extends Component {
+@@ -2711,8 +2854,10 @@ class DunJiaMain extends Component {
  									: <div>暂无神煞</div>}
  							</div>
  						</Card>
@@ -307,7 +319,7 @@ index 62eea11..160b953 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
  								{BAGONG_PALACE_ORDER.map((num)=>(
-@@ -2800,16 +2940,21 @@ class DunJiaMain extends Component {
+@@ -2800,16 +2945,21 @@ class DunJiaMain extends Component {
  								</Card>
  							)}
  						</Card>

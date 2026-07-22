@@ -1,0 +1,27 @@
+diff --git a/vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py b/vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py
+index f225278..9ad880a 100644
+--- a/vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py
++++ b/vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py
+@@ -49,10 +49,19 @@ def new_list(olist, o):
+     return res1
+ 
+ #%% 甲子平支
++# horosa_kin_jiazi_const_v1(PERF-R10 B2):编译期常量提升,copy-return 等价。
++# ★ 本包才是金口诀服务的活体;vendor/kinjinkou/jieqi.py(平铺)只被 streamlit app.py
++#   引用,是服务死代码 —— 勿在那边重复此改动。
++import os as _os
++_KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
++_JIAZI_CONST = ["{}{}".format(tian_gan[x % len(tian_gan)], di_zhi[x % len(di_zhi)]) for x in range(60)]
++
+ def jiazi():
+-    return list(map(lambda x: "{}{}".format(tian_gan[x % len(tian_gan)],
+-                                            di_zhi[x % len(di_zhi)]),
+-                                            list(range(60))))
++    if not _KIN_CONST_ON:
++        return list(map(lambda x: "{}{}".format(tian_gan[x % len(tian_gan)],
++                                                di_zhi[x % len(di_zhi)]),
++                                                list(range(60))))
++    return list(_JIAZI_CONST)
+ 
+ 
+ #五鼠遁，起子時

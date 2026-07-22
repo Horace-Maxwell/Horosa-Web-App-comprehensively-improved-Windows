@@ -159,6 +159,8 @@ import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../u
 // 陈旧 start 配 measure,量出秒级垃圾,「点击→显示」这个要验收的数根本量不出来。
 import { markInteractionStart, setCurrentTechnique } from '../utils/perfMark';
 import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
+// PERF-R10 horosa_step_prefetch_arm_v1:切技法页签后按该技法档位武装 ±N 步预取。
+import { armStepPrefetch } from '../utils/stepPrefetchArm';
 
 const TabPane = XQTabs.TabPane;
 
@@ -503,6 +505,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             }, 0);
         }
 
+        // PERF-R10 horosa_step_prefetch_arm_v1:切到技法即按其档位武装 ±depth(300ms 延到切换
+        // paint 与可能的刷新起跑之后;tabOverride 直给 key,不等 store 异步反映)。NO_ARM 技法
+        // 在 armStepPrefetch 内部按纪律跳过;首次进入某技法的一次性装载不受影响(idle 调度)。
+        setTimeout(()=>{ try{ armStepPrefetch('tab-activate', { tabOverride: key }); }catch(e){ /* 武装失败静默 */ } }, 300);
     }
 
     // horosa_change_cond_no_mutate_v1 —— 就地变异根治。

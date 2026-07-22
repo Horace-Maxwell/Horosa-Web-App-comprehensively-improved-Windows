@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-index d92bc80..731f732 100644
+index d92bc80..f071ac8 100644
 --- a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 +++ b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 @@ -13,6 +13,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
@@ -69,7 +69,37 @@ index d92bc80..731f732 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -336,6 +373,8 @@ class ShenYiShuMain extends Component{
+@@ -317,6 +354,29 @@ class ShenYiShuMain extends Component{
+ 		this.fetchPan(nextFields);
+ 	}
+ 
++	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
++	// 确定性论证同 postShenYiShu 头注(后端无 random/now);构参与 fetchPan 同源。
++	getStepPrefetchTasks(steppedFields){
++		try{
++			const dt = parseFieldsDateTime(steppedFields);
++			if(!dt){ return []; }
++			const payload = {
++				...dt,
++				hourSource: this.state.hourSource,
++				manualHour: this.state.manualHour,
++				seasonSource: this.state.seasonSource,
++				manualSeason: this.state.manualSeason,
++			};
++			return [{
++				name: 'shenyishu',
++				path: '/shenyishu/pan',
++				run: ()=> postShenYiShu('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
++			}];
++		}catch(e){
++			return [];
++		}
++	}
++
+ 	async fetchPan(fields){
+ 		const dt = parseFieldsDateTime(fields);
+ 		if(!dt){
+@@ -336,6 +396,8 @@ class ShenYiShuMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -78,7 +108,7 @@ index d92bc80..731f732 100644
  				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -601,25 +640,38 @@ class ShenYiShuMain extends Component{
+@@ -601,25 +663,38 @@ class ShenYiShuMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

@@ -1,7 +1,34 @@
 import sys
+import os
+import json
 import traceback
 import jsonpickle
 import cherrypy
+
+# horosa_fast_json_encode_v1(PERF-R10 B6):同 webchartsrv 的 shim(纯 JSON 树上
+# json.dumps 全默认参与 jsonpickle.encode(unpicklable=False) 逐字节相等,快 5-40ms;
+# 非 JSON 类型抛 TypeError/ValueError 即回退原实现,回退零漂移;全矩阵 --verify 硬闸)。
+# /predict/zr 载荷最大(~1MB 明文),本文件 45 个调用点全部受益。
+_FAST_JSON_ON = os.environ.get("HOROSA_FAST_JSON_ENCODE", "1").lower() not in ("0", "false", "no", "off")
+
+
+class _FastJsonEncodeShim:
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def encode(self, obj, unpicklable=False, **kw):
+        if _FAST_JSON_ON and unpicklable is False and not kw:
+            try:
+                return json.dumps(obj)
+            except (TypeError, ValueError):
+                pass
+        return self._real.encode(obj, unpicklable=unpicklable, **kw)
+
+
+jsonpickle = _FastJsonEncodeShim(jsonpickle)
 from flatlib import const
 from flatlib.geopos import GeoPos
 from astrostudy.perchart import PerChart

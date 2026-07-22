@@ -354,6 +354,29 @@ class ShenYiShuMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
+	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
+	// 确定性论证同 postShenYiShu 头注(后端无 random/now);构参与 fetchPan 同源。
+	getStepPrefetchTasks(steppedFields){
+		try{
+			const dt = parseFieldsDateTime(steppedFields);
+			if(!dt){ return []; }
+			const payload = {
+				...dt,
+				hourSource: this.state.hourSource,
+				manualHour: this.state.manualHour,
+				seasonSource: this.state.seasonSource,
+				manualSeason: this.state.manualSeason,
+			};
+			return [{
+				name: 'shenyishu',
+				path: '/shenyishu/pan',
+				run: ()=> postShenYiShu('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
+			}];
+		}catch(e){
+			return [];
+		}
+	}
+
 	async fetchPan(fields){
 		const dt = parseFieldsDateTime(fields);
 		if(!dt){

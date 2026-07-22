@@ -4,6 +4,7 @@ import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
@@ -1234,6 +1235,10 @@ class DunJiaMain extends Component {
 			}
 			this.prefetchJieqiSeedForFields(localFields);
 			this.prefetchNongliForFields(localFields);
+			// horosa_step_prefetch_arm_v1(b′):遁甲未确认步进只落 localFields、不经
+			// fetchByFields ⇒ settle 武装在此自己做(±N 的 stage-1 种子经登记的预取器构造);
+			// skipChart:/chart 不在本页步进路径上。
+			try{ armStepPrefetch('local-settle', { fieldsOverride: localFields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
 		}, 120);
 	}
 

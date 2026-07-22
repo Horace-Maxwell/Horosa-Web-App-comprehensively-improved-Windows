@@ -2,6 +2,7 @@ import { Component, createRef, memo } from 'react';
 import DateTime from '../comp/DateTime';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import { planetariumRenderGatingEnabled, planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled, planetariumTimeEditDebounceEnabled } from '../../utils/perfFlags';
+import { markPanelReady } from '../../utils/perfMark';
 
 // perf:planetariumRenderGating —— 天文馆渲染时机门控参数(只动时机不动内容):
 //   IDLE_FRAME_MS:静止时降帧间隔(~10fps);静止画面在任何帧率下视觉一致,留出 CPU 给主线程消除卡顿。
@@ -4710,6 +4711,9 @@ class PlanetariumBabylon extends Component{
 				catalogCount: data.meta ? data.meta.renderedCatalogCount : 0,
 			},
 		}), ()=>{
+			// horosa_panel_ready_v1:数据已应用到 3D 场景与右栏,本次提交即「点击→画完」终点。
+			// 播放帧的 setState({time}) 不经此路,不会刷样本;归属键=页签键 'planetarium'。
+			markPanelReady('planetarium');
 			this.requestInFlight = false;
 			this.flushPendingRequest();
 			if(followupFull && !this._isUnmounted){
@@ -5250,6 +5254,9 @@ class PlanetariumBabylon extends Component{
 				syncing: false,
 				syncLabel: '',
 				error: data && data.err ? data.err : '天文馆数据载入失败',
+			}, ()=>{
+				// 错误横幅画出同样终结本次交互(失败终态盖章,与七政各失败终态先例同)。
+				markPanelReady('planetarium');
 			});
 			this.requestInFlight = false;
 			this.flushPendingRequest();

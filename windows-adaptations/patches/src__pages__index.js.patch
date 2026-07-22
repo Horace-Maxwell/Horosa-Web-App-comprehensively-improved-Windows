@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index d221a4b..c996a85 100644
+index d221a4b..cc26300 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
 @@ -16,13 +16,14 @@ import CaseList from '../components/user/CaseList';
@@ -39,7 +39,7 @@ index d221a4b..c996a85 100644
  // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
  const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
  const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
-@@ -139,6 +154,10 @@ import { APPEARANCE_DARK } from '../utils/appearance';
+@@ -139,7 +154,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
  import XQIcon from '../components/xq-icons';
  import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
  import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
@@ -48,9 +48,12 @@ index d221a4b..c996a85 100644
 +// 陈旧 start 配 measure,量出秒级垃圾,「点击→显示」这个要验收的数根本量不出来。
 +import { markInteractionStart, setCurrentTechnique } from '../utils/perfMark';
  import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
++// PERF-R10 horosa_step_prefetch_arm_v1:切技法页签后按该技法档位武装 ±N 步预取。
++import { armStepPrefetch } from '../utils/stepPrefetchArm';
  
  const TabPane = XQTabs.TabPane;
-@@ -364,7 +383,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+ 
+@@ -364,7 +385,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          caseTotal,
      } = user;
   	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
@@ -104,7 +107,7 @@ index d221a4b..c996a85 100644
  
      
      function closeDrawer(){
-@@ -415,6 +479,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -415,6 +481,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
          if(needRefresh){
              tabRefreshSigRef.current[key] = currentSig;
@@ -114,8 +117,14 @@ index d221a4b..c996a85 100644
              setTimeout(()=>{
                  if(!(predictHook[key] && predictHook[key].fun)){ return; }
                  if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-@@ -438,65 +505,85 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -436,67 +505,91 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+             }, 0);
+         }
  
++        // PERF-R10 horosa_step_prefetch_arm_v1:切到技法即按其档位武装 ±depth(300ms 延到切换
++        // paint 与可能的刷新起跑之后;tabOverride 直给 key,不等 store 异步反映)。NO_ARM 技法
++        // 在 armStepPrefetch 内部按纪律跳过;首次进入某技法的一次性装载不受影响(idle 调度)。
++        setTimeout(()=>{ try{ armStepPrefetch('tab-activate', { tabOverride: key }); }catch(e){ /* 武装失败静默 */ } }, 300);
      }
  
 +    // horosa_change_cond_no_mutate_v1 —— 就地变异根治。
@@ -224,7 +233,7 @@ index d221a4b..c996a85 100644
              }
          }
  
-@@ -510,6 +597,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -510,6 +603,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                  // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
                  ...(values.step ? { __stepHint: values.step } : {}),
              };
@@ -233,7 +242,7 @@ index d221a4b..c996a85 100644
              // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
              // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
              // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
-@@ -526,6 +615,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -526,6 +621,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
          cancelPendingTimeDispatch();
  
@@ -241,7 +250,7 @@ index d221a4b..c996a85 100644
          dispatch({
              type: 'astro/fetchByFields',
              payload: flds,
-@@ -874,6 +964,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -874,6 +970,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                          height={height}
                          fields={fields}
                          fieldsAry={aryfields}
