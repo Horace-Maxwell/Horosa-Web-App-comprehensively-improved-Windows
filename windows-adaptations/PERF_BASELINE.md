@@ -13,8 +13,9 @@
 - version: 3.5.1
 - build: release(v3.5.1 同步发布轮;上游性能宗师终局轮 + Windows R10 武装引擎收敛合体)
 - date: 2026-07-22
-- commit: (随发布 commit 填)
-- 机器态: (验收时填:CPU 名 / CurrentClockSpeed vs MaxClockSpeed / 后台模拟器在否 / #64 对照结论)
+- commit: d552f36(发布准备 commit;资产哈希随收尾 commit)
+- 机器态: Xeon W-11955M;CurrentClockSpeed **2611 == 基频**(睿频压制)+ MuMu/vmmem 7 进程常驻
+  (owner 应用,未动)——#64 特征全中,本表数字仍为保守值;与 3.5.0 轮同机同态,跨轮可比。
 - 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 18899/19999,
   绝不触碰 owner 常驻 app)+ CDP 真实输入事件(HOROSA_PERF_DEBUG_PORT=9333, connect-only)。
 
@@ -26,35 +27,46 @@
 - 场景: step-first(选步长→首点)/ step-run(连点+反向)/ option(左栏开关来回)
 - 判定: 命中路径 n≥3 且 p50≤120 且 p95≤250;冷路径 p95≤1000;零样本=台架问题必须显式报
 
-## 逐技法验收表(25 键;3.5.1 数字待本轮打包件 acceptance 回填)
+## 逐技法验收表(25 键;2026-07-22 v3.5.1 打包件实测,repeat=10,--step-unit 天)
 
 | 技法键 | step-first(ms) | step p50/p95 | option p50/p95 | n | 判定 |
 | --- | --- | --- | --- | --- | --- |
-| astrochart | — | — | — | — | pending-3.5.1-run |
-| direction | — | — | — | — | 结构性:主时间条不在本页可见,步进走各推运方法自有控件 |
-| bazi | — | — | — | — | pending-3.5.1-run |
-| ziwei | — | — | — | — | pending-3.5.1-run |
-| guolao | — | — | — | — | pending-3.5.1-run |
-| indiachart | — | — | — | — | pending-3.5.1-run |
-| auxchart | — | — | — | — | pending-3.5.1-run |
-| relativechart | — | — | — | — | 结构性:双人盘无步进语义 |
-| shusuan | — | — | — | — | pending-3.5.1-run |
-| mingother | — | — | — | — | pending-3.5.1-run |
-| sanshiunited | — | — | — | — | pending-3.5.1-run |
-| liureng | — | — | — | — | pending-3.5.1-run |
-| dunjia | — | — | — | — | pending-3.5.1-run(3.5.0 轮观测缺口跟进) |
-| guazhan | — | — | — | — | pending-3.5.1-run(随机起卦 NO_ARM,数字如实记) |
-| taiyi | — | — | — | — | pending-3.5.1-run |
-| jieqichart | — | — | — | — | pending-3.5.1-run(专用邻位机制,仅 option) |
-| fengshui | — | — | — | — | 结构性:纯本地引擎页 |
-| cnyibu | — | — | — | — | pending-3.5.1-run |
-| aianalysis | — | — | — | — | SSE 流式:无步进/无落定单点(结构性) |
-| planetarium | — | — | — | — | 取现时型:无步进条(结构性) |
-| calendar | — | — | — | — | 月历型:单位集不同(台架按页配 --step-unit 跟进) |
-| cntradition | — | — | — | — | 结构性:无步进条 |
-| xuanshi | — | — | — | — | 浏览型:首屏 settle 观测已接,无步进语义 |
-| astrochart3D | — | — | — | — | pending-3.5.1-run |
-| astrodata | — | — | — | — | exempt(iframe 离线页,P5 豁免同理) |
+| astrochart | **71** | 85/279 | 数据轴 86/223(黄道↔Lahiri 首翻 223、往返 85-96) | 12+6 | 首击/往返 PASS;p95 尾=极速连点超窗(构成分析①) |
+| direction | — | — | — | 0 | 结构性:主时间条不在本页可见,步进走各推运方法自有控件 |
+| bazi | 118 | **109/135** | —(无数据轴快捷钮) | 12 | **PASS**(3.5.0 轮 124/134 超线 → 上游渲染守卫叠加后转绿) |
+| ziwei | 126 | **49/126** | — | 12 | **PASS**(p50 49;首击含臂重建) |
+| guolao | 335 | 341/711 | — | 10 | 超标:重引擎逐步付(Ship7 清单沿袭) |
+| indiachart | — | — | — | 0 | 台架注:v3.5.1 上游改版后时间条未过可见性判别(3.5.0 轮曾出样 93/98/368)——台架跟进,非产品结论 |
+| auxchart | 158 | 146/181 | — | 12 | 均匀 ~150-180 渲染主导(较 3.5.0 轮 156/213 收敛;Ship7 清单) |
+| relativechart | — | — | — | 0 | 结构性:双人盘无步进语义 |
+| shusuan | 115 | **115/186** | **84/93** | 12+4 | **双 PASS**(3.5.0 轮 step 145/177 超 → 转绿) |
+| mingother | 122 | 133/189 | **81/88** | 12+6 | option PASS;step 贴线(133 vs 120) |
+| sanshiunited | 389 | 363/740 | — | 8 | 超标:stage-1 重计算(Ship7/金口两阶段沿袭) |
+| liureng | 266 | 159/362 | **67/67** | 9+2 | option PASS;step 尾超 |
+| dunjia | — | — | — | 0 | 台架注:v3.5.1 上游遁甲界面自有草稿流(通用时间条不可见)——产品侧上游预取链+我方武装并存;逐击观测走上游 pm(fields compute/commit) |
+| guazhan | 293 | 371/588 | 248/425 | 10+6 | 随机技法 NO_ARM(设计不预取);整卦重算数字如实记 |
+| taiyi | — | — | — | 0 | 台架注:同印占,可见性判别未过(3.5.0 轮 227/211/387);option 亦未出钮 |
+| jieqichart | — | — | **40/42** | 5 | 专用邻位机制;option PASS(较 3.5.0 轮 49/58 再快) |
+| fengshui | — | — | — | 0 | 结构性:纯本地引擎页 |
+| cnyibu | **66** | 69/299 | — | 12 | 首击 PASS(66);尾=超窗 |
+| aianalysis | — | — | — | 0 | SSE 流式:无步进/无落定单点(结构性) |
+| planetarium | — | — | — | 0 | 取现时型:无步进条(结构性) |
+| calendar | — | — | — | 0 | 月历型:单位集不同(unit-option-not-found;台架按页配 --step-unit 跟进) |
+| cntradition | — | — | — | 0 | 结构性:无步进条 |
+| xuanshi | — | — | — | 0 | 浏览型:首屏 settle 观测已接,无步进语义 |
+| astrochart3D | 170 | 157/296 | — | 12 | 3D 场景重建计入;贴线 |
+| astrodata | — | — | — | 0 | exempt(iframe 离线页,P5 豁免同理) |
+
+### 构成分析(v3.5.1;判定不放水,读数要懂构成)
+
+① 命中 regime 66-126ms;**160ms 极速连点**在 ~6 击后越过 ±3 预取窗落冷路径(全部 < 冷预算
+   1000)。② 汇总 50 项:**PASS 8 · 超标 9 · 无数据 33**(3.5.0 轮为 7/13/30)——八字与数算
+   由超转绿(上游渲染守卫 + 我方引擎叠加),option 族普遍再快(分至 40/42、六壬 67、其他 81、
+   数算 84、astro 数据轴往返 85-96)。③ 超标 9 行两机理不变:超窗尾(astro/cnyibu/mingother)
+   与重引擎/渲染(七政 341、卜三式 363、六爻 371[随机族照实记]、六壬尾、辅盘 146、3D 157)
+   = Ship7 数据清单沿袭。④ 首盘端到端(bootstrap 确定击)= **63-64ms**(升级后温启实例,
+   上游 pm 三段:compute 2.4-2.5 / commit 48.6-49.7)。⑤ 台架注:印占/太乙/遁甲本轮
+   no-time-control 属可见性判别差异(上游 UI 改版),非产品回归 —— 台架跟进项。
 
 ### 上一轮(3.5.0 PERF-R10 落地轮)存档要点
 
@@ -64,11 +76,14 @@
 上游 kentangCache 三层+在途去重(卜类/数算切换)、选步长触发线上游化(±depth 引擎不变)、
 预热分档并行(冷启)、LazyCacheFactory(Java 就绪)。
 
-## 温启节(3.5.1 待填)
+## 温启节(2026-07-22 v3.5.1 隔离 A/B,每臂 8 次有效样本 + 首发提取弃样)
 
-- 温启 runtime-ready 中位: —
-- 工作区可见(early-nav on): —(3.5.0 轮:ON 665/697 vs OFF 4269/4388ms,n=20/臂)
-- spawnToPortsMs 回归检查: —
+- **工作区可见:early-nav ON 中位 637 / p95 655ms;OFF 中位 4223 / p95 4415ms**
+  (3.5.0 轮 ON 665/697 vs OFF 4269/4388,n=20/臂 —— 双轮互证,ON 臂还略快)。
+- 后端分相:spawnToPortsMs ON 3509 vs OFF 3412(+97ms,< 100ms 评估线 ✓,较 3.5.0 轮
+  +122ms 收敛);totalMs 3905 vs 3847(+58ms 噪音级)。评估结论=early-nav 默认开维持。
+- 温启 runtime-ready 中位 ≈3.9s(睿频压制机器态;上游预热分档在 trusted 温启走串行原序,
+  horosa_trusted_env_shape_v1 值形守卫生效)。
 
 ## 人工矩阵节(FreezeSubTab 切回原样;12 代表文件)
 
