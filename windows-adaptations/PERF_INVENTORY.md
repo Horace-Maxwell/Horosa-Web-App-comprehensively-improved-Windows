@@ -16,6 +16,29 @@
 > 散文列(「干什么」「实测收益」)由人写、不设门;每个机器可核的格子都设门。
 > 这就是对「不同步的文档比没有更糟」的回答。
 
+## 〇、零降级红线 → 守护线(先读这节再动任何性能面)
+
+> **红线(owner,永久)**:任何性能改进都不得造成功能降级。这不是口号 —— 每一类已知的
+> 降级方式都有**机械守护线**;新增优化时对照本表自检,命中任一类却没接对应守护 = 不完整。
+
+| 降级类 | 具体病 | 守护线(机械) |
+| --- | --- | --- |
+| 随机被钉死 | 预取/缓存把随机起卦(骰/塔罗/地占/五兆自动揲筮)的结果固化,重卦不再随机 | 运行时白名单双闸(`stepPrefetch` 提交丢弃 + request/chartFetch 拒发计数,金标断言零泄漏)+ kentangCache policy 闸 + **FE-28 wuzhao 守卫**(唯一缓存层拦,金标 3 例)+ 金标矩阵刻意排除 /geomancy |
+| 陈果(旧算法缓存冒充新果) | runtime 升级后 L3/kt 持久缓存照常应答旧算法结果 | `&rv=` 壳层接线(JV-11)→ requestDedupe/kentangCache 信封 rev 掺 runtime 版本 + 24h TTL;RUNTIME_VERSION 锁步门(#57/#59) |
+| 陈盘(chartFree 页读旧 chartObj) | 声明快车道的页悄悄开始消费共享 chartObj → 拿旧盘渲染 | `chartFreeContract` 契约哨兵(剥注释 grep,CRLF 免疫 v3.5.1)+ 声明/登记一对一断言 |
+| 错误信封被吞 | 惰性化/缓存把「越界参数应报错」变成「悄悄按默认出盘」 | 奇门 lazyju **刻意不给 .get 默认值**;金标钉 option 越界 `-1` 信封 |
+| 渲染守卫吞更新 | sCU/memo 在「其实变了」时跳过重渲 | 一律 `wrapperPropsEqual` 语义(state 引用变恒渲;键数不等/非函数键变即渲)+ `horosa.perf.chartSCU` 一键回退;双 sCU/双 import 收敛扫描(SKILL 铁律 3) |
+| 预取伤主流程 | 预取构造/提交抛错进主 saga | 三层兜底(能力守卫查全步进方法 + 单步构造整 try 占位保序 + settle 站点整块 try)—— 全量 umi 抓过实雷后制度化 |
+| 可搜索/可导出面被虚拟化毁掉 | 列表虚拟化让 Ctrl+F/AI 导出/打印只看到可视区 | **主动放弃虚拟化**(R9 多族裁决,写死防重挖);面板参与导出的一律全量渲染 |
+| 温启恢复挂旧现场 | bootChartRestore 重放过期/异版快照 | 7 天窗 + rev 信封 + fieldsEpoch latest-wins;快照构造失败自答 null |
+| 观测样本静默丢失 | 打点归属键错/守卫吞样本 ⇒ 验收永远量不到 | P5 观测覆盖门(键=navigationPages,陈旧豁免 FAIL)+ 归属键契约(#75) |
+| 「今天」被缓存冻住 | 服务端 now() 派生字段入缓存/金标 | kentangCache qizhengkin 年键守卫;金标 now 字段白名单归一(gochara,#78) |
+|(总则)| 任何单项优化不可回退 | **每项优化独立 kill-switch**,P3a/P3b/P3c 三向反查逼其入账;账→代码 P2 双向核;retired 行不得留活哨兵(P4) |
+
+> **证据惯例**:后端改动 = 黄金矩阵逐字节零漂移 + 开关置 0 复跑零漂移;前端改动 = 金标
+> jest + 打包件验收(PERF_BASELINE,门锁版本/口径/结构);原始逐样本数据按轮归档在
+> `docs/perf-artifacts/`(local,INDEX.md 领读)。
+
 ## 一、后端 Python(astropy / flatlib-ctrad2 / vendor)
 
 | ID | 目标 | 干什么 | kill-switch | 哨兵钉 | 实测收益 | 状态 |

@@ -8,9 +8,9 @@ additionally reconstructible from session records. See windows-adaptations/READM
 
 | file | sha256 | bytes | git | purpose |
 |---|---|---|---|---|
-| `.claude/skills/horosa-dev/SKILL.md` | `965aa4b16f1138fcbbf13815317b5841dbf848cb7a3b75876c0c2fda4c376b42` | 20609 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
+| `.claude/skills/horosa-dev/SKILL.md` | `cf56c428796ca4757c2a9c5d7dbfcb5fcf908daf24de77289c4ba7b518dbc00d` | 21257 | gitignored | the dev/sync/release runbook CORE (rules + runbooks + commands; restructured 2026-07-04) |
 | `.claude/skills/horosa-dev/references/gotchas-full.md` | `a4931fb504d7ca1f51a2bc0ba4077280e5c4fef79c34def532b8180123e5d4e0` | 311176 | gitignored | the full institutional gotcha archive #1-#73 (verbatim history + topic index; new gotchas append HERE, newest-first in the list). ★ Read the topic index first — rows '验证手段本身不可信'(#71) / '自检门的完整性'(#72) / '真机 UI 验收'(#73) are the transferable lessons from PERF-R9. |
-| `CLAUDE.md` | `66218733c5e4e973dabff80bc6fc6c97d9fca2af005d0cf64701e40d1391fa09` | 3696 | gitignored | repo-root session baseline (paths, red lines, verification entry points; local-only) |
+| `CLAUDE.md` | `d159d859c3d64f7f3f418bb593ca9cfaec307fddc963a325cca0a9e0710b2e8b` | 4159 | gitignored | repo-root session baseline (paths, red lines, verification entry points; local-only) |
 | `desktop_installer_bundle/assets/installer.nsh` | `a3718d6b384ee1b3d68f29d7186e659a18af4100a839209b2efd6022d572da8f` | 81059 | gitignored | NSIS hooks: disk-space gate, uninstall cleanup, OS gate, details-visible install log + phase banners |
 | `desktop_installer_bundle/electron/build-uber-jar.py` | `350016fb4d41b2f60644737e37cf7e3e7a698849efd1d4824cdfefe177e7f9cc` | 19280 | gitignored | fat-jar -> single uber jar merge (classpath.idx first-wins + SPI union + dir entries) enabling fast static CDS |
 | `desktop_installer_bundle/electron/defender-exclusion.js` | `580bed89e66dc7c1a12f9acef5360a753dbc2512bfc873a2691197c87e602dbc` | 15796 | gitignored | consented Windows Defender exclusion of the app runtime (~500x on-access I/O tax fix) |
