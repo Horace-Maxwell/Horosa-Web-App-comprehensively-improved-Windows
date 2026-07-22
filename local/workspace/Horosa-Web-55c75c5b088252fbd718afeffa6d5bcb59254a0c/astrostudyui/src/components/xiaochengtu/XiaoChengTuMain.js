@@ -4,6 +4,7 @@
 // 🔴 本技法起卦不吃占时(手动卦/数字/股价三式皆非时间起例)——AI 挂载登记时不进
 //    TIME_CASTABLE_DIVINATION(时间可起课清单),挂载重算无「按时重起」路径。
 import React, { Component, createRef } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQSideSection } from '../xq-ui';
 import { Tabs, Empty, Input, InputNumber, Radio, Button, Select, Tag } from 'antd';
 import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan } from './core/xiaochengtuQiGua';
@@ -15,7 +16,6 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -105,6 +105,15 @@ export function buildXiaoChengTuSnapshotForCase(payload, opts){
 }
 
 class XiaoChengTuMain extends Component {
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(p){
 		super(p);
 		const stored = safeJsonParseFromStorage(STORE_KEY);
@@ -118,20 +127,6 @@ class XiaoChengTuMain extends Component {
 		this.rootRef = createRef();
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
-	}
-	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	componentDidMount(){

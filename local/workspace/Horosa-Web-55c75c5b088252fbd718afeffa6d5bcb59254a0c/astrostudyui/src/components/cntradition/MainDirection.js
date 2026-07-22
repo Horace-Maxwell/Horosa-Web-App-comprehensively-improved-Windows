@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, Divider, Popover} from 'antd';
 import { XQCard as Card, XQTabs as Tabs } from '../xq-ui';
 import { BaZiMsg } from '../../msg/bazimsg';
@@ -22,6 +23,15 @@ function describeStemBranch(item){
 }
 
 class MainDirection extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = {

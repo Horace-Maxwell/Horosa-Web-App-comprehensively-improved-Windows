@@ -1,8 +1,7 @@
-// AI 富文本 markdown 渲染共享件(B-A4):AIAnalysisMain(聊天)与 ReportPane(报告)同一套
-// GFM + KaTeX 数学 + 代码块(语言标签/复制按钮)+ DOMPurify 白名单。此前报告侧只有裸
-// marked+DOMPurify,与聊天能力不一致(数学不渲染/代码无高亮)——抽此单一来源双侧共用。
+// AI 富文本 markdown 渲染共享件:GFM + KaTeX 数学 + 代码块(语言标签/复制按钮)+
+// DOMPurify 白名单。抽此单一来源供各渲染侧共用,避免能力不一致(数学不渲染/代码无高亮)。
 // 行为要求:与 AIAnalysisMain 原实现逐字等价(marked 全局配置随本模块加载生效)。
-// 三方库统一 interop 兜底(named/default/CJS 任意形态;jest 与 webpack 解析差异下都稳——照 reportExport 的 jspdf 先例)。
+// 三方库统一 interop 兜底(named/default/CJS 任意形态;jest 与 webpack 解析差异下都稳——同 jspdf 先例)。
 import * as _markedMod from 'marked';
 import * as _dompurifyMod from 'dompurify';
 import * as _katexMod from 'katex';

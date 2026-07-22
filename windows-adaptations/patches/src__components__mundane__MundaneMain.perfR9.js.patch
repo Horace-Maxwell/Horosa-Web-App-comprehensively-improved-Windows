@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/mundane/MundaneMain.js b/astrostudyui/src/components/mundane/MundaneMain.js
-index be5a5c6..ba193d8 100644
+index 350797b..7e23667 100644
 --- a/astrostudyui/src/components/mundane/MundaneMain.js
 +++ b/astrostudyui/src/components/mundane/MundaneMain.js
-@@ -23,6 +23,8 @@ import { allRegions, saveUserRegion, MUNDANE_CAPITALS, regionCandidates } from '
+@@ -24,6 +24,8 @@ import { allRegions, saveUserRegion, MUNDANE_CAPITALS, regionCandidates } from '
  import { astroSymbol, chartParams, fmtDegree, chartRequestKey } from '../astro/AstroExtraCommon';
  import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
@@ -11,7 +11,7 @@ index be5a5c6..ba193d8 100644
  
  const Option = XQSelect.Option;
  const TabPane = XQTabs.TabPane;
-@@ -1493,17 +1495,27 @@ class MundaneMain extends Component{
+@@ -1503,17 +1505,27 @@ class MundaneMain extends Component{
  		const tabs = this.mundaneRightTabList(type);
  		let active = this.state.mundaneRightTab || tabs[0].value;
  		if(!tabs.some((t) => t.value === active)){ active = tabs[0].value; }

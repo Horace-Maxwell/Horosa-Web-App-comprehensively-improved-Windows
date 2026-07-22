@@ -5,6 +5,7 @@
 // 地区盘：预置/自定义历史建置时刻 + 12 世俗宫义。行星周期：/astroextra/greatconj 精算木土大合。
 // 解读层：divination/mundane/describe（行星落世俗宫判词、食的元素/分度判词）。
 import { Component, Fragment } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { InputNumber, Spin, Input } from 'antd';
 import { XQSelect, XQButton, XQTabs, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
@@ -213,6 +214,15 @@ const CARD = {
 const CARD_TITLE = { fontSize: 13.5, fontWeight: 700, marginBottom: 12, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: 8 };
 
 class MundaneMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		this.state = {

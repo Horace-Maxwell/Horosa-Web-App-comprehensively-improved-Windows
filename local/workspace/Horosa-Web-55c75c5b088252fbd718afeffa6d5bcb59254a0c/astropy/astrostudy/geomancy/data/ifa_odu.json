@@ -1,0 +1,36 @@
+{
+	"schema": "geomancy.ifa_odu/v1",
+	"cultural_notice": "此为独立圣传体系,与地占仅「十六个四行二元图形」外形同构。其起卦、含义、解读与宗教语境自成体系,需经启蒙传承。本处仅提供结构与比特对照,供研究者交叉参考;不套用地占含义,不载诗文,不构成占断。",
+	"structure": {
+		"mark_single": "I",
+		"mark_double": "II",
+		"columns": 2,
+		"marks_per_column": 4,
+		"read_direction": "RTL",
+		"read_note": "自右向左读,资深列在右;主形(Meji,「双」)为左右两列相同者,共十六。任取两列可组合出二百五十六形。",
+		"bit_convention": "单线 I = 单点 = 1、双线 II = 双点 = 0;比特自上而下按 火→气→水→地 读,与地占内核同一约定。"
+	},
+	"cast_methods": {
+		"opele": "占链:链上八枚半果,一掷即定两列八记号,给出整形。",
+		"ikin": "圣果:双手相抓十六果取余数,余二记单线、余一记双线(此约定与直觉相反,为其内部规矩),重复八次成一形。"
+	},
+	"seniority_note": "资历序各地略有出入,首位恒定;个别地区后几位次序微调。",
+	"meji": [
+		{ "seniority": 1, "name": "Eji Ogbe", "marks": ["I", "I", "I", "I"], "bits": "1111", "int": 15, "figure": "Via" },
+		{ "seniority": 2, "name": "Ọyẹkú Meji", "marks": ["II", "II", "II", "II"], "bits": "0000", "int": 0, "figure": "Populus" },
+		{ "seniority": 3, "name": "Iwori Meji", "marks": ["II", "I", "I", "II"], "bits": "0110", "int": 6, "figure": "Coniunctio" },
+		{ "seniority": 4, "name": "Odi Meji", "marks": ["I", "II", "II", "I"], "bits": "1001", "int": 9, "figure": "Carcer" },
+		{ "seniority": 5, "name": "Irosun Meji", "marks": ["I", "I", "II", "II"], "bits": "1100", "int": 12, "figure": "Fortuna Minor" },
+		{ "seniority": 6, "name": "Ọwọnrin Meji", "marks": ["II", "II", "I", "I"], "bits": "0011", "int": 3, "figure": "Fortuna Maior" },
+		{ "seniority": 7, "name": "Ọbara Meji", "marks": ["I", "II", "II", "II"], "bits": "1000", "int": 8, "figure": "Laetitia" },
+		{ "seniority": 8, "name": "Ọkanran Meji", "marks": ["II", "II", "II", "I"], "bits": "0001", "int": 1, "figure": "Tristitia" },
+		{ "seniority": 9, "name": "Ogunda Meji", "marks": ["I", "I", "I", "II"], "bits": "1110", "int": 14, "figure": "Cauda Draconis" },
+		{ "seniority": 10, "name": "Ọsa Meji", "marks": ["II", "I", "I", "I"], "bits": "0111", "int": 7, "figure": "Caput Draconis" },
+		{ "seniority": 11, "name": "Ika Meji", "marks": ["II", "I", "II", "II"], "bits": "0100", "int": 4, "figure": "Rubeus" },
+		{ "seniority": 12, "name": "Oturupọn Meji", "marks": ["II", "II", "I", "II"], "bits": "0010", "int": 2, "figure": "Albus" },
+		{ "seniority": 13, "name": "Otura Meji", "marks": ["I", "II", "I", "I"], "bits": "1011", "int": 11, "figure": "Puella" },
+		{ "seniority": 14, "name": "Irete Meji", "marks": ["I", "I", "II", "I"], "bits": "1101", "int": 13, "figure": "Puer" },
+		{ "seniority": 15, "name": "Ọshẹ Meji", "marks": ["I", "II", "I", "II"], "bits": "1010", "int": 10, "figure": "Amissio" },
+		{ "seniority": 16, "name": "Ofun Meji", "alt_name": "Ọ̀ràngún", "marks": ["II", "I", "II", "I"], "bits": "0101", "int": 5, "figure": "Acquisitio" }
+	]
+}

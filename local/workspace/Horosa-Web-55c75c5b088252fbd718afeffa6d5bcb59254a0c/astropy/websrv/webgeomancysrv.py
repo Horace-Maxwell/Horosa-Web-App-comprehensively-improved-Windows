@@ -19,6 +19,10 @@ from astrostudy.geomancy import correspondences as geo_corr
 from astrostudy.geomancy.figures import inverse, name as fig_name, points, reverse
 from astrostudy.geomancy.traditions import PROFILES
 from astrostudy.geomancy.random_source import normalize_cast_method
+from astrostudy.geomancy.ifa import odu_of as geo_odu_of
+from astrostudy.geomancy.numbers import all_numbers as geo_all_numbers, figure_number as geo_figure_number
+from astrostudy.geomancy.figures import is_palindrome as geo_is_palindrome, active_elements as geo_active_elements
+from astrostudy.geomancy.vedic import vedic_overlay as geo_vedic
 
 # 种子上界:与前端 InputNumber max 对齐(int32 正区间),保证回传种子可手填复现。
 _SEED_MAX = 2147483647
@@ -93,16 +97,45 @@ def _fig_dict(f, zodiac_system="classical"):
         "nameGreek": f.get("name_greek"), "nameHebrew": f.get("name_hebrew"),
         "meanings": f.get("meanings"),
         "reverseOf": f.get("reverse_of"), "inverseOf": f.get("inverse_of"),
+        # 全流派补齐新增字段(必须显式拷:不拷则前端恒缺)
+        "converseOf": f.get("converse_of"),
+        "nameArabicScript": f.get("name_arabic_script"),
+        "directionCompass": f.get("direction_compass"),
+        "numbers": _json_safe(f.get("numbers")) if f.get("numbers") else None,
+        "number": _json_safe(f.get("number")) if f.get("number") else None,
+        "odu": _json_safe(f.get("odu")) if f.get("odu") else None,
+        # 收尾补齐新增字段(必须显式拷:不拷则前端恒缺)
+        "displayName": f.get("display_name"),
+        "namesSystem": f.get("names_system"),
+        "isPalindrome": f.get("is_palindrome"),
+        "activeElements": _json_safe(f.get("active_elements")) if f.get("active_elements") else None,
+        "vedic": _json_safe(f.get("vedic")) if f.get("vedic") else None,
     }
 
 
-def _figure_catalog(zodiac_system="classical"):
+def _figure_catalog(zodiac_system="classical", number_system="points", names_system="latin"):
+    """十六图目录。除旧有字段外补:逆反名 / 三系图数(按当前体系取一) / 对应主形 ——
+    目录卡与盘面图形走的是两条组装路径,此处不补则目录永远缺这几项(与盘面不一致)。"""
     cat = geo_corr.catalog()
     out = []
     for v in cat.values():
         i = v["int"]
-        out.append(_fig_dict({**v, "points": points(i),
-                              "reverse_of": fig_name(reverse(i)), "inverse_of": fig_name(inverse(i))}, zodiac_system))
+        e = geo_odu_of(i)
+        out.append(_fig_dict({
+            **v, "points": points(i),
+            "reverse_of": fig_name(reverse(i)), "inverse_of": fig_name(inverse(i)),
+            "converse_of": fig_name(reverse(inverse(i))),
+            "numbers": geo_all_numbers(i),
+            "number": geo_figure_number(i, number_system),
+            "odu": ({"name": e["name"], "seniority": e["seniority"], "marks": list(e["marks"])} if e else None),
+            "is_palindrome": geo_is_palindrome(i),
+            "active_elements": geo_active_elements(i),
+            "vedic": geo_vedic(i),
+            "display_name": (v.get({"latin": "latin", "arabic": "name_arabic", "greek": "name_greek",
+                                    "hebrew": "name_hebrew", "yoruba": "name_yoruba"}.get(names_system, "latin"))
+                             or v.get("latin")),
+            "names_system": names_system,
+        }, zodiac_system))
     return out
 
 
@@ -121,21 +154,37 @@ def _build_response(r, seed=None):
     judge = _fig_dict(r["judge"], zsys)
     recon = _fig_dict(r["reconciler"], zsys) if r.get("reconciler") else None
     figures16 = mothers + daughters + nieces + [rw, lw, judge] + ([recon] if recon else [])
+    # 🔴 十二宫星座取**定局所得**(自上升起顺铺),不是 house_meanings 里写死的自然星座。
+    #    写死的 1=白羊…12=双鱼 是合法参考数据(次要判断用),但把它当定局结果画在盘上,
+    #    会与盘心「上升 X」自相矛盾 —— 定局既已算出(astro_erection.signs),此处必须取之。
+    erection = r.get("astro_erection") or {}
+    sign_by_house = {int(x["house"]): x for x in (erection.get("signs") or [])}
     houses = []
     for h in r["houses"]:
         hm = h.get("meaning") or {}
+        nat = hm.get("sign") or ""
+        rot = sign_by_house.get(int(h["house"])) or {}
+        sign = rot.get("sign") or nat                       # 定局星座优先;无定局块时退回自然星座
         houses.append({
             "house": h["house"], "figure": _fig_dict(h["figure"], zsys),
             "roles": h.get("roles", []), "reading": h.get("reading"),
             "nameZh": hm.get("latin"), "topicsZh": hm.get("theme"),
-            "sign": hm.get("sign"), "signZh": _SIGN_ZH.get(hm.get("sign", ""), hm.get("sign", "")),
+            "sign": sign, "signZh": rot.get("sign_zh") or _SIGN_ZH.get(sign, sign),
+            "naturalSign": nat, "naturalSignZh": _SIGN_ZH.get(nat, nat),
             "ruler": hm.get("ruler"), "element": hm.get("element"),
+            # 宫位之东传支名:数据表本有 bhava 一列,却从未挂到宫上 —— 补出,免得 AI 据承诺而无据。
+            "bhava": (h.get("vedic") or {}).get("bhava_sanskrit"),
+            "bhavaZh": (h.get("vedic") or {}).get("bhava_zh"),
         })
+    # 盘心「上升」与宫一星座必须同源:定局块的上升(随 asc_source 取法而变)才是本盘真上升。
+    # 缺省取法 h1_figure 下二者恒等,故此改动在默认路径上字节零回归。
+    asc_sign = erection.get("sign") or r.get("ascendant_sign") or ""
     reading = {
         "questionType": r.get("question_type"), "primaryHouse": r.get("quesited_house"),
         "querentHouse": r.get("querent_house"),
-        "ascendantSign": r.get("ascendant_sign"),
-        "ascendantSignZh": _SIGN_ZH.get(r.get("ascendant_sign", ""), r.get("ascendant_sign", "")),
+        "ascendantSign": asc_sign,
+        "ascendantSignZh": erection.get("sign_zh") or _SIGN_ZH.get(asc_sign, asc_sign),
+        "ascendantSignH1": r.get("ascendant_sign"),   # 第一宫图之星座(取法甲),留档不丢
         "ascendantFigure": mothers[0] if mothers else None,
         "zodiacSystem": zsys, "readingScope": r.get("reading_scope"),
         "haltedOnFirstMother": r.get("halted_on_first_mother"),
@@ -149,10 +198,26 @@ def _build_response(r, seed=None):
     }
     if seed is not None:
         reading["seed"] = int(seed)
+    # 全流派补齐新增块(显式拷贝,缺一则前端该功能空转)
+    reading["settings"] = _json_safe(r.get("settings") or {})
+    if r.get("astro_erection"):
+        reading["astroErection"] = _json_safe(r["astro_erection"])
+    if r.get("planet_placement_by_twelves"):
+        reading["planetPlacementByTwelves"] = _json_safe(r["planet_placement_by_twelves"])
+    if r.get("derived"):
+        reading["derived"] = _json_safe(r["derived"])
+    if r.get("buyut"):
+        reading["buyut"] = _json_safe(r["buyut"])
     if r.get("sikidy"):
         reading["sikidy"] = _json_safe(r["sikidy"])
     if r.get("hakata"):
         reading["hakata"] = _json_safe(r["hakata"])
+    if r.get("ifa"):
+        reading["ifa"] = _json_safe(r["ifa"])
+    if r.get("cultural_notice"):
+        reading["culturalNotice"] = r["cultural_notice"]
+    if r.get("structural_only"):
+        reading["structuralOnly"] = True
     return reading
 
 
@@ -203,10 +268,38 @@ class GeomancySrv:
             zodiac_system = _clean(data.get("zodiacSystem"), "") or None
             reading_scope = _clean(data.get("readingScope"), "") or None
 
+            # 传本粒度覆盖:一律「未传=None → 内核回落 profile 值」,故旧客户端字节零变。
+            def _opt(key, alt=None):
+                v = data.get(key)
+                if v is None and alt:
+                    v = data.get(alt)
+                v = _clean(v, "")
+                return v or None
+
+            def _optb(key):
+                v = data.get(key)
+                if v is None or v == "":
+                    return None
+                if isinstance(v, bool):
+                    return v
+                return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+            turn_to = _to_int(data.get("turnTo"), None)
             r = geo_chart.compute_reading(
                 question_type=question_type, profile_id=profile_id,
                 cast_method=cast_method, seed=kernel_seed, time_seed=kernel_time_seed,
                 reading_scope=reading_scope, zodiac_system=zodiac_system,
+                mark_style=_opt("markStyle"), direction=_opt("direction"),
+                house_projection=_opt("houseProjection"), wrap_houses=_optb("wrapHouses"),
+                reconciler=_optb("reconciler"), reconciler_mode=_opt("reconcilerMode"),
+                halt_enabled=_optb("haltEnabled"), compound_mode=_opt("compoundMode"),
+                number_system=_opt("numberSystem"), chart_mode=_opt("chartMode"),
+                turn_to=turn_to,
+                house_system=_opt("houseSystem"), asc_source=_opt("ascSource"),
+                names_system=_opt("namesSystem"),
+                # 所问宫:显式指定优先于问类查表(问类只是快捷预设,不是真值源)
+                quesited_house=_to_int(data.get("quesitedHouse"), None),
+                parity_scope=_opt("parityScope"),
             )
             reading = _build_response(r, seed=effective_seed)
             reading["question"] = question
@@ -214,7 +307,8 @@ class GeomancySrv:
             result = {
                 "reading": _json_safe(reading),
                 "squareSvg": "", "wheelSvg": "",   # 前端用原生暗金盘,不取引擎 SVG
-                "figures": _figure_catalog(zsys),
+                "figures": _figure_catalog(zsys, (r.get("settings") or {}).get("number_system", "points"),
+                                           (r.get("settings") or {}).get("names_system", "latin")),
                 "questionTypes": [{"key": k, "label": lb, "primaryHouse": geo_corr.question_house(k)} for k, lb in _QTYPES],
                 "traditions": [{"id": pid, "label": p.get("label", pid)} for pid, p in PROFILES.items()],
                 "aiPrompt": "",
@@ -238,7 +332,10 @@ class GeomancySrv:
             profile_id = _clean(data.get("tradition") or data.get("profile"), "european_classical")
             prof = PROFILES.get(profile_id, PROFILES["european_classical"])
             zsys = _clean(data.get("zodiacSystem"), "") or prof.get("zodiac_system", "classical")
-            result = {"figures": _figure_catalog(zsys),
+            # 目录端点无盘上下文,图数体系取显式入参,缺则回落该流派默认(再缺=点数)。
+            nsys = _clean(data.get("numberSystem"), "") or prof.get("number_system") or "points"
+            namesys = _clean(data.get("namesSystem"), "") or prof.get("names") or "latin"
+            result = {"figures": _figure_catalog(zsys, nsys, namesys),
                       "traditions": [{"id": pid, "label": p.get("label", pid)} for pid, p in PROFILES.items()]}
             return jsonpickle.encode({"ResultCode": 0, "Result": result}, unpicklable=False)
         except Exception:

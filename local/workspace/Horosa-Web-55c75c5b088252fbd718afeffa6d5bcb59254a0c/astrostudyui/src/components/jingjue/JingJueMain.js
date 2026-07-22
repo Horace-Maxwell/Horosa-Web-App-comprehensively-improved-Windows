@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
@@ -9,10 +10,10 @@ import { XQButton as Button, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -54,26 +55,26 @@ function defaultSeed(){
 async function postJingJue(path, payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetch(buildKentangEndpoint('jingjue', path), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('jingjue', path), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
 			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'jingjue.local.fetch.failed');
 		}
 	}catch(e){
-		const rawResponse = await fetch(`${ServerRoot}/jingjue/${path}`, {
+		const rawResponse = await cachedKentangFetch(`${ServerRoot}/jingjue/${path}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 	}
@@ -120,6 +121,15 @@ export async function buildJingJueSnapshotForFields(fields, opts){
 }
 
 class JingJueMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		this.state = {
@@ -154,20 +164,6 @@ class JingJueMain extends Component{
 		}
 	}
 
-	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
@@ -274,6 +270,8 @@ class JingJueMain extends Component{
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
+			// [R3-A2] 步进方向提示:驱动 settle 后 /chart ±步预取(消费后即剥离)
+			...(value.step ? { __stepHint: value.step } : {}),
 		});
 	}
 

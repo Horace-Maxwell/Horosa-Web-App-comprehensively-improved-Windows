@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Divider, } from 'antd';
 import RuleHouses from './RuleHouses';
 import RuleStars from './RuleStars';
@@ -10,6 +11,15 @@ import { XQTabs as Tabs } from '../xq-ui';
 const TabPane = Tabs.TabPane;
 
 class ZWRuleMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 	}

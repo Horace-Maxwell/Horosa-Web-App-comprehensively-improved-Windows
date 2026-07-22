@@ -1,9 +1,9 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Empty } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
@@ -41,6 +41,16 @@ function deepFreeze(o){
 }
 
 class CanPingMain extends Component {
+	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = { method: props.method || 'ming' };
@@ -48,18 +58,6 @@ class CanPingMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-	// 病灶:本组件零 sCU —— 宿主(KinAstroMain)左栏上百个受控控件里【任何一个】改动
-	// 都会重渲整棵树,而本组件中栏是「大运 + 1~120 岁流年全表」两张大表(且宿主渲染两遍:
-	// center/aux)。可 canping 只吃 fields/method 两项,余者与它无关。
-	// 语义:props 任一项变、或自身 state 变 → 照常重渲(零陈旧);
-	//      forceUpdate(日界/晚子/远程农历回包三个监听走的就是它)天然绕过 sCU,不受影响。
-	// horosa_shusuan_native_scu_v1(PERF-R9 Ship 6):复用既有 wrapperPropsEqual —— 全 props
-	// 机械浅比(免手抄 keys 的漏渲风险),函数型视为恒等(此处宿主本就不传函数型),
-	// 且沿用同一个 kill-switch(horosa.perf.chartSCU 关 = 恒重渲的旧行为)。
-	shouldComponentUpdate(nextProps, nextState) {
-		if (nextState !== this.state) { return true; }
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount() {
 		this.saveSnap();

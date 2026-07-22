@@ -1,9 +1,10 @@
 diff --git a/astrostudyui/src/components/cntradition/MainDirectionSimple.js b/astrostudyui/src/components/cntradition/MainDirectionSimple.js
-index d3d307f..546e69b 100644
+index f11ce3a..338aaa7 100644
 --- a/astrostudyui/src/components/cntradition/MainDirectionSimple.js
 +++ b/astrostudyui/src/components/cntradition/MainDirectionSimple.js
-@@ -1,11 +1,13 @@
+@@ -1,12 +1,14 @@
  import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { Row, Col } from 'antd';
 -import { randomStr } from '../../utils/helper';
  import { BaZiMsg } from '../../msg/bazimsg';
@@ -17,7 +18,7 @@ index d3d307f..546e69b 100644
  
  
  class MainDirectionSimple extends Component{
-@@ -28,12 +30,12 @@ class MainDirectionSimple extends Component{
+@@ -38,12 +40,12 @@ class MainDirectionSimple extends Component{
  				let dir = dirs[i];
  				if(i !== 0 && (i % 8 == 0)) {
  					let col = (

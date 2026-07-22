@@ -162,6 +162,8 @@ import {
 	isReasoningModel,
 	encodeModelSelection,
 	parseModelSelection,
+	contextCharBudgetForModel,
+	effectiveMaxTokensForModel,
 } from '../../utils/aiAnalysisProviders';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -187,6 +189,12 @@ const RETRIEVAL_OPTIONS = [
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
+
+// 前缀缓存断点标记:埋在 system 文本里的中性标记,与后端 AI 代理内同名常量**逐字节一致**。
+// 后端按 provider 分家:anthropic 按标记切 system 数组块并打 cache_control(ephemeral);
+// OpenAI 家族剥标记吃厂商自动前缀缓存;Gemini/Ollama 等剥净。改这个字面量必须两端同改,
+// 否则标记会原样混进 prompt 正文。
+const PROMPT_CACHE_BP = '[[__CACHE_BP__]]';
 
 const COMMON_PROVIDER_OPTION_KEYS = ['extraHeaders', 'extraBody', 'apiVersion', 'requestTimeoutMs'];
 const PROVIDER_OPTION_KEY_MAP = {
@@ -2067,6 +2075,21 @@ function AIAnalysisMain(props){
 			if(isOpenAiFamily(protoFamily)){ chatProviderOptions.response_format = { type: 'json_object' }; }
 			else if(protoFamily === 'gemini'){ chatProviderOptions.response_format = { type: 'json_object' }; /* 后端会把它翻成 generationConfig.responseMimeType */ }
 		}
+		// 推理模型输出预算兜底:档案未显式配上限(anthropic max_tokens / ollama num_predict /
+		// gemini maxOutputTokens)时,后端默认 2048/1024 会被思考 token 吃光 → 正文空。
+		// 只在「未配」时兜底放大;用户配过任何值 = 尊重原值,零覆盖。
+		{
+			const hasExplicitCap = chatProviderOptions.max_tokens != null
+				|| chatProviderOptions.num_predict != null
+				|| chatProviderOptions.maxOutputTokens != null;
+			if(!hasExplicitCap && isReasoningModel(model)){
+				const boosted = effectiveMaxTokensForModel(model, 4096);
+				if(protoFamily === 'anthropic'){ chatProviderOptions.max_tokens = boosted; }
+				else if(protoFamily === 'ollama'){ chatProviderOptions.num_predict = boosted; }
+				else if(protoFamily === 'gemini'){ chatProviderOptions.maxOutputTokens = boosted; }
+				else { chatProviderOptions.max_tokens = boosted; }
+			}
+		}
 		try{
 			await requestAIAnalysisChatStream({
 				providerType: profile.providerType,
@@ -2206,7 +2229,14 @@ function AIAnalysisMain(props){
 		// [挂载预算] 单次裁剪消双算：同一份 layers 只过一遍 clipContextLayersDetailed（旧代码这里
 		// clipContextLayers + buildPromptContext 同输入各算一遍）。fairShare 让多技法触界时
 		// 公平分摊而非低序技法整层静默丢；账本 {byKey,dropped,stats} 落 state 供预览卡/banner 可见化。
-		const clipDetail = clipContextLayersDetailed(layers, { maxChars: AI_CONTEXT_MAX_CHARS, fairShare: true });
+		// [挂载预算] 按当前模型窗口给预算:大窗口模型解除 2 万字硬颈,Ollama 按 num_ctx
+		// 实算(小窗口低于保底,防静默截断),未知模型回落 AI_CONTEXT_MAX_CHARS=零回归。
+		const _selModel = parseModelSelection(modelSelection).model || '';
+		const _numCtx = profile && profile.providerType === 'ollama'
+			? Number((profile.providerOptions || {}).num_ctx) || undefined
+			: undefined;
+		const ctxCharBudget = contextCharBudgetForModel(_selModel, { numCtx: _numCtx, floorChars: AI_CONTEXT_MAX_CHARS });
+		const clipDetail = clipContextLayersDetailed(layers, { maxChars: ctxCharBudget, fairShare: true });
 		if(isMountedRef.current){
 			setPromptClipStats({
 				byKey: (clipDetail.stats && clipDetail.stats.byKey) || {},
@@ -2214,9 +2244,25 @@ function AIAnalysisMain(props){
 				stats: clipDetail.stats || null,
 			});
 		}
-		return {
+		// 前缀缓存断点:挂载快照/资料/会话规则等【稳定层】在前,检索命中与近期对话【挥发层】
+		// 在后,两者交界插 PROMPT_CACHE_BP。稳定层跨轮逐字节不变即命中 provider 前缀缓存——
+		// 治「每轮追问都把整份命盘快照按原价重发」的成本大头。层序本就稳定在前挥发在后
+		// (retrieved-context / recent-history 恒居末),分组零重排;不支持的 provider 由后端
+		// 剥标记 → 与不分层时字节等价、零回归。
+		const _joinLayers = (arr)=>arr.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim();
+		const _volatileKeys = { 'retrieved-context': 1, 'recent-history': 1 };
+		const _fam = getProviderProtocolFamily(profile && profile.providerType);
+		const _stableL = clipDetail.kept.filter((item)=>!_volatileKeys[item.key]);
+		const _volatileL = clipDetail.kept.filter((item)=>_volatileKeys[item.key]);
+		let _sysJoined;
+		if((_fam === 'anthropic' || _fam === 'openai-compatible') && _stableL.length && _volatileL.length){
+			_sysJoined = [_joinLayers(_stableL), _joinLayers(_volatileL)].filter(Boolean).join(`\n\n${PROMPT_CACHE_BP}\n\n`);
+		}else{
 			// join 表达式与 buildPromptContext 逐字同式（prompt 结构零漂移）。
-			systemPrompt: clipDetail.kept.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim(),
+			_sysJoined = _joinLayers(clipDetail.kept);
+		}
+		return {
+			systemPrompt: _sysJoined,
 			retrieval,
 			clippedLayers: clipDetail.kept,
 		};
@@ -2433,7 +2479,19 @@ function AIAnalysisMain(props){
 
 	async function exportConversation(conversation, format){
 		const msgList = await listConversationMessages(conversation.id);
-		const exported = await exportConversationByFormat(conversation, msgList, format);
+		// docx 形态按「AI导出设置·附页面截图」抓当前页(AI分析页)截图入文档头;失败恒 null 不阻断。
+		let pageShotOpts;
+		if(format === 'docx'){
+			try{
+				const { isAIExportScreenshotEnabled } = await import('../../utils/aiExport');
+				if(isAIExportScreenshotEnabled()){
+					const { capturePageScreenshotForExport } = await import('../../utils/pageScreenshot');
+					const { shot } = await capturePageScreenshotForExport();
+					if(shot){ pageShotOpts = { pageScreenshot: shot }; }
+				}
+			}catch(_){ /* 截图失败绝不阻断导出 */ }
+		}
+		const exported = await exportConversationByFormat(conversation, msgList, format, pageShotOpts);
 		if(desktopBridge){
 			try{
 				const base64Data = await blobToBase64(exported.blob);
@@ -4082,7 +4140,7 @@ function AIAnalysisMain(props){
 						className={styles.contextBannerItem}
 						title={`最近一次发送给模型的上下文字数 / 预算上限${promptClipStats.stats.droppedCount ? `；有 ${promptClipStats.stats.droppedCount} 层超预算未纳入（见挂载预览）` : ''}`}
 					>
-						上下文约 {promptClipStats.stats.totalKept}/{AI_CONTEXT_MAX_CHARS} 字
+						上下文约 {promptClipStats.stats.totalKept}/{promptClipStats.stats.maxChars || AI_CONTEXT_MAX_CHARS} 字
 					</span>
 				) : null}
 				<a className={styles.contextBannerEdit} onClick={()=>setMountDrawerOpen(true)}>编辑</a>
@@ -5140,7 +5198,7 @@ function AIAnalysisMain(props){
 					tabPosition="right"
 					activeKey={innerTab}
 					onChange={setInnerTab}
-					style={{ height }}
+					style={{ height: '100%', minHeight: 0 }}
 				>
 					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">
 						<FreezeSubTab active={innerTab === 'analysis'}>{()=>(
@@ -5196,7 +5254,7 @@ function AIAnalysisMain(props){
 					<Form.Item name="tags" label="标签">
 						<Input placeholder="支持逗号分隔" />
 					</Form.Item>
-					<Form.Item name="schools" label="流派" extra="可多选/自由输入；报告功能可按流派过滤资料并注入流派提示。">
+					<Form.Item name="schools" label="流派" extra="可多选/自由输入；用于按流派过滤资料并注入流派提示。">
 						<Select
 							mode="tags"
 							placeholder="如 子平派 / 盲派 / 北派飞星 等（不填 = 视为通用资料）"

@@ -71,9 +71,11 @@ function startIdlePreload(){
 		.sort((a, b) => a.order - b.order)
 		.map((e) => e.factory);
 	const next = ()=>{
-		const f = queue.shift();
-		if(!f) return;
-		Promise.resolve().then(f).catch(()=>{}).finally(()=>{
+		// [R3-D1] 每空闲拍预载 2 个(原 1):31 chunk 全就绪窗口减半;仍走 requestIdleCallback
+		// 空闲档,不与用户交互抢主线程(交互期无空闲拍=天然让路)。
+		const fs = queue.splice(0, 2);
+		if(!fs.length) return;
+		Promise.all(fs.map((f)=>Promise.resolve().then(f).catch(()=>{}))).finally(()=>{
 			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
 				window.requestIdleCallback(next, { timeout: 3000 });
 			}else{
@@ -158,9 +160,9 @@ import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../u
 // 只有 changeTab 打过,切时间/改选项一次都不打 —— 于是 markChartRefreshEnd 拿上次切页签的
 // 陈旧 start 配 measure,量出秒级垃圾,「点击→显示」这个要验收的数根本量不出来。
 import { markInteractionStart, setCurrentTechnique } from '../utils/perfMark';
+import { armStepPrefetch } from '../utils/stepPrefetchArm';
 import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
 // PERF-R10 horosa_step_prefetch_arm_v1:切技法页签后按该技法档位武装 ±N 步预取。
-import { armStepPrefetch } from '../utils/stepPrefetchArm';
 
 const TabPane = XQTabs.TabPane;
 
@@ -538,7 +540,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             setFld(flds, 'date', birth.clone());
             setFld(flds, 'time', birth.clone());
             setFld(flds, 'ad', birth.ad);
-            setFld(flds, 'zone', birth.zone);
+            // zone 兜底链(上游 v3.5.1):DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
+            // 任何一环 undefined 直写会让请求丢 zone 键(Java miss.zone)且污染持久 fields。
+            setFld(flds, 'zone', birth.zone || (flds.zone && flds.zone.value) || '+08:00');
         }
 
         if(values.hsys !== undefined && values.hsys !== null){

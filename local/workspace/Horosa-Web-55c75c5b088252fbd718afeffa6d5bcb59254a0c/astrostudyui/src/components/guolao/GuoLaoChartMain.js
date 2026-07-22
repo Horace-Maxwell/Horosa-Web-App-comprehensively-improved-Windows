@@ -1081,7 +1081,7 @@ function normalizeGodRows(rows, order){
 	}));
 }
 
-// 🆕 中文相位名(含度数)用于 AI 挂载快照 + AI 导出 + AI 报告 — 避免输出占星字体字形码(R/W/P/M 等)给 LLM 看成乱码。
+// 🆕 中文相位名(含度数)用于 AI 挂载快照 + AI 导出 — 避免输出占星字体字形码(R/W/P/M 等)给 LLM 看成乱码。
 // UI 内部渲染走 AstroMsg 字形码 + 占星字体不受影响(各自管线分离)。
 const GUOLAO_ASPECT_LABEL_CN = {
 	Asp0: '合 (0°)',
@@ -1940,7 +1940,7 @@ function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraR
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
 	lines.push(`七政命度：${guolaoLifeModeName(guolaoLifeModeFromFields(fields))}`);
 	lines.push(`罗计：${guolaoNodeModeName(guolaoNodeModeFromFields(fields))}`);
-	// G6/G10/G11 起盘设置注入快照(AI 报告据此解读报时星/四余取法)。
+	// G6/G10/G11 起盘设置注入快照(AI 据此解读报时星/四余取法)。
 	const _gTs = guolaoFieldValue(fields, 'guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime);
 	const _gNt = guolaoFieldValue(fields, 'guolaoNodeType', getStoredGuolaoNodeType);
 	const _gLt = guolaoFieldValue(fields, 'guolaoLilithType', getStoredGuolaoLilithType);

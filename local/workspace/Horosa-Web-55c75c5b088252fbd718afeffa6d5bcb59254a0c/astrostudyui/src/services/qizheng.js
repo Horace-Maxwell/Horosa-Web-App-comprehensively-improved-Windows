@@ -1,7 +1,7 @@
 import request from '../utils/request';
 import { ServerRoot, ResultKey } from '../utils/constants';
 import { buildKentangEndpoint } from '../integrations/kentang/serviceRoot';
-import { fetchChartWithRetry } from '../utils/chartFetch';
+import { cachedKentangFetch } from '../utils/kentangCache';
 import { cachedPost } from './_requestCache';
 
 // 七政四余是确定性纯计算(同 params 必产同结果);对其加「同参复用 + 在途合并」让重开/来回切瞬时,
@@ -12,7 +12,7 @@ import { cachedPost } from './_requestCache';
 // **同参永不命中**(缓存退化为纯开销,还要先付一次 ~420KB 的 JSON.stringify)。
 // 响应由 (params, transitParams) 完备决定 —— chartObj 本身就是 params 的纯函数(黄金已证),
 // 故键取双 params 签名;moira 仍在 PREFETCH_FORBIDDEN(默认过运=「此刻」),本修只救同参重放。
-function stableMoiraKey(values){
+export function stableMoiraKey(values){
 	try{
 		const v = values || {};
 		return JSON.stringify({ params: v.params || null, transitParams: v.transitParams || null });
@@ -55,7 +55,7 @@ function kinClone(obj){
 async function fetchKinastroQizhengRaw(values){
 	let rsp = null;
 	try{
-		const response = await fetchChartWithRetry(buildKentangEndpoint('qizhengkin', 'pan'), {
+		const response = await cachedKentangFetch(buildKentangEndpoint('qizhengkin', 'pan'), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 			body: JSON.stringify(values || {}),
@@ -66,7 +66,7 @@ async function fetchKinastroQizhengRaw(values){
 			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'qizhengkin.local.fetch.failed');
 		}
 	}catch(e){
-		const response = await fetchChartWithRetry(`${ServerRoot}/qizhengkin/pan`, {
+		const response = await cachedKentangFetch(`${ServerRoot}/qizhengkin/pan`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 			body: JSON.stringify(values || {}),
@@ -130,7 +130,7 @@ function eleKey(values){
 async function fetchQizhengElectionRaw(values, path = 'pan'){
 	let rsp = null;
 	try{
-		const response = await fetchChartWithRetry(buildKentangEndpoint('qizhengelection', path), {
+		const response = await cachedKentangFetch(buildKentangEndpoint('qizhengelection', path), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 			body: JSON.stringify(values || {}),
@@ -141,7 +141,7 @@ async function fetchQizhengElectionRaw(values, path = 'pan'){
 			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'qizhengelection.local.fetch.failed');
 		}
 	}catch(e){
-		const response = await fetchChartWithRetry(`${ServerRoot}/qizhengelection/${path}`, {
+		const response = await cachedKentangFetch(`${ServerRoot}/qizhengelection/${path}`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 			body: JSON.stringify(values || {}),

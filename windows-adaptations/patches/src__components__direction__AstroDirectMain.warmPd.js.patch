@@ -1,16 +1,17 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index d342c10..8c6da74 100644
+index c8e9c73..a92b80e 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
-@@ -1,5 +1,7 @@
+@@ -1,6 +1,8 @@
  import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { safeJsonParseFromStorage } from '../../utils/safeStorage';
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
  import { Row, Col, } from 'antd';
  import { XQTabs as Tabs } from '../xq-ui';
  import DateTime from '../comp/DateTime';
-@@ -540,6 +542,134 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
+@@ -541,6 +543,134 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
  	return fields;
  }
  
@@ -145,7 +146,7 @@ index d342c10..8c6da74 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -677,6 +807,41 @@ class AstroDirectMain extends Component{
+@@ -687,6 +817,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -187,7 +188,7 @@ index d342c10..8c6da74 100644
  		}
  
  	}
-@@ -698,106 +863,13 @@ class AstroDirectMain extends Component{
+@@ -708,106 +873,13 @@ class AstroDirectMain extends Component{
  	}
  
  	getDesiredPdConfig(chartObj, override = {}){

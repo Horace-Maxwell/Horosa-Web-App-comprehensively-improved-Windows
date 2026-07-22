@@ -1,8 +1,8 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Empty, Select } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
@@ -48,6 +48,16 @@ function deepFreeze(o){
 }
 
 class YiZhangJingMain extends Component {
+	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = { tab: 'overview' };
@@ -55,17 +65,6 @@ class YiZhangJingMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-	// horosa_shusuan_native_scu_v1(补接):与 CanPingMain / HeLuoMain 逐字同款的 wrapper sCU。
-	// 病灶:本组件此前零 sCU(只有 componentDidUpdate → saveSnap),宿主 KinAstroMain 任意 setState
-	// (换右栏子页签 / updating 角标 / 点星改 tips)都让 center 与 aux 两个实例整表重渲一遍。
-	// 语义:props 任一项变(宿主 buildYizhangjingOpts 的引用已由 memoOpts 稳定)或自身 state 变 → 照常
-	// 重渲(零陈旧);函数型 props 视为恒等(详 wrapperPropsEqual)。
-	// 日界/晚子/远程农历回包三条路径走 forceUpdate,天然绕过 sCU,不受影响。
-	// kill-switch 同 chartSCU(horosa.perf.chartSCU 关 = 恒重渲的旧行为)。
-	shouldComponentUpdate(nextProps, nextState) {
-		if (nextState !== this.state) { return true; }
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount() {
 		this.saveSnap();

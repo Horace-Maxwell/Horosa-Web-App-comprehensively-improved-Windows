@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index 65a58d9..7941ee4 100644
+index 27308f4..d4a9367 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-@@ -23,13 +23,49 @@ import * as Su28Helper from '../su28/Su28Helper';
+@@ -24,13 +24,49 @@ import * as Su28Helper from '../su28/Su28Helper';
  import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
  import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
  import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
@@ -53,7 +53,7 @@ index 65a58d9..7941ee4 100644
  const {Option, OptGroup} = Select
  const JIEQI_STD = [
  	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
-@@ -238,6 +274,41 @@ function fieldsToState(fields){
+@@ -239,6 +275,41 @@ function fieldsToState(fields){
  	return st;
  }
  
@@ -95,7 +95,7 @@ index 65a58d9..7941ee4 100644
  function getSeedCacheKey(params){
  	return [
  		params && params.year,
-@@ -1032,10 +1103,19 @@ export class JieQiChartsMain extends Component{
+@@ -1042,10 +1113,19 @@ export class JieQiChartsMain extends Component{
  		this.setState({
  			fields: flds,
  		});
@@ -119,7 +119,7 @@ index 65a58d9..7941ee4 100644
  	}
  
  	async requestJieQiCharts(seedParams, seedSeq, tab){
-@@ -1144,6 +1224,11 @@ export class JieQiChartsMain extends Component{
+@@ -1154,6 +1234,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);
@@ -131,7 +131,7 @@ index 65a58d9..7941ee4 100644
  			if(!fullResult || this.unmounted){
  				return fullResult;
  			}
-@@ -1430,7 +1515,15 @@ export class JieQiChartsMain extends Component{
+@@ -1440,7 +1525,15 @@ export class JieQiChartsMain extends Component{
  			return dom;
  		}
  
@@ -148,7 +148,7 @@ index 65a58d9..7941ee4 100644
  			const fourCols = getJieqiFourColumns(item);
  			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
  			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
-@@ -1493,6 +1586,7 @@ export class JieQiChartsMain extends Component{
+@@ -1503,6 +1596,7 @@ export class JieQiChartsMain extends Component{
  				{cols}
  			</Row>
  		);
@@ -156,7 +156,7 @@ index 65a58d9..7941ee4 100644
  		return dom;
  	}
  
-@@ -1672,6 +1766,16 @@ export class JieQiChartsMain extends Component{
+@@ -1682,6 +1776,16 @@ export class JieQiChartsMain extends Component{
  		}
  	}
  

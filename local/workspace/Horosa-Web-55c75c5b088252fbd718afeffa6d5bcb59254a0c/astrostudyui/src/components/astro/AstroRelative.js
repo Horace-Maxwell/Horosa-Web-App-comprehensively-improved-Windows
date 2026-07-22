@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, } from 'antd';
 import { XQButton as Button, XQSearch as Search, XQTabs as Tabs } from '../xq-ui';
 import ChartSearchModal from './ChartSearchModal'
@@ -205,6 +206,15 @@ export function buildRelativeSnapshotText(comp){
 }
 
 class AstroRelative extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 
 	constructor(props) {
 		super(props);

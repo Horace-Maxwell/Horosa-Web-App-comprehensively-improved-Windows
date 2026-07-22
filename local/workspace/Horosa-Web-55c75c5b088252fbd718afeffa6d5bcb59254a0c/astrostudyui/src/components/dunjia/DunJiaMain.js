@@ -1,10 +1,8 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { FreezeSubTab } from '../comp/FreezeInactive';
-import { markPanelReady } from '../../utils/perfMark';
-import { stepPrefetchEnabled } from '../../utils/perfFlags';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
@@ -862,6 +860,8 @@ class DunJiaMain extends Component {
 		this.handleWindowResize();
 		this.prefetchJieqiSeedForFields(this.state.localFields || this.props.fields);
 		this.prefetchNongliForFields(this.state.localFields || this.props.fields);
+		// [R3-A7] 挂载即预取当前草稿时刻 pan:本会话首次「起局」也 ≈ 瞬间(链同 A4,失败静默)
+		this.prefetchQimenPanForFields(this.state.localFields || this.props.fields, null);
 	}
 
 	componentDidUpdate(){
@@ -1228,6 +1228,7 @@ class DunJiaMain extends Component {
 		if(this.prefetchSeedTimer){
 			clearTimeout(this.prefetchSeedTimer);
 		}
+		const stepHint = value && value.step ? value.step : null;
 		this.prefetchSeedTimer = setTimeout(()=>{
 			this.prefetchSeedTimer = null;
 			if(this.unmounted){
@@ -1235,11 +1236,64 @@ class DunJiaMain extends Component {
 			}
 			this.prefetchJieqiSeedForFields(localFields);
 			this.prefetchNongliForFields(localFields);
-			// horosa_step_prefetch_arm_v1(b′):遁甲未确认步进只落 localFields、不经
-			// fetchByFields ⇒ settle 武装在此自己做(±N 的 stage-1 种子经登记的预取器构造);
+			// [R3-A4] 草稿时间一变即预取该时刻 pan(kinqimen 后端模式):用户点「起局」时
+			// nongli+pan 双双已热 ≈ 瞬间。步进时再顺向多备一步(连点第二下也不冷)。
+			this.prefetchQimenPanForFields(localFields, stepHint);
+			// horosa_step_prefetch_arm_v1(b′,与上游 [R3-A4] 互补):遁甲未确认步进只落
+			// localFields、不经 fetchByFields ⇒ settle 武装在此自己做 —— ±depth 双向
+			// stage-1 种子经登记的预取器构造(上游预取当前时刻+顺向一步;本武装铺双向窗)。
 			// skipChart:/chart 不在本页步进路径上。
 			try{ armStepPrefetch('local-settle', { fieldsOverride: localFields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
 		}, 120);
+	}
+
+	// [R3-A4] pan 预取:与真实链同源复刻(genParams→fetchPreciseNongli→
+	// resolveDisplaySolarTime→getContext→fetchQimenPan),body 构造同一函数 → 键逐字节等;
+	// 结果只落 kentangCache,返回值丢弃。仅 kinqimen 后端模式(本地 calcDunJia 即时无需预取);
+	// 飞盘/混合/报数走本地,同 getResolvedPan 判据。失败静默。
+	prefetchQimenPanForFields(localFields, stepHint){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled()){
+				return;
+			}
+			const options = this.state.options || {};
+			if(!isKinqimenMode(options.paiPanType)){
+				return;
+			}
+			if(options.school === '飞盘' || options.school === '混合' || options.qijuMethod === 'shuzi'){
+				return;
+			}
+			const targets = [localFields];
+			if(stepHint && stepHint.dir && localFields && localFields.date && localFields.date.value
+				&& typeof localFields.date.value.clone === 'function'){
+				// 顺向 +1 步:与 DateTimeSelector 步距语义一致(m 档=±4 分)
+				const dt2 = localFields.date.value.clone();
+				const unit = stepHint.unit || 'm';
+				if(unit === 'y'){ dt2.addYear(stepHint.dir); }
+				else if(unit === 'M'){ dt2.addMonth(stepHint.dir); }
+				else if(unit === 'd'){ dt2.addDate(stepHint.dir); }
+				else if(unit === 'h'){ dt2.addHour(stepHint.dir); }
+				else { dt2.addMinute(4 * stepHint.dir); }
+				targets.push({
+					...localFields,
+					date: { value: dt2.clone() },
+					time: { value: dt2.clone() },
+				});
+			}
+			targets.forEach((flds)=>{
+				let params = null;
+				try{ params = this.genParams(flds); }catch(e){ return; }
+				if(!params){ return; }
+				fetchPreciseNongli(params).then(async (nongli)=>{
+					if(!nongli || this.unmounted){ return; }
+					setNongliLocalCache(params, nongli);
+					const displaySolarTime = await this.resolveDisplaySolarTime(params, nongli);
+					if(this.unmounted){ return; }
+					const ctx = this.getContext(flds, displaySolarTime);
+					await fetchQimenPan(flds, nongli, options, ctx);
+				}).catch(()=>null);
+			});
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	onGenderChange(val){

@@ -981,7 +981,7 @@ if [ "${JAVA_EXPLODED_MODE}" = "1" ] && [ "${HOROSA_JAVA_CDS:-1}" = "1" ] && [ -
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
     "${JAVA_BIN}" -XX:SharedArchiveFile="${CDS_JSA}" -Xlog:cds=off
     -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
-    -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false
+    -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
@@ -995,7 +995,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
     "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
-    -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false
+    -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
@@ -1006,7 +1006,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   )
 else
   JAVA_LAUNCH_CMD+=(
-    "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -jar "${JAR}"
+    "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true -jar "${JAR}"
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
     --astrosrv=http://127.0.0.1:${CHART_PORT}
@@ -1174,9 +1174,18 @@ fi
 
 trap - EXIT
 ledger_log sh.ready
+# [R3-B4] min-sync 热身让路:untrusted(首启/更新后完整校验档)冷机实测此段 ~1.0-1.1s
+# 且阻塞在 sh.ready→sh.total 之间(Rust 等脚本退出才 emit ready)——首启用户极少在
+# 就绪后 1s 内立即排盘,后台化换「窗口早 1s 可用」;trusted 档此段仅 ~9ms,保持同步
+# (行为逐字节旧)。kill-switch:HOROSA_WARM_MIN_ASYNC=0 恒同步(旧行为)。
 _mw_t0="$(_now_ms)"
-warm_runtime_routes_min_sync
-ledger_log sh.min_warmup_done "{\"ms\":$(( $(_now_ms) - _mw_t0 ))}"
+if [ "${HOROSA_WARM_MIN_ASYNC:-1}" != "0" ] && [ "${TRUSTED_RUNTIME}" != "1" ]; then
+  ( warm_runtime_routes_min_sync >/dev/null 2>&1 || true ) &
+  ledger_log sh.min_warmup_done "{\"ms\":0,\"async\":1}"
+else
+  warm_runtime_routes_min_sync
+  ledger_log sh.min_warmup_done "{\"ms\":$(( $(_now_ms) - _mw_t0 ))}"
+fi
 warm_runtime_routes
 
 # ── AppCDS 首启后台自训练:exploded 模式且 .jsa 未生成时,主服务就绪后在冷门端口
@@ -1224,8 +1233,11 @@ maybe_train_cds_background() {
     done
     # [WS-3e] 触达补全:lazy-init 下 heartbeat 只初始化极小 bean 集;补一发 /chart POST
     # (400/失败均可)把 controller/序列化链的类拉进 dump 档,提高 .jsa 覆盖。
-    curl -s -o /dev/null -m 3 -X POST -H 'Content-Type: application/json' -d '{}' \
-      "http://127.0.0.1:${train_port}/chart" 2>/dev/null || true
+    # [R3-B2] 与打包预训链同款端点面(五链扩类捕获,两处训练恒一致)。
+    for _cds_ep in "/chart" "/common/time" "/bazi/direct" "/liureng/gods" "/ziwei/birth" "/jieqi/year"; do
+      curl -s -o /dev/null -m 3 -X POST -H 'Content-Type: application/json' -d '{}' \
+        "http://127.0.0.1:${train_port}${_cds_ep}" 2>/dev/null || true
+    done
     kill -TERM "${tpid}" 2>/dev/null || true
     # dump 49MB archive 需 15-30s(优雅关停+写盘),等待窗放到 90s 再强杀
     tries=0

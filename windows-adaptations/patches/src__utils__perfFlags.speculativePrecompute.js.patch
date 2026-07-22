@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/perfFlags.js b/astrostudyui/src/utils/perfFlags.js
-index b0c52e0..f4607f9 100644
+index 84eb4d4..39d47af 100644
 --- a/astrostudyui/src/utils/perfFlags.js
 +++ b/astrostudyui/src/utils/perfFlags.js
 @@ -8,7 +8,10 @@ import { safeLocalStorageSet } from './safeStorage';
@@ -14,19 +14,18 @@ index b0c52e0..f4607f9 100644
  //   safeLocalStorageSet('horosa.perf.requestDedupe', '0')  // 计算请求 去重+短TTL缓存
  //   safeLocalStorageSet('horosa.perf.techniqueCache', '0') // L2 技法结果缓存(10min,来回拨参数≈0)
  //   safeLocalStorageSet('horosa.perf.idleWarmQueue', '0')  // 就绪后空闲预热队列(chunk/引擎/数据)
-@@ -21,6 +24,11 @@ import { safeLocalStorageSet } from './safeStorage';
+@@ -21,6 +24,10 @@ import { safeLocalStorageSet } from './safeStorage';
  //   safeLocalStorageSet('horosa.perf.sharedNativeModel', '0')     // native 技法 center/aux 共享模型 memo
  //   safeLocalStorageSet('horosa.perf.singleTriggerPredictive','0')// PD/ZR hook+didUpdate 同签名去重
  //   safeLocalStorageSet('horosa.perf.stepPrefetch', '0')          // 时间步进方向预取
 +//   safeLocalStorageSet('horosa.perf.stepPrefetchArm', '0')       // PERF-R10:选步长/出盘/切页即武装 ±N 步预取(关=只剩步进后预取)
 +//   safeLocalStorageSet('horosa.perf.stepPrefetchDepth', '2')     // PERF-R10:武装深度 ±N(默认 3,合法 0..5,0=等效关)
-+//   safeLocalStorageSet('horosa.perf.kentangL3', '0')             // PERF-R10:kentang 结果缓存的 IndexedDB 持久位(关=纯内存 LRU)
 +//   safeLocalStorageSet('horosa.perf.bootChartRestore', '0')      // PERF-R10:温启恢复上次的盘(关=启动回空白默认态)
 +//   safeLocalStorageSet('horosa.perf.optionPrefetch', '0')        // PERF-R10:选项 Hamming-1 投机预取(关=零任务)
  //   safeLocalStorageSet('horosa.perf.chartCloneLite', '0')        // 出盘缓存冻结共享引用(关=每次深拷贝)
  //   safeLocalStorageSet('horosa.perf.hoverPrefetch', '0')         // 导航悬停预取 chunk(关=点击才载)
  //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
-@@ -63,6 +71,24 @@ export function freezeInactiveTabsEnabled(){
+@@ -63,6 +70,24 @@ export function freezeInactiveTabsEnabled(){
  	return flagEnabled('horosa.perf.freezeInactiveTabs');
  }
  
@@ -51,7 +50,7 @@ index b0c52e0..f4607f9 100644
  export function requestDedupeEnabled(){
  	return flagEnabled('horosa.perf.requestDedupe');
  }
-@@ -143,6 +169,47 @@ export function stepPrefetchEnabled(){
+@@ -143,6 +168,45 @@ export function stepPrefetchEnabled(){
  	return flagEnabled('horosa.perf.stepPrefetch');
  }
  
@@ -62,10 +61,8 @@ index b0c52e0..f4607f9 100644
 +	return flagEnabled('horosa.perf.stepPrefetchArm');
 +}
 +
-+// PERF-R10 Ship5(horosa_kentang_l3_v1):kentang 结果缓存的 IndexedDB 持久位。
-+export function kentangL3Enabled(){
-+	return flagEnabled('horosa.perf.kentangL3');
-+}
++// (v3.5.1 收敛注:R10 的 kentangL3 已被上游 utils/kentangCache.js 的 fetch 级三层缓存
++//  [同款 kt-v1|rv 信封] 整体取代 —— 开关随 _kentangResultCache 一并退役,见 kentangCacheEnabled。)
 +
 +// PERF-R10 S2(horosa_boot_chart_restore_v1):温启恢复上次工作现场(owner 拍板默认开)。
 +export function bootChartRestoreEnabled(){
@@ -99,16 +96,12 @@ index b0c52e0..f4607f9 100644
  export function chartCloneLiteEnabled(){
  	return flagEnabled('horosa.perf.chartCloneLite');
  }
-@@ -170,3 +237,61 @@ export function astro3dMorphEnabled(){
- 	// 新位(~600ms),不走全量重建;关=旧全量 disposeMesh+重建
+@@ -171,6 +235,56 @@ export function astro3dMorphEnabled(){
  	return flagEnabled('horosa.perf.astro3dMorph');
  }
-+
-+// 天文馆性能门控(只动渲染时机,不动任何排盘/外推内容):
-+//   - renderGating:隐藏/非激活时暂停 Babylon 渲染循环(可见+激活时一字不动)。
-+//   - onDemandRender:可见+激活但静止(暂停)时按需渲染而非每帧 60fps;配 idleHeartbeat 1fps 兜底。
-+//   - metricsThrottle:FPS/网格调试读数节流到 ~2Hz。
-+//   - timeEditDebounce:可编辑时间的后端整盘重算去抖(显示与「确定」提交均同步、不去抖)。
+ 
++// —— Windows-only 闸族(FE-9 天文馆五闸 / FE-2 技法结果缓存 / FE-11 首屏并行 /
++//    FE-7 预测性预计算 / FE-16 数据预热细闸)—— 与上游同步时整块保全(哨兵逐函数钉)。 ——
 +export function planetariumRenderGatingEnabled(){
 +	return flagEnabled('horosa.perf.planetariumRenderGating');
 +}
@@ -157,7 +150,15 @@ index b0c52e0..f4607f9 100644
 +	return flagEnabled('horosa.perf.dataWarmTasks');
 +}
 +
+ // —— R3-A3(2026-07-21):kentang(:8899 直连 C 型)统一缓存壳 ——
+ export function kentangCacheEnabled(){
+ 	// /pan 族请求 L1/L2/L3 缓存+在途去重(键=path+body,同 body 恒同果);
+@@ -184,3 +298,8 @@ export function stepSelectPrefetchEnabled(){
+ 	return flagEnabled('horosa.perf.stepSelectPrefetch');
+ }
+ 
 +// PERF-R8 P3:分至图年份邻位预取(year±1)的独立闸。
 +export function neighborPrefetchEnabled(){
 +	return flagEnabled('horosa.perf.neighborPrefetch');
 +}
++

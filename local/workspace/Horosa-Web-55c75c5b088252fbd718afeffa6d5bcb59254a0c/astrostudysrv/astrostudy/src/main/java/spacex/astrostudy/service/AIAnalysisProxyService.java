@@ -509,7 +509,7 @@ public class AIAnalysisProxyService {
 	// Ollama 原生 body：messages 同 OpenAI({role,content})；num_ctx/num_predict/top_k/top_p/repeat_penalty/temperature
 	// 一律嵌入 options:{}（原生口才读 options），keep_alive 留顶层。
 	Map<String, Object> buildOllamaNativeBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
-		messages = stripCacheMarkersInMessages(messages); // WS-A：本地推理无前缀缓存概念，剥标记防污染正文
+		messages = stripCacheMarkersInMessages(messages); // 本地推理无前缀缓存概念，剥标记防污染正文
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
 		body.put("model", model);
 		List<Map<String, Object>> norm = new ArrayList<Map<String, Object>>();
@@ -1285,9 +1285,8 @@ public class AIAnalysisProxyService {
 		return out;
 	}
 
-	// WS-A：前端报告管线 promptLayout='cached' 在 system 文本里埋的中性断点标记
-	// （与前端 reportPipeline.PROMPT_CACHE_BP 逐字节一致，两端契约测试各自锁定）。
-	// Anthropic：按标记把 system 切成数组块并打 cache_control（provider 前缀缓存，节间命中）；
+	// 前端在 system 文本里埋的中性断点标记（与前端同名常量逐字节一致，改动必须两端同步）。
+	// Anthropic：按标记把 system 切成数组块并打 cache_control（provider 前缀缓存，跨轮命中）；
 	// 其余 provider（OpenAI 家族自动前缀缓存 / Gemini / Ollama）：剥标记后原文直连。
 	// 文本不含标记（legacy 布局/其它调用方）＝所有路径字节零变。
 	static final String PROMPT_CACHE_BP = "[[__CACHE_BP__]]";
@@ -1322,7 +1321,7 @@ public class AIAnalysisProxyService {
 	}
 
 	static Map<String, Object> buildOpenAIChatBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
-		messages = stripCacheMarkersInMessages(messages); // WS-A：OpenAI 家族自动前缀缓存，标记剥除即可
+		messages = stripCacheMarkersInMessages(messages); // OpenAI 家族自动前缀缓存，标记剥除即可
 		Map<String, Object> requestBody = new LinkedHashMap<String, Object>();
 		requestBody.put("model", model);
 		requestBody.put("messages", toOpenAIVisionMessages(messages)); // 2F：含图片消息转多模态 content；纯文本原样
@@ -1364,7 +1363,7 @@ public class AIAnalysisProxyService {
 		if(inT > 0) { out.put("input_tokens", inT); }
 		if(outT > 0) { out.put("output_tokens", outT); }
 		if(total > 0) { out.put("total_tokens", total); }
-		// WS-A：OpenAI 自动前缀缓存命中数（prompt_tokens_details.cached_tokens），
+		// OpenAI 自动前缀缓存命中数（prompt_tokens_details.cached_tokens），
 		// 字段名对齐 Anthropic 口径让前端单键读取；无缓存时缺省=零变。
 		Object ptd = mu.get("prompt_tokens_details");
 		if(ptd instanceof Map) {
@@ -1399,7 +1398,7 @@ public class AIAnalysisProxyService {
 		long outT = numLong(mu.get("output_tokens"));
 		if(inT > 0) { out.put("input_tokens", inT); }
 		if(outT > 0) { out.put("output_tokens", outT); }
-		// WS-A：前缀缓存写入/命中计数透传（message_start.usage 携带；无缓存时字段缺省=零变）。
+		// 前缀缓存写入/命中计数透传（message_start.usage 携带；无缓存时字段缺省=零变）。
 		long cacheW = numLong(mu.get("cache_creation_input_tokens"));
 		long cacheR = numLong(mu.get("cache_read_input_tokens"));
 		if(cacheW > 0) { out.put("cache_creation_input_tokens", cacheW); }
@@ -1485,7 +1484,7 @@ public class AIAnalysisProxyService {
 			if(joinedSystem.indexOf(PROMPT_CACHE_BP) < 0) {
 				body.put("system", joinedSystem); // legacy/无标记：字符串形态字节零变
 			} else {
-				// WS-A：按断点标记切 system 数组块，非末块打 cache_control(ephemeral)。
+				// 按断点标记切 system 数组块，非末块打 cache_control(ephemeral)。
 				// Anthropic 上限 4 个 cache_control → 块数>5 时溢出段并入末块（不再加断点）。
 				String[] rawSegs = joinedSystem.split(java.util.regex.Pattern.quote(PROMPT_CACHE_BP));
 				List<String> segs = new ArrayList<String>();
@@ -1578,7 +1577,7 @@ public class AIAnalysisProxyService {
 
 	@SuppressWarnings({"rawtypes","unchecked"})
 	private static Map<String, Object> buildGeminiBody(Map<String, Object> params, List<Map<String, Object>> messages){
-		messages = stripCacheMarkersInMessages(messages); // WS-A：Gemini 无显式缓存标，剥标记防污染正文
+		messages = stripCacheMarkersInMessages(messages); // Gemini 无显式缓存标，剥标记防污染正文
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
 		List<Map<String, Object>> normalized = new ArrayList<Map<String, Object>>();
 		List<String> systemParts = new ArrayList<String>();

@@ -34,7 +34,48 @@ public class StartupLedgerListener implements ApplicationListener<ApplicationRea
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
         ledgerMark("java.jvm_to_ctx_ready", jvmUptimeMs());
+        drainStartupProfile();
         selfWarmupAsync();
+    }
+
+    /**
+     * 测量轮黑盒切分:HOROSA_JAVA_STARTUP_PROFILE=1 时(见 AstroStudyProgram.main),
+     * 把缓冲的 StartupStep 时间线按耗时降序取前 40 条写入账本(seg=java.step,
+     * name 含步骤名+首个 tag,如 spring.beans.instantiate|beanName=xxx)。
+     * 默认关=profiler 句柄为 null=零行为差;写入 best-effort 吞错。
+     */
+    private static void drainStartupProfile() {
+        try {
+            org.springframework.boot.context.metrics.buffering.BufferingApplicationStartup profiler =
+                    AstroStudyProgram.startupProfiler;
+            if (profiler == null) {
+                return;
+            }
+            java.util.List<long[]> idx = new java.util.ArrayList<>();
+            java.util.List<String> names = new java.util.ArrayList<>();
+            for (org.springframework.boot.context.metrics.buffering.StartupTimeline.TimelineEvent ev
+                    : profiler.getBufferedTimeline().getEvents()) {
+                if (ev.getStartTime() == null || ev.getEndTime() == null) {
+                    continue;
+                }
+                long ms = java.time.Duration.between(ev.getStartTime(), ev.getEndTime()).toMillis();
+                StringBuilder name = new StringBuilder(ev.getStartupStep().getName());
+                for (org.springframework.core.metrics.StartupStep.Tag tag : ev.getStartupStep().getTags()) {
+                    name.append('|').append(tag.getKey()).append('=').append(tag.getValue());
+                    break; // 首 tag 足以定位(beanName/source),防行爆长
+                }
+                idx.add(new long[]{ms, names.size()});
+                names.add(name.toString());
+            }
+            idx.sort((a, b) -> Long.compare(b[0], a[0]));
+            int limit = Math.min(40, idx.size());
+            for (int i = 0; i < limit; i++) {
+                ledgerMarkNamed("java.step", idx.get(i)[0], names.get((int) idx.get(i)[1]));
+            }
+            ledgerMarkNamed("java.step_total", idx.size(), "buffered_steps");
+        } catch (Throwable ignore) {
+            // 测量 best-effort:任何异常吞掉,绝不影响服务。
+        }
     }
 
     private static long jvmUptimeMs() {
@@ -69,6 +110,30 @@ public class StartupLedgerListener implements ApplicationListener<ApplicationRea
         warm.setDaemon(true);
         warm.setPriority(Thread.MIN_PRIORITY);
         warm.start();
+    }
+
+    private static void ledgerMarkNamed(String seg, long ms, String name) {
+        try {
+            String ledgerFile = System.getenv("HOROSA_LEDGER_FILE");
+            String enabled = System.getenv("HOROSA_STARTUP_LEDGER");
+            if (ledgerFile == null || ledgerFile.isEmpty()) {
+                return;
+            }
+            if (enabled != null && ("0".equals(enabled) || "false".equalsIgnoreCase(enabled))) {
+                return;
+            }
+            String runTag = System.getenv("HOROSA_RUN_TAG");
+            long pid = ManagementFactory.getRuntimeMXBean().getPid();
+            String safeName = name == null ? "" : name.replace("\\", "\\\\").replace("\"", "\\\"");
+            String row = String.format(
+                    "{\"run\":\"%s\",\"layer\":\"java\",\"seg\":\"%s\",\"pid\":%d,\"ms\":%d,\"name\":\"%s\"}%n",
+                    runTag == null ? "" : runTag.replace("\"", ""), seg, pid, ms, safeName);
+            Path path = Paths.get(ledgerFile);
+            Files.write(path, row.getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Throwable ignore) {
+            // 账本 best-effort。
+        }
     }
 
     private static void ledgerMark(String seg, long ms) {

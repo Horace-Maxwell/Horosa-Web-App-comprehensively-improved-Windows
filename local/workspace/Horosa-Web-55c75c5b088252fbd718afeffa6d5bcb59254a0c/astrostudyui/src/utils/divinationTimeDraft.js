@@ -165,6 +165,7 @@ export function snapshotMetaFromFields(fields, extra){
 import { getOnlyDateNum, getDayGanZhi } from './localNongliAdapter';
 import { parseDateParts, parseYearFromDateStr } from './dateStrSafe';
 import { buildKentangEndpoint } from '../integrations/kentang/serviceRoot';
+import { cachedKentangFetch } from './kentangCache';
 import { isLunarJsYearReliable } from './lunarDomainGuard';
 
 const GAN_LIST = '甲乙丙丁戊己庚辛壬癸'.split('');
@@ -285,11 +286,11 @@ export function assembleNongliFromTables(target, months, jieqiList, birthJDN){
 }
 
 async function postJieqi(action, payload){
-	const rsp = await fetch(buildKentangEndpoint('jieqi', action), {
+	const rsp = await cachedKentangFetch(buildKentangEndpoint('jieqi', action), {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 		body: JSON.stringify(payload),
-	});
+	}, { retries: 0 });
 	const text = await rsp.text();
 	const obj = text ? JSON.parse(text) : null;
 	if(!obj || obj.err){ throw new Error((obj && obj.err) || 'jieqi.fetch.failed'); }

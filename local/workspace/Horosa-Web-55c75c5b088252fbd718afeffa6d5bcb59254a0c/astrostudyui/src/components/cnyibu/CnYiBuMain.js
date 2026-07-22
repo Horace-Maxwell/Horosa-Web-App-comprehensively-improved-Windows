@@ -1,4 +1,5 @@
 import React, { Component, createRef, Suspense } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Spin } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
@@ -50,6 +51,15 @@ function setRuntimeCnYiBuTab(tab){
 }
 
 class CnYiBuMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 
 	constructor(props) {
 		super(props);

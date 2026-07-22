@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/services/xuanshi.js b/astrostudyui/src/services/xuanshi.js
-index baef894..a3699b6 100644
+index 44047a7..ea349b2 100644
 --- a/astrostudyui/src/services/xuanshi.js
 +++ b/astrostudyui/src/services/xuanshi.js
-@@ -3,7 +3,31 @@
- import { ServerRoot } from '../utils/constants';
+@@ -4,7 +4,31 @@ import { ServerRoot } from '../utils/constants';
  import { buildKentangEndpoint } from '../integrations/kentang/serviceRoot';
+ import { cachedKentangFetch } from '../utils/kentangCache';
  
 -const _requestCache = {};
 +// horosa_kentang_result_cache_v1 —— 玄史幂等只读端点缓存。
@@ -35,7 +35,7 @@ index baef894..a3699b6 100644
  
  async function _post(action, payload) {
  	const body = JSON.stringify(payload || {});
-@@ -35,25 +59,32 @@ export function postXuanShi(action, payload) {
+@@ -36,25 +60,32 @@ export function postXuanShi(action, payload) {
  // 幂等只读端点缓存(同 action+payload 复用)
  export async function postXuanShiCached(action, payload) {
  	const key = `${action}:${JSON.stringify(payload || {})}`;
@@ -74,7 +74,7 @@ index baef894..a3699b6 100644
  export const fetchFigure = (slug) => postXuanShiCached('figure', { slug });
  export const fetchTechniques = (p) => postXuanShiCached('techniques', p || {});
  export const fetchTechnique = (slug) => postXuanShiCached('technique', { slug });
-@@ -61,7 +92,7 @@ export const fetchCelestialTerms = () => postXuanShiCached('celestial-terms', {}
+@@ -62,7 +93,7 @@ export const fetchCelestialTerms = () => postXuanShiCached('celestial-terms', {}
  export const fetchCelestialTerm = (slug) => postXuanShiCached('celestial-term', { slug });
  export const fetchDynasties = () => postXuanShiCached('dynasties', {});
  export const fetchDynasty = (slug) => postXuanShiCached('dynasty', { slug });

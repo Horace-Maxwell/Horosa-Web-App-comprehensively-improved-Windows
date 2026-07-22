@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import moment from 'moment';
 import { Row, Col, Slider, Tree, Collapse, Table } from 'antd';
 import request from '../../utils/request';
@@ -235,6 +236,7 @@ function parseNum(v){
 }
 
 export default class UranianDialMain extends Component {
+
 	constructor(props){
 		super(props);
 		const disp = getStoredUranianDisplay();

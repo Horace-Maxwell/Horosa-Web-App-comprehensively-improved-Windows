@@ -1,0 +1,87 @@
+{
+	"schema": "geomancy.names_malagasy/v1",
+	"attested_pairing": false,
+	"note": "十六图形的马达加斯加名与词义(区域差异大;标 lunar 者亦为太阴月名)。**权威基准仅给出名与词义,未给出「名↔图」的配对**,故此处不做配对、仅作参考名录呈现;绝不杜撰配对。",
+	"names": [
+		{
+			"name": "Taraiky",
+			"gloss": "消瘦;道路",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alohotsy",
+			"gloss": "钱;不幸",
+			"lunar_month_name": true
+		},
+		{
+			"name": "Karija",
+			"gloss": "奴;冷语",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Adalo",
+			"gloss": "首领/子;泪",
+			"lunar_month_name": true
+		},
+		{
+			"name": "Alakaosy",
+			"gloss": "子;恶念",
+			"lunar_month_name": true
+		},
+		{
+			"name": "Alatsimay",
+			"gloss": "奴;恶念",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Adabara",
+			"gloss": "至圣/神",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alokola",
+			"gloss": "屋;食",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alikasajy",
+			"gloss": "符咒;哀悼",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alabiavo",
+			"gloss": "水灵;喜",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alahijana",
+			"gloss": "女;死",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alahamora",
+			"gloss": "占者;群;忧",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alikisy",
+			"gloss": "地;吉",
+			"lunar_month_name": false
+		},
+		{
+			"name": "Alahasady",
+			"gloss": "食;怒",
+			"lunar_month_name": true
+		},
+		{
+			"name": "Asombola",
+			"gloss": "丰盛",
+			"lunar_month_name": true
+		},
+		{
+			"name": "Alakarabo",
+			"gloss": "盗;不幸",
+			"lunar_month_name": true
+		}
+	]
+}

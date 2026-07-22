@@ -36,6 +36,7 @@ class GuaZhanInput extends Component{
 			let dt = value.time;
 
 			this.props.onFieldsChange({
+				...(value.step ? { __stepHint: value.step } : {}),
 				date: {
 					value: dt.clone(),
 				},

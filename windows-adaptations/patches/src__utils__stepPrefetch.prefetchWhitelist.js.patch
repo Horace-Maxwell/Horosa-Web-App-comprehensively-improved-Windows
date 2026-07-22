@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/stepPrefetch.js b/astrostudyui/src/utils/stepPrefetch.js
-index ba357b5..a5ce2b6 100644
+index b1a4a94..4b152f2 100644
 --- a/astrostudyui/src/utils/stepPrefetch.js
 +++ b/astrostudyui/src/utils/stepPrefetch.js
 @@ -1,4 +1,4 @@
@@ -31,7 +31,7 @@ index ba357b5..a5ce2b6 100644
 +//     ② 纵深防御(path 是自述的,可能与 run 里真发的 URL 不符):pump 期间置 ambient 标志,
 +//        utils/request.js 与 utils/chartFetch.js 在标志置位时对不合格 URL 直接拒发并计数。
 +//   两层的拒绝都累加进同一计数器(prefetchRefusalCount),测试据此断言「零泄漏」。
- import { stepPrefetchEnabled } from './perfFlags';
+ import { stepPrefetchEnabled, stepSelectPrefetchEnabled } from './perfFlags';
  
  /** 允许预取的端点前缀(显式白名单;哨兵对照此数组,增删须同步测试) */
  export const PREFETCH_ALLOWED_PATHS = [
@@ -174,7 +174,7 @@ index ba357b5..a5ce2b6 100644
  
  function scheduleIdle(fn){
  	if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
-@@ -62,29 +189,56 @@ function pump(){
+@@ -62,38 +189,67 @@ function pump(){
  			pump();
  			return;
  		}
@@ -211,7 +211,7 @@ index ba357b5..a5ce2b6 100644
 + *        (path=该任务将访问的端点路径,过运行时白名单;run 返回 Promise;
   *        任务内的请求自带 silent+零重试;结果自然落进各自缓存层)
   */
- export function submitStepPrefetch(tasks){
+ export function submitStepPrefetch(tasks, opts){
  	if(!stepPrefetchEnabled() || !Array.isArray(tasks) || !tasks.length){
  		return;
  	}
@@ -230,12 +230,25 @@ index ba357b5..a5ce2b6 100644
 +	}
  	generation += 1;
  	const gen = generation;
--	queue = tasks.slice(0, BUDGET_PER_SETTLE).map((t)=>({ ...t, gen }));
-+	queue = accepted.slice(0, BUDGET_PER_SETTLE).map((t)=>({ ...t, gen }));
++	// [R3-A1 上游] 显式 opts.budget 硬顶 5(选步长双向 ±2=4 任务;绝不放开成风暴);
++	// 缺省仍走 BUDGET_PER_SETTLE(武装 ±3 一轮 ≤12,串行泵+白名单闸即节流)。
+ 	const budget = opts && Number.isInteger(opts.budget) && opts.budget > 0
+-		? Math.min(opts.budget, 5)   // 硬顶 5:选步长双向 ±2=4 任务;绝不放开成风暴
++		? Math.min(opts.budget, 5)
+ 		: BUDGET_PER_SETTLE;
+-	queue = tasks.slice(0, budget).map((t)=>({ ...t, gen }));
++	queue = accepted.slice(0, budget).map((t)=>({ ...t, gen }));
  	pump();
  }
  
-@@ -94,7 +248,10 @@ const REGISTRY = new Map();
+ // —— [R3-A1] 选步长即预取:DateTimeSelector.changeTimeType(opt-in 宿主)→ 此处 ——
+ // 与 settle 后预取共用同一队列/代际/预算体系;处理器由 models/astro 注册
+-// (读 store 现 fields 走 buildStepPrefetchTasks 双向 ±2,键构造同源)。
++// (Windows 侧处理器 = 武装引擎:按当前技法 ±stepPrefetchDepth 全窗,见 astro.js)。
+ // 同 unit 5s 去重:反复点同档不重复排队(切档立即生效,latest-wins 覆盖旧代)。
+ let stepSelectHandler = null;
+ let lastStepSelect = { unit: null, at: 0 };
+@@ -131,7 +287,10 @@ const REGISTRY = new Map();
  
  /**
   * @param {string} tabKey 主 tab 键(state.astro.currentTab 口径)
@@ -247,7 +260,7 @@ index ba357b5..a5ce2b6 100644
   */
  export function registerStepPrefetcher(tabKey, fn){
  	if(tabKey && typeof fn === 'function'){
-@@ -102,6 +259,12 @@ export function registerStepPrefetcher(tabKey, fn){
+@@ -139,6 +298,12 @@ export function registerStepPrefetcher(tabKey, fn){
  	}
  }
  
@@ -260,7 +273,7 @@ index ba357b5..a5ce2b6 100644
  export function getStepPrefetcher(tabKey){
  	return REGISTRY.get(tabKey);
  }
-@@ -111,5 +274,8 @@ export function __resetStepPrefetch(){
+@@ -148,5 +313,8 @@ export function __resetStepPrefetch(){
  	generation += 1;
  	queue = [];
  	running = false;

@@ -1,4 +1,5 @@
 import { Component, createRef } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
 import { XQButton, XQToggle, XQSegmented, XQSelect, XQTabs } from '../xq-ui';
 import FengShuiEngine, { MARKER_TYPES, BAGUA_MARKER_TYPES, DISK_SKINS } from './fengshuiEngine';
@@ -125,6 +126,15 @@ const PERIOD_OPTIONS = [
 const TAG_LABEL = { auspicious: '吉', mild: '小吉', neutral: '中性', caution: '宜慎' };
 
 class FengShuiMain extends Component {
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = { vm: null, controlTab: 'base', workspaceTab: 'canvas', school: 'naqi' };

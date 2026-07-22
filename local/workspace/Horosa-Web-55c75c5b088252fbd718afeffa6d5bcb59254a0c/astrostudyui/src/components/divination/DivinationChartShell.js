@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Popover, Modal } from 'antd';
 import AstroChart from '../astro/AstroChart';
 import PlusMinusTime from '../astro/PlusMinusTime';
@@ -23,6 +24,15 @@ const OptGroup = XQSelect.OptGroup;
 // 卜卦盘 / 择日盘 共用的自包含三栏页（左设置+调时 / 中圆盘 / 右判断）。
 // 时间/地点/设置全部用本地 state，独立于「占星」主盘，不回灌父级 astro model。
 class DivinationChartShell extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 
 	constructor(props){
 		super(props);

@@ -1248,7 +1248,13 @@ class GuaZhanMain extends Component{
 				payload: flds.fields
 			});
 
-			this.clickTimeGua(flds.fields);
+			// [R3-A2] __stepHint 只供 fetchByFields 消费;时间卦派生走净化副本(防瞬态键入卦链)
+			if(Object.prototype.hasOwnProperty.call(flds.fields, '__stepHint')){
+				const { __stepHint, ...cleanFields } = flds.fields;
+				this.clickTimeGua(cleanFields);
+			}else{
+				this.clickTimeGua(flds.fields);
+			}
 		}
 	}
 

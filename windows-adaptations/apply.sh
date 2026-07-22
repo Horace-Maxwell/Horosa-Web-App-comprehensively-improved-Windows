@@ -25,9 +25,9 @@ cp "$OV/files/astrostudyui/scripts/umi-runner.js"     "$WS/astrostudyui/scripts/
 cp "$OV/files/astrostudyui/scripts/loadCryptoDeps.js" "$WS/astrostudyui/scripts/loadCryptoDeps.js" && ok loadCryptoDeps.js
 rm -rf "$WS/astrostudyui/scripts/vendor"
 cp -r "$OV/files/astrostudyui/scripts/vendor" "$WS/astrostudyui/scripts/vendor" && ok "scripts/vendor/ ($(find "$WS/astrostudyui/scripts/vendor" -type f | wc -l) files)"
-# PERF-R9:kentang raw-fetch 结果缓存的共享实现。**Mac 基线里没有这个文件**,所以它走全量拷贝层
-# 而不是 patches/(regen_patch.py 只能对基线里存在的文件做 diff)。语义照搬 services/qizheng.js:66-98。
-cp "$OV/files/astrostudyui/src/services/_kentangResultCache.js" "$WS/astrostudyui/src/services/_kentangResultCache.js" && ok "_kentangResultCache.js"
+# (v3.5.1 收敛:_kentangResultCache.js 已退役 —— 上游 utils/kentangCache.js 的 fetch 级
+#  L1/L2/L3+在途去重全面取代[信封同款 kt-v1|rv];Windows-ahead 残余职责 = kentangCache 的
+#  wuzhao 随机守卫,走 §33c 补丁。若上游未来又删了 kentangCache,由该补丁 guard+哨兵报警。)
 
 echo "== 2. astropy/requirements.txt — strip the unresolvable flatlib pin (flatlib is vendored via sys.path) =="
 if grep -q '^flatlib==' "$WS/astropy/requirements.txt" 2>/dev/null; then
@@ -409,7 +409,8 @@ apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/user
 # 全部门在 techniqueResultCacheEnabled() 上,关闭即逐字节回到改动前。
 apply_patch horosa_panel_scu_v1                 astrostudyui/src/components/calendar/HuangLiMain.js            src__components__calendar__HuangLiMain.perfR9.js.patch
 apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/dunjia/DunJiaCalc.js               src__components__dunjia__DunJiaCalc.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/geomancy/GeomancyMain.js           src__components__geomancy__GeomancyMain.perfR9.js.patch
+# (v3.5.1:地占页上游全面改版并自带 FreezeSubTab/渲染守卫 —— 我方 GeomancyMain freeze 补丁退役;
+#  上游机制由 selfcheck 哨兵钉[FreezeSubTab + markPanelReady],上游若删除会在哨兵门现形。)
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/jingjue/JingJueMain.js             src__components__jingjue__JingJueMain.perfR9.js.patch
 apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/jinkou/JinKouCalc.js               src__components__jinkou__JinKouCalc.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/jinkou/JinKouMain.js               src__components__jinkou__JinKouMain.perfR9.js.patch
@@ -615,7 +616,8 @@ apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/guo
 apply_patch horosa_guolao_doc_scu_v1             astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js         src__components__guolao__GuoLaoStarSectDoc.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/horary/HoraryMain.js                src__components__horary__HoraryMain.perfR9.js.patch
 apply_patch wrapperPropsEqual                    astrostudyui/src/components/lrzhan/LiuRengChart.js              src__components__lrzhan__LiuRengChart.perfR9.js.patch
-apply_patch wrapperPropsEqual                    astrostudyui/src/components/mingother/MingOtherMain.js          src__components__mingother__MingOtherMain.perfR9.js.patch
+# (v3.5.1:MingOtherMain 的 sCU 壳已被上游逐字节收编 —— 工作区与 Mac 基线全同,补丁退役;
+#  守卫存续由 selfcheck 哨兵钉 wrapperPropsEqual,上游若删会现形。)
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/mundane/MundaneMain.js              src__components__mundane__MundaneMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/suzhan/SuZhanMain.js                src__components__suzhan__SuZhanMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/tarot/TarotMain.js                  src__components__tarot__TarotMain.perfR9.js.patch
@@ -634,10 +636,12 @@ echo "== 33. PERF-R10 Ship2「选步长即武装」预取(horosa_step_prefetch_a
 cp "$OV/files/astrostudyui/src/utils/stepPrefetchArm.js"                      "$WS/astrostudyui/src/utils/stepPrefetchArm.js"                      && ok "stepPrefetchArm.js"
 cp "$OV/files/astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js"       "$WS/astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js"       && ok "stepPrefetchArm.test.js"
 cp "$OV/files/astrostudyui/src/utils/__tests__/perfMark.test.js"              "$WS/astrostudyui/src/utils/__tests__/perfMark.test.js"              && ok "perfMark.test.js"
-apply_patch horosa_step_prefetch_arm_v1          astrostudyui/src/components/comp/DateTimeSelector.js            src__components__comp__DateTimeSelector.stepArm.js.patch
+# (v3.5.1:DateTimeSelector 步长触发线换血为上游 fireStepSelectPrefetch[opt-in prop 宿主闸],
+#  我方 stepArm 补丁退役;Windows 武装引擎经 models/astro.js registerStepSelectHandler 接管,
+#  由 §22 astro 累积补丁承载 —— 哨兵见 selfcheck 对应条目。)
 # ---- 33b PERF-R10 Ship5/6 前端缓存统一 + 温启现场恢复 ----
-#   · kentang L3(horosa_kentang_l3_v1)在 _kentangResultCache.js 内 —— 该文件本就走 §1 的
-#     files/ 全量拷贝,不另开行(files/ 副本与工作区已同步,双份纪律见 CONTRACT_EXEMPTIONS 耦合表);
+#   · (v3.5.1)kentang L3 已随 _kentangResultCache 退役,上游 kentangCache.js 接管(见 §1 注);
+#     Windows-ahead 守卫 = §33c wuzhao 随机档不入缓存补丁;
 #   · moira 稳定键(horosa_moira_stable_key_v1):chartObj.chartId 每盘随机 → 旧键同参永不命中;
 #   · bootChartRestore(horosa_boot_chart_restore_v1,owner 拍板默认开):温启按上次快照重放
 #     fetchByChartData —— L3 命中时后端未就绪也能先画(「秒开上次工作现场」)。
@@ -645,6 +649,15 @@ mkdir -p "$WS/astrostudyui/src/services/__tests__"
 cp "$OV/files/astrostudyui/src/utils/bootChartRestore.js"                     "$WS/astrostudyui/src/utils/bootChartRestore.js"                     && ok "bootChartRestore.js"
 cp "$OV/files/astrostudyui/src/utils/__tests__/bootChartRestore.test.js"      "$WS/astrostudyui/src/utils/__tests__/bootChartRestore.test.js"      && ok "bootChartRestore.test.js"
 cp "$OV/files/astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js"  "$WS/astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js"  && ok "perfR10CacheUnify.test.js"
+# ---- 33c v3.5.1 收敛:上游 kentangCache 的 Windows-ahead 守卫 + 金标 ----
+# wuzhao 自动揲筮(无 seed、服务端 random.randint)不得入缓存 —— 上游矩阵误标 deterministic,
+# fetch 级缓存会把随机揲筮钉死(同 body 重卦返回冻结旧卦)。守卫落在唯一缓存层 payloadCacheable。
+apply_patch horosa_wuzhao_random_guard_v1        astrostudyui/src/utils/kentangCache.js                           src__utils__kentangCache.wuzhaoGuard.js.patch
+# chartFree 契约哨兵的 CRLF 免疫(可上游化):JS `.` 不匹配 \r,CRLF 工作树上剥注释正则整段
+# 失配 ⇒ 哨兵被自己的说明注释触发假红(autocrlf checkout 实测)。LF 上行为逐字节不变。
+# (v3.5.1:chartFree 哨兵的 CRLF 免疫已并入 §25b 的 chartFreeContract.pathsep 累积补丁
+#  —— 同文件单补丁单哨兵键纪律 #29/#48;marker horosa_chartfree_strip_crlf_v1 同键承载。)
+cp "$OV/files/astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js" "$WS/astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js" && ok "kentangCacheWuzhaoGuard.test.js"
 # 选项 Hamming-1 投机(horosa_option_prefetch_v1):首铺二值轴(零域风险);多值轴(hsys/
 # ayanamsa/学派等)值域在各表单组件,待接入时由组件登记 —— 绝不在 util 里臆造值域。
 cp "$OV/files/astrostudyui/src/utils/optionPrefetch.js"                       "$WS/astrostudyui/src/utils/optionPrefetch.js"                       && ok "optionPrefetch.js"

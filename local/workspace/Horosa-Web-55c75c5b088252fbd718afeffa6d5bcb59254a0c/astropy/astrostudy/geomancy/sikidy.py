@@ -54,7 +54,7 @@ def col_points(c: Tuple[int, ...]) -> int:
 
 
 def princes_slaves(col: Dict[int, Tuple[int, ...]]) -> dict:
-    """诸侯/奴隶(§11.5):列点数为偶=诸侯(princes,8列)、奇=奴隶(slaves,8列)。返回列号分组。"""
+    """诸侯/奴隶:列点数为偶=诸侯(princes,8列)、奇=奴隶(slaves,8列)。返回列号分组。"""
     princes, slaves = [], []
     for i in range(1, 17):
         (princes if col_points(col[i]) % 2 == 0 else slaves).append(i)
@@ -62,7 +62,7 @@ def princes_slaves(col: Dict[int, Tuple[int, ...]]) -> dict:
 
 
 def red_sikidy(col: Dict[int, Tuple[int, ...]]) -> bool:
-    """红 sikidy(§11.5,最凶兆):前 4 列(母)皆全双(全 0=Populus)。"""
+    """红 sikidy(最凶兆):前 4 列(母)皆全双(全 0=Populus)。"""
     return all(all(v == 0 for v in col[c]) for c in range(1, 5))
 
 
@@ -74,3 +74,49 @@ def column_compare(col: Dict[int, Tuple[int, ...]], a: int, b: int) -> dict:
         "figure_a": col_to_figure(col[a]), "figure_b": col_to_figure(col[b]),
         "points_a": col_points(col[a]), "points_b": col_points(col[b]),
     }
+
+
+def check2b(col: Dict[int, Tuple[int, ...]]) -> bool:
+    """第二组「三不可分」:(2,16)(11,13)(12,15) 三对之异或应彼此相等。
+    与第一组同为结构必然,两组任取其一即可作断言,此处并出以便双重自证。"""
+    a = _xorcol(col[2], col[16])
+    b = _xorcol(col[11], col[13])
+    c = _xorcol(col[12], col[15])
+    return a == b == c
+
+
+# 四方位:所据基准只言「东南为贵地、西北为奴地」而未载十六列之逐列配属,
+# 故此处按四列一方均分作参考划分并标 synthesized,绝不冒充定说。
+QUADRANTS = {
+    "east": {"cols": [1, 2, 3, 4], "zh": "东", "valence": "noble"},
+    "south": {"cols": [5, 6, 7, 8], "zh": "南", "valence": "noble"},
+    "west": {"cols": [9, 10, 11, 12], "zh": "西", "valence": "servile"},
+    "north": {"cols": [13, 14, 15, 16], "zh": "北", "valence": "servile"},
+}
+
+
+def quadrants(col: Dict[int, Tuple[int, ...]]) -> dict:
+    """四方位分野:东南为贵地、西北为奴地。并出各方之诸侯(偶点)数以判强弱。
+    ⚠️ 逐列配属为合成参考(基准未载),仅供分野观势,不作定说。"""
+    ps = princes_slaves(col)
+    prince_set = set(ps.get("princes") or [])
+    out = {}
+    for k, v in QUADRANTS.items():
+        cols = v["cols"]
+        n_prince = sum(1 for c in cols if c in prince_set)
+        out[k] = {"zh": v["zh"], "valence": v["valence"], "cols": cols,
+                  "princes": n_prince, "slaves": len(cols) - n_prince}
+    return {"synthesized": True, "note": "逐列配属为合成参考,基准仅载东南为贵地、西北为奴地。",
+            "quadrants": out}
+
+
+def tokan_sikidy(col: Dict[int, Tuple[int, ...]]) -> dict:
+    """独座之局:四方俱有代表、且某方仅得一位代表者,最具洞见之力,为占者所究。
+    判据:以列之图分组,四方皆有诸侯在场,而某一方仅一列为诸侯。"""
+    q = quadrants(col)["quadrants"]
+    counts = {k: v["princes"] for k, v in q.items()}
+    all_present = all(c >= 1 for c in counts.values())
+    singles = [k for k, c in counts.items() if c == 1]
+    return {"is_tokan": bool(all_present and singles),
+            "singleton_quadrants": singles, "prince_counts": counts,
+            "note": "四方俱全且有方仅一代表 → 独座之局"}

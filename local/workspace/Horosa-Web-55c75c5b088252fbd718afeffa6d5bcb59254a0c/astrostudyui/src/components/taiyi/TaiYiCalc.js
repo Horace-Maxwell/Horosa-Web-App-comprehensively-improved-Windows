@@ -9,12 +9,10 @@ import {
 import request from '../../utils/request';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { fetchChartWithRetry } from '../../utils/chartFetch';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import buildLocalBaziResult from '../../utils/baziLunarLocal';
 import { defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
 
 export const STYLE_OPTIONS = [
 	...TAIYI_STYLE_OPTIONS.slice(),
@@ -278,7 +276,7 @@ function normalizeBackendPan(pan, options, nongli, baziLocal){
 async function fetchTaiyiPanRaw(payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('taiyi', 'pan'), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taiyi', 'pan'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
@@ -322,10 +320,8 @@ export async function fetchTaiyiPan(fields, nongli, options){
 		realSunTime: nongli ? (nongli.birth || '') : '',
 		jiedelta: nongli ? (nongli.jiedelta || '') : '',
 	};
-	const bodyKey = kentangCacheKey(payload);
-	const pan = (!techniqueResultCacheEnabled() || !bodyKey)
-		? await fetchTaiyiPanRaw(payload)
-		: await cachedKentangCall('taiyi/pan', payload, ()=>fetchTaiyiPanRaw(payload), { key: bodyKey, max: 48 });
+	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
+	const pan = await fetchTaiyiPanRaw(payload);
 	const baziLocal = buildTaiyiBaziLocal(fields, opt);
 	const normalized = normalizeBackendPan(pan, opt, nongli, baziLocal);
 	if(normalized && !normalized.clockTime && fields && fields.date && fields.date.value && fields.time && fields.time.value){

@@ -37,6 +37,7 @@ class LiuRengBirthInput extends Component{
 		if(this.props.onFieldsChange){
 			let dt = value.time;
 			const payload = {
+				...(value.step ? { __stepHint: value.step } : {}),
 				date: {
 					value: dt.clone(),
 				},

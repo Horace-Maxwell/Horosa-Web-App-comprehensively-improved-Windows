@@ -1,132 +1,167 @@
 {
- "schema": "geomancy.profiles/v1",
- "default": "european_classical",
- "profiles": {
-  "european_classical": {
-   "label": "古典定局派",
-   "direction": "LTR",
-   "mark_style": "dots",
-   "random_source": "rng",
-   "chart": "shield+house",
-   "reading_scope": "L3",
-   "house_projection": "sequential",
-   "zodiac_system": "classical",
-   "names": "latin",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": false,
-   "id": "european_classical"
-  },
-  "european_planetary": {
-   "label": "行星共鸣派",
-   "direction": "LTR",
-   "mark_style": "dots",
-   "random_source": "rng",
-   "chart": "shield+house",
-   "reading_scope": "L3",
-   "house_projection": "sequential",
-   "zodiac_system": "planetary",
-   "names": "latin",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": false,
-   "id": "european_planetary"
-  },
-  "european_modern": {
-   "label": "现代综合派",
-   "direction": "LTR",
-   "mark_style": "dots",
-   "random_source": "rng",
-   "chart": "shield+house",
-   "reading_scope": "L3",
-   "house_projection": "sequential",
-   "zodiac_system": "classical",
-   "names": "latin",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": false,
-   "id": "european_modern"
-  },
-  "arabic_raml": {
-   "label": "阿拉伯沙占派",
-   "direction": "RTL",
-   "mark_style": "dots",
-   "random_source": "sand",
-   "chart": "buyut",
-   "reading_scope": "L2",
-   "house_projection": "sequential",
-   "zodiac_system": "classical",
-   "names": "arabic",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": true,
-   "id": "arabic_raml"
-  },
-  "india_ramal": {
-   "label": "印度骰占派",
-   "direction": "LTR",
-   "mark_style": "bindu_rekha",
-   "random_source": "dice",
-   "chart": "shield+house",
-   "reading_scope": "L3",
-   "house_projection": "sequential",
-   "zodiac_system": "classical",
-   "names": "latin",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": false,
-   "id": "india_ramal"
-  },
-  "sikidy": {
-   "label": "异或表盘",
-   "direction": "LTR",
-   "mark_style": "dots",
-   "random_source": "rng",
-   "chart": "sikidy",
-   "reading_scope": "L3",
-   "house_projection": "sequential",
-   "zodiac_system": "classical",
-   "names": "latin",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": false,
-   "id": "sikidy"
-  },
-  "hakata": {
-   "label": "四片盘",
-   "direction": "LTR",
-   "mark_style": "tablets",
-   "random_source": "tablets",
-   "chart": "hakata",
-   "reading_scope": "L3",
-   "house_projection": "sequential",
-   "zodiac_system": "classical",
-   "names": "latin",
-   "reconciler": true,
-   "halt_on_first_mother": [
-    "Cauda Draconis",
-    "Rubeus"
-   ],
-   "wrap_houses": false,
-   "id": "hakata"
-  }
- }
+	"schema": "geomancy.profiles/v1",
+	"default": "european_classical",
+	"profiles": {
+		"european_classical": {
+			"label": "古典定局派",
+			"direction": "LTR",
+			"mark_style": "dots",
+			"random_source": "rng",
+			"chart": "shield+house",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "latin",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "european_classical"
+		},
+		"european_planetary": {
+			"label": "行星共鸣派",
+			"direction": "LTR",
+			"mark_style": "dots",
+			"random_source": "rng",
+			"chart": "shield+house",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "planetary",
+			"names": "latin",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "european_planetary"
+		},
+		"european_modern": {
+			"label": "现代综合派",
+			"direction": "LTR",
+			"mark_style": "dots",
+			"random_source": "rng",
+			"chart": "shield+house",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "latin",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "european_modern"
+		},
+		"arabic_raml": {
+			"label": "阿拉伯沙占派",
+			"direction": "RTL",
+			"mark_style": "dots",
+			"random_source": "sand",
+			"chart": "buyut",
+			"reading_scope": "L2",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "arabic",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": true,
+			"id": "arabic_raml"
+		},
+		"india_ramal": {
+			"label": "印度骰占派",
+			"direction": "LTR",
+			"mark_style": "bindu_rekha",
+			"random_source": "dice",
+			"chart": "shield+house",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "latin",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "india_ramal"
+		},
+		"sikidy": {
+			"label": "异或表盘",
+			"direction": "LTR",
+			"mark_style": "dots",
+			"random_source": "rng",
+			"chart": "sikidy",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "latin",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "sikidy"
+		},
+		"hakata": {
+			"label": "四片盘",
+			"direction": "LTR",
+			"mark_style": "tablets",
+			"random_source": "tablets",
+			"chart": "hakata",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "latin",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "hakata"
+		},
+		"ifa": {
+			"label": "西非同族对照",
+			"direction": "RTL",
+			"mark_style": "lines",
+			"random_source": "opele",
+			"chart": "ifa",
+			"reading_scope": "L1",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "yoruba",
+			"reconciler": false,
+			"halt_on_first_mother": [],
+			"wrap_houses": false,
+			"id": "ifa",
+			"structural_only": true,
+			"notice": "独立圣传体系,仅结构同构对照;不套地占含义、不构成占断。"
+		},
+		"greek": {
+			"label": "希腊拜占庭派",
+			"direction": "LTR",
+			"mark_style": "dots",
+			"random_source": "rng",
+			"chart": "shield+house",
+			"reading_scope": "L3",
+			"house_projection": "sequential",
+			"zodiac_system": "classical",
+			"names": "greek",
+			"reconciler": true,
+			"halt_on_first_mother": [
+				"Cauda Draconis",
+				"Rubeus"
+			],
+			"wrap_houses": false,
+			"id": "greek"
+		}
+	}
 }

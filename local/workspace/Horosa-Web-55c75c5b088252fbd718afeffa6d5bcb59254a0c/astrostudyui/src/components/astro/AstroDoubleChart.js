@@ -107,7 +107,7 @@ class AstroDoubleChart extends Component{
 		// 【漏传≠全空盘】planetDisplay/lotsDisplay 是显示白名单(desposeStars 按 has() 过滤)。
 		// 调用方漏传(undefined/null)时回落默认集(与 models/app 初值同源),与下方 chartDisplay
 		// 的 CHART_DEFAULTOPTS 回落同款语义;空数组([])是「有意全隐藏」,不回落。
-		// 历史事故(FL-20260712-3):推运 TabPane 漏传 planetDisplay → 双盘有框架无星体。
+		// 历史事故(2026-07-12 实案):推运 TabPane 漏传 planetDisplay → 双盘有框架无星体。
 		let planetSrc = this.props.planetDisplay;
 		if(planetSrc === undefined || planetSrc === null){
 			planetSrc = AstroConst.DEFAULT_OBJECTS;

@@ -46,6 +46,16 @@ def cast_shield_from_mothers(M: List[int]) -> Shield:
     return Shield(M, D, N, rw, lw, judge, add(judge, M[0]))
 
 
+RECONCILER_MODES = ("judge_first_mother", "judge_querent_significator")
+
+
+def reconciler_from(judge: int, other: int) -> int:
+    """调和者 = 判官 ⊕ 另一图。另一图取谁,各家有别:
+    主流取首母(judge_first_mother);另有取问者指示星者(judge_querent_significator)。
+    两法同为异或,仅第二操作数不同 —— 故此处只收已定的另一图,选谁由上游按模式决定。"""
+    return add(judge, other)
+
+
 def cast_shield(rng: Optional[random.Random] = None, fill: str = "top_down") -> Shield:
     """随机起盘:16 随机比特 → 四母 → 全盘。fill='top_down' 先火(主流);'bottom_up' 罕见变体先地。"""
     r = rng or random

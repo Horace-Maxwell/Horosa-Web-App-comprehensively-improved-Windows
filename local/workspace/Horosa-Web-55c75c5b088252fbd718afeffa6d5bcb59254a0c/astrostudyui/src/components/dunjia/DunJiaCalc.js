@@ -6,9 +6,7 @@ import { LUOSHU_NUM } from './DunJiaFaDoc';
 import request from '../../utils/request';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { fetchChartWithRetry } from '../../utils/chartFetch';
-import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 
 export const SEX_OPTIONS = [
 	{ value: 1, label: '男' },
@@ -1145,7 +1143,7 @@ export function normalizeKinqimenData(backendPan, fallbackPan, options, nongli){
 async function fetchQimenPanRaw(payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('qimen', 'pan'), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('qimen', 'pan'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
@@ -1189,11 +1187,9 @@ export async function fetchQimenPan(fields, nongli, options, context){
 		after23NewDay: opt.after23NewDay !== undefined ? (opt.after23NewDay ? 1 : 0) : 1,
 		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? (opt.lateZiHourUseNextDay ? 1 : 0) : 1,
 	};
-	const bodyKey = kentangCacheKey(payload);
-	if(!techniqueResultCacheEnabled() || !bodyKey){
-		return fetchQimenPanRaw(payload);
-	}
-	return cachedKentangCall('qimen/pan', payload, ()=>fetchQimenPanRaw(payload), { key: bodyKey, max: 48 });
+	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache
+	// (L1/L2/L3 + 在途去重,kt-v1|rv 信封);外面再包一层 = 双缓存双内存,零增益。
+	return fetchQimenPanRaw(payload);
 }
 
 function resolvePaiPanMeta(opts, ganzhi, jieqi, dateParts, context){

@@ -2664,7 +2664,11 @@ class SanShiUnitedMain extends Component{
 				zone: { value: zoneValue },
 			};
 			this.syncFields(syncedFields);
-			this.onFieldsChange(syncedFields, {
+			this.onFieldsChange({
+				...syncedFields,
+				// [R3-A2] 步进方向提示只进 fetchByFields 链(syncFields 的 astro/save 不携带)
+				...(value.step ? { __stepHint: value.step } : {}),
+			}, {
 				silentRequest: true,
 				nohook: true,
 			});

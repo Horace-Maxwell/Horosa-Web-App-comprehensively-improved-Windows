@@ -1,17 +1,8 @@
 diff --git a/astrostudyui/src/components/taiyi/TaiYiCalc.js b/astrostudyui/src/components/taiyi/TaiYiCalc.js
-index c03e808..76c2cbd 100644
+index da6f2ed..3fc564d 100644
 --- a/astrostudyui/src/components/taiyi/TaiYiCalc.js
 +++ b/astrostudyui/src/components/taiyi/TaiYiCalc.js
-@@ -13,6 +13,8 @@ import { fetchChartWithRetry } from '../../utils/chartFetch';
- import buildLocalBaziResult from '../../utils/baziLunarLocal';
- import { defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
- import { parseDateParts } from '../../utils/dateStrSafe';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
- 
- export const STYLE_OPTIONS = [
- 	...TAIYI_STYLE_OPTIONS.slice(),
-@@ -267,27 +269,13 @@ function normalizeBackendPan(pan, options, nongli, baziLocal){
+@@ -267,27 +267,13 @@ function normalizeBackendPan(pan, options, nongli, baziLocal){
  	}, nongli, baziLocal);
  }
  
@@ -45,8 +36,8 @@ index c03e808..76c2cbd 100644
 +async function fetchTaiyiPanRaw(payload){
  	let rsp = null;
  	try{
- 		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('taiyi', 'pan'), {
-@@ -310,7 +298,34 @@ export async function fetchTaiyiPan(fields, nongli, options){
+ 		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taiyi', 'pan'), {
+@@ -310,7 +296,32 @@ export async function fetchTaiyiPan(fields, nongli, options){
  			retry: { retries: 2 },
  		});
  	}
@@ -75,10 +66,8 @@ index c03e808..76c2cbd 100644
 +		realSunTime: nongli ? (nongli.birth || '') : '',
 +		jiedelta: nongli ? (nongli.jiedelta || '') : '',
 +	};
-+	const bodyKey = kentangCacheKey(payload);
-+	const pan = (!techniqueResultCacheEnabled() || !bodyKey)
-+		? await fetchTaiyiPanRaw(payload)
-+		: await cachedKentangCall('taiyi/pan', payload, ()=>fetchTaiyiPanRaw(payload), { key: bodyKey, max: 48 });
++	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
++	const pan = await fetchTaiyiPanRaw(payload);
  	const baziLocal = buildTaiyiBaziLocal(fields, opt);
  	const normalized = normalizeBackendPan(pan, opt, nongli, baziLocal);
  	if(normalized && !normalized.clockTime && fields && fields.date && fields.date.value && fields.time && fields.time.value){

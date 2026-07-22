@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/cntradition/MainDirection.js b/astrostudyui/src/components/cntradition/MainDirection.js
-index 07c02d5..865c99d 100644
+index 3b78274..e6f3db3 100644
 --- a/astrostudyui/src/components/cntradition/MainDirection.js
 +++ b/astrostudyui/src/components/cntradition/MainDirection.js
-@@ -1,10 +1,12 @@
- import { Component } from 'react';
+@@ -2,10 +2,12 @@ import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { Row, Col, Divider, Popover} from 'antd';
  import { XQCard as Card, XQTabs as Tabs } from '../xq-ui';
 -import { randomStr } from '../../utils/helper';
@@ -16,7 +16,7 @@ index 07c02d5..865c99d 100644
  
  const TabPane = Tabs.TabPane;
  
-@@ -39,9 +41,10 @@ class MainDirection extends Component{
+@@ -49,9 +51,10 @@ class MainDirection extends Component{
  		let ganCols = this.genGods(rec.stem, '干');
  		let ziCols = this.genGods(rec.branch, '支');
  		let doms = [];
@@ -28,7 +28,7 @@ index 07c02d5..865c99d 100644
  					{cols}
  				</Row>
  			);
-@@ -49,7 +52,7 @@ class MainDirection extends Component{
+@@ -59,7 +62,7 @@ class MainDirection extends Component{
  		}
  		if(ganCols){
  			let row = (
@@ -37,7 +37,7 @@ index 07c02d5..865c99d 100644
  					{ganCols}
  				</Row>
  			);
-@@ -57,7 +60,7 @@ class MainDirection extends Component{
+@@ -67,7 +70,7 @@ class MainDirection extends Component{
  		}
  		if(ziCols){
  			let row = (
@@ -46,7 +46,7 @@ index 07c02d5..865c99d 100644
  					{ziCols}
  				</Row>
  			);
-@@ -72,7 +75,7 @@ class MainDirection extends Component{
+@@ -82,7 +85,7 @@ class MainDirection extends Component{
  			}
  		if(spans.length > 0){
  			let content = (
@@ -55,7 +55,7 @@ index 07c02d5..865c99d 100644
  					<div>岁：&emsp;{spans.join('，')}</div>
  				</Col>
  			);
-@@ -80,7 +83,7 @@ class MainDirection extends Component{
+@@ -90,7 +93,7 @@ class MainDirection extends Component{
  		}
  		if(taisuiCols.length > 0){
  			let row = (
@@ -64,7 +64,7 @@ index 07c02d5..865c99d 100644
  					{taisuiCols}
  				</Row>
  			);
-@@ -114,7 +117,7 @@ class MainDirection extends Component{
+@@ -124,7 +127,7 @@ class MainDirection extends Component{
  
  		if(spans.length > 0){
  			let content = (
@@ -73,7 +73,7 @@ index 07c02d5..865c99d 100644
  					<div>{titleStr}：&emsp;{spans.join('，')}</div>
  				</Col>
  			);
-@@ -138,11 +141,11 @@ class MainDirection extends Component{
+@@ -148,11 +151,11 @@ class MainDirection extends Component{
  				let starCharger = resolveStarCharger(sub.starCharger, sub.year != null ? sub.year : y, this._birthMonth, this._birthDay);
  				let popcontent = (
  					<div style={{width: 350}}>
@@ -88,7 +88,7 @@ index 07c02d5..865c99d 100644
  								{describeStemBranch(sub.branch)}
  							</Col>
  						</Row>
-@@ -153,8 +156,8 @@ class MainDirection extends Component{
+@@ -163,8 +166,8 @@ class MainDirection extends Component{
  					</div>
  				)
  				let titlerow = (
@@ -99,7 +99,7 @@ index 07c02d5..865c99d 100644
  							<Col span={4}>{sub.ganzi || ''}</Col>
  							<Col span={6}>{sub.naying || ''}</Col>
  							<Col span={9}>{dirtm}</Col>
-@@ -169,14 +172,14 @@ class MainDirection extends Component{
+@@ -179,14 +182,14 @@ class MainDirection extends Component{
  
  			let maingods = this.genGodsDom(mainDirect);
  			let title = (

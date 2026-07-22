@@ -1,8 +1,8 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Empty } from 'antd';
 import { Solar } from 'lunar-javascript';
 import { XQTabs as Tabs } from '../xq-ui';
@@ -52,6 +52,16 @@ function deepFreeze(o){
 }
 
 class HeLuoMain extends Component {
+	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = { daxianKey: '', openYao: '', liunianKey: '', liuyueKey: '', yearForMonth: null, monthForDay: null, openJing: '' };
@@ -59,17 +69,6 @@ class HeLuoMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-	// 河洛中栏是「起卦详情 + 先后天两张卦卡 + 大限表(含流年/流月/流日多层下钻)」,
-	// 且宿主渲染两遍(center/aux)。此前零 sCU:宿主左栏任一控件(含与河洛无关的铁板/南极/
-	// 蠢子/正传诸项)一动就整表重造。语义同 CanPing:props/state 任一变即重渲,零陈旧;
-	// forceUpdate(日界/晚子/远程农历)绕过 sCU 不受影响。
-	// horosa_shusuan_native_scu_v1:复用 wrapperPropsEqual(全 props 机械浅比 + 同一 kill-switch)。
-	// ⚠️ opts 由宿主 buildHeluoOpts() 造:宿主侧已按 JSON 签名固定引用(memoOpts),值不变=引用不变,
-	//    本浅比方才生效;宿主若退回「每次新造对象」,这里只是恒返 true = 今天的旧行为(不会出错)。
-	shouldComponentUpdate(nextProps, nextState) {
-		if (nextState !== this.state) { return true; }
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount() {
 		this.saveSnap();

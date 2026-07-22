@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeJsonParseFromStorage } from '../../utils/safeStorage';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
@@ -686,6 +687,15 @@ function isPrimaryDirectionTabKey(key){
 }
 
 class AstroDirectMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 
 	constructor(props) {
 		super(props);
@@ -906,6 +916,12 @@ class AstroDirectMain extends Component{
 
 	savePrimaryDirectionRows(chartObj, req, pdRows, options = {}){
 		if(!this.props.dispatch){
+			return;
+		}
+		// base 盘不完整(如 /chart 失败后 chartObj 为空)时绝不落盘:merge 会合成只有 pd 系
+		// params、无 chart/无 params.zone 的部分态对象,写入全局后宿占/3D 等消费方按
+		// chartObj truthy 解引用 .chart/.params.zone 即崩。
+		if(!chartObj || !chartObj.chart){
 			return;
 		}
 		const nextChartObj = mergePrimaryDirectionChartObj(chartObj, {
@@ -1534,7 +1550,7 @@ class AstroDirectMain extends Component{
 						<FreezeInactive active={this.state.currentTab === "zodialrelease"}>
 						<AstroZR  
 							value={this.props.chartObj} 
-							height={this.props.height} 
+							height={height} 
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

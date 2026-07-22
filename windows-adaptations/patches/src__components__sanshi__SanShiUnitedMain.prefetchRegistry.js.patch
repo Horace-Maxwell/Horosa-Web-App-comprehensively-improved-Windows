@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/sanshi/SanShiUnitedMain.js b/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
-index 7553505..6e2007e 100644
+index 03657ba..0ba09fc 100644
 --- a/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
 +++ b/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
 @@ -1,4 +1,8 @@
@@ -68,7 +68,7 @@ index 7553505..6e2007e 100644
  		}
  	}
  
-@@ -3381,6 +3435,11 @@ class SanShiUnitedMain extends Component{
+@@ -3385,6 +3439,11 @@ class SanShiUnitedMain extends Component{
  			keData: lrBundle.keData,
  			sanChuan: lrBundle.sanChuan,
  		}, ()=>{
@@ -80,7 +80,7 @@ index 7553505..6e2007e 100644
  			this.scheduleSnapshotSave(snapshotPayload, snapshotMeta);
  		});
  		return true;
-@@ -4899,7 +4958,15 @@ class SanShiUnitedMain extends Component{
+@@ -4903,7 +4962,15 @@ class SanShiUnitedMain extends Component{
  					className="horosa-sanshi-right-tabs"
  					style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}
  				>
@@ -96,7 +96,7 @@ index 7553505..6e2007e 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ lineHeight: '26px' }}>
  								<div>局数：{pan ? pan.juText : '—'}</div>
-@@ -4926,8 +4993,10 @@ class SanShiUnitedMain extends Component{
+@@ -4930,8 +4997,10 @@ class SanShiUnitedMain extends Component{
  								</>
  							) : null}
  						</Card>
@@ -107,7 +107,7 @@ index 7553505..6e2007e 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ lineHeight: '24px' }}>
  								{this.state.taiyi ? (()=>{
-@@ -5011,8 +5080,10 @@ class SanShiUnitedMain extends Component{
+@@ -5015,8 +5084,10 @@ class SanShiUnitedMain extends Component{
  								)}
  							</div>
  						</Card>
@@ -118,7 +118,7 @@ index 7553505..6e2007e 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<Tabs
  								activeKey={this.state.liurengRefTab}
-@@ -5155,8 +5226,10 @@ class SanShiUnitedMain extends Component{
+@@ -5159,8 +5230,10 @@ class SanShiUnitedMain extends Component{
  								</TabPane>
  							</Tabs>
  						</Card>
@@ -129,7 +129,7 @@ index 7553505..6e2007e 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<Tabs
  								activeKey={this.state.bagongSubTab}
-@@ -5260,10 +5333,16 @@ class SanShiUnitedMain extends Component{
+@@ -5264,10 +5337,16 @@ class SanShiUnitedMain extends Component{
  								</TabPane>
  							</Tabs>
  						</Card>

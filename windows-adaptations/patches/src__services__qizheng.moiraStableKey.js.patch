@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/services/qizheng.js b/astrostudyui/src/services/qizheng.js
-index 4f52cb6..bf950b0 100644
+index bd4128c..70111a1 100644
 --- a/astrostudyui/src/services/qizheng.js
 +++ b/astrostudyui/src/services/qizheng.js
 @@ -7,8 +7,25 @@ import { cachedPost } from './_requestCache';
@@ -11,7 +11,7 @@ index 4f52cb6..bf950b0 100644
 +// **同参永不命中**(缓存退化为纯开销,还要先付一次 ~420KB 的 JSON.stringify)。
 +// 响应由 (params, transitParams) 完备决定 —— chartObj 本身就是 params 的纯函数(黄金已证),
 +// 故键取双 params 签名;moira 仍在 PREFETCH_FORBIDDEN(默认过运=「此刻」),本修只救同参重放。
-+function stableMoiraKey(values){
++export function stableMoiraKey(values){
 +	try{
 +		const v = values || {};
 +		return JSON.stringify({ params: v.params || null, transitParams: v.transitParams || null });

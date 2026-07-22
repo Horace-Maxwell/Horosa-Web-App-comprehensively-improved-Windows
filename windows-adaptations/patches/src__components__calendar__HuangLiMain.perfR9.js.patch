@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/calendar/HuangLiMain.js b/astrostudyui/src/components/calendar/HuangLiMain.js
-index 7e779db..632fbaa 100644
+index 6756777..d000867 100644
 --- a/astrostudyui/src/components/calendar/HuangLiMain.js
 +++ b/astrostudyui/src/components/calendar/HuangLiMain.js
-@@ -12,12 +12,40 @@ import { buildHuangliDay } from './huangliDay';
+@@ -13,12 +13,40 @@ import { buildHuangliDay } from './huangliDay';
  import { buildHuangliSnapshotText } from './huangliSnapshot';
  import { wutuForDate } from './tongshu/wutu';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -43,7 +43,7 @@ index 7e779db..632fbaa 100644
  // 老黄历：中栏复用 NongLi 月历网格（默认不变；本 tab 传 dayExtra 叠加建除色带），
  // 右栏为完整今日通书日课卡（buildHuangliDay 纯前端）。日课与经纬无关，网格仅借后端 /calendar/month 排布。
  class HuangLiMain extends Component {
-@@ -34,6 +62,8 @@ class HuangLiMain extends Component {
+@@ -44,6 +72,8 @@ class HuangLiMain extends Component {
  			yearPanelOpen: false,
  		};
  		this.huangliCache = {};
@@ -52,7 +52,7 @@ index 7e779db..632fbaa 100644
  
  		this.requestMonth = this.requestMonth.bind(this);
  		this.onTimeChanged = this.onTimeChanged.bind(this);
-@@ -48,14 +78,18 @@ class HuangLiMain extends Component {
+@@ -58,14 +88,18 @@ class HuangLiMain extends Component {
  	// 逐格日课缓存（避免重渲染重算），键=公历 y-m-d。
  	getHuangli(y, m, d) {
  		const key = `${y}-${m}-${d}`;
@@ -72,7 +72,7 @@ index 7e779db..632fbaa 100644
  		if (!(key in this.wutuCache)) { try { this.wutuCache[key] = wutuForDate({ y, m, d }); } catch (e) { this.wutuCache[key] = null; } }
  		return this.wutuCache[key];
  	}
-@@ -83,11 +117,14 @@ class HuangLiMain extends Component {
+@@ -93,11 +127,14 @@ class HuangLiMain extends Component {
  			const days = this.state.days || [];
  			const sel = this.state.selectedYmd;
  			const inMonth = sel && days.some((x)=> x && `${x.birth}`.split(' ')[0] === `${sel.y}-${String(sel.m).padStart(2, '0')}-${String(sel.d).padStart(2, '0')}`);
@@ -88,7 +88,7 @@ index 7e779db..632fbaa 100644
  		});
  	}
  
-@@ -97,14 +134,26 @@ class HuangLiMain extends Component {
+@@ -107,14 +144,26 @@ class HuangLiMain extends Component {
  			selectedYmd: { y, m, d },
  			selectedDay: this.getHuangli(y, m, d),
  			focus,
@@ -116,7 +116,7 @@ index 7e779db..632fbaa 100644
  		this.selectByYmd(this.parseBirth(date.birth));
  	}
  
-@@ -183,6 +232,11 @@ class HuangLiMain extends Component {
+@@ -193,6 +242,11 @@ class HuangLiMain extends Component {
  		}
  	}
  

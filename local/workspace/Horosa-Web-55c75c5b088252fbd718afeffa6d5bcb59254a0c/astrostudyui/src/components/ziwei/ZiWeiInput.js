@@ -215,6 +215,7 @@ class ZiWeiInput extends Component{
 
 			this.props.onFieldsChange({
 				__confirmed: !!value.confirmed,
+				...(value.step ? { __stepHint: value.step } : {}),
 				date: {
 					value: dt.clone(),
 				},

@@ -842,7 +842,7 @@ async function regenerateSanshiUnifiedSnapshot(record, payload){
 }
 
 // 无头合盘(synastry):从两张命盘 record 现算关系快照 —— 比较盘(互摄相位/中点/映点)+ 组合盘(复合图)+ 影响盘(双盘叠加)。
-// 供 AI 报告「合盘」技法直接选两张盘生成,无需先在合盘页挂载。后端 /modern/relative(:9999,RSA);任一产品失败优雅跳过。
+// 供「合盘」技法直接选两张盘生成,无需先在合盘页挂载。后端 /modern/relative(:9999,RSA);任一产品失败优雅跳过。
 export async function buildRelativeSnapshotForRecords(recordA, recordB){
 	if(!recordA || !recordB) return '';
 	const mk = (r)=>{ const [d, t] = `${(r && r.birth) || ''}`.split(' '); return { date: d || '', time: t || '', zone: (r && r.zone) || '', lat: (r && r.lat) || '', lon: (r && r.lon) || '' }; };
@@ -1199,7 +1199,7 @@ function buildChartBaziPeriodFromRecord(record){
 }
 
 // 命盘技法的出生参数（形状对齐各组件 genParams：date 'YYYY-MM-DD' / time 'HH:mm:ss'）。
-// 报告功能: 导出供 reportChartCapture 等模块复用,把 chart record 转成 bazi/ziwei 起盘 params。
+// 导出供命盘图捕获等模块复用,把 chart record 转成 bazi/ziwei 起盘 params。
 export { buildChartBaziParams, buildChartZiweiParams };
 function buildChartBaziParams(record){
 	const fields = buildFieldObject(record);

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/cnyibu/CnYiBuMain.js b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-index c6a9e8a..df42cab 100644
+index b15eea3..87d2eb2 100644
 --- a/astrostudyui/src/components/cnyibu/CnYiBuMain.js
 +++ b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-@@ -22,10 +22,18 @@ const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-
+@@ -23,10 +23,18 @@ const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-
  const XiaoChengTuMain = React.lazy(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain'));
  const FeiGongMain = React.lazy(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain'));
  import QuickDockBar from '../common/QuickDockBar';
@@ -21,7 +21,7 @@ index c6a9e8a..df42cab 100644
  
  function getRuntimeCnYiBuTab(){
  	if(typeof window === 'undefined'){
-@@ -155,10 +163,29 @@ class CnYiBuMain extends Component{
+@@ -165,10 +173,29 @@ class CnYiBuMain extends Component{
  		this.unmounted = false;
  		// 首渲时子页 ref 尚未挂上,取不到 getQuickDockConfig;挂载后补一拍让 dock 内容就位
  		this.forceUpdate();
@@ -51,7 +51,7 @@ index c6a9e8a..df42cab 100644
  	}
  
  	componentDidUpdate(prevProps){
-@@ -276,194 +303,236 @@ class CnYiBuMain extends Component{
+@@ -286,194 +313,236 @@ class CnYiBuMain extends Component{
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab="宿盘" key="suzhan">

@@ -1,4 +1,4 @@
-// 报告功能 - 命盘图捕获挂载组件 (v1.19 用真实 BaZi/ZiWeiMain 组件)
+// 命盘图捕获挂载组件 (用真实 BaZi/ZiWeiMain 组件)
 //
 // 关键发现:
 //   BaZi.js 和 ZiWeiMain.js 都是自己 fetch 数据(用 fetchBaziDirectCached / request signed fetch),

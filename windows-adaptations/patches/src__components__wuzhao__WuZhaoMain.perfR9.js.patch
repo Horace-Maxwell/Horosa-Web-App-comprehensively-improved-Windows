@@ -1,20 +1,19 @@
 diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-index 7c8e7e5..ad2fa85 100644
+index 6f61f7f..076cff5 100644
 --- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 +++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-@@ -13,6 +13,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -16,6 +16,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
 +import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
 +import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -63,7 +68,7 @@ function parseFieldsDateTime(fields){
+@@ -66,7 +70,7 @@ function parseFieldsDateTime(fields){
  	};
  }
  
@@ -23,7 +22,7 @@ index 7c8e7e5..ad2fa85 100644
  	const roots = [];
  	const endpoints = [];
  	if(typeof window !== 'undefined'){
-@@ -123,6 +128,31 @@ async function postWuZhao(path, payload){
+@@ -126,6 +130,21 @@ async function postWuZhao(path, payload){
  	throw lastError || new Error('wuzhao.fetch.failed');
  }
  
@@ -34,50 +33,26 @@ index 7c8e7e5..ad2fa85 100644
 +//    只有 ① mode==='ganzhi'(干支数值法 gangzhi_paipan,纯计算)
 +//        ② manual===true(手动折竹:manualSplits 全量入 payload,后端不再摇随机)
 +//    这两种才是「同 payload 必同盘」。故下方 wuzhaoCacheable 为准入闸,不满足即直连(与今日逐字一致)。
-+function wuzhaoCacheable(payload){
-+	const p = payload || {};
-+	return p.mode === 'ganzhi' || !!p.manual;
-+}
-+
++// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache;上述「自动揲筮
++// 不可缓存」的守卫下沉到 kentangCache.payloadCacheable(horosa_wuzhao_random_guard_v1,
++// Windows-ahead:上游矩阵把 wuzhao 误标 deterministic,fetch 级缓存会把无 seed 的
++// random.randint 揲筮钉死 —— 在唯一缓存层拦,比在每个调用点拦更不可能漏)。
 +function postWuZhao(path, payload){
-+	const bodyKey = kentangCacheKey(payload);
-+	if(!techniqueResultCacheEnabled() || !wuzhaoCacheable(payload) || !bodyKey){
-+		return postWuZhaoRaw(path, payload);
-+	}
-+	return cachedKentangCall(
-+		'wuzhao/pan',
-+		payload,
-+		()=>postWuZhaoRaw(path, payload),
-+		{ key: `${path}|${bodyKey}`, max: 48 }
-+	);
++	return postWuZhaoRaw(path, payload);
 +}
 +
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -204,6 +234,21 @@ class WuZhaoMain extends Component{
+@@ -216,6 +235,7 @@ class WuZhaoMain extends Component{
  		}
  	}
  
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -383,6 +428,8 @@ class WuZhaoMain extends Component{
+@@ -425,6 +445,8 @@ class WuZhaoMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -86,7 +61,7 @@ index 7c8e7e5..ad2fa85 100644
  				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -629,19 +676,28 @@ class WuZhaoMain extends Component{
+@@ -671,19 +693,28 @@ class WuZhaoMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

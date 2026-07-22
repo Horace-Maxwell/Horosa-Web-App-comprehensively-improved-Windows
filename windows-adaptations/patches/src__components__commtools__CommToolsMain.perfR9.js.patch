@@ -1,20 +1,16 @@
 diff --git a/astrostudyui/src/components/commtools/CommToolsMain.js b/astrostudyui/src/components/commtools/CommToolsMain.js
-index a6564e7..c25f288 100644
+index 2926191..c90ad2b 100644
 --- a/astrostudyui/src/components/commtools/CommToolsMain.js
 +++ b/astrostudyui/src/components/commtools/CommToolsMain.js
-@@ -1,6 +1,5 @@
+@@ -1,7 +1,6 @@
  import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { XQTabs as Tabs } from '../xq-ui';
 -import { randomStr } from '../../utils/helper';
  import Azimuth from './Azimuth';
  import CoordTrans from './CoordTrans';
  import Calculator from './Calculator';
-@@ -12,16 +11,28 @@ import GuaSymDesc from '../gua/GuaSymDesc';
- import CuanGong12 from './CuanGong12';
- import BaziPithy from './BaziPithy';
- import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
-+import { FreezeSubTab } from '../comp/FreezeInactive';
- import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
+@@ -17,6 +16,17 @@ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorag
  
  const TabPane = Tabs.TabPane;
  
@@ -30,7 +26,9 @@ index a6564e7..c25f288 100644
 +];
 +
  class CommToolsMain extends Component{
- 	constructor(props) {
+ 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+@@ -31,7 +41,7 @@ class CommToolsMain extends Component{
  		super(props);
  
  		let tab = safeLocalStorageGet('commtoolstab');
@@ -39,7 +37,7 @@ index a6564e7..c25f288 100644
  			tab = 'naying';
  		}
  
-@@ -39,6 +50,13 @@ class CommToolsMain extends Component{
+@@ -49,6 +59,13 @@ class CommToolsMain extends Component{
  		});
  	}
  
@@ -53,7 +51,7 @@ index a6564e7..c25f288 100644
  	render(){
  		let height = document.documentElement.clientHeight;
  		height = height - 80;
-@@ -52,56 +70,68 @@ class CommToolsMain extends Component{
+@@ -62,56 +79,68 @@ class CommToolsMain extends Component{
  		const lonV = (fields && fields.lon) ? fields.lon.value : undefined;
  		const timeV = (fields && fields.date) ? fields.date.value : undefined;
  

@@ -77,3 +77,24 @@ def planet(fig: int) -> str:
 
 
 VALID_JUDGES = {i for i in FIG_BY_INT if points(i) % 2 == 0}   # 8 个偶点图(合法法官)
+
+
+# ── 结构属性(数学定义,无流派分歧)──
+def is_palindrome(fig: int) -> bool:
+    """自逆转:上下翻转四行后仍是自身。全十六图中恰四图如此(道/众/牢狱/会合),
+    是若干技法(如某些证与判官之特性)的结构根源。"""
+    return reverse(fig) == fig
+
+
+PALINDROME_FIGURES = {i for i in FIG_BY_INT if reverse(i) == i}
+
+_ELEM_ZH = {FIRE: "火", AIR: "气", WATER: "水", EARTH: "地"}
+_ELEM_EN = {FIRE: "Fire", AIR: "Air", WATER: "Water", EARTH: "Earth"}
+
+
+def active_elements(fig: int) -> dict:
+    """在场元素:某行为单点即该元素在场。此为**结构事实**,与「单一元素主管」
+    (传统另指派一主元素、各家规则不同)是两回事,勿混。"""
+    on = [b for b in ELEMENT_ROWS if (fig >> b) & 1]
+    return {"bits": [_ELEM_EN[b] for b in on], "zh": [_ELEM_ZH[b] for b in on],
+            "count": len(on)}

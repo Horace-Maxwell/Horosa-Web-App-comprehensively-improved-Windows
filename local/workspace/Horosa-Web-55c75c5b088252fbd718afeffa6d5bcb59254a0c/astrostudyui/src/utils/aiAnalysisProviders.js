@@ -174,7 +174,7 @@ export function isOpenAiFamily(protocolFamily){
 }
 
 // 模型选择编码：把「接口配置 id」+「模型名」编成单一下拉值 `profileId::model`，
-// 供跨接口（多 API key）的统一模型下拉用。AIAnalysisMain 与报告功能共用同一份，避免漂移/循环依赖。
+// 供跨接口（多 API key）的统一模型下拉用。各调用方共用同一份，避免漂移/循环依赖。
 export function encodeModelSelection(profileId, model){
 	return `${profileId || ''}::${model || ''}`;
 }
@@ -304,7 +304,7 @@ export function isReasoningModel(model){
 
 // 推理模型的有效输出预算:思考 token 计入 max_tokens——上限过小会被思考吃光(finish=length、
 // 正文 0 字)。给足思考余量:正文预算翻倍且至少 +6000,封顶 16384。max_tokens 是上限不是目标,
-// 自然 stop 不多花钱,只防被思考截没。报告管线与聊天路径共用此单源。
+// 自然 stop 不多花钱,只防被思考截没。各调用路径共用此单源。
 // [挂载预算] 现役模型上下文窗口(tokens,输入侧)。前缀/子串匹配,未知模型返回 null
 // (调用方回落保底预算,行为与旧固定常量一致=零回归)。窗口值取各家公开标称。
 export const MODEL_CONTEXT_WINDOWS = [

@@ -1,21 +1,14 @@
 diff --git a/astrostudyui/src/components/astro/IndiaChartMain.js b/astrostudyui/src/components/astro/IndiaChartMain.js
-index 147706a..33dea71 100644
+index 386f6c5..97b5793 100644
 --- a/astrostudyui/src/components/astro/IndiaChartMain.js
 +++ b/astrostudyui/src/components/astro/IndiaChartMain.js
-@@ -1,8 +1,11 @@
+@@ -1,4 +1,4 @@
 -import { Component } from 'react';
 +import { Component, memo } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
  import { createPortal } from 'react-dom';
- import moment from 'moment';
- import IndiaChart, { fieldsToParams, requestIndiaChartData } from './IndiaChart';
-+import { stepPrefetchEnabled } from '../../utils/perfFlags';
-+import { markPanelReady } from '../../utils/perfMark';
-+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
- import { resolveLagnaRefSignNumber } from './IndiaSouthChart';
- import DateTime from '../comp/DateTime';
- import QuickDockBar from '../common/QuickDockBar';
-@@ -818,6 +821,239 @@ function canBuildIndiaChartParams(fields){
+@@ -819,6 +819,239 @@ function canBuildIndiaChartParams(fields){
  		&& (nullableKeys.indexOf(key) >= 0 || fields[key].value !== null));
  }
  
@@ -253,9 +246,9 @@ index 147706a..33dea71 100644
 +});
 +
  class IndiaChartMain extends Component{
- 
- 	constructor(props) {
-@@ -1007,9 +1243,19 @@ class IndiaChartMain extends Component{
+ 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+@@ -1017,9 +1250,19 @@ class IndiaChartMain extends Component{
  		this.hideDashaSubPopover = this.hideDashaSubPopover.bind(this);
  		this.changeJyotishTab = this.changeJyotishTab.bind(this);
  		this.handleMainChartLoad = this.handleMainChartLoad.bind(this);
@@ -275,7 +268,7 @@ index 147706a..33dea71 100644
  
  		this.tmHook = {
  			getValue: null,
-@@ -1029,10 +1275,56 @@ class IndiaChartMain extends Component{
+@@ -1039,10 +1282,56 @@ class IndiaChartMain extends Component{
  				}
  				this.requestDashaChart(this.withIndiaOptionFields(fields));
  			};
@@ -332,7 +325,7 @@ index 147706a..33dea71 100644
  
  	changeTab(key){		
  		let hook = this.state.hook;
-@@ -1077,8 +1369,13 @@ class IndiaChartMain extends Component{
+@@ -1087,8 +1376,13 @@ class IndiaChartMain extends Component{
  		if(values && values.confirmed === false){
  			return;
  		}
@@ -348,7 +341,7 @@ index 147706a..33dea71 100644
  		let hook = this.state.hook[this.state.currentTab];
  		if(hook.fun){
  			hook.fun(flds);
-@@ -1276,6 +1573,59 @@ class IndiaChartMain extends Component{
+@@ -1286,6 +1580,59 @@ class IndiaChartMain extends Component{
  		this.setState({ indiaLockAquarius: !!checked });
  	}
  
@@ -408,7 +401,7 @@ index 147706a..33dea71 100644
  	// WP-B 换第1宫参照:纯显示重数房号(三盘 + 星曜面板宫位),零请求、零后端、不动黄经。
  	changeIndiaLagnaRef(value){
  		const next = value && value.target ? value.target.value : value;
-@@ -1301,10 +1651,40 @@ class IndiaChartMain extends Component{
+@@ -1311,10 +1658,40 @@ class IndiaChartMain extends Component{
  			</span>
  		);
  	}
@@ -449,7 +442,7 @@ index 147706a..33dea71 100644
  		const indiaHsys = optionOverrides.indiaHsys !== undefined && optionOverrides.indiaHsys !== null
  			? AstroConst.normalizeIndiaHouseSystem(optionOverrides.indiaHsys)
  			: (this.state.indiaHsysValue !== null && this.state.indiaHsysValue !== undefined
-@@ -1341,7 +1721,7 @@ class IndiaChartMain extends Component{
+@@ -1351,7 +1728,7 @@ class IndiaChartMain extends Component{
  			: (this.state.indiaTransitDateValue !== null && this.state.indiaTransitDateValue !== undefined
  			? this.state.indiaTransitDateValue
  			: (fields.indiaTransitDate ? fields.indiaTransitDate.value : null));
@@ -458,7 +451,7 @@ index 147706a..33dea71 100644
  			...fields,
  			indiaHsys: {
  				...(fields.indiaHsys || { name: ['indiaHsys'] }),
-@@ -1380,6 +1760,12 @@ class IndiaChartMain extends Component{
+@@ -1390,6 +1767,12 @@ class IndiaChartMain extends Component{
  				value: this.effectiveFractal(),
  			},
  		};
@@ -471,7 +464,7 @@ index 147706a..33dea71 100644
  	}
  
  	changeIndiaChartStyle(value){
-@@ -1407,6 +1793,18 @@ class IndiaChartMain extends Component{
+@@ -1417,6 +1800,18 @@ class IndiaChartMain extends Component{
  				this.setState({
  					activeJyotishFields: jyotishFields,
  					activeJyotishKey: dashaFieldsKey,
@@ -490,7 +483,7 @@ index 147706a..33dea71 100644
  				});
  			}
  			return;
-@@ -1446,6 +1844,12 @@ class IndiaChartMain extends Component{
+@@ -1456,6 +1851,12 @@ class IndiaChartMain extends Component{
  					lastChartObj: hasJyotishPayload(dashaChartObj) ? dashaChartObj : this.state.lastChartObj,
  					dashaLoading: false,
  					dashaUpdating: false,
@@ -503,7 +496,7 @@ index 147706a..33dea71 100644
  				});
  			}
  		}catch(e){
-@@ -3537,15 +3941,9 @@ class IndiaChartMain extends Component{
+@@ -3547,15 +3948,9 @@ class IndiaChartMain extends Component{
  			: AstroConst.INDIA_NODE_TYPE_DEFAULT;
  		let jyotishFields = this.state.activeJyotishFields || fields;
  		let chartHeight = '100%';
@@ -522,7 +515,7 @@ index 147706a..33dea71 100644
  			const currentHook = this.state.hook[this.state.currentTab] || this.state.hook.Natal;
  			const indiaChartStyle = AstroConst.normalizeIndiaChartStyle(this.props.indiaChartStyle);
  			const degreeDisplayMode = this.state.degreeDisplayMode || INDIA_DEGREE_DISPLAY_DEGREE;
-@@ -3553,226 +3951,51 @@ class IndiaChartMain extends Component{
+@@ -3563,226 +3958,51 @@ class IndiaChartMain extends Component{
  			const indiaCounterClockwise = this.state.indiaCounterClockwise !== false;
  			const indiaLockAquarius = !!this.state.indiaLockAquarius;
  			const indiaLagnaRef = AstroConst.normalizeIndiaLagnaRef(this.state.indiaLagnaRef);

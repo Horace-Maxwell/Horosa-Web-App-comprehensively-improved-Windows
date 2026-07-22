@@ -1,27 +1,26 @@
 diff --git a/astrostudyui/src/components/jinkou/JinKouMain.js b/astrostudyui/src/components/jinkou/JinKouMain.js
-index 3b5a554..07f7c9f 100644
+index 91323f2..376900f 100644
 --- a/astrostudyui/src/components/jinkou/JinKouMain.js
 +++ b/astrostudyui/src/components/jinkou/JinKouMain.js
-@@ -14,6 +14,9 @@ import JinKouRelationMini from './JinKouRelationMini';
+@@ -15,6 +15,8 @@ import JinKouRelationMini from './JinKouRelationMini';
  import { buildJinKouData, fetchJinKouPan, normalizeKinjinkouData } from './JinKouCalc';
  import { JINKOU_BASHE_DOC } from './JinKouDoc';
  import { resolveJinKouDiFen } from './JinKouState';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
  import {
-@@ -29,7 +32,7 @@ import {
+@@ -30,7 +32,7 @@ import {
  } from '../../utils/localCalcCache';
  import XQIcon from '../xq-icons';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
--import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-+import { chartDrawGuardEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
+-import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
++import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
  
  const { Option } = Select;
  const TabPane = Tabs.TabPane;
-@@ -677,6 +680,34 @@ function pushCache(map, key, val, max = 96){
+@@ -678,6 +680,34 @@ function pushCache(map, key, val, max = 96){
  	}
  }
  
@@ -54,9 +53,9 @@ index 3b5a554..07f7c9f 100644
 +const JINKOU_RUNYEAR_INFLIGHT = new Map();
 +
  class JinKouMain extends Component{
- 	constructor(props) {
- 		super(props);
-@@ -711,16 +742,18 @@ class JinKouMain extends Component{
+ 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+@@ -721,16 +751,18 @@ class JinKouMain extends Component{
  		};
  
  		this.unmounted = false;
@@ -80,7 +79,7 @@ index 3b5a554..07f7c9f 100644
  
  		this.onFieldsChange = this.onFieldsChange.bind(this);
  		this.onBirthChange = this.onBirthChange.bind(this);
-@@ -1052,7 +1085,7 @@ class JinKouMain extends Component{
+@@ -1121,7 +1153,7 @@ class JinKouMain extends Component{
  		}
  		const localHit = getBirthGanzhiLocalCache(key);
  		if(localHit){
@@ -89,7 +88,7 @@ index 3b5a554..07f7c9f 100644
  			return localHit;
  		}
  		const params = {
-@@ -1075,7 +1108,7 @@ class JinKouMain extends Component{
+@@ -1144,7 +1176,7 @@ class JinKouMain extends Component{
  				lr && lr.fourColumns && lr.fourColumns.year ? lr.fourColumns.year.ganzi : ''
  			) || extractGanZi(lr && lr.nongli ? (lr.nongli.yearGanZi || lr.nongli.yearJieqi || lr.nongli.year) : '');
  			if(ganzi){
@@ -98,7 +97,7 @@ index 3b5a554..07f7c9f 100644
  				setBirthGanzhiLocalCache(key, ganzi);
  			}
  			return ganzi;
-@@ -1232,7 +1265,12 @@ class JinKouMain extends Component{
+@@ -1301,7 +1333,12 @@ class JinKouMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -112,27 +111,15 @@ index 3b5a554..07f7c9f 100644
  			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng, diFen, jinkouPan);
  		});
  	}
-@@ -1493,6 +1531,19 @@ class JinKouMain extends Component{
+@@ -1562,6 +1599,7 @@ class JinKouMain extends Component{
  		});
  	}
  
-+	// [A7·性能] 重 wrapper sCU —— 补齐本族唯一缺口(SanShiUnited/LiuReng/DunJia/TaiYi 早已有,
-+	// JinKouMain 此前【无 sCU】:宿主 CnYiBuMain 任何 setState(切子页签/其它子技法 hook 变动)
-+	// 都让这 2300 行整树白跑一遍)。语义与四个兄弟逐字同款:
-+	//   · state 引用变(setState 恒换引用)→ 照常重渲,绝不漏渲;
-+	//   · props 全键机械浅比,函数型视为恒等(详 wrapperPropsEqual);
-+	//   · kill-switch horosa.perf.chartSCU=0 → wrapperPropsEqual 恒返 false = 恒重渲旧行为。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this.unmounted = false;
  		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再触发重新起课
-@@ -2115,43 +2166,56 @@ class JinKouMain extends Component{
+@@ -2184,43 +2222,56 @@ class JinKouMain extends Component{
  			<div className="horosa-jinkou-rightpanel-wrap">
  			{this.renderJishi(jinkouData)}
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-jinkou-tabs">

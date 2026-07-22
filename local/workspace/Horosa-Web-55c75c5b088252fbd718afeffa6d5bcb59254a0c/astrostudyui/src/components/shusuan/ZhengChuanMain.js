@@ -5,6 +5,7 @@
 // 条文正文库体积大（铁板 465KB / 邵子 437KB），故动态载入独立 chunk：
 // 条文号同步即得并先行显示，正文到达后再填 —— 首屏不等条文库。
 import React, { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty, Spin, Tabs } from 'antd';
@@ -20,7 +21,6 @@ import { buildZhengChuanSnapshotText } from '../../utils/zhengchuanSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { SCHOOL_LABEL } from './zhengchuanSchools';
 import { FreezeSubTab } from '../comp/FreezeInactive';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { TabPane } = Tabs;
 
@@ -83,6 +83,16 @@ function deepFreeze(o){
 }
 
 class ZhengChuanMain extends Component {
+	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = { verses: null, auxTab: '' };   // auxTab: 右栏所在之目（空 = 取首目）
@@ -90,15 +100,6 @@ class ZhengChuanMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-	// 中栏是整张盘 + 右栏动辄百余条条文卡(流年 108 年全列),且宿主渲染两遍(center/aux)。
-	// 此前零 sCU:宿主左栏任一控件(含与本技法无关的铁板/南极/蠢子诸项)一动就整套重造。
-	// props/state 任一变即照常重渲(零陈旧);opts 引用由宿主 memoOpts 稳定,值变即换新引用。
-	// ⚠️ opts 引用变时本 sCU 返 true → componentDidUpdate 照跑 → loadVerses 条文库按需载入不受影响。
-	// horosa_shusuan_native_scu_v1:复用 wrapperPropsEqual(全 props 机械浅比 + 同一 kill-switch)。
-	shouldComponentUpdate(nextProps, nextState) {
-		if (nextState !== this.state) { return true; }
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount() {
 		this.loadVerses();

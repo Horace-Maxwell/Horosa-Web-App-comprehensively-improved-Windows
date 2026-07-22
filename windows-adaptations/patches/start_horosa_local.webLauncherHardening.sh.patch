@@ -1,5 +1,5 @@
 diff --git a/start_horosa_local.sh b/start_horosa_local.sh
-index 81c82dc..1b3a2fc 100644
+index 56163bb..cc0b141 100644
 --- a/start_horosa_local.sh
 +++ b/start_horosa_local.sh
 @@ -752,11 +752,13 @@ _rc_backend=0; wait "${_rc_backend_pid}" || _rc_backend=$?
@@ -66,7 +66,7 @@ index 81c82dc..1b3a2fc 100644
      exit 3
    fi
    diag_log "===== run end (failed) ====="
-@@ -1240,3 +1251,14 @@ echo "html:     ${HTML_PATH}"
+@@ -1252,3 +1263,14 @@ echo "html:     ${HTML_PATH}"
  echo "logs:     ${LOG_DIR}"
  echo ""
  echo "stop:     ${ROOT}/stop_horosa_local.sh"

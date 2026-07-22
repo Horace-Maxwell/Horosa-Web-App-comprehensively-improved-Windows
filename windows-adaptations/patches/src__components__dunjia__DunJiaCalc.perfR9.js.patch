@@ -1,17 +1,8 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaCalc.js b/astrostudyui/src/components/dunjia/DunJiaCalc.js
-index b519105..dfd2f85 100644
+index f0f8cfd..08aad8e 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaCalc.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaCalc.js
-@@ -7,6 +7,8 @@ import request from '../../utils/request';
- import { ServerRoot, ResultKey } from '../../utils/constants';
- import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
- import { fetchChartWithRetry } from '../../utils/chartFetch';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
- 
- export const SEX_OPTIONS = [
- 	{ value: 1, label: '男' },
-@@ -1134,27 +1136,13 @@ export function normalizeKinqimenData(backendPan, fallbackPan, options, nongli){
+@@ -1134,27 +1134,13 @@ export function normalizeKinqimenData(backendPan, fallbackPan, options, nongli){
  	};
  }
  
@@ -45,8 +36,8 @@ index b519105..dfd2f85 100644
 +async function fetchQimenPanRaw(payload){
  	let rsp = null;
  	try{
- 		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('qimen', 'pan'), {
-@@ -1180,6 +1168,34 @@ export async function fetchQimenPan(fields, nongli, options, context){
+ 		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('qimen', 'pan'), {
+@@ -1180,6 +1166,32 @@ export async function fetchQimenPan(fields, nongli, options, context){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
@@ -71,11 +62,9 @@ index b519105..dfd2f85 100644
 +		after23NewDay: opt.after23NewDay !== undefined ? (opt.after23NewDay ? 1 : 0) : 1,
 +		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? (opt.lateZiHourUseNextDay ? 1 : 0) : 1,
 +	};
-+	const bodyKey = kentangCacheKey(payload);
-+	if(!techniqueResultCacheEnabled() || !bodyKey){
-+		return fetchQimenPanRaw(payload);
-+	}
-+	return cachedKentangCall('qimen/pan', payload, ()=>fetchQimenPanRaw(payload), { key: bodyKey, max: 48 });
++	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache
++	// (L1/L2/L3 + 在途去重,kt-v1|rv 信封);外面再包一层 = 双缓存双内存,零增益。
++	return fetchQimenPanRaw(payload);
 +}
 +
  function resolvePaiPanMeta(opts, ganzhi, jieqi, dateParts, context){

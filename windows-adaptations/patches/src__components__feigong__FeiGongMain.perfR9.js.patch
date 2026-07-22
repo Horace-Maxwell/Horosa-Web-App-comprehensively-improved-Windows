@@ -1,40 +1,25 @@
 diff --git a/astrostudyui/src/components/feigong/FeiGongMain.js b/astrostudyui/src/components/feigong/FeiGongMain.js
-index cc675e7..c8277b4 100644
+index e308055..f8b0f9f 100644
 --- a/astrostudyui/src/components/feigong/FeiGongMain.js
 +++ b/astrostudyui/src/components/feigong/FeiGongMain.js
-@@ -16,6 +16,9 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
+@@ -17,6 +17,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
  import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.feigong.settings.v1';
-@@ -141,6 +144,21 @@ class FeiGongMain extends Component {
+@@ -151,6 +153,7 @@ class FeiGongMain extends Component {
  		this.onTimeChanged = this.onTimeChanged.bind(this);
  		this.changeGeo = this.changeGeo.bind(this);
  	}
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		if(typeof window !== 'undefined'){
-@@ -244,7 +262,8 @@ class FeiGongMain extends Component {
+@@ -254,7 +257,8 @@ class FeiGongMain extends Component {
  		const dayZhi = inputs.useDayGZ ? c.dayZhi : inputs.dayZhi;
  		const ju = buildJu({ zhi: qz, dayGan, dayZhi });
  		if(!ju){ return this.setState({ error: '起支非法,不可定局', ju: null }); }
@@ -44,7 +29,7 @@ index cc675e7..c8277b4 100644
  	}
  	setSettings(patch){
  		const settings = { ...this.state.settings, ...patch };
-@@ -444,82 +463,97 @@ class FeiGongMain extends Component {
+@@ -454,82 +458,97 @@ class FeiGongMain extends Component {
  		);
  		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
  		return (

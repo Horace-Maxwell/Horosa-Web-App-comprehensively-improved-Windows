@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index d221a4b..cc26300 100644
+index b5402e7..bd3d8bd 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
 @@ -16,13 +16,14 @@ import CaseList from '../components/user/CaseList';
@@ -18,7 +18,7 @@ index d221a4b..cc26300 100644
  function lazyPreloadable(factory, opts = {}){
  	// [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
  	// React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
-@@ -91,6 +92,20 @@ function startIdlePreload(){
+@@ -93,6 +94,20 @@ function startIdlePreload(){
  	}, 1000);
  }
  
@@ -39,7 +39,7 @@ index d221a4b..cc26300 100644
  // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
  const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
  const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
-@@ -139,7 +154,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
+@@ -141,7 +156,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
  import XQIcon from '../components/xq-icons';
  import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
  import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
@@ -47,13 +47,13 @@ index d221a4b..cc26300 100644
 +// 只有 changeTab 打过,切时间/改选项一次都不打 —— 于是 markChartRefreshEnd 拿上次切页签的
 +// 陈旧 start 配 measure,量出秒级垃圾,「点击→显示」这个要验收的数根本量不出来。
 +import { markInteractionStart, setCurrentTechnique } from '../utils/perfMark';
++import { armStepPrefetch } from '../utils/stepPrefetchArm';
  import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
 +// PERF-R10 horosa_step_prefetch_arm_v1:切技法页签后按该技法档位武装 ±N 步预取。
-+import { armStepPrefetch } from '../utils/stepPrefetchArm';
  
  const TabPane = XQTabs.TabPane;
  
-@@ -364,7 +385,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -366,7 +387,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          caseTotal,
      } = user;
   	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
@@ -107,7 +107,7 @@ index d221a4b..cc26300 100644
  
      
      function closeDrawer(){
-@@ -415,6 +481,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -417,6 +483,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
          if(needRefresh){
              tabRefreshSigRef.current[key] = currentSig;
@@ -117,7 +117,7 @@ index d221a4b..cc26300 100644
              setTimeout(()=>{
                  if(!(predictHook[key] && predictHook[key].fun)){ return; }
                  if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-@@ -436,67 +505,91 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -438,69 +507,93 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
              }, 0);
          }
  
@@ -156,11 +156,14 @@ index d221a4b..cc26300 100644
 -            flds.date.value = birth.clone();
 -            flds.time.value = birth.clone();
 -            flds.ad.value = birth.ad;
--            flds.zone.value = birth.zone
+-            // zone 兜底链:DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
 +            setFld(flds, 'date', birth.clone());
 +            setFld(flds, 'time', birth.clone());
 +            setFld(flds, 'ad', birth.ad);
-+            setFld(flds, 'zone', birth.zone);
++            // zone 兜底链(上游 v3.5.1):DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
+             // 任何一环 undefined 直写会让请求丢 zone 键(Java miss.zone)且污染持久 fields。
+-            flds.zone.value = birth.zone || flds.zone.value || '+08:00';
++            setFld(flds, 'zone', birth.zone || (flds.zone && flds.zone.value) || '+08:00');
          }
  
          if(values.hsys !== undefined && values.hsys !== null){
@@ -233,7 +236,7 @@ index d221a4b..cc26300 100644
              }
          }
  
-@@ -510,6 +603,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -514,6 +607,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                  // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
                  ...(values.step ? { __stepHint: values.step } : {}),
              };
@@ -242,7 +245,7 @@ index d221a4b..cc26300 100644
              // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
              // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
              // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
-@@ -526,6 +621,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -530,6 +625,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
          cancelPendingTimeDispatch();
  
@@ -250,7 +253,7 @@ index d221a4b..cc26300 100644
          dispatch({
              type: 'astro/fetchByFields',
              payload: flds,
-@@ -874,6 +970,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -878,6 +974,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                          height={height}
                          fields={fields}
                          fieldsAry={aryfields}

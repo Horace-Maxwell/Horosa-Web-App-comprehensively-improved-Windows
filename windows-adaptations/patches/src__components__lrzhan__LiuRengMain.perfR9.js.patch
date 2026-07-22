@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index c81ccf4..0761592 100644
+index 4e59d04..69a5d6a 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
 @@ -2,6 +2,8 @@ import { Component } from 'react';
@@ -58,9 +58,9 @@ index c81ccf4..0761592 100644
  		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
  		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
  		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
-@@ -4606,6 +4624,53 @@ class LiuRengMain extends Component{
- 				}
- 				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
+@@ -4620,6 +4638,53 @@ class LiuRengMain extends Component{
+ 					}).catch(()=>null);
+ 				}catch(e){ /* 预热失败无害 */ }
  			};
 +			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
 +			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
@@ -112,7 +112,7 @@ index c81ccf4..0761592 100644
  		}
  	}
  
-@@ -5066,7 +5131,12 @@ class LiuRengMain extends Component{
+@@ -5080,7 +5145,12 @@ class LiuRengMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -126,7 +126,7 @@ index c81ccf4..0761592 100644
  			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
  		});
  	}
-@@ -5884,7 +5954,14 @@ class LiuRengMain extends Component{
+@@ -5898,7 +5968,14 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -141,7 +141,7 @@ index c81ccf4..0761592 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{refSummary ? (
  							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-@@ -5930,8 +6007,10 @@ class LiuRengMain extends Component{
+@@ -5944,8 +6021,10 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -152,7 +152,7 @@ index c81ccf4..0761592 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -5950,11 +6029,15 @@ class LiuRengMain extends Component{
+@@ -5964,11 +6043,15 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -169,7 +169,7 @@ index c81ccf4..0761592 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
  							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-@@ -5975,8 +6058,10 @@ class LiuRengMain extends Component{
+@@ -5989,8 +6072,10 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -180,7 +180,7 @@ index c81ccf4..0761592 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{this.renderShenShaSection(ctx)}
  						{overviewItems.length ? overviewItems.map((item, idx)=>(
-@@ -6000,14 +6085,20 @@ class LiuRengMain extends Component{
+@@ -6014,14 +6099,20 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -203,7 +203,7 @@ index c81ccf4..0761592 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -6061,6 +6152,7 @@ class LiuRengMain extends Component{
+@@ -6075,6 +6166,7 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>

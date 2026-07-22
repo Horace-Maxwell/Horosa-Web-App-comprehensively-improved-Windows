@@ -21,7 +21,8 @@ function DockButton({ item }){
 			key={item.key}
 			className={`horosa-bottom-quick-button${item.active ? ' is-active' : ''}`}
 			onClick={item.onClick}
-			onMouseEnter={item.onHover}
+			// [R3-D1] 跨页动词通用悬停预载:声明 navKey 的项悬停即预载目标 chunk(显式 onHover 优先)
+			onMouseEnter={item.onHover || (item.navKey ? ()=>preloadNavByKey(item.navKey) : undefined)}
 			disabled={!!item.disabled}
 			title={item.title || item.label}
 		>

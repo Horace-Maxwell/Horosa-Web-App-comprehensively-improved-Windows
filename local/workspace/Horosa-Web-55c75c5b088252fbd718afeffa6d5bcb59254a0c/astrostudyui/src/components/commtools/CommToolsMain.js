@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQTabs as Tabs } from '../xq-ui';
 import Azimuth from './Azimuth';
 import CoordTrans from './CoordTrans';
@@ -11,7 +12,6 @@ import GuaSymDesc from '../gua/GuaSymDesc';
 import CuanGong12 from './CuanGong12';
 import BaziPithy from './BaziPithy';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
-import { FreezeSubTab } from '../comp/FreezeInactive';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
 
 const TabPane = Tabs.TabPane;
@@ -28,6 +28,15 @@ const COMMTOOLS_TAB_KEYS = [
 ];
 
 class CommToolsMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 

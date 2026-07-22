@@ -122,6 +122,12 @@ public class CacheFactory {
 	
 	
 	private static ICacheFactory build(String factoryclass, String conffilepath){
+		// [R3-B1] 惰性档(horosa.cache.lazyinit=true / env HOROSA_CACHE_LAZYINIT):
+		// 返回代理,真工厂(驱动初始化)延到首用 —— 桌面启动 refresh 段 -~490ms;
+		// 缺省 false = 服务器部署饿构造行为逐字节不变。
+		if(lazyInitEnabled()){
+			return new LazyCacheFactory(factoryclass, conffilepath);
+		}
 		try{
 			Class factoryclazz = Class.forName(factoryclass);
 			ICacheFactory factory = (ICacheFactory) factoryclazz.newInstance();
@@ -130,6 +136,14 @@ public class CacheFactory {
 		}catch(Exception e){
 			throw new RuntimeException(e);
 		}
+	}
+
+	private static boolean lazyInitEnabled(){
+		String prop = System.getProperty("horosa.cache.lazyinit");
+		if(prop == null || prop.isEmpty()){
+			prop = System.getenv("HOROSA_CACHE_LAZYINIT");
+		}
+		return Boolean.parseBoolean(prop);
 	}
 
 	public static ICache getCache(){

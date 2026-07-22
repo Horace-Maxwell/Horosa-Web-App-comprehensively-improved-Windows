@@ -28,17 +28,17 @@ import ZiWeiChart from '../ziwei/ZiWeiChart';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../../utils/kinAstroFieldsSync';
 import UpdatingBadge from '../common/UpdatingBadge';
-import { silentTechniquePanelsEnabled, techniqueResultCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
+import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -263,22 +263,22 @@ const TECHNIQUE_CONFIG = {
 async function postKinAstroRaw(serviceKey, payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetch(buildKentangEndpoint(serviceKey, 'pan'), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint(serviceKey, 'pan'), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
 			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'kinastro.local.fetch.failed');
 		}
 	}catch(e){
-		const rawResponse = await fetch(`${ServerRoot}/${serviceKey}/pan`, {
+		const rawResponse = await cachedKentangFetch(`${ServerRoot}/${serviceKey}/pan`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 	}
@@ -289,16 +289,9 @@ async function postKinAstroRaw(serviceKey, payload){
 }
 
 function postKinAstro(serviceKey, payload){
-	const bodyKey = kentangCacheKey(payload);
-	if(!techniqueResultCacheEnabled() || !bodyKey){
-		return postKinAstroRaw(serviceKey, payload);
-	}
-	return cachedKentangCall(
-		'kinastro/pan',
-		payload,
-		()=>postKinAstroRaw(serviceKey, payload),
-		{ key: `${serviceKey}|${bodyKey}`, max: 48 }
-	);
+	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(键=去端口路径+body,
+	// serviceKey 已在 URL 路径里 ⇒ 天然分键;三层+在途去重)。
+	return postKinAstroRaw(serviceKey, payload);
 }
 
 function fmtValue(value){
@@ -1157,7 +1150,45 @@ class KinAstroMain extends Component{
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
+			// [R3-A2] 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
+			...(value.step ? { __stepHint: value.step } : {}),
 		});
+		this.prefetchNextStepPan(dt, value.step);
+	}
+
+	// [R3-A4] 顺向 +1 步 pan 预取:当前步 T 由正式请求(hook 联动)落 kentangCache,此处
+	// 静默备下 T+1 —— 连点下一下即命中。payload 走 buildPayload 单源 → 键逐字节等。
+	// native 子技法(本地引擎)零网络,直接跳过;失败静默;开关关=零行为。
+	prefetchNextStepPan(dt, stepHint){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled()){ return; }
+			if(this.config.native){ return; }
+			if(!stepHint || !stepHint.dir || !dt || typeof dt.clone !== 'function'){ return; }
+			if(this.prefetchStepTimer){ clearTimeout(this.prefetchStepTimer); }
+			this.prefetchStepTimer = setTimeout(()=>{
+				this.prefetchStepTimer = null;
+				if(this.unmounted){ return; }
+				try{
+					const dt2 = dt.clone();
+					const unit = stepHint.unit || 'm';
+					if(unit === 'y'){ dt2.addYear(stepHint.dir); }
+					else if(unit === 'M'){ dt2.addMonth(stepHint.dir); }
+					else if(unit === 'd'){ dt2.addDate(stepHint.dir); }
+					else if(unit === 'h'){ dt2.addHour(stepHint.dir); }
+					else { dt2.addMinute(4 * stepHint.dir); }
+					const flds2 = {
+						...(this.props.fields || {}),
+						date: { value: dt2.clone() },
+						time: { value: dt2.clone() },
+						ad: { value: dt2.ad },
+						zone: { value: dt2.zone },
+					};
+					const payload = this.buildPayload(flds2);
+					if(!payload){ return; }
+					postKinAstro(this.config.serviceKey, payload).catch(()=>null);
+				}catch(e){ /* 预取失败无害 */ }
+			}, 150);
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	getTimeFieldsFromSelector(baseFields){

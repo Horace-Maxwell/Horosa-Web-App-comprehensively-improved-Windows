@@ -163,7 +163,7 @@ class AstroChart extends Component{
 			disp = this.props.chartDisplay;
 		}
 		// 【漏传≠全空盘】漏传(undefined/null)回落默认集;空数组=有意全隐藏,不回落。
-		// 同款治本见 AstroDoubleChart(FL-20260712-3:推运 TabPane 漏传 → 有框架无星体)。
+		// 同款治本见 AstroDoubleChart(2026-07-12 实案:推运 TabPane 漏传 → 有框架无星体)。
 		let planetSrc = this.props.planetDisplay;
 		if(planetSrc === undefined || planetSrc === null){
 			planetSrc = AstroConst.DEFAULT_OBJECTS;

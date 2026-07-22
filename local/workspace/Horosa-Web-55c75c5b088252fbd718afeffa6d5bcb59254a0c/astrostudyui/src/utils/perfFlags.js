@@ -26,7 +26,6 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.stepPrefetch', '0')          // 时间步进方向预取
 //   safeLocalStorageSet('horosa.perf.stepPrefetchArm', '0')       // PERF-R10:选步长/出盘/切页即武装 ±N 步预取(关=只剩步进后预取)
 //   safeLocalStorageSet('horosa.perf.stepPrefetchDepth', '2')     // PERF-R10:武装深度 ±N(默认 3,合法 0..5,0=等效关)
-//   safeLocalStorageSet('horosa.perf.kentangL3', '0')             // PERF-R10:kentang 结果缓存的 IndexedDB 持久位(关=纯内存 LRU)
 //   safeLocalStorageSet('horosa.perf.bootChartRestore', '0')      // PERF-R10:温启恢复上次的盘(关=启动回空白默认态)
 //   safeLocalStorageSet('horosa.perf.optionPrefetch', '0')        // PERF-R10:选项 Hamming-1 投机预取(关=零任务)
 //   safeLocalStorageSet('horosa.perf.chartCloneLite', '0')        // 出盘缓存冻结共享引用(关=每次深拷贝)
@@ -176,10 +175,8 @@ export function stepPrefetchArmEnabled(){
 	return flagEnabled('horosa.perf.stepPrefetchArm');
 }
 
-// PERF-R10 Ship5(horosa_kentang_l3_v1):kentang 结果缓存的 IndexedDB 持久位。
-export function kentangL3Enabled(){
-	return flagEnabled('horosa.perf.kentangL3');
-}
+// (v3.5.1 收敛注:R10 的 kentangL3 已被上游 utils/kentangCache.js 的 fetch 级三层缓存
+//  [同款 kt-v1|rv 信封] 整体取代 —— 开关随 _kentangResultCache 一并退役,见 kentangCacheEnabled。)
 
 // PERF-R10 S2(horosa_boot_chart_restore_v1):温启恢复上次工作现场(owner 拍板默认开)。
 export function bootChartRestoreEnabled(){
@@ -238,11 +235,8 @@ export function astro3dMorphEnabled(){
 	return flagEnabled('horosa.perf.astro3dMorph');
 }
 
-// 天文馆性能门控(只动渲染时机,不动任何排盘/外推内容):
-//   - renderGating:隐藏/非激活时暂停 Babylon 渲染循环(可见+激活时一字不动)。
-//   - onDemandRender:可见+激活但静止(暂停)时按需渲染而非每帧 60fps;配 idleHeartbeat 1fps 兜底。
-//   - metricsThrottle:FPS/网格调试读数节流到 ~2Hz。
-//   - timeEditDebounce:可编辑时间的后端整盘重算去抖(显示与「确定」提交均同步、不去抖)。
+// —— Windows-only 闸族(FE-9 天文馆五闸 / FE-2 技法结果缓存 / FE-11 首屏并行 /
+//    FE-7 预测性预计算 / FE-16 数据预热细闸)—— 与上游同步时整块保全(哨兵逐函数钉)。 ——
 export function planetariumRenderGatingEnabled(){
 	return flagEnabled('horosa.perf.planetariumRenderGating');
 }
@@ -291,7 +285,21 @@ export function dataWarmTasksEnabled(){
 	return flagEnabled('horosa.perf.dataWarmTasks');
 }
 
+// —— R3-A3(2026-07-21):kentang(:8899 直连 C 型)统一缓存壳 ——
+export function kentangCacheEnabled(){
+	// /pan 族请求 L1/L2/L3 缓存+在途去重(键=path+body,同 body 恒同果);
+	// 关=逐字节旧行为(裸 fetchChartWithRetry 直通,每次全程 Python 重算)
+	return flagEnabled('horosa.perf.kentangCache');
+}
+
+// —— R3-A1(2026-07-21):选定步长那一刻的双向预取 ——
+export function stepSelectPrefetchEnabled(){
+	// 时间组件选步长档即预取 ±1、±2 步(第一下也不冷);关=仅 settle 后预取(旧行为)
+	return flagEnabled('horosa.perf.stepSelectPrefetch');
+}
+
 // PERF-R8 P3:分至图年份邻位预取(year±1)的独立闸。
 export function neighborPrefetchEnabled(){
 	return flagEnabled('horosa.perf.neighborPrefetch');
 }
+

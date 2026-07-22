@@ -1,7 +1,7 @@
 {
  "schema": "geomancy.house_readings/v1",
  "description": "16 geomantic figures × 12 houses = 192 readings (synthesized, overridable).",
- "note": "合成自 图吉凶基调(§6.5,§18) ⊗ 宫位主题(§4.2)；★为标志性组合人工覆盖。各家断语有别，可被流派包覆盖。",
+ "note": "合成自 图吉凶基调(,) ⊗ 宫位主题；★为标志性组合人工覆盖。各家断语有别，可被流派包覆盖。",
  "convention": "polarity_score: 大吉3 吉2 小吉1 中性0 偏凶-1 凶-2 大凶-3。恶宫(6/8/12)中吉图常表'凶事被化解/敌弱'，需结合完美/相位另判。",
  "count": 192,
  "entries": [

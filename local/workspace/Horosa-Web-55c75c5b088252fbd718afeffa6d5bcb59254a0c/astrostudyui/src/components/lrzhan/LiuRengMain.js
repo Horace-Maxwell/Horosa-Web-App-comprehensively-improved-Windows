@@ -4624,6 +4624,20 @@ class LiuRengMain extends Component{
 				}
 				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
 			};
+			// [R3-A7] 并行预热:fetchByFields 等 /chart 前先把 /liureng/gods 打出去
+			// (silent,经 requestDedupe 在途共享)→ 页面总延迟 sum→max。构参走 genGodsParams
+			// 同源 → 与 hook 正式请求逐字节同键。失败静默,正式请求自兜底。
+			this.props.hook.prewarmRequests = (flds)=>{
+				if(this.unmounted){ return; }
+				try{
+					const params = this.genGodsParams(flds || this.props.fields);
+					if(!params){ return; }
+					request(`${Constants.ServerRoot}/liureng/gods`, {
+						body: JSON.stringify(params),
+						silent: true,
+					}).catch(()=>null);
+				}catch(e){ /* 预热失败无害 */ }
+			};
 			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
 			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
 			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。

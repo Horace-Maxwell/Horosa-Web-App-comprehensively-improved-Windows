@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
@@ -9,13 +10,12 @@ import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection }
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -91,13 +91,13 @@ async function postWuZhaoRaw(path, payload){
 	let lastError = null;
 	for(let i=0; i<endpoints.length; i++){
 		try{
-			const rawResponse = await fetch(endpoints[i], {
+			const rawResponse = await cachedKentangFetch(endpoints[i], {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json; charset=UTF-8',
 				},
 				body: JSON.stringify(payload),
-			});
+			}, { retries: 0 });
 			const rawText = await rawResponse.text();
 			const rsp = rawText ? JSON.parse(rawText) : null;
 			if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
@@ -109,13 +109,13 @@ async function postWuZhaoRaw(path, payload){
 		}
 	}
 	try{
-		const rawResponse = await fetch(`${ServerRoot}/wuzhao/${path}`, {
+		const rawResponse = await cachedKentangFetch(`${ServerRoot}/wuzhao/${path}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		const rsp = rawText ? JSON.parse(rawText) : null;
 		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
@@ -135,22 +135,12 @@ async function postWuZhaoRaw(path, payload){
 //    只有 ① mode==='ganzhi'(干支数值法 gangzhi_paipan,纯计算)
 //        ② manual===true(手动折竹:manualSplits 全量入 payload,后端不再摇随机)
 //    这两种才是「同 payload 必同盘」。故下方 wuzhaoCacheable 为准入闸,不满足即直连(与今日逐字一致)。
-function wuzhaoCacheable(payload){
-	const p = payload || {};
-	return p.mode === 'ganzhi' || !!p.manual;
-}
-
+// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache;上述「自动揲筮
+// 不可缓存」的守卫下沉到 kentangCache.payloadCacheable(horosa_wuzhao_random_guard_v1,
+// Windows-ahead:上游矩阵把 wuzhao 误标 deterministic,fetch 级缓存会把无 seed 的
+// random.randint 揲筮钉死 —— 在唯一缓存层拦,比在每个调用点拦更不可能漏)。
 function postWuZhao(path, payload){
-	const bodyKey = kentangCacheKey(payload);
-	if(!techniqueResultCacheEnabled() || !wuzhaoCacheable(payload) || !bodyKey){
-		return postWuZhaoRaw(path, payload);
-	}
-	return cachedKentangCall(
-		'wuzhao/pan',
-		payload,
-		()=>postWuZhaoRaw(path, payload),
-		{ key: `${path}|${bodyKey}`, max: 48 }
-	);
+	return postWuZhaoRaw(path, payload);
 }
 
 function fmtValue(value){
@@ -195,6 +185,15 @@ export async function buildWuZhaoSnapshotForFields(fields, opts){
 }
 
 class WuZhaoMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		this.state = {
@@ -234,20 +233,6 @@ class WuZhaoMain extends Component{
 		}
 	}
 
-	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
@@ -367,7 +352,30 @@ class WuZhaoMain extends Component{
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
+			// [R3-A2] 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
+			...(value.step ? { __stepHint: value.step } : {}),
 		});
+		this.prefetchDraftPan();
+	}
+
+	// [R3-A4] 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
+	// (getTimeFieldsFromSelector),payload 走 buildPanPayload 单源 → 键逐字节等;
+	// 用户点「起盘」即缓存命中 ≈ 瞬间。失败静默;开关关=零行为。
+	prefetchDraftPan(){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled()){ return; }
+			if(this.prefetchDraftTimer){ clearTimeout(this.prefetchDraftTimer); }
+			this.prefetchDraftTimer = setTimeout(()=>{
+				this.prefetchDraftTimer = null;
+				if(this.unmounted){ return; }
+				try{
+					const flds = this.getTimeFieldsFromSelector(this.props.fields) || this.props.fields;
+					const payload = this.buildPanPayload(flds);
+					if(!payload){ return; }
+					postWuZhao('pan', payload).catch(()=>null);
+				}catch(e){ /* 预取失败无害 */ }
+			}, 150);
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	getTimeFieldsFromSelector(baseFields){
@@ -409,21 +417,28 @@ class WuZhaoMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
-	async fetchPan(fields){
+	// [R3-A4] pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
+	buildPanPayload(fields){
 		const dt = parseFieldsDateTime(fields);
-		if(!dt){
+		if(!dt){ return null; }
+		return {
+			...dt,
+			mode: this.state.mode,
+			number: this.state.number,
+			manual: this.state.manual,
+			manualSplits: this.state.manualSplits,
+		};
+	}
+
+	async fetchPan(fields){
+		const payload = this.buildPanPayload(fields);
+		if(!payload){
 			return;
 		}
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
-			const pan = await postWuZhao('pan', {
-				...dt,
-				mode: this.state.mode,
-				number: this.state.number,
-				manual: this.state.manual,
-				manualSplits: this.state.manualSplits,
-			});
+			const pan = await postWuZhao('pan', payload);
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}

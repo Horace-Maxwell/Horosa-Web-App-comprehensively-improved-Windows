@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Divider } from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -49,6 +50,15 @@ function huangliMemGet(map, key, build){
 // 老黄历：中栏复用 NongLi 月历网格（默认不变；本 tab 传 dayExtra 叠加建除色带），
 // 右栏为完整今日通书日课卡（buildHuangliDay 纯前端）。日课与经纬无关，网格仅借后端 /calendar/month 排布。
 class HuangLiMain extends Component {
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props) {
 		super(props);
 		this.state = {

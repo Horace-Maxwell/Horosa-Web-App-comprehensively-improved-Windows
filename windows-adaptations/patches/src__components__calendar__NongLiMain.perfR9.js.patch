@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/calendar/NongLiMain.js b/astrostudyui/src/components/calendar/NongLiMain.js
-index 1fe3fbe..10ee1fc 100644
+index bf18915..c95e34b 100644
 --- a/astrostudyui/src/components/calendar/NongLiMain.js
 +++ b/astrostudyui/src/components/calendar/NongLiMain.js
-@@ -12,6 +12,35 @@ import NongLi from './NongLi';
+@@ -13,6 +13,35 @@ import NongLi from './NongLi';
  import GuaChartDiv from '../gua/GuaChartDiv';
  import {Week} from '../../msg/types';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -38,7 +38,7 @@ index 1fe3fbe..10ee1fc 100644
  
  // 日干支五行着色（与八字模块同色变量 --horosa-bazi-*）。农历网格 dayExtra 用。
  const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
-@@ -171,16 +200,21 @@ class NongLiMain extends Component{
+@@ -181,16 +210,21 @@ class NongLiMain extends Component{
  			dateSelected: null,
  		};
  
@@ -61,7 +61,7 @@ index 1fe3fbe..10ee1fc 100644
  			return;
  		}
  
-@@ -197,10 +231,14 @@ class NongLiMain extends Component{
+@@ -207,10 +241,14 @@ class NongLiMain extends Component{
  			yearGua: result[gua],
  		};
  
@@ -77,7 +77,7 @@ index 1fe3fbe..10ee1fc 100644
  		this.setState({
  			date: dt.value,
  		}, ()=>{
-@@ -209,6 +247,7 @@ class NongLiMain extends Component{
+@@ -219,6 +257,7 @@ class NongLiMain extends Component{
  	}
  
  	changeGeo(rec){
@@ -85,7 +85,7 @@ index 1fe3fbe..10ee1fc 100644
  		// 选新地点时按新坐标自动校正时区(未在 atlas 内手改时区时),genParams 读 this.state.date.zone。
  		// setZone 仅改时区标签、保留钟面时刻(见 DateTime.setZone),不移位时间。
  		const patch = {
-@@ -241,6 +280,7 @@ class NongLiMain extends Component{
+@@ -251,6 +290,7 @@ class NongLiMain extends Component{
  		let lastGua = lastdt ? lastdt.qimengYearGua : null;
  		let same = lastGua === date.qimengYearGua;
  
@@ -93,7 +93,7 @@ index 1fe3fbe..10ee1fc 100644
  		this.setState({
  			dateSelected: date,
  		}, ()=>{
-@@ -248,10 +288,16 @@ class NongLiMain extends Component{
+@@ -258,10 +298,16 @@ class NongLiMain extends Component{
  				this.requestYearGua();
  			}
  			this.saveAISnapshot();
@@ -110,7 +110,7 @@ index 1fe3fbe..10ee1fc 100644
  		this.requestYearGua();
  	}
  
-@@ -395,6 +441,11 @@ class NongLiMain extends Component{
+@@ -405,6 +451,11 @@ class NongLiMain extends Component{
  		}
  	}
  

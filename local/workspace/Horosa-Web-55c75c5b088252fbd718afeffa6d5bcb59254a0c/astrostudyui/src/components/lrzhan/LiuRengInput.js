@@ -41,6 +41,9 @@ class LiuRengInput extends Component{
 
 			this.props.onFieldsChange({
 				__confirmed: !!value.confirmed,
+				// [R3-A2] 步进方向提示透传(六壬/金口共用输入面):宿主 dispatch 进
+				// astro/fetchByFields 后驱动 settle ±步预取,消费即剥离绝不落 state
+				...(value.step ? { __stepHint: value.step } : {}),
 				date: {
 					value: dt.clone(),
 				},

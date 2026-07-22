@@ -2,7 +2,7 @@ import * as LRConst from '../liureng/LRConst';
 import request from '../../utils/request';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { fetchChartWithRetry } from '../../utils/chartFetch';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import {
 
@@ -18,8 +18,6 @@ import {
 } from './JinKouDoc';
 
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
 // 五行配色统一对齐八字模块的品牌色板(--horosa-bazi-*)，全 app 一套色。
 // 金口诀主盘走 SVG presentation 属性(attr fill)，CSS 变量在此不解析，故落为对应 hex；
 // 主盘底色随暗黑模式翻深，浅色板的水/木/火会过暗不可读 → 按主题在 access 时取浅/深板(Proxy)，
@@ -1963,7 +1961,7 @@ export function normalizeKinjinkouData(backendPan, fallbackData){
 async function fetchJinKouPanRaw(payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetchChartWithRetry(buildKentangEndpoint('jinkou', 'pan'), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('jinkou', 'pan'), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
@@ -2005,9 +2003,6 @@ export async function fetchJinKouPan(fields, nongli, options){
 		after23NewDay: (fields && fields.after23NewDay && fields.after23NewDay.value !== undefined) ? fields.after23NewDay.value : defaultAfter23NewDay(),
 		lateZiHourUseNextDay: (fields && fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
 	};
-	const bodyKey = kentangCacheKey(payload);
-	if(!techniqueResultCacheEnabled() || !bodyKey){
-		return fetchJinKouPanRaw(payload);
-	}
-	return cachedKentangCall('jinkou/pan', payload, ()=>fetchJinKouPanRaw(payload), { key: bodyKey, max: 48 });
+	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
+	return fetchJinKouPanRaw(payload);
 }

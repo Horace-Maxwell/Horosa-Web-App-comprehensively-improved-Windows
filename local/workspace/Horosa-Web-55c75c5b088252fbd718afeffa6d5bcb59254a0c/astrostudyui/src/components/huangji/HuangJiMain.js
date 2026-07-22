@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
@@ -10,15 +11,14 @@ import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection  
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -63,26 +63,26 @@ function parseFieldsDateTime(fields){
 async function postWangJi(path, payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetch(buildKentangEndpoint('wangji', path), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('wangji', path), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
 			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wangji.local.fetch.failed');
 		}
 	}catch(e){
-		const rawResponse = await fetch(`${ServerRoot}/wangji/${path}`, {
+		const rawResponse = await cachedKentangFetch(`${ServerRoot}/wangji/${path}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 	}
@@ -92,20 +92,11 @@ async function postWangJi(path, payload){
 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
 }
 
-// horosa_kentang_result_cache_v1(PERF-R10 补裸点)—— /wangji/pan 直连缓存(LRU 48)。
-// 确定性论证:payload = parseFieldsDateTime(fields)(格式化字串+整数)+ historyYear/classicKey
-// 两个显式选项;webwangjisrv 无 random / 无 datetime.now()(PY-6 轮已核)→ 同 payload 必同盘。
-// 只包 'pan':classic 正文有模块级 CLASSIC_SECTION_CACHE,xinyi 轻且选项面大,均保持直连。
-// 没有这一层,步进预取的结果无处可落(真点读不到)= 白取。
+// v3.5.1 收敛:结果级缓存退役 —— postWangJi 内部已走上游 utils/kentangCache
+// (L1/L2/L3 + 在途去重);步进预取结果落上游缓存,真点同键即命中。保留本入口名,
+// 登记的预取器与真点共用同一路径(键构造同源不变)。
 function postWangJiCached(path, payload){
-	if(path !== 'pan'){
-		return postWangJi(path, payload);
-	}
-	const bodyKey = kentangCacheKey(payload);
-	if(!techniqueResultCacheEnabled() || !bodyKey){
-		return postWangJi(path, payload);
-	}
-	return cachedKentangCall('wangji/pan', payload, ()=>postWangJi(path, payload), { key: bodyKey, max: 48 });
+	return postWangJi(path, payload);
 }
 
 function fmtValue(value){
@@ -287,6 +278,15 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
 }
 
 class HuangJiMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		const dt = buildDateTimeFromFields(props.fields);
@@ -342,20 +342,6 @@ class HuangJiMain extends Component{
 		}
 	}
 
-	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
@@ -481,7 +467,31 @@ class HuangJiMain extends Component{
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
+			// [R3-A2] 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
+			...(value.step ? { __stepHint: value.step } : {}),
 		});
+		this.prefetchDraftPan();
+	}
+
+	// [R3-A4] 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
+	// (getTimeFieldsFromSelector),payload 走 buildPanPayload 单源 → 键逐字节等;
+	// 用户点「起盘」即缓存命中 ≈ 瞬间。失败静默;开关关=零行为。
+	prefetchDraftPan(){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled()){ return; }
+			if(this.prefetchDraftTimer){ clearTimeout(this.prefetchDraftTimer); }
+			this.prefetchDraftTimer = setTimeout(()=>{
+				this.prefetchDraftTimer = null;
+				if(this.unmounted){ return; }
+				try{
+					const flds = this.getTimeFieldsFromSelector(this.props.fields) || this.props.fields;
+					const payload = this.buildPanPayload(flds);
+					if(!payload){ return; }
+					postWangJi('pan', payload).catch(()=>null);
+					this.fetchXinyi(flds, false).catch(()=>null);
+				}catch(e){ /* 预取失败无害 */ }
+			}, 150);
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	getTimeFieldsFromSelector(baseFields){
@@ -523,6 +533,17 @@ class HuangJiMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
+	// [R3-A4] pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
+	buildPanPayload(fields){
+		const dt = parseFieldsDateTime(fields);
+		if(!dt){ return null; }
+		return {
+			...dt,
+			historyYear: this.state.historyYear,
+			classicKey: this.state.classicKey,
+		};
+	}
+
 	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
 	// 只报 pan(单阶段、确定性);构参与 fetchPan 同源(parseFieldsDateTime + 当前
 	// historyYear/classicKey)⇒ 缓存键逐字节同键;classic 正文有模块缓存不需预取。
@@ -542,23 +563,14 @@ class HuangJiMain extends Component{
 	}
 
 	async fetchPan(fields){
-		const dt = parseFieldsDateTime(fields);
-		if(!dt){
+		const payload = this.buildPanPayload(fields);
+		if(!payload){
 			return;
 		}
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
-			// horosa_wangji_classics_ondemand_v1:典籍正文与主盘并发取(首次)/走模块缓存(其后);
-			// 合并完成后才 setState —— state.pan 里的 sections 恒带 content,导出/切章无空窗。
-			const classicsTask = loadClassicSections(this.state.classicKey).catch(()=>null);
-			const pan = await postWangJiCached('pan', {
-				...dt,
-				historyYear: this.state.historyYear,
-				classicKey: this.state.classicKey,
-			});
-			await classicsTask;
-			await ensureClassicContent(pan);
+			const pan = await postWangJi('pan', payload);
 			const xinyi = await this.fetchXinyi(fields, false);
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;

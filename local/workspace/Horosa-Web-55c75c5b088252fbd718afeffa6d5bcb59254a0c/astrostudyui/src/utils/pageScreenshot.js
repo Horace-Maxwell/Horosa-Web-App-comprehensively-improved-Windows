@@ -1,17 +1,17 @@
-// 当前页面截图 · 共享单源（PDF/Word 导出文件头附图,三面共用:技法AI导出 / AI报告 / AI对话导出）。
+// 当前页面截图 · 共享单源(PDF/Word 导出文件头附图,各 AI 导出链共用)。
 //
 // 语义 = 「用户此刻看到的技法三栏整页」:优先截**顶层导航 tabs 的激活面板**(左栏设置+中栏盘面+右栏明细),
 // 兜底 #root。live 元素直截(非离屏重挂,无 visibility/getBBox 老坑;所见即所得,含暗色主题)。
 //
 // 铁律:**截图失败/降级恒返 null,绝不 throw、绝不阻断导出**——调用方对 null 一律「不附图继续导出」。
-// 守卫(照抄 aiExport.exportPdf / reportChartCapture 实战经验,机制注释见各处):
+// 守卫(照抄 aiExport.exportPdf 与命盘图捕获实战经验,机制注释见各处):
 //   ① 尺寸守卫:目标单边(CSS×pixelRatio)≤ MAX_EDGE(8000,远低于 canvas 32767 硬上限),超则自动降倍率;
 //   ② WebGL 降级:html-to-image 拿不到 WebGL framebuffer(天文馆 babylonjs/3D 星盘 three.js 会截成黑/空),
 //      检测到即整体放弃(返 null)——检测用 data-engine 属性 + getContext('2d') 探针(已有 webgl 上下文的
 //      canvas 取 2d 恒返 null 且不改变其上下文;零上下文的裸 canvas 会被建 2d,无害);
 //   ③ 墨迹守卫:全白/全空渲染不当成功(逻辑同 aiExport.canvasHasInk,因 aiExport 反向 import 本文件,
 //      为避环此处持有轻量副本,阈值同款);
-//   ④ 串行锁+超时:同刻只跑一张,30s 兜底放行(仿 reportChartCapture withCaptureLock 修正版语义)。
+//   ④ 串行锁+超时:同刻只跑一张,30s 兜底放行(仿命盘图捕获 withCaptureLock 修正版语义)。
 
 const MAX_EDGE = 8000;            // 设备px 目标单边上限(canvas 硬上限 32767,大图内存/耗时也要控)
 const MIN_TARGET_SIZE = 160;      // 目标容器最小边(CSS px),小于视为没找到有效面板
@@ -102,7 +102,7 @@ export async function buildScreenshotFontEmbedCSS(){
 
 function withCaptureLock(fn){
 	const run = captureLock.then(()=>fn());
-	// 锁只用 timeout「放行队列」,不弃跑任务本身(reportChartCapture audit 4 修的同款语义)。
+	// 锁只用 timeout「放行队列」,不弃跑任务本身(命盘图捕获 audit 修的同款语义)。
 	captureLock = Promise.race([
 		run.catch(()=>{}),
 		new Promise((resolve)=>setTimeout(resolve, CAPTURE_TIMEOUT_MS)),

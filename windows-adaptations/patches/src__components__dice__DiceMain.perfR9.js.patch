@@ -1,18 +1,17 @@
 diff --git a/astrostudyui/src/components/dice/DiceMain.js b/astrostudyui/src/components/dice/DiceMain.js
-index 836a31e..e53f9e8 100644
+index 4b0bbb3..6bb4608 100644
 --- a/astrostudyui/src/components/dice/DiceMain.js
 +++ b/astrostudyui/src/components/dice/DiceMain.js
-@@ -22,6 +22,9 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
+@@ -23,6 +23,8 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -168,6 +171,10 @@ class DiceMain extends Component{
+@@ -178,6 +180,10 @@ class DiceMain extends Component{
  			planet: null,
  			sign: null,
  			house: null,
@@ -23,7 +22,7 @@ index 836a31e..e53f9e8 100644
  		}
  
  		if(this.props.hook){
-@@ -247,7 +254,9 @@ class DiceMain extends Component{
+@@ -257,7 +263,9 @@ class DiceMain extends Component{
  			sign: result.sign,
  		};
  
@@ -34,29 +33,15 @@ index 836a31e..e53f9e8 100644
  		const diceTxt = this.state.txt;
  		this._lastDiceSnapshotInput = { params, result, text: diceTxt };
  		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), {
-@@ -522,6 +531,21 @@ class DiceMain extends Component{
+@@ -532,6 +540,7 @@ class DiceMain extends Component{
  		}
  	}
  
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -561,28 +585,37 @@ class DiceMain extends Component{
+@@ -571,28 +580,37 @@ class DiceMain extends Component{
  			<div className='horosa-dice-page'>
  				<Row gutter={14} className='horosa-dice-layout'>
  					<Col span={17} className='horosa-dice-chart-panel'>

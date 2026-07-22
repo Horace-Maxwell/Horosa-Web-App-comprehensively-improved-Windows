@@ -1,40 +1,25 @@
 diff --git a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
-index 8090325..214d0b8 100644
+index 52d0b41..cc77faf 100644
 --- a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 +++ b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
-@@ -15,6 +15,9 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
+@@ -16,6 +16,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
  import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.xiaochengtu.settings.v1';
-@@ -116,6 +119,21 @@ class XiaoChengTuMain extends Component {
+@@ -126,6 +128,7 @@ class XiaoChengTuMain extends Component {
  		this.onTimeChanged = this.onTimeChanged.bind(this);
  		this.changeGeo = this.changeGeo.bind(this);
  	}
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		if(typeof window !== 'undefined'){
-@@ -203,7 +221,8 @@ class XiaoChengTuMain extends Component {
+@@ -213,7 +216,8 @@ class XiaoChengTuMain extends Component {
  			qi = qiGuaByStock({ open: inputs.open, close: inputs.close });
  			if(!qi){ return this.setState({ error: '开收盘价非法(需含数字,如 1563.62)', qi: null }); }
  		}
@@ -44,7 +29,7 @@ index 8090325..214d0b8 100644
  	}
  	setSettings(patch){
  		const settings = { ...this.state.settings, ...patch };
-@@ -455,47 +474,66 @@ class XiaoChengTuMain extends Component {
+@@ -465,47 +469,66 @@ class XiaoChengTuMain extends Component {
  			</div>
  		);
  		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;

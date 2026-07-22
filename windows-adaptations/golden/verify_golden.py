@@ -151,6 +151,67 @@ def launch_service(project, python_exe, verbose=False):
 # 请求 + 哈希
 # ---------------------------------------------------------------------------
 
+# horosa_golden_now_field_norm_v1 —— 「今天派生」字段的哈希前外科归一。
+#
+# 事实(2026-07-22 跨日首暴):/india/chart 响应内嵌 gochara(行运)节,其 transitDate 与
+# 参考月亮星座等全部按**服务器今天**取值 —— 功能语义正确(行运就该看今天),但金标按字节钉
+# 会「昨钉今漂」:12 个 india 例在跨日后整族假红,而 --selftest(同进程同日)结构性测不出。
+# 与 qizhengkin 缺年键 now() 兜底同类,是第二个被证实的「now 派生面」。
+#
+# 治理原则(#71:判据自身要有分辨力,但不能把功能钉死):
+#   · 产品不动 —— gochara 按今天是功能,不是缺陷;
+#   · 哈希前把 gochara 子树替换为哨兵串 "__HOROSA_GOLDEN_NOW_NORMALIZED__":
+#     - 子树**存在性**仍被钉住(哪天上游把 gochara 整节删了,哈希照样变、照样红);
+#     - 子树内容(逐日变化面)不再进钉;
+#   · raw 与 canon 两个哈希都吃归一后的字节(raw 的「键序判别」价值保留:归一在 parse 之后、
+#     dumps(保持原键序)之前完成);解析失败(非 JSON)时退回原始字节 —— 与旧行为一致。
+#   · 只对声明了 now 派生面的案例族生效(白名单,绝不通配)。
+NOW_FIELD_NORMALIZERS = {
+    # 案例 id 前缀 -> 需归一的顶层子树键
+    "astro.india.": ("gochara",),
+}
+
+# ⚠️ 已知状态敏感例(2026-07-22 记档,非回归):astro.chart.ancient 的响应字节
+# 依赖「前置 qimen 流量」——全矩阵序(qimen→astro)下恒定并与钉一致;单例/纯 astro 组
+# 冷跑会稳定复现另一形态(三进程字节全同;新旧两树逐字节一致=存量潜伏,不是本轮引入)。
+# 发布门只跑全矩阵模式 ⇒ 判定有效;单例诊断该案时以全序结果为准。
+# 根因(哪个 qimen 侧共享态改写了 BC 路径输出)列 PERF_INVENTORY 缺口表,下一轮定位。
+
+
+def _normalize_now_fields(case_id, raw):
+    rules = None
+    for prefix, keys in NOW_FIELD_NORMALIZERS.items():
+        if case_id.startswith(prefix):
+            rules = keys
+            break
+    if not rules:
+        return raw
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return raw
+    changed = False
+
+    def scrub(node):
+        nonlocal changed
+        if isinstance(node, dict):
+            for k in list(node.keys()):
+                if k in rules:
+                    node[k] = "__HOROSA_GOLDEN_NOW_NORMALIZED__"
+                    changed = True
+                else:
+                    scrub(node[k])
+        elif isinstance(node, list):
+            for item in node:
+                scrub(item)
+
+    scrub(payload)
+    if not changed:
+        return raw
+    # 保持原键序 dumps(sort_keys=False):raw 哈希仍能分辨「键序改变」这一维。
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
 def canon_hash(raw):
     """内容规范化哈希:键序无关。解析失败则退回 raw 哈希(并标记)。"""
     try:
@@ -193,11 +254,13 @@ def run_case(base_url, case, timeout=180):
     except Exception as e:
         return {"error": "%s: %s" % (type(e).__name__, e),
                 "ms": round((time.perf_counter() - t0) * 1000, 1)}
+    # horosa_golden_now_field_norm_v1:哈希前归一「今天派生」子树(白名单案例族;见上)。
+    hashed = _normalize_now_fields(case["id"], raw)
     return {
         "status": status,
         "bytes": len(raw),
-        "raw_sha256": hashlib.sha256(raw).hexdigest(),
-        "canon_sha256": canon_hash(raw),
+        "raw_sha256": hashlib.sha256(hashed).hexdigest(),
+        "canon_sha256": canon_hash(hashed),
         "result_code": result_code_of(raw),
         "ms": round((time.perf_counter() - t0) * 1000, 1),
         "_raw": raw,

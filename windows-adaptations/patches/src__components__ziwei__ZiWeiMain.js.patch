@@ -1,13 +1,20 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiMain.js b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-index 0064973..11c040a 100644
+index 07e47a0..829139a 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiMain.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-@@ -34,14 +34,57 @@ import * as ZWConst from '../../constants/ZWConst';
+@@ -1,6 +1,6 @@
+ import { Component } from 'react';
+ import UpdatingBadge from '../common/UpdatingBadge';
+-import { silentTechniquePanelsEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
++import { silentTechniquePanelsEnabled, stepPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { Row, Col, message } from 'antd';
+ import { XQButton as Button, XQModal as Modal, XQTabs as Tabs } from '../xq-ui';
+@@ -34,14 +34,56 @@ import * as ZWConst from '../../constants/ZWConst';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { ziweirulesCached } from '../../services/rules';
 +import { cachedPost } from '../../services/_requestCache';
-+import { techniqueResultCacheEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 +import { armStepPrefetch } from '../../utils/stepPrefetchArm';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
@@ -60,7 +67,7 @@ index 0064973..11c040a 100644
  function normalizeGan(value){
  	if(!value){
  		return '';
-@@ -437,6 +480,63 @@ function buildZiWeiSnapshotText(params, result){
+@@ -437,6 +479,63 @@ function buildZiWeiSnapshotText(params, result){
  	return lines.join('\n');
  }
  
@@ -124,7 +131,7 @@ index 0064973..11c040a 100644
  // 供 AI 分析无头复算：按出生参数取盘并生成紫微快照文本（不依赖组件挂载）。
  export async function buildZiweiSnapshotForParams(params){
  	if(!params){
-@@ -575,6 +675,9 @@ class ZiWeiMain extends Component{
+@@ -575,6 +674,9 @@ class ZiWeiMain extends Component{
  			// 运限单一真值源（需求1）：命盘九宫格与运限 tab(ZWLuckPanel) 共读写；默认空＝无运限(本命四化+自化)。
  			// dirIndex / luckMingIndex / 各宫运限标签 / 四化滑窗 全由 luckSel 派生(见 render)。
  			luckSel: emptyLuckSel(),
@@ -134,7 +141,7 @@ index 0064973..11c040a 100644
  		};
  
  		this.unmounted = false;
-@@ -594,6 +697,9 @@ class ZiWeiMain extends Component{
+@@ -594,6 +696,9 @@ class ZiWeiMain extends Component{
  		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
  		this.onLuckSelChange = this.onLuckSelChange.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
@@ -144,7 +151,7 @@ index 0064973..11c040a 100644
  
  		if(this.props.hook){
  			this.props.hook.fun = (fields)=>{
-@@ -607,6 +713,39 @@ class ZiWeiMain extends Component{
+@@ -607,6 +712,39 @@ class ZiWeiMain extends Component{
  			// 不等 /chart 网络 —— 本页从「等一次网络(~230ms)」变「点击即出(<100ms)」。
  			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
  			this.props.hook.chartFree = true;
@@ -184,9 +191,9 @@ index 0064973..11c040a 100644
  		}
  	}
  
-@@ -619,6 +758,15 @@ class ZiWeiMain extends Component{
- 			if(Object.prototype.hasOwnProperty.call(patch, '__confirmed')){
- 				delete patch.__confirmed;
+@@ -626,6 +764,15 @@ class ZiWeiMain extends Component{
+ 			if(Object.prototype.hasOwnProperty.call(patch, '__stepHint')){
+ 				delete patch.__stepHint;
  			}
 +			// horosa_panel_ready_v1 配对起点:紫微【左栏】(ZiWeiInput:改时间/流派/传本开关/杂曜显示…)
 +			// 全部走本方法 → dispatch('astro/save') + 直调 requestZiWei,**不经** pages/index.js 的
@@ -200,7 +207,7 @@ index 0064973..11c040a 100644
  			// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。
  			if(field && Object.prototype.hasOwnProperty.call(field, 'after23NewDay')){
  				this._after23BoundaryUserOverrode = true;
-@@ -650,39 +798,23 @@ class ZiWeiMain extends Component{
+@@ -697,39 +844,23 @@ class ZiWeiMain extends Component{
  		const sel = this.state.luckSel || emptyLuckSel();
  		const isSame = sel.daxian && sel.daxian.mingIndex === value;
  		const noDeeper = !sel.liunian && !sel.liuyue && !sel.liuri && !sel.liushi;
@@ -250,7 +257,7 @@ index 0064973..11c040a 100644
  	}
  
  	async requestZiWei(fields){
-@@ -698,10 +830,12 @@ class ZiWeiMain extends Component{
+@@ -745,10 +876,12 @@ class ZiWeiMain extends Component{
  		// 新盘到达单次 setState 整体替换)。关 silentTechniquePanels 开关=旧全屏。
  		this.setState({ updating: true });
  		const [data, rules] = await Promise.all([
@@ -267,7 +274,7 @@ index 0064973..11c040a 100644
  			ziweirulesCached({}),
  		]);
  		// 🔴 空载荷守卫:request() 网络层失败会吞错 resolve undefined(非 reject)。
-@@ -755,7 +889,18 @@ class ZiWeiMain extends Component{
+@@ -802,7 +935,18 @@ class ZiWeiMain extends Component{
  		};
  
  
@@ -287,7 +294,7 @@ index 0064973..11c040a 100644
  		// 惰性构建:12 宫×星曜×四化遍历挪出排盘关键路径(params/result 为本函数局部量,闭包安全;
  		// builder 读的全局流派 ZWConst.ZWSchool 若在 idle 前被切换,切换路径必经 requestZiWei
  		// 重排 → 新 save 覆盖本 pending,latest-wins 兜底)。
-@@ -855,9 +1000,28 @@ class ZiWeiMain extends Component{
+@@ -902,9 +1046,28 @@ class ZiWeiMain extends Component{
  		});
  	}
  
@@ -317,7 +324,7 @@ index 0064973..11c040a 100644
  	}
  
  	openDrawer(key){
-@@ -908,7 +1072,9 @@ class ZiWeiMain extends Component{
+@@ -955,7 +1118,9 @@ class ZiWeiMain extends Component{
  		if(ln){
  			sel = luckSelectLiunian(chart, ln, sel);
  		}
@@ -328,7 +335,7 @@ index 0064973..11c040a 100644
  	}
  
  	// 快捷栏契约:原 6 个占星推运跨页键(主限/法达/小限/返照/合盘/星运)=跨页导航滥用,全撤;
-@@ -926,7 +1092,7 @@ class ZiWeiMain extends Component{
+@@ -973,7 +1138,7 @@ class ZiWeiMain extends Component{
  				hasResult={hasChart}
  				extras={[
  					{ key: 'luckToday', label: '运限对齐今天', icon: 'quickTransit', onClick: ()=>this.alignLuckToToday() },
@@ -337,7 +344,7 @@ index 0064973..11c040a 100644
  					{ key: 'memo', label: '笔记', icon: 'quickNote', needsResult: false, onClick: ()=>this.openDrawer('memo') },
  				]}
  				dispatch={this.props.dispatch}
-@@ -980,9 +1146,18 @@ class ZiWeiMain extends Component{
+@@ -1027,9 +1192,18 @@ class ZiWeiMain extends Component{
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
  	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
@@ -357,7 +364,7 @@ index 0064973..11c040a 100644
  		}
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
-@@ -1116,7 +1291,8 @@ class ZiWeiMain extends Component{
+@@ -1163,7 +1337,8 @@ class ZiWeiMain extends Component{
  			height = height - 40
  		}
  
@@ -367,7 +374,7 @@ index 0064973..11c040a 100644
  		const luckRender = this.buildLuckRender(chart);
  		let doms = this.genDirectionDom(chart);
  		let infoData = buildZiWeiInfoData(chart, this.props.fields);
-@@ -1159,23 +1335,40 @@ class ZiWeiMain extends Component{
+@@ -1206,23 +1381,40 @@ class ZiWeiMain extends Component{
  						</div>
  						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-ziwei-info-panel">
  							{/* 星阙金 W1 试点:XQTabs 自带 xq-tabs 基线(金 ink-bar 2px+三态字色);W2 全量收编 content-tabs 族 */}

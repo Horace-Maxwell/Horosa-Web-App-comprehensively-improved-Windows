@@ -8,7 +8,7 @@ import { Document, Packer, Paragraph, TextRun, ImageRun } from 'docx';
 import { makeDocxTable, dataUrlToUint8Array, mdInlineToRuns, sniffImageSize } from './docxCommon';
 import { parseAiExportDocument } from './aiExportDocModel';
 
-const HEADING = { 1: 'Heading1', 2: 'Heading2', 3: 'Heading3' }; // docx 枚举 jest 下不稳,字面量(reportExport 先例)
+const HEADING = { 1: 'Heading1', 2: 'Heading2', 3: 'Heading3' }; // docx 枚举 jest 下不稳,改用字面量
 
 const SENTINEL_LINE_RE = /^=+\s*内容(开始|结束)\s*=+$/;
 

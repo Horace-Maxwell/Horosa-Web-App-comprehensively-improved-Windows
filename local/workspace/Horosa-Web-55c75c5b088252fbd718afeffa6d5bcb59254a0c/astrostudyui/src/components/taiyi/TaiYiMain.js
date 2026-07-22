@@ -33,8 +33,7 @@ import {
 } from './TaiYiCalc';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { chartDrawGuardEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option } = Select;
@@ -369,7 +368,57 @@ class TaiYiMain extends Component {
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
+			// [R3-A2] 步进方向提示透传:驱动 astro model settle 后 /chart ±步预取
+			// (fetchByFields 消费后即剥离,绝不落 state.fields)
+			...(value.step ? { __stepHint: value.step } : {}),
 		});
+		// [R3-A4] 顺向 +1 步 pan 预取:太乙是「时间变更即重排」流,当前步 T 的 pan 由正式
+		// 请求落 kentangCache;此处再静默备下 T+1 —— 连点下一下也命中 ≈ 瞬间。
+		this.prefetchNextStepPan(dt, value.step);
+	}
+
+	// [R3-A4] 与真实链同源:genParams→fetchPreciseNongli→fetchTaiyiPan(同一 builder,
+	// 键逐字节等);失败静默,结果只落 kentangCache。防抖 150ms(连点只备最后方向)。
+	prefetchNextStepPan(dt, stepHint){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled()){
+				return;
+			}
+			if(!stepHint || !stepHint.dir || !dt || typeof dt.clone !== 'function'){
+				return;
+			}
+			if(this.prefetchStepTimer){
+				clearTimeout(this.prefetchStepTimer);
+			}
+			this.prefetchStepTimer = setTimeout(()=>{
+				this.prefetchStepTimer = null;
+				if(this.unmounted){
+					return;
+				}
+				try{
+					const dt2 = dt.clone();
+					const unit = stepHint.unit || 'm';
+					if(unit === 'y'){ dt2.addYear(stepHint.dir); }
+					else if(unit === 'M'){ dt2.addMonth(stepHint.dir); }
+					else if(unit === 'd'){ dt2.addDate(stepHint.dir); }
+					else if(unit === 'h'){ dt2.addHour(stepHint.dir); }
+					else { dt2.addMinute(4 * stepHint.dir); }
+					const flds2 = {
+						...(this.props.fields || {}),
+						date: { value: dt2.clone() },
+						time: { value: dt2.clone() },
+						ad: { value: dt2.ad },
+						zone: { value: dt2.zone },
+					};
+					const params = this.genParams(flds2);
+					if(!params){ return; }
+					fetchPreciseNongli(params).then((nongli)=>{
+						if(this.unmounted){ return null; }
+						return fetchTaiyiPan(flds2, nongli, this.state.options);
+					}).catch(()=>null);
+				}catch(e){ /* 预取失败无害 */ }
+			}, 150);
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	getTimeFieldsFromSelector(baseFields){

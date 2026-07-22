@@ -1,0 +1,15 @@
+{
+	"schema": "geomancy.names_shakal/v1",
+	"attested_pairing": false,
+	"note": "东传一支称十六图为「形」(Shakal),并诠释为月之十六相。十六相之名为公有传统术语;然**所据基准未载「相↔图」之配属**,故此处只作参考名录呈现,不作配对、不臆造。",
+	"kala": [
+		{ "n": 1, "name": "Amrita", "zh": "甘露" }, { "n": 2, "name": "Manada", "zh": "敬悦" },
+		{ "n": 3, "name": "Pusha", "zh": "滋养" }, { "n": 4, "name": "Tushti", "zh": "满足" },
+		{ "n": 5, "name": "Pushti", "zh": "丰盈" }, { "n": 6, "name": "Rati", "zh": "欢爱" },
+		{ "n": 7, "name": "Dhriti", "zh": "坚忍" }, { "n": 8, "name": "Shashini", "zh": "月华" },
+		{ "n": 9, "name": "Chandrika", "zh": "月光" }, { "n": 10, "name": "Kanti", "zh": "光艳" },
+		{ "n": 11, "name": "Jyotsna", "zh": "皎洁" }, { "n": 12, "name": "Shri", "zh": "吉祥" },
+		{ "n": 13, "name": "Priti", "zh": "喜乐" }, { "n": 14, "name": "Angada", "zh": "臂饰" },
+		{ "n": 15, "name": "Purna", "zh": "圆满" }, { "n": 16, "name": "Purnamrita", "zh": "圆满甘露" }
+	]
+}

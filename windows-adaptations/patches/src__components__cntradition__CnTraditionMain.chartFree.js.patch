@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/cntradition/CnTraditionMain.js b/astrostudyui/src/components/cntradition/CnTraditionMain.js
-index 06dc4b4..8de41e2 100644
+index 8234d5d..51b8485 100644
 --- a/astrostudyui/src/components/cntradition/CnTraditionMain.js
 +++ b/astrostudyui/src/components/cntradition/CnTraditionMain.js
-@@ -3,6 +3,8 @@ import { XQTabs as Tabs } from '../xq-ui';
+@@ -4,6 +4,8 @@ import { XQTabs as Tabs } from '../xq-ui';
  import { randomStr } from '../../utils/helper';
  import GuaSymDesc from '../gua/GuaSymDesc';
  import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
@@ -11,7 +11,7 @@ index 06dc4b4..8de41e2 100644
  import CuanGong12 from '../commtools/CuanGong12';
  import BaziPithy from '../commtools/BaziPithy';
  
-@@ -42,6 +44,13 @@ class CnTraditionMain extends Component{
+@@ -52,6 +54,13 @@ class CnTraditionMain extends Component{
  				if(hook[subtab] && hook[subtab].fun){
  					hook[subtab].fun(fields);
  				}
@@ -25,7 +25,7 @@ index 06dc4b4..8de41e2 100644
  				setTimeout(()=>{
  					if(this.props.dispatch){
  						this.props.dispatch({
-@@ -53,6 +62,14 @@ class CnTraditionMain extends Component{
+@@ -63,6 +72,14 @@ class CnTraditionMain extends Component{
  					}			
  				}, 500);
  			};
@@ -40,7 +40,7 @@ index 06dc4b4..8de41e2 100644
  		}
  
  	}
-@@ -101,16 +118,27 @@ class CnTraditionMain extends Component{
+@@ -111,16 +128,27 @@ class CnTraditionMain extends Component{
  					onChange={this.changeTab}
  					style={{ height: '100%', minHeight: 0 }}
  				>

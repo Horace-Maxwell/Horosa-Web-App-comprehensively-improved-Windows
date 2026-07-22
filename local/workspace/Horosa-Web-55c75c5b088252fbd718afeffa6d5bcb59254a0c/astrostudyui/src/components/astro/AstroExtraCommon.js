@@ -108,7 +108,7 @@ export function chartParams(chartObj){
 	};
 }
 
-// 失败泊车(FL-20260712-5 第二路径):load 失败时绝不把 key 记成「已完成」——那会让表(props 已新)
+// 失败泊车(2026-07-12 实案 第二路径):load 失败时绝不把 key 记成「已完成」——那会让表(props 已新)
 // 与盘(state 旧)永久分叉且永不重试;但失败后立即无限重试又会死循环(didUpdate→load→catch→setState→didUpdate)。
 // 语义:失败记 (key, 时刻),同 key 在窗口期内不自动重试;新 key(改日期/换盘)立即放行;窗口期过后
 // 下一次更新自然重试;成功后 clear。宿主组件在 componentDidUpdate/ensureLoaded 的重载条件里并入 !loadParked。

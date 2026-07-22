@@ -1,0 +1,28 @@
+{
+	"schema": "geomancy.vedic_overlay/v1",
+	"note": "东传印度一支的叠加层:十六图各有所主之曜,与九曜天然对应(七政加日月交点即罗睺计都),故不假借、不杜撰。宫位义取十二宫通义。",
+	"graha": {
+		"Sun": { "sanskrit": "Surya", "zh": "太阳", "vedic_zh": "日曜" },
+		"Moon": { "sanskrit": "Chandra", "zh": "月亮", "vedic_zh": "月曜" },
+		"Mars": { "sanskrit": "Mangala", "zh": "火星", "vedic_zh": "火曜" },
+		"Mercury": { "sanskrit": "Budha", "zh": "水星", "vedic_zh": "水曜" },
+		"Jupiter": { "sanskrit": "Guru", "zh": "木星", "vedic_zh": "木曜" },
+		"Venus": { "sanskrit": "Shukra", "zh": "金星", "vedic_zh": "金曜" },
+		"Saturn": { "sanskrit": "Shani", "zh": "土星", "vedic_zh": "土曜" },
+		"NorthNode": { "sanskrit": "Rahu", "zh": "北交", "vedic_zh": "罗睺" },
+		"SouthNode": { "sanskrit": "Ketu", "zh": "南交", "vedic_zh": "计都" }
+	},
+	"bhava": {
+		"1": { "sanskrit": "Tanu", "zh": "命宫·身" }, "2": { "sanskrit": "Dhana", "zh": "财帛·口舌" },
+		"3": { "sanskrit": "Sahaja", "zh": "兄弟·勇气" }, "4": { "sanskrit": "Bandhu", "zh": "田宅·母" },
+		"5": { "sanskrit": "Putra", "zh": "子女·智慧" }, "6": { "sanskrit": "Ripu", "zh": "疾厄·仇敌" },
+		"7": { "sanskrit": "Yuvati", "zh": "夫妻·合伙" }, "8": { "sanskrit": "Randhra", "zh": "疾死·隐秘" },
+		"9": { "sanskrit": "Dharma", "zh": "福德·师法" }, "10": { "sanskrit": "Karma", "zh": "官禄·事业" },
+		"11": { "sanskrit": "Labha", "zh": "所得·友朋" }, "12": { "sanskrit": "Vyaya", "zh": "耗损·解脱" }
+	},
+	"rashi": {
+		"Aries": "Mesha", "Taurus": "Vrishabha", "Gemini": "Mithuna", "Cancer": "Karka",
+		"Leo": "Simha", "Virgo": "Kanya", "Libra": "Tula", "Scorpio": "Vrishchika",
+		"Sagittarius": "Dhanu", "Capricorn": "Makara", "Aquarius": "Kumbha", "Pisces": "Meena"
+	}
+}

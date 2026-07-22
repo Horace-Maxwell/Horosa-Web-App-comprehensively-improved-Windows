@@ -1,0 +1,26 @@
+diff --git a/astrostudyui/src/utils/kentangCache.js b/astrostudyui/src/utils/kentangCache.js
+index b5f00f0..655849a 100644
+--- a/astrostudyui/src/utils/kentangCache.js
++++ b/astrostudyui/src/utils/kentangCache.js
+@@ -86,6 +86,21 @@ function payloadCacheable(moduleKey, bodyStr){
+ 			}
+ 		}catch(e){ return false; }
+ 	}
++	// horosa_wuzhao_random_guard_v1(Windows-ahead):五兆**自动揲筮**档(mode!=='ganzhi'
++	// 且 !manual)服务端走 random.randint 且 payload 无 seed —— 「同 body 恒同果」在此
++	// 不成立(覆盖矩阵把 wuzhao 整体标 deterministic 是误标,组件内注释自己承认
++	// 「自动揲筮无 seed,重取=随机重掷」)。缓存它 = 同一时刻重复起盘返回**钉死**的旧卦,
++	// 随机起课语义被破坏。只有 干支法 / 手动折竹(manualSplits 全量入 body)可缓存。
++	// 在唯一缓存层拦,比在每个调用点拦更不可能漏;预取侧无需另拦 —— 未入缓存的预取
++	// 只是一次被丢弃的请求,下一次真点照常重掷。
++	if(moduleKey === 'wuzhao'){
++		try{
++			const body = JSON.parse(bodyStr);
++			if(!body || (body.mode !== 'ganzhi' && !body.manual)){
++				return false;
++			}
++		}catch(e){ return false; }
++	}
+ 	return true;
+ }
+ 

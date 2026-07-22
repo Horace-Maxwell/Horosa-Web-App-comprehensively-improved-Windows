@@ -54,6 +54,7 @@ class PlusMinusTime extends Component{
 						showAdjust={showAdjust}
 						adjustOnly={this.props.adjustOnly}
 						confirmOnAdjust={this.props.confirmOnAdjust}
+						stepSelectPrefetch={true}
 						yearMonth={this.props.yearMonth}
 						onlyYear={this.props.onlyYear}
 						onChange={this.changeTime}

@@ -1,114 +1,168 @@
 {
- "schema": "geomancy.house_meanings/v1",
- "houses": {
-  "1": {
-   "num": 1,
-   "latin": "Vita",
-   "theme": "本人·身体·生命·性格",
-   "sign": "Aries",
-   "ruler": "Mars",
-   "element": "Fire"
-  },
-  "2": {
-   "num": 2,
-   "latin": "Lucrum",
-   "theme": "钱财·动产·收入·资源",
-   "sign": "Taurus",
-   "ruler": "Venus",
-   "element": "Earth"
-  },
-  "3": {
-   "num": 3,
-   "latin": "Fratres",
-   "theme": "兄弟姊妹·近邻·短途·消息·沟通",
-   "sign": "Gemini",
-   "ruler": "Mercury",
-   "element": "Air"
-  },
-  "4": {
-   "num": 4,
-   "latin": "Genitor",
-   "theme": "父亲·家宅·田产·根基·结局",
-   "sign": "Cancer",
-   "ruler": "Moon",
-   "element": "Water"
-  },
-  "5": {
-   "num": 5,
-   "latin": "Nati",
-   "theme": "子女·恋爱享乐·怀孕·娱乐",
-   "sign": "Leo",
-   "ruler": "Sun",
-   "element": "Fire"
-  },
-  "6": {
-   "num": 6,
-   "latin": "Valetudo",
-   "theme": "疾病·仆役雇员·小动物·劳作",
-   "sign": "Virgo",
-   "ruler": "Mercury",
-   "element": "Earth"
-  },
-  "7": {
-   "num": 7,
-   "latin": "Uxor",
-   "theme": "配偶·婚姻·合伙·公开对手",
-   "sign": "Libra",
-   "ruler": "Venus",
-   "element": "Air"
-  },
-  "8": {
-   "num": 8,
-   "latin": "Mors",
-   "theme": "死亡·遗产·他人钱财·转化·恐惧",
-   "sign": "Scorpio",
-   "ruler": "Mars",
-   "element": "Water"
-  },
-  "9": {
-   "num": 9,
-   "latin": "Itineris",
-   "theme": "远行·宗教·学问·异乡·梦",
-   "sign": "Sagittarius",
-   "ruler": "Jupiter",
-   "element": "Fire"
-  },
-  "10": {
-   "num": 10,
-   "latin": "Regnum",
-   "theme": "事业·名誉·上司君王·母亲·地位",
-   "sign": "Capricorn",
-   "ruler": "Saturn",
-   "element": "Earth"
-  },
-  "11": {
-   "num": 11,
-   "latin": "Benefacta",
-   "theme": "朋友·盟友·愿望·贵人",
-   "sign": "Aquarius",
-   "ruler": "Saturn",
-   "element": "Air"
-  },
-  "12": {
-   "num": 12,
-   "latin": "Carcer",
-   "theme": "秘密敌人·监禁·隐患·忧患",
-   "sign": "Pisces",
-   "ruler": "Jupiter",
-   "element": "Water"
-  }
- },
- "question_house": {
-  "life": 1,
-  "health": 6,
-  "wealth": 2,
-  "marriage": 7,
-  "career": 10,
-  "children": 5,
-  "journey": 9,
-  "religion": 9,
-  "enemy": 7,
-  "death": 8,
-  "custom": 1
- }
+	"schema": "geomancy.house_meanings/v1",
+	"houses": {
+		"1": {
+			"num": 1,
+			"latin": "Vita",
+			"theme": "本人·身体·生命·性格",
+			"sign": "Aries",
+			"ruler": "Mars",
+			"element": "Fire"
+		},
+		"2": {
+			"num": 2,
+			"latin": "Lucrum",
+			"theme": "钱财·动产·收入·资源",
+			"sign": "Taurus",
+			"ruler": "Venus",
+			"element": "Earth"
+		},
+		"3": {
+			"num": 3,
+			"latin": "Fratres",
+			"theme": "兄弟姊妹·近邻·短途·消息·沟通",
+			"sign": "Gemini",
+			"ruler": "Mercury",
+			"element": "Air"
+		},
+		"4": {
+			"num": 4,
+			"latin": "Genitor",
+			"theme": "父亲·家宅·田产·根基·结局",
+			"sign": "Cancer",
+			"ruler": "Moon",
+			"element": "Water"
+		},
+		"5": {
+			"num": 5,
+			"latin": "Nati",
+			"theme": "子女·恋爱享乐·怀孕·娱乐",
+			"sign": "Leo",
+			"ruler": "Sun",
+			"element": "Fire"
+		},
+		"6": {
+			"num": 6,
+			"latin": "Valetudo",
+			"theme": "疾病·仆役雇员·小动物·劳作",
+			"sign": "Virgo",
+			"ruler": "Mercury",
+			"element": "Earth"
+		},
+		"7": {
+			"num": 7,
+			"latin": "Uxor",
+			"theme": "配偶·婚姻·合伙·公开对手",
+			"sign": "Libra",
+			"ruler": "Venus",
+			"element": "Air"
+		},
+		"8": {
+			"num": 8,
+			"latin": "Mors",
+			"theme": "死亡·遗产·他人钱财·转化·恐惧",
+			"sign": "Scorpio",
+			"ruler": "Mars",
+			"element": "Water"
+		},
+		"9": {
+			"num": 9,
+			"latin": "Itineris",
+			"theme": "远行·宗教·学问·异乡·梦",
+			"sign": "Sagittarius",
+			"ruler": "Jupiter",
+			"element": "Fire"
+		},
+		"10": {
+			"num": 10,
+			"latin": "Regnum",
+			"theme": "事业·名誉·上司君王·母亲·地位",
+			"sign": "Capricorn",
+			"ruler": "Saturn",
+			"element": "Earth"
+		},
+		"11": {
+			"num": 11,
+			"latin": "Benefacta",
+			"theme": "朋友·盟友·愿望·贵人",
+			"sign": "Aquarius",
+			"ruler": "Saturn",
+			"element": "Air"
+		},
+		"12": {
+			"num": 12,
+			"latin": "Carcer",
+			"theme": "秘密敌人·监禁·隐患·忧患",
+			"sign": "Pisces",
+			"ruler": "Jupiter",
+			"element": "Water"
+		}
+	},
+	"question_house": {
+		"life": 1,
+		"health": 6,
+		"wealth": 2,
+		"marriage": 7,
+		"career": 10,
+		"children": 5,
+		"journey": 9,
+		"religion": 9,
+		"enemy": 7,
+		"death": 8,
+		"custom": 1
+	},
+	"person_house": {
+		"note": "问他人之事时,先按此表定其代表之宫,再以转宫法为其起新命宫。",
+		"map": [
+			{
+				"person": "父",
+				"house": 4
+			},
+			{
+				"person": "母",
+				"house": 10
+			},
+			{
+				"person": "子女",
+				"house": 5
+			},
+			{
+				"person": "兄弟姊妹",
+				"house": 3
+			},
+			{
+				"person": "仆役·下属",
+				"house": 6
+			},
+			{
+				"person": "配偶·合伙人",
+				"house": 7
+			},
+			{
+				"person": "医者",
+				"house": 7
+			},
+			{
+				"person": "对手·暗敌",
+				"house": 7
+			},
+			{
+				"person": "师长·尊长",
+				"house": 9
+			},
+			{
+				"person": "上司·当权",
+				"house": 10
+			},
+			{
+				"person": "友朋",
+				"house": 11
+			},
+			{
+				"person": "隐秘之敌",
+				"house": 12
+			}
+		],
+		"lost_object_note": "失物则按物之性归宫:贵重财货二宫、文书三宫、田宅内四宫、衣饰玩好五宫、牲畜六宫、他人所持七宫、遗产八宫、远方九宫、器用十宫、友人处十一宫、隐匿处十二宫。"
+	}
 }

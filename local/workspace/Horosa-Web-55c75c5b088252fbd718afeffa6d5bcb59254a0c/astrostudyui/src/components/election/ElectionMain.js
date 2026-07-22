@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Modal } from 'antd';
 import { XQSelect, XQButton, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
@@ -43,6 +44,15 @@ export const ELECTION_TOPICS = [
 const GRADE_DOT = { 极佳: '#2f9e6f', 不错: '#1aa3b8', 中等: '#3b82f6', 欠佳: '#e07a3b', '不宜（含红线）': '#cf3b3b' };
 
 class ElectionMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		this.state = { scanning: false, scanResults: null, scanOpen: false, scanMode: 'hours', natalRec: null, natalFacts: null, natalLoading: false, mundaneSet: null, mundaneLoading: false, crisisLoading: false };

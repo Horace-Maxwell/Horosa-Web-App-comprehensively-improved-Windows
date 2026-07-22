@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/calendar/TongshuMain.js b/astrostudyui/src/components/calendar/TongshuMain.js
-index 2e26b16..2380935 100644
+index c178924..ae47856 100644
 --- a/astrostudyui/src/components/calendar/TongshuMain.js
 +++ b/astrostudyui/src/components/calendar/TongshuMain.js
-@@ -13,38 +13,71 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
+@@ -14,38 +14,71 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
  import { wutuMonth } from './tongshu/wutu';
  import { xuankongDay, xuankongForHour } from './tongshu/xuankong';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -94,7 +94,7 @@ index 2e26b16..2380935 100644
  	const hitEvent = event && (yv.level !== 'neutral' || r.text.indexOf(event) >= 0);
  	return (
  		<div className='horosa-tongshu-detail'>
-@@ -88,7 +121,7 @@ function DonggongDetail({ y, m, d, event }) {
+@@ -89,7 +122,7 @@ function DonggongDetail({ y, m, d, event }) {
  
  // 奇门叠数：12 时辰各自叠数与吉凶（出行择时），点击看诗解。选中时辰由 TongshuMain 持有。
  function QimenPanes({ y, m, d, selHour, onSelHour }) {
@@ -103,7 +103,7 @@ index 2e26b16..2380935 100644
  	const active = selHour ? r.rows.find((x)=> x.hourZhi === selHour) : (r.rows.find((x)=> x.jx === '吉') || r.rows[0]);
  	return {
  		mid: (
-@@ -130,14 +163,15 @@ function QimenPanes({ y, m, d, selHour, onSelHour }) {
+@@ -131,14 +164,15 @@ function QimenPanes({ y, m, d, selHour, onSelHour }) {
  
  // 三垣列宿：本日天帝加临 + 距最近加临 + 十六吉曜按「用事类」高亮断语库。
  function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
@@ -122,7 +122,7 @@ index 2e26b16..2380935 100644
  	let nearest = null;
  	allPts.forEach((p)=>{
  		const [py, pm, pd] = p.ymd.split('-').map((n)=> parseInt(n, 10));
-@@ -195,7 +229,7 @@ function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
+@@ -196,7 +230,7 @@ function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
  
  // 天元乌兔：本月逐日乌兔值星（太阳/太阴/九星），点击选日。
  function WutuPanes({ y, m, d, onPick }) {
@@ -131,7 +131,7 @@ index 2e26b16..2380935 100644
  	const activeYmd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
  	const active = M.rows.find((r)=> r.ymd === activeYmd) || M.rows[0];
  	const starCls = (jx)=> (jx === 'good' ? 'is-good' : 'is-bad');
-@@ -246,9 +280,9 @@ function xkTagCls(jx) { return jx === 'good' ? 'is-good' : (jx === 'bad' ? 'is-b
+@@ -247,9 +281,9 @@ function xkTagCls(jx) { return jx === 'good' ? 'is-good' : (jx === 'bad' ? 'is-b
  
  // 三元玄空：12 时辰玄空日课（五吉/日课吉凶），点击看四柱卦象。
  function XuankongPanes({ y, m, d, mingYear, selHour, onSelHour }) {
@@ -143,7 +143,7 @@ index 2e26b16..2380935 100644
  	const P = full.pillars;
  	// rel 为完整五机名（生入/克入/同旺/生成/合十/生出/克出/无关），按进神吉·退神凶着色。
  	const rowOf = (label, p, rel)=> (
-@@ -310,23 +344,43 @@ class TongshuMain extends Component {
+@@ -320,23 +354,43 @@ class TongshuMain extends Component {
  		this.onSettingChange = this.onSettingChange.bind(this);
  		this.onDateChange = this.onDateChange.bind(this);
  		this.pickDay = this.pickDay.bind(this);
@@ -190,7 +190,7 @@ index 2e26b16..2380935 100644
  	}
  
  	saveAISnapshot() {
-@@ -347,6 +401,9 @@ class TongshuMain extends Component {
+@@ -357,6 +411,9 @@ class TongshuMain extends Component {
  			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
  		}
  		this.saveAISnapshot();
@@ -200,7 +200,7 @@ index 2e26b16..2380935 100644
  	}
  
  	componentWillUnmount() {
-@@ -355,6 +412,11 @@ class TongshuMain extends Component {
+@@ -365,6 +422,11 @@ class TongshuMain extends Component {
  		}
  	}
  
@@ -212,7 +212,7 @@ index 2e26b16..2380935 100644
  	renderPanes() {
  		const s = this.state.settings;
  		const ymd = this.ymd();
-@@ -366,7 +428,7 @@ class TongshuMain extends Component {
+@@ -376,7 +438,7 @@ class TongshuMain extends Component {
  			};
  		}
  		if (s.school === 'qimen') {
@@ -221,7 +221,7 @@ index 2e26b16..2380935 100644
  		}
  		if (s.school === 'sanyuanliexiu') {
  			return SanyuanPanes({ y, m, d, use: s.liexiuUse, onPick: this.pickDay });
-@@ -375,7 +437,7 @@ class TongshuMain extends Component {
+@@ -385,7 +447,7 @@ class TongshuMain extends Component {
  			return WutuPanes({ y, m, d, onPick: this.pickDay });
  		}
  		if (s.school === 'sanyuan') {

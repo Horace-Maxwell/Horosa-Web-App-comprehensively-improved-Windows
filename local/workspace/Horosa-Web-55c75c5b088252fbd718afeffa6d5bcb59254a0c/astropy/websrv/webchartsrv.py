@@ -633,8 +633,7 @@ def _warm_real_astropy():
         traceback.print_exc()
 
 
-def _run_warmups():
-    _warm_real_astropy()
+def _warmup_stage_pd():
     try:
         t0 = time.perf_counter()
         warm_chart = PerChart(dict(WebChartSrv.PD_WARMUP_SAMPLE))
@@ -645,6 +644,9 @@ def _run_warmups():
         ledger_mark('py.warmup_pd', t0=_PY_T0, ms=_pd_ms)
     except Exception:
         traceback.print_exc()
+
+
+def _warmup_stage_core():
     # [B5] 核心 14 服务预装(开门前):挂载阶段零导入的债在此偿清 —— 门保证业务 POST
     # 必在预装后,任何请求最早可服务时刻不晚于旧方案;失败留给首个真实请求响亮 500。
     try:
@@ -656,6 +658,9 @@ def _run_warmups():
         ledger_mark('py.warmup_core', t0=_PY_T0, ms=_core_ms)
     except Exception:
         traceback.print_exc()
+
+
+def _warmup_stage_india():
     # 印度盘预热:把 india 各子算法冷路径载入,消除首次进入印度占星的 ~3s 冷启动;
     # 与业务请求的并发由启动门隔离(门开前无业务 POST 进入)。失败静默不影响服务。
     try:
@@ -667,8 +672,11 @@ def _run_warmups():
         ledger_mark('py.warmup_india', t0=_PY_T0, ms=_in_ms)
     except Exception:
         traceback.print_exc()
+
+
+def _warmup_stage_kentang():
     # kentang 懒挂载空闲预热(WS-3d):挂载阶段零导入(mounts 段 -1.2~1.9s),
-    # 监听后在本 warmup 线程逐个补装真服务——用户首点通常已就绪;
+    # 监听后在 warmup 阶段逐个补装真服务——用户首点通常已就绪;
     # 预热失败只打日志,首个真实请求会以 KentangServiceLoadError 响亮 500(同一加载路径)。
     try:
         from websrv.kentang.registry import prewarm_kentang_services
@@ -680,6 +688,44 @@ def _run_warmups():
         ledger_mark('py.warmup_kentang', t0=_PY_T0, ms=_kt_ms)
     except Exception:
         traceback.print_exc()
+
+
+def _run_warmups():
+    _warm_real_astropy()
+    _warmup_stage_pd()
+    # [R3-B5] core/india/kentang 三段并行(原五段全串行):三段互不依赖(各装各的模块;
+    # 共享底层 import 由解释器 import 锁天然互斥,数据面零竞争),磁盘 IO/SQLite 段真并行
+    # → STARTUP_GATE 开门时刻从 sum(三段) 提前到 max(三段)。
+    # 🔴 档位=auto(2026-07-21 ladder 实测定档):
+    #   · 冷启/untrusted(首启·修复):串行 sum≈3.3s → 并行 max≈1.35s,大赢 → 并行;
+    #   · 温启/trusted:串行链本就全程隐没在 Java 就绪墙影子里(端 1.34s < java 2.4s),
+    #     并行反而三线程与 Java 启动抢核(实测 java_http_ready +141ms、py 门 1344→1457ms
+    #     双输)→ 回串行旧序(行为逐字节同基线)。
+    # 语义钉不变:门仍在全部预装完成后才 set;单段失败照旧段内自吞。
+    # kill-switch:HOROSA_PY_WARMUP_PARALLEL=0 恒串行 / =1 恒并行 / 缺省 auto(按 trusted 分档)。
+    _par_env = os.environ.get('HOROSA_PY_WARMUP_PARALLEL', 'auto')
+    if _par_env == '0':
+        _parallel = False
+    elif _par_env == '1':
+        _parallel = True
+    else:
+        # horosa_trusted_env_shape_v1(Windows-ahead,可上游化):trusted 的取值形态跨启动器
+        # 不统一 —— Tauri/start.sh 传 '1',Electron 壳传 'true'。只判 != '1' 会把 Windows 温启
+        # 误判成 untrusted → 并行档在温启与 Java 抢核(上游实测双输:java +141ms / py 门 +113ms)。
+        # 按 truthy 家族解析,两种启动器语义一致;缺省 '0' 行为不变。
+        _trusted_env = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0').strip().lower()
+        _parallel = _trusted_env not in ('1', 'true', 'yes', 'on')
+    _stages = (_warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
+    if _parallel:
+        _threads = [threading.Thread(target=_fn, name='horosa-warmup-{0}'.format(_i), daemon=True)
+                    for _i, _fn in enumerate(_stages)]
+        for _t in _threads:
+            _t.start()
+        for _t in _threads:
+            _t.join()
+    else:
+        for _fn in _stages:
+            _fn()
     STARTUP_GATE.set()
     # horosa_kentang_prewarm_modules_v1:请求路径内惰性 import 的重模块(当前:太乙·博弈论,
     # 实测冷导入 528ms / 温 0.001ms)。**刻意放在门之后** —— prewarm_kentang_services() 跑在

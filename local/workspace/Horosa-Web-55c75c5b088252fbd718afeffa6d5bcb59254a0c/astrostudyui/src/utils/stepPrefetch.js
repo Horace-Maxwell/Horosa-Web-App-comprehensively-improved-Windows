@@ -27,7 +27,7 @@
 //     ② 纵深防御(path 是自述的,可能与 run 里真发的 URL 不符):pump 期间置 ambient 标志,
 //        utils/request.js 与 utils/chartFetch.js 在标志置位时对不合格 URL 直接拒发并计数。
 //   两层的拒绝都累加进同一计数器(prefetchRefusalCount),测试据此断言「零泄漏」。
-import { stepPrefetchEnabled } from './perfFlags';
+import { stepPrefetchEnabled, stepSelectPrefetchEnabled } from './perfFlags';
 
 /** 允许预取的端点前缀(显式白名单;哨兵对照此数组,增删须同步测试) */
 export const PREFETCH_ALLOWED_PATHS = [
@@ -219,7 +219,7 @@ function pump(){
  *        (path=该任务将访问的端点路径,过运行时白名单;run 返回 Promise;
  *        任务内的请求自带 silent+零重试;结果自然落进各自缓存层)
  */
-export function submitStepPrefetch(tasks){
+export function submitStepPrefetch(tasks, opts){
 	if(!stepPrefetchEnabled() || !Array.isArray(tasks) || !tasks.length){
 		return;
 	}
@@ -238,8 +238,47 @@ export function submitStepPrefetch(tasks){
 	}
 	generation += 1;
 	const gen = generation;
-	queue = accepted.slice(0, BUDGET_PER_SETTLE).map((t)=>({ ...t, gen }));
+	// [R3-A1 上游] 显式 opts.budget 硬顶 5(选步长双向 ±2=4 任务;绝不放开成风暴);
+	// 缺省仍走 BUDGET_PER_SETTLE(武装 ±3 一轮 ≤12,串行泵+白名单闸即节流)。
+	const budget = opts && Number.isInteger(opts.budget) && opts.budget > 0
+		? Math.min(opts.budget, 5)
+		: BUDGET_PER_SETTLE;
+	queue = accepted.slice(0, budget).map((t)=>({ ...t, gen }));
 	pump();
+}
+
+// —— [R3-A1] 选步长即预取:DateTimeSelector.changeTimeType(opt-in 宿主)→ 此处 ——
+// 与 settle 后预取共用同一队列/代际/预算体系;处理器由 models/astro 注册
+// (Windows 侧处理器 = 武装引擎:按当前技法 ±stepPrefetchDepth 全窗,见 astro.js)。
+// 同 unit 5s 去重:反复点同档不重复排队(切档立即生效,latest-wins 覆盖旧代)。
+let stepSelectHandler = null;
+let lastStepSelect = { unit: null, at: 0 };
+
+export function registerStepSelectHandler(fn){
+	if(typeof fn === 'function'){
+		stepSelectHandler = fn;
+	}
+}
+
+export function fireStepSelectPrefetch(unit){
+	try{
+		if(!stepPrefetchEnabled() || !stepSelectPrefetchEnabled() || !unit){
+			return;
+		}
+		const now = Date.now();
+		if(lastStepSelect.unit === unit && (now - lastStepSelect.at) < 5000){
+			return;
+		}
+		lastStepSelect = { unit, at: now };
+		if(stepSelectHandler){
+			stepSelectHandler(unit);
+		}
+	}catch(e){ /* 预取失败无害 */ }
+}
+
+/** 测试用:清选步长去重态 */
+export function __resetStepSelectForTest(){
+	lastStepSelect = { unit: null, at: 0 };
 }
 
 // —— Phase B:技法端点注册表(kentang pan 等 raw fetch 不经 requestDedupe,

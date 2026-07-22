@@ -4,11 +4,12 @@ import { Modal, } from 'antd';
 import DateTime from '../components/comp/DateTime';
 import * as service from '../services/astro';
 import {randomStr,} from '../utils/helper';
-import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
+import { DefLat, DefLon, DefGpsLat, DefGpsLon, ServerRoot, } from '../utils/constants';
 import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
 import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled, stepPrefetchArmEnabled, stepPrefetchDepth } from '../utils/perfFlags';
-import { submitStepPrefetch, getStepPrefetcher } from '../utils/stepPrefetch';
+import { submitStepPrefetch, getStepPrefetcher, registerStepSelectHandler } from '../utils/stepPrefetch';
+import { perfBegin } from '../utils/perfMark';
 // PERF-R10 horosa_step_prefetch_arm_v1:「选步长即武装」——构造器经 registerArmPlanBuilder
 // 注入(utils 不反向 import models);settle 兜底武装的档位来自 reportStepUnit 的记录。
 import { registerArmPlanBuilder, reportStepUnit, currentStepUnit, shouldArmForTab } from '../utils/stepPrefetchArm';
@@ -388,8 +389,21 @@ function isValidChartResponse(rsp){
 // (dva 的 model parser 不支持 JSX,所以 React 端必须放独立组件文件)。
 // fallback 用经典 Modal.error 防止任何加载/导入异常导致用户拿不到反馈。
 function showChartServiceError(extraDetail){
+	// 先探活再定弹窗:服务在线但本次计算失败(如参数异常/超出星历数据域)≠「服务未就绪」。
+	// 误报「未就绪」会把用户引向重启/防火墙排查,掩盖真实原因(全年份域工程实测坑)。
 	try {
-		showChartServiceErrorRich(extraDetail);
+		fetch(`${ServerRoot}/horosaIdentity`, { method: 'GET' }).then((r) => {
+			if(r && r.ok){
+				Modal.error({
+					title: '排盘失败：该时刻或参数计算失败',
+					content: '本地服务在线,但此次排盘未能完成。常见原因:日期超出星历数据域(公元前 12999 ~ 公元 16799)、参数组合异常。请调整时间/参数后重试;若反复失败请反馈该时刻。',
+				});
+			}else{
+				showChartServiceErrorRich(extraDetail);
+			}
+		}).catch(() => {
+			showChartServiceErrorRich(extraDetail);
+		});
 	} catch(e) {
 		Modal.error({ title: '排盘失败：本地排盘服务未就绪。请确认 Horosa 本地服务仍在运行后重试。' });
 	}
@@ -557,6 +571,30 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	}
 	return tasks;
 }
+
+// [R3-A1] 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 以 store 现
+// fields 双向 ±1、±2 预取(键构造与真点同源 = buildStepPrefetchTasks 唯一路径)。
+// 无 store/无 fields(启动早期/测试)静默跳过;预算 4 任务(调度器硬顶 5)。
+registerStepSelectHandler((unit)=>{
+	const store = getStore();
+	if(!store || !store.astro || !store.astro.fields){
+		return;
+	}
+	const st = store.astro;
+	// horosa_step_prefetch_arm_v1(Windows 武装引擎接管上游触发线):
+	// · 上游触发面(opt-in 宿主 + 5s 去重)保持原样;此处把「±2 固定窗」升级为
+	//   ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
+	// · reportStepUnit 记录该技法最近档位 —— settle 兜底武装(无 stepHint 分支)靠它
+	//   取档,「不选步长直接点 ±」的第一下也命中;
+	// · NO_ARM 技法(随机/取现时/流式/浏览型)由 shouldArmForTab 拦下,零任务。
+	if(!(stepPrefetchArmEnabled() && shouldArmForTab(st.currentTab))){
+		return;
+	}
+	reportStepUnit(st.currentTab, unit);
+	submitStepPrefetch(
+		buildStepPrefetchTasks(st.fields, { unit, dir: 0, depth: stepPrefetchDepth() }, st)
+	);
+});
 
 function hooking(hook, currentTab, fields, chartObj){
 	if(currentTab === 'indiachart' || currentTab === 'locastro'
@@ -925,6 +963,13 @@ export default {
 
 	reducers: {
 		save(state, {payload: values}){
+			// [R3-A2 中央防漏网] __stepHint 是「步进方向提示」瞬态字段,只供 fetchByFields
+			// 消费(其内已剥);个别宿主(紫微/八字/三式 syncFields)把 patch 原样 save ——
+			// 在唯一入口统一剥离,保证它永不落 redux/存档。
+			if(values && values.fields && Object.prototype.hasOwnProperty.call(values.fields, '__stepHint')){
+				const { __stepHint, ...cleanFields } = values.fields;
+				values = { ...values, fields: cleanFields };
+			}
 			let st = { ...state, ...values, };
 			let tab = values.currentTab ? values.currentTab : state.currentTab;
 			let subtab = values.currentSubTab ? values.currentSubTab : state.currentSubTab;
@@ -1358,7 +1403,11 @@ export default {
 
 			let tm = new DateTime();
 			tm.parse(values.birth, 'YYYY-MM-DD HH:mm:ss');
-			tm.setAd(values.ad ? values.ad : 1);
+			// 🔴 ad 权威 = birth 串前导负号(birth 由 format('YYYY-MM-DD') 产出,必然反映 date.value.ad)。
+			// record.ad 可能与 birth 不同步(存量 BC 记录 ad 误存 1 → 旧式 setAd(1) 把 BC 强转成 AD 12026,
+			// 与当前显示恰好相同 → 载入"时间不变/无反应")。故负号带 -1 时优先,别被错误 record.ad 覆盖。
+			const birthIsBc = typeof values.birth === 'string' && values.birth.trim().charAt(0) === '-';
+			tm.setAd(birthIsBc ? -1 : (values.ad ? values.ad : 1));
 			tm.setZone(values.zone);
 
 			setF('cid', values.cid);
@@ -1473,6 +1522,9 @@ export default {
 			param.cid = null;
 			const astroState = yield select((state)=>state.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+			// [A8 生产接线] 交互真尺:改动进入 → compute(响应/提交)→ commit(rAF 渲染近似)。
+			// 取消/失败路径不记(避免把 stale 响应算进延迟分布)。
+			const pm = perfBegin(astroState.currentTab || 'chart', stepHint ? `step:${stepHint.unit}` : 'fields');
 
 			// —— 「点时间→出盘」快车道(2026-07 极速化大修) ——
 			// 病根:此前 fields 的 save 排在 /chart 网络之后 → 纯本地技法(八字/数算/风水…)
@@ -1496,12 +1548,14 @@ export default {
 					type: 'save',
 					payload: { fields: fld },
 				});
+				pm.computed();
 				if(!values.nohook){
 					// 喂旧 chartObj:chartFree 契约=hook 不读它(有静态哨兵守),只用 fields。
 					yield put({
 						type: 'doHook',
 						payload: { chartObj: astroState.chartObj, fields: fld },
 					});
+					pm.committed();
 				}
 			}else if(fastCommitOn && prewarmRequestsEnabled() && activeHook && typeof activeHook.prewarmRequests === 'function'){
 				// fire-and-forget:组件自述的预热函数(silent 请求),失败静默——正式请求照常兜底。
@@ -1519,6 +1573,7 @@ export default {
 				return;
 			}
 			const Result = rsp.Result;
+			if(!fastPath){ pm.computed(); }
 			Result.params.name = fieldValues.name.value;
 			Result.params.pos = fieldValues.pos.value;
 			if(fieldValues.orbs && fieldValues.orbs.value){ Result.params.orbs = fieldValues.orbs.value; }
@@ -1575,11 +1630,12 @@ export default {
 
 			yield put({
                 type: 'doHook',
-                payload: {  
+                payload: {
 					chartObj: Result,
 					fields: fld,
                 },
             });
+			pm.committed();
 
 			// 同快车道分支:优化整块 try,异常静默不碰主流程。
 			try{

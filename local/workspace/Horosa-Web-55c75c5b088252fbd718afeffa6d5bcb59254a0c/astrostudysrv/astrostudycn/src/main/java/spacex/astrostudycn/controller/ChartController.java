@@ -33,7 +33,7 @@ public class ChartController {
 	// 必须与 Horosa_Desktop_Installer/config/release_config.json 的 runtimeVersion 字段保持 lockstep
 	// (preflight [65] 会比对二者一致;升级 runtime 时同步改这里)。_wireRev 只在 PD 接线变更时手动 bump,
 	// 不覆盖"算法升级但接线不变"这一类陈旧场景,故另立运行时版本闸。
-	private static final String RUNTIME_VERSION = "3.5.0-runtime1";
+	private static final String RUNTIME_VERSION = "3.5.1-runtime1";
 
 	// v3.0.1 perf B0:/chart 逐段计时标记(也用作重建 jar 的存在性哨兵)。纯观测——只在 perf 日志打
 	// 各段耗时(Python 底盘 / 八字农历 / 盘装配 / 行星预测 / 推运同步),不改任何计算与返回值,便于在

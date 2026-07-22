@@ -299,7 +299,12 @@ function openDb(){
 async function withStore(storeName, mode, handler){
 	const db = await openDb();
 	if(!db){
-		return handler(null);
+		// 无 IndexedDB(非浏览器 / SSR / jest)→ 内存回退。必须给 handler 传一个可用的 finish,
+		// 否则 handler 内 finish(...) 会抛 "finish is not a function"(此回退此前从未生效)。
+		return new Promise((resolve, reject)=>{
+			const finish = (value, isError = false)=>{ if(isError){ reject(value); } else { resolve(value); } };
+			try { handler(null, finish); } catch(e){ finish(e, true); }
+		});
 	}
 	return new Promise((resolve, reject)=>{
 		const tx = db.transaction(storeName, mode);

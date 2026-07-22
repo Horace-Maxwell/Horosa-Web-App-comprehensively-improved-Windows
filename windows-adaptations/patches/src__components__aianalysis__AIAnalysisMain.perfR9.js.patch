@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index 9db4fd1..5af0ec4 100644
+index 78ba717..228fa6b 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-@@ -163,6 +163,8 @@ import {
- 	encodeModelSelection,
- 	parseModelSelection,
+@@ -165,6 +165,8 @@ import {
+ 	contextCharBudgetForModel,
+ 	effectiveMaxTokensForModel,
  } from '../../utils/aiAnalysisProviders';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const { TextArea, Search } = Input;
  const { Title, Text } = Typography;
-@@ -734,6 +736,38 @@ function renderMarkdownToHtml(text){
+@@ -742,6 +744,38 @@ function renderMarkdownToHtml(text){
  	}
  }
  
@@ -50,7 +50,7 @@ index 9db4fd1..5af0ec4 100644
  const CONTEXT_STATUS_META = {
  	ready: { text: '已就绪', color: 'green' },
  	regenerated: { text: '已按盘重算', color: 'blue' },
-@@ -1407,7 +1441,15 @@ function AIAnalysisMain(props){
+@@ -1415,7 +1449,15 @@ function AIAnalysisMain(props){
  	React.useEffect(()=>{
  		if(props.hook){
  			props.hook.fun = ()=>{
@@ -67,7 +67,7 @@ index 9db4fd1..5af0ec4 100644
  			};
  		}
  	}, [props.hook, loadWorkspace]);
-@@ -4478,7 +4520,7 @@ function AIAnalysisMain(props){
+@@ -4536,7 +4578,7 @@ function AIAnalysisMain(props){
  												) : null}
  												{item.role === 'user'
  													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
@@ -76,7 +76,7 @@ index 9db4fd1..5af0ec4 100644
  												{item.role === 'assistant' && item.errorInfo ? (
  													<Alert
  														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
-@@ -5088,6 +5130,11 @@ function AIAnalysisMain(props){
+@@ -5146,6 +5188,11 @@ function AIAnalysisMain(props){
  				onChange={handleDesktopFolderInputChange}
  			/>
  			<Spin spinning={workspaceLoading}>
@@ -88,8 +88,8 @@ index 9db4fd1..5af0ec4 100644
  				<Tabs
  					className={styles.workspaceTabs}
  					tabPosition="right"
-@@ -5096,19 +5143,29 @@ function AIAnalysisMain(props){
- 					style={{ height }}
+@@ -5154,19 +5201,29 @@ function AIAnalysisMain(props){
+ 					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">
 +						<FreezeSubTab active={innerTab === 'analysis'}>{()=>(

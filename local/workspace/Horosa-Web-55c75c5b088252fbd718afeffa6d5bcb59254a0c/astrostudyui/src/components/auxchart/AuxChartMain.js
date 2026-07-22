@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQTabs as Tabs } from '../xq-ui';
 import QuickDockBar from '../common/QuickDockBar';
 import { randomStr } from '../../utils/helper';
@@ -17,12 +18,20 @@ import { warmGermanyMidpoint } from '../germany/AstroMidpoint';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { FreezeSubTab } from '../comp/FreezeInactive';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const TabPane = Tabs.TabPane;
 const AUX_TABS = ['germanytech', 'hellenastro', 'dwadasamsa', 'locastro', 'relocation', 'harmonic', 'draconic', 'otherbu', 'horary', 'election', 'mundane'];
 
 class AuxChartMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 
 	constructor(props) {
 		super(props);
@@ -108,20 +117,6 @@ class AuxChartMain extends Component{
 		}
 	}
 
-	// horosa_auxchart_scu_v1(PERF-R9 Ship 6):辅盘容器 sCU —— 照 AstroChartMain / BaZi /
-	// GuaZhanMain / DiceMain 既有范式,直接用 wrapperPropsEqual(全 props 机械浅比,键数或任一
-	// 非函数键换引用即返 true;kill-switch horosa.perf.chartSCU 关=恒重渲旧行为)。
-	// 🔴 为什么必须跳过【函数型 props】:pages/index.js 的 changeCond 是组件体内的函数声明,
-	//    AstroIndex 每渲一次就是新引用。若把 onChange 纳入比较,本 sCU 恒返 true = 完全空转
-	//    (这正是初版的实况)。跳过安全的理由见 wrapperPropsEqual 注释:闭包捕获的是数据 props,
-	//    数据一变必触发重渲,重渲时子盘自然拿到新闭包,不存在「用旧闭包派发陈旧 payload」。
-	// state 变化(切子页签 / hook 表)一律先返 true;dock 的 forceUpdate 本就绕过 sCU,不受影响。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true; // 切子页签 / hook 表变动 —— 一律照渲
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	findTab(){
 		const tab = this.state.currentTab ? this.state.currentTab : 'germanytech';

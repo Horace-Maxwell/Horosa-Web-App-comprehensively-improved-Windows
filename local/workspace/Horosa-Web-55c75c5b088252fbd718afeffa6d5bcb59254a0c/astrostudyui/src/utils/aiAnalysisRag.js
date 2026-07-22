@@ -160,7 +160,7 @@ export function buildRetrievedContextText(scoredChunks){
 	].filter(Boolean).join('\n')).join('\n\n').trim();
 }
 
-// 报告功能: 按流派过滤资料（materials 是 store 记录列表 / IDs 列表 不影响，这里按 records 过滤）。
+// 按流派过滤资料（materials 是 store 记录列表 / IDs 列表 不影响，这里按 records 过滤）。
 // 规则：selectedSchools 为空 → 全量；否则：material.schools 含至少一个所选 OR material.schools 为空（视为通用）。
 // audit 4 修:用户可能选了字面值 '不限流派' / '无' / 'unrestricted' 等,要当成空 schools 处理而非真流派过滤。
 const UNRESTRICTED_LITERALS = ['不限流派', '不限', '无', 'unrestricted', 'any', 'all', '通用'];
@@ -177,7 +177,7 @@ export function filterMaterialsBySchools(materials, selectedSchools){
 	});
 }
 
-// 报告功能: 节级关键词加权 keyword scoring
+// 节级关键词加权 keyword scoring
 // 在标准 query + extraKeywords 上做关键词排序，extra 权重 1.8 倍
 export function rankChunksByKeywordWithExtra(query, extraKeywords, chunkEntries){
 	const baseTokens = tokenize(query);

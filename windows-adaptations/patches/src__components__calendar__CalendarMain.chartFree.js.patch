@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/calendar/CalendarMain.js b/astrostudyui/src/components/calendar/CalendarMain.js
-index 8428d19..3e69c7f 100644
+index 304f0bf..112e05e 100644
 --- a/astrostudyui/src/components/calendar/CalendarMain.js
 +++ b/astrostudyui/src/components/calendar/CalendarMain.js
-@@ -1,6 +1,8 @@
- import { Component } from 'react';
+@@ -2,6 +2,8 @@ import { Component } from 'react';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { XQTabs as Tabs } from '../xq-ui';
  import { randomStr } from '../../utils/helper';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
@@ -11,7 +11,7 @@ index 8428d19..3e69c7f 100644
  import NongLiMain from './NongLiMain';
  import HuangLiMain from './HuangLiMain';
  import TongshuMain from './TongshuMain';
-@@ -37,6 +39,10 @@ class CalendarMain extends Component{
+@@ -47,6 +49,10 @@ class CalendarMain extends Component{
  		};
  
  		this.changeTab = this.changeTab.bind(this);
@@ -22,7 +22,7 @@ index 8428d19..3e69c7f 100644
  
  		if(this.props.hook){
  			this.props.hook.fun = (fields)=>{
-@@ -45,12 +51,24 @@ class CalendarMain extends Component{
+@@ -55,12 +61,24 @@ class CalendarMain extends Component{
  					hook[this.state.currentTab].fun(fields);
  				}
  			};
@@ -47,7 +47,7 @@ index 8428d19..3e69c7f 100644
  		this.setState({
  			currentTab: key,
  		}, ()=>{
-@@ -64,7 +82,13 @@ class CalendarMain extends Component{
+@@ -74,7 +92,13 @@ class CalendarMain extends Component{
  						currentSubTab: key,
  					}
  				});
@@ -62,7 +62,7 @@ index 8428d19..3e69c7f 100644
  		});
  	}
  
-@@ -73,52 +97,65 @@ class CalendarMain extends Component{
+@@ -83,52 +107,65 @@ class CalendarMain extends Component{
  		// 填满整页高度（原按 props.height-20 固定像素，比实际页面矮 ~66px 留大片空白）；
  		// 子 main 皆已支持 '100%'（内部转 calc）。配合 CSS 让 tab 内容链 height:100% 逐层撑满。
  		const height = '100%';

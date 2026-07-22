@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/horary/HoraryMain.js b/astrostudyui/src/components/horary/HoraryMain.js
-index 2844f2e..011665e 100644
+index dec4895..c84604b 100644
 --- a/astrostudyui/src/components/horary/HoraryMain.js
 +++ b/astrostudyui/src/components/horary/HoraryMain.js
-@@ -3,6 +3,7 @@ import { XQSelect, XQSideSection } from '../xq-ui';
+@@ -4,6 +4,7 @@ import { XQSelect, XQSideSection } from '../xq-ui';
  import DivinationChartShell from '../divination/DivinationChartShell';
  import HoraryJudgment from './HoraryJudgment';
  import { HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, horaryBackendFields, presetOf, schoolOf } from '../../divination/horary/horarySchools';
@@ -10,7 +10,7 @@ index 2844f2e..011665e 100644
  
  const Option = XQSelect.Option;
  
-@@ -70,6 +71,13 @@ class HoraryMain extends Component{
+@@ -80,6 +81,13 @@ class HoraryMain extends Component{
  	}
  
  	renderRight({ chart, extra, fields }){

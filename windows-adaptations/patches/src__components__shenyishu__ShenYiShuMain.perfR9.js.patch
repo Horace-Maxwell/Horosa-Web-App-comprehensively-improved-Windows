@@ -1,20 +1,17 @@
 diff --git a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-index d92bc80..f071ac8 100644
+index e69398a..c2e5bc6 100644
 --- a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 +++ b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-@@ -13,6 +13,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -16,6 +16,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  const { Option } = Select;
-@@ -45,7 +50,7 @@ function parseFieldsDateTime(fields){
+@@ -48,7 +50,7 @@ function parseFieldsDateTime(fields){
  	};
  }
  
@@ -22,55 +19,29 @@ index d92bc80..f071ac8 100644
 +async function postShenYiShuRaw(path, payload){
  	let rsp = null;
  	try{
- 		const rawResponse = await fetch(buildKentangEndpoint('shenyishu', path), {
-@@ -77,6 +82,23 @@ async function postShenYiShu(path, payload){
+ 		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('shenyishu', path), {
+@@ -80,6 +82,11 @@ async function postShenYiShu(path, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
-+// horosa_kentang_result_cache_v1 —— 神易数 /shenyishu/pan 直连缓存(LRU 48)。
-+// 确定性论证:payload = parseFieldsDateTime(fields)(格式化字串+整数)+ hourSource/manualHour/
-+// seasonSource/manualSeason 四个显式选项;后端 webshenyishusrv.py 全文无 random / 无 datetime.now()
-+// (已 grep 核对)→ 同 payload 必同盘。切 tab/切页回来即命中;关闸逐字回到直连。
++// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
 +function postShenYiShu(path, payload){
-+	const bodyKey = kentangCacheKey(payload);
-+	if(!techniqueResultCacheEnabled() || !bodyKey){
-+		return postShenYiShuRaw(path, payload);
-+	}
-+	return cachedKentangCall(
-+		'shenyishu/pan',
-+		payload,
-+		()=>postShenYiShuRaw(path, payload),
-+		{ key: `${path}|${bodyKey}`, max: 48 }
-+	);
++	return postShenYiShuRaw(path, payload);
 +}
 +
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -151,6 +173,21 @@ class ShenYiShuMain extends Component{
+@@ -163,6 +170,7 @@ class ShenYiShuMain extends Component{
  		}
  	}
  
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -317,6 +354,29 @@ class ShenYiShuMain extends Component{
- 		this.fetchPan(nextFields);
+@@ -365,6 +373,29 @@ class ShenYiShuMain extends Component{
+ 		};
  	}
  
 +	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
@@ -97,9 +68,9 @@ index d92bc80..f071ac8 100644
 +	}
 +
  	async fetchPan(fields){
- 		const dt = parseFieldsDateTime(fields);
- 		if(!dt){
-@@ -336,6 +396,8 @@ class ShenYiShuMain extends Component{
+ 		const payload = this.buildPanPayload(fields);
+ 		if(!payload){
+@@ -378,6 +409,8 @@ class ShenYiShuMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -108,7 +79,7 @@ index d92bc80..f071ac8 100644
  				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -601,25 +663,38 @@ class ShenYiShuMain extends Component{
+@@ -643,25 +676,38 @@ class ShenYiShuMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

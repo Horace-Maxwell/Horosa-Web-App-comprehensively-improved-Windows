@@ -4553,6 +4553,11 @@ try {
       "-Dhorosa.mongo.readTimeoutMS=$mongoReadTimeoutMs",
       '-Dhorosa.trustedRuntime=true',
       '-Dhorosa.desktop.fastPath=true',
+      # v3.5.1 launcher parity (mirrors product start script): lazy cache-factory proxies.
+      # caches.json declares 20 factories (18 Mongo + 2 Redis); eager build puts driver init
+      # inside Spring context.refresh (~490ms upstream-measured). Desktop/local uses almost
+      # none of them, so defer to first real use. Remove this line to restore eager behavior.
+      '-Dhorosa.cache.lazyinit=true',
       # Ownership tag (mirrors service-manager.js horosa-desktop tag): shows up in the process
       # command line, so Test-ProcessOwnedByProject can positively identify THIS launcher's java
       # even when Jar/Dist path markers are defeated by symlinks/UNC remapping.

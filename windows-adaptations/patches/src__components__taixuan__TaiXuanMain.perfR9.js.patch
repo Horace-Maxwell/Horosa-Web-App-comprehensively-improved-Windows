@@ -1,20 +1,17 @@
 diff --git a/astrostudyui/src/components/taixuan/TaiXuanMain.js b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-index f08618f..6f7cb52 100644
+index 4ca7278..5ad6f92 100644
 --- a/astrostudyui/src/components/taixuan/TaiXuanMain.js
 +++ b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-@@ -12,6 +12,11 @@ import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+@@ -14,6 +14,8 @@ import { cachedKentangFetch } from '../../utils/kentangCache';
  import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { parseDateParts } from '../../utils/dateStrSafe';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  
-@@ -45,7 +50,7 @@ function defaultSeed(){
+@@ -47,7 +49,7 @@ function defaultSeed(){
  	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
  }
  
@@ -22,55 +19,29 @@ index f08618f..6f7cb52 100644
 +async function postTaiXuanRaw(path, payload){
  	let rsp = null;
  	try{
- 		const rawResponse = await fetch(buildKentangEndpoint('taixuan', path), {
-@@ -77,6 +82,24 @@ async function postTaiXuan(path, payload){
+ 		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taixuan', path), {
+@@ -79,6 +81,12 @@ async function postTaiXuan(path, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
-+// horosa_kentang_result_cache_v1 —— 太玄 /taixuan/pan 直连缓存(LRU 48)。
-+// 确定性论证:揲筮的随机性**全部**收敛在 payload.seed 里 —— 后端 webtaixuansrv._with_seed 对
-+// random 显式 seed(random.seed(seed) 前后存/复原全局 state),故「同 payload(含 seed) → 同卦」。
-+// 「起筮」按钮走 randomizeSeed() 换新 seed → key 变 → 必重取真新卦(随机语义零损失);
-+// 只有「同一 seed 反复看同一盘」(切页/切 tab 回来)才命中。关闸即逐字回到直连。
++// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(seedInBody:
++// 同 payload[含 seed]→同卦;「起筮」换 seed=换键必重取,随机语义零损失)。
 +function postTaiXuan(path, payload){
-+	const bodyKey = kentangCacheKey(payload);
-+	if(!techniqueResultCacheEnabled() || !bodyKey){
-+		return postTaiXuanRaw(path, payload);
-+	}
-+	return cachedKentangCall(
-+		'taixuan/pan',
-+		payload,
-+		()=>postTaiXuanRaw(path, payload),
-+		{ key: `${path}|${bodyKey}`, max: 48 }
-+	);
++	return postTaiXuanRaw(path, payload);
 +}
 +
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -176,6 +199,21 @@ class TaiXuanMain extends Component{
+@@ -187,6 +195,7 @@ class TaiXuanMain extends Component{
  		}
  	}
  
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -332,6 +370,24 @@ class TaiXuanMain extends Component{
+@@ -345,6 +354,24 @@ class TaiXuanMain extends Component{
  		this.setState({ seed: defaultSeed() });
  	}
  
@@ -95,7 +66,7 @@ index f08618f..6f7cb52 100644
  	async fetchPan(fields){
  		const dt = parseFieldsDateTime(fields);
  		if(!dt){
-@@ -348,6 +404,8 @@ class TaiXuanMain extends Component{
+@@ -361,6 +388,8 @@ class TaiXuanMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -104,7 +75,7 @@ index f08618f..6f7cb52 100644
  				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -563,23 +621,35 @@ class TaiXuanMain extends Component{
+@@ -576,23 +605,35 @@ class TaiXuanMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

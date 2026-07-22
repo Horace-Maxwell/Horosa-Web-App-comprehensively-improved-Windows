@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
@@ -9,12 +10,10 @@ import { XQButton as Button, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -53,26 +52,26 @@ function defaultSeed(){
 async function postTaiXuanRaw(path, payload){
 	let rsp = null;
 	try{
-		const rawResponse = await fetch(buildKentangEndpoint('taixuan', path), {
+		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taixuan', path), {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
 			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'taixuan.local.fetch.failed');
 		}
 	}catch(e){
-		const rawResponse = await fetch(`${ServerRoot}/taixuan/${path}`, {
+		const rawResponse = await cachedKentangFetch(`${ServerRoot}/taixuan/${path}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json; charset=UTF-8',
 			},
 			body: JSON.stringify(payload),
-		});
+		}, { retries: 0 });
 		const rawText = await rawResponse.text();
 		rsp = rawText ? JSON.parse(rawText) : null;
 	}
@@ -82,22 +81,10 @@ async function postTaiXuanRaw(path, payload){
 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
 }
 
-// horosa_kentang_result_cache_v1 —— 太玄 /taixuan/pan 直连缓存(LRU 48)。
-// 确定性论证:揲筮的随机性**全部**收敛在 payload.seed 里 —— 后端 webtaixuansrv._with_seed 对
-// random 显式 seed(random.seed(seed) 前后存/复原全局 state),故「同 payload(含 seed) → 同卦」。
-// 「起筮」按钮走 randomizeSeed() 换新 seed → key 变 → 必重取真新卦(随机语义零损失);
-// 只有「同一 seed 反复看同一盘」(切页/切 tab 回来)才命中。关闸即逐字回到直连。
+// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(seedInBody:
+// 同 payload[含 seed]→同卦;「起筮」换 seed=换键必重取,随机语义零损失)。
 function postTaiXuan(path, payload){
-	const bodyKey = kentangCacheKey(payload);
-	if(!techniqueResultCacheEnabled() || !bodyKey){
-		return postTaiXuanRaw(path, payload);
-	}
-	return cachedKentangCall(
-		'taixuan/pan',
-		payload,
-		()=>postTaiXuanRaw(path, payload),
-		{ key: `${path}|${bodyKey}`, max: 48 }
-	);
+	return postTaiXuanRaw(path, payload);
 }
 
 function fmtValue(value){
@@ -165,6 +152,15 @@ export async function buildTaiXuanSnapshotForFields(fields, opts){
 }
 
 class TaiXuanMain extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		this.state = {
@@ -199,20 +195,6 @@ class TaiXuanMain extends Component{
 		}
 	}
 
-	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
@@ -324,6 +306,8 @@ class TaiXuanMain extends Component{
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
+			// [R3-A2] 步进方向提示:驱动 settle 后 /chart ±步预取(消费后即剥离)
+			...(value.step ? { __stepHint: value.step } : {}),
 		});
 	}
 

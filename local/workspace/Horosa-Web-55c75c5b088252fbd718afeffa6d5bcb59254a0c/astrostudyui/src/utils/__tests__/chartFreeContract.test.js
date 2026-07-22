@@ -22,9 +22,12 @@ describe('🔴 chartFree 契约:声明者源码零 chartObj 消费', () => {
 
 	// 判据须【剥注释】再查 —— 声明处的契约注释本身就写着「chartObj/props.value」字样,
 	// 不剥则哨兵被自己的说明文字触发(首跑即栽,注错还没做就红了)。
+	// horosa_chartfree_strip_crlf_v1(Windows-ahead,可上游化):按 \r?\n 切行 —— JS 的
+	// `.` 不匹配 \r,CRLF 文件上 `/\/\/.*$/` 会整段失配 ⇒ 注释剥不掉 ⇒ 哨兵被自己的
+	// 说明文字触发(checkout autocrlf 环境实测栽过)。LF 文件行为逐字节不变。
 	const stripComments = (src) => src
 		.replace(/\/\*[\s\S]*?\*\//g, '')
-		.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+		.split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, '')).join('\n');
 
 	test.each(entries)('%s:已声明 chartFree 且零 props.value/chartObj 读取', (rel) => {
 		const raw = fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');

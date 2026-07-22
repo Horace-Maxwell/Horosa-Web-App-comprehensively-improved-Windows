@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 896b922..fd639e0 100644
+index 54cd916..90d78df 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -20,6 +20,7 @@ import cherrypy
@@ -72,9 +72,23 @@ index 896b922..fd639e0 100644
  
              _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'))
              _trip_orig = push_request_trip(data.get('triplicity'))
-@@ -641,6 +681,53 @@ def _run_warmups():
-     except Exception:
-         traceback.print_exc()
+@@ -669,7 +709,12 @@ def _run_warmups():
+     elif _par_env == '1':
+         _parallel = True
+     else:
+-        _parallel = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0') != '1'
++        # horosa_trusted_env_shape_v1(Windows-ahead,可上游化):trusted 的取值形态跨启动器
++        # 不统一 —— Tauri/start.sh 传 '1',Electron 壳传 'true'。只判 != '1' 会把 Windows 温启
++        # 误判成 untrusted → 并行档在温启与 Java 抢核(上游实测双输:java +141ms / py 门 +113ms)。
++        # 按 truthy 家族解析,两种启动器语义一致;缺省 '0' 行为不变。
++        _trusted_env = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0').strip().lower()
++        _parallel = _trusted_env not in ('1', 'true', 'yes', 'on')
+     _stages = (_warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
+     if _parallel:
+         _threads = [threading.Thread(target=_fn, name='horosa-warmup-{0}'.format(_i), daemon=True)
+@@ -682,6 +727,53 @@ def _run_warmups():
+         for _fn in _stages:
+             _fn()
      STARTUP_GATE.set()
 +    # horosa_kentang_prewarm_modules_v1:请求路径内惰性 import 的重模块(当前:太乙·博弈论,
 +    # 实测冷导入 528ms / 温 0.001ms)。**刻意放在门之后** —— prewarm_kentang_services() 跑在

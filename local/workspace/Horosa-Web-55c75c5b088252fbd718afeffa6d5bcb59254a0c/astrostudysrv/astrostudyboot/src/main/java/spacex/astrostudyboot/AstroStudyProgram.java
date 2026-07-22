@@ -39,9 +39,18 @@ public class AstroStudyProgram {
 		info.channel = ClientChannel.Server.getCode() + "";
 		HttpHelper.setAppInfo(info);
 		
-		SpringApplicationBuilder builder = new SpringApplicationBuilder(AstroStudyProgram.class).web(WebApplicationType.SERVLET);		
+		SpringApplicationBuilder builder = new SpringApplicationBuilder(AstroStudyProgram.class).web(WebApplicationType.SERVLET);
+		// 启动黑盒切分(测量轮专用,默认关零开销):HOROSA_JAVA_STARTUP_PROFILE=1 时缓冲
+		// 全部 StartupStep,ready 后由 StartupLedgerListener 把最肥步骤写入启动账本。
+		if ("1".equals(System.getenv("HOROSA_JAVA_STARTUP_PROFILE"))) {
+			startupProfiler = new org.springframework.boot.context.metrics.buffering.BufferingApplicationStartup(8192);
+			builder.application().setApplicationStartup(startupProfiler);
+		}
 		builder.run(args);
 	}
+
+	// 测量轮启动分析器句柄(默认 null;StartupLedgerListener 读取后落账)。
+	static volatile org.springframework.boot.context.metrics.buffering.BufferingApplicationStartup startupProfiler = null;
 	
 	private CORSFilter newCORSFilter(){
 		CORSFilter corsFilter = new CORSFilter();

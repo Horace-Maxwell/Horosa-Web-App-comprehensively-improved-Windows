@@ -1,37 +1,25 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index 3a5cfa6..fbe0114 100644
+index 84f48cc..ec1e49e 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
-@@ -14,6 +14,11 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -17,6 +17,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
-+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
-+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -87,10 +92,102 @@ async function postWangJi(path, payload){
+@@ -90,10 +92,93 @@ async function postWangJi(path, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
-+// horosa_kentang_result_cache_v1(PERF-R10 补裸点)—— /wangji/pan 直连缓存(LRU 48)。
-+// 确定性论证:payload = parseFieldsDateTime(fields)(格式化字串+整数)+ historyYear/classicKey
-+// 两个显式选项;webwangjisrv 无 random / 无 datetime.now()(PY-6 轮已核)→ 同 payload 必同盘。
-+// 只包 'pan':classic 正文有模块级 CLASSIC_SECTION_CACHE,xinyi 轻且选项面大,均保持直连。
-+// 没有这一层,步进预取的结果无处可落(真点读不到)= 白取。
++// v3.5.1 收敛:结果级缓存退役 —— postWangJi 内部已走上游 utils/kentangCache
++// (L1/L2/L3 + 在途去重);步进预取结果落上游缓存,真点同键即命中。保留本入口名,
++// 登记的预取器与真点共用同一路径(键构造同源不变)。
 +function postWangJiCached(path, payload){
-+	if(path !== 'pan'){
-+		return postWangJi(path, payload);
-+	}
-+	const bodyKey = kentangCacheKey(payload);
-+	if(!techniqueResultCacheEnabled() || !bodyKey){
-+		return postWangJi(path, payload);
-+	}
-+	return cachedKentangCall('wangji/pan', payload, ()=>postWangJi(path, payload), { key: bodyKey, max: 48 });
++	return postWangJi(path, payload);
 +}
 +
  function fmtValue(value){
@@ -117,7 +105,7 @@ index 3a5cfa6..fbe0114 100644
  // opts(可选)：{ classicSectionIndex } —— 选中典籍章节序号(与右栏「典籍」选择联动);缺省取首章(与 UI 初始态一致)。
  export function buildSnapshotText(pan, xinyi, opts){
  	if(!pan){
-@@ -165,6 +262,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
+@@ -168,6 +253,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
  		if(!pan){
  			return '';
  		}
@@ -126,29 +114,15 @@ index 3a5cfa6..fbe0114 100644
  		let xinyi = null;
  		const xm = o.xinyiMethod && o.xinyiMethod !== 'none' ? o.xinyiMethod : '';
  		if(xm){
-@@ -243,6 +342,21 @@ class HuangJiMain extends Component{
+@@ -255,6 +342,7 @@ class HuangJiMain extends Component{
  		}
  	}
  
-+	// [PERF-R9 Ship 6] 重 wrapper sCU（照 AstroChartMain / BaZi / GuaZhanMain 既有范式）——
-+	// 全 props 机械浅比（函数型视为恒等，详 wrapperPropsEqual；开关 horosa.perf.chartSCU 关=恒重渲旧行为），
-+	// state 换引用照常重渲（setState 恒换引用，故本组件自身任何状态变化一律不受影响）。
-+	// 收益：容器（CnYiBuMain / AuxChartMain）的 dock 每动作补三拍 forceUpdate —— forceUpdate 只跳过
-+	// 自身 sCU，子组件的照跑 —— 此后这三拍不再重建本重组件的整棵 JSX。
-+	// 🔴 正确性：只在【全部 props 逐键相等】时跳过；键数不等 / 任一非函数键换引用即返 true。
-+	//    本组件不依赖【父重渲】来拉模块级可变态：农历远程缓存走 subscribeRemoteNongli → this.forceUpdate()，
-+	//    forceUpdate 本就绕过自身 sCU，故不会因本改动而漏刷。
-+	shouldComponentUpdate(nextProps, nextState){
-+		if(nextState !== this.state){
-+			return true;
-+		}
-+		return !wrapperPropsEqual(this.props, nextProps);
-+	}
 +
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -280,7 +394,14 @@ class HuangJiMain extends Component{
+@@ -292,7 +380,14 @@ class HuangJiMain extends Component{
  		}
  		let text = '';
  		try{
@@ -164,7 +138,7 @@ index 3a5cfa6..fbe0114 100644
  		}catch(e){
  			text = '';
  		}
-@@ -321,6 +442,17 @@ class HuangJiMain extends Component{
+@@ -333,6 +428,17 @@ class HuangJiMain extends Component{
  			const xinyi = this.state.xinyi;
  			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
@@ -182,8 +156,8 @@ index 3a5cfa6..fbe0114 100644
  		});
  		return true;
  	}
-@@ -391,6 +523,24 @@ class HuangJiMain extends Component{
- 		this.fetchPan(nextFields);
+@@ -438,6 +544,24 @@ class HuangJiMain extends Component{
+ 		};
  	}
  
 +	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
@@ -205,25 +179,9 @@ index 3a5cfa6..fbe0114 100644
 +	}
 +
  	async fetchPan(fields){
- 		const dt = parseFieldsDateTime(fields);
- 		if(!dt){
-@@ -399,16 +549,23 @@ class HuangJiMain extends Component{
- 		const reqSeq = ++this.requestSeq;
- 		this.setState({ loading: true });
- 		try{
--			const pan = await postWangJi('pan', {
-+			// horosa_wangji_classics_ondemand_v1:典籍正文与主盘并发取(首次)/走模块缓存(其后);
-+			// 合并完成后才 setState —— state.pan 里的 sections 恒带 content,导出/切章无空窗。
-+			const classicsTask = loadClassicSections(this.state.classicKey).catch(()=>null);
-+			const pan = await postWangJiCached('pan', {
- 				...dt,
- 				historyYear: this.state.historyYear,
- 				classicKey: this.state.classicKey,
- 			});
-+			await classicsTask;
-+			await ensureClassicContent(pan);
- 			const xinyi = await this.fetchXinyi(fields, false);
- 			if(this.unmounted || reqSeq !== this.requestSeq){
+ 		const payload = this.buildPanPayload(fields);
+ 		if(!payload){
+@@ -452,6 +576,8 @@ class HuangJiMain extends Component{
  				return;
  			}
  			this.setState({ pan, xinyi, loading: false }, ()=>{
@@ -232,7 +190,7 @@ index 3a5cfa6..fbe0114 100644
  				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
  			});
-@@ -807,23 +964,38 @@ class HuangJiMain extends Component{
+@@ -850,23 +976,38 @@ class HuangJiMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

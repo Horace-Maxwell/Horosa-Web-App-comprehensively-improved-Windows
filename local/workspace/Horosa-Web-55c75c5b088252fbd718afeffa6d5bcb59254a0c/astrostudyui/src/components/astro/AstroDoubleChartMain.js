@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, Divider, Popover } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import AstroDoubleChart from './AstroDoubleChart';
@@ -8,13 +9,21 @@ import AntisciaInfo from '../relative/AntisciaInfo';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { randomStr, } from '../../utils/helper';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import styles from '../../css/styles.less';
 
 const TabPane = Tabs.TabPane;
 
 class AstroCompare extends Component{
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 
 	constructor(props) {
 		super(props);
@@ -45,14 +54,6 @@ class AstroCompare extends Component{
 		return null;
 	}
 
-	// 与 AstroChartMain 同款 wrapper sCU:全 props 机械浅比(函数型 props 跳过),
-	// state 任一引用变(切子页签)照常重渲。宿主因无关状态重渲时本重组件整树不再白跑。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
 
 	render(){
 		let resobj = this.props.value ? this.props.value : {};

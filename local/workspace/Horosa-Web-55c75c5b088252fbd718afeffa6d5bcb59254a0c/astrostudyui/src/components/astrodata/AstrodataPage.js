@@ -1,4 +1,5 @@
 import React from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { APPEARANCE_DARK } from '../../utils/appearance';
 import { openExternalUrl } from '../../utils/aiAnalysisDesktop';
 
@@ -17,6 +18,15 @@ import { openExternalUrl } from '../../utils/aiAnalysisDesktop';
  * 「星盘列表」,不弹抽屉/不导航;之后任意技法页的「星盘列表」即含该名人,点选即按其出生数据排盘。
  */
 class AstrodataPage extends React.Component {
+	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){
+			return true;
+		}
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
 	constructor(props){
 		super(props);
 		this.iframeRef = React.createRef();
