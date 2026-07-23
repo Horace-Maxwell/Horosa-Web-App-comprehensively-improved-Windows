@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/taiyi/TaiYiMain.js b/astrostudyui/src/components/taiyi/TaiYiMain.js
-index e1e5b16..efdbe77 100644
+index e1e5b16..dc7c72c 100644
 --- a/astrostudyui/src/components/taiyi/TaiYiMain.js
 +++ b/astrostudyui/src/components/taiyi/TaiYiMain.js
 @@ -9,6 +9,8 @@ import DateTime from '../comp/DateTime';
@@ -11,7 +11,15 @@ index e1e5b16..efdbe77 100644
  import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
  import { geoNameFieldPatch } from '../../utils/geoName';
  import { resolveGeoZone } from '../../utils/timezone';
-@@ -53,6 +55,47 @@ function withTimeout(promise, timeoutMs) {
+@@ -32,6 +34,7 @@ import {
+ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+ import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
++import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ 
+ const { Option } = Select;
+@@ -53,6 +56,47 @@ function withTimeout(promise, timeoutMs) {
  	]);
  }
  
@@ -59,7 +67,7 @@ index e1e5b16..efdbe77 100644
  class TaiYiMain extends Component {
  	constructor(props) {
  		super(props);
-@@ -112,6 +155,44 @@ class TaiYiMain extends Component {
+@@ -112,6 +156,44 @@ class TaiYiMain extends Component {
  				}
  				this.requestNongli(fields || this.props.fields);
  			};
@@ -104,7 +112,7 @@ index e1e5b16..efdbe77 100644
  		}
  	}
  
-@@ -427,22 +508,9 @@ class TaiYiMain extends Component {
+@@ -427,22 +509,9 @@ class TaiYiMain extends Component {
  	}
  
  	genParams(fields) {
@@ -130,7 +138,7 @@ index e1e5b16..efdbe77 100644
  	}
  
  	async recalc(fields, nongli, options) {
-@@ -471,6 +539,9 @@ class TaiYiMain extends Component {
+@@ -471,6 +540,9 @@ class TaiYiMain extends Component {
  		const ov = pan ? applyTaiyiSchool(pan, nextOptions.school) : { pan, overrides: null };
  		const displayPan = ov.pan || pan;
  		this.setState({ pan: displayPan, schoolOverrides: ov.overrides, selectedPalace: null, loading: false }, () => {
@@ -140,7 +148,7 @@ index e1e5b16..efdbe77 100644
  			if (displayPan) {
  				saveModuleAISnapshotLazy('taiyi', ()=>buildTaiyiSnapshotText(displayPan));
  			}
-@@ -1284,40 +1355,55 @@ class TaiYiMain extends Component {
+@@ -1284,40 +1356,55 @@ class TaiYiMain extends Component {
  		const activeKey = tabKeys.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-taiyi-tabs">

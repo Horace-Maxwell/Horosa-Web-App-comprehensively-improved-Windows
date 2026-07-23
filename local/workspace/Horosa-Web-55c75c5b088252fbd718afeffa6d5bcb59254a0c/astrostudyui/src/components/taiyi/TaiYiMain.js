@@ -34,6 +34,7 @@ import {
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option } = Select;

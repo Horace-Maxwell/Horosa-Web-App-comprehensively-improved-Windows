@@ -1,7 +1,9 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';

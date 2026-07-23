@@ -61,6 +61,7 @@ FILES = {
     "CLAUDE.md": "repo-root session baseline (paths, red lines, verification entry points; local-only)",
     "desktop_installer_bundle/scripts/run_pytest_embedded.ps1": "one-command astropy pytest on the EMBEDDED interpreter (gotcha #29 recipe as code)",
     "desktop_installer_bundle/scripts/verify_release_live.ps1": "post-release LIVE verification: server digests==local + prerelease/latest + feed probe (SKILL 铁律 12 as code)",
+    "desktop_installer_bundle/scripts/check-symbol-binding.cjs": "issue #51 gate: babel-scope scan — any bare reference to a utils-exported symbol without import/local binding fails the release (half-stripped import ReferenceError class)",
     "desktop_installer_bundle/scripts/perf_acceptance.cjs": "PERF-R9 acceptance harness: drives the REAL packaged Electron shell over CDP and measures owner's criterion (click -> centre+right panels fully painted <= 1s) per technique, reading window.__horosaPerf. CONNECT-ONLY — never starts or kills a process (the owner keeps their own Horosa running; killing it is a red line). Needs HOROSA_PERF_DEBUG_PORT set on the app (electron/main.js:horosa_perf_remote_debug_v1, off by default).",
     # 2026-07-07: local/Horosa_Local_Windows.bat/.ps1 promoted to TRACKED (git-safe) so the public
     # README's "web one-click from source" section can point to them — dropped from this manifest

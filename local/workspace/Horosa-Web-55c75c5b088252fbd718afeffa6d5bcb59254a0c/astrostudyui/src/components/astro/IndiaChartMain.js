@@ -1,5 +1,8 @@
 import { Component, memo } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { stepPrefetchEnabled } from '../../utils/perfFlags';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { markPanelReady } from '../../utils/perfMark';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { createPortal } from 'react-dom';
 import moment from 'moment';
