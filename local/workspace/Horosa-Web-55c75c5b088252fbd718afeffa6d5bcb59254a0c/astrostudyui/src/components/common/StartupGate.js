@@ -21,10 +21,45 @@ function currentProbeUrl() {
 //  · 分阶段文案(10s / 30s / 60s 不同提示信息);
 //  · Tauri 环境下加「打开诊断中心」「重启后端」操作按钮;
 //  · 长时间未就绪时显示后端地址,便于用户检查。
+// horosa_startupgate_desktop_elapsed_v1(Windows 桌面壳增强;Mac/网页零影响):
+// 温启窗口(工作区已可见→后端就绪,约 0.6s→4s)此前无任何数字反馈(6s 阈值温启到不了)。
+// 桌面壳的 getBootstrapConfig 带 runtimeStartedAtMs(壳层启动锚,覆盖 pre-nav 段)与
+// expectedTotalMs(startup-history 最近 10 次 trusted 中位)→ 本组件 t=0 起显示一行小字
+// 「已用时 x.x 秒 ・ 以往约 y.y 秒」。无 window.horosaDesktop(Mac/网页)= 死分支,渲染逐字节不变。
+function readDesktopStartupCfg() {
+  try {
+    if (typeof window === 'undefined' || !window.horosaDesktop || typeof window.horosaDesktop.getBootstrapConfig !== 'function') {
+      return null;
+    }
+    const cfg = window.horosaDesktop.getBootstrapConfig();
+    if (!cfg || cfg.startupUx === false) { return null; }
+    return {
+      anchorMs: Number(cfg.runtimeStartedAtMs) || null,
+      expectedMs: Number(cfg.expectedTotalMs) || null,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 export default function StartupGate() {
   const [ready, setReady] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0); // 秒
   const startRef = React.useRef(Date.now());
+  const desktopCfgRef = React.useRef(readDesktopStartupCfg());
+  const [desktopElapsedMs, setDesktopElapsedMs] = React.useState(() => (
+    desktopCfgRef.current && desktopCfgRef.current.anchorMs
+      ? Math.max(0, Date.now() - desktopCfgRef.current.anchorMs)
+      : 0
+  ));
+
+  React.useEffect(() => {
+    // horosa_startupgate_desktop_elapsed_v1:仅桌面壳建 100ms 子表(0.1s 粒度);Mac 不进入。
+    if (!desktopCfgRef.current) { return undefined; }
+    const anchor = desktopCfgRef.current.anchorMs || startRef.current;
+    const sub = setInterval(() => { setDesktopElapsedMs(Date.now() - anchor); }, 100);
+    return () => clearInterval(sub);
+  }, []);
 
   React.useEffect(() => {
     if (!currentProbeUrl() || typeof fetch !== 'function') { setReady(true); return undefined; }
@@ -150,6 +185,12 @@ export default function StartupGate() {
         <div style={{ fontSize: 12.5, color: 'var(--horosa-text-soft, #888)', lineHeight: 1.6 }}>
           {mainMsg}
         </div>
+        {desktopCfgRef.current ? (
+          <div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #888)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+            已用时 {(desktopElapsedMs / 1000).toFixed(1)} 秒
+            {desktopCfgRef.current.expectedMs ? ` ・ 以往约 ${(desktopCfgRef.current.expectedMs / 1000).toFixed(1)} 秒` : ''}
+          </div>
+        ) : null}
         {extraMsg ? (
           <div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #888)', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'var(--horosa-bg-soft, #f6f6f9)', borderRadius: 6 }}>
             {extraMsg}

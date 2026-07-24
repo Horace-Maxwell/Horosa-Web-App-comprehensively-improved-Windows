@@ -76,6 +76,16 @@
 上游 kentangCache 三层+在途去重(卜类/数算切换)、选步长触发线上游化(±depth 引擎不变)、
 预热分档并行(冷启)、LazyCacheFactory(Java 就绪)。
 
+## 启动预算三元组(与 scripts/startup_ab.cjs 的 DEFAULT_BUDGETS 字面锁步;门双向核对)
+
+- warmReadyBudgetMs: 4500        # 温启 runtime-ready 中位预算(startup-history totalMs 口径)
+- workspaceVisibleBudgetMs: 1500 # 工作区可见预算(台架口径=壳日志首行→renderer load completed;
+                                 # 回归判别线:实测 ON 1121-1140 vs OFF >4200,能抓 early-nav 失效
+                                 # 而不对机器态哭狼;打包件 CDP 口径 637ms 是另一把尺,见温启节)
+- firstBootBudgetMs: 60000       # 首启预算(--cold headless:spawn → 全量物化+就绪)
+- 台架: `scripts/startup_ab.cjs`(R11-T5a 入库;隔离双臂/双口径/#64 机器态指纹随样本入档,
+  产物写 docs/perf-artifacts/)。判定仍归人:超预算先按 #64 做同机同态对照,再谈回归。
+
 ## 温启节(2026-07-22 v3.5.1 隔离 A/B,每臂 8 次有效样本 + 首发提取弃样)
 
 - **工作区可见:early-nav ON 中位 637 / p95 655ms;OFF 中位 4223 / p95 4415ms**
@@ -84,6 +94,23 @@
   +122ms 收敛);totalMs 3905 vs 3847(+58ms 噪音级)。评估结论=early-nav 默认开维持。
 - 温启 runtime-ready 中位 ≈3.9s(睿频压制机器态;上游预热分档在 trusted 温启走串行原序,
   horosa_trusted_env_shape_v1 值形守卫生效)。
+
+### R11 追记(2026-07-23,PERF-R11 启动宗师轮;台架=scripts/startup_ab.cjs,7 有效样本/臂)
+
+- **CDS 阶梯激活是本轮温启主杠杆**:阶梯失活态(修复前全机常态)runtime-ready 中位
+  **6204-7812ms**;一会话内阶梯建成(uber 337MB→chained static .jsa,ladder_sim 实录见
+  docs/perf-artifacts/INDEX)后,**中位 4096 / p95 4189ms**(A 臂;B 臂 4145/4551,A=B
+  同环境,delta 1.2%=台架复现性)——**-33%,预算 4500 内 PASS**,机器态=睿频压制
+  2611==基频 + MuMu 常驻(#64 保守值)。分相:spawnToPortsMs ~3635(static CDS 已装载),
+  payloadMs 58 / prepToSpawn 228 / portsToHeartbeat 78。
+- 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
+  CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
+  workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+- 冷物化并发 A/B 与桶账(startup_ab --cold,3/臂,headless+packed 载荷,Defender=suspect 态):
+  **conc 12 中位 30148 / p95 31145ms;conc 24 = 30845/32105(+2.3% 更慢)→ 默认 12 维持**
+  (busyMs 206→430s 翻倍 = AV 扫描队列竞争,墙钟零收益;<15% 改善线)。桶账首采:
+  py-sitepkgs 12,607 文件 = busyMs 74%(仅 29% 字节)= 文件数税实锤;se1 busyMs 3.3s ⇒
+  request-blocking 分级维持不做(决策线全文在 PERF_INVENTORY JV-19)。firstBoot 预算 60s 内 PASS。
 
 ## 人工矩阵节(FreezeSubTab 切回原样;12 代表文件)
 

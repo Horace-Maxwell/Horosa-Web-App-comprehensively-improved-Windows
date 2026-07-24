@@ -694,4 +694,14 @@ echo "== 35. PERF-R10 Ship4 后端 Java 双项(comm 缓存 -D 豁免 / chart 家
 apply_patch cachehelper.needcache                astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/CacheHelper.java   astrostudy__CacheHelper.needcacheSysprop.java.patch
 apply_patch astrohelper.skip.inner.cached.paths  astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java   astrostudy__AstroHelper.skipInnerCache.java.patch
 
+echo "== 36. PERF-R11 StartupGate 桌面壳温启用时行(Electron-only;Mac/网页死分支零影响)=="
+# horosa_startupgate_desktop_elapsed_v1:温启窗口(工作区可见→后端就绪 ~0.6s→4s)此前无数字反馈
+# (组件 6s 阈值温启到不了)。桌面壳 getBootstrapConfig(startupUx/runtimeStartedAtMs/expectedTotalMs)
+# → 卡片 t=0 起「已用时 x.x 秒 ・ 以往约 y.y 秒」,锚到壳层起点覆盖 pre-nav 段。
+# kill:HOROSA_LOADING_UX=0(壳侧置 startupUx:false,行自动退场)。
+# 上游化建议:组件分支可原样上 Mac(无 window.horosaDesktop = 死分支,渲染逐字节不变)。
+apply_patch horosa_startupgate_desktop_elapsed_v1  astrostudyui/src/components/common/StartupGate.js  astrostudyui__StartupGate.desktopElapsed.js.patch
+mkdir -p "$WS/astrostudyui/src/components/common/__tests__"
+cp "$OV/files/astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js" "$WS/astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js" && ok "startupGateDesktopElapsed.test.js"
+
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="

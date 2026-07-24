@@ -39,6 +39,8 @@ FILES = {
     "desktop_installer_bundle/electron/update-signature.js": "Ed25519 update-signature verify",
     "desktop_installer_bundle/electron/update-progress-preload.js": "download-progress window preload",
     "desktop_installer_bundle/electron/service-manager.test.js": "node:test suite for the runtime manager",
+    "desktop_installer_bundle/electron/defender-exclusion.test.js": "PERF-R11 T2: node:test suite for the Defender-exclusion state classifier (suspect/verified/failed table incl. the 2026-07-23 real-world marker)",
+    "desktop_installer_bundle/scripts/startup_ab.cjs": "PERF-R11 T5a horosa_startup_ab_v1: committed startup acceptance harness (isolated dual-arm, dual-caliber warm/cold, #64 machine fingerprint per sample, budget triplet lockstepped with PERF_BASELINE via check_perf_baseline_evidence)",
     "desktop_installer_bundle/electron/update-flow.test.js": "node:test suite for the update flow",
     "desktop_installer_bundle/electron/update-signature.test.js": "node:test suite for signature verify",
     "desktop_installer_bundle/scripts/release_selfcheck.py": "release gate: sentinels, hashes, feed, signature, THIS manifest",
