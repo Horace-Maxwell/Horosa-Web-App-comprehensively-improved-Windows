@@ -1,14 +1,33 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeJsonParseFromStorage } from '../../utils/safeStorage';
-import { Row, Col, message, } from 'antd';
+import { Row, Col, message, Spin } from 'antd';
+import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 import { XQTabs as Tabs } from '../xq-ui';
 import DateTime from '../comp/DateTime';
 import AstroPrimaryDirection from '../astro/AstroPrimaryDirection';
 import AstroPrimaryDirectionChart from '../astro/AstroPrimaryDirectionChart';
-import AstroPDSphere from '../astro3d/AstroPDSphere';
+// horosa_pdsphere_lazy_v1(issue #59:进入星运页卡死/长时间「载入中」)。
+// 病灶:星运页**静态** import 主限天球 → 链上 PDSphereEngine → `three` + OrbitControls,
+// 于是模块求值期就把 3D 引擎(产物侧 vendors-gl ≈ 860KB + 引擎 ~100KB)拖进星运页的加载
+// 关键路径 —— 而本页默认停在「主限法」表格页,27 个子页签里只有这一个用 3D。用户从不打开
+// 天球也要付全额解析成本,慢机上足以让主线程长时间不响应(Windows 弹「程序无响应」)。
+// 修法照抄本仓既有 3D 惯用法(pages/index.js:「babylon 系重组件不入主包…自带 Suspense+
+// 错误边界」)——改 React.lazy:天球页签**被打开时**才拉引擎;不打开=零成本。
+// 另在挂载后空闲期预热一次(requestIdleCallback),用户真去点时通常已就绪。
+// 上游同源(Mac 亦静态导入),建议同步上游;此前为 Windows-ahead。
+const AstroPDSphereLazy = React.lazy(() => import('../astro3d/AstroPDSphere'));
+function AstroPDSphere(props){
+	return (
+		<TechniqueErrorBoundary>
+			<React.Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}><Spin size="large" tip="主限天球加载中…" /></div>}>
+				<AstroPDSphereLazy {...props} />
+			</React.Suspense>
+		</TechniqueErrorBoundary>
+	);
+}
 import AstroZR from '../astro/AstroZR';
 import AstroFirdaria from '../astro/AstroFirdaria';
 import AstroDistributions from '../astro/AstroDistributions';
@@ -675,6 +694,16 @@ function getDesiredPdConfigPure(chartObj, fields, override = {}){
 		pdConverse,
 		pdAntiscia: toFlag(pick('pdAntiscia')),
 		pdTerms: toFlag(pick('pdTerms')),
+		// P0 解耦补齐维:投影/定局/框架/平行×2/自定义率/S·P 清单/界系(默认=引擎缺省)。
+		pdProjection: pick('pdProjection') || 'ptolemy',
+		pdFrame: pick('pdFrame') || 'alcabitius',
+		pdFramework: pick('pdFramework') || 'aspect',
+		pdParallel: toFlag(pick('pdParallel')),
+		pdRaptParallel: toFlag(pick('pdRaptParallel')),
+		pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
+		pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
+		pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
+		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v === 1 || v === 2) ? v : 0; })(),
 	};
 }
 
@@ -736,6 +765,15 @@ function buildPrimaryDirectionRequestPure(chartObj, fields, override = {}){
 		pdConverse: desired.pdConverse,
 		pdAntiscia: desired.pdAntiscia,
 		pdTerms: desired.pdTerms,
+		pdProjection: desired.pdProjection,
+		pdFrame: desired.pdFrame,
+		pdFramework: desired.pdFramework,
+		pdParallel: desired.pdParallel,
+		pdRaptParallel: desired.pdRaptParallel,
+		...(desired.pdTimeKeyCustom ? { pdTimeKeyCustom: desired.pdTimeKeyCustom } : {}),
+		...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
+		...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
+		termsVariant: desired.termsVariant,
 		pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 		name: nextFields.name ? nextFields.name.value : null,
 		pos: nextFields.pos ? nextFields.pos.value : null,
@@ -1239,6 +1277,16 @@ class AstroDirectMain extends Component{
 		this.syncCurrentSubTab();
 		this.ensurePrimaryDirectionReady();
 		this.saveDirectionSnapshot();
+		// horosa_pdsphere_lazy_v1:天球引擎改懒加载后,在**空闲期**预热一次 —— 首屏(主限法表)
+		// 不再等 3D,而用户真去点「主限天球」时通常已就绪。失败无害(点开时正常走 Suspense)。
+		try{
+			const warmSphere = ()=>{ import('../astro3d/AstroPDSphere').catch(()=>{}); };
+			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
+				window.requestIdleCallback(warmSphere, { timeout: 8000 });
+			}else{
+				setTimeout(warmSphere, 3000);
+			}
+		}catch(e){ /* 预热失败无害 */ }
 		// 底部空白根治:静态 props.height-20 比实际工作区矮(链上全满仅本模块 inline 高偏矮)→ Tabs/表格
 		// 皆按偏矮值设死高度,页底留空白(用户实告 主限法 页底空条)。改测根容器真高驱动各页签高度。
 		this.measureRootHeight();
