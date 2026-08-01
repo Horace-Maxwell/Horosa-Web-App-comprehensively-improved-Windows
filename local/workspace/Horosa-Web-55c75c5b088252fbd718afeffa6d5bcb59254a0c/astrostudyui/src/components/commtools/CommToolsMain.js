@@ -12,6 +12,10 @@ import GuaSymDesc from '../gua/GuaSymDesc';
 import CuanGong12 from './CuanGong12';
 import BaziPithy from './BaziPithy';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
+// issue #59 后续:本文件第 93 行用 <FreezeSubTab> 却无 import 绑定 —— v3.6.0 手工复叠时漏掉,
+// 打开「小工具」抽屉即 ReferenceError(与 issue #51 同一病理)。符号绑定门此前只扫 utils/ 导出,
+// 组件级导出是它的盲区,本轮已把门扩到组件层。
+import { FreezeSubTab } from '../comp/FreezeInactive';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
 
 const TabPane = Tabs.TabPane;

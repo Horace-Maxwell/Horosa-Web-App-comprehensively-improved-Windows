@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/CommToolsMain.js b/astrostudyui/src/components/commtools/CommToolsMain.js
-index 2926191..c90ad2b 100644
+index 2926191..37c4098 100644
 --- a/astrostudyui/src/components/commtools/CommToolsMain.js
 +++ b/astrostudyui/src/components/commtools/CommToolsMain.js
 @@ -1,7 +1,6 @@
@@ -10,7 +10,15 @@ index 2926191..c90ad2b 100644
  import Azimuth from './Azimuth';
  import CoordTrans from './CoordTrans';
  import Calculator from './Calculator';
-@@ -17,6 +16,17 @@ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorag
+@@ -13,10 +12,25 @@ import GuaSymDesc from '../gua/GuaSymDesc';
+ import CuanGong12 from './CuanGong12';
+ import BaziPithy from './BaziPithy';
+ import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
++// issue #59 后续:本文件第 93 行用 <FreezeSubTab> 却无 import 绑定 —— v3.6.0 手工复叠时漏掉,
++// 打开「小工具」抽屉即 ReferenceError(与 issue #51 同一病理)。符号绑定门此前只扫 utils/ 导出,
++// 组件级导出是它的盲区,本轮已把门扩到组件层。
++import { FreezeSubTab } from '../comp/FreezeInactive';
+ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
  
  const TabPane = Tabs.TabPane;
  
@@ -28,7 +36,7 @@ index 2926191..c90ad2b 100644
  class CommToolsMain extends Component{
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -31,7 +41,7 @@ class CommToolsMain extends Component{
+@@ -31,7 +45,7 @@ class CommToolsMain extends Component{
  		super(props);
  
  		let tab = safeLocalStorageGet('commtoolstab');
@@ -37,7 +45,7 @@ index 2926191..c90ad2b 100644
  			tab = 'naying';
  		}
  
-@@ -49,6 +59,13 @@ class CommToolsMain extends Component{
+@@ -49,6 +63,13 @@ class CommToolsMain extends Component{
  		});
  	}
  
@@ -51,7 +59,7 @@ index 2926191..c90ad2b 100644
  	render(){
  		let height = document.documentElement.clientHeight;
  		height = height - 80;
-@@ -62,56 +79,68 @@ class CommToolsMain extends Component{
+@@ -62,56 +83,68 @@ class CommToolsMain extends Component{
  		const lonV = (fields && fields.lon) ? fields.lon.value : undefined;
  		const timeV = (fields && fields.date) ? fields.date.value : undefined;
  
