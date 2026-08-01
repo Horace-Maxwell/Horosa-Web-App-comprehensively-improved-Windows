@@ -183,6 +183,11 @@ class ZiWeiChart extends Component{
 				appearance: (typeof document !== 'undefined' && document.documentElement) ? document.documentElement.getAttribute('data-horosa-appearance') : '', // 主题指纹：切明暗必重绘(盘底烘焙色随之更新)
 				kinastroBorrowed: this.zwchart.kinastroBorrowed,
 				onCenterInfoClick: this.props.onCenterInfoClick,
+				// 🔴 显示层版本必须进签名:杂曜/十二神开关走 localStorage(ZiWeiHelper.zwShowOthers/zwShowSmall),
+				//    draw 每次都读它,但它不是 props —— 签名里没有它,守卫就判「输入未变」而跳过整树重建,
+				//    于是 localStorage 明明写了 0、盘上杂曜纹丝不动。签名口径是「draw 实际消费的全部输入」,
+				//    localStorage 也是输入,只是没走 props 而已(2026-07-31 运行时死开关审计实证)。
+				zwDisplayRev: this.props.zwDisplayRev || 0,
 				w: svgdom ? svgdom.clientWidth : 0,
 				h: svgdom ? svgdom.clientHeight : 0,
 			};
@@ -197,6 +202,7 @@ class ZiWeiChart extends Component{
 				&& last.appearance === sig.appearance
 				&& last.kinastroBorrowed === sig.kinastroBorrowed
 				&& last.onCenterInfoClick === sig.onCenterInfoClick
+				&& last.zwDisplayRev === sig.zwDisplayRev
 				&& last.w === sig.w
 				&& last.h === sig.h){
 				return; // 输入未变,跳过整树重建

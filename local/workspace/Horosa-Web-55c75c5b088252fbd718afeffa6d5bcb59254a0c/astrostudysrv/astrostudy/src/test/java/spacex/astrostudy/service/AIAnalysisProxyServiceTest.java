@@ -2,6 +2,7 @@ package spacex.astrostudy.service;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -224,6 +225,42 @@ public class AIAnalysisProxyServiceTest {
 		assertFalse(AIAnalysisProxyService.isOpenAIReasoningModel("gpt-4o"));
 		assertFalse(AIAnalysisProxyService.isOpenAIReasoningModel("deepseek-reasoner"));
 		assertFalse(AIAnalysisProxyService.isOpenAIReasoningModel(null));
+	}
+
+	// 🔴 #54 生产形态回归钉：前端把输出预算写进 **providerOptions.max_tokens**（不是顶层 maxTokens），
+	// 此前该形态经 putAll 原样上线 → gpt-5.5/5.6 恒 400 unsupported_parameter。
+	// 既有两例喂的都是顶层 maxTokens（生产从不这么发）＝盲区，故补本例。
+	@Test
+	public void buildOpenAIChatBodyNormalizesProviderOptionsMaxTokensForNewGeneration() {
+		List<Map<String, Object>> messages = AIAnalysisProxyService.getMessageList(Arrays.asList(
+			buildMap("role", "user", "content", "hi")
+		));
+		Map<String, Object> params = buildMap("providerOptions", buildMap("max_tokens", 4096));
+
+		for(String model : new String[]{"gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra", "o3-pro", "openrouter/openai/gpt-6"}) {
+			Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody(model, params, messages, false);
+			assertFalse(model + " 不应再出现 max_tokens", body.containsKey("max_tokens"));
+			assertEquals(model + " 应改键为 max_completion_tokens",
+				Integer.valueOf(4096), body.get("max_completion_tokens"));
+		}
+
+		// 老代 OpenAI 与非 OpenAI 推理模型：仍用 max_tokens（反向保护，勿误伤）
+		for(String model : new String[]{"gpt-4.1", "deepseek-reasoner", "qwen-max"}) {
+			Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody(model, params, messages, false);
+			assertEquals(model + " 应保持 max_tokens", Integer.valueOf(4096), body.get("max_tokens"));
+			assertFalse(model + " 不应出现 max_completion_tokens", body.containsKey("max_completion_tokens"));
+		}
+	}
+
+	// 上游只说「max_tokens 不支持」而不点名替代键时，自愈层也应改键（网关文案差异兜底）。
+	@Test
+	public void healUpstreamRequestBodyRenamesMaxTokensWhenReplacementNotNamed() {
+		String req = "{\"model\":\"gpt-5.6-sol\",\"max_tokens\":2048}";
+		String err = "{\"error\":{\"message\":\"Unsupported parameter: 'max_tokens'\",\"code\":\"unsupported_parameter\"}}";
+		String healed = AIAnalysisProxyService.healUpstreamRequestBody(400, err, req);
+		assertNotNull("应产出自愈请求体", healed);
+		assertTrue(healed.contains("max_completion_tokens"));
+		assertFalse(healed.contains("\"max_tokens\""));
 	}
 
 	@Test

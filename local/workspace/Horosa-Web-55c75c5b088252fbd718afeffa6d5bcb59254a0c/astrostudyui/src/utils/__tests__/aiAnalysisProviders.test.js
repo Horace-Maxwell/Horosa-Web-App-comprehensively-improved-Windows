@@ -6,6 +6,8 @@ import {
 	getProviderProtocolFamily,
 	isOpenAiFamily,
 	isReasoningModel,
+	isOpenAIReasoningModel,
+	maxTokensKeyForModel,
 	splitProviderModels,
 	applyThinkingLevel,
 	effectiveMaxTokensForModel,
@@ -142,5 +144,47 @@ describe('[E2] applyThinkingLevel custom 数值档', () => {
 		const o = applyThinkingLevel({}, 'high', 'anthropic', 'claude-sonnet-5', 32000);
 		expect(o.thinking.budget_tokens).toBe(16000);
 		expect(applyThinkingLevel({}, 'off', 'anthropic', 'x', 32000)).toEqual({});
+	});
+});
+
+// 🔴 #54 输出预算键单一真值源：前后端两套判据曾各自「正确」却对不上通道，
+// 前端按协议家族选键把裸 max_tokens 塞进 providerOptions → gpt-5.x 恒 400。
+describe('[#54] maxTokensKeyForModel 代际单源', ()=>{
+	test('OpenAI 新代（gpt-5/6/7 与 o 系）→ max_completion_tokens', ()=>{
+		['gpt-5.5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-6', 'gpt-7-mini', 'o1', 'o3-pro', 'o4-mini'].forEach((m)=>{
+			expect(isOpenAIReasoningModel(m)).toBe(true);
+			expect(maxTokensKeyForModel('openai', m)).toBe('max_completion_tokens');
+		});
+		// openrouter 之类的 vendor 前缀须剥后再判
+		expect(maxTokensKeyForModel('openai', 'openrouter/openai/gpt-6')).toBe('max_completion_tokens');
+	});
+
+	test('老代 OpenAI 与非 OpenAI 推理模型 → 仍 max_tokens（勿误伤）', ()=>{
+		['gpt-4.1', 'gpt-4o', 'deepseek-reasoner', 'deepseek-v4-pro', 'qwen-max', 'kimi-k3'].forEach((m)=>{
+			expect(isOpenAIReasoningModel(m)).toBe(false);
+			expect(maxTokensKeyForModel('openai', m)).toBe('max_tokens');
+		});
+	});
+
+	test('其余协议家族键名不受模型代际影响', ()=>{
+		expect(maxTokensKeyForModel('anthropic', 'gpt-5.5')).toBe('max_tokens');
+		expect(maxTokensKeyForModel('gemini', 'gpt-5.5')).toBe('maxOutputTokens');
+		expect(maxTokensKeyForModel('ollama', 'gpt-5.5')).toBe('num_predict');
+	});
+
+	test('接线锁：聊天链（与报告链，若本仓有）都必须走本单源，不许再手写键名分支', ()=>{
+		const fs = require('fs');
+		const path = require('path');
+		const SRC = path.resolve(__dirname, '..', '..');
+		const strip = (s)=>s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+		// 报告链属可选模块，并非每个构建都包含——存在才验，缺失不算红。
+		const rpPath = path.join(SRC, 'utils/reportPipeline.js');
+		if(fs.existsSync(rpPath)){
+			expect(strip(fs.readFileSync(rpPath, 'utf8')).includes('maxTokensKeyForModel(protoFamily, model)')).toBe(true);
+		}
+		const am = strip(fs.readFileSync(path.join(SRC, 'components/aianalysis/AIAnalysisMain.js'), 'utf8'));
+		expect(am.includes('maxTokensKeyForModel(protoFamily, model)')).toBe(true);
+		// 手写键名分支必须绝迹（曾按协议家族四分支写死 → 新代 OpenAI 恒 400）
+		expect(/protoFamily === 'anthropic'\s*\)\s*\{\s*chatProviderOptions\.max_tokens/.test(am)).toBe(false);
 	});
 });

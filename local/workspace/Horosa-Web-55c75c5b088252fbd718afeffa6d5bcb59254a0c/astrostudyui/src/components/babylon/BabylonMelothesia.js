@@ -77,7 +77,7 @@ class BabylonMelothesia extends Component{
 					</div>
 					<div className="horosa-babylon-card">
 						<div className="horosa-babylon-card-title">全表(宫 → 部位)</div>
-						<table className="horosa-babylon-table">
+						<div className="horosa-babylon-scroll-x"><table className="horosa-babylon-table">
 							<thead><tr><th>宫</th><th>部位</th><th>楔文</th></tr></thead>
 							<tbody>
 								{BABYLON_SIGNS.map((s) => (
@@ -86,7 +86,7 @@ class BabylonMelothesia extends Component{
 									</tr>
 								))}
 							</tbody>
-						</table>
+						</table></div>
 					</div>
 				</div>
 			</div>

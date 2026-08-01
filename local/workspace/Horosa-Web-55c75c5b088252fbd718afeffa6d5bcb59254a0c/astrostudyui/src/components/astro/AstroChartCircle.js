@@ -1833,7 +1833,10 @@ export default class AstroChartCircle {
 					strip.append('path')
 						.attr('d', arcd)
 						.attr('stroke', 'none')
-						.attr('fill', AstroConst.AstroColor[term[0]] || AstroConst.AstroColor.Stroke)
+						// 🔴 必经取色守卫:单色主题(古老/煜熠/咖啡/银河/伽蓝)把五界主星全设成同一个
+						// Stroke 灰,直接取本体色会让 12 座×5 界铺成一整圈同色 → 看着像给盘加了圈阴影
+						// (用户实测)。守卫在本体色不可分辨时退星座色(单色主题下星座色仍有区分)。
+						.attr('fill', this.resolveTermHighlightColor(sig, term[0], null))
 						.attr('fill-opacity', 0.55);
 				}
 			}

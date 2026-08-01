@@ -183,9 +183,13 @@ export const gridStyle = {
 
 // rowStyle(row, idx)→style 与 rowRef(node, row, idx) 均为可选；不传时行为与旧版逐字一致。
 // 供「当前时刻高亮 + 锚点行定位」等场景按行注入样式/捕获 DOM 节点（如波斯向运应期长表）。
-export function SmallTable({columns, rows, rowKey, rowStyle, rowRef}){
-	return (
-		<table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
+// scrollX（可选）：宽表专用——外包横滚容器且表**不写 width:100%**。
+// 🔴 为什么必须两件一起做:原生 table 的 width:100% 在 auto layout 下压不到 min-content 以下,
+// 列一多就撑破容器,再撞上右栏的 overflow-x:hidden 就被直接裁字(埃及旬名录实测「Chenlacho…」
+// 被切、「旬位」列被压成逐字竖排)。缺省不传=旧行为逐字节不变(全站 41+ 处窄表靠 100% 撑满)。
+export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX}){
+	const table = (
+		<table style={scrollX ? {borderCollapse: 'collapse', fontSize: 12, whiteSpace: 'nowrap'} : {width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
 			<thead>
 				<tr>
 					{columns.map((col)=>(
@@ -210,4 +214,5 @@ export function SmallTable({columns, rows, rowKey, rowStyle, rowRef}){
 			</tbody>
 		</table>
 	);
+	return scrollX ? <div style={{overflowX: 'auto', maxWidth: '100%'}}>{table}</div> : table;
 }

@@ -151,7 +151,7 @@ class AstroContentPanel extends Component{
 					</TabPane>
 					<TabPane tab="古典" key="4">
 						<FreezeSubTab active={activeTab === '4'}>{()=>(
-							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
+							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
 								<AstroInfo mode="classical" height={tabHeight}
 									value={chartObj} fields={fields}
 									planetDisplay={this.props.planetDisplay}
@@ -892,7 +892,8 @@ class AstroChartMain extends Component{
 					<XQButton size="small" iconName="sidePlanets">显示星体</XQButton>
 				</Popover>
 				<Popover {...popoverProps} content={zodiacContent}>
-					<XQButton size="small" iconName="sideHouses">宫位制与黄道</XQButton>
+					{/* 按钮面窄(辅盘左栏更窄),六字必被挤掉尾字;弹层标题仍用全称「宫位制与黄道」 */}
+					<XQButton size="small" iconName="sideHouses">宫位与黄道</XQButton>
 				</Popover>
 				<Popover {...popoverProps} content={displayContent}>
 					<XQButton size="small" iconName="sideStyle">显示与样式</XQButton>

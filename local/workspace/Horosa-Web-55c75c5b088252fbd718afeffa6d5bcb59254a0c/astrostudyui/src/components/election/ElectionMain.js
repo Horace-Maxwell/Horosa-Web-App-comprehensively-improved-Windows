@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { shortOptionLabel } from '../../utils/shortOptionLabel';
 import { Modal } from 'antd';
 import { XQSelect, XQButton, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
@@ -273,17 +274,19 @@ class ElectionMain extends Component{
 						return (
 							<div key={spec.key} style={{ minWidth: 0 }}>
 								<div className="horosa-field-label" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={spec.hint || spec.label}>{spec.label}</div>
-								<XQSelect style={{ width: '100%' }} size="small" value={cur}
+								{/* 收起态只显示剥括号短名(「随流派（Dorotheus 三主（含共主））」在半宽格里要溢出 149px),
+								    展开面板与 hover title 仍给完整口径 —— 括号里正是「当前流派绑定的实际值」,不能丢,只是不该占着窄栏。 */}
+								<XQSelect style={{ width: '100%' }} size="small" value={cur} optionLabelProp="label"
 									dropdownMatchSelectWidth={false}
-									title={spec.hint || ''}
+									title={[spec.hint || '', cur === '' ? `随流派 → ${followLabel}` : ''].filter(Boolean).join(' · ')}
 									onChange={(val) => {
 										const next = { ...(extra.electionParams || {}) };
 										if(val === '' || val === undefined || val === null){ delete next[spec.key]; }
 										else { next[spec.key] = val; }
 										setExtra({ electionParams: next });
 									}}>
-									<Option value="">随流派（{followLabel}）</Option>
-									{spec.options.map((o) => (<Option key={String(o.value)} value={o.value}>{o.label}</Option>))}
+									<Option value="" label="随流派">随流派（{followLabel}）</Option>
+									{spec.options.map((o) => (<Option key={String(o.value)} value={o.value} label={shortOptionLabel(o.label)}>{o.label}</Option>))}
 								</XQSelect>
 							</div>
 						);

@@ -77,7 +77,8 @@ class ElectionReference extends Component{
 	render(){
 		return (
 			<>
-				<XQButton size="small" style={{ width: '100%', marginTop: 8 }} iconName="book" onClick={() => this.setState({ open: true })}>表格速查（界·面·行星时·28宿·恒星·凶日）</XQButton>
+				{/* 标签只留四字:括号内长串在左栏宽度下必被截断,内容清单已在弹层标题与各页签里 */}
+				<XQButton size="small" style={{ width: '100%', marginTop: 8 }} iconName="book" title="界·面·行星时·28宿·恒星·凶日" onClick={() => this.setState({ open: true })}>表格速查</XQButton>
 				<Modal open={this.state.open} onCancel={() => this.setState({ open: false })} footer={null} width={760} title="择日表格速查">
 					<XQTabs defaultActiveKey="thema" className="horosa-inspector-tabs">
 						<TabPane tab="世界盘" key="thema">

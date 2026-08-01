@@ -83,7 +83,7 @@ describe('spec.scope 三作用域划分与双 store 覆盖一致性', () => {
 		});
 	});
 
-	test('scope=global 且属判读域的键：默认值与 divinationJudgeGlobals 默认逐键一致（双仓不漂移）', () => {
+	test('scope=global 且属判读域的键：默认值与 divinationJudgeGlobals 默认逐键一致（两表不漂移）', () => {
 		Object.keys(DIVINATION_JUDGE_DEFAULTS).forEach((k) => {
 			const spec = HORARY_PARAM_BY_KEY[k];
 			expect(spec).toBeTruthy();

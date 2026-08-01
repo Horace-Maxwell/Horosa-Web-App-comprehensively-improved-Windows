@@ -1057,7 +1057,7 @@ class AstroInfo extends Component{
 		let astyle = {
 			height: (height-130) + 'px',
 			overflowY:'auto', 
-			overflowX:'hidden',
+			overflowX:'auto',
 		};
 
 		const displayMode = resolveAstroDisplayMode(perchart, fields);

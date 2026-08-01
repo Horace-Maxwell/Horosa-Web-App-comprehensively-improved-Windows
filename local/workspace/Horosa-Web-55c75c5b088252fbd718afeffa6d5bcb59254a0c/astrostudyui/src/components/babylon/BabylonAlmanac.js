@@ -61,7 +61,7 @@ class BabylonAlmanac extends Component{
 					{this.props.schemePanel}
 					<div className="horosa-babylon-card">
 						<div className="horosa-babylon-card-title">目标年周期表</div>
-						<table className="horosa-babylon-table">
+						<div className="horosa-babylon-scroll-x"><table className="horosa-babylon-table">
 							<thead><tr><th>天体</th><th>周期(年)</th><th>±1 日精度</th><th>备注</th></tr></thead>
 							<tbody>
 								{GOAL_YEAR.map((g) => (
@@ -73,7 +73,7 @@ class BabylonAlmanac extends Component{
 									</tr>
 								))}
 							</tbody>
-						</table>
+						</table></div>
 					</div>
 					{bab ? (
 						<div className="horosa-babylon-card">

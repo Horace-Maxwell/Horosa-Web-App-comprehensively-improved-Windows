@@ -59,14 +59,14 @@ class BabylonEae extends Component{
 					{this.props.schemePanel}
 					<div className="horosa-babylon-card">
 						<div className="horosa-babylon-card-title">大预兆系列 · 四神分段</div>
-						<table className="horosa-babylon-table">
+						<div className="horosa-babylon-scroll-x"><table className="horosa-babylon-table">
 							<thead><tr><th>段</th><th>泥板</th><th>内容</th></tr></thead>
 							<tbody>
 								{EAE.segments.map((s, i) => (
 									<tr key={i}><td>{s.god}</td><td className="num">{s.tablets}</td><td>{s.content}{s.caveat ? <span style={{ opacity: 0.6 }}>(⚠ {s.caveat})</span> : null}</td></tr>
 								))}
 							</tbody>
-						</table>
+						</table></div>
 						<div className="horosa-babylon-caveat">{EAE.scale}</div>
 					</div>
 					<div className="horosa-babylon-card">

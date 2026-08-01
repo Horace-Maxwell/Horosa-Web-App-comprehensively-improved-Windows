@@ -1303,6 +1303,13 @@ class ZiWeiMain extends Component{
 				}
 			};
 			window.addEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
+			// 纯显示层开关(杂曜/十二神)不进请求体,重新请求必被 requestDedupe 挡住;
+			// 只递增一枚版本号并透传给 ZiWeiChart —— 唯一能让盘面真正重绘的通道。
+			this._zwDisplayListener = () => {
+				if(this.unmounted){ return; }
+				this.setState((s) => ({ zwDisplayRev: (s.zwDisplayRev || 0) + 1 }));
+			};
+			window.addEventListener(ZiWeiHelper.ZIWEI_DISPLAY_EVENT, this._zwDisplayListener);
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
 		if(this.props.fields){
@@ -1317,6 +1324,9 @@ class ZiWeiMain extends Component{
 		}
 		if(typeof window !== 'undefined' && this._lateZiHourListener){
 			window.removeEventListener('horosa:late-zi-hour-mode-changed', this._lateZiHourListener);
+		}
+		if(typeof window !== 'undefined' && this._zwDisplayListener){
+			window.removeEventListener(ZiWeiHelper.ZIWEI_DISPLAY_EVENT, this._zwDisplayListener);
 		}
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -1460,6 +1470,7 @@ class ZiWeiMain extends Component{
 								<ZiWeiChart
 									value={chart}
 									height="100%"
+									zwDisplayRev={this.state.zwDisplayRev || 0}
 									fields={this.props.fields}
 									dirIndex={luckRender.dirIndex}
 									luckMingIndex={effMingIndex}

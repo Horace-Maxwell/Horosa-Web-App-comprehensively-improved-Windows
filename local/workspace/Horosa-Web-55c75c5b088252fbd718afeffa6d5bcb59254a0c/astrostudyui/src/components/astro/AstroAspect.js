@@ -367,7 +367,7 @@ class AstroAspect extends Component{
 		let style = {
 			height: (height-130) + 'px',
 			overflowY:'auto',
-			overflowX:'hidden',
+			overflowX:'auto',
 		};
 
 		return (

@@ -1,8 +1,8 @@
-// 全技法 lazy 目标可载入 smoke —— marker 投影悬空锁第三道(2026-07-31 辅盘实案)。
-// 病灶:marker 块内 import 绑定名在块外被引用,strip 后 public 成未定义自由变量,
+// 全技法 lazy 目标可载入 smoke —— 条件编译块投影悬空锁第三道(2026-07-31 辅盘实案)。
+// 病灶:条件块内 import 的绑定名在块外被引用,该块被剔除后就成了未定义自由变量,
 // 模块顶层 ReferenceError;首爆被预载 catch 吞、二次点击伪装成「Lazy chunk resolved
-// empty」。本测试逐个 require pages/index.js 里全部 lazyPreloadable 目标,任何
-// 「顶层炸/无默认导出」在 jest(双仓)即红——public 仓 sync 后必然当场抓住。
+// empty」。本测试逐个 require pages/index.js 里全部 lazyPreloadable 目标,
+// 任何「顶层炸/无默认导出」当场即红。
 import fs from 'fs';
 import path from 'path';
 

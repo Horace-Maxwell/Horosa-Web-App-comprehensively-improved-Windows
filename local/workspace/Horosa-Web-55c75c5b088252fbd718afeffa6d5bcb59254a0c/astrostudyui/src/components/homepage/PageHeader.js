@@ -650,7 +650,9 @@ function PageHeader(props){
 						</Dropdown>
 					</div>
 				</div>
-				<Tooltip title="打开导航">
+				{/* 🔴 标题栏内的 Tooltip 一律 placement="bottom":antd 默认 top,而标题栏紧贴窗口顶边,
+				    向上弹必然整个溢出窗外 —— 用户只看得见一个朝下的小箭头,内容全在窗口外(2026-08-01 实测)。 */}
+				<Tooltip title="打开导航" placement="bottom">
 					<button className={styles.astroCurrentModule} type="button" onClick={()=>openDrawer('homepage')}>
 						<XQIcon name="sideSwitch" />
 						<span>{currentPageLabel}</span>
@@ -671,17 +673,21 @@ function PageHeader(props){
 					    放在主题钮【左侧】—— 主题钮紧贴分隔线位置恒定,配色钮只在其左侧长出/隐去,
 					    切换昼夜时主题钮不移位(用户诉求:主题钮固定不动)。 */}
 					{(props.resolvedAppearance || props.appearanceMode) !== 'dark' ? (
-						<Tooltip title={`亮色配色：${getLightFlavorLabel(lightFlavor)}。点击切换 古典宣纸 / 经典白色。`}>
+						<Tooltip title={`亮色配色：${getLightFlavorLabel(lightFlavor)}。点击切换 古典宣纸 / 经典白色。`} placement="bottom">
 							<XQIconButton className={styles.astroRoundButton} size="small" iconName="sideStyle" onClick={cycleLightFlavor} />
 						</Tooltip>
 					) : null}
-					<Tooltip title={`主题：${appearanceLabel}。点击切换昼夜模式。`}>
+					<Tooltip title={`主题：${appearanceLabel}。点击切换昼夜模式。`} placement="bottom">
 						<XQIconButton className={styles.astroRoundButton} size="small" iconName="theme" onClick={cycleAppearanceMode} />
 					</Tooltip>
 					<div className={styles.astroHeaderDivider} />
+					{/* 🔴 placement 必须显式 bottomRight:本触发器是标题栏最右一枚,antd 默认 bottomLeft
+					    会从触发器左边缘向右展开 → 菜单越过窗口右界被裁,「管理命盘」只剩「管理」。
+					    同排其余 Dropdown 都显式给了 placement,唯独这枚漏了(2026-08-01 实测)。 */}
 					<Dropdown menu={{
 							items: menu,
 							onClick: props.onMenuClick}}
+							placement="bottomRight"
 					>
 						<span className={`${styles.account} ${styles.astroAccount}`}>
 							{avatarcomp}

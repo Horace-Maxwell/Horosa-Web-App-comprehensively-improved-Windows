@@ -10,11 +10,12 @@
 //   chorographyDataset 分野 classical(四象限框架) / classical_medieval / modern(综合学术参考)
 //   showOuterPlanets  是否显外行星;showOuterCycles 外行星周期;showBarbault Barbault 指数
 
+// short = 左栏成对(半宽)下拉的**收起态**显示名;label 仍是展开列表与他处的全称,二者不可互换。
 export const MUNDANE_RULESETS = [
-	{ key: 'ptolemaic', label: '托勒密古典', note: '七曜+北交+恒星(无外行星);季度递归入境;moiety 容许度;古典四象限分野。' },
-	{ key: 'medieval', label: '中世纪(Lilly)', note: '七曜+阿拉伯点·尊贵重;季度递归;moiety 容许度;古典+中世纪分野。' },
-	{ key: 'modern', label: '现代(Carter–Campion)', note: '含 ♅♆♇(可选交点/Lilith);全年入境;按相位容许度;综合分野(学术参考)。' },
-	{ key: 'barbault', label: 'Barbault 周期', note: '五慢星为主;Barbault 行星周期指数;外行星会合周期。' },
+	{ key: 'ptolemaic', label: '托勒密古典', short: '托勒密', note: '七曜+北交+恒星(无外行星);季度递归入境;moiety 容许度;古典四象限分野。' },
+	{ key: 'medieval', label: '中世纪(Lilly)', short: '中世纪', note: '七曜+阿拉伯点·尊贵重;季度递归;moiety 容许度;古典+中世纪分野。' },
+	{ key: 'modern', label: '现代(Carter–Campion)', short: '现代', note: '含 ♅♆♇(可选交点/Lilith);全年入境;按相位容许度;综合分野(学术参考)。' },
+	{ key: 'barbault', label: 'Barbault 周期', short: 'Barbault', note: '五慢星为主;Barbault 行星周期指数;外行星会合周期。' },
 ];
 
 export const MUNDANE_RULESET_DEFAULT = 'modern';

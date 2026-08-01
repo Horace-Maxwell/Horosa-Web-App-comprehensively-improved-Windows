@@ -147,52 +147,68 @@ export default function StartupGate() {
     extraMsg = '若超过 30 秒仍未就绪,可点「重试」或下方「重启后端」。';
   }
 
+  // 🔴 视觉与壳启动页(Horosa_Desktop_Installer/web)同款:品牌墨绿 + 暗色 hero + 星点。
+  // 缘由:壳的 early_nav 在后端就绪【之前】就把 webview 导航到前端(温启提速的关键),
+  // 于是那张美观启动页只闪 ~0.5s,余下十秒全由本组件顶着——本组件若长得完全两样,
+  // 用户看到的就是「启动画面没了」(真机实告)。此处对齐配色与结构,让跳转前后视觉连续;
+  // early_nav 本身不动(关掉会把启动拉回 10 秒)。
+  const BRAND = '#0f6e56';
   const overlay = {
     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 4000,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: 'var(--horosa-bg, #0b0d10)', color: 'var(--horosa-text, inherit)',
+    background: 'linear-gradient(145deg, #0e1414 0%, #101717 100%)',
+    color: '#fff',
   };
   const card = {
-    textAlign: 'center', padding: '28px 36px', borderRadius: 14, maxWidth: 460,
-    background: 'var(--horosa-surface, rgba(255,255,255,0.94))',
-    border: '1px solid var(--horosa-border, rgba(0,0,0,0.1))',
-    boxShadow: 'var(--horosa-small-shadow, 0 8px 24px rgba(0,0,0,0.12))',
+    position: 'relative', textAlign: 'center', padding: '34px 42px 30px', borderRadius: 18, maxWidth: 460,
+    background: 'radial-gradient(circle at 80% 28%, rgba(255,255,255,0.08), transparent 28%), linear-gradient(145deg, #121a19 0%, #0f1615 100%)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    boxShadow: '0 18px 48px rgba(0,0,0,0.45)',
+    overflow: 'hidden',
+  };
+  // 星点层(壳 .brand-card::after 同款)
+  const starfield = {
+    position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.7,
+    background: 'radial-gradient(circle at 20% 24%, rgba(255,255,255,0.62) 0 1px, transparent 1.5px), radial-gradient(circle at 74% 21%, rgba(255,255,255,0.42) 0 1px, transparent 1.5px), radial-gradient(circle at 88% 68%, rgba(255,255,255,0.34) 0 1px, transparent 1.5px)',
   };
   const spinner = {
-    margin: '0 auto 14px', width: 30, height: 30, borderRadius: '50%',
-    border: '3px solid var(--horosa-border, rgba(0,0,0,0.15))',
-    borderTopColor: 'var(--horosa-accent, #9a6a25)', animation: 'horosaStartupSpin 0.8s linear infinite',
+    margin: '0 auto 16px', width: 34, height: 34, borderRadius: '50%',
+    border: '3px solid rgba(255,255,255,0.14)',
+    borderTopColor: BRAND, animation: 'horosaStartupSpin 0.8s linear infinite',
   };
   const btnPrimary = {
     fontSize: 13, padding: '5px 18px', borderRadius: 8, cursor: 'pointer',
-    border: '1px solid var(--horosa-accent, #9a6a25)',
-    background: 'var(--horosa-accent-soft, rgba(154,106,37,0.12))',
-    color: 'var(--horosa-accent-strong, #7a541c)',
+    border: `1px solid ${BRAND}`,
+    background: 'rgba(15,110,86,0.18)',
+    color: '#8fe3c9',
   };
   const btnSecondary = {
     fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-    border: '1px solid var(--horosa-border, rgba(0,0,0,0.15))',
+    border: '1px solid rgba(255,255,255,0.16)',
     background: 'transparent',
-    color: 'var(--horosa-text-soft, #666)',
+    color: 'rgba(255,255,255,0.62)',
     marginLeft: 8,
   };
 
   return (
     <div style={overlay} aria-live="polite" role="status">
       <div style={card}>
+        <div style={starfield} />
+        <div style={{ position: 'relative' }}>
+        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 6, marginBottom: 14, color: '#f3f7f5' }}>星阙</div>
         <div style={spinner} />
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>正在连接本地服务…</div>
-        <div style={{ fontSize: 12.5, color: 'var(--horosa-text-soft, #888)', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: '#eef4f2' }}>正在连接本地服务…</div>
+        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
           {mainMsg}
         </div>
         {desktopCfgRef.current ? (
-          <div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #888)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
             已用时 {(desktopElapsedMs / 1000).toFixed(1)} 秒
             {desktopCfgRef.current.expectedMs ? ` ・ 以往约 ${(desktopCfgRef.current.expectedMs / 1000).toFixed(1)} 秒` : ''}
           </div>
         ) : null}
         {extraMsg ? (
-          <div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #888)', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'var(--horosa-bg-soft, #f6f6f9)', borderRadius: 6 }}>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
             {extraMsg}
           </div>
         ) : null}
@@ -208,10 +224,11 @@ export default function StartupGate() {
           </div>
         ) : null}
         {elapsed >= 30 && currentProbeUrl() ? (
-          <div style={{ marginTop: 12, fontSize: 11, color: 'var(--horosa-text-soft, #999)', wordBreak: 'break-all' }}>
+          <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(255,255,255,0.45)', wordBreak: 'break-all' }}>
             后端地址: {currentProbeUrl()}
           </div>
         ) : null}
+        </div>
         <style>{'@keyframes horosaStartupSpin{to{transform:rotate(360deg)}}'}</style>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { markPanelReady } from '../../utils/perfMark';
 import { Input, Checkbox, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
 import PlusMinusTime from '../astro/PlusMinusTime';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { shortOptionLabel } from '../../utils/shortOptionLabel';
 import { XQSelect, XQSideSection, XQSegmented, XQButton } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DivinationChartShell from '../divination/DivinationChartShell';
@@ -307,10 +308,12 @@ class HoraryMain extends Component{
 					{selects.map((p) => (
 						<div key={p.key} className="horosa-field-block" style={{ marginBottom: 0 }}>
 							<div className="horosa-field-label" style={{ fontSize: 12 }}>{p.label}{changedMark(p)}</div>
+							{/* 半宽下拉:收起态显示剥括号短名(否则「启发式（现…」看不出选了什么),
+							    展开面板仍是完整 label——面板按内容宽,不受选框宽度约束。 */}
 							<XQSelect size="small" style={{ width: '100%' }} value={effective[p.key]}
-								dropdownMatchSelectWidth={false}
+								dropdownMatchSelectWidth={false} optionLabelProp="label"
 								onChange={(val)=>setParam(p, val)}>
-								{(p.options || []).map((o)=>(<Option key={String(o.value)} value={o.value}>{o.label}</Option>))}
+								{(p.options || []).map((o)=>(<Option key={String(o.value)} value={o.value} label={shortOptionLabel(o.label)}>{o.label}</Option>))}
 							</XQSelect>
 						</div>
 					))}
@@ -323,10 +326,12 @@ class HoraryMain extends Component{
 						const parentOff = isSignChangeChild && !effective.refranationAsDestruction;
 						const outerDead = p.key === 'includeOuter' && !outerAvailable;
 						const disabled = parentOff || outerDead;
-						const hint = parentOff ? '（须先开「撤回作独立破坏」）' : (outerDead ? '（需三王星入盘:流派预设切「现代心理」）' : '');
+						// 停用原因走 title(hover)而非行内文本:窄栏下这串补充必被 ellipsis 截掉,
+						// 且「左栏不放大段解释」是定则——置灰本身已表达不可用,原因 hover 可得。
+						const hint = parentOff ? '须先开「撤回作独立破坏」' : (outerDead ? '需三王星入盘:流派预设切「现代心理」' : '');
 						return (
-							<Checkbox key={p.key} className={chipCls(p.label)} disabled={disabled} checked={!!effective[p.key]} onChange={(e)=>setParam(p, !!(e && e.target && e.target.checked))}>
-								{p.label}{changedMark(p)}{hint ? <span style={{ opacity: 0.55, fontSize: 11 }}>{hint}</span> : null}
+							<Checkbox key={p.key} className={chipCls(p.label)} disabled={disabled} title={hint || undefined} checked={!!effective[p.key]} onChange={(e)=>setParam(p, !!(e && e.target && e.target.checked))}>
+								{p.label}{changedMark(p)}
 							</Checkbox>
 						);
 					})}

@@ -432,14 +432,31 @@ export const SHENSHA_GROUP_TAGS = {
 
 // 按分组开关过滤神煞名（groups={ji,xiong,yue,ri}，缺省/全开=原数组引用直返=零开销零回归）。
 // 语义：名字的标签集与「开着的组」有交集即显示；关组只隐藏「其全部标签都被关」的名字。
+// 🔴 两个维度独立判定,不能一把 some 了事(2026-07-31 运行时死开关审计实证)。
+//   四个分组其实是**两个正交维度**:性质(吉神/凶煞) 与 来源(月令系/日柱系)。
+//   旧实现对全部标签做 tags.some(开),等于把两个维度并成一个「或」,后果是两头都失效:
+//   ① 全表 49 条里没有任何一条是「仅月令系」或「仅日柱系」——yue/ri 恒与 ji/xiong 并存,
+//      于是只要吉神或凶煞还开着,关掉月令系/日柱系**在任何盘、任何数据下都移除不了任何东西**,
+//      这两个开关结构性恒真(实测点了盘面零变化)。
+//   ② 反过来,关掉「吉神」时那 8 条 ji+yue 会被 yue「救活」而不消失,与用户预期相反。
+//   正解:维度内取或(该维度任一所属组开着即通过),维度间取与(两个维度都要通过);
+//   某维度无标签则该维度不设限。默认全开时提前返回,与改动前逐字节相同(零回归)。
+const SHENSHA_NATURE_GROUPS = ['ji', 'xiong'];
+const SHENSHA_SOURCE_GROUPS = ['yue', 'ri'];
+
 export function filterShenShaByGroups(names, groups){
 	if(!Array.isArray(names) || !names.length || !groups){ return names; }
 	const off = ['ji', 'xiong', 'yue', 'ri'].filter((k) => groups[k] === false);
 	if(!off.length){ return names; }
+	const dimOk = (tags, dim) => {
+		const own = tags.filter((t) => dim.indexOf(t) >= 0);
+		if(!own.length){ return true; }              // 该维度无标签 → 不设限
+		return own.some((t) => groups[t] !== false); // 维度内:任一所属组开着即通过
+	};
 	return names.filter((n) => {
 		const tags = SHENSHA_GROUP_TAGS[n];
-		if(!tags){ return true; }
-		return tags.some((t) => groups[t] !== false);
+		if(!tags){ return true; }                     // 未入表者恒显(既有口径,不在本次改动范围)
+		return dimOk(tags, SHENSHA_NATURE_GROUPS) && dimOk(tags, SHENSHA_SOURCE_GROUPS);
 	});
 }
 

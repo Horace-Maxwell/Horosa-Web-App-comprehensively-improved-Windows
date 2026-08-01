@@ -17,6 +17,7 @@ import calc, {
 import { Gua64 } from '../gua/GuaConst';   // 复用 六爻/统摄法 的纳甲六亲世应
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { parseDateParts, parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 
 // 纳甲天干（内卦/外卦）：仅乾坤内外异，余卦内外同
 const NAJIA_GAN = { 乾: ['甲', '壬'], 坤: ['乙', '癸'], 震: ['庚', '庚'], 巽: ['辛', '辛'], 坎: ['戊', '戊'], 離: ['己', '己'], 艮: ['丙', '丙'], 兌: ['丁', '丁'] };
@@ -221,7 +222,10 @@ class HeLuoMain extends Component {
 		if (!fourPillars.year || !fourPillars.month || !fourPillars.day || !fourPillars.hour) return cache(null);
 		const monthZhi = fourPillars.month.charAt(1);
 		const hourZhi = fourPillars.hour.charAt(1);
-		const birthYear = parseYearFromDateStr(dateStr) || 0;
+		// 🔴 河洛是干支/易数体系:流年/纪年/五寄中宫的「年」一律是**干支年**,不是出生公历年。
+		// 立春前出生者两者差一年(公历已跨、干支未跨),直接用公历年会让流年整体错一位
+		// (2026-01-31→年柱乙巳,旧算给丙午)。以已算好的年柱反推,天然覆盖立春交节时刻前后。
+		const birthYear = ganzhiYearBase(parseYearFromDateStr(dateStr) || 0, fourPillars.year);
 		const gender = bazi.gender === 'Female' ? '女' : '男';
 		let chart;
 		try { chart = calc({ fourPillars, gender, hourZhi, birthYear, monthZhi, opts: this.props.opts || {} }); } catch (e) { return cache(null); }
@@ -421,7 +425,8 @@ class HeLuoMain extends Component {
 							return [
 								<tr key={y.age} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} onClick={() => this.setState({ openYao: open ? '' : `ln:${lkey}` })}>
 									<td>{y.age}</td>
-									<td>{y.ganzhi}{lichun ? <div style={{ fontSize: '11px', opacity: 0.55, fontWeight: 'normal' }}>立春 {lichun}</div> : null}</td>
+									{/* 干支＝干支年;并列公历年便于对年份(该干支年自当年立春起算,故非整公历年) */}
+									<td>{y.ganzhi}{y.year ? <div style={{ fontSize: '11px', opacity: 0.55, fontWeight: 'normal' }}>{y.year}年{lichun ? ` · 立春 ${lichun}` : ''}</div> : null}</td>
 									<td>{y.gua}</td>
 									<td>{yaoName(y.lines, y.pos)}</td>
 									<td className="horosa-heluo-tagcell">{this.liShuCell(y.lines, m.jg, m.chart)}</td>

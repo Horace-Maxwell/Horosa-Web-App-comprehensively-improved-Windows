@@ -756,31 +756,46 @@ class MundaneMain extends Component{
 		return (
 			<XQSideSection iconName="sliders" title="世俗盘设置" storageKey="mundane.opts" className="horosa-side-input-section">
 			<div className="horosa-field-block horosa-mundane-left">
-				<div className="horosa-field-label">世运规则集</div>
-				<XQSelect style={{ width: '100%' }} size="small" value={ruleset}
-					onChange={(v) => setExtra({ mundaneRuleset: v })}>
-					{MUNDANE_RULESETS.map((r) => (<Option key={r.key} value={r.key}>{r.label}</Option>))}
-				</XQSelect>
-				<div className="horosa-field-label" style={{ marginTop: 10 }}>判读容许度</div>
-				<XQSelect style={{ width: '100%' }} size="small" value={(extra.mundaneOrbScheme) || 'auto'}
-					onChange={(v) => setExtra({ mundaneOrbScheme: v })}>
-					<Option value="auto">随流派（默认）</Option>
-					<Option value="moiety">古典半距和（受冲收紧 ≤2°）</Option>
-					<Option value="by_aspect">按相位（现代 ≤3°）</Option>
-				</XQSelect>
-				<div className="horosa-field-label" style={{ marginTop: 10 }}>入境主管制</div>
-				<XQSelect style={{ width: '100%' }} size="small" value={(extra.mundaneIngressRule) || 'auto'}
-					onChange={(v) => setExtra({ mundaneIngressRule: v })}>
-					<Option value="auto">随流派（默认）</Option>
-					<Option value="quarterly">季度制（按四轴模式递归）</Option>
-					<Option value="aries_annual">全年制（白羊盘主全年）</Option>
-					<Option value="capricorn_year">摩羯优先（冬至为年首）</Option>
-				</XQSelect>
-				<div className="horosa-field-label" style={{ marginTop: 10 }}>世俗盘类型</div>
-				<XQSelect style={{ width: '100%' }} size="small" value={type}
-					onChange={(v) => setExtra({ mundaneType: v })}>
-					{MUNDANE_TYPES.map((t) => (<Option key={t.key} value={t.key}>{t.label}</Option>))}
-				</XQSelect>
+				{/* 四个下拉走 .horosa-field-grid 两两成对(用户 2026-07-31 指定,节省左栏纵向空间)。
+				   收起态半宽会 ellipsis 长选项文本,但 XQSelect 组件层已全局 dropdownMatchSelectWidth={false}
+				   ——展开面板按内容全宽,选值时看得全,故不影响可用性。 */}
+				<div className="horosa-field-grid">
+					<div className="horosa-field-block">
+						<div className="horosa-field-label">世运规则集</div>
+						<XQSelect style={{ width: '100%' }} size="small" value={ruleset} optionLabelProp="label"
+							onChange={(v) => setExtra({ mundaneRuleset: v })}>
+							{MUNDANE_RULESETS.map((r) => (<Option key={r.key} value={r.key} label={r.short || r.label}>{r.label}</Option>))}
+						</XQSelect>
+					</div>
+					<div className="horosa-field-block">
+						<div className="horosa-field-label">判读容许度</div>
+						<XQSelect style={{ width: '100%' }} size="small" value={(extra.mundaneOrbScheme) || 'auto'} optionLabelProp="label"
+							onChange={(v) => setExtra({ mundaneOrbScheme: v })}>
+							<Option value="auto" label="随流派">随流派（默认）</Option>
+							<Option value="moiety" label="古典半距和">古典半距和（受冲收紧 ≤2°）</Option>
+							<Option value="by_aspect" label="按相位">按相位（现代 ≤3°）</Option>
+						</XQSelect>
+					</div>
+				</div>
+				<div className="horosa-field-grid">
+					<div className="horosa-field-block">
+						<div className="horosa-field-label">入境主管制</div>
+						<XQSelect style={{ width: '100%' }} size="small" value={(extra.mundaneIngressRule) || 'auto'} optionLabelProp="label"
+							onChange={(v) => setExtra({ mundaneIngressRule: v })}>
+							<Option value="auto" label="随流派">随流派（默认）</Option>
+							<Option value="quarterly" label="季度制">季度制（按四轴模式递归）</Option>
+							<Option value="aries_annual" label="全年制">全年制（白羊盘主全年）</Option>
+							<Option value="capricorn_year" label="摩羯优先">摩羯优先（冬至为年首）</Option>
+						</XQSelect>
+					</div>
+					<div className="horosa-field-block">
+						<div className="horosa-field-label">世俗盘类型</div>
+						<XQSelect style={{ width: '100%' }} size="small" value={type}
+							onChange={(v) => setExtra({ mundaneType: v })}>
+							{MUNDANE_TYPES.map((t) => (<Option key={t.key} value={t.key}>{t.label}</Option>))}
+						</XQSelect>
+					</div>
+				</div>
 				<div className="horosa-mundane-controls">
 					{type === 'ingress' ? this.renderIngressLeft(extra, setExtra, fields, setTime) : null}
 					{(type === 'newmoon' || type === 'fullmoon' || type === 'solecl' || type === 'lunecl') ? this.renderScanLeft(type, extra, setExtra, fields, setTime) : null}

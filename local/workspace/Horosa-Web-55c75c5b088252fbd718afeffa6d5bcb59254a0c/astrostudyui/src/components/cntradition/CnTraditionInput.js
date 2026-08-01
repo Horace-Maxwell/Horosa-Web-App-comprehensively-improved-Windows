@@ -624,13 +624,23 @@ class CnTraditionInput extends Component{
 								<Option value={0}>隐藏</Option>
 							</Select>
 						</div>
-						<div className="horosa-field-block">
-							<div className="horosa-field-label">流派标记</div>
-							<Select value={this.props.baziOpt.showSchoolMarks === false ? 0 : 1} onChange={this.onShowSchoolMarksChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
-								<Option value={1}>显示</Option>
-								<Option value={0}>隐藏</Option>
-							</Select>
-						</div>
+						{/* 综合派/纳音古法本身不出单派喜忌徽标(见 BaZiAncientChart 的 school 判据),
+						    此档下开关点了盘面零变化 —— 置灰并说明,别让人以为开关坏了。 */}
+						{(() => {
+							const sch = (this.props.baziOpt && this.props.baziOpt.school) || 'zonghe';
+							const noMarks = (sch === 'zonghe' || sch === 'nayin');
+							return (
+								<div className="horosa-field-block">
+									<div className="horosa-field-label">流派标记</div>
+									<Select value={this.props.baziOpt.showSchoolMarks === false ? 0 : 1} onChange={this.onShowSchoolMarksChange}
+										disabled={noMarks} title={noMarks ? '当前流派(传统综合 / 纳音古法)本身不出单派喜忌徽标;换扶抑/格局/调候等单派后此项生效' : undefined}
+										size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+										<Option value={1}>显示</Option>
+										<Option value={0}>隐藏</Option>
+									</Select>
+								</div>
+							);
+						})()}
 						<div className="horosa-field-block">
 							<div className="horosa-field-label">小运</div>
 							<Select value={this.props.baziOpt.showXiaoyun === false ? 0 : 1} onChange={this.onShowXiaoyunChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">

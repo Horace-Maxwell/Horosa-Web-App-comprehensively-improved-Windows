@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
@@ -131,7 +132,9 @@ class CanPingMain extends Component {
 			date: dateStr,
 			time: timeMoment.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
-			gender: fieldVal(f, 'gender', 1),
+			// 性别以左栏下拉(props.gender '1'/'0')为准,接线到本地引擎;缺省回退 fields。
+			// 🔴 此前只读 fields → 左栏改性别本命条文不换层(男命/女命)=死开关(用户实测)。
+			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
 			after23NewDay: defaultAfter23NewDay(),
 			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
@@ -139,7 +142,7 @@ class CanPingMain extends Component {
 		const method = this.curMethod();
 		// 实例 memo:输入签名(四柱参数+取法+日界/晚子)不变即返缓存,避免 render/componentDidUpdate→saveSnap/
 		// 快照 handler 多处反复跑「八字+canpingCalculate+120 年 liunianSeries」全量重算(卡顿根因)。算法不变。
-		const sig = JSON.stringify({ ...params, method });
+		const sig = JSON.stringify({ ...params, method, opts: this.props.opts || {} });
 		if (this._modelKey === sig && Object.prototype.hasOwnProperty.call(this, '_modelCache')) {
 			return this._modelCache;
 		}
@@ -177,9 +180,17 @@ class CanPingMain extends Component {
 		const dayBranch = gz(fc.day).charAt(1);
 		const hourBranch = gz(fc.time).charAt(1);
 		if (!yearGz || !monthBranch || !dayBranch || !hourBranch) return cache(null);
-		const gender = bazi.gender === 'Female' ? '女' : '男';
-		const birthYear = parseYearFromDateStr(dateStr) || 0;
-		const base = { yearGz, monthBranch, dayBranch, hourBranch, gender, method, qiyunAge: 1 };
+		// 性别单一来源=params.gender(左栏优先);bazi.gender 只是它的回声,远程农历桥分支下
+		// 甚至直接透传 params.gender,故一律以 params 为准。
+		const gender = Number(params.gender) === 0 ? '女' : '男';
+		// 🔴 干支年基准(非出生公历年):立春前出生者差一年,直接用公历年流年整体错一位。
+		const birthYear = ganzhiYearBase(parseYearFromDateStr(dateStr) || 0, yearGz);
+		// 起运岁按生日推算需农历月/日（《参评诀》单月三十逆数、双月初一顺数）
+		const nl = bazi.lunar || bazi.nongli || {};
+		const lunarMonth = Number(nl.monthNum || nl.month) || 0;
+		const lunarDay = Number(nl.dayNum || nl.day) || 0;
+		const dayunRule = (this.props.opts && this.props.opts.dayunRule) || 'mingGongQiyun';
+		const base = { yearGz, monthBranch, dayBranch, hourBranch, gender, method, qiyunAge: 1, lunarMonth, lunarDay, dayunRule };
 		const r = canpingCalculate(base);
 		if (!r) return cache(null);
 		let series = null;
@@ -192,7 +203,9 @@ class CanPingMain extends Component {
 		const m = this.getModel();
 		if (!m) return;
 		const r = m.r;
-		const key = `${r.fourPillars.yearGz}|${r.method}`;
+		// 🔴 去重键必须含**一切影响输出的维度**:漏 gender 会让改性别后条文真变而快照不刷新
+		// (AI 导出/挂载读陈旧盘);漏 opts 同理(大运法换档)。河洛同坑已修,此处对齐。
+		const key = `${r.fourPillars.yearGz}|${r.method}|g:${r.gender}|o:${JSON.stringify(this.props.opts || {})}`;
 		if (key === this.lastSnapKey) return;
 		this.lastSnapKey = key;
 		const text = buildSnapshotText(r, { liunianRows: (m.series && m.series.rows) || null });
@@ -253,7 +266,8 @@ class CanPingMain extends Component {
 				</div>
 
 				<div className="horosa-huangji-info-card">
-					<div className="horosa-huangji-info-heading">大运（歲運）· 命宫顺行</div>
+					{/* 标题随大运法档实变（防「换了档看不出换没换」）；起运岁另附推算明细。 */}
+					<div className="horosa-huangji-info-heading">大运（歲運）· {r.dayunRule === 'baziStyle' ? `八字大运法·${r.dayunForward ? '顺行' : '逆行'}` : '命宫顺行'}{r.qiyunDetail && r.qiyunDetail.usable ? ` · 起运 ${r.qiyunDetail.years}岁${r.qiyunDetail.months ? `${r.qiyunDetail.months}个月` : ''}（自 ${r.qiyunAge} 岁行运）` : ' · 一岁起运'}</div>
 					<table className="horosa-canping-table horosa-canping-dayun">
 						<thead><tr><th>年龄</th><th>支</th><th>顺 · 歲運</th><th>逆 · 歲運</th></tr></thead>
 						<tbody>

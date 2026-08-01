@@ -166,10 +166,12 @@ class ZhengChuanMain extends Component {
 		const opts = this.props.opts || {};
 		// 心易为查询层（古籍未出起数入口）→ 不依赖生辰，须先于下方「无生辰即空」之闸
 		if (this.school() === 'xinyi') {
-			const qsig = JSON.stringify({ ...opts, g: fieldVal(f, 'gender', 1) });
+			// 性别左栏优先(与下方生辰分支同口径)
+			const xyGender = this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1);
+			const qsig = JSON.stringify({ ...opts, g: xyGender });
 			if (this._modelKey === qsig && Object.prototype.hasOwnProperty.call(this, '_modelCache')) return this._modelCache;
 			this._modelKey = qsig;
-			this._modelCache = calcXinyi({ ...opts, gender: fieldVal(f, 'gender', 1) });
+			this._modelCache = calcXinyi({ ...opts, gender: xyGender });
 			return this._modelCache;
 		}
 		const dm = f.date && f.date.value ? f.date.value : null;
@@ -177,7 +179,11 @@ class ZhengChuanMain extends Component {
 		if (!dm || !tm) return null;
 		const params = {
 			date: dm.format('YYYY-MM-DD'), time: tm.format('HH:mm:ss'),
-			lon: fieldVal(f, 'lon', ''), gender: fieldVal(f, 'gender', 1), timeAlg: fieldVal(f, 'timeAlg', 1),
+			lon: fieldVal(f, 'lon', ''),
+			// 性别以左栏下拉(props.gender)为准,缺省回退 fields(与河洛/参评同口径;此前只读
+			// fields → 左栏改性别不生效)。
+			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
+			timeAlg: fieldVal(f, 'timeAlg', 1),
 			after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
 		};
 		const sig = JSON.stringify({ ...params, ...opts });
@@ -207,14 +213,14 @@ class ZhengChuanMain extends Component {
 			// 全年份域:lunar-js 域(AD1~9999)外走远程农历桥(与八字/主链同源;远程回包经
 			// subscribeRemoteNongli 触发重渲后补全)。在途返 null 不缓存(否则空态永久)。
 			const _nlr = deriveNongliUniversalSync(this.props.fields);
-			if (_nlr) { bazi = { nongli: _nlr, fourColumns: _nlr.bazi, gender: fieldVal(f, 'gender', 1) }; }
+			if (_nlr) { bazi = { nongli: _nlr, fourColumns: _nlr.bazi, gender: params.gender }; }
 			else { return null; }
 		}
 		const fc = (bazi && bazi.fourColumns) || {};
 		const gz = (p) => (p && (p.ganzi || p.ganZhi)) || '';
 		const pillars = [gz(fc.year), gz(fc.month), gz(fc.day), gz(fc.time)];
 		if (pillars.some((x) => x.length < 2)) return cache(null);
-		const gender = bazi.gender === 'Female' ? '女' : '男';
+		const gender = Number(params.gender) === 0 ? '女' : '男';
 		const nl = bazi.lunar || bazi.nongli || {};
 		const lunarMonth = Number(nl.monthNum || nl.month) || 1;
 		const lunarDay = Number(nl.dayNum || nl.day) || 1;

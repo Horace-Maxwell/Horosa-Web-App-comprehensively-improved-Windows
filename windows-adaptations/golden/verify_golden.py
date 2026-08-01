@@ -171,6 +171,26 @@ NOW_FIELD_NORMALIZERS = {
     "astro.india.": ("gochara",),
 }
 
+# horosa_golden_now_field_norm_v2(2026-08-01 跨日第二次复发)—— **作用域内**键名归一。
+#
+# 事实:v3.6.0 的金标在 07-31 钉,08-01 跨日后 18 个 india 例整族假红。取证链(#71 纪律,
+# 三步全做,不猜):①`git status` 证 astropy 与 HEAD 逐字节相同(本轮零 Python 改动);
+# ②同日两跑逐字节相同(排除非确定性);③产品码直证 —— `astropy/astrostudy/india/
+# jyotish_engine.py` 三处 `now = datetime.now()` 配 `is_active = start <= now < end`,产出
+# `dasha.<系统>.current` 子树与各级 `active` 标志。⇒ 唯一变的输入是时钟,不是代码。
+# 「当前大运」按今天算是功能(与 gochara 同性质),v1 的白名单只盖了 gochara,漏了 dasha。
+#
+# 治理:不整棵归一 dasha(那会把大运计算这一大块功能面从金标里挖掉),只归一 now 选出来的
+# 那几个键 —— `current` / `currentYear` / `active` —— 且**仅在 dasha 子树内**生效:
+#   · 起讫/年数/星主/年龄等出生派生字段继续逐字节钉(真回归照样红);
+#   · 键的存在性仍被钉住(整节被删照样红);
+#   · 实测响应里这三个键名在 dasha 之外只出现在 gochara(已被整节归一、不会递归进去),
+#     作用域限定是「当下已足够 + 将来上游新增同名非 now 字段也不会被误归一」的双保险。
+SCOPED_NOW_FIELD_NORMALIZERS = {
+    # 案例 id 前缀 -> (作用域键集合, 该作用域内需归一的键集合)
+    "astro.india.": (("dasha",), ("current", "currentYear", "active")),
+}
+
 # ⚠️ 已知状态敏感例(2026-07-22 记档,非回归):astro.chart.ancient 的响应字节
 # 依赖「前置 qimen 流量」——全矩阵序(qimen→astro)下恒定并与钉一致;单例/纯 astro 组
 # 冷跑会稳定复现另一形态(三进程字节全同;新旧两树逐字节一致=存量潜伏,不是本轮引入)。
@@ -184,26 +204,37 @@ def _normalize_now_fields(case_id, raw):
         if case_id.startswith(prefix):
             rules = keys
             break
-    if not rules:
+    # horosa_golden_now_field_norm_v2:作用域内键名规则(见上方注释)。
+    scope_keys, scoped_keys = (), ()
+    for prefix, (sk, kk) in SCOPED_NOW_FIELD_NORMALIZERS.items():
+        if case_id.startswith(prefix):
+            scope_keys, scoped_keys = sk, kk
+            break
+    if not rules and not scoped_keys:
         return raw
+    rules = rules or ()
     try:
         payload = json.loads(raw.decode("utf-8"))
     except Exception:
         return raw
     changed = False
 
-    def scrub(node):
+    def scrub(node, in_scope=False):
         nonlocal changed
         if isinstance(node, dict):
             for k in list(node.keys()):
                 if k in rules:
                     node[k] = "__HOROSA_GOLDEN_NOW_NORMALIZED__"
                     changed = True
-                else:
-                    scrub(node[k])
+                    continue
+                if in_scope and k in scoped_keys:
+                    node[k] = "__HOROSA_GOLDEN_NOW_NORMALIZED__"
+                    changed = True
+                    continue
+                scrub(node[k], in_scope or k in scope_keys)
         elif isinstance(node, list):
             for item in node:
-                scrub(item)
+                scrub(item, in_scope)
 
     scrub(payload)
     if not changed:

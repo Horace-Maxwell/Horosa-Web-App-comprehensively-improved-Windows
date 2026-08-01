@@ -164,6 +164,7 @@ import {
 	parseModelSelection,
 	contextCharBudgetForModel,
 	effectiveMaxTokensForModel,
+	maxTokensKeyForModel,
 } from '../../utils/aiAnalysisProviders';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -2094,10 +2095,9 @@ function AIAnalysisMain(props){
 				|| chatProviderOptions.maxOutputTokens != null;
 			if(!hasExplicitCap && isReasoningModel(model)){
 				const boosted = effectiveMaxTokensForModel(model, 4096);
-				if(protoFamily === 'anthropic'){ chatProviderOptions.max_tokens = boosted; }
-				else if(protoFamily === 'ollama'){ chatProviderOptions.num_predict = boosted; }
-				else if(protoFamily === 'gemini'){ chatProviderOptions.maxOutputTokens = boosted; }
-				else { chatProviderOptions.max_tokens = boosted; }
+				// 🔴 键名单一真值源:本兜底恰恰只对推理模型注入,而 gpt-5/6/7 正是不收
+				// max_tokens 的那一代 —— 用错键=每次请求先吃一个 400。
+				chatProviderOptions[maxTokensKeyForModel(protoFamily, model)] = boosted;
 			}
 		}
 		try{

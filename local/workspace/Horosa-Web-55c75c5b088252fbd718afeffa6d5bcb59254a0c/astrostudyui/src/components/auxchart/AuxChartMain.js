@@ -18,8 +18,8 @@ import AstroRelocationLab from './AstroRelocationLab';
 import HoraryMain from '../horary/HoraryMain';
 import ElectionMain from '../election/ElectionMain';
 import MundaneMain from '../mundane/MundaneMain';
-// 🔴 共享真值源 import 绝不许进 private marker 块:消费点(AUX_TABS)在块外,strip 后
-// public 侧成悬空自由变量→模块顶层 ReferenceError→辅盘页干净安装必炸(v3.6.0 实案)。
+// 🔴 共享真值源 import 绝不许进条件编译块:消费点(AUX_TABS)在块外,该块一旦被剔除
+// 就成了悬空自由变量→模块顶层 ReferenceError→辅盘页干净安装必炸(v3.6.0 实案)。
 import { AUX_SUBTABS } from '../../constants/SubTabRegistry';
 import BabylonMain from '../babylon/BabylonMain';
 

@@ -302,6 +302,25 @@ export function isReasoningModel(model){
 	return /(^|\/)(gpt-?[567]|o[13-7])/.test(m) || /reasoner|-?r1\b|thinking/.test(m);
 }
 
+// OpenAI **代际**判据（窄于 isReasoningModel：只认 OpenAI 自家 o 系与 gpt-5/6/7，
+// 不含 deepseek-reasoner/*-r1——后者仍用 max_tokens）。与后端 isOpenAIReasoningModel 同口径。
+export function isOpenAIReasoningModel(model){
+	let m = ('' + (model || '')).toLowerCase().trim();
+	const slash = m.lastIndexOf('/');
+	if(slash >= 0){ m = m.slice(slash + 1); }   // 剥 openrouter 之类的 vendor 前缀
+	return /^(gpt-?[567]|o[13-7])/.test(m);
+}
+
+// 🔴 输出预算键单一真值源（#54）：键名由「协议家族 × 模型代际」双因子决定。
+// gpt-5/6/7 与 o 系已不收 max_tokens（400 unsupported_parameter），须 max_completion_tokens。
+// 此前前端只按协议家族选键、后端按代际选键却读不到前端的值 → 分层错位，裸 max_tokens 上线。
+export function maxTokensKeyForModel(protoFamily, model){
+	if(protoFamily === 'anthropic'){ return 'max_tokens'; }
+	if(protoFamily === 'gemini'){ return 'maxOutputTokens'; }
+	if(protoFamily === 'ollama'){ return 'num_predict'; }
+	return isOpenAIReasoningModel(model) ? 'max_completion_tokens' : 'max_tokens';
+}
+
 // 推理模型的有效输出预算:思考 token 计入 max_tokens——上限过小会被思考吃光(finish=length、
 // 正文 0 字)。给足思考余量:正文预算翻倍且至少 +6000,封顶 16384。max_tokens 是上限不是目标,
 // 自然 stop 不多花钱,只防被思考截没。各调用路径共用此单源。

@@ -6289,6 +6289,8 @@
 
     .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs > .ant-tabs-nav,
     .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-nav {
+        /* 🔴 96px 是「十三分盘」这类四字技法名的安全宽度(含左右留白),曾试收窄到 84px
+           → 文字贴死边框(真机实告)。右栏加宽改走 grid clamp,不从这里抠。 */
         flex: 0 0 96px;
     }
 
@@ -6349,7 +6351,8 @@
     .horosa-workspace-shell .horosa-midpoint-side-col {
         max-height: 100%;
         overflow-y: auto !important;
-        overflow-x: hidden;
+        /* hidden 会把宽表/nowrap 长行直接裁字(赤纬接触行实测);改 auto 让它自己出横滚条。 */
+        overflow-x: auto;
     }
 
     /* 90°中点盘 右栏:可收放数据卡片(指针读数 / 中点树 / 行星图 / 中点列表 / 映点)美化 */
@@ -6832,6 +6835,15 @@
 
     .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
         grid-template-columns: clamp(245px, 16vw, 285px) minmax(620px, 1fr) clamp(300px, 20vw, 350px) !important;
+    }
+
+    /* 🔴 辅盘子盘(十三分/十二分/重置…)右栏加宽到与占星主页签同量级。
+       特异度 (0,4,0) 压过上面那条 no-bottom-dock 通则,且 .horosa-auxchart-layout 前缀
+       把作用域**精确锁在辅盘内**——同走 no-bottom-dock 的合盘/印占/分至不受影响。
+       中列硬下限必须同步松开 620→520(回到基线值):grid 自带 overflow:hidden,
+       1280px 窄屏下 245+620+400 会溢出,加出来的宽度反而从右侧被裁掉(越改越糟)。 */
+    .horosa-workspace-shell .horosa-auxchart-layout .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
+        grid-template-columns: clamp(245px, 16vw, 285px) minmax(520px, 1fr) clamp(320px, 24vw, 400px) !important;
     }
 
     .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-chart-stage-redesign > svg {
@@ -7402,11 +7414,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 7px;
+        /* gap/padding 各让 1/2px 给文字:辅盘左栏(220px 的 2 列 stack)下按钮内文字位只有 62px,
+           而「宫位与黄道」「显示与样式」五字 @13px 需 64px —— 差 2px 就被 ellipsis 截成「宫位与黄…」。
+           按钮内容本就居中,收 padding 不改变观感(留白由居中决定),只抬高可用宽上限。 */
+        gap: 6px;
         width: 100%;
         min-width: 0;
         height: 44px;
-        padding: 0 8px;
+        padding: 0 6px;
         border: 1px solid rgba(215, 173, 105, 0.18) !important;
         border-radius: 7px;
         background: #090b0e !important;
@@ -10101,6 +10116,12 @@
     }
     .horosa-workspace-shell .horosa-horary-page .horosa-side-input-section .horosa-field-label {
         margin-bottom: 5px;
+    }
+    /* 成对(半宽)下拉的选中态字号对齐判读参数区的 12.5px:14px 下「Regiomontanus」超出 5px、
+       「综合 · 能否成事」超出 1px 而被 ellipsis——这两个是专名/固定词组,缩不得也剥不掉括号,
+       只能收字号。判读参数区本就是 12.5px,此处统一后全栏一致,不是特例补丁。 */
+    .horosa-workspace-shell .horosa-horary-page .horosa-side-input-section .horosa-field-grid .ant-select-selection-item {
+        font-size: 12.5px;
     }
     .horosa-workspace-shell .horosa-horary-page .horosa-horary-option-card {
         margin-top: 10px;
@@ -20526,7 +20547,9 @@
 	.horosa-divi-two { display: flex; gap: 10px; }
 	.horosa-divi-two > div { flex: 1; min-width: 0; }
 	.horosa-divi-barrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-	.horosa-divi-barrow .lbl { width: 120px; font-size: 12px; color: var(--horosa-text-muted, #6b7280); flex-shrink: 0; }
+	/* 固定 120px 装不下最长项「命度/上升（第三考量）」(需 124px);因 overflow:visible,溢出的字不是被裁
+	   而是压到右侧数值条上。min-width 起底 + 允许按内容伸展,短标签仍对齐在 128px 处。 */
+	.horosa-divi-barrow .lbl { min-width: 128px; font-size: 12px; color: var(--horosa-text-muted, #6b7280); flex-shrink: 0; }
 	.horosa-divi-barrow .num { width: 24px; text-align: right; font-size: 12px; flex-shrink: 0; color: var(--horosa-text-muted, #6b7280); }
 	.horosa-divi-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--horosa-border-soft, rgba(148,163,184,.22)); overflow: hidden; }
 	.horosa-divi-bar > i { display: block; height: 100%; border-radius: 4px; }
@@ -20600,10 +20623,16 @@
 	.horosa-mundane-steps li { margin-bottom: 1px; }
 	.horosa-mundane-steps b { color: var(--horosa-accent, #b8860b); font-weight: 600; }
 	/* 世俗/卜卦/择日 左栏：加宽列宽（245→300+），并杜绝横向滚动（长日食扫描行/选择器不再撑出滑动条）。仅作用于三个占卜页，不影响本命盘。 */
-	.horosa-astro-no-bottom-dock.horosa-mundane-page .horosa-astro-redesign-grid,
-	.horosa-astro-no-bottom-dock.horosa-horary-page .horosa-astro-redesign-grid,
-	.horosa-astro-no-bottom-dock.horosa-election-page .horosa-astro-redesign-grid {
-		grid-template-columns: clamp(300px, 19vw, 348px) minmax(0, 1fr) clamp(300px, 20vw, 350px) !important;
+	/* 🔴 前缀 .horosa-workspace-shell 不是装饰:辅盘族规则(app.less «辅盘子盘右栏加宽» 一节)特异度 (0,4,0),
+	   若这里只有 (0,3,0),卜卦/择日/世俗**在辅盘内**时左栏会被那条通则压成 285px 上限,
+	   长复选框标签当场被 ellipsis 截成「问题真…」、三档「时空中点」挤成两行。
+	   提到 (0,4,0) 且源码序在后 → 这三页的左栏宽度由本条独占裁定。改动前先量左栏实宽。 */
+	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-mundane-page .horosa-astro-redesign-grid,
+	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-horary-page .horosa-astro-redesign-grid,
+	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-election-page .horosa-astro-redesign-grid {
+		/* 右栏与占星主页签同量级(此前 20vw/350 上限,判读表被挤到看不清);
+		   中列 minmax(0,1fr) 无硬下限,窄屏自动让位,不会撞 grid 的 overflow:hidden。 */
+		grid-template-columns: clamp(300px, 19vw, 348px) minmax(0, 1fr) clamp(320px, 24vw, 400px) !important;
 	}
 	.horosa-mundane-page .horosa-astro-input-panel,
 	.horosa-horary-page .horosa-astro-input-panel,

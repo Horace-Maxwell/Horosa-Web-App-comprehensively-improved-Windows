@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/common/StartupGate.js b/astrostudyui/src/components/common/StartupGate.js
-index 8b15bfd..6a16a5c 100644
+index 59efcaa..d3e4fc9 100644
 --- a/astrostudyui/src/components/common/StartupGate.js
 +++ b/astrostudyui/src/components/common/StartupGate.js
 @@ -21,10 +21,45 @@ function currentProbeUrl() {
@@ -48,16 +48,16 @@ index 8b15bfd..6a16a5c 100644
  
    React.useEffect(() => {
      if (!currentProbeUrl() || typeof fetch !== 'function') { setReady(true); return undefined; }
-@@ -150,6 +185,12 @@ export default function StartupGate() {
-         <div style={{ fontSize: 12.5, color: 'var(--horosa-text-soft, #888)', lineHeight: 1.6 }}>
+@@ -166,6 +201,12 @@ export default function StartupGate() {
+         <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
            {mainMsg}
          </div>
 +        {desktopCfgRef.current ? (
-+          <div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #888)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
++          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
 +            已用时 {(desktopElapsedMs / 1000).toFixed(1)} 秒
 +            {desktopCfgRef.current.expectedMs ? ` ・ 以往约 ${(desktopCfgRef.current.expectedMs / 1000).toFixed(1)} 秒` : ''}
 +          </div>
 +        ) : null}
          {extraMsg ? (
-           <div style={{ fontSize: 12, color: 'var(--horosa-text-soft, #888)', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'var(--horosa-bg-soft, #f6f6f9)', borderRadius: 6 }}>
+           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
              {extraMsg}

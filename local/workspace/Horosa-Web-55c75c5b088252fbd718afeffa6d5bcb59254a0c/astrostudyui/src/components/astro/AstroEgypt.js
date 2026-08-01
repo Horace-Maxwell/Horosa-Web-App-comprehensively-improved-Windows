@@ -282,7 +282,7 @@ class AstroEgypt extends Component {
 		return (
 			<div style={cardStyle}>
 				<XQSectionTitle>旬名录</XQSectionTitle>
-				<SmallTable
+				<SmallTable scrollX
 					rowKey={(r) => r.greek}
 					rows={v.decans}
 					rowStyle={(r) => (r.greek === ascIdx ? { background: 'var(--horosa-accent-soft, rgba(245,158,11,.18))' } : undefined)}
@@ -311,7 +311,7 @@ class AstroEgypt extends Component {
 		return (
 			<div style={cardStyle}>
 				<XQSectionTitle>旬星塔罗(E5)</XQSectionTitle>
-				<SmallTable
+				<SmallTable scrollX
 					rowKey={(r) => r.greek}
 					rows={v.decans}
 					rowStyle={(r) => (pmap[r.greek] ? { background: 'var(--horosa-accent-soft, rgba(245,158,11,.14))' } : undefined)}
@@ -543,7 +543,7 @@ class AstroEgypt extends Component {
 				</div>
 				<div style={{ marginTop: 8 }}>
 					<div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>五闰余日神诞</div>
-					<SmallTable
+					<SmallTable scrollX
 						rowKey={(r) => r.day}
 						rows={EGYPT_EPAGOMENAL}
 						columns={[
@@ -562,7 +562,7 @@ class AstroEgypt extends Component {
 		return (
 			<div style={cardStyle}>
 				<XQSectionTitle>五星与恒星埃及名(E9)</XQSectionTitle>
-				<SmallTable
+				<SmallTable scrollX
 					rowKey={(r) => r.id || r.cn}
 					rows={EGYPT_PLANET_NAMES}
 					columns={[
@@ -573,7 +573,7 @@ class AstroEgypt extends Component {
 					]}
 				/>
 				<div style={{ height: 10 }} />
-				<SmallTable
+				<SmallTable scrollX
 					rowKey={(r) => r.cn}
 					rows={EGYPT_STAR_NAMES}
 					columns={[
@@ -641,7 +641,7 @@ class AstroEgypt extends Component {
 					一年 = 3 季 × 4 月 × 30 天 + 5 闰余日 = 365(无闰日);逐年漂移 ≈ 1 天 / 4 年(游移年)。
 					Sothic 周期 ≈ <b>{SOTHIC_CYCLE_YEARS}</b> 年(民用新年与天狼偕日升重合周期)。
 				</div>
-				<SmallTable
+				<SmallTable scrollX
 					rowKey={(r) => r.index}
 					rows={months}
 					columns={[
@@ -683,7 +683,7 @@ class AstroEgypt extends Component {
 			<div style={cardStyle}>
 				<XQSectionTitle>度数细分(E10)</XQSectionTitle>
 				{any ? (
-					<SmallTable
+					<SmallTable scrollX
 						rowKey={(r) => r.id}
 						rows={rows}
 						columns={[
@@ -757,7 +757,7 @@ class AstroEgypt extends Component {
 					<span style={{ opacity: 0.6 }}>命中 {rows.length} 条</span>
 				</div>
 				{rows.length ? (
-					<SmallTable
+					<SmallTable scrollX
 						rowKey={(r) => r.key}
 						rows={rows}
 						columns={[
@@ -849,7 +849,7 @@ class AstroEgypt extends Component {
 		return (
 			<div style={cardStyle}>
 				<XQSectionTitle>占星地理(E3)</XQSectionTitle>
-				<SmallTable
+				<SmallTable scrollX
 					rowKey={(r) => r.signId}
 					rows={rows}
 					rowStyle={(r) => (r.here ? { background: 'var(--horosa-accent-soft, rgba(245,158,11,.14))' } : undefined)}
@@ -874,7 +874,7 @@ class AstroEgypt extends Component {
 		const v = this.view();
 		const ascDecan = v.ascDecan;
 		return (
-			<div style={{ height, overflowY: 'auto', overflowX: 'hidden' }}>
+			<div style={{ height, overflowY: 'auto', overflowX: 'auto' }}>
 				{chartObj && chartObj.chart ? (
 					<div style={{ ...cardStyle, marginBottom: 10 }}>
 						<XQSectionTitle>当前上升旬</XQSectionTitle>

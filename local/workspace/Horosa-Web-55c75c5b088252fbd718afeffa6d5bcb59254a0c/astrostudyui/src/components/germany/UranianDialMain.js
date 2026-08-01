@@ -1254,7 +1254,7 @@ export default class UranianDialMain extends Component {
 		// 列宽:左 4 / 中 15 / 右 5 = 24(右栏从 4→5 再放宽;中栏 16→15 仍占主体)。
 		// 放宽缘由:右栏赤纬接触行 Kr·+23.37°/+22.45°·差0.9 等 nowrap 单行(rowLine)在 span=4 时被裁,加一列防截断。
 		// 左右两个 Col 用内层 div 套 maxHeight+overflowY:auto;盘 col 也加底部 paddingBottom 防 Dock 遮挡。
-		const sideScroll = { width: '100%', maxHeight: sideMaxH, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 };
+		const sideScroll = { width: '100%', maxHeight: sideMaxH, overflowY: 'auto', overflowX: 'auto', paddingRight: 4 };
 		// B4:四流派设置对照(数据从 SCHOOL_PRESETS 实值派生渲染,防文档与代码 drift;全中性表述)。
 		const schoolCols = [
 			{ title: '设置项', dataIndex: 'k', key: 'k', width: 128 },

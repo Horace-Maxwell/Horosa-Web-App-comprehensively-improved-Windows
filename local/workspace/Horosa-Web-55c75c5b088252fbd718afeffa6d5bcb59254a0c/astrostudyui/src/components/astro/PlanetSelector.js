@@ -2,6 +2,7 @@ import { Component } from 'react';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { XQCheckItem, XQCheckList, XQSectionTitle, XQTabs } from '../xq-ui';
+import { unavailableIn } from '../../constants/planetAvailability';
 
 const TabPane = XQTabs.TabPane;
 
@@ -75,9 +76,13 @@ class PlanetSelector extends Component{
 		const planetValues = Array.isArray(this.props.value) ? this.props.value : [];
 		const lotValues = Array.isArray(this.props.lots) ? this.props.lots : [];
 
+		// 本面板只服务西洋盘族;汉堡八虚星与七政命度点在这里勾了也画不出来(各有专属页面),
+		// 故置灰并说明去处 —— 留着可见但点不动,好过让人反复点一个毫无反应的开关。
 		let allobjs = AstroConst.LIST_POINTS.map((item)=>{
+			const only = unavailableIn(item);
 			return (
-				<XQCheckItem key={item} checked={planetValues.includes(item)} onClick={()=>this.togglePlanet(item)}>
+				<XQCheckItem key={item} disabled={!!only} title={only ? `本盘不绘制;请到「${only}」查看` : undefined}
+					checked={!only && planetValues.includes(item)} onClick={()=>this.togglePlanet(item)}>
 					{this.renderLabel(item)}
 				</XQCheckItem>
 			);

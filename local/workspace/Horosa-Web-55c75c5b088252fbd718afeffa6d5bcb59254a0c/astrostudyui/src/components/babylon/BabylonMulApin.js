@@ -101,7 +101,7 @@ class BabylonMulApin extends Component{
 					{this.props.schemePanel}
 					<div className="horosa-babylon-card">
 						<div className="horosa-babylon-card-title">偕日升日期(理想历)</div>
-						<table className="horosa-babylon-table">
+						<div className="horosa-babylon-scroll-x"><table className="horosa-babylon-table">
 							<thead><tr><th>日期</th><th>偕日升之星</th></tr></thead>
 							<tbody>
 								{MULAPIN.heliacal.map((h, i) => (
@@ -111,7 +111,7 @@ class BabylonMulApin extends Component{
 									</tr>
 								))}
 							</tbody>
-						</table>
+						</table></div>
 						<div className="horosa-babylon-caveat">理想年 12×30=360 日;「某星于 M 月 d 日升」= 赤经 (d+(M−1)×30)°;日号皆 5 的倍数。{MULAPIN.intervals.join(';')}。</div>
 					</div>
 					<div className="horosa-babylon-card">
@@ -125,14 +125,14 @@ class BabylonMulApin extends Component{
 					</div>
 					<div className="horosa-babylon-card">
 						<div className="horosa-babylon-card-title">五星图式可见期</div>
-						<table className="horosa-babylon-table">
+						<div className="horosa-babylon-scroll-x"><table className="horosa-babylon-table">
 							<thead><tr><th>行星</th><th>可见</th><th>隐没</th></tr></thead>
 							<tbody>
 								{MULAPIN.visibility.map((v) => (
 									<tr key={v.planet}><td>{v.cn}</td><td>{v.visible}</td><td>{v.invisible}</td></tr>
 								))}
 							</tbody>
-						</table>
+						</table></div>
 						<div className="horosa-babylon-caveat">{MULAPIN.visibilityNote}</div>
 					</div>
 					<div className="horosa-babylon-card">

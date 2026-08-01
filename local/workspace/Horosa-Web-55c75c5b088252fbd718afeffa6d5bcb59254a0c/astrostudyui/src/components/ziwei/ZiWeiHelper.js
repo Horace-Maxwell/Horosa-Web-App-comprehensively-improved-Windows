@@ -38,6 +38,21 @@ export function zwShowSmall(){
 	return v === '1'; // 默认关（将前/岁前/博士十二神，避免主盘过密）
 }
 
+// 🔴 纯显示层开关的重绘广播(2026-07-31 运行时死开关审计实证)。
+//    病灶:ZiWeiInput.redrawChart() 靠「把同一份时间字段原样再传一次」来求重绘,
+//    但杂曜/十二神是**纯显示层**、不进排盘请求体 —— 参数逐字节相等必被 requestDedupe 命中,
+//    chart 对象不变 → ZiWeiChart 不重渲染 → localStorage 明明写了 0,盘上杂曜纹丝不动。
+//    改走「写仓 + 广播」(同 divinationJudgeGlobals 范式):盘面组件监听事件自重绘,
+//    与排盘请求彻底解耦,不再借道 fields 假装数据变了。
+export const ZIWEI_DISPLAY_EVENT = 'horosa:ziwei-display-changed';
+
+export function bumpZwDisplayRev(key, value){
+	if(typeof window === 'undefined' || typeof window.dispatchEvent !== 'function'){ return; }
+	try{
+		window.dispatchEvent(new CustomEvent(ZIWEI_DISPLAY_EVENT, { detail: { key: key, value: value } }));
+	}catch(e){ /* 老内核无 CustomEvent 构造器:退化为不广播,行为同改动前 */ }
+}
+
 // P1-A：切流派后必须失效四化缓存并按新表重建（getSiHua 用 size===0 懒初始化，不显式清不会重算）。
 export function resetHuaMap(){
 	HuaLuMap.clear();
@@ -236,7 +251,7 @@ export function collectAllStars(house){
 
 // 运限三合两宫 (运财帛宫 + 运官禄宫): 返回 [{runName, palaceName, ganZhi, stars}, ...]
 // runName 是该宫在当前运限下的身份(运财帛/运官禄), palaceName 是它在原命盘上的本名(如疾厄宫/兄弟宫)
-// 用于运限快照写入 + UI 渲染 + AI prompt
+// 用于运限快照写入 + UI 渲染 + AI 报告 prompt
 export function collectSanhePalaces(chart, mingIdx){
 	if(!chart || !chart.houses || typeof mingIdx !== 'number') return [];
 	const [caiboIdx, guanluIdx] = getSanheIndices(mingIdx);

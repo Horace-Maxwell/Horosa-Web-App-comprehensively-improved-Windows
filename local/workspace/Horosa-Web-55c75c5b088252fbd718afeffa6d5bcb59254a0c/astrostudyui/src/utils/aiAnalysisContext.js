@@ -90,6 +90,7 @@ import { buildTarotSnapshotForFields } from '../components/tarot/TarotMain';
 // 此前只调用未导入 → 挂载黄历事盘时抛 ReferenceError(同型问题先例:
 // 调用点在运行时闭包里,模块加载与渲染阶段都踩不到)。
 import { parseYearFromDateStr, parseDateParts } from './dateStrSafe';
+import { ganzhiYearBase } from './ganzhiYearBase';
 import { buildGuolaoSnapshotForFields } from '../components/guolao/GuoLaoChartMain';
 import { buildSuzhanSnapshotText } from '../components/suzhan/SuZhanMain';
 import { SZChart as SZChartDefaults } from '../components/suzhan/SZConst';
@@ -1624,7 +1625,9 @@ function buildChartShusuanBazi(record){
 			monthZhi: fourPillars.month.charAt(1),
 			dayZhi: fourPillars.day.charAt(1),
 			hourZhi: fourPillars.hour.charAt(1),
-			birthYear: parseYearFromDateStr(`${params.date}`) || 0,
+			// 🔴 干支年基准(非出生公历年):立春前出生者两者差一年,直接用公历年会让
+			// 河洛/参评的流年整体错一位。以年柱反推,与页面侧 HeLuoMain/CanPingMain 同源。
+			birthYear: ganzhiYearBase(parseYearFromDateStr(`${params.date}`) || 0, fourPillars.year),
 			gender: bazi.gender === 'Female' ? '女' : '男',
 			// 神数正传另需农历月/日（起月命数、时命数、人命数）。纯增字段，既有取用面不变。
 			lunarMonth: Number((bazi.lunar || bazi.nongli || {}).monthNum || (bazi.lunar || bazi.nongli || {}).month) || 0,

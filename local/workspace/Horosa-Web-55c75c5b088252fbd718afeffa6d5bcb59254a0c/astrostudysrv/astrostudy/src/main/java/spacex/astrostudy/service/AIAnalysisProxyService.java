@@ -1345,7 +1345,33 @@ public class AIAnalysisProxyService {
 			prov = stripReasoningUnsupportedParams(prov); // 防 reasoner 因 top_p/logprobs 等采样参数 400(#16)
 		}
 		requestBody.putAll(prov);
+		// 🔴 代际归一(#54 根修):上面按 params.maxTokens 选键的分支在生产里够不着——前端把输出预算
+		// 写进 providerOptions.max_tokens(只按协议家族选键、不看模型代际),经 putAll 原样落地。
+		// gpt-5/o 系已不收 max_tokens(400 unsupported_parameter),故在**组装终点**统一改键:
+		// 无论预算从哪条路进来,出口只留代际正确的那个键。(自愈层仍在,但那是每请求白烧一轮往返
+		// 的兜底,不是修复。deepseek-reasoner 等非 OpenAI 推理模型不在此列,仍用 max_tokens。)
+		normalizeOpenAIMaxTokensKey(requestBody, openAIReasoning);
 		return requestBody;
+	}
+
+	/**
+	 * OpenAI 系输出预算键代际归一：reasoning 代（gpt-5+/o 系）只认 max_completion_tokens。
+	 * 两键并存时以 max_completion_tokens 为准（防上游因重复语义再 400）。
+	 */
+	static void normalizeOpenAIMaxTokensKey(Map<String, Object> body, boolean openAIReasoning){
+		if(body == null) { return; }
+		if(openAIReasoning) {
+			Object legacy = body.remove("max_tokens");
+			if(legacy != null && !body.containsKey("max_completion_tokens")) {
+				body.put("max_completion_tokens", legacy);
+			}
+		} else {
+			// 老代模型反向：误传 max_completion_tokens 时归一回 max_tokens（对称保护）
+			Object modern = body.remove("max_completion_tokens");
+			if(modern != null && !body.containsKey("max_tokens")) {
+				body.put("max_tokens", modern);
+			}
+		}
 	}
 
 	// 2A：从 OpenAI 兼容响应 payload 抽 usage（聊天的 usage 通常出现在 stream 末帧 / 非 stream 顶层）。
@@ -1841,8 +1867,16 @@ public class AIAnalysisProxyService {
 		}
 		String msg = errorBodyText.toLowerCase();
 		boolean changed = false;
-		if(msg.contains("max_completion_tokens") && body.containsKey("max_tokens")) {
-			body.put("max_completion_tokens", body.remove("max_tokens"));
+		// 改键自愈：上游点名替代键固然最好；但有的网关只回「'max_tokens' 不支持」而不点名替代者
+		// ——那也照改（该键在 OpenAI 兼容面上的唯一替代就是 max_completion_tokens）。
+		boolean namesModernKey = msg.contains("max_completion_tokens");
+		boolean rejectsLegacyKey = msg.contains("max_tokens")
+			&& (msg.contains("unsupported") || msg.contains("not supported") || msg.contains("unknown") || msg.contains("invalid"));
+		if((namesModernKey || rejectsLegacyKey) && body.containsKey("max_tokens")) {
+			Object budget = body.remove("max_tokens");
+			if(!body.containsKey("max_completion_tokens")) {
+				body.put("max_completion_tokens", budget);
+			}
 			changed = true;
 		}
 		for(String param : HEALABLE_SAMPLING_PARAMS) {

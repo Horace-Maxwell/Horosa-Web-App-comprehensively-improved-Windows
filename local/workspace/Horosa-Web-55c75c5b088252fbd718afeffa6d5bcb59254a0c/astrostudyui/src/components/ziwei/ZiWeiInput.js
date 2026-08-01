@@ -285,18 +285,20 @@ class ZiWeiInput extends Component{
 		}
 	}
 
+	// 杂曜/十二神是纯显示层:不进排盘请求体,故 redrawChart()(重传同一份时间字段)对它们无效——
+	// 参数逐字节相等会被 requestDedupe 命中,chart 不变则盘面不重渲染。改发显示层广播强制重绘。
 	onShowOthersChange(e){
 		let val = e.target.checked;
 		safeLocalStorageSet('ziweiShowOthers', val ? 1 : 0);
 		this.setState({ showOthers: val });
-		this.redrawChart();
+		ZiWeiHelper.bumpZwDisplayRev('showOthers', val);
 	}
 
 	onShowSmallChange(e){
 		let val = e.target.checked;
 		safeLocalStorageSet('ziweiShowSmall', val ? 1 : 0);
 		this.setState({ showSmall: val });
-		this.redrawChart();
+		ZiWeiHelper.bumpZwDisplayRev('showSmall', val);
 	}
 
 	// P1-A 四化流派切换：写全局单例 + localStorage + 刷新兼容垫片 + 失效四化缓存 + 重绘。
