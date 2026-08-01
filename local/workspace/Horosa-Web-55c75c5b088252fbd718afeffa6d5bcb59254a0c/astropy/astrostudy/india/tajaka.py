@@ -143,8 +143,10 @@ def within_deeptamsa(a_planet, a_lon, b_planet, b_lon):
     """A 与 B 是否互在对方 Deeptamsa（orb）内——按各自 advancement 差与两 orb 比较。
     书：相位 orb 投影到目标 rasi 同度数附近 ±Deeptamsa；互含 = 两曜 advancement 差 < 各自 orb。"""
     a_adv, b_adv = _aspect_arc_overlap(a_lon, b_lon)
+    # advancement 差 = 距精确相位角的偏差(线性 0..30,不环绕)。
+    # 🔴 曾写 min(diff, 30-diff):29° 与 1° 被折成「差 2°」——实际黄经差距精角 28°,
+    #    环绕制造假命中(itthasala/短名单据此误产)。
     diff = abs(a_adv - b_adv)
-    diff = min(diff, 30.0 - diff)  # rasi 内度数差（环形 30°）
     oa = DEEPTAMSA.get(a_planet)
     ob = DEEPTAMSA.get(b_planet)
     if oa is None or ob is None:
@@ -252,8 +254,18 @@ HADDA_LORDS = {
 } if const else {}
 
 
-def hadda_lord(sign, signlon):
+# Hadda 学说B:等 6° 五分(少数注家,可选)。奇座 火/土/木/水/金,偶座反序;日月同样永不为界主。
+HADDA_EQUAL6_ODD = ('Mars', 'Saturn', 'Jupiter', 'Mercury', 'Venus')
+HADDA_EQUAL6_EVEN = tuple(reversed(HADDA_EQUAL6_ODD))
+_ODD_SIGN_NAMES = {'Aries', 'Gemini', 'Leo', 'Libra', 'Sagittarius', 'Aquarius'}
+
+
+def hadda_lord(sign, signlon, scheme='egyptian'):
     """该 rasi + advancement 落在的界主。"""
+    if scheme == 'equal6':
+        seq = HADDA_EQUAL6_ODD if sign in _ODD_SIGN_NAMES else HADDA_EQUAL6_EVEN
+        seg = min(4, int(float(signlon) // 6.0))
+        return seq[seg]
     for upper, lord in HADDA_LORDS.get(sign, []):
         if signlon < upper:
             return lord
@@ -294,9 +306,9 @@ def _uchcha_bala(planet, lon):
     return 20.0 * (diff / 180.0)
 
 
-def _hadda_bala(planet, sign, signlon):
+def _hadda_bala(planet, sign, signlon, scheme='egyptian'):
     """Hadda bala：自界 15 / 友界 7.5 / 敌界 3.75。"""
-    lord = hadda_lord(sign, signlon)
+    lord = hadda_lord(sign, signlon, scheme)
     if lord == planet:
         return 15.0
     rel = _relation_simple(planet, lord)
@@ -333,7 +345,7 @@ def _navamsa_bala(planet, d9_sign):
     return (2.5 + 1.25) / 2.0  # neutral 占位  # 待书值
 
 
-def pancha_vargeeya_bala(planet, sign, lon, d3_sign=None, d9_sign=None):
+def pancha_vargeeya_bala(planet, sign, lon, d3_sign=None, d9_sign=None, hadda_scheme='egyptian'):
     """Pancha-Vargeeya bala = (Kshetra + Uchcha + Hadda + Drekkana + Navamsa) / 4。
 
     d3_sign/d9_sign 缺省时该子源记 0（调用方应传 D-3/D-9 星座以求全量）。
@@ -342,7 +354,7 @@ def pancha_vargeeya_bala(planet, sign, lon, d3_sign=None, d9_sign=None):
     signlon = _signlon(lon)
     k = _kshetra_bala(planet, sign)
     u = _uchcha_bala(planet, lon)
-    h = _hadda_bala(planet, sign, signlon)
+    h = _hadda_bala(planet, sign, signlon, hadda_scheme)
     dre = _drekkana_bala(planet, d3_sign) if d3_sign else 0.0
     nav = _navamsa_bala(planet, d9_sign) if d9_sign else 0.0
     total = (k + u + h + dre + nav) / 4.0
@@ -395,7 +407,8 @@ def year_lord_candidates(natal_lagna_sign, annual_lagna_sign, muntha_sign,
 def select_year_lord(candidates, annual_lagna_sign, planet_signs, planet_lons,
                      pancha_bala_by_planet, d3_signs=None, d9_signs=None):
     """从 5 候选选年主（fallback 链，权威转录）：
-      A. 短名单 = 对年度盘 lagna 有「吉相位」(trinal/sextile)且互在 orb 内 的候选；
+      A. 短名单 = 对年度盘 lagna 有「吉相位」类别(trinal/sextile)的候选(orb 细判需
+         lagna 度数,本实现以座位类别为准,与 _aspect_to_lagna 一致)；
          其中 Pancha-Vargeeya bala 最高者胜；并列时「在更多候选类别中出现」者胜。
       B. 若无吉相位候选 → 接受有恶相位的候选（同样取最强）。
       C. 若全无对 lagna 的相位 → 取 Pancha-Vargeeya bala 极强者。
@@ -788,14 +801,16 @@ def detect_higher_yogas(planet_signs, planet_lons, retro=None):
 _TAJAKA_YEAR_DAYS = 365.2425   # Tajaka 年长（权威转录）。
 
 
-def patyayini_dasa(planet_lons, lagna_lon):
+def patyayini_dasa(planet_lons, lagna_lon, year_days=None, lagna_point='degree'):
     """Patyayini dasa：以 lagna + 七曜 advancement(krisamsa) 升序，
     相邻差 = patyamsa，期长(日) = 年长 × patyamsa / Σpatyamsa（Σ = 最大 krisamsa）。
 
     输入：年度盘七曜黄经 + lagna 黄经。返回 {'order':[{ref,krisamsa,patyamsa,days}], 'totalDays'}。
     第一项（最小 krisamsa）无 patyamsa（不占期）。
     """
-    rows = [{'ref': 'lagna', 'krisamsa': _signlon(lagna_lon)}]
+    year_len = _TAJAKA_YEAR_DAYS if year_days is None else float(year_days)
+    lagna_kris = 0.0 if lagna_point == 'cusp' else _signlon(lagna_lon)
+    rows = [{'ref': 'lagna', 'krisamsa': lagna_kris}]
     for p in SEVEN_PLANETS:
         if p in planet_lons:
             rows.append({'ref': p, 'krisamsa': _signlon(planet_lons[p])})
@@ -809,7 +824,7 @@ def patyayini_dasa(planet_lons, lagna_lon):
         else:
             patyamsa = r['krisamsa'] - prev
         prev = r['krisamsa']
-        days = (_TAJAKA_YEAR_DAYS * patyamsa / total_patyamsa) if total_patyamsa else 0.0
+        days = (year_len * patyamsa / total_patyamsa) if total_patyamsa else 0.0
         out.append({'ref': r['ref'], 'krisamsa': round(r['krisamsa'], 4),
                     'patyamsa': round(patyamsa, 4), 'days': round(days, 4)})
     return {'order': out, 'totalDays': round(sum(x['days'] for x in out), 4),
@@ -842,7 +857,8 @@ def mudda_first_lord(natal_first_vimshottari_key, years_completed):
     return _MUDDA_BY_NUMBER[rem]
 
 
-def mudda_dasa(natal_first_vimshottari_key, years_completed, natal_moon_remaining_ratio):
+def mudda_dasa(natal_first_vimshottari_key, years_completed, natal_moon_remaining_ratio,
+               year_basis_days=360.0):
     """Mudda（Varsha-Vimshottari）大运序 + 期长（骨架）。
 
     首运 = mudda_first_lord；首运余 = 本命月宿未走比 × 该曜日数；其后按正常 Vimshottari 序循环。
@@ -852,7 +868,9 @@ def mudda_dasa(natal_first_vimshottari_key, years_completed, natal_moon_remainin
     if first is None:
         return {'available': False, 'reason': 'unknown_natal_lord'}
     keys = [d['key'] for d in MUDDA_SEQUENCE]
-    days_by = {d['key']: d['days'] for d in MUDDA_SEQUENCE}
+    scale = float(year_basis_days) / 360.0
+    days_by = {d['key']: (d['days'] * scale if abs(scale - 1.0) > 1e-12 else d['days'])
+               for d in MUDDA_SEQUENCE}
     idx = keys.index(first)
     seq = []
     for i in range(len(keys)):
@@ -874,10 +892,49 @@ def varsha_narayana_lagna(natal_lagna_sign, age_completed):
 # ════════════════════════════════════════════════════════════════════════
 # 9. 顶层装配（供 websrv 接线层调用）
 # ════════════════════════════════════════════════════════════════════════
+TARA_NAMES = ('Janma', 'Sampat', 'Vipat', 'Kshema', 'Pratyari', 'Sadhaka', 'Vadha', 'Mitra', 'Ati-Mitra')
+TARA_CN = {'Janma': '本命', 'Sampat': '财', 'Vipat': '危', 'Kshema': '安', 'Pratyari': '障',
+           'Sadhaka': '成', 'Vadha': '害', 'Mitra': '友', 'Ati-Mitra': '挚友'}
+TARA_GOOD = {'Sampat', 'Kshema', 'Sadhaka', 'Mitra', 'Ati-Mitra'}
+
+
+def tripataki_nakshatra(annual_positions):
+    """Tripataki(宿距三旗,古籍诸本「规则随书」→ 只出可计算分档并标注):
+    以年盘月亮宿为基准,九曜按「距月宿的宿数」1-27 落三层旗
+    (1-9 内旗/10-18 中旗/19-27 外旗);逐曜附 27 宿通用 Tārā 九循环吉凶。"""
+    moon = annual_positions.get(const.MOON)
+    if not moon:
+        return {'available': False, 'reason': 'missing_moon'}
+    from astrostudy.nakshatra import nakshatra_from_lon
+    m_nak = nakshatra_from_lon(_lon(moon['lon']))
+    base_idx = int(m_nak['index'])              # 1-27
+    rows = []
+    for pid, v in annual_positions.items():
+        nak = nakshatra_from_lon(_lon(v['lon']))
+        d = ((int(nak['index']) - base_idx) % 27) + 1     # 1..27(含本宿=1)
+        flag = 1 if d <= 9 else (2 if d <= 18 else 3)
+        tara = TARA_NAMES[(d - 1) % 9]
+        rows.append({'planet': pid, 'transitNak': nak.get('name'),
+                     'transitNakIndex': int(nak['index']),
+                     'distance': d, 'flag': flag,
+                     'tara': tara, 'taraLabel': TARA_CN.get(tara, tara),
+                     'good': tara in TARA_GOOD,
+                     'verdict': ('吉' if tara in TARA_GOOD else ('平' if tara == 'Janma' else '凶'))})
+    return {'available': True,
+            'baseNak': m_nak.get('name'), 'baseNakIndex': base_idx,
+            'rows': rows,
+            'note': '宿距三旗:1-9 内旗/10-18 中旗/19-27 外旗;吉凶按 27 宿通用 Tārā 九循环。原典规则随书 → 本卡为可计算版并标注。'}
+
+
+_PATYAYINI_YEAR_BY_KEY = {'gregorian365_2425': 365.2425, 'd365': 365.0,
+                          'sidereal365_2563': 365.2563, 'savana360': 360.0}
+_ANNUAL_NAK_BASIS_BY_KEY = {'classical360': 360.0, 'julian365_25': 365.25}
+
+
 def build_tajaka(annual_positions, natal_lagna_sign, annual_lagna_lon,
                  age_completed, day_birth, *, retro=None,
                  d3_signs=None, d9_signs=None, natal_first_vimshottari_key=None,
-                 natal_moon_remaining_ratio=None):
+                 natal_moon_remaining_ratio=None, node_positions=None, variants=None):
     """组装年度盘全量 Tajaka 结果（纯函数；天文求根由调用方完成）。
 
     参数（均为已算数据）：
@@ -892,6 +949,13 @@ def build_tajaka(annual_positions, natal_lagna_sign, annual_lagna_lon,
 
     返回 dict（结构稳定，缺数据子项标 available=False / 值 None）。
     """
+    from astrostudy.india.dasha_variants import resolve_variants as _rv_taj
+    _dv = _rv_taj(variants)
+    _hadda_scheme = _dv['haddaScheme']
+    _paty_year = _PATYAYINI_YEAR_BY_KEY.get(_dv['patyayiniYearConstant'], _TAJAKA_YEAR_DAYS)
+    _paty_point = _dv['patyayiniLagnaPoint']
+    _nak_basis = _ANNUAL_NAK_BASIS_BY_KEY.get(_dv['annualNakYearBasis'], 360.0)
+
     retro = retro or {}
     d3_signs = d3_signs or {}
     d9_signs = d9_signs or {}
@@ -911,7 +975,8 @@ def build_tajaka(annual_positions, natal_lagna_sign, annual_lagna_lon,
             continue
         pancha[p] = pancha_vargeeya_bala(
             p, planet_signs[p], planet_lons[p],
-            d3_sign=d3_signs.get(p), d9_sign=d9_signs.get(p))
+            d3_sign=d3_signs.get(p), d9_sign=d9_signs.get(p),
+            hadda_scheme=_hadda_scheme)
     pancha_total = {p: v['total'] for p, v in pancha.items()}
 
     candidates = year_lord_candidates(
@@ -940,12 +1005,125 @@ def build_tajaka(annual_positions, natal_lagna_sign, annual_lagna_lon,
                         for k, lbl, note in TAJAKA_YOGA_CATALOG],
         },
         'sahams': all_sahams(planet_lons, annual_lagna_lon, annual_lagna_sign, day_birth),
+        # 宿距三旗按手册九曜(七曜 + 罗/计);node_positions 仅供此块,其余 Tajika 子块守七曜制零回归。
+        'tripatakiNak': tripataki_nakshatra(dict(annual_positions, **(node_positions or {}))),
         'dasas': {
-            'patyayini': patyayini_dasa(planet_lons, annual_lagna_lon),
+            'patyayini': patyayini_dasa(planet_lons, annual_lagna_lon,
+                                        year_days=_paty_year, lagna_point=_paty_point),
+            'annualYogini': annual_yogini_dasa(
+                (annual_positions.get(const.MOON) or {}).get('lon'), year_basis_days=_nak_basis),
             'varshaNarayanaLagna': varsha_narayana_lagna(natal_lagna_sign, age_completed),
         },
     }
     if natal_first_vimshottari_key is not None and natal_moon_remaining_ratio is not None:
         result['dasas']['mudda'] = mudda_dasa(
-            natal_first_vimshottari_key, age_completed, natal_moon_remaining_ratio)
+            natal_first_vimshottari_key, age_completed, natal_moon_remaining_ratio,
+            year_basis_days=_nak_basis)
     return result
+
+
+# ── 年 Yogini(Varsha Yogini)────────────────────────────────────────────
+# 与本命 Yogini 同表同序(月1→日2→木3→火4→水5→土6→金7→罗8,Σ=36);起始由「年盘」月宿
+# (宿序+3) mod 8 定;段日 = 年值 × (年基/36);首段余额 = (1−宿内已行比例) × 全段日。
+# 年基可配:360(古典,默认) / 365.25 —— 比例 1:2:…:8 两基不变。
+_ANNUAL_YOGINI_SEQ = (
+    ('Mangala', 'Moon', 1), ('Pingala', 'Sun', 2), ('Dhanya', 'Jupiter', 3),
+    ('Bhramari', 'Mars', 4), ('Bhadrika', 'Mercury', 5), ('Ulka', 'Saturn', 6),
+    ('Siddha', 'Venus', 7), ('Sankata', 'Rahu', 8),
+)
+_YOGINI_CN = {'Moon': '月亮', 'Sun': '太阳', 'Jupiter': '木星', 'Mars': '火星',
+              'Mercury': '水星', 'Saturn': '土星', 'Venus': '金星', 'Rahu': '罗睺'}
+_NAK_SPAN = 360.0 / 27.0
+
+
+def annual_yogini_dasa(annual_moon_lon, year_basis_days=360.0):
+    """年 Yogini:年盘月宿播种,一年内跑满一轮 8 Yogini(Σ单位=36)。
+
+    返回 {'available','startYogini','moonNakIndex','sequence':[{yogini,lordKey,lordCN,
+    units,days,balance?}],'totalDays','yearBasisDays'}。首项 days 为余额(去已行)。
+    """
+    try:
+        lon = float(annual_moon_lon) % 360.0
+    except (TypeError, ValueError):
+        return {'available': False, 'reason': 'moon_lon_invalid'}
+    nak_index = int(lon // _NAK_SPAN) + 1                 # 1..27
+    frac = (lon - (nak_index - 1) * _NAK_SPAN) / _NAK_SPAN
+    start8 = (nak_index + 3) % 8
+    start_idx = (start8 - 1) % 8                          # 0 基:0→Sankata? 不——(N+3)%8 的 0 对应 8=Sankata
+    unit_days = float(year_basis_days) / 36.0
+    seq = []
+    for k in range(8):
+        name, lord, units = _ANNUAL_YOGINI_SEQ[(start_idx + k) % 8]
+        full_days = units * unit_days
+        entry = {'yogini': name, 'lordKey': lord, 'lordCN': _YOGINI_CN[lord],
+                 'units': units, 'days': round(full_days, 4)}
+        if k == 0:
+            entry['balance'] = round(full_days * (1.0 - frac), 4)
+        seq.append(entry)
+    return {'available': True, 'startYogini': seq[0]['yogini'], 'moonNakIndex': nak_index,
+            'sequence': seq, 'totalDays': round(sum(x['days'] for x in seq), 4),
+            'yearBasisDays': float(year_basis_days)}
+
+
+# ── G13 · Tithi Pravesh(阴历返照年盘)时刻求解 ─────────────────────────────
+# 权威 §15.3:「以本命同 Tithi 的回归立年盘」—— 求 (Moon−Sun) mod 360 回到本命
+# elongation 的瞬间。一个太阳年内该回归约有 12–13 次(朔望月 ~29.53 日),权威未指明
+# 取哪一次(歧义 A17)→ 已定案「取最接近生日那一次」,mode 预留其他口径。
+_SYNODIC_MONTH_DAYS = 29.530588
+
+
+def tithi_pravesh_moment(elong_fn, natal_elongation, anchor_jd,
+                         mode='nearest_birthday', search_half_days=20.0):
+    """解 elong_fn(jd) == natal_elongation 的最接近 anchor_jd 的时刻。
+
+    elong_fn        : jd → (Moon−Sun) mod 360(由服务层注入,恒星/回归同减无别)。
+    natal_elongation: 本命日月角距(0..360)。
+    anchor_jd       : 目标年的「生日时刻」jd(取最接近它的一次回归 —— 定案口径)。
+    mode            : 'nearest_birthday'(默认;其余口径预留,当前一律按默认)。
+    search_half_days: 搜索半窗(默认 ±20 日 > 半个朔望月,必含至少一次回归)。
+
+    月相角速 ≈ 12.19°/日且恒正(月恒快于日)→ f(jd)=wrap180(elong−target) 在每个
+    朔望月内单调穿零一次。粗扫变号 → 二分。返回 (jd, err_deg) 或 (None, None)。
+    """
+    if natal_elongation is None or anchor_jd is None:
+        return None, None
+    target = float(natal_elongation) % 360.0
+
+    def f(jd):
+        e = elong_fn(jd)
+        return None if e is None else ((float(e) - target + 180.0) % 360.0 - 180.0)
+
+    lo = anchor_jd - float(search_half_days)
+    hi = anchor_jd + float(search_half_days)
+    n = max(64, int((hi - lo) * 8))           # ~3h 粗扫步长,远小于半日单调段
+    roots = []
+    prev_jd, prev_v = None, None
+    for i in range(n + 1):
+        jd = lo + (hi - lo) * i / n
+        v = f(jd)
+        if v is None:
+            prev_jd, prev_v = None, None
+            continue
+        if prev_v is not None and (prev_v < 0) != (v < 0) and abs(v - prev_v) < 180.0:
+            a, b, fa = prev_jd, jd, prev_v
+            for _ in range(60):
+                m = (a + b) / 2.0
+                fm = f(m)
+                if fm is None:
+                    break
+                if abs(fm) < 1e-7:
+                    a = b = m
+                    break
+                if (fa < 0) != (fm < 0):
+                    b = m
+                else:
+                    a, fa = m, fm
+            root = (a + b) / 2.0
+            fv = f(root)
+            if fv is not None:
+                roots.append((root, abs(fv)))
+        prev_jd, prev_v = jd, v
+    if not roots:
+        return None, None
+    best = min(roots, key=lambda r: abs(r[0] - anchor_jd))     # 最接近生日(定案)
+    return best

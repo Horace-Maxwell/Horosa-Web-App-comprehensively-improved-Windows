@@ -11,6 +11,7 @@ import { bodyPartsOf, degreePosition } from '../divination/data/bodyParts';
 import { buildPatternOverview } from './astroPatternOverview';
 import { SIGNS } from '../divination/data/signs';
 import { buildEgyptSectionLines } from '../components/astro/AstroEgypt'; // [埃及历]段本盘派生(纯函数;已验证无环:AstroEgypt 不回 import 本文件)
+import { currentEgyptSchool, egyptSchoolFromFields } from '../divination/data/egyptianSchools'; // 埃及流派口径(record 随盘键优先,回落全局)
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -1334,9 +1335,12 @@ const CLS_LOT_CN = {
 	'Pars Father': '父亲点', 'Pars Mother': '母亲点', 'Pars Brothers': '兄弟点', 'Pars Diseases': '疾厄点',
 	'Pars Death': '死亡点', 'Pars Travel': '旅行点', 'Pars Friends': '朋友点', 'Pars Enemies': '仇敌点',
 	'Pars Saturn': '土星点', 'Pars Jupiter': '木星点', 'Pars Mars': '火星点', 'Pars Venus': '金星点',
-	'Pars Mercury': '水星点', 'Pars Horsemanship': '骑术点', 'Pars Life': '生命点', 'Pars Radix': '根基点',
+	'Pars Mercury': '水星点', 'Pars Horsemanship': '骑术点', 'Pars Life': '生命点', 'Pars Radix': '本源点',
 	'Pars Eros': '爱欲点', 'Pars Necessity': '必然点', 'Pars Courage': '勇气点', 'Pars Victory': '胜利点',
 	'Pars Nemesis': '报应点',
+	// 希腊化补全六点(「根基点」全仓专指 Basis:择日点引擎/词汇表/显赫指标同名;Radix 改「本源点」消歧)
+	'Pars Basis': '根基点', 'Pars Exaltation': '擢升点', 'Pars Sons Valens': '儿子点',
+	'Pars Daughters': '女儿点', 'Pars Praxis': '事业点', 'Pars Wedding Dorothean': '婚姻点(通式)',
 };
 const CLS_ELEM = { Fire: '火', Earth: '土', Air: '风', Water: '水' };
 const CLS_MODE = { Cardinal: '始', Fixed: '固', Mutable: '变' };
@@ -1416,7 +1420,11 @@ export function buildClassicalAnalysisSection(analysis){
 		if(eg.decanIndex){ parts.push(`上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
 		if(parts.length){ lines.push(`埃及历：${parts.join('；')}`); }
 	}
-	const bab = (analysis.babylonianStars || []).filter((b)=> b && b.conj).map((b)=> `${msg(b.planet)} 合参照星 ${b.cn || b.star}`);
+	const bab = (analysis.babylonianStars || []).filter((b)=> b && b.conj).map((b)=> {
+		// 定名距星表升级:附楔文读法(上/下·前/后 X 肘 Y 指);老数据无此键时保持原行(零回归)。
+		const rd = (b.latDir !== undefined) ? `(${b.latDir}${b.lonDir} ${b.cubits} 肘 ${b.fingers} 指)` : '';
+		return `${msg(b.planet)} 合参照星 ${b.cn || b.star}${rd}`;
+	});
 	if(bab.length){ lines.push('巴比伦参照星'); lines.push(bab.join('；')); }
 	// 相位格局(Grand Trine/T-Square/Yod/Stellium…)、分布权重(元素/模态/半球)、气质(四液)、Almuten 总主 —
 	// 格局tab 同源,补入 AI 避免遗漏(与逐曜古典/古典格局互补)。标签对齐 AstroAnalysisLab。
@@ -1506,8 +1514,10 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	sections.push(buildSectionText('12分度', buildDodecaSection(chartObj)));
 	sections.push(buildSectionText('主宰星链', buildDispositorSection(chartObj)));
 	sections.push(buildSectionText('古典', buildClassicalSection(chartObj)));
-	// [埃及历]:各点落旬/上升旬详情(本盘派生);数据缺 → [] 不产段。在 builder 本体内,同步/惰性两路径自然一致。
-	const egyptLines = buildEgyptSectionLines(chartObj);
+	// [埃及历]:各点落旬/上升旬详情/民用历(本盘派生);数据缺 → [] 不产段。在 builder 本体内,同步/惰性两路径自然一致。
+	// 流派口径三级:record 随盘键(egypt_*,存盘时全局非默认才捕获) > 当前全局 > 默认档 ——
+	// 保证同一命例重开,本段不随「后来改过的全局设置」静默漂移(与其余古典键随盘保真同口径)。
+	const egyptLines = buildEgyptSectionLines(chartObj, egyptSchoolFromFields(fields) || currentEgyptSchool());
 	if(egyptLines.length){ sections.push(buildSectionText('埃及历', egyptLines)); }
 	sections.push(buildSectionText('寿命格局', buildLifespanSection(chartObj)));
 	sections.push(buildSectionText('可能性', buildPossibilitySection(chartObj)));

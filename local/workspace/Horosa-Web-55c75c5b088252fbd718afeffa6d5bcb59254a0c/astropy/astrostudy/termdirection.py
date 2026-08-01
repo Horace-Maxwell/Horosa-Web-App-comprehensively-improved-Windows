@@ -21,7 +21,8 @@ class TermDirection:
     # Maximum arc
     MAX_ARC = 100
 
-    def __init__(self, chart, clockwise=True):
+    def __init__(self, chart, clockwise=True, terms_variant=0):
+        self.terms_variant = terms_variant
         self.chart = chart
         self.clockwise = clockwise
         self.asc = chart.getAngle(const.ASC);
@@ -43,7 +44,10 @@ class TermDirection:
         longitude by sign and object.
 
         """
-        terms = tables.EGYPTIAN_TERMS
+        # 界系变体:0 埃及(默认零回归)/1 托勒密/2 莉莉(flatlib 公有表)
+        tv = int(getattr(self, 'terms_variant', 0) or 0)
+        terms = (tables.TETRABIBLOS_TERMS if tv == 1
+                 else tables.LILLY_TERMS if tv == 2 else tables.EGYPTIAN_TERMS)
         termLons = self._termlons(terms)
         res = {}
         for (ID, sign, lon, endlon) in termLons:

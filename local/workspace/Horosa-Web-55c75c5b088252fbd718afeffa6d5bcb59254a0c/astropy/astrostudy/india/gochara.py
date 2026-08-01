@@ -88,7 +88,8 @@ VEDHA_PAIRS = {
     MARS: {3: 12, 6: 9, 11: 5},
     MERCURY: {2: 5, 4: 3, 6: 9, 8: 1, 10: 8, 11: 12},
     JUPITER: {2: 12, 5: 4, 7: 3, 9: 10, 11: 8},
-    VENUS: {1: 8, 2: 7, 3: 1, 4: 10, 5: 9, 8: 5, 9: 11, 11: 6, 12: 3},
+    # 金星 11/12 两对曾录入颠倒(11→6,12→3);权威表作 11→3、12→6,已勘正并由锁值断言看守。
+    VENUS: {1: 8, 2: 7, 3: 1, 4: 10, 5: 9, 8: 5, 9: 11, 11: 3, 12: 6},
     SATURN: {3: 12, 6: 9, 11: 5},
 }
 # Vedha 例外对(父子对，互不遮蔽)：日↔土、月↔水。
@@ -216,19 +217,25 @@ def transit_from_reference(reference_sign, transit_signs, label):
     return rows
 
 
-def apply_vedha(rows, reference_sign, transit_signs):
+def apply_vedha(rows, reference_sign, transit_signs, *, blocker_filter=None):
     """对「从月」逐曜结果叠加 Vedha：某曜吉位若被另一曜落于其 vedha 宫则抵消。
 
     rows: transit_from_reference(...) 的结果(就地补充 vedha 字段，并返回 rows)。
     例外对(父子，互不遮蔽)：日↔土、月↔水。仅 7 实体曜+节点参与遮蔽。
     每行新增：'vedhaHouse'(吉位对应 vedha 宫)、'vedhaBy'(实施遮蔽的曜或 None)、
               'effective'(叠 Vedha 后是否仍为有效吉位)。
+
+    blocker_filter(keyword-only,默认 None=现状逐字不变):可选谓词
+    `f(planet_id)->bool`,决定某曜可否**作为遮蔽者**参与 Vedha。用于「罗计是否作
+    Vedha 制造者」流派开关(各家不一,默认计入 = 既有口径零回归)。
     """
     # 各曜过运所在「从月宫位」索引：house -> [planet,...]
     house_occupants = {}
     for planet in GOCHARA_PLANETS:
         sign = transit_signs.get(planet)
         if sign is None:
+            continue
+        if blocker_filter is not None and not blocker_filter(planet):
             continue
         h = house_from(reference_sign, sign)
         if h is not None:
@@ -582,7 +589,8 @@ def transit_nakshatra_rows(natal_moon_nak_index, transit_naks,
 def compute_gochara(natal_moon_sign, natal_lagna_sign, transit_signs,
                     ashtakavarga=None, transit_date=None,
                     natal_moon_nak_index=None, natal_lagna_nak_index=None,
-                    transit_naks=None):
+                    transit_naks=None, natal_sun_sign=None,
+                    vedha_blockers='all'):
     """过运分析顶层入口。
 
     natal_moon_sign: 本命月 rasi 名(从月过运参照)。
@@ -613,8 +621,10 @@ def compute_gochara(natal_moon_sign, natal_lagna_sign, transit_signs,
             'transitDate': transit_date,
         }
 
+    # 流派开关 vedhaBlockers:'all'(默认,罗计计入遮蔽者=既有口径) / 'exclude_nodes'(罗计不作遮蔽者)。
+    _vbf = None if vedha_blockers != 'exclude_nodes' else (lambda p: p not in (RAHU, KETU))
     from_moon = transit_from_reference(natal_moon_sign, transit_signs, 'fromMoon')
-    apply_vedha(from_moon, natal_moon_sign, transit_signs)
+    apply_vedha(from_moon, natal_moon_sign, transit_signs, blocker_filter=_vbf)
     # 叠加 AV 过境(BAV/SAV)到每行(从月行)。
     for row in from_moon:
         av = av_transit_verdict(
@@ -632,6 +642,17 @@ def compute_gochara(natal_moon_sign, natal_lagna_sign, transit_signs,
                 _sav_bindu(ashtakavarga, row['sign']),
             )
             row['av'] = av
+
+    # 第三基准「从日」(与从月/从命并列;吉位/Vedha/AV 同判)。
+    from_sun = []
+    if natal_sun_sign is not None:
+        from_sun = transit_from_reference(natal_sun_sign, transit_signs, 'fromSun')
+        apply_vedha(from_sun, natal_sun_sign, transit_signs, blocker_filter=_vbf)
+        for row in from_sun:
+            row['av'] = av_transit_verdict(
+                _bav_bindu(ashtakavarga, row['planet'], row['sign']),
+                _sav_bindu(ashtakavarga, row['sign']),
+            )
 
     saturn_sign = transit_signs.get(SATURN)
     saturn_afflictions = saturn_moon_afflictions(natal_moon_sign, saturn_sign)
@@ -653,6 +674,8 @@ def compute_gochara(natal_moon_sign, natal_lagna_sign, transit_signs,
         'reference': {
             'moonSign': natal_moon_sign,
             'moonSignLabel': SIGN_CN.get(natal_moon_sign, natal_moon_sign),
+            'sunSign': natal_sun_sign,
+            'sunSignLabel': SIGN_CN.get(natal_sun_sign, natal_sun_sign) if natal_sun_sign else None,
             'lagnaSign': natal_lagna_sign,
             'lagnaSignLabel': SIGN_CN.get(natal_lagna_sign, natal_lagna_sign) if natal_lagna_sign else None,
             'moonNak': moon_nak,
@@ -660,6 +683,7 @@ def compute_gochara(natal_moon_sign, natal_lagna_sign, transit_signs,
         },
         'fromMoon': from_moon,
         'fromLagna': from_lagna,
+        'fromSun': from_sun,
         'saturnAfflictions': saturn_afflictions,
         'taraBala': tara_rows,
         'specialNakshatras': special_naks,

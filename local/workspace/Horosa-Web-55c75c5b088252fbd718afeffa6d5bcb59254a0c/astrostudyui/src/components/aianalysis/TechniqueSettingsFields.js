@@ -76,11 +76,13 @@ function renderField(field, draft, onChange){
 		const isDatetime = field.type === 'datetime';
 		const isTime = field.type === 'time';
 		const fmt = isDatetime ? 'YYYY-MM-DD HH:mm' : (isTime ? 'HH:mm' : 'YYYY-MM-DD');
-		const mVal = draftStr ? moment(draftStr, fmt) : moment();
+		const mVal = draftStr ? moment(draftStr, fmt) : null;
 		const pickerProps = {
 			size: 'small',
 			format: fmt,
-			value: mVal && mVal.isValid() ? mVal : moment(),
+			// 🔴 未设置必须传 null 显 placeholder:曾恒回退 moment() → 「留空=单点/此刻」
+			// 语义的字段(推运目标时刻/扫描区间终点)面板显示今天,用户以为已设,draft 实为空。
+			value: mVal && mVal.isValid() ? mVal : null,
 			placeholder: field.placeholder || (draftStr ? '' : '此刻'),
 			style: { minWidth: 200 },
 			allowClear: true,
@@ -120,8 +122,19 @@ export default function TechniqueSettingsFields({ schemaKey, draft, onChange }){
 	// 按 group 分组(条件揭示 field.showWhen)。
 	const groups = [];
 	const groupMap = {};
+	const draftOrDefault = (name)=>{
+		const d = draft || {};
+		if(d[name] !== undefined && d[name] !== null && d[name] !== ''){ return d[name]; }
+		return (schema.fields.find((f)=>f.name === name) || {}).default;
+	};
 	schema.fields.forEach((field)=>{
 		if(typeof field.showWhen === 'function' && !field.showWhen(draft || {})){ return; }
+		// 对象式 when:{key:value} —— 曾无人实现(cetian 六个 kentang 条件项恒显,
+		// 书法档下改了也被后端忽略,「点了没反应」)。按草稿值(缺省回退字段默认)比对。
+		if(field.when && typeof field.when === 'object'){
+			const ok = Object.keys(field.when).every((k)=>`${draftOrDefault(k)}` === `${field.when[k]}`);
+			if(!ok){ return; }
+		}
 		const g = field.group || '设置';
 		if(!groupMap[g]){ groupMap[g] = []; groups.push(g); }
 		groupMap[g].push(field);

@@ -232,3 +232,41 @@ def test_baladi_avastha():
     # 中段
     assert P.baladi_avastha(const.ARIES, 15.0)['key'] == 'Yuva'
     assert P.baladi_avastha(const.ARIES, 15.0)['index'] == 3
+
+
+# ── W1-B:Chara Karaka 7/8 方案 ────────────────────────────────────────────
+
+def test_chara_karakas_default_scheme_unchanged():
+    # 默认(不传/传'8')与既有 8 卡拉卡逐字节全等(零回归锚)。
+    from astrostudy.india.primitives import chara_karakas
+    lons = {'Sun': 10.5, 'Moon': 100.2, 'Mars': 250.9, 'Mercury': 33.3,
+            'Jupiter': 199.8, 'Venus': 88.1, 'Saturn': 310.6, 'North Node': 155.4}
+    assert chara_karakas(lons) == chara_karakas(lons, scheme='8')
+    out = chara_karakas(lons)
+    assert len(out) == 8
+    assert [r['label'] for r in out] == ['AK', 'AmK', 'BK', 'MK', 'PiK', 'PK', 'GK', 'DK']
+
+
+def test_chara_karakas_seven_scheme():
+    # '7':长度 7、无罗睺、名序 AK..DK 无 PiK;AK 仍为(非罗睺)最高用度星。
+    from astrostudy.india.primitives import chara_karakas
+    lons = {'Sun': 10.5, 'Moon': 100.2, 'Mars': 250.9, 'Mercury': 33.3,
+            'Jupiter': 199.8, 'Venus': 88.1, 'Saturn': 310.6, 'North Node': 155.4}
+    out = chara_karakas(lons, scheme='7')
+    assert len(out) == 7
+    assert all(r['planet'] != 'North Node' for r in out)
+    assert [r['label'] for r in out] == ['AK', 'AmK', 'BK', 'MK', 'PK', 'GK', 'DK']
+    assert 'Pitrikaraka' not in [r['full'] for r in out]
+    deg = {r['planet']: r['degree'] for r in out}
+    assert out[0]['degree'] == max(deg.values())
+
+
+def test_chara_karakas_seven_reranks_below_ak():
+    # 罗睺剔除后,若罗睺原居中位,其后各星整体前移一名(BK/MK/PK 归属漂移的最小实证)。
+    from astrostudy.india.primitives import chara_karakas
+    lons = {'Sun': 20.0, 'Moon': 15.0, 'Mars': 12.0, 'Mercury': 10.0,
+            'Jupiter': 8.0, 'Venus': 6.0, 'Saturn': 4.0, 'North Node': 344.0}  # 罗睺逆量=30-14=16 → 第2位
+    e8 = chara_karakas(lons, scheme='8')
+    e7 = chara_karakas(lons, scheme='7')
+    assert e8[1]['planet'] == 'North Node' and e8[1]['label'] == 'AmK'
+    assert e7[1]['planet'] == 'Moon' and e7[1]['label'] == 'AmK'   # 月亮从 BK 升 AmK

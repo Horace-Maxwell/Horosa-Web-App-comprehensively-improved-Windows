@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ruleziwei/RuleStars.js b/astrostudyui/src/components/ruleziwei/RuleStars.js
-index 1f57e58..4f6b2f8 100644
+index c66b3a3..5ad87e6 100644
 --- a/astrostudyui/src/components/ruleziwei/RuleStars.js
 +++ b/astrostudyui/src/components/ruleziwei/RuleStars.js
 @@ -1,7 +1,9 @@
@@ -10,11 +10,11 @@ index 1f57e58..4f6b2f8 100644
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ import STAR_MEANING from '../ziwei/data/tables/ziweiStarMeaning.json';   // WP-7 星曜含义结构化
  
  class RuleStars extends Component{
- 	constructor(props) {
-@@ -25,7 +27,7 @@ class RuleStars extends Component{
- 			let dom = this.genPopoverDom(rules);
+@@ -26,7 +28,7 @@ class RuleStars extends Component{
+ 			let dom = this.genPopoverDom(rules, star);
  			let title = star + '';
  			let col = (
 -				<Col span={4} key={randomStr(8)}>
@@ -22,7 +22,25 @@ index 1f57e58..4f6b2f8 100644
  					<Popover content={dom} title={title}>
  						{star}
  					</Popover>					
-@@ -43,7 +45,7 @@ class RuleStars extends Component{
+@@ -45,7 +47,7 @@ class RuleStars extends Component{
+ 		const lab = { opacity: 0.6, marginRight: 3 };
+ 		if(m){
+ 			return (
+-				<div key={randomStr(8)} style={boxStyle}>
++				<div key="main-meaning" style={boxStyle}>
+ 					<div>
+ 						<span style={lab}>五行</span>{m.wuxing}　<span style={lab}>斗分</span>{m.dou}
+ 					</div>
+@@ -56,7 +58,7 @@ class RuleStars extends Component{
+ 				</div>
+ 			);
+ 		}
+-		if(a){ return (<div key={randomStr(8)} style={boxStyle}>{a}</div>); }
++		if(a){ return (<div key="assist-meaning" style={boxStyle}>{a}</div>); }
+ 		return null;
+ 	}
+ 
+@@ -68,7 +70,7 @@ class RuleStars extends Component{
  			let li = null;
  			if(rule === '=='){
  				li = (
@@ -31,7 +49,7 @@ index 1f57e58..4f6b2f8 100644
  				);
  			}else{
  				if(rule instanceof Array){
-@@ -57,15 +59,15 @@ class RuleStars extends Component{
+@@ -82,16 +84,16 @@ class RuleStars extends Component{
  					)
  				}else{
  					li = (
@@ -44,8 +62,9 @@ index 1f57e58..4f6b2f8 100644
  		}
  		let rulesDom = (
 -			<div key={randomStr(8)} style={{width: 400, height:400, overflow: 'auto'}}>
--				<ul key={randomStr(8)}>
 +			<div key="rules" style={{width: 400, height:400, overflow: 'auto'}}>
+ 				{head}
+-				<ul key={randomStr(8)}>
 +				<ul key="list">
  					{lis}
  				</ul>

@@ -260,13 +260,14 @@ DISPLAY_REPLACEMENTS = {
 }
 
 
-# horosa_display_trans_v1(PERF-R10 B4):DISPLAY_REPLACEMENTS 全部 1字→1字 ⇒ 逐项
-# str.replace(每字符串 ~125 次全串遍历)可无损换成**单遍** C 级 str.translate。等价条件:
+# horosa_display_trans_v1(PERF-R10 B4;v3.6.0 对上游新 display 路径重贴):DISPLAY_REPLACEMENTS
+# 全部 1字→1字 ⇒ 逐项 str.replace(每字符串 ~125 次全串遍历)可无损换成**单遍** C 级
+# str.translate。等价条件:
 #   ① 全键值单字符 —— _DISPLAY_TRANS_OK 在 import 时机械核验;未来有人混入多字符项,
 #     自动整体退回旧循环(双保险,勿删);
-#   ② 无链式替换(某项的**值**又是另一项的**键**)—— 键全繁体、值全简体,唯一交集是
-#     恒等对「逆」;astropy/tests/test_kentang_display_fast.py 以不变量断言钉死,
-#     改表破坏该性质会立即红。
+#   ② 无链式替换(某项的**值**又是另一项的**键**)—— 键全繁体、值全简体;
+#     astropy/tests/test_kentang_display_fast.py 以不变量断言钉死,改表破坏该性质会立即红。
+# 热路径:display_safe 递归清洗整棵 vendor 载荷,20 个 kentang 技法逐响应过这里。
 # kill:HOROSA_DISPLAY_TRANS=0 ⇒ 旧循环路径,逐字节旧行为。
 _DISPLAY_TRANS_ON = os.environ.get("HOROSA_DISPLAY_TRANS", "1").lower() not in ("0", "false", "no", "off")
 _DISPLAY_TRANS_OK = all(len(k) == 1 and len(v) == 1 for k, v in DISPLAY_REPLACEMENTS.items())
@@ -289,6 +290,8 @@ def display_text(value):
 
 
 SOURCE_REPLACEMENTS = {new: old for old, new in DISPLAY_REPLACEMENTS.items() if old != new}
+# 同前提同证明(逆映射同为 1:1 单字符;金标同文件覆盖)。
+_SOURCE_TRANS = str.maketrans(SOURCE_REPLACEMENTS) if _DISPLAY_TRANS_OK else None
 
 
 def source_text(value):
@@ -299,6 +302,8 @@ def source_text(value):
             text = zh_convert(text, "zh-tw")
         except Exception:
             pass
+    if _DISPLAY_TRANS_ON and _SOURCE_TRANS is not None:
+        return text.translate(_SOURCE_TRANS)
     for old, new in SOURCE_REPLACEMENTS.items():
         text = text.replace(old, new)
     return text
@@ -398,6 +403,37 @@ def gender_cn(value, default="男"):
 
 def gender_mf(value, default="M"):
     return "F" if gender_cn(value, "男") == "女" else "M"
+
+
+def authoritative_pillars(dt, data=None):
+    """标准四柱的单一权威口径。
+
+    🔴 铁律(用户拍板):凡展示标准「年柱/月柱/日柱/时柱」的技法,四柱必等于全局权威
+    extreme_pillars —— 天文年立春界(公历 1/2 月且未过立春归上一年)、定气月、儒略 JDN
+    (全域含 BC)。各 vendor 引擎自带的简化换算没有立春界,于是「2026-01-15 的年柱」
+    会算成丙午而非乙巳;远古/BC 年更是整片偏数十日。
+
+    日界(23 点是否进次日)与晚子时(时干取次日)语义随参数透传,不因换权威而丢失;
+    月柱要用真太阳黄经定气,故时区也一并传入。取不到权威实现时返回 None ——
+    由调用方保留各自旧值,不让整张盘失败。
+    """
+    d = data or {}
+    try:
+        from kin_year_domain import extreme_pillars
+    except Exception:
+        return None
+    try:
+        y, m, dd, h, _zi = extreme_pillars(
+            dt.year, dt.month, dt.day, dt.hour, getattr(dt, "minute", 0) or 0,
+            after23=to_int(d.get("after23NewDay"), 1),
+            hour_gan_next=to_int(d.get("lateZiHourUseNextDay"), 1),
+            zone_hours=timezone_to_float(d.get("zone"), 8.0),
+        )
+    except Exception:
+        return None
+    if not (y and m and dd and h):
+        return None
+    return {"year": y, "month": m, "day": dd, "hour": h}
 
 
 def timezone_to_float(value, default=8.0):

@@ -26,7 +26,10 @@ function donggongSection(settings, ymd) {
 	lines.push(`日干支：${r.dayGZ}　${r.monthName}·${r.jianchu}${r.zhi}日`);
 	if (settings && settings.event) {
 		const yv = yongshiVerdict(buildHuangliDay(y, m, d), settings.event);
-		lines.push(`用事「${settings.event}」：${yv.level === 'yi' ? `通书宜（宜 ${yv.hits.join('、')}）` : (yv.level === 'ji' ? `通书忌（忌 ${yv.hits.join('、')}）` : '通书无明确宜忌，参酌董公断语与建除')}`);
+		lines.push(`用事「${settings.event}」：${yv.level === 'yi' ? `通书宜（宜 ${yv.hits.join('、')}）`
+			: (yv.level === 'ji' ? `通书忌（忌 ${yv.hits.join('、')}）`
+				: (yv.level === 'conflict' ? `通书宜忌相冲（命中 ${yv.hits.join('、')}）——按凶优先`
+					: '通书无明确宜忌，参酌董公断语与建除'))}`);
 	}
 	lines.push(`综断：${r.verdict.text}`);
 	if (r.jinshen.hit) { lines.push(`⚠ 金神七煞：${r.jinshen.full}值日，切不可犯（三吉星亦不能解）`); }

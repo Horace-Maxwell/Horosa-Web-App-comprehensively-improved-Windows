@@ -75,9 +75,13 @@ class GermanyAstroSrv:
             # 个人点容许度(Basic Five 放宽):仅前端显式下发时生效;缺省 None = 不分叉(零回归)。
             personal_orb = data.get('personalOrb', None)
 
+            # 严格汉堡因子集(D2):true 时剔黑月/紫气(中点对+相位目标双面);缺省 False = 现状字节零回归。
+            strict_factors = bool(data.get('strictFactors', False))
+
             perchart = PerChart(data)
             # uranian=True:中点对纳入 Asc/MC(+ include_tnp 时 8 TNP)、近中点单算、跨 0° 归一、TNP 作相位目标。
-            midpoint = MidPoint(perchart, orb=orb, uranian=True, includeTnp=include_tnp, personalOrb=personal_orb)
+            midpoint = MidPoint(perchart, orb=orb, uranian=True, includeTnp=include_tnp, personalOrb=personal_orb,
+                                strictFactors=strict_factors)
             mids = midpoint.calculate()
             # TNP 星体列表:仅在该流派启用虚星时计算并下发(cosmo 不返回 tnp,前端盘自然不含虚星)。
             if include_tnp:
@@ -109,6 +113,21 @@ class GermanyAstroSrv:
                 except Exception as e:
                     traceback.print_exc()
                     mids['declinationError'] = '{0}'.format(e)
+
+            # 戴维森盘(A5):请求显式携带 davison(第二人出生数据 dict:date/time/zone/lat/lon[,ad])
+            # 时才计算,只【新增】 davison 字段;缺省不带 = 现状响应字节零回归。
+            dav = data.get('davison')
+            if isinstance(dav, dict):
+                try:
+                    from astrostudy.germany.davison import compute_davison
+                    dav_data = dict(dav)
+                    dav_data['tradition'] = False
+                    dav_data['predictive'] = False
+                    perchart_b = PerChart(dav_data)
+                    mids['davison'] = compute_davison(perchart, perchart_b, include_tnp=include_tnp)
+                except Exception as e:
+                    traceback.print_exc()
+                    mids['davisonError'] = '{0}'.format(e)
 
             res = jsonpickle.encode(mids, unpicklable=False)
             return res

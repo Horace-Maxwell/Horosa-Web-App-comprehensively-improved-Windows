@@ -8,6 +8,7 @@ import {
 	isReasoningModel,
 	splitProviderModels,
 	applyThinkingLevel,
+	effectiveMaxTokensForModel,
 	THINKING_LEVELS,
 } from '../aiAnalysisProviders';
 
@@ -27,6 +28,16 @@ describe('aiAnalysisProviders', ()=>{
 		expect(preset.baseUrl).toBe('https://api.moonshot.cn/v1');
 		// 2026-06 官方现行模型(kimi-k2-* preview 系列 2026-05-25 停服,旧默认即「测试连接」400 来源)。
 		expect(getProviderDefaultChatModels('moonshot')).toEqual(['kimi-k2.6', 'kimi-k2.5']);
+	});
+
+	test('kimi-k 系输出预算覆盖整个代际(Windows #47:勿写死 k2 单代)', ()=>{
+		// k2/k3/k4… 全是思考模型:思考 token 计入 max_tokens,预算须翻倍加余量(封顶 16384)。
+		expect(effectiveMaxTokensForModel('kimi-k2.6', 2048)).toBe(8048);
+		expect(effectiveMaxTokensForModel('kimi-k3', 2048)).toBe(8048);
+		expect(effectiveMaxTokensForModel('kimi-k4-code', 2048)).toBe(8048);
+		// 非 k+数字 代号(moonshot-v1/kimi-latest)不是思考档口径 → 原值直返。
+		expect(effectiveMaxTokensForModel('kimi-latest', 2048)).toBe(2048);
+		expect(effectiveMaxTokensForModel('moonshot-v1-32k', 2048)).toBe(2048);
 	});
 
 	test('gemini preset exposes chat models distinct from embedding models', ()=>{

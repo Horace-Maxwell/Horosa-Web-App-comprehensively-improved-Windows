@@ -1,0 +1,149 @@
+.xq-chart-renderer-babylon {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+
+	.horosa-babylon-body {
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		gap: 10px;
+		padding: 4px 8px 8px;
+	}
+	.horosa-babylon-stage {
+		flex: 1.35 1 0;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: flex-start;
+		overflow: auto;
+		border-radius: 10px;
+		background: var(--horosa-panel-bg, rgba(154, 106, 37, 0.04));
+		border: 1px solid var(--horosa-border-soft, rgba(154, 106, 37, 0.18));
+	}
+	.horosa-babylon-readout {
+		flex: 1 1 0;
+		min-width: 280px;
+		max-width: 460px;
+		overflow-y: auto;
+		padding: 8px 10px;
+		border-radius: 10px;
+		border: 1px solid var(--horosa-border-soft, rgba(154, 106, 37, 0.18));
+	}
+	.horosa-babylon-card {
+		border: 1px solid var(--horosa-border-soft, rgba(154, 106, 37, 0.22));
+		border-radius: 9px;
+		padding: 8px 11px;
+		margin-bottom: 9px;
+		font-size: 12.5px;
+		line-height: 1.65;
+	}
+	.horosa-babylon-card-title {
+		font-weight: 600;
+		font-size: 13px;
+		letter-spacing: 0.03em;
+		margin-bottom: 5px;
+		color: var(--horosa-gold, #9a6a25);
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.horosa-babylon-caveat {
+		font-size: 11px;
+		opacity: 0.72;
+		border-left: 2px solid var(--horosa-gold, #9a6a25);
+		padding-left: 7px;
+		margin-top: 5px;
+		line-height: 1.55;
+	}
+	.horosa-babylon-badge {
+		display: inline-block;
+		padding: 0 6px;
+		border-radius: 5px;
+		font-size: 10.5px;
+		line-height: 17px;
+		border: 1px solid var(--horosa-gold, #9a6a25);
+		color: var(--horosa-gold, #9a6a25);
+		margin-left: 5px;
+		vertical-align: 1px;
+	}
+	.horosa-babylon-badge.ji { border-color: var(--horosa-jx-ji, #3d8f74); color: var(--horosa-jx-ji, #3d8f74); }
+	.horosa-babylon-badge.xiong { border-color: var(--horosa-jx-xiong, #bf3c36); color: var(--horosa-jx-xiong, #bf3c36); }
+	.horosa-babylon-badge.muted { border-color: var(--horosa-jx-muted, #8a7d66); color: var(--horosa-jx-muted, #8a7d66); }
+
+	table.horosa-babylon-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 12px;
+		th, td { border: 1px solid rgba(154, 106, 37, 0.16); padding: 3px 7px; text-align: left; }
+		th { background: rgba(154, 106, 37, 0.07); font-weight: 600; white-space: nowrap; }
+		td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+	}
+	.horosa-babylon-scroll-x { overflow-x: auto; }
+
+	.horosa-babylon-scheme-card {
+		.horosa-babylon-scheme-row {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			margin-top: 6px;
+			.lbl { flex: 0 0 62px; opacity: 0.78; font-size: 12px; }
+		}
+	}
+	.horosa-babylon-toolbar {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+		padding: 6px 10px 2px;
+		font-size: 12px;
+	}
+	.horosa-babylon-svgwrap {
+		width: 100%;
+		flex: 1 1 auto;
+		min-height: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 6px;
+		svg { width: 100%; height: 100%; }
+	}
+	.horosa-babylon-svgwrap svg text { stroke: none !important; paint-order: fill; }
+
+	/* 144 微段网格 —— 此前被 max-width:860px 卡住,中栏还剩两三百像素白着;
+	   放到 1180px 并按宽度分档抬字号/行高(窄栏仍会自动缩回,不会挤出横滚)。 */
+	.horosa-babylon-grid144 {
+		display: grid;
+		grid-template-columns: 68px repeat(12, 1fr);
+		gap: 3px;
+		width: 100%;
+		max-width: 1180px;
+		font-size: 13px;
+		.cell {
+			border-radius: 4px;
+			text-align: center;
+			padding: 8px 0;
+			border: 1px solid rgba(154, 106, 37, 0.14);
+			cursor: pointer;
+			transition: transform 0.06s ease, box-shadow 0.06s ease;
+			&:hover { transform: scale(1.06); }
+			&.hl { outline: 2px solid var(--horosa-cinnabar, #bf3c36); font-weight: 700; }
+			&.hl13 { outline: 2px dashed var(--horosa-jade, #3d8f74); }
+			&.head { background: rgba(154, 106, 37, 0.1); font-weight: 600; cursor: default; &:hover { transform: none; } }
+		}
+		/* 窄容器逐档缩回:12 列 + 表头列在小窗下仍要装得住 */
+		@media (max-width: 1500px) {
+			font-size: 12px;
+			grid-template-columns: 62px repeat(12, 1fr);
+			.cell { padding: 6px 0; }
+		}
+		@media (max-width: 1280px) {
+			font-size: 11px;
+			gap: 2px;
+			grid-template-columns: 56px repeat(12, 1fr);
+			.cell { padding: 5px 0; }
+		}
+	}
+}

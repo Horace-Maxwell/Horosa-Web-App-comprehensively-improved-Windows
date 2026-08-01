@@ -15,8 +15,24 @@ const baziCase3 = {
 };
 const OPTS = { shunniRule: 'yangNanYinNv', mingGongMethod: 'shuZhiMao', shenshaLayer: true };
 
+// 仅取本测试所守的三段([命宫与人事十二宫]/[大限]/[神煞合参])切片 —— 其余段(WP-C 新增断语段)
+// 属合法增量,不在「表化不变值」证明范围内;若全篇比对会把新增段误报为「值变」。
+const GUARDED = ['命宫与人事十二宫', '大限', '神煞合参'];
+function sliceGuardedSections(text) {
+	const lines = `${text || ''}`.split('\n');
+	const out = [];
+	let on = false;
+	for (let i = 0; i < lines.length; i++) {
+		const m = /^【(.+)】$/.exec(lines[i]);
+		if (m) { on = GUARDED.indexOf(m[1]) >= 0; if (on) out.push(lines[i]); continue; }
+		if (on) out.push(lines[i]);
+	}
+	return out.join('\n');
+}
+
 // 通用:剥表头行(GFM 分隔行的上一行)+分隔行,再按 fact token 计多重集。数据行内若含表头词照常计数(无盲区)。
-function extractFacts(text) {
+function extractFacts(rawText) {
+	const text = sliceGuardedSections(rawText);
 	const lines = `${text || ''}`.split('\n');
 	const isSep = (s) => { const t = `${s || ''}`.trim(); return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.indexOf('-') >= 0; };
 	const kept = [];

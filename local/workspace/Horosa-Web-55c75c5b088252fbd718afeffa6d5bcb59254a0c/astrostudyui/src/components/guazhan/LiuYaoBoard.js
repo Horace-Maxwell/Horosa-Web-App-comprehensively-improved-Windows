@@ -680,3 +680,47 @@ function RelatedLine({ related }){
 		</div>
 	);
 }
+
+// ── 占天时(晴雨)· 古法分列 ────────────────────────────────────────────────
+// 仅在「天时占法」设为古法档时出现(通行档 analysis.tianshi 恒 null,此卡整体不渲染)。
+// 🔴 按家分列、不合成单一结论 —— 古籍自陈各家「多有冲突之处,使人不知所从」;每条都带
+// 「依据」(原文说法)与「本卦」(命中实况)两栏,便于逐条对着古籍复核。
+export function LiuYaoTianshiView({ analysis }){
+	const ts = analysis && analysis.tianshi;
+	if(!ts || !Array.isArray(ts.houses) || !ts.houses.length){ return null; }
+	return (
+		<div style={{ marginTop: 12 }}>
+			<div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+				<span style={{ color: C.label, fontWeight: 600, fontSize: 13 }}>占天时(晴雨)· 古法分列</span>
+				<span style={{ color: C.muted, fontSize: 11 }}>{ts.houses.length} 家命中</span>
+			</div>
+			{ts.disclaimer ? (
+				<div style={{ color: C.muted, fontSize: 11, lineHeight: 1.7, marginBottom: 8, padding: '6px 9px',
+					background: C.accentSoft, border: `1px solid ${C.line}`, borderRadius: 6 }}>{ts.disclaimer}</div>
+			) : null}
+			{ts.houses.map((h)=>(
+				<div key={h.source} style={{ marginBottom: 10 }}>
+					<div style={{ color: C.accent, fontWeight: 600, fontSize: 12, marginBottom: 4,
+						borderBottom: `1px solid ${C.line}`, paddingBottom: 3 }}>《{h.source}》<span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>{h.hits.length} 条</span></div>
+					{h.hits.map((x, i)=>(
+						<div key={`${h.source}-${i}`} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '3px 0', fontSize: 12, color: C.text }}>
+							<span style={{ flex: '0 0 auto', minWidth: 62, textAlign: 'center', padding: '1px 6px', borderRadius: 4,
+								background: C.accentSoft, border: `1px solid ${C.line}`, color: C.accent, fontSize: 11 }}>{x.tag || '—'}</span>
+							<span style={{ flex: '1 1 auto', lineHeight: 1.7 }}>
+								{x.rule}
+								<span style={{ color: C.muted, marginLeft: 6, fontSize: 11 }}>← {x.detail}</span>
+							</span>
+						</div>
+					))}
+				</div>
+			))}
+			{Array.isArray(ts.notImplemented) && ts.notImplemented.length ? (
+				<div style={{ color: C.muted, fontSize: 11, lineHeight: 1.7, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.line}` }}>
+					{ts.notImplemented.map((n)=>(
+						<div key={n.source}>未采:{n.source} —— {n.why}</div>
+					))}
+				</div>
+			) : null}
+		</div>
+	);
+}

@@ -150,6 +150,10 @@ class ChartComp:
             asps[obj.id] = []
             for mid in midpoints:
                 delta = abs(obj.lon - mid['lon'])
+                # 归一化到 [0,180] 最短分离角(同文件相位/映点四处同款;曾漏此处 →
+                # 跨白羊 0° 的中点合相被静默丢弃,刑/冲因对称分支侥幸不受影响)
+                if delta > 180:
+                    delta = 360 - delta
                 if delta < 1:
                     resmid = {
                         'midpoint': mid,

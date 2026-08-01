@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
@@ -8,7 +8,7 @@ import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { buildYizhangjingModel, buildYizhangjingSnapshotText } from '../../utils/yizhangjingReport';
-import { BRANCHES, ZODIAC, STARS, gradeOf, daoOf, xiaoxianStarAt, xunShenAt } from '../../utils/yizhangjingLocal';
+import { BRANCHES, ZODIAC, STARS, gradeOf, daoOf, xiaoxianStarAt, xiaoxianStarAtDir, xunShenAt, starLabel, daoLabel } from '../../utils/yizhangjingLocal';
 
 const { Option } = Select;
 
@@ -181,16 +181,26 @@ class YiZhangJingMain extends Component {
 	// 每宫 支生肖 + 星（大字）+ 六道·品级，年月日时角标，命宫格高亮。
 	renderBoard(m) {
 		const c = m.chart;
+		const naming = m.naming || 'A';
+		const gradeSet = m.gradeSet === 'variant' ? 'variant' : undefined;
+		const daoTerm = m.daoTerm || 'gui';
 		const roles = {};
 		const addRole = (idx, ch) => { roles[idx] = (roles[idx] || '') + ch; };
 		addRole(c.fourIdx.year, '年'); addRole(c.fourIdx.month, '月');
 		addRole(c.fourIdx.day, '日'); addRole(c.fourIdx.time, '时');
+		// 人事宫落地支（命起顺布）→ 地支索引：把人事宫名挂到坐该支的格子角标（C30 最大显示缺口）
+		const palaceByIdx = {};
+		(m.renshi || []).forEach((g) => { palaceByIdx[g.idx] = g.palace; });
+		const shortPalace = (p) => `${p || ''}`.replace(/\(.*\)/, '');
 		// 紫微式固定地支格位（4×4，外圈 12 宫，[col,row] 1-based）
 		const POS = { 巳: [1, 1], 午: [2, 1], 未: [3, 1], 申: [4, 1], 辰: [1, 2], 酉: [4, 2], 卯: [1, 3], 戌: [4, 3], 寅: [1, 4], 丑: [2, 4], 子: [3, 4], 亥: [4, 4] };
 		const gc = (g) => g === '上品' ? 'is-up' : (g === '下品' ? 'is-down' : 'is-mid');
 		const cells = BRANCHES.map((br, i) => {
 			const [col, row] = POS[br];
-			const s = STARS[i]; const grade = gradeOf(s); const isMing = i === c.mingIdx;
+			const sInternal = STARS[i];
+			const s = starLabel(sInternal, naming);
+			const grade = gradeOf(sInternal, gradeSet); const isMing = i === c.mingIdx;
+			const pal = palaceByIdx[i];
 			return (
 				<div key={i} className={`horosa-yizhangjing-cell ${gc(grade)}${isMing ? ' is-ming' : ''}`} style={{ gridColumn: col, gridRow: row }}>
 					<div className="cell-head">
@@ -201,7 +211,8 @@ class YiZhangJingMain extends Component {
 						</span>
 					</div>
 					<div className="cell-star">{s}</div>
-					<div className="cell-foot">{daoOf(i)} · {grade}</div>
+					{pal ? <div className="cell-palace">{shortPalace(pal)}</div> : null}
+					<div className="cell-foot">{daoLabel(daoOf(i), daoTerm)} · {grade}</div>
 				</div>
 			);
 		});
@@ -211,7 +222,7 @@ class YiZhangJingMain extends Component {
 				<div className="horosa-yizhangjing-hub" style={{ gridColumn: '2 / 4', gridRow: '2 / 4' }}>
 					<div className="hub-brand">一掌经 · 十二宫盘</div>
 					<div className="hub-title">命宫主星</div>
-					<div className="hub-star">{c.mingStar}</div>
+					<div className="hub-star">{starLabel(c.mingStar, naming)}</div>
 					<div className="hub-meta">{c.mingBranch}宫 · {c.yinyang}年{c.dirText}</div>
 					<div className="hub-tags">
 						<span>{c.fourPalaceRank.replace(/（.*?）/g, '')}</span>
@@ -222,17 +233,60 @@ class YiZhangJingMain extends Component {
 		);
 	}
 
+	// D-2 四世权重带（根10/苗15/花25/果50）：段宽按权重，填充按品级
+	renderShiShiBand(m) {
+		const s = m.sishi;
+		if (!s || !s.rows) return null;
+		const gc = (g) => g === '上品' ? 'is-up' : (g === '下品' ? 'is-down' : 'is-mid');
+		return (
+			<div className="horosa-yizhangjing-shishiband">
+				{s.rows.map((r, i) => (
+					<div key={i} className={`ss-seg ${gc(r.grade)}`} style={{ flexGrow: r.weight }} title={`${r.shi}·${r.age}`}>
+						<span className="ss-shi">{r.shi.split('·')[0]}</span>
+						<span className="ss-star">{r.star}</span>
+						<span className="ss-w">{r.weight}%</span>
+					</div>
+				))}
+			</div>
+		);
+	}
+
+	// D-3 六道分布徽章（佛/鬼/人/畜/修罗/仙）：命中点亮显计数
+	renderDaoBadges(m) {
+		const daoTerm = m.daoTerm || 'gui';
+		const ALL = ['佛道', '仙道', '人道', '畜生道', '鬼道', '修羅道'];
+		const cnt = {};
+		(m.chart.pillars || []).forEach((p) => { cnt[p.dao] = (cnt[p.dao] || 0) + 1; });
+		const upper = { 佛道: 1, 仙道: 1, 人道: 1 };
+		return (
+			<div className="horosa-yizhangjing-daobadges">
+				{ALL.map((dao) => {
+					const n = cnt[dao] || 0;
+					const traits = ((m.daoRows || []).find((d) => d.dao === dao) || {}).traits || '';
+					return (
+						<div key={dao} className={`dao-badge${n ? ' is-on' : ''}${upper[dao] ? ' is-upper' : ''}`} title={traits}>
+							<span className="dao-name">{daoLabel(dao, daoTerm).replace('道', '')}</span>
+							{n ? <span className="dao-cnt">{n}</span> : null}
+						</div>
+					);
+				})}
+			</div>
+		);
+	}
+
 	// 四柱四宫 · 精致横条（年月日时·主体展示）
 	renderPillarStrip(m) {
 		const labels = ['年 · 祖上', '月 · 父母事业', '日 · 夫妻', '时 · 自身主星'];
+		const naming = m.naming || 'A';
+		const daoTerm = m.daoTerm || 'gui';
 		const gc = (g) => g === '上品' ? 'is-up' : (g === '下品' ? 'is-down' : 'is-mid');
 		return (
 			<div className="horosa-yizhangjing-strip">
 				{m.chart.pillars.map((p, i) => (
 					<div className={`horosa-yizhangjing-pcell ${gc(p.grade)}${i === 3 ? ' is-main' : ''}`} key={i}>
 						<div className="pl">{labels[i]}</div>
-						<div className="pstar">{p.star}</div>
-						<div className="pmeta">{p.branch}{p.zodiac} · {p.dao}</div>
+						<div className="pstar">{starLabel(p.star, naming)}</div>
+						<div className="pmeta">{p.branch}{p.zodiac} · {daoLabel(p.dao, daoTerm)}</div>
 						<div className="pgrade">{p.grade}</div>
 					</div>
 				))}
@@ -267,36 +321,135 @@ class YiZhangJingMain extends Component {
 		const c = m.chart;
 		const opts = c.opts;
 		const lb = this.lunarBirthParts(m);
+		const presetName = m.presetName || (this.props.opts && this.props.opts.yizhangjingPresetName) || '';
 		return (
 			<div className="horosa-yizhangjing-center">
 				<div className="horosa-yizhangjing-toolbar">
 					<span className="horosa-yizhangjing-part">{c.input.gender}命 · {c.input.yearBranch}（{ZODIAC[BRANCHES.indexOf(c.input.yearBranch)]}）年 农历{lb.core} {c.input.hourBranch}时{lb.pai}</span>
-					<span className="horosa-yizhangjing-sub">{c.yinyang}年·{c.dirText} · 命宫{opts.mgMethod === 'shuZhiMao' ? '数至卯' : '时上起命'} · 大限{opts.N}年 · 流年{opts.flowSet}组（左栏可切流派，右栏看断语）</span>
+					<span className="horosa-yizhangjing-sub">
+						{c.yinyang}年·{c.dirText} · 命宫{opts.mgMethod === 'shuZhiMao' ? '数至卯' : '时上起命'} · 大限{opts.N}年 · 流年{opts.flowSet}组
+						{presetName ? <span className="horosa-yizhangjing-presetbadge">{presetName}</span> : null}
+					</span>
 				</div>
+				{this.renderShiShiBand(m)}
 				{this.renderBoard(m)}
 				{this.renderPillarStrip(m)}
+				{this.renderDaoBadges(m)}
 			</div>
 		);
 	}
 
 	renderGeju(m) {
 		const c = m.chart;
+		const np = m.ninePinExact || {};
 		return (
 			<div>
 				{this.card('格局判定（以时宫为主）', (
 					<div className="horosa-yizhangjing-text">
 						<div className="horosa-yizhangjing-row"><span>四宫等第</span><strong>{c.fourPalaceRank}</strong></div>
 						<div className="horosa-yizhangjing-row"><span>命格</span><strong>{c.mingGe}</strong></div>
-						<div className="horosa-yizhangjing-row"><span>九品估</span><strong>{c.nineGrade}</strong></div>
 						<div className="horosa-yizhangjing-row"><span>品级分布</span><strong>上品×{c.gradeCount.up}　中品×{c.gradeCount.mid}　下品×{c.gradeCount.down}</strong></div>
-						<p className="dim">{(DATA.gradeTables && DATA.gradeTables.nineGrade) || ''}</p>
+						{c.opts.gradeSet === 'variant' ? <p className="dim">品级分类：变体（天驿归下品）——与九品格口径冲突，仅一家之言。</p> : null}
 					</div>
 				))}
+				{this.card('九品定格', (
+					<div className="horosa-yizhangjing-text">
+						{np.matched
+							? <div className="horosa-yizhangjing-row"><span>星组合精确</span><strong>{np.grade}{np.level ? '·' + np.level : ''}</strong></div>
+							: <div className="horosa-yizhangjing-row"><span>按品级数估</span><strong>{np.grade || c.nineGrade}</strong></div>}
+						{np.matched && np.text ? <p>{np.text}</p> : null}
+						{!np.matched ? <p className="dim">四星组合未落精确表，按上/中/下品数估算层次。</p> : null}
+					</div>
+				))}
+				{m.nianyun ? this.card(`年上运程 · 生年星${c.pillars[0].star}`, <div className="horosa-yizhangjing-text"><p>{m.nianyun}</p></div>) : null}
+				{(m.pillarQuickHits && m.pillarQuickHits.length) ? this.card('各柱逢星速断', (
+					<div className="horosa-yizhangjing-text">
+						{m.pillarQuickHits.map((r, i) => <p key={i}><b>{r.pillar}柱</b>（{r.stars.join('/')}）：{r.text}</p>)}
+					</div>
+				)) : null}
 				{this.card('主星象义（时柱）', <div className="horosa-yizhangjing-text"><p>{(m.pillars[3] || {}).xiangyi || '—'}</p></div>)}
 				{m.rishi ? this.card(`交互格 · 日${m.dayStar}×时${m.timeStar}`, <div className="horosa-yizhangjing-text"><p>{m.rishi}</p></div>) : null}
 				{m.zhiye ? this.card(`职业适性 · 月柱${m.monthStar}`, <div className="horosa-yizhangjing-text"><p>{m.zhiye}</p></div>) : null}
 				<div className="horosa-yizhangjing-subhead">重犯（伏吟）</div>
 				{this.renderChongfan(m)}
+			</div>
+		);
+	}
+
+	// 十二宫 tab（新）：人事十二宫表 宫名/支/星/品级/寓意/[神煞]；命宫金亮
+	renderRenshiTab(m) {
+		const shensha = {};
+		(m.shenshaHits || []).forEach((h) => { shensha[h.palace] = (shensha[h.palace] || []).concat(h.name); });
+		return this.card('人事十二宫（命宫起顺布）', (
+			<div className="horosa-yizhangjing-tablewrap">
+				<table className="horosa-yizhangjing-table">
+					<thead><tr><th>宫位</th><th>支·星</th><th>品级</th><th>寓意</th></tr></thead>
+					<tbody>
+						{(m.renshi || []).map((g, i) => (
+							<tr key={i} className={i === 0 ? 'hot' : ''}>
+								<th>{`${g.palace}`.replace(/\(.*\)/, '')}{shensha[g.palace] ? <span className="rb-dot" /> : null}</th>
+								<td>{g.branch}·<b>{g.label || g.star}</b></td>
+								<td>{g.grade}</td>
+								<td className="lt">{g.meaning || '—'}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+				{Object.keys(shensha).length ? <p className="dim">带·点的宫位有合参神煞落入（详见「神煞」页）。</p> : null}
+			</div>
+		));
+	}
+
+	// 断法 tab（新）：刑冲害/星组合互见/阴阳克父母/兄弟数/四柱旺衰/总纲男女/带疾延年
+	renderDuanfa(m) {
+		const cl = m.clashes || {};
+		const pol = m.polarity || {};
+		const gen = (DATA.general) || {};
+		return (
+			<div>
+				{this.card('刑冲害叠断', (
+					<div className="horosa-yizhangjing-text">
+						{(cl.hits && cl.hits.length)
+							? cl.hits.map((h, i) => <p key={i}>{h.type === '刑' ? `${h.group}相刑` : (h.type === '自刑' ? `${h.a}自刑` : `${h.a}${h.b}相${h.type}`)}</p>)
+							: <p className="dim">四柱地支无显著刑冲害。</p>}
+						{(cl.harmTexts && cl.harmTexts.length) ? cl.harmTexts.map((t, i) => <p key={'h' + i} className="dim">{t.branch}：{t.text}</p>) : null}
+					</div>
+				))}
+				{(m.pairHits && m.pairHits.length) ? this.card('星组合互见', (
+					<div className="horosa-yizhangjing-text">{m.pairHits.map((r, i) => <p key={i}>{r.text}</p>)}</div>
+				)) : null}
+				{this.card('阴阳克父母', (
+					<div className="horosa-yizhangjing-text">
+						<div className="horosa-yizhangjing-row"><span>星曜阴阳</span><strong>六阳×{pol.yang}　六阴×{pol.yin}</strong></div>
+						<p>{pol.judge}</p>
+						<p className="dim">此「阴阳」按星曜本身归六阳六阴，与判顺逆用的「年支阴阳」是两回事。</p>
+					</div>
+				))}
+				{m.brothers ? this.card('兄弟数（取象）', (
+					<div className="horosa-yizhangjing-text">
+						<div className="horosa-yizhangjing-row"><span>{m.brothers.wuxing}月·区间</span><strong>{m.brothers.text}</strong></div>
+						<p className="dim">{m.brothers.note}。</p>
+					</div>
+				)) : null}
+				{(m.pillarWuxing && m.pillarWuxing.length) ? this.card('四柱旺衰', (
+					<div className="horosa-yizhangjing-tablewrap">
+						<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
+							<thead><tr><th>柱</th><th>支·五行</th><th>状态</th><th>断</th></tr></thead>
+							<tbody>{m.pillarWuxing.map((w, i) => (
+								<tr key={i}><th>{w.pillar}</th><td>{w.branch}·{w.wuxing}</td><td>{w.state}{w.stateText ? '（' + w.stateText + '）' : ''}</td><td className="lt">{w.omen}</td></tr>
+							))}</tbody>
+						</table>
+					</div>
+				)) : null}
+				{(gen.male || gen.female) ? this.card('总纲（男女所忌）', (
+					<div className="horosa-yizhangjing-text">
+						{gen.male ? <p><b>男：</b>{gen.male}</p> : null}
+						{gen.female ? <p><b>女：</b>{gen.female}</p> : null}
+						{gen.pureYang ? <p className="dim">{gen.pureYang}</p> : null}
+						{gen.tianE ? <p className="dim"><b>天厄带疾延年：</b>{gen.tianE}</p> : null}
+					</div>
+				)) : null}
+				{gen.femaleNote ? this.card('女命专论', <div className="horosa-yizhangjing-text"><p>{gen.femaleNote}</p></div>) : null}
 			</div>
 		);
 	}
@@ -338,18 +491,25 @@ class YiZhangJingMain extends Component {
 
 	renderFlow(m) {
 		const c = m.chart;
+		// 逐年法互斥（B10 明训）：annualMethod 未设→二者并列（零回归）；选定则只出一套。
+		const showXiao = m.annualMethod !== 'liunian';
+		const showLiunian = m.annualMethod !== 'xiaoxian';
+		const xiaoDir = m.xiaoDir === 'always' ? 'always' : 'chart';
 		const rows = [];
 		for (let a = 1; a <= 12; a++) {
-			rows.push({ age: a, star: xiaoxianStarAt(c.xiaoStartIdx, c.dir, a) });
+			rows.push({ age: a, star: xiaoxianStarAtDir(c.xiaoStartIdx, c.dir, a, xiaoDir) });
 		}
 		// 流年地支：默认取本命年支，可下拉切换；表头标注四柱/命宫落宫。
 		const flowIdx = this.state.flowYearIdx == null ? c.fourIdx.year : this.state.flowYearIdx;
 		const marks = {};
 		const mk = (i, ch) => { marks[i] = (marks[i] || '') + ch; };
 		mk(c.fourIdx.year, '年'); mk(c.fourIdx.month, '月'); mk(c.fourIdx.day, '日'); mk(c.fourIdx.time, '时'); mk(c.mingIdx, '命');
+		const flowStar = STARS[flowIdx];
+		const flowYunshi = (m.liunianYunshi && m.liunianYunshi[BRANCHES[flowIdx]]) || '';
 		return (
 			<div>
-				{this.card(`小限（一宫一年·起${c.xiaoStartLabel}）`, (
+				{m.annualMethod ? <p className="horosa-yizhangjing-note">逐年法：当前只用「{m.annualMethod === 'liunian' ? '流年十二神' : '小限'}」一套（文献明训二者不并用）。</p> : null}
+				{showXiao ? this.card(`小限（一宫一年·起${c.xiaoStartLabel}·${xiaoDir === 'always' ? '一律顺行' : '随盘向'}）`, (
 					<div className="horosa-yizhangjing-tablewrap">
 						<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
 							<thead><tr><th>虚岁</th><th>小限星</th></tr></thead>
@@ -357,8 +517,8 @@ class YiZhangJingMain extends Component {
 						</table>
 						<p className="dim">第13岁起循环，规律同上。</p>
 					</div>
-				))}
-				{this.card(`流年十二神（${c.opts.flowSet === 'A' ? '甲组·太阳系' : c.opts.flowSet === 'B' ? '乙组·六合系' : '丙组·岁破系'}）`, (
+				)) : null}
+				{showLiunian ? this.card(`流年十二神（${c.opts.flowSet === 'A' ? '甲组·太阳系' : c.opts.flowSet === 'B' ? '乙组·六合系' : '丙组·岁破系'}）`, (
 					<div>
 						<label className="horosa-yizhangjing-inlinefield">
 							<span>流年地支</span>
@@ -377,11 +537,39 @@ class YiZhangJingMain extends Component {
 								))}</tbody>
 							</table>
 						</div>
-						<p className="dim">流年落「{BRANCHES[flowIdx]}{ZODIAC[flowIdx]}」，以其上起太岁顺布十二神；表头标「年/月/日/时/命」处即四柱与命宫落宫值神，据此断该年吉凶。</p>
+						{(m.xunRoles && m.xunRoles.length) ? (
+							<p className="dim">巡宫四位：{m.xunRoles.map((r) => `${r.pillar}${r.role}=${r.shen}`).join('　')}</p>
+						) : null}
+						{flowYunshi ? <p className="dim">运×时（论流年用月柱星{m.monthStar}×流年星{flowStar}）：{flowYunshi}</p> : null}
+						<p className="dim">流年落「{BRANCHES[flowIdx]}{ZODIAC[flowIdx]}」，以其上起太岁顺布十二神；表头标「年/月/日/时/命」处即四柱与命宫落宫值神。</p>
 					</div>
-				))}
+				)) : null}
+				{m.flowSub ? this.card('流月·流日·流时（一律顺行）', (
+					<div className="horosa-yizhangjing-text">
+						<div className="horosa-yizhangjing-row"><span>流月</span><strong>{m.flowSub.month.branch}·{m.flowSub.month.star}</strong></div>
+						<div className="horosa-yizhangjing-row"><span>流日</span><strong>{m.flowSub.day.branch}·{m.flowSub.day.star}</strong></div>
+						<div className="horosa-yizhangjing-row"><span>流时</span><strong>{m.flowSub.time.branch}·{m.flowSub.time.star}</strong></div>
+						<p className="dim">流年宫起正月→初一→子时顺行（示本命年流值，切流年支后随之变）。</p>
+					</div>
+				)) : null}
 			</div>
 		);
+	}
+
+	// 童限卡（未交大运前·逆行）：startAge=1 无童限时给提示
+	renderTongxian(m) {
+		if (!m.tongxian || !m.tongxian.length) {
+			if (m.chart.startAge > 1) return null;
+			return this.card('童限', <div className="horosa-yizhangjing-text"><p className="dim">1岁起运，无童限。</p></div>);
+		}
+		return this.card('童限（未交大运·一律逆行·一宫一年）', (
+			<div className="horosa-yizhangjing-tablewrap">
+				<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
+					<thead><tr><th>虚岁</th><th>宫·星</th></tr></thead>
+					<tbody>{m.tongxian.map((t) => <tr key={t.age}><th>{t.age}</th><td className="lt">{`${t.palace}`.replace(/\(.*\)/, '')}·{t.star}（{t.dao}·{t.grade}）</td></tr>)}</tbody>
+				</table>
+			</div>
+		));
 	}
 
 	renderShensha(m) {
@@ -427,10 +615,23 @@ class YiZhangJingMain extends Component {
 		const hourMain = (LORE.poems && LORE.poems.hourMain && LORE.poems.hourMain[c.input.hourBranch]) || null;
 		// 「X月生人诗」按真实农历生月（非定月法折算月）——与题头生辰一致。
 		const monthPoem = (LORE.poems && LORE.poems.month && LORE.poems.month[MONTH_LABELS[(m.input && m.input.lunarMonth) || c.input.month]]) || null;
+		const hg = m.hourGroupPick;
+		const ds = m.dayStarPick;
+		const hd = m.hourDetail;
 		return (
 			<div>
 				{monthPoem ? this.card('本月生人诗（文献）', <div className="horosa-yizhangjing-text"><p className="poem">{monthPoem.poem}</p><p>{monthPoem.prose}</p></div>) : null}
 				{hourMain ? this.card('本时生人（文献）', <div className="horosa-yizhangjing-text"><p>{hourMain.text}</p></div>) : null}
+				{hg && hg.poem ? this.card(`时组诗（${hg.key}）`, <div className="horosa-yizhangjing-text"><p className="poem">{hg.poem}</p></div>) : null}
+				{ds && ds.text ? this.card(`逐日值星 · ${ds.star}`, (
+					<div className="horosa-yizhangjing-text"><p className="dim">值日：{ds.days}</p><p>{ds.text}</p></div>
+				)) : null}
+				{hd && (hd.prose || (hd.poems && hd.poems.length)) ? this.card(`时辰细断 · ${c.input.hourBranch}时${m.hourSub}${hd.range ? '（' + hd.range + '）' : ''}`, (
+					<div className="horosa-yizhangjing-text">
+						{hd.prose ? <p>{hd.prose}</p> : null}
+						{(hd.poems || []).map((pm, i) => <p key={i} className="poem">{pm}</p>)}
+					</div>
+				)) : null}
 				<p className="horosa-yizhangjing-note">古本诗文含旧时代观念，仅作文献保留。</p>
 			</div>
 		);
@@ -463,6 +664,8 @@ class YiZhangJingMain extends Component {
 		// 旧键归一：重犯并入格局；小限·流年并入运限（防旧 state.tab 落空）。
 		const TAB_ALIAS = { chongfan: 'geju', flow: 'dayun' };
 		const activeTab = TAB_ALIAS[this.state.tab] || this.state.tab;
+		const showLiunian = m.annualMethod !== 'xiaoxian';
+		const pillarStarData = (star) => (DATA.data && DATA.data[star]) || {};
 		return (
 			<div className="horosa-yizhangjing-aux">
 				<Tabs activeKey={activeTab} onChange={(k) => this.setState({ tab: k })} tabPosition="top" className="horosa-yizhangjing-tabs">
@@ -480,24 +683,51 @@ class YiZhangJingMain extends Component {
 								<div className="horosa-huangji-info-row"><span>命宫</span><strong>{c.mingBranch}·{c.mingStar}</strong></div>
 								<div className="horosa-huangji-info-row"><span>四宫等第</span><strong>{c.fourPalaceRank}</strong></div>
 								<div className="horosa-huangji-info-row"><span>命格</span><strong>{c.mingGe}</strong></div>
-								<div className="horosa-huangji-info-row"><span>九品估</span><strong>{c.nineGrade}</strong></div>
+								<div className="horosa-huangji-info-row"><span>九品定格</span><strong>{(m.ninePinExact && m.ninePinExact.grade) || c.nineGrade}</strong></div>
 							</div>
 						))}
-						{m.pillars.map((p, i) => this.card(`${['年柱(祖上)', '月柱(父母/兄弟/事业)', '日柱(夫妻)', '时柱(子女/自身·主星)'][i]}：${p.star}（${p.dao}·${p.grade}）`, (
-							<div className="horosa-yizhangjing-text">
-								<p><b>该柱：</b>{p.text || '—'}</p>
-								<p><b>象义：</b>{p.xiangyi || '—'}</p>
-								<p className="dim"><b>星性：</b>{p.xingxing || '—'}</p>
+						{m.sishi && m.sishi.rows ? this.card(`四世权重（加权分 ${m.sishi.score}）`, (
+							<div className="horosa-yizhangjing-tablewrap">
+								<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
+									<thead><tr><th>世</th><th>柱·星</th><th>权重</th><th>品级</th></tr></thead>
+									<tbody>{m.sishi.rows.map((r, i) => <tr key={i}><th>{r.shi.split('·')[0]}</th><td>{r.pillar}·{r.star}</td><td>{r.weight}%</td><td className={r.grade === '上品' ? 'hot' : ''}>{r.grade}</td></tr>)}</tbody>
+								</table>
 							</div>
-						)))}
+						)) : null}
+						{(m.daoRows && m.daoRows.length) ? this.card('六道分布', (
+							<div className="horosa-yizhangjing-text">
+								{m.daoRows.map((d, i) => (
+									<div key={i}>
+										<div className="horosa-yizhangjing-row"><span>{daoLabel(d.dao, m.daoTerm)}×{d.count}</span><strong>{d.traits}</strong></div>
+										{(d.prevLife || []).length ? <p className="dim">前世：{d.prevLife.join('；')}</p> : null}
+									</div>
+								))}
+							</div>
+						)) : null}
+						{m.pillars.map((p, i) => {
+							const jy = pillarStarData(p.star).jingyue || '';
+							const pq = (m.posQuick && m.posQuick[i] && m.posQuick[i].text) || '';
+							return this.card(`${['年柱(祖上)', '月柱(父母/兄弟/事业)', '日柱(夫妻)', '时柱(子女/自身·主星)'][i]}：${p.star}（${p.dao}·${p.grade}）`, (
+								<div className="horosa-yizhangjing-text">
+									<p><b>该柱：</b>{p.text || '—'}</p>
+									{jy ? <p className="poem"><b>经曰：</b>{jy}</p> : null}
+									{pq ? <p><b>位置速断：</b>{pq}</p> : null}
+									<p><b>象义：</b>{p.xiangyi || '—'}</p>
+									<p className="dim"><b>星性：</b>{p.xingxing || '—'}</p>
+								</div>
+							));
+						})}
 					</TabPane>
 					<TabPane tab="格局" key="geju">{this.renderGeju(m)}</TabPane>
+					<TabPane tab="十二宫" key="renshi">{this.renderRenshiTab(m)}</TabPane>
 					<TabPane tab="运限" key="dayun">
+						{this.renderTongxian(m)}
 						{this.renderDayun(m)}
 						{this.renderFlow(m)}
-						{m.liunianZong ? this.card(`流年总论 · 主星${m.timeStar}`, <div className="horosa-yizhangjing-text"><p>{m.liunianZong}</p></div>) : null}
+						{(m.liunianZong && showLiunian) ? this.card(`流年总论 · 主星${m.timeStar}`, <div className="horosa-yizhangjing-text"><p>{m.liunianZong}</p></div>) : null}
 					</TabPane>
 					{m.shenshaLayer ? <TabPane tab="神煞" key="shensha">{this.renderShensha(m)}</TabPane> : null}
+					<TabPane tab="断法" key="duanfa">{this.renderDuanfa(m)}</TabPane>
 					<TabPane tab="诗文" key="lore">{this.renderLore(m)}</TabPane>
 					<TabPane tab="四柱文献" key="sizhu">{this.renderSiZhuLore(m)}</TabPane>
 				</Tabs>
@@ -516,7 +746,9 @@ class YiZhangJingMain extends Component {
 				<Tabs activeKey={activeTab} onChange={(k) => this.setState({ tab: k })} tabPosition="top" className="horosa-yizhangjing-tabs">
 					<TabPane tab="概览" key="overview">{empty}</TabPane>
 					<TabPane tab="格局" key="geju">{empty}</TabPane>
+					<TabPane tab="十二宫" key="renshi">{empty}</TabPane>
 					<TabPane tab="运限" key="dayun">{empty}</TabPane>
+					<TabPane tab="断法" key="duanfa">{empty}</TabPane>
 					<TabPane tab="诗文" key="lore">{empty}</TabPane>
 					<TabPane tab="四柱文献" key="sizhu">{empty}</TabPane>
 				</Tabs>

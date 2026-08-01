@@ -882,11 +882,16 @@ class Astro3D {
 		let raycaster = new THREE.Raycaster();
 		raycaster.setFromCamera(this.mouseVec, this.camera);
 		let intersects = raycaster.intersectObjects(ary);
-		if(intersects.length){
-			intersects.forEach((obj)=>{
-				this.showPlanetHint(obj)
-			});	
-		}else{
+		// 🔴 命中列表按 distance 升序;曾 forEach 全遍历、每次整体重写提示卡 →
+		// 最后一次(最远的那颗)胜出,重叠天体点选恒显被挡住的那个。改为取首个有效命中即停。
+		let hinted = false;
+		for(let i = 0; i < intersects.length; i++){
+			if(this.showPlanetHint(intersects[i]) !== false){
+				hinted = true;
+				break;
+			}
+		}
+		if(!hinted){
 			this.hidePlanetHint();
 		}
 	}
@@ -902,7 +907,7 @@ class Astro3D {
 			node = node.parent;
 		}
 		if(planet === undefined || planet === null || planet.signlon === undefined || planet.signlon === null){
-			return;
+			return false;   // 纯装饰件/无数据 → 让调用方继续找下一个命中
 		}
 		let degparts = AstroHelper.splitDegree(planet.signlon);
 		let ntxt = AstroText.AstroMsgCN[planet.id];
@@ -973,8 +978,16 @@ class Astro3D {
 	}
 
 	touchHandler(event){
-		let x = event.changedTouches[0].clientX;
-		let y = event.changedTouches[0].clientY;
+		// 🔴 clientX/Y 是**视口**坐标,this.width/height 是**元素**尺寸 —— 曾直接相除,
+		// 触屏命中判定恒偏画布左上角在页面中的位移(顶栏/侧栏高度)。
+		// 与 clickHandler 的 offsetX/offsetY(元素内坐标)对齐:先减 rect 再按缩放归一。
+		const dom = document.getElementById(this.chartId);
+		const rect = dom && dom.getBoundingClientRect ? dom.getBoundingClientRect() : null;
+		const t = event.changedTouches[0];
+		const sx = rect && rect.width ? (this.width / rect.width) : 1;
+		const sy = rect && rect.height ? (this.height / rect.height) : 1;
+		const x = (t.clientX - (rect ? rect.left : 0)) * sx;
+		const y = (t.clientY - (rect ? rect.top : 0)) * sy;
 		this.mouseVec.x = (x / this.width) * 2 - 1;
 		this.mouseVec.y = -(y / this.height) * 2 + 1;
 		this.calcMousePoint();	
@@ -2274,7 +2287,7 @@ class Astro3D {
 		let asc = AstroHelper.getObject(this.chartObj, AstroConst.ASC);
 		let desc = AstroHelper.getObject(this.chartObj, AstroConst.DESC);
 		let mc = AstroHelper.getObject(this.chartObj, AstroConst.MC);
-		let ic = AstroHelper.getObject(this.chartObj, AstroConst.MC);
+		let ic = AstroHelper.getObject(this.chartObj, AstroConst.IC);   // 曾误取 MC → IC 纬圈判据恒假、永不绘制
 		let ary = [asc.decl, mc.decl];
 		let eps = 0.00027;
 		if(isSky){
@@ -2664,7 +2677,7 @@ class Astro3D {
 		let asc = AstroHelper.getObject(this.chartObj, AstroConst.ASC);
 		let desc = AstroHelper.getObject(this.chartObj, AstroConst.DESC);
 		let mc = AstroHelper.getObject(this.chartObj, AstroConst.MC);
-		let ic = AstroHelper.getObject(this.chartObj, AstroConst.MC);
+		let ic = AstroHelper.getObject(this.chartObj, AstroConst.IC);   // 曾误取 MC → IC 纬圈判据恒假、永不绘制
 		let ary = [asc.ra, mc.ra];
 		let eps = 0.00027;
 		if(Math.abs(asc.ra - desc.ra) > eps){

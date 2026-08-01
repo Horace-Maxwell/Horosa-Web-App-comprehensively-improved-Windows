@@ -137,6 +137,7 @@ class LiuRengInput extends Component{
 				fields={fields}
 				value={datetm}
 				onTimeChange={this.onTimeChanged}
+				onStepSelect={this.props.onStepSelect}
 				timeHook={this.props.timeHook}
 				onGeoChange={this.changeGeo}
 			/>

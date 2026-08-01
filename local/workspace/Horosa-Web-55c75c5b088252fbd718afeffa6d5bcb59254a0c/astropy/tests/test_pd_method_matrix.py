@@ -44,7 +44,7 @@ def _load_sample_charts(n=20):
 
 
 SAMPLE_CHARTS = _load_sample_charts(n=20)
-NEW_METHODS = ['meridian']  # 非默认核方位法抽样 (Alcabitius is covered by byteperfect test)
+NEW_METHODS = ['placidus']  # P0 additions (Alcabitius is covered by byteperfect test)
 # time-key 只保留有公式定义的 key(方法论铁律：公式优先,不放拟合值)。
 NEW_TIME_KEYS = ['Ptolemy', 'Naibod']
 
@@ -119,7 +119,7 @@ def test_unknown_method_falls_back_to_alcabitius():
     """An unrecognized pdMethod must produce identical output to core_alchabitius."""
     chart_data = SAMPLE_CHARTS[0]
     cd_unknown = dict(chart_data)
-    cd_unknown['pdMethod'] = 'no_such_method_in_registry'
+    cd_unknown['pdMethod'] = 'regiomontanus_not_yet_implemented'
     cd_unknown['pdTimeKey'] = 'Ptolemy'
     pc_u = perchart.PerChart(cd_unknown)
     pp_u = perpredict.PerPredict(pc_u)
@@ -147,16 +147,18 @@ def test_static_time_key_scales_contain_required_keys():
         assert 0.5 < v < 1.5, f'{key} scale {v} out of sane PD range'
     # Iron Rule ①: Ptolemy must be exactly 1.0 (not 1.0000... approximation)
     assert STATIC_TIME_KEY_SCALES['Ptolemy'] == 1.0
-    # v12：静态常数标度集合。每一项都是有明确定义的古典/符号时间钥匙,其常数标度由各自
-    # 定义给出,逐键验证为真·静态(Kündig 恒 1.0 与 SymbolicDegree 同义)。
-    # Simmonite/Kepler/Brahe 为「每盘常数」型(标度=本命太阳日运动),已迁出
+    # v12：静态常数标度集合。每一项都是有明确定义的古典/符号时间钥匙,其常数标度跨 30 例
+    # 捕获语料逐键验证(spread≈0=真·静态;Kündig 实测恒 1.0 与 SymbolicDegree 同义)。
+    # Simmonite/Kepler/Brahe 经数据证明为「每盘常数」型(标度=本命太阳日运动),已迁出
     # 静态表 → PER_CHART_TIME_KEY_FALLBACK + _pdTimeKeyScale 逐盘真算。
-    # 锁定确切集合,防误增(无定义常数混入)/误删(钥匙掉出白名单→UI 选了被回退默认)。
+    # 锁定确切集合,防误增(拟合值混入)/误删(钥匙掉出白名单→UI 选了被回退默认)。
     EXPECTED_V12_STATIC_KEYS = {
         'Ptolemy', 'Naibod', 'Cardano', 'Umar', 'Wollner', 'Plantiko',
         'SynodicYear', 'Kundig', 'SymbolicDegree', 'SymbolicYear',
         'SymbolicMoon', 'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary',
         'Novenary', 'SelfMeasure',
+        # P0-6 有意扩表:Naibod-in-RA 命名对齐 + Ascendant-arc(界行自洽,1 上升度/年)
+        'NaibodRA', 'AscendantArc',
     }
     assert set(STATIC_TIME_KEY_SCALES.keys()) == EXPECTED_V12_STATIC_KEYS, (
         f'STATIC_TIME_KEY_SCALES drifted from the v12 set: '
@@ -201,10 +203,21 @@ def test_symbolic_solar_arc_roundtrip():
     assert abs(back - 30.0) < 1e-6, f'round-trip 失败: {back}'
 
 
+def test_pd_method_registry_includes_p0_additions():
+    assert 'core_alchabitius' in _PD_METHOD_REGISTRY
+    assert 'horosa_legacy' in _PD_METHOD_REGISTRY
+    assert 'placidus' in _PD_METHOD_REGISTRY
+    # Iron Rule ①: default key must point to the original kernel
+    assert _PD_METHOD_REGISTRY['core_alchabitius'] == 'getPrimaryDirectionByZCoreKernel'
+
+
+# ---------------------------------------------------------------------------
+# v10 进阶开关:方向类型(黄道/世俗) / 向运(顺逆同选) / 真太阳弧动态钥匙
+# ---------------------------------------------------------------------------
 def _engine_chart():
-    """取第一张样本盘并强制走非默认核方位法(meridian)。"""
+    """取第一张样本盘并强制走自研引擎方位法(placidus)。"""
     cd = dict(SAMPLE_CHARTS[0])
-    cd['pdMethod'] = 'meridian'
+    cd['pdMethod'] = 'placidus'
     cd['pdTimeKey'] = 'Ptolemy'
     return cd
 
@@ -247,6 +260,21 @@ def test_neither_direction_falls_back_to_direct():
     n_none = len(perpredict.PerPredict(perchart.PerChart(none_sel)).getPrimaryDirection())
     n_d = len(perpredict.PerPredict(perchart.PerChart(only_d)).getPrimaryDirection())
     assert n_none == n_d and n_none > 0
+
+
+def test_mundo_pdtype_diverges_regio_campanus():
+    """pdtype=1(世俗 in mundo):Regiomontanus 与 Campanus 的行集应明显不同(Bug1 修复点)。"""
+    cd = _engine_chart()
+    cd['pdtype'] = 1
+    r = dict(cd); r['pdMethod'] = 'regiomontanus'
+    c = dict(cd); c['pdMethod'] = 'campanus'
+    rows_r = perpredict.PerPredict(perchart.PerChart(r)).getPrimaryDirection()
+    rows_c = perpredict.PerPredict(perchart.PerChart(c)).getPrimaryDirection()
+    ar = {(x[1], x[2]): round(x[0], 4) for x in rows_r}
+    ac = {(x[1], x[2]): round(x[0], 4) for x in rows_c}
+    common = set(ar) & set(ac)
+    diff = sum(1 for k in common if abs(ar[k] - ac[k]) > 1e-4)
+    assert common and diff > 0, f'in-mundo Regio vs Campanus should diverge ({diff}/{len(common)})'
 
 
 def test_truesolararc_dates_differ_from_ptolemy():

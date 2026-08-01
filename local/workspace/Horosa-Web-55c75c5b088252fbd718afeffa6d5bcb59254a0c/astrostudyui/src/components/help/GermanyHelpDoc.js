@@ -4,6 +4,7 @@
 import { Component } from 'react';
 import { Tabs } from 'antd';
 import { MUTED, h, p, ul, li, card, ct, body, title } from './helpDocStyle';
+import { schoolComparisonRows } from '../germany/UranianSchools';
 
 const { TabPane } = Tabs;
 const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
@@ -46,16 +47,39 @@ class GermanyHelpDoc extends Component{
 								{kv('容许度', '中点 1.0° / 个人点 1.0°')}
 								{kv('适合', '标准中点 + 转盘读法,功能最全的基线')}</div>
 							<div style={card}><div style={ct}>纯净派</div>
-								{kv('特点', '同样启用虚星与个人六点,但<b>开十字指针</b>(±22.5° 等十六次谐波副臂)、<b>关六宫框</b>,中点容许度收紧到 0.5°')}
+								{kv('特点', '同样启用虚星与个人六点,但开十字指针(±22.5° 等十六次谐波副臂)、关六宫框,中点容许度收紧到 0.5°')}
 								{kv('取向', '强调更紧的容许度与十字指针精读,去掉宫框这类衍生框架')}</div>
 							<div style={card}><div style={ct}>美国对称</div>
 								{kv('特点', '启用虚星、个人六点、开六宫框;个人点容许度放宽到 1.5°')}
 								{kv('取向', '对称中点学派的常见放宽口径,个人点接触判得稍松')}</div>
 							<div style={card}><div style={ct}>宇宙生物学</div>
-								{kv('特点', '<b>不用虚星</b>;个人点集收为「基本五点」(日月+上升中天+北交,无白羊点、无南交);默认切到<b>宇宙图</b>盘式;图形星历盘基取 45°(八次谐波)')}
+								{kv('特点', '不用虚星;个人点集收为「基本五点」(日月+上升中天+北交,无白羊点、无南交);默认切到宇宙图盘式;图形星历盘基取 45°(八次谐波)')}
 								{kv('容许度', '中点 1.5° / 个人点放宽到 5.0°(本派看大局倾向)')}
 								{kv('取向', '只用实体行星与中点、重八次谐波的简洁派')}</div>
 							<p style={{ ...p, color: MUTED }}>个人点集决定「中点树/图解/接触」默认围绕哪些点展开(减少过载);各派差异主要在此与容许度、是否用虚星、是否开宫框。</p>
+
+							<div style={h}>四流派设置总对照(随预设实值派生,与左栏行为恒一致)</div>
+							<div style={{ overflowX: 'auto' }}>
+								<table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+									<thead>
+										<tr>
+											{['设置项', '原始汉堡', '纯净派', '美国对称', '宇宙生物学'].map((t) => (
+												<th key={t} style={{ border: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', padding: '3px 8px', textAlign: 'left' }}>{t}</th>
+											))}
+										</tr>
+									</thead>
+									<tbody>
+										{schoolComparisonRows().map((r) => (
+											<tr key={r.k}>
+												{[r.k, r.classic, r.pure, r.uranian, r.cosmo].map((v, i) => (
+													<td key={i} style={{ border: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', padding: '3px 8px' }}>{v}</td>
+												))}
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+							<p style={{ ...p, color: MUTED, marginTop: 6 }}>「扩展映点轴 15°」为美国对称一支的独有口径(把映点镜轴扩至 15° 固定星座);折叠盘上它与基本轴重合,仅 360° 模数盘上读得出差异。左栏同名开关可逐项覆盖本表默认。</p>
 						</div>
 					</TabPane>
 

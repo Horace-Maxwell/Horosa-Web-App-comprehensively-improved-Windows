@@ -8,6 +8,8 @@ import {
 	R_RING, MONTHQIN_START_BY_YAO, MONTHQIN_START_BY_YAO_B,
 	HUOYAO_START_BY_YAO, FANHUOYAO_START_BY_YAO,
 	HESU_OF, TOUTAI_BIRDS, WUXING_KE,
+	HUANGDAO_12SHEN, HUANGDAO_JI, JIANCHU_12, JIANCHU_GOOD,
+	QIYUAN_JIAZI_START, SIJI_WANG, WANGFU_WUXING,
 } from './yanqinConst';
 
 const ANCHOR_MANSION_IDX = 11; // 虚日鼠
@@ -32,7 +34,7 @@ export function dayNumber(year, month, day) {
 }
 
 // 锚点:1996-01-28 = 甲子日 = 虚日鼠(序11) = 一元一将(七元甲子最干净起点)。以同一 JDN 函数
-// 求锚,现代域 diff = dayNumber - ANCHOR 与旧 Date.UTC 口径逐日一致(零回归);大全§1.7/§10.2 实测坐实。
+// 求锚,现代域 diff = dayNumber - ANCHOR 与旧 Date.UTC 口径逐日一致(零回归);古籍 实测坐实。
 const ANCHOR_DAY_NUMBER = dayNumber(1996, 1, 28);
 
 // —— 日禽:周历机制(一日一换,28日一轮)✅ ——
@@ -67,7 +69,9 @@ export function elementOf(mansionName) {
 	return name && name.length >= 2 ? name[1] : null;
 }
 
-// —— 年禽(A系)✅:(year+15) mod 28,0→28 ——
+// —— 年禽 ✅:(year+15) mod 28,0→28 ——
+// 此式本身即「三元甲子承袭」:1864上元甲子=氐、1924中元甲子=箕、1984下元甲子=虚,三锚全中;
+// 2002=角木蛟、2008=箕水豹(主流)。坊间另称 B 系「值日宿承袭·2002=箕」经核系单源内部矛盾,不采纳(详 yanqinSchools 注)。
 export function yearQin(year) {
 	const idx = mod(year + 15, 28) || 28;
 	return mansionByIdx(idx);
@@ -81,17 +85,21 @@ export function monthQin(year, lunarMonth, verse) {
 	return mansionByIdx(mod(startIdx - 1 + (lunarMonth - 1), 28) + 1);
 }
 
-// —— 禽星五行 ✅:按七政(宿曜第二字)——
-export function wuxingOfMansion(mansion) {
+// —— 禽星五行:按七政(宿曜第二字·默认);qinWuxing='wangfu' 时汪绂重配已坐实者 override(WP-17)——
+export function wuxingOfMansion(mansion, qinWuxing) {
 	if (!mansion) { return null; }
+	if (qinWuxing === 'wangfu') {
+		const w = WANGFU_WUXING[mansion.name && mansion.name[0]];
+		if (w) { return w; }   // 已坐实(亢火/牛木);余宿待校→回退七政
+	}
 	return YAO_TO_WUXING[mansion.yao];
 }
 
-// —— 时禽(元元相轮 + 旬头位移)⚠️ 大全§10.5 ——
+// —— 时禽(元元相轮 + 旬头位移)⚠️ 古籍 ——
 // 子时正禽 = R[(曜序 + 元-1 + 旬头位移) mod 7];旬头位移 = 日干支序 mod 10(甲日=0)。
-// §4.3「七元甲子时禽表」= 基准(useXun=false 即无位移,等价甲子日)。
-// ⚠️ 文档冲突:§10.5 判旬头位移强制(T1 庚午卯=井木犴 需位移);但 §4.5 的 T2、§5.5 翻禽 F1
-//   两算例均"无位移"。三锚不能同时满足。useXun 做成开关交流派/用户定;默认依 §10.5 = true。
+// 「七元甲子时禽表」= 基准(useXun=false 即无位移,等价甲子日)。
+// ⚠️ 文档冲突:一处判旬头位移强制(T1 庚午卯=井木犴 需位移);另有时禽 T2、翻禽 F1 两算例"无位移"。
+// 三锚不能同时满足。useXun 做成开关交流派/用户定;默认依主流古籍口径 = true。
 // 基准子时起宿(无位移)idx:R[(曜序+元-1) mod 7]
 export function hourZiBaseIdx(dayYao, yuan) {
 	const rIdx = mod(YAO_ORDER[dayYao] + (yuan - 1), 7);
@@ -110,7 +118,7 @@ export function hourQin(year, month, day, hourBranch, useXun) {
 	return mansionByIdx(mod(ziIdx - 1 + hourBranch, 28) + 1);
 }
 
-// —— 翻禽(他禽)✅ 大全§5.5 ——
+// —— 翻禽(他禽)✅ 古籍 ——
 // 当日盘 = 子时正禽置子、顺地支排28宿;从时禽地支顺数(地支+宿同进)至日禽宿,记落地支,
 // 在当日盘读该地支之禽 = 翻禽。
 export function fanQin(year, month, day, hourBranch, useXun) {
@@ -123,7 +131,7 @@ export function fanQin(year, month, day, hourBranch, useXun) {
 	return { fan: mansionByIdx(idx), hourMansion: mansionByIdx(hourMansionIdx), landBranch };
 }
 
-// —— 倒将(主将/次将)✅ 大全§5.3 ——
+// —— 倒将(主将/次将)✅ 古籍 ——
 // 次将 = 气将本宫→顺数→时将之宫所得宿;主将 = 时将之宫→倒回(逆数)→气将之位所得宿。
 // 气将 = 当日值日宿(28将=28宿,落本日地支);时将 = 时禽。此处给程序化次/主将。
 export function daoJiang(year, month, day, hourBranch, useXun) {
@@ -137,7 +145,7 @@ export function daoJiang(year, month, day, hourBranch, useXun) {
 	return { ciJiang, zhuJiang };
 }
 
-// —— 活曜(番禽活曜头诀,自寅起)✅ 大全§5.4 ——
+// —— 活曜(番禽活曜头诀,自寅起)✅ 古籍 ——
 // variant: 'fanqin'(番禽系,土→翼)| 'fanqin2'(翻禽系异本,土→箕)
 export function huoYao(year, month, day, hourBranch, variant) {
 	const dayM = mansionOfDay(year, month, day);
@@ -149,7 +157,7 @@ export function huoYao(year, month, day, hourBranch, variant) {
 	return mansionByIdx(mod(startIdx - 1 + steps, 28) + 1);
 }
 
-// —— 投胎度数→十二禽兽(体系A 禄命)✅ 大全§5.1 ——
+// —— 投胎度数→十二禽兽(体系A 禄命)✅ 古籍 ——
 // 寅时(2)正月(1)固定起凤凰(环序0);月进一→度退一(环-1),时进一→环+1。
 export function toutaiDu(lunarMonth, hourBranch) {
 	// TOUTAI_BIRDS 已按"度反序"排环。月进一→度退一=环 index+1;时进一→度进一=环 index-1。
@@ -158,7 +166,7 @@ export function toutaiDu(lunarMonth, hourBranch) {
 	return TOUTAI_BIRDS[ringPos];
 }
 
-// —— 命星→身星(合宿歌法,体系C 禄命)✅ 大全§5.3.2 ——
+// —— 命星→身星(合宿歌法,体系C 禄命)✅ 古籍 ——
 // ① 命星之宿取合宿;② 合宿置子,沿28宿顺地支前行;③ 数到生年地支落点之禽=身星。
 export function shenStarFromMingStar(mingStarHead, birthYearBranchIdx) {
 	const heHead = HESU_OF[mingStarHead];
@@ -182,6 +190,63 @@ export function qinKeByWuxing(a, b) {
 // 吃宿名第二字(七曜)的便捷版(默认七政五行)
 export function qinKeJudge(meYao, theyYao) {
 	return qinKeByWuxing(YAO_TO_WUXING[meYao], YAO_TO_WUXING[theyYao]);
+}
+
+// —— 择日叠加:黄黑道十二值神 ✅ 古籍 ——
+// 青龙起位随月支(寅月龙在子),十二神顺数日支。monthZhiIdx/dayZhiIdx = 地支序(子0…亥11)。
+export function huangHeiDao(monthZhiIdx, dayZhiIdx) {
+	const qinglong = mod(2 * (monthZhiIdx - 2), 12); // 青龙位地支:寅月(2)→子(0)
+	const idx = mod(dayZhiIdx - qinglong, 12);
+	return { shen: HUANGDAO_12SHEN[idx], huang: HUANGDAO_JI.has(idx), idx };
+}
+// —— 择日叠加:建除十二神 ✅ 古籍 ——:月建(月支)位起「建」,顺数日支。
+export function jianChu(monthZhiIdx, dayZhiIdx) {
+	const idx = mod(dayZhiIdx - monthZhiIdx, 12);
+	const shen = JIANCHU_12[idx];
+	return { shen, good: JIANCHU_GOOD.has(shen), idx };
+}
+// 便捷:给公历日期(日支内算)+ 农历月支序,出黄黑道/建除。monthZhiIdx 须由调用方(农历)提供。
+export function huangHeiDaoOfDay(year, month, day, monthZhiIdx) {
+	const dayZhiIdx = ganzhiIdxOfDay(year, month, day) % 12;
+	return huangHeiDao(monthZhiIdx, dayZhiIdx);
+}
+export function jianChuOfDay(year, month, day, monthZhiIdx) {
+	const dayZhiIdx = ganzhiIdxOfDay(year, month, day) % 12;
+	return jianChu(monthZhiIdx, dayZhiIdx);
+}
+
+// —— 定局表生成(查表化身,零新算法;由已验证起禽式循环生成)✅ ——
+// 日禽 60×7:干支序(0..59) × 元(1..7) → 值日宿。甲子日某元起宿 = QIYUAN_JIAZI_START[元-1],干支顺进一宿。
+export function dingjuRiqin() {
+	const out = [];
+	for (let gz = 0; gz < 60; gz += 1) {
+		const cells = [];
+		for (let yuan = 1; yuan <= 7; yuan += 1) {
+			const startIdx = MANSION_HEAD_TO_IDX[QIYUAN_JIAZI_START[yuan - 1]];
+			cells.push(mansionByIdx(mod(startIdx - 1 + gz, 28) + 1).name);
+		}
+		out.push({ ganzhi: TIANGAN[gz % 10] + DIZHI[gz % 12], cells });
+	}
+	return out;
+}
+// 月禽 7×12:年禽曜 × 农历月(1..12) → 月禽。verse 'A'(默认)|'B'。
+export function dingjuYueqin(verse) {
+	const tbl = verse === 'B' ? MONTHQIN_START_BY_YAO_B : MONTHQIN_START_BY_YAO;
+	return YAO_CYCLE.map((yao) => {
+		const startIdx = MANSION_NAME_TO_IDX[tbl[yao]];
+		return { yao, cells: Array.from({ length: 12 }, (_, m) => mansionByIdx(mod(startIdx - 1 + m, 28) + 1).name) };
+	});
+}
+// 年禽三元定局:[startYear, endYear] 逐年 → 年禽(A系公式)。
+export function dingjuNianqin(startYear, endYear) {
+	const out = [];
+	for (let y = startYear; y <= endYear; y += 1) { out.push({ year: y, name: yearQin(y).name }); }
+	return out;
+}
+// 四季旺:某宿(单字首字)所旺之季(春夏秋冬),无则 null。用于四季歌高亮。
+export function seasonOfMansionHead(head) {
+	const found = Object.keys(SIJI_WANG).find((s) => SIJI_WANG[s].includes(head));
+	return found || null;
 }
 
 // 一站式:给公历日期+时支,出该时刻四禽 + 翻禽倒将活曜(择日/占卜共用)。

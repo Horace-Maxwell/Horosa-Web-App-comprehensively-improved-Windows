@@ -30,11 +30,15 @@ describe('董公用事 yongshiVerdict · 真值驱动(非永远无反应)', () =
 		expect(marry).toBeGreaterThan(0);
 	});
 
-	test('同义映射(平整→平治道涂 等)全部命中 lunar 词表', () => {
-		// 遍历 2026 找每个异名用事的宜/忌命中,确保映射有效(非死映射)
+	const daysInMonth = (y, m)=> new Date(y, m, 0).getDate();
+
+	test('同义映射全表逐键命中 lunar 词表(全年扫描,零死映射)', () => {
+		// 🔴 白名单必须 = Object.keys(YONGSHI_YIJI_SYN) 全集:曾只锁 5 个老键,
+		// 为修「恒无明确宜忌」新加的 立契/造舟船/设醮/迁徙 四条映射反而零守卫
+		// (映射错一个字就退回恒 neutral,不红)。扫描域也须全年整月(28 日截断漏 29-31)。
 		const covered = {};
 		for (let m = 1; m <= 12; m++) {
-			for (let d = 1; d <= 28; d++) {
+			for (let d = 1; d <= daysInMonth(2026, m); d++) {
 				const day = buildHuangliDay(2026, m, d);
 				Object.keys(YONGSHI_YIJI_SYN).forEach((ev)=>{
 					const v = yongshiVerdict(day, ev);
@@ -42,8 +46,47 @@ describe('董公用事 yongshiVerdict · 真值驱动(非永远无反应)', () =
 				});
 			}
 		}
-		// 平整/破屋/补垣/动土/安葬 这些常用异名应在全年内至少命中一次
-		['平整', '破屋', '补垣', '动土', '安葬'].forEach((ev)=>{ expect(covered[ev]).toBe(true); });
+		Object.keys(YONGSHI_YIJI_SYN).forEach((ev)=>{ expect({ ev, hit: !!covered[ev] }).toEqual({ ev, hit: true }); });
+	});
+
+	test('🔴 P0 不变量:通书忌安葬之日绝不渲染宜(全年 2026,非空扫描)', () => {
+		// 病灶史:破土/成服/除服 曾被收进安葬同义 + 宜优先 → 135/1800 组合「忌安葬」显示「宜安葬」。
+		// 本守卫直接锁用户可见不变量:凡 lunar 忌栏含安葬,verdict 恒非 yi(实测 2026 有 150 天,断言>100 防空转)。
+		let jiDays = 0;
+		for (let m = 1; m <= 12; m++) {
+			for (let d = 1; d <= daysInMonth(2026, m); d++) {
+				const day = buildHuangliDay(2026, m, d);
+				if ((day.ji || []).includes('安葬')) {
+					jiDays++;
+					expect(yongshiVerdict(day, '安葬').level).not.toBe('yi');
+				}
+			}
+		}
+		expect(jiDays).toBeGreaterThan(100);
+	});
+
+	test('🔴 同义表铁律锁:安葬组只收真同名(收「相关不同」即红)', () => {
+		expect(YONGSHI_YIJI_SYN['安葬']).toEqual(['安葬']);
+		expect(YONGSHI_YIJI_SYN['启攒']).toEqual(['启钻']);
+	});
+
+	test('conflict 语义:同义组一宜一忌 → 判冲突凶不被吃(合成日+全年可达)', () => {
+		// 合成日直锁纯函数语义:立向组 竖柱∈宜 + 修造∈忌 → conflict 且两侧命中都在 hits。
+		const v = yongshiVerdict({ yi: ['竖柱'], ji: ['修造'] }, '立向');
+		expect(v.level).toBe('conflict');
+		expect(v.hits).toEqual(expect.arrayContaining(['竖柱', '修造']));
+		expect(yongshiVerdict({ yi: [], ji: ['修造'] }, '立向').level).toBe('ji');
+		// 真实数据可达性:2026 全年至少出现一次 conflict(实测 10 次)。
+		let conflicts = 0;
+		for (let m = 1; m <= 12; m++) {
+			for (let d = 1; d <= daysInMonth(2026, m); d++) {
+				const day = buildHuangliDay(2026, m, d);
+				Object.keys(YONGSHI_YIJI_SYN).forEach((ev)=>{
+					if (yongshiVerdict(day, ev).level === 'conflict') { conflicts++; }
+				});
+			}
+		}
+		expect(conflicts).toBeGreaterThan(0);
 	});
 
 	test('空用事/无匹配/空 day → neutral 不抛', () => {

@@ -1407,8 +1407,8 @@ function panEarth(qmju){
 	return zipToMap(palaces, vals);
 }
 
-function panGod(ganzhi, qmju){
-	const zfzs = zhifuNZhishi(ganzhi, qmju);
+function panGod(ganzhi, qmju, ext){
+	const zfzs = zhifuNZhishi(ganzhi, qmju, ext);
 	const meta = parseQmju(qmju);
 	const startingGong = zfzs.值符星宫[1];
 	const rotate = meta.yy === '阳' ? CLOCKWISE_EIGHTGUA : [...CLOCKWISE_EIGHTGUA].reverse();
@@ -1421,8 +1421,8 @@ function panGod(ganzhi, qmju){
 	return out;
 }
 
-function panDoor(ganzhi, qmju){
-	const zfzs = zhifuNZhishi(ganzhi, qmju);
+function panDoor(ganzhi, qmju, ext){
+	const zfzs = zhifuNZhishi(ganzhi, qmju, ext);
 	const meta = parseQmju(qmju);
 	const startingDoor = zfzs.值使门宫[0];
 	const startingGong = zfzs.值使门宫[1];
@@ -1432,8 +1432,8 @@ function panDoor(ganzhi, qmju){
 	return zipToMap(gongReorder, yydoor);
 }
 
-function panStar(ganzhi, qmju){
-	const zfzs = zhifuNZhishi(ganzhi, qmju);
+function panStar(ganzhi, qmju, ext){
+	const zfzs = zhifuNZhishi(ganzhi, qmju, ext);
 	const meta = parseQmju(qmju);
 	const startingStar = zfzs.值符星宫[0].replace(/芮/g, '禽');
 	const startingGong = zfzs.值符星宫[1];
@@ -1447,12 +1447,12 @@ function panStar(ganzhi, qmju){
 	return out;
 }
 
-function panSky(ganzhi, qmju){
+function panSky(ganzhi, qmju, ext){
 	const meta = parseQmju(qmju);
 	const rotate = meta.yy === '阳' ? CLOCKWISE_EIGHTGUA : [...CLOCKWISE_EIGHTGUA].reverse();
 	const earth = panEarth(qmju);
 	const earthR = invertMap(earth);
-	const zfzs = zhifuNZhishi(ganzhi, qmju);
+	const zfzs = zhifuNZhishi(ganzhi, qmju, ext);
 	const fuHead = JJ[getXunHead(ganzhi.time)] || '戊';
 	const ganHead = zfzs.值符天干[1];
 	const starGong = zfzs.值符星宫[1];
@@ -1460,7 +1460,7 @@ function panSky(ganzhi, qmju){
 	if(starGong === '中'){
 		const gongReorder = newList(rotate, '坤');
 		let ganReorder;
-		if(panGod(ganzhi, qmju).坤 !== '符'){
+		if(panGod(ganzhi, qmju, ext).坤 !== '符'){
 			ganReorder = newList(earthOnRing, earth.坤);
 		}else if(earth.坤 === ganHead){
 			ganReorder = newList(earthOnRing, earthOnRing[earthOnRing.length - 1]);
@@ -1512,7 +1512,9 @@ export function panFeipan(ganzhi, qmju){
 	const timeGan = `${ganzhi.time || ''}`.substring(0, 1);
 	let P = Hv;                                                       // 时干宫(甲→值符原地)
 	if(timeGan !== '甲'){ for(let g = 1; g <= 9; g++){ if(earthGong[g] === timeGan){ P = g; break; } } }
-	const xord = GAN.indexOf(timeGan) + 1;                            // 时干序(=时柱在旬内位次+1,旬首恒甲)
+	// 时干序(=时柱在旬内位次+1,旬首恒甲)。🔴 空时柱时 indexOf('')=-1 → xord=0,
+	// 值使门整盘静默偏一宫;非法输入按旬首(xord=1)兜底,不再产出错位盘。
+	const xord = Math.max(1, GAN.indexOf(timeGan) + 1);
 	const step = isY ? 1 : -1;
 	// 值使门落宫:从值符宫(旬首遁仪宫,含中5)顺(阳)/逆(阴)数至时柱(参考实现门入中宫,Pu 可为中5)。
 	const Pu = lpFei(Hv + step * (xord - 1));                         // 中宫值符(Hv=5)时值使=中门,亦从中5起数(6-22→震3、02-04→坎1 已对参考实现)
@@ -2130,18 +2132,22 @@ export function calcDunJia(fields, nongli, options, context){
 	const isHuohe = opts.school === '混合';                          // 飞转混合:星转·门飞·九神(专题§4.2)
 	const fei = (isFeipan || isHuohe) ? panFeipan(panGanzhi, qmju) : null;
 	// 转盘/混合 都需转盘值符值使(混合的值符星宫走转盘);飞盘走飞盘 zfzs。
-	const zfzsZhuan = isFeipan ? null : zhifuNZhishi(panGanzhi, qmju, {
+	// 🔴 值符值使解算上下文:此前只有这一处传了 ext,而下面排八门的 panDoor 没传 →
+	//    「值符星=禽」时 resolveSpecialZhiShi(undefined,…) 恒取 0 档,八门实际起排永远从死门起,
+	//    与标题显示的值使门名自相矛盾(用户切「阴阳遁/节气」两档看不到盘面变化)。四处同源。
+	const zfzsExt = {
 		zhiShiType: opts.zhiShiType,
 		yinYangDun: paiPanMeta.yinYangDun,
 		jieqi,
-	});
+	};
+	const zfzsZhuan = isFeipan ? null : zhifuNZhishi(panGanzhi, qmju, zfzsExt);
 	// 混合:值符星宫=转盘(星轮转),值使门宫=飞盘(门飞泊);故取转盘 zfzs 但门宫换飞盘的。
 	const zfzs = isFeipan ? fei.zfzs : (isHuohe ? { ...zfzsZhuan, 值使门宫: (fei && fei.zfzs ? fei.zfzs.值使门宫 : zfzsZhuan.值使门宫) } : zfzsZhuan);
 	const dipanGua = panEarth(qmju);
-	const tianpanGua = isFeipan ? fei.tianpanGua : panSky(panGanzhi, qmju);   // 混合天盘=转盘
-	const menGua = (isFeipan || isHuohe) ? fei.menGua : panDoor(panGanzhi, qmju);   // 混合八门=飞盘飞宫
-	const starGua = isFeipan ? fei.starGua : panStar(panGanzhi, qmju);        // 混合九星=转盘排宫
-	const shenGua = (isFeipan || isHuohe) ? fei.shenGua : panGod(panGanzhi, qmju);  // 混合九神=飞盘
+	const tianpanGua = isFeipan ? fei.tianpanGua : panSky(panGanzhi, qmju, zfzsExt);   // 混合天盘=转盘
+	const menGua = (isFeipan || isHuohe) ? fei.menGua : panDoor(panGanzhi, qmju, zfzsExt);   // 混合八门=飞盘飞宫
+	const starGua = isFeipan ? fei.starGua : panStar(panGanzhi, qmju, zfzsExt);        // 混合九星=转盘排宫
+	const shenGua = (isFeipan || isHuohe) ? fei.shenGua : panGod(panGanzhi, qmju, zfzsExt);  // 混合九神=飞盘
 	const xunkong = daykongShikong(ganzhi.day, ganzhi.time);
 
 	const diPanBase = convertGuaMapToPos(dipanGua);
@@ -2236,7 +2242,8 @@ export function calcDunJia(fields, nongli, options, context){
 			xuShiLabel: getOptionLabel(XUSHI_OPTIONS, opts.xuShiSuiType),
 			jieQiLabel: getOptionLabel(JIEQI_OPTIONS, opts.jieQiType),
 			paiPanLabel: getOptionLabel(PAIPAN_OPTIONS, opts.paiPanType),
-			zhiShiLabel: getOptionLabel(ZHISHI_OPTIONS, opts.zhiShiType),
+			// 飞盘/混合档值使由飞宫定序直出,取法开关不参与 → 回显如实标注(勿谎报所选取法生效)
+			zhiShiLabel: (isFeipan || isHuohe) ? '飞宫定序(取法不适用)' : getOptionLabel(ZHISHI_OPTIONS, opts.zhiShiType),
 			yueJiaLabel: getOptionLabel(YUEJIA_QIJU_OPTIONS, opts.yueJiaQiJuType),
 			yearLabel: getOptionLabel(YEAR_GZ_OPTIONS, opts.yearGanZhiType),
 			monthLabel: getOptionLabel(MONTH_GZ_OPTIONS, opts.monthGanZhiType),

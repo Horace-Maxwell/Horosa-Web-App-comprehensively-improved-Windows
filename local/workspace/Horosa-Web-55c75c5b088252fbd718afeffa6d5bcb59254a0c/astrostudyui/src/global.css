@@ -35,6 +35,8 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+  /* 内部容器滚动到边界后不把剩余 delta 链给页面(防 WKWebView 缩放态整页位移) */
+  overscroll-behavior: none;
 }
 
 body {

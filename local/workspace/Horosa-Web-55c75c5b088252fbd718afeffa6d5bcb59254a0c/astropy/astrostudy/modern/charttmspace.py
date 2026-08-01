@@ -6,7 +6,8 @@ class ChartTimeSpace:
 
     def __init__(self, inner, outer):
         self.data = inner.copy()
-        dt = helper.getMiddleDate(inner['date'], inner['time'], outer['date'], outer['time'])
+        dt = helper.getMiddleDate(inner['date'], inner['time'], outer['date'], outer['time'],
+                                  inner.get('zone'), outer.get('zone'))
         self.data['date'] = dt['date']
         self.data['time'] = dt['time']
 

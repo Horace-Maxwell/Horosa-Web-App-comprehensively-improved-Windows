@@ -17,7 +17,14 @@ function tokenize(text){
 		.filter(Boolean);
 }
 
-export function shouldUseDirectAttach(material){
+// 「默认检索策略」(组合里的 defaultRetrievalMode)在此落地:
+//   'fulltext' → 强制整篇直挂,不看长度(超预算仍由上层裁剪链按水位收);
+//   'rag'      → 强制分块+排序,即使资料很短;
+//   'auto'/缺省 → 保持原来的纯长度规则,逐字节零回归。
+// 此前该控件三档存了、也在组合预览里显示,但检索链从不读它 —— 选了「全文优先/检索优先」毫无变化。
+export function shouldUseDirectAttach(material, retrievalMode){
+	if(retrievalMode === 'fulltext'){ return true; }
+	if(retrievalMode === 'rag'){ return false; }
 	return normalizeText(material && material.extractedText).length <= DIRECT_ATTACH_THRESHOLD;
 }
 

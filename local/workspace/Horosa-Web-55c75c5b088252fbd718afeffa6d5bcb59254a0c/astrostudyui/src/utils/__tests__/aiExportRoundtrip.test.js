@@ -140,7 +140,7 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 
 	test('印度占星 buildJyotishSnapshotLines:源内 out[段名] 派生段头全部登记进 indiachart preset(约40段,防 Jyotish 块整体漏登记)', ()=>{
 		const src = readSrc('../../components/astro/IndiaChart.js');
-		const region = sliceFrom(src, 'buildJyotishSnapshotLines', 22000);
+		const region = sliceFrom(src, 'buildJyotishSnapshotLines', 28000);   // 新增 Nadi/三对法/宿距段 → 扩窗防座运族滑出
 		// Jyotish 段头由 out['X'] 键 → ensureSection(lines, X) 产 [X];抽 out['...'] 键。
 		const names = new Set();
 		const re = /out\['([^']+)'\]/g;

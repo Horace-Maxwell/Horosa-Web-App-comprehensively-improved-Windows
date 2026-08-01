@@ -37,7 +37,7 @@ export const TONGSHU_TERMS = {
 		{ name: '立向', desc: '定向为立向，谓兴造。' },
 		{ name: '开池', desc: '开凿水池鱼池。' },
 		{ name: '开厕', desc: '建厕所开工。' },
-		{ name: '启攒', desc: '拾骨骸洗骨。' },
+		{ name: '启钻', desc: '拾骨骸洗骨。' },
 		{ name: '竖柱', desc: '架马起工架，指建筑鹰架。' },
 		{ name: '掘井', desc: '开渠筑阴沟、开鱼池、开凿水井池塘。' },
 	],
@@ -114,14 +114,14 @@ export const TERM_TO_CATEGORY = (()=>{
 // —— 事项分类法（吉日榜 / 日子馆共用）：每类映射到一组 lunar「宜」关键词 ——
 // yiKeys 为 lunar getDayYi() 词表中的实际用词（探针已证：嫁娶/纳采/入宅/移徙/开市/动土/上梁/竖柱/安床/安葬/祭祀/祈福/出行/交易/立券 皆在）。
 export const EVENT_CATEGORIES = [
-	{ key: 'marriage', label: '婚嫁', yiKeys: ['嫁娶', '纳采', '结婚姻', '订盟', '安床'], group: '婚姻' },
-	{ key: 'start', label: '开工', yiKeys: ['开市', '动土', '上梁', '竖柱', '开工', '修造'], group: '营建' },
+	{ key: 'marriage', label: '婚嫁', yiKeys: ['嫁娶', '纳采', '订婚', '订盟', '安床'], group: '婚姻' },
+	{ key: 'start', label: '起基', yiKeys: ['开市', '动土', '上梁', '竖柱', '起基', '修造'], group: '营建' },
 	{ key: 'move', label: '新居入伙', yiKeys: ['入宅', '移徙', '安香', '进人口'], group: '营建' },
 	{ key: 'bed', label: '安床', yiKeys: ['安床'], group: '婚姻' },
 	{ key: 'trade', label: '交易立券', yiKeys: ['交易', '立券', '纳财', '开市', '挂匾'], group: '工商' },
 	{ key: 'travel', label: '出行', yiKeys: ['出行', '赴任'], group: '生活' },
 	{ key: 'pray', label: '祭祀祈福', yiKeys: ['祭祀', '祈福', '开光', '斋醮'], group: '祭祀' },
-	{ key: 'burial', label: '安葬', yiKeys: ['安葬', '破土', '启攒', '立碑'], group: '丧葬', sensitive: true },
+	{ key: 'burial', label: '安葬', yiKeys: ['安葬', '破土', '启钻', '立碑'], group: '丧葬', sensitive: true },
 ];
 
 export const EVENT_KEY_TO_CATEGORY = (()=>{
@@ -137,16 +137,25 @@ export const KEY_JI_SHEN = ['天德', '月德', '天德合', '月德合', '天�
 
 // 董公「用事」真值驱动：以当日通书宜/忌（lunar 权威表，含建除+神煞择净）判该用事宜/忌。
 // 多数用事在 lunar 宜忌表内有直名；少数用异名 → 下表校准同义映射（皆经 lunar 2026 全年词表核对）。
+// 🔴 同义 = 真同名/真异名,绝不含「相关但不同」的事项:
+//   曾把 破土/成服/除服 当安葬同义 → 通书明写「忌安葬」的日子(全表 135/1800 组合)
+//   被判成「宜安葬」;动土/开山把阳宅动土与阴宅破土混同(本文件上方自注二者不同)。
+//   启攢=繁体死值(表内实名「启钻」);开池须补 lunar 组合词「开井开池」(忌段确有 4 条)。
 export const YONGSHI_YIJI_SYN = {
 	平整: ['平治道涂', '修饰垣墙'],
 	立向: ['竖柱', '上梁', '修造'],
-	开山: ['动土', '破土'],
-	开池: ['开池', '开渠'],
-	启攒: ['启攢', '破土', '启钻'],
+	开山: ['动土', '起基'],
+	开池: ['开池', '开渠', '开井开池'],
+	启攒: ['启钻'],
 	破屋: ['破屋', '坏垣'],
 	补垣: ['补垣', '塞穴', '修饰垣墙'],
-	动土: ['动土', '破土'],
-	安葬: ['安葬', '破土', '成服', '除服'],
+	动土: ['动土'],
+	安葬: ['安葬'],
+	// 与既有条目同义的重复术语(此前无映射 → 董公用事栏对其恒「无明确宜忌」)
+	立契: ['立券'],
+	造舟船: ['造船'],
+	设醮: ['斋醮', '齐醮'],
+	迁徙: ['移徙'],
 };
 
 // day 需带 { yi:[], ji:[] }（buildHuangliDay 产出）。返回 { level:'yi'|'ji'|'neutral', hits:[命中词] }。
@@ -158,6 +167,9 @@ export function yongshiVerdict(day, event) {
 	const ji = Array.isArray(day.ji) ? day.ji : [];
 	const yiHit = keys.filter((k)=> yi.includes(k));
 	const jiHit = keys.filter((k)=> ji.includes(k));
+	// 宜忌同时命中 → 判冲突(凶优先):曾宜先命中即定,同义词组内一宜一忌时
+	// 会把「忌」直接吃掉,与同页黄历卡的忌栏自相矛盾。
+	if (yiHit.length && jiHit.length) { return { level: 'conflict', hits: yiHit.concat(jiHit) }; }
 	if (yiHit.length) { return { level: 'yi', hits: yiHit }; }
 	if (jiHit.length) { return { level: 'ji', hits: jiHit }; }
 	return { level: 'neutral', hits: [] };

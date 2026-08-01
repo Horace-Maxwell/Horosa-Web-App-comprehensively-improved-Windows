@@ -1,6 +1,7 @@
 import { computeTaiyiShuli } from './taiyiShuli';
 import { computeGeju } from './taiyiGeju';
-import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, activeDoorJixiong, computeEhui, computeSanyuan, computeLimitYun } from './taiyiDuanfa';
+import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, activeDoorJixiong, computeEhui, computeSanyuan, computeLimitYun, computeShiJing, computeWuziyuan, computeHeShen } from './taiyiDuanfa';
+import { computeTaiyiNayin } from './taiyiNayin';
 
 export const TAIYI_STYLE_OPTIONS = [
 	{ value: 3, label: '時計太乙' },
@@ -26,15 +27,11 @@ export const TAIYI_METHOD_SOURCE_OPTIONS = [
 
 const DI_ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
 const GONG16_ORDER = '子丑艮寅卯辰巽巳午未坤申酉戌乾亥'.split('');
-const GONG16_NUM = [8, 8, 3, 3, 4, 4, 9, 9, 2, 2, 7, 7, 6, 6, 1, 1];
-const NUM_RING = [8, 3, 4, 9, 2, 7, 6, 1];
-const JC = '丑寅辰巳未申戌亥'.split('');
-const JC1 = '巽艮坤乾'.split('');
-const TYJC = [1, 3, 7, 9];
 const JIEQI_ORDER = ['小寒', '大寒', '立春', '雨水', '惊蛰', '春分', '清明', '谷雨', '立夏', '小满', '芒种', '夏至', '小暑', '大暑', '立秋', '处暑', '白露', '秋分', '寒露', '霜降', '立冬', '小雪', '大雪', '冬至'];
 
-const TAIYI_PAI = '乾乾乾午午午艮艮艮卯卯卯酉酉酉坤坤坤子子子巽巽巽乾乾乾午午午艮艮艮卯卯卯酉酉酉坤坤坤子子子巽巽巽乾乾乾午午午艮艮艮卯卯卯酉酉酉坤坤坤子子子巽巽巽'.split('');
-const SF_LIST = '坤戌亥丑寅辰巳坤酉乾丑寅辰午坤酉亥子艮辰巳未申戌亥艮卯巽未丑戌子艮卯巳午坤戌亥丑寅辰巳坤酉乾丑寅辰午坤酉亥子艮辰巳未申戌亥艮卯巽未丑戌子艮卯巳午'.split('');
+// 🔴 模式第 30 位曾作「丑」:立成表客算反解+太乙秘书「武德(申)」三路收敛应为「申」
+//   (命中阳/阴遁局 30、66 共 4 局;立成表 YANG_CAL/YIN_CAL 与 vendor 144×3 全等为权威侧)。
+const SF_LIST = '坤戌亥丑寅辰巳坤酉乾丑寅辰午坤酉亥子艮辰巳未申戌亥艮卯巽未申戌子艮卯巳午坤戌亥丑寅辰巳坤酉乾丑寅辰午坤酉亥子艮辰巳未申戌亥艮卯巽未申戌子艮卯巳午'.split('');
 const SKYEYES_YANG = '申酉戌乾乾亥子丑艮寅卯辰巽巳午未坤坤申酉戌乾乾亥子丑艮寅卯辰巽巳午未坤坤申酉戌乾乾亥子丑艮寅卯辰巽巳午未坤坤申酉戌乾乾亥子丑艮寅卯辰巽巳午未坤坤'.split('');
 const SKYEYES_YIN = '寅卯辰巽巽巳午未坤申酉戌乾亥子丑艮艮寅卯辰巽巽巳午未坤申酉戌乾亥子丑艮艮寅卯辰巽巽巳午未坤申酉戌乾亥子丑艮艮寅卯辰巽巽巳午未坤申酉戌乾亥子丑艮艮'.split('');
 const FOUR_GOD = '乾乾乾午午午艮艮艮卯卯卯中中中酉酉酉坤坤坤子子子巽巽巽巳巳巳申申申寅寅寅'.split('');
@@ -278,21 +275,7 @@ function getJiGod(yinYang, taishui){
 	return rotateFrom(DI_ZHI, '酉')[DI_ZHI.slice(0).reverse().indexOf(taishui)] || '';
 }
 
-function getWcNum(palace){
-	return GONG16_NUM[rotateFrom(GONG16_ORDER, '亥').indexOf(palace)] || 0;
-}
 
-function sumToIndex(arr, val){
-	const idx = arr.indexOf(val);
-	if(idx < 0){
-		return val;
-	}
-	let sum = 0;
-	for(let i=0; i<idx; i++){
-		sum += arr[i];
-	}
-	return sum;
-}
 
 function getSe(skyeyes, hegod, taishui){
 	if(!skyeyes || !hegod || !taishui){
@@ -306,73 +289,8 @@ function getSe(skyeyes, hegod, taishui){
 	return rotateFrom(GONG16_ORDER, skyeyes)[idx] || '';
 }
 
-function calcHomeCal(skyeyes, taiyiNum){
-	const wcNum = getWcNum(skyeyes);
-	if(!wcNum){
-		return taiyiNum;
-	}
-	return sumToIndex(rotateFrom(NUM_RING, wcNum), taiyiNum);
-}
 
-function calcAwayCal(sf, taiyiNum){
-	const sfNum = getWcNum(sf);
-	if(!sfNum){
-		return taiyiNum;
-	}
-	const sfJc = JC.indexOf(sf) >= 0;
-	const tyJc = TYJC.indexOf(taiyiNum) >= 0;
-	const sfJc1 = JC1.indexOf(sf) >= 0;
-	const order = rotateFrom(NUM_RING, sfNum);
-	const key = `${sfJc ? 1 : 0}${tyJc ? 1 : 0}${sfJc1 ? 1 : 0}`;
-	if(key === '100'){
-		return order.slice(0, JC.indexOf(sf) + 1).reduce((s, n)=>s + n, 0) + 1;
-	}
-	if(key === '001'){
-		if(taiyiNum === 6){
-			return order.slice(taiyiNum - 2).reduce((s, n)=>s + n, 0);
-		}
-		if(taiyiNum < 5){
-			return order.slice(0, taiyiNum + 1).reduce((s, n)=>s + n, 0);
-		}
-		return sumToIndex(order, taiyiNum);
-	}
-	if(key === '010'){
-		const idx = order.indexOf(TYJC[0]);
-		return idx > 0 ? order.slice(0, idx).reduce((s, n)=>s + n, 0) : 0;
-	}
-	if(key === '110'){
-		return sumToIndex(order, taiyiNum) + 1;
-	}
-	if(key === '011'){
-		return sumToIndex(order, taiyiNum);
-	}
-	if(key === '000'){
-		return sfNum === taiyiNum ? taiyiNum : sumToIndex(order, taiyiNum);
-	}
-	return taiyiNum;
-}
 
-function calcSetCal(se, taiyiNum){
-	const seNum = getWcNum(se);
-	if(!seNum){
-		return taiyiNum;
-	}
-	const seJc = JC.indexOf(se) >= 0;
-	const tyJc = TYJC.indexOf(taiyiNum) >= 0;
-	const seJc1 = JC1.indexOf(se) >= 0;
-	const key = `${seJc ? 1 : 0}${tyJc ? 1 : 0}${seJc1 ? 1 : 0}`;
-	const base = sumToIndex(rotateFrom(NUM_RING, seNum), taiyiNum);
-	if(key === '100'){
-		return base === 0 ? 1 : base + 1;
-	}
-	if(key === '110'){
-		return base + 1;
-	}
-	if(key === '000'){
-		return seNum === taiyiNum ? taiyiNum : base;
-	}
-	return base;
-}
 
 export function findCal(yinYang, kookNum){
 	return (yinYang === '阳' ? YANG_CAL : YIN_CAL)[kookNum - 1] || [0, 0, 0];
@@ -602,7 +520,10 @@ export function calcTaiyiPanFromKintaiyi(fields, nongli, options){
 	const sf = SF_LIST[kook.num - 1] || '';
 	const skyeyes = (yinYang === '阳' ? SKYEYES_YANG : SKYEYES_YIN)[kook.num - 1] || '';
 	const taiyiNum = getTaiyiNum(yinYang, kook.num);
-	const taiyiPalace = TAIYI_PAI[kook.num - 1] || '';
+	// 🔴 落宫恒由太乙数派生:旧阳遁落宫表阴遁曾照抄 → 72/72 局「太乙数」与
+	// 盘面「太乙」指向不同宫(掩迫挟提对/诸神之算/大限/数理全被污染)。阳遁下
+	// num2gong(taiyiNum) 与旧表逐局全等(72/72 已验),字节零回归;阴遁按秘书归正。
+	const taiyiPalace = num2gong(taiyiNum) || '';
 	const se = getSe(skyeyes, hegod, taishui);
 
 	// 主客定算与主/客大将同源立成表(对齐后端 find_cal[0/1/2],修正几何法自相矛盾)
@@ -744,6 +665,14 @@ export function buildTaiyiSnapshotLines(pan){
 	lines.push(`文昌：${pan.skyeyes} 始击：${pan.sf} 定目：${pan.se || '—'}`);
 	lines.push(`太岁：${pan.taishui} 合神：${pan.hegod} 计神：${pan.jigod}`);
 	lines.push(`主算：${pan.homeCal} 客算：${pan.awayCal} 定算：${pan.setCal}`);
+	const _nayin = computeTaiyiNayin(pan);
+	if(_nayin){ lines.push(`纳音：${_nayin.pillar}柱 ${_nayin.ganzhi}·${_nayin.nayin}`); }
+	const _wzy = computeWuziyuan(pan);
+	if(_wzy){ lines.push(`五子元：${_wzy}`); }
+	const _he = computeHeShen(pan);
+	if(_he && _he.he){ lines.push(`合神六合：合神${_he.hegod}·六合${_he.he}`); }
+	const _shijing = computeShiJing(pan);
+	if(_shijing){ lines.push(`十精(二目·八将)：${_shijing.map((it) => `${it.name}·${it.at}`).join(' ')}`); }
 	const _shuli = computeTaiyiShuli(pan);
 	if(_shuli){ lines.push(`数理(主/客/定算)：主[${_shuli.home.join('、')}] 客[${_shuli.away.join('、')}] 定[${_shuli.set.join('、')}]`); }
 	const _geju = computeGeju(pan);

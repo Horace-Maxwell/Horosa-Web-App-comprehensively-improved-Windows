@@ -55,13 +55,22 @@ describe('黄历/分至穷尽压测 · 前端纯函数面', ()=>{
 		expect(JSON.stringify(a)).toBe(JSON.stringify(b));
 	});
 
-	// 盘缓存兼容判:基准盘 × 逐键变异(10 键) → 同则 true、任一异则 false。
-	test('isJieQiChartCompatible:全等→true;10 比对键逐一变异→false(缓存失效面全覆盖)', ()=>{
-		const base = { year: 2026, ad: 1, zone: '+08:00', lat: '26n04', lon: '119e19', gpsLat: 26.04, gpsLon: 119.19, hsys: 3, zodiacal: 1, doubingSu28: 0 };
+	// 盘缓存兼容判:基准盘 × 逐键变异(17 键) → 同则 true、任一异则 false。
+	// 🔴 变异清单必须与 isJieQiChartCompatible 的比对键逐键同步:曾扩到 17 键后本测试
+	// 仍只变异 10 键 —— 新增 7 键中 5 键(triplicity/lotReversal/westNodeType/sectBuffer/
+	// leoBoundFirst)零守卫,从清单删键不会红。
+	test('isJieQiChartCompatible:全等→true;17 比对键逐一变异→false(缓存失效面全覆盖)', ()=>{
+		const base = {
+			year: 2026, ad: 1, zone: '+08:00', lat: '26n04', lon: '119e19', gpsLat: 26.04, gpsLon: 119.19,
+			hsys: 3, zodiacal: 1, siderealAyanamsa: 'lahiri', doubingSu28: 0, termsVariant: 0,
+			triplicity: 'dorothean', lotReversal: 0, westNodeType: 0, sectBuffer: 0, leoBoundFirst: 0,
+		};
 		expect(isJieQiChartCompatible({ params: { ...base } }, { ...base })).toBe(true);
 		const mutate = {
 			year: 2027, ad: -1, zone: '+09:00', lat: '30n00', lon: '120e00',
-			gpsLat: 30.0, gpsLon: 120.0, hsys: 0, zodiacal: 0, doubingSu28: 1,
+			gpsLat: 30.0, gpsLon: 120.0, hsys: 0, zodiacal: 0, siderealAyanamsa: 'raman',
+			doubingSu28: 1, termsVariant: 1, triplicity: 'ptolemaic', lotReversal: 1,
+			westNodeType: 1, sectBuffer: 3, leoBoundFirst: 1,
 		};
 		let n = 0;
 		Object.keys(mutate).forEach((key)=>{
@@ -69,13 +78,17 @@ describe('黄历/分至穷尽压测 · 前端纯函数面', ()=>{
 			expect(isJieQiChartCompatible({ params: { ...base } }, req)).toBe(false);
 			n++;
 		});
-		expect(n).toBe(10); // 10 比对键全覆盖
+		expect(n).toBe(17); // 17 比对键全覆盖(与 isJieQiChartCompatible 清单等长)
 	});
 
-	test('isJieQiChartCompatible 不在比对清单的键(如 siderealAyanamsa)变化不影响兼容', ()=>{
-		const base = { year: 2026, ad: 1, zone: '+08:00', lat: '26n04', lon: '119e19', gpsLat: 26.04, gpsLon: 119.19, hsys: 3, zodiacal: 1, doubingSu28: 0 };
-		const req = { ...base, siderealAyanamsa: 'lahiri', somethingElse: 42 };
-		expect(isJieQiChartCompatible({ params: { ...base } }, req)).toBe(true);
+	test('isJieQiChartCompatible:岁差/古典口径变化必判不兼容(须重取),无关键不影响', ()=>{
+		// 🔴 旧断言锁的恰是被证伪的行为(「siderealAyanamsa 变化不影响兼容」)——
+		// 换岁差时 zodiacal 恒 1、其余键全等 → 判兼容直接返旧盘,请求根本不发,
+		// 与同文件 getChartCacheKey 已含该键的口径矛盾。现按正口径改锁。
+		const base = { year: 2026, ad: 1, zone: '+08:00', lat: '26n04', lon: '119e19', gpsLat: 26.04, gpsLon: 119.19, hsys: 3, zodiacal: 1, doubingSu28: 0, siderealAyanamsa: 'lahiri' };
+		expect(isJieQiChartCompatible({ params: { ...base } }, { ...base, somethingElse: 42 })).toBe(true);
+		expect(isJieQiChartCompatible({ params: { ...base } }, { ...base, siderealAyanamsa: 'raman' })).toBe(false);
+		expect(isJieQiChartCompatible({ params: { ...base } }, { ...base, termsVariant: 1 })).toBe(false);
 	});
 
 	test('本地引擎单次耗时<阈值(期望<500ms,>1s 标红):一年24节气推算', ()=>{

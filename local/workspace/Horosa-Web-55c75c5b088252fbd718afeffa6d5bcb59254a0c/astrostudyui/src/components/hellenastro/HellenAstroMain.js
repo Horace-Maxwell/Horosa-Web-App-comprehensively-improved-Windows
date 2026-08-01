@@ -87,6 +87,7 @@ class HellenAstroMain extends Component{
 			<div className="horosa-aux-module-page xq-chart-renderer xq-chart-renderer-hellen">
 				<AstroChart13
 					onChange={this.onFieldsChange}
+					tripSystem={this.props.tripSystem}
 					fields={fields}
 					height={height}
 					chartStyle={this.props.chartStyle}

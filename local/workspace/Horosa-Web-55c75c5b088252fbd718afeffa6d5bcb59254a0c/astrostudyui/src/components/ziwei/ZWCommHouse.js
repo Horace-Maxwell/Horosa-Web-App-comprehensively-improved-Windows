@@ -5,6 +5,9 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import * as GraphHelper from '../graph/GraphHelper';
 import D3Arrow from '../graph/D3Arrow';
 import {randomStr, creatTooltip, genHtml, positionFloatingTooltip} from '../../utils/helper';
+import { ZWEngineOptions } from './ziweiOptions';           // 亮度源(显示层庙旺覆盖)
+import { STAR_LIGHT_QUANSHU, HOUSES as HOUSE_NAMES } from './data/ziweiTables';    // 《全书》庙旺 delta + 活盘重排名表
+import { borrowedStars } from './ziweiOverlays';           // 中州借宫(空宫借对宫十四正曜)
 
 export default class ZWCommHouse {
 	constructor(option){
@@ -51,6 +54,75 @@ export default class ZWCommHouse {
 
 		this.ZWRules = option.rules ? option.rules.ZWRules : null;
 		this.ZWRuleSihua = option.rules ? option.rules.ZWRuleSihua : null;
+	}
+
+	// 显示层庙旺:亮度源=quanshu 时,对《全书》delta 覆盖格(擎羊子酉/铃星辰巳未申亥/亥卯未火星)返新值,
+	// 其余星/格返基础 star.starlight。纯显示、不改安星/命主(切亮度不重排盘、缓存盘不受污染)。
+	effStarLight(star){
+		let sl = star ? star.starlight : '';
+		if(ZWEngineOptions.brightnessSource === 'quanshu' && star && star.name){
+			const base = star.name.charAt(0) === '副' ? star.name.slice(1) : star.name;
+			const zhi = (this.houseObj && this.houseObj.ganzi ? this.houseObj.ganzi.charAt(1) : '');
+			const d = STAR_LIGHT_QUANSHU[base];
+			if(d && d[zhi] != null){ sl = d[zhi]; }
+		}
+		return sl;
+	}
+
+	// ===== 流派叠层角标 + 活盘重排(四化盘/三合盘共用;基类统一实现防两盘漂移) =====
+	// 手册补齐·流派叠层角标(开关开时,自算不改基础安星):气数位/太岁入卦角标 + 中州借宫半透明星。
+	drawOverlayMarks(){
+		const chart = this.chartObj;
+		if(!chart || !chart.houses || this.svg == null){ return; }
+		const life = chart.lifeHouseIndex;
+		// 河洛气数位(官禄宫=命逆数第9=(life-8)%12)角标
+		if(ZWEngineOptions.qishuWei && life != null && life >= 0 && this.houseIndex === ((life - 8) % 12 + 12) % 12){
+			this.drawCornerTag(['气', '数'], 'var(--horosa-ziwei-period-day, #e64980)', 0);
+		}
+		// 紫云太岁入卦(本宫地支命中关系人生肖)角标
+		if(ZWEngineOptions.taiSuiRuGua && Array.isArray(ZWEngineOptions.taiSuiRelatives) && ZWEngineOptions.taiSuiRelatives.length){
+			const zhi = ((this.houseObj && this.houseObj.ganzi) || '').charAt(1);
+			if(ZWEngineOptions.taiSuiRelatives.some((r)=>r && r.branch === zhi)){
+				this.drawCornerTag(['太', '岁'], 'var(--horosa-ziwei-period-hour, #e8590c)', 1);
+			}
+		}
+		// 中州借宫(空宫借对宫十四正曜,半透明)
+		if(ZWEngineOptions.borrowPalace){
+			try{ const bor = borrowedStars(chart, this.houseIndex); if(bor && bor.length){ this.drawBorrowedStars(bor); } }catch(e){ /* 借宫渲染异常不影响主盘 */ }
+		}
+	}
+
+	// 竖排 2 字小角标(仿 drawLaiYing);置于「上半矩形(星区)左下角」——贴宫名行之上、避让顶部主星。
+	// slot 0=最左、1=右移一列(气数/太岁并存时不叠)。
+	drawCornerTag(txt, color, slot){
+		const hw = this.fontSize;
+		const hh = hw * 2 + this.margin;
+		const hx = this.x + 3 + slot * (hw + 4);
+		const hy = this.y + this.height * 3 / 4 - hh - 2;   // 上半矩形底边(宫名行顶)之上
+		GraphHelper.drawTextV(this.svg.append('g'), txt, hx, hy, hw, hh, 2, color, null, null, color);
+	}
+
+	// 借入正曜(半透明)：在空宫中部横排「借:星名…」,视觉区别本宫星;庙旺随借入宫已由 borrowedStars 算好(tooltip 备)。
+	drawBorrowedStars(bor){
+		const names = bor.map((s)=>(s.name || '').replace(/^副/, '')).join(' ');
+		const g = this.svg.append('g').attr('opacity', 0.45);
+		g.append('text')
+			.attr('x', this.x + this.width / 2)
+			.attr('y', this.y + this.height / 2 - 6)
+			.attr('text-anchor', 'middle')
+			.attr('font-size', this.fontSize * 0.9)
+			.attr('fill', ZWCont.ZWColor.StarMainStroke)
+			.text('借：' + names);
+	}
+
+	// 活盘(WP-3):huoPan 且已设太极点时,人事宫名按太极点重排(星曜地支不动);否则本命名。四化盘/三合盘共用。
+	effectiveHouseName(){
+		const base = `${(this.houseObj && this.houseObj.name) || ''}`;
+		if(ZWEngineOptions.huoPan && this.zwchart && this.zwchart.taijiIdx != null && this.houseIndex != null){
+			const k = ((this.zwchart.taijiIdx - this.houseIndex) % 12 + 12) % 12;
+			return HOUSE_NAMES[k] || base;
+		}
+		return base;
 	}
 
 	genTooltip(titleSvg, tipobj, name){

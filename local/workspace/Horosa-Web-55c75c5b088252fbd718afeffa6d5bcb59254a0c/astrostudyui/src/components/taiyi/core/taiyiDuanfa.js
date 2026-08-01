@@ -133,8 +133,9 @@ export function computeEhui(pan){
 		const v = typeof n === 'number' ? n : parseInt(n, 10);
 		if(isNaN(v)){ return; }
 		const tags = shuliLabel(v, yy);
-		if(tags.some((t) => t.indexOf('重阳') >= 0)){ out.push(`${label}重阳厄(${v})`); }
-		if(tags.some((t) => t.indexOf('重阴') >= 0)){ out.push(`${label}重阴厄(${v})`); }
+		// ⚠️ 只认「重阳数/重阴数」灾级全标,不认「阴中重阳/阳中重阴」子类(含相同子串,属微妙转化非厄)。
+		if(tags.some((t) => t.indexOf('重阳数') >= 0)){ out.push(`${label}重阳厄(${v})`); }
+		if(tags.some((t) => t.indexOf('重阴数') >= 0)){ out.push(`${label}重阴厄(${v})`); }
 		if(tags.some((t) => t.indexOf('无门') >= 0)){ out.push(`${label}无门厄(${v})`); }
 	};
 	chk('主算', pan.homeCal); chk('客算', pan.awayCal); chk('定算', pan.setCal);
@@ -150,6 +151,50 @@ export function computeLimitYun(pan){
 		xiaoxian: { who: '文昌', at: pan.skyeyes || '', span: '每宫1年' },
 		erxian: { dayou: gongGua(pan.bigyoNum), xiaoyou: gongGua(pan.smyoNum) },
 	};
+}
+
+// —— 十精(今义):二目 + 八将,从 pan 现成落点组装成有序 10 项 ——
+// 今义十精 = 文昌·始击(二目) + 计神 + 主大将·主参将 + 客大将·客参将 + 君基·臣基·民基。
+// 《癸巳类稿》古义星名(天皇/帝符/天时/太尊/飞鸟/五行/八风/五风/三风/太一)只入帮助文档,不混今义计算。
+export function computeShiJing(pan){
+	if(!pan){ return null; }
+	const at = (pos, gong) => {
+		const p = pos ? String(pos) : '';
+		const g = (gong !== undefined && gong !== null && String(gong) !== '') ? `${gong}宫` : '';
+		return (p && g) ? `${p}(${g})` : (p || g || '—');
+	};
+	const items = [
+		{ name: '文昌', at: at(pan.skyeyes), role: '目' },
+		{ name: '始击', at: at(pan.sf), role: '目' },
+		{ name: '计神', at: at(pan.jigod), role: '将' },
+		{ name: '主大将', at: at(pan.homeGeneralPalace, pan.homeGeneral), role: '将' },
+		{ name: '主参将', at: at(pan.homeVGenPalace, pan.homeVGen), role: '将' },
+		{ name: '客大将', at: at(pan.awayGeneralPalace, pan.awayGeneral), role: '将' },
+		{ name: '客参将', at: at(pan.awayVGenPalace, pan.awayVGen), role: '将' },
+		{ name: '君基', at: at(pan.kingbase), role: '基' },
+		{ name: '臣基', at: at(pan.officerbase), role: '基' },
+		{ name: '民基', at: at(pan.pplbase), role: '基' },
+	];
+	return items;
+}
+
+// —— 五子元(§3.2):(积年 % 360) // 72 → 甲子/丙子/戊子/庚子/壬子元 ——
+const WUZIYUAN = ['甲子元', '丙子元', '戊子元', '庚子元', '壬子元'];
+export function computeWuziyuan(pan){
+	if(!pan){ return ''; }
+	const acc = Number(pan.accNum);
+	if(!Number.isFinite(acc) || acc <= 0){ return ''; }
+	const idx = Math.floor(((acc % 360) + 360) % 360 / 72);
+	return WUZIYUAN[idx] || '';
+}
+
+// —— 地支六合表(§ 合神):子丑/寅亥/卯戌/辰酉/巳申/午未 ——
+export const LIUHE = { 子: '丑', 丑: '子', 寅: '亥', 亥: '寅', 卯: '戌', 戌: '卯', 辰: '酉', 酉: '辰', 巳: '申', 申: '巳', 午: '未', 未: '午' };
+// 合神(后端 hegod 已产)→ 其六合对象;取合神支的六合。返回 { hegod, he }。
+export function computeHeShen(pan){
+	const hg = pan && pan.hegod ? String(pan.hegod).charAt(0) : '';
+	if(!hg){ return null; }
+	return { hegod: pan.hegod, he: LIUHE[hg] || '' };
 }
 
 // —— 主客胜负(§11.4 总则 + §15.2 综合判据) ——

@@ -1,4 +1,5 @@
 import * as AstroText from '../../constants/AstroText';
+import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import * as AstroConst from '../../constants/AstroConst';
 import { buildMeaningTipByCategory } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning } from './AstroMeaningPopover';
@@ -99,12 +100,16 @@ export function chartParams(chartObj){
 		orbScale: params.orbScale,
 		// 界系(bounds)随本命盘透传:本命 params.termsVariant 非 0 才带(默认埃及 不下发=零回归)。
 		...(params.termsVariant ? { termsVariant: params.termsVariant } : {}),
+		// 双子界序(仅经典传本受影响):同款条件透传。
+		...(params.geminiBoundEmended ? { geminiBoundEmended: 1 } : {}),
 		// 古典占星参数随本命盘透传(三分集/福点反转/界系/交点真平/宗派缓冲/狮子木首):本命非默认才带,与主盘 fieldsToParams 同口径,默认不下发=零回归。
 		...(params.westNodeType === 'true' ? { westNodeType: 'true' } : {}),
 		...(params.sectBuffer === 'ptolemy5' ? { sectBuffer: 'ptolemy5' } : {}),
 		...((params.leoBoundFirst === 1 || params.leoBoundFirst === '1') ? { leoBoundFirst: 1 } : {}),
 		...((params.triplicity && params.triplicity !== 'Dorothean') ? { triplicity: params.triplicity } : {}),
 		...((params.lotReversal === 0 || params.lotReversal === '0') ? { lotReversal: 0 } : {}),
+		// 2026-07 二批九键:共享 helper(平面版)条件透传。
+		...classicalBackendOverridesFromPlain(params),
 	};
 }
 

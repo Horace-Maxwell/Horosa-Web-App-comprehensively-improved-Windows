@@ -118,7 +118,11 @@ function deriveDoryphory(chart){
 		const dignified = hasStrongDignity(g);
 		if(!sameSect && !dignified){ return; }
 		const gh = houseNum(g.house);
-		if(lh != null && gh != null && Math.abs(gh - lh) <= 1){ guards.push(id); }
+		if(lh != null && gh != null){
+			// 宫位是环:12↔1 相邻(|12-1|=11 曾漏计,光体落 1/12 宫时邻宫吉星全丢)
+			const dd = Math.abs(gh - lh);
+			if(Math.min(dd, 12 - dd) <= 1){ guards.push(id); }
+		}
 	});
 	return { has: guards.length > 0, count: guards.length, guards };
 }
@@ -133,12 +137,19 @@ function deriveAlmuten(chart){
 	return { id: ruler, source: 'ascRuler' };
 }
 
-// 福点 + 其他显赫点对象(希腊点亦在 chart.objects)。
-function lotObj(chart, id){ return findObj(chart, id); }
+// 显赫点对象:福点在 chart.objects,其余阿拉伯点在 Result.lots 独立数组。
+// 🔴 曾只查 objects → 四点恒只命中福点一个,s5 上限从 2 分压到 0.5、显赫判级系统性下压。
+function lotObj(chart, id, lots){
+	const o = findObj(chart, id);
+	if(o){ return o; }
+	const list = Array.isArray(lots) ? lots : [];
+	return list.find((x)=>x && x.id === id) || null;
+}
 
 // 核心:计五指标 + 总分 + 等级。返回 { ok, rows, total, level, note }。
 export function computeEminence(chartObj){
 	const chart = chartObj && chartObj.chart;
+	const lots = (chartObj && Array.isArray(chartObj.lots)) ? chartObj.lots : [];
 	if(!chart || !Array.isArray(chart.objects) || !chart.objects.length){
 		return { ok: false };
 	}
@@ -169,7 +180,7 @@ export function computeEminence(chartObj){
 
 	// 指标 2 福点及其主星:福点落角宫 +1;福点主星有尊贵或受吉星照 +1。缺福点降级。
 	let s2 = 0;
-	const fortune = lotObj(chart, AstroConst.PARS_FORTUNA);
+	const fortune = lotObj(chart, AstroConst.PARS_FORTUNA, lots);
 	let fortuneFactors;
 	if(!fortune){
 		fortuneFactors = '缺福点（降级）';
@@ -228,7 +239,7 @@ export function computeEminence(chartObj){
 	const ptDetail = [];
 	let present = 0;
 	EMINENCE_POINTS.forEach((p) => {
-		const o = lotObj(chart, p.id);
+		const o = lotObj(chart, p.id, lots);
 		if(!o){ return; }
 		present += 1;
 		const h = houseNum(o.house);

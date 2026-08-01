@@ -39,6 +39,15 @@ export function openDivinationCaseDrawer({ dispatch, fields, module, label, extr
 		hsys: fv(fields, 'hsys', 0),
 		tradition: fv(fields, 'tradition', 1),
 	};
+	// 古典占星参数(界系/双子界序/交点真平/昼夜缓冲/狮子首星/三分集/福点反转)：present 才落档
+	// (老案例结构零变),重开按保存时口径还原——卜卦流派绑定值/全局偏好双双保真。
+	['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
+		'lotsDocReverse', 'nodeExaltation', 'saturnExalt20',
+		'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
+		'viaCombustaVariant'].forEach((k)=>{
+		const v = fv(fields, k, undefined);
+		if(v !== undefined && v !== null && v !== ''){ settings[k] = v; }
+	});
 	dispatch({
 		type: 'astro/openDrawer',
 		payload: {

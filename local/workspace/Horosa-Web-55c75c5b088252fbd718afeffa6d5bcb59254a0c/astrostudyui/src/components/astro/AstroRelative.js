@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, } from 'antd';
 import { XQButton as Button, XQSearch as Search, XQTabs as Tabs } from '../xq-ui';
@@ -450,6 +451,21 @@ class AstroRelative extends Component{
 			params.hsys = this.props.fields.hsys.value;
 			params.zodiacal = this.props.fields.zodiacal.value;
 			params.siderealAyanamsa = this.props.fields.siderealAyanamsa ? this.props.fields.siderealAyanamsa.value : '';
+			// 古典占星参数随合盘透传(界系/双子界序/交点真平/昼夜缓冲/狮子首星/三分集/福点反转):
+			// 与主盘 fieldsToParams 同款条件透传——默认不下发=请求体零回归;非默认才传。
+			// 链路三层同批打通:此处 → Java ModernChartController 条件转发 → Python webmodernsrv.relative
+			// push_request_terms/trip + inner/outer 每盘键;五个子盘(比较/组合/时空中点/马克思/戴维森)全按所选界系/口径算尊贵。
+			const f = this.props.fields;
+			const fv = (k) => (f[k] && f[k].value !== undefined && f[k].value !== null ? f[k].value : undefined);
+			if(fv('termsVariant')){ params.termsVariant = fv('termsVariant'); }
+			if(fv('geminiBoundEmended')){ params.geminiBoundEmended = 1; }
+			if(fv('westNodeType') === 'true'){ params.westNodeType = 'true'; }
+			if(fv('sectBuffer') === 'ptolemy5'){ params.sectBuffer = 'ptolemy5'; }
+			if(fv('leoBoundFirst') === 1 || fv('leoBoundFirst') === '1'){ params.leoBoundFirst = 1; }
+			if(fv('triplicity') && fv('triplicity') !== 'Dorothean'){ params.triplicity = fv('triplicity'); }
+			if(fv('lotReversal') === 0 || fv('lotReversal') === '0'){ params.lotReversal = 0; }
+			// 2026-07 二批九键:共享 helper(键名含后端映射 starOrb/starOrbMode),默认不下发。
+			Object.assign(params, classicalBackendOverridesFromFields(f));
 		}
 
 		return params;

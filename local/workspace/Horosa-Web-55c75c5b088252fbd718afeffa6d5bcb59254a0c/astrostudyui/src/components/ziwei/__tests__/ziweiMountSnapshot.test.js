@@ -55,6 +55,7 @@ jest.mock('../../../utils/request', () => ({
 import * as ZWConst from '../../../constants/ZWConst';
 import * as ZiWeiHelper from '../ZiWeiHelper';
 import { buildZiweiSnapshotForParams } from '../ZiWeiMain';
+import { ZWEngineOptions } from '../ziweiOptions';
 
 const BASE_PARAMS = {
 	date: '1990-05-18',
@@ -188,5 +189,26 @@ describe('紫微挂载 round-trip：四化流派 + 运限', () => {
 		const wuquLine = text.split('\n').find((l) => l.includes('武曲'));
 		expect(wuquLine).toBeTruthy();
 		expect(wuquLine).toContain('自化');
+	});
+
+	// Phase5 挂载侧流派叠层：taiSuiRelatives 文本('午 子')→[{branch}] 归一(text 字段无 array 时的双保险),
+	// 产出 [流派叠层] 段含「太岁入卦」子块;缺省(无 overlay 开关)→ 无该段(零回归)。
+	it('默认无 overlay 开关：快照不含 [流派叠层] 段（零回归）', async () => {
+		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		expect(text).not.toContain('[流派叠层]');
+	});
+	it('挂载太岁入卦(taiSuiRelatives 文本"午 子")：归一成数组→ [流派叠层] 段含 太岁入卦 + 生肖午/子', async () => {
+		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, taiSuiRuGua: 1, taiSuiRelatives: '午 子' });
+		expect(text).toContain('[流派叠层]');
+		expect(text).toContain('太岁入卦');
+		expect(text).toContain('生肖午');   // 夹具 houses[6].地支=午 → 命中(证明字符串未被 Array.isArray 判死)
+		expect(text).toContain('生肖子');
+		// 用毕还原:全局单例 taiSuiRelatives 不被污染(仍是调用前值)。
+		expect(Array.isArray(ZWEngineOptions.taiSuiRelatives) ? ZWEngineOptions.taiSuiRelatives.length : 0).toBe(0);
+	});
+	it('挂载河洛气数位(qishuWei=1)：[流派叠层] 段含 河洛气数位 子块', async () => {
+		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, qishuWei: 1 });
+		expect(text).toContain('[流派叠层]');
+		expect(text).toContain('河洛气数位');
 	});
 });

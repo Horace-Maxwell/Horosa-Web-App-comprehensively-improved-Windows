@@ -2,7 +2,7 @@
 import { deriveGuolaoMasters, isCombustObj, mergeOrderedYearStars } from '../GuoLaoMoiraPanel';
 import * as AstroConst from '../../../constants/AstroConst';
 
-describe('G8 伏(焦伤)判定 isCombustObj', () => {
+describe('西占 8° 焦伤判定 isCombustObj(非 Moira 3° 伏——那是 starCombust 单一真值)', () => {
 	test('七政近日(<8°)或 combust phase → 伏;远离/太阳/四余 → 否', () => {
 		expect(isCombustObj({ phase: 'combust' }, 100, 200, AstroConst.MERCURY)).toBe(true);   // phase
 		expect(isCombustObj({ phase: 'cazimi' }, 100, 200, AstroConst.VENUS)).toBe(true);       // 核心

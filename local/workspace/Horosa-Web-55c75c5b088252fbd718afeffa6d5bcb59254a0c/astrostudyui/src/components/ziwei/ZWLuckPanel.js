@@ -5,6 +5,8 @@ import * as ZWConst from '../../constants/ZWConst';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { childLimits, zhongxianOf } from './ziweiCore';   // WP-1 童限 / WP-2 沈氏三限
+import { ZWEngineOptions } from './ziweiOptions';
 
 const DIZI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GANS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -170,13 +172,18 @@ function buildLiuriItems(chart, year, liuyue) {
 	} catch (e) { days = 30; }
 	try {
 		const s = Lunar.fromYmd(year, liuyue.month, 1).getSolar();
-		firstSolar = new Date(s.getYear(), s.getMonth() - 1, s.getDay());
+		// AD 1-99 绕开 Date 构造器 0-99→1900+ 映射(流日轴日干支曾整体平移 1900 年)
+		firstSolar = new Date(0);
+		firstSolar.setFullYear(s.getYear(), s.getMonth() - 1, s.getDay());
+		firstSolar.setHours(0, 0, 0, 0);
 	} catch (e) { firstSolar = null; }
 	const out = [];
 	for (let d = 1; d <= days; d++) {
 		let ganzi = '';
 		if (firstSolar) {
-			const dt = new Date(firstSolar.getFullYear(), firstSolar.getMonth(), firstSolar.getDate() + (d - 1));
+			const dt = new Date(0);
+			dt.setFullYear(firstSolar.getFullYear(), firstSolar.getMonth(), firstSolar.getDate() + (d - 1));
+			dt.setHours(0, 0, 0, 0);
 			ganzi = dayGanziByDate(dt);
 		}
 		const zhi = ganzi ? ganzi.charAt(1) : '';
@@ -314,6 +321,33 @@ class ZWLuckPanel extends Component {
 							<span className="chip-sub">{item.sub}</span>
 						</button>
 					))}
+				</div>
+			</div>
+		);
+	}
+
+	// WP-1/2 信息轴(童限/中限):童限点选高亮对应本命宫(金框,不入 luckSel 四化滑窗);再点同宫取消。
+	// readOnly=true(沈氏中限):纯静态展示、不可点击(中限=大限内时间四分,宫位沿大限宫,无独立高亮语义)。
+	renderInfoAxis(label, items, key, readOnly) {
+		if (!items || !items.length) return null;
+		const hi = this.props.tonglianHi;
+		return (
+			<div className="horosa-ziwei-luck-axis-row" key={key || label}>
+				<div className="horosa-ziwei-luck-axis-label">{label}</div>
+				<div className="horosa-ziwei-luck-axis">
+					{items.map((item) => (readOnly ? (
+						<div key={item.id} className="horosa-ziwei-luck-chip is-readonly">
+							<span className="chip-top">{item.top}</span>
+							<span className="chip-sub">{item.sub}</span>
+						</div>
+					) : (
+						<button type="button" key={item.id}
+							className={`horosa-ziwei-luck-chip ${item.houseIndex != null && item.houseIndex === hi ? 'is-selected' : ''}`}
+							onClick={() => { if (this.props.onTonglianHighlight && item.houseIndex != null) { this.props.onTonglianHighlight(item.houseIndex); } }}>
+							<span className="chip-top">{item.top}</span>
+							<span className="chip-sub">{item.sub}</span>
+						</button>
+					)))}
 				</div>
 			</div>
 		);
@@ -464,6 +498,15 @@ class ZWLuckPanel extends Component {
 		const liuriItems = (year && s.liuyue) ? buildLiuriItems(chart, year, s.liuyue) : [];
 		const liushiItems = s.liuri ? buildLiushiItems(chart, s.liuri) : [];
 
+		// WP-1 童限:上大限前逐岁本命宫(开关开时显,独立信息轴)。WP-2 沈氏三限:选中大限后细分4段中限。
+		const tonglianItems = ZWEngineOptions.childLimit
+			? childLimits(chart.wuxingJu, chart.lifeHouseIndex).map((x) => ({ id: `tl-${x.age}`, top: `${x.age}岁`, sub: houseName(chart, x.houseIndex, true), houseIndex: x.houseIndex }))
+			: [];
+		const fmtHalf = (a) => (Number.isInteger(a) ? `${a}岁` : `${Math.floor(a)}岁半`);
+		const zhongxianItems = (ZWEngineOptions.zhongxian && s.daxian)
+			? zhongxianOf(s.daxian.start, s.daxian.mingIndex).map((z) => ({ id: `zx-${z.index}`, top: `${fmtHalf(z.startAge)}~${fmtHalf(z.endAge)}`, sub: `中限${z.index + 1}`, houseIndex: s.daxian.mingIndex }))
+			: [];
+
 		// 卡片栈：每个已选层级各一张（大限 + 流年小限 + 流月? + 流日? + 流时?）
 		const cards = [];
 		if (s.daxian) cards.push(s.daxian);
@@ -475,7 +518,9 @@ class ZWLuckPanel extends Component {
 		return (
 			<div className="horosa-ziwei-luck">
 				<div className="horosa-ziwei-luck-axes">
+					{this.renderInfoAxis('童限', tonglianItems, 'tl')}
 					{this.renderAxis('大限', daxianItems, s.daxian ? s.daxian.id : '', (i) => this.pickDaxian(i), 'dx')}
+					{this.renderInfoAxis('中限', zhongxianItems, 'zx', true)}
 					{this.renderMergedAnnual(liunianItems, xiaoxianItems)}
 					{liuyueItems.length > 0 && this.renderAxis('流月', liuyueItems, s.liuyue ? s.liuyue.id : '', (i) => this.pickLiuyue(i), 'ly')}
 					{liuriItems.length > 0 && this.renderAxis('流日', liuriItems, s.liuri ? s.liuri.id : '', (i) => this.pickLiuri(i), 'lr')}

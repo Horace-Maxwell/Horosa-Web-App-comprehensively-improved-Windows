@@ -109,6 +109,9 @@ describe('AstroDirectMain primary direction sync', ()=>{
 				pdConverse: 0,
 				pdAntiscia: 0,
 				pdTerms: 0,
+				// P0-2 有意扩展:平行双开关恒写(默认 0)
+				pdParallel: 0,
+				pdRaptParallel: 0,
 			},
 		});
 		expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
@@ -159,14 +162,14 @@ describe('AstroDirectMain primary direction sync', ()=>{
 		}));
 	});
 
-	// 防回归：方位法/时间换算的快照显示名须走共享 label 字典（覆盖白名单内全部方位法与钥匙）。
+	// 防回归：方位法/时间换算的快照显示名须走共享 label 字典（覆盖全部方位法与钥匙）。
 	// 历史 bug：primaryDirectionMethodText 只识别 horosa_legacy、其余一律回退 'Alchabitius'，
-	// 选非默认方位法会在 AI 导出/挂载里被误标为 Alchabitius。
+	// 选用 Placidus / Regiomontanus / Meridian 等会在 AI 导出、挂载里被误标为 Alchabitius。
 	test('primary direction snapshot shows the real method/key labels + full config (non-core)', ()=>{
 		const chartObj = buildChartObj();
 		chartObj.params = {
 			...chartObj.params,
-			pdMethod: 'meridian',
+			pdMethod: 'placidus',
 			pdTimeKey: 'Naibod',
 			pdtype: 1,
 			pdDirect: 1,
@@ -188,7 +191,7 @@ describe('AstroDirectMain primary direction sync', ()=>{
 		const text = instance.savePrimaryDirectSnapshot();
 
 		// 方位法不再被误标 Alchabitius。
-		expect(text).toContain('推运方法：Meridian');
+		expect(text).toContain('推运方法：Placidus（半弧）');
 		expect(text).not.toContain('推运方法：Alchabitius');
 		// 时间换算走真实 label。
 		expect(text).toContain('度数换算：Naibod');

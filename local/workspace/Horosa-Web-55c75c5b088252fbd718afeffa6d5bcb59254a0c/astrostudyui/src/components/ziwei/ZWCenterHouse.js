@@ -7,6 +7,7 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import ZWCommHouse from './ZWCommHouse';
 import D3Arrow from '../graph/D3Arrow';
 import { drawTextV, drawDashLine, } from '../graph/GraphHelper';
+import { ZWEngineOptions } from './ziweiOptions';   // 手册补齐:河洛一六共宗连线
 
 class ZWCenterHouse extends ZWCommHouse {
 	constructor(option){
@@ -39,7 +40,21 @@ class ZWCenterHouse extends ZWCommHouse {
 		this.drawSanFanSiZeng();
 
 		this.drawSangheLine();
+		this.drawYiLiuGongZong();
 		this.drawInfoButton();
+	}
+
+	// 河洛一六共宗(WP-4):命(1)↔疾厄(6)中心连线(异色于三合虚线);仅 qishuWei 开时绘。
+	drawYiLiuGongZong(){
+		if(!ZWEngineOptions.qishuWei || !this.chartObj || !this.zwchart){ return; }
+		const life = this.chartObj.lifeHouseIndex;
+		if(life == null || life < 0){ return; }
+		const ming = this.zwchart.houses[life];
+		const ji = this.zwchart.houses[((life - 5) % 12 + 12) % 12];
+		if(!ming || !ji){ return; }
+		const cx = (h)=>h.x + h.width / 2;
+		const cy = (h)=>h.y + h.height / 2;
+		drawDashLine(this.svg.append('g'), cx(ming), cy(ming), cx(ji), cy(ji), 'var(--horosa-ziwei-period-day, #e64980)');
 	}
 
 	drawInfoButton(){

@@ -121,3 +121,89 @@ describe('一掌经引擎 · 边界与健壮', () => {
 		expect(r.renshi[0].idx).toBe(r.mingIdx);
 	});
 });
+
+// ── WP-B 判识扩展单测 ──
+import {
+	pillarWeights, nineGradeExact, tongxianList, xiaoxianQuick, xiaoxianStarAtDir,
+	xunShenRoles, flowSub, brotherCount, starPolarity, branchClash, pairHits,
+	pillarWuxing, ziSubPeriod, starLabel, daoLabel, gradeOf, SHISHI_WEIGHTS,
+} from '../yizhangjingLocal';
+
+describe('一掌经引擎 · WP-B 判识扩展', () => {
+	it('四世权重：权重常量与加权分（上+1/中0/下−1）', () => {
+		expect(SHISHI_WEIGHTS).toEqual([10, 15, 25, 50]);
+		// 文(中0)福(上)贵(上)权(上) → 0·10 + 1·15 + 1·25 + 1·50 = 90
+		const w = pillarWeights(['天文', '天福', '天貴', '天權']);
+		expect(w.score).toBe(90);
+		expect(w.rows).toHaveLength(4);
+		expect(w.rows[3].weight).toBe(50);
+	});
+	it('九品精确：combo 命中 matched:true；孤星≥2 走孤克格；不中回落 estimate', () => {
+		const a = nineGradeExact(['天文', '天福', '天貴', '天權']);
+		expect(a.matched).toBe(true);
+		expect(a.kind).toBe('combo');
+		const b = nineGradeExact(['天孤', '天孤', '天孤', '天貴']);
+		expect(b.kind).toBe('guke');
+		expect(b.text).toBeTruthy();
+		// 一组不太可能进表的四星 → 回落估算
+		const c = nineGradeExact(['天刃', '天驛', '天文', '天厄']);
+		expect(typeof c.matched).toBe('boolean');
+	});
+	it('童限：一律逆行，命→相貌→福德；startAge=1 返空', () => {
+		const t = tongxianList(0, 4);
+		expect(t.map((x) => x.palace)).toEqual(['命', '相貌', '福德']);
+		expect(t.map((x) => x.age)).toEqual([1, 2, 3]);
+		expect(tongxianList(0, 1)).toHaveLength(0);
+	});
+	it('小限速算规整 1–12；小限顺逆 dirMode 一律顺行', () => {
+		const q = xiaoxianQuick(0, 0, 0);
+		expect(q.num).toBeGreaterThanOrEqual(1);
+		expect(q.num).toBeLessThanOrEqual(12);
+		// dirMode='always' 恒 +1（顺行），与随盘向 d=-1 不同
+		expect(xiaoxianStarAtDir(0, -1, 3, 'always')).not.toBe(xiaoxianStarAtDir(0, -1, 3, 'chart'));
+	});
+	it('巡宫四位年押运/月串宫/日守户/时巡门；流月日时一律顺行', () => {
+		const roles = xunShenRoles({ year: 0, month: 6, day: 3, time: 9 }, 0, 'A');
+		expect(roles.map((r) => r.role)).toEqual(['押运', '串宫', '守户', '巡门']);
+		const fs = flowSub(0, 3, 5, 2);
+		expect(fs.month.idx).toBe(2);           // 正月起子+（3−1）=寅(idx2)
+		expect(typeof fs.time.star).toBe('string');
+	});
+	it('兄弟数出区间并标术数取象；木月=3–9人', () => {
+		const bc = brotherCount('卯');
+		expect(bc.text).toBe('3–9 人');
+		expect(bc.note).toContain('术数取象');
+	});
+	it('阴阳分按星曜六阳六阴（非年支阴阳）；纯阳/纯阴刑伤', () => {
+		expect(starPolarity(['天文', '天福', '天貴', '天權']).judge).toContain('先克父');
+		expect(starPolarity(['天貴', '天權', '天奸', '天福']).judge).toContain('纯阳');
+		expect(starPolarity(['天厄', '天壽', '天刃', '天驛']).judge).toContain('纯阴');
+	});
+	it('刑冲害：子午冲、子卯刑命中', () => {
+		const c = branchClash({ year: 0, month: 6, day: 3, time: 9 }, 0);
+		expect(c.hits.some((h) => h.type === '冲')).toBe(true);
+		expect(c.hits.some((h) => h.type === '刑')).toBe(true);
+	});
+	it('星组合互见去重命中 pairRule', () => {
+		const hits = pairHits(['天文', '天福', '天貴', '天權']);
+		expect(hits.length).toBeGreaterThan(0);
+		expect(new Set(hits.map((h) => h.text)).size).toBe(hits.length); // 无重复
+	});
+	it('四柱旺衰对月令取状态', () => {
+		const w = pillarWuxing({ year: 0, month: 6, day: 3, time: 9 }, 6);
+		expect(w).toHaveLength(4);
+		expect(w.every((r) => ['旺', '相', '休', '囚', '死', ''].indexOf(r.state) >= 0)).toBe(true);
+	});
+	it('子时细分 子初/子中/子末；非子时返 null', () => {
+		expect(ziSubPeriod(23, 10).label).toBe('子初');
+		expect(ziSubPeriod(0, 30).label).toBe('子末');
+		expect(ziSubPeriod(14, 0)).toBeNull();
+	});
+	it('映射层：品级变体天驿归下品；六道术语变体；星名换名不改内部键', () => {
+		expect(gradeOf('天驛', 'variant')).toBe('下品');
+		expect(gradeOf('天驛')).toBe('中品');
+		expect(daoLabel('鬼道', 'edao')).toBe('饿鬼道');
+		expect(daoLabel('鬼道')).toBe('鬼道');
+		expect(starLabel('天貴', 'A')).toBe('天貴');
+	});
+});

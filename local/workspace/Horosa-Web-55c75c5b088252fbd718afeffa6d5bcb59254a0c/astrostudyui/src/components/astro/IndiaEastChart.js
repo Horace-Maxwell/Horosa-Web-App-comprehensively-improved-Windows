@@ -99,6 +99,7 @@ class IndiaEastChart extends Component{
 	}
 
 	renderObjects(objects, signNumber){
+		const overlaySign = signNumber;
 		const degreeDisplayMode = this.props.degreeDisplayMode;
 		const countClass = objects.length > 3 ? ' horosa-india-diagram-objects-very-dense' : (objects.length > 1 ? ' horosa-india-diagram-objects-dense' : ' horosa-india-diagram-objects-single');
 		return (
@@ -126,6 +127,11 @@ class IndiaEastChart extends Component{
 						</span>
 					);
 				})}
+				{(this.props.overlayPoints || []).filter((op)=>op.signNumber === overlaySign).map((op)=>(
+					<span className="horosa-india-square-object horosa-india-flag-badge is-good" key={`ov_${op.key}`} title={op.title || op.key}>
+						{op.label}
+					</span>
+				))}
 			</div>
 		);
 	}

@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/germany/AstroMidpoint.js b/astrostudyui/src/components/germany/AstroMidpoint.js
-index 356874d..6044f6a 100644
+index 0a50b67..e8e2c7c 100644
 --- a/astrostudyui/src/components/germany/AstroMidpoint.js
 +++ b/astrostudyui/src/components/germany/AstroMidpoint.js
-@@ -10,6 +10,7 @@ import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections }
- import { getStoredUranianDisplay } from './UranianDialStyle';
- import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './UranianSchools';
+@@ -12,6 +12,7 @@ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './U
  import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
+ import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
+ import { chartToPoints, firstSynastryPartnerParams } from './UranianDialMain';
 +import { markPanelReady } from '../../utils/perfMark';
  
  // AI 快照口径:个人点集随「90°中点盘」当前流派派生(与盘交互层一致,防口径分叉);TNP 集恒定。
  const SNAP_URANIAN = new Set(AstroConst.LIST_URANIAN);
-@@ -217,6 +218,28 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb){
+@@ -265,6 +266,28 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
  	return out;
  }
  
@@ -37,9 +37,9 @@ index 356874d..6044f6a 100644
 +}
 +
  // 供 AI 分析无头复算：取本命西洋盘 + 中点盘，生成量化盘快照（不依赖组件挂载）。
- export async function buildGermanySnapshotForFields(fields){
+ export async function buildGermanySnapshotForFields(fields, dispOverride){
  	if(!fields){
-@@ -445,9 +468,53 @@ class AstroMidpoint extends Component{
+@@ -529,9 +552,53 @@ class AstroMidpoint extends Component{
  			midpoints: result,
  		};
  
@@ -95,7 +95,7 @@ index 356874d..6044f6a 100644
  	}
  
  	saveGermanySnapshot(paramsOverride, resultOverride){
-@@ -478,6 +545,8 @@ class AstroMidpoint extends Component{
+@@ -562,6 +629,8 @@ class AstroMidpoint extends Component{
  		if(!evt || !evt.detail || evt.detail.module !== 'germany'){
  			return;
  		}
@@ -104,7 +104,7 @@ index 356874d..6044f6a 100644
  		const snapshotText = this.saveGermanySnapshot();
  		if(snapshotText && evt.detail && typeof evt.detail === 'object'){
  			evt.detail.snapshotText = snapshotText;
-@@ -517,7 +586,7 @@ class AstroMidpoint extends Component{
+@@ -601,7 +670,7 @@ class AstroMidpoint extends Component{
  		if(typeof window !== 'undefined' && window.addEventListener){
  			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
  		}
@@ -113,7 +113,7 @@ index 356874d..6044f6a 100644
  	}
  
  	componentDidUpdate(prevProps, prevState){
-@@ -526,11 +595,12 @@ class AstroMidpoint extends Component{
+@@ -610,11 +679,12 @@ class AstroMidpoint extends Component{
  			|| prevProps.chart !== this.props.chart
  			|| prevProps.fields !== this.props.fields
  		){

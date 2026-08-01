@@ -96,6 +96,14 @@ public class GermanyTechController {
 		if(TransData.containsParam("declination")) {
 			params.put("declination", TransData.get("declination"));
 		}
+		// 严格汉堡因子集(D2):true 时 Python 在 uranian 分支剔黑月/紫气;缺省不发=现状字节零回归。
+		if(TransData.containsParam("strictFactors")) {
+			params.put("strictFactors", TransData.getValueAsBool("strictFactors", false));
+		}
+		// 戴维森盘(A5):含第二人出生数据的对象,原样透传给 Python;缺省不发=零回归。
+		if(TransData.containsParam("davison")) {
+			params.put("davison", TransData.get("davison"));
+		}
 
 		return params;
 	}

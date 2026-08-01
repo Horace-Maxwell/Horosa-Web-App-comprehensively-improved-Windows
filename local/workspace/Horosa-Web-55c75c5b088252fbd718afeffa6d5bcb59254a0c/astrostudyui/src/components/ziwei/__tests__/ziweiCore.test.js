@@ -1,7 +1,7 @@
 import {
 	z, zi, gi, ZHI,
 	wuxingJu, palaceGans, mingGong, shenGong,
-	ziweiPos, tianfuPos, fourteenStars, changsheng12, daxianRanges, isClockwise,
+	ziweiPos, tianfuPos, fourteenStars, changsheng12, daxianRanges, isClockwise, childLimits, zhongxianOf, relabelPalaces,
 } from '../ziweiCore';
 import { SiHuaTables } from '../../../constants/ZWConst';
 
@@ -129,4 +129,54 @@ describe('ziweiCore · 压力测试 笛卡尔(全 干支×日×局×月×时×�
 });
 
 const GAN_LIST = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+
+describe('WP-1 童限(childLimits)', ()=>{
+	test('童限岁数=局数-1;水二局仅1岁、火六局至5岁', ()=>{
+		expect(childLimits(2, 0).map((x)=>x.age)).toEqual([1]);
+		expect(childLimits(3, 0).map((x)=>x.age)).toEqual([1, 2]);
+		expect(childLimits(6, 0).map((x)=>x.age)).toEqual([1, 2, 3, 4, 5]);
+	});
+	test('宫序 命财疾妻福官(口诀一命二财三疾厄四妻五福六官禄)', ()=>{
+		expect(childLimits(6, 0).map((x)=>x.houseName)).toEqual(['命宫', '财帛', '疾厄', '夫妻', '福德']);
+	});
+	test('houseIndex=自命宫逆数对应宫序(命宫在寅=2)', ()=>{
+		// 命0→2 / 财4→10 / 疾5→9 / 夫2→0 / 福10→4
+		expect(childLimits(6, 2).map((x)=>x.houseIndex)).toEqual([2, 10, 9, 0, 4]);
+	});
+	test('非法输入返回空数组', ()=>{
+		expect(childLimits(0, 5)).toEqual([]);
+		expect(childLimits(4, -1)).toEqual([]);
+		expect(childLimits(4, null)).toEqual([]);
+	});
+});
+
+describe('WP-2 沈氏三限(zhongxianOf)', ()=>{
+	test('大限4分各2.5年;火六局大限6-15→6/8.5/11/13.5', ()=>{
+		const z = zhongxianOf(6, 3);
+		expect(z.map((x)=>x.startAge)).toEqual([6, 8.5, 11, 13.5]);
+		expect(z.map((x)=>x.endAge)).toEqual([8.5, 11, 13.5, 16]);
+	});
+	test('宫位一律沿大限宫(文档未给递进,不臆造)', ()=>{
+		expect(zhongxianOf(26, 7).every((x)=>x.houseIndex === 7)).toBe(true);
+	});
+	test('非法输入返回空', ()=>{ expect(zhongxianOf(null, 3)).toEqual([]); });
+});
+
+describe('WP-3 活盘·太极点重排(relabelPalaces)', ()=>{
+	test('taijiIdx=null → 全 null(本命)', ()=>{
+		expect(relabelPalaces(null)).toEqual(new Array(12).fill(null));
+	});
+	test('以某宫为太极点→该宫 k=0(命宫),逆布人事宫序', ()=>{
+		const kByIndex = relabelPalaces(5);   // 以 index5 为新命宫
+		expect(kByIndex[5]).toBe(0);    // 命宫
+		expect(kByIndex[4]).toBe(1);    // 兄弟(逆数第1)
+		expect(kByIndex[6]).toBe(11);   // 父母=(5-6+12)%12=11
+		expect(kByIndex[11]).toBe(6);   // 迁移=(5-11+12)%12=6
+	});
+	test('12 人事宫序恰好各一次、无重复无遗漏', ()=>{
+		const kByIndex = relabelPalaces(3);
+		expect(new Set(kByIndex).size).toBe(12);
+		for(let k = 0; k < 12; k++){ expect(kByIndex.indexOf(k) >= 0).toBe(true); }
+	});
+});
 

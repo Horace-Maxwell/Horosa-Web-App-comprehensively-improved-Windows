@@ -129,6 +129,9 @@ def _build_sections(pan):
     stars = chart.get("stars", {}) or {}
     pattern = chart.get("pattern", {}) or {}
     literature = pan.get("literature", {}) or {}
+    dayun = chart.get("dayun", {}) or {}
+    liunian = chart.get("liunian", []) or []
+    shensha = chart.get("shensha", {}) or {}
     sections = [
         {
             "title": "起盘",
@@ -154,11 +157,43 @@ def _build_sections(pan):
             ],
         },
         {
-            "title": "三星",
+            "title": "三星·元辰",
             "rows": [
                 row("胎星", stars.get("tai_xing")),
                 row("命星", stars.get("ming_xing")),
                 row("身星", stars.get("shen_xing")),
+                row("元辰禽", stars.get("yuanchen_xing")),
+            ],
+        },
+        {
+            "title": "大限",
+            "rows": (
+                [
+                    row("起运虚岁", dayun.get("start_age")),
+                    row("行限方向", "顺行" if dayun.get("forward") else "逆行"),
+                    row("命宫天干", dayun.get("palace_stem")),
+                ]
+                + [
+                    row(f"{lim.get('age_start')}-{lim.get('age_end')}岁", lim.get("palace_branch") + "宫")
+                    for lim in dayun.get("limits", [])
+                ]
+                + [row("方向说明", dayun.get("note"))]
+            ),
+        },
+        {
+            "title": "流年小限",
+            "rows": (
+                [row("起法", "胎星起一岁,逐年一宿往前演(胎斗→一岁斗、二岁牛…)")]
+                + [row(f"{item.get('age')}岁", item.get("qin")) for item in liunian[:12]]
+            ),
+        },
+        {
+            "title": "神煞·待校",
+            "rows": [
+                row("孤辰", (shensha.get("guchen") or "") + "宫" if shensha.get("guchen") else None),
+                row("寡宿", (shensha.get("guasu") or "") + "宫" if shensha.get("guasu") else None),
+                row("鉴形赋", "开篇:三才奠位,五行化生。主旨:颜回仁学早岁夭亡,盗跖凶顽年高矍铄(论穷达寿夭)。中段逐字待纸本核。"),
+                row("三世相", "体系B(前世/今生/来世·三世书):以生年尾数配农历生月查财禄/田园/婚姻表。三世书表逐字待纸本核,本期未算。"),
             ],
         },
         {

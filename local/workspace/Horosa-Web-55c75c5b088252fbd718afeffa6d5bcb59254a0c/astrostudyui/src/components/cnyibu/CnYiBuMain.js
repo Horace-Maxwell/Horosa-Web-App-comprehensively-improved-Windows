@@ -25,10 +25,12 @@ const FeiGongMain = React.lazy(() => import(/* webpackChunkName: "feigong-main" 
 import QuickDockBar from '../common/QuickDockBar';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+import { CNYIBU_SUBTABS } from '../../constants/SubTabRegistry';
 
 
 const TabPane = Tabs.TabPane;
-const CNYIBU_VALID_TABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong'];
+// 合法子页签集合的单一真值源在 constants/SubTabRegistry(导航层同源)。
+const CNYIBU_VALID_TABS = CNYIBU_SUBTABS;
 // horosa_prefetch_registry_v1(PERF-R10 P6):可步进预取的确定性子页,显式枚举 ——
 // 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/tarot/xiaoliuren/guice/dice 类)绝不入列
 //(预取=把随机结果钉死;端点级 FORBIDDEN 双闸仍兜底);jinkou 两阶段(pan 需 nongli 真太阳时

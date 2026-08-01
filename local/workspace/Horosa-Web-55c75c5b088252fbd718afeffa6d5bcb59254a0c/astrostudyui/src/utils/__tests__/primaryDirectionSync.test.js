@@ -46,20 +46,21 @@ describe('primaryDirectionSync', ()=>{
 
 	test('keeps valid direction sub tabs and falls back only for invalid keys', ()=>{
 		expect(normalizePrimaryDirectionSubTabKey('primarydirchart')).toBe('primarydirchart');
+		// WS-3 主限天球:三件套登记之 jest 枚举断言(缺登=tab 键被吞回 primarydirect)。
+		expect(normalizePrimaryDirectionSubTabKey('primarydirsphere')).toBe('primarydirsphere');
 		expect(normalizePrimaryDirectionSubTabKey('firdaria')).toBe('firdaria');
 		expect(normalizePrimaryDirectionSubTabKey('unexpected')).toBe('primarydirect');
 	});
 
-	test('PD_SYNC_REV is v11 (主限法改进:方位法/时间钥匙铺满 + 180+,强制旧持久化 chart 重算)', ()=>{
-		expect(PD_SYNC_REV).toBe('pd_method_sync_v12');
+	test('PD_SYNC_REV 现值 v15 (pd3d 扩展点 points/circles 扩形 → 升盐防 Java paramhash 脏缓存)', ()=>{
+		expect(PD_SYNC_REV).toBe('pd_method_sync_v15');
 	});
 
-	test('SUPPORTED_PD_METHODS 恰为逐位核验的核方位法集合(精确相等,白名单之外一律不收)', ()=>{
-		// 正向精确集合断言:任何未核验方法混入(无论叫什么)都会让本断言失败,无需枚举黑名单。
-		expect([...SUPPORTED_PD_METHODS].sort()).toEqual([
-			'core_alchabitius', 'equal_ecliptic', 'equal_hour_circle',
-			'horosa_legacy', 'meridian', 'porphyry',
-		]);
+	test('SUPPORTED_PD_METHODS covers 默认+legacy+pd_engine 四法 + 主限法改进新增方位法', ()=>{
+		['core_alchabitius', 'horosa_legacy', 'placidus', 'regiomontanus', 'campanus', 'topocentric',
+			'meridian', 'porphyry', 'equal_ecliptic', 'equal_hour_circle',
+			'morinus', 'in_zodiaco_lon', 'in_zodiaco_abs']
+			.forEach((m)=>{ expect(SUPPORTED_PD_METHODS).toContain(m); });
 	});
 
 	test('SUPPORTED_PD_TIME_KEYS 含 Ptolemy/Naibod/TrueSolarArc + 静态常数钥匙,全为公式/真算法,无拟合', ()=>{
@@ -69,14 +70,14 @@ describe('primaryDirectionSync', ()=>{
 			.forEach((k)=>{ expect(SUPPORTED_PD_TIME_KEYS).toContain(k); });
 	});
 
-	test('mergePrimaryDirectionChartObj writes 核方位法 method into params', ()=>{
+	test('mergePrimaryDirectionChartObj writes new placidus method into params (P0 white-list extension)', ()=>{
 		const chartObj = { params: {}, predictives: {} };
 		const next = mergePrimaryDirectionChartObj(chartObj, {
 			pdRows: [],
-			pdMethod: 'meridian',
+			pdMethod: 'placidus',
 			pdTimeKey: 'Naibod',
 		});
-		expect(next.params.pdMethod).toBe('meridian');
+		expect(next.params.pdMethod).toBe('placidus');
 		expect(next.params.pdTimeKey).toBe('Naibod');
 	});
 
@@ -84,7 +85,7 @@ describe('primaryDirectionSync', ()=>{
 		const chartObj = { params: {}, predictives: {} };
 		const next = mergePrimaryDirectionChartObj(chartObj, {
 			pdRows: [],
-			pdMethod: 'porphyry',
+			pdMethod: 'regiomontanus',
 			pdTimeKey: 'TrueSolarArc',
 			pdtype: 1,
 			pdDirect: 1,

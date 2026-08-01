@@ -313,8 +313,10 @@ def functional_nature(lagna_sign, planet_signs=None):
 
         is_lagna_lord = (1 in houses)
         rules_kendra_only = any(h in KENDRA_ONLY for h in houses)
-        rules_trikona = any(h in TRIKONA for h in houses)
-        # 瑜伽卡拉卡 = 同一星既主纯角宫(4/7/10)又主三角宫(1/5/9)。
+        # 瑜伽卡拉卡判据的三角侧剔除第 1 宫(第 1 宫既角又三角,不剔则「主 1 宫 +
+        # 主纯角宫」的四个变动命宫命主被误判;通行口径仅 6 命宫有 Yogakaraka,
+        # 与 yoga_engine 同判据收敛)。
+        rules_trikona = any(h in (5, 9) for h in houses)
         is_yogakaraka = rules_kendra_only and rules_trikona
 
         # 马拉卡 = 主第 2 或第 7 宫，且非命主。

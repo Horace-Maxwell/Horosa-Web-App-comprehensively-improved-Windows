@@ -64,6 +64,11 @@ const AI_BUILDER_EXEMPT = {
 	daxianSpan: '紫微传本键（同上）', tianmaBasis: '紫微传本键', starSet: '紫微传本键',
 	sanPan: '紫微传本键', shangShi: '紫微传本键', leapMonth: '紫微传本键', lateZi: '紫微传本键',
 	yearBoundary: '紫微传本键', huoling: '紫微传本键', kongNaming: '紫微传本键',
+	// 星曜亮度 + 六个流派叠层 + 太岁关系人:与上面 11 个传本键同一去向 —— buildChartZiweiParams
+	// 据 record.<key> 重算供快照,页面侧由 ziweiOptions 自持,不走 fields。
+	brightnessSource: '紫微星曜亮度(同传本键去向)', childLimit: '紫微叠层·童限', zhongxian: '紫微叠层·沈氏三限',
+	huoPan: '紫微叠层·活盘(太极点)', qishuWei: '紫微叠层·河洛气数位', borrowPalace: '紫微叠层·中州借宫',
+	taiSuiRuGua: '紫微叠层·紫云太岁入卦', taiSuiRelatives: '紫微叠层·太岁关系人生肖(文本,builder 侧归一为数组)',
 	school: '八字断命流派：builder 据 record.school 切主标注，页面选择器自持',
 	coordSystem: 'AI-builder 从 record 直读组 opts，页面自持（非 fields 消费面）', windowMonths: '同 coordSystem',
 	marketPreset: '同 coordSystem',
@@ -160,9 +165,10 @@ describe('applyRecordToFields 行为矩阵（纯函数）', ()=>{
 		});
 	});
 
-	it('schema 缺键（termsVariant/india*）→ 新建 entry，命例载入即达技法', ()=>{
-		const out = applyRecordToFields(base(), { termsVariant: 2, indiaDashaSystem: 'yogini', indiaVargaSet: [1, 9, 10] });
+	it('schema 缺键（termsVariant/geminiBoundEmended/india*）→ 新建 entry，命例载入即达技法', ()=>{
+		const out = applyRecordToFields(base(), { termsVariant: 2, geminiBoundEmended: 1, indiaDashaSystem: 'yogini', indiaVargaSet: [1, 9, 10] });
 		expect(out.termsVariant).toEqual({ name: ['termsVariant'], value: 2 });
+		expect(out.geminiBoundEmended).toEqual({ name: ['geminiBoundEmended'], value: 1 });
 		expect(out.indiaDashaSystem.value).toBe('yogini');
 		expect(out.indiaVargaSet.value).toEqual([1, 9, 10]); // raw：数组原样，不被字符串化
 	});

@@ -71,7 +71,8 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
     if os.path.isdir(os.path.join(_cand, "flatlib")) and _cand not in sys.path:
         sys.path.insert(0, _cand)
 
-from astrostudy.perchart import PerChart, push_request_terms, pop_request_terms, parse_terms_variant, push_request_trip, pop_request_trip
+from astrostudy.perchart import PerChart, push_request_terms, pop_request_terms, parse_terms_variant, push_request_trip, pop_request_trip, push_request_house_offset, pop_request_house_offset, push_request_exalt_variants, pop_request_exalt_variants
+from flatlib.tools.arabicparts import push_request_lots_doc_reverse, pop_request_lots_doc_reverse
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart, HarmonicChart
 from astrostudy.helper import getPredictivesObj
@@ -144,7 +145,7 @@ _CHART_DEBUG_DUMP = os.environ.get('HOROSA_CHART_DEBUG_DUMP', '0').lower() in ('
 
 class WebChartSrv:
     exposed = True
-    PD_SYNC_REV = 'pd_method_sync_v12'
+    PD_SYNC_REV = 'pd_method_sync_v15'
     WARMED = False  # PD warmup 完成置 True;/healthz 据此报「真就绪」(P0 启动稳健化,纯增量)
     PD_WARMUP_SAMPLE = {
         'date': '2028/04/06',
@@ -210,6 +211,9 @@ class WebChartSrv:
         # 围攻日木互容/predictives)都用所选界,finally 必还原+释放锁(防并发串界)。默认埃及=零回归。
         _terms_orig = None
         _trip_orig = None  # 必须与 _terms_orig 同预初始化:守卫早退(invalid_date/invalid_coordinates)时 finally 引用它,漏初始化=UnboundLocalError→500
+        _hco_orig = None   # 落宫宫头前移令牌,同上预初始化纪律
+        _ldr_orig = None   # 点反转文档口径令牌,同上预初始化纪律
+        _exv_orig = None   # 旺位异文(交点旺/土星旺20)令牌,同上预初始化纪律
         try:
             data = cherrypy.request.json
 
@@ -229,8 +233,11 @@ class WebChartSrv:
             if _CHART_DEBUG_DUMP:
                 print(data, flush=True)
 
-            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'))
+            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'), data.get('geminiBoundEmended'))
             _trip_orig = push_request_trip(data.get('triplicity'))
+            _hco_orig = push_request_house_offset(data.get('houseCuspAdvance'))
+            _ldr_orig = push_request_lots_doc_reverse(data.get('lotsDocReverse'))
+            _exv_orig = push_request_exalt_variants(data.get('nodeExaltation'), data.get('saturnExalt20'))
             _pt0 = time.perf_counter() if _PY_CHART_TIMING else 0.0
             perchart = PerChart(data)
             _pt1 = time.perf_counter() if _PY_CHART_TIMING else 0.0
@@ -285,6 +292,18 @@ class WebChartSrv:
                     'houses': guostar.allTerm()
                 }
             }
+            # 古典口径键条件回显(请求带了才回显 → 默认响应字节零变)。全量 22 键与
+            # helper.getChartObj 同清单:前端派生盘(chartParams 透传链,25+ 调用点)读
+            # chartObj.params 续传口径,白名单缺谁谁静默回默认(与主盘分叉+缓存键丢维)。
+            for _vk in ('termsVariant', 'leoBoundFirst', 'geminiBoundEmended',
+                        'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer',
+                        'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb',
+                        'vocMode', 'vocIncludeOuter', 'starOrb', 'starOrbMode',
+                        'antisciaOrb', 'viaCombustaVariant',
+                        'lotsDocReverse', 'nodeExaltation', 'saturnExalt20',
+                        'orbs', 'orbScale'):
+                if data.get(_vk) is not None:
+                    obj['params'][_vk] = data.get(_vk)
             if guolao_sunrise_time:
                 obj['params']['guolaoLifeMode'] = data.get('guolaoLifeMode')
                 obj['params']['guolaoSunRiseTime'] = guolao_sunrise_time
@@ -311,6 +330,9 @@ class WebChartSrv:
             }
             return jsonpickle.encode(obj, unpicklable=False)
         finally:
+            pop_request_exalt_variants(_exv_orig)
+            pop_request_lots_doc_reverse(_ldr_orig)
+            pop_request_house_offset(_hco_orig)
             pop_request_trip(_trip_orig)
             pop_request_terms(_terms_orig)
 
@@ -321,13 +343,19 @@ class WebChartSrv:
         enable_crossdomain()
         _terms_orig = None
         _trip_orig = None  # 必须与 _terms_orig 同预初始化:守卫早退(invalid_date/invalid_coordinates)时 finally 引用它,漏初始化=UnboundLocalError→500
+        _hco_orig = None   # 落宫宫头前移令牌,同上预初始化纪律
+        _ldr_orig = None   # 点反转文档口径令牌,同上预初始化纪律
+        _exv_orig = None   # 旺位异文(交点旺/土星旺20)令牌,同上预初始化纪律
         try:
             data = cherrypy.request.json
 
             data['tradition'] = False
             data['predictive'] = False
-            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'))
+            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'), data.get('geminiBoundEmended'))
             _trip_orig = push_request_trip(data.get('triplicity'))
+            _hco_orig = push_request_house_offset(data.get('houseCuspAdvance'))
+            _ldr_orig = push_request_lots_doc_reverse(data.get('lotsDocReverse'))
+            _exv_orig = push_request_exalt_variants(data.get('nodeExaltation'), data.get('saturnExalt20'))
             perchart = PerChart(data)
             chart13 = ThirteenthChart(perchart)
             chart13.fractal()
@@ -376,6 +404,11 @@ class WebChartSrv:
                 }
             }
 
+            # 界内变体键条件回显(同 index 路由:请求带了才回显,默认响应字节零变)。
+            for _vk in ('leoBoundFirst', 'geminiBoundEmended'):
+                if data.get(_vk) is not None:
+                    obj['params'][_vk] = data.get(_vk)
+
             predictives = getPredictivesObj(data, perchart)
             if predictives is not None:
                 obj['predictives'] = predictives
@@ -389,6 +422,9 @@ class WebChartSrv:
             }
             return jsonpickle.encode(obj, unpicklable=False)
         finally:
+            pop_request_exalt_variants(_exv_orig)
+            pop_request_lots_doc_reverse(_ldr_orig)
+            pop_request_house_offset(_hco_orig)
             pop_request_trip(_trip_orig)
             pop_request_terms(_terms_orig)
 
@@ -400,13 +436,19 @@ class WebChartSrv:
         enable_crossdomain()
         _terms_orig = None
         _trip_orig = None  # 必须与 _terms_orig 同预初始化:守卫早退(invalid_date/invalid_coordinates)时 finally 引用它,漏初始化=UnboundLocalError→500
+        _hco_orig = None   # 落宫宫头前移令牌,同上预初始化纪律
+        _ldr_orig = None   # 点反转文档口径令牌,同上预初始化纪律
+        _exv_orig = None   # 旺位异文(交点旺/土星旺20)令牌,同上预初始化纪律
         try:
             data = cherrypy.request.json
 
             data['tradition'] = False
             data['predictive'] = False
-            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'))
+            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'), data.get('geminiBoundEmended'))
             _trip_orig = push_request_trip(data.get('triplicity'))
+            _hco_orig = push_request_house_offset(data.get('houseCuspAdvance'))
+            _ldr_orig = push_request_lots_doc_reverse(data.get('lotsDocReverse'))
+            _exv_orig = push_request_exalt_variants(data.get('nodeExaltation'), data.get('saturnExalt20'))
             perchart = PerChart(data)
             HarmonicChart(perchart, 12).apply()
 
@@ -454,6 +496,11 @@ class WebChartSrv:
                 }
             }
 
+            # 界内变体键条件回显(同 index 路由:请求带了才回显,默认响应字节零变)。
+            for _vk in ('leoBoundFirst', 'geminiBoundEmended'):
+                if data.get(_vk) is not None:
+                    obj['params'][_vk] = data.get(_vk)
+
             predictives = getPredictivesObj(data, perchart)
             if predictives is not None:
                 obj['predictives'] = predictives
@@ -467,6 +514,9 @@ class WebChartSrv:
             }
             return jsonpickle.encode(obj, unpicklable=False)
         finally:
+            pop_request_exalt_variants(_exv_orig)
+            pop_request_lots_doc_reverse(_ldr_orig)
+            pop_request_house_offset(_hco_orig)
             pop_request_trip(_trip_orig)
             pop_request_terms(_terms_orig)
 

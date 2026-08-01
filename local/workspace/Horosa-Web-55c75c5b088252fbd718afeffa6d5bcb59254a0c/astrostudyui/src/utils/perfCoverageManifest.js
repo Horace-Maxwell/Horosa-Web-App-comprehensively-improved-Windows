@@ -57,7 +57,7 @@ const PAGES = {
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'na:网络型', scu: 'done', drawGuard: 'existing', keepStale: 'existing',
 	} },
 	auxchart: { kind: 'B', axes: {
-		netCache: 'existing', stepPrefetch: 'existing', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'existing', stepPrefetch: 'existing', stepSelect: 'done:卜卦/择日/世俗三盘=DivinationChartShell 本地预取器±1±2+settle后±1预热(fields 自持,全局 handler 对其错键——用户实测「切步长第一下卡」坑修复);germanytech 等 store 面走全局', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'na:网络型', scu: 'done', drawGuard: 'existing',
 		keepStale: 'na:聚合壳,loading 态由子技法自面(kentang 子面 Spin 包裹旧盘)',
 	} },
@@ -70,20 +70,20 @@ const PAGES = {
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'existing', scu: 'existing', drawGuard: 'na:文本条文为主', keepStale: 'na:聚合壳,loading 态由子技法自面(kentang 子面 Spin 包裹旧盘)',
 	} },
 	mingother: { kind: 'MIXED', axes: {
-		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done:全局(/chart)+kinastro 本地 prefetchStepSelect(pan ±1 双向,buildPayload 单源)', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'existing', scu: 'done', drawGuard: 'na:声明式 React SVG', keepStale: 'na:聚合壳,loading 态由子技法自面(kentang 子面 Spin 包裹旧盘)',
 	} },
 	sanshiunited: { kind: 'MIXED', axes: {
-		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done:确认制起盘(步进只改草稿零请求,不存在步进冷卡;起盘一下由 kentangCache L1/L3 承接,三 pan 草稿预热为后续增强项)', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'na:三式聚合(子引擎各管)', scu: 'existing', drawGuard: 'na:声明式渲染',
 		keepStale: 'existing',
 	} },
 	liureng: { kind: 'B', axes: {
-		netCache: 'existing', stepPrefetch: 'existing', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'existing', stepPrefetch: 'existing', stepSelect: 'done:全局(/chart)+本地 prefetchStepSelect(gods ±1 双向,genGodsParams 单源)', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'done', localMemo: 'existing', scu: 'existing', drawGuard: 'existing', keepStale: 'existing(d3 画布天然驻帧,新数据到才重画)',
 	} },
 	dunjia: { kind: 'C', axes: {
-		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done:全局(/chart)+本地 prefetchStepSelect(pan ±1 双向,localFields 草稿为基,depth 语义复用 settle 链)', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'done', localMemo: 'na:后端 kentang 引擎', scu: 'existing', drawGuard: 'na:声明式 React SVG(零 d3)', keepStale: 'existing',
 	} },
 	guazhan: { kind: 'A', axes: {
@@ -105,7 +105,7 @@ const PAGES = {
 		drawGuard: 'existing', keepStale: 'na:本地即时',
 	} },
 	cnyibu: { kind: 'MIXED', axes: {
-		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done:全局(/chart)+jinkou 本地 prefetchStepSelect(gods→pan ±1 双向,经内嵌 LiuRengInput onStepSelect 透传)', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'existing', scu: 'done', drawGuard: 'na:声明式 React SVG(金口/六壬画布各自已有守卫)', keepStale: 'na:聚合壳,loading 态由子技法自面(kentang 子面 Spin 包裹旧盘)',
 	} },
 	aianalysis: { kind: 'TOOL', axes: {

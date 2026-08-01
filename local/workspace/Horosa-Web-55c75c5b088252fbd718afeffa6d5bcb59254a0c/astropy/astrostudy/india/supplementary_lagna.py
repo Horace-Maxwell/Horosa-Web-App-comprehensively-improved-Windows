@@ -213,7 +213,7 @@ def varnada_lagna(lagna_sign, hora_lagna_sign):
     entry.update({'countLagna': a, 'countHora': b, 'step': n,
                   'altSign': SIGN_ORDER[alt_idx], 'altSignLabel': SIGN_CN.get(SIGN_ORDER[alt_idx]),
                   'altDiffers': alt_idx != main_idx,
-                  'methodNote': '方向:默认 Lagna 奇偶(Rath/Raman);altSign=积数 N 奇偶(Santhanam/Sharma)。'})
+                  'methodNote': '方向:默认 Lagna 奇偶(通行);altSign=积数 N 奇偶(译本变体)。'})
     return entry
 
 

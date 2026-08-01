@@ -104,11 +104,17 @@ export const SIHUA_BASE = {
 	庚: ['太阳', '武曲', '太阴', '天同'], 辛: ['巨门', '太阳', '文曲', '文昌'],
 	壬: ['天梁', '紫微', '左辅', '武曲'], 癸: ['破军', '巨门', '太阴', '贪狼'],
 };
+// ⚠️ 命名坑(与 constants/ZWConst.js 交叉核对,勿混):
+//   · 本文件 `beipai` ＝ 真·北派「天相忌」口径(天同科·天相忌);规范键名＝ `beixiang_tianxiang`,`beipai` 仅历史别名(值同)。
+//   · ZWConst.SiHuaTables.beipai ＝【通用/飞星】口径(＝本文件 SIHUA_BASE),真·北派在 ZWConst 侧叫 `beixiang`。
+//   同名异义:ZWConst 由 sihuaTable('beixiang_tianxiang') 派生其 beixiang 表。
+const BEIXIANG_TIANXIANG = { 庚: ['太阳', '武曲', '天同', '天相'] };   // 北派:天同科·天相忌(天相忌独有)
 export const SIHUA_OVERRIDES = {
 	tongxing: {}, feixing: {}, toupai: {},
 	quanshu: { 庚: ['太阳', '武曲', '天同', '太阴'], 壬: ['天梁', '紫微', '天府', '武曲'] },
 	zhongzhou: { 戊: ['贪狼', '太阴', '太阳', '天机'], 庚: ['太阳', '武曲', '天府', '天同'], 壬: ['天梁', '紫微', '天府', '武曲'] },
-	beipai: { 庚: ['太阳', '武曲', '天同', '天相'] },   // 北派:天同科·天相忌(天相忌独有)
+	beixiang_tianxiang: BEIXIANG_TIANXIANG,   // 真·北派(规范键名)
+	beipai: BEIXIANG_TIANXIANG,               // 历史别名(=beixiang_tianxiang);⚠️勿与 ZWConst.beipai(通用)混淆
 };
 export function sihuaTable(school){ return Object.assign({}, SIHUA_BASE, SIHUA_OVERRIDES[school] || {}); }
 export function sihuaOf(yearStem, school){ const t = sihuaTable(school)[yearStem]; return { 禄: t[0], 权: t[1], 科: t[2], 忌: t[3] }; }

@@ -44,9 +44,12 @@ describe('UranianSchools 四流派预设', () => {
     expect(personalSetForSchool('cosmo').has(ARIES_POINT)).toBe(false);
   });
 
-  it('schoolToBackendParams 映射后端口径', () => {
-    expect(schoolToBackendParams('cosmo')).toEqual({ school: 'cosmo', includeTnp: false, orbMidpoint: 1.5, orbPersonal: 5.0, frames: false });
-    expect(schoolToBackendParams('classic')).toEqual({ school: 'classic', includeTnp: true, orbMidpoint: 1.0, orbPersonal: 1.0, frames: true });
+  it('schoolToBackendParams 只发白名单键(D3:剔除 Java 层静默丢弃的 includeTnp/orbMidpoint/orbPersonal)', () => {
+    // 后端 include_tnp 由 school 反推、orb/personalOrb 由调用方 live 值覆盖;frames 供无 live 状态调用方兜底。
+    expect(schoolToBackendParams('cosmo')).toEqual({ school: 'cosmo', frames: false });
+    expect(schoolToBackendParams('classic')).toEqual({ school: 'classic', frames: true });
+    // 防回潮:任何新键出现在返回值 = 必须已登记 GermanyTechController 白名单(见函数头注释)。
+    expect(Object.keys(schoolToBackendParams('uranian')).sort()).toEqual(['frames', 'school']);
   });
 
   it('未知流派回退 classic', () => {

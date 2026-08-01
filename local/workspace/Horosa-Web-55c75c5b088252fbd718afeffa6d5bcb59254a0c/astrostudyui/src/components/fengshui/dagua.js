@@ -1,7 +1,7 @@
 // 玄空大卦（三元易卦派 · 六十四卦）· 框架版（正统体系）。
 // 64卦识别(6.7) + 零正收山出煞(6.3) + 卦气合十/合十五(6.4) + 真假夫妇(6.10) + 三般卦(6.9)。
 // 🔴 逐卦「卦运」各门派秘授有别、须以实体三元易盘为准(6.8)：做成 结构推定 / 用户输入 两方案，不臆造单一表。
-import { gua64Of, GUAYUN_PAIRS, GUAYUN_YUAN } from './liqiCore';
+import { gua64Of, gua64AtDeg, GUAYUN_PAIRS, GUAYUN_YUAN } from './liqiCore';
 
 // 错卦（阴阳全变）：先天圆图对宫卦，坐=向之错卦。
 const INVERT = { 乾: '坤', 坤: '乾', 兑: '艮', 艮: '兑', 离: '坎', 坎: '离', 震: '巽', 巽: '震' };
@@ -16,11 +16,18 @@ export const SANBAN_GROUPS = [
 ];
 
 // 玄空大卦排盘：向卦(上×下) + 元运 → 坐卦(错) + 卦运 + 零正 + 真假夫妇。
-//   { xiangLower, xiangUpper, yun, yunScheme('struct'|'input'), yunOverride:{卦名:运}, xiangYunInput, zuoYunInput }
-export function dagua({ xiangLower = '乾', xiangUpper = '乾', yun = 9, yunScheme = 'struct', yunOverride = {}, xiangYunInput, zuoYunInput } = {}) {
-	const xiang = gua64Of(xiangLower, xiangUpper);
+//   { xiangLower, xiangUpper, yun, yunScheme('struct'|'input'), yunOverride:{卦名:运}, xiangYunInput, zuoYunInput, deg }
+//   deg（向首度数，6.1 线度分金）：给了就由圆图落卦回填上下卦；不给维持手选（零回归）。
+export function dagua({ xiangLower = '乾', xiangUpper = '乾', yun = 9, yunScheme = 'struct', yunOverride = {}, xiangYunInput, zuoYunInput, deg } = {}) {
+	let lower = xiangLower; let upper = xiangUpper; let degInfo = null;
+	if (deg != null && deg !== '' && !Number.isNaN(Number(deg))) {
+		degInfo = gua64AtDeg(Number(deg));
+		lower = degInfo.lower; upper = degInfo.upper;
+	}
+	const xiangLower_ = lower; const xiangUpper_ = upper;
+	const xiang = gua64Of(xiangLower_, xiangUpper_);
 	if (!xiang) { return { available: false }; }
-	const zuo = gua64Of(INVERT[xiangLower], INVERT[xiangUpper]);
+	const zuo = gua64Of(INVERT[xiangLower_], INVERT[xiangUpper_]);
 
 	const validYun = (v)=>(v != null && v !== '' && !Number.isNaN(+v) && +v >= 1 && +v <= 9);
 	const guaYunOf = (g, direct)=>{
@@ -55,9 +62,9 @@ export function dagua({ xiangLower = '乾', xiangUpper = '乾', yun = 9, yunSche
 	if (zuoDeLing) { flags.push({ label: '坐卦当元得令（收山）', jx: 'good' }); }
 
 	return {
-		available: true, yun, yunScheme,
-		xiang: { name: xiang.name, lower: xiangLower, upper: xiangUpper, xianTianLow: xiang.xianTianLow, xianTianUp: xiang.xianTianUp, yun: xiangYun, pure: xiang.pure, yuan: yuanOf(xiangYun) },
-		zuo: { name: zuo.name, lower: INVERT[xiangLower], upper: INVERT[xiangUpper], yun: zuoYun, pure: zuo.pure, yuan: yuanOf(zuoYun) },
+		available: true, yun, yunScheme, deg: degInfo ? Number(deg) : null, degInfo,
+		xiang: { name: xiang.name, lower: xiangLower_, upper: xiangUpper_, xianTianLow: xiang.xianTianLow, xianTianUp: xiang.xianTianUp, yun: xiangYun, pure: xiang.pure, yuan: yuanOf(xiangYun) },
+		zuo: { name: zuo.name, lower: INVERT[xiangLower_], upper: INVERT[xiangUpper_], yun: zuoYun, pure: zuo.pure, yuan: yuanOf(zuoYun) },
 		zheng: { yun: zhengYun, text: `${zhengYun}运正神·宜山宜实宜高（收山）` },
 		ling: { yun: lingYun, text: `${lingYun}运零神(与当元合十)·宜水宜虚宜低（拨水入零堂/出煞）` },
 		zhenFuFu, heShi, heShiWu, tongYuan, xiangDeLing, zuoDeLing, flags,

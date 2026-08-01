@@ -1,3 +1,5 @@
+import { currentEgyptSchool, egyptSchoolToRecordValues } from '../divination/data/egyptianSchools';
+
 const LocalChartsKey = 'horosa.localCharts.v1';
 const AstroAiSnapshotKey = 'horosa.ai.snapshot.astro.v1';
 const ModuleAiSnapshotPrefix = 'horosa.ai.snapshot.module.v1.';
@@ -239,6 +241,11 @@ export function buildLocalChartRecord(values){
 		birth = birth.format('YYYY-MM-DD HH:mm:ss');
 	}
 	const sourceModule = values.sourceModule ? values.sourceModule : null;
+	// 埃及流派七轴随盘保真:values 显式提供(挂载 merge 场景)优先;否则捕获「当前全局非默认」的轴
+	// (全默认不落键 = 旧记录语义与体积不变,零回归)。回放经 recordFieldsRestore 七键进 fields,
+	// 快照链 egyptSchoolFromFields 优先消费 —— 同一命例重开【埃及历】段不随全局漂移。
+	const egyptGlobal = egyptSchoolToRecordValues(currentEgyptSchool());
+	const egyptVal = (k) => (values[k] !== undefined && values[k] !== null && values[k] !== '' ? values[k] : egyptGlobal[k]);
 	const record = {
 		cid: cid,
 		name: values.name ? values.name : '',
@@ -293,6 +300,16 @@ export function buildLocalChartRecord(values){
 		pdConverse: values.pdConverse !== undefined && values.pdConverse !== null ? parseInt(values.pdConverse + '', 10) : undefined,
 		pdAntiscia: values.pdAntiscia !== undefined && values.pdAntiscia !== null ? parseInt(values.pdAntiscia + '', 10) : undefined,
 		pdTerms: values.pdTerms !== undefined && values.pdTerms !== null ? parseInt(values.pdTerms + '', 10) : undefined,
+		// P0 解耦补齐九键(存了必还原;recordFieldsRestore manifest 成对):
+		pdProjection: values.pdProjection !== undefined && values.pdProjection !== null ? values.pdProjection : undefined,
+		pdFrame: values.pdFrame !== undefined && values.pdFrame !== null ? values.pdFrame : undefined,
+		pdFramework: values.pdFramework !== undefined && values.pdFramework !== null ? values.pdFramework : undefined,
+		pdParallel: values.pdParallel !== undefined && values.pdParallel !== null ? parseInt(values.pdParallel + '', 10) : undefined,
+		pdRaptParallel: values.pdRaptParallel !== undefined && values.pdRaptParallel !== null ? parseInt(values.pdRaptParallel + '', 10) : undefined,
+		pdTimeKeyCustom: values.pdTimeKeyCustom !== undefined && values.pdTimeKeyCustom !== null ? Number(values.pdTimeKeyCustom) : undefined,
+		pdSignificators: Array.isArray(values.pdSignificators) && values.pdSignificators.length ? values.pdSignificators : undefined,
+		pdPromissorTypes: Array.isArray(values.pdPromissorTypes) && values.pdPromissorTypes.length ? values.pdPromissorTypes : undefined,
+		termsVariant: values.termsVariant !== undefined && values.termsVariant !== null ? parseInt(values.termsVariant + '', 10) : undefined,
 		// AI 挂载「每技法设置」可调的占星排盘开关 + 数算/八字取用 + 七政命度模式:仅在 values 提供时落库
 		// (present 才落库,对齐 pd* 写法),否则 buildFieldObject 回退现状默认 → 不破坏既有命盘。
 		hsys: values.hsys !== undefined && values.hsys !== null ? values.hsys : undefined,
@@ -304,11 +321,29 @@ export function buildLocalChartRecord(values){
 		// 读回 → fieldsToParams 条件透传,但此前 buildLocalChartRecord 未枚举 → 存盘即丢、重开/挂载回退默认(界系尊贵/福点
 		// 与保存时盘面不一致)。仅在 values 提供时落库(present 才落,对齐 hsys/pd* 写法),否则 buildFieldObject 回退现状默认。
 		termsVariant: values.termsVariant !== undefined && values.termsVariant !== null ? parseInt(values.termsVariant + '', 10) : undefined,
+		geminiBoundEmended: values.geminiBoundEmended !== undefined && values.geminiBoundEmended !== null ? parseInt(values.geminiBoundEmended + '', 10) : undefined,
+		// 2026-07 二批九键(落宫/三态/空亡/恒星/映点):present 才落库,与 termsVariant 同纪律。
+		houseCuspAdvance: values.houseCuspAdvance !== undefined && values.houseCuspAdvance !== null ? parseInt(values.houseCuspAdvance + '', 10) : undefined,
+		cazimiOrb: values.cazimiOrb !== undefined && values.cazimiOrb !== null ? Number(values.cazimiOrb) : undefined,
+		combustOrb: values.combustOrb !== undefined && values.combustOrb !== null ? Number(values.combustOrb) : undefined,
+		underBeamsOrb: values.underBeamsOrb !== undefined && values.underBeamsOrb !== null ? Number(values.underBeamsOrb) : undefined,
+		vocMode: values.vocMode !== undefined && values.vocMode !== null ? (values.vocMode + '') : undefined,
+		vocIncludeOuter: values.vocIncludeOuter !== undefined && values.vocIncludeOuter !== null ? parseInt(values.vocIncludeOuter + '', 10) : undefined,
+		fixedStarOrb: values.fixedStarOrb !== undefined && values.fixedStarOrb !== null ? Number(values.fixedStarOrb) : undefined,
+		fixedStarOrbMode: values.fixedStarOrbMode !== undefined && values.fixedStarOrbMode !== null ? (values.fixedStarOrbMode + '') : undefined,
+		antisciaOrb: values.antisciaOrb !== undefined && values.antisciaOrb !== null ? Number(values.antisciaOrb) : undefined,
+		// 2026-07 四批:燃烧之路边界档(排盘键,present 才落库;partileDef 纯前端显示键有意不随盘存)。
+		viaCombustaVariant: values.viaCombustaVariant !== undefined && values.viaCombustaVariant !== null ? (values.viaCombustaVariant + '') : undefined,
 		westNodeType: values.westNodeType !== undefined && values.westNodeType !== null ? (values.westNodeType + '') : undefined,
 		sectBuffer: values.sectBuffer !== undefined && values.sectBuffer !== null ? (values.sectBuffer + '') : undefined,
 		leoBoundFirst: values.leoBoundFirst !== undefined && values.leoBoundFirst !== null ? parseInt(values.leoBoundFirst + '', 10) : undefined,
 		triplicity: values.triplicity !== undefined && values.triplicity !== null ? (values.triplicity + '') : undefined,
 		lotReversal: values.lotReversal !== undefined && values.lotReversal !== null ? parseInt(values.lotReversal + '', 10) : undefined,
+		// 希腊补齐三开关(点公式文档口径/交点旺/土星旺20°):present 才落库,老盘结构零变;
+		// 缺此三行 = 存盘再载入后开关静默丢失、盘变样(与既有六键同一范式)。
+		lotsDocReverse: values.lotsDocReverse !== undefined && values.lotsDocReverse !== null ? parseInt(values.lotsDocReverse + '', 10) : undefined,
+		nodeExaltation: values.nodeExaltation !== undefined && values.nodeExaltation !== null ? parseInt(values.nodeExaltation + '', 10) : undefined,
+		saturnExalt20: values.saturnExalt20 !== undefined && values.saturnExalt20 !== null ? parseInt(values.saturnExalt20 + '', 10) : undefined,
 		strongRecption: values.strongRecption !== undefined && values.strongRecption !== null ? parseInt(values.strongRecption + '', 10) : undefined,
 		simpleAsp: values.simpleAsp !== undefined && values.simpleAsp !== null ? parseInt(values.simpleAsp + '', 10) : undefined,
 		virtualPointReceiveAsp: values.virtualPointReceiveAsp !== undefined && values.virtualPointReceiveAsp !== null ? parseInt(values.virtualPointReceiveAsp + '', 10) : undefined,
@@ -347,6 +382,18 @@ export function buildLocalChartRecord(values){
 		indiaTransitDate: values.indiaTransitDate !== undefined && values.indiaTransitDate !== null ? values.indiaTransitDate : undefined,
 		indiaTajakaYear: values.indiaTajakaYear !== undefined && values.indiaTajakaYear !== null ? values.indiaTajakaYear : undefined,
 		indiaVargaSet: values.indiaVargaSet !== undefined && values.indiaVargaSet !== null ? values.indiaVargaSet : undefined,
+		// 大运年长 / 年盘口径(G5/G13):同上成对入库,restore + aiAnalysisContext 读回。年长存数值原样。
+		indiaDashaYearLength: values.indiaDashaYearLength !== undefined && values.indiaDashaYearLength !== null ? values.indiaDashaYearLength : undefined,
+		indiaAnnualChartType: values.indiaAnnualChartType !== undefined && values.indiaAnnualChartType !== null ? (values.indiaAnnualChartType + '') : undefined,
+		// 流派(五支软预设包;数值层由 ayanamsa/hsys 承载,此键供摘要/快照语境层)。
+		indiaSchool: values.indiaSchool !== undefined && values.indiaSchool !== null ? (values.indiaSchool + '') : undefined,
+		// W1 三设置:分盘变体(JSON 串原样)/卡拉卡方案/星曜战判据,restore + aiAnalysisContext 读回。
+		indiaVargaVariant: values.indiaVargaVariant !== undefined && values.indiaVargaVariant !== null ? values.indiaVargaVariant : undefined,
+		indiaDashaVariants: values.indiaDashaVariants !== undefined && values.indiaDashaVariants !== null ? values.indiaDashaVariants : undefined,
+		indiaVarshaLat: values.indiaVarshaLat !== undefined && values.indiaVarshaLat !== null ? values.indiaVarshaLat : undefined,
+		indiaVarshaLon: values.indiaVarshaLon !== undefined && values.indiaVarshaLon !== null ? values.indiaVarshaLon : undefined,
+		indiaKarakaScheme: values.indiaKarakaScheme !== undefined && values.indiaKarakaScheme !== null ? (values.indiaKarakaScheme + '') : undefined,
+		indiaYuddhaCriterion: values.indiaYuddhaCriterion !== undefined && values.indiaYuddhaCriterion !== null ? (values.indiaYuddhaCriterion + '') : undefined,
 		guolaoNodeMode: values.guolaoNodeMode !== undefined && values.guolaoNodeMode !== null ? values.guolaoNodeMode : undefined,
 		// 紫微四化流派 + 10 传本/排盘开关:buildChartZiweiParams(aiAnalysisContext:1133-1142)据 record.sihuaSchool / record.<传本键>
 		// 临时切 ZWSchool/ZWEngineOptions 重算供 buildZiweiSnapshotForParams;techniqueMountSettings.ziwei schema 也暴露这些为
@@ -364,6 +411,16 @@ export function buildLocalChartRecord(values){
 		yearBoundary: values.yearBoundary !== undefined && values.yearBoundary !== null ? values.yearBoundary : undefined,
 		huoling: values.huoling !== undefined && values.huoling !== null ? values.huoling : undefined,
 		kongNaming: values.kongNaming !== undefined && values.kongNaming !== null ? values.kongNaming : undefined,
+		// 星曜亮度 + 六个流派叠层开关 + 太岁关系人:buildChartZiweiParams 早就按 record.<key> 重算,
+		// techniqueMountSettings 也全暴露为可调项,唯独此处没枚举 → 存盘即丢,重开/挂载回退默认。
+		brightnessSource: values.brightnessSource !== undefined && values.brightnessSource !== null ? values.brightnessSource : undefined,
+		childLimit: values.childLimit !== undefined && values.childLimit !== null ? values.childLimit : undefined,
+		zhongxian: values.zhongxian !== undefined && values.zhongxian !== null ? values.zhongxian : undefined,
+		huoPan: values.huoPan !== undefined && values.huoPan !== null ? values.huoPan : undefined,
+		qishuWei: values.qishuWei !== undefined && values.qishuWei !== null ? values.qishuWei : undefined,
+		borrowPalace: values.borrowPalace !== undefined && values.borrowPalace !== null ? values.borrowPalace : undefined,
+		taiSuiRuGua: values.taiSuiRuGua !== undefined && values.taiSuiRuGua !== null ? values.taiSuiRuGua : undefined,
+		taiSuiRelatives: values.taiSuiRelatives !== undefined && values.taiSuiRelatives !== null ? values.taiSuiRelatives : undefined,
 		// 八字断命流派:buildChartBaziParams(aiAnalysisContext:1047)据 record.school 切 buildBaziSnapshotText 的「当前主用流派」标注;
 		// techniqueMountSettings.bazi schema 暴露为可调项。漏落库 → 存盘/挂载回退默认「传统综合」、与保存时标注不一致。仅在 values
 		// 提供时落库;缺省 undefined → builder 回退默认 = 现状字节级一致(各派对照数据恒全算,此项只切主标注,零回归)。
@@ -371,6 +428,14 @@ export function buildLocalChartRecord(values){
 		coordSystem: values.coordSystem !== undefined && values.coordSystem !== null ? (values.coordSystem + '') : undefined,
 		windowMonths: values.windowMonths !== undefined && values.windowMonths !== null ? parseInt(values.windowMonths + '', 10) : undefined,
 		marketPreset: values.marketPreset !== undefined && values.marketPreset !== null ? (values.marketPreset + '') : undefined,
+		// 埃及七键逐行登记于字面量内(recordFieldsRestore 三清单守卫按 ^\t\t(\w+): 静态扫描)
+		egypt_decanRuler: egyptVal('egypt_decanRuler'),
+		egypt_decanAnchor: egyptVal('egypt_decanAnchor'),
+		egypt_decanNaming: egyptVal('egypt_decanNaming'),
+		egypt_starClock: egyptVal('egypt_starClock'),
+		egypt_calendarAnchor: egyptVal('egypt_calendarAnchor'),
+		egypt_petosirisMod: egyptVal('egypt_petosirisMod'),
+		egypt_godEdition: egyptVal('egypt_godEdition'),
 	};
 	return record;
 }

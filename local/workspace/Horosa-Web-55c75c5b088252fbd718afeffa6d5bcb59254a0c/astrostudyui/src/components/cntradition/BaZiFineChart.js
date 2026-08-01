@@ -1,7 +1,8 @@
 import { Component } from 'react';
+import { chartSCUEnabled } from '../../utils/perfFlags';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
-import { chartSCUEnabled } from '../../utils/perfFlags';
+import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
 
 const GAN_HE = [
 	['甲', '己', '土'], ['乙', '庚', '金'], ['丙', '辛', '水'], ['丁', '壬', '木'], ['戊', '癸', '火'],
@@ -348,6 +349,14 @@ function layoutRelations(rels){
 	});
 }
 
+// 流派标记层:school → gejuYongShen.schools 对应行(取喜忌五行);盲派 → mangpai.cells(宾主)。
+// zonghe/nayin 无单一喜忌口径,不上标记(与右栏多派表不高亮口径一致)。
+const SCHOOL_ROW_LABEL = { fuyi: '扶抑派', geju: '格局派', tiaohou: '调候派', bingyao: '病药派' };
+const ELEMENT_CN = {
+	Wood: '木', wood: '木', Fire: '火', fire: '火', Earth: '土', earth: '土',
+	Metal: '金', metal: '金', Water: '水', water: '水',
+};
+
 class BaZiFineChart extends Component{
 	// horosa_bazi_finechart_scu_v1（PERF-R9 Ship 6·八字族）：中栏四柱板无 state，输出**只**由下列
 	// 六个 props 决定（本文件全文的 this.props.* 恰为这六个：value / mode / flowSelection /
@@ -370,6 +379,57 @@ class BaZiFineChart extends Component{
 
 	hasDirection(rec){
 		return !!(rec && Array.isArray(rec.direction) && rec.direction.length);
+	}
+
+	// 当前主用派的标记数据(showSchoolMarks 关/派无口径 → null=层完全不渲染,既有 DOM 字节不变)。
+	buildSchoolMark(){
+		if(this.props.showSchoolMarks === false){ return null; }
+		const school = this.props.school || 'zonghe';
+		const rec = this.props.value || {};
+		if(school === 'mangpai'){
+			const mp = rec.mangpai;
+			if(!mp || !Array.isArray(mp.cells) || !mp.cells.length){ return null; }
+			const roleByPillar = {};
+			mp.cells.forEach((c)=>{ if(c && c.label){ roleByPillar[c.label.charAt(0)] = c.role; } });
+			const zhu = mp.cells.filter((c)=>c.role === '主').map((c)=>c.label).join('·');
+			const bin = mp.cells.filter((c)=>c.role === '宾').map((c)=>c.label).join('·');
+			return { school, label: '盲派', roleByPillar, bar: `主位 ${zhu || '—'} ｜ 宾位 ${bin || '—'}`, note: '盲派以日时为主位(自身)、年月为宾位(外界),看主宾做功。' };
+		}
+		const rowLabel = SCHOOL_ROW_LABEL[school];
+		const gy = rec.gejuYongShen;
+		if(!rowLabel || !gy || !Array.isArray(gy.schools)){ return null; }
+		const row = gy.schools.find((s)=>s && s.school === rowLabel);
+		if(!row){ return null; }
+		return {
+			school, label: rowLabel, verdict: row.verdict || '', note: row.note || '',
+			xi: new Set(row.xi || []), ji: new Set(row.ji || []),
+		};
+	}
+
+	// 单元 → 标记类:喜用 is-yong / 忌 is-ji / 无标 ''。五行(中文,支按本气,与配色同源)与
+	// 干字本身双匹配——调候派喜忌以天干论(如「癸·丙」),干格按字命中,支不标(调候不论支)。
+	schoolMarkClass(mark, cellRec){
+		if(!mark || !mark.xi){ return ''; }
+		const cell = typeof cellRec === 'string' ? cellRec : (cellRec && cellRec.cell);
+		if(cell && mark.xi.has(cell)){ return ' is-yong'; }
+		if(cell && mark.ji.has(cell)){ return ' is-ji'; }
+		const element = (cellRec && cellRec.element) || STEM_ELEMENT[cell] || STEM_ELEMENT[BRANCH_MAIN_STEM[cell]];
+		const cn = ELEMENT_CN[element] || '';
+		if(!cn){ return ''; }
+		if(mark.xi.has(cn)){ return ' is-yong'; }
+		if(mark.ji.has(cn)){ return ' is-ji'; }
+		return '';
+	}
+
+	renderSchoolBar(mark){
+		return (
+			<div className="horosa-bazi-fine-school-bar" title={mark.note || ''}>
+				<span className="horosa-bazi-fine-school-name">{mark.label}{mark.verdict ? `·${mark.verdict}` : ''}</span>
+				{mark.xi && mark.xi.size ? <span className="horosa-bazi-fine-school-xi">喜 {Array.from(mark.xi).join('·')}</span> : null}
+				{mark.ji && mark.ji.size ? <span className="horosa-bazi-fine-school-ji">忌 {Array.from(mark.ji).join('·')}</span> : null}
+				{mark.bar ? <span className="horosa-bazi-fine-school-role">{mark.bar}</span> : null}
+			</div>
+		);
 	}
 
 	buildColumns(){
@@ -447,13 +507,20 @@ class BaZiFineChart extends Component{
 		return map[element] || undefined;
 	}
 
-	renderHeader(cols){
+	renderHeader(cols, schoolMark){
+		const roles = schoolMark && schoolMark.roleByPillar;
 		return (
 			<div className="horosa-bazi-fine-row horosa-bazi-fine-header">
 				<div className="horosa-bazi-fine-label" />
-				{cols.map((item, idx)=>(
-					<div className={`horosa-bazi-fine-cell ${this.isNatalStart(idx, cols) ? 'horosa-bazi-fine-natal-start' : ''}`} key={item.title}>{item.title}</div>
-				))}
+				{cols.map((item, idx)=>{
+					const role = roles ? roles[item.title.charAt(0)] : '';
+					return (
+						<div className={`horosa-bazi-fine-cell ${this.isNatalStart(idx, cols) ? 'horosa-bazi-fine-natal-start' : ''}`} key={item.title}>
+							{item.title}
+							{role ? <em className={`horosa-bazi-fine-role-tag ${role === '主' ? 'is-zhu' : 'is-bin'}`}>{role}</em> : null}
+						</div>
+					);
+				})}
 			</div>
 		);
 	}
@@ -582,13 +649,17 @@ class BaZiFineChart extends Component{
 		return (
 			<div className="horosa-bazi-fine-row horosa-bazi-fine-shensha-row">
 				<div className="horosa-bazi-fine-label">神煞</div>
-				{cols.map((item, idx)=>(
-					<div className={`horosa-bazi-fine-cell ${this.isNatalStart(idx, cols) ? 'horosa-bazi-fine-natal-start' : ''}`} key={`shensha-${idx}`}>
-						{item.shenSha.length ? item.shenSha.slice(0, 6).map((txt)=>(
-							<span key={txt}>{txt}</span>
-						)) : <span className="horosa-bazi-fine-empty">—</span>}
-					</div>
-				))}
+				{cols.map((item, idx)=>{
+					// 神煞分组过滤(G8):默认全开=原数组直返零回归;先过滤再截 6,免得被隐藏组占名额。
+					const names = filterShenShaByGroups(item.shenSha, this.props.shenshaGroups);
+					return (
+						<div className={`horosa-bazi-fine-cell ${this.isNatalStart(idx, cols) ? 'horosa-bazi-fine-natal-start' : ''}`} key={`shensha-${idx}`}>
+							{names.length ? names.slice(0, 6).map((txt)=>(
+								<span key={txt}>{txt}</span>
+							)) : <span className="horosa-bazi-fine-empty">—</span>}
+						</div>
+					);
+				})}
 			</div>
 		);
 	}
@@ -599,21 +670,23 @@ class BaZiFineChart extends Component{
 		const stemRelations = this.buildStemRelations(cols);
 		const branchRelations = this.buildBranchRelations(cols);
 		const isSimple = this.props.mode === 'simple';
+		const schoolMark = this.buildSchoolMark();
 		return (
 			<div className={`horosa-bazi-fine-chart ${cols.length === 4 ? 'horosa-bazi-fine-chart-core' : ''} ${isSimple ? 'horosa-bazi-fine-chart-simple' : ''}`}>
-				{this.renderHeader(cols)}
+				{schoolMark ? this.renderSchoolBar(schoolMark) : null}
+				{this.renderHeader(cols, schoolMark)}
 				{this.renderSimpleRow('主星', cols, (item)=><strong>{item.stemRel}</strong>, 'horosa-bazi-fine-main-star-row')}
 				{this.renderRelationLayer(stemRelations, 'horosa-bazi-fine-stem-relations', cols.length)}
 				<div className="horosa-bazi-fine-row-wrap">
 					{this.renderSimpleRow('天干', cols, (item)=>(
-						<span className="horosa-bazi-fine-glyph" style={{ color: this.getElementColor(item.rec.stem) }}>{item.stem}</span>
+						<span className={`horosa-bazi-fine-glyph${this.schoolMarkClass(schoolMark, item.rec.stem)}`} style={{ color: this.getElementColor(item.rec.stem) }}>{item.stem}</span>
 					), 'horosa-bazi-fine-stem-row')}
 					{this.renderHConnOverlay(cols, 'stem')}
 				</div>
 				{this.renderVConnRow(cols)}
 				<div className="horosa-bazi-fine-row-wrap">
 					{this.renderSimpleRow('地支', cols, (item)=>(
-						<span className="horosa-bazi-fine-glyph" style={{ color: this.getElementColor(item.rec.branch) }}>{item.branch}</span>
+						<span className={`horosa-bazi-fine-glyph${this.schoolMarkClass(schoolMark, item.rec.branch)}`} style={{ color: this.getElementColor(item.rec.branch) }}>{item.branch}</span>
 					), 'horosa-bazi-fine-branch-row')}
 					{this.renderHConnOverlay(cols, 'branch')}
 				</div>
@@ -621,7 +694,8 @@ class BaZiFineChart extends Component{
 				{/* 副星=地支本气十神;仅在「只显示地支藏干十神」取消勾选时另立一行(默认勾选=不显=字节不变)。 */}
 				{this.props.onlyZiGanShen === false ? this.renderSimpleRow('副星', cols, (item)=><strong>{item.branchRel}</strong>, 'horosa-bazi-fine-main-star-row') : null}
 				{this.renderHiddenRow(cols)}
-				{isSimple ? this.renderShenShaRow(cols) : null}
+				{/* 「显示·神煞」此前只关右栏卡片,中栏盘照旧列出 —— 关了却还在显示,开关名不符实。 */}
+				{isSimple && this.props.showShenSha !== false ? this.renderShenShaRow(cols) : null}
 				{!isSimple ? this.renderSimpleRow('纳音', cols, (item)=><strong>{item.naying}</strong>, 'horosa-bazi-fine-info-row') : null}
 				{!isSimple ? this.renderSimpleRow('星运', cols, (item)=><strong>{getSelfZuo(dayGan, item.branch)}</strong>, 'horosa-bazi-fine-info-row') : null}
 				{!isSimple ? this.renderSimpleRow('自坐', cols, (item)=><strong>{getSelfZuo(item.stem, item.branch)}</strong>, 'horosa-bazi-fine-info-row') : null}

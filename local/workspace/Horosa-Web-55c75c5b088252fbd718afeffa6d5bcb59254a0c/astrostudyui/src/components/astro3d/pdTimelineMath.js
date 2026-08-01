@@ -9,7 +9,7 @@
 import * as AstroText from '../../constants/AstroText';
 
 export const TL_ZOOM_MIN = 2;        // px/年 下限(百年盘 200px 也画得下)
-export const TL_ZOOM_MAX = 400;      // px/年 上限(逐月/逐日级细看;用户要求能放更大)
+export const TL_ZOOM_MAX = 4000;   // 扩展全开(单泳道数千行)时章档需 spacing≥17px:400 上限拉不回 glyph,提至 4000      // px/年 上限(逐月/逐日级细看;用户要求能放更大)
 export const TL_CHIP_MODE_MIN = 7;   // ≥ 此值出 glyph 章;更小退化为点(LOD)
 
 /** 缩放钳制(非数回落下限) */
@@ -66,6 +66,27 @@ export function glyphSegsOf(pid){
 	}
 	if(head === 'C'){
 		return [seg(parts[1]), { t: '反映', astro: false }];
+	}
+	// P2 扩展前缀:平行族/恒星/阿拉伯点/宫始点(绝不裸 ID)
+	if(head === 'PD'){
+		return [seg(parts[1]), { t: '平行', astro: false }];
+	}
+	if(head === 'PC'){
+		return [seg(parts[1]), { t: '反平行', astro: false }];
+	}
+	if(head === 'MP' || head === 'RP'){
+		const ax = { '0': 'MC', '90': 'ASC', '180': 'IC', '270': 'DSC' }[parts[2]] || '';
+		return [seg(parts[1]), { t: `${head === 'MP' ? '世平' : '急动'}${ax}`, astro: false }];
+	}
+	if(head === 'FS'){
+		return [{ t: `★${parts[1]}`, astro: false }];
+	}
+	if(head === 'LT'){
+		return [{ t: `${`${parts[1] || ''}`.replace(/^Pars /, '')}点`, astro: false }];
+	}
+	if(head === 'HC'){
+		const m = /^Cusp(\d+)$/.exec(`${parts[1] || ''}`);
+		return [{ t: m ? `${m[1]}宫头` : `${parts[1]}`, astro: false }];
 	}
 	if(head === 'D' || head === 'S' || head === 'N'){
 		const deg = parts[parts.length - 1];

@@ -40,10 +40,25 @@ from astrostudy.india.rasi_dasha import (
 # 0. 口径开关 + 曜 const 映射
 # ════════════════════════════════════════════════════════════════════════
 
-YEAR_SOLAR = 365.2425
-YEAR_SAVANA = 360.0
-YEAR_MODE = 'solar'          # {'solar','savana'} —— 默认 solar 对齐主流软件
-YEAR_DAYS = {'solar': YEAR_SOLAR, 'savana': YEAR_SAVANA}
+YEAR_JULIAN = 365.25         # 儒略年(权威 §10.1.5 五档之默认)
+YEAR_SOLAR = 365.2425        # 格里高利平均年
+YEAR_SAVANA = 360.0          # Savana 古例年
+YEAR_TROPICAL = 365.2422     # 回归年
+YEAR_SIDEREAL = 365.2563     # 恒星年
+# 🔴 YEAR_MODE 是进程级共享态:**只作默认值,绝不在运行期改写**(并发请求会互相污染,
+#    与 swisseph set_sid_mode 同类风险)。运行期口径一律走 year_length_days 形参贯穿。
+#    默认由 'solar' 统一为 'julian'(365.25):与主 Vimshottari 同口径,合权威 §10.1.5 默认。
+YEAR_MODE = 'julian'
+YEAR_DAYS = {'julian': YEAR_JULIAN, 'solar': YEAR_SOLAR, 'savana': YEAR_SAVANA,
+             'tropical': YEAR_TROPICAL, 'sidereal': YEAR_SIDEREAL}
+
+
+def year_mode_of(days):
+    """年长(日)反查口径名;非五档标准值返回 'custom'。"""
+    for k, v in YEAR_DAYS.items():
+        if abs(float(days) - v) < 1e-6:
+            return k
+    return 'custom'
 
 AD_START_SELF = 'self'       # 子运从本主自身起(默认，与 Vimshottari 同)
 AD_START_NEXT = 'next'       # 子运从下一主起(末位本主)
@@ -348,7 +363,8 @@ def _sub_periods(lord_dicts, total, parent, parent_years, max_depth, start_offse
 
 
 def build_nakshatra_dasha(spec, moon_lon, moon_nak_index, moon_nak_remaining_ratio,
-                          ctx=None, moon_nak_name=None, ad_start=None, max_depth=2):
+                          ctx=None, moon_nak_name=None, ad_start=None, max_depth=2,
+                          year_length_days=None):
     """按 spec 构建一式条件型宿系大运（与 Vimshottari 同口径，复用其机制）。
 
     moon_lon                 : 月 sidereal 黄经(Shashtihayani 判 Abhijit 用)。
@@ -403,8 +419,8 @@ def build_nakshatra_dasha(spec, moon_lon, moon_nak_index, moon_nak_remaining_rat
         'system': spec.name,
         'label': spec.label,
         'totalYears': total,
-        'yearMode': YEAR_MODE,
-        'yearLengthDays': year_days(),
+        'yearMode': year_mode_of(year_length_days) if year_length_days else YEAR_MODE,
+        'yearLengthDays': float(year_length_days) if year_length_days else year_days(),
         'adStart': ad_start,
         'lords': lord_dicts,
         'firstLord': start_lord,
@@ -420,7 +436,8 @@ def build_nakshatra_dasha(spec, moon_lon, moon_nak_index, moon_nak_remaining_rat
 
 
 def build_all_conditional_dashas(moon_lon, moon_nak_index, moon_nak_remaining_ratio,
-                                 ctx=None, moon_nak_name=None, ad_start=None, max_depth=2):
+                                 ctx=None, moon_nak_name=None, ad_start=None, max_depth=2,
+                                 year_length_days=None):
     """聚合全部 8 式条件型宿系大运 → {key: result}。
 
     key ∈ {shodashottari, dvadashottari, panchottari, shatabdika,
@@ -430,7 +447,8 @@ def build_all_conditional_dashas(moon_lon, moon_nak_index, moon_nak_remaining_ra
     for key, spec in CONDITIONAL_SPEC_BY_KEY.items():
         out[key] = build_nakshatra_dasha(
             spec, moon_lon, moon_nak_index, moon_nak_remaining_ratio,
-            ctx=ctx, moon_nak_name=moon_nak_name, ad_start=ad_start, max_depth=max_depth)
+            ctx=ctx, moon_nak_name=moon_nak_name, ad_start=ad_start, max_depth=max_depth,
+            year_length_days=year_length_days)
     return out
 
 
@@ -467,7 +485,8 @@ def _chara_lord(sign, planet_signs, planet_lons=None):
     return trad
 
 
-def chara_period_years(dasa_sign, planet_signs, planet_lons=None):
+def chara_period_years(dasa_sign, planet_signs, planet_lons=None,
+                       count_direction=None, dignity_rule='plus_minus_one'):
     """Chara 法期长(年)：从 dasa rasi 数到「其主星所在宫」− 1。
 
     规则(权威口径)：
@@ -481,13 +500,21 @@ def chara_period_years(dasa_sign, planet_signs, planet_lons=None):
     lord_sign = planet_signs.get(lord)
     if lord_sign is None:
         return 12                                   # 主缺位 → 退本宫(12 年)
-    if dasa_sign in ODD_SIGNS:
+    if count_direction is not None:
+        # 主流口径:按大运全序方向统一数(顺=+1/逆=−1),含端。
+        if count_direction == 1:
+            dist = ((index_of(lord_sign) - index_of(dasa_sign)) % 12) + 1
+        else:
+            dist = ((index_of(dasa_sign) - index_of(lord_sign)) % 12) + 1
+    elif dasa_sign in ODD_SIGNS:
         dist = ((index_of(lord_sign) - index_of(dasa_sign)) % 12) + 1   # 顺数(含本宫=1)
     else:
         dist = ((index_of(dasa_sign) - index_of(lord_sign)) % 12) + 1   # 逆数
     years = dist - 1
     if years <= 0:
         years = 12
+    if dignity_rule == 'none':
+        return years
     if is_exalted_in(lord, lord_sign):
         years += 1
     elif is_debilitated_in(lord, lord_sign):
@@ -500,7 +527,9 @@ def _chara_direction(lagna_sign):
     return 1 if lagna_sign in ODD_SIGNS else -1
 
 
-def _chara_antardashas(dasa_sign, direction, planet_signs, planet_lons=None):
+def _chara_antardashas(dasa_sign, direction, planet_signs, planet_lons=None,
+                       antar_first='dasa_sign_first', count_direction=None,
+                       dignity_rule='plus_minus_one'):
     """某 Chara 主运的子运(AD)：从 dasa rasi 起、同方向连续 12 宫。
 
     子运期长按各 AD 宫的 chara_period_years 占主运 12-rasi 期长和的比例分配总年。
@@ -509,7 +538,12 @@ def _chara_antardashas(dasa_sign, direction, planet_signs, planet_lons=None):
     """
     seed_idx = index_of(dasa_sign)
     ad_signs = [sign_at(seed_idx + direction * i) for i in range(12)]
-    periods = [chara_period_years(s, planet_signs, planet_lons) for s in ad_signs]
+    if antar_first == 'dasa_sign_last':
+        # 变体:中运自次座起、大运座本身排最后(同方向旋转一位)。
+        ad_signs = ad_signs[1:] + ad_signs[:1]
+    periods = [chara_period_years(s, planet_signs, planet_lons,
+                                  count_direction=count_direction, dignity_rule=dignity_rule)
+               for s in ad_signs]
     total = sum(periods) or 12
     out = []
     for s, p in zip(ad_signs, periods):
@@ -530,7 +564,14 @@ _SIGN_LABEL = {
 }
 
 
-def chara_dasha(lagna_sign, planet_signs, planet_lons=None, variant=None, with_antardashas=True):
+# 奇足(Visama-pada)/偶足(Sama-pada)集(权威口径:奇足 = 白羊·金牛·双子·天秤·天蝎·人马)。
+# 🔴 与奇/偶「象」不同(狮子是奇象但偶足)——足性专用于座运方向判据。
+_ODD_FOOTED = {const.ARIES, const.TAURUS, const.GEMINI, const.LIBRA, const.SCORPIO, const.SAGITTARIUS}
+
+
+def chara_dasha(lagna_sign, planet_signs, planet_lons=None, variant=None, with_antardashas=True,
+                direction_rule='lagna_parity_sign', dignity_rule='plus_minus_one',
+                antar_first='dasa_sign_first'):
     """Chara 大运（Jaimini，权威口径变体）。
 
     起点 = lagna；序列 = 从 lagna 起 **12 个连续星座**(非 kendra/trinal 跳)；
@@ -546,12 +587,21 @@ def chara_dasha(lagna_sign, planet_signs, planet_lons=None, variant=None, with_a
     if variant is not None:
         CHARA_VARIANT = variant
     try:
-        direction = _chara_direction(lagna_sign)
+        if direction_rule == 'ninth_foot':
+            # 主流口径:自 Lagna 第 9 座足性定全序方向(奇足→顺/偶足→逆);
+            # 期长 count-to-lord 亦按全序方向数(非逐座奇偶)。
+            ninth = sign_at(index_of(lagna_sign) + 8)
+            direction = 1 if ninth in _ODD_FOOTED else -1
+            count_dir = direction
+        else:
+            direction = _chara_direction(lagna_sign)
+            count_dir = None                        # 现状:逐座按自身奇/偶象定数向
         seed_idx = index_of(lagna_sign)
         order = [sign_at(seed_idx + direction * i) for i in range(12)]
         maha = []
         for rasi in order:
-            years = chara_period_years(rasi, planet_signs, planet_lons)
+            years = chara_period_years(rasi, planet_signs, planet_lons,
+                                       count_direction=count_dir, dignity_rule=dignity_rule)
             item = {
                 'rasi': rasi,
                 'rasiLabel': _SIGN_LABEL.get(rasi, rasi),
@@ -560,11 +610,15 @@ def chara_dasha(lagna_sign, planet_signs, planet_lons=None, variant=None, with_a
                 'lord': _chara_lord(rasi, planet_signs, planet_lons),
             }
             if with_antardashas:
-                item['antardashas'] = _chara_antardashas(rasi, direction, planet_signs, planet_lons)
+                item['antardashas'] = _chara_antardashas(
+                    rasi, direction, planet_signs, planet_lons,
+                    antar_first=antar_first, count_direction=count_dir, dignity_rule=dignity_rule)
             maha.append(item)
         return {
             'system': 'Chara',
             'variant': CHARA_VARIANT,
+            'directionRule': direction_rule,
+            'dignityRule': dignity_rule,
             'seed': lagna_sign,
             'seedLabel': _SIGN_LABEL.get(lagna_sign, lagna_sign),
             'direction': 'forward' if direction == 1 else 'reverse',
@@ -609,12 +663,17 @@ def build_extended_dashas(inputs):
         out['conditional'] = build_all_conditional_dashas(
             inputs.get('moon_lon'), moon_nak_index, remaining,
             ctx=inputs.get('conditionContext'),
-            moon_nak_name=inputs.get('moon_nak_name'))
+            moon_nak_name=inputs.get('moon_nak_name'),
+            year_length_days=inputs.get('year_length_days'))
     else:
         out['conditional'] = {'available': False, 'reason': 'missing_moon_nakshatra'}
 
+    _dv = inputs.get('dashaVariants') or {}
     out['chara'] = chara_dasha(
-        lagna, planet_signs, planet_lons, variant=inputs.get('charaVariant'))
+        lagna, planet_signs, planet_lons, variant=inputs.get('charaVariant'),
+        direction_rule=_dv.get('charaDirection', 'lagna_parity_sign'),
+        dignity_rule=_dv.get('charaDignity', 'plus_minus_one'),
+        antar_first=_dv.get('rasiAntarFirst', 'dasa_sign_first'))
     return out
 
 

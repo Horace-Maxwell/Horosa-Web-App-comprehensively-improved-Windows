@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
@@ -261,8 +262,18 @@ function fieldsToState(fields){
 		gpsLat: fields.gpsLat.value,
 		gpsLon: fields.gpsLon.value,
 		doubingSu28: fields.doubingSu28.value,
-		// 古典占星参数随分至盘透传(节气盘=标准星盘,须与主盘 fieldsToParams 同口径):三分/福点反转/界/交点真平/宗派缓冲/狮子木首
+		// 古典占星参数随分至盘透传(节气盘=标准星盘,须与主盘 fieldsToParams 同口径):三分/福点反转/界/交点真平/宗派缓冲/狮子木首/双子界序
 		termsVariant: fields.termsVariant ? fields.termsVariant.value : '',
+		geminiBoundEmended: fields.geminiBoundEmended ? fields.geminiBoundEmended.value : '',
+		houseCuspAdvance: fields.houseCuspAdvance ? fields.houseCuspAdvance.value : '',
+		cazimiOrb: fields.cazimiOrb ? fields.cazimiOrb.value : '',
+		combustOrb: fields.combustOrb ? fields.combustOrb.value : '',
+		underBeamsOrb: fields.underBeamsOrb ? fields.underBeamsOrb.value : '',
+		vocMode: fields.vocMode ? fields.vocMode.value : '',
+		vocIncludeOuter: fields.vocIncludeOuter ? fields.vocIncludeOuter.value : '',
+		fixedStarOrb: fields.fixedStarOrb ? fields.fixedStarOrb.value : '',
+		fixedStarOrbMode: fields.fixedStarOrbMode ? fields.fixedStarOrbMode.value : '',
+		antisciaOrb: fields.antisciaOrb ? fields.antisciaOrb.value : '',
 		triplicity: fields.triplicity ? fields.triplicity.value : '',
 		lotReversal: fields.lotReversal ? fields.lotReversal.value : '',
 		westNodeType: fields.westNodeType ? fields.westNodeType.value : '',
@@ -539,6 +550,9 @@ function buildChartRequestParams(params, birth){
 		group: null,
 		// 古典占星参数条件透传(默认不下发=请求体零回归,与 fieldsToParams 同条件)
 		...((params.termsVariant) ? { termsVariant: params.termsVariant } : {}),
+		...((params.geminiBoundEmended) ? { geminiBoundEmended: 1 } : {}),
+		// 2026-07 二批九键:共享 helper(平面版)条件透传。
+		...classicalBackendOverridesFromPlain(params),
 		...((params.triplicity && params.triplicity !== 'Dorothean') ? { triplicity: params.triplicity } : {}),
 		...((params.lotReversal === 0 || params.lotReversal === '0') ? { lotReversal: 0 } : {}),
 		...((params.westNodeType === 'true') ? { westNodeType: 'true' } : {}),
@@ -600,7 +614,16 @@ export function isJieQiChartCompatible(chartObj, params){
 		'gpsLon',
 		'hsys',
 		'zodiacal',
+		// 🔴 曾漏 siderealAyanamsa:换岁差时 zodiacal 恒 1、其余键全等 → 判「兼容」直接返旧盘,
+		// 请求根本不发(同文件 getChartCacheKey 已含该键,两套键漂移)。古典键同理。
+		'siderealAyanamsa',
 		'doubingSu28',
+		'termsVariant',
+		'triplicity',
+		'lotReversal',
+		'westNodeType',
+		'sectBuffer',
+		'leoBoundFirst',
 	].every((key)=>normalizeJieqiCompareValue(chartParams[key]) === normalizeJieqiCompareValue(reqParams[key]));
 }
 
@@ -727,6 +750,10 @@ function buildJieQiSuSection(chartObj, fields, planetDisplay){
 			.sort((a, b)=>{
 				if(a.ra > 300 && b.ra < 30){
 					return -1;
+				}
+				// 环形序须对称全序:跨 0°RA 两向都判,单侧判 = 非对称比较器,sort 行为未定义。
+				if(b.ra > 300 && a.ra < 30){
+					return 1;
 				}
 				return a.ra - b.ra;
 			});
@@ -925,16 +952,9 @@ function tabNeedsJieqiCharts(currentTab, jieqis){
 
 
 export class JieQiChartsMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
-
-
+	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同类内也带一份通用 wrapperPropsEqual 渲染守卫,
+	// 与本类内另一份我方细化守卫重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
+	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
 	constructor(props) {
 		super(props);
 
@@ -1045,7 +1065,22 @@ export class JieQiChartsMain extends Component{
 			doubingSu28: this.state.doubingSu28,
 			after23NewDay: defaultAfter23NewDay(),
 			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
-		}
+		};
+		// 🔴 古典口径 16 键随分至盘透传:fieldsToState 早已把它们提进 state,但 genParams
+		// 曾不输出 → 下游条件透传与 classicalBackendOverridesFromPlain 恒空、缓存键六项恒
+		// undefined,「六构参点自动同步」的承诺在分至盘这一路断链(用户改界系/三分/福点反转…
+		// 二分二至四盘静默走后端默认,与主盘系统性分叉且改设置也不重取)。
+		[
+			'termsVariant', 'geminiBoundEmended', 'leoBoundFirst', 'triplicity', 'lotReversal',
+			'westNodeType', 'sectBuffer',
+		].forEach((k)=>{
+			const v = this.state[k];
+			if(v !== undefined && v !== null && v !== ''){ params[k] = v; }
+		});
+		// 古典九键覆盖走单源 helper:自带 fixedStarOrb→starOrb / fixedStarOrbMode→starOrbMode 的
+		// 后端名映射与「仅非默认才下发」纪律 —— 🔴 曾按前端名直发,恒星容许度两键后端 data.get
+		// 恒未命中(16 键断链只真通了 14 键),且默认值也进请求体与主盘构参纪律分叉。
+		Object.assign(params, classicalBackendOverridesFromPlain(this.state));
 		if(includeJieqis){
 			params.jieqis = this.state.jieqis;
 		}
@@ -1096,11 +1131,20 @@ export class JieQiChartsMain extends Component{
 		const p = params || this.genSeedParams();
 		const info = parseJieQiTab(tab || this.state.currentTab, this.state.jieqis);
 		const title = info && info.title ? info.title : '';
+		// 与 getChartCacheKey 同维(曾少 siderealAyanamsa 与古典六键 → 换岁差/界系时
+		// 去重键不变,pendingChartRequest 会把新一轮请求当重复丢掉)。
 		return [
 			getSeedCacheKey(p),
 			p && p.hsys,
 			p && p.zodiacal,
+			p && p.siderealAyanamsa,
 			p && p.doubingSu28,
+			p && p.termsVariant,
+			p && p.triplicity,
+			p && p.lotReversal,
+			p && p.westNodeType,
+			p && p.sectBuffer,
+			p && p.leoBoundFirst,
 			title,
 		].join('|');
 	}

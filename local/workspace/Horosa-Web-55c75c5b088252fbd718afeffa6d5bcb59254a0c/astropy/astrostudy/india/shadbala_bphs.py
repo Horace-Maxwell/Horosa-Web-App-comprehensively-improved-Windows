@@ -169,7 +169,7 @@ def _sign_of_lon(lon):
     return SIGNS[int(float(lon) // 30.0) % 12]
 
 
-def saptavargaja_dignity_map(planet, d1_lon, planet_signs, signlon=None):
+def saptavargaja_dignity_map(planet, d1_lon, planet_signs, signlon=None, variants=None):
     """七盘 {chartnum: dignity_key}：逐盘按该曜在所落星座的尊贵态分类。
 
     planet_signs = {planet_id: D1 星座} (复合友谊用，含全七曜 D1 星座)。
@@ -181,9 +181,12 @@ def saptavargaja_dignity_map(planet, d1_lon, planet_signs, signlon=None):
         if chart == 1:
             vlon = float(d1_lon)
             vsign = _sign_of_lon(vlon)
+            # 🔴 D1 座内度恒由 d1_lon 自身导出:曾接受调用方传入的「当前显示分盘」signlon
+            # → D1 星座 × 分盘座内度 跨基准判 moolatrikona(切分盘时档位漂移,同 dasha 四系锚同型)。
+            # signlon 参数仅当调用方明确给的是 D1 域度数时才允许覆盖——现有调用已全部改传 D1 域。
             deg = float(signlon) if signlon is not None else (vlon % 30.0)
         else:
-            vlon = varga_position(float(d1_lon), chart)
+            vlon = varga_position(float(d1_lon), chart, (variants or {}).get(chart))
             vsign = _sign_of_lon(vlon)
             deg = vlon % 30.0
         out[chart] = _classify_dignity(planet, vsign, deg, planet_signs, allow_mt=(chart == 1))
@@ -221,7 +224,7 @@ VIMSOPAKA_WEIGHTS = {
 }
 
 
-def vimsopaka_bala(planet, d1_lon, planet_signs, signlon=None):
+def vimsopaka_bala(planet, d1_lon, planet_signs, signlon=None, variants=None):
     """Vimsopaka 四组（Shad/Sapta/Dasa/Shodasa-varga）20 分力。某曜在每组各分盘按尊位
     （§18.1 同尊位比例，folded：fraction = Virupa/45）× 该盘权重求和，每组满分 20。
     复用 _classify_dignity（D1 允许 moolatrikona 按度，余盘 own/友谊）。返回逐组 total + perChart。"""
@@ -235,7 +238,7 @@ def vimsopaka_bala(planet, d1_lon, planet_signs, signlon=None):
                 vsign = _sign_of_lon(float(d1_lon))
                 deg = float(signlon) if signlon is not None else (float(d1_lon) % 30.0)
             else:
-                vlon = varga_position(float(d1_lon), chart)
+                vlon = varga_position(float(d1_lon), chart, (variants or {}).get(chart))
                 vsign = _sign_of_lon(vlon)
                 deg = vlon % 30.0
             dignity = _classify_dignity(planet, vsign, deg, planet_signs, allow_mt=(chart == 1))
@@ -631,10 +634,8 @@ def _drishti_general(a):
         return 150.0 - a
     if a < 180.0:
         return 2.0 * (a - 150.0)          # ⚠️ a=180 → 60(关键:非 2×(150−a))
-    if a < 210.0:
-        return (300.0 - a) / 2.0
-    if a < 330.0:
-        return (300.0 - a) / 2.0
+    if a < 300.0:
+        return (300.0 - a) / 2.0    # 180°–300° 单段;🔴 上界曾误写 330 → a∈(300,330) 出负值(照力按定义非负)
     return 0.0
 
 
@@ -646,8 +647,8 @@ def _drishti_saturn(a):
         return 45.0 + (90.0 - a) / 2.0
     if 240.0 <= a < 270.0:
         return a - 210.0
-    if 270.0 <= a < 330.0:
-        return 2.0 * (300.0 - a)
+    if 270.0 <= a < 300.0:
+        return 2.0 * (300.0 - a)    # 🔴 上界曾误写 330 → 负值加倍(同通用列同根笔误)
     return _drishti_general(a)
 
 
@@ -750,8 +751,15 @@ def compute_shadbala(planet, ctx):
     # Saptavargaja:优先用引擎直传的七盘尊贵字典;否则用 d1Lon+planetSigns 自算七盘。
     per_varga = ctx.get('perVargaDignity')
     if per_varga is None and ctx.get('planetSigns') and planet in SHADBALA_PLANETS:
+        # signlon 必须与 d1Lon 同基准(D1):优先 ctx.d1Signlon,缺则由 d1Lon 求;
+        # 🔴 曾传当前显示分盘的 signlon → 跨基准泄漏(见 saptavargaja_dignity_map 注)。
+        _d1lon = ctx.get('d1Lon', lon)
+        _d1deg = ctx.get('d1Signlon')
+        if _d1deg is None:
+            _d1deg = float(_d1lon) % 30.0
         per_varga = saptavargaja_dignity_map(
-            planet, ctx.get('d1Lon', lon), ctx['planetSigns'], signlon=signlon)
+            planet, _d1lon, ctx['planetSigns'], signlon=_d1deg,
+            variants=ctx.get('vargaVariants'))
     sthana = sthana_bala(planet, lon, signlon, house, per_varga)
     dig = dig_bala(planet, house)
     kala = kala_bala(
@@ -833,10 +841,17 @@ def compute_all(contexts):
         res = compute_shadbala(planet, ctx)
         # 附 Ishta/Kashta(依赖 Uchcha 与 Cheshta)。日/月 Cheshta 以 Ayana/Paksha 代,
         # 故 Ishta/Kashta 的 Cheshta 项对日取 Ayana、对月取 Paksha(其余曜用本身 Cheshta)。
+        # 🔴 替代量必须用「未加倍」基准:Ayana(日恒×2,0..120)/Paksha(月×2,0..120)是
+        # Kala 合计口径,直接喂给 60 量纲的 Ishta/Kashta 会被 clamp 到 60 →
+        # 约半数盘(日:赤纬≥0;月:距日≥90°)Kashta 恒等于精确 0。
         if planet == const.SUN:
-            cheshta_for_ik = res['kala']['ayana']
+            cheshta_for_ik = float(res['kala']['ayana']) / 2.0
         elif planet == const.MOON:
-            cheshta_for_ik = res['kala']['paksha']
+            # 未加倍 Paksha:走 paksha_bala(moon_double=False) 单源(同式同输入,字节恒等)——
+            # 吉凶归列若日后改 _PAKSHA_BENEFIC,此处自动跟随,不再是第二份平行实现。
+            cheshta_for_ik = paksha_bala(
+                const.MOON, float(ctx.get('sunLon', 0.0)), float(ctx.get('moonLon', 0.0)),
+                moon_double=False)
         else:
             cheshta_for_ik = res['cheshta']['virupa']
         ik = ishta_kashta_phala(
@@ -849,9 +864,14 @@ def compute_all(contexts):
         res['kashta'] = ik['kashta']
         # Vimsopaka 四组 20 分力(P0-8):用 ctx 的 D1 经度/全曜星座/D1 内度。
         try:
+            _vl = ctx.get('d1Lon', ctx.get('lon'))
+            _vd = ctx.get('d1Signlon')
+            if _vd is None and _vl is not None:
+                _vd = float(_vl) % 30.0            # D1 自洽(勿用当前分盘 signlon)
             res['vimsopaka'] = vimsopaka_bala(
-                planet, ctx.get('d1Lon', ctx.get('lon')),
-                ctx.get('planetSigns', {}) or {}, ctx.get('signlon'))
+                planet, _vl,
+                ctx.get('planetSigns', {}) or {}, _vd,
+                variants=ctx.get('vargaVariants'))
         except Exception:
             res['vimsopaka'] = None
         out[planet] = res

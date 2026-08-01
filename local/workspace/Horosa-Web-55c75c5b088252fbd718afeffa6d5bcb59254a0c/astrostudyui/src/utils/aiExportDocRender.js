@@ -183,6 +183,47 @@ function blockToPdfNode(block){
 		wrap.appendChild(el('span', '', `${block.value || ''}`));
 		return wrap;
 	}
+	// 🔴 list/image/hr/code/quote 五型**没有 block.text**,曾一律落到下方兜底 → 生成空 div、
+	// 正文静默消失且不报错。v1 经典格式把每行正文都写成「- xxx」全被解析成 list,
+	// 于是打印 PDF 只剩标题与段头条,而墨迹检测/非空检测照旧通过、还提示「已打开打印窗口」。
+	// docx 与矢量 PDF 两端本就齐全,此处补齐三端一致。
+	if(block.type === 'list'){
+		const items = Array.isArray(block.items) ? block.items : [];
+		const wrap = el('div', 'margin:2px 0;');
+		items.forEach((item)=>{
+			const depth = Math.max(0, Math.min(4, Number(item.depth) || 0));
+			const marker = item.ordered
+				? `${item.marker && /\d/.test(item.marker) ? item.marker : '1.'} `
+				: '· ';
+			wrap.appendChild(el(
+				'div',
+				`font:13px/1.7 ${PDF_FONT};color:#111111;margin:1px 0;padding-left:${12 + depth * 14}px;white-space:pre-wrap;word-break:break-word;`,
+				`${marker}${item.text || ''}`,
+			));
+		});
+		return wrap;
+	}
+	if(block.type === 'code'){
+		return el('div', `font:12px/1.6 "SFMono-Regular",Menlo,Consolas,monospace;color:#333340;background:#f4f4f6;margin:4px 0;padding:6px 8px;white-space:pre-wrap;word-break:break-word;`, block.text || '');
+	}
+	if(block.type === 'quote'){
+		return el('div', `font:italic 13px/1.7 ${PDF_FONT};color:#666666;margin:2px 0;padding-left:12px;border-left:3px solid #dddddd;white-space:pre-wrap;word-break:break-word;`, block.text || '');
+	}
+	if(block.type === 'hr'){
+		return el('div', 'margin:8px 0;border-top:1px solid #dddddd;height:0;');
+	}
+	if(block.type === 'image'){
+		const box = el('div', 'margin:6px 0;');
+		if(block.src){
+			const img = el('img', 'max-width:100%;display:block;');
+			img.setAttribute('src', block.src);
+			if(block.alt){ img.setAttribute('alt', block.alt); }
+			box.appendChild(img);
+		}else if(block.alt){
+			box.appendChild(el('div', `font:italic 12px/1.6 ${PDF_FONT};color:#777777;`, `[图] ${block.alt}`));
+		}
+		return box;
+	}
 	return el('div', `font:13px/1.7 ${PDF_FONT};color:#111111;margin:2px 0;white-space:pre-wrap;word-break:break-word;`, block.text || '');
 }
 

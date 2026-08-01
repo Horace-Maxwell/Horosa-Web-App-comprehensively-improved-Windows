@@ -92,14 +92,14 @@ NAKSHATRA_DATA = [
     },
     {
         'index': 11, 'sanskrit': 'PurvaPhalguni', 'labelCn': '张', 'rangeStart': 133.3333,
-        'lord': 'Venus', 'activity': '平衡', 'varna': '婆罗门', 'facing': '向上',
+        'lord': 'Venus', 'activity': '平衡', 'varna': '婆罗门', 'facing': '向下',
         'windDir': '北', 'gunas': 'TRT', 'purushartha': '欲', 'element': '水',
         'gender': '阴', 'gana': '人', 'bodyPart': '性器官', 'symbol': '床前脚',
         'deity': 'Bhaga', 'yoniAnimal': '鼠',  # 标准补充
     },
     {
         'index': 12, 'sanskrit': 'UttaraPhalguni', 'labelCn': '翼', 'rangeStart': 146.6667,
-        'lord': 'Sun', 'activity': '平衡', 'varna': '刹帝利', 'facing': '向下',
+        'lord': 'Sun', 'activity': '平衡', 'varna': '刹帝利', 'facing': '向上',
         'windDir': '东', 'gunas': 'TRS', 'purushartha': '解脱', 'element': '火',
         'gender': '阴', 'gana': '人', 'bodyPart': '性器官·左手', 'symbol': '床后二脚',
         'deity': 'Aryaman', 'yoniAnimal': '牛',  # 标准补充
@@ -231,3 +231,17 @@ def nakshatra_detail_from_lon(lon):
     value = float(lon) % 360.0
     idx = min(26, int(value / span))
     return NAKSHATRA_DATA[idx]
+
+
+# ── Abhijit(28 宿口径)· 独立常量 ─────────────────────────────────────────
+# 🔴 绝不塞进上面 27 条主表:Vimshottari lord 循环、月宿起运、D9/Pada 全按 27 宿铺排,
+#    主表插一条即全体系错位(test_nakshatra_data.py 断言 27 条 + lord 循环×3 看守)。
+# 边界双文档互证:276°40′00″–280°53′20″(跨 4°13′20″),系 Uttara Ashadha 末 pada(3°20′)
+# + Shravana 前 1/15(0°53′20″);另有资料把止点截成 280°10′53″者系丢 20″之误,勿采。
+# 28 宿序号 22;主神 Vega(织女)。此口径仅用于显示编号与择吉,不参与任何 Dasha/Varga 计算。
+ABHIJIT_ENTRY = {
+    'index28': 22, 'sanskrit': 'Abhijit', 'labelCn': '织女',
+    'rangeStart': 276.0 + 40.0 / 60.0,                    # 276°40′00″
+    'rangeEnd': 280.0 + 53.0 / 60.0 + 20.0 / 3600.0,      # 280°53′20″
+    'deity': 'Brahma', 'symbol': '织女星 Vega', 'note': '28 宿择吉口径专用,不入 Vimshottari/Varga',
+}

@@ -10,13 +10,15 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 import { buildReading } from './engine/reading';
 import { getDeck, listDeckGroups, getDeckCards, DEFAULT_DECK } from './engine/deckRegistry';
-import { displayNameCn, displayNameEn, astroLine } from './engine/cardSchema';
+import { displayNameCn, displayNameEn, astroLine, cardMeaning, correspondenceSuffix } from './engine/cardSchema';
 import { SPREADS, DEFAULT_SPREAD, orientationLabel } from './engine/spreads';
-import { yesNo, quintessence, countingChain, birthCards, yearCard, majorByNumber, synthesizeText } from './engine/verdict';
+import { yesNo, quintessence, countingChain, birthCards, yearCard, majorByNumber, synthesizeText, pairings, timing, clarifier } from './engine/verdict';
 import { buildReadingText } from './engine/reportText';
 import { kingScaleColor } from './engine/colorScales';
 import { cardImageUrl, deckHasRealArt, deckArtIsMajorsOnly } from './engine/cardArt';
-import { SIGN_CN, SUIT_CN, COURT_CN, COURT_ORDER, SUITS } from './decks/correspondences';
+import { SIGN_CN, SUIT_CN, COURT_CN, COURT_ORDER, SUITS, MAJORS_CORR, pathJoin } from './decks/correspondences';
+import { SCALE_META, SCALE_ORDER, scaleColor } from './engine/colorScales';
+import { DUMMETT_ORDERS } from './decks/visconti';
 import { PUBLIC_DOMAIN_ATTRIBUTION } from './decks/meanings78';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
@@ -117,6 +119,7 @@ function settingsFromState(s){
 		reversals: s.useReversals, dignities: s.useDignities, variant: s.variant,
 		showCorrespondences: s.showCorrespondences, sig: s.sig, verdictMode: s.verdictMode,
 		birth: s.birth, question: s.question, artStyle: s.artStyle,
+		meaningSystem: s.meaningSystem, reversalMode: s.reversalMode, suitElementSwap: s.suitElementSwap,
 	};
 }
 
@@ -159,6 +162,10 @@ class TarotMain extends Component{
 			sig: { mode: 'none', gender: 'male', age: 30, sign: '', manualId: 'wands_king' },
 			birth: { year: '', month: '', day: '', refYear: '' },
 			verdictMode: 'majority',
+			meaningSystem: 'manual', // 牌义体系:'manual' 逐牌唯一义(默认主轴) | 'waite' 数字原型×花色派生义
+			reversalMode: 'stored', // 逆位读法:'stored' 预存逆位义(默认) | blocked/internal/opposite/reduced/excess
+			suitElementSwap: false, // 火/风互换(少数派):默认 off
+			dummettOrder: 'C', // 大牌顺序 Dummett A/B/C 区域序(仅 visconti;A/B 切区域特征注记,不重排逐牌)
 			artStyle: 'symbol', // 'symbol' 简约符号(默认,零网络) | 'image' 真实牌面(仅 PD 牌组,onError 回退符号)
 			// [自由起盘] 本地时间地理草稿(null=跟主命盘;非空=用户左栏自选:「出生信息」种子按此时地算,亦入事盘)。
 			localFields: null,
@@ -323,6 +330,43 @@ class TarotMain extends Component{
 	// 统一牌名:塔罗体系按 deck 出各派名;异构牌组(雷诺曼/扑克/Kipper)用其自有 name_cn(否则 displayNameCn 会出 undefined)。
 	cardLabel(card){ if(!card){ return '-'; } return this.caps().readingMethod === 'tarot' ? displayNameCn(card, this.currentDeck()) : card.name_cn; }
 
+	// G6:牌阵连线 SVG（生命树 22 路径 / 凯尔特十字臂 / 关系人物连线 / 金字塔层级引导），置于牌下淡色。
+	renderSpreadLines(reading, geo, spread){
+		const type = reading.spreadType;
+		if(!['tree_of_life', 'celtic', 'celtic6', 'celtic11', 'relation', 'relation7', 'pyramid10'].includes(type)){ return null; }
+		const W = geo.W;
+		const H = geo.H;
+		const px = (p) => ({ x: p.x * W, y: geo.padY + p.y * geo.innerH });
+		const posByI = {};
+		spread.positions.forEach((p) => { posByI[p.i] = p; });
+		const gold = 'var(--horosa-astro-gold, #d7ad69)';
+		const lines = [];
+		const line = (key, a, b, opacity, dash, w) => {
+			if(!a || !b){ return; }
+			const pa = px(a); const pb = px(b);
+			lines.push(<line key={key} x1={pa.x.toFixed(1)} y1={pa.y.toFixed(1)} x2={pb.x.toFixed(1)} y2={pb.y.toFixed(1)} stroke={gold} strokeWidth={w || 1} strokeOpacity={opacity} strokeDasharray={dash || ''} />);
+		};
+		if(type === 'tree_of_life'){
+			MAJORS_CORR.forEach((m, mi) => {
+				const j = pathJoin(m.id, reading.settings && reading.settings.variant);
+				if(!j){ return; }
+				line(`path${mi}`, posByI[j[0]], posByI[j[1]], 0.34, '', 1);
+			});
+		}else if(type === 'celtic' || type === 'celtic6' || type === 'celtic11'){
+			[3, 4, 5, 6].forEach((k) => line(`arm${k}`, posByI[1], posByI[k], 0.24, '3 3', 1));
+		}else if(type === 'relation' || type === 'relation7'){
+			line('r1', posByI[1], posByI[3], 0.3, '3 3', 1);
+			line('r2', posByI[2], posByI[3], 0.3, '3 3', 1);
+		}else if(type === 'pyramid10'){
+			const layers = [[1, 2, 3, 4], [5, 6, 7], [8, 9], [10]];
+			for(let L = 0; L < layers.length - 1; L++){
+				layers[L].forEach((bi) => layers[L + 1].forEach((ti) => line(`py${bi}_${ti}`, posByI[bi], posByI[ti], 0.14, '', 0.6)));
+			}
+		}
+		if(!lines.length){ return null; }
+		return <svg className="horosa-tarot-lines" width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 0 }}>{lines}</svg>;
+	}
+
 	renderCard(draw, compact){
 		const card = draw.card;
 		if(!card){ return null; }
@@ -330,12 +374,11 @@ class TarotMain extends Component{
 		const caps = this.caps();
 		const isTarot = caps.readingMethod === 'tarot';
 		const color = card.suitColor || SUIT_COLOR[card.suit] || SUIT_COLOR.major;
-		const meanings = card.meanings || {};
-		const kwArr = (draw.isReversed ? (meanings.rev || card.keywords_reversed) : (meanings.up || card.keywords_upright)) || [];
+		const kwArr = String(cardMeaning(card, draw.isReversed, this.state.meaningSystem, this.state.reversalMode) || '').split('、');
 		const kw = kwArr.slice(0, compact ? 2 : 3).join('、');
 		const showCorr = isTarot && this.state.showCorrespondences && !compact;
 		const dignity = draw.dignity;
-		const king = caps.colorScale ? kingScaleColor(card) : null;
+		const scaleSwatches = (caps.colorScale && card.arcana === 'major') ? SCALE_ORDER.map((sk) => ({ sk, meta: SCALE_META[sk], c: scaleColor(card, sk) })).filter((x) => x.c) : null;
 		const cnName = isTarot ? displayNameCn(card, deck) : card.name_cn;
 		const enName = isTarot ? displayNameEn(card, deck) : (card.playingCard || card.name_en);
 		const imgUrl = this.state.artStyle === 'image' ? cardImageUrl(this.state.deckId, card) : null;
@@ -351,8 +394,8 @@ class TarotMain extends Component{
 					<span className="horosa-tarot-card-en">{enName}</span>
 				</div>
 				{caps.reversals !== false ? <div className={`horosa-tarot-card-orient${draw.isReversed ? ' is-reversed' : ''}`}>{orientationLabel(draw.isReversed)}</div> : null}
-				{king ? <div className="horosa-tarot-corr" title={`King 色阶 ${king.name}`}><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: king.hex, marginRight: 4, verticalAlign: 'middle' }} />{king.name}</div> : null}
-				{showCorr ? <div className="horosa-tarot-corr">{astroLine(card, deck, this.state.variant)}</div> : null}
+				{scaleSwatches && scaleSwatches.length ? <div className="horosa-tarot-corr horosa-tarot-scales">{scaleSwatches.map((x) => <span key={x.sk} className="horosa-tarot-scale-dot" title={`${x.meta.label}（${x.meta.world}）${x.c.name}`}><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: x.c.hex, verticalAlign: 'middle' }} /></span>)}<span className="horosa-tarot-scale-lbl">四色阶</span></div> : null}
+				{showCorr ? <div className="horosa-tarot-corr">{astroLine(card, deck, this.state.variant)}{correspondenceSuffix(card, this.state.variant)}</div> : null}
 				{dignity ? <div className={`horosa-tarot-dignity is-${dignity.strength === '强' ? 'strong' : dignity.strength === '弱' ? 'weak' : 'neutral'}`} title={dignity.notes}>尊位·{dignity.strength}</div> : null}
 				<div className="horosa-tarot-card-kw">{kw}</div>
 			</div>
@@ -382,6 +425,8 @@ class TarotMain extends Component{
 		if(!reading || !reading.draws || !reading.draws.length){
 			return <div className="horosa-tarot-empty">请选择流派与牌阵并点「抽牌」</div>;
 		}
+		// G7 开钥:中栏走专属分堆视图(四界/十二宫/旬/质点 分区 + 指示牌落点 + 计数链),而非几何散牌。
+		if(reading.spreadType === 'opening_of_key'){ return this.renderOokCenter(reading); }
 		const n = reading.draws.length;
 		const compact = n > 5;
 		// 真实几何:位置带 x/y 且张数 ≤13(凯尔特十字/生命树/十二宫/马蹄铁/关系/croix)→ 绝对定位;否则网格(单/三/年度/GT)。
@@ -393,13 +438,13 @@ class TarotMain extends Component{
 				<div className="horosa-tarot-stage">
 					<div className="horosa-tarot-stage-title">{reading.deckTitle} · {spread.label}</div>
 					{this.renderSignificatorSlot()}
-					<div className="horosa-tarot-geo" style={{ width: geo.W, maxWidth: '100%', height: geo.H, margin: '0 auto', flex: '0 0 auto' }}>
+					<div className="horosa-tarot-geo" style={{ width: geo.W, maxWidth: '100%', height: geo.H, margin: '0 auto', flex: '0 0 auto', position: 'relative' }}>{this.renderSpreadLines(reading, geo, spread)}
 						{reading.draws.map((d, idx) => {
 							const pos = d.position;
 							// 凯尔特十字第2位(交叉牌)与第1位同点→旋转90°叠放(唯一蓄意重叠)
 							const crossing = reading.spreadType === 'celtic' && idx === 1;
 							return (
-								<div key={`geo-${pos.i}-${d.cardId}`} className="horosa-tarot-geo-slot" style={{ left: `${pos.x * 100}%`, top: `${((geo.padY + pos.y * geo.innerH) / geo.H * 100).toFixed(3)}%`, width: geo.slotW, transform: `translate(-50%,-50%)${crossing ? ' rotate(90deg)' : ''}` }}>
+								<div key={`geo-${pos.i}-${d.cardId}`} className="horosa-tarot-geo-slot" style={{ left: `${pos.x * 100}%`, top: `${((geo.padY + pos.y * geo.innerH) / geo.H * 100).toFixed(3)}%`, width: geo.slotW, transform: `translate(-50%,-50%)${crossing ? ' rotate(90deg)' : ''}`, '--deal-i': idx }}>
 									{this.renderCard(d, true)}
 								</div>
 							);
@@ -416,6 +461,58 @@ class TarotMain extends Component{
 				{this.renderSignificatorSlot()}
 				<div className="horosa-tarot-grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
 					{reading.draws.map((d) => this.renderCard(d, compact || n > 13))}
+				</div>
+				<div className="horosa-tarot-attr">{PUBLIC_DOMAIN_ATTRIBUTION}</div>
+			</div>
+		);
+	}
+
+	// G7 开钥专属分堆视图:5 操作各成分区,显指示牌落堆(四界/十二宫/旬/质点)+ 环形计数链(mini 牌面,逆位翻转)。
+	renderOokCenter(reading){
+		const ook = reading && reading.ook;
+		const deck = this.currentDeck();
+		if(!ook){ return <div className="horosa-tarot-empty">开钥仅 Golden Dawn / Thoth 牌组 + 已选指示牌可用；请在左栏选定指示牌。</div>; }
+		if(ook.error){ return <div className="horosa-tarot-empty">{ook.error}</div>; }
+		const sig = reading.significator && reading.significator.card;
+		const miniCard = (item, key, isSig) => {
+			const c = item && item.card;
+			if(!c){ return null; }
+			const color = c.suitColor || SUIT_COLOR[c.suit] || SUIT_COLOR.major;
+			return (
+				<div key={key} className={`horosa-tarot-ook-mini${isSig ? ' is-sig' : ''}`} style={{ borderColor: color }} title={displayNameCn(c, deck)}>
+					<span className="horosa-tarot-ook-mini-sym" style={{ color, transform: item.isReversed ? 'rotate(180deg)' : 'none' }}>{c.symbol}</span>
+					<span className="horosa-tarot-ook-mini-name">{displayNameCn(c, deck)}</span>
+				</div>
+			);
+		};
+		return (
+			<div className="horosa-tarot-stage horosa-tarot-ook-stage">
+				<div className="horosa-tarot-stage-title">{reading.deckTitle} · 开钥五操作（分堆视图）</div>
+				{sig ? <div className="horosa-tarot-ook-sig">指示牌锚点：<b>{displayNameCn(sig, deck)}</b> <span style={{ color: SUIT_COLOR[sig.suit] || SUIT_COLOR.major }}>{sig.symbol}</span></div> : null}
+				<div className="horosa-tarot-ook-zones">
+					{ook.operations.map((op) => (
+						<div key={op.op} className="horosa-tarot-ook-zone">
+							<div className="horosa-tarot-ook-zone-head">
+								<span className="horosa-tarot-ook-badge">操作{op.op}</span>
+								<span className="horosa-tarot-ook-opname">{op.name}</span>
+								<span className="horosa-tarot-ook-pile">→ 落「{op.pileLabel}」· {op.pileSize} 张</span>
+							</div>
+							<div className="horosa-tarot-ook-chain">
+								{(op.chain || []).length ? op.chain.map((it, i) => (
+									<React.Fragment key={i}>
+										{i > 0 ? <span className="horosa-tarot-ook-arrow">›</span> : null}
+										{miniCard(it, i, i === 0)}
+									</React.Fragment>
+								)) : <span className="horosa-tarot-empty" style={{ padding: 0, opacity: 0.6 }}>指示牌未落此堆</span>}
+							</div>
+						</div>
+					))}
+					{ook.op5 ? (
+						<div className="horosa-tarot-ook-zone is-op5">
+							<div className="horosa-tarot-ook-zone-head"><span className="horosa-tarot-ook-badge">操作5</span><span className="horosa-tarot-ook-opname">{ook.op5.name}</span></div>
+							<div className="horosa-tarot-ook-line">{ook.op5.summary}</div>
+						</div>
+					) : null}
 				</div>
 				<div className="horosa-tarot-attr">{PUBLIC_DOMAIN_ATTRIBUTION}</div>
 			</div>
@@ -459,6 +556,9 @@ class TarotMain extends Component{
 				</div>
 
 				</XQSideSection>
+				{/* 「流派简介」整节已移出左栏 —— 左栏不放大段解释(铁律),十四个牌组的
+				    身份/历史/图义/小牌读法/与他派差异,以及四花色对照,改在右上角「帮助」
+				    手册的塔罗页里看(那边直接读同一份数据源,不另抄一份)。 */}
 				<XQSideSection iconName={sideSectionIcon('advanced')} title="高级设置" storageKey="tarot.advanced" className="horosa-side-input-section">
 				{deckHasRealArt(s.deckId) ? (
 					<div className="horosa-tarot-field">
@@ -485,6 +585,38 @@ class TarotMain extends Component{
 					<div className="horosa-tarot-field">
 						<label>字母/路径变体</label>
 						<XQSegmented value={s.variant} onChange={(e) => this.changeSetting({ variant: e.target.value })} options={[{ label: 'A 金色黎明', value: 'A' }, { label: 'B 托特', value: 'B' }, { label: 'C 大陆', value: 'C' }]} />
+					</div>
+				) : null}
+				{caps.readingMethod === 'tarot' ? (
+					<div className="horosa-tarot-field">
+						<label>牌义体系</label>
+						<XQSegmented value={s.meaningSystem || 'manual'} onChange={(e) => this.changeSetting({ meaningSystem: e.target.value })} options={[{ label: '逐牌义', value: 'manual' }, { label: 'Waite 1911', value: 'waite' }]} />
+					</div>
+				) : null}
+				{caps.readingMethod === 'tarot' && caps.reversals !== false && s.useReversals ? (
+					<div className="horosa-tarot-field">
+						<label>逆位读法</label>
+						<Select value={s.reversalMode || 'stored'} onChange={(v) => this.changeSetting({ reversalMode: v })} size="small" style={{ width: '100%' }}>
+							<Option value="stored">预存逆位义</Option>
+							<Option value="blocked">受阻/延迟</Option>
+							<Option value="internal">内化/私密</Option>
+							<Option value="opposite">相反/反义</Option>
+							<Option value="reduced">减弱</Option>
+							<Option value="excess">过度/失衡</Option>
+						</Select>
+					</div>
+				) : null}
+				{caps.readingMethod === 'tarot' ? (
+					// 孤芯片整行铺满(用户定案:半宽会把「火/风互换(少数派)」挤成两行,全宽反省空间)。
+					<div className="horosa-guazhan-toggle-grid horosa-tarot-toggle-grid" style={{ marginTop: 6, gridTemplateColumns: 'minmax(0, 1fr)' }}>
+						<Checkbox checked={!!s.suitElementSwap} onChange={(e) => this.changeSetting({ suitElementSwap: e.target.checked })}>火/风互换(少数派)</Checkbox>
+					</div>
+				) : null}
+				{caps.dummett ? (
+					<div className="horosa-tarot-field">
+						<label>大牌顺序(Dummett 区域序)</label>
+						<XQSegmented value={s.dummettOrder || 'C'} onChange={(e) => this.changeSetting({ dummettOrder: e.target.value })} options={[{ label: 'A 南', value: 'A' }, { label: 'B 东', value: 'B' }, { label: 'C 西', value: 'C' }]} />
+						<div className="horosa-tarot-deckinfo-row" style={{ marginTop: 4, fontSize: 11 }}>{(DUMMETT_ORDERS[s.dummettOrder || 'C'] || {}).note || ''}</div>
 					</div>
 				) : null}
 
@@ -576,8 +708,7 @@ class TarotMain extends Component{
 								<div className="horosa-info-card-title">牌阵直断</div>
 								{draws.map((d) => {
 									if(!d.card){ return null; }
-									const m = d.card.meanings || {};
-									const kw = ((d.isReversed ? m.rev : m.up) || []).slice(0, 4).join('、');
+									const kw = String(cardMeaning(d.card, d.isReversed, this.state.meaningSystem, this.state.reversalMode) || '').split('、').slice(0, 4).join('、');
 									return (<div key={d.position.i} className="horosa-tarot-line"><b>{d.position.label}</b>：{this.cardLabel(d.card)}（{orientationLabel(d.isReversed)}）— {kw}</div>);
 								})}
 								{summary ? <div className="horosa-tarot-line" style={{ marginTop: 6, opacity: 0.85 }}>综合：{synthesizeText(summary)}</div> : null}
@@ -606,14 +737,14 @@ class TarotMain extends Component{
 					<table className="horosa-tarot-table">
 						<thead><tr><th>牌</th>{caps.reversals !== false ? <th>正逆</th> : null}{isTarot ? <th>对应</th> : null}{caps.dignities ? <th>尊位</th> : null}<th>关键义</th></tr></thead>
 						<tbody>{draws.map((d) => {
-							const m = d.card ? (d.card.meanings || {}) : {};
+							const showCorrM = isTarot && this.state.showCorrespondences;
 							return (
 								<tr key={d.position.i}>
 									<td>{d.card ? `${isTarot ? displayNameCn(d.card, deck) : d.card.name_cn}${d.card.symbol}` : '-'}</td>
 									{caps.reversals !== false ? <td className={d.isReversed ? 'is-reversed' : ''}>{orientationLabel(d.isReversed)}</td> : null}
-									{isTarot ? <td className="horosa-tarot-td-corr">{d.card ? astroLine(d.card, deck, this.state.variant) : '-'}</td> : null}
+									{isTarot ? <td className="horosa-tarot-td-corr">{d.card ? `${astroLine(d.card, deck, this.state.variant)}${showCorrM ? correspondenceSuffix(d.card, this.state.variant) : ''}` : '-'}</td> : null}
 									{caps.dignities ? <td>{d.dignity ? d.dignity.strength : '—'}</td> : null}
-									<td>{d.card ? ((d.isReversed ? m.rev : m.up) || []).join('、') : '-'}</td>
+									<td>{d.card ? cardMeaning(d.card, d.isReversed, this.state.meaningSystem, this.state.reversalMode) : '-'}</td>
 								</tr>
 							);
 						})}</tbody>
@@ -623,6 +754,7 @@ class TarotMain extends Component{
 				<TabPane tab="综合" key="synthesis"><FreezeSubTab active={activeKey === 'synthesis'}>{() => this.renderSynthesis(summary)}</FreezeSubTab></TabPane>
 				{caps.readingMethod === 'lenormand' ? <TabPane tab="组合读法" key="lenormand"><FreezeSubTab active={activeKey === 'lenormand'}>{() => this.renderLenormand(reading)}</FreezeSubTab></TabPane> : null}
 				{caps.readingMethod !== 'lenormand' ? <TabPane tab="定局" key="verdict"><FreezeSubTab active={activeKey === 'verdict'}>{() => this.renderVerdict(reading)}</FreezeSubTab></TabPane> : null}
+				{reading && reading.spreadType === 'opening_of_key' ? <TabPane tab="开钥" key="ook"><FreezeSubTab active={activeKey === 'ook'}>{() => this.renderOok(reading)}</FreezeSubTab></TabPane> : null}
 				{isTarot ? <TabPane tab="生命牌" key="birthcards"><FreezeSubTab active={activeKey === 'birthcards'}>{() => this.renderBirthCards()}</FreezeSubTab></TabPane> : null}
 			</Tabs>
 		);
@@ -689,6 +821,7 @@ class TarotMain extends Component{
 					{summary.domElement ? <div className="horosa-tarot-line">主导元素：{summary.domElementCn}（{{ fire: '行动/意志', water: '情感/关系', air: '思维/沟通', earth: '物质/现实' }[summary.domElement]}）</div> : null}
 					<div className="horosa-tarot-line">大牌占比：{pct}%{pct >= 50 ? '（命运/重大主题）' : ''}</div>
 					<div className="horosa-tarot-line">正位 {summary.total - summary.reversed} · 逆位 {summary.reversed}</div>
+					{summary.activePassive ? <div className="horosa-tarot-line">极性：阳(火风) {summary.activePassive.yang} · 阴(水土) {summary.activePassive.yin} → <b>{summary.activePassive.verdict}</b></div> : null}
 					{repKeys.length ? <div className="horosa-tarot-line">重复数字：{repKeys.map((k) => `${k}×${summary.repeats[k]}`).join('、')}（该数字原型被强调）</div> : null}
 				</div>
 			</div>
@@ -702,10 +835,13 @@ class TarotMain extends Component{
 		const v = yesNo(reading.draws, this.state.verdictMode);
 		const quint = quintessence(reading.draws, cards);
 		const chain = countingChain(reading.draws, 0, Math.min(reading.draws.length, 8));
+		const pr = pairings(reading.draws);
+		const cl = this.state.clarifierShown ? clarifier(reading.draws, cards) : null;
+		const pairName = (p) => `${this.cardLabel(p.a)}／${this.cardLabel(p.b)}`;
 		return (
 			<div className="horosa-tarot-reading">
 				<div className="horosa-tarot-field"><label>Yes/No 定局法</label>
-					<XQSegmented value={this.state.verdictMode} onChange={(e) => this.changeVerdictMode(e.target.value)} options={[{ label: '多数', value: 'majority' }, { label: '朝向', value: 'orientation' }, { label: '首牌', value: 'single' }, { label: '极性', value: 'polarity' }]} />
+					<XQSegmented value={this.state.verdictMode} onChange={(e) => this.changeVerdictMode(e.target.value)} options={[{ label: '多数', value: 'majority' }, { label: '朝向', value: 'orientation' }, { label: '首牌', value: 'single' }, { label: '极性', value: 'polarity' }, { label: '数字阈值', value: 'numeric' }]} />
 				</div>
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">Yes / No</div>
@@ -716,9 +852,42 @@ class TarotMain extends Component{
 					<div className="horosa-tarot-line">{quint ? `${displayNameCn(quint, deck)}（${displayNameEn(quint, deck)}）` : '—'}</div>
 				</div>
 				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">牌间关系（相邻／镜像／桥接）</div>
+					{pr.adjacent.length ? <div className="horosa-tarot-line">相邻串：{pr.adjacent.map(pairName).join('　')}</div> : null}
+					{pr.mirror.length ? <div className="horosa-tarot-line">镜像对：{pr.mirror.map(pairName).join('　')}</div> : null}
+					{pr.bridge ? <div className="horosa-tarot-line">桥接（首尾）：{pairName(pr.bridge)}</div> : null}
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">计时 Timing（花色定单位·数字定数量·旬星附日期）</div>
+					{reading.draws.map((d) => d.card ? <div key={d.position.i} className="horosa-tarot-line">{d.position.label}：{this.cardLabel(d.card)} → {timing(d.card)}</div> : null)}
+				</div>
+				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">计数链(线性演示)</div>
 					<div className="horosa-tarot-line">{chain.map((c) => this.cardLabel(c)).join(' → ')}</div>
 				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">澄清牌 Clarifier</div>
+					<Button size="small" onClick={() => this.setState({ clarifierShown: !this.state.clarifierShown })}>{this.state.clarifierShown ? '收起澄清牌' : '抽一张澄清牌'}</Button>
+					{cl ? <div className="horosa-tarot-line" style={{ marginTop: 6 }}>{displayNameCn(cl, deck)}（{displayNameEn(cl, deck)}）— {cardMeaning(cl, false, this.state.meaningSystem, this.state.reversalMode)}</div> : null}
+				</div>
+			</div>
+		);
+	}
+
+	renderOok(reading){
+		const ook = reading && reading.ook;
+		if(!ook){ return <div className="horosa-tarot-empty">开钥仅 Golden Dawn / Thoth 牌组 + 已选指示牌可用；请在左栏选定指示牌。</div>; }
+		if(ook.error){ return <div className="horosa-tarot-empty">{ook.error}</div>; }
+		return (
+			<div className="horosa-tarot-reading">
+				{ook.operations.map((op) => (
+					<div key={op.op} className="horosa-info-card">
+						<div className="horosa-info-card-title">操作{op.op} · {op.name} → 落「{op.pileLabel}」（堆 {op.pileSize} 张）</div>
+						<div className="horosa-tarot-line">计数链：{(op.chain || []).map((it) => this.cardLabel(it.card)).join(' → ') || '—'}</div>
+						<div className="horosa-tarot-line">首尾配对：{(op.pairs || []).slice(0, 5).map((p) => `${this.cardLabel(p.a)}${p.b ? '／' + this.cardLabel(p.b) : '(中心)'}${p.strength ? '·' + p.strength : ''}`).join('　') || '—'}</div>
+					</div>
+				))}
+				{ook.op5 ? <div className="horosa-info-card"><div className="horosa-info-card-title">收束 Op5</div><div className="horosa-tarot-line">{ook.op5.summary}</div></div> : null}
 			</div>
 		);
 	}

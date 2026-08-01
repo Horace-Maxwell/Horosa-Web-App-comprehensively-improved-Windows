@@ -4,7 +4,7 @@ from flatlib import const
 
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 
-PD_SYNC_REV = 'pd_method_sync_v12'
+PD_SYNC_REV = 'pd_method_sync_v15'
 
 
 def includePrimaryDirection(data):
@@ -39,35 +39,53 @@ def getChartDate(date):
     day = parts[2]
     return '{0}/{1}/{2}'.format(year, month, day)
 
-def getMiddleDate(date1, time1, date2, time2):
-    parts1 = date1.split('/')
-    if len(parts1) == 1:
-        parts1 = date1.split('-')
-    tmpart1 = time1.split(':')
-    parts2 = date2.split('/')
-    if len(parts2) == 1:
-        parts2 = date2.split('-')
-    tmpart2 = time2.split(':')
+def getMiddleDate(date1, time1, date2, time2, zone1=None, zone2=None):
+    """时间中点(儒略日算术)。
+    🔴 旧版三病根:①丢时区——两地钟面时直接平均,时差 13h 的配对中点可偏 6.5h(ASC ~97°);
+    ②datetime 承载负年抛 ValueError → BC 盘的时空中点/马克斯盘被上游裸 except 吞成
+    「点了没反应」;③fromtimestamp 按服务器本机时区解释,跨 DST 还会漂。
+    现实现:两端各按自身 zone 归 UT → 取 JD 中点(分钟级取整,旧格式只有 HH:MM)→ 按
+    zone1 口径回落当地。负年沿用「前导负号=负年」编码,swe.julday/revjul 原生支持,
+    输入输出同一历法域(proleptic Gregorian,与旧 datetime 域一致)往返闭合。
+    zone 缺省(旧调用方兼容)= 两端同区假定,行为等于旧版钟面平均(仅去掉 Date 病根)。"""
+    import swisseph as swe
 
-    dt1 = datetime.datetime(int(parts1[0]),
-                           int(parts1[1]),
-                           int(parts1[2]),
-                           int(tmpart1[0]),
-                           int(tmpart1[1]))
-    dt2 = datetime.datetime(int(parts2[0]),
-                           int(parts2[1]),
-                           int(parts2[2]),
-                           int(tmpart2[0]),
-                           int(tmpart2[1]))
-    tm = (dt1.timestamp() + dt2.timestamp()) / 2
-    dt = datetime.datetime.fromtimestamp(tm)
-    date = dt.strftime('%Y/%m/%d')
-    time = dt.strftime('%H:%M')
-    obj = {
-        'date': date,
-        'time': time
+    def _zh(z):
+        try:
+            s = str(z if z is not None else '+00:00').strip()
+            sign = -1.0 if s.startswith('-') else 1.0
+            hp = (s.lstrip('+-').split(':') + ['0'])[:2]
+            return sign * (float(hp[0]) + float(hp[1]) / 60.0)
+        except Exception:
+            return 0.0
+
+    def _parts(d, t):
+        ds = str(d).strip()
+        neg = ds.startswith('-')
+        p = ds.lstrip('-').replace('/', '-').split('-')
+        tp = (str(t).split(':') + ['0', '0'])[:3]
+        return (int(p[0]) * (-1 if neg else 1), int(p[1]), int(p[2]),
+                int(tp[0]), int(tp[1]))
+
+    y1, m1, d1, hh1, mi1 = _parts(date1, time1)
+    y2, m2, d2, hh2, mi2 = _parts(date2, time2)
+    z1, z2 = _zh(zone1), _zh(zone2)
+    jd1 = swe.julday(y1, m1, d1, hh1 + mi1 / 60.0 - z1)
+    jd2 = swe.julday(y2, m2, d2, hh2 + mi2 / 60.0 - z2)
+    jdm = (jd1 + jd2) / 2.0 + z1 / 24.0           # 回落 zone1 当地钟面
+    jdm = round(jdm * 1440.0) / 1440.0            # 分钟级取整
+    yy, mm, dd, ut = swe.revjul(jdm)
+    hh = int(ut + 1e-6)
+    mi = int(round((ut - hh) * 60.0))
+    if mi == 60:
+        yy, mm, dd, ut = swe.revjul(jdm + 30.0 / 86400.0)
+        hh = int(ut + 1e-6)
+        mi = 0
+    return {
+        'date': '%04d/%02d/%02d' % (yy, mm, dd),   # 年补零 4 位与 strftime('%Y') 同宽(AD 1-999 中点盘日期串曾缩成 1-3 位)
+        'time': '%02d:%02d' % (hh, mi),
+        'zone': zone1,
     }
-    return obj
 
 def convertLatStrToDegree(lat):
     # 数值型纬度(十进制度)直接返回;无 n/s 方向字母的十进制字符串亦容错为浮点。
@@ -160,7 +178,12 @@ def getMiddleSpace(lat1, lon1, lat2, lon2):
     londeg2 = convertLonStrToDegree(lon2)
 
     latdeg = (latdeg1 + latdeg2) / 2
-    londeg = (londeg1 + londeg2) / 2
+    # 经度须取短弧中点(纬度值域 ±90 无回绕语义,直接平均即可)。
+    # 🔴 曾直接平均:跨 ±180° 反子午线的配对(如东京+火奴鲁鲁)中点落到地球对侧,
+    # 时空中点/马克斯盘 ASC/十二宫整体错误且无报错——组合盘 chartcomposite 早已
+    # 做了短弧修正,此处是同型第二份实现漂移。
+    d = ((londeg2 - londeg1 + 540.0) % 360.0) - 180.0
+    londeg = ((londeg1 + d / 2.0 + 540.0) % 360.0) - 180.0
     obj = {
         'lat': convertLatToStr(latdeg),
         'lon': convertLonToStr(londeg)
@@ -212,6 +235,21 @@ def getChartObj(data, perchart):
 
     if 'name' in data.keys():
         obj['params']['name'] = data['name']
+
+    # 古典口径键条件回显(请求带了才回显=默认响应字节零变)。
+    # 🔴 为什么是全量 22 键而不只界系三键:前端 AstroExtraCommon.chartParams() 从
+    # chartObj.params 条件透传这批键给全部派生盘(调波/龙盘/重置/推运族/世俗盘,25+ 调用点),
+    # 白名单缺谁,谁在派生链就静默回落后端默认 —— 主盘改「三分集/福点反转/空亡口径/恒星
+    # 容许度/文档序反转…」后派生盘全部与主盘分叉,且缓存键同因丢维不重取。
+    for _vk in ('termsVariant', 'leoBoundFirst', 'geminiBoundEmended',
+                'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer',
+                'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb',
+                'vocMode', 'vocIncludeOuter', 'starOrb', 'starOrbMode',
+                'antisciaOrb', 'viaCombustaVariant',
+                'lotsDocReverse', 'nodeExaltation', 'saturnExalt20',
+                'orbs', 'orbScale'):
+        if data.get(_vk) is not None:
+            obj['params'][_vk] = data.get(_vk)
 
     predictives = getPredictivesObj(data, perchart)
     if predictives is not None:

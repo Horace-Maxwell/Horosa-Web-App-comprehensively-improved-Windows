@@ -76,6 +76,7 @@ class Dwadasamsa12Main extends Component{
 				<AstroChart13
 					endpoint="chart12"
 					onChange={this.onFieldsChange}
+					tripSystem={this.props.tripSystem}
 					fields={fields}
 					height={height}
 					chartStyle={this.props.chartStyle}

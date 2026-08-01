@@ -8,7 +8,7 @@ import * as AstroText from '../../../constants/AstroText';
 describe('[G4] 缩放/刻度', ()=>{
 	test('clampZoom:钳制于上下限,坏值回落下限', ()=>{
 		expect(clampZoom(0)).toBe(TL_ZOOM_MIN);
-		expect(clampZoom(999)).toBe(TL_ZOOM_MAX);
+		expect(clampZoom(99999)).toBe(TL_ZOOM_MAX);
 		expect(clampZoom('x')).toBe(TL_ZOOM_MIN);
 		expect(clampZoom(12)).toBe(12);
 	});

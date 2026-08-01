@@ -1,0 +1,145 @@
+// 三旗盘。旗杆纵列、旗面按吉凶着色;半旗(被 Vedha 遮)= 高度减半 + 虚线 + ⊘。
+.horosa-india-tripataki {
+	margin: 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	width: 100%;
+	max-width: 860px;   // 收宽:超宽栈道旗条+大段空白是丑的根源
+	padding: 8px 4px;
+}
+.horosa-india-tripataki-title {
+	text-align: center;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--horosa-astro-text, #e8ecf3);
+	> em { display: block; font-style: normal; font-weight: 400; font-size: 10.5px; color: var(--horosa-astro-muted, #8fa0b9); margin-top: 2px; }
+}
+.horosa-india-tripataki-center-switch {
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	margin: -2px 0 2px;
+}
+.horosa-india-tripataki-flags {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+	align-items: start;
+}
+.horosa-india-tripataki-flag {
+	// 旗组卡片化:淡金边浅衬,空白不再裸露
+	padding: 10px 10px 12px;
+	border: 1px solid rgba(215, 173, 105, 0.22);
+	border-radius: 10px;
+	background: linear-gradient(180deg, rgba(215, 173, 105, 0.05), transparent 65%);
+}
+.horosa-india-tripataki-flag-head {
+	text-align: center;
+	font-size: 11.5px;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	color: var(--horosa-astro-gold, #d7ad69);
+	margin: 0 auto 8px;
+	padding: 1px 12px;
+	width: fit-content;
+	border: 1px solid rgba(215, 173, 105, 0.4);
+	border-radius: 9px;
+	background: rgba(215, 173, 105, 0.07);
+}
+.horosa-india-tripataki-flag-pole {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-height: 72px;
+	padding: 6px 4px 6px 10px;
+	border-left: 3px solid transparent;
+	border-image: linear-gradient(180deg, #d7ad69 0%, rgba(215, 173, 105, 0.25) 100%) 1;
+	&::before {
+		content: '';
+		position: absolute;
+		left: -6px;
+		top: -5px;
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background: linear-gradient(145deg, #e3c27e, #b8963e);
+		box-shadow: 0 1px 2px rgba(140, 110, 40, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+	}
+}
+.horosa-india-tripataki-banner {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 16px 4px 9px;
+	height: 28px;
+	// 真旗形:右端燕尾剪裁
+	clip-path: polygon(0 0, 100% 0, ~"calc(100% - 9px)" 50%, 100% 100%, 0 100%);
+	border: none;
+	border-left: 3px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.5));
+	background: linear-gradient(90deg, rgba(215, 173, 105, 0.16), rgba(215, 173, 105, 0.05));
+	font-size: 12px;
+	color: var(--horosa-astro-text, #e8ecf3);
+	transition: filter 0.15s ease;
+	&:hover { filter: brightness(1.06); }
+	&.is-good {
+		border-left-color: var(--horosa-jx-ji, #4caf7d);
+		background: linear-gradient(90deg, rgba(76, 175, 125, 0.22), rgba(76, 175, 125, 0.06));
+	}
+	&.is-bad {
+		border-left-color: var(--horosa-jx-xiong, #d77b7b);
+		background: linear-gradient(90deg, rgba(215, 123, 123, 0.2), rgba(215, 123, 123, 0.05));
+	}
+	// 半旗:吉位被 Vedha 遮 —— 高度减半 + 金色虚线 + ⊘(三旗盘最有表现力的视觉)
+	&.is-blocked {
+		height: 15px;
+		padding: 1px 8px;
+		border-style: dashed;
+		border-color: var(--horosa-astro-gold, #d7ad69);
+		background: rgba(215, 173, 105, 0.08);
+	}
+}
+.horosa-india-tripataki-glyph { font-weight: 700; }
+.horosa-india-tripataki-house { color: var(--horosa-astro-muted, #8fa0b9); font-size: 10.5px; }
+.horosa-india-tripataki-veto { margin-left: auto; color: var(--horosa-astro-gold, #d7ad69); }
+.horosa-india-tripataki-emptyflag { text-align: center; color: var(--horosa-astro-muted, #8fa0b9); opacity: 0.6; }
+.horosa-india-tripataki-months {
+	display: grid;
+	grid-template-columns: repeat(12, 1fr);
+	gap: 4px;
+}
+.horosa-india-tripataki-month {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1px;
+	padding: 4px 0;
+	border-radius: 8px;
+	border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+	background: transparent;
+	cursor: pointer;
+	transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+	> strong { font-size: 12px; line-height: 1.2; color: var(--horosa-astro-text, #e8ecf3); }
+	> em { font-style: normal; font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); }
+	&.is-good > em { color: var(--horosa-jx-ji, #4caf7d); font-weight: 600; }
+	&.is-bad > em { color: var(--horosa-jx-xiong, #d77b7b); font-weight: 600; }
+	&:hover { border-color: rgba(215, 173, 105, 0.8); transform: translateY(-1px); }
+	&.is-active {
+		border-color: rgba(140, 110, 40, 0.9);
+		background: linear-gradient(180deg, #cfa952 0%, #a9873a 100%);
+		box-shadow: 0 1px 3px rgba(140, 110, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+		> strong { color: #fff; }
+		> em { color: rgba(255, 255, 255, 0.9); }
+		&.is-good > em, &.is-bad > em { color: #fff; }
+	}
+}
+.horosa-india-tripataki-note {
+	text-align: center;
+	font-size: 10.5px;
+	line-height: 1.5;
+	color: var(--horosa-astro-muted, #8fa0b9);
+}
+// 暗/亮双前缀(特异度对齐)
+:root[data-horosa-appearance='light'] .horosa-india-tripataki-banner { color: var(--horosa-astro-text, #2a2f3a); }
+:root[data-horosa-appearance='light'] .horosa-india-tripataki-month > strong { color: var(--horosa-astro-text, #2a2f3a); }

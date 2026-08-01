@@ -55,7 +55,9 @@ public class PredictiveController {
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
 		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
-		params.put("_wireRev", "pd_method_sync_v12");
+		params.put("_wireRev", spacex.basecomm.constants.PdWire.REV);
+		// 运行时版本闸(与 /chart 同款):runtime payload 换版后旧 PD 持久化缓存自动失效。
+		params.put("_runtimeVer", spacex.basecomm.constants.RuntimeWire.RUNTIME_VERSION);
 		params.put("hsys", TransData.getValueAsInt("hsys", 0));
 		params.put("tradition", TransData.getValueAsBool("tradition", false));
 		params.put("predictive", TransData.getValueAsBool("predictive", false));
@@ -92,6 +94,35 @@ public class PredictiveController {
 		}
 		if(TransData.containsParam("pdYears")) {
 			params.put("pdYears", TransData.get("pdYears"));
+		}
+		// 主限法 P0 补齐:投影×定局解耦/平行/框架/自定义钥匙/S·P 清单/界系变体。
+		// 缺省不下发 → 不进 params → Python 走默认路径,零缓存影响、零回归。
+		if(TransData.containsParam("pdProjection")) {
+			params.put("pdProjection", TransData.get("pdProjection"));
+		}
+		if(TransData.containsParam("pdFrame")) {
+			params.put("pdFrame", TransData.get("pdFrame"));
+		}
+		if(TransData.containsParam("pdParallel")) {
+			params.put("pdParallel", TransData.get("pdParallel"));
+		}
+		if(TransData.containsParam("pdRaptParallel")) {
+			params.put("pdRaptParallel", TransData.get("pdRaptParallel"));
+		}
+		if(TransData.containsParam("pdFramework")) {
+			params.put("pdFramework", TransData.get("pdFramework"));
+		}
+		if(TransData.containsParam("pdTimeKeyCustom")) {
+			params.put("pdTimeKeyCustom", TransData.get("pdTimeKeyCustom"));
+		}
+		if(TransData.containsParam("pdSignificators")) {
+			params.put("pdSignificators", TransData.get("pdSignificators"));
+		}
+		if(TransData.containsParam("pdPromissorTypes")) {
+			params.put("pdPromissorTypes", TransData.get("pdPromissorTypes"));
+		}
+		if(TransData.containsParam("termsVariant")) {
+			params.put("termsVariant", TransData.get("termsVariant"));
 		}
 		if(TransData.containsParam("startSign")) {
 			params.put("startSign", TransData.get("startSign"));
@@ -227,6 +258,14 @@ public class PredictiveController {
 	public void pd3d(){
 		Map<String, Object> params = getParams();
 		Map<String, Object> res = AstroHelper.getPrimaryDirection3D(params);
+		TransData.set(res);
+	}
+
+	@ResponseBody
+	@RequestMapping("/pdpoles")
+	public void pdpoles(){
+		Map<String, Object> params = getParams();
+		Map<String, Object> res = AstroHelper.getPrimaryDirectionPoles(params);
 		TransData.set(res);
 	}
 	

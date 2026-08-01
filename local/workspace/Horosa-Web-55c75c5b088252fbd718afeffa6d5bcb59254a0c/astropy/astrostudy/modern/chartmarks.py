@@ -6,7 +6,8 @@ class ChartMarks:
 
     def __init__(self, inner, outer):
         middata = inner.copy()
-        dt = helper.getMiddleDate(inner['date'], inner['time'], outer['date'], outer['time'])
+        dt = helper.getMiddleDate(inner['date'], inner['time'], outer['date'], outer['time'],
+                                  inner.get('zone'), outer.get('zone'))
         middata['date'] = dt['date']
         middata['time'] = dt['time']
 
@@ -24,7 +25,9 @@ class ChartMarks:
         self.outerData['predictive'] = False
         self.outerData['tradition'] = False
 
-        dt = helper.getMiddleDate(self.innerData['date'], self.innerData['time'], middata['date'], middata['time'])
+        # middata 时刻按 inner 区口径表达(首次中点回落 zone1=inner),故 zone2 传 inner 区
+        dt = helper.getMiddleDate(self.innerData['date'], self.innerData['time'], middata['date'], middata['time'],
+                                  self.innerData.get('zone'), self.innerData.get('zone'))
         self.innerData['date'] = dt['date']
         self.innerData['time'] = dt['time']
 
@@ -32,7 +35,8 @@ class ChartMarks:
         self.innerData['lat'] = pos['lat']
         self.innerData['lon'] = pos['lon']
 
-        dt = helper.getMiddleDate(self.outerData['date'], self.outerData['time'], middata['date'], middata['time'])
+        dt = helper.getMiddleDate(self.outerData['date'], self.outerData['time'], middata['date'], middata['time'],
+                                  self.outerData.get('zone'), self.innerData.get('zone'))
         self.outerData['date'] = dt['date']
         self.outerData['time'] = dt['time']
 

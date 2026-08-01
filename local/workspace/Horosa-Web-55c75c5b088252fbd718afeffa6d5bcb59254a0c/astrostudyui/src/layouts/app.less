@@ -338,7 +338,9 @@
     }
 
     .ant-layout {
-        min-height: 100vh;
+        /* 🔴 勿用 100vh:壳级 CSS zoom 补偿域里 vh 不缩放,会把布局链钉回物理视口
+           (缩放≠1 时底部空带/内层溢出)。100% 沿 body 补偿链传导,1:1 时与 100vh 等值。 */
+        min-height: 100%;
     }
 
     .horosa-workspace-shell {
@@ -557,6 +559,13 @@
         stroke: none !important;
         paint-order: fill;
     }
+
+    // 占星地图·本地空间罗盘盘面:同上——全局给 svg text 加深色描边,盘面 glyph/方位字/度数都被描边。
+    .horosa-workspace-shell .horosa-acg-dial-panel svg text,
+    .horosa-workspace-shell .horosa-acg-dial-panel svg tspan {
+        stroke: none !important;
+        paint-order: fill;
+    }
     /* 年龄轴 Select 下拉浮层 portal 到 body(不在 pdsphere-chrome 内)——恒暗底亮字,不随亮色主题变浅。 */
     .horosa-pdsphere-dark-pop.ant-select-dropdown {
         background: #0b1120 !important;
@@ -572,6 +581,89 @@
     .horosa-pdsphere-dark-pop .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
         background: rgba(216, 171, 82, 0.22);
         color: #ffffff;
+    }
+
+    /* ── 主限天球「扩展」(应星/迫星)弹层:恒暗底亮字,与工具条/时间轴/年龄轴下拉同域同皮肤 ──
+       🔴 病理(用户实测「字体太淡看不清」):该 Popover 用 getPopupContainer 挂进 .horosa-pdsphere-chrome,
+       于是面板里的 antd Checkbox —— 它的 .ant-checkbox-wrapper **本身就是个 <label>** —— 被上面那条
+       「工具条恒暗底亮字」的 `.horosa-pdsphere-chrome label{color:#c8d4e8}` 命中拿到浅蓝灰字;
+       而弹层自身的皮肤走通用 popover 规则 = var(--horosa-surface-raised)(亮色主题下近白)
+       → **白底 + #c8d4e8 浅字**,实测几乎完全不可见。
+       容器级颜色规则 + portal 进该容器的独立皮肤浮层 = 必然失配,这是通用形态而非个案。
+       修法取「弹层归入暗底域」而不是「把字改深」:它是从暗底工具条按钮弹出、盖在永远暗底的星空画布上
+       的浮层,与年龄轴下拉(已有 .horosa-pdsphere-dark-pop 恒暗底)同一视觉域;且恒暗=亮/暗主题下
+       用户看到的都一样,不随主题漂移。色值全部复用既有暗底浮层那套,不自创。
+       特异度:本块用 .horosa-workspace-shell 前缀顶到 (0,3,0),压过工具条那条 (0,2,1)
+       —— 结果虽同为 #c8d4e8,但要**显式**拿到,不靠"恰好被误命中"。 */
+    .horosa-pdsphere-ext-pop .ant-popover-inner {
+        background: #0b1120 !important;
+        border: 1px solid rgba(150, 170, 205, 0.35);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    }
+    .horosa-pdsphere-ext-pop .ant-popover-arrow-content,
+    .horosa-pdsphere-ext-pop .ant-popover-arrow::before {
+        background: #0b1120 !important;
+    }
+    .horosa-pdsphere-ext-pop .ant-popover-inner-content {
+        color: #c8d4e8;
+    }
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox-wrapper,
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop label {
+        color: #c8d4e8;
+    }
+    /* 组标题比选项更亮一档,形成层级(暗底上 #c8d4e8 已是正文色,标题再提亮) */
+    .horosa-pdsphere-ext-pop .horosa-pdsphere-ext-head {
+        color: #e8eefb;
+    }
+    /* 「全选 | 清空」:antd 默认蓝在暗底偏暗且与金色主色不协 → 走项目金色 accent。
+       特异度 (0,2,1) 高于下面 theme 档的 .horosa-pd-ext-link (0,1,0),故 dark 档取亮金。 */
+    .horosa-pdsphere-ext-pop .ant-popover-inner-content a {
+        color: #d8ab52;
+    }
+    .horosa-pdsphere-ext-pop .ant-popover-inner-content a:hover {
+        color: #f0c877;
+    }
+
+    /* 扩展面板 theme 档(表格 pane,跟随主题)的「全选 | 清空」。
+       🔴 为什么不留 antd 默认蓝:实测那个蓝(#1890ff)在本面板的白底上只有 3.24:1,
+       不达 WCAG AA 的 4.5 —— 属"能看见但费劲"。改走 --horosa-accent-strong:
+       亮色主题实测 6.75:1,且暗色主题下该 token 自身变亮,无需再写一档。
+       特异度 (0,1,0):压过 antd 的 `a`(0,0,1),又让位给上面 dark 档的 (0,2,1)。 */
+    .horosa-pd-ext-link {
+        color: var(--horosa-accent-strong);
+    }
+    .horosa-pd-ext-link:hover {
+        color: var(--horosa-accent);
+    }
+    /* 勾选框本体:antd 自绘 .ant-checkbox-inner 默认白底浅边,暗底上突兀 → 暗底亮边 + 金色选中。
+       🔴 必须带 .horosa-workspace-shell 前缀:本文件后段(约 6680 行)有
+       `.horosa-workspace-shell .ant-checkbox-inner{…var(--horosa-panel-soft)}`,与不带前缀的写法
+       **同特异度 (0,2,0) 但源码更靠后 → 它赢**(实测勾选框被染成浅底 rgba(242,247,254,.78))。
+       加前缀顶到 (0,3,0) 才拿得到;选中态同理顶到 (0,4,0)。 */
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox-inner {
+        background-color: rgba(255, 255, 255, 0.08);
+        border-color: rgba(150, 170, 205, 0.6);
+    }
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox-wrapper:hover .ant-checkbox-inner,
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox:hover .ant-checkbox-inner {
+        border-color: #d8ab52;
+    }
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox-checked .ant-checkbox-inner {
+        background-color: #d8ab52;
+        border-color: #d8ab52;
+    }
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox-checked .ant-checkbox-inner::after {
+        border-color: #101725;
+    }
+    .horosa-workspace-shell .horosa-pdsphere-ext-pop .ant-checkbox-checked::after {
+        border-color: #d8ab52;
+    }
+    /* 预防同类:今后任何**未自带皮肤**的浮层 portal 进 pdsphere-chrome 时,其 label 跟随浮层自身
+       主题色,而不是继承工具条的暗底假设(白底浮层再也不会拿到浅字)。已自带暗底皮肤的两个
+       弹层显式排除。特异度 (0,4,1) 压过工具条那条 (0,2,1)。 */
+    .horosa-workspace-shell .horosa-pdsphere-chrome .ant-popover:not(.horosa-pdsphere-ext-pop) label,
+    .horosa-workspace-shell .horosa-pdsphere-chrome .ant-dropdown:not(.horosa-pdsphere-dark-pop) label {
+        color: var(--horosa-text);
     }
 
     .horosa-workspace-shell .ant-tabs-tab:hover,
@@ -2859,6 +2951,85 @@
         font-size: 32px;
     }
 
+    /* ── 流派实时标记层(P0):喜用描边提亮 / 忌降饱和 / 盲派宾主签 / 顶部流派徽标条 ── */
+    .horosa-workspace-shell .horosa-bazi-fine-glyph.is-yong {
+        filter: brightness(1.12);
+        background: linear-gradient(transparent 84%, color-mix(in srgb, var(--horosa-accent) 60%, transparent) 84%);
+        border-radius: 3px;
+        text-shadow: 0 0 18px color-mix(in srgb, var(--horosa-accent) 38%, transparent), 0 10px 26px rgba(0, 0, 0, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-glyph.is-ji {
+        filter: saturate(0.35);
+        opacity: 0.62;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 10px;
+        margin: 0 0 6px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.22));
+        background: color-mix(in srgb, var(--horosa-accent) 5%, transparent);
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-name {
+        font-weight: 800;
+        color: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-xi {
+        color: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-ji {
+        color: var(--horosa-text-secondary);
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 55%, transparent);
+        text-decoration-thickness: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-role {
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-role-tag {
+        font-style: normal;
+        font-size: 10px;
+        line-height: 15px;
+        padding: 0 5px;
+        margin-left: 4px;
+        border-radius: 7px;
+        vertical-align: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-role-tag.is-zhu {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-role-tag.is-bin {
+        color: var(--horosa-text-secondary);
+        border: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.28));
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-cur {
+        font-style: normal;
+        font-size: 10px;
+        line-height: 15px;
+        padding: 0 5px;
+        margin-right: 5px;
+        border-radius: 7px;
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent);
+        background: color-mix(in srgb, var(--horosa-accent) 9%, transparent);
+    }
+
     .horosa-workspace-shell .horosa-bazi-fine-relation-row {
         min-height: 28px;
         padding: 2px 0;
@@ -3548,6 +3719,108 @@
         font-size: 11px;
         line-height: 1.5;
         opacity: 0.82;
+    }
+
+    /* 三维分列(得令/得地/得势)胶囊行:得=金调、失/不得=弱化;悬浮展开逐维明细 */
+    .horosa-workspace-shell .horosa-bazi-wuxing-dims {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+        cursor: help;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-dim-pill {
+        font-size: 11px;
+        line-height: 18px;
+        padding: 0 8px;
+        border-radius: 9px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-dim-pill.is-got {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent);
+        background: color-mix(in srgb, var(--horosa-accent) 10%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-dim-pill.is-miss {
+        color: var(--horosa-text-secondary);
+        border: 1px dashed var(--horosa-border);
+        opacity: 0.85;
+    }
+
+    /* 成败救应徽章行:成格金/破格红/败中复成青/待复核灰 */
+    .horosa-workspace-shell .horosa-bazi-chengbai {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: -2px 0 8px 40px;
+        font-size: 12px;
+        line-height: 1.55;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai strong {
+        flex: none;
+        font-size: 11px;
+        line-height: 18px;
+        padding: 0 8px;
+        border-radius: 9px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai span {
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-cheng strong {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent);
+        background: color-mix(in srgb, var(--horosa-accent) 10%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-bai strong {
+        color: var(--horosa-jx-xiong, #c0392b);
+        border: 1px solid color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 45%, transparent);
+        background: color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 9%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-jiu strong {
+        color: var(--horosa-jx-ji, #1f8a70);
+        border: 1px solid color-mix(in srgb, var(--horosa-jx-ji, #1f8a70) 45%, transparent);
+        background: color-mix(in srgb, var(--horosa-jx-ji, #1f8a70) 9%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-hold strong {
+        color: var(--horosa-text-secondary);
+        border: 1px dashed var(--horosa-border);
+    }
+
+    /* 虚邀杂格真假小签 */
+    .horosa-workspace-shell .horosa-bazi-zage-q {
+        font-style: normal;
+        font-size: 10px;
+        line-height: 15px;
+        padding: 0 5px;
+        margin-left: 5px;
+        border-radius: 7px;
+        vertical-align: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-zage-q.is-zhen {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-zage-q.is-jia {
+        color: var(--horosa-jx-xiong, #c0392b);
+        border: 1px solid color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 40%, transparent);
+        opacity: 0.9;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-zage-q.is-hold {
+        color: var(--horosa-text-secondary);
+        border: 1px dashed var(--horosa-border);
     }
 
     .horosa-workspace-shell .horosa-bazi-geju-row {
@@ -6462,9 +6735,19 @@
         box-shadow: 0 1px 0 rgba(218, 177, 111, 0.16) !important;
     }
 
+    /* 🔴 全高档高度锚:勿用 calc(100vh - 72px)——App 壳有页面缩放持久化,WKWebView zoom 下
+       vh 与真实视口错位,写死 vh 会比实际可用高 → 整页可上下滚,底部时间轴等贴底件被滚出视口
+       (用户真机实告;preview 无缩放故复现不出)。改 100% 沿 .horosa-main-spin 链传导,
+       顶端锚 = 页面根的 JS 实测数值高(zoom 稳健)。 */
+    .horosa-workspace-shell .horosa-main-spin,
+    .horosa-workspace-shell .horosa-main-spin > .ant-spin-container {
+        height: 100%;
+        min-height: 0;
+    }
+
     .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active {
-        height: calc(100vh - 72px) !important;
-        max-height: calc(100vh - 72px) !important;
+        height: 100% !important;
+        max-height: 100% !important;
         border-color: rgba(218, 177, 111, 0.16);
         border-radius: 0;
         background: #050607;
@@ -6472,8 +6755,8 @@
     }
 
     .horosa-workspace-shell .mainRootTabs.horosa-bazi-shell-active {
-        height: calc(100vh - 72px) !important;
-        max-height: calc(100vh - 72px) !important;
+        height: 100% !important;
+        max-height: 100% !important;
     }
 
     .horosa-workspace-shell .mainRootTabs.horosa-bazi-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
@@ -7069,6 +7352,34 @@
         box-shadow: none !important;
     }
 
+    /* 占星地图「图层与设置」抽屉 portal 出 workspace-shell 作用域 → 上面金色 segmented CSS 不到位
+       → 落回 antd 默认蓝。此处在抽屉内补：①选中态统一金色(与全站一致);②所有 Segmented 外框
+       等宽(固定 220px + flex 分段)——内部分段数不同但外框对齐,视觉更统一。 */
+    .horosa-acg-drawer .xq-segmented.ant-radio-group {
+        width: 220px;
+        max-width: 100%;
+        display: flex;
+    }
+    .horosa-acg-drawer .xq-segmented .ant-radio-button-wrapper {
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+        padding-left: 4px;
+        padding-right: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .horosa-acg-drawer .xq-segmented .ant-radio-button-wrapper-checked {
+        border-color: var(--horosa-astro-gold, #d7ad69) !important;
+        background: var(--horosa-astro-gold, #d7ad69) !important;
+        color: #1b1206 !important;
+        box-shadow: none !important;
+    }
+    .horosa-acg-drawer .xq-segmented .xq-segmented-thumb {
+        background: var(--horosa-astro-gold, #d7ad69) !important;
+    }
+
     .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-style-block {
         gap: 5px;
         padding-top: 0;
@@ -7528,6 +7839,14 @@
         align-items: start;
         color: var(--horosa-astro-muted);
         font-size: 13px;
+    }
+
+    // 标签列(span)防叠保底:超 84px 的长标签(拉丁术语)在列内折行,绝不溢出叠到值列。
+    .horosa-workspace-shell .horosa-info-row > span:first-child {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
 
     .horosa-workspace-shell .horosa-info-row strong {
@@ -8852,6 +9171,26 @@
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
     }
 
+    /* 🔴 星运页 tabs 内容链定高(照 3d-tabs 先例):tabpane 高 auto 时子组件的
+       maxHeight:100% 按 CSS2.1 视作 none(零钳制),上游任何高度误差都会把主限天球
+       钉底时间轴顶出可视区并给出可滚空间。以容器实高接管。 */
+    .horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+    /* pane 层是全部子页的合法纵滚出路(推运等流式超高子页以前只能靠病态页面滚动看
+       下半截,那个滚动被守卫锁死后必须给正路):定高子页(主限天球等)内容恒=pane 高,
+       无滚动空间=行为不变;横向仍锁死。守卫按方向合法性放行 overflow-y:auto。 */
+    .horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
     .horosa-workspace-shell .horosa-bazi-inspector-panel,
     .horosa-workspace-shell .horosa-ziwei-inspector-panel,
     .horosa-workspace-shell .horosa-guolao-page > .ant-row > .ant-col:last-child,
@@ -9631,15 +9970,34 @@
 
     /* [紫微显示项=六爻同款芯片] 去外框,2 列等宽芯片,选中态描金——与六爻显示项(horosa-guazhan-toggle-grid)一致。
        一行两个(允许提示/显示杂曜),末项(显示十二神)独占次行满宽,免「显示十二神」四字折行;与上方四化流派下拉留 10px 安全距离。 */
+    /* 流派叠层·显示(手册补齐)复用同款描金芯片,与「显示项」按钮统一样式;一行一个选项(单列)。 */
     .horosa-workspace-shell .horosa-ziwei-option-card {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px 8px;
         margin-top: 10px;
     }
+    .horosa-workspace-shell .horosa-ziwei-overlay-card {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 5px;
+        margin-top: 10px;
+    }
     .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper:nth-child(3) { grid-column: ~"1 / -1"; }
+    .horosa-workspace-shell .horosa-ziwei-overlay-card .horosa-ziwei-select-field { margin: 0; }
 
-    .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper {
+    /* 八字「神煞分组」并列共享本卡片规则族(容器 grid 在下方单独定义,field-label 跨整行) */
+    .horosa-workspace-shell .horosa-bazi-shensha-groups {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 8px;
+        margin-top: 10px;
+    }
+    .horosa-workspace-shell .horosa-bazi-shensha-groups .horosa-field-label { grid-column: ~"1 / -1"; margin-bottom: 0; }
+
+    .horosa-workspace-shell .horosa-bazi-shensha-groups .ant-checkbox-wrapper,
+    .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper,
+    .horosa-workspace-shell .horosa-ziwei-overlay-card .ant-checkbox-wrapper {
         display: inline-flex;
         align-items: center;
         min-height: 32px;
@@ -9652,16 +10010,112 @@
         font-size: 13px;
         transition: background-color 0.18s ease, border-color 0.18s ease;
     }
-    .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper-checked {
+    .horosa-workspace-shell .horosa-bazi-shensha-groups .ant-checkbox-wrapper-checked,
+    .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper-checked,
+    .horosa-workspace-shell .horosa-ziwei-overlay-card .ant-checkbox-wrapper-checked {
         border-color: var(--horosa-accent);
         background: color-mix(in srgb, var(--horosa-accent) 13%, transparent);
     }
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper {
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-shensha-groups .ant-checkbox-wrapper,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-overlay-card .ant-checkbox-wrapper {
         border-color: var(--horosa-border);
         color: var(--horosa-text);
         background: rgba(255, 255, 255, 0.58);
     }
-    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper-checked {
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-shensha-groups .ant-checkbox-wrapper-checked,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper-checked,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-ziwei-overlay-card .ant-checkbox-wrapper-checked {
+        border-color: var(--horosa-accent);
+        background: color-mix(in srgb, var(--horosa-accent) 10%, var(--horosa-surface-solid));
+    }
+
+    /* 卜卦左栏布尔项：紫微同款描金勾选芯片。自适应两列(用户定版 2026-07-23 终稿):
+       短标签(≤7 字,窄栏两列放得下不截断)一行两个省空间;长标签(≥8 字)由 JS 加
+       .horosa-chip-full 独占整行——按构造保证永不截断。 */
+    .horosa-workspace-shell .horosa-horary-option-card {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-flow: dense;   /* 半宽芯片被整行项隔开时回填空位拼成一行(用户 2026-07-23 指定) */
+        gap: 6px 8px;
+        margin-top: 10px;
+    }
+    .horosa-workspace-shell .horosa-horary-option-card .horosa-chip-full {
+        grid-column: ~"1 / -1";   /* ⚠ LESS 会把 1 / -1 当除法,必须 ~"…" 转义(紫微/本轮双前科) */
+    }
+    .horosa-workspace-shell .horosa-horary-option-card .ant-checkbox-wrapper {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        margin: 0;
+        padding: 5px 8px;
+        border: 1px solid rgba(215, 173, 105, 0.13);
+        border-radius: 7px;
+        color: var(--horosa-astro-text);
+        background: rgba(255, 255, 255, 0.012);
+        font-size: 12.5px;
+        line-height: 1.4;
+        transition: background-color 0.18s ease, border-color 0.18s ease;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-horary-option-card .ant-checkbox-wrapper > span:last-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;   /* 保险层:分档规则下短标签必放得下,此处只防极端窄窗 */
+    }
+    /* 判读参数网格:字段标签与上下控件留安全距(行距 14px,标签自带 5px 下距)。 */
+    .horosa-workspace-shell .horosa-horary-param-grid {
+        gap: 14px 7px;
+        margin-top: 8px;
+    }
+    .horosa-workspace-shell .horosa-horary-param-grid .horosa-field-label {
+        margin-bottom: 5px;
+    }
+
+    /* 相位表「正相位(partile)」徽章:按全局判据(星盘组件)标记,金底小胶囊。 */
+    .horosa-workspace-shell .horosa-aspect-partile {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 5px;
+        margin-left: 4px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.7;
+        color: var(--horosa-on-accent, #fff);
+        background: var(--horosa-accent);
+        flex: 0 0 auto;
+    }
+
+    /* 卜卦左栏统一垂直节奏(用户两次反馈「小标题挤在一起」):分块间 12px、字段标签下距 5px、
+       两列网格行距 12px;网格内块自身不再叠加下距(双倍间距会稀碎)。作用域限卜卦页左栏,不扰他技法。 */
+    .horosa-workspace-shell .horosa-horary-page .horosa-side-input-section .horosa-field-block {
+        margin-bottom: 12px;
+    }
+    .horosa-workspace-shell .horosa-horary-page .horosa-side-input-section .horosa-field-grid {
+        margin-bottom: 12px;
+        row-gap: 12px;
+    }
+    .horosa-workspace-shell .horosa-horary-page .horosa-side-input-section .horosa-field-grid .horosa-field-block {
+        margin-bottom: 0;
+    }
+    .horosa-workspace-shell .horosa-horary-page .horosa-side-input-section .horosa-field-label {
+        margin-bottom: 5px;
+    }
+    .horosa-workspace-shell .horosa-horary-page .horosa-horary-option-card {
+        margin-top: 10px;
+        margin-bottom: 4px;
+    }
+    .horosa-workspace-shell .horosa-horary-option-card .ant-checkbox-wrapper-checked {
+        border-color: var(--horosa-accent);
+        background: color-mix(in srgb, var(--horosa-accent) 13%, transparent);
+    }
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-horary-option-card .ant-checkbox-wrapper {
+        border-color: var(--horosa-border);
+        color: var(--horosa-text);
+        background: rgba(255, 255, 255, 0.58);
+    }
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-horary-option-card .ant-checkbox-wrapper-checked {
         border-color: var(--horosa-accent);
         background: color-mix(in srgb, var(--horosa-accent) 10%, var(--horosa-surface-solid));
     }
@@ -10932,6 +11386,162 @@
         gap: 8px;
     }
 
+    // ── 印占·流派与算法折叠面板(21 开关 5 组 · 一行两项网格)──────────
+    .horosa-india-variant-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .horosa-india-variant-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));   // 恒两列(用户定版:一行两个)
+        column-gap: 8px;
+        row-gap: 6px;
+        align-items: start;
+    }
+    .horosa-india-variant-group-title {
+        // LESS 把 1 / -1 求值成 -1(除法坑),拆双属性
+        grid-column-start: 1;
+        grid-column-end: -1;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--horosa-gold-strong, #b8963e);
+        opacity: 0.92;
+        padding-bottom: 2px;
+        border-bottom: 1px dashed var(--horosa-border, rgba(127, 127, 127, 0.18));
+        .horosa-india-variant-count {
+            font-style: normal;
+            font-weight: 400;
+            font-size: 10px;
+            color: var(--horosa-text-muted, rgba(140, 144, 156, 0.9));
+        }
+    }
+    .horosa-india-variant-field {
+        min-width: 0;
+        > span {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 11px;
+            line-height: 16px;
+        }
+        &.is-full {
+            grid-column: span 2;
+            // XQSegmented 底座是 Radio.Group(兼容两套类名)
+            .ant-segmented,
+            .ant-radio-group {
+                width: 100%;
+                display: flex;
+            }
+            .ant-segmented-item,
+            .ant-radio-button-wrapper {
+                flex: 1;
+                min-width: 0;
+                text-align: center;
+                font-size: 11px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding: 0 6px;
+                line-height: 24px;
+                height: 26px;
+            }
+        }
+        span > .horosa-india-variant-dot {
+            font-style: normal;
+            font-size: 10px;
+            margin-left: 4px;
+            padding: 0 4px;
+            border-radius: 7px;
+            color: var(--horosa-gold-strong, #b8963e);
+            border: 1px solid var(--horosa-gold-strong, rgba(184, 150, 62, 0.55));
+            line-height: 14px;
+        }
+    }
+    // ── 印占·年盘口径卡(全宽分段 + 胶囊开关一行)─────────────────────
+    .horosa-india-annual-card {
+        .ant-segmented,
+        > .ant-radio-group {
+            width: 100%;
+            display: flex;
+        }
+        .ant-segmented-item,
+        > .ant-radio-group .ant-radio-button-wrapper { flex: 1; min-width: 0; text-align: center; }
+        .horosa-india-annual-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            .ant-segmented, .ant-radio-group { width: auto; flex: 1; min-width: 132px; display: flex; }
+            .ant-radio-button-wrapper { flex: 1; text-align: center; white-space: nowrap; }
+        }
+    }
+    .horosa-india-pill-toggle {
+        appearance: none;
+        cursor: pointer;
+        font-size: 12px;
+        line-height: 20px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 3px 14px;
+        border-radius: 9px;
+        border: 1px solid rgba(184, 150, 62, 0.45);
+        background: transparent;
+        color: var(--horosa-gold-strong, #b8963e);
+        transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        strong { color: inherit; font-weight: 600; font-size: 12px; line-height: 20px; }
+        &:hover { border-color: rgba(184, 150, 62, 0.85); background: rgba(184, 150, 62, 0.08); }
+        &:active { transform: translateY(0.5px); }
+        &.is-active {
+            background: linear-gradient(180deg, #cfa952 0%, #a9873a 100%);
+            border-color: rgba(140, 110, 40, 0.9);
+            color: #fff;
+            box-shadow: 0 1px 3px rgba(140, 110, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+            strong { color: #fff; }
+            &:hover { background: linear-gradient(180deg, #d6b160 0%, #b08e40 100%); }
+        }
+    }
+    // ── 印占·座运卡时间轴(当前高亮/二轮·gati 徽/滚动区)────────────────
+    .horosa-india-rasi-scroll {
+        max-height: 264px;
+        overflow-y: auto;
+        padding-right: 2px;
+        scrollbar-width: thin;
+    }
+    .horosa-india-data-row.is-dasha-active {
+        background: linear-gradient(90deg, var(--horosa-gold-soft, rgba(184, 150, 62, 0.14)), transparent 82%);
+        border-left: 2px solid var(--horosa-gold-strong, #b8963e);
+        padding-left: 6px;
+        border-radius: 4px;
+        strong { color: var(--horosa-gold-strong, #b8963e); }
+        em { color: var(--horosa-gold-strong, #b8963e); font-weight: 600; }
+    }
+    .horosa-india-cycle-tag,
+    .horosa-india-gati-tag {
+        font-style: normal;
+        font-size: 10px;
+        margin-left: 4px;
+        padding: 0 5px;
+        border-radius: 8px;
+        line-height: 15px;
+        display: inline-block;
+        vertical-align: 1px;
+    }
+    .horosa-india-cycle-tag {
+        color: var(--horosa-text-muted, rgba(140, 144, 156, 0.95));
+        border: 1px solid var(--horosa-border, rgba(127, 127, 127, 0.3));
+    }
+    .horosa-india-gati-tag {
+        color: var(--horosa-warn, #c0603a);
+        border: 1px solid rgba(192, 96, 58, 0.45);
+        background: rgba(192, 96, 58, 0.08);
+    }
     .horosa-workspace-shell .horosa-india-select-field {
         position: relative;
         display: flex;
@@ -13043,6 +13653,19 @@
         font-size: 14px;
     }
 
+    /* 提示态（非警告）：同版式，降调为次要文字色，用于「未选专题」这类引导 */
+    .horosa-workspace-shell .horosa-jinkou-warn-banner.is-hint {
+        align-items: flex-start;
+        border-color: var(--horosa-border-soft, rgba(120, 120, 120, 0.28));
+        background: transparent;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-warn-banner.is-hint strong {
+        flex: 0 0 auto;
+        color: var(--horosa-accent);
+    }
+
     .horosa-workspace-shell .horosa-jinkou-redesign .horosa-jinkou-tabs {
         min-height: 0;
         height: 100%;
@@ -13301,6 +13924,350 @@
         margin-bottom: 6px;
         line-height: 1.6;
     }
+
+    /* ── 流派四维金滑块（与七政/印占同款 XQSegmented，纵向标签+满宽分段）── */
+    .horosa-workspace-shell .horosa-jinkou-school-seg-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-school-seg-label {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+    }
+
+    /* ── 阴盘三层（六亲/六神/旺衰分）── */
+    .horosa-workspace-shell .horosa-jinkou-yinpan-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-table {
+        display: grid;
+        gap: 1px;
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-row {
+        display: grid;
+        grid-template-columns: 74px 48px 48px 44px minmax(84px, 1fr);
+        gap: 6px;
+        align-items: center;
+        padding: 4px 2px;
+        border-bottom: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.14));
+        line-height: 1.5;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-row.is-head {
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        border-bottom-color: var(--horosa-border-soft, rgba(120, 120, 120, 0.28));
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-pos {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-pos em {
+        font-style: normal;
+        font-weight: 400;
+        font-size: 11px;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-level.is-strong { color: var(--horosa-jx-ji, #1f8a70); font-weight: 700; }
+    .horosa-workspace-shell .horosa-jinkou-yinpan-level.is-weak { color: var(--horosa-jx-xiong, #c0392b); }
+    .horosa-workspace-shell .horosa-jinkou-yinpan-level.is-mid { color: var(--horosa-text-secondary); }
+
+    /* 分值条：正分向右金调、负分红调；宽度按本课最大绝对值归一 */
+    .horosa-workspace-shell .horosa-jinkou-yinpan-score {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 16px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-score em {
+        font-style: normal;
+        font-variant-numeric: tabular-nums;
+        min-width: 26px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-score i {
+        display: inline-block;
+        height: 6px;
+        border-radius: 3px;
+        max-width: calc(100% - 32px);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-score i.is-plus { background: color-mix(in srgb, var(--horosa-accent) 62%, transparent); }
+    .horosa-workspace-shell .horosa-jinkou-yinpan-score i.is-minus { background: color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 52%, transparent); }
+
+    .horosa-workspace-shell .horosa-jinkou-yinpan-note {
+        margin-top: 8px;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.7;
+    }
+
+    /* ── 合占·扣题直断 ── */
+    .horosa-workspace-shell .horosa-jinkou-hezhan-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-hezhan-tag {
+        font-size: 11px;
+        line-height: 18px;
+        padding: 0 8px;
+        border-radius: 9px;
+        color: var(--horosa-text-secondary);
+        border: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.28));
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-hezhan-tag.is-use {
+        color: var(--horosa-accent);
+        border-color: color-mix(in srgb, var(--horosa-accent) 45%, transparent);
+        background: color-mix(in srgb, var(--horosa-accent) 10%, transparent);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-hezhan-chain {
+        margin: 0 0 6px;
+        padding-left: 18px;
+        line-height: 1.75;
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-hezhan-chain li { margin-bottom: 2px; }
+
+    /* 课分内外：四位竖列，贴地分侧=内、贴人元侧=外，用爻位加重 */
+    .horosa-workspace-shell .horosa-jinkou-neiwai { margin-top: 8px; }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-title {
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-cols {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 5px 4px;
+        border-radius: 7px;
+        border: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.22));
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-item.is-inner {
+        border-color: color-mix(in srgb, var(--horosa-jx-ji, #1f8a70) 40%, transparent);
+        background: color-mix(in srgb, var(--horosa-jx-ji, #1f8a70) 7%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-item.is-outer {
+        border-color: color-mix(in srgb, var(--horosa-accent) 34%, transparent);
+        background: color-mix(in srgb, var(--horosa-accent) 6%, transparent);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-item.is-yong {
+        box-shadow: inset 0 0 0 1px var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-side {
+        font-size: 10px;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-label { font-weight: 700; }
+
+    .horosa-workspace-shell .horosa-jinkou-neiwai-val {
+        color: var(--horosa-text-secondary);
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* ── 四象所属 / 四象五行 两张对照表（首列位名+实况，其余为静态取象列）── */
+    .horosa-workspace-shell .horosa-jinkou-sixiang-table {
+        display: grid;
+        gap: 1px;
+        font-size: 12px;
+        overflow-x: auto;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-row {
+        display: grid;
+        grid-template-columns: 76px repeat(6, minmax(56px, 1fr));
+        gap: 6px;
+        align-items: center;
+        padding: 4px 2px;
+        border-bottom: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.14));
+        line-height: 1.5;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-row.is-head {
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        border-bottom-color: var(--horosa-border-soft, rgba(120, 120, 120, 0.28));
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-row.is-main {
+        background: color-mix(in srgb, var(--horosa-accent) 8%, transparent);
+        border-radius: 5px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-pos {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-pos em {
+        font-style: normal;
+        font-weight: 400;
+        font-size: 11px;
+        color: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-notes {
+        margin: 8px 0 0;
+        padding-left: 16px;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.7;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-wuxiang-main {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-wuxiang-text {
+        font-size: 12px;
+        color: var(--horosa-text-secondary);
+    }
+
+    /* 非 6 数据列的表另设列模板。列数走容器 modifier 类，不用父级选择器 ——
+       macOS 12 的 WebView 不支持它，那里会静默退回 6 列模板把表挤歪（preflight [93] 守这条）。 */
+    .horosa-workspace-shell .horosa-jinkou-sixiang-table.is-cols4 .horosa-jinkou-sixiang-row {
+        grid-template-columns: 82px repeat(4, minmax(64px, 1fr));
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-sixiang-table.is-cols3 .horosa-jinkou-sixiang-row {
+        grid-template-columns: 82px repeat(3, minmax(64px, 1fr));
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-topic-note {
+        margin-top: 6px;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.7;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-topic-result {
+        margin-top: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-topic-result p {
+        margin: 0 0 8px;
+        font-size: 12px;
+        line-height: 1.8;
+        color: var(--horosa-text-primary);
+    }
+
+    /* 经典赋文：逐篇折叠。收起时只占两行（篇名 + 功用），展开后为竖排原文。 */
+    .horosa-workspace-shell .horosa-jinkou-fuwen-list {
+        margin-top: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-item {
+        padding: 7px 0;
+        border-bottom: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.14));
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-item:last-child { border-bottom: none; }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-head {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        width: 100%;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-head:hover .horosa-jinkou-fuwen-title {
+        color: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-caret {
+        flex: 0 0 auto;
+        width: 12px;
+        color: var(--horosa-accent);
+        font-size: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-title {
+        font-size: 13px;
+        letter-spacing: 0.02em;
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-vol {
+        margin-left: auto;
+        flex: 0 0 auto;
+        font-style: normal;
+        font-size: 11px;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-use {
+        margin: 2px 0 0 18px;
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-body {
+        margin: 8px 0 2px 18px;
+        padding-left: 10px;
+        border-left: 2px solid var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-body p {
+        margin: 0 0 3px;
+        font-size: 12px;
+        line-height: 1.9;
+        letter-spacing: 0.04em;
+        color: var(--horosa-text-primary);
+    }
+
+    .horosa-workspace-shell .horosa-jinkou-fuwen-body p:last-child { margin-bottom: 0; }
 
     .horosa-workspace-shell .horosa-jinkou-note-row:last-child { margin-bottom: 0; }
 
@@ -14412,12 +15379,37 @@
         border-width: 1.5px;
     }
 
-    .horosa-workspace-shell .horosa-shenyishu-input-stack .horosa-huangji-select-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .horosa-workspace-shell .horosa-shenyishu-input-stack .horosa-huangji-select-field.is-wide {
+    /* 一行两个下拉(用户定案,神易数/飞宫/轨策同法):沿用 select-grid 基类两列;
+       is-wide 在这些配对网格里只保样式不跨行,字段两两成行。 */
+    .horosa-workspace-shell .horosa-shenyishu-input-stack .horosa-huangji-select-field.is-wide,
+    .horosa-workspace-shell .horosa-fg-pair-grid .horosa-huangji-select-field.is-wide,
+    .horosa-workspace-shell .horosa-guice-pair-grid .horosa-huangji-select-field.is-wide {
         grid-column: auto;
+    }
+    /* 轨策配对网格:格间距与上下安全距;标签/选中值单行省略(值换行曾把左右两格顶得高低不齐) */
+    .horosa-workspace-shell .horosa-guice-pair-grid {
+        gap: 12px 10px;
+        margin: 2px 0 6px;
+        align-items: start;
+    }
+    /* 🔴 旧列布局的相邻兄弟间距(.horosa-guice-group 内 field+field margin-top:9px)在网格里
+       会把每行右格压低一截(用户实测「还是没对齐」的根因)——配对网格内清零,行距全交 gap 管。 */
+    .horosa-workspace-shell .horosa-guice-group .horosa-guice-pair-grid .horosa-huangji-select-field + .horosa-huangji-select-field {
+        margin-top: 0;
+    }
+    .horosa-workspace-shell .horosa-guice-pair-grid .horosa-huangji-select-field > span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .horosa-workspace-shell .horosa-guice-pair-grid .ant-select-selection-item {
+        white-space: nowrap !important;
+        text-overflow: ellipsis;
+    }
+    /* 轨策开关芯片:两列描金(同六爻/塔罗显示项 house 风格);与上下留安全距 */
+    .horosa-workspace-shell .horosa-guice-toggle-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin: 10px 0 6px;
     }
 
     .horosa-workspace-shell .horosa-shenyishu-redesign .xq-select .ant-select-selector {
@@ -14711,22 +15703,30 @@
 
     .horosa-workspace-shell .horosa-kinastro-fendjing-board {
         width: clamp(700px, 70vw, 1020px);
-        overflow: hidden;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-beiji-board {
         width: clamp(720px, 72vw, 1060px);
-        overflow: hidden;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-nanji-board {
         width: clamp(760px, 72vw, 1080px);
-        overflow: hidden;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-chunzi-board {
         width: clamp(760px, 72vw, 1080px);
-        overflow: hidden;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-ziwei-copy-board {
@@ -14970,7 +15970,13 @@
     }
 
     .horosa-workspace-shell .horosa-kinastro-fendjing-feature-grid {
-        grid-template-columns: 1fr 1.15fr 0.85fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-fendjing-feature-grid > .horosa-kinastro-text-card:first-child {
+        // LESS 会把 1 / -1 求值成 -1(除法),必须拆双属性(或 ~"1 / -1")
+        grid-column-start: 1;
+        grid-column-end: -1;
     }
 
     .horosa-workspace-shell .horosa-kinastro-fendjing-verse-grid {
@@ -16681,6 +17687,47 @@
         color: var(--horosa-text);
     }
 
+    .horosa-workspace-shell .horosa-india-prashna-schools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 8px 0 2px;
+    }
+    .horosa-workspace-shell .horosa-india-prashna-school {
+        cursor: pointer;
+        input[type='checkbox'] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        span {
+            display: inline-block;
+            font-size: 12px;
+            line-height: 20px;
+            font-weight: 500;
+            padding: 2px 13px;
+            border-radius: 9px;
+            border: 1px solid var(--horosa-border, rgba(127, 127, 127, 0.32));
+            color: var(--horosa-astro-muted);
+            transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        &:hover span { border-color: rgba(184, 150, 62, 0.85); color: var(--horosa-astro-gold, #b8963e); }
+        input:checked + span {
+            background: linear-gradient(180deg, #cfa952 0%, #a9873a 100%);
+            border-color: rgba(140, 110, 40, 0.9);
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(140, 110, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+        }
+    }
+    .horosa-workspace-shell .horosa-india-prashna-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+
     .horosa-workspace-shell .horosa-india-summary {
         padding-top: 2px;
     }
@@ -17195,8 +18242,9 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 2px 3px;
-        padding: 5px 7px;
+        gap: 4px 6px;
+        margin: 10px 0 8px;
+        padding: 7px 10px;
         border: 1px solid rgba(215, 173, 105, 0.14);
         border-radius: 6px;
         background: rgba(255, 255, 255, 0.018);
@@ -17247,7 +18295,9 @@
         align-items: baseline;
         justify-content: space-between;
         gap: 8px;
-        padding: 0 2px;
+        margin-bottom: 8px;
+        padding: 0 10px 5px;
+        border-bottom: 1px solid rgba(215, 173, 105, 0.16);
     }
     .horosa-workspace-shell .horosa-india-dasha-drill-head span {
         color: var(--horosa-astro-gold);
@@ -18000,7 +19050,10 @@
     /* 护盾方盘:4×4 填满中栏、大字、暗金 */
     .horosa-geomancy-shield { display: flex; flex-direction: column; gap: 10px; width: 100%; height: 100%; max-width: ~"min(100%, 720px)"; min-height: 0; }
     .horosa-geomancy-shield-title { flex: 0 0 auto; text-align: center; font-size: 14px; letter-spacing: 0.1em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; }
-    .horosa-geomancy-shield-grid { flex: 1 1 auto; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 8px; min-height: 0; }
+    .horosa-geomancy-shield-grid { flex: 1 1 auto; display: grid; grid-template-rows: repeat(4, 1fr); gap: 8px; min-height: 0; }
+    .horosa-geomancy-shield-rowgroup { display: flex; align-items: stretch; gap: 6px; min-height: 0; }
+    .horosa-geomancy-shield-grouplab { flex: 0 0 18px; writing-mode: vertical-rl; text-orientation: upright; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 2px; opacity: 0.62; border-right: 1px dashed rgba(148, 163, 184, 0.35); padding-right: 2px; }
+    .horosa-geomancy-shield-rowcells { flex: 1 1 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; min-width: 0; }
     .horosa-geomancy-shield-cell {
         display: flex; flex-direction: column; align-items: center; justify-content: space-between;
         min-width: 0; min-height: 0; padding: 8px 6px 7px; border-radius: 12px;
@@ -18192,7 +19245,68 @@
     .horosa-tarot-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .horosa-tarot-table th { text-align: left; border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding: 6px 4px; color: var(--horosa-astro-muted, #8fa0b9); font-weight: 600; }
     .horosa-tarot-table td { border-bottom: 1px solid rgba(148, 163, 184, 0.16); padding: 6px 4px; vertical-align: top; color: var(--horosa-astro-text, #e8ecf3); }
-    .horosa-tarot-table td.is-reversed { color: #e0795f; }
+    .horosa-tarot-table td.is-reversed { color: var(--horosa-astro-warn, #e0795f); }
+    /* 表格斑马纹 + hover（润色，与全 app 表格观感一致） */
+    .horosa-tarot-table tbody tr:nth-child(even) td { background: rgba(148, 163, 184, 0.05); }
+    .horosa-tarot-table tbody tr:hover td { background: rgba(215, 173, 105, 0.09); }
+
+    /* G4 流派简介面板 + 花色对照（沿用 --horosa-astro-* 令牌，与右栏信息卡观感统一） */
+    .horosa-tarot-deckinfo { display: flex; flex-direction: column; gap: 7px; font-size: 12px; line-height: 1.6; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-tarot-deckinfo-row { color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-tarot-deckinfo-row b { color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; margin-right: 5px; }
+    .horosa-tarot-deckinfo-suits { margin-top: 4px; padding-top: 7px; border-top: 1px dashed rgba(148, 163, 184, 0.25); }
+    .horosa-tarot-deckinfo-suits-title { font-size: 11px; color: var(--horosa-astro-gold, #d7ad69); margin-bottom: 4px; }
+    .horosa-tarot-deckinfo-suit { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); padding: 1px 0; }
+    .horosa-tarot-deckinfo-suit .horosa-tarot-suit-name { color: var(--horosa-astro-text, #e8ecf3); font-weight: 600; }
+
+    /* deck 下拉分组标题（此前无样式）：金色小标题 */
+    .horosa-tarot-deck-dropdown .ant-select-item-group { color: var(--horosa-astro-gold, #d7ad69); font-size: 11px; font-weight: 600; opacity: 0.9; }
+
+    /* G6 发牌/揭牌动画：卡自中心淡入上浮，按 --deal-i stagger；逆位翻转过渡。尊重 prefers-reduced-motion。 */
+    @keyframes horosa-tarot-deal { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .horosa-tarot-geo-slot { animation: horosa-tarot-deal 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--deal-i, 0) * 55ms); }
+    .horosa-tarot-card-face { transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+    @media (prefers-reduced-motion: reduce) {
+        .horosa-tarot-geo-slot { animation: none; }
+        .horosa-tarot-card-face { transition: none; }
+    }
+
+    /* G6 四色阶徽章（大牌路径色，四界并排小点） */
+    .horosa-tarot-scales { display: inline-flex; align-items: center; gap: 2px; }
+    .horosa-tarot-scale-dot { line-height: 1; }
+    .horosa-tarot-scale-lbl { margin-left: 3px; font-size: 9px; opacity: 0.7; }
+
+    /* G6 牌阵连线 SVG（置于牌下，淡金引导线；卡片在其上） */
+    .horosa-tarot-lines { display: block; }
+    .horosa-tarot-geo-slot { z-index: 1; }
+
+    /* G6 响应式：窄屏三栏堆叠（信息栏可滚，牌面不越界） */
+    @media (max-width: 900px) {
+        .horosa-tarot-geo { max-width: 100%; overflow-x: auto; }
+        .horosa-tarot-deckinfo { font-size: 11px; }
+        .horosa-tarot-ook-chain { flex-wrap: wrap; }
+    }
+
+    /* G7 开钥·中栏专属分堆视图(5 操作分区 + 指示牌落堆 + 计数链 mini 牌面) */
+    .horosa-tarot-ook-stage { align-items: stretch; }
+    .horosa-tarot-ook-sig { text-align: center; font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); margin: 2px 0 6px; }
+    .horosa-tarot-ook-sig b { color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-ook-zones { display: flex; flex-direction: column; gap: 9px; overflow-y: auto; padding: 2px; flex: 1 1 auto; }
+    .horosa-tarot-ook-zone { border: 1px solid rgba(215, 173, 105, 0.22); border-radius: 8px; padding: 8px 10px; background: rgba(215, 173, 105, 0.04); animation: horosa-tarot-deal 0.3s ease both; }
+    .horosa-tarot-ook-zone.is-op5 { border-color: rgba(215, 173, 105, 0.4); background: rgba(215, 173, 105, 0.08); }
+    .horosa-tarot-ook-zone-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12.5px; color: var(--horosa-astro-text, #e8ecf3); margin-bottom: 7px; }
+    .horosa-tarot-ook-badge { display: inline-block; font-size: 11px; font-weight: 640; color: #1b1206; background: var(--horosa-astro-gold, #d7ad69); border-radius: 4px; padding: 1px 7px; }
+    .horosa-tarot-ook-opname { font-weight: 600; }
+    .horosa-tarot-ook-pile { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-tarot-ook-chain { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .horosa-tarot-ook-arrow { color: var(--horosa-astro-muted, #8fa0b9); font-size: 13px; }
+    .horosa-tarot-ook-mini { display: inline-flex; flex-direction: column; align-items: center; min-width: 44px; max-width: 62px; border: 1px solid; border-radius: 6px; padding: 4px 3px; background: rgba(0, 0, 0, 0.16); }
+    .horosa-tarot-ook-mini.is-sig { box-shadow: 0 0 0 2px var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-ook-mini-sym { font-size: 18px; line-height: 1.1; }
+    .horosa-tarot-ook-mini-name { font-size: 9.5px; color: var(--horosa-astro-text, #e8ecf3); text-align: center; line-height: 1.15; margin-top: 1px; }
+    .horosa-tarot-ook-line { font-size: 11.5px; color: var(--horosa-astro-muted, #8fa0b9); line-height: 1.7; }
+    :root[data-horosa-appearance='light'] .horosa-tarot-ook-mini { background: rgba(0, 0, 0, 0.04); }
+    :root[data-horosa-appearance='light'] .horosa-tarot-ook-zone { background: rgba(215, 173, 105, 0.06); }
 
     /* 策天飞星·设置 tab(F6:5 显示开关) */
     .horosa-cetian-settings-panel { padding: 12px; display: flex; flex-direction: column; gap: 14px; }
@@ -18298,6 +19412,7 @@
 
 .horosaAppShell {
     position: relative;
+    height: 100%;
 }
 
 .workspaceOuter {
@@ -18361,14 +19476,17 @@
 }
 
 :global {
+    /* 🔴 高度勿用 calc(100vh - 72px):App 壳缩放持久化下 WKWebView 的 vh 与真实视口错位,
+       写死 vh 比可用高 → 整页可滚、贴底件被滚出视口(真机实告)。100% 沿 .horosa-main-spin
+       链传导,顶端锚 = 页面根 JS 实测数值(zoom 稳健)。 */
     .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active,
     .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder,
     .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content,
     .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
         width: 100%;
         max-width: 100%;
-        height: calc(100vh - 72px) !important;
-        max-height: calc(100vh - 72px) !important;
+        height: 100% !important;
+        max-height: 100% !important;
         min-width: 0 !important;
         min-height: 0 !important;
         overflow: hidden !important;
@@ -19082,8 +20200,12 @@
 	--fs-gold: var(--horosa-gold, #c0883a);
 	--fs-zuo: rgba(47,125,241,.18); /* 数据色(风水坐山方位标识,暗色亦为蓝),不随主题金化 */
 	--fs-xiang: var(--horosa-gold-soft, rgba(216,173,99,.20));
+	/* 罗经/线法/圆图 环格底色（语义三档，比 -soft 更淡，多环叠加不糊） */
+	--fs-good-bg: rgba(31,138,76,.15);
+	--fs-bad-bg: rgba(192,57,43,.14);
+	--fs-gold-bg: rgba(184,134,47,.13);
 }
-:root:not([data-horosa-appearance='light']) .horosa-fengshui-app { --fs-good: #4cc985; --fs-bad: #ef6d63; --fs-info: #3fb9c9; --fs-info-soft: rgba(63,185,201,.16); --fs-neutral: #9aa0a6; --fs-tile: rgba(231,189,117,.05); --fs-zuo: rgba(120,170,255,.24); }
+:root:not([data-horosa-appearance='light']) .horosa-fengshui-app { --fs-good: #4cc985; --fs-bad: #ef6d63; --fs-info: #3fb9c9; --fs-info-soft: rgba(63,185,201,.16); --fs-neutral: #9aa0a6; --fs-tile: rgba(231,189,117,.05); --fs-zuo: rgba(120,170,255,.24); --fs-good-bg: rgba(76,201,133,.16); --fs-bad-bg: rgba(239,109,99,.16); --fs-gold-bg: rgba(231,189,117,.13); }
 .horosa-fengshui-liqi-quickhint { font-size: 12px; color: var(--horosa-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
 .horosa-fengshui-liqi { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 244px minmax(300px, 1fr) 356px; gap: 12px; padding: 12px 14px 16px; overflow: hidden; }
 /* 左 · 排盘参数卡 */
@@ -19124,9 +20246,56 @@
 .horosa-fengshui-xingshi-bar .xb-score { font-size: 15px; font-weight: 800; color: var(--horosa-muted); }
 .horosa-fengshui-xingshi-bar .xb-score.is-good { color: var(--fs-good, #2e9c5a); }
 .horosa-fengshui-xingshi-bar .xb-score.is-warn { color: var(--fs-bad, #c0392b); }
+/* 综合罗经 / 线法环 / 六十四卦圆图（中栏 SVG 三件） */
+.horosa-fs-luopan, .horosa-fs-xianfa, .horosa-fs-gua64circle { margin: 0 auto; }
+.horosa-fs-luopan { user-select: none; -webkit-user-select: none; }
+.horosa-fs-luopan text, .horosa-fs-xianfa text, .horosa-fs-gua64circle text { pointer-events: none; }
+/* 中栏多件竖排容器：.horosa-fengshui-liqi-chart 本身是 row flex（单盘居中），
+   出两件以上时必须套本容器改竖排，否则主盘与副图/图库并排挤成两栏。 */
+.horosa-fengshui-chart-stack { width: 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 0; }
+/* 中栏叠加副图（三合线法环 / 大卦并列双卦） */
+.horosa-fengshui-chart-sub { width: 100%; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--horosa-border); display: flex; justify-content: center; }
+/* 罗经层可见性开关（左栏芯片） */
+.horosa-fengshui-layer-toggles { display: flex; flex-wrap: wrap; gap: 5px; }
+.horosa-fs-layer-chip { flex: 0 1 auto; max-width: 100%; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); color: var(--horosa-muted); font-size: 11px; line-height: 1.35; cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease; overflow-wrap: anywhere; }
+.horosa-fs-layer-chip:hover { border-color: var(--horosa-border-strong); color: var(--horosa-text); }
+.horosa-fs-layer-chip.is-on { background: var(--horosa-gold-soft, rgba(216,173,99,.2)); border-color: var(--horosa-gold); color: var(--horosa-gold); font-weight: 700; }
+.horosa-fengshui-layer-quick { display: flex; gap: 6px; }
+.horosa-fengshui-layer-quick > button { flex: 1 1 0; padding: 5px 0; border-radius: 8px; border: 1px solid var(--horosa-border); background: var(--horosa-surface-raised); color: var(--horosa-muted); font-size: 11.5px; cursor: pointer; }
+.horosa-fengshui-layer-quick > button:hover { border-color: var(--horosa-border-strong); color: var(--horosa-text); }
+/* 玄空六法 条目板（中栏，盘下方；右栏另有逐条详解卡） */
+.horosa-fengshui-liufa-board { width: 100%; max-width: 620px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--horosa-border); display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 8px; }
+.horosa-fs-liufa-item { padding: 9px 11px 10px; border-radius: 10px; border: 1px solid var(--horosa-border); background: var(--horosa-surface-raised); border-left-width: 3px; border-left-color: var(--horosa-border-strong); }
+.horosa-fs-liufa-item.is-good { border-left-color: var(--fs-good); }
+.horosa-fs-liufa-item.is-warn { border-left-color: var(--fs-bad); }
+.horosa-fs-liufa-item .lf-name { font-size: 12.5px; font-weight: 720; color: var(--horosa-text); margin-bottom: 3px; }
+.horosa-fs-liufa-item.is-good .lf-name { color: var(--fs-good); }
+.horosa-fs-liufa-item.is-warn .lf-name { color: var(--fs-bad); }
+.horosa-fs-liufa-item .lf-verdict { font-size: 11.5px; line-height: 1.5; color: var(--horosa-text-soft); overflow-wrap: anywhere; }
+.horosa-fs-liufa-sum { grid-column: ~"1 / -1"; padding: 8px 12px; border-radius: 10px; text-align: center; font-size: 12.5px; font-weight: 700; border: 1px solid var(--horosa-border); background: var(--horosa-panel-soft); color: var(--horosa-text); }
+.horosa-fs-liufa-sum.is-good { border-color: var(--fs-good); color: var(--fs-good); }
+.horosa-fs-liufa-sum.is-warn { border-color: var(--fs-bad); color: var(--fs-bad); }
+/* 造命四纲分组（右栏） */
+.horosa-fengshui-liqi-subgroup { margin-top: 4px; }
+.horosa-fengshui-liqi-subgroup .horosa-fengshui-liqi-row:first-of-type { border-top: 0; }
+/* 形势形体图库（中栏，图库即选择器） */
+.horosa-fengshui-form-gallery { width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 18px; padding: 10px 4px 6px; }
+.horosa-fs-form-group { display: flex; flex-direction: column; gap: 9px; }
+.horosa-fs-form-title { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; font-weight: 720; color: var(--horosa-gold); padding-bottom: 6px; border-bottom: 1px solid var(--horosa-border); }
+.horosa-fs-form-title > span { font-size: 11px; font-weight: 500; color: var(--horosa-muted); }
+.horosa-fs-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.horosa-fs-form-card { display: flex; flex-direction: column; gap: 4px; padding: 8px 7px 9px; border-radius: 10px; border: 1px solid var(--horosa-border); background: var(--horosa-surface-raised); cursor: pointer; text-align: center; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+.horosa-fs-form-card:hover { border-color: var(--horosa-border-strong); box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.horosa-fs-form-card.is-active { border-color: var(--horosa-gold); background: var(--horosa-gold-soft, rgba(216,173,99,.14)); box-shadow: 0 0 0 1px var(--horosa-gold) inset; }
+.horosa-fs-form-fig { width: 100%; }
+.horosa-fs-form-name { font-size: 12.5px; font-weight: 700; color: var(--horosa-text); }
+.horosa-fs-form-card.is-active .horosa-fs-form-name { color: var(--horosa-gold); }
+.horosa-fs-form-sub { font-size: 10.5px; line-height: 1.4; color: var(--horosa-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.horosa-fs-form-note { font-size: 11.5px; color: var(--horosa-text-soft); padding-top: 4px; border-top: 1px dashed var(--horosa-border); }
 @media (max-width: 1280px) {
 	.horosa-fengshui-liqi { grid-template-columns: 224px minmax(260px, 1fr); grid-auto-rows: min-content; overflow-y: auto; }
 	.horosa-fengshui-liqi-panel { grid-column: ~"1 / -1"; max-height: 360px; }
+	.horosa-fs-form-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
 }
 }
 
@@ -19683,6 +20852,13 @@
 		transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-chip:hover { border-color: var(--horosa-gold, #9a6a25); }
+	/* 沈氏中限:纯展示、不可点击(时间四分,宫位沿大限宫,无独立高亮语义) */
+	.horosa-workspace-shell .horosa-ziwei-luck-chip.is-readonly {
+		cursor: default;
+		border-style: dashed;
+		opacity: 0.82;
+	}
+	.horosa-workspace-shell .horosa-ziwei-luck-chip.is-readonly:hover { border-color: var(--horosa-border, rgba(76, 98, 134, 0.17)); }
 	.horosa-workspace-shell .horosa-ziwei-luck-chip .chip-top {
 		font-size: 12px; line-height: 1.2; color: var(--horosa-muted, #68758a); white-space: nowrap;
 	}
@@ -20499,3 +21675,291 @@
 }
 }
 
+
+/* ── 印占 KP 补齐(问事/校时/敏感点/风险区)新类 ── */
+.horosa-india-prashna-schools { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 4px; }
+.horosa-india-prashna-school { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); cursor: pointer; }
+.horosa-india-prashna-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.horosa-india-prashna-verdict { font-size: 20px; font-weight: 700; margin: 4px 0 8px; color: var(--horosa-astro-text, #e8ecf3); }
+.horosa-india-prashna-verdict.is-ji { color: var(--horosa-jx-ji, #4caf7d); }
+.horosa-india-prashna-verdict.is-xiong { color: var(--horosa-jx-xiong, #d77b7b); }
+.horosa-india-prashna-csl .horosa-india-data-row { display: grid; grid-template-columns: 44px 76px 1fr 1fr; gap: 6px; }
+.horosa-india-risk-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--horosa-astro-muted, #8fa0b9); cursor: pointer; }
+/* 风险区中性灰,不作凶色渲染(伦理敏感,避免视觉恐吓) */
+:global {
+.horosa-india-risk-body { margin-top: 8px; }
+.horosa-india-risk-body .horosa-india-data-row strong { color: var(--horosa-astro-muted, #8fa0b9); }
+.horosa-india-sensitive-hot strong { color: var(--horosa-astro-gold, #d7ad69); }
+.horosa-india-rectify-warn { color: var(--horosa-jx-xiong, #d77b7b) !important; }
+// —— 出生时间校正器抽屉(portal 到 body,不吃 workspace-shell 前缀样式;变量仅用 :global 层的) ——
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-content {
+	background:
+		linear-gradient(180deg, rgba(216, 173, 99, 0.05), transparent 42%),
+		#050607 !important;
+	color: var(--horosa-text, #efe4d2);
+	box-shadow: -18px 0 56px rgba(0, 0, 0, 0.42);
+}
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-header {
+	border-bottom: 1px solid rgba(216, 173, 99, 0.22);
+	background: rgba(5, 6, 7, 0.98) !important;
+}
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-title,
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-close {
+	color: var(--horosa-text, #efe4d2) !important;
+	font-weight: 620;
+	letter-spacing: 0.01em;
+}
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-body {
+	background: transparent;
+	color: var(--horosa-text, #efe4d2);
+	padding: 18px 20px 24px;
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-content,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-body {
+	background: var(--horosa-surface-raised, #fbf8f2) !important;
+	color: var(--horosa-text, #2a2f3a);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-header {
+	border-color: var(--horosa-border, rgba(0, 0, 0, 0.09));
+	background: var(--horosa-surface-raised, #fbf8f2) !important;
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-title,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-close {
+	color: var(--horosa-text, #2a2f3a) !important;
+}
+
+.horosa-india-rectify-drawer { display: flex; flex-direction: column; gap: 14px; }
+
+// 参数区:金线卡 + 四列
+.horosa-india-rectify-controls {
+	display: grid;
+	grid-template-columns: 118px 118px minmax(0, 1fr) auto;
+	gap: 12px;
+	align-items: end;
+	padding: 12px 14px;
+	border: 1px solid rgba(216, 173, 99, 0.24);
+	border-radius: 12px;
+	background: linear-gradient(180deg, rgba(216, 173, 99, 0.07), rgba(216, 173, 99, 0.02));
+}
+.horosa-india-rectify-field {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	min-width: 0;
+}
+.horosa-india-rectify-field > span {
+	font-size: 11px;
+	line-height: 1.2;
+	letter-spacing: 0.04em;
+	color: rgba(216, 173, 99, 0.85);
+	white-space: nowrap;
+}
+.horosa-india-rectify-field.is-action { justify-content: flex-end; }
+.horosa-india-rectify-field .horosa-india-pill-toggle { min-width: 96px; padding: 5px 18px; }
+// 抽屉暗壳里的 antd 控件调暗(light 主题还原默认)
+.horosa-india-rectify-xqdrawer .ant-input-number,
+.horosa-india-rectify-xqdrawer .ant-select-selection {
+	background: rgba(255, 255, 255, 0.045);
+	border-color: rgba(216, 173, 99, 0.28);
+	color: var(--horosa-text, #efe4d2);
+}
+.horosa-india-rectify-xqdrawer .ant-input-number-input,
+.horosa-india-rectify-xqdrawer .ant-select-selection-selected-value { color: var(--horosa-text, #efe4d2); }
+.horosa-india-rectify-xqdrawer .ant-select-arrow { color: rgba(216, 173, 99, 0.75); }
+.horosa-india-rectify-xqdrawer .ant-input-number-handler-wrap { background: rgba(255, 255, 255, 0.06); border-left-color: rgba(216, 173, 99, 0.2); }
+.horosa-india-rectify-xqdrawer .ant-input-number-handler .anticon { color: rgba(239, 228, 210, 0.65); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-select-selection {
+	background: #fff;
+	border-color: var(--horosa-border, rgba(0, 0, 0, 0.12));
+	color: var(--horosa-text, #2a2f3a);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number-input,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-select-selection-selected-value { color: var(--horosa-text, #2a2f3a); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number-handler-wrap { background: #f6f2ea; border-left-color: rgba(0, 0, 0, 0.08); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number-handler .anticon { color: rgba(42, 47, 58, 0.55); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-field > span { color: var(--horosa-gold, #9a6a25); }
+
+// 步长诊断行:状态点 + 细字
+.horosa-india-rectify-diag {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	font-size: 12px;
+	line-height: 1.55;
+	color: rgba(239, 228, 210, 0.68);
+}
+.horosa-india-rectify-diag > i {
+	flex: none;
+	align-self: center;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+}
+.horosa-india-rectify-diag.is-ok > i { background: #7fb07f; box-shadow: 0 0 6px rgba(127, 176, 127, 0.55); }
+.horosa-india-rectify-diag.is-warn { color: var(--horosa-jx-xiong, #d77b7b); }
+.horosa-india-rectify-diag.is-warn > i { background: #d77b7b; box-shadow: 0 0 6px rgba(215, 123, 123, 0.55); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-diag { color: rgba(42, 47, 58, 0.62); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-diag.is-warn { color: #b04a4a; }
+
+// 分节标题:金字 + 右侧弱说明
+.horosa-india-rectify-section {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+	margin-top: 2px;
+	padding-bottom: 5px;
+	border-bottom: 1px solid rgba(216, 173, 99, 0.16);
+}
+.horosa-india-rectify-section > em {
+	font-style: normal;
+	font-size: 13px;
+	font-weight: 640;
+	letter-spacing: 0.03em;
+	color: var(--horosa-gold, #d8ad63);
+}
+.horosa-india-rectify-section > i {
+	font-style: normal;
+	font-size: 11px;
+	color: rgba(239, 228, 210, 0.45);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-section { border-bottom-color: rgba(154, 106, 37, 0.2); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-section > i { color: rgba(42, 47, 58, 0.45); }
+
+// 子主区段:曜章 + 等宽区间 + 采样 chip,两列流式
+.horosa-india-rectify-runs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 6px 12px;
+	max-height: 300px;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+.horosa-india-rectify-run {
+	display: grid;
+	grid-template-columns: 74px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border: 1px solid rgba(216, 173, 99, 0.14);
+	border-radius: 9px;
+	background: rgba(255, 255, 255, 0.028);
+}
+.horosa-india-rectify-run > strong {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--horosa-text, #efe4d2);
+	white-space: nowrap;
+}
+.horosa-india-rectify-run > strong::before {
+	content: attr(data-glyph);
+	flex: none;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 640;
+	color: #0c0b08;
+	background: linear-gradient(180deg, #cfa952, #a9873a);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.horosa-india-rectify-run > span {
+	font-family: 'SF Mono', Menlo, monospace;
+	font-size: 11.5px;
+	letter-spacing: 0.01em;
+	color: rgba(239, 228, 210, 0.78);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.horosa-india-rectify-run > em {
+	font-style: normal;
+	font-size: 10.5px;
+	line-height: 16px;
+	padding: 0 7px;
+	border-radius: 8px;
+	color: rgba(216, 173, 99, 0.9);
+	background: rgba(216, 173, 99, 0.12);
+	white-space: nowrap;
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-run { background: rgba(154, 106, 37, 0.045); border-color: rgba(154, 106, 37, 0.18); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-run > span { color: rgba(42, 47, 58, 0.72); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-run > em { color: var(--horosa-gold, #9a6a25); background: rgba(154, 106, 37, 0.12); }
+
+// Top 候选:序号金徽 + 等宽时间 + 徽章组 + 采用
+.horosa-india-rectify-tops { display: flex; flex-direction: column; gap: 8px; }
+.horosa-india-rectify-top {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	border: 1px solid rgba(216, 173, 99, 0.22);
+	border-radius: 11px;
+	background: linear-gradient(180deg, rgba(216, 173, 99, 0.075), rgba(216, 173, 99, 0.02));
+}
+.horosa-india-rectify-rank {
+	flex: none;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	font-weight: 680;
+	color: #0c0b08;
+	background: linear-gradient(180deg, #cfa952, #a9873a);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.horosa-india-rectify-top > strong {
+	font-family: 'SF Mono', Menlo, monospace;
+	font-size: 15px;
+	font-weight: 640;
+	letter-spacing: 0.02em;
+	color: var(--horosa-text, #efe4d2);
+}
+.horosa-india-rectify-score {
+	font-size: 12px;
+	font-weight: 640;
+	color: var(--horosa-gold, #d8ad63);
+	white-space: nowrap;
+}
+.horosa-india-rectify-badge {
+	font-size: 10.5px;
+	line-height: 17px;
+	padding: 0 8px;
+	border-radius: 9px;
+	color: rgba(239, 228, 210, 0.75);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(216, 173, 99, 0.18);
+	white-space: nowrap;
+}
+.horosa-india-rectify-badge.is-good { color: #8fc48f; border-color: rgba(127, 176, 127, 0.4); background: rgba(127, 176, 127, 0.1); }
+.horosa-india-rectify-top .horosa-india-pill-toggle { margin-left: auto; }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-top { border-color: rgba(154, 106, 37, 0.26); background: linear-gradient(180deg, rgba(154, 106, 37, 0.06), rgba(154, 106, 37, 0.015)); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-badge { color: rgba(42, 47, 58, 0.68); background: rgba(154, 106, 37, 0.06); border-color: rgba(154, 106, 37, 0.2); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-badge.is-good { color: #4a7d4a; }
+
+// 尾注与空态
+.horosa-india-rectify-note {
+	font-size: 11.5px;
+	line-height: 1.6;
+	color: rgba(239, 228, 210, 0.5);
+}
+.horosa-india-rectify-empty {
+	padding: 26px 0 12px;
+	text-align: center;
+	font-size: 12.5px;
+	color: rgba(239, 228, 210, 0.55);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-note { color: rgba(42, 47, 58, 0.5); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-empty { color: rgba(42, 47, 58, 0.55); }
+:root[data-horosa-appearance='light'] .horosa-india-prashna-school { color: var(--horosa-astro-text, #2a2f3a); }
+}

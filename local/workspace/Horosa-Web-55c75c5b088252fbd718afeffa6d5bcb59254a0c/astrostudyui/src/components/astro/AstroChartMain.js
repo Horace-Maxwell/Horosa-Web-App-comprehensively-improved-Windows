@@ -1,7 +1,6 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { markPanelReady } from '../../utils/perfMark';
-import { FreezeSubTab } from '../comp/FreezeInactive';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';
 import { Row, Col, Popover, Tooltip } from 'antd';
 import AstroChart from './AstroChart';
 import AstroInfo from './AstroInfo';
@@ -28,10 +27,13 @@ import { geoNameRawPatch } from '../../utils/geoName';
 import { getHousesOption } from '../comp/CompHelper'
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, presetOf } from './schoolPresets';
+import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, presetOf, aspectModelOrbs } from './schoolPresets';
+import { moietyOrbOverrides, DEFAULT_ORBS } from './AstroOrbSetting';
 import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1] 图标语义映射单源
 import XQIcon from '../xq-icons';
+import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const TabPane = XQTabs.TabPane;
 const Option = XQSelect.Option;
@@ -291,8 +293,8 @@ class AstroChartMain extends Component{
 		}
 	}
 
-	// 当前流派预设：由实时四维(黄道/宫制/界/三分)反查命中的档；任一单项被单独改 → 'custom'。
-	// 三分体系不是 fields，取自 app.tripSystem(默认 Dorothean)。
+	// 当前流派预设：由实时七维(黄道/宫制/界/三分/点反转/区分缓冲/相位模型)反查命中的档；
+	// 任一单项被单独改 → 'custom'。三分体系不是 fields，取自 app.tripSystem(默认 Dorothean)。
 	currentSchoolPreset(){
 		const f = this.props.fields || {};
 		const zodiac = AstroConst.zodiacSelectValue(
@@ -302,7 +304,20 @@ class AstroChartMain extends Component{
 		const hsys = f.hsys ? f.hsys.value : '';
 		const termsVariant = f.termsVariant ? f.termsVariant.value : 0;
 		const tripSystem = this.props.tripSystem || 'Dorothean';
-		return presetOf({ zodiac, hsys, termsVariant, tripSystem });
+		const lotReversal = (f.lotReversal && (f.lotReversal.value === 0 || f.lotReversal.value === '0')) ? 0 : 1;
+		const sectBuffer = (f.sectBuffer && f.sectBuffer.value) ? f.sectBuffer.value : 'geo';
+		// 相位模型无独立字段:由「orbs 是否恰为 moiety 覆盖集」反推 —— 非默认键集与 moiety
+		// 覆盖集**全等**才算 degree 档;单点巧合(如手动把金星容许度设成 7)不再令流派下拉跳档。
+		const orbs = (f.orbs && f.orbs.value) ? f.orbs.value : null;
+		const moiety = moietyOrbOverrides();
+		const defOrbMap = DEFAULT_ORBS.reduce((m, d)=>{ m[d.id] = Number(d.orb); return m; }, {});
+		const nonDefaultKeys = orbs ? Object.keys(orbs).filter((k)=>defOrbMap[k] === undefined || Number(orbs[k]) !== defOrbMap[k]) : [];
+		const moietyKeys = Object.keys(moiety);
+		const aspectModel = (orbs
+			&& nonDefaultKeys.length === moietyKeys.length
+			&& moietyKeys.every((k)=>Number(orbs[k]) === Number(moiety[k])))
+			? 'degree' : 'whole';
+		return presetOf({ zodiac, hsys, termsVariant, tripSystem, lotReversal, sectBuffer, aspectModel });
 	}
 
 	// 选流派预设：展开该档 → 一次性写入黄道/宫制/界/三分。
@@ -328,6 +343,14 @@ class AstroChartMain extends Component{
 			hsys: preset.hsys,
 			termsVariant: preset.termsVariant,
 			triplicity: preset.tripSystem,   // G20-P2:预设三分集 → fields.triplicity → 后端尊贵换表
+			// 全维分化三项:点反转 / 区分缓冲 / 相位模型(后者落到既有 orbs 键,不新造后端参数)
+			// 🔴 whole 档必须显式 null 清空 orbs(传 undefined 会被 changeCond 的 !==undefined 判定跳过 →
+			//    切回默认档时 moiety 残留 → 反查误判成别的档)。null = 「据实清空」,写入后 fieldsToParams 不下发。
+			lotReversal: preset.lotReversal,
+			sectBuffer: preset.sectBuffer,
+			orbs: aspectModelOrbs(normalizeSchoolPreset(val), moietyOrbOverrides()) || null,
+			// 点公式文档口径:不反转档(如 Ptolemy)一并采文档式的婚姻/子女/朋友/疾病反转;其余档显式清 0。
+			lotsDocReverse: preset.lotReversal === 0 ? 1 : 0,
 		};
 		if(this.tmHook.getValue){
 			const tm = this.tmHook.getValue().value;
@@ -414,12 +437,10 @@ class AstroChartMain extends Component{
 		}
 	}
 
+	// 「重算星盘」= 用当前已录生辰重排(而不是起此刻新盘 —— 那是顶栏「新命盘」的事)。
 	newChart(){
 		if(this.props.dispatch){
-			this.props.dispatch({
-				type: 'astro/nowChart',
-				payload: {},
-			});
+			this.props.dispatch({ type: 'astro/recalcChart' });
 		}
 	}
 
@@ -540,6 +561,7 @@ class AstroChartMain extends Component{
 			showdateselector,
 			showzodical,
 			showhsys,
+			showschool,
 			indiahsys,
 		} = options;
 		const quickToggles = [
@@ -601,7 +623,7 @@ class AstroChartMain extends Component{
 				</XQSideSection>
 				) : null}
 				<XQSideSection iconName={sideSectionIcon('school')} title="盘制与流派" storageKey="astro.input.system" className="horosa-side-input-section">
-				{(showzodical || showhsys) && !indiahsys ? (
+				{(showzodical || showhsys || showschool) && !indiahsys ? (
 					<div className="horosa-field-block horosa-school-preset-block">
 						<div className="horosa-field-label">流派预设</div>
 						<XQSelect
@@ -995,11 +1017,15 @@ class AstroChartMain extends Component{
 		let height = this.props.height ? this.props.height : 760;
 		let tabHeight = height - 100;
 		const showQuickActions = this.props.showQuickActions === true;
-		const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : height;
+		// 🔴 innerHeight 恒报物理域,与布局域 props.height 混进同一 min 时,缩放<1 下物理臂
+		// 恒胜出→主盘偏小;走壳缩放感知的布局视口高(1:1 恒等)。
+		const viewportHeight = typeof window !== 'undefined' ? getLayoutViewportHeight() : height;
 		let chartHeight = Math.max(560, Math.min(height - 150, viewportHeight - 204));
 
 		let showzodical = true;
 		let showhsys = true;
+		// 流派段(预设/界/三分)与 黄道/宫制 分离控制:分盘隐藏后两者(继承母盘),但仍可选流派 —— 由 showSchoolSection 打开。
+		let showschool = this.props.showSchoolSection === true;
 		let showdateselector = true;
 		let showlots = true;
 		let indiahsys = false;
@@ -1032,12 +1058,13 @@ class AstroChartMain extends Component{
 							showdateselector,
 							showzodical,
 							showhsys,
+							showschool,
 							indiahsys,
 						})}
 						<div className="horosa-chart-stage horosa-chart-stage-redesign">
 							<div className="horosa-chart-floating-tools">
-								<XQIconButton size="small" iconName="settings" tooltip="星盘组件" onClick={()=>this.openDrawer('selectchartdisplay')} />
-								<XQIconButton size="small" iconName="sliders" tooltip="相位设置" onClick={()=>this.openDrawer('selectasp')} />
+								<XQIconButton size="small" iconName="chartPanel" tooltip="星盘设置" onClick={()=>this.openDrawer('selectchartdisplay')} />
+								<XQIconButton size="small" iconName="aspectGeo" tooltip="相位设置" onClick={()=>this.openDrawer('selectasp')} />
 							</div>
 								{
 									this.props.chartRenderer ? (

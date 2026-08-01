@@ -83,11 +83,12 @@ def test_house_of_nonequal_cusps():
 def test_meridian_equals_houses_ex_X():
     pc = _make_perchart()
     jd = pc.dateTime.jd
-    cusps, ep, mc = _meridian_cusps(jd, pc.pos.lat, pc.pos.lon)
+    cusps, ep, mc, vertex = _meridian_cusps(jd, pc.pos.lat, pc.pos.lon)
     raw_cusps, raw_ascmc = swisseph.houses_ex(jd, float(pc.pos.lat), float(pc.pos.lon), b'X')
-    # firstCusp = ascmc[4](东点);tenthCusp = ascmc[1](MC)。
+    # firstCusp = ascmc[4](东点);tenthCusp = ascmc[1](MC);vertex = ascmc[3](B7 可选点,只增)。
     assert round(ep, 9) == round(raw_ascmc[4] % 360, 9)
     assert round(mc, 9) == round(raw_ascmc[1] % 360, 9)
+    assert round(vertex, 9) == round(raw_ascmc[3] % 360, 9)
     # cusps[0] = 东点;cusps[9] = MC(b'X' 模式 1=东点、10=MC)。
     assert round(cusps[0], 9) == round(raw_ascmc[4] % 360, 9)
     assert round(cusps[9], 9) == round(raw_ascmc[1] % 360, 9)

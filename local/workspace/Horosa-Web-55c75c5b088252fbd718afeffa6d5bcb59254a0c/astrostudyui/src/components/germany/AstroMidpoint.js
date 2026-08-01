@@ -6,10 +6,12 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections } from '../../utils/uranianDial';
+import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart } from '../../utils/uranianDial';
 import { getStoredUranianDisplay } from './UranianDialStyle';
 import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './UranianSchools';
 import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
+import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
+import { chartToPoints, firstSynastryPartnerParams } from './UranianDialMain';
 import { markPanelReady } from '../../utils/perfMark';
 
 // AI 快照口径:个人点集随「90°中点盘」当前流派派生(与盘交互层一致,防口径分叉);TNP 集恒定。
@@ -114,14 +116,16 @@ function pickAstroSections(text, sectionNames){
 // 注:只纳入「默认 false 的用户主动开关」;showHouseFrames/showDeclination 在 classic 默认即 true,不能进门控
 // (否则 classic 默认就触发汉堡段,破坏零回归)。默认 classic 且无任一开关 → 空数组,既有快照逐字零回归
 // (硬证见 __tests__/germanyHamburgSnapshot)。
-export function buildHamburgLines(disp, dialPoints, result, snapOrb){
+export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 	const out = [];
 	if(!disp){
 		return out;
 	}
 	const synLen = Array.isArray(disp.synastryPeople) ? disp.synastryPeople.length : 0;
+	// 门控追加第3组新开关:任一介入即附汉堡段(默认 classic 全关 → 返回空,金标零回归)。
 	const showHamburg = disp.school !== 'classic' || disp.showDiffList || disp.crossPointer || synLen > 0
-		|| disp.showAntiscia || disp.showMidpointList || disp.showPlanetPicture || disp.showSumPoints || disp.showArcOpenings;
+		|| disp.showAntiscia || disp.showMidpointList || disp.showPlanetPicture || disp.showSumPoints || disp.showArcOpenings
+		|| disp.showComposite || disp.showDavison || disp.strictFactors || disp.extendedAxes || disp.showEastPoint || disp.showVertex;
 	if(!showHamburg){
 		return out;
 	}
@@ -133,6 +137,17 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb){
 	const schoolOpt = (SCHOOL_OPTIONS || []).find((o)=>o.value === disp.school);
 	if(schoolOpt){
 		out.push(`流派：${schoolOpt.label}`);
+	}
+
+	// 口径行(第3组):开启的口径开关列出,使 AI 判读有据。
+	const calibres = [];
+	if(disp.strictFactors) calibres.push('严格因子集(剔黑月/紫气)');
+	if(disp.extendedAxes) calibres.push('扩展映点轴(15°固定星座;仅360°盘有别)');
+	if(disp.showEastPoint) calibres.push('东点入点集');
+	if(disp.showVertex) calibres.push('宿命点入点集');
+	if(disp.saKey && disp.saKey !== 'naibod') calibres.push(`太阳弧速率:${disp.saKey === 'oneDeg' ? '1°/年' : '0°59′12″/年'}`);
+	if(calibres.length){
+		out.push(`口径：${calibres.join('；')}`);
 	}
 
 	// 六宫框(WP-2):后端 houseFrames.frames[key].placements[id]→宫号;报太阳局四点落宫。
@@ -215,6 +230,39 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb){
 		}
 	}
 
+	// ── [组合盘](B5):开启且伙伴点集可得时附(extras.compositePts 由异步快照链拉取;页面中点 Tab 无此数据则跳)。 ──
+	const cpts = extras && Array.isArray(extras.compositePts) ? extras.compositePts : null;
+	if(disp.showComposite && cpts && cpts.length){
+		out.push('[组合盘]');
+		out.push(`与「${extras.partnerLabel || '叠盘对象'}」逐因子取近中点(关系本身之盘);点位如下：`);
+		cpts.slice(0, 24).forEach((pt)=>{
+			out.push(`  ${msg(pt.id)}：${Number(pt.lon).toFixed(2)}°`);
+		});
+	}
+
+	// ── [戴维森盘](B5):开启且后端返回时附(时空中点真实起盘;数据随 /germany/midpoint 的 davison 字段)。 ──
+	const dav = result && result.davison && typeof result.davison === 'object' ? result.davison : null;
+	if(disp.showDavison && dav && Array.isArray(dav.points) && dav.points.length){
+		out.push('[戴维森盘]');
+		out.push(`时空中点真实起盘：UT ${dav.utc || '—'} · 纬 ${Number(dav.lat).toFixed(3)}° · 经 ${Number(dav.lon).toFixed(3)}°`);
+		dav.points.slice(0, 24).forEach((pt)=>{
+			out.push(`  ${msg(pt.id)}：${Number(pt.lon).toFixed(2)}°${Number(pt.lonspeed) < 0 ? '（逆）' : ''}`);
+		});
+		if(dav.angles){
+			Object.keys(dav.angles).forEach((aid)=>out.push(`  ${msg(aid)}：${Number(dav.angles[aid]).toFixed(2)}°`));
+		}
+	}
+
+	// ── [虚星参考](A2):启用虚星的流派下附三套周期口径,使 AI 知晓位置计算基准。 ──
+	if(disp.showTnp !== false && disp.school !== 'cosmo'){
+		out.push('[虚星参考]');
+		out.push(TNP_CALIBRE_NOTE);
+		tnpReferenceList().forEach((r)=>{
+			const pc = r.periodC != null ? `/丙${r.periodC}` : '';
+			out.push(`  ${r.label}(${TNP_GROUP_LABEL[r.group]})：周期 甲${r.periodA}/乙${r.periodB}${pc} 年 · ${r.au}AU · ${r.keyword}`);
+		});
+	}
+
 	return out;
 }
 
@@ -241,7 +289,7 @@ export async function warmGermanyMidpoint(fields){
 }
 
 // 供 AI 分析无头复算：取本命西洋盘 + 中点盘，生成量化盘快照（不依赖组件挂载）。
-export async function buildGermanySnapshotForFields(fields){
+export async function buildGermanySnapshotForFields(fields, dispOverride){
 	if(!fields){
 		return '';
 	}
@@ -252,8 +300,19 @@ export async function buildGermanySnapshotForFields(fields){
 	});
 	const chartObj = chartData && chartData[Constants.ResultKey] ? chartData[Constants.ResultKey] : null;
 	// 流派/赤纬随「90°中点盘」存储派生(同盘口径);默认 classic → schoolParams=后端默认、declination 默认开,既有段字节零回归。
-	const dispReq = getStoredUranianDisplay();
-	const schoolReq = { ...schoolToBackendParams(dispReq.school), orb: dispReq.orb, personalOrb: dispReq.orbPersonal, declination: dispReq.showDeclination !== false };
+	// dispOverride:AI 挂载齿轮覆盖(school/orb/orbPersonal/strictFactors/showDeclination/frames);
+	// 缺省 = 全局显示仓原值(现状零回归)。
+	const dispReq = { ...getStoredUranianDisplay(), ...(dispOverride && typeof dispOverride === 'object' ? dispOverride : {}) };
+	// 供给面与 90°盘页面同参面(第3组):strictFactors/frames(live+东点)/davison 条件下发——
+	// 默认全关时逐字节同旧请求(零回归);开启后快照与页面判读永不分叉。
+	const partnerParams = (dispReq.showComposite || dispReq.showDavison) ? firstSynastryPartnerParams(dispReq) : null;
+	const schoolReq = {
+		...schoolToBackendParams(dispReq.school), orb: dispReq.orb, personalOrb: dispReq.orbPersonal,
+		declination: dispReq.showDeclination !== false,
+		frames: dispReq.showHouseFrames !== false || !!dispReq.showEastPoint,
+		...(dispReq.strictFactors ? { strictFactors: true } : {}),
+		...(dispReq.showDavison && partnerParams ? { davison: partnerParams } : {}),
+	};
 	const mpData = await request(`${Constants.ServerRoot}/germany/midpoint`, {
 		body: JSON.stringify({ ...params, ...schoolReq }),
 		silent: true,
@@ -262,10 +321,28 @@ export async function buildGermanySnapshotForFields(fields){
 	if(!result){
 		return '';
 	}
-	return buildGermanySnapshotText(params, chartObj, result, fields);
+	// [组合盘] 段数据:开启且伙伴可解析(命盘库来源)时拉伙伴盘点,前端近中点合成。
+	let extras = null;
+	if(dispReq.showComposite && partnerParams){
+		try{
+			const [pcData, pmData] = await Promise.all([
+				request(`${Constants.ServerRoot}/chart`, { body: JSON.stringify({ ...partnerParams, cid: null }), silent: true }),
+				request(`${Constants.ServerRoot}/germany/midpoint`, { body: JSON.stringify({ ...partnerParams, ...schoolToBackendParams(dispReq.school) }), silent: true }),
+			]);
+			const pChart = pcData && pcData[Constants.ResultKey] ? pcData[Constants.ResultKey] : null;
+			const pMp = pmData && pmData[Constants.ResultKey] ? pmData[Constants.ResultKey] : null;
+			const pPts = chartToPoints(pChart);
+			if(pMp && Array.isArray(pMp.tnp)) pMp.tnp.forEach((t)=>pPts.push({ id: t.id, lon: t.lon }));
+			const natalPts = chartToPoints(chartObj);
+			if(Array.isArray(result.tnp)) result.tnp.forEach((t)=>natalPts.push({ id: t.id, lon: t.lon }));
+			const cpts = compositeChart(natalPts, pPts);
+			if(cpts.length) extras = { compositePts: cpts, partnerLabel: partnerParams.name || '叠盘对象' };
+		}catch(e){ /* 伙伴盘拉取失败 → 跳过组合段(仅数据可得时附) */ }
+	}
+	return buildGermanySnapshotText(params, chartObj, result, fields, extras);
 }
 
-export function buildGermanySnapshotText(params, chartObj, result, fields){
+export function buildGermanySnapshotText(params, chartObj, result, fields, extras){
 	const lines = [];
 	const midpoints = result && result.midpoints ? result.midpoints : [];
 	const aspects = result && result.aspects ? result.aspects : {};
@@ -418,7 +495,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields){
 	}
 
 	// 汉堡学派要素(WP-8):流派/六宫框/差值/医学/赤纬,仅用户介入汉堡功能时附加(默认 classic 零回归)。
-	const hamburgLines = buildHamburgLines(disp, dialPoints, result, SNAP_ORB);
+	const hamburgLines = buildHamburgLines(disp, dialPoints, result, SNAP_ORB, extras);
 	if(hamburgLines.length){
 		lines.push('');
 		lines.push(hamburgLines.join('\n'));
@@ -457,8 +534,15 @@ class AstroMidpoint extends Component{
 
 	async requestChart(params){
 		// 流派出参随「90°中点盘」存储派生(同盘口径);默认 classic 即现状字节零回归,不扰后端缓存。
+		// 第3组:strictFactors/frames(live+东点)/davison 与 90°盘、挂载链同参面(供给三链一致)。
 		const disp = getStoredUranianDisplay();
-		const schoolParams = { ...schoolToBackendParams(disp.school), orb: disp.orb, personalOrb: disp.orbPersonal };
+		const partnerParams = disp.showDavison ? firstSynastryPartnerParams(disp) : null;
+		const schoolParams = {
+			...schoolToBackendParams(disp.school), orb: disp.orb, personalOrb: disp.orbPersonal,
+			frames: disp.showHouseFrames !== false || !!disp.showEastPoint,
+			...(disp.strictFactors ? { strictFactors: true } : {}),
+			...(partnerParams ? { davison: partnerParams } : {}),
+		};
 		const data = await request(`${Constants.ServerRoot}/germany/midpoint`, {
 			body: JSON.stringify({ ...params, ...schoolParams }),
 		});

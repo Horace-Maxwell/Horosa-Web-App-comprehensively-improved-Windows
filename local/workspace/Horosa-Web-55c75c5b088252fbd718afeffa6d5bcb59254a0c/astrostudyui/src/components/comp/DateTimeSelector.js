@@ -197,7 +197,12 @@ class DateTimeSelector extends Component{
 		});
 		// [R3-A1] 选定步长那一刻即预取前后各 2 步(opt-in 宿主:主盘/步进面 PlusMinusTime/PD;
 		// 日历/表单抽屉等无关上下文不挂此 prop=零行为)。第一下点 ± 也不冷。
-		if(this.props.stepSelectPrefetch){
+		// 函数形态=宿主【本地】预取器 —— 自持 fields 的盘面(卜卦/择日/世俗 DivinationChartShell 等)
+		// 必须用自己的构参+请求路径保键逐字节等,全局 handler(store fields+fieldsToParams)对它们是错键空烧;
+		// truthy=全局 handler(主链 store fields,现状零回归)。
+		if(typeof this.props.stepSelectPrefetch === 'function'){
+			try{ this.props.stepSelectPrefetch(val); }catch(e){ /* 预取失败无害 */ }
+		}else if(this.props.stepSelectPrefetch){
 			fireStepSelectPrefetch(val);
 		}
 	}
@@ -394,69 +399,6 @@ class DateTimeSelector extends Component{
 		return dom;
 	}
 
-	genZone(){
-		let dom = [(
-			<Option value="+00:00" key="+00:00">东0区</Option>
-		),(
-			<Option value="+01:00" key="+01:00">东1区</Option>
-		),(
-			<Option value="+02:00" key="+02:00">东2区</Option>
-		),(
-			<Option value="+03:00" key="+03:00">东3区</Option>
-		),(
-			<Option value="+04:00" key="+04:00">东4区</Option>
-		),(
-			<Option value="+04:30" key="+04:30">东4.5</Option>
-		),(
-			<Option value="+05:00" key="+05:00">东5区</Option>
-		),(
-			<Option value="+05:30" key="+05:30">东5.5</Option>
-		),(
-			<Option value="+06:00" key="+06:00">东6区</Option>
-		),(
-			<Option value="+07:00" key="+07:00">东7区</Option>
-		),(
-			<Option value="+08:00" key="+08:00">东8区</Option>
-		),(
-			<Option value="+09:00" key="+09:00">东9区</Option>
-		),(
-			<Option value="+10:00" key="+10:00">东10</Option>
-		),(
-			<Option value="+11:00" key="+11:00">东11</Option>
-		),(
-			<Option value="+12:00" key="+12:00">东12</Option>
-		),(
-			<Option value="-01:00" key="-01:00">西1区</Option>
-		),(
-			<Option value="-02:00" key="-02:00">西2区</Option>
-		),(
-			<Option value="-03:00" key="-03:00">西3区</Option>
-		),(
-			<Option value="-04:00" key="-04:00">西4区</Option>
-		),(
-			<Option value="-04:30" key="-04:30">西4.5</Option>
-		),(
-			<Option value="-05:00" key="-05:00">西5区</Option>
-		),(
-			<Option value="-05:30" key="-05:30">西5.5</Option>
-		),(
-			<Option value="-06:00" key="-06:00">西6区</Option>
-		),(
-			<Option value="-07:00" key="-07:00">西7区</Option>
-		),(
-			<Option value="-07:30" key="-07:30">西7.5</Option>
-		),(
-			<Option value="-08:00" key="-08:00">西8区</Option>
-		),(
-			<Option value="-09:00" key="-09:00">西9区</Option>
-		),(
-			<Option value="-10:00" key="-10:00">西10</Option>
-		),(
-			<Option value="-11:00" key="-11:00">西11</Option>
-		)];
-
-		return dom;
-	}
 
 	genHour(){
 		let opts = [(
@@ -600,6 +542,7 @@ class DateTimeSelector extends Component{
 				<Option value="-02:00" key="-02:00">西2区</Option>
 				<Option value="-03:00" key="-03:00">西3区</Option>
 				<Option value="-04:00" key="-04:00">西4区</Option>
+				<Option value="-04:30" key="-04:30">西4.5</Option>
 				<Option value="-05:00" key="-05:00">西5区</Option>
 				<Option value="-05:30" key="-05:30">西5.5</Option>
 				<Option value="-06:00" key="-06:00">西6区</Option>
@@ -746,21 +689,21 @@ class DateTimeSelector extends Component{
 		let row = (
 			<Row>
 				<Col span={4}>
-					<Button size='small' iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
+					<Button iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
 				</Col>
 				<Col span={6}>
 					{timetypedom}
 				</Col>
 				<Col span={4}>
-					<Button size='small' iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
+					<Button iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
 				</Col>
 				<Col span={5}>
-					<Button size='small' onClick={this.clickNow} style={{width: '100%'}}>
+					<Button onClick={this.clickNow} style={{width: '100%'}}>
 						<span>此刻</span>
 					</Button>
 				</Col>
 				<Col span={5}>
-					<Button size='small' onClick={this.clickOk} style={{width: '100%'}}>
+					<Button onClick={this.clickOk} style={{width: '100%'}}>
 						<span>确定</span>
 					</Button>
 				</Col>
@@ -770,16 +713,16 @@ class DateTimeSelector extends Component{
 			row = (
 				<Row>
 					<Col span={5}>
-						<Button size='small' iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
+						<Button iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
 					</Col>
 					<Col span={6}>
 						{timetypedom}
 					</Col>
 					<Col span={5}>
-						<Button size='small' iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
+						<Button iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
 					</Col>
 					<Col span={8}>
-						<Button size='small' onClick={this.clickOk} style={{width: '100%'}}>
+						<Button onClick={this.clickOk} style={{width: '100%'}}>
 							<span>确定</span>
 						</Button>
 					</Col>
@@ -793,16 +736,16 @@ class DateTimeSelector extends Component{
 						{zone}
 					</Col>
 					<Col span={3}>
-						<Button size='small' iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
+						<Button iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
 					</Col>
 					<Col span={6}>
 						{timetypedom}
 					</Col>
 					<Col span={3}>
-						<Button size='small' iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
+						<Button iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
 					</Col>
 					<Col span={4}>
-						<Button size='small' onClick={this.clickOk} style={{width: '100%'}}>
+						<Button onClick={this.clickOk} style={{width: '100%'}}>
 							<span>确定</span>
 						</Button>
 					</Col>

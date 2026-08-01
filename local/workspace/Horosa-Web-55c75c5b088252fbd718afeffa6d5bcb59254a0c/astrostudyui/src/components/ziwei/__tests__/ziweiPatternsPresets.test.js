@@ -52,27 +52,64 @@ describe('WP-G 格局检测(ziweiPatterns)', () => {
 			ps.forEach((p)=>expect(PATTERN_NAMES.has(p.name)).toBe(true));
 		}
 	});
+	// WP-G 新增 11 格局:各一触发命例 golden(命例经全域枚举搜出;缺一格局即回归)。
+	const NEW_GE_TRIGGERS = {
+		武贪同行: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 20, timeZi: '丑', male: true },
+		紫府朝垣: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 1, timeZi: '申', male: true },
+		日月夹命: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 5, timeZi: '丑', male: true },
+		紫府夹命: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 5, timeZi: '子', male: true },
+		禄合鸳鸯: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 18, timeZi: '丑', male: true },
+		君子在野: { yearGan: '甲', yearZi: '子', monthInt: 2, dayInt: 1, timeZi: '酉', male: true },
+		两重华盖: { yearGan: '甲', yearZi: '子', monthInt: 2, dayInt: 18, timeZi: '寅', male: true },
+		铃昌陀武: { yearGan: '乙', yearZi: '丑', monthInt: 1, dayInt: 1, timeZi: '辰', male: true },
+		杀拱廉贞: { yearGan: '丙', yearZi: '子', monthInt: 1, dayInt: 1, timeZi: '子', male: true },
+		日月藏辉: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 5, timeZi: '未', male: true },
+		文星失位: { yearGan: '甲', yearZi: '子', monthInt: 1, dayInt: 1, timeZi: '子', male: true },
+	};
+	test('新增 11 格局全部在 JSON 中且各有一触发命例', () => {
+		Object.keys(NEW_GE_TRIGGERS).forEach((name)=>{
+			expect(PATTERN_NAMES.has(name)).toBe(true);
+			const b = NEW_GE_TRIGGERS[name];
+			const c = assembleNatalChart({ ...b, leap: false });
+			const hit = detectPatterns(c).map((p)=>p.name);
+			expect(hit.indexOf(name) >= 0).toBe(true);
+		});
+	});
+	test('新增 op noneInTrine/notInMing:未接线时不误命中(君子在野需紫微在命)', () => {
+		// 一个紫微不在命的盘绝不命中君子在野(负判正确性)。
+		const c = assembleNatalChart({ yearGan: '甲', yearZi: '子', monthInt: 6, leap: false, dayInt: 10, timeZi: '卯', male: true });
+		const life = c.lifeHouseIndex;
+		const ziweiInMing = (c.houses[life].starsMain || []).some((s)=>(s.name || '').indexOf('紫微') >= 0);
+		if(!ziweiInMing){ expect(detectPatterns(c).map((p)=>p.name).indexOf('君子在野')).toBe(-1); }
+	});
 });
 
 describe('WP-D 流派预设', () => {
-	test('6 预设结构齐(sihua + 10 开关)', () => {
-		const keys = ['daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming'];
-		['sanhe', 'feixing', 'zhongzhou', 'qintian', 'quanshu', 'heluo'].forEach((k)=>{
+	test('10 预设结构齐(sihua + 全开关含亮度/overlay)', () => {
+		const keys = ['daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming', 'brightnessSource', 'childLimit', 'zhongxian', 'huoPan', 'qishuWei', 'borrowPalace', 'taiSuiRuGua'];
+		['sanhe', 'feixing', 'zhongzhou', 'qintian', 'quanshu', 'heluo', 'ziyun', 'shenshi', 'toupai', 'zhanyan'].forEach((k)=>{
 			const p = ZIWEI_SCHOOL_PRESETS[k];
 			expect(p).toBeTruthy();
 			expect(typeof p.sihua).toBe('string');
 			keys.forEach((kk)=>expect(p[kk] !== undefined).toBe(true));
 		});
 	});
-	test('中州派=zhongzhou四化+阴阳互换;钦天=局数年;全书=quanshu;河洛=north18', () => {
+	test('招牌 preset:中州借宫+阴阳互换/河洛气数位/紫云太岁/沈氏三限/透派活盘/占验立极', () => {
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.sihua).toBe('zhongzhou');
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.shangShi).toBe('yinyang');
+		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.borrowPalace).toBe(true);
 		expect(ZIWEI_SCHOOL_PRESETS.qintian.daxianSpan).toBe('ju');
 		expect(ZIWEI_SCHOOL_PRESETS.quanshu.sihua).toBe('quanshu');
 		expect(ZIWEI_SCHOOL_PRESETS.heluo.starSet).toBe('north18');
+		expect(ZIWEI_SCHOOL_PRESETS.heluo.qishuWei).toBe(true);
+		expect(ZIWEI_SCHOOL_PRESETS.ziyun.taiSuiRuGua).toBe(true);
+		expect(ZIWEI_SCHOOL_PRESETS.shenshi.zhongxian).toBe(true);
+		expect(ZIWEI_SCHOOL_PRESETS.toupai.huoPan).toBe(true);
+		expect(ZIWEI_SCHOOL_PRESETS.zhanyan.huoPan).toBe(true);
+		expect(ZIWEI_SCHOOL_PRESETS.zhanyan.starSet).toBe('north18');
 	});
 	test('presetMatches/presetOf:默认=三合;改一项→custom', () => {
-		const dflt = { daxianSpan: 10, tianmaBasis: 'month', starSet: 'full', sanPan: 'tian', shangShi: 'fixed', leapMonth: 'mid_split', lateZi: 'zi_chu', yearBoundary: 'lichun', huoling: 'sanhe', kongNaming: 'modern' };
+		const dflt = { daxianSpan: 10, tianmaBasis: 'month', starSet: 'full', sanPan: 'tian', shangShi: 'fixed', leapMonth: 'mid_split', lateZi: 'zi_chu', yearBoundary: 'lichun', huoling: 'sanhe', kongNaming: 'modern', brightnessSource: 'zi_jian', childLimit: false, zhongxian: false, huoPan: false, qishuWei: false, borrowPalace: false, taiSuiRuGua: false };
 		expect(presetMatches('sanhe', 'beipai', dflt)).toBe(true);
 		expect(presetOf('beipai', dflt, 'sanhe')).toBe('sanhe');
 		expect(presetOf('beipai', dflt, 'feixing')).toBe('feixing');   // 同源消歧:保留用户所选

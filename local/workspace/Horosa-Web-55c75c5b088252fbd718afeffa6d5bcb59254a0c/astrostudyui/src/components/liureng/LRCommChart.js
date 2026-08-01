@@ -151,7 +151,9 @@ class LRCommChart {
 	}
 
 	genHouseTianJiang(){
-		let guizi = LRConst.getGuiZi(this.chartObj, this.guireng, this.castOverride ? this.castOverride.isDiurnal : undefined);
+		// 第 4 参(昼夜阳阴归属)从前漏传 → 中栏盘十二天将起点与右栏断辞/AI 快照(均传 4 参)分叉:
+		// 阳阴系 + 六壬法贵人 + 日干甲乙丙辛壬癸 时两侧贵人不同,界面自相矛盾。缺省 undefined ≡ 旦暮系 = 零回归。
+		let guizi = LRConst.getGuiZi(this.chartObj, this.guireng, this.castOverride ? this.castOverride.isDiurnal : undefined, this.castOverride ? this.castOverride.yinyangSystem : undefined);
 		let houseidx = 0;
 		for(let i=0; i<12; i++){
 			let zi = LRConst.ZiList[this.yueIndexs[i]];

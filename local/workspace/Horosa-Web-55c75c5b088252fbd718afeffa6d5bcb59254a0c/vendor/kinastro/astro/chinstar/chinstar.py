@@ -594,6 +594,71 @@ class WanHuaXianQin:
 
         return stars
 
+    # ────────────────────── 大限 / 流年 / 元辰（WP-12/13）──────────────────────
+
+    _STEMS = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
+    _QIN_YAO_START_AGE = {"水": 1, "火": 2, "木": 3, "金": 4, "土": 5, "日": 6, "月": 7}
+    # 五虎遁：年干 → 正月(寅)天干
+    _WUHU_YIN = {"甲": "丙", "己": "丙", "乙": "戊", "庚": "戊", "丙": "庚", "辛": "庚",
+                 "丁": "壬", "壬": "壬", "戊": "甲", "癸": "甲"}
+    _YANG_STEMS = set("甲丙戊庚壬")
+
+    def _palace_stem(self, year: int, branch_idx: int) -> str:
+        """宮天干（五虎遁）：年干→寅宮干→順布至該宮支。"""
+        year_stem = self._STEMS[(year - 4) % 10]
+        yin_stem = self._WUHU_YIN[year_stem]
+        yin_stem_idx = self._STEMS.index(yin_stem)
+        off = (branch_idx - 2) % 12  # 寅=2
+        return self._STEMS[(yin_stem_idx + off) % 10]
+
+    def calc_yuanchen_xing(self, ming_xing: str, ming_gong_idx: int) -> str:
+        """元辰禽（WP-13）：命宮對衝位(命宮+6)所值之禽，作暗耗看。命星加子演至衝位。"""
+        chong = (ming_gong_idx + 6) % 12
+        return self._evolve_to_palace(ming_xing, chong)
+
+    def calc_dayun(self, year: int, ming_gong_idx: int, ming_xing: str, gender: str) -> Dict:
+        """大限（WP-12·萬化仙禽起例）：十年一移。
+        起運虛歲＝命星曜(水1火2木3金4土5日6月7)；方向＝命宮天干陰陽(男陽順陰逆、女反)。
+        ⚠️ 大限方向兩說：萬化仙禽用主星宮天干陰陽；三僚作男女皆順——本期取萬化仙禽說，另說待校。
+        """
+        yao = ming_xing[1] if len(ming_xing) >= 2 else "水"
+        start_age = self._QIN_YAO_START_AGE.get(yao, 1)
+        gong_stem = self._palace_stem(year, ming_gong_idx)
+        yang = gong_stem in self._YANG_STEMS
+        forward = yang if gender.upper() == "M" else (not yang)
+        limits = []
+        age = start_age
+        for i in range(12):
+            step = i if forward else -i
+            gong = (ming_gong_idx + step) % 12
+            limits.append({"palace_branch": BRANCHES[gong], "age_start": age, "age_end": age + 9})
+            age += 10
+        return {
+            "start_age": start_age, "forward": forward, "palace_stem": gong_stem,
+            "note": "萬化仙禽:命星宮天干陰陽定順逆(男陽順陰逆、女反);三僚作男女皆順·待校",
+            "limits": limits,
+        }
+
+    def calc_liunian(self, tai_xing: str, up_to: int = 60) -> List[Dict]:
+        """流年小限（WP-12）：以胎星作一歲往前演，逐年一宿(胎斗→一歲斗、二歲牛…)。"""
+        start = self.get_host_idx(tai_xing)
+        return [{"age": a, "qin": QIN_NAMES[(start + a - 1) % 28]} for a in range(1, up_to + 1)]
+
+    # 孤辰寡宿（WP-15）：按年支三合局。寅卯辰→孤辰巳寡宿丑；巳午未→孤辰申寡宿辰；
+    # 申酉戌→孤辰亥寡宿未；亥子丑→孤辰寅寡宿戌。
+    _GUCHEN_GUASU = {
+        "寅": ("巳", "丑"), "卯": ("巳", "丑"), "辰": ("巳", "丑"),
+        "巳": ("申", "辰"), "午": ("申", "辰"), "未": ("申", "辰"),
+        "申": ("亥", "未"), "酉": ("亥", "未"), "戌": ("亥", "未"),
+        "亥": ("寅", "戌"), "子": ("寅", "戌"), "丑": ("寅", "戌"),
+    }
+
+    def calc_guchen_guasu(self, year: int) -> Dict:
+        """孤辰寡宿神煞（WP-15）：由年支三合定孤辰/寡宿地支。"""
+        zhi = BRANCHES[self.get_branch_idx(year)]
+        guchen, guasu = self._GUCHEN_GUASU[zhi]
+        return {"year_branch": zhi, "guchen": guchen, "guasu": guasu}
+
     # ────────────────────── 吞啗判斷 ──────────────────────
 
     def judge_swallow(self, qin1: str, qin2: str) -> str:
@@ -761,6 +826,12 @@ class WanHuaXianQin:
 
         pattern = self.judge_pattern(tai_xing, ming_gong_idx, month, hour)
 
+        # WP-12/13/15：元辰禽 + 大限 + 流年小限 + 孤辰寡宿
+        yuanchen_xing = self.calc_yuanchen_xing(ming_xing, ming_gong_idx)
+        dayun = self.calc_dayun(year, ming_gong_idx, ming_xing, gender)
+        liunian = self.calc_liunian(tai_xing, up_to=60)
+        shensha = self.calc_guchen_guasu(year)
+
         return {
             "basic_info": {
                 "year": year,
@@ -782,8 +853,12 @@ class WanHuaXianQin:
                 "tai_xing": tai_xing,
                 "ming_xing": ming_xing,
                 "shen_xing": shen_xing,
+                "yuanchen_xing": yuanchen_xing,
                 "derived": derived,
             },
+            "dayun": dayun,
+            "liunian": liunian,
+            "shensha": shensha,
             "swallow_analysis": swallow,
             "personality": {
                 "tai_xing": f"{tai_xing}：{personality_tai}",

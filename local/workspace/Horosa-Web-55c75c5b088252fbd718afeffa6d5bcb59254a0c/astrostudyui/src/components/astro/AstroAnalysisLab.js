@@ -13,7 +13,10 @@ const LOT_CN = {
 	'Pars Father': '父亲点', 'Pars Mother': '母亲点', 'Pars Brothers': '兄弟点', 'Pars Diseases': '疾厄点',
 	'Pars Death': '死亡点', 'Pars Travel': '旅行点', 'Pars Friends': '朋友点', 'Pars Enemies': '仇敌点',
 	'Pars Saturn': '土星点', 'Pars Jupiter': '木星点', 'Pars Mars': '火星点', 'Pars Venus': '金星点',
-	'Pars Mercury': '水星点', 'Pars Horsemanship': '骑术点', 'Pars Life': '生命点', 'Pars Radix': '根基点',
+	'Pars Mercury': '水星点', 'Pars Horsemanship': '骑术点', 'Pars Life': '生命点', 'Pars Radix': '本源点',
+	// 希腊化补全六点(「根基点」专指 Basis,与择日点引擎/词汇表/显赫指标同名)
+	'Pars Basis': '根基点', 'Pars Exaltation': '擢升点', 'Pars Sons Valens': '儿子点',
+	'Pars Daughters': '女儿点', 'Pars Praxis': '事业点', 'Pars Wedding Dorothean': '婚姻点(通式)',
 	'Pars Eros': '爱欲点', 'Pars Necessity': '必然点', 'Pars Courage': '勇气点', 'Pars Victory': '胜利点',
 	'Pars Nemesis': '报应点',
 };
@@ -25,6 +28,8 @@ class AstroAnalysisLab extends Component{
 			loading: false,
 			result: null,
 			requestKey: '',
+			failedKey: '',
+			failedMsg: '',
 		};
 		this.load = this.load.bind(this);
 	}
@@ -39,20 +44,25 @@ class AstroAnalysisLab extends Component{
 	}
 
 	buildRequestKey(){
-		// requestKey 含 voidClassical(星盘组件开关,经 props 传入):切换古典义要重新请求(否则被相等去重挡住),componentDidUpdate 据此自动重算。
+		// requestKey 含 voidClassical(星盘设置开关,经 props 传入):切换古典义要重新请求(否则被相等去重挡住),componentDidUpdate 据此自动重算。
 		return chartRequestKey(this.props.value, `analysis|vc:${this.props.voidClassical ? 1 : 0}`);
 	}
 
 	componentDidUpdate(prevProps){
 		const key = this.buildRequestKey();
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		if(key && key !== this.state.requestKey && key !== this.state.failedKey && !this.state.loading){
 			this.load();
 		}
 	}
 
+	// 显式重试:清掉失败标记后重新请求(参数未变也能重来)。
+	retry = ()=>{
+		this.setState({ failedKey: '', failedMsg: '' }, this.load);
+	};
+
 	ensureLoaded(){
 		const key = this.buildRequestKey();
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		if(key && key !== this.state.requestKey && key !== this.state.failedKey && !this.state.loading){
 			setTimeout(this.load, 0);
 		}
 	}
@@ -74,10 +84,10 @@ class AstroAnalysisLab extends Component{
 				timeoutMs: 30000,
 			});
 			if(!this._mounted) return;
-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key, failedKey: '', failedMsg: ''});
 		}catch(e){
 			if(!this._mounted) return;
-			this.setState({loading: false, requestKey: key});
+			this.setState({loading: false, failedKey: key, failedMsg: (e && e.message) ? `${e.message}` : ''});
 		}
 	}
 
@@ -307,7 +317,7 @@ class AstroAnalysisLab extends Component{
 		return (
 			<div style={cardStyle}>
 				<div className="horosa-info-card-title">相位动态 Aspect Dynamics</div>
-				{/* 空亡古典义(30°内)开关已移至星盘组件(显示与样式 → 经典尊贵区);此处读 props.voidClassical 自动重算。 */}
+				{/* 空亡古典义(30°内)开关已移至星盘设置(显示与样式 → 经典尊贵区);此处读 props.voidClassical 自动重算。 */}
 				{!has ? <div>未检出传光/聚光/不合意/弯曲/空亡/阻止/挫败/收回。</div> : (
 					<div>
 						{sub('传光 Translation', translation, (d)=> <span>{astroSymbol(d.mover)} 自 {astroSymbol(d.from)} 传光予 {astroSymbol(d.to)}</span>)}
@@ -394,6 +404,9 @@ class AstroAnalysisLab extends Component{
 					{ key: 'planet', title: '行星', render: (v)=>astroSymbol(v) },
 					{ key: 'cn', title: '参照星', render: (v, row)=> <span>{v || row.star}<span style={{opacity: 0.5, fontSize: 11, marginLeft: 4}}>{row.star}</span></span> },
 					{ key: 'dist', title: '黄经距', render: (v, row)=> <span>{fmtNum(v)}°{row.conj ? <span style={{color: 'var(--horosa-gold, #b8860b)', marginLeft: 4}}>合</span> : null}</span> },
+					// 楔文读法(定名距星表升级新增;老数据无此键时列空,零回归)
+					{ key: 'cubits', title: '楔文读法', render: (v, row)=> (row.latDir === undefined ? null
+						: <span style={{fontSize: 11.5}}>{row.latDir}{row.lonDir} {v} 肘 {row.fingers} 指</span>) },
 				]} />
 			</div>
 		);
@@ -508,6 +521,15 @@ class AstroAnalysisLab extends Component{
 		return (
 			<Spin spinning={this.state.loading}>
 				<div style={{height: this.props.height || 560, overflow: 'auto', paddingRight: 8, paddingBottom: 28}}>
+					{this.state.failedKey && this.state.failedKey === this.buildRequestKey() ? (
+						<div style={cardStyle}>
+							<div className="horosa-info-card-title">格局分析未取到</div>
+							<div style={{fontSize: 12, opacity: 0.75, marginBottom: 8}}>
+								{this.state.failedMsg ? '本地计算服务未响应,请稍候重试。' : '本次请求未返回结果。'}
+							</div>
+							<a onClick={this.retry}>重新计算</a>
+						</div>
+					) : null}
 					{this.renderPatterns(result.patterns)}
 					{this.renderClassicalPatterns(result.classicalPatterns)}
 					{this.renderPatternOverview()}

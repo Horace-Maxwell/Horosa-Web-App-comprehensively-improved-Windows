@@ -586,7 +586,7 @@ class AstroInfo extends Component{
 			}
 
 			if(MarsSaturn.length > 0 && this.canDisplayPlanet(MarsSaturn[0].id) && this.canDisplayPlanet(MarsSaturn[1].id)){
-				dom = (
+				let dom = (
 					<div key={`${key}-marsSaturn`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
@@ -610,7 +610,7 @@ class AstroInfo extends Component{
 				divs.push(dom);
 			}
 			if(SunMoon.length > 0 && this.canDisplayPlanet(SunMoon[0].id) && this.canDisplayPlanet(SunMoon[1].id)){
-				dom = (
+				let dom = (
 					<div key={`${key}-sunMoon`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
@@ -634,7 +634,7 @@ class AstroInfo extends Component{
 				divs.push(dom);
 			}
 			if(VenusJupiter.length > 0 && this.canDisplayPlanet(VenusJupiter[0].id) && this.canDisplayPlanet(VenusJupiter[1].id)){
-				dom = (
+				let dom = (
 					<div key={`${key}-venusJupiter`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
@@ -1077,7 +1077,12 @@ class AstroInfo extends Component{
 			// B3 格局速览(纯本盘数据,无需分析请求):命主星(1R) + 三围(围攻/围荣/围耀) + 互容 + 接纳。
 			const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
 			const objs = perchart.objects || [];
-			const ascSign = (perchart.houses && perchart.houses[0]) ? perchart.houses[0].sign : null;
+			// 🔴 houses 数组按黄经升序排,houses[0] 只在上升落白羊时才是 House1
+			// (约 11/12 的盘取错 → 命主星/落宫/落座整行皆错);按 Asc 对象取座,
+			// 与 AstroEminence.deriveAlmuten / AstroDispositor 的正确范式对齐。
+			const ascObj = objs.find((o)=>o && o.id === 'Asc');
+			const ascSign = ascObj ? ascObj.sign
+				: ((perchart.houses || []).find((h)=>h && h.id === 'House1') || {}).sign || null;
 			const ruler1 = ascSign ? SIGN_RULER[ascSign] : null;
 			const ruler1Obj = ruler1 ? objs.find((o)=> o && o.id === ruler1) : null;
 			const cn = (id)=> (id ? (AstroText.AstroMsgCN[id] || id) : '--');
@@ -1123,7 +1128,7 @@ class AstroInfo extends Component{
 						<div className="horosa-info-card-title">格局速览</div>
 						<div className="horosa-info-row">
 							<span>命主星 1R</span>
-							<strong>{ruler1Obj ? <span>{astroSymbol(ruler1)}<span style={{ fontFamily: AstroConst.NormalFont }}> · 落{ruler1Obj.house ? (AstroText.AstroMsg[ruler1Obj.house] || ruler1Obj.house) : '?'} · {cn(ruler1Obj.sign)}座</span></span> : (ruler1 ? astroSymbol(ruler1) : '--')}</strong>
+							<strong>{ruler1Obj ? <span>{astroSymbol(ruler1)}<span style={{ fontFamily: AstroConst.NormalFont }}> · 落{ruler1Obj.house ? (AstroText.AstroMsgCN[ruler1Obj.house] || AstroText.AstroMsg[ruler1Obj.house] || ruler1Obj.house) : '?'} · {cn(ruler1Obj.sign)}座</span></span> : (ruler1 ? astroSymbol(ruler1) : '--')}</strong>
 						</div>
 						<div className="horosa-info-row">
 							<span>三围</span>
@@ -1151,9 +1156,9 @@ class AstroInfo extends Component{
 				decl: !!((declP.parallel || []).length || Object.keys(declP.contraParallel || {}).length),
 				recp: !!recpDom,
 				mut: !!mutDom,
-				attacks: !!surattacks,
+				attacks: Object.keys((surr && surr.attacks) || {}).length > 0,   // 按源数据判(gen* 空数据仍返空 div,!! 恒真)
 				houses: Object.keys(surr.houses || {}).some((k) => (surr.houses[k] || []).length >= 2),
-				planets: Object.keys(surr.planets || {}).some((k) => (surr.planets[k] || []).length >= 2),
+				planets: Object.keys(surr.planets || {}).some((k) => (function(v){ return Array.isArray(v) ? v.length >= 2 : !!(v && (v.SunMoon || v.id)); })(surr.planets[k])),
 			};
 			const empty = (txt) => <div className="horosa-empty-line">{txt || '暂无'}</div>;
 			// 卡片标题双语(中文 + 英文小字):有的人看不懂中文术语。无 subtab,所有卡片依次排列。

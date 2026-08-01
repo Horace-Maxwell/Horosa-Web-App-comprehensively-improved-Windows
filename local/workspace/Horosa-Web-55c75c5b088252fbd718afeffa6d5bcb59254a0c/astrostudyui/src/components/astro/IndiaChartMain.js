@@ -8,6 +8,10 @@ import { createPortal } from 'react-dom';
 import moment from 'moment';
 import IndiaChart, { fieldsToParams, requestIndiaChartData } from './IndiaChart';
 import { resolveLagnaRefSignNumber } from './IndiaSouthChart';
+import IndiaSbcChart from './IndiaSbcChart';
+import IndiaTripatakiChart from './IndiaTripatakiChart';
+import INDIA_JUDGMENT_NOTES from './indiaJudgmentNotes';
+import { safeLocalStorageSet, safeLocalStorageGet } from '../../utils/safeStorage';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
@@ -15,12 +19,21 @@ import {convertLatToStr, convertLonToStr} from './AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameRawPatch } from '../../utils/geoName';
 import * as AstroConst from '../../constants/AstroConst';
-import { XQSegmented as Segmented, XQSelect as Select, XQTabs as Tabs, XQDatePicker as DatePicker, XQInputNumber as InputNumber, XQSideSection  } from '../xq-ui';
+import { XQSegmented as Segmented, XQSelect as Select, XQTabs as Tabs, XQDatePicker as DatePicker, XQInputNumber as InputNumber, XQSideSection, XQDrawer  } from '../xq-ui';
 import XQIcon from '../xq-icons';
 
 const TabPane = Tabs.TabPane;
 const {Option, OptGroup} = Select;
 const DASHA_YEAR_DAYS = 365.25;
+// G5:后端实际所用年长(从 chartObj.jyotish.dasha.vimshottari.yearLengthDays 读回同步)。
+// 🔴 单一真值源:5 级钻取的客户端自算段若与后端年长不一致,深层起讫会错位。
+let _activeDashaYearDays = DASHA_YEAR_DAYS;
+function currentDashaYearDays(){ return _activeDashaYearDays; }
+function syncDashaYearDays(chartObj){
+	const d = chartObj && chartObj.jyotish && chartObj.jyotish.dasha;
+	const v = d && d.vimshottari && Number(d.vimshottari.yearLengthDays);
+	_activeDashaYearDays = (Number.isFinite(v) && v > 0) ? v : DASHA_YEAR_DAYS;
+}
 const NAKSHATRA_SIZE = 360 / 27;
 const INDIA_DEGREE_DISPLAY_DEGREE = 'degree';
 const INDIA_DEGREE_DISPLAY_FULL = 'full';
@@ -167,14 +180,14 @@ function addDashaYears(momentValue, years){
 	if(!momentValue || !momentValue.clone){
 		return null;
 	}
-	return momentValue.clone().add(years * DASHA_YEAR_DAYS * 24 * 60 * 60 * 1000, 'milliseconds');
+	return momentValue.clone().add(years * currentDashaYearDays() * 24 * 60 * 60 * 1000, 'milliseconds');
 }
 
 function subtractDashaYears(momentValue, years){
 	if(!momentValue || !momentValue.clone){
 		return null;
 	}
-	return momentValue.clone().subtract(years * DASHA_YEAR_DAYS * 24 * 60 * 60 * 1000, 'milliseconds');
+	return momentValue.clone().subtract(years * currentDashaYearDays() * 24 * 60 * 60 * 1000, 'milliseconds');
 }
 
 function formatDuration(years){
@@ -197,7 +210,24 @@ function formatAge(years){
 	return `${years.toFixed(1)}岁`;
 }
 
-function buildDashaSubPeriods(item){
+function deriveDashaSequence(list){
+	// 从大运段序列推导「主星环(首次出现序)+ 周期总长」——4/5 级深钻按体系自身环递归
+	// (lord.years 为满年;首段余额年不污染环)。环<2 或总长≤0 → null(不出段,宁缺勿错)。
+	const seen = {};
+	const seq = [];
+	(list || []).forEach((it)=>{
+		const lord = it && it.lord;
+		const k = lord && lord.key;
+		if(!k || seen[k]){ return; }
+		seen[k] = true;
+		const years = (lord.years !== undefined && lord.years !== null) ? +lord.years : +it.years;
+		seq.push({ key: k, label: lord.label, en: lord.en, years: Number.isFinite(years) ? years : 0 });
+	});
+	const total = seq.reduce((sum, l)=>sum + (l.years || 0), 0);
+	return (seq.length >= 2 && total > 0) ? { sequence: seq, totalYears: total } : null;
+}
+
+function buildDashaSubPeriods(item, system = 'vimshottari', seqCtx = null){
 	if(item && Array.isArray(item.antardashas)){
 		return item.antardashas.map((subItem)=>({
 			...subItem,
@@ -208,6 +238,29 @@ function buildDashaSubPeriods(item){
 	}
 	if(!item || !item.start || !item.lord){
 		return [];
+	}
+	// 非 Vimshottari:按「体系自身环序+周期总长」通用递归(环由该体系大运段推导);
+	// 推导不出(环残缺)→ 不出段,绝不借 Vimshottari 九主序÷120 造假段。
+	if(system !== 'vimshottari'){
+		if(!seqCtx || !Array.isArray(seqCtx.sequence) || !seqCtx.totalYears){
+			return [];
+		}
+		const SEQ = seqCtx.sequence;
+		const TOTAL = seqCtx.totalYears;
+		const out = [];
+		let cur = item.start.clone();
+		let li = SEQ.findIndex((lord)=>lord.key === item.lord.key);
+		if(li < 0){ return []; }
+		for(let i = 0; i < SEQ.length; i++){
+			const idx = (li + i) % SEQ.length;
+			const lord = { ...SEQ[idx], idx };
+			const years = item.years * (lord.years || 0) / TOTAL;
+			const end = i === SEQ.length - 1 ? item.end.clone() : addDashaYears(cur, years);
+			if(!end || !end.clone){ break; }
+			out.push({ lord, years, start: cur.clone(), end: end.clone() });
+			cur = end;
+		}
+		return out;
 	}
 	const subItems = [];
 	let start = item.start.clone();
@@ -280,21 +333,9 @@ function dashaContainsNow(item){
 	return now >= s && now < e;
 }
 
-const DASHA_SYSTEM_OPTIONS = [
-	{ value: 'vimshottari', label: 'Vimshottari' },
-	{ value: 'yogini', label: 'Yogini' },
-	{ value: 'ashtottari', label: 'Ashtottari' },
-	{ value: 'tribhagi', label: 'Tribhāgī（÷3）' },
-	{ value: 'shodashottari', label: 'Shodashottari' },
-	{ value: 'dvadashottari', label: 'Dvadashottari' },
-	{ value: 'panchottari', label: 'Panchottari' },
-	{ value: 'shatabdika', label: 'Shatabdika' },
-	{ value: 'chaturashitiSama', label: 'Chaturashiti' },
-	{ value: 'dwisaptatiSama', label: 'Dwisaptati' },
-	{ value: 'shashtihayani', label: 'Shashtihayani' },
-	{ value: 'shattrimshaSama', label: 'Shattrimsha' },
-	{ value: 'chara', label: 'Chara' },
-];
+// 大运体系表单一真值源在 AstroConst.INDIA_DASHA_SYSTEM_OPTIONS(载盘回种 norm、AI 挂载齿轮、
+// 右栏 Select 三处共用;此前双表分叉曾致 chara/8 条件系存盘载回被打回 vimshottari)。
+const DASHA_SYSTEM_OPTIONS = AstroConst.INDIA_DASHA_SYSTEM_OPTIONS;
 // 8 条件 Nakshatra 大运(QW10/11):仅在其起算条件满足时为「主用」,否则引擎仍给全表供「备览」。
 const DASHA_CONDITIONAL_KEYS = ['shodashottari', 'dvadashottari', 'panchottari', 'shatabdika', 'chaturashitiSama', 'dwisaptatiSama', 'shashtihayani', 'shattrimshaSama'];
 // Jaimini 星座大运(rasi-based,非 graha):周期=各座到其主星距,与宿系大运渲染口径不同。
@@ -313,6 +354,8 @@ const DASHA_SYSTEM_LABEL = {
 	shashtihayani: 'Shashtihayani 六十（60 年 · 条件）',
 	shattrimshaSama: 'Shattrimsha-sama 三六均（36 年 · 条件）',
 	chara: 'Chara 耆那星座大运（Jaimini · 按座推）',
+	taraDasha: 'Tāra 大运（kendra 强度序 · Vimshottari 年表 · 120 年）',
+	akkg: 'AKKG 大运（Karaka Kendradi Graha · AK 播种 · 二轮补足）',
 };
 
 // 大运起点(seed):标准取月亮宿;支持改取七政/节点/上升/特殊上升/副星(虚点)任一点的宿起运。
@@ -353,6 +396,55 @@ export const DASHA_SEED_OPTIONS = [
 const DASHA_SEED_LABEL = {};
 DASHA_SEED_OPTIONS.forEach((g)=>g.options.forEach((o)=>{ DASHA_SEED_LABEL[o.value] = o.label; }));
 
+// ── 印占选项「fields ↔ 组件 state」双向同步映射(命盘储存四本账的第一公里)──
+// 🔴 根因(2026-07-27 审计实锤):localcharts/recordFieldsRestore/aiAnalysisContext 三段早已成对,
+// 但组件把选项全存在自身 state、从不写回 dva fields → 存盘时 values.india* 恒 undefined/默认,
+// 整条 per-record 持久化空转;载盘还原亦因 state-first 读值而被默认值盖掉。
+// 修法:① 每个选项 change 后 persistIndiaOption 写穿 dva;② 构造期/载盘(fields 引用变)时
+// adoptIndiaOptionFields 以 fields 为真相回种 state。两向都走本表,加键只改一处。
+export const INDIA_OPTION_FIELD_STATE_MAP = [
+	{ field: 'indiaHsys', state: 'indiaHsysValue', norm: (v)=>AstroConst.normalizeIndiaHouseSystem(v) },
+	{ field: 'indiaAyanamsa', state: 'indiaAyanamsaValue', norm: (v)=>AstroConst.normalizeIndiaAyanamsa(v) },
+	{ field: 'indiaNodeType', state: 'indiaNodeTypeValue', norm: (v)=>(v === 'true' ? 'true' : 'mean') },
+	{ field: 'indiaDashaSystem', state: 'dashaSystem', norm: (v)=>AstroConst.normalizeIndiaDashaSystem(v) },
+	{ field: 'indiaDashaSeed', state: 'dashaSeed', norm: (v)=>(DASHA_SEED_LABEL[v] ? v : DASHA_SEED_DEFAULT) },
+	{ field: 'indiaDashaYearLength', state: 'indiaDashaYearLength', norm: (v)=>AstroConst.normalizeIndiaDashaYear(v) },
+	{ field: 'indiaAnnualChartType', state: 'indiaAnnualChartType', norm: (v)=>AstroConst.normalizeIndiaAnnualChartType(v) },
+	{ field: 'indiaSthiraStart', state: 'indiaSthiraStart', norm: (v)=>(v === 'brahma' ? 'brahma' : 'lagna') },
+	{ field: 'indiaTransitDate', state: 'indiaTransitDateValue', norm: (v)=>(v ? String(v) : null) },
+	{ field: 'indiaTajakaYear', state: 'indiaTajakaYearValue', norm: (v)=>{ const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; } },
+	{ field: 'indiaSchool', state: 'indiaSchool', norm: (v)=>AstroConst.normalizeIndiaSchool(v) },
+	{ field: 'indiaVargaVariant', state: 'indiaVargaVariantMap', norm: (v)=>{
+		const m = AstroConst.normalizeIndiaVargaVariantMap(v);
+		return Object.keys(m).length ? m : null;
+	} },
+	{ field: 'indiaKarakaScheme', state: 'indiaKarakaScheme', norm: (v)=>AstroConst.normalizeIndiaKarakaScheme(v) },
+	{ field: 'indiaYuddhaCriterion', state: 'indiaYuddhaCriterion', norm: (v)=>AstroConst.normalizeIndiaYuddhaCriterion(v) },
+	{ field: 'indiaDashaVariants', state: 'indiaDashaVariants', norm: (v)=>{
+		const m = AstroConst.normalizeIndiaDashaVariants(v);
+		return Object.keys(m).length ? m : null;
+	} },
+	{ field: 'indiaVargaSet', state: 'vargaSetFractals', norm: (v)=>{
+		const arr = (Array.isArray(v) ? v : String(v || '').split(',')).map((x)=>parseInt(x, 10)).filter((x)=>!Number.isNaN(x));
+		const valid = arr.filter((x)=>VARGA_GRID_OPTIONS.some((o)=>parseInt(o.value, 10) === x));
+		return valid.length ? valid.slice(0, VARGA_GRID_MAX) : null;
+	} },
+];
+
+export function seedIndiaOptionState(fields){
+	// 构造期/载盘回种:仅取 fields 中「显式带值」的键(空值不动默认,保零回归)。
+	const patch = {};
+	if(!fields){ return patch; }
+	INDIA_OPTION_FIELD_STATE_MAP.forEach(({ field, state, norm })=>{
+		const entry = fields[field];
+		if(entry && entry.value !== undefined && entry.value !== null && entry.value !== ''){
+			const v = norm(entry.value);
+			if(v !== null && v !== undefined){ patch[state] = v; }
+		}
+	});
+	return patch;
+}
+
 // 分盘集(多盘并列网格)可选分盘:D1..D60(与 state.hook 同口径)。label = D{n} · 类象。
 const VARGA_GRID_OPTIONS = [
 	{ value: 1, name: 'Rashi', label: 'D1 · 命盘' },
@@ -383,7 +475,10 @@ const VARGA_GRID_DEFAULT = [1, 9, 10, 12];
 
 // QW10/11 条件 Nakshatra 大运:把 jyotish.extendedDashas.conditional[key] 映射成与 Vimshottari
 // 同形的 {nakshatra, firstBalance, items[]} 结构,以复用既有大运渲染器(条目/小运/年龄)。
-//   出生余额起算:start = 出生 − firstElapsed;首运按余额年、其后按全周期年依序排布。
+//   出生余额起算:start = 出生 − firstElapsed(= 首运周期起点 cycle_start),故每段(含首段)
+//   一律取满期年 fullYears;首段用 isBirthBalance 标记「出生前已历」部分。
+//   🔴 曾错配:起点用 cycle_start、首段却取余额年 balance → 整条时间轴前移 firstElapsed 年
+//   (对照标准:引擎 Vimshottari 首段即满年 + 负 startAge)。
 //   小运无绝对日期 → 按 antardasha 年比例填入大运 [start,end] 窗口(视觉连续)。
 function buildExtendedConditionalDasha(chartObj, fields, key){
 	const ed = chartObj && chartObj.jyotish && chartObj.jyotish.extendedDashas;
@@ -402,7 +497,7 @@ function buildExtendedConditionalDasha(chartObj, fields, key){
 	}
 	const now = Date.now();
 	const items = c.mahadashas.map((m, i)=>{
-		const periodYears = (i === 0 && m.balance && m.years != null) ? m.years : (m.fullYears != null ? m.fullYears : m.years);
+		const periodYears = m.fullYears != null ? m.fullYears : m.years;
 		const end = addDashaYears(start, periodYears) || start.clone();
 		let antardashas = null;
 		if(Array.isArray(m.antardashas) && m.antardashas.length){
@@ -421,8 +516,8 @@ function buildExtendedConditionalDasha(chartObj, fields, key){
 			years: periodYears,
 			start: start.clone(),
 			end: end.clone ? end.clone() : start.clone(),
-			startAge: start.diff(birth, 'days', true) / DASHA_YEAR_DAYS,
-			endAge: end.diff ? end.diff(birth, 'days', true) / DASHA_YEAR_DAYS : null,
+			startAge: start.diff(birth, 'days', true) / currentDashaYearDays(),
+			endAge: end.diff ? end.diff(birth, 'days', true) / currentDashaYearDays() : null,
 			isBirthBalance: i === 0 && !!m.balance,
 			active: now >= start.valueOf() && now < (end.valueOf ? end.valueOf() : start.valueOf()),
 			antardashas,
@@ -467,10 +562,14 @@ function buildCharaDasha(chartObj, fields){
 		const end = addDashaYears(start, yrs) || start.clone();
 		let antardashas = null;
 		if(Array.isArray(m.antardashas) && m.antardashas.length){
+			// 座运中运分割开关:比例(默认,按各座自身期长占比)/12 等分。
+			const splitMode = (AstroConst.normalizeIndiaDashaVariants(
+				fields && fields.indiaDashaVariants ? fields.indiaDashaVariants.value : null
+			).rasiAntarSplit) || 'proportional';
 			const tot = m.antardashas.reduce((s, a)=>s + (a.periodYears || 0), 0) || 1;
 			let cur = start.clone();
 			antardashas = m.antardashas.map((a)=>{
-				const dur = yrs * (a.periodYears || 0) / tot;
+				const dur = splitMode === 'equal' ? yrs / m.antardashas.length : yrs * (a.periodYears || 0) / tot;
 				const aEnd = addDashaYears(cur, dur) || cur.clone();
 				const row = { lord: { label: a.rasiLabel, en: a.rasi, key: a.rasi }, years: dur, start: cur.clone().toISOString(), end: aEnd.clone().toISOString() };
 				cur = aEnd;
@@ -482,8 +581,8 @@ function buildCharaDasha(chartObj, fields){
 			years: yrs,
 			start: start.clone(),
 			end: end.clone ? end.clone() : start.clone(),
-			startAge: start.diff(birth, 'days', true) / DASHA_YEAR_DAYS,
-			endAge: end.diff ? end.diff(birth, 'days', true) / DASHA_YEAR_DAYS : null,
+			startAge: start.diff(birth, 'days', true) / currentDashaYearDays(),
+			endAge: end.diff ? end.diff(birth, 'days', true) / currentDashaYearDays() : null,
 			isBirthBalance: false,
 			active: now >= start.valueOf() && now < (end.valueOf ? end.valueOf() : start.valueOf()),
 			antardashas,
@@ -508,10 +607,52 @@ function buildCharaDasha(chartObj, fields){
 	};
 }
 
+function buildAkkgDasha(chartObj, fields){
+	// AKKG(引擎 dasha.akkg):mahadashas 平铺(cycle 1/2 + start/end 日期已算)→ 组树形items。
+	const a = chartObj && chartObj.jyotish && chartObj.jyotish.dasha && chartObj.jyotish.dasha.akkg;
+	if(!a || !a.available || !Array.isArray(a.mahadashas) || !a.mahadashas.length){
+		return null;
+	}
+	const now = Date.now();
+	const items = a.mahadashas.map((m)=>{
+		const start = m.start ? moment(m.start) : null;
+		const end = m.end ? moment(m.end) : null;
+		return {
+			lord: normalizeDashaLord({ key: m.planet, en: m.planet, label: m.planetCN || m.planet, years: m.years }),
+			years: m.years,
+			cycle: m.cycle,
+			start,
+			end,
+			startAge: m.startAge,
+			endAge: m.endAge,
+			isBirthBalance: false,
+			active: !!(start && end && now >= start.valueOf() && now < end.valueOf()),
+			antardashas: null,
+		};
+	});
+	return {
+		backend: true,
+		extended: true,
+		available: true,
+		moonLon: null,
+		nakshatra: {
+			name: a.seedSign,
+			index: '',
+			lord: { label: `AK ${a.atmakaraka || ''}`, en: a.atmakaraka, key: a.atmakaraka },
+		},
+		firstBalance: 0,
+		firstElapsed: 0,
+		items,
+	};
+}
+
 function buildVimshottariDasha(chartObj, fields, system){
 	const sys = system || 'vimshottari';
 	if(sys === 'chara'){
 		return buildCharaDasha(chartObj, fields);
+	}
+	if(sys === 'akkg'){
+		return buildAkkgDasha(chartObj, fields);
 	}
 	if(DASHA_CONDITIONAL_KEYS.indexOf(sys) >= 0){
 		return buildExtendedConditionalDasha(chartObj, fields, sys);
@@ -584,8 +725,8 @@ function buildVimshottariDasha(chartObj, fields, system){
 			years,
 			start: start.clone(),
 			end: end.clone(),
-			startAge: start.diff(birth, 'days', true) / DASHA_YEAR_DAYS,
-			endAge: end.diff(birth, 'days', true) / DASHA_YEAR_DAYS,
+			startAge: start.diff(birth, 'days', true) / currentDashaYearDays(),
+			endAge: end.diff(birth, 'days', true) / currentDashaYearDays(),
 			isBirthBalance: i === 0,
 			active: Date.now() >= start.valueOf() && Date.now() < end.valueOf(),
 		});
@@ -645,7 +786,7 @@ function formatJyotishDateTime(value){
 
 // 短运段(年→0月无意义)的细粒度时长:天/时/分。
 function formatDurationFine(years){
-	const totalMs = Math.max(0, Number(years) || 0) * DASHA_YEAR_DAYS * 24 * 60 * 60 * 1000;
+	const totalMs = Math.max(0, Number(years) || 0) * currentDashaYearDays() * 24 * 60 * 60 * 1000;
 	const days = totalMs / 86400000;
 	if(days >= 1){
 		const d = Math.floor(days);
@@ -808,6 +949,26 @@ function buildDashaFieldsKey(fields){
 		// 🔴 大运体系:dasha-selected 重构后后端只算选中体系全树,换体系=须重取;不进键则 requestDashaChart
 		// 守卫(同 key + loading)早退跳过 fetch → 「选其他大运压根不算」(blank 等待排盘数据 + 大运计算中 卡死)。
 		(fields.indiaDashaSystem && fields.indiaDashaSystem.value) ? fields.indiaDashaSystem.value : 'vimshottari',
+		// 🔴 KP 补齐四键同理(不进键 = 切了设置守卫跳过 fetch / 取回旧盘 —— 本模块最易犯的坑):
+		// 年长 / 年盘口径 / 三旗 opt-in / 问事起卦(prashnaTime 冻结串,一次起卦一个键)。
+		(fields.indiaDashaYearLength && fields.indiaDashaYearLength.value) ? fields.indiaDashaYearLength.value : AstroConst.INDIA_DASHA_YEAR_DEFAULT,
+		(fields.indiaVargaVariant && fields.indiaVargaVariant.value) ? fields.indiaVargaVariant.value : '',
+		(fields.indiaKarakaScheme && fields.indiaKarakaScheme.value) ? fields.indiaKarakaScheme.value : AstroConst.INDIA_KARAKA_SCHEME_DEFAULT,
+		(fields.indiaYuddhaCriterion && fields.indiaYuddhaCriterion.value) ? fields.indiaYuddhaCriterion.value : AstroConst.INDIA_YUDDHA_CRITERION_DEFAULT,
+		(fields.indiaAnnualChartType && fields.indiaAnnualChartType.value) ? fields.indiaAnnualChartType.value : 'varsha',
+		(fields.indiaTripataki && fields.indiaTripataki.value) ? '1' : '',
+		// 🔴 大运流派开关:21 键任一切换=后端重算(体系方向/期长/寿命管线全受影响),不进键则守卫跳过 fetch。
+		AstroConst.serializeIndiaDashaVariants(fields.indiaDashaVariants && fields.indiaDashaVariants.value),
+		// 年盘地点(居住地)覆盖同理(仅动年盘 Lagna/宫,亦须重取)。
+		(fields.indiaVarshaLat && fields.indiaVarshaLat.value != null) ? `${fields.indiaVarshaLat.value}~${(fields.indiaVarshaLon || {}).value}` : '',
+		(fields.indiaPrashnaTime && fields.indiaPrashnaTime.value) ? [
+			fields.indiaPrashnaTime.value,
+			fields.indiaPrashnaNumber ? fields.indiaPrashnaNumber.value : '',
+			fields.indiaPrashnaMatter ? fields.indiaPrashnaMatter.value : '',
+			fields.indiaPrashnaSchools ? fields.indiaPrashnaSchools.value : '',
+			fields.indiaPrashnaCuspMode ? fields.indiaPrashnaCuspMode.value : '',
+			fields.indiaPrashnaPrimaryHouse ? fields.indiaPrashnaPrimaryHouse.value : '',
+		].join('~') : '',
 	].join('|');
 }
 
@@ -1098,21 +1259,65 @@ class IndiaChartMain extends Component{
 			indiaSthiraStart: 'lagna',   // Sthira 起座:lagna(默认)/brahma(BPHS §10.5)
 			indiaTransitDateValue: null,   // 行运过运日期(null=默认今日);走 indiaTransitDate→transitDate 透传
 			prasnaNumber: 1,               // Praśna 卜卦问数 1-249(纯前端查 KP249 静态表,不透传)
+			kpFullTableOpen: false,        // B2:KP 全 249 段表折叠区
+			indiaOverlayBB: false,         // B4:盘面叠加 Bhrigu Bindu(默认关=零视觉回归)
+			kpFullTablePage: 0,            // B2:分页页码(25 行/页)
+			// ── G5/G6/G13/G8/G7:新设置(全部缺省=零 churn / 零回归)──
+			indiaDashaYearLength: AstroConst.INDIA_DASHA_YEAR_DEFAULT,     // 年长(仅非 365.25 下发)
+			indiaVargaVariantMap: {},                                      // W1-A 分盘变体 {chartnum:variant},{}=全标准
+			indiaKarakaScheme: AstroConst.INDIA_KARAKA_SCHEME_DEFAULT,     // W1-B 卡拉卡方案('8' 默认)
+			indiaYuddhaCriterion: AstroConst.INDIA_YUDDHA_CRITERION_DEFAULT, // W1-C 星曜战判据
+			indiaNakshatraCount: AstroConst.INDIA_NAKSHATRA_COUNT_DEFAULT, // 27/28 宿(纯显示,不下发)
+			indiaAnnualChartType: AstroConst.INDIA_ANNUAL_CHART_TYPE_DEFAULT, // 年盘口径(仅 tithi 下发)
+			indiaStageMode: AstroConst.INDIA_STAGE_MODE_DEFAULT,           // 中栏盘面(纯前端渲染选择)
+			indiaTripatakiOn: false,        // 三旗 opt-in(开启才带 tripataki=1 重取)
+			indiaTripatakiCenter: 'moon',   // 三旗中心(月/土,前端查表零请求)
+			indiaTripatakiMonth: 1,
+			indiaSbcFocus: 'moon',          // SBC 参照(月宿/升宿,前端查表零请求)
+			indiaShowRiskFactors: false,    // G4 风险因子区块(伦理敏感,默认关)
+			// ── 问事 Praśna(G1/G12):起卦=显式动作,时间一次性冻结为字符串 ──
+			prashnaCast: null,              // {time,number,matter,schools,cuspMode,primaryHouse}|null
+			prashnaNumberInput: 1,
+			prashnaMatterInput: AstroConst.INDIA_PRASHNA_MATTER_DEFAULT,
+			prashnaSchoolsInput: ['kp'],
+			prashnaCuspModeInput: AstroConst.INDIA_PRASHNA_CUSP_MODE_DEFAULT,
+			prashnaPrimaryHouseInput: null,
+			// ── 校时器(G11):抽屉 + 试算/采用两级;设置走 safeStorage 持久化 ──
+			rectifyDrawerOpen: false,
+			rectifyRunning: false,
+			rectifyResult: null,
+			// 生时校正三偏好:每次跑校正都会存 horosa.india.rectify.prefs.v1,此处读回
+			// (曾写了从不读 —— 三偏好重开永远回默认)。损坏/缺失回落默认三值。
+			...((()=>{
+				const defaults = { rectifyWindowMinutes: 30, rectifyStepSeconds: 60, rectifyRpSource: 'anchor' };
+				try{
+					const raw = safeLocalStorageGet('horosa.india.rectify.prefs.v1');
+					const p0 = raw ? JSON.parse(raw) : null;
+					if(!p0 || typeof p0 !== 'object'){ return defaults; }
+					return {
+						rectifyWindowMinutes: Number.isFinite(Number(p0.w)) && Number(p0.w) > 0 ? Number(p0.w) : defaults.rectifyWindowMinutes,
+						rectifyStepSeconds: Number.isFinite(Number(p0.s)) && Number(p0.s) > 0 ? Number(p0.s) : defaults.rectifyStepSeconds,
+						// 白名单=真实值域(anchor|candidate|custom,与 rectification.RP_SOURCES 同);
+					// 🔴 曾误写 'now'(全链不存在)→ 用户选 candidate 存盘成功、重开被拒回落 anchor。
+					rectifyRpSource: ['anchor', 'candidate', 'custom'].indexOf(p0.rp) >= 0 ? p0.rp : defaults.rectifyRpSource,
+					};
+				}catch(e){ return defaults; }
+			})()),
 			// WP-A 相映:点盘中某星 → 高亮其相映宫;再点取消/点他星切换。null=无。
 			indiaAspectSource: null,
 			indiaHsysValue: null,
 			indiaAyanamsaValue: null,
 			indiaNodeTypeValue: null,
 			indiaSchool: AstroConst.INDIA_SCHOOL_DEFAULT,
+			indiaDashaVariants: null,   // 大运流派开关(21 键;null=全默认)
 			indiaAspectParadigm: AstroConst.INDIA_SCHOOL_DEFAULTS[AstroConst.INDIA_SCHOOL_DEFAULT].aspectParadigm,
 			visibleTabKeys: AstroConst.INDIA_SCHOOL_DEFAULTS[AstroConst.INDIA_SCHOOL_DEFAULT].tabs,
 			indiaTajakaYearValue: null,
 			tajakaYearInput: '',
 			degreeDisplayMode: INDIA_DEGREE_DISPLAY_DEGREE,
-			// WP-C 星体显示:文字 / 符号(glyph)。WP-N §1.6 纯显示开关:逆时针(宫格方向)、锁定水瓶(南印固定格)。
+			// WP-C 星体显示:文字 / 符号(glyph)。WP-N §1.6 纯显示开关:逆时针(宫格方向)。
 			indiaPlanetDisplayMode: AstroConst.INDIA_PLANET_DISPLAY_TEXT,
 			indiaCounterClockwise: true,
-			indiaLockAquarius: false,
 			// WP-B 上升宫位(第1宫)参照:默认上升,可选七政/虚点/宫1-12 为第1宫。纯显示重参照(§1.6/§12.3)。
 			indiaLagnaRef: AstroConst.INDIA_LAGNA_REF_DEFAULT,
 			// 分盘集:多盘并列 2×2 网格。vargaSetOpen 开关;vargaSetFractals 选定分盘(最多 4)。
@@ -1224,11 +1429,35 @@ class IndiaChartMain extends Component{
 		};
 
 		this.changeTab = this.changeTab.bind(this);
+		this.changeIndiaDashaVariant = this.changeIndiaDashaVariant.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.changeTime = this.changeTime.bind(this);
 			this.changeGeo = this.changeGeo.bind(this);
 			this.changeHsys = this.changeHsys.bind(this);
 			this.changeIndiaAyanamsa = this.changeIndiaAyanamsa.bind(this);
+			// 载盘/含设置的 fields → 构造期回种 state(否则 state 默认值盖掉记录里的设置)
+			Object.assign(this.state, seedIndiaOptionState(props.fields));
+			if(this.state.indiaSchool && this.state.indiaSchool !== AstroConst.INDIA_SCHOOL_DEFAULT){
+				const seededDef = AstroConst.getIndiaSchoolDefaults(this.state.indiaSchool) || {};
+				if(Array.isArray(seededDef.tabs) && seededDef.tabs.length){
+					this.state.visibleTabKeys = seededDef.tabs;
+					this.state.jyotishTab = (seededDef.primaryTab && seededDef.tabs.indexOf(seededDef.primaryTab) >= 0)
+						? seededDef.primaryTab : seededDef.tabs[0];
+				}
+				if(seededDef.aspectParadigm){ this.state.indiaAspectParadigm = seededDef.aspectParadigm; }
+			}
+			this.persistIndiaOption = this.persistIndiaOption.bind(this);
+			this.changeVargaVariant = this.changeVargaVariant.bind(this);
+			this.changeKarakaScheme = this.changeKarakaScheme.bind(this);
+			this.changeYuddhaCriterion = this.changeYuddhaCriterion.bind(this);
+			this.changeDashaYearLength = this.changeDashaYearLength.bind(this);
+			this.changeNakshatraCount = this.changeNakshatraCount.bind(this);
+			this.changeAnnualChartType = this.changeAnnualChartType.bind(this);
+			this.changeStageMode = this.changeStageMode.bind(this);
+			this.toggleTripataki = this.toggleTripataki.bind(this);
+			this.castPrashna = this.castPrashna.bind(this);
+			this.clearPrashna = this.clearPrashna.bind(this);
+			this.updatePrashnaParam = this.updatePrashnaParam.bind(this);
 			this.changeIndiaSchool = this.changeIndiaSchool.bind(this);
 			this.changeIndiaNodeType = this.changeIndiaNodeType.bind(this);
 		this.changeIndiaTajakaYear = this.changeIndiaTajakaYear.bind(this);
@@ -1244,7 +1473,6 @@ class IndiaChartMain extends Component{
 		this.toggleIndiaAspect = this.toggleIndiaAspect.bind(this);
 		this.changeIndiaPlanetDisplayMode = this.changeIndiaPlanetDisplayMode.bind(this);
 		this.changeIndiaCounterClockwise = this.changeIndiaCounterClockwise.bind(this);
-		this.changeIndiaLockAquarius = this.changeIndiaLockAquarius.bind(this);
 		this.changeIndiaLagnaRef = this.changeIndiaLagnaRef.bind(this);
 		this.toggleDashaExpanded = this.toggleDashaExpanded.bind(this);
 		this.toggleDashaAntarExpanded = this.toggleDashaAntarExpanded.bind(this);
@@ -1435,14 +1663,34 @@ class IndiaChartMain extends Component{
 		this.onFieldsChange(patch);
 	}
 
+	changeIndiaDashaVariant(key, value){
+		// 21 流派开关单键变更:合并进 map(选回默认=删键)→ 写穿 dva → 重取(键含 dashaVariants)。
+		const spec = AstroConst.INDIA_DASHA_VARIANT_SPECS.find((it)=>it.key === key);
+		if(!spec){ return; }
+		const cur = AstroConst.normalizeIndiaDashaVariants(this.state.indiaDashaVariants);
+		const next = { ...cur };
+		if(value === spec.default){ delete next[key]; }
+		else { next[key] = value; }
+		const stateVal = Object.keys(next).length ? next : null;
+		this.setState({ indiaDashaVariants: stateVal }, ()=>{
+			this.persistIndiaOption({ indiaDashaVariants: stateVal });
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, { dashaVariants: stateVal }));
+		});
+	}
+
 	changeIndiaSchool(value){
 		// 流派预设包·软联动:切派写默认岁差/宫制/相位范式 + 可见 tab 子集,触发后端按新岁差/宫制重算;
 		// 用户随后仍可单独改岁差/宫制(软联动)。默认 parashari = 零行为差异。
 		const school = AstroConst.normalizeIndiaSchool(value);
 		const def = AstroConst.getIndiaSchoolDefaults(school);
 		const tabs = def.tabs;
-		const curTab = `${this.state.jyotishTab || '1'}`;
-		const nextTab = tabs.indexOf(curTab) >= 0 ? curTab : tabs[0];
+		// 切派落地主场 tab(primaryTab 优先;无则保留当前/首个)
+		const nextTab = (def.primaryTab && tabs.indexOf(def.primaryTab) >= 0)
+			? def.primaryTab
+			: (tabs.indexOf(`${this.state.jyotishTab || '1'}`) >= 0 ? `${this.state.jyotishTab || '1'}` : tabs[0]);
+		// dashaFocus ∈ 大运体系值集 → 切主 dasha 树(dashaSystem 为既有参数,非新增);否则仅供摘要/面板定位。
+		const dashaFocusSystem = def.dashaFocus && AstroConst.INDIA_DASHA_SYSTEM_OPTIONS
+			.some((o)=>o.value === def.dashaFocus) ? def.dashaFocus : null;
 		// stale-while-revalidate:不清盘(requestDashaChart 设 dashaUpdating + lastChartObj 回退),换派算好平滑换新。
 		this.setState({
 			indiaSchool: school,
@@ -1451,7 +1699,10 @@ class IndiaChartMain extends Component{
 			jyotishTab: nextTab,
 			indiaAyanamsaValue: def.ayanamsa,
 			indiaHsysValue: def.hsys,
+			...(dashaFocusSystem ? { dashaSystem: dashaFocusSystem, dashaExpandedKey: null, dashaExpandedAntarKey: null, dashaDrillPath: [] } : {}),
 		}, ()=>{
+			this.persistIndiaOption({ indiaHsys: def.hsys, indiaAyanamsa: def.ayanamsa, indiaSchool: school,
+				...(dashaFocusSystem ? { indiaDashaSystem: dashaFocusSystem } : {}) });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, {
 				indiaHsys: def.hsys,
 				indiaAyanamsa: def.ayanamsa,
@@ -1467,6 +1718,7 @@ class IndiaChartMain extends Component{
 		this.setState({
 			indiaHsysValue: indiaHsys,
 		}, ()=>{
+			this.persistIndiaOption({ indiaHsys });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, {
 				indiaHsys,
 				indiaAyanamsa,
@@ -1482,6 +1734,7 @@ class IndiaChartMain extends Component{
 		this.setState({
 			indiaAyanamsaValue: indiaAyanamsa,
 		}, ()=>{
+			this.persistIndiaOption({ indiaAyanamsa });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, {
 				indiaHsys,
 				indiaAyanamsa,
@@ -1494,6 +1747,7 @@ class IndiaChartMain extends Component{
 		this.setState({
 			indiaNodeTypeValue: indiaNodeType,
 		}, ()=>{
+			this.persistIndiaOption({ indiaNodeType });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, {
 				indiaNodeType,
 			}));
@@ -1507,6 +1761,7 @@ class IndiaChartMain extends Component{
 		this.setState({
 			indiaTajakaYearValue: indiaTajakaYear,
 		}, ()=>{
+			this.persistIndiaOption({ indiaTajakaYear });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, {
 				indiaTajakaYear,
 			}));
@@ -1554,6 +1809,7 @@ class IndiaChartMain extends Component{
 			arr = VARGA_GRID_DEFAULT.slice();
 		}
 		this.setState({ vargaSetFractals: arr }, ()=>{
+			this.persistIndiaOption({ indiaVargaSet: arr.join(',') });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
 		});
 	}
@@ -1574,13 +1830,9 @@ class IndiaChartMain extends Component{
 		this.setState({ indiaPlanetDisplayMode: AstroConst.normalizeIndiaPlanetDisplay(next) });
 	}
 
-	// WP-N §1.6 纯视觉开关:逆时针(宫格排列方向)、锁定水瓶(南印固定格)。不进数学。
+	// WP-N 纯视觉开关:逆时针(宫格排列方向)。不进数学。(锁定水瓶为南印固有语义,死开关已移除)
 	changeIndiaCounterClockwise(checked){
 		this.setState({ indiaCounterClockwise: !!checked });
-	}
-
-	changeIndiaLockAquarius(checked){
-		this.setState({ indiaLockAquarius: !!checked });
 	}
 
 	// horosa_india_settings_memo_v1:原「显示方向」Select 的 onChange 是 render 内联箭头
@@ -1645,6 +1897,7 @@ class IndiaChartMain extends Component{
 	changeSthiraStart(v){
 		if((this.state.indiaSthiraStart || 'lagna') === v){ return; }
 		this.setState({ indiaSthiraStart: v });
+		this.persistIndiaOption({ indiaSthiraStart: v });
 		this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, { indiaSthiraStart: v }));
 	}
 	renderSthiraStartToggle(d){
@@ -1769,6 +2022,61 @@ class IndiaChartMain extends Component{
 				...(fields.indiaActiveFractal || { name: ['indiaActiveFractal'] }),
 				value: this.effectiveFractal(),
 			},
+			// G5 年长(仅非默认下发)/ G13 年盘口径(仅 tithi 下发)/ G8 三旗 opt-in /
+			// G1 问事族(prashnaCast 冻结后才有值)。缺省 undefined → 零 churn 契约。
+			indiaDashaYearLength: {
+				...(fields.indiaDashaYearLength || { name: ['indiaDashaYearLength'] }),
+				value: this.state.indiaDashaYearLength,
+			},
+			indiaSchool: {
+				...(fields.indiaSchool || { name: ['indiaSchool'] }),
+				value: this.state.indiaSchool,
+			},
+			indiaVargaVariant: {
+				...(fields.indiaVargaVariant || { name: ['indiaVargaVariant'] }),
+				value: Object.keys(this.state.indiaVargaVariantMap || {}).length
+					? JSON.stringify(this.state.indiaVargaVariantMap) : undefined,
+			},
+			indiaKarakaScheme: {
+				...(fields.indiaKarakaScheme || { name: ['indiaKarakaScheme'] }),
+				value: this.state.indiaKarakaScheme,
+			},
+			indiaYuddhaCriterion: {
+				...(fields.indiaYuddhaCriterion || { name: ['indiaYuddhaCriterion'] }),
+				value: this.state.indiaYuddhaCriterion,
+			},
+			indiaAnnualChartType: {
+				...(fields.indiaAnnualChartType || { name: ['indiaAnnualChartType'] }),
+				value: this.state.indiaAnnualChartType,
+			},
+			indiaTripataki: {
+				...(fields.indiaTripataki || { name: ['indiaTripataki'] }),
+				value: this.state.indiaTripatakiOn ? 1 : undefined,
+			},
+			indiaPrashnaTime: {
+				...(fields.indiaPrashnaTime || { name: ['indiaPrashnaTime'] }),
+				value: this.state.prashnaCast ? this.state.prashnaCast.time : undefined,
+			},
+			indiaPrashnaNumber: {
+				...(fields.indiaPrashnaNumber || { name: ['indiaPrashnaNumber'] }),
+				value: this.state.prashnaCast ? this.state.prashnaCast.number : undefined,
+			},
+			indiaPrashnaMatter: {
+				...(fields.indiaPrashnaMatter || { name: ['indiaPrashnaMatter'] }),
+				value: this.state.prashnaCast ? this.state.prashnaCast.matter : undefined,
+			},
+			indiaPrashnaSchools: {
+				...(fields.indiaPrashnaSchools || { name: ['indiaPrashnaSchools'] }),
+				value: this.state.prashnaCast ? this.state.prashnaCast.schools : undefined,
+			},
+			indiaPrashnaCuspMode: {
+				...(fields.indiaPrashnaCuspMode || { name: ['indiaPrashnaCuspMode'] }),
+				value: this.state.prashnaCast ? this.state.prashnaCast.cuspMode : undefined,
+			},
+			indiaPrashnaPrimaryHouse: {
+				...(fields.indiaPrashnaPrimaryHouse || { name: ['indiaPrashnaPrimaryHouse'] }),
+				value: this.state.prashnaCast ? this.state.prashnaCast.primaryHouse : undefined,
+			},
 		};
 		if(memoable){
 			this._optionFieldsMemoSrc = fields;
@@ -1776,6 +2084,305 @@ class IndiaChartMain extends Component{
 			this._optionFieldsMemo = optionFields;
 		}
 		return optionFields;
+	}
+
+	// ── G5/G13/G8/G1 设置变更 → 重取(与 changeDashaSystem 同范式) ──
+	changeDashaYearLength(value){
+		const v = AstroConst.normalizeIndiaDashaYear(value);
+		this.setState({ indiaDashaYearLength: v }, ()=>{
+			this.persistIndiaOption({ indiaDashaYearLength: v });
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	changeVargaVariant(chartnum, value){
+		// W1-A:单分盘换法 → 合成映射(standard 即删键)→ 写穿持久化 + 重取全栏。
+		const v = value && value.target ? value.target.value : value;
+		this.setState((prev)=>{
+			const next = { ...(prev.indiaVargaVariantMap || {}) };
+			if(!v || v === 'standard'){ delete next[String(chartnum)]; }
+			else{ next[String(chartnum)] = v; }
+			return { indiaVargaVariantMap: AstroConst.normalizeIndiaVargaVariantMap(next) };
+		}, ()=>{
+			const map = this.state.indiaVargaVariantMap;
+			this.persistIndiaOption({ indiaVargaVariant: Object.keys(map).length ? JSON.stringify(map) : null });
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	changeKarakaScheme(value){
+		const v = AstroConst.normalizeIndiaKarakaScheme(value && value.target ? value.target.value : value);
+		this.setState({ indiaKarakaScheme: v }, ()=>{
+			this.persistIndiaOption({ indiaKarakaScheme: v });
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	changeYuddhaCriterion(value){
+		const v = AstroConst.normalizeIndiaYuddhaCriterion(value && value.target ? value.target.value : value);
+		this.setState({ indiaYuddhaCriterion: v }, ()=>{
+			this.persistIndiaOption({ indiaYuddhaCriterion: v });
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	changeNakshatraCount(value){
+		// 🔴 纯显示口径:不发请求、不进缓存键(28 宿编号 number28 引擎恒出,前端只切显示)
+		this.setState({ indiaNakshatraCount: AstroConst.normalizeIndiaNakshatraCount(
+			value && value.target ? value.target.value : value) });
+	}
+
+	changeAnnualChartType(value){
+		const v = AstroConst.normalizeIndiaAnnualChartType(value && value.target ? value.target.value : value);
+		this.setState({ indiaAnnualChartType: v }, ()=>{
+			this.persistIndiaOption({ indiaAnnualChartType: v });
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	changeStageMode(value){
+		const mode = AstroConst.normalizeIndiaStageMode(value);
+		// 左栏为三旗盘唯一入口:选中即 opt-in 计算(12 次逐月过运)并重取,免去右栏二次开启。
+		if(mode === 'tripataki' && !this.state.indiaTripatakiOn){
+			this.setState({ indiaStageMode: mode, indiaTripatakiOn: true }, ()=>{
+				this.persistIndiaOption({ indiaTripataki: true });
+				this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, { tripataki: true }));
+			});
+			return;
+		}
+		this.setState({ indiaStageMode: mode });
+	}
+
+	toggleTripataki(){
+		this.setState((prev)=>({ indiaTripatakiOn: !prev.indiaTripatakiOn }), ()=>{
+			if(this.state.indiaTripatakiOn){
+				this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+			}
+		});
+	}
+
+	castPrashna(){
+		// 🔴「起卦」唯一入口:此刻一次性冻结为字符串(绝不 render 取 now → 缓存键秒变)
+		const cast = {
+			time: moment().format('YYYY/MM/DD HH:mm:ss'),
+			number: Math.min(249, Math.max(1, Number(this.state.prashnaNumberInput) || 1)),
+			matter: this.state.prashnaMatterInput,
+			schools: (this.state.prashnaSchoolsInput || ['kp']).join(','),
+			cuspMode: this.state.prashnaCuspModeInput,
+			primaryHouse: this.state.prashnaPrimaryHouseInput || undefined,
+		};
+		this.setState({ prashnaCast: cast }, ()=>{
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	clearPrashna(){
+		this.setState({ prashnaCast: null }, ()=>{
+			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+		});
+	}
+
+	renderJudgmentNotes(tabKey){
+		// W2 判读要点:纯静态常量卡(文本逐字取权威文档),零算法零请求;复用既有卡样式。
+		const notes = INDIA_JUDGMENT_NOTES[tabKey];
+		if(!notes || !notes.length){ return null; }
+		return notes.map((n, i)=>(
+			<div className="horosa-info-card" key={`jn_${tabKey}_${i}`}>
+				<div className="horosa-info-card-title">判读要点 · {n.title}</div>
+				<div className="horosa-india-data-list">
+					{n.lines.map((ln, j)=>(
+						<div className="horosa-india-card-note" key={j} style={{ textAlign: 'left' }}>{ln}</div>
+					))}
+				</div>
+			</div>
+		));
+	}
+
+	buildOverlayPoints(){
+		// B4:盘面叠加(默认 undefined = 三盘式零视觉回归)。KP cusp 信息在非整宫制下由各宫 cusp 度标呈现,不重复叠加。
+		if(!this.state.indiaOverlayBB){ return undefined; }
+		const co = this.state.mainChartObj || this.state.lastChartObj;
+		const bb = co && co.jyotish && co.jyotish.nadi && co.jyotish.nadi.bhriguBindu;
+		if(!bb || bb.signIndex === undefined){ return undefined; }
+		return [{ key: 'bb', signNumber: (bb.signIndex % 12) + 1, label: 'BB',
+			title: `Bhrigu Bindu ${bb.signLabel} ${(bb.signlon || 0).toFixed(1)}°` }];
+	}
+
+	renderNadiPanel(fields){
+		// B1 纳迪面板(五支手册 Nadi 显示清单):七卡全复用既有设计语言,零新 CSS。
+		const chartObj = resolveJyotishChartObj(this.state, fields);
+		const jy = (chartObj && chartObj.jyotish) || {};
+		const nd = jy.nadi || {};
+		const PCN = { Sun: '太阳', Moon: '月亮', Mars: '火星', Mercury: '水星', Jupiter: '木星', Venus: '金星', Saturn: '土星', 'North Node': '罗睺', 'South Node': '计都' };
+		if(!nd.available){
+			return <div className="horosa-india-dasha-panel"><div className="horosa-india-dasha-empty">纳迪数据计算中…</div></div>;
+		}
+		const bb = nd.bhriguBindu || {};
+		const fmtD = (v)=>`${Math.floor(v)}°${String(Math.round((v % 1) * 60)).padStart(2, '0')}′`;
+		// 木星推进:当前年龄段高亮
+		const jp = nd.jupiterProgression;
+		let curAge = null;
+		try{
+			const bt = fields && fields.date && fields.date.value;
+			if(bt && bt.format){ curAge = Math.max(0, (Date.now() - new Date(bt.format('YYYY-MM-DD')).getTime()) / 31557600000); }
+		}catch(e){ curAge = null; }
+		return (
+			<div className="horosa-india-dasha-panel">
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">Bhrigu Bindu 福德点（Rahu·Moon 短弧中点）</div>
+					<div className="horosa-info-row"><span>落座</span><strong>{bb.signLabel}（{fmtD(bb.signlon || 0)}）</strong></div>
+					<div className="horosa-info-row"><span>月宿</span><strong>{bb.nakshatra ? `${bb.nakshatra.index}. ${bb.nakshatra.name}` : '—'}</strong></div>
+					<div className="horosa-info-row"><span>黄经</span><strong>{fmtD(bb.lon || 0)}（{bb.sign}）</strong></div>
+					<div className="horosa-india-card-note">{nd.note}</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">D150 纳地盘（每格 0°12′ · 精确边界）</div>
+					<div className="horosa-india-maitri-wrap">
+						<table className="horosa-india-maitri-table horosa-india-shad-table">
+							<thead><tr><th>曜</th><th>第 N/150</th><th>座</th><th>座内度区</th><th>专名</th></tr></thead>
+							<tbody>
+								{(nd.d150 || []).map((r)=>(
+									<tr key={r.planet}>
+										<td>{PCN[r.planet] || r.planet}</td>
+										<td>{r.nadiamsa}</td>
+										<td>{r.signLabel}</td>
+										<td>{r.startLon !== undefined ? `${fmtD(r.startLon % 30)}–${fmtD(r.endLon % 30)}` : '—'}</td>
+										<td><span className="horosa-india-source-tag">专名表待补</span></td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+					<div className="horosa-india-card-note">{nd.d150Note}</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">行星组合（同座 = 合）</div>
+					{(nd.combinations || []).length ? (
+						<div className="horosa-india-data-list">
+							{nd.combinations.map((c)=>(
+								<div className="horosa-india-data-row" key={c.sign}>
+									<strong>{c.signLabel}</strong>
+									<span>{c.planets.map((pid)=>PCN[pid] || pid).join(' + ')}</span>
+									<em>{c.count} 曜</em>
+								</div>
+							))}
+						</div>
+					) : <div className="horosa-india-card-note">本盘无同座组合。</div>}
+					<div className="horosa-india-card-note">{nd.combinationNote}</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">星座交换 Parivartana（庙座互驻 · 强联动）</div>
+					{(nd.exchanges || []).length ? (
+						<div className="horosa-india-data-list">
+							{nd.exchanges.map((ex, i)=>(
+								<div className="horosa-india-data-row" key={i}>
+									<strong>{PCN[ex.a] || ex.a}（{ex.aSignLabel}）⇄ {PCN[ex.b] || ex.b}（{ex.bSignLabel}）</strong>
+									<em>{ex.dualLord ? '含双主宫' : ''}</em>
+								</div>
+							))}
+						</div>
+					) : <div className="horosa-india-card-note">本盘无星座交换对。</div>}
+				</div>
+				{jp ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">木星推进时间轴（Bhrigu 应期）</div>
+						<div className="horosa-india-data-list">
+							{jp.segments.map((seg)=>{
+								const active = curAge !== null && curAge >= seg.startAge && curAge < seg.endAge;
+								return (
+									<div className="horosa-india-data-row" key={seg.index}>
+										<strong>{active ? <span className="horosa-india-flag-badge is-good">{seg.signLabel}</span> : seg.signLabel}</strong>
+										<span>{seg.startAge}–{seg.endAge} 岁{seg.startDate ? ` · ${seg.startDate}~${seg.endDate}` : ''}</span>
+										<em>{(seg.natalPlanets || []).map((pid)=>PCN[pid] || pid).join('、') || '—'}</em>
+									</div>
+								);
+							})}
+						</div>
+						<div className="horosa-india-card-note">{jp.ruleLabel}</div>
+					</div>
+				) : null}
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">Nadi Karaka 体系（木星为首要 karaka）</div>
+					<div className="horosa-india-data-list">
+						{(nd.karakas || []).map((k)=>(
+							<div className="horosa-india-data-row" key={k.planet}>
+								<strong>{k.primary ? <span className="horosa-india-flag-badge is-good">{k.label}</span> : k.label}</strong>
+								<span>{(k.significations || []).join(' · ')}</span>
+							</div>
+						))}
+					</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">关于 Nadi</div>
+					<div className="horosa-india-card-note">Nadi 有两类:叶片 Nadi(仙人预写的个人命书,以拇指纹索引匹配)无起盘算法、不可程序化;计算型 Nadi(Bhrigu Nadi 体系)用标准恒星盘+独特规则,可复现。本模块只做计算型。</div>
+					<div className="horosa-india-card-note">主要文本:Chandra Kala Nadi / Deva Keralam(最系统的计算型 Nadi,含 D150 与大量组合断语)· Saptarishi Nadi(七仙对话体)· Bhrigu Nadi / Bhrigu Samhita(木星 karaka 法)· Dhruva/Shukra/Surya Nadi 等分支。</div>
+					<div className="horosa-india-card-note">判读逻辑:只看行星落座与行星间关系,弱化宫位与相位;同座=合;庙座互驻=强联动;以木星推进定应期。</div>
+				</div>
+			</div>
+		);
+	}
+
+	persistIndiaOption(patch){
+		// 选项写穿 dva fields(存盘四本账第一公里)。patch={fieldKey: rawValue};
+		// 新建 fields 对象与新 entry(勿就地改共享 entry —— astro 模型 :1144 老坑)。
+		if(!this.props.dispatch || !patch){ return; }
+		const cur = this.props.fields || {};
+		const fields = { ...cur };
+		let touched = false;
+		Object.keys(patch).forEach((k)=>{
+			const v = patch[k];
+			const prev = cur[k] ? cur[k].value : undefined;
+			if(prev === v){ return; }
+			fields[k] = { ...(cur[k] || { name: [k] }), value: v };
+			touched = true;
+		});
+		if(!touched){ return; }
+		this.props.dispatch({ type: 'astro/save', payload: { fields } });
+	}
+
+	adoptIndiaOptionFields(prevProps){
+		// 载盘(fields 引用换新且带 india 设置)→ 以 fields 为真相回种 state。
+		// 收敛性:handler → setState+persist → fields 与 state 等值 → 本函数 no-op;
+		// 只有外部载入(记录还原)才产生差值 → 采纳一次即稳定。
+		if(!prevProps || this.props.fields === prevProps.fields){ return false; }
+		const patch = seedIndiaOptionState(this.props.fields);
+		const diff = {};
+		Object.keys(patch).forEach((k)=>{
+			const cur = this.state[k];
+			const nxt = patch[k];
+			const same = Array.isArray(nxt)
+				? (Array.isArray(cur) && cur.join(',') === nxt.join(','))
+				: (nxt && typeof nxt === 'object')
+					? JSON.stringify(cur || {}) === JSON.stringify(nxt)
+					: String(cur) === String(nxt);
+			if(!same){ diff[k] = nxt; }
+		});
+		if(!Object.keys(diff).length){ return false; }
+		if(diff.indiaSchool){
+			// 载盘换派 → 应用该派派生(可见 tab 集/相位范式/主场 tab);
+			// 岁差/宫制等用户覆盖值由各自字段另行采纳(fields 为真相),互不冲突。
+			const def = AstroConst.getIndiaSchoolDefaults(diff.indiaSchool) || {};
+			if(Array.isArray(def.tabs) && def.tabs.length){
+				diff.visibleTabKeys = def.tabs;
+				diff.jyotishTab = (def.primaryTab && def.tabs.indexOf(def.primaryTab) >= 0) ? def.primaryTab : def.tabs[0];
+			}
+			if(def.aspectParadigm){ diff.indiaAspectParadigm = def.aspectParadigm; }
+		}
+		this.setState(diff);
+		return true;
+	}
+
+	updatePrashnaParam(inputPatch, castPatch){
+		// 问时(time)与问数(number)是问事行为本身、冻结不可改;事项/宫始定法/主判宫/流派
+		// 是占者的事后归类 → 已起卦时原地更新 cast(保 time+number)并重取,不必重冻时刻。
+		this.setState((prev)=>({
+			...inputPatch,
+			prashnaCast: prev.prashnaCast ? { ...prev.prashnaCast, ...castPatch } : prev.prashnaCast,
+		}), ()=>{
+			if(this.state.prashnaCast){
+				this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
+			}
+		});
 	}
 
 	changeIndiaChartStyle(value){
@@ -1890,6 +2497,10 @@ class IndiaChartMain extends Component{
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		// 载盘含设置 → 先采纳进 state;setState 会再触发一轮 didUpdate,届时 state 已同步、按新键重取
+		if(this.adoptIndiaOptionFields(prevProps)){
+			return;
+		}
 		const fields = this.withIndiaOptionFields(this.props.fields);
 		const currentFieldsKey = buildDashaFieldsKey(fields);
 		if(currentFieldsKey && currentFieldsKey !== this.lastObservedFieldsKey){
@@ -1995,7 +2606,6 @@ class IndiaChartMain extends Component{
 									degreeDisplayMode={opts.degreeDisplayMode}
 									planetGlyphMode={opts.indiaPlanetDisplayMode}
 									counterClockwise={opts.indiaCounterClockwise}
-									lockAquarius={opts.indiaLockAquarius}
 									lagnaRef={opts.indiaLagnaRef}
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
@@ -2023,6 +2633,20 @@ class IndiaChartMain extends Component{
 		// 当前已算年(loading 时退回用户选定年/当年)。输入卡始终渲染——若随 loading 消失,换年时输入框瞬间不在 → 连点/再输丢失。
 		const activeYear = tj ? tj.tajakaYear : (this.state.indiaTajakaYearValue || curY);
 		const yearInputVal = (this.state.tajakaYearInput === '' || this.state.tajakaYearInput == null) ? String(activeYear) : this.state.tajakaYearInput;
+		const annualTypeCard = (
+			<div className="horosa-info-card horosa-india-annual-card">
+				<div className="horosa-info-card-title">年盘口径</div>
+				<Segmented
+					value={this.state.indiaAnnualChartType}
+					onChange={this.changeAnnualChartType}
+					options={AstroConst.INDIA_ANNUAL_CHART_TYPE_OPTIONS}
+				/>
+				{this.state.indiaAnnualChartType === 'tithi' && tj && tj.praveshMoment ? (
+					<div className="horosa-india-card-note">年首 {tj.praveshMoment}{tj.annualTypeNote ? ` · ${tj.annualTypeNote}` : ''}</div>
+				) : null}
+
+			</div>
+		);
 		const yearCard = (
 			<div className="horosa-info-card">
 				<div className="horosa-info-card-title">年度盘年份（太阳回归 · 输入年份后点「计算」）</div>
@@ -2046,7 +2670,8 @@ class IndiaChartMain extends Component{
 		if(!tj || !tj.available){
 			return (
 				<div className="horosa-india-jyotish-panel">
-					{yearCard}
+					{annualTypeCard}
+				{yearCard}
 					<div className="horosa-india-dasha-empty">年度盘计算中…</div>
 				</div>
 			);
@@ -2062,9 +2687,10 @@ class IndiaChartMain extends Component{
 		const ITH_TYPE_CN = { poorna: '满趋(Poorna)', vartamana: '当前趋(Vartamana)', bhavishya: '将来趋(Bhavishya)', eesarpha: '背离(Eesarpha)' };
 		return (
 			<div className="horosa-india-jyotish-panel">
+				{annualTypeCard}
 				{yearCard}
 				<div className="horosa-info-card">
-					<div className="horosa-info-card-title">年度盘 Varshaphal · {tj.tajakaYear}</div>
+					<div className="horosa-info-card-title">年度盘 {tj.annualType === 'tithi' ? 'Tithi Praveśa(阴历返照)' : 'Varshaphal'} · {tj.tajakaYear}</div>
 					<div className="horosa-info-row"><span>年度上升</span><strong>{sc(tj.annualLagnaSign)}</strong></div>
 					<div className="horosa-info-row"><span>满岁</span><strong>{tj.ageCompleted}</strong></div>
 					<div className="horosa-info-row"><span>昼/夜生</span><strong>{tj.dayBirth ? '昼生' : '夜生'}</strong></div>
@@ -2079,7 +2705,7 @@ class IndiaChartMain extends Component{
 					<div className="horosa-info-card-title">年主 Year Lord</div>
 					<div className="horosa-info-row"><span>年主</span><strong>{pc(yearLord.planet)}</strong></div>
 					<div className="horosa-info-row"><span>取用</span><strong>{yearLord.via || '—'}</strong></div>
-					<div className="horosa-info-row"><span>Pancha-Vargeeya</span><strong>{yearLord.panchaBala != null ? Number(yearLord.panchaBala).toFixed(2) : '—'}</strong></div>
+					<div className="horosa-info-row"><span>五分力</span><strong>{yearLord.panchaBala != null ? Number(yearLord.panchaBala).toFixed(2) : '—'}</strong></div>
 				</div>
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">年度合相 Tajaka Yogas</div>
@@ -2171,6 +2797,20 @@ class IndiaChartMain extends Component{
 						</div>
 					</div>
 				) : null}
+				{tj && tj.dasas && tj.dasas.annualYogini && tj.dasas.annualYogini.available && Array.isArray(tj.dasas.annualYogini.sequence) ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">年 Yoginī 大运（起 {tj.dasas.annualYogini.startYogini} · 年基 {Number(tj.dasas.annualYogini.yearBasisDays) % 1 === 0 ? Number(tj.dasas.annualYogini.yearBasisDays).toFixed(0) : tj.dasas.annualYogini.yearBasisDays} 日）</div>
+						<div className="horosa-india-data-list">
+							{tj.dasas.annualYogini.sequence.map((m, i)=>(
+								<div className="horosa-india-data-row" key={`ay_${i}`}>
+									<strong>{m.yogini}（{m.lordCN}）</strong>
+									<span>{Number(m.days).toFixed(1)} 天</span>
+									<em>{m.balance != null ? `余 ${Number(m.balance).toFixed(1)}` : ''}</em>
+								</div>
+							))}
+						</div>
+					</div>
+				) : null}
 				{tj && tj.dasas && tj.dasas.patyayini && Array.isArray(tj.dasas.patyayini.order) ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Patyāyinī 年内大运（共 {tj.dasas.patyayini.totalDays != null ? Number(tj.dasas.patyayini.totalDays).toFixed(0) : '—'} 天）</div>
@@ -2185,6 +2825,37 @@ class IndiaChartMain extends Component{
 						</div>
 					</div>
 				) : null}
+				{this.renderJudgmentNotes('11')}
+				{(()=>{
+					const jyx = (resolveJyotishChartObj(this.state, fields) || {}).jyotish || {};
+					const tri2 = ((jyx.tajaka || {}).tripatakiNak) || null;
+					if(!tri2 || !tri2.available){ return null; }
+					const PCN2 = { Sun: '日', Moon: '月', Mars: '火', Mercury: '水', Jupiter: '木', Venus: '金', Saturn: '土', 'North Node': '罗', 'South Node': '计' };
+					const FL = { 1: '内旗(1-9)', 2: '中旗(10-18)', 3: '外旗(19-27)' };
+					return (
+						<div className="horosa-info-card">
+							<div className="horosa-info-card-title">Tripataki 宿距三旗（年盘月宿 {tri2.baseNakIndex}. {tri2.baseNak} 为基准）</div>
+							<div className="horosa-india-maitri-wrap">
+								<table className="horosa-india-maitri-table horosa-india-shad-table">
+									<thead><tr><th>曜</th><th>所在宿</th><th>宿距</th><th>旗</th><th>Tārā</th><th>断</th></tr></thead>
+									<tbody>
+										{tri2.rows.map((r)=>(
+											<tr key={r.planet}>
+												<td>{PCN2[r.planet] || r.planet}</td>
+												<td>{r.transitNakIndex}. {r.transitNak}</td>
+												<td>{r.distance}</td>
+												<td>{FL[r.flag]}</td>
+												<td>{r.taraLabel}</td>
+												<td>{r.good ? <span className="horosa-india-flag-badge is-good">{r.verdict}</span> : (r.verdict === '凶' ? <span className="horosa-india-flag-badge is-warn">{r.verdict}</span> : r.verdict)}</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+							<div className="horosa-india-card-note"><span className="horosa-india-source-tag">规则随书·可计算版</span>{tri2.note}</div>
+						</div>
+					);
+				})()}
 			</div>
 		);
 	}
@@ -2224,7 +2895,7 @@ class IndiaChartMain extends Component{
 					<div className="horosa-india-maitri-legend">
 						{(gm.legend || []).map((lg)=>(<span key={lg.key} className={`horosa-india-maitri-chip ${COMP_CLASS[lg.label] || ''}`}>{lg.label}</span>))}
 					</div>
-					<div className="horosa-india-maitri-note">悬停格子见 自然·临时·复合 三层；本星看对方 ≠ 对方看本星（古籍第6章 Pañcadhā）。</div>
+					<div className="horosa-india-maitri-note">悬停格子见 自然·临时·复合 三层；本星看对方 ≠ 对方看本星（古法五重友敌 Pañcadhā-maitri）。</div>
 				</div>
 				{rasi.length ? (
 					<div className="horosa-info-card">
@@ -2240,6 +2911,40 @@ class IndiaChartMain extends Component{
 						</div>
 					</div>
 				) : null}
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">星座相位矩阵（Jaimini Rāśi Dṛṣṭi · 行=看方 列=被看 · 每行恰 3 座）</div>
+					{(()=>{
+						const SS = ['白羊', '金牛', '双子', '巨蟹', '狮子', '处女', '天秤', '天蝎', '射手', '摩羯', '水瓶', '双鱼'];
+						const MOV = [0, 3, 6, 9], FIX = [1, 4, 7, 10];
+						const aspectsOf = (i)=>{
+							if(MOV.indexOf(i) >= 0){ return FIX.filter((f)=>f !== (i + 1) % 12); }
+							if(FIX.indexOf(i) >= 0){ return MOV.filter((mv)=>mv !== (i + 11) % 12); }
+							return [2, 5, 8, 11].filter((d)=>d !== i);
+						};
+						return (
+							<div className="horosa-india-bav-matrix">
+								<div className="horosa-india-bav-row horosa-india-bav-head">
+									<span className="horosa-india-bav-rowlabel" />
+									{SS.map((x, i)=>(<span className="horosa-india-bav-cell is-head" key={`rh${i}`}>{x[0]}</span>))}
+								</div>
+								{SS.map((rowName, i)=>{
+									const hits = aspectsOf(i);
+									return (
+										<div className="horosa-india-bav-row" key={`rr${i}`}>
+											<span className="horosa-india-bav-rowlabel">{rowName}</span>
+											{SS.map((_, j)=>(
+												<span className="horosa-india-bav-cell" style={{ '--bav': hits.indexOf(j) >= 0 ? 1 : 0 }} key={`rc${i}_${j}`}>
+													{hits.indexOf(j) >= 0 ? '●' : ''}
+												</span>
+											))}
+										</div>
+									);
+								})}
+							</div>
+						);
+					})()}
+					<div className="horosa-india-card-note">动象看所有固象（除紧邻下一座）；固象看所有动象（除紧邻前一座）；双象互看其余双象。星座几何固定,与本盘无关。</div>
+				</div>
 			</div>
 		);
 	}
@@ -2324,8 +3029,8 @@ class IndiaChartMain extends Component{
 					<div className="horosa-info-card-title">Sade Sati / Kantaka / Ashtama</div>
 					<div className="horosa-info-row"><span>土星过运</span><strong>{sa.saturnSignLabel || '—'}（从月第 {sa.saturnHouseFromMoon || '—'} 宫）</strong></div>
 					<div className="horosa-info-row"><span>Sade Sati</span><strong>{ss.active ? `进行中 · ${ss.phaseLabel || ss.phase || ''}` : '无'}</strong></div>
-					<div className="horosa-info-row"><span>Kantaka(Ardhashtama)</span><strong>{(sa.kantaka || {}).active ? '是' : '否'}</strong></div>
-					<div className="horosa-info-row"><span>Ashtama Sani</span><strong>{(sa.ashtamaSani || {}).active ? '是' : '否'}</strong></div>
+					<div className="horosa-info-row"><span>Kantaka</span><strong>{(sa.kantaka || {}).active ? '是' : '否'}（Ardhashtama）</strong></div>
+					<div className="horosa-info-row"><span>Ashtama</span><strong>{(sa.ashtamaSani || {}).active ? '是' : '否'}（土星过月 8 宫）</strong></div>
 				</div>
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">逐曜过运（从月）{g.transitDate ? ` · ${g.transitDate}` : ''}</div>
@@ -2357,63 +3062,130 @@ class IndiaChartMain extends Component{
 						</div>
 					</div>
 				) : null}
+				{Array.isArray(g.fromSun) && g.fromSun.length ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">逐曜过运（从日 · 第三基准）</div>
+						<div className="horosa-india-data-list">
+							{g.fromSun.map((it, i)=>(
+								<div className="horosa-india-data-row" key={`fs_${it.planet || i}`}>
+									<strong>{it.planetLabel || it.label || it.planet}</strong>
+									<span>从日第 {it.house} 宫{it.signLabel ? ` · ${it.signLabel}` : ''}</span>
+									<em>{(it.good || it.auspicious) ? '吉位' : '凶位'}{it.effective === false ? ' · 被遮 Vedha' : ''}</em>
+								</div>
+							))}
+						</div>
+					</div>
+				) : null}
+				{g.dashaLink && g.dashaLink.mahaLord ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">过运 × 大运联动（当前运主激活性）</div>
+						<div className="horosa-info-row"><span>当前大运主</span><strong>{(g.dashaLink.mahaLord || {}).label || (g.dashaLink.mahaLord || {}).key || '—'}
+							{g.dashaLink.transitFromMoon ? `（从月第 ${g.dashaLink.transitFromMoon.house} 宫 · ${(g.dashaLink.transitFromMoon.good || g.dashaLink.transitFromMoon.auspicious) ? '吉位' : '凶位'}${g.dashaLink.transitFromMoon.effective === false ? ' · 被遮 Vedha' : ''}）` : ''}</strong></div>
+						{g.dashaLink.antarLord ? (
+							<div className="horosa-info-row"><span>当前中运主</span><strong>{(g.dashaLink.antarLord || {}).label || '—'}
+								{g.dashaLink.antarTransitFromMoon ? `（从月第 ${g.dashaLink.antarTransitFromMoon.house} 宫 · ${(g.dashaLink.antarTransitFromMoon.good || g.dashaLink.antarTransitFromMoon.auspicious) ? '吉位' : '凶位'}）` : ''}</strong></div>
+						) : null}
+						<div className="horosa-india-card-note">大运主被过运激活(吉位无遮)时其象义更易兑现;合参标记,仅信息。</div>
+					</div>
+				) : null}
 			</div>
 		);
 	}
 
 	renderRasiDashaCards(fields){
-		// 座位大运(rasi dasha)归「大运」tab(用户定向):Narayana + Lagna Kendrādi/Sudaśā/Dṛg/Śūla/Niryāṇa Śūla/Kālachakra/Tāra/Sthira/Yogārdha/Maṇḍūka。
+		// 座位大运(rasi dasha)全家族:时间轴化(自出生累加·今日金色高亮·全段不截断);
+		// Narayana + 既有 10 系 + 新增 Chakra/Trikona/Navamsa/Varnada + Paryaya 二轮。
 		const SIGN_CN = { Aries: '白羊', Taurus: '金牛', Gemini: '双子', Cancer: '巨蟹', Leo: '狮子', Virgo: '处女', Libra: '天秤', Scorpio: '天蝎', Sagittarius: '射手', Capricorn: '摩羯', Aquarius: '水瓶', Pisces: '双鱼' };
 		const sc = (s)=>SIGN_CN[s] || s || '—';
 		const jyotish = getJyotish(resolveJyotishChartObj(this.state, fields));
 		const rd = jyotish ? jyotish.rasiDasha : null;
 		const nar = rd && rd.narayana;
 		if(!rd && !(nar && nar.mahadashas)){ return null; }
+		const birth = buildBirthMoment(fields);
+		const yearDays = currentDashaYearDays();
+		const nowAge = (birth && birth.diff) ? moment().diff(birth, 'days', true) / yearDays : null;
+		const renderRows = (list, keyPrefix, opts = {})=>{
+			let cum = opts.startOffsetYears || 0;   // Kalachakra 整轮序列:出生落中段 → 轴自 −已过年起
+			return (list || []).map((m, i)=>{
+				const years = (typeof m.years === 'number') ? m.years : parseFloat(m.years) || 0;
+				const startAge = cum;
+				cum += years;
+				const active = nowAge !== null && nowAge >= startAge && nowAge < cum;
+				const startYear = (birth && birth.clone) ? addDashaYears(birth, startAge) : null;
+				const endYear = (birth && birth.clone) ? addDashaYears(birth, cum) : null;
+				return (
+					<div className={`horosa-india-data-row${active ? ' is-dasha-active' : ''}`} key={`${keyPrefix}_${i}`}>
+						<strong>{sc(m.rasi)}{m.cycle === 2 ? <em className="horosa-india-cycle-tag">二轮</em> : null}{m.gatiCN ? <em className="horosa-india-gati-tag">{m.gatiCN}</em> : null}</strong>
+						<span>{years % 1 === 0 ? years.toFixed(0) : years.toFixed(1)} 年{startYear && endYear ? ` · ${startYear.format('YYYY')}-${endYear.format('YYYY')}` : ''}</span>
+						<em>{active ? '当前' : (m.deity || (opts.showLord ? m.lord : '') || '')}</em>
+					</div>
+				);
+			});
+		};
+		const DEFS = [
+			{ key: 'lagnaKendradi', label: 'Lagna Kendrādi 大运' },
+			{ key: 'sudasa', label: 'Sudaśā（Sree Lagna）' },
+			{ key: 'drigdasa', label: 'Dṛg 大运' },
+			{ key: 'shoola', label: 'Śūla 大运' },
+			{ key: 'niryanaShoola', label: 'Niryāṇa Śūla 大运' },
+			{ key: 'kalachakra', label: 'Kālachakra 大运' },
+			{ key: 'taraLagna', label: 'Tāra Lagna 大运（均匀 9 年/座 · 108）' },
+			{ key: 'sthira', label: 'Sthira 固定座运（动7/固8/变9 · 96）' },
+			{ key: 'yogardha', label: 'Yogārdha 平均座运（(Sthira+Narayana)/2）' },
+			{ key: 'manduka', label: 'Maṇḍūka 蛙跳座运（kendra +3 · 7/8/9 · 96）' },
+			{ key: 'chakra', label: 'Chakra 座运（恒 10 年/座 · 顺行 · 120）', showLord: true },
+			{ key: 'trikona', label: 'Trikoṇa 三角座运（三联组 · 组内强度序）' },
+			{ key: 'navamsaDasha', label: 'Navāṁśa 座运（D-9 上跑 Narayana）' },
+			{ key: 'varnada', label: 'Varṇada 座运（VL 起 · 数到座主）' },
+		];
+		const paryaya = rd && rd.paryaya;
 		return (
 			<>
 				{nar && Array.isArray(nar.mahadashas) && nar.mahadashas.length ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Narayana 座位大运（种子 {sc(nar.seed)}{nar.deity ? ` · ${nar.deity}` : ''}）</div>
-						<div className="horosa-india-data-list">
-							{nar.mahadashas.slice(0, 12).map((m, i)=>(
-								<div className="horosa-india-data-row" key={`${m.rasi}_${i}`}>
-									<strong>{sc(m.rasi)}</strong>
-									<span>{(typeof m.years === 'number' ? m.years.toFixed(0) : m.years)} 年</span>
-									<em>{m.deity || ''}</em>
-								</div>
-							))}
+						<div className="horosa-india-data-list horosa-india-rasi-scroll">
+							{renderRows(nar.mahadashas, 'nar')}
 						</div>
 					</div>
 				) : null}
-				{rd ? [
-					{ key: 'lagnaKendradi', label: 'Lagna Kendrādi 大运' },
-					{ key: 'sudasa', label: 'Sudaśā（Sree Lagna）' },
-					{ key: 'drigdasa', label: 'Dṛg 大运' },
-					{ key: 'shoola', label: 'Śūla 大运' },
-					{ key: 'niryanaShoola', label: 'Niryāṇa Śūla 大运' },
-					{ key: 'kalachakra', label: 'Kālachakra 大运' },
-					{ key: 'taraLagna', label: 'Tāra Lagna 大运（均匀 9 年/座 · 108）' },
-					{ key: 'sthira', label: 'Sthira 固定座运（动7/固8/变9 · 96）' },
-					{ key: 'yogardha', label: 'Yogārdha 平均座运（(Sthira+Narayana)/2）' },
-					{ key: 'manduka', label: 'Maṇḍūka 蛙跳座运（kendra +3 · 7/8/9 · 96）' },
-				].map((def)=>{
+				{rd ? DEFS.map((def)=>{
 					const d = rd[def.key];
 					if(!d || d.available === false || !Array.isArray(d.mahadashas) || !d.mahadashas.length){ return null; }
 					return (
 						<div className="horosa-info-card" key={def.key}>
-							<div className="horosa-info-card-title">{def.label}{d.deha ? `（Deha ${sc(d.deha)} · Jiva ${sc(d.jiva)}）` : ''}{def.key === 'sthira' ? this.renderSthiraStartToggle(d) : null}</div>
-							<div className="horosa-india-data-list">
-								{d.mahadashas.slice(0, 12).map((m, i)=>(
-									<div className="horosa-india-data-row" key={`${def.key}_${i}`}>
-										<strong>{sc(m.rasi)}</strong>
-										<span>{(typeof m.years === 'number' ? m.years.toFixed(1) : m.years)} 年</span>
-										<em>{m.deity || m.lord || ''}</em>
-									</div>
-								))}
+							<div className="horosa-info-card-title">{def.label}{d.deha ? `（Deha ${sc(d.deha)} · Jiva ${sc(d.jeeva || d.jiva)}）` : ''}{def.key === 'sthira' ? this.renderSthiraStartToggle(d) : null}</div>
+							{def.key === 'kalachakra' && (d.paramayush || d.cycleMethod) ? (
+								<div className="horosa-india-card-note">paramāyus {d.paramayush} 年{d.startRasi ? ` · 起 ${sc(d.startRasi)}(余 ${d.startBalanceYears} 年)` : ''}{d.nextCycle ? ` · 轮终换接:${d.nextCycle.nakshatra} 第${d.nextCycle.pada}pada` : ''}</div>
+							) : null}
+							<div className="horosa-india-data-list horosa-india-rasi-scroll">
+								{renderRows(d.mahadashas, def.key, { showLord: !!def.showLord,
+									startOffsetYears: def.key === 'kalachakra' && typeof d.elapsedYears === 'number' ? -d.elapsedYears : 0 })}
 							</div>
 						</div>
 					);
 				}) : null}
+				{paryaya && paryaya.charaParyaya && paryaya.charaParyaya.available ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">Chara Paryāya 二轮（Sampat · 12−首轮）</div>
+						<div className="horosa-india-data-list horosa-india-rasi-scroll">
+							{renderRows(paryaya.charaParyaya.mahadashas, 'cpar')}
+						</div>
+					</div>
+				) : (paryaya && paryaya.charaParyaya && paryaya.charaParyaya.reason === 'trikona_unoccupied' ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">Chara Paryāya 二轮</div>
+						<div className="horosa-india-card-note">自上升三角(1/5/9)无行星 → 本盘 Chara Paryāya 废(注疏规则)</div>
+					</div>
+				) : null)}
+				{paryaya && paryaya.sthiraParyaya && paryaya.sthiraParyaya.available ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">Sthira Paryāya 二轮（起 {sc(paryaya.sthiraParyaya.seed)}）</div>
+						<div className="horosa-india-data-list horosa-india-rasi-scroll">
+							{renderRows(paryaya.sthiraParyaya.mahadashas, 'spar')}
+						</div>
+					</div>
+				) : null}
 			</>
 		);
 	}
@@ -2432,8 +3204,8 @@ class IndiaChartMain extends Component{
 				{ar && ar.available ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Arudha 映象（AL / UL）</div>
-						<div className="horosa-info-row"><span>Arudha Lagna (AL)</span><strong>{sc(ar.arudhaLagna)}</strong></div>
-						<div className="horosa-info-row"><span>Upapada (UL)</span><strong>{sc(ar.upapadaLagna)}</strong></div>
+						<div className="horosa-info-row"><span>AL</span><strong>{sc(ar.arudhaLagna)}</strong></div>
+						<div className="horosa-info-row"><span>UL</span><strong>{sc(ar.upapadaLagna)}</strong></div>
 					</div>
 				) : null}
 				{ar && ar.available && Array.isArray(ar.houseArudhas) ? (
@@ -2469,6 +3241,29 @@ class IndiaChartMain extends Component{
 						</div>
 					</div>
 				) : null}
+				{this.renderJudgmentNotes('9')}
+				{(()=>{
+					const jyx = (resolveJyotishChartObj(this.state, fields) || {}).jyotish || {};
+					const ay = (jyx.jaimini || {}).ayurTriPair;
+					if(!ay || !ay.available){ return null; }
+					const QCN = { movable: '动', fixed: '固', dual: '双' };
+					return (
+						<div className="horosa-info-card">
+							<div className="horosa-info-card-title">Jaimini 寿命三对法（Āyur · 档位参考）</div>
+							<div className="horosa-india-data-list">
+								{ay.pairs.map((pr)=>(
+									<div className="horosa-india-data-row" key={pr.name}>
+										<strong>{pr.name}</strong>
+										<span>{pr.aSignLabel}({QCN[pr.aQuality]}) × {pr.bSignLabel}({QCN[pr.bQuality]})</span>
+										<em>{pr.verdictLabel}</em>
+									</div>
+								))}
+							</div>
+							<div className="horosa-info-row"><span>三票多数</span><strong>{ay.bandLabel}</strong></div>
+							<div className="horosa-india-card-note"><span className="horosa-india-source-tag">三对法·古籍通行版本</span>{ay.note}</div>
+						</div>
+					);
+				})()}
 			</div>
 		);
 	}
@@ -2496,7 +3291,7 @@ class IndiaChartMain extends Component{
 								</div>
 							))}
 						</div>
-						<div className="horosa-india-card-note">{shashti.note || 'Krūra 恶段→凶，余吉；偶象神名逆序。专名表文档未全列，暂显段号。'}</div>
+						<div className="horosa-india-card-note">{shashti.note || 'Krūra 恶段→凶，余吉；偶象神名逆序。'}</div>
 					</div>
 				) : null}
 				{vargaVar && vargaVar.charts && vargaVar.charts.length ? (
@@ -2505,14 +3300,18 @@ class IndiaChartMain extends Component{
 						{vargaVar.charts.map((ch)=>(
 							<div className="horosa-india-varga-variant-block" key={ch.key} style={{ marginBottom: 10 }}>
 								<div className="horosa-india-data-subhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-									<strong>{ch.label}</strong>
+									<strong>{ch.label}{ch.selected && ch.selected !== 'standard' ? ` · 当前:${(ch.variants.find((v)=>v.key === ch.selected) || {}).label || ch.selected}` : ''}</strong>
 									<em style={{ opacity: 0.7, fontSize: '0.85em' }}>{ch.variants.map((v)=>v.label).join(' · ')}</em>
 								</div>
 								<div className="horosa-india-data-list">
 									{ch.planets.filter((r)=>r.differs).length ? ch.planets.filter((r)=>r.differs).map((r)=>(
 										<div className="horosa-india-data-row" key={r.planet}>
 											<strong>{PCN[r.planet] || r.planet}</strong>
-											<span>{r.cells.map((c)=>c.signLabel).join(' → ')}</span>
+											<span>{r.cells.map((c)=>(
+												<span key={c.variant} style={c.variant === (ch.selected || 'standard') ? { color: 'var(--horosa-astro-gold, #b8860b)', fontWeight: 600 } : undefined}>
+													{c.signLabel}{c === r.cells[r.cells.length - 1] ? '' : ' → '}
+												</span>
+											))}</span>
 										</div>
 									)) : (
 										<div className="horosa-india-card-note">本盘各曜在此分盘各流派落座一致（无差异）。</div>
@@ -2534,7 +3333,7 @@ class IndiaChartMain extends Component{
 								</div>
 							))}
 						</div>
-						<div className="horosa-india-card-note">{nadi.d150Note || '专名表所给文档未全列，暂显号位。'}</div>
+						<div className="horosa-india-card-note">{nadi.d150Note || '150 专名待录入原典表，暂显号位。'}</div>
 					</div>
 				) : null}
 			</div>
@@ -2593,7 +3392,7 @@ class IndiaChartMain extends Component{
 								<div className="horosa-india-data-subhead"><strong>Praṇapada PP（流派变体）</strong></div>
 								<div className="horosa-india-data-row"><strong>PP</strong><span>日出太阳（BPHS）</span><em>{fmtLon(sl.pranapada.variantSunrise)}</em></div>
 								{sl.pranapada.variantBirth !== undefined ? (
-									<div className="horosa-india-data-row"><strong>PP</strong><span>出生太阳（PyJHora）</span><em>{fmtLon(sl.pranapada.variantBirth)}</em></div>
+									<div className="horosa-india-data-row"><strong>PP</strong><span>出生太阳（现代变体）</span><em>{fmtLon(sl.pranapada.variantBirth)}</em></div>
 								) : null}
 								<div className="horosa-india-card-note">{sl.pranapada.note}</div>
 							</div>
@@ -2664,44 +3463,63 @@ class IndiaChartMain extends Component{
 						<div className="horosa-info-row"><span>黄经</span><strong>{formatDegree(nadi.bhriguBindu.lon)}</strong></div>
 					</div>
 				) : null}
+				{this.renderSensitivePointsCard(jyotish, fields)}
 			</div>
 		);
 	}
 
-	renderJyotishNav(){
-		const items = [
-			{ key: '2', icon: 'note', title: '五支', sub: '起盘' },
-			{ key: '3', icon: 'clock', title: '大运', sub: 'Dasha' },
-			{ key: '4', icon: 'sidePlanets', title: '星曜', sub: '状态' },
-			{ key: '5', icon: 'target', title: '八分', sub: 'AV' },
-			{ key: '6', icon: 'quickTransit', title: 'KP', sub: '择时' },
-			{ key: '7', icon: 'target', title: 'Yoga', sub: '组合' },
-			{ key: '8', icon: 'sideStyle', title: '副星', sub: 'Upa' },
-			{ key: '9', icon: 'quickNote', title: '映象', sub: 'Jaimini' },
-			{ key: '10', icon: 'quickTransit', title: '行运', sub: 'Gochara' },
-			{ key: '11', icon: 'note', title: '年度', sub: 'Tajaka' },
-			{ key: '12', icon: 'sideStyle', title: '化解', sub: 'Remedies' },
-			{ key: '13', icon: 'target', title: '敌友', sub: 'Maitri' },
-		];
-		return (
-			<XQSideSection iconName={sideSectionIcon('switches')} title="高级印占" storageKey="india.s0" className="horosa-india-input-section horosa-india-jyotish-nav">
-				<div className="horosa-india-jyotish-buttons">
-					{items.map((item)=>(
-						<button
-							type="button"
-							key={item.key}
-							className={`horosa-india-jyotish-button${this.state.jyotishTab === item.key ? ' is-active' : ''}`}
-							onClick={()=>this.changeJyotishTab(item.key)}
-						>
-							<XQIcon name={item.icon} />
-							<span>{item.title}</span>
-							<em>{item.sub}</em>
-						</button>
-					))}
+	// [G2/G3] 敏感点 Sphuta 卡(生育点 + Gandanta/Sandhi 界位)。恒并列显示两点不隐藏;
+	// 按盘 gender 高亮对应点(男→Beeja / 女→Kshetra)。无落界星体时界位块不渲染(零噪音)。
+	renderSensitivePointsCard(jyotish, fields){
+		const spx = (jyotish || {}).sensitivePoints;
+		if(!spx || !spx.available){ return null; }
+		const bk = spx.beejaKshetra || {};
+		const gnd = (spx.gandanta || {}).hits || [];
+		const gender = fields && fields.gender ? Number(fields.gender.value) : 1;
+		const pointRow = (item, label, hot)=>{
+			if(!item){ return null; }
+			if(item.available === false){
+				return (
+					<div className="horosa-india-data-row" key={label}>
+						<strong>{label}</strong><span className="horosa-india-card-note">缺源经度,不出值</span>
+					</div>
+				);
+			}
+			return (
+				<div className={`horosa-india-data-row${hot ? ' horosa-india-sensitive-hot' : ''}`} key={label}>
+					<strong>{label}</strong>
+					<span>{(item.rasi || {}).signLabel} {formatDegree((item.lon || 0) % 30)}</span>
+					<span>D9 {(item.navamsa || {}).signLabel}</span>
+					<span className={item.verdict === 'favorable' ? 'horosa-india-emph' : ''}>{item.verdictLabel}</span>
 				</div>
-			</XQSideSection>
+			);
+		};
+		return (
+			<div className="horosa-info-card">
+				<div className="horosa-info-card-title">敏感点 Sphuta（生育点 · 界位）</div>
+				<div className="horosa-india-data-list">
+					{pointRow(bk.beeja, 'Beeja(日+金+木)', gender === 1)}
+					{pointRow(bk.kshetra, 'Kshetra(月+火+木)', gender !== 1)}
+				</div>
+				<div className="horosa-india-card-note">{bk.note}</div>
+				{gnd.length ? (
+					<>
+						<div className="horosa-india-data-subhead"><strong>Gandanta / Sandhi 界位</strong></div>
+						<div className="horosa-india-data-list">
+							{gnd.map((h, i)=>(
+								<div className="horosa-india-data-row" key={i}>
+									<strong>{h.bodyLabel || h.body}</strong>
+									{h.gandanta ? <span className="horosa-india-flag-badge is-warn">Gandanta {h.gandanta.junctionLabel}({h.gandanta.nakshatraPair})距界 {h.gandanta.arcminToBoundary}′</span> : null}
+									{h.rasiSandhi ? <span className="horosa-india-flag-badge">Sandhi {h.rasiSandhi.position === 'sign_end' ? '座末' : '座初'} {h.rasiSandhi.arcminToBoundary}′</span> : null}
+								</div>
+							))}
+						</div>
+					</>
+				) : null}
+			</div>
 		);
 	}
+
 
 	changeDashaSystem(value){
 		const v = value && value.target ? value.target.value : value;
@@ -2714,6 +3532,7 @@ class IndiaChartMain extends Component{
 			dashaExpandedAntarKey: null,
 			dashaDrillPath: [],
 		}, ()=>{
+			this.persistIndiaOption({ indiaDashaSystem: v });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, { indiaDashaSystem: v }));
 		});
 	}
@@ -2729,6 +3548,7 @@ class IndiaChartMain extends Component{
 			dashaExpandedAntarKey: null,
 			dashaDrillPath: [],
 		}, ()=>{
+			this.persistIndiaOption({ indiaDashaSeed: v });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, { indiaDashaSeed: v }));
 		});
 	}
@@ -2740,6 +3560,7 @@ class IndiaChartMain extends Component{
 		this.setState({
 			indiaTransitDateValue: v,
 		}, ()=>{
+			this.persistIndiaOption({ indiaTransitDate: v });
 			this.requestDashaChart(this.withIndiaOptionFields(this.props.fields, { indiaTransitDate: v }));
 		});
 	}
@@ -2778,6 +3599,7 @@ class IndiaChartMain extends Component{
 	renderDashaDrillView(dasha){
 		let path = Array.isArray(this.state.dashaDrillPath) ? this.state.dashaDrillPath.slice() : [];
 		let list = Array.isArray(dasha.items) ? dasha.items : [];
+		const seqCtx = deriveDashaSequence(list);   // 体系自身环(4/5 级深钻用;修「非 Vimshottari 深级失真/缺段」)
 		const crumbs = [];
 		for(let i = 0; i < path.length; i++){
 			const sel = list[path[i]];
@@ -2786,7 +3608,7 @@ class IndiaChartMain extends Component{
 				break;
 			}
 			crumbs.push(sel);
-			list = buildDashaSubPeriods(sel);
+			list = buildDashaSubPeriods(sel, this.state.dashaSystem || 'vimshottari', seqCtx);
 		}
 		const level = crumbs.length; // 0=大运 … 4=息运
 		const levelInfo = DASHA_LEVEL_LABELS[Math.min(level, DASHA_MAX_LEVEL - 1)];
@@ -2862,9 +3684,61 @@ class IndiaChartMain extends Component{
 		return dasha;
 	}
 
+	// 后端实际所用年长(G5):从大运块读回,防前后端各持一份导致 5 级钻取客户端自算段错位。
+	dashaYearDaysOf(chartObj){
+		const d = chartObj && chartObj.jyotish && chartObj.jyotish.dasha;
+		const v = d && d.vimshottari && Number(d.vimshottari.yearLengthDays);
+		return (Number.isFinite(v) && v > 0) ? v : DASHA_YEAR_DAYS;
+	}
+
+	// [G4] 死亡指示点风险区(伦理敏感:开关默认关;中性灰不作凶色渲染;绝不出寿数)。
+	renderRiskFactorsBlock(chartObj){
+		const spx = chartObj && chartObj.jyotish && chartObj.jyotish.sensitivePoints;
+		const di = spx && spx.deathIndicators;
+		return (
+			<div className="horosa-info-card">
+				<div className="horosa-info-card-title">风险因子（仅标注 · 不作寿命断言）</div>
+				<label className="horosa-india-risk-toggle">
+					<input
+						type="checkbox"
+						checked={this.state.indiaShowRiskFactors}
+						onChange={(e)=>this.setState({ indiaShowRiskFactors: e.target.checked })}
+					/>
+					<span>显示风险因子(默认关闭)</span>
+				</label>
+				{this.state.indiaShowRiskFactors && di && di.available ? (
+					<div className="horosa-india-risk-body">
+						<div className="horosa-india-data-list">
+							<div className="horosa-india-data-row">
+								<strong>22nd Drekkana(自 Lagna)</strong>
+								<span>{di.drekkana22.drekkanaSignLabel} · 主 {di.drekkana22.lordLabel}</span>
+								<span className="horosa-india-card-note">落 {di.drekkana22.containingSignLabel}</span>
+							</div>
+							{di.navamsa64FromMoon ? (
+								<div className="horosa-india-data-row">
+									<strong>64th Navamsa(自 Moon · Khareśa)</strong>
+									<span>{di.navamsa64FromMoon.navamsaSignLabel} · 主 {di.navamsa64FromMoon.lordLabel}</span>
+								</div>
+							) : null}
+							{di.navamsa64FromLagna ? (
+								<div className="horosa-india-data-row">
+									<strong>64th Navamsa(自 Lagna 口径)</strong>
+									<span>{di.navamsa64FromLagna.navamsaSignLabel} · 主 {di.navamsa64FromLagna.lordLabel}</span>
+								</div>
+							) : null}
+						</div>
+						<div className="horosa-india-card-note">权威给「自 Moon 或 Lagna」两口径 → 两个并列,不擅自二选一;Maraka 因子见星曜页徽标</div>
+						<div className="horosa-india-card-note">{di.disclaimer}</div>
+					</div>
+				) : null}
+			</div>
+		);
+	}
+
 	renderDashaPanel(fields){
 		const system = this.state.dashaSystem || 'vimshottari';
 		const dashaChartObj = resolveJyotishChartObj(this.state, fields);
+		syncDashaYearDays(dashaChartObj);   // G5:客户端段换算与后端年长对齐(单一真值源)
 		const seed = this.state.dashaSeed || DASHA_SEED_DEFAULT;
 		const dasha = this.getMemoizedDasha(dashaChartObj, fields, system, seed);
 		const naisargika = dashaChartObj && dashaChartObj.jyotish && dashaChartObj.jyotish.dasha
@@ -2920,7 +3794,20 @@ class IndiaChartMain extends Component{
 							))}
 						</Select>
 					</label>
+					<label className="horosa-india-dasha-syssel-field">
+						<span className="horosa-india-dasha-syssel-label">年长</span>
+						<Select
+							size="small"
+							value={this.state.indiaDashaYearLength}
+							onChange={(v)=>this.changeDashaYearLength(v)}
+							dropdownMatchSelectWidth={false}
+							className="horosa-india-dasha-syssel-select"
+						>
+							{AstroConst.INDIA_DASHA_YEAR_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+						</Select>
+					</label>
 				</div>
+				<div className="horosa-india-card-note">年长:{this.dashaYearDaysOf(dashaChartObj)} 日/年(全大运族统一取用)</div>
 			</div>
 		);
 		if(this.state.dashaLoading && !dasha){
@@ -2968,46 +3855,50 @@ class IndiaChartMain extends Component{
 				{naisargika && naisargika.available && Array.isArray(naisargika.periods) ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Naisargika 自然大运（7 曜固定 120 年 · Varahamihira 成熟序/年龄段）</div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>曜</th><th>年</th><th>年龄段</th><th>起→止</th></tr></thead>
-							<tbody>
-								{naisargika.periods.map((p)=>(
-									<tr key={`nais${p.planet}`}>
-										<th>{p.planetCN}</th>
-										<td>{p.years}</td>
-										<td>{p.startAge}–{p.endAge}</td>
-										<td>{p.start || '—'} → {p.end || '—'}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>曜</th><th>年</th><th>年龄段</th><th>起→止</th></tr></thead>
+								<tbody>
+									{naisargika.periods.map((p)=>(
+										<tr key={`nais${p.planet}`}>
+											<th>{p.planetCN}</th>
+											<td>{p.years}</td>
+											<td>{p.startAge}–{p.endAge}</td>
+											<td>{p.start || '—'} → {p.end || '—'}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				) : null}
 				{ayurdaya && ayurdaya.pindayu ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Āyurdāya 寿命 · Piṇḍāyu 基础（度式贡献 · 未施 haraṇa 减）</div>
-						<div className="horosa-info-row"><span>基础 Piṇḍāyu</span><strong className="horosa-india-emph">{ayurdaya.pindayu.baseYears} 年</strong></div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>曜</th><th>满寿</th><th>距落陷°</th><th>贡献年</th></tr></thead>
-							<tbody>
-								{ayurdaya.pindayu.contributions.map((c)=>(
-									<tr key={`pind${c.planet}`}>
-										<th>{c.planetCN}</th>
-										<td>{c.fullYears}</td>
-										<td>{Math.round(c.arcFromDebil)}</td>
-										<td>{c.years}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
+						<div className="horosa-info-row"><span>基础年</span><strong className="horosa-india-emph">{ayurdaya.pindayu.baseYears} 年</strong></div>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>曜</th><th>满寿</th><th>距落陷°</th><th>贡献年</th></tr></thead>
+								<tbody>
+									{ayurdaya.pindayu.contributions.map((c)=>(
+										<tr key={`pind${c.planet}`}>
+											<th>{c.planetCN}</th>
+											<td>{c.fullYears}</td>
+											<td>{Math.round(c.arcFromDebil)}</td>
+											<td>{c.years}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 						{Array.isArray(ayurdaya.nisargayu && ayurdaya.nisargayu.naturalYears) ? (
-							<div className="horosa-info-row"><span>Nisargāyu 自然寿</span><strong>{ayurdaya.nisargayu.naturalYears.map((n)=>`${n.planetCN}${n.years}`).join(' ')}（120）</strong></div>
+							<div className="horosa-info-row"><span>Nisargāyu</span><strong>自然寿 {ayurdaya.nisargayu.naturalYears.map((n)=>`${n.planetCN}${n.years}`).join(' ')}（120）</strong></div>
 						) : null}
 						{ayurdaya.amsayu && Array.isArray(ayurdaya.amsayu.contributions) ? (
-							<div className="horosa-info-row"><span>Aṁśāyu（÷200·Bharaṇa）</span><strong>{ayurdaya.amsayu.contributions.map((c)=>`${c.planetCN}${c.years}${c.multiplier > 1 ? '×' + c.multiplier : ''}`).join(' ')} = <span className="horosa-india-emph">{ayurdaya.amsayu.baseYears}</span> 年</strong></div>
+							<div className="horosa-info-row"><span>Aṁśāyu</span><strong>{ayurdaya.amsayu.contributions.map((c)=>`${c.planetCN}${c.years}${c.multiplier > 1 ? '×' + c.multiplier : ''}`).join(' ')} = <span className="horosa-india-emph">{ayurdaya.amsayu.baseYears}</span> 年（÷200·Bharaṇa）</strong></div>
 						) : null}
 						{ayurdaya.amsayu && Array.isArray(ayurdaya.amsayu.bharanaVariants) ? (
-							<div className="horosa-info-row"><span>Bharaṇa 分组（流派选项）</span><strong>{ayurdaya.amsayu.bharanaVariants.map((v)=>`${v.label.replace(/（.*）/, '')} ${v.baseYears}`).join(' · ')}</strong></div>
+							<div className="horosa-info-row"><span>Bharaṇa 组</span><strong>{ayurdaya.amsayu.bharanaVariants.map((v)=>`${v.label.replace(/（.*）/, '')} ${v.baseYears}`).join(' · ')}</strong></div>
 						) : null}
 						<div className="horosa-india-card-note">{ayurdaya.methodSelection}</div>
 						<div className="horosa-india-card-note">{ayurdaya.haranaNote}</div>
@@ -3037,70 +3928,108 @@ class IndiaChartMain extends Component{
 								))}
 							</div>
 						) : null}
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>曜</th><th>基础</th><th>敌/合</th><th>宫</th><th>Chakra</th><th>减后</th></tr></thead>
-							<tbody>
-								{ayurdaya.harana.planets.map((r)=>(
-									<tr key={`har${r.planet}`}>
-										<th>{r.planetCN}</th>
-										<td>{r.baseYears}</td>
-										<td>{`${r.enemySign ? '敌' : ''}${r.combust ? '合' : ''}` || '—'}</td>
-										<td>{r.house}</td>
-										<td>{r.chakrapata > 0 ? r.chakrapata : '—'}</td>
-										<td>{r.reducedYears}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>曜</th><th>基础</th><th>敌/合</th><th>宫</th><th>Chakra</th><th>减后</th></tr></thead>
+								<tbody>
+									{ayurdaya.harana.planets.map((r)=>(
+										<tr key={`har${r.planet}`}>
+											<th>{r.planetCN}</th>
+											<td>{r.baseYears}</td>
+											<td>{`${r.enemySign ? '敌' : ''}${r.combust ? '合' : ''}` || '—'}</td>
+											<td>{r.house}</td>
+											<td>{r.chakrapata > 0 ? r.chakrapata : '—'}</td>
+											<td>{r.reducedYears}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 						{ayurdaya.harana.krurodaya && ayurdaya.harana.krurodaya.applies ? (
-							<div className="horosa-info-row"><span>Krurodaya（{ayurdaya.harana.krurodaya.planetCN} 升 Lagna{ayurdaya.harana.krurodaya.mitigated ? '·吉星望减半' : ''}）</span><strong>式A −{ayurdaya.harana.krurodaya.formulaA} / 式B −{ayurdaya.harana.krurodaya.formulaB}</strong></div>
+							<div className="horosa-info-row"><span>Krurodaya</span><strong>{ayurdaya.harana.krurodaya.planetCN} 升 Lagna{ayurdaya.harana.krurodaya.mitigated ? '·吉星望减半' : ''} · 式A −{ayurdaya.harana.krurodaya.formulaA} / 式B −{ayurdaya.harana.krurodaya.formulaB}</strong></div>
 						) : null}
-						<div className="horosa-info-row"><span>Lagna_Ayu（座内角分/200）</span><strong>{ayurdaya.harana.lagnaAyu} 年</strong></div>
+						<div className="horosa-info-row"><span>Lagna Āyu</span><strong>{ayurdaya.harana.lagnaAyu} 年（座内角分/200）</strong></div>
 						<div className="horosa-india-card-note">{ayurdaya.harana.note}</div>
 					</div>
 				) : null}
+				{(()=>{
+					// Āyurdāya 判读层(开关化管线):选定方法/总值+档位/三对法/致死因子/投影。
+					const af = dashaChartObj && dashaChartObj.jyotish && dashaChartObj.jyotish.ayurdayaFinal;
+					if(!af || !af.available){ return null; }
+					const SIGN_CN2 = { Aries: '白羊', Taurus: '金牛', Gemini: '双子', Cancer: '巨蟹', Leo: '狮子', Virgo: '处女', Libra: '天秤', Scorpio: '天蝎', Sagittarius: '射手', Capricorn: '摩羯', Aquarius: '水瓶', Pisces: '双鱼' };
+					const sc2 = (x)=>SIGN_CN2[x] || x || '—';
+					const M_CN = { pindayu: 'Piṇḍāyu', nisargayu: 'Nisargāyu', amsayu: 'Aṁśāyu' };
+					const sel = af.methodSelection || {};
+					const fin = af.selectedFinal || {};
+					const proj = af.projection;
+					return (
+						<div className="horosa-info-card">
+							<div className="horosa-info-card-title">Āyurdāya 判读（方法选定 · 档位 · 因子清单）</div>
+							<div className="horosa-info-row"><span>选定方法</span><strong>{M_CN[sel.selected] || sel.selected}{sel.override === 'auto' ? `（自动:${M_CN[sel.auto] || sel.auto}）` : '（手动指定）'}</strong></div>
+							<div className="horosa-info-row"><span>并入减算总值</span><strong className="horosa-india-emph">{fin.solarYears != null ? `${fin.solarYears} 太阳年` : '—'}{fin.savanaYears != null ? `（${fin.savanaYears} Savana）` : ''}</strong></div>
+							{af.ayuClass ? <div className="horosa-info-row"><span>寿命档</span><strong>{af.ayuClass.label}</strong></div> : null}
+							{af.triPairYears != null ? <div className="horosa-info-row"><span>三对法寿数</span><strong>{af.triPairYears} 年{af.triPairVotes ? `（长${af.triPairVotes.purna || 0}/中${af.triPairVotes.madhya || 0}/短${af.triPairVotes.alpa || 0}）` : ''}</strong></div> : null}
+							{af.maraka ? (
+								<div className="horosa-info-row"><span>Maraka 因子</span><strong>{(af.maraka.lords || []).join('/') || '—'}{(af.maraka.occupants || []).length ? ` · 落宫 ${(af.maraka.occupants || []).join('/')}` : ''}（2宫 {sc2((af.maraka.sthana || {}).second)} · 7宫 {sc2((af.maraka.sthana || {}).seventh)}）</strong></div>
+							) : null}
+							{af.trishula ? <div className="horosa-info-row"><span>Trishula 座</span><strong>{(af.trishula.signs || []).map(sc2).join('/')}（Rudra {sc2(af.trishula.rudraSign)}）</strong></div> : null}
+							{af.drekkana22 ? <div className="horosa-info-row"><span>22 Drekkāṇa</span><strong>{sc2(af.drekkana22.sign)} · 主 {af.drekkana22.lord || '—'}</strong></div> : null}
+							{af.navamsa64 ? <div className="horosa-info-row"><span>64 Navāṁśa</span><strong>{sc2(af.navamsa64.sign)} · 主 {af.navamsa64.lord || '—'}（{af.navamsa64.basis === 'moon' ? '月基' : '命基'}）</strong></div> : null}
+							{proj && proj.mahaLord ? (
+								<div className="horosa-info-row"><span>寿龄投影</span><strong>{(proj.mahaLord || {}).label || '—'} 大运{proj.mahaIsMaraka ? '（maraka 命中）' : ''}{proj.antarLord ? ` / ${(proj.antarLord || {}).label} 中运${proj.antarIsMaraka ? '（maraka）' : ''}` : ''}（Vimshottari）</strong></div>
+							) : null}
+							<div className="horosa-india-card-note">{af.disclaimer}</div>
+						</div>
+					);
+				})()}
+				{this.renderRiskFactorsBlock(dashaChartObj)}
 				{mula && Array.isArray(mula.mahadashas) ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Mūla 大运（Lagna Kendrādi Graha · 数到本三角座定年 · 二轮补足 120）</div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>曜</th><th>宫</th><th>首轮年</th><th>次轮年</th></tr></thead>
-							<tbody>
-								{mula.mahadashas.filter((m)=>m.round === 1).map((m, i)=>{
-									const r2 = mula.mahadashas.filter((x)=>x.round === 2)[i];
-									return (
-										<tr key={`mula${m.planet}`}>
-											<th>{m.planetCN}</th>
-											<td>{m.house}</td>
-											<td>{m.years}</td>
-											<td>{r2 ? r2.years : '—'}</td>
-										</tr>
-									);
-								})}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>曜</th><th>宫</th><th>首轮年</th><th>次轮年</th></tr></thead>
+								<tbody>
+									{mula.mahadashas.filter((m)=>m.round === 1).map((m, i)=>{
+										const r2 = mula.mahadashas.filter((x)=>x.round === 2)[i];
+										return (
+											<tr key={`mula${m.planet}`}>
+												<th>{m.planetCN}</th>
+												<td>{m.house}</td>
+												<td>{m.years}</td>
+												<td>{r2 ? r2.years : '—'}</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						</div>
 						<div className="horosa-india-card-note">{mula.note}</div>
 					</div>
 				) : null}
 				{sudarshana && Array.isArray(sudarshana.rows) ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Sudarśana Chakra 大运（每宫 1 太阳年 · 12 年循环 · 三轮并读）</div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>年</th><th>日轮 SL·灵</th><th>月轮 CL·心</th><th>升轮 JL·身</th></tr></thead>
-							<tbody>
-								{sudarshana.rows.map((r)=>(
-									<tr key={`sud${r.year}`} className={r.current ? 'is-current-year' : ''}>
-										<th className={r.current ? 'is-good' : ''}>{r.year}{r.current ? '◀' : ''}</th>
-										<td>{r.slLabel}</td>
-										<td>{r.clLabel}</td>
-										<td>{r.jlLabel}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>年</th><th>日轮 SL·灵</th><th>月轮 CL·心</th><th>升轮 JL·身</th></tr></thead>
+								<tbody>
+									{sudarshana.rows.map((r)=>(
+										<tr key={`sud${r.year}`} className={r.current ? 'is-current-year' : ''}>
+											<th className={r.current ? 'is-good' : ''}>{r.year}{r.current ? '◀' : ''}</th>
+											<td>{r.slLabel}</td>
+											<td>{r.clLabel}</td>
+											<td>{r.jlLabel}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 						<div className="horosa-india-card-note">{sudarshana.note}</div>
 					</div>
 				) : null}
 				{this.renderRasiDashaCards(fields)}
+				{this.renderJudgmentNotes('3')}
 			</div>
 		);
 	}
@@ -3153,20 +4082,24 @@ class IndiaChartMain extends Component{
 				{bhavaHouses.length ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">宫子表（星座/cusp/宫主/居星/Karaka/分类 · {cuspModeLabel}）</div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>宫</th><th>星座</th><th>Cusp</th><th>宫主</th><th>居星</th><th>Karaka</th><th>分类</th></tr></thead>
-							<tbody>
-								{bhavaHouses.map((h)=>{ const dh = dispHouse(h.sign, h.house); return (<tr key={h.house}><th>{dh}</th><td>{SIGN_K[h.sign] || h.sign}</td><td>{fmtCusp(cuspOf(h.house))}</td><td>{P_K[h.lord] || h.lord || "—"}</td><td>{(h.occupants || []).map((o)=>P_K[o] || o).join("") || "—"}</td><td>{HOUSE_KARAKA[dh] || ""}</td><td>{houseClass(dh)}</td></tr>); })}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>宫</th><th>星座</th><th>Cusp</th><th>宫主</th><th>居星</th><th>Karaka</th><th>分类</th></tr></thead>
+								<tbody>
+									{bhavaHouses.map((h)=>{ const dh = dispHouse(h.sign, h.house); return (<tr key={h.house}><th>{dh}</th><td>{SIGN_K[h.sign] || h.sign}</td><td>{fmtCusp(cuspOf(h.house))}</td><td>{P_K[h.lord] || h.lord || "—"}</td><td>{(h.occupants || []).map((o)=>P_K[o] || o).join("") || "—"}</td><td>{HOUSE_KARAKA[dh] || ""}</td><td>{houseClass(dh)}</td></tr>); })}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				) : null}
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">星座属性参考（主星/阴阳/三元/元素）</div>
-					<table className="horosa-india-maitri-table horosa-india-shad-table">
-						<thead><tr><th>座</th><th>主</th><th>阴阳</th><th>三元</th><th>元素</th></tr></thead>
-						<tbody>{SIGN_ATTR.map((r)=>(<tr key={r[0]}><th>{r[0]}</th><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>))}</tbody>
-					</table>
+					<div className="horosa-india-maitri-wrap">
+						<table className="horosa-india-maitri-table horosa-india-shad-table">
+							<thead><tr><th>座</th><th>主</th><th>阴阳</th><th>三元</th><th>元素</th></tr></thead>
+							<tbody>{SIGN_ATTR.map((r)=>(<tr key={r[0]}><th>{r[0]}</th><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}</td><td>{r[4]}</td></tr>))}</tbody>
+						</table>
+					</div>
 				</div>
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">Panchanga 五支</div>
@@ -3187,10 +4120,18 @@ class IndiaChartMain extends Component{
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">月宿详情 · {panchanga.nakshatra.name} {panchanga.nakshatra.detail.labelCn}</div>
 						<div className="horosa-info-row"><span>主星 · 主神</span><strong>{panchanga.nakshatra.detail.lord} · {panchanga.nakshatra.detail.deity}</strong></div>
+						{this.state.indiaNakshatraCount === 28 ? (
+							<div className="horosa-info-row"><span>28 宿口径</span><strong>
+								{panchanga.nakshatra.isAbhijit
+									? `织女 Abhijit · 第22宿 · 主神 Vega`
+									: `第 ${panchanga.nakshatra.number28 || panchanga.nakshatra.index} 宿`}
+							</strong></div>
+						) : null}
 						<div className="horosa-info-row"><span>象征</span><strong>{panchanga.nakshatra.detail.symbol}</strong></div>
 						<div className="horosa-info-row"><span>活动 · 种姓</span><strong>{panchanga.nakshatra.detail.activity} · {panchanga.nakshatra.detail.varna}</strong></div>
 						<div className="horosa-info-row"><span>三性 · 动机</span><strong>{panchanga.nakshatra.detail.gunas} · {panchanga.nakshatra.detail.purushartha}</strong></div>
-						<div className="horosa-info-row"><span>五行·阴阳·神人鬼</span><strong>{panchanga.nakshatra.detail.element} · {panchanga.nakshatra.detail.gender} · {panchanga.nakshatra.detail.gana}</strong></div>
+						<div className="horosa-info-row"><span>五行 · 阴阳</span><strong>{panchanga.nakshatra.detail.element} · {panchanga.nakshatra.detail.gender}</strong></div>
+						<div className="horosa-info-row"><span>神人鬼 Gaṇa</span><strong>{panchanga.nakshatra.detail.gana}</strong></div>
 						<div className="horosa-info-row"><span>方向 · 风向</span><strong>{panchanga.nakshatra.detail.facing} · {panchanga.nakshatra.detail.windDir}</strong></div>
 						<div className="horosa-info-row"><span>身体 · yoni</span><strong>{panchanga.nakshatra.detail.bodyPart} · {panchanga.nakshatra.detail.yoniAnimal}</strong></div>
 					</div>
@@ -3207,6 +4148,23 @@ class IndiaChartMain extends Component{
 					) : (
 						<div className="horosa-india-dasha-empty">暂无大运摘要</div>
 					)}
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">相位系统四范式对照</div>
+					<div className="horosa-india-data-list">
+						<div className="horosa-india-data-row"><strong>Parashara</strong><span>行星→宫,全相 7 + 火 4/8、木 5/9、土 3/10(整宫、单向)</span></div>
+						<div className="horosa-india-data-row"><strong>Jaimini</strong><span>星座→星座,动看固、固看动、双看双(各除紧邻),每座看 3 座</span></div>
+						<div className="horosa-india-data-row"><strong>Tajika</strong><span>行星→行星,按角距 + deeptamsha 容许度,分 Ithasala/Ishrafa 等 16 态</span></div>
+						<div className="horosa-india-data-row"><strong>KP</strong><span>不谈「相位」而谈「链接」——行星通过其 star lord / sub lord 与某宫的 significator 网络相连</span></div>
+					</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">Dasha 系统三范式对照</div>
+					<div className="horosa-india-data-list">
+						<div className="horosa-india-data-row"><strong>行星-宿型</strong><span>Vimshottari / Ashtottari / Yogini(按月宿起,行星当运);KP 沿用 Vimshottari</span></div>
+						<div className="horosa-india-data-row"><strong>星座型</strong><span>Jaimini Chara / Sthira / Shoola(星座当运,方向+年数)</span></div>
+						<div className="horosa-india-data-row"><strong>年压缩型</strong><span>Tajika Mudda / Patyayini(把全年压成 360 天)</span></div>
+					</div>
 				</div>
 			</div>
 		);
@@ -3241,15 +4199,17 @@ class IndiaChartMain extends Component{
 				{states.length ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">行星表（经度/顺逆/宫/宿·pada/Karaka）</div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>曜</th><th>星座·度</th><th>R</th><th>宫</th><th>宿·pada</th><th>Karaka</th></tr></thead>
-							<tbody>
-								{states.map((st)=>{ const kk = karakas.find((k)=>k.planet === st.id); return (
-									<tr key={`pt${st.id}`}><th>{st.label}</th>
-										<td>{st.signLabel} {formatDegree(st.signlon)}</td><td>{st.retrograde ? 'R' : ''}</td><td>{dispHouse(st.sign, st.house) || '—'}</td><td>{st.nakshatra ? `${st.nakshatra.name}·${st.nakshatra.pada}` : '—'}</td><td>{kk ? (kk.karakaLabel || kk.karaka || '') : ''}</td></tr>
-								); })}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>曜</th><th>星座·度</th><th>R</th><th>宫</th><th>宿·pada</th><th>Karaka{(jyotish && jyotish.jaimini && String(jyotish.jaimini.karakaScheme) === '7') ? '·7K 古典' : ''}</th></tr></thead>
+								<tbody>
+									{states.map((st)=>{ const kk = karakas.find((k)=>k.planet === st.id); return (
+										<tr key={`pt${st.id}`}><th>{st.label}</th>
+											<td>{st.signLabel} {formatDegree(st.signlon)}</td><td>{st.retrograde ? 'R' : ''}</td><td>{dispHouse(st.sign, st.house) || '—'}</td><td>{st.nakshatra ? `${st.nakshatra.name}·${st.nakshatra.pada}` : '—'}</td><td>{kk ? (kk.karakaLabel || kk.karaka || '') : ''}</td></tr>
+									); })}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				) : null}
 				{vargaDignity.length ? (
@@ -3288,16 +4248,18 @@ class IndiaChartMain extends Component{
 					return (
 						<div className="horosa-info-card">
 							<div className="horosa-info-card-title">Vimśopaka 20 分力（四组分盘加权,满分 20,越高分盘越强）</div>
-							<table className="horosa-india-maitri-table horosa-india-shad-table">
-								<thead><tr><th>曜</th>{GROUPS.map((g)=>(<th key={g[0]}>{g[1]}</th>))}</tr></thead>
-								<tbody>
-									{vpRows.map((p)=>{ const vp = bphsAll[p].vimsopaka; return (
-										<tr key={`vp${p}`}><th>{planetCN(p)}</th>
-											{GROUPS.map((g)=>{ const d = vp[g[0]]; const v = d ? Number(d.total) : 0; return (<td key={g[0]} className={v >= 15 ? 'is-good' : (v < 7 ? 'is-warn' : '')}>{d ? d.total : '—'}</td>); })}
-										</tr>
-									); })}
-								</tbody>
-							</table>
+							<div className="horosa-india-maitri-wrap">
+								<table className="horosa-india-maitri-table horosa-india-shad-table">
+									<thead><tr><th>曜</th>{GROUPS.map((g)=>(<th key={g[0]}>{g[1]}</th>))}</tr></thead>
+									<tbody>
+										{vpRows.map((p)=>{ const vp = bphsAll[p].vimsopaka; return (
+											<tr key={`vp${p}`}><th>{planetCN(p)}</th>
+												{GROUPS.map((g)=>{ const d = vp[g[0]]; const v = d ? Number(d.total) : 0; return (<td key={g[0]} className={v >= 15 ? 'is-good' : (v < 7 ? 'is-warn' : '')}>{d ? d.total : '—'}</td>); })}
+											</tr>
+										); })}
+									</tbody>
+								</table>
+							</div>
 						</div>
 					);
 				})()}
@@ -3362,7 +4324,7 @@ class IndiaChartMain extends Component{
 				) : null}
 				{grahaYuddha && grahaYuddha.available && Array.isArray(grahaYuddha.pairs) && grahaYuddha.pairs.length ? (
 					<div className="horosa-info-card">
-						<div className="horosa-info-card-title">星曜战 Graha Yuddha（行星近战 &lt;1°）</div>
+						<div className="horosa-info-card-title">星曜战 Graha Yuddha（行星近战 &lt;1° · 判据:{grahaYuddha.criterion === 'longitude' ? '黄经较小者胜' : '纬度更北者胜'}）</div>
 						<div className="horosa-india-data-list">
 							{grahaYuddha.pairs.map((pr, i)=>(
 								<div className="horosa-india-data-row" key={i}>
@@ -3509,14 +4471,16 @@ class IndiaChartMain extends Component{
 				{sodhyaPinda ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">Sodhya Pinda 凝量（削减后 BAV × 座/曜乘数 · 定时/寿命用）</div>
-						<table className="horosa-india-maitri-table horosa-india-shad-table">
-							<thead><tr><th>曜</th><th>Rasi Pinda</th><th>Graha Pinda</th><th>Sodhya 合</th></tr></thead>
-							<tbody>
-								{BPHS_PLANETS.filter((p)=>sodhyaPinda[p]).map((p)=>{ const d = sodhyaPinda[p]; return (
-									<tr key={`sp${p}`}><th>{BAV_PLANET_SHORT[p] || p}</th><td>{d.rasiPinda}</td><td>{d.grahaPinda}</td><td><strong>{d.total}</strong></td></tr>
-								); })}
-							</tbody>
-						</table>
+						<div className="horosa-india-maitri-wrap">
+							<table className="horosa-india-maitri-table horosa-india-shad-table">
+								<thead><tr><th>曜</th><th>Rasi Pinda</th><th>Graha Pinda</th><th>Sodhya 合</th></tr></thead>
+								<tbody>
+									{BPHS_PLANETS.filter((p)=>sodhyaPinda[p]).map((p)=>{ const d = sodhyaPinda[p]; return (
+										<tr key={`sp${p}`}><th>{BAV_PLANET_SHORT[p] || p}</th><td>{d.rasiPinda}</td><td>{d.grahaPinda}</td><td><strong>{d.total}</strong></td></tr>
+									); })}
+								</tbody>
+							</table>
+						</div>
 					</div>
 				) : null}
 				{kakshya && kakshyaLords.length ? (
@@ -3685,7 +4649,450 @@ class IndiaChartMain extends Component{
 						))}
 					</div>
 				</div>
+				{this.renderJudgmentNotes('7')}
 			</div>
+		);
+	}
+
+	// [问事 Praśna · tab 14] KP 问时(1-249)+ Parāśarī + Tājika 三分区(§12.7/§25.1/§25.2)。
+	// 🔴 起卦=显式动作:问事时刻由 castPrashna 一次性冻结,面板只读 chartObj.jyotish.prashna。
+	renderPrashnaPanel(fields){
+		const jyotish = getJyotish(resolveJyotishChartObj(this.state, fields));
+		const pr = (jyotish || {}).prashna;
+		const cast = this.state.prashnaCast;
+		const schools = this.state.prashnaSchoolsInput || [];
+		const toggleSchool = (key)=>{
+			const cur = new Set(this.state.prashnaSchoolsInput || []);
+			if(cur.has(key)){ cur.delete(key); }else{ cur.add(key); }
+			if(!cur.size){ cur.add('kp'); }
+			const arr = Array.from(cur);
+			this.updatePrashnaParam({ prashnaSchoolsInput: arr }, { schools: arr.join(',') });
+		};
+		return (
+			<div className="horosa-india-dasha-panel">
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">起卦(问事 Praśna)</div>
+					<div className="horosa-india-select-grid">
+						<div className="horosa-india-select-field">
+							<span>问数(1–249)</span>
+							<InputNumber min={1} max={249} size="small" style={{ width: '100%' }}
+								value={this.state.prashnaNumberInput}
+								onChange={(v)=>this.setState({ prashnaNumberInput: v || 1 })} />
+						</div>
+						<div className="horosa-india-select-field">
+							<span>事项</span>
+							<Select size="small" style={{ width: '100%' }} value={this.state.prashnaMatterInput}
+								onChange={(v)=>{
+									const m = AstroConst.normalizeIndiaPrashnaMatter(v);
+									this.updatePrashnaParam({ prashnaMatterInput: m }, { matter: m });
+								}}
+								dropdownMatchSelectWidth={false}>
+								{AstroConst.INDIA_PRASHNA_MATTER_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+							</Select>
+						</div>
+						<div className="horosa-india-select-field">
+							<span>宫始定法</span>
+							<Select size="small" style={{ width: '100%' }} value={this.state.prashnaCuspModeInput}
+								onChange={(v)=>{
+									const cm = AstroConst.normalizeIndiaPrashnaCuspMode(v);
+									this.updatePrashnaParam({ prashnaCuspModeInput: cm }, { cuspMode: cm });
+								}}
+								dropdownMatchSelectWidth={false}>
+								{AstroConst.INDIA_PRASHNA_CUSP_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+							</Select>
+						</div>
+						<div className="horosa-india-select-field">
+							<span>主判宫头(可改)</span>
+							<InputNumber min={1} max={12} size="small" style={{ width: '100%' }}
+								placeholder="按事项默认"
+								value={this.state.prashnaPrimaryHouseInput}
+								onChange={(v)=>this.updatePrashnaParam(
+									{ prashnaPrimaryHouseInput: v || null }, { primaryHouse: v || undefined })} />
+						</div>
+					</div>
+					<div className="horosa-india-prashna-schools">
+						{AstroConst.INDIA_PRASHNA_SCHOOL_OPTIONS.map((o)=>(
+							<label key={o.value} className="horosa-india-prashna-school">
+								<input type="checkbox" checked={schools.indexOf(o.value) >= 0}
+									onChange={()=>toggleSchool(o.value)} />
+								<span>{o.label}</span>
+							</label>
+						))}
+					</div>
+					<div className="horosa-india-prashna-actions">
+						<button type="button" className="horosa-india-pill-toggle is-active" onClick={this.castPrashna}>
+							<strong>{cast ? '重新起卦(此刻)' : '起卦(此刻)'}</strong>
+						</button>
+						{cast ? (
+							<button type="button" className="horosa-india-pill-toggle" onClick={this.clearPrashna}>
+								<strong>清除</strong>
+							</button>
+						) : null}
+					</div>
+					{cast ? (
+						<div className="horosa-india-card-note">已起卦 {cast.time} · 问数 {cast.number}(时刻与问数已冻结)</div>
+					) : null}
+				</div>
+				{!cast ? null : !pr ? (
+					<div className="horosa-india-dasha-empty">问事计算中…</div>
+				) : (
+					<>
+						{pr.kp ? this.renderPrashnaKpCards(pr.kp) : null}
+						{pr.parashari ? this.renderPrashnaParashariCard(pr.parashari) : null}
+						{pr.tajika ? this.renderPrashnaTajikaCard(pr.tajika) : null}
+					</>
+				)}
+			</div>
+		);
+	}
+
+	renderPrashnaKpCards(kp){
+		if(!kp || kp.available === false){
+			return <div className="horosa-info-card"><div className="horosa-info-card-title">KP 问时盘</div><div className="horosa-india-card-note">不可用:{(kp || {}).reason || '未知'}</div></div>;
+		}
+		const j = kp.judgement || {};
+		const seg = kp.segment || {};
+		const verdictCls = j.verdict === 'favorable' ? 'is-ji' : (j.verdict === 'unfavorable' ? 'is-xiong' : '');
+		return (
+			<>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">KP 问时盘 · 裁决</div>
+					<div className={`horosa-india-prashna-verdict ${verdictCls}`}>
+						{j.verdict === 'favorable' ? '成' : j.verdict === 'mixed' ? '成中有碍' : j.verdict === 'unfavorable' ? '不成' : '不裁决'}
+					</div>
+					{(j.chain || []).map((line, i)=>(
+						<div className="horosa-india-card-note" key={i}>{line}</div>
+					))}
+					<div className="horosa-india-card-note">
+						问数段:{seg.nakName} · 宿主 {seg.starLord} · 子主 {seg.subLord} · 宫始:{kp.cuspMode}
+						{kp.cuspAscMismatchDeg !== null && kp.cuspAscMismatchDeg !== undefined ? ` · 与问数上升差 ${kp.cuspAscMismatchDeg}°` : ''}
+						{kp.invariantCslMatchesSegment === true ? ' · CSL₁≡问数子主 ✓' : ''}
+					</div>
+					{(kp.notes || []).map((n, i)=>(<div className="horosa-india-card-note" key={i}>{n}</div>))}
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">十二宫始子主(CSL)· 宫主按宫始落座</div>
+					<div className="horosa-india-data-list horosa-india-prashna-csl">
+						{(kp.cuspalSubLords || []).map((c)=>(
+							<div className="horosa-india-data-row" key={c.house}>
+								<strong>宫{c.house}</strong>
+								<span>{(c.cuspLon || 0).toFixed(2)}°</span>
+								<span>宿主 {c.starLord}</span>
+								<span>子主 {c.subLord}</span>
+							</div>
+						))}
+					</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">Ruling Planets(七项)与 Vara</div>
+					<div className="horosa-india-card-note">
+						RP:{((kp.rulingPlanets || {}).set || []).join(' · ') || '—'}
+					</div>
+					{kp.vara ? (
+						<div className="horosa-india-card-note">
+							Vara(日出日界):{kp.vara.sunrise}{kp.vara.civil !== kp.vara.sunrise ? `(民用日口径为 ${kp.vara.civil},二者不同,以日出为准)` : ''}
+						</div>
+					) : null}
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">应期候选窗(打分排序 · 非二值判定)</div>
+					<div className="horosa-india-data-list">
+						{(kp.timingWindows || []).map((w, i)=>(
+							<div className="horosa-india-data-row" key={i}>
+								<strong>{w.levelName}</strong>
+								<span>{w.lord}</span>
+								<span>{w.start} ~ {w.end}</span>
+								<span>分 {w.score}</span>
+							</div>
+						))}
+						{!(kp.timingWindows || []).length ? <div className="horosa-india-card-note">无得分窗口</div> : null}
+					</div>
+					<div className="horosa-india-card-note">评分:窗主∈RP +2 / 窗主指示宫命中事项宫组逐宫 +1(权威未定义 RP 与 Significator 取交或并,故不作成败二值)</div>
+				</div>
+			</>
+		);
+	}
+
+	renderPrashnaParashariCard(pa){
+		if(!pa || pa.available === false){ return null; }
+		const lg = pa.lagna || {};
+		const moon = pa.moon || {};
+		const nk = (moon.nakshatra || {});
+		return (
+			<div className="horosa-info-card">
+				<div className="horosa-info-card-title">Parāśarī 问事(页面框架)</div>
+				<div className="horosa-india-data-list">
+					<div className="horosa-india-data-row"><strong>问时 Lagna</strong><span>{lg.signLabel || lg.sign || '—'}</span></div>
+					<div className="horosa-india-data-row"><strong>月亮(心念)</strong>
+						<span>{nk.name || '—'}{nk.pada ? ` 第${nk.pada}pada` : ''}</span>
+						<span>{(moon.tithi || {}).name || ''}</span>
+						<span>{moon.paksha || ''}</span>
+					</div>
+					{pa.taraBala ? (
+						<div className="horosa-india-data-row"><strong>Tārā(对本命月)</strong><span>{pa.taraBala.name}({pa.taraBala.quality})</span></div>
+					) : null}
+					{pa.chandraBala ? (
+						<div className="horosa-india-data-row"><strong>Chandra Bala</strong><span>第 {pa.chandraBala.house} 宫 · {pa.chandraBala.good ? '吉' : '非吉位'}</span></div>
+					) : null}
+					{(pa.yogas || []).length ? (
+						<div className="horosa-india-data-row"><strong>问时 Yoga</strong><span>{pa.yogas.map((y)=>y.name).join('、')}</span></div>
+					) : null}
+				</div>
+			</div>
+		);
+	}
+
+	renderPrashnaTajikaCard(tj){
+		if(!tj || tj.available === false){ return null; }
+		const it = tj.ithasala;
+		return (
+			<div className="horosa-info-card">
+				<div className="horosa-info-card-title">Tājika 问事(Ithasālā 入相)</div>
+				<div className="horosa-india-data-list">
+					<div className="horosa-india-data-row"><strong>Lagna 主</strong><span>{tj.lagnaLord || '—'}</span><strong>事项主(宫{tj.primaryHouse})</strong><span>{tj.karyaLord || '—'}</span></div>
+					{it ? (
+						<div className="horosa-india-data-row">
+							<strong>{it.type === 'eesarpha' ? 'Īsārpha 离相(不成)' : `Ithasālā ${it.type || ''}(入相→成)`}</strong>
+							<span>{it.aspect || ''}{it.withinOrb ? ' · 在 orb 内' : ''}</span>
+						</div>
+					) : (
+						<div className="horosa-india-data-row"><span className="horosa-india-card-note">{tj.selfLordNote || '两主无 Tājika 相位'}</span></div>
+					)}
+					{(tj.higherYogas || []).length ? (
+						<div className="horosa-india-data-row"><strong>传/集光</strong><span>{tj.higherYogas.map((y)=>y.type || y.name).join('、')}</span></div>
+					) : null}
+					{tj.saham ? (
+						<div className="horosa-india-data-row"><strong>类别 Saham</strong><span>{tj.saham.label || tj.saham.key}:{tj.saham.sign || ''} {typeof tj.saham.signLon === 'number' ? tj.saham.signLon.toFixed(1) + '°' : ''}</span></div>
+					) : null}
+				</div>
+				<div className="horosa-india-card-note">{tj.note}</div>
+			</div>
+		);
+	}
+
+	// [校时 · tab 15] 摘要卡 + 抽屉入口(§17)。边界提示未扫描也有值(§17.5 务必提示)。
+	renderRectifyPanel(fields){
+		const jyotish = getJyotish(resolveJyotishChartObj(this.state, fields));
+		const spx = (jyotish || {}).sensitivePoints || {};
+		const gnd = (spx.gandanta || {}).hits || [];
+		const res = this.state.rectifyResult;
+		const school = this.state.indiaSchool;
+		const kpFrameOk = school !== 'kp'
+			|| ((this.state.indiaAyanamsaValue || AstroConst.INDIA_AYANAMSA_DEFAULT) === 'krishnamurti');
+		return (
+			<div className="horosa-india-dasha-panel">
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">出生时间校正(半自动)</div>
+					<div className="horosa-india-data-list">
+						<div className="horosa-info-row"><span>当前采用时间</span><strong>{fields && fields.time && fields.time.value ? fields.time.value.format('HH:mm:ss') : '—'}</strong></div>
+						<div className="horosa-info-row"><span>口径一致性</span>
+							<span>{kpFrameOk ? '与流派口径一致 ✓' : 'KP 派应配 KP 岁差'}</span>
+							{!kpFrameOk ? (
+								<button type="button" className="horosa-india-pill-toggle" onClick={()=>this.changeIndiaAyanamsa('krishnamurti')}>
+									<strong>切到 KP 口径</strong>
+								</button>
+							) : null}
+						</div>
+					</div>
+				</div>
+				<div className="horosa-info-card">
+					<div className="horosa-info-card-title">边界提示(无须扫描)</div>
+					{gnd.length ? (
+						<div className="horosa-india-data-list">
+							{gnd.map((h, i)=>(
+								<div className="horosa-india-data-row" key={i}>
+									<strong>{h.bodyLabel || h.body}</strong>
+									{h.gandanta ? <span className="horosa-india-flag-badge is-warn">Gandanta {h.gandanta.junctionLabel} 距界 {h.gandanta.arcminToBoundary}′</span> : null}
+									{h.rasiSandhi ? <span className="horosa-india-flag-badge">Sandhi {h.rasiSandhi.position === 'sign_end' ? '座末' : '座初'} {h.rasiSandhi.arcminToBoundary}′</span> : null}
+								</div>
+							))}
+						</div>
+					) : (
+						<div className="horosa-india-card-note">月亮/Lagna/九曜均不在 Gandanta/Sandhi 界位</div>
+					)}
+					<div className="horosa-india-card-note">月亮或 Lagna 落界 → 出生时间敏感,建议校时</div>
+				</div>
+				{res && (res.top || []).length ? (
+					<div className="horosa-info-card">
+						<div className="horosa-info-card-title">上次扫描 Top {res.top.length}</div>
+						<div className="horosa-india-data-list">
+							{res.top.map((t, i)=>(
+								<div className="horosa-india-data-row" key={i}>
+									<strong>{t.time}</strong>
+									<span>总分 {(t.score || {}).total}</span>
+									<span>子主 {t.lagnaSubLord}</span>
+								</div>
+							))}
+						</div>
+					</div>
+				) : null}
+				<div className="horosa-info-card">
+					<div className="horosa-india-prashna-actions" style={{ marginTop: 0 }}>
+						<button type="button" className="horosa-india-pill-toggle is-active" onClick={()=>this.setState({ rectifyDrawerOpen: true })}>
+							<strong>打开校时器</strong>
+						</button>
+					</div>
+				</div>
+				{this.renderRectifyDrawer(fields)}
+			</div>
+		);
+	}
+
+	async runRectifyScan(fields){
+		try{
+			this.setState({ rectifyRunning: true });
+			// 冻结扫描锚点(表单当前 DateTime):候选行的 offsetSeconds 全部相对它。
+			// 「采用」= 锚点 + offsetSeconds(addSecond 自带跨日/跨月进位)——后端 top 行只回
+			// HH:MM:SS,若按时分秒回写,跨午夜候选(窗口最大 ±240 分)会差整整 24 小时。
+			const curT = this.props.fields && this.props.fields.time && this.props.fields.time.value;
+			this._rectifyAnchorTime = curT && curT.clone ? curT.clone() : null;
+			const params = fieldsToParams(this.withIndiaOptionFields(fields || this.props.fields));
+			const payload = {
+				...params,
+				rectifyWindowMinutes: this.state.rectifyWindowMinutes,
+				rectifyStepSeconds: this.state.rectifyStepSeconds,
+				rectifyRpSource: this.state.rectifyRpSource,
+			};
+			// 🔴 必须走应用加密传输层(与 /india/chart 同通道):Java 网关收 RSA 密文,
+			//    裸 fetch 发明文 → 解密拦截器 500 且不达 Python(实测抓获,勿回退裸 fetch)。
+			const { default: request } = require('../../utils/request');
+			const Constants = require('../../utils/constants');
+			const data = await request(`${Constants.ServerRoot}/india/rectify`, {
+				body: JSON.stringify(payload),
+				silent: true,
+			});
+			const res = data ? data[Constants.ResultKey] : null;
+			this.setState({ rectifyRunning: false, rectifyResult: res && res.available ? res : null });
+			try{
+				safeLocalStorageSet('horosa.india.rectify.prefs.v1', JSON.stringify({
+					w: this.state.rectifyWindowMinutes, s: this.state.rectifyStepSeconds, rp: this.state.rectifyRpSource,
+				}));
+			}catch(e){ /* 存偏好失败不阻断 */ }
+		}catch(e){
+			this.setState({ rectifyRunning: false });
+		}
+	}
+
+	// 试算 ≠ 采用(两级):试算只改本组件预览态,绝不碰 props.fields;采用走 changeTime 显式写表单。
+	applyRectifyCandidate(t){
+		if(!t){ return; }
+		const cur = this.props.fields && this.props.fields.time && this.props.fields.time.value;
+		if(!cur){ return; }
+		// 🔴 fields.time.value 是应用自制 DateTime(month 1 基、自带 ad/zone),
+		// moment(cur) 会把 1 基 month 当 0 基解析 → 日期整体 +1 月(真机实证)。
+		// 必须走它自己的 clone()+addSecond/setHour 族,纪元/时区随 clone 保留。
+		// 🔴 首选 offsetSeconds 相对扫描锚点加秒(跨午夜候选自动进位换日);
+		//    后端 time 只有 HH:MM:SS,按时分秒回写会把「前/后一日 HH:MM」写成同日 → 差 24h。
+		let next = null;
+		const anchor = this._rectifyAnchorTime;
+		if(typeof t.offsetSeconds === 'number' && anchor && anchor.clone){
+			next = anchor.clone();
+			next.addSecond(t.offsetSeconds);
+		}else if(t.time){
+			next = cur.clone();
+			next.setHour(Number(t.time.slice(0, 2)));
+			next.setMinute(Number(t.time.slice(3, 5)));
+			next.setSecond(Number(t.time.slice(6, 8)));
+		}
+		if(!next){ return; }
+		this.changeTime({ time: next, confirmed: true });
+		this.setState({ rectifyDrawerOpen: false });
+	}
+
+	renderRectifyDrawer(fields){
+		const res = this.state.rectifyResult;
+		const diag = (res || {}).resolution;
+		const LORD_CN = { Sun: '日', Moon: '月', Mars: '火', Mercury: '水', Jupiter: '木', Venus: '金', Saturn: '土', Rahu: '罗', Ketu: '计' };
+		const lordFull = { Sun: '太阳', Moon: '月亮', Mars: '火星', Mercury: '水星', Jupiter: '木星', Venus: '金星', Saturn: '土星', Rahu: '罗睺', Ketu: '计都' };
+		const runs = res ? (((res.runs || {}).lagnaSubLord) || []) : [];
+		return (
+			<XQDrawer
+				className="horosa-india-rectify-xqdrawer"
+				title="出生时间校正器(判据:RP / Pranapada / 边界;事件评分须录入事件后参评)"
+				placement="right"
+				width={860}
+				mask={false}
+				open={this.state.rectifyDrawerOpen}
+				visible={this.state.rectifyDrawerOpen}
+				onClose={()=>this.setState({ rectifyDrawerOpen: false })}
+			>
+				<div className="horosa-india-rectify-drawer">
+					<div className="horosa-india-rectify-controls">
+						<div className="horosa-india-rectify-field">
+							<span>扫描半窗(分)</span>
+							<InputNumber min={1} max={240} size="small" style={{ width: '100%' }}
+								value={this.state.rectifyWindowMinutes}
+								onChange={(v)=>this.setState({ rectifyWindowMinutes: v || 30 })} />
+						</div>
+						<div className="horosa-india-rectify-field">
+							<span>步长(秒)</span>
+							<InputNumber min={1} max={600} size="small" style={{ width: '100%' }}
+								value={this.state.rectifyStepSeconds}
+								onChange={(v)=>this.setState({ rectifyStepSeconds: v || 60 })} />
+						</div>
+						<div className="horosa-india-rectify-field is-wide">
+							<span>RP 取法</span>
+							<Select size="small" style={{ width: '100%' }} value={this.state.rectifyRpSource}
+								onChange={(v)=>this.setState({ rectifyRpSource: v })} dropdownMatchSelectWidth={false}>
+								<Option value="anchor">anchor(默认:原始钟表时刻,无自指)</Option>
+								<Option value="candidate">candidate(字面读法,自动消解自指)</Option>
+							</Select>
+						</div>
+						<div className="horosa-india-rectify-field is-action">
+							<span>&nbsp;</span>
+							<button type="button" className="horosa-india-pill-toggle is-active"
+								disabled={this.state.rectifyRunning}
+								onClick={()=>this.runRectifyScan(fields)}>
+								{this.state.rectifyRunning ? '扫描中…' : '开始扫描'}
+							</button>
+						</div>
+					</div>
+					{diag ? (
+						<div className={`horosa-india-rectify-diag${diag.adequate ? ' is-ok' : ' is-warn'}`}>
+							<i />步长诊断:单步 Lagna 最大位移 {diag.maxLagnaDeltaDeg}° / KP 最窄 Sub {diag.narrowestSubDeg}°
+							{diag.adequate ? ' · 充分' : ` · 会整段跳过子主,建议步长 ≤${diag.suggestedStepSeconds}s`}
+						</div>
+					) : null}
+					{res ? (
+						<>
+							<div className="horosa-india-rectify-section">
+								<em>Lagna 子主区段</em><i>校时之靶 · {runs.length} 段</i>
+							</div>
+							<div className="horosa-india-rectify-runs">
+								{runs.map((r, i)=>(
+									<div className="horosa-india-rectify-run" key={i}>
+										<strong data-glyph={LORD_CN[r.value] || '—'}>{lordFull[r.value] || r.value || '—'}</strong>
+										<span>{r.fromTime} ~ {r.toTime}</span>
+										<em>{r.count} 采样</em>
+									</div>
+								))}
+							</div>
+							<div className="horosa-india-rectify-section">
+								<em>Top {res.top.length} 候选</em><i>按判据总分排序</i>
+							</div>
+							<div className="horosa-india-rectify-tops">
+								{(res.top || []).map((t, i)=>(
+									<div className="horosa-india-rectify-top" key={i}>
+										<b className="horosa-india-rectify-rank">{i + 1}</b>
+										<strong>{t.time}</strong>
+										<span className="horosa-india-rectify-score">总 {(t.score || {}).total}</span>
+										<span className="horosa-india-rectify-badge">RP {(t.rp || {}).score}</span>
+										<span className={`horosa-india-rectify-badge${((t.pranapada || {}).overall) === 'good' ? ' is-good' : ''}`}>PP {((t.pranapada || {}).overall) || '—'}</span>
+										<button type="button" className="horosa-india-pill-toggle"
+											onClick={()=>{ if(window.confirm(`采用 ${t.time} 为出生时间?此操作写入表单并影响存盘与 AI 挂载。`)){ this.applyRectifyCandidate(t); } }}>
+											采用
+										</button>
+									</div>
+								))}
+							</div>
+							{res.vara && res.vara.note ? <div className="horosa-india-rectify-note">{res.vara.note}</div> : null}
+							<div className="horosa-india-rectify-note">{res.disclaimer}</div>
+						</>
+					) : (
+						<div className="horosa-india-rectify-empty">设定窗口与步长后「开始扫描」;扫描不建全盘(精算路径),默认档 &lt;20ms</div>
+					)}
+				</div>
+			</XQDrawer>
 		);
 	}
 
@@ -3750,8 +5157,8 @@ class IndiaChartMain extends Component{
 				{rulingPlanets ? (
 					<div className="horosa-info-card">
 						<div className="horosa-info-card-title">当令星 Ruling Planets</div>
-						<div className="horosa-info-row"><span>命主座主 / 月宿主</span><strong>{kpl(rulingPlanets.lagnaSignLord)} / {kpl(rulingPlanets.lagnaNakLord)}</strong></div>
-						<div className="horosa-info-row"><span>月座主 / 月宿主</span><strong>{kpl(rulingPlanets.moonSignLord)} / {kpl(rulingPlanets.moonNakLord)}</strong></div>
+						<div className="horosa-info-row"><span>命宫座·宿主</span><strong>{kpl(rulingPlanets.lagnaSignLord)} / {kpl(rulingPlanets.lagnaNakLord)}</strong></div>
+						<div className="horosa-info-row"><span>月亮座·宿主</span><strong>{kpl(rulingPlanets.moonSignLord)} / {kpl(rulingPlanets.moonNakLord)}</strong></div>
 						<div className="horosa-info-row"><span>星期主</span><strong>{kpl(rulingPlanets.weekdayLord)}</strong></div>
 						<div className="horosa-info-row"><span>当令集</span><strong>{(rulingPlanets.set || []).map(kpl).join('、')}</strong></div>
 					</div>
@@ -3786,10 +5193,10 @@ class IndiaChartMain extends Component{
 								<div className="horosa-info-row"><span>出生须臾</span><strong>{muhurta.birthMuhurta.name}（{muhurta.birthMuhurta.nameEn}）· {muhurta.birthMuhurta.nature === 'auspicious' ? '吉' : (muhurta.birthMuhurta.nature === 'inauspicious' ? '凶' : '中')}{muhurta.birthMuhurta.isAbhijit ? ' · Abhijit 吉' : ''}</strong></div>
 							) : null}
 							{muhurta.panchaka ? (
-								<div className="horosa-info-row"><span>Panchaka 五忌</span><strong className={muhurta.panchaka.isPanchaka ? 'is-warn' : 'is-good'}>{muhurta.panchaka.typeLabel}（余{muhurta.panchaka.remainder}）</strong></div>
+								<div className="horosa-info-row"><span>Panchaka</span><strong className={muhurta.panchaka.isPanchaka ? 'is-warn' : 'is-good'}>{muhurta.panchaka.typeLabel}（余{muhurta.panchaka.remainder}）</strong></div>
 							) : null}
 							{muhurta.abhijit ? (
-								<div className="horosa-info-row"><span>Abhijit 须臾</span><strong className={muhurta.abhijit.auspicious ? 'is-good' : 'is-warn'}>第 8 昼须臾 · {muhurta.abhijit.auspicious ? '大吉' : '周三不取'}</strong></div>
+								<div className="horosa-info-row"><span>Abhijit</span><strong className={muhurta.abhijit.auspicious ? 'is-good' : 'is-warn'}>第 8 昼须臾 · {muhurta.abhijit.auspicious ? '大吉' : '周三不取'}</strong></div>
 							) : null}
 						</>
 					) : (
@@ -3858,7 +5265,11 @@ class IndiaChartMain extends Component{
 							<div className="horosa-info-card-title">Praśna 卜卦（KP 问数 1-249 → 问时上升）</div>
 							<div className="horosa-india-transit-row">
 								<span className="horosa-india-transit-label">问数</span>
-								<InputNumber min={1} max={249} precision={0} value={this.state.prasnaNumber || 1} onChange={(v)=>this.setState({ prasnaNumber: v })} size="small" className="horosa-india-transit-datepicker" />
+								<InputNumber min={1} max={249} precision={0} value={this.state.prasnaNumber || 1}
+									onChange={(v)=>{
+										const n2 = Math.min(249, Math.max(1, Number(v) || 1));
+										this.setState({ prasnaNumber: v, kpFullTablePage: Math.floor((n2 - 1) / 25) });
+									}} size="small" className="horosa-india-transit-datepicker" />
 							</div>
 							{row ? (
 								<div className="horosa-india-data-list">
@@ -3868,9 +5279,58 @@ class IndiaChartMain extends Component{
 								</div>
 							) : null}
 							<div className="horosa-india-card-note">{prasna.note}</div>
+							<div className="horosa-india-prashna-actions">
+								<button type="button" className={`horosa-india-pill-toggle${this.state.kpFullTableOpen ? ' is-active' : ''}`}
+									onClick={()=>{
+										const n2 = Math.min(249, Math.max(1, Number(this.state.prasnaNumber) || 1));
+										this.setState((prev)=>({ kpFullTableOpen: !prev.kpFullTableOpen, kpFullTablePage: Math.floor((n2 - 1) / 25) }));
+									}}>
+									{this.state.kpFullTableOpen ? '收起全表' : '展开全 249 段表'}
+								</button>
+							</div>
+							{this.state.kpFullTableOpen ? (()=>{
+								const page = Math.min(9, Math.max(0, this.state.kpFullTablePage || 0));
+								const slice = prasna.table.slice(page * 25, page * 25 + 25);
+								const hit = Math.min(249, Math.max(1, Number(this.state.prasnaNumber) || 1));
+								return (
+									<div>
+										<div className="horosa-india-prashna-actions" style={{ flexWrap: 'wrap' }}>
+											{Array.from({ length: 10 }, (_, i)=>(
+												<button type="button" key={i}
+													className={`horosa-india-pill-toggle${i === page ? ' is-active' : ''}`}
+													onClick={()=>this.setState({ kpFullTablePage: i })}>
+													{i * 25 + 1}–{Math.min(249, i * 25 + 25)}
+												</button>
+											))}
+										</div>
+										<div className="horosa-india-maitri-wrap">
+											<table className="horosa-india-maitri-table horosa-india-shad-table">
+												<thead><tr><th>#</th><th>星座</th><th>座内度区</th><th>宿（星主）</th><th>子主</th></tr></thead>
+												<tbody>
+													{slice.map((r)=>{
+														const b = Math.floor(r.startLon / 30) * 30;
+														const isHit = r.index === hit;
+														return (
+															<tr key={r.index} style={isHit ? { color: 'var(--horosa-astro-gold, #b8860b)', fontWeight: 600 } : undefined}>
+																<td>{isHit ? <span className="horosa-india-flag-badge is-good">{r.index}</span> : r.index}</td>
+																<td>{SIGN_CN_KP[r.sign] || r.sign}</td>
+																<td>{(r.startLon - b).toFixed(2)}°–{(r.endLon - b).toFixed(2)}°</td>
+																<td>{r.nakName}（{kpl(r.starLord)}）</td>
+																<td>{kpl(r.subLord)}</td>
+															</tr>
+														);
+													})}
+												</tbody>
+											</table>
+										</div>
+										<div className="horosa-india-card-note">全 249 段(243 宿×Sub + 6 跨界拆);输入问数自动定位页并高亮该行。</div>
+									</div>
+								);
+							})() : null}
 						</div>
 					);
 				})() : null}
+				{this.renderJudgmentNotes('6')}
 			</div>
 		);
 	}
@@ -3890,7 +5350,7 @@ class IndiaChartMain extends Component{
 	}
 
 	renderDashaSubPopover(item, extraClassName = '', style = null){
-		const subItems = buildDashaSubPeriods(item);
+		const subItems = buildDashaSubPeriods(item, this.state.dashaSystem || 'vimshottari');
 		return (
 			<div className={`horosa-india-dasha-subpanel${extraClassName}`} style={style || undefined}>
 				<div className="horosa-india-dasha-subtitle">
@@ -3959,7 +5419,6 @@ class IndiaChartMain extends Component{
 			const degreeDisplayMode = this.state.degreeDisplayMode || INDIA_DEGREE_DISPLAY_DEGREE;
 			const indiaPlanetDisplayMode = AstroConst.normalizeIndiaPlanetDisplay(this.state.indiaPlanetDisplayMode);
 			const indiaCounterClockwise = this.state.indiaCounterClockwise !== false;
-			const indiaLockAquarius = !!this.state.indiaLockAquarius;
 			const indiaLagnaRef = AstroConst.normalizeIndiaLagnaRef(this.state.indiaLagnaRef);
 			// horosa_india_settings_memo_v1:splitItems/splitOptions 原每帧重建两个数组
 			// (内容恒定,只是引用每次都变 → 「当前分盘」Select 的 options 白重建、memo 恒失配)。
@@ -3971,49 +5430,341 @@ class IndiaChartMain extends Component{
 			<div className="horosa-india-chart-main horosa-astro-redesign horosa-india-redesign">
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-india-redesign-layout">
 					<div className="horosa-astro-redesign-grid horosa-india-redesign-grid">
-						{/* horosa_india_settings_memo_v1:左栏整块搬进 React.memo 子组件(JSX 逐字同源,
-						    只把 this.state/this.<handler> 换成同名 prop)。右栏局部 state(展开小运/点星高亮/
-						    钻取/换子页签/敲年份)变化时本块 props 全等 → 0 次重渲;设置值或 fields 一变即重渲。 */}
-						<IndiaSettingsPanel
-							fields={fields}
-							datetm={datetm}
-							onTimeChange={this.changeTime}
-							timeHook={this.tmHook}
-							onGeoChange={this.changeGeo}
-							indiaSchool={this.state.indiaSchool}
-							onSchoolChange={this.changeIndiaSchool}
-							indiaAyanamsa={indiaAyanamsa}
-							onAyanamsaChange={this.changeIndiaAyanamsa}
-							indiaHsys={indiaHsys}
-							onHsysChange={this.changeHsys}
-							indiaNodeType={indiaNodeType}
-							onNodeTypeChange={this.changeIndiaNodeType}
-							currentTab={this.state.currentTab}
-							onTabChange={this.changeTab}
-							splitOptions={splitOptions}
-							degreeDisplayMode={degreeDisplayMode}
-							onDegreeDisplayModeChange={this.changeDegreeDisplayMode}
-							vargaSetOpen={this.state.vargaSetOpen}
-							onToggleVargaSet={this.toggleVargaSet}
-							vargaSetFractals={this.state.vargaSetFractals}
-							onVargaSetFractalsChange={this.changeVargaSetFractals}
-							indiaChartStyle={indiaChartStyle}
-							onChartStyleChange={this.changeIndiaChartStyle}
-							indiaLagnaRef={indiaLagnaRef}
-							onLagnaRefChange={this.changeIndiaLagnaRef}
-							indiaPlanetDisplayMode={indiaPlanetDisplayMode}
-							onPlanetDisplayModeChange={this.changeIndiaPlanetDisplayMode}
-							indiaCounterClockwise={indiaCounterClockwise}
-							onCounterClockwiseChange={this.changeIndiaCounterClockwiseSelect}
-						/>
+						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-india-input-panel">
+							<div className="horosa-india-input-stack">
+								<div className="horosa-side-panel-heading">
+									<div>
+										<div className="horosa-side-panel-title">印占设置</div>
+										<div className="horosa-side-panel-subtitle">时间、地点与分盘选项</div>
+									</div>
+								</div>
+								<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
+								<SpaceTimePanel
+									fields={fields}
+									value={datetm}
+									onTimeChange={this.changeTime}
+									timeHook={this.tmHook}
+									onGeoChange={this.changeGeo}
+								/>
+								</XQSideSection>
+								<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="india.s1" className="horosa-side-input-section">
+										<div className="horosa-india-select-grid">
+											<div className="horosa-india-select-field horosa-india-school-field">
+												<span>流派</span>{/* C3:定位句进 Option(title+行内小注) */}
+												<Select
+													size="small"
+													style={{width: '100%'}}
+													value={this.state.indiaSchool}
+													onChange={this.changeIndiaSchool}
+													dropdownMatchSelectWidth={false}
+												>
+													{AstroConst.INDIA_SCHOOL_OPTIONS.map((item)=>{
+														const d = AstroConst.getIndiaSchoolDefaults(item.value) || {};
+														return (
+															<Option value={item.value} key={item.value} title={d.positioning || ''}>
+																{item.label}{d.positioning ? <span style={{ opacity: 0.55, fontSize: '0.85em' }}> · {d.positioning}</span> : null}
+															</Option>
+														);
+													})}
+												</Select>
+											</div>
+											<div className="horosa-india-select-field">
+												<span>岁差制</span>
+												<Select
+													size="small"
+													style={{width: '100%'}}
+													value={indiaAyanamsa}
+													onChange={this.changeIndiaAyanamsa}
+													dropdownMatchSelectWidth={false}
+												>
+													{AstroConst.groupOptions(AstroConst.INDIA_AYANAMSA_OPTIONS).map((grp)=>(
+														<OptGroup label={grp.group} key={grp.group}>
+															{grp.items.map((item)=>(
+																<Option value={item.value} key={item.value}>{item.label}</Option>
+															))}
+														</OptGroup>
+													))}
+												</Select>
+											</div>
+											<div className="horosa-india-select-field">
+												<span>分宫制</span>
+												<Select
+													size="small"
+													style={{width: '100%'}}
+													value={indiaHsys}
+													onChange={this.changeHsys}
+													dropdownMatchSelectWidth={false}
+												>
+													{AstroConst.groupOptions(AstroConst.INDIA_HOUSE_SYSTEM_OPTIONS).map((grp)=>(
+														<OptGroup label={grp.group} key={grp.group}>
+															{grp.items.map((item)=>(
+																<Option value={item.value} key={item.value}>{item.label}</Option>
+															))}
+														</OptGroup>
+													))}
+												</Select>
+											</div>
+											<div className="horosa-india-select-field">
+												<span>交点</span>
+												<Select
+													size="small"
+													style={{width: '100%'}}
+													value={indiaNodeType}
+													onChange={this.changeIndiaNodeType}
+													dropdownMatchSelectWidth={false}
+												>
+													{AstroConst.INDIA_NODE_TYPE_OPTIONS.map((item)=>(
+														<Option value={item.value} key={item.value}>{item.label}</Option>
+													))}
+												</Select>
+											</div>
+												<div className="horosa-india-select-field">
+													<span>当前分盘</span>
+													<Select
+													size="small"
+													style={{width: '100%'}}
+													value={this.state.currentTab}
+													onChange={this.changeTab}
+													dropdownMatchSelectWidth={false}
+												>
+													{splitOptions.map((item)=>(
+														<Option value={item.value} key={item.value}>{item.label}</Option>
+													))}
+													</Select>
+												</div>
+												<div className="horosa-india-select-field">
+													<span>完整度数</span>
+													<Select
+														size="small"
+														style={{width: '100%'}}
+														value={degreeDisplayMode}
+														onChange={this.changeDegreeDisplayMode} dropdownMatchSelectWidth={false}
+													>
+														{INDIA_DEGREE_DISPLAY_OPTIONS.map((item)=>(
+															<Option value={item.value} key={item.value}>{item.label}</Option>
+														))}
+													</Select>
+												</div>
+											</div>
+									<div className="horosa-india-vargaset-block">
+										<div className="horosa-india-vargaset-head">
+											<span className="horosa-side-section-title">分盘集</span>
+											<button
+												type="button"
+												className={`horosa-india-vargaset-toggle${this.state.vargaSetOpen ? ' is-active' : ''}`}
+												onClick={this.toggleVargaSet}
+											>{this.state.vargaSetOpen ? '并列 2×2' : '单盘'}</button>
+										</div>
+										{this.state.vargaSetOpen ? (
+											<Select
+												mode="multiple"
+												size="small"
+												style={{width: '100%'}}
+												value={this.state.vargaSetFractals}
+												onChange={this.changeVargaSetFractals}
+												maxTagCount="responsive"
+												placeholder="选择分盘（最多 4）"
+												dropdownMatchSelectWidth={false}
+											>
+												{VARGA_GRID_OPTIONS.map((item)=>(
+													<Option
+														value={item.value}
+														key={item.value}
+														disabled={this.state.vargaSetFractals.length >= VARGA_GRID_MAX && this.state.vargaSetFractals.indexOf(item.value) < 0}
+													>{item.label}</Option>
+												))}
+											</Select>
+										) : null}
+									</div>
+									<div className="horosa-india-style-block">
+										<div className="horosa-side-section-title">中栏盘面</div>
+										<Select
+											size="small"
+											style={{ width: '100%' }}
+											value={this.state.indiaStageMode}
+											onChange={this.changeStageMode}
+											dropdownMatchSelectWidth={false}
+										>
+											{AstroConst.INDIA_STAGE_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+										</Select>
+									</div>
+									{this.state.indiaStageMode === 'single' ? (
+									<div className="horosa-india-style-block">
+										<div className="horosa-side-section-title">盘式</div>
+										<Segmented
+											value={indiaChartStyle}
+											onChange={this.changeIndiaChartStyle}
+											options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
+										/>
+									</div>
+									) : null}
+									<div className="horosa-india-style-block">
+										<div className="horosa-side-section-title">第1宫参照</div>
+										<Select
+											size="small"
+											style={{ width: '100%' }}
+											value={indiaLagnaRef}
+											onChange={this.changeIndiaLagnaRef}
+											dropdownMatchSelectWidth={false}
+										>
+											{AstroConst.INDIA_LAGNA_REF_OPTIONS.map((grp)=>(
+												<OptGroup key={grp.label} label={grp.label}>
+													{grp.options.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+												</OptGroup>
+											))}
+										</Select>
+									</div>
+									<div className="horosa-india-select-grid">
+										<div className="horosa-india-select-field">
+											<span>星体</span>
+											<Select
+												size="small"
+												style={{ width: '100%' }}
+												value={indiaPlanetDisplayMode}
+												onChange={this.changeIndiaPlanetDisplayMode}
+												dropdownMatchSelectWidth={false}
+											>
+												{AstroConst.INDIA_PLANET_DISPLAY_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+											</Select>
+										</div>
+										<div className="horosa-india-select-field">
+											<span>盘面叠加</span>
+											<Select
+												size="small"
+												style={{ width: '100%' }}
+												value={this.state.indiaOverlayBB ? 'bb' : 'none'}
+												onChange={(v)=>this.setState({ indiaOverlayBB: (v && v.target ? v.target.value : v) === 'bb' })}
+												dropdownMatchSelectWidth={false}
+											>
+												<Option value="none">无（默认）</Option>
+												<Option value="bb">Bhrigu Bindu 福德点</Option>
+											</Select>
+										</div>
+										{indiaChartStyle !== AstroConst.INDIA_CHART_STYLE_SOUTH && this.state.indiaStageMode === 'single' ? (
+											<div className="horosa-india-select-field">
+												<span>显示方向</span>
+												<Select
+													size="small"
+													style={{ width: '100%' }}
+													value={indiaCounterClockwise ? 'ccw' : 'cw'}
+													onChange={(v)=>this.changeIndiaCounterClockwise((v && v.target ? v.target.value : v) === 'ccw')}
+													dropdownMatchSelectWidth={false}
+												>
+													<Option value="ccw">逆时针</Option>
+													<Option value="cw">顺时针</Option>
+												</Select>
+											</div>
+										) : null}
+									</div>
+								</XQSideSection>
+								<XQSideSection iconName={sideSectionIcon('switches')} title="流派与算法" storageKey="india.dashaVariants" defaultOpen={false} className="horosa-side-input-section">
+									{(()=>{
+										const curVariants = AstroConst.normalizeIndiaDashaVariants(this.state.indiaDashaVariants);
+										const nCustom = Object.keys(curVariants).length;
+										return (
+											<div className="horosa-india-variant-panel">
+												<div className="horosa-india-variant-group">
+													<div className="horosa-india-select-field horosa-india-variant-field">
+														<span>宿数口径</span>
+														<Select
+															size="small"
+															style={{width: '100%'}}
+															value={this.state.indiaNakshatraCount}
+															onChange={this.changeNakshatraCount}
+															dropdownMatchSelectWidth={false}
+														>
+															{AstroConst.INDIA_NAKSHATRA_COUNT_OPTIONS.map((o)=>(
+																<Option key={o.value} value={o.value}>{o.label}</Option>
+															))}
+														</Select>
+													</div>
+													{AstroConst.INDIA_DASHA_VARIANT_GROUPS.map((grp)=>
+														AstroConst.INDIA_DASHA_VARIANT_SPECS
+															.filter((it)=>it.group === grp.key)
+															.map((spec)=>(
+																<div key={spec.key} className="horosa-india-select-field horosa-india-variant-field" title={spec.tip}>
+																	<span>{spec.label}{curVariants[spec.key] ? <em className="horosa-india-variant-dot">·改</em> : null}</span>
+																	<Select
+																		size="small"
+																		style={{width: '100%'}}
+																		value={curVariants[spec.key] || spec.default}
+																		onChange={(v)=>this.changeIndiaDashaVariant(spec.key, v)}
+																		dropdownMatchSelectWidth={false}
+																	>
+																		{spec.options.map((o)=>(
+																			<Option key={o.value} value={o.value}>{o.label}</Option>
+																		))}
+																	</Select>
+																</div>
+															)))}
+													{AstroConst.INDIA_VARGA_VARIANT_CHARTS.map((c)=>(
+														<div className="horosa-india-select-field horosa-india-variant-field" key={c.key}>
+															<span>{c.label.split(' ')[0]} {c.label.split(' ')[1]}</span>
+															<Select
+																size="small"
+																style={{ width: '100%' }}
+																value={(this.state.indiaVargaVariantMap || {})[String(c.chartnum)] || 'standard'}
+																onChange={(v)=>this.changeVargaVariant(c.chartnum, v)}
+																dropdownMatchSelectWidth={false}
+															>
+																{c.options.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+															</Select>
+														</div>
+													))}
+													<div className="horosa-india-select-field horosa-india-variant-field">
+														<span>Chara Kāraka</span>
+														<Select
+															size="small"
+															style={{ width: '100%' }}
+															value={this.state.indiaKarakaScheme}
+															onChange={this.changeKarakaScheme}
+															dropdownMatchSelectWidth={false}
+														>
+															{AstroConst.INDIA_KARAKA_SCHEME_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+														</Select>
+													</div>
+													<div className="horosa-india-select-field horosa-india-variant-field">
+														<span>星曜战判据</span>
+														<Select
+															size="small"
+															style={{ width: '100%' }}
+															value={this.state.indiaYuddhaCriterion}
+															onChange={this.changeYuddhaCriterion}
+															dropdownMatchSelectWidth={false}
+														>
+															{AstroConst.INDIA_YUDDHA_CRITERION_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+														</Select>
+													</div>
+												</div>
+											</div>
+										);
+									})()}
+								</XQSideSection>
+							</div>
+						</div>
 						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-india-chart-panel${this.state.vargaSetOpen ? ' horosa-india-varga-grid-stage' : ''}`} style={{ position: 'relative' }}>
 							{/* keep-stale 轻量角标:后台重取中且有旧盘可显时,角落提示「更新中…」(非阻塞、不盖盘、不挡操作);
 							    替代原满屏「等待排盘数据/载入中/大运计算中」大框。首次加载(无 lastChartObj)走盘自身占位/dashaLoading。 */}
 							{this.state.dashaUpdating && this.state.lastChartObj ? (
 								<div style={{ position: 'absolute', top: 10, right: 14, zIndex: 6, fontSize: 11.5, lineHeight: '18px', color: 'var(--horosa-text-muted, rgba(180,184,196,0.92))', background: 'var(--horosa-panel-soft, rgba(20,22,28,0.72))', border: '1px solid var(--horosa-border, rgba(255,255,255,0.12))', padding: '2px 10px', borderRadius: 11, pointerEvents: 'none', WebkitBackdropFilter: 'blur(2px)', backdropFilter: 'blur(2px)' }}>更新中…</div>
 							) : null}
-							{this.state.vargaSetOpen
-								? this.renderVargaGrid(fields, { indiaChartStyle, indiaAyanamsa, indiaHsys, indiaNodeType, degreeDisplayMode, indiaPlanetDisplayMode, indiaCounterClockwise, indiaLockAquarius, indiaLagnaRef })
+							{this.state.indiaStageMode === 'sbc' && !this.state.vargaSetOpen ? (
+								<IndiaSbcChart
+									value={((this.state.mainChartObj || this.state.lastChartObj || {}).jyotish || {}).sarvatobhadra}
+									focusRef={this.state.indiaSbcFocus}
+									height={chartHeight}
+								/>
+							) : this.state.indiaStageMode === 'tripataki' && !this.state.vargaSetOpen ? (
+								<IndiaTripatakiChart
+									value={((this.state.mainChartObj || this.state.lastChartObj || {}).jyotish || {}).tripataki}
+									center={this.state.indiaTripatakiCenter}
+									monthIndex={this.state.indiaTripatakiMonth}
+									onMonthChange={(m)=>this.setState({ indiaTripatakiMonth: m })}
+									onCenterChange={(v)=>this.setState({ indiaTripatakiCenter: v })}
+									height={chartHeight}
+								/>
+							) : this.state.vargaSetOpen
+								? this.renderVargaGrid(fields, { indiaChartStyle, indiaAyanamsa, indiaHsys, indiaNodeType, degreeDisplayMode, indiaPlanetDisplayMode, indiaCounterClockwise, indiaLagnaRef })
 								: (
 								<IndiaChart
 									key={`${this.state.currentTab}_${indiaChartStyle}_${indiaAyanamsa}_${indiaHsys}_${indiaNodeType}`}
@@ -4036,8 +5787,8 @@ class IndiaChartMain extends Component{
 										degreeDisplayMode={degreeDisplayMode}
 										planetGlyphMode={indiaPlanetDisplayMode}
 										counterClockwise={indiaCounterClockwise}
-										lockAquarius={indiaLockAquarius}
 										lagnaRef={indiaLagnaRef}
+										overlayPoints={this.buildOverlayPoints()}
 										planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
@@ -4089,6 +5840,9 @@ class IndiaChartMain extends Component{
 									{ key: '11', tab: '年度', content: ()=>this.renderTajakaPanel(jyotishFields) },
 									{ key: '12', tab: '化解', content: ()=>this.renderRemediesPanel(jyotishFields) },
 									{ key: '13', tab: '敌友', content: ()=>this.renderMaitriPanel(jyotishFields) },
+									{ key: '14', tab: '问事', content: ()=>this.renderPrashnaPanel(jyotishFields) },
+									{ key: '15', tab: '校时', content: ()=>this.renderRectifyPanel(jyotishFields) },
+									{ key: '16', tab: '纳迪', content: ()=>this.renderNadiPanel(jyotishFields) },
 								].filter((t)=>this.state.visibleTabKeys.indexOf(t.key) >= 0).map((t)=>(
 									// 惰性 content:仅当前活动 tab 构建面板(其余 antd 本就不挂载,此处连「建好再丢」也省去)。
 									// 各面板是 this.state+图数据的纯派生(无 pane 内部 state),激活时重建结果逐字一致、不丢状态。

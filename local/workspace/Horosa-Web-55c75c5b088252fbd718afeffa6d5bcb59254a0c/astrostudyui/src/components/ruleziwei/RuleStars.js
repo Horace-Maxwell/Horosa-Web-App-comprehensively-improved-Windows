@@ -4,6 +4,7 @@ import * as ZWConst from '../../constants/ZWConst';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+import STAR_MEANING from '../ziwei/data/tables/ziweiStarMeaning.json';   // WP-7 星曜含义结构化
 
 class RuleStars extends Component{
 	constructor(props) {
@@ -24,7 +25,7 @@ class RuleStars extends Component{
 		for(let i=0; i<stars.length; i++){
 			let star = stars[i];
 			let rules = ZWRules.RuleStars[star];
-			let dom = this.genPopoverDom(rules);
+			let dom = this.genPopoverDom(rules, star);
 			let title = star + '';
 			let col = (
 				<Col span={4} key={star}>
@@ -38,7 +39,31 @@ class RuleStars extends Component{
 		return cols;
 	}
 
-	genPopoverDom(rules){
+	// WP-7:14 主星结构化属性块(五行/斗分/化气/主管+性格);杂曜给一句义。放自由文本上方。
+	genMeaningHead(star){
+		const m = STAR_MEANING.mainStars[star];
+		const a = STAR_MEANING.assistStars[star];
+		const boxStyle = { marginBottom: 8, padding: '6px 9px', background: 'var(--horosa-ziwei-selected-bg, rgba(120,72,232,0.08))', borderRadius: 4, fontSize: 12, lineHeight: '20px' };
+		const lab = { opacity: 0.6, marginRight: 3 };
+		if(m){
+			return (
+				<div key="main-meaning" style={boxStyle}>
+					<div>
+						<span style={lab}>五行</span>{m.wuxing}　<span style={lab}>斗分</span>{m.dou}
+					</div>
+					<div>
+						<span style={lab}>化气</span>{m.huaqi}　<span style={lab}>主管</span>{m.zhu}
+					</div>
+					<div style={{ marginTop: 4 }}>{m.xing}</div>
+				</div>
+			);
+		}
+		if(a){ return (<div key="assist-meaning" style={boxStyle}>{a}</div>); }
+		return null;
+	}
+
+	genPopoverDom(rules, star){
+		let head = this.genMeaningHead(star);
 		let lis = [];
 		for(let i=0; i<rules.length; i++){
 			let rule = rules[i];
@@ -67,6 +92,7 @@ class RuleStars extends Component{
 		}
 		let rulesDom = (
 			<div key="rules" style={{width: 400, height:400, overflow: 'auto'}}>
+				{head}
 				<ul key="list">
 					{lis}
 				</ul>

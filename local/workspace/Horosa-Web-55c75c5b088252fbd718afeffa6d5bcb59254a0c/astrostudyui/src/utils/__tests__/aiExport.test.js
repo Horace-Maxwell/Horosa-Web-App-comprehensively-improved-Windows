@@ -420,6 +420,8 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 			otherbu: '骰子随机不可复算,无事盘存储',
 			fengshui: '风水按宅盘交互起盘,无事盘存储',
 			calendar: '黄历为日期工具页,无盘主记录语义,照 jieqi/fengshui 先例只导出不挂载',
+			huangli: '按「起课时间」源挂载(TIMEPOINT 白名单,纯日期确定复算),无命盘/事盘记录语义',
+			tongshu: '按「起课时间」源挂载(TIMEPOINT 白名单,齿轮落 payload.tongshu),无命盘/事盘记录语义',
 			// [YD 拆键] 六衍生盘导出键独立(段勾选可分盘),挂载语义仍走 astrochart_like 聚合键(主盘族重算)。
 			hellenastro: '衍生盘挂载走 astrochart_like 聚合键',
 			dwadasamsa: '衍生盘挂载走 astrochart_like 聚合键',

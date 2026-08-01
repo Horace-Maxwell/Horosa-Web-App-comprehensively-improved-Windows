@@ -30,3 +30,25 @@ describe('演禽 演法面板 SSR 冒烟', () => {
 		expect(html).toContain('左栏');
 	});
 });
+
+// 回归守卫:性别 → 投胎「男/女命」标签(修两症:①props.gender 半死开关——系统A 性别拨到女、
+// 演法投胎仍男命;②真值误判——string '0'/'Female'/'女' 皆 truthy 被当男)。resolveMaleFlag 规范化 1/0。
+describe('演禽 投胎 男/女命 = 性别(props.gender 优先 + 规范化,防半死开关/真值误判)', () => {
+	const toutaiHtml = (props) => renderToStaticMarkup(<YanQinBranchPanel initialSub="toutai" fields={fields} {...props} />);
+	test('props.gender=1(男)→ 男命', () => { expect(toutaiHtml({ gender: 1 })).toContain('男命'); });
+	test('props.gender=0(女·数字)→ 女命,非男命', () => { const h = toutaiHtml({ gender: 0 }); expect(h).toContain('女命'); expect(h).not.toContain('男命'); });
+	test("props.gender='0'(女·字符串,旧 truthy 会误判男)→ 女命", () => { const h = toutaiHtml({ gender: '0' }); expect(h).toContain('女命'); expect(h).not.toContain('男命'); });
+	test("props.gender='Female'/'F'/'女'→ 女命", () => {
+		['Female', 'F', '女'].forEach((g) => { const h = toutaiHtml({ gender: g }); expect(h).toContain('女命'); expect(h).not.toContain('男命'); });
+	});
+	test('props.gender 优先于 fields.gender(半死开关:命盘 fields=男、拨女 → 女命)', () => {
+		const maleFields = { ...fields, gender: { value: 1 } };
+		const h = renderToStaticMarkup(<YanQinBranchPanel initialSub="toutai" fields={maleFields} gender={0} />);
+		expect(h).toContain('女命'); expect(h).not.toContain('男命');
+	});
+	test('无 props.gender → 回退 fields.gender(value=0 → 女命)', () => {
+		const femaleFields = { ...fields, gender: { value: 0 } };
+		const h = renderToStaticMarkup(<YanQinBranchPanel initialSub="toutai" fields={femaleFields} />);
+		expect(h).toContain('女命'); expect(h).not.toContain('男命');
+	});
+});

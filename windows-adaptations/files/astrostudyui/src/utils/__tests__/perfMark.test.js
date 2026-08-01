@@ -72,13 +72,18 @@ describe('perfMark interaction span contract', () => {
 		nowSpy.mockRestore();
 	});
 
-	it('KinAstroMain marks panel-ready with moduleKey (tab attribution), never serviceKey', () => {
+	it('KinAstroMain marks panel-ready with tab-attribution key (hostModuleKey || moduleKey), never serviceKey', () => {
+		// v3.6.0 起上游给 KinAstro 引入宿主嵌用(hostModuleKey):被宿主页嵌入时 currentTab=宿主键,
+		// 打点归属必须跟随(horosa_panel_ready_attribution_key_v1)。合法形 =
+		// markPanelReady(this.props.hostModuleKey || this.config.moduleKey);serviceKey 恒非法。
 		const src = fs.readFileSync(
 			path.join(__dirname, '..', '..', 'components', 'kinastro', 'KinAstroMain.js'),
 			'utf8'
 		);
 		expect(src.match(/markPanelReady\(this\.config\.serviceKey\)/g)).toBeNull();
-		const moduleKeyMarks = src.match(/markPanelReady\(this\.config\.moduleKey\)/g) || [];
-		expect(moduleKeyMarks.length).toBeGreaterThanOrEqual(2);
+		const attributionMarks = src.match(/markPanelReady\(this\.props\.hostModuleKey \|\| this\.config\.moduleKey\)/g) || [];
+		expect(attributionMarks.length).toBeGreaterThanOrEqual(2);
+		// 旧单键形不得再出现(半升级=嵌用场景归属错键,样本被静默丢弃)。
+		expect(src.match(/markPanelReady\(this\.config\.moduleKey\)/g)).toBeNull();
 	});
 });

@@ -447,8 +447,7 @@ public class AIAnalysisProxyService {
 		withHeartbeat(channel, () -> {
 			Map<String, Object> body = buildOpenAIChatBody(model, params, messages, true);
 			String url = joinUrl(resolveBaseUrl(normalizedProviderType(params), stringVal(params, "baseUrl")), "/chat/completions");
-			HttpRequest request = buildJsonRequest(url, buildAuthHeaders(normalizedProviderType(params), stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
+			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders(normalizedProviderType(params), stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -480,8 +479,7 @@ public class AIAnalysisProxyService {
 		withHeartbeat(channel, () -> {
 			Map<String, Object> body = buildOllamaNativeBody(model, params, messages, true);
 			String url = joinUrl(ollamaNativeBase(params), "/api/chat");
-			HttpRequest request = buildJsonRequest(url, buildAuthHeaders("ollama", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
+			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders("ollama", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 			readNdjsonStream(response.body(), (dataText) -> {
 				if(StringUtility.isNullOrEmpty(dataText)) { return; }
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
@@ -616,8 +614,7 @@ public class AIAnalysisProxyService {
 		withHeartbeat(channel, () -> {
 			Map<String, Object> body = buildAnthropicBody(model, params, messages, true);
 			String url = joinUrl(resolveBaseUrl("anthropic", stringVal(params, "baseUrl")), "/v1/messages");
-			HttpRequest request = buildJsonRequest(url, buildAuthHeaders("anthropic", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
+			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders("anthropic", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -646,8 +643,7 @@ public class AIAnalysisProxyService {
 			String apiKey = stringVal(params, "apiKey");
 			String url = joinUrl(resolveBaseUrl("gemini", stringVal(params, "baseUrl")), String.format("/models/%s:streamGenerateContent?alt=sse&key=%s", urlEncode(model), urlEncode(apiKey)));
 			Map<String, Object> body = buildGeminiBody(params, messages);
-			HttpRequest request = buildJsonRequest(url, buildAuthHeaders("gemini", apiKey, params), JsonUtility.encode(body), params);
-			HttpResponse<InputStream> response = sendStreamWithRetry(request, params);
+			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders("gemini", apiKey, params), JsonUtility.encode(body), params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -1246,6 +1242,7 @@ public class AIAnalysisProxyService {
 	// 这类模型自带思考、对采样参数「轻则忽略、重则 400」,故统一不下发采样参数(见 stripReasoningUnsupportedParams)。
 	// 注意:它比 isOpenAIReasoningModel 更广;后者仅决定 max_completion_tokens vs max_tokens(DeepSeek reasoner 仍用 max_tokens)。
 	private static final java.util.regex.Pattern REASONING_R1_PATTERN = java.util.regex.Pattern.compile("(^|[^a-z0-9])r1([^a-z0-9]|$)");
+	private static final java.util.regex.Pattern KIMI_K_SERIES_PATTERN = java.util.regex.Pattern.compile("^kimi-k\\d");
 	static boolean isReasoningModel(String model){
 		if(model == null) {
 			return false;
@@ -1261,10 +1258,12 @@ public class AIAnalysisProxyService {
 		if(m.contains("reasoner") || m.contains("reasoning") || m.contains("thinking")) {
 			return true;
 		}
-		// Kimi k2 系(kimi-k2.5/k2.6/k2.7-code 等):官方仅允许 temperature=1,发其它值直接
-		// 400「invalid temperature: only 1 is allowed for this model」(LIVE 实测,即「测试连接失败 400」
-		// 的最终真因)。按推理模型口径剥离采样参数,用模型默认值。moonshot-v1-* 不受影响。
-		if(m.startsWith("kimi-k2")) {
+		// Kimi k 系思考模型(kimi-k2.x / kimi-k3.x 及后续 k 代):官方仅允许 temperature=1,发其它值直接
+		// 400「invalid temperature: only 1 is allowed for this model」(k2 为 LIVE 实测;k3 为 Windows #47
+		// 用户实报——api.kimi.com/coding/v1 + kimi k3 同报此错)。按推理模型口径剥离采样参数,用模型默认值。
+		// moonshot-v1-* / kimi-latest 不受影响(不带 k+数字代号,正常接受采样参数)。
+		// 🔴 教训(#47):勿写死单一代号——曾硬编码 startsWith("kimi-k2"),k3 一出即漏网;一律认「kimi-k+数字」。
+		if(KIMI_K_SERIES_PATTERN.matcher(m).find()) {
 			return true;
 		}
 		return REASONING_R1_PATTERN.matcher(m).find();
@@ -1724,6 +1723,24 @@ public class AIAnalysisProxyService {
 	//    不再抛「Failed : HTTP error code …request-header:{…}」这类用户不可读 dump(Kimi 测试连接 400 的
 	//    报错体验即此问题)。GET 不发 Content-Type(无 body,语义正确)。
 	private String sendUpstreamForText(String method, String url, Map<String, String> headers, String json, Map<String, Object> params) {
+		// 参数自愈外环(见 healUpstreamRequestBody):400/422 点名可剥参数 → 剥参重发,至多 MAX_PARAM_HEALS 轮。
+		String body = json;
+		for(int heal = 0; ; heal++) {
+			try {
+				return sendUpstreamForTextOnce(method, url, headers, body, params);
+			} catch(UpstreamHttpException e) {
+				String healed = (heal < MAX_PARAM_HEALS && "POST".equalsIgnoreCase(method))
+					? healUpstreamRequestBody(e.getUpstreamStatus(), e.getUpstreamBody(), body) : null;
+				if(healed == null) {
+					throw e;
+				}
+				AppLoggers.ErrorLogger.warn("ai.param.heal non-stream status=" + e.getUpstreamStatus() + " round=" + (heal + 1));
+				body = healed;
+			}
+		}
+	}
+
+	private String sendUpstreamForTextOnce(String method, String url, Map<String, String> headers, String json, Map<String, Object> params) {
 		int timeoutMs = intVal(providerOptionsMap(params).get("requestTimeoutMs"), 0);
 		HttpRequest.Builder builder = HttpRequest.newBuilder()
 			.uri(URI.create(url))
@@ -1747,7 +1764,7 @@ public class AIAnalysisProxyService {
 			int status = response.statusCode();
 			String bodyText = response.body() == null ? "" : response.body();
 			if(status < 200 || status >= 300) {
-				throw new ErrorCodeException(580021, formatUpstreamHttpError(status, bodyText));
+				throw new UpstreamHttpException(status, bodyText);
 			}
 			return bodyText;
 		}catch(ErrorCodeException e){
@@ -1774,6 +1791,77 @@ public class AIAnalysisProxyService {
 			sb.append("（原始响应：").append(raw).append("）");
 		}
 		return sb.toString();
+	}
+
+	// ── 上游参数自愈层(Windows #47 制度化) ─────────────────────────────────────
+	// 病根类型:各家新模型对采样参数的支持随版本漂移(kimi k3 只收 temperature=1、OpenAI o/gpt-5 系
+	// 改用 max_completion_tokens、DeepSeek reasoner 对 logprobs 400……),静态前缀名单(isReasoningModel)
+	// 永远追不上新版本号——#5(gpt5.5)/#16(DeepSeek)/#47(kimi k3) 全是同一类病。
+	// 治法:上游返回 400/422 且错误文点名了某个「可安全剥离」的采样参数时,剥掉该参数原样重发一次
+	// (至多 2 轮,防两参数连环 400)。仅在未收到任何流式字节前触发,零重复计费;剥参后由模型默认值
+	// 兜底,行为等价于把该模型补进静态名单。静态名单仍保留(省一次往返),自愈层管未来的漏网之鱼。
+	static final int MAX_PARAM_HEALS = 2;
+	private static final Set<String> HEALABLE_SAMPLING_PARAMS = new LinkedHashSet<String>(Arrays.asList(
+		"temperature", "top_p", "top_k", "presence_penalty", "frequency_penalty",
+		"repetition_penalty", "logprobs", "top_logprobs", "seed", "stop", "stop_sequences", "stream_options"));
+
+	// 携带上游状态码与原始错误体的异常:自愈层判定用;对外行为与 ErrorCodeException 完全一致。
+	static class UpstreamHttpException extends ErrorCodeException {
+		private static final long serialVersionUID = 1L;
+		private final int upstreamStatus;
+		private final String upstreamBody;
+		UpstreamHttpException(int status, String bodyText){
+			super(580021, formatUpstreamHttpError(status, bodyText));
+			this.upstreamStatus = status;
+			this.upstreamBody = bodyText == null ? "" : bodyText;
+		}
+		int getUpstreamStatus(){ return upstreamStatus; }
+		String getUpstreamBody(){ return upstreamBody; }
+	}
+
+	// 400/422 且错误文点名可剥参数 → 返回剥参后的新请求体 JSON;否则返回 null(不自愈,照常抛)。
+	// 覆盖三种容器:顶层(OpenAI 兼容/Anthropic)、options(Ollama 原生)、generationConfig(Gemini);
+	// 另支持一条改名规则:错误文点名 max_completion_tokens 时把 max_tokens 原值改键重发(OpenAI 新推理系)。
+	@SuppressWarnings("unchecked")
+	static String healUpstreamRequestBody(int status, String errorBodyText, String requestJson){
+		if(status != 400 && status != 422) {
+			return null;
+		}
+		if(StringUtility.isNullOrEmpty(errorBodyText) || StringUtility.isNullOrEmpty(requestJson)) {
+			return null;
+		}
+		Map<String, Object> body;
+		try{
+			body = JsonUtility.toDictionary(requestJson);
+		}catch(Exception e){
+			return null;
+		}
+		if(body == null || body.isEmpty()) {
+			return null;
+		}
+		String msg = errorBodyText.toLowerCase();
+		boolean changed = false;
+		if(msg.contains("max_completion_tokens") && body.containsKey("max_tokens")) {
+			body.put("max_completion_tokens", body.remove("max_tokens"));
+			changed = true;
+		}
+		for(String param : HEALABLE_SAMPLING_PARAMS) {
+			if(!msg.contains(param)) {
+				continue;
+			}
+			if(body.containsKey(param)) {
+				body.remove(param);
+				changed = true;
+			}
+			for(String nest : new String[]{"options", "generationConfig"}) {
+				Object nested = body.get(nest);
+				if(nested instanceof Map && ((Map<String, Object>)nested).containsKey(param)) {
+					((Map<String, Object>)nested).remove(param);
+					changed = true;
+				}
+			}
+		}
+		return changed ? JsonUtility.encode(body) : null;
 	}
 
 	// 从上游错误体提取人话:OpenAI 兼容 {"error":{"message":…}} / Anthropic/Gemini 同形 /
@@ -1846,6 +1934,24 @@ public class AIAnalysisProxyService {
 			result.put(key, entry.getValue());
 		}
 		return result;
+	}
+
+	// 流式外呼统一入口:参数自愈外环(400/422 点名剥参重发,见 healUpstreamRequestBody)包住瞬态重试内环。
+	// 自愈同样只发生在「首字节前」——4xx 在响应头阶段即抛,绝不会重发已开始吐 token 的请求。
+	private HttpResponse<InputStream> sendStreamWithHeal(String url, Map<String, String> headers, String json, Map<String, Object> params) throws Exception {
+		String body = json;
+		for(int heal = 0; ; heal++) {
+			try {
+				return sendStreamWithRetry(buildJsonRequest(url, headers, body, params), params);
+			} catch(UpstreamHttpException e) {
+				String healed = heal < MAX_PARAM_HEALS ? healUpstreamRequestBody(e.getUpstreamStatus(), e.getUpstreamBody(), body) : null;
+				if(healed == null) {
+					throw e;
+				}
+				AppLoggers.ErrorLogger.warn("ai.param.heal stream status=" + e.getUpstreamStatus() + " round=" + (heal + 1));
+				body = healed;
+			}
+		}
 	}
 
 	// A4(#16 等):流式上游请求的「首字节前」瞬态退避重试。只在拿到响应头之前(连接失败 / 429 / 5xx)重试,
@@ -1926,8 +2032,9 @@ public class AIAnalysisProxyService {
 			return;
 		}
 		String detail = readErrorBody(response.body());
-		// 与非流式路径同口径:先人话(上游 error.message)后原始截断,用户可读。
-		throw new ErrorCodeException(580021, formatUpstreamHttpError(status, detail));
+		// 与非流式路径同口径:先人话(上游 error.message)后原始截断,用户可读;
+		// 抛 UpstreamHttpException 以便 sendStreamWithHeal 的参数自愈外环拿到状态码与原始错误体。
+		throw new UpstreamHttpException(status, detail);
 	}
 
 	// 仅在非 2xx 分支消费流式响应体，截断后并入错误信息，让上游真因(如 temperature/参数不支持)透传到 error 事件。

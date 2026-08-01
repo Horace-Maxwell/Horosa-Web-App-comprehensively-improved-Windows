@@ -138,8 +138,11 @@ def _pada_from_signs(ref_sign, lord_sign):
     n = house_distance(ref_sign, lord_sign)        # 参照→主星 的宫数(1-12)
     landed = offset_sign(lord_sign, n)             # 从主星 rasi 再顺数 n 宫
     d = house_distance(ref_sign, landed)           # 落宫相对参照宫的位置
-    if d == 1 or d == 7:                            # 例外：落本宫/第7宫 → 改取第 10 rasi
-        landed = offset_sign(ref_sign, 10)
+    if d == 1 or d == 7:
+        # 例外:落本宫/第 7 宫 → 取「自该落宫」起数第 10 座。
+        # 🔴 曾自参照宫数第 10:d==1 时两解相同掩盖了错;d==7 时正解=参照第 4 座
+        # (主星居参照第 4/10 宫必踩此支,每宫约 1/6 概率,AL/UL/全宫 pada 全链受染)。
+        landed = offset_sign(landed, 10)
     return landed
 
 

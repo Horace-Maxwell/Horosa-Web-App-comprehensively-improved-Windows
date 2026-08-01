@@ -5,18 +5,39 @@ import {
 } from '../../divination/mundane/chorography';
 
 describe('世运盘 分野 数据完整性', () => {
-	test('SIGN_CHOROGRAPHY:12 星座,各含非空国家+城市', () => {
+	test('SIGN_CHOROGRAPHY:12 星座,两层国家(古典层非空)+城市', () => {
 		expect(Object.keys(SIGN_CHOROGRAPHY)).toHaveLength(12);
 		MUNDANE_SIGN_ORDER.forEach((k) => {
 			expect(SIGN_CHOROGRAPHY[k]).toBeTruthy();
-			expect(SIGN_CHOROGRAPHY[k].countries.length).toBeGreaterThan(0);
+			expect(SIGN_CHOROGRAPHY[k].countries.ptolemaic.length).toBeGreaterThan(0);
+			expect(Array.isArray(SIGN_CHOROGRAPHY[k].countries.modern)).toBe(true);
 			expect(SIGN_CHOROGRAPHY[k].cities.length).toBeGreaterThan(0);
 		});
-		// 抽样字节核对古籍 §12.2
-		expect(SIGN_CHOROGRAPHY.aries.countries).toContain('英格兰');
-		expect(SIGN_CHOROGRAPHY.gemini.countries).toContain('美国(现代)');
+		// 抽样字节核对古籍(拆层依据=时代标注:「(现代)」/新世界 → modern 层,余留古典层)
+		expect(SIGN_CHOROGRAPHY.aries.countries.ptolemaic).toContain('英格兰');
+		expect(SIGN_CHOROGRAPHY.gemini.countries.modern).toContain('美国(现代)');
+		expect(SIGN_CHOROGRAPHY.gemini.countries.ptolemaic).not.toContain('美国(现代)');
 		expect(SIGN_CHOROGRAPHY.libra.cities).toContain('Vienna');
-		expect(SIGN_CHOROGRAPHY.capricorn.countries).toContain('印度');
+		expect(SIGN_CHOROGRAPHY.capricorn.countries.ptolemaic).toContain('印度');
+		expect(SIGN_CHOROGRAPHY.capricorn.countries.modern).toContain('墨西哥');
+		expect(SIGN_CHOROGRAPHY.aquarius.countries.modern).toContain('俄罗斯(现代)');
+	});
+
+	test('[G2] 数据集真分叉:classical 档只出古典层且不列城市;modern 档合并两层+城市', () => {
+		const FACTS = { meta: { ascSign: 'gemini' }, lons: { asc: 65, mc: 340 } };
+		const classical = describeChorography(FACTS, 'classical');
+		const modern = describeChorography(FACTS, 'modern');
+		const ascC = classical.axes.find((a) => a.axis === 'ASC');
+		const ascM = modern.axes.find((a) => a.axis === 'ASC');
+		expect(ascC.regions.countries).not.toContain('美国(现代)');   // 古典档零现代条目
+		expect(ascM.regions.countries).toContain('美国(现代)');
+		expect(ascC.regions.cities).toHaveLength(0);                  // 城市系后世增补,古典档不列
+		expect(ascM.regions.cities.length).toBeGreaterThan(0);
+		expect(classical.citiesOmitted).toBe(true);
+		expect(modern.citiesOmitted).toBe(false);
+		// classical_medieval 同古典层(古籍未单列中世纪增补名单,不臆造)
+		const cm = describeChorography(FACTS, 'classical_medieval');
+		expect(cm.axes.find((a) => a.axis === 'ASC').regions.countries).not.toContain('美国(现代)');
 	});
 
 	test('MUNDANE_QUADRANTS:4 三方,12 星座恰好各属一方', () => {

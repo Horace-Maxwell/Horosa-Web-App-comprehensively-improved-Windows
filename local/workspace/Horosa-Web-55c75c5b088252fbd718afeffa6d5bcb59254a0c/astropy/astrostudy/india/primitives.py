@@ -44,6 +44,12 @@ KARAKA_FULL_8 = [
     'Atmakaraka', 'Amatyakaraka', 'Bhratrikaraka', 'Matrikaraka',
     'Pitrikaraka', 'Putrakaraka', 'Gnatikaraka', 'Darakaraka',
 ]
+# 7 卡拉卡(古典):不含罗睺、无 PiK;序 AK>AmK>BK>MK>PK>GK>DK。
+KARAKA_LABELS_7 = ['AK', 'AmK', 'BK', 'MK', 'PK', 'GK', 'DK']
+KARAKA_FULL_7 = [
+    'Atmakaraka', 'Amatyakaraka', 'Bhratrikaraka', 'Matrikaraka',
+    'Putrakaraka', 'Gnatikaraka', 'Darakaraka',
+]
 
 
 def quality(sign):
@@ -195,15 +201,21 @@ def _karaka_degree(planet, lon):
     return deg
 
 
-def chara_karakas(planet_lons):
-    """8 曜含罗睺逆量，按卡拉卡用度降序 → AK..DK。
+def chara_karakas(planet_lons, scheme='8'):
+    """按卡拉卡用度降序取 Chara Kāraka。
 
-    planet_lons: {planet_id: 黄经}。返回 [{'planet','label','full','degree'} …] 长度 8。
-    tie：用度更高者在前(浮点已含分秒精度)。
+    scheme='8'(默认,现状):8 曜含罗睺(逆量 30−宿内度),序 AK..PiK..DK;
+    scheme='7'(古典):剔除罗睺,7 名序 AK>AmK>BK>MK>PK>GK>DK(无 PiK)。
+    planet_lons: {planet_id: 黄经}。tie:用度更高者在前(浮点已含分秒精度)。
     """
+    seven = str(scheme) == '7'
+    labels = KARAKA_LABELS_7 if seven else KARAKA_LABELS_8
+    fulls = KARAKA_FULL_7 if seven else KARAKA_FULL_8
     rows = []
     for p in KARAKA_PLANETS:
         if p not in planet_lons:
+            continue
+        if seven and p == const.NORTH_NODE:
             continue
         rows.append({'planet': p, 'degree': _karaka_degree(p, planet_lons[p])})
     rows.sort(key=lambda r: r['degree'], reverse=True)
@@ -211,8 +223,8 @@ def chara_karakas(planet_lons):
     for i, r in enumerate(rows):
         out.append({
             'planet': r['planet'],
-            'label': KARAKA_LABELS_8[i] if i < len(KARAKA_LABELS_8) else '',
-            'full': KARAKA_FULL_8[i] if i < len(KARAKA_FULL_8) else '',
+            'label': labels[i] if i < len(labels) else '',
+            'full': fulls[i] if i < len(fulls) else '',
             'degree': round(r['degree'], 4),
         })
     return out

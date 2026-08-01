@@ -329,3 +329,48 @@ class TestWanHuaXianQin:
 
     def test_swallow_rules_has_entries(self):
         assert len(SWALLOW_RULES) > 15
+
+
+class TestDayunLiunianYuanchen:
+    """WP-12/13：大限 / 流年小限 / 元辰禽（萬化仙禽起例）。"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.tool = WanHuaXianQin()
+
+    def test_yuanchen_is_ming_chong(self):
+        # 元辰禽 = 命宮對衝位(命宮+6)所值之禽（命星加子演至衝位）
+        chart = self.tool.build_chart(1988, 3, 15, 10, "M")
+        ming_gong = BRANCHES.index(chart["palaces"]["ming_gong"]["branch"])
+        expected = self.tool._evolve_to_palace(chart["stars"]["ming_xing"], (ming_gong + 6) % 12)
+        assert chart["stars"]["yuanchen_xing"] == expected
+
+    def test_dayun_start_age_by_ming_yao(self):
+        # 起運虛歲＝命星曜(水1火2木3金4土5日6月7)；1988-03-15-10 命星角木蛟(木)→起運3
+        chart = self.tool.build_chart(1988, 3, 15, 10, "M")
+        assert chart["stars"]["ming_xing"] == "角木蛟"
+        assert chart["dayun"]["start_age"] == 3
+        # 十二限、十年一移
+        assert len(chart["dayun"]["limits"]) == 12
+        assert chart["dayun"]["limits"][0]["age_start"] == 3
+        assert chart["dayun"]["limits"][1]["age_start"] == 13
+
+    def test_dayun_direction_male_female_opposite(self):
+        m = self.tool.build_chart(1988, 3, 15, 10, "M")["dayun"]["forward"]
+        f = self.tool.build_chart(1988, 3, 15, 10, "F")["dayun"]["forward"]
+        assert m != f  # 命宮天干陰陽下,男女方向相反
+
+    def test_liunian_starts_from_tai_xing(self):
+        chart = self.tool.build_chart(1988, 3, 15, 10, "M")
+        tai = chart["stars"]["tai_xing"]
+        ln = chart["liunian"]
+        assert ln[0]["age"] == 1
+        assert ln[0]["qin"] == tai  # 一歲=胎星
+        # 二歲=胎星下一宿
+        tai_idx = HOSTS.index(self.tool.qin_to_host[tai])
+        assert ln[1]["qin"] == QIN_NAMES[(tai_idx + 1) % 28]
+
+    def test_wuhu_palace_stem(self):
+        # 五虎遁自檢:甲/己年寅宮=丙
+        assert self.tool._palace_stem(1984, 2) == "丙"  # 1984甲子,寅(2)=丙
+        assert self.tool._palace_stem(1984, 3) == "丁"  # 卯=丁

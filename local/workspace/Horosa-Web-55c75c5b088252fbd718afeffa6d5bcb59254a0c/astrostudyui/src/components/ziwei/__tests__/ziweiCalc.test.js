@@ -1,4 +1,6 @@
 import { assembleNatalChart, calcZiwei, deriveSanPan } from '../ZiweiCalc';
+import { LIFE_MASTER } from '../data/ziweiTables';
+import { ZWEngineOptions, ziweiNeedsLocalEngine } from '../ziweiOptions';
 
 const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -249,5 +251,68 @@ describe('ZiweiCalc · WP-C 庙旺数值化 + 大限跨度(局数年)', ()=>{
 		c.houses.forEach((h)=>{ STAR_FIELDS.forEach((f)=>{ (h[f] || []).forEach((s)=>{ total++; expect(KEEP.has(s.name.charAt(0) === '副' ? s.name.slice(1) : s.name)).toBe(true); }); }); });
 		expect(total).toBeLessThanOrEqual(18);
 		expect(total).toBeGreaterThanOrEqual(14);   // 14主必在;左右昌曲视落宫
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase5 哨兵:「切非默认选项绝不误改命主」class(实测坑:切亮度/切传本竟改命主 破军→禄存)。
+// 根因:本地引擎默认按【命宫支】(经典法)算命主,而 Java /ziwei/birth 基线按【生年支】;
+//   凡触发本地引擎的开关一翻,命主就从生年支值悄悄变命宫支值。修法=live/snapshot 两路径钉 lifeMasterBy:'year_branch'。
+// 本组锁死:①带 year_branch 时命主恒==LIFE_MASTER[生年支](对任意生辰/任意开关变体);②该口径与命宫支法确有分歧(修复是承重的);
+//   ③三盘 deriveSanPan 保留基盘命主(生年属性不随太极点移);④亮度源 brightnessSource 绝不进 ziweiNeedsLocalEngine。
+describe('ZiweiCalc · Phase5 命主口径一致性哨兵(切开关不误改命主)', ()=>{
+	// live/snapshot 真实路径附加的引擎开关键(逐字镜像 ZiWeiMain requestZiWei/buildZiweiSnapshotForParams 的 opts)。
+	const LIVE_BASE = { lifeMasterBy: 'year_branch' };
+	// 每个变体单独把一个触发本地引擎的开关拨离默认('dual' 结构特殊,另在 ziweiCalendar 测)。
+	const SWITCH_VARIANTS = [
+		{ daxianSpan: 'ju' }, { tianmaBasis: 'year' }, { starSet: 'north18' }, { shangShi: 'yinyang' },
+		{ leapMonth: 'next' }, { leapMonth: 'prev' }, { leapMonth: 'split_days' }, { leapMonth: 'split_star_month' },
+		{ lateZi: 'midnight_split' }, { lateZi: 'zi_zheng' }, { yearBoundary: 'lunar_1_1' },
+		{ huoling: 'nanpai' }, { kongNaming: 'book' },
+	];
+	// 覆盖多生辰(含子时/闰月边界/立春边界),证不变式与生辰无关。
+	const BIRTHS = [
+		{ date: '1985-06-15', time: '10:30:00', zone: '+08:00', lon: '119e18', lat: '26n06', gpsLon: 119.3, gpsLat: 26.1, ad: 1, gender: 1 },
+		{ date: '1990-11-02', time: '03:20:00', zone: '+08:00', lon: '116e23', lat: '39n54', gpsLon: 116.4, gpsLat: 39.9, ad: 1, gender: 0 },
+		{ date: '1985-02-13', time: '23:30:00', zone: '+08:00', lon: '119e18', lat: '26n06', gpsLon: 119.3, gpsLat: 26.1, ad: 1, gender: 1 },
+	];
+	test('① 带 lifeMasterBy=year_branch:任意生辰×任意开关变体,命主恒==LIFE_MASTER[该盘生年支]', ()=>{
+		BIRTHS.forEach((birth)=>{
+			SWITCH_VARIANTS.forEach((variant)=>{
+				const c = calcZiwei(birth, { ...LIVE_BASE, ...variant });
+				expect(c && c.houses && c.houses.length).toBe(12);
+				// 命主=生年支属性(与命宫无关);读同一盘的 yearZi 保证「即便开关改了生年支(定年界),断言仍自洽」。
+				expect(c.lifeMaster).toBe(LIFE_MASTER[c.yearZi]);
+			});
+		});
+	});
+	test('② 修复是承重的:生年支法 vs 命宫支法确有分歧(至少一辰命主值不同)', ()=>{
+		let diverged = 0;
+		BIRTHS.forEach((birth)=>{
+			const byYear = calcZiwei(birth, { lifeMasterBy: 'year_branch' });
+			const byMing = calcZiwei(birth, {});   // 缺省=命宫支(经典法)
+			const mingZhi = byMing.houses[byMing.lifeHouseIndex].ganzi.charAt(1);
+			expect(byYear.lifeMaster).toBe(LIFE_MASTER[byYear.yearZi]);
+			expect(byMing.lifeMaster).toBe(LIFE_MASTER[mingZhi]);
+			if(byYear.lifeMaster !== byMing.lifeMaster){ diverged++; }
+		});
+		expect(diverged).toBeGreaterThan(0);   // 若两法恒等则 year_branch 钉法是空操作=测试无意义,必须真有分歧
+	});
+	test('③ 三盘 deriveSanPan:地盘/人盘命主==基盘命主(生年属性不随太极点移动;与 bodyMaster 一致)', ()=>{
+		const tian = calcZiwei(BIRTHS[0], { lifeMasterBy: 'year_branch' });
+		['di', 'ren'].forEach((anchor)=>{
+			const p = deriveSanPan(tian, anchor);
+			expect(p.lifeMaster).toBe(tian.lifeMaster);
+			expect(p.bodyMaster).toBe(tian.bodyMaster);   // 身主本就不随三盘变(对照锚)
+		});
+	});
+	test('④ 亮度源绝不触发本地引擎(纯显示层):brightnessSource 任取值,ziweiNeedsLocalEngine 恒 false', ()=>{
+		const prev = ZWEngineOptions.brightnessSource;
+		try{
+			['zi_jian', 'quanshu'].forEach((src)=>{
+				ZWEngineOptions.brightnessSource = src;
+				expect(ziweiNeedsLocalEngine()).toBe(false);   // 全默认下切亮度不进本地引擎=不重排盘=不改命主
+			});
+		}finally{ ZWEngineOptions.brightnessSource = prev; }
 	});
 });

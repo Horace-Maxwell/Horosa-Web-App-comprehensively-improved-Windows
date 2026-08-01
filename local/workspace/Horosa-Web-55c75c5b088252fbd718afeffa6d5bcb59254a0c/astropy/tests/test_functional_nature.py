@@ -32,20 +32,23 @@ def _by_planet(lagna_sign):
 # 1. 十二命宫瑜伽卡拉卡对照表
 # ════════════════════════════════════════════════════════════════════════
 
-# 来源：经典功能吉凶判准的「角宫+三角宫双主」结论。
+# 来源：经典功能吉凶判准的「纯角宫(4/7/10)+三角宫(5/9)双主」结论。
+# 🔴 三角侧不含第 1 宫 —— 第 1 宫既角又三角,若计入则四个变动命宫(双子/处女/射手/双鱼)
+# 的命主(它同时主某纯角宫)会被误判成瑜伽卡拉卡;通行口径仅六个命宫有此星,
+# 与 yoga_engine.yogakaraka_planet 同判据(旧断言锁的正是被证伪的含第 1 宫版本)。
 YOGAKARAKA_TABLE = {
-    const.ARIES: None,            # 白羊 → 无单一瑜伽卡拉卡
-    const.TAURUS: const.SATURN,   # 金牛 → 土星
-    const.GEMINI: const.MERCURY,  # 双子 → 水星(命主自身亦主第4角宫)
-    const.CANCER: const.MARS,     # 巨蟹 → 火星
-    const.LEO: const.MARS,        # 狮子 → 火星
-    const.VIRGO: const.MERCURY,   # 处女 → 水星
-    const.LIBRA: const.SATURN,    # 天秤 → 土星
-    const.SCORPIO: None,          # 天蝎 → 无单一瑜伽卡拉卡
-    const.SAGITTARIUS: const.JUPITER,  # 射手 → 木星
-    const.CAPRICORN: const.VENUS, # 摩羯 → 金星
-    const.AQUARIUS: const.VENUS,  # 水瓶 → 金星
-    const.PISCES: const.JUPITER,  # 双鱼 → 木星
+    const.ARIES: None,            # 白羊 → 无
+    const.TAURUS: const.SATURN,   # 金牛 → 土星(主 9 三角 + 10 角)
+    const.GEMINI: None,           # 双子 → 无(水星只是命主兼 4 宫主,非 5/9 三角主)
+    const.CANCER: const.MARS,     # 巨蟹 → 火星(主 5 三角 + 10 角)
+    const.LEO: const.MARS,        # 狮子 → 火星(主 9 三角 + 4 角)
+    const.VIRGO: None,            # 处女 → 无(同双子)
+    const.LIBRA: const.SATURN,    # 天秤 → 土星(主 5 三角 + 4 角)
+    const.SCORPIO: None,          # 天蝎 → 无
+    const.SAGITTARIUS: None,      # 射手 → 无(木星只是命主兼 4 宫主)
+    const.CAPRICORN: const.VENUS, # 摩羯 → 金星(主 5 三角 + 10 角)
+    const.AQUARIUS: const.VENUS,  # 水瓶 → 金星(主 9 三角 + 4 角)
+    const.PISCES: None,           # 双鱼 → 无(同射手)
 }
 
 

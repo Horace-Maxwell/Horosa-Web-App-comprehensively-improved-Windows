@@ -8,11 +8,26 @@ import { runHorary } from '../horaryEngine';
 import { horaryJudgeOpts } from '../horarySchools';
 import { buildHorarySnapshot } from '../horarySnapshot';
 
+// 比对域=基线纪元 12 段（批6 起快照另增 [定盘考量][Almuten][映点对映点][行星时][尊贵明细] 等
+// 「只加新段」;本测试的定理=「表化只动排版、不动既有段事实」,新段不参与多重集比对,
+// 由下方独立断言证其在位——既有段一旦漂移仍然必红）。
+const BASELINE_SECTIONS = ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·', '古典接纳', '征象力量'];
+function inBaselineEra(section){
+	if(section === null) return true;   // 段头前的引言行
+	return BASELINE_SECTIONS.some((s) => section === s || (s.endsWith('·') && section.startsWith(s)));
+}
 function extractFacts(text) {
 	const lines = `${text || ''}`.split('\n');
 	const isSep = (s) => { const t = `${s || ''}`.trim(); return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.indexOf('-') >= 0; };
 	const kept = [];
-	for (let i = 0; i < lines.length; i++) { if (isSep(lines[i])) { kept.pop(); continue; } kept.push(lines[i]); }
+	let section = null;
+	for (let i = 0; i < lines.length; i++) {
+		const head = /^\[(.+)\]$/.exec(`${lines[i] || ''}`.trim());
+		if (head) { section = head[1]; }
+		if (!inBaselineEra(section)) { continue; }
+		if (isSep(lines[i])) { kept.pop(); continue; }
+		kept.push(lines[i]);
+	}
 	const tokens = kept.join('\n').match(/[一-龥A-Za-z0-9~+.]+/g) || [];
 	const m = new Map(); tokens.forEach((t) => m.set(t, (m.get(t) || 0) + 1)); return m;
 }
@@ -33,4 +48,12 @@ describe('horary 快照 [相位全览] 表化 · 数值不变证明', () => {
 	});
 	it('baseline 为表化前基线(不含 GFM 表)', () => { expect(fs.readFileSync(FIX, 'utf8')).not.toMatch(/\| --- \|/); });
 	it('[相位全览] 已 GFM 表化', () => { const now = build(); expect(now).toMatch(/\[相位全览\][\s\S]*\| --- \|/); });
+	it('批6 新段在位([定盘考量]/[Almuten]/[映点对映点]/[行星时]/[尊贵明细])且基线纪元段仍齐', () => {
+		const now = build();
+		['[定盘考量]', '[Almuten]', '[映点对映点]', '[行星时]', '[尊贵明细]'].forEach((s) => expect(now).toContain(s));
+		['[起卦信息]', '[裁决]', '[相位全览]', '[应期方位]'].forEach((s) => expect(now).toContain(s));
+		// classical 默认档:满分表/点全集不产段(零回归自证)。
+		expect(now).not.toContain('[偶然尊贵满分表]');
+		expect(now).not.toContain('[阿拉伯点全集]');
+	});
 });

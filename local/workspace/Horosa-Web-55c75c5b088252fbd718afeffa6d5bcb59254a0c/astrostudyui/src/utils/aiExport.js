@@ -112,7 +112,6 @@ const DOMAIN_REPLACERS = {
 	],
 };
 
-const ENABLE_SVG_TEXT_EXPORT = false;
 const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v16 — P0 主限法方位+时间补全 (新增 Placidus 方位法 + Cardano/Plantiko/Wollner/SymbolicDegree/SymbolicSolarArc 时间换算)。
 // v17 — 汉堡量化盘 AI 段补全 (germany 预设新增 行星图 A+B−C=D / 映点 Spiegelpunkt / 中点列表)。
@@ -160,7 +159,11 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 //      历史「点清空存下的 []」旧语义=未自定义,v<45 一次性删键清尸=与用户所见现状一致零回归);
 //      ②五技法(jinkou/liureng/qimen/sanshiunited/horary)运行时强推段改一次性 union 迁移进已自定义
 //      用户的选择(UI 从此显示勾着、取消=真取消),导出链删除运行时强推——挂载/导出同语义。
-export const AI_EXPORT_SETTINGS_VERSION = 48;
+// v49 补:风水新增三流派导出段(玄空六法/命理派/综合罗经)登记进 fengshui PRESET_SECTIONS 末尾。
+//        🔴 不升 MIGRATION_VERSION(那会令 v45+ 存档重走全 preset union、违「取消=真取消」铁律);
+//        改用键内段级一次性 union（AI_EXPORT_V49_SECTION_UNION）——这三段 v49 前根本不存在,
+//        用户不可能"取消"过它们,故并入不会复活任何被取消项,语义安全。
+export const AI_EXPORT_SETTINGS_VERSION = 50;
 // 🔴 新技法不动此闸：其键老用户本无（未自定义）→ 走 preset 全量、本就含其全部段；
 // union 迁移唯「已自定义过某技法而该技法新增段」者需之。误升此闸会令 v45 存档重走 union，
 // 违「v45 起不再 union 强推、用户取消=真取消」之铁律（其测试锁之）。
@@ -179,6 +182,19 @@ const AI_EXPORT_FORCED_INCLUDE_SECTIONS = {
 };
 // [MT parity] v45 preset 补真段的一次性 union(同窗同逻辑):preset 补 builder 实产段的技法登记于此
 // (拆段后 preset 失修类),v<45 已自定义用户不 union 会被白名单静默滤掉这批真内容段。
+// [v49] 键内段级一次性 union：给「已自定义过该技法、而该技法此版新增段」的用户补上新段。
+// 与 MIGRATION_VERSION 的全 preset union 不同——只并这几条**本版才诞生**的段名，
+// 用户此前无从取消，故不会复活任何被取消项（v45「取消=真取消」铁律不破）。
+const AI_EXPORT_V49_UNION_VERSION = 49;
+const AI_EXPORT_V49_SECTION_UNION = {
+	fengshui: ['风水·玄空六法', '风水·命理派', '风水·综合罗经'],
+};
+// [v50] babylon 补「微黄道」段(页面第 6 页签此前无对应导出段):同 v49 键内段级一次性 union,
+// 该段本版才诞生、用户无从取消过,并入不复活任何被取消项(v45「取消=真取消」铁律不破)。
+const AI_EXPORT_V50_UNION_VERSION = 50;
+const AI_EXPORT_V50_SECTION_UNION = {
+	babylon: ['微黄道'],
+};
 const AI_EXPORT_V45_SECTION_UNION = {
 };
 // [v2 底座] 导出格式偏好:'v1'=经典(逐行项目符 beautifyForAI + 纯文本 .doc/裸文本栅格 PDF),
@@ -242,6 +258,7 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'jieqi_dongzhi',
 	'jieqi_meta',
 	'germany',
+	'babylon',
 	'otherbu',
 	'fengshui',
 	'huangji',
@@ -282,6 +299,8 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v43 补:黄历(工具组首个导出键,只导出不挂载照 jieqi/fengshui 先例)。
 	// v44 补:六壬[七政]/果老[虚实][本命化曜] 三段(键已在册,union 自动并入自定义)。
 	'calendar',
+	// 黄历二子技法(独立键新增于本版;v<44 老档无此键 → 循环体只并入已存在的非空数组,零强推)
+	'huangli', 'tongshu',
 ];
 const AI_EXPORT_PLANET_INFO_DEFAULT = {
 	showHouse: 1,
@@ -364,6 +383,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'relocation', label: '换置盘' },
 	{ key: 'locastro', label: '占星地图' },
 	{ key: 'mundane', label: '世俗盘' },
+	{ key: 'babylon', label: '巴比伦占星' },
 	{ key: 'relative', label: '合盘' },
 	{ key: 'primarydirect', label: '星运-主限法' },
 	{ key: 'primarydirchart', label: '星运-主限法盘' },
@@ -431,20 +451,33 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'horary', label: '卜卦盘' },
 	{ key: 'election', label: '择日盘' },
 	{ key: 'calendar', label: '黄历' },
+	// 黄历二子技法独立键:calendar=页面聚合快照(四子并出),huangli/tongshu=各自模块快照单技法
+	// 导出(与 jieqi 总/分并存同构);挂载「起课时间」源亦复用同一 preset 做内容勾选。
+	{ key: 'huangli', label: '老黄历日课' },
+	{ key: 'tongshu', label: '通书择日' },
 	{ key: 'generic', label: '其他页面' },
 ];
 
 export const AI_EXPORT_PRESET_SECTIONS = {
 	// [YA v42] +古典接纳/征象力量:引擎已算(chart.receptions/尊贵力量)却被判词-only 快照丢弃。
-	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·X', '古典接纳', '征象力量'],
-	election: ['起盘信息', '总评', '红线', '分项', '用事专属', '危象日参照', '应期', '本命合参', '时势合参', '建议'],
+	// [批6] +定盘考量/Almuten/映点对映点/行星时/尊贵明细(+满分表/点全集,仅相应流派档产段):
+	// 快照「只加新段」策略,段名与 horarySnapshot 段头逐字一致。
+	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·X', '古典接纳', '征象力量', '定盘考量', 'Almuten', '映点对映点', '行星时', '尊贵明细', '偶然尊贵满分表', '阿拉伯点全集'],
+	election: ['起盘信息', '流派口径', '总评', '红线', '分项', '尊贵强弱', '阿拉伯点', '择前考量', '用事专属', '危象日参照', '应期', '本命合参', '时势合参', '建议'],
 	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性'],
 	// [MU] '古典':buildIndiaSnapshotText 实测不产出该段头(死复选框,勾了永远空,无害不删内容)。
 	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '古典', '可能性', '大运Dasha',
 		// buildJyotishSnapshotLines 无条件派生段(约 40 段,条件产出⊆语义):此前未登记→自定义过 india 导出段的用户被静默删、纳入面板勾不到。
 		'Panchanga 五要素', '卡拉卡（8 Chara Karakas）', '节点主照（Rasi Drishti）', '星曜状态', '分盘吉位 Vimśopaka', '八分点 SAV', 'Sodhya Pinda 凝量', 'Shadbala 六力', 'Ishta/Kashta 吉凶果', 'Vimśopaka 分盘 20 分力', 'Hora 行星时', 'Choghadia 民用择时', '择时 Panchaka/Abhijit', 'Mūla 大运', 'Sudarśana Chakra 大运', 'Naisargika 自然大运', '补充上升（Supplementary Lagnas）', 'Nāḍī · Bhrigu Bindu 福点', 'Nāḍī · D150 纳地盘', 'Āyurdāya 寿命基础', '特殊上升 Special Lagnas', 'D60 六十分盘吉凶', '分盘变体对照', '功能吉凶（Functional Nature）', '宫位力（Bhava Bala）', '星曜战（Graha Yuddha）', '扩展大运（Conditional / Chara）', 'Kartari 夹击格局', 'Sudarshana 三盘（命/日/月起）', 'KP 宫头次主星 CSL', 'KP 意义者 Significators', 'KP 六级细分 / 当令星', '敌友（复合五分）', '行运 Gochara（从月·八分点）', '化解（信息·非处方）', 'Jaimini Argala 干涉', 'Tajika Harsha Bala', 'Tajika Pancha-Vargeeya', 'Tajika Mudda 年运', '行运 Gochara（从命）', '座运·X',
 		// [YA v42] A 类硬缺:Yoga 面板成立清单/副星本体位置(含外行星) 显示了却不入快照。
-		'瑜伽格局 Yogas', '副星 Upagraha'],
+		'瑜伽格局 Yogas', '副星 Upagraha',
+		// G2/G3/G4/G7/G1 新段(2026-07-21 KP 补齐;加段不升迁移版本)
+		'敏感点 Sphuta', '全吉盘 SBC', '问事 Praśna',
+		'Nāḍī · 行星组合(同座合)', 'Nāḍī · 星座交换', 'Nāḍī · 木星推进时间轴',
+		'Jaimini 三对法寿命', 'Tripataki 宿距三旗',
+		// 大运+行运补齐新段(加段不升迁移版本)
+		'寿命判读'
+	],
 	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
 	// [YD 拆键] 六衍生盘独立段表:占星地图含[占星地图]段;其余五盘无该段。改黄道框架的四盘
 	// (hellenastro/dwadasamsa/harmonic/draconic)在派生分析 skip 名单(buildPayload skipClassical),
@@ -455,7 +488,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	draconic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
 	relocation: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性'],
 	locastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
-	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '恒星派入境', '吠陀世运', '世运卜卦', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '角化', '年之九主', '世运问判', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
 	// [YD v42] 时空中点/马克斯 独立段名(此前与组合盘/影响盘撞名,永远无法分选、导出不辨盘型)。
 	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '时空中点·合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '马克斯·影响图盘-星盘A', '马克斯·影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
 	// [YB v42] 星运族 21 键补厚三段(起盘信息/当前时点/方法说明,builder=astroAiSnapshot 共享 helper):
@@ -487,7 +520,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	lunationphase: ['起盘信息', '月相推运', '当前时点', '方法说明'],
 	extrareturns: ['起盘信息', '多重回归', '当前时点', '方法说明'],
 	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '五行力量', '格局·用神', '盲派结构', '月令司令（分野）', '大运', '流年行运概略', '多运限·指定时段'],
-	ziwei: ['起盘信息', '宫位总览', '来因宫', '命中格局', '运限'],
+	ziwei: ['起盘信息', '宫位总览', '来因宫', '命中格局', '运限', '流派叠层'],
 	suzhan: ['起盘信息', '宿盘宫位与二十八宿星曜'],
 	// [YC v42] 判语库·参考诀表=默认关段(持世诀/发动诀/六神歌/爻位象/占类纲要;体量大,设置面可勾)。
 	sixyao: ['起盘信息', '卦象', '六爻与动爻', '断卦结构', '断诀命中', '占类断语', '卦辞与断语', '判语库·参考诀表'], // [六爻补齐 D] 两新段:未自定义者即时生效;已自定义者按 MT v45 世界观尊重白名单(不升 MIGRATION)
@@ -505,7 +538,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	shenyishu: ['起盘', '干支与五行', '神卦', '五行法则', '兵占', '主客判断', '神煞', '长生', '吉凶'],
 	// 新增四段(纯增量,不动既有段序;加段不升迁移版本):转宫派生 / 定局落星甲乙 / 结构对照模式的边界声明。
 	geomancy: ['判定', '解读技法', '转宫派生', '定局落星·甲', '定局落星·乙', '十二宫·图形入宫', '十六图形', '图形释义', '边界声明'],
-	tarot: ['牌阵综览', '逐牌详解', '综合断语', '定局', '生命牌', '组合读法'],
+	tarot: ['牌阵综览', '逐牌详解', '综合断语', '定局', '开钥', '生命牌', '组合读法'],
 	liureng: [
 		'起盘信息',
 		'十二盘式',
@@ -558,6 +591,15 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'太岁月建',
 		'地支关系',
 		'相关神煞',
+		// 右栏「用神/神煞/专题」页已有、快照此前全缺的五段（恒随课产出）。
+		'四象所属',
+		'四象五行',
+		'方位神煞',
+		'合占扣题与内外',
+		'二遁与次客',
+		// 盘式=阴盘时才产段(阳盘无此段,勾了亦空);专题段同理,左栏未选专题则不产。
+		'阴盘·六亲六神旺衰',
+		'专题起式',
 		'贵神月将象意',
 		'分类用神',
 		'行年',
@@ -656,19 +698,25 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	beiji: ['起盘', '年时', '条文索引', '完整条文', '条文检索', '家亲', '财官性情', '大运'],
 	nanji: ['起盘', '四柱', '宫部条文', '条文查询', '大运', '密码', '星图推演'],
 	chunzi: ['起盘', '四柱', '代码来源', '结构解析', '候选条文', '代码查询', '批量代码查询', '关键词检索', '多标签检索', '宿名检索', '时辰检索'],
-	xianqin: ['起盘', '三宫', '三星', '衍生星', '十二宫', '吞啖合战', '情性与格局', '二十八宿禽', '十二宫顺序', '三元起宿', '合宿表', '科名月宿', '四季得时', '情性赋全表', '二十八宿正像', '吞啖合战规则', '贵贱赋摘要', '演法·流派', '演法·起禽', '演法·择日', '演法·占卜', '演法·投胎'],
+	xianqin: ['起盘', '三宫', '三星·元辰', '大限', '流年小限', '神煞·待校', '衍生星', '十二宫', '吞啖合战', '情性与格局', '二十八宿禽', '十二宫顺序', '三元起宿', '合宿表', '科名月宿', '四季得时', '情性赋全表', '二十八宿正像', '吞啖合战规则', '贵贱赋摘要', '演法·流派', '演法·起禽', '演法·择日', '演法·占卜', '演法·投胎'],
 	cetian: ['起盘', '农历与命身', '四化', '飞星', '格局', '命宮', '兄弟宮', '夫妻宮', '子女宮', '財帛宮', '疾厄宮', '遷移宮', '交友宮', '官祿宮', '田宅宮', '福德宮', '父母宮', '男女宮', '奴僕宮', '妻妾宮', '相貌宮', '星曜属性', '正曜副曜', '宫干四化表', '飞化规则', '古法格局规则', '三合组'],
-	germany: ['起盘信息', '宫位宫头', '行星', '中点', 'TNP星体', '中点相位', '90°中点盘', '行星图', '映点', '中点列表', '汉堡学派要素'],
+	germany: ['起盘信息', '宫位宫头', '行星', '中点', 'TNP星体', '中点相位', '90°中点盘', '行星图', '映点', '中点列表', '汉堡学派要素', '组合盘', '戴维森盘', '虚星参考'],
+	babylon: ['起盘信息', '七曜按宫', '分至天狼星', '位三法', '行星神性', '微黄道'],
 	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '春分3D盘', '夏至星盘', '夏至宿盘', '夏至3D盘', '秋分星盘', '秋分宿盘', '秋分3D盘', '冬至星盘', '冬至宿盘', '冬至3D盘'],
 	...JIEQI_SETTING_PRESETS,
 	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体'],
-	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议', '风水·纳气盘', '风水·八卦阳宅', '风水·八宅大游年', '风水·玄空飞星', '风水·三合水法', '风水·金锁玉关', '风水·乾坤国宝', '风水·紫白飞星', '风水·辅星水法', '风水·净阴净阳', '风水·玄空大卦', '风水·形势峦头', '风水·择日选择'],
+	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议', '风水·纳气盘', '风水·八卦阳宅', '风水·八宅大游年', '风水·玄空飞星', '风水·三合水法', '风水·金锁玉关', '风水·乾坤国宝', '风水·紫白飞星', '风水·辅星水法', '风水·净阴净阳', '风水·玄空大卦', '风水·形势峦头', '风水·择日选择',
+		'风水·玄空六法', '风水·命理派', '风水·综合罗经'],
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
 	zhengchuan: ['起盘信息', '起数', '本命条文', '流年条文', '五基础数据', '装卦', '断本命', '策数', '死月',
 		'十二宫与六亲宫', '六亲属相', '妻室姓氏', '玄机卦动爻', '八刻分命', '条文秘数查询', '性情项查询', '古籍未载之格'],
 	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '大限·岁运', '流年·岁运', '断验'],
-	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '格局判定', '重犯', '交互格', '职业适性', '大限', '小限与流年十二神', '流年总论', '神煞合参', '诗文', '四柱文献'],
+	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '四世与权重', '人事十二宫寓意', '格局判定', '九品定格', '年上运程', '位置速断', '重犯', '交互格', '职业适性', '大限', '童限', '小限与流年十二神', '流月流日流时', '流年总论', '叠断', '神煞合参', '诗文', '逐日值星', '时辰细断', '四柱文献'],
 	// 黄历:段名与 NongLiMain.buildNongliSnapshotText 的 [X] 段头一一对应(v43;refresh-event 实时快照)。
+	// huangli/tongshu:段名与 huangliSnapshot/tongshuSnapshot 的 [X] 段头一一对应;
+	// 同时供导出(module:calendar-huangli/-tongshu 提取)与挂载内容勾选(此前 schema=null → 面板空白)。
+	huangli: ['起盘信息', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '方法说明'],
+	tongshu: ['通书择日', '方法说明'],
 	calendar: ['起盘信息', '当月月历', '选中日详情', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '通书择日', '日子馆·个性化择日', '当事人八字', '方法说明'],
 	generic: ['起盘信息'],
 };
@@ -994,6 +1042,32 @@ function normalizeAIExportSettings(settings){
 			});
 		});
 	}
+	// [v49] 本版新增段的键内 union（窗口独立于 v45，故 v45+ 存档也能补到新段而不重走全量 union）。
+	if(sourceVersion < AI_EXPORT_V49_UNION_VERSION){
+		Object.keys(AI_EXPORT_V49_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V49_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
+	// [v50] 同 v49 机制的下一窗(babylon 微黄道)。
+	if(sourceVersion < AI_EXPORT_V50_UNION_VERSION){
+		Object.keys(AI_EXPORT_V50_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V50_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
 	if(sourceVersion < AI_EXPORT_SECTION_MIGRATION_VERSION){
 		AI_EXPORT_SECTION_MIGRATION_KEYS.forEach((key)=>{
 			if(!Object.prototype.hasOwnProperty.call(sections, key)){
@@ -1060,6 +1134,8 @@ function snapshotModuleKeyByContextKey(key){
 		return 'guazhan';
 	}
 	const map = {
+		huangli: 'calendar-huangli',
+		tongshu: 'calendar-tongshu',
 		wuzhao: 'wuzhao',
 		taixuan: 'taixuan',
 		guice: 'guice', xiaoliuren: 'xiaoliuren', xiaochengtu: 'xiaochengtu', feigong: 'feigong',
@@ -1173,7 +1249,8 @@ function getCachedContentForTechnique(key){
 	return getModuleCachedContent(moduleKey);
 }
 
-function getOptionsForTechniqueKey(key){
+// export:挂载设置面板的段全集与本导出抽屉必须同源 —— 勿另造平行清单。
+export function getOptionsForTechniqueKey(key){
 	const preset = AI_EXPORT_PRESET_SECTIONS[key] || [];
 	const forbidden = getForbiddenSectionSet(key);
 	const cachedTitles = extractSectionTitles(getCachedContentForTechnique(key))
@@ -1447,6 +1524,21 @@ function stripForbiddenSections(content, key){
 	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// [YF v45] 用户是否把该技法的段**显式全部取消**(空数组;区别于「未自定义」的 undefined)。
+// 🔴 判据必须与 buildPayload 的兜底分开:兜底本意是「过滤链异常时别误报无文本」,
+// 但空数组是用户的明确意图 —— 曾被兜底整份复活成原文,与挂载侧(返回空+sectionsCleared)
+// 语义相反,直接违「取消=真取消」铁律。
+export function isUserSectionsExplicitlyCleared(key, settings){
+	const st = settings || loadAIExportSettings();
+	if(!st || !st.sections){ return false; }
+	if(key === 'jieqi' || isJieQiSplitSettingKey(key)){
+		const wanted = getJieQiWantedSections(st, key);
+		return !!(wanted && wanted.size === 0);
+	}
+	const selected = st.sections[key];
+	return Array.isArray(selected) && selected.length === 0;
+}
+
 function applyUserSectionFilter(content, key){
 	const settings = loadAIExportSettings();
 	const selected = settings.sections[key];
@@ -1534,6 +1626,9 @@ function applyUserSectionFilterByContext(content, key){
 	const wanted = getJieQiWantedSections(settings, key);
 	if(wanted === null){
 		return content;
+	}
+	if(wanted.size === 0){
+		return '';   // 显式全清 → 真取消(勿回吐全文,与主链 applyUserSectionFilter 同语义)
 	}
 	const filtered = filterContentByWantedSections(content, wanted);
 	if(!`${filtered || ''}`.trim()){
@@ -1748,7 +1843,9 @@ function isNoiseLine(text){
 	if(val === '打印星盘'){
 		return true;
 	}
-	if(/^[A-Za-z${}|\\/]{1,2}$/.test(val)){
+	// 🔴 曾含 A-Za-z:占星四轴 AC/MC/IC/DC、逆行标 Rx 等独占一行时被当编码残留误杀;
+	// 只保留真正的编码残留字符集。
+	if(/^[${}|\\/]{1,2}$/.test(val)){
 		return true;
 	}
 	if(/^\[符号U\+[0-9A-F]+\]$/.test(val)){
@@ -1859,19 +1956,6 @@ function beautifyForAIGentle(text){
 	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function collectSvgTexts(root){
-	if(!root){
-		return [];
-	}
-	const vals = [];
-	root.querySelectorAll('svg text').forEach((n)=>{
-		const t = (n.textContent || '').trim();
-		if(t){
-			vals.push(t);
-		}
-	});
-	return uniqueArray(vals);
-}
 
 function getTabsNavItems(container){
 	if(!container){
@@ -2459,6 +2543,7 @@ function resolveContextByAstroState(){
 			// 卜卦盘/择日盘 在辅盘页亦可单开(与顶层同术),各归本预设,勿 fallback 到量化盘。
 			horary: { key: 'horary', displayName: '卜卦盘', domain: 'horary' },
 			election: { key: 'election', displayName: '择日盘', domain: 'election' },
+			babylon: { key: 'babylon', displayName: '巴比伦占星' },
 		};
 		const cnyibuMap = {
 			suzhan: { key: 'suzhan', displayName: '宿盘' },
@@ -2759,10 +2844,12 @@ export function saveAIExportSettings(settings){
 // [YE] 技法下拉分组:73 项扁平列表按术数域分五组(设置面 OptGroup 渲染)。
 // 键归组按域硬编码;未列键自动落「其他」——新增技法漏归组不隐身、只是分组粗。
 const AI_EXPORT_TECHNIQUE_GROUPS = [
-	{ title: '西方占星', keys: ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'astrochart_like', 'relative', 'mundane', 'germany', 'horary', 'election', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi'] },
+	{ title: '西方占星', keys: ['astrochart', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'astrochart_like', 'relative', 'mundane', 'germany',
+		'babylon',
+		'horary', 'election', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi'] },
 	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'] },
 	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan'] },
-	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'fengshui', 'calendar'] },
+	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'fengshui', 'calendar', 'huangli', 'tongshu'] },
 ];
 
 export function listAIExportTechniqueSettingGroups(){
@@ -2870,6 +2957,10 @@ function getExtractorKindByExportKey(key){
 	if(exportKey === 'tongshefa'){
 		return 'tongshefa';
 	}
+	if(exportKey === 'babylon'){
+		// 巴比伦占星:页面侧 saveModuleAISnapshot('babylon') 存模块快照,导出走模块提取。
+		return 'module:babylon';
+	}
 	if(exportKey === 'guice' || exportKey === 'xiaoliuren' || exportKey === 'xiaochengtu' || exportKey === 'feigong'
 		|| exportKey === 'huangji' || exportKey === 'wuzhao' || exportKey === 'taixuan' || exportKey === 'jingjue'
 		|| exportKey === 'shenyishu' || exportKey === 'geomancy' || exportKey === 'tarot' || exportKey === 'shaozi' || exportKey === 'tieban' || exportKey === 'fendjing'
@@ -2877,7 +2968,7 @@ function getExtractorKindByExportKey(key){
 		|| exportKey === 'cetian' || exportKey === 'qizhengkin' || exportKey === 'guolao' || exportKey === 'suzhan'
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
 		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'zhengchuan'
-		|| exportKey === 'yizhangjing' || exportKey === 'calendar'){
+		|| exportKey === 'yizhangjing' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu'){
 		return `module:${snapshotModuleKeyByContextKey(exportKey)}`;
 	}
 	if(exportKey === 'taiyi'){
@@ -2930,6 +3021,7 @@ function getStructuredSnapshotKeysByExportKey(key){
 		|| exportKey === 'taiyi'
 		|| exportKey === 'relative'
 		|| exportKey === 'germany'
+		|| exportKey === 'babylon'
 		|| exportKey === 'guolao'
 		|| exportKey === 'suzhan'
 		|| exportKey === 'bazi'
@@ -2969,7 +3061,7 @@ const AI_EXPORT_DEFAULT_OFF_SECTIONS = {
 	taixuan: ['太玄经全文'],
 	huangji: ['经典原文', '历史年表'],
 	geomancy: ['图形释义'],
-	yizhangjing: ['诗文', '四柱文献'],
+	yizhangjing: ['诗文', '四柱文献', '逐日值星', '时辰细断', '叠断'],
 	qimen: ['八宫克应'],
 	liureng: ['取象'],
 };
@@ -3040,7 +3132,9 @@ export function applyAIExportSectionFilterToSnapshot(key, content, settings = lo
 	const picked = getAIExportEffectiveSectionsForTechnique(key, settings);
 	const wanted = new Set(uniqueArray(picked || []));
 	if(wanted.size === 0){
-		return content;
+		// 用户显式选了段但全部落在 forbidden 集 → 真取消(勿回吐全文);
+		// 「未自定义」在上方 sectionsCfg 分支已先行返回,不会走到这里。
+		return '';
 	}
 	const filtered = filterContentByWantedSections(text, wanted);
 	if(!`${filtered || ''}`.trim()){
@@ -3057,16 +3151,6 @@ export function resolveAIExportContextForTest(context){
 	};
 }
 
-function appendSvgSection(parts, scopeRoot){
-	if(!ENABLE_SVG_TEXT_EXPORT){
-		return;
-	}
-	const svgLines = collectSvgTexts(scopeRoot);
-	if(svgLines.length){
-		parts.push('[图形标注文本]');
-		parts.push(svgLines.join('\n'));
-	}
-}
 
 function getAstroCachedContent(){
 	try{
@@ -5460,14 +5544,14 @@ function downloadBlob(filename, content, mime){
 // 改为离屏 DOM → html-to-image → jsPDF 分页直接下载 .pdf:无窗口、CJK 安全(走系统字体渲染成图)、
 // 浏览器与 Tauri 一致(downloadBlob 路径既有,TXT/Word 同款已验证可用)。
 // [E3] 修「PDF 全空白」:html-to-image 是克隆节点(内联样式)→ SVG foreignObject 栅格化,宿主若用
-//   大负值离屏偏移,克隆携带该定位 → 画到视口外全白(html2canvas 的同坑修法见 reportExport.js
-//   exportReportPdf,机制不同不能照抄:那边靠 onclone 复位,这边靠 style 克隆覆盖)。三层防线:
+//   大负值离屏偏移,克隆携带该定位 → 画到视口外全白(html2canvas 同坑另有先例修法:
+//   靠 onclone 复位;机制不同不能照抄,这边靠 style 克隆覆盖)。三层防线:
 //   ① toCanvas 的 style 选项把克隆定位归零(顺带绕 WebKit foreignObject 定位层老 bug);
 //   ② 宿主 fixed(0,0)+z-index:-1+pointer-events:none(即使 ① 回归,克隆 fixed(0,0) 落 SVG 原点仍出图);
 //   ③ 墨迹守卫 + blob 尺寸守卫:空白绝不落盘假成功(失败由调用方降级 TXT)。
 
 // [E3] 位图导出墨迹守卫:从顶向下按块扫描,命中非白像素即停(payload 恒以标题/header 行开篇 →
-// 正常路径首块即命中,~1ms)。阈值沿 reportExport 同款实战值;canvas 异常按无墨迹处理(保守降级)。
+// 正常路径首块即命中,~1ms)。阈值沿既有同款实战值;canvas 异常按无墨迹处理(保守降级)。
 function canvasHasInk(canvas){
 	try{
 		if(!canvas || !canvas.width || !canvas.height){ return false; }
@@ -6144,7 +6228,9 @@ async function extractContentByKey(exportKey, context){
 		return extractJieQiContent(context);
 	}
 	if(exportKey === 'guice' || exportKey === 'xiaoliuren' || exportKey === 'xiaochengtu' || exportKey === 'feigong'
-		|| exportKey === 'geomancy' || exportKey === 'tarot'){
+		|| exportKey === 'geomancy' || exportKey === 'tarot'
+		|| exportKey === 'babylon'
+	){
 		// 皇极轨策/小六壬/小成图/飞宫/天文地占/塔罗:与卜卦/择日同路 —— 读 saveModuleAISnapshot 存的模块快照
 		// (geomancy/tarot 此前无分支 → 落 extractGenericContent 且 generic 亦无其 case → 导出恒空,X1 审计抓出补齐)。
 		// (按 exportKey 动态取,勿写死键名 —— 写死会令后加技法全读成别家快照)。
@@ -6387,7 +6473,8 @@ async function buildPayload(){
 	content = applyAstroMeaningFilterByContext(content, planetSettingKey)
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();
-	if(!content && rawSnapshotContent){
+	// [YF v45] 显式全清 → 不进兜底(用户刚取消的内容不得被复活);链异常才回退原文。
+	if(!content && rawSnapshotContent && !isUserSectionsExplicitlyCleared(usedExportKey)){
 		// 兜底：设置过滤链条异常时，回退到计算快照原文，避免“无可导出文本”误报。
 		content = applyAstroMeaningFilterByContext(normalizeText(rawSnapshotContent, normalizeDomain, exportFormat), planetSettingKey)
 			.replace(/\n{3,}/g, '\n\n')

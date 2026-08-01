@@ -59,13 +59,28 @@ def test_segment_tables_structure():
             assert set(named) == _PLANETS7, (weekday, named)   # 7 曜齐全无重
 
 
-def test_segment_empty_slot_always_last_named_after_saturn():
-    """空段恒紧跟土曜(段主序 …土→空→日… 的口径)。"""
+def test_segment_empty_slot_always_last():
+    """空段恒为第 8 段(通行口径:首段=vara 主顺推 7 曜,末段无主)。
+    🔴 旧口径「空段紧跟土曜」已证伪:空段随星期游走会把土后诸曜整体推后一段
+    (Kala/Mrityu/Artha/Yama 偏约昼长/8);本守卫改锁正口径。"""
     for table in (_DAY_SEGMENT_LORDS, _NIGHT_SEGMENT_LORDS):
         for lords in table.values():
-            i = lords.index(None)
-            sat = lords.index('Saturn')
-            assert i == (sat + 1) % 8
+            assert lords.index(None) == 7
+            assert len([x for x in lords if x]) == 7 and len(set(lords)) == 8
+
+
+def test_segment_tables_closed_form():
+    """闭式逐格锁死整表(独立 oracle,不引模块内序常量):
+    昼行 w 第 i 段 = 七曜星期序[(w+i)%7](首段即当日 vara 主,0=日…6=土);
+    夜行 w 第 i 段 = 七曜星期序[(w+4+i)%7](夜首=同日昼序第 5 曜,同序续排);第 8 段恒 None。
+    🔴 「7 曜互异 + 空段在尾」锁不住任意行内置换 —— 把某行改成乱序 7 曜旧断言照绿,
+    而 Gulika/Kala/Mrityu 等全部取错段;逐格闭式才与表逐字等价。"""
+    week_order = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']
+    for w in range(7):
+        for i in range(7):
+            assert _DAY_SEGMENT_LORDS[w][i] == week_order[(w + i) % 7], ('day', w, i)
+            assert _NIGHT_SEGMENT_LORDS[w][i] == week_order[(w + 4 + i) % 7], ('night', w, i)
+        assert _NIGHT_SEGMENT_LORDS[w][0] == _DAY_SEGMENT_LORDS[w][4], ('night-first=day-5th', w)
 
 
 # ── 时基副星：段查 + 取点 ─────────────────────────────────────────────────

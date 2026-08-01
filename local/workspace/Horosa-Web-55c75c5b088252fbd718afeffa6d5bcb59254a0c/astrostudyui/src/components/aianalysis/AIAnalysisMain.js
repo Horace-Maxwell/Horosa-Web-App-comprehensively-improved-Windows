@@ -679,27 +679,32 @@ function configureMonaco(monaco){
 	}
 }
 
-marked.setOptions({
-	gfm: true,
-	breaks: true,
-	headerIds: false,
-	mangle: false,
-});
+// 🔴 模块顶层配置必须带能力守卫:CJS interop(jest/node)下命名导出 marked 可为
+// undefined,裸调= require 即炸 → 整个 AI 页 lazy 载入失败;生产 ESM 下守卫恒真,
+// 行为逐字节不变(与 utils/aiMarkdownRender.js 同款口径)。
+if(marked && typeof marked.setOptions === 'function' && marked.Renderer){
+	marked.setOptions({
+		gfm: true,
+		breaks: true,
+		headerIds: false,
+		mangle: false,
+	});
 
-// 自定义 code 渲染：包一层 .codeBlock，左上加语言徽章，右上加复制按钮（事件委托）。
-// 复制按钮按钮内容用 data-copy-target 关联紧邻的 <pre><code>；点击在容器级捕获（renderAssistantBubble useEffect）。
-// 注：不在此处做语法高亮；高亮在挂载后由 hljs.highlightElement 单独跑（streaming 中不跑、避免抖动）。
-const mdRenderer = new marked.Renderer();
-const origCode = mdRenderer.code.bind(mdRenderer);
-mdRenderer.code = function(code, infostring, escaped){
-	const html = origCode(code, infostring, escaped);
-	const langRaw = (infostring || '').trim().split(/\s+/)[0] || '';
-	const langLabel = langRaw ? `<span class="xq-code-lang">${langRaw}</span>` : '';
-	// 复制按钮的可访问 hint；onClick 由事件委托捕获。
-	const copyBtn = `<button type="button" class="xq-code-copy" title="复制" aria-label="复制代码">复制</button>`;
-	return `<div class="xq-code-block">${langLabel}${copyBtn}${html}</div>`;
-};
-marked.use({ renderer: mdRenderer });
+	// 自定义 code 渲染：包一层 .codeBlock，左上加语言徽章，右上加复制按钮（事件委托）。
+	// 复制按钮按钮内容用 data-copy-target 关联紧邻的 <pre><code>；点击在容器级捕获（renderAssistantBubble useEffect）。
+	// 注：不在此处做语法高亮；高亮在挂载后由 hljs.highlightElement 单独跑（streaming 中不跑、避免抖动）。
+	const mdRenderer = new marked.Renderer();
+	const origCode = mdRenderer.code.bind(mdRenderer);
+	mdRenderer.code = function(code, infostring, escaped){
+		const html = origCode(code, infostring, escaped);
+		const langRaw = (infostring || '').trim().split(/\s+/)[0] || '';
+		const langLabel = langRaw ? `<span class="xq-code-lang">${langRaw}</span>` : '';
+		// 复制按钮的可访问 hint；onClick 由事件委托捕获。
+		const copyBtn = `<button type="button" class="xq-code-copy" title="复制" aria-label="复制代码">复制</button>`;
+		return `<div class="xq-code-block">${langLabel}${copyBtn}${html}</div>`;
+	};
+	marked.use({ renderer: mdRenderer });
+}
 
 // 在 Markdown 之前把 LaTeX 数学预渲染为 HTML（避免 $...$ 被 marked 当作普通文本处理）。
 // 支持 $$...$$（块）+ $...$（行内）+ \[...\] + \(...\)，行内式不允许跨行；用占位符隔离避免被 marked 改造。
@@ -792,7 +797,12 @@ function buildContextSignatureText(meta){
 	if(!meta || typeof meta !== 'object'){
 		return '';
 	}
-	const date = `${meta.date || meta.birth || meta.divTime || ''}`.trim();
+	// 🔴 曾漏 meta.time:技法快照的 date/time 是两个字段 → 签名只到「日」,
+	// 同一天不同时辰的两张盘签名一模一样(对时间确定式法尤其致命)。
+	// 与 snapshotSourceMismatch 的 [date,time].join(' ') 口径一致。
+	const whenPair = [meta.date, meta.time].filter(Boolean).join(' ').trim();
+	// whenPair 必须最先:date+time 记录若先取 birth(常为同盘出生串)仍吃不到 time,病灶不修等于没修。
+	const date = `${whenPair || meta.birth || meta.divTime || ''}`.trim();
 	const zone = `${meta.zone || ''}`.trim();
 	const parts = [];
 	if(date){
@@ -1892,11 +1902,11 @@ function AIAnalysisMain(props){
 		return (chatProfile && m) ? { profile: chatProfile, model: m } : null;
 	}
 
-	async function retrieveMaterialContext(query, resolvedRefs, embeddingTarget){
+	async function retrieveMaterialContext(query, resolvedRefs, embeddingTarget, retrievalMode){
 		const directMaterials = [];
 		const ragMaterials = [];
 		(resolvedRefs.materials || []).forEach((item)=>{
-			if(shouldUseDirectAttach(item)){
+			if(shouldUseDirectAttach(item, retrievalMode)){
 				directMaterials.push(item);
 			}else{
 				ragMaterials.push(item);
@@ -2212,7 +2222,12 @@ function AIAnalysisMain(props){
 			setSourceContext(ctx);
 		}
 		setTechniqueContexts(resolvedTechniqueContexts);
-		const retrieval = await retrieveMaterialContext(currentPrompt, resolvedRefs, resolveEmbeddingTarget(profile));
+		// 「默认检索策略」属组合(bundle)的设置,故直接从本轮挂载的组合读,不另立会话态。
+		// 挂了多个组合时取第一个显式非 auto 的(auto 等于不表态);都没挂/都 auto → undefined = 原长度规则。
+		const bundleRetrievalMode = (resolvedRefs.bundles || [])
+			.map((b)=>b && b.defaultRetrievalMode)
+			.find((m)=>m === 'fulltext' || m === 'rag');
+		const retrieval = await retrieveMaterialContext(currentPrompt, resolvedRefs, resolveEmbeddingTarget(profile), bundleRetrievalMode);
 		const layers = buildContextLayers({
 			sourceContext: ctx,
 			techniqueContexts: resolvedTechniqueContexts,
@@ -2561,13 +2576,31 @@ function AIAnalysisMain(props){
 	}
 
 	async function restoreWorkspaceBackup(blob){
+		// 🔴 破坏性操作三闸(曾裸奔:无确认、无校验、先删后写、异常静默):
+		// ① 内容校验先行 —— manifest 能解析但没有 stores 时,旧实现会把全部 store 清空后
+		//    一条不还原(全量数据丢失);② 二次确认;③ 逐 store 校验通过后才动库。
 		const payload = await parseWorkspaceBackupBlob(blob);
-		const stores = payload && payload.stores ? payload.stores : {};
+		const stores = payload && typeof payload.stores === 'object' && payload.stores ? payload.stores : null;
 		const storeKeys = Object.values(AI_ANALYSIS_STORES);
+		const hasAnyKnownStore = !!stores && storeKeys.some((name)=>Array.isArray(stores[name]));
+		if(!stores || !hasAnyKnownStore){
+			message.error('备份内容无效(缺少工作区数据),已取消恢复 —— 现有数据未改动');
+			return;
+		}
+		const total = storeKeys.reduce((n, name)=>n + (Array.isArray(stores[name]) ? stores[name].length : 0), 0);
+		const ok = await asyncConfirm({
+			title: '恢复备份将覆盖当前 AI 工作区',
+			content: `将清空并替换全部工作区数据(会话/材料/模板/设置等),导入 ${total} 条记录。此操作不可撤销,建议先导出一份当前备份。确定继续?`,
+			okText: '确认恢复',
+			cancelText: '取消',
+		});
+		if(!ok){
+			return;
+		}
 		for(let i=0; i<storeKeys.length; i++){
 			const storeName = storeKeys[i];
 			await deleteWhere(storeName, ()=>true);
-			await bulkPutStoreRecords(storeName, stores[storeName] || [], storeName);
+			await bulkPutStoreRecords(storeName, Array.isArray(stores[storeName]) ? stores[storeName] : [], storeName);
 		}
 		await loadWorkspace();
 		message.success('备份已恢复');
@@ -2593,11 +2626,18 @@ function AIAnalysisMain(props){
 
 	async function handleBackupRestoreInputChange(e){
 		const file = e && e.target && e.target.files ? e.target.files[0] : null;
-		if(file){
-			await restoreWorkspaceBackup(file);
-		}
-		if(backupRestoreInputRef.current){
-			backupRestoreInputRef.current.value = '';
+		try{
+			if(file){
+				await restoreWorkspaceBackup(file);
+			}
+		}catch(err){
+			// 🔴 曾无 try/catch:非 Horosa zip 抛 backup.manifest.missing → 未捕获 rejection、
+			// 无任何提示,且 value 复位被跳过导致同一文件再选不触发 change(看起来「点了没反应」)。
+			message.error(`恢复失败:${(err && err.message) || '备份文件无法解析'}`);
+		}finally{
+			if(backupRestoreInputRef.current){
+				backupRestoreInputRef.current.value = '';
+			}
 		}
 	}
 
@@ -3398,6 +3438,9 @@ function AIAnalysisMain(props){
 				].concat(trimmedList.map((item)=>({
 					role: item.role,
 					content: item.content,
+					// 与首发路径同形:重生成/编辑分支曾丢 images → 多模态输入被静默剥离,
+					// 模型对着空文本谈图(用户只觉得「重答就变傻」)。
+					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
 				}))),
 			});
 		}catch(e){
@@ -3452,6 +3495,9 @@ function AIAnalysisMain(props){
 				].concat(keep.map((item)=>({
 					role: item.role,
 					content: item.content,
+					// 与首发路径同形:重生成/编辑分支曾丢 images → 多模态输入被静默剥离,
+					// 模型对着空文本谈图(用户只觉得「重答就变傻」)。
+					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
 				}))),
 			});
 		}catch(e){
@@ -3563,6 +3609,9 @@ function AIAnalysisMain(props){
 				].concat(branchMessages.map((item)=>({
 					role: item.role,
 					content: item.content,
+					// 与首发路径同形:重生成/编辑分支曾丢 images → 多模态输入被静默剥离,
+					// 模型对着空文本谈图(用户只觉得「重答就变傻」)。
+					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
 				}))),
 			});
 			message.success('已基于编辑创建分支对话');

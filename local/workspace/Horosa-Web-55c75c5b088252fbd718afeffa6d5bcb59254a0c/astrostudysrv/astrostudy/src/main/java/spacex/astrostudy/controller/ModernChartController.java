@@ -97,7 +97,19 @@ public class ModernChartController {
 			params.put("siderealAyanamsa", TransData.get("siderealAyanamsa"));
 		}
 		params.put("relative", TransData.getValueAsInt("relative", 0));
-		
+		// 古典占星参数条件转发(界系/双子界序/狮子首星/三分集/交点真平/昼夜缓冲/福点反转):
+		// 前端仅非默认才带 → 此处仅在场才转发(缺省请求体零变,不扰 Python paramhash 缓存键);
+		// Python webmodernsrv.relative 以 push_request_terms/trip + inner/outer 每盘键消费。
+		String[] classicalKeys = { "termsVariant", "geminiBoundEmended", "leoBoundFirst", "triplicity", "westNodeType", "sectBuffer", "lotReversal",
+				"houseCuspAdvance", "cazimiOrb", "combustOrb", "underBeamsOrb", "vocMode", "vocIncludeOuter", "starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
+				// 三个 0/1 流派开关(点公式文档序反转/交点入旺/土星旺20°)——与 astrostudycn ChartController 同步补齐
+				"lotsDocReverse", "nodeExaltation", "saturnExalt20" };
+		for(String key : classicalKeys) {
+			if(TransData.containsParam(key)) {
+				params.put(key, TransData.get(key));
+			}
+		}
+
 		return params;
 	}
 

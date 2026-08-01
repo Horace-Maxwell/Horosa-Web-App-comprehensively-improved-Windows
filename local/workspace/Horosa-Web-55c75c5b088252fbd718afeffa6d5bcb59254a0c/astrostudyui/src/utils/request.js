@@ -82,8 +82,24 @@ function safeRemoveLocalItem(key){
 	}
 }
 
+// 后端异常原文(Java 堆栈/连接异常/类名)绝不直接弹给用户:既看不懂,又暴露内部端口与技术栈。
+// 判为技术异常 → 换成可行动的中文提示;业务型中文 message 原样透出(不改既有行为)。
+const TECH_EXCEPTION_RE = /(^|\s)(org\.|java\.|javax\.|com\.sun\.)|Exception[:\s]|Throwable|StackTrace|\bat\s+[\w$.]+\(|Connect(ion)? (to|refused|timed out)|SocketTimeout|ECONNREFUSED/i;
+
+function humanizeBackendError(text){
+	const raw = `${text || ''}`.trim();
+	if(!raw || !TECH_EXCEPTION_RE.test(raw)){
+		return raw;
+	}
+	// 连接类 → 明确指向本地服务;其余技术异常 → 通用可行动提示。两者都不回显原始堆栈。
+	if(/Connect(ion)? (to|refused|timed out)|SocketTimeout|ECONNREFUSED|HttpHostConnect/i.test(raw)){
+		return '本地计算服务未响应，请稍候重试；若持续如此，请重启应用让服务重新就绪。';
+	}
+	return '后端处理出错，请稍候重试；若持续如此，请重启应用。';
+}
+
 function safeErrorToast(text, cooldownMs){
-	const msg = (text || '').trim();
+	const msg = humanizeBackendError(text);
 	if(!msg){
 		return;
 	}

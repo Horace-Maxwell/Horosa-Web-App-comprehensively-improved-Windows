@@ -375,6 +375,36 @@ export function buildMundaneStarPoints(facts){
 // rulesetKey(可选)：传入世运规则集 → 按其 termsVariant/triplicityVariant 给 computeAlmuten 换界主/三分主表;
 // 缺省=默认现状(modern=埃及界+多罗修斯,零回归)。中世纪档 termsVariant='ptolemaic' → 界主换托勒密界、
 // 年主/盘主据之重算(切档真换 victor);三分各档暂皆多罗修斯(换表机制已打通,供日后档位选用)。
+// [G6] 偶然加减分层(定局偶然状态口径,叠加在五点尊贵+宫位分之上;只在世运 victor 卡生效,
+// 绝不回写 computeAlmuten/寿命引擎 —— 主限链 byte-perfect 不碰)。
+// 古籍此节仅定性(「当令昼/夜主加分;隐宫/焦伤/逆行/被围攻降格」,宫位分已由 HOUSE_SCORES 承担),
+// 数值为本引擎统一刻度(与尊贵 5..1 同源),明细逐项回显供稽核。
+const SECT_DIURNAL = ['sun', 'jupiter', 'saturn'];
+const SECT_NOCTURNAL = ['moon', 'venus', 'mars'];
+function mundaneAccidentalAdjust(facts){
+	const sect = (facts.meta && facts.meta.sect) || 'day';
+	const besieged = new Set();
+	try{
+		const atk = facts.result && facts.result.surround && facts.result.surround.attacks;
+		(atk || []).forEach((a) => { const t = a && (a.target || a.planet || a.id); if(t){ besieged.add(String(t).toLowerCase()); } });
+	}catch(e){ /* 无围攻数据则零减分 */ }
+	const out = {};
+	['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'].forEach((k) => {
+		const p = facts.planets[k];
+		if(!p){ return; }
+		let delta = 0;
+		const items = [];
+		const inSect = (sect === 'day' && SECT_DIURNAL.indexOf(k) >= 0) || (sect === 'night' && SECT_NOCTURNAL.indexOf(k) >= 0);
+		if(inSect){ delta += 3; items.push({ cn: '当令(得时)', v: +3 }); }
+		if(p.combustion === 'combust'){ delta -= 5; items.push({ cn: '焦伤', v: -5 }); }
+		else if(p.combustion === 'under_beams'){ delta -= 2; items.push({ cn: '日光束下', v: -2 }); }
+		if(p.retro){ delta -= 5; items.push({ cn: '逆行', v: -5 }); }
+		if(besieged.has(k)){ delta -= 4; items.push({ cn: '被围攻', v: -4 }); }
+		if(items.length){ out[k] = { delta, items }; }
+	});
+	return out;
+}
+
 export function describeMundaneVictor(facts, rulesetKey){
 	if(!facts || !facts.planets || !facts.meta){ return null; }
 	const cfg = rulesetConfig(rulesetKey);
@@ -382,16 +412,28 @@ export function describeMundaneVictor(facts, rulesetKey){
 	let alm = null;
 	try{ alm = computeAlmuten(facts, variants); }catch(e){ return null; }
 	if(!alm || !alm.winner){ return null; }
+	// [G6] 偶然层叠加:基分(五点尊贵+宫位)+偶然增减 → 终分排序;胜者可能因焦伤/逆行易主。
+	const acc = mundaneAccidentalAdjust(facts);
 	const scores = Object.keys(alm.totals || {})
-		.map((k) => ({ planet: k, cn: PLANET_CN[k] || k, glyph: PLANET_GLYPH[k] || '', score: alm.totals[k] }))
+		.map((k) => {
+			const base = alm.totals[k];
+			const a = acc[k] || null;
+			return {
+				planet: k, cn: PLANET_CN[k] || k, glyph: PLANET_GLYPH[k] || '',
+				base, accidental: a ? a.delta : 0, accidentalItems: a ? a.items : [],
+				score: base + (a ? a.delta : 0),
+			};
+		})
 		.sort((a, b) => b.score - a.score);
+	const winner = scores.length ? scores[0].planet : alm.winner;
 	const POINT_CN = { asc: '上升', sun: '太阳', moon: '月亮', fortune: '福点', syzygy: '产前朔望' };
 	return {
-		victor: alm.winner, victorCn: PLANET_CN[alm.winner] || alm.winner, victorGlyph: PLANET_GLYPH[alm.winner] || '',
-		victorMundane: PLANET_MUNDANE_FULL[alm.winner] || null,
+		victor: winner, victorCn: PLANET_CN[winner] || winner, victorGlyph: PLANET_GLYPH[winner] || '',
+		victorMundane: PLANET_MUNDANE_FULL[winner] || null,
 		scores,
 		points: (alm.points || []).map((pt) => POINT_CN[pt] || pt),
 		maxScore: scores.length ? scores[0].score : 0,
+		hasAccidentals: Object.keys(acc).length > 0,
 	};
 }
 
@@ -552,6 +594,49 @@ export function mundaneConjunctionIndicator(facts){
 // 便捷：直接传 chart（Result）。
 export function describeMundaneFromChart(chart){
 	try{ return describeMundaneChart(buildFacts(chart)); }catch(e){ return []; }
+}
+
+// [G11] 四轴特殊点(赤道上升点 EastPoint / 天顶点 Vertex / 反天顶 Antivertex)。
+// 公式照录古籍坐标篇:λ_EQ = atan2(cos RAMC, −sin RAMC·cos ε)(即 RA=RAMC+90° 的黄道点);
+// Vertex = 以余纬(90−|φ|)代入 ASC 公式、取西半球交点;Antivertex = Vertex+180°。
+// RAMC 由 λ_MC 反推(黄纬 0:RA = atan2(sin λ·cos ε, cos λ));ε 取平均黄赤交角 23.4367°
+// (世纪变率 <0.02°,对 0.1° 级显示足够;卡内注明)。纬度自 params.lat('39N54' 形)解析。
+const MEAN_OBLIQUITY = 23.4367;
+function parseLatText(latText){
+	const m = String(latText || '').trim().match(/^(\d+(?:\.\d+)?)\s*([NnSs])\s*(\d+(?:\.\d+)?)?/);
+	if(!m){ const f = parseFloat(latText); return Number.isFinite(f) ? f : null; }
+	const deg = parseFloat(m[1]) + (m[3] ? parseFloat(m[3]) / 60 : 0);
+	return /[Ss]/.test(m[2]) ? -deg : deg;
+}
+const D2R = Math.PI / 180;
+const norm360 = (x) => (((x % 360) + 360) % 360);
+export function describeSpecialAxes(facts){
+	if(!facts || !facts.meta || facts.meta.mcLon == null){ return null; }
+	const mcLon = facts.meta.mcLon;
+	const ascLon = facts.meta.ascLon;
+	const latText = facts.result && facts.result.params ? facts.result.params.lat : null;
+	const phi = parseLatText(latText);
+	const eps = MEAN_OBLIQUITY * D2R;
+	// RAMC:MC 黄经 → 赤经(黄纬 0)。
+	const lm = mcLon * D2R;
+	const ramc = Math.atan2(Math.sin(lm) * Math.cos(eps), Math.cos(lm));
+	// EastPoint(赤道上升点)。
+	const eastPoint = norm360(Math.atan2(Math.cos(ramc), -Math.sin(ramc) * Math.cos(eps)) / D2R);
+	let vertex = null;
+	if(phi != null && Math.abs(phi) < 89.9){
+		const coLat = (90 - Math.abs(phi)) * D2R;   // 余纬代入 ASC 公式
+		const r2 = ramc + Math.PI;                  // 取西半球交点(RAMC+180 支)
+		let v = norm360(Math.atan2(Math.cos(r2), -(Math.sin(r2) * Math.cos(eps) + Math.tan(coLat) * Math.sin(eps))) / D2R);
+		// 西半球守卫:Vertex 必落上升点起的西半圆((λ−ASC)∈(180,360));落东侧则取对点。
+		if(ascLon != null && norm360(v - ascLon) < 180){ v = norm360(v + 180); }
+		vertex = v;
+	}
+	return {
+		eastPoint,
+		vertex,
+		antivertex: vertex != null ? norm360(vertex + 180) : null,
+		note: '赤道上升点=纬度 0° 处的上升(轴宫制第 1 宫头);天顶点取西半球交点,与人事被动遭逢相关。黄赤交角按平均值近似。',
+	};
 }
 
 export default { describeMundaneChart, mundaneConjunctionIndicator, describeEclipse, describeEclipseAfflictions, describeMundaneWeather, describeMundaneSyzygy, describeMundaneFromChart, describeIngressSkeleton, describeMundaneVictor, buildMundaneStarPoints, mundaneFixedStarHits, mundaneStarLon, MUNDANE_HOUSE_MEANINGS, MUNDANE_HOUSE_FULL, PLANET_IN_MUNDANE_HOUSE, PLANET_SIGNIFICATION, PLANET_MUNDANE_FULL, SIGN_MUNDANE_TEMPER, MUNDANE_FIXED_STARS, MUNDANE_ASPECT_FRAME, ECLIPSE_ELEMENT, ECLIPSE_DECAN };

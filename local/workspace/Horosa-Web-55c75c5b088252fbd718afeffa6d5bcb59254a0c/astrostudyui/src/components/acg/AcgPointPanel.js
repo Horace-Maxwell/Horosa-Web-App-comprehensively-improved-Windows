@@ -3,7 +3,14 @@ import { Spin, Empty } from 'antd';
 import { XQDrawer } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { getInterp } from './interpretations.zh';
+import { getInterp, sensitiveMeaning } from './interpretations.zh';
+
+// 8 敏感点(引擎 report.sensitive 键)→ 中文名 + 含义键
+const SENS_META = [
+	['vertex', '宿命点 Vertex', 'vertex'], ['eastpoint', '东点 EastPoint', 'eastpoint'],
+	['coasc_koch', '副上升(Koch)', 'coasc_koch'], ['coasc_munkasey', '副上升(Munkasey)', 'coasc_munkasey'],
+	['polarasc', '极地上升', 'polarasc'], ['antiscia_mc', 'MC 映点', null], ['antiscia_asc', 'ASC 映点', null],
+];
 
 const PLANET_CN = {
 	[AstroConst.SUN]: '太阳', [AstroConst.MOON]: '月亮', [AstroConst.MERCURY]: '水星',
@@ -11,10 +18,12 @@ const PLANET_CN = {
 	[AstroConst.SATURN]: '土星', [AstroConst.URANUS]: '天王星', [AstroConst.NEPTUNE]: '海王星',
 	[AstroConst.PLUTO]: '冥王星', [AstroConst.NORTH_NODE]: '北交点', [AstroConst.SOUTH_NODE]: '南交点',
 	[AstroConst.CHIRON]: '凯龙星', [AstroConst.DARKMOON]: '莉莉丝', [AstroConst.PURPLE_CLOUDS]: '紫炁',
+	[AstroConst.CERES]: '谷神星', [AstroConst.PALLAS]: '智神星', [AstroConst.JUNO]: '婚神星',
+	[AstroConst.VESTA]: '灶神星', [AstroConst.ERIS]: '阋神星',
 };
 const ANGLE_CN = { [AstroConst.ASC]: '上升', [AstroConst.DESC]: '下降', [AstroConst.MC]: '中天', [AstroConst.IC]: '天底' };
 const SIGN_CN = ['白羊', '金牛', '双子', '巨蟹', '狮子', '处女', '天秤', '天蝎', '射手', '摩羯', '水瓶', '双鱼'];
-const HSYS_NAME = { P: '普拉西德', K: '柯赫', W: '整宫', A: '等宫', D: '等宫(MC)', V: '维罗', N: '0°白羊', O: '波菲利', B: '阿卡比特', R: '雷乔蒙塔努斯', C: '坎帕努斯', T: '站心', X: '子午宫', M: '莫林', U: '克鲁辛斯基', Y: 'APC', H: '地平宫', G: '高奎林' };
+const HSYS_NAME = { P: '普拉西德', K: '柯赫', W: '整宫', A: '等宫', D: '等宫(MC)', V: '维罗', N: '0°白羊', O: '波菲利', B: '阿卡比特', R: '雷乔蒙塔努斯', C: '坎帕努斯', T: '站心', X: '子午宫', M: '莫林', U: '克鲁辛斯基', Y: 'APC', H: '地平宫', G: '高奎林', F: '卡特', I: 'Sunshine', S: 'Sripati', L: 'Pullen SD', Q: 'Pullen SR' };
 
 function glyph(k) { return (AstroText.AstroMsg && AstroText.AstroMsg[k]) || ''; }
 function fmtLat(v) { return `${Math.abs(v).toFixed(2)}°${v >= 0 ? 'N' : 'S'}`; }
@@ -89,6 +98,21 @@ class AcgPointPanel extends Component {
 										</span>
 									</div>
 								))}
+							</div>
+						) : null}
+
+						{report.sensitive && Object.keys(report.sensitive).length ? (
+							<div style={{ marginTop: 16 }}>
+								<div style={{ fontWeight: 600, margin: '6px 0' }}>敏感点（此地起盘）</div>
+								{SENS_META.map(([k, cn, mk]) => (report.sensitive[k] === undefined ? null : (
+									<div key={k} style={{ fontSize: 12.5, padding: '3px 0' }}>
+										<div style={{ display: 'flex', justifyContent: 'space-between' }}>
+											<span style={{ opacity: 0.72 }}>{cn}</span>
+											<span>{signDeg(report.sensitive[k])}</span>
+										</div>
+										{mk && sensitiveMeaning(mk) ? <div style={{ fontSize: 11.5, lineHeight: 1.55, opacity: 0.62, marginTop: 1 }}>{sensitiveMeaning(mk)}</div> : null}
+									</div>
+								)))}
 							</div>
 						) : null}
 

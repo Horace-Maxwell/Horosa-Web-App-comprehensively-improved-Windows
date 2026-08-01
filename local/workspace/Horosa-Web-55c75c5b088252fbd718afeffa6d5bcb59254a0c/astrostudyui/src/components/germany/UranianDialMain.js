@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import moment from 'moment';
-import { Row, Col, Slider, Tree, Collapse, Table } from 'antd';
+import { Row, Col, Slider, Tree, Collapse, Table, Modal, Input } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
@@ -10,12 +10,15 @@ import UranianDial from './UranianDial';
 import UranianModulusDial from './UranianModulusDial';
 import UranianCosmogram from './UranianCosmogram';
 import UranianRectify from './UranianRectify';
-import { midpointTree, planetaryPictures, midpointList, spiegelContacts, solarArcDirections, crossContacts } from '../../utils/uranianDial';
-import { factorLabel, composeShort } from '../../data/uranianMeanings';
+import { midpointTree, planetaryPictures, midpointList, spiegelContacts, solarArcDirections, crossContacts, compositeChart, midpointHubs, SA_RATE } from '../../utils/uranianDial';
+import { factorLabel, composeShort, pairKey, FACTOR_MEANINGS, PAIR_MEANINGS, CLASSIC_PAIR_MEANINGS, PICTURE_MEANINGS, MEDICAL_MIDPOINTS } from '../../data/uranianMeanings';
+import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
 import { getStoredUranianDisplay, saveUranianDisplay, URANIAN_DIAL_BASES, dialBaseLabel } from './UranianDialStyle';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, XQInputNumber } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams } from './UranianSchools';
+import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams, schoolComparisonRows } from './UranianSchools';
+import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
 import { listLocalCharts } from '../../utils/localcharts';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -94,10 +97,14 @@ function birthEpochMs(birth){
 	return (jdn - 2440587.5) * 86400000;
 }
 
-// 右栏因子用字形（与盘一致，hover 显名）：TNP=缩写；白羊点=全站 Aries 字形；其余=AstroMsg+AstroChartFont。
+// 右栏因子用字形（与盘一致，hover 显名）：TNP=手绘 SVG 星图字形(B1,缺则缩写兜底)；
+// 白羊点=全站 Aries 字形；其余=AstroMsg+AstroChartFont。一处改,右栏全部列表/树/读数生效。
 // hover 标题=名 · 因子义(增强;原 msg(id) 作 fallback,factorLabel 缺则只剩名)。
 function tipOf(id){ const lab = factorLabel(id); return lab && lab !== msg(id) ? msg(id) + ' · ' + lab : msg(id); }
 function glyphOf(id){
+	// 有手绘 SVG 字形者(8 TNP + 东点/宿命点)一律 path;其余 AstroMsg 字形;再退缩写/中文名。
+	const svg = tnpGlyph(id, 15);
+	if (svg) return <span title={tipOf(id)} style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: '-0.15em' }}>{svg}</span>;
 	const tnp = AstroText.isUranian(id) && id !== AstroConst.ARIES_POINT;
 	if (tnp) return <span style={{ fontWeight: 600, letterSpacing: '0.3px' }} title={tipOf(id)}>{AstroText.uranianGlyph(id)}</span>;
 	const ch = id === AstroConst.ARIES_POINT ? AstroText.AstroMsg[AstroConst.ARIES] : AstroText.AstroMsg[id];
@@ -177,6 +184,19 @@ function libraryChartParams(rec){
 		name: rec.name || '', pos: rec.pos || '',
 	};
 }
+// 快照/挂载链共用:从持久化 synastryPeople 解析第一位叠盘人的起盘参数。
+// 仅命盘库来源('lib:<cid>')可离线解析;'cur' 当前页盘在无 fieldsAry 的快照语境不可得 → null,
+// 调用方据此跳过 [组合盘]/[戴维森盘] 段(仅开启且数据可得时附)。
+export function firstSynastryPartnerParams(disp){
+	const firstId = disp && Array.isArray(disp.synastryPeople) ? disp.synastryPeople[0] : null;
+	if (!firstId || `${firstId}`.indexOf(LIB_PREFIX) !== 0) return null;
+	let lib = [];
+	try { lib = listLocalCharts() || []; } catch (e) { lib = []; }
+	const cid = `${firstId}`.slice(LIB_PREFIX.length);
+	const rec = lib.find((r) => r && `${r.cid}` === cid);
+	return rec ? libraryChartParams(rec) : null;
+}
+
 // 叠盘人候选 = 当前页盘(source:'current')∪ 命盘库(source:'library')。
 //   当前盘 fields=fieldsAry 对象映射(走 fieldsToParams);库盘 record=原始记录(走 libraryChartParams)。
 //   库内有出生信息的盘才入列;label 用人名,库盘缺名以出生日兜底,UI 另以 source 标注区分。
@@ -198,21 +218,26 @@ function buildPersonList(fieldsAry){
 	return out;
 }
 
-// 流派 + 容许度 → /germany/midpoint 出参增量(WP-0 白名单已通:school/includeTnp/orb/personalOrb/frames)。
+// 流派 + 容许度 → /germany/midpoint 出参增量(Java 白名单:school/orb/personalOrb/frames/declination/strictFactors)。
 // 后端按 school 推 include_tnp(cosmo→无虚星)、用 orb / personalOrb;默认 classic 即现状字节零回归。
 function schoolRequestParams(state){
-	const sp = schoolToBackendParams(state.school);   // {school, includeTnp, orbMidpoint, orbPersonal, frames}
+	const sp = schoolToBackendParams(state.school);   // {school, frames(预设兜底)}
 	return {
 		...sp,
 		orb: state.orb,                 // 盘上容许度(用户可逐项覆盖,优先于预设 orbMidpoint)
 		personalOrb: state.orbPersonal, // 个人点放宽容许度(Basic Five)
+		// 六宫框(D1 live 化):随开关实时下发(原取流派预设→手动开而预设关时后端不算,开关半死)。
+		// 东点(B7)黄经由 houseFrames.eastPoint 携带 → 开东点时即便六宫框关也请求 frames。
+		frames: state.showHouseFrames !== false || !!state.showEastPoint,
 		// 赤纬接触(WP-11):仅请求该字段;false 时后端不算 declination(省算)。include_tnp 仍随 school。
 		declination: state.showDeclination !== false,
+		// 严格因子集(D2):true 时后端在 uranian 分支剔除黑月/紫气两非汉堡点;默认关不发=零回归不扰缓存。
+		...(state.strictFactors ? { strictFactors: true } : {}),
 	};
 }
 
-// 从盘对象（本命/行运同形）取参与点：行星+三王+北交南交+Asc/MC。
-function chartToPoints(chartRoot){
+// 从盘对象（本命/行运同形）取参与点：行星+三王+北交南交+Asc/MC。(导出:AI 快照链组装伙伴盘点复用)
+export function chartToPoints(chartRoot){
 	const inner = (chartRoot && chartRoot.chart) ? chartRoot.chart : (chartRoot || {});
 	const out = []; const seen = new Set();
 	const sp = (v) => (Number.isFinite(Number(v)) ? Number(v) : null); // lonspeed:逆行标记用,缺失=null
@@ -351,13 +376,20 @@ export default class UranianDialMain extends Component {
 		if (perr) { if (!this.unmounted) this.setState({ dataNote: perr }); return; }
 		if (!this.unmounted && this.state.dataNote) this.setState({ dataNote: null });
 		try {
-			const data = await request(`${Constants.ServerRoot}/germany/midpoint`, { body: JSON.stringify({ ...params, ...schoolRequestParams(this.state) }), silent: true });
+			// B5 戴维森:开关开且已选合盘人 → 请求附 davison(第二人出生参数);后端只增响应字段。
+			const dav = this.state.showDavison ? this.davisonPartnerParams() : null;
+			const data = await request(`${Constants.ServerRoot}/germany/midpoint`, { body: JSON.stringify({ ...params, ...schoolRequestParams(this.state), ...(dav ? { davison: dav } : {}) }), silent: true });
 			const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
 			if (!this.unmounted && result) {
 				const patch = {};
 				if (Array.isArray(result.tnp)) patch.natalTnp = result.tnp;
 				// 赤纬接触(WP-11):后端缺该字段(declination:false 或老后端)→ 存 null,面板显「需后端赤纬数据」。
 				patch.natalDecl = (result.declination && typeof result.declination === 'object') ? result.declination : null;
+				// B5:戴维森因子表(未请求/老后端 → null,环自然不画);B7:东点/宿命点黄经随 houseFrames 带回。
+				patch.davisonData = (result.davison && typeof result.davison === 'object') ? result.davison : null;
+				const hf = result.houseFrames;
+				patch.natalEastPoint = (hf && Number.isFinite(Number(hf.eastPoint))) ? Number(hf.eastPoint) : null;
+				patch.natalVertex = (hf && Number.isFinite(Number(hf.vertex))) ? Number(hf.vertex) : null;
 				// horosa_panel_ready_v1:90°中点盘自有的后端数据(TNP + 赤纬)在此落定;
 				// 盘面其余点来自 props.chart(主盘),故这一次 setState 是本子盘「画完」的最后一次。
 				this.setState(patch, ()=>{
@@ -366,6 +398,38 @@ export default class UranianDialMain extends Component {
 			}
 		} catch (e) { /* 静默 */ }
 	}
+
+	// B5:戴维森盘第二人 = 第一位合盘叠加人(当前盘/库盘)的完整起盘参数(后端 PerChart 全量吃)。
+	davisonPartnerParams(){
+		const firstId = (this.state.synastryPeople || [])[0];
+		if (!firstId) return null;
+		const p = buildPersonList(this.props.fieldsAry).find((x) => x.id === firstId);
+		if (!p) return null;
+		const params = p.source === 'library' ? libraryChartParams(p.record) : fieldsToParams(p.fields);
+		return (params && !dialParamsError(params)) ? params : null;
+	}
+
+	// B5:组合中点盘点集(与第一位叠盘人逐因子近中点;两盘都过 TNP 开关同一过滤面)。
+	compositePoints(){
+		const firstId = (this.state.synastryPeople || [])[0];
+		const pts = firstId ? this.state.synastryPersonPoints[firstId] : null;
+		if (!Array.isArray(pts) || !pts.length) return null;
+		return compositeChart(this.natalPoints(), filterByTnp(pts, this.state.showTnp));
+	}
+
+	// B5:戴维森环点集(后端真实行星位置 + 真算 Asc/MC + 白羊点)。
+	davisonPoints(){
+		const d = this.state.davisonData;
+		if (!d || !Array.isArray(d.points) || !d.points.length) return null;
+		const pts = d.points.map((p) => ({ id: p.id, lon: p.lon, speed: Number.isFinite(Number(p.lonspeed)) ? Number(p.lonspeed) : null }));
+		if (d.angles){ Object.keys(d.angles).forEach((aid) => { if (Number.isFinite(Number(d.angles[aid]))) pts.push({ id: aid, lon: Number(d.angles[aid]) }); }); }
+		pts.push({ id: AstroConst.ARIES_POINT, lon: 0 });
+		return filterByTnp(pts, this.state.showTnp);
+	}
+
+	toggleComposite(v){ this.saveDisp({ showComposite: v }); }
+	// 戴维森开启须带 davison 参数重取(setState 回调保证请求带新值);关闭只藏环,数据残留无妨。
+	toggleDavison(v){ this.saveDisp({ showDavison: v }, v ? () => this.requestNatalTnp() : undefined); }
 
 	async requestTransit(){
 		const base = fieldsToParams(this.props.fields);
@@ -449,6 +513,9 @@ export default class UranianDialMain extends Component {
 		// 全量入 + filterByTnp 在出口处裁剪,这样 TNP 开关切换无需重发后端请求,即时反映。
 		(this.state.natalTnp || []).forEach((t) => pts.push({ id: t.id, lon: t.lon, speed: Number.isFinite(Number(t.lonspeed)) ? Number(t.lonspeed) : null }));
 		pts.push({ id: AstroConst.ARIES_POINT, lon: 0 }); // 白羊点/世界轴 = 0°（=AR 对称图）
+		// B7 可选点(默认关):东点=赤道上升(houseFrames.eastPoint)/宿命点=Vertex(houseFrames.vertex)。
+		if (this.state.showEastPoint && Number.isFinite(Number(this.state.natalEastPoint))) pts.push({ id: AstroConst.EAST_POINT, lon: Number(this.state.natalEastPoint) });
+		if (this.state.showVertex && Number.isFinite(Number(this.state.natalVertex))) pts.push({ id: AstroConst.VERTEX, lon: Number(this.state.natalVertex) });
 		return filterByTnp(pts, this.state.showTnp);
 	}
 
@@ -519,6 +586,16 @@ export default class UranianDialMain extends Component {
 				rings.push({ key: `syn${idx}`, label: labelMap[id] || id, points: filterByTnp(pts, this.state.showTnp), synastry: true });
 			}
 		});
+		// B5:组合盘(逐因子近中点,纯前端)/戴维森(时空中点真实起盘,后端)——各自成环,
+		// 自动获得拖动旋转/指针读数/中点树扫描全部既有能力。
+		if (this.state.showComposite){
+			const cPts = this.compositePoints();
+			if (cPts && cPts.length) rings.push({ key: 'composite', label: '组合盘', points: cPts });
+		}
+		if (this.state.showDavison){
+			const dPts = this.davisonPoints();
+			if (dPts && dPts.length) rings.push({ key: 'davison', label: '戴维森', points: dPts });
+		}
 		return rings;
 	}
 
@@ -526,11 +603,12 @@ export default class UranianDialMain extends Component {
 	// 太阳弧环被拖动 → 报告定向弧(黄道度)；按 SA key 反推对应年龄。
 	onSaArc(arc){
 		const a = ((Number(arc) % 360) + 360) % 360;
-		const rate = this.state.saKey === 'oneDeg' ? 1.0 : 0.9856473354; // 1°/年 或 Naibod
+		const rate = SA_RATE[this.state.saKey] || SA_RATE.naibod; // naibod / 1°/年 / cardan 三选一(B9)
 		this.setState({ saArcDirected: a, saAge: a / rate });
 	}
 
-	saveDisp(patch){ this.setState(patch); saveUranianDisplay(patch); }
+	// cb:setState 完成后回调(重取后端须走此,直调 requestNatalTnp 会读到旧 state——请求体在 await 前同步构造)。
+	saveDisp(patch, cb){ this.setState(patch, cb); saveUranianDisplay(patch); }
 	toggleTransit(v){ this.saveDisp({ showTransit: v }); if (v) this.requestTransit(); }
 
 	// WP-3:由出生时间(birthEpochMs)算当前周岁,供「按当前年龄填充」差值表目标年龄。缺出生信息→null。
@@ -556,6 +634,9 @@ export default class UranianDialMain extends Component {
 			crossPointer: p.crossPointer,
 			showHouseFrames: p.showHouseFrames,
 			cosmogram: !!p.cosmogramDefault,
+			// 第3组:扩展映点轴/严格因子集随派预设(美国对称派映点扩展至 15° 固定轴)。
+			extendedAxes: !!p.extendedAxes,
+			strictFactors: !!p.strictFactors,
 			// 互斥盘式三选一:宇宙生物学默认宇宙图;其余流派若当前是宇宙图则回落折叠盘(避免残留)。
 			dialStyle: p.cosmogramDefault ? 'cosmogram' : (this.state.dialStyle === 'cosmogram' ? 'folded' : this.state.dialStyle),
 		};
@@ -564,11 +645,22 @@ export default class UranianDialMain extends Component {
 			if (this.state.showTransit) this.requestTransit();
 		});
 		saveUranianDisplay(patch);
+		// ephemBase 接线(原死字段):切派把该派图形星历盘基写入 gephem 仓并广播——
+		// 已挂载的图形星历 Tab 实时换盘基(与其他预设键同语义:切派=套预设,之后可手动改)。
+		try {
+			const cur = JSON.parse(localStorage.getItem('horosa.uranian.gephem.v1') || '{}') || {};
+			safeLocalStorageSet('horosa.uranian.gephem.v1', JSON.stringify({ ...cur, base: p.ephemBase }));
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('horosa-uranian-ephembase', { detail: { base: p.ephemBase } }));
+			}
+		} catch (e) { /* noop */ }
 	}
 
-	buildTreeData(tree){
+	buildTreeData(tree, hubTop3){
+		const top = hubTop3 || new Set();
 		return Object.keys(tree).map((pid) => ({
-			title: (<span><b>{glyphOf(pid)}</b> <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>· {tree[pid].length} 组</span></span>),
+			// B6:枝数徽标(.horosa-panel-count);Top3 枢纽(占据中点最多)加重着色并标「枢纽」。
+			title: (<span><b>{glyphOf(pid)}</b> <span className="horosa-panel-count" title={top.has(pid) ? '整合枢纽 Top3:占据中点最多' : '占据的中点枝数'} style={top.has(pid) ? { background: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', color: '#fff', fontWeight: 700 } : {}}>{tree[pid].length}</span>{top.has(pid) ? <span style={{ color: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', fontSize: 11, marginLeft: 4 }}>枢纽</span> : null}</span>),
 			key: pid,
 			children: tree[pid].map((r, i) => ({
 				title: (<span>{glyphOf(r.a)} <span style={{ color: 'var(--horosa-text-soft)' }}>/</span> {glyphOf(r.b)} <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>- {r.sep.toFixed(2)}°</span></span>),
@@ -588,11 +680,16 @@ export default class UranianDialMain extends Component {
 		const transitText = this.state.transitTime ? this.state.transitTime.format('YYYY-MM-DD HH:mm') : `此刻 ${nowText}`;
 		const saArc = this.state.saArcDirected || 0;
 		const saAge = this.state.saAge || 0;
-		const saKeyLabel = this.state.saKey === 'oneDeg' ? '1°/年' : 'Naibod';
+		const saKeyLabel = this.state.saKey === 'oneDeg' ? '1°/年' : (this.state.saKey === 'cardan' ? 'Cardan' : 'Naibod');
+		// B5:组合/戴维森两层需已选 ≥1 合盘叠加对象(取第一位);未选时禁用并提示。
+		const firstSyn = (this.state.synastryPeople || [])[0] || null;
+		const synReady = !!(firstSyn && this.state.synastryPersonPoints[firstSyn]);
 		return [
 			{ key: 'natal', label: '本命', dot: 'var(--horosa-text-soft)', info: `出生 ${birthText}`, locked: true, on: true },
 			{ key: 'transit', label: '行运', dot: 'var(--horosa-jx-xiong)', info: transitText, on: this.state.showTransit, toggle: (v) => this.toggleTransit(v) },
 			{ key: 'solararc', label: '太阳弧', dot: 'var(--horosa-jade)', info: `弧 ${saArc.toFixed(1)}° → 约 ${saAge.toFixed(1)} 岁（${saKeyLabel}）`, on: this.state.showSolarArc, toggle: (v) => this.toggleSolarArc(v) },
+			{ key: 'composite', label: '组合盘', dot: 'var(--horosa-gold, #b8860b)', info: synReady ? '与第一位叠盘人逐因子取中点 · 关系本身之盘' : '需先选「合盘叠加」对象', on: !!this.state.showComposite, toggle: (v) => this.toggleComposite(v), disabled: !synReady },
+			{ key: 'davison', label: '戴维森', dot: 'var(--horosa-cinnabar, #e2603f)', info: synReady ? '时空中点真实起盘 · 真实行星位置' : '需先选「合盘叠加」对象', on: !!this.state.showDavison, toggle: (v) => this.toggleDavison(v), disabled: !synReady },
 		];
 	}
 
@@ -667,13 +764,14 @@ export default class UranianDialMain extends Component {
 		const getTree = lazyOnce(()=> (this.state.showPicture ? midpointTree(natalPts, this.state.dialBase, this.state.orb, treeOpts) : {}));
 		const getPictures = lazyOnce(()=> (this.state.showPlanetPicture ? planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 40 }) : []));
 		const getMpList = lazyOnce(()=> (this.state.showMidpointList ? midpointList(natalPts, this.state.dialBase, scanOpts) : []));
-		const getSpiegel = lazyOnce(()=> (this.state.showAntiscia ? spiegelContacts(natalPts, this.state.dialBase, this.state.orb, scanOpts) : []));
+		const getSpiegel = lazyOnce(()=> (this.state.showAntiscia ? spiegelContacts(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, extendedAxes: !!this.state.extendedAxes }) : []));
 		// WP-3 差值表:本命点集的太阳弧到期(全/半/倍 + 单因子白羊档),按 saKey 换算到期年龄,命中目标年龄高亮。
 		// maxAge=120 兜底(避免极大年龄行);targetAge 由 InputNumber 控制,win=1。
 		const getDiffRows = lazyOnce(()=> (this.state.showDiffList
 			? solarArcDirections(natalPts, this.state.dialBase, { saKey: this.state.saKey, targetAge: this.state.diffTargetAge, win: 1, maxAge: 120 })
 			: []));
 		// 叠盘人接触(crossContacts):同样惰性 —— 只有「接触」组被渲染时才算。
+		// 显示名/清单(personLabelById/personList)已在上方为 buildRings 现算,直接闭包复用。
 		const getSynContacts = lazyOnce(()=>{
 			const out = [];
 			(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => {
@@ -691,7 +789,7 @@ export default class UranianDialMain extends Component {
 		const natalAsc = natalAngleLon(AstroConst.ASC);
 		const birthMoment = (() => { const ms = birthEpochMs(this.props.fields && this.props.fields.date ? this.props.fields.date.value : null); return Number.isFinite(ms) ? moment(ms) : null; })();
 		// 环色令牌化:本命=主文字色,行运=凶红,太阳弧=玉绿(全用 --horosa-* 语义令牌,暗黑/明亮自适应)。
-		const ringTone = { 本命: 'var(--horosa-text)', 行运: 'var(--horosa-jx-xiong)', 太阳弧: 'var(--horosa-jade)' };
+		const ringTone = { 本命: 'var(--horosa-text)', 行运: 'var(--horosa-jx-xiong)', 太阳弧: 'var(--horosa-jade)', 组合盘: 'var(--horosa-gold, #b8860b)', 戴维森: 'var(--horosa-cinnabar, #e2603f)' };
 		// WP-9:合盘人环按其人名上色(与盘 RING_TONE syn0..3 同族);ringTone 按【显示名】键控
 		//   (读数 tag [ring.label] 用同一文案查色),环标签即 personLabelById[id]。
 		(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => { ringTone[personLabelById[id] || id] = SYN_TONE[idx] || SYN_TONE[0]; });
@@ -721,6 +819,7 @@ export default class UranianDialMain extends Component {
 					<XQSelect value={this.state.school} options={SCHOOL_OPTIONS} onChange={(v) => this.changeSchool(v)} className="horosa-uranian-school" size="small" style={{ width: '100%' }} />
 					<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 6 }}>
 						选派套该派默认；下方控件可逐项覆盖。
+						<a style={{ marginLeft: 6 }} onClick={() => this.setState({ schoolTableOpen: true })}>流派对照</a>
 					</div>
 				</XQSideSection>
 
@@ -749,13 +848,13 @@ export default class UranianDialMain extends Component {
 
 				<XQSideSection iconName={sideSectionIcon('planets')} title="叠盘层（除本命外可拖动）" storageKey="germany.layers" className="horosa-uranian-section horosa-side-input-section">
 					{layers.map((L) => (
-						<div key={L.key} style={{ ...rowSty, padding: '5px 0', borderBottom: L.key !== 'solararc' ? '1px solid var(--horosa-border-soft, rgba(0,0,0,0.04))' : 'none' }}>
+						<div key={L.key} style={{ ...rowSty, padding: '5px 0', borderBottom: L.key !== 'davison' ? '1px solid var(--horosa-border-soft, rgba(0,0,0,0.04))' : 'none', opacity: L.disabled ? 0.55 : 1 }}>
 							<div style={{ minWidth: 0, flex: 1 }}>
 								<div><span style={{ color: L.dot, marginRight: 5 }}>●</span><b>{L.label}</b>{L.locked ? <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}> · 锁定</span> : null}</div>
 								{/* 不截断:换行而非省略号(用户验收口径)。 */}
 								<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginLeft: 16, wordBreak: 'break-word', whiteSpace: 'normal' }}>{L.info}</div>
 							</div>
-							{L.locked ? <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>内圈</span> : <XQSwitch size="small" checked={L.on} onChange={L.toggle} />}
+							{L.locked ? <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>内圈</span> : <XQSwitch size="small" checked={L.on} disabled={!!L.disabled} onChange={L.toggle} />}
 						</div>
 					))}
 					{this.state.showTransit ? (
@@ -771,8 +870,8 @@ export default class UranianDialMain extends Component {
 						<div style={{ marginTop: 10 }}>
 							<div style={rowSty}>
 								<span style={{ fontSize: 11, color: 'var(--horosa-text-soft)' }}>太阳弧换算</span>
-								<XQSegmented size="small" value={this.state.saKey} onChange={(e) => { const k = e.target.value; this.saveDisp({ saKey: k }); const rate = k === 'oneDeg' ? 1.0 : 0.9856473354; this.setState({ saAge: (this.state.saArcDirected || 0) / rate }); }}
-									options={[{ value: 'naibod', label: 'Naibod' }, { value: 'oneDeg', label: '1°/年' }]} />
+								<XQSegmented size="small" value={this.state.saKey} onChange={(e) => { const k = e.target.value; this.saveDisp({ saKey: k }); const rate = SA_RATE[k] || SA_RATE.naibod; this.setState({ saAge: (this.state.saArcDirected || 0) / rate }); }}
+									options={[{ value: 'naibod', label: 'Naibod' }, { value: 'oneDeg', label: '1°/年' }, { value: 'cardan', label: 'Cardan' }]} />
 							</div>
 							<div style={{ marginTop: 6 }}>{this.renderLocOverride('saLat', 'saLon')}</div>
 						</div>
@@ -812,8 +911,16 @@ export default class UranianDialMain extends Component {
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>差值表 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>太阳弧到期</span></span><XQSwitch size="small" checked={this.state.showDiffList} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('diff') < 0) op.push('diff'); this.saveDisp({ showDiffList: v, openPanels: op }); }} /></div>
 					{/* 流派盘面附加(随流派默认,可逐项覆盖):十字指针 22.5° 四向辅助 / 六宫框。 */}
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>十字指针 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>22.5°</span></span><XQSwitch size="small" checked={this.state.crossPointer} onChange={(v) => this.saveDisp({ crossPointer: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>六宫框</span><XQSwitch size="small" checked={this.state.showHouseFrames} onChange={(v) => this.saveDisp({ showHouseFrames: v })} /></div>
-					<div style={{ ...rowSty, marginBottom: 10 }}><span>赤纬接触 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>平行/反平行</span></span><XQSwitch size="small" checked={this.state.showDeclination} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('parallel') < 0) op.push('parallel'); this.saveDisp({ showDeclination: v, openPanels: op }); if (v) { this.requestNatalTnp(); } }} /></div>
+					{/* D1:六宫框开关 live 下发 frames 且开启时重取(与赤纬开关对称);setState 回调保证请求带新值。 */}
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>六宫框</span><XQSwitch size="small" checked={this.state.showHouseFrames} onChange={(v) => this.saveDisp({ showHouseFrames: v }, v ? () => this.requestNatalTnp() : undefined)} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>赤纬接触 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>平行/反平行</span></span><XQSwitch size="small" checked={this.state.showDeclination} onChange={(v) => { const op = Array.isArray(this.state.openPanels) ? this.state.openPanels.slice() : []; if (v && op.indexOf('parallel') < 0) op.push('parallel'); this.saveDisp({ showDeclination: v, openPanels: op }, v ? () => this.requestNatalTnp() : undefined); }} /></div>
+					{/* D2:严格因子集(剔除黑月/紫气两非汉堡点);改后端点集,开/关都须重取。默认关=零回归。 */}
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>严格因子集 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>剔黑月/紫气</span></span><XQSwitch size="small" checked={!!this.state.strictFactors} onChange={(v) => this.saveDisp({ strictFactors: v }, () => this.requestNatalTnp())} /></div>
+					{/* B7 可选点(默认关):东点黄经随 houseFrames 带回(开启须重取);宿命点同源。 */}
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>东点 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>赤道上升</span></span><XQSwitch size="small" checked={!!this.state.showEastPoint} onChange={(v) => this.saveDisp({ showEastPoint: v }, v ? () => this.requestNatalTnp() : undefined)} /></div>
+					<div style={{ ...rowSty, marginBottom: 8 }}><span>宿命点 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>Vertex</span></span><XQSwitch size="small" checked={!!this.state.showVertex} onChange={(v) => this.saveDisp({ showVertex: v }, v ? () => this.requestNatalTnp() : undefined)} /></div>
+					{/* B8 扩展映点轴(15°固定星座):折叠盘上与基本轴重合,仅 360° 模数盘有别(映点卡随注)。 */}
+					<div style={{ ...rowSty, marginBottom: 10 }}><span>扩展映点轴 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>15°固定星座</span></span><XQSwitch size="small" checked={!!this.state.extendedAxes} onChange={(v) => this.saveDisp({ extendedAxes: v })} /></div>
 					<div style={{ marginBottom: 2, fontSize: 12 }}>容许度 <b>{this.state.orb}°</b></div>
 					<Slider min={0.5} max={3} step={0.5} value={this.state.orb} onChange={(v) => this.saveDisp({ orb: v })} />
 					{/* 个人点放宽容许度(Basic Five;下发后端 personalOrb,且前端读数/树/图同口径放宽)。 */}
@@ -844,7 +951,13 @@ export default class UranianDialMain extends Component {
 				);
 			}));
 
-		const getTreeData = lazyOnce(()=> this.buildTreeData(getTree()));
+		// B6:枢纽统计(分支越多越重要)——Top3 在树节点加重;徽标=枝数。
+		// horosa_lazy_right_panels_v1:hubs 扫描与树装配一并惰性(仅「读数」组渲染时求值)。
+		const getTreeData = lazyOnce(()=>{
+			const hubs = this.state.showPicture ? midpointHubs(natalPts, this.state.dialBase, this.state.orb, treeOpts) : [];
+			const hubTop3 = new Set(hubs.slice(0, 3).map((h) => h.id));
+			return this.buildTreeData(getTree(), hubTop3);
+		});
 		const treeBody = ()=>{
 			const treeData = getTreeData();
 			return treeData.length === 0
@@ -863,9 +976,17 @@ export default class UranianDialMain extends Component {
 				</div>
 			)); };
 		// 中点扁平列表(含个人点 > TNP > 其他):显中点黄经位。
-		const mpListBody = ()=>{ const mpList = getMpList(); return mpList.length === 0 ? empty('暂无中点')
-			: mpList.slice(0, 150).map((m, i) => (
+		// B6:两大最重中点(日/月「内在婚姻」与 Asc/MC)固定置顶加 ★。
+		const topPairKeys = new Set([pairKey(AstroConst.SUN, AstroConst.MOON), pairKey(AstroConst.ASC, AstroConst.MC)]);
+		const isTopPair = (m) => topPairKeys.has(pairKey(m.a, m.b));
+		const getMpListOrdered = lazyOnce(()=>{
+			const mpList = getMpList();
+			return mpList.length ? [...mpList.filter(isTopPair), ...mpList.filter((m) => !isTopPair(m))] : mpList;
+		});
+		const mpListBody = ()=>{ const mpListOrdered = getMpListOrdered(); return mpListOrdered.length === 0 ? empty('暂无中点')
+			: mpListOrdered.slice(0, 150).map((m, i) => (
 				<div key={i} title={composeShort(m.a, m.b)} style={rowLine}>
+					{isTopPair(m) ? <span style={{ color: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', marginRight: 3 }} title="两大最重中点">★</span> : null}
 					{glyphOf(m.a)}<span style={soft}>/</span>{glyphOf(m.b)}<span style={soft}> · {m.lon.toFixed(2)}°</span>
 				</div>
 			)); };
@@ -994,21 +1115,100 @@ export default class UranianDialMain extends Component {
 		// 右栏卡片定义(group=归属的分组 Tab)。受 showXXX/rings 控制的卡片仅在条件成立时入列。
 		// 分组:reading 读数(指针读数+中点树) / midpoint 中点(中点列表+行星图+映点) /
 		//       solararc 太阳弧(差值表) / contact 接触(合盘接触+赤纬接触) / rectify 校时(只读预览,独立成 Tab)。
-		// header 也改 thunk:数量徽标要读 pictures.length / diffRows.length 等,那正是重扫描的结果 ——
-		// 若在此处直接求值,惰性就白做了。renderGroup 只对【本组】卡片调用 header()/body()。
+		// ── B2 虚星参考卡:8 行(字形/组别/关键词/三套周期并列/AU/年行/字形描述),顶部口径提示恒在。 ──
+		const tnpRefBody = (
+			<div>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-soft)', marginBottom: 6, lineHeight: 1.5 }}>{TNP_CALIBRE_NOTE}</div>
+				{tnpReferenceList().map((r) => (
+					<div key={r.id} style={{ padding: '5px 0', borderBottom: '1px solid var(--horosa-border-soft, rgba(0,0,0,0.05))' }}>
+						<div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+							{glyphOf(r.id)}<b>{r.label}</b>
+							<span style={{ ...soft, fontSize: 11 }}>{TNP_GROUP_LABEL[r.group]}</span>
+						</div>
+						<div style={{ ...soft, fontSize: 11, marginTop: 2, wordBreak: 'break-word' }}>{r.keyword}</div>
+						<div style={{ fontSize: 11, marginTop: 2 }}>
+							周期(年) 甲 {r.periodA} · 乙 <b>{r.periodB}</b>{r.periodC != null ? <span> · 丙 {r.periodC}</span> : null}
+							<span style={soft}> ｜ {r.au} AU ｜ 年行 {r.motionA}</span>
+						</div>
+						<div style={{ ...soft, fontSize: 11, marginTop: 2, wordBreak: 'break-word' }}>字形:{r.glyphDesc}</div>
+					</div>
+				))}
+			</div>
+		);
+		// ── B3 含义词典浏览:检索 + 五组词条(单一数据源 uranianMeanings;经典判语四层展开;医学附免责)。 ──
+		const lexQ = (this.state.lexQ || '').trim();
+		const lexHit = (txts) => !lexQ || txts.some((t) => t && `${t}`.indexOf(lexQ) >= 0);
+		const lexPairLabel = (key) => key.split('|').map((id) => factorLabel(id)).join('/');
+		const lexSections = [];
+		{
+			const rows = Object.keys(FACTOR_MEANINGS).filter((id) => lexHit([factorLabel(id), FACTOR_MEANINGS[id].keyword]))
+				.map((id) => ({ k: id, t: <span>{glyphOf(id)} <b>{factorLabel(id)}</b></span>, lines: [FACTOR_MEANINGS[id].keyword] }));
+			if (rows.length) lexSections.push({ name: '因子基义', rows });
+		}
+		{
+			const rows = Object.keys(PAIR_MEANINGS).filter((k) => lexHit([lexPairLabel(k), PAIR_MEANINGS[k]]))
+				.map((k) => ({ k, t: <b>{lexPairLabel(k)}</b>, lines: [PAIR_MEANINGS[k]] }));
+			if (rows.length) lexSections.push({ name: '个人点轴义', rows });
+		}
+		{
+			const rows = Object.keys(CLASSIC_PAIR_MEANINGS).filter((k) => { const e = CLASSIC_PAIR_MEANINGS[k]; return lexHit([lexPairLabel(k), e.principle, e.psych && e.psych.plus, e.psych && e.psych.minus, e.bio, e.socio]); })
+				.map((k) => {
+					const e = CLASSIC_PAIR_MEANINGS[k];
+					const lines = [`原理:${e.principle}`];
+					if (e.psych) lines.push(`心理 ＋:${e.psych.plus} ／ −:${e.psych.minus}`);
+					if (e.bio) lines.push(`生理:${e.bio}(仅为体质倾向参考,不替代医疗诊断)`);
+					if (e.socio) lines.push(`社会:${e.socio}`);
+					if (e.occupants) Object.keys(e.occupants).forEach((cid) => lines.push(`＝${factorLabel(cid)}:${e.occupants[cid]}`));
+					return { k, t: <b>{lexPairLabel(k)}</b>, lines };
+				});
+			if (rows.length) lexSections.push({ name: '经典中点判语', rows });
+		}
+		{
+			const rows = Object.keys(PICTURE_MEANINGS).filter((k) => lexHit([lexPairLabel(k), PICTURE_MEANINGS[k]]))
+				.map((k) => ({ k, t: <b>{lexPairLabel(k)}</b>, lines: [PICTURE_MEANINGS[k]] }));
+			if (rows.length) lexSections.push({ name: '含虚星图样例', rows });
+		}
+		{
+			const rows = Object.keys(MEDICAL_MIDPOINTS).filter((k) => lexHit([lexPairLabel(k), MEDICAL_MIDPOINTS[k].temperament, MEDICAL_MIDPOINTS[k].note]))
+				.map((k) => ({ k, t: <b>{lexPairLabel(k)} · {MEDICAL_MIDPOINTS[k].temperament}</b>, lines: [MEDICAL_MIDPOINTS[k].note] }));
+			if (rows.length) lexSections.push({ name: '医学四液中点', rows });
+		}
+		const lexCount = lexSections.reduce((acc, gp) => acc + gp.rows.length, 0);
+		const lexiconBody = (
+			<div>
+				<Input size="small" allowClear placeholder="检索因子 / 判语关键词" value={this.state.lexQ || ''}
+					onChange={(e) => this.setState({ lexQ: e.target.value })} style={{ marginBottom: 8 }} />
+				{lexCount === 0 ? empty('无匹配词条') : lexSections.map((gp) => (
+					<div key={gp.name} style={{ marginBottom: 8 }}>
+						<div style={{ fontSize: 11, color: 'var(--horosa-text-soft)', margin: '4px 0' }}>{gp.name} · {gp.rows.length}</div>
+						{gp.rows.map((r) => (
+							<div key={r.k} style={{ padding: '4px 0', borderBottom: '1px solid var(--horosa-border-soft, rgba(0,0,0,0.04))' }}>
+								<div style={{ fontSize: 13 }}>{r.t}</div>
+								{r.lines.map((ln, li) => <div key={li} style={{ fontSize: 12, color: 'var(--horosa-text-soft)', marginTop: 1, wordBreak: 'break-word', whiteSpace: 'normal' }}>{ln}</div>)}
+							</div>
+						))}
+					</div>
+				))}
+			</div>
+		);
+		// header 也改 thunk:数量徽标要读 getPictures().length / getDiffRows().length 等,那正是重扫描
+		// 的结果 —— 若在此处直接求值,惰性就白做了。渲染层只对【本组】卡片调用 header()/body()。
 		const panelDefs = [
 			{ key: 'readout', group: 'reading', header: ()=>hdr('指针读数', null, this.state.readout.length || null), body: readoutBody, mh: 0.5 },
 			{ key: 'tree', group: 'reading', header: ()=>hdr('中点树', null, getTreeData().length || null), body: treeBody, mh: 0.42 },
 			this.state.showMidpointList && { key: 'list', group: 'midpoint', header: ()=>hdr('中点列表', null, getMpList().length), body: mpListBody, mh: 0.4 },
 			this.state.showPlanetPicture && { key: 'pic', group: 'midpoint', header: ()=>hdr('行星图', 'A+B−C=D', getPictures().length), body: pictureBody, mh: 0.4 },
-			this.state.showAntiscia && { key: 'spiegel', group: 'midpoint', header: ()=>hdr('映点', 'Spiegelpunkt', getSpiegel().length), body: spiegelBody, mh: 0.36 },
+			this.state.showAntiscia && { key: 'spiegel', group: 'midpoint', header: ()=>hdr('映点', this.state.extendedAxes ? 'Spiegelpunkt · 含15°固定轴(仅360°盘有别)' : 'Spiegelpunkt', getSpiegel().length), body: spiegelBody, mh: 0.36 },
 			this.state.showDiffList && { key: 'diff', group: 'solararc', header: ()=>hdr('差值表', '太阳弧到期', getDiffRows().length), body: diffBody, mh: 0.5 },
 			rings.length >= 2 && { key: 'contact', group: 'contact', header: ()=>hdr('合盘接触', null, getSynCount() || null), body: contactBody, mh: 0.5 },
 			this.state.showDeclination && { key: 'parallel', group: 'contact', header: ()=>hdr('赤纬接触', '平行/反平行', decl ? (declParCount + declCpCount) || null : null), body: parallelBody, mh: 0.5 },
 			// 校时(WP-10)独立成 group=rectify Tab:与「接触」语义分离(事件→生时反推工作流,非接触相位)。
 			{ key: 'rectify', group: 'rectify', header: ()=>hdr('校时', '只读预览', (this.state.rectifyEvents || []).length || null), body: rectifyBody, mh: 0.6 },
+			// B2/B3:虚星参考 + 含义词典(恒在,group='tnp' 第六组 Tab;两 body 为既有 JSX 值,thunk 化只为消费面统一)。
+			{ key: 'tnpref', group: 'tnp', header: ()=>hdr('虚星参考', '三套周期并列', 8), body: ()=>tnpRefBody, mh: 0.55 },
+			{ key: 'lexicon', group: 'tnp', header: ()=>hdr('含义词典', '检索', lexCount || null), body: ()=>lexiconBody, mh: 0.55 },
 		].filter(Boolean);
-		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'pic', 'list', 'spiegel', 'diff', 'contact', 'parallel', 'rectify'];
+		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'pic', 'list', 'spiegel', 'diff', 'contact', 'parallel', 'rectify', 'tnpref', 'lexicon'];
 		// 分组 Tab 定义(顺序固定);某卡片受开关控制为空时,对应 Tab 显空提示而非报错。
 		const RIGHT_TABS = [
 			{ key: 'reading', label: '读数', hint: '指针读数与中点树' },
@@ -1016,6 +1216,7 @@ export default class UranianDialMain extends Component {
 			{ key: 'solararc', label: '太阳弧', hint: '开启「差值表」开关后在此查看太阳弧到期' },
 			{ key: 'contact', label: '接触', hint: '开启行运/太阳弧/合盘叠加或「赤纬接触」后在此查看' },
 			{ key: 'rectify', label: '校时', hint: '添加生平事件→反推生时(只读预览,不改盘)' },
+			{ key: 'tnp', label: '虚星', hint: '虚星参考数据与含义词典' },
 		];
 		// 分组内卡片仍用 Collapse(沿用既有 horosa-uranian-panels 暗黑样式 + 数量徽标),每卡可独立收放。
 		const renderGroup = (groupKey) => {
@@ -1054,8 +1255,26 @@ export default class UranianDialMain extends Component {
 		// 放宽缘由:右栏赤纬接触行 Kr·+23.37°/+22.45°·差0.9 等 nowrap 单行(rowLine)在 span=4 时被裁,加一列防截断。
 		// 左右两个 Col 用内层 div 套 maxHeight+overflowY:auto;盘 col 也加底部 paddingBottom 防 Dock 遮挡。
 		const sideScroll = { width: '100%', maxHeight: sideMaxH, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 };
+		// B4:四流派设置对照(数据从 SCHOOL_PRESETS 实值派生渲染,防文档与代码 drift;全中性表述)。
+		const schoolCols = [
+			{ title: '设置项', dataIndex: 'k', key: 'k', width: 128 },
+			{ title: '原始汉堡', dataIndex: 'classic', key: 'classic' },
+			{ title: '纯净派', dataIndex: 'pure', key: 'pure' },
+			{ title: '美国对称', dataIndex: 'uranian', key: 'uranian' },
+			{ title: '宇宙生物学', dataIndex: 'cosmo', key: 'cosmo' },
+		];
+		const schoolModal = (
+			<Modal open={!!this.state.schoolTableOpen} onCancel={() => this.setState({ schoolTableOpen: false })}
+				footer={null} width={620} title="四流派设置对照（随预设实值派生）">
+				<Table size="small" pagination={false} rowKey="k" columns={schoolCols} dataSource={schoolComparisonRows()} />
+				<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 8 }}>
+					表值直接读自流派预设——选派即套用,之后左栏各控件可逐项覆盖;更详尽的方法说明见「帮助」。
+				</div>
+			</Modal>
+		);
 		return (
 			<div className="horosa-midpoint-host" ref={(el) => { this._host = el; }}>
+				{schoolModal}
 				<div className="horosa-midpoint-workbench">
 					<Row className="horosa-midpoint-layout" gutter={10}>
 						<Col span={4} className="horosa-midpoint-side-col"><div style={sideScroll}>{settings}</div></Col>

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index 27308f4..d4a9367 100644
+index 5d25beb..9d06dd1 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-@@ -24,13 +24,49 @@ import * as Su28Helper from '../su28/Su28Helper';
+@@ -25,13 +25,49 @@ import * as Su28Helper from '../su28/Su28Helper';
  import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
  import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
  import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
@@ -53,7 +53,7 @@ index 27308f4..d4a9367 100644
  const {Option, OptGroup} = Select
  const JIEQI_STD = [
  	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
-@@ -239,6 +275,41 @@ function fieldsToState(fields){
+@@ -250,6 +286,41 @@ function fieldsToState(fields){
  	return st;
  }
  
@@ -95,7 +95,27 @@ index 27308f4..d4a9367 100644
  function getSeedCacheKey(params){
  	return [
  		params && params.year,
-@@ -1042,10 +1113,19 @@ export class JieQiChartsMain extends Component{
+@@ -881,16 +952,9 @@ function tabNeedsJieqiCharts(currentTab, jieqis){
+ 
+ 
+ export class JieQiChartsMain extends Component{
+-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+-	shouldComponentUpdate(nextProps, nextState){
+-		if(nextState !== this.state){
+-			return true;
+-		}
+-		return !wrapperPropsEqual(this.props, nextProps);
+-	}
+-
+-
++	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同类内也带一份通用 wrapperPropsEqual 渲染守卫,
++	// 与本类内另一份我方细化守卫重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
++	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
+ 	constructor(props) {
+ 		super(props);
+ 
+@@ -1093,10 +1157,19 @@ export class JieQiChartsMain extends Component{
  		this.setState({
  			fields: flds,
  		});
@@ -119,7 +139,7 @@ index 27308f4..d4a9367 100644
  	}
  
  	async requestJieQiCharts(seedParams, seedSeq, tab){
-@@ -1154,6 +1234,11 @@ export class JieQiChartsMain extends Component{
+@@ -1205,6 +1278,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);
@@ -131,7 +151,7 @@ index 27308f4..d4a9367 100644
  			if(!fullResult || this.unmounted){
  				return fullResult;
  			}
-@@ -1440,7 +1525,15 @@ export class JieQiChartsMain extends Component{
+@@ -1491,7 +1569,15 @@ export class JieQiChartsMain extends Component{
  			return dom;
  		}
  
@@ -148,7 +168,7 @@ index 27308f4..d4a9367 100644
  			const fourCols = getJieqiFourColumns(item);
  			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
  			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
-@@ -1503,6 +1596,7 @@ export class JieQiChartsMain extends Component{
+@@ -1554,6 +1640,7 @@ export class JieQiChartsMain extends Component{
  				{cols}
  			</Row>
  		);
@@ -156,7 +176,7 @@ index 27308f4..d4a9367 100644
  		return dom;
  	}
  
-@@ -1682,6 +1776,16 @@ export class JieQiChartsMain extends Component{
+@@ -1733,6 +1820,16 @@ export class JieQiChartsMain extends Component{
  		}
  	}
  

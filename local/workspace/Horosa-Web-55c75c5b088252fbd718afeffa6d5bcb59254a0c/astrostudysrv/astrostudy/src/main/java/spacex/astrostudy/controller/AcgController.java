@@ -125,6 +125,40 @@ public class AcgController {
 		if(TransData.containsParam("coord")) {
 			params.put("coord", TransData.get("coord"));
 		}
+		// 全流派补齐新键(P0/P1/P3):未登记=静默丢弃;Python 侧全部有默认兜底=零回归。
+		if(TransData.containsParam("asteroids")) {
+			params.put("asteroids", TransData.get("asteroids"));
+		}
+		if(TransData.containsParam("nodeType")) {
+			params.put("nodeType", TransData.get("nodeType"));
+		}
+		if(TransData.containsParam("lilithType")) {
+			params.put("lilithType", TransData.get("lilithType"));
+		}
+		if(TransData.containsParam("posType")) {
+			params.put("posType", TransData.get("posType"));
+		}
+		if(TransData.containsParam("horizon")) {
+			params.put("horizon", TransData.get("horizon"));
+		}
+		if(TransData.containsParam("draconic")) {
+			params.put("draconic", TransData.get("draconic"));
+		}
+		if(TransData.containsParam("harmonic")) {
+			params.put("harmonic", TransData.get("harmonic"));
+		}
+		if(TransData.containsParam("vibration")) {
+			params.put("vibration", TransData.get("vibration"));
+		}
+		if(TransData.containsParam("lotsCustom")) {
+			params.put("lotsCustom", TransData.get("lotsCustom"));
+		}
+		if(TransData.containsParam("midpointMode")) {
+			params.put("midpointMode", TransData.get("midpointMode"));
+		}
+		if(TransData.containsParam("geodeticZero")) {
+			params.put("geodeticZero", TransData.get("geodeticZero"));
+		}
 		if(TransData.containsParam("ayanamsa")) {
 			params.put("ayanamsa", TransData.get("ayanamsa"));
 		}

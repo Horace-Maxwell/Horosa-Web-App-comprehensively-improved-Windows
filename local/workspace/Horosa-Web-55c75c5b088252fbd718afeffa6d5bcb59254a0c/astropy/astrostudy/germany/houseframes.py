@@ -28,7 +28,8 @@ def _meridian_cusps(jd, lat, lon):
     返回 (cusps[12] 已 %360, 东点 ascmc[4]%360, MC ascmc[1]%360)。
     直连 houses_ex 读裸 ascmc——不经 flatlib sweHouses(它会把东点当 ASC 赤经误转)。"""
     cusps, ascmc = swisseph.houses_ex(jd, float(lat), float(lon), b'X')
-    return [c % 360 for c in cusps], ascmc[4] % 360, ascmc[1] % 360
+    # ascmc[3]=Vertex:同一调用顺带带出(B7 前端可选点),零新计算;锚点语义(ascmc[4]/[1])不变。
+    return [c % 360 for c in cusps], ascmc[4] % 360, ascmc[1] % 360, ascmc[3] % 360
 
 
 def _equal_cusps(first):
@@ -94,7 +95,7 @@ def compute_house_frames(perchart, pts):
     lon = perchart.pos.lon
 
     # —— 子午局:赤道分宫(不等距),直连 houses_ex(b'X') 读裸 ascmc[4]/ascmc[1] ——
-    mer_cusps, east_point, mc = _meridian_cusps(jd, lat, lon)
+    mer_cusps, east_point, mc, vertex = _meridian_cusps(jd, lat, lon)
 
     # 上升 Asc(从 pts 取;pts 含 midpoint.objects 的 Asc,与盘一致)。
     asc = _lon_of(pts, const.ASC)
@@ -123,6 +124,7 @@ def compute_house_frames(perchart, pts):
     return {
         'frames': frames,
         'eastPoint': east_point,
+        'vertex': vertex,
         'mc': mc,
         'asc': asc,
     }

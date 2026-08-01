@@ -16,7 +16,7 @@ const DEFAULT_TERMS = 0;             // termsVariant 默认 0 (埃及)
 const DEFAULT_TRIP = TRIPLICITY_SYSTEM_DEFAULT;  // 'Dorothean'
 
 describe('G20 流派预设 schoolPresets', () => {
-	test('六档结构齐(zodiac/hsys/termsVariant/tripSystem + label)', () => {
+	test('六档结构齐(七维 + label)', () => {
 		['brennan', 'valens', 'ptolemy', 'dykes', 'houlding', 'zoller'].forEach((k)=>{
 			const p = SCHOOL_PRESETS[k];
 			expect(p).toBeTruthy();
@@ -25,6 +25,10 @@ describe('G20 流派预设 schoolPresets', () => {
 			expect(typeof p.hsys).toBe('number');
 			expect([0, 1, 2]).toContain(p.termsVariant);
 			expect(TRIPLICITY_SYSTEMS[p.tripSystem]).toBeTruthy();   // tripSystem 必须是合法三分体系
+			// 全维分化三项(P1-D1):缺一即选档后该维不写 → 分化失效
+			expect([0, 1]).toContain(p.lotReversal);
+			expect(['geo', 'ptolemy5']).toContain(p.sectBuffer);
+			expect(['whole', 'degree']).toContain(p.aspectModel);
 		});
 	});
 
@@ -62,10 +66,49 @@ describe('G20 流派预设 schoolPresets', () => {
 		expect(presetOf({ zodiac: DEFAULT_ZODIAC, hsys: DEFAULT_HSYS, termsVariant: DEFAULT_TERMS, tripSystem: DEFAULT_TRIP })).toBe('brennan');
 	});
 
-	test('presetOf:命中各档', () => {
+	test('presetOf:命中各档(七维;非默认维必须显式给,否则按默认补齐 → custom)', () => {
+		// valens 三新维皆为默认 → 四维即可命中
 		expect(presetOf({ zodiac: 'tropical', hsys: 0, termsVariant: 0, tripSystem: 'Dorothean' })).toBe('valens');
-		expect(presetOf({ zodiac: 'tropical', hsys: 9, termsVariant: 1, tripSystem: 'Ptolemaic' })).toBe('ptolemy');
-		expect(presetOf({ zodiac: 'tropical', hsys: 2, termsVariant: 1, tripSystem: 'Ptolemaic' })).toBe('houlding');
+		// ptolemy 三新维皆非默认 → 必须全给才命中
+		expect(presetOf({
+			zodiac: 'tropical', hsys: 9, termsVariant: 1, tripSystem: 'Ptolemaic',
+			lotReversal: 0, sectBuffer: 'ptolemy5', aspectModel: 'degree',
+		})).toBe('ptolemy');
+		// houlding 仅 aspectModel 非默认
+		expect(presetOf({
+			zodiac: 'tropical', hsys: 2, termsVariant: 1, tripSystem: 'Ptolemaic', aspectModel: 'degree',
+		})).toBe('houlding');
+		// zoller:Alcabitus + 埃及界 + Dorothean + degree 相位
+		expect(presetOf({ zodiac: 'tropical', hsys: 1, termsVariant: 0, tripSystem: 'Dorothean', aspectModel: 'degree' })).toBe('zoller');
+	});
+
+	test('🔴 全维分化:三新维取值与文档档案表一致', () => {
+		// brennan 三新维 === 应用当前默认(零回归锚)
+		expect(SCHOOL_PRESETS.brennan.lotReversal).toBe(1);
+		expect(SCHOOL_PRESETS.brennan.sectBuffer).toBe('geo');
+		expect(SCHOOL_PRESETS.brennan.aspectModel).toBe('whole');
+		// ptolemy:不反转 + 上升前 5° 缓冲 + 度数相位
+		expect(SCHOOL_PRESETS.ptolemy.lotReversal).toBe(0);
+		expect(SCHOOL_PRESETS.ptolemy.sectBuffer).toBe('ptolemy5');
+		expect(SCHOOL_PRESETS.ptolemy.aspectModel).toBe('degree');
+		// houlding/zoller:度数相位,余项默认
+		expect(SCHOOL_PRESETS.houlding.aspectModel).toBe('degree');
+		expect(SCHOOL_PRESETS.zoller.aspectModel).toBe('degree');
+		expect(SCHOOL_PRESETS.houlding.lotReversal).toBe(1);
+		// valens/dykes:全默认三新维
+		['valens', 'dykes'].forEach((k)=>{
+			expect(SCHOOL_PRESETS[k].lotReversal).toBe(1);
+			expect(SCHOOL_PRESETS[k].sectBuffer).toBe('geo');
+			expect(SCHOOL_PRESETS[k].aspectModel).toBe('whole');
+		});
+	});
+
+	test('presetOf:单改任一新维 → custom(不再误判命中原档)', () => {
+		const base = { zodiac: DEFAULT_ZODIAC, hsys: DEFAULT_HSYS, termsVariant: DEFAULT_TERMS, tripSystem: DEFAULT_TRIP };
+		expect(presetOf({ ...base, lotReversal: 0 })).toBe(SCHOOL_PRESET_CUSTOM);
+		expect(presetOf({ ...base, sectBuffer: 'ptolemy5' })).toBe(SCHOOL_PRESET_CUSTOM);
+		// aspectModel 改 degree 时 hsys=1/埃及界/Dorothean 恰为 zoller 档 → 命中 zoller(非 custom)
+		expect(presetOf({ ...base, aspectModel: 'degree' })).toBe('zoller');
 	});
 
 	test('presetOf:任一单项被改 → custom', () => {

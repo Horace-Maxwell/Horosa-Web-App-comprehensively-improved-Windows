@@ -112,5 +112,21 @@ export function zhanleiLines(a, guaName){
 	const askType = a && a.settings && a.settings.askType;
 	const doctItems = doctrineSummaryFor(askType, getDoctrine(), { perMen: 4, cap: 20 });
 	doctItems.forEach((it) => out.push(`断语·${it.men}·${it.source}：${(it.text || '').replace(/\s+/g, ' ').slice(0, 70)}`));
+	// 占天时古法(仅「天时占法」设为古法档时有;通行档 a.tianshi 为 null → 本块整体不出)。
+	// 与上面 doctrine 摘要同段、同为「有界摘要 + 带出处」:天时本就是占类之一,不另开段头
+	// —— 新增段头须同步登记 aiExport 的 preset 注册表,而这里并入既有段即可,零登记风险。
+	// 🔴 必带「各家分列、不合成单一结论」的口径,否则 AI 会把互相冲突的各家判语当成一个结论。
+	if(a && a.tianshi && Array.isArray(a.tianshi.houses) && a.tianshi.houses.length){
+		out.push(`天时·古法分列(${a.tianshi.houses.length} 家;各家自成体系、彼此有冲突,不可合成单一结论)`);
+		let n = 0;
+		a.tianshi.houses.forEach((h)=>{
+			h.hits.slice(0, 3).forEach((x)=>{
+				if(n >= 12){ return; }
+				out.push(`天时·${h.source}：${x.rule}(${x.detail})`);
+				n += 1;
+			});
+		});
+		(a.tianshi.notImplemented || []).forEach((ni)=>out.push(`天时·未采:${ni.source}(${ni.why})`));
+	}
 	return out;
 }

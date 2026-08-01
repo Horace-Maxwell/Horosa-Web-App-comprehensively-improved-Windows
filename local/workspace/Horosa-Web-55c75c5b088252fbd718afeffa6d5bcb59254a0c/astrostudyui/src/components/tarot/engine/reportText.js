@@ -1,14 +1,13 @@
 // 塔罗 AI/导出快照文本(确定性增强):头(牌组·牌阵·设置·种子·指示牌) + 逐牌(各派名·正逆·占象·含义·尊位)
 //   + 综合块 + 可选定局/生命牌摘要。供 UI 直断与 AI 快照共用,单一真值源。
 import { getDeck, getDeckCards } from './deckRegistry.js';
-import { displayName, astroLine } from './cardSchema.js';
+import { displayName, astroLine, cardMeaning } from './cardSchema.js';
 import { orientationLabel } from './spreads.js';
 import { synthesizeText, yesNo, quintessence, birthCards, yearCard, majorByNumber, countingChain } from './verdict.js';
 
-function meaningOf(card, isReversed){
-	const m = card.meanings || {};
-	const arr = isReversed ? (m.rev || card.keywords_reversed) : (m.up || card.keywords_upright);
-	return (arr || []).slice(0, 5).join('、');
+// 含义列（G5 双轨 + G2 逆位模式）:按 meaningSystem/reversalMode 走 cardMeaning 单一真值。
+function meaningOf(card, isReversed, system, reversalMode){
+	return cardMeaning(card, isReversed, system, reversalMode);
 }
 
 // reading 来自 engine/reading.buildReading。question 可单独传(优先于 reading.question)。
@@ -39,7 +38,7 @@ export function buildReadingText(reading, question){
 		const card = d.card;
 		if(!card){ return; }
 		const dig = d.dignity ? `${d.dignity.strength}(${d.dignity.notes})` : '—';
-		lines.push(`| 位置${d.position.i}(${d.position.label}) | ${displayName(card, deck)} | ${orientationLabel(d.isReversed)} | ${astroLine(card, deck, eff.variant)} | ${meaningOf(card, d.isReversed)} | ${dig} |`);
+		lines.push(`| 位置${d.position.i}(${d.position.label}) | ${displayName(card, deck)} | ${orientationLabel(d.isReversed)} | ${astroLine(card, deck, eff.variant)} | ${meaningOf(card, d.isReversed, eff.meaningSystem, eff.reversalMode)} | ${dig} |`);
 	});
 	if(reading.summary){ lines.push('[综合断语]'); lines.push(synthesizeText(reading.summary)); }
 	// 定局摘要(Yes/No + 精华牌)
@@ -68,6 +67,18 @@ export function buildReadingText(reading, question){
 				lines.push(`${eff.birth.refYear} 流年牌:${yc ? displayName(yc, deck) : yn}`);
 			}
 		}catch(e){ /* 生命牌可选 */ }
+	}
+	// [开钥] G7:opening_of_key 五操作摘要(与右栏「开钥」tab 同源 reading.ook)。
+	if(reading.ook){
+		lines.push('[开钥]');
+		if(reading.ook.error){ lines.push(reading.ook.error); }
+		else if(reading.ook.operations){
+			reading.ook.operations.forEach((op) => {
+				const chain = (op.chain || []).slice(0, 6).map((it) => displayName(it.card, deck)).join(' → ');
+				lines.push(`操作${op.op} ${op.name}→落「${op.pileLabel}」(堆${op.pileSize}张)；计数链:${chain || '—'}`);
+			});
+			if(reading.ook.op5){ lines.push(`收束:${reading.ook.op5.summary}`); }
+		}
 	}
 	if(reading.draws.length === 1){ lines.push('（单张牌阵:以上即为对所问之事的一句核心指引。）'); }
 	// [组合读法] 雷诺曼一系专属段:与右栏「组合读法」renderLenormand 同源 reading.lenormand

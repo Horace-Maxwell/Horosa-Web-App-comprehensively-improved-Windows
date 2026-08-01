@@ -1,18 +1,19 @@
 diff --git a/astropy/websrv/kentang/kinastro_common.py b/astropy/websrv/kentang/kinastro_common.py
-index 90d8375..1d221e5 100644
+index 90d8615..0249897 100644
 --- a/astropy/websrv/kentang/kinastro_common.py
 +++ b/astropy/websrv/kentang/kinastro_common.py
-@@ -260,10 +260,26 @@ DISPLAY_REPLACEMENTS = {
+@@ -260,10 +260,27 @@ DISPLAY_REPLACEMENTS = {
  }
  
  
-+# horosa_display_trans_v1(PERF-R10 B4):DISPLAY_REPLACEMENTS 全部 1字→1字 ⇒ 逐项
-+# str.replace(每字符串 ~125 次全串遍历)可无损换成**单遍** C 级 str.translate。等价条件:
++# horosa_display_trans_v1(PERF-R10 B4;v3.6.0 对上游新 display 路径重贴):DISPLAY_REPLACEMENTS
++# 全部 1字→1字 ⇒ 逐项 str.replace(每字符串 ~125 次全串遍历)可无损换成**单遍** C 级
++# str.translate。等价条件:
 +#   ① 全键值单字符 —— _DISPLAY_TRANS_OK 在 import 时机械核验;未来有人混入多字符项,
 +#     自动整体退回旧循环(双保险,勿删);
-+#   ② 无链式替换(某项的**值**又是另一项的**键**)—— 键全繁体、值全简体,唯一交集是
-+#     恒等对「逆」;astropy/tests/test_kentang_display_fast.py 以不变量断言钉死,
-+#     改表破坏该性质会立即红。
++#   ② 无链式替换(某项的**值**又是另一项的**键**)—— 键全繁体、值全简体;
++#     astropy/tests/test_kentang_display_fast.py 以不变量断言钉死,改表破坏该性质会立即红。
++# 热路径:display_safe 递归清洗整棵 vendor 载荷,20 个 kentang 技法逐响应过这里。
 +# kill:HOROSA_DISPLAY_TRANS=0 ⇒ 旧循环路径,逐字节旧行为。
 +_DISPLAY_TRANS_ON = os.environ.get("HOROSA_DISPLAY_TRANS", "1").lower() not in ("0", "false", "no", "off")
 +_DISPLAY_TRANS_OK = all(len(k) == 1 and len(v) == 1 for k, v in DISPLAY_REPLACEMENTS.items())
@@ -31,3 +32,21 @@ index 90d8375..1d221e5 100644
      if zh_convert:
          try:
              text = zh_convert(text, "zh-cn")
+@@ -273,6 +290,8 @@ def display_text(value):
+ 
+ 
+ SOURCE_REPLACEMENTS = {new: old for old, new in DISPLAY_REPLACEMENTS.items() if old != new}
++# 同前提同证明(逆映射同为 1:1 单字符;金标同文件覆盖)。
++_SOURCE_TRANS = str.maketrans(SOURCE_REPLACEMENTS) if _DISPLAY_TRANS_OK else None
+ 
+ 
+ def source_text(value):
+@@ -283,6 +302,8 @@ def source_text(value):
+             text = zh_convert(text, "zh-tw")
+         except Exception:
+             pass
++    if _DISPLAY_TRANS_ON and _SOURCE_TRANS is not None:
++        return text.translate(_SOURCE_TRANS)
+     for old, new in SOURCE_REPLACEMENTS.items():
+         text = text.replace(old, new)
+     return text

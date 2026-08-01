@@ -108,6 +108,9 @@ function evalCond(cond, ctx){
 			const hi = ctx.huaHouse(String(cond.hua));
 			return hi === l || hi === r;
 		}
+		// WP-G 新增 op：noneInTrine(stars 全不在三方四正,负判「无辅拱」)、notInMing(某星不在命宫)。
+		case 'noneInTrine': return !list('stars').some((s)=>ctx.trine.has(ctx.idx(s)));
+		case 'notInMing': return ctx.idx(String(cond.star)) !== ctx.life;
 		default: return false;
 	}
 }

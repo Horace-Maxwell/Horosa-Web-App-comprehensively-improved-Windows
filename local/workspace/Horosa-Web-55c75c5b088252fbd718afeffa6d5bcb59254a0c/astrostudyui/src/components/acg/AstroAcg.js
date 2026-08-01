@@ -1,21 +1,28 @@
 import { Component } from 'react';
-import { Row, Col } from 'antd';
+import { Row, Col, Input, Slider } from 'antd';
 import moment from 'moment';
-import AcgD3Map, { STYLES } from './AcgD3Map';
+import AcgD3Map, { STYLES, acgColors } from './AcgD3Map';
+import AcgCompassDial from './AcgCompassDial';
 import AcgPointPanel from './AcgPointPanel';
+import AcgReferencePanel from './AcgReferencePanel';
 import request from '../../utils/request';
 import { setAcgSnapshot } from '../../utils/acgSnapshot';
 import { markPanelReady } from '../../utils/perfMark';
 import DateTimeInfo from '../comp/DateTimeInfo';
 import * as Constants from '../../utils/constants';
 import AstroLinesSelector from './AstroLinesSelector';
-import { getAllLines } from './AcgHelper';
+import { getAllLines, hasAsteroidLine } from './AcgHelper';
 import { XQButton, XQCheckItem, XQCheckList, XQDatePicker, XQDrawer, XQPanel, XQSegmented, XQSelect, XQSwitch } from '../xq-ui';
 
+// 全 25 宫制(后端 HSYS_MAP 已备 23 友好名 + 单字码透传;落点报告高纬失效自动回退 Porphyry)。
 const HSYS_OPTIONS = [
-	['placidus', '普拉西德'], ['koch', '柯赫'], ['whole', '整宫'], ['equal', '等宫'],
+	['placidus', '普拉西德'], ['koch', '柯赫'], ['whole', '整宫'], ['equal', '等宫(ASC)'],
+	['equalmc', '等宫(MC)'], ['vehlow', '维洛'], ['aries', '0°白羊等宫'],
 	['porphyry', '波菲利'], ['regiomontanus', '雷乔蒙'], ['campanus', '坎帕努斯'],
 	['alcabitius', '阿卡比特'], ['topocentric', '站心'], ['meridian', '子午宫'], ['morinus', '莫林'],
+	['krusinski', '克鲁辛斯基'], ['apc', 'APC'], ['horizon', '地平宫'], ['gauquelin', '高奎林'],
+	['carter', '卡特'], ['sunshine', 'Sunshine'], ['sripati', 'Sripati'],
+	['pullensd', 'Pullen SD'], ['pullensr', 'Pullen SR'],
 ];
 
 // 世运事件快捷(§19):选事件→后端查精确时刻→自动填入 CCG(全行运)= 事件时刻的角化线地图
@@ -29,11 +36,26 @@ const MUNDANE_EVENTS = [
 // 恒星黄道 ayanamsa 读数(复用后端 47 注册表键;''=回归/tropical)。选一档→落点面板加恒星度列、
 // 行星线 tooltip 显恒星黄经;物理线不变(恒星只是标注,升落/中天恒相同)。
 const AYANAMSA_OPTIONS = [
-	['', '回归(默认)'], ['lahiri', 'Lahiri'], ['lahiri_icrc', 'Lahiri ICRC'], ['raman', 'Raman'],
-	['krishnamurti', 'Krishnamurti'], ['kp', 'KP'], ['yukteshwar', 'Yukteshwar'],
-	['true_citra', 'True Citra'], ['true_revati', 'True Revati'], ['fagan_bradley', 'Fagan-Bradley'],
-	['deluce', 'De Luce'], ['galcent_0sag', '银心0°Sag'], ['hipparchos', 'Hipparchos'],
-	['sassanian', 'Sassanian'], ['babyl_kugler1', '巴比伦/Kugler'], ['j2000', 'J2000'],
+	['', '回归(默认)'],
+	['lahiri', 'Lahiri'], ['lahiri_icrc', 'Lahiri ICRC'], ['lahiri_1940', 'Lahiri 1940'],
+	['lahiri_vp285', 'Lahiri VP285'], ['raman', 'Raman'], ['krishnamurti', 'Krishnamurti (KP)'],
+	['krishnamurti_vp291', 'KP VP291'], ['yukteshwar', 'Yukteshwar'], ['jn_bhasin', 'J.N. Bhasin'],
+	['ushashashi', 'Usha/Shashi'], ['deluce', 'De Luce'], ['djwhal_khul', 'Djwhal Khul'],
+	['true_citra', 'True Citra'], ['true_revati', 'True Revati'], ['true_pushya', 'True Pushya'],
+	['true_mula', 'True Mula'], ['true_sheoran', 'Vedic/Sheoran'],
+	['ss_citra', 'SS Citra'], ['ss_revati', 'SS Revati'],
+	['suryasiddhanta', 'Surya Siddhanta'], ['suryasiddhanta_msun', 'Surya Siddhanta(平日)'],
+	['aryabhata', 'Aryabhata'], ['aryabhata_msun', 'Aryabhata(平日)'], ['aryabhata_522', 'Aryabhata 522'],
+	['fagan_bradley', 'Fagan-Bradley'], ['hipparchos', 'Hipparchos'], ['sassanian', 'Sassanian'],
+	['aldebaran_15tau', 'Aldebaran 15°Tau'], ['valens_moon', 'Vettius Valens'],
+	['babyl_kugler1', '巴比伦/Kugler1'], ['babyl_kugler2', '巴比伦/Kugler2'], ['babyl_kugler3', '巴比伦/Kugler3'],
+	['babyl_huber', '巴比伦/Huber'], ['babyl_etpsc', '巴比伦/ηPsc'], ['babyl_britton', '巴比伦/Britton'],
+	['galcent_0sag', '银心 0°Sag'], ['galcent_rgilbrand', '银心(Gil Brand)'],
+	['galcent_mula_wilhelm', '银心/Mula(Wilhelm)'], ['galcent_cochrane', '银心(Cochrane)'],
+	['galequ_iau1958', '银道赤道(IAU1958)'], ['galequ_true', '银道赤道(真)'],
+	['galequ_mula', '银道赤道(Mula)'], ['galequ_fiorenza', '银道赤道(Fiorenza)'],
+	['galalign_mardyks', 'Skydram(Mardyks)'],
+	['j2000', 'J2000'], ['j1900', 'J1900'], ['b1950', 'B1950'],
 ];
 
 function fieldsToParams(fields) {
@@ -74,6 +96,10 @@ class AstroAcg extends Component {
 			showStars: false,     // 固定星线(opt-in·后端重算·18 主要恒星 MC/IC/ASC/DSC)
 			showStarParans: false, // 固定星交映 parans(纯渲染;需先开固定星)
 			showTreasure: false,  // 寻宝图热力(自研透明评分·纯前端渲染层,零后端)
+			showZones: false,     // 影响带(§2.5:线两侧半透明带·纯渲染;宽度可调)
+			zoneWidth: 600,       // 行星线影响带宽度(英里,单侧;可调 400-800)
+			lsDialOpen: false,    // 本地空间罗盘盘面(360°方位轮·顶栏按钮开/盘内关)
+			ccgPlay: false,       // CCG 时间轴播放态(纯前端定时步进 ccgDate)
 			ccgDate: null,        // CCG 时间地图目标日期(moment;设了即画,清除即关)
 			ccgTime: '12:00:00',  // CCG 目标时刻(世运事件会带精确时刻)
 			ccgMix: 'mixed',      // CCG 口径:mixed 内二推外行运(文献标准)/transit/progressed
@@ -84,14 +110,28 @@ class AstroAcg extends Component {
 			hsys: 'placidus',     // 落点报告十二宫尖的宫制(§15)
 			showGeodetic: false,  // 地理等价线(§7)
 			geodetic: 'sepharial', // 地理等价流派:sepharial/mcrae/johndro
+			geodeticZero: '',     // 地理等价任意 0°♈ 子午线偏移(东经度;空=流派缺省)
+			orb: 2,               // 落点分析容许度(°;线偏差≤orb 才算命中)
 			geodeticVar: 'longitude', // 变体:longitude/ra
 			mode: 'mundo',        // 口径:mundo 本体(Jim Lewis 默认) / zodiac 黄道度(β=0)
-			coord: 'geo',         // 坐标系:geo 地心(默认) / helio 日心(仅绕日天体)
+			coord: 'geo',         // 坐标系:geo 地心(默认) / helio 日心(仅绕日天体) / topo 站心(周日视差)
+			posType: 'apparent',  // 位置类型:apparent 视位置(默认) / true 真位置(去光行差) / j2000 历元(仅读数)
+			horizon: 'geometric', // 地平:geometric 几何 h=0(默认) / apparent 视地平(折射−34′,仅ASC/DSC)
+			nodeType: 'mean',     // 交点:mean 平交点(默认) / true 真交点(振荡)
+			lilithType: 'mean',   // 月孛/Lilith:mean 平 / true 真(振荡) / intp 插值 / body 星体(需星历)
+			draconic: 'off',      // 龙黄道:off / mean / true(λ'=λ−北交黄经 刚性旋转)
+			harmonic: 1,          // 谐波 H(1=关):λ_H=H·λ,β=0
+			vibration: false,     // Cochrane 5/7/9 振动线
+			midpointMode: 'zodiac', // 中点线口径:zodiac 黄经中点(默认) / mundo 赤经中点
+			lotsCustom: '',       // 自定义阿拉伯点 A,B,C[,sect]
+			showVibration: false, // 振动线渲染层
+			showRelCross: false,  // 关系盘交叉/派状渲染层
 			ayanamsa: '',         // 恒星黄道读数(''=回归;选一档→面板/线加恒星度,物理线不变)
 			lsMode: 'great',      // 本地空间画法:great 大圆 / rhumb 等角航线
 			paranMode: 'off',
 			showLabels: true,
 			layersOpen: false,    // 「图层与设置」抽屉(3栏工作台:全部图层/流派/时间/关系盘)
+			refOpen: false,       // 含义速查抽屉(右)
 			pointReport: null,
 			pointOpen: false,
 			pointLoading: false,
@@ -122,7 +162,9 @@ class AstroAcg extends Component {
 		this.cycleCoord = this.cycleCoord.bind(this);
 		this.changeAyanamsa = this.changeAyanamsa.bind(this);
 		this.toggleStars = this.toggleStars.bind(this);
+		this.toggleVibration = this.toggleVibration.bind(this);
 		this.changeCcg = this.changeCcg.bind(this);
+		this.toggleCcgPlay = this.toggleCcgPlay.bind(this);
 		this.changeRel = this.changeRel.bind(this);
 		this.changeCalc = this.changeCalc.bind(this);
 		this.pickMundane = this.pickMundane.bind(this);
@@ -139,7 +181,9 @@ class AstroAcg extends Component {
 	}
 
 	toggleProjection() {
-		this.setState({ projection: this.state.projection === 'equirect' ? 'mercator' : 'equirect' });
+		const order = ['equirect', 'mercator', 'orthographic'];
+		const i = order.indexOf(this.state.projection);
+		this.setState({ projection: order[(i + 1) % order.length] });
 	}
 
 	cycleStyle() {
@@ -178,7 +222,12 @@ class AstroAcg extends Component {
 	}
 
 	changeLines(vals) {
-		this.setState({ lines: vals, linesSet: new Set(vals) });
+		// 主体线切换=纯前端显示过滤(不重算);但小行星启用/关闭状态变化 → 需后端重算出/撤线。
+		const hadAst = hasAsteroidLine(this.state.linesSet);
+		const nowAst = hasAsteroidLine(vals);
+		this.setState({ lines: vals, linesSet: new Set(vals) }, () => {
+			if (hadAst !== nowAst) this.requestAcg(this.genParams());
+		});
 	}
 
 	closeDrawer() { this.setState({ drawerVisible: false }); }
@@ -206,7 +255,7 @@ class AstroAcg extends Component {
 	async onMapClick(lat, lon) {
 		this.setState({ clickMarker: { lat, lon }, pointOpen: true, pointLoading: true });
 		try {
-			const params = { ...this.genParams(), clickLat: lat, clickLon: lon, orb: 2, hsys: this.state.hsys };
+			const params = { ...this.genParams(), clickLat: lat, clickLon: lon, orb: this.state.orb, hsys: this.state.hsys };
 			const data = await request(`${Constants.ServerRoot}/location/acgpoint`, { body: JSON.stringify(params) });
 			if (this.unmounted) return;
 			if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
@@ -225,9 +274,20 @@ class AstroAcg extends Component {
 			lsMode: this.state.lsMode,
 			geodetic: this.state.geodetic,
 			geodeticVar: this.state.geodeticVar,
+			geodeticZero: this.state.geodeticZero || '',
 			cuspLines: this.state.showCuspLines ? '1' : '0',
 			hsys: this.state.hsys,
 			coord: this.state.coord,
+			posType: this.state.posType,
+			horizon: this.state.horizon,
+			nodeType: this.state.nodeType,
+			lilithType: this.state.lilithType,
+			draconic: this.state.draconic,
+			harmonic: String(this.state.harmonic || 1),
+			vibration: this.state.showVibration ? '1' : '0',
+			midpointMode: this.state.midpointMode,
+			lotsCustom: this.state.lotsCustom || '',
+			asteroids: hasAsteroidLine(this.state.linesSet) ? '1' : '0',
 			ayanamsa: this.state.ayanamsa,
 			stars: this.state.showStars ? '1' : '0',
 		};
@@ -240,6 +300,7 @@ class AstroAcg extends Component {
 			p.relMode = this.state.relMode;
 			p.relDate = this.state.relDate.format('YYYY/MM/DD');
 			p.relTime = this.state.relTime || '12:00:00';
+			p.relZone = this.state.relZone || p.zone;   // B 盘时区(缺→随 A 盘)
 			const pos = (this.state.relPos || '').trim().split(/\s+/);
 			if (pos.length === 2) { p.relLat = pos[0]; p.relLon = pos[1]; }
 		}
@@ -279,9 +340,34 @@ class AstroAcg extends Component {
 		this.setState(patch, () => this.requestAcg(this.genParams()));
 	}
 
+	// CCG 时间轴播放(§19.5):定时步进 ccgDate(月)→ 重算角化线地图;_acgSeq 守卫防竞态。
+	toggleCcgPlay() {
+		if (this.state.ccgPlay) {
+			if (this._ccgTimer) { clearInterval(this._ccgTimer); this._ccgTimer = null; }
+			this.setState({ ccgPlay: false });
+			return;
+		}
+		if (!this.state.ccgDate) return;
+		this.setState({ ccgPlay: true });
+		this._ccgTimer = setInterval(() => {
+			if (this.unmounted || !this.state.ccgDate) {
+				clearInterval(this._ccgTimer); this._ccgTimer = null;
+				this.setState({ ccgPlay: false });
+				return;
+			}
+			const next = this.state.ccgDate.clone().add(1, 'month');
+			this.setState({ ccgDate: next }, () => this.requestAcg(this.genParams()));
+		}, 850);
+	}
+
 	// 固定星线开关:opt-in 后端重算(约 0.1s);关时零开销
 	toggleStars() {
 		this.setState({ showStars: !this.state.showStars }, () => this.requestAcg(this.genParams()));
+	}
+
+	// 振动线开关(opt-in·后端算 Cochrane 5/7/9 → 需重算)
+	toggleVibration() {
+		this.setState({ showVibration: !this.state.showVibration }, () => this.requestAcg(this.genParams()));
 	}
 
 	// 坐标系切换:地心↔日心(后端换算,日心仅绕日天体+日→地)
@@ -336,7 +422,7 @@ class AstroAcg extends Component {
 		this.requestAcg(this.genParams());
 	}
 
-	componentWillUnmount() { this.unmounted = true; }
+	componentWillUnmount() { this.unmounted = true; if (this._ccgTimer) { clearInterval(this._ccgTimer); this._ccgTimer = null; } }
 
 	render() {
 		const fields = this.props.fields;
@@ -378,8 +464,10 @@ class AstroAcg extends Component {
 						{/* 顶栏只留高频项;全部图层/流派/时间/关系盘收进「图层与设置」抽屉(3栏工作台) */}
 						<XQButton size="small" onClick={this.openDrawer}>行星线选择</XQButton>
 						{btn('图层与设置', this.openLayers, s.layersOpen)}
+						{btn('含义速查', () => this.setState({ refOpen: true }), s.refOpen)}
+						{btn('本地空间盘', () => this.setState({ lsDialOpen: !s.lsDialOpen }), s.lsDialOpen)}
 						{btn(s.showLabels ? '标注开' : '标注关', () => this.toggle('showLabels'), s.showLabels)}
-						{btn(s.projection === 'equirect' ? '等距投影' : '墨卡托', this.toggleProjection, false)}
+						{btn(s.projection === 'equirect' ? '等距投影' : (s.projection === 'mercator' ? '墨卡托' : '球面正射'), this.toggleProjection, false)}
 						{btn('样式·' + ((STYLES[s.mapStyle] && STYLES[s.mapStyle].name) || ''), this.cycleStyle, false)}
 						<XQSelect size="small" value={s.hsys} onChange={this.changeHsys} dropdownMatchSelectWidth={false} style={{ marginLeft: 8, minWidth: 96 }}>
 							{HSYS_OPTIONS.map(([v, cn]) => (<XQSelect.Option key={v} value={v}>宫制·{cn}</XQSelect.Option>))}
@@ -387,7 +475,7 @@ class AstroAcg extends Component {
 					</Col>
 				</Row>
 				<Row>
-					<Col span={24}>
+					<Col span={24} style={{ position: 'relative' }}>
 						<AcgD3Map
 							value={s.acgData}
 							fields={fields}
@@ -401,6 +489,10 @@ class AstroAcg extends Component {
 							showPoints={s.showPoints}
 							showMidpoints={s.showMidpoints}
 							showLots={s.showLots}
+							showVibration={s.showVibration}
+							showRelCross={s.showRelCross}
+							showZones={s.showZones}
+							zoneWidth={s.zoneWidth}
 							showCrossings={s.showCrossings}
 							showCuspLines={s.showCuspLines}
 							showStars={s.showStars}
@@ -413,6 +505,14 @@ class AstroAcg extends Component {
 							clickMarker={s.clickMarker}
 							onMapClick={this.onMapClick}
 						/>
+						{s.lsDialOpen && s.acgData && s.acgData.planets ? (
+							<AcgCompassDial
+								planets={s.acgData.planets}
+								height={height}
+								colors={acgColors(typeof document !== 'undefined' && document.documentElement.getAttribute('data-horosa-appearance') === 'dark')}
+								onClose={() => this.setState({ lsDialOpen: false })}
+							/>
+						) : null}
 					</Col>
 				</Row>
 
@@ -430,6 +530,7 @@ class AstroAcg extends Component {
 
 				<XQDrawer
 					title="图层与设置"
+					className="horosa-acg-drawer"
 					width={440}
 					placement="left"
 					onClose={this.closeLayers}
@@ -443,11 +544,36 @@ class AstroAcg extends Component {
 								{ value: 'mundo', label: '本体' }, { value: 'zodiac', label: '黄道度' },
 							], (v) => this.changeCalc({ mode: v })))}
 							{row('观测中心', seg(s.coord, [
-								{ value: 'geo', label: '地心' }, { value: 'helio', label: '日心' },
+								{ value: 'geo', label: '地心' }, { value: 'helio', label: '日心' }, { value: 'topo', label: '站心' },
 							], (v) => this.changeCalc({ coord: v })))}
+							{row('位置类型', seg(s.posType, [
+								{ value: 'apparent', label: '视位置' }, { value: 'true', label: '真位置' }, { value: 'j2000', label: 'J2000' },
+							], (v) => this.changeCalc({ posType: v })))}
+							{row('地平（升落）', seg(s.horizon, [
+								{ value: 'geometric', label: '几何' }, { value: 'apparent', label: '折射−34′' },
+							], (v) => this.changeCalc({ horizon: v })))}
 							{row('恒星黄道读数', (
 								<XQSelect size="small" value={s.ayanamsa} onChange={this.changeAyanamsa} dropdownMatchSelectWidth={false} style={{ width: 176 }}>
 									{AYANAMSA_OPTIONS.map(([v, cn]) => (<XQSelect.Option key={v || 'trop'} value={v}>{cn}</XQSelect.Option>))}
+								</XQSelect>
+							))}
+						</>
+					))}
+					{sec('天体选项', '交点/月孛算法;小行星线在「行星线选择」勾选', (
+						<>
+							{row('交点', seg(s.nodeType, [
+								{ value: 'mean', label: '平交点' }, { value: 'true', label: '真交点' },
+							], (v) => this.changeCalc({ nodeType: v })))}
+							{row('月孛 / Lilith', seg(s.lilithType, [
+								{ value: 'mean', label: '平' }, { value: 'true', label: '真' },
+								{ value: 'intp', label: '插值' }, { value: 'body', label: '星体' },
+							], (v) => this.changeCalc({ lilithType: v })))}
+							{row('龙黄道 Draconic', seg(s.draconic, [
+								{ value: 'off', label: '关' }, { value: 'mean', label: '平交点' }, { value: 'true', label: '真交点' },
+							], (v) => this.changeCalc({ draconic: v })))}
+							{row('谐波 Harmonic', (
+								<XQSelect size="small" value={s.harmonic} onChange={(v) => this.changeCalc({ harmonic: v })} dropdownMatchSelectWidth={false} style={{ width: 90 }}>
+									{[1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16].map((h) => (<XQSelect.Option key={h} value={h}>{h === 1 ? '关' : 'H' + h}</XQSelect.Option>))}
 								</XQSelect>
 							))}
 						</>
@@ -466,17 +592,39 @@ class AstroAcg extends Component {
 							{row('行星交映 Parans', seg(s.paranMode, [
 								{ value: 'off', label: '关' }, { value: 'lum', label: '日月' }, { value: 'all', label: '全部' },
 							], (v) => this.setState({ paranMode: v }, this.syncSnapshotUi)))}
+							{row('影响带', <XQSwitch size="small" checked={s.showZones} onChange={() => this.toggle('showZones')} />)}
+							{s.showZones ? row('带宽', (
+								<span style={{ display: 'flex', alignItems: 'center', gap: 8, width: 200 }}>
+									<Slider min={400} max={800} step={50} value={s.zoneWidth} onChange={(v) => this.setState({ zoneWidth: v })} style={{ flex: 1 }} />
+									<span style={{ fontSize: 12, opacity: 0.7, minWidth: 44 }}>{s.zoneWidth}mi</span>
+								</span>
+							)) : null}
 						</>
 					))}
 					{sec('衍生线型', '只对已选中主线的行星绘制', (
-						<XQCheckList columns={2} style={{ marginTop: 2 }}>
-							<XQCheckItem checked={s.showAspects} onClick={() => this.toggle('showAspects')}>相位线 60/90/120</XQCheckItem>
-							<XQCheckItem checked={s.showPoints} onClick={() => this.toggle('showPoints')}>东西点·天顶·映点</XQCheckItem>
-							<XQCheckItem checked={s.showMidpoints} onClick={() => this.toggle('showMidpoints')}>中点线</XQCheckItem>
-							<XQCheckItem checked={s.showLots} onClick={() => this.toggle('showLots')}>福点 / 精神点</XQCheckItem>
-							<XQCheckItem checked={s.showCrossings} onClick={() => this.toggle('showCrossings')}>线交叉点</XQCheckItem>
-							<XQCheckItem checked={s.showCuspLines} onClick={this.toggleCuspLines}>十二宫尖线</XQCheckItem>
-						</XQCheckList>
+						<>
+							<XQCheckList columns={2} style={{ marginTop: 2 }}>
+								<XQCheckItem checked={s.showAspects} onClick={() => this.toggle('showAspects')}>相位线 60/90/120</XQCheckItem>
+								<XQCheckItem checked={s.showPoints} onClick={() => this.toggle('showPoints')}>东西点·天顶·映点</XQCheckItem>
+								<XQCheckItem checked={s.showMidpoints} onClick={() => this.toggle('showMidpoints')}>中点线</XQCheckItem>
+								<XQCheckItem checked={s.showLots} onClick={() => this.toggle('showLots')}>福点 / 精神点</XQCheckItem>
+								<XQCheckItem checked={s.showCrossings} onClick={() => this.toggle('showCrossings')}>线交叉点</XQCheckItem>
+								<XQCheckItem checked={s.showCuspLines} onClick={this.toggleCuspLines}>十二宫尖线</XQCheckItem>
+								<XQCheckItem checked={s.showVibration} onClick={this.toggleVibration}>振动线 5/7/9</XQCheckItem>
+							</XQCheckList>
+							{s.showMidpoints ? row('中点口径', seg(s.midpointMode, [
+								{ value: 'zodiac', label: '黄经' }, { value: 'mundo', label: '赤经' },
+							], (v) => this.changeCalc({ midpointMode: v }))) : null}
+							{s.showLots ? row('自定义点 A+B−C', (
+								<XQSelect size="small" value={s.lotsCustom || ''} onChange={(v) => this.changeCalc({ lotsCustom: v })} dropdownMatchSelectWidth={false} style={{ width: 176 }}>
+									<XQSelect.Option value="">无</XQSelect.Option>
+									<XQSelect.Option value="asc,venus,sun,sect">爱欲(ASC+♀−☉)</XQSelect.Option>
+									<XQSelect.Option value="asc,mars,sun,sect">勇气(ASC+♂−☉)</XQSelect.Option>
+									<XQSelect.Option value="asc,jupiter,saturn">信誉(ASC+♃−♄)</XQSelect.Option>
+									<XQSelect.Option value="asc,mc,sun">名望(ASC+MC−☉)</XQSelect.Option>
+								</XQSelect>
+							)) : null}
+						</>
 					))}
 					{sec('固定星与寻宝图', null, (
 						<>
@@ -494,7 +642,20 @@ class AstroAcg extends Component {
 							{s.showGeodetic ? row('取数', seg(s.geodeticVar, [
 								{ value: 'longitude', label: '黄经法' }, { value: 'ra', label: '赤经法' },
 							], (v) => this.changeGeodetic({ geodeticVar: v }))) : null}
+							{s.showGeodetic ? row('0°♈ 子午线', (
+								<Input size="small" value={s.geodeticZero} placeholder="流派缺省(东经度)" style={{ width: 140 }}
+									onChange={(e) => this.setState({ geodeticZero: e.target.value })}
+									onBlur={() => this.changeGeodetic({})} />
+							)) : null}
 						</>
+					))}
+					{sec('落点分析', '点击地图任意地点出落点报告;容许度=线偏差阈值', (
+						row('容许度 orb', (
+							<span style={{ display: 'flex', alignItems: 'center', gap: 8, width: 180 }}>
+								<Slider min={0.5} max={6} step={0.5} value={s.orb} onChange={(v) => this.setState({ orb: v })} style={{ flex: 1 }} />
+								<span style={{ fontSize: 12, opacity: 0.7, minWidth: 28 }}>{s.orb}°</span>
+							</span>
+						))
 					))}
 					{sec('时间地图 CCG / 世运', '行运·推运行星的角化线;清除日期即关', (
 						<>
@@ -505,6 +666,9 @@ class AstroAcg extends Component {
 							{s.ccgDate ? row('推运口径', seg(s.ccgMix, [
 								{ value: 'mixed', label: '混合' }, { value: 'transit', label: '全行运' }, { value: 'progressed', label: '全二推' },
 							], (v) => this.changeCcg({ ccgMix: v }))) : null}
+							{s.ccgDate ? row('时间轴', (
+								<XQButton size="small" onClick={this.toggleCcgPlay}>{s.ccgPlay ? '⏸ 暂停' : '▶ 播放(每月步进)'}</XQButton>
+							)) : null}
 							{row('世运事件', (
 								<XQSelect size="small" value="" onChange={this.pickMundane} dropdownMatchSelectWidth={false} style={{ width: 176 }}>
 									<XQSelect.Option value="">选择事件…</XQSelect.Option>
@@ -522,6 +686,19 @@ class AstroAcg extends Component {
 								<XQDatePicker size="small" value={s.relDate} placeholder="选择日期" allowClear
 									onChange={(m) => this.changeRel({ relDate: m })} style={{ width: 176 }} />
 							)) : null}
+							{s.relMode ? row('B 盘时刻', (
+								<Input size="small" value={s.relTime} placeholder="HH:mm:ss" style={{ width: 120 }}
+									onChange={(e) => this.setState({ relTime: e.target.value })}
+									onBlur={() => this.requestAcg(this.genParams())} />
+							)) : null}
+							{s.relMode ? row('B 盘经纬', (
+								<Input size="small" value={s.relPos} placeholder="如 40n43 74w00" style={{ width: 176 }}
+									onChange={(e) => this.setState({ relPos: e.target.value })}
+									onBlur={() => this.requestAcg(this.genParams())} />
+							)) : null}
+							{s.relMode === 'synastry' ? row('关系交叉 / 派状', (
+								<XQSwitch size="small" checked={s.showRelCross} onChange={() => this.setState({ showRelCross: !s.showRelCross })} />
+							)) : null}
 						</>
 					))}
 				</XQDrawer>
@@ -531,6 +708,12 @@ class AstroAcg extends Component {
 					loading={s.pointLoading}
 					report={s.pointReport}
 					onClose={this.closePoint}
+				/>
+				<AcgReferencePanel
+					open={s.refOpen}
+					activeLines={Array.from(s.linesSet)}
+					planets={s.acgData && s.acgData.planets}
+					onClose={() => this.setState({ refOpen: false })}
 				/>
 			</div>
 		);

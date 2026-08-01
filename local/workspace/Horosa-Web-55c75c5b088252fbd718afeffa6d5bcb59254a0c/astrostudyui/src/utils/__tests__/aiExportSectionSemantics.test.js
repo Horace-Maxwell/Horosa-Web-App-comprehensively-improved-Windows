@@ -148,3 +148,77 @@ describe('导出主链与挂载封装同语义', ()=>{
 		expect(loaded.sections.liureng).toEqual(expect.arrayContaining(['四课', '大格', '小局', '参考', '概览']));
 	});
 });
+
+// ── [v49] 风水三新段的键内 union 迁移 ────────────────────────────────────
+// 场景：老用户自定义过风水导出段（勾了一部分），本版风水新增三段。
+// 需求：新段补进去（否则被白名单静默滤掉、导出设置里也勾不到），且不得复活用户取消过的旧段，
+// 也不得让 v45+ 存档重走「全 preset union」（那会违「取消=真取消」铁律）。
+describe('[v49] 风水三新段 union 迁移', ()=>{
+	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
+	const V49 = ['风水·玄空六法', '风水·命理派', '风水·综合罗经'];
+
+	it('已自定义过风水的老用户：补上三新段，且原有勾选一个不少、被取消的不复活', ()=>{
+		const kept = ['起盘信息', '风水·玄空飞星'];
+		const n = normalizeAIExportSettings({ version: 48, sections: { fengshui: kept.slice() } });
+		V49.forEach((s)=>{ expect(n.sections.fengshui).toContain(s); });
+		kept.forEach((s)=>{ expect(n.sections.fengshui).toContain(s); });
+		// 用户当年取消掉的旧段不得因本次迁移复活
+		expect(n.sections.fengshui).not.toContain('风水·择日选择');
+		expect(n.sections.fengshui).not.toContain('风水·形势峦头');
+	});
+
+	it('v45+ 存档也能补到新段（窗口独立于 v45），但仍不重走全 preset union', ()=>{
+		const n = normalizeAIExportSettings({ version: 48, sections: { fengshui: ['风水·玄空飞星'] } });
+		V49.forEach((s)=>{ expect(n.sections.fengshui).toContain(s); });
+		expect(n.sections.fengshui).not.toContain('风水·紫白飞星');   // 全量 union 才会带进来
+		expect(n.sections.fengshui.length).toBe(1 + V49.length);
+	});
+
+	it('未自定义过风水的用户不受影响（无 fengshui 键 → 走 preset 全量，本就含三新段）', ()=>{
+		const n = normalizeAIExportSettings({ version: 48, sections: { ziwei: ['宫位总览'] } });
+		expect(n.sections.fengshui).toBeUndefined();
+		V49.forEach((s)=>{ expect(AI_EXPORT_PRESET_SECTIONS.fengshui).toContain(s); });
+	});
+
+	it('显式全清（空数组）不得被 union 灌回内容', ()=>{
+		const n = normalizeAIExportSettings({ version: 48, sections: { fengshui: [] } });
+		expect(n.sections.fengshui).toEqual([]);
+	});
+
+	it('本版及以后的存档不再重跑本次迁移', ()=>{
+		const n = normalizeAIExportSettings({ version: 49, sections: { fengshui: ['风水·玄空飞星'] } });
+		expect(n.sections.fengshui).toEqual(['风水·玄空飞星']);
+	});
+
+	it('三新段只追加在 preset 末尾，既有段序一字不动', ()=>{
+		const p = AI_EXPORT_PRESET_SECTIONS.fengshui;
+		expect(p.slice(-3)).toEqual(V49);
+		expect(p[p.length - 4]).toBe('风水·择日选择');
+	});
+});
+
+// [v50] babylon「微黄道」段:同 v49 机制的下一窗
+describe('[v50] babylon 微黄道段 union 迁移', ()=>{
+	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
+
+	it('已自定义过 babylon 的老用户(v49 存档):补上「微黄道」,原勾选不动、被取消段不复活', ()=>{
+		const kept = ['起盘信息', '位三法'];
+		const n = normalizeAIExportSettings({ version: 49, sections: { babylon: kept.slice() } });
+		expect(n.sections.babylon).toContain('微黄道');
+		kept.forEach((s)=>{ expect(n.sections.babylon).toContain(s); });
+		expect(n.sections.babylon).not.toContain('七曜按宫');   // 当年取消的不得复活
+		expect(n.sections.babylon.length).toBe(kept.length + 1);
+	});
+
+	it('v50 起用户取消「微黄道」=真取消(不再被 union 顶回)', ()=>{
+		const n = normalizeAIExportSettings({ version: 50, sections: { babylon: ['起盘信息'] } });
+		expect(n.sections.babylon).not.toContain('微黄道');
+	});
+
+	it('未自定义过 babylon 的用户走 preset 全量,preset 已含微黄道且居末', ()=>{
+		const n = normalizeAIExportSettings({ version: 49, sections: { ziwei: ['宫位总览'] } });
+		expect(n.sections.babylon).toBeUndefined();
+		expect(AI_EXPORT_PRESET_SECTIONS.babylon).toContain('微黄道');
+		expect(AI_EXPORT_PRESET_SECTIONS.babylon[AI_EXPORT_PRESET_SECTIONS.babylon.length - 1]).toBe('微黄道');
+	});
+});

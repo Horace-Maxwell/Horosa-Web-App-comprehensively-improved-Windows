@@ -72,6 +72,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 		this.drawHouse();
 
 		this.drawLaiYing();
+		this.drawOverlayMarks();   // 流派叠层角标/借宫/活盘:基类 ZWCommHouse 统一实现(与四化盘同源,三合盘同样生效)
 	}
 
 	drawTitle(){
@@ -208,7 +209,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 	}
 
 	drawHouseTitleText(group, ord){
-		const name = `${this.houseObj.name || ''}`.replace(/[宫宮]$/, '');
+		const name = `${this.effectiveHouseName()}`.replace(/[宫宮]$/, '');   // 活盘:太极点重排后的人事宫名(基类共用)
 		const ganzi = this.houseObj.ganzi || '';
 		const nameSize = Math.max(14, Math.min(ord.w * 0.46, ord.h * 0.54));
 		const ganziSize = Math.max(9, Math.min(ord.w * 0.30, ord.h * 0.28));
@@ -305,6 +306,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 			this.drawKinastroStar(star, x, y, w, h, color, scale, nameWeight);
 			return;
 		}
+		const sl = this.effStarLight(star);   // 显示层庙旺(亮度源 quanshu 时叠《全书》delta)
 		let txt = [];
 		for(let i=0; i<star.name.length; i++){
 			txt[i] = star.name.charAt(i) + '';
@@ -316,7 +318,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 		let nameX = x + (w - nameW) / 2;
 		let nameH = txt.length * (nameFontSize + mgn) + mgn * 2;
 		let lightTxt = [];
-		const metaText = [star.starlight, star.flyTo ? `→${star.flyTo}` : ''].filter(Boolean).join('');
+		const metaText = [sl, star.flyTo ? `→${star.flyTo}` : ''].filter(Boolean).join('');
 		if(metaText){
 			for(let i=0; i<metaText.length; i++){
 				lightTxt[i] = metaText.charAt(i) + '';
@@ -371,6 +373,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 	}
 
 	drawKinastroStar(star, x, y, w, h, color, scale = 1, nameWeight = 760){
+		const sl = this.effStarLight(star);   // 显示层庙旺（借宫演禽路径也须本地取值，否则 sl 未定义）
 		const txt = [];
 		for(let i=0; i<star.name.length; i++){
 			txt[i] = star.name.charAt(i) + '';
@@ -388,7 +391,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 			.attr('font-weight', nameWeight || 760);
 		cursorY += nameH + 1;
 
-		if(star.starlight){
+		if(sl){
 			group.append('text')
 				.attr('class', 'horosa-ziwei-kinastro-star-light')
 				.attr('x', x + w / 2)
@@ -400,7 +403,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 				.attr('font-size', `${Math.max(10, Math.min(12, Math.round(w * 0.46)))}px`)
 				.attr('font-weight', 680)
 				.attr('font-family', AstroConst.NormalFont)
-				.text(star.starlight);
+				.text(sl);
 			cursorY += 14;
 		}
 

@@ -7,6 +7,7 @@ import {
 	JING_YANG, JING_YIN, NAYIN_60, GANZHI_60, DIZHI, GUA8_XIANTIAN_NUM,
 	GUA64_TABLE, GUAYUN_PAIRS, GUAYUN_YUAN, BA_YAO_SHA, SI_DA_HUANGQUAN,
 	SHAN_ORDER, SHAN_CENTER_DEG, FENJIN_GAN_JX,
+	GUA64_CIRCLE, GUA64_CIRCLE_META, YAO_NAMES,
 } from './fengshuiData';
 
 // ── 飞星原语（内核基准）──────────────────────────────────────────────
@@ -25,9 +26,13 @@ const GONG_YUAN = (()=>{
 
 // 玄空飞星 下卦排盘（pan 移植）。入参：元运 yun(1-9)、向首山 xiangShan。
 // 返回 {zuoShan, yunPan, shanPan, xiangPan, ge, gZuo, gXiang, yuanLong}。
+// 🔴 元运必须是 1-9 整数：此前只守了山不守运，非法运会算出 0/−1 等越界星值，
+//    非数入参更会在 GONG_YUAN[`${Vx}|…`][1] 上抛 TypeError（Vx 越界 → 查不到该键）。
+function validYun(yun) { const n = Number(yun); return Number.isInteger(n) && n >= 1 && n <= 9; }
+
 export function flyChart(yun, xiangShan) {
 	const meta = SHAN_24[xiangShan];
-	if (!meta) { return null; }
+	if (!meta || !validYun(yun)) { return null; }
 	const [gXiang, yXiang, yyXiang] = meta;
 	const gZuo = OPP_GONG[gXiang];
 	const zuoShan = GONG_YUAN[`${gZuo}|${yXiang}`][0];   // 坐山：与向同元龙、在坐宫
@@ -75,7 +80,7 @@ export function tixingOf(shan, variant = 'shen') {
 //   variant: shen|youbi|bengong；五黄无替仍用 5。
 export function flyChartTi(yun, xiangShan, variant = 'shen') {
 	const meta = SHAN_24[xiangShan];
-	if (!meta) { return null; }
+	if (!meta || !validYun(yun)) { return null; }
 	const [gXiang, yXiang, yyXiang] = meta;
 	const gZuo = OPP_GONG[gXiang];
 	const zuoShan = GONG_YUAN[`${gZuo}|${yXiang}`][0];
@@ -323,6 +328,27 @@ export function fenjinAt(deg) {
 	const ganJx = FENJIN_GAN_JX[ganzhi[0]] || 'neutral';
 	const positional = (sub >= 1 && sub <= 3) ? '旺相(取)' : '空亡(避)';
 	return { shan, fenIndex: sub, ganzhi, ganJx, positional, jx: (sub >= 1 && sub <= 3 && ganJx === 'good') ? 'good' : (positional === '空亡(避)' || ganJx === 'void' ? 'bad' : 'neutral') };
+}
+
+// ── 六十四卦圆图 度数落卦落爻（6.1）────────────────────────────────────────
+// 每卦 5.625°、每爻 0.9375°。爻序沿本宫内的卦序方向累进（东半宫度数递减、西半递增），
+// 与圆图两仪分翼一致；各家易盘爻序方向略异，须按所宗盘校。
+export function gua64AtDeg(deg) {
+	const d = normDeg(deg);
+	const key = (x)=>((x - GUA64_CIRCLE_META.startDeg) % 360 + 360) % 360;
+	const k = key(d);
+	// 圆图按 startDeg 顺时针等分，直接定位（不遍历比较，避免边界浮点漏格）。
+	const gi = Math.min(63, Math.floor(k / GUA64_CIRCLE_META.degPerGua));
+	const cell = GUA64_CIRCLE[gi];
+	const offIn = k - gi * GUA64_CIRCLE_META.degPerGua;                       // 0..5.625（顺时针入卦度）
+	const along = cell.descending ? (GUA64_CIRCLE_META.degPerGua - offIn) : offIn;   // 沿本宫卦序方向
+	const yaoIndex = Math.min(5, Math.max(0, Math.floor(along / GUA64_CIRCLE_META.degPerYao)));
+	return {
+		gua: cell.name, guaIndex: gi, lower: cell.lower, upper: cell.upper, sector: cell.sector,
+		yao: YAO_NAMES[yaoIndex], yaoIndex, degInGua: +offIn.toFixed(4),
+		deg0: cell.deg0, deg1: cell.deg1, center: cell.center,
+		shan: shanAtDeg(d),
+	};
 }
 
 export { GUAYUN_PAIRS, GUAYUN_YUAN, SANHE_STAGE };

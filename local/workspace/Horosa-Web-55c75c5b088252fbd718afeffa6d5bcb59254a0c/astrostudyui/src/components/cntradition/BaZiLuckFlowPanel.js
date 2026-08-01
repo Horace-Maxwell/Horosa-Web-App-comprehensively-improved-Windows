@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { markInteractionStart } from '../../utils/perfMark';
+import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { julianDayIndex } from '../../utils/julianDayIndex';
 import { Spin } from 'antd';
 import { Solar, SolarMonth } from 'lunar-javascript';
@@ -46,7 +47,7 @@ const BRANCH_MAIN_STEM = {
 const SOLAR_MONTHS = [
 	{ name: '立春', month: 2, day: 4 },
 	{ name: '惊蛰', month: 3, day: 5 },
-	{ name: '清明', month: 4, day: 4 },
+	{ name: '清明', month: 4, day: 5 },   // 实算常年 4/4-4/6,取众数 4/5(曾写 4/4 与实算差一天)
 	{ name: '立夏', month: 5, day: 5 },
 	{ name: '芒种', month: 6, day: 5 },
 	{ name: '小暑', month: 7, day: 7 },
@@ -207,8 +208,9 @@ function birthYearFrom(value){
 		return num(small[0].year, new Date().getFullYear());
 	}
 	const birth = value.nongli && value.nongli.birth ? `${value.nongli.birth}` : '';
-	const match = birth.match(/^(\d{4})/);
-	return match ? Number(match[1]) : new Date().getFullYear();
+	// BC 安全:^\d{4} 对带前导负号的 BC 生年恒失配 → 曾回落当前年,小运表整体错位
+	const parsed = parseYearFromDateStr(birth);
+	return Number.isFinite(parsed) ? parsed : new Date().getFullYear();
 }
 
 // 虚岁(默认,与原星阙梯位一致,出生=1岁) / 周岁(real=虚岁-1,出生=0岁)。仅展示层换算。
@@ -372,31 +374,29 @@ function buildDayItems(monthItem, dayStem){
 	if(!monthItem){
 		return [];
 	}
-	if(monthItem.year && monthItem.month){
-		const lunar = Solar.fromYmd(monthItem.year, monthItem.month, 1).getLunar();
-		const startDay = lunar.getPrevJie(true).getSolar().getDay();
-		const endDay = lunar.getNextJie(true).getSolar().getDay();
-		const days = SolarMonth.fromYm(monthItem.year, monthItem.month).getDays();
-		const nextMonth = monthItem.month < 12 ? monthItem.month + 1 : 1;
-		const nextYear = monthItem.month < 12 ? monthItem.year : monthItem.year + 1;
-		const nextDays = SolarMonth.fromYm(nextYear, nextMonth).getDays();
-		const flowDays = [
-			...days.filter((item)=>item.getDay() >= startDay),
-			...nextDays.filter((item)=>item.getDay() < endDay),
-		];
-		return flowDays.map((solar)=>{
-			const dayLunar = solar.getLunar();
-			const ganzi = dayLunar.getDayInGanZhi();
+	if(monthItem.year && monthItem.month && monthItem.startDate && monthItem.endDate){
+		// 🔴 流日窗口直接用 buildMonthItems 已算好的真实节气起讫(startDate/endDate)。
+		// 曾用 getPrevJie/getNextJie 的**日号**当本月起讫:节属上/次月时跨月串号 ——
+		// 惊蛰月自 3/4 起(3/4 仍属寅月却打卯月月柱)、小寒月丢 1/5-1/6 两天并多吞 2/4。
+		const out = [];
+		const cur = new Date(monthItem.startDate.getTime());
+		let guard = 0;
+		while(cur.getTime() < monthItem.endDate.getTime() && guard < 40){
+			const solar = Solar.fromYmd(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+			const ganzi = solar.getLunar().getDayInGanZhi();
 			const pillar = normalizePillar(ganzi, dayStem);
-			return {
+			out.push({
 				id: `day-${solar.getYear()}-${solar.getMonth()}-${solar.getDay()}`,
 				top: solarDateLabel(solar),
 				sub: '',
-				date: dateFromSolar(solar),
+				date: new Date(cur.getTime()),
 				pillar,
 				foot: pillar.naYin,
-			};
-		});
+			});
+			cur.setDate(cur.getDate() + 1);
+			guard += 1;
+		}
+		return out;
 	}
 	const start = monthItem.startDate;
 	const end = monthItem.endDate || addDays(start, 30);

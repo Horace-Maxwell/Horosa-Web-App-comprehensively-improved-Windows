@@ -211,19 +211,29 @@ export function midpointList(points, base, opts){
 // ── 映点接触 Spiegelpunkt:B 落在 A 的回照(180−lonA)折叠盘位 orb 内即一对接触 ──
 // 注:90°/45°/22.5° 盘上「回照」与「对映」相差 180°≡0(折叠重合),故盘上为单一「映点」概念,
 //   不再区分 anti/contra(那只在 360° 全圈才有别)。供「映点」面板与盘上标记。
+// opts.extendedAxes(可选,B8):为真时【追加】15° 固定星座镜轴接触(镜像=(2·axisLon−lon) mod 360,
+//   axisLon=45/135/225/315;独立镜像仅 90−lon 与 270−lon 两式,折叠盘上互差 180 重合取一式)。
+//   追加行带 axis:'fixed15' 标记;既有基本轴行字段不变。缺省 false = 逐位零回归。
+//   ⚠️ 数学事实:mod 90 折叠下 90−lon 与基本轴 180−lon 相差 90 亦重合 —— 扩展轴仅 360° 模数盘有别,
+//   折叠盘上追加行与基本行同 sep(UI 须据此仅在 base=360 时提示差异)。
 export function spiegelContacts(points, base, orb, opts){
 	const personal = (opts && opts.personal) ? opts.personal : null;
 	const uranian = (opts && opts.uranian) ? opts.uranian : null;
+	const extended = !!(opts && opts.extendedAxes);
 	const out = [];
 	for (let i = 0; i < points.length; i++){
 		for (let j = i + 1; j < points.length; j++){
 			const A = points[i], B = points[j];
-			const sep = dialSeparation(antiscion(A.lon), B.lon, base);
-			// 含个人点的接触放宽到 orbPersonal(opts.orbPersonal 缺省=orb,零回归)。
-			if (sep > effOrb(orb, opts, A.id, B.id)) continue;
 			const hasPersonal = personal ? (personal.has(A.id) || personal.has(B.id)) : false;
 			const hasTnp = uranian ? (uranian.has(A.id) || uranian.has(B.id)) : false;
-			out.push({ a: A.id, b: B.id, sep, hasPersonal, hasTnp });
+			const lim = effOrb(orb, opts, A.id, B.id);
+			const sep = dialSeparation(antiscion(A.lon), B.lon, base);
+			// 含个人点的接触放宽到 orbPersonal(opts.orbPersonal 缺省=orb,零回归)。
+			if (sep <= lim) out.push({ a: A.id, b: B.id, sep, hasPersonal, hasTnp });
+			if (extended){
+				const sepExt = dialSeparation(norm360(90 - A.lon), B.lon, base);
+				if (sepExt <= lim) out.push({ a: A.id, b: B.id, sep: sepExt, hasPersonal, hasTnp, axis: 'fixed15' });
+			}
 		}
 	}
 	const rank = (p) => (p.hasPersonal ? 0 : (p.hasTnp ? 1 : 2));
@@ -274,8 +284,9 @@ export function differenceList(points, base, opts){
 }
 
 // ── 太阳弧到期 差值表(Solar Arc directions,WP-3)─────────────────────
-// 太阳弧换算率(度/年):naibod=太阳平均周日运动(回归年/360°),oneDeg=1°/年的常用近似。
-export const SA_RATE = { naibod: 0.9856473, oneDeg: 1.0 };
+// 太阳弧换算率(度/年):naibod=太阳平均周日运动(回归年/360°),oneDeg=1°/年的常用近似,
+// cardan=0°59′12″/年(≈0.9866667,另一传世软件速率键;三选一,差值表/太阳弧环/校时同源消费)。
+export const SA_RATE = { naibod: 0.9856473, oneDeg: 1.0, cardan: 0.9866667 };
 
 // 给定参与点 points:[{id,lon}],对每一对计算其差距 arc=arcOpening(0..180),再按八度分解成
 //   全(m=1)/半(m=0.5)/倍(m=2)三档:接触角 a90=((arc*m)%90+90)%90(0..90),取 {a90, 90−a90} 两个
@@ -289,7 +300,8 @@ export const SA_RATE = { naibod: 0.9856473, oneDeg: 1.0 };
 //   (成对 b=对方 id、arc=该对原始差距 0..180;aries 档 b=null、arc=该点黄经折叠 0..90;fold='90-a' 标对侧折叠项)。
 export function solarArcDirections(points, base, opts){
 	const o = opts || {};
-	const rate = (o.saKey === 'oneDeg' ? SA_RATE.oneDeg : SA_RATE.naibod) || SA_RATE.naibod;
+	// 三选一查表(naibod/oneDeg/cardan);未知键回退 naibod —— 对既有两键输入逐位等价。
+	const rate = SA_RATE[o.saKey] || SA_RATE.naibod;
 	const hasTarget = Number.isFinite(Number(o.targetAge));
 	const target = Number(o.targetAge);
 	const win = Number.isFinite(Number(o.win)) ? Number(o.win) : 1;
@@ -404,4 +416,39 @@ export function rectificationHits(events, angles, natalPts, base, orb, rate){
 		out.push({ event: label, arc, hits });
 	}
 	return out;
+}
+
+// ── 组合中点盘 Composite(A4)────────────────────────────────────────
+// 两盘逐同名因子取【近中点】(与全模块 midpoint() 同口径)构成"关系本身"之盘。
+// 仅取两盘共有 id;任一侧缺该因子(如缺 Asc/MC)则跳过;返回 [{id,lon}] 可直接喂
+// cursorReadout/midpointTree/planetaryPictures/midpointList 等全套既有扫描器。
+// 注:此为逐因子中点盘,与「时空中点真实起盘」(戴维森盘,走后端)本质不同。
+export function compositeChart(ptsA, ptsB){
+	const bMap = {};
+	(Array.isArray(ptsB) ? ptsB : []).forEach((p) => { if (p && p.id != null) bMap[p.id] = p; });
+	const out = [];
+	(Array.isArray(ptsA) ? ptsA : []).forEach((p) => {
+		if (!p || p.id == null) return;
+		const q = bMap[p.id];
+		if (!q) return;
+		const la = Number(p.lon), lb = Number(q.lon);
+		if (!Number.isFinite(la) || !Number.isFinite(lb)) return;
+		out.push({ id: p.id, lon: midpoint(la, lb) });
+	});
+	return out;
+}
+
+// ── 中点枢纽统计 focal point(B5-algo)──────────────────────────────
+// 对每个因子统计其占据的中点数("分支越多越重要"):count=中点树该根的枝数;
+// personalCount=其中含个人点(opts.personal)的枝数。按 count 降序(同数再按 personalCount)。
+// 统计面恒为全因子(内部强制 onlyPersonal:false 展开全部根);orbPersonal 放宽语义随 opts 保留。
+export function midpointHubs(points, base, orb, opts){
+	const tree = midpointTree(points, base, orb, { ...(opts || {}), onlyPersonal: false });
+	const personal = (opts && opts.personal) ? opts.personal : null;
+	const out = Object.keys(tree).map((id) => ({
+		id,
+		count: tree[id].length,
+		personalCount: personal ? tree[id].filter((r) => personal.has(r.a) || personal.has(r.b)).length : 0,
+	}));
+	return out.sort((x, y) => y.count - x.count || y.personalCount - x.personalCount || (x.id < y.id ? -1 : 1));
 }

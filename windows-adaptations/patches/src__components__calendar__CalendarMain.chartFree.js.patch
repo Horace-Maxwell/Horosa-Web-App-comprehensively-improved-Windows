@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/CalendarMain.js b/astrostudyui/src/components/calendar/CalendarMain.js
-index 304f0bf..112e05e 100644
+index 5ca8b95..78d6036 100644
 --- a/astrostudyui/src/components/calendar/CalendarMain.js
 +++ b/astrostudyui/src/components/calendar/CalendarMain.js
 @@ -2,6 +2,8 @@ import { Component } from 'react';
@@ -62,7 +62,7 @@ index 304f0bf..112e05e 100644
  		});
  	}
  
-@@ -83,52 +107,65 @@ class CalendarMain extends Component{
+@@ -83,51 +107,65 @@ class CalendarMain extends Component{
  		// 填满整页高度（原按 props.height-20 固定像素，比实际页面矮 ~66px 留大片空白）；
  		// 子 main 皆已支持 '100%'（内部转 calc）。配合 CSS 让 tab 内容链 height:100% 逐层撑满。
  		const height = '100%';
@@ -78,10 +78,9 @@ index 304f0bf..112e05e 100644
  			<div id={this.state.divId} className='horosa-calendar-page'>
  				<Tabs
 -					defaultActiveKey={this.state.currentTab} tabPosition='right'
--					className="xq-tabs-rail"
 +					activeKey={cur} tabPosition='right'
  					onChange={this.changeTab}
- 					className='horosa-calendar-tabs'
+ 					className="xq-tabs-rail horosa-calendar-tabs"
  					style={{ height: '100%' }}
  				>
  					<TabPane tab="农历" key="nongli">

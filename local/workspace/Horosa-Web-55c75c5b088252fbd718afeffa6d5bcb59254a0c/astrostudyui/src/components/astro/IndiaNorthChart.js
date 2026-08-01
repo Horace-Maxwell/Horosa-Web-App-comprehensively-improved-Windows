@@ -102,7 +102,7 @@ class IndiaNorthChart extends Component{
 		return indiaChartShouldUpdate(this, nextProps, INDIA_CHART_SCU_KEYS_MIRROR);
 	}
 
-	renderObjects(objects, houseNumber){
+	renderObjects(objects, houseNumber, overlaySign){
 		const degreeDisplayMode = this.props.degreeDisplayMode;
 		const countClass = objects.length > 3 ? ' horosa-india-diagram-objects-very-dense' : (objects.length > 1 ? ' horosa-india-diagram-objects-dense' : ' horosa-india-diagram-objects-single');
 		return (
@@ -130,6 +130,11 @@ class IndiaNorthChart extends Component{
 						</span>
 					);
 				})}
+				{(this.props.overlayPoints || []).filter((op)=>op.signNumber === overlaySign).map((op)=>(
+					<span className="horosa-india-square-object horosa-india-flag-badge is-good" key={`ov_${op.key}`} title={op.title || op.key}>
+						{op.label}
+					</span>
+				))}
 			</div>
 		);
 	}
@@ -162,7 +167,7 @@ class IndiaNorthChart extends Component{
 					data-house={houseNumber}
 					style={{ left: `${mirrorXIf(objectsPos[0], doMirror)}%`, top: `${objectsPos[1]}%`, width: `${objectsPos[2]}%`, height: `${objectsPos[3]}%` }}
 				>
-					{this.renderObjects(objects, houseNumber)}
+					{this.renderObjects(objects, houseNumber, signNumber)}
 				</div>
 			</div>
 		);

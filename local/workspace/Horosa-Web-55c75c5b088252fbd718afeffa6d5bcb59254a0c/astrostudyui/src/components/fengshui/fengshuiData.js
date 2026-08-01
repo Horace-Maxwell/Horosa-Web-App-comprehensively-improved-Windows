@@ -288,3 +288,263 @@ export const SHUI_12 = {
 	凶水: '反弓水·直射水·穿心水·割脚水·淋头水·瀑面漏腮水·刑杀水',
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 综合罗经 / 玄空门派 / 玄空六法 / 命理派 / 形体图 / 六十四卦圆图（第二批补齐）
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── 后天九宫中心度数（0°=正北，顺时针）；八卦层/九星层共用 ────────────────
+export const GONG_CENTER_DEG = { 1: 0, 8: 45, 3: 90, 4: 135, 9: 180, 2: 225, 7: 270, 6: 315 };
+// 先天八卦方位度数（乾南·坤北·离东·坎西，由 XIANTIAN_POS 落宫换算）。
+export const XIANTIAN_DEG = (()=>{
+	const out = {};
+	Object.keys(XIANTIAN_POS).forEach((g)=>{ out[g] = GONG_CENTER_DEG[XIANTIAN_POS[g]]; });
+	return out;
+})();
+// 八卦五行（命理派/六法卦气共用）。
+export const GUA8_WUXING = { 乾: '金', 兑: '金', 离: '火', 震: '木', 巽: '木', 坎: '水', 艮: '土', 坤: '土' };
+// 五行方位/颜色/河图数（1.1）。
+export const WUXING_FANGWEI = { 木: '东', 火: '南', 土: '中', 金: '西', 水: '北' };
+export const WUXING_COLOR = { 木: '青绿', 火: '赤红', 土: '土黄', 金: '素白', 水: '玄黑' };
+export const WUXING_HEX = { 木: '#3f9a63', 火: '#c0392b', 土: '#b8862f', 金: '#8b93a5', 水: '#2f5fa8' };
+export const WUXING_HETU_NUM = { 水: '一·六', 火: '二·七', 木: '三·八', 金: '四·九', 土: '五·十' };
+export const WUXING_SHENG = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };   // 我生
+export const WUXING_KE = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };       // 我克
+
+// ── 三针偏移（正针格龙立向 / 人盘中针消砂 −7.5° / 天盘缝针纳水 +7.5°）──────
+export const NEEDLE_OFFSET = { zheng: 0, ren: -7.5, feng: 7.5 };
+export const NEEDLE_USE = {
+	zheng: '地盘正针 · 格龙立向定坐向',
+	ren: '人盘中针 · 消砂（较正针退半山 7.5°）',
+	feng: '天盘缝针 · 纳水（较正针进半山 7.5°）',
+};
+
+// 内部：环形取模与等分切段（仅本文件用，不导出）。
+function _norm360(d) { return ((Number(d) % 360) + 360) % 360; }
+// 由 24 山生成一圈山格（offsetDeg = 三针偏移）。
+function _shanRing(offsetDeg) {
+	return SHAN_ORDER.map((s)=>{
+		const c = _norm360(SHAN_CENTER_DEG[s] + offsetDeg);
+		const meta = SHAN_24[s] || [];
+		return { label: s, deg0: _norm360(c - 7.5), deg1: _norm360(c + 7.5), gong: meta[0], yuanlong: meta[1], yinyang: meta[2] };
+	});
+}
+// 由 8 卦生成一圈卦格（degMap: 卦→中心度）。
+function _guaRing(degMap, extra) {
+	return Object.keys(degMap).map((g)=>{
+		const c = degMap[g];
+		return { label: g, deg0: _norm360(c - 22.5), deg1: _norm360(c + 22.5), ...(extra ? extra(g) : null) };
+	}).sort((a, b)=>a.deg0 - b.deg0);
+}
+
+// ── 六十四卦圆图（6.1 · 伏羲先天方圆图之圆图，绕周天）──────────────────────
+// 结构（可推不臆造）：八卦宫按先天方位各辖 45°（＝三山），宫内八重卦依先天序
+// 乾兑离震巽坎艮坤排布；东半(乾兑离震宫)度数递减、西半(巽坎艮坤宫)递增，
+// 即传统圆图「左阳右阴」两仪分翼。起点 337.5°（坤宫首卦天地否）——恰合古法
+// 「自坤(北偏)起顺布」，且八宫界与二十四山界严丝合缝（坤宫＝壬子癸三山）。
+// 每卦 5.625°、每爻 0.9375°。卦运/爻序方向各家易盘略异，须按所宗盘校。
+export const GUA64_CIRCLE_META = {
+	startDeg: 337.5, clockwise: true, sectorDeg: 45, degPerGua: 5.625, degPerYao: 0.9375,
+	note: '伏羲先天圆图·八宫各辖三山；须按所宗易盘校',
+};
+export const XIANTIAN_ORDER8 = ['乾', '兑', '离', '震', '巽', '坎', '艮', '坤'];   // 先天序（邵雍）
+export const YAO_NAMES = ['初', '二', '三', '四', '五', '上'];
+export const GUA64_CIRCLE = (()=>{
+	const EAST = new Set(['乾', '兑', '离', '震']);   // 东半：宫内度数递减
+	const out = [];
+	XIANTIAN_ORDER8.forEach((lower)=>{
+		const c = XIANTIAN_DEG[lower];
+		const desc = EAST.has(lower);
+		XIANTIAN_ORDER8.forEach((upper, j)=>{
+			const d0 = desc ? (c + 22.5 - (j + 1) * 5.625) : (c - 22.5 + j * 5.625);
+			out.push({
+				name: GUA64_TABLE[lower][upper], lower, upper,
+				sector: lower, sectorDeg: c, descending: desc,
+				deg0: _norm360(d0), deg1: _norm360(d0 + 5.625),
+				center: _norm360(d0 + 2.8125),
+			});
+		});
+	});
+	// 按起点 337.5° 顺时针排序，index 即圆图顺布序（0＝天地否）。
+	const key = (d)=>_norm360(d - 337.5);
+	out.sort((a, b)=>key(a.deg0) - key(b.deg0));
+	out.forEach((g, i)=>{ g.index = i; });
+	return out;
+})();
+
+// ── 二十八宿层（10.6）：四象七宿等分示意，逆时针（房居卯·虚居子·昴居酉·星居午）
+// ⚠ 古籍只给四象七宿与吉凶，无周天盈缩实度 → 此层为等分近似，UI 须明标。
+export const XIU28_RING = (()=>{
+	const SEC = { 东青龙: 90, 北玄武: 0, 西白虎: 270, 南朱雀: 180 };
+	const W = 360 / 28;
+	const out = [];
+	['东青龙', '北玄武', '西白虎', '南朱雀'].forEach((x)=>{
+		const start = SEC[x] + 45;   // 象界上缘，逆时针递减
+		XIU_28.filter((u)=>u.x === x).forEach((u, i)=>{
+			const d1 = start - i * W;
+			out.push({ label: u.n, xiang: x, jx: u.jx, deg0: _norm360(d1 - W), deg1: _norm360(d1) });
+		});
+	});
+	return out.sort((a, b)=>a.deg0 - b.deg0);
+})();
+
+// ── 线法三层（穿山72/透地60/120分金）环格；与 liqiCore 的 chuanshanAt/toudiAt/
+//    fenjinAt 同源同起点(337.5°甲子起壬山初)，测试逐格对拍防双写漂移。────────
+function _ganzhiRing(count, degPer, decorate) {
+	const out = [];
+	for (let i = 0; i < count; i++) {
+		const gz = GANZHI_60[i % 60];
+		out.push({ label: gz, ganzhi: gz, deg0: _norm360(337.5 + i * degPer), deg1: _norm360(337.5 + (i + 1) * degPer), ...(decorate ? decorate(i, gz) : null) });
+	}
+	return out;
+}
+export const CHUANSHAN_72 = _ganzhiRing(72, 5, (i)=>({ sub: i % 3, jx: (i % 3) === 1 ? 'good' : 'bad', positional: (i % 3) === 1 ? '正气旺相' : '孤虚（边龙）' }));
+export const TOUDI_60 = _ganzhiRing(60, 6, (i, gz)=>{ const kong = gz[0] === '甲' || gz[0] === '己'; return { kong, jx: kong ? 'bad' : 'good', nayin: NAYIN_60[gz] || null }; });
+export const FENJIN_120 = _ganzhiRing(120, 3, (i, gz)=>{
+	const sub = i % 5; const wang = sub >= 1 && sub <= 3; const ganJx = FENJIN_GAN_JX[gz[0]] || 'neutral';
+	return { sub, ganJx, positional: wang ? '旺相(取)' : '空亡(避)', jx: (wang && ganJx === 'good') ? 'good' : ((!wang || ganJx === 'void') ? 'bad' : 'neutral') };
+});
+
+// ── P0-1 罗盘层序表（10.7 自内向外·综合盘典型）──────────────────────────
+// r0/r1 = 归一化半径（0=盘心 1=外缘），驱动 LuopanDial 多环渲染，勿硬编码段数。
+export const LUOPAN_LAYERS = [
+	{ key: 'tianchi', label: '天池', type: 'text', r0: 0, r1: 0.1, use: '磁针指南·定子午线', cells: [] },
+	{ key: 'xiantian', label: '先天八卦', type: 'ring', r0: 0.1, r1: 0.15, use: '先天为体·乾南坤北',
+		cells: _guaRing(XIANTIAN_DEG, (g)=>({ wuxing: GUA8_WUXING[g], num: GUA8_XIANTIAN_NUM[g] })) },
+	{ key: 'houtian', label: '后天八卦', type: 'ring', r0: 0.15, r1: 0.2, use: '后天为用·坎北离南',
+		cells: _guaRing((()=>{ const m = {}; Object.keys(HOUTIAN_POS).forEach((g)=>{ m[g] = GONG_CENTER_DEG[HOUTIAN_POS[g]]; }); return m; })(), (g)=>({ wuxing: GUA8_WUXING[g], gong: HOUTIAN_POS[g] })) },
+	{ key: 'luoshu', label: '洛书九星 · 三元九运', type: 'ring', r0: 0.2, r1: 0.255, use: '九星入中飞泊·元运当令',
+		cells: Object.keys(GONG_CENTER_DEG).map((n)=>{
+			const g = +n;
+			return { label: ZIBAI_STAR[g], deg0: _norm360(GONG_CENTER_DEG[g] - 22.5), deg1: _norm360(GONG_CENTER_DEG[g] + 22.5), gong: g, jx: ZIBAI_JX[g], yun: YUN_YEARS[g] ? `${g}运 ${YUN_YEARS[g][0]}–${YUN_YEARS[g][1]}` : '' };
+		}).sort((a, b)=>a.deg0 - b.deg0) },
+	{ key: 'dipan', label: '地盘正针 · 二十四山', type: 'needle', needle: 'zheng', main: true, r0: 0.255, r1: 0.355,
+		use: NEEDLE_USE.zheng, cells: _shanRing(0) },
+	{ key: 'chuanshan', label: '穿山七十二龙', type: 'ring', r0: 0.355, r1: 0.43, use: '格入首龙·中龙正气边龙孤虚', cells: CHUANSHAN_72 },
+	{ key: 'toudi', label: '透地六十龙', type: 'ring', r0: 0.43, r1: 0.505, use: '定中气·取纳音·甲己龙空亡', cells: TOUDI_60 },
+	{ key: 'renpan', label: '人盘中针 · 二十四山', type: 'needle', needle: 'ren', r0: 0.505, r1: 0.58,
+		use: NEEDLE_USE.ren, cells: _shanRing(NEEDLE_OFFSET.ren) },
+	{ key: 'fenjin', label: '百二十分金', type: 'ring', r0: 0.58, r1: 0.655, use: '坐度细分·避空亡骑缝', cells: FENJIN_120 },
+	{ key: 'tianpan', label: '天盘缝针 · 二十四山', type: 'needle', needle: 'feng', r0: 0.655, r1: 0.73,
+		use: NEEDLE_USE.feng, cells: _shanRing(NEEDLE_OFFSET.feng) },
+	{ key: 'gua64', label: '六十四卦 · 三百八十四爻', type: 'ring', r0: 0.73, r1: 0.865, use: '玄空大卦三元盘·线度分金',
+		cells: GUA64_CIRCLE.map((g)=>({ label: g.name, deg0: g.deg0, deg1: g.deg1, sector: g.sector })) },
+	{ key: 'xiu28', label: '二十八宿', type: 'ring', r0: 0.865, r1: 0.925, use: '四象七宿·天星（等分示意·非盈缩实度）', approx: true, cells: XIU28_RING },
+	{ key: 'zhoutian', label: '周天三百六十度', type: 'tick', r0: 0.925, r1: 1, use: '外缘刻度', tick: { major: 15, minor: 5 }, cells: [] },
+];
+// 默认可见层（防信息过载）：三针 + 天池 + 周天。
+export const LUOPAN_DEFAULT_LAYERS = ['tianchi', 'dipan', 'renpan', 'tianpan', 'zhoutian'];
+
+// ── P0-2 玄空门派（8.5）────────────────────────────────────────────────────
+// 🔴 古籍只列「分歧维度」，从未把某度界/某替星表指名归某派 → 严禁臆造映射。
+//    唯一明载可联动：中州「五黄分属二·八」＝两元八运。其余维度独立可调。
+export const XUANKONG_SCHOOLS = [
+	{ key: 'shen', name: '沈氏（无锡）', person: '沈竹礽', desc: '今最通行，公开下卦/起星/替卦全体系；本模块现有算法即此一路。',
+		focus: ['下卦替卦公开体系', '三盘九宫飞泊'], auto: null },
+	{ key: 'wuchang', name: '无常（章仲山）', person: '章仲山', desc: '飞星正源，重心法、阴阳动静、峦头合十，秘而少宣。',
+		focus: ['心法', '阴阳动静', '峦头合十'], auto: null },
+	{ key: 'zhongzhou', name: '中州（王亭之）', person: '王亭之', desc: '重七星打劫、城门、峦头理气合参；五黄分属二·八运，更强调三元龙阴阳起星。',
+		focus: ['七星打劫', '城门', '三元龙阴阳起星'], auto: { wuHuangSplit: 'liangyuan' } },
+	{ key: 'guangdong', name: '广东（岭南）', person: '', desc: '岭南传承，重兼向替卦之实用。',
+		focus: ['兼向替卦实用'], auto: null },
+];
+export const XUANKONG_SCHOOL_KEYS = XUANKONG_SCHOOLS.map((s)=>s.key);
+// 兼向起替度界：各家不一，独立可选，与门派解耦。
+export const JIAN_BOUNDARY_OPTIONS = [
+	{ value: 3, label: '出中 3°' }, { value: 4.5, label: '出中 4.5°' }, { value: 6, label: '出中 6°' },
+];
+export const JIAN_BOUNDARY_NOTE = '起替度界各家不一，请按所宗罗盘选定。';
+// 五黄分运：下卦运（沈氏多用）/ 两元八运（五黄分属二·八）。仅改元属标注，不动飞星。
+export const WUHUANG_SPLIT_OPTIONS = [
+	{ value: 'xiagua', label: '下卦运（五运自成一运）', desc: '五运二十年整体作五运论，元属「中（上下五分）」。' },
+	{ value: 'liangyuan', label: '两元八运（五黄分属二·八）', desc: '五运前十年归二运（上元）、后十年归八运（下元），周天只作八运论。' },
+];
+// 两元八运下五运的前后十年归属。
+export const WUHUANG_LIANGYUAN = { first: { yun: 2, yuan: '上元', years: [1944, 1953] }, second: { yun: 8, yuan: '下元', years: [1954, 1963] } };
+
+// ── P0-3 玄空六法（8.6 · 谈养吾）────────────────────────────────────────
+export const LIUFA_ITEMS = [
+	{ key: 'lingzheng', name: '玄空（零正）', desc: '当元正神、零神之辨；正神宜山、零神宜水，「正神正位装、拨水入零堂」。' },
+	{ key: 'cixiong', name: '雌雄', desc: '山水阴阳交媾（雌雄交会），龙、向、水阴阳相配。' },
+	{ key: 'jinlong', name: '金龙', desc: '「金龙一经一纬」动而不动之机，辨动静以定挨排。' },
+	{ key: 'aixing', name: '挨星', desc: '大卦挨星（非飞星），以卦气挨排，论生旺衰死。' },
+	{ key: 'chengmen', name: '城门', desc: '向旁通气放水之诀，收城门一卦之旺气。' },
+	{ key: 'taisui', name: '太岁', desc: '以太岁加临定流年应期吉凶。' },
+];
+export const LIUFA_NOTE = '六法以零正为体、挨星为用，重山水雌雄与金龙动静；不排三盘九宫，与飞星分流。';
+// 卦气生旺衰死四档（六法挨星用，按当元卦运与元运之距定档，不套飞星星表）。
+export const GUAQI_STAGES = [
+	{ key: 'wang', name: '旺', jx: 'good', desc: '当元当令之气' },
+	{ key: 'sheng', name: '生', jx: 'good', desc: '未来将令之气（进气）' },
+	{ key: 'shuai', name: '衰', jx: 'neutral', desc: '甫过之气（退气）' },
+	{ key: 'si', name: '死', jx: 'bad', desc: '久过失令之气' },
+];
+
+// ── P0-4 命理派（8.4 · 以命配宅，不另起方位盘）────────────────────────────
+export const MINGLI_NOTE = '此派不另起方位盘，以命卦、喜用配宅之坐向与吉方，依附八宅、玄空、三合而行。';
+// 命卦（八宅命卦，五数寄坤/艮）→ 五行 / 宜居方位 / 宜用色。
+export const MINGLI_GUA_PROFILE = (()=>{
+	const out = {};
+	Object.keys(GUA8_WUXING).forEach((g)=>{
+		const wx = GUA8_WUXING[g];
+		out[g] = { wuxing: wx, fangwei: WUXING_FANGWEI[wx], color: WUXING_COLOR[wx], hex: WUXING_HEX[wx], hetu: WUXING_HETU_NUM[wx], sheng: WUXING_SHENG[wx], ke: WUXING_KE[wx] };
+	});
+	return out;
+})();
+// 人—宅五行关系口径（宅卦五行 对 命卦五行）。
+export const MINGLI_RELATION = {
+	same: { label: '比和', jx: 'good', text: '宅命同气，安稳相守。' },
+	zhaiShengMing: { label: '宅生命', jx: 'good', text: '宅气生扶命主，最为得力。' },
+	mingShengZhai: { label: '命生宅', jx: 'neutral', text: '命主泄气养宅，费力而可居。' },
+	zhaiKeMing: { label: '宅克命', jx: 'bad', text: '宅气克身，久居不利，宜化不宜斗。' },
+	mingKeZhai: { label: '命克宅', jx: 'neutral', text: '命主制宅，可用而需调。' },
+};
+
+// ── P0-5 形体图（2.2/2.9/2.10/2.12）──────────────────────────────────────
+// 忠实转绘既有文字形体，不新增古籍外形体。统一画布 100×60，地平线 y=56。
+// path 仅作形体示意（山形轮廓/水城走势/杖法示意），非实测地形。
+export const XINGSHI_SHAPES = {
+	// 寻龙九星形体（对应 XINGSHI_9STAR 之 shape 文字）
+	long9: [
+		{ key: '贪狼', d: 'M10 56 C30 51 41 39 50 8 C59 39 70 51 90 56 Z' },
+		{ key: '巨门', d: 'M10 56 L17 22 L83 22 L90 56 Z' },
+		{ key: '禄存', d: 'M14 56 C14 27 30 15 50 15 C70 15 86 27 86 56 Z', feet: 'M14 56 L22 46 L30 56 L38 46 L46 56 L54 46 L62 56 L70 46 L78 56 L86 46' },
+		{ key: '文曲', d: 'M4 44 C18 28 28 52 42 38 C56 24 66 48 80 36 C86 31 92 35 96 33', stroke: true },
+		{ key: '廉贞', d: 'M6 56 L19 30 L27 42 L39 12 L49 34 L60 6 L71 40 L80 27 L94 56 Z' },
+		{ key: '武曲', d: 'M14 56 C14 25 30 13 50 13 C70 13 86 25 86 56 Z' },
+		{ key: '破军', d: 'M8 56 L25 41 L33 47 L43 19 L55 31 L61 23 L70 45 L79 35 L92 56 Z' },
+		{ key: '左辅', d: 'M10 56 C10 33 21 23 33 23 C41 23 46 27 50 33 C54 25 62 17 72 17 C84 17 90 31 90 56 Z' },
+		{ key: '右弼', d: 'M4 49 C24 45 40 47 52 44 C66 41 82 45 96 43', stroke: true, dash: '5 4' },
+	],
+	// 窝钳乳突四穴形（2.9）——虚线为界水合襟，圆点为穴心。
+	xue4: [
+		{ key: '窝穴', d: 'M6 20 C20 18 28 44 50 44 C72 44 80 18 94 20', stroke: true, pt: [50, 38] },
+		{ key: '钳穴', d: 'M30 14 C30 42 39 51 50 51 C61 51 70 42 70 14', stroke: true, stem: 'M50 12 L50 30', pt: [50, 43] },
+		{ key: '乳穴', d: 'M10 50 C30 48 36 22 50 22 C64 22 70 48 90 50', stroke: true, pt: [50, 33] },
+		{ key: '突穴', d: 'M4 46 L33 46 C37 30 63 30 67 46 L96 46', stroke: true, pt: [50, 40] },
+	],
+	// 水城五星（2.12）——曲线为水，圆点为穴/宅。
+	shui5: [
+		{ key: '金城', d: 'M6 16 C18 52 82 52 94 16', stroke: true, pt: [50, 26] },
+		{ key: '水城', d: 'M4 40 C20 18 30 52 46 32 C60 14 70 46 84 28 C88 23 92 26 96 24', stroke: true, pt: [50, 50] },
+		{ key: '木城', d: 'M6 34 L94 34', stroke: true, pt: [50, 48] },
+		{ key: '火城', d: 'M4 54 L64 20', stroke: true, barb: 'M64 20 L52 22 M64 20 L58 32', pt: [76, 14] },
+		{ key: '土城', d: 'M10 14 L10 44 L90 44 L90 14', stroke: true, pt: [50, 28] },
+	],
+	// 倒杖十二法（2.10）——mai=来脉示意，zhang=下杖示意（虚线），pt=放棺处。
+	daozhang12: [
+		{ key: '顺杖', mai: 'M8 12 C30 20 46 34 92 44', zhang: 'M56 34 L74 40', pt: [66, 38] },
+		{ key: '逆杖', mai: 'M8 8 C26 18 40 34 60 50', zhang: 'M60 46 L42 34', pt: [50, 40] },
+		{ key: '缩杖', mai: 'M8 10 C24 16 40 30 88 46', zhang: 'M30 20 L44 26', pt: [34, 22] },
+		{ key: '缀杖', mai: 'M8 12 C28 18 44 30 88 40', zhang: 'M70 36 L78 50', pt: [76, 47] },
+		{ key: '开杖', mai: 'M50 6 L50 30', zhang: 'M50 30 L26 48 M50 30 L74 48', pt: [50, 30] },
+		{ key: '穿杖', mai: 'M6 28 L94 28', zhang: 'M50 8 L50 48', pt: [50, 28] },
+		{ key: '离杖', mai: 'M8 10 C26 18 40 28 58 34', zhang: 'M70 42 L86 46', pt: [78, 44] },
+		{ key: '没杖', mai: 'M8 14 C30 20 48 30 92 42', zhang: 'M56 30 L56 48', pt: [56, 45] },
+		{ key: '对杖', mai: 'M50 6 L50 34', zhang: 'M34 40 L66 40', pt: [50, 40] },
+		{ key: '截杖', mai: 'M6 14 C30 22 60 34 94 44', zhang: 'M46 20 L54 36', pt: [50, 28] },
+		{ key: '犯杖', mai: 'M10 10 C30 20 46 30 88 44', zhang: 'M52 26 L72 24', pt: [62, 25] },
+		{ key: '顿杖', mai: 'M8 12 C26 20 36 30 46 30 L70 30 C78 34 84 40 92 46', zhang: 'M50 24 L66 24', pt: [58, 30] },
+	],
+};
+export const XINGSHI_SHAPE_NOTE = '形体图为古法形容之示意，非实测地形；实勘须以现场峦头为准。';
+

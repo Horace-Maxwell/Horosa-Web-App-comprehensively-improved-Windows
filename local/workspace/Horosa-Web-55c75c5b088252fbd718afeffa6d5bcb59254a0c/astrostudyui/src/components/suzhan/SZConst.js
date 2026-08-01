@@ -60,7 +60,7 @@ export const SZFengYe = [
 	['燕', '·', '幽', '州', AstroText.AstroMsg[AstroConst.SAGITTARIUS]], 
 	['吴', '越·', '扬', '州', AstroText.AstroMsg[AstroConst.CAPRICORN]], 
 	['齐', '·', '青', '州', AstroText.AstroMsg[AstroConst.AQUARIUS]], 
-	['魏', '·', '并', '州', AstroText.AstroMsg[AstroConst.PISCES]]
+	['卫', '·', '并', '州', AstroText.AstroMsg[AstroConst.PISCES]]
 ];
 
 export const SZSigns = [
@@ -90,7 +90,7 @@ export const SZFengYeCircle = [
 	['燕', '幽', '州', AstroText.AstroMsg[AstroConst.SAGITTARIUS]], 
 	['吴越', '扬', '州', AstroText.AstroMsg[AstroConst.CAPRICORN]], 
 	['齐', '青', '州', AstroText.AstroMsg[AstroConst.AQUARIUS]], 
-	['魏', '并', '州', AstroText.AstroMsg[AstroConst.PISCES]]
+	['卫', '并', '州', AstroText.AstroMsg[AstroConst.PISCES]]
 ];
 
 export const SZFengYeBySu = {
@@ -105,7 +105,8 @@ export const SZFengYeBySu = {
 	'Sagittarius': {name: ['燕', '幽', '州'], su: ['尾', '箕'], next: '斗', color: AstroConst.AstroColor.Stroke, fillColor: DefaultFillColor},
 	'Capricorn': {name: ['吴', '越', '扬', '州'], su: ['斗', '牛'], next: '女', color: AstroConst.AstroColor.Stroke, fillColor: DefaultFillColor},
 	'Aquarius': {name: ['齐', '青', '州'], su: ['女', '虚', '危'], next: '室', color: AstroConst.AstroColor.Stroke, fillColor: DefaultFillColor},
-	'Pisces': {name: ['魏', '并', '州'], su: ['室', '壁'], next: '奎', color: AstroConst.AstroColor.Stroke, fillColor: DefaultFillColor},
+	// 娵訾(室壁/亥)分野为「卫」(汉书·地理志:卫地,营室东壁之分野;曾误植形近「魏」——魏属觜参实沉)
+	'Pisces': {name: ['卫', '并', '州'], su: ['室', '壁'], next: '奎', color: AstroConst.AstroColor.Stroke, fillColor: DefaultFillColor},
 };
 
 export const SZSignsCircle = [

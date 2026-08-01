@@ -14,12 +14,34 @@ import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
 import { fetchChart } from '../../services/astro';
 import { buildChartParams } from '../../divination/engine/chartRequest';
+import { submitStepPrefetch } from '../../utils/stepPrefetch';
+import { stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 import DateTime from '../comp/DateTime';
 import { GLOSSARY } from '../../divination/data/glossary';
 import { openDivinationCaseDrawer, getDivinationSavedCasePayload } from '../../utils/divinationCaseSave';
+import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+
+// 「设置→星盘设置」全局古典参数 → 本盘热同步键集(缺省=全量;卜卦页收窄——
+// 流派学理绑定的键(界系/双子界序/福点反转/宫制/星群)恒以流派为准,不被全局改动冲掉)。
+const DEFAULT_GLOBAL_SYNC_KEYS = ['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
+	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb'];
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
+
+// 步长步进(y/M/d/h/m 档;m 档=4分钟×n,与 DateTimeSelector 分钟档一致)。
+// changeTime 的 settle 后预取与 handleStepSelect 的选步长预取共用此单源,防两处加法漂移。
+function stepDt(dt, unit, dir){
+	if(!dt || typeof dt.clone !== 'function'){ return null; }
+	const nd = dt.clone();
+	if(unit === 'y'){ nd.addYear(dir); }
+	else if(unit === 'M'){ nd.addMonth(dir); }
+	else if(unit === 'd'){ nd.addDate(dir); }
+	else if(unit === 'h'){ nd.addHour(dir); }
+	else if(unit === 'm'){ nd.addMinute(4 * dir); }
+	else { return null; }
+	return nd;
+}
 
 // 卜卦盘 / 择日盘 共用的自包含三栏页（左设置+调时 / 中圆盘 / 右判断）。
 // 时间/地点/设置全部用本地 state，独立于「占星」主盘，不回灌父级 astro model。
@@ -47,6 +69,13 @@ class DivinationChartShell extends Component{
 		if(defs.hsys !== undefined){
 			seed.hsys = { value: defs.hsys, name: ['hsys'] };
 		}
+		// 其余 defaults 键通用播种(卜卦档随带 termsVariant/lotReversal 等后端键 —— 使首帧排盘
+		// 即与所选流派学理一致,不再依赖用户切档触发 patch;election 等未传的技法零行为)。
+		Object.keys(defs).forEach((k)=>{
+			if(k === 'tradition' || k === 'zodiacal' || k === 'siderealAyanamsa' || k === 'hsys'){ return; }
+			if(defs[k] === undefined || defs[k] === null){ return; }
+			seed[k] = { value: defs[k], name: [k] };
+		});
 
 		// 卜卦/择日默认起盘时刻 = 此刻（保留父级地点/时区）。父级 date.value 常为当日 0 点、
 		// time.value 才含真实时分，两者分离；这里统一用一个完整的「此刻」DateTime，避免错位。
@@ -82,6 +111,8 @@ class DivinationChartShell extends Component{
 		this.setExtra = this.setExtra.bind(this);
 		this.setTimeDt = this.setTimeDt.bind(this);
 		this.patchFields = this.patchFields.bind(this);
+		this.handleStepSelect = this.handleStepSelect.bind(this);
+		this._lastStepSel = null;   // 选步长 5s 去重态(同 unit 反复点不重复排队)
 	}
 
 	setTimeDt(dt){
@@ -111,7 +142,11 @@ class DivinationChartShell extends Component{
 	componentDidMount(){
 		this._mounted = true;
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
-		if(typeof window !== 'undefined'){ window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
+		this.handleClassicalGlobalsChanged = this.handleClassicalGlobalsChanged.bind(this);
+		if(typeof window !== 'undefined'){
+			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+			window.addEventListener(CLASSICAL_GLOBALS_EVENT, this.handleClassicalGlobalsChanged);
+		}
 		if(!this.applyRestoreIfAny()){
 			this.refetch();
 		}
@@ -119,7 +154,24 @@ class DivinationChartShell extends Component{
 
 	componentWillUnmount(){
 		this._mounted = false;
-		if(typeof window !== 'undefined' && this.handleSnapshotRefreshRequest){ window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
+		if(typeof window !== 'undefined'){
+			if(this.handleSnapshotRefreshRequest){ window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest); }
+			if(this.handleClassicalGlobalsChanged){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this.handleClassicalGlobalsChanged); }
+		}
+	}
+
+	// 「设置→星盘设置」改古典参数 → 本盘热同步:仅收编 globalSyncKeys 白名单键
+	// (卜卦页传收窄集,流派绑定键不被冲);与当前值相同则不动(零无谓重排)。
+	handleClassicalGlobalsChanged(){
+		const keys = Array.isArray(this.props.globalSyncKeys) ? this.props.globalSyncKeys : DEFAULT_GLOBAL_SYNC_KEYS;
+		const g = getClassicalChartGlobals();
+		const patch = {};
+		keys.forEach((k)=>{
+			if(g[k] === undefined){ return; }
+			const cur = this.state.fields[k] && this.state.fields[k].value !== undefined ? this.state.fields[k].value : undefined;
+			if(cur !== g[k]){ patch[k] = g[k]; }
+		});
+		if(Object.keys(patch).length){ this.patchFields(patch); }
 	}
 
 	// AI导出:在本模块 tab(如世俗盘)导出时响应刷新事件,用 buildAiSnapshot 把格式化快照写回 detail.snapshotText。
@@ -166,12 +218,17 @@ class DivinationChartShell extends Component{
 		if(c.gpsLon !== undefined && c.gpsLon !== null){ patch.gpsLon = c.gpsLon; }
 		if(c.gpsLat !== undefined && c.gpsLat !== null){ patch.gpsLat = c.gpsLat; }
 		if(c.pos){ patch.pos = c.pos; }
-		// 技法设置（黄道/宫制/守护）随案还原。
+		// 技法设置（黄道/宫制/守护 + 古典占星参数）随案还原（present 才还原,老案例缺键零行为）。
 		const settings = (c.payload && c.payload.settings) || null;
 		if(settings){
 			if(settings.zodiacal !== undefined){ patch.zodiacal = settings.zodiacal; }
 			if(settings.hsys !== undefined){ patch.hsys = settings.hsys; }
 			if(settings.tradition !== undefined){ patch.tradition = settings.tradition; }
+			['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
+				'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
+				'viaCombustaVariant'].forEach((k)=>{   // 与 divinationCaseSave 落档键列表成对(存/还原白名单必须 lockstep)
+				if(settings[k] !== undefined && settings[k] !== null){ patch[k] = settings[k]; }
+			});
 		}
 		// 问题类别(horary) / 用事类型(election) + 通用 extra(世俗盘 ingress* 等) 还原到 extra。
 		const ex = (c.payload && c.payload.extra && typeof c.payload.extra === 'object') ? { ...c.payload.extra } : {};
@@ -194,7 +251,7 @@ class DivinationChartShell extends Component{
 				return; // 过期请求或已卸载，丢弃
 			}
 			const chart = (rsp && rsp.Result) ? rsp.Result : null;
-			this.setState({ chart, busy: false, err: chart ? null : 'no-result' });
+			this.setState({ chart, busy: false, err: chart ? null : 'no-result' }, ()=>{ this._warmAdjacent(); });
 		}).catch((e)=>{
 			if(seq !== this._reqSeq || !this._mounted){
 				return;
@@ -229,20 +286,64 @@ class DivinationChartShell extends Component{
 		// 预取失败无害(正式请求照常);fetchChart cache:true 经请求缓存在途共享。
 		if(res.step && res.step.unit && res.step.dir && dt.clone){
 			try{
-				const nd = dt.clone();
-				const n = res.step.dir;
-				if(res.step.unit === 'y'){ nd.addYear(n); }
-				else if(res.step.unit === 'M'){ nd.addMonth(n); }
-				else if(res.step.unit === 'd'){ nd.addDate(n); }
-				else if(res.step.unit === 'h'){ nd.addHour(n); }
-				else if(res.step.unit === 'm'){ nd.addMinute(4 * n); }
-				else { return; }
+				this._curUnit = res.step.unit;   // 记住实际步进档(settle 后 ±1 预热用)
+				const nd = stepDt(dt, res.step.unit, res.step.dir);
+				if(!nd){ return; }
 				const nextFields = { ...this.state.fields };
 				nextFields.date = { value: nd, name: ['date'] };
 				nextFields.time = { value: nd.clone ? nd.clone() : nd, name: ['time'] };
 				fetchChart(buildChartParams(nextFields), { cache: true, silent: true }).catch(()=>{ /* 预取静默 */ });
 			}catch(e){ /* 预取失败无害 */ }
 		}
+	}
+
+	// 以当前 fields 为基,按步长档构预取任务(键=真点同一 buildChartParams 路径,逐字节等;
+	// chartMem/在途去重承接命中)。handleStepSelect(±1±2) 与 _warmAdjacent(±1) 共用此单源。
+	_buildStepTasks(unit, plan){
+		const dt0 = this.state.fields.date && this.state.fields.date.value;
+		if(!dt0 || typeof dt0.clone !== 'function'){ return []; }
+		const tasks = [];
+		for(const pl of plan){
+			let nd = dt0;
+			for(let i = 0; i < pl.k && nd; i += 1){ nd = stepDt(nd, unit, pl.dir); }
+			if(!nd){ continue; }
+			const f2 = { ...this.state.fields };
+			f2.date = { value: nd, name: ['date'] };
+			f2.time = { value: nd.clone ? nd.clone() : nd, name: ['time'] };
+			let params;
+			try{ params = buildChartParams(f2); }catch(e){ continue; }   // 非法日期静默跳过
+			tasks.push({
+				name: `divchart${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`,
+				// silent+零重试:预取失败静默、绝不退避风暴(主链纪律同款)
+				run: ()=>fetchChart(params, { cache: true, silent: true, retry: { retries: 0 } }),
+			});
+		}
+		return tasks;
+	}
+
+	// [R3-A1 下放] 选步长即预取(卜卦/择日/世俗三盘):本盘 fields 自持(与全局 store 无关),
+	// 全局 handler(store fields+fieldsToParams)对本盘是【错键空烧】——必须走本地构参。
+	// 经共享调度器(idle+latest-wins+预算4+150ms 间隔)排队;同 unit 5s 去重防抖;开关同主链。
+	handleStepSelect(unit){
+		try{
+			if(!stepSelectPrefetchEnabled() || !unit){ return; }
+			this._curUnit = unit;
+			const now = Date.now();
+			if(this._lastStepSel && this._lastStepSel.unit === unit && (now - this._lastStepSel.at) < 5000){ return; }
+			this._lastStepSel = { unit, at: now };
+			const tasks = this._buildStepTasks(unit, [{ k: 1, dir: 1 }, { k: 1, dir: -1 }, { k: 2, dir: 1 }, { k: 2, dir: -1 }]);
+			if(tasks.length){ submitStepPrefetch(tasks, { budget: 4 }); }
+		}catch(e){ /* 预取失败无害 */ }
+	}
+
+	// settle 后 ±1 预热:主盘取回后把当前步长档(未选过=默认 m 四分钟)前后各一步备好 ——
+	// 进页/换地点/改设置后的【第一下】步进也命中缓存(与主链 settle 后预取同范式;
+	// submitStepPrefetch 内部已按 stepPrefetchEnabled 总闸门控,关=零行为)。
+	_warmAdjacent(){
+		try{
+			const tasks = this._buildStepTasks(this._curUnit || 'm', [{ k: 1, dir: 1 }, { k: 1, dir: -1 }]);
+			if(tasks.length){ submitStepPrefetch(tasks, { budget: 2 }); }
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	castNow(){
@@ -300,7 +401,7 @@ class DivinationChartShell extends Component{
 		const pos = fields.pos && fields.pos.value ? fields.pos.value : '当地时间';
 		const timeEditor = (
 			<div className="horosa-time-popover">
-				<PlusMinusTime value={dt} onChange={this.changeTime} />
+				<PlusMinusTime value={dt} onChange={this.changeTime} onStepSelect={this.handleStepSelect} />
 			</div>
 		);
 		return (
@@ -323,7 +424,7 @@ class DivinationChartShell extends Component{
 							</button>
 						</Popover>
 						<div className="horosa-time-adjust-inline">
-							<PlusMinusTime value={dt} onChange={this.changeTime} adjustOnly />
+							<PlusMinusTime value={dt} onChange={this.changeTime} onStepSelect={this.handleStepSelect} adjustOnly />
 						</div>
 						{this.props.castNowLabel ? (
 							<XQButton size="small" iconName="refresh" onClick={this.castNow} style={{ marginTop: 6 }}>
@@ -423,6 +524,15 @@ class DivinationChartShell extends Component{
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
 									showAstroMeaning={this.props.showAstroMeaning}
+									// [批5] 键星聚焦叠层(卜卦征象宫高亮):函数型按当前盘/extra 求值;
+									// 不传=undefined → AstroChart 渲染路径与既有逐字节一致(零回归)。
+									keyPlanets={typeof this.props.keyPlanets === 'function' ? this.props.keyPlanets(chartObj, this.state.extra) : this.props.keyPlanets}
+									// [二期] 判读叠层(完成法连线/映点/界环着色/恒星):同款函数型求值;
+									// 不传=undefined → 零回归(仅卜卦页提供)。
+									horaryOverlay={typeof this.props.horaryOverlay === 'function' ? this.props.horaryOverlay(chartObj, this.state.extra) : this.props.horaryOverlay}
+									// 世俗盘流派渲染白名单(古典派中盘隐外行星 glyph+相位线):同款函数型;
+									// 不传=undefined → 零回归(仅世俗盘提供)。
+									hideBodies={typeof this.props.hideBodies === 'function' ? this.props.hideBodies(chartObj, this.state.extra) : this.props.hideBodies}
 									height="100%"
 								/>
 							) : (

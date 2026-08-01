@@ -68,6 +68,8 @@ public class AstroExtraController {
 		if(TransData.containsParam("p1")) { params.put("p1", TransData.get("p1")); }
 		if(TransData.containsParam("p2")) { params.put("p2", TransData.get("p2")); }
 		if(TransData.containsParam("aspect")) { params.put("aspect", TransData.get("aspect")); }
+		// 世运行星周期 地心/日心 视角(Python compute_planet_cycles 已支持;缺此白名单=前端传了也静默丢)
+		if(TransData.containsParam("center")) { params.put("center", TransData.get("center")); }
 		return params;
 	}
 

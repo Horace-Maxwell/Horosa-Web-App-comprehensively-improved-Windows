@@ -189,6 +189,9 @@ jest.mock('../../components/lrzhan/LiuRengMain', ()=>({
 
 jest.mock('../../components/jinkou/JinKouMain', ()=>({
 	buildJinKouSnapshotText: jest.fn(()=> '自动生成的金口诀快照'),
+	// regenerateJinkouSnapshot 行年三键随档回放要用的两个派生器(mock 面须跟上真模块消费面)。
+	deriveBenMingFromRunYear: jest.fn(()=> ''),
+	deriveXuSuiFromRunYear: jest.fn(()=> ''),
 }));
 
 jest.mock('../../components/jinkou/JinKouCalc', ()=>({

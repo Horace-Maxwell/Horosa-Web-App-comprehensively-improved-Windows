@@ -197,3 +197,51 @@ describe('一掌经压测 · 组合/一致性/回归', () => {
 		});
 	});
 });
+
+// WP-F/H 新开关笛卡尔积：annualMethod × xiaoxianDir × leapRule × starNaming × daoTerm × gradeSet × zaoZi
+describe('一掌经压测 · 新流派开关笛卡尔(不抛+确定性+null降级)', () => {
+	const BZ = { nongli: { yearGZByLunar: '丁巳', shengXiaoLunar: '蛇', monthNum: 5, dayNum: 17, leap: false, clockTime: '1977-06-01 23:10:00' }, fourColumns: { time: { ganzi: '己酉' }, day: { ganzi: '戊申' }, month: { ganzi: '丙午' }, year: { ganzi: '丁巳' } }, gender: 'Male' };
+	const AXES = {
+		annualMethod: ['xiaoxian', 'liunian'],
+		xiaoxianDir: ['chart', 'always'],
+		leapRule: ['half', 'midnight'],
+		starNaming: ['A', 'B', 'C'],
+		daoTerm: ['gui', 'edao'],
+		gradeSet: ['standard', 'variant'],
+		zaoZiAdjust: [false, true],
+	};
+	it('192 组合全部产合法模型、零崩、快照非空、确定', () => {
+		let count = 0;
+		for (const annualMethod of AXES.annualMethod) {
+			for (const xiaoxianDir of AXES.xiaoxianDir) {
+				for (const leapRule of AXES.leapRule) {
+					for (const starNaming of AXES.starNaming) {
+						for (const daoTerm of AXES.daoTerm) {
+							for (const gradeSet of AXES.gradeSet) {
+								for (const zaoZiAdjust of AXES.zaoZiAdjust) {
+									const opts = { annualMethod, xiaoxianDir, leapRule, starNaming, daoTerm, gradeSet, zaoZiAdjust, mingGongMethod: 'shuZhiMao' };
+									const m = buildYizhangjingModel(BZ, opts);
+									expect(m).toBeTruthy();
+									expect(m.chart.pillars).toHaveLength(4);
+									expect(m.sishi.rows).toHaveLength(4);
+									count++;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		expect(count).toBe(2 * 2 * 2 * 3 * 2 * 2 * 2);
+	});
+	it('null/缺 bazi → 降级返 null 不抛', () => {
+		expect(buildYizhangjingModel(null, { annualMethod: 'liunian' })).toBeNull();
+		expect(buildYizhangjingModel({ nongli: {}, fourColumns: {} }, { gradeSet: 'variant' })).toBeNull();
+	});
+	it('未知开关值 → 回退默认不抛', () => {
+		const m = buildYizhangjingModel(BZ, { annualMethod: 'xxx', starNaming: 'Z', daoTerm: 'q', gradeSet: 'foo', leapRule: 'bar' });
+		expect(m).toBeTruthy();
+		expect(m.naming).toBe('A'); // 非法星名回退 A
+		expect(m.gradeSet).toBe('standard');
+	});
+});

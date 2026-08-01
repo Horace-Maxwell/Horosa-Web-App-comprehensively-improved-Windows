@@ -58,6 +58,7 @@ public class AstroHelper {
 	public static final String Chart13 = PropertyPlaceholder.getProperty("chart13", "/chart13");
 	public static final String Chart12 = PropertyPlaceholder.getProperty("chart12", "/chart12");
 	public static final String IndiaChart = PropertyPlaceholder.getProperty("indiachart", "/india/chart");
+	public static final String IndiaRectify = PropertyPlaceholder.getProperty("indiarectify", "/india/rectify");
 	public static final String RelativeChart = PropertyPlaceholder.getProperty("relativechart", "/modern/relative");
 	public static final String MidPoint = PropertyPlaceholder.getProperty("midpoint", "/germany/midpoint");
 	public static final String JieQiYear = PropertyPlaceholder.getProperty("jieqiyear", "/jieqi/year");
@@ -87,6 +88,7 @@ public class AstroHelper {
 	public static final String PlanetariumState = PropertyPlaceholder.getProperty("planetarium.state", "/planetarium/state");
 	public static final String Chart3DState = PropertyPlaceholder.getProperty("chart3d.state", "/chart3d/state");
 	public static final String PrimaryDirection3D = PropertyPlaceholder.getProperty("pd3d", "/predict/pd3d");
+	public static final String PrimaryDirectionPoles = PropertyPlaceholder.getProperty("pdpoles", "/predict/pdpoles");
 	
 	private static Map<String, Object> request(String path, Map<String, Object> params){
 		if(Debug || DisableRequestCache) {
@@ -182,24 +184,37 @@ public class AstroHelper {
 		return request(IndiaChart, params);
 	}
 
+	// 出生时间校正扫描(独立端点;扫描参数不进命盘缓存键)
+	public static Map<String, Object> getIndiaRectify(Map<String, Object> params){
+		return request(IndiaRectify, params);
+	}
+
 	
 	public static Map<String, Object> getRelativeChart(Map<String, Object> params){
 		return request(RelativeChart, params);
 	}
 	
 	public static Map<String, Object> getGermanyTech(Map<String, Object> params){
+		// 量化盘参数代次盐:白名单扩键(davison/strictFactors 等)后旧缓存键必须整体失效,
+		// 否则升级后同 body 命中旧响应(无新字段)——paramhash 污染缓存前科(jieqi w4 同款)。
+		// 今后 germany 链参数语义变更时升盐。
+		params.put("_v", "g2");
 		return request(MidPoint, params);
 	}
 	
 	public static Map<String, Object> getJieQiYear(Map<String, Object> params){
+		// 历法算法代次盐(节气窗自愈/朔表 BC 修):进 paramhash 键,老污染缓存整体失效
+		params.put("_v", "w4");
 		return request(JieQiYear, params);
 	}
-	
+
 	public static Map<String, Object> getJieQiBirth(Map<String, Object> params){
+		params.put("_v", "w4");
 		return request(JieQiBirth, params);
 	}
-	
+
 	public static Map<String, Object> getNongliMonth(Map<String, Object> params){
+		params.put("_v", "w4");
 		return request(Nongli, params);
 	}
 	
@@ -305,6 +320,11 @@ public class AstroHelper {
 	public static Map<String, Object> getPrimaryDirection3D(Map<String, Object> params){
 		// 照 /pd /pdchart 形态:参数全显式且结果确定,走 paramhash 缓存
 		return request(PrimaryDirection3D, params);
+	}
+
+	public static Map<String, Object> getPrimaryDirectionPoles(Map<String, Object> params){
+		// §19 Pole 高级输出:应星极点集(随投影法);同 /pd3d 形态走 paramhash 缓存
+		return request(PrimaryDirectionPoles, params);
 	}
 
 	}

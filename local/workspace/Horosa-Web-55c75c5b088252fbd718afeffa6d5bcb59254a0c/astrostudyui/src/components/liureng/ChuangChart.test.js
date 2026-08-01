@@ -60,9 +60,10 @@ function buildChartForXun(){
 	return chart;
 }
 
-// 八专结构(甲寅日,干支同位:甲寄寅=日支寅)+ 天盘=地盘+4。
-// 四课无近克,但日干甲遥克 2/4 课上神戌(木克土)。
-// 按《九法》遥克(第4法)优先于八专(第9法),正确应判"弹射课"(日干遥克),而非"八专课"。
+// 八专(甲寅日,干支同位:甲寄寅=日支寅)+ 天盘=地盘+4(即 Windows #46 的戌将午时课式)。
+// 四课无近克,虽日干甲遥克 2/4 课上神戌(木克土),但课经明训:八专两课无克「不复取遥克」
+// (遥者远也,干支同位无远可言)→ 正解为八专课(阳日干上神顺数三:午→申),而非弹射。
+// 🔴 曾把九法列举序号误读为判定优先级、判成弹射并锁进金标(Windows #46 实报),此例即纠正锚。
 function buildChartBaZhuanYaoKe(){
 	const downZi = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 	const upZi   = ['辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑', '寅', '卯'];
@@ -105,11 +106,11 @@ describe('ChuangChart', ()=>{
 		expect(chart.cuangs.cuang[0]).toBe('丁未');
 	});
 
-	it('八专结构且日干遥克他课上神时,按九法优先遥克(弹射课)而非八专课', ()=>{
+	it('八专两课无近克时不复取遥克:甲寅日天盘+4 → 八专课 申午午(Windows #46)', ()=>{
 		const chart = buildChartBaZhuanYaoKe();
 		const sangCuang = chart.getSangCuang();
-		expect(sangCuang.name).toBe('弹射课');
-		expect(sangCuang.cuang[0]).toBe('戌');
+		expect(sangCuang.name).toBe('八专课');
+		expect(sangCuang.cuang).toEqual(['申', '午', '午']);
 	});
 });
 

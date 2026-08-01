@@ -58,6 +58,14 @@ export const TECHNIQUE_HELP_DOCS = {
 	astrodata: AstrodataHelpDoc,
 };
 
-export function getTechniqueHelpDoc(currentTab){
+// 子技法手册:这些 key 不是主 tab,而是挂在别的主 tab 下的子页签。只按主 tab 取的话,
+// 在量化盘子页打开帮助会拿到「辅盘」总手册,而它自己那份手册永远打不开。
+// (演禽不在此列:它本身就是 currentTab,只是导航高亮时才归一到宿主 tab。)
+const SUBTECHNIQUE_HELP_KEYS = ['germanytech'];
+
+export function getTechniqueHelpDoc(currentTab, currentSubTab){
+	if(currentSubTab && SUBTECHNIQUE_HELP_KEYS.indexOf(currentSubTab) >= 0 && TECHNIQUE_HELP_DOCS[currentSubTab]){
+		return TECHNIQUE_HELP_DOCS[currentSubTab];
+	}
 	return TECHNIQUE_HELP_DOCS[currentTab] || null;
 }

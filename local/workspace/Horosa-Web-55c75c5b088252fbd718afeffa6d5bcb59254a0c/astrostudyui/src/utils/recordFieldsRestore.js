@@ -33,6 +33,19 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'siderealAyanamsa', parse: 'str' },
 	{ key: 'tradition', parse: 'int' },
 	{ key: 'termsVariant', parse: 'int' },        // schema 无此键 → 还原时新建 entry
+	{ key: 'geminiBoundEmended', parse: 'int' },  // 双子界序(仅经典传本受影响);schema 无此键 → 还原时新建 entry
+	// 2026-07 二批九键(落宫前移/太阳三态/空亡口径/恒星轨/映点容许度)。
+	{ key: 'houseCuspAdvance', parse: 'int' },
+	{ key: 'cazimiOrb', parse: 'num' },
+	{ key: 'combustOrb', parse: 'num' },
+	{ key: 'underBeamsOrb', parse: 'num' },
+	{ key: 'vocMode', parse: 'str' },
+	{ key: 'vocIncludeOuter', parse: 'int' },
+	{ key: 'fixedStarOrb', parse: 'num' },
+	{ key: 'fixedStarOrbMode', parse: 'str' },
+	{ key: 'antisciaOrb', parse: 'num' },
+	// 2026-07 四批:燃烧之路边界档(与 localcharts 落库键成对;partileDef 纯前端不随盘)。
+	{ key: 'viaCombustaVariant', parse: 'str' },
 	{ key: 'doubingSu28', parse: 'num' },
 	{ key: 'houseStartMode', parse: 'num' },       // 宿占人事十二宫起宫(ASC/八字):存盘后须还原,否则载入回退默认
 	{ key: 'southchart', parse: 'int' },
@@ -44,12 +57,33 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'leoBoundFirst', parse: 'int' },
 	{ key: 'triplicity', parse: 'str' },
 	{ key: 'lotReversal', parse: 'int' },
+	// 希腊补齐三开关:与 localcharts 落库键成对(存了不还原=载入后盘变样)
+	{ key: 'lotsDocReverse', parse: 'int' },
+	{ key: 'nodeExaltation', parse: 'int' },
+	{ key: 'saturnExalt20', parse: 'int' },
 	{ key: 'gpsLat', parse: 'raw' },
 	{ key: 'gpsLon', parse: 'raw' },
 	// ── 主限法视图键（schema + fieldsToParams）───────────────────
 	{ key: 'pdMethod', parse: 'raw' },
 	{ key: 'pdTimeKey', parse: 'raw' },
 	{ key: 'pdtype', parse: 'int' },
+	// P0 解耦补齐九键(与 localcharts 落库键成对):
+	{ key: 'pdProjection', parse: 'raw' },
+	{ key: 'pdFrame', parse: 'raw' },
+	{ key: 'pdFramework', parse: 'raw' },
+	{ key: 'pdParallel', parse: 'int' },
+	{ key: 'pdRaptParallel', parse: 'int' },
+	{ key: 'pdTimeKeyCustom', parse: 'raw' },
+	{ key: 'pdSignificators', parse: 'raw' },
+	{ key: 'pdPromissorTypes', parse: 'raw' },
+	// ── 埃及流派七轴(egypt_*):快照链 egyptSchoolFromFields 消费,页面不受钳制 ──
+	{ key: 'egypt_decanRuler', parse: 'raw' },
+	{ key: 'egypt_decanAnchor', parse: 'raw' },
+	{ key: 'egypt_decanNaming', parse: 'raw' },
+	{ key: 'egypt_starClock', parse: 'raw' },
+	{ key: 'egypt_calendarAnchor', parse: 'raw' },
+	{ key: 'egypt_petosirisMod', parse: 'int' },
+	{ key: 'egypt_godEdition', parse: 'raw' },
 	// ── 八字 UI 键（CnTraditionInput 从 fields 消费）───────────────
 	{ key: 'phaseType', parse: 'int' },
 	{ key: 'godKeyPos', parse: 'raw' },
@@ -75,6 +109,15 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'indiaTransitDate', parse: 'raw' },
 	{ key: 'indiaTajakaYear', parse: 'raw' },
 	{ key: 'indiaVargaSet', parse: 'raw' },
+	{ key: 'indiaDashaYearLength', parse: 'raw' },  // G5 年长(数值原样)
+	{ key: 'indiaAnnualChartType', parse: 'str' },  // G13 年盘口径
+	{ key: 'indiaSchool', parse: 'str' },           // 五支流派(语境层)
+	{ key: 'indiaVargaVariant', parse: 'raw' },     // W1-A 分盘变体(JSON 串)
+	{ key: 'indiaDashaVariants', parse: 'raw' },    // 大运流派开关(21 键 JSON 对象/串)
+	{ key: 'indiaVarshaLat', parse: 'raw' },        // 年盘地点(居住地)覆盖
+	{ key: 'indiaVarshaLon', parse: 'raw' },
+	{ key: 'indiaKarakaScheme', parse: 'str' },     // W1-B 卡拉卡方案
+	{ key: 'indiaYuddhaCriterion', parse: 'str' },  // W1-C 星曜战判据
 ];
 
 function parseValue(parse, raw){

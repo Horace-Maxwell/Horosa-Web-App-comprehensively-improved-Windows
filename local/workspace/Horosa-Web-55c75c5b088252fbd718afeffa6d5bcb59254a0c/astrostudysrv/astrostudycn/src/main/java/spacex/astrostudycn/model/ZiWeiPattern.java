@@ -226,6 +226,18 @@ public class ZiWeiPattern {
 			int hi = ctx.huaHouse(str(cond, "hua"));
 			return hi == l || hi == r;
 		}
+		// WP-G 新增 op：noneInTrine（stars 全不在三方四正，负判「无辅拱」）、notInMing（某星不在命宫）。
+		if ("noneInTrine".equals(op)) {
+			for (String s : list(cond, "stars")) {
+				if (ctx.trine.contains(ctx.idx(s))) {
+					return false;
+				}
+			}
+			return true;
+		}
+		if ("notInMing".equals(op)) {
+			return ctx.idx(str(cond, "star")) != ctx.life;
+		}
 		return false;
 	}
 

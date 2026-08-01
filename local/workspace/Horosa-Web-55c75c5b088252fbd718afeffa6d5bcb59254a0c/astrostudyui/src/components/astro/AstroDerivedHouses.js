@@ -38,7 +38,9 @@ class AstroDerivedHouses extends Component {
 		const houses = chartObj.chart.houses || [];
 		const objects = chartObj.chart.objects || [];
 		const hsys = chartObj.params && chartObj.params.hsys;
-		const isWhole = String(hsys) === '8' || String(hsys) === 'whole' || String(hsys).toLowerCase() === 'w';
+		// 整宫家族 = 0(整宫制)与 24(福点整宫制);8 是「天顶为10宫中点等宫制」,与整宫无关 ——
+		// 从前判 '8' 恰好判反:真选整宫制反而弹「非整宫制仅作参考」,选那个等宫制却当整宫处理。
+		const isWhole = String(hsys) === '0' || String(hsys) === '24' || String(hsys) === 'whole' || String(hsys).toLowerCase() === 'w';
 		const base = this.state.base;
 		// 原宫号 → {sign, planets[]}。
 		const byHouse = {};
@@ -50,7 +52,9 @@ class AstroDerivedHouses extends Component {
 			byHouse[hn] = { sign: csign, planets: [] };
 		});
 		objects.forEach((o)=>{
-			const hn = Number(o.house);
+			// 🔴 objects[].house 是字符串 'House4',Number() 恒 NaN → 落星列恒空
+			// (同文件对 houses 已用 houseNum,此处曾退化成 Number,同文件两套解析漂移)。
+			const hn = houseNum(o.house);
 			if(byHouse[hn]){ byHouse[hn].planets.push(o.id); }
 		});
 		// 派生:派生宫 k(1..12)对应原宫 ((base-1)+(k-1))%12 +1。

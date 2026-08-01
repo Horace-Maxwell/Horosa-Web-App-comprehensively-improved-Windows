@@ -320,7 +320,10 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 			handlers.onDone();
 		}
 	}catch(e){
+		// 🔴 hardTimer 必须在异常路径也清:曾只在成功路径 clearHard(),失败/用户点停止
+		// 各泄漏一个最长 5 分钟的定时器(闭包持 reader);报告逐节失败会线性堆积。
 		clearWatchdog();
+		clearHard();
 		detachAbort();
 		try{ parser.end(); }catch(_){ /* flush buffered SSE (e.g. a final error event) before propagating */ }
 		if(handlers.onError){

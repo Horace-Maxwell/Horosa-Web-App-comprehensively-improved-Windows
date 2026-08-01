@@ -52,3 +52,20 @@ describe('世运盘 多流派规则集 ruleset.js', () => {
 		});
 	});
 });
+
+describe('[G1] hiddenBodiesFor 渲染白名单单源(中盘隐 glyph)', () => {
+	const { hiddenBodiesFor, RULESET_BODY_LABEL } = require('../../divination/mundane/ruleset');
+	test('古典/中世纪 → 隐 ♅♆♇;modern/barbault/缺省 → null(默认档渲染零过滤=零回归锚)', () => {
+		expect(hiddenBodiesFor('ptolemaic')).toEqual(['Uranus', 'Neptune', 'Pluto']);
+		expect(hiddenBodiesFor('medieval')).toEqual(['Uranus', 'Neptune', 'Pluto']);
+		expect(hiddenBodiesFor('modern')).toBeNull();
+		expect(hiddenBodiesFor('barbault')).toBeNull();
+		expect(hiddenBodiesFor(undefined)).toBeNull();       // 缺省=modern
+		expect(hiddenBodiesFor('nonsense')).toBeNull();      // 未知回落 modern
+	});
+	test('流派卡徽章标签表覆盖全部 bodies 键', () => {
+		['classical', 'medieval', 'modern', 'barbault'].forEach((b) => {
+			expect(RULESET_BODY_LABEL[b]).toBeTruthy();
+		});
+	});
+});

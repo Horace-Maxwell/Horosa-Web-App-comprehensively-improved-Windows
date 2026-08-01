@@ -1,6 +1,7 @@
 // 玄空飞星派（沈氏）· 下卦/替卦全盘 + 结构断（合十/反吟/伏吟/入囚/三般卦/零正/城门/七星打劫/流年月）。
 import { flyChart, flyChartTi, jianXiangByDeg } from './liqiCore';
-import { GONG_NAME, GONG_GUA, OPP_GONG, NINE_STAR_MEANING, YUN_YEARS, ROB_GROUPS, FANGWEI_RING } from './fengshuiData';
+import { GONG_NAME, GONG_GUA, OPP_GONG, NINE_STAR_MEANING, YUN_YEARS, ROB_GROUPS, FANGWEI_RING,
+	XUANKONG_SCHOOLS, WUHUANG_LIANGYUAN } from './fengshuiData';
 import { monthCenter } from './zibai';
 
 const OUTER = [1, 2, 3, 4, 6, 7, 8, 9];   // 八外宫（去中5）
@@ -120,14 +121,32 @@ function huiOf(shanPan, xiangPan, flyPan, label) {
 	return out;
 }
 
+// 五黄分运（8.5）：仅改元属标注文案，绝不动下卦飞星字节。
+//   xiagua   —— 五运二十年整体作五运论（沈氏多用，默认）。
+//   liangyuan —— 五黄分属二·八：前十年归二运(上元)、后十年归八运(下元)（中州/大卦一路）。
+function wuHuangNote(yun, split) {
+	if (yun !== 5 || split !== 'liangyuan') { return null; }
+	const a = WUHUANG_LIANGYUAN.first; const b = WUHUANG_LIANGYUAN.second;
+	return {
+		split: 'liangyuan',
+		text: `五运两元八运：${a.years[0]}–${a.years[1]} 寄${a.yun}运（${a.yuan}）、${b.years[0]}–${b.years[1]} 寄${b.yun}运（${b.yuan}）`,
+		segments: [a, b],
+	};
+}
+
 // 玄空飞星 排盘 + 结构断。
-//   opts: {year, month, jian(兼向起替), tiVariant(替星方案), deg(向首度数自动判别), yinYangZhai('yang'|'yin')}。
+//   opts: {year, month, jian(兼向起替), tiVariant(替星方案), deg(向首度数自动判别), yinYangZhai('yang'|'yin'),
+//          school(门派·仅描述与侧重), jianBoundary(起替度界 3|4.5|6), wuHuangSplit('xiagua'|'liangyuan')}。
+//   🔴 门派不暗改替星表与度界——古籍只列分歧维度、从不指名归派；三者彼此独立、任意组合。
 export function xuankong(yun, xiangShan, opts = {}) {
 	const tiVariant = opts.tiVariant || 'shen';
+	const school = XUANKONG_SCHOOLS.find((s)=>s.key === opts.school) || null;
+	const jianBoundary = [3, 4.5, 6].indexOf(Number(opts.jianBoundary)) >= 0 ? Number(opts.jianBoundary) : 3;
+	const wuHuangSplit = opts.wuHuangSplit === 'liangyuan' ? 'liangyuan' : 'xiagua';
 	// 兼向度数自动判别(4.5/4.12)：给 deg 则由度数定向首;起卦法(替/下)仍由 opts.jian 主控(下卦零回归)。
 	let effXiang = xiangShan; let jianInfo = null;
 	if (opts.deg != null && opts.deg !== '' && !Number.isNaN(Number(opts.deg))) {
-		jianInfo = jianXiangByDeg(opts.deg);
+		jianInfo = jianXiangByDeg(opts.deg, jianBoundary);
 		effXiang = jianInfo.xiangShan;
 	}
 	const jian = !!opts.jian;
@@ -182,10 +201,11 @@ export function xuankong(yun, xiangShan, opts = {}) {
 	if (fuMuSanBan) { flags.push({ key: 'fuMuSanBan', label: '父母三般卦', nature: 'good' }); }
 	if (lianZhuSanBan) { flags.push({ key: 'lianZhuSanBan', label: '连珠三般卦', nature: 'good' }); }
 
-	// 城门 / 七星打劫。
+	// 城门 / 七星打劫。真打劫(离宫369)入吉、假打劫(坎宫147)只作 mild —— nature 照数据层原值，
+	// 勿再压平成 good（曾有「三元表达式两分支同值」把假打劫吞成真的写法）。
 	const gate = cityGate(xiangPan, yunPan, gXiang, yun);
 	const rob = sevenStarRob(xiangPan);
-	rob.forEach((r)=>flags.push({ key: `rob_${r.key}`, label: r.name, nature: r.nature === 'good' ? 'good' : 'good' }));
+	rob.forEach((r)=>flags.push({ key: `rob_${r.key}`, label: r.name, nature: r.nature }));
 
 	// 流年 / 流月飞星 + 会断（4.20）。
 	let yearPan = null; let monthPan = null; let yearHui = null; let monthHui = null;
@@ -200,5 +220,7 @@ export function xuankong(yun, xiangShan, opts = {}) {
 		gZuo, gXiang, yunPan, shanPan, xiangPan, palaces, flags,
 		zhengShen, lingShen, fuMuSanBan, lianZhuSanBan, yearPan, monthPan, yearHui, monthHui,
 		gate, rob, jian, tiVariant, jianInfo, yinYangZhai, sameAsXiaGua: c.sameAsXiaGua, method: c.method || '下卦',
+		school: school ? { key: school.key, name: school.name, person: school.person, desc: school.desc, focus: school.focus } : null,
+		jianBoundary, wuHuangSplit, wuHuang: wuHuangNote(yun, wuHuangSplit),
 	};
 }

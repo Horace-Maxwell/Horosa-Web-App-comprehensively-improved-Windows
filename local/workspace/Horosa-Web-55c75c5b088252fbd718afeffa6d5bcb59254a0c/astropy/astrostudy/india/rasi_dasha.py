@@ -148,7 +148,24 @@ def _cmp(a, b):
     return (a > b) - (a < b)
 
 
-def planet_strength_compare(planet_a, planet_b, planet_signs, planet_lons=None):
+def _atmakaraka_of(planet_signs, planet_lons):
+    """AK(Atmakaraka)= 宫内推进度最大者(8 曜方案:七政+罗睺;罗自宫末量起,与
+    _degree_advance 同口径)。缺 lons → None(判据不决)。"""
+    if not planet_lons:
+        return None
+    best, best_adv = None, None
+    for pid in planet_signs:
+        if pid == const.SOUTH_NODE:
+            continue
+        adv = _degree_advance(pid, planet_lons)
+        if adv is None:
+            continue
+        if best_adv is None or adv > best_adv:
+            best, best_adv = pid, adv
+    return best
+
+
+def planet_strength_compare(planet_a, planet_b, planet_signs, planet_lons=None, order='standard'):
     """两行星逐级强弱(返回 +1=a 强 / −1=b 强 / 0=全级未分)。逐级首决即止：
 
       1. 同宫合相曜数更多者强;
@@ -160,6 +177,13 @@ def planet_strength_compare(planet_a, planet_b, planet_signs, planet_lons=None):
     """
     sa = planet_signs.get(planet_a)
     sb = planet_signs.get(planet_b)
+    if order == 'ak_first':
+        # 变体判据序:Atmakaraka 优先(是 AK 者径强),再落标准链。
+        ak = _atmakaraka_of(planet_signs, planet_lons)
+        if ak is not None:
+            c = _cmp(int(planet_a == ak), int(planet_b == ak))
+            if c:
+                return c
     # L1 同宫合相曜数
     c = _cmp(len(_conjunct_planets(planet_a, planet_signs)),
              len(_conjunct_planets(planet_b, planet_signs)))
@@ -191,7 +215,7 @@ def planet_strength_compare(planet_a, planet_b, planet_signs, planet_lons=None):
     return 0
 
 
-def _stronger_lord(sign, planet_signs, strength_proxy=None, planet_lons=None):
+def _stronger_lord(sign, planet_signs, strength_proxy=None, planet_lons=None, order='standard'):
     """双主宫取强主(单主直接返回)。强主由 planet_strength_compare 逐级判据定。
 
     平(全级未分)→ 取 sign_lords 列首(传统主)。strength_proxy 形参保留向后兼容:
@@ -209,7 +233,7 @@ def _stronger_lord(sign, planet_signs, strength_proxy=None, planet_lons=None):
                 best, best_score = lord, sc
         return best
     a, b = lords[0], lords[1]
-    return a if planet_strength_compare(a, b, planet_signs, planet_lons) >= 0 else b
+    return a if planet_strength_compare(a, b, planet_signs, planet_lons, order=order) >= 0 else b
 
 
 # ── 星座逐级强弱判据(6 级；种子 = lagna/7 取强用)───────────────────────────
@@ -250,7 +274,7 @@ def _lord_sign_opposite_parity(sign, planet_signs):
     return sign_odd != lord_odd
 
 
-def sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons=None):
+def sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons=None, order='standard'):
     """两 rasi 逐级强弱(返回 +1=a 强 / −1=b 强 / 0=全级未分)。逐级首决即止：
 
       1. 占宫曜数更多者强;
@@ -260,6 +284,14 @@ def sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons=None):
       5. 否则 自然力大者强(双>定>动);
       6. 否则 两 sign 之主的宫内推进度更高者 → 该 sign 强(罗/计自宫末量起)。
     """
+    if order == 'ak_first':
+        # 变体判据序:含 Atmakaraka 之座径强,再落标准链。
+        ak = _atmakaraka_of(planet_signs, planet_lons)
+        if ak is not None:
+            aks = planet_signs.get(ak)
+            c = _cmp(int(aks == sign_a), int(aks == sign_b))
+            if c:
+                return c
     # L1 占宫曜数
     c = _cmp(len(_occupants_of_sign(sign_a, planet_signs)),
              len(_occupants_of_sign(sign_b, planet_signs)))
@@ -294,14 +326,14 @@ def sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons=None):
     return 0
 
 
-def stronger_sign(sign_a, sign_b, planet_signs, strength_proxy=None, planet_lons=None):
+def stronger_sign(sign_a, sign_b, planet_signs, strength_proxy=None, planet_lons=None, order='standard'):
     """两候选 rasi 取强者(逐级强弱判据;全级未分 → 取 sign_a)。
 
     strength_proxy 形参保留向后兼容:传入自定义代理则改用其打分比较(平 → sign_a)。
     """
     if strength_proxy is not None:
         return sign_a if strength_proxy(sign_a, planet_signs) >= strength_proxy(sign_b, planet_signs) else sign_b
-    return sign_a if sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons) >= 0 else sign_b
+    return sign_a if sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons, order=order) >= 0 else sign_b
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -312,7 +344,7 @@ def _planet_sign(planet, planet_signs):
     return planet_signs.get(planet)
 
 
-def narayana_period_years(dasa_sign, planet_signs, strength_proxy=None, planet_lons=None):
+def narayana_period_years(dasa_sign, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """Narayana 法通用期长(年)：从 dasa rasi 数到「其主星所在宫」。
 
     规则：
@@ -322,7 +354,7 @@ def narayana_period_years(dasa_sign, planet_signs, strength_proxy=None, planet_l
       - 双主宫 → 取强主算。
     返回 int 年(1..12)。
     """
-    lord = _stronger_lord(dasa_sign, planet_signs, strength_proxy, planet_lons)
+    lord = _stronger_lord(dasa_sign, planet_signs, strength_proxy, planet_lons, order=strength_order)
     lord_sign = _planet_sign(lord, planet_signs)
     if lord_sign is None:
         # 主星位置缺失 → 退化为本宫(12 年)；调用方应保证有 sign。
@@ -455,7 +487,7 @@ def _validate_narayana_table():
 # 2. Narayana dasha
 # ════════════════════════════════════════════════════════════════════════
 
-def narayana_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None):
+def narayana_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """Narayana(Padhanadhamsa)宫位大运。
 
     种子 = 强者(lagna 或 7 宫)；动定双 → Brahma/Shiva/Vishnu 序；
@@ -469,7 +501,7 @@ def narayana_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=No
     (Brahma/Shiva/Vishnu)序均精确，含 Saturn/Ketu 在种子的两个异常列。
     """
     seventh = offset_sign(lagna_sign, 7)
-    seed = stronger_sign(lagna_sign, seventh, planet_signs, strength_proxy, planet_lons)
+    seed = stronger_sign(lagna_sign, seventh, planet_signs, strength_proxy, planet_lons, order=strength_order)
     q = quality(seed)
 
     # 方向(用于元数据；Saturn/Ketu 异常一并体现)
@@ -499,8 +531,8 @@ def narayana_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=No
         column = 'normal'
     order = _narayana_table_order(seed, column)
 
-    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons) for s in SIGNS}
-    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons)
+    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons, strength_order=strength_order) for s in SIGNS}
+    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons, strength_order=strength_order)
     return {
         'system': 'Narayana',
         'seed': seed,
@@ -513,7 +545,7 @@ def narayana_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=No
     }
 
 
-def _assemble_two_cycles(order, first_years_map, planet_signs, strength_proxy=None, planet_lons=None):
+def _assemble_two_cycles(order, first_years_map, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """把 12-rasi 序展开成两轮 mahadasha 列表(首轮 first_years，二轮 12−首)。"""
     out = []
     for cycle in (1, 2):
@@ -525,7 +557,7 @@ def _assemble_two_cycles(order, first_years_map, planet_signs, strength_proxy=No
                 'years': years,
                 'cycle': cycle,
                 'quality': quality(rasi),
-                'lord': _stronger_lord(rasi, planet_signs, strength_proxy, planet_lons),
+                'lord': _stronger_lord(rasi, planet_signs, strength_proxy, planet_lons, order=strength_order),
             })
     return out
 
@@ -551,14 +583,14 @@ def _kendradi_order(seed_sign, direction):
     return order
 
 
-def lagna_kendradi_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None):
+def lagna_kendradi_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """Lagna Kendradi 宫位大运。
 
     种子 = 强者(L/7)；序 = kendra→panaphara→apoklima；方向由 lagna 奇/偶 **宫**
     (非奇足)，Saturn 在种子 → 顺 / Ketu → 逆；期长同 Narayana；二轮 = 12 − 首。
     """
     seventh = offset_sign(lagna_sign, 7)
-    seed = stronger_sign(lagna_sign, seventh, planet_signs, strength_proxy, planet_lons)
+    seed = stronger_sign(lagna_sign, seventh, planet_signs, strength_proxy, planet_lons, order=strength_order)
     direction = _direction_lagna_oddeven(lagna_sign)
     sat_sign = _planet_sign(const.SATURN, planet_signs)
     ketu_sign = _planet_sign(const.SOUTH_NODE, planet_signs)
@@ -568,8 +600,8 @@ def lagna_kendradi_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_l
         direction = -direction
 
     order = _kendradi_order(seed, direction)
-    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons) for s in SIGNS}
-    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons)
+    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons, strength_order=strength_order) for s in SIGNS}
+    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons, strength_order=strength_order)
     return {
         'system': 'LagnaKendradi',
         'seed': seed,
@@ -580,7 +612,7 @@ def lagna_kendradi_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_l
     }
 
 
-def compute_brahma(lagna_sign, planet_signs, planet_lons=None):
+def compute_brahma(lagna_sign, planet_signs, planet_lons=None, strength_order='standard'):
     """Brahma graha(§10.5 Jaimini 2-1-49 主流读法,印度占星大运体系_完整技术参考_中英对照.md:1966-1969):
     ①取 Lagna/7 强者 R;②在 R 之 6/8/12 宫主中取最强(以其所居 rāśi 之 Jaimini 强弱为代理);
     ③排除 Saturn/Rahu/Ketu;④平局偏奇象 viṣama(奇数座)。Brahma 座 = 所选 graha 所居 rāśi → Sthira 起座。
@@ -588,7 +620,7 @@ def compute_brahma(lagna_sign, planet_signs, planet_lons=None):
     if not planet_signs:
         return None
     seventh = offset_sign(lagna_sign, 7)
-    ref = stronger_sign(lagna_sign, seventh, planet_signs, None, planet_lons)
+    ref = stronger_sign(lagna_sign, seventh, planet_signs, None, planet_lons, order=strength_order)
     excluded = {const.SATURN, const.NORTH_NODE, const.SOUTH_NODE}
     cands = []
     for house in (6, 8, 12):
@@ -604,7 +636,7 @@ def compute_brahma(lagna_sign, planet_signs, planet_lons=None):
         return None
     best = cands[0]
     for c in cands[1:]:
-        cmpv = sign_strength_compare(c[1], best[1], planet_signs, planet_lons)
+        cmpv = sign_strength_compare(c[1], best[1], planet_signs, planet_lons, order=strength_order)
         if cmpv > 0 or (cmpv == 0 and index_of(c[1]) % 2 == 0 and index_of(best[1]) % 2 != 0):
             best = c        # 更强;平局偏奇象(viṣama)
     lord, lsign, house, csign = best
@@ -639,22 +671,23 @@ def sthira_dasha(lagna_sign, brahma=None):
         'order': list(order),
         'totalYears': cum,
         'mahadashas': maha,
-        'note': '起座默认 Lagna(KN Rao);Brahma 起座为变体(BPHS §10.5:Lagna/7强者之6/8/12宫主,排除土罗计,取最强偏奇象)。',
+        'note': '起座默认 Lagna(通行简法);Brahma 起座为变体(BPHS:Lagna/7强者之6/8/12宫主,排除土罗计,取最强偏奇象)。',
     }
     if start_mode == 'brahma':
         res['brahma'] = brahma
     return res
 
 
-def yogardha_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None):
+def yogardha_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """Yogārdha(平均)大运(§5.5):每座年 =(Sthira 该座 + Narayana 该座)÷2;序随 Narayana(变动运)。"""
-    nar = narayana_dasha(lagna_sign, planet_signs, strength_proxy, planet_lons)
+    nar = narayana_dasha(lagna_sign, planet_signs, strength_proxy, planet_lons,
+                         strength_order=strength_order)   # 座序亦须随用户口径(曾漏传恒 standard)
     order = nar.get('order') or [m['rasi'] for m in nar.get('mahadashas', [])[:12]]
     sthira_y = (7, 8, 9)
     maha = []
     cum = 0.0
     for s in order:
-        ny = narayana_period_years(s, planet_signs, strength_proxy, planet_lons)
+        ny = narayana_period_years(s, planet_signs, strength_proxy, planet_lons, strength_order=strength_order)
         sy = sthira_y[index_of(s) % 3]
         y = (ny + sy) / 2.0
         maha.append({'rasi': s, 'years': y, 'startAge': cum, 'endAge': cum + y})
@@ -698,7 +731,7 @@ def manduka_dasha(lagna_sign):
 # 4. Sudasa dasha
 # ════════════════════════════════════════════════════════════════════════
 
-def sudasa_dasha(sree_lagna_sign, sree_lagna_signlon, planet_signs, strength_proxy=None, planet_lons=None):
+def sudasa_dasha(sree_lagna_sign, sree_lagna_signlon, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """Sudasa(繁荣大运)。
 
     与 Lagna Kendradi 同骨架，但种子 = **Sree Lagna 所在 rasi**；方向由 SL 奇/偶宫；
@@ -717,9 +750,9 @@ def sudasa_dasha(sree_lagna_sign, sree_lagna_signlon, planet_signs, strength_pro
         direction = -direction
 
     order = _kendradi_order(seed, direction)
-    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons) for s in SIGNS}
+    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons, strength_order=strength_order) for s in SIGNS}
     balance_ratio = (30.0 - (float(sree_lagna_signlon) % 30.0)) / 30.0
-    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons)
+    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons, strength_order=strength_order)
     # 首运按余比缩短(只影响第 0 项 years)
     if maha:
         maha[0] = dict(maha[0])
@@ -741,7 +774,7 @@ def sudasa_dasha(sree_lagna_sign, sree_lagna_signlon, planet_signs, strength_pro
 # 5. Drigdasa
 # ════════════════════════════════════════════════════════════════════════
 
-def drigdasa(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None):
+def drigdasa(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None, strength_order='standard'):
     """Drigdasa：自 9 宫起，三组「9/10/11 宫 + 各自 rasi-drishti 所照 3 宫」。
 
     每组 = [seed 宫] + [seed 所照的 3 rasi]，共 4 rasi；三组依 9→10→11 宫排。
@@ -756,7 +789,7 @@ def drigdasa(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None):
     11 宫 = Le(偶足)→逆→ Le,Ar,Cp,Li。
     """
     seeds = [offset_sign(lagna_sign, 9), offset_sign(lagna_sign, 10), offset_sign(lagna_sign, 11)]
-    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons) for s in SIGNS}
+    first_years = {s: narayana_period_years(s, planet_signs, strength_proxy, planet_lons, strength_order=strength_order) for s in SIGNS}
     groups = []
     order = []
     for seed in seeds:
@@ -770,7 +803,7 @@ def drigdasa(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None):
             'signs': grp,
         })
         order.extend(grp)
-    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons)
+    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons, strength_order=strength_order)
     return {
         'system': 'Drigdasa',
         'groups': groups,
@@ -801,7 +834,7 @@ def _sorted_by_direction(signs, seed, direction):
 _NIRYANA_YEARS = {'movable': 7, 'fixed': 8, 'dual': 9}
 
 
-def niryana_shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, hora_lagna_sign=None, planet_lons=None):
+def niryana_shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, hora_lagna_sign=None, planet_lons=None, strength_order='standard'):
     """Niryana Shoola 大运。
 
     种子 = 强者(2 宫 / 8 宫)；**奇 rasi 顺 / 偶 rasi 逆**(整序方向)；
@@ -812,7 +845,7 @@ def niryana_shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, hora_lag
     """
     second = offset_sign(lagna_sign, 2)
     eighth = offset_sign(lagna_sign, 8)
-    seed = stronger_sign(second, eighth, planet_signs, strength_proxy, planet_lons)
+    seed = stronger_sign(second, eighth, planet_signs, strength_proxy, planet_lons, order=strength_order)
     direction = 1 if seed in ODD_SIGNS else -1               # 奇顺偶逆(按 rasi 奇偶)
 
     order = [sign_at(index_of(seed) + direction * i) for i in range(12)]
@@ -822,12 +855,12 @@ def niryana_shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, hora_lag
             'rasi': rasi,
             'years': _NIRYANA_YEARS[quality(rasi)],
             'quality': quality(rasi),
-            'lord': _stronger_lord(rasi, planet_signs, strength_proxy, planet_lons),
+            'lord': _stronger_lord(rasi, planet_signs, strength_proxy, planet_lons, order=strength_order),
         })
 
     # 死亡择时(P-f)：Rudra 两候选 + Trishoola 三角。强弱择一交调用方/UI。
     rudra_a, rudra_b = rudra_candidate_signs(lagna_sign)
-    rudra = stronger_sign(rudra_a, rudra_b, planet_signs, strength_proxy, planet_lons)
+    rudra = stronger_sign(rudra_a, rudra_b, planet_signs, strength_proxy, planet_lons, order=strength_order)
     return {
         'system': 'NiryanaShoola',
         'seed': seed,
@@ -859,7 +892,7 @@ SHOOLA_VARIANTS = {
 }
 
 
-def shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, variant='self', planet_lons=None):
+def shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, variant='self', planet_lons=None, strength_order='standard'):
     """Shoola 大运。
 
     种子 = 强者(由 variant 决定的两宫，默认 self = L/7)；**恒黄道顺**；每运 9 年、
@@ -870,13 +903,13 @@ def shoola_dasha(lagna_sign, planet_signs, strength_proxy=None, variant='self', 
     a, b = SHOOLA_VARIANTS.get(variant, (1, 7))
     sign_a = offset_sign(lagna_sign, a)
     sign_b = offset_sign(lagna_sign, b)
-    seed = stronger_sign(sign_a, sign_b, planet_signs, strength_proxy, planet_lons)
+    seed = stronger_sign(sign_a, sign_b, planet_signs, strength_proxy, planet_lons, order=strength_order)
     order = [sign_at(index_of(seed) + i) for i in range(12)]  # 恒顺
     maha = [{
         'rasi': rasi,
         'years': 9,
         'quality': quality(rasi),
-        'lord': _stronger_lord(rasi, planet_signs, strength_proxy, planet_lons),
+        'lord': _stronger_lord(rasi, planet_signs, strength_proxy, planet_lons, order=strength_order),
     } for rasi in order]
     return {
         'system': 'Shoola',
@@ -1069,7 +1102,58 @@ def _within_pada_fraction(moon_lon):
     return (nak_prog * 4.0) % 1.0                     # pada 内进度 0-1
 
 
-def kalachakra_dasha(moon_lon, nak_name, pada, nak_progress=None):
+# Kalachakra 三 gati(pada 序列内的固有跳;BPHS 46.101-111 权威对):
+#   蛙跳 Manduka:Savya Virgo→Cancer / Leo→Gemini;Apasavya Gemini→Leo / Cancer→Virgo
+#   猴跳 Markata:Savya Cancer→Leo;Apasavya Leo→Cancer
+#   狮顾 Simhavalokana(120°):Pisces→Scorpio / Sagittarius→Aries(savya↔apasavya 换向处)
+_KC_GATI_SAVYA = {(const.VIRGO, const.CANCER): 'manduka', (const.LEO, const.GEMINI): 'manduka',
+                  (const.CANCER, const.LEO): 'markata'}
+_KC_GATI_APASAVYA = {(const.GEMINI, const.LEO): 'manduka', (const.CANCER, const.VIRGO): 'manduka',
+                     (const.LEO, const.CANCER): 'markata'}
+_KC_GATI_ANY = {(const.PISCES, const.SCORPIO): 'simhavalokana',
+                (const.SAGITTARIUS, const.ARIES): 'simhavalokana'}
+_KC_GATI_CN = {'manduka': '蛙跳', 'markata': '猴跳', 'simhavalokana': '狮顾'}
+
+
+def _kc_gati_of(prev_rasi, rasi, savya):
+    """相邻两大运座间的 gati 类型(无跳 → None)。按权威 pair 精确匹配。"""
+    pair = (prev_rasi, rasi)
+    g = _KC_GATI_ANY.get(pair)
+    if g:
+        return g
+    return (_KC_GATI_SAVYA if savya else _KC_GATI_APASAVYA).get(pair)
+
+
+def _kc_next_pada(nak_name, pada, cycle_method):
+    """轮终换接:给出下一轮所用 (宿名, pada)。
+
+    carry(法1,默认):同 savya/apasavya 组内推进——pada+1;宿末(pada4)→ 组内下一宿 pada1;
+      组末宿 pada4 → 组首宿 pada1。🔴 绝不跨 savya↔apasavya 组。
+    same_nak_carry(法3):同宿 pada+1(pada4→pada1,宿不变)。
+    repeat(法2)/reset(法4):停留本 pada(两法在轮级延展下输出一致;细部权威未详,注明)。
+    """
+    if cycle_method == 'same_nak_carry':
+        return nak_name, (int(pada) % 4) + 1
+    if cycle_method in ('repeat', 'reset'):
+        return nak_name, int(pada)
+    # carry:组内 (宿, pada) 全序推进
+    group = _nak_group(nak_name)
+    if group is None:
+        return nak_name, int(pada)
+    names = list(KALACHAKRA_GROUPS[group])
+    try:
+        ni = names.index(nak_name)
+    except ValueError:
+        return nak_name, int(pada)
+    pi = int(pada)
+    if pi < 4:
+        return nak_name, pi + 1
+    return names[(ni + 1) % len(names)], 1
+
+
+def kalachakra_dasha(moon_lon, nak_name, pada, nak_progress=None, cycle_method='carry',
+                     applicability='universal', moon_rasi_sign=None, moon_d9_sign=None,
+                     planet_signs=None, planet_lons=None):
     """Kalachakra 大运。
 
     程序：月宿 pada → 取该 pada 的 9-rasi 序 + paramayush → 月在 pada 内进度比 ×
@@ -1094,13 +1178,20 @@ def kalachakra_dasha(moon_lon, nak_name, pada, nak_progress=None):
     seq = info['seq']
     paramayush = info['paramayush']
     maha = []
+    prev = None
     for rasi in seq:
-        maha.append({
+        gati = _kc_gati_of(prev, rasi, info['savya']) if prev is not None else None
+        item = {
             'rasi': rasi,
             'years': kalachakra_period_years(rasi),
             'quality': quality(rasi),
             'lord': SIGN_LORDS[rasi],
-        })
+        }
+        if gati:
+            item['gati'] = gati
+            item['gatiCN'] = _KC_GATI_CN.get(gati)
+        maha.append(item)
+        prev = rasi
 
     result = {
         'available': True,
@@ -1116,7 +1207,34 @@ def kalachakra_dasha(moon_lon, nak_name, pada, nak_progress=None):
         'sumOfPeriods': kalachakra_paramayush(seq),    # 应 == paramayush(不变量)
         'mahadashas': maha,
         'note': '9-rasi 序/deha/jeeva/paramayush 取自对照表(27 宿×4 pada 全覆盖，已逐格核)',
+        'cycleMethod': cycle_method,
     }
+    # 轮终换接预览(法1 进位/法3 同宿进位/法2·法4 停留;差异仅首轮 ~83-100 年后显现)。
+    nxt_nak, nxt_pada = _kc_next_pada(nak_name, int(pada), cycle_method)
+    nxt_info = kalachakra_pada_sequence(nxt_nak, nxt_pada)
+    if nxt_info:
+        result['nextCycle'] = {
+            'method': cycle_method,
+            'nakshatra': nxt_nak,
+            'pada': nxt_pada,
+            'sequence': list(nxt_info['seq']),
+            'paramayush': nxt_info['paramayush'],
+        }
+        if cycle_method in ('repeat', 'reset'):
+            result['nextCycle']['note'] = '循环/归零两法在轮级延展下输出一致(细部权威未详)'
+    # 适用条件(变体):月亮 navamsa 座强于 rasi 座才启用;判据用星座逐级强弱链。
+    if applicability == 'navamsa_stronger':
+        appl = None
+        if moon_rasi_sign is not None and moon_d9_sign is not None and planet_signs:
+            try:
+                appl = sign_strength_compare(moon_d9_sign, moon_rasi_sign, planet_signs, planet_lons) > 0
+            except Exception:
+                appl = None
+        result['applicability'] = {
+            'mode': 'navamsa_stronger',
+            'applicable': appl,
+            'note': '月亮 navamsa 座强于 rasi 座才主用(判据不足时为 null;不禁算,仅标注)',
+        }
 
     # 起运 rasi + 余年。pada 内进度优先用显式 nak_progress，否则由 moon_lon 求。
     pada_frac = nak_progress
@@ -1175,6 +1293,172 @@ def tara_lagna_dasha(lagna_sign, moon_lon):
     }
 
 
+# ════════════════════════════════════════════════════════════════════════
+# 8b. 新增座运:Chakra(Parashara)/Trikona/Navamsa(D-9)/Varnada + Paryaya 二轮
+# ════════════════════════════════════════════════════════════════════════
+
+def chakra_dasha_parashara(lagna_sign, lagna_lord_sign, second_sign, moon_lord_sign=None,
+                           is_day=None, lagna_signlon=None, day_start_rule='bphs'):
+    """Chakra 大运(BPHS 46.50-51 逐字):每座恒 10 年、严格顺黄道无跳、总 120。
+
+    起座(bphs 默认):夜生=Lagna 座 / 昼生=Lagna 主星所在座 / 黄昏=第 2 宫座。
+    反转变体(流行一系):昼=月亮座主所在座 / 夜=Lagna 主所在座 / 黄昏=第 2 宫主所在座——
+    此处黄昏窗定义权威未详,按昼/夜二分(is_day),黄昏态不判(note 注明)。
+    首运余数(次源):上升座内未行弧,整度×4=月、余分×2=日。
+    中运:每 10 年等分 12 座(首中运=大运座,顺行)。
+    """
+    if is_day is None:
+        start = lagna_sign
+        start_note = 'day_state_unknown_fallback_lagna'
+    elif day_start_rule == 'reversed':
+        start = (moon_lord_sign if is_day else lagna_lord_sign) or lagna_sign
+        start_note = 'reversed(昼=月座主所在座/夜=Lagna主所在座)'
+    else:
+        start = (lagna_lord_sign if is_day else lagna_sign) or lagna_sign
+        start_note = 'bphs(夜=Lagna座/昼=Lagna主座;黄昏窗未判,二分近似)'
+    if start is None:
+        return {'available': False, 'reason': 'missing_start_sign', 'system': 'Chakra'}
+    seed_idx = index_of(start)
+    maha = []
+    for i in range(12):
+        rasi = sign_at(seed_idx + i)
+        item = {'rasi': rasi, 'years': 10,
+                'quality': quality(rasi), 'lord': SIGN_LORDS[rasi],
+                'antardashas': [{'rasi': sign_at(index_of(rasi) + k), 'years': 10.0 / 12.0}
+                                for k in range(12)]}
+        maha.append(item)
+    out = {'available': True, 'system': 'Chakra', 'label': 'Chakra(每座 10 年·顺行)',
+           'startRasi': start, 'startRule': day_start_rule, 'startNote': start_note,
+           'totalYears': 120, 'mahadashas': maha}
+    if lagna_signlon is not None:
+        try:
+            rem = 30.0 - (float(lagna_signlon) % 30.0)
+            deg = int(rem)
+            mins = (rem - deg) * 60.0
+            out['startBalance'] = {'months': deg * 4, 'days': round(mins * 2.0, 2),
+                                   'note': '上升座内未行弧:整度×4=月/余分×2=日(次源)'}
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def trikona_dasha(lagna_sign, planet_signs, strength_proxy=None, planet_lons=None,
+                  strength_order='standard'):
+    """Trikona 大运:起 = Lagna/7 强者;方向按起座足性(奇足顺/偶足逆);
+    序 = 三角三联组(起座组→沿方向逐组),组内按星座强度降序;期长同 Narayana(数到主−1)。
+    二轮 = 12−首轮补足。"""
+    seventh = offset_sign(lagna_sign, 7)
+    seed = stronger_sign(lagna_sign, seventh, planet_signs, strength_proxy, planet_lons, order=strength_order)
+    direction = 1 if seed in ODD_FOOTED else -1
+    si = index_of(seed)
+    order = []
+    for g in range(4):                      # 4 个三角组:锚 = seed + direction*g
+        grp = [sign_at(si + direction * g + direction * 4 * t) for t in range(3)]
+        # 组内按星座强度降序(两两比较冒泡;平局保持三角序=稳定)
+        ranked = list(grp)
+        for i in range(2):
+            for j in range(2 - i):
+                if sign_strength_compare(ranked[j + 1], ranked[j], planet_signs, planet_lons,
+                                         order=strength_order) > 0:
+                    ranked[j], ranked[j + 1] = ranked[j + 1], ranked[j]
+        order.extend(ranked)
+    first_years = {r: narayana_period_years(r, planet_signs, strength_proxy, planet_lons,
+                                            strength_order=strength_order) for r in order}
+    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons,
+                                strength_order=strength_order)
+    return {'available': True, 'system': 'Trikona', 'seed': seed,
+            'direction': 'forward' if direction == 1 else 'reverse',
+            'order': order, 'mahadashas': maha,
+            'note': '三角三联组·组内强度序·期长同 Narayana(数到主−1)'}
+
+
+def navamsa_dasha_d9(d9_lagna_sign, d9_planet_signs, d9_planet_lons=None,
+                     strength_proxy=None, strength_order='standard'):
+    """Navamsa 大运 = 在 D-9 盘上跑 Narayana(起 = D9 Lagna/7 强者;全部输入用 D9 位置)。"""
+    res = narayana_dasha(d9_lagna_sign, d9_planet_signs, strength_proxy, d9_planet_lons,
+                         strength_order=strength_order)
+    if isinstance(res, dict):
+        res['system'] = 'NavamsaDasha'
+        res['label'] = 'Navamsa 大运(D-9 上跑 Narayana)'
+        res['varga'] = 'D9'
+    return res
+
+
+def varnada_dasha(vl_sign, planet_signs, strength_proxy=None, planet_lons=None,
+                  period_rule='count_to_lord', strength_order='standard'):
+    """Varnada 大运:起 = Varnada Lagna 座;方向 = VL 奇象顺/偶象逆;
+    期长 = 数到座主(Narayana 同核);等长变体期长权威未详 → 回落 count-to-lord 并注明。"""
+    if vl_sign is None:
+        return {'available': False, 'reason': 'missing_varnada_lagna', 'system': 'Varnada'}
+    direction = 1 if vl_sign in ODD_SIGNS else -1
+    si = index_of(vl_sign)
+    order = [sign_at(si + direction * i) for i in range(12)]
+    # 期长两派:count_to_lord=数至宫主(Narayana 同式);equal_nine=每座恒 9 年(等长派,
+    # 首轮总 108、二轮 12−9=3)。🔴 曾为空开关:选 equal_nine 年数逐字不变、回显还写
+    # count_to_lord —— 开关必须真改数,回显必须如实。
+    rule = period_rule if period_rule in ('count_to_lord', 'equal_nine') else 'count_to_lord'
+    if rule == 'equal_nine':
+        first_years = {r: 9.0 for r in order}
+    else:
+        first_years = {r: narayana_period_years(r, planet_signs, strength_proxy, planet_lons,
+                                                strength_order=strength_order) for r in order}
+    maha = _assemble_two_cycles(order, first_years, planet_signs, strength_proxy, planet_lons,
+                                strength_order=strength_order)
+    out = {'available': True, 'system': 'Varnada', 'seed': vl_sign,
+           'direction': 'forward' if direction == 1 else 'reverse',
+           'order': order, 'periodRule': rule, 'mahadashas': maha}
+    if rule == 'equal_nine':
+        out['note'] = '等长变体:每座首轮恒 9 年(总 108),二轮 12−9=3'
+    return out
+
+
+def paryaya_extension(mahadashas):
+    """Paryaya 二轮:每座二轮期长 = 12 − 首轮;自座 12 者仍 12(不塌 0)。
+    双轮和:常规座恒 12(全盘 144);首轮 12 之特例座双轮 24(总和随特例座数抬高)。"""
+    out = []
+    for m in mahadashas or []:
+        y = m.get('years')
+        if y is None:
+            continue
+        y2 = 12 if y == 12 else (12 - y)
+        row = dict(m)
+        row['years'] = y2
+        row['cycle'] = 2
+        row.pop('antardashas', None)
+        out.append(row)
+    return out
+
+
+def chara_sthira_paryaya(chara_result, sthira_result, lagna_sign, planet_signs,
+                         strength_proxy=None, planet_lons=None, strength_order='standard'):
+    """Chara/Sthira Paryaya(Sampat 富运,注疏系):
+    Chara Paryaya:trikona(自 Lagna 1/5/9)无行星则废;成立时 = Chara 序二轮(12−首轮)。
+    Sthira Paryaya:自 Lagna/7 强者起的 Sthira 序二轮(动7/固8/变9 恒值,二轮同值)。"""
+    out = {}
+    tri_signs = {offset_sign(lagna_sign, k) for k in (1, 5, 9)}
+    tri_occupied = any(ps in tri_signs for ps in (planet_signs or {}).values())
+    if not tri_occupied:
+        out['charaParyaya'] = {'available': False, 'reason': 'trikona_unoccupied',
+                               'note': '自 Lagna 三角(1/5/9)无行星 → Chara Paryaya 废(注疏规则)'}
+    elif chara_result and chara_result.get('mahadashas'):
+        out['charaParyaya'] = {'available': True, 'system': 'CharaParyaya',
+                               'mahadashas': paryaya_extension(chara_result['mahadashas']),
+                               'note': '二轮=12−首轮;常规座双轮和 12,自座 12 之特例座仍 12(双轮 24)'}
+    else:
+        out['charaParyaya'] = {'available': False, 'reason': 'missing_chara'}
+    # Sthira Paryaya:起座 = Lagna/7 强者;7/8/9 定值二轮同值
+    seventh = offset_sign(lagna_sign, 7)
+    seed = stronger_sign(lagna_sign, seventh, planet_signs, strength_proxy, planet_lons, order=strength_order)
+    st = sthira_dasha(seed)
+    if st and st.get('mahadashas'):
+        out['sthiraParyaya'] = {'available': True, 'system': 'SthiraParyaya', 'seed': seed,
+                                'mahadashas': [dict(m, cycle=2) for m in st['mahadashas']],
+                                'note': '自 Lagna/7 强者起;定值(动7/固8/变9)二轮同值'}
+    else:
+        out['sthiraParyaya'] = {'available': False, 'reason': 'sthira_unavailable'}
+    return out
+
+
 def build_rasi_dashas(inputs, strength_proxy=None):
     """聚合所有 rasi dasha。inputs 为简单 dict(由排盘引擎填)，键：
 
@@ -1198,28 +1482,52 @@ def build_rasi_dashas(inputs, strength_proxy=None):
     if lagna is None:
         return {'available': False, 'reason': 'missing_lagna'}
 
+    _dv = inputs.get('dashaVariants') or {}
+    _order = _dv.get('jaiminiStrengthOrder', 'standard')
     _sthira_start = (inputs.get('sthira_start') or 'lagna')
-    _brahma = compute_brahma(lagna, planet_signs, planet_lons) if _sthira_start == 'brahma' else None
+    _brahma = compute_brahma(lagna, planet_signs, planet_lons, strength_order=_order) if _sthira_start == 'brahma' else None
 
     out = {
         'available': True,
-        'narayana': narayana_dasha(lagna, planet_signs, strength_proxy, planet_lons),
-        'lagnaKendradi': lagna_kendradi_dasha(lagna, planet_signs, strength_proxy, planet_lons),
-        'drigdasa': drigdasa(lagna, planet_signs, strength_proxy, planet_lons),
-        'niryanaShoola': niryana_shoola_dasha(lagna, planet_signs, strength_proxy, planet_lons=planet_lons),
-        'shoola': shoola_dasha(lagna, planet_signs, strength_proxy, planet_lons=planet_lons),
+        'narayana': narayana_dasha(lagna, planet_signs, strength_proxy, planet_lons, strength_order=_order),
+        'lagnaKendradi': lagna_kendradi_dasha(lagna, planet_signs, strength_proxy, planet_lons, strength_order=_order),
+        'drigdasa': drigdasa(lagna, planet_signs, strength_proxy, planet_lons, strength_order=_order),
+        'niryanaShoola': niryana_shoola_dasha(lagna, planet_signs, strength_proxy, planet_lons=planet_lons, strength_order=_order),
+        'shoola': shoola_dasha(lagna, planet_signs, strength_proxy, planet_lons=planet_lons, strength_order=_order),
         'taraLagna': tara_lagna_dasha(lagna, inputs.get('moon_lon')),
         'sthira': sthira_dasha(lagna, brahma=_brahma),
-        'yogardha': yogardha_dasha(lagna, planet_signs, strength_proxy, planet_lons),
+        'yogardha': yogardha_dasha(lagna, planet_signs, strength_proxy, planet_lons, strength_order=_order),
         'manduka': manduka_dasha(lagna),
     }
 
     sl_sign = inputs.get('sree_lagna_sign')
     sl_lon = inputs.get('sree_lagna_signlon')
     if sl_sign is not None and sl_lon is not None:
-        out['sudasa'] = sudasa_dasha(sl_sign, sl_lon, planet_signs, strength_proxy, planet_lons)
+        out['sudasa'] = sudasa_dasha(sl_sign, sl_lon, planet_signs, strength_proxy, planet_lons, strength_order=_order)
     else:
         out['sudasa'] = {'available': False, 'reason': 'missing_sree_lagna'}
+
+    # ── 新增座运(附加输出键;输入缺省即优雅降级)──────────────────────
+    out['chakra'] = chakra_dasha_parashara(
+        lagna, inputs.get('lagna_lord_sign'), offset_sign(lagna, 2),
+        moon_lord_sign=inputs.get('moon_lord_sign'), is_day=inputs.get('is_day'),
+        lagna_signlon=inputs.get('lagna_signlon'),
+        day_start_rule=_dv.get('chakraDayStart', 'bphs'))
+    out['trikona'] = trikona_dasha(lagna, planet_signs, strength_proxy, planet_lons,
+                                   strength_order=_order)
+    d9_lagna = inputs.get('d9_lagna_sign')
+    d9_signs = inputs.get('d9_planet_signs')
+    if d9_lagna and d9_signs:
+        out['navamsaDasha'] = navamsa_dasha_d9(d9_lagna, d9_signs, inputs.get('d9_planet_lons'),
+                                               strength_proxy, strength_order=_order)
+    else:
+        out['navamsaDasha'] = {'available': False, 'reason': 'missing_d9_inputs'}
+    out['varnada'] = varnada_dasha(inputs.get('varnada_lagna_sign'), planet_signs,
+                                   strength_proxy, planet_lons,
+                                   period_rule=_dv.get('varnadaPeriodRule', 'count_to_lord'),
+                                   strength_order=_order)
+    out['paryaya'] = chara_sthira_paryaya(inputs.get('chara_result'), None, lagna, planet_signs,
+                                          strength_proxy, planet_lons, strength_order=_order)
 
     nak_name = inputs.get('moon_nak_name')
     pada = inputs.get('moon_pada')
@@ -1227,7 +1535,12 @@ def build_rasi_dashas(inputs, strength_proxy=None):
         # 不转发 moon_nak_progress(那是「整宿进度」，非 Kalachakra 所需的「pada 内进度」)；
         # 让 kalachakra_dasha 从 moon_lon 求 pada 内进度，权威算例核对一致。
         out['kalachakra'] = kalachakra_dasha(
-            inputs.get('moon_lon', 0.0), nak_name, pada)
+            inputs.get('moon_lon', 0.0), nak_name, pada,
+            cycle_method=_dv.get('kalachakraCycle', 'carry'),
+            applicability=_dv.get('kalachakraApplicability', 'universal'),
+            moon_rasi_sign=(planet_signs or {}).get(const.MOON),
+            moon_d9_sign=inputs.get('moon_d9_sign'),
+            planet_signs=planet_signs, planet_lons=planet_lons)
     else:
         out['kalachakra'] = {'available': False, 'reason': 'missing_moon_nakshatra'}
 

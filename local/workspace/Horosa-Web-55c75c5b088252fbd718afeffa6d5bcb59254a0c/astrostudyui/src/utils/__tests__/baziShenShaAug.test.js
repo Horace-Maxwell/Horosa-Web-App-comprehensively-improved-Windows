@@ -108,9 +108,11 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 	test('逐柱查法（丙午/甲午/丁卯/己酉，年日全集口径）', () => {
 		// 逐柱组合 = 年+日全集口径 → 显式传 '年日'；时柱含灾煞(卯日→酉)。
 		const r = calcFourPillarShenSha(four('丙午', '甲午', '丁卯', '己酉'), '年日');
-		expect(r.year.slice().sort()).toEqual(['月厌', '月德贵人', '禄神', '词馆'].sort());
+		// §5.10 四味补全后：德秀（午月寅午戌组见丙/丁干，月令系恒查）→ 年柱(丙)/日柱(丁)各+1；
+		// 天喜（午年→卯，年支系）→ 日柱(卯)+1。
+		expect(r.year.slice().sort()).toEqual(['月厌', '月德贵人', '禄神', '词馆', '德秀贵人'].sort());
 		expect(r.month.slice().sort()).toEqual(['太岁', '将星', '禄神', '词馆'].sort());
-		expect(r.day.slice().sort()).toEqual(['太极贵人', '桃花'].sort());
+		expect(r.day.slice().sort()).toEqual(['太极贵人', '桃花', '德秀贵人', '天喜'].sort());
 		expect(r.time.slice().sort()).toEqual(['天乙贵人', '太极贵人', '文昌贵人', '红鸾', '灾煞'].sort());
 		// 关键：将星/太岁 在月柱而非年柱（原星阙统一查法会误标到年柱）
 		expect(r.year).not.toContain('将星');
@@ -134,5 +136,37 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 		expect(full.year).toContain('禄神');
 		expect(full.year).toContain('词馆');
 		expect(full.day).toContain('桃花');
+	});
+});
+
+describe('BAZI_DAY_STEMS 十干完整性硬闸(辛壬癸曾整体缺行)', ()=>{
+	const { BAZI_DAY_STEMS, calcFourPillarShenSha } = require('../baziShenShaLocal');
+	const STEMS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+
+	it('键首字覆盖十天干全集(缺任一干=该日元八类日干系神煞恒不出)', ()=>{
+		const covered = new Set(Object.keys(BAZI_DAY_STEMS).map((k)=>k[0]));
+		STEMS.forEach((g)=>expect(covered.has(g)).toBe(true));
+	});
+
+	it('十干皆有 学堂/词馆/禄神/羊刃(最常用四类逐干在位)', ()=>{
+		const byStem = {};
+		Object.keys(BAZI_DAY_STEMS).forEach((k)=>{
+			const g = k[0];
+			byStem[g] = (byStem[g] || []).concat(BAZI_DAY_STEMS[k]);
+		});
+		STEMS.forEach((g)=>{
+			['学堂', '词馆', '禄神', '羊刃'].forEach((n)=>{
+				expect(byStem[g]).toContain(n);
+			});
+		});
+	});
+
+	it('新三行抽验:壬日禄神亥/羊刃子;辛日暗禄辰(酉之六合);癸日流霞寅', ()=>{
+		// '年日' 主位档:日基(禄神/羊刃等)不被默认主位过滤剔除(同上组既有范式);four() 用文件级 helper(P 包装形状)
+		const r = calcFourPillarShenSha(four('壬子', '辛亥', '壬子', '辛丑'), '年日');
+		expect(r.month).toContain('禄神');
+		expect(r.day).toContain('羊刃');
+		expect(BAZI_DAY_STEMS['辛辰']).toContain('暗禄');
+		expect(BAZI_DAY_STEMS['癸寅']).toContain('流霞');
 	});
 });

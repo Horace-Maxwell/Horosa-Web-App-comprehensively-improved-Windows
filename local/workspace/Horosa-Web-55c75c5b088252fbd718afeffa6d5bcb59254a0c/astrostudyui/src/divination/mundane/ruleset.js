@@ -51,3 +51,22 @@ export function rulesetConfig(key){
 	const meta = MUNDANE_RULESETS.find((r) => r.key === k) || MUNDANE_RULESETS[2];
 	return Object.assign({ key: k, label: meta.label, note: meta.note }, CONFIGS[k]);
 }
+
+// 中盘渲染隐藏集(bodies 死字段就此激活为渲染白名单单源):古典/中世纪派中盘不绘 ♅♆♇
+// glyph 及其相位线(纯前端渲染过滤,盘仍按引擎全量算,AstroChart hideBodies prop 消费;
+// AstroChartCircle 的 glyph 与相位线同吃一个 planetDisplay Set → 剔除即两者齐隐)。
+// modern/barbault 返回 null=不隐藏(默认档渲染路径逐字节一致,零回归锚)。
+const OUTER_BODY_IDS = ['Uranus', 'Neptune', 'Pluto'];
+
+export function hiddenBodiesFor(rulesetKey){
+	const cfg = rulesetConfig(rulesetKey);
+	return cfg.showOuterPlanets === false ? OUTER_BODY_IDS : null;
+}
+
+// 每派应绘天体键集说明(供帮助/流派卡「生效项」徽章;显示用,非过滤源)。
+export const RULESET_BODY_LABEL = {
+	classical: '七曜+北交+恒星',
+	medieval: '七曜+阿拉伯点',
+	modern: '含 ♅♆♇ 全体',
+	barbault: '五慢星为主',
+};

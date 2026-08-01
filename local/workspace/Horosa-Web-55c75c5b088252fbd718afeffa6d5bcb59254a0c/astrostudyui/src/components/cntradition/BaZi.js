@@ -18,6 +18,7 @@ import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { Solar } from 'lunar-javascript';
 import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo } from '../../utils/baziLunarLocal';
+import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
 import { parseDateParts } from '../../utils/dateStrSafe';
 
 const TabPane = Tabs.TabPane;
@@ -329,7 +330,8 @@ function buildBaziSnapshotText(params, result){
 		if(Array.isArray(node.badGods)){
 			all.push(...node.badGods);
 		}
-		return all.filter(Boolean);
+		// 神煞分组过滤(所见即所得:快照与面板同一 groups;默认全开=原样零回归)。
+		return filterShenShaByGroups(all.filter(Boolean), params && params.shenshaGroups);
 	};
 	const gzGodText = (zhu)=>{
 		if(!zhu){
@@ -413,6 +415,21 @@ function buildBaziSnapshotText(params, result){
 		if(st.dayMaster){
 			lines.push(`日主${st.dayMaster.element}：${st.dayMaster.verdict}（同党印比 ${st.dayMaster.samePercent}% · 异党 ${Math.round((100 - st.dayMaster.samePercent) * 10) / 10}%）`);
 		}
+		if(st.dimensions){
+			const d = st.dimensions;
+			lines.push(`三维分列：${d.summary}`);
+			if(d.deLing){ lines.push(`· 得令：月令${d.deLing.state}（${d.deLing.score > 0 ? '+' : ''}${d.deLing.score}）`); }
+			if(d.deDi && d.deDi.roots && d.deDi.roots.length){
+				lines.push(`· 得地：${d.deDi.roots.map((r)=>`${r.pillar}${r.branch}(${r.type})`).join('、')}（+${d.deDi.score}）`);
+			}else{
+				lines.push('· 得地：四支无根（虚浮）');
+			}
+			if(d.deShi && d.deShi.count){
+				lines.push(`· 得势：${d.deShi.stems.map((s)=>`${s.pillar}${s.gan}(${s.rel})`).join('、')}（+${d.deShi.score}）`);
+			}else{
+				lines.push('· 得势：印比不透干');
+			}
+		}
 	}
 
 	if(bazi.gejuYongShen && (bazi.gejuYongShen.geju || bazi.gejuYongShen.yongshen)){
@@ -423,6 +440,9 @@ function buildBaziSnapshotText(params, result){
 		lines.push(`当前主用流派：${SCHOOL_LABEL[(params && params.school)] || '传统综合'}（各派取用可异，下列多派对照）`);
 		if(gy.geju){
 			lines.push(`格局：${gy.geju.name}（月令${gy.geju.tenGod || '—'}·${gy.geju.via}）`);
+		}
+		if(gy.chengBai){
+			lines.push(`成败：${gy.chengBai.verdict}——${gy.chengBai.reason}（${gy.chengBai.note}）`);
 		}
 		if(Array.isArray(gy.schools) && gy.schools.length){
 			lines.push('多派用神对照：');
@@ -443,9 +463,10 @@ function buildBaziSnapshotText(params, result){
 			});
 		}
 		if(Array.isArray(gy.zaGe) && gy.zaGe.length){
-			lines.push('杂格（正格优先，需复核填实刑冲）：');
+			lines.push('杂格（正格优先，需复核填实刑冲；虚邀暗冲类附真/假判定）：');
 			gy.zaGe.forEach((b)=>{
-				lines.push(`· ${b.name}（${b.cond}）：${b.note}`);
+				const tag = b.quality ? `【${b.quality}${b.broken && b.broken.length ? `·${b.broken.join('、')}` : ''}】` : '';
+				lines.push(`· ${b.name}${tag}（${b.cond}）：${b.note}`);
 			});
 		}
 	}
@@ -826,14 +847,26 @@ class BaZi extends Component{
 	onBaziOptChange(opt){
 		const prev = this.state.baziOpt || {};
 		// 命宫起法影响后端命宫/身宫 → 改后需带参重取;藏干版本(分野加权)影响五行力量打分 → 也需重取;
-		// 其余(界面样式/刑冲破害等纯显示)不重取。
+		// 其余(界面样式/刑冲破害/流派等纯显示)不重取——school 切换=纯重绘瞬时,绝不进 needRefetch。
 		const needRefetch = (prev.minggongMethod || 'tongxing') !== (opt.minggongMethod || 'tongxing')
 				|| (prev.fenyeVersion || 'common') !== (opt.fenyeVersion || 'common')
 				|| (prev.cangVersion || 'common') !== (opt.cangVersion || 'common')
 				|| (prev.dayunPrecision || 'precise') !== (opt.dayunPrecision || 'precise');
-		this.setState({
-			baziOpt: opt,
-		}, ()=>{
+		const patch = { baziOpt: opt };
+		// 纳音古法派 → 自动配古法盘(临时视图,不落 localStorage);离开纳音恢复原样式。
+		// 用户本会话手动点过样式按钮(userStyleTouched)即视为覆盖,不再自动切。
+		const prevSchool = prev.school || 'zonghe';
+		const nextSchool = opt.school || 'zonghe';
+		if(prevSchool !== nextSchool && !this.userStyleTouched){
+			if(nextSchool === 'nayin' && this.state.chartStyle !== 'ancient'){
+				this.autoStyleFrom = this.state.chartStyle;
+				patch.chartStyle = 'ancient';
+			}else if(prevSchool === 'nayin' && this.autoStyleFrom){
+				patch.chartStyle = this.autoStyleFrom;
+				this.autoStyleFrom = null;
+			}
+		}
+		this.setState(patch, ()=>{
 			safeLocalStorageSet(BaZiOptKey, JSON.stringify(opt));
 			if(needRefetch){
 				this.requestBazi(this.props.fields);
@@ -842,6 +875,7 @@ class BaZi extends Component{
 	}
 
 	changeBaziChartStyle(chartStyle){
+		this.userStyleTouched = true;
 		this.setState({
 			chartStyle,
 		}, ()=>{
@@ -964,7 +998,7 @@ class BaZi extends Component{
 		});
 		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
 		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
-		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school };
+		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups };
 		saveModuleAISnapshotLazy('bazi', ()=>buildBaziSnapshotText(snapshotParams, result), {
 			date: params.date,
 			time: params.time,
@@ -1034,7 +1068,7 @@ class BaZi extends Component{
 		let text = '';
 		try{
 			if(this.props.fields && this.state.result){
-				const params = { ...this.genParams(this.props.fields), school: (this.state.baziOpt || {}).school };
+				const params = { ...this.genParams(this.props.fields), school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups };
 				text = `${buildBaziSnapshotText(params, this.state.result) || ''}`.trim();
 			}
 		}catch(e){
@@ -1148,7 +1182,7 @@ class BaZi extends Component{
 							{isLegacyUi ? (
 								<BaZiLegacyInfoPanel value={bazi} fields={this.props.fields} height={tabHeight} />
 							) : (
-								<BaZiAppInfoPanel value={bazi} fields={this.props.fields} height={tabHeight} showShenSha={!(this.state.baziOpt && this.state.baziOpt.showShenSha === false)} zodiacBoundary={(this.state.baziOpt && this.state.baziOpt.zodiacBoundary) || 'lichun'} school={(this.state.baziOpt && this.state.baziOpt.school) || 'zonghe'} flowSelection={this.state.flowSelection} />
+								<BaZiAppInfoPanel value={bazi} fields={this.props.fields} height={tabHeight} showShenSha={!(this.state.baziOpt && this.state.baziOpt.showShenSha === false)} shenshaGroups={this.state.baziOpt && this.state.baziOpt.shenshaGroups} zodiacBoundary={(this.state.baziOpt && this.state.baziOpt.zodiacBoundary) || 'lichun'} school={(this.state.baziOpt && this.state.baziOpt.school) || 'zonghe'} flowSelection={this.state.flowSelection} />
 							)}
 						</div>
 					</div>

@@ -139,13 +139,15 @@ def test_bhava_dig_bala_range_and_table():
     r = _full()
     for h in r['houses']:
         assert 0.0 <= h['bhavaDigBala'] <= 60.0, h['house']
-    # 人类签(双子/处女/天秤/射手/水瓶)= 满 60；水栖(蟹/羯/鱼)= 45；四足(羊/牛/狮)= 30；虫(蝎)= 15。
-    assert bb.bhava_dig_bala_for_sign(const.AQUARIUS) == 60.0
-    assert bb.bhava_dig_bala_for_sign(const.GEMINI) == 60.0
-    assert bb.bhava_dig_bala_for_sign(const.CANCER) == 45.0
-    assert bb.bhava_dig_bala_for_sign(const.PISCES) == 45.0
-    assert bb.bhava_dig_bala_for_sign(const.ARIES) == 30.0
-    assert bb.bhava_dig_bala_for_sign(const.SCORPIO) == 15.0
+    # 通行口径:类别满力宫(人1/四足10/水栖4/虫7)满 60,对宫 0,环距线性。
+    # 🔴 旧断言锁的是「按星座查定值、与宫位无关」的退化实现,已按正口径改锁。
+    assert bb.bhava_dig_bala_for_sign(const.GEMINI, 1) == 60.0    # 人类座在 1 宫满
+    assert bb.bhava_dig_bala_for_sign(const.GEMINI, 7) == 0.0     # 对宫 0
+    assert bb.bhava_dig_bala_for_sign(const.ARIES, 10) == 60.0    # 四足座在 10 宫满
+    assert bb.bhava_dig_bala_for_sign(const.ARIES, 4) == 0.0
+    assert bb.bhava_dig_bala_for_sign(const.CANCER, 4) == 60.0    # 水栖座在 4 宫满
+    assert bb.bhava_dig_bala_for_sign(const.SCORPIO, 7) == 60.0   # 虫座在 7 宫满
+    assert bb.bhava_dig_bala_for_sign(const.GEMINI, 4) == 30.0    # 环距 3 → 半力
 
 
 # ── 宫受视力：含符号原值 + 「净受凶相位计 0」规则 ────────────────────────

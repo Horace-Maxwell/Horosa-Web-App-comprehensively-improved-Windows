@@ -381,12 +381,19 @@ describe('JinKouCalc', ()=>{
 		const data = buildJinKouData(mockLiuReng({ nongli: { yearGanZi: '丙午' } }), { diFen: '午', guirengType: 0 });
 		// 太岁月建:各项 name 合法、zhi 为地支、hit 为布尔
 		expect(Array.isArray(data.nianYueRi)).toBe(true);
-		const validNames = ['岁君', '岁破', '月建', '月破', '月厌', '日冲'];
+		// 太岁月建九项（真太岁/岁宅/日建为本轮补齐）：真太岁比对整柱干支，故 zhi 列可为两字干支。
+		const validNames = ['岁君', '真太岁', '岁破', '岁宅', '月建', '月破', '月厌', '日建', '日冲'];
 		data.nianYueRi.forEach((it)=>{
 			expect(validNames).toContain(it.name);
-			expect('子丑寅卯辰巳午未申酉戌亥'.indexOf(it.zhi) >= 0).toBe(true);
+			// 支类项 zhi 为单地支；真太岁为整柱干支（干+支两字）。
+			const zhiTail = `${it.zhi}`.slice(-1);
+			expect('子丑寅卯辰巳午未申酉戌亥'.indexOf(zhiTail) >= 0).toBe(true);
 			expect(typeof it.hit).toBe('boolean');
 		});
+		// 本轮补齐三项须在位（真太岁比整柱、岁宅=岁前五辰、日建=将神与日辰同）
+		const nyrNames = data.nianYueRi.map((it)=>it.name);
+		expect(nyrNames).toContain('岁宅');
+		expect(nyrNames.indexOf('岁宅') > nyrNames.indexOf('岁破')).toBe(true);
 		// 忌时:结构含 byYue/byGan/hit
 		expect(data.jishi).toBeTruthy();
 		expect(typeof data.jishi.hit).toBe('boolean');
@@ -438,15 +445,22 @@ describe('JinKouCalc 多流派排盘 (P0-1)', ()=>{
 		expect(jj.schools.yueJiang).toBe('jiaojie');
 	});
 
-	it('A2 贵人昼夜表：甲日昼 实务/古法贵神不同；丁日两派相同', ()=>{
-		const jia = { nongli: { dayGanZi: '甲子', jieqi: '立春' } };
-		const sw = buildJinKouData(mockLiuReng(jia), { schoolGuiTable: 'shiwu', zhanShi: '午', diFen: '子' });
-		const lr = buildJinKouData(mockLiuReng(jia), { schoolGuiTable: 'liuren', zhanShi: '午', diFen: '子' });
+	it('A2 贵人昼夜表：壬日昼 实务/古法贵神不同；甲丁日两派相同', ()=>{
+		// 古法表 = 大六壬昼夜贵人歌，与实务派只在壬癸两干相反（歌诀壬癸昼卯夜巳）。
+		const ren = { nongli: { dayGanZi: '壬子', jieqi: '立春' } };
+		const sw = buildJinKouData(mockLiuReng(ren), { schoolGuiTable: 'shiwu', zhanShi: '午', diFen: '子' });
+		const lr = buildJinKouData(mockLiuReng(ren), { schoolGuiTable: 'liuren', zhanShi: '午', diFen: '子' });
 		expect(GUISHEN12).toContain(sw.guiName);
 		expect(GUISHEN12).toContain(lr.guiName);
-		expect(sw.guiName).not.toBe(lr.guiName); // 甲为5干差异之一
-		expect(sw.guiStartZi).toBe('丑'); // 实务甲昼=丑
-		expect(lr.guiStartZi).toBe('未'); // 古法甲昼=未
+		expect(sw.guiName).not.toBe(lr.guiName); // 壬为两干差异之一
+		expect(sw.guiStartZi).toBe('巳'); // 实务壬昼=巳
+		expect(lr.guiStartZi).toBe('卯'); // 古法壬昼=卯（兔蛇藏取兔）
+		const jia = { nongli: { dayGanZi: '甲子', jieqi: '立春' } };
+		const j1 = buildJinKouData(mockLiuReng(jia), { schoolGuiTable: 'shiwu', zhanShi: '午', diFen: '子' });
+		const j2 = buildJinKouData(mockLiuReng(jia), { schoolGuiTable: 'liuren', zhanShi: '午', diFen: '子' });
+		expect(j1.guiStartZi).toBe('丑'); // 甲戊庚牛羊，昼牛：两派同
+		expect(j2.guiStartZi).toBe('丑');
+		expect(j1.guiName).toBe(j2.guiName);
 		const ding = { nongli: { dayGanZi: '丁卯', jieqi: '立春' } };
 		const s2 = buildJinKouData(mockLiuReng(ding), { schoolGuiTable: 'shiwu', zhanShi: '午', diFen: '子' });
 		const l2 = buildJinKouData(mockLiuReng(ding), { schoolGuiTable: 'liuren', zhanShi: '午', diFen: '子' });

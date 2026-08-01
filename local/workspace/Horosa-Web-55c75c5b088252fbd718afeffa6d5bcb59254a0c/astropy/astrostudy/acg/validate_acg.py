@@ -432,10 +432,175 @@ def check_rel(data, label):
     return max(wD, wC, wS)
 
 
+def _alt_off(jd, xin, pts, target, mid_only=False):
+    """ ASC/DSC 线取样点上,天体真高度与 target 的最大偏差(azalt 独立反验)。
+    mid_only:只采中纬(避开几何 band 边缘 —— 折射模式下 band 端点被 clamp,不满足 h=target,
+    属文档记载的极区近似;折射物理在可用纬度全域已验证)。 """
+    errs = []
+    n = len(pts)
+    idxs = (n // 4, n // 3, n // 2, 2 * n // 3, 3 * n // 4) if mid_only else (1, n // 4, n // 2, 3 * n // 4, n - 2)
+    for idx in idxs:
+        q = pts[idx]
+        _, talt, _ = swisseph.azalt(jd, swisseph.ECL2HOR, [q['lon'], q['lat'], 0], 0, 0, xin)
+        errs.append(abs(talt - target))
+    return max(errs)
+
+
+def check_celestial(data, label):
+    """ P0 天体集与口径底座:四小行星 / 真节点 / 真·插值 Lilith / 站心 / 真位置 / J2000 读数 /
+    地平折射。每项独立 swisseph 反验(azalt / calc_ut+cotrans),并断言各新开关默认零回归。 """
+    base = ACGraph(data).compute()
+    assert not (set(['Ceres', 'Pallas', 'Juno', 'Vesta', 'Eris']) & set(base['planets'].keys())), \
+        '默认不该含小行星(零回归)'
+    assert base['meta']['nodeType'] == 'mean' and base['meta']['lilithType'] == 'mean', \
+        'node/lilith 默认应 mean(零回归)'
+    assert base['meta']['posType'] == 'apparent' and base['meta']['horizon'] == 'geometric', \
+        'posType/horizon 默认应零回归'
+    worst = 0.0
+
+    # 1) 四小行星:ASC 线真高度≈0(azalt 独立)+ MC 子午线偏差≈0;与十行星同法。
+    acg = ACGraph(dict(data, asteroids='1'))
+    res = acg.compute()
+    jd = acg.jd
+    eps = res['meta']['obliquity']
+    gmst = res['meta']['gmst']
+    for k in ('Ceres', 'Pallas', 'Juno', 'Vesta'):
+        assert k in res['planets'], '小行星缺 %s' % k
+        p = res['planets'][k]
+        xin = [p['lon'], p['lat'], 1.0]
+        worst = max(worst, _alt_off(jd, xin, p['lines']['asc'], 0.0))
+        azmc, _, _ = swisseph.azalt(jd, swisseph.ECL2HOR, [p['lines']['mc']['lon'], 20.0, 0], 0, 0, xin)
+        worst = max(worst, _merid_dev(azmc))
+    # Eris + 星体 Lilith:.se1 缺失 → 两体开普勒 fallback。近 epoch(当代盘)已对 JPL Horizons
+    # 验到 ~0.005°;此处仅断言 fallback 激活使其出线(= 非死开关),精度由代码 doc + 独立 Horizons 核。
+    assert 'Eris' in res['planets'] and res['planets']['Eris']['lon'] is not None, 'Eris 应经 Kepler fallback 出线'
+    assert -90.0 < res['planets']['Eris']['lat'] < 90.0, 'Eris 黄纬无效'
+    rbody = ACGraph(dict(data, lilithType='body')).compute()
+    assert const.DARKMOON in rbody['planets'], '星体 Lilith 应经 Kepler fallback 出线'
+
+    # 2) 真节点:MC == n180(trueNodeRA − gmst),RA 独立 calc+cotrans;南交=北交+180°、β=0。
+    tn = ACGraph(dict(data, nodeType='true')).compute()
+    xx, _ = swisseph.calc_ut(jd, swisseph.TRUE_NODE, swisseph.FLG_SWIEPH)
+    ra_nn = swisseph.cotrans([xx[0], 0.0, 1.0], -eps)[0]
+    worst = max(worst, abs(_n180(tn['planets'][const.NORTH_NODE]['lines']['mc']['lon'] - _n180(ra_nn - gmst))))
+    ra_sn = swisseph.cotrans([(xx[0] + 180.0) % 360.0, 0.0, 1.0], -eps)[0]
+    worst = max(worst, abs(_n180(tn['planets'][const.SOUTH_NODE]['lines']['mc']['lon'] - _n180(ra_sn - gmst))))
+
+    # 3) 真 / 插值 Lilith:MC 独立反验。
+    for lt, num in (('true', swisseph.OSCU_APOG), ('intp', swisseph.INTP_APOG)):
+        rl = ACGraph(dict(data, lilithType=lt)).compute()
+        xx, _ = swisseph.calc_ut(jd, num, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)
+        ra = swisseph.cotrans([xx[0], xx[1], 1.0], -eps)[0]
+        worst = max(worst, abs(_n180(rl['planets'][const.DARKMOON]['lines']['mc']['lon'] - _n180(ra - gmst))))
+
+    # 4) 站心:月亮 MC 独立反验(set_topo + FLG_TOPOCTR);站心≠地心(必移动)。
+    topo = ACGraph(dict(data, coord='topo'))
+    rt = topo.compute()
+    swisseph.set_topo(topo.pos.lon, topo.pos.lat, 0.0)
+    xx, _ = swisseph.calc_ut(jd, swisseph.MOON, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED | swisseph.FLG_TOPOCTR)
+    ra = swisseph.cotrans([xx[0], xx[1], 1.0], -eps)[0]
+    worst = max(worst, abs(_n180(rt['planets'][const.MOON]['lines']['mc']['lon'] - _n180(ra - gmst))))
+    assert abs(_n180(rt['planets'][const.MOON]['lines']['mc']['lon']
+                     - base['planets'][const.MOON]['lines']['mc']['lon'])) > 0.01, '站心应移动月亮线'
+
+    # 5) posType=true:月亮 MC 独立反验(FLG_TRUEPOS);j2000:线不变 + j2000Lon 读数存在。
+    tr = ACGraph(dict(data, posType='true')).compute()
+    xx, _ = swisseph.calc_ut(jd, swisseph.MOON, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED | swisseph.FLG_TRUEPOS)
+    ra = swisseph.cotrans([xx[0], xx[1], 1.0], -eps)[0]
+    worst = max(worst, abs(_n180(tr['planets'][const.MOON]['lines']['mc']['lon'] - _n180(ra - gmst))))
+    j2 = ACGraph(dict(data, posType='j2000')).compute()
+    assert abs(_n180(j2['planets'][const.MOON]['lines']['mc']['lon']
+                     - base['planets'][const.MOON]['lines']['mc']['lon'])) < 1e-9, 'j2000 不该改线几何'
+    assert j2['planets'][const.MOON]['j2000Lon'] is not None, 'j2000 应有读数'
+
+    # 6) 折射:月亮 ASC 线真高度 ≈ −0.5667°(视地平抬升到 0);MC 不动。
+    rh = ACGraph(dict(data, horizon='apparent')).compute()
+    pm = rh['planets'][const.MOON]
+    xin = [pm['lon'], pm['lat'], 1.0]
+    ref_off = _alt_off(jd, xin, pm['lines']['asc'], -34.0 / 60.0, mid_only=True)
+    worst = max(worst, ref_off)
+    assert abs(_n180(rh['planets'][const.MOON]['lines']['mc']['lon']
+                     - base['planets'][const.MOON]['lines']['mc']['lon'])) < 1e-9, '折射不该动 MC'
+
+    print('\n[celestial %s] 小行星/真节点/真·插值Lilith/站心/真位置 MC worst=%.6f°;J2000 读数OK;折射高度偏差=%.5f°;默认零回归 OK'
+          % (label, worst, ref_off))
+    return worst
+
+
+def check_p1(data, label):
+    """ P1 缺失流派与线型:Draconic 刚性旋转 / Harmonic 乘性 / Lots ASC 真高度 / 中点 mundo 赤经中点
+    / LS az·alt。各项独立反验 + 默认零回归。 """
+    base = ACGraph(data).compute()
+    assert base['meta']['draconic'] is None and base['meta']['harmonic'] is None, 'draconic/harmonic 默认零回归'
+    worst = 0.0
+    acg = ACGraph(data)
+    jd = acg.jd
+
+    # 1) Draconic:NN→0;各体 λ'=λ−λ_NN(刚性旋转,MC 随 λ' 变)。
+    nn0 = base['planets'][const.NORTH_NODE]['lon']
+    dr = ACGraph(dict(data, draconic='mean')).compute()
+    assert abs(_n180(dr['planets'][const.NORTH_NODE]['lon'])) < 1e-6, 'draconic 北交应=0'
+    for pid in [const.SUN, const.MOON, const.MARS]:
+        exp = (base['planets'][pid]['lon'] - nn0) % 360.0
+        worst = max(worst, abs(_n180(dr['planets'][pid]['lon'] - exp)))
+
+    # 2) Harmonic H2/H5:λ_H=(H·λ)mod360,β=0。
+    for H in (2, 5):
+        rh = ACGraph(dict(data, harmonic=str(H))).compute()
+        for pid in [const.SUN, const.VENUS]:
+            exp = (H * base['planets'][pid]['lon']) % 360.0
+            worst = max(worst, abs(_n180(rh['planets'][pid]['lon'] - exp)))
+            assert rh['planets'][pid]['lat'] == 0.0, 'harmonic β 应 0'
+
+    # 3) Lots:福点 ASC 线真高度≈0(azalt 独立);自定义点存在。
+    lots = base['lots']
+    assert 'asc' in lots['fortune'], 'fortune 应有 ASC 曲线'
+    fdeg = lots['fortune']['deg']
+    xin = [fdeg, 0.0, 1.0]
+    worst = max(worst, _alt_off(jd, xin, lots['fortune']['asc'], 0.0))
+    rc = ACGraph(dict(data, lotsCustom='asc,jupiter,saturn')).compute()
+    assert rc['lots'].get('custom') is not None, '自定义 lot 应出现'
+
+    # 4) 中点 mundo:MC == n180(赤经中点 − gmst);默认 zodiac 的 MC 字节零回归。
+    bodies = {b[0]: (b[1], b[2]) for b in [(pid, v['ra'], v['decl']) for pid, v in base['planets'].items()]}
+    rmid = ACGraph(dict(data, midpointMode='mundo')).compute()
+    gmst = base['meta']['gmst']
+    for m in rmid['midpoints'][:8]:
+        ra_a = bodies[m['a']][0]
+        ra_b = bodies[m['b']][0]
+        mid_ra = (ra_a + _n180(ra_b - ra_a) / 2.0) % 360.0
+        worst = max(worst, abs(_n180(m['lon'] - _n180(mid_ra - gmst))))
+    assert base['midpoints'][0]['lon'] == ACGraph(data).compute()['midpoints'][0]['lon'], '默认中点 MC 零回归'
+
+    # 5) LS az/alt:每体 lsAz 与 azalt 独立一致(az=A_N 罗盘、alt=真高度)。
+    for pid in MAIN:
+        la = base['planets'][pid]['lines']['lsAz']
+        xin2 = [base['planets'][pid]['lon'], base['planets'][pid]['lat'], 1.0]
+        azs, talt, _ = swisseph.azalt(jd, swisseph.ECL2HOR, [acg.pos.lon, acg.pos.lat, 0], 0, 0, xin2)
+        worst = max(worst, abs(_n180(la['az'] - (azs + 180.0))), abs(la['alt'] - talt))
+
+    # 6) 关系盘交叉/派状:synastry 时产出(非死开关)。
+    syn = dict(data, relMode='synastry', relDate='1985/03/10', relTime='08:00:00',
+               relZone='+00:00', relLat='40n43', relLon='74w00')
+    rsyn = ACGraph(syn).compute()
+    assert rsyn['second'] and len(rsyn['second'].get('relCrossings', [])) > 0, '关系交叉应产出'
+    assert len(rsyn['second'].get('relParans', [])) > 0, '关系派状应产出'
+
+    print('\n[p1 %s] draconic/harmonic/lots-asc/midpoint-mundo/LS-az worst=%.6f°;自定义lot+关系交叉/派状OK;默认零回归 OK'
+          % (label, worst))
+    return worst
+
+
 def main():
     overall = 0.0
     for data, label in CASES:
         overall = max(overall, check(data, label))
+    cel = 0.0
+    for data, label in CASES:
+        cel = max(cel, check_celestial(data, label))
+    p1w = 0.0
+    for data, label in CASES:
+        p1w = max(p1w, check_p1(data, label))
     # P0 口径开关:zodiac + rhumb(独立 golden;默认 mundo/great 走上面 check 已零回归)
     zw = 0.0
     for data, label in CASES:
@@ -485,9 +650,9 @@ def main():
     XING_TOL = 0.3    # crossing lat is interpolated on a 0.5° sampled curve
     ok = (overall < TOL and zw < TOL and aw < TOL and pw < TOL and cw < CUSP_TOL
           and gw < TOL and mw < CUSP_TOL and xB < XING_TOL and xA < 0.05 and clw < TOL and hw < TOL
-          and sw < TOL and stw < TOL and ccw < TOL and rw < TOL and rf == 0.0)
-    print('\n==== ACG alignment %s (in-mundo %.6f, zodiac %.6f, aspect %.6f, points %.6f, cusps %.6f, geodetic %.6f, midpoints %.6f, crossings B%.4f/A%.4f, cusplines %.6f, helio %.6f, sidereal %.6f, stars %.6f, ccg %.6f, rel %.6f, tol %g; rhumb %s) ===='
-          % ('PASS' if ok else 'FAIL', overall, zw, aw, pw, cw, gw, mw, xB, xA, clw, hw, sw, stw, ccw, rw, TOL, 'OK' if rf == 0.0 else 'FAIL'))
+          and sw < TOL and stw < TOL and ccw < TOL and rw < TOL and rf == 0.0 and cel < TOL and p1w < TOL)
+    print('\n==== ACG alignment %s (in-mundo %.6f, zodiac %.6f, aspect %.6f, points %.6f, cusps %.6f, geodetic %.6f, midpoints %.6f, crossings B%.4f/A%.4f, cusplines %.6f, helio %.6f, sidereal %.6f, stars %.6f, ccg %.6f, rel %.6f, celestial %.6f, p1 %.6f, tol %g; rhumb %s) ===='
+          % ('PASS' if ok else 'FAIL', overall, zw, aw, pw, cw, gw, mw, xB, xA, clw, hw, sw, stw, ccw, rw, cel, p1w, TOL, 'OK' if rf == 0.0 else 'FAIL'))
     return 0 if ok else 1
 
 

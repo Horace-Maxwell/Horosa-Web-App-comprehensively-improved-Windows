@@ -4,15 +4,20 @@ import { Modal } from 'antd';
 import { XQSelect, XQButton, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import ElectionJudgment from './ElectionJudgment';
+import ElectionReference from './ElectionReference';
 import { fetchChart } from '../../services/astro';
 import { buildChartParams } from '../../divination/engine/chartRequest';
 import { buildFacts } from '../../divination/engine/chartFacts';
 import { runElection } from '../../divination/election/electionEngine';
+import { buildElectionSnapshot } from '../../divination/election/electionSnapshot';
+import { judgeLayerOverrides } from '../../utils/judgeLayerOverrides';
 import { generateCandidates, rankResults, buildScanRecommendation } from '../../divination/election/workflow';
 import ChartSearchModal from '../astro/ChartSearchModal';
 import { fetchMundaneEvents, chartAtMoment } from '../../divination/mundane/momentPipeline';
 import { fetchPreciseJieqiSeed } from '../../utils/preciseCalcBridge';
 import { WEST_SCHOOLS, WEST_SCHOOL_ORDER, schoolOf } from '../../divination/election/westernSchools';
+import { ELECTION_PARAM_SPEC, calibreOverrideCount, electionCalibreDefaults, resolveElectionParams } from '../../divination/election/electionParams';
+import { fetchReturnSet, fetchPdHitsNearElection } from '../../divination/election/returnCharts';
 import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
 import moment from 'moment';
 import { markPanelReady } from '../../utils/perfMark';
@@ -39,6 +44,23 @@ export const ELECTION_TOPICS = [
 	{ value: 'travel', label: '出行' },
 	{ value: 'blessing', label: '祈福 / 安香 / 法会' },
 	{ value: 'general_day', label: '大众吉日' },
+	// R2 六新分科
+	{ value: 'planting', label: '播种 / 种植 / 农耕' },
+	{ value: 'sailing', label: '海行 / 航海' },
+	{ value: 'litigation', label: '诉讼 / 战阵 / 竞争' },
+	{ value: 'release', label: '释囚 / 解约脱身' },
+	{ value: 'haircut', label: '理发 / 剪甲' },
+	{ value: 'talisman', label: '制作护符' },
+];
+
+// 用事分组(25 项必须分组;OptGroup 渲染顺序=本表顺序,值引用 ELECTION_TOPICS)。
+export const ELECTION_TOPIC_GROUPS = [
+	{ label: '人生礼俗', values: ['marriage', 'pursue_love', 'banquet', 'general_day'] },
+	{ label: '营建居所', values: ['move_in', 'buy_property', 'buy_land', 'renovation', 'planting'] },
+	{ label: '商贸契约', values: ['business', 'organization', 'trade', 'buy_car', 'contract', 'registration', 'litigation', 'release'] },
+	{ label: '出行', values: ['travel', 'team_departure', 'sailing'] },
+	{ label: '医疗身体', values: ['surgery', 'diet', 'haircut'] },
+	{ label: '术法护符', values: ['blessing', 'talisman'] },
 ];
 
 const GRADE_DOT = { 极佳: '#2f9e6f', 不错: '#1aa3b8', 中等: '#3b82f6', 欠佳: '#e07a3b', '不宜（含红线）': '#cf3b3b' };
@@ -55,7 +77,7 @@ class ElectionMain extends Component{
 
 	constructor(props){
 		super(props);
-		this.state = { scanning: false, scanResults: null, scanOpen: false, scanMode: 'hours', natalRec: null, natalFacts: null, natalLoading: false, mundaneSet: null, mundaneLoading: false, crisisLoading: false };
+		this.state = { scanning: false, scanResults: null, scanOpen: false, scanMode: 'hours', natalRec: null, natalFacts: null, natalLoading: false, mundaneSet: null, mundaneLoading: false, crisisLoading: false, returnSet: null, returnLoading: false, pdHits: null, pdLoading: false };
 		this._fields = null; this._setTime = null; this._topicId = 'marriage';
 		this.runScan = this.runScan.bind(this);
 		this.useCandidate = this.useCandidate.bind(this);
@@ -63,6 +85,8 @@ class ElectionMain extends Component{
 		this.clearNatal = this.clearNatal.bind(this);
 		this.fetchMundaneSet = this.fetchMundaneSet.bind(this);
 		this.clearMundane = this.clearMundane.bind(this);
+		this.fetchReturns = this.fetchReturns.bind(this);
+		this.fetchPdHits = this.fetchPdHits.bind(this);
 	}
 
 	geoFromFields(){
@@ -145,7 +169,54 @@ class ElectionMain extends Component{
 		}catch(e){ this.setState({ natalLoading: false }); }
 	}
 
-	clearNatal(){ this.setState({ natalRec: null, natalFacts: null }); }
+	clearNatal(){ this.setState({ natalRec: null, natalFacts: null, returnSet: null, pdHits: null }); }
+
+	// 电盘时刻串(YYYY-MM-DD HH:mm:ss);缺则 null。
+	electionMomentStr(){
+		const f = this._fields || {};
+		const d = f.date && f.date.value; const t = f.time && f.time.value;
+		if(!d || !d.format) return null;
+		return `${d.format('YYYY-MM-DD')} ${t && t.format ? t.format('HH:mm:ss') : '12:00:00'}`;
+	}
+
+	// 回归盘(日返/月返):自电盘时刻回推最近精确回归,按需触发。
+	async fetchReturns(){
+		const natalFacts = this.state.natalFacts;
+		const m = this.electionMomentStr();
+		if(!natalFacts || !m){ return; }
+		const geo = this.geoFromFields();
+		const fieldsLike = { zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, hsys: geo.hsys, zodiacal: geo.zodiacal, siderealAyanamsa: geo.siderealAyanamsa, tradition: geo.tradition };
+		this.setState({ returnLoading: true });
+		try{
+			const rs = await fetchReturnSet(natalFacts, m, fieldsLike);
+			this.setState({ returnSet: rs, returnLoading: false });
+		}catch(e){ this.setState({ returnLoading: false }); }
+	}
+
+	// 主限命中:按本命参数补拉带主限法之命盘(只读消费 predictives),过滤电盘日期 ±240 日。
+	async fetchPdHits(){
+		const rec = this.state.natalRec;
+		const f = this._fields || {};
+		const d = f.date && f.date.value;
+		if(!rec || !rec.birth || !d || !d.format){ return; }
+		const parts = `${rec.birth}`.split(' ');
+		const natalParams = {
+			ad: rec.ad != null ? rec.ad : 1,
+			date: (parts[0] || '').replace(/-/g, '/'), time: parts[1] || '12:00:00',
+			zone: rec.zone, lat: rec.lat, lon: rec.lon,
+			gpsLat: rec.gpsLat, gpsLon: rec.gpsLon,
+			hsys: (f.hsys ? f.hsys.value : 0),
+			zodiacal: (f.zodiacal ? f.zodiacal.value : 0),
+			siderealAyanamsa: (f.siderealAyanamsa ? f.siderealAyanamsa.value : ''),
+			tradition: 1,
+		};
+		const eff = resolveElectionParams(this._westSchool, {}, (this._elecOpts && this._elecOpts.electionParams) || null);
+		this.setState({ pdLoading: true });
+		try{
+			const hits = await fetchPdHitsNearElection(natalParams, d.format('YYYY-MM-DD'), { pdTimeKey: eff.pdTimeKey });
+			this.setState({ pdHits: hits, pdLoading: false });
+		}catch(e){ this.setState({ pdHits: [], pdLoading: false }); }
+	}
 
 	runScan(mode){
 		const baseDt = this._fields && this._fields.date && this._fields.date.value;
@@ -182,11 +253,63 @@ class ElectionMain extends Component{
 		this.setState({ scanOpen: false });
 	}
 
-	renderLeftExtra({ extra, setExtra, fields, setTime, patchFields }){
+	// 左栏「流派口径」折叠区:控件由 ELECTION_PARAM_SPEC 单一真值渲染;
+	// 每项前置「随流派」(存 '' = 不覆盖);改动即入 extra.electionParams(Shell extra 整包自动存还原)。
+	renderCalibreSection(extra, setExtra){
+		const ov = extra.electionParams || {};
+		const n = calibreOverrideCount(ov);
+		const school = schoolOf(extra.westSchool || 'modern_main');
+		const defaults = electionCalibreDefaults();
+		const effPreview = { ...defaults, ...(school.calibre || {}) };
+		return (
+			<XQSideSection iconName="sliders" title={n ? `流派口径 ·（已自定义 ${n} 项）` : '流派口径'}
+				storageKey="election.calibre" collapsible defaultCollapsed className="horosa-side-input-section horosa-election-calibre">
+				{/* 一行两个:两列栅格(下拉面板按内容自适应宽,不受半宽格子限制) */}
+				<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 8, rowGap: 8, marginTop: 4 }}>
+					{ELECTION_PARAM_SPEC.map((spec) => {
+						const cur = (ov[spec.key] === undefined || ov[spec.key] === null) ? '' : ov[spec.key];
+						const followVal = effPreview[spec.key];
+						const followLabel = (spec.options.find((o) => o.value === followVal) || {}).label || String(followVal);
+						return (
+							<div key={spec.key} style={{ minWidth: 0 }}>
+								<div className="horosa-field-label" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={spec.hint || spec.label}>{spec.label}</div>
+								<XQSelect style={{ width: '100%' }} size="small" value={cur}
+									dropdownMatchSelectWidth={false}
+									title={spec.hint || ''}
+									onChange={(val) => {
+										const next = { ...(extra.electionParams || {}) };
+										if(val === '' || val === undefined || val === null){ delete next[spec.key]; }
+										else { next[spec.key] = val; }
+										setExtra({ electionParams: next });
+									}}>
+									<Option value="">随流派（{followLabel}）</Option>
+									{spec.options.map((o) => (<Option key={String(o.value)} value={o.value}>{o.label}</Option>))}
+								</XQSelect>
+							</div>
+						);
+					})}
+				</div>
+				{n ? (
+					<XQButton size="small" style={{ marginTop: 10, width: '100%' }}
+						onClick={() => setExtra({ electionParams: {} })}>全部恢复「随流派」</XQButton>
+				) : null}
+			</XQSideSection>
+		);
+	}
+
+	renderLeftExtra({ extra, setExtra, fields, chart, setTime, patchFields }){
 		this._fields = fields; this._setTime = setTime; this._topicId = extra.topicId || 'marriage';
 		this._westSchool = extra.westSchool || 'modern_main';
-		this._elecOpts = { westSchool: this._westSchool, surgeryPart: extra.surgeryPart || null, crisisBase: extra.crisisBase || null };
+		this._elecOpts = {
+			westSchool: this._westSchool, surgeryPart: extra.surgeryPart || null, crisisBase: extra.crisisBase || null,
+			electionParams: extra.electionParams || null,
+			tradeSide: extra.tradeSide || '', talismanStar: extra.talismanStar || null,
+			surgeryPartOpposite: !!extra.surgeryPartOpposite,
+		};
 		const curSchool = schoolOf(this._westSchool);
+		// 护符主星实时提示:当前行星时/日是否匹配(chart 为壳层已排之盘)。
+		const timerKey = chart && chart.chart && chart.chart.timerStar ? String(chart.chart.timerStar).toLowerCase() : null;
+		const dayerKey = chart && chart.chart && chart.chart.dayerStar ? String(chart.chart.dayerStar).toLowerCase() : null;
 		return (
 			<XQSideSection iconName="target" title="择日设置" storageKey="election.opts" className="horosa-side-input-section horosa-election-opts">
 				<div className="horosa-field-label">西方流派</div>
@@ -206,13 +329,54 @@ class ElectionMain extends Component{
 						<Option key={id} value={id}>{WEST_SCHOOLS[id].cn}</Option>
 					))}
 				</XQSelect>
-				<div className="horosa-divi-note" style={{ marginTop: 4, fontSize: 11, lineHeight: 1.55, opacity: 0.72 }}>{curSchool.desc}</div>
+				{/* 流派说明文字已移帮助手册「择日盘」节(左栏不放大段解释);curSchool 仍供口径预览用 */}
+				{this.renderCalibreSection(extra, setExtra)}
 				<div className="horosa-field-label" style={{ marginTop: 12 }}>用事类型</div>
 				<XQSelect style={{ width: '100%' }} size="small"
 					value={extra.topicId || 'marriage'}
+					dropdownMatchSelectWidth={false}
 					onChange={(val) => setExtra({ topicId: val })}>
-					{ELECTION_TOPICS.map((t) => (<Option key={t.value} value={t.value}>{t.label}</Option>))}
+					{ELECTION_TOPIC_GROUPS.map((g) => (
+						<XQSelect.OptGroup key={g.label} label={g.label}>
+							{g.values.map((v) => {
+								const t = ELECTION_TOPICS.find((x) => x.value === v);
+								return t ? <Option key={t.value} value={t.value}>{t.label}</Option> : null;
+							})}
+						</XQSelect.OptGroup>
+					))}
 				</XQSelect>
+				{this._topicId === 'trade' ? (
+					<div style={{ marginTop: 8 }}>
+						<div className="horosa-field-label">买卖方向（1宫=行事者）</div>
+						<XQSelect style={{ width: '100%' }} size="small" value={extra.tradeSide || ''}
+							dropdownMatchSelectWidth={false}
+							onChange={(val) => setExtra({ tradeSide: val || '' })}>
+							<Option value="">不指定（通用判据）</Option>
+							<Option value="sell">售出——强己方（1宫主），令买家来你</Option>
+							<Option value="buy">购入——强货主方（7宫主），所购有实</Option>
+						</XQSelect>
+					</div>
+				) : null}
+				{this._topicId === 'talisman' ? (
+					<div style={{ marginTop: 8 }}>
+						<div className="horosa-field-label">护符主星</div>
+						<XQSelect style={{ width: '100%' }} size="small" allowClear
+							placeholder="选主星后判庙旺角宫/行星日时"
+							value={extra.talismanStar || undefined}
+							dropdownMatchSelectWidth={false}
+							onChange={(val) => setExtra({ talismanStar: val || null })}>
+							{['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'].map((k) => (
+								<Option key={k} value={k}>{({ sun: '太阳', moon: '月亮', mercury: '水星', venus: '金星', mars: '火星', jupiter: '木星', saturn: '土星' })[k]}</Option>
+							))}
+						</XQSelect>
+						{extra.talismanStar && timerKey ? (
+							<div className="horosa-divi-note" style={{ marginTop: 4 }}>
+								当前{timerKey === extra.talismanStar ? '✓ 正值其行星时' : '✗ 非其行星时'}
+								{dayerKey ? (dayerKey === extra.talismanStar ? '，且是其行星日（日时合一尤强）' : `，值日星为${({ sun: '太阳', moon: '月亮', mercury: '水星', venus: '金星', mars: '火星', jupiter: '木星', saturn: '土星' })[dayerKey] || dayerKey}`) : ''}
+							</div>
+						) : null}
+					</div>
+				) : null}
 				{this._topicId === 'surgery' ? (
 					<div style={{ marginTop: 8 }}>
 						<div className="horosa-field-label">手术部位（星座主管）</div>
@@ -225,7 +389,21 @@ class ElectionMain extends Component{
 								<Option key={sg} value={sg}>{SIGNS[sg].cn} · {(SIGNS[sg].body_parts || []).join('/')}</Option>
 							))}
 						</XQSelect>
+						<label className="horosa-divi-note" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer' }}>
+							<input type="checkbox" checked={!!extra.surgeryPartOpposite}
+								onChange={(e) => setExtra({ surgeryPartOpposite: e.target.checked })} />
+							部位禁忌延及对宫（诸家多延及，默认不延）
+						</label>
 						<div className="horosa-field-label" style={{ marginTop: 8 }}>病始日期（危象日参照，可选）</div>
+						<input type="date" className="horosa-native-date" style={{ width: '100%', boxSizing: 'border-box' }}
+							value={(extra.crisisBase && extra.crisisBase.date) || ''}
+							onChange={(e) => this.fetchCrisisBase(e.target.value, setExtra)} />
+						{this.state.crisisLoading ? <div className="horosa-divi-note" style={{ marginTop: 4 }}>取病始时刻月位…</div> : null}
+					</div>
+				) : null}
+				{this._topicId === 'medication' ? (
+					<div style={{ marginTop: 8 }}>
+						<div className="horosa-field-label">病始日期（危象日参照，可选）</div>
 						<input type="date" className="horosa-native-date" style={{ width: '100%', boxSizing: 'border-box' }}
 							value={(extra.crisisBase && extra.crisisBase.date) || ''}
 							onChange={(e) => this.fetchCrisisBase(e.target.value, setExtra)} />
@@ -265,8 +443,34 @@ class ElectionMain extends Component{
 						)}
 					</div>
 				</div>
+				{/* 回归盘/主限命中:须先选本命盘;按需触发(不默认拉盘) */}
+				{this.state.natalRec ? (
+					<div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+						<XQButton size="small" style={{ flex: 1 }} loading={this.state.returnLoading} onClick={this.fetchReturns}>
+							{this.state.returnSet ? '重拉日/月返' : '拉日/月返盘'}
+						</XQButton>
+						<XQButton size="small" style={{ flex: 1 }} loading={this.state.pdLoading} onClick={this.fetchPdHits}>
+							{this.state.pdHits ? `重拉主限(${this.state.pdHits.length})` : '拉主限命中'}
+						</XQButton>
+					</div>
+				) : null}
+				<ElectionReference />
 			</XQSideSection>
 		);
+	}
+
+	// 事盘存档快照(payload.aiSnapshot):与右栏判读完全同 opts 面——四层口径/买卖方向/护符主星/部位对宫
+	// 全数入档,挂载 extractCaseSnapshotText 'ready' 直用(修复:此前未传 → 档内无快照,挂载退回 JSON 裸转)。
+	buildAiSnapshot(chart, fields, extra){
+		if(!chart){ return undefined; }
+		const ex = extra || {};
+		const j = runElection(chart, ex.topicId || 'marriage', this.state.natalFacts, this.state.mundaneSet, {
+			westSchool: ex.westSchool || 'modern_main', surgeryPart: ex.surgeryPart || null, crisisBase: ex.crisisBase || null,
+			...judgeLayerOverrides(),
+			electionParams: ex.electionParams || null, tradeSide: ex.tradeSide || '',
+			talismanStar: ex.talismanStar || null, surgeryPartOpposite: !!ex.surgeryPartOpposite,
+		});
+		return j ? buildElectionSnapshot(j) : undefined;
 	}
 
 	renderRight({ chart, extra }){
@@ -277,7 +481,7 @@ class ElectionMain extends Component{
 			this._readyChart = chart;
 			markPanelReady('auxchart');
 		}
-		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} westSchool={extra.westSchool || 'modern_main'} surgeryPart={extra.surgeryPart || null} crisisBase={extra.crisisBase || null} natalFacts={this.state.natalFacts} mundaneSet={this.state.mundaneSet} />;
+		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} westSchool={extra.westSchool || 'modern_main'} surgeryPart={extra.surgeryPart || null} crisisBase={extra.crisisBase || null} electionParams={extra.electionParams || null} tradeSide={extra.tradeSide || ''} talismanStar={extra.talismanStar || null} surgeryPartOpposite={!!extra.surgeryPartOpposite} natalFacts={this.state.natalFacts} mundaneSet={this.state.mundaneSet} returnSet={this.state.returnSet} pdHits={this.state.pdHits} />;
 	}
 
 	renderScanModal(){
@@ -327,6 +531,7 @@ class ElectionMain extends Component{
 					showAstroMeaning={this.props.showAstroMeaning}
 					dispatch={this.props.dispatch}
 					saveModule="election"
+					buildAiSnapshot={(chart, fields, extra) => this.buildAiSnapshot(chart, fields, extra)}
 					renderLeftExtra={(args) => this.renderLeftExtra(args)}
 					renderRight={(args) => this.renderRight(args)}
 				/>

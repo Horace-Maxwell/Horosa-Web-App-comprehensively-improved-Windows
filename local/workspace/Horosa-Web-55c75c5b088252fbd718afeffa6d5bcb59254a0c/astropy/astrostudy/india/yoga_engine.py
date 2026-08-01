@@ -210,7 +210,7 @@ class YogaEngine:
             'notes': [
                 '这里的 Yoga 指命盘行星组合；Panchanga 五支里的 27 Nitya Yoga 仍保留在 panchanga.yoga。',
                 '强度分数是规则成立后的工程化排序：庙旺/本宫、角宫、互照、燃烧、凶星夹制等会调节结果，不等同于经典文本原文数值。',
-                'D9/D10/D60 对 Yoga 的确认已预留规则接口；当前列表主要以 D1 Rashi 盘为判断基准。',
+                'Yoga 判据跑在当前显示盘上(切分盘即按该分盘位置重判);D9/D10/D60 的跨盘确认规则接口已预留。',
             ],
         }
 
@@ -854,16 +854,8 @@ class YogaEngine:
         items = []
         H = self.houses
         good = KENDRA | TRIKONA | {2}
-        # Shakata 车轮:月在木星第 6/8/12 宫。
-        mh = self.planet_house_from(const.MOON, const.JUPITER)
-        if mh in {6, 8, 12}:
-            items.append(self.make_item(
-                'shakata', 'Shakata Yoga', '车轮瑜伽', 'Lunar',
-                self.base_score([const.MOON, const.JUPITER], 30),
-                ['月亮位于木星第{0}宫'.format(mh)],
-                '人生起伏波折、财运时盈时缺；木星入角宫或受吉照可减轻。',
-                [const.MOON, const.JUPITER], [mh], ['Phaladeepika'],
-                self.affliction_modifiers([const.MOON, const.JUPITER]), ['moon', 'jupiter']))
+        # (Shakata 车轮与主表 'sakata' 判据恒同 —— 曾双登记致同名两条分数打架,已并去,
+        #  单一条目保留在主表 sakata。)
         # Saraswati 辩才天:木/金/水 各居 kendra/trikona/2 宫,且木星有力。
         if all(H.get(p) in good for p in (const.JUPITER, const.VENUS, const.MERCURY)) and self.is_strong(const.JUPITER):
             items.append(self.make_item(

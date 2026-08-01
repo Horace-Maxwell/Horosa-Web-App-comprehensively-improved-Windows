@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/election/ElectionMain.js b/astrostudyui/src/components/election/ElectionMain.js
-index 87252f7..a032589 100644
+index 3eb35cf..ec24cf1 100644
 --- a/astrostudyui/src/components/election/ElectionMain.js
 +++ b/astrostudyui/src/components/election/ElectionMain.js
-@@ -15,6 +15,7 @@ import { fetchPreciseJieqiSeed } from '../../utils/preciseCalcBridge';
- import { WEST_SCHOOLS, WEST_SCHOOL_ORDER, schoolOf } from '../../divination/election/westernSchools';
+@@ -20,6 +20,7 @@ import { ELECTION_PARAM_SPEC, calibreOverrideCount, electionCalibreDefaults, res
+ import { fetchReturnSet, fetchPdHitsNearElection } from '../../divination/election/returnCharts';
  import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
  import moment from 'moment';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const Option = XQSelect.Option;
  
-@@ -269,6 +270,13 @@ class ElectionMain extends Component{
+@@ -473,6 +474,13 @@ class ElectionMain extends Component{
  	}
  
  	renderRight({ chart, extra }){
@@ -21,6 +21,6 @@ index 87252f7..a032589 100644
 +			this._readyChart = chart;
 +			markPanelReady('auxchart');
 +		}
- 		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} westSchool={extra.westSchool || 'modern_main'} surgeryPart={extra.surgeryPart || null} crisisBase={extra.crisisBase || null} natalFacts={this.state.natalFacts} mundaneSet={this.state.mundaneSet} />;
+ 		return <ElectionJudgment chart={chart} topicId={extra.topicId || 'marriage'} westSchool={extra.westSchool || 'modern_main'} surgeryPart={extra.surgeryPart || null} crisisBase={extra.crisisBase || null} electionParams={extra.electionParams || null} tradeSide={extra.tradeSide || ''} talismanStar={extra.talismanStar || null} surgeryPartOpposite={!!extra.surgeryPartOpposite} natalFacts={this.state.natalFacts} mundaneSet={this.state.mundaneSet} returnSet={this.state.returnSet} pdHits={this.state.pdHits} />;
  	}
  

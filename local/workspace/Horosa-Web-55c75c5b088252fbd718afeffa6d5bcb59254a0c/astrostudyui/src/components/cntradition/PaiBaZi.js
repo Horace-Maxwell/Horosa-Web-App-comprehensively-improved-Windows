@@ -199,7 +199,12 @@ class PaiBaZi extends Component{
 						</Col>
 					</Row>
 				{isAncient ? (
-					<BaZiAncientChart value={rec} fields={fields} />
+					<BaZiAncientChart value={rec} fields={fields}
+						school={(this.props.baziOpt && this.props.baziOpt.school) || 'zonghe'}
+						showSchoolMarks={!(this.props.baziOpt && this.props.baziOpt.showSchoolMarks === false)}
+						showShenSha={!(this.props.baziOpt && this.props.baziOpt.showShenSha === false)}
+						shenshaGroups={this.props.baziOpt && this.props.baziOpt.shenshaGroups}
+					/>
 				) : (
 					<BaZiFineChart
 						value={rec}
@@ -209,6 +214,10 @@ class PaiBaZi extends Component{
 						showRelations={!(this.props.baziOpt && this.props.baziOpt.showRelations === false)}
 						cangVersion={(this.props.baziOpt && this.props.baziOpt.cangVersion) || 'common'}
 						onlyZiGanShen={!!(this.props.baziOpt && this.props.baziOpt.onlyZiGanShen)}
+						school={(this.props.baziOpt && this.props.baziOpt.school) || 'zonghe'}
+						showSchoolMarks={!(this.props.baziOpt && this.props.baziOpt.showSchoolMarks === false)}
+						showShenSha={!(this.props.baziOpt && this.props.baziOpt.showShenSha === false)}
+						shenshaGroups={this.props.baziOpt && this.props.baziOpt.shenshaGroups}
 					/>
 				)}
 			</div>

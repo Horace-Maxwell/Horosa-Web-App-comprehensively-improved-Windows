@@ -245,9 +245,12 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
 		// [挂载设置] opts 可覆盖:classicKey 典籍;xinyiMethod 心易起卦法(缺省不算=现状零回归),
 		// 其余为对应法参数——与页面 xinyiOptions 同名同义,单源双端(页面/挂载)一致。
 		const o = opts && typeof opts === 'object' ? opts : {};
+		// 所推之年:存档/齿轮可覆盖(元会运世值卦按年而定)——🔴 曾写死 dt.year,页面推的年份传不进挂载。
+		const hy = (o.historyYear !== undefined && o.historyYear !== null && `${o.historyYear}` !== '' && Number.isFinite(Number(o.historyYear)))
+			? Number(o.historyYear) : dt.year;
 		const pan = await postWangJi('pan', {
 			...dt,
-			historyYear: dt.year,
+			historyYear: hy,
 			classicKey: o.classicKey || DEFAULT_CLASSIC,
 		});
 		if(!pan){
@@ -271,7 +274,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
 				});
 			}catch(e){ xinyi = null; /* 心易失败不拖主盘 */ }
 		}
-		return buildSnapshotText(pan, xinyi) || '';
+		// 章节随档(classicSectionIndex):曾不传第 3 参 → 挂载恒取首章,与存档所读章节不符。
+		return buildSnapshotText(pan, xinyi, { classicSectionIndex: o.classicSectionIndex }) || '';
 	}catch(e){
 		return '';
 	}

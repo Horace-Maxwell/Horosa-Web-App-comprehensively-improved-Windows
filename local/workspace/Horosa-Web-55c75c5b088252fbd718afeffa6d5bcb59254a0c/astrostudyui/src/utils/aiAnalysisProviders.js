@@ -351,9 +351,10 @@ export function effectiveMaxTokensForModel(model, maxTokens){
 	const mt = Number(maxTokens) || 0;
 	if(!mt) return mt;
 	const m = `${model || ''}`.toLowerCase();
-	// kimi-k2.x 是思考模型但不入 isReasoningModel(其 temperature 钳制在后端代理侧,
-	// 进正则会改聊天温度行为);此处仅作「输出预算」判定,scoped 不外溢。
-	const reasoning = (!!m && isReasoningModel(m)) || /^kimi-k2/.test(m);
+	// kimi-k 系(k2.x/k3.x 及后续代)是思考模型但不入 isReasoningModel(其 temperature 钳制在
+	// 后端代理侧,进正则会改聊天温度行为);此处仅作「输出预算」判定,scoped 不外溢。
+	// 🔴 教训(Windows #47):勿写死单一代号(曾写 ^kimi-k2,k3 一出即漏)——一律认「kimi-k+数字」。
+	const reasoning = (!!m && isReasoningModel(m)) || /^kimi-k\d/.test(m);
 	if(reasoning){
 		return Math.min(Math.max(mt * 2, mt + 6000), 16384);
 	}

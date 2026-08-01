@@ -1,17 +1,19 @@
 diff --git a/astrostudyui/src/components/cnyibu/CnYiBuMain.js b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-index b15eea3..87d2eb2 100644
+index f730272..90c4dff 100644
 --- a/astrostudyui/src/components/cnyibu/CnYiBuMain.js
 +++ b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-@@ -23,10 +23,18 @@ const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-
+@@ -23,12 +23,20 @@ const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-
  const XiaoChengTuMain = React.lazy(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain'));
  const FeiGongMain = React.lazy(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain'));
  import QuickDockBar from '../common/QuickDockBar';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+ import { CNYIBU_SUBTABS } from '../../constants/SubTabRegistry';
  
  
  const TabPane = Tabs.TabPane;
- const CNYIBU_VALID_TABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong'];
+ // 合法子页签集合的单一真值源在 constants/SubTabRegistry(导航层同源)。
+ const CNYIBU_VALID_TABS = CNYIBU_SUBTABS;
 +// horosa_prefetch_registry_v1(PERF-R10 P6):可步进预取的确定性子页,显式枚举 ——
 +// 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/tarot/xiaoliuren/guice/dice 类)绝不入列
 +//(预取=把随机结果钉死;端点级 FORBIDDEN 双闸仍兜底);jinkou 两阶段(pan 需 nongli 真太阳时
@@ -21,7 +23,7 @@ index b15eea3..87d2eb2 100644
  
  function getRuntimeCnYiBuTab(){
  	if(typeof window === 'undefined'){
-@@ -165,10 +173,29 @@ class CnYiBuMain extends Component{
+@@ -167,10 +175,29 @@ class CnYiBuMain extends Component{
  		this.unmounted = false;
  		// 首渲时子页 ref 尚未挂上,取不到 getQuickDockConfig;挂载后补一拍让 dock 内容就位
  		this.forceUpdate();
@@ -51,7 +53,7 @@ index b15eea3..87d2eb2 100644
  	}
  
  	componentDidUpdate(prevProps){
-@@ -286,194 +313,236 @@ class CnYiBuMain extends Component{
+@@ -288,194 +315,236 @@ class CnYiBuMain extends Component{
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab="宿盘" key="suzhan">

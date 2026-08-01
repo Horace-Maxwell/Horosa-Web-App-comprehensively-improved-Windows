@@ -8,6 +8,11 @@ LIST_OBJ = [
     const.DARKMOON, const.PURPLE_CLOUDS
 ]
 
+# 严格汉堡因子集(D2):黑月/紫气非该学派因子(因子集=10 行星+8 虚星+Asc/MC/交点/白羊点)。
+# strictFactors=True(仅 uranian=True 分支生效)时从「中点对来源」与「相位目标」双面剔除;
+# 默认 False = 现状字节零回归(declination.py 的 LIST_DECL_PLANET 本就不含此二点,两处口径由此对齐)。
+STRICT_EXCLUDE = (const.DARKMOON, const.PURPLE_CLOUDS)
+
 def takeLon(obj):
     return obj['lon']
 
@@ -25,11 +30,12 @@ class MidPoint:
     #   ③ 相位判断跨 0° 归一(修原 abs 差未归一致 mid≈359、obj≈0 漏判);orb 可配;
     #   ④ TNP 也作相位目标(捕获 TNP 落中点轴)。
     #
-    # includeTnp / personalOrb 仅 uranian=True 分支生效,默认=现行为(零回归):
+    # includeTnp / personalOrb / strictFactors 仅 uranian=True 分支生效,默认=现行为(零回归):
     #   includeTnp=False  → 8 颗 TNP 既不入中点对、也不作相位目标(宇宙生物学不用虚星);
-    #   personalOrb=None  → 无分叉,全程用 self.orb;给定数值时仅「相位目标落 Basic Five」放宽到该值。
-    # uranian=False(合盘 modern/chartcomp.py 复用)逐字节不变:tnpObjs 恒空,这两个参数完全无作用。
-    def __init__(self, perchart: PerChart, orb=1.0, uranian=False, includeTnp=True, personalOrb=None):
+    #   personalOrb=None  → 无分叉,全程用 self.orb;给定数值时仅「相位目标落 Basic Five」放宽到该值;
+    #   strictFactors=True → 剔除黑月/紫气(STRICT_EXCLUDE,中点对+相位目标双面)。
+    # uranian=False(合盘 modern/chartcomp.py 复用)逐字节不变:tnpObjs 恒空,这三个参数完全无作用。
+    def __init__(self, perchart: PerChart, orb=1.0, uranian=False, includeTnp=True, personalOrb=None, strictFactors=False):
         self.perchart = perchart
         self.uranian = bool(uranian)
         try:
@@ -39,6 +45,7 @@ class MidPoint:
         if not (0 < self.orb <= 10):
             self.orb = 1.0
         self.includeTnp = bool(includeTnp)
+        self.strictFactors = bool(strictFactors)
         # personalOrb=None → 不分叉;否则校验为合法正容许度(同 orb 口径),非法则回退 None(无分叉)。
         self.personalOrb = None
         if personalOrb is not None:
@@ -68,6 +75,9 @@ class MidPoint:
                         self.tnpObjs.append(flatlib_ephem.getObject(uid, perchart.dateTime, perchart.pos))
                     except Exception:
                         pass
+            # 严格因子集(D2):剔黑月/紫气,使中点对来源与 declination 因子口径一致。默认 False 不过滤。
+            if self.strictFactors:
+                self.objects = [o for o in self.objects if o.id not in STRICT_EXCLUDE]
             self.objects = self.objects + angleObjs + self.tnpObjs
 
     def getAspects(self, obj, mids):
@@ -184,6 +194,9 @@ class MidPoint:
         asps = {}
         # 相位目标:四轴 + 行星(+ uranian 时附 TNP)。非 uranian 时 tnpObjs 为空,与历史一致。
         targets = list(self.perchart.chart.angles) + list(self.perchart.chart.objects) + self.tnpObjs
+        # 严格因子集(D2):黑月/紫气亦不作相位目标(与中点对来源同口径);仅 uranian 分支可能为 True。
+        if self.uranian and self.strictFactors:
+            targets = [t for t in targets if t.id not in STRICT_EXCLUDE]
         for obj in targets:
             objasp = self.getAspects(obj, mids)
             if len(objasp[obj.id]) > 0:

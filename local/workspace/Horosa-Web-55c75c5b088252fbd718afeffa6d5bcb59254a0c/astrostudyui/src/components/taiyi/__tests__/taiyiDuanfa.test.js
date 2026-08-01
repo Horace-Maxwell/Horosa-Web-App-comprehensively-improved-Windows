@@ -1,5 +1,5 @@
 import { computeGeju } from '../core/taiyiGeju';
-import { suanFrom, computeShenSuan, computeFenye, computeVictory, computeTaisuiAlias, activeDoorJixiong, computeEhui, shenMeaning, computeSanyuan } from '../core/taiyiDuanfa';
+import { suanFrom, computeShenSuan, computeFenye, computeVictory, computeTaisuiAlias, activeDoorJixiong, computeEhui, shenMeaning, computeSanyuan, computeShiJing, computeWuziyuan, computeHeShen, LIUHE } from '../core/taiyiDuanfa';
 
 describe('太乙 格局(§14)', () => {
 	const base = { taiyiPalace: '艮', taiyiNum: 3, skyeyes: '子', sf: '午', homeGeneral: 5, awayGeneral: 5 };
@@ -25,6 +25,27 @@ describe('太乙 格局(§14)', () => {
 	});
 	test('无格局返回空数组', () => {
 		expect(computeGeju({ ...base, skyeyes: '卯', sf: '酉', homeGeneral: 4, awayGeneral: 7 })).toEqual([]);
+	});
+	// —— 补九式 提/挟/关/击 ——
+	test('挟:文昌始击分居太乙两侧相邻间神(艮idx2 → 丑idx1/寅idx3)', () => {
+		const g = computeGeju({ ...base, skyeyes: '丑', sf: '寅' });
+		expect(g.some((x) => x.kind === 'xie')).toBe(true);
+	});
+	test('提:二目与太乙同象限(子idx0/寅idx3/艮idx2 皆象限0)且主客大将在正宫', () => {
+		const g = computeGeju({ ...base, skyeyes: '子', sf: '寅', homeGeneral: 4, awayGeneral: 7 });
+		expect(g.some((x) => x.kind === 'ti')).toBe(true);
+	});
+	test('关:主客算皆长(≥11)且同和数(12/16)', () => {
+		const g = computeGeju({ ...base, homeCal: 12, awayCal: 16 });
+		expect(g.some((x) => x.kind === 'guan')).toBe(true);
+	});
+	test('击:始击(午·宫2)与主大将同宫(2)', () => {
+		const g = computeGeju({ ...base, sf: '午', homeGeneral: 2 });
+		expect(g.some((x) => x.kind === 'ji')).toBe(true);
+	});
+	test('提/挟/关/击 在无格局态不误报(与5式空数组同基)', () => {
+		const g = computeGeju({ ...base, skyeyes: '卯', sf: '酉', homeGeneral: 4, awayGeneral: 7 });
+		expect(g.some((x) => ['ti', 'xie', 'guan', 'ji'].includes(x.kind))).toBe(false);
 	});
 });
 
@@ -98,5 +119,34 @@ describe('太乙 十六神主事(§8.2)/ 三元(§3.1)', () => {
 		expect(computeSanyuan({ jiyuan: '第三纪某元' })).toBe('下元');
 		expect(computeSanyuan({ jiyuan: '第四纪某元' })).toBe('上元');
 		expect(computeSanyuan({ jiyuan: '' })).toBe('');
+	});
+});
+
+describe('太乙 十精/五子元/六合(§3.2/§10)', () => {
+	const pan = {
+		skyeyes: '申', sf: '艮', jigod: '申',
+		homeGeneral: 6, homeGeneralPalace: '酉', homeVGen: 8, homeVGenPalace: '子',
+		awayGeneral: 4, awayGeneralPalace: '卯', awayVGen: 2, awayVGenPalace: '午',
+		kingbase: '巳', officerbase: '子', pplbase: '巳', hegod: '未', accNum: 10155943,
+	};
+	test('十精:今义 10 项(二目+八将)有序,含落点/宫', () => {
+		const r = computeShiJing(pan);
+		expect(r).toHaveLength(10);
+		expect(r.map((x) => x.name)).toEqual(['文昌', '始击', '计神', '主大将', '主参将', '客大将', '客参将', '君基', '臣基', '民基']);
+		expect(r[0]).toMatchObject({ name: '文昌', at: '申' });
+		expect(r[3].at).toBe('酉(6宫)');       // 主大将=酉·6宫
+		expect(computeShiJing(null)).toBeNull();
+	});
+	test('五子元:(积年%360)//72 → 五元之一', () => {
+		// 10155943 % 360 = 343 → 343//72 = 4 → 壬子元
+		expect(computeWuziyuan(pan)).toBe('壬子元');
+		expect(computeWuziyuan({ accNum: 0 })).toBe('');
+		expect(computeWuziyuan({ accNum: 72 })).toBe('丙子元');   // 72//72=1
+	});
+	test('六合表 + 合神六合', () => {
+		expect(LIUHE['子']).toBe('丑');
+		expect(LIUHE['午']).toBe('未');
+		expect(computeHeShen(pan)).toMatchObject({ hegod: '未', he: '午' });
+		expect(computeHeShen({})).toBeNull();
 	});
 });

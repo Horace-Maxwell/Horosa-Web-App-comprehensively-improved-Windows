@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/tarot/TarotMain.js b/astrostudyui/src/components/tarot/TarotMain.js
-index b96d6d8..3446308 100644
+index d817561..d57c3d4 100644
 --- a/astrostudyui/src/components/tarot/TarotMain.js
 +++ b/astrostudyui/src/components/tarot/TarotMain.js
-@@ -18,6 +18,8 @@ import { kingScaleColor } from './engine/colorScales';
- import { cardImageUrl, deckHasRealArt, deckArtIsMajorsOnly } from './engine/cardArt';
- import { SIGN_CN, SUIT_CN, COURT_CN, COURT_ORDER, SUITS } from './decks/correspondences';
+@@ -20,6 +20,8 @@ import { SIGN_CN, SUIT_CN, COURT_CN, COURT_ORDER, SUITS, MAJORS_CORR, pathJoin }
+ import { SCALE_META, SCALE_ORDER, scaleColor } from './engine/colorScales';
+ import { DUMMETT_ORDERS } from './decks/visconti';
  import { PUBLIC_DOMAIN_ATTRIBUTION } from './decks/meanings78';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  const { Option, OptGroup } = Select;
-@@ -166,6 +168,7 @@ class TarotMain extends Component{
+@@ -173,6 +175,7 @@ class TarotMain extends Component{
  		if(this.props.hook){ this.props.hook.fun = () => { if(!this.unmounted){ this.restoreFromCurrentCase(); } }; }
  	}
  
@@ -19,7 +19,7 @@ index b96d6d8..3446308 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -197,6 +200,8 @@ class TarotMain extends Component{
+@@ -204,6 +207,8 @@ class TarotMain extends Component{
  		if(seed === undefined || seed === null || seed === ''){ return; }
  		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
  		this.setState({ reading, lastSeed: `${seed}` }, () => {
@@ -28,7 +28,7 @@ index b96d6d8..3446308 100644
  			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
  		});
  	}
-@@ -561,7 +566,9 @@ class TarotMain extends Component{
+@@ -693,7 +698,9 @@ class TarotMain extends Component{
  		const summary = reading && reading.summary;
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-content-tabs horosa-tarot-tabs">
@@ -38,7 +38,7 @@ index b96d6d8..3446308 100644
  					<div className="horosa-tarot-reading">
  						{this.state.question ? <div className="horosa-info-card"><div className="horosa-info-card-title">所问</div><div>{this.state.question}</div></div> : null}
  						{draws.length ? (
-@@ -577,8 +584,10 @@ class TarotMain extends Component{
+@@ -708,8 +715,10 @@ class TarotMain extends Component{
  							</div>
  						) : <div className="horosa-tarot-empty">尚未抽牌</div>}
  					</div>
@@ -49,7 +49,7 @@ index b96d6d8..3446308 100644
  					<table className="horosa-tarot-table">
  						<thead><tr><th>位置</th><th>牌</th><th>正逆</th><th>含义</th></tr></thead>
  						<tbody>{draws.map((d) => (
-@@ -590,8 +599,10 @@ class TarotMain extends Component{
+@@ -721,8 +730,10 @@ class TarotMain extends Component{
  							</tr>
  						))}</tbody>
  					</table>
@@ -60,7 +60,7 @@ index b96d6d8..3446308 100644
  					<table className="horosa-tarot-table">
  						<thead><tr><th>牌</th>{caps.reversals !== false ? <th>正逆</th> : null}{isTarot ? <th>对应</th> : null}{caps.dignities ? <th>尊位</th> : null}<th>关键义</th></tr></thead>
  						<tbody>{draws.map((d) => {
-@@ -607,11 +618,12 @@ class TarotMain extends Component{
+@@ -738,12 +749,13 @@ class TarotMain extends Component{
  							);
  						})}</tbody>
  					</table>
@@ -69,10 +69,12 @@ index b96d6d8..3446308 100644
 -				<TabPane tab="综合" key="synthesis">{this.renderSynthesis(summary)}</TabPane>
 -				{caps.readingMethod === 'lenormand' ? <TabPane tab="组合读法" key="lenormand">{this.renderLenormand(reading)}</TabPane> : null}
 -				{caps.readingMethod !== 'lenormand' ? <TabPane tab="定局" key="verdict">{this.renderVerdict(reading)}</TabPane> : null}
+-				{reading && reading.spreadType === 'opening_of_key' ? <TabPane tab="开钥" key="ook">{this.renderOok(reading)}</TabPane> : null}
 -				{isTarot ? <TabPane tab="生命牌" key="birthcards">{this.renderBirthCards()}</TabPane> : null}
 +				<TabPane tab="综合" key="synthesis"><FreezeSubTab active={activeKey === 'synthesis'}>{() => this.renderSynthesis(summary)}</FreezeSubTab></TabPane>
 +				{caps.readingMethod === 'lenormand' ? <TabPane tab="组合读法" key="lenormand"><FreezeSubTab active={activeKey === 'lenormand'}>{() => this.renderLenormand(reading)}</FreezeSubTab></TabPane> : null}
 +				{caps.readingMethod !== 'lenormand' ? <TabPane tab="定局" key="verdict"><FreezeSubTab active={activeKey === 'verdict'}>{() => this.renderVerdict(reading)}</FreezeSubTab></TabPane> : null}
++				{reading && reading.spreadType === 'opening_of_key' ? <TabPane tab="开钥" key="ook"><FreezeSubTab active={activeKey === 'ook'}>{() => this.renderOok(reading)}</FreezeSubTab></TabPane> : null}
 +				{isTarot ? <TabPane tab="生命牌" key="birthcards"><FreezeSubTab active={activeKey === 'birthcards'}>{() => this.renderBirthCards()}</FreezeSubTab></TabPane> : null}
  			</Tabs>
  		);

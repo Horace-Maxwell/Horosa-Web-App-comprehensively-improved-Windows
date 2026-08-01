@@ -56,9 +56,12 @@ def compute(chart, ageYears, rateKey='persian', asporb=1, nodeRetrograde=False, 
                 'aspect': -1
             }
             delta = obj.lon - natobj.lon if obj.lon >= natobj.lon else natobj.lon - obj.lon
-            if delta < orb:
+            # delta 是 |黄经差| ∈ [0,360)。下面每个相位都判了自身与 360 补角(45/315、90/270、
+            # 135/225),唯独合相只判了 delta<orb 一侧 → 一星在 0.2°、另一星在 359.5° 时实际
+            # 相距 0.9°(是合相),delta=359.3 却落不进任何分支,合相整条丢失。补上 360 侧。
+            if delta < orb or delta > 360 - orb:
                 natasp['aspect'] = 0
-                natasp['delta'] = delta
+                natasp['delta'] = delta if delta < orb else 360 - delta
             elif abs(delta - 45) < orb or abs(delta - 315) < orb:
                 tmpdelta = abs(delta - 45)
                 if tmpdelta > orb:

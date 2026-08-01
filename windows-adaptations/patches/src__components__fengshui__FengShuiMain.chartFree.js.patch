@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/fengshui/FengShuiMain.js b/astrostudyui/src/components/fengshui/FengShuiMain.js
-index c5cdb53..df7f6d9 100644
+index 1f88de9..2ea3244 100644
 --- a/astrostudyui/src/components/fengshui/FengShuiMain.js
 +++ b/astrostudyui/src/components/fengshui/FengShuiMain.js
 @@ -4,9 +4,38 @@ import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
@@ -41,7 +41,24 @@ index c5cdb53..df7f6d9 100644
  const { Option } = XQSelect;
  const { Panel } = Collapse;
  
-@@ -111,11 +140,33 @@ class FengShuiMain extends Component {
+@@ -104,25 +133,41 @@ const PERIOD_OPTIONS = [
+ const TAG_LABEL = { auspicious: '吉', mild: '小吉', neutral: '中性', caution: '宜慎' };
+ 
+ class FengShuiMain extends Component {
+-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+-	shouldComponentUpdate(nextProps, nextState){
+-		if(nextState !== this.state){
+-			return true;
+-		}
+-		return !wrapperPropsEqual(this.props, nextProps);
+-	}
+-
++	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同类内也带一份通用 wrapperPropsEqual 渲染守卫,
++	// 与本类内另一份我方细化守卫重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
++	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
+ 	constructor(props) {
+ 		super(props);
  		this.state = { vm: null, controlTab: 'base', workspaceTab: 'canvas', school: 'naqi' };
  		this.canvasRef = createRef();
  		this.fileInputRef = createRef();
@@ -75,7 +92,7 @@ index c5cdb53..df7f6d9 100644
  	}
  
  	componentDidMount() {
-@@ -145,8 +196,52 @@ class FengShuiMain extends Component {
+@@ -152,8 +197,52 @@ class FengShuiMain extends Component {
  		if (this.engine) this.engine.destroy();
  	}
  
@@ -129,7 +146,7 @@ index c5cdb53..df7f6d9 100644
  		// 🔴 理气/新派激活时，画布引擎(display:none 仍挂载)因 ResizeObserver 等仍会 emit vm；
  		// 不可让其画布快照覆盖 LiqiWorkspace 维护的当前流派快照(否则 AI 导出取到纳气盘而非当前理气派)。
  		if (vm && vm.snapshotText && !LIQI_SET.has(this.state.school)) {
-@@ -173,6 +268,11 @@ class FengShuiMain extends Component {
+@@ -180,6 +269,11 @@ class FengShuiMain extends Component {
  	}
  
  	onFile(e) {
@@ -141,7 +158,7 @@ index c5cdb53..df7f6d9 100644
  		const file = e.target.files && e.target.files[0];
  		if (file && this.engine) this.engine.loadImageFile(file);
  		e.target.value = '';
-@@ -180,7 +280,8 @@ class FengShuiMain extends Component {
+@@ -187,7 +281,8 @@ class FengShuiMain extends Component {
  
  	// 流派切换：理气派走纯前端 LiqiWorkspace；户型图两法同步引擎 techMode 并重算画布尺寸。
  	onSchoolChange(v) {
@@ -151,7 +168,7 @@ index c5cdb53..df7f6d9 100644
  		if (v === 'naqi' || v === 'bagua') {
  			if (this.engine) {
  				this.engine.setTechMode(v);
-@@ -579,6 +680,11 @@ class FengShuiMain extends Component {
+@@ -586,6 +681,11 @@ class FengShuiMain extends Component {
  		);
  	}
  
@@ -163,7 +180,7 @@ index c5cdb53..df7f6d9 100644
  	render() {
  		const vm = this.state.vm || {
  			status: '请上传户型图开始。', imgLoaded: false, rectRotation: 0,
-@@ -594,28 +700,42 @@ class FengShuiMain extends Component {
+@@ -601,28 +701,42 @@ class FengShuiMain extends Component {
  		let height = this.props.height ? this.props.height : '100%';
  		if (typeof height === 'number') height = `${height}px`;
  		return (
@@ -214,7 +231,7 @@ index c5cdb53..df7f6d9 100644
  								<div className="horosa-fengshui-canvas-wrap">
  									<div className="horosa-fengshui-canvas-toolbar">
  										<div className="horosa-fengshui-legend">
-@@ -635,8 +755,11 @@ class FengShuiMain extends Component {
+@@ -642,8 +756,11 @@ class FengShuiMain extends Component {
  										{!vm.imgLoaded ? <div className="horosa-fengshui-canvas-hint">上传户型图后开始操作</div> : null}
  									</div>
  								</div>

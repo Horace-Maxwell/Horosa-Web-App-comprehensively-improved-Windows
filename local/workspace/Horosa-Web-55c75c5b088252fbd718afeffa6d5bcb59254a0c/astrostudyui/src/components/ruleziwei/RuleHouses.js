@@ -4,6 +4,7 @@ import * as ZWConst from '../../constants/ZWConst';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+import STAR_MEANING from '../ziwei/data/tables/ziweiStarMeaning.json';   // WP-7 十二宫含义
 
 class RuleHouses extends Component{
 	constructor(props) {
@@ -27,7 +28,7 @@ class RuleHouses extends Component{
 		for(let i=0; i<houses.length; i++){
 			let house = houses[i];
 			let rules = ZWRules.RuleHouses[house];
-			let dom = this.genPopoverDom(rules);
+			let dom = this.genPopoverDom(rules, house);
 			let title = house + '';
 			let col = (
 				<Col span={6} key={house}>
@@ -41,7 +42,11 @@ class RuleHouses extends Component{
 		return cols;
 	}
 
-	genPopoverDom(rules){
+	genPopoverDom(rules, house){
+		let meaning = house ? STAR_MEANING.houses[house] : null;   // WP-7 十二宫含义
+		let head = meaning ? (
+			<div key="meaning" style={{ marginBottom: 8, padding: '6px 9px', background: 'var(--horosa-ziwei-selected-bg, rgba(120,72,232,0.08))', borderRadius: 4, fontSize: 12, lineHeight: '20px' }}>{meaning}</div>
+		) : null;
 		let lis = [];
 		for(let i=0; i<rules.length; i++){
 			let rule = rules[i];
@@ -68,6 +73,7 @@ class RuleHouses extends Component{
 		}
 		let rulesDom = (
 			<div key="rules" style={{width: 400}}>
+				{head}
 				<ul key="list">
 					{lis}
 				</ul>

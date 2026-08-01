@@ -178,13 +178,13 @@ echo "== 16. v3.0.1 perf ROUND-4 P1 (占星首盘 9.7s 的 80%=baziAssemble 7781
 apply_patch bazi_warmup_v1                 astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java astrostudyboot__AstroStudyProgram.baziWarmup.java.patch
 echo "   ^^ astrostudyboot is BACKEND Java. After this patch rebuild: astrostudyboot clean package, then copy to bundle."
 
-echo "== 17. v3.0.1 perf ROUND-5 (Python 排盘热路径请求内 memo;纯每实例缓存、reinit() 重置、无行为开关、golden 字节全等) =="
-# perchart.py:同一 /chart 请求内重复计算的 6 处纯函数结果 memo(67 恒星批/28 宿调整批/28 宿原始批/
-# 日出求解/围攻/互容 —— 均为「同请求同输入被算 2-3 次」的浪费)。缓存挂在 chart 实例上,reinit() 清零,
-# 跨请求零共享;golden 4 变体(标准/南盘/斗柄/七政)PYTHONHASHSEED=0 下逐字节全等。重复盘 617-747ms → 443-504ms。
-# 守卫 marker 取最新(gotcha #48):PERF-R9 在同一文件加了 getParallel 的稳定排序,
-# marker 换成该次改动引入的 horosa_decl_parallel_stable_order_v1,旧状态 grep 不到必定重打。
-apply_patch horosa_decl_parallel_stable_order_v1  astropy/astrostudy/perchart.py           astropy__perchart.chartMemo.py.patch
+echo "== 17. perchart Windows-ahead 残余(v3.6.0 收敛后 = 仅 phasis 限界;memo 族与稳定排序已上游化) =="
+# v3.6.0 收敛注(#49 上游化 SOP):ROUND-5 的 6 处请求内 memo(67 恒星批/28 宿两批/日出/围攻/互容)
+# 与 PERF-R9 的 getParallel 稳定排序 **均已被 Mac 上游原生吸收**(reinit 缓存字段 + accessor/compute
+# 对 + sorted 收尾都在上游文件里)——对应 hunks 从本补丁退役,守卫迁上游串(哨兵门钉 _computeMutuals/
+# sorted 收尾)。残余 Windows-ahead = horosa_phasis_bounded_v1(PERF-R10 B5 高纬 8-16s 根治:
+# 可行性预筛 + HELFLAG_SEARCH_1_PERIOD 限界;kill=HOROSA_PHASIS_BOUNDED=0;黄金 north-hi 钉)。
+apply_patch horosa_phasis_bounded_v1       astropy/astrostudy/perchart.py           astropy__perchart.chartMemo.py.patch
 # guo74.py:virtualSu28 逐星 chart.getFixedStar()×28 → 改读 perchart 的原始 28 宿批缓存(同一请求第三次取数)。
 apply_patch getRawFixedStarSu28Cached      astropy/astrostudy/guostarsect/guo74.py       astropy__guostarsect__guo74.su28Batch.py.patch
 # flatlib ephem.py:恒星批(67 星/28 宿)只依赖 (IDs, jd, pos, height, flags, sidereal 上下文),与宫位制/

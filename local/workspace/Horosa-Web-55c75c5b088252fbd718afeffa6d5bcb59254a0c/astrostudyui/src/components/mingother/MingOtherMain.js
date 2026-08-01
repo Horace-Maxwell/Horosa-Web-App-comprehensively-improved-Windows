@@ -37,6 +37,7 @@ export default class MingOtherMain extends Component{
 		return (
 			<KinAstroMain
 				{...this.props}
+				hostModuleKey="mingother"
 				technique={this.state.technique}
 				activeTechnique={this.state.technique}
 				techniqueTabs={MING_OTHER_TECHNIQUE_TABS}

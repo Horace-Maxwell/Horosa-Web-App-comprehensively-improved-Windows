@@ -1,7 +1,7 @@
 import { Component } from 'react';
-import { BaZiMsg } from '../../msg/bazimsg';
-import { calcFlowShenSha } from '../../utils/baziShenShaLocal';
 import { chartSCUEnabled } from '../../utils/perfFlags';
+import { BaZiMsg } from '../../msg/bazimsg';
+import { calcFlowShenSha, filterShenShaByGroups } from '../../utils/baziShenShaLocal';
 
 const PILLAR_KEYS = [
 	['year', '年柱'],
@@ -186,6 +186,21 @@ class BaZiInfoStaticSections extends Component{
 						<em>同党(印比) {dm.samePercent}% · 异党 {Math.round((100 - dm.samePercent) * 10) / 10}%</em>
 					</div>
 				) : null}
+				{stat.dimensions ? (
+					<div className="horosa-bazi-wuxing-dims" title={[
+						stat.dimensions.deLing ? `得令：月令${stat.dimensions.deLing.state}（${stat.dimensions.deLing.score > 0 ? '+' : ''}${stat.dimensions.deLing.score}）` : '',
+						stat.dimensions.deDi && stat.dimensions.deDi.roots.length
+							? `得地：${stat.dimensions.deDi.roots.map((r)=>`${r.pillar}${r.branch}(${r.type})`).join('、')}（+${stat.dimensions.deDi.score}）`
+							: '得地：四支无根（虚浮）',
+						stat.dimensions.deShi && stat.dimensions.deShi.count
+							? `得势：${stat.dimensions.deShi.stems.map((s)=>`${s.pillar}${s.gan}(${s.rel})`).join('、')}（+${stat.dimensions.deShi.score}）`
+							: '得势：印比不透干',
+					].filter(Boolean).join('\n')}>
+						{stat.dimensions.summary.split('·').map((seg, i)=>(
+							<span key={i} className={`horosa-bazi-dim-pill ${seg.indexOf('失') === 0 || seg.indexOf('不') === 0 ? 'is-miss' : 'is-got'}`}>{seg}</span>
+						))}
+					</div>
+				) : null}
 				<div className="horosa-bazi-wuxing-formula">{stat.cangVersion === 'fenye'
 					? '分野加权：天干100 · 地支本气100/中气60/余气30 · 月柱仅当令司令×1.5（余月支藏干不加月乘）'
 					: '通行示例权重：天干100 · 地支本气100/中气60/余气30 · 月令×1.5（可调）'}</div>
@@ -213,20 +228,28 @@ class BaZiInfoStaticSections extends Component{
 						<em>{ge.tenGod ? `月令${ge.tenGod}·${ge.via}` : ge.via}</em>
 					</div>
 				) : null}
+				{gy.chengBai ? (
+					<div className={`horosa-bazi-chengbai is-${{ 成格: 'cheng', 破格: 'bai', 败中复成: 'jiu', 待复核: 'hold' }[gy.chengBai.verdict] || 'hold'}`}
+						title={gy.chengBai.note}>
+						<strong>{gy.chengBai.verdict}</strong>
+						<span>{gy.chengBai.reason}</span>
+					</div>
+				) : null}
 				{schools.length ? (
 					<div className="horosa-bazi-yong-table">
 						<div className="horosa-bazi-yong-thead"><span>流派</span><span>喜用</span><span>忌</span></div>
-						{schools.map((s, i) => {
+						{/* 主用派置顶(纯渲染层排序,schools 数据本体与快照顺序不动);其余派保持原相对序作常驻对照。 */}
+						{(curLabel ? schools.slice().sort((a, b) => (b.school === curLabel ? 1 : 0) - (a.school === curLabel ? 1 : 0)) : schools).map((s, i) => {
 							const active = curLabel ? s.school === curLabel : false;
 							return (
-								<div className={`horosa-bazi-yong-trow ${active ? 'is-active' : ''}`} key={i} title={s.note}>
-									<span className="horosa-bazi-yong-school">{s.school}{s.verdict ? `·${s.verdict}` : ''}</span>
+								<div className={`horosa-bazi-yong-trow ${active ? 'is-active' : ''}`} key={`${s.school}-${i}`} title={s.note}>
+									<span className="horosa-bazi-yong-school">{active ? <em className="horosa-bazi-yong-cur">主用</em> : null}{s.school}{s.verdict ? `·${s.verdict}` : ''}</span>
 									<span className="horosa-bazi-yong-xi">{s.xi && s.xi.length ? s.xi.join('·') : '—'}</span>
 									<span className="horosa-bazi-yong-ji">{s.ji && s.ji.length ? s.ji.join('·') : '—'}</span>
 								</div>
 							);
 						})}
-						<div className="horosa-bazi-yong-foot">各派取用可异，当前高亮＝所选流派。鼠标悬停看依据。</div>
+						<div className="horosa-bazi-yong-foot">各派取用可异，主用派置顶高亮。鼠标悬停看依据。</div>
 					</div>
 				) : null}
 				{Array.isArray(gy.bianGe) && gy.bianGe.length ? (
@@ -244,11 +267,17 @@ class BaZiInfoStaticSections extends Component{
 				) : null}
 				{Array.isArray(gy.zaGe) && gy.zaGe.length ? (
 					<div className="horosa-bazi-bge">
-						<div className="horosa-bazi-bge-head">杂格（正格优先，需复核填实刑冲）</div>
+						<div className="horosa-bazi-bge-head">杂格（正格优先，需复核填实刑冲；虚邀暗冲类附真/假）</div>
 						{gy.zaGe.map((b, i)=>(
 							<div className="horosa-bazi-bge-item" key={i}>
-								<span className="horosa-bazi-bge-name">{b.name}</span>
-								<em>{b.cond}</em>
+								<span className="horosa-bazi-bge-name">
+									{b.name}
+									{b.quality ? (
+										<em className={`horosa-bazi-zage-q is-${{ 真: 'zhen', 假: 'jia', 待复核: 'hold' }[b.quality] || 'hold'}`}
+											title={b.broken && b.broken.length ? `破局：${b.broken.join('、')}` : ''}>{b.quality}</em>
+									) : null}
+								</span>
+								<em>{b.cond}{b.broken && b.broken.length ? `｜破：${b.broken.join('、')}` : ''}</em>
 								<div className="horosa-bazi-bge-note">{b.note}</div>
 							</div>
 						))}
@@ -413,7 +442,7 @@ class BaZiFlowGodsSection extends Component{
 						const gan = pgan(p);
 						const zhi = pzhi(p);
 						if(!gan && !zhi){ return null; }
-						const gods = calcFlowShenSha(four, gan, zhi);
+						const gods = filterShenShaByGroups(calcFlowShenSha(four, gan, zhi), this.props.shenshaGroups);
 						return <p key={label}><span className="horosa-bazi-flow-key">{label}<b>{gan}{zhi}</b></span><span className="horosa-bazi-flow-gods">{gods.length ? gods.join('、') : '—'}</span></p>;
 					}) : <p className="horosa-bazi-flow-empty">在下方大运/流年/流月/流日栏点选，查看其神煞。</p>}
 				</div>

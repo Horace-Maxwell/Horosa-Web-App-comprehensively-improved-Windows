@@ -1,4 +1,4 @@
-import { projectToDial, midpoint, dialSeparation, cursorReadout, midpointTree, spreadDialAngles, antiscion, contraAntiscion, planetaryPictures, midpointList, spiegelContacts, equalHouseFramework, planetHouse, sumPoint, arcOpening, sumList, differenceList, solarArcDirections, SA_RATE, crossContacts, rectificationHits } from '../uranianDial';
+import { projectToDial, midpoint, dialSeparation, cursorReadout, midpointTree, spreadDialAngles, antiscion, contraAntiscion, planetaryPictures, midpointList, spiegelContacts, equalHouseFramework, planetHouse, sumPoint, arcOpening, sumList, differenceList, solarArcDirections, SA_RATE, crossContacts, rectificationHits, compositeChart, midpointHubs } from '../uranianDial';
 
 test('90°盘投影 = lon mod 90 映 0..360', () => {
 	expect(projectToDial(207.958, 90)).toBeCloseTo(27.958 / 90 * 360, 2); // Cupido fixture ≈111.832
@@ -376,4 +376,92 @@ test('真位盘 crossPointer 关(仅主臂[0])= 单臂读数逐项等价(零回�
 	const raw = [];
 	armOff0.forEach((off) => cursorReadout(P, norm360t(cursorLon + off), base, 1).forEach((h) => raw.push(h)));
 	expect(raw).toEqual(single);
+});
+
+// ── A4 组合中点盘 compositeChart ─────────────────────────────────
+describe('compositeChart 组合盘(逐因子近中点)', () => {
+	test('共有因子取近中点;单侧缺席跳过;非数值跳过', () => {
+		const A = [{ id: 'Sun', lon: 10 }, { id: 'Moon', lon: 350 }, { id: 'Asc', lon: 100 }, { id: 'Bad', lon: 'x' }];
+		const B = [{ id: 'Sun', lon: 30 }, { id: 'Moon', lon: 10 }, { id: 'MC', lon: 200 }, { id: 'Bad', lon: 5 }];
+		const c = compositeChart(A, B);
+		const byId = {}; c.forEach((p) => { byId[p.id] = p.lon; });
+		expect(byId.Sun).toBe(20);                    // 直接中点
+		expect(byId.Moon).toBe(0);                    // 跨 0°:350/10 → 近中点 0(非远中点 180)
+		expect(byId.Asc).toBeUndefined();             // B 缺 Asc → 跳过
+		expect(byId.MC).toBeUndefined();              // A 缺 MC → 跳过
+		expect(byId.Bad).toBeUndefined();             // 非数值黄经 → 跳过
+	});
+	test('与 midpoint() 同口径(近弧);输出可直接喂既有扫描器', () => {
+		const A = [{ id: 'Sun', lon: 40 }, { id: 'Mars', lon: 80 }];
+		const B = [{ id: 'Sun', lon: 60 }, { id: 'Mars', lon: 100 }];
+		const c = compositeChart(A, B);
+		expect(c).toEqual([{ id: 'Sun', lon: midpoint(40, 60) }, { id: 'Mars', lon: midpoint(80, 100) }]);
+		const tree = midpointTree(c.concat([{ id: 'X', lon: 70 }]), 90, 1);
+		expect(tree.X && tree.X.length).toBe(1);      // X=70 恰为 Sun(50)/Mars(90) 中点
+	});
+	test('空输入安全', () => {
+		expect(compositeChart(null, null)).toEqual([]);
+		expect(compositeChart([], [{ id: 'Sun', lon: 1 }])).toEqual([]);
+	});
+});
+
+// ── B5-algo 中点枢纽统计 midpointHubs ────────────────────────────
+describe('midpointHubs 枢纽统计(分支越多越重要)', () => {
+	test('count=该因子占据的中点数,按降序;personalCount 随 opts.personal', () => {
+		// hub=45 恰为 (10,80)/(20,70)/(30,60) 三对之中点;other=10 只占据 (0,20) 一对。
+		const P = [
+			{ id: 'p10', lon: 10 }, { id: 'p80', lon: 80 }, { id: 'p20', lon: 20 }, { id: 'p70', lon: 70 },
+			{ id: 'p30', lon: 30 }, { id: 'p60', lon: 60 }, { id: 'hub', lon: 45 }, { id: 'p0', lon: 0 },
+		];
+		const hubs = midpointHubs(P, 360, 0.5, { personal: new Set(['p10']) });
+		expect(hubs[0].id).toBe('hub');
+		const hub = hubs.find((h) => h.id === 'hub');
+		expect(hub.count).toBeGreaterThanOrEqual(3);
+		expect(hub.personalCount).toBeGreaterThanOrEqual(1); // (p10,p80) 枝含个人点 p10
+		const order = hubs.map((h) => h.count);
+		expect([...order].sort((x, y) => y - x)).toEqual(order); // 降序
+	});
+	test('统计面为全因子(不受 onlyPersonal 剪枝影响)', () => {
+		const P = [{ id: 'a', lon: 0 }, { id: 'b', lon: 90 }, { id: 'c', lon: 45 }];
+		const hubs = midpointHubs(P, 360, 0.5, { onlyPersonal: true, personal: new Set(['zz']) });
+		expect(hubs.find((h) => h.id === 'c')).toBeTruthy(); // c 占据 a/b 中点,即便不在个人点集
+	});
+});
+
+// ── B8 扩展映点轴 extendedAxes ───────────────────────────────────
+describe('spiegelContacts 扩展 15° 固定星座镜轴', () => {
+	// 15°金牛(45°)镜像口径:mirror=(2×45−lon) mod 360 = 90−lon。
+	const P = [{ id: 'A', lon: 20 }, { id: 'B', lon: 70 }];   // 90−20=70 → B 恰中扩展轴
+	test('缺省(false)=逐位零回归:不出扩展行,行对象无 axis 字段', () => {
+		const base360 = spiegelContacts(P, 360, 1);
+		expect(base360.length).toBe(0);                        // 基本轴 180−20=160 ≠ 70
+		const withOpts = spiegelContacts(P, 360, 1, { personal: new Set() });
+		expect(JSON.stringify(withOpts)).toBe(JSON.stringify(base360));
+	});
+	test('开启后 360° 模数盘追加 fixed15 行;90° 折叠盘与基本轴重合(同 sep 双行)', () => {
+		const ext360 = spiegelContacts(P, 360, 1, { extendedAxes: true });
+		expect(ext360.length).toBe(1);
+		expect(ext360[0].axis).toBe('fixed15');
+		expect(ext360[0].sep).toBe(0);
+		// 90° 盘:基本轴 160 与 70 折叠同位(160 mod 90=70)→ 基本行也命中,扩展行与之同 sep。
+		const ext90 = spiegelContacts(P, 90, 1, { extendedAxes: true });
+		expect(ext90.length).toBe(2);
+		expect(ext90.filter((r) => r.axis === 'fixed15').length).toBe(1);
+		expect(ext90[0].sep).toBe(ext90[1].sep);
+	});
+});
+
+// ── B9 Cardan 太阳弧速率键 ──────────────────────────────────────
+describe('SA_RATE 三选一(naibod/oneDeg/cardan)', () => {
+	test('cardan=0.9866667(0°59′12″/年);未知键回退 naibod(零回归)', () => {
+		expect(SA_RATE.cardan).toBeCloseTo(0.9866667, 7);
+		const P = [{ id: 'a', lon: 0 }, { id: 'b', lon: 59.2 }];
+		const naibod = solarArcDirections(P, 90, { saKey: 'naibod' });
+		const fallback = solarArcDirections(P, 90, { saKey: 'nonsense' });
+		expect(JSON.stringify(fallback)).toBe(JSON.stringify(naibod));
+		const cardan = solarArcDirections(P, 90, { saKey: 'cardan' });
+		const full = (rows) => rows.find((r) => r.type === 'full' && !r.fold);
+		expect(full(cardan).age).toBeCloseTo(59.2 / 0.9866667, 6);
+		expect(full(naibod).age).toBeCloseTo(59.2 / 0.9856473, 6);
+	});
 });

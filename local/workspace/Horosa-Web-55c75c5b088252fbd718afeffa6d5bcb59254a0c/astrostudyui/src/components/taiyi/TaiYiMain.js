@@ -1,4 +1,5 @@
 import { Component, createRef } from 'react';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { message, Spin } from 'antd';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -17,8 +18,9 @@ import { resolveGeoZone } from '../../utils/timezone';
 import XQIcon from '../xq-icons';
 import { computeTaiyiShuli, shuliTone } from './core/taiyiShuli';
 import { computeGeju } from './core/taiyiGeju';
-import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, TAIYI_GONG_INFO, activeDoorJixiong, computeEhui, shenMeaning, computeSanyuan, computeLimitYun } from './core/taiyiDuanfa';
-import { applyTaiyiSchool, DEFAULT_TAIYI_SCHOOL, TAIYI_SCHOOL_OPTIONS, normalizeTaiyiSchool } from './core/taiyiSchool';
+import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, TAIYI_GONG_INFO, activeDoorJixiong, computeEhui, shenMeaning, computeSanyuan, computeLimitYun, computeShiJing, computeWuziyuan, computeHeShen } from './core/taiyiDuanfa';
+import { computeTaiyiNayin } from './core/taiyiNayin';
+import { applyTaiyiSchool, DEFAULT_TAIYI_SCHOOL, TAIYI_SCHOOL_OPTIONS, normalizeTaiyiSchool, dunOfKook } from './core/taiyiSchool';
 import {
 	STYLE_OPTIONS,
 	METHOD_OPTIONS,
@@ -33,8 +35,7 @@ import {
 } from './TaiYiCalc';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option } = Select;
@@ -43,7 +44,10 @@ const LAYER2_NUMS = ['二', '七', '六', '一', '八', '三', '四', '九'];
 const LAYER3_BRANCH_GUA = ['午', '未', '坤', '申', '酉', '戌', '乾', '亥', '子', '丑', '艮', '寅', '卯', '辰', '巽', '巳'];
 // 按 12地支+4卦固定分野（从午位开始顺时针）
 // 午大威，子地主
-const LAYER4_FIXED = ['大威', '大义', '天道', '大武', '武德', '太簇', '阴主', '阴德', '地主', '阳德', '和德', '吕申', '高丛', '太阳', '大炅', '大神'];
+// 🔴 索引 1–7 曾整体错位一位(「大义」被塞到未位,把天道…阴德逐格挤下,亥位丢「大义」);
+// 标准序=单一真值表(地主子/阳德丑/和德艮/吕申寅/高丛卯/太阳辰/大炅巽/大神巳/大威午/
+// 天道未/大武坤/武德申/太簇酉/阴主戌/阴德乾/大义亥),按 LAYER3 支序(自午起)排列。
+const LAYER4_FIXED = ['大威', '天道', '大武', '武德', '太簇', '阴主', '阴德', '大义', '地主', '阳德', '和德', '吕申', '高丛', '太阳', '大炅', '大神'];
 const TAIYI_FONT = '"SimHei", "Heiti SC", "Microsoft YaHei", sans-serif';
 const PRECISE_NONGLI_TIMEOUT_MS = 3500;
 
@@ -136,6 +140,7 @@ class TaiYiMain extends Component {
 		this.onOptionChange = this.onOptionChange.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
 		this.getTimeFieldsFromSelector = this.getTimeFieldsFromSelector.bind(this);
 		this.clickPlot = this.clickPlot.bind(this);
 		this.onGenderChange = this.onGenderChange.bind(this);
@@ -396,29 +401,54 @@ class TaiYiMain extends Component {
 				if(this.unmounted){
 					return;
 				}
-				try{
-					const dt2 = dt.clone();
-					const unit = stepHint.unit || 'm';
-					if(unit === 'y'){ dt2.addYear(stepHint.dir); }
-					else if(unit === 'M'){ dt2.addMonth(stepHint.dir); }
-					else if(unit === 'd'){ dt2.addDate(stepHint.dir); }
-					else if(unit === 'h'){ dt2.addHour(stepHint.dir); }
-					else { dt2.addMinute(4 * stepHint.dir); }
-					const flds2 = {
-						...(this.props.fields || {}),
-						date: { value: dt2.clone() },
-						time: { value: dt2.clone() },
-						ad: { value: dt2.ad },
-						zone: { value: dt2.zone },
-					};
-					const params = this.genParams(flds2);
-					if(!params){ return; }
-					fetchPreciseNongli(params).then((nongli)=>{
-						if(this.unmounted){ return null; }
-						return fetchTaiyiPan(flds2, nongli, this.state.options);
-					}).catch(()=>null);
-				}catch(e){ /* 预取失败无害 */ }
+				this._prefetchPanAtStep(dt, stepHint.unit || 'm', stepHint.dir, 1);
 			}, 150);
+		}catch(e){ /* 预取失败无害 */ }
+	}
+
+	// 取数内核:以 dt 为基按 unit 走 k 步×dir,同源构参预取该时刻 pan(nongli→pan 链)。
+	// prefetchNextStepPan(+1 同向)与 prefetchStepSelect(±1 双向)共用,防两处步进加法漂移。
+	_prefetchPanAtStep(dt, unit, dir, k){
+		try{
+			const dt2 = dt.clone();
+			for(let i = 0; i < (k || 1); i += 1){
+				if(unit === 'y'){ dt2.addYear(dir); }
+				else if(unit === 'M'){ dt2.addMonth(dir); }
+				else if(unit === 'd'){ dt2.addDate(dir); }
+				else if(unit === 'h'){ dt2.addHour(dir); }
+				else { dt2.addMinute(4 * dir); }
+			}
+			const flds2 = {
+				...(this.props.fields || {}),
+				date: { value: dt2.clone() },
+				time: { value: dt2.clone() },
+				ad: { value: dt2.ad },
+				zone: { value: dt2.zone },
+			};
+			const params = this.genParams(flds2);
+			if(!params){ return; }
+			fetchPreciseNongli(params).then((nongli)=>{
+				if(this.unmounted){ return null; }
+				return fetchTaiyiPan(flds2, nongli, this.state.options);
+			}).catch(()=>null);
+		}catch(e){ /* 预取失败无害 */ }
+	}
+
+	// [R3-A1 下放] 选步长即预取:太乙时间自持(localFields),全局 handler 对本页是错键 ——
+	// 以当前时间为基 ±1 双向预热 pan(第一下步进即命中;第二下起 settle 链 +1 同向接管)。
+	prefetchStepSelect(unit){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled() || !stepSelectPrefetchEnabled() || !unit){
+				return;
+			}
+			const now = Date.now();
+			if(this._lastStepSel && this._lastStepSel.unit === unit && (now - this._lastStepSel.at) < 5000){ return; }
+			this._lastStepSel = { unit, at: now };
+			const flds = this.getTimeFieldsFromSelector(this.props.fields) || this.state.localFields || this.props.fields || {};
+			const dt = flds.date && flds.date.value;
+			if(!dt || typeof dt.clone !== 'function'){ return; }
+			this._prefetchPanAtStep(dt, unit, 1, 1);
+			this._prefetchPanAtStep(dt, unit, -1, 1);
 		}catch(e){ /* 预取失败无害 */ }
 	}
 
@@ -661,6 +691,87 @@ class TaiYiMain extends Component {
 			x: cx + r * Math.cos(rad),
 			y: cy + r * Math.sin(rad),
 		};
+	}
+
+	// 命法十二宫独立盘(style=5):后端 taiyi_life 数据全现成,纯渲染。与事盘同族(同 token/字体/viewBox 防裁切)。
+	// 十二命宫环:命宫金框高亮、身宫次高亮;各宫落神 + 飛祿/飛馬/黑符 markers;中宫命身+性别;底栏行限/年卦月卦。
+	renderLifeBoard() {
+		const pan = this.state.pan;
+		if (!pan) {
+			return <div className="horosa-taiyi-empty horosa-taiyi-board-empty">暂无太乙命法盘数据</div>;
+		}
+		// 4×4 方格布局(十二宫命盘标准式):每宫独立矩形格,宫名/地支/落神竖排分层,中宫 2×2 放命身信息;
+		// 彻底消除环形放射的径向文字互相遮挡。地支按传统命盘格位固定(巳午未申 / 辰□□酉 / 卯□□戌 / 寅丑子亥)。
+		const W = 720, H = 720, cell = W / 4;   // 每格 180×180
+		const stroke = 'var(--horosa-border-strong, #4a4335)';
+		const gridLine = 'var(--horosa-border, rgba(150,140,110,0.4))';
+		const gold = 'var(--horosa-accent, #d7ad69)';
+		const DI_ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
+		// 地支→[row,col](传统命盘格位;中央 2×2 留作中宫)
+		const GRID = { 巳: [0, 0], 午: [0, 1], 未: [0, 2], 申: [0, 3], 酉: [1, 3], 戌: [2, 3], 亥: [3, 3], 子: [3, 2], 丑: [3, 1], 寅: [3, 0], 卯: [2, 0], 辰: [1, 0] };
+		const boardViewBox = `-6 -6 ${W + 12} ${H + 12}`;
+		// 十二命宫排列:后端序列化为「子命宮、丑兄弟、…」串 → 解析 地支→宫名。
+		const arrStr = this.getSectionValue('十二命宫', '') || this.getSectionValue('十二命宮排列', '');
+		const gongOfZhi = {};
+		String(arrStr).split(/[、,，]/).forEach((tok) => { const t = tok.trim(); if (t.length >= 2 && DI_ZHI.indexOf(t.charAt(0)) >= 0) { gongOfZhi[t.charAt(0)] = t.slice(1); } });
+		const mingZhi = this.getSectionValue('命宫', '') || this.getSectionValue('安命宮', '');
+		const shenZhi = this.getSectionValue('身宫', '') || this.getSectionValue('安身宮', '');
+		const feiLu = this.getSectionValue('飞禄', '') || this.getSectionValue('飛祿', '');
+		const feiMa = this.getSectionValue('飞马', '') || this.getSectionValue('飛馬', '');
+		const heiFu = this.getSectionValue('黑符', '');
+		const nianGua = this.getSectionValue('年卦', ''), yueGua = this.getSectionValue('月卦', '');
+		const sexLabel = (pan.options && pan.options.sexLabel) || pan.sex || '';
+		const zao = pan.zhao || (String(sexLabel).indexOf('女') >= 0 ? '坤造' : '乾造');
+		const branchItems = {};
+		(pan.branch12 || []).forEach((b) => { if (b && b.branch) { branchItems[b.branch] = (b.items || []).filter(Boolean); } });
+		const boardSvgStyle = { background: 'transparent', textRendering: 'geometricPrecision' };
+		const els = [];
+		DI_ZHI.forEach((zhi) => {
+			const pos = GRID[zhi]; if (!pos) { return; }
+			const [r, c] = pos;
+			const x = c * cell, y = r * cell;
+			const isMing = zhi === mingZhi, isShen = zhi === shenZhi;
+			const gname = gongOfZhi[zhi] || '';
+			const items = branchItems[zhi] || [];
+			// 格底 + 边框(命宫金框金染、身宫淡金染)
+			els.push(<rect key={`lb-bg-${zhi}`} x={x} y={y} width={cell} height={cell} fill={(isMing || isShen) ? gold : 'transparent'} fillOpacity={isMing ? 0.13 : (isShen ? 0.06 : 0)} stroke={isMing ? gold : gridLine} strokeWidth={isMing ? 2 : 1} />);
+			// 宫名(左上,醒目)
+			els.push(<text key={`lb-g-${zhi}`} x={x + 12} y={y + 30} textAnchor="start" dominantBaseline="middle" fill={isMing ? gold : 'var(--horosa-text, #e8e2d2)'} stroke="none" fontSize="19" fontWeight={isMing ? 700 : 560} fontFamily={TAIYI_FONT}>{gname || '　'}</text>);
+			// 地支 + 命/身 徽(右上角)
+			const badge = isMing && isShen ? '命身' : (isMing ? '命' : (isShen ? '身' : ''));
+			els.push(<text key={`lb-z-${zhi}`} x={x + cell - 10} y={y + 26} textAnchor="end" dominantBaseline="middle" fill={badge ? gold : 'var(--horosa-text-muted, #8a8a8a)'} stroke="none" fontSize="14" fontFamily={TAIYI_FONT}>{zhi}{badge ? `·${badge}` : ''}</text>);
+			// 落神(左列竖排,每神一行,fontSize 12,至多 5 行不溢格)
+			items.slice(0, 5).forEach((it, ii) => {
+				els.push(<text key={`lb-s-${zhi}-${ii}`} x={x + 12} y={y + 60 + ii * 20} textAnchor="start" dominantBaseline="middle" fill="var(--horosa-text-soft, #9a8f78)" stroke="none" fontSize="12" fontFamily={TAIYI_FONT}>{String(it).slice(0, 4)}</text>);
+			});
+			// 飛祿/飛馬/黑符 徽(格底右下角,彩色小药丸)
+			const mk = [];
+			if (zhi === feiLu) { mk.push(['祿', gold]); }
+			if (zhi === feiMa) { mk.push(['馬', 'var(--horosa-info, #4a7fb5)']); }
+			if (zhi === heiFu) { mk.push(['符', 'var(--horosa-danger, #c0563a)']); }
+			mk.forEach(([lb, col], mi) => {
+				const mx = x + cell - 16 - mi * 22, my = y + cell - 16;
+				els.push(<circle key={`lb-mk-${zhi}-${mi}`} cx={mx} cy={my} r="9" fill={col} />);
+				els.push(<text key={`lb-mkt-${zhi}-${mi}`} x={mx} y={my} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{lb}</text>);
+			});
+		});
+		// 中宫(2×2 合并格):性别乾坤造 + 命身宫 + 命局 + 年卦月卦,居中竖排。
+		const cx0 = W / 2, cy0 = H / 2;
+		els.push(<rect key="lb-center-bg" x={cell} y={cell} width={cell * 2} height={cell * 2} fill="var(--horosa-surface-raised, #16140f)" fillOpacity="0.35" stroke={stroke} strokeWidth="1.5" />);
+		const centerLines = [`${zao} · ${sexLabel}`, `命宫 ${mingZhi || '—'}　身宫 ${shenZhi || '—'}`, `${pan.kook ? pan.kook.text : '—'}`];
+		if (nianGua || yueGua) { centerLines.push(`年卦 ${nianGua || '—'}　月卦 ${yueGua || '—'}`); }
+		els.push(<text key="lb-center" x={cx0} y={cy0 - (centerLines.length - 1) * 15} textAnchor="middle" fill="var(--horosa-text, #e8e2d2)" stroke="none" fontSize="17" fontFamily={TAIYI_FONT}>{centerLines.map((t, i) => <tspan key={i} x={cx0} dy={i === 0 ? 0 : 30} fontSize={i === 0 ? 19 : (i >= 2 ? 14 : 16)} fill={i >= 2 ? 'var(--horosa-text-muted, #8a8a8a)' : 'var(--horosa-text, #e8e2d2)'}>{t}</tspan>)}</text>);
+		// 外框
+		els.push(<rect key="lb-frame" x={0} y={0} width={W} height={H} fill="none" stroke={stroke} strokeWidth="2.5" />);
+		return (
+			<div className="horosa-taiyi-board-canvas" ref={this.boardHostRef}>
+				<div className="horosa-taiyi-board-svg-wrap">
+					<svg className="horosa-taiyi-board-svg" viewBox={boardViewBox} preserveAspectRatio="xMidYMid meet" style={boardSvgStyle}>
+						{els}
+					</svg>
+				</div>
+			</div>
+		);
 	}
 
 	renderLeft() {
@@ -935,6 +1046,25 @@ class TaiYiMain extends Component {
 								const ZHENG_NUM = { 午: 2, 坤: 7, 酉: 6, 乾: 1, 子: 8, 艮: 3, 卯: 4, 巽: 9 };
 								const ringAngle = (ps) => { const i = LAYER3_BRANCH_GUA.indexOf(ps); return i < 0 ? null : -90 + i * 22.5; };
 								const els = [];
+								// 正宫落点→绝气(分野底染色)。淡填八正宫扇区,气象一目了然(最底层,opacity 极低不压盘)。
+								const QI_FILL = { 绝阳: 'var(--horosa-danger, #c0563a)', 绝阴: 'var(--horosa-info, #4a7fb5)', 绝气: 'var(--horosa-text-muted, #8a8a8a)', 易气: 'var(--horosa-accent, #d7ad69)', 和: 'var(--horosa-ok, #5a9367)' };
+								const sectorPath = (ang) => {
+									const a0 = ang - 11.25, a1 = ang + 11.25;
+									const s1 = this.polarPoint(centerX, centerY, r1, a0), s2 = this.polarPoint(centerX, centerY, r4, a0);
+									const s3 = this.polarPoint(centerX, centerY, r4, a1), s4 = this.polarPoint(centerX, centerY, r1, a1);
+									return `M${s1.x},${s1.y} L${s2.x},${s2.y} A${r4},${r4} 0 0 1 ${s3.x},${s3.y} L${s4.x},${s4.y} A${r1},${r1} 0 0 0 ${s1.x},${s1.y} Z`;
+								};
+								Object.keys(ZHENG_ANGLE).forEach((ps) => {
+									const info = TAIYI_GONG_INFO[ZHENG_NUM[ps]];
+									const col = info && QI_FILL[info.qi];
+									if (col) { els.push(<path key={`ty-qi-${ps}`} d={sectorPath(ZHENG_ANGLE[ps])} fill={col} fillOpacity="0.05" stroke="none" />); }
+								});
+								// 主客配色微染:主方(文昌+主大将正宫)金、客方(始击+客大将)蓝(叠在分野底染之上,opacity 低)。
+								const tintSector = (ps, color, key) => { const ang = ringAngle(ps); if (ang === null) { return; } els.push(<path key={key} d={sectorPath(ang)} fill={color} fillOpacity="0.08" stroke="none" />); };
+								tintSector(pan.skyeyes, 'var(--horosa-accent, #d7ad69)', 'tint-wc');
+								tintSector(pan.homeGeneralPalace, 'var(--horosa-accent, #d7ad69)', 'tint-hg');
+								tintSector(pan.sf, 'var(--horosa-info, #4a7fb5)', 'tint-sj');
+								tintSector(pan.awayGeneralPalace, 'var(--horosa-info, #4a7fb5)', 'tint-ag');
 								const tA = ZHENG_ANGLE[pan.taiyiPalace];
 								if (tA !== undefined) {
 									const a0 = tA - 11.25, a1 = tA + 11.25;
@@ -951,16 +1081,21 @@ class TaiYiMain extends Component {
 									const fyAnchor = fyCos > 0.35 ? 'start' : (fyCos < -0.35 ? 'end' : 'middle');
 									els.push(<text key={`ty-fy-${ps}`} x={pp.x} y={pp.y} textAnchor={fyAnchor} dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{`${info.men}·${info.zhou}·${info.qi}`}</text>);
 								});
-								const mark = (ps, color, lb, key) => {
+								// 目/将 markers:四目(昌/击/计/定)内环 r4+40、主客大将外环 r4+62,分环避重叠;r=8 小圆+白字。
+								const mark = (ps, color, lb, key, rad) => {
 									const ang = ringAngle(ps); if (ang === null) { return; }
-									const pp = this.polarPoint(centerX, centerY, r4 + 40, ang);
-									els.push(<circle key={`ty-mk-${key}`} cx={pp.x} cy={pp.y} r="9" fill={color} />);
-									els.push(<text key={`ty-mkt-${key}`} x={pp.x} y={pp.y} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{lb}</text>);
+									const pp = this.polarPoint(centerX, centerY, rad, ang);
+									els.push(<circle key={`ty-mk-${key}`} cx={pp.x} cy={pp.y} r="8" fill={color} />);
+									els.push(<text key={`ty-mkt-${key}`} x={pp.x} y={pp.y} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="10.5" fontFamily={TAIYI_FONT}>{lb}</text>);
 								};
-								mark(pan.skyeyes, 'var(--horosa-accent, #d7ad69)', '昌', 'wc');
-								mark(pan.sf, 'var(--horosa-info, #4a7fb5)', '击', 'sj');
-								// P1-5 格局连线:太乙↔文昌/始击/主大将,凶色虚线(掩=同宫描圈,对=长虚线)
-								const POS_OF = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace };
+								mark(pan.skyeyes, 'var(--horosa-accent, #d7ad69)', '昌', 'wc', r4 + 40);
+								mark(pan.sf, 'var(--horosa-info, #4a7fb5)', '击', 'sj', r4 + 40);
+								mark(pan.jigod, 'var(--horosa-text-muted, #8a8a8a)', '计', 'js', r4 + 40);   // 计神(中性)
+								mark(pan.se, 'var(--horosa-text-soft, #6c6c6c)', '定', 'dm', r4 + 40);       // 定目(次要)
+								mark(pan.homeGeneralPalace, 'var(--horosa-accent, #d7ad69)', '主', 'hg', r4 + 62);   // 主大将(金·外环)
+								mark(pan.awayGeneralPalace, 'var(--horosa-info, #4a7fb5)', '客', 'ag', r4 + 62);     // 客大将(蓝·外环)
+								// P1-5 格局连线:太乙↔文昌/始击/主客大将,凶色虚线(掩=同宫描圈,对=长虚线,击=大将连线);「关」为数理关系无落点、不连线。
+								const POS_OF = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace, 客大将: pan.awayGeneralPalace };
 								const boardAngle = (ps) => { const i = LAYER3_BRANCH_GUA.indexOf(ps); return i < 0 ? null : -90 + i * 22.5; };
 								this.gejuOf(pan).forEach((g, gi) => {
 									const fp = POS_OF[g.from], tp = POS_OF[g.to];
@@ -976,6 +1111,15 @@ class TaiYiMain extends Component {
 									}
 								});
 								els.push(<text key="ty-zz" x={centerX} y={centerY + 56} textAnchor="middle" dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="13" fontFamily={TAIYI_FONT}>考治不居</text>);
+								// 图例(右下角):昌/击/计/定/主/客 markers 释义 + 分野气色。停放 viewBox 右下空白,不压盘面。
+								const LEGEND = [['昌', 'var(--horosa-accent, #d7ad69)', '文昌'], ['击', 'var(--horosa-info, #4a7fb5)', '始击'], ['计', 'var(--horosa-text-muted, #8a8a8a)', '计神'], ['定', 'var(--horosa-text-soft, #6c6c6c)', '定目'], ['主', 'var(--horosa-accent, #d7ad69)', '主大将'], ['客', 'var(--horosa-info, #4a7fb5)', '客大将']];
+								const lgX = width - 96, lgY0 = 44;
+								LEGEND.forEach(([lb, col, desc], li) => {
+									const ly = lgY0 + li * 20;
+									els.push(<circle key={`lg-c-${li}`} cx={lgX} cy={ly} r="7" fill={col} />);
+									els.push(<text key={`lg-l-${li}`} x={lgX} y={ly} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="9.5" fontFamily={TAIYI_FONT}>{lb}</text>);
+									els.push(<text key={`lg-d-${li}`} x={lgX + 13} y={ly} dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{desc}</text>);
+								});
 								return els;
 							})()}
 
@@ -983,7 +1127,7 @@ class TaiYiMain extends Component {
 							{pan && this.state.options.showBoardMark && (() => {
 								const els = [];
 								const ZN = { 午: 2, 坤: 7, 酉: 6, 乾: 1, 子: 8, 艮: 3, 卯: 4, 巽: 9 };
-								const POS = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace };
+								const POS = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace, 客大将: pan.awayGeneralPalace, 计神: pan.jigod, 定目: pan.se };
 								const sel = this.state.selectedPalace;
 								for (let idx = 0; idx < 16; idx++) {
 									const a0 = -90 + idx * 22.5 - 11.25, a1 = -90 + idx * 22.5 + 11.25;
@@ -1043,6 +1187,7 @@ class TaiYiMain extends Component {
 					fields={fields}
 					value={datetm}
 					onTimeChange={this.onTimeChanged}
+					onStepSelect={this.prefetchStepSelect}
 					timeHook={this.timeHook}
 					onGeoChange={this.changeGeo}
 				/>
@@ -1063,14 +1208,7 @@ class TaiYiMain extends Component {
 								{STYLE_OPTIONS.map((item) => <Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
-						{!isLifeStyle && (
-							<label className="horosa-taiyi-select-field">
-								<span>古法公式</span>
-								<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.tn} onChange={(v) => this.onOptionChange('tn', v)}>
-									{METHOD_OPTIONS.map((item) => <Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</label>
-						)}
+						{/* 古法公式(tn)已移入下方「流派设置」分组(算法设置派),此处不再重复 */}
 						<label className="horosa-taiyi-select-field">
 							<span>时间基准</span>
 							<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.timeBasis} onChange={(v) => this.onOptionChange('timeBasis', v)}>
@@ -1105,14 +1243,25 @@ class TaiYiMain extends Component {
 					<XQSideSection iconName="taiyi" title="流派设置" storageKey="taiyi.school" className="horosa-taiyi-input-section">
 						<div style={{ fontSize: 11, color: 'var(--horosa-text-muted, #8a8a8a)', marginBottom: 4 }}>默认=从盘·字节不变;改则前端古法重算</div>
 						<div className="horosa-taiyi-select-grid">
-							{[['jishen', '计神方向'], ['wenchang', '文昌重留'], ['keJianChen', '客算间辰'], ['sanji', '三基起宫'], ['youshen', '游神方向']].map(([k, label]) => (
-								<label className="horosa-taiyi-select-field" key={`school-${k}`}>
-									<span>{label}</span>
-									<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={(opt.school || {})[k] || 'default'} onChange={(v) => this.onOptionChange('school', { ...normalizeTaiyiSchool(opt.school), [k]: v })}>
-										{TAIYI_SCHOOL_OPTIONS[k].map((it) => <Option key={it.value} value={it.value}>{it.label}</Option>)}
-									</Select>
-								</label>
-							))}
+							{/* 古法公式(积年常数派)归流派设置分组;命法style下前面已隐藏本整段 */}
+							<label className="horosa-taiyi-select-field">
+								<span>古法公式</span>
+								<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.tn} onChange={(v) => this.onOptionChange('tn', v)}>
+									{METHOD_OPTIONS.map((item) => <Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+							{[['jishen', '计神方向'], ['wenchang', '文昌重留'], ['keJianChen', '客算间辰'], ['sanji', '三基起宫'], ['youshen', '游神方向'], ['shijiCoord', '始击坐标']].map(([k, label]) => {
+								const active = ((opt.school || {})[k] || 'default') !== 'default';
+								const isExp = k === 'shijiCoord';
+								return (
+									<label className="horosa-taiyi-select-field" key={`school-${k}`}>
+										<span>{label}{isExp ? <span style={{ marginLeft: 4, fontSize: 10, padding: '0 4px', borderRadius: 6, border: '1px solid var(--horosa-danger, #c0563a)', color: 'var(--horosa-danger, #c0563a)' }} title="始击坐标系二式未核实,实验开关;默认仍从盘,勿据以论断">存疑·待源</span> : null}</span>
+										<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={(opt.school || {})[k] || 'default'} onChange={(v) => this.onOptionChange('school', { ...normalizeTaiyiSchool(opt.school), [k]: v })} style={active ? { fontWeight: 600 } : undefined}>
+											{TAIYI_SCHOOL_OPTIONS[k].map((it) => <Option key={it.value} value={it.value}>{it.label}</Option>)}
+										</Select>
+									</label>
+								);
+							})}
 						</div>
 					</XQSideSection>
 				)}
@@ -1140,6 +1289,11 @@ class TaiYiMain extends Component {
 		const doorJx = pan ? activeDoorJixiong(pan) : null;
 		const ehui = pan ? computeEhui(pan) : [];
 		const limitYun = pan ? computeLimitYun(pan) : null;
+		// 手册补齐:纳音/十精/五子元/合神六合(纯派生,零碰后端 golden)
+		const nayin = pan ? computeTaiyiNayin(pan) : null;
+		const shijing = pan ? computeShiJing(pan) : null;
+		const wuziyuan = pan ? computeWuziyuan(pan) : '';
+		const heshen = pan ? computeHeShen(pan) : null;
 		const calCell = (num, tags) => (
 			<span>
 				<span style={{ marginRight: 6 }}>{num === undefined || num === null ? '—' : num}</span>
@@ -1181,10 +1335,14 @@ class TaiYiMain extends Component {
 				['百六行限', this.getSectionValue('百六行限')],
 			] });
 		} else {
+			const dunChar = dunOfKook(pan);
+			const dun = dunChar ? `${dunChar}遁` : '—';
 			sections.push({ title: '起局', rows: [
 				['起盘方式', panOptions.styleLabel || getStyleLabel(opt.style)],
 				['历史年号', pan ? (pan.reignYear || this.getSectionValue('年號')) : '—'],
 				['太乙纪元', pan ? `${pan.calendarEra || pan.jiyuan || this.getSectionValue('紀元')}${sanyuan ? `·${sanyuan}` : ''}` : '—'],
+				['五子元', pan ? (wuziyuan || '—') : '—'],
+				['阴阳遁', dun],
 				['古法公式', panOptions.methodLabel || panOptions.accumLabel || getMethodLabel(opt.tn)],
 				['古法出处', panOptions.methodSource || getMethodSource(opt.tn)],
 				['博弈', panOptions.gameTheoryLabel || (opt.gameTheory === 1 ? '开启' : '关闭')],
@@ -1212,9 +1370,10 @@ class TaiYiMain extends Component {
 				['太乙', pan ? `${pan.taiyiPalace || '—'}宫` : '—'],
 				['文昌', pan ? pan.skyeyes : '—'],
 				['始击', pan ? pan.sf : '—'],
+				['纳音', pan && nayin ? `${nayin.pillar}柱 ${nayin.ganzhi}·${nayin.nayin}` : '—'],
 				['分野', pan && fenye && fenye.taiyi ? `太乙临${fenye.taiyi.gong}${fenye.taiyi.gua}·${fenye.taiyi.zhou}(${fenye.taiyi.men}·${fenye.taiyi.qi})·${fenye.taiyi.omen}${fenye.shiji ? `;始击临${fenye.shiji.gong}${fenye.shiji.gua}·${fenye.shiji.zhou}` : ''}` : '—'],
 				['太岁', pan ? `${pan.taishui || '—'}${taisuiAlias ? `(${taisuiAlias})` : ''}` : '—'],
-				['合神', pan ? pan.hegod : '—'],
+				['合神', pan ? `${pan.hegod || '—'}${heshen && heshen.he ? `(六合${heshen.he})` : ''}` : '—'],
 				['计神', pan ? pan.jigod : '—'],
 				['定目', pan ? (pan.se || '—') : '—'],
 				['飞鸟', pan ? (pan.flybird || '—') : '—'],
@@ -1233,6 +1392,17 @@ class TaiYiMain extends Component {
 				['直符/飞符', pan ? `${pan.zhifu || '—'}/${pan.flyfu || '—'}` : '—'],
 				['五福/帝符/太尊', pan ? `${pan.wufuPalace || '—'}/${pan.kingfu || '—'}/${pan.taijun || '—'}` : '—'],
 			] });
+			if (pan && shijing) {
+				// 十精(今义):二目 + 八将,有序 10 项。角色着色:目=金、将=蓝、基=中性。
+				sections.push({ title: '十精(二目·八将)', rows: [
+					['十精', (
+						<span>{shijing.map((it, i) => {
+							const color = it.role === '目' ? 'var(--horosa-accent, #d7ad69)' : it.role === '将' ? 'var(--horosa-astro-blue, #7fa8d8)' : 'var(--horosa-text-muted, #8a8a8a)';
+							return <span key={i} style={{ display: 'inline-block', fontSize: 11, lineHeight: 1.7, padding: '0 6px', marginRight: 4, marginBottom: 3, borderRadius: 7, border: `1px solid ${color}`, color }}>{it.name}·{it.at}</span>;
+						})}</span>
+					)],
+				] });
+			}
 			sections.push({ title: '风游', rows: [
 				['三风/五风/八风', pan ? `${this.formatWindValue('threewind')}/${this.formatWindValue('fivewind')}/${this.formatWindValue('eightwind')}` : '—'],
 				['大游/小游', pan ? `${this.formatWindValue('bigyo')}/${this.formatWindValue('smyo')}` : '—'],
@@ -1323,7 +1493,7 @@ class TaiYiMain extends Component {
 		const titleSet = titles && titles.length ? new Set(titles) : null;
 		const filtered = titleSet ? sections.filter((section) => titleSet.has(section.title)) : sections;
 		if (!filtered.length) {
-			return <div className="horosa-taiyi-empty">暂无 kintaiyi 输出</div>;
+			return <div className="horosa-taiyi-empty">暂无输出</div>;
 		}
 		return filtered.map((section) => (
 			<div className="horosa-taiyi-info-card horosa-taiyi-section-card" key={section.title}>
@@ -1466,7 +1636,7 @@ class TaiYiMain extends Component {
 							</div>
 							<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-taiyi-chart-panel xq-chart-renderer xq-chart-renderer-taiyi">
 								<div className="horosa-taiyi-board-host">
-									{this.renderLeft()}
+									{this.state.options.style === 5 ? this.renderLifeBoard() : this.renderLeft()}
 								</div>
 							</div>
 							<div className="horosa-inspector-panel horosa-astro-content-panel horosa-taiyi-info-panel">

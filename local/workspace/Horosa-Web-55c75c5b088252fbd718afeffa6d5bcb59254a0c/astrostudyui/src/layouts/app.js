@@ -20,6 +20,8 @@ const App = ({children, dispatch, app, user, astro, })=>{
     const { userInfo, admin, } = user;
     const { chartDisplay, appearanceMode, dayBoundary, lateZiHourMode,} = app;
     const currentTab = astro && astro.currentTab ? astro.currentTab : null;
+    // 帮助弹窗要能认出子技法(如辅盘下的量化盘有自己那份手册)。
+    const currentSubTab = astro && astro.currentSubTab ? astro.currentSubTab : null;
     const { Header, Content } = Layout;
     const [prefersDark, setPrefersDark] = React.useState(()=>{
         if(typeof window === 'undefined' || !window.matchMedia){
@@ -82,7 +84,9 @@ const App = ({children, dispatch, app, user, astro, })=>{
         position: 'fixed',
         inset: 0,
         width: '100%',
-        height: '100vh',
+        // 🔴 勿用 100vh:缩放补偿域(html zoom)里 vh 钉物理视口不缩放,会把根壳钉矮
+        // 造成恒定底空;100% 沿 body 补偿链传导,1:1 时与 100vh 等值(fixed inset:0 定界)。
+        height: '100%',
         overflow: 'hidden',
         background: 'var(--horosa-bg)',
         color: 'var(--horosa-text)',
@@ -101,7 +105,9 @@ const App = ({children, dispatch, app, user, astro, })=>{
     };
     let contentStyle = {
         marginTop: 72,
-        height: 'calc(100vh - 72px)',
+        // 🔴 同上勿用 100vh(域劈叉:clientHeight 物理域 vs vh 布局域,缩放≠1 时两口径
+        // 差出可平移空间=拖选后整页滚动的元凶);100% 基=根壳链,恒同域。
+        height: 'calc(100% - 72px)',
         overflow: 'hidden',
         boxSizing: 'border-box',
         backgroundColor: 'var(--horosa-bg)',
@@ -124,6 +130,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
                     lateZiHourMode={lateZiHourMode}
                     resolvedAppearance={resolvedAppearance}
                     currentTab={currentTab}
+                    currentSubTab={currentSubTab}
                     userInfo={userInfo}
                     onMenuClick={menuClick}
                     dispatch={dispatch}

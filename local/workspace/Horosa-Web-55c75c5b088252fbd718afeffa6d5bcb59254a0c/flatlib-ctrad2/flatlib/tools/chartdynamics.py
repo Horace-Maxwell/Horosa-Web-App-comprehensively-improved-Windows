@@ -153,13 +153,68 @@ class ChartDynamics:
             applications[0] if applications else None
         )
         
-    def isVOC(self, ID):
+    # 空亡六口径(2026-07 请求级参数化;与前端 divination/engine/moon.js 六模式数学对齐):
+    #   lilly(默认=历史实现,零回归):对全点集(含虚点/阿拉伯点)无入相/正合主相位即空;
+    #   by_orb:对七政(±三王)主相位入相且 orb≤12°30′ 存在 → 非空;
+    #   by_sign_perfect:入相 orb ≤ 本座剩余弧(30−signlon) 存在 → 非空(本座内能精确);
+    #   by_sign_orb / kenodromia:对七政(±三王)存在入相/正合主相位即非空(表内=已入容许);
+    #   exempt4:按 lilly 判空后,月落金牛/巨蟹/射手/双鱼则豁免。
+    # includeOuter 仅作用于新五口径的目标星集;lilly 保持历史点集不动。
+    _VOC_TARGETS = [const.SUN, const.MOON, const.MERCURY, const.VENUS,
+                    const.MARS, const.JUPITER, const.SATURN]
+    _VOC_TARGETS_OUTER = [const.URANUS, const.NEPTUNE, const.PLUTO]
+    _VOC_EXEMPT_SIGNS = (const.TAURUS, const.CANCER, const.SAGITTARIUS, const.PISCES)
+
+    def _vocApplyingOrbs(self, ID, includeOuter):
+        """新五口径共用:ID 对七政(±三王)的入相/正合主相位 orb 列表(绝对值)。"""
+        targets = list(self._VOC_TARGETS)
+        if includeOuter:
+            targets = targets + list(self._VOC_TARGETS_OUTER)
+        obj = self.chart.get(ID)
+        orbs = []
+        for otherID in targets:
+            if otherID == ID:
+                continue
+            try:
+                other = self.chart.get(otherID)
+            except KeyError:
+                continue
+            asp = aspects.getAspect(obj, other, const.MAJOR_ASPECTS, self.simpleAsp)
+            role = asp.getRole(obj.id)
+            if role['inOrb'] and role['movement'] in (const.APPLICATIVE, const.EXACT):
+                orbs.append(abs(asp.orb))
+        return orbs
+
+    def isVOC(self, ID, mode='lilly', includeOuter=False):
         """ Returns if a planet is Void of Course.
-        A planet is not VOC if has any exact or applicative aspects
-        ignoring the sign status (associate or dissociate).
-        
+        mode='lilly'(default, historical behavior): not VOC if has any
+        exact or applicative major aspects ignoring the sign status.
+        Other modes documented above.
         """
-        asps = self.aspectsByCat(ID, const.MAJOR_ASPECTS)
-        applications = asps[const.APPLICATIVE]
-        exacts = asps[const.EXACT]
-        return len(applications) == 0 and len(exacts) == 0
+        if mode in (None, '', 'lilly', 'classic', 'backend'):
+            asps = self.aspectsByCat(ID, const.MAJOR_ASPECTS)
+            applications = asps[const.APPLICATIVE]
+            exacts = asps[const.EXACT]
+            return len(applications) == 0 and len(exacts) == 0
+        if mode == 'exempt4':
+            base = self.isVOC(ID, 'lilly')
+            if base:
+                try:
+                    if self.chart.get(ID).sign in self._VOC_EXEMPT_SIGNS:
+                        return False
+                except KeyError:
+                    pass
+            return base
+        orbs = self._vocApplyingOrbs(ID, includeOuter)
+        if mode == 'by_orb':
+            return not any(o <= 12.5 for o in orbs)
+        if mode == 'by_sign_perfect':
+            try:
+                remain = 30.0 - float(getattr(self.chart.get(ID), 'signlon', 0.0))
+            except (KeyError, TypeError, ValueError):
+                remain = 30.0
+            return not any(o <= remain + 1e-9 for o in orbs)
+        if mode in ('by_sign_orb', 'kenodromia'):
+            return len(orbs) == 0
+        # 未知口径回落历史行为(防御:绝不因新键值抛错)。
+        return self.isVOC(ID, 'lilly')

@@ -119,10 +119,32 @@ ASHTOTTARI_ARC = {
     for lord, (first_nak, count) in _ASHT_ARC_DEF.items()
 }
 
+# Krittikadi 子型:同一主星块长序列(4-3 块循环),锚自 Ardra(宿6)移至 Krittika(宿3)——
+# 即各主辖弧首宿整体 −3 宿(mod 27)。主星序/年数/总长 108 不变。
+_ASHT_ARC_DEF_KRITTIKADI = {
+    lord: (((first_nak - 3 - 1) % 27) + 1, count)
+    for lord, (first_nak, count) in _ASHT_ARC_DEF.items()
+}
+ASHTOTTARI_ARC_KRITTIKADI = {
+    lord: ((first_nak - 1) * _ASHT_NAK_WIDTH, count * _ASHT_NAK_WIDTH)
+    for lord, (first_nak, count) in _ASHT_ARC_DEF_KRITTIKADI.items()
+}
 
-def ashtottari_arc_remaining(lord_key, moon_lon):
+
+def _nak_lord_table_from_arcdef(arc_def):
+    table = [None] * 27
+    for lord, (first_nak, count) in arc_def.items():
+        for k in range(count):
+            table[((first_nak - 1) + k) % 27] = lord
+    return table
+
+
+ASHTOTTARI_NAK_LORD_KRITTIKADI = _nak_lord_table_from_arcdef(_ASHT_ARC_DEF_KRITTIKADI)
+
+
+def ashtottari_arc_remaining(lord_key, moon_lon, arc_table=None):
     """月在所辖弧内的剩余比(0,1]。弧内已过 = (月经−弧起) mod360；剩余 = (弧长−已过)/弧长。"""
-    start, length = ASHTOTTARI_ARC[lord_key]
+    start, length = (arc_table or ASHTOTTARI_ARC)[lord_key]
     elapsed = (float(moon_lon) - start) % 360.0
     if elapsed > length:  # 数值边界兜底(月理应落在弧内)
         elapsed = min(elapsed, length)
@@ -361,8 +383,39 @@ class JyotishEngine:
     # 响应 dasha 体积大降。前端切体系会重取(带新 dashaSystem)。
     _DASHA_TREE_SYSTEMS = ('vimshottari', 'yogini', 'ashtottari', 'tribhagi')
 
-    def __init__(self, perchart, chartnum=1, d1_perchart=None, dasha_seed=None, sthira_start=None, dasha_system=None):
+    # 年长五档白名单(权威 §10.1.5):儒略(默认)/格里/Savana/回归/恒星。
+    _DASHA_YEAR_CHOICES = (365.25, 365.2425, 360.0, 365.2422, 365.2563)
+    # 类级默认:兜住 __new__ 直构(仓内 pytest 直构即如此)与任何绕过 __init__ 的路径。
+    dasha_year_days = 365.25
+    varga_variant_map = {}
+    karaka_scheme = '8'
+    yuddha_criterion = 'latitude'
+    # 流派开关全默认(类级兜底同 __new__ 直构):见 dasha_variants.VARIANT_SPECS。
+    from astrostudy.india.dasha_variants import DEFAULT_VARIANTS as _DV_DEFAULTS
+    dasha_variants = dict(_DV_DEFAULTS)
+
+    def __init__(self, perchart, chartnum=1, d1_perchart=None, dasha_seed=None, sthira_start=None, dasha_system=None,
+                 dasha_year_days=None, varga_variants=None, karaka_scheme=None, yuddha_criterion=None,
+                 dasha_variants=None):
         self.perchart = perchart
+        # 流派开关(21 枚举键):容错规范化;缺省/坏值 = 全默认 = 今日行为字节一致。
+        from astrostudy.india.dasha_variants import resolve_variants as _rv
+        self.dasha_variants = _rv(dasha_variants)
+        # 大运年长(日):贯穿全大运族(Vimshottari/Tribhagi/Yogini/Ashtottari/Mula/Naisargika/
+        # Sudarshana 年齿 + extended 条件宿系)。默认 365.25 与既有主 Vimshottari 字节一致;
+        # 非白名单值静默回落默认(绝不因坏参炸盘)。🔴 只存实例属性,绝不写任何模块全局。
+        try:
+            _yd = float(dasha_year_days) if dasha_year_days is not None else 365.25
+        except (TypeError, ValueError):
+            _yd = 365.25
+        self.dasha_year_days = _yd if any(abs(_yd - c) < 1e-6 for c in self._DASHA_YEAR_CHOICES) else 365.25
+        # 分盘变体映射 {chartnum:variant}(缺省 {} = 全 standard,零回归);经 normalize 只留合法值。
+        from astrostudy.india.varga import normalize_varga_variants as _nvv
+        self.varga_variant_map = _nvv(varga_variants)
+        # Chara Karaka 方案:'8'(默认,含罗睺)/'7'(古典);其余值回落 '8'。
+        self.karaka_scheme = '7' if str(karaka_scheme) == '7' else '8'
+        # 星曜战判据:'latitude'(默认,纬北者胜)/'longitude'(黄经小者胜);其余回落默认。
+        self.yuddha_criterion = 'longitude' if str(yuddha_criterion) == 'longitude' else 'latitude'
         self.chart = perchart.chart
         # 大运起点(seed):默认 'moon'(标准月宿起运);可改取七政/节点/上升/特殊上升/副星任一点。
         self.dasha_seed = (str(dasha_seed).lower() if dasha_seed else 'moon')
@@ -395,6 +448,7 @@ class JyotishEngine:
             ('ashtottari', self.ashtottari), ('naisargika', self.naisargika_dasha),
             ('tribhagi', self.tribhagi), ('mula', self.mula_dasha),
             ('sudarshanaChakra', self.sudarshana_chakra_dasha),
+            ('taraDasha', self.tara_dasha), ('akkg', self.akkg_dasha),
         ]:
             try:
                 block[key] = fn()
@@ -433,7 +487,8 @@ class JyotishEngine:
             ('grahaMaitri', self.graha_maitri), ('outerPlanets', self.outer_planets),
             ('compatibility', self.compatibility_shell), ('nadi', self.nadi),
             ('shashtiamsa', self.shashtiamsa), ('vargaVariants', self.varga_variants),
-            ('ayurdaya', self.ayurdaya),
+            ('ayurdaya', self.ayurdaya), ('ayurdayaFinal', self.ayurdaya_final),
+            ('sensitivePoints', self.sensitive_points),
         ]:
             try:
                 res[key] = fn()
@@ -466,7 +521,9 @@ class JyotishEngine:
             base = 0.0
             for pid in [const.SUN, const.MOON, const.MARS, const.MERCURY,
                         const.JUPITER, const.VENUS, const.SATURN]:
-                obj = safe_get(self.chart, pid)
+                # 🔴 寿命法是 D1 量:恒取 d1_chart(同块 harana/vargottama 本就恒 D1)。
+                # 曾用 self.chart → 切分盘时 pindayu/amsayu 随分盘漂移,与 harana 自相矛盾。
+                obj = safe_get(self.d1_chart, pid)
                 if obj is None:
                     continue
                 full = self.PINDAYU_FULL[pid]
@@ -494,7 +551,7 @@ class JyotishEngine:
             ams_total_mul = 0.0
             for pid in [const.SUN, const.MOON, const.MARS, const.MERCURY,
                         const.JUPITER, const.VENUS, const.SATURN]:
-                o = safe_get(self.chart, pid)
+                o = safe_get(self.d1_chart, pid)   # 同上:Aṁśāyu 亦恒 D1
                 if o is None:
                     continue
                 base_y = ((float(o.lon) % 360.0) * 60.0 / 200.0) % 12.0
@@ -548,7 +605,225 @@ class JyotishEngine:
         except Exception as exc:
             return {'available': False, 'reason': str(exc)}
 
-    def _ayurdaya_harana(self, full_table=None, method_label='Piṇḍāyu', raw_total=None):
+    def ayurdaya_final(self):
+        """Āyurdāya 判读层(全量):方法自动选定 + 开关化 haraṇa 并入总值 + 寿命档 +
+        三对法离散寿数 + maraka 致死大运投影 + 22nd Drekkana/64th Navamsa。
+        🔴 呈现纪律:风险窗口/因子清单语气,仅信息·非处方,不作个人断言。附加输出键零回归。"""
+        try:
+            dv = self.dasha_variants
+            CN = {const.SUN: '日', const.MOON: '月', const.MARS: '火', const.MERCURY: '水',
+                  const.JUPITER: '木', const.VENUS: '金', const.SATURN: '土',
+                  const.NORTH_NODE: '罗', const.SOUTH_NODE: '计'}
+            SOLAR = 360.0 / 365.0
+            asc = self.d1_asc
+            if asc is None:
+                return {'available': False, 'reason': 'missing_lagna'}
+            # ── 方法选定(43.30-31:{Lagna,日,月}最强 → Amsayu/Pindayu/Nisargayu)。
+            # 强度判据按「尊位级+座内推进度」简化口径(原典未给逐级表;Lagna 以其主代比),注明。
+            DIG_RANK = {'deep_exaltation': 5, 'exaltation': 5, 'moolatrikona': 4,
+                        'own_sign': 3, 'neutral': 2, 'debilitation': 1}
+            def _score(pid):
+                o = safe_get(self.d1_chart, pid)
+                if o is None:
+                    return -1.0
+                try:
+                    dig = self.dignity(pid, o.sign, o.signlon)
+                except Exception:
+                    dig = 'neutral'
+                return DIG_RANK.get(dig, 2) * 100.0 + float(o.signlon)
+            from astrostudy.india.rasi_dasha import SIGN_LORDS as _SL
+            lag_lord = _SL.get(asc.sign)
+            scores = {'lagna': _score(lag_lord) if lag_lord else -1.0,
+                      'sun': _score(const.SUN), 'moon': _score(const.MOON)}
+            auto_pick = max(scores, key=lambda k: scores[k])
+            AUTO_METHOD = {'sun': 'pindayu', 'moon': 'nisargayu', 'lagna': 'amsayu'}
+            method_override = dv.get('ayurdayaMethod', 'auto')
+            selected = AUTO_METHOD[auto_pick] if method_override == 'auto' else method_override
+            # ── 三法「开关化管线」总值。
+            satru = dv.get('satruksetraExemption', 'retrograde')
+            kruro_mode = dv.get('krurodayaDenominator', 'zodiac21600')
+            def _final_of(harana_res, no_harana=False, raw_total=None):
+                if not harana_res or not harana_res.get('available'):
+                    return None
+                if no_harana:
+                    base = raw_total if raw_total is not None else harana_res['baseSum']
+                    sav = base + harana_res['lagnaAyu']
+                else:
+                    kr = harana_res['krurodaya']
+                    kd = kr['formulaA'] if kruro_mode == 'zodiac21600' else kr['formulaB']
+                    sav = harana_res['sumReduced'] - kd + harana_res['lagnaAyu']
+                return {'savanaYears': round(sav, 2), 'solarYears': round(sav * SOLAR, 2)}
+            pind_h = self._ayurdaya_harana(satruksetra_exemption=satru)
+            finals = {'pindayu': _final_of(pind_h)}
+            nis_mode = dv.get('nisargayuHarana', 'none')
+            nis_h = self._ayurdaya_harana(self.NISARGAYU_YEARS, 'Nisargāyu', raw_total=120.0,
+                                          satruksetra_exemption=satru)
+            finals['nisargayu'] = _final_of(nis_h, no_harana=(nis_mode == 'none'), raw_total=120.0)
+            # Amsayu:base×bharana(#倍数开关)→ 同管线(无 Krurodaya·落陷减半)
+            from astrostudy.india.primitives import is_vargottama as _is_varg
+            amult = dv.get('amsayuMultiplier', 'majority_highest')
+            ams_map = {}
+            for pid in [const.SUN, const.MOON, const.MARS, const.MERCURY,
+                        const.JUPITER, const.VENUS, const.SATURN]:
+                o = safe_get(self.d1_chart, pid)
+                if o is None:
+                    continue
+                base_y = ((float(o.lon) % 360.0) * 60.0 / 200.0) % 12.0
+                try:
+                    dig = self.dignity(pid, o.sign, o.signlon)
+                except Exception:
+                    dig = 'neutral'
+                exalt = dig in ('exaltation', 'deep_exaltation')
+                retro = getattr(o, 'movedir', None) == 'Retrograde'
+                d1o = safe_get(self.d1_chart, pid)
+                varg = bool(d1o and _is_varg(d1o.lon, 9))
+                own = o.sign in OWN_SIGNS.get(pid, set())
+                if amult == 'bphs_literal':
+                    mult = 3 if (exalt or own) else 1
+                elif amult == 'saravali_multiply':
+                    mult = (6 if ((exalt or retro) and (own or varg))
+                            else (3 if (exalt or retro) else (2 if (own or varg) else 1)))
+                else:
+                    mult = 3 if (exalt or retro) else (2 if (own or varg) else 1)
+                ams_map[pid] = base_y * mult
+            ams_h = self._ayurdaya_harana(method_label='Aṁśāyu', base_map=ams_map,
+                                          satruksetra_exemption=satru,
+                                          apply_krurodaya=False, neecha_half=True)
+            finals['amsayu'] = _final_of(ams_h)
+            sel_final = finals.get(selected)
+            # ── 寿命档(#边界开关)。
+            bounds_mode = dv.get('ayuClassBoundaries', 'bphs_32_64_120')
+            mid_hi = 64.0 if bounds_mode == 'bphs_32_64_120' else 70.0
+            def _classify(y):
+                if y is None:
+                    return None
+                if y < 8:
+                    return {'key': 'balarishta', 'label': '婴夭险段(0-8)'}
+                if y < 20:
+                    return {'key': 'yogarishta', 'label': '少亡险段(8-20)'}
+                if y < 32:
+                    return {'key': 'alpa', 'label': '短寿 Alpa(≤32)'}
+                if y < mid_hi:
+                    return {'key': 'madhya', 'label': '中寿 Madhya(32-%d)' % int(mid_hi)}
+                if y <= 120:
+                    return {'key': 'purna', 'label': '长寿 Purna(%d-120)' % int(mid_hi)}
+                return {'key': 'divya', 'label': '神寿 Divya(>120)'}
+            final_years = sel_final['solarYears'] if sel_final else None
+            # ── 三对法离散寿数(读票映射:长3/2/1→120/108/91;中3/2/1→80/72/64;短3/2/1→32/36/40)。
+            tri = self._jaimini_ayur_tri_pair()
+            tri_years = None
+            if tri and tri.get('available') is not False and tri.get('votes'):
+                v = tri['votes']
+                L, M, S = int(v.get('purna', 0)), int(v.get('madhya', 0)), int(v.get('alpa', 0))
+                if L > 0:
+                    tri_years = {3: 120, 2: 108, 1: 91}[L]
+                elif M > 0:
+                    tri_years = {3: 80, 2: 72, 1: 64}[M]
+                elif S > 0:
+                    tri_years = {3: 32, 2: 36, 1: 40}[S]
+            # ── maraka 因子清单。
+            SIGN_IDX = {sg: i for i, sg in enumerate(const.LIST_SIGNS)}
+            lag_i = SIGN_IDX[asc.sign]
+            second_sign = const.LIST_SIGNS[(lag_i + 1) % 12]
+            seventh_sign = const.LIST_SIGNS[(lag_i + 6) % 12]
+            maraka_lords = sorted({_SL.get(second_sign), _SL.get(seventh_sign)} - {None})
+            occupants = []
+            for pid in [const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
+                        const.VENUS, const.SATURN, const.NORTH_NODE, const.SOUTH_NODE]:
+                o = safe_get(self.d1_chart, pid)
+                if o and o.sign in (second_sign, seventh_sign):
+                    occupants.append(pid)
+            maraka_set = set(maraka_lords) | set(occupants)
+            # Trishula 座(Rudra + 5 + 9;rasi_dasha.trishoola 现成)。
+            tri_signs = None
+            try:
+                from astrostudy.india.primitives import rudra_candidate_signs as _rcs, trishoola as _trish
+                from astrostudy.india.rasi_dasha import stronger_sign as _ss
+                ps = {}
+                pl = {}
+                for pid in JYOTISH_PLANETS:
+                    o = safe_get(self.d1_chart, pid)
+                    if o:
+                        ps[pid] = o.sign
+                        pl[pid] = o.lon
+                _ra, _rb = _rcs(asc.sign)
+                _rudra = _ss(_ra, _rb, ps, None, pl)
+                tri_signs = {'rudraSign': _rudra, 'signs': _trish(_rudra)}
+            except Exception:
+                tri_signs = None
+            # 22nd Drekkana / 64th Navamsa(Khara)。
+            lag_lon = float(asc.lon) % 360.0
+            d3_g0 = int(lag_lon // 10.0)                     # 全局 drekkana 序 0-35
+            d3_22 = (d3_g0 + 21) % 36
+            d3_sign = const.LIST_SIGNS[d3_22 // 3]
+            DREK_LORD_OFFSET = (0, 4, 8)                     # 1st=座主/2nd=第5座主/3rd=第9座主
+            d3_lord_sign = const.LIST_SIGNS[(SIGN_IDX[d3_sign] + DREK_LORD_OFFSET[d3_22 % 3]) % 12]
+            drek22 = {'sign': d3_sign, 'lord': _SL.get(d3_lord_sign)}
+            moon_o = self.d1_moon
+            nav_base = float(moon_o.lon) if moon_o is not None else lag_lon
+            n0 = int((nav_base % 360.0) // (30.0 / 9.0))     # 全局 navamsa 序 0-107
+            n64 = (n0 + 63) % 108
+            nav_sign = const.LIST_SIGNS[n64 % 12]
+            nav64 = {'sign': nav_sign, 'lord': _SL.get(nav_sign), 'basis': 'moon' if moon_o is not None else 'lagna'}
+            # ── 致死运投影:寿龄落 Vimshottari 轴(大运/中运)。
+            projection = None
+            if final_years is not None:
+                try:
+                    vim = self.vimshottari()
+                    tgt = float(final_years)
+                    for m in (vim.get('mahadashas') or []):
+                        sa, ea = m.get('startAge'), m.get('endAge')
+                        if sa is None or ea is None:
+                            continue
+                        if sa <= tgt < ea:
+                            proj = {'mahaLord': m.get('lord'), 'mahaStartAge': sa, 'mahaEndAge': ea,
+                                    'mahaIsMaraka': bool((m.get('lord') or {}).get('id') in maraka_set)}
+                            for ad in (m.get('antardashas') or []):
+                                asa, aea = ad.get('startAge'), ad.get('endAge')
+                                if asa is not None and aea is not None and asa <= tgt < aea:
+                                    proj['antarLord'] = ad.get('lord')
+                                    proj['antarIsMaraka'] = bool((ad.get('lord') or {}).get('id') in maraka_set)
+                                    break
+                            projection = proj
+                            break
+                except Exception:
+                    projection = None
+            return {
+                'available': True,
+                'methodSelection': {
+                    'auto': AUTO_METHOD[auto_pick],
+                    'override': method_override,
+                    'selected': selected,
+                    'scores': {k: round(v, 2) for k, v in scores.items()},
+                    'note': '强度判据按尊位级+座内推进度简化口径(Lagna 以其主代比);可手动指定法覆盖',
+                },
+                'finals': finals,
+                'selectedFinal': sel_final,
+                'ayuClass': _classify(final_years),
+                'classBoundaries': bounds_mode,
+                'triPairYears': tri_years,
+                'triPairVotes': (tri or {}).get('votes'),
+                'triPairNote': '离散寿数按三票读表(长3/2/1→120/108/91;中→80/72/64;短→32/36/40);'
+                               '木星升档/土星降档修正之触发条件权威未详,未施',
+                'maraka': {
+                    'sthana': {'second': second_sign, 'seventh': seventh_sign},
+                    'lords': maraka_lords,
+                    'occupants': occupants,
+                    'planets': sorted(maraka_set),
+                },
+                'trishula': tri_signs,
+                'drekkana22': drek22,
+                'navamsa64': nav64,
+                'chhidraNote': 'Chhidra 脆弱窗定义权威未详 → 不输出(不臆造)',
+                'projection': projection,
+                'disclaimer': '仅信息·非处方:风险窗口与因子清单,不构成对任何个人的生死断言',
+            }
+        except Exception as exc:
+            return {'available': False, 'reason': str(exc)}
+
+    def _ayurdaya_harana(self, full_table=None, method_label='Piṇḍāyu', raw_total=None,
+                         satruksetra_exemption='retrograde', base_map=None,
+                         apply_krurodaya=True, neecha_half=False):
         """Āyurdāya haraṇa(减)逐项 — 07_ayurdaya §7.5 全文档规则。施于 Piṇḍāyu(度式)或 Nisargāyu:
         敌座(Śatrukṣetra)⅓ 与合日(Astangata)½ 只取大者(BPHS 43.22 max;逆行免敌座、金/土免合日);
         Chakrapata 可见半球(自 Lagna 12/11/10/9/8/7 宫)凶星按表损·吉星半,独立连乘;
@@ -597,18 +872,34 @@ class JyotishEngine:
                 obj = safe_get(self.d1_chart, pid)
                 if obj is None:
                     continue
-                full = full_table[pid]
-                debil = (self.PINDAYU_EXALT_LON[pid] + 180.0) % 360.0
-                a = (float(obj.lon) - debil) % 360.0
-                base_y = full * (0.5 + 0.5 * (180.0 - abs(a - 180.0)) / 180.0)
+                if base_map is not None:
+                    if pid not in base_map:
+                        continue
+                    base_y = float(base_map[pid])       # 直供口径(Amsayu:base×bharana 后)
+                else:
+                    full = full_table[pid]
+                    debil = (self.PINDAYU_EXALT_LON[pid] + 180.0) % 360.0
+                    a = (float(obj.lon) - debil) % 360.0
+                    base_y = full * (0.5 + 0.5 * (180.0 - abs(a - 180.0)) / 180.0)
                 base_sum += base_y
                 retro = getattr(obj, 'movedir', None) == 'Retrograde'
                 lord = SIGN_LORDS.get(obj.sign)
                 enemy_sign = bool(lord and lord != pid and natural_relation(pid, lord) == 'enemy')
-                shatru = enemy_sign and not retro                  # 逆行免敌座
+                # 敌座豁免两读:vakra=逆行(多数,默认) / vakra=火星(变体:火星在敌座亦免)。
+                if satruksetra_exemption == 'mars':
+                    shatru = enemy_sign and pid != const.MARS
+                else:
+                    shatru = enemy_sign and not retro              # 逆行免敌座
                 combust = bool(sun_lon is not None and pid not in (const.VENUS, const.SATURN)
                                and is_combust(pid, float(obj.lon), sun_lon, retro))   # 金/土免合日
                 dignity_harana = max(1.0 / 3 if shatru else 0.0, 0.5 if combust else 0.0)   # 只取大者,绝不并施
+                if neecha_half:
+                    # Amsayu 附加:落陷减半(与尊位减取大者合并前独立;按同法连乘口径并入)
+                    try:
+                        if self.dignity(pid, obj.sign, obj.signlon) == 'debilitation':
+                            dignity_harana = max(dignity_harana, 0.5)
+                    except Exception:
+                        pass
                 house = house_distance(asc.sign, obj.sign)
                 chakra = 0.0
                 if house in CHAKRA_KRURA:
@@ -638,6 +929,8 @@ class JyotishEngine:
                     if bh == 7 or (bp == const.JUPITER and bh in (5, 9)):   # 望 Lagna(7宫冲 / 木5·9特殊相)
                         kruro_mitigated = True
                         break
+            if not apply_krurodaya:
+                krurodaya_planet = None                 # Amsayu 不施 Krurodaya
             mit = 0.5 if kruro_mitigated else 1.0
             asc_arcmin = (float(asc.lon) % 30.0) * 60.0
             kruro_a = sum_reduced * asc_arcmin / 21600.0 * mit if krurodaya_planet else 0.0
@@ -650,7 +943,7 @@ class JyotishEngine:
             # 全期派原值:Nisargāyu 用 raw_total(=120,§7.3 不施缩放/haraṇa);Piṇḍāyu 无 raw→用 scaled 未减和。
             full_base = raw_total if raw_total is not None else base_sum
             profiles = [
-                {'key': 'noharana', 'label': '未减·全期派(Rath)',
+                {'key': 'noharana', 'label': '未减·全期派(传承)',
                  'savanaYears': round(full_base + lagna_ayu, 2),
                  'solarYears': round((full_base + lagna_ayu) * SOLAR, 2)},
                 {'key': 'harana_a', 'label': '施减·式A 角分(技术派/Sārāvalī)',
@@ -707,10 +1000,116 @@ class JyotishEngine:
                 pobj = safe_get(self.chart, pid)
                 if pobj is None:
                     continue
-                num, psidx = _nadiamsa(float(pobj.lon) % 360.0)
+                plon = float(pobj.lon) % 360.0
+                num, psidx = _nadiamsa(plon)
                 psign = const.LIST_SIGNS[psidx]
+                # A3:每格 0°12′ 精确边界(座内 raw 格序 = 顺排第 raw+1 格,与号位的奇顺偶逆无关)
+                raw = int((plon % 30.0) / 0.2)
+                if raw > 149:
+                    raw = 149
+                start_in_sign = raw * 0.2
                 d150.append({'planet': pid, 'nadiamsa': num,
-                             'sign': psign, 'signLabel': SIGN_CN.get(psign, psign)})
+                             'sign': psign, 'signLabel': SIGN_CN.get(psign, psign),
+                             'withinSignDeg': round(plon % 30.0, 4),
+                             'startLon': round(psidx * 30.0 + start_in_sign, 4),
+                             'endLon': round(psidx * 30.0 + start_in_sign + 0.2, 4),
+                             'name': None})
+            # ── A1:同座合 + parivartana 交换(Bhrigu Nadi「同座=合;庙座互驻=强联动」)──
+            from astrostudy.india.rasi_dasha import SIGN_LORDS as _SL, SIGN_LORDS_DUAL as _SLD
+            nine = (const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
+                    const.VENUS, const.SATURN, const.NORTH_NODE, const.SOUTH_NODE)
+            by_sign = {}
+            plon_map = {}
+            for pid in nine:
+                pobj = safe_get(self.chart, pid)
+                if pobj is None:
+                    continue
+                plon_map[pid] = float(pobj.lon) % 360.0
+                by_sign.setdefault(pobj.sign, []).append(pid)
+            combinations = []
+            for sgn in const.LIST_SIGNS:
+                grp = by_sign.get(sgn) or []
+                if len(grp) >= 2:
+                    combinations.append({'sign': sgn, 'signLabel': SIGN_CN.get(sgn, sgn),
+                                         'planets': list(grp), 'count': len(grp)})
+
+            def _own_signs(pid):
+                out = set()
+                for sg, lord in _SL.items():
+                    if lord == pid:
+                        out.add(sg)
+                for sg, lord in _SLD.items():
+                    if lord == pid:
+                        out.add(sg)
+                return out
+
+            exchanges = []
+            seen_pairs = set()
+            for a in nine:
+                for b in nine:
+                    if a >= b or a not in plon_map or b not in plon_map:
+                        continue
+                    a_sign = const.LIST_SIGNS[sign_index_from_lon(plon_map[a])]
+                    b_sign = const.LIST_SIGNS[sign_index_from_lon(plon_map[b])]
+                    if a_sign == b_sign:
+                        continue
+                    owns_a = _own_signs(a)
+                    owns_b = _own_signs(b)
+                    if a_sign in owns_b and b_sign in owns_a:
+                        key = (a, b)
+                        if key in seen_pairs:
+                            continue
+                        seen_pairs.add(key)
+                        dual = (a_sign in _SLD) or (b_sign in _SLD) \
+                            or (a in _SLD.values()) or (b in _SLD.values())
+                        exchanges.append({'a': a, 'b': b,
+                                          'aSign': a_sign, 'aSignLabel': SIGN_CN.get(a_sign, a_sign),
+                                          'bSign': b_sign, 'bSignLabel': SIGN_CN.get(b_sign, b_sign),
+                                          'dualLord': bool(dual)})
+            # ── A2:木星逐座推进时间轴(默认每座 1 木星年;各 Bhrigu 派年数不同 → 标版本)──
+            JUPITER_YEARS_PER_SIGN = 1.0
+            jup_prog = None
+            jup = safe_get(self.chart, const.JUPITER)
+            if jup is not None:
+                import datetime as _dt
+                start_sidx = sign_index_from_lon(float(jup.lon))
+                birth_dt = None
+                try:
+                    jd0 = float(self.perchart.dateTime.jd)
+                    birth_dt = _dt.datetime(2000, 1, 1, 12) + _dt.timedelta(days=jd0 - 2451545.0)
+                except Exception:
+                    birth_dt = None
+                segments = []
+                for k in range(24):
+                    sidx_k = (start_sidx + k) % 12
+                    sgn_k = const.LIST_SIGNS[sidx_k]
+                    seg = {'index': k + 1, 'sign': sgn_k,
+                           'signLabel': SIGN_CN.get(sgn_k, sgn_k),
+                           'startAge': round(k * JUPITER_YEARS_PER_SIGN, 2),
+                           'endAge': round((k + 1) * JUPITER_YEARS_PER_SIGN, 2),
+                           'natalPlanets': list(by_sign.get(sgn_k) or [])}
+                    if birth_dt is not None:
+                        sd = birth_dt + _dt.timedelta(days=k * JUPITER_YEARS_PER_SIGN * 365.25)
+                        ed = birth_dt + _dt.timedelta(days=(k + 1) * JUPITER_YEARS_PER_SIGN * 365.25)
+                        seg['startDate'] = sd.strftime('%Y-%m-%d')
+                        seg['endDate'] = ed.strftime('%Y-%m-%d')
+                    segments.append(seg)
+                jup_prog = {'rule': 'one_year_per_sign',
+                            'ruleLabel': '推进规则:每座 1 木星年(各 Bhrigu 派年数不同,版本可调)',
+                            'startSign': const.LIST_SIGNS[start_sidx],
+                            'segments': segments}
+            # ── A3:Nadi Karaka 体系(九曜象征,Bhrigu Nadi 木星为首要 karaka)──
+            nadi_karakas = [
+                {'planet': const.SUN, 'label': PLANET_CN.get(const.SUN, 'Sun'), 'significations': ['父', '灵魂']},
+                {'planet': const.MOON, 'label': PLANET_CN.get(const.MOON, 'Moon'), 'significations': ['母', '心']},
+                {'planet': const.MARS, 'label': PLANET_CN.get(const.MARS, 'Mars'), 'significations': ['兄弟', '技术']},
+                {'planet': const.MERCURY, 'label': PLANET_CN.get(const.MERCURY, 'Mercury'), 'significations': ['言', '商']},
+                {'planet': const.JUPITER, 'label': PLANET_CN.get(const.JUPITER, 'Jupiter'), 'significations': ['子', '智', '夫(女命)'], 'primary': True},
+                {'planet': const.VENUS, 'label': PLANET_CN.get(const.VENUS, 'Venus'), 'significations': ['妻', '欲']},
+                {'planet': const.SATURN, 'label': PLANET_CN.get(const.SATURN, 'Saturn'), 'significations': ['寿', '业']},
+                {'planet': const.NORTH_NODE, 'label': PLANET_CN.get(const.NORTH_NODE, 'Rahu'), 'significations': ['外缘']},
+                {'planet': const.SOUTH_NODE, 'label': PLANET_CN.get(const.SOUTH_NODE, 'Ketu'), 'significations': ['解脱', '旧业']},
+            ]
             return {
                 'available': True,
                 'bhriguBindu': {
@@ -723,11 +1122,45 @@ class JyotishEngine:
                     'moonLon': m, 'rahuLon': r,
                 },
                 'd150': d150,
-                'd150Note': 'D150 纳地盘:各曜落第几个 nāḍiāṃśa(150/座,0°12′);专名表所给文档未全列,暂显号位。',
+                'namesAvailable': False,
+                'd150Note': 'D150 纳地盘:各曜落第几个 nāḍiāṃśa(150/座,0°12′);150 专名待录入原典表,暂显号位。',
+                'combinations': combinations,
+                'exchanges': exchanges,
+                'jupiterProgression': jup_prog,
+                'karakas': nadi_karakas,
+                'combinationNote': '同座=合;仅出结构不出断语(组合字典原典未列全,不臆造)。',
                 'note': 'Bhrigu Bindu = Rahu/Moon 短弧中点;业力焦点,过运触发为重大应期。',
             }
         except Exception as exc:
             return {'available': False, 'reason': str(exc)}
+
+    def sensitive_points(self):
+        """敏感点 Sphuta(§20.5/§17.5/§22.5):生育点 + Gandanta/Sandhi 界位 + 死亡指示点
+        (仅风险标注)+ Mrityu Bhaga(表空即 None,待录入)。纯派生,失败整块置 None
+        由 compute() 的逐键 try/except 兜住。"""
+        from astrostudy.india import sensitive_points as sp
+        lons = {}
+        for pid in (const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
+                    const.VENUS, const.SATURN, const.NORTH_NODE, const.SOUTH_NODE):
+            obj = safe_get(self.chart, pid)
+            lons[pid] = getattr(obj, 'lon', None)
+        lagna_lon = getattr(self.asc, 'lon', None)
+        bodies = dict(lons)
+        if lagna_lon is not None:
+            bodies['Lagna'] = lagna_lon
+        return {
+            'available': True,
+            'beejaKshetra': sp.beeja_kshetra_sphuta(
+                lons.get(const.SUN), lons.get(const.VENUS), lons.get(const.JUPITER),
+                lons.get(const.MOON), lons.get(const.MARS)),
+            'gandanta': {
+                'orbArcmin': 48,
+                'hits': sp.boundary_flags_for(bodies),
+                'note': '三处水火交界(双鱼↔白羊/巨蟹↔狮子/天蝎↔射手)±0°48′;Rasi Sandhi 为任意座界 ±1°,判力减分',
+            },
+            'deathIndicators': sp.death_indicator_points(lagna_lon, lons.get(const.MOON)),
+            'mrityuBhaga': sp.mrityu_bhaga_hits(bodies),
+        }
 
     def shashtiamsa(self):
         """D60 Ṣaṣṭyāṃśa(六十分盘)吉凶:各曜本命经度落第几个 0°30′ 段(1..60),
@@ -764,7 +1197,7 @@ class JyotishEngine:
                 'planets': rows,
                 'beneficCount': benefic,
                 'maleficCount': len(rows) - benefic,
-                'note': 'D60 六十分盘吉凶:本命经度落第几段(1..60);Krūra 恶段→凶,余吉。偶象神名逆序(61−段)。60 神名(Santhanam BPHS)已显。',
+                'note': 'D60 六十分盘吉凶:本命经度落第几段(1..60);Krūra 恶段→凶,余吉。偶象神名逆序(61−段)。60 神名(BPHS 译本)已显。',
             }
         except Exception as exc:
             return {'available': False, 'reason': str(exc)}
@@ -810,6 +1243,7 @@ class JyotishEngine:
                     'chartnum': sc['chartnum'], 'key': sc['key'], 'label': sc['label'],
                     'variants': [{'key': k, 'label': l} for k, l in sc['variants']],
                     'planets': rows, 'hasDifference': has_diff,
+                    'selected': self.varga_variant_map.get(sc['chartnum']) or 'standard',
                 })
             return {
                 'available': True,
@@ -900,6 +1334,8 @@ class JyotishEngine:
                 'moon_nak_remaining_ratio': mk.get('remainingRatio', mk.get('progress')),
                 'conditionContext': self._dasha_condition_context(),
             }
+            inputs['year_length_days'] = self.dasha_year_days
+            inputs['dashaVariants'] = self.dasha_variants
             return build_extended_dashas(inputs)
         except Exception:
             return {'available': False}
@@ -929,6 +1365,17 @@ class JyotishEngine:
             d9_idx = int(float(self.d1_asc.lon) / (30.0 / 9.0)) % 12
             ctx['d9_lagna_sign'] = SIGNS[d9_idx]
             ctx['lagna_is_vargottama'] = (ctx['d9_lagna_sign'] == self.d1_asc.sign)
+            # 🔴 条件系缺口根修:Panchottari 读 d12_lagna_sign、Shattrimsha-sama 读 lagna_hora,
+            # 此前引擎从不生产这两键 → 两式 available 恒 False(条件恒判不满足)。
+            # 分盘换算走 primitives.varga_sign 单源(排盘标准式,D2 恒出 Leo/Cancer)。
+            try:
+                from astrostudy.india.primitives import varga_sign as _vsign
+                ctx['d12_lagna_sign'] = _vsign(self.d1_asc.lon, 12)
+                _d2 = _vsign(self.d1_asc.lon, 2)
+                ctx['lagna_hora'] = 'Sun' if _d2 == const.LEO else (
+                    'Moon' if _d2 == const.CANCER else None)
+            except Exception:
+                pass
             if self.d1_sun:
                 ctx['sun_in_lagna'] = (self.d1_sun.sign == self.d1_asc.sign)
             if SIGN_LORDS:
@@ -966,15 +1413,19 @@ class JyotishEngine:
                     sep = abs(float(oa.lon) - float(ob.lon)) % 360.0
                     sep = min(sep, 360.0 - sep)
                     if sep < 1.0:
-                        la = float(getattr(oa, 'lat', 0.0) or 0.0)
-                        lb = float(getattr(ob, 'lat', 0.0) or 0.0)
-                        winner, loser = (pa, pb) if la >= lb else (pb, pa)
+                        if self.yuddha_criterion == 'longitude':
+                            # 另说:黄经较小(更西/先到)者胜
+                            winner, loser = (pa, pb) if float(oa.lon) <= float(ob.lon) else (pb, pa)
+                        else:
+                            la = float(getattr(oa, 'lat', 0.0) or 0.0)
+                            lb = float(getattr(ob, 'lat', 0.0) or 0.0)
+                            winner, loser = (pa, pb) if la >= lb else (pb, pa)
                         pairs.append({'a': pa, 'aLabel': PLANET_CN.get(pa, pa),
                                       'b': pb, 'bLabel': PLANET_CN.get(pb, pb),
                                       'winner': winner, 'winnerLabel': PLANET_CN.get(winner, winner),
                                       'loser': loser, 'loserLabel': PLANET_CN.get(loser, loser),
                                       'sepDeg': round(sep, 3)})
-            return {'available': True, 'pairs': pairs}
+            return {'available': True, 'pairs': pairs, 'criterion': self.yuddha_criterion}
         except Exception:
             return {'available': False}
 
@@ -1109,6 +1560,17 @@ class JyotishEngine:
             nk['detail'] = nakshatra_detail_from_lon(lon)
         except Exception:
             nk['detail'] = None
+        # 28 宿口径(G6):纯增量键,显示/择吉专用。27 宿编号与全部 Dasha/Varga 计算不受影响
+        # (Abhijit 恒不入 Vimshottari —— 权威 §4.3 与 primitives 注释同口径)。
+        try:
+            from astrostudy.india.primitives import is_abhijit, nakshatra_number_28, ABHIJIT_LABEL
+            nk['isAbhijit'] = bool(is_abhijit(lon))
+            nk['number28'] = nakshatra_number_28(lon, nk.get('index'))
+            if nk['isAbhijit']:
+                nk['abhijitLabel'] = ABHIJIT_LABEL
+        except Exception:
+            nk['isAbhijit'] = False
+            nk['number28'] = nk.get('index')
         return nk
 
     def yogas(self):
@@ -1238,7 +1700,7 @@ class JyotishEngine:
         lord = dasha_lord(moon_nak['lord'])
         first_balance_years = lord['years'] * moon_nak['remainingRatio']
         first_elapsed_years = lord['years'] - first_balance_years
-        cycle_start = birth - timedelta(days=first_elapsed_years * 365.25)
+        cycle_start = birth - timedelta(days=first_elapsed_years * self.dasha_year_days)
         lord_index = [x['key'] for x in DASHA_SEQUENCE].index(lord['key'])
         current_start = cycle_start
         now = datetime.now()
@@ -1248,7 +1710,7 @@ class JyotishEngine:
         current = None
         for i in range(10):
             item_lord = DASHA_SEQUENCE[(lord_index + i) % len(DASHA_SEQUENCE)]
-            duration_days = item_lord['years'] * 365.25
+            duration_days = item_lord['years'] * self.dasha_year_days
             current_end = current_start + timedelta(days=duration_days)
             is_active = current_start <= now < current_end
             item = {
@@ -1258,8 +1720,8 @@ class JyotishEngine:
                 'end': format_dt(current_end),
                 'startIso': current_start.isoformat(),
                 'endIso': current_end.isoformat(),
-                'startAge': (current_start - birth).days / 365.25,
-                'endAge': (current_end - birth).days / 365.25,
+                'startAge': (current_start - birth).total_seconds() / 86400.0 / self.dasha_year_days,
+                'endAge': (current_end - birth).total_seconds() / 86400.0 / self.dasha_year_days,
                 'birthBalance': i == 0,
                 'active': is_active,
             }
@@ -1273,7 +1735,7 @@ class JyotishEngine:
         return {
             'available': True,
             'system': 'Vimshottari',
-            'yearLengthDays': 365.25,
+            'yearLengthDays': self.dasha_year_days,
             'moonLongitude': moon_lon,
             'moonNakshatra': moon_nak,
             'firstLord': lord,
@@ -1297,7 +1759,7 @@ class JyotishEngine:
         scale = 1.0 / 3.0
         first_balance_years = lord['years'] * scale * moon_nak['remainingRatio']
         first_elapsed_years = lord['years'] * scale - first_balance_years
-        cycle_start = birth - timedelta(days=first_elapsed_years * 365.25)
+        cycle_start = birth - timedelta(days=first_elapsed_years * self.dasha_year_days)
         lord_index = [x['key'] for x in DASHA_SEQUENCE].index(lord['key'])
         current_start = cycle_start
         now = datetime.now()
@@ -1310,15 +1772,15 @@ class JyotishEngine:
         for i in range(3 * n + 1):                    # 3 遍 ×9 = 27,+首余裕度
             item_lord = DASHA_SEQUENCE[(lord_index + i) % n]
             years = item_lord['years'] * scale
-            duration_days = years * 365.25
+            duration_days = years * self.dasha_year_days
             current_end = current_start + timedelta(days=duration_days)
             is_active = current_start <= now < current_end
             item = {
                 'lord': item_lord, 'years': years,
                 'start': format_dt(current_start), 'end': format_dt(current_end),
                 'startIso': current_start.isoformat(), 'endIso': current_end.isoformat(),
-                'startAge': (current_start - birth).days / 365.25,
-                'endAge': (current_end - birth).days / 365.25,
+                'startAge': (current_start - birth).total_seconds() / 86400.0 / self.dasha_year_days,
+                'endAge': (current_end - birth).total_seconds() / 86400.0 / self.dasha_year_days,
                 'birthBalance': i == 0, 'active': is_active,
                 'bhaga': BHAGA[min(2, i // n)],
             }
@@ -1329,13 +1791,174 @@ class JyotishEngine:
             items.append(item)
             current_start = current_end
         return {
-            'available': True, 'system': 'Tribhagi', 'yearLengthDays': 365.25,
+            'available': True, 'system': 'Tribhagi', 'yearLengthDays': self.dasha_year_days,
             'totalYears': 120, 'bhagaYears': 40,
             'moonLongitude': moon_lon, 'moonNakshatra': moon_nak, 'firstLord': lord,
             'firstBalanceYears': first_balance_years, 'firstElapsedYears': first_elapsed_years,
             'cycleStart': format_dt(cycle_start), 'current': current, 'mahadashas': items,
-            'note': 'Vimśottarī ÷3,9 曜序绕 3 遍=120 年(Alpa/Madhya/Pūrṇa 三分寿);归属 Rath/PVR Rao。',
+            'note': 'Vimśottarī ÷3,9 曜序绕 3 遍=120 年(Alpa/Madhya/Pūrṇa 三分寿)。',
         }
+
+    # AKKG「所主之座」表(双主曜数向近者取;罗=水瓶/计=天蝎共主口径)。
+    _AKKG_OWN = {
+        const.SUN: (const.LEO,), const.MOON: (const.CANCER,),
+        const.MARS: (const.ARIES, const.SCORPIO), const.MERCURY: (const.GEMINI, const.VIRGO),
+        const.JUPITER: (const.SAGITTARIUS, const.PISCES), const.VENUS: (const.TAURUS, const.LIBRA),
+        const.SATURN: (const.CAPRICORN, const.AQUARIUS),
+        const.NORTH_NODE: (const.AQUARIUS,), const.SOUTH_NODE: (const.SCORPIO,),
+    }
+
+    def _kendradi_graha_order(self, ref_sign):
+        """自 ref_sign 起 kendra(1/4/7/10)→panaphara→apoklima 的 9 曜强度序
+        (组内旺庙>平>弱、再度数高;与 Mula 同判;ref 奇象先 panaphara、偶象先 apoklima)。"""
+        SIGN_IDX = {sg: i for i, sg in enumerate(const.LIST_SIGNS)}
+        ref_idx = SIGN_IDX[ref_sign]
+        ents = []
+        for pid in [const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
+                    const.VENUS, const.SATURN, const.NORTH_NODE, const.SOUTH_NODE]:
+            obj = safe_get(self.chart, pid)
+            if not obj:
+                continue
+            si = SIGN_IDX[obj.sign]
+            house = ((si - ref_idx) % 12) + 1
+            try:
+                dig = self.dignity(pid, obj.sign, obj.signlon)
+            except Exception:
+                dig = 'neutral'
+            ents.append({'planet': pid, 'sign': obj.sign, 'house': house, 'dignity': dig,
+                         'signlon': float(obj.signlon)})
+        KEN, PAN, APO = {1, 4, 7, 10}, {2, 5, 8, 11}, {3, 6, 9, 12}
+        ref_odd = ref_sign in {const.ARIES, const.GEMINI, const.LEO, const.LIBRA,
+                               const.SAGITTARIUS, const.AQUARIUS}
+        groups = [KEN, PAN, APO] if ref_odd else [KEN, APO, PAN]
+        DIG_RANK = {'deep_exaltation': 5, 'exaltation': 5, 'moolatrikona': 4,
+                    'own_sign': 3, 'neutral': 2, 'debilitation': 1}
+        ordered = []
+        for g in groups:
+            ordered.extend(sorted([x for x in ents if x['house'] in g],
+                                  key=lambda en: (-DIG_RANK.get(en['dignity'], 2), -en['signlon'])))
+        return ordered
+
+    def tara_dasha(self):
+        """Tara 大运(graha):期长 = Vimshottari 年表;排序 = 自 Lagna 的 kendra 行星(按强)
+        →panaphara→apoklima;适用 = 至少一行星在 kendra;首运余额 = 起始行星自身宿未行比
+        × 首运年;中运同 Vimshottari 比例(序用本强度环)。勿混座基 Tara Lagna(9 年/座)。"""
+        from datetime import timedelta
+        try:
+            if not self.asc:
+                return {'available': False, 'reason': 'missing_lagna'}
+            birth = get_local_birth_datetime(self.perchart)
+            if birth is None:
+                return {'available': False, 'reason': 'birth_date_outside_python_datetime_range'}
+            ordered = self._kendradi_graha_order(self.asc.sign)
+            if not ordered:
+                return {'available': False, 'reason': 'missing_planets'}
+            kendra_occupied = any(x['house'] in (1, 4, 7, 10) for x in ordered)
+            seq = []
+            for x in ordered:
+                pid = x['planet']
+                row = next((d for d in DASHA_SEQUENCE if d['id'] == pid), None)
+                if row:
+                    seq.append(dict(row))
+            if not seq:
+                return {'available': False, 'reason': 'missing_planets'}
+            first = seq[0]
+            # 大运种子恒 D1(与同块 vimshottari/yogini 的 _dasha_seed_lon 同基准;曾用当前分盘 → 漂移)
+            first_obj = safe_get(self.d1_chart, first['id'])
+            nak = nakshatra_from_lon(float(first_obj.lon)) if first_obj else None
+            remaining = float(nak['remainingRatio']) if nak else 1.0
+            res = self._build_periods(seq, 120, first['key'], remaining, birth,
+                                      full=False)
+            res.update({
+                'available': True,
+                'system': 'TaraDasha',
+                'label': 'Tara 大运(kendra 强度序 · Vimshottari 年表)',
+                'applicable': bool(kendra_occupied),
+                'applicabilityNote': '至少一行星在 kendra 时适用' if kendra_occupied
+                                     else 'kendra 无行星:条件未满足(仍可备览)',
+                'totalYears': 120,
+                'yearLengthDays': self.dasha_year_days,
+                'orderPlanets': [x['planet'] for x in ordered],
+                'seedNakshatra': nak,
+                'firstLord': first,
+            })
+            return res
+        except Exception:
+            return {'available': False, 'reason': 'tara_dasha_failed'}
+
+    def akkg_dasha(self):
+        """AKKG(Karaka Kendradi Graha)大运:自 Atmakaraka 所在座起 kendra→panaphara→apoklima
+        强度序;期长 = (沿数向数到其所主之座 − 1),自座 = 12,庙旺 +1/落陷 −1,钳 1-12;
+        二轮 = 12 − 首轮。双主曜取沿数向较近之主座(口径注明);数向按曜所在座足性(同 Mula)。"""
+        from datetime import timedelta
+        try:
+            birth = get_local_birth_datetime(self.perchart)
+            if birth is None:
+                return {'available': False, 'reason': 'birth_date_outside_python_datetime_range'}
+            _ak_lons = {}
+            for _pid in KARAKA_PLANETS:
+                _o = safe_get(self.d1_chart, _pid)   # Chara Karaka 是本命(D1)量
+                if _o:
+                    _ak_lons[_pid] = _o.lon
+            karakas = chara_karakas(_ak_lons, scheme=self.karaka_scheme)
+            ak_row = karakas[0] if karakas else None
+            ak_id = ak_row.get('planet') if isinstance(ak_row, dict) else None
+            ak_obj = safe_get(self.d1_chart, ak_id) if ak_id else None
+            if not ak_obj:
+                return {'available': False, 'reason': 'missing_atmakaraka'}
+            SIGN_IDX = {sg: i for i, sg in enumerate(const.LIST_SIGNS)}
+            ordered = self._kendradi_graha_order(ak_obj.sign)
+            CN = {const.SUN: '日', const.MOON: '月', const.MARS: '火', const.MERCURY: '水',
+                  const.JUPITER: '木', const.VENUS: '金', const.SATURN: '土',
+                  const.NORTH_NODE: '罗', const.SOUTH_NODE: '计'}
+            maha = []
+            firsts = []
+            for x in ordered:
+                pid = x['planet']
+                si = SIGN_IDX[x['sign']]
+                fwd = x['sign'] in _ODD_FOOTED_SIGNS
+                best = None
+                for own in self._AKKG_OWN.get(pid, ()):
+                    oi = SIGN_IDX[own]
+                    n = ((oi - si) % 12) + 1 if fwd else ((si - oi) % 12) + 1
+                    if best is None or n < best:
+                        best = n
+                n = best if best is not None else 1
+                yrs = 12 if n == 1 else (n - 1)
+                dig = x['dignity']
+                if dig in ('exaltation', 'deep_exaltation'):
+                    yrs += 1
+                elif dig == 'debilitation':
+                    yrs -= 1
+                yrs = max(1, min(12, yrs))
+                firsts.append({'planet': pid, 'planetCN': CN[pid], 'sign': x['sign'],
+                               'house': x['house'], 'years': yrs, 'count': n, 'dignity': dig})
+            YEAR = self.dasha_year_days
+            cum = 0.0
+            for cycle in (1, 2):
+                for f in firsts:
+                    yrs = f['years'] if cycle == 1 else (12 if f['years'] == 12 else 12 - f['years'])
+                    try:
+                        sdt = birth + timedelta(days=cum * YEAR)
+                        edt = birth + timedelta(days=(cum + yrs) * YEAR)
+                        sd, ed = sdt.strftime('%Y-%m-%d'), edt.strftime('%Y-%m-%d')
+                    except Exception:
+                        sd = ed = None
+                    maha.append(dict(f, years=yrs, cycle=cycle, start=sd, end=ed,
+                                     startAge=round(cum, 2), endAge=round(cum + yrs, 2)))
+                    cum += yrs
+            return {
+                'available': True,
+                'system': 'AKKG',
+                'label': 'Karaka Kendradi Graha(AK 播种)',
+                'atmakaraka': ak_id,
+                'seedSign': ak_obj.sign,
+                'yearLengthDays': YEAR,
+                'mahadashas': maha,
+                'note': '年=(数到所主之座−1)·自座12·庙旺±1·钳1-12;二轮=12−首轮(12 仍 12);双主取沿数向近者',
+            }
+        except Exception:
+            return {'available': False, 'reason': 'akkg_failed'}
 
     def mula_dasha(self):
         """Mūla(=Lagna Kendrādi Graha)大运。期长:N=曜数到其本三角座(奇足座顺/偶足座逆,含端);
@@ -1356,7 +1979,7 @@ class JyotishEngine:
             ents = []
             for pid in [const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
                         const.VENUS, const.SATURN, const.NORTH_NODE, const.SOUTH_NODE]:
-                obj = safe_get(self.chart, pid)
+                obj = safe_get(self.d1_chart, pid)   # Mūla 座位判据恒 D1(与兄弟系同基准)
                 if not obj:
                     continue
                 si = SIGN_IDX[obj.sign]
@@ -1385,7 +2008,7 @@ class JyotishEngine:
                                       key=lambda en: (-DIG_RANK.get(en['dignity'], 2), -en['signlon'])))
             maha = []
             cum = [0.0]
-            YEAR = 365.2425
+            YEAR = self.dasha_year_days
 
             def _emit(items, rnd, yfn):
                 for en in items:
@@ -1406,7 +2029,7 @@ class JyotishEngine:
             _emit(ordered, 2, lambda en: max(0.0, MULA_VIMS_YEARS[en['planet']] - en['years']))
             return {'available': True, 'system': 'Mula', 'totalYears': 120, 'lagna': lagna,
                     'order': [e['planetCN'] for e in ordered], 'mahadashas': maha,
-                    'note': 'Mūla=Lagna Kendrādi Graha;期长由数到本三角座±庙旺得;二轮补足 120。归属 Rath/Sārāvalī。'}
+                    'note': 'Mūla=Lagna Kendrādi Graha;期长由数到本三角座±庙旺得;二轮补足 120(Sārāvalī 系)。'}
         except Exception as exc:
             return {'available': False, 'reason': str(exc)}
 
@@ -1415,17 +2038,18 @@ class JyotishEngine:
         上升(JL 身)并行,各每年顺行 1 宫。第 n 年活跃宫=((n−1)%12)+1,三处并读(全 3 合→最强)。
         固定-Lagna 标准式(近 Hellenistic Annual Profections)。"""
         try:
-            if not (self.sun and self.moon and self.asc):
+            # 三轮起点恒 D1(日/月/上升皆本命量;曾用当前分盘 → 切分盘时三轮整体漂移)
+            if not (self.d1_sun and self.d1_moon and self.d1_asc):
                 return {'available': False, 'reason': 'missing_sun_moon_or_lagna'}
             SIGN_IDX = {s: i for i, s in enumerate(const.LIST_SIGNS)}
-            sun_i = SIGN_IDX[self.sun.sign]
-            moon_i = SIGN_IDX[self.moon.sign]
-            lag_i = SIGN_IDX[self.asc.sign]
+            sun_i = SIGN_IDX[self.d1_sun.sign]
+            moon_i = SIGN_IDX[self.d1_moon.sign]
+            lag_i = SIGN_IDX[self.d1_asc.sign]
             cur_year = None
             birth = get_local_birth_datetime(self.perchart)
             if birth is not None:
                 try:
-                    age = (datetime.now() - birth).days / 365.2425
+                    age = (datetime.now() - birth).total_seconds() / 86400.0 / self.dasha_year_days
                     cur_year = (int(age) % 12) + 1
                 except Exception:
                     cur_year = None
@@ -1463,7 +2087,7 @@ class JyotishEngine:
                 'lord': sub_lord,
                 'start': format_dt(current_start),
                 'end': format_dt(end),
-                'years': sub_days / 365.25,
+                'years': sub_days / self.dasha_year_days,
             }
             if max_depth > 2:
                 item['pratyantardashas'] = self.dasha_sub_periods(sub_lord, current_start, sub_days, max_depth - 1)
@@ -1486,7 +2110,7 @@ class JyotishEngine:
                 'lord': sub,
                 'start': format_dt(cur),
                 'end': format_dt(end),
-                'years': sub_days / 365.25,
+                'years': sub_days / self.dasha_year_days,
             }
             if max_depth > 2:
                 item['pratyantardashas'] = self._sub_periods_generic(sequence, total_years, sub, cur, sub_days, max_depth - 1, start_offset)
@@ -1504,16 +2128,16 @@ class JyotishEngine:
         start_item = sequence[start_idx]
         first_balance = start_item['years'] * remaining_ratio
         first_elapsed = start_item['years'] - first_balance
-        cycle_start = birth - timedelta(days=first_elapsed * 365.25)
+        cycle_start = birth - timedelta(days=first_elapsed * self.dasha_year_days)
         now = datetime.now()
-        horizon = birth + timedelta(days=120 * 365.25)
+        horizon = birth + timedelta(days=120 * self.dasha_year_days)
         cur = cycle_start
         items = []
         current = None
         i = 0
         while cur < horizon and i < 60:
             it = sequence[(start_idx + i) % len(sequence)]
-            duration_days = it['years'] * 365.25
+            duration_days = it['years'] * self.dasha_year_days
             end = cur + timedelta(days=duration_days)
             is_active = cur <= now < end
             item = {
@@ -1523,8 +2147,8 @@ class JyotishEngine:
                 'end': format_dt(end),
                 'startIso': cur.isoformat(),
                 'endIso': end.isoformat(),
-                'startAge': (cur - birth).days / 365.25,
-                'endAge': (end - birth).days / 365.25,
+                'startAge': (cur - birth).total_seconds() / 86400.0 / self.dasha_year_days,
+                'endAge': (end - birth).total_seconds() / 86400.0 / self.dasha_year_days,
                 'birthBalance': i == 0,
                 'active': is_active,
             }
@@ -1559,7 +2183,7 @@ class JyotishEngine:
             'available': True,
             'system': 'Yogini',
             'totalYears': YOGINI_TOTAL,
-            'yearLengthDays': 365.25,
+            'yearLengthDays': self.dasha_year_days,
             'moonLongitude': moon_lon,
             'moonNakshatra': nak,
             'firstYogini': start,
@@ -1573,9 +2197,25 @@ class JyotishEngine:
         if birth is None or moon_lon is None:
             return {'available': False, 'reason': 'birth_date_outside_python_datetime_range'}
         nak = nakshatra_from_lon(moon_lon)
-        lord_key = ASHTOTTARI_NAK_LORD[(nak['index'] - 1) % 27]
+        # 子型:Ardradi(默认=现状)/Krittikadi/依 Rahu 位自动(Rahu 自 Lagna 座距 5/9=trikona→Krittikadi,
+        # 否则(含 kendra 与其余)→Ardradi;古典另有「从 Lagna 主起算」口径,此处按自 Lagna,注释存档)。
+        reckoning = self.dasha_variants.get('ashtottariReckoning', 'ardradi')
+        if reckoning == 'auto_by_rahu':
+            reckoning = 'ardradi'
+            try:
+                rahu = safe_get(self.d1_chart, const.NORTH_NODE)
+                if rahu is not None and self.d1_asc is not None:
+                    dist = (const.LIST_SIGNS.index(rahu.sign) - const.LIST_SIGNS.index(self.d1_asc.sign)) % 12 + 1
+                    if dist in (5, 9):
+                        reckoning = 'krittikadi'
+            except (ValueError, AttributeError, TypeError):
+                pass
+        krittikadi = (reckoning == 'krittikadi')
+        nak_table = ASHTOTTARI_NAK_LORD_KRITTIKADI if krittikadi else ASHTOTTARI_NAK_LORD
+        arc_table = ASHTOTTARI_ARC_KRITTIKADI if krittikadi else ASHTOTTARI_ARC
+        lord_key = nak_table[(nak['index'] - 1) % 27]
         start = next(x for x in ASHTOTTARI_SEQUENCE if x['key'] == lord_key)
-        arc_remaining = ashtottari_arc_remaining(lord_key, moon_lon)  # 月在所辖弧的剩余比(非单宿)
+        arc_remaining = ashtottari_arc_remaining(lord_key, moon_lon, arc_table)  # 月在所辖弧的剩余比(非单宿)
         res = self._build_periods(
             ASHTOTTARI_SEQUENCE, ASHTOTTARI_TOTAL, lord_key, arc_remaining, birth, start_offset=1,
             full=(self.dasha_system == 'ashtottari'),
@@ -1583,9 +2223,9 @@ class JyotishEngine:
         res.update({
             'available': True,
             'system': 'Ashtottari',
-            'reckoning': 'Ardradi',
+            'reckoning': 'Krittikadi' if krittikadi else 'Ardradi',
             'totalYears': ASHTOTTARI_TOTAL,
-            'yearLengthDays': 365.25,
+            'yearLengthDays': self.dasha_year_days,
             'moonLongitude': moon_lon,
             'moonNakshatra': nak,
             'firstLord': start,
@@ -1600,10 +2240,31 @@ class JyotishEngine:
         birth = get_local_birth_datetime(self.perchart)
         if birth is None:
             return {'available': False, 'reason': 'birth_date_outside_python_datetime_range'}
-        YEAR = 365.2425
+        YEAR = self.dasha_year_days
+        # 排序变体(#排序分歧):固定自然序(默认,成长-衰老序,年龄档通行) vs
+        # kendra 强度序(BPHS 原则:自月亮起,余曜按自 Lagna 的 kendra→panaphara→apoklima
+        # 组序、组内按宫距升序;年数不变只换排序)。
+        order_mode = self.dasha_variants.get('naisargikaOrder', 'fixed_natural')
+        order_rows = list(NAISARGIKA_ORDER)
+        if order_mode == 'kendra_strength' and self.d1_asc is not None:
+            try:
+                lag_i = const.LIST_SIGNS.index(self.d1_asc.sign)
+                def _grp_rank(pid):
+                    o = safe_get(self.d1_chart, pid)
+                    if not o:
+                        return (3, 99)
+                    dist = (const.LIST_SIGNS.index(o.sign) - lag_i) % 12 + 1
+                    grp = 0 if dist in (1, 4, 7, 10) else (1 if dist in (2, 5, 8, 11) else 2)
+                    return (grp, dist)
+                moon_row = [r for r in order_rows if r[0] == const.MOON]
+                rest = [r for r in order_rows if r[0] != const.MOON]
+                rest.sort(key=lambda r: _grp_rank(r[0]))
+                order_rows = moon_row + rest
+            except (ValueError, AttributeError, TypeError):
+                order_rows = list(NAISARGIKA_ORDER)
         periods = []
         cum = 0
-        for pid, cn, yrs in NAISARGIKA_ORDER:
+        for pid, cn, yrs in order_rows:
             try:
                 s = birth + timedelta(days=cum * YEAR)
                 e = birth + timedelta(days=(cum + yrs) * YEAR)
@@ -1617,7 +2278,11 @@ class JyotishEngine:
             cum += yrs
         return {
             'available': True, 'mode': 'varahamihira', 'totalYears': 120,
-            'note': 'Varahamihira 成熟序(月→火→水→金→木→日→土);年龄段通行,antardasha 按 drishti 权重未实现',
+            'orderMode': order_mode,
+            'note': ('Varahamihira 成熟序(月→火→水→金→木→日→土);年龄段通行'
+                     if order_mode == 'fixed_natural'
+                     else 'kendra 强度序(自月亮起,余曜按 kendra→panaphara→apoklima·组内宫距升序;年数不变)'),
+            'antardashaNote': '中运按相位加权(对望 1/7·四八位 1/4·强相更高),完整权值表待原典,暂不输出',
             'periods': periods,
         }
 
@@ -2019,7 +2684,9 @@ class JyotishEngine:
                 'lon': obj.lon, 'signlon': obj.signlon,
                 'houseFromLagna': house_number(obj),
                 'd1Lon': d1_lons.get(obj_id, obj.lon),
+                'd1Signlon': (float(d1_lons.get(obj_id, obj.lon)) % 30.0),
                 'planetSigns': planet_signs,
+                'vargaVariants': self.varga_variant_map,
                 'sunLon': sun_lon, 'moonLon': moon_lon,
                 'isDay': is_day, 'tribhagaIndex': tribhaga_index,
                 'fractionFromMidnight': frac_mid,
@@ -2140,7 +2807,7 @@ class JyotishEngine:
                 d1_lon = float(d1_obj.lon)
                 dignified = set()
                 for v in SHODASAVARGA:
-                    vlon = varga_position(d1_lon, v)
+                    vlon = varga_position(d1_lon, v, self.varga_variant_map.get(v))
                     if self.dignity(obj_id, sign_of_lon(vlon), vlon % 30.0) in dignified_set:
                         dignified.add(v)
                 row['amsa'] = {g: amsa_bala(dignified, g) for g in VARGA_GROUPS}
@@ -2156,7 +2823,7 @@ class JyotishEngine:
             if obj:
                 objs[obj_id] = obj
                 planet_lons[obj_id] = obj.lon
-        karakas = chara_karakas(planet_lons)
+        karakas = chara_karakas(planet_lons, scheme=self.karaka_scheme)
         rows = []
         for k in karakas:
             obj_id = k['planet']
@@ -2173,7 +2840,85 @@ class JyotishEngine:
                 'signlon': obj.signlon,
                 'karakaDegree': k['degree'],  # 卡拉卡用度(罗睺为逆量)
             })
-        return {'charaKarakas': rows}
+        return {'charaKarakas': rows, 'karakaScheme': self.karaka_scheme,
+                'ayurTriPair': self._jaimini_ayur_tri_pair()}
+
+    def _jaimini_ayur_tri_pair(self):
+        """Jaimini 寿命三对法(古籍通行版本):①Lagna×Hora Lagna ②Moon×Lagna ③Saturn×Hora Lagna。
+        每对按两点所在座「动/固/双」三态组合映射档位(各教材一致的循环表):
+        同动=purna(长)/同固=alpa(短)/同双=madhya(中);混合取第三态档
+        (动+固=madhya、固+双=purna、动+双=alpa)。三票多数,平票取 madhya。
+        「前后关系」诸版本仅作次级微调且口径不一 → 不实现(不臆造),note 标注。"""
+        try:
+            from flatlib.ephem import eph
+            from astrostudy.india.primitives import MOVABLE, FIXED
+            asc = self.d1_asc if self.d1_asc is not None else self.asc
+            moon = self.d1_moon if self.d1_moon is not None else self.moon
+            sat = safe_get(self.d1_chart, const.SATURN)
+            sun = self.d1_sun if getattr(self, 'd1_sun', None) is not None else safe_get(self.d1_chart, const.SUN)
+            if asc is None or moon is None or sat is None or sun is None:
+                return {'available': False, 'reason': 'missing_points'}
+            # Hora Lagna:日出起每 2.5 灵时进 1 座 → 经度式 = 日出太阳 + elapsed×(360/720min)
+            jd = self.d1_perchart.dateTime.jd
+            lat = self.d1_perchart.pos.lat
+            lon_geo = self.d1_perchart.pos.lon
+            try:
+                sunrise_jd = eph.lastSunrise(jd, lat, lon_geo)
+                elapsed_minutes = (jd - sunrise_jd) * 1440.0
+                sun_at_sunrise = (float(sun.lon) - 0.98565 * (elapsed_minutes / 1440.0)) % 360.0
+                hl = (sun_at_sunrise + elapsed_minutes * 0.5) % 360.0
+            except Exception:
+                return {'available': False, 'reason': 'sunrise_unavailable'}
+
+            def _quality(lon):
+                sgn = const.LIST_SIGNS[sign_index_from_lon(lon)]
+                if sgn in MOVABLE:
+                    return 'movable'
+                if sgn in FIXED:
+                    return 'fixed'
+                return 'dual'
+
+            BAND = {'movable': 'purna', 'fixed': 'alpa', 'dual': 'madhya'}
+            THIRD = {frozenset(('movable', 'fixed')): 'madhya',
+                     frozenset(('fixed', 'dual')): 'purna',
+                     frozenset(('movable', 'dual')): 'alpa'}
+            BAND_CN = {'purna': '长寿 Pūrṇa(约64-100)', 'madhya': '中寿 Madhya(约32-64)', 'alpa': '短寿 Alpa(约0-32)'}
+
+            def _verdict(a_lon, b_lon):
+                qa, qb = _quality(a_lon), _quality(b_lon)
+                if qa == qb:
+                    return BAND[qa]
+                return THIRD[frozenset((qa, qb))]
+
+            asc_lon = float(asc.lon) % 360.0
+            moon_lon = float(moon.lon) % 360.0
+            sat_lon = float(sat.lon) % 360.0
+            pairs_def = [
+                ('Lagna × Hora Lagna', 'Lagna', asc_lon, 'Hora Lagna', hl),
+                ('Moon × Lagna', 'Moon', moon_lon, 'Lagna', asc_lon),
+                ('Saturn × Hora Lagna', 'Saturn', sat_lon, 'Hora Lagna', hl),
+            ]
+            pairs = []
+            votes = {'purna': 0, 'madhya': 0, 'alpa': 0}
+            for name, an, al, bn, bl in pairs_def:
+                v = _verdict(al, bl)
+                votes[v] += 1
+                a_sign = const.LIST_SIGNS[sign_index_from_lon(al)]
+                b_sign = const.LIST_SIGNS[sign_index_from_lon(bl)]
+                pairs.append({'name': name, 'aPoint': an, 'bPoint': bn,
+                              'aSign': a_sign, 'aSignLabel': SIGN_CN.get(a_sign, a_sign),
+                              'bSign': b_sign, 'bSignLabel': SIGN_CN.get(b_sign, b_sign),
+                              'aQuality': _quality(al), 'bQuality': _quality(bl),
+                              'verdict': v, 'verdictLabel': BAND_CN[v]})
+            best = max(votes.values())
+            leaders = [k for k, n in votes.items() if n == best]
+            majority = leaders[0] if len(leaders) == 1 else 'madhya'   # 平票取中档
+            return {'available': True, 'pairs': pairs, 'votes': votes,
+                    'majority': majority, 'band': majority, 'bandLabel': BAND_CN[majority],
+                    'horaLagnaLon': round(hl, 4),
+                    'note': '三对法·古籍通行版本(各版配对略异);同质=本档(动长/固短/双中),混合取第三态;仅档位参考,不作寿命断言。'}
+        except Exception as exc:
+            return {'available': False, 'reason': str(exc)}
 
     def _kp_placidus_cusps(self):
         """KP CSL 用真 Placidus 不等宫 sidereal 宫始(P0-9)。KP 标准恒用 Placidus,
@@ -2483,7 +3228,7 @@ class JyotishEngine:
             result['specialLagnas'] = special_lagnas(
                 sun_at_sunrise, elapsed_minutes,
                 getattr(self.d1_asc, 'lon', 0.0), getattr(self.d1_moon, 'lon', 0.0),
-                sun_lon_at_birth=sun_lon)   # PP 出生太阳变体(PyJHora)
+                sun_lon_at_birth=sun_lon)   # PP 出生太阳变体(现代变体)
         except Exception:
             result['specialLagnas'] = None
             result['note'] = '日出不定(极地等)，特殊上升优雅降级'
@@ -2605,7 +3350,49 @@ class JyotishEngine:
         # planet_lons 供 rasi 大运强弱判据的度数级 tiebreak(双主/seed 比较的终极一级)。
         inputs = {'lagna_sign': self.d1_asc.sign, 'planet_signs': planet_signs,
                   'planet_lons': planet_lons,
-                  'sthira_start': getattr(self, 'sthira_start', 'lagna')}
+                  'sthira_start': getattr(self, 'sthira_start', 'lagna'),
+                  'dashaVariants': self.dasha_variants}
+        # 新增座运输入:Chakra 昼夜/座主、Navamsa D9 全盘、Varnada VL、Chara 结果(Paryaya 用)。
+        try:
+            inputs['is_day'] = bool(self.d1_chart.isDiurnal())
+        except Exception:
+            inputs['is_day'] = None
+        inputs['lagna_signlon'] = float(getattr(self.d1_asc, 'signlon', 0.0) or 0.0)
+        from astrostudy.india.rasi_dasha import SIGN_LORDS as _P_SIGN_LORDS
+        _lag_lord = _P_SIGN_LORDS.get(self.d1_asc.sign)
+        inputs['lagna_lord_sign'] = planet_signs.get(_lag_lord)
+        if self.d1_moon is not None:
+            _moon_lord = _P_SIGN_LORDS.get(self.d1_moon.sign)
+            inputs['moon_lord_sign'] = planet_signs.get(_moon_lord)
+        # D9 全盘(navamsa 座:lon×9 mod 360 与标准 D9 座同构)
+        inputs['d9_lagna_sign'] = sign_of_lon((float(self.d1_asc.lon) * 9.0) % 360.0)
+        inputs['d9_planet_signs'] = {pid: sign_of_lon((float(l) * 9.0) % 360.0)
+                                     for pid, l in planet_lons.items()}
+        inputs['d9_planet_lons'] = {pid: (float(l) * 9.0) % 360.0 for pid, l in planet_lons.items()}
+        # Varnada Lagna:HL 与 upagraha.special_lagnas 同口径内联(日出回推),再经
+        # supplementary_lagna.varnada_lagna 求 VL 座;日出不定(极地)→ 降级 None。
+        try:
+            from astrostudy.india.supplementary_lagna import varnada_lagna as _vl
+            _jd = self.d1_perchart.dateTime.jd
+            _sunrise = eph.lastSunrise(_jd, self.d1_perchart.pos.lat, self.d1_perchart.pos.lon)
+            _elapsed_min = (_jd - _sunrise) * 1440.0
+            _sun_lon = float(self.d1_sun.lon)
+            _sun_rise_lon = (_sun_lon - 0.98565 * (_elapsed_min / 1440.0)) % 360.0
+            _hl_lon = (_sun_rise_lon + (_elapsed_min / 60.0) * 30.0) % 360.0
+            _vl_entry = _vl(self.d1_asc.sign, sign_of_lon(_hl_lon))
+            inputs['varnada_lagna_sign'] = (_vl_entry or {}).get('sign')
+        except Exception:
+            inputs['varnada_lagna_sign'] = None
+        # Chara 结果供 Paryaya(直接复算一次轻量 chara;年数序列小)
+        try:
+            from astrostudy.india.dasha_extended import chara_dasha as _chd
+            _dvv = self.dasha_variants
+            inputs['chara_result'] = _chd(
+                self.d1_asc.sign, planet_signs, planet_lons, with_antardashas=False,
+                direction_rule=_dvv.get('charaDirection', 'lagna_parity_sign'),
+                dignity_rule=_dvv.get('charaDignity', 'plus_minus_one'))
+        except Exception:
+            inputs['chara_result'] = None
         if self.d1_moon:
             nak = 360.0 / 27.0
             moon_lon = float(self.d1_moon.lon)
@@ -2615,6 +3402,8 @@ class JyotishEngine:
             inputs['sree_lagna_signlon'] = sl_lon % 30.0
             mk = nakshatra_from_lon(moon_lon)
             inputs['moon_lon'] = moon_lon
+            # 月亮 D9(navamsa)座:Kalachakra 适用条件变体(#月navamsa强于rasi)判据输入。
+            inputs['moon_d9_sign'] = sign_of_lon((moon_lon * 9.0) % 360.0)
             inputs['moon_nak_name'] = mk['name']
             inputs['moon_pada'] = mk['pada']
             inputs['moon_nak_progress'] = mk['progress']
@@ -2663,7 +3452,9 @@ class JyotishEngine:
         }
 
 
-def build_jyotish(perchart, chartnum=1, d1_perchart=None, dasha_seed=None, sthira_start=None, dasha_system=None):
+def build_jyotish(perchart, chartnum=1, d1_perchart=None, dasha_seed=None, sthira_start=None, dasha_system=None,
+                  dasha_year_days=None, varga_variants=None, karaka_scheme=None, yuddha_criterion=None,
+                  dasha_variants=None):
     """在 perchart(可为分盘) 上计算 Jyotish；d1_perchart 提供 always-D1 子项的 D1 盘。
 
     chartnum==1 且 d1_perchart 为 None、dasha_seed/dasha_system 缺省时退化为重构前行为
@@ -2673,4 +3464,7 @@ def build_jyotish(perchart, chartnum=1, d1_perchart=None, dasha_seed=None, sthir
     其余三树(vimshottari/yogini/ashtottari/tribhagi)只出 maha 顶层(剪 antar/pratyantar,顶层元数据与 maha 时间轴保留)。
     """
     return JyotishEngine(perchart, chartnum=chartnum, d1_perchart=d1_perchart, dasha_seed=dasha_seed,
+                         dasha_year_days=dasha_year_days,
+                         varga_variants=varga_variants, karaka_scheme=karaka_scheme,
+                         yuddha_criterion=yuddha_criterion, dasha_variants=dasha_variants,
                          sthira_start=sthira_start, dasha_system=dasha_system).compute()

@@ -50,7 +50,8 @@ class SpaceTimePanel extends Component{
 		const showLocation = this.props.showLocation !== false;
 		const timeEditor = (
 			<div className="horosa-time-popover">
-				<PlusMinusTime value={value} onChange={this.props.onTimeChange} needZone={needZone} />
+				<PlusMinusTime value={value} onChange={this.props.onTimeChange} needZone={needZone}
+					onStepSelect={this.props.onStepSelect} />
 			</div>
 		);
 
@@ -73,6 +74,7 @@ class SpaceTimePanel extends Component{
 							adjustOnly
 							confirmOnAdjust={this.props.confirmOnAdjust !== false}
 							needZone={needZone}
+							onStepSelect={this.props.onStepSelect}
 						/>
 					</div>
 				</div>

@@ -159,6 +159,40 @@ def shashtiamsa_nature(longitude):
             'nature': 'malefic' if deity_idx in _D60_KRURA else 'benefic'}
 
 
+# 分盘变体合法值注册表(仅列已实现集合;standard 恒等 None,不入表)。
+# 新变体必须先在 _varga_variant_sign 落实现再登记,禁止先登记后实现。
+VARGA_VARIANT_CHOICES = {
+    2: ('parivritti', 'kashinatha'),
+    3: ('parivritti', 'jagannatha', 'somanatha'),
+    24: ('correct',),
+    30: ('equal',),
+}
+
+
+def normalize_varga_variants(raw):
+    """请求形状 {"2":"parivritti",...}(dict 或 JSON 串)→ {int chartnum: variant}。
+    只保留注册表内合法非 standard 项;任何解析失败/非法值静默丢弃(缺省 {} = 零回归)。"""
+    if not raw:
+        return {}
+    if isinstance(raw, str):
+        try:
+            import json as _json
+            raw = _json.loads(raw)
+        except Exception:
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for k, v in raw.items():
+        try:
+            cn = int(k)
+        except (TypeError, ValueError):
+            continue
+        if v and v != 'standard' and v in VARGA_VARIANT_CHOICES.get(cn, ()):
+            out[cn] = v
+    return out
+
+
 def _varga_variant_sign(chartnum, variant, sign_index, part):
     if not variant or variant == 'standard':
         return None
@@ -251,10 +285,15 @@ def _relocate_house(house, longitude, hsys):
     house.decl = decl
 
 
-def apply_varga_chart(perchart, chartnum):
+def apply_varga_chart(perchart, chartnum, variant=None):
     chartnum = normalize_chartnum(chartnum)
     definition = VARGA_DEFINITIONS[chartnum]
+    # variant=None|'standard' 走原分支(字节级零回归);非法值按 None 处理(防御)。
+    if variant == 'standard' or (variant and variant not in VARGA_VARIANT_CHOICES.get(chartnum, ())):
+        variant = None
     perchart.vargaChart = dict({'chartnum': chartnum}, **definition)
+    if variant:
+        perchart.vargaChart['variant'] = variant
     perchart.vargaEngineVersion = VARGA_ENGINE_VERSION
     if chartnum == 1:
         perchart.reinit()
@@ -266,8 +305,8 @@ def apply_varga_chart(perchart, chartnum):
     desc = chart.getAngle(const.DESC)
     ic = chart.getAngle(const.IC)
 
-    asclon = varga_position(asc.lon, chartnum)
-    mclon = varga_position(mc.lon, chartnum)
+    asclon = varga_position(asc.lon, chartnum, variant)
+    mclon = varga_position(mc.lon, chartnum, variant)
     _relocate(asc, asclon)
     _relocate(mc, mclon)
     _relocate(desc, asclon + 180.0)
@@ -282,9 +321,9 @@ def apply_varga_chart(perchart, chartnum):
         _relocate_house(house, house1lon + (house_num - 1) * 30.0, perchart.house)
 
     for obj in chart.objects:
-        _relocate(obj, varga_position(obj.lon, chartnum))
+        _relocate(obj, varga_position(obj.lon, chartnum, variant))
     for obj in chart.pars:
-        _relocate(obj, varga_position(obj.lon, chartnum))
+        _relocate(obj, varga_position(obj.lon, chartnum, variant))
 
     perchart.reinit()
     return perchart

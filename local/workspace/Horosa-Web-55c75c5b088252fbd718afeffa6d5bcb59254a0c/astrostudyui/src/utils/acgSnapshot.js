@@ -8,6 +8,7 @@ const PLANET_CN = {
 	Jupiter: '木星', Saturn: '土星', Uranus: '天王星', Neptune: '海王星', Pluto: '冥王星',
 	'North Node': '北交点', 'South Node': '南交点', Chiron: '凯龙星',
 	'Dark Moon': '莉莉丝', 'Purple Clouds': '紫炁',
+	Ceres: '谷神星', Pallas: '智神星', Juno: '婚神星', Vesta: '灶神星', Eris: '阋神星',
 };
 const MODE_CN = { mundo: '本体(in-mundo·真黄纬)', zodiac: '黄道度(β=0)' };
 const COORD_CN = { geo: '地心', helio: '日心' };
@@ -71,6 +72,14 @@ export function buildAcgSectionText(){
 	const head = [];
 	head.push(`口径 ${MODE_CN[meta.mode] || meta.mode || '本体'}`);
 	head.push(`坐标系 ${COORD_CN[meta.coord] || meta.coord || '地心'}`);
+	if(meta.draconic){ head.push(`龙黄道 ${meta.draconic === 'true' ? '真交点' : '平交点'}`); }
+	if(meta.harmonic){ head.push(`谐波 H${meta.harmonic}`); }
+	if(meta.vibration){ head.push('振动线 5/7/9'); }
+	if(meta.nodeType === 'true'){ head.push('真交点'); }
+	if(meta.lilithType && meta.lilithType !== 'mean'){ head.push(`Lilith ${({ true: '真', intp: '插值', body: '星体' })[meta.lilithType] || meta.lilithType}`); }
+	if(meta.asteroids){ head.push('含小行星'); }
+	if(meta.posType && meta.posType !== 'apparent'){ head.push(meta.posType === 'true' ? '真位置' : 'J2000读数'); }
+	if(meta.horizon === 'apparent'){ head.push('折射地平'); }
 	if(meta.ayanLabel){
 		head.push(`恒星黄道读数 ${meta.ayanLabel}(岁差 ${meta.ayanVal}°)`);
 	}

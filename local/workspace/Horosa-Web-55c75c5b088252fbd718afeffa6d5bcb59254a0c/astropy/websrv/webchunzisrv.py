@@ -6,6 +6,7 @@ import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    authoritative_pillars,
     build_snapshot,
     clean_text,
     display_safe,
@@ -17,8 +18,8 @@ from websrv.kentang.kinastro_common import (
     parse_datetime,
     row,
     source_text,
-    to_int,
     timezone_to_float,
+    to_int,
 )
 
 
@@ -239,6 +240,13 @@ class ChunZiSrv:
             timezone_value = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             gender = _gender_for_chunzi(data.get("gender"))
             gz = calculate_ganzhi_from_datetime(dt, data.get("after23NewDay", 1))
+            # 🔴 标准四柱换全局权威口径(立春界/定气月/儒略JDN,全域含 BC)。
+            #    现代域两者一致=零回归;1/2 月未过立春与 BC 年才有差(那正是要修的)。
+            #    取不到权威实现时保留旧值,故用 update 而非整体替换。
+            _auth_gz = authoritative_pillars(dt, data)
+            if _auth_gz:
+                gz = dict(gz)
+                gz.update(_auth_gz)
             pillars = [
                 {"key": "year", "label": "年柱", "ganzhi": display_text(gz["year"])},
                 {"key": "month", "label": "月柱", "ganzhi": display_text(gz["month"])},

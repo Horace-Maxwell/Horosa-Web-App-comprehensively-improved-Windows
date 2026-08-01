@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index b5402e7..bd3d8bd 100644
+index bd0f274..ad1f4f7 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
-@@ -16,13 +16,14 @@ import CaseList from '../components/user/CaseList';
+@@ -16,6 +16,7 @@ import CaseList from '../components/user/CaseList';
  import AstroFormComp from '../components/astro/AstroFormComp';
  import AstroChartMain from '../components/astro/AstroChartMain';
  import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
@@ -10,15 +10,7 @@ index b5402e7..bd3d8bd 100644
  
  // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
  // 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
- // WS-N3(2026-07-16):悬停预取注册表迁至 utils/navPreload.js —— 模块选择器/快捷坞等公共组件
- // 也要消费,从 pages 导入会成 components ← pages 循环依赖;此处声明时登记,消费方 import util。
- const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
--// order: 1=hot(高频技法,先预载) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
-+// order: 1=hot(高频技法,先预载) 1.5=城市大库(见下) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
- function lazyPreloadable(factory, opts = {}){
- 	// [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
- 	// React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
-@@ -93,6 +94,20 @@ function startIdlePreload(){
+@@ -95,6 +96,20 @@ function startIdlePreload(){
  	}, 1000);
  }
  
@@ -39,7 +31,7 @@ index b5402e7..bd3d8bd 100644
  // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
  const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
  const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
-@@ -141,7 +156,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
+@@ -144,7 +159,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
  import XQIcon from '../components/xq-icons';
  import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
  import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
@@ -53,7 +45,7 @@ index b5402e7..bd3d8bd 100644
  
  const TabPane = XQTabs.TabPane;
  
-@@ -366,7 +387,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -369,7 +390,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          caseTotal,
      } = user;
   	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
@@ -107,7 +99,7 @@ index b5402e7..bd3d8bd 100644
  
      
      function closeDrawer(){
-@@ -417,6 +483,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -423,6 +489,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
          if(needRefresh){
              tabRefreshSigRef.current[key] = currentSig;
@@ -117,7 +109,7 @@ index b5402e7..bd3d8bd 100644
              setTimeout(()=>{
                  if(!(predictHook[key] && predictHook[key].fun)){ return; }
                  if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-@@ -438,69 +507,93 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -444,8 +513,26 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
              }, 0);
          }
  
@@ -131,7 +123,7 @@ index b5402e7..bd3d8bd 100644
 +    // 旧写法 `{...fields}` **只拷了顶层**:`flds.date` 与 `fields.date` 是同一个对象,
 +    // `flds.date.value = x` 改的是 state 里那个对象本身 ⇒ 「旧 fields」与「新 fields」的
 +    // 嵌套对象引用完全相同,任何按引用比较的 React.memo / shouldComponentUpdate 都会判
-+    // 「没变」而跳过重渲(或反过来:整树重渲,因为顶层引用永远是新的)。这正是本轮渲染
++    // 「没变」而跳过重渲(或反过来:整树重渲,因为顶层引用永远是新的)。这正是渲染
 +    // 优化的**前提** —— 不修它,后面加多少 memo 都是白加。
 +    // 与 models/astro.js 的 fetchByChartData 早已修好的是同一个 bug(注释见该文件 ~1260)。
 +    // setFld 一律产出**新对象**;`{...(prev || {name:[name]})}` 保留原有 name 数组与其它
@@ -144,23 +136,17 @@ index b5402e7..bd3d8bd 100644
      function changeCond(values){
          let flds = {
              ...fields,
--        };  
-+        };
-         if(values.nohook){
-             flds.nohook = true;
--        }  
-+        }
+@@ -456,78 +543,81 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
  
          if(values.tm !== undefined && values.tm != null){
              let birth = values.tm;
 -            flds.date.value = birth.clone();
 -            flds.time.value = birth.clone();
 -            flds.ad.value = birth.ad;
--            // zone 兜底链:DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
 +            setFld(flds, 'date', birth.clone());
 +            setFld(flds, 'time', birth.clone());
 +            setFld(flds, 'ad', birth.ad);
-+            // zone 兜底链(上游 v3.5.1):DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
+             // zone 兜底链:DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
              // 任何一环 undefined 直写会让请求丢 zone 键(Java miss.zone)且污染持久 fields。
 -            flds.zone.value = birth.zone || flds.zone.value || '+08:00';
 +            setFld(flds, 'zone', birth.zone || (flds.zone && flds.zone.value) || '+08:00');
@@ -194,6 +180,32 @@ index b5402e7..bd3d8bd 100644
 -            flds.triplicity.value = values.triplicity;
 +            setFld(flds, 'triplicity', values.triplicity);
              dispatch({ type: 'app/save', payload: { tripSystem: values.triplicity } });
+         }
+         // 流派全维分化三项(P1-D1)：预设一次性带入 → 写 fields，由 fieldsToParams 条件透传(默认值不下发，零回归)。
+         // 🔴 changeCond 是显式白名单：不在此登记的键会被静默丢弃(选档后该维不生效)。
++        // (horosa_change_cond_no_mutate_v1:以下新键与旧键一律经 setFld 产新对象,绝不就地赋值。)
+         if(values.lotReversal !== undefined && values.lotReversal !== null){
+-            if(!flds.lotReversal){ flds.lotReversal = { value: 1, name: ['lotReversal'] }; }
+-            flds.lotReversal.value = values.lotReversal;
++            setFld(flds, 'lotReversal', values.lotReversal);
+         }
+         if(values.sectBuffer !== undefined && values.sectBuffer !== null){
+-            if(!flds.sectBuffer){ flds.sectBuffer = { value: 'geo', name: ['sectBuffer'] }; }
+-            flds.sectBuffer.value = values.sectBuffer;
++            setFld(flds, 'sectBuffer', values.sectBuffer);
+         }
+         if(values.orbs !== undefined){
+             // 相位模型：degree 档写 moiety 容许度差异项；whole 档传 null ⇒ 据实清空(回默认表、不下发)。
+             // 🔴 传 undefined 会被本行 !==undefined 判定跳过 → 切回默认档时 moiety 残留、流派反查误判。
+-            if(!flds.orbs){ flds.orbs = { value: undefined, name: ['orbs'] }; }
+-            flds.orbs.value = values.orbs === null ? undefined : values.orbs;
++            setFld(flds, 'orbs', values.orbs === null ? undefined : values.orbs);
+         }
+         if(values.lotsDocReverse !== undefined){
+             // 点公式文档口径(婚姻男女/子女/朋友/疾病)：不反转档带 1；其余档显式 0 ⇒ fieldsToParams 不下发。
+-            if(!flds.lotsDocReverse){ flds.lotsDocReverse = { value: 0, name: ['lotsDocReverse'] }; }
+-            flds.lotsDocReverse.value = values.lotsDocReverse;
++            setFld(flds, 'lotsDocReverse', values.lotsDocReverse);
          }
          if(values.lon !== undefined && values.lon !== null){
 -            flds.lon.value = values.lon;
@@ -236,7 +248,7 @@ index b5402e7..bd3d8bd 100644
              }
          }
  
-@@ -514,6 +607,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -541,6 +631,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                  // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
                  ...(values.step ? { __stepHint: values.step } : {}),
              };
@@ -245,7 +257,7 @@ index b5402e7..bd3d8bd 100644
              // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
              // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
              // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
-@@ -530,6 +625,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -557,6 +649,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
          cancelPendingTimeDispatch();
  
@@ -253,7 +265,7 @@ index b5402e7..bd3d8bd 100644
          dispatch({
              type: 'astro/fetchByFields',
              payload: flds,
-@@ -878,6 +974,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -910,6 +1003,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                          height={height}
                          fields={fields}
                          fieldsAry={aryfields}

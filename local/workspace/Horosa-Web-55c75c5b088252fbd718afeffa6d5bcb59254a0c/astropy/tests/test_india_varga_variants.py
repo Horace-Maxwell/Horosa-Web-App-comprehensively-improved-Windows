@@ -131,3 +131,75 @@ def test_d60_krura_count_is_24():
     malefic = sum(1 for seg in range(1, 61)
                   if shashtiamsa_nature(0 * 30 + (seg - 0.5) * 0.5)['nature'] == 'malefic')
     assert malefic == 24
+
+
+# ── W1-A:apply_varga_chart 吃 variant(主盘驱动)──────────────────────────
+
+def _mini_kernel():
+    from astrostudy.india.india_chart_kernel import IndiaChartKernel
+    return IndiaChartKernel({
+        'date': '1990/05/15', 'time': '08:30:00', 'zone': '+08:00',
+        'lat': 39.9042, 'lon': 116.4074, 'ad': 1,
+        'tradition': False, 'predictive': False, 'zodiacal': 1,
+        'siderealMode': 'lahiri', 'hsys': 0, 'name': 'vv', 'pos': '',
+    })
+
+
+def test_apply_varga_none_equals_standard_byte_identical():
+    # variant=None 与 'standard' 与「不传」三者主盘全曜经度逐字节相等(零回归锚)。
+    from astrostudy.india.varga import apply_varga_chart
+    for cn in (2, 3, 24, 30):
+        lons = {}
+        for tag, kw in (('bare', {}), ('none', {'variant': None}), ('std', {'variant': 'standard'})):
+            k = _mini_kernel()
+            apply_varga_chart(k, cn, **kw)
+            lons[tag] = [(o.id, float(o.lon)) for o in k.chart.objects]
+        assert lons['bare'] == lons['none'] == lons['std']
+
+
+def test_apply_varga_variant_matches_comparison_card():
+    # 各变体主盘落座 == varga_variants() 对照卡同名列(自洽);且与 standard 存在差异。
+    from astrostudy.india.varga import apply_varga_chart, VARGA_VARIANT_CHOICES
+    from astrostudy.india.jyotish_engine import JyotishEngine
+    from flatlib import const as fc
+    base = _mini_kernel()
+    eng = JyotishEngine(base)
+    card = eng.varga_variants()
+    assert card['available'] is True
+    by_cn = {c['chartnum']: c for c in card['charts']}
+    planets = (fc.SUN, fc.MOON, fc.MARS, fc.MERCURY, fc.JUPITER, fc.VENUS, fc.SATURN,
+               fc.NORTH_NODE, fc.SOUTH_NODE)
+    diffs = 0
+    for cn, variants in VARGA_VARIANT_CHOICES.items():
+        for v in variants:
+            k = _mini_kernel()
+            apply_varga_chart(k, cn, v)
+            signs_main = {}
+            for o in k.chart.objects:
+                if o.id in planets:
+                    signs_main[o.id] = o.sign
+            rows = {r['planet']: r for r in by_cn[cn]['planets']}
+            for pid in planets:
+                cell = next(c for c in rows[pid]['cells'] if c['variant'] == v)
+                assert signs_main[pid] == cell['sign'], (cn, v, pid)
+            std = {pid: next(c for c in rows[pid]['cells'] if c['variant'] == 'standard')['sign'] for pid in planets}
+            if any(std[pid] != signs_main[pid] for pid in planets):
+                diffs += 1
+    assert diffs >= 5   # 七变体在本样本至少 5 个与 standard 有落座差(死开关防线)
+
+
+def test_normalize_varga_variants_contract():
+    from astrostudy.india.varga import normalize_varga_variants
+    assert normalize_varga_variants(None) == {}
+    assert normalize_varga_variants('') == {}
+    assert normalize_varga_variants('not-json') == {}
+    assert normalize_varga_variants({'2': 'parivritti', '3': 'standard', '24': 'bogus', 'x': 'equal'}) == {2: 'parivritti'}
+    assert normalize_varga_variants('{"30":"equal","2":"kashinatha"}') == {30: 'equal', 2: 'kashinatha'}
+
+
+def test_engine_selected_marker_follows_variants():
+    from astrostudy.india.jyotish_engine import JyotishEngine
+    eng = JyotishEngine(_mini_kernel(), varga_variants={'3': 'somanatha'})
+    card = eng.varga_variants()
+    sel = {c['chartnum']: c['selected'] for c in card['charts']}
+    assert sel[3] == 'somanatha' and sel[2] == 'standard' and sel[24] == 'standard' and sel[30] == 'standard'

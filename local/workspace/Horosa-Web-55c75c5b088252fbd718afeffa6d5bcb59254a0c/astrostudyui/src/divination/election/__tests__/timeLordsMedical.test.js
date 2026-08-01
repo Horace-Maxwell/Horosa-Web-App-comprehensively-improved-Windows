@@ -125,9 +125,12 @@ describe('WP-10 可判性+胜利星', () => {
 		expect(m).toContain('极晚');
 	});
 
-	it('Almuten Figuris:fixture 手算锚(月20/火17/木16)', () => {
+	it('Almuten Figuris:fixture 手算锚(月20/金16/木13,五命点权威法·三分按昼夜取主+共主)', () => {
+		// R2 口径统一(engine/almuten.almutenFiguris):三分不再昼夜双主齐计,改按盘 sect 取主+Dorothean 共主。
+		// 手算(昼盘/埃及界):双鱼24.9→木5金(旺4+昼三分3)月3火(界2面1);巨蟹7→月(庙5共3)木4金(3+2+1);
+		// 白羊15→火5日(4+3+1)土3水2;巨蟹27.1→月(5+3+1)木4金3土2 ⇒ 月20/金16/木13/火8/日8/土5/水2。
 		const m = msgs(sectionOf(runElection(buildMockResult(), 'marriage'), 'almuten'));
 		expect(m).toContain('胜利星（Almuten Figuris）：月亮（20 分');
-		expect(m).toContain('次位：火星(17)、木星(16)');
+		expect(m).toContain('次位：金星(16)、木星(13)');
 	});
 });

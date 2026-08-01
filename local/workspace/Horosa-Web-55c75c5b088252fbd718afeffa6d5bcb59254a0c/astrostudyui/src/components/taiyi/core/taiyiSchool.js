@@ -1,15 +1,26 @@
 // 太乙流派覆盖层(§33/§44)。以 kintaiyi 后端 pan 为底,按用户所选流派开关「覆盖」受影响神煞 +
 // 几何重算主客算(决策3:前端纯派生,零碰后端立成表 golden)。默认全 = kintaiyi → 覆盖为空操作 → 字节不变。
 // 公式移植自文档「古法复原」引擎(jishen_zhi/shiji_index/wenchang_index/junji/chenji/dayou/xiaoyou)。
-// 存疑项(C-3)标【古法几何】来源;始击坐标系(九宫/十六神)二式未核实,暂不做开关(待源)。
+// 存疑项(C-3)标【古法几何】来源;始击坐标系(九宫/十六神)二式未核实,做【实验开关】+「存疑·待源」徽标,默认仍从盘。
 import { suanFrom } from './taiyiDuanfa';
+import { parseDateParts } from '../../../utils/dateStrSafe';
+
+// 遁向单一判据:值在 kook.text(形如「陰遁六十局」)且用**繁体**陰/陽;
+// kook.year 的值域是 理天/理地/理人,拿它判「阴」恒不命中 —— 阴遁盘会被当成阳遁,
+// 既让概览的「阴阳遁」一行恒显阳遁,也让按遁向排文昌的流派覆盖排错。
+export function dunOfKook(pan){
+	const t = pan && pan.kook ? `${pan.kook.text || ''}` : '';
+	if(/[阴陰]/.test(t)){ return '阴'; }
+	if(/[阳陽]/.test(t)){ return '阳'; }
+	return '';
+}
 
 const DIZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
 const RING16 = '子丑艮寅卯辰巽巳午未坤申酉戌乾亥'.split(''); // 十六神环落点序(=POS2INDEX)
 const EPOCH = { 0: 10153917, 1: 1936557, 3: 10153917 }; // tn→积年常数(统宗/金镜/太乙局≈统宗)
 
 // 默认流派选项(全 = kintaiyi 现行,覆盖为空操作)
-export const DEFAULT_TAIYI_SCHOOL = { jishen: 'default', wenchang: 'default', keJianChen: 'default', sanji: 'default', youshen: 'default' };
+export const DEFAULT_TAIYI_SCHOOL = { jishen: 'default', wenchang: 'default', keJianChen: 'default', sanji: 'default', youshen: 'default', shijiCoord: 'default' };
 
 export const TAIYI_SCHOOL_OPTIONS = {
 	jishen: [{ value: 'default', label: '默认(从盘)' }, { value: '逆', label: '逆行·古法' }, { value: '顺', label: '顺行·今本' }],
@@ -17,6 +28,8 @@ export const TAIYI_SCHOOL_OPTIONS = {
 	keJianChen: [{ value: 'default', label: '默认(从盘)' }, { value: '加一', label: '间辰加一' }, { value: '无加一', label: '间辰不加' }],
 	sanji: [{ value: 'default', label: '默认(从盘)' }, { value: '淘金歌', label: '淘金歌(君臣午·民戌)' }, { value: '金镜', label: '金镜(三基皆戌)' }],
 	youshen: [{ value: 'default', label: '默认(从盘)' }, { value: '顺', label: '金镜顺行' }, { value: '逆', label: '淘金歌逆行' }],
+	// 始击坐标系(实验·存疑待源):默认从盘;九宫=始击投影至八正宫;十六神=始击留十六神环几何位。非默认时连带重算客算。
+	shijiCoord: [{ value: 'default', label: '默认(从盘)' }, { value: '九宫', label: '九宫坐标(实验·存疑)' }, { value: '十六神', label: '十六神坐标(实验·存疑)' }],
 };
 
 export function normalizeTaiyiSchool(s){
@@ -51,8 +64,10 @@ function wenchangIndex(ju, dun, withDouble){
 function jinianOfPan(pan){
 	const tn = pan && pan.tn !== undefined ? Number(pan.tn) : 0;
 	const ep = EPOCH[tn] !== undefined ? EPOCH[tn] : EPOCH[0];
-	const yr = pan && pan.dateStr ? parseInt(String(pan.dateStr).slice(0, 4), 10) : NaN;
-	return isNaN(yr) ? null : ep + yr;
+	// 🔴 BC 安全:裸 slice(0,4) 对 '-0500-…' 得 '-050'(差 10 倍)、五位年被截 →
+	// 走 parseDateParts(带符号 1~5 位年全域安全;同族 TaiYiCalc/TaiXuan/WuZhao 同款)。
+	const yr = pan && pan.dateStr ? parseDateParts(String(pan.dateStr)).year : NaN;
+	return (yr === null || yr === undefined || isNaN(yr)) ? null : ep + yr;
 }
 // 大游/小游(taiyi.py),dir='顺'用正序、'逆'反向遍历
 function youGong(jinian, kind, dir){
@@ -70,7 +85,7 @@ export function applyTaiyiSchool(basePan, school){
 	if(!basePan || isDefaultSchool(s)){ return { pan: basePan, overrides: new Set(), geoSuan: false }; }
 	const pan = { ...basePan };
 	const overrides = new Set();
-	const dun = pan.kook && pan.kook.year ? (String(pan.kook.year).indexOf('阴') >= 0 ? '阴' : '阳') : (Number(pan.taiyiNum) ? '阳' : '阳');
+	const dun = dunOfKook(pan) || '阳';
 	const ju = pan.kook ? Number(pan.kook.num) : 0;
 	const yearZhi = pan.ganzhi && pan.ganzhi.year ? String(pan.ganzhi.year).charAt(1) : '';
 	const taiyiPos = pan.taiyiPalace;
@@ -88,8 +103,18 @@ export function applyTaiyiSchool(basePan, school){
 		const sjIdx = shijiIndex(wcIdx, js);
 		if(sjIdx !== null){ pan.sf = RING16[sjIdx]; overrides.add('sf'); }
 	}
-	// 3) 主客算几何重算(文昌/计神/客算间辰 任一非默认 → 改用几何 _suan_from,标【古法几何】)
-	const geoSuan = (s.wenchang !== 'default' || s.jishen !== 'default' || s.keJianChen !== 'default');
+	// 2.5) 始击坐标系(实验·存疑待源):九宫=始击投影至后一正宫;十六神=留几何环位。非默认→连带重算客算。
+	if(s.shijiCoord !== 'default' && pan.sf){
+		const sjIdx = RING16.indexOf(pan.sf);
+		if(sjIdx >= 0 && s.shijiCoord === '九宫'){
+			let i = sjIdx; while(i % 2 === 1){ i = (i + 1) % 16; }   // 间神(奇索引)→后一正宫(偶索引)
+			pan.sf = RING16[i]; overrides.add('sf');
+		}
+		// '十六神' 留 sf 几何环位不动;客算仍由下方 geoSuan 以几何 suanFrom 重算(与立成表口径分离,故值可异)。
+		pan._shijiExperimental = true;
+	}
+	// 3) 主客算几何重算(文昌/计神/客算间辰/始击坐标 任一非默认 → 改用几何 _suan_from,标【古法几何】)
+	const geoSuan = (s.wenchang !== 'default' || s.jishen !== 'default' || s.keJianChen !== 'default' || s.shijiCoord !== 'default');
 	if(geoSuan && taiyiPos){
 		const jc = s.keJianChen === '无加一' ? false : true;
 		const home = suanFrom(pan.skyeyes, taiyiPos, true);
@@ -116,9 +141,9 @@ export function applyTaiyiSchool(basePan, school){
 		}
 	}
 	// 附流派注记(供 AI 快照 / 右栏 badge)
-	const LB = { jishen: '计神', wenchang: '文昌重留', keJianChen: '客算间辰', sanji: '三基起宫', youshen: '游神' };
+	const LB = { jishen: '计神', wenchang: '文昌重留', keJianChen: '客算间辰', sanji: '三基起宫', youshen: '游神', shijiCoord: '始击坐标' };
 	const notes = Object.keys(LB).filter((k) => s[k] !== 'default').map((k) => `${LB[k]}=${s[k]}`);
-	if(notes.length){ pan._schoolNote = notes.join('、') + (geoSuan ? '(主客算:古法几何)' : ''); pan._geoSuan = geoSuan; }
+	if(notes.length){ pan._schoolNote = notes.join('、') + (geoSuan ? '(主客算:古法几何)' : '') + (pan._shijiExperimental ? '〔始击坐标:实验·存疑待源〕' : ''); pan._geoSuan = geoSuan; }
 	return { pan, overrides, geoSuan };
 }
 

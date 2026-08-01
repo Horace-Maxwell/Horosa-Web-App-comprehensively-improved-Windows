@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
 
 // 古法（禄命·纳音派，八字大全 §6.8）：以年柱为纲、重纳音五行生克 / 纳音长生 / 神煞，
 // 胎元列为第五柱，不以日干为我。行式表格（同简盘排版），五列=年月日时+胎元，纯展示派生。
@@ -51,8 +52,39 @@ class BaZiAncientChart extends Component{
 		const glyph = (char, token)=> <span className="horosa-bazi-anc-glyph" style={{ color: colorVar(token) }}>{char || ''}</span>;
 		const chain = cols.slice(0, -1).map((c, i)=>relate(nayinEl(c.p.naying), nayinEl(cols[i + 1].p.naying)));
 
+		// 流派徽标:古法盘本身即纳音派视图(nayin/zonghe 不再重复标);主用其他派时提示其喜忌口径(与细盘 school-bar 同款类)。
+		const school = this.props.school || 'zonghe';
+		let schoolBar = null;
+		if(this.props.showSchoolMarks !== false && school !== 'nayin' && school !== 'zonghe'){
+			if(school === 'mangpai' && bazi.mangpai && Array.isArray(bazi.mangpai.cells) && bazi.mangpai.cells.length){
+				const zhu = bazi.mangpai.cells.filter((c)=>c.role === '主').map((c)=>c.label).join('·');
+				const bin = bazi.mangpai.cells.filter((c)=>c.role === '宾').map((c)=>c.label).join('·');
+				schoolBar = (
+					<div className="horosa-bazi-fine-school-bar">
+						<span className="horosa-bazi-fine-school-name">盲派</span>
+						<span className="horosa-bazi-fine-school-role">主位 {zhu || '—'} ｜ 宾位 {bin || '—'}（此盘为纳音视图）</span>
+					</div>
+				);
+			}else{
+				const ROW = { fuyi: '扶抑派', geju: '格局派', tiaohou: '调候派', bingyao: '病药派' };
+				const gy = bazi.gejuYongShen;
+				const r = ROW[school] && gy && Array.isArray(gy.schools) ? gy.schools.find((s)=>s && s.school === ROW[school]) : null;
+				if(r){
+					schoolBar = (
+						<div className="horosa-bazi-fine-school-bar" title={r.note || ''}>
+							<span className="horosa-bazi-fine-school-name">{r.school}{r.verdict ? `·${r.verdict}` : ''}</span>
+							{r.xi && r.xi.length ? <span className="horosa-bazi-fine-school-xi">喜 {r.xi.join('·')}</span> : null}
+							{r.ji && r.ji.length ? <span className="horosa-bazi-fine-school-ji">忌 {r.ji.join('·')}</span> : null}
+							<span className="horosa-bazi-fine-school-role">（此盘为纳音视图）</span>
+						</div>
+					);
+				}
+			}
+		}
+
 		return (
 			<div className="horosa-bazi-ancient">
+				{schoolBar}
 				<div className="horosa-bazi-ancient-note">古法（禄命·纳音派）：以年柱为纲，重纳音五行生克 · 纳音长生 · 神煞，胎元列为第五柱，不以日干为我。</div>
 				<div className="horosa-bazi-anc-table">
 					<div className="horosa-bazi-anc-tr horosa-bazi-anc-headrow">
@@ -69,8 +101,9 @@ class BaZiAncientChart extends Component{
 					))}
 					{row('纳音', (p)=><span className="horosa-bazi-anc-nayin" style={{ color: colorVar(EL_TOKEN[nayinEl(p.naying)]) }}>{p.naying || '—'}</span>)}
 					{row('纳音长生', (p)=><span>{p.nayingPhase || '—'}</span>)}
-					{row('神煞', (p)=>{
-						const g = godsOf(p);
+					{/* 神煞分组勾选与「显示·神煞」此前都绕过了古法盘:勾掉的组照样列、关了也照样显示。 */}
+					{this.props.showShenSha === false ? null : row('神煞', (p)=>{
+						const g = filterShenShaByGroups(godsOf(p), this.props.shenshaGroups);
 						return <span className="horosa-bazi-anc-gods">{g.length ? g.join('、') : '—'}</span>;
 					})}
 				</div>

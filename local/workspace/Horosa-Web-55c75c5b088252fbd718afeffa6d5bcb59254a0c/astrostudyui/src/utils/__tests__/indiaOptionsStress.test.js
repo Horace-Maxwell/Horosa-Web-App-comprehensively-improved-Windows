@@ -6,7 +6,8 @@ import { buildJyotishSnapshotLines, fieldsToParams } from '../../components/astr
 import { getAspectedSignNumbers } from '../../components/astro/IndiaSouthChart';
 import { buildLocalChartRecord } from '../localcharts';
 
-const ALL_TABS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13'];
+// 2026-07-21 KP 补齐:'14' 问事(parashari/tajika/kp)+ '15' 校时(五派全开);五支轮 '16' 纳迪 —— 均为有意的契约变更。
+const ALL_TABS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'];
 // LagnaRef 选项是分组结构（{label, options}），压平成 [{value}] 再扫。
 const LAGNA_REF_FLAT = AstroConst.INDIA_LAGNA_REF_OPTIONS.reduce((a, g)=>a.concat(g.options || []), []);
 
@@ -40,12 +41,16 @@ describe('印占 选项穷举压测（normalize/默认包/AI 快照 万无一失
 			expect(Array.isArray(d.tabs) && d.tabs.length > 0).toBe(true);
 			d.tabs.forEach((t)=>{ expect(ALL_TABS.indexOf(t) >= 0).toBe(true); });
 		});
-		expect(AstroConst.getIndiaSchoolDefaults('parashari').tabs.length).toBe(13);  // 默认全开
+		expect(AstroConst.getIndiaSchoolDefaults('parashari').tabs.length).toBe(16);  // 默认全开(13+问事+校时+纳迪)
 		// KP 默认 = Krishnamurti + Placidus(3) + 子集 tab。
 		const kp = AstroConst.getIndiaSchoolDefaults('kp');
 		expect(kp.ayanamsa).toBe('krishnamurti');
 		expect(kp.hsys).toBe(3);
-		expect(kp.tabs.length).toBeLessThan(13);
+		expect(kp.tabs.length).toBeLessThan(16);
+		// '14' 问事:parashari/tajika/kp 有,jaimini/nadi 无('16.3 适用矩阵);'15' 校时:五派全开。
+		['parashari', 'tajika', 'kp'].forEach((k)=>{ expect(AstroConst.getIndiaSchoolDefaults(k).tabs).toContain('14'); });
+		['jaimini', 'nadi'].forEach((k)=>{ expect(AstroConst.getIndiaSchoolDefaults(k).tabs).not.toContain('14'); });
+		AstroConst.INDIA_SCHOOL_OPTIONS.forEach((sch)=>{ expect(AstroConst.getIndiaSchoolDefaults(sch.value).tabs).toContain('15'); });
 	});
 
 	it('③ 笛卡尔：school × dasha × node × style × display 全组合 normalize 链不崩、值正确', ()=>{
@@ -68,7 +73,9 @@ describe('印占 选项穷举压测（normalize/默认包/AI 快照 万无一失
 				});
 			});
 		});
-		expect(combos).toBe(5 * AstroConst.INDIA_DASHA_SYSTEM_OPTIONS.length * 2 * 3 * 2);
+		// 流派数表驱动(第 6 派 western_sidereal 起不再写死 5;其余维仍锁死防悄扩)
+		expect(AstroConst.INDIA_SCHOOL_OPTIONS.length).toBe(6);
+		expect(combos).toBe(AstroConst.INDIA_SCHOOL_OPTIONS.length * AstroConst.INDIA_DASHA_SYSTEM_OPTIONS.length * 2 * 3 * 2);
 	});
 
 	it('④ Tribhāgī 已并入大运体系选项（P1 新增可选中）', ()=>{
@@ -245,9 +252,23 @@ describe('印占 选项穷举压测（normalize/默认包/AI 快照 万无一失
 		expect(Array.from(rasi).sort((a, b)=>a - b)).toEqual([5, 8, 11]);
 		// 两范式结果不同 = 切派真改高亮(否则死选项)。
 		expect(Array.from(graha).sort().join()).not.toBe(Array.from(rasi).sort().join());
-		// 未知范式(tajika/kp/nadi)→ 回退 graha 行为(默认 undefined 同此)。
-		expect(Array.from(getAspectedSignNumbers(chartObj, AstroConst.MARS, 'tajika')).sort((a, b)=>a - b)).toEqual([4, 7, 8]);
+		// 五支轮起 tajika/kp/nadi 各有真渲染(非回退):本 fixture 仅单曜/无 kp·nadi 数据 → 三范式空集;
+		// 默认 undefined 仍走 graha。tajika 有他曜时按 deeptamsha 命中(见下补例)。
+		expect(getAspectedSignNumbers(chartObj, AstroConst.MARS, 'kp').size).toBe(0);
+		expect(getAspectedSignNumbers(chartObj, AstroConst.MARS, 'nadi').size).toBe(0);
+		expect(getAspectedSignNumbers(chartObj, AstroConst.MARS, 'tajika').size).toBe(0);
 		expect(Array.from(getAspectedSignNumbers(chartObj, AstroConst.MARS, undefined)).sort((a, b)=>a - b)).toEqual([4, 7, 8]);
+		// tajika 真渲染补例:金星 95°(巨蟹) 与 火星 5° 相距 90°,容许度 (8+7)/2=7.5 内 → 高亮巨蟹(4)。
+		const tjObj = { chart: { objects: [
+			{ id: AstroConst.MARS, sign: 'Aries', lon: 5 },
+			{ id: AstroConst.VENUS, sign: 'Cancer', lon: 95 },
+		] }, jyotish: { grahaDrishti: [] } };
+		expect(Array.from(getAspectedSignNumbers(tjObj, AstroConst.MARS, 'tajika'))).toEqual([4]);
+		// nadi 真渲染补例:同座合 → 高亮该座;交换 → 对方座。
+		const ndObj = { chart: { objects: [{ id: AstroConst.MARS, sign: 'Aries', lon: 5 }] },
+			jyotish: { nadi: { combinations: [{ sign: 'Aries', planets: [AstroConst.MARS, AstroConst.SUN] }],
+				exchanges: [{ a: AstroConst.MARS, b: AstroConst.VENUS, aSign: 'Libra', bSign: 'Aries' }] } } };
+		expect(Array.from(getAspectedSignNumbers(ndObj, AstroConst.MARS, 'nadi')).sort((a, b)=>a - b)).toEqual([1, 7]);
 		// 无源星 / 无盘 → 空集,不抛。
 		expect(getAspectedSignNumbers(chartObj, null, 'rasi').size).toBe(0);
 		expect(getAspectedSignNumbers(null, AstroConst.MARS, 'graha').size).toBe(0);

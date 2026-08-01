@@ -39,7 +39,7 @@ import {
 	setLiurengRunyearLocalCache,
 } from '../../utils/localCalcCache';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { chartDrawGuardEnabled, techniqueResultCacheEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
+import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 
 
@@ -445,6 +445,9 @@ const DA_GE_META = {
 const COURSE_TO_DAGE_KEY = {
 	'元首课': 'yuanshou',
 	'重审课': 'chongshen',
+	// 始入课=「九法变十法」开关下单一下贼上的单列名(ChuangChart.isJinKe0),大格判词同归重审;
+	// 漏此键则该开关下断语参考整块静默消失(Windows #46 全量巡查时补)。
+	'始入课': 'chongshen',
 	'比用课': 'zhiyi',
 	'知一课': 'zhiyi',
 	'涉害课': 'jianji',
@@ -2903,7 +2906,7 @@ function collectTianHeEvidence(context, a, b){
 	return uniqueStrings(evidence);
 }
 
-function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, castOverride){
+function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, castOverride, extraOpts){
 	const layout = buildLiuRengLayout(chartObj, guirengType, castOverride);
 	const keData = buildKeData(layout, chartObj);
 	const sanChuan = buildSanChuanData(layout, keData.raw, chartObj, castOverride);
@@ -2943,7 +2946,12 @@ function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, c
 		const sanChuanBranchesAligned = sanChuanGz.map((item)=>extractSingleBranch(item));
 	const sanChuanGods = (sanChuan && sanChuan.tianJiang ? sanChuan.tianJiang : []).map((item)=>normalizeTianJiangName(item));
 	const keUp = keRaw.map((item)=>extractSingleBranch(item[1])).filter(Boolean);
-	const keDown = keRaw.map((item)=>extractSingleBranch(item[2])).filter(Boolean);
+	// 🔴 保位重建(勿 filter):第一课的「下」是**日干**不是地支,extractSingleBranch 判空后
+	// 被 filter 剔掉 → 整条数组前移一位,取象角色标注把二课下标成「1课下」…「4课下」恒不出现
+	// (与上方 sanChuanGansAligned 刚修的同型漂移,当时漏了这行)。首位取日干寄宫。
+	const keDown = keRaw.map((item, i)=>(i === 0
+		? (extractSingleBranch(item[2]) || dayGanBranch)
+		: extractSingleBranch(item[2])));
 	const branchGodMap = {};
 	const branchUpMap = {};
 	const upDownMap = {};
@@ -3040,6 +3048,8 @@ function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, c
 		runYearGanZi,
 		runYearGan,
 		runYearBranch,
+		// 本命支:空亡/年命上神两处早已按 benMingBranch 取用,此前 context 从不产出 → 「本命上神」一位恒不触发。
+		benMingBranch: (extraOpts && extraOpts.benMingBranch && LRConst.ZiList.indexOf(extraOpts.benMingBranch) >= 0) ? extraOpts.benMingBranch : '',
 		monthBranch,
 		season,
 		jieqi,
@@ -3793,8 +3803,8 @@ function matchXiaoJuReferences(context){
 	});
 }
 
-function buildLiuRengReferenceBundle(liureng, chartObj, guirengType, runyear, castOverride){
-	const context = buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, castOverride);
+function buildLiuRengReferenceBundle(liureng, chartObj, guirengType, runyear, castOverride, extraOpts){
+	const context = buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, castOverride, extraOpts);
 	const dage = matchDaGeReferences(context);
 	const xiaoju = matchXiaoJuReferences(context);
 	const overview = matchLiuRengOverviewReferences(context);
@@ -4068,13 +4078,19 @@ function buildLiuRengLayout(chartObj, guirengType, castOverride){
 
 	const houseTianJiang = LRConst.TianJiang.slice(0);
 	const guizi = LRConst.getGuiZi(chartObj, guirengType, castOverride ? castOverride.isDiurnal : undefined, castOverride ? castOverride.yinyangSystem : undefined);
-	let houseidx = 0;
+	// 🔴 贵人未命中曾静默落 houseidx=0(子位),十二天将整环随之偏移且无任何提示;
+	// getGuiZi 在流派表缺键时确会返 undefined → 该路径可达。未命中即判失败(与本函数
+	// 其余失败分支同口径),宁可不出盘也不出错盘。
+	let houseidx = -1;
 	for(let i=0; i<12; i++){
 		const zi = LRConst.ZiList[yueIndexs[i]];
 		if(zi === guizi){
 			houseidx = i;
 			break;
 		}
+	}
+	if(houseidx < 0){
+		return null;
 	}
 	const housezi = LRConst.ZiList[houseidx];
 	const guirenForward = LRConst.SummerZiList.indexOf(housezi) < 0;
@@ -4290,7 +4306,7 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 	const _castOpts = castOpts || {};
 	const nongli = liureng && liureng.nongli ? liureng.nongli : (chartObj && chartObj.nongli ? chartObj.nongli : {});
 	const castOverride = buildLiuRengCastOverride(chartObj, _castOpts);
-	const refs = buildLiuRengReferenceBundle(liureng, chartObj, guirengType, runyear, castOverride);
+	const refs = buildLiuRengReferenceBundle(liureng, chartObj, guirengType, runyear, castOverride, { benMingBranch: _castOpts.benmingZhi });
 	const layout = refs.layout;
 	const panStyle = refs && refs.context ? refs.context.panStyle : null;
 	const keData = refs.keData;
@@ -4602,6 +4618,7 @@ class LiuRengMain extends Component{
 		this.onChartTypeChange = this.onChartTypeChange.bind(this);
 		this.genWuXingDoms = this.genWuXingDoms.bind(this);
 		this.genGodsParams = this.genGodsParams.bind(this);
+		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
 		this.genRunYearParams = this.genRunYearParams.bind(this);
 		this.requestGods = this.requestGods.bind(this);
 		this.requestRunYear = this.requestRunYear.bind(this);
@@ -5041,12 +5058,48 @@ class LiuRengMain extends Component{
 						yue = LRConst.getSignZi(obj.sign);
 						break;
 					}
-				}	
-				// params.yue = yue;	
+				}
+				// params.yue = yue;
 				// params.isDiurnal = chartObj.isDiurnal;
 			}
 		}
 		return params;
+	}
+
+	// [R3-A1 下放] 选步长即预取:六壬主耗时=/liureng/gods(全局 handler 只罩 /chart) ——
+	// 以当前时间 ±1 双向、genGodsParams 单源构参预热(silent,落 requestDedupe 缓存,
+	// 真点同参命中);同 unit 5s 去重。第一下步进即快。
+	prefetchStepSelect(unit){
+		try{
+			if(!stepPrefetchEnabled() || !stepSelectPrefetchEnabled() || !unit){ return; }
+			const now = Date.now();
+			if(this._lastStepSel && this._lastStepSel.unit === unit && (now - this._lastStepSel.at) < 5000){ return; }
+			this._lastStepSel = { unit, at: now };
+			const base = this.props.fields || {};
+			const dt0 = base.date && base.date.value;
+			if(!dt0 || typeof dt0.clone !== 'function'){ return; }
+			[1, -1].forEach((dir)=>{
+				try{
+					const dt2 = dt0.clone();
+					if(unit === 'y'){ dt2.addYear(dir); }
+					else if(unit === 'M'){ dt2.addMonth(dir); }
+					else if(unit === 'd'){ dt2.addDate(dir); }
+					else if(unit === 'h'){ dt2.addHour(dir); }
+					else { dt2.addMinute(4 * dir); }
+					const flds2 = {
+						...base,
+						date: { value: dt2.clone() },
+						time: { value: dt2.clone() },
+					};
+					const params = this.genGodsParams(flds2);
+					if(!params){ return; }
+					request(`${Constants.ServerRoot}/liureng/gods`, {
+						body: JSON.stringify(params),
+						silent: true,
+					}).catch(()=>null);
+				}catch(e){ /* 预取失败无害 */ }
+			});
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	async requestBirthYearGanZi(){
@@ -5304,7 +5357,8 @@ class LiuRengMain extends Component{
 		}
 		const p = saved.payload;
 		this.lastRestoredCaseId = saved.caseVersion;
-		const optionKeys = ['guireng', 'wuxing', 'castMethod', 'xuanShiZhi', 'yanShuNum', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai'];
+		// zhanCategory(占测事项)必须与存档侧成对 —— 缺它则载回后占断退回「通用」,与存档内的快照打架。
+		const optionKeys = ['guireng', 'wuxing', 'castMethod', 'xuanShiZhi', 'yanShuNum', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'zhanCategory'];
 		const next = {};
 		optionKeys.forEach((key)=>{
 			if(p[key] !== undefined && p[key] !== null){
@@ -5358,6 +5412,7 @@ class LiuRengMain extends Component{
 			yearShenShaSort: this.state.yearShenShaSort,
 			yinyangSystem: this.state.yinyangSystem,
 			tuWangShuai: this.state.tuWangShuai,
+			zhanCategory: this.state.zhanCategory,
 		};
 		if(this.props.dispatch){
 			this.props.dispatch({
@@ -5818,6 +5873,7 @@ class LiuRengMain extends Component{
 					<LiuRengInput
 						fields={this.props.fields}
 						onFieldsChange={this.onFieldsChange}
+						onStepSelect={this.prefetchStepSelect}
 						timeHook={this.timeHook}
 						chartType={this.state.chartType}
 						onChartTypeChange={this.onChartTypeChange}
@@ -6330,12 +6386,13 @@ class LiuRengMain extends Component{
 		const _refSig = [
 			this.state.liureng, chart, this.state.guireng,
 			(displayRunYear && displayRunYear.year) || '', castOverride,
+			_lrExtra.benmingZhi || '',
 		];
 		let refBundle;
 		if(_guardOn && this._refBundleCache && sameLRSigArr(this._refBundleCache.sig, _refSig)){
 			refBundle = this._refBundleCache.data;
 		}else{
-			refBundle = buildLiuRengReferenceBundle(this.state.liureng, chart, this.state.guireng, displayRunYear, castOverride);
+			refBundle = buildLiuRengReferenceBundle(this.state.liureng, chart, this.state.guireng, displayRunYear, castOverride, { benMingBranch: _lrExtra.benmingZhi });
 			if(_guardOn){
 				this._refBundleCache = { sig: _refSig, data: refBundle };
 			}

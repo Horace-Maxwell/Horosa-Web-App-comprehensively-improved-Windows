@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroRelocationLab.js b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
-index 14eed51..629b5e2 100644
+index ea6e637..e20e738 100644
 --- a/astrostudyui/src/components/auxchart/AstroRelocationLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
 @@ -17,6 +17,8 @@ import {
  	formatLatDms, formatLonDms,
  } from '../astro/AstroHelper';
- import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
+ import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
@@ -29,7 +29,7 @@ index 14eed51..629b5e2 100644
  	}
  
  	componentDidMount(){
-@@ -118,7 +127,11 @@ class AstroRelocationLab extends Component{
+@@ -130,7 +139,11 @@ class AstroRelocationLab extends Component{
  				timeoutMs: 30000,
  			});
  			if(!this._mounted) return;
@@ -42,7 +42,7 @@ index 14eed51..629b5e2 100644
  		}catch(e){
  			if(!this._mounted) return;
  			this.setState({loading: false, requestKey: key});
-@@ -164,8 +177,13 @@ class AstroRelocationLab extends Component{
+@@ -176,8 +189,13 @@ class AstroRelocationLab extends Component{
  	renderContentPanel(chartObj, fields, tabHeight){
  		return (
  			<div className="horosa-inspector-panel horosa-astro-content-panel">
@@ -57,7 +57,7 @@ index 14eed51..629b5e2 100644
  						<AstroInfo mode="summary" height={tabHeight}
  							value={chartObj} fields={fields}
  							planetDisplay={this.props.planetDisplay}
-@@ -173,8 +191,10 @@ class AstroRelocationLab extends Component{
+@@ -185,8 +203,10 @@ class AstroRelocationLab extends Component{
  							showAstroMeaning={this.props.showAstroMeaning}
  							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  						/>
@@ -68,7 +68,7 @@ index 14eed51..629b5e2 100644
  						<AstroAspect
  							value={chartObj} height={tabHeight}
  							lotsDisplay={this.props.lotsDisplay}
-@@ -182,8 +202,10 @@ class AstroRelocationLab extends Component{
+@@ -194,8 +214,10 @@ class AstroRelocationLab extends Component{
  							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  							showAstroMeaning={this.props.showAstroMeaning}
  						/>
@@ -79,7 +79,7 @@ index 14eed51..629b5e2 100644
  						<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  							<AstroPlanet
  								value={chartObj}
-@@ -196,8 +218,10 @@ class AstroRelocationLab extends Component{
+@@ -208,8 +230,10 @@ class AstroRelocationLab extends Component{
  								<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  							</div>
  						</div>
@@ -90,7 +90,7 @@ index 14eed51..629b5e2 100644
  						<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
  							<AstroInfo mode="classical" height={tabHeight}
  								value={chartObj} fields={fields}
-@@ -207,19 +231,24 @@ class AstroRelocationLab extends Component{
+@@ -219,19 +243,24 @@ class AstroRelocationLab extends Component{
  								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  							/>
  						</div>

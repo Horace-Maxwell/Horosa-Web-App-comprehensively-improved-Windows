@@ -196,7 +196,7 @@ export function buildJyotishSnapshotLinesBaseline(chartObj){
 		['bhavaLagna','horaLagna','ghatikaLagna','sreeLagna'].forEach((k)=>{ if(splag[k]){ splLines.push(`${splag[k].label}：${flag(splag[k].lon)}`); } });
 		if(splag.pranapada){
 			splLines.push(`Praṇapada·日出太阳(BPHS)：${flag(splag.pranapada.variantSunrise)}`);
-			if(splag.pranapada.variantBirth !== undefined){ splLines.push(`Praṇapada·出生太阳(PyJHora)：${flag(splag.pranapada.variantBirth)}`); }
+			if(splag.pranapada.variantBirth !== undefined){ splLines.push(`Praṇapada·出生太阳(现代变体)：${flag(splag.pranapada.variantBirth)}`); }
 		}
 		if(splLines.length){ out['特殊上升 Special Lagnas'] = splLines; }
 	}

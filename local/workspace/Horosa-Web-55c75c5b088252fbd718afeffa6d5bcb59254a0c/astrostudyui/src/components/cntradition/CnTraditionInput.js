@@ -28,11 +28,14 @@ class CnTraditionInput extends Component{
 		this.onGodKeyPosChange = this.onGodKeyPosChange.bind(this);
 		this.onGenderChange = this.onGenderChange.bind(this);
 		this.onAfter23NewDayChange = this.onAfter23NewDayChange.bind(this);
+		this.onZiHourModeChange = this.onZiHourModeChange.bind(this);
 		this.onChangeAdjustJieqi = this.onChangeAdjustJieqi.bind(this);
 
 		this.onOnlyZiganChange = this.onOnlyZiganChange.bind(this);
+		this.onShenshaGroupToggle = this.onShenshaGroupToggle.bind(this);
 		this.onUiModeChange = this.onUiModeChange.bind(this);
 		this.onShowRelationsChange = this.onShowRelationsChange.bind(this);
+		this.onShowSchoolMarksChange = this.onShowSchoolMarksChange.bind(this);
 		this.onMingGongMethodChange = this.onMingGongMethodChange.bind(this);
 		this.onShowShenShaChange = this.onShowShenShaChange.bind(this);
 		this.onFenyeVersionChange = this.onFenyeVersionChange.bind(this);
@@ -70,6 +73,28 @@ class CnTraditionInput extends Component{
 		let opt = {
 			...this.props.baziOpt,
 			showRelations: val === 1,
+		};
+		if(this.props.onBaziOptChange){
+			this.props.onBaziOptChange(opt);
+		}
+	}
+
+	onShowSchoolMarksChange(val){
+		let opt = {
+			...this.props.baziOpt,
+			showSchoolMarks: val === 1,
+		};
+		if(this.props.onBaziOptChange){
+			this.props.onBaziOptChange(opt);
+		}
+	}
+
+	// 神煞分组勾选(G8):四组标签过滤(吉神/凶煞/月令系/日柱系),默认全开=零回归。
+	onShenshaGroupToggle(key, checked){
+		const cur = (this.props.baziOpt && this.props.baziOpt.shenshaGroups) || {};
+		let opt = {
+			...this.props.baziOpt,
+			shenshaGroups: { ...cur, [key]: checked },
 		};
 		if(this.props.onBaziOptChange){
 			this.props.onBaziOptChange(opt);
@@ -334,6 +359,36 @@ class CnTraditionInput extends Component{
 		}
 	}
 
+	// 子时三态(语义单选,一次写两开关):子初换日=1/1、夜子时=0/1、子正换日=0/0。
+	// 1/0 组合(旧记录可能残留)输出与 1/1 数学等价(日柱已进位,「今日干」即次日干,见 dayBoundary),显示归并子初换日。
+	onZiHourModeChange(mode){
+		if(this.props.onFieldsChange){
+			const MAP = { zichu: [1, 1], yezi: [0, 1], zizheng: [0, 0] };
+			const pair = MAP[mode] || MAP.zichu;
+			let dt = this.tmHook.getValue().value;
+			this.props.onFieldsChange({
+				after23NewDay: {
+					value: pair[0],
+				},
+				lateZiHourUseNextDay: {
+					value: pair[1],
+				},
+				date: {
+					value: dt.clone(),
+				},
+				time:{
+					value: dt.clone(),
+				},
+				ad:{
+					value: dt.ad,
+				},
+				zone:{
+					value: dt.zone,
+				},
+			});
+		}
+	}
+
 	onChangeAdjustJieqi(val){
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
@@ -473,11 +528,21 @@ class CnTraditionInput extends Component{
 							</Select>
 						</div>
 						<div className="horosa-field-block">
-							<div className="horosa-field-label">子时换日</div>
-							{/* 用户拍板(见 baziLunarLocal:637): after23NewDay=1「23点算第二天」=日柱守今、时柱跨日; =0「24点算第二天」=日柱与时柱整体进位次日。 */}
-							<Select value={fields.after23NewDay.value} onChange={this.onAfter23NewDayChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
-								<Option value={1}>23点算第二天</Option>
-								<Option value={0}>24点算第二天</Option>
+							<div className="horosa-field-label">晚子时</div>
+							{/* 三态语义单选(dayBoundary 权威口径,23:30 自检锚):
+							    子初换日=after23NewDay 1+lateZi 1(23点即换日柱,时干次日起;壬寅庚子)
+							    夜子时  =0+1(日柱守今,时干次日起;辛丑庚子)
+							    子正换日=0+0(24点换日,时干今日起;辛丑戊子)
+							    1/0 与 1/1 输出等价 → 显示归并子初换日;不动控件=两键都不写=零回归。 */}
+							<Select
+								value={(fields.after23NewDay.value === 1 || fields.after23NewDay.value === '1')
+									? 'zichu'
+									: (((fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined ? fields.lateZiHourUseNextDay.value : 1) === 0
+										|| (fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value === '0')) ? 'zizheng' : 'yezi')}
+								onChange={this.onZiHourModeChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+								<Option value='zichu'>子初换日（23点即换日）</Option>
+								<Option value='yezi'>夜子时（日守今·时干次日）</Option>
+								<Option value='zizheng'>子正换日（24点换日·时干今日）</Option>
 							</Select>
 						</div>
 						{/* 节气微调（adjustJieqi）：本地引擎尚未实现该算法（Java 后端是把节气 JDN 平移 (|lat|−35)×2 天），
@@ -536,6 +601,8 @@ class CnTraditionInput extends Component{
 							<Option value="geju">格局派</Option>
 							<Option value="tiaohou">调候派</Option>
 							<Option value="bingyao">病药派</Option>
+							{/* 通关派:引擎(computeTongGuan)与对照表、右栏高亮映射一直都有,唯独下拉漏了这一档 → 选不中、恒不高亮。 */}
+							<Option value="tongguan">通关派</Option>
 							<Option value="mangpai">盲派</Option>
 							<Option value="nayin">纳音古法</Option>
 						</Select>
@@ -553,6 +620,13 @@ class CnTraditionInput extends Component{
 						<div className="horosa-field-block">
 							<div className="horosa-field-label">神煞</div>
 							<Select value={this.props.baziOpt.showShenSha === false ? 0 : 1} onChange={this.onShowShenShaChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+								<Option value={1}>显示</Option>
+								<Option value={0}>隐藏</Option>
+							</Select>
+						</div>
+						<div className="horosa-field-block">
+							<div className="horosa-field-label">流派标记</div>
+							<Select value={this.props.baziOpt.showSchoolMarks === false ? 0 : 1} onChange={this.onShowSchoolMarksChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value={1}>显示</Option>
 								<Option value={0}>隐藏</Option>
 							</Select>
@@ -582,6 +656,17 @@ class CnTraditionInput extends Component{
 					<div className="horosa-bazi-option-card">
 						<Checkbox checked={this.props.baziOpt.onlyZiGanShen} onChange={this.onOnlyZiganChange}>只显示地支藏干十神</Checkbox>
 					</div>
+					{this.props.baziOpt.showShenSha === false ? null : (
+						<div className="horosa-bazi-shensha-groups">
+							<div className="horosa-field-label">神煞分组（关组即隐藏该组）</div>
+							{/* 紫微左栏同款卡片式勾选(共享 ziwei-option-card 描金小卡规则族),每组独立开关。 */}
+							{[['ji', '吉神'], ['xiong', '凶煞'], ['yue', '月令系'], ['ri', '日柱系']].map(([k, label]) => (
+								<Checkbox key={k}
+									checked={!((this.props.baziOpt.shenshaGroups || {})[k] === false)}
+									onChange={(e)=>this.onShenshaGroupToggle(k, e.target.checked)}>{label}</Checkbox>
+							))}
+						</div>
+					)}
 					</XQSideSection>
 				</div>
 

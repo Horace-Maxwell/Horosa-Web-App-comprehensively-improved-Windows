@@ -43,6 +43,13 @@ PARS_NECESSITY = 'Pars Necessity'
 PARS_COURAGE = 'Pars Courage'
 PARS_VICTORY = 'Pars Victory'
 PARS_NEMESIS = 'Pars Nemesis'
+# 希腊化补全六点。🔴 Basis/Exaltation 两 ID 逐字对齐前端显赫指标既有硬编码,勿改字符串。
+PARS_BASIS = 'Pars Basis'                       # 基础点:Asc + 福点↔精神点较短弧(昼夜同式,不反转)
+PARS_EXALTATION = 'Pars Exaltation'             # 旺宫点:昼 Asc+(19°白羊−Sun) / 夜 Asc+(3°金牛−Moon)
+PARS_SONS_VALENS = 'Pars Sons Valens'           # 儿子点(性别化子嗣):昼 Asc+(Mercury−Jupiter),夜反转
+PARS_DAUGHTERS = 'Pars Daughters'               # 女儿点:昼 Asc+(Venus−Jupiter),夜反转
+PARS_PRAXIS = 'Pars Praxis'                     # 事业/行动点:昼 Asc+(Mars−Mercury),夜反转
+PARS_WEDDING_DOROTHEAN = 'Pars Wedding Dorothean'   # 婚姻通式:昼 Asc+(Venus−Sun),夜反转
 
 LIST_PARS = [
     PARS_SPIRIT,
@@ -71,7 +78,13 @@ LIST_PARS = [
     PARS_NECESSITY,
     PARS_COURAGE,
     PARS_VICTORY,
-    PARS_NEMESIS
+    PARS_NEMESIS,
+    PARS_BASIS,
+    PARS_EXALTATION,
+    PARS_SONS_VALENS,
+    PARS_DAUGHTERS,
+    PARS_PRAXIS,
+    PARS_WEDDING_DOROTHEAN
 ]
 
 
@@ -222,6 +235,86 @@ FORMULAS[PARS_NEMESIS] = [
     [const.PARS_FORTUNA, const.SATURN, const.ASC]
 ]
 
+# 希腊化补全四常规点(文档式「昼 Asc+(B−A)」↔ 本表三元 [A,B,ASC];反转=夜互换)
+# 儿子 Sons(Valens):昼 Asc+(Mercury−Jupiter)
+FORMULAS[PARS_SONS_VALENS] = [
+    [const.JUPITER, const.MERCURY, const.ASC],
+    [const.MERCURY, const.JUPITER, const.ASC]
+]
+# 女儿 Daughters(Valens):昼 Asc+(Venus−Jupiter)
+FORMULAS[PARS_DAUGHTERS] = [
+    [const.JUPITER, const.VENUS, const.ASC],
+    [const.VENUS, const.JUPITER, const.ASC]
+]
+# 事业/行动 Praxis:昼 Asc+(Mars−Mercury)
+FORMULAS[PARS_PRAXIS] = [
+    [const.MERCURY, const.MARS, const.ASC],
+    [const.MARS, const.MERCURY, const.ASC]
+]
+# 婚姻通式(Dorothean):昼 Asc+(Venus−Sun)
+FORMULAS[PARS_WEDDING_DOROTHEAN] = [
+    [const.SUN, const.VENUS, const.ASC],
+    [const.VENUS, const.SUN, const.ASC]
+]
+
+# —— 文档口径覆盖(随流派请求级启用;默认关=零回归)——
+# 婚姻男/女:文档标「反转」(现默认昼夜同式);子女点(PARS_SONS 三元=Saturn−Jupiter):文档标「不反转」(现默认反转)。
+# 朋友点/疾病点:文档式与现状方向相反(文档自标「各家不一/存异文」),故同归此开关而非改默认。
+_DOC_REVERSE_FORMULAS = {
+    PARS_WEDDING_MALE: [
+        [const.SATURN, const.VENUS, const.ASC],
+        [const.VENUS, const.SATURN, const.ASC]
+    ],
+    PARS_WEDDING_FEMALE: [
+        [const.VENUS, const.SATURN, const.ASC],
+        [const.SATURN, const.VENUS, const.ASC]
+    ],
+    PARS_SONS: [
+        [const.JUPITER, const.SATURN, const.ASC],
+        [const.JUPITER, const.SATURN, const.ASC]
+    ],
+    # 朋友 Friends:文档昼式 Asc+(Moon−Mercury)(现状为 Mercury−Moon 且昼夜同式)
+    PARS_FRIENDS: [
+        [const.MERCURY, const.MOON, const.ASC],
+        [const.MOON, const.MERCURY, const.ASC]
+    ],
+    # 疾病 Injury/Disease:文档昼式 Asc+(Saturn−Mars)(现状昼式为 Mars−Saturn)
+    PARS_DISEASES: [
+        [const.MARS, const.SATURN, const.ASC],
+        [const.SATURN, const.MARS, const.ASC]
+    ],
+}
+import threading
+_DOC_REVERSE_LOCK = threading.Lock()
+_docReverseOn = False
+
+
+def push_request_lots_doc_reverse(flag):
+    """请求级「点反转文档口径」:默认关不 push(返回 None,零锁开销);开启才 锁+置位,
+    必须 finally 配对 pop_request_lots_doc_reverse(token);pop(None) 安全 no-op。照界系/三分范式。"""
+    on = flag in (1, '1', True, 'true', 'True')
+    if not on:
+        return None
+    _DOC_REVERSE_LOCK.acquire()
+    global _docReverseOn
+    orig = _docReverseOn
+    _docReverseOn = True
+    return ('lotsDocReverse', orig)
+
+
+def pop_request_lots_doc_reverse(token):
+    if token is None:
+        return
+    global _docReverseOn
+    try:
+        _docReverseOn = bool(token[1])
+    finally:
+        _DOC_REVERSE_LOCK.release()
+
+
+def _docReverseActive():
+    return _docReverseOn
+
 # === Functions === #
 
 def objLon(ID, chart):
@@ -243,8 +336,25 @@ def objLon(ID, chart):
     
 def partLon(ID, chart):
     """ Returns the longitude of an arabic part. """
-    # Get diurnal or nocturnal formula
-    abc = FORMULAS[ID][0] if chart.isDiurnal() else FORMULAS[ID][1]
+    # special 公式(非 A/B/C 三元):基础点/旺宫点
+    if ID == PARS_BASIS:
+        # Asc + 福点↔精神点较短弧;昼夜同式不反转
+        f = partLon(const.PARS_FORTUNA, chart) % 360
+        s = partLon(PARS_SPIRIT, chart) % 360
+        arc = (s - f) % 360
+        arc = min(arc, 360 - arc)
+        return objLon(const.ASC, chart) + arc
+    if ID == PARS_EXALTATION:
+        # 昼 Asc+(19°白羊−Sun) / 夜 Asc+(3°金牛−Moon)(19/33 为绝对黄经)
+        asc = objLon(const.ASC, chart)
+        if chart.isDiurnal():
+            return asc + (19.0 - objLon(const.SUN, chart))
+        return asc + (33.0 - objLon(const.MOON, chart))
+    # Get diurnal or nocturnal formula(文档口径反转覆盖仅在请求级开关启用时替换三点)
+    table = FORMULAS
+    if _docReverseActive() and ID in _DOC_REVERSE_FORMULAS:
+        table = _DOC_REVERSE_FORMULAS
+    abc = table[ID][0] if chart.isDiurnal() else table[ID][1]
     a = objLon(abc[0], chart)
     b = objLon(abc[1], chart)
     c = objLon(abc[2], chart)

@@ -1,15 +1,13 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js b/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
-index 5be4068..5efc6fc 100644
+index 5c1f6f1..5efd2da 100644
 --- a/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
 +++ b/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
-@@ -1,6 +1,7 @@
+@@ -1,4 +1,5 @@
  import { Component } from 'react';
- import { BaZiMsg } from '../../msg/bazimsg';
- import { calcFlowShenSha } from '../../utils/baziShenShaLocal';
 +import { chartSCUEnabled } from '../../utils/perfFlags';
+ import { BaZiMsg } from '../../msg/bazimsg';
+ import { calcFlowShenSha, filterShenShaByGroups } from '../../utils/baziShenShaLocal';
  
- const PILLAR_KEYS = [
- 	['year', '年柱'],
 @@ -68,7 +69,32 @@ function infoPair(label, value){
  	);
  }
@@ -44,7 +42,7 @@ index 5be4068..5efc6fc 100644
  	renderBasic(bazi, fields){
  		const nongli = bazi.nongli || {};
  		const name = fields && fields.name ? fields.name.value : '';
-@@ -294,6 +320,77 @@ class BaZiAppInfoPanel extends Component{
+@@ -323,6 +349,77 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -122,7 +120,7 @@ index 5be4068..5efc6fc 100644
  	renderFlowGods(bazi){
  		// 神煞面板显示「当前所选 大运/流年/流月/流日」之神煞（四柱神煞已在细盘呈现，此处不重复）。
  		const four = bazi.fourColumns || {};
-@@ -324,6 +421,19 @@ class BaZiAppInfoPanel extends Component{
+@@ -353,6 +450,19 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -142,7 +140,7 @@ index 5be4068..5efc6fc 100644
  	renderAux(four){
  		const aux = [
  			['胎元', four.tai],
-@@ -346,66 +456,31 @@ class BaZiAppInfoPanel extends Component{
+@@ -375,66 +485,31 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  

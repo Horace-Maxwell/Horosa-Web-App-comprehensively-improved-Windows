@@ -68,13 +68,15 @@ export function sanhe({ shuiKou, waterFlow, xiangFaType, zuoDeg, sands = {}, bos
 		};
 	}
 
-	// ── 拨砂五格（5.11）：向双山三合五行为我，八方砂卦正五行论生克 ──
+	// ── 拨砂五格（5.11）：以「我」之五行量八方砂卦正五行论生克。
+	//    「我」取法两说（古法并陈）：shuangshan＝以向双山三合五行（默认，通行）；zuo＝以坐山（向之对宫）五行。
 	let bosha = null;
 	if (selected && selected.shuangshan) {
 		const xiangZhi = selected.shuangshan.slice(-1);
-		const myWuxing = ZHI_SANHE_JU[xiangZhi] || (ju ? JU_WUXING[ju] : null);
+		const myZhi = boshaVariant === 'zuo' ? (ZHI_CHONG[xiangZhi] || xiangZhi) : xiangZhi;
+		const myWuxing = ZHI_SANHE_JU[myZhi] || (ju ? JU_WUXING[ju] : null);
 		bosha = {
-			myWuxing, boshaVariant,
+			myWuxing, boshaVariant, myZhi, myFrom: boshaVariant === 'zuo' ? '坐山' : '向',
 			sands: GUA8.map((g)=>{
 				const actual = sands[g] || 'flat';
 				if (actual !== 'sand') { return { gua: g, actual, wuGe: null }; }

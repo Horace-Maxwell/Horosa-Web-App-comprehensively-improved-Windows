@@ -1,4 +1,6 @@
 import { Component } from 'react';
+import { isPartileByValues } from '../../divination/data/accidentalDignity';
+import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import { Row, Col, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -30,6 +32,16 @@ class AstroAspect extends Component{
 		this.showMeaning = this.showMeaning.bind(this);
 		this.aspectNode = this.aspectNode.bind(this);
 		this.aspPill = this.aspPill.bind(this);
+	}
+
+	componentDidMount(){
+		// partile 判据全局变更 → 重渲相位表(标记列吃 classicalGlobalValue,监听只触发重渲)。
+		this._onClassicalGlobals = () => this.forceUpdate();
+		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
+
+	componentWillUnmount(){
+		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
 	}
 
 	showMeaning(){
@@ -73,11 +85,26 @@ class AstroAspect extends Component{
 	}
 
 	// 一条相位「pill」：相位字形 + 对象星 + 入相/离相标 + 误差。phaseKind: applying|separating|none。
+	// 正相位(partile)标记:按全局 partileDef(同整数度/≤3°/≤1°)对每行判「正」;
+	// 判据与卜卦尊贵计分同源(isPartileByValues 单一真值)。取两端真黄经座内度(currChartObj)。
+	isRowPartile(srcId, asp){
+		try{
+			const a = AstroHelper.getObject(this.currChartObj, srcId);
+			const b = AstroHelper.getObject(this.currChartObj, asp.id);
+			return isPartileByValues(a && a.signlon, b && b.signlon, asp.orb, classicalGlobalValue('partileDef'));
+		}catch(e){
+			return false;
+		}
+	}
+
 	aspPill(rowKey, srcId, asp, phaseLabel, phaseKind){
 		return (
 			<div key={rowKey} className="horosa-aspect-row" style={{fontFamily: AstroConst.AstroFont}}>
 				<span className="horosa-aspect-glyph">{this.aspectNode(asp.asp, srcId, asp.id)}</span>
 				<span className="horosa-aspect-target">{this.planetLabel(asp.id)}</span>
+				{this.isRowPartile(srcId, asp) ? (
+					<span className="horosa-aspect-partile" style={{fontFamily: AstroConst.NormalFont}} title="正相位（partile）：按 设置→星盘设置 的判据">正</span>
+				) : null}
 				{phaseLabel ? (
 					<span className={`horosa-aspect-phase horosa-aspect-phase--${phaseKind}`} style={{fontFamily: AstroConst.NormalFont}}>{phaseLabel}</span>
 				) : null}

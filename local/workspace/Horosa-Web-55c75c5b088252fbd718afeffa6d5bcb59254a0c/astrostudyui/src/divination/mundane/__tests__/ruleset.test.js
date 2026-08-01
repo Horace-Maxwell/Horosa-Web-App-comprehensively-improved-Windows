@@ -61,15 +61,35 @@ function factsAt(lon, sign){
 describe('mundane victor · termsVariant/triplicityVariant 接线', () => {
 	const score = (v, p) => { const r = v.scores.find((s) => s.planet === p); return r ? r.score : 0; };
 
-	it('默认 victor 累分 = 不传变体(零回归)', () => {
+	it('默认 victor 基分 = 不传变体(零回归);终分 = 基分 + 偶然层(G6 分层可稽)', () => {
 		const facts = factsAt(12, 'aries');
 		const def = describeMundaneVictor(facts);                // 默认 modern
 		const none = computeAlmuten(facts);                      // 引擎默认(无变体)
 		expect(def).toBeTruthy();
-		// modern=egyptian/dorothean → 与引擎默认表同口径,逐星累分一致。
+		// modern=egyptian/dorothean → 与引擎默认表同口径:基分逐星一致(computeAlmuten 零污染锚);
+		// [G6] 终分 = 基分 + 偶然增减(当令/焦伤/逆行/被围攻),明细逐项可稽。
 		['mercury', 'venus', 'mars', 'sun', 'jupiter', 'saturn', 'moon'].forEach((p) => {
-			expect(score(def, p)).toBe(none.totals[p] || 0);
+			const row = def.scores.find((s) => s.planet === p);
+			const base = row ? row.base : 0;
+			const acc = row ? row.accidental : 0;
+			expect(base).toBe(none.totals[p] || 0);
+			expect(score(def, p)).toBe(base + acc);
 		});
+		// 本 stub 昼盘(默认 sect=day?) → 太阳若得时应有 +3 当令明细;无状态星零明细。
+		const sunRow = def.scores.find((s) => s.planet === 'sun');
+		if(sunRow && sunRow.accidental !== 0){
+			expect(sunRow.accidentalItems.length).toBeGreaterThan(0);
+		}
+	});
+
+	it('[G6] 偶然层:焦伤/逆行显著降格,可令胜者易主', () => {
+		const facts = factsAt(12, 'aries');
+		// mercury 为白羊 12° 埃及界主(基分领先);给它焦伤+逆行 → −10,胜者应易主。
+		facts.planets.mercury = { lon: 8, sign: 'aries', signlon: 8, house: 1, combustion: 'combust', retro: true };
+		const v = describeMundaneVictor(facts);
+		const merc = v.scores.find((s) => s.planet === 'mercury');
+		expect(merc.accidental).toBeLessThanOrEqual(-10);
+		expect(merc.accidentalItems.map((i) => i.cn)).toEqual(expect.arrayContaining(['焦伤', '逆行']));
 	});
 
 	it('切档真换 victor 输入:中世纪档(托勒密界)vs 现代档(埃及界) → 界主 mercury↔venus 累分此消彼长', () => {

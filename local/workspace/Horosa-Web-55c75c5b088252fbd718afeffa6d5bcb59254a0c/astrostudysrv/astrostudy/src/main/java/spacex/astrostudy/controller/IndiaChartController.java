@@ -42,6 +42,38 @@ public class IndiaChartController {
 	}
 	
 
+	// 出生时间校正:独立端点、直透 Python,不走 ParamHashCacheHelper(扫描参数进命盘缓存键
+	// 会导致「改一次步长炸掉全部命盘缓存」;且校时结果按窗口即时算,不宜缓存)。
+	@ResponseBody
+	@RequestMapping("/rectify")
+	public void rectify(){
+		Map<String, Object> params = getParams();
+		if(TransData.containsParam("rectifyWindowMinutes")) {
+			params.put("rectifyWindowMinutes", TransData.get("rectifyWindowMinutes"));
+		}
+		if(TransData.containsParam("rectifyStepSeconds")) {
+			params.put("rectifyStepSeconds", TransData.get("rectifyStepSeconds"));
+		}
+		if(TransData.containsParam("rectifyRpSource")) {
+			params.put("rectifyRpSource", TransData.get("rectifyRpSource"));
+		}
+		if(TransData.containsParam("rectifyCustomRp")) {
+			params.put("rectifyCustomRp", TransData.get("rectifyCustomRp"));
+		}
+		if(TransData.containsParam("rectifyTopK")) {
+			params.put("rectifyTopK", TransData.getValueAsInt("rectifyTopK", 3));
+		}
+		if(TransData.containsParam("rectifyEvents")) {
+			Object evobj = TransData.get("rectifyEvents");
+			if(evobj instanceof String) {
+				evobj = JsonUtility.decodeList((String)evobj, Map.class);
+			}
+			params.put("rectifyEvents", evobj);
+		}
+		Map<String, Object> res = AstroHelper.getIndiaRectify(params);
+		TransData.set(res);
+	}
+
 	private Map<String, Object> getParams(){
 		Map<String, Object> params = new HashMap<String, Object>();
 		if(!TransData.containsParam("date")) {
@@ -80,7 +112,7 @@ public class IndiaChartController {
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
 		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
-		params.put("_wireRev", "pd_method_sync_v12");
+		params.put("_wireRev", spacex.basecomm.constants.PdWire.REV);
 		params.put("_indiaOptionsRev", "india_kernel_yoga_v1");
 		if(TransData.containsParam("_jyotishRev")) {
 			params.put("_jyotishRev", TransData.getValueAsString("_jyotishRev"));
@@ -154,6 +186,54 @@ public class IndiaChartController {
 		}
 		if(TransData.containsParam("sthiraStart")) {
 			params.put("sthiraStart", TransData.get("sthiraStart"));
+		}
+		// KP 补齐(2026-07-21):年长/年盘口径/三旗/问事族。白名单未登记会被静默丢弃(三层丢参坑),
+		// 全为可选键:仅前端显式下发时透传,缺省不进 cache key → 既有请求零缓存影响。
+		if(TransData.containsParam("dashaYearLength")) {
+			params.put("dashaYearLength", TransData.get("dashaYearLength"));
+		}
+		// 分盘变体({chartnum:variant} JSON 串)/Chara Karaka 方案(7|8)/星曜战判据(latitude|longitude)。
+		if(TransData.containsParam("vargaVariant")) {
+			params.put("vargaVariant", TransData.get("vargaVariant"));
+		}
+		if(TransData.containsParam("karakaScheme")) {
+			params.put("karakaScheme", TransData.get("karakaScheme"));
+		}
+		if(TransData.containsParam("yuddhaCriterion")) {
+			params.put("yuddhaCriterion", TransData.get("yuddhaCriterion"));
+		}
+		if(TransData.containsParam("dashaVariants")) {
+			params.put("dashaVariants", TransData.get("dashaVariants"));
+		}
+		if(TransData.containsParam("varshaLat")) {
+			params.put("varshaLat", TransData.get("varshaLat"));
+		}
+		if(TransData.containsParam("varshaLon")) {
+			params.put("varshaLon", TransData.get("varshaLon"));
+		}
+		if(TransData.containsParam("annualChartType")) {
+			params.put("annualChartType", TransData.get("annualChartType"));
+		}
+		if(TransData.containsParam("tripataki")) {
+			params.put("tripataki", TransData.get("tripataki"));
+		}
+		if(TransData.containsParam("prashnaTime")) {
+			params.put("prashnaTime", TransData.get("prashnaTime"));
+			if(TransData.containsParam("prashnaNumber")) {
+				params.put("prashnaNumber", TransData.getValueAsInt("prashnaNumber", 0));
+			}
+			if(TransData.containsParam("prashnaMatter")) {
+				params.put("prashnaMatter", TransData.get("prashnaMatter"));
+			}
+			if(TransData.containsParam("prashnaSchools")) {
+				params.put("prashnaSchools", TransData.get("prashnaSchools"));
+			}
+			if(TransData.containsParam("prashnaCuspMode")) {
+				params.put("prashnaCuspMode", TransData.get("prashnaCuspMode"));
+			}
+			if(TransData.containsParam("prashnaPrimaryHouse")) {
+				params.put("prashnaPrimaryHouse", TransData.getValueAsInt("prashnaPrimaryHouse", 0));
+			}
 		}
 		if(TransData.containsParam("gpsLat")) {
 			params.put("gpsLat", TransData.get("gpsLat"));

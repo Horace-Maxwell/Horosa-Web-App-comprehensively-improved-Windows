@@ -1,17 +1,15 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index c8e9c73..a92b80e 100644
+index fd07fa0..094628f 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
-@@ -1,6 +1,8 @@
+@@ -1,4 +1,6 @@
  import { Component } from 'react';
- import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
- import { safeJsonParseFromStorage } from '../../utils/safeStorage';
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
- import { Row, Col, } from 'antd';
- import { XQTabs as Tabs } from '../xq-ui';
- import DateTime from '../comp/DateTime';
-@@ -541,6 +543,134 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { safeJsonParseFromStorage } from '../../utils/safeStorage';
+ import { Row, Col, message, } from 'antd';
+@@ -634,6 +636,134 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
  	return fields;
  }
  
@@ -146,7 +144,7 @@ index c8e9c73..a92b80e 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -687,6 +817,41 @@ class AstroDirectMain extends Component{
+@@ -781,6 +911,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -188,7 +186,7 @@ index c8e9c73..a92b80e 100644
  		}
  
  	}
-@@ -708,106 +873,13 @@ class AstroDirectMain extends Component{
+@@ -802,125 +967,13 @@ class AstroDirectMain extends Component{
  	}
  
  	getDesiredPdConfig(chartObj, override = {}){
@@ -228,6 +226,16 @@ index c8e9c73..a92b80e 100644
 -			pdConverse,
 -			pdAntiscia: toFlag(pick('pdAntiscia')),
 -			pdTerms: toFlag(pick('pdTerms')),
+-			// P0 解耦补齐维:投影/定局/框架/平行×2/自定义率/S·P 清单/界系(默认=引擎缺省)。
+-			pdProjection: pick('pdProjection') || 'ptolemy',
+-			pdFrame: pick('pdFrame') || 'alcabitius',
+-			pdFramework: pick('pdFramework') || 'aspect',
+-			pdParallel: toFlag(pick('pdParallel')),
+-			pdRaptParallel: toFlag(pick('pdRaptParallel')),
+-			pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
+-			pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
+-			pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
+-			termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v === 1 || v === 2) ? v : 0; })(),
 -		};
 +		// PERF-R8 P2:逻辑原样抽为模块级纯函数(预热复用同一构造 → key/body 逐字节一致);
 +		// 本方法保持既有签名与解析语义(chartObj/props 兜底),纯委托零行为变化。
@@ -290,6 +298,15 @@ index c8e9c73..a92b80e 100644
 -			pdConverse: desired.pdConverse,
 -			pdAntiscia: desired.pdAntiscia,
 -			pdTerms: desired.pdTerms,
+-			pdProjection: desired.pdProjection,
+-			pdFrame: desired.pdFrame,
+-			pdFramework: desired.pdFramework,
+-			pdParallel: desired.pdParallel,
+-			pdRaptParallel: desired.pdRaptParallel,
+-			...(desired.pdTimeKeyCustom ? { pdTimeKeyCustom: desired.pdTimeKeyCustom } : {}),
+-			...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
+-			...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
+-			termsVariant: desired.termsVariant,
 -			pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 -			name: nextFields.name ? nextFields.name.value : null,
 -			pos: nextFields.pos ? nextFields.pos.value : null,

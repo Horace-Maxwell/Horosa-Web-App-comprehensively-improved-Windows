@@ -30,10 +30,10 @@ public class ChartController {
 
 	// 运行时版本号:并入 /chart 等盘的 paramhash 缓存键。开持久化缓存后,一旦 Python 计算引擎
 	// 升级(runtime payload 换版)但参数不变,旧版缓存盘必须自动失效——否则会返回陈旧盘面。
-	// 必须与 Horosa_Desktop_Installer/config/release_config.json 的 runtimeVersion 字段保持 lockstep
-	// (preflight [65] 会比对二者一致;升级 runtime 时同步改这里)。_wireRev 只在 PD 接线变更时手动 bump,
-	// 不覆盖"算法升级但接线不变"这一类陈旧场景,故另立运行时版本闸。
-	private static final String RUNTIME_VERSION = "3.5.1-runtime1";
+	// 字面量单源在 basecomm RuntimeWire(preflight [65]② 盯那里;/predict/pd 链同引,勿手抄第二份)。
+	private static final String RUNTIME_VERSION = spacex.basecomm.constants.RuntimeWire.RUNTIME_VERSION;
+	// 七政命度接线代次(缓存盐+回显都用它;曾 v4/v5 两处手抄漂移——回显停在 v4,盐已到 v5)
+	private static final String GUOLAO_LIFE_REV = "life_cotrans_v5_gumao_custom";
 
 	// v3.0.1 perf B0:/chart 逐段计时标记(也用作重建 jar 的存在性哨兵)。纯观测——只在 perf 日志打
 	// 各段耗时(Python 底盘 / 八字农历 / 盘装配 / 行星预测 / 推运同步),不改任何计算与返回值,便于在
@@ -77,7 +77,7 @@ public class ChartController {
 				reqparams.put("doubingSu28", args.get("doubingSu28"));
 				if(args.containsKey("guolaoLifeMode")) {
 					reqparams.put("guolaoLifeMode", args.get("guolaoLifeMode"));
-					reqparams.put("_guolaoLifeRev", "life_cotrans_v4");
+					reqparams.put("_guolaoLifeRev", GUOLAO_LIFE_REV);
 				}
 				if(ConvertUtility.getValueAsInt(args.get("doubingSu28"), 0) == SU28_MODE_ZHENG_SIDEREAL) {
 					reqparams.put("zodiacal", 1);
@@ -302,7 +302,7 @@ public class ChartController {
 		}
 		Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
 		if(reqparams != null) {
-			reqparams.put("pdSyncRev", "pd_method_sync_v8");
+			reqparams.put("pdSyncRev", spacex.basecomm.constants.PdWire.REV);
 			reqparams.put("showPdBounds", ConvertUtility.getValueAsInt(args.get("showPdBounds"), 1));
 			if(args.containsKey("pdtype")) {
 				reqparams.put("pdtype", args.get("pdtype"));
@@ -312,6 +312,31 @@ public class ChartController {
 			}
 			if(args.containsKey("pdTimeKey")) {
 				reqparams.put("pdTimeKey", args.get("pdTimeKey"));
+			}
+			// 主限法 P0 补齐参数(缺省不下发=零回归;termsVariant 本命链另有,此处 PD 复算链补齐)。
+			if(args.containsKey("pdProjection")) {
+				reqparams.put("pdProjection", args.get("pdProjection"));
+			}
+			if(args.containsKey("pdFrame")) {
+				reqparams.put("pdFrame", args.get("pdFrame"));
+			}
+			if(args.containsKey("pdParallel")) {
+				reqparams.put("pdParallel", args.get("pdParallel"));
+			}
+			if(args.containsKey("pdRaptParallel")) {
+				reqparams.put("pdRaptParallel", args.get("pdRaptParallel"));
+			}
+			if(args.containsKey("pdFramework")) {
+				reqparams.put("pdFramework", args.get("pdFramework"));
+			}
+			if(args.containsKey("pdTimeKeyCustom")) {
+				reqparams.put("pdTimeKeyCustom", args.get("pdTimeKeyCustom"));
+			}
+			if(args.containsKey("pdSignificators")) {
+				reqparams.put("pdSignificators", args.get("pdSignificators"));
+			}
+			if(args.containsKey("pdPromissorTypes")) {
+				reqparams.put("pdPromissorTypes", args.get("pdPromissorTypes"));
 			}
 			// 回显主限进阶参数,便于前端 needsPdRecompute 比对已落库值(否则 pdYears 改后会被判为"需重算"反复 fetch)。
 			if(args.containsKey("pdYears")) {
@@ -404,7 +429,7 @@ public class ChartController {
 		params.put("lat", TransData.get("lat"));
 		params.put("lon", TransData.get("lon"));
 		// Bust legacy local/runtime cache entries after PD method/time-key response wiring changes.
-		params.put("_wireRev", "pd_method_sync_v12");
+		params.put("_wireRev", spacex.basecomm.constants.PdWire.REV);
 		// 运行时版本闸:并入缓存键,使 Python 引擎升级(runtime payload 换版)后旧持久化缓存自动失效。
 		params.put("_runtimeVer", RUNTIME_VERSION);
 		if(TransData.containsParam("_su28Rev")) {
@@ -420,7 +445,7 @@ public class ChartController {
 		params.put("doubingSu28", getSu28Mode());
 		if(TransData.containsParam("guolaoLifeMode")) {
 			params.put("guolaoLifeMode", TransData.get("guolaoLifeMode"));
-			params.put("_guolaoLifeRev", "life_cotrans_v5_gumao_custom");
+			params.put("_guolaoLifeRev", GUOLAO_LIFE_REV);
 		}
 		params.put("strongRecption", TransData.getValueAsBool("strongRecption", false));
 		params.put("virtualPointReceiveAsp", TransData.getValueAsBool("virtualPointReceiveAsp", false));
@@ -450,6 +475,32 @@ public class ChartController {
 		if(TransData.containsParam("pdTimeKey")) {
 			params.put("pdTimeKey", TransData.get("pdTimeKey"));
 		}
+		// 主限法 P0 补齐参数(缺省不下发=零回归)。
+		if(TransData.containsParam("pdProjection")) {
+			params.put("pdProjection", TransData.get("pdProjection"));
+		}
+		if(TransData.containsParam("pdFrame")) {
+			params.put("pdFrame", TransData.get("pdFrame"));
+		}
+		if(TransData.containsParam("pdParallel")) {
+			params.put("pdParallel", TransData.get("pdParallel"));
+		}
+		if(TransData.containsParam("pdRaptParallel")) {
+			params.put("pdRaptParallel", TransData.get("pdRaptParallel"));
+		}
+		if(TransData.containsParam("pdFramework")) {
+			params.put("pdFramework", TransData.get("pdFramework"));
+		}
+		if(TransData.containsParam("pdTimeKeyCustom")) {
+			params.put("pdTimeKeyCustom", TransData.get("pdTimeKeyCustom"));
+		}
+		if(TransData.containsParam("pdSignificators")) {
+			params.put("pdSignificators", TransData.get("pdSignificators"));
+		}
+		if(TransData.containsParam("pdPromissorTypes")) {
+			params.put("pdPromissorTypes", TransData.get("pdPromissorTypes"));
+		}
+		// (termsVariant 透传在本方法前段已做,此处曾有幂等重复的第二份,已并去)
 		// 主限法进阶参数:推算年数 + 顺逆/映点/界。/chart(含 includePrimaryDirection)内部走
 		// getPrimaryDirection(args) 复算主限,这些键必须透传给 Python compute(perchart.py 读 pdYears/
 		// pdDirect/pdConverse/pdAntiscia/pdTerms),否则 AI 挂载侧「每技法设置」改了年数/方向不生效
@@ -522,6 +573,19 @@ public class ChartController {
 		}
 		if(TransData.containsParam("lotReversal")) {
 			params.put("lotReversal", TransData.get("lotReversal"));
+		}
+		// 2026-07 二批古典口径(落宫5°律/太阳三态/空亡六口径/恒星轨/映点容许度)+第一轮漏网的双子界序:
+		// 必须透传 Python(perchart/flatlib 请求级参数化),缺=默认零回归(同 termsVariant 透传坑——
+		// 本批真机首验即抓到「前端发了 Java 丢了」的白名单三层静默丢,此处为主 /chart 唯一闸口)。
+		String[] classicalBatch2Keys = { "geminiBoundEmended", "houseCuspAdvance", "cazimiOrb", "combustOrb",
+				"underBeamsOrb", "vocMode", "vocIncludeOuter", "starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
+				// 三个 0/1 流派开关(点公式文档序反转/交点入旺/土星旺20°):Python push_request_* 已就绪,
+				// 曾因此处白名单缺键而真链路静默丢参(pytest 直连 :8899 绿 ≠ RSA 链路安全)。
+				"lotsDocReverse", "nodeExaltation", "saturnExalt20" };
+		for(String key : classicalBatch2Keys) {
+			if(TransData.containsParam(key)) {
+				params.put(key, TransData.get(key));
+			}
 		}
 		if(TransData.containsParam("gpsLat")) {
 			params.put("gpsLat", TransData.get("gpsLat"));

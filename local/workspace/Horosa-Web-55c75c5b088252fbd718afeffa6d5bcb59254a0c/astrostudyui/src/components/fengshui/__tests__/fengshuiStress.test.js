@@ -9,6 +9,10 @@ import { jingyin } from '../jingyin';
 import { dagua } from '../dagua';
 import { xingshi } from '../xingshi';
 import { yearGods, dayCourse, zaoMing } from '../zeri';
+import { xuankongLiufa } from '../xuankongLiufa';
+import { mingli } from '../mingli';
+import { shanAtDeg, chuanshanAt, toudiAt, fenjinAt, gua64AtDeg } from '../liqiCore';
+import { LUOPAN_LAYERS, NEEDLE_OFFSET, XIU28_RING } from '../fengshuiData';
 import { SHAN_ORDER } from '../fengshuiData';
 
 const J = (x)=>JSON.stringify(x);
@@ -186,5 +190,96 @@ describe('压测 · 五新派:辅星/净阴净阳/大卦/形势/择日', () => {
 		const z1 = zaoMing({ zuoShan: '子', y: 2026, m: 3, d: 20 }).score;
 		const z2 = zaoMing({ zuoShan: '午', y: 2026, m: 3, d: 20 }).score;
 		expect(J(zaoMing({ zuoShan: '子', y: 2026, m: 3, d: 20 }))).not.toBe(J(zaoMing({ zuoShan: '午', y: 2026, m: 3, d: 20 })));
+	});
+
+	test('新派压测:玄空六法/命理派/罗盘读数 逐选项 + 组合 + 边界(负年/非数/空)', () => {
+		for (let yun = 1; yun <= 9; yun++) {
+			SHAN_ORDER.forEach((s, i) => {
+				const r = xuankongLiufa({ yun, zuoShan: s, xiangShan: SHAN_ORDER[(i + 12) % 24], year: 2026 });
+				expect(r.available).toBe(true);
+				expect(noNaN(r)).toBe(true);
+				expect(r.items.length).toBe(6);
+			});
+		}
+		[undefined, '', null, 0, -500, 'abc', 99999].forEach((y) => {
+			const r = xuankongLiufa({ yun: 9, zuoShan: '子', xiangShan: '午', year: y });
+			expect(r.items.length).toBe(6);
+			expect(noNaN(r)).toBe(true);
+		});
+		expect(xuankongLiufa({ zuoShan: '不存在' }).available).toBe(false);
+		expect(xuankongLiufa({ yun: 'abc', zuoShan: '子', xiangShan: '午' }).yun).toBe(9);
+		expect(J(xuankongLiufa({ yun: 1, zuoShan: '子', xiangShan: '午' })))
+			.not.toBe(J(xuankongLiufa({ yun: 9, zuoShan: '子', xiangShan: '午' })));
+		expect(xuankongLiufa({ yun: 9, zuoShan: '子', xiangShan: '午' }).items[0].verdict)
+			.not.toBe(xuankongLiufa({ yun: 9, zuoShan: '午', xiangShan: '子' }).items[0].verdict);
+
+		['乾', '兑', '离', '震', '巽', '坎', '艮', '坤'].forEach((g) => {
+			[true, false].forEach((m) => {
+				for (let y = 1900; y <= 2040; y += 17) {
+					const r = mingli({ mingYear: y, isMale: m, zhaiZuoGua: g });
+					expect(r.available).toBe(true);
+					expect(noNaN(r)).toBe(true);
+					expect(r.fangwei.length).toBe(8);
+				}
+			});
+		});
+		// undefined 走默认入参 1990（可用）；空串/null/非数/非正 一律挡掉，不得静默算出「0 年」命卦
+		expect(mingli({ mingYear: undefined }).ming.year).toBe(1990);
+		['', null, 'abc', NaN, 0, -5, '   '].forEach((y) => { expect(mingli({ mingYear: y }).available).toBe(false); });
+		expect(mingli({ mingYear: 1990, zhaiZuoGua: '中' }).available).toBe(false);
+		expect(mingli({ mingYear: 1990, isMale: true }).ming.gua).not.toBe(mingli({ mingYear: 1990, isMale: false }).ming.gua);
+
+		for (let d = 0; d < 360; d += 0.25) {
+			expect(shanAtDeg(d)).toBeTruthy();
+			expect(shanAtDeg(d + 7.5)).toBeTruthy();
+			expect(shanAtDeg(d - 7.5)).toBeTruthy();
+			const g = gua64AtDeg(d);
+			expect(g.gua).toBeTruthy();
+			expect(g.yaoIndex).toBeGreaterThanOrEqual(0);
+			expect(g.yaoIndex).toBeLessThanOrEqual(5);
+			const x = XIU28_RING.find((c) => ((d - c.deg0) % 360 + 360) % 360 < (((c.deg1 - c.deg0) % 360 + 360) % 360 || 360));
+			expect(x).toBeTruthy();
+		}
+		expect(gua64AtDeg(-10).gua).toBe(gua64AtDeg(350).gua);
+		expect(gua64AtDeg(730).gua).toBe(gua64AtDeg(10).gua);
+	});
+
+	test('🔴 罗盘层表 与 liqiCore 线法逐格对拍(防数据/算法双写漂移)', () => {
+		const cell = (k) => LUOPAN_LAYERS.find((l) => l.key === k).cells;
+		const mid = (c, w) => ((c.deg0 + w / 2) % 360 + 360) % 360;
+		cell('chuanshan').forEach((c) => {
+			const r = chuanshanAt(mid(c, 5));
+			expect(r.ganzhi).toBe(c.ganzhi);
+			expect(r.jx).toBe(c.jx);
+			expect(r.positional).toBe(c.positional);
+		});
+		cell('toudi').forEach((c) => {
+			const r = toudiAt(mid(c, 6));
+			expect(r.ganzhi).toBe(c.ganzhi);
+			expect(r.kong).toBe(c.kong);
+			expect(r.jx).toBe(c.jx);
+		});
+		cell('fenjin').forEach((c) => {
+			const r = fenjinAt(mid(c, 3));
+			expect(r.ganzhi).toBe(c.ganzhi);
+			expect(r.jx).toBe(c.jx);
+			expect(r.fenIndex).toBe(c.sub);
+		});
+		expect(LUOPAN_LAYERS.length).toBe(13);
+		expect(LUOPAN_LAYERS[0].r0).toBe(0);
+		expect(LUOPAN_LAYERS[12].r1).toBe(1);
+		for (let i = 1; i < LUOPAN_LAYERS.length; i++) {
+			expect(LUOPAN_LAYERS[i].r0).toBeCloseTo(LUOPAN_LAYERS[i - 1].r1, 9);
+		}
+		expect(NEEDLE_OFFSET).toEqual({ zheng: 0, ren: -7.5, feng: 7.5 });
+		const shanOf = (k, lab) => cell(k).find((c) => c.label === lab);
+		expect(((shanOf('dipan', '子').deg0 + 7.5) % 360 + 360) % 360).toBeCloseTo(0, 9);
+		expect(((shanOf('renpan', '子').deg0 + 7.5) % 360 + 360) % 360).toBeCloseTo(352.5, 9);
+		expect(((shanOf('tianpan', '子').deg0 + 7.5) % 360 + 360) % 360).toBeCloseTo(7.5, 9);
+		const xmid = (n) => { const c = XIU28_RING.find((x) => x.label === n); return ((c.deg0 + (360 / 28) / 2) % 360 + 360) % 360; };
+		expect(xmid('房')).toBeCloseTo(90, 6);
+		expect(xmid('虚')).toBeCloseTo(0, 6);
+		expect(xmid('昴')).toBeCloseTo(270, 6);
+		expect(xmid('星')).toBeCloseTo(180, 6);
 	});
 });

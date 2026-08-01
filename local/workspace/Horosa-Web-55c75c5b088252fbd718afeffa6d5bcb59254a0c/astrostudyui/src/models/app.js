@@ -13,7 +13,9 @@ import { normalizeAppearanceMode } from '../utils/appearance';
 import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY } from '../utils/dayBoundary';
 
 const MinWorkspaceHeight = 660;
-const WorkspaceReservedHeight = 88;
+// 🔴 预留必须与 layouts/app.js 的容器口径同值(header 72;contentStyle=calc(100% - 72px)):
+// 旧值 88 比容器多扣 16px → 全站每页底部恒定 16px 空白栏(容器 886 vs 工作区 870 实测)。
+const WorkspaceReservedHeight = 72;
 const ChartDisplayDefaultsVersion = 2;
 const PlanetDisplayDefaultsVersion = 2;
 const DefaultHouseSystem = 1;
@@ -194,7 +196,7 @@ export default {
         showPlanetHouseInfo: 0,
         showAstroMeaning: 0,
         showOnlyRulExaltReception: 0,
-        voidClassical: 0,                  // G10 空亡古典义(30°内):默认 OFF=按本座义(现状);开=固定 30°窗口。星盘组件开关,格局页相位动态读此重算。
+        voidClassical: 0,                  // G10 空亡古典义(30°内):默认 OFF=按本座义(现状);开=固定 30°窗口。星盘设置开关,格局页相位动态读此重算。
         schoolPreset: 'brennan',           // G20 流派预设(默认 brennan = 现状默认四维 → 零回归)
         tripSystem: 'Dorothean',           // 三分体系(默认多罗特 = 三分主星页现状默认)
         dayBoundary: DAY_BOUNDARY_AFTER23,
@@ -718,7 +720,14 @@ export default {
                 aspects = AstroConst.DEFAULT_ASPECTS;
             }
             const syncWorkspaceHeight = (extraPayload = {})=>{
-                const nextViewportHeight = document.documentElement.clientHeight;
+                // 🔴 壳级 CSS zoom 下 clientHeight 报物理视口值,布局域真值须除以 zoom
+                // (horosa.shell.zoom 由桌面壳写入;无键/1:1 时除 1=零回归)。
+                let shellZoom = 1;
+                try{
+                    const zRaw = Number(window.localStorage.getItem('horosa.shell.zoom'));
+                    if(zRaw && zRaw > 0){ shellZoom = zRaw; }
+                }catch(e){ /* ignore */ }
+                const nextViewportHeight = Math.round(document.documentElement.clientHeight / shellZoom);
                 const h = normalizeWorkspaceHeight(nextViewportHeight);
                 if(h < MinWorkspaceHeight){
                     return;

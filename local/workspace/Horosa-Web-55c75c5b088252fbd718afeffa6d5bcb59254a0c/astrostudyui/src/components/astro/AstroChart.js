@@ -24,6 +24,12 @@ import AstroChartCircle from './AstroChartCircle';
 const ASTROCHART_SCU_KEYS = [
 	'value', 'chartDisplay', 'planetDisplay', 'lotsDisplay', 'keyPlanets', 'aspects',
 	'chartStyle', 'zrHighlightSign', 'showAstroMeaning', 'width', 'height', 'style', 'id',
+	// 卜卦判读叠层(二期):描述对象经 horaryOverlayData 单槽 memo,同盘同设置=同引用 → Object.is 即可;
+	// 占星页恒 undefined,零行为变化。
+	'horaryOverlay',
+	// 世俗盘流派渲染白名单(纯前端隐 glyph/相位线):古典派中盘不绘外行星;
+	// 不传=undefined → 渲染路径与既有逐字节一致(仅世俗盘提供)。
+	'hideBodies',
 ];
 const ASTROCHART_SCU_COMPARATORS = {
 	chartDisplay: sameDisplayList,
@@ -31,6 +37,7 @@ const ASTROCHART_SCU_COMPARATORS = {
 	lotsDisplay: sameDisplayList,
 	keyPlanets: sameDisplayList,
 	aspects: sameDisplayList,   // 相位选择(AspSelector)是数组字面量,父级每次新引用 → 内容比;变更须重渲触发 drawChart 重画相位线
+	hideBodies: sameDisplayList,
 };
 // state 中唯一进入 render/draw 的可变量是 ox/oy/radius(resize 时由 clientW/H 派生重算)——
 // 必须纳入 sCU,否则 resize setState(props 不变)会被跳过 → 盘不跟着重排。
@@ -103,6 +110,8 @@ class AstroChart extends Component{
 			planetDisplay: this.props.planetDisplay,
 			lotsDisplay: this.props.lotsDisplay,
 			keyPlanets: this.props.keyPlanets,
+			horaryOverlay: this.props.horaryOverlay,   // memo 稳引用,引用比;undefined(占星页)恒等
+			hideBodies: this.props.hideBodies,         // 世俗盘流派渲染白名单;undefined 恒等
 			chartStyle: this.props.chartStyle,
 			// 相位选择纳入签名:desposeAspects 按 AstroConst.AspKey(localStorage)过滤相位线,该选择不在任何 props 数据对象内,
 			// 不纳入则切相位时签名恒等 → 守卫误判跳过、相位线不重画(死选项)。取 localStorage 同源,与实际绘制依据一致。
@@ -134,6 +143,8 @@ class AstroChart extends Component{
 			&& sameDisplayList(a.planetDisplay, b.planetDisplay)
 			&& sameDisplayList(a.lotsDisplay, b.lotsDisplay)
 			&& sameDisplayList(a.keyPlanets, b.keyPlanets)
+			&& a.horaryOverlay === b.horaryOverlay
+			&& sameDisplayList(a.hideBodies, b.hideBodies)
 			&& a.chartStyle === b.chartStyle
 			&& a.aspKey === b.aspKey
 			&& a.zrHl === b.zrHl
@@ -179,6 +190,13 @@ class AstroChart extends Component{
 		for(let i=0; i<lotsSrc.length; i++){
 			planetDisp.add(lotsSrc[i]);
 		}
+		// 世俗盘流派渲染白名单:古典/中世纪派剔除外行星 → glyph 与相位线同门槛齐隐
+		// (AstroChartCircle 两者同吃本 Set);不传恒零剔除=既有渲染逐字节一致。
+		if(Array.isArray(this.props.hideBodies)){
+			for(let i=0; i<this.props.hideBodies.length; i++){
+				planetDisp.delete(this.props.hideBodies[i]);
+			}
+		}
 
 		let keyplanets = null;
 		if(this.props.keyPlanets){
@@ -189,6 +207,7 @@ class AstroChart extends Component{
 		if(this.chartCircle){
 			this.chartCircle.setShowAstroMeaning(this.getShowAstroMeaning());
 			if(this.chartCircle.setZRHighlight){ this.chartCircle.setZRHighlight(this.props.zrHighlightSign || null); }
+			if(this.chartCircle.setHoraryOverlay){ this.chartCircle.setHoraryOverlay(this.props.horaryOverlay || null); }
 			try{
 				this.chartCircle.drawChart(this.state.chartid, chartobj, this.state.rStep, disp, planetDisp, keyplanets, this.props.chartStyle);
 				drawOk = true;

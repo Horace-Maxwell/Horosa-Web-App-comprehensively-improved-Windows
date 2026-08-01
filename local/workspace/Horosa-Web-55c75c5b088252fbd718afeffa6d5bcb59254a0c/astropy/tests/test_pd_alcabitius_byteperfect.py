@@ -2,7 +2,7 @@
 Byte-perfect regression for the Alcabitius + Ptolemy primary-direction path.
 
 This is the highest-priority guardrail for the Primary Direction multi-method
-buildout: any change to perpredict.py / perchart.py is required to leave the
+buildout: any change to the predictive / chart modules is required to leave the
 default (pdMethod='core_alchabitius', pdTimeKey='Ptolemy', pdtype=0) output
 byte-identical to the current first-principles snapshot stored under
 `tests/data/pd_calibration_corpus/golden_alcabitius_ptolemy_v266.ndjson`.

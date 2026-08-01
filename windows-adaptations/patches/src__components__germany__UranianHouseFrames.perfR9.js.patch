@@ -1,14 +1,19 @@
 diff --git a/astrostudyui/src/components/germany/UranianHouseFrames.js b/astrostudyui/src/components/germany/UranianHouseFrames.js
-index 2ae1971..82b42b4 100644
+index 478fcbc..aa9041e 100644
 --- a/astrostudyui/src/components/germany/UranianHouseFrames.js
 +++ b/astrostudyui/src/components/germany/UranianHouseFrames.js
-@@ -16,6 +16,32 @@ import UranianFrameWheel from './UranianFrameWheel';
- import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
- import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
- import { schoolToBackendParams } from './UranianSchools';
+@@ -1,4 +1,7 @@
+ // 量化盘 六大宫框(定局法 WP-2)主面板。
 +import { markPanelReady } from '../../utils/perfMark';
 +import { sameDisplayList } from '../../utils/chartUpdateGuard';
 +import { chartSCUEnabled } from '../../utils/perfFlags';
+ // 顶部 XQSelect 六框下拉(子午/上升/太阳/月亮/交点/地球)看一框盘 + XQTable 落宫表 + 「缩略全览」看六小轮。
+ // 主框盘复用标准星盘设置 AstroChart(同主占星盘):用所选框的 12 宫 cusps 重写本命盘 houses,各点用本命盘原始
+ //   objects(全保真:字形/逆行/落座度),画成与主盘一致的 12 宫盘。缩略全览仍用轻量 UranianFrameWheel(六小轮)。
+@@ -13,6 +16,30 @@ import * as AstroText from '../../constants/AstroText';
+ import { XQSelect, XQTable } from '../xq-ui';
+ import AstroChart from '../astro/AstroChart';
+ import UranianFrameWheel from './UranianFrameWheel';
 +
 +// horosa_frames_scu_v1(PERF-R9 Ship 6):六宫框 sCU(与 UranianDialMain 同款全键浅比)。
 +// 父容器 AstroGermany 的子页签无冻结层 → 隐藏时也会随父重渲(内含标准盘 AstroChart + 落宫表)。
@@ -32,10 +37,11 @@ index 2ae1971..82b42b4 100644
 +	}
 +	return true;
 +}
- 
- // 标准盘所需的「宫头对象」结构:{id:'House1'..'House12', lon, size, sign, signlon}。
- // AstroChartCircle.desposeHouses/getHouse 消费 lon/size/sign/signlon/id;此处从框的 cusps[12] 派生。
-@@ -149,6 +175,12 @@ export default class UranianHouseFrames extends Component {
++
+ import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
+ import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
+ import { schoolToBackendParams } from './UranianSchools';
+@@ -150,6 +177,12 @@ export default class UranianHouseFrames extends Component {
  		this._measure = this._measure.bind(this);
  		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.load(); this._measure(); } };
  	}
@@ -48,7 +54,7 @@ index 2ae1971..82b42b4 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this.load();
-@@ -187,11 +219,13 @@ export default class UranianHouseFrames extends Component {
+@@ -188,11 +221,13 @@ export default class UranianHouseFrames extends Component {
  			const m = (mid && mid[Constants.ResultKey]) ? mid[Constants.ResultKey] : mid;
  			const tnp = (m && m.tnp) || [];
  			const points = collectPoints(chartObj, tnp);

@@ -309,6 +309,31 @@ def detect_patterns(points):
                         if has(tri_ids[0], tri_ids[1], 120) and has(tri_ids[0], tri_ids[2], 120) and has(tri_ids[1], tri_ids[2], 120):
                             if any(has(rest_id, t, 180) for t in tri_ids) and sum(1 for t in tri_ids if has(rest_id, t, 60)) >= 2:
                                 patterns.append({'type': 'kite', 'label': 'Kite', 'points': quad, 'tail': rest_id})
+                    # Cradle 摇篮:四星链 a-b-c-d 三段连续 60° + 首尾 a-d 180°(半盘弧上的缓冲结构)。
+                    # 枚举 quad 的链排列(首尾无序、链向无序 → 12 种有向排列/4=3 种本质链×首尾 2 向,直接全排列去重)。
+                    import itertools as _it
+                    for perm in _it.permutations(quad):
+                        pa, pb, pc, pd = perm
+                        if pa > pd:
+                            continue   # 链反向等价,半序去重
+                        if has(pa, pb, 60) and has(pb, pc, 60) and has(pc, pd, 60) and has(pa, pd, 180):
+                            patterns.append({'type': 'cradle', 'label': 'Cradle', 'points': [pa, pb, pc, pd]})
+                            break
+
+    # Grand Sextile 大六角:六星按黄经环序相邻皆 60°(两套大三角嵌套的六芒星,极罕见)。
+    lon_of = {p['id']: p['lon'] for p in points if p['id'] in ids}
+    import itertools as _it6
+    for combo in _it6.combinations(ids, 6):
+        if any(pid not in lon_of for pid in combo):
+            continue
+        ring = sorted(combo, key=lambda pid: lon_of[pid])
+        ok = True
+        for i in range(6):
+            if not has(ring[i], ring[(i + 1) % 6], 60):
+                ok = False
+                break
+        if ok:
+            patterns.append({'type': 'grand_sextile', 'label': 'Grand Sextile', 'points': list(ring)})
 
     by_sign = {}
     for p in points:
@@ -968,18 +993,49 @@ def compute_planetary_hours(params):
     }
 
 
+# 巴比伦「计数之星」(距星)定名表:30 颗唯一星(楔文文献沿黄道参照星;蟹后南星与蟹前南星同标一星故不重列)。
+# (swisseph 星名, 中文距星义, 现代星名)
+_BABYLON_NORMAL_STARS = (
+    ('Sheratan', '雇工头之前星', 'β Ari'), ('Hamal', '雇工头之后星', 'α Ari'),
+    ('Alcyone', '星团', 'η Tau'), ('Aldebaran', '牛颚', 'α Tau'),
+    ('Elnath', '战车北星', 'β Tau'), (',zeTau', '战车南星', 'ζ Tau'),
+    ('Propus', '前双子', 'η Gem'), ('Alhena', '后双子', 'γ Gem'),
+    ('Castor', '中双子', 'α Gem'), ('Pollux', '后双子星', 'β Gem'),
+    (',gaCnc', '蟹前北星', 'γ Cnc'), (',deCnc', '蟹前南星', 'δ Cnc'),
+    (',kaLeo', '狮头', 'κ Leo'), ('Regulus', '王星', 'α Leo'),
+    (',rhLeo', '王后小星', 'ρ Leo'), (',thLeo', '狮心', 'θ Leo'),
+    ('Denebola', '狮尾', 'β Leo'), ('Zavijava', '犁沟前星', 'β Vir'),
+    ('Porrima', '犁沟前亮星', 'γ Vir'), ('Spica', '犁沟', 'α Vir'),
+    ('Zuben Elgenubi', '南秤', 'α Lib'), ('Zuben Eschamali', '北秤', 'β Lib'),
+    ('Dschubba', '蝎头上星', 'δ Sco'), ('Acrab', '蝎头中星', 'β Sco'),
+    ('Antares', '蝎胸亮星', 'α Sco'), (',thOph', '山羊鱼角', 'θ Oph'),
+    ('Dabih', '山羊鱼前星', 'β Cap'), ('Nashira', '山羊鱼后星', 'γ Cap'),
+    ('Deneb Algedi', '山羊鱼尾', 'δ Cap'), (',etPsc', '鱼带亮星', 'η Psc'),
+)
+
+_BABYLON_CUBIT_DEG = 2.2   # 统计最佳值(古代规范 2°–2.5°);1 cubit = 24 finger
+
+
+def _babylon_star_positions(perchart):
+    """30 颗距星在本盘同框架(回归/恒星随盘)下的 (lon, lat);swisseph fixstar2_ut 直算。"""
+    jd = perchart.dateTime.jd
+    flag = swisseph.FLG_SWIEPH
+    if getattr(perchart, 'zodiacal', None) == const.SIDEREAL:
+        flag |= swisseph.FLG_SIDEREAL   # 盘链路刚 set_sid_mode,同全局模式
+    out = []
+    for (swname, cn, modern) in _BABYLON_NORMAL_STARS:
+        try:
+            (xx, retnm, _rf) = swisseph.fixstar2_ut(swname, jd, flag)
+            out.append({'cn': cn, 'modern': modern, 'lon': xx[0] % 360.0, 'lat': xx[1]})
+        except Exception:
+            continue
+    return out
+
+
 def compute_babylonian_stars(perchart):
-    """WI-27 参照星定位(巴比伦式):每七政最近的亮参照星(星等<2.5,近黄道)+ 黄经距;<1°标合。
-    以星历亮星近似 Normal Stars 参照集(非该专名全集逐字转录,避免数据转录失真)。"""
-    try:
-        stars = []
-        for s in perchart.getFixedStars():
-            mg = getattr(s, 'mag', None)
-            m = mg[0] if isinstance(mg, (tuple, list)) else mg
-            if m is not None and float(m) < 2.5 and abs(safe_float(getattr(s, 'lat', 0))) <= 12.0:
-                stars.append(s)
-    except Exception:
-        stars = []
+    """WI-27 参照星定位(巴比伦式,定名距星表):每七政最近的「计数之星」(30 颗楔文距星)+
+    黄经距(<1°标合)+ 楔文式方位读法「在某星 上/下·前/后 X cubit Y finger」(1 cubit≈2.2°=24 finger)。"""
+    stars = _babylon_star_positions(perchart)
     if not stars:
         return []
     pts = {p['id']: p for p in chart_points(perchart, include_angles=False)}
@@ -989,19 +1045,34 @@ def compute_babylonian_stars(perchart):
         if pid not in pts:
             continue
         plon = pts[pid]['lon']
+        plat = safe_float(pts[pid].get('lat', 0.0))
         best, bestd = None, 999.0
         for s in stars:
-            d = angle_distance(safe_float(getattr(s, 'lon', 0)), plon)
+            d = angle_distance(s['lon'], plon)
             if d < bestd:
                 bestd, best = d, s
         if best is None:
             continue
+        # 楔文读法:黄纬差 → 上/下;黄经差(带向) → 前(黄经较小侧)/后
+        lat_diff = plat - best['lat']
+        lon_signed = ((plon - best['lon'] + 540.0) % 360.0) - 180.0
+        total_cubits = bestd / _BABYLON_CUBIT_DEG
+        cubits = int(total_cubits)
+        fingers = int(round((total_cubits - cubits) * 24))
+        if fingers == 24:
+            cubits, fingers = cubits + 1, 0
         out.append({
             'planet': pid,
-            'star': getattr(best, 'id', ''),
-            'cn': getattr(best, 'name', ''),
+            'star': best['modern'],
+            'cn': best['cn'],
             'dist': round(bestd, 2),
             'conj': bool(bestd < 1.0),
+            'latDir': ('上' if lat_diff >= 0 else '下'),
+            'lonDir': ('后' if lon_signed >= 0 else '前'),
+            'latDiff': round(abs(lat_diff), 2),
+            'lonDiff': round(abs(lon_signed), 2),
+            'cubits': cubits,
+            'fingers': fingers,
         })
     return out
 
@@ -1223,7 +1294,7 @@ def _eclipse_band(digit):
     return '全'
 
 
-def calc_eclipses(start_jd, end_jd, zone):
+def _calc_eclipses_inner(start_jd, end_jd, zone):
     events = []
     jd = start_jd - 1
     while True:
@@ -1280,6 +1351,15 @@ def calc_eclipses(start_jd, end_jd, zone):
             })
         jd = e_jd + 1
     return sorted(events, key=lambda item: item['jd'])
+
+
+def calc_eclipses(start_jd, end_jd, zone):
+    """食相搜索:窗口贴近星历域上界时,前向搜索会越出数据尽头(如 16799 年末搜下一次
+    月食需 16800 段)——此时返回已搜到的部分(域内事件不受影响),不拖垮整个星历页。"""
+    try:
+        return _calc_eclipses_inner(start_jd, end_jd, zone)
+    except Exception:
+        return []
 
 
 def calc_daily_positions(start_jd, end_jd, zone, planets, max_days=370):

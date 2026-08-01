@@ -10,13 +10,27 @@
 	font-size: 13px;
 	line-height: 1.7;
 
-	// —— 子页签(起禽/择日/占卜/投胎)——
-	.yq-subtabs {
-		margin-bottom: 10px;
-		.ant-radio-button-wrapper {
-			font-weight: 600;
-			letter-spacing: 0.02em;
+	// —— 子页签(盘/起禽/择日/占卜/投胎/定局/拆字/宿曜)——
+	// 统一为 ant Tabs 下划线式,与右栏主页签「概览/宫位/星禽/吞啖/演法」视觉一致
+	// (同 --horosa-tab-ink 墨条 + --horosa-huangji-accent-strong 激活色);
+	// 不复用 .horosa-kinastro-tabs(其带 flex 撑满+自滚,嵌套会夹布局),仅取其外观。
+	// 只作用于最外层子页签条(> .ant-tabs-nav),不动其内部「择日」等嵌套 Tabs 的默认样式。
+	.yq-subtabs-tabs {
+		&.ant-tabs { overflow: visible; }
+		> .ant-tabs-nav { margin-bottom: 10px; }
+		> .ant-tabs-nav::before { border-bottom-color: @yq-border; }
+		// 8 页签窄栏需紧排:强制「仅左间距 12px」,覆盖 antd 内建 .ant-tabs-tab 的 18px 右 margin
+		// 与内联 gutter(否则两者叠加成 ~32px 间距 → 溢出,尾部拆字/宿曜被折进「…」下拉)。
+		> .ant-tabs-nav .ant-tabs-tab {
+			margin: 0 0 0 12px !important;
+			padding: 6px 0;
+			font-size: 13px;
+			.ant-tabs-tab-btn { color: @yq-muted; font-weight: 600; letter-spacing: 0.02em; }
+			&:first-child { margin-left: 0 !important; }
+			&:hover .ant-tabs-tab-btn,
+			&.ant-tabs-tab-active .ant-tabs-tab-btn { color: var(--horosa-huangji-accent-strong, @yq-accent); }
 		}
+		> .ant-tabs-nav .ant-tabs-ink-bar { background: var(--horosa-tab-ink, @yq-accent); }
 	}
 
 	// —— 只读信息条(时间取左栏 + 当前流派)——
@@ -234,4 +248,66 @@
 		&.is-wide { width: 100%; }
 		.xq-select, .ant-select { width: 100% !important; }
 	}
+}
+
+// WP-11/WP-6 新增:年禽三元网格 + 十二宫字位行
+.yanqin-branch-panel {
+	.yq-nianqin-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 3px;
+		max-height: 320px;
+		overflow-y: auto;
+		padding: 2px 0;
+	}
+	.yq-nianqin-cell {
+		flex: 0 0 auto;
+		font-size: 11px;
+		line-height: 1.5;
+		padding: 1px 5px;
+		border-radius: 4px;
+		background: var(--horosa-surface-2, rgba(120,120,120,0.08));
+		white-space: nowrap;
+		i { font-style: normal; opacity: 0.55; margin-right: 3px; }
+	}
+	.yq-ziwei-row {
+		display: flex;
+		gap: 4px;
+		flex-wrap: wrap;
+		margin: 4px 0 6px;
+	}
+	.yq-ziwei-cell {
+		flex: 0 0 auto;
+		width: 24px;
+		height: 24px;
+		line-height: 24px;
+		text-align: center;
+		font-weight: 700;
+		border-radius: 4px;
+		background: var(--horosa-surface-2, rgba(120,120,120,0.08));
+	}
+}
+
+// WP-21 宿曜三九
+.yanqin-branch-panel {
+	.yq-chip-row-simple { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
+	.yq-xiuyao-cell {
+		flex: 0 0 auto;
+		padding: 3px 10px;
+		border-radius: 6px;
+		background: var(--horosa-surface-2, rgba(120,120,120,0.08));
+		font-size: 12px;
+		b { font-size: 14px; color: var(--horosa-accent, #b8860b); }
+	}
+}
+
+// WP-24 三传流转弧
+.yanqin-branch-panel {
+	.yq-sanchuan-arc {
+		display: flex; align-items: center; justify-content: center; gap: 8px;
+		padding: 8px 0; flex-wrap: wrap;
+	}
+	.yq-arc-node { font-size: 15px; font-weight: 700; padding: 3px 10px; border-radius: 14px;
+		background: var(--horosa-surface-2, rgba(120,120,120,0.08)); }
+	.yq-arc-sep { color: var(--horosa-muted, #9a8f7d); font-size: 16px; }
 }

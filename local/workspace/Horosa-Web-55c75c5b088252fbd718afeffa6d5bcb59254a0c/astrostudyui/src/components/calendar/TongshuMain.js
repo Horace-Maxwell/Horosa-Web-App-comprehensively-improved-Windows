@@ -20,6 +20,9 @@ import { calendarPanelShouldUpdate } from './NongLiMain';
 
 const MODULE = 'calendar-tongshu';
 
+function verdictTone(level) { return level === 'good' ? 'is-good' : (level === 'bad' ? 'is-bad' : 'is-neutral'); }
+
+// 董公中栏：本月逐日值日（建除 + 金神七煞/三吉星 + 所选用事宜/忌），点击选日。
 // horosa_kentang_result_cache_v1(通书择日):本页每一次 setState(选日/换用事/换时辰/换流派)
 // 都把当前流派的中右栏【整体重算】一遍 —— 董公中栏是本月逐日 donggongDay + buildHuangliDay +
 // yongshiVerdict(31 天 × 3 次纯计算),三垣要跨 y-1/y/y+1 三年求加临点,玄空要排 12 时辰日课。
@@ -40,9 +43,7 @@ function tsMemo(key, build) {
 	return val;
 }
 
-function verdictTone(level) { return level === 'good' ? 'is-good' : (level === 'bad' ? 'is-bad' : 'is-neutral'); }
-
-// 董公中栏逐日数据（纯计算部分，与「哪天被选中」无关 → 按 年-月-用事 缓存整月）。
+// 董公本月逐日数据(纯计算部分):月+用事为键 memo;JSX(activeYmd 高亮)留在组件里现拼。
 function donggongMonthData(y, m, event) {
 	return tsMemo(`dg|${y}|${m}|${event || ''}`, ()=>{
 		const days = new Date(y, m, 0).getDate();
@@ -62,12 +63,13 @@ function donggongMonthData(y, m, event) {
 // 董公中栏：本月逐日值日（建除 + 金神七煞/三吉星 + 所选用事宜/忌），点击选日。
 function DonggongMonth({ y, m, activeYmd, event, onPick }) {
 	const rows = donggongMonthData(y, m, event).map(({ d, ymd, r, yv })=> (
-		<div key={d} className={`horosa-tongshu-dayrow ${ymd === activeYmd ? 'is-active' : ''} ${yv.level === 'yi' ? 'is-yi-day' : (yv.level === 'ji' ? 'is-ji-day' : '')}`} onClick={()=> onPick(ymd)}>
+		<div key={d} className={`horosa-tongshu-dayrow ${ymd === activeYmd ? 'is-active' : ''} ${yv.level === 'yi' ? 'is-yi-day' : (yv.level === 'ji' || yv.level === 'conflict' ? 'is-ji-day' : '')}`} onClick={()=> onPick(ymd)}>
 			<span className='horosa-tongshu-dayrow-d'>{d}</span>
 			<span className='horosa-tongshu-dayrow-gz'>{r.dayGZ}</span>
 			<span className='horosa-tongshu-dayrow-jc'>{r.jianchu}</span>
 			{yv.level === 'yi' ? <Tag className='horosa-huangli-tag is-good'>宜{event}</Tag> : null}
 			{yv.level === 'ji' ? <Tag className='horosa-huangli-tag is-bad'>忌{event}</Tag> : null}
+			{yv.level === 'conflict' ? <Tag className='horosa-huangli-tag is-bad'>{event}·宜忌相冲</Tag> : null}
 			{r.jinshen.hit ? <Tag className='horosa-huangli-tag is-bad'>金神七煞</Tag> : null}
 			{r.sanxing ? <Tag className='horosa-huangli-tag is-good'>{r.sanxing}</Tag> : null}
 		</div>
@@ -77,8 +79,8 @@ function DonggongMonth({ y, m, activeYmd, event, onPick }) {
 
 // 董公右栏：选中日详断。
 function DonggongDetail({ y, m, d, event }) {
-	const r = tsMemo(`dgd|${y}|${m}|${d}`, ()=> donggongDay({ y, m, d }));
-	const yv = tsMemo(`yv|${y}|${m}|${d}|${event || ''}`, ()=> yongshiVerdict(buildHuangliDay(y, m, d), event));
+	const r = donggongDay({ y, m, d });
+	const yv = yongshiVerdict(buildHuangliDay(y, m, d), event);
 	const hitEvent = event && (yv.level !== 'neutral' || r.text.indexOf(event) >= 0);
 	return (
 		<div className='horosa-tongshu-detail'>
@@ -88,8 +90,11 @@ function DonggongDetail({ y, m, d, event }) {
 				<Tag className='horosa-huangli-gz'>{r.monthName}·{r.jianchu}{r.zhi}日</Tag>
 			</div>
 			{event ? (
-				<div className={`horosa-tongshu-verdict ${yv.level === 'yi' ? 'is-good' : (yv.level === 'ji' ? 'is-bad' : 'is-neutral')}`}>
-					{yv.level === 'yi' ? `本日通书宜「${event}」（宜 ${yv.hits.join('、')}）` : (yv.level === 'ji' ? `本日通书忌「${event}」（忌 ${yv.hits.join('、')}）` : `本日通书于「${event}」无明确宜忌，参酌下方董公断语与建除`)}
+				<div className={`horosa-tongshu-verdict ${yv.level === 'yi' ? 'is-good' : (yv.level === 'ji' || yv.level === 'conflict' ? 'is-bad' : 'is-neutral')}`}>
+					{yv.level === 'yi' ? `本日通书宜「${event}」（宜 ${yv.hits.join('、')}）`
+						: (yv.level === 'ji' ? `本日通书忌「${event}」（忌 ${yv.hits.join('、')}）`
+							: (yv.level === 'conflict' ? `本日通书对「${event}」宜忌相冲（命中 ${yv.hits.join('、')}）——按凶优先，慎用`
+								: `本日通书于「${event}」无明确宜忌，参酌下方董公断语与建除`))}
 				</div>
 			) : null}
 			<div className={`horosa-tongshu-verdict ${verdictTone(r.verdict.level)}`}>{r.verdict.text}</div>
@@ -338,15 +343,9 @@ function XuankongPanes({ y, m, d, mingYear, selHour, onSelHour }) {
 }
 
 class TongshuMain extends Component {
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
-
+	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同位置也带一份通用 wrapperPropsEqual 渲染守卫,
+	// 与本类内另一份我方细化守卫在同一类内重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
+	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
 	constructor(props) {
 		super(props);
 		const settings = loadTongshuSettings();

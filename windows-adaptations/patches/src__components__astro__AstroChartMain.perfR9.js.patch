@@ -1,16 +1,17 @@
 diff --git a/astrostudyui/src/components/astro/AstroChartMain.js b/astrostudyui/src/components/astro/AstroChartMain.js
-index 3f86871..a6b9734 100644
+index 83352ca..57aab8a 100644
 --- a/astrostudyui/src/components/astro/AstroChartMain.js
 +++ b/astrostudyui/src/components/astro/AstroChartMain.js
-@@ -1,5 +1,7 @@
- import { Component } from 'react';
- import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+@@ -32,6 +32,8 @@ import { moietyOrbOverrides, DEFAULT_ORBS } from './AstroOrbSetting';
+ import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
+ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1] 图标语义映射单源
+ import XQIcon from '../xq-icons';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
- import { Row, Col, Popover, Tooltip } from 'antd';
- import AstroChart from './AstroChart';
- import AstroInfo from './AstroInfo';
-@@ -57,6 +59,148 @@ function formatTrueSolarTime(value){
+ 
+ const TabPane = XQTabs.TabPane;
+ const Option = XQSelect.Option;
+@@ -59,6 +61,148 @@ function formatTrueSolarTime(value){
  	return `${value}`.replace(' ', '，');
  }
  
@@ -159,7 +160,7 @@ index 3f86871..a6b9734 100644
  class AstroChartMain extends Component{
  
  	constructor(props) {
-@@ -84,7 +228,6 @@ class AstroChartMain extends Component{
+@@ -86,7 +230,6 @@ class AstroChartMain extends Component{
  		this.navigateDirectionTool = this.navigateDirectionTool.bind(this);
  		this.renderInputOptionPopovers = this.renderInputOptionPopovers.bind(this);
  		this.renderInputPanel = this.renderInputPanel.bind(this);
@@ -167,7 +168,7 @@ index 3f86871..a6b9734 100644
  		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
  
  		if(this.props.hook){
-@@ -795,89 +938,6 @@ class AstroChartMain extends Component{
+@@ -817,89 +960,6 @@ class AstroChartMain extends Component{
  		);
  	}
  
@@ -257,7 +258,7 @@ index 3f86871..a6b9734 100644
  
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
-@@ -889,6 +949,31 @@ class AstroChartMain extends Component{
+@@ -911,6 +971,31 @@ class AstroChartMain extends Component{
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
  
@@ -289,7 +290,7 @@ index 3f86871..a6b9734 100644
  	render(){
  		let chartObj = this.props.value;
  		let fields = this.props.fields;
-@@ -974,7 +1059,18 @@ class AstroChartMain extends Component{
+@@ -1001,7 +1086,18 @@ class AstroChartMain extends Component{
  									)
  								}
  						</div>

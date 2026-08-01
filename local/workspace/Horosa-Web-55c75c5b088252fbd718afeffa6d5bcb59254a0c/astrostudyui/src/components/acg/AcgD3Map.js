@@ -20,6 +20,7 @@ const THEMES = {
 			Jupiter: '#8C82F0', Saturn: '#C79A5E', Uranus: '#34C5D6', Neptune: '#6E90F2', Pluto: '#AEB4BD',
 			'North Node': '#D98C4A', 'South Node': '#C9B07A', Chiron: '#5DAE54',
 			'Dark Moon': '#B188DA', 'Purple Clouds': '#CB8BD9',
+			Ceres: '#7FB069', Pallas: '#C99BD6', Juno: '#E0A458', Vesta: '#D4726A', Eris: '#8A94A6',
 		},
 	},
 	light: {
@@ -34,10 +35,14 @@ const THEMES = {
 			Jupiter: '#5A4BC0', Saturn: '#866428', Uranus: '#108EA0', Neptune: '#3357C4', Pluto: '#565C66',
 			'North Node': '#BC6A28', 'South Node': '#937B3F', Chiron: '#358230',
 			'Dark Moon': '#7E52B6', 'Purple Clouds': '#9A55AE',
+			Ceres: '#5E9147', Pallas: '#A768B8', Juno: '#C48328', Vesta: '#B4534B', Eris: '#6A7486',
 		},
 	},
 };
 const AstroColor = THEMES.dark.colors;
+
+// 供罗盘盘面等外部组件取同款行星色(按外观主题)。
+export function acgColors(dark) { return (dark ? THEMES.dark : THEMES.light).colors; }
 
 // Basemap style presets (original designs; orthogonal to light/dark). Each only
 // overrides terrain tones — geo/planet colours come from the theme.
@@ -66,6 +71,8 @@ const PLANET_CN = {
 	[AstroConst.SATURN]: '土星', [AstroConst.URANUS]: '天王星', [AstroConst.NEPTUNE]: '海王星',
 	[AstroConst.PLUTO]: '冥王星', [AstroConst.NORTH_NODE]: '北交点', [AstroConst.SOUTH_NODE]: '南交点',
 	[AstroConst.CHIRON]: '凯龙星', [AstroConst.DARKMOON]: '莉莉丝', [AstroConst.PURPLE_CLOUDS]: '紫炁',
+	[AstroConst.CERES]: '谷神星', [AstroConst.PALLAS]: '智神星', [AstroConst.JUNO]: '婚神星',
+	[AstroConst.VESTA]: '灶神星', [AstroConst.ERIS]: '阋神星',
 };
 const ANGLE_CN = { asc: '上升', desc: '下降', mc: '中天', ic: '天底' };
 const ASPECT_SYM = { 60: '⚹', 90: '□', 120: '△', 45: '∠', 135: '⚼' };
@@ -160,6 +167,8 @@ class AcgD3Map extends Component {
 			prevProps.paranAll !== this.props.paranAll ||
 			prevProps.showAspects !== this.props.showAspects || prevProps.showPoints !== this.props.showPoints ||
 			prevProps.showMidpoints !== this.props.showMidpoints || prevProps.showLots !== this.props.showLots ||
+			prevProps.showVibration !== this.props.showVibration || prevProps.showRelCross !== this.props.showRelCross ||
+			prevProps.showZones !== this.props.showZones || prevProps.zoneWidth !== this.props.zoneWidth ||
 			prevProps.showCrossings !== this.props.showCrossings || prevProps.showGeodetic !== this.props.showGeodetic ||
 			prevProps.showCuspLines !== this.props.showCuspLines ||
 			prevProps.showStars !== this.props.showStars || prevProps.showStarParans !== this.props.showStarParans ||
@@ -189,9 +198,16 @@ class AcgD3Map extends Component {
 
 	makeProjection(w, h) {
 		const sphere = { type: 'Sphere' };
-		const proj = this.props.projection === 'mercator'
-			? d3.geoMercator().clipExtent([[0, 0], [w, h]])
-			: d3.geoEquirectangular();
+		let proj;
+		if (this.props.projection === 'orthographic') {
+			// 球面正射(地球仪);rotate 由 props.globeRotate 控制(拖拽旋转),仅外观不改数据。
+			const r = this.props.globeRotate || [0, -15];
+			proj = d3.geoOrthographic().rotate([r[0], r[1]]).clipAngle(90);
+		} else if (this.props.projection === 'mercator') {
+			proj = d3.geoMercator().clipExtent([[0, 0], [w, h]]);
+		} else {
+			proj = d3.geoEquirectangular();
+		}
 		proj.fitSize([w, h], sphere);
 		return proj;
 	}
@@ -222,6 +238,7 @@ class AcgD3Map extends Component {
 			.attr('d', this.path).attr('fill', th.land).attr('stroke', th.border).attr('stroke-width', 0.4);
 
 		this.heatG = root.append('g').attr('class', 'acg-heat').style('pointer-events', 'none');
+		this.zoneG = root.append('g').attr('class', 'acg-zones').style('pointer-events', 'none');
 		this.geoG = root.append('g').attr('class', 'acg-geo');
 		this.paranG = root.append('g').attr('class', 'acg-paran');
 		this.lsG = root.append('g').attr('class', 'acg-ls');
@@ -301,7 +318,7 @@ class AcgD3Map extends Component {
 
 	drawAll() {
 		if (!this.root || !this.path) return;
-		[this.heatG, this.geoG, this.paranG, this.lsG, this.lineG, this.labelG, this.markerG].forEach((g) => g && g.selectAll('*').remove());
+		[this.heatG, this.zoneG, this.geoG, this.paranG, this.lsG, this.lineG, this.labelG, this.markerG].forEach((g) => g && g.selectAll('*').remove());
 		const data = this.props.value;
 		const th = this.theme;
 		const showLabels = this.props.showLabels !== false;
@@ -351,6 +368,42 @@ class AcgD3Map extends Component {
 				splitAtDateline(ls).forEach((seg) => {
 					this.stroke(this.lsG, this.path({ type: 'LineString', coordinates: seg }),
 						{ color, width: 1.1, dash: '2,4', g: glyph(pk), t: `${planetCN(pk)} 本地空间` });
+				});
+			});
+		}
+
+		// 影响带(§2.5):行星线两侧半透明带。1°纬=69mi;子午线经度宽 = halfDeg/cosφ(向极加宽)→ 多边形;
+		// 升落曲线 = 粗半透明描边(px 由投影度→px 换算)。仅对已选中主线的行星绘制,组序在线下。
+		if (this.props.showZones && data.planets) {
+			const halfDeg = (this.props.zoneWidth || 600) / 69.0;
+			const p0 = this.projection([0, 0]);
+			const p10 = this.projection([10, 0]);
+			const pxDeg = (p0 && p10) ? Math.abs(p10[0] - p0[0]) / 10 : 5;
+			Object.keys(data.planets).forEach((pk) => {
+				const L = data.planets[pk].lines || {};
+				const color = th.colors[pk] || '#888';
+				['mc', 'ic', 'asc', 'desc'].forEach((field) => {
+					if (!this.lineVisible(pk, field)) return;
+					if (field === 'mc' || field === 'ic') {
+						const lon = L[field] && L[field].lon;
+						if (lon === undefined || lon === null) return;
+						const left = [], right = [];
+						for (let la = -80; la <= 80; la += 4) {
+							const w = halfDeg / Math.max(0.18, Math.cos(la * Math.PI / 180));
+							left.push([lon - w, la]); right.push([lon + w, la]);
+						}
+						const poly = left.concat(right.reverse()); poly.push(left[0]);
+						this.zoneG.append('path').attr('d', this.path({ type: 'Polygon', coordinates: [poly] }))
+							.attr('fill', color).attr('opacity', 0.07).attr('stroke', 'none');
+					} else {
+						const pts = L[field];
+						if (!pts || !pts.length) return;
+						splitAtDateline(pts).forEach((seg) => {
+							this.zoneG.append('path').attr('d', this.path({ type: 'LineString', coordinates: seg }))
+								.attr('fill', 'none').attr('stroke', color).attr('opacity', 0.055)
+								.attr('stroke-width', Math.min(120, halfDeg * 2 * pxDeg)).attr('stroke-linecap', 'round');
+						});
+					}
 				});
 			});
 		}
@@ -518,18 +571,28 @@ class AcgD3Map extends Component {
 			const sel = (id) => ['mc', 'ic', 'asc', 'desc'].some((f) => this.lineVisible(id, f));
 			data.midpoints.forEach((m) => {
 				if (m.lon === undefined || m.lon === null || !sel(m.a) || !sel(m.b)) return;
-				const d = this.path({ type: 'LineString', coordinates: [[m.lon, -76], [m.lon, 76]] });
-				this.stroke(this.lineG, d, {
-					color: th.geo.paran, width: 0.7, dash: '1,3', casing: false,
-					g: glyph(m.a) + '/' + glyph(m.b), t: `${planetCN(m.a)}/${planetCN(m.b)} 中点`,
-				}).attr('opacity', 0.5);
+				const g = glyph(m.a) + '/' + glyph(m.b);
+				const t = `${planetCN(m.a)}/${planetCN(m.b)} 中点`;
+				const ic = m.ic && m.ic.lon;
+				[[m.lon, '', '1,3'], [ic, '(IC)', '1,4']].forEach(([lon, sfx, dash]) => {
+					if (lon === undefined || lon === null) return;
+					const d = this.path({ type: 'LineString', coordinates: [[lon, -76], [lon, 76]] });
+					this.stroke(this.lineG, d, { color: th.geo.paran, width: 0.7, dash, casing: false, g, t: t + sfx }).attr('opacity', 0.5);
+				});
+				['asc', 'desc'].forEach((f) => {
+					const pts = m[f];
+					if (!pts || !pts.length) return;
+					splitAtDateline(pts).forEach((seg) => {
+						this.stroke(this.lineG, this.path({ type: 'LineString', coordinates: seg }),
+							{ color: th.geo.paran, width: 0.6, dash: '1,3', casing: false, g, t: `${t} ${ANGLE_CN[f]}` }).attr('opacity', 0.4);
+					});
+				});
 			});
 		}
 
-		// 阿拉伯点线(§3.5):福点/精神点 MC/IC 子午线(金色·特殊点)
+		// 阿拉伯点线(§3.5):福点/精神点(四线)+ 古典 lots(MC/IC)+ 自定义 A+B−C(金色·特殊点)
 		if (this.props.showLots && data.lots) {
-			[['fortune', '福点'], ['spirit', '精神点']].forEach(([k, cn]) => {
-				const lot = data.lots[k];
+			const drawLot = (lot, cn, curves) => {
 				if (!lot) return;
 				['mc', 'ic'].forEach((f) => {
 					const lon = lot[f] && lot[f].lon;
@@ -540,6 +603,61 @@ class AcgD3Map extends Component {
 						t: `${cn}${f === 'ic' ? '(IC)' : ''}`,
 					}).attr('opacity', 0.6);
 				});
+				if (curves) {
+					['asc', 'desc'].forEach((f) => {
+						const pts = lot[f];
+						if (!pts || !pts.length) return;
+						splitAtDateline(pts).forEach((seg) => {
+							this.stroke(this.lineG, this.path({ type: 'LineString', coordinates: seg }),
+								{ color: '#d4a017', width: 0.8, dash: '5,4', casing: false, t: `${cn} ${ANGLE_CN[f]}` }).attr('opacity', 0.5);
+						});
+					});
+				}
+			};
+			drawLot(data.lots.fortune, '福点', true);
+			drawLot(data.lots.spirit, '精神点', true);
+			const CLA_CN = { eros: '爱欲点', necessity: '必然点', courage: '勇气点', victory: '胜利点', nemesis: '报应点' };
+			if (data.lots.classical) {
+				Object.keys(data.lots.classical).forEach((k) => drawLot(data.lots.classical[k], CLA_CN[k] || k, false));
+			}
+			if (data.lots.custom) drawLot(data.lots.custom, '自定义(' + (data.lots.custom.formula || '') + ')', true);
+		}
+
+		// 振动线(§20.5·Cochrane 5/7/9):选中主线的行星,H 族分点向 MC/ASC 的相位线(细·彩虹分色)
+		if (this.props.showVibration && data.planets) {
+			const VIB_COL = { 5: '#c77dbb', 7: '#7d9dc7', 9: '#7dc79d' };
+			Object.keys(data.planets).forEach((pk) => {
+				const vib = data.planets[pk].lines && data.planets[pk].lines.vibration;
+				if (!vib || !this.lineVisible(pk, 'mc')) return;
+				['5', '7', '9'].forEach((H) => {
+					(vib[H] || []).forEach((T) => {
+						if (T.mc && T.mc.lon != null) {
+							const d = this.path({ type: 'LineString', coordinates: [[T.mc.lon, -74], [T.mc.lon, 74]] });
+							this.stroke(this.lineG, d, { color: VIB_COL[H], width: 0.55, dash: '1,4', casing: false, t: `${planetCN(pk)} H${H}振动线` }).attr('opacity', 0.42);
+						}
+						if (T.asc && T.asc.length) {
+							splitAtDateline(T.asc).forEach((seg) => this.stroke(this.lineG, this.path({ type: 'LineString', coordinates: seg }),
+								{ color: VIB_COL[H], width: 0.5, dash: '1,5', casing: false, t: `${planetCN(pk)} H${H}振动·升` }).attr('opacity', 0.32));
+						}
+					});
+				});
+			});
+		}
+
+		// 关系盘 A×B 交叉/派状(§18.3):synastry 时 A 线×B 线交点(青菱)+ 派状纬线(青虚横线)
+		if (this.props.showRelCross && data.second) {
+			(data.second.relCrossings || []).forEach((x) => {
+				const xy = this.projection([x.lon, x.lat]);
+				if (!xy || !isFinite(xy[0]) || !isFinite(xy[1])) return;
+				const s = 2.8;
+				const dm = this.lineG.append('path')
+					.attr('d', `M${xy[0].toFixed(1)},${(xy[1] - s).toFixed(1)} L${(xy[0] + s).toFixed(1)},${xy[1].toFixed(1)} L${xy[0].toFixed(1)},${(xy[1] + s).toFixed(1)} L${(xy[0] - s).toFixed(1)},${xy[1].toFixed(1)} Z`)
+					.attr('fill', '#2fb6c0').attr('stroke', th.casing).attr('stroke-width', 0.5).attr('opacity', 0.8);
+				dm.append('title').text(`${x.aWho}·${planetCN(x.a)}${ANGLE_CN[x.aAngle] || x.aAngle} × ${x.bWho}·${planetCN(x.b)}${ANGLE_CN[x.bAngle] || x.bAngle} 关系交叉`);
+			});
+			(data.second.relParans || []).forEach((p) => {
+				const d = this.path({ type: 'LineString', coordinates: [[-179, p.lat], [0, p.lat], [179, p.lat]] });
+				this.stroke(this.lineG, d, { color: '#2fb6c0', width: 0.5, dash: '2,6', casing: false, t: `关系派状 ${planetCN(p.a)}/${planetCN(p.b)} @${p.lat}°` }).attr('opacity', 0.3);
 			});
 		}
 

@@ -114,7 +114,10 @@ export async function buildJingJueSnapshotForFields(fields, opts){
 		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
 		const seed = (Number.isFinite(optSeed) && optSeed > 0)
 			? Math.floor(optSeed) % 1000000000
-			: (parseInt(dt.date.replace(/-/g, ''), 10) * 10000 + dt.hour * 100 + dt.minute) % 1000000000;
+			: (// 🔴 起课种子 BC 安全:旧式 replace(/-/g,'') 连负号一并抹 → BC 年与同数公元年折叠。
+		// AD 年保持旧数字拼合逐位不变(「同一时间反复挂载同一卦」,历史存档/解读可复现);
+		// mod 1e9 后年份只存个位,BC 仅把年位 +5 平移 —— 同数 BC/AD 必异 seed,AD 字节零回归。
+		((dt.year >= 0 ? dt.year : Math.abs(dt.year) + 5) * 10000 + dt.month * 100 + dt.day) * 10000 + dt.hour * 100 + dt.minute) % 1000000000;
 		const pan = await postJingJue('pan', { ...dt, seed });
 		return buildSnapshotText(pan);
 	}catch(e){ return ''; }

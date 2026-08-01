@@ -439,6 +439,8 @@ function planetStatus(obj){
 
 // 伏(焦伤):偕日相 combust/cazimi 或与太阳黄经差 <8°(§4.5)。仅日月五星之 月五星判;太阳本身与四余(罗计孛炁=虚星)不判。
 const COMBUST_ELIGIBLE = new Set([AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN]);
+// 西占 8° 焦伤判定(与 Moira 3°「伏」分治:后者单一真值在 guolaoData.starCombust)。
+// 本函数现仅供导出契约/测试消费,生产渲染一律走 motionState(glStarMotion+glStarCombust)。
 export function isCombustObj(obj, lon, sunLon, id){
 	if(!obj || !COMBUST_ELIGIBLE.has(id)){ return false; }
 	if(obj.phase === 'combust' || obj.phase === 'cazimi'){ return true; }
@@ -459,23 +461,8 @@ function exaltText(name, lon){
 	return dist <= 1 ? `精擢${e.deg}°` : `擢${e.deg}°`;
 }
 
-// G8 留/迟/疾(伏由 isCombustObj 另判,逆由 planetStatus):|速|<留阈=留;<均速=迟;>均速=疾。仅七政(交点/四余不判)。§13 均行度。
-const GL_MOTION_SPEC = {
-	[AstroConst.SUN]: { mean: 0.9856, stat: 0 },
-	[AstroConst.MOON]: { mean: 13.176, stat: 0 },
-	[AstroConst.MERCURY]: { mean: 1.383, stat: 0.20 },
-	[AstroConst.VENUS]: { mean: 1.602, stat: 0.20 },
-	[AstroConst.MARS]: { mean: 0.524, stat: 0.10 },
-	[AstroConst.JUPITER]: { mean: 0.083, stat: 0.05 },
-	[AstroConst.SATURN]: { mean: 0.0335, stat: 0.035 },
-};
-function motionText(id, speed){
-	const spec = GL_MOTION_SPEC[id];
-	if(!spec || !Number.isFinite(speed)){ return ''; }
-	const a = Math.abs(speed);
-	if(spec.stat > 0 && a < spec.stat){ return '留'; }
-	return a < spec.mean ? '迟' : '疾';
-}
+// (旧 GL_MOTION_SPEC/motionText 已删:与 Moira 单源 guolaoData.STAR_SPEED_SPEC 五项漂移的
+//  第二份同型实现,且其产出的 motion/combust 字段无任何生产消费者——渲染只读 motionState。)
 
 // Moira 庙旺殿喜口径(与后端 dignity() 同表同序):入垣(宫主)/升殿(擢升)/失垣(对宫)/落陷。
 // 七政专判,四余/交点为虚星不判;本命行后端 rule.dignity 已给,流年行 rule 为空由此表补算,前后端单一口径。
@@ -513,16 +500,6 @@ function dignityFromTable(name, lon){
 	return row[ziCol] || '';
 }
 
-// G8 七政动态 留逆伏迟疾(§4.5):逆(速<0)+伏(combust)+留/迟/疾(motion)。仅七政(交点/四余=虚星不判)。
-function qizhengStateText(item){
-	if(!item || GL_MOTION_SPEC[item.id] === undefined){ return ''; }
-	const sp = Number(item.speed);
-	const parts = [];
-	if(Number.isFinite(sp) && sp < -0.000001){ parts.push('逆'); }
-	if(item.combust){ parts.push('伏'); }
-	if(item.motion){ parts.push(item.motion); }
-	return parts.length ? parts.join('·') : '顺';
-}
 
 function buildPlanetRows(chart, rulePlanets){
 	const byRule = new Map(safeList(rulePlanets).map((item)=>[item.id, item]));
@@ -534,7 +511,6 @@ function buildPlanetRows(chart, rulePlanets){
 			return null;
 		}
 		const rule = byRule.get(def.id) || {};
-		const _combust = isCombustObj(obj, lon, sunLon, def.id);   // G8 伏(合日 3°)
 		// Moira 庙旺所属(殿垣庙旺乐喜怒):按古法地支查表 + 躔擢升度峰值加「殿」;天海冥无表项 → []。
 		const _zhi = ziFromLon(lon);
 		const _ex = GL_EXALT[def.name];
@@ -568,8 +544,6 @@ function buildPlanetRows(chart, rulePlanets){
 			dignityTable: dignityFromTable(def.name, lon),     // 庙旺(单一真值源 DIGNITY_TABLE,本命+流年一致)
 			exalt: exaltText(def.name, lon),                   // G25 擢升度数(旺度峰值)
 			status: planetStatus(obj),
-			combust: _combust,                                 // G8 伏(焦伤)
-			motion: motionText(def.id, Number(obj.lonspeed)),  // G8 留/迟/疾
 			speed: Number(obj.lonspeed),
 			zhi: _zhi,
 			signStatus: glStarDignity(def.name, _zhi, _atPeak),                       // Moira 庙旺所属(殿垣庙旺乐喜怒)

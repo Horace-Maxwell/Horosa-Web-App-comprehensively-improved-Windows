@@ -32,7 +32,8 @@ export function xingshi(sel = {}) {
 	const longScore = (s.longSheng ? 2 : (s.longSheng === false ? -2 : 0))
 		+ (star ? (star.jx === 'good' ? 2 : star.jx === 'bad' ? -2 : 0) : 0)
 		+ (s.boHuan ? 1 : 0) + (s.guoXiaGood ? 1 : 0);
-	const xueScore = (s.xueType ? 1 : 0) + (Array.isArray(s.zhengXue) ? Math.min(3, s.zhengXue.length) : 0);
+	// 定穴九法与穴形同权（各 +1），证穴十证按数计（封顶 3）。
+	const xueScore = (s.xueType ? 1 : 0) + (s.dingXue ? 1 : 0) + (Array.isArray(s.zhengXue) ? Math.min(3, s.zhengXue.length) : 0);
 	const shaScore = (Array.isArray(s.guiSha) ? Math.min(3, s.guiSha.length) : 0)
 		- (Array.isArray(s.xiongSha) ? Math.min(3, s.xiongSha.length) : 0)
 		+ (s.shaYouQing === true ? 1 : (s.shaYouQing === false ? -1 : 0));
@@ -45,7 +46,7 @@ export function xingshi(sel = {}) {
 	return {
 		available: true,
 		long: { score: longScore, jx: jxOf(longScore), star, ruShou: s.ruShou || null, wuShi: s.wuShi || null, sheng: s.longSheng },
-		xue: { score: xueScore, jx: jxOf(xueScore), type: s.xueType || null, star: s.xueStar || null, zhengCount: (s.zhengXue || []).length, daoZhang: s.daoZhang || null },
+		xue: { score: xueScore, jx: jxOf(xueScore), type: s.xueType || null, star: s.xueStar || null, dingXue: s.dingXue || null, zhengCount: (s.zhengXue || []).length, daoZhang: s.daoZhang || null },
 		sha: { score: shaScore, jx: jxOf(shaScore), gui: s.guiSha || [], xiong: s.xiongSha || [], youQing: s.shaYouQing },
 		shui: { score: shuiScore, jx: jxOf(shuiScore), cheng, laiKai: !!s.laiShuiKai, quGuan: !!s.quShuiGuan },
 		xiang: { score: xiangScore, jx: jxOf(xiangScore), chaoJi: !!s.xiangChaoJi, chongSha: !!s.xiangChongSha },

@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/kinastro/KinAstroMain.js b/astrostudyui/src/components/kinastro/KinAstroMain.js
-index ad9ee4d..8a27218 100644
+index 84069eb..ff3989e 100644
 --- a/astrostudyui/src/components/kinastro/KinAstroMain.js
 +++ b/astrostudyui/src/components/kinastro/KinAstroMain.js
 @@ -32,13 +32,43 @@ import { cachedKentangFetch } from '../../utils/kentangCache';
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../../utils/kinAstroFieldsSync';
  import UpdatingBadge from '../common/UpdatingBadge';
--import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
+-import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 +import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
-+import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
++import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, chartSCUEnabled } from '../../utils/perfFlags';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { parseYearFromDateStr } from '../../utils/dateStrSafe';
  
@@ -75,17 +75,18 @@ index ad9ee4d..8a27218 100644
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -914,9 +956,42 @@ class KinAstroMain extends Component{
+@@ -984,9 +1026,43 @@ class KinAstroMain extends Component{
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
  
 +	// horosa_prefetch_registry_v1(PERF-R10 P6):数算/其他/演禽 的步进预取登记。
 +	// 「已步进 fields」走与真点完全相同的 buildPayload+postKinAstro 路径(缓存键
 +	// serviceKey|payload 逐字节同键);native 技法(参评/河洛/正传/一掌经,本地引擎)
-+	// 与构参失败一律返回 [](零网络)。登记键 = 页签 moduleKey;换轨跨模块键
-+	// (mingother↔yanqin)时必须迁移登记,否则新键查不到预取器。
++	// 与构参失败一律返回 [](零网络)。登记键 = 页签归属键(v3.6.0 起随上游 hostModuleKey
++	// 语义:被宿主页嵌用时按宿主键登记,与 setRuntimeKinAstroTechnique/markPanelReady 同源);
++	// 换轨跨模块键(mingother↔yanqin)时必须迁移登记,否则新键查不到预取器。
 +	_syncStepPrefetcher(){
-+		const key = this.config.moduleKey;
++		const key = this.props.hostModuleKey || this.config.moduleKey;
 +		if(this._stepPrefetchKey === key && this._stepPrefetcher){
 +			return;
 +		}
@@ -113,20 +114,20 @@ index ad9ee4d..8a27218 100644
 +
  	componentDidMount(){
  		this.unmounted = false;
- 		setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+ 		setRuntimeKinAstroTechnique(this.props.hostModuleKey || this.config.moduleKey, this.config.serviceKey);
 +		this._syncStepPrefetcher();
  		// fields→state 首次同步（性别+农历锚点）；此后 didUpdate 用同一 helper 做标记式重同步，
  		// 载入命例（fields 变）时性别/锚点必随记录刷新（修透传断链），手动切换不被无关变化冲掉。
  		const nextState = computeKinFieldsResync(this.props.fields, this.state.fieldsSyncSrc) || {};
-@@ -945,6 +1020,7 @@ class KinAstroMain extends Component{
+@@ -1015,6 +1091,7 @@ class KinAstroMain extends Component{
  		if(prevProps.technique !== this.props.technique){
  			this.config = TECHNIQUE_CONFIG[this.props.technique || 'shaozi'] || TECHNIQUE_CONFIG.shaozi;
- 			setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+ 			setRuntimeKinAstroTechnique(this.props.hostModuleKey || this.config.moduleKey, this.config.serviceKey);
 +			this._syncStepPrefetcher();
  			this.requestSeq += 1;
  			this.setState({
  				pan: null,
-@@ -990,6 +1066,11 @@ class KinAstroMain extends Component{
+@@ -1060,6 +1137,11 @@ class KinAstroMain extends Component{
  
  	componentWillUnmount(){
  		this.unmounted = true;
@@ -138,7 +139,7 @@ index ad9ee4d..8a27218 100644
  		if(typeof window !== 'undefined' && this._dayBoundaryListener){
  			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
  		}
-@@ -1246,7 +1327,15 @@ class KinAstroMain extends Component{
+@@ -1338,7 +1420,15 @@ class KinAstroMain extends Component{
  	async fetchPan(fields){
  		if(this.config.native){
  			this.requestSeq += 1;
@@ -150,28 +151,28 @@ index ad9ee4d..8a27218 100644
 +			// currentTab:shusuan/mingother/yanqin),不是 serviceKey('shaozi' 等)——
 +			// perfMark 的归属校验按 currentTab 配对,键不一致时样本被静默丢弃(验收恒零样本)。
 +			this.setState({ loading: false, pan: null }, ()=>{
-+				markPanelReady(this.config.moduleKey);
++				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
 +			});
  			return;
  		}
  		const payload = this.buildPayload(fields);
-@@ -1272,7 +1361,15 @@ class KinAstroMain extends Component{
+@@ -1364,7 +1454,15 @@ class KinAstroMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
 +				// horosa_panel_ready_v1:这一次 setState 才是「盘落定」——中栏盘面与右栏各段
 +				// 都由 pan 派生,故本回调即「点击 → 中右栏画完」的终点。必须是首行:放在
 +				// saveKinAstroAISnapshots 之后会把快照序列化的耗时算进交互预算里。
-+				// 键契约同上(horosa_panel_ready_attribution_key_v1):moduleKey 而非 serviceKey。
-+				markPanelReady(this.config.moduleKey);
- 				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan));
++				// 键契约(horosa_panel_ready_attribution_key_v1):页签归属键(hostModuleKey 优先)。
++				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
+ 				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan), this.props.hostModuleKey);
 +				// horosa_step_prefetch_arm_v1(b′):换轨/改选项后的 settle 也按当前技法武装 ±N
 +				//(fetchByFields settle 只覆盖时间派发路径;/chart 不在本页步进路径上)。
 +				try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
  			});
  		}catch(e){
  			if(this._inFlightSig === sig){
-@@ -1297,6 +1394,100 @@ class KinAstroMain extends Component{
+@@ -1389,6 +1487,100 @@ class KinAstroMain extends Component{
  		this.setState({ centerInfoVisible: false });
  	}
  
@@ -272,7 +273,7 @@ index ad9ee4d..8a27218 100644
  	renderPillarOverrideFields(){
  		if(!['shaozi', 'tieban'].includes(this.config.serviceKey) || this.state.pillarOverride !== '1'){
  			return null;
-@@ -2752,7 +2943,7 @@ class KinAstroMain extends Component{
+@@ -2922,7 +3114,7 @@ class KinAstroMain extends Component{
  	}
  
  	buildHeluoOpts(){
@@ -281,8 +282,8 @@ index ad9ee4d..8a27218 100644
  			ziShuMode: this.state.heluoZiShu,
  			jiGongMode: this.state.heluoJiGong,
  			zhiZunEnabled: this.state.heluoZhiZun,
-@@ -2760,7 +2951,7 @@ class KinAstroMain extends Component{
- 			liunianStep2: this.state.heluoLiunianStep2,
+@@ -2931,7 +3123,7 @@ class KinAstroMain extends Component{
+ 			liuYueMode: this.state.heluoLiuYueMode,
  			huangdiOffset: parseInt(this.state.heluoHuangdiOffset, 10) || 2697,
  			showLiuRi: this.state.heluoShowLiuRi,
 -		};
@@ -290,7 +291,7 @@ index ad9ee4d..8a27218 100644
  	}
  
  	/**
-@@ -2830,7 +3021,8 @@ class KinAstroMain extends Component{
+@@ -3001,7 +3193,8 @@ class KinAstroMain extends Component{
  
  	buildZhengChuanOpts(){
  		// 汇总全部开关 → 单一 opts 下传;任一变则中/右栏重算 + AI 快照刷新(禁止只监听单项)。
@@ -300,12 +301,16 @@ index ad9ee4d..8a27218 100644
  			school: this.state.zhengchuanSchool,
  			askGz: this.state.zhengchuanAskGz,
  			fatherAge: this.state.zhengchuanFatherAge,
-@@ -2849,11 +3041,11 @@ class KinAstroMain extends Component{
+@@ -3020,7 +3213,7 @@ class KinAstroMain extends Component{
  			gong: this.state.zhengchuanGong,
  			xqZhi: this.state.zhengchuanXqZhi,
  			xqYushu: this.state.zhengchuanXqYushu,
 -		};
 +		});
+ 	}
+ 
+ 	// 预设批量套用（一次 setState 避免多次重渲）
+@@ -3039,7 +3232,7 @@ class KinAstroMain extends Component{
  	}
  
  	buildYizhangjingOpts(){
@@ -314,16 +319,16 @@ index ad9ee4d..8a27218 100644
  			shunniRule: this.state.yizhangjingShunni,
  			mingGongMethod: this.state.yizhangjingMingGong,
  			dayunLength: parseInt(this.state.yizhangjingDayunLen, 10) || 7,
-@@ -2863,7 +3055,7 @@ class KinAstroMain extends Component{
- 			chongfanKou: this.state.yizhangjingChongfan,
- 			dingYue: this.state.yizhangjingDingYue,
- 			shenshaLayer: this.state.yizhangjingShensha,
+@@ -3059,7 +3252,7 @@ class KinAstroMain extends Component{
+ 			// 显示层：预设名（题头徽）与童限显示开关；供 UI 标注，不改盘算
+ 			yizhangjingPresetName: this.yzjDeviationCount() > 0 ? '自定义' : (YZJ_PRESET_LABELS[this.state.yizhangjingPreset] || '自定义'),
+ 			tongxianShow: this.state.yizhangjingTongxian,
 -		};
 +		});
  	}
  
  	renderCenter(){
-@@ -3090,29 +3282,8 @@ class KinAstroMain extends Component{
+@@ -3286,29 +3479,8 @@ class KinAstroMain extends Component{
  		if(this.config.serviceKey === 'yizhangjing'){
  			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} /></div>;
  		}
@@ -355,7 +360,7 @@ index ad9ee4d..8a27218 100644
  		const activeKey = visibleTabs.some((item)=>item.key === this.state.rightPanelTab)
  			? this.state.rightPanelTab
  			: (visibleTabs[0] ? visibleTabs[0].key : 'overview');
-@@ -3120,19 +3291,29 @@ class KinAstroMain extends Component{
+@@ -3316,19 +3488,29 @@ class KinAstroMain extends Component{
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs horosa-kinastro-tabs">
  				{visibleTabs.map((item)=>(
  					<TabPane tab={item.label} key={item.key}>
@@ -366,7 +371,7 @@ index ad9ee4d..8a27218 100644
 -						) : item.key === 'settings' ? (
 -							<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
 -						) : item.key === 'yanfa' ? (
--							<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} /></div>
+-							<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
 -						) : item.key === 'framework' ? (
 -							<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
 -						) : (
@@ -387,7 +392,7 @@ index ad9ee4d..8a27218 100644
 +								) : item.key === 'settings' ? (
 +									<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
 +								) : item.key === 'yanfa' ? (
-+									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} /></div>
++									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
 +								) : item.key === 'framework' ? (
 +									<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
 +								) : (
@@ -398,7 +403,7 @@ index ad9ee4d..8a27218 100644
  					</TabPane>
  				))}
  			</Tabs>
-@@ -3140,29 +3321,10 @@ class KinAstroMain extends Component{
+@@ -3336,29 +3518,10 @@ class KinAstroMain extends Component{
  	}
  
  	renderBottomQuickDock(){
@@ -432,7 +437,7 @@ index ad9ee4d..8a27218 100644
  		const actions = [
  			{ label: '起盘', icon: 'quickPrimary', onClick: this.clickPlot },
  			...visibleTabs.map((item)=>({
-@@ -3264,7 +3426,7 @@ class KinAstroMain extends Component{
+@@ -3460,7 +3623,7 @@ class KinAstroMain extends Component{
  							</div>
  							<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer${chartRendererClass}`} style={{ position: 'relative' }}>
  								{this.state.loading && this.state.pan && silentTechniquePanelsEnabled() ? <UpdatingBadge /> : null}

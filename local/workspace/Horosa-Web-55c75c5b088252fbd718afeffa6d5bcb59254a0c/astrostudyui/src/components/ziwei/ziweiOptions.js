@@ -11,6 +11,15 @@ export const ZWEngineOptions = {
 	yearBoundary: 'lichun',// 定年界线:lichun 立春(默认=现状) / lunar_1_1 正月初一(§1.6)
 	huoling: 'sanhe',      // 火铃:sanhe 三合通行(默认=现状,年支+生时顺数) / nanpai 南派(忽略生时·固定子)(§1.6)
 	kongNaming: 'modern',  // 空劫命名:modern 地空地劫(默认) / book 时系逆行星作天空(古本《全书》,互斥去年支独立天空)(§5)
+	brightnessSource: 'zi_jian', // 亮度源:zi_jian 自建(默认=现状,≈通行) / quanshu《全书》delta 覆盖(擎羊子酉旺/铃星独立表/亥卯未火星得)(§4.5/A.7)
+	// ── 显示层 overlay 开关(纯后处理,不改安星,故【不】进 ziweiNeedsLocalEngine;默认全关=零回归) ──
+	childLimit: false,     // 童限:上大限前逐岁本命宫(命财疾妻福官),右栏运限顶轴显示(§8.6)
+	zhongxian: false,      // 沈氏三限:大限细分4段中限各2.5年(沈氏派)(§9.14)
+	huoPan: false,         // 活盘:点任意宫为太极点重排人事宫名(透派/占验)(§9.9/9.11)
+	qishuWei: false,       // 河洛气数位:官禄宫干四化回照+一六共宗(河洛派)(§9.10)
+	borrowPalace: false,   // 中州借宫:空宫借对宫十四正曜(中州派)(§9.2.4)
+	taiSuiRuGua: false,    // 紫云太岁入卦:关系人生肖落同支宫(紫云派)(§9.3)
+	taiSuiRelatives: [],   // 紫云关系人列表 [{branch,role,sex}](随盘存)
 };
 
 // 是否需要走本地引擎(任一开关非默认,或流派 preset 非现状)。四化版(beipai/zhongzhou/quanshu)单独走 getActiveSiHuaGan，
@@ -26,6 +35,8 @@ export function ziweiNeedsLocalEngine(){
 		|| ZWEngineOptions.yearBoundary !== 'lichun'
 		|| ZWEngineOptions.huoling !== 'sanhe'
 		|| ZWEngineOptions.kongNaming !== 'modern';
+	// ⚠️ brightnessSource 不进此判据:亮度是纯显示层(庙旺 delta 覆盖,ZWCommHouse.effStarLight),
+	//    绝不触发本地引擎重排——否则会连带把命主等按本地口径重算,切亮度竟改命主(实测坑)。
 }
 
 // 选项常量(左栏下拉用)
@@ -54,11 +65,14 @@ export const LEAP_MONTH_OPTIONS = [
 	{ value: 'mid_split', label: '十五分界(默认·中州)' },
 	{ value: 'next', label: '整月归下月' },
 	{ value: 'prev', label: '整月归上月' },
+	{ value: 'split_days', label: '前后半分割(日本主流)' },
+	{ value: 'split_star_month', label: '命身下月·月系上月' },
 ];
 export const LATE_ZI_OPTIONS = [
 	{ value: 'zi_chu', label: '子初换日(默认)' },
 	{ value: 'midnight_split', label: '夜子时折中' },
 	{ value: 'zi_zheng', label: '子正换日' },
+	{ value: 'dual', label: '双盘(当日/次日各一)' },
 ];
 export const YEAR_BOUNDARY_OPTIONS = [
 	{ value: 'lichun', label: '立春换年(默认)' },
@@ -71,4 +85,8 @@ export const HUOLING_OPTIONS = [
 export const KONG_NAMING_OPTIONS = [
 	{ value: 'modern', label: '地空/地劫(默认)' },
 	{ value: 'book', label: '天空/地劫(古本《全书》)' },
+];
+export const BRIGHTNESS_SOURCE_OPTIONS = [
+	{ value: 'zi_jian', label: '自建亮度(默认·通行)' },
+	{ value: 'quanshu', label: '《全书》版(擎羊子酉旺/铃星独立表)' },
 ];

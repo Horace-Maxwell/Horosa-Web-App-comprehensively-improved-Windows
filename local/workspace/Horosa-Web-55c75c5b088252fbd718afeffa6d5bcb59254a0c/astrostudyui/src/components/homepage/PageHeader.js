@@ -214,12 +214,21 @@ function PageHeader(props){
 		}
 	}
 	
+	// 「新命盘」= 起此刻的空白新盘(会覆盖当前输入,这是它的语义)。
 	function newChart(){
 		if(props.dispatch){
 			props.dispatch({
 				type: 'astro/nowChart',
 				payload:{ },
 			});		
+		}
+	}
+
+	// 「重算当前」= 用已录生辰重排。此前它与「新命盘」共用同一 handler,
+	// 于是这个菜单项实际把生辰清成当下,名实相反。
+	function recalcChart(){
+		if(props.dispatch){
+			props.dispatch({ type: 'astro/recalcChart' });
 		}
 	}
 
@@ -537,37 +546,43 @@ function PageHeader(props){
 		label: (<div>导出PDF</div>),
 	}];
 	const currentPageLabel = PAGE_LABELS[props.currentTab] || '导航';
+	// 设置下拉:按使用习惯三组(占星盘面 / AI 导出 / 应用),divider 分隔;
+	// 图标逐项独立(chartPanel/aspectGeo/orbRange 为专绘,勿再与齿轮混用)。
+	// 「排盘设置」(key 'query',老式「星盘配置」提交表单)入口已按用户定案移除:
+	// 日期/地点/黄道/宫制与左栏命盘设置重复;表单独有的少数开关(强接纳/简单相位/虚点接相/需要推运)
+	// 另行处置,勿把该入口加回。
 	const astroSettingsMenu = [{
 		key: 'selectchartdisplay',
-		label: menuLabel('settings', '星盘组件')
+		label: menuLabel('chartPanel', '星盘设置')
 	},{
 		key: 'selectplanet',
 		label: menuLabel('sidePlanets', '显示星体')
 	},{
 		key: 'selectasp',
-		label: menuLabel('aiSettings', '相位设置')
+		label: menuLabel('aspectGeo', '相位设置')
 	},{
 		key: 'selectorb',
-		label: menuLabel('aiSettings', '容许度')
+		label: menuLabel('orbRange', '容许度')
 	},{
-		key: 'query',
-		label: menuLabel('astro', '排盘设置')
+		type: 'divider'
 	},{
 		key: 'aiExportSettings',
 		label: menuLabel('ai', 'AI导出设置')
+	},{
+		type: 'divider'
 	},{
 		key: 'globalsettings',
 		label: menuLabel('settings', '全局设置')
 	}].concat(hasUpdateBridge() ? [{
 		key: 'checkUpdate',
-		label: menuLabel('newChart', '检查更新')
+		label: menuLabel('sync', '检查更新')
+	}] : []).concat(hasDesktopBridge() ? [{
+		key: 'diagnostics',
+		label: menuLabel('diagnostics', '诊断报告')
 	}] : []).concat([{
 		key: 'about',
 		label: menuLabel('help', '关于星阙')
-	}]).concat(hasDesktopBridge() ? [{
-		key: 'diagnostics',
-		label: menuLabel('diagnostics', '诊断报告')
-	}] : []);
+	}]);
 
 	function onAstroSettingsClick({key}){
 		if(key === 'globalsettings'){
@@ -613,7 +628,7 @@ function PageHeader(props){
 
 	function onAstroNewChartMenuClick({key}){
 		if(key === 'now'){
-			newChart();
+			recalcChart();
 			return;
 		}
 		openDrawer(key);
@@ -686,7 +701,7 @@ function PageHeader(props){
 					)}
 				>
 					<div className={styles.astroHelpBody} style={{ maxHeight: '74vh', overflowY: 'auto' }}>
-						{(()=>{ const HelpDoc = getTechniqueHelpDoc(props.currentTab); return HelpDoc ? <HelpDoc /> : (
+						{(()=>{ const HelpDoc = getTechniqueHelpDoc(props.currentTab, props.currentSubTab); return HelpDoc ? <HelpDoc /> : (
 							<>
 								<p>左侧为排盘输入与显示设置，中间为盘面绘制，右侧分页查看信息、相位、行星与判读。</p>
 								<p>底部快捷功能跳转到对应技法或抽屉；切换任一设置即时全组合重算。</p>

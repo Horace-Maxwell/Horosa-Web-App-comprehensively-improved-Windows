@@ -117,6 +117,12 @@ describe('流派计权(extraWeights)', () => {
 		});
 		const exp = Math.round((58 * 1.03 + extra) / (1.03 + wsum));
 		expect(Math.abs(pj.base - exp)).toBeLessThanOrEqual(1); // 58 为默认档四舍五入锚,容 ±1
-		expect(pj.base).not.toBe(dj.base); // 计权真实生效
+		expect(dj).toBeTruthy();
+		// 计权真实生效(确定性合成盘,不吃 fixture 均值巧合):
+		// persian 计 sect(权重>0) → moon100+sect0 均分 <100;默认档不计 → =100。
+		const { scoreReport } = require('../scoring');
+		const synth = [{ key: 'moon', score: 100 }, { key: 'sect', score: 0 }];
+		expect(scoreReport(synth, [], WEST_SCHOOLS.persian).base).toBeLessThan(100);
+		expect(scoreReport(synth, [], WEST_SCHOOLS.modern_main).base).toBe(100);
 	});
 });

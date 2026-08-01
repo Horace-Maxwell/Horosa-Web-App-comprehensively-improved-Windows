@@ -5,6 +5,7 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import * as GraphHelper from '../graph/GraphHelper';
 import ZWCommHouse from './ZWCommHouse';
 import {randomStr,} from '../../utils/helper';
+// 流派叠层角标/借宫/活盘重排 + 亮度显示层:实现全在基类 ZWCommHouse(四化盘/三合盘共用),本类只调用不再直接依赖开关/名表。
 
 class ZWHouse extends ZWCommHouse {
 	constructor(option){
@@ -58,6 +59,7 @@ class ZWHouse extends ZWCommHouse {
 		}
 
 		this.drawLaiYing();
+		this.drawOverlayMarks();   // 流派叠层角标/借宫/活盘:实现已上提基类 ZWCommHouse(四化盘/三合盘共用)
 	}
 
 	drawSihuaTitle(){
@@ -181,7 +183,7 @@ class ZWHouse extends ZWCommHouse {
 	}
 
 	drawHouseTitleText(group, ord){
-		const name = `${this.houseObj.name || ''}`.replace(/[宫宮]$/, '');
+		const name = `${this.effectiveHouseName()}`.replace(/[宫宮]$/, '');
 		const ganzi = this.houseObj.ganzi || '';
 		const nameSize = Math.max(14, Math.min(ord.w * 0.46, ord.h * 0.54));
 		const ganziSize = Math.max(9, Math.min(ord.w * 0.30, ord.h * 0.28));
@@ -319,6 +321,7 @@ class ZWHouse extends ZWCommHouse {
 		if(!star || !star.name){
 			return;
 		}
+		const sl = this.effStarLight(star);   // 显示层庙旺(亮度源 quanshu 时叠《全书》delta)
 		if(this.kinastroBorrowed){
 			this.drawKinastroStar(star, x, y, w, h, color, nameWeight, sizeScale);
 			return;
@@ -354,7 +357,7 @@ class ZWHouse extends ZWCommHouse {
 			};
 			this.genTooltip(starsvg, tipobj, star.name)
 		}
-		const metaText = [this.shouldShowStarLight() ? star.starlight : '', star.flyTo ? `→${star.flyTo}` : ''].filter(Boolean).join(' ');
+		const metaText = [this.shouldShowStarLight() ? sl : '', star.flyTo ? `→${star.flyTo}` : ''].filter(Boolean).join(' ');
 		if(metaText){
 			this.svg.append('text')
 				.attr('x', x + w / 2)
@@ -382,6 +385,7 @@ class ZWHouse extends ZWCommHouse {
 	}
 
 	drawKinastroStar(star, x, y, w, h, color, nameWeight = 760, sizeScale = 1){
+		const sl = this.effStarLight(star);   // 显示层庙旺（借宫演禽路径也须本地取值，否则 sl 未定义）
 		const txt = [];
 		for(let i=0; i<star.name.length; i++){
 			txt[i] = star.name.charAt(i) + '';
@@ -399,7 +403,7 @@ class ZWHouse extends ZWCommHouse {
 			.attr('font-weight', nameWeight || 760);
 		cursorY += nameH + 1;
 
-		if(this.shouldShowStarLight() && star.starlight){
+		if(this.shouldShowStarLight() && sl){
 			group.append('text')
 				.attr('class', 'horosa-ziwei-kinastro-star-light')
 				.attr('x', x + w / 2)
@@ -411,7 +415,7 @@ class ZWHouse extends ZWCommHouse {
 				.attr('font-size', `${Math.max(10, Math.min(12, Math.round(w * 0.46)))}px`)
 				.attr('font-weight', 680)
 				.attr('font-family', AstroConst.NormalFont)
-				.text(star.starlight);
+				.text(sl);
 			cursorY += 14;
 		}
 

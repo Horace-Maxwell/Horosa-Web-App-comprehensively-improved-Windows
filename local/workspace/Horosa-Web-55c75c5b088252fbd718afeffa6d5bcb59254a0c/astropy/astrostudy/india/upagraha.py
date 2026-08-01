@@ -44,7 +44,7 @@ _NAK = 360.0 / 27.0                        # 13°20'
 def pranapada(sun_lon, elapsed_minutes):
     """Praṇapada PP(BPHS Ch.3,devatā Garuḍa):X=(历时分×5°)mod360(=ishta_vighati/15 rāśi);
     按太阳所在座型偏移 动象+0°/变动象+120°/固定象+240°;PP=(Sun+X+offset)mod360。
-    Sun 取「日出太阳」(BPHS/Jātaka Pārijāta)或「出生太阳」(PyJHora)——见 special_lagnas 双变体。"""
+    Sun 取「日出太阳」(BPHS/Jātaka Pārijāta)或「出生太阳」(现代变体)——见 special_lagnas 双变体。"""
     x = (float(elapsed_minutes) * 5.0) % 360.0
     sidx = int((float(sun_lon) % 360.0) // 30.0) % 12
     if sidx in (0, 3, 6, 9):        # 动象 movable(白羊/巨蟹/天秤/摩羯)
@@ -58,7 +58,7 @@ def pranapada(sun_lon, elapsed_minutes):
 
 def special_lagnas(sun_lon_at_sunrise, elapsed_minutes, lagna_lon, moon_lon, sun_lon_at_birth=None):
     """BL/HL/GL = 日出太阳经度 + 历时换算 rasi 推进；SL = lagna + 月宿进度×360°；
-    PP(Praṇapada)= 双变体(日出太阳 BPHS / 出生太阳 PyJHora)。
+    PP(Praṇapada)= 双变体(日出太阳 BPHS / 出生太阳 现代变体)。
     BL 每 5 ghati(120 分)进 1 rasi；HL 每 2.5 ghati(60 分)；GL 每 1 ghati(24 分)。"""
     s = float(sun_lon_at_sunrise) % 360.0
     ghatis = float(elapsed_minutes) / _GHATI_MIN
@@ -79,7 +79,7 @@ def special_lagnas(sun_lon_at_sunrise, elapsed_minutes, lagna_lon, moon_lon, sun
         'key': 'PP', 'label': 'Praṇapada',
         'lon': pp_sunrise,                       # 默认 = BPHS 日出太阳
         'variantSunrise': pp_sunrise,
-        'note': 'BPHS/Jātaka Pārijāta 用日出太阳;PyJHora 用出生太阳(差<1°,近座界可跳座)。',
+        'note': 'BPHS/Jātaka Pārijāta 用日出太阳;现代变体用出生太阳(差<1°,近座界可跳座)。',
     }
     if sun_lon_at_birth is not None:
         pp['variantBirth'] = pranapada(float(sun_lon_at_birth), elapsed_minutes)
@@ -89,33 +89,37 @@ def special_lagnas(sun_lon_at_sunrise, elapsed_minutes, lagna_lon, moon_lon, sun
 
 # ── 时基副星分段 ──────────────────────────────────────────────────────────
 # 昼(日出→日没)/夜(日没→次日出)各等分 8 段。每段归属一曜，第 8 段恒「无主」。
-# 段主序非简单循环：昼起段=当日星期主，按 日→月→火→水→木→金→土 序排，土之后插一「空段」，
-# 再回到日；夜起段=该昼序的第 5 曜起、同序续排。下表为各星期昼/夜 8 段段主的逐行显式表
+# 段主序:昼首段=当日星期主,按 日→月→火→水→木→金→土 顺推排满 1–7 段,第 8 段恒空;
+# 夜首段=该昼序的第 5 曜起、同序续排(第 8 段亦恒空)。下表为各星期昼/夜 8 段段主的逐行显式表
 # (公式近似会在空段前后系统性偏移，故改为显式查表)。None=空段(无主)。
 # 星期索引：0=日 1=月 2=火 3=水 4=木 5=金 6=土。
 _SUN, _MOON, _MARS, _MERC, _JUP, _VEN, _SAT = (
     'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn')
 
 # 昼 8 段段主表(行=星期 0..6，列=段 0..7；末段恒 None)。
+# 🔴 通行口径:首段主=当日 vara 主,其后按 日→月→火→水→木→金→土 顺推 7 段,
+# **第 8 段恒无主**。曾按「土之后插空段」排 → 空段位置随星期游走,土后诸曜整体
+# 后移一格(Kala/Mrityu/Artha/Yama 偏一段 ≈ 昼长/8,足以跨座);Gulika/Maandi(土)
+# 恰不受影响故未被金标抓到。
 _DAY_SEGMENT_LORDS = {
     0: [_SUN, _MOON, _MARS, _MERC, _JUP, _VEN, _SAT, None],    # 日
-    1: [_MOON, _MARS, _MERC, _JUP, _VEN, _SAT, None, _SUN],    # 月
-    2: [_MARS, _MERC, _JUP, _VEN, _SAT, None, _SUN, _MOON],    # 火
-    3: [_MERC, _JUP, _VEN, _SAT, None, _SUN, _MOON, _MARS],    # 水
-    4: [_JUP, _VEN, _SAT, None, _SUN, _MOON, _MARS, _MERC],    # 木
-    5: [_VEN, _SAT, None, _SUN, _MOON, _MARS, _MERC, _JUP],    # 金
-    6: [_SAT, None, _SUN, _MOON, _MARS, _MERC, _JUP, _VEN],    # 土
+    1: [_MOON, _MARS, _MERC, _JUP, _VEN, _SAT, _SUN, None],    # 月
+    2: [_MARS, _MERC, _JUP, _VEN, _SAT, _SUN, _MOON, None],    # 火
+    3: [_MERC, _JUP, _VEN, _SAT, _SUN, _MOON, _MARS, None],    # 水
+    4: [_JUP, _VEN, _SAT, _SUN, _MOON, _MARS, _MERC, None],    # 木
+    5: [_VEN, _SAT, _SUN, _MOON, _MARS, _MERC, _JUP, None],    # 金
+    6: [_SAT, _SUN, _MOON, _MARS, _MERC, _JUP, _VEN, None],    # 土
 }
 
 # 夜 8 段段主表(行=星期 0..6，列=段 0..7；末段恒 None)。
 _NIGHT_SEGMENT_LORDS = {
-    0: [_JUP, _VEN, _SAT, None, _SUN, _MOON, _MARS, _MERC],    # 日
-    1: [_VEN, _SAT, None, _SUN, _MOON, _MARS, _MERC, _JUP],    # 月
-    2: [_SAT, None, _SUN, _MOON, _MARS, _MERC, _JUP, _VEN],    # 火
+    0: [_JUP, _VEN, _SAT, _SUN, _MOON, _MARS, _MERC, None],    # 日(夜首=昼序第5曜)
+    1: [_VEN, _SAT, _SUN, _MOON, _MARS, _MERC, _JUP, None],    # 月
+    2: [_SAT, _SUN, _MOON, _MARS, _MERC, _JUP, _VEN, None],    # 火
     3: [_SUN, _MOON, _MARS, _MERC, _JUP, _VEN, _SAT, None],    # 水
-    4: [_MOON, _MARS, _MERC, _JUP, _VEN, _SAT, None, _SUN],    # 木
-    5: [_MARS, _MERC, _JUP, _VEN, _SAT, None, _SUN, _MOON],    # 金
-    6: [_MERC, _JUP, _VEN, _SAT, None, _SUN, _MOON, _MARS],    # 土
+    4: [_MOON, _MARS, _MERC, _JUP, _VEN, _SAT, _SUN, None],    # 木
+    5: [_MARS, _MERC, _JUP, _VEN, _SAT, _SUN, _MOON, None],    # 金
+    6: [_MERC, _JUP, _VEN, _SAT, _SUN, _MOON, _MARS, None],    # 土
 }
 
 

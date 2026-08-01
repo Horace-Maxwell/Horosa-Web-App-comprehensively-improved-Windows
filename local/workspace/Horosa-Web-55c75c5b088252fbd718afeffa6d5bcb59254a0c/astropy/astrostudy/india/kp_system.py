@@ -254,7 +254,10 @@ def significators(planet_data, house_occupancy=None):
     return result
 
 
-# 星期序(0=周一…6=周日)→ 星期主(vara lord)；与排盘引擎 dayofweek() 对齐。
+# 星期序(0=周一…6=周日)→ 星期主(vara lord)。
+# ⚠️ 与 flatlib dayofweek()(0=周日)不同域:调用方必须先 (dayofweek()-1)%7 换算
+# (jyotish_engine.kp / webindiasrv 均已如此);shadbala_bphs.WEEKDAY_LORDS 是另一张
+# 0=周日 表,同名不同域,勿互换。
 WEEKDAY_LORDS = ['Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Sun']
 
 
@@ -268,7 +271,7 @@ def ruling_planets(lagna_sign, lagna_nak_lord, moon_sign, moon_nak_lord, weekday
       ① 上升星座主  ② 上升星宿主  ③ 月亮星座主  ④ 月亮星宿主  ⑤ 星期主。
 
     入参：lagna_sign / moon_sign = 星座号(1..12)；lagna_nak_lord / moon_nak_lord = 宿主
-    行星名(字符串，如 'Mercury')；weekday = 0..6(0=周一，与 dayofweek() 一致)。
+    行星名(字符串，如 'Mercury')；weekday = 0..6(0=周一；dayofweek() 为 0=周日，须先 (x-1)%7 换算)。
 
     返回 { 'lagnaSignLord', 'lagnaNakLord', 'moonSignLord', 'moonNakLord', 'weekdayLord',
            'set': [...去重保序...] }。
@@ -288,6 +291,28 @@ def ruling_planets(lagna_sign, lagna_nak_lord, moon_sign, moon_nak_lord, weekday
             seen.append(v)
     components['set'] = seen
     return components
+
+
+def ruling_planets_extended(lagna_sign, lagna_nak_lord, moon_sign, moon_nak_lord, weekday,
+                            lagna_sub_lord=None, moon_sub_lord=None):
+    """RP 七项版(权威 §17.3-4:五要素「+ Lagna/Moon 子主」)。纯新增 ——
+    ruling_planets() 一字不改,既有五项口径零回归(回归断言看守)。
+
+    lagna_sub_lord / moon_sub_lord:该点 KP Sub 主(调用方用 kp_levels(lon)['Sub'] 取;
+    缺省 None 即退化为五项,'set' 与 ruling_planets 完全一致)。
+    """
+    base = ruling_planets(lagna_sign, lagna_nak_lord, moon_sign, moon_nak_lord, weekday)
+    out = dict(base)
+    out['lagnaSubLord'] = lagna_sub_lord
+    out['moonSubLord'] = moon_sub_lord
+    seen = list(base['set'])
+    for v in (lagna_sub_lord, moon_sub_lord):
+        if v is not None and v not in seen:
+            seen.append(v)
+    out['set'] = seen
+    out['components7'] = ['lagnaSignLord', 'lagnaNakLord', 'moonSignLord', 'moonNakLord',
+                          'weekdayLord', 'lagnaSubLord', 'moonSubLord']
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -325,7 +350,7 @@ def ruling_planets(lagna_sign, lagna_nak_lord, moon_sign, moon_nak_lord, weekday
        lagna_nak_lord = nakshatra_from_lon(self.d1_asc.lon)['lord']
        moon_sign  = const.LIST_SIGNS.index(self.d1_moon.sign)+1
        moon_nak_lord  = nakshatra_from_lon(self.d1_moon.lon)['lord']
-       weekday = self.perchart.dateTime.date.dayofweek()   # 0=周一…6=周日
+       weekday = (self.perchart.dateTime.date.dayofweek() - 1) % 7   # dayofweek 0=周日 → 本表 0=周一
        rp = ruling_planets(lagna_sign, lagna_nak_lord, moon_sign, moon_nak_lord, weekday)
 
   kp() 返回体可扩展为：

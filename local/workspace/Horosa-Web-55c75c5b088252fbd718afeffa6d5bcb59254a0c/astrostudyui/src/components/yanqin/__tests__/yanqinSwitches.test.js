@@ -1,5 +1,5 @@
 // 演禽互锁开关「真实生效」矩阵:逐开关断言两取值 → 输出不同(勾了必变);
-// + 穷举 9 预设 / 全开关取值 / 笛卡尔组合 不抛 + 边界。对应压力测试矩阵。
+// + 穷举 7 预设 / 全开关取值 / 笛卡尔组合 不抛 + 边界。对应压力测试矩阵。
 import {
 	dayNumber, castQinChart, monthQin, wuxingOfMansion, hourQin, huoYao, mansionOfDay, ganzhiOfDay,
 } from '../yanqinEngine';
@@ -64,8 +64,8 @@ describe('互锁开关逐个「真实生效」(两取值→输出必不同)', ()
 });
 
 describe('穷举:预设 / 开关取值 / 笛卡尔组合 均不抛', () => {
-	test('6 流派预设 applyPreset 全合法、含 school 键', () => {
-		expect(YANQIN_SCHOOL_OPTIONS.length).toBe(6);
+	test('7 流派预设 applyPreset 全合法、含 school 键', () => {
+		expect(YANQIN_SCHOOL_OPTIONS.length).toBe(7);
 		Object.keys(YANQIN_PRESETS).forEach((k) => {
 			const s = applyPreset(k);
 			expect(s.school).toBe(k);

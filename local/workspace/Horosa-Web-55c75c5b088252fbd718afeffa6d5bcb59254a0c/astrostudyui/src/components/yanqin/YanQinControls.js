@@ -33,7 +33,7 @@ export default class YanQinControls extends Component {
 				<div className="horosa-kinastro-yanfa-school-note">{(YANQIN_PRESETS[s.school] || {}).note || '自定义开关组合(已偏离预设)'}</div>
 				<button type="button" className="horosa-kinastro-yanfa-adv-toggle"
 					onClick={() => this.setState({ advOpen: !advOpen })}>
-					{advOpen ? '▾ 收起高级(互锁开关)' : '▸ 高级(我彼/位移/年月禽口诀…7 开关)'}
+					{advOpen ? '▾ 收起高级(互锁开关)' : `▸ 高级(我彼/位移/年月禽口诀…${YANQIN_OPTION_META.length} 开关)`}
 				</button>
 				{advOpen ? (
 					<div className="horosa-kinastro-yanfa-adv">

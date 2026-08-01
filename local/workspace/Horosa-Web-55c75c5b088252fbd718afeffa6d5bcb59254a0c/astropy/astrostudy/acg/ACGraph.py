@@ -41,6 +41,33 @@ SWE_NUM = {
     const.PLUTO: swisseph.PLUTO, const.CHIRON: swisseph.CHIRON,
 }
 
+# Minor planets (§ 天体集). Computed via Swiss Ephemeris directly — flatlib has no object
+# IDs for these — so the keys are plain strings matching the frontend AstroConst. Opt-in
+# (param 'asteroids'); default off keeps objlists byte-identical + zero extra compute cost.
+# Ceres/Pallas/Juno/Vesta ship in the packaged seas_*.se1; Eris (TNO 136199) needs the
+# separate s136199s.se1 file — a missing ephemeris just makes _objPos skip that body.
+ACG_ASTEROIDS = ['Ceres', 'Pallas', 'Juno', 'Vesta', 'Eris']
+ASTEROID_SWE = {
+    'Ceres': swisseph.CERES, 'Pallas': swisseph.PALLAS, 'Juno': swisseph.JUNO,
+    'Vesta': swisseph.VESTA, 'Eris': swisseph.AST_OFFSET + 136199,
+}
+
+# Two-body Kepler fallback for bodies whose Swiss Ephemeris .se1 file is absent
+# (Eris 136199, minor planet 1181 Lilith). Osculating heliocentric ecliptic-J2000
+# elements from NASA/JPL Small-Body Database (public data). Used ONLY when calc_ut
+# raises file-not-found — so a later-added .se1 always wins (full swisseph precision).
+# Accuracy: Eris (slow TNO) sub-0.1° over ±100yr; 1181 (main-belt) best near epoch,
+# degrading to ~1° over decades — fine for degree-scale astrocartography lines.
+# epoch=JD(TDB); a[AU]; e; i,om(Ω),w(ω),ma[deg]; n[deg/day].
+MINOR_ELEMENTS = {
+    'Eris': {'epoch': 2461200.5, 'a': 67.93394687853566, 'e': 0.4382385347971672,
+             'i': 43.9258279471791, 'om': 36.00477044417249, 'w': 150.7949235840312,
+             'ma': 211.774434275007, 'n': 0.001760247770619088},
+    'LilithBody': {'epoch': 2461200.5, 'a': 2.664329683955941, 'e': 0.1932594693436852,
+                   'i': 5.592148573497838, 'om': 260.5598407152684, 'w': 156.6598979328811,
+                   'ma': 357.2425263883717, 'n': 0.2266324683061821},
+}
+
 # CCG(Cyclo-Carto-Graphy, Lewis 1982)标准混合:内行星用二次推运、外行星用行运(文献常用)。
 CCG_PROGRESSED_SET = {const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS}
 # Heliocentric view (§ coord): only Sun-orbiting bodies have a heliocentric position.
@@ -228,8 +255,67 @@ class ACGraph:
         self.acgHsys = hsys_code(data.get('hsys', 'placidus')) if self.cuspLines else b'P'
         # coord 坐标系:'geo' 地心(默认,现状零回归) | 'helio' 日心(仅绕日天体,日→地)
         self.coord = str(data.get('coord', 'geo')).lower()
-        if self.coord not in ('geo', 'helio'):
+        if self.coord not in ('geo', 'helio', 'topo'):
             self.coord = 'geo'
+        # topo 站心(§):地心族的周日视差修正(FLG_TOPOCTR + set_topo),主要移动月亮线 ~1°。
+        # 与 helio 互斥(helio 无地表观测者);helio 优先。self.topo 仅在非日心时生效。
+        self.topo = (self.coord == 'topo')
+        # posType 位置类型(§):apparent 视位置(默认=flatlib,零回归) | true 真位置(FLG_TRUEPOS,
+        # 去光行差,参与线几何,效果小) | j2000 J2000 历元(仅作读数标注,不改 of-date 线几何)。
+        self.posType = str(data.get('posType', 'apparent')).lower()
+        if self.posType not in ('apparent', 'true', 'j2000'):
+            self.posType = 'apparent'
+        # horizon 地平(§):geometric 几何地平 h=0(默认,零回归) | apparent 视地平(折射 −34′,
+        # h=−0.5667°)。仅作用于 ASC/DSC 升落线;parans 仍用几何地平(解析解只在 h=0 成立)。
+        self.horizon = str(data.get('horizon', 'geometric')).lower()
+        if self.horizon not in ('geometric', 'apparent'):
+            self.horizon = 'geometric'
+        # draconic 龙黄道(§20.4):off(默认) | mean/true。龙黄经 λ'=(λ−北交黄经)mod360 刚性旋转
+        # (整盘减同一常数→内部相位全保留,β 不变);北交自身 λ'=0。dracNode 在 chart 建成后缓存。
+        self.draconic = str(data.get('draconic', 'off')).lower()
+        if self.draconic not in ('off', 'mean', 'true'):
+            self.draconic = 'off'
+        self.dracNode = 0.0
+        # harmonic 谐波(§20.5):整数 H(默认 1=关)。λ_H=(H·λ)mod360 乘性变换;谐波是纯黄经构造
+        # (Addey),β 无谐波含义→谐波开启时 β 置 0。
+        try:
+            self.harmonicH = int(float(data.get('harmonic', 1)))
+        except (TypeError, ValueError):
+            self.harmonicH = 1
+        if self.harmonicH < 1 or self.harmonicH > 32:
+            self.harmonicH = 1
+        # vibration Cochrane 5/7/9 振动线(§20.5):对 ASC/MC 画 H 族分点相位线(不变换行星位置)。
+        self.vibration = str(data.get('vibration', '0')) in ('1', 'true', 'True', 'yes', 'on')
+        # midpointMode 中点线口径(§3.2):zodiac 黄经中点(默认=现状) | mundo 赤经中点。
+        self.midpointMode = str(data.get('midpointMode', 'zodiac')).lower()
+        if self.midpointMode not in ('zodiac', 'mundo'):
+            self.midpointMode = 'zodiac'
+        # lotsCustom 自定义阿拉伯点(§3.5):"A,B,C" 或 "A,B,C,sect" 体键(A+B−C,sect=夜反转 B/C);
+        # 空=不画自定义点。冻结法:用出生地算得黄经固定后画普通角线。
+        self.lotsCustom = str(data.get('lotsCustom', '')).strip()
+        # geodeticZero 地理等价任意 0°♈ 子午线偏移(§7.5,东经度):空=用流派缺省(Sepharial 0/Johndro −30)。
+        self.geodeticZero = None
+        _gz = str(data.get('geodeticZero', '')).strip()
+        if _gz:
+            try:
+                self.geodeticZero = norm180(float(_gz))
+            except (TypeError, ValueError):
+                self.geodeticZero = None
+        # asteroids 小行星(§ 天体集):Ceres/Pallas/Juno/Vesta/Eris。默认关(objlists 不含
+        # → 既有输出字节不变 + 零额外计算);'1' 时并入 objlists,经 _objPos 的 swisseph 直算
+        # 旁路出与十行星同法的四线。Eris 缺星历文件时守卫跳过(照抄 Chiron 范围守卫思路)。
+        self.asteroids = str(data.get('asteroids', '0')).lower() in ('1', 'true', 'yes', 'on')
+        # nodeType 交点算法(§2.6):mean 平交点(默认=flatlib MEAN_NODE,零回归) | true 真交点
+        # (swisseph TRUE_NODE,osculating,与平交点差 ≲1.6°)。节点恒在黄道上→β=0,南交=北交+180°。
+        self.nodeType = str(data.get('nodeType', 'mean')).lower()
+        if self.nodeType not in ('mean', 'true'):
+            self.nodeType = 'mean'
+        # lilithType 月孛/黑月 Lilith(§):mean 平远地点(默认=flatlib MEAN_APOG,零回归) |
+        # true 真/振荡远地点(OSCU_APOG,与平差可达十余度) | intp 插值远地点(INTP_APOG) |
+        # body 星体 Lilith(小行星 1181,需 se01181s.se1 星历;缺文件→守卫跳过)。
+        self.lilithType = str(data.get('lilithType', 'mean')).lower()
+        if self.lilithType not in ('mean', 'true', 'intp', 'body'):
+            self.lilithType = 'mean'
         # ayanamsa 恒星黄道读数(默认''=回归/tropical,零回归):非空且在 47 注册表内才启用,
         # 仅作恒星度标注(sidLon + 落点面板恒星列),不改任何"物理"线几何(升落/中天恒相同)。
         self.ayanamsa = str(data.get('ayanamsa', '')).lower().strip().replace('-', '_')
@@ -306,7 +392,16 @@ class ACGraph:
             self.objlists = ACG_LIST_OBJECTS_NOCHIRON
         if self.coord == 'helio':
             self.objlists = [o for o in HELIO_OBJECTS if not (noChiron and o == const.CHIRON)]
+        if self.asteroids:
+            # 小行星走 swisseph 直算(_objPos 顶部旁路),地心/日心均可(绕日天体有日心位置)。
+            self.objlists = list(self.objlists) + list(ACG_ASTEROIDS)
         self.jd = jd
+        # 站心:设观测者(经度东正、纬度、海拔米);flatlib 不传 FLG_TOPOCTR 故不受影响=零回归。
+        if self.topo:
+            try:
+                swisseph.set_topo(self.pos.lon, self.pos.lat, 0.0)
+            except Exception:
+                self.topo = False
 
         # 恒星黄道 ayanamsa 度数(set_sid_mode→get_ayanamsa_ut 相邻两行;swisseph 全局态,
         # flatlib 走 tropical 不受影响,故先算本盘再取此值不污染)。失败=退回 tropical。
@@ -333,6 +428,17 @@ class ACGraph:
 
         self.eps = self._obliquity(jd)
         self.theta0 = self._gmst(jd)
+
+        # 龙黄道基准节点(北交回归黄经):draconic='true' 取真交点,否则平交点(flatlib)。
+        if self.draconic != 'off':
+            try:
+                if self.draconic == 'true':
+                    xx, _ = swisseph.calc_ut(jd, swisseph.TRUE_NODE, swisseph.FLG_SWIEPH)
+                    self.dracNode = norm360(xx[0])
+                else:
+                    self.dracNode = norm360(self.chart.getObject(const.NORTH_NODE).lon)
+            except Exception:
+                self.draconic = 'off'
 
     # ----- astronomical primitives -------------------------------------------------
 
@@ -368,13 +474,97 @@ class ACGraph:
         eq = swisseph.cotrans([lon, beta, 1.0], -self.eps)
         return norm360(eq[0]), eq[1]
 
+    def _minorKepler(self, el):
+        """ 两体开普勒 fallback:据 JPL 轨道根数(日心黄道 J2000)算某小天体的地心黄道(lon,lat)。
+        仅当 .se1 星历缺失时启用(Eris/星体Lilith)。含一阶岁差改正 J2000→of-date 以与视位置口径一致。
+        返回 (lon_deg, lat_deg) of-date 黄道;失败返回 (None, None)。 """
+        try:
+            jd = self.jd
+            M = math.radians((el['ma'] + el['n'] * (jd - el['epoch'])) % 360.0)
+            e = el['e']
+            E = M
+            for _ in range(60):                       # 牛顿法解开普勒方程 E − e·sinE = M
+                dE = (E - e * math.sin(E) - M) / (1.0 - e * math.cos(E))
+                E -= dE
+                if abs(dE) < 1e-13:
+                    break
+            nu = 2.0 * math.atan2(math.sqrt(1.0 + e) * math.sin(E / 2.0),
+                                  math.sqrt(1.0 - e) * math.cos(E / 2.0))
+            r = el['a'] * (1.0 - e * math.cos(E))
+            om = math.radians(el['om'])
+            w = math.radians(el['w'])
+            inc = math.radians(el['i'])
+            u = w + nu
+            # 日心黄道 J2000 直角坐标(AU)
+            xh = r * (math.cos(om) * math.cos(u) - math.sin(om) * math.sin(u) * math.cos(inc))
+            yh = r * (math.sin(om) * math.cos(u) + math.cos(om) * math.sin(u) * math.cos(inc))
+            zh = r * (math.sin(u) * math.sin(inc))
+            # 太阳地心黄道 J2000 直角(= −地球日心);geo_body = helio_body + sun_geo
+            xs, _ = swisseph.calc_ut(jd, swisseph.SUN,
+                                     swisseph.FLG_SWIEPH | swisseph.FLG_J2000 | swisseph.FLG_NONUT | swisseph.FLG_XYZ)
+            gx, gy, gz = xh + xs[0], yh + xs[1], zh + xs[2]
+            lon = math.degrees(math.atan2(gy, gx))
+            lat = math.degrees(math.atan2(gz, math.sqrt(gx * gx + gy * gy)))
+            # 一阶岁差(黄经)J2000→of-date:一般岁差 50.2877″/yr
+            lon += 50.2877 * (jd - 2451545.0) / 365.25 / 3600.0
+            return norm360(lon), lat
+        except Exception:
+            return None, None
+
+    def _j2000Lon(self, oid):
+        """ J2000-epoch ecliptic longitude (readout only, does NOT drive line geometry).
+        posType='j2000' 仅作历元读数标注:与 of-date apparent 差 = 自 J2000 累计岁差(~数十年°级)。
+        仅 swisseph 可算体(SWE_NUM)有此读数;派生点(月孛/紫炁/交点)返回 None。 """
+        num = SWE_NUM.get(oid)
+        if num is None:
+            return None
+        try:
+            xx, _ = swisseph.calc_ut(self.jd, num,
+                                     swisseph.FLG_SWIEPH | swisseph.FLG_J2000 | swisseph.FLG_NONUT)
+            return round(norm360(xx[0]), 4)
+        except swisseph.Error:
+            return None
+
     def _objPos(self, oid):
+        """ Ecliptic (lon, lat) with derived-frame transforms applied uniformly to every
+        object (draconic 龙黄道刚性旋转 / harmonic 谐波乘性)。下游线型自动吃变换后的 λ,
+        无需改任一线型代码;pointReport/composite/helio 亦一致。默认 off/H=1=零回归。 """
+        lon, lat = self._objPosRaw(oid)
+        if lon is None:
+            return None, None
+        if self.draconic != 'off':
+            lon = norm360(lon - self.dracNode)
+        if self.harmonicH > 1:
+            lon = norm360(self.harmonicH * lon)
+            lat = 0.0
+        return lon, lat
+
+    def _objPosRaw(self, oid):
         """ Ecliptic (lon, lat) of an object under the active coordinate system.
         coord='geo'(默认): flatlib geocentric — byte-identical to before.
         coord='helio': Swiss Ephemeris heliocentric; the Sun is mapped to the Earth
         (helio Earth = geo Sun ± 180°). Returns (None, None) for bodies with no
         heliocentric meaning so the caller skips them.
         relMode='composite': 合盘行星 = 两盘对应行星短弧中点(合成点无真黄纬,β=0)。 """
+        # 小行星:swisseph 直算(flatlib 无对象 ID)。地心=基础视位置;日心叠加 HELCTR。
+        # 缺星历文件(Eris 的 s136199s.se1)→ 守卫返回 (None,None) 让 compute 跳过该体。
+        if oid in ASTEROID_SWE:
+            flags = swisseph.FLG_SWIEPH | swisseph.FLG_SPEED
+            if self.coord == 'helio':
+                flags |= swisseph.FLG_HELCTR
+            else:
+                if self.topo:
+                    flags |= swisseph.FLG_TOPOCTR
+                if self.posType == 'true':
+                    flags |= swisseph.FLG_TRUEPOS
+            try:
+                xx, _ = swisseph.calc_ut(self.jd, ASTEROID_SWE[oid], flags)
+                return norm360(xx[0]), xx[1]
+            except swisseph.Error:
+                # .se1 缺失(Eris)→ 两体开普勒 fallback(地心口径,不叠站心/真位置精修)。
+                if oid in MINOR_ELEMENTS and self.coord != 'helio':
+                    return self._minorKepler(MINOR_ELEMENTS[oid])
+                return None, None
         if self.relMode == 'composite' and self.chartB is not None:
             try:
                 a = self.chart.getObject(oid)
@@ -382,6 +572,28 @@ class ACGraph:
             except Exception:
                 return None, None
             return norm360(a.lon + norm180(b.lon - a.lon) / 2.0), 0.0
+        # 交点 true(§2.6):mean 走 flatlib(=MEAN_NODE,字节零回归);true 走 swisseph TRUE_NODE。
+        # 节点 β=0;南交 = 北交黄经 + 180°(与既有 mean 呈现口径一致,SN/NN 各出线,保持现状)。
+        if self.nodeType == 'true' and oid in (const.NORTH_NODE, const.SOUTH_NODE):
+            try:
+                xx, _ = swisseph.calc_ut(self.jd, swisseph.TRUE_NODE, swisseph.FLG_SWIEPH)
+            except swisseph.Error:
+                return None, None
+            return norm360(xx[0] + (180.0 if oid == const.SOUTH_NODE else 0.0)), 0.0
+        # 月孛/Lilith 变体:mean 走 flatlib(=MEAN_APOG,字节零回归);true/intp/body 走 swisseph。
+        # body(小行星 1181)缺星历文件时守卫返回 None → compute 跳过(不崩)。
+        if self.lilithType != 'mean' and oid == const.DARKMOON:
+            _lil = {'true': swisseph.OSCU_APOG, 'intp': swisseph.INTP_APOG,
+                    'body': swisseph.AST_OFFSET + 1181}.get(self.lilithType)
+            if _lil is not None:
+                try:
+                    xx, _ = swisseph.calc_ut(self.jd, _lil, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)
+                    return norm360(xx[0]), xx[1]
+                except swisseph.Error:
+                    # 星体 Lilith(小行星 1181).se1 缺失 → 两体开普勒 fallback。
+                    if self.lilithType == 'body':
+                        return self._minorKepler(MINOR_ELEMENTS['LilithBody'])
+                    return None, None
         if self.coord == 'helio':
             num = SWE_NUM.get(oid)
             if num is None:
@@ -394,6 +606,21 @@ class ACGraph:
                 return norm360(xx[0]), xx[1]
             except swisseph.Error:
                 return None, None
+        # 站心/真位置(§):topo 或 posType=true 时,swisseph 可算体(SWE_NUM)走直算叠加相应
+        # 标志(TOPOCTR/TRUEPOS)。apparent 默认走 flatlib(字节零回归);月孛/紫炁等派生点不受
+        # 站心/真位置影响(平/computed 点,仍走 flatlib)。计算失败回退 flatlib。
+        num = SWE_NUM.get(oid)
+        if num is not None and (self.topo or self.posType == 'true'):
+            flags = swisseph.FLG_SWIEPH | swisseph.FLG_SPEED
+            if self.topo:
+                flags |= swisseph.FLG_TOPOCTR
+            if self.posType == 'true':
+                flags |= swisseph.FLG_TRUEPOS
+            try:
+                xx, _ = swisseph.calc_ut(self.jd, num, flags)
+                return norm360(xx[0]), xx[1]
+            except swisseph.Error:
+                pass
         obj = self.chart.getObject(oid)
         return obj.lon, obj.lat
 
@@ -427,6 +654,13 @@ class ACGraph:
         band = 89.5 if abs(tanDec) < 1e-6 else min(89.5, 90.0 - abs(dec))
         if band <= 0:
             return asc, desc
+        # 地平折射(§):horizon='apparent' 时升落判据取真高度 h0=−0.5667°(视高度经折射抬升到 0),
+        # cos H = (sin h0 − sinφ sinδ)/(cosφ cosδ);h0=0 即退化为 −tanφ tanδ(几何地平,零回归)。
+        refract = self.horizon == 'apparent'
+        sinh0 = math.sin(math.radians(-34.0 / 60.0)) if refract else 0.0
+        decR = math.radians(dec)
+        sinDec = math.sin(decR)
+        cosDec = math.cos(decR)
         # Fine sampling + EXACT band endpoints so the curve is smooth and closes onto
         # the MC/IC meridians (at |phi|=band, H=0 or 180 -> asc/desc reach MC/IC longitude).
         lats = []
@@ -436,7 +670,12 @@ class ACGraph:
             la += ACG_LAT_STEP
         lats.append(band)
         for la in lats:
-            c = -math.tan(math.radians(la)) * tanDec
+            if refract:
+                phi = math.radians(la)
+                denom = math.cos(phi) * cosDec
+                c = (sinh0 - math.sin(phi) * sinDec) / denom if abs(denom) > 1e-9 else -2.0
+            else:
+                c = -math.tan(math.radians(la)) * tanDec
             if c < -1.0:
                 c = -1.0
             elif c > 1.0:
@@ -621,11 +860,23 @@ class ACGraph:
             out[k].sort(key=lambda p: p['lat'])
         return out
 
+    def _lotObj(self, L, curves=True):
+        """ 冻结的 Lot 黄经 L → 角线(β=0 虚拟体):MC/IC 子午线 + 可选 ASC/DSC 曲线。 """
+        ra0, dec0 = self._radec(norm360(L), 0.0)
+        o = {'deg': round(norm360(L), 3), 'mc': {'lon': self._mcLon(ra0)}, 'ic': {'lon': self._icLon(ra0)}}
+        if curves:
+            a, d = self._ascDescLines(ra0, dec0)
+            o['asc'] = a
+            o['desc'] = d
+        return o
+
     def _lotsLines(self):
-        """ Arabic Parts / Lots lines (§3.5): Part of Fortune / Spirit as frozen virtual
-        longitudes (using the birth ASC) → MC/IC meridians. Day/night reverses the formula. """
+        """ Arabic Parts / Lots (§3.5):Fortune/Spirit(冻结,四线)+ 古典 lots 集(MC/IC)+ 自定义
+        A+B−C。⚠冻结法:用出生地算得的 Lot 黄经固定后画普通角线,严禁逐点重算(异地自指)。
+        古典 lots 通行式(Fortune/Spirit 外为标准希腊化 Hermetic 参考式,非基准文档,昼夜按 sect 反转)。 """
         try:
             asc = self.chart.get(const.ASC).lon
+            mc = self.chart.get(const.MC).lon
             sun = self.chart.getObject(const.SUN).lon
             moon = self.chart.getObject(const.MOON).lon
             day = self.chart.isDiurnal()
@@ -633,24 +884,108 @@ class ACGraph:
             return {}
         fortune = norm360(asc + (moon - sun if day else sun - moon))
         spirit = norm360(asc + (sun - moon if day else moon - sun))
-        return {
-            'day': day,
-            'fortune': {'deg': round(fortune, 3), 'mc': {'lon': self._aspectMeridian(fortune)},
-                        'ic': {'lon': self._aspectMeridian(fortune + 180.0)}},
-            'spirit': {'deg': round(spirit, 3), 'mc': {'lon': self._aspectMeridian(spirit)},
-                       'ic': {'lon': self._aspectMeridian(spirit + 180.0)}},
-        }
+        out = {'day': day, 'fortune': self._lotObj(fortune), 'spirit': self._lotObj(spirit)}
+        # 古典 lots(冻结,MC/IC;Eros/Victory 依赖 Spirit、Necessity/Courage/Nemesis 依赖 Fortune)。
+        try:
+            g = lambda oid: self.chart.getObject(oid).lon
+            venus, mars, jup, sat, merc = g(const.VENUS), g(const.MARS), g(const.JUPITER), g(const.SATURN), g(const.MERCURY)
+            classical = {
+                'eros': asc + (venus - spirit if day else spirit - venus),
+                'necessity': asc + (fortune - merc if day else merc - fortune),
+                'courage': asc + (fortune - mars if day else mars - fortune),
+                'victory': asc + (jup - spirit if day else spirit - jup),
+                'nemesis': asc + (fortune - sat if day else sat - fortune),
+            }
+            out['classical'] = {k: self._lotObj(v, curves=False) for k, v in classical.items()}
+        except Exception:
+            pass
+        # 自定义 A+B−C(冻结,四线)
+        if self.lotsCustom:
+            cl = self._customLot(asc, mc, sun, moon, day)
+            if cl is not None:
+                out['custom'] = self._lotObj(cl['deg'])
+                out['custom']['formula'] = cl['formula']
+        return out
 
-    def _midpointLines(self, plon_map):
-        """ Midpoint (short-arc) MC meridians for every main-planet pair (§3.2). """
+    def _customLot(self, asc, mc, sun, moon, day):
+        """ 解析 lotsCustom="A,B,C[,sect]" → 冻结黄经 A+B−C(sect→夜间交换 B/C)。体键见 SRC。 """
+        parts = [p.strip().lower() for p in self.lotsCustom.split(',')]
+        if len(parts) < 3:
+            return None
+        src = {'asc': asc, 'mc': mc, 'sun': sun, 'moon': moon}
+        try:
+            for oid, key in ((const.MERCURY, 'mercury'), (const.VENUS, 'venus'), (const.MARS, 'mars'),
+                             (const.JUPITER, 'jupiter'), (const.SATURN, 'saturn'), (const.URANUS, 'uranus'),
+                             (const.NEPTUNE, 'neptune'), (const.PLUTO, 'pluto'), (const.NORTH_NODE, 'node')):
+                src[key] = self.chart.getObject(oid).lon
+        except Exception:
+            pass
+        a, b, c = parts[0], parts[1], parts[2]
+        sect = len(parts) >= 4 and parts[3] in ('1', 'sect', 'true', 'yes')
+        if a not in src or b not in src or c not in src:
+            return None
+        bb, cc = (src[b], src[c])
+        if sect and not day:
+            bb, cc = cc, bb
+        return {'deg': norm360(src[a] + bb - cc), 'formula': '%s+%s-%s%s' % (a, b, c, '·sect' if sect else '')}
+
+    def _midpointLines(self, plon_map, bodies_radec):
+        """ Midpoint(短弧中点)四线(§3.2):midpointMode='zodiac' 黄经中点(默认=现状 MC 字节不变)
+        | 'mundo' 赤经中点。zodiac 视中点为 β=0 虚拟体出四线;mundo 取两体赤经短弧中点出线。 """
         ids = [i for i in PARAN_OBJECTS if i in plon_map]
+        radec = {b[0]: (b[1], b[2]) for b in bodies_radec}
         out = []
         for i in range(len(ids)):
             for j in range(i + 1, len(ids)):
                 a = plon_map[ids[i]]
                 b = plon_map[ids[j]]
-                mid = norm360(a + norm180(b - a) / 2.0)
-                out.append({'a': ids[i], 'b': ids[j], 'deg': round(mid, 3), 'lon': self._aspectMeridian(mid)})
+                mid = norm360(a + norm180(b - a) / 2.0)   # 黄经短弧中点(现状,MC 字节不变)
+                entry = {'a': ids[i], 'b': ids[j], 'deg': round(mid, 3), 'lon': self._aspectMeridian(mid)}
+                if self.midpointMode == 'mundo' and ids[i] in radec and ids[j] in radec:
+                    ra_a, dec_a = radec[ids[i]]
+                    ra_b, dec_b = radec[ids[j]]
+                    mid_ra = norm360(ra_a + norm180(ra_b - ra_a) / 2.0)
+                    mid_dec = (dec_a + dec_b) / 2.0
+                    entry['lon'] = self._mcLon(mid_ra)
+                    entry['ic'] = {'lon': self._icLon(mid_ra)}
+                    a2, d2 = self._ascDescLines(mid_ra, mid_dec)
+                    entry['asc'] = a2
+                    entry['desc'] = d2
+                else:
+                    ra0, dec0 = self._radec(mid, 0.0)
+                    entry['ic'] = {'lon': self._icLon(ra0)}
+                    a2, d2 = self._ascDescLines(ra0, dec0)
+                    entry['asc'] = a2
+                    entry['desc'] = d2
+                out.append(entry)
+        return out
+
+    def _lsAzAlt(self, ra, dec):
+        """ 本地空间罗盘方位(A_N,从北起东为正)+ 地平高度 h(§1.6/§5.2),供罗盘盘面。
+        与 _localSpace 线的出发方位一致(A_N=A_S+180);azalt 口径独立可验。 """
+        phi = math.radians(self.pos.lat)
+        H = math.radians(norm180(self.theta0 + self.pos.lon - ra))
+        decr = math.radians(dec)
+        alt = math.degrees(math.asin(math.sin(phi) * math.sin(decr) + math.cos(phi) * math.cos(decr) * math.cos(H)))
+        az_s = math.degrees(math.atan2(math.sin(H), math.cos(H) * math.sin(phi) - math.tan(decr) * math.cos(phi)))
+        return {'az': round(norm360(az_s + 180.0), 3), 'alt': round(alt, 3)}
+
+    def _vibrationLines(self, plon):
+        """ Cochrane 5/7/9 振动线(§20.5):从原始行星黄经 λ,对 H∈{5,7,9} 取 H 族等距分点
+        T_m=norm360(λ+m·360/H),每点画 MC 子午线 + ASC/DSC 曲线(m=0 即普通 MC/ASC)。 """
+        if not self.vibration:
+            return None
+        out = {}
+        for H in (5, 7, 9):
+            step = 360.0 / H
+            group = []
+            for m in range(H):
+                T = norm360(plon + m * step)
+                ra0, dec0 = self._radec(T, 0.0)
+                a, d = self._ascDescLines(ra0, dec0)
+                group.append({'m': m, 'deg': round(T, 3), 'mc': {'lon': self._mcLon(ra0)},
+                              'asc': a, 'desc': d})
+            out[str(H)] = group
         return out
 
     def _geodeticLines(self, plon):
@@ -661,7 +996,8 @@ class ACGraph:
             val = norm360(swisseph.cotrans([norm360(plon), 0.0, 1.0], -self.eps)[0])
         else:
             val = norm360(plon)
-        mc = norm180(val + GEODETIC_ZERO.get(self.geodetic, 0.0))
+        zero = self.geodeticZero if self.geodeticZero is not None else GEODETIC_ZERO.get(self.geodetic, 0.0)
+        mc = norm180(val + zero)
         return {'mc': {'lon': mc}, 'ic': {'lon': norm180(mc + 180.0)}}
 
     def _vertexLines(self, plon):
@@ -807,6 +1143,72 @@ class ACGraph:
                         break
         return out
 
+    def _relCrossings(self, pA, pB):
+        """ 关系盘交叉(§18.3):A 线 × B 线交点 —— A 竖线(MC/IC)×B 曲线(ASC/DSC)+ 反之。
+        复用 _crossings 的插值判据;标注 aWho/bWho 区分 A/B 盘。 """
+        def collect(planets):
+            verts, curves = [], []
+            for pid in PARAN_OBJECTS:
+                pd = planets.get(pid)
+                if not pd:
+                    continue
+                L = pd['lines']
+                verts.append((pid, 'mc', L['mc']['lon']))
+                verts.append((pid, 'ic', L['ic']['lon']))
+                curves.append((pid, 'asc', L['asc']))
+                curves.append((pid, 'desc', L['desc']))
+            return verts, curves
+        vA, cA = collect(pA)
+        vB, cB = collect(pB)
+        out = []
+
+        def cross(verts, curves, whoV, whoC):
+            for pv, av, lonv in verts:
+                for pc, ac, pts in curves:
+                    if not pts:
+                        continue
+                    for k in range(len(pts) - 1):
+                        a = pts[k]
+                        b = pts[k + 1]
+                        if abs(norm180(b['lon'] - a['lon'])) > 90.0:
+                            continue
+                        la = norm180(a['lon'] - lonv)
+                        lb = norm180(b['lon'] - lonv)
+                        if abs(la) < 90.0 and abs(lb) < 90.0 and la * lb <= 0.0:
+                            denom = la - lb
+                            t = la / denom if abs(denom) > 1e-12 else 0.0
+                            lat = a['lat'] + t * (b['lat'] - a['lat'])
+                            out.append({'lon': round(lonv, 3), 'lat': round(lat, 3),
+                                        'a': pv, 'aWho': whoV, 'aAngle': av,
+                                        'b': pc, 'bWho': whoC, 'bAngle': ac})
+                            break
+        cross(vA, cB, 'A', 'B')
+        cross(vB, cA, 'B', 'A')
+        return out
+
+    def _crossParans(self, ba, bb):
+        """ 关系盘派状(§18.3):A 体 × B 体同时角化(rise/set/mc/ic)的纬度(复用 paran 求解器)。 """
+        res = []
+        for ai, ara, adec in ba:
+            for bi, bra, bdec in bb:
+                for ea in PARAN_EVENTS:
+                    for eb in PARAN_EVENTS:
+                        fa = ea in ('mc', 'ic')
+                        fb = eb in ('mc', 'ic')
+                        if fa and fb:
+                            continue
+                        if fa:
+                            lats = self._fixedVarLats(ara if ea == 'mc' else norm360(ara + 180.0), eb, bra, bdec)
+                        elif fb:
+                            lats = self._fixedVarLats(bra if eb == 'mc' else norm360(bra + 180.0), ea, ara, adec)
+                        else:
+                            lats = self._varVarLats(ea, ara, adec, eb, bra, bdec)
+                        for lat in lats:
+                            if abs(lat) > PARAN_LAT_LIMIT:
+                                continue
+                            res.append({'lat': round(lat, 3), 'a': ai, 'aEvent': ea, 'b': bi, 'bEvent': eb})
+        return res
+
     # ----- fixed stars (§ · Brady Starlight) ---------------------------------------
 
     def _starRaDec(self, lon, lat):
@@ -923,6 +1325,24 @@ class ACGraph:
                       IDs=self.objlists, needpars=False)
         angids = [const.ASC, const.DESC, const.MC, const.IC]
         angs = {a: chart.get(a).lon for a in angids}
+        # 8 敏感点(§15.1):swe ascmc[3..7] = Vertex / EquatAsc(EastPoint) / co-Asc(Koch) /
+        # co-Asc(Munkasey) / polarAsc,+ MC/ASC 的映点(antiscia)。Placidus 高纬失效回退 Porphyry。
+        sensitive = {}
+        try:
+            _cs, _am = swisseph.houses(self.jd, lat, lon, b'P')
+        except swisseph.Error:
+            try:
+                _cs, _am = swisseph.houses(self.jd, lat, lon, b'O')
+            except swisseph.Error:
+                _am = None
+        if _am is not None and len(_am) >= 8:
+            sensitive = {
+                'vertex': round(norm360(_am[3]), 3), 'eastpoint': round(norm360(_am[4]), 3),
+                'coasc_koch': round(norm360(_am[5]), 3), 'coasc_munkasey': round(norm360(_am[6]), 3),
+                'polarasc': round(norm360(_am[7]), 3),
+                'antiscia_mc': round(norm360(180.0 - angs[const.MC]), 3),
+                'antiscia_asc': round(norm360(180.0 - angs[const.ASC]), 3),
+            }
         hits = []
         for id in self.objlists:
             # 行星黄经统一走 _objPos:composite=合成中点/helio=日心,与地图线口径一致
@@ -958,6 +1378,7 @@ class ACGraph:
             'orb': orb,
             'hits': hits,
             'relocAngles': {a: round(angs[a], 3) for a in angids},
+            'sensitive': sensitive,
             'hsys': used.decode('ascii'),
             'cusps': cusps,
         }
@@ -991,6 +1412,8 @@ class ACGraph:
                 'lat': plat,
                 # 恒星黄经(仅标注;tropical 时为 None,零回归)
                 'sidLon': round(norm360(plon - self.ayanVal), 4) if self.ayanVal is not None else None,
+                # J2000 历元黄经(仅 posType=j2000 时的读数标注,不改线几何;派生点为 None)
+                'j2000Lon': (self._j2000Lon(id) if self.posType == 'j2000' else None),
                 # 天顶(子平点)= 行星正当头顶处;OOB 超界 = |赤纬| > 黄赤交角(超回归线)
                 'zenith': {'lat': dec, 'lon': self._mcLon(ra)},
                 'oob': abs(dec) > self.eps,
@@ -1000,7 +1423,9 @@ class ACGraph:
                     'asc': asc,
                     'desc': desc,
                     'ls': self._localSpace(ra, dec),
+                    'lsAz': self._lsAzAlt(ra, dec),
                     'aspects': self._aspectLines(plon),
+                    'vibration': self._vibrationLines(plon),
                     'ep': ew['ep'],
                     'wp': ew['wp'],
                     'antiscia': self._antisciaLines(plon),
@@ -1028,6 +1453,11 @@ class ACGraph:
                                                 'asc': v['lines']['asc'], 'desc': v['lines']['desc']}}
                                 for pid, v in sres['planets'].items()},
                 }
+                # 关系盘 A×B 交叉/派状(§18.3):A(本盘)线×B 线交点 + A 体×B 体同时角化纬度。
+                bBodies = [(pid, v['ra'], v['decl']) for pid, v in sres['planets'].items() if pid in PARAN_OBJECTS]
+                aBodies = [b for b in bodies if b[0] in PARAN_OBJECTS]
+                second['relCrossings'] = self._relCrossings(planets, second['planets'])
+                second['relParans'] = self._crossParans(aBodies, bBodies)
             except Exception:
                 second = None
 
@@ -1042,6 +1472,14 @@ class ACGraph:
                 'geodetic': self.geodetic,
                 'geodeticVar': self.geodeticVar,
                 'coord': self.coord,
+                'posType': self.posType,
+                'horizon': self.horizon,
+                'nodeType': self.nodeType,
+                'lilithType': self.lilithType,
+                'asteroids': self.asteroids,
+                'draconic': self.draconic if self.draconic != 'off' else None,
+                'harmonic': self.harmonicH if self.harmonicH > 1 else None,
+                'vibration': self.vibration or None,
                 'ayanamsa': self.ayanamsa or None,
                 'ayanLabel': (_AYAN_MODES.get(self.ayanamsa, {}).get('label') if self.ayanamsa else None),
                 'ayanVal': round(self.ayanVal, 4) if self.ayanVal is not None else None,
@@ -1051,7 +1489,7 @@ class ACGraph:
             'planets': planets,
             'geo': self._geoLines(),
             'parans': self._parans(bodies),
-            'midpoints': self._midpointLines(plon_map),
+            'midpoints': self._midpointLines(plon_map, bodies),
             'lots': self._lotsLines(),
             'crossings': self._crossings(planets),
             'stars': star_lines,

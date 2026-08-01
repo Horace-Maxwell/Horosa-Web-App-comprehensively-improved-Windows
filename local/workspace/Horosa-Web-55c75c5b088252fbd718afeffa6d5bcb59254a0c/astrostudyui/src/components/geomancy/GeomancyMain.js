@@ -19,8 +19,6 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, paramsFromFields, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields } from '../../utils/divinationTimeDraft';
 import './GeomancyMain.less';
-import { markPanelReady } from '../../utils/perfMark';
-import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -244,10 +242,6 @@ const ZODIAC_SYSTEM_OPTIONS = [
 	{ key: 'planetary', label: '行星归属体系' },
 ];
 
-// 🔴 故意【不加】horosa_kentang_result_cache_v1 结果缓存:地占起课带随机种 ——
-// 后端 webgeomancysrv 在 castMethod=random/dice/sand/coins/tablets 且未显式给 seed 时**服务端现摇**
-// 真随机种(见其 seedMode 分支注释),同 payload 不必同盘;缓存会把某一次随机卦象钉死 = 功能降级
-// (与 services/_requestCache.js 头部禁令一致)。
 async function postGeomancy(path, payload){
 	let rsp = null;
 	try{
@@ -592,7 +586,6 @@ class GeomancyMain extends Component{
 		}
 	}
 
-
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.loadHistory();
@@ -741,8 +734,6 @@ class GeomancyMain extends Component{
 			const result = await postGeomancy('reading', payload);
 			if(this.unmounted || seq !== this.requestSeq){ return; }
 			this.setState({ loading: false, result }, ()=>{
-				// horosa_panel_ready_v1:result 落定 = 十六象盾局(中栏)与断法(右栏)画完的那一次 setState。
-				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() }));
 				this.pushHistory(result);
 			});
@@ -1055,22 +1046,31 @@ class GeomancyMain extends Component{
 			<div className="horosa-geomancy-shield">
 				<div className="horosa-geomancy-shield-title">护盾方盘 · 十六图形{rtl ? ' · 自右向左' : ''}</div>
 				<div className="horosa-geomancy-shield-grid">
-					{Array.from({ length: 16 }).map((_, slot)=>{
-						const i = idxOf(slot);
-						const f = figs[i] || {};
-						const tone = (f.tone || '').toLowerCase();
-						const qcls = tone === 'good' ? ' is-good' : (tone === 'bad' ? ' is-bad' : '');
-						return (
-							<div className={`horosa-geomancy-shield-cell${qcls}`} key={slot}>
-								<span className="horosa-geomancy-shield-slot">{FIGURE_SLOTS[i]}</span>
-								{this.renderDots(f.dots)}
-								<div className="horosa-geomancy-shield-name">
-									<strong>{f.nameZh || f.nameEn || '—'}</strong>
-									<em>{f.displayName || f.nameEn || ''}</em>
-								</div>
+					{/* 每行恰为一族(母/女/甥/证判):FIGURE_GROUPS 作行组标签,slot 序与 RTL 镜像逻辑不变 */}
+					{FIGURE_GROUPS.map((g, gi)=>(
+						<div className="horosa-geomancy-shield-rowgroup" key={g.label}>
+							<span className="horosa-geomancy-shield-grouplab">{g.label}</span>
+							<div className="horosa-geomancy-shield-rowcells">
+								{Array.from({ length: 4 }).map((_, c)=>{
+									const slot = gi * 4 + c;
+									const i = idxOf(slot);
+									const f = figs[i] || {};
+									const tone = (f.tone || '').toLowerCase();
+									const qcls = tone === 'good' ? ' is-good' : (tone === 'bad' ? ' is-bad' : '');
+									return (
+										<div className={`horosa-geomancy-shield-cell${qcls}`} key={slot}>
+											<span className="horosa-geomancy-shield-slot">{FIGURE_SLOTS[i]}</span>
+											{this.renderDots(f.dots)}
+											<div className="horosa-geomancy-shield-name">
+												<strong>{f.nameZh || f.nameEn || '—'}</strong>
+												<em>{f.displayName || f.nameEn || ''}</em>
+											</div>
+										</div>
+									);
+								})}
 							</div>
-						);
-					})}
+						</div>
+					))}
 				</div>
 			</div>
 		);

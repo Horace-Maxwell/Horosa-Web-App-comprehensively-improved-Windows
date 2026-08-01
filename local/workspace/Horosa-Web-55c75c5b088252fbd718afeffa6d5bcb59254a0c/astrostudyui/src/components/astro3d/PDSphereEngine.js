@@ -32,8 +32,9 @@ import {
 	CIRCLE_KIND_RENDER, FRAME_HIGHLIGHT_TARGET, VIRTUAL_POINT_KINDS,
 	declCircleGreatIntersect, declCirclePolylineHit,
 	moverOfRow, sigEqOf,
+	elapsedDaysForArc, properSpeedOfPoint, eclToEqTrue, trueMotionDeltaLon, formatElapsedHM,
 } from './pdSphereMath';
-import { houseCusps, eclLonToEq } from './pdHouseCusps';   // [E1] 后天宫位宫首显示
+import { houseCusps, eclLonToEq, cuspSystemOfFrame } from './pdHouseCusps';   // [E1] 后天宫位宫首显示
 
 // 主题色(黑底天球,与 Astro3D ChartBackgroud 同底色系)
 // [WP-E] export=纯加法:语义色键契约由 smoke 测试看守(ecliptic 键缺失曾致刻度线静默白色)。
@@ -49,6 +50,7 @@ export const PD_COLOR = {
 	direct: 0xffd700,          // 顺向 direct = 金色
 	converse: 0x00e0e0,        // 逆向 converse = 青色
 	ecliptic: 0xd8ab52,        // 黄道带 12 星座刻度线(与星座符号 #d8ab52 同族金;补前为 undefined→刻度线渲染白色+material 警告)
+	truePos: 0xdbe7f5,         // [C1] 复合运动真位标识色(银白):真位层 glyph+环形晕圈统一此色,与方向金/青及行星本色都拉开
 };
 
 // [WP-D] 四级明度体系常量表(集中可调;层级:辅助网格→主结构圈→标准点位→选中链最亮):
@@ -85,8 +87,24 @@ class GreatCircleCurve extends THREE.Curve{
 
 /** 点位短名(名牌用):行星走 ywastrochart 字形(与 2D/3D 盘同源),宫/无字形词条回退中文 */
 function pointGlyphOf(baseId){
-	if(`${baseId}`.indexOf('House') === 0){
-		return { text: `${`${baseId}`.slice(5)}宫`, astroFont: false };
+	const b = `${baseId}`;
+	if(b.indexOf('House') === 0){
+		return { text: `${b.slice(5)}宫`, astroFont: false };
+	}
+	// S/P 扩展体短标(与表格语义同源):中间宫头「N宫」/朔望·精神点/阿拉伯点去 Pars 前缀(中文优先)
+	const mCusp = /^Cusp(\d+)$/.exec(b);
+	if(mCusp){
+		return { text: `${mCusp[1]}宫`, astroFont: false };
+	}
+	if(b === 'Syzygy'){
+		return { text: '朔望', astroFont: false };
+	}
+	if(b === 'Spirit'){
+		return { text: '精神点', astroFont: false };
+	}
+	if(b.indexOf('Pars ') === 0){
+		const cnLot = AstroText.AstroMsgCN[b];
+		return { text: cnLot ? `${cnLot}` : b.slice(5), astroFont: false };
 	}
 	const glyph = AstroText.AstroMsg[baseId];
 	if(glyph !== undefined && glyph !== null && `${glyph}`.length <= 3){
@@ -179,12 +197,21 @@ class PDSphereEngine{
 		this.root = new THREE.Group();
 		this.skyGroup = new THREE.Group();
 		this.dirGroup = new THREE.Group();   // [G3] 迫星运动组:唯一随播转动的载体(skyGroup 恒 0)
+		// [C1] 复合运动·真位层:与 dirGroup 同步随周日旋转,组内诸曜再按各自黄道自行逐帧挪移 ——
+		// 「自转(整组 rotation) × 公转(组内 λ(t) 位移)」复合;冻结迫星(dirGroup)仍精确命中,零碰弧法。
+		this.trueGroup = new THREE.Group();
 		this.frameGroup = new THREE.Group();
 		this.selGroup = new THREE.Group();
 		this.root.add(this.skyGroup);
 		this.root.add(this.dirGroup);
+		this.root.add(this.trueGroup);
 		this.root.add(this.frameGroup);
 		this.root.add(this.selGroup);
+		this._trueEntries = [];        // [C1] {mesh,lon0,latUse,mu,isProm,line?} 真位层活动记账
+		this._bodySpeeds = {};         // [C1] baseId → 瞬时黄经速(°/日;AstroPDSphere 从 /chart objects 喂入)
+		this.onTrueMotionInfo = null;  // [C1] 播放落定回调({elapsedText, drifts})→ 宿主 DOM 信息行
+		this.trueMotionOn = true;      // [C1] 复合运动开关(默认开;localStorage 记忆)
+		try{ this.trueMotionOn = (typeof localStorage !== 'undefined' ? localStorage.getItem('horosa.pdsphere.trueMotion') : null) !== '0'; }catch(_){ }
 		this.scene.add(this.root);
 
 		this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, Math.max(0.5, this.radius * 0.02), this.radius * 6); // [WP-3] near/far 收窄(0.1→R*0.02 / R*12→R*6:深度精度翻倍,远近裁剪仍余量充足)
@@ -674,10 +701,18 @@ class PDSphereEngine{
 		this.wake(2);
 	}
 
-	/** [E1] 后天宫位宫首显示开关。宫制取 frame.pdMethod(数据实际所用,随 后天宫位下拉重取而变);
+	/** [E1] 后天宫位宫首显示开关。宫制随「定局分宫」pdFrame(见 setPdFrame);
 	 *  宫首=固定征象点(挂 skyGroup 恒 0 → 播放中不动,与真值一致)。 */
 	setHouseDisplay(on){
 		this._showHouses = !!on;
+		this._rebuildHouseCusps();
+	}
+
+	/** 定局分宫切换:宫首宫制随之重算(与 2D 盘 pane 同口径;值同 pdFrame 白名单)。 */
+	setPdFrame(frame){
+		const next = `${frame || 'alcabitius'}`;
+		if(this._pdFrame === next){ return; }
+		this._pdFrame = next;
 		this._rebuildHouseCusps();
 	}
 
@@ -689,9 +724,12 @@ class PDSphereEngine{
 		if(!this._showHouses || !this.res || !this.res.frame){ this.wake(2); return; }
 		const f = this.res.frame;
 		const eps = Number(f.epsMean || f.eps || 23.44);
-		// [E1] 后天宫位显示恒 Alchabitius(用户定案「我们只做 alchabitius」;不随推运方位法变)。
+		// 后天宫位宫首随「定局分宫」pdFrame(P0 解耦后分宫是一等维,盘 pane 已跟随;
+		// 天球此前恒 Alchabitius = 切分宫后天球宫位不动的死显示)。未实现闭式的分宫
+		// (campanus/morinus/koch)落四轴,不臆造中间宫首。
 		let cusps = null;
-		try{ cusps = houseCusps('core_alchabitius', Number(f.armc), Number(f.phi), eps).cusps; }catch(e){ cusps = null; }
+		const cuspSys = cuspSystemOfFrame(this._pdFrame || 'alcabitius');
+		try{ cusps = houseCusps(cuspSys, Number(f.armc), Number(f.phi), eps).cusps; }catch(e){ cusps = null; }
 		if(!Array.isArray(cusps)){ this.wake(2); return; }
 		const R = this.radius;
 		const HOUSE_COL = 0xb98cff; // 宫位紫(与框架圈/黄道色区分)
@@ -959,8 +997,10 @@ class PDSphereEngine{
 				const glyph = pointGlyphOf(baseId);
 				const cssBase = typeof color === 'string' ? color : `#${(color >>> 0).toString(16).padStart(6, '0')}`;
 				tint = parseInt(liftLuma(cssBase, 0.6).slice(1), 16);
-				dot = makeTextSprite(glyph.text, {
-					worldSize: Math.max(8, R * 0.058),
+				// 恒星点 ★ 前缀标识 + 收敛字号(星名长,等高会撑太宽);宫头/阿点走默认短标。
+				const isStarPt = pt.kind === 'star';
+				dot = makeTextSprite(isStarPt ? `★${glyph.text}` : glyph.text, {
+					worldSize: isStarPt ? Math.max(6.5, R * 0.045) : Math.max(8, R * 0.058),
 					color: '#ffffff',
 					glow: true,
 					...(glyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
@@ -1021,6 +1061,175 @@ class PDSphereEngine{
 	}
 
 	// —— 行选择:迫星等赤纬周日圈 + 应星位置圈高亮 + 迫星活动标(播放载体) ——
+	// ═══ [C1] 复合运动·真位层 ═══
+	/** 外部喂入 /chart objects 的瞬时黄经速表(baseId→°/日;含逆行负值);选中态热更新 */
+	setBodySpeeds(map){
+		this._bodySpeeds = map && typeof map === 'object' ? map : {};
+		if(this._selection){
+			this._buildTrueMotionLayer(this._selection.row, this._selection.conv);
+			this._updateTrueMotion();
+			this._emitTrueMotionInfo();   // 持姿态热更:重建曾清掉信息行,须按当前进度报回
+		}
+		this.wake(1);
+	}
+	/** 复合运动开关(设置面板;localStorage 记忆) */
+	setTrueMotion(on){
+		this.trueMotionOn = !!on;
+		safeLocalStorageSet('horosa.pdsphere.trueMotion', this.trueMotionOn ? '1' : '0');
+		if(!this.trueMotionOn){
+			this._clearTrueMotion();
+		}else if(this._selection){
+			this._buildTrueMotionLayer(this._selection.row, this._selection.conv);
+			this._updateTrueMotion();
+			this._emitTrueMotionInfo();   // 持姿态重开:同上,信息行随层一并回归
+		}
+		this.wake(2);
+	}
+
+	_clearTrueMotion(){
+		if(this.trueGroup){ this._clearGroup(this.trueGroup); }
+		this._trueEntries = [];
+		if(typeof this.onTrueMotionInfo === 'function'){
+			try{ this.onTrueMotionInfo(null); }catch(_){ }
+		}
+	}
+
+	/** 建层:诸实体曜真位点(淡亮小点) + 迫星真相位点(方向色环点+漂移线)。
+	 *  冻结迫星(dirGroup 活动标)仍是命中载体;本层只画「同一时间里星体真正在哪」。 */
+	_buildTrueMotionLayer(row, conv){
+		this._clearTrueMotion();
+		if(!this.trueMotionOn || !row || !this.res || !this.res.frame){
+			return;
+		}
+		const points = this.res.points || {};
+		const R = this.radius;
+		const speedOf = (baseId)=>this._bodySpeeds[baseId];
+		const dirColor = conv ? PD_COLOR.converse : PD_COLOR.direct;
+		const dirCss = conv ? '#00e0e0' : '#ffd700';
+		// 迫星相位偏移(N_Saturn_0 的 0):合相相位点与本体同经 → ① 里跳过该本体防双影叠字。
+		const promBase = basePointIdOf(row.prom);
+		const promAspM = /_(\d+)$/.exec(`${row.prom || ''}`);
+		const promAtBody = (`${row.prom}` === promBase) || (promAspM && promAspM[1] === '0');
+		// ① 诸实体曜:星体 glyph 本符,真位统一银白(PD_COLOR.truePos)—— 🔴 用户定案两轮:
+		//    双影必须一眼可分,但不加环形徽记(环圈碍读),纯色域区分即可。
+		//    三色分域:本命=行星本色 / 冻结迫星=方向金·青 / 真位=银白;glyph 形状保星体身份。
+		//    μ=0 者真位恒等本命,不入层。
+		const trueCss = '#dbe7f5';
+		// 🔴 一体一影去重:pd3d 里本命星体 pid 多为 N_<body>_0 形(kind='planet'),与可能并存的
+		// 裸 <body> 条目同源同星 —— 曾按 pid 面遍历致同一星体两条银白 glyph 叠影
+		// (且 N 形与裸形 β 口径可异,叠影还错位);防叠字守卫也曾只认裸 pid 恒不命中。
+		// 现按 basePointIdOf 维度去重(首见入层),promAtBody 跳过同按 base 判。
+		const seenBase = new Set();
+		Object.keys(points).forEach((pid)=>{
+			const pt = points[pid];
+			if(!pt || VIRTUAL_POINT_KINDS.has(pt.kind) || pt.kind === 'star'){
+				return;
+			}
+			const base = basePointIdOf(pid);
+			if(seenBase.has(base)){
+				return;
+			}
+			const mu = properSpeedOfPoint(pid, pt.kind, speedOf);
+			if(!mu){
+				return;
+			}
+			seenBase.add(base);
+			if(promAtBody && base === promBase){
+				return;   // 合相/本体迫星:②的真位双影即其真位,本体重复画会叠字
+			}
+			const glyph = pointGlyphOf(base);
+			const spr = makeTextSprite(glyph.text, {
+				worldSize: Math.max(7, R * 0.05), color: '#ffffff', glow: true,
+				...(glyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
+			});
+			if(spr.material && spr.material.color && spr.material.color.set){ spr.material.color.set(trueCss); }
+			if(spr.material){ spr.material.opacity = 0.9; }
+			if(spr.userData){ spr.userData.__pmEntry = true; }
+			this.trueGroup.add(spr);
+			this._trueEntries.push({ mesh: spr, pid, lon0: Number(pt.lon) || 0, latUse: Number(pt.lat) || 0, mu, isProm: false });
+		});
+		// ② 迫星真相位点:与冻结活动标同一 glyph 组合字(本体+相位符)、方向色染色,成对「冻结/真位」双影;
+		//    漂移线连「本命冻结位 → 真位」(线长即公转位移,经典「引至本命位 vs 真位」之差)。界迫星 μ=0 → 真=冻结。
+		const promPt = points[row.prom];
+		if(promPt){
+			const mu = properSpeedOfPoint(row.prom, promPt.kind, speedOf);
+			if(mu){
+				const mundo = `${row.cat || ''}` === 'M';
+				const latUse = mundo ? (Number(promPt.lat) || 0) : 0;
+				const bodyGlyph = pointGlyphOf(promBase);
+				const aspChar = (promAspM && promAspM[1] !== '0') ? AstroText.AstroMsg[`Asp${promAspM[1]}`] : null;
+				const txt = (bodyGlyph.astroFont && aspChar) ? `${bodyGlyph.text}${aspChar}` : bodyGlyph.text;
+				const twin = makeTextSprite(txt, {
+					worldSize: Math.max(7.5, R * 0.054), color: '#ffffff', glow: true,
+					...(bodyGlyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
+				});
+				// 🔴 真位银白、冻结迫星方向色 —— 曾同为方向色致双影无从分辨(用户实测指正);
+				// 漂移线保方向色,把「冻结→真位」配成一对且标注所属向运。
+				if(twin.material && twin.material.color && twin.material.color.set){ twin.material.color.set(trueCss); }
+				if(twin.material){ twin.material.opacity = 0.95; }
+				if(twin.userData){ twin.userData.__pmEntry = true; }
+				this.trueGroup.add(twin);
+				const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+				const line = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({ color: dirColor, transparent: true, opacity: 0.8 }));
+				this.trueGroup.add(line);
+				const frozen = effectiveEq(promPt, row.cat);
+				const fp = sph(frozen.ra, frozen.decl, R);
+				this._trueEntries.push({ mesh: twin, line, frozenPos: fp, pid: row.prom, lon0: Number(promPt.lon) || 0, latUse, mu, isProm: true });
+			}
+		}
+		this._updateTrueMotion();
+	}
+
+	/** 逐帧:按播放进度 f 更新真位点(λ(f)=λ0+μ·Δt·f → 赤道 → 摆点;含迫星漂移线) */
+	_updateTrueMotion(){
+		if(!this._trueEntries.length){
+			return;
+		}
+		const sel = this._selection;
+		if(!sel || !this.res || !this.res.frame){
+			return;
+		}
+		const eps = Number(this.res.frame.eps) || 0;
+		const R = this.radius;
+		const target = sel.rotTarget || 0;
+		const f = Math.abs(target) < 1e-9 ? 0 : Math.max(0, Math.min(1, this.dirGroup.rotation.y / target));
+		// 静止(f≈0)真位恒等本命 → 整层隐藏(重合双像纯噪);一动即现,复位即敛。
+		if(this.trueGroup){ this.trueGroup.visible = this.trueMotionOn && f > 1e-4; }
+		this._trueEntries.forEach((en)=>{
+			const dLon = trueMotionDeltaLon(en.mu, sel.row.arc, f);
+			const eq = eclToEqTrue(en.lon0 + dLon, en.latUse, eps);
+			const p = sph(eq.ra, eq.decl, R);
+			en.mesh.position.set(p.x, p.y, p.z);
+			if(en.line && en.frozenPos){
+				const pos = en.line.geometry.attributes.position;
+				pos.setXYZ(0, en.frozenPos.x, en.frozenPos.y, en.frozenPos.z);
+				pos.setXYZ(1, p.x, p.y, p.z);
+				pos.needsUpdate = true;
+			}
+		});
+	}
+
+	/** 播放/拖拽落定时向宿主报「历时 + 各曜真位漂移」(DOM 信息行;逐帧不发防重烘) */
+	_emitTrueMotionInfo(){
+		if(typeof this.onTrueMotionInfo !== 'function'){
+			return;
+		}
+		if(!this.trueMotionOn || !this._selection || !this._trueEntries.length){
+			try{ this.onTrueMotionInfo(null); }catch(_){ }
+			return;
+		}
+		const sel = this._selection;
+		const target = sel.rotTarget || 0;
+		const f = Math.abs(target) < 1e-9 ? 0 : Math.max(0, Math.min(1, this.dirGroup.rotation.y / target));
+		const days = elapsedDaysForArc(sel.row.arc) * f;
+		const drifts = this._trueEntries
+			.map((en)=>({ pid: en.pid, isProm: !!en.isProm, dLon: trueMotionDeltaLon(en.mu, sel.row.arc, f) }))
+			.filter((d)=>Math.abs(d.dLon) > 0.005)
+			.sort((a, b)=>(b.isProm - a.isProm) || (Math.abs(b.dLon) - Math.abs(a.dLon)))
+			.slice(0, 4);
+		try{ this.onTrueMotionInfo({ elapsedText: formatElapsedHM(days), days, drifts }); }catch(_){ }
+	}
+
 	clearSelection(){
 		if(this._selection){
 			if(this._selection.marker && this._selection.marker.parent){
@@ -1044,8 +1253,20 @@ class PDSphereEngine{
 		// [G3] 运动组整组清空+归零(其内全部为选中行资产,随选随建)
 		this._clearGroup(this.dirGroup);
 		if(this.dirGroup && this.dirGroup.rotation){
-			this.dirGroup.rotation.y = 0;
+			this._applyDirRotation(0);
 		}
+		this._clearTrueMotion();
+	}
+
+	/** [C1] 旋转中枢:dirGroup 与真位层同角同步 + 逐帧真位更新(全部旋转赋值必经此处) */
+	_applyDirRotation(y){
+		if(this.dirGroup && this.dirGroup.rotation){
+			this.dirGroup.rotation.y = y;
+		}
+		if(this.trueGroup && this.trueGroup.rotation){
+			this.trueGroup.rotation.y = y;
+		}
+		this._updateTrueMotion();
 	}
 
 	/**
@@ -1068,7 +1289,7 @@ class PDSphereEngine{
 		this.clearSelection();
 		// [G3] skyGroup 恒 0(本命参照系,不再随播转动——历史姿态防御性归零);运动组同归零
 		this.skyGroup.rotation.y = 0;
-		this.dirGroup.rotation.y = 0;
+		this._applyDirRotation(0);
 
 		const points = this.res.points || {};
 		const circles = this.res.circles || {};
@@ -1131,7 +1352,7 @@ class PDSphereEngine{
 
 		// [D1] 动方活动标(挂 dirGroup,唯一随播转者):
 		//  mover='prom':相位行=「本体glyph+相位glyph」组合字;映点/界=中文短标;本体行=glyph;
-		//  mover='sig':应星本体 glyph(真黄纬位)——被引导滑向迫星相位点赤经圈(内核 §8.1 号序)。
+		//  mover='sig':应星本体 glyph(真黄纬位)——被引导滑向迫星相位点赤经圈(内核半弧比例号序)。
 		//  白字烘焙+material 染方向色。🔴 moverPt 守卫:缺点则无标(effectiveEq 回落 (0,0) 幽灵防)。
 		const promBaseId = basePointIdOf(row.prom);
 		const sigBaseId = basePointIdOf(row.sig);
@@ -1143,6 +1364,12 @@ class PDSphereEngine{
 			if(`${baseId}`.indexOf('House') === 0){
 				return `${`${baseId}`.slice(5)}宫`;
 			}
+			// S/P 扩展体语义短名(与表格/时间轴同源;恒星保英文名)
+			const mc = /^Cusp(\d+)$/.exec(`${baseId}`);
+			if(mc){ return `第${mc[1]}宫头`; }
+			if(`${baseId}` === 'Syzygy'){ return '产前朔望'; }
+			if(`${baseId}` === 'Spirit'){ return '精神点'; }
+			if(`${baseId}`.indexOf('Pars ') === 0){ return `${`${baseId}`.slice(5)}点`; }
 			return `${baseId}`;
 		};
 		const dirCss = conv ? '#00e0e0' : '#ffd700';
@@ -1174,15 +1401,19 @@ class PDSphereEngine{
 						worldSize: Math.max(6.5, R * 0.046), color: dirCss, glow: true,
 					});
 				}else{
-					marker = tintSprite(makeTextSprite(bodyGlyph.text, {
-						worldSize: Math.max(8.5, R * 0.06), color: '#ffffff', glow: true,
+					// 恒星迫星活动标同带 ★(与本体点一致);宫头/阿点由 pointGlyphOf 短标覆盖。
+					const isStarMv = promPt.kind === 'star';
+					marker = tintSprite(makeTextSprite(isStarMv ? `★${bodyGlyph.text}` : bodyGlyph.text, {
+						worldSize: isStarMv ? Math.max(7, R * 0.048) : Math.max(8.5, R * 0.06), color: '#ffffff', glow: true,
 						...(bodyGlyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
 					}));
 				}
 			}
-			const mp = sph(moverEq.ra, moverEq.decl, R);
-			marker.position.set(mp.x, mp.y, mp.z);
-			this.dirGroup.add(marker);
+			if(marker){
+				const mp = sph(moverEq.ra, moverEq.decl, R);
+				marker.position.set(mp.x, mp.y, mp.z);
+				this.dirGroup.add(marker);
+			}
 		}
 
 		// [D1] 靶线分派:
@@ -1573,7 +1804,9 @@ class PDSphereEngine{
 			});
 		});
 
-		this._selection = { idx, row, conv, mover, marker, pulseTargets, restore, extraSky, progressLine, pathSegs: PATH_SEGS };
+		this._selection = { idx, row, conv, mover, marker, pulseTargets, restore, extraSky, progressLine, pathSegs: PATH_SEGS,
+			rotTarget: promRotationRad(row) };   // [C1] 真位层进度分母(rotation.y/rotTarget = 播放进度 f)
+		this._buildTrueMotionLayer(row, conv);
 		// [P2] 球心档下选中行新建的 sprite 资产补视距缩放(traverse 只补新面孔,已补的走 __vsBase 幂等)
 		if((this._spriteViewK || 1) !== 1){ this._setSpriteViewScale(this._spriteViewK); }
 		this.wake(3);
@@ -1596,7 +1829,7 @@ class PDSphereEngine{
 				if(this.disposed){ this._tweenActive = false; return; }
 				if(token !== this._playToken){ return; }
 				const t = Math.min(1, (performance.now() - t0) / 300);
-				this.dirGroup.rotation.y = curY * (1 - easeInOutCubic(t));
+				this._applyDirRotation(curY * (1 - easeInOutCubic(t)));
 				this.wake(1);
 				if(t < 1){
 					window.requestAnimationFrame(back);
@@ -1638,7 +1871,7 @@ class PDSphereEngine{
 			}
 			const t = Math.min(1, (performance.now() - t0) / dur);
 			const eased = easeInOutCubic(t);
-			this.dirGroup.rotation.y = target * eased;
+			this._applyDirRotation(target * eased);
 			// 走过的路实线渐现(setDrawRange 与转角同步 —— 轨迹随转动陆续出现,不提前铺)
 			const selNow = this._selection;
 			if(selNow && selNow.progressLine){
@@ -1650,6 +1883,7 @@ class PDSphereEngine{
 			}else{
 				this._tweenActive = false;
 				this._pulseSelection(token);   // t=1:应星位置圈 emissive 脉冲 2 次
+				this._emitTrueMotionInfo();    // [C1] 播放落定:历时+诸曜真位漂移报宿主信息行
 				this._trailFade(token);        // [WP-4] 尾迹渐隐收场
 				this._setBeaconEmphasis(false); // [WP-A] 播完浮标回淡显
 				if(onDone){
@@ -1669,7 +1903,7 @@ class PDSphereEngine{
 							const now2 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 							if(now2 < t1){ window.requestAnimationFrame(backStep); return; }
 							const k = Math.min(1, (now2 - t1) / 900);
-							this.dirGroup.rotation.y = fromY * (1 - easeInOutCubic(k));
+							this._applyDirRotation(fromY * (1 - easeInOutCubic(k)));
 							this.wake(1);
 							if(k < 1){ window.requestAnimationFrame(backStep); }
 						};
@@ -1704,7 +1938,7 @@ class PDSphereEngine{
 				return;
 			}
 			const t = Math.min(1, (performance.now() - t0) / dur);
-			this.dirGroup.rotation.y = from + (target - from) * easeInOutCubic(t);
+			this._applyDirRotation(from + (target - from) * easeInOutCubic(t));
 			const selNow = this._selection;
 			if(selNow && selNow.progressLine && Math.abs(target) > 1e-9){
 				const frac = Math.max(0, Math.min(1, this.dirGroup.rotation.y / target));
@@ -1714,6 +1948,7 @@ class PDSphereEngine{
 				window.requestAnimationFrame(step);
 			}else{
 				this._tweenActive = false;
+				this._emitTrueMotionInfo();   // [C1] 拖拽落定同报信息行
 			}
 		};
 		this.wake(2);
@@ -1767,7 +2002,7 @@ class PDSphereEngine{
 				return;
 			}
 			const t = Math.min(1, (performance.now() - t0) / dur);
-			this.dirGroup.rotation.y = from * (1 - easeInOutCubic(t));
+			this._applyDirRotation(from * (1 - easeInOutCubic(t)));
 			if(t < 1){
 				window.requestAnimationFrame(step);
 			}else{

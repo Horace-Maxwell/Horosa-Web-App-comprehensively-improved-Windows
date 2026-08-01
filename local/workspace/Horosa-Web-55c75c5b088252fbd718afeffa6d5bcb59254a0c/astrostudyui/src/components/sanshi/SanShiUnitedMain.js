@@ -3,6 +3,7 @@ import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';
 import { Spin, Divider, Tag, message } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -56,7 +57,8 @@ import {
 import { fetchTaiyiPan, buildTaiyiSnapshotText } from '../taiyi/TaiYiCalc';
 import { computeTaiyiShuli, shuliTone } from '../taiyi/core/taiyiShuli';
 import { computeGeju } from '../taiyi/core/taiyiGeju';
-import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, activeDoorJixiong, computeEhui, computeLimitYun, computeSanyuan } from '../taiyi/core/taiyiDuanfa';
+import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, activeDoorJixiong, computeEhui, computeLimitYun, computeSanyuan, computeShiJing, computeWuziyuan } from '../taiyi/core/taiyiDuanfa';
+import { computeTaiyiNayin } from '../taiyi/core/taiyiNayin';
 import { applyTaiyiSchool, DEFAULT_TAIYI_SCHOOL, TAIYI_SCHOOL_OPTIONS, normalizeTaiyiSchool } from '../taiyi/core/taiyiSchool';
 import { appendPlanetHouseInfo, } from '../../utils/planetHouseInfo';
 import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
@@ -387,8 +389,10 @@ function clamp(val, min, max){
 }
 
 function getViewportHeight(){
+	// 🔴 innerHeight/documentElement.clientHeight 恒报物理域;壳缩放<1 时当布局高用会
+	// 把整页配矮。走壳缩放感知的布局视口高(1:1 恒等)。
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
-		return window.innerHeight;
+		return getLayoutViewportHeight();
 	}
 	if(typeof document !== 'undefined' && document.documentElement){
 		return document.documentElement.clientHeight || 900;
@@ -4431,7 +4435,7 @@ class SanShiUnitedMain extends Component{
 						</label>
 						<label className="horosa-sanshi-select-field">
 							<span>值使</span>
-							<Select size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)}>
+							<Select disabled={['飞盘', '混合'].indexOf(opt.school || '转盘') >= 0} size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)}>
 								{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
@@ -4860,7 +4864,7 @@ class SanShiUnitedMain extends Component{
 								</Select>
 							</div>
 							<div>
-								<Select size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)} style={{ width: '100%' }}>
+								<Select disabled={['飞盘', '混合'].indexOf(opt.school || '转盘') >= 0} size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)} style={{ width: '100%' }}>
 									{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 								</Select>
 							</div>
@@ -5016,6 +5020,9 @@ class SanShiUnitedMain extends Component{
 									const ehui = computeEhui(tpan);
 									const limitYun = computeLimitYun(tpan);
 									const sanyuan = computeSanyuan(tpan);
+									const nayin = computeTaiyiNayin(tpan);
+									const shijing = computeShiJing(tpan);
+									const wuziyuan = computeWuziyuan(tpan);
 									const calTags = (tags)=>(tags || []).map((t, i)=>{
 										const tone = shuliTone(t);
 										const color = tone === 'bad' ? 'var(--horosa-danger, #c0563a)' : tone === 'good' ? 'var(--horosa-accent, #d7ad69)' : 'var(--horosa-muted, #8c8c8c)';
@@ -5036,11 +5043,12 @@ class SanShiUnitedMain extends Component{
 												<div>流派：{tpan._schoolNote ? (<span style={{ color: 'var(--horosa-astro-blue, #7fa8d8)' }} title="左栏「太乙流派」非默认;被覆盖神煞与主客算据古法重算">{tpan._schoolNote}</span>) : '默认(从盘)'}</div>
 												<div>博弈：{tpan.options ? tpan.options.gameTheoryLabel : '—'}</div>
 												<div>局式：{tpan.kook ? tpan.kook.text : '—'}</div>
-												<div>积数：{tpan.accNum}{sanyuan ? `（${sanyuan}）` : ''}</div>
+												<div>积数：{tpan.accNum}{sanyuan ? `（${sanyuan}）` : ''}{wuziyuan ? ` · ${wuziyuan}` : ''}</div>
 												<div>太乙：{tpan.taiyiPalace}宫（数{tpan.taiyiNum}）</div>
-												<div>文昌：{tpan.skyeyes} 始击：{tpan.sf}</div>
+												<div>文昌：{tpan.skyeyes} 始击：{tpan.sf}{nayin ? ` · 纳音${nayin.ganzhi}·${nayin.nayin}` : ''}</div>
 												<div>太岁：{tpan.taishui}{taisuiAlias ? `（${taisuiAlias}）` : ''} 合神：{tpan.hegod} 计神：{tpan.jigod}</div>
 												<div>定目：{tpan.se || '—'}</div>
+												{shijing ? (<div>十精：{shijing.map((it, i)=>(<span key={i} style={{ marginRight: 6 }}>{it.name}·{it.at}</span>))}</div>) : null}
 												<div>主算：{tpan.homeCal}{calTags(shuli && shuli.home)} 客算：{tpan.awayCal}{calTags(shuli && shuli.away)} 定算：{tpan.setCal}{calTags(shuli && shuli.set)}</div>
 												<Divider style={{ margin: '8px 0' }} />
 												<div>君基：{this.state.taiyi.kingbase} 臣基：{this.state.taiyi.officerbase} 民基：{this.state.taiyi.pplbase}</div>

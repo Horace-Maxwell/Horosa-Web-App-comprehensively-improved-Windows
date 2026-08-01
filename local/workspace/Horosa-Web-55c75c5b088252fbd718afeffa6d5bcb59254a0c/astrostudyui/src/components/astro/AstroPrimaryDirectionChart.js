@@ -18,14 +18,21 @@ import {
 	DEFAULT_PD_TIME_KEY,
 	DEFAULT_PD_TYPE,
 	SUPPORTED_PD_METHODS,
+	SUPPORTED_PD_TIME_KEYS,
+	PD_TIME_KEY_LABELS,
+	PD_METHOD_LABELS,
+	pdPairOfMethod,
+	pdMethodOfPair,
 	mergePrimaryDirectionChartObj,
 	getPdMethodLabel,
 	getPdTimeKeyLabel,
 } from '../../utils/primaryDirectionSync';
-import { XQButton as Button, XQSelect as Select } from '../xq-ui';
+import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
+// 方法下拉的「无单维等价」占位档:表格 pane 的正交自由组合(投影×分宫)回显用,禁选。
+const PD_METHOD_CUSTOM_VALUE = '__pd_pair_custom__';
 const PD_DISPLAY_ZONE = '+00:00';
 const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.SUN,
@@ -287,10 +294,11 @@ function buildAscTermHighlight(dirChart){
 	if(!sign || degree === null){
 		return null;
 	}
-	// 界高亮按所选界系(含迦勒底,按昼夜);dirChart 无 termsVariant 时回退埃及零回归。
+	// 界高亮按所选界系(含迦勒底,按昼夜;含狮子/双子界内变体);dirChart 无 termsVariant 时回退埃及零回归。
 	const _tt = termsTableForVariant(
 		dirChart && dirChart.params ? dirChart.params.termsVariant : 0,
-		chart.isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS);
+		chart.isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS,
+		dirChart && dirChart.params);
 	const terms = _tt[sign];
 	if(!Array.isArray(terms) || terms.length === 0){
 		return null;
@@ -449,13 +457,18 @@ class AstroPrimaryDirectionChart extends Component{
 			datetime: initialDateTime,
 			birthKey: this.buildBirthKey(props.value),
 			pdMethodValue: this.normalizePdMethod(props.pdMethod),
+			pdMethodTouched: false,   // 用户是否在本 pane 显式改过方法(决定是否改写投影/分宫两维)
 			pdTimeKeyValue: this.normalizePdTimeKey(props.pdTimeKey),
+			pdTimeKeyCustomValue: null,
 			pdDirectionValue: 'direct', // 向运方向：direct(默认) / converse
 			dirChart: null,
 		};
 
 		this.handleTimeChanged = this.handleTimeChanged.bind(this);
 		this.handlePdMethodChange = this.handlePdMethodChange.bind(this);
+		this.getChartMethodSelectValue = this.getChartMethodSelectValue.bind(this);
+		this.getSelectedPdTimeKeyCustom = this.getSelectedPdTimeKeyCustom.bind(this);
+		this.handlePdTimeKeyCustomChange = this.handlePdTimeKeyCustomChange.bind(this);
 		this.handlePdTimeKeyChange = this.handlePdTimeKeyChange.bind(this);
 		this.handlePdDirectionChange = this.handlePdDirectionChange.bind(this);
 		this.handlePdCalculate = this.handlePdCalculate.bind(this);
@@ -513,6 +526,10 @@ class AstroPrimaryDirectionChart extends Component{
 	componentDidUpdate(prevProps, prevState){
 		const nextMethod = this.normalizePdMethod(this.props.pdMethod);
 		const nextTimeKey = this.normalizePdTimeKey(this.props.pdTimeKey);
+		// 解耦维(投影/定局)变化 → 盘面宫始点随 frame 重排,直接重取。
+		if(prevProps.pdProjection !== this.props.pdProjection || prevProps.pdFrame !== this.props.pdFrame){
+			this.requestDirectedChart();
+		}
 		if(prevProps.pdMethod !== this.props.pdMethod || prevProps.pdTimeKey !== this.props.pdTimeKey){
 			if(this.state.pdMethodValue !== nextMethod || this.state.pdTimeKeyValue !== nextTimeKey){
 				this.setState({
@@ -598,14 +615,10 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	normalizePdTimeKey(value){
-		// 白名单：与后端 STATIC_TIME_KEY_SCALES + 动态 key 同步。未识别 timeKey 回退默认 Ptolemy。
-		const VALID = [
-			'Ptolemy', 'Naibod', 'TrueSolarArc', 'SymbolicSolarArc',
-			'Cardano', 'Umar', 'Wollner', 'Plantiko', 'Simmonite', 'SynodicYear',
-			'Kepler', 'Brahe', 'Kundig', 'SymbolicDegree', 'SymbolicYear', 'SymbolicMoon',
-			'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary', 'Novenary', 'SelfMeasure',
-		];
-		if(VALID.indexOf(value) >= 0){
+		// 🔴 白名单单一真值源 = SUPPORTED_PD_TIME_KEYS(与后端 STATIC_TIME_KEY_SCALES + 动态 key 同步)。
+		// 曾在此手写 22 键副本 → NaibodRA/AscendantArc/VanDam/User 被静默打回 Ptolemy,
+		// 表格设的钥匙到盘 pane 就失效(同款分叉坑已在表格组件修过一次)。
+		if(SUPPORTED_PD_TIME_KEYS.indexOf(value) >= 0){
 			return value;
 		}
 		return DEFAULT_PD_TIME_KEY;
@@ -658,6 +671,23 @@ class AstroPrimaryDirectionChart extends Component{
 		if(this.getSelectedPdMethod() !== applied.pdMethod || this.getTablePdTimeKey() !== applied.pdTimeKey){
 			return true;
 		}
+		// 方法下拉动过但派生的两维与已落库不同 → 仍需重算(单维档写两维,pdMethod 键本身可能没变)。
+		if(this.state.pdMethodTouched){
+			const params = (this.props.value && this.props.value.params) || {};
+			const [dProj, dFrame] = pdPairOfMethod(this.getSelectedPdMethod());
+			if((params.pdProjection || 'ptolemy') !== dProj
+				|| (dFrame && (params.pdFrame || 'alcabitius') !== dFrame)){
+				return true;
+			}
+		}
+		// 自定义钥匙率改动(User 档)也算脏 —— 否则改了度数按钮不亮。
+		if(this.getSelectedPdTimeKey() === 'User'){
+			const params = (this.props.value && this.props.value.params) || {};
+			const appliedCustom = Number(params.pdTimeKeyCustom);
+			if(!(Number.isFinite(appliedCustom) && Math.abs(appliedCustom - this.getSelectedPdTimeKeyCustom()) < 1e-9)){
+				return true;
+			}
+		}
 		if(!applied.hasCompleteParams){
 			return true;
 		}
@@ -678,9 +708,27 @@ class AstroPrimaryDirectionChart extends Component{
 		}
 	}
 
+	/** 方法下拉回显值:优先由已落库的 (投影,分宫) 反查单维等价档;
+	 *  正交自由组合(表格 pane 可产出)无等价 → 'custom' 占位档。 */
+	getChartMethodSelectValue(){
+		if(this.state.pdMethodTouched){
+			return this.normalizePdMethod(this.state.pdMethodValue);
+		}
+		const params = (this.props.value && this.props.value.params) || {};
+		const proj = params.pdProjection || this.props.pdProjection;
+		const frame = params.pdFrame || this.props.pdFrame;
+		if(proj || frame){
+			const hit = pdMethodOfPair(proj, frame);
+			return hit || PD_METHOD_CUSTOM_VALUE;
+		}
+		return this.normalizePdMethod(this.state.pdMethodValue);
+	}
+
+	/** 用户是否在本 pane 显式改过方法(决定计算时是否改写两维;未改则透传不 clobber)。 */
 	handlePdMethodChange(value){
 		this.setState({
 			pdMethodValue: value,
+			pdMethodTouched: true,
 		});
 	}
 
@@ -688,6 +736,20 @@ class AstroPrimaryDirectionChart extends Component{
 		this.setState({
 			pdTimeKeyValue: value,
 		});
+	}
+
+	getSelectedPdTimeKeyCustom(){
+		const params = (this.props.value && this.props.value.params) || {};
+		const v = this.state.pdTimeKeyCustomValue !== undefined && this.state.pdTimeKeyCustomValue !== null
+			? this.state.pdTimeKeyCustomValue
+			: params.pdTimeKeyCustom;
+		const n = Number(v);
+		return (Number.isFinite(n) && n > 0) ? n : 1.0;
+	}
+
+	handlePdTimeKeyCustomChange(value){
+		const n = Number(value);
+		this.setState({ pdTimeKeyCustomValue: (Number.isFinite(n) && n > 0 && n <= 30) ? n : 1.0 });
 	}
 
 	handlePdDirectionChange(value){
@@ -745,6 +807,29 @@ class AstroPrimaryDirectionChart extends Component{
 			pdConverse: params.pdConverse ? 1 : 0,
 			pdAntiscia: params.pdAntiscia ? 1 : 0,
 			pdTerms: params.pdTerms ? 1 : 0,
+			// P0/P2 九新键同样透传现值(与 AstroDirectMain desired 同口径),
+			// 漏传=盘 pane 重算后投影/分宫/平行/扩展全被 clobber 回默认。
+			// 🔴 但用户在本 pane 动过「推运方法」时,两维必须由该单维档派生 —— 否则
+			// 显式 pdProjection 在后端优先于 pdMethod,方法下拉成死开关(选了没反应)。
+			...(()=>{
+				if(this.state.pdMethodTouched){
+					const [dProj, dFrame] = pdPairOfMethod(this.getSelectedPdMethod());
+					return { pdProjection: dProj, pdFrame: dFrame || params.pdFrame || 'alcabitius' };
+				}
+				return { pdProjection: params.pdProjection || 'ptolemy', pdFrame: params.pdFrame || 'alcabitius' };
+			})(),
+			pdFramework: params.pdFramework || 'aspect',
+			pdParallel: params.pdParallel ? 1 : 0,
+			pdRaptParallel: params.pdRaptParallel ? 1 : 0,
+			...((()=>{
+				const custom = this.getSelectedPdTimeKey() === 'User'
+					? this.getSelectedPdTimeKeyCustom()
+					: params.pdTimeKeyCustom;
+				return custom ? { pdTimeKeyCustom: custom } : {};
+			})()),
+			...(Array.isArray(params.pdSignificators) && params.pdSignificators.length ? { pdSignificators: params.pdSignificators } : {}),
+			...(Array.isArray(params.pdPromissorTypes) && params.pdPromissorTypes.length ? { pdPromissorTypes: params.pdPromissorTypes } : {}),
+			termsVariant: (params.termsVariant === 1 || params.termsVariant === 2) ? params.termsVariant : 0,
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
 			pdaspects: params.pdaspects || [0, 60, 90, 120, 180],
@@ -801,6 +886,16 @@ class AstroPrimaryDirectionChart extends Component{
 			pdConverse: req.pdConverse,
 			pdAntiscia: req.pdAntiscia,
 			pdTerms: req.pdTerms,
+			// merge 对九新键是「恒写默认」语义:不回传 req 现值就会把 params 打回默认。
+			pdProjection: req.pdProjection,
+			pdFrame: req.pdFrame,
+			pdFramework: req.pdFramework,
+			pdParallel: req.pdParallel,
+			pdRaptParallel: req.pdRaptParallel,
+			...(req.pdTimeKeyCustom !== undefined ? { pdTimeKeyCustom: req.pdTimeKeyCustom } : {}),
+			...(Array.isArray(req.pdSignificators) ? { pdSignificators: req.pdSignificators } : {}),
+			...(Array.isArray(req.pdPromissorTypes) ? { pdPromissorTypes: req.pdPromissorTypes } : {}),
+			termsVariant: req.termsVariant,
 			name: req.name,
 			pos: req.pos,
 		});
@@ -851,6 +946,10 @@ class AstroPrimaryDirectionChart extends Component{
 			tradition: params.tradition,
 			pdtype: DEFAULT_PD_TYPE,
 			pdMethod: this.getSelectedPdMethod(),
+			// 解耦维:盘面宫始点由 pdFrame 决定(后端 _pdChartHouseSystem 按 resolved frame 解析),
+			// projection 一并带上保 resolve 完整;props 由 AstroDirectMain 统一下传。
+			pdProjection: this.props.pdProjection || 'ptolemy',
+			pdFrame: this.props.pdFrame || 'alcabitius',
 			pdTimeKey: this.getSelectedPdTimeKey(),
 			showPdBounds: params.showPdBounds,
 			datetime: currentDt.format('YYYY-MM-DD HH:mm:ss'),
@@ -884,10 +983,10 @@ class AstroPrimaryDirectionChart extends Component{
 		}catch(e){
 			result = null;
 		}
-		this._syncSigInFlight = false;   // settle:同签名的下一次真实请求可再发(如手动刷新同参)
 		if(this.unmounted || seq !== this.requestSeq){
 			return;
 		}
+		this._syncSigInFlight = false;   // settle:同签名的下一次真实请求可再发(如手动刷新同参)
 		if(!result || result.err){
 			this.setState({
 				dirChart: null,
@@ -1020,40 +1119,38 @@ class AstroPrimaryDirectionChart extends Component{
 							<Row gutter={12} style={sectionGapStyle}>
 								<Col span={12}>
 									<div style={{marginBottom: 8}}>推运方法</div>
-									<Select value={this.state.pdMethodValue} onChange={this.handlePdMethodChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
-										<Option value='core_alchabitius'>Core-Alchabitius</Option>
-										<Option value='meridian'>Meridian</Option>
-										<Option value='porphyry'>Porphyry</Option>
-										<Option value='equal_ecliptic'>Equal（黄道）</Option>
-										<Option value='equal_hour_circle'>Equal（时圈）</Option>
+									{/* 单维快捷法 = (投影×分宫) 组合的命名档;白名单与 label 均取 sync 单一真值源。
+									    表格 pane 的正交自由组合无单维等价时,回显「自定(投影×分宫)」占位档(禁选),
+									    此时点计算不改写两维(不 clobber 用户的正交选择)。 */}
+									<Select value={this.getChartMethodSelectValue()} onChange={this.handlePdMethodChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+										{SUPPORTED_PD_METHODS.map((m)=>(
+											<Option key={m} value={m}>{PD_METHOD_LABELS[m] || m}</Option>
+										))}
+										{this.getChartMethodSelectValue() === PD_METHOD_CUSTOM_VALUE ? (
+											<Option value={PD_METHOD_CUSTOM_VALUE} disabled>自定（投影×分宫）</Option>
+										) : null}
 									</Select>
 								</Col>
 								<Col span={12}>
 									<div style={{marginBottom: 8}}>度数换算</div>
-									<Select value={this.state.pdTimeKeyValue} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
-										<Option value='Ptolemy'>Ptolemy</Option>
-										<Option value='Naibod'>Naibod</Option>
-										<Option value='TrueSolarArc'>真太阳弧</Option>
-							<Option value='SymbolicSolarArc'>太阳弧（黄经）</Option>
-										<Option value='Cardano'>Cardano</Option>
-										<Option value='Umar'>Umar al-Tabari</Option>
-										<Option value='Wollner'>Wöllner</Option>
-										<Option value='Plantiko'>Plantiko</Option>
-										<Option value='Simmonite'>Simmonite</Option>
-										<Option value='SynodicYear'>Synodic Year</Option>
-										<Option value='Kepler'>Kepler</Option>
-										<Option value='Brahe'>Brahe</Option>
-							<Option value='Kundig'>Kündig</Option>
-										<Option value='SymbolicDegree'>Symbolic Degree</Option>
-										<Option value='SymbolicYear'>Symbolic Year</Option>
-										<Option value='SymbolicMoon'>Symbolic Moon</Option>
-										<Option value='SymbolicMonth'>Symbolic Month</Option>
-										<Option value='Quarterly'>Quarterly</Option>
-										<Option value='Quinary'>Quinary</Option>
-										<Option value='Duodenary'>Duodenary</Option>
-										<Option value='Novenary'>Novenary</Option>
-										<Option value='SelfMeasure'>Self-Measure</Option>
+									{/* 钥匙全域取 sync 单一真值源(26 键含 NaibodRA/AscendantArc/VanDam/User);
+									    此前手写 22 键副本 → 表格设的新钥匙到盘 pane 被静默打回 Ptolemy。 */}
+									<Select value={this.getSelectedPdTimeKey()} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+										{SUPPORTED_PD_TIME_KEYS.map((k)=>(
+											<Option key={k} value={k}>{PD_TIME_KEY_LABELS[k] || k}</Option>
+										))}
 									</Select>
+									{this.getSelectedPdTimeKey() === 'User' ? (
+										<InputNumber
+											size='small'
+											min={0.001}
+											max={30}
+											step={0.01}
+											style={{ width: '100%', marginTop: 8 }}
+											value={this.getSelectedPdTimeKeyCustom()}
+											onChange={this.handlePdTimeKeyCustomChange}
+										/>
+									) : null}
 								</Col>
 							</Row>
 							<Row gutter={12} style={{marginTop: 16}}>

@@ -266,8 +266,8 @@ export const VIRTUAL_POINT_KINDS = new Set(['term', 'antiscia', 'aspect']);
 //  ① 行星/北交/福点:arc = RA(sig,真纬) − RA(promZ) → 迫星转 +arc 落到应星赤经圈;
 //  ② MC:arc = RA(promZ) − RA(MCZ) / Asc:OA(promZ)−OA(AscZ) / Vertex:OA@余纬 差
 //     / M 类(In-Mundo)/ T 类(界)→ 迫星转 −arc 落到应星轴圈/位置圈。
-// 权威:PRIMARY_DIRECTION_ASTROAPP_ALCHABITIUS_MATH_FLOW.md §8/§12 + perpredict Z 核 docstring;
-// direct/converse 只是 arc 正负(§12),对参考 540 盘逐位坐实,不可动——此处只改可视化「谁动」。
+// 权威:PRIMARY_DIRECTION_ASTROAPP_ALCHABITIUS_MATH_FLOW.md(半弧比例与顺逆两节)+ perpredict Z 核 docstring;
+// direct/converse 只是 arc 正负(推演文档顺逆节),对参考 540 盘逐位坐实,不可动——此处只改可视化「谁动」。
 
 const AXIS_SIG_RE = /^(MC|Asc|Vertex|House\d+)$/i;
 
@@ -320,4 +320,95 @@ export function sigEqOf(point){
 		return { ra: 0, decl: 0 };
 	}
 	return { ra: Number(point.ra) || 0, decl: Number(point.decl) || 0 };
+}
+
+// ═══ [C1] 复合运动·真位层(primum mobile 周日旋转 × 星体黄道自行) ═══
+// 主限的物理实相:出生后天球整体西移(周日运动)之同时,诸曜仍沿黄道自行(公转位移)。
+// 引擎弧(byte-validated)按经典「引导至本命位」口径以冻结本命点计 —— 不动;本层是纯可视化加法:
+// 把「弧 = 多少物理时间、这段时间里星体真位挪了多远」诚实画出来(冻结迫星仍精确命中,
+// 真位点与其漂移线呈现经典「本命位 vs 真位」之差 —— Placidus 真位向运讨论的正是它)。
+//
+// 时间换算:周日旋转对恒星背景 360°/恒星日 = 每平太阳日转 360.98564736629°(RA 度)。
+// 弧 A(RA 度)⇔ 物理历时 Δt = A / 360.985647 平太阳日;converse 负弧 ⇒ Δt 为负
+// (逆向向运的镜像语义:诸曜真位取出生前位置,与旋转方向一并反演)。
+export const SIDEREAL_ROTATION_DEG_PER_DAY = 360.98564736629;
+
+/** 弧(°,带符号)→ 物理历时(平太阳日,带符号;NaN→0) */
+export function elapsedDaysForArc(arcDeg){
+	const a = Number(arcDeg);
+	return Number.isFinite(a) ? a / SIDEREAL_ROTATION_DEG_PER_DAY : 0;
+}
+
+// 平均日行(°/日,几何均值;仅当 /chart 未带该体瞬时 lonspeed 时兜底 —— 瞬时速含逆行恒优先)。
+// 水金内行星几何平均日行=太阳(绕日相对地球长期均值);交点/莉莉负值=平均逆行。
+export const MEAN_DAILY_MOTION = {
+	Sun: 0.98565, Moon: 13.17640, Mercury: 0.98565, Venus: 0.98565,
+	Mars: 0.52403, Jupiter: 0.08309, Saturn: 0.03346,
+	Uranus: 0.01176, Neptune: 0.00602, Pluto: 0.00396,
+	'North Node': -0.05295, 'South Node': -0.05295, NNode: -0.05295, SNode: -0.05295,
+	Lilith: 0.11140, Chiron: 0.01800, Ceres: 0.21400, Earth: 0.98565,
+};
+
+/** 该点位的黄经自行速(°/日):
+ *  实体曜=瞬时 lonspeed(缺→平均表→0);相位点=本体同速(λ±n° 刚性随本体);
+ *  映点/反映点=−本体速(λ'=k−λ 镜像 ⇒ dλ'/dt=−μ);界/恒星/轴点/宫头/阿点/朔望=黄道系冻结,速 0。 */
+export function properSpeedOfPoint(pid, kind, speedOf){
+	const k = `${kind || ''}`;
+	if(k === 'term' || k === 'star'){
+		return 0;
+	}
+	const base = sigBaseIdOf(pid);
+	if(/^(MC|Asc|Vertex|House\d+|Cusp\d+|Syzygy|Spirit)$/i.test(base) || `${base}`.indexOf('Pars ') === 0){
+		return 0;
+	}
+	const mu = typeof speedOf === 'function' ? Number(speedOf(base)) : NaN;
+	const v = Number.isFinite(mu) ? mu : (Number(MEAN_DAILY_MOTION[base]) || 0);
+	return k === 'antiscia' ? -v : v;
+}
+
+/** 黄道(λ,β)→ 赤道(α,δ) 全式(真 β;pdHouseCusps 的 eclLonToEq 是 β=0 特例):
+ *  α = atan2(sinλ·cosε − tanβ·sinε, cosλ), δ = asin(sinβ·cosε + cosβ·sinε·sinλ)。 */
+export function eclToEqTrue(lonDeg, latDeg, epsDeg){
+	const l = (Number(lonDeg) || 0) * DEG;
+	const b = (Number(latDeg) || 0) * DEG;
+	const e = (Number(epsDeg) || 0) * DEG;
+	const ra = Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l)) / DEG;
+	const decl = Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l)) / DEG;
+	return { ra: norm360(ra), decl };
+}
+
+/** 播放进度 f∈[0,1] 时该点真位黄经位移(°) = μ · Δt(arc) · f */
+export function trueMotionDeltaLon(muDegPerDay, arcDeg, fraction){
+	const f = Math.max(0, Math.min(1, Number(fraction) || 0));
+	return (Number(muDegPerDay) || 0) * elapsedDaysForArc(arcDeg) * f;
+}
+
+/** /chart 结果 → { baseId: 瞬时黄经速(°/日) }(objects+angles 双面;缺 lonspeed 者不入表,
+ *  引擎按 MEAN_DAILY_MOTION 兜底)。chartObj 兼容 {objects} 与 {chart:{objects}} 两形。 */
+export function bodySpeedMapOf(chartObj){
+	const inner = chartObj && (Array.isArray(chartObj.objects) ? chartObj : chartObj.chart);
+	const out = {};
+	const eat = (arr)=>{
+		(Array.isArray(arr) ? arr : []).forEach((o)=>{
+			const v = o && Number(o.lonspeed);
+			if(o && o.id && Number.isFinite(v)){ out[o.id] = v; }
+		});
+	};
+	if(inner){
+		eat(inner.objects);
+		eat(inner.angles);
+	}
+	return out;
+}
+
+/** 历时(日,带符号)→「≈X时Y分」/「≈X日Y时」显示(converse 负值前缀「前」) */
+export function formatElapsedHM(days){
+	const d = Number(days) || 0;
+	const neg = d < 0;
+	const totalMin = Math.round(Math.abs(d) * 1440);
+	const dd = Math.floor(totalMin / 1440);
+	const hh = Math.floor((totalMin % 1440) / 60);
+	const mm = totalMin % 60;
+	const core = dd > 0 ? `${dd}日${hh}时` : `${hh}时${mm}分`;
+	return `${neg ? '前' : ''}≈${core}`;
 }

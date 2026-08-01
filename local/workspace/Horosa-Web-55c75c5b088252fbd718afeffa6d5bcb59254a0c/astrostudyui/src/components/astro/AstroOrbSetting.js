@@ -6,7 +6,7 @@ import { InputNumber, Slider, Divider } from 'antd';
 import { astroSymbol } from './AstroExtraCommon';
 
 // 默认容许度（度），与排盘引擎默认表一致。
-const DEFAULT_ORBS = [
+export const DEFAULT_ORBS = [
 	{ id: 'Sun', name: '太阳', orb: 15 },
 	{ id: 'Moon', name: '月亮', orb: 12 },
 	{ id: 'Mercury', name: '水星', orb: 7 },
@@ -20,6 +20,23 @@ const DEFAULT_ORBS = [
 	{ id: 'North Node', name: '北交点', orb: 12 },
 ];
 
+// 古典 moiety(半径)容许度表:七政各有本轮光体半径,两星容许度取两者半和。
+// 与本软件默认表仅金星一处不同(默认 8 / moiety 7);采用度数相位口径的流派档一键套用。
+// 导出供 schoolPresets 复用(单一真值源,勿在别处重写数值)。
+export const MOIETY_ORBS = {
+	Sun: 15, Moon: 12, Mercury: 7, Venus: 7, Mars: 8, Jupiter: 9, Saturn: 9,
+};
+
+// moiety 与默认表的差异项(仅这些需下发;其余同默认 ⇒ 请求体最小化、缓存键最省)
+export function moietyOrbOverrides(){
+	const out = {};
+	DEFAULT_ORBS.forEach((d) => {
+		const m = MOIETY_ORBS[d.id];
+		if(m !== undefined && Number(m) !== Number(d.orb)){ out[d.id] = m; }
+	});
+	return out;
+}
+
 class AstroOrbSetting extends Component {
 	constructor(props){
 		super(props);
@@ -29,6 +46,15 @@ class AstroOrbSetting extends Component {
 		this.state = { rows, scale };
 		this.apply = this.apply.bind(this);
 		this.reset = this.reset.bind(this);
+		this.applyMoiety = this.applyMoiety.bind(this);
+	}
+
+	// 一键写入古典 moiety 全表(仅改面板值,仍需按「应用并排盘」下发 ⇒ 可预览、可反悔)
+	applyMoiety(){
+		const rows = this.state.rows.map((r) => (
+			MOIETY_ORBS[r.id] !== undefined ? { ...r, orb: MOIETY_ORBS[r.id] } : { ...r }
+		));
+		this.setState({ rows });
 	}
 
 	setOrb(idx, v){
@@ -98,6 +124,13 @@ class AstroOrbSetting extends Component {
 				</div>
 
 				<Divider style={{ margin: '14px 0 10px' }}>逐星容许度（度）</Divider>
+
+				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+					<span style={{ opacity: 0.65, fontSize: 12, lineHeight: '18px' }}>
+						古典 moiety：两星容许度取各自半径之半和；采用度数相位的流派档一并套用。
+					</span>
+					<button type="button" style={{ ...btn, flex: 'none', padding: '0 12px', whiteSpace: 'nowrap' }} onClick={this.applyMoiety}>套用 moiety 表</button>
+				</div>
 
 				<div>
 					{rows.map((r, i) => (

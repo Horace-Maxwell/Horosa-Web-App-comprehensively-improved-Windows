@@ -263,8 +263,11 @@ function parseDateTime(params){
 }
 
 function dayOfYearUTC(date){
-	const start = Date.UTC(date.getUTCFullYear(), 0, 1);
-	return Math.floor((date.getTime() - start) / 86400000) + 1;
+	// setUTCFullYear 不做 0-99 → 1900+ 的历史映射(该映射只在 Date.UTC/构造器发生)
+	const start = new Date(0);
+	start.setUTCFullYear(date.getUTCFullYear(), 0, 1);
+	start.setUTCHours(0, 0, 0, 0);
+	return Math.floor((date.getTime() - start.getTime()) / 86400000) + 1;
 }
 
 function equationOfTime(dayOfYear){
@@ -283,7 +286,12 @@ function applyApparentSolarTime(parts, params){
 		return parts;
 	}
 	const zoneHours = parseZoneHours(params.zone);
-	const wall = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
+	// 🔴 AD 1–99 年必须绕开 Date.UTC 的 0-99 → 1900+ 历史映射(ECMA MakeFullYear):
+	// 曾用 Date.UTC → 公元 1-99 年的盘整体平移到 20 世纪(真太阳时默认档=必经路径,
+	// 四柱/大运/神煞全错;本仓铁律见 julianDayIndex.js 头注)。setUTCFullYear 无此映射。
+	const wall = new Date(0);
+	wall.setUTCFullYear(parts.year, parts.month - 1, parts.day);
+	wall.setUTCHours(parts.hour, parts.minute, parts.second, 0);
 	const utcForEot = new Date(wall.getTime() - zoneHours * 3600000);
 	const ltcSeconds = (lon - zoneHours * 15) * 4 * 60;
 	const eotSeconds = alg === 0 ? equationOfTime(dayOfYearUTC(utcForEot)) * 60 : 0;
@@ -347,6 +355,25 @@ function makeBranch(zhi, relative){
 	};
 }
 
+// 爻数组(自初至上,1=阳) → 八卦对象。三爻一组按 TRIGRAMS 的 yao 顺序反查。
+function trigramOfYao(three){
+	const keys = Object.keys(TRIGRAMS);
+	for(let i = 0; i < keys.length; i++){
+		const t = TRIGRAMS[keys[i]];
+		if(t.yao[0] === three[0] && t.yao[1] === three[1] && t.yao[2] === three[2]){
+			return t;
+		}
+	}
+	return TRIGRAMS.乾;
+}
+
+function guaFromYao(yao){
+	const down = trigramOfYao(yao.slice(0, 3));
+	const up = trigramOfYao(yao.slice(3, 6));
+	const name = `${up.name}${down.name}`;
+	return { name, abrname: name, desc: '', url: '', yao: yao.slice() };
+}
+
 function makeGua(gan, zhi){
 	const up = GAN_GUA[gan] || TRIGRAMS.乾;
 	const down = ZHI_GUA[zhi] || TRIGRAMS.坤;
@@ -355,10 +382,24 @@ function makeGua(gan, zhi){
 	return {
 		name,
 		abrname: name,
-		desc: '本地排盘',
-		url: '#',
+		desc: '',
+		url: '',
 		yao,
 	};
+}
+
+// 互卦:下互=爻2·3·4、上互=爻3·4·5(与 guice/core/guiceGuaBian.huGua 同口径)。
+function makeHuGua(yao){
+	if(!Array.isArray(yao) || yao.length !== 6){ return null; }
+	const xia = yao.slice(1, 4);
+	const shang = yao.slice(2, 5);
+	return guaFromYao([...xia, ...shang]);
+}
+
+// 旁通(错卦):全爻反转。
+function makeTongGua(yao){
+	if(!Array.isArray(yao) || yao.length !== 6){ return null; }
+	return guaFromYao(yao.map((b)=>(b ? 0 : 1)));
 }
 
 function makeStarChargerFromSolar(solar){
@@ -487,7 +528,9 @@ function makePillar(label, ganzi, data){
 	const hidden = data.hideGan || [];
 	const hiddenRel = data.hideRel || [];
 	const gua64 = makeGua(gan, zhi);
-	const huGua = makeGua(gan, zhi);
+	// 🔴 互卦/旁通曾与本卦同一表达式(三行并排显示恒同一卦);现按真定义算:
+	// 互=爻234/345、旁通=错卦全爻反转(与 guice 引擎同口径)。
+	const huGua = makeHuGua(gua64.yao) || gua64;
 	return {
 		...emptyGods(),
 		zhu: label,
@@ -503,7 +546,7 @@ function makePillar(label, ganzi, data){
 		zhiStarGod: { gua: '' },
 		gua64,
 		huGua,
-		tongGua: makeGua(gan, zhi),
+		tongGua: makeTongGua(gua64.yao) || gua64,
 		huGuaUp: GAN_GUA[gan] || TRIGRAMS.乾,
 		huGuaDown: ZHI_GUA[zhi] || TRIGRAMS.坤,
 	};
@@ -617,7 +660,10 @@ function buildFourColumns(eightChar, opts){
 		if(newNaYin){
 			timeNaYin = newNaYin;
 		}
-		// hideGan/shishenZhi 仅由 zhi 决定(zhi 没变), diShi/xunKong 由 dayGan+zhi 决定(均不变), 故保持
+		// hideGan/shishenZhi 仅由 zhi 决定(zhi 没变)、diShi 由 dayGan+zhi 决定(不变)故保持;
+		// 🔴 xunKong 由**完整时柱干支**定旬(改天干即换旬:壬子属甲辰旬空寅卯,甲子属
+		// 甲子旬空戌亥)——曾连同 diShi 一起「保持」,晚子改干后旬空恒显旧值。
+		timeXunKong = xunKongOf(newGanZhi) || timeXunKong;
 	}
 	// 命宫/身宫流派: 默认「通行版」(lunar.js 现行算法，与原星阙零回归); opts.minggongMethod==='shufa' 走子平数法对照表。
 	const minggongMethod = (opts && opts.minggongMethod === 'shufa') ? 'shufa' : 'tongxing';
@@ -716,7 +762,7 @@ function buildFlowDays(year, month, dayGan){
 		return [];
 	}
 	// lunar.js Solar.fromYmd 不校验越界日（31 号也照存），故用公历 JS Date 取该月实际天数。
-	const daysInMonth = new Date(year, month, 0).getDate();
+	const daysInMonth = (function(){ const _d = new Date(0); _d.setFullYear(year, month, 0); return _d.getDate(); })();
 	if(!Number.isFinite(daysInMonth) || daysInMonth < 1){
 		return [];
 	}

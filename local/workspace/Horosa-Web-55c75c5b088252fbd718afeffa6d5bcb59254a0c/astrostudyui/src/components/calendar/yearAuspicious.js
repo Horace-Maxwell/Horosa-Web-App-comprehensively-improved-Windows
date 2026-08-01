@@ -8,7 +8,9 @@ import { EVENT_CATEGORIES, EVENT_KEY_TO_CATEGORY, KEY_JI_SHEN } from './tongshuD
 import { Solar } from 'lunar-javascript';
 
 // 真大凶「百事不宜」——即便 lunar 列宜亦淘汰（名取 lunar 实际凶煞词表）。
-const HARD_EXCLUDE = ['四废', '五墓', '受死', '阴阳击冲'];
+// 🔴 '受死' 不在 lunar 神煞词表(表内实名为「致死」sn.zhiSi)→ 该条曾恒不触发,
+// 注释自称「名取 lunar 实际凶煞词表」与事实相反。
+const HARD_EXCLUDE = ['四废', '五墓', '致死', '阴阳击冲'];
 // 软凶煞——入榜但扣分（排名靠后）。
 const SOFT_XIONG = ['往亡', '月厌', '大耗', '天贼', '天火', '归忌', '月煞', '死神', '月刑', '大煞', '月虚', '死气'];
 // 建除吉位加分（破日不硬排除：破屋/破土宜破日，由 lunar 宜把关）。

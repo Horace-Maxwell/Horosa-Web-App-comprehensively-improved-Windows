@@ -3,17 +3,26 @@
 // 本面板只出结果:子页签 起禽/择日/占卜/投胎。纯前端引擎,零后端。
 import React, { Component } from 'react';
 import { Solar } from 'lunar-javascript';
-import { Tabs } from 'antd';
-import { XQSegmented, XQSelect, XQTable } from '../xq-ui';
+import { Tabs, Input, InputNumber } from 'antd';
+import { XQSelect, XQTable } from '../xq-ui';
 import {
 	YAO_TO_WUXING, DIZHI, DIZHI_TO_IDX, R_RING, mansionByIdx,
+	SIJI_WANG, YANQIN_12GONG_ZIWEI, TIANGAN,
 } from './yanqinConst';
-import { castQinChart, qinKeByWuxing, wuxingOfMansion, monthQin, toutaiDu } from './yanqinEngine';
+import {
+	castQinChart, qinKeByWuxing, wuxingOfMansion, monthQin, toutaiDu,
+	yearQin, ganzhiOfDay, mansionOfDay, yuanJiangOfDay, huangHeiDao, jianChu,
+	dingjuRiqin, dingjuYueqin, dingjuNianqin, seasonOfMansionHead,
+} from './yanqinEngine';
 import { resolveWoBi, YANQIN_PRESETS } from './yanqinSchools';
 import { getYanqinSettings, subscribeYanqin } from './yanqinStore';
+import { STROKE_TO_YAO, STROKE_LABELS, chaiziChart, BAMEN } from './chaiziEngine';
+import { XIUYAO_27, sanjiu, xiangXing, XIANGXING_MEANING } from './xiuyaoEngine';
+import YanQinChart from './YanQinChart';
 import {
 	ZHIRI_JIXIONG, SISHI_YIJI, SISHI_COLS, SUOBO_POSITIONS, SUOBO_DETAIL, QIZHENG_CHANGSHENG,
-	FENLEI_ZHAN, ZHANDUAN_ZONGZE,
+	FENLEI_ZHAN, ZHANDUAN_ZONGZE, TUNDAN_GE, TUNDAN_JUE_12ZHI, THIRTYSIX_XIHAO,
+	KEYING_MIAOJUE, KEYING_PENDING,
 } from './yanqinData';
 import './yanqinPanel.less';
 import { parseDateParts } from '../../utils/dateStrSafe';
@@ -29,6 +38,15 @@ const MONTHS = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '
 
 function mod(n, m) { return ((n % m) + m) % m; }
 function hourToBranch(h) { return Math.floor(((h + 1) % 24) / 2); }
+// 性别→1(男)/0(女):优先左栏「性别」控件(props.gender,与系统A/河洛/一掌经 this.state.gender 同源),
+// 回退命盘 fields.gender;'0'/'女'/'Female'/'F'/0 皆判女——防 string '0'/'Female' 恒真被误判男(投胎男女命标签)。
+function resolveMaleFlag(propGender, fieldGender) {
+	let raw = 1;
+	if (propGender !== undefined && propGender !== null) { raw = propGender; }
+	else if (fieldGender && fieldGender.value !== undefined) { raw = fieldGender.value; }
+	const s = String(raw);
+	return (s === '0' || s === '女' || s === 'Female' || s === 'female' || s === 'F') ? 0 : 1;
+}
 
 const TOUTAI_DUAN = {
 	凤凰: '至尊之禽。男主显贵、女主端淑;一生清高、近贵得名。', 狮子: '男人多福寿,女人珠满箱。威重有权,宜掌印持柄。',
@@ -61,7 +79,10 @@ function suoboOf(mansion, timeBranchIdx) {
 export default class YanQinBranchPanel extends Component {
 	constructor(props) {
 		super(props);
-		this.state = { sub: props.initialSub || 'zeri', shiClass: 'hunyin' };
+		this.state = {
+			sub: props.initialSub || 'zeri', shiClass: 'hunyin',
+			chaiziNum: 8, chaiziStrokes: '横,竖,撇,捺', xiuyaoMing: '昴', xiuyaoOther: '角',
+		};
 		this._onStore = () => this.forceUpdate();
 	}
 	componentDidMount() {
@@ -92,7 +113,7 @@ export default class YanQinBranchPanel extends Component {
 		const hb = hourToBranch(hour);
 		return {
 			year: dm[0], month: dm[1], day: dm[2], hourBranch: hb,
-			gender: (f.gender && f.gender.value !== undefined) ? f.gender.value : 1,
+			gender: resolveMaleFlag(this.props.gender, f.gender),
 			timeStr: `${dv.format('YYYY-MM-DD')} ${DIZHI[hb]}时`,
 		};
 	}
@@ -146,7 +167,9 @@ export default class YanQinBranchPanel extends Component {
 					<div className="yq-divider" />
 					<div className="yq-chip-row">
 						{chip('年禽', cast.yearQin)}{chip('月禽', mq)}{chip('日禽', cast.dayQin)}{chip('时禽', cast.hourQin)}
-						{chip('翻禽', cast.fanQin)}{cast.daoJiang ? chip('倒将', cast.daoJiang.zhuJiang) : null}
+						{chip('翻禽', cast.fanQin)}
+						{cast.daoJiang ? chip('倒将·主', cast.daoJiang.zhuJiang) : null}
+						{cast.daoJiang ? chip('倒将·次', cast.daoJiang.ciJiang) : null}
 						{cast.huoYao ? chip('活曜', cast.huoYao) : null}
 					</div>
 				</div>
@@ -156,6 +179,7 @@ export default class YanQinBranchPanel extends Component {
 					<div className="yq-kv">② <span className="k">元将</span>:七元甲子 420 日 → <b>{cast.yuan}元{cast.jiang}将</b>。</div>
 					<div className="yq-kv">③ <span className="k">时禽</span>:元元相轮 {R_RING.join('→')} {cast.ziStart ? <span>子时起 <b>{cast.ziStart.name}</b> →</span> : null} <b>{cast.hourQin.name}</b>。</div>
 					<div className="yq-kv">④ <span className="k">翻禽</span>:当日盘读时禽→日禽落点 → <b>{cast.fanQin.name}</b>。</div>
+					<div className="yq-kv">⑤ <span className="k">四季旺</span>:日禽{cast.dayQin.name[0]}宿旺于 <b style={{ color: 'var(--horosa-accent,#b8860b)' }}>{seasonOfMansionHead(cast.dayQin.name[0]) || '—'}</b>(得时令则强、失令则弱)。</div>
 					<div className="yq-sec" style={{ marginTop: 10 }}>日禽定局 · {cast.ganzhi}行</div>
 					<XQTable size="small" pagination={false}
 						dataSource={[{ key: 'r', ...row.reduce((o, v, i) => { o['e' + i] = v; return o; }, {}) }]}
@@ -171,11 +195,18 @@ export default class YanQinBranchPanel extends Component {
 		const di = ZHIRI_JIXIONG.find((x) => x.head === cast.dayQin.name[0]) || {};
 		const sishi = SISHI_YIJI[cast.dayQin.name[0]] || [];
 		const s = getYanqinSettings();
+		// WP-10 择日叠加:黄黑道十二值神 + 建除十二神(月支/日支直算)。农历月支:正月=寅(idx2)。
+		const lunarMonth = this.lunarMonthOf(ft);
+		const monthZhiIdx = mod(lunarMonth + 1, 12);
+		const dayZhiIdx = DIZHI_TO_IDX[cast.ganzhi[1]];
+		const hd = huangHeiDao(monthZhiIdx, dayZhiIdx);
+		const jc = jianChu(monthZhiIdx, dayZhiIdx);
+		const keying = KEYING_MIAOJUE[cast.dayQin.name[0]];
 		const r = resolveWoBi(s);
 		const ent = { shi: cast.hourQin, fan: cast.fanQin, dao: cast.daoJiang ? cast.daoJiang.zhuJiang : null };
 		const me = ent[r.me]; const they = ent[r.they];
 		let ke = '—';
-		if (me && they) { ke = { meWin: '我克彼 → 吉(我胜)', theyWin: '彼克我 → 凶(彼胜)', meSheng: '我生彼 → 泄气', theySheng: '彼生我 → 受助', peace: '比和 → 相持' }[qinKeByWuxing(wuxingOfMansion(me), wuxingOfMansion(they))]; }
+		if (me && they) { ke = { meWin: '我克彼 → 吉(我胜)', theyWin: '彼克我 → 凶(彼胜)', meSheng: '我生彼 → 泄气', theySheng: '彼生我 → 受助', peace: '比和 → 相持' }[qinKeByWuxing(wuxingOfMansion(me, s.qinWuxing), wuxingOfMansion(they, s.qinWuxing))]; }
 		const keColor = ke.indexOf('吉') >= 0 ? NATURE_COLOR['吉'] : (ke.indexOf('凶') >= 0 ? NATURE_COLOR['凶'] : 'inherit');
 		return (
 			<div>
@@ -191,6 +222,9 @@ export default class YanQinBranchPanel extends Component {
 					<div className="yq-divider" />
 					<div className="yq-kv">禽课:我 <b>{me ? me.name : '—'}</b> / 彼 <b>{they ? they.name : '—'}</b> → <b className="yq-verdict" style={{ color: keColor }}>{ke}</b></div>
 					<div className="yq-note">{r.note}(须宿吉 ＋ 我得地克彼 双吉为上课)</div>
+					<div className="yq-divider" />
+					<div className="yq-kv">诸吉神叠加:黄黑道 <b style={{ color: hd.huang ? TONE_COLOR.good : TONE_COLOR.worst }}>{hd.shen}</b>({hd.huang ? '黄道吉' : '黑道凶'})　建除 <b style={{ color: jc.good ? TONE_COLOR.good : 'inherit' }}>{jc.shen}</b>{jc.good ? '(择吉常用)' : ''}</div>
+					<div className="yq-note">(三奇紫白需飞星,较重,本期未叠·待深化。)</div>
 				</div>
 				<Tabs defaultActiveKey="verse" size="small">
 					<TabPane tab="值日吉凶歌" key="verse">
@@ -206,6 +240,12 @@ export default class YanQinBranchPanel extends Component {
 						<div className="yq-kv"><b>婚课</b>:男家问以体(时禽)为男;女家问以天禽(翻禽)为男、地禽为女。两禽比和/相生、我得地为和合吉;相克(尤彼克我)主刑克。</div>
 						<div className="yq-note" style={{ marginTop: 6 }}>上等婚课＝吉宿值日 ＋ 吉时之时禽与翻禽「我得地克彼/比和」 ＋ 黄道吉神 ＋ 建除定/成。</div>
 					</TabPane>
+					<TabPane tab="克应·应兆" key="keying">
+						{keying
+							? <div className="yq-verse">{keying}</div>
+							: <div className="yq-note">{cast.dayQin.name[0]}宿克应妙诀源头截断→待纸本核({KEYING_PENDING.join('')}后十宿)。</div>}
+						<div className="yq-note" style={{ marginTop: 4 }}>克应妙诀断「占时应何兆」(来人/风云/声响/禽兽),区别于值日造作吉凶歌。</div>
+					</TabPane>
 				</Tabs>
 			</div>
 		);
@@ -219,7 +259,7 @@ export default class YanQinBranchPanel extends Component {
 		const r = resolveWoBi(s);
 		const ent = { shi: cast.hourQin, fan: cast.fanQin, dao: cast.daoJiang ? cast.daoJiang.zhuJiang : null };
 		const me = ent[r.me]; const they = ent[r.they]; const hb = cast.hourBranch;
-		const j = me && they ? qinKeByWuxing(wuxingOfMansion(me), wuxingOfMansion(they)) : 'peace';
+		const j = me && they ? qinKeByWuxing(wuxingOfMansion(me, s.qinWuxing), wuxingOfMansion(they, s.qinWuxing)) : 'peace';
 		const sansuoNote = { both: '断法重心:三传四课 + 翻禽倒将 + 锁泊 并用。', suobo: '断法重心:广东派 —— 重三传锁泊(飞伏得地失位为主)。', fanqin: '断法重心:江西派 —— 重翻禽倒将(我彼禽胜负为主)。' }[s.sansuo] || '';
 		const res = { meWin: '我克彼 → 我胜(吉)', theyWin: '彼克我 → 我负(凶)', meSheng: '我生彼 → 我泄', theySheng: '彼生我 → 我受助', peace: '比和 → 和/相持' }[j];
 		const resColor = (res.indexOf('吉') >= 0 || res.indexOf('胜') >= 0) ? TONE_COLOR.good : ((res.indexOf('凶') >= 0 || res.indexOf('负') >= 0) ? TONE_COLOR.worst : 'inherit');
@@ -248,6 +288,7 @@ export default class YanQinBranchPanel extends Component {
 						{chuan('末传 / 翻禽(天禽)', cast.fanQin, 'fan')}
 						{chuan('四课 / 活曜', cast.huoYao)}
 						{cast.daoJiang ? chuan('倒将 / 主将', cast.daoJiang.zhuJiang, 'dao') : null}
+						{cast.daoJiang ? chuan('倒将 / 次将', cast.daoJiang.ciJiang) : null}
 					</div>
 					<div className="yq-divider" />
 					<div className="yq-kv">我(体) <b>{me ? me.name : '—'}</b>　彼(用) <b>{they ? they.name : '—'}</b></div>
@@ -276,6 +317,13 @@ export default class YanQinBranchPanel extends Component {
 						<div className="yq-kv"><b>应期</b>:以所克之禽/用神之禽所值地支、宿次定应期月日。</div>
 						<div className="yq-kv yq-note" style={{ marginTop: 6 }}>{ZHANDUAN_ZONGZE}</div>
 					</TabPane>
+					<TabPane tab="吞啖相战" key="tundan">
+						<div className="yq-kv"><b>占时 {DIZHI[hb]} 位</b>相战:{TUNDAN_JUE_12ZHI[DIZHI[hb]] || '—'}</div>
+						<div className="yq-kv">该位化境:{THIRTYSIX_XIHAO[DIZHI[hb]] ? `${THIRTYSIX_XIHAO[DIZHI[hb]].place}境 · ${THIRTYSIX_XIHAO[DIZHI[hb]].qin.join('/')}` : '—'}</div>
+						<div className="yq-divider" />
+						<div className="yq-sec">吞啖相战歌(禽性生克·动物相制)</div>
+						{TUNDAN_GE.map((line, i) => <div className="yq-note" key={i}>{line}</div>)}
+					</TabPane>
 				</Tabs>
 			</div>
 		);
@@ -297,26 +345,189 @@ export default class YanQinBranchPanel extends Component {
 					<div className="yq-kv">{TOUTAI_DUAN[bird] || '⚠️ 此禽逐字命运分段待校《三世演禽》全本。'}</div>
 					<div className="yq-note" style={{ marginTop: 4 }}>(取左栏出生时间自动换算农历月;月以节令为界。投胎度数 = 农历月令与时辰之差。)</div>
 				</div>
+				<div className="yq-card">
+					<div className="yq-sec">演禽十二宫字位(六吉六凶 · 参考)</div>
+					<div className="yq-ziwei-row">
+						{YANQIN_12GONG_ZIWEI.map((z) => (
+							<span key={z.zi} className="yq-ziwei-cell" style={{ color: z.ji ? TONE_COLOR.good : TONE_COLOR.worst }}>{z.zi}</span>
+						))}
+					</div>
+					<div className="yq-note">贵文印权福寿为吉、劫伤孤空暗刑为凶(非紫微式固定宫神)。身命胎主星「落何字位」古籍未给精确锚点→待纸本,此处仅列字位表。</div>
+				</div>
 			</div>
 		);
+	}
+
+	// WP-11 定局:日禽60×7 / 月禽7×12 / 年禽三元 完整查表(当前盘高亮)。引擎循环生成,零新算法。
+	renderDingju(ft) {
+		const s = getYanqinSettings();
+		const cur = ft ? { gz: ganzhiOfDay(ft.year, ft.month, ft.day), yuan: yuanJiangOfDay(ft.year, ft.month, ft.day).yuan, year: ft.year } : {};
+		const ri = dingjuRiqin();
+		const yue = dingjuYueqin(s.monthVerse);
+		const nian = dingjuNianqin(1864, 2043);
+		const hi = (on) => (on ? { fontWeight: 700, color: 'var(--horosa-accent,#b8860b)' } : {});
+		return (
+			<div>
+				{this.renderInfoBar(ft)}
+				<Tabs defaultActiveKey="ri" size="small">
+					<TabPane tab="日禽 60×7" key="ri">
+						<div className="yq-note" style={{ marginBottom: 4 }}>干支 × 七元 → 值日宿(当前 {cur.gz || '—'}·{cur.yuan || '—'}元 高亮)。</div>
+						<XQTable size="small" pagination={false} scroll={{ y: 360 }}
+							dataSource={ri.map((r) => ({ key: r.ganzhi, gz: r.ganzhi, ...r.cells.reduce((o, v, i) => { o['y' + i] = v; return o; }, {}) }))}
+							columns={[{ title: '干支', dataIndex: 'gz', width: 44, render: (t) => <span style={hi(t === cur.gz)}>{t}</span> }]
+								.concat([1, 2, 3, 4, 5, 6, 7].map((e, i) => ({ title: e + '元', dataIndex: 'y' + i, render: (t, row) => <span style={hi(row.gz === cur.gz && cur.yuan === e)}>{t}</span> })))} />
+					</TabPane>
+					<TabPane tab="月禽 7×12" key="yue">
+						<div className="yq-note" style={{ marginBottom: 4 }}>年禽曜 × 农历月 → 月禽({s.monthVerse}版口诀)。</div>
+						<XQTable size="small" pagination={false}
+							dataSource={yue.map((r) => ({ key: r.yao, yao: r.yao + '曜', ...r.cells.reduce((o, v, i) => { o['m' + i] = v; return o; }, {}) }))}
+							columns={[{ title: '年禽曜', dataIndex: 'yao', width: 52 }]
+								.concat(MONTHS.map((m, i) => ({ title: m, dataIndex: 'm' + i })))} />
+					</TabPane>
+					<TabPane tab="年禽三元" key="nian">
+						<div className="yq-note" style={{ marginBottom: 4 }}>上元1864 / 中元1924 / 下元1984,一年一宿(当前 {cur.year || '—'} 高亮)。</div>
+						<div className="yq-nianqin-grid">
+							{nian.map((n) => (
+								<span className="yq-nianqin-cell" key={n.year} style={hi(n.year === cur.year)}>
+									<i>{n.year}</i>{n.name}
+								</span>
+							))}
+						</div>
+					</TabPane>
+				</Tabs>
+			</div>
+		);
+	}
+
+	// WP-23 圆形演禽盘 + WP-24 三传流转弧
+	renderPan(ft) {
+		const cast = this.cast(ft);
+		if (!cast || !cast.ziStart) { return <div>{this.renderInfoBar(ft)}{this.renderNoTime()}</div>; }
+		const s = getYanqinSettings();
+		const r = resolveWoBi(s);
+		const ent = { shi: cast.hourQin, fan: cast.fanQin, dao: cast.daoJiang ? cast.daoJiang.zhuJiang : null };
+		const me = ent[r.me]; const they = ent[r.they];
+		return (
+			<div>
+				{this.renderInfoBar(ft)}
+				<div className="yq-card">
+					<div className="yq-sec">圆形演禽盘 · {DIZHI[cast.hourBranch]}时</div>
+					<YanQinChart cast={cast} me={me} they={they} />
+				</div>
+				<div className="yq-card">
+					<div className="yq-sec">三传流转(日→时→翻)</div>
+					<div className="yq-sanchuan-arc">
+						<span className="yq-arc-node" style={{ color: WUXING_COLOR[YAO_TO_WUXING[cast.dayQin.yao]] }}>{cast.dayQin.name}</span>
+						<span className="yq-arc-sep">→</span>
+						<span className="yq-arc-node" style={{ color: cast.hourQin ? WUXING_COLOR[YAO_TO_WUXING[cast.hourQin.yao]] : 'inherit' }}>{cast.hourQin ? cast.hourQin.name : '—'}</span>
+						<span className="yq-arc-sep">→</span>
+						<span className="yq-arc-node" style={{ color: cast.fanQin ? WUXING_COLOR[YAO_TO_WUXING[cast.fanQin.yao]] : 'inherit' }}>{cast.fanQin ? cast.fanQin.name : '—'}</span>
+					</div>
+					<div className="yq-note">初传日禽(共用) → 中传时禽(我/体) → 末传翻禽(彼/用)。我 <b>{me ? me.name : '—'}</b> / 彼 <b>{they ? they.name : '—'}</b>。</div>
+				</div>
+			</div>
+		);
+	}
+
+	// WP-20 拆字演禽(八门)· 独立子系统(不碰四禽主链)
+	renderChaizi() {
+		const { chaiziNum, chaiziStrokes } = this.state;
+		const strokes = `${chaiziStrokes}`.split(/[,，、\s]+/).map((x) => x.trim()).filter(Boolean);
+		const strokeYaos = strokes.map((x) => STROKE_TO_YAO[x]).filter(Boolean);
+		const r = chaiziChart(chaiziNum, strokeYaos);
+		return (
+			<div>
+				<div className="yq-card">
+					<div className="yq-sec">拆字演禽(八门)· 独立起盘</div>
+					<div className="yq-kv">报数:<InputNumber size="small" min={1} value={chaiziNum} onChange={(v) => this.setState({ chaiziNum: v || 1 })} style={{ width: 80, marginLeft: 6 }} /></div>
+					<div className="yq-kv">笔顺(逗号分隔):<Input size="small" value={chaiziStrokes} onChange={(e) => this.setState({ chaiziStrokes: e.target.value })} style={{ width: 180, marginLeft: 6 }} /></div>
+					<div className="yq-note">笔画配政:{Object.values(STROKE_LABELS).join('、')}</div>
+					<div className="yq-divider" />
+					<div className="yq-chip-row">
+						{chip('遇星(彼)', r.yuXing)}{chip('主星(我)', r.zhuXing)}
+					</div>
+					<div className="yq-kv">流星(过程):{r.liuXing.length ? r.liuXing.map((x) => x.name).join(' → ') : '—'}</div>
+					<div className="yq-note">断:主星=我/体、遇星=彼/用、日禽=彼我共用、流星=过程;看三星五行生克 + 禽性吞啖锁泊格局。</div>
+				</div>
+				<div className="yq-card">
+					<div className="yq-sec">八门(事类方向 · 吉凶加权)</div>
+					<XQTable size="small" pagination={false}
+						dataSource={BAMEN.map((b) => ({ key: b.name, men: b.name, ji: b.ji, use: b.use }))}
+						columns={[{ title: '门', dataIndex: 'men', width: 40 }, { title: '吉凶', dataIndex: 'ji', width: 44 }, { title: '事类', dataIndex: 'use' }]} />
+				</div>
+			</div>
+		);
+	}
+
+	// WP-21 宿曜道 / 三九秘法 · 独立子系统(27 宿去牛)
+	renderXiuyao() {
+		const { xiuyaoMing, xiuyaoOther } = this.state;
+		const sj = sanjiu(xiuyaoMing);
+		const xx = xiangXing(xiuyaoMing, xiuyaoOther);
+		const opts = XIUYAO_27.map((h) => ({ value: h, label: h }));
+		return (
+			<div>
+				<div className="yq-card">
+					<div className="yq-sec">宿曜道 · 三九秘法(27 宿去牛)</div>
+					<div className="yq-kv">本命宿:<XQSelect size="small" style={{ width: 90, marginLeft: 6 }} value={xiuyaoMing} onChange={(v) => this.setState({ xiuyaoMing: v })} options={opts} /></div>
+					<div className="yq-divider" />
+					{sj ? (
+						<div className="yq-chip-row-simple">
+							<span className="yq-xiuyao-cell">命 <b>{sj.ming}</b></span>
+							<span className="yq-xiuyao-cell">业(前世) <b>{sj.ye}</b></span>
+							<span className="yq-xiuyao-cell">胎(来世) <b>{sj.tai}</b></span>
+						</div>
+					) : null}
+					<div className="yq-note">三九:本命宿为「命」,每 9 宿取一 → 第 9 宿=业、第 18 宿=胎,三段各 9 宿覆盖 27(三世因缘)。</div>
+				</div>
+				<div className="yq-card">
+					<div className="yq-sec">人际相性(729 通)</div>
+					<div className="yq-kv">对方本命宿:<XQSelect size="small" style={{ width: 90, marginLeft: 6 }} value={xiuyaoOther} onChange={(v) => this.setState({ xiuyaoOther: v })} options={opts} /></div>
+					<div className="yq-kv">相性:{xx ? <b>{xx.key ? `${xx.key}(${xx.meaning})` : xx.meaning}</b> : '—'}</div>
+					<div className="yq-note">十一字:{Object.entries(XIANGXING_MEANING).map(([k, v]) => `${k}=${v}`).join('、')}</div>
+					<div className="yq-note">(本命宿=旧历月朔日之宿顺数生日数;朔日值宿锚表待纸本,此处由用户指定本命宿。)</div>
+				</div>
+			</div>
+		);
+	}
+
+	renderSub(key, ft) {
+		// 子页签内容分派(与右栏主页签内容同层级,惰性:仅激活项计算)。
+		switch (key) {
+			case 'pan': return this.renderPan(ft);
+			case 'qiqin': return this.renderQiqin(ft);
+			case 'zeri': return this.renderZeri(ft);
+			case 'zhanbu': return this.renderZhanbu(ft);
+			case 'dingju': return this.renderDingju(ft);
+			case 'chaizi': return this.renderChaizi();
+			case 'xiuyao': return this.renderXiuyao();
+			default: return this.renderToutai(ft);
+		}
 	}
 
 	render() {
 		const { sub } = this.state;
 		const ft = this.fieldsTime();
 		const SUBS = [
-			{ value: 'qiqin', label: '起禽' }, { value: 'zeri', label: '择日' },
+			{ value: 'pan', label: '盘' }, { value: 'qiqin', label: '起禽' }, { value: 'zeri', label: '择日' },
 			{ value: 'zhanbu', label: '占卜' }, { value: 'toutai', label: '投胎' },
+			{ value: 'dingju', label: '定局' }, { value: 'chaizi', label: '拆字' }, { value: 'xiuyao', label: '宿曜' },
 		];
 		return (
 			<div className="yanqin-branch-panel">
-				<div className="yq-subtabs">
-					<XQSegmented value={sub} onChange={(e) => this.setState({ sub: e.target.value })} options={SUBS} />
-				</div>
-				{sub === 'qiqin' ? this.renderQiqin(ft)
-					: sub === 'zeri' ? this.renderZeri(ft)
-						: sub === 'zhanbu' ? this.renderZhanbu(ft)
-							: this.renderToutai(ft)}
+				{/* 子页签统一为 ant Tabs(下划线式),与右栏主页签「概览/宫位/星禽/吞啖/演法」同款 */}
+				<Tabs
+					className="yq-subtabs-tabs"
+					activeKey={sub}
+					size="small"
+					onChange={(k) => this.setState({ sub: k })}
+				>
+					{SUBS.map((it) => (
+						<TabPane tab={it.label} key={it.value}>
+							{sub === it.value ? this.renderSub(it.value, ft) : null}
+						</TabPane>
+					))}
+				</Tabs>
 			</div>
 		);
 	}

@@ -1,10 +1,11 @@
 import { Component } from 'react';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';
+import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
@@ -193,8 +194,10 @@ function clamp(val, min, max){
 }
 
 function getViewportHeight(){
+	// 🔴 innerHeight/documentElement.clientHeight 恒报物理域;壳缩放<1 时当布局高用会
+	// 把整页配矮。走壳缩放感知的布局视口高(1:1 恒等)。
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
-		return window.innerHeight;
+		return getLayoutViewportHeight();
 	}
 	if(typeof document !== 'undefined' && document.documentElement){
 		return document.documentElement.clientHeight || 900;
@@ -681,6 +684,7 @@ class DunJiaMain extends Component {
 		this.onOptionChange = this.onOptionChange.bind(this);
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
 		this.onGenderChange = this.onGenderChange.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.genJieqiParams = this.genJieqiParams.bind(this);
@@ -1266,21 +1270,27 @@ class DunJiaMain extends Component {
 				return;
 			}
 			const targets = [localFields];
-			if(stepHint && stepHint.dir && localFields && localFields.date && localFields.date.value
-				&& typeof localFields.date.value.clone === 'function'){
-				// 顺向 +1 步:与 DateTimeSelector 步距语义一致(m 档=±4 分)
-				const dt2 = localFields.date.value.clone();
+			const baseDt = localFields && localFields.date && localFields.date.value;
+			const canStep = baseDt && typeof baseDt.clone === 'function';
+			// 步距加法单源(m 档=±4 分,与 DateTimeSelector 一致);dirs 由 stepHint 形态决定:
+			// dir 真值(步进 settle)=顺向 +1;dir=0+depth(选步长 intent)=±1 双向(第一下即命中)。
+			const stepTo = (unit, dir)=>{
+				const dt2 = baseDt.clone();
+				if(unit === 'y'){ dt2.addYear(dir); }
+				else if(unit === 'M'){ dt2.addMonth(dir); }
+				else if(unit === 'd'){ dt2.addDate(dir); }
+				else if(unit === 'h'){ dt2.addHour(dir); }
+				else { dt2.addMinute(4 * dir); }
+				return { ...localFields, date: { value: dt2.clone() }, time: { value: dt2.clone() } };
+			};
+			if(stepHint && canStep){
 				const unit = stepHint.unit || 'm';
-				if(unit === 'y'){ dt2.addYear(stepHint.dir); }
-				else if(unit === 'M'){ dt2.addMonth(stepHint.dir); }
-				else if(unit === 'd'){ dt2.addDate(stepHint.dir); }
-				else if(unit === 'h'){ dt2.addHour(stepHint.dir); }
-				else { dt2.addMinute(4 * stepHint.dir); }
-				targets.push({
-					...localFields,
-					date: { value: dt2.clone() },
-					time: { value: dt2.clone() },
-				});
+				if(stepHint.dir){
+					targets.push(stepTo(unit, stepHint.dir));
+				}else if(stepHint.depth >= 1){
+					targets.push(stepTo(unit, 1));
+					targets.push(stepTo(unit, -1));
+				}
 			}
 			targets.forEach((flds)=>{
 				let params = null;
@@ -1295,6 +1305,21 @@ class DunJiaMain extends Component {
 					await fetchQimenPan(flds, nongli, options, ctx);
 				}).catch(()=>null);
 			});
+		}catch(e){ /* 预取失败无害 */ }
+	}
+
+	// [R3-A1 下放] 选步长即预取:奇门时间自持(localFields 草稿),全局 handler 对本页错键 ——
+	// 以当前草稿时间为基 ±1 双向预热 pan(复用 prefetchQimenPanForFields 的 depth 语义,
+	// 键与真点同源);同 unit 5s 去重。第一下步进/起局即命中,第二下起 settle 链接管。
+	prefetchStepSelect(unit){
+		try{
+			if(!stepSelectPrefetchEnabled() || !unit){ return; }
+			const now = Date.now();
+			if(this._lastStepSel && this._lastStepSel.unit === unit && (now - this._lastStepSel.at) < 5000){ return; }
+			this._lastStepSel = { unit, at: now };
+			const flds = this.getTimeFieldsFromSelector(this.props.fields) || this.state.localFields || this.props.fields;
+			if(!flds){ return; }
+			this.prefetchQimenPanForFields(flds, { unit, dir: 0, depth: 1 });
 		}catch(e){ /* 预取失败无害 */ }
 	}
 
@@ -1822,7 +1847,8 @@ class DunJiaMain extends Component {
 			module: 'qimen',
 			snapshot: snapshot,
 			pan: pan,
-			options: fixedOptions,
+			// 盘类(命局/事局)不在 state.options 里,单独并入 —— 缺它则挂载重算恒退事局,「盘类：」行与存档打架。
+			options: { ...fixedOptions, chartCategory: this.state.chartCategory },
 			faRelatedPeople: faRelated,
 		};
 		if(this.props.dispatch){
@@ -2215,6 +2241,7 @@ class DunJiaMain extends Component {
 					fields={fields}
 					value={datetm}
 					onTimeChange={this.onTimeChanged}
+					onStepSelect={this.prefetchStepSelect}
 					timeHook={this.timeHook}
 					onGeoChange={this.changeGeo}
 				/>
@@ -2270,7 +2297,9 @@ class DunJiaMain extends Component {
 						</label>
 						<label className="horosa-dunjia-select-field">
 							<span>值使</span>
-							<Select size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)}>
+							{/* 飞盘/混合档值使门宫由飞宫定序直出(FEI_GATE_HOME),取法开关不进该链 → 置灰防死开关假象 */}
+							<Select size="small" value={opt.zhiShiType} disabled={['飞盘', '混合'].indexOf(opt.school) >= 0}
+								onChange={(v)=>this.onOptionChange('zhiShiType', v)}>
 								{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
@@ -2677,7 +2706,7 @@ class DunJiaMain extends Component {
 				<div style={{ display: 'none', paddingBottom: 6, borderBottom: '1px solid var(--horosa-border, #f0f0f0)' }}>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 						<div>
-							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} hook={this.timeHook} confirmOnAdjust />
+							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} onStepSelect={this.prefetchStepSelect} hook={this.timeHook} confirmOnAdjust />
 						</div>
 
 						<div style={{ display: 'flex', gap: 4 }}>

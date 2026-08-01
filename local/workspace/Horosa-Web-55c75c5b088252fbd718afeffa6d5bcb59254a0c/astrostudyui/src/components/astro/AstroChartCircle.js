@@ -130,6 +130,12 @@ export default class AstroChartCircle {
 		return nextFlags & ~(profile.clearFlags || 0);
 	}
 
+	// 卜卦判读叠层(二期):独立 SVG 层描述对象(components/horary/horaryOverlayData.js 构建)。
+	// null(默认/占星页恒 null) → drawHoraryOverlay 整段短路,渲染路径与现状逐字节一致。
+	setHoraryOverlay(overlay){
+		this.horaryOverlay = overlay || null;
+	}
+
 	setShowAstroMeaning(flag){
 		this.showAstroMeaning = flag ? true : false;
 	}
@@ -1606,9 +1612,9 @@ export default class AstroChartCircle {
 			let termR = radius - outerBandStep;
 			let termStep = 20;
 			// 界限环按所选界系(termsVariant 0埃及/1托勒密/2莉莉/3迦勒底)取对应界主表,度数随界变;
-			// 迦勒底界按昼夜(isDiurnal)取昼/夜表(土水互换),异于其它三套;默认埃及=现状。
+			// 迦勒底界按昼夜(isDiurnal)取昼/夜表(土水互换),异于其它三套;含狮子/双子界内变体;默认埃及=现状。
 			let _tv = (chartObj && chartObj.params && chartObj.params.termsVariant) || 0;
-			let _termsTable = termsTableForVariant(_tv, isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS);
+			let _termsTable = termsTableForVariant(_tv, isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS, chartObj && chartObj.params);
 			let terms = this.termBand(topgroup, termR, termStep, flags, termHighlight, _termsTable);
 		
 			let houseR = termR - termStep;
@@ -1712,7 +1718,17 @@ export default class AstroChartCircle {
 			let maskStep = innerHouseStep + starStep;
 			this.drawMask(topgroup, chartObj, houseR, maskStep, keyplanets);
 		}
-	
+
+		// 卜卦判读叠层(二期):最后追加的独立 <g>(z 序最高、pointer-events:none),
+		// 未设置(占星页/开关全关)即整段跳过 —— 既有元素零触碰。
+		if(this.horaryOverlay){
+			const profile2 = this.getChartStyleProfile();
+			const outerBandStep = ['cusp', 'zodiac'].indexOf(profile2.outerMode) >= 0 ? rStep + 8 : rStep;
+			this.drawHoraryOverlay(topgroup, chartObj, {
+				houseR, aspR, flags, outerBandStep,
+			});
+		}
+
 		let translate = 'translate(' + orgx + ',' + orgy + ') ';
 		let rotate = 'rotate(' + (house1.lon-90) + ')';
 		let trans = translate + rotate;
@@ -1735,8 +1751,17 @@ export default class AstroChartCircle {
 			let hasKey = false;
 			for(let i = 0; i<keyplanets.length; i++){
 				let obj = this.getObject(chartObj, keyplanets[i]);
+				// 落宫单源化(2026-07):优先用后端 obj.house(含 5° 宫头前移律,随 houseCuspAdvance
+				// 全局参数与当前分宫制)——聚光宫与右栏/判读的落宫恒一致;缺 house 字段的点才
+				// 回退宫首相对弧几何(跨 0° 白羊点用相对弧,线性比较永不命中)。
+				if(obj.house){
+					if(obj.house === house.id){
+						hasKey = true;
+						break;
+					}
+					continue;
+				}
 				let lon = obj.lon;
-				// 宫位跨 0° 白羊点(lon+size>360)时线性比较永不命中 → 用宫首相对弧判定
 				const rel = ((lon - house.lon) % 360 + 360) % 360;
 				if(rel <= house.size){
 					hasKey = true;
@@ -1766,9 +1791,157 @@ export default class AstroChartCircle {
 					.attr('fill-opacity', NON_KEY_HOUSE_MASK_OPACITY);
 			}
 		}
-	
+
 	}
-	
+
+	// ── 卜卦判读叠层(二期,WP5.1 余项) ─────────────────────────────────────────
+	// 输入 = setHoraryOverlay 的纯几何描述对象(horaryOverlayData.js);独立 <g> 追加于全部
+	// 既有图元之后(z 序最高)、pointer-events:none(不截获既有 tooltip);本方法只 append,
+	// 绝不触碰既有节点 —— overlay 为 null 时调用点整段跳过,渲染字节与现状一致。
+	// 坐标系:topgroup 局部(随后统一 rotate(house1-90)),λ° → (-r·sinλ, -r·cosλ),与全部同层图元同式。
+	drawHoraryOverlay(svg, chartObj, geom){
+		const ov = this.horaryOverlay;
+		if(!ov){ return; }
+		const OV_GREEN = '#3f9d4f';
+		const OV_AMBER = '#d9a441';
+		const OV_RED = '#c0392b';
+		const OV_GOLD = '#d4af37';
+		const rad = (deg) => deg * Math.PI / 180;
+		const xy = (lonDeg, r) => [-r * Math.sin(rad(lonDeg)), -r * Math.cos(rad(lonDeg))];
+		const g = svg.append('g')
+			.attr('class', 'horary-overlay')
+			.attr('pointer-events', 'none')
+			.attr('fill', 'none');
+
+		const needTerm = (geom.flags & AstroConst.CHART_TERM) === AstroConst.CHART_TERM;
+
+		// ① 界限环着色:界带内缘 6px 色条按界主本体色分段(termsTableForVariant 与 drawOuterSigns
+		// 同一单源,termR/termStep 按其几何反推 houseR+20);不盖界主字符(字符居带中,条在内缘)。
+		if(ov.terms && needTerm){
+			const termR = geom.houseR + 20;
+			const tv = (chartObj && chartObj.params && chartObj.params.termsVariant) || 0;
+			const table = termsTableForVariant(tv, chartObj.chart.isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS, chartObj && chartObj.params);
+			const strip = g.append('g');
+			for(let i = 0; i < 12; i++){
+				const sig = AstroConst.LIST_SIGNS[i];
+				const rows = (table || AstroConst.EGYPTIAN_TERMS)[sig] || [];
+				for(let k = 0; k < rows.length; k++){
+					const term = rows[k];
+					const st = rad(30 * i + term[1]);
+					const ed = rad(term[2] - term[1]);
+					const arcd = d3.arc()({ innerRadius: termR - 20, outerRadius: termR - 14, startAngle: -st, endAngle: -(st + ed) });
+					strip.append('path')
+						.attr('d', arcd)
+						.attr('stroke', 'none')
+						.attr('fill', AstroConst.AstroColor[term[0]] || AstroConst.AstroColor.Stroke)
+						.attr('fill-opacity', 0.55);
+				}
+			}
+		}
+
+		// 星体真黄经(叠层锚点用 lon 本值,非展示防撞位)。
+		const lonOf = (id) => {
+			const o = id ? this.getObject(chartObj, id) : null;
+			return (o && o.lon !== undefined && o.lon !== null) ? o.lon : null;
+		};
+
+		// ② 完成法连线:direct=绿实线 / relay(传递·汇集)=琥珀虚线经中间星(空心圈标注) /
+		// antiscion=绿点线 / broken=红虚线+中点红叉;interferer 红色圆环。半径取相位圈(aspR)同层。
+		if(ov.perfection){
+			const rLine = geom.aspR - 2;
+			const lg = g.append('g').attr('stroke-linecap', 'round');
+			(ov.perfection.lines || []).forEach((line) => {
+				const a = lonOf(line.from);
+				const b = lonOf(line.to);
+				if(a === null || b === null){ return; }
+				const v = line.via ? lonOf(line.via) : null;
+				const pts = [xy(a, rLine)];
+				if(v !== null && v !== undefined){ pts.push(xy(v, rLine)); }
+				pts.push(xy(b, rLine));
+				const dstr = 'M' + pts.map((p) => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' L');
+				let stroke = OV_GREEN; let dash = null; let width = 2; let opacity = 0.95;
+				if(line.kind === 'relay'){ stroke = OV_AMBER; dash = '6,4'; width = 1.8; }
+				else if(line.kind === 'antiscion'){ dash = '2,4'; width = 1.8; }
+				else if(line.kind === 'broken'){ stroke = OV_RED; dash = '4,3'; width = 1.6; opacity = 0.9; }
+				lg.append('path').attr('d', dstr)
+					.attr('stroke', stroke).attr('stroke-width', width)
+					.attr('stroke-opacity', opacity)
+					.attr('stroke-dasharray', dash);
+				if(v !== null && v !== undefined){
+					const pv = xy(v, rLine);
+					lg.append('circle').attr('cx', pv[0]).attr('cy', pv[1]).attr('r', 5)
+						.attr('stroke', OV_AMBER).attr('stroke-width', 1.6);
+				}
+				if(line.kind === 'broken'){
+					// 红叉画在 from→to 弦中点(破坏点):两段 45° 交叉短线。
+					const pa = xy(a, rLine); const pb = xy(b, rLine);
+					const mx = (pa[0] + pb[0]) / 2; const my = (pa[1] + pb[1]) / 2;
+					const s = 5.5;
+					lg.append('path')
+						.attr('d', `M${mx - s},${my - s} L${mx + s},${my + s} M${mx - s},${my + s} L${mx + s},${my - s}`)
+						.attr('stroke', OV_RED).attr('stroke-width', 2.2).attr('stroke-opacity', 0.95);
+				}
+			});
+			(ov.perfection.marks || []).forEach((mk) => {
+				const ml = lonOf(mk.id);
+				if(ml === null){ return; }
+				const pm = xy(ml, rLine);
+				lg.append('circle').attr('cx', pm[0]).attr('cy', pm[1]).attr('r', 6.5)
+					.attr('stroke', OV_RED).attr('stroke-width', 1.8).attr('stroke-opacity', 0.9);
+			});
+		}
+
+		// ③ 映点小三角:相位圈上、尖端朝外(rotate(-λ) 使局部 -y 轴对准径向外),星体本体色;
+		// 落宫头(≤1°)者放大加描边。
+		if(ov.antiscia && ov.antiscia.length){
+			const rTri = geom.aspR;
+			const tg = g.append('g');
+			ov.antiscia.forEach((m) => {
+				if(!m || m.alon === undefined || m.alon === null){ return; }
+				const p = xy(m.alon, rTri);
+				const w = m.onCusp ? 5.5 : 3.5;
+				const h = m.onCusp ? 9 : 6;
+				const tri = tg.append('path')
+					.attr('d', `M0,${-h} L${w},${h / 2} L${-w},${h / 2} Z`)
+					.attr('transform', `translate(${p[0]},${p[1]}) rotate(${-m.alon})`)
+					.attr('fill', AstroConst.AstroColor[m.id] || AstroConst.AstroColor.Stroke)
+					.attr('fill-opacity', 0.9)
+					.attr('stroke', 'none');
+				if(m.onCusp){
+					tri.attr('stroke', AstroConst.AstroColor.Stroke).attr('stroke-width', 0.8);
+				}
+			});
+		}
+
+		// ④ 恒星命中:轮缘(星座带外沿)打点+星名;王者星金色、凶性红色、余随主题描边色;
+		// 星名整体反转回水平(抵销 topgroup 的 rotate(house1-90)),按落点半边取锚向。
+		if(ov.stars && ov.stars.length){
+			const rimR = geom.houseR + (needTerm ? 20 : 0) + geom.outerBandStep;
+			const house1 = this.getHouse(chartObj, AstroConst.HOUSE1);
+			const groupRot = ((house1 ? house1.lon : 0) - 90);
+			const sg = g.append('g');
+			ov.stars.forEach((st) => {
+				if(!st || st.lon === undefined || st.lon === null){ return; }
+				const color = st.royal ? OV_GOLD : (st.caution ? OV_RED : AstroConst.AstroColor.Stroke);
+				const pd = xy(st.lon, rimR + 4);
+				sg.append('circle').attr('cx', pd[0]).attr('cy', pd[1]).attr('r', st.royal ? 3 : 2.4)
+					.attr('fill', color).attr('fill-opacity', 0.95).attr('stroke', 'none');
+				const pt = xy(st.lon, rimR + 9);
+				// 屏幕侧向 = 局部坐标经群旋转后的 x 分量符号 → 决定文字锚在点的左/右。
+				const gr = rad(groupRot);
+				const sx = pt[0] * Math.cos(gr) - pt[1] * Math.sin(gr);
+				sg.append('text')
+					.attr('transform', `translate(${pt[0]},${pt[1]}) rotate(${-groupRot})`)
+					.attr('text-anchor', sx >= 0 ? 'start' : 'end')
+					.attr('dominant-baseline', 'central')
+					.attr('font-size', 10)
+					.attr('stroke', 'none')
+					.attr('fill', color)
+					.text(st.name || '');
+			});
+		}
+	}
+
 	drawOutterChartInfo(svg, margin, width, datetime, lat, lon, inverse){
 		if(datetime === undefined || datetime === null){
 			return;

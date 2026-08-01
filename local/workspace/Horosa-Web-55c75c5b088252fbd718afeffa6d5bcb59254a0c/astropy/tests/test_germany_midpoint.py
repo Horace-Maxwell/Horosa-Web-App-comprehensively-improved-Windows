@@ -185,3 +185,34 @@ def test_personal_orb_none_no_fork():
     mp = MidPoint(_perchart(), orb=1.0, uranian=True, personalOrb=None)
     sun_hits = mp.getAspects(type('O', (), {'id': const.SUN, 'lon': 100.0})(), mids)[const.SUN]
     assert len(sun_hits) == 0, 'personalOrb=None 时 Basic Five 也用窄 orb(2.5° 不命中)'
+
+
+# ── 严格汉堡因子集 strictFactors(D2)───────────────────────────────────────────
+
+
+def test_strict_factors_excludes_darkmoon_purpleclouds():
+    # strictFactors=True(uranian 分支):黑月/紫气从「中点对来源」与「相位目标」双面剔除;
+    # 8 TNP + Asc/MC 照常在场(严格因子集 = 10 行星 + 8 虚星 + Asc/MC + 交点)。
+    mp = MidPoint(_perchart(), uranian=True, strictFactors=True)
+    res = mp.calculate()
+    ids = _pair_ids(res['midpoints'])
+    assert const.DARKMOON not in ids and const.PURPLE_CLOUDS not in ids, '严格集不得含黑月/紫气'
+    assert const.ASC in ids and const.MC in ids
+    assert len([u for u in const.LIST_URANIAN if u in ids]) == 8
+    assert const.DARKMOON not in res['aspects'] and const.PURPLE_CLOUDS not in res['aspects'], \
+        '黑月/紫气亦不得作相位目标'
+
+
+def test_strict_factors_default_off_byte_identical():
+    # 缺省(strictFactors=False)与显式 False 输出字节等,且黑月/紫气仍在场(现状零回归)。
+    a = MidPoint(_perchart(), uranian=True).calculate()
+    b = MidPoint(_perchart(), uranian=True, strictFactors=False).calculate()
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    assert const.DARKMOON in _pair_ids(a['midpoints']), '默认关时黑月照旧在中点对(零回归)'
+
+
+def test_strict_factors_noop_on_composite_path():
+    # uranian=False(合盘复用路径):strictFactors 完全无作用,输出与默认逐字节一致。
+    a = MidPoint(_perchart()).getMidpoints()
+    b = MidPoint(_perchart(), strictFactors=True).getMidpoints()
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)

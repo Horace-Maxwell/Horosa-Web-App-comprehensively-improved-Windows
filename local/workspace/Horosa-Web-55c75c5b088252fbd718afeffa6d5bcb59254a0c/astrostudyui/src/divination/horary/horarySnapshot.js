@@ -1,7 +1,8 @@
 // divination/horary/horarySnapshot.js
 // 把卜卦判断结果拼成 AI 快照文本（[小节标题] + markdown 列表），供 saveModuleAISnapshot('horary', ...)。
 import { PLANETS } from '../data/planets';
-import { SIGNS } from '../data/signs';
+import { SIGNS, signOfLon } from '../data/signs';
+import { PLANETARY_HOURS } from '../data/planetaryHours';
 import { CATEGORY_DEF } from './significators';
 import { schoolOf } from './horarySchools';
 import * as AstroText from '../../constants/AstroText';
@@ -32,7 +33,8 @@ function clsPlanetCn(id){ return AstroText.AstroMsgCN[id] || AstroText.AstroTxtM
 function clsDignCn(ary){ return (ary || []).map((t) => AstroText.AstroMsg[t] || t).join('+'); }
 function clsHasRefuse(tokens){ return (tokens || []).some((t) => t === 'exile' || t === 'fall'); }
 
-export function buildHorarySnapshot(j, chart){
+// opts3（可选;批6）：{ questionText, castingCamp } —— 问句与阵营入 [定盘考量] 段;不传=不产该两行(零回归)。
+export function buildHorarySnapshot(j, chart, opts3){
 	if(!j) return '';
 	const L = [];
 	const sig = j.significators;
@@ -81,6 +83,84 @@ export function buildHorarySnapshot(j, chart){
 		j.describe.forEach((d) => L.push(`- ${d.role}：${d.title}${d.temper ? '（' + d.temper + '）' : ''} ${d.body}`));
 	}
 	L.push('（裁决只呈现证据与倾向，不替用户下命定结论。）');
+	// ── 批6 增节(全部为「只加新段」:既有段字节不动;表化零变测试的比对域=基线纪元段) ──
+	// [定盘考量] 19 条三态 + 时主一致双口径。
+	const rad = j.radicality || {};
+	if(rad.considerations && rad.considerations.items && rad.considerations.items.length){
+		L.push('[定盘考量]');
+		if(opts3 && opts3.questionText){ L.push(`所问之事：“${opts3.questionText}”`); }
+		if(opts3 && opts3.castingCamp && opts3.castingCamp !== 'astrologer'){
+			L.push(`起盘阵营：${opts3.castingCamp === 'querent' ? '问卜者中心（时地取问卜者）' : '时空中点（关系盘）'}`);
+		}
+		const ha = rad.hourAgreement;
+		if(ha && ha.available){
+			L.push(ha.agree ? ('时主与命主一致（正面根基确认）：' + ha.hits.map((h) => h.text).join('；')) : '时主与命主不合（仅失一佐证，不弃盘）。');
+		}
+		rad.considerations.items.forEach((c) => {
+			const st = c.severity === 'unavailable' ? '不可用' : (c.hit ? (c.mitigated ? '命中·已救济' : '命中') : '未命中');
+			L.push(`- ${c.idx}. ${c.text_zh}：${st}${c.hit && !c.mitigated && c.mitigable && (c.mitigatedBy || []).length ? `（可救济：${c.mitigatedBy.join('；')}）` : ''}`);
+		});
+	}
+	// [Almuten] 逐度总管(命度/事项宫头)。
+	if(j.almuten && (j.almuten.asc || j.almuten.quesitedCusp)){
+		L.push('[Almuten]');
+		if(j.almuten.asc){ L.push(`命度 almuten＝${j.almuten.asc.winners.map(cn).join('/')}（${Object.keys(j.almuten.asc.scores).map((k) => `${cn(k)}${j.almuten.asc.scores[k]}`).join('、')}）`); }
+		if(j.almuten.quesitedCusp){ L.push(`事项宫头 almuten＝${j.almuten.quesitedCusp.winners.map(cn).join('/')}（${Object.keys(j.almuten.quesitedCusp.scores).map((k) => `${cn(k)}${j.almuten.quesitedCusp.scores[k]}`).join('、')}）`); }
+		if(j.moonPromotion && j.moonPromotion.promote){ L.push(`月亮升格条件命中：${j.moonPromotion.reasons.join('、')}。`); }
+	}
+	// [映点对映点] 全盘表(映点=180−λ≈合;对映点=360−λ≈冲;命中≤1°标注)。
+	if(j.facts && j.facts.planets){
+		const SEVEN = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
+		const f = j.facts;
+		const dist = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return Math.min(d, 360 - d); };
+		const rows = [];
+		SEVEN.filter((k) => f.planets[k]).forEach((k) => {
+			const lam = f.planets[k].lon;
+			const anti = ((180 - lam) % 360 + 360) % 360;
+			const contra = ((360 - lam) % 360 + 360) % 360;
+			const hitOf = (lon) => {
+				const hits = [];
+				SEVEN.forEach((o) => { if(o !== k && f.planets[o] && dist(lon, f.planets[o].lon) <= 1) hits.push(cn(o)); });
+				if(f.meta.ascLon != null && dist(lon, f.meta.ascLon) <= 1) hits.push('命度');
+				if(f.meta.mcLon != null && dist(lon, f.meta.mcLon) <= 1) hits.push('天顶');
+				return hits;
+			};
+			const fmt = (l) => `${(SIGNS[signOfLon(l)] || {}).cn || ''}${(((l % 30) + 30) % 30).toFixed(1)}°`;
+			rows.push(`- ${cn(k)}：映点 ${fmt(anti)}${hitOf(anti).length ? '（命中 ' + hitOf(anti).join('、') + '≈合）' : ''}；对映点 ${fmt(contra)}${hitOf(contra).length ? '（命中 ' + hitOf(contra).join('、') + '≈冲）' : ''}`);
+		});
+		if(rows.length){
+			L.push('[映点对映点]');
+			L.push('映点=关于至点轴镜像(180°−λ)力≈合相;对映点(360°−λ)=映点之冲;命中≤1°计入判读。');
+			rows.forEach((r) => L.push(r));
+		}
+	}
+	// [行星时] 日主/时主/象征。
+	if(j.facts && (j.facts.meta.dayRuler || j.hourRuler)){
+		L.push('[行星时]');
+		L.push(`日主星＝${cn(j.facts.meta.dayRuler)}；当前时主星＝${cn(j.hourRuler)}${PLANETARY_HOURS[j.hourRuler] ? `；本时象征：${PLANETARY_HOURS[j.hourRuler].join(' / ')}` : ''}`);
+	}
+	// [尊贵明细] 逐星必然尊贵 token+计分;lilly 满分表另段(仅该档)。
+	if(j.facts && j.facts.planets){
+		const SEVEN = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
+		L.push('[尊贵明细]');
+		SEVEN.filter((k) => j.facts.planets[k]).forEach((k) => {
+			const p = j.facts.planets[k];
+			L.push(`- ${cn(k)}：${(SIGNS[p.sign] || {}).cn || p.sign}${p.signlon !== undefined ? p.signlon.toFixed(1) + '°' : ''}，${(p.selfDignity && p.selfDignity.length) ? clsDignCn(p.selfDignity) : (p.peregrine ? '游走' : '无主尊贵')}，计分 ${p.dignityScore > 0 ? '+' : ''}${p.dignityScore}`);
+		});
+		const accKeys = Object.keys(j.conditions || {}).filter((k) => j.conditions[k] && j.conditions[k].accidental);
+		if(accKeys.length){
+			L.push('[偶然尊贵满分表]');
+			accKeys.forEach((k) => {
+				const a = j.conditions[k].accidental;
+				L.push(`- ${cn(k)} 合计 ${a.total > 0 ? '+' : ''}${a.total}：${a.items.map((it) => it.text_zh).join('；')}`);
+			});
+		}
+	}
+	// 扩展点集(lots_set=core15 档才有;classical 默认无=零回归)。
+	if(j.lots && j.lots.extended && j.lots.extended.length){
+		L.push('[阿拉伯点全集]');
+		j.lots.extended.forEach((l) => L.push(`- ${l.cn}：${l.signCn}座 ${l.signlon.toFixed(1)}°${l.dispCn ? '·定位星' + l.dispCn : ''}（${l.use}）`));
+	}
 	// [YA v42] +古典接纳:chart.receptions/chart.mutuals(古典 tab 已显示,与「占星·古典」同一套后端数据)
 	// 此前被判词-only 快照丢弃。chart 为可选第二参:旧调用不传 → 不产段(零回归);
 	// 传入处 = HoraryJudgment.saveSnap(props.chart) / aiAnalysisContext.regenerateHorarySnapshot(fetch 的 chart)。

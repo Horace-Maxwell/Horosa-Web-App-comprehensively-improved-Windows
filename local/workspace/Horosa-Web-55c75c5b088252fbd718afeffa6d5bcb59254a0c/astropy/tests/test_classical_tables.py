@@ -90,3 +90,39 @@ def test_special_degree_lookups():
     assert ctab.special_degree('Cancer', 0.3) == {'fortune': True}    # 第1度 增福
     assert ctab.special_degree('Sagittarius', 6.5) == {'pitted': True, 'azemene': True}  # 第7度 陷+慢病
     assert ctab.special_degree('Aries', 1.0) is None                 # 第2度 无
+
+
+def test_gemini_bound_emended_switch():
+    # 卜卦 2b:经典传本(termsVariant=2)双子界4/5 口径开关——默认忠原书 ♄21–25/♂25–30;
+    # geminiBoundEmended 时换校勘对调 ♂21–25/♄25–30;还原令牌配对后全局表复位(防串请求)。
+    from astrostudy import perchart
+    from flatlib.dignities import essential, tables
+    tok = perchart.push_request_terms(2)
+    try:
+        assert essential.TERMS['Gemini'][3][0] == 'Saturn'
+        assert essential.TERMS['Gemini'][4][0] == 'Mars'
+    finally:
+        perchart.pop_request_terms(tok)
+    tok = perchart.push_request_terms(2, geminiBoundEmended=True)
+    try:
+        gem = essential.TERMS['Gemini']
+        assert gem[3] == ['Mars', 21, 25]
+        assert gem[4] == ['Saturn', 25, 30]
+        # 其余座与经典传本逐字一致(只动双子)
+        assert essential.TERMS['Libra'] == tables.LILLY_TERMS['Libra']
+    finally:
+        perchart.pop_request_terms(tok)
+    assert essential.TERMS is not None
+
+
+def test_gemini_bound_emended_only_applies_to_variant2():
+    # 校勘开关不外溢:埃及(0)/校勘本(1)/迦勒底(3) 下开关无效。
+    from astrostudy import perchart
+    from flatlib.dignities import tables
+    for tv, expect_tbl in [(0, tables.EGYPTIAN_TERMS), (1, tables.TETRABIBLOS_TERMS)]:
+        tok = perchart.push_request_terms(tv, geminiBoundEmended=True)
+        try:
+            from flatlib.dignities import essential
+            assert essential.TERMS['Gemini'] == expect_tbl['Gemini']
+        finally:
+            perchart.pop_request_terms(tok)

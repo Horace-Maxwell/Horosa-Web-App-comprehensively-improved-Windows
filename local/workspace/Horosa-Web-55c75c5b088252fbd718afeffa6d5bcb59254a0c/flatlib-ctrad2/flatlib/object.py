@@ -218,7 +218,10 @@ class House(GenericObject):
     # === Properties === #
 
     def setOffset(self, offset):
-        _OFFSET = offset
+        # 修复:旧实现 `_OFFSET = offset` 只赋局部变量(死代码,类属性从未被改)。
+        # 正确写类属性 —— House._OFFSET 是全部象限制 inHouse 的宫头前移量(传统 5° 律=-5.0);
+        # 请求级调用方(perchart.push_request_house_offset)须持锁使用并在 finally 还原。
+        House._OFFSET = offset
 
     def num(self):
         """ Returns the number of this house [1..12]. """
@@ -282,8 +285,17 @@ class FixedStar(GenericObject):
     
     def orb(self):
         """ Returns the orb of this fixed star. """
+        # 2026-07 首次真消费(getStars byMagnitude 轨档)暴露:swisseph 填的 mag 可能是
+        # (mag, ...) 元组/字符串——归一成 float;畸形回最保守 0.5°(与表尾一致)。
+        m = self.mag
+        if isinstance(m, (tuple, list)):
+            m = m[0] if m else None
+        try:
+            m = float(m)
+        except (TypeError, ValueError):
+            return 0.5
         for (mag, orb) in FixedStar._ORBS:
-            if self.mag < mag:
+            if m < mag:
                 return orb
         return 0.5
     

@@ -49,4 +49,27 @@ describe('太乙 数理十类(§22)', () => {
 		expect(shuliTone('上和数')).toBe('good');
 		expect(shuliTone('长数')).toBe('neutral');
 	});
+	// —— 数理十类补 3 子类 ——
+	test('无地:个位∈{1,2,3,4}(1/13/22/24 中,末位1-4)', () => {
+		[1, 2, 3, 4, 13, 14, 22, 24].forEach((n) => expect(shuliLabel(n)).toEqual(expect.arrayContaining(['无地(未及五)'])));
+		// 个位≥5 不触发
+		expect(shuliLabel(5)).not.toEqual(expect.arrayContaining(['无地(未及五)']));
+		expect(shuliLabel(16)).not.toEqual(expect.arrayContaining(['无地(未及五)']));
+	});
+	test('阴中重阳 n∈{1,7}、阳中重阴 n∈{4,8}', () => {
+		expect(shuliLabel(1)).toEqual(expect.arrayContaining(['阴中重阳']));
+		expect(shuliLabel(7)).toEqual(expect.arrayContaining(['阴中重阳']));
+		expect(shuliLabel(4)).toEqual(expect.arrayContaining(['阳中重阴']));
+		expect(shuliLabel(8)).toEqual(expect.arrayContaining(['阳中重阴']));
+	});
+	test('🔴 共存双标:1/4/8 既属上和数、又属子类(忠于源表并列)', () => {
+		expect(shuliLabel(1)).toEqual(expect.arrayContaining(['上和数', '阴中重阳', '无地(未及五)']));
+		expect(shuliLabel(4)).toEqual(expect.arrayContaining(['上和数', '阳中重阴', '无地(未及五)']));
+		expect(shuliLabel(8)).toEqual(expect.arrayContaining(['上和数', '阳中重阴']));
+	});
+	test('shuliTone 子类归中性(阴中重阳含「重阳」子串不误判凶)', () => {
+		expect(shuliTone('阴中重阳')).toBe('neutral');
+		expect(shuliTone('阳中重阴')).toBe('neutral');
+		expect(shuliTone('无地(未及五)')).toBe('neutral');
+	});
 });

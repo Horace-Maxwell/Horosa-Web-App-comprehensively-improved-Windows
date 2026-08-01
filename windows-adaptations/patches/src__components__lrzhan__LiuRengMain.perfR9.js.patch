@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index 4e59d04..69a5d6a 100644
+index dbdba93..e9828a2 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
 @@ -2,6 +2,8 @@ import { Component } from 'react';
@@ -15,13 +15,13 @@ index 4e59d04..69a5d6a 100644
  	setLiurengRunyearLocalCache,
  } from '../../utils/localCalcCache';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
--import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-+import { chartDrawGuardEnabled, techniqueResultCacheEnabled, stepPrefetchEnabled } from '../../utils/perfFlags';
+-import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
++import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
  
  
  const {Option} = Select;
-@@ -4149,6 +4152,19 @@ function pushCache(map, key, val, max = 96){
+@@ -4165,6 +4168,19 @@ function pushCache(map, key, val, max = 96){
  	}
  }
  
@@ -41,7 +41,7 @@ index 4e59d04..69a5d6a 100644
  function buildKeData(layout, chartObj){
  	const result = {
  		raw: [],
-@@ -4563,10 +4579,12 @@ class LiuRengMain extends Component{
+@@ -4579,10 +4595,12 @@ class LiuRengMain extends Component{
  		this.timeHook = {};
  		this.pendingFields = null;
  		this.birthYearGanZiCache = {};
@@ -58,7 +58,7 @@ index 4e59d04..69a5d6a 100644
  		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
  		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
  		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
-@@ -4620,6 +4638,53 @@ class LiuRengMain extends Component{
+@@ -4637,6 +4655,53 @@ class LiuRengMain extends Component{
  					}).catch(()=>null);
  				}catch(e){ /* 预热失败无害 */ }
  			};
@@ -112,7 +112,7 @@ index 4e59d04..69a5d6a 100644
  		}
  	}
  
-@@ -5080,7 +5145,12 @@ class LiuRengMain extends Component{
+@@ -5133,7 +5198,12 @@ class LiuRengMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -126,7 +126,7 @@ index 4e59d04..69a5d6a 100644
  			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
  		});
  	}
-@@ -5898,7 +5968,14 @@ class LiuRengMain extends Component{
+@@ -5954,7 +6024,14 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -141,7 +141,7 @@ index 4e59d04..69a5d6a 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{refSummary ? (
  							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-@@ -5944,8 +6021,10 @@ class LiuRengMain extends Component{
+@@ -6000,8 +6077,10 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -152,7 +152,7 @@ index 4e59d04..69a5d6a 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -5964,11 +6043,15 @@ class LiuRengMain extends Component{
+@@ -6020,11 +6099,15 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -169,7 +169,7 @@ index 4e59d04..69a5d6a 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
  							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-@@ -5989,8 +6072,10 @@ class LiuRengMain extends Component{
+@@ -6045,8 +6128,10 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -180,7 +180,7 @@ index 4e59d04..69a5d6a 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{this.renderShenShaSection(ctx)}
  						{overviewItems.length ? overviewItems.map((item, idx)=>(
-@@ -6014,14 +6099,20 @@ class LiuRengMain extends Component{
+@@ -6070,14 +6155,20 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -203,7 +203,7 @@ index 4e59d04..69a5d6a 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -6075,6 +6166,7 @@ class LiuRengMain extends Component{
+@@ -6131,6 +6222,7 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>

@@ -145,6 +145,12 @@ describe('DunJiaCalc options', ()=>{
 		const pan2 = calcDunJia(fields, nongli, makeOptions({ paiPanType: 3, zhiShiType: 2 }), {});
 		const zhiShiSet = new Set([pan0.zhiShi, pan1.zhiShi, pan2.zhiShi]);
 		expect(zhiShiSet.size).toBeGreaterThan(1);
+		// 🔴 值使门「名」变了还不够 —— 八门在盘上的实际起排也必须跟着变。
+		// 此前 panDoor 调 zhifuNZhishi 时漏传 ext,天禽值符时恒退 0 档(死门起排),
+		// 于是标题的值使门名换了、盘面八门却一动不动,两者自相矛盾。
+		const doorSig = (p)=>JSON.stringify((p.cells || []).map((c)=>(c && c.door) || ''));
+		const doorSet = new Set([doorSig(pan0), doorSig(pan1), doorSig(pan2)]);
+		expect(doorSet.size).toBeGreaterThan(1);
 	});
 
 	test('unsupported qijuMethod falls back to 拆补', ()=>{

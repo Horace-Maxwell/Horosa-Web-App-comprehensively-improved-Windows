@@ -5,6 +5,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { projectToDial, cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
 import { factorLabel } from '../../data/uranianMeanings';
+import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
 
 // 字形 hover 名(增强):原名 · 因子义(factorLabel 缺则只剩原名)。
 const glyphTip = (id) => { const n = AstroText.AstroMsgCN[id] || id; const lab = factorLabel(id); return lab && lab !== n ? n + ' · ' + lab : n; };
@@ -20,7 +21,9 @@ const norm360 = (x) => ((x % 360) + 360) % 360;
 const polar = (cx, cy, R, deg) => { const a = deg / 360 * TAU; return [cx - R * Math.sin(a), cy - R * Math.cos(a)]; };
 const RING_TONE = { natal: 'currentColor', transit: '#c0392b', solararc: '#1f7a5a',
 	// WP-9 合盘叠盘人(最多 4):取应用既有强调色族,四人以蓝/紫/青/琥珀区分(与本命 currentColor/行运红/太阳弧绿 不撞)。
-	syn0: 'var(--horosa-accent, #2f7df1)', syn1: '#8e6fd0', syn2: '#1f8a8a', syn3: '#c08a2f' };
+	syn0: 'var(--horosa-accent, #2f7df1)', syn1: '#8e6fd0', syn2: '#1f8a8a', syn3: '#c08a2f',
+	// B5:组合盘=暗金 / 戴维森=朱橘(与行运凶红、合盘四色均不撞;图例经既有 RING_TONE 机制自动带出)。
+	composite: 'var(--horosa-gold, #b8860b)', davison: 'var(--horosa-cinnabar, #e2603f)' };
 const POINTER_COLOR = '#e23b3b';
 
 export default class UranianCosmogram extends Component {
@@ -219,11 +222,16 @@ export default class UranianCosmogram extends Component {
 					: (p.id === AstroConst.ARIES_POINT ? AstroText.AstroMsg[AstroConst.ARIES] : (AstroText.AstroMsg[p.id] || AstroText.uranianGlyph(p.id)));
 				g.append('line').attr('x1', px).attr('y1', py).attr('x2', lx).attr('y2', ly).attr('stroke', tone).attr('stroke-width', 0.7).attr('opacity', 0.42);
 				g.append('circle').attr('cx', px).attr('cy', py).attr('r', 1.8).attr('fill', tone).attr('opacity', 0.85);
-				const gl = g.append('text').attr('x', lx).attr('y', ly).attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-					.attr('font-size', tnp ? baseSz * 0.8 : baseSz).attr('fill', tone)
-					.attr('font-family', tnp ? 'inherit' : AstroConst.AstroChartFont).attr('font-weight', tnp ? 600 : 400)
-					.style('letter-spacing', tnp ? '0.3px' : '0').style('pointer-events', 'none')
-					.text(glyphCh);
+				let gl = null;
+				// B1:TNP 走手绘 SVG 星图字形(path 直插,D3 .text() 渲染不了 React 节点);缺字形回退缩写。
+				if (TNP_GLYPH_PATHS[p.id]) gl = appendTnpGlyphD3(g, p.id, lx, ly, baseSz * 1.02, tone);
+				if (!gl){
+					gl = g.append('text').attr('x', lx).attr('y', ly).attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+						.attr('font-size', tnp ? baseSz * 0.8 : baseSz).attr('fill', tone)
+						.attr('font-family', tnp ? 'inherit' : AstroConst.AstroChartFont).attr('font-weight', tnp ? 600 : 400)
+						.style('letter-spacing', tnp ? '0.3px' : '0').style('pointer-events', 'none')
+						.text(glyphCh);
+				}
 				gl.append('title').text(ring.label + ' · ' + glyphTip(p.id) + ' ' + norm360(p.lon).toFixed(2) + '°');
 				labels.push({ node: gl, x: lx, y: ly });
 				// 逆行 ℞ 小标(lonspeed<0):随环标签反向旋转保持竖直。
@@ -324,7 +332,8 @@ export default class UranianCosmogram extends Component {
 
 		// 图例
 		if (rings.length > 1){
-			const legend = root.append('g');
+			// 图例文字曾继承父组 stroke(同色 1px 描边→发糊);g 层显式切断,组内 text/circle 全免疫。
+			const legend = root.append('g').attr('stroke', 'none');
 			rings.forEach((ring, ri) => {
 				const ly = 12 + ri * 16;
 				const tone = RING_TONE[ring.key] === 'currentColor' ? stroke : (RING_TONE[ring.key] || stroke);

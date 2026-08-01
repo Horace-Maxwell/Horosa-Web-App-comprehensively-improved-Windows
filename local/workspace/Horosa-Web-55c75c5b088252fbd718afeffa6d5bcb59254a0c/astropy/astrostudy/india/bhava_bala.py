@@ -77,11 +77,12 @@ _SIGN_CLASS = {
 
 # 类别 → 方位适配虚拉档(0–60)。人类签最得「东/上升」一类方位之力，水栖次之，
 # 四足、虫依递减；体现各宫对自身自然方位的适配强弱(可复现的稳定档)。
-_CLASS_DIG_VIRUPA = {
-    'human': 60.0,
-    'watery': 45.0,
-    'quadruped': 30.0,
-    'insect': 15.0,
+# 类别 → 满力宫(通行口径:人类座东=第1宫、四足座南=第10宫、水栖座北=第4宫、虫座西=第7宫)。
+_CLASS_FULL_HOUSE = {
+    'human': 1,
+    'quadruped': 10,
+    'watery': 4,
+    'insect': 7,
 }
 
 
@@ -89,10 +90,18 @@ def _sign_index(sign):
     return SIGN_INDEX.get(sign, 0)
 
 
-def bhava_dig_bala_for_sign(sign):
-    """宫方位力(虚拉, 0–60)：按宫起点星座类别给方位适配档。"""
-    cls = _SIGN_CLASS.get(sign, 'quadruped')
-    return float(_CLASS_DIG_VIRUPA.get(cls, 30.0))
+def bhava_dig_bala_for_sign(sign, house=1):
+    """宫方位力:该宫起点星座类别的满力宫 × 与实际宫位的环形距(0..6)线性衰减(满 60 → 对宫 0)。"""
+    cls = _SIGN_CLASS.get(sign)
+    if cls is None:
+        return 0.0
+    full = _CLASS_FULL_HOUSE.get(cls, 1)
+    try:
+        d = abs(int(house) - int(full)) % 12
+    except (TypeError, ValueError):
+        d = 0
+    d = min(d, 12 - d)
+    return round(60.0 * (1.0 - d / 6.0), 4)
 
 
 # ── 宫主力 Bhavadhipati Bala：宫主总六力 ─────────────────────────────────────
@@ -253,8 +262,10 @@ def bhava_bala(house_lords=None, planet_shadbala=None, house_cusps=None,
         adhip_pending = adhip is None
         adhip_val = adhip if adhip is not None else 0.0
 
-        # 分量 2：宫方位力
-        dig_val = bhava_dig_bala_for_sign(sign) if sign is not None else 0.0
+        # 分量 2：宫方位力 —— 类别满力宫(人类座东/1宫、四足座南/10宫、水栖座北/4宫、
+        # 虫座西/7宫)按环形宫距线性衰减到对宫 0。🔴 曾只按星座查定值、与宫位完全无关
+        # (同座落 1 宫与 7 宫同分,整条分量退化为上升座决定的固定轮转)。
+        dig_val = bhava_dig_bala_for_sign(sign, h) if sign is not None else 0.0
 
         # 分量 3：宫受视力(净和/4；净受凶相位 → 计 0，不拉低总分)
         drishti_pending = False

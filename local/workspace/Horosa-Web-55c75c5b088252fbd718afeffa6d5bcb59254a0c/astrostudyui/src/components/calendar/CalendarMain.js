@@ -119,7 +119,7 @@ class CalendarMain extends Component{
 				<Tabs
 					activeKey={cur} tabPosition='right'
 					onChange={this.changeTab}
-					className='horosa-calendar-tabs'
+					className="xq-tabs-rail horosa-calendar-tabs"
 					style={{ height: '100%' }}
 				>
 					<TabPane tab="农历" key="nongli">

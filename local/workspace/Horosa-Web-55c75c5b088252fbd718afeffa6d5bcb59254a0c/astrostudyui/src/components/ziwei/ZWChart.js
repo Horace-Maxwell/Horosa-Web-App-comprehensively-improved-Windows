@@ -6,6 +6,7 @@ import ZWIndicator from './ZWIndicator';
 import * as ZWConst from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { ZWEngineOptions } from './ziweiOptions';   // 手册补齐:活盘太极点
 
 class ZWChart {
 	constructor(chartid, chartObj, fields, tooltipId, onTipClick, onCenterInfoClick){
@@ -73,6 +74,15 @@ class ZWChart {
 
 
 	clickHouse(house){
+		// 活盘(WP-3):huoPan 模式下点宫=设该宫为太极点(新命宫),再点原太极点则复位;星曜地支不动、仅宫名重排。
+		if(ZWEngineOptions.huoPan){
+			const idx = house && house.houseChart ? house.houseChart.houseIndex : null;
+			if(idx !== null && idx !== undefined){
+				this.taijiIdx = (this.taijiIdx === idx) ? null : idx;
+				this.draw();
+				return;
+			}
+		}
 		if(this.flyHouse){
 			if(this.flyHouse.ganzi === house.ganzi){
 				this.flyHouse = null;

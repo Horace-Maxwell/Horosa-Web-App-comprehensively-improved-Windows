@@ -128,15 +128,9 @@ export function buildNongliSnapshotText(state){
 }
 
 class NongLiMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-	shouldComponentUpdate(nextProps, nextState){
-		if(nextState !== this.state){
-			return true;
-		}
-		return !wrapperPropsEqual(this.props, nextProps);
-	}
-
+	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同位置也带一份通用 wrapperPropsEqual 渲染守卫,
+	// 与本类内另一份我方细化守卫在同一类内重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
+	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
 	constructor(props) {
 		super(props);
 		this.state = {

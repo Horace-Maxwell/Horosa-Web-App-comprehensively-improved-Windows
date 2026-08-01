@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ruleziwei/RuleHouses.js b/astrostudyui/src/components/ruleziwei/RuleHouses.js
-index 77ca700..b9f078e 100644
+index f07496d..4e72abb 100644
 --- a/astrostudyui/src/components/ruleziwei/RuleHouses.js
 +++ b/astrostudyui/src/components/ruleziwei/RuleHouses.js
 @@ -1,7 +1,9 @@
@@ -10,11 +10,11 @@ index 77ca700..b9f078e 100644
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+ import STAR_MEANING from '../ziwei/data/tables/ziweiStarMeaning.json';   // WP-7 十二宫含义
  
  class RuleHouses extends Component{
- 	constructor(props) {
-@@ -28,7 +30,7 @@ class RuleHouses extends Component{
- 			let dom = this.genPopoverDom(rules);
+@@ -29,7 +31,7 @@ class RuleHouses extends Component{
+ 			let dom = this.genPopoverDom(rules, house);
  			let title = house + '';
  			let col = (
 -				<Col span={6} key={randomStr(8)}>
@@ -22,7 +22,16 @@ index 77ca700..b9f078e 100644
  					<Popover content={dom} title={title}>
  						{house}
  					</Popover>					
-@@ -58,15 +60,15 @@ class RuleHouses extends Component{
+@@ -43,7 +45,7 @@ class RuleHouses extends Component{
+ 	genPopoverDom(rules, house){
+ 		let meaning = house ? STAR_MEANING.houses[house] : null;   // WP-7 十二宫含义
+ 		let head = meaning ? (
+-			<div key={randomStr(8)} style={{ marginBottom: 8, padding: '6px 9px', background: 'var(--horosa-ziwei-selected-bg, rgba(120,72,232,0.08))', borderRadius: 4, fontSize: 12, lineHeight: '20px' }}>{meaning}</div>
++			<div key="meaning" style={{ marginBottom: 8, padding: '6px 9px', background: 'var(--horosa-ziwei-selected-bg, rgba(120,72,232,0.08))', borderRadius: 4, fontSize: 12, lineHeight: '20px' }}>{meaning}</div>
+ 		) : null;
+ 		let lis = [];
+ 		for(let i=0; i<rules.length; i++){
+@@ -63,16 +65,16 @@ class RuleHouses extends Component{
  					)
  				}else{
  					li = (
@@ -35,13 +44,14 @@ index 77ca700..b9f078e 100644
  		}
  		let rulesDom = (
 -			<div key={randomStr(8)} style={{width: 400}}>
--				<ul key={randomStr(8)}>
 +			<div key="rules" style={{width: 400}}>
+ 				{head}
+-				<ul key={randomStr(8)}>
 +				<ul key="list">
  					{lis}
  				</ul>
  			</div>
-@@ -87,7 +89,7 @@ class RuleHouses extends Component{
+@@ -93,7 +95,7 @@ class RuleHouses extends Component{
  			let rules = ZWRules.RuleHouseType[key];
  			let dom = this.genPopoverDom(rules);
  			let col = (

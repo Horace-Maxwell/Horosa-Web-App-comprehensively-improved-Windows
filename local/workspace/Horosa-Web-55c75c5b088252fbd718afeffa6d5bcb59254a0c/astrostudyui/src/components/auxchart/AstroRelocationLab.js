@@ -16,7 +16,7 @@ import {
 	convertLatToStr, convertLonToStr, convertLatStrToDegree, convertLonStrToDegree,
 	formatLatDms, formatLonDms,
 } from '../astro/AstroHelper';
-import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
+import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -76,16 +76,28 @@ class AstroRelocationLab extends Component{
 		this.load();
 	}
 
+	componentDidUpdate(prevProps){
+		// 🔴 换命例时重置地点必须跟随新盘出生地:曾只在构造期初始化 →
+		// 停在本页换人后仍用上一位的出生地当落点,标签却写「出生地(未重置)」。
+		if(prevProps.value !== this.props.value && this.state.isNatalPlace){
+			const init = natalLatLonDecimal(this.props.value);
+			if(Number.isFinite(init.lat) && Number.isFinite(init.lon)){
+				this.setState({
+					relocLat: Number(init.lat.toFixed(4)),
+					relocLon: Number(init.lon.toFixed(4)),
+				});
+			}
+		}
+	}
+
 	componentWillUnmount(){
 		this._mounted = false;
 	}
 
 	relocKey(){
-		const params = chartParams(this.props.value);
-		return [
-			params.date, params.time, params.zone, params.lat, params.lon, params.hsys,
-			`reloc|${this.state.relocLat}|${this.state.relocLon}`,
-		].join('|');
+		// 单源缓存键:chartRequestKey 已含 黄道/岁差/ad/orbs/古典口径全维
+		// (曾手拼 6 字段 → 切恒星黄道/界系后 key 不变、重置盘不重取,与全 App 分叉)。
+		return chartRequestKey(this.props.value, `reloc|${this.state.relocLat}|${this.state.relocLon}`);
 	}
 
 	ensureLoaded(){

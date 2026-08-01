@@ -3,8 +3,9 @@
 //   ② calc 端到端透传:ziShu/gender/liunian 整盘扫描判别 + 寄宫可达且 jiGong 透传 + 纯乾坤/至尊可达。
 //   ③ 确定性 golden(铁值·非臆造):jiNian / wangShuai(真卦名) / shiJi 结构。④ 全 opts 笛卡尔不抛。
 import {
-	calculate, daYun, liuNian, jiNian, wangShuai, shiJi, judge,
+	calculate, daYun, liuNian, liuYue, jiNian, wangShuai, shiJi, judge,
 	transformHoutian, wuJiGong, yuanTangPure, guaLines, NAME_TO_TRI, buildSnapshotText,
+	solarTermHuagong,
 } from '../heluoLocal';
 
 const GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -98,6 +99,47 @@ describe('②calc 端到端透传:opt 经 calculate 真达盘面', () => {
 			if (found) break;
 		}
 		expect(found).toBe(true);
+	});
+
+	test('取化工法 quHuaGong: tuWangKunGen vs siFangBoOnly → 土用期化工卦不同(补坤艮 vs 不补)', () => {
+		// 土用期(tuyong=true):土王寄坤艮法补「坤艮/反乾兑」,直取四方伯只取四方伯卦。取任一四立节气名。
+		const tu = solarTermHuagong('立春', true, { quHuaGong: 'tuWangKunGen' });
+		const bo = solarTermHuagong('立春', true, { quHuaGong: 'siFangBoOnly' });
+		expect(tu.hg).toEqual(expect.arrayContaining(['坤', '艮']));   // 土王法:补坤艮
+		expect(bo.hg).not.toEqual(expect.arrayContaining(['坤', '艮'])); // 四方伯:不补
+		expect(tu.hg.length).toBeGreaterThan(bo.hg.length);
+		expect(tu.tuyong).toBe(true);
+		expect(bo.tuyong).toBe(false);
+		// 非土用期:两法一致(仅土用期有别)
+		expect(solarTermHuagong('立春', false, { quHuaGong: 'tuWangKunGen' }).hg)
+			.toEqual(solarTermHuagong('立春', false, { quHuaGong: 'siFangBoOnly' }).hg);
+	});
+
+	test('流月起月 liuYueMode: ying vs legacy → 十二卦序不同(正月种子异)', () => {
+		const seq = (mode) => liuYue([1, 1, 1, 0, 0, 1], 6, { mode }).map((m) => m.gua).join(',');
+		expect(seq('ying')).not.toBe(seq('legacy'));
+		// 默认(不传)== ying
+		expect(liuYue([1, 1, 1, 0, 0, 1], 6).map((m) => m.gua).join(',')).toBe(seq('ying'));
+	});
+
+	// 回归护栏(修 saveSnap 陈旧 bug):快照文本随 liunianStep2 / huangdiOffset 变——
+	// 卦身份可不变而这两项改快照,故 HeLuoMain.saveSnap 去重键必含 opts,否则 AI 挂载读陈旧盘。
+	test('快照决定项: liunianStep2 / huangdiOffset 改 → buildSnapshotText 文本必变(卦身份可不变)', () => {
+		const fc = FP_CASES[0];
+		const mk = (opts) => {
+			const chart = calc(fc, '男', '寅', opts);
+			const jg = judge(chart, fc.fourPillars, '寅');
+			const dy = daYun(chart.xian, chart.hou, fc.birthYear);
+			const idKey = `${chart.xian.name}|${chart.xian.yuan}|${chart.hou.name}`;
+			return { idKey, snap: buildSnapshotText(chart, jg, dy, { season: '春', opts }) };
+		};
+		const a = mk({ liunianStep2: 'ying', huangdiOffset: 2697 });
+		const b = mk({ liunianStep2: 'sequential', huangdiOffset: 2697 });
+		const c = mk({ liunianStep2: 'ying', huangdiOffset: 2698 });
+		expect(a.idKey).toBe(b.idKey);   // 卦身份不变
+		expect(a.snap).not.toBe(b.snap); // 快照却变(流年动爻) → 键须含 opts
+		expect(a.idKey).toBe(c.idKey);
+		expect(a.snap).not.toBe(c.snap); // 纪年变
 	});
 
 	// 合成四柱空间扫描:证 寄宫/纯乾坤/至尊 盘可由 calculate 产出(触发路径非死码)
@@ -250,6 +292,30 @@ describe('④全 opts 全链压测:6 维笛卡尔 × 四柱/性别/月支 → �
 			});
 		});
 		expect(n).toBe(2 * 2 * 2 * 2 * 2 * 3 * 2 * 2); // 384
+	});
+
+	test('流月 liuYue 全域: 6 元堂位 × 多本卦 × 两档 → 恒 12 卦、动爻∈[1,6]、卦名合法', () => {
+		const SAMPLE_LINES = [
+			[1, 1, 1, 0, 0, 1], [0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1],
+			[1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1], [1, 1, 0, 0, 1, 1],
+		];
+		let n = 0;
+		SAMPLE_LINES.forEach((lines) => {
+			for (let yuanPos = 1; yuanPos <= 6; yuanPos += 1) {
+				['ying', 'legacy'].forEach((mode) => {
+					const r = liuYue(lines.slice(), yuanPos, { mode });
+					expect(r.length).toBe(12);
+					r.forEach((mo) => {
+						expect(mo.pos).toBeGreaterThanOrEqual(1);
+						expect(mo.pos).toBeLessThanOrEqual(6);
+						expect(mo.lines.length).toBe(6);
+						expect(NAME_TO_TRI[mo.gua]).toBeTruthy();   // 卦名可解析(真 64 卦之一)
+					});
+					n += 1;
+				});
+			}
+		});
+		expect(n).toBe(6 * 6 * 2); // 72
 	});
 
 	test('纪年基准 huangdiOffset 极端/边界值 → jiNian 不抛且计算正确', () => {

@@ -8,6 +8,7 @@ import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { spreadDialAngles } from '../../utils/uranianDial';
+import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
 
 const TAU = Math.PI * 2;
 const norm360 = (x) => ((x % 360) + 360) % 360;
@@ -92,10 +93,16 @@ export default class UranianFrameWheel extends Component {
 			const g = glyphChar(p.id);
 			root.append('line').attr('x1', px).attr('y1', py).attr('x2', lx).attr('y2', ly).attr('stroke', stroke).attr('stroke-width', 0.6).attr('opacity', 0.35);
 			root.append('circle').attr('cx', px).attr('cy', py).attr('r', 1.6).attr('fill', stroke).attr('opacity', 0.8);
-			const t = root.append('text').attr('x', lx).attr('y', ly).attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-				.attr('font-size', g.font === 'inherit' ? baseSz * 0.8 : baseSz).attr('fill', stroke)
-				.attr('font-family', g.font).attr('font-weight', g.weight).style('letter-spacing', g.font === 'inherit' ? '0.2px' : '0').style('pointer-events', 'none')
-				.text(g.ch);
+			// B1:TNP 走手绘 SVG 星图字形(path 直插);缺字形回退粗体缩写(glyphChar 原路径)。
+			const tnpB1 = AstroText.isUranian(p.id) && p.id !== AstroConst.ARIES_POINT;
+			let t = null;
+			if (TNP_GLYPH_PATHS[p.id]) t = appendTnpGlyphD3(root, p.id, lx, ly, baseSz * 0.98, stroke);
+			if (!t){
+				t = root.append('text').attr('x', lx).attr('y', ly).attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+					.attr('font-size', g.font === 'inherit' ? baseSz * 0.8 : baseSz).attr('fill', stroke)
+					.attr('font-family', g.font).attr('font-weight', g.weight).style('letter-spacing', g.font === 'inherit' ? '0.2px' : '0').style('pointer-events', 'none')
+					.text(g.ch);
+			}
 			t.append('title').text(AstroText.AstroMsgCN[p.id] || p.id);
 		});
 

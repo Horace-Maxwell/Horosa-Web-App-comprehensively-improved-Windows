@@ -14,6 +14,7 @@ import zuJson from './tables/ziweizu.json';
 import douJson from './tables/ziweidou.json';
 import xiaoXianJson from './tables/ziweixiaoxian.json';
 import starLightJson from './tables/ziweistarlight.json';
+import starLightQuanshuJson from './tables/ziweistarlight_quanshu.json';
 import geJson from './tables/ziweige.json';
 
 // 把三合组键(如"寅午戌")的表拆成每个地支单独一项。
@@ -56,8 +57,18 @@ export const LIFE_MASTER = zuJson.life;
 export const BODY_MASTER = zuJson.body;
 // 斗君：{月名:{时支:zi}}
 export const DOUJUN = douJson;
-// 庙旺亮度：{星:{支:亮度}}
+// 庙旺亮度：{星:{支:亮度}}。默认 zi_jian(自建≈通行);quanshu=《全书》delta 覆盖(擎羊子酉旺/铃星独立表/亥卯未火星得)。
 export const STAR_LIGHT = starLightJson;
+export const STAR_LIGHT_QUANSHU = starLightQuanshuJson;
+// 按亮度源取某星在某支的亮度：quanshu 源命中 delta 用《全书》值，缺格回落自建默认表(零回归)。
+export function starLightOf(star, zhi, source){
+	if(source === 'quanshu'){
+		const o = STAR_LIGHT_QUANSHU[star];
+		if(o && o[zhi] != null){ return o[zhi]; }
+	}
+	const b = STAR_LIGHT[star];
+	return b ? b[zhi] : undefined;
+}
 // 格局库（WP-G 用）
 export const GE_PATTERNS = geJson;
 

@@ -1211,9 +1211,9 @@ export function drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurn
 	if(needTerm){
 		let termR = radius - rStep;
 		let termStep = 20;
-		// 界限环按所选界系(含迦勒底界,按昼夜取昼/夜表)实绘;推运/返照/主限盘同主盘口径。默认埃及=现状。
+		// 界限环按所选界系(含迦勒底界,按昼夜取昼/夜表;含狮子/双子界内变体)实绘;推运/返照/主限盘同主盘口径。默认埃及=现状。
 		let _tv = (chartObj && chartObj.params && chartObj.params.termsVariant) || 0;
-		let _termsTable = termsTableForVariant(_tv, isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS);
+		let _termsTable = termsTableForVariant(_tv, isDiurnal, AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS, chartObj && chartObj.params);
 		let terms = termBand(topgroup, termR, termStep, flags, _termsTable);
 	
 		let houseR = termR - termStep;

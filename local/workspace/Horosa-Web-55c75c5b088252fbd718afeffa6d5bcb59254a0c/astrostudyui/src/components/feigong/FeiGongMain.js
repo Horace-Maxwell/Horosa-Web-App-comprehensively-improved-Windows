@@ -323,25 +323,29 @@ class FeiGongMain extends Component {
 			</XQSideSection>
 			<XQSideSection iconName="target" title="起局参数" storageKey="fg.controls" className="horosa-side-input-section">
 			<div className="horosa-fg-controls horosa-cnx-controls">
-				{this.field('起支', <Select size="small" style={{ width: '100%' }} value={settings.qiMode} onChange={(v)=>this.setSettings({ qiMode: v })}
-					options={[{ value: 'hour', label: `按占时(${c.hourZhi || '?'})` }, { value: 'zhi', label: '选支' }, { value: 'num', label: '数取' }, { value: 'yearZhi', label: '年命佈局(生年支)' }]}/>)}
-				{settings.qiMode === 'yearZhi' ? this.field('生年支', (
-					<Select size="small" style={{ width: '100%' }} value={inputs.yearZhi || '子'} onChange={(v)=>this.setState({ inputs: { ...inputs, yearZhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
-				), '以命主生年地支起局(引擎 yearZhi 模式)') : null}
-				{settings.qiMode === 'zhi' ? this.field('支', (
-					<Select size="small" style={{ width: '100%' }} value={inputs.zhi} onChange={(v)=>this.setState({ inputs: { ...inputs, zhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
-				)) : null}
-				{settings.qiMode === 'num' ? this.field('数', (
-					<InputNumber size="small" min={1} style={{ width: '100%' }} placeholder="≥1" value={inputs.num} onChange={(v)=>this.setState({ inputs: { ...inputs, num: v } })}/>
-				), '除十二取余配支') : null}
-				{this.field('日干支', <Select size="small" style={{ width: '100%' }} value={inputs.useDayGZ ? 'auto' : 'manual'} onChange={(v)=>this.setState({ inputs: { ...inputs, useDayGZ: v === 'auto' } })}
-					options={[{ value: 'auto', label: `随盘(${c.dayGan || '?'}${c.dayZhi || '?'})` }, { value: 'manual', label: '手动' }]}/>)}
-				{!inputs.useDayGZ ? this.field('干/支', (
-					<div style={{ display: 'flex', gap: 6 }}>
-						<Select size="small" style={{ flex: 1 }} value={inputs.dayGan} onChange={(v)=>this.setState({ inputs: { ...inputs, dayGan: v } })} options={GAN.map((g)=>({ value: g, label: g }))}/>
-						<Select size="small" style={{ flex: 1 }} value={inputs.dayZhi} onChange={(v)=>this.setState({ inputs: { ...inputs, dayZhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
-					</div>
-				)) : null}
+				{/* 一行两个(用户定案):起支+日干支 恒居首行;各自的条件补充项(选支/数取/生年支/手动干支)
+				    顺流补位到次行 —— 复用 select-grid 两列基类,is-wide 在该网格里天然铺满单元格。 */}
+				<div className="horosa-huangji-select-grid horosa-fg-pair-grid">
+					{this.field('起支', <Select size="small" style={{ width: '100%' }} value={settings.qiMode} onChange={(v)=>this.setSettings({ qiMode: v })}
+						options={[{ value: 'hour', label: `按占时(${c.hourZhi || '?'})` }, { value: 'zhi', label: '选支' }, { value: 'num', label: '数取' }, { value: 'yearZhi', label: '年命佈局(生年支)' }]}/>)}
+					{this.field('日干支', <Select size="small" style={{ width: '100%' }} value={inputs.useDayGZ ? 'auto' : 'manual'} onChange={(v)=>this.setState({ inputs: { ...inputs, useDayGZ: v === 'auto' } })}
+						options={[{ value: 'auto', label: `随盘(${c.dayGan || '?'}${c.dayZhi || '?'})` }, { value: 'manual', label: '手动' }]}/>)}
+					{settings.qiMode === 'yearZhi' ? this.field('生年支', (
+						<Select size="small" style={{ width: '100%' }} value={inputs.yearZhi || '子'} onChange={(v)=>this.setState({ inputs: { ...inputs, yearZhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
+					), '以命主生年地支起局(引擎 yearZhi 模式)') : null}
+					{settings.qiMode === 'zhi' ? this.field('支', (
+						<Select size="small" style={{ width: '100%' }} value={inputs.zhi} onChange={(v)=>this.setState({ inputs: { ...inputs, zhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
+					)) : null}
+					{settings.qiMode === 'num' ? this.field('数', (
+						<InputNumber size="small" min={1} style={{ width: '100%' }} placeholder="≥1" value={inputs.num} onChange={(v)=>this.setState({ inputs: { ...inputs, num: v } })}/>
+					), '除十二取余配支') : null}
+					{!inputs.useDayGZ ? this.field('干/支', (
+						<div style={{ display: 'flex', gap: 6 }}>
+							<Select size="small" style={{ flex: 1 }} value={inputs.dayGan} onChange={(v)=>this.setState({ inputs: { ...inputs, dayGan: v } })} options={GAN.map((g)=>({ value: g, label: g }))}/>
+							<Select size="small" style={{ flex: 1 }} value={inputs.dayZhi} onChange={(v)=>this.setState({ inputs: { ...inputs, dayZhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
+						</div>
+					)) : null}
+				</div>
 				{this.field('命宫', (
 					<div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
 						<InputNumber size="small" min={1} max={120} style={{ flex: 1 }} placeholder="年龄" value={inputs.mingAge} onChange={(v)=>this.setState({ inputs: { ...inputs, mingAge: v } }, ()=>{ if(this.state.ju){ this.saveSnap(); } })}/>

@@ -1,16 +1,14 @@
 diff --git a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
-index 8168bfc..712147a 100644
+index bd4e835..29b21ac 100644
 --- a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 +++ b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
-@@ -6,6 +6,7 @@ import request from '../../utils/request';
- import * as Constants from '../../utils/constants';
- import * as AstroConst from '../../constants/AstroConst';
- import * as AstroText from '../../constants/AstroText';
+@@ -1,4 +1,5 @@
+ import { Component } from 'react';
 +import { markPanelReady } from '../../utils/perfMark';
- 
- const { RangePicker } = DatePicker;
- 
-@@ -144,7 +145,11 @@ export default class UranianGraphicEphemeris extends Component {
+ import { safeLocalStorageSet } from '../../utils/safeStorage';
+ import moment from 'moment';
+ import { DatePicker, Radio, Spin, Empty, Checkbox, Select } from 'antd';
+@@ -155,7 +156,11 @@ export default class UranianGraphicEphemeris extends Component {
  			const data = await request(`${Constants.ServerRoot}/astroextra/ephemeris`, { body: JSON.stringify(params), silent: true });
  			const res = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
  			const rows = res && Array.isArray(res.dailyPositions) ? res.dailyPositions : [];

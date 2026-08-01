@@ -388,6 +388,83 @@ public class AIAnalysisProxyServiceTest {
 	}
 
 	@Test
+	public void kimiKSeriesCoversFutureGenerations() {
+		// Windows #47:k3 实报「invalid temperature: only 1 is allowed」——判定须认「kimi-k+数字」整个代际,
+		// 勿再写死 k2 单代。openrouter 前缀写法(moonshotai/kimi-k3)经去前缀后同样命中。
+		assertTrue(AIAnalysisProxyService.isReasoningModel("kimi-k3"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("kimi-k3.1-turbo"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("kimi-k4-code"));
+		assertTrue(AIAnalysisProxyService.isReasoningModel("moonshotai/kimi-k3"));
+		// 非 k+数字 代号不受影响:moonshot-v1/kimi-latest 照常接受采样参数。
+		assertFalse(AIAnalysisProxyService.isReasoningModel("kimi-latest"));
+		assertFalse(AIAnalysisProxyService.isReasoningModel("moonshot-v1-32k"));
+		List<Map<String, Object>> messages = new java.util.ArrayList<Map<String, Object>>();
+		Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody(
+			"kimi-k3", buildMap("temperature", 0.7), messages, false);
+		assertFalse(body.containsKey("temperature"));
+		assertTrue(body.containsKey("model"));
+	}
+
+	@Test
+	public void healUpstreamRequestBodyStripsNamedSamplingParam() {
+		// #47 原始错误体逐字回放:400 点名 temperature → 剥参重发(其余键原样保留)。
+		String kimiError = "{\"error\":{\"message\":\"invalid temperature: only 1 is allowed for this model\",\"type\":\"invalid_request_error\"}}";
+		String healed = AIAnalysisProxyService.healUpstreamRequestBody(400, kimiError,
+			"{\"model\":\"kimi-k3\",\"temperature\":0.7,\"stream\":true,\"max_tokens\":2048}");
+		assertTrue(healed != null);
+		assertFalse(healed.contains("temperature"));
+		assertTrue(healed.contains("\"model\""));
+		assertTrue(healed.contains("max_tokens"));
+		// 只剥被点名的参数:错误文只提 top_p 时 temperature 原样保留。
+		String healedTopP = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"top_p is not supported\"}}",
+			"{\"model\":\"m\",\"temperature\":0.7,\"top_p\":0.9}");
+		assertTrue(healedTopP != null);
+		assertTrue(healedTopP.contains("temperature"));
+		assertFalse(healedTopP.contains("top_p"));
+	}
+
+	@Test
+	public void healUpstreamRequestBodyHandlesRenameAndNestedContainers() {
+		// OpenAI 新推理系:点名 max_completion_tokens → 改键不丢值。
+		String renamed = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"Use 'max_completion_tokens' instead of 'max_tokens'\"}}",
+			"{\"model\":\"m\",\"max_tokens\":4096}");
+		assertTrue(renamed != null);
+		assertTrue(renamed.contains("max_completion_tokens"));
+		// Ollama 原生 options / Gemini generationConfig 内嵌参数同样可剥。
+		String nestedOllama = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":\"temperature not supported\"}",
+			"{\"model\":\"m\",\"options\":{\"temperature\":0.7,\"num_ctx\":8192}}");
+		assertTrue(nestedOllama != null);
+		assertFalse(nestedOllama.contains("temperature"));
+		assertTrue(nestedOllama.contains("num_ctx"));
+		String nestedGemini = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"Invalid JSON payload received. Unknown name \\\"temperature\\\"\"}}",
+			"{\"contents\":[],\"generationConfig\":{\"temperature\":0.7,\"maxOutputTokens\":1024}}");
+		assertTrue(nestedGemini != null);
+		assertFalse(nestedGemini.contains("temperature"));
+	}
+
+	@Test
+	public void healUpstreamRequestBodyRefusesUnrelatedFailures() {
+		// 非 400/422(如 401/429/5xx)绝不自愈;400 但错误文未点名任何可剥参数也不自愈。
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(401,
+			"{\"error\":{\"message\":\"Invalid Authentication temperature\"}}",
+			"{\"model\":\"m\",\"temperature\":0.7}"));
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"model not found\"}}",
+			"{\"model\":\"m\",\"temperature\":0.7}"));
+		// 点名了参数但请求体本就没带 → 无可剥,不空转重试。
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"invalid temperature\"}}",
+			"{\"model\":\"m\",\"stream\":true}"));
+		// 非法请求体 JSON → 不自愈。
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"invalid temperature\"}}", "not-json"));
+	}
+
+	@Test
 	public void extractUpstreamErrorMessageSupportsCommonShapes() {
 		// OpenAI 兼容(含 Kimi/Moonshot): {"error":{"message":...}}
 		assertEquals("Invalid Authentication",

@@ -11,15 +11,17 @@ import '../../css/styles.less';
 //  / chartnum·label·height·degreeDisplayMode·aspectSourceId·planetGlyphMode·lagnaRef·onPlanetClick(标量/函数,Object.is)。
 // 北印/东印额外消费 counterClockwise(镜像)→ 各自 keys 追加。
 // 三盘均不读 this.state(_aspectedSigns 是 render 内派生的实例字段,随 value/aspectSourceId 变);
-// lockAquarius 被父级透传但三盘 render 全程未消费(grep 证零引用)→ 不影响输出 → 不纳入(纳入仅多比一项,无害但冗余)。
+// (lockAquarius 死开关已按分治移除:南印固定格即其默认语义,三盘零消费。)
 export const INDIA_CHART_SCU_KEYS = [
 	'value', 'planetDisplay', 'lotsDisplay', 'chartnum', 'label', 'height',
 	'degreeDisplayMode', 'aspectSourceId', 'aspectParadigm', 'planetGlyphMode', 'lagnaRef', 'onPlanetClick',
+	'overlayPoints',
 ];
 export const INDIA_CHART_SCU_KEYS_MIRROR = INDIA_CHART_SCU_KEYS.concat(['counterClockwise']);
 export const INDIA_CHART_SCU_COMPARATORS = {
 	planetDisplay: sameDisplayList,
 	lotsDisplay: sameDisplayList,
+	overlayPoints: (a, b)=>JSON.stringify(a || null) === JSON.stringify(b || null),
 };
 
 export function indiaChartShouldUpdate(self, nextProps, keys){
@@ -364,19 +366,97 @@ export function getAspectedSignNumbers(chartObj, aspectSourceId, aspectParadigm)
 		return set;
 	}
 	if(aspectParadigm === 'rasi'){
-		// Jaimini 座相:先定源星所在座 → 查 rasiDrishti 该座照见的座。
+		// Jaimini 座相:先定源星所在座 → 查 rasiDrishti;载荷缺表时前端静态算
+		// (座相是纯几何:动看固除紧邻下一、固看动除紧邻前一、双看双,与 12×12 矩阵同规则)。
 		const src = getObject(chartObj, aspectSourceId);
 		const srcSign = src ? src.sign : null;
 		const jaimini = chartObj.jyotish.jaimini;
 		const rasiDrishti = (jaimini && Array.isArray(jaimini.rasiDrishti)) ? jaimini.rasiDrishti : [];
 		const row = srcSign ? rasiDrishti.find((r)=>r && r.sign === srcSign) : null;
 		const aspects = (row && Array.isArray(row.aspects)) ? row.aspects : [];
-		aspects.forEach((sign)=>{
-			const num = getSignNumberFromSign(sign);
-			if(num){
-				set.add(num);
+		if(aspects.length){
+			aspects.forEach((sign)=>{
+				const num = getSignNumberFromSign(sign);
+				if(num){
+					set.add(num);
+				}
+			});
+			return set;
+		}
+		const srcNum = srcSign ? getSignNumberFromSign(srcSign) : null;
+		if(srcNum){
+			const i = srcNum - 1;                       // 0 基座号
+			const MOV = [0, 3, 6, 9], FIX = [1, 4, 7, 10];
+			let hits = [];
+			if(MOV.indexOf(i) >= 0){ hits = FIX.filter((f)=>f !== (i + 1) % 12); }
+			else if(FIX.indexOf(i) >= 0){ hits = MOV.filter((mv)=>mv !== (i + 11) % 12); }
+			else { hits = [2, 5, 8, 11].filter((d)=>d !== i); }
+			hits.forEach((j)=>set.add(j + 1));
+		}
+		return set;
+	}
+	if(aspectParadigm === 'tajika'){
+		// Tajika:行星→行星,角距落 {0,60,90,120,180} 且在两曜 deeptamsha 半和容许度内 → 高亮对方所在座。
+		const DEEPT = { Sun: 15, Moon: 12, Mars: 8, Mercury: 7, Jupiter: 9, Venus: 7, Saturn: 9,
+			'North Node': 8, 'South Node': 8 };
+		const src = getObject(chartObj, aspectSourceId);
+		if(!src){ return set; }
+		const ids = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'North Node', 'South Node'];
+		ids.forEach((oid)=>{
+			if(oid === aspectSourceId){ return; }
+			const other = getObject(chartObj, oid);
+			if(!other){ return; }
+			let d = Math.abs(((Number(src.lon) - Number(other.lon)) % 360 + 360) % 360);
+			if(d > 180){ d = 360 - d; }
+			const orb = ((DEEPT[aspectSourceId] || 8) + (DEEPT[oid] || 8)) / 2;
+			const hit = [0, 60, 90, 120, 180].some((ang)=>Math.abs(d - ang) <= orb);
+			if(hit){
+				const num = getSignNumberFromSign(other.sign);
+				if(num){ set.add(num); }
 			}
 		});
+		return set;
+	}
+	if(aspectParadigm === 'kp'){
+		// KP:不画相位 —— 高亮该曜 significator 链所指诸宫的「座」(A>B>C>D ranked)。
+		const sig = chartObj.jyotish.kp && chartObj.jyotish.kp.significators;
+		const row = sig && sig[aspectSourceId];
+		const houses = (row && Array.isArray(row.ranked)) ? row.ranked : [];
+		const hs = Array.isArray(chartObj.chart && chartObj.chart.houses) ? chartObj.chart.houses : [];
+		houses.forEach((hnum)=>{
+			// 🔴 houses 数组非 House1..12 顺序(实测可从 House11 起排)——按 id 反查,
+			// 位置下标取宫会随盘偏移(同文件其余取宫处均已用 find(id))。
+			const h = hs.find((x)=>x && x.id === `House${hnum}`) || null;
+			if(h && h.sign){
+				const num = getSignNumberFromSign(h.sign);
+				if(num){ set.add(num); }
+			}else if(h && h.lon !== undefined){
+				set.add((Math.floor((Number(h.lon) % 360) / 30) % 12) + 1);
+			}
+		});
+		return set;
+	}
+	if(aspectParadigm === 'nadi'){
+		// Nadi:高亮 同座合组(本座) + 含该曜的交换对之对方座。
+		const nd = chartObj.jyotish.nadi || {};
+		const src = getObject(chartObj, aspectSourceId);
+		if(src){
+			(nd.combinations || []).forEach((c)=>{
+				if((c.planets || []).indexOf(aspectSourceId) >= 0){
+					const num = getSignNumberFromSign(c.sign);
+					if(num){ set.add(num); }
+				}
+			});
+			(nd.exchanges || []).forEach((ex)=>{
+				// 交换=双向强联动 → 高亮两端座(自座 + 对方座)。
+				if(ex.a === aspectSourceId || ex.b === aspectSourceId){
+					const na = getSignNumberFromSign(ex.aSign);
+					const nb = getSignNumberFromSign(ex.bSign);
+					if(na){ set.add(na); }
+					if(nb){ set.add(nb); }
+				}
+			});
+		}
 		return set;
 	}
 	const graha = Array.isArray(chartObj.jyotish.grahaDrishti) ? chartObj.jyotish.grahaDrishti : [];
@@ -448,6 +528,11 @@ class IndiaSouthChart extends Component{
 				</div>
 				<div className="horosa-india-square-objects">
 					{objects.map((obj, idx)=>this.renderObject(obj, idx))}
+					{(this.props.overlayPoints || []).filter((op)=>op.signNumber === signNumber).map((op)=>(
+						<span className="horosa-india-square-object horosa-india-flag-badge is-good" key={`ov_${op.key}`} title={op.title || op.key}>
+							{op.label}
+						</span>
+					))}
 				</div>
 				<div className="horosa-india-square-sign" aria-label={`${signNumber} ${signName}`}>
 					<span className="horosa-india-square-sign-symbol">{getSignSymbol(signNumber)}</span>

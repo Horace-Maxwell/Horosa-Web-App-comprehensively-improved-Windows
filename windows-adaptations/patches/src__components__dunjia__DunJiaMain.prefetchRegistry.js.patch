@@ -1,19 +1,17 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaMain.js b/astrostudyui/src/components/dunjia/DunJiaMain.js
-index 5aefcf5..b6fc262 100644
+index db471a9..8d20e02 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaMain.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaMain.js
-@@ -1,6 +1,10 @@
+@@ -1,4 +1,8 @@
  import { Component } from 'react';
- import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
- import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 +import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
- import { safeLocalStorageSet } from '../../utils/safeStorage';
- import { Spin, Tag, message, Popover, Modal } from 'antd';
- import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-@@ -537,6 +541,102 @@ function extractIsDiurnalFromChartProp(val){
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { getLayoutViewportHeight } from '../../utils/shellZoom';
+ import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
+@@ -540,6 +544,102 @@ function extractIsDiurnalFromChartProp(val){
  	return null;
  }
  
@@ -116,7 +114,7 @@ index 5aefcf5..b6fc262 100644
  class DunJiaMain extends Component {
  	constructor(props){
  		super(props);
-@@ -621,6 +721,67 @@ class DunJiaMain extends Component {
+@@ -625,6 +725,67 @@ class DunJiaMain extends Component {
  					this.prefetchNongliForFields(fields);
  				}
  			};
@@ -184,7 +182,7 @@ index 5aefcf5..b6fc262 100644
  		}
  	}
  
-@@ -1080,6 +1241,11 @@ class DunJiaMain extends Component {
+@@ -1084,6 +1245,11 @@ class DunJiaMain extends Component {
  			// [R3-A4] 草稿时间一变即预取该时刻 pan(kinqimen 后端模式):用户点「起局」时
  			// nongli+pan 双双已热 ≈ 瞬间。步进时再顺向多备一步(连点第二下也不冷)。
  			this.prefetchQimenPanForFields(localFields, stepHint);
@@ -196,7 +194,7 @@ index 5aefcf5..b6fc262 100644
  		}, 120);
  	}
  
-@@ -1249,36 +1415,12 @@ class DunJiaMain extends Component {
+@@ -1274,36 +1440,12 @@ class DunJiaMain extends Component {
  	}
  
  	genParams(fields){
@@ -239,7 +237,7 @@ index 5aefcf5..b6fc262 100644
  	}
  
  	async recalc(fields, nongli, options, displaySolarTime){
-@@ -1315,6 +1457,10 @@ class DunJiaMain extends Component {
+@@ -1340,6 +1482,10 @@ class DunJiaMain extends Component {
  			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
  			this.lastPanSignature = panSignature;
  			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{
@@ -250,7 +248,7 @@ index 5aefcf5..b6fc262 100644
  				if(pan){
  					rememberDunJiaLiveState({
  						fieldKey: getFieldKey(flds),
-@@ -1341,25 +1487,12 @@ class DunJiaMain extends Component {
+@@ -1366,25 +1512,12 @@ class DunJiaMain extends Component {
  	}
  
  	genJieqiParams(fields, year){
@@ -282,7 +280,7 @@ index 5aefcf5..b6fc262 100644
  	}
  
  	async resolveDisplaySolarTime(params, primaryResult){
-@@ -2651,7 +2784,14 @@ class DunJiaMain extends Component {
+@@ -2680,7 +2813,14 @@ class DunJiaMain extends Component {
  					onChange={(key)=>this.setState({ rightPanelTab: key })}
  					style={{ marginTop: 8 }}
  				>
@@ -297,7 +295,7 @@ index 5aefcf5..b6fc262 100644
  						{(()=>{
  							// 全局速览：一眼看出 值符值使落宫 / 贵格(三奇得使·九遁) / 六害源头 / 吉凶格品级。
  							const sum = pan ? buildQimenOverviewSummary(pan) : null;
-@@ -2748,8 +2888,11 @@ class DunJiaMain extends Component {
+@@ -2777,8 +2917,11 @@ class DunJiaMain extends Component {
  								</Card>
  							);
  						})()}
@@ -309,7 +307,7 @@ index 5aefcf5..b6fc262 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', columnGap: 14, rowGap: 6, lineHeight: '24px' }}>
  								{pan && pan.shenSha && pan.shenSha.allItems && pan.shenSha.allItems.length
-@@ -2767,8 +2910,10 @@ class DunJiaMain extends Component {
+@@ -2796,8 +2939,10 @@ class DunJiaMain extends Component {
  									: <div>暂无神煞</div>}
  							</div>
  						</Card>
@@ -320,7 +318,7 @@ index 5aefcf5..b6fc262 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
  								{BAGONG_PALACE_ORDER.map((num)=>(
-@@ -2856,16 +3001,21 @@ class DunJiaMain extends Component {
+@@ -2885,16 +3030,21 @@ class DunJiaMain extends Component {
  								</Card>
  							)}
  						</Card>

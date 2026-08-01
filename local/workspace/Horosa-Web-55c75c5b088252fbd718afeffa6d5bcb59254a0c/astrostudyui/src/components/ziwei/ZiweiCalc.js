@@ -10,9 +10,10 @@ import {
 import {
 	STARS_YEAR_GAN, STARS_YEAR_ZI, STARS_MONTH, STARS_TIME_ZI, STARS_HUOLIN,
 	STARS_BOSI, STARS_TAISUI, STARS_JIANG, LIFE_MASTER, BODY_MASTER, DOUJUN,
-	HOUSES as HOUSE_NAMES, monthCnOf, XIAOXIAN_START, STAR_LIGHT,
+	HOUSES as HOUSE_NAMES, monthCnOf, XIAOXIAN_START, starLightOf,
 } from './data/ziweiTables';
 import { getActiveSiHuaGan } from '../../constants/ZWConst';
+import { ZWEngineOptions } from './ziweiOptions';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { placeShangShi } from './ziweiSchools';
 
@@ -28,8 +29,10 @@ function decorateStar(name, houseIdx, yearGan){
 	const hi = hua4.indexOf(name);
 	if(hi >= 0){ s.sihua = HUA[hi]; }
 	const baseName = name.charAt(0) === '副' ? name.slice(1) : name;
-	const lt = STAR_LIGHT[baseName];
-	if(lt){ const v = lt[z(houseIdx)]; if(v){ s.starlight = v; } }
+	// 庙旺存【基础(zi_jian)】值:memo 稳定、不随亮度源变;《全书》delta 覆盖在【显示层】(ZWCommHouse.effStarLight)
+	// 按 ZWEngineOptions.brightnessSource 叠加——亮度纯显示,绝不改安星/命主(切亮度不重排盘)。
+	const v = starLightOf(baseName, z(houseIdx), 'zi_jian');
+	if(v){ s.starlight = v; }
 	return s;
 }
 
@@ -74,12 +77,15 @@ export function assembleNatalChart(ctx){
 
 	// (2) 命身宫 + 五行局 + 长生 + 宫名 + 大限
 	// 闰月归月(古法§1.5):默认 mid_split(十五分界,16+归下月)=现 Java 口径;next=整月归下月;prev=整月归上月。
+	// 命身/五行局所用月(§1.5)。月系星恒用 monthInt(下方 line~155,不受闰月归月影响=现状口径)。
 	let month = monthInt;
 	if(leap){
 		const lm = ctx.leapMonth || 'mid_split';
 		if(lm === 'next'){ month++; }
 		else if(lm === 'prev'){ /* 归上月,不进 */ }
-		else if(dayInt >= 16){ month++; }   // mid_split 默认
+		else if(lm === 'split_star_month'){ month++; }   // 命身归下月(月系星仍上月=monthInt,§1.5⑥)
+		else if(lm === 'split_days'){ if(dayInt >= 16){ month++; } }   // 日本前后半分割(标准农历月半点15/16,§1.5⑦)
+		else if(dayInt >= 16){ month++; }   // mid_split 默认(十五分界)
 	}
 	const loc = 2 + month - 1;                      // 寅起正月
 	const lifeIdx = ((loc - timeIdx) % 12 + 12) % 12;
@@ -295,7 +301,9 @@ export function deriveSanPan(tianChart, anchor){
 		...tianChart, houses: out,
 		lifeHouseIndex: newMingIdx,
 		wuxingJu: newJu, wuxingJuText: juInfo.juText, ziweiIndex: newZiwei,
-		lifeMaster: LIFE_MASTER[z(newMingIdx)] || tianChart.lifeMaster,
+		// 命主保留基盘值(生年支口径,与 bodyMaster 一致):三盘只重排宫名/局/主星,命主是【生年属性】不随太极点移动;
+		// 若按新命宫支重算会致「切地盘/人盘→命主跳」(与亮度/切开关同类的误改坑)。
+		lifeMaster: tianChart.lifeMaster,
 		sanPan: anchor,
 	};
 }
@@ -311,6 +319,19 @@ function lateZiParams(lateZi){
 // 农历入口:birth + options(timeAlg/晚子时 lateZi/闰月 leapMonth/定年界线 yearBoundary/大限跨度/天马/星集/天伤天使) → 完整本命盘。
 // 农历经 buildLocalBaziResult(lunar.js,共享层零改动);所有传本调整在本紫微引擎内完成,不影响其他技术。
 export function calcZiwei(birth, options = {}){
+	// 晚子时双盘(§1.3,令东来「排两盘取与命主经历相似者」):当日盘(日不换)+次日盘(过23换日)。
+	// 仅 23 时生辰两盘真不同;非 23 时两盘相同→不挂 dualAlt(退化为单盘)。当日盘为 primary。
+	if(options.lateZi === 'dual'){
+		const dayChart = calcZiwei(birth, { ...options, lateZi: 'zi_zheng' });    // 当日盘:日柱不换
+		const nextChart = calcZiwei(birth, { ...options, lateZi: 'zi_chu' });      // 次日盘:过23点换日
+		const differ = dayChart.ziweiIndex !== nextChart.ziweiIndex || dayChart.lifeHouseIndex !== nextChart.lifeHouseIndex;
+		if(differ){
+			dayChart.dualAlt = nextChart;
+			dayChart.dualLabels = ['当日盘', '次日盘'];
+			nextChart.dualLabels = ['当日盘', '次日盘'];
+		}
+		return dayChart;
+	}
 	// 晚子时:若给了 lateZi 则按方案映射;否则沿用显式 after23NewDay/lateZiHourUseNextDay(默认=全局)。
 	const lz = options.lateZi ? lateZiParams(options.lateZi) : { after23NewDay: options.after23NewDay, lateZiHourUseNextDay: options.lateZiHourUseNextDay };
 	const params = {

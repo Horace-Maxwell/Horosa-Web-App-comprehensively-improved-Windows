@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/calendar/HuangLiMain.js b/astrostudyui/src/components/calendar/HuangLiMain.js
-index 6756777..d000867 100644
+index 6756777..2c9afdc 100644
 --- a/astrostudyui/src/components/calendar/HuangLiMain.js
 +++ b/astrostudyui/src/components/calendar/HuangLiMain.js
-@@ -13,12 +13,40 @@ import { buildHuangliDay } from './huangliDay';
+@@ -13,24 +13,46 @@ import { buildHuangliDay } from './huangliDay';
  import { buildHuangliSnapshotText } from './huangliSnapshot';
  import { wutuForDate } from './tongshu/wutu';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -15,6 +15,14 @@ index 6756777..d000867 100644
  const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
  const ZHI_WX = { 子: 'water', 丑: 'earth', 寅: 'wood', 卯: 'wood', 辰: 'earth', 巳: 'fire', 午: 'fire', 未: 'earth', 申: 'metal', 酉: 'metal', 戌: 'earth', 亥: 'water' };
  
+-// 老黄历：中栏复用 NongLi 月历网格（默认不变；本 tab 传 dayExtra 叠加建除色带），
+-// 右栏为完整今日通书日课卡（buildHuangliDay 纯前端）。日课与经纬无关，网格仅借后端 /calendar/month 排布。
+-class HuangLiMain extends Component {
+-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+-	shouldComponentUpdate(nextProps, nextState){
+-		if(nextState !== this.state){
+-			return true;
 +// horosa_kentang_result_cache_v1 —— 逐格日课(buildHuangliDay)/乌兔九星(wutuForDate)缓存**提升到模块级**。
 +// 原为 per-instance:切走黄历页 → 组件卸载 → 整月 ~42 格日课全丢,切回来逐格重算(纯前端但成本在渲染路径上)。
 +// 二者都是**纯函数**:入参只有公历 (y,m,d) 整数,无随机、无「现在时刻」依赖、无副作用 → 同键必同值,
@@ -35,15 +43,22 @@ index 6756777..d000867 100644
 +		const first = map.keys().next().value;
 +		if(first !== undefined){
 +			map.delete(first);
-+		}
-+	}
+ 		}
+-		return !wrapperPropsEqual(this.props, nextProps);
+ 	}
 +	return val;
 +}
-+
- // 老黄历：中栏复用 NongLi 月历网格（默认不变；本 tab 传 dayExtra 叠加建除色带），
- // 右栏为完整今日通书日课卡（buildHuangliDay 纯前端）。日课与经纬无关，网格仅借后端 /calendar/month 排布。
- class HuangLiMain extends Component {
-@@ -44,6 +72,8 @@ class HuangLiMain extends Component {
+ 
++// 老黄历：中栏复用 NongLi 月历网格（默认不变；本 tab 传 dayExtra 叠加建除色带），
++// 右栏为完整今日通书日课卡（buildHuangliDay 纯前端）。日课与经纬无关，网格仅借后端 /calendar/month 排布。
++class HuangLiMain extends Component {
++	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同位置也带一份通用 wrapperPropsEqual 渲染守卫,
++	// 与本类内另一份我方细化守卫在同一类内重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
++	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
+ 	constructor(props) {
+ 		super(props);
+ 		this.state = {
+@@ -44,6 +66,8 @@ class HuangLiMain extends Component {
  			yearPanelOpen: false,
  		};
  		this.huangliCache = {};
@@ -52,7 +67,7 @@ index 6756777..d000867 100644
  
  		this.requestMonth = this.requestMonth.bind(this);
  		this.onTimeChanged = this.onTimeChanged.bind(this);
-@@ -58,14 +88,18 @@ class HuangLiMain extends Component {
+@@ -58,14 +82,18 @@ class HuangLiMain extends Component {
  	// 逐格日课缓存（避免重渲染重算），键=公历 y-m-d。
  	getHuangli(y, m, d) {
  		const key = `${y}-${m}-${d}`;
@@ -72,7 +87,7 @@ index 6756777..d000867 100644
  		if (!(key in this.wutuCache)) { try { this.wutuCache[key] = wutuForDate({ y, m, d }); } catch (e) { this.wutuCache[key] = null; } }
  		return this.wutuCache[key];
  	}
-@@ -93,11 +127,14 @@ class HuangLiMain extends Component {
+@@ -93,11 +121,14 @@ class HuangLiMain extends Component {
  			const days = this.state.days || [];
  			const sel = this.state.selectedYmd;
  			const inMonth = sel && days.some((x)=> x && `${x.birth}`.split(' ')[0] === `${sel.y}-${String(sel.m).padStart(2, '0')}-${String(sel.d).padStart(2, '0')}`);
@@ -88,7 +103,7 @@ index 6756777..d000867 100644
  		});
  	}
  
-@@ -107,14 +144,26 @@ class HuangLiMain extends Component {
+@@ -107,14 +138,26 @@ class HuangLiMain extends Component {
  			selectedYmd: { y, m, d },
  			selectedDay: this.getHuangli(y, m, d),
  			focus,
@@ -116,7 +131,7 @@ index 6756777..d000867 100644
  		this.selectByYmd(this.parseBirth(date.birth));
  	}
  
-@@ -193,6 +242,11 @@ class HuangLiMain extends Component {
+@@ -193,6 +236,11 @@ class HuangLiMain extends Component {
  		}
  	}
  

@@ -1,6 +1,9 @@
 // 量化盘 六大宫框(定局法 WP-2)主面板。
+import { markPanelReady } from '../../utils/perfMark';
+import { sameDisplayList } from '../../utils/chartUpdateGuard';
+import { chartSCUEnabled } from '../../utils/perfFlags';
 // 顶部 XQSelect 六框下拉(子午/上升/太阳/月亮/交点/地球)看一框盘 + XQTable 落宫表 + 「缩略全览」看六小轮。
-// 主框盘复用标准星盘组件 AstroChart(同主占星盘):用所选框的 12 宫 cusps 重写本命盘 houses,各点用本命盘原始
+// 主框盘复用标准星盘设置 AstroChart(同主占星盘):用所选框的 12 宫 cusps 重写本命盘 houses,各点用本命盘原始
 //   objects(全保真:字形/逆行/落座度),画成与主盘一致的 12 宫盘。缩略全览仍用轻量 UranianFrameWheel(六小轮)。
 // 数据:/germany/midpoint(含 houseFrames)+ /chart(取各点黄经/字形)。后端缺 houseFrames 时前端等宫降级合成。
 // showHouseFrames(WP-1 持久化开关)关时本 Tab 在 AstroGermany 里隐藏;此处再兜一层提示。
@@ -13,12 +16,6 @@ import * as AstroText from '../../constants/AstroText';
 import { XQSelect, XQTable } from '../xq-ui';
 import AstroChart from '../astro/AstroChart';
 import UranianFrameWheel from './UranianFrameWheel';
-import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
-import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
-import { schoolToBackendParams } from './UranianSchools';
-import { markPanelReady } from '../../utils/perfMark';
-import { sameDisplayList } from '../../utils/chartUpdateGuard';
-import { chartSCUEnabled } from '../../utils/perfFlags';
 
 // horosa_frames_scu_v1(PERF-R9 Ship 6):六宫框 sCU(与 UranianDialMain 同款全键浅比)。
 // 父容器 AstroGermany 的子页签无冻结层 → 隐藏时也会随父重渲(内含标准盘 AstroChart + 落宫表)。
@@ -42,6 +39,11 @@ function framesPropsEqual(a, b){
 	}
 	return true;
 }
+
+import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
+import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
+import { schoolToBackendParams } from './UranianSchools';
+import { tnpGlyph } from './UranianGlyphs';
 
 // 标准盘所需的「宫头对象」结构:{id:'House1'..'House12', lon, size, sign, signlon}。
 // AstroChartCircle.desposeHouses/getHouse 消费 lon/size/sign/signlon/id;此处从框的 cusps[12] 派生。
@@ -252,10 +254,13 @@ export default class UranianHouseFrames extends Component {
 	}
 
 	glyphCell(id){
-		const tnp = AstroText.isUranian(id) && id !== AstroConst.ARIES_POINT;
-		if (tnp) return <span style={{ fontWeight: 600, letterSpacing: '0.3px' }} title={AstroText.AstroMsgCN[id] || id}>{AstroText.uranianGlyph(id)}</span>;
-		const ch = id === AstroConst.ARIES_POINT ? AstroText.AstroMsg[AstroConst.ARIES] : AstroText.AstroMsg[id];
 		const cn = AstroText.AstroMsgCN[id] || id;
+		// B1 手绘 SVG 字形优先(8 虚星+可选点);缺字形的虚星回退粗体缩写;真实体走全站字形字体。
+		const svg = tnpGlyph(id, 14);
+		if (svg) return <span title={cn} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{svg}<span>{cn}</span></span>;
+		const tnp = AstroText.isUranian(id) && id !== AstroConst.ARIES_POINT;
+		if (tnp) return <span style={{ fontWeight: 600, letterSpacing: '0.3px' }} title={cn}>{AstroText.uranianGlyph(id)}</span>;
+		const ch = id === AstroConst.ARIES_POINT ? AstroText.AstroMsg[AstroConst.ARIES] : AstroText.AstroMsg[id];
 		return <span><span style={{ fontFamily: AstroConst.AstroChartFont, marginRight: 4 }}>{ch || ''}</span>{cn}</span>;
 	}
 
@@ -265,8 +270,16 @@ export default class UranianHouseFrames extends Component {
 		const within = L - si * 30;
 		const d = Math.floor(within);
 		const m = Math.round((within - d) * 60);
-		const sigCh = AstroText.AstroMsg[AstroConst.LIST_SIGNS[si]] || '';
-		return <span><span style={{ fontFamily: AstroConst.AstroChartFont, marginRight: 3 }}>{sigCh}</span>{d}°{m < 10 ? '0' + m : m}′</span>;
+		const sigName = AstroConst.LIST_SIGNS[si];
+		const sigCh = AstroText.AstroMsg[sigName] || '';
+		const sigColor = (AstroConst.AstroColor && AstroConst.AstroColor[sigName]) || 'inherit';
+		return (
+			<span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+				{/* 星座字形固定等宽槽:与中点列表同口径,窄字形不贴数字、整列对齐。 */}
+				<span style={{ fontFamily: AstroConst.AstroChartFont, display: 'inline-block', minWidth: '1.35em', textAlign: 'center', marginRight: 2, color: sigColor }} title={AstroText.AstroMsgCN[sigName] || ''}>{sigCh}</span>
+				{d}°{m < 10 ? '0' + m : m}′
+			</span>
+		);
 	}
 
 	render(){
@@ -281,14 +294,24 @@ export default class UranianHouseFrames extends Component {
 		const columns = [
 			{ title: '点', dataIndex: 'id', key: 'id', render: (id) => this.glyphCell(id) },
 			{ title: '黄经', dataIndex: 'lon', key: 'lon', render: (lon) => this.dms(lon) },
-			{ title: '落宫', dataIndex: 'house', key: 'house', width: 72, render: (h) => <b>{h}</b> },
+			{ title: '落宫', dataIndex: 'house', key: 'house', width: 64, align: 'center', render: (h) => {
+				const n = Number(h);
+				const angular = n === 1 || n === 4 || n === 7 || n === 10;
+				return (
+					<span title={angular ? '角宫(1/4/7/10):最有力位置' : ''}
+						style={{ display: 'inline-block', minWidth: 24, padding: '0 6px', lineHeight: '20px', borderRadius: 10,
+							fontSize: 12, fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+							background: angular ? 'var(--horosa-accent, #b8860b)' : 'var(--horosa-row-alt, rgba(120,120,120,0.12))',
+							color: angular ? '#fff' : 'inherit' }}>{h}</span>
+				);
+			} },
 		];
 
 		const curFrame = this.frameData(frame);
 		const curDeg = curFrame && curFrame.degraded;
 
 		const left = (
-			<div className="horosa-frames-side">
+			<div className="horosa-frames-side" style={{ padding: '8px 6px 8px 12px' }}>
 				<div className="horosa-frames-seg">
 					{/* 框选择器:下拉栏(XQSelect=antd Select)更紧凑;onChange 直接给 value(非 e.target.value)。 */}
 					<XQSelect value={frame} options={FRAME_OPTIONS} onChange={(v) => this.setState({ frame: v })} className="horosa-frames-frame-seg" size="small" style={{ width: '100%' }} />
@@ -306,10 +329,11 @@ export default class UranianHouseFrames extends Component {
 		// 主框标准盘:把所选框 cusps 嫁接到本命盘,复用 AstroChart(同主占星盘)。本命盘缺失则回退轻量小轮。
 		const frameChart = (!overview && curFrame && curFrame.cusps) ? frameChartObjFromNatal(this.props.chart, curFrame.cusps) : null;
 		const chart = overview ? (
-			<div className="horosa-frames-overview-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, width: '100%' }}>
+			<div className="horosa-frames-overview-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, width: '100%' }}>
 				{FRAME_OPTIONS.map((o) => {
 					const f = this.frameData(o.value);
-					const small = Math.max(160, Math.min((this.state.colW || 480) / 3 - 12, 220));
+					// 一行两轮(2×3 竖排):单轮显著放大;宽按半列、高按三行摊,420 封顶防超列。
+					const small = Math.max(200, Math.min((this.state.colW || 480) / 2 - 16, ((this.state.colH || 900) - 84) / 3, 420));
 					return (
 						<div key={o.value} style={{ textAlign: 'center' }}>
 							<div style={{ fontSize: 12, opacity: 0.8, marginBottom: 2 }}>{o.label}{f && f.degraded ? '(近似)' : ''}</div>
@@ -331,8 +355,14 @@ export default class UranianHouseFrames extends Component {
 		);
 
 		const right = (
-			<div className="horosa-frames-table-wrap">
-				<div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{FRAME_LABEL[frame]} · 落宫表</div>
+			<div className="horosa-frames-table-wrap" style={{ padding: '8px 12px 8px 6px' }}>
+				<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+					<span style={{ fontSize: 13, fontWeight: 600 }}>{FRAME_LABEL[frame]} · 落宫表</span>
+					<span className="horosa-panel-count">{this.tableRows(frame).length}</span>
+					<span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--horosa-text-soft, rgba(120,120,120,0.85))' }}>
+						<span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 5, background: 'var(--horosa-accent, #b8860b)', marginRight: 3, verticalAlign: '-1px' }} />角宫
+					</span>
+				</div>
 				<XQTable
 					columns={columns}
 					dataSource={this.tableRows(frame)}

@@ -36,7 +36,7 @@ import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/st
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
-import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 
@@ -328,7 +328,10 @@ function buildSnapshotText(pan){
 
 // 演禽(xianqin)/ 策天飞星(cetian) AI 快照(无头):按出生 fields 经 ken 后端起盘 → buildSnapshotText。
 // aiAnalysisContext 复算用;无 pan 或后端不可达即返 '' → 挂载显示「缺失」而非占位语。
-export async function buildKinAstroSnapshotForFields(fields, serviceKey){
+// optionsOverride:挂载「每技法设置」下发的排盘选项(如策天 method/lunarMode/starOrder/show*)。
+// 🔴 曾无此参 → cetian 的 8 个齿轮项在挂载链上全是死开关:UI 提示「已按新设置重算」、
+// 卡片打 regenerated 绿标,快照却逐字节不变(组件 state 只在页面内生效,挂载走本函数)。
+export async function buildKinAstroSnapshotForFields(fields, serviceKey, optionsOverride){
 	if(!serviceKey){
 		return '';
 	}
@@ -336,15 +339,45 @@ export async function buildKinAstroSnapshotForFields(fields, serviceKey){
 	if(!payload){
 		return '';
 	}
+	if(optionsOverride && typeof optionsOverride === 'object'){
+		Object.keys(optionsOverride).forEach((k)=>{
+			const v = optionsOverride[k];
+			if(v !== undefined && v !== null && v !== ''){ payload[k] = v; }
+		});
+	}
 	let text = '';
+	let panForFramework = null;
 	try{
 		const pan = await postKinAstro(serviceKey, payload);
 		if(pan){
+			panForFramework = pan;
 			const t = buildSnapshotText(pan);
 			text = (t && t !== '暂无 kinastro 数据') ? t : '';
 		}
 	}catch(e){
 		text = '';
+	}
+	// 铁板:追加 [框架推演] 段(页面 saveKinAstroAISnapshots 恒带此段,无头曾整段缺失 → 两侧快照不等长)。
+	// 口径:齿轮 tiebanSchool/tiebanKeSystem/tiebanKe(缺省 south/qing8/1 = 页面 state 默认),gender 随 optionsOverride。
+	if(serviceKey === 'tieban' && text){
+		try{
+			const ov = optionsOverride && typeof optionsOverride === 'object' ? optionsOverride : {};
+			const fwOf = (pan)=>{
+				const pillars = (pan && pan.pillars) || [];
+				const gz = (k, i)=>{ const byKey = pillars.find((pp)=>pp.key === k); return (byKey && byKey.ganzhi) || (pillars[i] && pillars[i].ganzhi) || ''; };
+				const fourPillars = { year: gz('year', 0), month: gz('month', 1), day: gz('day', 2), hour: gz('hour', 3) };
+				const birthYear = parseYearFromDateStr(`${(pan && pan.dateStr) || ''}`) || 0;
+				return buildTiebanFramework(fourPillars, {
+					school: ov.tiebanSchool || 'south',
+					keSystem: ov.tiebanKeSystem || 'qing8',
+					ke: ov.tiebanKe !== undefined && ov.tiebanKe !== null && ov.tiebanKe !== '' ? ov.tiebanKe : 1,
+					gender: ov.gender !== undefined ? ov.gender : '1',
+					birthYear,
+				});
+			};
+			const suffix = panForFramework ? (buildTiebanFrameworkSnapshot(fwOf(panForFramework)) || '') : '';
+			if(suffix){ text = `${text}\n\n${suffix}`; }
+		}catch(e){ /* 框架段失败不拖主快照 */ }
 	}
 	// 演禽:追加右栏「演法」内容(起禽四禽/择日/占卜/投胎 + 当前流派),纯前端,后端不可达也出。
 	if(serviceKey === 'xianqin'){
@@ -384,21 +417,25 @@ function setRuntimeKinAstroTechnique(moduleKey, serviceKey){
 	}
 }
 
-function saveKinAstroAISnapshots(config, pan, extraSnapshot){
+function saveKinAstroAISnapshots(config, pan, extraSnapshot, moduleKeyOverride){
 	if(!config || !pan){
 		return;
 	}
+	// 🔴 moduleKey 须随宿主:xianqin 配置静态写 'yanqin'(独立演禽门户口径),但同一配置被
+	// 「命·其他」复用 —— 曾恒写 yanqin → mingother 槽位停在上一技法,AI 挂载/导出在
+	// 命·其他页看演禽却取到策天旧盘。宿主传 hostModuleKey 即写对槽位。
+	const moduleKey = moduleKeyOverride || config.moduleKey;
 	const base = buildSnapshotText(pan);
 	const content = extraSnapshot ? `${base}\n\n${extraSnapshot}` : base;
 	const meta = {
 		source: 'kentang2017/kinastro',
 		serviceKey: config.serviceKey,
 		technique: config.techniqueLabel,
-		moduleKey: config.moduleKey,
+		moduleKey,
 		sections: (pan.sections || []).map((section)=>section.title).filter(Boolean),
 	};
 	saveModuleAISnapshot(kinAstroSnapshotKey(config.serviceKey), content, meta);
-	saveModuleAISnapshot(config.moduleKey, content, meta);
+	saveModuleAISnapshot(moduleKey, content, meta);
 }
 
 function sectionByTitle(sections, names){
@@ -797,6 +834,28 @@ function buildKinAstroZiWeiChart(pan, serviceKey){
 	return chart;
 }
 
+// ── 一掌经·流派预设映射（中性键；每套一次 setState 批量套用全部开关）──
+// 闰月细则一律 half（十五折半＝改造前口径，零回归）；夜半折半为可手选变体，不入预设。
+export const YZJ_PRESET_LABELS = { guben: '古本正统', michuan: '秘传口诀', define: '定义版', chuangong: '串宫压运', tongxing: '程序通行', custom: '自定义' };
+const YZJ_PRESET_ORDER = ['guben', 'michuan', 'define', 'chuangong', 'tongxing'];
+// 预设各开关取值（键＝state 后缀去 yizhangjing 前缀的小写首字，见 YZJ_PRESET_STATEMAP）
+export const YZJ_PRESETS = {
+	guben:     { Shunni: 'menShunNvNi',  MingGong: 'shuZhiMao', DayunLen: '10', StartAge: 'age1', Annual: 'xiaoxian', XiaoStart: 'ri',  XiaoDir: 'always', FlowSet: 'A', LeapRule: 'half', ZaoZi: false, Tongxian: true,  DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'gui',  GradeSet: 'standard', Chongfan: 'alpha' },
+	michuan:   { Shunni: 'yangNanYinNv', MingGong: 'shiShang',  DayunLen: '7',  StartAge: 'mi',   Annual: 'xiaoxian', XiaoStart: 'ri',  XiaoDir: 'chart',  FlowSet: 'A', LeapRule: 'half', ZaoZi: false, Tongxian: true,  DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'gui',  GradeSet: 'standard', Chongfan: 'alpha' },
+	define:    { Shunni: 'menShunNvNi',  MingGong: 'shuZhiMao', DayunLen: '10', StartAge: 'age1', Annual: 'liunian',  XiaoStart: 'yue', XiaoDir: 'chart',  FlowSet: 'A', LeapRule: 'half', ZaoZi: true,  Tongxian: false, DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'edao', GradeSet: 'standard', Chongfan: 'beta'  },
+	chuangong: { Shunni: 'menShunNvNi',  MingGong: 'shuZhiMao', DayunLen: '10', StartAge: 'age1', Annual: 'liunian',  XiaoStart: 'ri',  XiaoDir: 'chart',  FlowSet: 'B', LeapRule: 'half', ZaoZi: false, Tongxian: false, DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'gui',  GradeSet: 'standard', Chongfan: 'alpha' },
+	tongxing:  { Shunni: 'menShunNvNi',  MingGong: 'shuZhiMao', DayunLen: '10', StartAge: 'age1', Annual: 'xiaoxian', XiaoStart: 'ri',  XiaoDir: 'chart',  FlowSet: 'A', LeapRule: 'half', ZaoZi: false, Tongxian: false, DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'gui',  GradeSet: 'standard', Chongfan: 'alpha' },
+};
+// 预设字段 → state 键（前缀 yizhangjing）
+export const YZJ_PRESET_STATEMAP = ['Shunni', 'MingGong', 'DayunLen', 'StartAge', 'Annual', 'XiaoStart', 'XiaoDir', 'FlowSet', 'LeapRule', 'ZaoZi', 'Tongxian', 'DingYue', 'StarNaming', 'DaoTerm', 'GradeSet', 'Chongfan'];
+// 预设字段 → buildYizhangjingOpts 输出键（供哨兵/测试核对预设→引擎口径一致）
+export const YZJ_STATE_TO_OPT = {
+	Shunni: 'shunniRule', MingGong: 'mingGongMethod', DayunLen: 'dayunLength', StartAge: 'dayunStartAge',
+	Annual: 'annualMethod', XiaoStart: 'xiaoxianStart', XiaoDir: 'xiaoxianDir', FlowSet: 'flowShenSet',
+	LeapRule: 'leapRule', ZaoZi: 'zaoZiAdjust', DingYue: 'dingYue', StarNaming: 'starNaming',
+	DaoTerm: 'daoTerm', GradeSet: 'gradeSet', Chongfan: 'chongfanKou',
+};
+
 class KinAstroMain extends Component{
 	constructor(props){
 		super(props);
@@ -887,6 +946,7 @@ class KinAstroMain extends Component{
 				heluoZhiZun: true,             // 三至尊卦【分歧E】坎屯蹇 实现★ / 忽略
 				heluoPureGanKun: 'current',    // 纯乾坤落爻【分歧F】current★ / alt 抄本异
 				heluoLiunianStep2: 'ying',     // 流年第二步【分歧H】ying 应爻法★ / sequential 顺行
+				heluoLiuYueMode: 'ying',       // 流月起月【分歧】ying 应爻校准★(古籍实证例) / legacy 现行序
 				heluoHuangdiOffset: '2697',    // 纪年基准【分歧J】黄帝纪元差,公历+此=黄帝年(默认 2697)
 				heluoShowLiuRi: true,          // 流日显示(展开流月后是否列 30 日)
 				zhengchuanSchool: 'tieban',    // 流派:铁板神数★ / 邵子神数 / 大定神数
@@ -908,14 +968,23 @@ class KinAstroMain extends Component{
 				zhengchuanGong: '乾',          // 八宫(心易·八刻分命)★
 				zhengchuanXqZhi: '子',         // 性情项地支(心易)★
 				zhengchuanXqYushu: '1',        // 性情项余数 1..12(心易)★
+				yizhangjingPreset: 'michuan',       // 流派预设:秘传口诀★（默认全套开关＝下方各★）
 				yizhangjingShunni: 'yangNanYinNv',  // 顺逆规则:阳男阴女★ / 男顺女逆
 				yizhangjingMingGong: 'shiShang',    // 命宫定法:时上起命★ / 数至卯
 				yizhangjingDayunLen: '7',           // 大限运长:7年★ / 10年
 				yizhangjingStartAge: 'mi',          // 大限起运岁:秘传★ / 1岁连续
 				yizhangjingXiaoStart: 'ri',         // 小限起宫:日柱宫★ / 月柱宫
+				yizhangjingXiaoDir: 'chart',        // 小限顺逆:随盘向★ / 一律顺行
+				yizhangjingAnnual: 'xiaoxian',      // 逐年法:小限★ / 流年十二神（互斥）
 				yizhangjingFlowSet: 'A',            // 流年十二神:甲组★ / 乙 / 丙
+				yizhangjingTongxian: true,          // 童限:开★ / 关（仅大限起运>1岁有内容）
 				yizhangjingChongfan: 'alpha',       // 重犯口诀:常见组★ / 异传组
 				yizhangjingDingYue: 'nongli',       // 定月法:农历月★ / 节气月
+				yizhangjingLeapRule: 'half',        // 闰月细则:十五折半★ / 夜半折半（默认十五折半＝改造前口径,零回归）
+				yizhangjingZaoZi: false,            // 早子调宫:关★（仅生时=子时生效）
+				yizhangjingStarNaming: 'A',         // 星名系统:A主流★ / B异名 / C改名（纯显示层,不改盘）
+				yizhangjingDaoTerm: 'gui',          // 六道术语:鬼道★ / 饿鬼道（纯显示层）
+				yizhangjingGradeSet: 'standard',    // 品级分类:主流★ / 变体(天驿归凶,改九品/命格)
 				yizhangjingShensha: false,          // 神煞合参层(默认关)
 			};
 		this.unmounted = false;
@@ -926,6 +995,7 @@ class KinAstroMain extends Component{
 		// 重复触发 fetchPan;requestSeq 只挡「结果应用」,这里挡「重复网络请求」。输入变 → 签名变 → 不跳过。
 		this._inFlightSig = null;
 		this.onTimeChanged = this.onTimeChanged.bind(this);
+		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.clickPlot = this.clickPlot.bind(this);
 		this.fetchPan = this.fetchPan.bind(this);
@@ -959,10 +1029,11 @@ class KinAstroMain extends Component{
 	// horosa_prefetch_registry_v1(PERF-R10 P6):数算/其他/演禽 的步进预取登记。
 	// 「已步进 fields」走与真点完全相同的 buildPayload+postKinAstro 路径(缓存键
 	// serviceKey|payload 逐字节同键);native 技法(参评/河洛/正传/一掌经,本地引擎)
-	// 与构参失败一律返回 [](零网络)。登记键 = 页签 moduleKey;换轨跨模块键
-	// (mingother↔yanqin)时必须迁移登记,否则新键查不到预取器。
+	// 与构参失败一律返回 [](零网络)。登记键 = 页签归属键(v3.6.0 起随上游 hostModuleKey
+	// 语义:被宿主页嵌用时按宿主键登记,与 setRuntimeKinAstroTechnique/markPanelReady 同源);
+	// 换轨跨模块键(mingother↔yanqin)时必须迁移登记,否则新键查不到预取器。
 	_syncStepPrefetcher(){
-		const key = this.config.moduleKey;
+		const key = this.props.hostModuleKey || this.config.moduleKey;
 		if(this._stepPrefetchKey === key && this._stepPrefetcher){
 			return;
 		}
@@ -990,7 +1061,7 @@ class KinAstroMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
-		setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+		setRuntimeKinAstroTechnique(this.props.hostModuleKey || this.config.moduleKey, this.config.serviceKey);
 		this._syncStepPrefetcher();
 		// fields→state 首次同步（性别+农历锚点）；此后 didUpdate 用同一 helper 做标记式重同步，
 		// 载入命例（fields 变）时性别/锚点必随记录刷新（修透传断链），手动切换不被无关变化冲掉。
@@ -1019,7 +1090,7 @@ class KinAstroMain extends Component{
 	componentDidUpdate(prevProps, prevState){
 		if(prevProps.technique !== this.props.technique){
 			this.config = TECHNIQUE_CONFIG[this.props.technique || 'shaozi'] || TECHNIQUE_CONFIG.shaozi;
-			setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+			setRuntimeKinAstroTechnique(this.props.hostModuleKey || this.config.moduleKey, this.config.serviceKey);
 			this._syncStepPrefetcher();
 			this.requestSeq += 1;
 			this.setState({
@@ -1032,7 +1103,7 @@ class KinAstroMain extends Component{
 			}, ()=>this.fetchPan(this.props.fields));
 			return;
 		}
-		setRuntimeKinAstroTechnique(this.config.moduleKey, this.config.serviceKey);
+		setRuntimeKinAstroTechnique(this.props.hostModuleKey || this.config.moduleKey, this.config.serviceKey);
 		if(prevProps.fields !== this.props.fields && this.props.fields){
 			// 🔴 载入命例（fields 变化）必须重同步 fields→state 拷贝（性别/农历锚点），否则 buildPayload
 			// 与下传技法的 gender 停留旧值（透传断链 L2）。标记式检测：手动切换不被无关变化冲掉。
@@ -1168,26 +1239,48 @@ class KinAstroMain extends Component{
 			this.prefetchStepTimer = setTimeout(()=>{
 				this.prefetchStepTimer = null;
 				if(this.unmounted){ return; }
-				try{
-					const dt2 = dt.clone();
-					const unit = stepHint.unit || 'm';
-					if(unit === 'y'){ dt2.addYear(stepHint.dir); }
-					else if(unit === 'M'){ dt2.addMonth(stepHint.dir); }
-					else if(unit === 'd'){ dt2.addDate(stepHint.dir); }
-					else if(unit === 'h'){ dt2.addHour(stepHint.dir); }
-					else { dt2.addMinute(4 * stepHint.dir); }
-					const flds2 = {
-						...(this.props.fields || {}),
-						date: { value: dt2.clone() },
-						time: { value: dt2.clone() },
-						ad: { value: dt2.ad },
-						zone: { value: dt2.zone },
-					};
-					const payload = this.buildPayload(flds2);
-					if(!payload){ return; }
-					postKinAstro(this.config.serviceKey, payload).catch(()=>null);
-				}catch(e){ /* 预取失败无害 */ }
+				this._prefetchPanAtStep(dt, stepHint.unit || 'm', stepHint.dir);
 			}, 150);
+		}catch(e){ /* 预取失败无害 */ }
+	}
+
+	// 取数内核:以 dt 为基按 unit 走 1 步×dir,buildPayload 单源构包预取该时刻 pan。
+	// settle 链(+1 同向)与选步长(±1 双向)共用,防两处步进加法漂移。
+	_prefetchPanAtStep(dt, unit, dir){
+		try{
+			const dt2 = dt.clone();
+			if(unit === 'y'){ dt2.addYear(dir); }
+			else if(unit === 'M'){ dt2.addMonth(dir); }
+			else if(unit === 'd'){ dt2.addDate(dir); }
+			else if(unit === 'h'){ dt2.addHour(dir); }
+			else { dt2.addMinute(4 * dir); }
+			const flds2 = {
+				...(this.props.fields || {}),
+				date: { value: dt2.clone() },
+				time: { value: dt2.clone() },
+				ad: { value: dt2.ad },
+				zone: { value: dt2.zone },
+			};
+			const payload = this.buildPayload(flds2);
+			if(!payload){ return; }
+			postKinAstro(this.config.serviceKey, payload).catch(()=>null);
+		}catch(e){ /* 预取失败无害 */ }
+	}
+
+	// [R3-A1 下放] 选步长即预取:/chart 面由全局 handler 罩(时间走 store),pan 面(本页主耗时)
+	// 此处以当前时间 ±1 双向预热 —— 选完步长第一下步进 pan 即命中。同 unit 5s 去重。
+	prefetchStepSelect(unit){
+		try{
+			if(!stepPrefetchEnabled() || !kentangCacheEnabled() || !stepSelectPrefetchEnabled() || !unit){ return; }
+			if(this.config && this.config.native){ return; }
+			const now = Date.now();
+			if(this._lastStepSel && this._lastStepSel.unit === unit && (now - this._lastStepSel.at) < 5000){ return; }
+			this._lastStepSel = { unit, at: now };
+			const flds = this.getTimeFieldsFromSelector(this.props.fields) || this.props.fields || {};
+			const dt = flds.date && flds.date.value;
+			if(!dt || typeof dt.clone !== 'function'){ return; }
+			this._prefetchPanAtStep(dt, unit, 1);
+			this._prefetchPanAtStep(dt, unit, -1);
 		}catch(e){ /* 预取失败无害 */ }
 	}
 
@@ -1334,7 +1427,7 @@ class KinAstroMain extends Component{
 			// currentTab:shusuan/mingother/yanqin),不是 serviceKey('shaozi' 等)——
 			// perfMark 的归属校验按 currentTab 配对,键不一致时样本被静默丢弃(验收恒零样本)。
 			this.setState({ loading: false, pan: null }, ()=>{
-				markPanelReady(this.config.moduleKey);
+				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
 			});
 			return;
 		}
@@ -1364,9 +1457,9 @@ class KinAstroMain extends Component{
 				// horosa_panel_ready_v1:这一次 setState 才是「盘落定」——中栏盘面与右栏各段
 				// 都由 pan 派生,故本回调即「点击 → 中右栏画完」的终点。必须是首行:放在
 				// saveKinAstroAISnapshots 之后会把快照序列化的耗时算进交互预算里。
-				// 键契约同上(horosa_panel_ready_attribution_key_v1):moduleKey 而非 serviceKey。
-				markPanelReady(this.config.moduleKey);
-				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan));
+				// 键契约(horosa_panel_ready_attribution_key_v1):页签归属键(hostModuleKey 优先)。
+				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
+				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan), this.props.hostModuleKey);
 				// horosa_step_prefetch_arm_v1(b′):换轨/改选项后的 settle 也按当前技法武装 ±N
 				//(fetchByFields settle 只覆盖时间派发路径;/chart 不在本页步进路径上)。
 				try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
@@ -1527,6 +1620,7 @@ class KinAstroMain extends Component{
 						value={datetm}
 						timeText={formatSpaceTime(fields, '---- -- -- --:--:--')}
 						onTimeChange={this.onTimeChanged}
+						onStepSelect={this.prefetchStepSelect}
 						onGeoChange={this.changeGeo}
 						timeHook={this.timeHook}
 						showLocation={this.config.serviceKey === 'cetian'}
@@ -1669,6 +1763,13 @@ class KinAstroMain extends Component{
 											<Option value="sequential">顺行</Option>
 										</Select>
 									</label>
+									<label className="horosa-huangji-select-field">
+										<span>流月起月</span>
+										<Select value={this.state.heluoLiuYueMode} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoLiuYueMode: value })}>
+											<Option value="ying">应爻校准</Option>
+											<Option value="legacy">现行序</Option>
+										</Select>
+									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 										<span>三至尊卦</span>
 										<Switch checked={this.state.heluoZhiZun} onChange={(v)=>this.setState({ heluoZhiZun: v })} />
@@ -1801,6 +1902,19 @@ class KinAstroMain extends Component{
 							{this.config.serviceKey === 'yizhangjing' ? (
 								<>
 									<label className="horosa-huangji-select-field">
+										<span>流派预设</span>
+										<Select value={this.yzjDeviationCount() > 0 ? 'custom' : this.state.yizhangjingPreset} dropdownMatchSelectWidth={false} onChange={(value)=>{ if(value !== 'custom') this.applyYzjPreset(value); }}>
+											{YZJ_PRESET_ORDER.map((k)=><Option key={k} value={k}>{YZJ_PRESET_LABELS[k]}{k === 'michuan' ? '★' : ''}</Option>)}
+											{this.yzjDeviationCount() > 0 ? <Option value="custom">自定义</Option> : null}
+										</Select>
+									</label>
+									{this.yzjDeviationCount() > 0 ? (
+										<div className="horosa-yizhangjing-devrow">
+											<span className="horosa-yizhangjing-devbadge">已改 {this.yzjDeviationCount()} 项</span>
+											<button type="button" className="horosa-yizhangjing-restorebtn" onClick={()=>this.applyYzjPreset(this.state.yizhangjingPreset)}>还原「{YZJ_PRESET_LABELS[this.state.yizhangjingPreset]}」</button>
+										</div>
+									) : null}
+									<label className="horosa-huangji-select-field">
 										<span>顺逆规则</span>
 										<Select value={this.state.yizhangjingShunni} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingShunni: value })}>
 											<Option value="yangNanYinNv">阳男阴女</Option>
@@ -1812,6 +1926,42 @@ class KinAstroMain extends Component{
 										<Select value={this.state.yizhangjingMingGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingMingGong: value })}>
 											<Option value="shiShang">时上起命</Option>
 											<Option value="shuZhiMao">数至卯</Option>
+										</Select>
+									</label>
+									<label className="horosa-huangji-select-field">
+										<span>定月法</span>
+										<Select value={this.state.yizhangjingDingYue} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingDingYue: value })}>
+											<Option value="nongli">农历月</Option>
+											<Option value="jieqi">节气月</Option>
+										</Select>
+									</label>
+									<label className="horosa-huangji-select-field">
+										<span>闰月细则</span>
+										<Select value={this.state.yizhangjingLeapRule} disabled={this.state.yizhangjingDingYue === 'jieqi'} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingLeapRule: value })}>
+											<Option value="half">十五折半</Option>
+											<Option value="midnight">夜半折半</Option>
+										</Select>
+									</label>
+									<label className="horosa-huangji-select-field">
+										<span>星名系统</span>
+										<Select value={this.state.yizhangjingStarNaming} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingStarNaming: value })}>
+											<Option value="A">A·主流</Option>
+											<Option value="B">B·异名</Option>
+											<Option value="C">C·改名</Option>
+										</Select>
+									</label>
+									<label className="horosa-huangji-select-field">
+										<span>六道术语</span>
+										<Select value={this.state.yizhangjingDaoTerm} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingDaoTerm: value })}>
+											<Option value="gui">鬼道·修罗道</Option>
+											<Option value="edao">饿鬼道·阿修罗道</Option>
+										</Select>
+									</label>
+									<label className="horosa-huangji-select-field">
+										<span>品级分类</span>
+										<Select value={this.state.yizhangjingGradeSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingGradeSet: value })}>
+											<Option value="standard">主流</Option>
+											<Option value="variant">变体·天驿归凶</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
@@ -1829,20 +1979,40 @@ class KinAstroMain extends Component{
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
-										<span>小限起宫</span>
-										<Select value={this.state.yizhangjingXiaoStart} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingXiaoStart: value })}>
-											<Option value="ri">日柱宫</Option>
-											<Option value="yue">月柱宫</Option>
+										<span>逐年法</span>
+										<Select value={this.state.yizhangjingAnnual} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingAnnual: value })}>
+											<Option value="xiaoxian">小限</Option>
+											<Option value="liunian">流年十二神</Option>
 										</Select>
 									</label>
-									<label className="horosa-huangji-select-field">
-										<span>流年十二神</span>
-										<Select value={this.state.yizhangjingFlowSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingFlowSet: value })}>
-											<Option value="A">甲组·太阳系</Option>
-											<Option value="B">乙组·六合系</Option>
-											<Option value="C">丙组·岁破系</Option>
-										</Select>
-									</label>
+									{this.state.yizhangjingAnnual !== 'liunian' ? (
+																		<label className="horosa-huangji-select-field">
+																			<span>小限起宫</span>
+																			<Select value={this.state.yizhangjingXiaoStart} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingXiaoStart: value })}>
+																				<Option value="ri">日柱宫</Option>
+																				<Option value="yue">月柱宫</Option>
+																			</Select>
+																		</label>
+									) : null}
+									{this.state.yizhangjingAnnual !== 'liunian' ? (
+																		<label className="horosa-huangji-select-field">
+																			<span>小限顺逆</span>
+																			<Select value={this.state.yizhangjingXiaoDir} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingXiaoDir: value })}>
+																				<Option value="chart">随盘向</Option>
+																				<Option value="always">一律顺行</Option>
+																			</Select>
+																		</label>
+									) : null}
+									{this.state.yizhangjingAnnual !== 'xiaoxian' ? (
+																		<label className="horosa-huangji-select-field">
+																			<span>流年十二神</span>
+																			<Select value={this.state.yizhangjingFlowSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingFlowSet: value })}>
+																				<Option value="A">甲组·太阳系</Option>
+																				<Option value="B">乙组·六合系</Option>
+																				<Option value="C">丙组·岁破系</Option>
+																			</Select>
+																		</label>
+									) : null}
 									<label className="horosa-huangji-select-field">
 										<span>重犯口诀</span>
 										<Select value={this.state.yizhangjingChongfan} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingChongfan: value })}>
@@ -1850,18 +2020,19 @@ class KinAstroMain extends Component{
 											<Option value="beta">异传组</Option>
 										</Select>
 									</label>
-									<label className="horosa-huangji-select-field">
-										<span>定月法</span>
-										<Select value={this.state.yizhangjingDingYue} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingDingYue: value })}>
-											<Option value="nongli">农历月</Option>
-											<Option value="jieqi">节气月</Option>
-										</Select>
+									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
+										<span>早子调宫</span>
+										<Switch checked={this.state.yizhangjingZaoZi} onChange={(v)=>this.setState({ yizhangjingZaoZi: v })} />
 									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
-										<span>神煞合参层</span>
+										<span>童限</span>
+										<Switch checked={this.state.yizhangjingTongxian} onChange={(v)=>this.setState({ yizhangjingTongxian: v })} />
+									</label>
+									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
+										<span>神煞合参</span>
 										<Switch checked={this.state.yizhangjingShensha} onChange={(v)=>this.setState({ yizhangjingShensha: v })} />
 									</label>
-									<div className="horosa-cetian-settings-hint">默认「秘传」（阳男阴女·大限7年·秘传起运·时上起命·日柱小限·甲组流年）。改任一开关即时重排四柱四宫、命宫、大限、流年与断语。神煞为合参层（非原生），默认关。</div>
+									<div className="horosa-yizhangjing-opthelp">各开关取值与差别详见右上「帮助」。</div>
 								</>
 							) : null}
 							{this.config.serviceKey === 'tieban' ? (
@@ -2949,6 +3120,7 @@ class KinAstroMain extends Component{
 			zhiZunEnabled: this.state.heluoZhiZun,
 			pureGanKunVariant: this.state.heluoPureGanKun,
 			liunianStep2: this.state.heluoLiunianStep2,
+			liuYueMode: this.state.heluoLiuYueMode,
 			huangdiOffset: parseInt(this.state.heluoHuangdiOffset, 10) || 2697,
 			showLiuRi: this.state.heluoShowLiuRi,
 		});
@@ -3044,6 +3216,21 @@ class KinAstroMain extends Component{
 		});
 	}
 
+	// 预设批量套用（一次 setState 避免多次重渲）
+	applyYzjPreset(key){
+		const p = YZJ_PRESETS[key];
+		if(!p){ this.setState({ yizhangjingPreset: key }); return; }
+		const patch = { yizhangjingPreset: key };
+		YZJ_PRESET_STATEMAP.forEach((f) => { patch[`yizhangjing${f}`] = p[f]; });
+		this.setState(patch);
+	}
+	// 当前各开关相对所选预设的偏离项数（>0 → 显「自定义·已改N项」+还原）
+	yzjDeviationCount(){
+		const p = YZJ_PRESETS[this.state.yizhangjingPreset];
+		if(!p) return 0;
+		return YZJ_PRESET_STATEMAP.filter((f) => this.state[`yizhangjing${f}`] !== p[f]).length;
+	}
+
 	buildYizhangjingOpts(){
 		return this.memoOpts('yizhangjing', {
 			shunniRule: this.state.yizhangjingShunni,
@@ -3051,10 +3238,20 @@ class KinAstroMain extends Component{
 			dayunLength: parseInt(this.state.yizhangjingDayunLen, 10) || 7,
 			dayunStartAge: this.state.yizhangjingStartAge,
 			xiaoxianStart: this.state.yizhangjingXiaoStart,
+			xiaoxianDir: this.state.yizhangjingXiaoDir,
+			annualMethod: this.state.yizhangjingAnnual,
 			flowShenSet: this.state.yizhangjingFlowSet,
 			chongfanKou: this.state.yizhangjingChongfan,
 			dingYue: this.state.yizhangjingDingYue,
+			leapRule: this.state.yizhangjingLeapRule,
+			zaoZiAdjust: this.state.yizhangjingZaoZi,
+			starNaming: this.state.yizhangjingStarNaming,
+			daoTerm: this.state.yizhangjingDaoTerm,
+			gradeSet: this.state.yizhangjingGradeSet,
 			shenshaLayer: this.state.yizhangjingShensha,
+			// 显示层：预设名（题头徽）与童限显示开关；供 UI 标注，不改盘算
+			yizhangjingPresetName: this.yzjDeviationCount() > 0 ? '自定义' : (YZJ_PRESET_LABELS[this.state.yizhangjingPreset] || '自定义'),
+			tongxianShow: this.state.yizhangjingTongxian,
 		});
 	}
 
@@ -3306,7 +3503,7 @@ class KinAstroMain extends Component{
 								) : item.key === 'settings' ? (
 									<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
 								) : item.key === 'yanfa' ? (
-									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} /></div>
+									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
 								) : item.key === 'framework' ? (
 									<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
 								) : (

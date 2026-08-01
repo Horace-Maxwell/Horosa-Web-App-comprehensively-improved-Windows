@@ -58,4 +58,27 @@ describe('太乙 流派覆盖层(§33/§44)', () => {
 	test('normalizeTaiyiSchool 补全默认', () => {
 		expect(normalizeTaiyiSchool({ jishen: '顺' })).toEqual({ ...DEFAULT_TAIYI_SCHOOL, jishen: '顺' });
 	});
+	// —— D2 始击坐标(实验·存疑待源) ——
+	test('始击坐标=九宫:始击间神投影至后一正宫 + 客算几何重算 + 存疑徽标', () => {
+		const p = { ...basePan(), sf: '寅' };   // 寅=间神(idx3)→后一正宫卯(idx4)
+		const r = applyTaiyiSchool(p, { shijiCoord: '九宫' });
+		expect(r.pan.sf).toBe('卯');
+		expect(r.overrides.has('sf')).toBe(true);
+		expect(r.overrides.has('awayCal')).toBe(true);   // 客算连带几何重算
+		expect(r.pan._shijiExperimental).toBe(true);
+		expect(r.pan._schoolNote).toContain('始击坐标');
+		expect(r.pan._schoolNote).toContain('存疑');
+	});
+	test('始击坐标=十六神:始击留环位不动、客算仍几何重算', () => {
+		const p = { ...basePan(), sf: '寅' };
+		const r = applyTaiyiSchool(p, { shijiCoord: '十六神' });
+		expect(r.pan.sf).toBe('寅');                       // 十六神坐标保留几何位
+		expect(r.overrides.has('awayCal')).toBe(true);
+		expect(r.pan._shijiExperimental).toBe(true);
+	});
+	test('始击坐标=默认:空操作(不标实验)', () => {
+		const r = applyTaiyiSchool(basePan(), { shijiCoord: 'default' });
+		expect(r.pan._shijiExperimental).toBeUndefined();
+		expect(isDefaultSchool({ shijiCoord: 'default' })).toBe(true);
+	});
 });

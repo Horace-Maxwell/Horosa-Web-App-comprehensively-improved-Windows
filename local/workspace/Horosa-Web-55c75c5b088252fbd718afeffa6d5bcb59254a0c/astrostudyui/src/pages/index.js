@@ -20,10 +20,10 @@ import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
 
 // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
 // 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
-// WS-N3(2026-07-16):悬停预取注册表迁至 utils/navPreload.js —— 模块选择器/快捷坞等公共组件
+// 悬停预取注册表迁至 utils/navPreload.js —— 模块选择器/快捷坞等公共组件
 // 也要消费,从 pages 导入会成 components ← pages 循环依赖;此处声明时登记,消费方 import util。
 const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
-// order: 1=hot(高频技法,先预载) 1.5=城市大库(见下) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
+// order: 1=hot(高频技法,先预载) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
 function lazyPreloadable(factory, opts = {}){
 	// [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
 	// React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
@@ -75,7 +75,9 @@ function startIdlePreload(){
 		// 空闲档,不与用户交互抢主线程(交互期无空闲拍=天然让路)。
 		const fs = queue.splice(0, 2);
 		if(!fs.length) return;
-		Promise.all(fs.map((f)=>Promise.resolve().then(f).catch(()=>{}))).finally(()=>{
+		// 🔴 预载失败绝不全静默:模块顶层炸(如 strip 悬空引用)首爆就在这里,吞掉后 webpack
+		// 中毒缓存会让后续点击伪装成「Lazy chunk resolved empty」,真因极难排查(v3.6.0 实案)。
+		Promise.all(fs.map((f)=>Promise.resolve().then(f).catch((e)=>{ try{ console.warn('[lazy-preload] 技法模块预载失败(点击该技法时会再报):', e); }catch(_){ } }))).finally(()=>{
 			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
 				window.requestIdleCallback(next, { timeout: 3000 });
 			}else{
@@ -124,6 +126,7 @@ import ChartsGps from '../components/user/ChartsGps';
 // [B6] 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
 const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
+import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS } from '../constants/SubTabRegistry';
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
 const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
@@ -133,7 +136,7 @@ const CalendarMain = lazyPreloadable(() => import('../components/calendar/Calend
 const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
 const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
 const AIAnalysisMain = lazyPreloadable(() => import('../components/aianalysis/AIAnalysisMain'), { order: 1, navKey: 'aianalysis' });
-// WS-N3:此前四项无 navKey → 不在悬停预取注册表,主导航/抽屉/dock 掠过恒 no-op,只能等
+// 此前四项无 navKey → 不在悬停预取注册表,主导航/抽屉/dock 掠过恒 no-op,只能等
 // order 2/3 的 idle 队列殿后 —— 补 navKey(与 drawerNavigationPages/openDrawer 的 key 同名)。
 const BookMain = lazyPreloadable(() => import('../components/reader/BookMain'), { order: 3, navKey: 'astroreader' });
 const MediaMain = lazyPreloadable(() => import('../components/multimedia/MediaMain'), { order: 3, navKey: 'liveplayer' });
@@ -213,7 +216,7 @@ const navigationPages = [
     { label: '紫微', key: 'ziwei', icon: 'ziwei', group: '命', keywords: '紫微斗数 飞星 大限 小限 流年 四化 命宫' },
     { label: '七政', key: 'guolao', icon: 'qizheng', group: '命', keywords: '七政四余 政余 五星 果老星宗 二十八宿 宿度' },
     { label: '印占', key: 'indiachart', icon: 'vedic', group: '命', keywords: '印度占星 吠陀 Vedic 分宫制 岁差 ayanamsa 月宿 nakshatra 北印 南印 东印 印度盘 分盘 vargas 十六分盘 D9 D10 D60 Vimshottari Yogini Ashtottari 大运 dasha KP 副星 Shadbala 沙宾力 Yoga 瑜伽 Gulika 上升 Lagna Muhurta Tajika Argala Gochara Prasna 副星虚点' },
-    { label: '辅盘', key: 'auxchart', icon: 'aux', group: '命', keywords: '卜卦盘 择日盘 世俗盘 十三分盘 十二分盘 调波盘 谐波盘 龙盘 中点盘 量化盘 汉堡盘 占星地图 星体地图 astrocartography ACG 重置盘 骰子 卜卦 择日' },
+    { label: '辅盘', key: 'auxchart', icon: 'aux', group: '命', keywords: '卜卦盘 择日盘 世俗盘 十三分盘 十二分盘 调波盘 谐波盘 龙盘 中点盘 量化盘 汉堡盘 占星地图 星体地图 astrocartography ACG 重置盘 骰子 卜卦 择日 巴比伦 美索不达米亚 楔文 微黄道 泥板' },
     { label: '合盘', key: 'relativechart', icon: 'composite', group: '命', keywords: '合盘 关系盘 比较盘 组合盘 影响盘 时空中点盘 马克斯盘 关系量化 中点合成 synastry composite davison marks' },
     { label: '数算', key: 'shusuan', icon: 'quickPrimary', group: '命', keywords: '邵子神数 铁板神数 河洛理数 参评数 北极神数 南极神数 蠢子数 神数正传 大定神数 条文 秘数 十二辟卦 太玄玉景 起数' },
     { label: '其他', key: 'mingother', icon: 'other', group: '命', keywords: '演禽 仙禽 策天 策天飞星 一掌经 掌经 十二星 六道 yizhangjing' },
@@ -223,7 +226,7 @@ const navigationPages = [
     { label: '六爻', key: 'guazhan', icon: 'liuyao', group: '卜', keywords: '六爻 纳甲 卜卦 摇卦 装卦' },
     { label: '太乙', key: 'taiyi', icon: 'taiyi', group: '卜', keywords: '太乙神数 太乙' },
     { label: '分至', key: 'jieqichart', icon: 'solstice', group: '卜', keywords: '节气盘 分至 二分二至' },
-    { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜', keywords: '风水 纳气盘 八卦阳宅 阳宅 理气 罗盘 八宅 大游年 东西四宅 门主灶 玄空 玄空飞星 兼向 替卦 三合 十二长生 水法 立向 黄泉 拨砂 穿山 透地 分金 金锁玉关 过路阴阳 乾坤国宝 龙门八局 紫白 紫白飞星 辅星水法 翻卦 净阴净阳 纳甲 玄空大卦 六十四卦 卦运 形势 峦头 龙穴砂水向 择日 造命 太岁 三煞 岁破 坐向 元运' },
+    { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜', keywords: '风水 纳气盘 八卦阳宅 阳宅 理气 罗盘 八宅 大游年 东西四宅 门主灶 玄空 玄空飞星 兼向 替卦 三合 十二长生 水法 立向 黄泉 拨砂 穿山 透地 分金 金锁玉关 过路阴阳 乾坤国宝 龙门八局 紫白 紫白飞星 辅星水法 翻卦 净阴净阳 纳甲 玄空大卦 六十四卦 卦运 形势 峦头 龙穴砂水向 择日 造命 太岁 三煞 岁破 坐向 元运 玄空六法 谈养吾 零正 雌雄 金龙 挨星 城门 命理派 以命配宅 罗盘 罗经 三针 正针 中针 缝针 天池 圆图 补龙 相主 定穴 倒杖 五黄分运 兼向度界' },
     { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法 地占 天文地占 护盾盘 判官 调和者 16图形 盾牌盘 四片盘 Hakata 异或表盘 Sikidy 塔罗 tarot 韦特 RWS 马赛 托特 Thoth 雷诺曼 Lenormand 埃及塔罗 扑克占卜 大牌 小牌 权杖 圣杯 宝剑 星币 凯尔特十字 皇极轨策 轨策 策数 轨数 万物数 周易数 梅花易数 体用 互卦 三要十应 大定神数 元会运世 邵子 小成图 小成圖 股市卦 飞宫小奇门 小奇门 飞宫 小六壬 掌诀 大安 留连 速喜 赤口 小吉 空亡' },
     { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具', keywords: 'AI 分析 挂载 报告 大模型' },
     { label: '天文馆', key: 'planetarium', icon: 'globe', group: '工具', keywords: '天文馆 星空 观星 星图 babylon' },
@@ -457,9 +460,12 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         const currentSig = computeRefreshSignature(fields, chartObj);
         const needRefresh = !!(predictHook[key] && predictHook[key].fun) && tabRefreshSigRef.current[key] !== currentSig;
 
-        const cnTraditionTabs = ['guasym', 'cuangong12', 'pithy'];
-        const cnYiBuTabs = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu'];
-        const auxChartTabs = ['germanytech', 'hellenastro', 'locastro', 'harmonic', 'otherbu', 'horary', 'election'];
+        // 三份合法子页签集合走 constants/SubTabRegistry 单一真值源 —— 从前在此手写副本,
+        // 每次新增子技法只改了各技法 Main、忘了这里,于是停在新技法上切走再切回来会被
+        // 静默打回该组首档(实测卜·其他漏 6 项、辅盘漏 4 项)。
+        const cnTraditionTabs = CNTRADITION_SUBTABS;
+        const cnYiBuTabs = CNYIBU_SUBTABS;
+        const auxChartTabs = AUX_SUBTABS;
         let nextSubTab = null;
         if(key === 'cntradition'){
             nextSubTab = cnTraditionTabs.indexOf(currentSubTab) >= 0 ? currentSubTab : 'guasym';
@@ -517,7 +523,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     // 旧写法 `{...fields}` **只拷了顶层**:`flds.date` 与 `fields.date` 是同一个对象,
     // `flds.date.value = x` 改的是 state 里那个对象本身 ⇒ 「旧 fields」与「新 fields」的
     // 嵌套对象引用完全相同,任何按引用比较的 React.memo / shouldComponentUpdate 都会判
-    // 「没变」而跳过重渲(或反过来:整树重渲,因为顶层引用永远是新的)。这正是本轮渲染
+    // 「没变」而跳过重渲(或反过来:整树重渲,因为顶层引用永远是新的)。这正是渲染
     // 优化的**前提** —— 不修它,后面加多少 memo 都是白加。
     // 与 models/astro.js 的 fetchByChartData 早已修好的是同一个 bug(注释见该文件 ~1260)。
     // setFld 一律产出**新对象**;`{...(prev || {name:[name]})}` 保留原有 name 数组与其它
@@ -530,17 +536,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     function changeCond(values){
         let flds = {
             ...fields,
-        };
+        };  
         if(values.nohook){
             flds.nohook = true;
-        }
+        }  
 
         if(values.tm !== undefined && values.tm != null){
             let birth = values.tm;
             setFld(flds, 'date', birth.clone());
             setFld(flds, 'time', birth.clone());
             setFld(flds, 'ad', birth.ad);
-            // zone 兜底链(上游 v3.5.1):DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
+            // zone 兜底链:DateTime 缺 zone 时保留原 fields 值,双双缺失落 +08:00 ——
             // 任何一环 undefined 直写会让请求丢 zone 键(Java miss.zone)且污染持久 fields。
             setFld(flds, 'zone', birth.zone || (flds.zone && flds.zone.value) || '+08:00');
         }
@@ -565,6 +571,24 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             // 后端 push_request_trip 据此换尊贵表;同步 app.tripSystem(三分显示，与 G14 选择器一致)。
             setFld(flds, 'triplicity', values.triplicity);
             dispatch({ type: 'app/save', payload: { tripSystem: values.triplicity } });
+        }
+        // 流派全维分化三项(P1-D1)：预设一次性带入 → 写 fields，由 fieldsToParams 条件透传(默认值不下发，零回归)。
+        // 🔴 changeCond 是显式白名单：不在此登记的键会被静默丢弃(选档后该维不生效)。
+        // (horosa_change_cond_no_mutate_v1:以下新键与旧键一律经 setFld 产新对象,绝不就地赋值。)
+        if(values.lotReversal !== undefined && values.lotReversal !== null){
+            setFld(flds, 'lotReversal', values.lotReversal);
+        }
+        if(values.sectBuffer !== undefined && values.sectBuffer !== null){
+            setFld(flds, 'sectBuffer', values.sectBuffer);
+        }
+        if(values.orbs !== undefined){
+            // 相位模型：degree 档写 moiety 容许度差异项；whole 档传 null ⇒ 据实清空(回默认表、不下发)。
+            // 🔴 传 undefined 会被本行 !==undefined 判定跳过 → 切回默认档时 moiety 残留、流派反查误判。
+            setFld(flds, 'orbs', values.orbs === null ? undefined : values.orbs);
+        }
+        if(values.lotsDocReverse !== undefined){
+            // 点公式文档口径(婚姻男女/子女/朋友/疾病)：不反转档带 1；其余档显式 0 ⇒ fieldsToParams 不下发。
+            setFld(flds, 'lotsDocReverse', values.lotsDocReverse);
         }
         if(values.lon !== undefined && values.lon !== null){
             setFld(flds, 'lon', values.lon);
@@ -696,7 +720,11 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
     const activeMainTab = currentTab === 'yanqin' ? 'mingother' : currentTab;
     const isFullHeightWorkspaceTab = fullHeightWorkspaceTabs.has(activeMainTab);
-    const rootTabsHeight = isFullHeightWorkspaceTab ? 'calc(100vh - 72px)' : height;
+    // 🔴 主 Tabs 高度统一用 model height(=外层 idxstyle 同源真值):
+    // 旧 calc(100vh - 72px) 比外层真值多 16px(两套口径),全高档页整体溢出 → App webview 页面级
+    // 上下滚,主限天球底部时间轴等贴底元素被滚出视口(用户真机实告);'100%' 亦不可行(ant-spin 链
+    // 无定义高,百分比失效退 auto)。数值单源=零歧义。
+    const rootTabsHeight = height;
 
 	// 顶层兜底:TabPane 之外的 chrome(导航/抽屉/快捷坞)崩溃也不白屏(技法页级隔离见 FreezeInactive)
 	return (
@@ -705,7 +733,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         {/* [连续调整不打断] 去满屏压暗遮罩:请求进行中改为右上角非阻塞「更新中…」小徽标;
             盘面 keep-stale(各技法本就在重算时保留旧盘态,不清空),故调时间可连续不闪。 */}
         {loading ? <div className="horosa-workspace-updating" ref={positionUpdatingBadge}>{tip || '更新中…'}</div> : null}
-        <Spin spinning={false}>
+        <Spin spinning={false} wrapperClassName="horosa-main-spin">
             <React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
             <XQTabs
                 defaultActiveKey="astrochart" tabPosition='left' onChange={changeTab}
@@ -827,6 +855,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     <AuxChartMain
                         chart={chartObj}
                         onChange={changeCond}
+                        tripSystem={tripSystem}
                         height={height}
                         fields={fields}
                         fieldsAry={aryfields}
@@ -1485,8 +1514,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             </Drawer>
 
             <Drawer
-                title='星盘组件'
-                width={560}
+                title='星盘设置'
+                width={720}
                 placement="left"
                 onClose={closeDrawer}
                 maskClosable={true}

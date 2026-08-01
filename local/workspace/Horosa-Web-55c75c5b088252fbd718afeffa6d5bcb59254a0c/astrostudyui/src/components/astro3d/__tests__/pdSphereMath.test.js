@@ -70,7 +70,7 @@ describe('[WP-E] 周日方向物理语义(armc=0:中天=+X,东点星 ra=90)', ()
 });
 
 // —— [D1] 方向语义四族号序(法律条文级契约;fixture=shipped 内核产物,670/670 全量) ——
-// 三重互证:推演文档 MATH_FLOW §8 / perpredict.getPrimaryDirectionByZCoreKernel docstring /
+// 三重互证:推演文档 MATH_FLOW 半弧比例节 / perpredict.getPrimaryDirectionByZCoreKernel docstring /
 // 本组数值断言。任何一族号序回潮(动方画反)即整组红。
 describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
 	const fs = require('fs');

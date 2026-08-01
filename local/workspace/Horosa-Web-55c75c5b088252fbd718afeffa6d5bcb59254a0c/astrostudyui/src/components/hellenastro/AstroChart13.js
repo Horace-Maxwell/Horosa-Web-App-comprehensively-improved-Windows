@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
 import AstroChartMain from '../astro/AstroChartMain';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
@@ -30,6 +31,8 @@ function fieldsToParams(fields){
 		lateZiHourUseNextDay: (fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
 		// 界系(bounds)：默认 0/缺省 不下发 → 请求体零变 + 不扰缓存键(同主盘 fieldsToParams 口径);仅非 0 才传。
 		...(fields.termsVariant && fields.termsVariant.value ? { termsVariant: fields.termsVariant.value } : {}),
+		// 双子界序(仅经典传本受影响):同款条件透传,默认忠原书不下发。
+		...(fields.geminiBoundEmended && fields.geminiBoundEmended.value ? { geminiBoundEmended: 1 } : {}),
 		// 希腊化变体(西占交点真平 / 昼夜缓冲 / 迦勒底界狮子首星 / 三分集 / 福点反转):照主盘 models/astro.js:311-315 同款条件透传。
 		// 默认(平 / 几何地平 / 狮子木首 / Dorothean / 反转 ON)不下发 → 请求体零变·缓存键零回归;仅非默认才传。后端 webchartsrv.py:206/284(chart13/chart12)已能接收。
 		...(fields.westNodeType && fields.westNodeType.value === 'true' ? { westNodeType: 'true' } : {}),
@@ -37,6 +40,8 @@ function fieldsToParams(fields){
 		...(fields.leoBoundFirst && (fields.leoBoundFirst.value === 1 || fields.leoBoundFirst.value === '1') ? { leoBoundFirst: 1 } : {}),
 		...(fields.triplicity && fields.triplicity.value && fields.triplicity.value !== 'Dorothean' ? { triplicity: fields.triplicity.value } : {}),
 		...(fields.lotReversal && (fields.lotReversal.value === 0 || fields.lotReversal.value === '0') ? { lotReversal: 0 } : {}),
+		// 2026-07 二批九键:共享 helper 条件透传。
+		...classicalBackendOverridesFromFields(fields),
 		orbs: (fields.orbs && fields.orbs.value) ? fields.orbs.value : undefined,
 		orbScale: (fields.orbScale && fields.orbScale.value) ? fields.orbScale.value : undefined,
 	};
@@ -228,6 +233,8 @@ class AstroChart13 extends Component{
 					onChange={this.onFieldsChange}
 					hidehsys={1}
 					hidezodiacal={1}
+					showSchoolSection={true}
+					tripSystem={this.props.tripSystem}
 					fields={fields}
 					height={height}
 						chartStyle={this.props.chartStyle}

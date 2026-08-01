@@ -1,17 +1,15 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiFineChart.js b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-index dcd2ccb..b744e70 100644
+index 4477f4a..ca0cce5 100644
 --- a/astrostudyui/src/components/cntradition/BaZiFineChart.js
 +++ b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-@@ -1,6 +1,7 @@
+@@ -1,4 +1,5 @@
  import { Component } from 'react';
++import { chartSCUEnabled } from '../../utils/perfFlags';
  import { BaZiMsg } from '../../msg/bazimsg';
  import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
-+import { chartSCUEnabled } from '../../utils/perfFlags';
- 
- const GAN_HE = [
- 	['甲', '己', '土'], ['乙', '庚', '金'], ['丙', '辛', '水'], ['丁', '壬', '木'], ['戊', '癸', '火'],
-@@ -348,6 +349,25 @@ function layoutRelations(rels){
- }
+ import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
+@@ -357,6 +358,25 @@ const ELEMENT_CN = {
+ };
  
  class BaZiFineChart extends Component{
 +	// horosa_bazi_finechart_scu_v1（PERF-R9 Ship 6·八字族）：中栏四柱板无 state，输出**只**由下列

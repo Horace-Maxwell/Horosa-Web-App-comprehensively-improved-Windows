@@ -1307,33 +1307,100 @@
         gap: 8px;
     }
 
-    // 界系 / 月交点 / 区分判定等分段控件行：与 check-item 视觉统一（同样描边卡片）。
-    .horosa-selector-drawer .horosa-terms-row {
+    // 古典计算 / 判读组的「设置行」面板：一张浅底卡容器,行内=标签左·控件右,行间虚线分隔——
+    // 成熟设置面板范式,取代散装小卡片。⚠ LESS 会把 grid-column: 1 / -1 当除法求值(须 ~"…" 转义),
+    // 本面板刻意全用 flex 规避该坑(紫微 app.less:9682 有同款前科)。
+    .horosa-selector-drawer .horosa-terms-grid {
         display: flex;
         flex-direction: column;
-        gap: 8px;
         margin: 8px 0 0;
-        padding: 10px 12px;
+        padding: 2px 12px;
         border-radius: 10px;
         background: var(--horosa-surface-raised);
         border: 1px solid var(--horosa-border);
     }
 
+    .horosa-selector-drawer .horosa-terms-cell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        padding: 9px 0;
+        min-width: 0;
+    }
+
+    .horosa-selector-drawer .horosa-terms-cell + .horosa-terms-cell {
+        border-top: 1px dashed var(--horosa-border);
+    }
+
     .horosa-selector-drawer .horosa-terms-label {
-        font-size: 12px;
+        flex: 0 1 auto;
+        font-size: 12.5px;
         font-weight: 650;
         color: var(--horosa-text-soft);
         opacity: 1;
+        line-height: 1.5;
     }
 
-    .horosa-selector-drawer .horosa-terms-row .xq-segmented.ant-radio-group {
-        width: 100%;
-        display: flex;
+    // 控件右靠;放不下时整体换行到下一行仍右对齐,不挤压不溢出。
+    .horosa-selector-drawer .horosa-terms-cell .horosa-terms-control {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        min-width: 0;
     }
 
-    .horosa-selector-drawer .horosa-terms-row .xq-segmented .ant-radio-button-wrapper {
-        flex: 1;
+    .horosa-selector-drawer .horosa-terms-cell .xq-segmented.ant-radio-group {
+        display: inline-flex;
+        flex-wrap: nowrap;
+    }
+
+    .horosa-selector-drawer .horosa-terms-cell .xq-segmented .ant-radio-button-wrapper {
         text-align: center;
+        padding-inline: 9px;
+        white-space: nowrap;
+    }
+
+    // 面板内嵌说明行(迦勒底警示等):整行弱化正文,带上分隔线节奏。
+    .horosa-selector-drawer .horosa-terms-note {
+        padding: 7px 0 9px;
+        border-top: 1px dashed var(--horosa-border);
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--horosa-muted);
+    }
+
+    /* 星盘组件抽屉是 body 级 portal,出了 .horosa-workspace-shell 作用域 → redesign 的金色选中态
+       规则(app.less)够不着,antd 实底蓝漏出(占星地图抽屉 .horosa-acg-drawer 同款前科同款修法)。
+       此处按全站统一「实心金底 + on-accent 字」补齐选中态;滑块金块同色,两模式观感一致。 */
+    .horosa-selector-drawer .xq-segmented .ant-radio-button-wrapper-checked {
+        border-color: var(--horosa-accent) !important;
+        background: var(--horosa-accent) !important;
+        color: var(--horosa-on-accent, #fff) !important;
+        box-shadow: none !important;
+    }
+
+    // 盘面显示四子组：子组小标题(比 XQSectionTitle 低一级)。
+    .horosa-selector-drawer .horosa-selector-subgroup {
+        margin: 6px 0 2px;
+    }
+
+    .horosa-selector-drawer .horosa-selector-subtitle {
+        font-size: 12px;
+        font-weight: 650;
+        color: var(--horosa-muted);
+        letter-spacing: 0.04em;
+        margin: 2px 0 6px;
+    }
+
+    // 分区作用域说明（古典计算/判读组头）：一段弱化正文,替代散落的小字 hint。
+    .horosa-selector-drawer .horosa-selector-scope-note {
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--horosa-muted);
+        margin: 2px 0 6px;
     }
 
     // 时间微调条(adjustOnly 变体,散布各技法左栏):窄栏下 5 元素固定栅格会把「步长下拉」压到只剩箭头。

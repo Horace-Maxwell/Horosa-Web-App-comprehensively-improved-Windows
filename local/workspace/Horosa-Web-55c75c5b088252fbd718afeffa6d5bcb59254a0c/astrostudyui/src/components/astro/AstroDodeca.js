@@ -23,12 +23,15 @@ class AstroDodeca extends Component {
 			const o = byId[id];
 			if(!o || o.lon == null) return;
 			const dl = dodecaLon(o.lon);
+			const dl2 = dodecaLon(dl);   // 十二分度之十二分度(双重×12);古典用于区分近乎相同的两盘
 			rows.push({
 				id,
 				natalSign: o.sign ? String(o.sign).toLowerCase() : signOf(o.lon),
 				natalSignlon: o.signlon != null ? o.signlon : (norm360(o.lon) % 30),
 				sign: signOf(dl),
 				signlon: dl % 30,
+				sign2: signOf(dl2),
+				signlon2: dl2 % 30,
 			});
 		});
 		return (
@@ -41,9 +44,10 @@ class AstroDodeca extends Component {
 						{ key: 'id', title: '星体', render: (v) => astroSymbol(v) },
 						{ key: 'natalSign', title: '本命', render: (_v, r) => `${sn(r.natalSign)} ${fmtNum(r.natalSignlon, 1)}°` },
 						{ key: 'sign', title: '12分度', render: (_v, r) => `${sn(r.sign)} ${fmtNum(r.signlon, 1)}°` },
+						{ key: 'sign2', title: '再12分度', render: (_v, r) => `${sn(r.sign2)} ${fmtNum(r.signlon2, 1)}°` },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>座内度数×12 自该座 0° 起前进取得；古典用于细察星体精微落点。</div>
+				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>座内度数×12 自该座 0° 起前进取得；古典用于细察星体精微落点。「再12分度」= 对 12 分度再取一次 12 分度（双重细分），用于区分出生时刻极为接近的两盘。</div>
 			</div>
 		);
 	}

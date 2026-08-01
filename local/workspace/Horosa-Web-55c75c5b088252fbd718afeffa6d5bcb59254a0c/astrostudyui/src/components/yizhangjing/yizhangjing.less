@@ -398,3 +398,75 @@
 		color: var(--horosa-text, #1b2333);
 	}
 }
+
+/* ── WP-D/E 新增：人事宫角标 / 色带 / 四世权重带 / 六道徽章 / 掌诀图 / 流派徽 ── */
+.horosa-yizhangjing-cell .cell-palace {
+	font-size: 10px; font-weight: 700; line-height: 1.2; margin-top: 2px;
+	color: var(--horosa-gold, #9a6a25);
+	background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.14));
+	border-radius: 999px; padding: 0 7px;
+}
+
+/* 四世权重带（根10/苗15/花25/果50，段宽按权重） */
+.horosa-yizhangjing-shishiband {
+	display: flex; gap: 4px; margin: 2px 0 10px;
+	.ss-seg {
+		flex-basis: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+		padding: 5px 4px; border-radius: 9px; gap: 1px;
+		border: 1px solid var(--horosa-border, rgba(120, 120, 120, 0.24));
+		background: var(--horosa-surface, rgba(255, 255, 255, 0.03));
+		&.is-up { background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.14)); border-color: var(--horosa-gold, #9a6a25); }
+		&.is-down { background: var(--horosa-danger-soft, rgba(176, 72, 60, 0.08)); border-color: var(--horosa-danger-soft, rgba(176, 72, 60, 0.3)); }
+		.ss-shi { font-size: 10px; color: var(--horosa-text-soft, #5c6a80); }
+		.ss-star { font-size: 15px; font-weight: 800; color: var(--horosa-gold, #9a6a25); }
+		.ss-w { font-size: 9.5px; color: var(--horosa-muted, #8894a6); }
+	}
+}
+
+/* 十二宫 tab 内合参神煞点(命宫色带已按用户要求删,仅保留此点) */
+.rb-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-left: 3px; vertical-align: middle; background: var(--horosa-gold, #9a6a25); }
+
+/* 六道分布徽章 */
+.horosa-yizhangjing-daobadges {
+	display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; justify-content: center;
+	.dao-badge {
+		display: inline-flex; align-items: center; gap: 4px; padding: 3px 11px; border-radius: 999px;
+		font-size: 12px; color: var(--horosa-muted, #8894a6);
+		border: 1px dashed var(--horosa-border, rgba(120, 120, 120, 0.3));
+		background: transparent;
+		&.is-on { color: var(--horosa-gold, #9a6a25); border-style: solid; border-color: var(--horosa-gold, #9a6a25); background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.1)); }
+		&.is-upper.is-on { font-weight: 700; }
+		.dao-cnt { font-size: 10px; font-weight: 800; background: var(--horosa-gold, #9a6a25); color: #fff; border-radius: 999px; padding: 0 5px; }
+	}
+}
+
+/* 流派预设徽 */
+.horosa-yizhangjing-presetbadge {
+	display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+	color: var(--horosa-gold, #9a6a25);
+	background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.16));
+	border: 1px solid var(--horosa-gold-soft, rgba(154, 106, 37, 0.34));
+}
+
+/* ── WP-F 左栏（2 列网格，无小标题；偏离徽/还原/详见帮助 整行）──
+   ⚠ LESS 会把 `grid-column: 1 / -1` 当算术(1÷-1=-1)→错位;必用 start/end 分写(同 app.less is-wide)。 */
+.horosa-yizhangjing-devrow {
+	grid-column-start: 1; grid-column-end: -1;
+	display: flex; align-items: center; gap: 8px; margin: -2px 0 2px;
+}
+.horosa-yizhangjing-devbadge {
+	font-size: 11px; font-weight: 700; padding: 1px 9px; border-radius: 999px; white-space: nowrap;
+	color: var(--horosa-gold, #9a6a25);
+	background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.18));
+	border: 1px solid var(--horosa-gold-soft, rgba(154, 106, 37, 0.4));
+}
+.horosa-yizhangjing-restorebtn {
+	font-size: 11px; font-weight: 700; cursor: pointer; padding: 1px 11px; border-radius: 999px;
+	color: #fff; background: var(--horosa-gold, #9a6a25);
+	border: 1px solid var(--horosa-gold, #9a6a25);
+	&:hover { filter: brightness(1.08); }
+}
+.horosa-yizhangjing-opthelp {
+	grid-column-start: 1; grid-column-end: -1;
+	margin-top: 6px; font-size: 10.5px; color: var(--horosa-muted, #8894a6); text-align: center;
+}

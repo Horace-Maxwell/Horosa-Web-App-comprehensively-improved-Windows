@@ -51,6 +51,8 @@ class JinKouChart extends Component{
 			zhangshengElem: this.props.zhangshengElem,
 			guireng: this.props.guireng,
 			jinkouData: this.props.jinkouData,
+			// gender 漏进签名 → 改性别不重绘，中栏「性别」格恒停在挂载时的值。
+			gender: this.props.gender,
 		}) : null;
 		if(guardOn && sameChartDrawSig(sig, this._lastDrawnSig)){
 			return;
@@ -64,6 +66,8 @@ class JinKouChart extends Component{
 		this.chart.zhangshengElem = this.props.zhangshengElem;
 		this.chart.guireng = this.props.guireng;
 		this.chart.jinkou = this.props.jinkouData;
+		// 与上面各项同律逐次刷新 —— 原先只在构造时取一次，性别永远停在默认「男」。
+		this.chart.gender = this.props.gender;
 		this.chart.draw();
 
 		if(sig && chartDrawnAtNonZeroSize(this.state.chartid)){

@@ -239,7 +239,9 @@ class HeLuoMain extends Component {
 		if (this.props.slot === 'aux') return;
 		const m = this.getModel();
 		if (!m) return;
-		const key = `${m.chart.xian.name}|${m.chart.xian.yuan}|${m.chart.hou.name}`;
+		// 去重键须含全部快照决定项:除先后天卦名/元堂外,还有取化工法(化工行)+opts(流年次步动爻/纪年基准/取数寄宫等)。
+		// 只键卦身份会漏「卦不变但流年/纪年/化工变」→ AI 挂载默认路径读到陈旧模块快照(实证 bug)。
+		const key = `${m.chart.xian.name}|${m.chart.xian.yuan}|${m.chart.hou.name}|${m.chart.hou.yuan}|${m.chart.tian}|${m.chart.di}|q:${this.props.quHuaGong || ''}|o:${JSON.stringify(m.opts || {})}`;
 		if (key === this.lastSnapKey) return;
 		this.lastSnapKey = key;
 		const text = buildSnapshotText(m.chart, m.jg, m.dy, { season: m.extras && m.extras.season, opts: m.opts });
@@ -439,12 +441,14 @@ class HeLuoMain extends Component {
 	renderLiuYue(m) {
 		const y = this.state.yearForMonth;
 		if (!this.state.liunianKey || !y) return null;
-		const months = liuYue(y.lines, y.pos);
+		const lyMode = (m.opts && m.opts.liuYueMode) || 'ying';
+		const months = liuYue(y.lines, y.pos, { mode: lyMode });
+		const lyLabel = lyMode === 'legacy' ? '现行序' : '应爻校准';
 		const YUE_JIE = { 寅: '立春', 卯: '惊蛰', 辰: '清明', 巳: '立夏', 午: '芒种', 未: '小暑', 申: '立秋', 酉: '白露', 戌: '寒露', 亥: '立冬', 子: '大雪', 丑: '小寒' };
 		const YUE_SEASON = { 寅: '春', 卯: '春', 辰: '春', 巳: '夏', 午: '夏', 未: '夏', 申: '秋', 酉: '秋', 戌: '秋', 亥: '冬', 子: '冬', 丑: '冬' };
 		return (
 			<div className="horosa-heluo-drill">
-				<div className="horosa-heluo-block-subtitle">流月（{y.age}岁 {y.ganzhi}年 · {y.gua}）· 点行看爻辞、点▾看流日 · 旺衰按月令</div>
+				<div className="horosa-heluo-block-subtitle">流月（{y.age}岁 {y.ganzhi}年 · {y.gua}）· 起月{lyLabel} · 点行看爻辞、点▾看流日 · 旺衰按月令</div>
 				<table className="horosa-heluo-table">
 					<thead><tr><th>月</th><th>流月卦</th><th>动爻</th><th>理数</th><th>旺衰</th><th /></tr></thead>
 					<tbody>
@@ -514,6 +518,8 @@ class HeLuoMain extends Component {
 		const sj = shiJi(chart, jg);
 		const wsX = extras.season ? wangShuai(chart.xian.name, extras.season) : null;
 		const wsH = extras.season ? wangShuai(chart.hou.name, extras.season) : null;
+		// 元堂爻位高下（古籍）：五 > 二 > 三、四 > 初、上。纯 display,复用 chart.xian.yuan,零算法改动。
+		const YUAN_RANK = { 5: '上吉（五最尊）', 2: '次吉（二得中）', 3: '中平（三四）', 4: '中平（三四）', 1: '下（初上位卑）', 6: '下（初上位卑）' };
 		const rows = [
 			['紀年', jn ? `黃帝 ${jn.huangdi} 年 · ${jn.yuan}${jn.yunNo}運 · ${jn.ganzhi}` : '—'],
 			['簡斷', extras.jianDuan],
@@ -524,6 +530,7 @@ class HeLuoMain extends Component {
 			['元氣化工', `天元 ${jg.yuan.tian.gua}・地元 ${jg.yuan.di.gua}・化工 ${(jg.huagong.guas || []).join('/') || '—'}`],
 			['先後天八卦變化', extras.bianYi],
 			['五命', `${m.fourPillars.year}生人・${m.nayin || ''}${extras.benWei.length ? `（${extras.benWei.join('、')}）` : ''}`],
+			['元堂爻位', `${yaoName(chart.xian.lines, chart.xian.yuan)}·${YUAN_RANK[chart.xian.yuan] || '—'}`],
 			['命格', `吉${mg.jiCount}/12 ${mg.jiGe || '—'}　凶${mg.xiongCount}/12 ${mg.xiongGe || '—'}`],
 			['十吉', sj ? `${sj.hitCount}/10　${sj.hit.join('、') || '—'}` : '—'],
 			['卦氣旺衰', (wsX || wsH) ? `先天 内${wsX ? `${wsX.low.wuxing}${wsX.low.state}` : '—'}/外${wsX ? `${wsX.up.wuxing}${wsX.up.state}` : '—'}　后天 内${wsH ? `${wsH.low.wuxing}${wsH.low.state}` : '—'}/外${wsH ? `${wsH.up.wuxing}${wsH.up.state}` : '—'}` : '—'],
@@ -575,6 +582,7 @@ class HeLuoMain extends Component {
 							['反天元', yq(jg.fanYuan.tian)], ['反地元', yq(jg.fanYuan.di)],
 							['化工', `${jg.huagong.guas.join('/') || '—'}${jg.huagong.present.length ? `（藏${jg.huagong.present.join('')}）` : ''}`],
 							['反化工', `${jg.fanhua.guas.join('/') || '—'}${jg.fanhua.present.length ? `（藏${jg.fanhua.present.join('')}）` : ''}`],
+							['释义', '元气主根基禀赋，化工主名誉际遇（命卦藏之为应）'],
 						])}
 						{card('得失·二数·元堂', [
 							['得势', jg.deSheng ? '✓ 纳甲相逢' : '—'], ['得时', jg.deTime ? '✓ 卦月相逢' : '—'], ['得体', yq(jg.deTi)],

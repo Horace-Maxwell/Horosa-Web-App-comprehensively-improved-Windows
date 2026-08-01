@@ -1,6 +1,11 @@
 import { Component } from 'react';
 import UpdatingBadge from '../common/UpdatingBadge';
-import { silentTechniquePanelsEnabled, stepPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
+import { silentTechniquePanelsEnabled, stepPrefetchEnabled, techniqueResultCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
+import { cachedPost } from '../../services/_requestCache';
+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+import { markPanelReady, markInteractionStart } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, message } from 'antd';
 import { XQButton as Button, XQModal as Modal, XQTabs as Tabs } from '../xq-ui';
@@ -34,17 +39,13 @@ import * as ZWConst from '../../constants/ZWConst';
 import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ziweirulesCached } from '../../services/rules';
-import { cachedPost } from '../../services/_requestCache';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
-import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { calcZiwei, deriveSanPan } from './ZiweiCalc';
 import { detectPatterns } from './ziweiPatterns';
 import { ZWEngineOptions, ziweiNeedsLocalEngine } from './ziweiOptions';
+import { childLimits } from './ziweiCore';
+import { qiShuWei, allBorrowedStars, taiSuiRuGua } from './ziweiOverlays';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
-import { markPanelReady, markInteractionStart } from '../../utils/perfMark';
-import { FreezeSubTab } from '../comp/FreezeInactive';
-import { chartSCUEnabled } from '../../utils/perfFlags';
 
 const TabPane = Tabs.TabPane;
 
@@ -393,11 +394,20 @@ function buildZiWeiSnapshotText(params, result){
 	if(ZWEngineOptions.starSet !== 'full'){ tbNotes.push('星集=精简18星(河洛)'); }
 	if(ZWEngineOptions.sanPan && ZWEngineOptions.sanPan !== 'tian'){ tbNotes.push(`观察盘=${ZWEngineOptions.sanPan === 'di' ? '地盘(身宫起)' : '人盘(福德起)'}`); }
 	if(ZWEngineOptions.shangShi === 'yinyang'){ tbNotes.push('天伤天使=阴阳互换(中州)'); }
-	if(ZWEngineOptions.leapMonth && ZWEngineOptions.leapMonth !== 'mid_split'){ tbNotes.push(`闰月=${ZWEngineOptions.leapMonth === 'next' ? '整月归下月' : '整月归上月'}`); }
-	if(ZWEngineOptions.lateZi && ZWEngineOptions.lateZi !== 'zi_chu'){ tbNotes.push(`晚子时=${ZWEngineOptions.lateZi === 'midnight_split' ? '夜子折中' : '子正换日'}`); }
+	const leapLabel = { next: '整月归下月', prev: '整月归上月', split_days: '前后半分割(日本)', split_star_month: '命身下月·月系上月' };
+	if(ZWEngineOptions.leapMonth && ZWEngineOptions.leapMonth !== 'mid_split'){ tbNotes.push(`闰月=${leapLabel[ZWEngineOptions.leapMonth] || ZWEngineOptions.leapMonth}`); }
+	const lateZiLabel = { midnight_split: '夜子折中', zi_zheng: '子正换日', dual: '双盘(当日/次日)' };
+	if(ZWEngineOptions.lateZi && ZWEngineOptions.lateZi !== 'zi_chu'){ tbNotes.push(`晚子时=${lateZiLabel[ZWEngineOptions.lateZi] || ZWEngineOptions.lateZi}`); }
 	if(ZWEngineOptions.yearBoundary === 'lunar_1_1'){ tbNotes.push('定年界线=正月初一'); }
 	if(ZWEngineOptions.huoling === 'nanpai'){ tbNotes.push('火铃=南派(忽略生时)'); }
 	if(ZWEngineOptions.kongNaming === 'book'){ tbNotes.push('空劫=天空/地劫(古本)'); }
+	if(ZWEngineOptions.brightnessSource === 'quanshu'){ tbNotes.push('星曜亮度=《全书》版(擎羊子酉旺/铃星独立表/亥卯未火星得)'); }
+	if(ZWEngineOptions.childLimit){ tbNotes.push('童限(上大限前逐岁本命宫)'); }
+	if(ZWEngineOptions.zhongxian){ tbNotes.push('沈氏三限(大限细分2.5年中限)'); }
+	if(ZWEngineOptions.huoPan){ tbNotes.push('活盘(太极点可转移重排宫名)'); }
+	if(ZWEngineOptions.qishuWei){ tbNotes.push('河洛气数位(官禄宫干四化回照)'); }
+	if(ZWEngineOptions.borrowPalace){ tbNotes.push('中州借宫(空宫借对宫正曜)'); }
+	if(ZWEngineOptions.taiSuiRuGua){ tbNotes.push('紫云太岁入卦(关系人生肖落宫)'); }
 	if(tbNotes.length){ lines.push(`传本设置：${tbNotes.join('、')}`); }
 	if(yearGan){
 		lines.push(`生年天干：${yearGan}`);
@@ -476,7 +486,52 @@ function buildZiWeiSnapshotText(params, result){
 		}
 	}
 
+	// 流派叠层 ground-truth（代码计算·禁 AI 编造；仅开关开时注入 → 全关时快照逐字不变）。
+	const overlayLines = buildZiweiOverlayLines(chart);
+	if(overlayLines.length){ lines.push(...overlayLines); }
+
 	return lines.join('\n');
+}
+
+// 河洛气数位/中州借宫/紫云太岁/童限的可读 ground-truth 行(仅对应开关开时产出)。
+// 统一收敛到单一 AI 导出段 [流派叠层]:子技法用「·标题」内联小标题(非方括号/全角段头,不触发段过滤器),
+// 故 AI 导出设置只多一个可勾段(与「运限」条件分析层同范式),而非 4 个常驻空勾框;登记见 aiExport ziwei preset。
+function buildZiweiOverlayLines(chart){
+	if(!chart || !chart.houses){ return []; }
+	const hn = (idx)=>((chart.houses[idx] || {}).name || `#${idx}`);
+	const blocks = [];   // [子标题, [行...]];仅开关开且有数据时入
+	if(ZWEngineOptions.childLimit){
+		const cl = childLimits(chart.wuxingJu, chart.lifeHouseIndex);
+		if(cl.length){ blocks.push(['童限', [cl.map((x)=>`${x.age}岁·${hn(x.houseIndex)}`).join('、')]]); }
+	}
+	if(ZWEngineOptions.qishuWei){
+		const q = qiShuWei(chart);
+		if(q){
+			blocks.push(['河洛气数位', [
+				`气数位=官禄宫(${hn(q.qiShuIdx)})，宫干${q.stem || '?'}`,
+				`四化落宫：${['禄', '权', '科', '忌'].map((h)=>`${h}${(q.huaLanding[h] && q.huaLanding[h].star) || ''}→${q.huaLanding[h] && q.huaLanding[h].houseIndex >= 0 ? hn(q.huaLanding[h].houseIndex) : '未上盘'}${q.huaLanding[h] && q.huaLanding[h].backToLife ? '(回照本宫)' : ''}`).join('；')}`,
+				`一六共宗：命↔疾厄(${hn(q.yiLiuGongZong['疾厄(6)'])})、命↔官禄气数位(${hn(q.qiShuIdx)})`,
+			]]);
+		}
+	}
+	if(ZWEngineOptions.borrowPalace){
+		const all = allBorrowedStars(chart);
+		const rows = [];
+		for(let i = 0; i < 12; i++){ if(all[i]){ rows.push(`${hn(i)}(空)借对宫：${all[i].map((s)=>`${s.name}${s.starlight ? `·${s.starlight}` : ''}`).join('、')}`); } }
+		if(rows.length){ blocks.push(['中州借宫安星', rows]); }
+	}
+	if(ZWEngineOptions.taiSuiRuGua && Array.isArray(ZWEngineOptions.taiSuiRelatives) && ZWEngineOptions.taiSuiRelatives.length){
+		const t = taiSuiRuGua(chart, ZWEngineOptions.taiSuiRelatives);
+		if(t.length){ blocks.push(['紫云太岁入卦', [t.map((r)=>`生肖${r.branch}${r.role ? `(${r.role})` : ''}→${r.houseIndex >= 0 ? hn(r.houseIndex) : '?'}·${r.dou}`).join('、')]]); }
+	}
+	if(!blocks.length){ return []; }
+	const out = ['[流派叠层]'];
+	blocks.forEach(([title, rows])=>{
+		out.push(`· ${title}`);
+		rows.forEach((r)=>out.push(`  ${r}`));
+	});
+	out.push('');
+	return out;
 }
 
 // —— PERF-R9 Ship 7:/ziwei/birth 构参的模块级纯函数(组件方法 genParams 纯委托于此)。
@@ -541,6 +596,11 @@ export async function buildZiweiSnapshotForParams(params){
 	if(!params){
 		return '';
 	}
+	// 挂载侧 taiSuiRelatives 可能以文本"午 子"直达(text 字段未经 schema normalize 的路径)→ 就地归一成 [{branch}] 数组,
+	// 与 live UI 同结构;否则 buildZiweiOverlayLines/taiSuiRuGua 的 Array.isArray 判死,挂载/导出的太岁入卦段静默丢失(双保险)。
+	if(typeof params.taiSuiRelatives === 'string' && params.taiSuiRelatives.trim()){
+		params = { ...params, taiSuiRelatives: params.taiSuiRelatives.trim().split(/[,，\s]+/).map((x)=>x.trim()).filter(Boolean).map((b)=>({ branch: b })) };
+	}
 	// 挂载「每技法设置」可指定四化流派(params.sihuaSchool)。流派由可变单例 ZWSchool.school + getActiveSiHuaGan
 	// 驱动(snapshot/格局判定都读它),故须临时切换 + 用毕还原,避免污染全局现状(与 ZiWeiInput 切流派同口径)。
 	const overrideSchool = params.sihuaSchool && `${params.sihuaSchool}` !== '' ? `${params.sihuaSchool}` : null;
@@ -554,7 +614,9 @@ export async function buildZiweiSnapshotForParams(params){
 	}
 	// 传本/排盘开关(挂载侧 record 显式覆盖时透传):临时切可变单例 ZWEngineOptions(builder 自读它),用毕还原,
 	// 避免污染用户全局现状(与 sihuaSchool 同范式)。缺省不覆盖 → 读全局单例 = 现状字节级一致。
-	const ZW_ENGINE_SWITCH_KEYS = ['daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming'];
+	const ZW_ENGINE_SWITCH_KEYS = ['daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming',
+		// 手册补齐:亮度源 + 6 显示 overlay + 紫云关系人(挂载侧 per-技法 record 显式覆盖时透传)。
+		'brightnessSource', 'childLimit', 'zhongxian', 'huoPan', 'qishuWei', 'borrowPalace', 'taiSuiRuGua', 'taiSuiRelatives'];
 	const prevEngine = {};
 	let hasEngineOverride = false;
 	ZW_ENGINE_SWITCH_KEYS.forEach((k)=>{
@@ -587,7 +649,9 @@ export async function buildZiweiSnapshotForParams(params){
 		if(ziweiNeedsLocalEngine()){
 			try{
 				const birth = { date: params.date, time: params.time, zone: params.zone, lon: params.lon, lat: params.lat, gpsLon: params.gpsLon, gpsLat: params.gpsLat, ad: 1, gender: params.gender };
-				const opts = { timeAlg: params.timeAlg, after23NewDay: params.after23NewDay, lateZiHourUseNextDay: params.lateZiHourUseNextDay, daxianSpan: ZWEngineOptions.daxianSpan, tianmaBasis: ZWEngineOptions.tianmaBasis, starSet: ZWEngineOptions.starSet, shangShi: ZWEngineOptions.shangShi, leapMonth: ZWEngineOptions.leapMonth, lateZi: ZWEngineOptions.lateZi, yearBoundary: ZWEngineOptions.yearBoundary, huoling: ZWEngineOptions.huoling, kongNaming: ZWEngineOptions.kongNaming };
+				const opts = { timeAlg: params.timeAlg, after23NewDay: params.after23NewDay, lateZiHourUseNextDay: params.lateZiHourUseNextDay, daxianSpan: ZWEngineOptions.daxianSpan, tianmaBasis: ZWEngineOptions.tianmaBasis, starSet: ZWEngineOptions.starSet, shangShi: ZWEngineOptions.shangShi, leapMonth: ZWEngineOptions.leapMonth, lateZi: ZWEngineOptions.lateZi, yearBoundary: ZWEngineOptions.yearBoundary, huoling: ZWEngineOptions.huoling, kongNaming: ZWEngineOptions.kongNaming, lifeMasterBy: 'year_branch' };
+				// ⚠️ lifeMasterBy 恒 'year_branch'(生年支)=对齐 Java /ziwei/birth 命主口径:本地引擎默认按命宫支(经典法),
+				//    会导致「翻拨任一非默认开关→命主从生年支值悄悄变命宫支值」(与亮度同类的实测坑);钉死生年支令切开关绝不误改命主。
 				let localChart = calcZiwei(birth, opts);
 				if(ZWEngineOptions.sanPan && ZWEngineOptions.sanPan !== 'tian'){ localChart = deriveSanPan(localChart, ZWEngineOptions.sanPan); }
 				if(localChart && Array.isArray(localChart.houses) && localChart.houses.length === 12){
@@ -671,6 +735,8 @@ class ZiWeiMain extends Component{
 			cnt: 0,
 			tips: null,
 			centerInfoVisible: false,
+			dualView: 'day',   // 晚子双盘(WP-8):day=当日盘(默认) / next=次日盘;仅 chart.dualAlt 在时显切换
+			tonglianHi: null,  // 童限/中限(WP-1/2)点选高亮的本命宫 index(独立于 luckSel;金框机制);选大限则清
 			// 运限单一真值源（需求1）：命盘九宫格与运限 tab(ZWLuckPanel) 共读写；默认空＝无运限(本命四化+自化)。
 			// dirIndex / luckMingIndex / 各宫运限标签 / 四化滑窗 全由 luckSel 派生(见 render)。
 			luckSel: emptyLuckSel(),
@@ -695,6 +761,7 @@ class ZiWeiMain extends Component{
 		this.navigateFeature = this.navigateFeature.bind(this);
 		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
 		this.onLuckSelChange = this.onLuckSelChange.bind(this);
+		this.onTonglianHighlight = this.onTonglianHighlight.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		// 稳定回调:原先是 render 内联箭头(每次 render 新引用)→ 下游 sCU 的 props 比恒不等,memo 形同虚设。
 		this.onRightTabChange = this.onRightTabChange.bind(this);
@@ -899,7 +966,9 @@ class ZiWeiMain extends Component{
 		if(result && result.chart && ziweiNeedsLocalEngine()){
 			try {
 				const birth = { date: params.date, time: params.time, zone: params.zone, lon: params.lon, lat: params.lat, gpsLon: params.gpsLon, gpsLat: params.gpsLat, ad: 1, gender: params.gender };
-				const opts = { timeAlg: params.timeAlg, after23NewDay: params.after23NewDay, lateZiHourUseNextDay: params.lateZiHourUseNextDay, daxianSpan: ZWEngineOptions.daxianSpan, tianmaBasis: ZWEngineOptions.tianmaBasis, starSet: ZWEngineOptions.starSet, shangShi: ZWEngineOptions.shangShi, leapMonth: ZWEngineOptions.leapMonth, lateZi: ZWEngineOptions.lateZi, yearBoundary: ZWEngineOptions.yearBoundary, huoling: ZWEngineOptions.huoling, kongNaming: ZWEngineOptions.kongNaming };
+				const opts = { timeAlg: params.timeAlg, after23NewDay: params.after23NewDay, lateZiHourUseNextDay: params.lateZiHourUseNextDay, daxianSpan: ZWEngineOptions.daxianSpan, tianmaBasis: ZWEngineOptions.tianmaBasis, starSet: ZWEngineOptions.starSet, shangShi: ZWEngineOptions.shangShi, leapMonth: ZWEngineOptions.leapMonth, lateZi: ZWEngineOptions.lateZi, yearBoundary: ZWEngineOptions.yearBoundary, huoling: ZWEngineOptions.huoling, kongNaming: ZWEngineOptions.kongNaming, lifeMasterBy: 'year_branch' };
+				// ⚠️ lifeMasterBy 恒 'year_branch'(生年支)=对齐 Java /ziwei/birth 命主口径:本地引擎默认按命宫支(经典法),
+				//    会导致「翻拨任一非默认开关→命主从生年支值悄悄变命宫支值」(与亮度同类的实测坑);钉死生年支令切开关绝不误改命主。
 				// 签名记忆:同 生辰+引擎开关+三盘 往返切换(A→B→A)免重算本地引擎全套
 				// (calcZiwei+deriveSanPan+detectPatterns ≈50-200ms)。缓存值冻结存放,
 				// 使用时浅拷贝再 spread 进 result.chart,防调用侧改写污染缓存。
@@ -1063,11 +1132,16 @@ class ZiWeiMain extends Component{
 		this.navigateFeature('aianalysis');
 	}
 
-	// 运限 tab(ZWLuckPanel) 受控上报：直接落 luckSel 单一真值源（与九宫格同源）。
+	// 运限 tab(ZWLuckPanel) 受控上报：直接落 luckSel 单一真值源（与九宫格同源）。选运限层即清童限高亮(互斥)。
 	onLuckSelChange(next){
 		// horosa_panel_ready_v1 配对起点:运限页签点 大限/流年/流月/流日/流时 chip 的落点(纯本地)。
 		markInteractionStart('ziwei');
-		this.setState({ luckSel: next || emptyLuckSel() }, ()=>{ markPanelReady('ziwei'); });
+		this.setState({ luckSel: next || emptyLuckSel(), tonglianHi: null }, ()=>{ markPanelReady('ziwei'); });
+	}
+
+	// 童限/中限点选:高亮对应本命宫(金框);再点同宫取消。与 luckSel 互斥(设童限即以其为高亮源)。
+	onTonglianHighlight(idx){
+		this.setState((s)=>({ tonglianHi: (s.tonglianHi === idx ? null : idx) }));
 	}
 
 	openDrawer(key){
@@ -1339,6 +1413,9 @@ class ZiWeiMain extends Component{
 
 		// 无盘时用模块级稳定空对象(原为每次 render 新建 {} → 下游引用比恒不等 → 白重绘)。
 		let chart = this.state.result ? this.state.result.chart : ZW_EMPTY_CHART;
+		// 晚子双盘(WP-8):当日盘为 primary、次日盘挂 chart.dualAlt;选「次日盘」则下游全用 dualAlt(luck/info/盘面一致)。
+		const dualAlt = chart && chart.dualAlt ? chart.dualAlt : null;
+		if(dualAlt && this.state.dualView === 'next'){ chart = dualAlt; }
 		const luckRender = this.buildLuckRender(chart);
 		let doms = this.genDirectionDom(chart);
 		let infoData = buildZiWeiInfoData(chart, this.props.fields);
@@ -1348,6 +1425,10 @@ class ZiWeiMain extends Component{
 		if(docwid <= 1440){
 			tipheight = 120;
 		}
+
+		// 童限/中限点选高亮:覆盖 luckMingIndex(金框),并入重绘 key(否则守卫认为盘未变不重画)。
+		const effMingIndex = this.state.tonglianHi != null ? this.state.tonglianHi : luckRender.luckMingIndex;
+		const effLuckKey = `${luckRender.key}|tl${this.state.tonglianHi == null ? '' : this.state.tonglianHi}`;
 
 		return (
 			<div className="horosa-ziwei-page horosa-astro-redesign horosa-ziwei-redesign">
@@ -1361,17 +1442,31 @@ class ZiWeiMain extends Component{
 						</div>
 						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-ziwei-chart-panel xq-chart-renderer xq-chart-renderer-ziwei" style={{ position: 'relative' }}>
 							{this.state.updating && this.state.result ? <UpdatingBadge /> : null}
+							{dualAlt ? (
+								<div className="horosa-ziwei-dual-toggle" style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '4px 0' }}>
+									{[['day', '当日盘'], ['next', '次日盘']].map(([k, lab])=>(
+										<button key={k} type="button"
+											onClick={()=>this.setState({ dualView: k, luckSel: emptyLuckSel(), tonglianHi: null })} /* 双盘宫位必错位(differ 判据),旧 luckSel 的 mingIndex 会把运限金框/运X/AI period 标到错宫 */
+											style={{ padding: '3px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+												border: '1px solid var(--horosa-gold, #dab16f)',
+												background: this.state.dualView === k ? 'var(--horosa-gold, #dab16f)' : 'transparent',
+												color: this.state.dualView === k ? '#1a1a1a' : 'var(--horosa-gold, #dab16f)' }}>
+											{lab}
+										</button>
+									))}
+								</div>
+							) : null}
 							<div className="horosa-ziwei-chart-viewport" data-capture-chart-only>
 								<ZiWeiChart
 									value={chart}
 									height="100%"
 									fields={this.props.fields}
 									dirIndex={luckRender.dirIndex}
-									luckMingIndex={luckRender.luckMingIndex}
+									luckMingIndex={effMingIndex}
 									luckSihuaLayers={luckRender.sihuaLayers}
 									luckShowZihua={luckRender.showZihua}
 									luckLabelLayers={luckRender.labelLayers}
-									luckKey={luckRender.key}
+									luckKey={effLuckKey}
 									indicate={this.indicate}
 									rules={this.state.rules}
 									onTipClick={this.onTipClick}
@@ -1397,6 +1492,8 @@ class ZiWeiMain extends Component{
 												chart={chart}
 												value={this.state.luckSel}
 												onChange={this.onLuckSelChange}
+												tonglianHi={this.state.tonglianHi}
+												onTonglianHighlight={this.onTonglianHighlight}
 												onAi={this.openAiAnalysis}
 											/>
 										)}

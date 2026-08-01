@@ -172,7 +172,9 @@ INDIA_HOUSE_ALIASES = {
     'whole': 0,
     'whole_sign': 0,
     'rashi': 0,
-    'bhava_chalit': 5,
+    # Bhāva Chalit = Śrīpati(弧三分中点制),非等宫——旧值 5(Equal)与定义不符,订正为 7。
+    # 用户可见下拉走数字 7 直达 HOUSES_SRIPATI 不经此串;全仓 grep 证无调用方依赖旧语义。
+    'bhava_chalit': 7,
     'equal': 5,
     'equal_lagna': 5,
     'lagna_equal': 5,

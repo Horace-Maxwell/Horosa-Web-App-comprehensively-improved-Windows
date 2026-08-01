@@ -337,7 +337,17 @@ def test_build_extended_missing_lagna():
     assert res['reason'] == 'missing_lagna'
 
 
-def test_year_mode_default_solar():
-    assert dx.YEAR_MODE == 'solar'
+def test_year_mode_default_julian():
+    # 🔴 有意识的 golden 更正:默认年制由 solar(365.2425) 统一为 julian(365.25),
+    #    与主 Vimshottari 同口径(权威 §10.1.5 之默认)。全局仅作默认值,运行期口径走形参。
+    assert dx.YEAR_MODE == 'julian'
+    assert abs(dx.year_days() - 365.25) < 1e-9
+    assert abs(dx.year_days('julian') - 365.25) < 1e-9
     assert abs(dx.year_days('solar') - 365.2425) < 1e-9
     assert abs(dx.year_days('savana') - 360.0) < 1e-9
+    assert abs(dx.year_days('tropical') - 365.2422) < 1e-9
+    assert abs(dx.year_days('sidereal') - 365.2563) < 1e-9
+    # 反查:五档命中口径名,非标准值 → custom
+    assert dx.year_mode_of(365.25) == 'julian'
+    assert dx.year_mode_of(365.2425) == 'solar'
+    assert dx.year_mode_of(364.0) == 'custom'

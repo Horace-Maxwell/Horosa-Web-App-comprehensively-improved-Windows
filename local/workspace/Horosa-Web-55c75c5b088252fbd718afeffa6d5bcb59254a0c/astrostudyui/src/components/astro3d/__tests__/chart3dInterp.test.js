@@ -5,7 +5,7 @@
 //     FROZEN_LON[(JD_J2000, center)](该表容差 1e-6 被 pytest 钉死);
 //   - WINDOW_REF:J2000 起 30 天窗口(3 天步),由同一 chart3d.state() 引擎生成
 //     (python3 -c "chart3d.state(center, JD+k*3)" 逐点取 lon,与 T0_REF 同源同精度)。
-// 阈值(计划 WS-2 §8):绝对值 <0.5°(防大错);30 天 delta-carry 残差 <0.01°
+// 阈值(计划 WS-2 精度节):绝对值 <0.5°(防大错);30 天 delta-carry 残差 <0.01°
 // (播放精度 —— 两星历常差类偏在差分里结构性相消)。覆盖 helio/mars/jupiter/moon
 // 四中心各 ≥2 体。
 //

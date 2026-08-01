@@ -21,6 +21,7 @@ import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplea
 import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
 import { applyRecordToFields } from '../utils/recordFieldsRestore';
+import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverridesFromFields } from '../utils/classicalChartGlobals';
 
 let dtm = new DateTime();
 const DefaultHouseSystem = 1;
@@ -175,25 +176,74 @@ function newEmptyFields(){
 		},
 		// 占星(希腊化)G12/G13/G15/G20-P2:西占月交点真平 / 区分昼夜缓冲 / 迦勒底界狮子首星 / 三分集 / 福点反转。
 		// 默认(平/几何地平/狮子木首/Dorothean/反转ON)= 当前零回归;仅非默认才下发(见 fieldsToParams 条件透传)。
+		// 种子改从全局仓取(utils/classicalChartGlobals,「设置→星盘设置」写入、safeStorage 持久化):
+		// 用户从未改过设置时全局仓值==内建默认 → 逐字节零回归;改过则重启/新盘自动带全局偏好,
+		// 载入命盘时 record 显式键(applyRecordToFields)照旧覆盖本种子(每盘保真优先)。
 		westNodeType: {
-			value: 'mean',
+			value: classicalGlobalValue('westNodeType'),
 			name: ['westNodeType'],
 		},
 		sectBuffer: {
-			value: 'geo',
+			value: classicalGlobalValue('sectBuffer'),
 			name: ['sectBuffer'],
 		},
 		leoBoundFirst: {
-			value: 0,
+			value: classicalGlobalValue('leoBoundFirst'),
 			name: ['leoBoundFirst'],
 		},
 		triplicity: {
-			value: 'Dorothean',
+			value: classicalGlobalValue('triplicity'),
 			name: ['triplicity'],
 		},
 		lotReversal: {
-			value: 1,
+			value: classicalGlobalValue('lotReversal'),
 			name: ['lotReversal'],
+		},
+		// 界系/双子界序:schema 历史无此二键(缺省=不下发);仅全局仓非默认时才播种 wrapper,
+		// 保持「默认态 fields 键集与请求体逐字节不变」。
+		...(classicalGlobalOverrides().termsVariant !== undefined ? {
+			termsVariant: { value: classicalGlobalValue('termsVariant'), name: ['termsVariant'] },
+		} : {}),
+		...(classicalGlobalOverrides().geminiBoundEmended !== undefined ? {
+			geminiBoundEmended: { value: classicalGlobalValue('geminiBoundEmended'), name: ['geminiBoundEmended'] },
+		} : {}),
+		// 2026-07 二批:落宫前移/太阳三态/空亡口径/恒星轨/映点容许度(排盘级,后端 perchart 参数化)。
+		// 种子=全局仓值(默认==后端现硬编码值);下发与否由 classicalBackendOverrides 条件判定。
+		houseCuspAdvance: {
+			value: classicalGlobalValue('houseCuspAdvance'),
+			name: ['houseCuspAdvance'],
+		},
+		cazimiOrb: {
+			value: classicalGlobalValue('cazimiOrb'),
+			name: ['cazimiOrb'],
+		},
+		combustOrb: {
+			value: classicalGlobalValue('combustOrb'),
+			name: ['combustOrb'],
+		},
+		underBeamsOrb: {
+			value: classicalGlobalValue('underBeamsOrb'),
+			name: ['underBeamsOrb'],
+		},
+		vocMode: {
+			value: classicalGlobalValue('vocMode'),
+			name: ['vocMode'],
+		},
+		vocIncludeOuter: {
+			value: classicalGlobalValue('vocIncludeOuter'),
+			name: ['vocIncludeOuter'],
+		},
+		fixedStarOrb: {
+			value: classicalGlobalValue('fixedStarOrb'),
+			name: ['fixedStarOrb'],
+		},
+		fixedStarOrbMode: {
+			value: classicalGlobalValue('fixedStarOrbMode'),
+			name: ['fixedStarOrbMode'],
+		},
+		antisciaOrb: {
+			value: classicalGlobalValue('antisciaOrb'),
+			name: ['antisciaOrb'],
 		},
 		houseStartMode: {
 			// [X1] 宿占「人事十二宫起盘」持久化读回:写侧存 localStorage(suzhanHouseStartMode),
@@ -220,6 +270,39 @@ function newEmptyFields(){
 		pdTimeKey: {
 			value: 'Ptolemy',
 			name: ['pdTimeKey'],
+		},
+		// 主限法 P0 补齐维(默认=引擎缺省,fieldsToParams 仅非默认才下发 → 零回归):
+		pdProjection: {
+			value: 'ptolemy',
+			name: ['pdProjection'],
+		},
+		pdFrame: {
+			value: 'alcabitius',
+			name: ['pdFrame'],
+		},
+		pdFramework: {
+			value: 'aspect',
+			name: ['pdFramework'],
+		},
+		pdParallel: {
+			value: 0,
+			name: ['pdParallel'],
+		},
+		pdRaptParallel: {
+			value: 0,
+			name: ['pdRaptParallel'],
+		},
+		pdTimeKeyCustom: {
+			value: null,
+			name: ['pdTimeKeyCustom'],
+		},
+		pdSignificators: {
+			value: null,
+			name: ['pdSignificators'],
+		},
+		pdPromissorTypes: {
+			value: null,
+			name: ['pdPromissorTypes'],
 		},
 		pdaspects: {
 			value: [0, 60, 90, 120, 180],
@@ -326,6 +409,10 @@ function fieldsToParams(fields){
 		tradition: fields.tradition.value,
 		// 界系(bounds)：默认 0/缺省 不下发 → /chart body 零变 + 不扰缓存键(同 pd*/orbScale 条件透传口径);仅非 0 才传给 Java→Python。
 		...(fields.termsVariant && fields.termsVariant.value ? { termsVariant: fields.termsVariant.value } : {}),
+		// 双子界序(仅托勒密界·经典传本受影响):默认/0 不下发=忠原书零回归;1 才传(与卜卦 chartRequest 同口径)。
+		...(fields.geminiBoundEmended && fields.geminiBoundEmended.value ? { geminiBoundEmended: 1 } : {}),
+		// 2026-07 二批九键(落宫/三态/空亡/恒星/映点):共享 helper 条件透传,默认不下发零回归。
+		...classicalBackendOverridesFromFields(fields),
 		doubingSu28: fields.doubingSu28.value,
 		guolaoLifeMode: fields.guolaoLifeMode ? fields.guolaoLifeMode.value : 'asc',   // R2 含地支(自定命宫,BaZi 按地支当 custom)
 		// 七政四余 G6/G10/G11：报时星太阳时(真/平/关)+ 四余取法(罗计真平/月孛真平)。默认(真/平/平)不下发 → body 零变、不扰缓存键(同 termsVariant 条件透传);仅非默认才传 Java→Python。
@@ -343,6 +430,9 @@ function fieldsToParams(fields){
 		...(fields.leoBoundFirst && (fields.leoBoundFirst.value === 1 || fields.leoBoundFirst.value === '1') ? { leoBoundFirst: 1 } : {}),
 		...(fields.triplicity && fields.triplicity.value && fields.triplicity.value !== 'Dorothean' ? { triplicity: fields.triplicity.value } : {}),
 		...(fields.lotReversal && (fields.lotReversal.value === 0 || fields.lotReversal.value === '0') ? { lotReversal: 0 } : {}),
+		// lotsDocReverse/nodeExaltation/saturnExalt20 三个 0/1 开关已并入
+		// classicalBackendOverridesFromFields 单一真值源(上方 spread),此处不再手写——
+		// 曾因手写副本只覆盖主盘,13宫盘/12分盘/合盘全部丢参(与主盘同档流派分叉)。
 		strongRecption: fields.strongRecption.value,
 		simpleAsp: fields.simpleAsp.value,
 		virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
@@ -351,6 +441,14 @@ function fieldsToParams(fields){
 		pdtype: fields.pdtype ? fields.pdtype.value : 0,
 		pdMethod: fields.pdMethod ? fields.pdMethod.value : 'core_alchabitius',
 		pdTimeKey: fields.pdTimeKey ? fields.pdTimeKey.value : 'Ptolemy',
+		...(fields.pdProjection && fields.pdProjection.value && fields.pdProjection.value !== 'ptolemy' ? { pdProjection: fields.pdProjection.value } : {}),
+		...(fields.pdFrame && fields.pdFrame.value && fields.pdFrame.value !== 'alcabitius' ? { pdFrame: fields.pdFrame.value } : {}),
+		...(fields.pdFramework && fields.pdFramework.value && fields.pdFramework.value !== 'aspect' ? { pdFramework: fields.pdFramework.value } : {}),
+		...(fields.pdParallel && (fields.pdParallel.value === 1 || fields.pdParallel.value === '1') ? { pdParallel: 1 } : {}),
+		...(fields.pdRaptParallel && (fields.pdRaptParallel.value === 1 || fields.pdRaptParallel.value === '1') ? { pdRaptParallel: 1 } : {}),
+		...(fields.pdTimeKeyCustom && fields.pdTimeKeyCustom.value ? { pdTimeKeyCustom: fields.pdTimeKeyCustom.value } : {}),
+		...(fields.pdSignificators && Array.isArray(fields.pdSignificators.value) && fields.pdSignificators.value.length ? { pdSignificators: fields.pdSignificators.value } : {}),
+		...(fields.pdPromissorTypes && Array.isArray(fields.pdPromissorTypes.value) && fields.pdPromissorTypes.value.length ? { pdPromissorTypes: fields.pdPromissorTypes.value } : {}),
 		pdaspects: fields.pdaspects.value,
 		name: fields.name.value,
 		pos: fields.pos.value,
@@ -765,198 +863,17 @@ export default {
 
 		},
 
-		fields:{
-			cid: {
-				value: null,
-				name: ['cid'],
-			},	
-			ad:{
-				value: now.ad,
-				name: ['ad'],
-			},
-			date: {
-				value: now.startOf('date'),
-				name: ['date'],
-			},
-			time: {
-				value: now.clone(),
-				name: ['time'],
-			},
-			zone: {
-				value: now.zone,
-				name: ['zone'],
-			},
-			lat: {
-				value: DefLat,
-				name: ['lat'],
-			},
-			lon: {
-				value: DefLon,
-				name: ['lon'],
-			},
-			gpsLat: {
-				value: DefGpsLat,
-				name: ['gpsLat'],
-			},
-			gpsLon: {
-				value: DefGpsLon,
-				name: ['gpsLon'],
-			},
-			name: {
-				value: null,
-				name: ['name'],
-			},
-			pos: {
-				value: null,
-				name: ['pos'],
-			},
-			hsys: {
-				value: DefaultHouseSystem,
-				name: ['hsys'],
-			},
-			zodiacal: {
-				value: 0,
-				name: ['zodiacal'],
-			},
-			siderealAyanamsa: {
-				value: '',
-				name: ['siderealAyanamsa'],
-			},
-			tradition: {
-				value: 0,
-				name: ['tradition'],
-			},
-			strongRecption: {
-				value: 0,
-				name: ['strongRecption'],
-			},
-			simpleAsp: {
-				value: 0,
-				name: ['simpleAsp'],
-			},
-			virtualPointReceiveAsp: {
-				value: 0,
-				name: ['virtualPointReceiveAsp'],
-			},
-			doubingSu28: {
-				value: 0,
-				name: ['doubingSu28'],
-			},
-			guolaoLifeMode: {
-				value: 'asc',
-				name: ['guolaoLifeMode'],
-			},
-			guolaoNodeMode: {
-				value: 'northKetuSouthRahu',
-				name: ['guolaoNodeMode'],
-			},
-			houseStartMode: {
-				// [X1] 同上:重置态也读回持久化,免 reset 后又静默回退。
-				value: (typeof localStorage !== 'undefined' && parseInt(localStorage.getItem('suzhanHouseStartMode'), 10) === 1) ? 1 : 0,
-				name: ['houseStartMode'],
-			},
-			predictive: {
-				value: 1,
-				name: ['predictive'],
-			},
-			showPdBounds: {
-				value: 1,
-				name: ['showPdBounds'],
-			},
-			pdtype: {
-				value: 0,
-				name: ['pdtype'],
-			},
-			pdMethod: {
-				value: 'core_alchabitius',
-				name: ['pdMethod'],
-			},
-			pdTimeKey: {
-				value: 'Ptolemy',
-				name: ['pdTimeKey'],
-			},
-			pdaspects: {
-				value: [0, 60, 90, 120, 180],
-				name: ['pdaspects'],
-			},
-			timeAlg: {
-				value: 0,
-				name: ['timeAlg'],
-			},
-			phaseType: {
-				value: 0,
-				name: ['phaseType'],
-			},
-			godKeyPos: {
-				value: '年',
-				name: ['godKeyPos'],
-			},
-			orbs:{
-				value: undefined,
-				name: ['orbs'],
-			},
-			orbScale:{
-				value: undefined,
-				name: ['orbScale'],
-			},
-			after23NewDay: {
-				value: defaultAfter23NewDay(),
-				name: ['after23NewDay'],
-			},
-			lateZiHourUseNextDay: {
-				value: defaultLateZiHourUseNextDay(),
-				name: ['lateZiHourUseNextDay'],
-			},
-			adjustJieqi: {
-				value: 0,
-				name: ['adjustJieqi'],
-			},
-			gender: {
-				value: 1,
-				name: ['gender'],
-			},
-			group: {
-				value: null,
-				name: ['group'],
-			},
-			southchart: {
-				value: 0,
-				name: ['southchart'],
-			},
-	
-			memoZiWei:{
-				value: null,
-				name: ['memoZiWei'],
-			},
-			memoBaZi:{
-				value: null,
-				name: ['memoBaZi'],
-			},
-			memoAstro:{
-				value: null,
-				name: ['memoAstro'],
-			},
-			memo74:{
-				value: null,
-				name: ['memo74'],
-			},
-			memoGua:{
-				value: null,
-				name: ['memoGua'],
-			},
-			memoLiuReng:{
-				value: null,
-				name: ['memoLiuReng'],
-			},
-			memoQiMeng:{
-				value: null,
-				name: ['memoQiMeng'],
-			},
-			memoSuZhan:{
-				value: null,
-				name: ['memoSuZhan'],
-			},
-
+		// [2026-07 五批] fields 初始态单源化:此前是与 newEmptyFields() 平行的手写字面量,
+		// 缺 27 键(全部古典播种键 + guolao/india 键)→ app 启动首发 nowChart 链拿到的 fields
+		// 无播种键,「设置→星盘设置」全局偏好在重启后对主页首发盘全部失效(直到抽屉再改一次
+		// 被 applyClassicalField patch 救回)。单源 = newEmptyFields()(种子读全局仓);
+		// 仅时间四键保留原字面量语义(date 归零到当日 00:00 的 startOf 口径)。
+		fields: {
+			...newEmptyFields(),
+			ad: { value: now.ad, name: ['ad'] },
+			date: { value: now.startOf('date'), name: ['date'] },
+			time: { value: now.clone(), name: ['time'] },
+			zone: { value: now.zone, name: ['zone'] },
 		},
 	},
 	
@@ -1680,6 +1597,14 @@ export default {
 			runHooking();
 		},
 
+		// 「重算当前」/「重算星盘」用这个:拿状态里已录的 fields 重排。
+		// 从前这两个入口都 dispatch nowChart 且 payload 为空 → nowChart 内 fields===undefined
+		// 就走 newEmptyFields()(=此刻新盘),于是按钮名写着「重算」、行为却是把已录生辰清成当下,
+		// 误点即丢盘。起此刻新盘仍走 nowChart 空 payload(「新命盘」按钮的语义)。
+		*recalcChart(_, { put, select }){
+			const st = yield select((s)=>s.astro);
+			yield put({ type: 'nowChart', payload: { fields: st && st.fields ? st.fields : undefined } });
+		},
 		*nowChart({ payload: values }, { call, put, select }){
 			let fields = values.fields;
 			if(fields === undefined || fields === null){

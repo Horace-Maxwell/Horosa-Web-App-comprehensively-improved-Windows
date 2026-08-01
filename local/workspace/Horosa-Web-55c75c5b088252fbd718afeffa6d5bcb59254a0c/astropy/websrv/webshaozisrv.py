@@ -5,6 +5,7 @@ import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    authoritative_pillars,
     build_snapshot,
     clean_text,
     ensure_kinastro_path,
@@ -164,6 +165,13 @@ class ShaoZiSrv:
             gender = gender_cn(data.get("gender"), "男")
             # v2.2.1: 同时传 after23 + lateZi 双开关
             gz = calculate_ganzhi_from_datetime(dt, data.get("after23NewDay", 1), data.get("lateZiHourUseNextDay", 1))
+            # 🔴 标准四柱换全局权威口径(立春界/定气月/儒略JDN,全域含 BC)。
+            #    现代域两者一致=零回归;1/2 月未过立春与 BC 年才有差(那正是要修的)。
+            #    取不到权威实现时保留旧值,故用 update 而非整体替换。
+            _auth_gz = authoritative_pillars(dt, data)
+            if _auth_gz:
+                gz = dict(gz)
+                gz.update(_auth_gz)
             override_values = [data.get("yearGz"), data.get("monthGz"), data.get("dayGz"), data.get("hourGz")]
             pillar_override = any(clean_text(item) for item in override_values)
             year_gz = _normalize_ganzhi(data.get("yearGz"), gz["year"])

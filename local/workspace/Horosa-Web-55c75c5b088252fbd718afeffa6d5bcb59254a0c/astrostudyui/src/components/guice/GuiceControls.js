@@ -2,7 +2,7 @@
 //
 // 🔴 死控件一律隐藏、不留「勾了不生效」之惑（schoolNeeds 声明式）。
 import React, { Component } from 'react';
-import { Input, InputNumber, Select, Switch, Collapse, Button } from 'antd';
+import { Input, InputNumber, Select, Collapse, Button, Checkbox } from 'antd';
 import { XQSideSection } from '../xq-ui';
 import {
 	GUICE_OPTION_META, GUICE_SCHOOL_OPTIONS, applyPreset, setOption, schoolNeeds, qiguaFaInputs,
@@ -130,7 +130,7 @@ class GuiceControls extends Component {
 	renderOptions() {
 		const s = this.props.settings;
 		const need = schoolNeeds(s);
-		return GUICE_OPTION_META.map((m) => {
+		const entries = GUICE_OPTION_META.map((m) => {
 			if (m.needs) {
 				const k = Object.keys(m.needs)[0];
 				if (!need[k]) return null;   // 死控件隐藏
@@ -141,15 +141,34 @@ class GuiceControls extends Component {
 				? '神煞附于时方而行(古籍同体),先开「参时方」即随之生效'
 				: (need.disabled && need.disabled[m.key]);
 			if (m.type === 'switch') {
-				return this.field(m.label,
-					<Switch size="small" checked={!!s[m.key]} disabled={!!dis} onChange={(v) => this.set(m.key, v)} />,
-					dis || '', { row: true });
+				return { isSwitch: true, chip: (
+					<Checkbox key={m.key} checked={!!s[m.key]} disabled={!!dis}
+						title={typeof dis === 'string' && dis ? dis : m.label}
+						onChange={(e) => this.set(m.key, e.target.checked)}>{m.label}</Checkbox>
+				) };
 			}
-			return this.field(m.label,
+			return { isSwitch: false, node: this.field(m.label,
 				<Select value={s[m.key]} disabled={!!dis} dropdownMatchSelectWidth={false} onChange={(v) => this.set(m.key, v)}>
 					{m.options.map((o) => <Option key={o.value} value={o.value}>{o.label}</Option>)}
-				</Select>, dis || '');
+				</Select>, dis || '') };
 		}).filter(Boolean);
+		// 一行两个(用户三轮定案):下拉全数集中一张两列网格(十应名目等后位下拉上移补空隙,
+		// 杜绝半宽孤行);开关(神煞/时方)改双列描金芯片(house 风格同六爻/塔罗显示项),
+		// 注解不再占正文 —— 禁用缘由挪进芯片 title 提示。
+		const selects = entries.filter((e) => !e.isSwitch).map((e) => e.node);
+		const switches = entries.filter((e) => e.isSwitch);
+		const out = [];
+		if (selects.length) {
+			out.push(<div className="horosa-huangji-select-grid horosa-guice-pair-grid" key="pair-selects">{selects}</div>);
+		}
+		if (switches.length) {
+			out.push(
+				<div className="horosa-guazhan-toggle-grid horosa-guice-toggle-grid" key="pair-switches">
+					{switches.map((e) => e.chip)}
+				</div>
+			);
+		}
+		return out;
 	}
 
 	/** 时方之输入 —— 方应须知「来占之人所坐立之方位」，非机可代 */

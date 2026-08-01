@@ -105,6 +105,34 @@ const iconMap = {
 			<path {...lineProps} d="M12 3.8v2.1M12 18.1v2.1M5.9 5.9l1.5 1.5M16.6 16.6l1.5 1.5M3.8 12h2.1M18.1 12h2.1M5.9 18.1l1.5-1.5M16.6 7.4l1.5-1.5" />
 		</Svg>
 	),
+	// 星盘设置(盘面组件抽屉):天宫图双环 + 右下调节滑杆 —— 「盘上画什么」的面板语义。
+	chartPanel: (
+		<Svg>
+			<circle {...lineProps} cx="10.4" cy="10.4" r="6.8" />
+			<circle {...lineProps} cx="10.4" cy="10.4" r="3.2" />
+			<path {...lineProps} d="M10.4 3.6v3.6M10.4 13.6v3.6M3.6 10.4h3.6M13.6 10.4h3.6" />
+			<path {...lineProps} d="M15.2 17.6h6M18.9 15.9v3.4" />
+			<circle {...lineProps} cx="18.9" cy="17.6" r="1.15" fill="currentColor" stroke="none" />
+		</Svg>
+	),
+	// 相位设置:圆周三点连出三角相位线(合冲刑拱的几何本相)。
+	aspectGeo: (
+		<Svg>
+			<circle {...lineProps} cx="12" cy="12" r="8.4" />
+			<path {...lineProps} d="M12 3.6L4.9 16.2h14.2z" />
+			<circle cx="12" cy="3.6" r="1.3" fill="currentColor" stroke="none" />
+			<circle cx="4.9" cy="16.2" r="1.3" fill="currentColor" stroke="none" />
+			<circle cx="19.1" cy="16.2" r="1.3" fill="currentColor" stroke="none" />
+		</Svg>
+	),
+	// 容许度(orb):星点外的容许圈——内实点+中圈+外虚圈,由紧到松的度距语义。
+	orbRange: (
+		<Svg>
+			<circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
+			<circle {...lineProps} cx="12" cy="12" r="5.2" />
+			<circle {...lineProps} cx="12" cy="12" r="8.6" strokeDasharray="2.6 3.4" />
+		</Svg>
+	),
 	help: (
 		<Svg>
 			<circle {...lineProps} cx="12" cy="12" r="8.5" />

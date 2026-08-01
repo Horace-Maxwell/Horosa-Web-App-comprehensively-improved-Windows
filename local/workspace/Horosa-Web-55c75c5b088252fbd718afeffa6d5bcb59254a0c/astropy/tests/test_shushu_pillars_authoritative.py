@@ -12,6 +12,7 @@
 import json
 import urllib.request
 
+import os
 import pytest
 
 from kin_year_domain import extreme_pillars
@@ -45,7 +46,11 @@ def _online():
         return False
 
 
-pytestmark = pytest.mark.skipif(not _online(), reason="local :8899 not online")
+# 假绿闸:干净机上 :8899 未起会静默 skip 87 例而不飘红 —— 发版基线跑法必须
+# HOROSA_REQUIRE_SRV=1(此时不再 skip,离线即连接错误红给你看)。日常本地无服务仍可 skip。
+pytestmark = pytest.mark.skipif(
+    (not _online()) and os.environ.get('HOROSA_REQUIRE_SRV') != '1',
+    reason="local :8899 not online (set HOROSA_REQUIRE_SRV=1 to fail loudly instead of skip)")
 
 
 @pytest.mark.parametrize("key", STANDARD_PILLAR_ENDPOINTS)

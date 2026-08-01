@@ -11,15 +11,15 @@
 import fs from 'fs';
 import path from 'path';
 import { AI_EXPORT_PRESET_SECTIONS } from '../aiExport';
+import { CNYIBU_SUBTABS } from '../../constants/SubTabRegistry';
 
 const EXPORT_SRC = fs.readFileSync(path.join(__dirname, '..', 'aiExport.js'), 'utf8');
 const HOST_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'cnyibu', 'CnYiBuMain.js'), 'utf8');
 
-/** 宿主认的子tab —— 真值源 */
-const VALID_TABS = (() => {
-	const blk = (HOST_SRC.match(/const CNYIBU_VALID_TABS = \[([\s\S]*?)\];/) || ['', ''])[1];
-	return (blk.match(/'(\w+)'/g) || []).map((s) => s.replace(/'/g, ''));
-})();
+/** 宿主认的子tab —— 真值源。
+ *  这份名单已从 CnYiBuMain 的手写字面量归一到 constants/SubTabRegistry(导航层同源,
+ *  见「切走再切回被打回首档」那类缺陷),故直接 import,比正则扒字面量更可靠。 */
+const VALID_TABS = CNYIBU_SUBTABS;
 
 /** 导出侧的判定表 */
 const MAP = (() => {
@@ -37,6 +37,8 @@ describe('导出判定 · 解析器自检（判据本身须可信）', () => {
 		expect(VALID_TABS.length).toBeGreaterThan(8);
 		expect(VALID_TABS).toContain('guice');
 		expect(Object.keys(MAP).length).toBeGreaterThan(8);
+		// 宿主必须仍在用那个真值源 —— 若有人改回手写字面量,两侧会再次各自漂移。
+		expect(HOST_SRC).toContain('const CNYIBU_VALID_TABS = CNYIBU_SUBTABS;');
 	});
 });
 

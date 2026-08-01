@@ -1,0 +1,131 @@
+// SBC 全吉盘(9×9,28 宿环)。配色全走既有令牌;
+// ⚠ 暗色特异度陷阱(仓内既有教训):暗/亮各写一条 :root[…] 前缀规则,防被暗色格底规则盖过。
+.horosa-india-sbc {
+	position: relative;
+	margin: 0 auto;
+	// 子元素全 absolute → 根必须自带尺寸,否则在 flex stage 里塌成 0×0(经典盘塌线同族坑)
+	width: ~"min(92%, 640px)";
+	max-width: 100%;
+	aspect-ratio: 1 / 1;
+}
+.horosa-india-sbc-lines {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	line {
+		stroke: var(--horosa-astro-border, rgba(215, 173, 105, 0.4));
+		stroke-width: 0.35;
+		vector-effect: non-scaling-stroke;
+	}
+	.horosa-india-sbc-corner { stroke: var(--horosa-astro-muted, #8fa0b9); stroke-width: 0.3; opacity: 0.5; }
+	.horosa-india-sbc-frame {
+		fill: none;
+		stroke: var(--horosa-astro-gold, #d7ad69);
+		stroke-width: 1.1;
+		vector-effect: non-scaling-stroke;
+		opacity: 0.75;
+	}
+	.horosa-india-sbc-corner-deco {
+		fill: none;
+		stroke: var(--horosa-astro-gold, #d7ad69);
+		stroke-width: 1;
+		vector-effect: non-scaling-stroke;
+		opacity: 0.9;
+	}
+	.horosa-india-sbc-focus { fill: var(--horosa-astro-gold, #d7ad69); opacity: 0.2; }
+	.horosa-india-sbc-focus-ring {
+		fill: none;
+		stroke: var(--horosa-astro-gold, #d7ad69);
+		stroke-width: 1.2;
+		vector-effect: non-scaling-stroke;
+		opacity: 0.95;
+	}
+	// Vedha 命中与三盘式「被相映宫」同一视觉语族(蓝)
+	.horosa-india-sbc-hit { fill: var(--horosa-india-aspect-fill, rgba(84, 138, 214, 0.28)); }
+}
+.horosa-india-sbc-cell {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 1px;
+	overflow: hidden;
+	text-align: center;
+	> strong { font-size: 12px; line-height: 1.15; color: var(--horosa-astro-text, #e8ecf3); font-weight: 600; }
+	> em { font-style: normal; font-size: 9px; line-height: 1; color: var(--horosa-astro-muted, #8fa0b9); }
+	transition: background 0.15s ease;
+	border-radius: 2px;
+	&:hover { background: rgba(215, 173, 105, 0.08); }
+	&.is-abhijit > strong { color: var(--horosa-astro-gold, #d7ad69); }
+	&.is-abhijit {
+		background: repeating-linear-gradient(135deg, rgba(215, 173, 105, 0.1) 0 3px, transparent 3px 7px);
+	}
+	&.is-focus > strong { color: var(--horosa-astro-gold, #d7ad69); font-weight: 700; }
+	.horosa-india-sbc-transits {
+		display: flex;
+		gap: 2px;
+		justify-content: center;
+		flex-wrap: wrap;
+		i {
+			font-style: normal;
+			font-size: 9px;
+			line-height: 12px;
+			width: 13px;
+			border-radius: 50%;
+			border: 1px solid currentColor;
+			&.is-mal { color: var(--horosa-jx-xiong, #c96a6a); }
+			&.is-ben { color: var(--horosa-jx-ji, #4a9e74); }
+		}
+	}
+}
+.horosa-india-sbc-center {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	max-width: 62%;
+	pointer-events: none;
+	.horosa-india-sbc-center-badge {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 3px;
+		text-align: center;
+		padding: 12px 20px;
+		border-radius: 50%;
+		aspect-ratio: 1 / 1;
+		justify-content: center;
+		border: 1px solid rgba(215, 173, 105, 0.55);
+		box-shadow: inset 0 0 0 3px rgba(215, 173, 105, 0.14), 0 0 24px rgba(215, 173, 105, 0.12);
+		background: radial-gradient(circle at 50% 42%, rgba(215, 173, 105, 0.1), transparent 72%);
+		> strong { font-size: 16px; letter-spacing: 0.12em; color: var(--horosa-astro-gold, #d7ad69); }
+		.horosa-india-sbc-center-refs {
+			display: flex;
+			gap: 8px;
+			justify-content: center;
+			b { font-weight: 600; font-size: 10.5px; color: var(--horosa-astro-text, #2a2f3a); }
+		}
+		.horosa-india-sbc-center-transits {
+			display: grid;
+			grid-template-columns: repeat(3, auto);
+			gap: 2px 8px;
+			justify-content: center;
+			margin-top: 2px;
+			b {
+				font-weight: 500;
+				font-size: 9.5px;
+				line-height: 13px;
+				&.is-mal { color: var(--horosa-jx-xiong, #c96a6a); }
+				&.is-ben { color: var(--horosa-jx-ji, #4a9e74); }
+			}
+		}
+		> em { font-style: normal; font-size: 10.5px; color: var(--horosa-astro-muted, #8fa0b9); }
+		> small { font-size: 9.5px; line-height: 1.4; max-width: 150px; color: var(--horosa-astro-muted, #8fa0b9); opacity: 0.85; }
+	}
+}
+// 暗/亮双前缀(特异度对齐,防主题规则互盖)
+:root[data-horosa-appearance='dark'] .horosa-india-sbc-cell > strong { color: var(--horosa-astro-text, #e8ecf3); }
+:root[data-horosa-appearance='light'] .horosa-india-sbc-cell > strong { color: var(--horosa-astro-text, #2a2f3a); }

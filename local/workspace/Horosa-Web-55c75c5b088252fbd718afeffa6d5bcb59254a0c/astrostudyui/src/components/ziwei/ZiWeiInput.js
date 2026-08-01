@@ -13,10 +13,19 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 import { XQSelect as Select, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import XQIcon from '../xq-icons';
-import { ZWEngineOptions, DAXIAN_SPAN_OPTIONS, TIANMA_BASIS_OPTIONS, STAR_SET_OPTIONS, SANPAN_OPTIONS, SHANGSHI_OPTIONS, LEAP_MONTH_OPTIONS, LATE_ZI_OPTIONS, YEAR_BOUNDARY_OPTIONS, HUOLING_OPTIONS, KONG_NAMING_OPTIONS } from './ziweiOptions';
+import { ZWEngineOptions, DAXIAN_SPAN_OPTIONS, TIANMA_BASIS_OPTIONS, STAR_SET_OPTIONS, SANPAN_OPTIONS, SHANGSHI_OPTIONS, LEAP_MONTH_OPTIONS, LATE_ZI_OPTIONS, YEAR_BOUNDARY_OPTIONS, HUOLING_OPTIONS, KONG_NAMING_OPTIONS, BRIGHTNESS_SOURCE_OPTIONS } from './ziweiOptions';
 import { ZIWEI_SCHOOL_PRESETS, ZIWEI_PRESET_OPTIONS, presetOf } from './ziweiPresets';
 
 const {Option} = Select;
+
+// 紫云太岁关系人生肖(下拉单选,地支+生肖)。
+const SHENGXIAO_OPTIONS = [
+	{ value: '', label: '（无）' },
+	{ value: '子', label: '子（鼠）' }, { value: '丑', label: '丑（牛）' }, { value: '寅', label: '寅（虎）' },
+	{ value: '卯', label: '卯（兔）' }, { value: '辰', label: '辰（龙）' }, { value: '巳', label: '巳（蛇）' },
+	{ value: '午', label: '午（马）' }, { value: '未', label: '未（羊）' }, { value: '申', label: '申（猴）' },
+	{ value: '酉', label: '酉（鸡）' }, { value: '戌', label: '戌（狗）' }, { value: '亥', label: '亥（猪）' },
+];
 
 class ZiWeiInput extends Component{
 	
@@ -60,6 +69,16 @@ class ZiWeiInput extends Component{
 		ZWEngineOptions.yearBoundary = localStorage.getItem('ziweiYearBoundary') || 'lichun';
 		ZWEngineOptions.huoling = localStorage.getItem('ziweiHuoling') || 'sanhe';
 		ZWEngineOptions.kongNaming = localStorage.getItem('ziweiKongNaming') || 'modern';
+		// 亮度源(WP-L) + 6 显示 overlay 开关(WP-1..6) + 紫云关系人列表(WP-6)。默认全关/空=零回归。
+		ZWEngineOptions.brightnessSource = localStorage.getItem('ziweiBrightnessSource') || 'zi_jian';
+		const lsBool = (k)=>localStorage.getItem(k) === '1';
+		ZWEngineOptions.childLimit = lsBool('ziweiChildLimit');
+		ZWEngineOptions.zhongxian = lsBool('ziweiZhongxian');
+		ZWEngineOptions.huoPan = lsBool('ziweiHuoPan');
+		ZWEngineOptions.qishuWei = lsBool('ziweiQishuWei');
+		ZWEngineOptions.borrowPalace = lsBool('ziweiBorrowPalace');
+		ZWEngineOptions.taiSuiRuGua = lsBool('ziweiTaiSuiRuGua');
+		try{ ZWEngineOptions.taiSuiRelatives = JSON.parse(localStorage.getItem('ziweiTaiSuiRelatives') || '[]') || []; }catch(e){ ZWEngineOptions.taiSuiRelatives = []; }
 
 		this.state = {
 			showTips: showTips,
@@ -78,6 +97,14 @@ class ZiWeiInput extends Component{
 			yearBoundary: ZWEngineOptions.yearBoundary,
 			huoling: ZWEngineOptions.huoling,
 			kongNaming: ZWEngineOptions.kongNaming,
+			brightnessSource: ZWEngineOptions.brightnessSource,
+			childLimit: ZWEngineOptions.childLimit,
+			zhongxian: ZWEngineOptions.zhongxian,
+			huoPan: ZWEngineOptions.huoPan,
+			qishuWei: ZWEngineOptions.qishuWei,
+			borrowPalace: ZWEngineOptions.borrowPalace,
+			taiSuiRuGua: ZWEngineOptions.taiSuiRuGua,
+			taiSuiRelatives: ZWEngineOptions.taiSuiRelatives,
 			zwPresetPicked: localStorage.getItem('ziweiPreset') || 'sanhe',
 		}
 
@@ -109,6 +136,9 @@ class ZiWeiInput extends Component{
 		this.onYearBoundaryChange = this.onYearBoundaryChange.bind(this);
 		this.onHuolingChange = this.onHuolingChange.bind(this);
 		this.onKongNamingChange = this.onKongNamingChange.bind(this);
+		this.onBrightnessSourceChange = this.onBrightnessSourceChange.bind(this);
+		this.onOverlayToggle = this.onOverlayToggle.bind(this);
+		this.onTaiSuiRelativesChange = this.onTaiSuiRelativesChange.bind(this);
 		this.onPresetChange = this.onPresetChange.bind(this);
 
 		let type = localStorage.getItem('ziweiChartType');
@@ -296,10 +326,13 @@ class ZiWeiInput extends Component{
 		const p = ZIWEI_SCHOOL_PRESETS[val];
 		if(!p){ return; }
 		this.applySihuaSchool(p.sihua);
-		const lsMap = { daxianSpan: 'ziweiDaxianSpan', tianmaBasis: 'ziweiTianmaBasis', starSet: 'ziweiStarSet', sanPan: 'ziweiSanPan', shangShi: 'ziweiShangShi', leapMonth: 'ziweiLeapMonth', lateZi: 'ziweiLateZi', yearBoundary: 'ziweiYearBoundary', huoling: 'ziweiHuoling', kongNaming: 'ziweiKongNaming' };
+		const lsMap = { daxianSpan: 'ziweiDaxianSpan', tianmaBasis: 'ziweiTianmaBasis', starSet: 'ziweiStarSet', sanPan: 'ziweiSanPan', shangShi: 'ziweiShangShi', leapMonth: 'ziweiLeapMonth', lateZi: 'ziweiLateZi', yearBoundary: 'ziweiYearBoundary', huoling: 'ziweiHuoling', kongNaming: 'ziweiKongNaming', brightnessSource: 'ziweiBrightnessSource' };
 		Object.keys(lsMap).forEach((k)=>{ ZWEngineOptions[k] = p[k]; safeLocalStorageSet(lsMap[k], String(p[k])); });
+		// 6 显示 overlay 开关(bool):套 preset 时一并设。
+		const boolMap = { childLimit: 'ziweiChildLimit', zhongxian: 'ziweiZhongxian', huoPan: 'ziweiHuoPan', qishuWei: 'ziweiQishuWei', borrowPalace: 'ziweiBorrowPalace', taiSuiRuGua: 'ziweiTaiSuiRuGua' };
+		Object.keys(boolMap).forEach((k)=>{ ZWEngineOptions[k] = !!p[k]; safeLocalStorageSet(boolMap[k], p[k] ? 1 : 0); });
 		safeLocalStorageSet('ziweiPreset', val);
-		this.setState({ zwPresetPicked: val, sihuaSchool: p.sihua, daxianSpan: p.daxianSpan, tianmaBasis: p.tianmaBasis, starSet: p.starSet, sanPan: p.sanPan, shangShi: p.shangShi, leapMonth: p.leapMonth, lateZi: p.lateZi, yearBoundary: p.yearBoundary, huoling: p.huoling, kongNaming: p.kongNaming });
+		this.setState({ zwPresetPicked: val, sihuaSchool: p.sihua, daxianSpan: p.daxianSpan, tianmaBasis: p.tianmaBasis, starSet: p.starSet, sanPan: p.sanPan, shangShi: p.shangShi, leapMonth: p.leapMonth, lateZi: p.lateZi, yearBoundary: p.yearBoundary, huoling: p.huoling, kongNaming: p.kongNaming, brightnessSource: p.brightnessSource, childLimit: !!p.childLimit, zhongxian: !!p.zhongxian, huoPan: !!p.huoPan, qishuWei: !!p.qishuWei, borrowPalace: !!p.borrowPalace, taiSuiRuGua: !!p.taiSuiRuGua });
 		this.redrawChart();
 	}
 
@@ -339,6 +372,23 @@ class ZiWeiInput extends Component{
 	onYearBoundaryChange(val){ ZWEngineOptions.yearBoundary = val; safeLocalStorageSet('ziweiYearBoundary', val); this.setState({ yearBoundary: val }); this.redrawChart(); }
 	onHuolingChange(val){ ZWEngineOptions.huoling = val; safeLocalStorageSet('ziweiHuoling', val); this.setState({ huoling: val }); this.redrawChart(); }
 	onKongNamingChange(val){ ZWEngineOptions.kongNaming = val; safeLocalStorageSet('ziweiKongNaming', val); this.setState({ kongNaming: val }); this.redrawChart(); }
+	// WP-L 亮度源(改安星路径,走本地引擎)。
+	onBrightnessSourceChange(val){ ZWEngineOptions.brightnessSource = val; safeLocalStorageSet('ziweiBrightnessSource', val); this.setState({ brightnessSource: val }); this.redrawChart(); }
+	// WP-1..6 显示 overlay 开关(纯后处理,不改安星):通用 checkbox → 写单例 + localStorage + 重绘。
+	onOverlayToggle(stateKey, optKey, lsKey, checked){
+		ZWEngineOptions[optKey] = checked;
+		safeLocalStorageSet(lsKey, checked ? 1 : 0);
+		this.setState({ [stateKey]: checked });
+		this.redrawChart();
+	}
+	// WP-6 紫云关系人列表(逗号分隔生肖 + 角色 + 性别的简式;存 localStorage,随盘)。
+	onTaiSuiRelativesChange(list){
+		const arr = Array.isArray(list) ? list : [];
+		ZWEngineOptions.taiSuiRelatives = arr;
+		safeLocalStorageSet('ziweiTaiSuiRelatives', JSON.stringify(arr));
+		this.setState({ taiSuiRelatives: arr });
+		this.redrawChart();
+	}
 
 
 	changeGeo(rec){
@@ -476,6 +526,7 @@ class ZiWeiInput extends Component{
 					</div>
 					<Collapse ghost size="small" className="horosa-ziwei-school-collapse">
 						<Collapse.Panel header="流派·传本设置" key="school">
+							<div className="horosa-ziwei-select-grid">
 							<label className="horosa-ziwei-select-field">
 								<span>观察盘</span>
 								<Select value={this.state.sanPan} onChange={this.onSanPanChange} size='small'>
@@ -526,6 +577,12 @@ class ZiWeiInput extends Component{
 								</Select>
 							</label>
 							<label className="horosa-ziwei-select-field">
+								<span>星曜亮度</span>
+								<Select value={this.state.brightnessSource} onChange={this.onBrightnessSourceChange} size='small'>
+									{BRIGHTNESS_SOURCE_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
+								</Select>
+							</label>
+							<label className="horosa-ziwei-select-field">
 								<span>闰月归月</span>
 								<Select value={this.state.leapMonth} onChange={this.onLeapMonthChange} size='small'>
 									{LEAP_MONTH_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
@@ -543,9 +600,30 @@ class ZiWeiInput extends Component{
 									{YEAR_BOUNDARY_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 								</Select>
 							</label>
+							</div>
 							{this.state.sihuaSchool === 'custom' && (
 								<button type="button" className="horosa-ziwei-school-edit-btn" onClick={()=>this.setState({ sihuaCustomOpen: true })}>编辑自定义四化表…</button>
 							)}
+						</Collapse.Panel>
+						<Collapse.Panel header="流派叠层·显示" key="overlay">
+							<div className="horosa-ziwei-overlay-card">
+								<Checkbox checked={this.state.childLimit} onChange={(e)=>this.onOverlayToggle('childLimit', 'childLimit', 'ziweiChildLimit', e.target.checked)}>童限(上大限前逐岁本命宫)</Checkbox>
+								<Checkbox checked={this.state.zhongxian} onChange={(e)=>this.onOverlayToggle('zhongxian', 'zhongxian', 'ziweiZhongxian', e.target.checked)}>沈氏三限(大限细分2.5年中限)</Checkbox>
+								<Checkbox checked={this.state.qishuWei} onChange={(e)=>this.onOverlayToggle('qishuWei', 'qishuWei', 'ziweiQishuWei', e.target.checked)}>河洛气数位(官禄宫干四化回照)</Checkbox>
+								<Checkbox checked={this.state.borrowPalace} onChange={(e)=>this.onOverlayToggle('borrowPalace', 'borrowPalace', 'ziweiBorrowPalace', e.target.checked)}>中州借宫(空宫借对宫正曜)</Checkbox>
+								<Checkbox checked={this.state.huoPan} onChange={(e)=>this.onOverlayToggle('huoPan', 'huoPan', 'ziweiHuoPan', e.target.checked)}>活盘(点宫为太极点重排宫名)</Checkbox>
+								<Checkbox checked={this.state.taiSuiRuGua} onChange={(e)=>this.onOverlayToggle('taiSuiRuGua', 'taiSuiRuGua', 'ziweiTaiSuiRuGua', e.target.checked)}>紫云太岁入卦(关系人生肖落宫)</Checkbox>
+								{this.state.taiSuiRuGua && (
+									<label className="horosa-ziwei-select-field" style={{ marginTop: 4 }}>
+										<span>关系人生肖</span>
+										<Select value={((this.state.taiSuiRelatives || [])[0] || {}).branch || ''}
+											onChange={(v)=>this.onTaiSuiRelativesChange(v ? [{ branch: v, role: '', sex: '' }] : [])}
+											size='small'>
+											{SHENGXIAO_OPTIONS.map((o)=><Option key={o.value || 'none'} value={o.value}>{o.label}</Option>)}
+										</Select>
+									</label>
+								)}
+							</div>
 						</Collapse.Panel>
 					</Collapse>
 					<ZWSihuaCustomModal

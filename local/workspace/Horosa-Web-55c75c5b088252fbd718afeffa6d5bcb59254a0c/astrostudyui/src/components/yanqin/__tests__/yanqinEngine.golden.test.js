@@ -12,7 +12,7 @@ function dateFromDiff(diff) {
 	return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
 }
 
-// —— §10.2 七元日禽定局 60干支 × 7元 → 值日宿(逐字)——
+// —— 七元日禽定局 60干支 × 7元 → 值日宿(逐字)——
 const DINGJU = [
 	['虚日鼠', '奎木狼', '毕月乌', '鬼金羊', '翼火蛇', '氐土貉', '箕水豹'], // 甲子
 	['危月燕', '娄金狗', '觜火猴', '柳土獐', '轸水蚓', '房日兔', '斗木獬'], // 乙丑
@@ -76,7 +76,7 @@ const DINGJU = [
 	['壁水貐', '昴日鸡', '井木犴', '张月鹿', '亢金龙', '尾火虎', '女土蝠'], // 癸亥
 ];
 
-describe('日禽 §10.2 定局 60×7 全表 byte-match(锁 mansionOfDay + yuanJiang 一整 420 周期)', () => {
+describe('日禽  定局 60×7 全表 byte-match(锁 mansionOfDay + yuanJiang 一整 420 周期)', () => {
 	test('一整 420 日循环逐日 = 定局表', () => {
 		for (let diff = 0; diff < 420; diff++) {
 			const { y, m, d } = dateFromDiff(diff);
@@ -110,7 +110,7 @@ describe('日禽相位锁定 + 420周期 + 干支锚', () => {
 		expect(mansionOfDay(1996, 1, 28).name).toBe('虚日鼠');
 		expect(new Date(ANCHOR_UNIX * 86400000).getUTCDay()).toBe(0);
 		expect(yuanJiangOfDay(1996, 1, 28)).toEqual({ yuan: 1, jiang: 1 });
-		// 2002-02-10 己酉 = 二元四将 = 房日兔(大全§1.7 程序更正值)
+		// 2002-02-10 己酉 = 二元四将 = 房日兔(古籍 程序更正值)
 		expect(ganzhiOfDay(2002, 2, 10)).toBe('己酉');
 		expect(yuanJiangOfDay(2002, 2, 10)).toEqual({ yuan: 2, jiang: 4 });
 		expect(mansionOfDay(2002, 2, 10).name).toBe('房日兔');
@@ -130,8 +130,8 @@ describe('年禽 / 月禽 ✅', () => {
 	});
 });
 
-describe('时禽 §4.3 基准表 + 旬头位移 ⚠️(两模式各锁文档锚)', () => {
-	test('§4.3 七元甲子时禽表 7曜×7元(基准,无位移)', () => {
+describe('时禽  基准表 + 旬头位移 ⚠️(两模式各锁文档锚)', () => {
+	test(' 七元甲子时禽表 7曜×7元(基准,无位移)', () => {
 		const TBL = {
 			日: ['虚日鼠', '鬼金羊', '箕水豹', '毕月乌', '氐土貉', '奎木狼', '翼火蛇'],
 			月: ['鬼金羊', '箕水豹', '毕月乌', '氐土貉', '奎木狼', '翼火蛇', '虚日鼠'],
@@ -147,13 +147,13 @@ describe('时禽 §4.3 基准表 + 旬头位移 ⚠️(两模式各锁文档锚)
 			}
 		});
 	});
-	test('T1 庚午(二元)卯时,旬头位移ON = 井木犴(大全§10.5)', () => {
+	test('T1 庚午(二元)卯时,旬头位移ON = 井木犴(古籍)', () => {
 		const { y, m, d } = dateFromDiff(66); // 庚午二元
 		expect(ganzhiOfDay(y, m, d)).toBe('庚午');
 		expect(mansionOfDay(y, m, d).name).toBe('参水猿');
 		expect(hourQin(y, m, d, DIZHI_TO_IDX['卯'], true).name).toBe('井木犴');
 	});
-	test('T2 乙未(三元)午时,无位移 = 心月狐(大全§4.5 算例口径)', () => {
+	test('T2 乙未(三元)午时,无位移 = 心月狐(古籍 算例口径)', () => {
 		const { y, m, d } = dateFromDiff(151); // 乙未三元
 		expect(ganzhiOfDay(y, m, d)).toBe('乙未');
 		expect(mansionOfDay(y, m, d).name).toBe('井木犴');
@@ -170,7 +170,7 @@ describe('时禽 §4.3 基准表 + 旬头位移 ⚠️(两模式各锁文档锚)
 	});
 });
 
-describe('翻禽 §5.5 ✅(无位移口径)', () => {
+describe('翻禽  ✅(无位移口径)', () => {
 	test('丁酉(三元)未时:日禽柳土獐、时禽亢金龙、翻禽轸水蚓', () => {
 		const { y, m, d } = dateFromDiff(153); // 丁酉三元
 		expect(ganzhiOfDay(y, m, d)).toBe('丁酉');
@@ -181,7 +181,7 @@ describe('翻禽 §5.5 ✅(无位移口径)', () => {
 	});
 });
 
-describe('投胎度数 §5.1 ✅', () => {
+describe('投胎度数  ✅', () => {
 	test('正月寅=凤凰、二月寅=鸿雁、正月卯=狮子、正月午=白鹿、八月酉=凤凰', () => {
 		expect(toutaiDu(1, DIZHI_TO_IDX['寅'])).toBe('凤凰');
 		expect(toutaiDu(2, DIZHI_TO_IDX['寅'])).toBe('鸿雁');
@@ -191,7 +191,7 @@ describe('投胎度数 §5.1 ✅', () => {
 	});
 });
 
-describe('合宿歌 命星→身星 §5.3.2 ✅', () => {
+describe('合宿歌 命星→身星 .2 ✅', () => {
 	test('辛卯:命星毕月乌 →(毕合轸,轸起子)生年卯 = 身星氐土貉', () => {
 		expect(shenStarFromMingStar('毕', DIZHI_TO_IDX['卯']).name).toBe('氐土貉');
 	});

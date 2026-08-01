@@ -99,6 +99,12 @@ export function houseCusps(system, ramc, phi, eps){
 		const c = []; for(let i = 0; i < 12; i += 1){ c.push(norm360(asc + i * 30)); }
 		return { cusps: c, full: true };
 	}
+	if(system === 'wholesign'){
+		// 整宫制:第 1 宫首 = ASC 所在星座 0°,逐宫整 30°(定义无歧义)。
+		const c = []; const base = Math.floor(norm360(asc) / 30) * 30;
+		for(let i = 0; i < 12; i += 1){ c.push(norm360(base + i * 30)); }
+		return { cusps: c, full: true };
+	}
 	if(system === 'porphyry'){
 		const q1 = norm360(asc - mc);   // 10→1 象限(黄道)
 		const q2 = norm360(ic - asc);   // 1→4 象限
@@ -163,8 +169,28 @@ export function houseCusps(system, ramc, phi, eps){
 		c[2] = placidusCuspLon(ramc, phi, eps, 1 / 3, true);
 		return { cusps: opp(c), full: true };
 	}
-	// campanus 及未知:分宫涉卯酉圈,暂只出四轴(诚实少列,不臆造)。
+	// campanus/morinus/koch 及未知:分宫机制(卯酉圈等分/黄道系赤经等分/出生地平弧)
+	// 无仓内权威闭式,只出四轴(诚实少列,不臆造中间宫首)。
 	const c = new Array(12).fill(null);
 	c[0] = asc; c[9] = mc; c[3] = ic; c[6] = dsc;
 	return { cusps: c, full: false };
+}
+
+/** 定局分宫键(pdFrame,与后端 _PD_FRAME_HSYS 同域)→ 本模块宫制名。
+ *  未映射者原样透传 → houseCusps 落到「四轴」分支(诚实少列)。 */
+const PD_FRAME_TO_CUSP_SYSTEM = {
+	alcabitius: 'core_alchabitius',
+	equal: 'equal_ecliptic',
+	wholesign: 'wholesign',
+	placidus: 'placidus',
+	regiomontanus: 'regiomontanus',
+	topocentric: 'topocentric',
+	meridian: 'meridian',
+	equal_hour_circle: 'equal_hour_circle',
+	porphyry: 'porphyry',
+};
+
+export function cuspSystemOfFrame(frame){
+	const f = `${frame || ''}`;
+	return PD_FRAME_TO_CUSP_SYSTEM[f] || (f || 'core_alchabitius');
 }

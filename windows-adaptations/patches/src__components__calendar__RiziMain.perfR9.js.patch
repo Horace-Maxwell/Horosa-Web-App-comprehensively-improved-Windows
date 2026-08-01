@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/RiziMain.js b/astrostudyui/src/components/calendar/RiziMain.js
-index d144b62..4ffceac 100644
+index d144b62..7d1fa79 100644
 --- a/astrostudyui/src/components/calendar/RiziMain.js
 +++ b/astrostudyui/src/components/calendar/RiziMain.js
 @@ -8,6 +8,8 @@ import { buildHuangliDay } from './huangliDay';
@@ -11,10 +11,19 @@ index d144b62..4ffceac 100644
  
  const MODULE = 'calendar-rizi';
  const ROLE_LABEL = { self: '本人', spouse: '配偶', family: '家人' };
-@@ -20,6 +22,65 @@ function reasonTags(reasons) {
+@@ -20,16 +22,69 @@ function reasonTags(reasons) {
  	));
  }
  
+-class RiziMain extends Component {
+-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+-	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
+-	shouldComponentUpdate(nextProps, nextState){
+-		if(nextState !== this.state){
+-			return true;
+-		}
+-		return !wrapperPropsEqual(this.props, nextProps);
+-	}
 +// horosa_panel_scu_v1(日子馆拆片)—— 病灶:deferRecompute 先落一次 {computing:true} 让 tab
 +// 立刻可切,但那一次 setState 会把【榜单全部行】(showAll 时至多 366 行 × 6 段)与【右栏详情】
 +// (含一次 buildHuangliDay)整个重建一遍,而这两块的内容与 computing 毫无关系。
@@ -39,7 +48,7 @@ index d144b62..4ffceac 100644
 +		</>
 +	);
 +});
-+
+ 
 +const RiziDetail = React.memo(function RiziDetail({ list, selectedYmd }) {
 +	const d = list.find((x)=> x.ymd === selectedYmd);
 +	if (!d) { return <div className='horosa-empty-hint'>选择吉日查看理由与完整日课</div>; }
@@ -74,10 +83,14 @@ index d144b62..4ffceac 100644
 +// 空榜单的稳定空数组:`(result && result.list) || []` 每次造新数组会让 memo 恒失效。
 +const EMPTY_LIST = [];
 +
- class RiziMain extends Component {
- 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
- 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -48,6 +109,7 @@ class RiziMain extends Component {
++class RiziMain extends Component {
++	// v3.6.0 收敛注(#78 双 sCU 防复发):上游同位置也带一份通用 wrapperPropsEqual 渲染守卫,
++	// 与本类内另一份我方细化守卫在同一类内重复(JS 后者静默胜出)。按「单一 sCU」纪律移除上游份,
++	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
+ 	constructor(props) {
+ 		super(props);
+ 		this.state = {
+@@ -48,6 +103,7 @@ class RiziMain extends Component {
  		this.onAddPerson = this.onAddPerson.bind(this);
  		this.onRemovePerson = this.onRemovePerson.bind(this);
  		this.recompute = this.recompute.bind(this);
@@ -85,7 +98,7 @@ index d144b62..4ffceac 100644
  		this.deferRecompute = this.deferRecompute.bind(this);
  		this.saveAISnapshot = this.saveAISnapshot.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
-@@ -90,22 +152,41 @@ class RiziMain extends Component {
+@@ -90,22 +146,41 @@ class RiziMain extends Component {
  			// 选中：保留当前选择（若仍在榜），否则取榜首。
  			const list = result.list || [];
  			const keep = this.state.selectedYmd && list.some((d)=> d.ymd === this.state.selectedYmd);
@@ -131,7 +144,7 @@ index d144b62..4ffceac 100644
  
  	saveAISnapshot() {
  		const persons = this.state.personsWithBazi || this.state.persons.map((p)=> ({ ...p, bazi: this.baziOf(p) }));
-@@ -130,9 +211,19 @@ class RiziMain extends Component {
+@@ -130,9 +205,19 @@ class RiziMain extends Component {
  		if (this._recomputeTimer) { clearTimeout(this._recomputeTimer); this._recomputeTimer = null; }
  	}
  
@@ -152,7 +165,7 @@ index d144b62..4ffceac 100644
  		if (this.state.computing && !list.length) { return <div className='horosa-empty-hint'>正在计算全年吉日…</div>; }
  		if (!list.length) { return <div className='horosa-empty-hint'>请输入当事人生辰，或本年该事项无合适吉日</div>; }
  		const total = result.count || list.length;
-@@ -149,50 +240,13 @@ class RiziMain extends Component {
+@@ -149,50 +234,13 @@ class RiziMain extends Component {
  						) : null}
  					</span>
  				</div>

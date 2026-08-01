@@ -239,8 +239,13 @@ function buildSu28ObjectLines(chart, planetDisplay){
 			return AstroConst.isTraditionPlanet(obj.id);
 		});
 		inSu = inSu.sort((a, b)=>{
+			// 环形序须对称全序(同文件 buildHouseSuLines 同款):跨 0°RA 两向都判,
+			// 旧版只判一侧 → 非对称比较器,Array.sort 行为未定义,宿内列序随实现漂移。
 			if(a.ra > 300 && b.ra < 30){
 				return -1;
+			}
+			if(b.ra > 300 && a.ra < 30){
+				return 1;
 			}
 			return a.ra - b.ra;
 		});

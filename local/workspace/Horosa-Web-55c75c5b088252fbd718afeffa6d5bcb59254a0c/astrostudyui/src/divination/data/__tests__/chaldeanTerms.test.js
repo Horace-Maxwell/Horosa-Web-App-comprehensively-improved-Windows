@@ -84,3 +84,35 @@ describe('whichTerm 按所选界系取界主(右栏「位于X界」同口径)', 
     expect(whichTerm('Aries', 16, CHALDEAN_TERMS_NIGHT)).not.toBe(whichTerm('Aries', 16, CHALDEAN_TERMS_DAY));
   });
 });
+
+describe('界内变体(狮子土星优先/双子校勘)——与后端 push_request_terms 单源同构', () => {
+	const base = AstroConst.TERMS_TABLES_BY_VARIANT;
+	const EGY = AstroConst.EGYPTIAN_TERMS;
+
+	it('v1+leoBoundFirst → 狮子首界土星(与后端 _TETRABIBLOS_LEO_SATURN_FIRST 逐格一致),余座不动', () => {
+		const t = termsTableForVariant(1, true, base, EGY, { leoBoundFirst: 1 });
+		expect(t.Leo).toEqual([['Saturn', 0, 6], ['Mercury', 6, 13], ['Jupiter', 13, 19], ['Venus', 19, 25], ['Mars', 25, 30]]);
+		expect(t.Aries).toEqual(base[1].Aries);
+		expect(whichTerm('Leo', 5, t)).not.toBe(whichTerm('Leo', 5, base[1]));   // 狮子5°:土 vs 木
+	});
+
+	it('v2+geminiBoundEmended → 双子界4/5对调(与后端 _LILLY_GEMINI_EMENDED 逐格一致),余座不动', () => {
+		const t = termsTableForVariant(2, true, base, EGY, { geminiBoundEmended: '1' });
+		expect(t.Gemini).toEqual([['Mercury', 0, 7], ['Jupiter', 7, 14], ['Venus', 14, 21], ['Mars', 21, 25], ['Saturn', 25, 30]]);
+		expect(t.Cancer).toEqual(base[2].Cancer);
+	});
+
+	it('零回归锚:不传 opts/键为 0 → 恒基表引用;变体只在对应界系生效(v0+leo 不变、v1+gemini 不变)', () => {
+		expect(termsTableForVariant(1, true, base, EGY)).toBe(base[1]);
+		expect(termsTableForVariant(1, true, base, EGY, { leoBoundFirst: 0 })).toBe(base[1]);
+		expect(termsTableForVariant(0, true, base, EGY, { leoBoundFirst: 1 })).toBe(base[0]);
+		expect(termsTableForVariant(1, true, base, EGY, { geminiBoundEmended: 1 })).toBe(base[1]);
+		expect(termsTableForVariant(2, true, base, EGY, { leoBoundFirst: 1 })).toBe(base[2]);
+	});
+
+	it('变体表 memo:同基表两次调用同引用(渲染热路径零重建)', () => {
+		const a = termsTableForVariant(1, true, base, EGY, { leoBoundFirst: 1 });
+		const b = termsTableForVariant(1, false, base, EGY, { leoBoundFirst: true });
+		expect(a).toBe(b);
+	});
+});

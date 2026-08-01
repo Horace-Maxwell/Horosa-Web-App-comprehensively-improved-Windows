@@ -93,3 +93,13 @@ export function fetchPd3D(values, requestOptions){
 	}
 	return req;
 }
+
+// Pole 高级输出:POST /predict/pdpoles(Java PredictiveController /pdpoles 转发)。
+// 幂等纯计算,轻量(每应星一极点),不做内存缓存(随组合变化,fetch 端已由列开关节流)。
+export function fetchPdPoles(values, requestOptions){
+	return request(`${ServerRoot}/predict/pdpoles`, {
+		method: 'POST',
+		body: JSON.stringify(values || {}),
+		...(requestOptions || {}),
+	}).then(unwrapPd3dResponse);
+}

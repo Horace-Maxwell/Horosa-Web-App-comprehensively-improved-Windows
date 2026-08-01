@@ -1,19 +1,17 @@
 diff --git a/astrostudyui/src/components/auxchart/AuxChartMain.js b/astrostudyui/src/components/auxchart/AuxChartMain.js
-index 76d14ba..cc05fa3 100644
+index 5eac485..a2f54d5 100644
 --- a/astrostudyui/src/components/auxchart/AuxChartMain.js
 +++ b/astrostudyui/src/components/auxchart/AuxChartMain.js
-@@ -14,6 +14,10 @@ import AstroRelocationLab from './AstroRelocationLab';
- import HoraryMain from '../horary/HoraryMain';
- import ElectionMain from '../election/ElectionMain';
- import MundaneMain from '../mundane/MundaneMain';
+@@ -1,4 +1,8 @@
+ import { Component } from 'react';
 +import { warmGermanyMidpoint } from '../germany/AstroMidpoint';
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
- 
- const TabPane = Tabs.TabPane;
- const AUX_TABS = ['germanytech', 'hellenastro', 'dwadasamsa', 'locastro', 'relocation', 'harmonic', 'draconic', 'otherbu', 'horary', 'election', 'mundane'];
-@@ -83,9 +87,37 @@ class AuxChartMain extends Component{
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { XQTabs as Tabs } from '../xq-ui';
+ import QuickDockBar from '../common/QuickDockBar';
+@@ -91,9 +95,37 @@ class AuxChartMain extends Component{
  			this.props.hook.fun = (fields, chartObj)=>{
  				this.callCurrentHook(fields, chartObj);
  			};
@@ -51,7 +49,7 @@ index 76d14ba..cc05fa3 100644
  	findTab(){
  		const tab = this.state.currentTab ? this.state.currentTab : 'germanytech';
  		return AUX_TABS.indexOf(tab) >= 0 ? tab : 'germanytech';
-@@ -145,6 +177,9 @@ class AuxChartMain extends Component{
+@@ -153,6 +185,9 @@ class AuxChartMain extends Component{
  		const childHeight = Math.max(height - 36, 560);
  		const tab = this.findTab();
  
@@ -61,7 +59,7 @@ index 76d14ba..cc05fa3 100644
  		return (
  			<div id={this.state.divId} className="horosa-auxchart-page">
  				<div className="horosa-auxchart-layout">
-@@ -156,6 +191,7 @@ class AuxChartMain extends Component{
+@@ -164,6 +199,7 @@ class AuxChartMain extends Component{
  						style={{ height: '100%' }}
  					>
  						<TabPane tab="量化盘" key="germanytech">
@@ -69,7 +67,7 @@ index 76d14ba..cc05fa3 100644
  							<AstroGermany
  								onChange={this.props.onChange}
  								fields={this.props.fields}
-@@ -169,9 +205,11 @@ class AuxChartMain extends Component{
+@@ -177,9 +213,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.germanytech}
  								dispatch={this.props.dispatch}
  							/>
@@ -81,7 +79,7 @@ index 76d14ba..cc05fa3 100644
  							<HellenAstroMain
  								value={this.props.chart}
  								onChange={this.props.onChange}
-@@ -187,9 +225,11 @@ class AuxChartMain extends Component{
+@@ -196,9 +234,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.hellenastro}
  								dispatch={this.props.dispatch}
  							/>
@@ -92,8 +90,8 @@ index 76d14ba..cc05fa3 100644
 +							<FreezeSubTab active={tab === 'dwadasamsa'}>{()=>(
  							<Dwadasamsa12Main
  								onChange={this.props.onChange}
- 								fields={this.props.fields}
-@@ -204,9 +244,11 @@ class AuxChartMain extends Component{
+ 								tripSystem={this.props.tripSystem}
+@@ -214,9 +254,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.dwadasamsa}
  								dispatch={this.props.dispatch}
  							/>
@@ -105,7 +103,7 @@ index 76d14ba..cc05fa3 100644
  							<LocAstroMain
  								value={this.props.chart}
  								onChange={this.props.onChange}
-@@ -219,9 +261,11 @@ class AuxChartMain extends Component{
+@@ -229,9 +271,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.locastro}
  								dispatch={this.props.dispatch}
  							/>
@@ -117,7 +115,7 @@ index 76d14ba..cc05fa3 100644
  							<AstroRelocationLab
  								value={this.props.chart}
  								fields={this.props.fields}
-@@ -234,9 +278,11 @@ class AuxChartMain extends Component{
+@@ -244,9 +288,11 @@ class AuxChartMain extends Component{
  								showAstroMeaning={this.props.showAstroMeaning}
  								dispatch={this.props.dispatch}
  							/>
@@ -129,7 +127,7 @@ index 76d14ba..cc05fa3 100644
  							<AstroHarmonicLab
  								value={this.props.chart}
  								height={childHeight}
-@@ -246,9 +292,11 @@ class AuxChartMain extends Component{
+@@ -256,9 +302,11 @@ class AuxChartMain extends Component{
  								lotsDisplay={this.props.lotsDisplay}
  								showAstroMeaning={this.props.showAstroMeaning}
  							/>
@@ -141,7 +139,7 @@ index 76d14ba..cc05fa3 100644
  							<AstroDraconicLab
  								value={this.props.chart}
  								height={childHeight}
-@@ -258,9 +306,11 @@ class AuxChartMain extends Component{
+@@ -268,9 +316,11 @@ class AuxChartMain extends Component{
  								lotsDisplay={this.props.lotsDisplay}
  								showAstroMeaning={this.props.showAstroMeaning}
  							/>
@@ -153,7 +151,7 @@ index 76d14ba..cc05fa3 100644
  							<OtherBuMain
  								height={childHeight}
  								fields={this.props.fields}
-@@ -272,9 +322,11 @@ class AuxChartMain extends Component{
+@@ -282,9 +332,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.otherbu}
  								dispatch={this.props.dispatch}
  							/>
@@ -165,7 +163,7 @@ index 76d14ba..cc05fa3 100644
  							<HoraryMain
  								fields={this.props.fields}
  								fieldsAry={this.props.fieldsAry}
-@@ -286,9 +338,11 @@ class AuxChartMain extends Component{
+@@ -296,9 +348,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.horary}
  								dispatch={this.props.dispatch}
  							/>
@@ -177,7 +175,7 @@ index 76d14ba..cc05fa3 100644
  							<ElectionMain
  								fields={this.props.fields}
  								fieldsAry={this.props.fieldsAry}
-@@ -300,9 +354,11 @@ class AuxChartMain extends Component{
+@@ -310,9 +364,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.election}
  								dispatch={this.props.dispatch}
  							/>
@@ -189,8 +187,20 @@ index 76d14ba..cc05fa3 100644
  							<MundaneMain
  								fields={this.props.fields}
  								fieldsAry={this.props.fieldsAry}
-@@ -314,6 +370,7 @@ class AuxChartMain extends Component{
+@@ -324,9 +380,11 @@ class AuxChartMain extends Component{
  								hook={this.state.hook.mundane}
+ 								dispatch={this.props.dispatch}
+ 							/>
++							)}</FreezeSubTab>
+ 						</TabPane>
+ 
+ 						<TabPane tab="巴比伦" key="babylon">
++							<FreezeSubTab active={tab === 'babylon'}>{()=>(
+ 							<BabylonMain
+ 								fields={this.props.fields}
+ 								fieldsAry={this.props.fieldsAry}
+@@ -339,6 +397,7 @@ class AuxChartMain extends Component{
+ 								hook={this.state.hook.babylon}
  								dispatch={this.props.dispatch}
  							/>
 +							)}</FreezeSubTab>

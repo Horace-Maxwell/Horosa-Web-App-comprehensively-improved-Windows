@@ -112,3 +112,40 @@ export function daxianRanges(lifeIdx, ju, yearGan, male, span = 10){
 	}
 	return out;
 }
+
+// 童限:上大限前(虚岁 1..局数-1)逐岁看本命宫,口诀「一命二财三疾厄,四妻五福六官禄」;
+// 至虚岁=局数即入第一大限,童限止(水二局仅1岁、火六局至5岁)。纯由 ju+命宫 index 算(与男女阴阳无关)。
+export const CHILD_LIMIT_HOUSES = ['命宫', '财帛', '疾厄', '夫妻', '福德', '官禄'];
+const CHILD_LIMIT_K = [0, 4, 5, 2, 10, 8];   // 各童限宫在「自命宫逆数」的宫序 k(命0/财4/疾5/夫2/福10/官8)
+export function childLimits(ju, lifeIdx){
+	if(!ju || lifeIdx == null || lifeIdx < 0){ return []; }
+	const out = [];
+	for(let a = 1; a <= ju - 1; a++){
+		const j = (a - 1) % 6;
+		out.push({ age: a, houseName: CHILD_LIMIT_HOUSES[j], houseIndex: ((lifeIdx - CHILD_LIMIT_K[j]) % 12 + 12) % 12 });
+	}
+	return out;
+}
+
+// 沈氏三限法:一大限(10年)细分 4 段「中限」、各 2.5 年,精算克应时点(§9.14)。
+// ⚠️宫位沿用该大限宫——原书只给「时间四分」、未给宫位递进规则,忠于文档不臆造(宫位递进变体待原书补)。
+export function zhongxianOf(daxianStartAge, daxianHouseIndex){
+	if(daxianStartAge == null){ return []; }
+	const out = [];
+	for(let i = 0; i < 4; i++){
+		const s = daxianStartAge + i * 2.5;
+		out.push({ index: i, startAge: s, endAge: s + 2.5, houseIndex: daxianHouseIndex });
+	}
+	return out;
+}
+
+// 活盘·太极点重排(透派活盘/占验立极/河洛借宫共用):以 taijiIdx 宫为新命宫,逆布十二人事宫名。
+// 星曜与地支【不动】,只换宫名标签(太极点转移=索引重映射,零碰安星)。
+// 返回 kByIndex[物理宫i]=人事宫序 k(0命1兄2夫…11父);null=本命(taijiIdx 无效,调用方回落本命)。
+// UI 用盘同源名表 HOUSE_NAMES[k] 取名,保「活盘 vs 本命」命名一致(与盘 houses[i].name 同公式,仅 lifeIdx→taijiIdx)。
+export function relabelPalaces(taijiIdx){
+	const out = new Array(12).fill(null);
+	if(taijiIdx == null || taijiIdx < 0){ return out; }
+	for(let i = 0; i < 12; i++){ out[i] = ((taijiIdx - i) % 12 + 12) % 12; }
+	return out;
+}

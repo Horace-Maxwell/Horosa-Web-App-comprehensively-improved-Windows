@@ -291,11 +291,14 @@ def test_ishta_kashta_per_planet_exposed_and_formula():
         assert 'ishta' in res and 'kashta' in res
         assert abs(res['ishta'] - res['ishtaKashta']['ishta']) < 1e-9
         assert abs(res['kashta'] - res['ishtaKashta']['kashta']) < 1e-9
-        # 有效 Cheshta:日=Ayana、月=Paksha、五星=本身 Cheshta。
+        # 有效 Cheshta:日=Ayana/2、月=未加倍 Paksha、五星=本身 Cheshta。
+        # 🔴 加倍值(0..120)是 Kala 合计口径,直接喂 60 量纲会被 clamp → 约半数盘
+        # Kashta 恒 0;守卫改锁未加倍基准。
         if p == const.SUN:
-            ch = res['kala']['ayana']
+            ch = res['kala']['ayana'] / 2.0
         elif p == const.MOON:
-            ch = res['kala']['paksha']
+            sep = abs((contexts[p]['moonLon'] - contexts[p]['sunLon'] + 180.0) % 360.0 - 180.0)
+            ch = sep / 180.0 * 60.0
         else:
             ch = res['cheshta']['virupa']
         uc = max(0.0, min(60.0, res['sthana']['uchcha']))

@@ -1,4 +1,4 @@
-// 择日西方深化·压测矩阵:5 流派 × 31 用事(引擎全集) × 部位 × 危象 全组合(930)+边界/极端值。
+// 择日西方深化·压测矩阵:5 流派 × 37 用事(引擎全集) × 部位 × 危象 全组合(1110)+边界/极端值。
 // 不变式:不抛/分数 0-100/grade 合法/section key 唯一/info 仅 annotate 档且零罚分/
 //         westSchool 回显/快照非空/危象仅手术。
 import { runElection } from '../electionEngine';
@@ -23,7 +23,7 @@ function assertInvariants(j, schoolId, topicId, opts){
 	// section key 唯一且齐 19 个(11 旧 + 8 新)
 	const keys = j.sections.map((s) => s.key);
 	expect(new Set(keys).size).toBe(keys.length);
-	expect(keys.length).toBe(19);
+	expect(keys.length).toBe(21);   // R2:+lots(阿拉伯点)+bonification(吉化凶化)模块
 	j.sections.forEach((s) => {
 		expect(s.score).toBeGreaterThanOrEqual(0);
 		expect(s.score).toBeLessThanOrEqual(100);
@@ -44,14 +44,14 @@ function assertInvariants(j, schoolId, topicId, opts){
 	expect(snap).toContain('[总评]');
 	if(j.westSchool.id !== 'modern_main') expect(snap).toContain('西方流派：');
 	else expect(snap).not.toContain('西方流派：');
-	// 危象仅手术
-	if(j.crisis) expect(topicId).toBe('surgery');
+	// 危象仅医事(手术/用药)
+	if(j.crisis) expect(['surgery', 'medication']).toContain(topicId);
 }
 
-describe('压测矩阵:全组合 930', () => {
-	it('5 流派 × 31 用事(引擎全集,UI 下拉 19 为子集) × 3 部位档 × 2 危象档 全过不变式', () => {
+describe('压测矩阵:全组合 1110', () => {
+	it('5 流派 × 37 用事(引擎全集,UI 下拉 25 为子集) × 3 部位档 × 2 危象档 全过不变式', () => {
 		const topics = Object.keys(TOPIC_MASTER);
-		expect(topics.length).toBe(31);
+		expect(topics.length).toBe(37);   // R2:+六新分科
 		let ran = 0;
 		WEST_SCHOOL_ORDER.forEach((ws) => {
 			topics.forEach((tp) => {
@@ -66,10 +66,10 @@ describe('压测矩阵:全组合 930', () => {
 				});
 			});
 		});
-		expect(ran).toBe(930);
+		expect(ran).toBe(1110);   // 5×37×3×2
 	});
 
-	it('默认档全 19 用事 = 不带 opts 深等(逐用事零回归)', () => {
+	it('默认档全 37 用事 = 不带 opts 深等(逐用事零回归)', () => {
 		Object.keys(TOPIC_MASTER).forEach((tp) => {
 			const strip = (x) => { const { facts, ...rest } = x; return rest; };
 			expect(strip(runElection(buildMockResult(), tp, null, null, { westSchool: 'modern_main' })))

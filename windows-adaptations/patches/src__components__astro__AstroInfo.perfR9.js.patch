@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroInfo.js b/astrostudyui/src/components/astro/AstroInfo.js
-index 667af54..43e5ab9 100644
+index f4d9348..739a3f1 100644
 --- a/astrostudyui/src/components/astro/AstroInfo.js
 +++ b/astrostudyui/src/components/astro/AstroInfo.js
 @@ -2,7 +2,6 @@ import { Component } from 'react';
@@ -70,7 +70,7 @@ index 667af54..43e5ab9 100644
 @@ -584,7 +587,7 @@ class AstroInfo extends Component{
  
  			if(MarsSaturn.length > 0 && this.canDisplayPlanet(MarsSaturn[0].id) && this.canDisplayPlanet(MarsSaturn[1].id)){
- 				dom = (
+ 				let dom = (
 -					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
 +					<div key={`${key}-marsSaturn`} style={{fontFamily: AstroConst.AstroFont}}>
  						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
@@ -79,7 +79,7 @@ index 667af54..43e5ab9 100644
 @@ -608,7 +611,7 @@ class AstroInfo extends Component{
  			}
  			if(SunMoon.length > 0 && this.canDisplayPlanet(SunMoon[0].id) && this.canDisplayPlanet(SunMoon[1].id)){
- 				dom = (
+ 				let dom = (
 -					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
 +					<div key={`${key}-sunMoon`} style={{fontFamily: AstroConst.AstroFont}}>
  						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
@@ -88,7 +88,7 @@ index 667af54..43e5ab9 100644
 @@ -632,7 +635,7 @@ class AstroInfo extends Component{
  			}
  			if(VenusJupiter.length > 0 && this.canDisplayPlanet(VenusJupiter[0].id) && this.canDisplayPlanet(VenusJupiter[1].id)){
- 				dom = (
+ 				let dom = (
 -					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
 +					<div key={`${key}-venusJupiter`} style={{fontFamily: AstroConst.AstroFont}}>
  						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;

@@ -1,12 +1,13 @@
 import { Component } from 'react';
+import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
-import { DatePicker, Radio, Spin, Empty, Checkbox } from 'antd';
+import { DatePicker, Radio, Spin, Empty, Checkbox, Select } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { markPanelReady } from '../../utils/perfMark';
+import { SA_RATE } from '../../utils/uranianDial';
 
 const { RangePicker } = DatePicker;
 
@@ -95,7 +96,12 @@ export default class UranianGraphicEphemeris extends Component {
 		super(props);
 		const disp = (() => { try { return JSON.parse(localStorage.getItem('horosa.uranian.gephem.v1') || '{}') || {}; } catch (e) { return {}; } })();
 		this.state = {
-			base: disp.base === 45 ? 45 : 90,
+			base: [90, 45, 22.5].indexOf(disp.base) >= 0 ? disp.base : 90,
+			// 太阳弧生命图模式:X 轴改年龄、本命=水平线、推进因子=斜线(同速率→平行线族)、
+			// 交叉=该行星图在何岁完成。纯前端(推进位=本命+年龄×速率,折叠),零星历请求。
+			mode: disp.mode === 'life' ? 'life' : 'transit',
+			lifeFocus: disp.lifeFocus || AstroConst.SUN,
+			lifeRate: ['naibod', 'cardan', 'oneDeg'].indexOf(disp.lifeRate) >= 0 ? disp.lifeRate : 'naibod',
 			includeMoon: !!disp.includeMoon,
 			start: moment().startOf('day'),
 			end: moment().add(364, 'days').startOf('day'),
@@ -113,10 +119,15 @@ export default class UranianGraphicEphemeris extends Component {
 		this._measure = this._measure.bind(this);
 		this.showTip = this.showTip.bind(this);
 		this.hideTip = this.hideTip.bind(this);
+		// ephemBase 接线:90°盘切流派广播该派图形星历盘基 → 已挂载实例实时换盘(折叠纯前端,零重取)。
+		this._onEphemBase = (e) => {
+			const b = e && e.detail ? e.detail.base : null;
+			if (!this.unmounted && [90, 45, 22.5].indexOf(b) >= 0 && b !== this.state.base) this.setState({ base: b });
+		};
 		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) this.requestData(); };
 	}
-	componentDidMount(){ this.unmounted = false; this.requestData(); this._measure(); if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize); }
-	componentWillUnmount(){ this.unmounted = true; if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize); }
+	componentDidMount(){ this.unmounted = false; this.requestData(); this._measure(); if (typeof window !== 'undefined') { window.addEventListener('resize', this._onResize); window.addEventListener('horosa-uranian-ephembase', this._onEphemBase); } }
+	componentWillUnmount(){ this.unmounted = true; if (typeof window !== 'undefined') { window.removeEventListener('resize', this._onResize); window.removeEventListener('horosa-uranian-ephembase', this._onEphemBase); } }
 	componentDidUpdate(prev){ if (prev.fields !== this.props.fields) this.requestData(); this._measure(); }
 	_onResize(){ if (!this.unmounted) { this.setState({ vw: window.innerWidth, vh: window.innerHeight }); this._measure(); } }
 	// 线 hover 弹窗(任务 B):鼠标移到行运折线/本命参考线 → 显「色点 + 星名(本命/行运)」,像 ACG 地图;state 驱动 absolute div,host 须 position:relative。
@@ -151,6 +162,140 @@ export default class UranianGraphicEphemeris extends Component {
 				markPanelReady('auxchart');
 			});
 		} catch (err) { if (!this.unmounted) this.setState({ loading: false, note: '星历获取失败' }); }
+	}
+
+	// 太阳弧生命图(Lebensdiagramm):X=年龄 0..90、Y=折叠黄经。本命因子=水平虚线;
+	// 推进因子=斜线(推进位=本命+年龄×速率,同速率→平行线族,跨折叠界断段);
+	// 聚焦因子的推进线与各本命线交叉点=该行星图在此岁完成(圆点+悬停读岁)。纯前端零请求。
+	renderLife(controls, W, H, mL, mR, mT, mB, stroke, soft){
+		const base = this.state.base;
+		const nat = natalLines(this.props.chart);
+		const rate = SA_RATE[this.state.lifeRate] || SA_RATE.naibod;
+		const MAX_AGE = 90;
+		const plotW = W - mL - mR, plotH = H - mT - mB;
+		const xAt = (age) => mL + (age / MAX_AGE) * plotW;
+		const yAt = (f) => mT + (f / base) * plotH;
+
+		// 推进斜线:采样 0..90 步长 0.5,跨折叠界(相邻差>base/2)断段——与行运模式 series 同构。
+		const series = nat.map((p) => {
+			const color = toneOf(p.id, soft);
+			const segs = []; let cur = [];
+			for (let age = 0; age <= MAX_AGE; age += 0.5){
+				const f = fold(p.lon + age * rate, base);
+				if (cur.length){ const prevF = cur[cur.length - 1].f; if (Math.abs(f - prevF) > base / 2) { segs.push(cur); cur = []; } }
+				cur.push({ x: xAt(age), y: yAt(f), f });
+			}
+			if (cur.length) segs.push(cur);
+			const d = segs.map((seg) => seg.map((pt, k) => `${k === 0 ? 'M' : 'L'}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' ')).join(' ');
+			return { pid: p.id, color, d, endY: yAt(fold(p.lon + MAX_AGE * rate, base)) };
+		});
+
+		// 聚焦因子交点:F 推进线与每条本命水平线的相交岁数 = (fold(B−F) + k·base)/rate ≤ 90。
+		const focus = nat.find((p) => p.id === this.state.lifeFocus) || nat[0];
+		const hits = [];
+		if (focus){
+			nat.forEach((b) => {
+				const delta = fold(b.lon - focus.lon, base);
+				for (let k = 0; ; k++){
+					const age = (delta + k * base) / rate;
+					if (age > MAX_AGE) break;
+					if (age >= 0.25){ hits.push({ age, from: focus.id, to: b.id, x: xAt(age), y: yAt(fold(b.lon, base)) }); }
+				}
+			});
+		}
+
+		const fmtDeg = (v) => (Number.isInteger(v) ? `${v}°` : `${v.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}°`);
+		const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ v: (base * t), y: yAt(base * t) }));
+		const ageTicks = []; for (let a = 0; a <= MAX_AGE; a += 10) ageTicks.push(a);
+		const vspread = (items, minGap, lo, hi) => {
+			const s = items.slice().sort((a, b) => a.y - b.y);
+			let prev = -Infinity;
+			s.forEach((it) => { const g = Math.max(it.y, prev + minGap); it.labelY = g; prev = g; });
+			const over = s.length ? (s[s.length - 1].labelY - hi) : 0;
+			if (over > 0) s.forEach((it) => { it.labelY = Math.max(lo, it.labelY - over); });
+			return s;
+		};
+		const natLabels = vspread(nat.map((p) => ({ id: p.id, y: yAt(fold(p.lon, base)), color: toneOf(p.id, soft) })), 18, mT + 2, mT + plotH - 2);
+		const traLabels = vspread(series.map((s) => ({ id: s.pid, y: s.endY, color: s.color })), 18, mT + 2, mT + plotH - 2);
+		const natX = mL + plotW + 8;
+		const traX = mL + plotW + 32;
+
+		return (
+			<div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={{ padding: '4px 8px' }}>
+				{controls}
+				<div style={{ width: '100%', position: 'relative' }} ref={(el) => { this._tipHost = el; }}>
+					<svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', maxWidth: '100%', color: stroke }}
+						className="xq-chart-renderer xq-chart-renderer-astro">
+						<rect x={mL} y={mT} width={plotW} height={plotH} fill="none" stroke={stroke} strokeWidth="1" opacity="0.5" />
+						{yTicks.map((t, i) => (
+							<g key={`y${i}`}>
+								<line x1={mL} y1={t.y} x2={mL + plotW} y2={t.y} stroke={stroke} strokeWidth="0.6" opacity="0.18" />
+								<text x={mL - 6} y={t.y} dy="0.32em" textAnchor="end" fontSize="10" fill={soft}>{fmtDeg(t.v)}</text>
+							</g>
+						))}
+						{ageTicks.map((a) => (
+							<g key={`a${a}`}>
+								<line x1={xAt(a)} y1={mT} x2={xAt(a)} y2={mT + plotH} stroke={stroke} strokeWidth="0.5" opacity="0.12" />
+								<text x={xAt(a)} y={mT + plotH + 16} textAnchor="middle" fontSize="9" fill={soft}>{a}岁</text>
+							</g>
+						))}
+						{nat.map((p, i) => {
+							const y = yAt(fold(p.lon, base));
+							const color = toneOf(p.id, soft);
+							return (
+								<g key={`n${i}`}>
+									<line x1={mL} y1={y} x2={mL + plotW} y2={y} stroke="transparent" strokeWidth="7" style={{ cursor: 'pointer' }} onMouseMove={(e) => this.showTip(e, p.id, '本命')} onMouseLeave={this.hideTip} />
+									<line x1={mL} y1={y} x2={mL + plotW} y2={y} stroke={color} strokeWidth="0.9" strokeDasharray="3,3" opacity="0.45" style={{ pointerEvents: 'none' }} />
+								</g>
+							);
+						})}
+						{series.map((s, i) => (
+							<g key={`s${i}`} className="horosa-gephem-line">
+								{s.d ? <path d={s.d} fill="none" stroke="transparent" strokeWidth="9" strokeLinejoin="round" style={{ cursor: 'pointer' }} onMouseMove={(e) => this.showTip(e, s.pid, '太阳弧推进')} onMouseLeave={this.hideTip} /> : null}
+								<path className="horosa-gephem-line-vis" d={s.d} fill="none" stroke={s.color}
+									strokeWidth={s.pid === (focus && focus.id) ? 2.4 : 1.1}
+									opacity={s.pid === (focus && focus.id) ? 0.95 : 0.5} style={{ pointerEvents: 'none' }} />
+							</g>
+						))}
+						{/* 聚焦因子交点:圆点=该行星图完成之岁;悬停显「推进→本命 · xx.x岁」。 */}
+						{hits.map((h, i) => (
+							<circle key={`h${i}`} cx={h.x.toFixed(1)} cy={h.y.toFixed(1)} r="3.4"
+								fill="var(--horosa-accent, #b8860b)" stroke="var(--horosa-surface-solid, #fff)" strokeWidth="1"
+								style={{ cursor: 'pointer' }}
+								onMouseMove={(e) => this.showTip(e, h.to, `${planetName(h.from)}推进→ · ${h.age.toFixed(1)}岁`)}
+								onMouseLeave={this.hideTip} />
+						))}
+						{natLabels.map((l, i) => (
+							<g key={`nl${i}`}>
+								{Math.abs(l.labelY - l.y) > 1 ? <line x1={mL + plotW} y1={l.y} x2={natX - 1} y2={l.labelY} stroke={l.color} strokeWidth="0.5" opacity="0.4" /> : null}
+								<text x={natX} y={l.labelY} dy="0.32em" textAnchor="start" fontSize="17" fill={l.color} stroke="none" opacity="0.9" style={{ cursor: 'default', paintOrder: 'fill' }}>
+									<title>{`${planetName(l.id)}（本命）`}</title>
+									{planetGlyph(l.id, l.color)}
+								</text>
+							</g>
+						))}
+						{traLabels.map((l, i) => (
+							<g key={`tl${i}`}>
+								{Math.abs(l.labelY - l.y) > 1 ? <line x1={mL + plotW} y1={l.y} x2={traX - 1} y2={l.labelY} stroke={l.color} strokeWidth="0.5" opacity="0.5" /> : null}
+								<text x={traX} y={l.labelY} dy="0.32em" textAnchor="start" fontSize="19" fontWeight="600" fill={l.color} stroke="none" style={{ cursor: 'default', paintOrder: 'fill' }}>
+									<title>{`${planetName(l.id)}（推进 90 岁位）`}</title>
+									{planetGlyph(l.id, l.color)}
+								</text>
+							</g>
+						))}
+					</svg>
+					{this.state.tip ? (
+						<div style={{ position: 'absolute', left: this.state.tip.x, top: this.state.tip.y, pointerEvents: 'none', zIndex: 6, background: 'var(--horosa-surface-solid, #ffffff)', color: 'var(--horosa-text)', border: '1px solid var(--horosa-border)', borderRadius: 6, padding: '3px 9px', fontSize: 13, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 10px rgba(0,0,0,0.18)' }}>
+							<span style={{ width: 9, height: 9, borderRadius: '50%', background: this.state.tip.color, display: 'inline-block', flex: '0 0 auto' }} />
+							<span>{planetName(this.state.tip.id)}（{this.state.tip.kind}）</span>
+						</div>
+					) : null}
+				</div>
+				<div style={{ color: soft, fontSize: 11, marginTop: 6 }}>
+					斜线=太阳弧推进因子（同速率平行线族，加粗=聚焦因子）；虚线=本命参考；金点=聚焦因子推进线与本命线交叉，即该行星图完成之岁（悬停读数）。速率与折叠盘基可调，纯几何推算不取星历。
+				</div>
+			</div>
+		);
 	}
 
 	render(){
@@ -218,18 +363,50 @@ export default class UranianGraphicEphemeris extends Component {
 		const stroke = 'var(--horosa-chart-stroke, currentColor)';
 		const soft = 'var(--horosa-text-soft)';
 
+		const isLife = this.state.mode === 'life';
+		const natForFocus = nat;
 		const controls = (
 			<div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-				<RangePicker size="small" value={[this.state.start, this.state.end]} allowClear={false}
-					onChange={(v) => { if (v && v[0] && v[1]) this.setState({ start: v[0].clone().startOf('day'), end: v[1].clone().startOf('day') }, () => this.requestData()); }} />
+				<Radio.Group size="small" value={this.state.mode} onChange={(e) => this.saveDisp({ mode: e.target.value })}>
+					<Radio.Button value="transit">行运星历</Radio.Button>
+					<Radio.Button value="life">太阳弧生命图</Radio.Button>
+				</Radio.Group>
+				{!isLife ? (
+					<RangePicker size="small" value={[this.state.start, this.state.end]} allowClear={false}
+						onChange={(v) => { if (v && v[0] && v[1]) this.setState({ start: v[0].clone().startOf('day'), end: v[1].clone().startOf('day') }, () => this.requestData()); }} />
+				) : null}
 				<Radio.Group size="small" value={base} onChange={(e) => this.saveDisp({ base: e.target.value })}>
 					<Radio.Button value={90}>90° (H4)</Radio.Button>
 					<Radio.Button value={45}>45° (H8)</Radio.Button>
+					<Radio.Button value={22.5}>22.5° (H16)</Radio.Button>
 				</Radio.Group>
-				<Checkbox checked={this.state.includeMoon} onChange={(e) => this.saveDisp({ includeMoon: e.target.checked }, this.requestData)}>含月亮</Checkbox>
-				<span style={{ color: soft, fontSize: 12 }}>行运行星折叠到盘基,与本命水平线相交≈应期(最长约 366 天/次)</span>
+				{!isLife ? (
+					<Checkbox checked={this.state.includeMoon} onChange={(e) => this.saveDisp({ includeMoon: e.target.checked }, this.requestData)}>含月亮</Checkbox>
+				) : null}
+				{isLife ? (
+					<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+						<span style={{ color: soft, fontSize: 12 }}>聚焦因子</span>
+						<Select size="small" value={this.state.lifeFocus} style={{ minWidth: 92 }} dropdownMatchSelectWidth={false}
+							onChange={(v) => this.saveDisp({ lifeFocus: v })}
+							options={natForFocus.map((p) => ({ value: p.id, label: planetName(p.id) }))} />
+						<Radio.Group size="small" value={this.state.lifeRate} onChange={(e) => this.saveDisp({ lifeRate: e.target.value })}>
+							<Radio.Button value="naibod">均日弧</Radio.Button>
+							<Radio.Button value="cardan">59′12″</Radio.Button>
+							<Radio.Button value="oneDeg">1°/年</Radio.Button>
+						</Radio.Group>
+					</span>
+				) : (
+					<span style={{ color: soft, fontSize: 12 }}>行运行星折叠到盘基,与本命水平线相交≈应期(最长约 366 天/次)</span>
+				)}
 			</div>
 		);
+
+		if (isLife){
+			if (!nat.length){
+				return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={{ padding: '4px 8px' }}>{controls}<Empty description="请先完善出生信息（本命盘就绪后即可查看生命图）" /></div>;
+			}
+			return this.renderLife(controls, W, H, mL, mR, mT, mB, stroke, soft);
+		}
 
 		const natX = mL + plotW + 8;   // 本命字形内列(字形放大→略外移)
 		const traX = mL + plotW + 32;  // 行运字形外列(与内列拉开间距,放大后不互叠)

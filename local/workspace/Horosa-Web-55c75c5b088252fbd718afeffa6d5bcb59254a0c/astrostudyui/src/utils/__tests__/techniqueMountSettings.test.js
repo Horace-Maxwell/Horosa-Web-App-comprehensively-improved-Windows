@@ -32,7 +32,12 @@ import { SU28_MODE_GROUPS } from '../../components/guolao/guolaoData';
 //   命盘侧重算不受 schema.kind 影响)，去掉事盘上误显的 TIME_FIELDS 覆盖坏边界。
 // wuzhao/taixuan/jingjue/shenyishu 已从 sectionsOnly 升级为 payload(builder 收 opts → 用户挂载设置生效)。
 // huangji 保持 sectionsOnly:命盘侧 buildHuangJiSnapshotForFields 已按出生重算,事盘侧读已存 snapshot 不重算。
-const SECTIONS_ONLY = ['sixyao', 'tongshefa', 'mundane', 'geomancy', 'tarot', 'auxchart',
+// auxchart 已除名:页面键在挂载链恒被映射为子 tab 技法键,孤儿 schema 永不命中(挂载死/报告活)。
+// huangli(纯日期确定,无齿轮)为 sectionsOnly 新成员。
+// 🔴 sixyao/geomancy/tarot 已按正口径转 payload:旧「sectionsOnly 不可重算」定性过宽 ——
+// 卦象/figure/牌面恒冻结(payload.gua / seedMode:manual+seed),判读口径重算恒安全。
+const SECTIONS_ONLY = ['tongshefa', 'mundane',
+	'huangli',
 	'relative', // [D2] 合盘:两盘技法只读(快照单源=合盘页,选项在合盘页改即重存)
 ];
 
@@ -86,7 +91,9 @@ describe('techniqueMountSettings schema 覆盖', ()=>{
 		Object.keys(TECHNIQUE_SETTINGS_SCHEMA).forEach((key)=>{
 			const schema = TECHNIQUE_SETTINGS_SCHEMA[key];
 			if(schema.kind === 'payload'){
-				expect(['options', '']).toContain(schema.optionsPath);
+				// 嵌套命名空间白名单:'options'(六壬子组)/'tongshu'(通书,读点 {...defaults,...p.tongshu});
+				// ''=顶层铺平。新增路径必须与对应 regenerate 读点同构并在此登记。
+				expect(['options', '', 'tongshu', 'liuyaoSettings']).toContain(schema.optionsPath);
 			}
 		});
 	});
@@ -184,10 +191,17 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		return f ? f.default : undefined;
 	};
 
-	it('germany 改为可重算 record(不再 sectionsOnly),暴露 hsys/zodiacal(timeAlg 对中点盘 inert→不放)', ()=>{
+	it('germany 改为可重算 record(不再 sectionsOnly),字段面=真下发键+uranian 显示仓覆盖(timeAlg inert→不放)', ()=>{
 		expect(isSectionsOnlyTechnique('germany')).toBe(false);
 		expect(hasMountSettingsFields('germany')).toBe(true);
-		expect(getTechniqueSettingsSchema('germany').fields.map((f)=>f.name).sort()).toEqual(['hsys', 'zodiacal']);
+		// 🔴 旧断言只锁 hsys/zodiacal 两键 —— 该覆盖面已被证伪:builder 亲读 getStoredUranianDisplay()
+		// 的 school/orb/orbPersonal/strictFactors/showDeclination/frames 且 fieldsToParams 真下发
+		// siderealAyanamsa/tradition/强互容/简化相位/虚点。改锁全集(缺一键=齿轮盖不住的死角复发)。
+		const names = getTechniqueSettingsSchema('germany').fields.map((f)=>f.name).sort();
+		expect(names).toEqual([
+			'hsys', 'orb', 'orbPersonal', 'school', 'showDeclination', 'showEastPoint', 'showHouseFrames',
+			'siderealAyanamsa', 'simpleAsp', 'strictFactors', 'strongRecption', 'tradition', 'virtualPointReceiveAsp', 'zodiacal',
+		]);
 	});
 
 	it('自检修复:germany 不含 inert 的 timeAlg / 印占暴露岁差制+分宫制(已接入挂载设置)', ()=>{
@@ -274,16 +288,20 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		expect(optVals('bazi', 'godKeyPos')).toContain('年日');
 	});
 
-	it('卜卦 topicId=14 类(含 theft,无假值 lost)', ()=>{
+	it('卜卦 topicId=18 类(批2 起 lost/message 正式类;2026-07-31 增 father/mother 父母宫两派转宫)', ()=>{
+		// 历史注记:lost 曾是无引擎支撑的假值被本测试拦截;2026-07 批2 落地失物专题
+		// (CATEGORY_DEF.lost + topicModule.buildLostObject)后转正,与 message(B3 消息真假)一并入册。
 		const vals = optVals('horary', 'topicId');
-		expect(vals.length).toBe(14);
+		expect(vals.length).toBe(18);
 		expect(vals).toContain('theft');
-		expect(vals).not.toContain('lost');
+		expect(vals).toContain('lost');
+		expect(vals).toContain('message');
 	});
 
-	it('择日 topicId=19 类(含 renovation/surgery,无假值 construction/medical)', ()=>{
+	it('择日 topicId=25 类(含 renovation/surgery 与 R2 六新分科,无假值 construction/medical)', ()=>{
 		const vals = optVals('election', 'topicId');
-		expect(vals.length).toBe(19);
+		expect(vals.length).toBe(25);
+		expect(vals).toEqual(expect.arrayContaining(['planting', 'sailing', 'litigation', 'release', 'haircut', 'talisman']));
 		expect(vals).toEqual(expect.arrayContaining(['renovation', 'surgery']));
 		expect(vals).not.toContain('construction');
 		expect(vals).not.toContain('medical');
@@ -492,7 +510,13 @@ describe('批4 三式合一复合 + 条件揭示', ()=>{
 		const names = getTechniqueSettingsSchema('sanshiunited').fields.map((f)=>f.name);
 		expect(names).toEqual(expect.arrayContaining(['castMethod', 'guireng', 'wuxing']));   // 六壬子组
 		expect(names).toEqual(expect.arrayContaining(['paiPanType', 'qijuMethod']));          // 奇门子组
-		expect(names).toEqual(expect.arrayContaining(['style', 'tn']));                       // 太乙子组
+		// 🔴 太乙子组必须用存档键名 taiyiStyle/taiyiAccum/taiyiSchool_*(页面 state.options 同名),
+		// 且绝不得再出现裸 style/tn/sex(与奇门 school 字符串/sex 数字域撞键 → 存档挂载全落默认的旧病)。
+		expect(names).toEqual(expect.arrayContaining(['taiyiStyle', 'taiyiAccum', 'taiyiSchool_jishen']));
+		expect(names).not.toEqual(expect.arrayContaining(['style']));
+		expect(names).not.toEqual(expect.arrayContaining(['tn']));
+		expect(names.filter((n)=>n === 'sex').length).toBe(1);       // 仅奇门一份(1/0 域;太乙侧 regenerate 归一男/女)
+		expect(names.filter((n)=>n === 'school').length).toBe(1);    // 仅奇门盘式一份(太乙流派走 taiyiSchool_*)
 		// 共享时间键各只一份(去重)
 		expect(names.filter((n)=>n === 'after23NewDay').length).toBe(1);
 		expect(names.filter((n)=>n === 'lateZiHourUseNextDay').length).toBe(1);
@@ -715,14 +739,123 @@ describe('C 类挂载覆盖快照/还原（防一次覆盖永久改写全局设�
 	});
 });
 
+describe('R3 挂载大修覆盖面锁(2026-07-30)', ()=>{
+	it('金口诀合占镜像 === JinKouCalc 源常量(内联断循环导入,漂移即红)', ()=>{
+		// eslint-disable-next-line global-require
+		const { JINKOU_HEZHAN_FOCUS, JINKOU_HEZHAN_TIME } = require('../../components/jinkou/JinKouCalc');
+		const ask = getTechniqueSettingsSchema('jinkou').fields.find((f)=>f.name === 'askKey');
+		expect(ask.options.slice(1)).toEqual(Object.keys(JINKOU_HEZHAN_FOCUS).map((k)=>({ value: k, label: JINKOU_HEZHAN_FOCUS[k].label })));
+		const ts = getTechniqueSettingsSchema('jinkou').fields.find((f)=>f.name === 'timeScope');
+		expect(ts.options).toEqual(Object.keys(JINKOU_HEZHAN_TIME).map((k)=>({ value: k, label: JINKOU_HEZHAN_TIME[k].label })));
+	});
+
+	it('六爻:payload(liuyaoSettings) 23 键判读层;起卦输入/纯显示五键绝不入齿轮', ()=>{
+		const sc = getTechniqueSettingsSchema('sixyao');
+		expect(sc.kind).toBe('payload');
+		expect(sc.optionsPath).toBe('liuyaoSettings');
+		const names = sc.fields.map((f)=>f.name);
+		['school', 'askType', 'yongOverride', 'tuChangsheng', 'bianyaoScope', 'fushen', 'yuepoMode', 'shishen',
+			'jinTuiTu', 'tianshiSchool', 'yearBoundary', 'benming', 'guashen', 'sixGods', 'yuqi', 'yingqi',
+			'doctrine', 'gufa', 'yueLiushen', 'shenshaOn', 'shenshaBase', 'shenshaSet', 'shenshaExOn']
+			.forEach((k)=>expect(names).toContain(k));
+		// 起卦输入(coinFace)/装卦行序(writeDir)/中栏页签(biangua)/纯显示(changshengUse/changshengYinYang)恒不入。
+		['coinFace', 'writeDir', 'biangua', 'changshengUse', 'changshengYinYang'].forEach((k)=>expect(names).not.toContain(k));
+	});
+	it('地占/塔罗:payload 判读轴;种子/牌阵/问句(可伪造新卦面)绝不入齿轮', ()=>{
+		['geomancy', 'tarot'].forEach((k)=>{
+			const sc = getTechniqueSettingsSchema(k);
+			expect(sc.kind).toBe('payload');
+			expect(sc.optionsPath).toBe('options');
+			const names = sc.fields.map((f)=>f.name);
+			['seed', 'seedMode', 'question', 'deckId', 'spreadType'].forEach((bad)=>expect(names).not.toContain(bad));
+		});
+	});
+	it('卜卦/择日:hp_/ep_ 扁平键与 SPEC 单源等长(漏一键=判读参数在挂载里蒸发)', ()=>{
+		const h = getTechniqueSettingsSchema('horary').fields.filter((f)=>f.name.indexOf('hp_') === 0);
+		expect(h.length).toBeGreaterThanOrEqual(20);   // HORARY_PARAM_SPEC scope='horary' 现 22 键
+		h.forEach((f)=>expect(`${f.default}`).toBe(''));  // 恒 '' = 随流派(prune 剪掉零回归)
+		const e = getTechniqueSettingsSchema('election').fields.filter((f)=>f.name.indexOf('ep_') === 0);
+		expect(e.length).toBeGreaterThanOrEqual(13);
+		e.forEach((f)=>expect(`${f.default}`).toBe(''));
+	});
+	it('奇门:sex/chartCategory 在位(命式:undefined 病灶),jieQiType 三重死项不复活', ()=>{
+		const names = getTechniqueSettingsSchema('qimen').fields.map((f)=>f.name);
+		expect(names).toContain('sex');
+		expect(names).toContain('chartCategory');
+		expect(names).not.toContain('jieQiType');
+	});
+	it('太乙流派六轴/通书 event+mingYear(zuoShan 幽灵不复活)/皇极 historyYear', ()=>{
+		const ty = getTechniqueSettingsSchema('taiyi').fields.map((f)=>f.name);
+		['school_jishen', 'school_wenchang', 'school_keJianChen', 'school_sanji', 'school_youshen', 'school_shijiCoord']
+			.forEach((k)=>expect(ty).toContain(k));
+		const tsu = getTechniqueSettingsSchema('tongshu').fields.map((f)=>f.name);
+		expect(tsu).toContain('event');
+		expect(tsu).toContain('mingYear');
+		expect(tsu).not.toContain('zuoShan');
+		expect(getTechniqueSettingsSchema('huangji').fields.map((f)=>f.name)).toContain('historyYear');
+	});
+	it('kinastro 族:齿轮全为哨兵默认(prune 后空 = 无头 payload 不带键 = 现状零回归)', ()=>{
+		['xianqin', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi'].forEach((k)=>{
+			const sc = getTechniqueSettingsSchema(k);
+			expect(sc.kind).toBe('record');
+			expect(sc.fields.length).toBeGreaterThan(0);
+			expect(pruneOptionsToNonDefault(k, getTechniqueSettingsDefaults(k))).toEqual({});
+		});
+		// qizhengkin:挂载 route 消费面未实证 → 有意空集(接线前不放无效选项)。
+		expect(getTechniqueSettingsSchema('qizhengkin').fields.length).toBe(0);
+	});
+	it('量化盘/七政显示三键/紫微小限顺逆:齿轮在位且默认即现状', ()=>{
+		expect(getTechniqueSettingsSchema('babylon').fields.map((f)=>f.name)).toEqual(
+			['babylonScheme', 'babylonEphemerisSource', 'babylonSolstice', 'babylonEra']);
+		expect(pruneOptionsToNonDefault('babylon', getTechniqueSettingsDefaults('babylon'))).toEqual({});
+		const gl = getTechniqueSettingsSchema('guolao').fields.map((f)=>f.name);
+		['guolaoLifeMasterMode', 'guolaoMinorLimitType', 'guolaoTongxianBase'].forEach((k)=>expect(gl).toContain(k));
+		expect(getTechniqueSettingsSchema('ziwei').fields.map((f)=>f.name)).toContain('ziweiXiaoxianYinyang');
+		expect(pruneOptionsToNonDefault('ziwei', getTechniqueSettingsDefaults('ziwei'))).toEqual({});
+	});
+	it('astrochart:古典 10 键+geminiBoundEmended+lotsDocReverse 在位;PD 界系标签与 chart 单源(莉莉界绝迹)', ()=>{
+		const an = getTechniqueSettingsSchema('astrochart').fields.map((f)=>f.name);
+		['houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter',
+			'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb', 'viaCombustaVariant', 'geminiBoundEmended', 'lotsDocReverse']
+			.forEach((k)=>expect(an).toContain(k));
+		expect(an).not.toContain('timeAlg');
+		const pd = getTechniqueSettingsSchema('primarydirect').fields.find((f)=>f.name === 'termsVariant');
+		expect(pd.options.map((o)=>o.label).join('')).not.toContain('莉莉');
+		expect(pd.options.length).toBe(4);   // 含迦勒底(与 BOUNDS_SYSTEM_OPTIONS 单源)
+	});
+});
+
 describe('挂载审计条目', ()=>{
 	it('supportsMountSettings 与 schema 一致', ()=>{
 		expect(getMountableTechniqueAuditEntry('astrochart').supportsMountSettings).toBe(true);
 		expect(getMountableTechniqueAuditEntry('qimen').supportsMountSettings).toBe(true);
 		expect(getMountableTechniqueAuditEntry('guolao').supportsMountSettings).toBe(true);
-		expect(getMountableTechniqueAuditEntry('sixyao').supportsMountSettings).toBe(false);
+		expect(getMountableTechniqueAuditEntry('sixyao').supportsMountSettings).toBe(true); // 判读层 23 键(卦恒冻结)
 		// 纯推运空 schema(参数固定=现状)→ 无可调项。
 		expect(getMountableTechniqueAuditEntry('firdaria').supportsMountSettings).toBe(false);
 		expect(getMountableTechniqueAuditEntry('firdaria').kind).toBe('record');
+	});
+});
+
+// tongshu 齿轮 → payload.tongshu(此前 aiAnalysisContext 读点 {...defaults,...p.tongshu} 无任何写入方)
+describe('tongshu optionsPath 嵌套命名空间', ()=>{
+	const { mergeOptionsIntoPayload, getTechniqueSettingsSchema } = require('../techniqueMountSettings');
+	it('齿轮值写进 payload.tongshu.<name>,与 regenerate 读点同构;默认值被剪除', ()=>{
+		const out = mergeOptionsIntoPayload({ some: 1 }, 'tongshu', { school: 'wutu', liexiuUse: '建宅', event: '安葬', mingYear: '甲子' });
+		expect(out.some).toBe(1);
+		// liexiuUse=默认被 prune;mingYear=默认(甲子)同剪;event 非默认保留。
+		// zuoShan 已从 schema 删除(无流派声明 needs、builder 全文不消费的双重幽灵) —— 不得再出现。
+		expect(out.tongshu).toEqual({ school: 'wutu', event: '安葬' });
+	});
+	it('全默认 → payload 原样(不产生空 tongshu 命名空间)', ()=>{
+		const out = mergeOptionsIntoPayload({ a: 1 }, 'tongshu', { school: 'donggong' });
+		expect(out).toEqual({ a: 1 });
+	});
+	it('huangli schema 在位且为 sectionsOnly;astrochart 埃及七键入组', ()=>{
+		expect(getTechniqueSettingsSchema('huangli').kind).toBe('sectionsOnly');
+		const astro = getTechniqueSettingsSchema('astrochart');
+		const names = astro.fields.map((f)=>f.name);
+		['egypt_decanRuler','egypt_decanAnchor','egypt_decanNaming','egypt_starClock','egypt_calendarAnchor','egypt_petosirisMod','egypt_godEdition']
+			.forEach((k)=>expect(names).toContain(k));
 	});
 });

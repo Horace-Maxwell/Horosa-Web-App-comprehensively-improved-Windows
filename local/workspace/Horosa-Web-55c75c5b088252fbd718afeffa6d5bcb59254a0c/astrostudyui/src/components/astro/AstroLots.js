@@ -61,11 +61,12 @@ class AstroLots extends Component{
 
 	genLotsDom(chartObj){
 		let doms = [];
-		// 界主按所选界系(含迦勒底,按昼夜),与中间盘界环 / 后端尊贵同口径。
+		// 界主按所选界系(含迦勒底,按昼夜;含狮子/双子界内变体),与中间盘界环 / 后端尊贵同口径。
 		let _termsTable = termsTableForVariant(
 			chartObj.params && chartObj.params.termsVariant,
 			chartObj.chart && chartObj.chart.isDiurnal,
-			AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS);
+			AstroConst.TERMS_TABLES_BY_VARIANT, AstroConst.EGYPTIAN_TERMS,
+			chartObj.params);
 		for(let i=0; i<AstroConst.LOTS.length; i++){
 			let objid = AstroConst.LOTS[i];
 			let obj = AstroHelper.getObject(chartObj, objid);

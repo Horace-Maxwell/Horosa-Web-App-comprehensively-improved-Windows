@@ -33,7 +33,7 @@ const DEFAULTS = {
 	showTransit: false,
 	showSolarArc: false,
 	onlyPersonal: true,
-	saKey: 'naibod', // 太阳弧换算：naibod / oneDeg
+	saKey: 'naibod', // 太阳弧换算：naibod / oneDeg / cardan(B9 三选一)
 	showPlanetPicture: false, // 行星图 A+B−C=D 解算面板
 	showMidpointList: false,  // 中点扁平排序列表
 	showAntiscia: false,      // 映点 Spiegelpunkt（盘上标记 + 接触列表）
@@ -45,6 +45,12 @@ const DEFAULTS = {
 	orbPersonal: 1.0,          // 个人点(Basic Five)放宽容许度;下发后端 personalOrb
 	showHouseFrames: true,     // 六宫框(汉堡/美国对称开;纯净派/宇宙生物学关)
 	showDeclination: true,     // 赤纬接触(WP-11;平行/反平行;后端只增 declination 字段,默认开)
+	strictFactors: false,      // 严格汉堡因子集(D2;true=后端剔黑月/紫气;默认关=现状字节零回归)
+	showComposite: false,      // B5 组合中点盘环(逐因子近中点;需已选合盘叠加对象;默认关)
+	showDavison: false,        // B5 戴维森环(时空中点真实起盘,后端只增字段;默认关)
+	showEastPoint: false,      // B7 东点(赤道上升,houseFrames.eastPoint;默认关)
+	showVertex: false,         // B7 宿命点(Vertex,houseFrames.vertex;默认关)
+	extendedAxes: false,       // B8 扩展映点轴(15°固定星座;折叠盘与基本轴重合,仅360°盘有别;默认关)
 	cosmogram: false,          // 宇宙图盘式(放开 dialStyle 第三态 cosmogram)
 	showSumPoints: false,      // 和点读数(WP-5;指针对齐处追加 A+B 和点项)
 	showArcOpenings: false,    // 差距读数(WP-5;指针对齐处追加 A∠B 差距项)
@@ -77,18 +83,24 @@ export function getStoredUranianDisplay(){
 			showTransit: obj.showTransit === undefined ? DEFAULTS.showTransit : !!obj.showTransit,
 			showSolarArc: obj.showSolarArc === undefined ? DEFAULTS.showSolarArc : !!obj.showSolarArc,
 			onlyPersonal: obj.onlyPersonal === undefined ? DEFAULTS.onlyPersonal : !!obj.onlyPersonal,
-			saKey: obj.saKey === 'oneDeg' ? 'oneDeg' : DEFAULTS.saKey,
+			saKey: (obj.saKey === 'oneDeg' || obj.saKey === 'cardan') ? obj.saKey : DEFAULTS.saKey,
 			showPlanetPicture: obj.showPlanetPicture === undefined ? DEFAULTS.showPlanetPicture : !!obj.showPlanetPicture,
 			showMidpointList: obj.showMidpointList === undefined ? DEFAULTS.showMidpointList : !!obj.showMidpointList,
 			showAntiscia: obj.showAntiscia === undefined ? DEFAULTS.showAntiscia : !!obj.showAntiscia,
 			openPanels: Array.isArray(obj.openPanels) ? obj.openPanels : DEFAULTS.openPanels,
-			activeRightTab: (['reading', 'midpoint', 'solararc', 'contact'].indexOf(obj.activeRightTab) >= 0) ? obj.activeRightTab : DEFAULTS.activeRightTab,
+			activeRightTab: (['reading', 'midpoint', 'solararc', 'contact', 'rectify', 'tnp'].indexOf(obj.activeRightTab) >= 0) ? obj.activeRightTab : DEFAULTS.activeRightTab,
 			// —— WP-1 四流派软预设键 ——
 			school: SCHOOL_SET.has(obj.school) ? obj.school : DEFAULTS.school,
 			crossPointer: obj.crossPointer === undefined ? DEFAULTS.crossPointer : !!obj.crossPointer,
 			orbPersonal: Number.isFinite(Number(obj.orbPersonal)) && Number(obj.orbPersonal) > 0 ? Number(obj.orbPersonal) : DEFAULTS.orbPersonal,
 			showHouseFrames: obj.showHouseFrames === undefined ? DEFAULTS.showHouseFrames : !!obj.showHouseFrames,
 			showDeclination: obj.showDeclination === undefined ? DEFAULTS.showDeclination : !!obj.showDeclination,
+			strictFactors: obj.strictFactors === undefined ? DEFAULTS.strictFactors : !!obj.strictFactors,
+			showComposite: obj.showComposite === undefined ? DEFAULTS.showComposite : !!obj.showComposite,
+			showDavison: obj.showDavison === undefined ? DEFAULTS.showDavison : !!obj.showDavison,
+			showEastPoint: obj.showEastPoint === undefined ? DEFAULTS.showEastPoint : !!obj.showEastPoint,
+			showVertex: obj.showVertex === undefined ? DEFAULTS.showVertex : !!obj.showVertex,
+			extendedAxes: obj.extendedAxes === undefined ? DEFAULTS.extendedAxes : !!obj.extendedAxes,
 			cosmogram: obj.cosmogram === undefined ? DEFAULTS.cosmogram : !!obj.cosmogram,
 			showSumPoints: obj.showSumPoints === undefined ? DEFAULTS.showSumPoints : !!obj.showSumPoints,
 			showArcOpenings: obj.showArcOpenings === undefined ? DEFAULTS.showArcOpenings : !!obj.showArcOpenings,

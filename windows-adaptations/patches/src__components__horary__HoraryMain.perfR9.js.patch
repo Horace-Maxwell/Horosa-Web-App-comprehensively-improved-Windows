@@ -1,16 +1,14 @@
 diff --git a/astrostudyui/src/components/horary/HoraryMain.js b/astrostudyui/src/components/horary/HoraryMain.js
-index dec4895..c84604b 100644
+index fc230f9..7bd7ff8 100644
 --- a/astrostudyui/src/components/horary/HoraryMain.js
 +++ b/astrostudyui/src/components/horary/HoraryMain.js
-@@ -4,6 +4,7 @@ import { XQSelect, XQSideSection } from '../xq-ui';
- import DivinationChartShell from '../divination/DivinationChartShell';
- import HoraryJudgment from './HoraryJudgment';
- import { HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, horaryBackendFields, presetOf, schoolOf } from '../../divination/horary/horarySchools';
+@@ -1,4 +1,5 @@
+ import React, { Component } from 'react';   // 显式引 React:模块级 JSX 常量在 jest classic runtime 下必需
 +import { markPanelReady } from '../../utils/perfMark';
- 
- const Option = XQSelect.Option;
- 
-@@ -80,6 +81,13 @@ class HoraryMain extends Component{
+ import { Input, Checkbox, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
+ import PlusMinusTime from '../astro/PlusMinusTime';
+ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+@@ -417,6 +418,13 @@ class HoraryMain extends Component{
  	}
  
  	renderRight({ chart, extra, fields }){
@@ -22,5 +20,5 @@ index dec4895..c84604b 100644
 +			markPanelReady('auxchart');
 +		}
  		return <HoraryJudgment chart={chart} category={extra.questionCategory || 'general'}
- 			schoolId={activeSchoolId(extra, fields)} />;
- 	}
+ 			schoolId={activeSchoolId(extra, fields)}
+ 			overrides={extra.horaryOverrides || null}

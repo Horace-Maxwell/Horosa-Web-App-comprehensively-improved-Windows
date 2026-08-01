@@ -1,9 +1,9 @@
 import { Component } from 'react';
-import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { safeJsonParseFromStorage } from '../../utils/safeStorage';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
-import { Row, Col, } from 'antd';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { safeJsonParseFromStorage } from '../../utils/safeStorage';
+import { Row, Col, message, } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import DateTime from '../comp/DateTime';
 import AstroPrimaryDirection from '../astro/AstroPrimaryDirection';
@@ -56,6 +56,9 @@ import {
 	normalizePrimaryDirectionSubTabKey,
 	getPdMethodLabel,
 	getPdTimeKeyLabel,
+	PD_PROJECTION_LABELS,
+	PD_FRAME_LABELS,
+	PD_FRAMEWORK_LABELS,
 } from '../../utils/primaryDirectionSync';
 import FreezeInactive from '../comp/FreezeInactive';
 
@@ -123,15 +126,31 @@ function degreeText(value, pdMethod){
 	return `${neg}${d}度${m}分`;
 }
 
-// 方位法 / 时间换算的显示名统一走 primaryDirectionSync 的权威 label 字典(核方位法 + 22 时间换算)，
+// 方位法 / 时间换算的显示名统一走 primaryDirectionSync 的权威 label 字典(覆盖全部方位法与时间换算)，
 // 供 AI 导出 / AI 挂载快照复用。此前这里只识别 horosa_legacy、其余一律回退 'Alchabitius'，
-// 会把 Meridian/Porphyry 等核方位法误标为 Alchabitius——已并入共享字典消除分叉。
+// 会把 Placidus / Regiomontanus / Meridian 等全部误标为 Alchabitius——已并入共享字典消除分叉。
 function primaryDirectionMethodText(val){
 	return getPdMethodLabel(val);
 }
 
 function primaryDirectionTimeKeyText(val){
 	return getPdTimeKeyLabel(val);
+}
+
+// S/P 扩展本体的语义短名(N_Cusp3_0/N_Syzygy_0/N_Spirit_0 等;非扩展体返回 null 走 msgWithHouse)
+function extDirectionBaseText(base){
+	const b = `${base || ''}`;
+	const mc = /^Cusp(\d+)$/.exec(b);
+	if(mc){
+		return `第${mc[1]}宫头`;
+	}
+	if(b === 'Syzygy'){
+		return '产前朔望';
+	}
+	if(b === 'Spirit'){
+		return '精神点';
+	}
+	return null;
 }
 
 function directionObjText(text, chartObj){
@@ -142,26 +161,48 @@ function directionObjText(text, chartObj){
 	if(parts.length < 2){
 		return `${text}`;
 	}
+	const bodyText = (b)=>extDirectionBaseText(b) || msgWithHouse(chartObj, b);
 	if(parts[0] === 'T'){
 		return `${msgWithHouse(chartObj, parts[2])}的${msgWithHouse(chartObj, parts[1])}界`;
 	}
 	if(parts[0] === 'A'){
-		return `${msgWithHouse(chartObj, parts[1])}的映点`;
+		return `${bodyText(parts[1])}的映点`;
 	}
 	if(parts[0] === 'C'){
-		return `${msgWithHouse(chartObj, parts[1])}的反映点`;
+		return `${bodyText(parts[1])}的反映点`;
 	}
 	if(parts[0] === 'D'){
-		return `${msgWithHouse(chartObj, parts[1])}的${parts[2]}度右相位处`;
+		return `${bodyText(parts[1])}的${parts[2]}度右相位处`;
 	}
 	if(parts[0] === 'S'){
-		return `${msgWithHouse(chartObj, parts[1])}的${parts[2]}度左相位处`;
+		return `${bodyText(parts[1])}的${parts[2]}度左相位处`;
 	}
 	if(parts[0] === 'N'){
 		if(parts[2] && parts[2] !== '0'){
-			return `${msgWithHouse(chartObj, parts[1])}的${parts[2]}度相位处`;
+			return `${bodyText(parts[1])}的${parts[2]}度相位处`;
 		}
-		return `${msgWithHouse(chartObj, parts[1])}`;
+		return `${bodyText(parts[1])}`;
+	}
+	// P2 扩展迫星七前缀(与表格 convertText 语义同源,纯文本版;绝不裸 ID 出快照/导出)
+	if(parts[0] === 'PD'){
+		return `${bodyText(parts[1])}的赤纬平行点`;
+	}
+	if(parts[0] === 'PC'){
+		return `${bodyText(parts[1])}的反平行点`;
+	}
+	if(parts[0] === 'MP' || parts[0] === 'RP'){
+		const axis = { '0': 'MC', '90': 'ASC', '180': 'IC', '270': 'DSC' }[parts[2]] || parts[2];
+		return `${bodyText(parts[1])}的${parts[0] === 'MP' ? '世界平行' : '急动平行'}·${axis}`;
+	}
+	if(parts[0] === 'FS'){
+		return `恒星 ${msgWithHouse(chartObj, parts[1]) || parts[1]}`;
+	}
+	if(parts[0] === 'LT'){
+		return `${`${parts[1]}`.replace(/^Pars /, '')}点`;
+	}
+	if(parts[0] === 'HC'){
+		const mh = /^Cusp(\d+)$/.exec(`${parts[1] || ''}`);
+		return `第${mh ? mh[1] : parts[1]}宫头`;
 	}
 	return `${text}`;
 }
@@ -247,8 +288,29 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	const degreeLabel = pdMethod === 'horosa_legacy' ? '赤经' : 'Arc';
 	// 与表格 convertToDataSource 口径一致:showPdBounds 只隐藏 core_alchabitius 的界限法行;
 	// 新方位法的界(T_)行只在 pdTerms 勾选时产出,应随导出/挂载显示(否则用户勾了界、AI 导出却没有)。
+	// 🔴 S/P 扩展行放行(与表格 isExtensionRow 同构):core 白名单是「历史默认体」集,
+	// 用户勾选产生的扩展行(HC_/FS_/LT_/平行 PD_/PC_/MP_/RP_ 迫星、Cusp/恒星/阿点/朔望/精神点应星)
+	// 被它误滤 = AI 导出/挂载快照永远缺扩展行(表格显示与 ground-truth 不一致)。
+	const extParams = obj.params || {};
+	const extSigKeys = Array.isArray(extParams.pdSignificators) ? extParams.pdSignificators : [];
+	const isExtensionDirectionRow = (pd)=>{
+		const prom = `${(pd && pd[1]) || ''}`;
+		if(/^(HC|FS|LT|PD|PC|MP|RP)_/.test(prom)){ return true; }
+		if(!extSigKeys.length){ return false; }
+		const sigBase = `${(pd && pd[2]) || ''}`.split('_')[1] || '';
+		if(extSigKeys.indexOf('Desc') >= 0 && sigBase === 'Desc'){ return true; }
+		if(extSigKeys.indexOf('IC') >= 0 && sigBase === 'IC'){ return true; }
+		if(extSigKeys.indexOf('Syzygy') >= 0 && sigBase === 'Syzygy'){ return true; }
+		if(extSigKeys.indexOf('Spirit') >= 0 && sigBase === 'Spirit'){ return true; }
+		if(extSigKeys.indexOf('Cusps') >= 0 && /^Cusp\d+$/.test(sigBase)){ return true; }
+		if((extSigKeys.indexOf('Stars') >= 0 || extSigKeys.indexOf('Lots') >= 0)
+			&& sigBase && !/^(Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto)$/.test(sigBase)){
+			return true;
+		}
+		return false;
+	};
 	const pds = allPds.filter((pd)=>{
-		if(pdMethod === 'core_alchabitius' && isCoreUnsupportedDirectionRow(pd)){
+		if(pdMethod === 'core_alchabitius' && isCoreUnsupportedDirectionRow(pd) && !isExtensionDirectionRow(pd)){
 			return false;
 		}
 		if(!showPdBounds && pdMethod === 'core_alchabitius' && isBoundDirectionRow(pd)){
@@ -277,6 +339,37 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	lines.push(`向运方向：${pdDirText}`);
 	lines.push(`映点迫星：${pdParams.pdAntiscia ? '是' : '否'}`);
 	lines.push(`界迫星：${pdParams.pdTerms ? '是' : '否'}`);
+	// 解耦九键设置行(AI 解读 ground-truth 与盘同口径;默认值也照实写,便于 LLM 对照)
+	let projLabel = PD_PROJECTION_LABELS[pdParams.pdProjection] || pdParams.pdProjection || 'Ptolemy（半弧）';
+	// 诚实回显:世界主限(pdtype=1)只有定局四法有各自实现,其余投影(纯黄道弧语义)
+	// 统一走核内世俗基线 —— 曾照抄所选投影名,四种选择输出逐字节相同却显示四个名字。
+	const PROJ_WITH_MUNDO = ['placidus', 'regiomontanus', 'campanus', 'topocentric'];
+	if(Number(pdParams.pdtype) === 1 && PROJ_WITH_MUNDO.indexOf(pdParams.pdProjection) < 0){
+		projLabel += '（世界主限下走核内基线）';
+	}
+	const frameLabel = PD_FRAME_LABELS[pdParams.pdFrame] || pdParams.pdFrame || 'Alcabitius';
+	const fwLabel = PD_FRAMEWORK_LABELS[pdParams.pdFramework] || pdParams.pdFramework || '相位主限';
+	lines.push(`弧算法（投影）：${projLabel}`);
+	lines.push(`盘面宫制（分宫）：${frameLabel}`);
+	lines.push(`框架：${fwLabel}`);
+	if(pdParams.pdParallel){
+		lines.push(`平行迫星：${pdParams.pdtype === 1 ? '世界平行' : '赤纬平行（映点法）'}`);
+	}
+	if(pdParams.pdRaptParallel){
+		lines.push('急动平行迫星：是');
+	}
+	if(pdParams.termsVariant === 1 || pdParams.termsVariant === 2){
+		lines.push(`界系：${pdParams.termsVariant === 1 ? '托勒密界' : '莉莉界'}`);
+	}
+	if(pdParams.pdTimeKey === 'User' && pdParams.pdTimeKeyCustom){
+		lines.push(`自定义钥匙率：${pdParams.pdTimeKeyCustom}°/年`);
+	}
+	if(Array.isArray(pdParams.pdSignificators) && pdParams.pdSignificators.length){
+		lines.push(`应星扩展：${pdParams.pdSignificators.join('、')}`);
+	}
+	if(Array.isArray(pdParams.pdPromissorTypes) && pdParams.pdPromissorTypes.length){
+		lines.push(`迫星扩展：${pdParams.pdPromissorTypes.join('、')}`);
+	}
 	lines.push(`显示界限法：${showPdBounds ? '是' : '否'}`);
 
 	lines.push('');
@@ -311,8 +404,7 @@ function buildPrimaryDirectSnapshotText(chartObj){
 			nearestLine = `表中距今最近行：${degreeText(bpd && bpd[0], pdMethod) || '无'}（${directionObjText(bpd && bpd[1], obj) || '无'} → ${directionObjText(bpd && bpd[2], obj) || '无'}，${bpd && bpd[4] ? `${bpd[4]}` : '无'}）`;
 		}
 	}
-	lines.push('');
-	// 主限天球可选行:用户最近在 3D 球上选中/播放的向运(≤24h 有效,防跨日陈旧)。
+	// [WP-5.5] 主限天球可选行:用户最近在 3D 球上选中/播放的向运(≤24h 有效,防跨日陈旧)。
 	// 文本由 AstroPDSphere 从选中 row 既有字段拼好盖章,此处只读不再推导。
 	const sphereStamp = safeJsonParseFromStorage('horosa.pdsphere.aiCurrentRow');
 	if(sphereStamp && sphereStamp.txt && Number.isFinite(sphereStamp.ts) && (Date.now() - sphereStamp.ts) < 24 * 3600 * 1000){
@@ -320,6 +412,7 @@ function buildPrimaryDirectSnapshotText(chartObj){
 		lines.push('[主限天球·当前动画所指]');
 		lines.push(`${sphereStamp.txt}`);
 	}
+	lines.push('');
 	lines.push(...safeHelperLines(buildCurrentMomentLines, obj, nearestLine ? [nearestLine] : []));
 	lines.push(...safeHelperLines(buildMethodNoteLines, 'primarydirect'));
 	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
@@ -682,7 +775,8 @@ function unwrapPredictiveResponse(data){
 }
 
 function isPrimaryDirectionTabKey(key){
-	// primarydirsphere(主限天球)同吃 PD 表行:行数据是 AI 快照(复用主限表段)
+	// primarydirsphere(WS-3 主限天球)同吃 PD 表行:行数据是 AI 快照(复用主限表段)
+	// 与 chart.params pd 系持久化的单一来源,天球自身的 /predict/pd3d 不落盘。
 	return key === 'primarydirect' || key === 'primarydirchart' || key === 'primarydirsphere';
 }
 
@@ -909,6 +1003,13 @@ class AstroDirectMain extends Component{
 		if(!hasCompleteParams){
 			return true;
 		}
+		// 解耦九键漂移 → 重算(与 pdMethod 同级的真实算法维)。
+		if((params.pdProjection || 'ptolemy') !== desired.pdProjection){ return true; }
+		if((params.pdFrame || 'alcabitius') !== desired.pdFrame){ return true; }
+		if((params.pdFramework || 'aspect') !== desired.pdFramework){ return true; }
+		if(((params.pdParallel ? 1 : 0)) !== desired.pdParallel){ return true; }
+		if(((params.pdRaptParallel ? 1 : 0)) !== desired.pdRaptParallel){ return true; }
+		if(((params.termsVariant === 1 || params.termsVariant === 2) ? params.termsVariant : 0) !== desired.termsVariant){ return true; }
 		// pdtype/pdDirect/pdConverse/pdAntiscia/pdTerms 现为真实选项,已随 chart.params 持久化;
 		// desired(无 override)即取自 params,故自动加载不因开关而误触发(显式重算走表格「计算」按钮)。
 		return pds.length === 0;
@@ -920,7 +1021,7 @@ class AstroDirectMain extends Component{
 		}
 		// base 盘不完整(如 /chart 失败后 chartObj 为空)时绝不落盘:merge 会合成只有 pd 系
 		// params、无 chart/无 params.zone 的部分态对象,写入全局后宿占/3D 等消费方按
-		// chartObj truthy 解引用 .chart/.params.zone 即崩。
+		// chartObj truthy 解引用 .chart/.params.zone 即崩(2026-07-16 诊断实证链)。
 		if(!chartObj || !chartObj.chart){
 			return;
 		}
@@ -935,6 +1036,17 @@ class AstroDirectMain extends Component{
 			pdConverse: req.pdConverse,
 			pdAntiscia: req.pdAntiscia,
 			pdTerms: req.pdTerms,
+			pdProjection: req.pdProjection,
+			pdFrame: req.pdFrame,
+			pdFramework: req.pdFramework,
+			pdParallel: req.pdParallel,
+			pdRaptParallel: req.pdRaptParallel,
+			// req 是完整 desired 解析产物:无键=用户显式清空 → 归一成 null/[] 落库覆盖旧值,
+			// 否则清空后旧勾选残留在 params,天球扩展 Popover 勾选回弹、清空失灵。
+			pdTimeKeyCustom: req.pdTimeKeyCustom !== undefined ? req.pdTimeKeyCustom : null,
+			pdSignificators: Array.isArray(req.pdSignificators) ? req.pdSignificators : [],
+			pdPromissorTypes: Array.isArray(req.pdPromissorTypes) ? req.pdPromissorTypes : [],
+			termsVariant: req.termsVariant,
 			name: req.name,
 			pos: req.pos,
 			chartId: options.chartId,
@@ -984,6 +1096,10 @@ class AstroDirectMain extends Component{
 			pdConverse: req.pdConverse,
 			pdAntiscia: req.pdAntiscia,
 			pdTerms: req.pdTerms,
+			pdProjection: req.pdProjection, pdFrame: req.pdFrame, pdFramework: req.pdFramework,
+			pdParallel: req.pdParallel, pdRaptParallel: req.pdRaptParallel,
+			pdTimeKeyCustom: req.pdTimeKeyCustom, pdSignificators: req.pdSignificators,
+			pdPromissorTypes: req.pdPromissorTypes, termsVariant: req.termsVariant,
 			pdaspects: req.pdaspects,
 		});
 		if(this.primaryDirectionInflightKey === reqKey){
@@ -1007,6 +1123,8 @@ class AstroDirectMain extends Component{
 		this.primaryDirectionInflightKey = '';
 		const pdRows = result && Array.isArray(result.pd) ? result.pd : null;
 		if(!pdRows){
+			// 失败不静默:applied 不动(merge 不跑),按钮保持「重新计算」;可见提示防「假已同步」体感
+			try{ message.warning('主限法计算未完成（服务未响应），请点「重新计算」重试'); }catch(e){ /* SSR/测试环境无 message */ }
 			return;
 		}
 		this.savePrimaryDirectionRows(chartObj, req, pdRows, {
@@ -1050,11 +1168,25 @@ class AstroDirectMain extends Component{
 		if(!txt){
 			return '';
 		}
+		// meta 是挂载面板显示与快照识别用的「这份快照按哪组设置算的」——P0/P2 九键
+		// 不进 meta 则用户在 AI 分析里看不出快照对应投影/分宫/扩展,与正文自相矛盾。
 		saveModuleAISnapshot('primarydirect', txt, {
 			tab: 'primarydirect',
 			pdMethod,
 			pdTimeKey,
 			showPdBounds,
+			pdProjection: chartParams.pdProjection || 'ptolemy',
+			pdFrame: chartParams.pdFrame || 'alcabitius',
+			pdFramework: chartParams.pdFramework || 'aspect',
+			pdtype: chartParams.pdtype === 1 ? 1 : 0,
+			pdParallel: chartParams.pdParallel ? 1 : 0,
+			pdRaptParallel: chartParams.pdRaptParallel ? 1 : 0,
+			termsVariant: (chartParams.termsVariant === 1 || chartParams.termsVariant === 2) ? chartParams.termsVariant : 0,
+			...(chartParams.pdTimeKeyCustom ? { pdTimeKeyCustom: chartParams.pdTimeKeyCustom } : {}),
+			...(Array.isArray(chartParams.pdSignificators) && chartParams.pdSignificators.length
+				? { pdSignificators: chartParams.pdSignificators } : {}),
+			...(Array.isArray(chartParams.pdPromissorTypes) && chartParams.pdPromissorTypes.length
+				? { pdPromissorTypes: chartParams.pdPromissorTypes } : {}),
 		});
 		return txt;
 	}
@@ -1108,8 +1240,43 @@ class AstroDirectMain extends Component{
 		this.ensurePrimaryDirectionReady();
 		this.saveDirectionSnapshot();
 		// 底部空白根治:静态 props.height-20 比实际工作区矮(链上全满仅本模块 inline 高偏矮)→ Tabs/表格
-		// 皆按偏矮值设死高度,页底留空白。改测根容器真高驱动各页签高度。
+		// 皆按偏矮值设死高度,页底留空白(用户实告 主限法 页底空条)。改测根容器真高驱动各页签高度。
 		this.measureRootHeight();
+		// 🔴 祖先滚动归零闸:overflow:hidden 挡不住 scrollIntoView/focus 等编程式滚动
+		// (选中时间轴章后滚轮,焦点链会把 hidden 祖先滚出视口——App 实告)。捕获期监听全局 scroll,
+		// 凡「本页祖先容器」被滚出即刻复位,机械保证本页任何交互不产生页面级位移。
+		this._scrollZeroGuard = (e)=>{
+			const t = e && e.target;
+			if(!t || !this.rootEl){ return; }
+			// 🔴 页面级滚动(target=document/window)不再放行:WKWebView pageZoom≠1/拖拽 autoscroll 会
+			// 编程式滚动 scrollingElement(html/body 的 overflow:hidden 挡不住编程滚)——真机 0.9 缩放实告。
+			// rAF 复归一帧:WebKit 可能在同帧内恢复滚动位。
+			if(t === document || t === window){
+				const zero = ()=>{
+					const se = document.scrollingElement;
+					if(se){ se.scrollTop = 0; se.scrollLeft = 0; }
+					if(document.documentElement){ document.documentElement.scrollTop = 0; document.documentElement.scrollLeft = 0; }
+					if(document.body){ document.body.scrollTop = 0; document.body.scrollLeft = 0; }
+				};
+				zero();
+				if(typeof requestAnimationFrame === 'function'){ requestAnimationFrame(zero); }
+				return;
+			}
+			// 🔴 页内相关容器(祖先或后代)按「方向合法性」归零:overflow 为 auto/scroll 的
+			// 方向=设计滚动(右栏列表纵滚/时间轴轨道横滚)一律放行;hidden 方向被滚(焦点滚动/
+			// 拖拽 autoscroll/编程滚)=溢出泄漏,归零。绝不可按容器一刀切——曾把推运右栏
+			// 纵滚整体锁死(真机实告)。
+			const related = (typeof t.contains === 'function' && t.contains(this.rootEl)) || (typeof this.rootEl.contains === 'function' && this.rootEl.contains(t));
+			if(related && (t.scrollTop || t.scrollLeft)){
+				let cs = null;
+				try{ cs = window.getComputedStyle(t); }catch(e){ /* ignore */ }
+				const oy = cs ? cs.overflowY : '';
+				const ox = cs ? cs.overflowX : '';
+				if(t.scrollTop && oy !== 'auto' && oy !== 'scroll'){ t.scrollTop = 0; }
+				if(t.scrollLeft && ox !== 'auto' && ox !== 'scroll'){ t.scrollLeft = 0; }
+			}
+		};
+		window.addEventListener('scroll', this._scrollZeroGuard, true);
 		if(typeof ResizeObserver !== 'undefined' && this.rootEl){
 			this._roRoot = new ResizeObserver(()=>{
 				if(this._rafRoot){ cancelAnimationFrame(this._rafRoot); }
@@ -1120,14 +1287,22 @@ class AstroDirectMain extends Component{
 	}
 
 	// 测根容器真高(填满工作区);>120 才采信,变化才 setState(防抖风暴)。回退=静态 props.height-20。
+	// 🔴 取 min(自身高, 父容器 clientHeight):自身高会被内容撑大(实测比父可用高多 16px+,App 窄窗下更多),
+	// 按撑大值设 Tabs/pane 高度 → 整块超出工作区 → 页面可上下滚、底部时间轴被滚出视口。
 	measureRootHeight(){
 		if(this.unmounted || !this.rootEl){ return; }
-		const h = Math.round(this.rootEl.getBoundingClientRect().height);
+		// 🔴 量高必须用布局域 clientHeight,勿用 getBoundingClientRect().height:
+		// 壳级 CSS zoom 下 rect 返回×zoom 的视觉值(0.9 时偏小 ~10%),当布局值用会把
+		// pane 设矮 → 底部恒空带(真机 0.9 实告)。1:1 时两者等值=零回归。
+		let h = this.rootEl.clientHeight;
+		const parent = this.rootEl.parentElement;
+		if(parent && parent.clientHeight > 120){ h = Math.min(h, parent.clientHeight); }
 		if(h > 120 && h !== this.state.containerH){ this.setState({ containerH: h }); }
 	}
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		if(this._scrollZeroGuard){ window.removeEventListener('scroll', this._scrollZeroGuard, true); this._scrollZeroGuard = null; }
 		if(typeof window !== 'undefined' && window.removeEventListener){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -1206,6 +1381,15 @@ class AstroDirectMain extends Component{
 				pdConverse: opt.converse ? 1 : 0,
 				pdAntiscia: opt.antiscia ? 1 : 0,
 				pdTerms: opt.terms ? 1 : 0,
+				...(opt.projection ? { pdProjection: opt.projection } : {}),
+				...(opt.frame ? { pdFrame: opt.frame } : {}),
+				...(opt.framework ? { pdFramework: opt.framework } : {}),
+				pdParallel: opt.parallel ? 1 : 0,
+				pdRaptParallel: opt.raptParallel ? 1 : 0,
+				...(opt.timeKeyCustom ? { pdTimeKeyCustom: opt.timeKeyCustom } : {}),
+				...(Array.isArray(opt.significators) ? { pdSignificators: opt.significators } : {}),
+				...(Array.isArray(opt.promissorTypes) ? { pdPromissorTypes: opt.promissorTypes } : {}),
+				...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant === 1 || opt.termsVariant === 2) ? opt.termsVariant : 0 } : {}),
 			},
 		});
 		const nextFields = buildPrimaryDirectionFetchFields(
@@ -1235,6 +1419,15 @@ class AstroDirectMain extends Component{
 			pdConverse: opt.converse ? 1 : 0,
 			pdAntiscia: opt.antiscia ? 1 : 0,
 			pdTerms: opt.terms ? 1 : 0,
+			...(opt.projection ? { pdProjection: opt.projection } : {}),
+			...(opt.frame ? { pdFrame: opt.frame } : {}),
+			...(opt.framework ? { pdFramework: opt.framework } : {}),
+			pdParallel: opt.parallel ? 1 : 0,
+			pdRaptParallel: opt.raptParallel ? 1 : 0,
+			...(opt.timeKeyCustom ? { pdTimeKeyCustom: opt.timeKeyCustom } : {}),
+			...(Array.isArray(opt.significators) ? { pdSignificators: opt.significators } : {}),
+			...(Array.isArray(opt.promissorTypes) ? { pdPromissorTypes: opt.promissorTypes } : {}),
+			...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant === 1 || opt.termsVariant === 2) ? opt.termsVariant : 0 } : {}),
 			runHook: true,
 		});
 	}
@@ -1256,6 +1449,8 @@ class AstroDirectMain extends Component{
 			: (this.props.fields && this.props.fields.pdYears ? this.props.fields.pdYears.value : 100));
 		// In Zodiaco(0,黄道) / In Mundo(1,世俗) + 向运方向(converse) + 映点 / 界 开关——
 		// 均从已落库 chart.params 读取(applyPrimaryDirectionConfig 写入),缺省回退黄道/顺向/关。
+		// [WP-C.2] pdtype 全链(前端选项/后端引擎/2D 表)只有 0/1 两值——「界」不是 pdtype=2/3,
+		// 而是 pdTerms 开关产出的行级 cat='T';天球徽章按二态 + pdTerms 尾缀「+界」呈现,与实算一致。
 		const appliedPdType = chartParams.pdtype === 1 ? 1 : 0;
 		// 顺向 direct 默认开:仅当已落库显式为 0 才关(缺省/未定义都按开)。
 		// 漏传此 prop 会让表格 componentDidUpdate 把「顺」误判为 undefined→默认 1,
@@ -1265,9 +1460,11 @@ class AstroDirectMain extends Component{
 		const appliedPdConverse = (chartParams.pdConverse === 0 || chartParams.pdConverse === false) ? 0 : 1;
 		const appliedPdAntiscia = chartParams.pdAntiscia ? 1 : 0;
 		const appliedPdTerms = chartParams.pdTerms ? 1 : 0;
+		// 解耦九键:与上同口径(params 已落库 → fields → 默认),交由 getDesiredPdConfig 统一解析。
+		const appliedPdExt = this.getDesiredPdConfig(this.props.chartObj);
 
 		return (
-			<div className="horosa-direction-page xq-chart-renderer xq-chart-renderer-direction" ref={(el)=>{ this.rootEl = el; }} style={{ height: '100%', minHeight: 0 }}>
+			<div className="horosa-direction-page xq-chart-renderer xq-chart-renderer-direction" ref={(el)=>{ this.rootEl = el; }} style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
 				<Tabs
 					activeKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
@@ -1325,6 +1522,15 @@ class AstroDirectMain extends Component{
 								pdConverse={appliedPdConverse}
 								pdAntiscia={appliedPdAntiscia}
 								pdTerms={appliedPdTerms}
+								pdProjection={appliedPdExt.pdProjection}
+								pdFrame={appliedPdExt.pdFrame}
+								pdFramework={appliedPdExt.pdFramework}
+								pdParallel={appliedPdExt.pdParallel}
+								pdRaptParallel={appliedPdExt.pdRaptParallel}
+								pdTimeKeyCustom={appliedPdExt.pdTimeKeyCustom}
+								pdSignificators={appliedPdExt.pdSignificators}
+								pdPromissorTypes={appliedPdExt.pdPromissorTypes}
+								termsVariant={appliedPdExt.termsVariant}
 								onPdConfigApply={this.applyPrimaryDirectionConfig}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
@@ -1382,6 +1588,15 @@ class AstroDirectMain extends Component{
 								pdConverse={appliedPdConverse}
 								pdAntiscia={appliedPdAntiscia}
 								pdTerms={appliedPdTerms}
+								pdProjection={appliedPdExt.pdProjection}
+								pdFrame={appliedPdExt.pdFrame}
+								pdFramework={appliedPdExt.pdFramework}
+								pdParallel={appliedPdExt.pdParallel}
+								pdRaptParallel={appliedPdExt.pdRaptParallel}
+								pdTimeKeyCustom={appliedPdExt.pdTimeKeyCustom}
+								pdSignificators={appliedPdExt.pdSignificators}
+								pdPromissorTypes={appliedPdExt.pdPromissorTypes}
+								termsVariant={appliedPdExt.termsVariant}
 								fields={this.props.fields}
 								dispatch={this.props.dispatch}
 								onPdConfigApply={this.applyPrimaryDirectionConfig}
@@ -1395,7 +1610,7 @@ class AstroDirectMain extends Component{
 						</FreezeInactive>
 					</TabPane>
 
-										<TabPane tab="主限天球" key="primarydirsphere">
+					<TabPane tab="主限天球" key="primarydirsphere">
 						<FreezeInactive active={this.state.currentTab === "primarydirsphere"}>
 							{/* AI 快照复用主限表既有段(buildPrimaryDirectSnapshotText→'primarydirect'),
 							    本组件零新增快照段 —— 防 AI 段表漂移;pd3d 构参直接复用
@@ -1412,7 +1627,17 @@ class AstroDirectMain extends Component{
 								pdConverse={appliedPdConverse}
 								pdAntiscia={appliedPdAntiscia}
 								pdTerms={appliedPdTerms}
+								pdProjection={appliedPdExt.pdProjection}
+								pdFrame={appliedPdExt.pdFrame}
+								pdFramework={appliedPdExt.pdFramework}
+								pdParallel={appliedPdExt.pdParallel}
+								pdRaptParallel={appliedPdExt.pdRaptParallel}
+								pdTimeKeyCustom={appliedPdExt.pdTimeKeyCustom}
+								pdSignificators={appliedPdExt.pdSignificators}
+								pdPromissorTypes={appliedPdExt.pdPromissorTypes}
+								termsVariant={appliedPdExt.termsVariant}
 								buildRequest={this.buildPrimaryDirectionRequest}
+								onPdConfigApply={this.applyPrimaryDirectionConfig}
 							/>
 						</FreezeInactive>
 					</TabPane>
@@ -1548,9 +1773,9 @@ class AstroDirectMain extends Component{
 
 					<TabPane tab="黄道星释" key="zodialrelease">
 						<FreezeInactive active={this.state.currentTab === "zodialrelease"}>
-						<AstroZR  
-							value={this.props.chartObj} 
-							height={height} 
+						<AstroZR
+							value={this.props.chartObj}
+							height={height}
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

@@ -10,13 +10,17 @@
 import { Component } from 'react';
 import { safeJsonStringifyToStorage, safeLocalStorageSet } from '../../utils/safeStorage';
 import { registerWebglFrameProvider } from '../../utils/pageScreenshot';
+// Popover / Checkbox 随「扩展」面板抽进 PdExtensionPanel 后本文件已不再直接用到。
 import { Button, Spin, Select } from 'antd';
+import PdExtensionPanel from '../astro/PdExtensionPanel';
+import { PD_SIGNIFICATOR_OPTIONS, PD_PROMISSOR_TYPE_OPTIONS } from '../../utils/primaryDirectionSync';
 import PDSphereEngine from './PDSphereEngine';
 import { fetchPd3D } from '../../services/astroPd3d';
 import * as AstroText from '../../constants/AstroText';
 import { getPdMethodLabel, getPdTimeKeyLabel } from '../../utils/primaryDirectionSync';
 import {
 	rowAgeYears, rowDateMs, isConverseRow, nearestRowIndexByAge, moverOfRow,
+	bodySpeedMapOf,
 } from './pdSphereMath';
 import {
 	TL_ZOOM_MIN, TL_ZOOM_MAX,
@@ -44,6 +48,17 @@ function pdPointShortName(pid){
 		if(id && `${id}`.indexOf('House') === 0){
 			return `${`${id}`.slice(5)}宫`;
 		}
+		// S/P 扩展本体短名(与表格 pdBodyText 同义)
+		const mc = /^Cusp(\d+)$/.exec(`${id || ''}`);
+		if(mc){
+			return `第${mc[1]}宫头`;
+		}
+		if(`${id}` === 'Syzygy'){
+			return '产前朔望';
+		}
+		if(`${id}` === 'Spirit'){
+			return '精神点';
+		}
 		return AstroText.AstroTxtMsg[id] || AstroText.AstroMsgCN[id] || `${id || ''}`;
 	};
 	if(parts.length < 2){
@@ -69,6 +84,27 @@ function pdPointShortName(pid){
 			return `${cn(parts[1])}${parts[2]}°`;
 		}
 		return cn(parts[1]);
+	}
+	// P2 扩展迫星七前缀短名(时间轴章/播放盖章/AI「动画所指」同用;绝不裸 ID)
+	if(parts[0] === 'PD'){
+		return `${cn(parts[1])}平行点`;
+	}
+	if(parts[0] === 'PC'){
+		return `${cn(parts[1])}反平行点`;
+	}
+	if(parts[0] === 'MP' || parts[0] === 'RP'){
+		const axis = { '0': 'MC', '90': 'ASC', '180': 'IC', '270': 'DSC' }[parts[2]] || parts[2];
+		return `${cn(parts[1])}${parts[0] === 'MP' ? '世平行' : '急平行'}·${axis}`;
+	}
+	if(parts[0] === 'FS'){
+		return `★${cn(parts[1])}`;
+	}
+	if(parts[0] === 'LT'){
+		return `${`${cn(parts[1])}`.replace(/^Pars /, '')}点`;
+	}
+	if(parts[0] === 'HC'){
+		const mh = /^Cusp(\d+)$/.exec(`${parts[1] || ''}`);
+		return `第${mh ? mh[1] : parts[1]}宫头`;
 	}
 	return text;
 }
@@ -121,6 +157,17 @@ function computeReqKey(req){
 			pdConverse: req.pdConverse,
 			pdAntiscia: req.pdAntiscia,
 			pdTerms: req.pdTerms,
+			// 🔴 P0/P2 九新键必须进重取键:漏键=改投影/分宫/平行/扩展/自定义率后
+			// 判「同请求」跳过 fetch → 天球与时间轴死不更新(用户实测「扩展不进时间轴」)。
+			pdProjection: req.pdProjection,
+			pdFrame: req.pdFrame,
+			pdFramework: req.pdFramework,
+			pdParallel: req.pdParallel,
+			pdRaptParallel: req.pdRaptParallel,
+			pdTimeKeyCustom: req.pdTimeKeyCustom,
+			pdSignificators: req.pdSignificators,
+			pdPromissorTypes: req.pdPromissorTypes,
+			termsVariant: req.termsVariant,
 			pdaspects: req.pdaspects,
 		});
 	}catch(e){
@@ -159,6 +206,8 @@ class AstroPDSphere extends Component{
 			// [E1] 年龄轴岁数覆写(null=跟随主限法设置的 props.pdYears);后天宫位固定 Alchabitius,不设选择器。
 			axisYears: null,   // 年龄轴上限岁数覆写(驱动 pdYears 重取 + 轴显示)
 			showHouses: false, // [E1] 后天宫位(Alchabitius)宫首在黄道上的显示开关
+			trueMotion: true,  // [C1] 复合运动·真位层(周日旋转×黄道自行;默认开,localStorage 记忆)
+			trueInfo: null,    // [C1] 播放落定信息 {elapsedText, drifts}(引擎回调喂入;DOM 信息行)
 		};
 		try{
 			const tz = parseFloat(localStorage.getItem('horosa.pdsphere.tlZoom'));
@@ -188,6 +237,7 @@ class AstroPDSphere extends Component{
 		this.handleTimelineDown = this.handleTimelineDown.bind(this);
 		this.handleTimelineMove = this.handleTimelineMove.bind(this);
 		this.handleTimelineUp = this.handleTimelineUp.bind(this);
+		this.handleTimelineLeave = this.handleTimelineLeave.bind(this);
 		this.attachTlScroll = this.attachTlScroll.bind(this);
 		this.setTlZoom = this.setTlZoom.bind(this);
 	}
@@ -211,6 +261,9 @@ class AstroPDSphere extends Component{
 		try{
 			if(localStorage.getItem('horosa.pdsphere.autoResetAfterPlay') === '1'){
 				this.setState({ autoResetAfterPlay: true });
+			}
+			if(localStorage.getItem('horosa.pdsphere.trueMotion') === '0'){
+				this.setState({ trueMotion: false });   // [C1] 与引擎构造器同键同步显示态
 			}
 			const vm0 = localStorage.getItem('horosa.pdsphere.viewMode');
 			if(vm0 === 'observer' || vm0 === 'center'){ // [P2] 三档同步(globe=缺省不必置)
@@ -240,6 +293,14 @@ class AstroPDSphere extends Component{
 		}
 		if(this.props.active && !prevProps.active && this.engine){
 			this.engine.wake(2);
+		}
+		// 分宫切换 → 宫首宫制随之重画(engine 内部同值早退,不触发无谓重建)。
+		if(this.engine && this.engine.setPdFrame && prevProps.pdFrame !== this.props.pdFrame){
+			this.engine.setPdFrame(this.props.pdFrame);
+		}
+		// [C1] 盘换 → 瞬时速表热更(逆行/速度随盘;引用同即免)
+		if(this.engine && this.engine.setBodySpeeds && prevProps.value !== this.props.value){
+			this.engine.setBodySpeeds(bodySpeedMapOf(this.props.value));
 		}
 		this.fetchData();
 	}
@@ -300,7 +361,14 @@ class AstroPDSphere extends Component{
 				focusMode: this.engine.focusMode !== false,
 			});
 			// [E1] 后天宫位显示初值同步引擎(localStorage 记忆的开关在首帧生效)
+			// 宫首宫制随「定局分宫」——须在 setHouseDisplay 前置好,否则首帧按默认 Alcabitius 画。
+			if(this.engine.setPdFrame){ this.engine.setPdFrame(this.props.pdFrame); }
 			if(this.engine.setHouseDisplay){ this.engine.setHouseDisplay(!!this.state.showHouses); }
+			// [C1] 复合运动:/chart objects 瞬时黄经速喂引擎(含逆行;缺则引擎回退平均日行表)+ 落定信息行回调
+			if(this.engine.setBodySpeeds){ this.engine.setBodySpeeds(bodySpeedMapOf(this.props.value)); }
+			this.engine.onTrueMotionInfo = (info)=>{
+				if(!this.unmounted){ this.setState({ trueInfo: info }); }
+			};
 			// [WP-D] 3D 拾取回调:点实体天体 → 选该点参与的最近应期行(有选中行按其年龄就近;无则第一条)并播放
 			this.engine.onPickPoint = (pid)=>{
 				if(this.unmounted){ return; }
@@ -525,15 +593,16 @@ class AstroPDSphere extends Component{
 	}
 
 	handleTimelineDown(evt){
+		// 🔴 断掉按下时的 focus 默认行为:焦点滚动会把 overflow:hidden 的祖先容器
+		// 编程式滚出视口(用户实告:选中章后向上滚,整页被顶出空白)。拖拽用 pointer 事件,不受影响。
+		if(evt && evt.preventDefault){ evt.preventDefault(); }
+		// 🔴 拖拽期锁定 pointer 到本 svg:WebKit 拖拽 autoscroll 会自动滚动可滚祖先
+		// (「拖动选中之后才发生」的真机路径),capture 后不再寻祖滚动。
+		try{ if(evt && evt.currentTarget && evt.currentTarget.setPointerCapture && evt.pointerId !== undefined){ evt.currentTarget.setPointerCapture(evt.pointerId); this._tlCaptured = { el: evt.currentTarget, id: evt.pointerId }; } }catch(e){ /* 老内核无 capture,守卫链兜底 */ }
 		if(!this.state.rows.length){
 			return;
 		}
 		this._dragging = true;
-		if(evt.currentTarget.setPointerCapture && evt.pointerId !== undefined){
-			try{
-				evt.currentTarget.setPointerCapture(evt.pointerId);
-			}catch(e){ /* ignore */ }
-		}
 		this.applyDragAge(this.timelineAgeFromEvent(evt));
 	}
 
@@ -544,7 +613,18 @@ class AstroPDSphere extends Component{
 		this.applyDragAge(this.timelineAgeFromEvent(evt));
 	}
 
+	handleTimelineLeave(){
+		// 🔴 捕获期忽略 pointerleave:capture 后指针越出 svg 仍会发一次 leave,此时释放
+		// 捕获=WebKit 拖拽 autoscroll 复活(寻可滚祖先把页面顶出)。真正的结束只认 up。
+		if(this._tlCaptured){ return; }
+		this.handleTimelineUp();
+	}
+
 	handleTimelineUp(){
+		if(this._tlCaptured){
+			try{ this._tlCaptured.el.releasePointerCapture(this._tlCaptured.id); }catch(e){ /* 已释放 */ }
+			this._tlCaptured = null;
+		}
 		if(!this._dragging){
 			return;
 		}
@@ -678,7 +758,7 @@ class AstroPDSphere extends Component{
 				onPointerDown={this.handleTimelineDown}
 				onPointerMove={this.handleTimelineMove}
 				onPointerUp={this.handleTimelineUp}
-				onPointerLeave={this.handleTimelineUp}
+				onPointerLeave={this.handleTimelineLeave}
 			>
 				{/* 泳道背景条带(主题色淡底) */}
 				<rect x={PAD_X - 8} y={laneDirectTop - 5} width={plotW + 16} height={laneH + 10} rx="6"
@@ -793,7 +873,7 @@ class AstroPDSphere extends Component{
 		const timeKeyLabel = getPdTimeKeyLabel(this.props.pdTimeKey);
 
 		return (
-			<div className="horosa-pdsphere-chrome" style={{ height, display: 'flex', flexDirection: 'column', minHeight: 0, background: '#05080f' }}>
+			<div className="horosa-pdsphere-chrome" style={{ height, maxHeight: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: '#05080f' }}>
 				{/* 工具条:方法/换算 + 选中行摘要 + 播放/复位。[P1] flexWrap+auto 高:窄容器下选项换行,
 				    绝不被右缘裁掉(旧固定 40px 单行,相位点/映点/界/播完回位在星运页被右栏挤出=「选项被遮挡」)。 */}
 				<div style={{
@@ -844,6 +924,41 @@ class AstroPDSphere extends Component{
 						this.setState({ focusMode: next });
 						if(this.engine && this.engine.setFocusMode){ this.engine.setFocusMode(next); }
 					}}>{this.state.focusMode !== false ? '聚焦' : '全显'}</Button>
+					{this.props.onPdConfigApply ? (()=>{
+						const sig = Array.isArray(this.props.pdSignificators) ? this.props.pdSignificators : [];
+						const prom = Array.isArray(this.props.pdPromissorTypes) ? this.props.pdPromissorTypes : [];
+						// 全量透传现值,仅换 S/P 扩展 → 主链重算,天球行/时间轴随 predictives 回流
+						const apply = (nextSig, nextProm)=>{
+							this.props.onPdConfigApply(this.props.pdMethod, this.props.pdTimeKey, this.props.pdYears, {
+								pdtype: this.props.pdType === 1 ? 1 : 0,
+								direct: this.props.pdDirect !== 0,
+								converse: this.props.pdConverse === 1,
+								antiscia: this.props.pdAntiscia === 1,
+								terms: this.props.pdTerms === 1,
+								projection: this.props.pdProjection,
+								frame: this.props.pdFrame,
+								framework: this.props.pdFramework,
+								parallel: this.props.pdParallel === 1,
+								raptParallel: this.props.pdRaptParallel === 1,
+								timeKeyCustom: this.props.pdTimeKeyCustom,
+								significators: nextSig,
+								promissorTypes: nextProm,
+								termsVariant: this.props.termsVariant,
+							});
+						};
+						// 面板本体与表格 pane 共用(components/astro/PdExtensionPanel.js)——
+						// 这里只给 dark 皮肤档与暗底按钮样式,尺寸/描边/标题层级由组件单点决定。
+						return (
+							<PdExtensionPanel
+								variant='dark'
+								significators={sig}
+								promissorTypes={prom}
+								onSignificatorsChange={(next)=>apply(next, prom)}
+								onPromissorTypesChange={(next)=>apply(sig, next)}
+								buttonStyle={BTN_DARK}
+							/>
+						);
+					})() : null}
 					{/* [P5] 勾选组可读性:12px 淡灰在窄挤态看不清(用户实测)→ 13px 亮字+加距+整组可换行 */}
 					<span style={{ display: 'inline-flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', color: '#c8d4e8', fontSize: 13 }}>
 						{/* [E1] 映点/界两选项已删(用户定案);仅留相位点显隐。 */}
@@ -860,8 +975,8 @@ class AstroPDSphere extends Component{
 								</label>
 							);
 						})}
-						{/* [E1] 后天宫位(Alchabitius)宫首在黄道上的显示开关(纯前端派生;不改推运方位法,恒 Alchabitius) */}
-						<label style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} title="在黄道上标 Alchabitius 十二宫首">
+						{/* 后天宫位宫首在黄道上的显示开关(纯前端派生,随「盘面宫制」;只是显示,不改弧) */}
+						<label style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} title="在黄道上标十二宫首(按主限法标签设的盘面宫制;只是显示,不改弧)">
 							<input type="checkbox" checked={!!this.state.showHouses} style={{ verticalAlign: '-2px', marginRight: 4 }}
 								onChange={(e)=>{
 									const on = e.target.checked;
@@ -878,6 +993,17 @@ class AstroPDSphere extends Component{
 									this.setState({ autoResetAfterPlay: on });
 									safeLocalStorageSet('horosa.pdsphere.autoResetAfterPlay', on ? '1' : '0');
 								}}/>播完回位
+						</label>
+						{/* [C1] 复合运动·真位层:周日旋转同时诸曜沿黄道自行(主限的物理实相);
+						    冻结迫星仍是命中载体,真位点+漂移线呈现「本命位vs真位」之差 */}
+						<label style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+							title="播放时同时呈现周日旋转与诸曜黄道自行(真位);冻结迫星仍精确命中,真位点显示同一时间星体实际所在">
+							<input type="checkbox" checked={!!this.state.trueMotion} style={{ verticalAlign: '-2px', marginRight: 4 }}
+								onChange={(e)=>{
+									const on = e.target.checked;
+									this.setState({ trueMotion: on, trueInfo: on ? this.state.trueInfo : null });
+									if(this.engine && this.engine.setTrueMotion){ this.engine.setTrueMotion(on); }
+								}}/>复合运动
 						</label>
 					</span>
 				</div>
@@ -896,7 +1022,29 @@ class AstroPDSphere extends Component{
 						<div><span style={{ color: '#ffd700' }}>●</span> Direct 顺　<span style={{ color: '#59d4c8' }}>●</span> Converse 逆</div>
 						<div><span style={{ color: '#7fd191' }}>—</span> 地平圈　<span style={{ color: '#c39ae0' }}>—</span> 子午圈　<span style={{ color: '#7fc9c2' }}>—</span> 卯酉圈</div>
 						<div><span style={{ color: '#d8ab52' }}>—</span> 黄道(<span style={{ fontFamily: 'ywastrochart' }}>a</span>…宫刻度)　<span style={{ color: '#8fa3c2' }}>—</span> 天赤道网格</div>
+						{this.state.trueMotion ? (
+							<div><span style={{ color: '#dbe7f5' }}>●</span> <span style={{ color: '#dbe7f5' }}>真位(复合运动)</span>——银白;方向色为经典冻结位</div>
+						) : null}
 					</div>
+					{/* [C1] 复合运动信息行:播放/拖拽落定时报「弧=多少物理历时·诸曜真位漂移」——
+					    周日旋转(整层随转)×黄道自行(层内挪移)的复合;迫星漂移即「本命位vs真位」之差 */}
+					{this.state.trueMotion && this.state.trueInfo && Array.isArray(this.state.trueInfo.drifts) && this.state.trueInfo.drifts.length ? (
+						<div style={{
+							position: 'absolute', right: 10, bottom: 8, zIndex: 3, pointerEvents: 'none',
+							fontSize: 11, lineHeight: 1.7, color: '#9fd8ff', background: 'rgba(5,8,15,0.55)',
+							padding: '5px 10px', borderRadius: 6, border: '1px solid rgba(120,145,185,0.16)', maxWidth: '46%',
+						}}>
+							<div>复合运动 · 此弧历时{this.state.trueInfo.elapsedText}</div>
+							<div>
+								真位漂移
+								{this.state.trueInfo.drifts.map((d)=>{
+									const nm = pdPointShortName(d.pid);
+									const v = Number(d.dLon) || 0;
+									return `　${nm}${d.isProm ? '(迫星)' : ''} ${v > 0 ? '+' : ''}${v.toFixed(2)}°`;
+								}).join('')}
+							</div>
+						</div>
+					) : null}
 					{this.state.loading ? (
 						<div style={{
 							position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
@@ -919,7 +1067,7 @@ class AstroPDSphere extends Component{
 							position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
 							justifyContent: 'center', zIndex: 2, color: '#6d7f9b', fontSize: 13, pointerEvents: 'none',
 						}}>
-							当前主限设置未产出表行（调整方位法/年限后自动重算）
+							当前主限设置未产出表行（调整弧算法/年限后自动重算）
 						</div>
 					) : null}
 				</div>

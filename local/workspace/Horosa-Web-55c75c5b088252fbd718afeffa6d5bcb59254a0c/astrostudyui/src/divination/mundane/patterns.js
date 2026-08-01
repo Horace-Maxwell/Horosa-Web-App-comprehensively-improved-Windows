@@ -33,6 +33,8 @@ export const PATTERN_MUNDANE = {
 	mystic_rectangle: { cn: '神秘矩形', text: '软硬相位交织的稳定张力——在制衡中务实运作、机会与压力并存。' },
 	stellium_sign: { cn: '星群(同座)', text: '多星聚一座——该座/宫所主领域成为压倒性焦点,力量集中而偏颇。' },
 	stellium_orb: { cn: '紧密星群', text: '多星紧聚一处——高度集中的议题引爆点。' },
+	grand_sextile: { cn: '大六角', text: '六星互六分、两套大三角嵌套——罕见的全局机遇平衡之局,资源与助力多方齐备,惟须主动取用方不致虚掷。' },
+	cradle: { cn: '摇篮', text: '半盘弧上三连六分承接一组对冲——张力有缓冲与转圜出口,危机可经斡旋逐级化解。' },
 };
 
 function jonesType(lons) {

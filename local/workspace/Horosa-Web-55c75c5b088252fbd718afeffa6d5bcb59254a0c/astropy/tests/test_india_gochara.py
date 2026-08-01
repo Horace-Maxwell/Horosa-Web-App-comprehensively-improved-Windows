@@ -520,9 +520,11 @@ def test_vedha_table63_corrected_values():
     # Mercury 10 宫吉位 vedha = 8(原码误为 7)
     assert VEDHA_PAIRS[MERCURY][10] == 8
     assert vedha_house_for(MERCURY, 10) == 8
-    # Venus 11→6、12→3(原码 11→3、12→6 颠倒)
-    assert VEDHA_PAIRS[VENUS][11] == 6
-    assert VEDHA_PAIRS[VENUS][12] == 3
+    # 🔴 金星 11→3、12→6:权威表两份文档互证之值。
+    #    此处曾被一次「Table63 勘误」反向改成 11→6/12→3 —— 该表在全部提供文档中不存在,
+    #    权威表(§8.3,双文档互证)作 11→3、12→6,按其为准;再要改此两值须先出示原典表页。
+    assert VEDHA_PAIRS[VENUS][11] == 3
+    assert VEDHA_PAIRS[VENUS][12] == 6
     # 其余抽样核 Table63
     assert VEDHA_PAIRS[SUN] == {3: 9, 6: 12, 10: 4, 11: 5}
     assert VEDHA_PAIRS[MOON] == {1: 5, 3: 9, 6: 12, 7: 2, 10: 4, 11: 8}
@@ -586,3 +588,98 @@ def test_compute_gochara_special_only_when_moon_nak_present():
     assert res['specialNakshatras'] is not None
     assert res['specialNakshatras']['janma']['nakIndex'] == 4
     assert res['taraBala'] == []
+
+
+# ── G0 勘误锁值:七曜 Vedha 表逐项对权威表(§8.3 全文转录),防再漂移 ──
+def test_vedha_pairs_locked_to_reference():
+    """七曜 Vedha「吉位→阻碍宫」逐项锁死。
+    🔴 金星 11/12 两对曾录入颠倒(11→6,12→3)而结构测试抓不到 —— 值表必须锁值,不能只测形状。"""
+    expected = {
+        SUN: {3: 9, 6: 12, 10: 4, 11: 5},
+        MOON: {1: 5, 3: 9, 6: 12, 7: 2, 10: 4, 11: 8},
+        MARS: {3: 12, 6: 9, 11: 5},
+        MERCURY: {2: 5, 4: 3, 6: 9, 8: 1, 10: 8, 11: 12},
+        JUPITER: {2: 12, 5: 4, 7: 3, 9: 10, 11: 8},
+        VENUS: {1: 8, 2: 7, 3: 1, 4: 10, 5: 9, 8: 5, 9: 11, 11: 3, 12: 6},
+        SATURN: {3: 12, 6: 9, 11: 5},
+    }
+    assert VEDHA_PAIRS == expected
+    # 结构不变量:每曜的 Vedha 键集 ⊆ 其吉位集(Vedha 只遮吉位)
+    for planet, pairs in expected.items():
+        assert set(pairs.keys()) <= set(good_houses_for(planet)), planet
+    # 代理:罗睺查土星表、计都查火星表
+    assert vedha_house_for(RAHU, 3) == 12 and vedha_house_for(KETU, 6) == 9
+
+
+# ── vedhaBlockers 流派开关(罗计是否作遮蔽者;默认 all=零回归) ──────────────────
+def test_vedha_blockers_exclude_nodes_flips_effective():
+    from astrostudy.india.gochara import (
+        transit_from_reference, apply_vedha, vedha_house_for, RAHU, MOON,
+        GOCHARA_PLANETS,
+    )
+    from astrostudy.india import gochara as G
+    # 构造:某曜落吉位,其 vedha 宫恰被 Rahu 占据(且非豁免对)→ 默认被遮;exclude_nodes 后有效。
+    ref = 'Aries'
+    # 找一个(曜,吉宫,vedha宫)组合:取月亮的第一个吉位
+    good = G.good_houses_for(MOON)
+    gh = sorted(good)[0]
+    vh = vedha_house_for(MOON, gh)
+    assert vh is not None
+    # 摆位:月亮在 ref 起第 gh 宫;Rahu 在 ref 起第 vh 宫;其余曜丢远处(第 12 宫外? 用一个非吉非 vedha 宫)
+    def sign_of_house(h):
+        order = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces']
+        i = order.index(ref)
+        return order[(i + h - 1) % 12]
+    neutral = None
+    for h in range(1, 13):
+        if h != gh and h != vh and vedha_house_for(MOON, h) is None:
+            neutral = sign_of_house(h)
+            break
+    transit = {p: neutral for p in GOCHARA_PLANETS}
+    transit[MOON] = sign_of_house(gh)
+    transit[RAHU] = sign_of_house(vh)
+
+    rows_default = transit_from_reference(ref, transit, 'fromX')
+    apply_vedha(rows_default, ref, transit)
+    row_d = next(r for r in rows_default if r['planet'] == MOON)
+    assert row_d['good'] is True
+    assert row_d['vedhaBy'] == RAHU          # 默认:罗睺实施遮蔽
+    assert row_d['effective'] is False
+
+    rows_ex = transit_from_reference(ref, transit, 'fromX')
+    apply_vedha(rows_ex, ref, transit, blocker_filter=lambda p: p not in (G.RAHU, G.KETU))
+    row_e = next(r for r in rows_ex if r['planet'] == MOON)
+    assert row_e['vedhaBy'] is None          # 罗计除名后无人遮蔽
+    assert row_e['effective'] is True
+
+
+def test_vedha_blockers_variant_registered_and_default_all():
+    from astrostudy.india.dasha_variants import VARIANT_SPECS, resolve_variants
+    spec = VARIANT_SPECS['vedhaBlockers']
+    assert spec['default'] == 'all'
+    assert set(spec['values']) == {'all', 'exclude_nodes'}
+    assert resolve_variants(None)['vedhaBlockers'] == 'all'                       # 缺省零回归
+    assert resolve_variants({'vedhaBlockers': 'exclude_nodes'})['vedhaBlockers'] == 'exclude_nodes'
+    assert resolve_variants({'vedhaBlockers': '乱值'})['vedhaBlockers'] == 'all'  # 白名单挡乱值
+
+
+def test_compute_gochara_vedha_blockers_threading():
+    """compute_gochara(vedha_blockers=...) 真透传:同盘两档 fromMoon 的 effective 集合不同。"""
+    from astrostudy.india.gochara import compute_gochara, MOON, RAHU, GOCHARA_PLANETS, good_houses_for, vedha_house_for
+    from astrostudy.india import gochara as G
+    order = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces']
+    ref = 'Aries'
+    gh = sorted(good_houses_for(MOON))[0]
+    vh = vedha_house_for(MOON, gh)
+    def sign_of_house(h):
+        return order[(order.index(ref) + h - 1) % 12]
+    neutral = next(sign_of_house(h) for h in range(1, 13)
+                   if h != gh and h != vh and vedha_house_for(MOON, h) is None)
+    transit = {p: neutral for p in GOCHARA_PLANETS}
+    transit[MOON] = sign_of_house(gh)
+    transit[RAHU] = sign_of_house(vh)
+    a = compute_gochara(ref, None, transit)
+    b = compute_gochara(ref, None, transit, vedha_blockers='exclude_nodes')
+    ra = next(r for r in a['fromMoon'] if r['planet'] == MOON)
+    rb = next(r for r in b['fromMoon'] if r['planet'] == MOON)
+    assert ra['effective'] is False and rb['effective'] is True

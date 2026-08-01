@@ -117,6 +117,10 @@ class Su28ChartCircle {
 				if(a.ra > 300 && b.ra < 30){
 					return -1;
 				}
+				// 环形序须对称全序:跨 0°RA 两向都判,单侧判 = 非对称比较器,sort 行为未定义。
+				if(b.ra > 300 && a.ra < 30){
+					return 1;
+				}
 				return a.ra - b.ra;
 			});
 		}

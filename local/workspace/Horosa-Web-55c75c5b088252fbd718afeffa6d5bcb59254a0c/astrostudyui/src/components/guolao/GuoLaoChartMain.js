@@ -1500,6 +1500,10 @@ function buildGuolaoSuSection(result, planetDisplay){
 			if(a.ra > 300 && b.ra < 30){
 				return -1;
 			}
+			// 环形序须对称全序:跨 0°RA 两向都判,单侧判 = 非对称比较器,sort 行为未定义。
+			if(b.ra > 300 && a.ra < 30){
+				return 1;
+			}
 			return a.ra - b.ra;
 		});
 		if(inSu.length === 0){
@@ -1653,6 +1657,10 @@ export function buildHouseSuAndGodsSection(result, planetDisplay, fields){
 		inHouse = inHouse.sort((a, b)=>{
 			if(a.ra > 300 && b.ra < 30){
 				return -1;
+			}
+			// 环形序须对称全序:跨 0°RA 两向都判,单侧判 = 非对称比较器,sort 行为未定义。
+			if(b.ra > 300 && a.ra < 30){
+				return 1;
 			}
 			return a.ra - b.ra;
 		});
@@ -1924,6 +1932,17 @@ function buildGuolaoTransitStarsSection(fields, moiraRules){
 }
 
 function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraRules){
+	// 🔴 模块级 SNAPSHOT_PREFER_LON 只允许在本函数生命周期内为真:曾写脏后永不复位 →
+	// 黄仪盘导过一次快照后,切回赤仪的 UI 渲染(objectLon 全部消费点)改吃黄经,
+	// 盘面与后端不一致且仅在「导过快照」的会话出现。finally 恒复位根治。
+	try{
+		return _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, moiraRules);
+	}finally{
+		SNAPSHOT_PREFER_LON = false;
+	}
+}
+
+function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, moiraRules){
 	const _snapChart = result && result.chart ? result.chart : result;
 	SNAPSHOT_PREFER_LON = !!(_snapChart && _snapChart.displayCoord === 'ecliptic');
 	const lines = [];
@@ -1948,7 +1967,15 @@ function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraR
 	lines.push(`罗计取法：${_gNt === 'true' ? '真交点' : '平交点'}；月孛取法：${_gLt === 'true' ? '真远地点' : '平远地点'}`);
 	// G20/G22/G31/G3 身宫法/命主取法/行运法/宿度制 注入快照。身宫法读 fields(类A);命主取法/行运法读全局显示偏好(类B)。
 	const _gBody = guolaoFieldValue(fields, 'guolaoBodyMode', getStoredGuolaoBodyMode);
-	const _gDisp = getStoredGuolaoDisplay() || {};
+// 命主取法/行运法/童限基数:fields(挂载齿轮/存档)优先,缺省回退全局显示偏好 ——
+	// 🔴 曾直读全局 JSON 罐:三值逐字进快照正文且改 [大限] 段结构,却在覆盖机制射程外。
+	const _gDispBase = getStoredGuolaoDisplay();
+	const _gDisp = {
+		..._gDispBase,
+		...(fields.guolaoLifeMasterMode && fields.guolaoLifeMasterMode.value ? { lifeMasterMode: fields.guolaoLifeMasterMode.value } : {}),
+		...(fields.guolaoMinorLimitType && fields.guolaoMinorLimitType.value !== undefined && fields.guolaoMinorLimitType.value !== null && fields.guolaoMinorLimitType.value !== '' ? { minorLimitType: fields.guolaoMinorLimitType.value } : {}),
+		...(fields.guolaoTongxianBase && fields.guolaoTongxianBase.value ? { tongxianBase: fields.guolaoTongxianBase.value } : {}),
+	};
 	const _su28Name = SU28_MODE_LABEL[guolaoSu28ModeFromFields(fields)] || '回归今宿';   // 单源 SU28_MODE_LABEL(WP-A,消第三套漂移)
 	const _lmName = { gong: '宫主', du: '度主', dudegrade: '贬宫主专度主' }[_gDisp.lifeMasterMode || 'gong'] || '宫主';
 	const _mlName = { '': '古度限度法', dongwei: '洞微大限', minor: '小限', month: '月限', tong: '童限' }[_gDisp.minorLimitType || ''] || '古度限度法';
