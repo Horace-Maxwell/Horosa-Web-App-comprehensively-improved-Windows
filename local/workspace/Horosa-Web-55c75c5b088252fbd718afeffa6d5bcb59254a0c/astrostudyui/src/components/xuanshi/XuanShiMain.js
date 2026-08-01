@@ -9,12 +9,24 @@ import { fetchSummary, fetchEvents, fetchDaily, fetchFigures } from '../../servi
 import { firstLoadParallelEnabled } from '../../utils/perfFlags';
 import { markPanelReady } from '../../utils/perfMark';
 import XuanShiEvents from './XuanShiEvents';
-import XuanShiCelestial from './XuanShiCelestial';
+// 🔴 天象/地图两个子页必须懒加载,绝不可改回静态 import(与星运页同族病灶,2026-08-01 一并治理):
+//   两者各自 `import * as echarts from 'echarts'`,静态引它们就把 echarts(vendors-viz 1291KB,
+//   比 three 还大)变成本页 chunk 的**同步依赖** —— 而玄史主页是「概览」,十来个子页里只有
+//   天象、地图两个用得着图表。两者都在 renderBody 的 switch 分支里按需返回,懒化后
+//   「不进这两个子页=零成本」天然成立;边界由 makeLazyBoundary 自带。
+import { makeLazyBoundary, idleWarm } from '../../utils/lazyBoundary';
+const XuanShiCelestial = makeLazyBoundary(
+	() => import(/* webpackChunkName: "xuanshi-celestial" */ './XuanShiCelestial'),
+	{ label: '天象', tip: '天象图表加载中…', plainFallback: true }
+);
 import XuanShiMicro from './XuanShiMicro';
 import XuanShiStories from './XuanShiStories';
 import { resolveChartDate } from './xuanshiDate';
 import XuanShiFigures from './XuanShiFigures';
-import XuanShiMap from './XuanShiMap';
+const XuanShiMap = makeLazyBoundary(
+	() => import(/* webpackChunkName: "xuanshi-map" */ './XuanShiMap'),
+	{ label: '地图', tip: '地图加载中…', plainFallback: true }
+);
 import XuanShiPersons from './XuanShiPersons';
 import XuanShiTimeline from './XuanShiTimeline';
 import XuanShiEncyclopedia from './XuanShiEncyclopedia';
@@ -74,7 +86,19 @@ export default class XuanShiMain extends React.Component {
 		};
 	}
 
-	componentDidMount() { this.loadSummary(); }
+	componentDidMount() {
+		this.loadSummary();
+		// 图表 chunk 空闲预热:不进天象/地图子页=零成本,真去点时通常已就绪。卸载时必须 cancel。
+		this._cancelVizWarm = [
+			idleWarm(XuanShiCelestial, { timeout: 3000 }),
+			idleWarm(XuanShiMap, { timeout: 3000 }),
+		];
+	}
+
+	componentWillUnmount() {
+		(this._cancelVizWarm || []).forEach((c) => { if(typeof c === 'function'){ c(); } });
+		this._cancelVizWarm = null;
+	}
 
 	persist(patch) {
 		const ui = { ...this.state.ui, ...patch };

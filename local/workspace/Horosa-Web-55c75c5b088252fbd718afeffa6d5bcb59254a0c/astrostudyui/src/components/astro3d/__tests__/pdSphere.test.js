@@ -429,3 +429,61 @@ describe('[C1] 复合运动真位层(elapsedDaysForArc/eclToEqTrue/properSpeedOf
 		expect(M.formatElapsedHM(-0.25)).toBe('前≈6时0分');
 	});
 });
+
+// —— 重引擎懒加载接线锁(2026-08-01「进入星运台卡死」制度化,锁 B)——
+// 主锁是 utils/__tests__/heavyEngineImportGraph.test.js 的 AST 图遍历(自动覆盖未来新增页面);
+// 本组是逐处的贴身锁:红了能立刻指出是哪个文件、哪一行破了规矩,不用去读图遍历的链路。
+describe('🔴 重引擎宿主页必须懒加载(静态 import 即前功尽弃)', () => {
+	const readSrc = (rel) => require('fs').readFileSync(
+		require('path').resolve(__dirname, '..', '..', rel), 'utf8');
+
+	test('星运页:主限天球走 makeLazyBoundary + 具名 chunk,且无静态 import', () => {
+		const host = readSrc('direction/AstroDirectMain.js');
+		expect(host).toMatch(/const AstroPDSphere = makeLazyBoundary\(/);
+		expect(host).toContain('webpackChunkName: "pd-sphere"');
+		// 静态 import 会把 PDSphereEngine→three 拖回本页 chunk,懒化前功尽弃
+		expect(host).not.toMatch(/^import AstroPDSphere from/m);
+		// 空闲预热在位且卸载时 cancel(不 cancel 会在卸载后仍触发 import)
+		expect(host).toContain('idleWarm(AstroPDSphere');
+		expect(host).toContain('this._cancelSphereWarm()');
+	});
+
+	test('节气页:3D 盘走 makeLazyBoundary + 具名 chunk,且无静态 import', () => {
+		const host = readSrc('jieqi/JieQiChartsMain.js');
+		expect(host).toMatch(/const AstroChartMain3D = makeLazyBoundary\(/);
+		expect(host).toContain('webpackChunkName: "astro-chart-3d"');
+		expect(host).not.toMatch(/^import AstroChartMain3D from/m);
+		expect(host).toContain('idleWarm(AstroChartMain3D');
+		expect(host).toContain('this._cancel3dWarm()');
+	});
+
+	test('玄史页:天象/地图两个 echarts 宿主均懒加载,且无静态 import', () => {
+		const host = readSrc('xuanshi/XuanShiMain.js');
+		expect(host).toMatch(/const XuanShiCelestial = makeLazyBoundary\(/);
+		expect(host).toMatch(/const XuanShiMap = makeLazyBoundary\(/);
+		expect(host).toContain('webpackChunkName: "xuanshi-celestial"');
+		expect(host).toContain('webpackChunkName: "xuanshi-map"');
+		expect(host).not.toMatch(/^import XuanShiCelestial from/m);
+		expect(host).not.toMatch(/^import XuanShiMap from/m);
+		expect(host).toContain('this._cancelVizWarm');
+	});
+
+	test('3D 星盘页不得再静态引主限天球(那条 boardMode 分支恒 false,是纯拖累)', () => {
+		const host = readSrc('astro3d/AstroChartMain3D.js');
+		expect(host).not.toMatch(/^import AstroPDSphere from/m);
+		// 剥注释后不得再有该分支的任何代码残留
+		const code = host.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+		expect(code).not.toContain('boardMode');
+		expect(code).not.toContain('AstroPDSphere');
+	});
+
+	test('lazyBoundary 单一真值源在位,且保留空模块自愈(v3.6.0 的血泪教训)', () => {
+		const util = require('fs').readFileSync(
+			require('path').resolve(__dirname, '..', '..', '..', 'utils', 'lazyBoundary.js'), 'utf8');
+		expect(util).toContain('export function makeLazyBoundary');
+		expect(util).toContain('export function idleWarm');
+		// 自愈:坏结果不得进缓存,否则 React.lazy 会把它永久钉死
+		expect(util).toContain('Lazy chunk resolved empty');
+		expect(util).toMatch(/if\(!m \|\| !m\.default\)/);
+	});
+});

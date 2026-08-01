@@ -25,7 +25,6 @@ import {
 	XQSideSection,
 } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P2]
-import AstroPDSphere from './AstroPDSphere';
 import * as AstroConst from '../../constants/AstroConst';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { FreezeSubTab } from '../comp/FreezeInactive';
@@ -52,16 +51,12 @@ const CENTER_MODE_OPTIONS = [
 ];
 
 class AstroChartMain3D extends Component{
-	// [WP-5.1] 盘型:星盘(既有 3D 主盘)|主限天球(复用 AstroPDSphere;localStorage 记忆)。
 	// jieqi/印度等变体传 hidemodes/hidezodiacal → 盘型选择连带隐藏(盘语义绑定地心,主限无义)。
 
 	constructor(props) {
 		super(props);
-		// [主限天球入口下线] 3D 星盘页不再提供「主限天球」盘型切换(只从星运页进入);boardMode 固定 chart。
-		const _bm = 'chart';
 		this.state = {
 			centerMode: 'geo',
-			boardMode: _bm,
 			tabH: null,   // [右栏满高] 实测 tabs 内容高;null=回退旧扣高公式
 			// horosa_freeze_subtabs_v1:右栏 5 个子页签原为 defaultActiveKey(非受控),
 			// 拿不到 activeKey 就无法冻结。改受控:初值仍是 '1'(信息),onChange 记进 state,
@@ -82,33 +77,6 @@ class AstroChartMain3D extends Component{
 				}catch(e){}
 			}, 80); });
 			try{ this._sideRO.observe(node); }catch(e){}
-		};
-		// [WP-5.1] 主限天球简版构参:fields 直读+主限默认(方法/时间钥匙/顺行;与星运页
-		// 不共享设置态——本页无主限设置面,固定学理默认;畸形日期 NaN 守卫同口径)。
-		this.buildPdSphereRequest = ()=>{
-			const f = this.props.fields || {};
-			const gv = (k, d)=>(f[k] && f[k].value !== undefined && f[k].value !== null ? f[k].value : d);
-			const dateValue = f.date && f.date.value;
-			const timeValue = f.time && f.time.value;
-			if(!dateValue || !timeValue || !dateValue.format || !timeValue.format){ return null; }
-			const dateStr = dateValue.format('YYYY/MM/DD');
-			const timeStr = timeValue.format('HH:mm:ss');
-			if(`${dateStr}`.indexOf('NaN') >= 0 || `${timeStr}`.indexOf('NaN') >= 0){ return null; }
-			return {
-				date: dateStr, time: timeStr,
-				ad: dateValue.ad !== undefined ? dateValue.ad : 1,
-				zone: gv('zone', undefined), lat: gv('lat', undefined), lon: gv('lon', undefined),
-				gpsLat: gv('gpsLat', undefined), gpsLon: gv('gpsLon', undefined),
-				hsys: gv('hsys', 0), southchart: gv('southchart', 0),
-				zodiacal: gv('zodiacal', 0), siderealAyanamsa: gv('siderealAyanamsa', ''),
-				tradition: gv('tradition', 0), strongRecption: gv('strongRecption', 0),
-				simpleAsp: gv('simpleAsp', 0), virtualPointReceiveAsp: gv('virtualPointReceiveAsp', 0),
-				doubingSu28: gv('doubingSu28', 0),
-				predictive: true, includePrimaryDirection: true, showPdBounds: 1,
-				pdtype: 0, pdMethod: 'core_alchabitius', pdTimeKey: 'Ptolemy', pdYears: 100,
-				pdDirect: 1, pdConverse: 1, pdAntiscia: 0, pdTerms: 0,
-				pdaspects: [0, 60, 90, 120, 180],
-			};
 		};
 		this._centerReq = 0;   // 中心盘请求序号(快速连切时只认最新一发)
 
@@ -425,16 +393,10 @@ class AstroChartMain3D extends Component{
 						<div className="horosa-3d-hint">双击画布进入或退出全屏</div>
 					</div>
 					<div className="horosa-3d-canvas-wrap">
-						{this.state.boardMode === 'pdsphere' && showmodes ? (
-							<AstroPDSphere
-								value={this.props.value}
-								buildRequest={this.buildPdSphereRequest}
-								pdMethod={'core_alchabitius'}
-								pdTimeKey={'Ptolemy'}
-								pdType={0}
-								height={chartHeight}
-							/>
-						) : (
+						{/* [主限天球入口下线·2026-08-01 清理] 原 boardMode==='pdsphere' 分支已删:
+						    boardMode 在 constructor 里硬编码 'chart' 且全文件无任何 setState 改它,
+						    该条件恒 false —— 是死路径。但它那行静态 import AstroPDSphere 会把
+						    PDSphereEngine + three 白白拖进本 3D chunk。主限天球只从星运页进入。 */}
 						<AstroChart3D
 							ref={(inst)=>{ this.chart3dRef = inst; }}
 							value={chartObj}
@@ -445,7 +407,6 @@ class AstroChartMain3D extends Component{
 							height={chartHeight}
 							needChart3D={needChart3D}
 						/>
-						)}
 					</div>
 				</XQPanel>
 				<XQPanel className="horosa-3d-side">

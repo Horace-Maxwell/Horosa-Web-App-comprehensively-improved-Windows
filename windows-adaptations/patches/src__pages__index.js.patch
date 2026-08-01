@@ -1,16 +1,17 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index bd0f274..ad1f4f7 100644
+index f432677..05d70bf 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
-@@ -16,6 +16,7 @@ import CaseList from '../components/user/CaseList';
- import AstroFormComp from '../components/astro/AstroFormComp';
+@@ -17,6 +17,8 @@ import AstroFormComp from '../components/astro/AstroFormComp';
  import AstroChartMain from '../components/astro/AstroChartMain';
  import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
+ import { makeLazyBoundary } from '../utils/lazyBoundary';
++// Windows-ahead:城市库空闲预载开关(与上游懒加载改造无关,勿随 import 区重写一并丢)。
 +import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
  
  // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
  // 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
-@@ -95,6 +96,20 @@ function startIdlePreload(){
+@@ -73,6 +75,20 @@ function startIdlePreload(){
  	}, 1000);
  }
  
@@ -31,7 +32,7 @@ index bd0f274..ad1f4f7 100644
  // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
  const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
  const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
-@@ -144,7 +159,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
+@@ -122,7 +138,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
  import XQIcon from '../components/xq-icons';
  import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
  import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
@@ -45,7 +46,7 @@ index bd0f274..ad1f4f7 100644
  
  const TabPane = XQTabs.TabPane;
  
-@@ -369,7 +390,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -347,7 +369,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          caseTotal,
      } = user;
   	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
@@ -99,7 +100,7 @@ index bd0f274..ad1f4f7 100644
  
      
      function closeDrawer(){
-@@ -423,6 +489,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -401,6 +468,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
          if(needRefresh){
              tabRefreshSigRef.current[key] = currentSig;
@@ -109,7 +110,7 @@ index bd0f274..ad1f4f7 100644
              setTimeout(()=>{
                  if(!(predictHook[key] && predictHook[key].fun)){ return; }
                  if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-@@ -444,8 +513,26 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -422,8 +492,26 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
              }, 0);
          }
  
@@ -136,7 +137,7 @@ index bd0f274..ad1f4f7 100644
      function changeCond(values){
          let flds = {
              ...fields,
-@@ -456,78 +543,81 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -434,78 +522,81 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
  
          if(values.tm !== undefined && values.tm != null){
              let birth = values.tm;
@@ -248,7 +249,7 @@ index bd0f274..ad1f4f7 100644
              }
          }
  
-@@ -541,6 +631,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -519,6 +610,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                  // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
                  ...(values.step ? { __stepHint: values.step } : {}),
              };
@@ -257,7 +258,7 @@ index bd0f274..ad1f4f7 100644
              // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
              // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
              // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
-@@ -557,6 +649,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -535,6 +628,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
          cancelPendingTimeDispatch();
  
@@ -265,7 +266,7 @@ index bd0f274..ad1f4f7 100644
          dispatch({
              type: 'astro/fetchByFields',
              payload: flds,
-@@ -910,6 +1003,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -888,6 +982,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                          height={height}
                          fields={fields}
                          fieldsAry={aryfields}

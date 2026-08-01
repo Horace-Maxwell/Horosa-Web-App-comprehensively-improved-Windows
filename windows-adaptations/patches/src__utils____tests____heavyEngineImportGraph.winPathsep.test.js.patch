@@ -1,0 +1,61 @@
+diff --git a/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js b/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js
+index f1c1108..8ef9af9 100644
+--- a/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js
++++ b/astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js
+@@ -51,6 +51,13 @@ function isHeavy(spec){ return HEAVY_ENGINES.some((re) => re.test(spec)); }
+ 
+ // 只有这些「引擎宿主」允许把引擎放在自己的同步图里 —— 用户点进它们就是为了看那张图,
+ // 引擎与页面同 chunk 是合理的。每条必须写明理由(空理由即红,见下方测试)。
++// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):
++// `path.relative` 在 Windows 返回反斜杠分隔(`components\astro3d\AstroChartMain3D.js`),
++// 而下面 ENGINE_HOSTS 的键是 POSIX 写法 ⇒ 键查不中 ⇒ **合法的引擎宿主豁免失效**,
++// 3D 星盘页被误报成违规(macOS 上恒绿,只在 Windows 假红)。统一归一为 POSIX 再查。
++// 仓内同类先例:chartFreeContract / quickDockContract 两个契约测试同 marker。
++const relPosix = (from, to) => path.relative(from, to).split(path.sep).join('/');
++
+ const ENGINE_HOSTS = {
+ 	'components/astro3d/AstroChartMain3D.js': '3D 星盘页本体——用户点进来就是为了看 3D,引擎与页面同 chunk 合理',
+ 	'components/planetarium/PlanetariumMain.js': '天文馆本体;且其 babylon 走 <script> 注入不进 webpack 图',
+@@ -73,7 +80,7 @@ function resolveModule(fromFile, spec){
+ function walkStaticGraph(entry){
+ 	const hits = [];
+ 	const seen = new Set();
+-	const stack = [{ file: entry, chain: [path.relative(SRC, entry)] }];
++	const stack = [{ file: entry, chain: [relPosix(SRC, entry)] }];
+ 
+ 	while(stack.length){
+ 		const { file, chain } = stack.pop();
+@@ -95,7 +102,7 @@ function walkStaticGraph(entry){
+ 				const spec = p.node.source.value;
+ 				if(isHeavy(spec)){ hits.push({ spec, chain: chain.concat(spec) }); return; }
+ 				const next = resolveModule(file, spec);
+-				if(next){ stack.push({ file: next, chain: chain.concat(path.relative(SRC, next)) }); }
++				if(next){ stack.push({ file: next, chain: chain.concat(relPosix(SRC, next)) }); }
+ 			},
+ 			// re-export 同样构成同步依赖
+ 			ExportNamedDeclaration(p){
+@@ -103,13 +110,13 @@ function walkStaticGraph(entry){
+ 				const spec = p.node.source.value;
+ 				if(isHeavy(spec)){ hits.push({ spec, chain: chain.concat(spec) }); return; }
+ 				const next = resolveModule(file, spec);
+-				if(next){ stack.push({ file: next, chain: chain.concat(path.relative(SRC, next)) }); }
++				if(next){ stack.push({ file: next, chain: chain.concat(relPosix(SRC, next)) }); }
+ 			},
+ 			ExportAllDeclaration(p){
+ 				const spec = p.node.source.value;
+ 				if(isHeavy(spec)){ hits.push({ spec, chain: chain.concat(spec) }); return; }
+ 				const next = resolveModule(file, spec);
+-				if(next){ stack.push({ file: next, chain: chain.concat(path.relative(SRC, next)) }); }
++				if(next){ stack.push({ file: next, chain: chain.concat(relPosix(SRC, next)) }); }
+ 			},
+ 		});
+ 	}
+@@ -139,7 +146,7 @@ describe('重引擎不得进入页面的静态 import 图', () => {
+ 	test('🔴 每个 lazy 页面的静态依赖图里不得出现重引擎', () => {
+ 		const offenders = [];
+ 		targets.forEach((entry) => {
+-			const rel = path.relative(SRC, entry);
++			const rel = relPosix(SRC, entry);
+ 			if(ENGINE_HOSTS[rel]){ return; }              // 引擎宿主豁免(理由见 ENGINE_HOSTS)
+ 			const { hits } = walkStaticGraph(entry);
+ 			if(hits.length){

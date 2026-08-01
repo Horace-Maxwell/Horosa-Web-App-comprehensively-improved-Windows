@@ -16,6 +16,8 @@ import CaseList from '../components/user/CaseList';
 import AstroFormComp from '../components/astro/AstroFormComp';
 import AstroChartMain from '../components/astro/AstroChartMain';
 import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
+import { makeLazyBoundary } from '../utils/lazyBoundary';
+// Windows-ahead:城市库空闲预载开关(与上游懒加载改造无关,勿随 import 区重写一并丢)。
 import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
 
 // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
@@ -24,40 +26,17 @@ import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
 // 也要消费,从 pages 导入会成 components ← pages 循环依赖;此处声明时登记,消费方 import util。
 const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
 // order: 1=hot(高频技法,先预载) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
+// 自愈 + Suspense + 错误边界三件套已抽到 utils/lazyBoundary.js(单一真值源)——
+// 组件内部要懒加载重子组件时(星运的主限天球 / 节气的 3D 盘 / 玄史的图表)不能从 pages 反向 import
+// (成环),各写一份又必然丢掉那段空模块自愈。本函数在其之上只再加两件页面级的事:
+// idle 预取队列登记 + 悬停预取登记。
 function lazyPreloadable(factory, opts = {}){
-	// [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
-	// React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
-	// 工厂层自愈:坏结果不进缓存(下次真正重试 import),并抛明确错误交边界卡走「刷新重载」路。
-	let cachedGood = null;
-	const healingFactory = ()=>{
-		if(cachedGood){ return cachedGood; }
-		const p = Promise.resolve().then(factory).then((m)=>{
-			if(!m || !m.default){
-				throw new Error('Lazy chunk resolved empty (stale HMR / 更新中途换包): 请刷新页面');
-			}
-			cachedGood = p;
-			return m;
-		});
-		return p;
-	};
-	const C = React.lazy(healingFactory);
-	LAZY_PRELOAD_QUEUE.push({ factory: healingFactory, order: opts.order || 2 });
+	const Wrapped = makeLazyBoundary(factory);
+	// preload 用的是同一个 healingFactory(React.lazy 幂等,共享同一 promise)。
+	LAZY_PRELOAD_QUEUE.push({ factory: Wrapped.preload, order: opts.order || 2 });
 	if(opts.navKey){
-		registerNavPreload(opts.navKey, healingFactory);
+		registerNavPreload(opts.navKey, Wrapped.preload);
 	}
-	// 🔒 黑屏根因修复:外层 <React.Suspense>(本文件 ~541 行)仅罩住主工作区,而抽屉(小工具/辅助/
-	//   印度盘等,渲染于 1400+ 行)在其作用域之外 → lazy chunk 尚未空闲预载完就打开抽屉时,组件 suspend
-	//   却无 Suspense 兜底 → 抛 "A React component suspended while rendering, but no fallback UI was
-	//   specified" 冒泡到根卸载整树 = 整页黑屏(小工具两端皆崩、辅助八卦时序相关皆源于此)。
-	//   故每个 lazy 模块自带:Suspense(加载中显 Spin)+ error boundary(模块求值/render 崩则局部回退卡片,绝不黑全屏)。
-	const Wrapped = (props) => (
-		<TechniqueErrorBoundary>
-			<React.Suspense fallback={<div style={{padding:40,textAlign:'center'}}><Spin size="large" tip="加载中…" /></div>}>
-				<C {...props} />
-			</React.Suspense>
-		</TechniqueErrorBoundary>
-	);
-	Wrapped.displayName = 'LazyBoundary';
 	return Wrapped;
 }
 // 首屏可交互后逐个空闲预载(每次 1 个,绝不与用户操作抢主线程;requestIdleCallback 降级 setTimeout)。

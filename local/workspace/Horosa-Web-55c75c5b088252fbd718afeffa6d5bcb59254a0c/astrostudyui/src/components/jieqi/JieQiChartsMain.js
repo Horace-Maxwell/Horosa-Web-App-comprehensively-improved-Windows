@@ -8,7 +8,17 @@ import QuickDockBar from '../common/QuickDockBar';
 import AstroChartMain from '../astro/AstroChartMain';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import SuZhanMain from '../suzhan/SuZhanMain';
-import AstroChartMain3D from '../astro3d/AstroChartMain3D';
+// 🔴 3D 盘必须懒加载,绝不可改回静态 import(与星运页同族病灶,2026-08-01 一并治理):
+//   静态引它 → AstroChartMain3D → AstroChart3D → Astro3D → three + OrbitControls/GLTFLoader/
+//   DRACOLoader/Stats/lil-gui/FontLoader + 两个大 JSON 字体&模型资产,整条链成为本页 chunk 的
+//   **同步依赖** —— 进节气页(24 节气各自的星盘/宿盘页签)就得先解析完这一大坨,而只有「3D盘」
+//   那个页签用得着。本页已有 render3d 条件门(不激活不挂载),懒化后「不打开=零成本」天然成立。
+//   注:本页无 FreezeInactive,故边界由 makeLazyBoundary 自带的 TechniqueErrorBoundary 提供。
+import { makeLazyBoundary, idleWarm } from '../../utils/lazyBoundary';
+const AstroChartMain3D = makeLazyBoundary(
+	() => import(/* webpackChunkName: "astro-chart-3d" */ '../astro3d/AstroChartMain3D'),
+	{ label: '3D 盘', tip: '3D 盘加载中…' }
+);
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import request from '../../utils/request';
@@ -1804,6 +1814,8 @@ export class JieQiChartsMain extends Component{
 
 	componentDidMount(){
 		this.unmounted = false;
+		// 3D 盘 chunk 空闲预热:不打开 3D 页签=零成本,真去点时通常已就绪。卸载时必须 cancel。
+		this._cancel3dWarm = idleWarm(AstroChartMain3D, { timeout: 2500 });
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -1843,6 +1855,7 @@ export class JieQiChartsMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		if(this._cancel3dWarm){ this._cancel3dWarm(); this._cancel3dWarm = null; }
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}

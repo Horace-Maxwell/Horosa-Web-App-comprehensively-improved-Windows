@@ -79,7 +79,82 @@ if (maxGroup >= MAX_ASYNC_REQUESTS) {
 	bad = 1;
 }
 
+// ③ 重引擎不得与页面同 chunk(2026-08-01「进入星运台卡死」制度化,锁 C·产物层)
+//    源码层的主锁在 src/utils/__tests__/heavyEngineImportGraph.test.js(AST 图遍历);
+//    这里是产物层的复核 —— 万一 webpack 分包策略变了、或有人绕过 import 走别的引入方式,
+//    只要引擎最终跟页面躺进同一个 chunk,这条就红。
+//    判据用**强标记**:three 认 WebGLRenderer、echarts 认 zrender/ECharts。
+//    ⚠ 绝不裸 grep `BABYLON` —— 巴比伦占星的 BABYLON_SCHEMES 会误报(实证踩过);
+//      且 babylonjs 走 <script> 注入不进 webpack 图,产物层判据对它本就无效。
+const ENGINE_MARKS = [
+	{ name: 'three', re: /WebGLRenderer/ },
+	{ name: 'echarts', re: /\bzrender\b|\bECharts\b/ },
+];
+// 页面标记:Suspense 兜底文案 / 页面级特征串都可能被 minify 改写,故认「懒边界 + 页面组件名」
+// 这种编译后仍稳定的形态。中文在产物里会被转成 \uXXXX,故一律用 ASCII 标记。
+const PAGE_MARKS = [/LazyBoundary/, /lazyPreloadable/];
+let FIRST_PAINT_BATCH = '';
+for (const f of fs.readdirSync(DIST).filter((x) => x.endsWith('.async.js'))) {
+	const src = fs.readFileSync(path.join(DIST, f), 'utf8');
+	const hitEngine = ENGINE_MARKS.find((m) => m.re.test(src));
+	if (!hitEngine) { continue; }
+	const isVendorChunk = /^vendors[-~]/.test(f);        // 引擎独占的 vendors chunk 本就该含它
+	const hasPage = PAGE_MARKS.some((re) => re.test(src));
+	if (!isVendorChunk && hasPage) {
+		console.error(`🔴 [check-chunk-dup] ${f} 同时含 ${hitEngine.name} 引擎与页面懒边界 —— 引擎被拖进页面 chunk,进该页即须解析整个引擎;把重组件改 makeLazyBoundary(见 utils/lazyBoundary.js)`);
+		bad = 1;
+	}
+}
+
+// ④ 首屏批次不得含重引擎(2026-08-01 打包前实测抓出,③ 抓不到的**隐形通道**)
+//    ③ 只查「引擎与页面同 chunk」。但引擎还能这样偷渡到首屏:它跟一个**基础设施库**
+//    共处同一个 vendors chunk,而基础设施是首屏必需的 —— 于是首屏把整包一起拉走,
+//    引擎虽然规规矩矩待在 vendors 里(③ 全绿),用户照样得为它买单。
+//    实锤:原 cacheGroup 把 echarts 与 d3 编在一组(vendors-viz 1228KB)。d3 是星盘 SVG
+//    绘制的基础设施(全仓 101 个文件在用)、首屏同步图里就要它 → echarts 被捎带着在首屏
+//    下载,玄学史页改懒加载等于白做。拆成 vendors-d3(129KB,首屏)+ vendors-echarts
+//    (1132KB,只随玄史两个子页)后首屏净省 1.1MB。
+//    判据故意**不看 chunk 名、不看 cacheGroup 配置**,只认「首屏那一批文件里有没有引擎标记」——
+//    谁把配置改回去、或换个名字重犯,这条照样红。
+{
+	const umi = fs.readdirSync(DIST).find((f) => /^umi\..*\.js$/.test(f));
+	if (!umi) {
+		console.error('🔴 [check-chunk-dup] 找不到 umi 运行时 chunk —— 首屏批次判据无法执行(拒绝虚绿)');
+		bad = 1;
+	} else {
+		const rt = fs.readFileSync(path.join(DIST, umi), 'utf8');
+		// webpack jsonpScriptSrc:return p+""+({id:"name",…}[id]||id)+"."+{id:"hash",…}[id]+".async.js"
+		const srcFn = rt.match(/return\s+\w+\.p\+""\+\(\{(.*?)\}\[/s);
+		const rootRoute = rt.match(/path:"\/",exact:!0,component:.*?loader:\(\)=>(?:Promise\.all\(\[([^\]]*?)\]\)|(\w+\.e\(\d+\)))/s);
+		if (!srcFn || !rootRoute) {
+			console.error('🔴 [check-chunk-dup] 解析 umi 运行时失败(chunk 名表或首屏路由取不到)—— 判据失效即红,不许静默放行');
+			bad = 1;
+		} else {
+			const names = new Map();
+			for (const m of srcFn[1].matchAll(/(\d+):"([\w~.\-]+)"/g)) { names.set(m[1], m[2]); }
+			const ids = [...(rootRoute[1] || rootRoute[2] || '').matchAll(/\.e\((\d+)\)/g)].map((m) => m[1]);
+			if (!ids.length) {
+				console.error('🔴 [check-chunk-dup] 首屏路由批次为空 —— 正则错配,判据形同虚设');
+				bad = 1;
+			}
+			const all = fs.readdirSync(DIST).filter((x) => x.endsWith('.async.js'));
+			for (const id of ids) {
+				const stem = names.get(id) || id;
+				const file = all.find((x) => x.startsWith(stem + '.'));
+				if (!file) { continue; }                       // 名表里有但文件没产出:不是本判据的事
+				const src = fs.readFileSync(path.join(DIST, file), 'utf8');
+				const hit = ENGINE_MARKS.find((m) => m.re.test(src));
+				if (hit) {
+					console.error(`🔴 [check-chunk-dup] 首屏(路由 "/")同批加载的 ${file} 含 ${hit.name} 引擎 —— 每个用户一进软件就要下载并解析它。若它是与基础设施库(如 d3)编在同一个 cacheGroup,请按用途宽窄拆组(见 .umirc.js 的 vendorsD3 / vendorsChart)`);
+					bad = 1;
+				}
+			}
+			if (!bad) { FIRST_PAINT_BATCH = ids.map((i) => names.get(i) || i).join(', '); }
+		}
+	}
+}
+
 if (!bad) {
-	console.log(`✓ check-chunk-dup 绿:${bigFiles.length} 个大 async chunk 两两共有模块 ≤${MAX_SHARED_MODULES};最大请求组 ${maxGroup}/${MAX_ASYNC_REQUESTS}(${maxGroupFile})`);
+	console.log(`✓ check-chunk-dup 绿:${bigFiles.length} 个大 async chunk 两两共有模块 ≤${MAX_SHARED_MODULES};最大请求组 ${maxGroup}/${MAX_ASYNC_REQUESTS}(${maxGroupFile});重引擎未与页面同 chunk;首屏批次[${FIRST_PAINT_BATCH}]无引擎`);
 }
 process.exit(bad);
