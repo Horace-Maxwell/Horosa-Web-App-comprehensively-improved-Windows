@@ -117,6 +117,46 @@ PASS 9 · 超标 5(astrochart/liureng/cnyibu/3D/zeri 全部为「冷首绘/超�
 数字与上两轮逐位可比、零回归)· 无数据 8(结构性/无 toggle)。**结论:v3.7.0 新页入册即达
 命中口径,键石零回归 = 本版零性能降级。**
 
+### R12-P2 宗师轮落地(2026-08-03,**只落地不发布**,R10 先例;本地 commit f5d0a265,版本族不动)
+
+**落地面**:W3a 泵 fast-first/偏斜(`stepPrefetchFastFirst`/`stepPrefetchSkew`)· W3b zeri 五修(Z5=否决线)·
+W3c 三式 S1-S6 · W3d 七政 G0-G6(G5 `guolaoMergedPaint`+peekCachedPost;G6 Moira 规则物化预取链,
+禁词精确豁免 `PREFETCH_FORBIDDEN_EXEMPT_EXACT`,豁免不放大类)· W3e 六壬 L1-L4 · W3f 辅盘 A1-A3
+(rings 19 键=读取面清单推导,**异步落点字段必须入键**)· W3g 3D 补间五针源级钉 · W3h 台架四修 ·
+W2.5 裸 React.lazy 自愈加固 15 处(`horosa_lazy_healing_wrap_v1`)。全部独立 kill-switch,五层契约齐
+(补丁 15 regen + 6 新,README 56 行,SENT 283 文件)。
+
+**W1 证据收官(零代码)**:bean top-40 全为框架底座、应用 bean 零候选 ⇒ D1 定点形收官;
+PD 预热 62-91ms << 300ms ⇒ D5 恒门前;门前串行头 ≈1.34s vs java 3.5-4.4s = Java 长杆;
+**W0d 门后槽产线确认**(owner 机 py.warmup_core_postgate 4.5ms 温/191.7ms 冷)。
+W2a 预置 .jsa 否决(73.5MB/版 vs 差量 10MB 体系;重开条件=W0c ladder 字段实证覆盖不足)。
+证据 docs/perf-artifacts/2026-08-03-r12p2/(INDEX 领读)。
+
+**电池**:umi 470/471+baziStress solo 绿 · pytest 2049+alcabitius 钉 · 金标 3823 零漂移 ·
+node 142/142 · dist:win 32/34 绿(恰 2 冻结诚实红=资产/文档哈希,land-only 永不回填)·
+差量 vs LIVE v3.7.0 仅 5MB/0.6%(复用 99.4%)· 构建指纹 clean@f5d0a265。
+
+**26 键验收(2026-08-03 冷沙箱 win-unpacked,repeat=10;全天重载后机器态,#64 注)**:
+PASS 9 · 超标 12 · 无数据 31。**与昨日 v3.7.0 键石表(同台架条件)重叠 11 键逐位对照 = 零回归**:
+astrochart 294/254/294(昨 293/253/293,条件注①同机理逐位复现)· zeri 310/80/310(昨 321/78/321)·
+cnyibu 70/70/264(昨 65/65/274)· ziwei p50 42==42 · bazi 121/109(昨 113/101)· auxchart 116(昨 118)·
+3D 88(昨 84)· jieqichart opt 39/50(昨 44/45);**liureng 更优**:首下 467→215 / opt 55→46(W3e+fast-first);
+shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 —— 下轮静机复测裁决,#64 不夜判)。
+「超标 12」中新增可测 15 键(七政/三式/六壬/太乙/六爻/印占…首次入册)全部为冷链尾样本
+(p50 多在预算内、p95=单尾),是下轮的既名优化对象,不是回归。
+**台架修带来的覆盖扩容**:黄历 step 首次可测且 PASS(109ms p50,年/月二档变体 profile);
+六爻/数算/六壬/太乙/分至 option 首次有样本(xq-check-item 扩容)。
+
+**两项既名 findings(下轮工单)**:
+- F1 astro 主盘时间条未挂「选步长即武装」opt-in prop(arms=0 实证;= 键石条件注①的机制细节;
+  冷沙箱首击恒 ~250ms 的真因)——一行 prop 接线 + 五层,下轮首项。
+- F2 dunjia 验收观测环:确认制交互(未确认步进模型,+/- 零成本是产品最优形态)在台架下
+  起点-终点配对静默失联(armStats 证明导航/武装正常;probe 时间盒用尽)——下轮 in-app 断点查
+  recalc 入口配对;台架已备 confirmAfterStep 机制 + 结构化诊断,产品功能不受影响。
+
+**人工矩阵注**:FreezeSubTab 新增点(zeri 右栏 7 面板)人工切回抽查依 R10 惯例留至下一发布轮
+(本轮 land-only;单测/SSR 冒烟已盖行为面)。
+
 ### 上一轮(3.5.0 PERF-R10 落地轮)存档要点
 
 数字全表见 git 历史(commit `c3410ed` 的本文件)。要点:选步长首击 占星82/紫微57/印占93/易卜70ms;
