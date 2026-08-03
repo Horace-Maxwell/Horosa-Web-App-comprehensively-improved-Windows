@@ -105,6 +105,28 @@ CORE_SERVICE_SPECS = [
 ]
 
 
+# horosa_electionscan_postgate_prewarm_v1(v3.7.0 覆盖修):门前预装集是**预算表**。
+# tier-3 核心预装跑在启动门开启(STARTUP_GATE 置位)之前,trusted 温启走串行档 ——
+# (措辞刻意不写「门置位」的完整调用字面量:test_core_lazy_mount 以 find 首现做源序断言。)
+# 集合里每加一个重服务,就把全体用户的就绪时刻推迟它整条冷 import 链(v3.7.0 实测:
+# electionscan 链 [import swisseph + flatlib.ephem.swe + ~4.2k LOC] 令同机温启
+# 3937→5042ms,与既档「门前 prewarm=直接推迟启动门」反模式同型,见下方门后段注记)。
+# POST_GATE 集合内的键改在门后空闲段装载:首个真请求最坏付一次温 import(electionscan
+# ~1.1s,落在显式「搜索」点击上;页面中栏 /chart 不受影响);/scan 的 ping 短路在触碰
+# 引擎前返回;_LazyMountedService 每服务锁防双载。**新增 CORE 服务必须显式决定门前/门后**
+# —— 发布链的门前键集白名单断言会拦住未决定的新键。
+# kill-switch:HOROSA_ELECTIONSCAN_POSTGATE=0 ⇒ electionscan 回门前 tier-3(v3.7.0 原样)。
+POST_GATE_CORE_PREWARM_KEYS = {'electionscan'}
+
+
+def _electionscan_postgate_enabled():
+    return os.environ.get('HOROSA_ELECTIONSCAN_POSTGATE', '1').lower() not in ('0', 'false', 'no', 'off')
+
+
+def _postgate_core_keys():
+    return POST_GATE_CORE_PREWARM_KEYS if _electionscan_postgate_enabled() else set()
+
+
 def _core_lazy_enabled():
     return os.environ.get('HOROSA_CORE_LAZY', '1') not in ('0', 'false', 'no', 'off')
 
@@ -121,7 +143,12 @@ def mount_core_services():
 def prewarm_core_services():
     loaded = 0
     failed = 0
+    # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合内的键不在门前装
+    # (由门后段的 prewarm_postgate_core_services 承接;开关关闭时集合为空=原样)。
+    skip = _postgate_core_keys()
     for spec in CORE_SERVICE_SPECS:
+        if spec.get("key") in skip:
+            continue
         try:
             app = cherrypy.tree.apps.get(spec["mount"])
             root = getattr(app, "root", None)
@@ -131,6 +158,26 @@ def prewarm_core_services():
         except Exception:
             failed += 1
             print("[core] prewarm failed %s" % spec.get("key"), flush=True)
+            traceback.print_exc()
+    return loaded, failed
+
+
+def prewarm_postgate_core_services():
+    # 门后装载 POST_GATE 集合(与门前同构;饿加载态 root 非 _LazyMountedService ⇒ 天然 no-op)。
+    loaded = 0
+    failed = 0
+    for spec in CORE_SERVICE_SPECS:
+        if spec.get("key") not in _postgate_core_keys():
+            continue
+        try:
+            app = cherrypy.tree.apps.get(spec["mount"])
+            root = getattr(app, "root", None)
+            if isinstance(root, _LazyMountedService):
+                root._horosa_load()
+                loaded += 1
+        except Exception:
+            failed += 1
+            print("[core] postgate prewarm failed %s" % spec.get("key"), flush=True)
             traceback.print_exc()
     return loaded, failed
 
@@ -779,6 +826,19 @@ def _run_warmups():
         for _fn in _stages:
             _fn()
     STARTUP_GATE.set()
+    # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合的门后装载(注记见
+    # CORE_SERVICE_SPECS 上方)。刻意放在门后段**首位**(先于 kentang modules 与 xuanshi
+    # 两级预热)——冷 import 窗口最小化(~gate+1.1s 内收口);与邻居同款 try/except 吞错。
+    if _postgate_core_keys():
+        try:
+            t6 = time.perf_counter()
+            _pg_loaded, _pg_failed = prewarm_postgate_core_services()
+            _pg_ms = (time.perf_counter() - t6) * 1000.0
+            print('postgate core prewarm ready in {0:.3f}s (warmed={1}, failed={2})'.format(
+                _pg_ms / 1000.0, _pg_loaded, _pg_failed), flush=True)
+            ledger_mark('py.warmup_core_postgate', t0=_PY_T0, ms=_pg_ms)
+        except Exception:
+            traceback.print_exc()
     # horosa_kentang_prewarm_modules_v1:请求路径内惰性 import 的重模块(当前:太乙·博弈论,
     # 实测冷导入 528ms / 温 0.001ms)。**刻意放在门之后** —— prewarm_kentang_services() 跑在
     # 门之前,把这半秒并进去等于直接把启动门推迟 528ms;预热只许吃空闲,不许延长等待窗

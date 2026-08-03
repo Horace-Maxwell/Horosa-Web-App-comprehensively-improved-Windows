@@ -143,7 +143,8 @@ apply_patch "xuanshi.lazyImport"           astropy/astrostudy/xuanshi/__init__.p
 #     等于在请求路径上做同步写盘，且把用户出生信息持续写进日志文件。改由 HOROSA_CHART_DEBUG_DUMP 显式开。
 #   · horosa_kentang_prewarm_modules_v1  —— 太乙·博弈论模块预热的**调用点**，刻意放在
 #     STARTUP_GATE.set() 之后:并进门前那发会把启动门整整推迟 528ms(实测冷导入 528.1ms)。
-apply_patch horosa_kentang_prewarm_modules_v1 astropy/websrv/webchartsrv.py             astropy__webchartsrv.xuanshiWarmup.py.patch
+# guard 升最新 marker(#48):v3.7.0 覆盖修新增 electionscan 门后预装(W0d)并入本累积补丁。
+apply_patch horosa_electionscan_postgate_prewarm_v1 astropy/websrv/webchartsrv.py             astropy__webchartsrv.xuanshiWarmup.py.patch
 
 # PERF-R9:预装「请求路径内惰性 import」的重模块(当前只有 kintaiyi.game_theory,793 行,
 # 实测冷导入 528.1ms / 温 0.001ms —— 用户首次勾「博弈论」白等的就是这半秒)。只 import 不调用
