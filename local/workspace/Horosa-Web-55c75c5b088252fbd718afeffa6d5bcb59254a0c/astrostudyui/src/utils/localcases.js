@@ -103,6 +103,7 @@ export const CASE_TYPE_OPTIONS = [
 	{ value: 'horary', label: '卜卦', subTab: 'horary', tab: 'auxchart', module: 'horary' },
 	{ value: 'election', label: '择日', subTab: 'election', tab: 'auxchart', module: 'election' },
 	{ value: 'mundane', label: '世俗盘', subTab: 'mundane', tab: 'auxchart', module: 'mundane' },
+	{ value: 'tianxing', label: '天星择日', subTab: 'tianxing', tab: 'zeri', module: 'tianxing' },
 ];
 
 const CASE_TYPE_ALIASES = {

@@ -26,7 +26,8 @@ import moment from 'moment';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { marked } from 'marked';
-import { normalizeMarkdown } from '../../utils/reportMarkdownNormalize';
+import { normalizeMarkdown, closeStreamingInlineMd } from '../../utils/reportMarkdownNormalize';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { classifyQuestion, referencesSpecificCase } from '../../utils/aiAnalysisStarterPrompts';
 import { copyTextSmart } from '../../utils/clipboardText';
 import { buildSoftwareHelpContext } from '../../utils/aiAnalysisHelpDocs';
@@ -92,6 +93,7 @@ import {
 	listAnalysisSources,
 	listAnalysisTechniqueOptions,
 	listAllAnalysisTechniqueOptions,
+	snapshotSourceMismatch,
 } from '../../utils/aiAnalysisContext';
 import {
 	getTechniqueSettingsSchema,
@@ -1429,6 +1431,10 @@ function AIAnalysisMain(props){
 				listStoreRecords(AI_ANALYSIS_STORES.conversations),
 			]);
 			setProviderProfiles(sortByUpdatedDesc(nextProfiles));
+			// [G1] 密文解不开(换机器/钥匙串被清)→ 提示重填,绝不带密文串发请求
+			if((nextProfiles || []).some((p)=>p && p.apiKeyDecryptFailed)){
+				message.warning('部分 AI 接口的 API Key 无法解密(钥匙串主密钥缺失),请到「接口设置」重新填入。', 6);
+			}
 			setMaterials(sortByUpdatedDesc(nextMaterials));
 			setMaterialFolders(compareByName(nextFolders));
 			setTagGroups(compareByName(nextTagGroups));
@@ -4042,7 +4048,7 @@ function AIAnalysisMain(props){
 									<div className={styles.qcActions}>
 										{/* 一键挂载：含六爻(无存卦则按时间起卦,见 sixyao 时间起卦路径)；排除奇门遁甲(用户考量:奇门不随一键带入,需手动勾选)。
 										    六爻不进 TIME_CASTABLE_DIVINATION(保已存事盘不被时间凭空补六爻的护栏),仅在此一键集 + sixyao。 */}
-										{isNatal ? null : <Button size="small" type="primary" title="含六爻(无存卦则按时间起卦)、皇极经世、太玄、荆诀、五兆、神易数；奇门遁甲不随一键加入，需手动勾选" onClick={()=>setSelectedTechniqueKeys([...TIME_CASTABLE_DIVINATION, 'sixyao', 'huangji', 'taixuan', 'jingjue', 'wuzhao', 'shenyishu'].filter((k)=>k !== 'qimen'))}>一键挂载全部式法</Button>}
+										{isNatal ? null : <Button size="small" type="primary" title="含六爻(无存卦则按时间起卦)、皇极经世、太玄、荆诀、五兆、神易数、小六壬、飞宫、小成图(时间卦)；奇门遁甲不随一键加入，需手动勾选" onClick={()=>setSelectedTechniqueKeys(listAnalysisTechniqueOptions({ sourceType: 'timepoint' }).map((o)=>o.value).filter((k)=>k !== 'qimen' && k !== 'finance' && k !== 'huangli' && k !== 'tongshu'))}>一键挂载全部式法</Button>}
 										<Button size="small" onClick={handleSaveQuickDraftAsSource}>{isNatal ? '保存为命盘' : '保存为事盘'}</Button>
 									</div>
 									<div className={styles.qcHint}>{isNatal ? '默认设置即时起命盘（八字 / 紫微 / 星盘 / 各推运），可改时间·地点·时区；保存后进入案例列表复用。' : '统摄法 / 宿占 / 世俗盘 需手动起盘后存为事盘再挂载（凭时间起会得无意义默认值，不在白名单）；其余 卜卦 / 报数 / 起例 全部式法均可按起课时间即时起盘。'}</div>
@@ -4139,6 +4145,11 @@ function AIAnalysisMain(props){
 													<Tag>{item.type}</Tag>
 													<Tag color={statusMeta.color}>{statusMeta.text}</Tag>
 													{techCustomized ? <Tag color="purple">已自定义</Tag> : null}
+													{item.type === 'technique' && item.content && snapshotSourceMismatch(item.meta, (activeSource && activeSource.record) || null) === 'mismatch' ? (
+														<Tooltip title="快照的起盘时空与当前案例不一致(可能是旧盘/他盘残留)。不会自动重算;到该技法页面按本案例重新排盘,或在「设置」里应用重算即可刷新。">
+															<Tag color="gold">快照或非本盘</Tag>
+														</Tooltip>
+													) : null}
 													{clipStat && clipStat.dropped ? (
 														<Tooltip title="最近一次发送时上下文超出预算，该层整层未纳入。可减少挂载技法或在「设置」里精简纳入内容。">
 															<Tag color="red">超预算未纳入</Tag>
@@ -4627,7 +4638,7 @@ function AIAnalysisMain(props){
 												) : null}
 												{item.role === 'user'
 													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
-													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtmlCached(item.content) }} />}
+													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtmlCached(item.streamStatus === 'streaming' ? closeStreamingInlineMd(item.content) : item.content) }} />}
 												{item.role === 'assistant' && item.errorInfo ? (
 													<Alert
 														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
@@ -5870,4 +5881,6 @@ function AIAnalysisMain(props){
 	);
 }
 
-export default AIAnalysisMain;
+// [A7·性能] 函数组件版 sCU:memo + 全 props 机械浅比(函数型恒等;开关 horosa.perf.chartSCU
+// 关=恒重渲旧行为)。收益:激活态下宿主无关 dispatch 不再整树重渲 AI 页(其树极重)。
+export default React.memo(AIAnalysisMain, (prevProps, nextProps)=>wrapperPropsEqual(prevProps, nextProps));

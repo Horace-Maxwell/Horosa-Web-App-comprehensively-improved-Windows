@@ -39,6 +39,7 @@ import { SU28_MODE_GROUPS } from '../../components/guolao/guolaoData';
 const SECTIONS_ONLY = ['tongshefa', 'mundane',
 	'huangli',
 	'relative', // [D2] 合盘:两盘技法只读(快照单源=合盘页,选项在合盘页改即重存)
+	'tianxing', // 天星择日:征象搜索结果为一次性产物,按存档快照直读不按时间复算(v3.7.0 并入)
 ];
 
 beforeEach(()=>{

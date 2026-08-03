@@ -239,6 +239,7 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'decennials',
 	'horary',
 	'election',
+	'tianxing',
 	'bazi',
 	'ziwei',
 	'suzhan',
@@ -301,6 +302,8 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'calendar',
 	// 黄历二子技法(独立键新增于本版;v<44 老档无此键 → 循环体只并入已存在的非空数组,零强推)
 	'huangli', 'tongshu',
+	// 天星择日(征象搜索;新技法键只加键、两把版本闸恒不动——老用户本无自定义走 preset 全量)
+	'tianxing',
 ];
 const AI_EXPORT_PLANET_INFO_DEFAULT = {
 	showHouse: 1,
@@ -450,6 +453,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'fengshui', label: '风水' },
 	{ key: 'horary', label: '卜卦盘' },
 	{ key: 'election', label: '择日盘' },
+	{ key: 'tianxing', label: '天星择日' },
 	{ key: 'calendar', label: '黄历' },
 	// 黄历二子技法独立键:calendar=页面聚合快照(四子并出),huangli/tongshu=各自模块快照单技法
 	// 导出(与 jieqi 总/分并存同构);挂载「起课时间」源亦复用同一 preset 做内容勾选。
@@ -464,6 +468,8 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	// 快照「只加新段」策略,段名与 horarySnapshot 段头逐字一致。
 	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·X', '古典接纳', '征象力量', '定盘考量', 'Almuten', '映点对映点', '行星时', '尊贵明细', '偶然尊贵满分表', '阿拉伯点全集'],
 	election: ['起盘信息', '流派口径', '总评', '红线', '分项', '尊贵强弱', '阿拉伯点', '择前考量', '用事专属', '危象日参照', '应期', '本命合参', '时势合参', '建议'],
+	// 🔒 与 src/divination/zeri/tianxingSnapshot.js 段头逐字成对(四同步)
+	tianxing: ['起盘信息', '征象搜索配置', '征象条件', '命中区间'],
 	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性'],
 	// [MU] '古典':buildIndiaSnapshotText 实测不产出该段头(死复选框,勾了永远空,无害不删内容)。
 	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '古典', '可能性', '大运Dasha',
@@ -2967,6 +2973,7 @@ function getExtractorKindByExportKey(key){
 		|| exportKey === 'beiji' || exportKey === 'nanji' || exportKey === 'chunzi' || exportKey === 'xianqin'
 		|| exportKey === 'cetian' || exportKey === 'qizhengkin' || exportKey === 'guolao' || exportKey === 'suzhan'
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
+		|| exportKey === 'tianxing'
 		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'zhengchuan'
 		|| exportKey === 'yizhangjing' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu'){
 		return `module:${snapshotModuleKeyByContextKey(exportKey)}`;
@@ -3029,7 +3036,8 @@ function getStructuredSnapshotKeysByExportKey(key){
 		|| exportKey === 'otherbu'
 		|| exportKey === 'fengshui'
 		|| exportKey === 'horary'
-		|| exportKey === 'election'){
+		|| exportKey === 'election'
+		|| exportKey === 'tianxing'){
 		return [exportKey];
 	}
 	const moduleKey = snapshotModuleKeyByContextKey(exportKey);
@@ -6088,7 +6096,10 @@ function getCandidateExportKeys(context){
 	if(topInfo.includes('卜卦') && !hasPrimarySpecific){
 		keys.push('horary');
 	}
-	if(topInfo.includes('择日') && !hasPrimarySpecific){
+	if(topInfo.includes('天星择日') && !hasPrimarySpecific){
+		// 「择日」是「天星择日」的子串——本分支必须先行,否则 zeri 页上下文被串成辅盘择日盘
+		keys.push('tianxing');
+	}else if(topInfo.includes('择日') && !hasPrimarySpecific){
 		keys.push('election');
 	}
 	if(topInfo.includes('世俗') && !hasPrimarySpecific){
@@ -6241,7 +6252,7 @@ async function extractContentByKey(exportKey, context){
 		//    才露的马脚(段表 grep 得到、四本账测试也绿 —— 它们只查「登记了没」,不查「值是什么」)。
 		return extractSimpleModuleContent(exportKey);
 	}
-	if(exportKey === 'horary' || exportKey === 'election' || exportKey === 'mundane'){
+	if(exportKey === 'horary' || exportKey === 'election' || exportKey === 'mundane' || exportKey === 'tianxing'){
 		// 卜卦/择日:读 saveModuleAISnapshot 存的模块快照;世俗:走 refresh-event(DivinationChartShell 写 detail.snapshotText)。
 		// extractSimpleModuleContent 先派发 refresh-event 再回落 cached,三者统一覆盖(此前缺分支 → 落 generic / 被辅盘默认串成量化盘)。
 		return extractSimpleModuleContent(exportKey);

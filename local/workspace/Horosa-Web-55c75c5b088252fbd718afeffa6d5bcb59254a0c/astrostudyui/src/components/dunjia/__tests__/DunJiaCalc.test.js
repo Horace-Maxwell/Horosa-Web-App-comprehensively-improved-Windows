@@ -1297,11 +1297,20 @@ describe('DunJiaCalc · 本轮新增 golden(混合/茅山/置闰天数)', ()=>{
 		// (b) 阈值生效:2018 大雪置闰窗口取两个稳定盘(各连续多日同结果,非交节边缘,确定性)
 		const ctx2018 = seedsFor(2018);
 		const calcLeap = (d, t, leap)=>calcDunJia(makeFields(d, t), buildLocalNongliForTest(d, t), makeOptions({ qijuMethod: 'zhirun', paiPanType: 3, timeAlg: 1, zhirunLeapDays: leap }), ctx2018);
-		// 临界盘:2018-12-20 — 9(大于9天,默认)与 8(大于等于9天)出不同局
-		const crit9 = calcLeap('2018-12-20', '12:00:00', 9);
-		const crit8 = calcLeap('2018-12-20', '12:00:00', 8);
-		expect(crit9.juText).toEqual('阳遁七局中元');
-		expect(crit8.juText).toEqual('阴遁七局中元');
+		// 至点锚语义(与 kinqimen zhirun_jieqi 同源,1940-2060 全域平价互证):
+		// value=9=「满9天即闰(dgap≥9,默认·主流)」、value=8=「满8天即闰(dgap≥8,从宽)」。
+		// 2018 大雪 dgap=9 → 两阈值同判闰(旧「>9 vs ≥9」口径的期望已随旧法废弃)。
+		const both = calcLeap('2018-12-20', '12:00:00', 9);
+		const both8 = calcLeap('2018-12-20', '12:00:00', 8);
+		expect(both.juText).toEqual('阴遁七局中元');
+		expect(both8.juText).toEqual(both.juText);
+		// 新临界盘:2016-06-03(芒种窗 dgap=8,5 日稳定非交节边缘)— ≥9 不闰 / ≥8 闰,两阈值分歧
+		const ctx2016 = seedsFor(2016);
+		const calcLeap16 = (d, t, leap)=>calcDunJia(makeFields(d, t), buildLocalNongliForTest(d, t), makeOptions({ qijuMethod: 'zhirun', paiPanType: 3, timeAlg: 1, zhirunLeapDays: leap }), ctx2016);
+		const crit9 = calcLeap16('2016-06-03', '12:00:00', 9);
+		const crit8 = calcLeap16('2016-06-03', '12:00:00', 8);
+		expect(crit9.juText).toEqual('阳遁三局中元');
+		expect(crit8.juText).toEqual('阳遁二局中元');
 		expect(crit9.juText).not.toEqual(crit8.juText);
 		// 非临界盘:2018-12-10(置闰窗内但未及阈值)— 两阈值同局,阈值改不影响非临界盘
 		const safe9 = calcLeap('2018-12-10', '12:00:00', 9);

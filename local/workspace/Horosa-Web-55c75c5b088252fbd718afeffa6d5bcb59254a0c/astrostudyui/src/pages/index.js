@@ -105,12 +105,13 @@ import ChartsGps from '../components/user/ChartsGps';
 // [B6] 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
 const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
-import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS } from '../constants/SubTabRegistry';
+import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS, ZERI_SUBTABS } from '../constants/SubTabRegistry';
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
 const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
 const XuanShiMain = lazyPreloadable(() => import('../components/xuanshi/XuanShiMain'), { order: 3, navKey: 'xuanshi' });
 const AstrodataPage = lazyPreloadable(() => import('../components/astrodata/AstrodataPage'), { order: 3, navKey: 'astrodata' });
+const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 3, navKey: 'zeri' });
 const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'), { order: 2, navKey: 'calendar' });
 const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
 const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
@@ -179,6 +180,7 @@ const mainTabIcons = {
     黄历: <XQIcon name="calendar" />,
     玄学史: <XQIcon name="other" />,
     数据库: <XQIcon name="database" />,
+    择日: <XQIcon name="calendar" />,
     '3D星盘': <XQIcon name="sphere3d" />,
     辅助: <XQIcon name="support" />,
     书籍阅读: <XQIcon name="book" />,
@@ -214,6 +216,7 @@ const navigationPages = [
     { label: '玄学史', key: 'xuanshi', icon: 'other', group: '工具', keywords: '玄学史 历史 星象 天象 列传 朝代 地图 关系 二十四史 野载 正史 omen 玄史 中国玄学史' },
     { label: '3D星盘', key: 'astrochart3D', icon: 'sphere3d', group: '工具', keywords: '3D 星盘 三维 天球 立体 球面 星空 相位 映点 接纳 互容 围攻 夹宫 希腊点 3d' },
     { label: '数据库', key: 'astrodata', icon: 'database', group: '工具', keywords: '数据库 名人 命例 名人星盘 星盘库 案例库 出生数据 Rodden AstroDatabank 名人库 celebrity 星盘目录' },
+    { label: '择日', key: 'zeri', icon: 'calendar', group: '工具', keywords: '择日 天星择日 电子择日 征象搜索 选时 时间区间 逻辑门 征象 择时 选日子' },
 ];
 
 // 悬停预取:鼠标掠过导航项即预载对应 lazy chunk(React.lazy 幂等,重复调用零成本;
@@ -269,6 +272,7 @@ const fullHeightWorkspaceTabs = new Set([
     'jieqichart',
     'fengshui',
     'cnyibu',
+    'zeri',
     'aianalysis',
     'astrochart3D',
     'planetarium',
@@ -452,6 +456,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             nextSubTab = cnYiBuTabs.indexOf(currentSubTab) >= 0 ? currentSubTab : 'suzhan';
         }else if(key === 'auxchart'){
             nextSubTab = auxChartTabs.indexOf(currentSubTab) >= 0 ? currentSubTab : 'germanytech';
+        }else if(key === 'zeri'){
+            nextSubTab = ZERI_SUBTABS.indexOf(currentSubTab) >= 0 ? currentSubTab : 'tianxing';
         }else if(key === 'direction' || key === 'relativechart'){
             nextSubTab = currentSubTab;
         }
@@ -1092,6 +1098,25 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         showAstroMeaning={showAstroMeaning}
                         dispatch={dispatch}
                         hook={predictHook.astrochart3D}
+                    />
+                  </FreezeInactive>
+                </TabPane>
+
+                <TabPane tab={mainTab('择日')} key="zeri">
+                  <FreezeInactive active={activeMainTab === "zeri"}>
+                    <ZeriMain
+                        chart={chartObj}
+                        height={height}
+                        fields={fields}
+                        chartDisplay={chartDisplay}
+                        planetDisplay={planetDisplay}
+                        lotsDisplay={lotsDisplay}
+                        showPlanetHouseInfo={showPlanetHouseInfo}
+                        showAstroMeaning={showAstroMeaning}
+                        showOnlyRulExaltReception={showOnlyRulExaltReception}
+                        voidClassical={voidClassical}
+                        dispatch={dispatch}
+                        currentSubTab={currentSubTab}
                     />
                   </FreezeInactive>
                 </TabPane>

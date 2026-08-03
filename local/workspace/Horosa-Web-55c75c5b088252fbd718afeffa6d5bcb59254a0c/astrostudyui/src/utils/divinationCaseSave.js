@@ -53,7 +53,7 @@ export function openDivinationCaseDrawer({ dispatch, fields, module, label, extr
 		payload: {
 			key: 'caseadd',
 			record: {
-				event: `${label || (module === 'election' ? '择日' : '卜卦')}${divTime ? ` ${divTime}` : ''}`,
+				event: `${label || (module === 'tianxing' ? '天星择日' : (module === 'election' ? '择日' : '卜卦'))}${divTime ? ` ${divTime}` : ''}`,
 				caseType: module,
 				divTime,
 				zone: fv(fields, 'zone'),

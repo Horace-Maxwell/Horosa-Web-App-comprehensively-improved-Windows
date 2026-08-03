@@ -1111,7 +1111,6 @@ export function drawAngles(svg, r, len, chartObj, flags){
 		let x2 = -(r - len) * Math.sin(lonrad);
 		let y2 = -(r - len) * Math.cos(lonrad);
 		let path = angglegroup.append('line')
-			.attr('stroke-dasharray', '3,3')
 			.attr('stroke-width', 2)
 			.attr('stroke', AstroConst.AstroColor['Stroke']);
 		path.attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2);	

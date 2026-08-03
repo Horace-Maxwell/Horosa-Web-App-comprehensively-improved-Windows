@@ -66,6 +66,7 @@
 | p6-prefetch | `aianalysis` | SSE 流式对话,无确定性「下一步」可预算;NO_ARM_TABS + FORBIDDEN 双闸 |
 | p6-prefetch | `astrodata` | iframe 装载的离线名人库(sql.js 浏览器内查询 38MB 本地库),零后端端点、无时间步进语义,预取注册表对它没有任何可做的事 |
 | p6-prefetch | `xuanshi` | 浏览/查询型(朝代/人物/事件树),交互是导航不是时间步进;首点由 PY-13 服务端预热覆盖 |
+| p6-prefetch | `zeri` | 天星择日·征象搜索是「时间范围区间扫描」型技法(v3.7.0 新增):主交互=编排条件后显式点搜索,结果是区间集合,无「下一步时刻」可预算;中栏 /chart 底盘由内建 chartTasks 覆盖,electionscan 端点(scan/explain/conditiontypes)由上游 cachedKentangFetch 三层缓存承载(确定性同参命中),投机预取一次全区间扫描属重计算、判弊大于利(上游 perfCoverageManifest 同判) |
 
 ## 与 apply.sh 的耦合(改一处必须同时改另一处)
 

@@ -100,6 +100,8 @@ CORE_SERVICE_SPECS = [
     {"key": "cetian", "mount": "/cetian", "module": "websrv.webcetiansrv", "class_name": "CeTianSrv"},
     {"key": "astroextra", "mount": "/astroextra", "module": "websrv.webastroextrasrv", "class_name": "AstroExtraSrv"},
     {"key": "planetarium", "mount": "/planetarium", "module": "websrv.webplanetariumsrv", "class_name": "PlanetariumSrv"},
+    # 天星择日·征象搜索(Calculate 侧;动盘侧=qizhengelection)。
+    {"key": "electionscan", "mount": "/electionscan", "module": "websrv.webelectionscansrv", "class_name": "ElectionScanSrv"},
 ]
 
 

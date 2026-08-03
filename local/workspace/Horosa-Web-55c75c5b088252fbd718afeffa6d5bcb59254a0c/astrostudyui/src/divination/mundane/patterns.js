@@ -16,6 +16,7 @@ export const DISTRIBUTION_MUNDANE = {
 	bundle: { cn: '集束型 Bundle', text: '高度聚焦于单一议题/领域;力量集中、视野偏窄,易走极端。' },
 	bowl: { cn: '碗型 Bowl', text: '半盘自足、单向推进;有明确主题阵营与"未竟的另一半"待补。' },
 	bucket: { cn: '桶型 Bucket', text: '一柄星为枢纽出口——该星所主之事/人成为全局宣泄口与决策枢轴。' },
+	sling: { cn: '投石索型 Sling', text: '紧聚主群+孤柄提把——全局能量经把手星单点掷出,较桶型更聚焦、更具爆发指向。' },
 	locomotive: { cn: '火车头型 Locomotive', text: '强劲自驱、目标明确;领头星(开口前缘)定推进方向与动能。' },
 	seesaw: { cn: '跷跷板型 Seesaw', text: '两大阵营对峙、议题两极化;在对立中权衡、需调停与平衡。' },
 	splay: { cn: '展开型 Splay', text: '数股各行其是的力量各据一方;结构松散、自成派系、难以统一。' },
@@ -37,12 +38,28 @@ export const PATTERN_MUNDANE = {
 	cradle: { cn: '摇篮', text: '半盘弧上三连六分承接一组对冲——张力有缓冲与转圜出口,危机可经斡旋逐级化解。' },
 };
 
-function jonesType(lons) {
+// withSling:第八型开关。默认 false = 世俗盘既有七型口径零回归;
+// true 时先做把手型检测(独立于 g1≥180 门槛——旧口径 bucket 分支 g1≥180∧g2≥60 数学上
+// 蕴含主群 span≤120,即全是紧聚提把;宽群+把手会漏到 seesaw/splay):
+// ∃星 两侧空档均≥60° 且其余空档全<60°(主群连贯) → span≤120°=sling,否则=bucket。
+// 与 Python election_scan._jones_type 双端 fixture 对拍(判据阈值两侧逐字同款,勿单边改)。
+export function jonesType(lons, withSling = false) {
 	const s = lons.map((x) => (((x % 360) + 360) % 360)).sort((a, b) => a - b);
 	const n = s.length;
 	if(n < 3){ return null; }
 	const gaps = [];
 	for(let i = 0; i < n; i++){ gaps.push((i + 1 < n ? s[i + 1] : s[0] + 360) - s[i]); }
+	if(withSling && n >= 5){
+		for(let i = 0; i < n; i++){
+			const a = gaps[(i - 1 + n) % n];
+			const b = gaps[i];
+			if(Math.min(a, b) < 60){ continue; }
+			const rest = gaps.filter((_, j) => j !== i && j !== (i - 1 + n) % n);
+			if(rest.length && Math.max(...rest) < 60){
+				return (360 - a - b) <= 120 ? 'sling' : 'bucket';
+			}
+		}
+	}
 	const sortedG = [...gaps].sort((a, b) => b - a);
 	const g1 = sortedG[0], g2 = sortedG[1] || 0;
 	if(g1 >= 240){ return 'bundle'; }                 // 占≤120°

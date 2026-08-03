@@ -1,4 +1,4 @@
-import { normalizeMarkdown } from '../reportMarkdownNormalize';
+import { normalizeMarkdown, closeStreamingInlineMd } from '../reportMarkdownNormalize';
 
 describe('reportMarkdownNormalize', ()=>{
 	test('句号紧贴的 ### 标题 → 前面插入空行（用户反馈的串行 bug）', ()=>{
@@ -67,5 +67,35 @@ describe('reportMarkdownNormalize', ()=>{
 		expect(out).toContain('正文 1-2');   // 围栏外转
 		expect(out).toContain('b ~ c');       // 围栏内保留
 		expect(out).toContain('正文 3-4');
+	});
+
+	// [E5] 行内代码与 URL 中的 ~ 受占位保护(此前无差别替换,`a ~ b` 与 /~user 路径被改写)。
+	test('行内代码/URL 中的 ~ 受保护,正文 ~ 照转', ()=>{
+		expect(normalizeMarkdown('25~34岁 与 `a ~ b` 及 1～3年'))
+			.toBe('25-34岁 与 `a ~ b` 及 1-3年');
+		expect(normalizeMarkdown('见 https://x.cn/~user/p?a=1 与 5~8月'))
+			.toBe('见 https://x.cn/~user/p?a=1 与 5-8月');
+	});
+});
+
+// [E5] 流式软闭合:未闭合 **/`/``` 末尾补齐(仅渲染路径;settle 后原文重渲染自愈)。
+describe('closeStreamingInlineMd 流式软闭合', ()=>{
+	test('未闭合 ** 末尾补一枚;成对不动', ()=>{
+		expect(closeStreamingInlineMd('结论是**必成')).toBe('结论是**必成**');
+		expect(closeStreamingInlineMd('已**闭合**的段落')).toBe('已**闭合**的段落');
+	});
+	test('未闭合围栏补闭栏,围栏内记号不做行内补齐', ()=>{
+		expect(closeStreamingInlineMd('```js\nconst a = 1;')).toBe('```js\nconst a = 1;\n```');
+		expect(closeStreamingInlineMd('```\na ** b\n```\n正文')).toBe('```\na ** b\n```\n正文');
+	});
+	test('行内码未闭补一枚;行内码内的 ** 不算记号', ()=>{
+		expect(closeStreamingInlineMd('看这段`half')).toBe('看这段`half`');
+		expect(closeStreamingInlineMd('有`a ** b`的行内码')).toBe('有`a ** b`的行内码');
+	});
+	test('幂等与空输入', ()=>{
+		const once = closeStreamingInlineMd('结论是**必成');
+		expect(closeStreamingInlineMd(once)).toBe(once);
+		expect(closeStreamingInlineMd('')).toBe('');
+		expect(closeStreamingInlineMd(null)).toBe('');
 	});
 });

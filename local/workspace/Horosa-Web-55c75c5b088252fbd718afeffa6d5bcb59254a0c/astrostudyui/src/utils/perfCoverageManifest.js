@@ -140,6 +140,10 @@ const PAGES = {
 		netCache: 'existing', stepPrefetch: 'na:数据库检索页', stepSelect: 'na:同左', optionPrefetch: 'na:检索页',
 		dataPrewarm: 'na:检索按需', localMemo: 'na:非引擎页', scu: 'done', drawGuard: 'na:列表页', keepStale: 'existing',
 	} },
+	zeri: { kind: 'TOOL', axes: {
+		netCache: 'done:electionscan 走 cachedKentangFetch 三层(确定性扫描,按月段天然命中)', stepPrefetch: 'existing:DivinationChartShell 本地预取器(fields 自持,同辅盘三盘)', stepSelect: 'existing:同左', optionPrefetch: 'na:征象扫描属重计算,投机预取判弊>利',
+		dataPrewarm: 'na:进页即可用,扫描按需触发', localMemo: 'na:网络型', scu: 'existing:壳层 wrapperPropsEqual', drawGuard: 'existing', keepStale: 'na:扫描结果显式触发,无陈旧窗口',
+	} },
 	astroreader: { kind: 'TOOL', axes: {
 		netCache: 'na:阅读器(登录态内容)', stepPrefetch: 'na:阅读器', stepSelect: 'na:阅读器', optionPrefetch: 'na:阅读器',
 		dataPrewarm: 'na:阅读器', localMemo: 'na:阅读器', scu: 'na:内容滚动页', drawGuard: 'na:阅读器', keepStale: 'na:阅读器',
@@ -179,6 +183,7 @@ const KENTANG_MODULES = {
 	cetian:          { page: 'mingother', policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
 	qizhengkin:      { page: 'mingother', policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
 	qizhengelection: { page: 'auxchart', policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'na:择日区间扫描型,无步进主轴' } },
+	electionscan:    { page: 'zeri', policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'na:征象搜索区间扫描型,无步进主轴' } },
 };
 
 export function getPerfCoveragePages(){

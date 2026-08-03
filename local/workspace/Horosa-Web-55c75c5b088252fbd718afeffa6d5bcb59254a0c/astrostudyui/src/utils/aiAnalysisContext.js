@@ -237,6 +237,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	taiyi: '太乙',
 	horary: '卜卦盘',
 	election: '择日盘',
+	tianxing: '天星择日',
 	mundane: '世俗盘',
 	canping: '邵子参评数',
 	zhengchuan: '神数正传',
@@ -337,6 +338,7 @@ export const ANALYSIS_CASE_TECHNIQUES = [
 	'suzhan',
 	'horary',
 	'election',
+	'tianxing',
 	'mundane',
 	// 报数/揲蓍/起例 确定性术：均在 CASE_TYPE_OPTIONS 可存事盘，存案 payload 带 snapshot 字符串 + 起算时定型的
 	// 时间设置(fieldSnapshot)；case 分支按 payload.snapshot 出正文(不重算)，与 sixyao/mundane 同范式。
@@ -1146,6 +1148,10 @@ function generateCaseTechniqueSnapshot(record, moduleName, payload){
 	case 'mundane':
 		// 世俗盘(入宫/新月/满月/日食/月食/地区盘/行星周期):astro 类事盘,存档时 DivinationChartShell 已写
 		// 格式化 buildAiSnapshot 全文于 payload.aiSnapshot → 挂载直接复用(世俗盘类型多样,不按时间重算)。
+		return (payload && payload.aiSnapshot && `${payload.aiSnapshot}`.trim()) ? `${payload.aiSnapshot}` : '';
+	case 'tianxing':
+		// 天星择日(征象搜索):同 mundane 范式——存档时 shell 写 buildTianxingSnapshot 全文于
+		// payload.aiSnapshot(搜索配置/条件树/命中区间为一次性结果,事盘绝不按时间复算)。
 		return (payload && payload.aiSnapshot && `${payload.aiSnapshot}`.trim()) ? `${payload.aiSnapshot}` : '';
 	case 'taiyi':
 		if(!payload || !(payload.pan || (payload.result && payload.result.taiyi) || payload.taiyi)){

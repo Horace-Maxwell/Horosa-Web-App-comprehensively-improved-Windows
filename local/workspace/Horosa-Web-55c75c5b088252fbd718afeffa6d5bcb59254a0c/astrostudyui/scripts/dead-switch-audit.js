@@ -478,6 +478,11 @@
 		}
 		HDS.out = []; HDS.busy = true; HDS.abort = false;
 		var ctrls = HDS.controls(rootSel).filter(function (c) { return !opts.kinds || opts.kinds.indexOf(c.kind) >= 0; });
+		// opts.names:只跑名单内控件(分层审计:快轮单页签筛活者,只对无反应候选跨页签定罪;
+		// 39 控件全量跨页签 ~50 分钟 → 候选数 × ~80s)
+		if (opts.names && opts.names.length) {
+			ctrls = ctrls.filter(function (c) { return opts.names.some(function (n) { return c.name.indexOf(n) >= 0; }); });
+		}
 		HDS.total = ctrls.length;
 		(async function () {
 			for (var i = 0; i < ctrls.length; i++) {
@@ -489,14 +494,32 @@
 				if (!hittable(c.el)) { HDS.out.push({ n: c.name, k: c.kind, skip: '不可达' }); continue; }
 				try {
 					if (c.kind === 'select') {
-						// 借用 selectDiff 换值,但指纹用跨页签版:先手工换值,再自行比对
+						// 🔴 2026-08 审计器缺陷根修:旧写法借 selectDiff 换值,但 selectDiff **自含复原**,
+						//    第二次调用结束时值已回原位,after 取的是复原态 → select 类「反应」恒 false,
+						//    整类系统性假死报。改为内联换值(不复原)→ 跨页签指纹 → 再手工选回。
+						var sOpen = function () {
+							var s = c.el.querySelector('.ant-select-selector') || c.el;
+							s.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+							s.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+						};
+						var sCur = function () { return ((c.el.querySelector('.ant-select-selection-item') || {}).textContent || '').trim(); };
+						var sFrom = sCur();
 						var before = await HDS.fpAcrossTabs(opts);
-						var d = await HDS.selectDiff(c.el, opts.waitMs || 700);
-						if (d.skip) { HDS.out.push({ n: c.name, k: c.kind, skip: d.skip }); continue; }
-						// selectDiff 已把值复原,故这里重新换一次再取跨页签指纹
-						var d2 = await HDS.selectDiff(c.el, opts.waitMs || 700);
-						var after = await HDS.fpAcrossTabs(opts);
-						HDS.out.push({ n: c.name, k: c.kind, from: d.from, to: d.to, 反应: !HDS.same(before, after), 复原: d2.复原 });
+						sOpen(); await sleep(300);
+						var sDD = HDS.panelOf(c.el);
+						if (!sDD) { document.body.click(); HDS.out.push({ n: c.name, k: c.kind, skip: '面板未开/未关联' }); continue; }
+						var sOpts = [].slice.call(sDD.querySelectorAll('.ant-select-item-option'));
+						var sOther = sOpts.filter(function (o) { return !o.classList.contains('ant-select-item-option-selected'); })[0];
+						if (sOpts.length < 2 || !sOther) { document.body.click(); HDS.out.push({ n: c.name, k: c.kind, skip: '取值<2' }); continue; }
+						var sTo = sOther.textContent.trim();
+						sOther.click(); await sleep(opts.waitMs || 700);
+						var after = await HDS.fpAcrossTabs(opts);		// 改值态取样(未复原)
+						sOpen(); await sleep(300);
+						var sDD2 = HDS.panelOf(c.el);
+						var sBack = sDD2 && [].slice.call(sDD2.querySelectorAll('.ant-select-item-option')).filter(function (o) { return sameOption(o.textContent, sFrom); })[0];
+						if (sBack) { sBack.click(); } else { document.body.click(); }
+						await sleep(opts.waitMs || 700);
+						HDS.out.push({ n: c.name, k: c.kind, from: sFrom, to: sTo, 反应: !HDS.same(before, after), 复原: sameOption(sCur(), sFrom) });
 					} else {
 						var b = await HDS.fpAcrossTabs(opts);
 						c.el.click(); await sleep(opts.waitMs || 700);

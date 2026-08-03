@@ -96,6 +96,9 @@ def test_bare_sid_mode_call_sites_whitelist():
         os.path.join('astrostudy', 'acg', 'ACGraph.py'),
         # acg/validate_acg.py:check_sidereal — 校验脚本内 set→get 相邻(单进程顺序执行,已评审)。
         os.path.join('astrostudy', 'acg', 'validate_acg.py'),
+        # election_scan.py:_sidereal_offset — set_sid_mode→get_ayanamsa_ut 相邻两行(择日征象搜索
+        # 恒星制只在星座/绝对黄经判定处减 ayanamsa,内部计算全走回归框架;已评审符合 set/use 相邻约定)。
+        os.path.join('astrostudy', 'election_scan.py'),
     }
     # financial.py:_ayanamsa_deg — set_sid_mode→get_ayanamsa_ut 相邻两行(金融黄道制特性,已评审)。
     # 按「文件存在才计入」自适应:该文件不属于所有构建面,单一测试源在不同构建面都成立。

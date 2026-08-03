@@ -6,7 +6,7 @@
 
 import { Document, Packer, Paragraph, TextRun, ImageRun } from 'docx';
 import { makeDocxTable, dataUrlToUint8Array, mdInlineToRuns, sniffImageSize } from './docxCommon';
-import { parseAiExportDocument } from './aiExportDocModel';
+import { parseAiExportDocument, mdInlineSegments } from './aiExportDocModel';
 
 const HEADING = { 1: 'Heading1', 2: 'Heading2', 3: 'Heading3' }; // docx 枚举 jest 下不稳,改用字面量
 
@@ -21,11 +21,10 @@ function preambleLines(doc){
 // —— docx 派生视图 ——
 
 function kvParagraph(block){
+	// [E5] 键/值均走行内样式:键含 **引导词** 时记号由 mdInlineToRuns 消化(键整体仍加粗),
+	// 此前裸 TextRun 会把 `**键**：` 的星号字面写进 docx(双重丑:又有星号又加粗)。
 	return new Paragraph({
-		children: [
-			new TextRun({ text: `${block.key}：`, bold: true }),
-			new TextRun({ text: `${block.value || ''}` }),
-		],
+		children: mdInlineToRuns(`${block.key}：`, { bold: true }).concat(mdInlineToRuns(`${block.value || ''}`)),
 	});
 }
 
@@ -87,10 +86,11 @@ function blockToDocxChildren(block){
 		return [new Paragraph({ border: { bottom: { style: 'single', size: 6, color: 'CCCCCC', space: 4 } }, children: [new TextRun('')] })];
 	}
 	if(block.type === 'subhead'){
-		return [new Paragraph({ heading: HEADING[3], children: [new TextRun({ text: block.text || '' })] })];
+		// [E5] 子题/说明两型此前裸 TextRun,`◆ **重点**` 的星号字面落 xml——补接行内样式(与正文/列表对齐)。
+		return [new Paragraph({ heading: HEADING[3], children: mdInlineToRuns(block.text || '') })];
 	}
 	if(block.type === 'note'){
-		return [new Paragraph({ children: [new TextRun({ text: block.text || '', italics: true, color: '777777' })] })];
+		return [new Paragraph({ children: mdInlineToRuns(block.text || '', { italics: true, color: '777777' }) })];
 	}
 	if(block.type === 'kv'){
 		return [kvParagraph(block)];
@@ -140,12 +140,37 @@ function el(tag, cssText, text){
 	return node;
 }
 
+// [E5] 行内 markdown → DOM 片段:粗/斜/码转真样式(此前全块型走 textContent,`**` 字面进 PDF)。
+// 换行由宿主块的 white-space:pre-wrap 保留(粗/斜段的正则不跨 \n,纯文本段的 \n 原样入文本节点)。
+function appendInlineMd(node, text){
+	mdInlineSegments(`${text == null ? '' : text}`).forEach((seg)=>{
+		if(seg.bold){
+			const b = document.createElement('b');
+			b.style.fontWeight = '600';
+			b.textContent = seg.text;
+			node.appendChild(b);
+		}else if(seg.em){
+			const it = document.createElement('i');
+			it.textContent = seg.text;
+			node.appendChild(it);
+		}else if(seg.code){
+			const c = document.createElement('span');
+			c.style.cssText = 'font-family:"SFMono-Regular",Menlo,Consolas,monospace;background:#f4f4f6;padding:0 3px;border-radius:2px;';
+			c.textContent = seg.text;
+			node.appendChild(c);
+		}else{
+			node.appendChild(document.createTextNode(seg.text));
+		}
+	});
+	return node;
+}
+
 function tableNode(block){
 	const table = el('table', `border-collapse:collapse;width:100%;margin:6px 0 10px;font:12px/1.55 ${PDF_FONT};table-layout:auto;`);
 	const thead = document.createElement('thead');
 	const trh = document.createElement('tr');
 	(block.headers || []).forEach((h, k)=>{
-		const th = el('th', `border:1px solid #bbbbbb;background:#eef1f6;color:#111111;padding:4px 8px;text-align:${(block.aligns || [])[k] || 'left'};font-weight:600;`, h);
+		const th = appendInlineMd(el('th', `border:1px solid #bbbbbb;background:#eef1f6;color:#111111;padding:4px 8px;text-align:${(block.aligns || [])[k] || 'left'};font-weight:600;`), h);
 		trh.appendChild(th);
 	});
 	thead.appendChild(trh);
@@ -156,7 +181,7 @@ function tableNode(block){
 		if(ri % 2 === 1){ tr.style.background = '#f7f8fa'; }
 		const cols = (block.headers || []).length || row.length;
 		for(let k = 0; k < cols; k++){
-			const td = el('td', `border:1px solid #cccccc;color:#111111;padding:3px 8px;text-align:${(block.aligns || [])[k] || 'left'};`, row[k] != null ? row[k] : '');
+			const td = appendInlineMd(el('td', `border:1px solid #cccccc;color:#111111;padding:3px 8px;text-align:${(block.aligns || [])[k] || 'left'};`), row[k] != null ? row[k] : '');
 			tr.appendChild(td);
 		}
 		tbody.appendChild(tr);
@@ -170,17 +195,17 @@ function blockToPdfNode(block){
 		return tableNode(block);
 	}
 	if(block.type === 'subhead'){
-		const sh = el('div', `font:600 13.5px/1.6 ${PDF_FONT};color:#1a2a4a;margin:10px 0 4px;padding-left:8px;border-left:3px solid #4a6fa5;`, block.text || '');
+		const sh = appendInlineMd(el('div', `font:600 13.5px/1.6 ${PDF_FONT};color:#1a2a4a;margin:10px 0 4px;padding-left:8px;border-left:3px solid #4a6fa5;`), block.text || '');
 		sh.className = 'exp-subhead';   // 打印路径:段头避免落在页脚成孤行(page-break-after:avoid)
 		return sh;
 	}
 	if(block.type === 'note'){
-		return el('div', `font:italic 12px/1.6 ${PDF_FONT};color:#777777;margin:2px 0;white-space:pre-wrap;word-break:break-word;`, block.text || '');
+		return appendInlineMd(el('div', `font:italic 12px/1.6 ${PDF_FONT};color:#777777;margin:2px 0;white-space:pre-wrap;word-break:break-word;`), block.text || '');
 	}
 	if(block.type === 'kv'){
 		const wrap = el('div', `font:13px/1.7 ${PDF_FONT};color:#111111;margin:1px 0;white-space:pre-wrap;word-break:break-word;`);
-		wrap.appendChild(el('span', 'font-weight:600;', `${block.key}：`));
-		wrap.appendChild(el('span', '', `${block.value || ''}`));
+		wrap.appendChild(appendInlineMd(el('span', 'font-weight:600;'), `${block.key}：`));
+		wrap.appendChild(appendInlineMd(el('span', ''), `${block.value || ''}`));
 		return wrap;
 	}
 	// 🔴 list/image/hr/code/quote 五型**没有 block.text**,曾一律落到下方兜底 → 生成空 div、
@@ -195,11 +220,10 @@ function blockToPdfNode(block){
 			const marker = item.ordered
 				? `${item.marker && /\d/.test(item.marker) ? item.marker : '1.'} `
 				: '· ';
-			wrap.appendChild(el(
-				'div',
-				`font:13px/1.7 ${PDF_FONT};color:#111111;margin:1px 0;padding-left:${12 + depth * 14}px;white-space:pre-wrap;word-break:break-word;`,
-				`${marker}${item.text || ''}`,
-			));
+			const row = el('div', `font:13px/1.7 ${PDF_FONT};color:#111111;margin:1px 0;padding-left:${12 + depth * 14}px;white-space:pre-wrap;word-break:break-word;`);
+			row.appendChild(document.createTextNode(marker));
+			appendInlineMd(row, item.text || '');
+			wrap.appendChild(row);
 		});
 		return wrap;
 	}
@@ -207,7 +231,7 @@ function blockToPdfNode(block){
 		return el('div', `font:12px/1.6 "SFMono-Regular",Menlo,Consolas,monospace;color:#333340;background:#f4f4f6;margin:4px 0;padding:6px 8px;white-space:pre-wrap;word-break:break-word;`, block.text || '');
 	}
 	if(block.type === 'quote'){
-		return el('div', `font:italic 13px/1.7 ${PDF_FONT};color:#666666;margin:2px 0;padding-left:12px;border-left:3px solid #dddddd;white-space:pre-wrap;word-break:break-word;`, block.text || '');
+		return appendInlineMd(el('div', `font:italic 13px/1.7 ${PDF_FONT};color:#666666;margin:2px 0;padding-left:12px;border-left:3px solid #dddddd;white-space:pre-wrap;word-break:break-word;`), block.text || '');
 	}
 	if(block.type === 'hr'){
 		return el('div', 'margin:8px 0;border-top:1px solid #dddddd;height:0;');
@@ -224,7 +248,7 @@ function blockToPdfNode(block){
 		}
 		return box;
 	}
-	return el('div', `font:13px/1.7 ${PDF_FONT};color:#111111;margin:2px 0;white-space:pre-wrap;word-break:break-word;`, block.text || '');
+	return appendInlineMd(el('div', `font:13px/1.7 ${PDF_FONT};color:#111111;margin:2px 0;white-space:pre-wrap;word-break:break-word;`), block.text || '');
 }
 
 // 整份导出文本 → 块级 DOM 节点数组(标题/元数据头/段头条/正文块)。调用方负责挂宿主、测高、装箱。

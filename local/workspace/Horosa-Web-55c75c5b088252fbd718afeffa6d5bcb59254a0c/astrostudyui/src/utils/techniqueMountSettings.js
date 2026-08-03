@@ -1710,6 +1710,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// 真阻断点=regenerateCaseTechniqueSnapshot 无 mundane 支(挂载只能直读 payload.aiSnapshot,无无头复算路径);
 	// 「类型多样」是背景不是原因。判读口径(ruleset/orb/入境规则)欲开放须先造 headless builder,成本≫收益,维持只读。
 	mundane: { kind: 'sectionsOnly', reason: '世俗盘按存档快照直读(无无头复算路径),仅可调纳入内容;判读口径请在世俗盘页调整后重存。' },
+	tianxing: { kind: 'sectionsOnly', reason: '天星择日按存档快照直读(征象搜索结果为一次性产物,不按时间复算);要改条件请在择日页重搜后重存。' },
 	// auxchart 页面键在挂载链会被映射成子 tab 技法键(aiExport auxchartMap 同构),此处条目永不命中
 	// —— 曾挂着一条孤儿 sectionsOnly(挂载链死/报告链活),删除以免误导。
 	// 报数/揲蓍 等确定性起卦术（均已在 CASE_TYPE_OPTIONS 可存为事盘 + saveModuleAISnapshot 存模块快照）：

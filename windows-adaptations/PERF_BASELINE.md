@@ -10,7 +10,7 @@
 
 ## 本版验收头
 
-- version: 3.6.2
+- version: 3.7.0
 - build: release(v3.6.2 **性能轮**:三处重可视化引擎改按需加载[星运天球/节气 3D/玄史图表]
   + echarts 与 d3 拆包令**启动首屏净省 1.1MB** + 上游载荷可复现性修复;Windows 侧另接回
   被 scripts 整块覆盖吃掉的两步构建链[inject-preload / check-chunk-dup]并随车发出冻结的

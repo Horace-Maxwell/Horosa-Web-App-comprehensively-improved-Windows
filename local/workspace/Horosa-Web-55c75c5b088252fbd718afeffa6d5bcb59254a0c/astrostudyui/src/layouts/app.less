@@ -38,6 +38,8 @@
         --horosa-on-accent: #ffffff;
         --horosa-gold: #9a6a25;
         --horosa-gold-soft: rgba(154, 106, 37, 0.16);
+        /* markdown 正文强调色(strong/b):默认随金;亮暗两个外观块各定义一份,勿只定义单侧 */
+        --horosa-md-strong: var(--horosa-gold);
         /* 光环/焦点用亮金(暗色块早已映射为金 #d8ad63,此处亮色跟进,青色退役) */
         --horosa-cyan: #b8893f;
         --horosa-cyan-soft: rgba(184, 137, 63, 0.12);
@@ -159,6 +161,7 @@
         --horosa-on-accent: #071015;
         --horosa-gold: #d8ad63;
         --horosa-gold-soft: rgba(216, 173, 99, 0.18);
+        --horosa-md-strong: var(--horosa-gold);
         --horosa-cyan: #d8ad63;
         --horosa-cyan-soft: rgba(216, 173, 99, 0.12);
         --horosa-cinnabar: #ec644e;
@@ -254,19 +257,36 @@
         color-scheme: dark;
     }
 
-    /* ── 暗黑模式可读性兜底 ──
-       根因:antd 的全局 h1-h6 reset、Alert/Typography 默认文字色都硬编码成浅色模式的
-       rgba(0,0,0,0.85),而本应用走 CSS 变量暗黑模式 → 这些字不翻转,出现「深色字 + 深底」一片看不清。
-       统一改用主题文字色 var(--horosa-text)(亮色模式=深字、暗色模式=浅字,两边都正确)。 */
+    /* ── AI 报告正文排版系统(唯一消费方:报告详情 SectionMarkdown) ──
+       原为暗黑可读性兜底(antd 全局 reset 硬编码浅色字,var(--horosa-text) 两态自适应),
+       现扩为完整排版:strong 金色强调(全站重点标注视觉)/标题阶梯/列表/引用块/表格斑马纹。
+       全部走主题变量,亮暗两态自适应,勿写死色值。 */
     .xq-markdown {
         color: var(--horosa-text);
+        line-height: 1.75;
         h1, h2, h3, h4, h5, h6 { color: var(--horosa-text); }
-        strong, b { color: inherit; }
+        h3 { font-size: 1.14em; margin: 18px 0 8px; padding-left: 8px; border-left: 3px solid var(--horosa-gold); }
+        h4 { font-size: 1.04em; margin: 14px 0 6px; font-weight: 600; }
+        strong, b { font-weight: 600; color: var(--horosa-md-strong, var(--horosa-gold)); }
         code, kbd, pre, samp { color: var(--horosa-text); }
-        blockquote { color: var(--horosa-text-soft); border-left-color: var(--horosa-border); }
+        ul, ol { margin: 8px 0; padding-left: 1.6em; }
+        li { margin: 4px 0; }
+        li::marker { color: var(--horosa-gold); }
+        blockquote {
+            color: var(--horosa-text-soft);
+            margin: 8px 0;
+            padding: 4px 12px;
+            border-left: 3px solid var(--horosa-gold);
+            background: var(--horosa-panel-soft);
+            border-radius: 0 6px 6px 0;
+        }
+        table { border-collapse: collapse; margin: 10px 0; display: block; max-width: 100%; width: max-content; overflow: auto; }
         table, th, td { color: var(--horosa-text); border-color: var(--horosa-border); }
+        th, td { padding: 5px 10px; border: 1px solid var(--horosa-border); }
+        th { background: var(--horosa-panel-soft); font-weight: 600; }
+        tbody tr:nth-child(even) { background: var(--horosa-panel-soft); }
         a { color: var(--horosa-accent); }
-        hr { border-color: var(--horosa-border); }
+        hr { border: none; border-top: 1px solid var(--horosa-border); margin: 14px 0; }
     }
 
     :root[data-horosa-appearance='dark'] {
@@ -6844,6 +6864,38 @@
        1280px 窄屏下 245+620+400 会溢出,加出来的宽度反而从右侧被裁掉(越改越糟)。 */
     .horosa-workspace-shell .horosa-auxchart-layout .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
         grid-template-columns: clamp(245px, 16vw, 285px) minmax(520px, 1fr) clamp(320px, 24vw, 400px) !important;
+    }
+
+    /* 择日·天星择日:布局逐字复用辅盘三类(-page/-layout/-tabs),差异条全锁 .horosa-zeri-host。
+       ① 右栏宽度:判据=七判读页签(信息…埃及)不省略全显(实测 nav 自然宽 430px,压页签间距后 ~330px),
+          余量全让给中间轮盘(用户二轮圈报:先嫌窄缝浪费、后嫌 27vw 过宽);
+          中列硬下限同辅盘松到 520 防 1280 窄屏溢出(同款坑:溢出宽度会从右侧被裁,越改越糟)。
+       ② 择日无底部 QuickDock → 去掉辅盘 layout 的 64px dock 行,高度全给内容(用户圈报底部空带)。
+       ③ 右栏判读页签紧凑化:antd 默认 tab 间距 32px 是七页签放不下的元凶,压到 12px。 */
+    .horosa-workspace-shell .horosa-zeri-host .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
+        grid-template-columns: clamp(245px, 16vw, 285px) minmax(520px, 1fr) clamp(350px, 22vw, 385px) !important;
+    }
+
+    /* 占星主页 info-scroll 的 82px 底衬=var(--horosa-scroll-safe-bottom)(底部 dock 滚动安全区),
+       经 scrollbar mixin 的 :is() 组带 !important 打进来——特异度战打不赢,照 3D 右栏先例(5948)
+       用变量作用域覆盖釜底抽薪。择日整页无底部 dock,该预留在 zeri 全域都是死白
+       (实测:古典页「向运至杀星」与「衍化」之间 111px 空隙的大头)。 */
+    .horosa-workspace-shell .horosa-zeri-host {
+        --horosa-scroll-safe-bottom: 12px;
+    }
+
+    /* xq-tabs 皮肤自带 margin-right:22px,叠上 margin-left 就回到 32px 级间距(实测抓出)——margin 一把归零。
+       间距 14px=两全点:本体 225+6×14=309 < 内容宽 ~322(窄屏下界 350−padding28),全显且不挤(10px 用户嫌挤)。 */
+    .horosa-workspace-shell .horosa-zeri-host .horosa-astro-redesign-grid > :last-child .ant-tabs-nav .ant-tabs-tab {
+        margin: 0 0 0 14px !important;
+    }
+
+    .horosa-workspace-shell .horosa-zeri-host .horosa-astro-redesign-grid > :last-child .ant-tabs-nav .ant-tabs-tab:first-child {
+        margin: 0 !important;
+    }
+
+    .horosa-workspace-shell .horosa-zeri-host .horosa-auxchart-layout {
+        grid-template-rows: minmax(0, 1fr);
     }
 
     .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-chart-stage-redesign > svg {

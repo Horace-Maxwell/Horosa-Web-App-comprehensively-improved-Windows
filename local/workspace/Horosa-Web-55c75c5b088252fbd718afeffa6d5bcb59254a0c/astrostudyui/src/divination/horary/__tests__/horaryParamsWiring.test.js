@@ -75,4 +75,26 @@ describe('卜卦判读参数零死开关接线锁', () => {
 		const t = stripComments(fs.readFileSync(path.join(UI, 'components/horary/HoraryMain.js'), 'utf8'));
 		expect(t.includes('...judgeLayerOverrides()')).toBe(true);
 	});
+
+	// 2026-08 死开关审计新增两锁 —— 都是矩阵抓出的实锤断链,防回退。
+	it('antiscia 开关门控映点促成(曾恒开不受开关控 = 全仓零消费的真死开关)', () => {
+		const t = stripComments(fs.readFileSync(path.join(UI, 'divination/engine/perfection.js'), 'utf8'));
+		expect(t.includes('opts.antiscia !== false')).toBe(true);
+	});
+
+	it('sharedRuler 经输出层透传(曾被 significators 重组丢弃 → 同主一星A-E法卡片恒不显示)', () => {
+		const eng = stripComments(fs.readFileSync(path.join(UI, 'divination/horary/horaryEngine.js'), 'utf8'));
+		expect(/significators:\s*\{[^}]*sharedRuler:\s*sigs\.sharedRuler/.test(eng)).toBe(true);
+		// 消费端在位(渲染层读 sig.sharedRuler)
+		const jdg = stripComments(fs.readFileSync(path.join(UI, 'components/horary/HoraryJudgment.js'), 'utf8'));
+		expect(jdg.includes('sig.sharedRuler')).toBe(true);
+	});
+
+	it('combustMitigateSameSign 门在 combustionState 接线(曾 spec default true 但从未实现,2026-08 拍板修复)', () => {
+		const t = stripComments(fs.readFileSync(path.join(UI, 'divination/engine/chartFacts.js'), 'utf8'));
+		expect(t.includes('opts.combustMitigateSameSign === true')).toBe(true);
+		expect(/combustionState\([^)]*combustSameSignGate\)/.test(t)).toBe(true);
+		// 门语义锁:显式 true 才限同座(不传 opts 的调用方零回归),不得改成 !== false
+		expect(/mitigateSameSign === true \?/.test(t)).toBe(true);
+	});
 });

@@ -1,0 +1,26 @@
+diff --git a/astrostudyui/src/components/zeri/TianxingElectionMain.js b/astrostudyui/src/components/zeri/TianxingElectionMain.js
+index ffb77a5..d13d8ea 100644
+--- a/astrostudyui/src/components/zeri/TianxingElectionMain.js
++++ b/astrostudyui/src/components/zeri/TianxingElectionMain.js
+@@ -17,6 +17,7 @@ import AstroKlimata from '../astro/AstroKlimata';
+ import AstroPredictPlanetSign from '../astro/AstroPredictPlanetSign';
+ import AstroAnalysisLab from '../astro/AstroAnalysisLab';
+ import AstroEgypt from '../astro/AstroEgypt';
++import { markPanelReady } from '../../utils/perfMark';
+ import { newLeaf, newGroup, compileTree } from '../../divination/zeri/conditionTypes';
+ import { runScan } from '../../divination/zeri/scanOrchestrator';
+ import { pushHistory } from '../../divination/zeri/schemeStore';
+@@ -254,6 +255,13 @@ export default class TianxingElectionMain extends Component{
+ 	renderRight({ chart, fields, patchFields }){
+ 		this._patchFields = patchFields;
+ 		const chartObj = chart;
++		// horosa_panel_ready_v1:天星择日中栏(壳画的盘)+右栏(判读)同源于 chart,本组件不发主盘请求。
++		// 征象搜索(runScan/explain)是用户显式点按钮触发的后台批量求值,不是「点击→画完」路径,
++		// 不在其 setState 上打点(照 ElectionMain 择优扫描先例,否则秒级扫描会配到上次交互起点污染 p95)。
++		if(chartObj && chartObj !== this._readyChart){
++			this._readyChart = chartObj;
++			markPanelReady('zeri');
++		}
+ 		// 实测校准:面板内容视口 = props.height − 15(tabs bar+padding 已被 shell 满高 CSS 吸收;
+ 		// 主页的 −100 与辅盘的 −56 折扣都是各自 chrome 的遗产,照抄会在页签底部留等高空白带——用户圈报)。
+ 		const tabHeight = (this.props.height || 760) - 15;

@@ -1513,3 +1513,13 @@
 		padding-right: 0;
 	}
 }
+
+/* 重点标注视觉:strong 金色强调 + 列表记号随金(与全站 markdown 视觉一致) */
+.markdownBody strong,
+.markdownBody b {
+	font-weight: 600;
+	color: var(--horosa-md-strong, var(--horosa-gold));
+}
+.markdownBody li::marker {
+	color: var(--horosa-gold);
+}

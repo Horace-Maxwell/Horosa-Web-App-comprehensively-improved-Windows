@@ -9,9 +9,12 @@
 //   字体渲染故无需内嵌，本路径必须内嵌）→ 打包一个 GB2312+繁+韩+符号 子集字体（TrueType ~2.7MB，OFL 可嵌入）。
 //
 // 铁律：任何缺依赖/取字体失败/异常 → 抛出，由 exportPdf 包装层回退打印式→栅格（绝不因新路径失败而无产物）。
-import { parseAiExportDocument } from './aiExportDocModel';
+import { parseAiExportDocument, mdInlineSegments } from './aiExportDocModel';
 
 const FONT_URLS = ['./fonts/HorosaCJK-subset.ttf', '/fonts/HorosaCJK-subset.ttf'];
+// [E5] 描边合成粗体系数(×字号):本字体无 Bold 字重,粗体段用 Tr2(FillAndOutline)描边增重——
+//   零字体资产、advance 宽度不变(不影响排版度量)、文字提取不重复(双遍偏移法会让复制出重复词)。
+const BOLD_STROKE = 0.028;
 let _fontBytesPromise = null;
 
 // 字体只取一次（模块级缓存）。相对 './fonts' 优先（桌面 file/hash 路由与 dev `/` 皆解析为 <root>/fonts）。
@@ -45,6 +48,42 @@ function segmentAtoms(text){
 	return atoms;
 }
 
+// [E5] 富文本换行:runs(mdInlineSegments 产物)→ 行数组;原子级装箱(与 wrapText 同款贪心),
+// 行内相邻同样式原子合并回 run(减少 drawText 次数)。空 runs → 单空行(与 wrapText 空段行为一致)。
+function wrapRuns(runs, font, size, maxWidth){
+	const atoms = [];
+	(runs || []).forEach((r)=>{
+		segmentAtoms(`${r.text == null ? '' : r.text}`).forEach((t)=>{ atoms.push({ t, bold: !!r.bold, code: !!r.code }); });
+	});
+	const lines = [];
+	let cur = [];
+	let curW = 0;
+	for(let i = 0; i < atoms.length; i++){
+		const atom = atoms[i];
+		let w = 0;
+		try{ w = font.widthOfTextAtSize(atom.t, size); }catch(e){ w = size * atom.t.length; }
+		if(cur.length && curW + w > maxWidth && atom.t.trim() !== ''){
+			lines.push(cur);
+			cur = [atom]; curW = w;
+		}else{
+			cur.push(atom); curW += w;
+		}
+	}
+	lines.push(cur);
+	return lines.map((atomLine)=>{
+		const merged = [];
+		atomLine.forEach((a)=>{
+			const prev = merged[merged.length - 1];
+			if(prev && prev.bold === a.bold && prev.code === a.code){ prev.text += a.t; }
+			else{ merged.push({ text: a.t, bold: a.bold, code: a.code }); }
+		});
+		return merged;
+	});
+}
+function runsLineText(runsLine){
+	return (runsLine || []).map((r)=>r.text).join('');
+}
+
 function wrapText(text, font, size, maxWidth){
 	const lines = [];
 	const src = `${text == null ? '' : text}`;
@@ -76,7 +115,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	const pdfLib = await import('pdf-lib');
 	const fontkitMod = await import('@pdf-lib/fontkit');
 	const fontkit = fontkitMod.default || fontkitMod;
-	const { PDFDocument, rgb, degrees } = pdfLib;
+	const { PDFDocument, rgb, degrees, setTextRenderingMode, setLineWidth, setStrokingColor, TextRenderingMode } = pdfLib;
 	const fontBytes = await loadFontBytes();
 
 	const pdf = await PDFDocument.create();
@@ -117,6 +156,43 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		}
 	};
 
+	// [E5] 单行富文本落笔(不动全局 y):粗体段以 Tr2(填充+描边)合成粗。drawText 内部 q…Q 包裹,
+	// 在其之前置的 Tr/线宽/描边色被继承进文本绘制,绘后显式复位 Tr0(状态在 Q 后仍持续,必须复位)。
+	const drawRunsLineAt = (runsLine, x, baselineY, size, color)=>{
+		let cx = x;
+		for(let i = 0; i < runsLine.length; i++){
+			const r = runsLine[i];
+			if(r.text === ''){ continue; }
+			let w = 0;
+			try{ w = font.widthOfTextAtSize(r.text, size); }catch(e){ w = size * r.text.length; }
+			if(r.bold){
+				page.pushOperators(setTextRenderingMode(TextRenderingMode.FillAndOutline), setLineWidth(size * BOLD_STROKE), setStrokingColor(color));
+				page.drawText(r.text, { x: cx, y: baselineY, size, font, color });
+				page.pushOperators(setTextRenderingMode(TextRenderingMode.Fill));
+			}else{
+				page.drawText(r.text, { x: cx, y: baselineY, size, font, color });
+			}
+			cx += w;
+		}
+	};
+	// [E5] 富 runs 流式绘制(自动换行+跨页;对应纯文本版 drawLines 的 runs 版)。
+	const drawRuns = (runs, size, color, opts = {})=>{
+		const x = opts.x != null ? opts.x : M;
+		const maxW = opts.maxW != null ? opts.maxW : contentW;
+		const lh = size * (opts.lh || 1.5);
+		const lines = wrapRuns(runs, font, size, maxW);
+		for(let i = 0; i < lines.length; i++){
+			ensure(lh);
+			if(lines[i].length){ drawRunsLineAt(lines[i], x, y - size, size, color); }
+			y -= lh;
+		}
+	};
+	// [E5] 富文本段绘制:逐段(\n)消化行内记号(**粗**/*斜*/`码` 剥记号,粗体真加粗)。
+	const drawRichText = (text, size, color, opts = {})=>{
+		const paras = `${text == null ? '' : text}`.split('\n');
+		for(let p = 0; p < paras.length; p++){ drawRuns(mdInlineSegments(paras[p]), size, color, opts); }
+	};
+
 	const drawTable = (block)=>{
 		const cols = (block.headers && block.headers.length) || (block.rows && block.rows[0] ? block.rows[0].length : 0);
 		if(!cols){ return; }
@@ -126,11 +202,12 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		const cellMaxW = colW - 2 * pad;
 		const lh = size * 1.35;
 		const measureRow = (cells)=>{
+			// [E5] 单元格走富文本分段(记号消化;Tr2 描边不改 advance 宽度,量宽无需区分粗细)。
 			const wrapped = [];
 			let maxLines = 1;
 			for(let c = 0; c < cols; c++){
 				const raw = cells && cells[c] != null ? `${cells[c]}` : '';
-				const ls = wrapText(raw, font, size, cellMaxW);
+				const ls = wrapRuns(mdInlineSegments(raw), font, size, cellMaxW);
 				wrapped.push(ls);
 				if(ls.length > maxLines){ maxLines = ls.length; }
 			}
@@ -146,13 +223,16 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 				let ty = top - pad - size;
 				const ls = wrapped[c];
 				for(let li = 0; li < ls.length; li++){
-					if(ls[li] !== ''){ page.drawText(ls[li], { x: cx + pad, y: ty, size, font, color: INK }); }
+					if(ls[li].length){
+						// 表头整行加粗(Tr2 不改宽度,量宽无需重算)
+						drawRunsLineAt(isHeader ? ls[li].map((r)=>({ ...r, bold: true })) : ls[li], cx + pad, ty, size, INK);
+					}
 					ty -= lh;
 				}
 			}
 			y -= rowH;
 			if(hooks && typeof hooks.onTableRow === 'function'){
-				hooks.onTableRow({ pageIndex: pdf.getPageCount() - 1, isHeader, firstCell: (measured.wrapped[0] || [''])[0] || '' });
+				hooks.onTableRow({ pageIndex: pdf.getPageCount() - 1, isHeader, firstCell: runsLineText((measured.wrapped[0] || [])[0]) });
 			}
 		};
 		const headerMeasured = (block.headers && block.headers.length) ? measureRow(block.headers) : null;
@@ -206,7 +286,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	};
 	const drawQuote = (block)=>{
 		const startY = y;
-		drawLines(block.text || '', 9.8, MUTED, { x: M + 10, maxW: contentW - 10, lh: 1.55 });
+		drawRichText(block.text || '', 9.8, MUTED, { x: M + 10, maxW: contentW - 10, lh: 1.55 });
 		// 左侧引用条(同页段内;跨页段的条只画首页段——视觉可接受,文字完整优先)
 		const barH = Math.max(0, startY - y - 2);
 		if(barH > 0){ page.drawRectangle({ x: M + 2, y: y + 2, width: 2.4, height: barH, color: rgb(0.72, 0.72, 0.76) }); }
@@ -223,12 +303,12 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			const indent = M + depth * 14;
 			const markerW = font.widthOfTextAtSize(`${marker} `, size);
 			const textX = indent + markerW;
-			const lines = wrapText(`${item.text || ''}`, font, size, contentW - (textX - M));
+			const lines = wrapRuns(mdInlineSegments(`${item.text || ''}`), font, size, contentW - (textX - M));
 			ensure(size * 1.6);
 			page.drawText(marker, { x: indent, y: y - size, size, font, color: INK });
 			for(let li = 0; li < lines.length; li++){
 				if(li > 0){ ensure(size * 1.6); }
-				if(lines[li] !== ''){ page.drawText(lines[li], { x: textX, y: y - size, size, font, color: INK }); }
+				if(lines[li].length){ drawRunsLineAt(lines[li], textX, y - size, size, INK); }
 				y -= size * 1.6;
 			}
 		});
@@ -266,13 +346,18 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		if(block.type === 'subhead'){
 			ensure(16);
 			page.drawRectangle({ x: M, y: y - 13, width: 3, height: 13, color: rgb(0.29, 0.44, 0.65) });
-			drawLines(block.text || '', 11.5, SUBINK, { x: M + 8, maxW: contentW - 8, lh: 1.4 });
+			drawRichText(block.text || '', 11.5, SUBINK, { x: M + 8, maxW: contentW - 8, lh: 1.4 });
 			y -= 2;
 			return;
 		}
-		if(block.type === 'note'){ drawLines(block.text || '', 9.5, MUTED, { lh: 1.5 }); return; }
-		if(block.type === 'kv'){ drawLines(`${block.key}：${block.value || ''}`, 10.5, INK, { lh: 1.55 }); return; }
-		drawLines(block.text || '', 10.5, INK, { lh: 1.6 });
+		if(block.type === 'note'){ drawRichText(block.text || '', 9.5, MUTED, { lh: 1.5 }); return; }
+		if(block.type === 'kv'){
+			// [E5] 键整体加粗(键内 **引导词** 记号一并消化),值走行内分段。kv 键值均为单行(解析约定)。
+			const kvRuns = mdInlineSegments(`${block.key}：`).map((s)=>({ ...s, bold: true })).concat(mdInlineSegments(`${block.value || ''}`));
+			drawRuns(kvRuns, 10.5, INK, { lh: 1.55 });
+			return;
+		}
+		drawRichText(block.text || '', 10.5, INK, { lh: 1.6 });
 	};
 
 	// —— 截图（若开）：独占首页，居中缩放 ——

@@ -2,7 +2,7 @@
 // 星号/反引号字面绝不出现在 document.xml——此前正文段落裸 TextRun 原样输出记号,
 // 与同文件表格单元格(走 mdInlineToRuns)自相矛盾。解包真 docx(zip)断言,不测中间层。
 import JSZip from 'jszip';
-import { buildExportDocxBlob } from '../aiExportDocRender';
+import { buildExportDocxBlob, renderExportDocToPdfNodes } from '../aiExportDocRender';
 
 // 捆绑 jsdom 的 Blob 无 arrayBuffer(),走 FileReader 兼容读。
 function blobToArrayBuffer(blob){
@@ -50,5 +50,52 @@ describe('[A2] aiExportDocRender 正文行内样式', ()=>{
 		expect(xml).toContain('加粗要点');
 		expect(xml).toContain('<w:b/>');
 		expect(xml).not.toContain('**');
+	});
+
+	// [E5] 此前 subhead/note/kv 三块型裸 TextRun:`◆ **重点**` 的星号字面落 xml;
+	// kv 的 `**引导词**：` 星号被 KV_RE 吃进 key 后原样输出(又星号又加粗,双重丑)。
+	test('[E5] subhead/note/kv 三块型:行内记号消化、真样式在位', async ()=>{
+		const xml = await docxXmlOf([
+			'==== 内容开始 ====',
+			'【要点】',
+			'◆ 含**重点**的子题',
+			'注：说明里也有**强调**语',
+			'**事业方向**：宜金融',
+			'==== 内容结束 ====',
+		].join('\n'));
+		expect(xml).toContain('重点');
+		expect(xml).toContain('强调');
+		expect(xml).toContain('事业方向');
+		expect(xml).toContain('<w:b/>');
+		expect(xml).not.toContain('**');
+	});
+});
+
+describe('[E5] 样式化/打印 PDF DOM 行内样式', ()=>{
+	test('各块型 <b> 真样式,textContent 无字面记号', ()=>{
+		const nodes = renderExportDocToPdfNodes({ tech: '测试', text: [
+			'==== 内容开始 ====',
+			'【总论】',
+			'段落含**要紧**结论。',
+			'',
+			'- 列表含**加粗要点**',
+			'',
+			'> 引语含**强调**',
+			'',
+			'◆ 子题带**重点**',
+			'**事业方向**：宜金融',
+			'',
+			'| 头**粗** | 值 |',
+			'|---|---|',
+			'| **甲** | 乙 |',
+			'==== 内容结束 ====',
+		].join('\n') });
+		const host = document.createElement('div');
+		nodes.forEach((n)=>host.appendChild(n));
+		expect(host.querySelectorAll('b').length).toBeGreaterThanOrEqual(5);
+		expect(host.textContent).not.toContain('**');
+		expect(host.textContent).toContain('要紧');
+		expect(host.textContent).toContain('加粗要点');
+		expect(host.textContent).toContain('事业方向：宜金融');
 	});
 });

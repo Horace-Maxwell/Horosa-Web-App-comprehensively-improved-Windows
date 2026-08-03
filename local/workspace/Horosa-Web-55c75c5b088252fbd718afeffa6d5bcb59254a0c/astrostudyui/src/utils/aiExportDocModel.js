@@ -21,6 +21,26 @@ const SUBHEAD_RE = /^◆\s+(.+)$/;
 const NOTE_RE = /^(?:注：|说明：|（说明：.*）$|\(说明：.*\)$)/;
 const KV_RE = /^([^\s：:，,、。;；]{1,24})：(.*)$/;
 
+// [E5] 行内 markdown(**粗**/*斜*/`码`)→ 分段数组 [{text, bold?, em?, code?}]。
+// 与 docxCommon.mdInlineToRuns 同一正则语义(docx 端产 TextRun,本函数供 矢量 PDF / 样式化 PDF DOM
+// 两端做分段绘制)——渲染端据此消化记号,星号/反引号绝不字面落产物。纯函数零依赖,jest 安全。
+export function mdInlineSegments(text){
+	const src = `${text == null ? '' : text}`;
+	if(!src){ return []; }
+	const segs = [];
+	const re = /\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`/g;
+	let last = 0; let m;
+	while((m = re.exec(src))){
+		if(m.index > last){ segs.push({ text: src.slice(last, m.index) }); }
+		if(m[1] != null){ segs.push({ text: m[1], bold: true }); }
+		else if(m[2] != null){ segs.push({ text: m[2], em: true }); }
+		else{ segs.push({ text: m[3], code: true }); }
+		last = re.lastIndex;
+	}
+	if(last < src.length){ segs.push({ text: src.slice(last) }); }
+	return segs;
+}
+
 export function parseExportSectionTitle(line){
 	const m = `${line == null ? '' : line}`.match(SECTION_LINE_RE);
 	if(!m){

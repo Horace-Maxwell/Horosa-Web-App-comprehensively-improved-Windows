@@ -122,6 +122,13 @@ export const KENTANG_SERVICE_CONFIG = {
 		queryKeys: ['qizhengElectionSrv'],
 		defaultLocalPort: 8899,
 	},
+	// 天星择日·征象搜索(webelectionscansrv,挂在主 chart 服务 :8899,非 kentang vendor)
+	electionscan: {
+		engine: 'horosa-electionscan',
+		path: 'electionscan',
+		queryKeys: ['electionScanSrv'],
+		defaultLocalPort: 8899,
+	},
 };
 
 const COMMON_QUERY_KEYS = ['kentangSrv', 'chartSrv', 'kinSrv'];

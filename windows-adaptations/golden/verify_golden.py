@@ -186,9 +186,27 @@ NOW_FIELD_NORMALIZERS = {
 #   · 键的存在性仍被钉住(整节被删照样红);
 #   · 实测响应里这三个键名在 dasha 之外只出现在 gochara(已被整节归一、不会递归进去),
 #     作用域限定是「当下已足够 + 将来上游新增同名非 now 字段也不会被误归一」的双保险。
+# horosa_golden_now_field_norm_v3(2026-08-02 跨日第三次复发)—— 规则升级为**每作用域独立键集**。
+#
+# 事实:v3.6.1 重钉(08-01)后次日 18 例 india 又整族假红。取证链(#71 三步,全做):
+# ①git status 证 india 引擎零改动;②同日两跑 617,439B 逐字节相同(排除非确定性);
+# ③响应内路径直证 —— 今天派生面共三处:/jyotish/gochara(v1 已整树归一)+
+#   /jyotish/rasiDasha/kalachakra/dehachanchala(transitDate+hits 按今天行运)+
+#   /jyotish/sarvatobhadra(SBC:transits=今日行星宿位 + hits + transitDate)。
+# 后两处是 v3.6.0 印占扩容(KP/SBC/七大运)新增的行运面,v1/v2 白名单没盖到;
+# 08-01 重钉当天与 08-02 前半段行运恰好未翻面,故 v3.6.2 轮零漂移是「同日窗口」的假稳定。
+#
+# 为什么不能把键集扁平合并进一条规则:'hits' 还出现在 /jyotish/sensitivePoints/gandanta/hits
+# ——那是**出生派生**(本命行星落水火交界),归一它=把功能面从金标里挖掉。故 v3 改为
+# 每作用域配自己的键集;各域内其余键(deha/jeeva/grid/layout/natalRefs/vedha*)继续逐字节钉,
+# 键的存在性照旧被钉(整节被删照样红)。
 SCOPED_NOW_FIELD_NORMALIZERS = {
-    # 案例 id 前缀 -> (作用域键集合, 该作用域内需归一的键集合)
-    "astro.india.": (("dasha",), ("current", "currentYear", "active")),
+    # 案例 id 前缀 -> ((作用域键, 该作用域内需归一的键集合), ...)
+    "astro.india.": (
+        (("dasha",), ("current", "currentYear", "active")),
+        (("dehachanchala",), ("transitDate", "hits")),
+        (("sarvatobhadra",), ("transitDate", "hits", "transits")),
+    ),
 }
 
 # ⚠️ 已知状态敏感例(2026-07-22 记档,非回归):astro.chart.ancient 的响应字节
@@ -204,13 +222,13 @@ def _normalize_now_fields(case_id, raw):
         if case_id.startswith(prefix):
             rules = keys
             break
-    # horosa_golden_now_field_norm_v2:作用域内键名规则(见上方注释)。
-    scope_keys, scoped_keys = (), ()
-    for prefix, (sk, kk) in SCOPED_NOW_FIELD_NORMALIZERS.items():
+    # horosa_golden_now_field_norm_v2/v3:作用域内键名规则(见上方注释;v3 起每域独立键集)。
+    scoped_rules = ()
+    for prefix, rule_list in SCOPED_NOW_FIELD_NORMALIZERS.items():
         if case_id.startswith(prefix):
-            scope_keys, scoped_keys = sk, kk
+            scoped_rules = rule_list
             break
-    if not rules and not scoped_keys:
+    if not rules and not scoped_rules:
         return raw
     rules = rules or ()
     try:
@@ -219,7 +237,9 @@ def _normalize_now_fields(case_id, raw):
         return raw
     changed = False
 
-    def scrub(node, in_scope=False):
+    def scrub(node, active_scopes=()):
+        # active_scopes = 已进入的作用域规则下标集合;各域只归一自己声明的键集,
+        # 防止 'hits' 这类同名键在出生派生子树(如 gandanta)被误归一。
         nonlocal changed
         if isinstance(node, dict):
             for k in list(node.keys()):
@@ -227,14 +247,17 @@ def _normalize_now_fields(case_id, raw):
                     node[k] = "__HOROSA_GOLDEN_NOW_NORMALIZED__"
                     changed = True
                     continue
-                if in_scope and k in scoped_keys:
+                if any(k in scoped_rules[i][1] for i in active_scopes):
                     node[k] = "__HOROSA_GOLDEN_NOW_NORMALIZED__"
                     changed = True
                     continue
-                scrub(node[k], in_scope or k in scope_keys)
+                entered = tuple(set(active_scopes) | {
+                    i for i, (sk, _kk) in enumerate(scoped_rules) if k in sk
+                })
+                scrub(node[k], entered)
         elif isinstance(node, list):
             for item in node:
-                scrub(item, in_scope)
+                scrub(item, active_scopes)
 
     scrub(payload)
     if not changed:

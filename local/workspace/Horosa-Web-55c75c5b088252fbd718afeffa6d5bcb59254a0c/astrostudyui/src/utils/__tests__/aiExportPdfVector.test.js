@@ -29,12 +29,20 @@ function pdfInfo(bytes){
 	// 解压所有 Flate 流再判(否则「可选中」判据随压缩策略漂移,正是旧测漏字体乱码的次因)。
 	const zlib = require('zlib');
 	let deep = s;
+	// [E5] ops=页面内容流文本(按流字典过滤:剔除字体 /Length1、/ObjStm、图片流)——查 Tr 等操作符
+	// 专用。混入字体二进制的 deep 在 latin1 下会随机撞出短串,操作符断言禁用 deep 防假阳/假阴。
+	let ops = s;
 	const re = /stream\r?\n/g; let m;
 	while((m = re.exec(s)) !== null){
 		const start = m.index + m[0].length;
 		const end = s.indexOf('endstream', start);
 		if(end < 0){ continue; }
-		try{ deep += zlib.inflateSync(Buffer.from(bytes.slice(start, end))).toString('latin1'); }catch(e){ /* 非 Flate 流跳过 */ }
+		let inflated = null;
+		try{ inflated = zlib.inflateSync(Buffer.from(bytes.slice(start, end))).toString('latin1'); }catch(e){ /* 非 Flate 流跳过 */ }
+		if(inflated == null){ continue; }
+		deep += inflated;
+		const head = s.slice(Math.max(0, m.index - 400), m.index);
+		if(!/\/Length1|\/ObjStm|\/Image/.test(head)){ ops += inflated; }
 	}
 	return {
 		valid: s.startsWith('%PDF'),
@@ -42,6 +50,7 @@ function pdfInfo(bytes){
 		hasType0: /\/Type0\b/.test(deep),          // CID Type0 复合字体 = 中文可选
 		hasToUnicode: /\/ToUnicode\b/.test(deep),  // 有 ToUnicode CMap = 可选可搜(复制得回原字)
 		sizeKB: Math.round(bytes.length / 1024),
+		ops,   // [E5] 内容流文本(含原始字节+过滤解压),查 Tr 等操作符专用
 	};
 }
 
@@ -135,6 +144,29 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		});
 		// 表头出现次数 = 跨到的页数(每页恰一枚,不多画)
 		expect(rows.filter((r)=> r.isHeader).length).toBe(pagesSeen.length);
+	});
+
+	// [E5] 粗体贯通:**粗** 剥记号入文,粗体段以 Tr2(FillAndOutline)描边合成——内容流必现 `2 Tr`
+	// 且绘后复位 `0 Tr`;无记号输入不应出现 Tr2(粗体路径不误触发)。
+	test('[E5] 行内加粗:记号消化 + Tr2 合成粗体 + 复位', async () => {
+		const text = [
+			'【判语】',
+			'本局**必成**,应期在**2027(丁未)年**。',
+			'',
+			'- **事业方向**：宜金融',
+			'',
+			'| 维度 | 判 |',
+			'|---|---|',
+			'| 婚姻 | **宜早** |',
+		].join('\n');
+		const blob = await buildExportPdfVectorBlob({ tech: '粗体', filenameBase: 'x', text });
+		const info = pdfInfo(await blobBytes(blob));
+		expect(info.valid).toBe(true);
+		expect(/\b2\s+Tr\b/.test(info.ops)).toBe(true);   // FillAndOutline 生效
+		expect(/\b0\s+Tr\b/.test(info.ops)).toBe(true);   // 绘后复位
+		// 对照组:纯文本无记号(且无表格,表头会强制加粗)→ 粗体路径不误触发
+		const plain = await buildExportPdfVectorBlob({ tech: '纯', filenameBase: 'x', text: '【判语】\n本局平顺,无记号纯文本。' });
+		expect(/\b2\s+Tr\b/.test(pdfInfo(await blobBytes(plain)).ops)).toBe(false);
 	});
 
 	test('含截图 dataUrl(1x1 JPEG)：截图页 + 正文', async () => {

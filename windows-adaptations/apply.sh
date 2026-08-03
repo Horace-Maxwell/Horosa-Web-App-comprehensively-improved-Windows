@@ -625,6 +625,9 @@ apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/tar
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/tongshefa/TongSheFaMain.js          src__components__tongshefa__TongSheFaMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js      src__components__xiaochengtu__XiaoChengTuMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js        src__components__xiaoliuren__XiaoLiuRenMain.perfR9.js.patch
+# v3.7.0 新技法「择日/天星择日」(navigationPages 键 zeri):P5 观测终点照 ElectionMain 先例
+# (renderRight 收壳层 chart 落定 + _readyChart 去重;征象扫描是显式批量求值,刻意不打点)。
+apply_patch horosa_panel_ready_v1                astrostudyui/src/components/zeri/TianxingElectionMain.js        src__components__zeri__TianxingElectionMain.panelReady.js.patch
 
 echo "== 33. PERF-R10 Ship2「选步长即武装」预取(horosa_step_prefetch_arm_v1)=="
 # 病根:预取单位只来自上一次步进 hint(无 hint 硬编码 'm'),选完新步长的第一下必 miss(owner

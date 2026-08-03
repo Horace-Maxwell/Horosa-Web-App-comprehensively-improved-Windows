@@ -543,7 +543,7 @@ class DivinationChartShell extends Component{
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel">
 							{typeof this.props.renderRight === 'function'
-								? this.props.renderRight({ chart: chartObj, fields: this.state.fields, extra: this.state.extra, setExtra: this.setExtra, busy: this.state.busy, setTime: this.setTimeDt })
+								? this.props.renderRight({ chart: chartObj, fields: this.state.fields, extra: this.state.extra, setExtra: this.setExtra, busy: this.state.busy, setTime: this.setTimeDt, patchFields: this.patchFields })
 								: null}
 						</div>
 					</div>

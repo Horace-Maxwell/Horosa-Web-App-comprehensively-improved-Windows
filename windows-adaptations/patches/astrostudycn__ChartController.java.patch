@@ -1,5 +1,5 @@
 diff --git a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
-index 45164c4..c5abee4 100644
+index 003db01..1294050 100644
 --- a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 +++ b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 @@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,8 +12,8 @@ index 45164c4..c5abee4 100644
  import boundless.utility.ConvertUtility;
  import boundless.utility.JsonUtility;
 @@ -33,6 +35,11 @@ public class ChartController {
- 	// 不覆盖"算法升级但接线不变"这一类陈旧场景,故另立运行时版本闸。
- 	private static final String RUNTIME_VERSION = "3.5.1-runtime1";
+ 	// 七政命度接线代次(缓存盐+回显都用它;曾 v4/v5 两处手抄漂移——回显停在 v4,盐已到 v5)
+ 	private static final String GUOLAO_LIFE_REV = "life_cotrans_v5_gumao_custom";
  
 +	// v3.0.1 perf B0:/chart 逐段计时标记(也用作重建 jar 的存在性哨兵)。纯观测——只在 perf 日志打
 +	// 各段耗时(Python 底盘 / 八字农历 / 盘装配 / 行星预测 / 推运同步),不改任何计算与返回值,便于在

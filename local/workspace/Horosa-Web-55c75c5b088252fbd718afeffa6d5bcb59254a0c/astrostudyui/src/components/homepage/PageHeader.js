@@ -81,6 +81,7 @@ const PAGE_LABELS = {
 	planetarium: '天文馆',
 	xuanshi: '玄学史',
 	astrodata: '数据库',
+	zeri: '择日',
 };
 
 function PageHeader(props){

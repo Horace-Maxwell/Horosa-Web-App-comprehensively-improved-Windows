@@ -22,6 +22,9 @@ export const AUX_SUBTABS = [
 // 卜·其他。
 export const CNYIBU_SUBTABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong'];
 
+// 择日(工具组主导航模块;rail 暂一项天星择日,后续扩充在此追加)。
+export const ZERI_SUBTABS = ['tianxing'];
+
 // 命·传统(参考类)。
 export const CNTRADITION_SUBTABS = ['guasym', 'cuangong12', 'pithy'];
 

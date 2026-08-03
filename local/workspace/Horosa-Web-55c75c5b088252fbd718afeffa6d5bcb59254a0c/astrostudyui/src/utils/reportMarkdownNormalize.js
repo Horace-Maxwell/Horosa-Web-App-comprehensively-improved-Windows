@@ -30,7 +30,11 @@ function fixSegment(s){
 	// 3. ~ / ～ → 短横线 -：Markdown(GFM) 下成对 ~ 触发删除线(strikethrough),报告里年龄/年份范围
 	//    (如 25~34岁)被整段划掉。报告正文无删除线语义,统一替换为短横线。
 	//    (代码围栏 ``` 段已被 normalizeMarkdown 整体跳过、不进本函数,代码里的 ~ 不受影响。)
+	//    [E5] 行内代码 `…` 与 URL 内的 ~ 语义有效(路径/近似号),占位保护后再替换、末了回填。
+	const keep = [];
+	t = t.replace(/(`[^`\n]*`)|(\bhttps?:\/\/[^\s)]+)/g, (m0)=>{ keep.push(m0); return `\u0000K${keep.length - 1}\u0000`; });
 	t = t.replace(/[~～]/g, '-');
+	t = t.replace(/\u0000K(\d+)\u0000/g, (_, i)=>keep[Number(i)]);
 	return t;
 }
 
@@ -58,6 +62,22 @@ export function normalizeMarkdown(text){
 		}
 		out += inFence ? seg : fixSegment(seg);
 	}
+	return out;
+}
+
+// [E5] 流式软闭合(仅渲染路径调用;导出路径不走——原文单一真值不动):
+// AI 流式输出中未闭合的 ```围栏 / 行内 `码` / **粗** 在末尾补齐闭合记号,防 marked 把半截记号
+// 字面渲出、闭合 token 到达瞬间整段闪烁。settle 后调用方改传原文重渲染,自愈零残留。
+// 计数策略:围栏未闭只补闭栏(围栏内是代码不做行内补齐);行内计数先剔除成对围栏,** 计数再剔除
+// 行内代码(代码里的 ** 不算记号)。落单奇数枚 = 有未闭合 → 末尾补一枚。
+export function closeStreamingInlineMd(text){
+	if(!text && text !== 0){ return ''; }
+	let out = `${text}`;
+	if(((out.match(/```/g) || []).length) % 2 === 1){ return `${out}\n\`\`\``; }
+	const noFence = out.replace(/```[\s\S]*?```/g, '');
+	if(((noFence.match(/`/g) || []).length) % 2 === 1){ out += '`'; }
+	const noInline = noFence.replace(/`[^`\n]*`/g, '');
+	if(((noInline.match(/\*\*/g) || []).length) % 2 === 1){ out += '**'; }
 	return out;
 }
 

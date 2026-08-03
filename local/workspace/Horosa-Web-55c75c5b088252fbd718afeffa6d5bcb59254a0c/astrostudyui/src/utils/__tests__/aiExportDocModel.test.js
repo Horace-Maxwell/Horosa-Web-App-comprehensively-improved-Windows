@@ -1,5 +1,23 @@
 // v2 呈现层 IR 解析器 + PDF 块装箱 纯函数测试。
-import { parseAiExportDocument, parseExportSectionTitle, packBlocksIntoChunks } from '../aiExportDocModel';
+import { parseAiExportDocument, parseExportSectionTitle, packBlocksIntoChunks, mdInlineSegments } from '../aiExportDocModel';
+
+describe('[E5] mdInlineSegments 行内分段(渲染端消化记号的单源)', ()=>{
+	test('粗/斜/码分段与纯文本回退', ()=>{
+		expect(mdInlineSegments('**甲**：乙*丙*`丁`戊')).toEqual([
+			{ text: '甲', bold: true }, { text: '：乙' }, { text: '丙', em: true }, { text: '丁', code: true }, { text: '戊' },
+		]);
+		expect(mdInlineSegments('纯文本')).toEqual([{ text: '纯文本' }]);
+		expect(mdInlineSegments('')).toEqual([]);
+		expect(mdInlineSegments(null)).toEqual([]);
+	});
+	test('落单未闭合记号原样保留(不误吞)', ()=>{
+		expect(mdInlineSegments('落单**不闭合')).toEqual([{ text: '落单**不闭合' }]);
+	});
+	test('与 docxCommon.mdInlineToRuns 同正则语义:段拼接=原文剥记号', ()=>{
+		const src = '- **事业方向**：宜金融,应期在**2027(丁未)年**。';
+		expect(mdInlineSegments(src).map((s)=>s.text).join('')).toBe('- 事业方向：宜金融,应期在2027(丁未)年。');
+	});
+});
 
 describe('parseExportSectionTitle 段头识别(与 aiExport.parseSectionTitleLine 同识别面)', ()=>{
 	test('[X] 与 【X】 整行识别;非整行/非段头返空', ()=>{
