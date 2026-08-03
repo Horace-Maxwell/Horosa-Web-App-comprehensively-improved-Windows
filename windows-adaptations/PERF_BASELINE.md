@@ -155,6 +155,19 @@ PASS 9 · 超标 5(astrochart/liureng/cnyibu/3D/zeri 全部为「冷首绘/超�
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.7.0(2026-08-03 覆盖修轮;horosa_warm_ab_stamp_v1 首戳)
+
+- **建成态受控 A/B(沙箱养档后双臂,5/臂,安静机)**:postgate ON 中位 **4077** vs OFF **4091ms**
+  (**Δ14ms=零差异**);建成态中位 ≈4.08s 与 R11 基准 4096 持平 ⇒ **v3.7.0 无建成态温启回归**。
+  失活态等化双臂(startup_ab,5/臂)Δ145ms(2.3%)。工件:docs/perf-artifacts/
+  startup_ab_w0d-postgate_*.json + ab_built.log(history 尾 10 行含新 ladder 字段)。
+- **归因修正(#64 三踩)**:owner 实感 5042/5051ms「Δ9ms 系统性」样本实为**本机全天构建负载的
+  机器态**;双样本窗口内自洽 ≠ 同机同态对照。真实痛点=更新后阶梯失活过渡态(6.1s 段跨多会话,
+  JV-21 更新建档槽根治其复发)。W0d 结构加固照发(金标双臂零漂移,Δ14ms 噪声级),
+  `horosa_pregate_prewarm_budget_v1` 门防未来真重链服务。
+- **W0c ladder 字段首战即立功**:本轮 A/B 判读直接读样本内 `ladder:{uber,static}`,失活/建成
+  两 regime 不再可能混谈。
+
 ### v3.6.0 启动追记(2026-07-31;台架=scripts/startup_ab.cjs,新 jar 阶梯重建后稳态)
 
 - **温启 runtime-ready:阶梯建成态中位 3846 / p95 3865-3935ms(双臂一致)——较 v3.5.1 的
