@@ -6,7 +6,9 @@
 //   · submitStepPrefetch 全仓唯一调用点在 fetchByFields settle —— 而紫微/遁甲的步进走本地
 //     漏斗根本不经它,登记的预取器从未被触发。
 // 武装 = 不等用户点步进,在四个时机把「当前档位的 ±1..±depth」提前算好塞进缓存:
-//   (a) 选步长(DateTimeSelector.changeTimeType → notifyStepUnitSelected)
+//   (a) 选步长 —— v3.5.1 收敛后 live 路径=上游 fireStepSelectPrefetch → models/astro 注册的
+//       直发处理器(带 earlyBoot 守卫;sameMinute 闸经裁决豁免:opt-in 宿主源头已滤旁路条);
+//       本文件的 notifyStepUnitSelected 保留为 armStepPrefetch('unit-select') 的测试口径入口
 //   (b) 出盘 settle(models/astro.js:fetchByFields 无 stepHint 分支 → armStepPrefetch)
 //   (b′) 本地漏斗 settle(ZiWeiMain.requestZiWei / DunJiaMain.onTimeChanged → armStepPrefetch)
 //   (c) 切技法页签(pages/index.js:changeTab 延迟 300ms → armStepPrefetch)
@@ -61,11 +63,41 @@ export function shouldArmForTab(tabKey){
 	return !!tabKey && !NO_ARM_TABS.has(tabKey);
 }
 
-export function reportStepUnit(tabKey, unit){
+// horosa_pump_skew_v1(PERF-R12 W3a③):同向连击计量 —— settle 携 dir(±1)时累计,
+// 方向翻转/换档/dir 缺省(选档、非步进 settle)/间隔 >2s 一律重置。纯观测状态,
+// 消费方只有 models/astro.js 的计划偏斜分支;读写全 try 包,绝不影响主流程。
+const stepStreakByTab = new Map();
+const STREAK_GAP_MS = 2000;
+
+export function reportStepUnit(tabKey, unit, dir){
 	if(tabKey && unit){
 		lastUnitByTab.set(tabKey, unit);
 		lastUnitGlobal = unit;
 	}
+	try{
+		if(!tabKey){ return; }
+		if(dir === 1 || dir === -1){
+			const now = Date.now();
+			const prev = stepStreakByTab.get(tabKey);
+			if(prev && prev.dir === dir && prev.unit === unit && (now - prev.at) < STREAK_GAP_MS){
+				stepStreakByTab.set(tabKey, { dir, unit, at: now, count: prev.count + 1 });
+			}else{
+				stepStreakByTab.set(tabKey, { dir, unit, at: now, count: 1 });
+			}
+		}else{
+			stepStreakByTab.delete(tabKey);
+		}
+	}catch(e){ /* 观测性状态,绝不影响主流程 */ }
+}
+
+export function stepStreak(tabKey){
+	try{
+		const s = tabKey && stepStreakByTab.get(tabKey);
+		if(s){
+			return { count: s.count, dir: s.dir, at: s.at, unit: s.unit };
+		}
+	}catch(e){ /* 同上 */ }
+	return { count: 0, dir: 0, at: 0, unit: null };
 }
 
 export function currentStepUnit(tabKey){

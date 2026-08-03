@@ -27,7 +27,7 @@
 //     ② 纵深防御(path 是自述的,可能与 run 里真发的 URL 不符):pump 期间置 ambient 标志,
 //        utils/request.js 与 utils/chartFetch.js 在标志置位时对不合格 URL 直接拒发并计数。
 //   两层的拒绝都累加进同一计数器(prefetchRefusalCount),测试据此断言「零泄漏」。
-import { stepPrefetchEnabled, stepSelectPrefetchEnabled } from './perfFlags';
+import { stepPrefetchEnabled, stepSelectPrefetchEnabled, stepPrefetchFastFirstEnabled } from './perfFlags';
 
 /** 允许预取的端点前缀(显式白名单;哨兵对照此数组,增删须同步测试) */
 export const PREFETCH_ALLOWED_PATHS = [
@@ -74,8 +74,18 @@ export const PREFETCH_FORBIDDEN_MARKERS = [
 	'xiaoliuren',  // 小六壬(随机/掌诀起课)
 	'cast', 'shake', 'random', 'seed',   // 起卦/摇卦/随机/随机种子类动作
 	'sse', 'stream',                      // 流式(AI 分析)
-	'moira',                              // 七政 Moira 流年:默认过运时刻=「现在」
+	'moira',                              // 七政 Moira 流年:默认过运时刻=「现在」(精确豁免见下表)
 	'providers', 'materials',             // 资源/配置类,非确定性纯计算
+];
+
+/** [horosa_guolao_render_slice_v1 G6] 禁词的显式豁免 —— 逐条枚举 + 归一化后**全路径精确等值**,
+ *  绝不通配/绝不前缀:任何变体路径(/qizheng/moira/xxx、/qizheng/moirascan…)仍被禁词拦,
+ *  豁免不放大类。入表前提(动这里必须重证):注册方已证请求参数在**预取时刻完全物化**——
+ *  /qizheng/moira 的 transit 时刻恒取组件 state(挂载时物化/用户显式所选,GuoLaoChartMain G6 注),
+ *  预取链复刻真实三段链同源入口,绝不在预取时新算「现在」;响应=(params,transitParams) 纯函数
+ *  (horosa_moira_stable_key_v1 已证)。豁免只跳过禁词,允许前缀白名单照过。 */
+export const PREFETCH_FORBIDDEN_EXEMPT_EXACT = [
+	'/qizheng/moira',
 ];
 
 // 预算:技法端点必须排在 chart 之前(非占星页是技法端点在 gate 面板)。
@@ -122,15 +132,18 @@ export function normalizePrefetchPath(urlOrPath){
 	return txt;
 }
 
-/** 该路径是否允许预取(禁词优先于允许前缀)。 */
+/** 该路径是否允许预取(禁词优先于允许前缀;精确豁免只跳禁词,白名单前缀照过)。 */
 export function isPrefetchPathAllowed(urlOrPath){
 	const p = normalizePrefetchPath(urlOrPath).toLowerCase();
 	if(!p || p === '/'){
 		return false;
 	}
-	for(let i = 0; i < PREFETCH_FORBIDDEN_MARKERS.length; i += 1){
-		if(p.indexOf(PREFETCH_FORBIDDEN_MARKERS[i]) >= 0){
-			return false;
+	const exempt = PREFETCH_FORBIDDEN_EXEMPT_EXACT.indexOf(p) >= 0;
+	if(!exempt){
+		for(let i = 0; i < PREFETCH_FORBIDDEN_MARKERS.length; i += 1){
+			if(p.indexOf(PREFETCH_FORBIDDEN_MARKERS[i]) >= 0){
+				return false;
+			}
 		}
 	}
 	for(let i = 0; i < PREFETCH_ALLOWED_PATHS.length; i += 1){
@@ -173,6 +186,14 @@ function scheduleIdle(fn){
 	setTimeout(fn, 250);
 }
 
+// horosa_pump_fastfirst_v1(PERF-R12 W3a①,对抗校验 ENDORSE 后形态):首目标组快发延迟。
+// 病根:scheduleIdle 在 160ms 级连点下饥饿(无空闲帧 ⇒ 只剩 rIC 的 2s 强制超时,届时
+// 代际已换 = 风暴期预取近零派发 —— 验收表「超窗尾」的真因是泵没跑,不是用户跑赢 ±3)。
+// 修:每代**首目标组(≤2 任务,构造序即 ±1 近对)**改 setTimeout(32ms)——让出一帧清掉
+// 绘制窗;submit 本就在 settle 之后(纪律①),派发本体 ~1-3ms;代际检查保留在回调内
+// (32ms 窗内被新代作废照旧丢弃);串行泵/间隔/白名单闸全不动。
+const FAST_FIRST_DELAY_MS = 32;
+
 function pump(){
 	if(running){
 		return;
@@ -182,7 +203,10 @@ function pump(){
 		return;
 	}
 	running = true;
-	scheduleIdle(()=>{
+	const schedule = (entry.fastFirst && stepPrefetchFastFirstEnabled())
+		? (fn)=>{ setTimeout(fn, FAST_FIRST_DELAY_MS); }
+		: scheduleIdle;
+	schedule(()=>{
 		if(entry.gen !== generation){
 			// 旧代任务:用户已有更新的操作,这步预取的目标时间已不是「下一步」—— 弃
 			running = false;
@@ -243,7 +267,9 @@ export function submitStepPrefetch(tasks, opts){
 	const budget = opts && Number.isInteger(opts.budget) && opts.budget > 0
 		? Math.min(opts.budget, 5)
 		: BUDGET_PER_SETTLE;
-	queue = accepted.slice(0, budget).map((t)=>({ ...t, gen }));
+	// horosa_pump_fastfirst_v1:首目标组标记(构造序前两条 = 近端 ±1 对:技法先于同向 chart,
+	// 见 models/astro.js 发射序)——只有它们走 32ms 快发,其余保持 idle 错峰。
+	queue = accepted.slice(0, budget).map((t, i)=>({ ...t, gen, fastFirst: i < 2 }));
 	pump();
 }
 

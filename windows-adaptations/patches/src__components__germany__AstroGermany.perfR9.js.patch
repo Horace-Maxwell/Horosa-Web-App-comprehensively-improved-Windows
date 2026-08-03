@@ -1,16 +1,33 @@
 diff --git a/astrostudyui/src/components/germany/AstroGermany.js b/astrostudyui/src/components/germany/AstroGermany.js
-index 5e41717..7d96f51 100644
+index 5e417173..500495a7 100644
 --- a/astrostudyui/src/components/germany/AstroGermany.js
 +++ b/astrostudyui/src/components/germany/AstroGermany.js
-@@ -5,6 +5,7 @@ import UranianDialMain from './UranianDialMain';
+@@ -5,6 +5,8 @@ import UranianDialMain from './UranianDialMain';
  import UranianGraphicEphemeris from './UranianGraphicEphemeris';
  import UranianHouseFrames from './UranianHouseFrames';
  import { getStoredUranianDisplay } from './UranianDialStyle';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
++import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  
  const TabPane = Tabs.TabPane;
  
-@@ -70,8 +71,14 @@ class AstroGermany extends Component{
+@@ -33,6 +35,15 @@ class AstroGermany extends Component{
+ 		}
+ 	}
+ 
++	// horosa_aux_render_slice_v1(A1):德占容器 sCU —— 宿主任意无关 setState 都会带着相同 props
++	// 重渲本容器(Tabs + 四个 FreezeSubTab 子页整棵 reconcile)。全部自有 props 机械浅比
++	// (函数型 props 视为恒等,见 wrapperPropsEqual);state 变(切子页签)一律照渲。
++	// kill-switch 同 chartSCU(horosa.perf.chartSCU=0 → 恒重渲旧行为,wrapperPropsEqual 内建)。
++	shouldComponentUpdate(np, ns){
++		if (ns !== this.state) return true;
++		return !wrapperPropsEqual(this.props, np);
++	}
++
+ 	callCurrentTabHook(){
+ 		let hook = this.state.hook;
+ 		if(hook[this.state.currentTab] && hook[this.state.currentTab].fun){
+@@ -70,8 +81,14 @@ class AstroGermany extends Component{
  
  		return (
  			<div className="horosa-aux-module-page xq-chart-renderer xq-chart-renderer-germany">
@@ -25,7 +42,7 @@ index 5e41717..7d96f51 100644
  						<AstroMidpoint
  							onChange={this.onFieldsChange}
  							height={childHeight}
-@@ -83,8 +90,10 @@ class AstroGermany extends Component{
+@@ -83,8 +100,10 @@ class AstroGermany extends Component{
  							showAstroMeaning={this.props.showAstroMeaning}
  							hook={hook.Midpoint}
  						/>
@@ -36,7 +53,7 @@ index 5e41717..7d96f51 100644
  						<UranianDialMain
  							height={childHeight}
  							fields={this.props.fields}
-@@ -93,17 +102,21 @@ class AstroGermany extends Component{
+@@ -93,17 +112,21 @@ class AstroGermany extends Component{
  							planetDisplay={this.props.planetDisplay}
  							hook={hook.Dial}
  						/>
@@ -58,7 +75,7 @@ index 5e41717..7d96f51 100644
  							<UranianHouseFrames
  								height={childHeight}
  								fields={this.props.fields}
-@@ -114,6 +127,7 @@ class AstroGermany extends Component{
+@@ -114,6 +137,7 @@ class AstroGermany extends Component{
  								showAstroMeaning={this.props.showAstroMeaning}
  								hook={hook.HouseFrames}
  							/>

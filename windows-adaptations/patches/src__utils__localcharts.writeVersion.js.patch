@@ -1,0 +1,22 @@
+diff --git a/astrostudyui/src/utils/localcharts.js b/astrostudyui/src/utils/localcharts.js
+index e12c3bd0..e70afa5b 100644
+--- a/astrostudyui/src/utils/localcharts.js
++++ b/astrostudyui/src/utils/localcharts.js
+@@ -167,7 +167,17 @@ function readRawCharts(){
+ 	return ary;
+ }
+ 
++// horosa_aux_render_slice_v1:命盘库写版本号。writeRawCharts 是本仓唯一写盘口
++// (upsertLocalChart/removeLocalChart/importLocalChartsBackup 全走它),每写一次自增。
++// 读侧(90°中点盘叠盘人清单的签名记忆)把它编进签名键 → 库一有增删改签名即变、缓存即失效:
++// 写驱动失效,零轮询零事件面。仅内存计数不落盘(重载后从 0 起,读侧首键必 miss,安全)。
++let chartsWriteVersion = 0;
++export function localChartsVersion(){
++	return chartsWriteVersion;
++}
++
+ function writeRawCharts(list){
++	chartsWriteVersion += 1; // horosa_aux_render_slice_v1:所有写路径(含内存回退)都经此,先自增再落盘
+ 	const next = list instanceof Array ? list.slice() : [];
+ 	memoryCharts = next;
+ 	if(fallbackToMemoryStore){

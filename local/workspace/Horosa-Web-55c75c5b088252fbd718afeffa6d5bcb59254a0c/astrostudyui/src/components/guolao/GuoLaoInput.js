@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
@@ -54,6 +55,14 @@ class GuoLaoInput extends Component{
 		this.onKinastroOptionChange = this.onKinastroOptionChange.bind(this);
 		this.onDisplayToggle = this.onDisplayToggle.bind(this);
 		this.toggleAspect = this.toggleAspect.bind(this);
+	}
+
+	// [horosa_guolao_render_slice_v1] 重输入面板 sCU(照 SanShiUnitedMain/BaZi 既有范式):
+	// 全 props 机械浅比(函数型视为恒等,开关 horosa.perf.chartSCU 关=恒重渲旧行为),
+	// state 引用变照常重渲(setState 恒换引用)。宿主 moiraTransitLoading 等无关抖动不再整树白跑左栏。
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
 	onGenderChange(val){

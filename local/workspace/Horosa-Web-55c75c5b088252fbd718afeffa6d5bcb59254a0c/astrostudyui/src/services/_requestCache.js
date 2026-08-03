@@ -100,6 +100,14 @@ export function cachedPost(url, values, requestOptions, cacheOptions){
 	return req.then((rsp)=>clonePlain(rsp));
 }
 
+// [horosa_guolao_render_slice_v1] 同步窥探:某 ns 下给定 key 当前是否已有缓存果(不含在途)。
+// 只用于「命中路径合并中间 setState」类调度决策 —— 窥探为真随后真取必命中(mem 只被 LRU 逐出,
+// 同一同步段内不会);窥探为假走旧路径 = 恒安全。不返回值本体,零拷贝成本。
+export function peekCachedPost(ns, key){
+	const s = registry.get(ns);
+	return !!(s && key && s.mem.has(`${key}`));
+}
+
 // 测试/失效用:清空某 ns 或全部缓存(技法切换/数据变更若需主动失效可调用;默认 LRU 自然淘汰)。
 export function clearRequestCache(ns){
 	if(ns){

@@ -111,7 +111,9 @@ const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/
 const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
 const XuanShiMain = lazyPreloadable(() => import('../components/xuanshi/XuanShiMain'), { order: 3, navKey: 'xuanshi' });
 const AstrodataPage = lazyPreloadable(() => import('../components/astrodata/AstrodataPage'), { order: 3, navKey: 'astrodata' });
-const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 3, navKey: 'zeri' });
+// horosa_zeri_render_slice_v1(W3b-Z4):order 3→2 —— 择日是主导航技法页(非重可视化;
+// 重引擎 3D/天文馆/数据库才配 3),冷首会话点开前更可能已被空闲预载暖到。
+const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 2, navKey: 'zeri' });
 const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'), { order: 2, navKey: 'calendar' });
 const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
 const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });

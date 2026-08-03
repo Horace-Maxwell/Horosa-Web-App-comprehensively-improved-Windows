@@ -18,6 +18,7 @@ import AstroPredictPlanetSign from '../astro/AstroPredictPlanetSign';
 import AstroAnalysisLab from '../astro/AstroAnalysisLab';
 import AstroEgypt from '../astro/AstroEgypt';
 import { markPanelReady } from '../../utils/perfMark';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 import { newLeaf, newGroup, compileTree } from '../../divination/zeri/conditionTypes';
 import { runScan } from '../../divination/zeri/scanOrchestrator';
 import { pushHistory } from '../../divination/zeri/schemeStore';
@@ -78,10 +79,37 @@ export default class TianxingElectionMain extends Component{
 			results: null,
 			truncated: false,
 			scanErr: '',
+			// horosa_zeri_render_slice_v1(W3b-Z2):右栏页签受控化(FreezeSubTab 需要 activeKey)。
+			sideTab: '1',
 		};
 		this._abort = null;
 		this._scanGeo = null;
 		this._scanZone = null;
+		this.changeSideTab = this.changeSideTab.bind(this);
+	}
+
+	changeSideTab(key){
+		this.setState({ sideTab: key });
+	}
+
+	// horosa_zeri_render_slice_v1(W3b-Z3):previewDisplay 引用稳定化 —— 此前每渲新建字面量,
+	// 任何下游 memo 都会被它击穿(引用比恒 false,changeCond 教训同族)。四键浅比命中即复用。
+	getPreviewDisplay(){
+		const p = this.props;
+		const c = this._previewDisplayCache;
+		if(c && c.chartDisplay === p.chartDisplay && c.planetDisplay === p.planetDisplay
+			&& c.lotsDisplay === p.lotsDisplay && c.showAstroMeaning === p.showAstroMeaning){
+			return c.value;
+		}
+		const value = {
+			chartDisplay: p.chartDisplay, planetDisplay: p.planetDisplay,
+			lotsDisplay: p.lotsDisplay, showAstroMeaning: p.showAstroMeaning,
+		};
+		this._previewDisplayCache = {
+			chartDisplay: p.chartDisplay, planetDisplay: p.planetDisplay,
+			lotsDisplay: p.lotsDisplay, showAstroMeaning: p.showAstroMeaning, value,
+		};
+		return value;
 	}
 
 	componentWillUnmount(){
@@ -268,9 +296,16 @@ export default class TianxingElectionMain extends Component{
 		if(!chartObj){
 			return <div style={{ padding: 16, opacity: 0.6 }}>排盘中…</div>;
 		}
+		// horosa_zeri_render_slice_v1(W3b-Z2):页签受控化 + FreezeSubTab thunk(照 3D 页
+		// :498 式样)—— 未激活过的签零构造,激活过的在非激活期跳过 re-render,切回拿本轮
+		// 最新 chartObj 立即渲一帧;不卸载不丢滚动。AI 挂载/导出快照走 buildTianxingSnapshot
+		// (state:cfg/tree/results)不读面板 DOM,已核;七签均无挂载副作用,无需 eager。
+		// kill:horosa.perf.freezeSubTabs(FreezeSubTab 自吃总闸,关=透明直渲)。
+		const sideTab = this.state.sideTab;
 		return (
-			<XQTabs defaultActiveKey="1" tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
+			<XQTabs activeKey={sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
 				<TabPane tab="信息" key="1">
+					<FreezeSubTab active={sideTab === '1'}>{()=>(
 					<AstroInfo mode="summary" height={tabHeight}
 						value={chartObj} fields={fields}
 						planetDisplay={this.props.planetDisplay}
@@ -278,8 +313,10 @@ export default class TianxingElectionMain extends Component{
 						showAstroMeaning={this.props.showAstroMeaning}
 						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 					/>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="相位" key="2">
+					<FreezeSubTab active={sideTab === '2'}>{()=>(
 					<AstroAspect
 						value={chartObj} height={tabHeight}
 						lotsDisplay={this.props.lotsDisplay}
@@ -287,8 +324,10 @@ export default class TianxingElectionMain extends Component{
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
 					/>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="行星" key="3">
+					<FreezeSubTab active={sideTab === '3'}>{()=>(
 					<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
 						<AstroPlanet
 							value={chartObj}
@@ -301,8 +340,10 @@ export default class TianxingElectionMain extends Component{
 							<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
 						</div>
 					</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="古典" key="4">
+					<FreezeSubTab active={sideTab === '4'}>{()=>(
 					<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
 						<AstroInfo mode="classical" height={tabHeight}
 							value={chartObj} fields={fields}
@@ -322,23 +363,30 @@ export default class TianxingElectionMain extends Component{
 							<AstroKlimata value={chartObj} fields={fields} />
 						</div>
 					</div>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="可能性" key="5">
+					<FreezeSubTab active={sideTab === '5'}>{()=>(
 					<AstroPredictPlanetSign height={tabHeight}
 						value={chartObj} fields={fields}
 						planetDisplay={this.props.planetDisplay}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 					/>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="格局" key="6">
+					<FreezeSubTab active={sideTab === '6'}>{()=>(
 					<AstroAnalysisLab
 						value={chartObj}
 						height={tabHeight}
 						voidClassical={this.props.voidClassical}
 					/>
+					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="埃及" key="egypt">
+					<FreezeSubTab active={sideTab === 'egypt'}>{()=>(
 					<AstroEgypt value={chartObj} height={tabHeight} />
+					)}</FreezeSubTab>
 				</TabPane>
 			</XQTabs>
 		);
@@ -414,12 +462,7 @@ export default class TianxingElectionMain extends Component{
 					scanEpoch={this._scanEpoch || 0}
 					resultsStale={!!(this.state.results && this._scanUiTreeJson
 						&& JSON.stringify(this.state.tree) !== this._scanUiTreeJson)}
-					previewDisplay={{
-						chartDisplay: this.props.chartDisplay,
-						planetDisplay: this.props.planetDisplay,
-						lotsDisplay: this.props.lotsDisplay,
-						showAstroMeaning: this.props.showAstroMeaning,
-					}}
+					previewDisplay={this.getPreviewDisplay()}
 					scanning={this.state.scanning}
 					progress={this.state.progress}
 					results={this.state.results}

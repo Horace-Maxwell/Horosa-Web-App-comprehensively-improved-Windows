@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index f432677..05d70bf 100644
+index 47945457..735e8b9a 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
 @@ -17,6 +17,8 @@ import AstroFormComp from '../components/astro/AstroFormComp';
@@ -32,7 +32,18 @@ index f432677..05d70bf 100644
  // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
  const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
  const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
-@@ -122,7 +138,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
+@@ -95,7 +111,9 @@ const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/
+ const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
+ const XuanShiMain = lazyPreloadable(() => import('../components/xuanshi/XuanShiMain'), { order: 3, navKey: 'xuanshi' });
+ const AstrodataPage = lazyPreloadable(() => import('../components/astrodata/AstrodataPage'), { order: 3, navKey: 'astrodata' });
+-const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 3, navKey: 'zeri' });
++// horosa_zeri_render_slice_v1(W3b-Z4):order 3→2 —— 择日是主导航技法页(非重可视化;
++// 重引擎 3D/天文馆/数据库才配 3),冷首会话点开前更可能已被空闲预载暖到。
++const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 2, navKey: 'zeri' });
+ const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'), { order: 2, navKey: 'calendar' });
+ const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
+ const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
+@@ -123,7 +141,13 @@ import { APPEARANCE_DARK } from '../utils/appearance';
  import XQIcon from '../components/xq-icons';
  import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
  import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
@@ -46,7 +57,7 @@ index f432677..05d70bf 100644
  
  const TabPane = XQTabs.TabPane;
  
-@@ -347,7 +369,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -351,7 +375,52 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          caseTotal,
      } = user;
   	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
@@ -100,7 +111,7 @@ index f432677..05d70bf 100644
  
      
      function closeDrawer(){
-@@ -401,6 +468,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -407,6 +476,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
          if(needRefresh){
              tabRefreshSigRef.current[key] = currentSig;
@@ -110,7 +121,7 @@ index f432677..05d70bf 100644
              setTimeout(()=>{
                  if(!(predictHook[key] && predictHook[key].fun)){ return; }
                  if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-@@ -422,8 +492,26 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -428,8 +500,26 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
              }, 0);
          }
  
@@ -137,7 +148,7 @@ index f432677..05d70bf 100644
      function changeCond(values){
          let flds = {
              ...fields,
-@@ -434,78 +522,81 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -440,78 +530,81 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
  
          if(values.tm !== undefined && values.tm != null){
              let birth = values.tm;
@@ -249,7 +260,7 @@ index f432677..05d70bf 100644
              }
          }
  
-@@ -519,6 +610,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -525,6 +618,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                  // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
                  ...(values.step ? { __stepHint: values.step } : {}),
              };
@@ -258,7 +269,7 @@ index f432677..05d70bf 100644
              // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
              // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
              // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
-@@ -535,6 +628,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -541,6 +636,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
          cancelPendingTimeDispatch();
  
@@ -266,7 +277,7 @@ index f432677..05d70bf 100644
          dispatch({
              type: 'astro/fetchByFields',
              payload: flds,
-@@ -888,6 +982,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -894,6 +990,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                          height={height}
                          fields={fields}
                          fieldsAry={aryfields}

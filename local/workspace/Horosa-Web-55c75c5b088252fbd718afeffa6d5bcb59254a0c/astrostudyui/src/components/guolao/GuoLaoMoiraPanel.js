@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQTabs as Tabs } from '../xq-ui';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import * as AstroConst from '../../constants/AstroConst';
@@ -12,6 +13,21 @@ import { GUOLAO_STAR_NOTES } from './guolaoStarNotes';
 import { PALACE_LORD as GL_PALACE_LORD, SU28 as GL_SU28, SU28_DEGREE_LORD as GL_SU28_LORD, HUAYAO_A as GL_HUAYAO_A, EXALT_DEGREE as GL_EXALT, DIGNITY_TABLE as GL_DIGNITY, SIGN_STATUS_SEQ, starDignityStatuses as glStarDignity, starMotionState as glStarMotion, starCombust as glStarCombust } from './guolaoData';
 import { computeDongwei as glDongwei, computeXiaoxian as glXiaoxian, computeTongxian as glTongxian, computeYuexian as glYuexian } from './guolaoTransit';
 import './GuoLaoMoiraPanel.less';
+
+// [horosa_guolao_render_slice_v1] 一次性惰性求值器(照 UranianDialMain horosa_lazy_right_panels_v1
+// 范式):每次 render 新建实例 → 值恒新鲜;未激活 tab 的 thunk 不被 FreezeSubTab 调用 → 整段不算;
+// 同一次 render 内多处引用只算一次。
+function lazyOnce(fn){
+	let value;
+	let done = false;
+	return ()=>{
+		if(!done){
+			value = fn();
+			done = true;
+		}
+		return value;
+	};
+}
 
 // 三主(命主/身主/度主)+ 命宫配干(五虎遁)+ 生年化曜:纯前端从命/身宫地支 + 命度宿 + 年干派生(古法立成)。
 const GL_GAN = '甲乙丙丁戊己庚辛壬癸';
@@ -848,7 +864,7 @@ function buildPanelFallbackValue(rootValue){
 	};
 }
 
-export default function GuoLaoMoiraPanel(props){
+function GuoLaoMoiraPanel(props){
 	// horosa_freeze_subtabs_v1 接线:本面板的 Tabs 原为【非受控】(defaultActiveKey),拿不到 active
 	// 就没法冻结 —— 按 FreezeSubTab 的前提先改受控(接线方自己改,组件不代劳)。
 	// hooks 必须在下面几处 early return 之前调用,故置于函数体最顶。
@@ -896,10 +912,12 @@ export default function GuoLaoMoiraPanel(props){
 	const styleWarning = value.styleWarning || (unverifiedPatternSource ? '当前接口返回的是旧版 Horosa 近似格局，不是 Moira 本体的政余喜格/忌格；已屏蔽为正式格局输出。' : '');
 	const patterns = unverifiedPatternSource ? [] : safeList(value.patterns);
 	const planets = safeList(value.planets);
-		const natalPlanetRows = buildPlanetRows(birthChart, planets);
-		const transitPlanetRows = buildPlanetRows(transitChart, []);
-		const natalAngleRows = buildAngleRows(birthChart);       // 升顶(Asc/MC)角点 → 星点动态表尾
-		const transitAngleRows = buildAngleRows(transitChart);
+		// [horosa_guolao_render_slice_v1] 星点/角点四表只有「星曜」tab 消费、星宿同经表只有「宫限」tab
+		// 消费 —— 包 lazyOnce 后未激活 tab 一行不算(此前每次面板重渲无条件全算五段)。
+		const getNatalPlanetRows = lazyOnce(()=> buildPlanetRows(birthChart, planets));
+		const getTransitPlanetRows = lazyOnce(()=> buildPlanetRows(transitChart, []));
+		const getNatalAngleRows = lazyOnce(()=> buildAngleRows(birthChart));       // 升顶(Asc/MC)角点 → 星点动态表尾
+		const getTransitAngleRows = lazyOnce(()=> buildAngleRows(transitChart));
 		const godHits = safeList(value.godHits);
 		const yearStars = safeMap(value.yearStars);
 		const birthYearStars = safeMap(yearStars.birth);
@@ -908,7 +926,7 @@ export default function GuoLaoMoiraPanel(props){
 		const transitYearStars = safeList(value.transitYearStars);
 		const transitGodHits = safeList(value.transitGodHits);
 		const houses = safeList(value.houses);
-	const stellarRelationRows = mergeStellarRelationRows(birthChart, transitChart);
+	const getStellarRelationRows = lazyOnce(()=> mergeStellarRelationRows(birthChart, transitChart));
 	const birthYear = yearFromParams(params);
 	const transitYear = yearFromParams(transitParams);
 	const birthYearText = baziStemBranch(rootValue, 'year', birthYear);
@@ -1167,11 +1185,11 @@ export default function GuoLaoMoiraPanel(props){
 				) : null}
 
 				<Section title="本命星点动态（庙旺所属 · 速度）">
-					<StarPointTable rows={natalPlanetRows} angleRows={natalAngleRows} />
+					<StarPointTable rows={getNatalPlanetRows()} angleRows={getNatalAngleRows()} />
 				</Section>
 
 				<Section title="流年星点动态（庙旺所属 · 速度）">
-					<StarPointTable rows={transitPlanetRows} angleRows={transitAngleRows} />
+					<StarPointTable rows={getTransitPlanetRows()} angleRows={getTransitAngleRows()} />
 				</Section>
 
 				<Section title="年曜与十神">
@@ -1223,7 +1241,7 @@ export default function GuoLaoMoiraPanel(props){
 			</Section>
 
 				<Section title="星宿落入与同经">
-					<StellarRelationTable rows={stellarRelationRows} />
+					<StellarRelationTable rows={getStellarRelationRows()} />
 				</Section>
 
 			</>) },
@@ -1302,3 +1320,8 @@ export default function GuoLaoMoiraPanel(props){
 		</div>
 	);
 }
+
+// [horosa_guolao_render_slice_v1] props 侧 memo(语义同各 Main 的 wrapperPropsEqual sCU:全 props
+// 机械浅比、函数型视为恒等、开关 horosa.perf.chartSCU 关=恒重渲旧行为;内部 useState 切 tab 不受
+// memo 影响照常重渲)。宿主 extraTabs 已单槽缓存稳定引用,宿主无关抖动不再整树白跑本重面板。
+export default memo(GuoLaoMoiraPanel, wrapperPropsEqual);

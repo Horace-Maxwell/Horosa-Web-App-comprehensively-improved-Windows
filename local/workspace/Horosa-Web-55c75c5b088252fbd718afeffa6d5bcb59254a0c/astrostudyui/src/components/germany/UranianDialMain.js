@@ -19,7 +19,8 @@ import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, X
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams, schoolComparisonRows } from './UranianSchools';
 import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
-import { listLocalCharts } from '../../utils/localcharts';
+import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
+import { createSignatureMemo, memoEnabled } from '../../utils/memoBySignature';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { sameDisplayList } from '../../utils/chartUpdateGuard';
@@ -39,6 +40,27 @@ function lazyOnce(fn){
 		}
 		return value;
 	};
+}
+
+// horosa_aux_render_slice_v1(A3):引用签名 —— 大对象按 WeakMap 身份编号入键(零序列化,
+// 与 stableSignature 的深序列化相反:这里 fieldsAry/chart/盘点数组都很大,只认引用);
+// 标量带 typeof 前缀防 '90'(串) vs 90(数) 撞键。签名相等 ⇔ 每个输入引用/标量逐位相同,
+// 与「后端响应/每次 setState 都换新引用」的仓内数据流约定配套(同 chartUpdateGuard 引用比取向)。
+const _refIds = new WeakMap();
+let _refSeq = 0;
+function refSig(parts){
+	let key = '';
+	for (let i = 0; i < parts.length; i++){
+		const v = parts[i];
+		if (v !== null && v !== undefined && (typeof v === 'object' || typeof v === 'function')){
+			let id = _refIds.get(v);
+			if (id === undefined){ _refSeq += 1; id = _refSeq; _refIds.set(v, id); }
+			key += '#' + id + '|';
+		} else {
+			key += typeof v + ':' + v + '|';
+		}
+	}
+	return key;
 }
 
 // horosa_dial_scu_v1(PERF-R9 Ship 6):90°中点盘 sCU。
@@ -300,6 +322,9 @@ export default class UranianDialMain extends Component {
 			colH: 0,
 		};
 		this.unmounted = false;
+		// horosa_aux_render_slice_v1(A3):叠盘人清单/显示名/环装配 三件套的签名记忆(2 槽 LRU,
+		// 覆盖 A→B→A 开关往返);kill-switch horosa.perf.localEngineMemo(memoEnabled)。
+		this._ringsMemo = createSignatureMemo(2);
 		this._measure = this._measure.bind(this);
 		this.requestNatalTnp = this.requestNatalTnp.bind(this);
 		this.requestTransit = this.requestTransit.bind(this);
@@ -739,9 +764,34 @@ export default class UranianDialMain extends Component {
 	render(){
 		const height = this.props.height ? this.props.height : 760;
 		// 叠盘人清单/显示名:全 render 只建一次(内含 localStorage 命盘库读取),传给 buildRings 复用。
-		const personList = buildPersonList(this.props.fieldsAry);
-		const personLabelById = this.personLabelMap(personList);
-		const rings = this.buildRings(personLabelById);
+		// horosa_aux_render_slice_v1(A3):三件套再上签名记忆 —— 此前每次 render(含拖指针每帧的
+		// readout setState)都重读命盘库+重建 rings,且 rings 引用每次全新 → 三个盘组件
+		// componentDidUpdate 按 prev.rings !== rings 判「有变」,逐帧全量 d3 重画。
+		// 键=全部真实输入的引用/标量:报告点名七项(fieldsAry/synastryPeople/synastryPersonPoints/
+		// dialBase/showTnp/showTransit/saArcDirected)+ 其余真依赖(chart/natalTnp/transitPoints/
+		// davisonData/natalEastPoint/natalVertex/showSolarArc/showComposite/showDavison/
+		// showEastPoint/showVertex —— 缺任一则 TNP/行运点异步到货后盘面不更新)+ 命盘库写版本
+		// localChartsVersion()(writeRawCharts 写点自增 → 库增删改即失效:写驱动,零轮询)。
+		// 命中 ⇒ 三者引用稳定,盘组件识别「没变」跳过重画;任一键变 ⇒ 重算,值与逐帧重建完全相同。
+		// 纯函数契约已核:三盘组件/右栏扫描器/校时 rectificationHits 对 rings/points 只 filter/map/读。
+		const ringsKey = memoEnabled() ? refSig([
+			this.props.fieldsAry, this.props.chart, localChartsVersion(),
+			this.state.synastryPeople, this.state.synastryPersonPoints, this.state.dialBase,
+			this.state.showTnp, this.state.showTransit, this.state.saArcDirected,
+			this.state.natalTnp, this.state.transitPoints, this.state.showSolarArc,
+			this.state.showComposite, this.state.showDavison, this.state.davisonData,
+			this.state.showEastPoint, this.state.natalEastPoint, this.state.showVertex, this.state.natalVertex,
+		]) : null;
+		let ringsMemoVal = ringsKey === null ? undefined : this._ringsMemo.get(ringsKey);
+		if (ringsMemoVal === undefined){
+			const pl = buildPersonList(this.props.fieldsAry);
+			const plb = this.personLabelMap(pl);
+			ringsMemoVal = { personList: pl, personLabelById: plb, rings: this.buildRings(plb) };
+			if (ringsKey !== null) this._ringsMemo.set(ringsKey, ringsMemoVal);
+		}
+		const personList = ringsMemoVal.personList;
+		const personLabelById = ringsMemoVal.personLabelById;
+		const rings = ringsMemoVal.rings;
 		const natalPts = rings[0].points;
 		// 中间盘 size:按实测「中间列」的内容框最大化——取列宽、列高(减盘下 24 padding)较小者,填满方框且永不超出被裁。
 		// 列尺寸由 _measure(ResizeObserver)实测;未测得时用 viewport 估算兜底;vh-140 为防底部 Dock 的二级兜底。

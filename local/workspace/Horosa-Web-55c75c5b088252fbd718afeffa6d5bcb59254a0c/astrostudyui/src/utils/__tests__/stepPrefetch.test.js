@@ -196,6 +196,105 @@ describe('🔴 预算与 latest-wins', () => {
 	});
 });
 
+// ── horosa_pump_fastfirst_v1(PERF-R12 W3a①)—— 风暴期派发金标 ─────────────────────────
+// 病根断言:scheduleIdle 回退 250ms > 160ms 连点窗 ⇒ 每代任务都在下一代作废前到不了
+// 执行点 = 风暴期零派发(这正是验收表「超窗尾」的机理,jsdom 无 rIC 恰好构成同构台架)。
+describe('horosa_pump_fastfirst_v1:风暴期首任务快发', () => {
+	const mkTask = (name, onRun) => ({ name, path: '/qimen/pan', run: () => { onRun(); return Promise.resolve(); } });
+	const drain = async (ms) => {
+		// 老式假计时器:按 40ms 步进推进 + 三重微任务清洗,让 run().finally 的 gap 计时器得以注册/触发
+		for (let t = 0; t < ms; t += 40) {
+			jest.advanceTimersByTime(40);
+			await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+		}
+	};
+
+	beforeEach(() => { jest.useFakeTimers(); });
+	afterEach(() => { jest.useRealTimers(); });
+
+	test('关闸态(=今日行为):160ms×20 连点,派发恒 0', async () => {
+		window.localStorage.setItem('horosa.perf.stepPrefetchFastFirst', '0');
+		let ran = 0;
+		for (let i = 0; i < 20; i += 1) {
+			submitStepPrefetch([mkTask(`a${i}`, () => { ran += 1; }), mkTask(`b${i}`, () => { ran += 1; })]);
+			await drain(160);
+		}
+		window.localStorage.removeItem('horosa.perf.stepPrefetchFastFirst');
+		expect(ran).toBe(0);
+	});
+
+	test('开闸态:同一风暴 ≥15 派发(每代首目标至少一发)', async () => {
+		let ran = 0;
+		for (let i = 0; i < 20; i += 1) {
+			submitStepPrefetch([mkTask(`a${i}`, () => { ran += 1; }), mkTask(`b${i}`, () => { ran += 1; })]);
+			await drain(160);
+		}
+		expect(ran).toBeGreaterThanOrEqual(15);
+	});
+
+	test('32ms 窗内代际置换:旧代 fast 任务照旧丢弃(代际检查保留在回调内)', async () => {
+		let ranA = 0; let ranB = 0;
+		submitStepPrefetch([mkTask('A', () => { ranA += 1; })]);
+		jest.advanceTimersByTime(10);            // < FAST_FIRST_DELAY_MS
+		submitStepPrefetch([mkTask('B', () => { ranB += 1; })]);
+		await drain(200);
+		expect(ranA).toBe(0);
+		expect(ranB).toBe(1);
+	});
+
+	test('拒发计数不受快发影响(白名单闸原样)', async () => {
+		const before = require('../stepPrefetch').prefetchRefusalCount();
+		submitStepPrefetch([{ name: 'x', path: '/gua/random', run: () => Promise.resolve() }]);
+		await drain(100);
+		expect(require('../stepPrefetch').prefetchRefusalCount()).toBe(before + 1);
+	});
+});
+
+// ── horosa_pump_skew_v1(PERF-R12 W3a③)—— 计划形状金标 ──────────────────────────────
+describe('horosa_pump_skew_v1:同向连击计划偏斜', () => {
+	const { reportStepUnit } = require('../stepPrefetchArm');
+	const seedStreak = (n, dir = 1, unit = 'd') => {
+		for (let i = 0; i < n; i += 1) { reportStepUnit('astrochart', unit, dir); }
+	};
+	const dirsOf = (tasks) => tasks.map((t) => t.name);
+
+	test('连击 ≥3 同向:计划丢反向换前伸(全部同向,含 +depth+1)', () => {
+		seedStreak(3, 1, 'd');
+		const tasks = __buildStepPrefetchTasksForTest(mkFields(2026, 7, 15), { unit: 'd', dir: 1, depth: 3 }, ASTRO_STATE);
+		const names = dirsOf(tasks).join('|');
+		expect(names).not.toMatch(/-1d/);          // 反向任务被丢
+		expect(names).toMatch(/\+4d/);             // 前伸到 depth+1
+	});
+
+	test('方向翻转即重置:反向 settle 后计划回标准形(带反向覆盖)', () => {
+		seedStreak(3, 1, 'd');
+		reportStepUnit('astrochart', 'd', -1);     // 翻转 → 重置为 count=1
+		const tasks = __buildStepPrefetchTasksForTest(mkFields(2026, 7, 15), { unit: 'd', dir: -1, depth: 3 }, ASTRO_STATE);
+		expect(dirsOf(tasks).join('|')).toMatch(/\+1d/);   // 标准形保留反向覆盖(+1 相对 -dir)
+	});
+
+	test('换档重置 + dir 缺省重置(选步长路径永不偏斜)', () => {
+		seedStreak(3, 1, 'd');
+		reportStepUnit('astrochart', 'M');         // 无 dir → 删除连击态
+		const tasks = __buildStepPrefetchTasksForTest(mkFields(2026, 7, 15), { unit: 'd', dir: 1, depth: 3 }, ASTRO_STATE);
+		expect(dirsOf(tasks).join('|')).toMatch(/-1d/);    // 标准形
+	});
+
+	test('kill-switch:horosa.perf.stepPrefetchSkew=0 时连击也不偏', () => {
+		window.localStorage.setItem('horosa.perf.stepPrefetchSkew', '0');
+		seedStreak(5, 1, 'd');
+		const tasks = __buildStepPrefetchTasksForTest(mkFields(2026, 7, 15), { unit: 'd', dir: 1, depth: 3 }, ASTRO_STATE);
+		window.localStorage.removeItem('horosa.perf.stepPrefetchSkew');
+		expect(dirsOf(tasks).join('|')).toMatch(/-1d/);
+	});
+
+	test('dir=0 武装计划(选完步长对称窗)不受连击影响', () => {
+		seedStreak(5, 1, 'd');
+		const tasks = __buildStepPrefetchTasksForTest(mkFields(2026, 7, 15), { unit: 'd', dir: 0, depth: 3 }, ASTRO_STATE);
+		expect(dirsOf(tasks).join('|')).toMatch(/-1d/);    // 对称形保留
+	});
+});
+
 describe('🔴 纪律:白名单绝不含随机/AI 端点', () => {
 	test('允许集快照(增删须过此关)', () => {
 		expect(PREFETCH_ALLOWED_PATHS).toEqual([

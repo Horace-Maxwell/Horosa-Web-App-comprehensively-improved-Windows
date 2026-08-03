@@ -1,0 +1,53 @@
+diff --git a/astrostudyui/src/components/astro3d/__tests__/astro3dMorph.test.js b/astrostudyui/src/components/astro3d/__tests__/astro3dMorph.test.js
+index f3062d16..a16865ff 100644
+--- a/astrostudyui/src/components/astro3d/__tests__/astro3dMorph.test.js
++++ b/astrostudyui/src/components/astro3d/__tests__/astro3dMorph.test.js
+@@ -97,3 +97,48 @@ describe('flag 分支静态哨兵(horosa.perf.astro3dMorph=0 时 setParams 走
+ 		expect(seg).not.toContain('beidouMap');
+ 	});
+ });
++
++// —— PERF-R12 W3g:「纯时间步进必走补间」链路钉(全静态,Astro3D 不可在 jsdom 实例化)——
++// 病理类:semanticKeys 被扩进时间轴字段 / canMorph 混进 date-time 比较 ⇒ 每次步进被否决,
++// 静默退化回全量重建(卡顿+硬切),构建期零告警、肉眼难归因。三针把「时间步进恒可补间」的
++// 成立条件逐条钉死;任何一针红 = 有人动了纯步进链,必须先重证再放行。
++describe('W3g:纯时间步进 → 补间路径成立条件(源级钉)', () => {
++	test('入口:needRecreate 首判即 chartObj 引用变(纯步进必给新 chartObj → 必进重建判定,不会被 early-return 吞掉)', () => {
++		const idx = SRC.indexOf('needRecreate(option){');
++		expect(idx).toBeGreaterThan(-1);
++		const seg = SRC.slice(idx, idx + 260);
++		expect(seg).toMatch(/if\(option\.chartObj && this\.chartObj != option\.chartObj\)\{\s*\n\s*return true;/);
++	});
++	test('canMorph 的语义否决表就是这三个键,一个不多(时间轴字段混进来=步进永拒补间)', () => {
++		expect(SRC).toMatch(/const semanticKeys = \['zodiacal', 'hsys', 'southchart'\];/);
++	});
++	test('canMorph 全身不比较 date/time 字段 —— 时间变化本身永远不是否决理由', () => {
++		const idx = SRC.indexOf('canMorph(option){');
++		const end = SRC.indexOf('updateFromChart(newChartObj, newFields){');
++		expect(idx).toBeGreaterThan(-1);
++		expect(end).toBeGreaterThan(idx);
++		const seg = SRC.slice(idx, end);
++		expect(seg).not.toMatch(/['"]date['"]/);
++		expect(seg).not.toMatch(/['"]time['"]/);
++	});
++	test('三处 fields 同步点齐在(早退分支/补间提交/全量 initOption)—— 缺任一则 semanticKeys 拿陈值误判', () => {
++		// ① needRecreate=false 早退分支同步
++		const spIdx = SRC.indexOf('setParams(option){');
++		const spBody = SRC.slice(spIdx, spIdx + 1800);
++		expect(spBody).toMatch(/if\(option\.fields\)\{\s*\n\s*this\.fields = option\.fields;/);
++		// ② 补间提交侧同步
++		const ufIdx = SRC.indexOf('updateFromChart(newChartObj, newFields){');
++		const ufBody = SRC.slice(ufIdx, ufIdx + 900);
++		expect(ufBody).toMatch(/if\(newFields\)\{\s*\n\s*this\.fields = newFields;/);
++		// ③ 全量路径 initOption 同步
++		const ioIdx = SRC.indexOf('initOption(option){');
++		const ioBody = SRC.slice(ioIdx, ioIdx + 900);
++		expect(ioBody).toContain('this.fields = option.fields;');
++	});
++	test('补间否决的显示集合判据与 needRecreate 同口径(dispNum 求和 + planetDisp 集合成员),步进不动显示集则恒过', () => {
++		const idx = SRC.indexOf('canMorph(option){');
++		const seg = SRC.slice(idx, idx + 1800);
++		expect(seg).toContain('num !== this.chartDispNum');
++		expect(seg).toContain('option.planetDisp.size !== this.planetDisp.size');
++	});
++});

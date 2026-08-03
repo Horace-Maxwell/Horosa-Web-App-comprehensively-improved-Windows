@@ -33,6 +33,7 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
 //   safeLocalStorageSet('horosa.perf.bootGate', '0')              // [B1] early 导航后端探活门(关=请求直发,未起时报错重试)
 //   safeLocalStorageSet('horosa.perf.rsaSessionKey', '0')         // [A2] RSA 会话密钥复用(关=每请求重算 2048 位模幂)
+//   safeLocalStorageSet('horosa.perf.guolaoMergedPaint', '0')     // [W3d G5] 七政全命中路径中间 setState 合并(关=恒两段式上屏)
 // 恢复:对应 key removeItem 或设 '1'。
 
 function flagEnabled(key){
@@ -186,6 +187,31 @@ export function bootChartRestoreEnabled(){
 // PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项空间 Hamming-1 投机预取。
 export function optionPrefetchEnabled(){
 	return flagEnabled('horosa.perf.optionPrefetch');
+}
+
+// PERF-R12 W3a(horosa_pump_fastfirst_v1):泵首任务快发 —— rIC 在快速连点下饥饿
+// (无空闲帧 ⇒ 只剩 2s 强制超时,届时代际已换 = 风暴期预取近零派发,验收表的
+// 「超窗尾」真因)。首目标组(≤2 任务)改 setTimeout(32ms):让出一帧再发;
+// submit 本就在 settle 之后 = 主渲染已提交,派发本体 ~1-3ms,响应解析是真点击
+// 迟早要付的成本且串行泵限 ≤1 在途。
+export function stepPrefetchFastFirstEnabled(){
+	return flagEnabled('horosa.perf.stepPrefetchFastFirst');
+}
+
+// PERF-R12 W3a(horosa_pump_skew_v1):同向连点 ≥3 且间隔 <2s 时,计划丢反向换前伸
+// (+4/+5)—— 反向目标(刚渲染过的那张)本就温在 chartMem/L2,丢弃零损,前伸纯赚;
+// 方向翻转/换页/换档/dir=0/停 >2s 即重置。只改 settle 路径的 plan 形状,白名单与
+// 预算结构不动。
+export function stepPrefetchSkewEnabled(){
+	return flagEnabled('horosa.perf.stepPrefetchSkew');
+}
+
+// PERF-R12 W3d(horosa_guolao_render_slice_v1 G5):七政 bundle 全命中路径的中间 setState 合并
+// —— 流年盘+Moira 规则都已在缓存时,跳过「先画流年环再画规则」的中间帧,一次 setState 落齐
+// (终态字节一致,只少一整轮重渲)。规则缓存窥探为假(冷/在途)⇒ 保留中间帧 = 旧行为,
+// 流年环照旧先行上屏,不等规则往返。关=恒走旧两段式。
+export function guolaoMergedPaintEnabled(){
+	return flagEnabled('horosa.perf.guolaoMergedPaint');
 }
 
 // 武装深度 ±N。默认 3(±1 即时命中,±2/±3 吃空闲窗);合法 0..5,0=等效关;

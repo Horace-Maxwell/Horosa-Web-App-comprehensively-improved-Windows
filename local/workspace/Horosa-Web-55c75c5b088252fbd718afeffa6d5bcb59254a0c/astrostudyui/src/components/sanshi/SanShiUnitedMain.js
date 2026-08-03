@@ -1864,6 +1864,976 @@ function buildOuterStarMeaningTip(star){
 	return mergeMeaningTips(base, [ptip]);
 }
 
+// ===== horosa_sanshi_render_slice_v1:渲染切片子组件三件套(S1 左栏设置 / S2 右栏隐藏表单头 / S4 盘面层)=====
+// 范式与宿主 sCU([A7·性能])同款:wrapperPropsEqual 机械浅比全部自有 props —— 任一数据 prop 引用变
+// 即重渲、函数型 props 视为恒等(重渲时自然带下最新闭包),免手抄 keys 的漏渲风险;
+// kill-switch = horosa.perf.chartSCU(关闭时 wrapperPropsEqual 恒 false = 恒重渲,逐字回旧行为)。
+// 🔴 红线:三个子组件的子树都始终完整挂载(零虚拟化/零延迟卸载 —— AI 导出与 Ctrl+F 依赖全量 DOM),
+//    只跳「输入引用未变」的冗余重渲;state 切片由宿主按引用下传,setState 恒换新引用故必不漏渲。
+
+// horosa_sanshi_render_slice_v1(S1):左栏「三式设置」(SpaceTimePanel + 四节 31 个 antd Select)。
+// 宿主与之无关的 setState(盘面数据落地/右栏页签/容器量高)原先都让整栏 Select 白跑一遍。
+class SanShiInputPanel extends Component{
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
+	render(){
+		const fields = this.props.fields || {};
+		const opt = this.props.options || {};
+		let datetm = new DateTime();
+		if(fields.date && fields.time){
+			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
+			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
+			if(fields.zone){
+				datetm.setZone(fields.zone.value);
+			}
+		}
+		return (
+			<div className="horosa-sanshi-input-stack">
+				<div className="horosa-side-panel-heading">
+					<div>
+						<div className="horosa-side-panel-title">三式设置</div>
+						<div className="horosa-side-panel-subtitle">时间、地点与起盘选项</div>
+					</div>
+				</div>
+				<SpaceTimePanel
+					fields={fields}
+					value={datetm}
+					onTimeChange={this.props.onTimeChanged}
+					timeHook={this.props.timeHook}
+					onGeoChange={this.props.onGeoChange}
+				/>
+				{/* 观象左栏 P2:四 field-title 节各自收编 XQSideSection(原语义图标保留),每节一卡与 P1 母版同构。 */}
+				<XQSideSection iconName="sliders" title="选项" storageKey="sanshi.options" className="horosa-sanshi-input-section">
+					<div className="horosa-sanshi-select-grid">
+						<label className="horosa-sanshi-select-field">
+							<span>模式</span>
+							<Select size="small" value={opt.mode} onChange={(v)=>this.props.onOptionChange('mode', v)}>
+								{GAME_TYPE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>时间算法</span>
+							<Select size="small" value={normalizeTimeAlg(opt.timeAlg)} onChange={this.props.onTimeAlgChange}>
+								{TIME_ALG_OPTIONS.map((item)=><Option key={`time_alg_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>性别</span>
+							<Select size="small" value={opt.sex} onChange={this.props.onGenderChange}>
+								{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>贵人</span>
+							<Select size="small" value={opt.guireng} onChange={(v)=>this.props.onOptionChange('guireng', v)}>
+								{GUIRENG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>排盘</span>
+							<Select size="small" value={opt.paiPanType} onChange={(v)=>this.props.onOptionChange('paiPanType', v)}>
+								{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>日界</span>
+							<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.props.onOptionChange('after23NewDay', v)}>
+								{DAY_SWITCH_OPTIONS.map((item)=><Option key={`day_switch_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>值使</span>
+							<Select disabled={['飞盘', '混合'].indexOf(opt.school || '转盘') >= 0} size="small" value={opt.zhiShiType} onChange={(v)=>this.props.onOptionChange('zhiShiType', v)}>
+								{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>黄道</span>
+							<Select size="small" value={AstroConst.zodiacSelectValue(opt.zodiacal, opt.siderealAyanamsa)} onChange={(v)=>this.props.onAstroZodiacalChange(v)} dropdownMatchSelectWidth={false}>
+								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+									<OptGroup label={grp.group} key={grp.group}>
+										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+									</OptGroup>
+								))}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>外圈</span>
+							<Select size="small" value={this.props.outerCoord} onChange={(v)=>this.props.onOuterCoordChange(v)}>
+								<Option value="ecliptic">黄道</Option>
+								<Option value="equatorial">赤道</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>虚实</span>
+							<Select size="small" value={this.props.showWeakSolid ? 1 : 0} onChange={(v)=>this.props.onShowWeakSolidChange(v === 1)}>
+								<Option value={1}>显示</Option>
+								<Option value={0}>隐藏</Option>
+							</Select>
+						</label>
+					</div>
+
+				</XQSideSection>
+
+				{/* 奇门遁甲流派/起局补充(对齐独立·默认零回归):盘式 + 阴盘报数 + 封局 + 置闰天数 */}
+				<XQSideSection iconName="qimen" title="奇门流派" storageKey="sanshi.qimen" className="horosa-sanshi-input-section">
+					<div className="horosa-sanshi-select-grid">
+						<label className="horosa-sanshi-select-field">
+							<span>盘式</span>
+							<Select size="small" value={opt.school || '转盘'} onChange={(v)=>this.props.onOptionChange('school', v)}>
+								{SCHOOL_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>起局</span>
+							<Select size="small" value={opt.qijuMethod} disabled={opt.paiPanType !== 3} onChange={(v)=>this.props.onOptionChange('qijuMethod', v)}>
+								{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						{opt.qijuMethod === 'shuzi' ? (
+							<label className="horosa-sanshi-select-field" style={{ gridColumn: '1 / -1' }}>
+								<span>报数</span>
+								<input
+									type="text"
+									inputMode="numeric"
+									value={opt.shuziReportNumber || ''}
+									onChange={(e)=>this.props.onOptionChange('shuziReportNumber', e.target.value)}
+									placeholder="阴盘起局:输入报数(各位求和÷9定局,余0作9)"
+									style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }}
+								/>
+							</label>
+						) : null}
+						<label className="horosa-sanshi-select-field">
+							<span>空亡</span>
+							<Select size="small" value={opt.kongMode} onChange={(v)=>this.props.onOptionChange('kongMode', v)}>
+								{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>驿马</span>
+							<Select size="small" value={opt.yimaMode} onChange={(v)=>this.props.onOptionChange('yimaMode', v)}>
+								{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>移星</span>
+							<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.props.onOptionChange('shiftPalace', v)}>
+								{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>封局</span>
+							<Select size="small" value={opt.fengJu ? 1 : 0} onChange={(v)=>this.props.onOptionChange('fengJu', v === 1)}>
+								{QIMEN_FENGJU_OPTIONS.map((item)=><Option key={`fengju_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						{opt.qijuMethod === 'zhirun' ? (
+							<label className="horosa-sanshi-select-field">
+								<span>置闰天数</span>
+								<Select size="small" value={opt.zhirunLeapDays || 9} onChange={(v)=>this.props.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
+									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+					</div>
+
+				</XQSideSection>
+
+				{/* 太乙流派(对齐独立·默认全 default=从盘字节不变):博弈 + 计神/文昌/客算间辰/三基/游神五开关 */}
+				<XQSideSection iconName="taiyi" title="太乙流派" storageKey="sanshi.taiyi" className="horosa-sanshi-input-section">
+					<div className="horosa-sanshi-select-grid">
+						<label className="horosa-sanshi-select-field">
+							<span>博弈</span>
+							<Select size="small" value={opt.gameTheory === 1 ? 1 : 0} onChange={(v)=>this.props.onOptionChange('gameTheory', v)}>
+								<Option value={0}>关闭</Option>
+								<Option value={1}>开启</Option>
+							</Select>
+						</label>
+						{[['jishen', '计神方向'], ['wenchang', '文昌重留'], ['keJianChen', '客算间辰'], ['sanji', '三基起宫'], ['youshen', '游神方向']].map(([k, label])=>(
+							<label className="horosa-sanshi-select-field" key={`ty-school-${k}`}>
+								<span>{label}</span>
+								<Select size="small" dropdownMatchSelectWidth={false} value={(opt.taiyiSchool || {})[k] || 'default'} onChange={(v)=>this.props.onOptionChange('taiyiSchool', { ...normalizeTaiyiSchool(opt.taiyiSchool), [k]: v })}>
+									{TAIYI_SCHOOL_OPTIONS[k].map((it)=><Option key={it.value} value={it.value}>{it.label}</Option>)}
+								</Select>
+							</label>
+						))}
+					</div>
+
+				</XQSideSection>
+
+				{/* 大六壬流派(对齐独立·默认零回归):换将/分昼夜/涉害取舍·起讫·始入/年神排序/昼夜阳阴/土旺衰 */}
+				<XQSideSection iconName="liureng" title="六壬流派" storageKey="sanshi.liureng" className="horosa-sanshi-input-section">
+					<div className="horosa-sanshi-select-grid">
+						<label className="horosa-sanshi-select-field">
+							<span>换将</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} onChange={(v)=>this.props.onOptionChange('yueJiangMethod', v)}>
+								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>分昼夜</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.fenZhouYe || 'chenhun'} onChange={(v)=>this.props.onOptionChange('fenZhouYe', v)}>
+								{LR_FENZHOUYE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>涉害取舍</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.seHaiMethod || 'app'} onChange={(v)=>this.props.onOptionChange('seHaiMethod', v)}>
+								{LR_SEHAI_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>涉害起讫</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.seHaiBoundary || 'app'} onChange={(v)=>this.props.onOptionChange('seHaiBoundary', v)}>
+								{LR_SEHAI_BOUNDARY_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>始入课</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.shiRuKe ? 1 : 0} onChange={(v)=>this.props.onOptionChange('shiRuKe', v === 1)}>
+								{LR_SHIRUKE_OPTIONS.map((item)=><Option key={`shiruke_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>年神排序</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yearShenShaSort || 'sanyuan'} onChange={(v)=>this.props.onOptionChange('yearShenShaSort', v)}>
+								{LR_YEAR_SHENSHA_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>昼夜阳阴</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yinyangSystem || 'danmu'} onChange={(v)=>this.props.onOptionChange('yinyangSystem', v)}>
+								{LR_YINYANG_SYSTEM_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>土旺衰</span>
+							<Select size="small" dropdownMatchSelectWidth={false} value={opt.tuWangShuai || 'siji'} onChange={(v)=>this.props.onOptionChange('tuWangShuai', v)}>
+								{LR_TUWANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+					</div>
+				</XQSideSection>
+
+				<div className="horosa-sanshi-action-row">
+					<Button type="primary" onClick={this.props.clickPlot} loading={this.props.loading} disabled={this.props.loading}>起盘</Button>
+					<Button onClick={this.props.clickSave}>保存</Button>
+				</div>
+			</div>
+		);
+	}
+}
+
+// horosa_sanshi_render_slice_v1(S2):右栏隐藏表单头(display:none 的 16 个 Select + PlusMinusTime)。
+// 隐藏≠免费:children 求值每渲照跑;收编后仅 fields/options/loading 引用变化时才重算这段 JSX。
+// captureRightTop 量高 ref 原样保留(函数型 prop,浅比视为恒等)。
+class SanShiRightHeaderForm extends Component{
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
+	render(){
+		const fields = this.props.fields || {};
+		const opt = this.props.options || {};
+		let datetm = new DateTime();
+		if(fields.date && fields.time){
+			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
+			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
+			if(fields.zone){
+				datetm.setZone(fields.zone.value);
+			}
+		}
+		return (
+				<div ref={this.props.captureRightTop} style={{ display: 'none', paddingBottom: 6, borderBottom: '1px solid var(--horosa-border, #f0f0f0)' }}>
+					<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+						<div>
+							<PlusMinusTime value={datetm} onChange={this.props.onTimeChanged} hook={this.props.timeHook} confirmOnAdjust />
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 4 }}>
+							<div>
+								<Select size="small" value={opt.mode} onChange={(v)=>this.props.onOptionChange('mode', v)} style={{ width: '100%' }}>
+									{GAME_TYPE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={normalizeTimeAlg(opt.timeAlg)} onChange={this.props.onTimeAlgChange} style={{ width: '100%' }}>
+									{TIME_ALG_OPTIONS.map((item)=><Option key={`time_alg_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.sex} onChange={this.props.onGenderChange} style={{ width: '100%' }}>
+									{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.guireng} onChange={(v)=>this.props.onOptionChange('guireng', v)} style={{ width: '100%' }}>
+									{GUIRENG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
+							<div>
+								<Select size="small" value={opt.paiPanType} onChange={(v)=>this.props.onOptionChange('paiPanType', v)} style={{ width: '100%' }}>
+									{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.props.onOptionChange('after23NewDay', v)} style={{ width: '100%' }}>
+									{DAY_SWITCH_OPTIONS.map((item)=><Option key={`day_switch_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select disabled={['飞盘', '混合'].indexOf(opt.school || '转盘') >= 0} size="small" value={opt.zhiShiType} onChange={(v)=>this.props.onOptionChange('zhiShiType', v)} style={{ width: '100%' }}>
+									{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
+							<div>
+								<Select
+									size="small"
+									value={opt.yueJiaQiJuType}
+									disabled={opt.paiPanType !== 1}
+									onChange={(v)=>this.props.onOptionChange('yueJiaQiJuType', v)}
+									style={{ width: '100%' }}
+								>
+									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.props.onOptionChange('shiftPalace', v)} style={{ width: '100%' }}>
+									{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
+							<div>
+								<Select size="small" value={opt.qijuMethod} disabled={opt.paiPanType !== 3} onChange={(v)=>this.props.onOptionChange('qijuMethod', v)} style={{ width: '100%' }}>
+									{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.kongMode} onChange={(v)=>this.props.onOptionChange('kongMode', v)} style={{ width: '100%' }}>
+									{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.yimaMode} onChange={(v)=>this.props.onOptionChange('yimaMode', v)} style={{ width: '100%' }}>
+									{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 4 }}>
+							<div>
+								<Select size="small" value={opt.taiyiStyle} onChange={(v)=>this.props.onOptionChange('taiyiStyle', v)} style={{ width: '100%' }}>
+									{TAIYI_STYLE_OPTIONS.map((item)=><Option key={`ty_style_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.taiyiAccum} onChange={(v)=>this.props.onOptionChange('taiyiAccum', v)} style={{ width: '100%' }}>
+									{TAIYI_ACCUM_OPTIONS.map((item)=><Option key={`ty_acc_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={AstroConst.zodiacSelectValue(opt.zodiacal, opt.siderealAyanamsa)} onChange={(v)=>this.props.onAstroZodiacalChange(v)} dropdownMatchSelectWidth={false} style={{ width: '100%' }}>
+									{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
+										<OptGroup label={grp.group} key={grp.group}>
+											{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+										</OptGroup>
+									))}
+								</Select>
+							</div>
+							<div>
+								<Select size="small" value={opt.hsys} onChange={(v)=>this.props.onAstroFieldOptionChange('hsys', v)} style={{ width: '100%' }}>
+									{getHousesOption()}
+								</Select>
+							</div>
+						</div>
+						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
+							<div>
+								<GeoCoordModal onOk={this.props.onGeoChange} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
+									<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
+								</GeoCoordModal>
+							</div>
+							<div>
+								<Button
+									size="small"
+									type="primary"
+									style={{ width: '100%' }}
+									onClick={this.props.clickPlot}
+									loading={this.props.loading}
+									disabled={this.props.loading}
+								>
+									起盘
+								</Button>
+							</div>
+							<div>
+								<Button size="small" style={{ width: '100%' }} onClick={this.props.clickSave}>保存</Button>
+							</div>
+						</div>
+						<div style={{ textAlign: 'right' }}>
+							<span>{fields.lon ? fields.lon.value : ''} {fields.lat ? fields.lat.value : ''}</span>
+						</div>
+					</div>
+				</div>
+		);
+	}
+}
+
+// horosa_sanshi_render_slice_v1(S4):中栏三式方盘整层(外圈 + 六壬圈 + 奇门八宫 + 中宫四课三传),
+// 本页最重的 DOM 子树。八项输入(dunjia/lrLayout/keData/sanChuan/outerData/boardSize/showWeakSolid/
+// outerCoord)+ showMeaning 全部按引用/标量浅比:重算落地(setState 换新引用)或开关翻转才重渲。
+class SanShiBoardLayer extends Component{
+	shouldComponentUpdate(nextProps, nextState){
+		if(nextState !== this.state){ return true; }
+		return !wrapperPropsEqual(this.props, nextProps);
+	}
+
+	renderOuterMarks(outerData, midFont, boardSize){
+		// 外圈文字按盘面尺寸连续缩放，避免在小窗口被最小字号“卡住”。
+		const scale = clamp((boardSize || 600) / 600, 0.62, 1.35);
+		const houseFont = clamp(Math.round(18 * scale), 10, 34);
+		const branchFont = clamp(Math.round(17 * scale), 9, 32);
+		const starFont = clamp(Math.round(16 * scale), 9, 30);
+		const showMeaning = !!this.props.showMeaning;
+		// 七政四余式「虚实」红绿点(八字源:四柱地支定实/四柱旬空推虚);仅 showWeakSolid 开启时算,默认显示。
+		const weakSolidMap = this.props.showWeakSolid ? buildSanshiWeakSolid(this.props.dunjia) : null;
+		return OUTER_RING_LAYOUT.map((item)=>{
+			const houses = outerData.housesByBranch[item.branch] || [];
+			const stars = outerData.starsByBranch[item.branch] || [];
+			const starsFull = outerData.starsByBranchFull && outerData.starsByBranchFull[item.branch]
+				? outerData.starsByBranchFull[item.branch]
+				: [];
+			const starsMeta = outerData.starsByBranchMeta && Array.isArray(outerData.starsByBranchMeta[item.branch]) && outerData.starsByBranchMeta[item.branch].length
+				? outerData.starsByBranchMeta[item.branch]
+				: stars.map((txt, idx)=>({
+					shortTxt: txt,
+					fullTxt: starsFull[idx] || txt,
+					objId: null,
+				}));
+			const starsLayout = getOuterStarsLayout(item.branch, starFont);
+			const starRows = [];
+			for(let i=0; i<starsMeta.length; i += starsLayout.perRow){
+				const row = starsMeta.slice(i, i + starsLayout.perRow);
+				const paddedRow = padOuterStarsRow(row, starsLayout.perRow, starsLayout.rowJustify);
+				starRows.push(paddedRow);
+			}
+			const houseTxt = houses.length ? houses.join('/') : '';
+			const houseMeaning = buildOuterHouseMeaningTip(houses);
+			const labelLayout = getOuterLabelLayout(item.branch, houseFont);
+			const branchMeaning = buildOuterBranchMeaningTip(item.branch);
+			return (
+				<div
+					key={`outer_${item.branch}`}
+					className={`${styles.outerCell} ${styles[`outerCell_${item.side}`]}`}
+					style={{
+						left: `${item.x0}%`,
+						top: `${item.y0}%`,
+						width: `${item.x1 - item.x0}%`,
+						height: `${item.y1 - item.y0}%`,
+					}}
+				>
+					{wrapWithMeaning(
+						<span
+							className={`${styles.outerLabel} ${styles.outerHouse}`}
+							data-meaning-placement="top"
+							style={{
+								fontSize: houseFont,
+								lineHeight: `${houseFont}px`,
+								...labelLayout.house,
+							}}
+						>
+							{houseTxt}
+						</span>,
+						showMeaning,
+						houseMeaning
+					)}
+					{wrapWithMeaning(
+						<span
+							className={`${styles.outerLabel} ${styles.outerBranch}`}
+							data-meaning-placement="top"
+							style={{
+								fontSize: branchFont,
+								lineHeight: `${branchFont}px`,
+								...labelLayout.branch,
+							}}
+						>
+							{item.branch}
+						</span>,
+						showMeaning,
+						branchMeaning
+					)}
+						{(()=>{
+							// 虚实红绿点:贴该地支宫格「朝盘心」一侧逐宫定位(WEAK_SOLID_POS);红=虚/绿=实,色同七政四余。
+							const ws = weakSolidMap && weakSolidMap[item.branch];
+							if(!ws || (!ws.weak && !ws.solid)){ return null; }
+							const dotR = clamp(Math.round(4.5 * scale), 4, 8);
+							const dots = [];
+							if(ws.solid){ dots.push({ k: 'solid', c: 'var(--moira-green, #008000)', t: `实${ws.solidPillars.join('')}` }); }
+							if(ws.weak){ dots.push({ k: 'weak', c: 'var(--moira-red, #ff0000)', t: `虚${ws.weakPillars.join('')}` }); }
+							return (
+								<span className={styles.outerWeakSolid} style={WEAK_SOLID_POS[item.branch] || { top: 2, right: 3 }} title={dots.map((d)=>d.t).join(' ')}>
+									{dots.map((d)=>(<i key={d.k} className={styles.outerWeakSolidDot} style={{ width: dotR, height: dotR, background: d.c }} />))}
+								</span>
+							);
+						})()}
+						{starsMeta.length ? (
+							<div
+								className={styles.outerStars}
+								style={{
+									fontSize: starFont,
+									lineHeight: `${Math.round(starFont * 1.12)}px`,
+									...starsLayout.style,
+								}}
+							>
+								{starRows.map((row, idx)=>(
+									<div
+										key={`outer_star_row_${item.branch}_${idx}`}
+										className={styles.outerStarsRow}
+										style={{ justifyContent: starsLayout.rowJustify }}
+									>
+											{row.map((star, rowIdx)=>(
+												star
+													? (
+														<span key={`outer_star_wrap_${item.branch}_${idx}_${rowIdx}`}>
+															{wrapWithMeaning(
+																<span
+																	className={styles.outerStarItem}
+																	data-meaning-placement="top"
+																	style={{ fontSize: starFont, lineHeight: `${Math.round(starFont * 1.12)}px` }}
+																>
+																	{safe(star.shortTxt, '')}
+																</span>,
+																showMeaning,
+																buildOuterStarMeaningTip(star)
+															)}
+														</span>
+													)
+													: (
+														<span
+															key={`outer_star_pad_${item.branch}_${idx}_${rowIdx}`}
+															className={`${styles.outerStarItem} ${styles.outerStarPlaceholder}`}
+															style={{ fontSize: starFont, lineHeight: `${Math.round(starFont * 1.12)}px` }}
+														>
+															占位
+														</span>
+													)
+											))}
+										</div>
+									))}
+							</div>
+						) : null}
+					</div>
+			);
+		});
+	}
+
+	renderLiuRengMarks(layout, midFont, boardSize){
+		if(!layout || !layout.downZi || !layout.upZi || !layout.houseTianJiang){
+			return null;
+		}
+		const showMeaning = !!this.props.showMeaning;
+		const scale = clamp((boardSize || 600) / 600, 0.62, 1.35);
+		return layout.downZi.map((branch, idx)=>{
+			const pos = LIURENG_RING_LAYOUT[branch];
+			if(!pos){
+				return null;
+			}
+			const up = layout.upZi[idx] || '';
+			const jiang = layout.houseTianJiang[idx] || '';
+			const god = shortTianJiang(layout.houseTianJiang[idx] || '');
+			// horosa_sanshi_render_slice_v1(S3):含义悬浮关闭时 wrapWithMeaning 原样返回节点、根本不读 tip ——
+			// 12 宫 ×2 份 tip 对象只在开关开着时才构建(开着时构建路径与原先逐字一致,纯省关态白算)。
+			const shenTip = showMeaning ? buildLiuRengShenTipObj(up) : null;
+			const jiangTip = showMeaning ? buildLiuRengHouseTipObj(jiang, up, branch) : null;
+			const isCardinal = pos.kind === 'cardinal';
+			// 六壬圈字体随盘面连续缩放：四正位略大于角位。
+			const font = isCardinal
+				? clamp(Math.round(20 * scale), 10, 36)
+				: clamp(Math.round(18 * scale), 9, 34);
+			if(!isCardinal){
+				const leftNum = parseFloat(`${pos.left}`) || 50;
+				const topNum = parseFloat(`${pos.top}`) || 50;
+				const dx = leftNum - 50;
+				const dy = topNum - 50;
+				const len = Math.sqrt(dx * dx + dy * dy) || 1;
+				const ux = dx / len;
+				const uy = dy / len;
+				// 角三角：地支远离中心，神将靠近中心；使用径向分离保证可读。
+				const outerShift = 3.1;
+				const innerShift = 2.5;
+				const ziLeft = `${leftNum + (ux * outerShift)}%`;
+				const ziTop = `${topNum + (uy * outerShift)}%`;
+				const godLeft = `${leftNum - (ux * innerShift)}%`;
+				const godTop = `${topNum - (uy * innerShift)}%`;
+				return [
+					<Fragment key={`lr_zi_wrap_${branch}_${idx}`}>
+						{wrapWithMeaning(
+							<div
+								className={`${styles.lrMark} ${styles.lrMarkZiItem}`}
+								data-meaning-placement="top"
+								style={{
+									left: ziLeft,
+									top: ziTop,
+									fontSize: font,
+									lineHeight: `${font}px`,
+									transform: 'translate(-50%, -50%)',
+								}}
+							>
+								{up}
+							</div>,
+							showMeaning,
+							shenTip
+						)}
+					</Fragment>,
+					<Fragment key={`lr_god_wrap_${branch}_${idx}`}>
+						{wrapWithMeaning(
+							<div
+								className={`${styles.lrMark} ${styles.lrMarkGodItem}`}
+								data-meaning-placement="top"
+								style={{
+									left: godLeft,
+									top: godTop,
+									fontSize: font,
+									lineHeight: `${font}px`,
+									transform: 'translate(-50%, -50%)',
+								}}
+							>
+								{god}
+							</div>,
+							showMeaning,
+							jiangTip
+						)}
+					</Fragment>,
+				];
+			}
+			const leftNum = parseFloat(`${pos.left}`) || 50;
+			const topNum = parseFloat(`${pos.top}`) || 50;
+			const dx = leftNum - 50;
+			const dy = topNum - 50;
+			const len = Math.sqrt(dx * dx + dy * dy) || 1;
+			const ux = dx / len;
+			const uy = dy / len;
+			const tx = -uy;
+			const ty = ux;
+			// 规则：地支始终远离中心，神将始终靠近中心；二者分开独立定位。
+			const outerShift = isCardinal
+				? Math.max(12, Math.round(font * 0.66))
+				: Math.max(12, Math.round(font * 0.68));
+			const innerShift = isCardinal
+				? Math.max(10, Math.round(font * 0.54))
+				: Math.max(9, Math.round(font * 0.54));
+			const tangentShift = isCardinal ? 0 : Math.max(6, Math.round(font * 0.38));
+			const ziShiftX = Math.round((ux * outerShift) + (tx * tangentShift));
+			const ziShiftY = Math.round((uy * outerShift) + (ty * tangentShift));
+			const godShiftX = Math.round((-ux * innerShift) - (tx * tangentShift));
+			const godShiftY = Math.round((-uy * innerShift) - (ty * tangentShift));
+			const ziTransform = `translate(calc(-50% + ${ziShiftX}px), calc(-50% + ${ziShiftY}px))`;
+			const godTransform = `translate(calc(-50% + ${godShiftX}px), calc(-50% + ${godShiftY}px))`;
+			return [
+				<Fragment key={`lr_zi_wrap_${branch}_${idx}`}>
+					{wrapWithMeaning(
+						<div
+							className={`${styles.lrMark} ${styles.lrMarkZiItem}`}
+							data-meaning-placement="top"
+							style={{
+								left: pos.left,
+								top: pos.top,
+								fontSize: font,
+								lineHeight: `${font}px`,
+								transform: ziTransform,
+							}}
+						>
+							{up}
+						</div>,
+						showMeaning,
+						shenTip
+					)}
+				</Fragment>,
+				<Fragment key={`lr_god_wrap_${branch}_${idx}`}>
+					{wrapWithMeaning(
+						<div
+							className={`${styles.lrMark} ${styles.lrMarkGodItem}`}
+							data-meaning-placement="top"
+							style={{
+								left: pos.left,
+								top: pos.top,
+								fontSize: font,
+								lineHeight: `${font}px`,
+								transform: godTransform,
+							}}
+						>
+							{god}
+						</div>,
+						showMeaning,
+						jiangTip
+					)}
+				</Fragment>,
+			];
+		});
+	}
+
+	renderQimenBlock(palaceNum, qimenMap, midFont, boardSize){
+		const cell = qimenMap[palaceNum] || {};
+		const pos = QIMEN_RING_POSITIONS[palaceNum];
+		if(!pos){
+			return null;
+		}
+		// 以宫格可用空间为准缩放，优先避免门框压住四角干神星。
+		const size = boardSize || 600;
+		const qScale = clamp(size / 600, 0.62, 1.28);
+		const ringCellPx = size * 0.111;
+		const qimenFont = clamp(Math.round(19 * qScale), 10, 28);
+		const doorMaxByCell = Math.round(ringCellPx * 0.34);
+		const doorSize = clamp(Math.round(22 * qScale), 9, doorMaxByCell);
+		const doorFont = clamp(Math.round(doorSize * 0.68), 8, Math.max(8, doorSize - 4));
+		const doorBorder = clamp(Math.round(1.1 * qScale * 10) / 10, 0.8, 1.6);
+		const isCorner = QIMEN_CORNER_PALACES.has(palaceNum);
+		const showMeaning = !!this.props.showMeaning;
+		// horosa_sanshi_render_slice_v1(S3):8 宫 ×5 份奇门象意 tip 同款惰性 —— 开关关着时零构建。
+		const tianGanTip = showMeaning ? toQimenMeaningTip(buildQimenXiangTipObj('stem', safe(cell.tianGan, ''))) : null;
+		const godTip = showMeaning ? toQimenMeaningTip(buildQimenXiangTipObj('god', safe(cell.god, ''))) : null;
+		const diGanTip = showMeaning ? toQimenMeaningTip(buildQimenXiangTipObj('stem', safe(cell.diGan, ''))) : null;
+		const starTip = showMeaning ? toQimenMeaningTip(buildQimenXiangTipObj('star', safe(cell.tianXing, ''))) : null;
+		const doorTip = showMeaning ? toQimenMeaningTip(buildQimenXiangTipObj('door', safe(cell.door, ''))) : null;
+		return (
+			<div
+				key={`qm_${palaceNum}`}
+				className={`${styles.qmBlock}${isCorner ? ` ${styles.qmBlockCorner}` : ''}`}
+				style={{ left: pos.left, top: pos.top }}
+			>
+				<div className={styles.qmRingCell} />
+				{wrapWithMeaning(
+					<div className={styles.qmTianGan} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianGan, ' ')}</div>,
+					showMeaning,
+					tianGanTip
+				)}
+				{wrapWithMeaning(
+					<div className={styles.qmGod} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.god, ' ')}</div>,
+					showMeaning,
+					godTip
+				)}
+				{wrapWithMeaning(
+					<div className={styles.qmDiGan} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.diGan, ' ')}</div>,
+					showMeaning,
+					diGanTip
+				)}
+				{wrapWithMeaning(
+					<div className={styles.qmStar} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianXing, ' ')}</div>,
+					showMeaning,
+					starTip
+				)}
+				{wrapWithMeaning(
+					<div
+						className={styles.qmDoorBox}
+						data-meaning-placement="top"
+						style={{ width: doorSize, height: doorSize, borderWidth: doorBorder }}
+					>
+						<div className={styles.qmDoor} style={{ fontSize: doorFont, lineHeight: `${doorFont}px` }}>{safe(cell.door, ' ')}</div>
+					</div>,
+					showMeaning,
+					doorTip
+				)}
+			</div>
+		);
+	}
+
+	renderCenterBlock(midFont, boardSize){
+		// horosa_sanshi_render_slice_v1(S3):中宫 14 份六壬神/将 tip 惰性化 —— showMeaning 提前到
+		// 四课/三传构造之前,关着时逐格置 null(wrapWithMeaning 关态不读 tip,开态与原先逐字一致)。
+		const showMeaning = !!this.props.showMeaning;
+		const keRaw = this.props.keData && Array.isArray(this.props.keData.raw) ? this.props.keData.raw : [];
+		const lrLayout = this.props.lrLayout || {};
+		const upZi = Array.isArray(lrLayout.upZi) ? lrLayout.upZi : [];
+		const downZi = Array.isArray(lrLayout.downZi) ? lrLayout.downZi : [];
+		const getDiByUp = (up)=>{
+			const idx = upZi.indexOf(`${up || ''}`);
+			if(idx < 0){
+				return '';
+			}
+			return downZi[idx] || '';
+		};
+		// 中宫四课按用户习惯固定为：从左到右 四、三、二、一。
+		const keOrder = [
+			{ idx: 3, label: '四课' },
+			{ idx: 2, label: '三课' },
+			{ idx: 1, label: '二课' },
+			{ idx: 0, label: '一课' },
+		];
+		const keCols = keOrder.map((one)=>{
+			const item = keRaw[one.idx] || [];
+			const zhi = safe(item[1], '—');
+			const godRaw = safe(item[0], '');
+			const di = getDiByUp(zhi);
+			return {
+				label: one.label,
+				// 两层天干上下位置互换（上层取 item[1]，下层取 item[2]）。
+				main1: zhi,
+				main2: safe(item[2], '—'),
+				god: shortTianJiang(godRaw),
+				shenTip: showMeaning ? buildLiuRengShenTipObj(zhi) : null,
+				jiangTip: showMeaning ? buildLiuRengHouseTipObj(godRaw, zhi, di || zhi) : null,
+			};
+		});
+		const chuan = this.props.sanChuan;
+		const chuanLabels = ['初传', '中传', '末传'];
+		const chuanRows = [0, 1, 2].map((idx)=>{
+			const gz = chuan && chuan.cuang ? safe(chuan.cuang[idx], '') : '';
+			const parsed = splitGanZhi(gz);
+			const godRaw = chuan && chuan.tianJiang ? safe(chuan.tianJiang[idx], '') : '';
+			const di = getDiByUp(parsed.zhi);
+			return {
+				label: chuanLabels[idx],
+				gan: parsed.gan,
+				zhi: parsed.zhi,
+				god: shortTianJiang(godRaw),
+				shenTip: showMeaning ? buildLiuRengShenTipObj(parsed.zhi) : null,
+				jiangTip: showMeaning ? buildLiuRengHouseTipObj(godRaw, parsed.zhi, di || parsed.zhi) : null,
+			};
+		});
+		const edgePad = 2;
+		const centerPx = Math.max(140, Math.round((boardSize || 500) * 0.334));
+		const availableH = Math.max(90, centerPx - edgePad * 2);
+		const centerScale = clamp((boardSize || 600) / 600, 0.62, 1.35);
+		// 目标：四课(3行) + 三传(3行) 统一字号，并占中宫约85%可用高度，避免缩放时过挤。
+		const targetTextH = Math.max(72, Math.round(availableH * 0.85));
+		const linePx = clamp(Math.round(targetTextH / 6), 12, 52);
+		const sectionH = linePx * 3;
+		const txtSize = clamp(Math.min(Math.round(linePx * 0.95), Math.round(30 * centerScale)), 11, 46);
+		return (
+			<div key="qm_center" className={`${styles.qmBlock} ${styles.qmCenter}`} style={{ left: '50%', top: '50%' }}>
+				<div
+					className={styles.centerKe}
+					style={{
+						fontSize: txtSize,
+						lineHeight: `${linePx}px`,
+						top: edgePad,
+						height: sectionH,
+					}}
+				>
+					{keCols.map((col, idx)=>(
+						<div key={`ke_col_${idx}`} className={styles.centerKeCol} style={{ height: sectionH }}>
+							{wrapWithMeaning(
+								<div className={styles.centerKeGray} data-meaning-placement="top">{col.god}</div>,
+								showMeaning,
+								col.jiangTip
+							)}
+							{wrapWithMeaning(
+								<div className={styles.centerKeMain} data-meaning-placement="top">{col.main1}</div>,
+								showMeaning,
+								col.shenTip
+							)}
+							<div className={styles.centerKeMain}>{col.main2}</div>
+						</div>
+					))}
+				</div>
+				<div
+					className={styles.centerChuan}
+					style={{
+						fontSize: txtSize,
+						lineHeight: `${linePx}px`,
+						bottom: edgePad,
+						height: sectionH,
+					}}
+				>
+					{chuanRows.map((row, idx)=>(
+						<div key={`chuan_row_${idx}`} className={styles.centerChuanRow}>
+							<span className={styles.centerChuanGray}>{row.gan || ''}</span>
+							{wrapWithMeaning(
+								<span className={styles.centerChuanMain} data-meaning-placement="top">{row.zhi}</span>,
+								showMeaning,
+								row.shenTip
+							)}
+							{wrapWithMeaning(
+								<span className={styles.centerChuanGray} data-meaning-placement="top">{row.god}</span>,
+								showMeaning,
+								row.jiangTip
+							)}
+						</div>
+					))}
+				</div>
+			</div>
+		);
+	}
+
+	renderBoardSvg(){
+		return (
+			<svg className={styles.boardSvg} viewBox="0 0 1000 1000" preserveAspectRatio="none">
+				<rect x="0" y="0" width="1000" height="1000" className={styles.fillOuterRing} />
+				<rect x="111" y="111" width="778" height="778" className={styles.fillQimenRing} />
+				<rect x="222" y="222" width="556" height="556" className={styles.fillLiurengRing} />
+				<rect x="333.33" y="333.33" width="333.34" height="333.34" className={styles.fillCenter} />
+
+				<rect x="1" y="1" width="998" height="998" className={styles.strokeMain} />
+				<line x1="333.33" y1="0" x2="333.33" y2="1000" className={styles.strokeMain} />
+				<line x1="666.67" y1="0" x2="666.67" y2="1000" className={styles.strokeMain} />
+				<line x1="0" y1="333.33" x2="1000" y2="333.33" className={styles.strokeMain} />
+				<line x1="0" y1="666.67" x2="1000" y2="666.67" className={styles.strokeMain} />
+
+				<rect x="111" y="111" width="778" height="778" className={styles.strokeSub} />
+				<rect x="222" y="222" width="556" height="556" className={styles.strokeSub} />
+				<rect x="333.33" y="333.33" width="333.34" height="333.34" className={styles.strokeSub} />
+
+					<line x1="0" y1="0" x2="111" y2="111" className={styles.strokeMain} />
+					<line x1="1000" y1="0" x2="889" y2="111" className={styles.strokeMain} />
+					<line x1="0" y1="1000" x2="111" y2="889" className={styles.strokeMain} />
+					<line x1="1000" y1="1000" x2="889" y2="889" className={styles.strokeMain} />
+
+					<line x1="111" y1="111" x2="222" y2="222" className={styles.strokeMain} />
+					<line x1="889" y1="111" x2="778" y2="222" className={styles.strokeMain} />
+					<line x1="111" y1="889" x2="222" y2="778" className={styles.strokeMain} />
+					<line x1="889" y1="889" x2="778" y2="778" className={styles.strokeMain} />
+
+					<line x1="222" y1="222" x2="333.33" y2="333.33" className={styles.strokeMain} />
+					<line x1="778" y1="222" x2="666.67" y2="333.33" className={styles.strokeMain} />
+					<line x1="222" y1="778" x2="333.33" y2="666.67" className={styles.strokeMain} />
+					<line x1="778" y1="778" x2="666.67" y2="666.67" className={styles.strokeMain} />
+
+				<line x1="333.33" y1="222" x2="333.33" y2="333.33" className={styles.strokeSub} />
+				<line x1="666.67" y1="222" x2="666.67" y2="333.33" className={styles.strokeSub} />
+
+				<line x1="333.33" y1="666.67" x2="333.33" y2="778" className={styles.strokeSub} />
+				<line x1="666.67" y1="666.67" x2="666.67" y2="778" className={styles.strokeSub} />
+
+				<line x1="222" y1="333.33" x2="333.33" y2="333.33" className={styles.strokeSub} />
+				<line x1="222" y1="666.67" x2="333.33" y2="666.67" className={styles.strokeSub} />
+
+				<line x1="666.67" y1="333.33" x2="778" y2="333.33" className={styles.strokeSub} />
+				<line x1="666.67" y1="666.67" x2="778" y2="666.67" className={styles.strokeSub} />
+			</svg>
+		);
+	}
+
+	render(){
+		const boardSize = this.props.boardSize;
+		const midFont = Math.max(10, Math.round(boardSize * 0.018));
+		const qimenMap = {};
+		if(this.props.dunjia && this.props.dunjia.cells){
+			this.props.dunjia.cells.forEach((c)=>{
+				qimenMap[c.palaceNum] = c;
+			});
+		}
+		const qmBlocks = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>this.renderQimenBlock(num, qimenMap, midFont, boardSize));
+		return (
+			<div className={styles.middleWrap} style={{ width: boardSize, maxWidth: '100%' }}>
+				<div className={styles.middleBoard} style={{ width: boardSize, height: boardSize }}>
+					{this.renderBoardSvg()}
+					<div className={styles.boardLayer}>
+						{this.renderOuterMarks(this.props.outerData, midFont, boardSize)}
+						{this.renderLiuRengMarks(this.props.lrLayout, midFont, boardSize)}
+						{qmBlocks}
+						{this.renderCenterBlock(midFont, boardSize)}
+					</div>
+				</div>
+			</div>
+		);
+	}
+}
+
 class SanShiUnitedMain extends Component{
 	constructor(props){
 		super(props);
@@ -3432,7 +4402,14 @@ class SanShiUnitedMain extends Component{
 			lat: flds && flds.lat ? flds.lat.value : '',
 		};
 		this.lastRecalcSignature = recalcSignature;
-		this.setState({
+		// horosa_sanshi_render_slice_v1(S5):提交并帧。refreshAll 尾部原本还要补一次
+		// setState({loading:false, displaySolarTime})(两次提交=两次全树渲染,中间还闪一帧
+		// 「新盘面 + 旧 loading 遮罩」)。把这两键并进本次大提交:loading 置 true 的三处
+		// (refreshAll 种子缺失/clickPlot 同步链/外部选例同步)都以「本次重算落地」为终点,
+		// 此处收口语义不变;displaySolarTime 仅在调用方显式传入(refreshAll 主链)且确有变化
+		// 时并入,3624/3635 等未传参路径不受影响。refreshAll 尾部补丁原样保留:本函数因签名
+		// 相同早退(return false)时仍由它兜底,并帧后常态下其补丁为空 = 不再产生第二次提交。
+		const mergedCommit = {
 			nongli,
 			liureng,
 			dunjia,
@@ -3442,7 +4419,14 @@ class SanShiUnitedMain extends Component{
 			lrLayout: lrBundle.lrLayout,
 			keData: lrBundle.keData,
 			sanChuan: lrBundle.sanChuan,
-		}, ()=>{
+		};
+		if(this.state.loading){
+			mergedCommit.loading = false;
+		}
+		if(displaySolarTime !== undefined && displaySolarTime !== this.state.displaySolarTime){
+			mergedCommit.displaySolarTime = displaySolarTime;
+		}
+		this.setState(mergedCommit, ()=>{
 			// horosa_panel_ready_v1:三式合一的中栏(六壬/遁甲/太乙三盘)与右栏 5 页签全部派生自本次
 			// setState 的这一组字段,故这里 = 「中栏+右栏画完」。本行已在 recalcByNongli 的
 			// SANSHI_RECALC_DEFER_MS 去抖与 refreshSeq 竞态守卫【之后】(陈旧轮次在上游即已 return),
@@ -3618,8 +4602,19 @@ class SanShiUnitedMain extends Component{
 									this.setState({ displaySolarTime: nextDisplaySolarTime });
 								}
 							}).catch(()=>null);
-							if(!usedFallback && getNongliKey(refinedNongli) === baseNongliKey){
-								return;
+							// horosa_sanshi_render_slice_v1(S6):精算农历同键短路。fallback 路径原本因
+							// usedFallback 无条件补跑一轮 recalcByNongli,但六键(年/月/日干支/时辰/节气/闰年)
+							// 逐字相同的精算结果在 performRecalcByNongli 里也只会撞 recalcSignature 早退 ——
+							// 白付一次去抖定时器 + 全套签名计算。仅当上一轮已产出健康盘面(dunjia 在位且无
+							// recalcError)才跳过;键不同、或上一轮失败(保留这次兜底重试机会)照旧全算,
+							// 非 fallback 路径的既有短路语义逐字不变。
+							if(getNongliKey(refinedNongli) === baseNongliKey){
+								if(!usedFallback){
+									return;
+								}
+								if(this.state.dunjia && !this.lastRecalcError){
+									return;
+								}
 							}
 						this.recalcByNongli(fields, refinedNongli);
 					}).catch(()=>null);
@@ -3781,517 +4776,11 @@ class SanShiUnitedMain extends Component{
 		);
 	}
 
-	renderOuterMarks(outerData, midFont, boardSize){
-		// 外圈文字按盘面尺寸连续缩放，避免在小窗口被最小字号“卡住”。
-		const scale = clamp((boardSize || 600) / 600, 0.62, 1.35);
-		const houseFont = clamp(Math.round(18 * scale), 10, 34);
-		const branchFont = clamp(Math.round(17 * scale), 9, 32);
-		const starFont = clamp(Math.round(16 * scale), 9, 30);
-		const showMeaning = isMeaningEnabled(this.props.showAstroMeaning);
-		// 七政四余式「虚实」红绿点(八字源:四柱地支定实/四柱旬空推虚);仅 showWeakSolid 开启时算,默认显示。
-		const weakSolidMap = this.state.showWeakSolid ? buildSanshiWeakSolid(this.state.dunjia) : null;
-		return OUTER_RING_LAYOUT.map((item)=>{
-			const houses = outerData.housesByBranch[item.branch] || [];
-			const stars = outerData.starsByBranch[item.branch] || [];
-			const starsFull = outerData.starsByBranchFull && outerData.starsByBranchFull[item.branch]
-				? outerData.starsByBranchFull[item.branch]
-				: [];
-			const starsMeta = outerData.starsByBranchMeta && Array.isArray(outerData.starsByBranchMeta[item.branch]) && outerData.starsByBranchMeta[item.branch].length
-				? outerData.starsByBranchMeta[item.branch]
-				: stars.map((txt, idx)=>({
-					shortTxt: txt,
-					fullTxt: starsFull[idx] || txt,
-					objId: null,
-				}));
-			const starsLayout = getOuterStarsLayout(item.branch, starFont);
-			const starRows = [];
-			for(let i=0; i<starsMeta.length; i += starsLayout.perRow){
-				const row = starsMeta.slice(i, i + starsLayout.perRow);
-				const paddedRow = padOuterStarsRow(row, starsLayout.perRow, starsLayout.rowJustify);
-				starRows.push(paddedRow);
-			}
-			const houseTxt = houses.length ? houses.join('/') : '';
-			const houseMeaning = buildOuterHouseMeaningTip(houses);
-			const labelLayout = getOuterLabelLayout(item.branch, houseFont);
-			const branchMeaning = buildOuterBranchMeaningTip(item.branch);
-			return (
-				<div
-					key={`outer_${item.branch}`}
-					className={`${styles.outerCell} ${styles[`outerCell_${item.side}`]}`}
-					style={{
-						left: `${item.x0}%`,
-						top: `${item.y0}%`,
-						width: `${item.x1 - item.x0}%`,
-						height: `${item.y1 - item.y0}%`,
-					}}
-				>
-					{wrapWithMeaning(
-						<span
-							className={`${styles.outerLabel} ${styles.outerHouse}`}
-							data-meaning-placement="top"
-							style={{
-								fontSize: houseFont,
-								lineHeight: `${houseFont}px`,
-								...labelLayout.house,
-							}}
-						>
-							{houseTxt}
-						</span>,
-						showMeaning,
-						houseMeaning
-					)}
-					{wrapWithMeaning(
-						<span
-							className={`${styles.outerLabel} ${styles.outerBranch}`}
-							data-meaning-placement="top"
-							style={{
-								fontSize: branchFont,
-								lineHeight: `${branchFont}px`,
-								...labelLayout.branch,
-							}}
-						>
-							{item.branch}
-						</span>,
-						showMeaning,
-						branchMeaning
-					)}
-						{(()=>{
-							// 虚实红绿点:贴该地支宫格「朝盘心」一侧逐宫定位(WEAK_SOLID_POS);红=虚/绿=实,色同七政四余。
-							const ws = weakSolidMap && weakSolidMap[item.branch];
-							if(!ws || (!ws.weak && !ws.solid)){ return null; }
-							const dotR = clamp(Math.round(4.5 * scale), 4, 8);
-							const dots = [];
-							if(ws.solid){ dots.push({ k: 'solid', c: 'var(--moira-green, #008000)', t: `实${ws.solidPillars.join('')}` }); }
-							if(ws.weak){ dots.push({ k: 'weak', c: 'var(--moira-red, #ff0000)', t: `虚${ws.weakPillars.join('')}` }); }
-							return (
-								<span className={styles.outerWeakSolid} style={WEAK_SOLID_POS[item.branch] || { top: 2, right: 3 }} title={dots.map((d)=>d.t).join(' ')}>
-									{dots.map((d)=>(<i key={d.k} className={styles.outerWeakSolidDot} style={{ width: dotR, height: dotR, background: d.c }} />))}
-								</span>
-							);
-						})()}
-						{starsMeta.length ? (
-							<div
-								className={styles.outerStars}
-								style={{
-									fontSize: starFont,
-									lineHeight: `${Math.round(starFont * 1.12)}px`,
-									...starsLayout.style,
-								}}
-							>
-								{starRows.map((row, idx)=>(
-									<div
-										key={`outer_star_row_${item.branch}_${idx}`}
-										className={styles.outerStarsRow}
-										style={{ justifyContent: starsLayout.rowJustify }}
-									>
-											{row.map((star, rowIdx)=>(
-												star
-													? (
-														<span key={`outer_star_wrap_${item.branch}_${idx}_${rowIdx}`}>
-															{wrapWithMeaning(
-																<span
-																	className={styles.outerStarItem}
-																	data-meaning-placement="top"
-																	style={{ fontSize: starFont, lineHeight: `${Math.round(starFont * 1.12)}px` }}
-																>
-																	{safe(star.shortTxt, '')}
-																</span>,
-																showMeaning,
-																buildOuterStarMeaningTip(star)
-															)}
-														</span>
-													)
-													: (
-														<span
-															key={`outer_star_pad_${item.branch}_${idx}_${rowIdx}`}
-															className={`${styles.outerStarItem} ${styles.outerStarPlaceholder}`}
-															style={{ fontSize: starFont, lineHeight: `${Math.round(starFont * 1.12)}px` }}
-														>
-															占位
-														</span>
-													)
-											))}
-										</div>
-									))}
-							</div>
-						) : null}
-					</div>
-			);
-		});
-	}
-
-	renderLiuRengMarks(layout, midFont, boardSize){
-		if(!layout || !layout.downZi || !layout.upZi || !layout.houseTianJiang){
-			return null;
-		}
-		const showMeaning = isMeaningEnabled(this.props.showAstroMeaning);
-		const scale = clamp((boardSize || 600) / 600, 0.62, 1.35);
-		return layout.downZi.map((branch, idx)=>{
-			const pos = LIURENG_RING_LAYOUT[branch];
-			if(!pos){
-				return null;
-			}
-			const up = layout.upZi[idx] || '';
-			const jiang = layout.houseTianJiang[idx] || '';
-			const god = shortTianJiang(layout.houseTianJiang[idx] || '');
-			const shenTip = buildLiuRengShenTipObj(up);
-			const jiangTip = buildLiuRengHouseTipObj(jiang, up, branch);
-			const isCardinal = pos.kind === 'cardinal';
-			// 六壬圈字体随盘面连续缩放：四正位略大于角位。
-			const font = isCardinal
-				? clamp(Math.round(20 * scale), 10, 36)
-				: clamp(Math.round(18 * scale), 9, 34);
-			if(!isCardinal){
-				const leftNum = parseFloat(`${pos.left}`) || 50;
-				const topNum = parseFloat(`${pos.top}`) || 50;
-				const dx = leftNum - 50;
-				const dy = topNum - 50;
-				const len = Math.sqrt(dx * dx + dy * dy) || 1;
-				const ux = dx / len;
-				const uy = dy / len;
-				// 角三角：地支远离中心，神将靠近中心；使用径向分离保证可读。
-				const outerShift = 3.1;
-				const innerShift = 2.5;
-				const ziLeft = `${leftNum + (ux * outerShift)}%`;
-				const ziTop = `${topNum + (uy * outerShift)}%`;
-				const godLeft = `${leftNum - (ux * innerShift)}%`;
-				const godTop = `${topNum - (uy * innerShift)}%`;
-				return [
-					<Fragment key={`lr_zi_wrap_${branch}_${idx}`}>
-						{wrapWithMeaning(
-							<div
-								className={`${styles.lrMark} ${styles.lrMarkZiItem}`}
-								data-meaning-placement="top"
-								style={{
-									left: ziLeft,
-									top: ziTop,
-									fontSize: font,
-									lineHeight: `${font}px`,
-									transform: 'translate(-50%, -50%)',
-								}}
-							>
-								{up}
-							</div>,
-							showMeaning,
-							shenTip
-						)}
-					</Fragment>,
-					<Fragment key={`lr_god_wrap_${branch}_${idx}`}>
-						{wrapWithMeaning(
-							<div
-								className={`${styles.lrMark} ${styles.lrMarkGodItem}`}
-								data-meaning-placement="top"
-								style={{
-									left: godLeft,
-									top: godTop,
-									fontSize: font,
-									lineHeight: `${font}px`,
-									transform: 'translate(-50%, -50%)',
-								}}
-							>
-								{god}
-							</div>,
-							showMeaning,
-							jiangTip
-						)}
-					</Fragment>,
-				];
-			}
-			const leftNum = parseFloat(`${pos.left}`) || 50;
-			const topNum = parseFloat(`${pos.top}`) || 50;
-			const dx = leftNum - 50;
-			const dy = topNum - 50;
-			const len = Math.sqrt(dx * dx + dy * dy) || 1;
-			const ux = dx / len;
-			const uy = dy / len;
-			const tx = -uy;
-			const ty = ux;
-			// 规则：地支始终远离中心，神将始终靠近中心；二者分开独立定位。
-			const outerShift = isCardinal
-				? Math.max(12, Math.round(font * 0.66))
-				: Math.max(12, Math.round(font * 0.68));
-			const innerShift = isCardinal
-				? Math.max(10, Math.round(font * 0.54))
-				: Math.max(9, Math.round(font * 0.54));
-			const tangentShift = isCardinal ? 0 : Math.max(6, Math.round(font * 0.38));
-			const ziShiftX = Math.round((ux * outerShift) + (tx * tangentShift));
-			const ziShiftY = Math.round((uy * outerShift) + (ty * tangentShift));
-			const godShiftX = Math.round((-ux * innerShift) - (tx * tangentShift));
-			const godShiftY = Math.round((-uy * innerShift) - (ty * tangentShift));
-			const ziTransform = `translate(calc(-50% + ${ziShiftX}px), calc(-50% + ${ziShiftY}px))`;
-			const godTransform = `translate(calc(-50% + ${godShiftX}px), calc(-50% + ${godShiftY}px))`;
-			return [
-				<Fragment key={`lr_zi_wrap_${branch}_${idx}`}>
-					{wrapWithMeaning(
-						<div
-							className={`${styles.lrMark} ${styles.lrMarkZiItem}`}
-							data-meaning-placement="top"
-							style={{
-								left: pos.left,
-								top: pos.top,
-								fontSize: font,
-								lineHeight: `${font}px`,
-								transform: ziTransform,
-							}}
-						>
-							{up}
-						</div>,
-						showMeaning,
-						shenTip
-					)}
-				</Fragment>,
-				<Fragment key={`lr_god_wrap_${branch}_${idx}`}>
-					{wrapWithMeaning(
-						<div
-							className={`${styles.lrMark} ${styles.lrMarkGodItem}`}
-							data-meaning-placement="top"
-							style={{
-								left: pos.left,
-								top: pos.top,
-								fontSize: font,
-								lineHeight: `${font}px`,
-								transform: godTransform,
-							}}
-						>
-							{god}
-						</div>,
-						showMeaning,
-						jiangTip
-					)}
-				</Fragment>,
-			];
-		});
-	}
-
-	renderQimenBlock(palaceNum, qimenMap, midFont, boardSize){
-		const cell = qimenMap[palaceNum] || {};
-		const pos = QIMEN_RING_POSITIONS[palaceNum];
-		if(!pos){
-			return null;
-		}
-		// 以宫格可用空间为准缩放，优先避免门框压住四角干神星。
-		const size = boardSize || 600;
-		const qScale = clamp(size / 600, 0.62, 1.28);
-		const ringCellPx = size * 0.111;
-		const qimenFont = clamp(Math.round(19 * qScale), 10, 28);
-		const doorMaxByCell = Math.round(ringCellPx * 0.34);
-		const doorSize = clamp(Math.round(22 * qScale), 9, doorMaxByCell);
-		const doorFont = clamp(Math.round(doorSize * 0.68), 8, Math.max(8, doorSize - 4));
-		const doorBorder = clamp(Math.round(1.1 * qScale * 10) / 10, 0.8, 1.6);
-		const isCorner = QIMEN_CORNER_PALACES.has(palaceNum);
-		const showMeaning = isMeaningEnabled(this.props.showAstroMeaning);
-		const tianGanTip = toQimenMeaningTip(buildQimenXiangTipObj('stem', safe(cell.tianGan, '')));
-		const godTip = toQimenMeaningTip(buildQimenXiangTipObj('god', safe(cell.god, '')));
-		const diGanTip = toQimenMeaningTip(buildQimenXiangTipObj('stem', safe(cell.diGan, '')));
-		const starTip = toQimenMeaningTip(buildQimenXiangTipObj('star', safe(cell.tianXing, '')));
-		const doorTip = toQimenMeaningTip(buildQimenXiangTipObj('door', safe(cell.door, '')));
-		return (
-			<div
-				key={`qm_${palaceNum}`}
-				className={`${styles.qmBlock}${isCorner ? ` ${styles.qmBlockCorner}` : ''}`}
-				style={{ left: pos.left, top: pos.top }}
-			>
-				<div className={styles.qmRingCell} />
-				{wrapWithMeaning(
-					<div className={styles.qmTianGan} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianGan, ' ')}</div>,
-					showMeaning,
-					tianGanTip
-				)}
-				{wrapWithMeaning(
-					<div className={styles.qmGod} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.god, ' ')}</div>,
-					showMeaning,
-					godTip
-				)}
-				{wrapWithMeaning(
-					<div className={styles.qmDiGan} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.diGan, ' ')}</div>,
-					showMeaning,
-					diGanTip
-				)}
-				{wrapWithMeaning(
-					<div className={styles.qmStar} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianXing, ' ')}</div>,
-					showMeaning,
-					starTip
-				)}
-				{wrapWithMeaning(
-					<div
-						className={styles.qmDoorBox}
-						data-meaning-placement="top"
-						style={{ width: doorSize, height: doorSize, borderWidth: doorBorder }}
-					>
-						<div className={styles.qmDoor} style={{ fontSize: doorFont, lineHeight: `${doorFont}px` }}>{safe(cell.door, ' ')}</div>
-					</div>,
-					showMeaning,
-					doorTip
-				)}
-			</div>
-		);
-	}
-
-	renderCenterBlock(midFont, boardSize){
-		const keRaw = this.state.keData && Array.isArray(this.state.keData.raw) ? this.state.keData.raw : [];
-		const lrLayout = this.state.lrLayout || {};
-		const upZi = Array.isArray(lrLayout.upZi) ? lrLayout.upZi : [];
-		const downZi = Array.isArray(lrLayout.downZi) ? lrLayout.downZi : [];
-		const getDiByUp = (up)=>{
-			const idx = upZi.indexOf(`${up || ''}`);
-			if(idx < 0){
-				return '';
-			}
-			return downZi[idx] || '';
-		};
-		// 中宫四课按用户习惯固定为：从左到右 四、三、二、一。
-		const keOrder = [
-			{ idx: 3, label: '四课' },
-			{ idx: 2, label: '三课' },
-			{ idx: 1, label: '二课' },
-			{ idx: 0, label: '一课' },
-		];
-		const keCols = keOrder.map((one)=>{
-			const item = keRaw[one.idx] || [];
-			const zhi = safe(item[1], '—');
-			const godRaw = safe(item[0], '');
-			const di = getDiByUp(zhi);
-			return {
-				label: one.label,
-				// 两层天干上下位置互换（上层取 item[1]，下层取 item[2]）。
-				main1: zhi,
-				main2: safe(item[2], '—'),
-				god: shortTianJiang(godRaw),
-				shenTip: buildLiuRengShenTipObj(zhi),
-				jiangTip: buildLiuRengHouseTipObj(godRaw, zhi, di || zhi),
-			};
-		});
-		const chuan = this.state.sanChuan;
-		const chuanLabels = ['初传', '中传', '末传'];
-		const chuanRows = [0, 1, 2].map((idx)=>{
-			const gz = chuan && chuan.cuang ? safe(chuan.cuang[idx], '') : '';
-			const parsed = splitGanZhi(gz);
-			const godRaw = chuan && chuan.tianJiang ? safe(chuan.tianJiang[idx], '') : '';
-			const di = getDiByUp(parsed.zhi);
-			return {
-				label: chuanLabels[idx],
-				gan: parsed.gan,
-				zhi: parsed.zhi,
-				god: shortTianJiang(godRaw),
-				shenTip: buildLiuRengShenTipObj(parsed.zhi),
-				jiangTip: buildLiuRengHouseTipObj(godRaw, parsed.zhi, di || parsed.zhi),
-			};
-		});
-		const showMeaning = isMeaningEnabled(this.props.showAstroMeaning);
-		const edgePad = 2;
-		const centerPx = Math.max(140, Math.round((boardSize || 500) * 0.334));
-		const availableH = Math.max(90, centerPx - edgePad * 2);
-		const centerScale = clamp((boardSize || 600) / 600, 0.62, 1.35);
-		// 目标：四课(3行) + 三传(3行) 统一字号，并占中宫约85%可用高度，避免缩放时过挤。
-		const targetTextH = Math.max(72, Math.round(availableH * 0.85));
-		const linePx = clamp(Math.round(targetTextH / 6), 12, 52);
-		const sectionH = linePx * 3;
-		const txtSize = clamp(Math.min(Math.round(linePx * 0.95), Math.round(30 * centerScale)), 11, 46);
-		return (
-			<div key="qm_center" className={`${styles.qmBlock} ${styles.qmCenter}`} style={{ left: '50%', top: '50%' }}>
-				<div
-					className={styles.centerKe}
-					style={{
-						fontSize: txtSize,
-						lineHeight: `${linePx}px`,
-						top: edgePad,
-						height: sectionH,
-					}}
-				>
-					{keCols.map((col, idx)=>(
-						<div key={`ke_col_${idx}`} className={styles.centerKeCol} style={{ height: sectionH }}>
-							{wrapWithMeaning(
-								<div className={styles.centerKeGray} data-meaning-placement="top">{col.god}</div>,
-								showMeaning,
-								col.jiangTip
-							)}
-							{wrapWithMeaning(
-								<div className={styles.centerKeMain} data-meaning-placement="top">{col.main1}</div>,
-								showMeaning,
-								col.shenTip
-							)}
-							<div className={styles.centerKeMain}>{col.main2}</div>
-						</div>
-					))}
-				</div>
-				<div
-					className={styles.centerChuan}
-					style={{
-						fontSize: txtSize,
-						lineHeight: `${linePx}px`,
-						bottom: edgePad,
-						height: sectionH,
-					}}
-				>
-					{chuanRows.map((row, idx)=>(
-						<div key={`chuan_row_${idx}`} className={styles.centerChuanRow}>
-							<span className={styles.centerChuanGray}>{row.gan || ''}</span>
-							{wrapWithMeaning(
-								<span className={styles.centerChuanMain} data-meaning-placement="top">{row.zhi}</span>,
-								showMeaning,
-								row.shenTip
-							)}
-							{wrapWithMeaning(
-								<span className={styles.centerChuanGray} data-meaning-placement="top">{row.god}</span>,
-								showMeaning,
-								row.jiangTip
-							)}
-						</div>
-					))}
-				</div>
-			</div>
-		);
-	}
-
-	renderBoardSvg(){
-		return (
-			<svg className={styles.boardSvg} viewBox="0 0 1000 1000" preserveAspectRatio="none">
-				<rect x="0" y="0" width="1000" height="1000" className={styles.fillOuterRing} />
-				<rect x="111" y="111" width="778" height="778" className={styles.fillQimenRing} />
-				<rect x="222" y="222" width="556" height="556" className={styles.fillLiurengRing} />
-				<rect x="333.33" y="333.33" width="333.34" height="333.34" className={styles.fillCenter} />
-
-				<rect x="1" y="1" width="998" height="998" className={styles.strokeMain} />
-				<line x1="333.33" y1="0" x2="333.33" y2="1000" className={styles.strokeMain} />
-				<line x1="666.67" y1="0" x2="666.67" y2="1000" className={styles.strokeMain} />
-				<line x1="0" y1="333.33" x2="1000" y2="333.33" className={styles.strokeMain} />
-				<line x1="0" y1="666.67" x2="1000" y2="666.67" className={styles.strokeMain} />
-
-				<rect x="111" y="111" width="778" height="778" className={styles.strokeSub} />
-				<rect x="222" y="222" width="556" height="556" className={styles.strokeSub} />
-				<rect x="333.33" y="333.33" width="333.34" height="333.34" className={styles.strokeSub} />
-
-					<line x1="0" y1="0" x2="111" y2="111" className={styles.strokeMain} />
-					<line x1="1000" y1="0" x2="889" y2="111" className={styles.strokeMain} />
-					<line x1="0" y1="1000" x2="111" y2="889" className={styles.strokeMain} />
-					<line x1="1000" y1="1000" x2="889" y2="889" className={styles.strokeMain} />
-
-					<line x1="111" y1="111" x2="222" y2="222" className={styles.strokeMain} />
-					<line x1="889" y1="111" x2="778" y2="222" className={styles.strokeMain} />
-					<line x1="111" y1="889" x2="222" y2="778" className={styles.strokeMain} />
-					<line x1="889" y1="889" x2="778" y2="778" className={styles.strokeMain} />
-
-					<line x1="222" y1="222" x2="333.33" y2="333.33" className={styles.strokeMain} />
-					<line x1="778" y1="222" x2="666.67" y2="333.33" className={styles.strokeMain} />
-					<line x1="222" y1="778" x2="333.33" y2="666.67" className={styles.strokeMain} />
-					<line x1="778" y1="778" x2="666.67" y2="666.67" className={styles.strokeMain} />
-
-				<line x1="333.33" y1="222" x2="333.33" y2="333.33" className={styles.strokeSub} />
-				<line x1="666.67" y1="222" x2="666.67" y2="333.33" className={styles.strokeSub} />
-
-				<line x1="333.33" y1="666.67" x2="333.33" y2="778" className={styles.strokeSub} />
-				<line x1="666.67" y1="666.67" x2="666.67" y2="778" className={styles.strokeSub} />
-
-				<line x1="222" y1="333.33" x2="333.33" y2="333.33" className={styles.strokeSub} />
-				<line x1="222" y1="666.67" x2="333.33" y2="666.67" className={styles.strokeSub} />
-
-				<line x1="666.67" y1="333.33" x2="778" y2="333.33" className={styles.strokeSub} />
-				<line x1="666.67" y1="666.67" x2="778" y2="666.67" className={styles.strokeSub} />
-			</svg>
-		);
-	}
-
 	renderMiddle(boardSize){
+		// horosa_sanshi_render_slice_v1(S4):三式方盘整层收编进 SanShiBoardLayer(wrapperPropsEqual
+		// 机械浅比,kill-switch 同 chartSCU,关=恒重渲旧行为)。外圈数据缓存仍留宿主(与 recalc 主链
+		// 同款键控,键变才重建),这里把八项输入按引用交给子组件;showMeaning 取布尔后下传,
+		// 含义开关翻转必重渲。盘面 DOM 恒常完整挂载(AI 导出 / Ctrl+F 红线,零虚拟化)。
 		const chartWrap = this.props.chartObj || this.props.chart || null;
 		const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 		const outerChartKey = getOuterChartKey(chartWrap);
@@ -4305,26 +4794,18 @@ class SanShiUnitedMain extends Component{
 				data: outerData,
 			};
 		}
-		const midFont = Math.max(10, Math.round(boardSize * 0.018));
-		const qimenMap = {};
-		if(this.state.dunjia && this.state.dunjia.cells){
-			this.state.dunjia.cells.forEach((c)=>{
-				qimenMap[c.palaceNum] = c;
-			});
-		}
-		const qmBlocks = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>this.renderQimenBlock(num, qimenMap, midFont, boardSize));
 		return (
-			<div className={styles.middleWrap} style={{ width: boardSize, maxWidth: '100%' }}>
-				<div className={styles.middleBoard} style={{ width: boardSize, height: boardSize }}>
-					{this.renderBoardSvg()}
-					<div className={styles.boardLayer}>
-						{this.renderOuterMarks(outerData, midFont, boardSize)}
-						{this.renderLiuRengMarks(this.state.lrLayout, midFont, boardSize)}
-						{qmBlocks}
-						{this.renderCenterBlock(midFont, boardSize)}
-					</div>
-				</div>
-			</div>
+			<SanShiBoardLayer
+				dunjia={this.state.dunjia}
+				lrLayout={this.state.lrLayout}
+				keData={this.state.keData}
+				sanChuan={this.state.sanChuan}
+				outerData={outerData}
+				boardSize={boardSize}
+				showWeakSolid={this.state.showWeakSolid}
+				outerCoord={this.state.outerCoord}
+				showMeaning={isMeaningEnabled(this.props.showAstroMeaning)}
+			/>
 		);
 	}
 
@@ -4369,249 +4850,29 @@ class SanShiUnitedMain extends Component{
 	}
 
 	renderInputPanel(){
-		const fields = this.getActiveFields();
-		const opt = this.state.options || {};
-		let datetm = new DateTime();
-		if(fields.date && fields.time){
-			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
-			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
-			if(fields.zone){
-				datetm.setZone(fields.zone.value);
-			}
-		}
+		// horosa_sanshi_render_slice_v1(S1):左栏「三式设置」整栏收编进 SanShiInputPanel(31 个 antd
+		// Select)。state 切片按引用下传:options/localFields 每次变更均换新引用 ⇒ 相关重渲一次不少;
+		// 处理器全部函数型 ⇒ wrapperPropsEqual 视为恒等,子组件重渲时自然拿到最新闭包。
 		return (
-			<div className="horosa-sanshi-input-stack">
-				<div className="horosa-side-panel-heading">
-					<div>
-						<div className="horosa-side-panel-title">三式设置</div>
-						<div className="horosa-side-panel-subtitle">时间、地点与起盘选项</div>
-					</div>
-				</div>
-				<SpaceTimePanel
-					fields={fields}
-					value={datetm}
-					onTimeChange={this.onTimeChanged}
-					timeHook={this.timeHook}
-					onGeoChange={this.changeGeo}
-				/>
-				{/* 观象左栏 P2:四 field-title 节各自收编 XQSideSection(原语义图标保留),每节一卡与 P1 母版同构。 */}
-				<XQSideSection iconName="sliders" title="选项" storageKey="sanshi.options" className="horosa-sanshi-input-section">
-					<div className="horosa-sanshi-select-grid">
-						<label className="horosa-sanshi-select-field">
-							<span>模式</span>
-							<Select size="small" value={opt.mode} onChange={(v)=>this.onOptionChange('mode', v)}>
-								{GAME_TYPE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>时间算法</span>
-							<Select size="small" value={normalizeTimeAlg(opt.timeAlg)} onChange={this.onTimeAlgChange}>
-								{TIME_ALG_OPTIONS.map((item)=><Option key={`time_alg_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>性别</span>
-							<Select size="small" value={opt.sex} onChange={this.onGenderChange}>
-								{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>贵人</span>
-							<Select size="small" value={opt.guireng} onChange={(v)=>this.onOptionChange('guireng', v)}>
-								{GUIRENG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>排盘</span>
-							<Select size="small" value={opt.paiPanType} onChange={(v)=>this.onOptionChange('paiPanType', v)}>
-								{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>日界</span>
-							<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.onOptionChange('after23NewDay', v)}>
-								{DAY_SWITCH_OPTIONS.map((item)=><Option key={`day_switch_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>值使</span>
-							<Select disabled={['飞盘', '混合'].indexOf(opt.school || '转盘') >= 0} size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)}>
-								{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>黄道</span>
-							<Select size="small" value={AstroConst.zodiacSelectValue(opt.zodiacal, opt.siderealAyanamsa)} onChange={(v)=>this.onAstroZodiacalChange(v)} dropdownMatchSelectWidth={false}>
-								{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
-									<OptGroup label={grp.group} key={grp.group}>
-										{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
-									</OptGroup>
-								))}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>外圈</span>
-							<Select size="small" value={this.state.outerCoord} onChange={(v)=>this.setState({ outerCoord: v })}>
-								<Option value="ecliptic">黄道</Option>
-								<Option value="equatorial">赤道</Option>
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>虚实</span>
-							<Select size="small" value={this.state.showWeakSolid ? 1 : 0} onChange={(v)=>this.setState({ showWeakSolid: v === 1 })}>
-								<Option value={1}>显示</Option>
-								<Option value={0}>隐藏</Option>
-							</Select>
-						</label>
-					</div>
-
-				</XQSideSection>
-
-				{/* 奇门遁甲流派/起局补充(对齐独立·默认零回归):盘式 + 阴盘报数 + 封局 + 置闰天数 */}
-				<XQSideSection iconName="qimen" title="奇门流派" storageKey="sanshi.qimen" className="horosa-sanshi-input-section">
-					<div className="horosa-sanshi-select-grid">
-						<label className="horosa-sanshi-select-field">
-							<span>盘式</span>
-							<Select size="small" value={opt.school || '转盘'} onChange={(v)=>this.onOptionChange('school', v)}>
-								{SCHOOL_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>起局</span>
-							<Select size="small" value={opt.qijuMethod} disabled={opt.paiPanType !== 3} onChange={(v)=>this.onOptionChange('qijuMethod', v)}>
-								{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						{opt.qijuMethod === 'shuzi' ? (
-							<label className="horosa-sanshi-select-field" style={{ gridColumn: '1 / -1' }}>
-								<span>报数</span>
-								<input
-									type="text"
-									inputMode="numeric"
-									value={opt.shuziReportNumber || ''}
-									onChange={(e)=>this.onOptionChange('shuziReportNumber', e.target.value)}
-									placeholder="阴盘起局:输入报数(各位求和÷9定局,余0作9)"
-									style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }}
-								/>
-							</label>
-						) : null}
-						<label className="horosa-sanshi-select-field">
-							<span>空亡</span>
-							<Select size="small" value={opt.kongMode} onChange={(v)=>this.onOptionChange('kongMode', v)}>
-								{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>驿马</span>
-							<Select size="small" value={opt.yimaMode} onChange={(v)=>this.onOptionChange('yimaMode', v)}>
-								{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>移星</span>
-							<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.onOptionChange('shiftPalace', v)}>
-								{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>封局</span>
-							<Select size="small" value={opt.fengJu ? 1 : 0} onChange={(v)=>this.onOptionChange('fengJu', v === 1)}>
-								{QIMEN_FENGJU_OPTIONS.map((item)=><Option key={`fengju_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						{opt.qijuMethod === 'zhirun' ? (
-							<label className="horosa-sanshi-select-field">
-								<span>置闰天数</span>
-								<Select size="small" value={opt.zhirunLeapDays || 9} onChange={(v)=>this.onOptionChange('zhirunLeapDays', v)} dropdownMatchSelectWidth={false}>
-									{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={`zhirun_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</label>
-						) : null}
-					</div>
-
-				</XQSideSection>
-
-				{/* 太乙流派(对齐独立·默认全 default=从盘字节不变):博弈 + 计神/文昌/客算间辰/三基/游神五开关 */}
-				<XQSideSection iconName="taiyi" title="太乙流派" storageKey="sanshi.taiyi" className="horosa-sanshi-input-section">
-					<div className="horosa-sanshi-select-grid">
-						<label className="horosa-sanshi-select-field">
-							<span>博弈</span>
-							<Select size="small" value={opt.gameTheory === 1 ? 1 : 0} onChange={(v)=>this.onOptionChange('gameTheory', v)}>
-								<Option value={0}>关闭</Option>
-								<Option value={1}>开启</Option>
-							</Select>
-						</label>
-						{[['jishen', '计神方向'], ['wenchang', '文昌重留'], ['keJianChen', '客算间辰'], ['sanji', '三基起宫'], ['youshen', '游神方向']].map(([k, label])=>(
-							<label className="horosa-sanshi-select-field" key={`ty-school-${k}`}>
-								<span>{label}</span>
-								<Select size="small" dropdownMatchSelectWidth={false} value={(opt.taiyiSchool || {})[k] || 'default'} onChange={(v)=>this.onOptionChange('taiyiSchool', { ...normalizeTaiyiSchool(opt.taiyiSchool), [k]: v })}>
-									{TAIYI_SCHOOL_OPTIONS[k].map((it)=><Option key={it.value} value={it.value}>{it.label}</Option>)}
-								</Select>
-							</label>
-						))}
-					</div>
-
-				</XQSideSection>
-
-				{/* 大六壬流派(对齐独立·默认零回归):换将/分昼夜/涉害取舍·起讫·始入/年神排序/昼夜阳阴/土旺衰 */}
-				<XQSideSection iconName="liureng" title="六壬流派" storageKey="sanshi.liureng" className="horosa-sanshi-input-section">
-					<div className="horosa-sanshi-select-grid">
-						<label className="horosa-sanshi-select-field">
-							<span>换将</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yueJiangMethod || 'zhongqi'} onChange={(v)=>this.onOptionChange('yueJiangMethod', v)}>
-								{LR_YUEJIANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>分昼夜</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.fenZhouYe || 'chenhun'} onChange={(v)=>this.onOptionChange('fenZhouYe', v)}>
-								{LR_FENZHOUYE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>涉害取舍</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.seHaiMethod || 'app'} onChange={(v)=>this.onOptionChange('seHaiMethod', v)}>
-								{LR_SEHAI_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>涉害起讫</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.seHaiBoundary || 'app'} onChange={(v)=>this.onOptionChange('seHaiBoundary', v)}>
-								{LR_SEHAI_BOUNDARY_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>始入课</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.shiRuKe ? 1 : 0} onChange={(v)=>this.onOptionChange('shiRuKe', v === 1)}>
-								{LR_SHIRUKE_OPTIONS.map((item)=><Option key={`shiruke_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>年神排序</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yearShenShaSort || 'sanyuan'} onChange={(v)=>this.onOptionChange('yearShenShaSort', v)}>
-								{LR_YEAR_SHENSHA_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>昼夜阳阴</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.yinyangSystem || 'danmu'} onChange={(v)=>this.onOptionChange('yinyangSystem', v)}>
-								{LR_YINYANG_SYSTEM_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>土旺衰</span>
-							<Select size="small" dropdownMatchSelectWidth={false} value={opt.tuWangShuai || 'siji'} onChange={(v)=>this.onOptionChange('tuWangShuai', v)}>
-								{LR_TUWANG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-					</div>
-				</XQSideSection>
-
-				<div className="horosa-sanshi-action-row">
-					<Button type="primary" onClick={this.clickPlot} loading={this.state.loading} disabled={this.state.loading}>起盘</Button>
-					<Button onClick={this.clickSave}>保存</Button>
-				</div>
-			</div>
+			<SanShiInputPanel
+				fields={this.getActiveFields()}
+				options={this.state.options}
+				outerCoord={this.state.outerCoord}
+				showWeakSolid={this.state.showWeakSolid}
+				loading={this.state.loading}
+				hasPlotted={this.state.hasPlotted}
+				onTimeChanged={this.onTimeChanged}
+				timeHook={this.timeHook}
+				onGeoChange={this.changeGeo}
+				onOptionChange={this.onOptionChange}
+				onTimeAlgChange={this.onTimeAlgChange}
+				onGenderChange={this.onGenderChange}
+				onAstroZodiacalChange={(v)=>this.onAstroZodiacalChange(v)}
+				onOuterCoordChange={(v)=>this.setState({ outerCoord: v })}
+				onShowWeakSolidChange={(flag)=>this.setState({ showWeakSolid: flag })}
+				clickPlot={this.clickPlot}
+				clickSave={this.clickSave}
+			/>
 		);
 	}
 
@@ -4815,148 +5076,25 @@ class SanShiUnitedMain extends Component{
 		const topHeight = 0;
 		const tabBodyHeight = Math.max(0, panelHeight - topHeight - 74);
 		const nestedTabBodyHeight = Math.max(140, tabBodyHeight - 110);
-		let datetm = new DateTime();
-		if(fields.date && fields.time){
-			const str = `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`;
-			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
-			if(fields.zone){
-				datetm.setZone(fields.zone.value);
-			}
-		}
 		return (
 			<div ref={this.captureRightPanel} className="horosa-sanshi-right-shell" style={{ display: 'flex', flexDirection: 'column', height: panelHeight, overflow: 'hidden' }}>
-				<div ref={this.captureRightTop} style={{ display: 'none', paddingBottom: 6, borderBottom: '1px solid var(--horosa-border, #f0f0f0)' }}>
-					<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-						<div>
-							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} hook={this.timeHook} confirmOnAdjust />
-						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 4 }}>
-							<div>
-								<Select size="small" value={opt.mode} onChange={(v)=>this.onOptionChange('mode', v)} style={{ width: '100%' }}>
-									{GAME_TYPE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={normalizeTimeAlg(opt.timeAlg)} onChange={this.onTimeAlgChange} style={{ width: '100%' }}>
-									{TIME_ALG_OPTIONS.map((item)=><Option key={`time_alg_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.sex} onChange={this.onGenderChange} style={{ width: '100%' }}>
-									{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.guireng} onChange={(v)=>this.onOptionChange('guireng', v)} style={{ width: '100%' }}>
-									{GUIRENG_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-							<div>
-								<Select size="small" value={opt.paiPanType} onChange={(v)=>this.onOptionChange('paiPanType', v)} style={{ width: '100%' }}>
-									{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.onOptionChange('after23NewDay', v)} style={{ width: '100%' }}>
-									{DAY_SWITCH_OPTIONS.map((item)=><Option key={`day_switch_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select disabled={['飞盘', '混合'].indexOf(opt.school || '转盘') >= 0} size="small" value={opt.zhiShiType} onChange={(v)=>this.onOptionChange('zhiShiType', v)} style={{ width: '100%' }}>
-									{ZHISHI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4 }}>
-							<div>
-								<Select
-									size="small"
-									value={opt.yueJiaQiJuType}
-									disabled={opt.paiPanType !== 1}
-									onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)}
-									style={{ width: '100%' }}
-								>
-									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.onOptionChange('shiftPalace', v)} style={{ width: '100%' }}>
-									{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-							<div>
-								<Select size="small" value={opt.qijuMethod} disabled={opt.paiPanType !== 3} onChange={(v)=>this.onOptionChange('qijuMethod', v)} style={{ width: '100%' }}>
-									{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.kongMode} onChange={(v)=>this.onOptionChange('kongMode', v)} style={{ width: '100%' }}>
-									{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.yimaMode} onChange={(v)=>this.onOptionChange('yimaMode', v)} style={{ width: '100%' }}>
-									{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 4 }}>
-							<div>
-								<Select size="small" value={opt.taiyiStyle} onChange={(v)=>this.onOptionChange('taiyiStyle', v)} style={{ width: '100%' }}>
-									{TAIYI_STYLE_OPTIONS.map((item)=><Option key={`ty_style_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.taiyiAccum} onChange={(v)=>this.onOptionChange('taiyiAccum', v)} style={{ width: '100%' }}>
-									{TAIYI_ACCUM_OPTIONS.map((item)=><Option key={`ty_acc_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={AstroConst.zodiacSelectValue(opt.zodiacal, opt.siderealAyanamsa)} onChange={(v)=>this.onAstroZodiacalChange(v)} dropdownMatchSelectWidth={false} style={{ width: '100%' }}>
-									{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
-										<OptGroup label={grp.group} key={grp.group}>
-											{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
-										</OptGroup>
-									))}
-								</Select>
-							</div>
-							<div>
-								<Select size="small" value={opt.hsys} onChange={(v)=>this.onAstroFieldOptionChange('hsys', v)} style={{ width: '100%' }}>
-									{getHousesOption()}
-								</Select>
-							</div>
-						</div>
-						<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-							<div>
-								<GeoCoordModal onOk={this.changeGeo} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
-									<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
-								</GeoCoordModal>
-							</div>
-							<div>
-								<Button
-									size="small"
-									type="primary"
-									style={{ width: '100%' }}
-									onClick={this.clickPlot}
-									loading={this.state.loading}
-									disabled={this.state.loading}
-								>
-									起盘
-								</Button>
-							</div>
-							<div>
-								<Button size="small" style={{ width: '100%' }} onClick={this.clickSave}>保存</Button>
-							</div>
-						</div>
-						<div style={{ textAlign: 'right' }}>
-							<span>{fields.lon ? fields.lon.value : ''} {fields.lat ? fields.lat.value : ''}</span>
-						</div>
-					</div>
-				</div>
+				{/* horosa_sanshi_render_slice_v1(S2):隐藏表单头收编,16 个 Select 不再随宿主每渲白跑。 */}
+				<SanShiRightHeaderForm
+					captureRightTop={this.captureRightTop}
+					fields={fields}
+					options={this.state.options}
+					loading={this.state.loading}
+					onTimeChanged={this.onTimeChanged}
+					timeHook={this.timeHook}
+					onOptionChange={this.onOptionChange}
+					onTimeAlgChange={this.onTimeAlgChange}
+					onGenderChange={this.onGenderChange}
+					onAstroZodiacalChange={(v)=>this.onAstroZodiacalChange(v)}
+					onAstroFieldOptionChange={this.onAstroFieldOptionChange}
+					onGeoChange={this.changeGeo}
+					clickPlot={this.clickPlot}
+					clickSave={this.clickSave}
+				/>
 
 				<Tabs
 					activeKey={rightPanelTab}

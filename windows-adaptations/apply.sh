@@ -62,7 +62,7 @@ apply_patch isDesktopShellWindow astrostudyui/src/utils/windowSizePersistence.js
 # PERF-R7 起该 patch 为「Mac 基线→Windows 现状」的累积全量(ensureField 守卫 + P1-5 切页
 # User-Timing 打点 + T-3 idle 预载 1s 起跑 + PERF-R9 交互起点打点);守卫 marker 取**最新**一处
 # (gotcha #48):markInteractionStart —— 它是 PERF-R9 才引入的,旧状态一律 grep 不到,不会误跳过。
-apply_patch horosa_change_cond_no_mutate_v1 astrostudyui/src/pages/index.js            src__pages__index.js.patch
+apply_patch horosa_zeri_render_slice_v1 astrostudyui/src/pages/index.js            src__pages__index.js.patch
 
 echo "== 6. backend patch (boundless #14: loopback NEVER via the system proxy) — REQUIRES a jar rebuild =="
 apply_patch isLoopbackTarget     astrostudysrv/boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java boundless__HttpUriRequestHystrixCommand.java.patch
@@ -77,7 +77,7 @@ cp "$OV/files/astrostudyui/src/components/xuanshi/echartsCore.js" "$WS/astrostud
 # marker-guarded:Mac 若已合入同款优化,marker 命中即跳过 -> apply.sh 变 no-op(isLoopbackTarget 先例)。
 # PERF-R7 起 perfFlags 由三段链式补丁合并为一个累积全量补丁(planetarium 系 + techniqueCache +
 # firstLoadParallel + T-6 speculativePrecompute),守卫 marker 用最新的 speculativePrecomputeEnabled。
-apply_patch neighborPrefetchEnabled        astrostudyui/src/utils/perfFlags.js                          src__utils__perfFlags.speculativePrecompute.js.patch
+apply_patch guolaoMergedPaintEnabled       astrostudyui/src/utils/perfFlags.js                          src__utils__perfFlags.speculativePrecompute.js.patch
 apply_patch "perf:planetariumRenderGating" astrostudyui/src/components/planetarium/PlanetariumBabylon.js src__components__planetarium__PlanetariumBabylon.js.patch
 apply_patch "./echartsCore"                astrostudyui/src/components/xuanshi/XuanShiCelestial.js       src__components__xuanshi__XuanShiCelestial.js.patch
 apply_patch "./echartsCore"                astrostudyui/src/components/xuanshi/XuanShiMap.js             src__components__xuanshi__XuanShiMap.js.patch
@@ -227,7 +227,7 @@ echo "== 22. PERF-R7 T-6 预测性预计算(点击→显示体感瞬间;perfFlag
 # 信封不进缓存=对既有路径也是净改善)。perfFlags 开关已并入 §7 的累积补丁。跨平台,建议上游化 Mac。
 # 守卫 marker 取最新(gotcha #48):PERF-R9 给快车道补了 markChartRefreshEnd 调用,
 # marker 换成该次改动引入的 horosa_interaction_span_v1,旧状态 grep 不到必定重打。
-apply_patch horosa_interaction_span_v1     astrostudyui/src/models/astro.js                             src__models__astro.precomputeFetch.js.patch
+apply_patch reportStepUnit                 astrostudyui/src/models/astro.js                             src__models__astro.precomputeFetch.js.patch
 apply_patch markChartCacheHit              astrostudyui/src/services/astro.js                           src__services__astro.chartMemValidOnly.js.patch
 apply_patch scheduleLivePrecompute         astrostudyui/src/components/comp/ChartFormData.js            src__components__comp__ChartFormData.livePrecompute.js.patch
 apply_patch onLivePrecompute               astrostudyui/src/components/astro/AstroFormComp.js           src__components__astro__AstroFormComp.livePrecompute.js.patch
@@ -245,7 +245,7 @@ echo "== 23. PERF-R8 P0/P2/P3(观测补全 + 排盘后数据层空闲预热 + �
 apply_patch horosa_data_warm_registry_v1   astrostudyui/src/utils/idleWarmQueue.js       src__utils__idleWarmQueue.dataWarmGroup.js.patch
 apply_patch scheduleDataWarmGroup          "astrostudyui/src/utils/__tests__/idleWarmQueue.test.js" src__utils__tests__idleWarmQueue.test.dataWarmGroup.js.patch
 apply_patch buildIndiaWarmParams           astrostudyui/src/components/astro/IndiaChart.js src__components__astro__IndiaChart.warmParams.js.patch
-apply_patch horosa_prefetch_registry_v1    astrostudyui/src/components/guolao/GuoLaoChartMain.js src__components__guolao__GuoLaoChartMain.warmNatal.js.patch
+apply_patch horosa_guolao_render_slice_v1  astrostudyui/src/components/guolao/GuoLaoChartMain.js src__components__guolao__GuoLaoChartMain.warmNatal.js.patch
 apply_patch horosa_prefetch_registry_v1    astrostudyui/src/components/direction/AstroDirectMain.js src__components__direction__AstroDirectMain.warmPd.js.patch
 apply_patch warmGermanyMidpoint            astrostudyui/src/components/germany/AstroMidpoint.js src__components__germany__AstroMidpoint.warmMidpoint.js.patch
 apply_patch prefetchJieqiYearNeighbors     astrostudyui/src/utils/preciseCalcBridge.js   src__utils__preciseCalcBridge.neighborPrefetch.js.patch
@@ -416,8 +416,8 @@ apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/dunj
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/jingjue/JingJueMain.js             src__components__jingjue__JingJueMain.perfR9.js.patch
 apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/jinkou/JinKouCalc.js               src__components__jinkou__JinKouCalc.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/jinkou/JinKouMain.js               src__components__jinkou__JinKouMain.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/kinastro/KinAstroMain.js           src__components__kinastro__KinAstroMain.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/lrzhan/LiuRengMain.js              src__components__lrzhan__LiuRengMain.perfR9.js.patch
+apply_patch horosa_lazy_healing_wrap_v1        astrostudyui/src/components/kinastro/KinAstroMain.js           src__components__kinastro__KinAstroMain.perfR9.js.patch
+apply_patch horosa_liureng_render_slice_v1     astrostudyui/src/components/lrzhan/LiuRengMain.js              src__components__lrzhan__LiuRengMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/shenyishu/ShenYiShuMain.js         src__components__shenyishu__ShenYiShuMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/taixuan/TaiXuanMain.js             src__components__taixuan__TaiXuanMain.perfR9.js.patch
 apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/taiyi/TaiYiCalc.js                 src__components__taiyi__TaiYiCalc.perfR9.js.patch
@@ -451,7 +451,7 @@ echo "== 31. PERF-R9 Ship 7 预取与预热全覆盖(白名单从注释变运行
 #           ②纵深防御 —— pump 期间置 ambient 标志,request.js / chartFetch.js 对不合格 URL 拒发。
 # ★ kentang 全族走 chartFetch 的裸 fetch(不经 utils/request),没有 ②整族在任何白名单之外。
 # ★ 非预取作用域两闸恒放行 ⇒ 用户真实请求逐字节零行为变化。
-apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/stepPrefetch.js  src__utils__stepPrefetch.prefetchWhitelist.js.patch
+apply_patch PREFETCH_FORBIDDEN_EXEMPT_EXACT astrostudyui/src/utils/stepPrefetch.js  src__utils__stepPrefetch.prefetchWhitelist.js.patch
 apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/request.js       src__utils__request.prefetchWhitelist.js.patch
 apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/chartFetch.js    src__utils__chartFetch.prefetchWhitelist.js.patch
 
@@ -464,11 +464,11 @@ apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/chartFet
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/astro/IndiaChartMain.js      src__components__astro__IndiaChartMain.prefetchRegistry.js.patch
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/auxchart/AuxChartMain.js     src__components__auxchart__AuxChartMain.prefetchRegistry.js.patch
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/dunjia/DunJiaMain.js         src__components__dunjia__DunJiaMain.prefetchRegistry.js.patch
-apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/sanshi/SanShiUnitedMain.js   src__components__sanshi__SanShiUnitedMain.prefetchRegistry.js.patch
+apply_patch horosa_sanshi_render_slice_v1 astrostudyui/src/components/sanshi/SanShiUnitedMain.js   src__components__sanshi__SanShiUnitedMain.prefetchRegistry.js.patch
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/taiyi/TaiYiMain.js           src__components__taiyi__TaiYiMain.prefetchRegistry.js.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields
 # (旧版传基准 fields = 预取当前那张盘 = 白打)、每个任务必须自带 path 声明。
-apply_patch horosa_prefetch_registry_v1 "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch
+apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch
 
 # ---- 31c chartFree 快车道扩容(horosa_chart_free_declared_v1)----
 # 声明 hook.chartFree=true 的页,fetchByFields 走快车道:fields 立即提交、不等 /chart 网络
@@ -593,9 +593,9 @@ apply_patch horosa_shusuan_native_scu_v1         astrostudyui/src/components/yiz
 # ---- 32g 汉堡学派(germany)----
 # 转盘页右栏是「一个刻度盘 + N 张表」,此前右栏面板全部常驻:改 FreezeSubTab + 右栏惰性挂载
 # (horosa_lazy_right_panels_v1)+ 刻度盘/宫位框 sCU(horosa_dial_scu_v1 / horosa_frames_scu_v1)。
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/germany/AstroGermany.js             src__components__germany__AstroGermany.perfR9.js.patch
+apply_patch horosa_aux_render_slice_v1          astrostudyui/src/components/germany/AstroGermany.js             src__components__germany__AstroGermany.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/germany/MidpointMain.js             src__components__germany__MidpointMain.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/germany/UranianDialMain.js          src__components__germany__UranianDialMain.perfR9.js.patch
+apply_patch horosa_aux_render_slice_v1          astrostudyui/src/components/germany/UranianDialMain.js          src__components__germany__UranianDialMain.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/germany/UranianGraphicEphemeris.js  src__components__germany__UranianGraphicEphemeris.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/germany/UranianHouseFrames.js       src__components__germany__UranianHouseFrames.perfR9.js.patch
 
@@ -607,14 +607,14 @@ apply_patch horosa_panel_ready_v1                astrostudyui/src/components/ger
 # LiuRengChart / MingOtherMain 是纯 sCU 壳(见上方 ⚠️ 第二条:本轮改动不引入 marker,guard 取代码串)。
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/acg/AstroAcg.js                     src__components__acg__AstroAcg.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/aianalysis/AIAnalysisMain.js        src__components__aianalysis__AIAnalysisMain.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/cnyibu/CnYiBuMain.js                src__components__cnyibu__CnYiBuMain.perfR9.js.patch
+apply_patch horosa_lazy_healing_wrap_v1         astrostudyui/src/components/cnyibu/CnYiBuMain.js                src__components__cnyibu__CnYiBuMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/commtools/CommToolsMain.js          src__components__commtools__CommToolsMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/dice/DiceMain.js                    src__components__dice__DiceMain.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/election/ElectionMain.js            src__components__election__ElectionMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/feigong/FeiGongMain.js              src__components__feigong__FeiGongMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/guazhan/GuaZhanMain.js              src__components__guazhan__GuaZhanMain.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/guice/GuiceMain.js                  src__components__guice__GuiceMain.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js          src__components__guolao__GuoLaoMoiraPanel.perfR9.js.patch
+apply_patch horosa_guolao_render_slice_v1       astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js          src__components__guolao__GuoLaoMoiraPanel.perfR9.js.patch
 apply_patch horosa_guolao_doc_scu_v1             astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js         src__components__guolao__GuoLaoStarSectDoc.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/horary/HoraryMain.js                src__components__horary__HoraryMain.perfR9.js.patch
 apply_patch wrapperPropsEqual                    astrostudyui/src/components/lrzhan/LiuRengChart.js              src__components__lrzhan__LiuRengChart.perfR9.js.patch
@@ -628,7 +628,7 @@ apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xia
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js        src__components__xiaoliuren__XiaoLiuRenMain.perfR9.js.patch
 # v3.7.0 新技法「择日/天星择日」(navigationPages 键 zeri):P5 观测终点照 ElectionMain 先例
 # (renderRight 收壳层 chart 落定 + _readyChart 去重;征象扫描是显式批量求值,刻意不打点)。
-apply_patch horosa_panel_ready_v1                astrostudyui/src/components/zeri/TianxingElectionMain.js        src__components__zeri__TianxingElectionMain.panelReady.js.patch
+apply_patch horosa_zeri_render_slice_v1         astrostudyui/src/components/zeri/TianxingElectionMain.js        src__components__zeri__TianxingElectionMain.panelReady.js.patch
 
 echo "== 33. PERF-R10 Ship2「选步长即武装」预取(horosa_step_prefetch_arm_v1)=="
 # 病根:预取单位只来自上一次步进 hint(无 hint 硬编码 'm'),选完新步长的第一下必 miss(owner
@@ -669,7 +669,7 @@ cp "$OV/files/astrostudyui/src/utils/optionPrefetch.js"                       "$
 cp "$OV/files/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        "$WS/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        && ok "optionPrefetch.test.js"
 apply_patch horosa_boot_chart_restore_v1         astrostudyui/src/models/app.js                                   src__models__app.bootChartRestore.js.patch
 apply_patch horosa_moira_stable_key_v1           astrostudyui/src/services/qizheng.js                             src__services__qizheng.moiraStableKey.js.patch
-apply_patch horosa_moira_stable_key_v1           astrostudyui/src/services/_requestCache.js                       src__services___requestCache.cfgKey.js.patch
+apply_patch peekCachedPost                      astrostudyui/src/services/_requestCache.js                       src__services___requestCache.cfgKey.js.patch
 
 echo "== 34. PERF-R10 Ship3 后端 Python 五连(奇门请求级 memo / kin 常量全族 / display translate / 高纬度限界 / fastjson)=="
 # 全部五项:黄金全矩阵 3823 例 ZERO DRIFT + 五开关合并置 0 复跑同样 ZERO DRIFT;
@@ -708,5 +708,19 @@ echo "== 36. PERF-R11 StartupGate 桌面壳温启用时行(Electron-only;Mac/网
 apply_patch horosa_startupgate_desktop_elapsed_v1  astrostudyui/src/components/common/StartupGate.js  astrostudyui__StartupGate.desktopElapsed.js.patch
 mkdir -p "$WS/astrostudyui/src/components/common/__tests__"
 cp "$OV/files/astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js" "$WS/astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js" && ok "startupGateDesktopElapsed.test.js"
+
+echo "== 37. PERF-R12 Phase-2 宗师轮渲染切片六件(净新补丁;既有 15 件为就地累积更新,guard 已换本轮最新 marker)=="
+# 全部为「只动时机/调度不动内容」的渲染切片/缓存化(kill-switch:chartSCU / freezeSubTabs /
+# localEngineMemo / guolaoMergedPaint 各族既有闸)。既有补丁的本轮增量(W3a 泵三修 / W3b zeri /
+# W3c 三式 / W3d 七政 / W3e 六壬 / W3f 辅盘 / G6 moira 物化预取豁免)全部并入原文件累积补丁,
+# guard 按 #48 取最新 marker,不另开行。
+apply_patch horosa_zeri_render_slice_v1          astrostudyui/src/components/zeri/ConditionBuilderModal.js        src__components__zeri__ConditionBuilderModal.renderSlice.js.patch
+apply_patch horosa_guolao_render_slice_v1        astrostudyui/src/components/guolao/GuoLaoInput.js                src__components__guolao__GuoLaoInput.renderSlice.js.patch
+apply_patch horosa_aux_render_slice_v1           astrostudyui/src/components/germany/UranianDialStyle.js          src__components__germany__UranianDialStyle.dispMemo.js.patch
+apply_patch localChartsVersion                   astrostudyui/src/utils/localcharts.js                            src__utils__localcharts.writeVersion.js.patch
+# Z5 否决线(评估后不做)以在码注释形式常驻 —— 防下一轮优化者再走同一条弯路;3 行纯注释补丁。
+apply_patch "W3b-Z5"                             astrostudyui/src/components/divination/DivinationChartShell.js   src__components__divination__DivinationChartShell.z5Decline.js.patch
+# W3g 纯时间步进→补间链路源级钉(五针);Astro3D 本体零改动,只加测试。
+apply_patch "W3g"                                astrostudyui/src/components/astro3d/__tests__/astro3dMorph.test.js  src__components__astro3d____tests____astro3dMorph.w3g.test.js.patch
 
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="

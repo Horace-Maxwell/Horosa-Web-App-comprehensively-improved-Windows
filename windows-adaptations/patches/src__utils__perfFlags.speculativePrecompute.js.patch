@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/perfFlags.js b/astrostudyui/src/utils/perfFlags.js
-index 84eb4d4..39d47af 100644
+index 84eb4d40..9bc74e5a 100644
 --- a/astrostudyui/src/utils/perfFlags.js
 +++ b/astrostudyui/src/utils/perfFlags.js
 @@ -8,7 +8,10 @@ import { safeLocalStorageSet } from './safeStorage';
@@ -14,7 +14,7 @@ index 84eb4d4..39d47af 100644
  //   safeLocalStorageSet('horosa.perf.requestDedupe', '0')  // 计算请求 去重+短TTL缓存
  //   safeLocalStorageSet('horosa.perf.techniqueCache', '0') // L2 技法结果缓存(10min,来回拨参数≈0)
  //   safeLocalStorageSet('horosa.perf.idleWarmQueue', '0')  // 就绪后空闲预热队列(chunk/引擎/数据)
-@@ -21,6 +24,10 @@ import { safeLocalStorageSet } from './safeStorage';
+@@ -21,11 +24,16 @@ import { safeLocalStorageSet } from './safeStorage';
  //   safeLocalStorageSet('horosa.perf.sharedNativeModel', '0')     // native 技法 center/aux 共享模型 memo
  //   safeLocalStorageSet('horosa.perf.singleTriggerPredictive','0')// PD/ZR hook+didUpdate 同签名去重
  //   safeLocalStorageSet('horosa.perf.stepPrefetch', '0')          // 时间步进方向预取
@@ -25,7 +25,13 @@ index 84eb4d4..39d47af 100644
  //   safeLocalStorageSet('horosa.perf.chartCloneLite', '0')        // 出盘缓存冻结共享引用(关=每次深拷贝)
  //   safeLocalStorageSet('horosa.perf.hoverPrefetch', '0')         // 导航悬停预取 chunk(关=点击才载)
  //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
-@@ -63,6 +70,24 @@ export function freezeInactiveTabsEnabled(){
+ //   safeLocalStorageSet('horosa.perf.bootGate', '0')              // [B1] early 导航后端探活门(关=请求直发,未起时报错重试)
+ //   safeLocalStorageSet('horosa.perf.rsaSessionKey', '0')         // [A2] RSA 会话密钥复用(关=每请求重算 2048 位模幂)
++//   safeLocalStorageSet('horosa.perf.guolaoMergedPaint', '0')     // [W3d G5] 七政全命中路径中间 setState 合并(关=恒两段式上屏)
+ // 恢复:对应 key removeItem 或设 '1'。
+ 
+ function flagEnabled(key){
+@@ -63,6 +71,24 @@ export function freezeInactiveTabsEnabled(){
  	return flagEnabled('horosa.perf.freezeInactiveTabs');
  }
  
@@ -50,7 +56,7 @@ index 84eb4d4..39d47af 100644
  export function requestDedupeEnabled(){
  	return flagEnabled('horosa.perf.requestDedupe');
  }
-@@ -143,6 +168,45 @@ export function stepPrefetchEnabled(){
+@@ -143,6 +169,70 @@ export function stepPrefetchEnabled(){
  	return flagEnabled('horosa.perf.stepPrefetch');
  }
  
@@ -72,6 +78,31 @@ index 84eb4d4..39d47af 100644
 +// PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项空间 Hamming-1 投机预取。
 +export function optionPrefetchEnabled(){
 +	return flagEnabled('horosa.perf.optionPrefetch');
++}
++
++// PERF-R12 W3a(horosa_pump_fastfirst_v1):泵首任务快发 —— rIC 在快速连点下饥饿
++// (无空闲帧 ⇒ 只剩 2s 强制超时,届时代际已换 = 风暴期预取近零派发,验收表的
++// 「超窗尾」真因)。首目标组(≤2 任务)改 setTimeout(32ms):让出一帧再发;
++// submit 本就在 settle 之后 = 主渲染已提交,派发本体 ~1-3ms,响应解析是真点击
++// 迟早要付的成本且串行泵限 ≤1 在途。
++export function stepPrefetchFastFirstEnabled(){
++	return flagEnabled('horosa.perf.stepPrefetchFastFirst');
++}
++
++// PERF-R12 W3a(horosa_pump_skew_v1):同向连点 ≥3 且间隔 <2s 时,计划丢反向换前伸
++// (+4/+5)—— 反向目标(刚渲染过的那张)本就温在 chartMem/L2,丢弃零损,前伸纯赚;
++// 方向翻转/换页/换档/dir=0/停 >2s 即重置。只改 settle 路径的 plan 形状,白名单与
++// 预算结构不动。
++export function stepPrefetchSkewEnabled(){
++	return flagEnabled('horosa.perf.stepPrefetchSkew');
++}
++
++// PERF-R12 W3d(horosa_guolao_render_slice_v1 G5):七政 bundle 全命中路径的中间 setState 合并
++// —— 流年盘+Moira 规则都已在缓存时,跳过「先画流年环再画规则」的中间帧,一次 setState 落齐
++// (终态字节一致,只少一整轮重渲)。规则缓存窥探为假(冷/在途)⇒ 保留中间帧 = 旧行为,
++// 流年环照旧先行上屏,不等规则往返。关=恒走旧两段式。
++export function guolaoMergedPaintEnabled(){
++	return flagEnabled('horosa.perf.guolaoMergedPaint');
 +}
 +
 +// 武装深度 ±N。默认 3(±1 即时命中,±2/±3 吃空闲窗);合法 0..5,0=等效关;
@@ -96,7 +127,7 @@ index 84eb4d4..39d47af 100644
  export function chartCloneLiteEnabled(){
  	return flagEnabled('horosa.perf.chartCloneLite');
  }
-@@ -171,6 +235,56 @@ export function astro3dMorphEnabled(){
+@@ -171,6 +261,56 @@ export function astro3dMorphEnabled(){
  	return flagEnabled('horosa.perf.astro3dMorph');
  }
  
@@ -153,7 +184,7 @@ index 84eb4d4..39d47af 100644
  // —— R3-A3(2026-07-21):kentang(:8899 直连 C 型)统一缓存壳 ——
  export function kentangCacheEnabled(){
  	// /pan 族请求 L1/L2/L3 缓存+在途去重(键=path+body,同 body 恒同果);
-@@ -184,3 +298,8 @@ export function stepSelectPrefetchEnabled(){
+@@ -184,3 +324,8 @@ export function stepSelectPrefetchEnabled(){
  	return flagEnabled('horosa.perf.stepSelectPrefetch');
  }
  

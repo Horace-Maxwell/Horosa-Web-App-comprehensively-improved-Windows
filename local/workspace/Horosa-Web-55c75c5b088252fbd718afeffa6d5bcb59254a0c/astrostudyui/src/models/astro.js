@@ -7,12 +7,13 @@ import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, ServerRoot, } from '../utils/constants';
 import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
-import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled, stepPrefetchArmEnabled, stepPrefetchDepth } from '../utils/perfFlags';
+import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, stepPrefetchSkewEnabled } from '../utils/perfFlags';
 import { submitStepPrefetch, getStepPrefetcher, registerStepSelectHandler } from '../utils/stepPrefetch';
 import { perfBegin } from '../utils/perfMark';
 // PERF-R10 horosa_step_prefetch_arm_v1:「选步长即武装」——构造器经 registerArmPlanBuilder
 // 注入(utils 不反向 import models);settle 兜底武装的档位来自 reportStepUnit 的记录。
-import { registerArmPlanBuilder, reportStepUnit, currentStepUnit, shouldArmForTab } from '../utils/stepPrefetchArm';
+import { registerArmPlanBuilder, reportStepUnit, currentStepUnit, shouldArmForTab, stepStreak } from '../utils/stepPrefetchArm';
+import { isEarlyBootMode } from '../utils/backendBootGate';
 // PERF-R10 S2(horosa_boot_chart_restore_v1):出盘 settle 后落「上次工作现场」快照(空闲写)。
 import { saveBootChartSnapshot } from '../utils/bootChartRestore';
 // PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm。
@@ -579,9 +580,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	let plan;
 	if(stepHint && stepHint.dir){
 		const d = Math.max(2, depth || 2);
-		plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
-		for(let k = 2; k <= d; k += 1){
-			plan.push({ k, dir: stepHint.dir });
+		// horosa_pump_skew_v1(PERF-R12 W3a③,对抗校验窄背书形态):同向连击 ≥3 且间隔 <2s
+		// 时丢反向换前伸 +(d+1)—— 反向目标(刚渲染那张)本就温在 chartMem/L2,丢弃零损;
+		// 任务数不变,白名单/预算结构不动;显式 budget 的 stepSelect 直发路径不经此分支。
+		// 判定失败=不偏(fail-open 回今日计划)。kill:horosa.perf.stepPrefetchSkew。
+		let skew = false;
+		try{
+			if(stepPrefetchSkewEnabled()){
+				const s = stepStreak(astroState.currentTab);
+				skew = s.count >= 3 && s.dir === stepHint.dir
+					&& (!stepHint.unit || s.unit === stepHint.unit)
+					&& (Date.now() - s.at) < 2000;
+			}
+		}catch(e){ /* 不偏 */ }
+		if(skew){
+			plan = [];
+			for(let k = 1; k <= Math.min(d + 1, 5); k += 1){
+				plan.push({ k, dir: stepHint.dir });
+			}
+		}else{
+			plan = [{ k: 1, dir: stepHint.dir }, { k: 1, dir: -stepHint.dir }];
+			for(let k = 2; k <= d; k += 1){
+				plan.push({ k, dir: stepHint.dir });
+			}
 		}
 	}else if(depth > 0){
 		plan = [];
@@ -688,6 +709,15 @@ registerStepSelectHandler((unit)=>{
 	if(!(stepPrefetchArmEnabled() && shouldArmForTab(st.currentTab))){
 		return;
 	}
+	// horosa_pump_skew_v1 附带守卫收敛(PERF-R12 W3a⑤):early-boot 窗口(early=1 且后端
+	// 未确认)里选档预取只会在 boot 门排队白占 —— 与 armStepPrefetch 同款守卫补到 live 直发
+	// 路径(此前该守卫只存在于 armStepPrefetch 侧,本路径裸奔;sameMinute 闸按 v3.5.1 裁决
+	// 本路径豁免:opt-in 宿主已在源头滤掉旁路时间条)。
+	try{
+		if(isEarlyBootMode() && typeof window !== 'undefined' && window.__horosaBackendConfirmed !== true){
+			return;
+		}
+	}catch(e){ /* 判定失败不拦 */ }
 	reportStepUnit(st.currentTab, unit);
 	submitStepPrefetch(
 		buildStepPrefetchTasks(st.fields, { unit, dir: 0, depth: stepPrefetchDepth() }, st)
@@ -1515,7 +1545,7 @@ export default {
 					saveBootChartSnapshot(fieldValues, astroState.currentTab);   // horosa_boot_chart_restore_v1
 					if(stepHint){
 						// settle 后预取「下一步」:用户已停手+主盘已回,天然错峰(风暴防护在调度器内)
-						reportStepUnit(astroState.currentTab, stepHint.unit);
+						reportStepUnit(astroState.currentTab, stepHint.unit, stepHint.dir);   // horosa_pump_skew_v1:dir 供连击计量
 						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
 					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
 						// PERF-R10 horosa_step_prefetch_arm_v1:无向 settle(初盘/确定/改设置/切回)

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoChartMain.js b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-index 635c4bb..e198969 100644
+index c8568ac5..ecaa7fb2 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 @@ -1,5 +1,9 @@
@@ -8,20 +8,32 @@ index 635c4bb..e198969 100644
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
-+import { stepPrefetchEnabled } from '../../utils/perfFlags';
++import { stepPrefetchEnabled, guolaoMergedPaintEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { XQModal, XQTabs as Tabs } from '../xq-ui';
-@@ -1399,6 +1403,23 @@ async function fetchGuolaoChartCached(params, options){
+@@ -26,7 +30,8 @@ import GuoLaoMoiraWheel, {
+ import GuoLaoMoiraPickWheel from './GuoLaoMoiraPickWheel';
+ import GuoLaoQizhengWheel from './GuoLaoQizhengWheel';
+ import { GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoChartStyle, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, getStoredGuolaoSu28Mode, getStoredGuolaoAyanamsa, getStoredGuolaoDisplay, getStoredMoiraTransitGodsVisible, getStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, getStoredGuolaoLilithType, getStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, setStoredGuolaoChartStyle, setStoredGuolaoLifeMode, setStoredGuolaoNodeMode, setStoredGuolaoSu28Mode, setStoredMoiraTransitGodsVisible, setStoredGuolaoDisplay, getStoredGuolaoElection, setStoredGuolaoElection, getStoredGuolaoEleLifeMode, setStoredGuolaoEleLifeMode, } from './GuoLaoChartStyle';
+-import { fetchKinastroQizheng, fetchMoiraQizhengRules, fetchQizhengElection, } from '../../services/qizheng';
++import { fetchKinastroQizheng, fetchMoiraQizhengRules, fetchQizhengElection, stableMoiraKey, } from '../../services/qizheng';
++import { peekCachedPost } from '../../services/_requestCache';
+ import { getMagneticDeclination } from './electionGeomag';
+ import { GuoLaoElectionTable, GuoLaoElectionSearch } from './GuoLaoElectionTable';
+ import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
+@@ -1399,6 +1404,25 @@ async function fetchGuolaoChartCached(params, options){
  	return clonePlain(result);
  }
  
 +// PERF-R8 P2(数据层空闲预热):按当前命盘 fields 预热七政「本命盘」进 guolaoMem —— 与用户
 +// 首点走完全相同的 fieldsToParams + fetchGuolaoChartCached 入口(key 同、body 同、结果逐字节同,
-+// 只是提前付)。仅暖本命:流年/Moira 规则依赖「此刻」的流年时间(makeDefaultMoiraTransitTime)
-+// =取现时端点,按预热白名单纪律禁入。存储样式为七政 kinastro 引擎时跳过(不同引擎路径,
-+// 预热本命盘对其无效)。失败静默;绝不 dispatch 任何全局 state。
++// 只是提前付)。本函数仅暖本命:空闲预热入口是模块级调用,拿不到组件 state 的已物化流年时刻,
++// 若在此现算 makeDefaultMoiraTransitTime = 预取时新取「现在」= 禁入形态。流年+Moira 规则的
++// 安全预取只存在于组件内注册的步进链(G6,transit 时刻恒取组件 state,见 constructor 注)。
++// 存储样式为七政 kinastro 引擎时跳过(不同引擎路径,预热本命盘对其无效)。失败静默;绝不
++// dispatch 任何全局 state。
 +export async function warmGuolaoNatal(fields){
 +	try{
 +		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){ return null; }
@@ -37,7 +49,7 @@ index 635c4bb..e198969 100644
  // ⚠️ 死代码(零调用,同类自检 v42 定性):主链=buildGuolaoSnapshotTextV2;本函数段头(宫位与星体/宫位二十八宿)
  // 未登 preset 属死码段——若复活必须先登记 preset+migration(全树段头哨兵会咬)。
  function buildGuolaoSnapshotText(params, result){
-@@ -2180,6 +2201,144 @@ function paramsWithMoiraTransit(fields, transitTime){
+@@ -2207,6 +2231,144 @@ function paramsWithMoiraTransit(fields, transitTime){
  	return params;
  }
  
@@ -182,14 +194,20 @@ index 635c4bb..e198969 100644
  
  class GuoLaoChartMain extends Component{
  	constructor(props) {
-@@ -2271,6 +2430,25 @@ class GuoLaoChartMain extends Component{
+@@ -2298,6 +2460,53 @@ class GuoLaoChartMain extends Component{
  					if(tp){ fetchGuolaoChartCached(tp, { silent: true }).catch(()=>{ /* 预热静默 */ }); }
  				}catch(e){ /* 预热失败无害 */ }
  			};
 +			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):七政【本命盘】步进预取。
-+			// 只暖本命 —— Moira 流年的默认过运时刻是「现在」(makeDefaultMoiraTransitTime),
-+			// 预取它等于把「此刻」钉死成缓存值 = 功能性降级,按纪律禁入(白名单亦以 moira 禁词兜底)。
 +			// 闭包吃组件态(engineMode/chartStyle 决定本命盘是否走这条路径);闸 horosa.perf.stepPrefetch。
++			// [horosa_guolao_render_slice_v1 G6] 第二任务把「第三段串行往返」(Moira 规则)也提前付:
++			// 复刻真实链同源入口(natal 缓存入口 → transit 缓存入口 → cachedPost 规则),body 携真
++			// chartObj —— 稳定键(horosa_moira_stable_key_v1)虽不含盘,但响应纯函数性只在「带盘」
++			// 形态被黄金证明过,不发 null 盘变体。物化前提(禁词精确豁免 PREFETCH_FORBIDDEN_EXEMPT_EXACT
++			// 的成立条件):transit 时刻恒取 this.state.moiraTransitTime(挂载时物化/用户显式所选),
++			// 预取时刻绝不新算「现在」;用户中途改流年时刻 ⇒ 键不匹配 = 无害浪费,绝不错供。
++			// 步进落地时:natal 命中 + transit 命中(其参数与本命日期无关,当前 bundle 已缓存)+ 规则
++			// 命中 ⇒ 三段往返全为零。
 +			if(stepPrefetchEnabled()){
 +				registerStepPrefetcher('guolao', (steppedFields)=>{
 +					if(this.unmounted || this.state.engineMode === 'kinastro'){
@@ -202,13 +220,35 @@ index 635c4bb..e198969 100644
 +						name: 'guolao:natal',
 +						path: '/chart',
 +						run: ()=> warmGuolaoNatal(steppedFields),
++					}, {
++						name: 'guolao:moira-rules',
++						path: '/qizheng/moira',
++						run: async ()=>{
++							const natalRaw = await warmGuolaoNatal(steppedFields);
++							if(!natalRaw || this.unmounted){ return null; }
++							const chartObj = applyGuolaoNodeMode(natalRaw, steppedFields);
++							const transitParams = paramsWithMoiraTransit(steppedFields, this.state.moiraTransitTime);
++							let transitObj = null;
++							try{
++								const transitRaw = await fetchGuolaoChartCached(transitParams, { silent: true });
++								transitObj = transitRaw ? applyGuolaoNodeMode(transitRaw, steppedFields) : null;
++							}catch(e){
++								transitObj = null; // 与真实链同款:流年失败仍按 null 盘求规则
++							}
++							return fetchMoiraQizhengRules({
++								params: fieldsToParams(steppedFields),
++								chartObj,
++								transitParams,
++								transitChartObj: transitObj,
++							}, { silent: true, timeoutMs: 12000 }).catch(()=>null);
++						},
 +					}];
 +				});
 +			}
  		}
  	}
  
-@@ -2429,6 +2607,10 @@ class GuoLaoChartMain extends Component{
+@@ -2456,6 +2665,10 @@ class GuoLaoChartMain extends Component{
  				qizhengKinPan: pan,
  				qizhengKinLoading: false,
  				qizhengKinError: '',
@@ -219,7 +259,7 @@ index 635c4bb..e198969 100644
  			});
  			if(pan && pan.snapshot){
  				saveModuleAISnapshot('guolao-qizhengkin', pan.snapshot, {
-@@ -2445,6 +2627,9 @@ class GuoLaoChartMain extends Component{
+@@ -2472,6 +2685,9 @@ class GuoLaoChartMain extends Component{
  				this.setState({
  					qizhengKinLoading: false,
  					qizhengKinError: e && e.message ? e.message : '七政四余服务暂不可用',
@@ -229,7 +269,7 @@ index 635c4bb..e198969 100644
  				});
  			}
  			return null;
-@@ -2520,6 +2705,10 @@ class GuoLaoChartMain extends Component{
+@@ -2547,6 +2763,10 @@ class GuoLaoChartMain extends Component{
  			moiraPanelTransitChartObj: clonePlain(transitChartObj || this.state.moiraTransitChartObj),
  			moiraPanelTransitParams: clonePlain(nextTransitParams),
  			moiraLoading: false,
@@ -240,7 +280,7 @@ index 635c4bb..e198969 100644
  		});
  	}
  
-@@ -2606,6 +2795,9 @@ class GuoLaoChartMain extends Component{
+@@ -2633,6 +2853,9 @@ class GuoLaoChartMain extends Component{
  					moiraTransitChartObj: displayResult,
  					moiraTransitLoading: false,
  					moiraLoading: false,
@@ -250,7 +290,7 @@ index 635c4bb..e198969 100644
  				});
  				this._pendingMoiraChartObj = null;
  				return result;
-@@ -2630,6 +2822,9 @@ class GuoLaoChartMain extends Component{
+@@ -2657,6 +2880,9 @@ class GuoLaoChartMain extends Component{
  					this.setState({
  						...(this._pendingMoiraChartObj ? { chartObj: this._pendingMoiraChartObj } : {}),
  						moiraLoading: false,
@@ -260,7 +300,7 @@ index 635c4bb..e198969 100644
  					});
  					this._pendingMoiraChartObj = null;
  				}
-@@ -2754,7 +2949,11 @@ class GuoLaoChartMain extends Component{
+@@ -2781,7 +3007,11 @@ class GuoLaoChartMain extends Component{
  			this.saveGuolaoAISnapshot(params, chartObj);
  		}
  		if(!chartObj){
@@ -273,7 +313,38 @@ index 635c4bb..e198969 100644
  			return;
  		}
  
-@@ -2804,6 +3003,10 @@ class GuoLaoChartMain extends Component{
+@@ -2798,10 +3028,18 @@ class GuoLaoChartMain extends Component{
+ 			}
+ 		}
+ 		const transitObj = transitRaw ? applyGuolaoNodeMode(transitRaw, this.props.fields) : null;
+-		this.setState({
+-			moiraTransitChartObj: transitObj,
+-			moiraTransitLoading: false,
+-		});
++		// [horosa_guolao_render_slice_v1 G5] 全命中路径中间帧合并:Moira 规则已在缓存(同步窥探)
++		// ⇒ 下面的规则取回是 Promise.resolve 级,跳过「先画流年环」的中间 setState,终态一次落齐
++		// (终态字节一致,少一整轮重渲)。窥探为假(冷/在途)⇒ 保留中间帧 = 流年环照旧先行上屏,
++		// 绝不让流年环等规则往返。窥探真而取时被 LRU 逐出的极角:流年环与规则同帧上屏,终态不变。
++		const rulesPeekHit = guolaoMergedPaintEnabled()
++			&& peekCachedPost('qizheng/moira', stableMoiraKey({ params, transitParams }));
++		if(!rulesPeekHit){
++			this.setState({
++				moiraTransitChartObj: transitObj,
++				moiraTransitLoading: false,
++			});
++		}
+ 		let rsp = null;
+ 		let fallbackReason = 'empty-response';
+ 		try{
+@@ -2826,11 +3064,18 @@ class GuoLaoChartMain extends Component{
+ 			: remoteRules;
+ 		this.setState({
+ 			moiraRules: rules,
++			// G5:流年盘字段并入终态帧(慢路径下与中间帧同引用 = 幂等无额外工作;
++			// 合并路径下这里是它唯一的落点)。
++			moiraTransitChartObj: transitObj,
+ 			moiraPanelChartObj: chartObj,
+ 			moiraPanelTransitChartObj: transitObj,
  			moiraPanelTransitParams: transitParams,
  			moiraLoading: false,
  			moiraTransitLoading: false,
@@ -284,7 +355,7 @@ index 635c4bb..e198969 100644
  		});
  	}
  
-@@ -2897,10 +3100,11 @@ class GuoLaoChartMain extends Component{
+@@ -2924,10 +3169,11 @@ class GuoLaoChartMain extends Component{
  
  
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
@@ -298,7 +369,7 @@ index 635c4bb..e198969 100644
  			return true;
  		}
  		return !wrapperPropsEqual(this.props, nextProps);
-@@ -3531,8 +3735,40 @@ class GuoLaoChartMain extends Component{
+@@ -3558,8 +3804,40 @@ class GuoLaoChartMain extends Component{
  		});
  	}
  
@@ -339,7 +410,7 @@ index 635c4bb..e198969 100644
  		const ele = this.state.electionOptions || {};
  		if(ele.adjNorth === false){
  			if(this.state.electionDeclOutOfRange){
-@@ -3585,10 +3821,14 @@ class GuoLaoChartMain extends Component{
+@@ -3612,10 +3890,34 @@ class GuoLaoChartMain extends Component{
  
  	// 化曜/虚实/命曜/流曜/相位 五类信息面板原本没有——注入为右栏常驻 tab(信息不得仅在
  	// 快捷弹层可见);格局/神煞面板已有同源信息,不重复注入(格局弹窗仍留盘面徽标入口)。
@@ -347,7 +418,27 @@ index 635c4bb..e198969 100644
 +	// 契约两种形态都吃,那边统一归一后交 FreezeSubTab)。原先是即时构造的节点 —— 择日表/择日搜索/
 +	// 相位三块的元素树(含 resolveElectionDeclination()、memoTransitParams()、renderQuickAspects()
 +	// 三次真计算)在每次本组件重渲时都跑一遍,而右栏同时只显 1 个 tab。
++	// [horosa_guolao_render_slice_v1] extraTabs 数组引用稳定化(单槽缓存,照 memoTransitParams 范式):
++	// children 全是读 live state 的 thunk,数组重建本身廉价——稳定引用的意义在于不击穿 Panel 侧
++	// wrapperPropsEqual 记忆。键必须涵盖「不经 Panel 其它 props 流动」的轴(electionData/electionOptions)
++	// + aspects 轴 chartObj(rootValue 可能被 moiraPanelChartObj 覆盖,不可依赖它传导);
++	// 其余键(moiraRules/fields/moiraTransitTime 等)与 Panel props 重复=双保险,多余失效无害。
  	buildMoiraExtraTabs(){
++		const sig = [
++			this.state.chartStyle,
++			this.state.electionData,
++			this.state.moiraTransitChartObj,
++			this.state.moiraRules,
++			this.state.electionOptions,
++			this.props.fields,
++			this.state.moiraTransitTime,
++			this.state.chartObj,
++		];
++		if(this._extraTabsValue && this._extraTabsSig
++			&& this._extraTabsSig.length === sig.length
++			&& this._extraTabsSig.every((v, i)=>v === sig[i])){
++			return this._extraTabsValue;
++		}
  		const wrap = (node)=>(<div className="horosa-guolao-moira">{node}</div>);
  		const electionTabs = this.state.chartStyle === GUOLAO_CHART_STYLE_PICK ? [
 -			{ key: 'election', label: '择日', children: wrap(
@@ -355,7 +446,7 @@ index 635c4bb..e198969 100644
  				<GuoLaoElectionTable
  					electionData={this.state.electionData}
  					transitChartObj={this.state.moiraTransitChartObj}
-@@ -3597,10 +3837,10 @@ class GuoLaoChartMain extends Component{
+@@ -3624,20 +3926,23 @@ class GuoLaoChartMain extends Component{
  					declination={this.resolveElectionDeclination()}
  				/>
  			) },
@@ -368,16 +459,22 @@ index 635c4bb..e198969 100644
  					onPickMoment={(row)=>this.onPickElectionMoment(row)}
  				/>
  			) },
-@@ -3609,7 +3849,7 @@ class GuoLaoChartMain extends Component{
+ 		] : [];
+ 		// 化曜/虚实/命曜/流曜 四 tab 已裁撤:化曜=概览生年化曜+星曜表已有;虚实=概览「虚实四柱」
  		// 卡;命曜/流曜=星曜 tab 本命/流年两节已有——信息不重复设 tab(用户钦定)。
- 		return [
+-		return [
++		const tabs = [
  			...electionTabs,
 -			{ key: 'aspects', label: '相位', children: wrap(this.renderQuickAspects()) },
 +			{ key: 'aspects', label: '相位', children: ()=>wrap(this.renderQuickAspects()) },
  		];
++		this._extraTabsSig = sig;
++		this._extraTabsValue = tabs;
++		return tabs;
  	}
  
-@@ -3740,20 +3980,27 @@ class GuoLaoChartMain extends Component{
+ 	renderMoiraQuickModal(){
+@@ -3767,20 +4072,27 @@ class GuoLaoChartMain extends Component{
  		const options = this.state.kinastroOptions || {};
  		const zhangguo = safeMap(qz.zhangguo);
  		const mingGong = safeMap(qz.mingGong);
@@ -417,7 +514,7 @@ index 635c4bb..e198969 100644
  				<div className="horosa-qizheng-kin-info-stack">
  					{this.renderQizhengKinReadingCards(sectionByTitle.get('张果断语') || {title: '张果断语', rows: []})}
  					<div className="horosa-qizheng-kin-info-card">
-@@ -3766,9 +4013,9 @@ class GuoLaoChartMain extends Component{
+@@ -3793,9 +4105,9 @@ class GuoLaoChartMain extends Component{
  					</div>
  				</div>
  			)},
@@ -430,7 +527,7 @@ index 635c4bb..e198969 100644
  				<div className="horosa-qizheng-kin-info-stack">
  					{sections.filter((item)=>/宿度$/.test(item.title)).map((item)=>this.renderQizhengKinSection(item))}
  				</div>
-@@ -3786,9 +4033,13 @@ class GuoLaoChartMain extends Component{
+@@ -3813,9 +4125,13 @@ class GuoLaoChartMain extends Component{
  			>
  				{tabs.map((item)=>(
  					<TabPane tab={item.label} key={item.key}>
@@ -447,7 +544,7 @@ index 635c4bb..e198969 100644
  					</TabPane>
  				))}
  			</Tabs>
-@@ -3819,20 +4070,33 @@ class GuoLaoChartMain extends Component{
+@@ -3846,20 +4162,33 @@ class GuoLaoChartMain extends Component{
  		);
  	}
  
@@ -489,7 +586,43 @@ index 635c4bb..e198969 100644
  		// 与盘面绝对同源:盘面神煞环已切到 rules 引擎(godHits/transitGodHits,Moira prop 规则本尊),
  		// 清单从同一 hits 收集(全集 ~107 字,勾选与盘一一联动);rules 未到回退历法 ziGods。
  		const rules = this.state.moiraRules || {};
-@@ -3888,8 +4152,10 @@ class GuoLaoChartMain extends Component{
+@@ -3898,6 +4227,21 @@ class GuoLaoChartMain extends Component{
+ 		};
+ 	}
+ 
++	// horosa_guolao_render_slice_v1(W3d-G0):派生盘单键缓存(chartObj/aspects/lots 三引用命中
++	// 即复用同一派生对象)—— 见 render 内注记。
++	getDerivedChart(chartObj){
++		if(!chartObj){
++			return {};
++		}
++		const c = this._derivedChartCache;
++		if(c && c.src === chartObj.chart && c.aspects === chartObj.aspects && c.lots === chartObj.lots){
++			return c.value;
++		}
++		const value = { ...(chartObj.chart || {}), aspects: chartObj.aspects || {}, lots: chartObj.lots || [] };
++		this._derivedChartCache = { src: chartObj.chart, aspects: chartObj.aspects, lots: chartObj.lots, value };
++		return value;
++	}
++
+ 	render(){
+ 		let height = this.props.height ? this.props.height : 760;
+ 		if(height === '100%'){
+@@ -3907,16 +4251,21 @@ class GuoLaoChartMain extends Component{
+ 		}
+ 
+ 		let chartObj = this.state.chartObj;
+-		let chart = chartObj ? chartObj.chart : {};
+-		chart.aspects = chartObj ? chartObj.aspects : {};
+-		chart.lots = chartObj ? chartObj.lots : [];
++		// horosa_guolao_render_slice_v1(PERF-R12 W3d-G0):渲染期变异根除 —— 旧写法在 render 里
++		// 就地把 aspects/lots 挂到 state 里的 chartObj.chart 上(同引用被悄悄改写 = 任何按引用
++		// 比较的 memo 边界语义被毁;对抗校验点名「先修这处再上 memo」)。改为**带单键缓存的派生
++		// 浅拷贝**:同一 chartObj ⇒ 同一派生引用(下游 React.memo 行为与旧同引用路径逐帧等价),
++		// 换盘才换引用;state 对象从此只读。
++		const chart = this.getDerivedChart(chartObj);
+ 		const useMoiraWheel = this.state.chartStyle === GUOLAO_CHART_STYLE_MOIRA;
+ 		const usePickWheel = this.state.chartStyle === GUOLAO_CHART_STYLE_PICK;
  		const useMoiraLikeWheel = useMoiraWheel || usePickWheel;
  		const moiraPanelChartObj = this.state.moiraPanelChartObj || chartObj;
  		const moiraPanelTransitChartObj = this.state.moiraPanelTransitChartObj || this.state.moiraTransitChartObj;
@@ -501,7 +634,7 @@ index 635c4bb..e198969 100644
  
  		return (
  			<div className={`horosa-guolao-page horosa-astro-redesign horosa-guolao-redesign${useKinastroQizheng ? ' horosa-qizheng-kin-page' : ''}`}>
-@@ -3922,74 +4188,27 @@ class GuoLaoChartMain extends Component{
+@@ -3949,74 +4298,27 @@ class GuoLaoChartMain extends Component{
  							/>
  						</div>
  						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-guolao-chart-panel xq-chart-renderer xq-chart-renderer-guolao${useMoiraLikeWheel ? ' horosa-guolao-chart-panel-moira' : ''}`}>

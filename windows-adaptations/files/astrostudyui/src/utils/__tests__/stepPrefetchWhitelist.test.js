@@ -17,7 +17,9 @@ import {
 import request from '../request';
 import { fetchChartWithRetry } from '../chartFetch';
 
-// 题面点名的七类:随机骰子 / 地占 / 五兆 / 荆诀 / AI 流式 / 天文馆(取现时) / 七政 Moira 流年。
+// 题面点名的七类:随机骰子 / 地占 / 五兆 / 荆诀 / AI 流式 / 天文馆(取现时) / moira 禁词变体。
+// (G6 起 '/qizheng/moira' 精确路径入 PREFETCH_FORBIDDEN_EXEMPT_EXACT —— 物化预取豁免;
+//  这里改钉一个非豁免变体,证明禁词对「类」仍然生效、豁免不放大。)
 const FORBIDDEN_TASK_PATHS = [
 	'/predict/dice',
 	'/geomancy/reading',
@@ -25,7 +27,7 @@ const FORBIDDEN_TASK_PATHS = [
 	'/jingjue/pan',
 	'/aianalysis/stream',
 	'/planetarium/state',
-	'/qizheng/moira',
+	'/qizheng/moirascan',
 ];
 
 const ROOT = 'http://127.0.0.1:8899';
@@ -126,9 +128,16 @@ describe('🔴 第②层:纵深防御 —— 任务谎报 path 也漏不出去',
 });
 
 describe('🔴 白名单判定本身', () => {
-	test('禁词优先于允许前缀:/qizheng/ 允许,但 /qizheng/moira 仍被拦', () => {
+	test('禁词优先于允许前缀;G6 精确豁免只放 /qizheng/moira 本尊,变体仍拦', () => {
 		expect(isPrefetchPathAllowed('/qizheng/pan')).toBe(true);
-		expect(isPrefetchPathAllowed('/qizheng/moira')).toBe(false);
+		// G6(horosa_guolao_render_slice_v1):物化预取豁免 —— 归一化后全路径精确等值才放行。
+		expect(isPrefetchPathAllowed('/qizheng/moira')).toBe(true);
+		expect(isPrefetchPathAllowed(`${ROOT}/qizheng/moira?x=1`)).toBe(true);   // host/query 归一后=本尊
+		// 豁免不放大类:任何 moira 变体照旧被禁词拦。
+		expect(isPrefetchPathAllowed('/qizheng/moira/extra')).toBe(false);
+		expect(isPrefetchPathAllowed('/qizheng/moirascan')).toBe(false);
+		expect(isPrefetchPathAllowed('/qizheng/moira2')).toBe(false);
+		expect(isPrefetchPathAllowed('/aimoira/pan')).toBe(false);
 	});
 
 	test('kentang pan 逐条枚举:允许的在、随机族的不在', () => {

@@ -3,25 +3,29 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Spin } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
+import { makeHealingFactory } from '../../utils/lazyBoundary';
 // [C2·性能] 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
 // 其余子页首次点击才拉(idle 预取与悬停预取照旧);ref 经 React.lazy 透传,dock 判空自动降级。
-const SuZhanMain = React.lazy(() => import(/* webpackChunkName: "suzhan-main" */ '../suzhan/SuZhanMain'));
-const JinKouMain = React.lazy(() => import(/* webpackChunkName: "jinkou-main" */ '../jinkou/JinKouMain'));
-const TongSheFaMain = React.lazy(() => import(/* webpackChunkName: "tongshefa-main" */ '../tongshefa/TongSheFaMain'));
-const HuangJiMain = React.lazy(() => import(/* webpackChunkName: "huangji-main" */ '../huangji/HuangJiMain'));
-const WuZhaoMain = React.lazy(() => import(/* webpackChunkName: "wuzhao-main" */ '../wuzhao/WuZhaoMain'));
-const TaiXuanMain = React.lazy(() => import(/* webpackChunkName: "taixuan-main" */ '../taixuan/TaiXuanMain'));
-const JingJueMain = React.lazy(() => import(/* webpackChunkName: "jingjue-main" */ '../jingjue/JingJueMain'));
-const ShenYiShuMain = React.lazy(() => import(/* webpackChunkName: "shenyishu-main" */ '../shenyishu/ShenYiShuMain'));
-const GeomancyMain = React.lazy(() => import(/* webpackChunkName: "geomancy-main" */ '../geomancy/GeomancyMain'));
-const TarotMain = React.lazy(() => import(/* webpackChunkName: "tarot-main" */ '../tarot/TarotMain'));
+// [horosa_lazy_healing_wrap_v1 / PERF-R12 W2.5] 工厂一律过 makeHealingFactory:裸 React.lazy 会把
+// 「更新中途换包 resolve 出的空模块」永久钉进缓存(v3.6.0 辅盘干净安装必炸的同类根),自愈工厂
+// 让坏结果不进缓存、下次真正重试;好路径行为与裸写逐字节等价(含 ref 透传)。
+const SuZhanMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "suzhan-main" */ '../suzhan/SuZhanMain')));
+const JinKouMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "jinkou-main" */ '../jinkou/JinKouMain')));
+const TongSheFaMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "tongshefa-main" */ '../tongshefa/TongSheFaMain')));
+const HuangJiMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "huangji-main" */ '../huangji/HuangJiMain')));
+const WuZhaoMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "wuzhao-main" */ '../wuzhao/WuZhaoMain')));
+const TaiXuanMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "taixuan-main" */ '../taixuan/TaiXuanMain')));
+const JingJueMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "jingjue-main" */ '../jingjue/JingJueMain')));
+const ShenYiShuMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "shenyishu-main" */ '../shenyishu/ShenYiShuMain')));
+const GeomancyMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "geomancy-main" */ '../geomancy/GeomancyMain')));
+const TarotMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "tarot-main" */ '../tarot/TarotMain')));
 // 皇极轨策:组件级 lazy —— 其引擎(十二起卦法/演数/卦变/断法/十应/大定/历数)只随本页签走,
 // 不入本模块主 chunk。ref 经 React.lazy 透传至内层 class(getQuickDockConfig 等仍可用);
 // 未解析前 childRefs.guice.current 为 null,getActiveChild 本就判空 → dock 自动降级。
-const GuiceMain = React.lazy(() => import(/* webpackChunkName: "guice-main" */ '../guice/GuiceMain'));
-const XiaoLiuRenMain = React.lazy(() => import(/* webpackChunkName: "xiaoliuren-main" */ '../xiaoliuren/XiaoLiuRenMain'));
-const XiaoChengTuMain = React.lazy(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain'));
-const FeiGongMain = React.lazy(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain'));
+const GuiceMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "guice-main" */ '../guice/GuiceMain')));
+const XiaoLiuRenMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "xiaoliuren-main" */ '../xiaoliuren/XiaoLiuRenMain')));
+const XiaoChengTuMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain')));
+const FeiGongMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain')));
 import QuickDockBar from '../common/QuickDockBar';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';

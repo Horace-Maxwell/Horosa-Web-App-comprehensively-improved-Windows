@@ -183,6 +183,9 @@ class DivinationChartShell extends Component{
 	}
 
 	componentDidUpdate(){
+		// (PERF-R12 W3b-Z5 评估后不做:同一挂载期第二次「应用案例」正是靠这里轮询新 caseVersion
+		// 被拾起 —— 任何「已应用即跳过」式守卫都会吞掉它 = 功能降级;每 update 一次 localStorage
+		// 读是它换来的正确性成本,保留。)
 		this.applyRestoreIfAny();
 	}
 

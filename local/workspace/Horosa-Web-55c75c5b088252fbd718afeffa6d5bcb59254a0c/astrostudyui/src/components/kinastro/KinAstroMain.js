@@ -9,7 +9,9 @@ import CanPingMain from '../shusuan/CanPingMain';
 import HeLuoMain from '../shusuan/HeLuoMain';
 // 神数正传:组件级 lazy —— 引擎与秘数表(~250KB)随组件走独立 chunk,不点这条 rail 即零成本。
 // 条文库(465KB+598KB)另在引擎内动态 import,条文号先出、正文到达后填(见 zhengchuan*Local)。
-const ZhengChuanMain = React.lazy(() => import(/* webpackChunkName: "zhengchuan-main" */ '../shusuan/ZhengChuanMain'));
+// [horosa_lazy_healing_wrap_v1 / PERF-R12 W2.5] 工厂过 makeHealingFactory(裸 React.lazy 会把
+// 更新中途换包 resolve 出的空模块永久钉缓存,v3.6.0 同类根;好路径含 ref 透传逐字节等价)。
+const ZhengChuanMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "zhengchuan-main" */ '../shusuan/ZhengChuanMain')));
 // 🔴 流派名表须自【独立常量文件】引 —— 直引那个 lazy 组件会成循环依赖:
 //    宿主 → ZhengChuanMain → …，其时该导出解析为 undefined，整页当场崩
 //    「Element type is invalid … got: undefined」(实测栽过);且会把其引擎拖回本 chunk。
@@ -39,6 +41,7 @@ import { FreezeSubTab } from '../comp/FreezeInactive';
 import { silentTechniquePanelsEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { makeHealingFactory } from '../../utils/lazyBoundary';
 
 const { TabPane } = Tabs;
 const { Option } = Select;

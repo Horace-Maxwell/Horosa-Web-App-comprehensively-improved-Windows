@@ -6,6 +6,7 @@ import UranianGraphicEphemeris from './UranianGraphicEphemeris';
 import UranianHouseFrames from './UranianHouseFrames';
 import { getStoredUranianDisplay } from './UranianDialStyle';
 import { FreezeSubTab } from '../comp/FreezeInactive';
+import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const TabPane = Tabs.TabPane;
 
@@ -32,6 +33,15 @@ class AstroGermany extends Component{
 				this.callCurrentTabHook();
 			};
 		}
+	}
+
+	// horosa_aux_render_slice_v1(A1):德占容器 sCU —— 宿主任意无关 setState 都会带着相同 props
+	// 重渲本容器(Tabs + 四个 FreezeSubTab 子页整棵 reconcile)。全部自有 props 机械浅比
+	// (函数型 props 视为恒等,见 wrapperPropsEqual);state 变(切子页签)一律照渲。
+	// kill-switch 同 chartSCU(horosa.perf.chartSCU=0 → 恒重渲旧行为,wrapperPropsEqual 内建)。
+	shouldComponentUpdate(np, ns){
+		if (ns !== this.state) return true;
+		return !wrapperPropsEqual(this.props, np);
 	}
 
 	callCurrentTabHook(){
