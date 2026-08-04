@@ -195,6 +195,26 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.7.2(2026-08-04 同步轮;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂,commit 06950a0e)**:warmReady 两臂中位
+  **6646 / 6713ms**(逐样本 6601-6785,首样本各 8375/7274 为实例首跑);workspaceVisible
+  **822-870ms**(early-nav 活,预算 1500 内)。两臂差落在噪声内 ⇒ **构建自洽,无回归信号**。
+  工件:docs/perf-artifacts/startup_ab_v372_warmstamp.json(逐样本带机器指纹)。
+- **★台架结构限制(本轮查明,入档防下轮重复踩)**:startup_ab 的样本跑在
+  `resourceMode: "direct"`(直接起 win-unpacked)**且每样本 ready 后即被杀** ⇒
+  **加速档链(uber jar 合并 + static CDS dump)在该模式下从不建成**。本轮专门做过养档尝试
+  (同隔离环境启一次 + dwell 300s):首次进沙箱付 43.7s 载荷物化后仅剩 ~4 分钟,
+  结果 `.jsa` 计数 **0**、history 三行 `ladder:{uber:false,static:false}`。
+  ⇒ **该台架产出的绝对值恒为「失活态」读数,与建成态基准(owner 机 4118/4236ms)不同 regime,
+  禁止直接比较**;它的正确用途是**双臂对照**(旗标 A/B、版本自洽),不是绝对值验收。
+  下轮若真要建成态数字:或延长 dwell 至 ≥10min 并确认链条触发条件,或直接用 owner 机实测
+  (history 自带 ladder 字段,自解释)。
+- **★本轮更强的论据 = 代码级不变性(比任何台架数字都硬)**:v3.7.2 的启动路径**逐文件核过**——
+  Electron 壳改动文件数 **0**;Python 侧 **0 改动**;Java 侧只有 `RuntimeWire` 版本串。
+  唯一的启动影响是**版本变更导致旧加速档失效需重建**(每次 bump 都有,JV-21 更新收尾自动重建承接)。
+  ⇒ 结构上不存在本版引入的温启回归面。**裁决线:建成态数字以 owner 实机安装后读数为准。**
+
 ### 温启对照 v3.7.1(2026-08-04 同步轮;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂,commit 88642d33)**:medianDeltaPct **3.3%**
