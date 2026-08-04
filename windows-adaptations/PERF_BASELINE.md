@@ -195,6 +195,21 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.7.1(2026-08-04 同步轮;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂,commit 88642d33)**:medianDeltaPct **3.3%**
+  =构建自洽;workspaceVisible 中位 843-878ms(early-nav 活,预算 1500 内)。工件:
+  docs/perf-artifacts/startup_ab_v371_warmstamp.json(样本逐条带机器指纹)。
+- **⚠️ 本轮绝对值不可判读(#64 双重污染,如实记录)**:①测时机器处**压制态**(CurrentClockSpeed
+  钉基频 2611MHz==Max、MuMu 五进程常驻、同日全量构建/测试负载,指纹已入样本);②沙箱为
+  **失活态**(`ladder:{uberJar:false,staticJsa:false}` 入档)——warmReady 6.7-9.4s 段=
+  「压制×无档」复合,与建成态基准(v3.7.0 建成态 4077/4118ms)**不同 regime,禁止对比**。
+- **owner 实感「稳定 6s」归因(同日会诊)**:启动史时间线实证 5.0-7.5s 带=08-02 夜
+  v3.7.0 首发版(electionscan 门前回归,当轮已覆盖修根治);覆盖修后仅两次启动
+  (5731 装后首启→4118=验收线,ladder 双 True),此后无新启动记录 ⇒「6s」非现装二进制的
+  建成态读数;v3.7.1 从未在 owner 机运行。**裁决线:v3.7.1 建成态温启以 owner 实机试装
+  读数(startup-history ladder 字段自解释)+ 静机复测为准;压制态窗口不夜判(#64/#89)。**
+
 ### 温启对照 v3.7.0(2026-08-03 覆盖修轮;horosa_warm_ab_stamp_v1 首戳)
 
 - **建成态受控 A/B(沙箱养档后双臂,5/臂,安静机)**:postgate ON 中位 **4077** vs OFF **4091ms**
