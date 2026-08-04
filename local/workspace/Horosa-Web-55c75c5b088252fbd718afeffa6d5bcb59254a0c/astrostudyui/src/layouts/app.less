@@ -5437,6 +5437,8 @@
         gap: 2px;
         height: 100%;
         min-height: 68px;
+        /* [黄历小屏自适应] 格高不足时内容绝不垂向溢出叠印到下一行格(双维 fit 之外的硬兜底)。 */
+        overflow: hidden;
         padding: 8px 4px;
         border: 1px solid var(--horosa-border);
         border-radius: 8px;
@@ -5471,28 +5473,120 @@
         margin-top: 5px;
         line-height: 1.35;
     }
-    .horosa-workspace-shell .horosa-hl-cell-gz { font-size: 17px; font-weight: 800; letter-spacing: 3px; }
-    .horosa-workspace-shell .horosa-hl-cell-row { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
+    .horosa-workspace-shell .horosa-hl-cell-gz { font-size: calc(17px * var(--hl-cell-scale, 1)); font-weight: 800; letter-spacing: calc(3px * var(--hl-cell-scale, 1)); }
+    .horosa-workspace-shell .horosa-hl-cell-row { display: inline-flex; align-items: center; gap: calc(5px * var(--hl-cell-scale, 1)); font-size: calc(13px * var(--hl-cell-scale, 1)); font-weight: 600; }
     .horosa-workspace-shell .horosa-hl-cell-jc.is-good { color: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-hl-cell-jc.is-bad { color: var(--horosa-jx-xiong); }
     .horosa-workspace-shell .horosa-hl-cell-jc.is-neutral { color: var(--horosa-text-soft); }
     .horosa-workspace-shell .horosa-hl-cell-dao {
         display: inline-flex; align-items: center; justify-content: center;
-        width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700; color: #fff;
+        width: calc(18px * var(--hl-cell-scale, 1)); height: calc(18px * var(--hl-cell-scale, 1)); border-radius: 50%; font-size: calc(11px * var(--hl-cell-scale, 1)); font-weight: 700; color: #fff;
     }
     .horosa-workspace-shell .horosa-hl-cell-dao.is-huangdao { background: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-hl-cell-dao.is-heidao { background: var(--horosa-jx-xiong); }
     .horosa-workspace-shell .horosa-hl-cell-xiu { color: var(--horosa-jx-other); font-weight: 700; }
-    .horosa-workspace-shell .horosa-hl-cell-wutu { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    .horosa-workspace-shell .horosa-hl-cell-wutu { font-size: calc(13px * var(--hl-cell-scale, 1)); font-weight: 700; letter-spacing: 1px; }
     .horosa-workspace-shell .horosa-hl-cell-wutu.is-good { color: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-hl-cell-wutu.is-bad { color: var(--horosa-jx-xiong); }
     .horosa-workspace-shell .horosa-hl-cell-yi,
     .horosa-workspace-shell .horosa-hl-cell-ji {
-        max-width: 100%; padding: 0 4px; font-size: 11px; line-height: 1.4;
+        max-width: 100%; padding: 0 4px; font-size: calc(11px * var(--hl-cell-scale, 1)); line-height: 1.4;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .horosa-workspace-shell .horosa-hl-cell-yi { color: var(--horosa-jx-ji); }
     .horosa-workspace-shell .horosa-hl-cell-ji { color: var(--horosa-jx-xiong); }
+    /* [黄历小屏自适应](horosa_calendar_cell_fit_v1)全量显示(用户明令:所有文字都要显示,
+       不挤压不叠印)——任何等级都不隐藏行。宽向:字号与全部间距同走 --hl-cell-scale 等比
+       (scale 仅由格宽驱动,0.55..1);高向:见下方 m1-m4 渐进收行(字号恒不因高度缩小)。
+       密度 class 仅作行高微调档(mini 收 line-height/letter-spacing,仍全量显示)。 */
+    .horosa-workspace-shell .horosa-huangli-cellrich {
+        gap: calc(3px * var(--hl-cell-scale, 1));
+        margin-top: calc(5px * var(--hl-cell-scale, 1));
+    }
+    .horosa-workspace-shell .horosa-lunar-date-card {
+        gap: calc(2px * var(--hl-cell-scale, 1));
+    }
+    .horosa-workspace-shell .horosa-huangli-board .horosa-lunar-date-card,
+    .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card {
+        padding-top: calc(10px * var(--hl-cell-scale, 1));
+        padding-bottom: calc(12px * var(--hl-cell-scale, 1));
+    }
+    .horosa-workspace-shell .horosa-cal-density-mini .horosa-huangli-cellrich { line-height: 1.22; }
+    .horosa-workspace-shell .horosa-cal-density-mini .horosa-hl-cell-gz,
+    .horosa-workspace-shell .horosa-cal-density-mini .horosa-nl-cell-gz { letter-spacing: 1px; }
+    .horosa-workspace-shell .horosa-cal-density-mini .horosa-lunar-date-card { min-height: 0; }
+
+    /* [黄历小屏自适应·渐进收行 m1-m4](用户定版:字号不因高度缩小 + 「随高度缩窄逐渐往上
+       一行收」,非一刀切横流)——等级叠加(mN 态同时带 m1..mN 全部 class):
+         m1 农历并入日号行(其余仍纵排) → m2 干支与建除·黄黑章·值宿合一行
+         → m3 乌兔星并入横流 → m4 宜忌并入(全横流)。
+       全部信息任何等级都照常显示、字号原大;双向居中。四类特异度必须保持
+       (.horosa-lunar-calendar 前缀不可省——board 三类段的 flex-start/padding 曾实测覆盖过)。 */
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m1 .horosa-lunar-date-card {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: baseline;
+        align-content: center;
+        justify-content: center;
+        column-gap: 8px;
+        row-gap: calc(2px * var(--hl-cell-scale, 1));
+        padding-top: 6px;
+        padding-bottom: 7px;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m1 .horosa-lunar-date-card > .ant-row {
+        display: inline-flex;
+        width: auto;
+    }
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m1 .horosa-lunar-date-card > .ant-row .ant-col {
+        flex: 0 0 auto;
+        width: auto;
+    }
+    /* m1 时富信息行(第三个 ant-row)整体独占一行且内部居中,cellrich 保持纵排 */
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m1 .horosa-lunar-date-card > .ant-row:nth-of-type(3) {
+        width: 100%;
+        justify-content: center;
+    }
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m1 .horosa-huangli-cellrich,
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m1 .horosa-nongli-cellrich {
+        margin-top: 0;
+    }
+    /* m2:cellrich 转横流容器——干支+建除行同行;乌兔/宜忌各自仍独占一行(basis 100%) */
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m2 .horosa-lunar-date-card > .ant-row:nth-of-type(3) .ant-col {
+        width: 100%;
+    }
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m2 .horosa-huangli-cellrich,
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m2 .horosa-nongli-cellrich {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: center;
+        column-gap: 8px;
+        row-gap: calc(2px * var(--hl-cell-scale, 1));
+        width: 100%;
+        line-height: 1.25;
+    }
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m2 .horosa-hl-cell-wutu,
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m2 .horosa-hl-cell-yi,
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m2 .horosa-hl-cell-ji {
+        flex-basis: 100%;
+        text-align: center;
+    }
+    /* m3:乌兔星并入横流 */
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m3 .horosa-hl-cell-wutu {
+        flex-basis: auto;
+    }
+    /* m4:宜忌也并入 = 全部信息横向流动(收行终态) */
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m4 .horosa-hl-cell-yi,
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m4 .horosa-hl-cell-ji {
+        flex-basis: auto;
+        max-width: 96%;
+    }
+    .horosa-workspace-shell .horosa-lunar-calendar.horosa-cal-m4 .horosa-lunar-date-card {
+        padding-top: 4px;
+        padding-bottom: 5px;
+    }
+
     /* 五行色（与八字模块统一） */
     .horosa-workspace-shell .horosa-wx-wood { color: var(--horosa-bazi-wood); }
     .horosa-workspace-shell .horosa-wx-fire { color: var(--horosa-bazi-fire); }
@@ -5507,10 +5601,10 @@
         justify-content: flex-start;
     }
     .horosa-workspace-shell .horosa-huangli-board .horosa-lunar-date-card > .ant-row:nth-of-type(1) span {
-        font-size: 21px !important;
+        font-size: calc(21px * var(--hl-cell-scale, 1)) !important;
     }
     .horosa-workspace-shell .horosa-huangli-board .horosa-lunar-date-card > .ant-row:nth-of-type(2) span {
-        font-size: 14px !important;
+        font-size: calc(14px * var(--hl-cell-scale, 1)) !important;
         font-weight: 600;
     }
 
@@ -5518,11 +5612,11 @@
     .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card {
         gap: 3px; padding: 10px 4px 12px; justify-content: flex-start;
     }
-    .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card > .ant-row:nth-of-type(1) span { font-size: 20px !important; }
-    .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card > .ant-row:nth-of-type(2) span { font-size: 14px !important; font-weight: 600; }
+    .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card > .ant-row:nth-of-type(1) span { font-size: calc(20px * var(--hl-cell-scale, 1)) !important; }
+    .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card > .ant-row:nth-of-type(2) span { font-size: calc(14px * var(--hl-cell-scale, 1)) !important; font-weight: 600; }
     .horosa-workspace-shell .horosa-nongli-cellrich { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; line-height: 1.25; }
-    .horosa-workspace-shell .horosa-nl-cell-gz { font-size: 15px; font-weight: 800; letter-spacing: 3px; }
-    .horosa-workspace-shell .horosa-nl-cell-jieqi { font-size: 11px; color: var(--horosa-jx-other); font-weight: 600; white-space: nowrap; }
+    .horosa-workspace-shell .horosa-nl-cell-gz { font-size: calc(15px * var(--hl-cell-scale, 1)); font-weight: 800; letter-spacing: calc(3px * var(--hl-cell-scale, 1)); }
+    .horosa-workspace-shell .horosa-nl-cell-jieqi { font-size: calc(11px * var(--hl-cell-scale, 1)); color: var(--horosa-jx-other); font-weight: 600; white-space: nowrap; }
     .horosa-workspace-shell .horosa-nongli-board .horosa-lunar-date-card.is-other .horosa-nongli-cellrich { opacity: 0.4; }
 
     /* ── 老黄历：今日日课卡（右栏） ── */
@@ -17599,6 +17693,17 @@
         min-height: 0;
         padding: 6px !important;
         overflow: hidden;
+        /* [连续调整不打断] 中栏内 absolute 小转圈徽标的定位父(见 .horosa-sanshi-updating)。 */
+        position: relative;
+    }
+
+    /* [连续调整不打断·三式] 重算小徽标变体:全套观感继承 .horosa-workspace-updating(转圈/金系/
+       双主题),仅定位由 fixed 窗口右上改为中栏容器内右上角——原 <Spin> 满屏压暗遮罩的替代。 */
+    .horosa-workspace-shell .horosa-sanshi-updating {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        z-index: 30;
     }
 
     .horosa-workspace-shell .horosa-sanshi-board-host {

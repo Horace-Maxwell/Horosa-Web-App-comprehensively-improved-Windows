@@ -10,7 +10,7 @@
 
 ## 本版验收头
 
-- version: 3.7.1
+- version: 3.7.2
 - build: release(v3.7.0 **功能轮**:新增天星择日·征象搜索主导航页[navigationPages 新键
   zeri,32 类条件引擎,electionscan 服务挂 :8899 CORE_SERVICE_SPECS]+ 卜卦判读三修 +
   奇门置闰定局修正;**启动路径零改动**[壳层零字节变,Java 仅 RuntimeWire 版本号],

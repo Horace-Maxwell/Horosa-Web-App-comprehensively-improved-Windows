@@ -1,10 +1,9 @@
 import { Component, Fragment } from 'react';
-import { stepPrefetchEnabled } from '../../utils/perfFlags';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';
-import { Spin, Divider, Tag, message } from 'antd';
+import { Divider, Tag, message } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
@@ -2991,45 +2990,84 @@ class SanShiUnitedMain extends Component{
 					this.prefetchNongliForFields(flds || this.props.fields);
 				}catch(e){ /* 预热失败无害 */ }
 			};
-			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):只预取 stage-1(确定性历法计算)。
-			// 🔴 绝不预取三盘本身:奇门/太乙/六壬三盘都吃 stage-1 结果 + 组件态(流派/局法/起课),
-			//    串行不可提前构键;stage-1 暖了,下一步的三盘输入即时可得。
-			if(stepPrefetchEnabled()){
-				registerStepPrefetcher('sanshiunited', (steppedFields)=>{
-					if(this.unmounted || !steppedFields){
-						return [];
-					}
-					const tasks = [];
-					let params = null;
-					try{
-						params = this.genParams(steppedFields);
-					}catch(e){
-						params = null;
-					}
-					if(params){
-						tasks.push({
-							name: 'sanshi:nongli',
-							path: '/nongli/time',
-							run: ()=> fetchPreciseNongli(params),
-						});
-					}
-					try{
-						const qimenOptions = this.getQimenOptions();
-						if(needJieqiYearSeed(qimenOptions) && steppedFields.date && steppedFields.date.value){
-							const year = parseInt(steppedFields.date.value.format('YYYY'), 10);
-							const seedParams = (year && !Number.isNaN(year)) ? this.genJieqiParams(steppedFields, year) : null;
-							if(seedParams){
-								tasks.push({
-									name: 'sanshi:jieqiseed',
-									path: '/jieqi/year',
-									run: ()=> fetchPreciseJieqiSeed(seedParams),
-								});
-							}
+			// [三式步进预取](horosa_sanshi_step_prefetch_v1)stage-1 三段链,与主链同参同键:
+			// nongli' → kinqimen 后端盘'(仅时家转盘等后端模式;本地 calcDunJia 家族无 HTTP 免热)
+			//         + 太乙盘'。两 HTTP 经 kentangCache 收口=预取即入缓存,真步进网络归零;
+			// 六壬纯本地零网络无需预热。登记进共享调度器(白名单闸/latest-wins/预算),
+			// armStepPrefetch 全局武装链(选步长/settle/切页签)登记后自动生效。
+			// [Windows-only 增量] 第二条任务 sanshi:jieqiseed 保留(我方 R9 Ship7 首创):
+			// 链式任务把 this.jieqiYearSeeds 现值传给 fetchQimenPan,但**不会去补缺失的年种子**;
+			// 跨年步进时缺种子那一步仍要现付 /jieqi/year。两者互补,不重复(端点不同、键不同)。
+			this._sanshiStepPrefetcher = (steppedFields)=>{
+				if(this.unmounted || !steppedFields){
+					return [];
+				}
+				let params = null;
+				try{ params = this.genParams(steppedFields); }catch(e){ params = null; }
+				if(!params){
+					return [];
+				}
+				const tasks = [{
+					name: 'sanshi:stage1',
+					path: '/nongli/time',
+					run: async ()=>{
+						let nongli = getNongliLocalCache(params);
+						if(!nongli){
+							nongli = await fetchPreciseNongli(params).then((r)=>{
+								if(r){ setNongliLocalCache(params, r); }
+								return r;
+							}).catch(()=>null);
 						}
-					}catch(e){ /* 种子构参失败静默跳过 */ }
-					return tasks;
-				});
-			}
+						if(!nongli || this.unmounted){
+							return null;
+						}
+						const jobs = [];
+						try{
+							const qimenOptions = this.getQimenOptions();
+							const o = qimenOptions || {};
+							const kinq = isKinqimenMode(o.paiPanType) && o.school !== '飞盘' && o.school !== '混合' && o.qijuMethod !== 'shuzi';
+							if(kinq){
+								const year = steppedFields.date && steppedFields.date.value
+									? parseInt(steppedFields.date.value.format('YYYY'), 10) : null;
+								const displaySolarTime = await this.resolveDisplaySolarTime(params, nongli);
+								// isDiurnal 取现值 chartWrap(±数步内昼夜大概率不变=同键;跨昼夜界偶发白预取无害)。
+								const isDiurnal = extractIsDiurnalFromChartWrap(this.props.chartObj || this.props.chart || null);
+								jobs.push(fetchQimenPan(steppedFields, nongli, qimenOptions, {
+									year,
+									jieqiYearSeeds: this.jieqiYearSeeds,
+									isDiurnal,
+									displaySolarTime,
+								}).catch(()=>null));
+							}
+						}catch(e){ /* 奇门预热构参失败静默 */ }
+						try{
+							jobs.push(this.getKintaiyiPan(steppedFields, nongli, {
+								...(this.state.options || {}),
+							}).catch(()=>null));
+						}catch(e){ /* 太乙预热失败静默 */ }
+						if(jobs.length){
+							await Promise.all(jobs);
+						}
+						return true;
+					},
+				}];
+				try{
+					const qimenOptions = this.getQimenOptions();
+					if(needJieqiYearSeed(qimenOptions) && steppedFields.date && steppedFields.date.value){
+						const year = parseInt(steppedFields.date.value.format('YYYY'), 10);
+						const seedParams = (year && !Number.isNaN(year)) ? this.genJieqiParams(steppedFields, year) : null;
+						if(seedParams){
+							tasks.push({
+								name: 'sanshi:jieqiseed',
+								path: '/jieqi/year',
+								run: ()=> fetchPreciseJieqiSeed(seedParams),
+							});
+						}
+					}
+				}catch(e){ /* 种子构参失败静默跳过 */ }
+				return tasks;
+			};
+			registerStepPrefetcher('sanshiunited', this._sanshiStepPrefetcher);
 		}
 	}
 
@@ -3234,6 +3272,10 @@ class SanShiUnitedMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		if(this._sanshiStepPrefetcher){
+			try{ unregisterStepPrefetcher('sanshiunited', this._sanshiStepPrefetcher); }catch(e){ /* ignore */ }
+			this._sanshiStepPrefetcher = null;
+		}
 		window.removeEventListener('resize', this.handleWindowResize);
 		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		if(this._dayBoundaryListener){
@@ -3251,6 +3293,10 @@ class SanShiUnitedMain extends Component{
 			this.awaitingSyncTimer = null;
 		}
 		this.cancelPendingRecalc(false);
+		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
+			try{ cancelIdleCallback(this.pendingSnapshotIdle); }catch(e){ /* ignore */ }
+			this.pendingSnapshotIdle = null;
+		}
 		if(this.pendingSnapshotTimer){
 			clearTimeout(this.pendingSnapshotTimer);
 			this.pendingSnapshotTimer = null;
@@ -3766,6 +3812,12 @@ class SanShiUnitedMain extends Component{
 
 	clickPlot(){
 		if(this.state.loading){
+			// [连续进退不丢击](horosa_sanshi_no_drop_step_v1)重算期间的起盘请求不再静默丢弃——
+			// 旧行为=丢击:时间控件已步进、盘不跟算,直到用户再补一击(「连续进退卡很久」的真身)。
+			// 记队列标记+最后一击时刻,本轮重算落地后经 trailing 静默期补发
+			// (latest-wins:pendingTimeFields 持续更新,补发恒最新;连点期间不起中间轮)。
+			this.queuedPlotWhileLoading = true;
+			this.lastQueuedPlotAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
 			return;
 		}
 		if(this.awaitingSyncTimer){
@@ -3829,15 +3881,14 @@ class SanShiUnitedMain extends Component{
 			this.awaitingChartSync = true;
 			if(this.awaitingSyncTimer){
 				clearTimeout(this.awaitingSyncTimer);
-			}
-			this.awaitingSyncTimer = setTimeout(()=>{
 				this.awaitingSyncTimer = null;
-				if(this.unmounted || !this.awaitingChartSync){
-					return;
-				}
-				this.awaitingChartSync = false;
-				this.refreshAll(nextFields, true);
-			}, 1200);
+			}
+			// [不等 /chart 回流](horosa_sanshi_no_wait_chart_v1)旧行为=等 chartObj 回流触发
+			// didUpdate 快路径、1200ms timer 兜底——实测回流常缺席,每步硬吃满 1.2s(连续进退
+			// 「卡很久」的最大单项)。chartObj 只供 isDiurnal(昼夜贵人)与外圈联动,不值硬等:
+			// 立即用现值起算;回流后 didUpdate 仍会 refreshAll(force)——recalcSignature 含
+			// isDiurnal/outerChartKey,没变=签名去重瞬时 no-op,真变(跨昼夜界/外圈)=自动校正重算。
+			this.refreshAll(nextFields, true);
 		}
 		this.setState({
 			hasPlotted: true,
@@ -4071,6 +4122,28 @@ class SanShiUnitedMain extends Component{
 				return;
 			}
 		});
+		// [连续进退不丢击] 重算落地 → 期间被队列化的起盘请求经 trailing 静默期补发:
+		// 距最后一击 <180ms 说明用户还在连点,推迟再查——连点期间不起中间轮
+		// (旧「resolve 即补」= 每 ~600ms 一轮全算,6 连击串行 3-4 轮;现=停手后一轮定稿)。
+		// loading 已随 commitPatch 同帧清掉;若又有新一轮在途则本次跳过,由那一轮 resolve 接力。
+		if(this.queuedPlotWhileLoading){
+			const tryFlush = ()=>{
+				if(this.unmounted || !this.queuedPlotWhileLoading){
+					return;
+				}
+				if(this.state.loading){
+					return;
+				}
+				const nowTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+				if(this.lastQueuedPlotAt && nowTs - this.lastQueuedPlotAt < 180){
+					setTimeout(tryFlush, 120);
+					return;
+				}
+				this.queuedPlotWhileLoading = false;
+				this.clickPlot();
+			};
+			setTimeout(tryFlush, 0);
+		}
 	}
 
 	cancelPendingRecalc(result = false){
@@ -4087,7 +4160,17 @@ class SanShiUnitedMain extends Component{
 			clearTimeout(this.pendingSnapshotTimer);
 			this.pendingSnapshotTimer = null;
 		}
-		this.pendingSnapshotTimer = setTimeout(()=>{
+		if(this.pendingSnapshotIdle && typeof cancelIdleCallback === 'function'){
+			try{ cancelIdleCallback(this.pendingSnapshotIdle); }catch(e){ /* ignore */ }
+			this.pendingSnapshotIdle = null;
+		}
+		// [连击不被快照顶住](horosa_sanshi_snapshot_idle_v1)buildSanShiUnitedSnapshotText 是
+		// 三盘全家文本化的同步大构建(实测 ~950ms 长任务)。原 setTimeout(120) 让它恰好插进
+		// 「上一步落地 → 下一步 recalc 28ms timer」之间,把下一步顶住近一秒——连续进退
+		// 「每步都慢」的隐藏大头。改 requestIdleCallback:主线程空闲才构建,连击期间被上面的
+		// cancel 逐次作废(latest-wins,只有停手后最后一份真跑);timeout 兜底保「AI 挂载最新」。
+		const buildAndSave = ()=>{
+			this.pendingSnapshotIdle = null;
 			this.pendingSnapshotTimer = null;
 			if(this.unmounted){
 				return;
@@ -4097,7 +4180,12 @@ class SanShiUnitedMain extends Component{
 				return;
 			}
 			saveModuleAISnapshot('sanshiunited', snapshotText, snapshotMeta);
-		}, SANSHI_SNAPSHOT_DEFER_MS);
+		};
+		if(typeof requestIdleCallback === 'function'){
+			this.pendingSnapshotIdle = requestIdleCallback(buildAndSave, { timeout: 4000 });
+		}else{
+			this.pendingSnapshotTimer = setTimeout(buildAndSave, SANSHI_SNAPSHOT_DEFER_MS);
+		}
 	}
 
 	// [YA v42] 紫微四化 tab(SanShiZiWeiSihua)上报其盘与大运/流年选中态——落实例字段,
@@ -5516,21 +5604,25 @@ class SanShiUnitedMain extends Component{
 		return (
 			<div className={`${styles.root} horosa-sanshi-page horosa-astro-redesign horosa-sanshi-redesign`} style={{ height: '100%', minHeight: 0 }}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-sanshi-redesign-layout">
-					<Spin spinning={this.state.loading}>
-						<div className="horosa-astro-redesign-grid horosa-sanshi-redesign-grid">
-							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-sanshi-input-panel">
-								{this.renderInputPanel()}
-							</div>
-							<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-sanshi-chart-panel xq-chart-renderer xq-chart-renderer-sanshi">
-								<div ref={this.captureLeftBoardHost} className="horosa-sanshi-board-host">
-									{this.renderLeftBoard(height)}
-								</div>
-							</div>
-							<div className="horosa-inspector-panel horosa-astro-content-panel horosa-sanshi-info-panel">
-								{this.renderRight()}
+					{/* [连续调整不打断] 原 <Spin spinning={loading}> 满屏压暗遮罩已撤(用户实告「加载把整屏挡住」):
+					    重算期旧盘 keep-stale 保留可见,仅中栏右上角一枚非阻塞小转圈(复用全站 workspace-updating
+					    观感,sanshi-updating 变体只改定位为中栏内 absolute)。 */}
+					<div className="horosa-astro-redesign-grid horosa-sanshi-redesign-grid">
+						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-sanshi-input-panel">
+							{this.renderInputPanel()}
+						</div>
+						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-sanshi-chart-panel xq-chart-renderer xq-chart-renderer-sanshi">
+							{this.state.loading ? (
+								<div className="horosa-workspace-updating horosa-sanshi-updating">重算中…</div>
+							) : null}
+							<div ref={this.captureLeftBoardHost} className="horosa-sanshi-board-host">
+								{this.renderLeftBoard(height)}
 							</div>
 						</div>
-					</Spin>
+						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-sanshi-info-panel">
+							{this.renderRight()}
+						</div>
+					</div>
 					{this.renderQuickDock()}
 				</div>
 			</div>
