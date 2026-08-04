@@ -46,12 +46,12 @@ class FreezeInactive extends Component{
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):把上面的冻结语义下放到【子页签】。
+// horosa_freeze_subtabs_v1(R4-B1):把上面的冻结语义下放到【子页签】。
 //
-// 病灶:FreezeInactive 只守【顶层】技法页签。技法内部的右栏/中栏子页签(星运 26、占星 7+3、
-// 辅盘 11、卜其他 14、三式两层共 18、七政/紫微/数算/黄历各若干)一律「children 直接内联」——
-// antd Tabs 是 keep-alive,首次激活后永久挂载,此后父组件每次重渲(切时间/改选项/换页签)
-// 都把【用户看不见的】那十几个面板一起 reconcile + render 一遍,吃掉本该属于可见内容的预算。
+// 病灶:FreezeInactive 只守【顶层】技法页签。技法内部的右栏/中栏子页签(星运/占星/辅盘/
+// 卜其他/三式/七政/紫微/数算/黄历各若干)一律「children 直接内联」—— antd Tabs 是
+// keep-alive,首次激活后永久挂载,此后父组件每次重渲(切时间/改选项/换页签)都把【用户
+// 看不见的】那十几个面板一起 reconcile + render 一遍,吃掉本该属于可见内容的预算。
 //
 // FreezeSubTab = 同源 wrapper,三条语义:
 //   1) 【冻结 ≠ 卸载】已渲染过的面板永远保留 DOM 与组件实例(componentWillUnmount 不会跑),
@@ -66,26 +66,19 @@ class FreezeInactive extends Component{
 // 用法(子页签接线方照抄):
 //   import FreezeInactive, { FreezeSubTab } from '../comp/FreezeInactive';
 //   // A. 节点式(最省事,适合原地包住已有内联 children)
-//   <TabPane tab="相位" key="2">
-//     <FreezeSubTab active={this.state.rightTab === '2'}>{ ...原内联内容... }</FreezeSubTab>
-//   </TabPane>
-//   // B. 函数式(推荐:未激活过时连元素都不建;适合 map 配置数组 t.content())
-//   <TabPane tab={t.title} key={t.key}>
-//     <FreezeSubTab active={activeKey === t.key}>{() => t.content()}</FreezeSubTab>
-//   </TabPane>
-//   // C. 需要局部错误边界时(默认【不】包,避免在已有边界内多一层 DOM/组件):
+//   <FreezeSubTab active={this.state.rightTab === '2'}>{ ...原内联内容... }</FreezeSubTab>
+//   // B. 函数式(推荐:未激活过时连元素都不建)
+//   <FreezeSubTab active={activeKey === t.key}>{() => t.content()}</FreezeSubTab>
+//   // C. 需要局部错误边界时(默认【不】包,避免在已有边界内多一层):
 //   <FreezeSubTab active={...} boundaryName="六壬·占断">{...}</FreezeSubTab>
-//   // D. 该面板必须从一开始就存在(挂载副作用/对外注册)→ eager 关掉延迟首渲,只保留冻结:
-//   <FreezeSubTab active={...} eager>{...}</FreezeSubTab>
+//   // D. 该面板必须从一开始就存在(挂载副作用/对外注册)→ eager 关掉延迟首渲,只保留冻结。
 //
 // 前提:承载它的 Tabs 必须是【受控】的(activeKey + onChange 记进 state),否则拿不到 active。
 //       非受控(defaultActiveKey)的 Tabs 由各技法接线方先改受控,本组件不代劳。
 //
 // kill-switch:
-//   safeLocalStorageSet('horosa.perf.freezeSubTabs','0')   → 冻结与延迟首渲【全关】,
-//                                                            回到今天的「全部子面板每次都重渲」。
-//   safeLocalStorageSet('horosa.perf.subTabDeferMount','0') → 只关「延迟首次渲染」(全部子面板
-//                                                            一开始就渲一次),冻结仍生效。
+//   safeLocalStorageSet('horosa.perf.freezeSubTabs','0')    → 冻结与延迟首渲【全关】;
+//   safeLocalStorageSet('horosa.perf.subTabDeferMount','0') → 只关「延迟首次渲染」,冻结仍生效。
 class FreezeSubTab extends Component{
 	constructor(props){
 		super(props);

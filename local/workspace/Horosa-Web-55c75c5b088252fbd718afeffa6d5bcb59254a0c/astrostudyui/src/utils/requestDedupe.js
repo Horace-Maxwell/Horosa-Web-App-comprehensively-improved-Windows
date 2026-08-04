@@ -26,36 +26,40 @@ const DEDUPE_PATH_PREFIXES = [
 	// 极速化大修(WP-D/P1):两族幂等纯计算端点补入 —— 同参重放(来回拨时间/步进预取)即命中。
 	'/ziwei/',           // 紫微 birth/rules(确定性排盘)
 	'/liureng/',         // 六壬/金口诀共用 gods/runyear(确定性神将)
-	// PERF-R10 horosa_step_prefetch_arm_v1:预取白名单(PREFETCH_ALLOWED_PATHS)里走 request()
-	// 的确定性端点必须同时可缓存,否则「允许预取却无处落桶」= 白取。五族历法/查表全为纯函数:
-	'/nongli/',          // 农历/真太阳时(遁甲/太乙/三式 stage-1 种子)
-	'/calendar/',        // 黄历(确定性历法)
-	'/bazi/',            // 八字 direct/birth/pattern(确定性排盘)
-	'/chart3d',          // 3D 星盘状态(确定性纯计算;astro3d 步进预取的落桶)
-	'/common/',          // 通用查表(pithy/naying/gong12…;/common/time 例外见下)
+	// R4-B6:精确条目补入(预取白名单里走 request() 的端点须同时可缓存,否则「允许预取
+	// 却无处落桶」=白取)。🔴 /bazi 族含写端点(pattern/update)——绝不整前缀,只收两个
+	// 确定性读端点(后端 ParamHashCacheHelper 同缓存、无随机,可缓存性已定谳);
+	// ReportPane 三处 /bazi/direct 因此自动获得三层缓存(零改动收益)。
+	'/bazi/birth',
+	'/bazi/direct',
+	'/nongli/time',      // 真太阳时+四柱(确定性历法;bridge 外散点调用的落桶)
+	// [Windows-only] /chart3d/state:3D 星盘状态,确定性纯计算(v3.5.0 起独立路由)。
+	// AstroChartMain3D 的步进预取声明此路径(预取白名单同款 Windows 补位)——
+	// 缺本行 = 「允许预取却无处落桶」,预取白取。
+	'/chart3d',
 ];
 const DEDUPE_PATH_EXCLUDES = [
 	'/predict/dice',     // 随机骰子,绝不可缓存
-	'/common/time',      // 取服务器「此刻」,缓存即钉死时间
+	'/bazi/pattern',     // R4-B6 纵深防御:族内写端点,防未来有人把上面改成宽前缀
 ];
 
 const TTL_MS = 30 * 1000;
-// PERF-R9 Ship 7:80 → 160。预取从「只有 /chart 一条」扩到十几个技法端点后,单次 settle
-// 就可能写入 5 条,80 的窗口在连续步进下不到 20 步就整轮翻掉。配合 horosa_dedupe_l1_lru_v1
+// R4-B1:80 → 160。预取从「只有 /chart 一条」扩到十几个技法端点后,单次 settle
+// 就可能写入 5+ 条,80 的窗口在连续步进下不到 20 步就整轮翻掉。配合 horosa_dedupe_l1_lru_v1
 // (命中重插=真 LRU)一起,热条目才真的留得住。
 const MAX_ENTRIES = 160;
 // L2 技法结果缓存(perfFlag: horosa.perf.techniqueCache,默认开):
 // 覆盖「来回拨参数」场景——用户在设置 A↔B 间反复切换,30s L1 已过期仍应≈0ms 命中。
-// 键/白名单与 L1 完全一致(纯函数计算结果);10min 保守新鲜窗;LRU(访问提升)。
-// PERF-R9 Ship 7:48 → 192 —— L2 是 10min 窗的「来回拨」层,技法族全量接入预取后
-// 48 条连一次完整的技法巡览都装不下,预取自己就会把上一个技法的结果挤掉。
+// 键/白名单与 L1 完全一致(纯函数计算结果);10min 保守新鲜窗;48 条 LRU(访问提升)。
 const L2_TTL_MS = 10 * 60 * 1000;
+// R4-B1:48 → 192 —— L2 是 10min 窗的「来回拨」层,技法族全量接入预取后
+// 48 条连一次完整的技法巡览都装不下,预取自己就会把上一个技法的结果挤掉。
 const L2_MAX_ENTRIES = 192;
 
 const inflight = new Map();   // key -> Promise<result>
 // L1:key -> { at, value }。⚠️ 单靠「Map 插入序」只等于 **FIFO**,不是 LRU —— 必须在命中时
 // 重插(见 dedupedRequest 的 horosa_dedupe_l1_lru_v1)才真正是 LRU。原注释写的是「插入序=简易
-// LRU」,而 prune() 从头淘汰,于是热条目会被一串后台预取挤掉,预取自己却活着(PERF-R9 修)。
+// LRU」,而 prune() 从头淘汰,于是热条目会被一串后台预取挤掉,预取自己却活着(R4-B1 修)。
 const done = new Map();
 const warm = new Map();       // L2:key -> { at, value }(访问提升式 LRU)
 
@@ -213,11 +217,11 @@ export function dedupedRequest(url, options, runner){
 	const key = `${url} ${options.body}`;
 	const hit = done.get(key);
 	if(hit && (Date.now() - hit.at) <= TTL_MS){
-		// horosa_dedupe_l1_lru_v1(PERF-R9):命中必须重插。Map 的迭代序 == 插入序,而 prune()
-		// (见下)是从头部淘汰的 —— 不重插就意味着 **L1 是 FIFO 而不是 LRU**:一串后台预取会把
+		// horosa_dedupe_l1_lru_v1(R4-B1):命中必须重插。Map 的迭代序 == 插入序,而 prune()
+		// 是从头部淘汰的 —— 不重插就意味着 **L1 是 FIFO 而不是 LRU**:一串后台预取会把
 		// 用户正在反复访问的那条挤出去,预取自己反而活着。预取从 1 个端点扩到十几个技法之后,
-		// 这个方向是反的,会主动伤害命中率。L2 的 warm 分支(下方 :209-210)一直是对的,只有 L1 漏了。
-		// ★ 刻意不刷新 ent.at:LRU 是「淘汰顺序」,TTL 是「新鲜度」,刷 at 会让热条目永不过期 =
+		// 这个方向是反的,会主动伤害命中率。L2 的 warm 分支一直是对的,只有 L1 漏了。
+		// ★ 刻意不刷新 hit.at:LRU 是「淘汰顺序」,TTL 是「新鲜度」,刷 at 会让热条目永不过期 =
 		//   偷偷改变缓存语义。与 L2 的做法保持一致(它也原样重插,不动 at)。
 		done.delete(key);
 		done.set(key, hit);

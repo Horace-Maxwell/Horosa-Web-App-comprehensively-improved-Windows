@@ -3,6 +3,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { XQCheckItem, XQCheckList, XQSectionTitle, XQSegmented, XQSelect } from '../xq-ui';
 import { setClassicalChartGlobal, classicalGlobalValue } from '../../utils/classicalChartGlobals';
+import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';
 import { getDivinationJudgeGlobals, setDivinationJudgeGlobal } from '../../utils/divinationJudgeGlobals';
 
 const Option = XQSelect.Option;
@@ -142,8 +143,13 @@ class ChartDisplaySelector extends Component{
 		flds[key] = { value: val, name: [key] };
 		this.props.dispatch({ type: 'astro/save', payload: { fields: flds } });
 		// 触发重算（fieldsToParams 条件透传→/chart）;缺核心字段（未起盘）时 fetchByFields 自身有护栏。
+		// [R4-B5b] 经选项通道调度(leading 立发+250ms trailing 并帧):连改 5 档古典参数
+		// /chart 实发 ≤2;save 恒立即(UI 即时反映),只有重算派发进调度器。delta=本键增量,
+		// base 派发时点从 this.props.fields 重取(时间键恒最新,不覆盖时间轴在途变更)。
 		if(flds.date && flds.time && flds.lat && flds.lon){
-			this.props.dispatch({ type: 'astro/fetchByFields', payload: flds });
+			scheduleOptionDispatch((payload)=>{
+				this.props.dispatch({ type: 'astro/fetchByFields', payload });
+			}, { [key]: { value: val, name: [key] } }, ()=>({ ...(this.props.fields || {}) }));
 		}
 		this.forceUpdate();
 	}

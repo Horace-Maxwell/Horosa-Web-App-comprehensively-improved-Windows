@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal, Dropdown, Menu } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
@@ -201,14 +201,13 @@ export default function ConditionBuilderModal({
 		if(scanning){ setView('result'); }
 	}, [scanning]);
 
-	// horosa_zeri_render_slice_v1(PERF-R12 W3b-Z1):open=false 早退 —— 宿主无条件渲染本组件,
-	// 关着的弹窗此前每次宿主 render 都白建整棵四区元素树(32 类条件 Options/结果表/详情树/
-	// 方案菜单的 localStorage 读)。hooks 已全部声明在上方(Rules of Hooks 安全),早退只跳
-	// 元素构造:全部草稿态(条件草稿/选中路径/视图/方案名…)原样保留,重开即恢复;代价仅为
-	// 关闭时无 antd 渐隐动画(打开动画不受影响)。
-	if(!open){
-		return null;
-	}
+	// [R4-B7/C16 靶②] 「从未打开过」粘性短路:弹窗关着时宿主每次 render(步进/改条件/扫描进度)
+	// 都要白跑本函数体的派生计算 + 白建 ~650 行元素树(antd Modal open=false 不挂 DOM 但构造照付)。
+	// 打开过一次后永远走完整树(内部 12+ useState 草稿/视图态与关闭动画全保留,零功能降级);
+	// 粘性标记在全部 hooks 之后短路,不违 hooks 规则。
+	const everOpenRef = useRef(!!open);
+	if(open && !everOpenRef.current){ everOpenRef.current = true; }
+	if(!everOpenRef.current){ return null; }
 
 	const selectedNode = selectedPath ? getAt(tree, selectedPath) : null;
 	const selectedIsLeaf = !!(selectedNode && selectedNode.kind !== 'group' && !selectedNode.children);

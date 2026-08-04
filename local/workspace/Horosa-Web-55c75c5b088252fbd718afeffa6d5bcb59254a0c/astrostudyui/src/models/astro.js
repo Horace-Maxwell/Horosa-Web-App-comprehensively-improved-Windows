@@ -7,17 +7,18 @@ import {randomStr,} from '../utils/helper';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, ServerRoot, } from '../utils/constants';
 import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
 import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
-import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, speculativePrecomputeEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, stepPrefetchSkewEnabled } from '../utils/perfFlags';
+import { hookRafEnabled, fieldsFastCommitEnabled, prewarmRequestsEnabled, stepPrefetchArmEnabled, stepPrefetchDepth, mainChainAbortEnabled, stepPrefetchSkewEnabled, speculativePrecomputeEnabled } from '../utils/perfFlags';
 import { submitStepPrefetch, getStepPrefetcher, registerStepSelectHandler } from '../utils/stepPrefetch';
-import { perfBegin } from '../utils/perfMark';
-// PERF-R10 horosa_step_prefetch_arm_v1:「选步长即武装」——构造器经 registerArmPlanBuilder
+// R4-B2(horosa_step_prefetch_arm_v1):「选步长即武装」——构造器经 registerArmPlanBuilder
 // 注入(utils 不反向 import models);settle 兜底武装的档位来自 reportStepUnit 的记录。
-import { registerArmPlanBuilder, reportStepUnit, currentStepUnit, shouldArmForTab, stepStreak } from '../utils/stepPrefetchArm';
-import { isEarlyBootMode } from '../utils/backendBootGate';
+// [Windows-ahead] stepStreak:horosa_pump_skew_v1 连击计量读端(见 buildStepPrefetchTasks 偏斜分支)。
+import { registerArmPlanBuilder, armStepPrefetch, reportStepUnit, currentStepUnit, shouldArmForTab, stepStreak } from '../utils/stepPrefetchArm';
+// (F1 收敛后 early-boot 守卫由 armStepPrefetch 体内承担,本文件不再直接消费 backendBootGate。)
 // PERF-R10 S2(horosa_boot_chart_restore_v1):出盘 settle 后落「上次工作现场」快照(空闲写)。
 import { saveBootChartSnapshot } from '../utils/bootChartRestore';
-// PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm。
+// R4-B5(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm,settle 尾空闲投机。
 import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
+import { perfBegin } from '../utils/perfMark';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
@@ -27,10 +28,10 @@ import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverrid
 let dtm = new DateTime();
 const DefaultHouseSystem = 1;
 
-// PERF-R8 P0(纯观测):排盘 saga 成功提交 chartObj 后打 refresh-end mark,并与
-// pages/index.js 的 horosa:tab:*:refresh-start 配 measure —— DevTools Performance
-// 面板可把「点击→显示」分解为 后端+网络(start→end)与 前端渲染(end→render-complete)。
-// 失败静默,零行为影响。
+// PERF-R8 P0(纯观测,horosa_interaction_span_v1 配套):排盘 saga 成功提交 chartObj 后打
+// refresh-end mark,并与 pages/index.js 的 horosa:tab:*:refresh-start 配 measure ——
+// DevTools Performance 面板可把「点击→显示」分解为 后端+网络(start→end)与
+// 前端渲染(end→render-complete)。失败静默,零行为影响。
 function markChartRefreshEnd(){
 	try{
 		if(typeof performance !== 'undefined' && performance.mark){
@@ -543,6 +544,8 @@ let pendingHookFrame = null;
 // 该响应作废(不 save 不弹错)——快速连拨时间时旧响应绝不覆写新状态(latest-wins)。
 // 只在 fieldsFastCommit 开关开启时参与判定:关开关=连丢弃行为一起回到旧序。
 let fieldsEpoch = 0;
+// [R4-B5b] /chart 主链在途请求的 AbortController(模块级单例:新发先 abort 旧)。
+let chartMainAbortCtl = null;
 
 // —— WP-P1 步进预取:主请求 settle 后,把「下一步」的盘预先算好塞进缓存 ——
 // 步长套用与 DateTimeSelector 的 clickPlus/clickMinus 逐字节同法('m'档=±4 分钟);
@@ -561,7 +564,7 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	const dt0 = fieldValues && fieldValues.date && fieldValues.date.value;
 	// 🔴 能力守卫必须查全步进方法,不能只查 clone:预取是优化,任何「不像 DateTime」的
 	// 日期态(异常来源/测试替身)都必须让它整体静默让路,而不是把 TypeError 抛进
-	// fetchByFields 主流程(全量 umi 抓过一次:mock date 缺 addMinute 直接崩主 saga)。
+	// fetchByFields 主流程。
 	if(!dt0 || typeof dt0.clone !== 'function'
 		|| typeof dt0.addYear !== 'function' || typeof dt0.addMonth !== 'function'
 		|| typeof dt0.addDate !== 'function' || typeof dt0.addHour !== 'function'
@@ -570,9 +573,9 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	}
 	// 计划(数组序 == 提交序):
 	//   有向(用户已点 ±):[+1, -1, +2..+depth] —— 同向连点压倒性,反向覆盖「拨过头往回」;
-	//     depth 缺省 2 时逐字节等于旧 [+1,+2,-1] 的提交序(tech+1,chart+1,tech-1,chart-1,chart+2,tech+2)。
-	//   武装(PERF-R10 horosa_step_prefetch_arm_v1,dir=0 且带 depth):[±1, ±2, .. ±depth]
-	//     对称交错(+ 先)—— 选完步长 +/− 概率对等,±1 即时命中,远窗吃空闲。
+	//     depth 缺省 2 时提交序逐字节等于旧 [+1,+2,-1](tech+1,chart+1,tech-1,chart-1,chart+2,tech+2)。
+	//   武装(R4-B2,dir=0 且带 depth):[±1, ±2, .. ±depth] 对称交错(+ 先)——
+	//     选完步长 +/− 概率对等,±1 即时命中,远窗吃空闲。
 	//   旧调用(无 depth、无向):[±1] 各一,行为不变。
 	const depth = stepHint && Number.isFinite(stepHint.depth)
 		? Math.max(0, Math.min(5, Math.floor(stepHint.depth)))
@@ -580,10 +583,10 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	let plan;
 	if(stepHint && stepHint.dir){
 		const d = Math.max(2, depth || 2);
-		// horosa_pump_skew_v1(PERF-R12 W3a③,对抗校验窄背书形态):同向连击 ≥3 且间隔 <2s
-		// 时丢反向换前伸 +(d+1)—— 反向目标(刚渲染那张)本就温在 chartMem/L2,丢弃零损;
-		// 任务数不变,白名单/预算结构不动;显式 budget 的 stepSelect 直发路径不经此分支。
-		// 判定失败=不偏(fail-open 回今日计划)。kill:horosa.perf.stepPrefetchSkew。
+		// horosa_pump_skew_v1(Windows-ahead,PERF-R12 W3a③,对抗校验窄背书形态):同向连击 ≥3
+		// 且间隔 <2s 时丢反向换前伸 +(d+1)—— 反向目标(刚渲染那张)本就温在 chartMem/L2,
+		// 丢弃零损;任务数不变,白名单/预算结构不动;显式 budget 的 stepSelect 直发路径不经此分支。
+		// 判定失败=不偏(fail-open 回对称计划)。kill:horosa.perf.stepPrefetchSkew。
 		let skew = false;
 		try{
 			if(stepPrefetchSkewEnabled()){
@@ -617,14 +620,14 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	// 本地漏斗技法(紫微/遁甲)的武装:/chart 不在其步进路径上,预取它纯属浪费 —— 只做技法端点。
 	const skipChart = !!(stepHint && stepHint.skipChart);
 	// Phase B:当前技法登记的端点(kentang pan 等)——用技法自己的请求函数,落其自己的缓存。
-	// 🔴 传给登记方的必须是【已步进到目标时间的 fields】(旧版传的是基准 fields,构出来的
-	//    是「此刻」的参数 —— 与用户下一步要看的盘不是同一张,预取白打)。
+	// 🔴 传给登记方的必须是【已步进到目标时间的 f2】(旧版传的是基准 fields,构出来的是
+	//    「此刻」的参数 —— 与用户下一步要看的盘不是同一张,预取白打;死表期潜伏未爆,R4-B2 修)。
 	const extra = getStepPrefetcher(astroState.currentTab);
 	const chartTasks = [];
 	const techTasks = [];
 	for(const pl of plan){
-		// 整个单步构造包进 try:clone 出来的对象若丢了步进能力(能力守卫只能查 dt0 自身)、
-		// 或构参路径抛任何异常,都只作废这一个占位 —— 预取构造永不外抛。
+		// 整个单步构造包进 try:clone 出来的对象若丢了步进能力、或构参路径抛任何异常,
+		// 都只作废这一个占位 —— 预取构造永不外抛(占位保序,排序阶段按位配对)。
 		let f2;
 		let label;
 		let param;
@@ -652,7 +655,7 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 		}else{
 			chartTasks.push({
 				name: `chart${label}`,
-				path: '/chart',
+				path: '/chart',   // R4-B1 运行时白名单契约:无 path 的任务会被 submitStepPrefetch 丢弃
 				// silent+零重试:预取失败静默、绝不退避风暴;结果自动进 chartMem+requestDedupe
 				run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
 			});
@@ -668,10 +671,9 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 		}
 		techTasks.push(mine);
 	}
-	// PERF-R9 Ship 7 排序结论保持「排序即价值」:近窗(k==1)技法端点先于 chart(非占星页
-	// gate 面板的是技法端点,旧序 chart 在前时技法任务恒被预算砍掉);远窗(k>=2)chart 先把
-	// 共享底盘备好、技法端点跟队。plan 数组序即提交序,经典有向 [+1,-1,+2] 在此规则下的输出
-	// 与旧实现([技法+1, chart+1, 技法-1, chart-1, chart+2, 技法+2])逐字节同序。
+	// 排序即价值:近窗(k==1)技法端点先于 chart(非占星页 gate 面板的是技法端点,旧序 chart
+	// 在前时技法任务恒被预算砍掉);远窗(k>=2)chart 先把共享底盘备好、技法端点跟队。
+	// 经典有向 [+1,-1,+2] 在此规则下的输出与旧实现逐字节同序。
 	const tasks = [];
 	const emit = (arr, idx)=>{
 		const v = arr[idx];
@@ -691,37 +693,36 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	return tasks;
 }
 
-// [R3-A1] 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 以 store 现
-// fields 双向 ±1、±2 预取(键构造与真点同源 = buildStepPrefetchTasks 唯一路径)。
-// 无 store/无 fields(启动早期/测试)静默跳过;预算 4 任务(调度器硬顶 5)。
+// [R3-A1] 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 武装引擎。
+// R4-B2(武装引擎接管上游触发线):上游触发面(opt-in 宿主 + 5s 去重)保持原样;
+// ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
+// NO_ARM/early-boot/reportStepUnit(settle 兜底取档靠它)全在 armStepPrefetch 体内。
+// [Windows-only] F1 收敛(v3.7.1,gotcha #90):旧形态在此处**内联复刻** armStepPrefetch
+// 的全部守卫后直发 submitStepPrefetch —— 语义同路但绕过 arm 台账,__horosaPrefetch.arms
+// 在主盘时间条上恒 0(验收探针的「武装线活着」信号盲区,R12-P2 实测 arms=0 即此)。
+// 改为委托:同守卫、同构造器(planBuilder=buildStepPrefetchTasks 注入)、同 5s 去重,
+// 唯一行为差 = stats.arms/lastReason 正确入账。sameMinute 闸天然豁免(不传 selectorDatetime,
+// v3.5.1 裁决:opt-in 宿主已在源头滤掉旁路时间条)。
 registerStepSelectHandler((unit)=>{
-	const store = getStore();
-	if(!store || !store.astro || !store.astro.fields){
-		return;
-	}
-	const st = store.astro;
-	// horosa_step_prefetch_arm_v1(Windows 武装引擎接管上游触发线):
-	// · 上游触发面(opt-in 宿主 + 5s 去重)保持原样;此处把「±2 固定窗」升级为
-	//   ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
-	// · reportStepUnit 记录该技法最近档位 —— settle 兜底武装(无 stepHint 分支)靠它
-	//   取档,「不选步长直接点 ±」的第一下也命中;
-	// · NO_ARM 技法(随机/取现时/流式/浏览型)由 shouldArmForTab 拦下,零任务。
-	if(!(stepPrefetchArmEnabled() && shouldArmForTab(st.currentTab))){
-		return;
-	}
-	// horosa_pump_skew_v1 附带守卫收敛(PERF-R12 W3a⑤):early-boot 窗口(early=1 且后端
-	// 未确认)里选档预取只会在 boot 门排队白占 —— 与 armStepPrefetch 同款守卫补到 live 直发
-	// 路径(此前该守卫只存在于 armStepPrefetch 侧,本路径裸奔;sameMinute 闸按 v3.5.1 裁决
-	// 本路径豁免:opt-in 宿主已在源头滤掉旁路时间条)。
-	try{
-		if(isEarlyBootMode() && typeof window !== 'undefined' && window.__horosaBackendConfirmed !== true){
-			return;
-		}
-	}catch(e){ /* 判定失败不拦 */ }
-	reportStepUnit(st.currentTab, unit);
-	submitStepPrefetch(
-		buildStepPrefetchTasks(st.fields, { unit, dir: 0, depth: stepPrefetchDepth() }, st)
-	);
+	armStepPrefetch('unit-select', { unit });
+});
+
+// R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
+// 选步长/切页/本地漏斗 settle 的武装全部经由它,与真点步进共用同一 fieldsToParams 路径 ——
+// 「预取参数与用户真点逐字节同键」的纪律因此自动继承。
+registerArmPlanBuilder((fieldValues, hint, astroState)=>buildStepPrefetchTasks(fieldValues, hint, astroState));
+
+// R4-B5(horosa_option_prefetch_v1):选项投机的 /chart 变体任务构造器 —— 与真点/步进预取
+// 共用同一 fieldsToParams 路径(键逐字节同是命中的唯一前提)。
+registerOptionChartTaskBuilder((variantFields, astroState)=>{
+	const param = fieldsToParams(variantFields);
+	param.cid = null;
+	param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+	return {
+		name: 'chart',
+		path: '/chart',
+		run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
+	};
 });
 
 function hooking(hook, currentTab, fields, chartObj){
@@ -754,24 +755,6 @@ let now = new DateTime();
 // 具名导出(仅供金标):键等性锁要机械验证「预取构出的 param ≡ 用户真点会发出的 param」,
 // 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
 export { fieldsToParams as __fieldsToParamsForTest, buildStepPrefetchTasks as __buildStepPrefetchTasksForTest };
-
-// PERF-R10 horosa_step_prefetch_arm_v1:把任务构造器注入武装模块(utils 不反向 import models)。
-// 选步长/切页/本地漏斗 settle 的武装全部经由它,与真点步进共用同一 fieldsToParams 路径 ——
-// 「预取参数与用户真点逐字节同键」的纪律因此自动继承。
-registerArmPlanBuilder((fieldValues, hint, astroState)=>buildStepPrefetchTasks(fieldValues, hint, astroState));
-
-// PERF-R10 horosa_option_prefetch_v1:选项投机的 /chart 变体任务构造器 —— 与真点/步进预取
-// 共用同一 fieldsToParams 路径(键逐字节同是命中的唯一前提)。
-registerOptionChartTaskBuilder((variantFields, astroState)=>{
-	const param = fieldsToParams(variantFields);
-	param.cid = null;
-	param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-	return {
-		name: 'chart',
-		path: '/chart',
-		run: ()=> service.fetchChart(param, { silent: true, retry: { retries: 0 } }),
-	};
-});
 
 export default { 
 	namespace: 'astro',
@@ -1255,11 +1238,13 @@ export default {
 		},
 
 
-		// perf T-6(speculativePrecompute):排盘表单编辑期的「只暖缓存」预计算。参数构造与
-		// 下方 *fetch 逐字节一致(date/time/ad/zone/cid + includePrimaryDirection),但结果只进
-		// services/astro 的 chartMem/chartInflight —— 不落任何 state、不关抽屉、不触发 hook、
+		// [Windows-ahead] perf T-6(speculativePrecompute):排盘表单编辑期的「只暖缓存」预计算。
+		// 参数构造与下方 *fetch 逐字节一致(date/time/ad/zone/cid + includePrimaryDirection),但结果
+		// 只进 services/astro 的 chartMem/chartInflight —— 不落任何 state、不关抽屉、不触发 hook、
 		// 不弹错误。用户点「提交」时 *fetch 的 fetchChart 直接命中缓存或加入在途请求 →
 		// 点击→显示 ≈ 渲染耗时。任何失败静默(投机性质,正式路径行为不变)。
+		// 派发点=AstroFormComp/ChartFormData 的 livePrecompute 防抖(五层 §22);效应缺席时
+		// dva 对未知 type 静默无操作 = 机制整体哑死,故本效应随派发点一体保全。
 		*precomputeFetch({ payload: values }, { call, select }){
 			try{
 				if(!speculativePrecomputeEnabled()){ return; }
@@ -1433,7 +1418,7 @@ export default {
 
 			yield put({
                 type: 'doHook',
-                payload: {
+                payload: {  
 					chartObj: Result,
 					fields: fields,
 					drawerVisible: values.drawerVisible,
@@ -1451,9 +1436,20 @@ export default {
 		},
 
 		*fetchByFields({ payload: values }, { call, put, select }){
-			const requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
+			let requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
 				? values.__requestOptions
 				: { silent: true };
+			// [R4-B5b] /chart 主链 AbortController:新发先 abort 旧在途(网络层取消——释放连接与
+			// 后端算力;结果层正确性本就由 fieldsEpoch 代际保证,两层互补)。带 signal 的请求在
+			// services 层不入 chartInflight 共享(A abort 不连坐 B);abort 失败路径在 request 层
+			// 短路(不自愈/不弹错)。浅拷贝挂载,绝不变异调用方传入的 __requestOptions 对象。
+			if(mainChainAbortEnabled() && typeof AbortController !== 'undefined' && !requestOptions.signal){
+				if(chartMainAbortCtl){
+					try{ chartMainAbortCtl.abort(); }catch(e){ /* 已 settled 无害 */ }
+				}
+				chartMainAbortCtl = new AbortController();
+				requestOptions = { ...requestOptions, signal: chartMainAbortCtl.signal };
+			}
 			const fieldValues = {
 				...(values || {}),
 			};
@@ -1509,7 +1505,17 @@ export default {
 				try{ activeHook.prewarmRequests(fld); }catch(e){ /* 预热失败无害 */ }
 			}
 
-			const rsp = yield call(service.fetchChart, param, requestOptions);
+			let rsp;
+			try{
+				rsp = yield call(service.fetchChart, param, requestOptions);
+			}catch(abortErr){
+				// [R4-B5b] 被新请求 abort 的旧主链:静默退场(新请求自有其成败路径)。
+				// 其它错误维持旧行为原样上抛(request 层早已按 silent 决定 surface 与否)。
+				if(abortErr && (abortErr.name === 'AbortError' || (requestOptions.signal && requestOptions.signal.aborted))){
+					return;
+				}
+				throw abortErr;
+			}
 			if(fastCommitOn && epoch !== fieldsEpoch){
 				// 已有更新的一次时间变更在途/完成 —— 本响应作废,静默丢弃(连错误弹窗也不弹:
 				// 旧请求失败不该打断用户正在进行的新操作;新请求自有其成败路径)。
@@ -1535,11 +1541,7 @@ export default {
 					type: 'save',
 					payload: { chartObj: Result },
 				});
-				// horosa_interaction_span_v1(PERF-R9 Ship 0a):快车道过去在这里直接 return,
-				// **从不打 refresh-end** —— 而 chartObj.chartId 变了,pages/index.js 的
-				// render-complete 照样触发,于是它拿上一次的陈旧 end 做起点,八字/紫微/数算
-				// 三族一直在报**伪造**的渲染时间。补上这一行,三族的观测才是真的。
-				markChartRefreshEnd();
+				markChartRefreshEnd();   // horosa_interaction_span_v1:快车道不打 end = 三族报伪造渲染时间(R9 Ship0a)
 				// 快照+武装+投机全是优化:整块 try —— 任何异常静默,绝不许碰快车道主流程。
 				try{
 					saveBootChartSnapshot(fieldValues, astroState.currentTab);   // horosa_boot_chart_restore_v1
@@ -1548,12 +1550,12 @@ export default {
 						reportStepUnit(astroState.currentTab, stepHint.unit, stepHint.dir);   // horosa_pump_skew_v1:dir 供连击计量
 						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
 					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
-						// PERF-R10 horosa_step_prefetch_arm_v1:无向 settle(初盘/确定/改设置/切回)
-						// 也武装当前档位 ±depth —— 单位取该技法最近一次选择/步进的档位,不再硬编码 'm',
+						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
+						// 单位取该技法最近一次选择/步进的档位,不再硬编码 'm',
 						// 于是「不选步长直接点 ±」的第一下也命中。
 						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { unit: currentStepUnit(astroState.currentTab), dir: 0, depth: stepPrefetchDepth() }, astroState));
 					}
-					// horosa_option_prefetch_v1:选项二值轴的 Hamming-1 变体走空闲通道(与步进泵分队)。
+					// R4-B5(horosa_option_prefetch_v1):选项二值轴的 Hamming-1 变体走空闲通道(与步进泵分队)。
 					speculateChartOptions(fieldValues, astroState);
 				}catch(e){ /* optimization only — never surface */ }
 				return;
@@ -1587,13 +1589,13 @@ export default {
 			// 同快车道分支:优化整块 try,异常静默不碰主流程。
 			try{
 				if(stepHint){
-					reportStepUnit(astroState.currentTab, stepHint.unit);
+					reportStepUnit(astroState.currentTab, stepHint.unit, stepHint.dir);   // horosa_pump_skew_v1:dir 供连击计量
 					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
 				}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
-					// 同快车道分支:无向 settle 也武装(horosa_step_prefetch_arm_v1)。
+					// R4-B2:无向 settle 也武装(同快车道分支)。
 					submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { unit: currentStepUnit(astroState.currentTab), dir: 0, depth: stepPrefetchDepth() }, astroState));
 				}
-				// horosa_option_prefetch_v1:同快车道分支。
+				// R4-B5:选项 Hamming-1 投机(同快车道分支)。
 				speculateChartOptions(fieldValues, astroState);
 			}catch(e){ /* optimization only — never surface */ }
 

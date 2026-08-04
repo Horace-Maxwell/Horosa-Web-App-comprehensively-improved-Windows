@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroPrimaryDirection.js b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
-index 322a7e9..7918c6f 100644
+index 98adf19d..980a033e 100644
 --- a/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 +++ b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 @@ -1,4 +1,5 @@
@@ -8,14 +8,12 @@ index 322a7e9..7918c6f 100644
  import { Component } from 'react';
  import { fetchPd3D } from '../../services/astroPd3d'; // [WP-5.2] pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
  import { safeLocalStorageSet } from '../../utils/safeStorage';
-@@ -311,6 +312,13 @@ class AstroPrimaryDirection extends Component{
+@@ -326,6 +327,11 @@ class AstroPrimaryDirection extends Component{
  	}
  
  	componentDidUpdate(prevProps){
-+		// horosa_panel_ready_v1:主限法(星运页默认子页签)无自有请求 —— 表整份来自
-+		// chartObj.predictives.primaryDirection(由 AstroDirectMain 的 /predict/pd 经 dispatch 落新盘),
-+		// 「数据落定」= 拿到新盘对象后的这一次渲染提交。★必须放在下面 pd 配置守卫的 early return 之前,
-+		// 否则「只换时间、pd 配置不变」的绝大多数交互会被 return 掉、永远不打点。
++		// horosa_panel_ready_v1:主限法表格页「画完」= 新 value(chartObj)带着新 PD 数据渲染的这一帧。
++		// 打在 props 同步守卫**之前** —— 否则「只换时间、pd 配置不变」的绝大多数交互会被 return 掉、永远不打点。
 +		if(prevProps.value !== this.props.value){
 +			markPanelReady('direction');
 +		}

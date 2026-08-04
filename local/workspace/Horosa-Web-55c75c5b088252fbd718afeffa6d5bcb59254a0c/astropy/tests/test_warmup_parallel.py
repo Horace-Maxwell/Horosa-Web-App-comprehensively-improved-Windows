@@ -111,3 +111,75 @@ def test_stage_failure_does_not_block_gate(monkeypatch):
 
     _run_with_stubs(monkeypatch, [safe_boom, lambda: None, lambda: None], parallel=True)
     assert srv.STARTUP_GATE.is_set()
+
+
+# ── [R4-P3a] PD 并入并行组:重叠金标 + HOROSA_PY_PD_PARALLEL=0 回退旧序 ──
+
+def test_pd_joins_parallel_group(monkeypatch):
+    # 并行档 + PD 开关显式开(缺省已翻转为关——2026-08-03 ladder 实测四线程与 JVM 抢核双输):
+    monkeypatch.setenv('HOROSA_PY_WARMUP_PARALLEL', '1')
+    monkeypatch.setenv('HOROSA_PY_PD_PARALLEL', '1')
+    monkeypatch.setattr(srv, '_warm_real_astropy', lambda: None)
+    evt = threading.Event()
+    seen = []
+
+    def pd():
+        time.sleep(0.08)
+        seen.append(('pd_done', evt.is_set()))
+
+    def core():
+        evt.set()
+        seen.append(('core_enter', True))
+
+    monkeypatch.setattr(srv, '_warmup_stage_pd', pd)
+    monkeypatch.setattr(srv, '_warmup_stage_core', core)
+    monkeypatch.setattr(srv, '_warmup_stage_india', lambda: None)
+    monkeypatch.setattr(srv, '_warmup_stage_kentang', lambda: None)
+    _reset_gate()
+    srv._run_warmups()
+    assert srv.STARTUP_GATE.is_set()
+    # 并行:PD 完成时 core 已进入(evt 已 set)——PD 不再是串行前置墙
+    assert ('pd_done', True) in seen
+
+
+def test_pd_parallel_killswitch_restores_old_order(monkeypatch):
+    # 缺省(未设 PD 开关):并行档下 PD 回「串行前置」旧序(缺省=关的实测定档)。
+    monkeypatch.setenv('HOROSA_PY_WARMUP_PARALLEL', '1')
+    monkeypatch.delenv('HOROSA_PY_PD_PARALLEL', raising=False)
+    monkeypatch.setattr(srv, '_warm_real_astropy', lambda: None)
+    evt = threading.Event()
+    seen = []
+
+    def pd():
+        time.sleep(0.05)
+        seen.append(('pd_done', evt.is_set()))
+
+    def core():
+        evt.set()
+
+    monkeypatch.setattr(srv, '_warmup_stage_pd', pd)
+    monkeypatch.setattr(srv, '_warmup_stage_core', core)
+    monkeypatch.setattr(srv, '_warmup_stage_india', lambda: None)
+    monkeypatch.setattr(srv, '_warmup_stage_kentang', lambda: None)
+    _reset_gate()
+    srv._run_warmups()
+    assert srv.STARTUP_GATE.is_set()
+    # 串行前置:PD 完成时 core 尚未进入(evt 未 set)——与 R3 执行序逐字节同
+    assert ('pd_done', False) in seen
+
+
+def test_serial_trusted_keeps_pd_first(monkeypatch):
+    # trusted 串行档(auto):PD 恒先于三段(_pd_parallel 恒 False),整链执行序与 R3 逐字节同。
+    monkeypatch.delenv('HOROSA_PY_WARMUP_PARALLEL', raising=False)
+    monkeypatch.delenv('HOROSA_PY_PD_PARALLEL', raising=False)
+    monkeypatch.setenv('HOROSA_TRUSTED_RUNTIME', '1')
+    monkeypatch.setattr(srv, '_warm_real_astropy', lambda: None)
+    order = []
+    monkeypatch.setattr(srv, '_warmup_stage_pd', lambda: order.append('pd'))
+    monkeypatch.setattr(srv, '_warmup_stage_core', lambda: order.append('core'))
+    monkeypatch.setattr(srv, '_warmup_stage_india', lambda: order.append('india'))
+    monkeypatch.setattr(srv, '_warmup_stage_kentang', lambda: order.append('kentang'))
+    _reset_gate()
+    srv._run_warmups()
+    assert order == ['pd', 'core', 'india', 'kentang']
+    assert srv.STARTUP_GATE.is_set()

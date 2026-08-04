@@ -9,9 +9,8 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.chartSCU', '0')       // 盘面重组件 shouldComponentUpdate
 //   safeLocalStorageSet('horosa.perf.hookRaf', '0')        // 排盘 hook rAF 化
 //   safeLocalStorageSet('horosa.perf.freezeInactiveTabs','0')// 冻结非激活 TabPane 重渲(顶层技法页签)
-//   safeLocalStorageSet('horosa.perf.freezeSubTabs','0')   // 冻结非激活【子页签】重渲(FreezeSubTab)
-//   safeLocalStorageSet('horosa.perf.subTabDeferMount','0')// 子页签「从未激活过则延迟首次渲染」
-//   safeLocalStorageSet('horosa.perf.cityDbIdlePreload','0')// 城市大库 chunk(3.85MB)空闲预载
+//   safeLocalStorageSet('horosa.perf.freezeSubTabs','0')   // R4-B1:冻结非激活【子页签】重渲(FreezeSubTab)
+//   safeLocalStorageSet('horosa.perf.subTabDeferMount','0')// R4-B1:子页签「从未激活过则延迟首次渲染」
 //   safeLocalStorageSet('horosa.perf.requestDedupe', '0')  // 计算请求 去重+短TTL缓存
 //   safeLocalStorageSet('horosa.perf.techniqueCache', '0') // L2 技法结果缓存(10min,来回拨参数≈0)
 //   safeLocalStorageSet('horosa.perf.idleWarmQueue', '0')  // 就绪后空闲预热队列(chunk/引擎/数据)
@@ -24,16 +23,18 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.sharedNativeModel', '0')     // native 技法 center/aux 共享模型 memo
 //   safeLocalStorageSet('horosa.perf.singleTriggerPredictive','0')// PD/ZR hook+didUpdate 同签名去重
 //   safeLocalStorageSet('horosa.perf.stepPrefetch', '0')          // 时间步进方向预取
-//   safeLocalStorageSet('horosa.perf.stepPrefetchArm', '0')       // PERF-R10:选步长/出盘/切页即武装 ±N 步预取(关=只剩步进后预取)
-//   safeLocalStorageSet('horosa.perf.stepPrefetchDepth', '2')     // PERF-R10:武装深度 ±N(默认 3,合法 0..5,0=等效关)
-//   safeLocalStorageSet('horosa.perf.bootChartRestore', '0')      // PERF-R10:温启恢复上次的盘(关=启动回空白默认态)
-//   safeLocalStorageSet('horosa.perf.optionPrefetch', '0')        // PERF-R10:选项 Hamming-1 投机预取(关=零任务)
+//   safeLocalStorageSet('horosa.perf.stepPrefetchArm', '0')       // R4-B2:选步长/出盘/切页即武装 ±N 步预取(关=只剩步进后预取)
+//   safeLocalStorageSet('horosa.perf.stepPrefetchDepth', '2')     // R4-B2:武装深度 ±N(默认 3,合法 0..5,0=等效关)
+//   safeLocalStorageSet('horosa.perf.dataWarmTasks', '0')         // R4-B3:排盘后数据层空闲预热(组式)细闸
+//   safeLocalStorageSet('horosa.perf.neighborPrefetch', '0')      // R4-B3:分至图年份邻位预取(year±1)
+//   safeLocalStorageSet('horosa.perf.speculativePrecompute', '0') // R4-B5:表单编辑期防抖预发同参请求(只暖缓存)
+//   safeLocalStorageSet('horosa.perf.optionPrefetch', '0')        // R4-B5:选项 Hamming-1 投机预取(关=零任务)
+//   safeLocalStorageSet('horosa.perf.bootChartRestore', '0')      // R4-B8:温启恢复上次的盘(关=启动回空白默认态)
 //   safeLocalStorageSet('horosa.perf.chartCloneLite', '0')        // 出盘缓存冻结共享引用(关=每次深拷贝)
 //   safeLocalStorageSet('horosa.perf.hoverPrefetch', '0')         // 导航悬停预取 chunk(关=点击才载)
 //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
 //   safeLocalStorageSet('horosa.perf.bootGate', '0')              // [B1] early 导航后端探活门(关=请求直发,未起时报错重试)
 //   safeLocalStorageSet('horosa.perf.rsaSessionKey', '0')         // [A2] RSA 会话密钥复用(关=每请求重算 2048 位模幂)
-//   safeLocalStorageSet('horosa.perf.guolaoMergedPaint', '0')     // [W3d G5] 七政全命中路径中间 setState 合并(关=恒两段式上屏)
 // 恢复:对应 key removeItem 或设 '1'。
 
 function flagEnabled(key){
@@ -71,7 +72,7 @@ export function freezeInactiveTabsEnabled(){
 	return flagEnabled('horosa.perf.freezeInactiveTabs');
 }
 
-// horosa_freeze_subtabs_v1(PERF-R9 Ship 6):子页签冻结总闸。
+// horosa_freeze_subtabs_v1(R4-B1):子页签冻结总闸。
 // 关掉 → FreezeSubTab 的 sCU 恒真且不再延迟首渲,回到「技法内所有子面板每次父重渲都跟着重渲」的旧行为。
 export function freezeSubTabsEnabled(){
 	return flagEnabled('horosa.perf.freezeSubTabs');
@@ -81,12 +82,6 @@ export function freezeSubTabsEnabled(){
 // 关掉 → 子面板一开始就渲一次(冻结仍生效),用于排查「某面板必须挂载才注册副作用」类问题。
 export function subTabDeferMountEnabled(){
 	return flagEnabled('horosa.perf.subTabDeferMount');
-}
-
-// horosa_city_db_idle_preload_v1(PERF-R9 Ship 6):3.85MB 城市大库 chunk 进空闲预载队列。
-// 关掉 → 回到「打开经纬度选择器时才现场下载+解析」的旧行为(取数与匹配逻辑两态完全一致)。
-export function cityDbIdlePreloadEnabled(){
-	return flagEnabled('horosa.perf.cityDbIdlePreload');
 }
 
 export function requestDedupeEnabled(){
@@ -169,49 +164,11 @@ export function stepPrefetchEnabled(){
 	return flagEnabled('horosa.perf.stepPrefetch');
 }
 
-// —— PERF-R10 Ship2(horosa_step_prefetch_arm_v1):「选步长即武装」 ——
+// —— R4-B2(horosa_step_prefetch_arm_v1):「选步长即武装」 ——
 // 病根:预取单位只来自上一次步进 hint(无 hint 硬编码 'm'),选完新步长的第一下必 miss
 // (owner 原话「第一下卡之后不卡」)。武装 = 不等步进,先按当前档位把 ±1..±depth 预好。
 export function stepPrefetchArmEnabled(){
 	return flagEnabled('horosa.perf.stepPrefetchArm');
-}
-
-// (v3.5.1 收敛注:R10 的 kentangL3 已被上游 utils/kentangCache.js 的 fetch 级三层缓存
-//  [同款 kt-v1|rv 信封] 整体取代 —— 开关随 _kentangResultCache 一并退役,见 kentangCacheEnabled。)
-
-// PERF-R10 S2(horosa_boot_chart_restore_v1):温启恢复上次工作现场(owner 拍板默认开)。
-export function bootChartRestoreEnabled(){
-	return flagEnabled('horosa.perf.bootChartRestore');
-}
-
-// PERF-R10 Ship5-P2(horosa_option_prefetch_v1):选项空间 Hamming-1 投机预取。
-export function optionPrefetchEnabled(){
-	return flagEnabled('horosa.perf.optionPrefetch');
-}
-
-// PERF-R12 W3a(horosa_pump_fastfirst_v1):泵首任务快发 —— rIC 在快速连点下饥饿
-// (无空闲帧 ⇒ 只剩 2s 强制超时,届时代际已换 = 风暴期预取近零派发,验收表的
-// 「超窗尾」真因)。首目标组(≤2 任务)改 setTimeout(32ms):让出一帧再发;
-// submit 本就在 settle 之后 = 主渲染已提交,派发本体 ~1-3ms,响应解析是真点击
-// 迟早要付的成本且串行泵限 ≤1 在途。
-export function stepPrefetchFastFirstEnabled(){
-	return flagEnabled('horosa.perf.stepPrefetchFastFirst');
-}
-
-// PERF-R12 W3a(horosa_pump_skew_v1):同向连点 ≥3 且间隔 <2s 时,计划丢反向换前伸
-// (+4/+5)—— 反向目标(刚渲染过的那张)本就温在 chartMem/L2,丢弃零损,前伸纯赚;
-// 方向翻转/换页/换档/dir=0/停 >2s 即重置。只改 settle 路径的 plan 形状,白名单与
-// 预算结构不动。
-export function stepPrefetchSkewEnabled(){
-	return flagEnabled('horosa.perf.stepPrefetchSkew');
-}
-
-// PERF-R12 W3d(horosa_guolao_render_slice_v1 G5):七政 bundle 全命中路径的中间 setState 合并
-// —— 流年盘+Moira 规则都已在缓存时,跳过「先画流年环再画规则」的中间帧,一次 setState 落齐
-// (终态字节一致,只少一整轮重渲)。规则缓存窥探为假(冷/在途)⇒ 保留中间帧 = 旧行为,
-// 流年环照旧先行上屏,不等规则往返。关=恒走旧两段式。
-export function guolaoMergedPaintEnabled(){
-	return flagEnabled('horosa.perf.guolaoMergedPaint');
 }
 
 // 武装深度 ±N。默认 3(±1 即时命中,±2/±3 吃空闲窗);合法 0..5,0=等效关;
@@ -231,6 +188,48 @@ export function stepPrefetchDepth(){
 		// localStorage 不可用时走默认
 	}
 	return 3;
+}
+
+// R4-B3:排盘后数据层空闲预热(scheduleDataWarmGroup)的细闸——在总闸 idleWarmQueue
+// 之内再单独可关。预热只经各技法自己的缓存入口取数(结果与用户首点逐字节一致,只是提前付),
+// 关掉即回到「首点付冷成本」的现状。
+export function dataWarmTasksEnabled(){
+	return flagEnabled('horosa.perf.dataWarmTasks');
+}
+
+// R4-B3:分至图年份邻位预取(year±1)的独立闸。
+export function neighborPrefetchEnabled(){
+	return flagEnabled('horosa.perf.neighborPrefetch');
+}
+
+// R4-B5 预测性预计算(speculativePrecompute):用户在排盘表单里编辑参数时,防抖后提前发出与
+// 「提交」完全相同的确定性计算请求 —— 结果只进 services 层缓存(chartMem/在途合并),不落任何
+// 状态、不动 UI;点提交时直接命中/加入在途 → 点击→显示≈渲染耗时。严禁随机/取现时类端点。
+// 关掉(horosa.perf.speculativePrecompute=0)即回到「点提交才计算」。
+export function speculativePrecomputeEnabled(){
+	return flagEnabled('horosa.perf.speculativePrecompute');
+}
+
+// R4-B5(horosa_option_prefetch_v1):选项空间 Hamming-1 投机预取。
+export function optionPrefetchEnabled(){
+	return flagEnabled('horosa.perf.optionPrefetch');
+}
+
+// R4-B5b(horosa_option_debounce_v1):「选项即发」路径 leading 立发+250ms trailing 并帧
+// (与时间轴 debounce 分通道)。关=每次选项变更各发各的旧行为。
+export function optionDebounceEnabled(){
+	return flagEnabled('horosa.perf.optionDebounce');
+}
+
+// R4-B5b(horosa_main_chain_abort_v1):/chart 主链新发先 abort 旧在途(网络层取消;
+// 结果层正确性本就由 fieldsEpoch 代际保证,此闸释放连接与后端算力)。关=旧请求自然完成。
+export function mainChainAbortEnabled(){
+	return flagEnabled('horosa.perf.mainChainAbort');
+}
+
+// R4-B8(horosa_boot_chart_restore_v1):温启恢复上次工作现场(owner 拍板默认开)。
+export function bootChartRestoreEnabled(){
+	return flagEnabled('horosa.perf.bootChartRestore');
 }
 
 export function chartCloneLiteEnabled(){
@@ -261,8 +260,49 @@ export function astro3dMorphEnabled(){
 	return flagEnabled('horosa.perf.astro3dMorph');
 }
 
-// —— Windows-only 闸族(FE-9 天文馆五闸 / FE-2 技法结果缓存 / FE-11 首屏并行 /
-//    FE-7 预测性预计算 / FE-16 数据预热细闸)—— 与上游同步时整块保全(哨兵逐函数钉)。 ——
+// —— R3-A3(2026-07-21):kentang(:8899 直连 C 型)统一缓存壳 ——
+export function kentangCacheEnabled(){
+	// /pan 族请求 L1/L2/L3 缓存+在途去重(键=path+body,同 body 恒同果);
+	// 关=逐字节旧行为(裸 fetchChartWithRetry 直通,每次全程 Python 重算)
+	return flagEnabled('horosa.perf.kentangCache');
+}
+
+// —— R3-A1(2026-07-21):选定步长那一刻的双向预取 ——
+export function stepSelectPrefetchEnabled(){
+	// 时间组件选步长档即预取 ±1、±2 步(第一下也不冷);关=仅 settle 后预取(旧行为)
+	return flagEnabled('horosa.perf.stepSelectPrefetch');
+}
+
+// ═══ Windows-only 闸族(与上游同步时整块保全,哨兵逐函数钉;上游收编某项后按 #49 就地删行) ═══
+// 关闭方法同上:safeLocalStorageSet('<key>','0') 后刷新。
+
+// PERF-R9 Ship 6:城市大库 chunk(3.85MB)空闲预载。关=打开经纬度选择器时才现场下载+解析。
+export function cityDbIdlePreloadEnabled(){
+	return flagEnabled('horosa.perf.cityDbIdlePreload');
+}
+
+// PERF-R12 W3a①(horosa_pump_fastfirst_v1):泵首任务快发 —— rIC 在快速连点下饥饿,
+// 首目标组(≤2 任务)改 setTimeout(32ms) 让出一帧即发;与上游 livelock 修(排干旧代+500ms
+// 保底)互补:fast-first 管首拍要快,保底管长队列持续有拍。关=恒走 rIC 旧调度。
+export function stepPrefetchFastFirstEnabled(){
+	return flagEnabled('horosa.perf.stepPrefetchFastFirst');
+}
+
+// PERF-R12 W3a③(horosa_pump_skew_v1):同向连点 ≥3 且间隔 <2s 时,计划丢反向换前伸
+// (+4/+5)—— 反向目标(刚渲染过的那张)本就温在缓存,丢弃零损,前伸纯赚;
+// 翻向/换页/换档/dir=0/停 >2s 即重置。只改 settle 路径 plan 形状,白名单与预算结构不动。
+export function stepPrefetchSkewEnabled(){
+	return flagEnabled('horosa.perf.stepPrefetchSkew');
+}
+
+// PERF-R12 W3d-G5(horosa_guolao_render_slice_v1):七政 bundle 全命中路径的中间 setState 合并
+// —— 流年盘+Moira 规则都已在缓存时跳过中间帧,终态一次落齐(字节一致,少一整轮重渲);
+// 规则缓存窥探为假(冷/在途)⇒ 保留中间帧,流年环照旧先行上屏。关=恒两段式。
+export function guolaoMergedPaintEnabled(){
+	return flagEnabled('horosa.perf.guolaoMergedPaint');
+}
+
+// —— FE-9 天文馆五闸(渲染门控/按需渲染/空闲心跳/指标节流/时间编辑防抖) ——
 export function planetariumRenderGatingEnabled(){
 	return flagEnabled('horosa.perf.planetariumRenderGating');
 }
@@ -283,49 +323,14 @@ export function planetariumTimeEditDebounceEnabled(){
 	return flagEnabled('horosa.perf.planetariumTimeEditDebounce');
 }
 
-// 技法结果缓存:对**确定性纯计算**技法(紫微本盘/七政等,同 birth+设置必产同结果、无随机、无「现在时刻」依赖)
-// 做「同参复用 + 在途合并」,让切换/来回访问命中即秒回(返回同一结果深拷贝,与直连逐值等价、只更快)。
-// 关掉即回到每次直连后端。严禁用于卜卦随机起卦/塔罗/AI 等(见 _requestCache.js 头部约束)。
+// FE-2:确定性纯计算技法结果「同参复用 + 在途合并」(紫微本盘/七政等;严禁随机/取现时端点,
+// 判据见 _requestCache.js 头注)。关=每次直连后端。
 export function techniqueResultCacheEnabled(){
 	return flagEnabled('horosa.perf.techniqueResultCache');
 }
 
-// 首屏并行化:把页面首次加载时**互不依赖**的后端请求从「串行瀑布」改为并行发起(纯发起时机,内容/结果不变)。
-// 例:玄学史 总览/玄典/名家/事件 4 个 fetch 同时发;占星首屏独立预取并行。关掉即回到原串行顺序。
+// FE-11:页面首载互不依赖请求并行发起(玄学史四 fetch/占星首屏独立预取)。关=原串行顺序。
 export function firstLoadParallelEnabled(){
 	return flagEnabled('horosa.perf.firstLoadParallel');
-}
-
-// perf T-6 预测性预计算(speculativePrecompute):用户在排盘表单里编辑参数时,防抖后提前发出与
-// 「提交」完全相同的确定性计算请求 —— 结果只进 services 层缓存(chartMem/在途合并),不落任何
-// 状态、不动 UI;点提交时直接命中/加入在途 → 点击→显示≈渲染耗时。严禁随机/取现时类端点
-// (沿用 _requestCache.js 判据)。关掉(horosa.perf.speculativePrecompute=0)即回到「点提交才计算」。
-export function speculativePrecomputeEnabled(){
-	return flagEnabled('horosa.perf.speculativePrecompute');
-}
-
-// PERF-R8 P2:排盘后数据层空闲预热(scheduleDataWarmGroup)的细闸——在总闸 idleWarmQueue
-// 之内再单独可关。预热只经各技法自己的缓存入口取数(结果与用户首点逐字节一致,只是提前付),
-// 关掉即回到「首点付冷成本」的现状。
-export function dataWarmTasksEnabled(){
-	return flagEnabled('horosa.perf.dataWarmTasks');
-}
-
-// —— R3-A3(2026-07-21):kentang(:8899 直连 C 型)统一缓存壳 ——
-export function kentangCacheEnabled(){
-	// /pan 族请求 L1/L2/L3 缓存+在途去重(键=path+body,同 body 恒同果);
-	// 关=逐字节旧行为(裸 fetchChartWithRetry 直通,每次全程 Python 重算)
-	return flagEnabled('horosa.perf.kentangCache');
-}
-
-// —— R3-A1(2026-07-21):选定步长那一刻的双向预取 ——
-export function stepSelectPrefetchEnabled(){
-	// 时间组件选步长档即预取 ±1、±2 步(第一下也不冷);关=仅 settle 后预取(旧行为)
-	return flagEnabled('horosa.perf.stepSelectPrefetch');
-}
-
-// PERF-R8 P3:分至图年份邻位预取(year±1)的独立闸。
-export function neighborPrefetchEnabled(){
-	return flagEnabled('horosa.perf.neighborPrefetch');
 }
 

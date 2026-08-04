@@ -417,6 +417,9 @@ class AstroPersianDirected extends Component{
 									needZone={false}
 									showAdjust={true}
 									onAfterChanged={this.handleTimeChanged}
+									onStepSelect={()=>{ /* R4-B4 错轴止血:本页时间轴=波斯向运时刻,全局选步长
+										handler 预取的是 natal /chart(与本轴无关=纯空烧);函数型 prop 屏蔽全局。
+										正轴(/predict/persian 族)预取待实测价值后补。 */ }}
 								/>
 							</div>
 							<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>

@@ -49,12 +49,12 @@ export function registerIdleWarmTask(name, task){
 	}
 }
 
-// —— horosa_data_warm_registry_v1(PERF-R9 Ship 7):排盘后数据层预热的【任务注册表】 ——
-// 病根:任务清单此前写死在 pages/index.js 的一个 4 条数组里 —— 与技法零关系的页面组件
-// 持有技法知识,漏项没人发现(紫微 /ziwei/birth 首点概率最高,却整轮不在组里)。
-// 改注册表后:追加一条 = 一行登记;Map 的插入序 = 首点概率序 = 执行序。
+// —— horosa_data_warm_registry_v1(R4-B1):排盘后数据层预热的【任务注册表】 ——
+// 病根:registerIdleWarmTask 只在启动瞬间快照一次,启动后登记的任务永不执行 —— 注册表
+// 空转(全仓零消费者)。改组式注册表后:追加一条 = 一行登记(utils/dataWarmTasks.js);
+// Map 的插入序 = 首点概率序 = 执行序。
 // 登记方职责(本模块不校验,见上方纪律):确定性端点 + 技法自己的 builder/缓存入口 + silent。
-// ⚠️ 登记发生在模块 import 期(见 utils/dataWarmTasks.js),故 __resetIdleWarmQueue 【不】清它。
+// ⚠️ 登记发生在模块 import 期,故 __resetIdleWarmQueue 【不】清它。
 const DATA_WARM_REGISTRY = new Map();
 
 /**
@@ -85,7 +85,7 @@ let started = false;
 let paused = false;
 let pauseTimer = null;
 
-// ── PERF-R8 P2:排盘后数据层预热(组式)────────────────────────────────────────
+// ── R4-B1:排盘后数据层预热(组式)────────────────────────────────────────────
 // 与上面的启动期一次性快照不同:每次排盘成功都会带来一组新的「按当前盘参数」的预热任务,
 // 且新盘必须作废旧盘的未执行任务。因此:
 //   · scheduleDataWarmGroup(generationKey, tasks):登记一组任务并(必要时)重新拉起泵;

@@ -17,17 +17,18 @@ import {
 import request from '../request';
 import { fetchChartWithRetry } from '../chartFetch';
 
-// 题面点名的七类:随机骰子 / 地占 / 五兆 / 荆诀 / AI 流式 / 天文馆(取现时) / moira 禁词变体。
-// (G6 起 '/qizheng/moira' 精确路径入 PREFETCH_FORBIDDEN_EXEMPT_EXACT —— 物化预取豁免;
-//  这里改钉一个非豁免变体,证明禁词对「类」仍然生效、豁免不放大。)
+// 题面点名的七类:随机骰子 / 地占 / 太玄(seedInBody) / 荆诀 / AI 流式 / 天文馆(取现时) / moira。
+// (v3.7.1 收敛:G6 精确豁免退役 —— 七政规则预热改上游链式单任务[任务体内 await 续段发请求,
+//  白名单只见声明路径 '/chart'],'/qizheng/moira' 回归恒拦;太玄按上游政策表 seedInBody 入禁,
+//  五兆按政策表 deterministic 入准[组件层判 ganzhi;kentangCache 随机档缓存守卫仍在]。)
 const FORBIDDEN_TASK_PATHS = [
 	'/predict/dice',
 	'/geomancy/reading',
-	'/wuzhao/pan',
+	'/taixuan/pan',
 	'/jingjue/pan',
 	'/aianalysis/stream',
 	'/planetarium/state',
-	'/qizheng/moirascan',
+	'/qizheng/moira',
 ];
 
 const ROOT = 'http://127.0.0.1:8899';
@@ -102,13 +103,13 @@ describe('🔴 第②层:纵深防御 —— 任务谎报 path 也漏不出去',
 		expect(prefetchRefusalCount()).toBeGreaterThan(before);
 	});
 
-	test('chartFetch.js(kentang 全族的裸 fetch 路径):谎报 path 去发 /wuzhao/pan → 拒发', async () => {
+	test('chartFetch.js(kentang 全族的裸 fetch 路径):谎报 path 去发 /taixuan/pan → 拒发', async () => {
 		const before = prefetchRefusalCount();
 		let err = null;
 		submitStepPrefetch([{
 			name: 'liar-chartfetch',
 			path: '/qimen/pan',
-			run: () => fetchChartWithRetry(`${ROOT}/wuzhao/pan`, { method: 'POST', body: '{}' })
+			run: () => fetchChartWithRetry(`${ROOT}/taixuan/pan`, { method: 'POST', body: '{}' })
 				.catch((e) => { err = e; }),
 		}]);
 		await wait(1200);
@@ -128,24 +129,26 @@ describe('🔴 第②层:纵深防御 —— 任务谎报 path 也漏不出去',
 });
 
 describe('🔴 白名单判定本身', () => {
-	test('禁词优先于允许前缀;G6 精确豁免只放 /qizheng/moira 本尊,变体仍拦', () => {
-		expect(isPrefetchPathAllowed('/qizheng/pan')).toBe(true);
-		// G6(horosa_guolao_render_slice_v1):物化预取豁免 —— 归一化后全路径精确等值才放行。
-		expect(isPrefetchPathAllowed('/qizheng/moira')).toBe(true);
-		expect(isPrefetchPathAllowed(`${ROOT}/qizheng/moira?x=1`)).toBe(true);   // host/query 归一后=本尊
-		// 豁免不放大类:任何 moira 变体照旧被禁词拦。
+	test('禁词优先于允许前缀:moira 全族恒拦(v3.7.1 起 G6 豁免退役,链式预热不经白名单)', () => {
+		// /qizheng/ 前缀本身不在允许集(bazi 精准化同轮收窄);kentang 侧走 /qizhengkin/pan。
+		expect(isPrefetchPathAllowed('/qizhengkin/pan')).toBe(true);
+		expect(isPrefetchPathAllowed('/qizheng/moira')).toBe(false);
+		expect(isPrefetchPathAllowed(`${ROOT}/qizheng/moira?x=1`)).toBe(false);
 		expect(isPrefetchPathAllowed('/qizheng/moira/extra')).toBe(false);
-		expect(isPrefetchPathAllowed('/qizheng/moirascan')).toBe(false);
-		expect(isPrefetchPathAllowed('/qizheng/moira2')).toBe(false);
 		expect(isPrefetchPathAllowed('/aimoira/pan')).toBe(false);
+		// [Windows-only] /chart3d:3D 状态路由补位(上游列表无此路由;AstroChartMain3D 声明它)。
+		expect(isPrefetchPathAllowed('/chart3d/state')).toBe(true);
+		// bazi 精准化:读端点可预取,族内写端点默认拒。
+		expect(isPrefetchPathAllowed('/bazi/birth')).toBe(true);
+		expect(isPrefetchPathAllowed('/bazi/pattern')).toBe(false);
 	});
 
-	test('kentang pan 逐条枚举:允许的在、随机族的不在', () => {
+	test('kentang pan 逐条枚举:允许的在(政策表 deterministic 15 条)、seedInBody/随机族不在', () => {
 		['/qimen/pan', '/taiyi/pan', '/jinkou/pan', '/shaozi/pan', '/tieban/pan',
 			'/fendjing/pan', '/beiji/pan', '/nanji/pan', '/chunzi/pan', '/xianqin/pan',
-			'/cetian/pan', '/qizhengkin/pan', '/taixuan/pan', '/shenyishu/pan', '/wangji/pan',
+			'/cetian/pan', '/qizhengkin/pan', '/wuzhao/pan', '/shenyishu/pan', '/wangji/pan',
 		].forEach((p) => expect(isPrefetchPathAllowed(p)).toBe(true));
-		['/geomancy/pan', '/wuzhao/pan', '/jingjue/pan', '/xiaoliuren/pan'].forEach(
+		['/geomancy/pan', '/taixuan/pan', '/jingjue/pan', '/xiaoliuren/pan'].forEach(
 			(p) => expect(isPrefetchPathAllowed(p)).toBe(false)
 		);
 	});

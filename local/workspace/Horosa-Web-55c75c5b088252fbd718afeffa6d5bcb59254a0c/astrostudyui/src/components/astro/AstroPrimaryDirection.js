@@ -103,6 +103,8 @@ const PD_PROM_FILTER_EXTRA = [
 	{ text: '□ 刑 90°', value: 'ASP:90' },
 	{ text: '△ 拱 120°', value: 'ASP:120' },
 	{ text: '☍ 冲 180°', value: 'ASP:180' },
+	{ text: '右相位', value: 'HAND:dexter' },
+	{ text: '左相位', value: 'HAND:sinister' },
 	{ text: '映点/反映点', value: 'TYPE:anti' },
 	{ text: '平行族', value: 'TYPE:par' },
 	{ text: '界分界', value: 'TYPE:term' },
@@ -111,7 +113,7 @@ const PD_PROM_FILTER_EXTRA = [
 	{ text: '阿拉伯点', value: 'TYPE:lot' },
 ];
 
-function pdPromFilterMatch(value, promId){
+export function pdPromFilterMatch(value, promId){
 	const parts = `${promId || ''}`.split('_');
 	const prefix = parts[0] || '';
 	const asp = Number(parts.length >= 3 ? parts[2] : 0);
@@ -121,6 +123,9 @@ function pdPromFilterMatch(value, promId){
 		if(want === 180){ return prefix === 'N' && asp === 180; }
 		return (prefix === 'D' || prefix === 'S') && asp === want;
 	}
+	// 相位方向(用户点单:进迫星列筛选,与相位/类型维并存):判定与行文案渲染同前缀源
+	// (D()/S() 的「右相位处/左相位处」),D_=右 dexter / S_=左 sinister;无方向行不命中。
+	if(`${value}`.indexOf('HAND:') === 0){ return directionRowAspectHand(promId) === `${value}`.slice(5); }
 	if(value === 'TYPE:anti'){ return prefix === 'A' || prefix === 'C'; }
 	if(value === 'TYPE:par'){ return prefix === 'PD' || prefix === 'PC' || prefix === 'MP' || prefix === 'RP'; }
 	if(value === 'TYPE:term'){ return prefix === 'T'; }
@@ -149,6 +154,16 @@ const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 
 const PD_PAGE_SIZE_KEY = 'horosa.pd.pageSize';
 const PD_PAGE_SIZE_OPTIONS = ['20', '50', '100', '200'];
+
+// 行的相位方向:促发 ID 前缀 D_=右相位(dexter)/S_=左相位(sinister)——与行文案渲染
+// (下方 D()/S() 的「右相位处/左相位处」)同一前缀源,天然零分叉;其余(N_/A_/C_/T_)无方向。
+// 消费方=迫星列筛选 pdPromFilterMatch 的 HAND: 分支(用户点单:筛选入口在列头下拉)。
+export function directionRowAspectHand(promittor){
+	const id = `${promittor || ''}`;
+	if(id.indexOf('D_') === 0){ return 'dexter'; }
+	if(id.indexOf('S_') === 0){ return 'sinister'; }
+	return null;
+}
 
 function readPdVisibleCols(){
 	try{
@@ -312,10 +327,8 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	componentDidUpdate(prevProps){
-		// horosa_panel_ready_v1:主限法(星运页默认子页签)无自有请求 —— 表整份来自
-		// chartObj.predictives.primaryDirection(由 AstroDirectMain 的 /predict/pd 经 dispatch 落新盘),
-		// 「数据落定」= 拿到新盘对象后的这一次渲染提交。★必须放在下面 pd 配置守卫的 early return 之前,
-		// 否则「只换时间、pd 配置不变」的绝大多数交互会被 return 掉、永远不打点。
+		// horosa_panel_ready_v1:主限法表格页「画完」= 新 value(chartObj)带着新 PD 数据渲染的这一帧。
+		// 打在 props 同步守卫**之前** —— 否则「只换时间、pd 配置不变」的绝大多数交互会被 return 掉、永远不打点。
 		if(prevProps.value !== this.props.value){
 			markPanelReady('direction');
 		}
@@ -1563,45 +1576,8 @@ class AstroPrimaryDirection extends Component{
 							onChange={this.handlePdYearsChange}
 						/>
 					</span>
-					<span style={checkGroupStyle}>
-						<span style={labelStyle}>附加</span>
-						<Checkbox
-							style={checkboxStyle}
-							checked={this.getSelectedPdAntiscia() === 1}
-							onChange={this.handlePdAntisciaChange}
-						>映点</Checkbox>
-						<Checkbox
-							style={checkboxStyle}
-							checked={this.getSelectedPdTerms() === 1}
-							onChange={this.handlePdTermsChange}
-						>界</Checkbox>
-						{this.getSelectedPdTerms() === 1 ? (
-							<Select
-								size='small'
-								style={{ width: compactControls ? 76 : 84, flex: '0 0 auto' }}
-								value={this.getSelectedTermsVariant()}
-								onChange={(v)=>this.handleTermsVariantChange(v)}
-								dropdownMatchSelectWidth={false}
-							>
-								<Option value={0}>埃及界</Option>
-								<Option value={1}>托勒密界</Option>
-								<Option value={2}>莉莉界</Option>
-							</Select>
-						) : null}
-						<Checkbox
-							style={checkboxStyle}
-							checked={this.getSelectedPdParallel() === 1}
-							onChange={(e)=>this.handlePdParallelChange(e)}
-						>{this.getSelectedPdType() === 1 ? '世界平行' : '平行'}</Checkbox>
-						<Checkbox
-							style={checkboxStyle}
-							checked={this.getSelectedPdRaptParallel() === 1}
-							disabled={this.getSelectedPdType() !== 1}
-							onChange={(e)=>this.handlePdRaptParallelChange(e)}
-						>
-							<span title={this.getSelectedPdType() !== 1 ? '急动平行是严格世界主限技法：先把「方向」切到 In Mundo' : ''}>急动</span>
-						</Checkbox>
-					</span>
+					{/* 「附加」四开关(映点/界/平行/急动)已收进「扩展」面板第三组(用户点单:
+					    工具栏腾位)——JSX 原样平移进 extraSection 插槽,handlers/禁用逻辑零改。 */}
 					{/* 操作区成组:扩展 | 列 | 计算 永远相邻并整体右对齐,换行时不被拆散(旧法各自
 					    独立 + 「列」marginLeft:auto → 窄窗换行后「扩展」孤悬左侧、中间大片空白)。 */}
 					<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: '0 0 auto', marginLeft: 'auto' }}>
@@ -1614,6 +1590,52 @@ class AstroPrimaryDirection extends Component{
 						promissorTypes={this.state.pdPromissorTypesValue}
 						onSignificatorsChange={this.handlePdSignificatorsChange}
 						onPromissorTypesChange={this.handlePdPromissorTypesChange}
+						extraCount={(this.getSelectedPdAntiscia() === 1 ? 1 : 0)
+							+ (this.getSelectedPdTerms() === 1 ? 1 : 0)
+							+ (this.getSelectedPdParallel() === 1 ? 1 : 0)
+							+ (this.getSelectedPdRaptParallel() === 1 ? 1 : 0)}
+						extraSection={(
+							<>
+								{/* 原工具栏「附加」四开关平移(用户点单):handlers/勾选态/禁用逻辑逐字保留,
+								    仅排布从工具栏横排改面板竖排(与左侧两组 Group 同款节奏)。 */}
+								<Checkbox
+									style={{ marginLeft: 0 }}
+									checked={this.getSelectedPdAntiscia() === 1}
+									onChange={this.handlePdAntisciaChange}
+								>映点</Checkbox>
+								<Checkbox
+									style={{ marginLeft: 0 }}
+									checked={this.getSelectedPdTerms() === 1}
+									onChange={this.handlePdTermsChange}
+								>界</Checkbox>
+								{this.getSelectedPdTerms() === 1 ? (
+									<Select
+										size='small'
+										style={{ width: 96 }}
+										value={this.getSelectedTermsVariant()}
+										onChange={(v)=>this.handleTermsVariantChange(v)}
+										dropdownMatchSelectWidth={false}
+									>
+										<Option value={0}>埃及界</Option>
+										<Option value={1}>托勒密界</Option>
+										<Option value={2}>莉莉界</Option>
+									</Select>
+								) : null}
+								<Checkbox
+									style={{ marginLeft: 0 }}
+									checked={this.getSelectedPdParallel() === 1}
+									onChange={(e)=>this.handlePdParallelChange(e)}
+								>{this.getSelectedPdType() === 1 ? '世界平行' : '平行'}</Checkbox>
+								<Checkbox
+									style={{ marginLeft: 0 }}
+									checked={this.getSelectedPdRaptParallel() === 1}
+									disabled={this.getSelectedPdType() !== 1}
+									onChange={(e)=>this.handlePdRaptParallelChange(e)}
+								>
+									<span title={this.getSelectedPdType() !== 1 ? '急动平行是严格世界主限技法：先把「方向」切到 In Mundo' : ''}>急动</span>
+								</Checkbox>
+							</>
+						)}
 						buttonStyle={{ ...buttonStyle, minWidth: 56 }}
 					/>
 					<Popover

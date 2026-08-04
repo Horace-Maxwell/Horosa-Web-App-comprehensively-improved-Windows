@@ -1,5 +1,4 @@
 import { Component, createRef } from 'react';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { message, Spin } from 'antd';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -36,6 +35,8 @@ import {
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
+// R4-B2(horosa_prefetch_registry_v1):太乙 stage-1 步进预取登记。
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option } = Select;
@@ -60,7 +61,7 @@ function withTimeout(promise, timeoutMs) {
 	]);
 }
 
-// —— PERF-R9 Ship 7:太乙 stage-1(/nongli/time)构参的模块级纯函数(组件 genParams 纯委托)。
+// —— R4-B3:太乙 stage-1(/nongli/time)构参的模块级纯函数(组件 genParams 纯委托)。
 //    抽出来的唯一目的:预热要在【组件之外】构出与首点逐字节同键的 body。语义逐字节不变。
 function buildTaiYiNongliParamsPure(flds, options) {
 	if (!flds) {
@@ -81,7 +82,7 @@ function buildTaiYiNongliParamsPure(flds, options) {
 	};
 }
 
-// PERF-R9 Ship 7(数据层空闲预热):太乙 stage-1 = /nongli/time(确定性历法计算)。
+// R4-B3(数据层空闲预热):太乙 stage-1 = /nongli/time(确定性历法计算)。
 // after23NewDay 取 defaultAfter23NewDay() —— 与组件构造时 state.options 的初值同一口径,
 // 故 key/body 与用户首点逐字节一致。
 // 🔴 绝不预热 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/流派),提前构不出同键。
@@ -161,10 +162,9 @@ class TaiYiMain extends Component {
 				}
 				this.requestNongli(fields || this.props.fields);
 			};
-			// PERF-R9 Ship 7:太乙同为【两段式】—— stage-1(/nongli/time)先回来盘才能推。
-			// 与主 /chart 无关,在 /chart 返回之前并行发出即把 stage-1 摘出关键路径。
-			// silent(fetchPreciseNongli 内置)、丢结果、绝不 setState。
-			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
+			// R4-B3(A6):太乙同为【两段式】—— stage-1(/nongli/time)先回来盘才能推。
+			// 与主 /chart 无关,在 /chart 返回之前并行发出即把 stage-1 摘出关键路径
+			// (latency sum→max)。闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
 			this.props.hook.prewarmRequests = (flds) => {
 				if (this.unmounted) {
 					return;
@@ -176,10 +176,10 @@ class TaiYiMain extends Component {
 					}
 				} catch (e) { /* 预热失败无害 */ }
 			};
-			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):只预取 stage-1。
-			// 🔴 绝不预取 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/局数流派),串行不可提前构键。
+			// R4-B2(horosa_prefetch_registry_v1):只登记 stage-1(/nongli/time,确定性历法计算)。
+			// 🔴 绝不预取 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/局数流派),提前构不出同键。
 			if (stepPrefetchEnabled()) {
-				registerStepPrefetcher('taiyi', (steppedFields) => {
+				this._taiyiStepPrefetcher = (steppedFields) => {
 					if (this.unmounted || !steppedFields) {
 						return [];
 					}
@@ -197,7 +197,8 @@ class TaiYiMain extends Component {
 						path: '/nongli/time',
 						run: () => fetchPreciseNongli(params),
 					}];
-				});
+				};
+				registerStepPrefetcher('taiyi', this._taiyiStepPrefetcher);
 			}
 		}
 	}
@@ -314,6 +315,11 @@ class TaiYiMain extends Component {
 
 	componentWillUnmount() {
 		this.unmounted = true;
+		// R4-B2:反注册步进预取器(防卸载后闭包吃到死组件态)。
+		if(this._taiyiStepPrefetcher){
+			try{ unregisterStepPrefetcher('taiyi', this._taiyiStepPrefetcher); }catch(e){ /* ignore */ }
+			this._taiyiStepPrefetcher = null;
+		}
 		if(this.boardObserver){
 			this.boardObserver.disconnect();
 			this.boardObserver = null;
@@ -539,7 +545,7 @@ class TaiYiMain extends Component {
 	}
 
 	genParams(fields) {
-		// PERF-R9 Ship 7:构造原样抽为模块级纯函数(预热复用同一路径 ⇒ key/body 逐字节一致);
+		// R4-B3:构造原样抽为模块级纯函数(预热复用同一路径 ⇒ key/body 逐字节一致);
 		// 本方法保持既有签名与 props 兜底语义,纯委托零行为变化。
 		return buildTaiYiNongliParamsPure(fields || this.props.fields, this.state.options);
 	}

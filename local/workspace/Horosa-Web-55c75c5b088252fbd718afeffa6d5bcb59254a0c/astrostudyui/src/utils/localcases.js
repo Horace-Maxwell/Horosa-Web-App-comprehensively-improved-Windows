@@ -104,9 +104,13 @@ export const CASE_TYPE_OPTIONS = [
 	{ value: 'election', label: '择日', subTab: 'election', tab: 'auxchart', module: 'election' },
 	{ value: 'mundane', label: '世俗盘', subTab: 'mundane', tab: 'auxchart', module: 'mundane' },
 	{ value: 'tianxing', label: '天星择日', subTab: 'tianxing', tab: 'zeri', module: 'tianxing' },
+	{ value: 'qimenzeri', label: '奇门择日', subTab: 'qimenzeri', tab: 'zeri', module: 'qimenzeri' },
 ];
 
 const CASE_TYPE_ALIASES = {
+	// 精确键查表(非子串匹配);「奇门择日」必须先于裸「奇门」有独立键,免归并成 qimen。
+	'奇门择日': 'qimenzeri',
+	'奇門擇日': 'qimenzeri',
 	'六爻': 'liuyao',
 	'六壬': 'liureng',
 	'宿盘': 'suzhan',

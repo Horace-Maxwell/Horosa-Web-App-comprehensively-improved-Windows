@@ -40,7 +40,9 @@ import {
 } from '../../utils/localCalcCache';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+// R4-B2(horosa_prefetch_registry_v1):/liureng/gods 步进预取登记 + 选步长武装(S3 收敛)。
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 
 
 const {Option} = Select;
@@ -453,7 +455,7 @@ const COURSE_TO_DAGE_KEY = {
 	'元首课': 'yuanshou',
 	'重审课': 'chongshen',
 	// 始入课=「九法变十法」开关下单一下贼上的单列名(ChuangChart.isJinKe0),大格判词同归重审;
-	// 漏此键则该开关下断语参考整块静默消失(Windows #46 全量巡查时补)。
+	// 漏此键则该开关下断语参考整块静默消失(#46 全量巡查时补)。
 	'始入课': 'chongshen',
 	'比用课': 'zhiyi',
 	'知一课': 'zhiyi',
@@ -4804,20 +4806,6 @@ class LiuRengMain extends Component{
 				}
 				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
 			};
-			// [R3-A7] 并行预热:fetchByFields 等 /chart 前先把 /liureng/gods 打出去
-			// (silent,经 requestDedupe 在途共享)→ 页面总延迟 sum→max。构参走 genGodsParams
-			// 同源 → 与 hook 正式请求逐字节同键。失败静默,正式请求自兜底。
-			this.props.hook.prewarmRequests = (flds)=>{
-				if(this.unmounted){ return; }
-				try{
-					const params = this.genGodsParams(flds || this.props.fields);
-					if(!params){ return; }
-					request(`${Constants.ServerRoot}/liureng/gods`, {
-						body: JSON.stringify(params),
-						silent: true,
-					}).catch(()=>null);
-				}catch(e){ /* 预热失败无害 */ }
-			};
 			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
 			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
 			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
@@ -4836,12 +4824,12 @@ class LiuRengMain extends Component{
 					}
 				}catch(e){ /* 预热失败无害 */ }
 			};
-			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):/liureng/gods 是确定性纯计算
-			// (同 时间+地理+日界设置 恒同神将)→ 登记步进预取,结果落 requestDedupe L1/L2,
-			// 用户点下一步时 requestGods 里的 request() 即命中。
+			// R4-B2(horosa_prefetch_registry_v1):/liureng/gods 是确定性纯计算(同时刻恒同神将)
+			// → 登记步进预取,武装线(选步长/settle/切页)±depth 全窗经共享调度器构造发出
+			// (享白名单闸/latest-wins/预算;S3 收敛:本地裸发路径退役为薄壳,见 prefetchStepSelect)。
 			// 🔴 只登记「按时间起课」这条确定性链;六壬页若走随机/摇课起课路径,其参数不经本构造。
 			if(stepPrefetchEnabled()){
-				registerStepPrefetcher('liureng', (steppedFields)=>{
+				this._liurengStepPrefetcher = (steppedFields)=>{
 					if(this.unmounted || !steppedFields){
 						return [];
 					}
@@ -4863,7 +4851,8 @@ class LiuRengMain extends Component{
 							retry: { retries: 0 },
 						}),
 					}];
-				});
+				};
+				registerStepPrefetcher('liureng', this._liurengStepPrefetcher);
 			}
 		}
 	}
@@ -5229,39 +5218,16 @@ class LiuRengMain extends Component{
 		return params;
 	}
 
-	// [R3-A1 下放] 选步长即预取:六壬主耗时=/liureng/gods(全局 handler 只罩 /chart) ——
-	// 以当前时间 ±1 双向、genGodsParams 单源构参预热(silent,落 requestDedupe 缓存,
-	// 真点同参命中);同 unit 5s 去重。第一下步进即快。
+	// R4-B2(S3 收敛):选步长即预取改走武装引擎 —— ±depth 全窗任务(gods 经登记表构造 +
+	// /chart 主链)统一由共享调度器排队(享白名单闸/latest-wins/预算/连点保底),不再本地
+	// 裸发([R3-A1 下放]的 ±1 双向裸 request 语义被 ±depth 超集覆盖;5s 去重由武装线沿用)。
 	prefetchStepSelect(unit){
 		try{
 			if(!stepPrefetchEnabled() || !stepSelectPrefetchEnabled() || !unit){ return; }
 			const now = Date.now();
 			if(this._lastStepSel && this._lastStepSel.unit === unit && (now - this._lastStepSel.at) < 5000){ return; }
 			this._lastStepSel = { unit, at: now };
-			const base = this.props.fields || {};
-			const dt0 = base.date && base.date.value;
-			if(!dt0 || typeof dt0.clone !== 'function'){ return; }
-			[1, -1].forEach((dir)=>{
-				try{
-					const dt2 = dt0.clone();
-					if(unit === 'y'){ dt2.addYear(dir); }
-					else if(unit === 'M'){ dt2.addMonth(dir); }
-					else if(unit === 'd'){ dt2.addDate(dir); }
-					else if(unit === 'h'){ dt2.addHour(dir); }
-					else { dt2.addMinute(4 * dir); }
-					const flds2 = {
-						...base,
-						date: { value: dt2.clone() },
-						time: { value: dt2.clone() },
-					};
-					const params = this.genGodsParams(flds2);
-					if(!params){ return; }
-					request(`${Constants.ServerRoot}/liureng/gods`, {
-						body: JSON.stringify(params),
-						silent: true,
-					}).catch(()=>null);
-				}catch(e){ /* 预取失败无害 */ }
-			});
+			armStepPrefetch('unit-select', { unit });
 		}catch(e){ /* 预取失败无害 */ }
 	}
 
@@ -5644,6 +5610,11 @@ class LiuRengMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		// R4-B2:反注册步进预取器(防卸载后闭包吃到死组件态)。
+		if(this._liurengStepPrefetcher){
+			try{ unregisterStepPrefetcher('liureng', this._liurengStepPrefetcher); }catch(e){ /* ignore */ }
+			this._liurengStepPrefetcher = null;
+		}
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 			window.removeEventListener('horosa:liureng-xiang-pick', this.handleXiangPick);

@@ -317,6 +317,7 @@ class DivinationChartShell extends Component{
 			try{ params = buildChartParams(f2); }catch(e){ continue; }   // 非法日期静默跳过
 			tasks.push({
 				name: `divchart${pl.dir > 0 ? '+' : '-'}${pl.k}${unit}`,
+				path: '/chart',   // R4-B1 运行时白名单契约:无 path 的任务会被 submitStepPrefetch 丢弃
 				// silent+零重试:预取失败静默、绝不退避风暴(主链纪律同款)
 				run: ()=>fetchChart(params, { cache: true, silent: true, retry: { retries: 0 } }),
 			});

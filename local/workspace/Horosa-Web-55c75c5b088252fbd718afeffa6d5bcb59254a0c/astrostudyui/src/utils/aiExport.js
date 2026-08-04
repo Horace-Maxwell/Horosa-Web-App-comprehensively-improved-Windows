@@ -240,6 +240,7 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'horary',
 	'election',
 	'tianxing',
+	'qimenzeri',
 	'bazi',
 	'ziwei',
 	'suzhan',
@@ -304,6 +305,8 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'huangli', 'tongshu',
 	// 天星择日(征象搜索;新技法键只加键、两把版本闸恒不动——老用户本无自定义走 preset 全量)
 	'tianxing',
+	// 奇门择日(找局;同 tianxing 只加键纪律)
+	'qimenzeri',
 ];
 const AI_EXPORT_PLANET_INFO_DEFAULT = {
 	showHouse: 1,
@@ -454,6 +457,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'horary', label: '卜卦盘' },
 	{ key: 'election', label: '择日盘' },
 	{ key: 'tianxing', label: '天星择日' },
+	{ key: 'qimenzeri', label: '奇门择日' },
 	{ key: 'calendar', label: '黄历' },
 	// 黄历二子技法独立键:calendar=页面聚合快照(四子并出),huangli/tongshu=各自模块快照单技法
 	// 导出(与 jieqi 总/分并存同构);挂载「起课时间」源亦复用同一 preset 做内容勾选。
@@ -726,6 +730,9 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	calendar: ['起盘信息', '当月月历', '选中日详情', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '通书择日', '日子馆·个性化择日', '当事人八字', '方法说明'],
 	generic: ['起盘信息'],
 };
+// 奇门择日 = 奇门 17 段全量(单一真值源:qimen 段表改动自动跟随) + 择日三段。
+// 🔒 三个追加段头与 src/divination/zeri/qimenZeriSnapshot.js 逐字成对(四同步)。
+AI_EXPORT_PRESET_SECTIONS.qimenzeri = [...AI_EXPORT_PRESET_SECTIONS.qimen, '择日搜索配置', '择日条件', '命中时辰'];
 
 // 自检用:返回所有「有 preset 段表」的技法 key。配合测试断言 preset key ⊆ AI_EXPORT_TECHNIQUES,
 // 堵住「有 preset 却没登记进 AI_EXPORT_TECHNIQUES → 在导出设置下拉隐身 + 不被 getAIExportAuditMatrix 自检」的回归
@@ -2649,6 +2656,11 @@ function resolveContextByAstroState(){
 			return { key: 'fengshui', displayName: '风水' };
 		case 'sanshiunited':
 			return { key: 'sanshiunited', displayName: '三式合一', domain: 'sanshiunited' };
+		case 'zeri':
+			// 择日页按子技法分流(store 兜底根治:「择日」是两子技法名的子串,DOM 启发式易串成辅盘择日盘)
+			return subTab === 'qimenzeri'
+				? { key: 'qimenzeri', displayName: '奇门择日' }
+				: { key: 'tianxing', displayName: '天星择日' };
 		case 'calendar':
 			return { key: 'calendar', displayName: '黄历' };
 		case 'astroreader':
@@ -2973,7 +2985,7 @@ function getExtractorKindByExportKey(key){
 		|| exportKey === 'beiji' || exportKey === 'nanji' || exportKey === 'chunzi' || exportKey === 'xianqin'
 		|| exportKey === 'cetian' || exportKey === 'qizhengkin' || exportKey === 'guolao' || exportKey === 'suzhan'
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
-		|| exportKey === 'tianxing'
+		|| exportKey === 'tianxing' || exportKey === 'qimenzeri'
 		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'zhengchuan'
 		|| exportKey === 'yizhangjing' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu'){
 		return `module:${snapshotModuleKeyByContextKey(exportKey)}`;
@@ -3037,7 +3049,8 @@ function getStructuredSnapshotKeysByExportKey(key){
 		|| exportKey === 'fengshui'
 		|| exportKey === 'horary'
 		|| exportKey === 'election'
-		|| exportKey === 'tianxing'){
+		|| exportKey === 'tianxing'
+		|| exportKey === 'qimenzeri'){
 		return [exportKey];
 	}
 	const moduleKey = snapshotModuleKeyByContextKey(exportKey);
@@ -3071,6 +3084,7 @@ const AI_EXPORT_DEFAULT_OFF_SECTIONS = {
 	geomancy: ['图形释义'],
 	yizhangjing: ['诗文', '四柱文献', '逐日值星', '时辰细断', '叠断'],
 	qimen: ['八宫克应'],
+	qimenzeri: ['八宫克应'],
 	liureng: ['取象'],
 };
 
@@ -6096,8 +6110,10 @@ function getCandidateExportKeys(context){
 	if(topInfo.includes('卜卦') && !hasPrimarySpecific){
 		keys.push('horary');
 	}
-	if(topInfo.includes('天星择日') && !hasPrimarySpecific){
-		// 「择日」是「天星择日」的子串——本分支必须先行,否则 zeri 页上下文被串成辅盘择日盘
+	if(topInfo.includes('奇门择日') && !hasPrimarySpecific){
+		// 「择日」是「天星择日/奇门择日」的子串——两专属分支必须先行,否则 zeri 页上下文被串成辅盘择日盘
+		keys.push('qimenzeri');
+	}else if(topInfo.includes('天星择日') && !hasPrimarySpecific){
 		keys.push('tianxing');
 	}else if(topInfo.includes('择日') && !hasPrimarySpecific){
 		keys.push('election');
@@ -6252,7 +6268,7 @@ async function extractContentByKey(exportKey, context){
 		//    才露的马脚(段表 grep 得到、四本账测试也绿 —— 它们只查「登记了没」,不查「值是什么」)。
 		return extractSimpleModuleContent(exportKey);
 	}
-	if(exportKey === 'horary' || exportKey === 'election' || exportKey === 'mundane' || exportKey === 'tianxing'){
+	if(exportKey === 'horary' || exportKey === 'election' || exportKey === 'mundane' || exportKey === 'tianxing' || exportKey === 'qimenzeri'){
 		// 卜卦/择日:读 saveModuleAISnapshot 存的模块快照;世俗:走 refresh-event(DivinationChartShell 写 detail.snapshotText)。
 		// extractSimpleModuleContent 先派发 refresh-event 再回落 cached,三者统一覆盖(此前缺分支 → 落 generic / 被辅盘默认串成量化盘)。
 		return extractSimpleModuleContent(exportKey);

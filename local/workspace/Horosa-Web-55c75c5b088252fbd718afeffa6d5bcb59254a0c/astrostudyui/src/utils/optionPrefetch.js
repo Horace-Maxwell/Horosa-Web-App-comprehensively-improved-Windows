@@ -1,15 +1,19 @@
-// optionPrefetch —— 选项空间 Hamming-1 投机预取(PERF-R10 Ship5-P2 核心,horosa_option_prefetch_v1)。
+// optionPrefetch —— 选项空间 Hamming-1 投机预取(R4-B5,horosa_option_prefetch_v1)。
 //
 // 原理:用户切选项压倒性地「一次只动一个轴」。主盘 settle 后,把「当前参数只翻一位」的
 // /chart 变体在空闲时段预好 —— 构参与真点走同一 fieldsToParams(键逐字节同),结果自然落
 // chartMem/requestDedupe 三层;用户切该轴时 = 缓存命中,延迟只剩渲染。
 //
+// ⚠️ 本件是对 R3「optionPrefetch 判弊>利」裁决的**反转**(落账 FAILURE_LEDGER):R3 判弊的
+// 是「开下拉即触真算」的 intent 形态;本实现改在 settle 后走空闲组(scheduleDataWarmGroup:
+// 组代作废+交互让路),实证二值轴命中率高且零抢队 —— 判弊前提已被规避。
+//
 // 纪律(与步进武装同族,更保守):
 //   · 首铺只做**二值轴**(值域 {0,1} 硬编码零风险):zodiacal(回归/恒星)、southchart(南/北盘)、
 //     tradition(现代/古典)、simpleAsp(简/全相位)。多值轴(hsys/ayanamsa/terms/学派等)的
-//     合法值域живет在各表单组件里 —— 待接入时由组件登记,绝不在这里臆造值域(错值=白算)。
-//   · 走 scheduleDataWarmGroup 空闲通道(组代作废+交互让路),预算 ≤4/settle,不与步进泵抢队;
-//   · 任务 silent+零重试;chartFree 页(本地引擎)与 NO_ARM 技法不投机;
+//     合法值域住在各表单组件里 —— 待接入时由组件登记,绝不在这里臆造值域(错值=白算)。
+//   · 走 scheduleDataWarmGroup 空闲通道,预算 ≤4/settle,不与步进泵抢队;
+//   · 任务 silent+零重试;NO_ARM 技法(随机/取现时/流式/浏览/择日)不投机;
 //   · kill-switch:horosa.perf.optionPrefetch(关=零任务)。
 import { optionPrefetchEnabled } from './perfFlags';
 import { scheduleDataWarmGroup } from './idleWarmQueue';
@@ -25,7 +29,7 @@ export const BINARY_CHART_AXES = [
 const BUDGET_PER_SETTLE = 4;
 
 let chartTaskBuilder = null;
-/** models/astro.js 注入:(fieldsVariant) => {name,path,run} 单条 /chart 预取任务(同构参路径)。 */
+/** models/astro.js 注入:(fieldsVariant, astroState) => {name,path,run} 单条 /chart 预取任务(同构参路径)。 */
 export function registerOptionChartTaskBuilder(fn){
 	if(typeof fn === 'function'){
 		chartTaskBuilder = fn;

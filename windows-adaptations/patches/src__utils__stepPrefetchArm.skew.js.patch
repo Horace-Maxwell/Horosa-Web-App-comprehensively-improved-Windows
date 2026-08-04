@@ -1,0 +1,48 @@
+diff --git a/astrostudyui/src/utils/stepPrefetchArm.js b/astrostudyui/src/utils/stepPrefetchArm.js
+index fccbaf4f..937b0c0c 100644
+--- a/astrostudyui/src/utils/stepPrefetchArm.js
++++ b/astrostudyui/src/utils/stepPrefetchArm.js
+@@ -65,11 +65,42 @@ export function shouldArmForTab(tabKey){
+ 	return !!tabKey && !NO_ARM_TABS.has(tabKey);
+ }
+ 
+-export function reportStepUnit(tabKey, unit){
++// horosa_pump_skew_v1(Windows-ahead,PERF-R12 W3a③):同向连击计量 —— settle 携 dir(±1)时累计,
++// 方向翻转/换档/dir 缺省(选档、非步进 settle)/间隔 >2s 一律重置。纯观测状态,
++// 消费方只有 models/astro.js 的计划偏斜分支;读写全 try 包,绝不影响主流程。
++// dir 形参为 Windows 增列(上游二参调用天然 dir=undefined → 走重置分支,语义兼容)。
++const stepStreakByTab = new Map();
++const STREAK_GAP_MS = 2000;
++
++export function reportStepUnit(tabKey, unit, dir){
+ 	if(tabKey && unit){
+ 		lastUnitByTab.set(tabKey, unit);
+ 		lastUnitGlobal = unit;
+ 	}
++	try{
++		if(!tabKey){ return; }
++		if(dir === 1 || dir === -1){
++			const now = Date.now();
++			const prev = stepStreakByTab.get(tabKey);
++			if(prev && prev.dir === dir && prev.unit === unit && (now - prev.at) < STREAK_GAP_MS){
++				stepStreakByTab.set(tabKey, { dir, unit, at: now, count: prev.count + 1 });
++			}else{
++				stepStreakByTab.set(tabKey, { dir, unit, at: now, count: 1 });
++			}
++		}else{
++			stepStreakByTab.delete(tabKey);
++		}
++	}catch(e){ /* 观测性状态,绝不影响主流程 */ }
++}
++
++export function stepStreak(tabKey){
++	try{
++		const s = tabKey && stepStreakByTab.get(tabKey);
++		if(s){
++			return { count: s.count, dir: s.dir, at: s.at, unit: s.unit };
++		}
++	}catch(e){ /* 同上 */ }
++	return { count: 0, dir: 0, at: 0, unit: null };
+ }
+ 
+ export function currentStepUnit(tabKey){

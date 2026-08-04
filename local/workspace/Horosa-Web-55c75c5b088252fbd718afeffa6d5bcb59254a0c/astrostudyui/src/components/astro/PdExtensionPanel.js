@@ -73,6 +73,9 @@ function Group({ title, options, selected, onChange, minWidth, headClassName }){
  * @param variant 'dark'(天球,恒暗底) | 'theme'(表格,跟随主题)
  * @param significators / promissorTypes 已选值数组
  * @param onSignificatorsChange / onPromissorTypesChange 收下一个完整数组
+ * @param extraSection 第三组插槽(可选;未传不渲染,天球调用方零改动零回归)——宿主把
+ *        「附加促发」等自带 disabled/条件控件的既有 JSX 原样平移进来,逻辑零改。
+ * @param extraSectionTitle 插槽组标题(默认「附加促发」);extraCount 插槽勾选数(并入按钮徽标)
  * @param placement Popover 位置;buttonStyle 触发按钮内联样式(两处按钮本就不同,保留各自的)
  */
 export default function PdExtensionPanel({
@@ -81,6 +84,9 @@ export default function PdExtensionPanel({
 	promissorTypes,
 	onSignificatorsChange,
 	onPromissorTypesChange,
+	extraSection,
+	extraSectionTitle = '附加促发',
+	extraCount = 0,
 	placement = 'bottom',
 	buttonStyle,
 	buttonSize = 'small',
@@ -88,7 +94,7 @@ export default function PdExtensionPanel({
 	const sig = Array.isArray(significators) ? significators : [];
 	const prom = Array.isArray(promissorTypes) ? promissorTypes : [];
 	const dark = variant === 'dark';
-	const count = sig.length + prom.length;
+	const count = sig.length + prom.length + (Number.isFinite(extraCount) ? extraCount : 0);
 
 	const content = (
 		<div style={{ display: 'flex', gap: 16 }}>
@@ -109,6 +115,17 @@ export default function PdExtensionPanel({
 				minWidth={128}
 				headClassName={dark ? 'horosa-pdsphere-ext-head' : undefined}
 			/>
+			{extraSection ? (
+				<>
+					<div style={{ width: 1, alignSelf: 'stretch', background: GOLD_DIVIDER }} />
+					<div style={{ display: 'flex', flexDirection: 'column', gap: 7, minWidth: 108 }}>
+						<span className={dark ? 'horosa-pdsphere-ext-head' : undefined} style={headStyle}>
+							{extraSectionTitle}
+						</span>
+						{extraSection}
+					</div>
+				</>
+			) : null}
 		</div>
 	);
 

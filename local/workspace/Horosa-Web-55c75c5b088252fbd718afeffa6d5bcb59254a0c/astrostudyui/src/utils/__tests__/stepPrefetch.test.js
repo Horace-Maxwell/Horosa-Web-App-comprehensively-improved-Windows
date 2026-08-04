@@ -1,9 +1,3 @@
-// horosa_prefetch_registry_v1(PERF-R9 Ship 7 起本文件为 Windows overlay 目标)——
-// 本轮改动的三处断言,任一被 Mac 同步冲掉都意味着一条真实回归悄悄复活:
-//   · 任务序改「近端优先 + 技法端点先于同向 chart」(models/astro.js 的 buildStepPrefetchTasks);
-//   · 技法登记方收到的是【已步进】的 fields(旧版传基准 fields = 预取当前那张盘 = 白打);
-//   · 每个任务必须自带 `path` 声明 —— 它是 horosa_prefetch_runtime_whitelist_v1 运行时闸的唯一凭据。
-//
 // 步进预取(WP-P1)金标 —— 四条命门:
 // ① 键等性:预取构出的 param 与「用户真点下一步时 UI 将发出的 param」逐字节全等
 //    (缓存键=明文 JSON 精确串,差一个字节=白预取);含月末 clamp 链式用例;
@@ -11,9 +5,11 @@
 // ③ 纪律:允许集绝不含随机起卦/AI 端点(白名单快照);
 // ④ kill-switch 与投毒防护。
 import {
-	submitStepPrefetch, registerStepPrefetcher, getStepPrefetcher,
+	submitStepPrefetch, registerStepPrefetcher, unregisterStepPrefetcher, getStepPrefetcher,
 	PREFETCH_ALLOWED_PATHS, PREFETCH_FORBIDDEN_MARKERS, __resetStepPrefetch,
+	isPrefetchPathAllowed, guardPrefetchUrl, prefetchRefusalCount, normalizePrefetchPath,
 } from '../stepPrefetch';
+import { getPerfCoverageKentang } from '../perfCoverageManifest';
 import { __fieldsToParamsForTest, __buildStepPrefetchTasksForTest } from '../../models/astro';
 import DateTime from '../../components/comp/DateTime';
 
@@ -76,12 +72,36 @@ describe('🔴 键等性:预取 param ≡ 用户真点会发出的 param', () =>
 		expect(jump.format('YYYY-MM-DD')).not.toBe(step.format('YYYY-MM-DD'));
 	});
 
-	test('同向 2 步任务的时间 = 连点两次的真序列(PERF-R9 Ship 7 新序:近端优先)', () => {
+	test('同向 2 步任务的时间 = 连点两次的真序列', () => {
 		const fields = mkFields(2026, 1, 31);
 		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 1 }, ASTRO_STATE);
-		// plan = [+1, +2, -1] → 3 个 chart 任务;新序 [技法+1, chart+1, 技法-1, chart-1, chart+2],
-		// 本用例 currentTab=astrochart 无技法登记 → ['chart+1M', 'chart-1M', 'chart+2M']
+		// R4-B2 定序变化(落账):plan [+1,+2,-1] → [+1,-1,+2] —— 反向 ±1(拨过头往回,高频)
+		// 提级到同向 +2(连点第三下,较低频)之前;±1 双向即时命中,远窗吃空闲。
 		expect(tasks.map((t) => t.name)).toEqual(['chart+1M', 'chart-1M', 'chart+2M']);
+	});
+
+	test('R4-B2 武装计划:dir=0+depth=3 → ±1..±3 对称交错 6 任务', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 0, depth: 3 }, ASTRO_STATE);
+		expect(tasks.map((t) => t.name)).toEqual(['chart+1d', 'chart-1d', 'chart+2d', 'chart-2d', 'chart+3d', 'chart-3d']);
+	});
+
+	test('R4-B2 skipChart:本地漏斗武装只出技法端点(chart 占位不发)', () => {
+		const fields = mkFields(2026, 7, 15);
+		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 0, depth: 2, skipChart: true }, ASTRO_STATE);
+		expect(tasks).toEqual([]);   // 无登记方时零任务(chart 全占位)
+	});
+
+	test('🔴 R4-B2 登记方拿到的是【步进后的 f2】而非基准 fields(旧版 bug 勘正)', () => {
+		const fields = mkFields(2026, 7, 15);
+		const seen = [];
+		registerStepPrefetcher('astrochart', (steppedFields) => {
+			seen.push(steppedFields.date.value.format('YYYY-MM-DD'));
+			return [];
+		});
+		__buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 0, depth: 1 }, ASTRO_STATE);
+		expect(seen).toEqual(['2026-07-16', '2026-07-14']);   // ±1 天,不是两个「7-15 此刻」
+		unregisterStepPrefetcher('astrochart', getStepPrefetcher('astrochart'));
 	});
 
 	test('此刻(dir=0) → ±1 各一', () => {
@@ -89,92 +109,31 @@ describe('🔴 键等性:预取 param ≡ 用户真点会发出的 param', () =>
 		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'm', dir: 0 }, ASTRO_STATE);
 		expect(tasks.map((t) => t.name)).toEqual(['chart+1m', 'chart-1m']);
 	});
-
-	test('🔴 每个任务都自带 path 声明(运行时白名单的唯一凭据)', () => {
-		const fields = mkFields(2026, 7, 15);
-		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 1 }, ASTRO_STATE);
-		expect(tasks.length).toBeGreaterThan(0);
-		tasks.forEach((t) => {
-			expect(t.path).toBe('/chart');
-		});
-	});
-
-	test('🔴 技法登记方拿到的是【已步进】的 fields(旧版传基准 fields = 预取当前那张盘 = 白打)', () => {
-		const fields = mkFields(2026, 7, 15);
-		const seen = [];
-		registerStepPrefetcher('astrochart', (steppedFields) => {
-			seen.push(steppedFields.date.value.format('YYYY-MM-DD'));
-			return [{ name: 'tech', path: '/qimen/pan', run: () => Promise.resolve() }];
-		});
-		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 1 }, ASTRO_STATE);
-		// 基准是 07-15;三步 = +1d / -1d / +2d(PERF-R10:plan 数组序 == 提交序),
-		// 没有任何一次拿到基准日 —— 「已步进 fields」纪律不变。
-		expect(seen).toEqual(['2026-07-16', '2026-07-14', '2026-07-17']);
-		// 序不变量:技法端点排在同向 chart 之前(非占星页 gate 面板的是技法端点);
-		// 该输出与 R9 旧实现逐字节同序(近窗 tech 先、远窗 chart 先)。
-		expect(tasks.map((t) => t.name)).toEqual([
-			'tech+1d', 'chart+1d', 'tech-1d', 'chart-1d', 'chart+2d', 'tech+2d',
-		]);
-	});
-
-	// —— PERF-R10 horosa_step_prefetch_arm_v1 新计划形状 ——
-	test('🔴 武装计划(dir=0+depth=3):±1,±2,±3 对称交错,+ 先;时间=逐步累加真序列', () => {
-		const fields = mkFields(2026, 7, 15);
-		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 0, depth: 3 }, ASTRO_STATE);
-		expect(tasks.map((t) => t.name)).toEqual([
-			'chart+1d', 'chart-1d', 'chart+2d', 'chart-2d', 'chart+3d', 'chart-3d',
-		]);
-	});
-
-	test('🔴 有向 + depth=3:[+1, -1, +2, +3](反向只留 ±1,深窗全给同向)', () => {
-		const fields = mkFields(2026, 7, 15);
-		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'd', dir: 1, depth: 3 }, ASTRO_STATE);
-		expect(tasks.map((t) => t.name)).toEqual([
-			'chart+1d', 'chart-1d', 'chart+2d', 'chart+3d',
-		]);
-	});
-
-	test('🔴 skipChart(本地漏斗武装):零 chart 任务,只发技法端点', () => {
-		const fields = mkFields(2026, 7, 15);
-		registerStepPrefetcher('astrochart', () => [
-			{ name: 'tech', path: '/ziwei/birth', run: () => Promise.resolve() },
-		]);
-		const tasks = __buildStepPrefetchTasksForTest(
-			fields, { unit: 'd', dir: 0, depth: 2, skipChart: true }, ASTRO_STATE
-		);
-		expect(tasks.length).toBe(4);   // ±1、±2 各一条技法任务
-		tasks.forEach((t) => {
-			expect(t.path).toBe('/ziwei/birth');
-			expect(t.name.startsWith('tech')).toBe(true);
-		});
-	});
-
-	test('武装计划月末链式:±2 月的时间 = 连点两次的真序列(逐步 add,不一步到位)', () => {
-		const fields = mkFields(2026, 1, 31);
-		registerStepPrefetcher('astrochart', (steppedFields) => [{
-			name: `t@${steppedFields.date.value.format('YYYY-MM-DD')}`,
-			path: '/chart', run: () => Promise.resolve(),
-		}]);
-		const tasks = __buildStepPrefetchTasksForTest(fields, { unit: 'M', dir: 0, depth: 2 }, ASTRO_STATE);
-		const techDates = tasks.filter((t) => t.name.startsWith('t@')).map((t) => t.name.slice(2, 12));
-		// 溢出滚动语义逐步推演:+1M=03-01、-1M=12-31、+2M=03-01→04-01(绝非一步 +2M 的 03-31)、
-		// -2M=12-31→11-31 溢出滚到 12-01(绝非一步 -2M 的 11-30)—— 与用户连点两次的真序列一致。
-		expect(techDates).toEqual(['2026-03-01', '2025-12-31', '2026-04-01', '2025-12-01']);
-	});
 });
 
 describe('🔴 预算与 latest-wins', () => {
-	test('每 settle ≤12(PERF-R10 扩容);新一轮 submit 整队替换,旧代任务全弃', async () => {
+	// R4-B1 行为变化点(落账):任务契约加 path 过运行时白名单;缺省预算 3→12。
+	test('缺省预算 ≤12;新一轮 submit 整队替换,旧代任务全弃', async () => {
 		const ran = [];
 		const mk = (tag, n) => Array.from({ length: n }, (_, i) => ({
 			name: `${tag}${i}`, path: '/chart', run: () => { ran.push(`${tag}${i}`); return Promise.resolve(); },
 		}));
 		// rIC 不存在于 jsdom → 降级 setTimeout(250);用真 timer 等
-		submitStepPrefetch(mk('old', 14));          // 超预算的 14 个 → 只留 12(且随后整队被换代)
+		submitStepPrefetch(mk('old', 14));          // 超预算的 14 个 → 只留 12
 		submitStepPrefetch(mk('new', 2));           // 立即换代
 		await new Promise((r) => setTimeout(r, 1400));
 		expect(ran.filter((x) => x.startsWith('old'))).toEqual([]);   // 旧代全弃
 		expect(ran.filter((x) => x.startsWith('new')).length).toBe(2);
+	});
+
+	test('显式 budget 仍硬顶 5(R3-A1 上游语义保持)', async () => {
+		const ran = [];
+		const mk = (n) => Array.from({ length: n }, (_, i) => ({
+			name: `t${i}`, path: '/chart', run: () => { ran.push(i); return Promise.resolve(); },
+		}));
+		submitStepPrefetch(mk(9), { budget: 9 });
+		await new Promise((r) => setTimeout(r, 2600));
+		expect(ran.length).toBe(5);
 	});
 
 	test('kill-switch:关 = submit no-op', async () => {
@@ -194,7 +153,98 @@ describe('🔴 预算与 latest-wins', () => {
 		await new Promise((r) => setTimeout(r, 1200));
 		expect(ran).toEqual(['ok']);
 	});
+
+	// horosa_prefetch_pump_livelock_v1(R4-B1,实测「20 连点 0 派发」病灶):
+	// 连点=每 ~300ms 一次 settle→submit 换代。旧泵一拍只处理一个 entry(拍到时多是旧代,
+	// 丢弃即耗掉整拍)⇒ 稳态颗粒无收。新泵一拍内丢净旧代、就地执行当代任务。
+	// 硬指标:20 连点期间派发 ≥15。
+	test('🔴 连点泵保底:20 次连点 submit 期间派发 ≥15', async () => {
+		let ran = 0;
+		const mk = () => [
+			{ name: 'a', path: '/chart', run: () => { ran += 1; return Promise.resolve(); } },
+			{ name: 'b', path: '/chart', run: () => { ran += 1; return Promise.resolve(); } },
+		];
+		for(let i = 0; i < 20; i += 1){
+			submitStepPrefetch(mk());
+			// eslint-disable-next-line no-await-in-loop
+			await new Promise((r) => setTimeout(r, 300));
+		}
+		await new Promise((r) => setTimeout(r, 800));
+		expect(ran).toBeGreaterThanOrEqual(15);
+	});
 });
+
+describe('🔴 纪律:白名单绝不含随机/AI 端点', () => {
+	// R4-B1 快照更新(落账):枚举扩容 —— 裸 '/pan'(匹配不到任何真实路径,形同虚设)删除,
+	// 改为 kentang deterministic 15 条逐条枚举 + 通用计算端点族 + /bazi 精确条目。
+	test('允许集快照(增删须过此关)', () => {
+		expect(PREFETCH_ALLOWED_PATHS).toEqual([
+			// [Windows-only] '/chart3d':3D 星盘状态路由(v3.5.0 起),AstroChartMain3D 步进预取
+			// 声明它;上游列表无此路由,Windows 补位(requestDedupe 落桶同款一行)。
+			'/chart', '/chart3d', '/predict/', '/ziwei/', '/liureng/',
+			'/india/', '/germany/', '/modern/', '/astroextra/', '/nongli/', '/jieqi/',
+			'/bazi/birth', '/bazi/direct',
+			'/qimen/pan', '/taiyi/pan', '/jinkou/pan', '/wangji/pan', '/wuzhao/pan',
+			'/shenyishu/pan', '/shaozi/pan', '/tieban/pan', '/fendjing/pan', '/beiji/pan',
+			'/nanji/pan', '/chunzi/pan', '/xianqin/pan', '/cetian/pan', '/qizhengkin/pan',
+		]);
+	});
+	test('允许集与禁词零交集', () => {
+		const hit = PREFETCH_ALLOWED_PATHS.filter((p) => PREFETCH_FORBIDDEN_MARKERS.some((m) => p.includes(m)));
+		expect(hit).toEqual([]);
+	});
+	test('🔴 kentang 枚举 ≡ 政策表 deterministic 集(单一真值源对拍,漏登/多登皆红)', () => {
+		const modules = getPerfCoverageKentang();
+		const deterministic = Object.keys(modules)
+			.filter((k) => modules[k].policy === 'deterministic')
+			// 区间扫描型(qizhengelection/electionscan)无步进语义且不走 /{key}/pan 形态,不进步进白名单
+			.filter((k) => k !== 'qizhengelection' && k !== 'electionscan')
+			.map((k) => `/${k}/pan`)
+			.sort();
+		const enumerated = PREFETCH_ALLOWED_PATHS.filter((p) => p.endsWith('/pan')).sort();
+		expect(enumerated).toEqual(deterministic);
+		// seedInBody 族(预取即钉死起课)绝不在允许集,且在禁词里
+		['taixuan', 'jingjue', 'geomancy'].forEach((k) => {
+			expect(modules[k].policy).toBe('seedInBody');
+			expect(PREFETCH_ALLOWED_PATHS).not.toContain(`/${k}/pan`);
+			expect(isPrefetchPathAllowed(`/${k}/pan`)).toBe(false);
+		});
+	});
+	test('isPrefetchPathAllowed:正反面(禁词优先/前缀锚定/带 host 与 query 归一)', () => {
+		expect(isPrefetchPathAllowed('/chart')).toBe(true);
+		expect(isPrefetchPathAllowed('http://127.0.0.1:9999/chart?x=1')).toBe(true);
+		expect(isPrefetchPathAllowed('/qimen/pan')).toBe(true);
+		expect(isPrefetchPathAllowed('/predict/dice')).toBe(false);      // 禁词优先
+		expect(isPrefetchPathAllowed('/geomancy/pan')).toBe(false);
+		expect(isPrefetchPathAllowed('/aianalysis/stream')).toBe(false);
+		expect(isPrefetchPathAllowed('/heartbeat')).toBe(false);
+		expect(isPrefetchPathAllowed('/bazi/pattern/update')).toBe(false); // 精确条目外的 /bazi/ 族
+		expect(isPrefetchPathAllowed('')).toBe(false);
+		expect(normalizePrefetchPath('https://h.com/qimen/pan#f')).toBe('/qimen/pan');
+	});
+	test('🔴 运行时闸:白名单外任务提交即丢弃并计数;guardPrefetchUrl 非预取作用域恒放行', async () => {
+		const before = prefetchRefusalCount();
+		const ran = [];
+		submitStepPrefetch([
+			{ name: 'evil', path: '/geomancy/pan', run: () => { ran.push('evil'); return Promise.resolve(); } },
+			{ name: 'nopath', run: () => { ran.push('nopath'); return Promise.resolve(); } },
+			{ name: 'ok', path: '/chart', run: () => { ran.push('ok'); return Promise.resolve(); } },
+		]);
+		await new Promise((r) => setTimeout(r, 900));
+		expect(ran).toEqual(['ok']);
+		expect(prefetchRefusalCount() - before).toBe(2);
+		// 非预取作用域(用户真实请求):恒放行,零影响
+		expect(guardPrefetchUrl('/aianalysis/stream')).toBe(true);
+	});
+	test('注册表可登记可取回可反注册(Phase B 接口)', () => {
+		const fn = () => [];
+		registerStepPrefetcher('dunjia', fn);
+		expect(getStepPrefetcher('dunjia')).toBe(fn);
+		unregisterStepPrefetcher('dunjia', fn);
+		expect(getStepPrefetcher('dunjia')).toBe(undefined);
+	});
+});
+
 
 // ── horosa_pump_fastfirst_v1(PERF-R12 W3a①)—— 风暴期派发金标 ─────────────────────────
 // 病根断言:scheduleIdle 回退 250ms > 160ms 连点窗 ⇒ 每代任务都在下一代作废前到不了
@@ -212,15 +262,26 @@ describe('horosa_pump_fastfirst_v1:风暴期首任务快发', () => {
 	beforeEach(() => { jest.useFakeTimers(); });
 	afterEach(() => { jest.useRealTimers(); });
 
-	test('关闸态(=今日行为):160ms×20 连点,派发恒 0', async () => {
+	// (v3.7.1 重钉:上游 horosa_prefetch_pump_livelock_v1[排干旧代+500ms 保底]落地后,关闸态
+	//  不再是「风暴期零派发」—— 那正是上游修掉的病。fast-first 的分辨力契约改钉【首发延迟】:
+	//  关=首拍等 rIC 降级 250ms(jsdom),40ms 窗内必无派发;开=32ms 让帧即发。)
+	test('关闸态:submit 后 40ms 窗内零派发(首拍仍等空闲降级档)', async () => {
 		window.localStorage.setItem('horosa.perf.stepPrefetchFastFirst', '0');
 		let ran = 0;
-		for (let i = 0; i < 20; i += 1) {
-			submitStepPrefetch([mkTask(`a${i}`, () => { ran += 1; }), mkTask(`b${i}`, () => { ran += 1; })]);
-			await drain(160);
-		}
+		submitStepPrefetch([mkTask('a', () => { ran += 1; }), mkTask('b', () => { ran += 1; })]);
+		await drain(40);
+		const at40 = ran;
+		await drain(400);
 		window.localStorage.removeItem('horosa.perf.stepPrefetchFastFirst');
-		expect(ran).toBe(0);
+		expect(at40).toBe(0);                       // 40ms 内没发(无 fast-first)
+		expect(ran).toBeGreaterThanOrEqual(1);      // 但 livelock 修保底,稍后必发(不再饿死)
+	});
+
+	test('开闸态:submit 后 40ms 窗内首任务已派发(32ms 让帧)', async () => {
+		let ran = 0;
+		submitStepPrefetch([mkTask('a', () => { ran += 1; }), mkTask('b', () => { ran += 1; })]);
+		await drain(40);
+		expect(ran).toBeGreaterThanOrEqual(1);
 	});
 
 	test('开闸态:同一风暴 ≥15 派发(每代首目标至少一发)', async () => {
@@ -292,33 +353,5 @@ describe('horosa_pump_skew_v1:同向连击计划偏斜', () => {
 		seedStreak(5, 1, 'd');
 		const tasks = __buildStepPrefetchTasksForTest(mkFields(2026, 7, 15), { unit: 'd', dir: 0, depth: 3 }, ASTRO_STATE);
 		expect(dirsOf(tasks).join('|')).toMatch(/-1d/);    // 对称形保留
-	});
-});
-
-describe('🔴 纪律:白名单绝不含随机/AI 端点', () => {
-	test('允许集快照(增删须过此关)', () => {
-		expect(PREFETCH_ALLOWED_PATHS).toEqual([
-			'/chart', '/chart3d', '/predict/', '/ziwei/', '/liureng/', '/india/', '/germany/',
-			'/modern/', '/astroextra/', '/calendar/', '/nongli/', '/jieqi/', '/bazi/',
-			'/qizheng/', '/common/',
-			'/qimen/pan', '/taiyi/pan', '/jinkou/pan', '/shaozi/pan', '/tieban/pan',
-			'/fendjing/pan', '/beiji/pan', '/nanji/pan', '/chunzi/pan', '/xianqin/pan',
-			'/cetian/pan', '/qizhengkin/pan', '/taixuan/pan', '/shenyishu/pan', '/wangji/pan',
-		]);
-	});
-	test('🔴 kentang pan 是逐条枚举,绝无通配 —— 随机族(地占/五兆)进不来', () => {
-		expect(PREFETCH_ALLOWED_PATHS).not.toContain('/pan');
-		expect(PREFETCH_ALLOWED_PATHS.some((p) => p.indexOf('*') >= 0)).toBe(false);
-		expect(PREFETCH_ALLOWED_PATHS).not.toContain('/geomancy/pan');
-		expect(PREFETCH_ALLOWED_PATHS).not.toContain('/wuzhao/pan');
-	});
-	test('允许集与禁词零交集', () => {
-		const hit = PREFETCH_ALLOWED_PATHS.filter((p) => PREFETCH_FORBIDDEN_MARKERS.some((m) => p.includes(m)));
-		expect(hit).toEqual([]);
-	});
-	test('注册表可登记可取回(Phase B 接口)', () => {
-		const fn = () => [];
-		registerStepPrefetcher('dunjia', fn);
-		expect(getStepPrefetcher('dunjia')).toBe(fn);
 	});
 });

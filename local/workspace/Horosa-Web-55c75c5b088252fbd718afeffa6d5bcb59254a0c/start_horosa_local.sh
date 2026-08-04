@@ -1099,21 +1099,47 @@ while true; do
     break
   fi
 
-  # 账本观察位(纯旁路,latch 一次):各服务首个 http 响应时刻。
+  # [R4-P2c] 就绪探测 curl 合并:旧逻辑 latch 探测与就绪判定各自打同样两个 URL —— 每轮最多
+  # 4 次 curl fork+exec(0.1s 档≈每秒 20-40 次,全在 JVM 引导期抢核)。改为 latch 即判定素材:
+  # 双 latch 齐后做一轮【终确认】(两 URL 各一枪;失败清相应 latch 续轮)——堵「响应过一次后
+  # 挂死」的语义缝,就绪语义与旧判定完全一致,每轮 curl 4→≤2。
+  # 附 [R4-P0 观察位] sh.java_listen_ready:java 端口可应答(不带签名 /heartbeat)的首个时刻,
+  # 与 sh.java_http_ready(/common/time 可答=lazy 链已初始化)的差值 = P4-3 就绪判据换轻端点
+  # 的裁决数据(差值 <150ms 则不换——现判据顺带预热 lazy 链,换了可能只是成本搬家)。
+  # kill-switch:HOROSA_READY_PROBE_LATCH=0 回「每轮直测两 URL」旧判定(账本段义不变)。
   if [ "${py_seen}" = "0" ] && http_responding "http://127.0.0.1:${CHART_PORT}/"; then
     py_seen=1
     ledger_log sh.py_http_ready
   fi
-  if [ "${java_seen}" = "0" ] && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
-    java_seen=1
-    ledger_log sh.java_http_ready
+  if [ "${java_seen}" = "0" ]; then
+    if [ "${java_listen_seen:-0}" = "0" ] && http_responding "http://127.0.0.1:${BACKEND_PORT}/heartbeat"; then
+      java_listen_seen=1
+      ledger_log sh.java_listen_ready
+    fi
+    if signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
+      java_seen=1
+      ledger_log sh.java_http_ready
+    fi
   fi
   # 就绪判定以 http 探测为准(trusted/untrusted 同口径)。曾把 netstat 端口解析当 http 探测的前置硬闸,
   # 解析在某环境失败(如 pipefail×SIGPIPE 坑)会把已就绪的服务挡死 → 首启永卡。本地 curl 0.2s 轮询开销可忽略;
-  # port_listening 仅保留给下方进度展示行(展示失败不影响就绪判定)。判据原样,账本零介入。
-  if http_responding "http://127.0.0.1:${CHART_PORT}/" && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
-    ready=1
-    break
+  # port_listening 仅保留给下方进度展示行(展示失败不影响就绪判定)。
+  if [ "${HOROSA_READY_PROBE_LATCH:-1}" = "1" ]; then
+    if [ "${py_seen}" = "1" ] && [ "${java_seen}" = "1" ]; then
+      # 终确认:latch 只证明「响应过一次」,此处各再验一枪 —— 任一挂死即清其 latch 续轮,
+      # 就绪语义与旧「当轮双测」完全一致(任何请求的最早放行时刻只可能更严不可能更松)。
+      if http_responding "http://127.0.0.1:${CHART_PORT}/" && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
+        ready=1
+        break
+      fi
+      http_responding "http://127.0.0.1:${CHART_PORT}/" || py_seen=0
+      signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time" || java_seen=0
+    fi
+  else
+    if http_responding "http://127.0.0.1:${CHART_PORT}/" && signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
+      ready=1
+      break
+    fi
   fi
   if [ $((elapsed_checks % progress_interval)) -eq 0 ]; then
     echo "waiting services... ${elapsed_checks} checks (${CHART_PORT}:$( (port_listening "${CHART_PORT}" && echo up) || echo down), ${BACKEND_PORT}:$( (port_listening "${BACKEND_PORT}" && echo up) || echo down))"
@@ -1234,7 +1260,8 @@ maybe_train_cds_background() {
     # [WS-3e] 触达补全:lazy-init 下 heartbeat 只初始化极小 bean 集;补一发 /chart POST
     # (400/失败均可)把 controller/序列化链的类拉进 dump 档,提高 .jsa 覆盖。
     # [R3-B2] 与打包预训链同款端点面(五链扩类捕获,两处训练恒一致)。
-    for _cds_ep in "/chart" "/common/time" "/bazi/direct" "/liureng/gods" "/ziwei/birth" "/jieqi/year"; do
+    # [R4-P4-2] +/rules/ziwei;清单与 package_runtime_payload.sh 逐字 lockstep(preflight[199])。
+    for _cds_ep in "/chart" "/common/time" "/bazi/direct" "/liureng/gods" "/ziwei/birth" "/jieqi/year" "/rules/ziwei"; do
       curl -s -o /dev/null -m 3 -X POST -H 'Content-Type: application/json' -d '{}' \
         "http://127.0.0.1:${train_port}${_cds_ep}" 2>/dev/null || true
     done

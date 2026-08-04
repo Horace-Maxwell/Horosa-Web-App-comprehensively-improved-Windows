@@ -1,12 +1,8 @@
 // horosa_data_warm_registry_v1
-// dataWarmTasks —— 排盘后「数据层空闲预热」的登记处(PERF-R8 P2 的清单 → PERF-R9 Ship 7 的注册表)。
+// dataWarmTasks —— 排盘后「数据层空闲预热」的登记处(R4-B3)。
 //
-// ⚠️ 本文件是 **Windows overlay 的原创新文件**(Mac 基线里不存在),故走 windows-adaptations
-//    的**全量拷贝层** `files/astrostudyui/src/utils/dataWarmTasks.js`,不是 patches/。
-//    改这里 = 必须同步改那份拷贝(HARNESS_MANIFEST 与哨兵 horosa_data_warm_registry_v1 双守)。
-//
-// 为什么单独一个模块:清单原本写死在 pages/index.js 的一个 4 条数组里,页面组件因此持有技法
-// 知识,漏项没人发现(紫微 /ziwei/birth —— 首点概率最高的技法之一 —— 一直不在组里)。
+// 为什么单独一个模块:清单若写死在 pages/index.js 的数组里,页面组件因此持有技法知识,
+// 漏项没人发现(紫微 /ziwei/birth —— 首点概率最高的技法之一 —— 一直不在组里)。
 // 挪到这里之后,新增一条 = 加一行 registerDataWarmTask,登记序 = 首点概率序 = 执行序。
 //
 // 纪律(与 idleWarmQueue / _requestCache 头注同一条):
@@ -22,43 +18,42 @@ import { registerDataWarmTask, buildRegisteredDataWarmTasks } from './idleWarmQu
 
 // —— 登记序 = 首点概率序(靠前的先付) ——
 
-// ① 星运(direction 默认子页 primarydirect 的 /predict/pd)
+// [Windows-only ①②] 星运/印占两条自 PERF-R9 起在册(上游注册表暂未收编此二项;
+// 移除即两页首点回付冷成本)。builder 纪律同上:各技法自己导出的 warm 入口,键逐字节同。
 registerDataWarmTask('direction:pd', (fields, chartObj)=>
 	import('../components/direction/AstroDirectMain').then((m)=>m.warmPrimaryDirection(chartObj, fields)));
 
-// ② 印占 /india/chart
 registerDataWarmTask('india:birth', (fields)=>
 	import('../components/astro/IndiaChart').then((m)=>m.requestIndiaChartData(m.buildIndiaWarmParams(fields))));
 
-// ③ 紫微 /ziwei/birth —— PERF-R9 Ship 7 补入(此前最大的漏项)
+// ① 紫微 /ziwei/birth —— 首点概率最高的技法之一(R4-B3 首铺)。
 registerDataWarmTask('ziwei:birth', (fields)=>
 	import('../components/ziwei/ZiWeiMain').then((m)=>m.warmZiweiBirth(fields)));
 
-// ④ 七政本命 /chart(只暖本命:Moira 流年默认过运时刻=「现在」,禁入)
+// ② 七政本命 /chart(只暖本命:Moira 流年默认过运时刻=「现在」,取现时禁入;
+//    三段链式预热由步进预取登记负责,那里能读到用户显式设置的 transitTime)。
 registerDataWarmTask('guolao:natal', (fields)=>
 	import('../components/guolao/GuoLaoChartMain').then((m)=>m.warmGuolaoNatal(fields)));
 
-// ⑤ 量化盘 /germany/midpoint(辅盘默认子页 germanytech)
+// [Windows-only] 量化盘 /germany/midpoint(辅盘默认子页 germanytech;PERF-R9 起在册)。
 registerDataWarmTask('germany:midpoint', (fields)=>
 	import('../components/germany/AstroMidpoint').then((m)=>m.warmGermanyMidpoint(fields)));
 
-// ⑥ 遁甲 stage-1:/nongli/time + /jieqi/year 种子 —— PERF-R9 Ship 7 补入。
-//    两段式技法的第一段是纯历法计算,提前付掉后用户点开遁甲时 pan 的输入即时可得。
+// ③ 遁甲 stage-1:/nongli/time + /jieqi/year 种子 —— 两段式技法的第一段是纯历法计算,
+//    提前付掉后用户点开遁甲时 pan 的输入即时可得。
 registerDataWarmTask('dunjia:stage1', (fields)=>
 	import('../components/dunjia/DunJiaMain').then((m)=>m.warmDunJiaStage1(fields)));
 
-// ⑦ 太乙 stage-1:/nongli/time —— PERF-R9 Ship 7 补入(同上)。
+// ④ 太乙 stage-1:/nongli/time(同上)。
 registerDataWarmTask('taiyi:stage1', (fields)=>
 	import('../components/taiyi/TaiYiMain').then((m)=>m.warmTaiYiStage1(fields)));
 
-// ⑧ 分至 /jieqi/year —— PERF-R9 Ship 7 补入,【排最后一位】。
-//    这是本组唯一的重端点(全年 24 节气高精度求解)。此前的判断是「重端点不进默认组」;
-//    改判的前提是:组已改成串行 + 交互即让路 + 排在全部轻端点之后 —— 它只会吃到真正的
-//    空闲尾巴,而分至页首点省下的是整整一次重算。年份步进另有 prefetchJieqiYearNeighbors 接手。
+// ⑤ [Windows-only] 分至图年表 /jieqi/year —— 自 PERF-R10 起随组预热(组式调度天然
+//    「交互即让路 + 新盘作废旧组」,重端点风险由让路语义吸收;移除即分至图首点回付冷成本)。
 registerDataWarmTask('jieqi:year', (fields)=>
 	import('../components/jieqi/JieQiChartsMain').then((m)=>m.warmJieqiYear(fields)));
 
-/** 供 pages/index.js 调:按登记序铺成 scheduleDataWarmGroup 的任务数组。 */
+/** 供 pages/index.js 调:按登记序把注册表铺成 scheduleDataWarmGroup 的任务数组。 */
 export function buildDataWarmTasks(fields, chartObj){
 	return buildRegisteredDataWarmTasks(fields, chartObj);
 }

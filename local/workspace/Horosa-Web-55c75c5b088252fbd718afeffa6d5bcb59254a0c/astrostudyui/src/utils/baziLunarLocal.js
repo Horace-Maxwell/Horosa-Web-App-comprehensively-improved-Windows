@@ -1139,6 +1139,42 @@ export function buildLocalBaziResult(params){
 	};
 }
 
+// [奇门择日] 扫描专用轻量 nongli:与 buildLocalBaziResult 同链(视太阳时→lunar.js→四柱→buildNongli),
+// 但跳过三推运/五行力量/格局用神/盲派等排盘无关派生([A3·profile 定谳]三推运≈97% 耗时),
+// 也不走 baziCoreMemo(8 桶,扫描逐时全 miss 反会把交互命中挤出)。产出仅含奇门引擎消费面:
+// { bazi: { gender, nongli, fourColumns } };组装范式与 dunjiaBackendParity.test.js 一致:
+//   calcDunJia(fields, { ...lite.bazi.nongli, bazi: lite.bazi }, options, ctx)
+// 与全量版在 nongli 全键 + fourColumns 干支上的一致性由 qimenScanEngine.test.js parity 网格钉死。
+export function buildLocalNongliLite(params){
+	const rawParts = parseDateTime(params);
+	if(!Number.isFinite(rawParts.year) || !Number.isFinite(rawParts.month) || !Number.isFinite(rawParts.day)){
+		throw new Error('invalid bazi date');
+	}
+	if(!isLunarJsYearReliable(rawParts.year)){
+		throw new Error(lunarDomainNotice(rawParts.year));
+	}
+	const apparentParts = applyApparentSolarTime(rawParts, params || {});
+	const solar = solarFromParts(apparentParts);
+	const lunar = solar.getLunar();
+	const eightChar = lunar.getEightChar();
+	const dayPillarShift = params && (params.after23NewDay === 1 || params.after23NewDay === '1' || params.after23NewDay === true);
+	eightChar.setSect(dayPillarShift ? 1 : 2);
+	const lateZiHourUseNextDay = (params && (params.lateZiHourUseNextDay === 0 || params.lateZiHourUseNextDay === '0' || params.lateZiHourUseNextDay === false)) ? 0 : 1;
+	const fourColumns = buildFourColumns(eightChar, { lateZiHourUseNextDay, minggongMethod: 'tongxing', phaseType: 0, godKeyPos: '年' });
+	const ziweiLunar = ziweiLunarFor(lunar, solar, dayPillarShift, apparentParts.hour);
+	const gender = Number(params && params.gender) === 0 ? 0 : 1;
+	const genderText = gender === 1 ? 'Male' : 'Female';
+	return {
+		bazi: {
+			gender: genderText,
+			nongli: buildNongli(lunar, solar, solar, ziweiLunar),
+			fourColumns,
+		},
+		gender: genderText,
+		local: true,
+	};
+}
+
 // 批A：供 AI 挂载多运限按所选流日/流时无头复算（与四柱同口径，纯 lunar.js）。
 export { buildFlowDays, buildFlowHours };
 

@@ -4,6 +4,7 @@ import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
 import { ZERI_SUBTABS } from '../../constants/SubTabRegistry';
 import TianxingElectionMain from './TianxingElectionMain';
+import QimenZeriMain from './QimenZeriMain';
 
 const TabPane = Tabs.TabPane;
 
@@ -72,6 +73,14 @@ export default class ZeriMain extends Component{
 								showAstroMeaning={this.props.showAstroMeaning}
 								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 								voidClassical={this.props.voidClassical}
+								dispatch={this.props.dispatch}
+							/>
+						</TabPane>
+						<TabPane tab="奇门择日" key="qimenzeri">
+							<QimenZeriMain
+								fields={this.props.fields}
+								height={childHeight}
+								chart={this.props.chart}
 								dispatch={this.props.dispatch}
 							/>
 						</TabPane>

@@ -1,0 +1,42 @@
+diff --git a/astrostudyui/src/utils/dataWarmTasks.js b/astrostudyui/src/utils/dataWarmTasks.js
+index 05bb32ae..fb3490a2 100644
+--- a/astrostudyui/src/utils/dataWarmTasks.js
++++ b/astrostudyui/src/utils/dataWarmTasks.js
+@@ -18,6 +18,14 @@ import { registerDataWarmTask, buildRegisteredDataWarmTasks } from './idleWarmQu
+ 
+ // —— 登记序 = 首点概率序(靠前的先付) ——
+ 
++// [Windows-only ①②] 星运/印占两条自 PERF-R9 起在册(上游注册表暂未收编此二项;
++// 移除即两页首点回付冷成本)。builder 纪律同上:各技法自己导出的 warm 入口,键逐字节同。
++registerDataWarmTask('direction:pd', (fields, chartObj)=>
++	import('../components/direction/AstroDirectMain').then((m)=>m.warmPrimaryDirection(chartObj, fields)));
++
++registerDataWarmTask('india:birth', (fields)=>
++	import('../components/astro/IndiaChart').then((m)=>m.requestIndiaChartData(m.buildIndiaWarmParams(fields))));
++
+ // ① 紫微 /ziwei/birth —— 首点概率最高的技法之一(R4-B3 首铺)。
+ registerDataWarmTask('ziwei:birth', (fields)=>
+ 	import('../components/ziwei/ZiWeiMain').then((m)=>m.warmZiweiBirth(fields)));
+@@ -27,6 +35,10 @@ registerDataWarmTask('ziwei:birth', (fields)=>
+ registerDataWarmTask('guolao:natal', (fields)=>
+ 	import('../components/guolao/GuoLaoChartMain').then((m)=>m.warmGuolaoNatal(fields)));
+ 
++// [Windows-only] 量化盘 /germany/midpoint(辅盘默认子页 germanytech;PERF-R9 起在册)。
++registerDataWarmTask('germany:midpoint', (fields)=>
++	import('../components/germany/AstroMidpoint').then((m)=>m.warmGermanyMidpoint(fields)));
++
+ // ③ 遁甲 stage-1:/nongli/time + /jieqi/year 种子 —— 两段式技法的第一段是纯历法计算,
+ //    提前付掉后用户点开遁甲时 pan 的输入即时可得。
+ registerDataWarmTask('dunjia:stage1', (fields)=>
+@@ -36,6 +48,11 @@ registerDataWarmTask('dunjia:stage1', (fields)=>
+ registerDataWarmTask('taiyi:stage1', (fields)=>
+ 	import('../components/taiyi/TaiYiMain').then((m)=>m.warmTaiYiStage1(fields)));
+ 
++// ⑤ [Windows-only] 分至图年表 /jieqi/year —— 自 PERF-R10 起随组预热(组式调度天然
++//    「交互即让路 + 新盘作废旧组」,重端点风险由让路语义吸收;移除即分至图首点回付冷成本)。
++registerDataWarmTask('jieqi:year', (fields)=>
++	import('../components/jieqi/JieQiChartsMain').then((m)=>m.warmJieqiYear(fields)));
++
+ /** 供 pages/index.js 调:按登记序把注册表铺成 scheduleDataWarmGroup 的任务数组。 */
+ export function buildDataWarmTasks(fields, chartObj){
+ 	return buildRegisteredDataWarmTasks(fields, chartObj);

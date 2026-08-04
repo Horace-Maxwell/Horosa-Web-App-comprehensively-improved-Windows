@@ -358,21 +358,11 @@ class TaiXuanMain extends Component{
 	}
 
 	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
-	// 太玄的 random 由 payload.seed 确定性播种(FE-2 已核),步进只变时间、seed 取当前值
-	// —— 与用户步进后真点的请求逐字节同键;起筮换 seed 走别的路径,不受影响。
-	getStepPrefetchTasks(steppedFields){
-		try{
-			const dt = parseFieldsDateTime(steppedFields);
-			if(!dt){ return []; }
-			const payload = { ...dt, seed: this.state.seed };
-			return [{
-				name: 'taixuan',
-				path: '/taixuan/pan',
-				run: ()=> postTaiXuan('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
-			}];
-		}catch(e){
-			return [];
-		}
+	// v3.7.1 政策收敛:/taixuan/pan 按政策表 seedInBody 入【预取禁入】(缓存仍可:同 body 恒同果)
+	// —— 旧「seed 取当前值与真点同键」的预取在政策上被否(把带种子的盘提前钉热=旧口径漏洞),
+	// 本方法保留(cnyibu 转发契约位)但恒返空:任务从源头不产生,而非依赖白名单闸事后拒发。
+	getStepPrefetchTasks(){
+		return [];
 	}
 
 	async fetchPan(fields){

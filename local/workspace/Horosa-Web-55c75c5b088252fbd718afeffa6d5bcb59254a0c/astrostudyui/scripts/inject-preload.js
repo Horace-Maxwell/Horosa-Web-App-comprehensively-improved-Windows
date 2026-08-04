@@ -19,9 +19,13 @@ const path = require('path');
 
 const MARK_BEGIN = '<!-- horosa-preload -->';
 const MARK_END = '<!-- /horosa-preload -->';
-// 首屏关键路径 chunk(基名前缀):umi.js 已是 <script> 无需 preload;这四个是 umi.js 执行后
+// 首屏关键路径 chunk(基名前缀):umi.js 已是 <script> 无需 preload;这些是 umi.js 执行后
 // 才被发现的首屏 async 家族(vendors~layouts__index 小但同属关键路径,有则带上)。
-const CRITICAL_PREFIXES = ['layouts__index', 'vendors~layouts__index', 'vendors~p__index', 'p__index'];
+// R4-P1c:补 shared-technique(2.6MB,首屏最大单件)与 vendors-d3(星盘 SVG 基础设施)——
+// check-chunk-dup 实测首屏批次=[vendors-d3, shared-technique, vendors~p__index, p__index],
+// 旧清单漏了前两个 = 最大件要等 umi.js 下载+解析+执行后才被发现(串行瀑布残余)。
+// 清单↔真实首屏批次由 check-chunk-dup 第⑤段自动对拍(漂移即构建红,防未来 chunk 改名再漏)。
+const CRITICAL_PREFIXES = ['layouts__index', 'vendors~layouts__index', 'vendors~p__index', 'p__index', 'shared-technique', 'vendors-d3'];
 
 function main(){
 	const distName = process.argv[2] || (process.env.BUILD_FOR_FILE === '1' ? 'dist-file' : 'dist');
@@ -52,20 +56,50 @@ function main(){
 
 	const files = fs.readdirSync(outDir);
 	const links = [];
+	const seen = new Set();
+	const pushAsset = (f)=>{
+		if(!f || seen.has(f)){ return; }
+		seen.add(f);
+		if(f.endsWith('.js')){
+			links.push(`<link rel="preload" as="script" href="${publicPath}${f}">`);
+		}else if(f.endsWith('.css')){
+			links.push(`<link rel="preload" as="style" href="${publicPath}${f}">`);
+		}
+	};
 	for(const prefix of CRITICAL_PREFIXES){
 		// 转义 ~(regex 字面),匹配 prefix.<hash>.async.js / prefix.<hash>.chunk.css
 		const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const js = files.find((f)=>new RegExp(`^${esc}\\.[0-9a-f]+\\.async\\.js$`).test(f));
-		const css = files.find((f)=>new RegExp(`^${esc}\\.[0-9a-f]+\\.chunk\\.css$`).test(f));
-		if(js){
-			links.push(`<link rel="preload" as="script" href="${publicPath}${js}">`);
-		}
-		if(css){
-			links.push(`<link rel="preload" as="style" href="${publicPath}${css}">`);
-		}
+		pushAsset(files.find((f)=>new RegExp(`^${esc}\\.[0-9a-f]+\\.async\\.js$`).test(f)));
+		pushAsset(files.find((f)=>new RegExp(`^${esc}\\.[0-9a-f]+\\.chunk\\.css$`).test(f)));
 	}
-	// 核心三件(layouts/vendors~p/p__index 的 js)必须齐 —— vendors~layouts 可有可无
-	const mustHave = ['layouts__index', 'vendors~p__index', 'p__index'];
+	// R4-P1c 根治层:解析 umi runtime 的 root-route 批次,把批次成员(含 splitChunks 重平衡
+	// 产生的**匿名数字 chunk**——名字随构建漂,前缀清单永远追不上)自动补进 preload。
+	// 解析逻辑与 check-chunk-dup ④ 段同构;解析失败仅告警走前缀清单(check-chunk-dup ⑤ 段
+	// 会在构建链下一步咬住缺件,不会静默漂移)。
+	try{
+		const umi = files.find((f)=>/^umi\..*\.js$/.test(f));
+		if(umi){
+			const rt = fs.readFileSync(path.join(outDir, umi), 'utf8');
+			const srcFn = rt.match(/return\s+\w+\.p\+""\+\(\{(.*?)\}\[/s);
+			const rootRoute = rt.match(/path:"\/",exact:!0,component:.*?loader:\(\)=>(?:Promise\.all\(\[([^\]]*?)\]\)|(\w+\.e\(\d+\)))/s);
+			if(srcFn && rootRoute){
+				const names = new Map();
+				for(const m of srcFn[1].matchAll(/(\d+):"([\w~.\-]+)"/g)){ names.set(m[1], m[2]); }
+				const ids = [...(rootRoute[1] || rootRoute[2] || '').matchAll(/\.e\((\d+)\)/g)].map((m)=>m[1]);
+				for(const id of ids){
+					const stem = names.get(id) || id;
+					pushAsset(files.find((f)=>f.startsWith(`${stem}.`) && f.endsWith('.async.js')));
+					pushAsset(files.find((f)=>f.startsWith(`${stem}.`) && f.endsWith('.chunk.css')));
+				}
+			}else{
+				console.warn('[inject-preload] umi runtime 批次解析失败 —— 仅注入前缀清单(check-chunk-dup ⑤ 段会核对缺件)');
+			}
+		}
+	}catch(e){
+		console.warn(`[inject-preload] 批次自动补齐异常(${e && e.message}) —— 仅注入前缀清单`);
+	}
+	// 核心五件必须齐 —— vendors~layouts 可有可无(R4-P1c:shared-technique/vendors-d3 入列)
+	const mustHave = ['layouts__index', 'vendors~p__index', 'p__index', 'shared-technique', 'vendors-d3'];
 	for(const prefix of mustHave){
 		if(!links.some((l)=>l.includes(`${publicPath}${prefix}.`))){
 			console.error(`[inject-preload] 首屏关键 chunk「${prefix}」在产物中找不到 js —— 分包形态变了,先修 CRITICAL_PREFIXES 再构建`);

@@ -115,13 +115,16 @@ export default function AstroDirectionForm(props){
 				<Row>
 					<Col span={24}>
 						<FormItem name='datetime'>
-							<PlusMinusTime 
+							<PlusMinusTime
 								onlyYear={props.onlyYear}
 								yearMonth={props.yearMonth}
 								needZone={props.needZone}
-								disablePreStartTime={true} 
+								disablePreStartTime={true}
 								startTime={dt}
 								onAfterChanged={afterChanged}
+								onStepSelect={props.onStepSelect || (()=>{ /* R4-B4 错轴止血:本表单被七个推运
+									子页(法达/小限/日返/月返/太阳弧…)共用,时间轴=各自推运时刻,全局选步长
+									handler 预取 natal /chart 是错轴空烧;缺省空函数屏蔽,宿主可传正轴预取器。 */ })}
 							/>
 						</FormItem>
 					</Col>

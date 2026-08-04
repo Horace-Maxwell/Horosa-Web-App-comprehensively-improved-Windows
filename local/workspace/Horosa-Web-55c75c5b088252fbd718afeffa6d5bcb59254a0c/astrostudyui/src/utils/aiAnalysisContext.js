@@ -238,6 +238,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	horary: '卜卦盘',
 	election: '择日盘',
 	tianxing: '天星择日',
+	qimenzeri: '奇门择日',
 	mundane: '世俗盘',
 	canping: '邵子参评数',
 	zhengchuan: '神数正传',
@@ -339,6 +340,7 @@ export const ANALYSIS_CASE_TECHNIQUES = [
 	'horary',
 	'election',
 	'tianxing',
+	'qimenzeri',
 	'mundane',
 	// 报数/揲蓍/起例 确定性术：均在 CASE_TYPE_OPTIONS 可存事盘，存案 payload 带 snapshot 字符串 + 起算时定型的
 	// 时间设置(fieldSnapshot)；case 分支按 payload.snapshot 出正文(不重算)，与 sixyao/mundane 同范式。
@@ -1153,6 +1155,24 @@ function generateCaseTechniqueSnapshot(record, moduleName, payload){
 		// 天星择日(征象搜索):同 mundane 范式——存档时 shell 写 buildTianxingSnapshot 全文于
 		// payload.aiSnapshot(搜索配置/条件树/命中区间为一次性结果,事盘绝不按时间复算)。
 		return (payload && payload.aiSnapshot && `${payload.aiSnapshot}`.trim()) ? `${payload.aiSnapshot}` : '';
+	case 'qimenzeri': {
+		// 奇门择日:clickSaveCase(scope=qimenzeri)已把「奇门全文+择日三段」拼合文本(经 composeAiSnapshot)
+		// 存于 payload.snapshot 并 stamp payload.module —— 只认本模块存档(裸 payload.snapshot 属
+		// 存档方模块语义,不甄别直读=把别家事盘内容串进来,挂载穷举测试即为此把门)。
+		// 🔴 形状:loadModuleAISnapshot 返回整包对象({module,content,...}),clickSaveCase 原样入档——
+		// 按字符串直读会挂出「[object Object]」(真机实抓);兼容对象包(.content)与纯字符串双形。
+		// 兜底同档 payload.pan 重拼奇门正文(极端旧档缺 snapshot 时至少盘面完整)。
+		if(!payload || payload.module !== 'qimenzeri'){
+			return '';
+		}
+		const zeriSnapRaw = payload.snapshot && typeof payload.snapshot === 'object'
+			? payload.snapshot.content
+			: payload.snapshot;
+		if(zeriSnapRaw && `${zeriSnapRaw}`.trim()){
+			return `${zeriSnapRaw}`;
+		}
+		return payload.pan ? buildDunJiaSnapshotText(payload.pan) : '';
+	}
 	case 'taiyi':
 		if(!payload || !(payload.pan || (payload.result && payload.result.taiyi) || payload.taiyi)){
 			return '';

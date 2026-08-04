@@ -10,6 +10,10 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import ZWSihuaCustomModal from './ZWSihuaCustomModal';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
+// R4-B2(S1 止血):紫微是 chartFree(本页不消费 /chart),旧默认让选步长走全局 handler
+// 预取 4 个 /chart = 纯空烧;函数型 onStepSelect 屏蔽全局,改走武装引擎(skipChart,
+// 只预取登记的 /ziwei/birth ±depth)。
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { XQSelect as Select, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import XQIcon from '../xq-icons';
@@ -148,7 +152,7 @@ class ZiWeiInput extends Component{
 
 	}
 
-	// horosa_ziwei_input_scu_v1(补接):左栏纯 props 浅比 sCU。
+	// [Windows-only] horosa_ziwei_input_scu_v1(补接):左栏纯 props 浅比 sCU。
 	// 病灶:本组件 ~540 行(Collapse + 十余个 Select + SpaceTimePanel/DateTime),此前零 sCU ——
 	// 宿主 ZiWeiMain 的任意 setState(点星改 tips、updating 角标、换右栏页签、大限/流曜选取…)
 	// 都让整张左表重渲一遍,而左栏的输入只有 props.fields 一项。
@@ -477,6 +481,7 @@ class ZiWeiInput extends Component{
 					onTimeChange={this.onTimeChanged}
 					timeHook={this.tmHook}
 					onGeoChange={this.changeGeo}
+					onStepSelect={(unit)=>{ try{ armStepPrefetch('unit-select', { unit, skipChart: true }); }catch(e){ /* 武装失败静默 */ } }}
 				/>
 				</XQSideSection>
 

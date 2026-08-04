@@ -54,7 +54,7 @@ class MidpointMain extends Component{
 	constructor(props) {
 		super(props);
 		this.state = {
-			// 右栏子页签(中点 / 相位)改【受控】—— FreezeSubTab 需要 activeKey 才能判 active。
+			// [Windows-only] 右栏子页签(中点 / 相位)改【受控】—— FreezeSubTab 需要 activeKey 才能判 active。
 			sideTab: '1',
 		}
 
@@ -180,7 +180,10 @@ class MidpointMain extends Component{
 							{
 								showdateselector && (
 									<Col span={24}>
-										<PlusMinusTime value={dt} onChange={this.changeTime} />
+										<PlusMinusTime value={dt} onChange={this.changeTime}
+											onStepSelect={()=>{ /* R4-B4 错轴止血:量化盘时间轴自持,全局选步长
+												handler 预取 natal /chart 与本轴无关;函数型屏蔽。正轴(/germany/
+												midpoint)预热由 dataWarm 组负责。 */ }} />
 									</Col>	
 								)
 							}
@@ -242,7 +245,7 @@ class MidpointMain extends Component{
 							}
 						</Row>
 						</XQSideSection>
-						{/* horosa_freeze_subtabs_v1:中点/相位两个列表面板互为隐藏,隐藏者不再随本组件重渲。
+						{/* [Windows-only] horosa_freeze_subtabs_v1:中点/相位两个列表面板互为隐藏,隐藏者不再随本组件重渲。
 						    受控化(activeKey + onChange 落 state.sideTab)是 FreezeSubTab 的前提。 */}
 						<Tabs activeKey={this.state.sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-midpoint-side-tabs">
 							<TabPane tab="中点" key="1">

@@ -1,5 +1,7 @@
 import { Component } from 'react';
-import { singleTriggerPredictiveEnabled } from '../../utils/perfFlags';
+import { singleTriggerPredictiveEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
+// R4-B4:主限法推运轴选步长预取(正轴 /predict/pdchart,经共享调度器)。
+import { submitStepPrefetch } from '../../utils/stepPrefetch';
 import { Row, Col, Divider } from 'antd';
 import AstroDoubleChart from './AstroDoubleChart';
 import PlusMinusTime from './PlusMinusTime';
@@ -923,10 +925,14 @@ class AstroPrimaryDirectionChart extends Component{
 		});
 	}
 
-	buildRequestParams(){
+	buildRequestParams(overrideDt){
 		const chartObj = this.props.value || {};
 		const params = chartObj && chartObj.params ? chartObj.params : {};
-		const currentDt = this.state.datetime ? this.state.datetime.clone() : this.buildDefaultDateTime(chartObj);
+		// R4-B4:可选 overrideDt 供步进预取构「±N 步推运时刻」变体 —— 缺省走 state.datetime,
+		// 与改动前逐字节同(预取键=真点键的唯一前提是共用本构参路径)。
+		const currentDt = overrideDt
+			? overrideDt.clone()
+			: (this.state.datetime ? this.state.datetime.clone() : this.buildDefaultDateTime(chartObj));
 		if(!params.birth || !currentDt){
 			return null;
 		}
@@ -955,6 +961,47 @@ class AstroPrimaryDirectionChart extends Component{
 			datetime: currentDt.format('YYYY-MM-DD HH:mm:ss'),
 			direction: this.state.pdDirectionValue, // 向运方向：direct / converse（复用已白名单的 direction 参）
 		};
+	}
+
+	// R4-B4(S2 正轴补齐):主限法的时间轴是【推运时刻】—— 全局选步长 handler 预取的是
+	// natal /chart(错轴白烧,已由函数型 onStepSelect 屏蔽);正轴预取在此:选步长即把
+	// ±1/±2 步推运时刻的 /predict/pdchart 变体经共享调度器预好(构参走 buildRequestParams
+	// 同一路径=键逐字节同,结果落 requestDedupe 三层;/predict/ 在白名单)。
+	prefetchPdStepSelect(unit){
+		try{
+			if(!stepPrefetchEnabled() || !stepSelectPrefetchEnabled() || !unit){ return; }
+			const now = Date.now();
+			if(this._lastPdStepSel && this._lastPdStepSel.unit === unit && (now - this._lastPdStepSel.at) < 5000){ return; }
+			this._lastPdStepSel = { unit, at: now };
+			const baseDt = this.state.datetime ? this.state.datetime : this.buildDefaultDateTime(this.props.value || {});
+			if(!baseDt || typeof baseDt.clone !== 'function'){ return; }
+			const tasks = [];
+			[[1, 1], [1, -1], [2, 1], [2, -1]].forEach(([k, dir])=>{
+				try{
+					const dt2 = baseDt.clone();
+					for(let i = 0; i < k; i += 1){
+						if(unit === 'y'){ dt2.addYear(dir); }
+						else if(unit === 'M'){ dt2.addMonth(dir); }
+						else if(unit === 'd'){ dt2.addDate(dir); }
+						else if(unit === 'h'){ dt2.addHour(dir); }
+						else { dt2.addMinute(4 * dir); }
+					}
+					const params = this.buildRequestParams(dt2);
+					if(!params){ return; }
+					tasks.push({
+						name: `pd${dir > 0 ? '+' : '-'}${k}${unit}`,
+						path: '/predict/pdchart',
+						run: ()=> request(`${Constants.ServerRoot}/predict/pdchart`, {
+							body: JSON.stringify(params),
+							cache: 'no-store',
+							silent: true,
+							retry: { retries: 0 },
+						}),
+					});
+				}catch(e){ /* 单步构参失败静默跳过 */ }
+			});
+			if(tasks.length){ submitStepPrefetch(tasks); }
+		}catch(e){ /* 预取失败无害 */ }
 	}
 
 	async requestDirectedChart(){
@@ -1112,6 +1159,7 @@ class AstroPrimaryDirectionChart extends Component{
 										needZone={true}
 										showAdjust={true}
 										onAfterChanged={this.handleTimeChanged}
+										onStepSelect={(unit)=>this.prefetchPdStepSelect(unit)}
 									/>
 								</Col>
 							</Row>

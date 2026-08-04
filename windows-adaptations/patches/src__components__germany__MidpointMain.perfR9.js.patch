@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/MidpointMain.js b/astrostudyui/src/components/germany/MidpointMain.js
-index 184254f..50624cc 100644
+index e23b605e..3c2ba3a3 100644
 --- a/astrostudyui/src/components/germany/MidpointMain.js
 +++ b/astrostudyui/src/components/germany/MidpointMain.js
 @@ -11,6 +11,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
@@ -15,7 +15,7 @@ index 184254f..50624cc 100644
  		super(props);
  		this.state = {
 -
-+			// 右栏子页签(中点 / 相位)改【受控】—— FreezeSubTab 需要 activeKey 才能判 active。
++			// [Windows-only] 右栏子页签(中点 / 相位)改【受控】—— FreezeSubTab 需要 activeKey 才能判 active。
 +			sideTab: '1',
  		}
  
@@ -44,12 +44,12 @@ index 184254f..50624cc 100644
  	changeTime(tm){
  		if(this.props.onChange){
  			this.props.onChange({
-@@ -232,20 +242,26 @@ class MidpointMain extends Component{
+@@ -235,20 +245,26 @@ class MidpointMain extends Component{
  							}
  						</Row>
  						</XQSideSection>
 -						<Tabs defaultActiveKey="1" tabPosition='top' className="horosa-midpoint-side-tabs">
-+						{/* horosa_freeze_subtabs_v1:中点/相位两个列表面板互为隐藏,隐藏者不再随本组件重渲。
++						{/* [Windows-only] horosa_freeze_subtabs_v1:中点/相位两个列表面板互为隐藏,隐藏者不再随本组件重渲。
 +						    受控化(activeKey + onChange 落 state.sideTab)是 FreezeSubTab 的前提。 */}
 +						<Tabs activeKey={this.state.sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-midpoint-side-tabs">
  							<TabPane tab="中点" key="1">

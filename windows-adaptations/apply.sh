@@ -451,7 +451,9 @@ echo "== 31. PERF-R9 Ship 7 预取与预热全覆盖(白名单从注释变运行
 #           ②纵深防御 —— pump 期间置 ambient 标志,request.js / chartFetch.js 对不合格 URL 拒发。
 # ★ kentang 全族走 chartFetch 的裸 fetch(不经 utils/request),没有 ②整族在任何白名单之外。
 # ★ 非预取作用域两闸恒放行 ⇒ 用户真实请求逐字节零行为变化。
-apply_patch PREFETCH_FORBIDDEN_EXEMPT_EXACT astrostudyui/src/utils/stepPrefetch.js  src__utils__stepPrefetch.prefetchWhitelist.js.patch
+# (v3.7.1 收敛:白名单/禁词/预算/livelock 保底全部上游化;Windows 残差=fast-first 快发 +
+#  '/chart3d' 补位 + fastFirst 任务标记 —— guard 换 FAST_FIRST_DELAY_MS,#48 取最新。)
+apply_patch FAST_FIRST_DELAY_MS astrostudyui/src/utils/stepPrefetch.js  src__utils__stepPrefetch.prefetchWhitelist.js.patch
 apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/request.js       src__utils__request.prefetchWhitelist.js.patch
 apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/chartFetch.js    src__utils__chartFetch.prefetchWhitelist.js.patch
 
@@ -484,10 +486,12 @@ apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/cntraditio
 # ---- 31d 数据层预热注册表的三个新文件(horosa_data_warm_registry_v1;Mac 基线里不存在 → 全量拷贝层)----
 # 预热清单原本写死在 pages/index.js 的一条 4 元素数组里 —— 与技法零关系的页面组件持有技法知识,
 # 漏项没人发现(紫微 /ziwei/birth 首点概率最高却整轮不在组里)。改注册表:追加一条 = 一行登记,
-# Map 插入序 = 首点概率序 = 执行序。dataWarmTasks.js / 两个测试都是 **Windows 原创新文件**
-# (regen_patch.py 只能对 Mac 基线里存在的文件做 diff),故走 cp 而不是 patches/。
+# Map 插入序 = 首点概率序 = 执行序。
+# ★v3.7.1 收敛:dataWarmTasks.js 被 Mac 整文件收编为上游文件(ziwei/guolao/dunjia/taiyi 四任务)
+# → 从 files/ 全拷层转 patches/ 层(Mac 基线 + Windows 四任务增补:direction:pd/india:birth/
+# germany:midpoint/jieqi:year);两个测试仍为 Windows 原创(Mac 树无),继续 cp。
 mkdir -p "$WS/astrostudyui/src/utils/__tests__"
-cp "$OV/files/astrostudyui/src/utils/dataWarmTasks.js"                        "$WS/astrostudyui/src/utils/dataWarmTasks.js"                        && ok "dataWarmTasks.js"
+apply_patch warmGermanyMidpoint  astrostudyui/src/utils/dataWarmTasks.js  src__utils__dataWarmTasks.warmRegistry.js.patch
 cp "$OV/files/astrostudyui/src/utils/__tests__/dataWarmTasks.test.js"         "$WS/astrostudyui/src/utils/__tests__/dataWarmTasks.test.js"         && ok "dataWarmTasks.test.js"
 cp "$OV/files/astrostudyui/src/utils/__tests__/stepPrefetchWhitelist.test.js" "$WS/astrostudyui/src/utils/__tests__/stepPrefetchWhitelist.test.js" && ok "stepPrefetchWhitelist.test.js"
 
@@ -629,16 +633,20 @@ apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/xia
 # v3.7.0 新技法「择日/天星择日」(navigationPages 键 zeri):P5 观测终点照 ElectionMain 先例
 # (renderRight 收壳层 chart 落定 + _readyChart 去重;征象扫描是显式批量求值,刻意不打点)。
 apply_patch horosa_zeri_render_slice_v1         astrostudyui/src/components/zeri/TianxingElectionMain.js        src__components__zeri__TianxingElectionMain.panelReady.js.patch
+# v3.7.1:奇门分册(上游新文件)P5 观测钉 —— 找局三终态 settle(命中/取消/失败)都 markPanelReady('zeri'),
+# 与天星分册同键(观测按顶层页配对);取消/失败也收口,防该次找局永远配不上对(遁甲 pan=null 同口径)。
+apply_patch horosa_panel_ready_v1               astrostudyui/src/components/zeri/QimenZeriMain.js                src__components__zeri__QimenZeriMain.panelReady.js.patch
 
 echo "== 33. PERF-R10 Ship2「选步长即武装」预取(horosa_step_prefetch_arm_v1)=="
 # 病根:预取单位只来自上一次步进 hint(无 hint 硬编码 'm'),选完新步长的第一下必 miss(owner
 # 原话「第一下卡之后不卡」);且紫微/遁甲步进走本地漏斗不经 fetchByFields,登记的预取器从未触发。
 # 武装 = 四个时机(选步长/settle/本地漏斗/切页签)按当前档位预好 ±1..±depth:
-#   · stepPrefetchArm.js 是 **Windows 原创新文件** → 全量拷贝层(同 §31d 理由);其余 12 个
-#     目标的改动已并入各自累积补丁(guard 取最新 marker,gotcha #48,本节不重复开行);
+#   · ★v3.7.1 收敛:stepPrefetchArm.js 被 Mac 整文件收编为上游文件(含 NO_ARM_TABS+'zeri')
+#     → 从 files/ 全拷层转 patches/ 层(Mac 基线 + Windows W3a③ 偏斜台账 reportStepUnit/
+#     stepStreak/STREAK_GAP_MS);其余 12 个目标的改动已并入各自累积补丁(gotcha #48);
 #   · DateTimeSelector 是全站唯一步长入口,首次进契约 → 新补丁行在下方;
 #   · kill-switch:horosa.perf.stepPrefetchArm(关=只剩 R9 步进后预取)/ stepPrefetchDepth(0..5)。
-cp "$OV/files/astrostudyui/src/utils/stepPrefetchArm.js"                      "$WS/astrostudyui/src/utils/stepPrefetchArm.js"                      && ok "stepPrefetchArm.js"
+apply_patch STREAK_GAP_MS  astrostudyui/src/utils/stepPrefetchArm.js  src__utils__stepPrefetchArm.skew.js.patch
 cp "$OV/files/astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js"       "$WS/astrostudyui/src/utils/__tests__/stepPrefetchArm.test.js"       && ok "stepPrefetchArm.test.js"
 cp "$OV/files/astrostudyui/src/utils/__tests__/perfMark.test.js"              "$WS/astrostudyui/src/utils/__tests__/perfMark.test.js"              && ok "perfMark.test.js"
 # (v3.5.1:DateTimeSelector 步长触发线换血为上游 fireStepSelectPrefetch[opt-in prop 宿主闸],
@@ -665,7 +673,8 @@ apply_patch horosa_wuzhao_random_guard_v1        astrostudyui/src/utils/kentangC
 cp "$OV/files/astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js" "$WS/astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js" && ok "kentangCacheWuzhaoGuard.test.js"
 # 选项 Hamming-1 投机(horosa_option_prefetch_v1):首铺二值轴(零域风险);多值轴(hsys/
 # ayanamsa/学派等)值域在各表单组件,待接入时由组件登记 —— 绝不在 util 里臆造值域。
-cp "$OV/files/astrostudyui/src/utils/optionPrefetch.js"                       "$WS/astrostudyui/src/utils/optionPrefetch.js"                       && ok "optionPrefetch.js"
+# ★v3.7.1 收敛:optionPrefetch.js 被 Mac 逐字节收编(含 optionDispatchScheduler 扩展)
+# → files/ 拷贝层整体退役,port 即上游真身;金标测试仍为 Windows 原创,继续 cp。
 cp "$OV/files/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        "$WS/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        && ok "optionPrefetch.test.js"
 apply_patch horosa_boot_chart_restore_v1         astrostudyui/src/models/app.js                                   src__models__app.bootChartRestore.js.patch
 apply_patch horosa_moira_stable_key_v1           astrostudyui/src/services/qizheng.js                             src__services__qizheng.moiraStableKey.js.patch
@@ -714,7 +723,8 @@ echo "== 37. PERF-R12 Phase-2 宗师轮渲染切片六件(净新补丁;既有 15
 # localEngineMemo / guolaoMergedPaint 各族既有闸)。既有补丁的本轮增量(W3a 泵三修 / W3b zeri /
 # W3c 三式 / W3d 七政 / W3e 六壬 / W3f 辅盘 / G6 moira 物化预取豁免)全部并入原文件累积补丁,
 # guard 按 #48 取最新 marker,不另开行。
-apply_patch horosa_zeri_render_slice_v1          astrostudyui/src/components/zeri/ConditionBuilderModal.js        src__components__zeri__ConditionBuilderModal.renderSlice.js.patch
+# (v3.7.1 收敛:ConditionBuilderModal 的 Z1 open=false 早退补丁退役 —— 上游 everOpenRef
+#  粘滞短路为严格超集[首开前零建树 + 开过后整树常驻保动画/草稿];哨兵改钉 everOpenRef。)
 apply_patch horosa_guolao_render_slice_v1        astrostudyui/src/components/guolao/GuoLaoInput.js                src__components__guolao__GuoLaoInput.renderSlice.js.patch
 apply_patch horosa_aux_render_slice_v1           astrostudyui/src/components/germany/UranianDialStyle.js          src__components__germany__UranianDialStyle.dispMemo.js.patch
 apply_patch localChartsVersion                   astrostudyui/src/utils/localcharts.js                            src__utils__localcharts.writeVersion.js.patch

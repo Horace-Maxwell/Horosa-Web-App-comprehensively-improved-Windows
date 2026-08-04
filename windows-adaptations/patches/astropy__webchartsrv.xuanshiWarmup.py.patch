@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 0fe51344..3a504a0e 100644
+index 41c13675..6feb4c1e 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -20,6 +20,7 @@ import cherrypy
@@ -139,7 +139,7 @@ index 0fe51344..3a504a0e 100644
  
              _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'), data.get('geminiBoundEmended'))
              _trip_orig = push_request_trip(data.get('triplicity'))
-@@ -721,7 +808,12 @@ def _run_warmups():
+@@ -739,7 +826,12 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -150,12 +150,12 @@ index 0fe51344..3a504a0e 100644
 +        # 按 truthy 家族解析,两种启动器语义一致;缺省 '0' 行为不变。
 +        _trusted_env = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0').strip().lower()
 +        _parallel = _trusted_env not in ('1', 'true', 'yes', 'on')
-     _stages = (_warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
-     if _parallel:
-         _threads = [threading.Thread(target=_fn, name='horosa-warmup-{0}'.format(_i), daemon=True)
-@@ -734,6 +826,66 @@ def _run_warmups():
-         for _fn in _stages:
-             _fn()
+     # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
+     # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
+     # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
+@@ -766,6 +858,66 @@ def _run_warmups():
+     # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
+     ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()
 +    # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合的门后装载(注记见
 +    # CORE_SERVICE_SPECS 上方)。刻意放在门后段**首位**(先于 kentang modules 与 xuanshi

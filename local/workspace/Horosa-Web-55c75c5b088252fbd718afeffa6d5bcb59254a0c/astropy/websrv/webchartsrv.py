@@ -706,14 +706,28 @@ def ensure_chart_port_free(host, port, attempts=12, wait=0.5):
 STARTUP_GATE = threading.Event()
 
 
+_GATE_FIRST_WAIT_LOGGED = [False]
+
+
 def _startup_gate_tool():
     if STARTUP_GATE.is_set():
         return
     req = cherrypy.request
     if req.method in ('GET', 'OPTIONS', 'HEAD'):
         return  # 探活/预检不碰计算与 sid_mode
+    # [R4-P0 观察位] 门真实咬到业务 POST 时记一次(等待时长+路径)——P3-b 分级门的裁决数据
+    # (装机首启 early-nav 下首个 /chart 是否撞门、撞多久;<300ms 则分级门判不做)。纯旁路。
+    _wait_t0 = time.perf_counter()
     # 兜底超时:warmup 异常挂死也不至于永久拒绝服务(warmup 平常 1.5-2s)
     STARTUP_GATE.wait(timeout=60)
+    if not _GATE_FIRST_WAIT_LOGGED[0]:
+        _GATE_FIRST_WAIT_LOGGED[0] = True
+        try:
+            _wait_ms = (time.perf_counter() - _wait_t0) * 1000.0
+            ledger_mark('py.gate_first_wait', t0=_PY_T0, ms=_wait_ms,
+                        extra={'path': getattr(req, 'path_info', '') or ''})
+        except Exception:
+            pass
 
 
 def _warm_real_astropy():
@@ -791,7 +805,11 @@ def _warmup_stage_kentang():
 
 def _run_warmups():
     _warm_real_astropy()
-    _warmup_stage_pd()
+    # [R4-P3a] PD 段并入并行组(下方),不再恒串行前置 —— 串行档(trusted)保持旧序逐字节不变。
+    # 并行安全性依据:①flatlib 线程本地 sidereal context + 裸调用点 set→use 相邻直线
+    # (tests/test_swe_concurrency.py 钉死);②生产稳态 CherryPy thread_pool=30 本就并发计算,
+    # warmup 期并发不超出生产语义信封;③astropy 先序钉不动(_warm_real_astropy 恒第一,
+    # kentang 桩免疫不破)。kill-switch:HOROSA_PY_PD_PARALLEL=0 恒回 PD 串行前置旧序。
     # [R3-B5] core/india/kentang 三段并行(原五段全串行):三段互不依赖(各装各的模块;
     # 共享底层 import 由解释器 import 锁天然互斥,数据面零竞争),磁盘 IO/SQLite 段真并行
     # → STARTUP_GATE 开门时刻从 sum(三段) 提前到 max(三段)。
@@ -814,7 +832,19 @@ def _run_warmups():
         # 按 truthy 家族解析,两种启动器语义一致;缺省 '0' 行为不变。
         _trusted_env = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0').strip().lower()
         _parallel = _trusted_env not in ('1', 'true', 'yes', 'on')
-    _stages = (_warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
+    # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
+    # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
+    # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
+    # 代码路径保留:显式 HOROSA_PY_PD_PARALLEL=1 才开(装机首启档 Java 未必同窗,可另测再议)。
+    _pd_parallel = _parallel and os.environ.get('HOROSA_PY_PD_PARALLEL', '0') == '1'
+    if _pd_parallel:
+        # 冷启/untrusted 并行档:四段真并行,门开时刻 sum(pd+3段) → max(4段)
+        # (R3 三段并行已证 sum→max 大赢;PD ~370-570ms 原恒串行前置,并入再省一段)。
+        _stages = (_warmup_stage_pd, _warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
+    else:
+        # 串行档(trusted/显式关):PD 保持原「先于三段」的位置 —— 执行序与 R3 逐字节同。
+        _warmup_stage_pd()
+        _stages = (_warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
     if _parallel:
         _threads = [threading.Thread(target=_fn, name='horosa-warmup-{0}'.format(_i), daemon=True)
                     for _i, _fn in enumerate(_stages)]
@@ -825,6 +855,8 @@ def _run_warmups():
     else:
         for _fn in _stages:
             _fn()
+    # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
+    ledger_mark('py.gate_open', t0=_PY_T0)
     STARTUP_GATE.set()
     # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合的门后装载(注记见
     # CORE_SERVICE_SPECS 上方)。刻意放在门后段**首位**(先于 kentang modules 与 xuanshi

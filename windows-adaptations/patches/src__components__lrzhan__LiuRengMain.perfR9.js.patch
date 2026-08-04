@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index dbdba93b..59cb0c47 100644
+index 0b9dff91..5dcec543 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
 @@ -1,7 +1,9 @@
@@ -13,15 +13,24 @@ index dbdba93b..59cb0c47 100644
  import { Modal, message, Tag } from 'antd';
  import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
  import XQIcon from '../xq-icons';
-@@ -37,12 +39,20 @@ import {
+@@ -27,7 +29,6 @@ import LiuRengChart from './LiuRengChart';
+ import LiuRengInput from './LiuRengInput';
+ import LiuRengBirthInput from './LiuRengBirthInput';
+ import DateTime from '../comp/DateTime';
+-import { FreezeSubTab } from '../comp/FreezeInactive';
+ import QuickDockBar from '../common/QuickDockBar';
+ import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+ import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+@@ -38,7 +39,7 @@ import {
  	setLiurengRunyearLocalCache,
  } from '../../utils/localCalcCache';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 -import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 +import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
-+import { registerStepPrefetcher } from '../../utils/stepPrefetch';
- 
- 
+ // R4-B2(horosa_prefetch_registry_v1):/liureng/gods 步进预取登记 + 选步长武装(S3 收敛)。
+ import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+@@ -47,6 +48,13 @@ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
  const {Option} = Select;
  const TabPane = Tabs.TabPane;
  
@@ -35,7 +44,7 @@ index dbdba93b..59cb0c47 100644
  // 签名数组逐元素严格相等(引用/值);用于 render 内派生缓存命中判定(只多算、绝不少算)。
  function sameLRSigArr(a, b){
  	if(!a || !b || a.length !== b.length){
-@@ -4165,6 +4175,19 @@ function pushCache(map, key, val, max = 96){
+@@ -4169,6 +4177,19 @@ function pushCache(map, key, val, max = 96){
  	}
  }
  
@@ -55,7 +64,7 @@ index dbdba93b..59cb0c47 100644
  function buildKeData(layout, chartObj){
  	const result = {
  		raw: [],
-@@ -4541,6 +4564,163 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
+@@ -4545,6 +4566,163 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
  	return lines.join('\n').trim();
  }
  
@@ -219,7 +228,7 @@ index dbdba93b..59cb0c47 100644
  class LiuRengMain extends Component{
  	constructor(props) {
  		super(props);
-@@ -4579,10 +4759,12 @@ class LiuRengMain extends Component{
+@@ -4583,10 +4761,12 @@ class LiuRengMain extends Component{
  		this.timeHook = {};
  		this.pendingFields = null;
  		this.birthYearGanZiCache = {};
@@ -236,7 +245,7 @@ index dbdba93b..59cb0c47 100644
  		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
  		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
  		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
-@@ -4598,7 +4780,6 @@ class LiuRengMain extends Component{
+@@ -4602,7 +4782,6 @@ class LiuRengMain extends Component{
  		this.onCastMethodChange = this.onCastMethodChange.bind(this);
  		this.handleCastField = this.handleCastField.bind(this);
  		this.onChartTypeChange = this.onChartTypeChange.bind(this);
@@ -244,19 +253,28 @@ index dbdba93b..59cb0c47 100644
  		this.genGodsParams = this.genGodsParams.bind(this);
  		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
  		this.genRunYearParams = this.genRunYearParams.bind(this);
-@@ -4637,6 +4818,53 @@ class LiuRengMain extends Component{
- 					}).catch(()=>null);
- 				}catch(e){ /* 预热失败无害 */ }
+@@ -4627,23 +4806,28 @@ class LiuRengMain extends Component{
+ 				}
+ 				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
  			};
+-			// [R3-A7] 并行预热:fetchByFields 等 /chart 前先把 /liureng/gods 打出去
+-			// (silent,经 requestDedupe 在途共享)→ 页面总延迟 sum→max。构参走 genGodsParams
+-			// 同源 → 与 hook 正式请求逐字节同键。失败静默,正式请求自兜底。
 +			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
 +			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
 +			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
-+			this.props.hook.prewarmRequests = (flds)=>{
+ 			this.props.hook.prewarmRequests = (flds)=>{
+-				if(this.unmounted){ return; }
 +				if(this.unmounted){
 +					return;
 +				}
-+				try{
-+					const params = this.genGodsParams(flds || this.props.fields);
+ 				try{
+ 					const params = this.genGodsParams(flds || this.props.fields);
+-					if(!params){ return; }
+-					request(`${Constants.ServerRoot}/liureng/gods`, {
+-						body: JSON.stringify(params),
+-						silent: true,
+-					}).catch(()=>null);
 +					if(params){
 +						request(`${Constants.ServerRoot}/liureng/gods`, {
 +							body: JSON.stringify(params),
@@ -264,41 +282,16 @@ index dbdba93b..59cb0c47 100644
 +							retry: { retries: 0 },
 +						}).catch(()=>{ /* 预热静默 */ });
 +					}
-+				}catch(e){ /* 预热失败无害 */ }
-+			};
-+			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):/liureng/gods 是确定性纯计算
-+			// (同 时间+地理+日界设置 恒同神将)→ 登记步进预取,结果落 requestDedupe L1/L2,
-+			// 用户点下一步时 requestGods 里的 request() 即命中。
+ 				}catch(e){ /* 预热失败无害 */ }
+ 			};
+ 			// R4-B2(horosa_prefetch_registry_v1):/liureng/gods 是确定性纯计算(同时刻恒同神将)
+ 			// → 登记步进预取,武装线(选步长/settle/切页)±depth 全窗经共享调度器构造发出
+ 			// (享白名单闸/latest-wins/预算;S3 收敛:本地裸发路径退役为薄壳,见 prefetchStepSelect)。
 +			// 🔴 只登记「按时间起课」这条确定性链;六壬页若走随机/摇课起课路径,其参数不经本构造。
-+			if(stepPrefetchEnabled()){
-+				registerStepPrefetcher('liureng', (steppedFields)=>{
-+					if(this.unmounted || !steppedFields){
-+						return [];
-+					}
-+					let params = null;
-+					try{
-+						params = this.genGodsParams(steppedFields);
-+					}catch(e){
-+						return [];
-+					}
-+					if(!params){
-+						return [];
-+					}
-+					return [{
-+						name: 'liureng:gods',
-+						path: '/liureng/gods',
-+						run: ()=> request(`${Constants.ServerRoot}/liureng/gods`, {
-+							body: JSON.stringify(params),
-+							silent: true,
-+							retry: { retries: 0 },
-+						}),
-+					}];
-+				});
-+			}
- 		}
- 	}
- 
-@@ -5133,7 +5361,12 @@ class LiuRengMain extends Component{
+ 			if(stepPrefetchEnabled()){
+ 				this._liurengStepPrefetcher = (steppedFields)=>{
+ 					if(this.unmounted || !steppedFields){
+@@ -5143,7 +5327,12 @@ class LiuRengMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -312,7 +305,7 @@ index dbdba93b..59cb0c47 100644
  			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
  		});
  	}
-@@ -5183,41 +5416,52 @@ class LiuRengMain extends Component{
+@@ -5193,41 +5382,52 @@ class LiuRengMain extends Component{
  		let result = fallbackRunYear ? { ...fallbackRunYear } : {};
  		const runyearKey = buildCacheKey(params);
  		try{
@@ -392,7 +385,7 @@ index dbdba93b..59cb0c47 100644
  			let localRunYear = calcRunYearLocal(
  				birthGanZi,
  				guaGanZi,
-@@ -5367,17 +5611,6 @@ class LiuRengMain extends Component{
+@@ -5377,17 +5577,6 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -410,7 +403,7 @@ index dbdba93b..59cb0c47 100644
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
  	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
-@@ -5790,147 +6023,43 @@ class LiuRengMain extends Component{
+@@ -5805,147 +5994,43 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -594,7 +587,7 @@ index dbdba93b..59cb0c47 100644
  		);
  	}
  
-@@ -5941,8 +6070,8 @@ class LiuRengMain extends Component{
+@@ -5956,8 +6041,8 @@ class LiuRengMain extends Component{
  			xiaojuMainItems,
  			xiaojuReferenceItems,
  			overviewItems,
@@ -605,7 +598,7 @@ index dbdba93b..59cb0c47 100644
  		} = refData;
  		const ctx = refBundle && refBundle.context ? refBundle.context : null;
  		// 「小局」已并入「格局」tab(旧 key 'xiaoju' 归一到 'dage',免旧状态落空白页)
-@@ -5954,7 +6083,14 @@ class LiuRengMain extends Component{
+@@ -5969,8 +6054,14 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -616,17 +609,16 @@ index dbdba93b..59cb0c47 100644
 +				    (DOM/实例/滚动位置/展开态全部保留,不卸载);切回 → 拿本轮最新 children 立刻渲一帧,
 +				    不重发请求、不闪烁、无陈旧。kill-switch horosa.perf.freezeSubTabs=0 即回旧行为。 */}
  				<TabPane tab="格局" key="dage">
+-					<FreezeSubTab active={activeTabKey === 'dage'}>{() => (
 +					<FreezeSubTab active={activeTabKey === 'dage'}>{()=>(
  					<div className="horosa-liureng-reference-tab-body">
  						{refSummary ? (
  							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-@@ -6000,8 +6136,14 @@ class LiuRengMain extends Component{
- 							</Card>
- 						)}
- 					</div>
-+					)}</FreezeSubTab>
+@@ -6019,7 +6110,11 @@ class LiuRengMain extends Component{
+ 					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="信息" key="meta">
+-					<FreezeSubTab active={activeTabKey === 'meta'}>{() => (
 +					<FreezeSubTab active={activeTabKey === 'meta'}>{()=>{
 +					// horosa_liureng_render_slice_v1(L2):9 组神煞/旬空/长生 meta 卡的数据在 thunk 内现算 ——
 +					// 仅本面板激活时执行(FreezeSubTab 函数式 children 语义),输入取同一 commit 的 state,零陈旧。
@@ -635,54 +627,52 @@ index dbdba93b..59cb0c47 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -6020,11 +6162,16 @@ class LiuRengMain extends Component{
+@@ -6038,13 +6133,16 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
+-					)}</FreezeSubTab>
 +					);
 +					}}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="毕法" key="bifa">
--					{this.renderBiFaTab(ctx)}
+-					<FreezeSubTab active={activeTabKey === 'bifa'}>{() => this.renderBiFaTab(ctx)}</FreezeSubTab>
 +					<FreezeSubTab active={activeTabKey === 'bifa'}>{()=>(
 +					this.renderBiFaTab(ctx)
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="参考" key="reference">
+-					<FreezeSubTab active={activeTabKey === 'reference'}>{() => (
 +					<FreezeSubTab active={activeTabKey === 'reference'}>{()=>(
  					<div className="horosa-liureng-reference-tab-body">
  						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
  							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-@@ -6045,8 +6192,10 @@ class LiuRengMain extends Component{
- 							</Card>
- 						)}
- 					</div>
-+					)}</FreezeSubTab>
+@@ -6068,7 +6166,7 @@ class LiuRengMain extends Component{
+ 					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="概览" key="overview">
+-					<FreezeSubTab active={activeTabKey === 'overview'}>{() => (
 +					<FreezeSubTab active={activeTabKey === 'overview'}>{()=>(
  					<div className="horosa-liureng-reference-tab-body">
  						{this.renderShenShaSection(ctx)}
  						{overviewItems.length ? overviewItems.map((item, idx)=>(
-@@ -6070,14 +6219,24 @@ class LiuRengMain extends Component{
- 							</Card>
- 						)}
- 					</div>
-+					)}</FreezeSubTab>
+@@ -6095,13 +6193,21 @@ class LiuRengMain extends Component{
+ 					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="占断" key="zhanduan">
--					{this.renderZhanDuanTab(ctx)}
+-					<FreezeSubTab active={activeTabKey === 'zhanduan'}>{() => this.renderZhanDuanTab(ctx)}</FreezeSubTab>
 +					<FreezeSubTab active={activeTabKey === 'zhanduan'}>{()=>(
 +					this.renderZhanDuanTab(ctx)
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="取象" key="xiang">
--					{this.renderXiangTab(ctx)}
+-					<FreezeSubTab active={activeTabKey === 'xiang'}>{() => this.renderXiangTab(ctx)}</FreezeSubTab>
 +					<FreezeSubTab active={activeTabKey === 'xiang'}>{()=>(
 +					this.renderXiangTab(ctx)
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="七政" key="qizheng">
+-					<FreezeSubTab active={activeTabKey === 'qizheng'}>{() => (
 +					<FreezeSubTab active={activeTabKey === 'qizheng'}>{()=>{
 +					// horosa_liureng_render_slice_v1(L2):七政条目在 thunk 内现算,仅本面板激活时执行;
 +					// AI 快照的 [七政] 段由 buildLiuRengSnapshotText 自行调 buildQiZhengItems,与此无涉。
@@ -691,16 +681,17 @@ index dbdba93b..59cb0c47 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -6131,6 +6290,8 @@ class LiuRengMain extends Component{
+@@ -6155,7 +6261,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
+-					)}</FreezeSubTab>
 +					);
 +					}}</FreezeSubTab>
  				</TabPane>
  			</Tabs>
  		);
-@@ -6316,13 +6477,12 @@ class LiuRengMain extends Component{
+@@ -6341,13 +6448,12 @@ class LiuRengMain extends Component{
  			refContext.sanChuanText ? `三传：${refContext.sanChuanText}` : '',
  			refContext.dayGanZi ? `日干支：${refContext.dayGanZi}` : '',
  		].filter(Boolean).join('；');
@@ -715,7 +706,7 @@ index dbdba93b..59cb0c47 100644
  						</div>
  						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-liureng-chart-panel xq-chart-renderer xq-chart-renderer-liureng">
  							<div className="horosa-liureng-chart-host">
-@@ -6350,14 +6510,18 @@ class LiuRengMain extends Component{
+@@ -6375,14 +6481,18 @@ class LiuRengMain extends Component{
  									<div className="horosa-side-panel-subtitle">大格、小局与参考条目</div>
  								</div>
  							</div>

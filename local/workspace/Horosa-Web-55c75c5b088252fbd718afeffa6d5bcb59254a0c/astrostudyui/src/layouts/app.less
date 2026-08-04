@@ -6898,6 +6898,12 @@
         grid-template-rows: minmax(0, 1fr);
     }
 
+    /* 奇门择日:内嵌 DunJiaMain 以 showQuickDock=false 去底部快捷栏,其 layout 的 64px dock 行
+       (基线 12218)同步去掉,高度全给盘面——与本页「择日无底部 QuickDock」契约一致。 */
+    .horosa-workspace-shell .horosa-zeri-host .horosa-dunjia-redesign .horosa-dunjia-redesign-layout {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
     .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-chart-stage-redesign > svg {
         transform: scale(1.015);
     }
@@ -12538,7 +12544,10 @@
         border-color: var(--horosa-border) !important;
     }
 
-    .horosa-workspace-shell .horosa-dunjia-board-tags {
+    /* 奇门择日概览浮窗经 Modal 门户挂 body 下,够不着 .horosa-workspace-shell 祖先——
+       图例两规则并列补 .horosa-qimen-mini-board 作用域(浮窗内塌成连体字,用户圈报)。 */
+    .horosa-workspace-shell .horosa-dunjia-board-tags,
+    .horosa-qimen-mini-board .horosa-dunjia-board-tags {
         display: flex;
         align-items: center;
         flex-wrap: wrap;
@@ -12546,7 +12555,8 @@
         min-height: 24px;
     }
 
-    .horosa-workspace-shell .horosa-dunjia-legend-tag {
+    .horosa-workspace-shell .horosa-dunjia-legend-tag,
+    .horosa-qimen-mini-board .horosa-dunjia-legend-tag {
         display: inline-flex;
         align-items: center;
         justify-content: center;

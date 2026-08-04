@@ -2,7 +2,8 @@ import { Component } from 'react';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled, stepPrefetchEnabled, techniqueResultCacheEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import { cachedPost } from '../../services/_requestCache';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+// R4-B2(horosa_prefetch_registry_v1):/ziwei/birth 步进预取登记 + 本地漏斗 settle 武装。
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { markPanelReady, markInteractionStart } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
@@ -534,7 +535,7 @@ function buildZiweiOverlayLines(chart){
 	return out;
 }
 
-// —— PERF-R9 Ship 7:/ziwei/birth 构参的模块级纯函数(组件方法 genParams 纯委托于此)。
+// —— R4-B3:/ziwei/birth 构参的模块级纯函数(组件方法 genParams 纯委托于此)。
 //    抽出来的唯一目的:预热/预取要在【组件之外】构出与首点逐字节同键的 body。
 //    语义与抽出前逐字节一致(含「非默认流派才附 sihua」这条零回归约定)。
 export function buildZiweiBirthParams(flds){
@@ -779,12 +780,12 @@ class ZiWeiMain extends Component{
 			// 不等 /chart 网络 —— 本页从「等一次网络(~230ms)」变「点击即出(<100ms)」。
 			// 若日后本页开始读 props.value/chartObj,必须删掉此行(有静态哨兵机械核)。
 			this.props.hook.chartFree = true;
-			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):/ziwei/birth 是确定性纯计算
-			// (同 生辰+流派 恒同盘;无随机、不依赖「现在」)→ 登记步进预取。
+			// R4-B2(horosa_prefetch_registry_v1):/ziwei/birth 是确定性纯计算(同 生辰+流派 恒同盘;
+			// 无随机、不依赖「现在」)→ 登记步进预取。
 			// 🔴 登记必须在组件内:genParams 吃组件态的流派设置(ZWConst.ZWSchool),
 			//    模块级登记构不出与真点同键的 body。闸:horosa.perf.stepPrefetch(关=零登记)。
 			if(stepPrefetchEnabled()){
-				registerStepPrefetcher('ziwei', (steppedFields)=>{
+				this._ziweiStepPrefetcher = (steppedFields)=>{
 					if(this.unmounted){
 						return [];
 					}
@@ -810,7 +811,8 @@ class ZiWeiMain extends Component{
 								...opts,
 							})),
 					}];
-				});
+				};
+				registerStepPrefetcher('ziwei', this._ziweiStepPrefetcher);
 			}
 		}
 	}
@@ -925,8 +927,8 @@ class ZiWeiMain extends Component{
 	}
 
 	genParams(fields){
-		// PERF-R9 Ship 7:构造原样抽为模块级纯函数(预热/预取复用同一路径 ⇒ key/body 逐字节
-		// 一致);本方法保持既有签名与 props 兜底语义,纯委托零行为变化。
+		// R4-B3:构造原样抽为模块级纯函数(预热/预取复用同一路径 ⇒ key/body 逐字节一致);
+		// 本方法保持既有签名与 props 兜底语义,纯委托零行为变化。
 		return buildZiweiBirthParams(fields ? fields : this.props.fields);
 	}
 
@@ -1011,9 +1013,9 @@ class ZiWeiMain extends Component{
 		// 逼近「本帧已绘」。技法 key 用顶层页签的 'ziwei'(与 pages/index.js markInteractionStart 同源)。
 		this.setState(st, ()=>{
 			markPanelReady('ziwei');
-			// horosa_step_prefetch_arm_v1(b′):紫微步进走本地漏斗(onFieldsChange→astro/save+
-			// 直调本方法,不经 fetchByFields)⇒ settle 武装必须在这里自己做,否则登记的
-			// /ziwei/birth 预取器在本页步进路径上永不触发。skipChart:/chart 不在本页步进路径上。
+			// R4-B2(b′):紫微步进走本地漏斗(onFieldsChange→astro/save+直调本方法,不经
+			// fetchByFields)⇒ settle 武装必须在这里自己做,否则登记的 /ziwei/birth 预取器
+			// 在本页步进路径上永不触发。skipChart:/chart 不在本页步进路径上(chartFree)。
 			try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
 		});
 		// 惰性构建:12 宫×星曜×四化遍历挪出排盘关键路径(params/result 为本函数局部量,闭包安全;
@@ -1319,6 +1321,11 @@ class ZiWeiMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		// R4-B2:反注册步进预取器(防卸载后闭包吃到死组件态)。
+		if(this._ziweiStepPrefetcher){
+			try{ unregisterStepPrefetcher('ziwei', this._ziweiStepPrefetcher); }catch(e){ /* ignore */ }
+			this._ziweiStepPrefetcher = null;
+		}
 		if(typeof window !== 'undefined' && this._dayBoundaryListener){
 			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 		}

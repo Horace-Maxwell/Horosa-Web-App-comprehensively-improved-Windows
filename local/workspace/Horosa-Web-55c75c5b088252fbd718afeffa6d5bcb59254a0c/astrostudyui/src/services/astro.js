@@ -2,7 +2,7 @@ import request from '../utils/request';
 import { ServerRoot } from '../utils/constants';
 import { chartCloneLiteEnabled } from '../utils/perfFlags';
 
-// PERF-R9 Ship 7:96 → 192。步进预取每 settle 最多灌 3 条 /chart,加上技法族的自有预取,
+// R4-B6:96 → 192。步进预取每 settle 最多灌数条 /chart,加上技法族的自有预取,
 // 96 条在「连点步进 + 来回拨」下会把用户刚看过的盘挤出去(命中率反降)。容量是纯内存
 // (单盘 JSON 量级 ~数十 KB,192 条上限仍在个位 MB),翻倍换稳定命中。
 const CHART_CACHE_MAX = 192;
@@ -55,9 +55,8 @@ function buildChartKey(values){
 	}
 }
 
-// PERF-R8 P0(纯观测):chartMem 命中时打 cache-hit mark —— 与 refresh-start/refresh-end/
-// render-complete 配对,DevTools Performance 面板可直接分辨「命中即时」与「真算」两类路径。
-// 失败静默,零行为影响。
+// R4-B6(纯观测):chartMem 命中时打 cache-hit mark —— DevTools Performance 面板可直接
+// 分辨「命中即时」与「真算」两类路径。失败静默,零行为影响。
 function markChartCacheHit(){
 	try{
 		if(typeof performance !== 'undefined' && performance.mark){
@@ -74,8 +73,12 @@ export function fetchChart(values, requestOptions){
 		markChartCacheHit();
 		return Promise.resolve(clonePlain(chartMem.get(key)));
 	}
-	if(key && chartInflight.has(key)){
-		return chartInflight.get(key).then((rsp)=>clonePlain(rsp));
+	// [R4-B5b] 带 AbortController signal 的请求不入在途共享:A 被 abort 会连坐搭车的 B。
+	// 缓存读(上)与成功响应写缓存(下,pushCache 用 key)照常——被 abort 的 promise reject,
+	// 走不到 then,不会污染 chartMem。
+	const shareKey = opts.signal ? '' : key;
+	if(shareKey && chartInflight.has(shareKey)){
+		return chartInflight.get(shareKey).then((rsp)=>clonePlain(rsp));
 	}
 	const req = request(`${ServerRoot}/chart`, {
 		// 排盘是幂等纯计算(后端无写库 ChartController),对「本地服务未就绪/重启窗口」做透明退避重试:
@@ -88,20 +91,20 @@ export function fetchChart(values, requestOptions){
 		body: JSON.stringify(values),
 		...opts,
 	}).then((rsp)=>{
-		// perf T-6(speculativePrecompute 配套,marker: chartMem_valid_only_v1):只缓存「有效盘」
-		// 响应(Result.params 在)—— 错误信封(ResultCode!=0/服务瞬断)不进 chartMem,否则短窗内
-		// 同参重试会命中缓存的过期错误(对既有路径也是净改善;确认路径 isValidChartResponse 判定不变)。
+		// R4-B6(marker: chartMem_valid_only_v1):只缓存「有效盘」响应(Result.params 在)——
+		// 错误信封(ResultCode!=0/服务瞬断)不进 chartMem,否则短窗内同参重试会命中缓存的
+		// 过期错误(对既有路径也是净改善;确认路径 isValidChartResponse 判定不变)。
 		if(key && rsp && rsp.Result && rsp.Result.params){
 			pushCache(chartMem, key, clonePlain(rsp));
 		}
 		return rsp;
 	}).finally(()=>{
-		if(key){
-			chartInflight.delete(key);
+		if(shareKey){
+			chartInflight.delete(shareKey);
 		}
 	});
-	if(key){
-		chartInflight.set(key, req);
+	if(shareKey){
+		chartInflight.set(shareKey, req);
 	}
 	if(chartCloneLiteEnabled()){
 		// WP-H 拷贝减层:miss 的【发起方】直接拿网络原件(整盘省一次全量深拷贝)——原件本就

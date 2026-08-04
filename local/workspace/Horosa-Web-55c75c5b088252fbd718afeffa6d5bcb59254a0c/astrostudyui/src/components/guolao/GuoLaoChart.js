@@ -4,7 +4,7 @@ import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import GLChart from './GLChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-import { buildChartDrawSig, sameChartDrawSig } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, watchChartSvgResize } from '../../utils/chartDrawGuard';
 import * as SZConst from '../suzhan/SZConst';
 
 const SQUARE_SIDE_MIN = 620;
@@ -228,6 +228,10 @@ class GuoLaoChart extends Component{
 		this.updateSquareSide();
 		this.drawChart();
 		this.scheduleDrawRetry();
+		// [R4-B7/C17] 隐藏容器(tab 未选中,svg 0×0)期间数据更新 → 绘制停旧画面,切回 tab 无 React
+		// 更新可触发重画 = 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(FL-20260712-5 同型收口,
+		// 签名守卫 :169 防重画风暴)。样板=JinKouChart。
+		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 	}
 
 	componentDidUpdate(){
@@ -245,6 +249,7 @@ class GuoLaoChart extends Component{
 			clearTimeout(this.redrawTimer);
 			this.redrawTimer = null;
 		}
+		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
 	}
 
 	render(){

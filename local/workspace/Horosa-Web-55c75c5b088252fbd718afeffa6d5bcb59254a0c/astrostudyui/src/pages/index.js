@@ -1,6 +1,9 @@
 import React from 'react';
 import { connect  } from 'dva';
 import { Spin, } from 'antd';
+// R4-B2:切页签 300ms 后武装 ±depth 步进预取((c) 时机)+ 手势起点技法归属。
+import { armStepPrefetch } from '../utils/stepPrefetchArm';
+import { setCurrentTechnique } from '../utils/perfMark';
 import DateTime from '../components/comp/DateTime';
 import LoginForm from '../components/user/LoginForm';
 import RegisterForm from '../components/user/RegisterForm';
@@ -75,15 +78,11 @@ function startIdlePreload(){
 	}, 1000);
 }
 
-// horosa_city_db_idle_preload_v1(PERF-R9 Ship 6):把最大的那块 chunk 提前。
-// 构建产物里 104.*.async.js = 3.85MB,内容就是 src/data/citiesFull.json(全量城市/地名库)。
-// 它此前【完全不在】任何空闲预载队列里 —— 只有用户打开经纬度选择器时
-// GeoCoordSelector.componentDidMount 才动态 import,于是「点开选地点」当场付 3.85MB 的
-// 取包 + JSON.parse,是全站最大的单次现付成本;而改出生地/事件地是首屏之后最常发生的操作之一。
-// 故登记进队列,order 1.5 = 排在全部 hot 技法 chunk 之后、normal 之前(队列本身仍是
-// requestIdleCallback 逐个执行、用户一交互就让路,不与首屏抢主线程)。
-// 只改「何时付」,不改任何取数/匹配/渲染语义:GeoCoordSelector 那边的 import() 一字未动,
-// 预载过则它秒回,未预载(或关闸)则完全是旧行为。
+// horosa_city_db_idle_preload_v1(Windows-ahead,PERF-R9 Ship 6):把最大的那块 chunk 提前。
+// 构建产物里 citiesFull.json 独立 chunk = 3.85MB(全量城市/地名库),此前只有用户打开经纬度
+// 选择器时 GeoCoordSelector.componentDidMount 才动态 import,「点开选地点」当场付取包+
+// JSON.parse = 全站最大的单次现付成本。登记进队列 order 1.5(全部 hot 技法之后、normal 之前;
+// 队列 requestIdleCallback 逐个执行、用户一交互即让路)。只改「何时付」,零语义变化;
 // kill-switch:safeLocalStorageSet('horosa.perf.cityDbIdlePreload','0') 后刷新。
 if(cityDbIdlePreloadEnabled()){
 	LAZY_PRELOAD_QUEUE.push({ factory: () => import('../data/citiesFull.json'), order: 1.5 });
@@ -111,8 +110,8 @@ const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/
 const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
 const XuanShiMain = lazyPreloadable(() => import('../components/xuanshi/XuanShiMain'), { order: 3, navKey: 'xuanshi' });
 const AstrodataPage = lazyPreloadable(() => import('../components/astrodata/AstrodataPage'), { order: 3, navKey: 'astrodata' });
-// horosa_zeri_render_slice_v1(W3b-Z4):order 3→2 —— 择日是主导航技法页(非重可视化;
-// 重引擎 3D/天文馆/数据库才配 3),冷首会话点开前更可能已被空闲预载暖到。
+// horosa_zeri_render_slice_v1(Windows-ahead,W3b-Z4):order 3→2 —— 择日是主导航技法页
+// (非重可视化;重引擎 3D/天文馆/数据库才配 3),v3.7.1 起含天星/奇门双分册更该早暖。
 const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 2, navKey: 'zeri' });
 const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'), { order: 2, navKey: 'calendar' });
 const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
@@ -141,13 +140,7 @@ import { APPEARANCE_DARK } from '../utils/appearance';
 import XQIcon from '../components/xq-icons';
 import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
 import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
-// horosa_interaction_span_v1(PERF-R9 Ship 0a):交互起点打点。改之前 ':refresh-start' 全仓
-// 只有 changeTab 打过,切时间/改选项一次都不打 —— 于是 markChartRefreshEnd 拿上次切页签的
-// 陈旧 start 配 measure,量出秒级垃圾,「点击→显示」这个要验收的数根本量不出来。
-import { markInteractionStart, setCurrentTechnique } from '../utils/perfMark';
-import { armStepPrefetch } from '../utils/stepPrefetchArm';
 import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
-// PERF-R10 horosa_step_prefetch_arm_v1:切技法页签后按该技法档位武装 ±N 步预取。
 
 const TabPane = XQTabs.TabPane;
 
@@ -375,43 +368,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         caseTotal,
     } = user;
  	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
-    const { ziwei, } = rules;
-    // horosa_gesture_start_v1:把「当前是哪个技法」告诉观测层。perfMark 用一个捕获期
-    // pointerdown/keydown 监听给**所有**交互提供起点(技法内部的选项改动不经过 changeCond,
-    // 此前一律没有起点 ⇒ owner 验收口径里的「选项」那一半根本量不出来);监听本身拿不到
-    // 「现在在哪个技法」,故由这里推给它。纯观测,失败静默。
-    React.useEffect(()=>{
-        setCurrentTechnique(currentTab);
-    }, [currentTab]);
-    // PERF-R8 P0(纯观测):chartObj 提交后 double-rAF 打 render-complete —— 两帧后浏览器
-    // 必已完成本次提交的布局与绘制,与 refresh-end 配对量化前端渲染份额。失败静默。
-    React.useEffect(()=>{
-        if(!(chartObj && chartObj.chartId)){ return; }
-        try{
-            if(typeof performance !== 'undefined' && performance.mark && typeof requestAnimationFrame === 'function'){
-                requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
-                    try{
-                        performance.mark('horosa:chart:render-complete');
-                        if(performance.measure){
-                            performance.measure('horosa:chart:render', 'horosa:chart:refresh-end', 'horosa:chart:render-complete');
-                        }
-                    }catch(e){ /* observation only */ }
-                }); });
-            }
-        }catch(e){ /* observation only */ }
-    }, [chartObj && chartObj.chartId]);
-    // PERF-R8 P2:排盘成功后的数据层空闲预热 —— 把「用户首点某技法才付的取数成本」挪进
-    // 空闲时段:走各技法**自己导出的 builder + 缓存入口**(key/body 与真实首点逐字节一致,
-    // 结果自然落各自 L1;首点=命中即时)。组以 chartId 为代(新盘作废旧组);任务内动态
-    // import(不拖 chunk 进主包,顺带引擎预热);全部 silent、只进确定性端点、交互即让路。
+    const { ziwei, } = rules; 
+
+    
+    // R4-B3:排盘成功后的数据层空闲预热 —— 把「用户首点某技法才付的取数成本」挪进
+    // 空闲时段:走各技法**自己导出的 warm builder + 缓存入口**(key/body 与真实首点逐字节
+    // 一致,结果自然落各自 L1;首点=命中即时)。组以 chartId 为代(新盘作废旧组);任务内
+    // 动态 import(不拖 chunk 进主包,顺带引擎预热);全部 silent、只进确定性端点、交互即让路。
     // 双闸:horosa.perf.idleWarmQueue(总)/ horosa.perf.dataWarmTasks(细)。失败静默。
     React.useEffect(()=>{
         if(!(chartObj && chartObj.chartId) || !fields || !(fields.date && fields.date.value)){ return; }
         const warmFields = fields;
         const warmChartObj = chartObj;
-        // PERF-R9 Ship 7:任务清单从此处写死的 4 条数组,改为 utils/dataWarmTasks 的注册表
-        // (登记序=首点概率序=执行序)。页面组件不再持有技法知识 —— 新技法接线只需在
-        // dataWarmTasks 加一行登记,漏项一目了然(本轮就是这样补上紫微/遁甲/太乙/分至的)。
         Promise.all([
             import('../utils/idleWarmQueue'),
             import('../utils/dataWarmTasks'),
@@ -420,9 +388,9 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             if(!registry || typeof registry.buildDataWarmTasks !== 'function'){ return; }
             queue.scheduleDataWarmGroup(chartObj.chartId, registry.buildDataWarmTasks(warmFields, warmChartObj));
         }).catch(()=>{ /* 预热不可用=回到现状 */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chartObj && chartObj.chartId]);
 
-    
     function closeDrawer(){
         dispatch({
             type: 'astro/closeDrawer',
@@ -476,9 +444,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         // 盘变了才刷新目标技法,且延迟到切换 paint 之后(切换瞬间、刷新随后带 spinner);盘没变=跳过=纯瞬间。
         if(needRefresh){
             tabRefreshSigRef.current[key] = currentSig;
-            // perf:userTimingMarks —— 「切页→技法刷新开始」User-Timing 打点(纯观测,DevTools/
-            // Performance 面板可读;量化点击→显示的前端份额)。失败静默。
-            try{ if(typeof performance !== 'undefined' && performance.mark){ performance.mark(`horosa:tab:${key}:refresh-start`); } }catch(e){ /* observation only */ }
             setTimeout(()=>{
                 if(!(predictHook[key] && predictHook[key].fun)){ return; }
                 if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
@@ -500,19 +465,21 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             }, 0);
         }
 
-        // PERF-R10 horosa_step_prefetch_arm_v1:切到技法即按其档位武装 ±depth(300ms 延到切换
-        // paint 与可能的刷新起跑之后;tabOverride 直给 key,不等 store 异步反映)。NO_ARM 技法
-        // 在 armStepPrefetch 内部按纪律跳过;首次进入某技法的一次性装载不受影响(idle 调度)。
-        setTimeout(()=>{ try{ armStepPrefetch('tab-activate', { tabOverride: key }); }catch(e){ /* 武装失败静默 */ } }, 300);
+        // R4-B2((c) 时机):切到新技法页签 300ms 后(切换 paint 与可能的刷新已让路)按该技法
+        // 最近档位武装 ±depth —— 进页后第一下步进也命中。NO_ARM 技法由 shouldArmForTab 内部拦。
+        try{ setCurrentTechnique(key); }catch(e){ /* 观测归属失败无害 */ }
+        setTimeout(()=>{
+            try{ armStepPrefetch('tab-activate', { tabOverride: key }); }catch(e){ /* 武装失败静默 */ }
+        }, 300);
+
     }
 
-    // horosa_change_cond_no_mutate_v1 —— 就地变异根治。
+    // horosa_change_cond_no_mutate_v1(R4-B5,FE-18)—— 就地变异根治。
     // 旧写法 `{...fields}` **只拷了顶层**:`flds.date` 与 `fields.date` 是同一个对象,
     // `flds.date.value = x` 改的是 state 里那个对象本身 ⇒ 「旧 fields」与「新 fields」的
     // 嵌套对象引用完全相同,任何按引用比较的 React.memo / shouldComponentUpdate 都会判
     // 「没变」而跳过重渲(或反过来:整树重渲,因为顶层引用永远是新的)。这正是渲染
     // 优化的**前提** —— 不修它,后面加多少 memo 都是白加。
-    // 与 models/astro.js 的 fetchByChartData 早已修好的是同一个 bug(注释见该文件 ~1260)。
     // setFld 一律产出**新对象**;`{...(prev || {name:[name]})}` 保留原有 name 数组与其它
     // 键,value 立即覆盖 ⇒ 与旧代码那几处「不存在则以默认值新建再赋值」逐字段等价。
     const setFld = (obj, name, value) => {
@@ -523,10 +490,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     function changeCond(values){
         let flds = {
             ...fields,
-        };  
+        };
         if(values.nohook){
             flds.nohook = true;
-        }  
+        }
 
         if(values.tm !== undefined && values.tm != null){
             let birth = values.tm;
@@ -561,7 +528,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         }
         // 流派全维分化三项(P1-D1)：预设一次性带入 → 写 fields，由 fieldsToParams 条件透传(默认值不下发，零回归)。
         // 🔴 changeCond 是显式白名单：不在此登记的键会被静默丢弃(选档后该维不生效)。
-        // (horosa_change_cond_no_mutate_v1:以下新键与旧键一律经 setFld 产新对象,绝不就地赋值。)
         if(values.lotReversal !== undefined && values.lotReversal !== null){
             setFld(flds, 'lotReversal', values.lotReversal);
         }
@@ -602,8 +568,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         if(ensureField(flds, 'lat').value >= 0){
             let lat = String(flds.lat.value);
             if(lat.toLowerCase().indexOf('n') >= 0){
-                // 同上(horosa_change_cond_no_mutate_v1):经 setFld 写新对象,
-                // 不再对 ensureField 取回的既有字段对象就地赋值。
                 setFld(flds, 'southchart', 0);
             }
         }
@@ -618,8 +582,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 // 步进方向提示(WP-P1):effect 内剥离后驱动「下一步」预取,绝不落 state.fields
                 ...(values.step ? { __stepHint: values.step } : {}),
             };
-            // 交互起点:必须在防抖调度**之前**打,否则量到的是「防抖之后」而不是「用户点下」。
-            markInteractionStart(currentTab);
             // 防抖改形(极速化大修 WP-E):leading 立发 + trailing 合并 —— 单次操作 0ms 起跑
             // (旧式纯 trailing 每次白等 180ms);连点首发立即、中间全并、末发 trailing 兜底;
             // 乱序由 fetchByFields 的 epoch 兜。调度器独立成 utils/timeDispatchScheduler
@@ -636,7 +598,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         // confirmed(「确定」等)直发前取消在途 trailing —— 否则旧 trailing 会追发一枪陈旧 payload
         cancelPendingTimeDispatch();
 
-        markInteractionStart(currentTab);
         dispatch({
             type: 'astro/fetchByFields',
             payload: flds,
@@ -692,11 +653,15 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         }catch(e){ /* 定位失败回退 CSS 默认位置 */ }
     };
 
-    let aryfields = convertToArray(fields);
-    let arychartflds = convertToArray(currentChart);
-    let arycaseflds = convertToArray(currentCase);
-    let aryregflds = convertToArray(registerFields);
-    let aryloginflds = convertToArray(loginFields);
+    // horosa_convert_memo_v1(R4-B7/C15):五个 convertToArray 按源对象身份 memo——收益不在计算本身
+    // (浅遍历微秒级),在【数组引用稳定】:aryfields 每 render 新数组 → 下游组件凡以 fieldsAry 为
+    // memo/sCU 依据者必 miss。FE-18 后 fields 一切变更产新对象,dep=[源] 语义正确;convertToArray
+    // 对入参的 name/value 补齐是幂等写(仅 undefined 时设),memo 化后首跑已施加,行为逐字节同。
+    const aryfields = React.useMemo(()=>convertToArray(fields), [fields]);
+    const arychartflds = React.useMemo(()=>convertToArray(currentChart), [currentChart]);
+    const arycaseflds = React.useMemo(()=>convertToArray(currentCase), [currentCase]);
+    const aryregflds = React.useMemo(()=>convertToArray(registerFields), [registerFields]);
+    const aryloginflds = React.useMemo(()=>convertToArray(loginFields), [loginFields]);
     const drawerNavigationPages = navigationPages.concat(
         userInfo ? [
             { label: '书籍阅读', key: 'astroreader', icon: 'book', group: '内容' },
@@ -990,7 +955,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         height={height}
                         fields={fields}
                         fieldsAry={aryfields}
-                        hook={predictHook.fengshui}
                         dispatch={dispatch}
                     />
                   </FreezeInactive>

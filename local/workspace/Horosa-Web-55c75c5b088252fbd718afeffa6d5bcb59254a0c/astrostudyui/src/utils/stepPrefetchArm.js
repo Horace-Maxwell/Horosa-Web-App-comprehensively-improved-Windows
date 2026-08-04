@@ -1,4 +1,4 @@
-// stepPrefetchArm —— 「选步长即武装」预取(PERF-R10 Ship2,horosa_step_prefetch_arm_v1)。
+// stepPrefetchArm —— 「选步长即武装」预取(R4-B2,horosa_step_prefetch_arm_v1)。
 //
 // 病根(owner 原话「选完步长第一下卡、之后不卡」的机制):
 //   · buildStepPrefetchTasks 的单位只来自【上一次步进动作】的 stepHint,无 hint 时硬编码 'm';
@@ -6,9 +6,7 @@
 //   · submitStepPrefetch 全仓唯一调用点在 fetchByFields settle —— 而紫微/遁甲的步进走本地
 //     漏斗根本不经它,登记的预取器从未被触发。
 // 武装 = 不等用户点步进,在四个时机把「当前档位的 ±1..±depth」提前算好塞进缓存:
-//   (a) 选步长 —— v3.5.1 收敛后 live 路径=上游 fireStepSelectPrefetch → models/astro 注册的
-//       直发处理器(带 earlyBoot 守卫;sameMinute 闸经裁决豁免:opt-in 宿主源头已滤旁路条);
-//       本文件的 notifyStepUnitSelected 保留为 armStepPrefetch('unit-select') 的测试口径入口
+//   (a) 选步长(opt-in 宿主经 R3-A1 全局 handler,或函数宿主直调 armStepPrefetch('unit-select'))
 //   (b) 出盘 settle(models/astro.js:fetchByFields 无 stepHint 分支 → armStepPrefetch)
 //   (b′) 本地漏斗 settle(ZiWeiMain.requestZiWei / DunJiaMain.onTimeChanged → armStepPrefetch)
 //   (c) 切技法页签(pages/index.js:changeTab 延迟 300ms → armStepPrefetch)
@@ -22,7 +20,7 @@
 //     案例编辑抽屉),武装主盘 ±N 是白打 —— 直接跳过;比较失败(异形 DateTime)按放行
 //     处理:多武装只浪费空闲请求,漏武装才伤体验;
 //   · early-boot 未确认前不武装(渲染器提前导航窗口里,后端还没起,排队无意义);
-//   · kill-switch:horosa.perf.stepPrefetchArm(关=只剩 R9「步进后预取」旧行为);
+//   · kill-switch:horosa.perf.stepPrefetchArm(关=只剩「步进后预取」旧行为);
 //     深度 horosa.perf.stepPrefetchDepth(0..5,0=等效关)。
 import { submitStepPrefetch, prefetchRefusalCount } from './stepPrefetch';
 import { stepPrefetchEnabled, stepPrefetchArmEnabled, stepPrefetchDepth } from './perfFlags';
@@ -31,9 +29,13 @@ import { isEarlyBootMode } from './backendBootGate';
 
 // 随机起卦(guazhan=六爻)、取现时(planetarium)、流式(aianalysis)、浏览/查询型
 // (astrodata/xuanshi/astroreader/liveplayer/admintools)—— 时间步进不是这些页的交互模型。
+// ⚠️ Mac 差异化:较 Windows 版多一个 zeri —— 择日页(天星征象搜索+奇门找局工作台)的
+//    fields 全程自持(DivinationChartShell/QimenZeriWorkbench),全局武装读 store.astro.fields
+//    构 /chart 对它是错轴白打;其步进预取由 DivinationChartShell 本地预取器负责,
+//    奇门找局是纯本地扫描引擎(零 HTTP)更无从武装。
 const NO_ARM_TABS = new Set([
 	'guazhan', 'planetarium', 'aianalysis', 'astrodata', 'xuanshi',
-	'astroreader', 'liveplayer', 'admintools',
+	'astroreader', 'liveplayer', 'admintools', 'zeri',
 ]);
 
 let planBuilder = null;
@@ -63,9 +65,10 @@ export function shouldArmForTab(tabKey){
 	return !!tabKey && !NO_ARM_TABS.has(tabKey);
 }
 
-// horosa_pump_skew_v1(PERF-R12 W3a③):同向连击计量 —— settle 携 dir(±1)时累计,
+// horosa_pump_skew_v1(Windows-ahead,PERF-R12 W3a③):同向连击计量 —— settle 携 dir(±1)时累计,
 // 方向翻转/换档/dir 缺省(选档、非步进 settle)/间隔 >2s 一律重置。纯观测状态,
 // 消费方只有 models/astro.js 的计划偏斜分支;读写全 try 包,绝不影响主流程。
+// dir 形参为 Windows 增列(上游二参调用天然 dir=undefined → 走重置分支,语义兼容)。
 const stepStreakByTab = new Map();
 const STREAK_GAP_MS = 2000;
 
@@ -178,7 +181,7 @@ export function armStepPrefetch(reason, opt){
 	return tasks.length;
 }
 
-/** DateTimeSelector.changeTimeType 调:选步长即武装(owner 主诉求的那一下)。 */
+/** 函数型 onStepSelect 宿主可直调:选步长即武装(owner 主诉求的那一下)。 */
 export function notifyStepUnitSelected(unit, selectorDatetime){
 	if(!unit){
 		return 0;
@@ -186,7 +189,7 @@ export function notifyStepUnitSelected(unit, selectorDatetime){
 	return armStepPrefetch('unit-select', { unit, selectorDatetime });
 }
 
-/** 诊断/验收句柄:perf_acceptance.cjs 断言「选步长后确实武装过」靠它。 */
+/** 诊断/验收句柄:真机验收断言「选步长后确实武装过」靠它。 */
 export function armStats(){
 	return { ...stats, refusals: prefetchRefusalCount() };
 }

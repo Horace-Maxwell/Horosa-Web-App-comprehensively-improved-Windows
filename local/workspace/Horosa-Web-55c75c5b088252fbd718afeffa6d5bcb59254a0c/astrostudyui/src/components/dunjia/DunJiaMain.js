@@ -1,11 +1,12 @@
 import { Component } from 'react';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
-import { armStepPrefetch } from '../../utils/stepPrefetchArm';
-import { markPanelReady } from '../../utils/perfMark';
-import { FreezeSubTab } from '../comp/FreezeInactive';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';
-import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
+import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, stepPrefetchDepth } from '../../utils/perfFlags';
+// R4-B2(horosa_prefetch_registry_v1):遁甲 stage-1 登记 + 本地漏斗 settle 武装。
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
+import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+// [Windows-only] horosa_panel_ready_v1(P5):遁甲「画完」观测钉(验收配对靠它)。
+import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
@@ -26,6 +27,7 @@ import sealedImage from '../../assets/sealed.png';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
+import { FreezeSubTab } from '../comp/FreezeInactive';
 import QuickDockBar from '../common/QuickDockBar';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
@@ -133,7 +135,8 @@ const DUNJIA_BOARD_BASE_HEIGHT = 870;
 const DUNJIA_SCALE_MIN = 0.58;
 const DUNJIA_SCALE_MAX = 1.18;
 const QIMEN_PATTERN_INTERPRETATION_STORAGE_KEY = 'qimenShowPatternInterpretation';
-let lastDunJiaLiveState = null;
+// techniqueScope → live 态。keep-alive(FreezeInactive)下独立奇门页与择日页宿主并存,单例必竞写,按 scope 隔离。
+const dunJiaLiveStateByScope = Object.create(null);
 function normalizeKenQimenOptions(options){
 	const next = {
 		...DEFAULT_OPTIONS,
@@ -335,7 +338,7 @@ function saveFaAskTopic(value){
 	}
 }
 
-function saveQimenLiveSnapshot(pan){
+function saveQimenLiveSnapshot(pan, scope, composer){
 	if(!pan || typeof window === 'undefined'){
 		return '';
 	}
@@ -345,7 +348,15 @@ function saveQimenLiveSnapshot(pan){
 	}catch(e){
 		snapshotText = '';
 	}
-	if(snapshotText){
+	// [奇门择日] 宿主可拼接技法附加段(择日三段);composer 异常回退原文,绝不空快照。
+	if(snapshotText && typeof composer === 'function'){
+		try{
+			snapshotText = composer(snapshotText, pan) || snapshotText;
+		}catch(e){
+		}
+	}
+	// window 全局快照槽只属独立奇门页(aiExport 活导出兜底读它),其它 scope 绝不竞写。
+	if(snapshotText && (scope === undefined || scope === 'qimen')){
 		window.__horosa_qimen_snapshot_text = snapshotText;
 		window.__horosa_qimen_snapshot_at = Date.now();
 	}
@@ -506,11 +517,11 @@ function sameRelatedPeople(a, b){
 	return true;
 }
 
-function rememberDunJiaLiveState(payload){
+function rememberDunJiaLiveState(scope, payload){
 	if(!payload || !payload.pan){
 		return;
 	}
-	lastDunJiaLiveState = {
+	dunJiaLiveStateByScope[scope || 'qimen'] = {
 		fieldKey: payload.fieldKey || '',
 		lastNongliKey: payload.lastNongliKey || '',
 		lastPanSignature: payload.lastPanSignature || '',
@@ -522,15 +533,16 @@ function rememberDunJiaLiveState(payload){
 	};
 }
 
-function getRestorableDunJiaLiveState(fields){
-	if(!lastDunJiaLiveState || !lastDunJiaLiveState.pan){
+function getRestorableDunJiaLiveState(scope, fields){
+	const lastState = dunJiaLiveStateByScope[scope || 'qimen'];
+	if(!lastState || !lastState.pan){
 		return null;
 	}
 	const fieldKey = getFieldKey(fields);
-	if(lastDunJiaLiveState.fieldKey && fieldKey && lastDunJiaLiveState.fieldKey !== fieldKey){
+	if(lastState.fieldKey && fieldKey && lastState.fieldKey !== fieldKey){
 		return null;
 	}
-	return lastDunJiaLiveState;
+	return lastState;
 }
 
 function extractIsDiurnalFromChartProp(val){
@@ -544,8 +556,8 @@ function extractIsDiurnalFromChartProp(val){
 	return null;
 }
 
-// —— PERF-R9 Ship 7:遁甲 stage-1 构参的模块级纯函数(组件方法 genParams/genJieqiParams 纯委托
-//    于此)。抽出来的唯一目的:预热/预取要在【组件之外】构出与首点逐字节同键的 body ——
+// —— R4-B3:遁甲 stage-1 构参的模块级纯函数(组件方法 genParams 纯委托于此)。
+//    抽出来的唯一目的:预热要在【组件之外】构出与首点逐字节同键的 body ——
 //    差一个字节缓存就不是同一条,预热白打。语义与抽出前逐字节一致。
 function buildDunJiaNongliParamsPure(flds, options){
 	if(!flds){
@@ -579,31 +591,10 @@ function buildDunJiaNongliParamsPure(flds, options){
 	};
 }
 
-function buildDunJiaJieqiParamsPure(flds, year, options){
-	if(!flds){
-		return null;
-	}
-	const opts = options || DEFAULT_OPTIONS;
-	const calcGeo = resolveCalcGeo(flds, opts);
-	return {
-		year: `${year}`,
-		ad: flds.ad ? flds.ad.value : 1,
-		zone: flds.zone.value,
-		lon: calcGeo.lon,
-		lat: calcGeo.lat,
-		gpsLat: calcGeo.gpsLat,
-		gpsLon: calcGeo.gpsLon,
-		timeAlg: normalizeTimeAlg(opts.timeAlg),
-		hsys: 0,
-		zodiacal: 0,
-		doubingSu28: false,
-	};
-}
-
-// PERF-R9 Ship 7(数据层空闲预热的权威入口):遁甲 stage-1 = /nongli/time(真太阳时+四柱)
+// R4-B3(数据层空闲预热的权威入口):遁甲 stage-1 = /nongli/time(真太阳时+四柱)
 // + /jieqi/year(节气种子,仅该流派需要时)。两者是【确定性历法计算】,同参恒同果、无随机、
-// 不依赖「现在」。options 取 normalizeKenQimenOptions() —— 与组件构造时的 initialOptions
-// 同一口径(未从既有盘恢复时),故 key/body 与用户首点逐字节一致。
+// 不依赖「现在」。options 取 normalizeKenQimenOptions() —— 与组件构造时的初始选项同一口径
+// (未从既有盘恢复时),故 key/body 与用户首点逐字节一致。
 // 🔴 绝不预热 /qimen/pan 本身:它吃 stage-1 结果 + 组件态(流派/排盘法),提前构不出同键。
 // silent(两个 fetch 内置)、丢结果、绝不 dispatch/setState;失败静默。
 export async function warmDunJiaStage1(fields){
@@ -627,10 +618,21 @@ export async function warmDunJiaStage1(fields){
 		if(needJieqiYearSeed(fixedOptions)){
 			const year = parseInt(fields.date.value.format('YYYY'), 10);
 			if(year && !Number.isNaN(year)){
-				const seedParams = buildDunJiaJieqiParamsPure(fields, year, options);
-				if(seedParams){
-					jobs.push(Promise.resolve(fetchPreciseJieqiSeed(seedParams)).catch(()=>null));
-				}
+				const calcGeo = resolveCalcGeo(fields, options);
+				const seedParams = {
+					year: `${year}`,
+					ad: fields.ad ? fields.ad.value : 1,
+					zone: fields.zone.value,
+					lon: calcGeo.lon,
+					lat: calcGeo.lat,
+					gpsLat: calcGeo.gpsLat,
+					gpsLon: calcGeo.gpsLon,
+					timeAlg: normalizeTimeAlg(options.timeAlg),
+					hsys: 0,
+					zodiacal: 0,
+					doubingSu28: false,
+				};
+				jobs.push(Promise.resolve(fetchPreciseJieqiSeed(seedParams)).catch(()=>null));
 			}
 		}
 		await Promise.all(jobs);
@@ -643,7 +645,10 @@ export async function warmDunJiaStage1(fields){
 class DunJiaMain extends Component {
 	constructor(props){
 		super(props);
-		const restoredLiveState = getRestorableDunJiaLiveState(props.fields);
+		// [奇门择日] techniqueScope:独立奇门页缺省 'qimen',择日页宿主传 'qimenzeri'。
+		// live 态/AI 快照槽/案例链/导出刷新事件全按 scope 隔离(keep-alive 双实例并存,不隔离必竞写)。
+		this.scope = props.techniqueScope || 'qimen';
+		const restoredLiveState = getRestorableDunJiaLiveState(this.scope, props.fields);
 		const initialOptions = restoredLiveState && restoredLiveState.options
 			? normalizeKenQimenOptions(restoredLiveState.options)
 			: normalizeKenQimenOptions();
@@ -725,25 +730,14 @@ class DunJiaMain extends Component {
 					this.prefetchNongliForFields(fields);
 				}
 			};
-			// PERF-R9 Ship 7:遁甲是【两段式】—— stage-1(/nongli/time 真太阳时+干支、
-			// /jieqi/year 节气种子)必须先回来,盘才能排。这两个端点与主 /chart 完全无关,
-			// 在 /chart 返回之前并行发出即可把 stage-1 从关键路径上摘掉。
-			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
-			this.props.hook.prewarmRequests = (flds)=>{
-				if(this.unmounted){
-					return;
-				}
-				try{
-					this.prefetchJieqiSeedForFields(flds || this.props.fields);
-					this.prefetchNongliForFields(flds || this.props.fields);
-				}catch(e){ /* 预热失败无害 */ }
-			};
-			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):只预取 stage-1(确定性历法计算)。
-			// 🔴 绝不预取 /qimen/pan 本身:它必须吃 stage-1 的结果,串行且随组件态(流派/排盘法)
-			//    变化 —— 强行预取要么构不出同键、要么把中间态钉进缓存。stage-1 暖了,
-			//    用户点下一步时 pan 的输入即时可得,这已是这条链上能提前付的全部。
-			if(stepPrefetchEnabled()){
-				registerStepPrefetcher('dunjia', (steppedFields)=>{
+			// R4-B2(horosa_prefetch_registry_v1):只登记 stage-1(确定性历法计算)。
+			// 🔴 绝不预取 /qimen/pan 本身:它吃 stage-1 结果 + 组件态(流派/排盘法),
+			//    强行预取要么构不出同键、要么把中间态钉进缓存。stage-1 暖了,用户点下一步时
+			//    pan 的输入即时可得(pan 层另有 [R3-A4] 草稿链负责)。
+			// ⚠️ 择日页内嵌遁甲盘(techniqueScope 化)不重复登记:登记键恒 'dunjia'(主奇门 tab),
+			//    zeri 在 NO_ARM_TABS,武装线不会驱动内嵌实例。
+			if(stepPrefetchEnabled() && (!this.scope || this.scope === 'qimen')){
+				this._dunjiaStepPrefetcher = (steppedFields)=>{
 					if(this.unmounted || !steppedFields){
 						return [];
 					}
@@ -784,7 +778,8 @@ class DunJiaMain extends Component {
 						}
 					}catch(e){ /* 种子构参失败静默跳过 */ }
 					return tasks;
-				});
+				};
+				registerStepPrefetcher('dunjia', this._dunjiaStepPrefetcher);
 			}
 		}
 	}
@@ -877,6 +872,11 @@ class DunJiaMain extends Component {
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		// R4-B2:反注册步进预取器(防卸载后闭包吃到死组件态)。
+		if(this._dunjiaStepPrefetcher){
+			try{ unregisterStepPrefetcher('dunjia', this._dunjiaStepPrefetcher); }catch(e){ /* ignore */ }
+			this._dunjiaStepPrefetcher = null;
+		}
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 			if(this._dayBoundaryListener){
@@ -899,19 +899,24 @@ class DunJiaMain extends Component {
 
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
-		if(moduleName !== 'qimen'){
+		if(moduleName !== this.scope){
 			return;
 		}
 		if(this.state.pan){
 			this.applyFaRelatedToPan(this.state.pan);
-			const snapshotText = saveQimenLiveSnapshot(this.state.pan);
+			const snapshotText = this.saveLiveSnapshot(this.state.pan);
 			if(snapshotText){
-				saveModuleAISnapshot('qimen', snapshotText);
+				saveModuleAISnapshot(this.scope, snapshotText);
 				if(evt && evt.detail && typeof evt.detail === 'object'){
 					evt.detail.snapshotText = snapshotText;
 				}
 			}
 		}
+	}
+
+	// scope 感知的 live 快照单入口:类内 5 条产快照链一律走此,禁止直调模块函数(契约测试锁)。
+	saveLiveSnapshot(pan){
+		return saveQimenLiveSnapshot(pan, this.scope, this.props.composeAiSnapshot);
 	}
 
 	captureLeftBoardHost(node){
@@ -991,7 +996,7 @@ class DunJiaMain extends Component {
 		}
 		const sourceModule = currentCase.sourceModule ? currentCase.sourceModule.value : null;
 		const caseType = currentCase.caseType ? currentCase.caseType.value : null;
-		if(sourceModule !== 'qimen' && caseType !== 'qimen'){
+		if(sourceModule !== this.scope && caseType !== this.scope){
 			return;
 		}
 		const payload = this.parseCasePayload(currentCase.payload ? currentCase.payload.value : null);
@@ -1048,6 +1053,9 @@ class DunJiaMain extends Component {
 				}else{
 					this.requestNongli(calcFields, true);
 				}
+			}
+			if(typeof this.props.onOptionsChange === 'function'){
+				this.props.onOptionsChange({ ...nextOptions });
 			}
 		});
 	}
@@ -1110,6 +1118,9 @@ class DunJiaMain extends Component {
 					this.requestNongli(calcFields, true);
 				}
 			}
+			if(typeof this.props.onOptionsChange === 'function'){
+				this.props.onOptionsChange({ ...nextOptions });
+			}
 		});
 	}
 
@@ -1120,7 +1131,8 @@ class DunJiaMain extends Component {
 			pan.faRelatedPeople = arr;
 		}
 		// 同步全局当前选择，供 AI 挂载里「重算 pan（未 stamp）」的路径兜底，确保四同步无遗漏。
-		if(typeof window !== 'undefined'){
+		// 全局兜底槽只属独立奇门页;择日页实例的 pan 恒已 stamp,不需也不得竞写全局。
+		if(typeof window !== 'undefined' && this.scope === 'qimen'){
 			window.__horosa_qimen_related_people = arr;
 		}
 		return pan;
@@ -1174,9 +1186,9 @@ class DunJiaMain extends Component {
 			// 总是同步全局当前选择(即使尚未起盘),供 AI 挂载兜底。
 			this.applyFaRelatedToPan(pan);
 			if(pan){
-				const snapshotText = saveQimenLiveSnapshot(pan);
+				const snapshotText = this.saveLiveSnapshot(pan);
 				if(snapshotText){
-					saveModuleAISnapshot('qimen', snapshotText);
+					saveModuleAISnapshot(this.scope, snapshotText);
 				}
 				this.forceUpdate();
 			}
@@ -1190,9 +1202,9 @@ class DunJiaMain extends Component {
 			const pan = this.state.pan;
 			if(pan){
 				if(pan.options){ pan.options.chartCategory = cat; }
-				const snapshotText = saveQimenLiveSnapshot(pan);
+				const snapshotText = this.saveLiveSnapshot(pan);
 				if(snapshotText){
-					saveModuleAISnapshot('qimen', snapshotText);
+					saveModuleAISnapshot(this.scope, snapshotText);
 				}
 			}
 		});
@@ -1245,10 +1257,9 @@ class DunJiaMain extends Component {
 			// [R3-A4] 草稿时间一变即预取该时刻 pan(kinqimen 后端模式):用户点「起局」时
 			// nongli+pan 双双已热 ≈ 瞬间。步进时再顺向多备一步(连点第二下也不冷)。
 			this.prefetchQimenPanForFields(localFields, stepHint);
-			// horosa_step_prefetch_arm_v1(b′,与上游 [R3-A4] 互补):遁甲未确认步进只落
-			// localFields、不经 fetchByFields ⇒ settle 武装在此自己做 —— ±depth 双向
-			// stage-1 种子经登记的预取器构造(上游预取当前时刻+顺向一步;本武装铺双向窗)。
-			// skipChart:/chart 不在本页步进路径上。
+			// R4-B2(b′,与上游 [R3-A4] 互补):遁甲未确认步进只落 localFields、不经 fetchByFields
+			// ⇒ settle 武装在此自己做 —— ±depth 双向 stage-1 经登记的预取器构造走共享调度器
+			// (上游预取当前时刻+顺向一步;本武装铺双向全窗)。skipChart:/chart 不在本页步进路径上。
 			try{ armStepPrefetch('local-settle', { fieldsOverride: localFields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
 		}, 120);
 	}
@@ -1288,8 +1299,13 @@ class DunJiaMain extends Component {
 				if(stepHint.dir){
 					targets.push(stepTo(unit, stepHint.dir));
 				}else if(stepHint.depth >= 1){
-					targets.push(stepTo(unit, 1));
-					targets.push(stepTo(unit, -1));
+					// R4-B2:±1 固定窗 → ±min(depth, stepPrefetchDepth()) 全窗(pan 是重端点,
+					// 深窗任务经 kentangCache 在途去重与 L1 即时吸收,真实网络数远小于目标数)。
+					const d = Math.max(1, Math.min(stepHint.depth, stepPrefetchDepth()));
+					for(let k = 1; k <= d; k += 1){
+						targets.push(stepTo(unit, k));
+						targets.push(stepTo(unit, -k));
+					}
 				}
 			}
 			targets.forEach((flds)=>{
@@ -1403,6 +1419,60 @@ class DunJiaMain extends Component {
 		});
 	}
 
+	// [奇门择日] 外挂 API(ref 调用):工作台播种当前 时空+22 参数。全部拷贝,防外部改动污染实例态。
+	getScanContext(){
+		const flds = this.state.localFields || this.props.fields || null;
+		return {
+			fields: flds,
+			params: flds ? this.genParams(flds) : null,
+			options: { ...this.state.options },
+			hasPlotted: this.state.hasPlotted,
+		};
+	}
+
+	// [奇门择日] 外挂 API(ref 调用):pick 命中时刻回写主盘。patch = { date/time(DateTime 实例)/ad/zone/
+	// lat/lon/gpsLat/gpsLon/pos + 可选 options }。走 clickPlotNow 同款受控回流 + requestNongli(force)
+	// 标准链重排 —— 显示路由(时家转盘经后端/其余本地)与独立奇门页按构造恒等。
+	applyExternalPlot(patch){
+		if(this.state.loading || !patch){
+			return;
+		}
+		const base = this.state.localFields || this.props.fields;
+		if(!base){
+			return;
+		}
+		const fieldPatch = {};
+		['date', 'time', 'ad', 'zone', 'lat', 'lon', 'gpsLat', 'gpsLon', 'pos'].forEach((k)=>{
+			if(patch[k] !== undefined){
+				fieldPatch[k] = { value: patch[k] };
+			}
+		});
+		const nextState = { hasPlotted: true };
+		let timeAlgChanged = false;
+		if(patch.options && typeof patch.options === 'object'){
+			const mergedOptions = normalizeKenQimenOptions({ ...this.state.options, ...patch.options });
+			timeAlgChanged = normalizeTimeAlg(mergedOptions.timeAlg) !== normalizeTimeAlg(this.state.options.timeAlg);
+			nextState.options = mergedOptions;
+			if(timeAlgChanged){
+				fieldPatch.timeAlg = { value: normalizeTimeAlg(mergedOptions.timeAlg) };
+			}
+		}
+		this.onFieldsChange(fieldPatch, true);
+		const nextFields = { ...base, ...fieldPatch };
+		nextState.localFields = nextFields;
+		this.setState(nextState, ()=>{
+			if(timeAlgChanged){
+				// 与 onOptionChange('timeAlg') 同款失效语义:种子/盘缓存/签名全清,防旧口径缓存串盘。
+				this.jieqiSeedPromises = {};
+				this.jieqiYearSeeds = {};
+				this.panCache.clear();
+				this.lastPanSignature = '';
+				this.lastNongliKey = '';
+			}
+			this.requestNongli(nextFields, true);
+		});
+	}
+
 	changeGeo(rec){
 		const base = this.state.localFields || this.props.fields || {};
 		const dDt = base.date && base.date.value;
@@ -1440,7 +1510,7 @@ class DunJiaMain extends Component {
 	}
 
 	genParams(fields){
-		// PERF-R9 Ship 7:构造原样抽为模块级纯函数(预热复用同一路径 ⇒ key/body 逐字节一致);
+		// R4-B3:构造原样抽为模块级纯函数(预热复用同一路径 ⇒ key/body 逐字节一致);
 		// 本方法保持既有签名与兜底语义(localFields/props 兜底),纯委托零行为变化。
 		return buildDunJiaNongliParamsPure(
 			fields || this.state.localFields || this.props.fields,
@@ -1482,12 +1552,12 @@ class DunJiaMain extends Component {
 			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
 			this.lastPanSignature = panSignature;
 			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{
-				// horosa_panel_ready_v1:奇门中栏九宫盘 + 右栏五页签全部派生自这一个 pan,
+				// [Windows-only] horosa_panel_ready_v1:奇门中栏九宫盘 + 右栏五页签全部派生自这一个 pan,
 				// 故本次 setState 落定 = 中栏+右栏画完(pan 为 null 时也算「本次交互到此为止」,
 				// 不记会让该次交互永远配不上对)。已在 panSignature 去重与 loading 置位之后。
 				markPanelReady('dunjia');
 				if(pan){
-					rememberDunJiaLiveState({
+					rememberDunJiaLiveState(this.scope, {
 						fieldKey: getFieldKey(flds),
 						lastNongliKey: this.lastNongliKey,
 						lastPanSignature: this.lastPanSignature,
@@ -1497,9 +1567,9 @@ class DunJiaMain extends Component {
 						options: fixedOptions,
 						faRelatedPeople: this.state.faRelatedPeople,
 					});
-					const snapshotText = saveQimenLiveSnapshot(pan);
+					const snapshotText = this.saveLiveSnapshot(pan);
 					if(snapshotText){
-						saveModuleAISnapshot('qimen', snapshotText);
+						saveModuleAISnapshot(this.scope, snapshotText);
 					}
 				}
 			});
@@ -1512,12 +1582,25 @@ class DunJiaMain extends Component {
 	}
 
 	genJieqiParams(fields, year){
-		// PERF-R9 Ship 7:同上,抽为模块级纯函数,方法纯委托(兜底语义不变)。
-		return buildDunJiaJieqiParamsPure(
-			fields || this.state.localFields || this.props.fields,
-			year,
-			this.state.options || DEFAULT_OPTIONS
-		);
+		const flds = fields || this.state.localFields || this.props.fields;
+		if(!flds){
+			return null;
+		}
+		const options = this.state.options || DEFAULT_OPTIONS;
+		const calcGeo = resolveCalcGeo(flds, options);
+		return {
+			year: `${year}`,
+			ad: flds.ad ? flds.ad.value : 1,
+			zone: flds.zone.value,
+			lon: calcGeo.lon,
+			lat: calcGeo.lat,
+			gpsLat: calcGeo.gpsLat,
+			gpsLon: calcGeo.gpsLon,
+			timeAlg: normalizeTimeAlg(options.timeAlg),
+			hsys: 0,
+			zodiacal: 0,
+			doubingSu28: false,
+		};
 	}
 
 	async resolveDisplaySolarTime(params, primaryResult){
@@ -1730,7 +1813,7 @@ class DunJiaMain extends Component {
 							loading: false,
 						}, ()=>{
 						if(pan){
-							rememberDunJiaLiveState({
+							rememberDunJiaLiveState(this.scope, {
 								fieldKey: getFieldKey(flds),
 								lastNongliKey: this.lastNongliKey,
 								lastPanSignature: this.lastPanSignature,
@@ -1740,9 +1823,9 @@ class DunJiaMain extends Component {
 								options: fixedOptions,
 								faRelatedPeople: this.state.faRelatedPeople,
 							});
-							const snapshotText = saveQimenLiveSnapshot(pan);
+							const snapshotText = this.saveLiveSnapshot(pan);
 							if(snapshotText){
-								saveModuleAISnapshot('qimen', snapshotText);
+								saveModuleAISnapshot(this.scope, snapshotText);
 							}
 						}
 					});
@@ -1790,6 +1873,10 @@ class DunJiaMain extends Component {
 			};
 		}
 		this.setState(nextState, ()=>{
+			// [奇门择日] 参数镜像:宿主工作台 chips 实时跟随左栏(after23/timeAlg 分支提前 return,故放回调开头)。
+			if(typeof this.props.onOptionsChange === 'function'){
+				this.props.onOptionsChange({ ...options });
+			}
 			if(key === 'timeAlg'){
 				this.jieqiSeedPromises = {};
 				this.jieqiYearSeeds = {};
@@ -1842,9 +1929,12 @@ class DunJiaMain extends Component {
 		}
 		// 事盘：案例库(localCases)。payload 增 faRelatedPeople 以便重开还原。
 		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
-		const snapshot = loadModuleAISnapshot('qimen');
+		const snapshot = loadModuleAISnapshot(this.scope);
+		// [奇门择日] 宿主附加负载(如 zeri 工作台态)先铺底,核心键恒后置覆盖,防外部键顶掉本体。
+		const extra = typeof this.props.casePayloadExtra === 'function' ? (this.props.casePayloadExtra() || {}) : {};
 		const payload = {
-			module: 'qimen',
+			...extra,
+			module: this.scope,
 			snapshot: snapshot,
 			pan: pan,
 			// 盘类(命局/事局)不在 state.options 里,单独并入 —— 缺它则挂载重算恒退事局,「盘类：」行与存档打架。
@@ -1857,8 +1947,8 @@ class DunJiaMain extends Component {
 				payload: {
 					key: 'caseadd',
 					record: {
-						event: `奇门占断 ${divTime}`,
-						caseType: 'qimen',
+						event: `${this.props.caseEventPrefix || '奇门占断'} ${divTime}`,
+						caseType: this.scope,
 						divTime: divTime,
 						zone: flds.zone.value,
 						lat: flds.lat.value,
@@ -1867,7 +1957,7 @@ class DunJiaMain extends Component {
 						gpsLon: flds.gpsLon.value,
 						pos: flds.pos ? flds.pos.value : '',
 						payload: payload,
-						sourceModule: 'qimen',
+						sourceModule: this.scope,
 					},
 				},
 			});
@@ -2402,6 +2492,9 @@ class DunJiaMain extends Component {
 					</div>
 				</div>
 				</XQSideSection>
+				{typeof this.props.renderLeftExtra === 'function'
+					? this.props.renderLeftExtra({ fields: this.state.localFields || this.props.fields, options: this.state.options })
+					: null}
 			</div>
 		);
 	}
@@ -2813,14 +2906,8 @@ class DunJiaMain extends Component {
 					onChange={(key)=>this.setState({ rightPanelTab: key })}
 					style={{ marginTop: 8 }}
 				>
-					{/* horosa_freeze_subtabs_v1:右栏 5 面板 keep-alive。原先每次父重渲(切时间/改选项/
-					    点宫位/开关设置)都把「概览」的 buildQimenOverviewSummary、「神煞」的 Popover 阵、
-					    「八宫」的 buildQimenBaGongPanelData、化解/用神 全部重跑一遍(用户只看得见其中一个)。
-					    函数式 FreezeSubTab:非激活既不求值也不 reconcile;切回时拿本轮最新 children
-					    立刻渲一帧 —— 不卸载、不重取、不闪烁、组件内部 state(滚动/展开)原样保留。 */}
 					<TabPane tab="概览" key="overview">
-						<FreezeSubTab active={panelTab === 'overview'}>{()=>(
-						<>
+						<FreezeSubTab active={panelTab === 'overview'}>{()=>(<>
 						{(()=>{
 							// 全局速览：一眼看出 值符值使落宫 / 贵格(三奇得使·九遁) / 六害源头 / 吉凶格品级。
 							const sum = pan ? buildQimenOverviewSummary(pan) : null;
@@ -2917,8 +3004,7 @@ class DunJiaMain extends Component {
 								</Card>
 							);
 						})()}
-						</>
-						)}</FreezeSubTab>
+						</>)}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="神煞" key="shensha">
 						<FreezeSubTab active={panelTab === 'shensha'}>{()=>(
@@ -3053,6 +3139,10 @@ class DunJiaMain extends Component {
 
 	// 快捷栏契约:右栏 tab 镜像(概览/神煞/八宫)与释义开关(左栏已有)撤除,只留页面没有的动词。
 	renderQuickDock(){
+		// [奇门择日] 择日页契约无底部 QuickDock(showQuickDock=false);独立奇门页默认不变。
+		if(this.props.showQuickDock === false){
+			return null;
+		}
 		return (
 			<QuickDockBar
 				page="dunjia"

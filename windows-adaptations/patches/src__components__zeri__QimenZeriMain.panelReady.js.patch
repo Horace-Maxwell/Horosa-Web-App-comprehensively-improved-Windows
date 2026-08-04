@@ -1,0 +1,35 @@
+diff --git a/astrostudyui/src/components/zeri/QimenZeriMain.js b/astrostudyui/src/components/zeri/QimenZeriMain.js
+index b9ab71b4..987b096f 100644
+--- a/astrostudyui/src/components/zeri/QimenZeriMain.js
++++ b/astrostudyui/src/components/zeri/QimenZeriMain.js
+@@ -16,6 +16,9 @@ import { newQimenLeaf, newQimenGroup, compileQimenTree } from '../../divination/
+ import { scanQimen, explainQimenAt, buildQimenScanSeeds } from '../../divination/zeri/qimenScanEngine';
+ import { buildQimenZeriSnapshotExtra } from '../../divination/zeri/qimenZeriSnapshot';
+ import { qimenZeriSchemeStore } from '../../divination/zeri/schemeStore';
++// [Windows-only] horosa_panel_ready_v1(P5):奇门分册找局的「画完」观测钉(键=顶层页签 'zeri',
++// 与天星分册同键 —— 观测按页配对,分册切换不换键)。
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ function initialTree(){
+ 	return { ...newQimenGroup('all'), children: [newQimenLeaf('pattern_ji')] };
+@@ -279,15 +282,17 @@ export default class QimenZeriMain extends Component{
+ 			if(this.unmounted){
+ 				return;
+ 			}
+-			this.setState({ scanning: false, progress: null, results: res.intervals, truncated: res.truncated });
++			// horosa_panel_ready_v1:三个终态 settle(命中/取消/失败)都收口 —— 取消与失败也算
++			// 「本次交互到此为止」,不记会让该次找局永远配不上对(与遁甲 pan=null 口径一致)。
++			this.setState({ scanning: false, progress: null, results: res.intervals, truncated: res.truncated }, ()=>{ markPanelReady('zeri'); });
+ 		}catch(e){
+ 			if(this.unmounted){
+ 				return;
+ 			}
+ 			if(e && e.name === 'AbortError'){
+-				this.setState({ scanning: false, progress: null });
++				this.setState({ scanning: false, progress: null }, ()=>{ markPanelReady('zeri'); });
+ 			}else{
+-				this.setState({ scanning: false, progress: null, scanErr: (e && e.message) || '找局失败' });
++				this.setState({ scanning: false, progress: null, scanErr: (e && e.message) || '找局失败' }, ()=>{ markPanelReady('zeri'); });
+ 			}
+ 		}
+ 	}

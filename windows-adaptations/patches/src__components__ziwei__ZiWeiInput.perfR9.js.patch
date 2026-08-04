@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiInput.js b/astrostudyui/src/components/ziwei/ZiWeiInput.js
-index 8b0ade8..2454ebd 100644
+index 1711cfde..a2da6313 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiInput.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiInput.js
 @@ -1,5 +1,6 @@
@@ -9,11 +9,11 @@ index 8b0ade8..2454ebd 100644
  import { Checkbox, Collapse } from 'antd';
  import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
  import { dstAwareZoneAt } from '../../utils/timezone';
-@@ -117,6 +118,24 @@ class ZiWeiInput extends Component{
+@@ -151,6 +152,24 @@ class ZiWeiInput extends Component{
  
  	}
  
-+	// horosa_ziwei_input_scu_v1(补接):左栏纯 props 浅比 sCU。
++	// [Windows-only] horosa_ziwei_input_scu_v1(补接):左栏纯 props 浅比 sCU。
 +	// 病灶:本组件 ~540 行(Collapse + 十余个 Select + SpaceTimePanel/DateTime),此前零 sCU ——
 +	// 宿主 ZiWeiMain 的任意 setState(点星改 tips、updating 角标、换右栏页签、大限/流曜选取…)
 +	// 都让整张左表重渲一遍,而左栏的输入只有 props.fields 一项。

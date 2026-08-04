@@ -3,7 +3,7 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { stepPrefetchEnabled, guolaoMergedPaintEnabled } from '../../utils/perfFlags';
-import { registerStepPrefetcher } from '../../utils/stepPrefetch';
+import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { XQModal, XQTabs as Tabs } from '../xq-ui';
@@ -1404,11 +1404,10 @@ async function fetchGuolaoChartCached(params, options){
 	return clonePlain(result);
 }
 
-// PERF-R8 P2(数据层空闲预热):按当前命盘 fields 预热七政「本命盘」进 guolaoMem —— 与用户
+// R4-B3(数据层空闲预热):按当前命盘 fields 预热七政「本命盘」进 guolao 缓存 —— 与用户
 // 首点走完全相同的 fieldsToParams + fetchGuolaoChartCached 入口(key 同、body 同、结果逐字节同,
-// 只是提前付)。本函数仅暖本命:空闲预热入口是模块级调用,拿不到组件 state 的已物化流年时刻,
-// 若在此现算 makeDefaultMoiraTransitTime = 预取时新取「现在」= 禁入形态。流年+Moira 规则的
-// 安全预取只存在于组件内注册的步进链(G6,transit 时刻恒取组件 state,见 constructor 注)。
+// 只是提前付)。仅暖本命:流年/Moira 规则依赖「此刻」的流年时间=取现时,按预热白名单纪律禁入
+// (步进预取的三段链式版在组件登记里,那里能读到用户显式设置的 transitTime)。
 // 存储样式为七政 kinastro 引擎时跳过(不同引擎路径,预热本命盘对其无效)。失败静默;绝不
 // dispatch 任何全局 state。
 export async function warmGuolaoNatal(fields){
@@ -2460,52 +2459,64 @@ class GuoLaoChartMain extends Component{
 					if(tp){ fetchGuolaoChartCached(tp, { silent: true }).catch(()=>{ /* 预热静默 */ }); }
 				}catch(e){ /* 预热失败无害 */ }
 			};
-			// horosa_prefetch_registry_v1(PERF-R9 Ship 7):七政【本命盘】步进预取。
-			// 闭包吃组件态(engineMode/chartStyle 决定本命盘是否走这条路径);闸 horosa.perf.stepPrefetch。
-			// [horosa_guolao_render_slice_v1 G6] 第二任务把「第三段串行往返」(Moira 规则)也提前付:
-			// 复刻真实链同源入口(natal 缓存入口 → transit 缓存入口 → cachedPost 规则),body 携真
-			// chartObj —— 稳定键(horosa_moira_stable_key_v1)虽不含盘,但响应纯函数性只在「带盘」
-			// 形态被黄金证明过,不发 null 盘变体。物化前提(禁词精确豁免 PREFETCH_FORBIDDEN_EXEMPT_EXACT
-			// 的成立条件):transit 时刻恒取 this.state.moiraTransitTime(挂载时物化/用户显式所选),
-			// 预取时刻绝不新算「现在」;用户中途改流年时刻 ⇒ 键不匹配 = 无害浪费,绝不错供。
-			// 步进落地时:natal 命中 + transit 命中(其参数与本命日期无关,当前 bundle 已缓存)+ 规则
-			// 命中 ⇒ 三段往返全为零。
+			// R4-B3(horosa_prefetch_registry_v1,R10 情报③「七政三段」):七政步进链=本命→流年→
+			// 判读规则三段串行,前两段有缓存、第三段(fetchMoiraQizhengRules,几百 ms 重计算)每步必付。
+			// 登记的预取任务把三段【链式】全预热(与 requestGuolaoBundle 同构:同 params/同
+			// applyGuolaoNodeMode/同 rules 入参形态 → 键逐字节同,真点步进时第三段归零)。
+			// (v3.7.1 收敛注:上游链式单任务取代我方「双任务+禁词精确豁免」形态 —— 链在任务体内
+			//  经 await 续段发规则请求,白名单只见声明路径 '/chart',豁免机制整体退役 #49。)
+			// 🔴 取现时红线:moiraTransitTime 为 null(默认过运=「现在」)时流年/规则两段的键含
+			//    构造时刻的「现在」——真点时刻已变,键不同=预热白打且徒增负载 → 该态只暖本命段。
+			//    键不同也意味着绝不会错误命中旧「现在」(无「今天被冻住」降级)。
 			if(stepPrefetchEnabled()){
-				registerStepPrefetcher('guolao', (steppedFields)=>{
+				this._guolaoStepPrefetcher = (steppedFields)=>{
 					if(this.unmounted || this.state.engineMode === 'kinastro'){
 						return [];
 					}
 					if(this.state.chartStyle === GUOLAO_CHART_STYLE_QIZHENG){
 						return [];
 					}
+					let params = null;
+					try{
+						params = fieldsToParams(steppedFields);
+					}catch(e){
+						return [];
+					}
+					if(!params){
+						return [];
+					}
+					const transitTime = this.state.moiraTransitTime;
+					const warmAllStages = transitTime !== null && transitTime !== undefined;
 					return [{
 						name: 'guolao:natal',
 						path: '/chart',
-						run: ()=> warmGuolaoNatal(steppedFields),
-					}, {
-						name: 'guolao:moira-rules',
-						path: '/qizheng/moira',
 						run: async ()=>{
-							const natalRaw = await warmGuolaoNatal(steppedFields);
-							if(!natalRaw || this.unmounted){ return null; }
-							const chartObj = applyGuolaoNodeMode(natalRaw, steppedFields);
-							const transitParams = paramsWithMoiraTransit(steppedFields, this.state.moiraTransitTime);
-							let transitObj = null;
-							try{
-								const transitRaw = await fetchGuolaoChartCached(transitParams, { silent: true });
-								transitObj = transitRaw ? applyGuolaoNodeMode(transitRaw, steppedFields) : null;
-							}catch(e){
-								transitObj = null; // 与真实链同款:流年失败仍按 null 盘求规则
+							const natalRaw = await fetchGuolaoChartCached(params, { silent: true });
+							if(!natalRaw || !warmAllStages || this.unmounted){
+								return natalRaw || null;
 							}
-							return fetchMoiraQizhengRules({
-								params: fieldsToParams(steppedFields),
-								chartObj,
-								transitParams,
-								transitChartObj: transitObj,
-							}, { silent: true, timeoutMs: 12000 }).catch(()=>null);
+							try{
+								const chartObj = applyGuolaoNodeMode(natalRaw, steppedFields);
+								const tp = paramsWithMoiraTransit(steppedFields, transitTime);
+								let transitObj = null;
+								if(tp){
+									const tRaw = await fetchGuolaoChartCached(tp, { silent: true }).catch(()=>null);
+									transitObj = tRaw ? applyGuolaoNodeMode(tRaw, steppedFields) : null;
+								}
+								// 第三段:判读规则 —— 结果落 services/qizheng 的 cachedPost 缓存,
+								// 真点步进到该时刻时 requestGuolaoBundle 的规则段直接命中。
+								await fetchMoiraQizhengRules({
+									params,
+									chartObj,
+									transitParams: tp,
+									transitChartObj: transitObj,
+								}, { silent: true, timeoutMs: 12000 });
+							}catch(e){ /* 后两段预热失败静默:首点回到冷即付 */ }
+							return natalRaw;
 						},
 					}];
-				});
+				};
+				registerStepPrefetcher('guolao', this._guolaoStepPrefetcher);
 			}
 		}
 	}
@@ -3247,6 +3258,11 @@ class GuoLaoChartMain extends Component{
 
 	componentWillUnmount(){
 		this.unmounted = true;
+		// R4-B3:反注册步进预取器(防卸载后闭包吃到死组件态)。
+		if(this._guolaoStepPrefetcher){
+			try{ unregisterStepPrefetcher('guolao', this._guolaoStepPrefetcher); }catch(e){ /* ignore */ }
+			this._guolaoStepPrefetcher = null;
+		}
 		this.moiraReqSeq++;
 		this.moiraTransitReqSeq++;
 		this.qizhengKinReqSeq++;

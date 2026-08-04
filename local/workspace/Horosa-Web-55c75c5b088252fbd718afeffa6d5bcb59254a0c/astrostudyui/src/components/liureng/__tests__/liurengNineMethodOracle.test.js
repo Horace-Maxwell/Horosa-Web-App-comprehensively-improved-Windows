@@ -1,4 +1,4 @@
-// 大六壬 · 九宗门全域独立对拍 oracle（Windows #46 制度化产物）
+// 大六壬 · 九宗门全域独立对拍 oracle（#46 制度化产物）
 // ─────────────────────────────────────────────────────────────────────────
 // 背景:曾把古籍「九法」章的列举序号误读为判定优先级(八专下移到遥克后)并锁进金标,
 // 直到真实用户以甲寅日两课实报(#46)才暴露。教训:单点金标只能锁"已想到的课式"。
@@ -56,7 +56,8 @@ function oracle(delta, gan, zhi){
 	};
 
 	// 伏吟:仅课1可能有克(余三课皆同支);有克不虞,无克刚自任柔自信,初传自刑=杜传;
-	// 中=初刑(初自刑:有克/刚日转支上,柔日转干上);末=中刑(中自刑取冲)。
+	// 中=初刑(初自刑:有克/刚日转支上,柔日转干上);末=中刑(中自刑取冲;初中恰为子卯互刑
+	// =刑还初传、传行杜塞,末亦取中传所冲——#62 勘正,全域仅丁卯/己卯/辛卯 3 课变)。
 	if(delta === 0){
 		const hasKe = restrains(gan, k1) || restrains(k1, gan);
 		let c0;
@@ -68,7 +69,8 @@ function oracle(delta, gan, zhi){
 		const x0 = xingChain(c0);
 		const c1 = x0.selfX ? altMid : x0.next;
 		const x1 = xingChain(c1);
-		const c2 = x1.selfX ? CHONG(c1) : x1.next;
+		const ziMaoLoop = (c0 === '子' && c1 === '卯') || (c0 === '卯' && c1 === '子');
+		const c2 = (x1.selfX || ziMaoLoop) ? CHONG(c1) : x1.next;
 		if(!hasKe && x0.selfX){ name = '杜传课'; }
 		return { name, cuang: [c0, c1, c2] };
 	}

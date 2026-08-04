@@ -4157,16 +4157,24 @@ class SanShiUnitedMain extends Component{
 		}
 	}
 
-	recalcByNongli(fields, nongli, overrideOptions, displaySolarTime){
+	recalcByNongli(fields, nongli, overrideOptions, displaySolarTime, commitPatch){
 		const flds = fields || this.state.localFields || this.props.fields;
 		if(!flds || !nongli){
 			return Promise.resolve(false);
 		}
+		// [R4-B7/C16 靶①] commitPatch:调用方要与盘结果【同帧】提交的 state 补丁(loading:false/
+		// displaySolarTime)。防抖窗内 payload 被覆盖时合并保留旧补丁(refined/seed 补算不带补丁,
+		// 不得把主链的 loading:false 冲掉)。(v3.7.1 收敛注:取代我方 S5 提交期内折形态 —— 同一
+		// 消闪帧目标,上游穿线形对防抖窗覆盖更精确,#49 换形。)
 		this.pendingRecalcPayload = {
 			fields: flds,
 			nongli,
 			overrideOptions,
 			displaySolarTime,
+			commitPatch: {
+				...(this.pendingRecalcPayload && this.pendingRecalcPayload.commitPatch),
+				...commitPatch,
+			},
 		};
 		if(this.pendingRecalcTimer){
 			clearTimeout(this.pendingRecalcTimer);
@@ -4192,7 +4200,8 @@ class SanShiUnitedMain extends Component{
 							payload.fields,
 							payload.nongli,
 							payload.overrideOptions,
-							payload.displaySolarTime
+							payload.displaySolarTime,
+							payload.commitPatch
 						)).then((changed)=>{
 							this.resolvePendingRecalc(changed);
 						}).catch((e)=>{
@@ -4215,7 +4224,7 @@ class SanShiUnitedMain extends Component{
 			});
 		}
 
-	async performRecalcByNongli(fields, nongli, overrideOptions, displaySolarTime){
+	async performRecalcByNongli(fields, nongli, overrideOptions, displaySolarTime, commitPatch){
 		const flds = fields || this.state.localFields || this.props.fields;
 		if(!flds || !nongli){
 			return false;
@@ -4402,14 +4411,11 @@ class SanShiUnitedMain extends Component{
 			lat: flds && flds.lat ? flds.lat.value : '',
 		};
 		this.lastRecalcSignature = recalcSignature;
-		// horosa_sanshi_render_slice_v1(S5):提交并帧。refreshAll 尾部原本还要补一次
-		// setState({loading:false, displaySolarTime})(两次提交=两次全树渲染,中间还闪一帧
-		// 「新盘面 + 旧 loading 遮罩」)。把这两键并进本次大提交:loading 置 true 的三处
-		// (refreshAll 种子缺失/clickPlot 同步链/外部选例同步)都以「本次重算落地」为终点,
-		// 此处收口语义不变;displaySolarTime 仅在调用方显式传入(refreshAll 主链)且确有变化
-		// 时并入,3624/3635 等未传参路径不受影响。refreshAll 尾部补丁原样保留:本函数因签名
-		// 相同早退(return false)时仍由它兜底,并帧后常态下其补丁为空 = 不再产生第二次提交。
-		const mergedCommit = {
+		// [R4-B7/C16 靶①] 双提交合一:盘结果与调用方补丁(loading:false/displaySolarTime)同一次
+		// setState 落地 —— 旧形态先渲「新盘 + loading 还挂着」一帧再渲去转圈一帧,肉眼即闪帧。
+		// (horosa_sanshi_render_slice_v1 S5 收敛注:同目标,提交期内折形态换上游 commitPatch
+		//  穿线形 #49;refreshAll 尾部兜底现按 !changed 门控,常态零第二次提交。)
+		this.setState({
 			nongli,
 			liureng,
 			dunjia,
@@ -4419,14 +4425,8 @@ class SanShiUnitedMain extends Component{
 			lrLayout: lrBundle.lrLayout,
 			keData: lrBundle.keData,
 			sanChuan: lrBundle.sanChuan,
-		};
-		if(this.state.loading){
-			mergedCommit.loading = false;
-		}
-		if(displaySolarTime !== undefined && displaySolarTime !== this.state.displaySolarTime){
-			mergedCommit.displaySolarTime = displaySolarTime;
-		}
-		this.setState(mergedCommit, ()=>{
+			...(commitPatch || null),
+		}, ()=>{
 			// horosa_panel_ready_v1:三式合一的中栏(六壬/遁甲/太乙三盘)与右栏 5 页签全部派生自本次
 			// setState 的这一组字段,故这里 = 「中栏+右栏画完」。本行已在 recalcByNongli 的
 			// SANSHI_RECALC_DEFER_MS 去抖与 refreshSeq 竞态守卫【之后】(陈旧轮次在上游即已 return),
@@ -4572,11 +4572,21 @@ class SanShiUnitedMain extends Component{
 						if(this.unmounted || seq !== this.refreshSeq){
 							return;
 						}
-						const changed = await this.recalcByNongli(fields, nongli, null, displaySolarTime);
+						// [R4-B7/C16 靶①] 补丁预算好随盘结果同帧提交(recalcByNongli 第五参);
+						// 仅当 recalc 未落 setState(签名去重/守卫 early-return,changed=false)时才在
+						// 这里兜底单独提交 —— 否则「新盘+转圈」中间帧重现。
+						const commitPatch = {};
+						if(this.state.loading){
+							commitPatch.loading = false;
+						}
+						if(displaySolarTime !== this.state.displaySolarTime){
+							commitPatch.displaySolarTime = displaySolarTime;
+						}
+						const changed = await this.recalcByNongli(fields, nongli, null, displaySolarTime, commitPatch);
 						if(!changed && !this.state.dunjia && this.lastRecalcError){
 							throw this.lastRecalcError;
 						}
-						if(!this.unmounted && seq === this.refreshSeq){
+						if(!this.unmounted && seq === this.refreshSeq && !changed){
 							const patch = {};
 							if(this.state.loading){
 								patch.loading = false;

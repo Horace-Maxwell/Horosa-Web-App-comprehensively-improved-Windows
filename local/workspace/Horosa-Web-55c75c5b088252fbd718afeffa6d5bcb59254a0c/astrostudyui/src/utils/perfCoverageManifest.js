@@ -31,7 +31,7 @@ export const VALID_VALUE = /^(done|existing|todo|na:.+)$/;
 // ── 页面级(navigationPages + 抽屉三页) ──────────────────────────────────────
 const PAGES = {
 	astrochart: { kind: 'B', axes: {
-		netCache: 'existing', stepPrefetch: 'existing', stepSelect: 'done', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
+		netCache: 'existing', stepPrefetch: 'existing', stepSelect: 'done', optionPrefetch: 'done:R4-B5 反转 R3 裁决——settle 后二值轴(zodiacal/southchart/tradition/simpleAsp)Hamming-1 变体走空闲组(组代作废+交互让路),R3 判弊的「开下拉即触真算」intent 形态已被规避(实证命中≈渲染);多值轴待组件登记值域',
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'na:网络型主盘(chartMem 即其 memo)', scu: 'existing',
 		drawGuard: 'existing', keepStale: 'existing',
 	} },
@@ -141,8 +141,8 @@ const PAGES = {
 		dataPrewarm: 'na:检索按需', localMemo: 'na:非引擎页', scu: 'done', drawGuard: 'na:列表页', keepStale: 'existing',
 	} },
 	zeri: { kind: 'TOOL', axes: {
-		netCache: 'done:electionscan 走 cachedKentangFetch 三层(确定性扫描,按月段天然命中)', stepPrefetch: 'existing:DivinationChartShell 本地预取器(fields 自持,同辅盘三盘)', stepSelect: 'existing:同左', optionPrefetch: 'na:征象扫描属重计算,投机预取判弊>利',
-		dataPrewarm: 'na:进页即可用,扫描按需触发', localMemo: 'na:网络型', scu: 'existing:壳层 wrapperPropsEqual', drawGuard: 'existing', keepStale: 'na:扫描结果显式触发,无陈旧窗口',
+		netCache: 'done:electionscan 走 cachedKentangFetch 三层(确定性扫描,按月段天然命中);奇门找局=纯本地引擎零 HTTP,无网络轴', stepPrefetch: 'existing:DivinationChartShell 本地预取器(fields 自持,同辅盘三盘)', stepSelect: 'existing:同左', optionPrefetch: 'na:征象扫描属重计算,投机预取判弊>利',
+		dataPrewarm: 'na:进页即可用,扫描按需触发', localMemo: 'na:网络型(奇门找局分块让主线程+命中/跨度双上限)', scu: 'existing:壳层 wrapperPropsEqual', drawGuard: 'existing', keepStale: 'na:扫描结果显式触发,无陈旧窗口',
 	} },
 	astroreader: { kind: 'TOOL', axes: {
 		netCache: 'na:阅读器(登录态内容)', stepPrefetch: 'na:阅读器', stepSelect: 'na:阅读器', optionPrefetch: 'na:阅读器',

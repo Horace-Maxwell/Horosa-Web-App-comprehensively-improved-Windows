@@ -185,12 +185,12 @@ class ChuangChart {
 	}
 
 	getSangCuang(){
-		// 发三传九法的判定顺序(课经条文口径,Windows #46 修正)：
+		// 发三传九法的判定顺序(课经条文口径,#46 修正)：
 		// 伏吟/返吟(盘体) → 贼克(贼/摄) → [比用/涉害,见 isJinKe*] → 八专 → 遥克 → 别责 → 昴星。
 		// 关键点：
 		//  · 八专(干支同位,四课止两课)必须在遥克之前——课经明训:八专「有克照常以克贼比涉论,
 		//    如无克贼比涉,不复取遥克」;「遥者远也」,干支同处一位无远可言,故两课无克径入八专。
-		//    🔴 历史教训(Windows #46):曾把古籍「九法」章的列举序号(遥克第4/八专第9)误读为判定
+		//    🔴 历史教训(#46):曾把古籍「九法」章的列举序号(遥克第4/八专第9)误读为判定
 		//    优先级,将八专下移到遥克之后并用金标锁死,致甲寅日戌将丑/午时等两课无近克而带遥克
 		//    的课式被误发蒿矢/弹射。列举序≠判定序;判定序只认「八专不取遥、别责须无遥」等条文本身。
 		//  · 遥克在别责/昴星之前——三课备(别责)与四课全(昴星)须先问遥克,课经「无遥无克别责例」。
@@ -519,6 +519,21 @@ class ChuangChart {
 		return res;
 	}
 
+	// 伏吟末传通则:中传所刑为末;中传自刑(辰午酉亥)取中传所冲。
+	// #62 勘正:初中两传恰为子卯互刑(刑表唯一二环,刑还初传、传行杜塞)时,
+	// 末传亦取中传所冲——丁卯/己卯/辛卯日伏吟由「卯子卯」勘正为「卯子午」(全域仅此 3/720 课变)。
+	// 仅此子卯一对特判(用户定谳,明令不作更泛抽象);其余刑链(寅巳申/丑戌未)三支各异,不在此列。
+	getFuYinLastCuang(cuang0, cuang1){
+		let zixings = LRConst.ZiXing[cuang1];
+		if(zixings === cuang1){
+			return LRConst.ZiCong[cuang1];
+		}
+		if((cuang0 === '子' && cuang1 === '卯') || (cuang0 === '卯' && cuang1 === '子')){
+			return LRConst.ZiCong[cuang1];
+		}
+		return zixings;
+	}
+
 	isFuYin(){
 		if(this.downZi[0] !== this.upZi[0]){
 			return null;
@@ -536,12 +551,7 @@ class ChuangChart {
 			}else{
 				cuang1 = zixings;
 			}
-			zixings = LRConst.ZiXing[cuang1];
-			if(zixings === cuang1){
-				cuang2 = LRConst.ZiCong[cuang1];
-			}else{
-				cuang2 = zixings;
-			}
+			cuang2 = this.getFuYinLastCuang(cuang0, cuang1);
 			let res = {};
 			res.cuang = [cuang0, cuang1, cuang2];
 			res.name = '不虞课';
@@ -563,12 +573,7 @@ class ChuangChart {
 			}else{
 				cuang1 = zixings;
 			}
-			zixings = LRConst.ZiXing[cuang1];
-			if(zixings === cuang1){
-				cuang2 = LRConst.ZiCong[cuang1];
-			}else{
-				cuang2 = zixings;
-			}
+			cuang2 = this.getFuYinLastCuang(cuang0, cuang1);
 			let res = {};
 			res.cuang = [cuang0, cuang1, cuang2];
 			res.name = selfXing ? '杜传课' : '自任课';
@@ -586,12 +591,7 @@ class ChuangChart {
 		}else{
 			cuang1 = zixings;
 		}
-		zixings = LRConst.ZiXing[cuang1];
-		if(zixings === cuang1){
-			cuang2 = LRConst.ZiCong[cuang1];
-		}else{
-			cuang2 = zixings;
-		}
+		cuang2 = this.getFuYinLastCuang(cuang0, cuang1);
 		let res = {};
 		res.cuang = [cuang0, cuang1, cuang2];
 		res.name = selfXing ? '杜传课' : '自信课';

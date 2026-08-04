@@ -86,7 +86,7 @@ describe('idleWarmQueue', ()=>{
 	});
 });
 
-// PERF-R8 P2:排盘后组式数据预热 —— 注册即执行/新组作废旧组/细闸即时生效/交互让路复用。
+// R4-B1:排盘后组式数据预热 —— 注册即执行/新组作废旧组/细闸即时生效/交互让路复用。
 describe('scheduleDataWarmGroup', ()=>{
 	beforeEach(()=>{
 		window.localStorage.removeItem('horosa.perf.dataWarmTasks');
@@ -136,6 +136,7 @@ describe('scheduleDataWarmGroup', ()=>{
 		await flushAll();
 		expect(ran).toEqual([]);
 		expect(__idleWarmStats().dataPumpRunning).toBe(false);
+		window.localStorage.removeItem('horosa.perf.dataWarmTasks');
 	});
 
 	it('总闸 horosa.perf.idleWarmQueue=0 连组式预热一起关', async ()=>{
@@ -146,6 +147,7 @@ describe('scheduleDataWarmGroup', ()=>{
 		]);
 		await flushAll();
 		expect(ran).toEqual([]);
+		window.localStorage.removeItem('horosa.perf.idleWarmQueue');
 	});
 
 	it('任务失败静默,组内后续任务继续', async ()=>{

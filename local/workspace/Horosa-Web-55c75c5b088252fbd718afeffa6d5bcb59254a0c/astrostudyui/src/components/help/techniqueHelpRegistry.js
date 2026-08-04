@@ -27,6 +27,7 @@ import XuanshiHelpDoc from './XuanshiHelpDoc';
 import AIAnalysisHelpDoc from './AIAnalysisHelpDoc';
 import YizhangjingHelpDoc from './YizhangjingHelpDoc';
 import AstrodataHelpDoc from './AstrodataHelpDoc';
+import ZeriHelpDoc from './ZeriHelpDoc';
 
 export const TECHNIQUE_HELP_DOCS = {
 	astrochart: AstroHelpDoc,
@@ -56,6 +57,7 @@ export const TECHNIQUE_HELP_DOCS = {
 	aianalysis: AIAnalysisHelpDoc,
 	mingother: YizhangjingHelpDoc,
 	astrodata: AstrodataHelpDoc,
+	zeri: ZeriHelpDoc,
 };
 
 // 子技法手册:这些 key 不是主 tab,而是挂在别的主 tab 下的子页签。只按主 tab 取的话,

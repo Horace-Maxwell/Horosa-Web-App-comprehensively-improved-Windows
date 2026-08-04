@@ -1,5 +1,5 @@
 diff --git a/start_horosa_local.sh b/start_horosa_local.sh
-index 56163bb..cc0b141 100644
+index 07ab1e53..8b8a1a4f 100644
 --- a/start_horosa_local.sh
 +++ b/start_horosa_local.sh
 @@ -752,11 +752,13 @@ _rc_backend=0; wait "${_rc_backend_pid}" || _rc_backend=$?
@@ -58,7 +58,7 @@ index 56163bb..cc0b141 100644
    pypid="$(cat "${PY_PID_FILE}" 2>/dev/null || true)"
    japid="$(cat "${JAVA_PID_FILE}" 2>/dev/null || true)"
    pyc=""
-@@ -1155,6 +1165,7 @@ if [ "${ready}" -ne 1 ]; then
+@@ -1181,6 +1191,7 @@ if [ "${ready}" -ne 1 ]; then
    bind_err_re='Address already in use|Errno 48|BindException|Port [0-9]+ was already in use'
    if { tail -n 160 "${PY_LOG}" 2>/dev/null || true; tail -n 160 "${JAVA_LOG}" 2>/dev/null || true; } | grep -Eq "${bind_err_re}"; then
      diag_log "===== run end (failed: port bind conflict, exit 3 retryable) ====="
@@ -66,7 +66,7 @@ index 56163bb..cc0b141 100644
      exit 3
    fi
    diag_log "===== run end (failed) ====="
-@@ -1252,3 +1263,14 @@ echo "html:     ${HTML_PATH}"
+@@ -1279,3 +1290,14 @@ echo "html:     ${HTML_PATH}"
  echo "logs:     ${LOG_DIR}"
  echo ""
  echo "stop:     ${ROOT}/stop_horosa_local.sh"

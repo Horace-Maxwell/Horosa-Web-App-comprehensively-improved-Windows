@@ -11,7 +11,7 @@
 // 绝不可用于:login/注册/保存/AI predict(计费)/SSE 流/文件上传——那些非幂等,重试会双提交/双计费。
 
 import { markServiceOnline, isBackendUnreachableError } from './serviceStatus';
-// horosa_prefetch_runtime_whitelist_v1(PERF-R9 Ship 7):kentang 全族走的是本裸 fetch 路径
+// horosa_prefetch_runtime_whitelist_v1(R4-B1):kentang 全族走的是本裸 fetch 路径
 // (不经 utils/request),没有这一闸整族就在任何白名单之外。非预取作用域恒放行,零行为变化。
 import { guardPrefetchUrl } from './stepPrefetch';
 

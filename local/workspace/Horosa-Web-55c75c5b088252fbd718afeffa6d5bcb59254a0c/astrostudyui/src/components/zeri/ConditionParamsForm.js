@@ -7,8 +7,10 @@ const Option = XQSelect.Option;
 
 // 元数据驱动的条件参数表单。整齐网格排版:两列字段对(label 定宽右对齐+控件满格),
 // 多选/时间等长控件独占整行——参差 flex-wrap 已废(用户圈报)。
-export default function ConditionParamsForm({ type, params, onChange }){
-	const spec = CONDITION_TYPES[type];
+// [奇门择日] 加性 prop `types`:传入其它条件注册表(如 QIMEN_CONDITION_TYPES)即复用本表单;
+// 缺省仍走天星 CONDITION_TYPES,既有调用零变化。
+export default function ConditionParamsForm({ type, params, onChange, types }){
+	const spec = (types || CONDITION_TYPES)[type];
 	if(!spec){
 		return null;
 	}

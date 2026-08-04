@@ -94,6 +94,7 @@ const ENGINE_MARKS = [
 // 这种编译后仍稳定的形态。中文在产物里会被转成 \uXXXX,故一律用 ASCII 标记。
 const PAGE_MARKS = [/LazyBoundary/, /lazyPreloadable/];
 let FIRST_PAINT_BATCH = '';
+let ROOT_ROUTE_STEMS = null;   // R4-P1d:④ 解析出的首屏批次 stem 表,供 ⑤ preload 对拍复用
 for (const f of fs.readdirSync(DIST).filter((x) => x.endsWith('.async.js'))) {
 	const src = fs.readFileSync(path.join(DIST, f), 'utf8');
 	const hitEngine = ENGINE_MARKS.find((m) => m.re.test(src));
@@ -150,6 +151,71 @@ for (const f of fs.readdirSync(DIST).filter((x) => x.endsWith('.async.js'))) {
 				}
 			}
 			if (!bad) { FIRST_PAINT_BATCH = ids.map((i) => names.get(i) || i).join(', '); }
+			ROOT_ROUTE_STEMS = ids.map((i) => names.get(i) || i);
+		}
+	}
+}
+
+// ⑤ preload 清单 ↔ 首屏批次自动对拍(R4-P1d)。
+//    病根:inject-preload 的 CRITICAL_PREFIXES 是手抄清单,首屏批次却由 splitChunks 实际
+//    产出决定 —— 两者曾漂移(shared-technique 2.6MB 在批次里却不在 preload 里,最大件
+//    照旧等 umi.js 执行后才被发现)。本段复用 ④ 解析的 root-route 批次做双向差:
+//      · 批次文件 ∉ preload → 漏注(串行瀑布回潮)红;
+//      · preload 文件 ∉ 批次∪layouts家族 → 游离预取(preload 漂移成无谓下载)红。
+//    layouts__index/vendors~layouts__index 家族由 layout 包装路由载入,不在 root-route
+//    批次里但确属首屏关键路径 —— 白名单豁免。HOROSA_NO_HTML_PRELOAD=1(kill-switch,
+//    与注入器同 env)时整段跳过。
+{
+	if (process.env.HOROSA_NO_HTML_PRELOAD === '1') {
+		console.log('· [check-chunk-dup ⑤] HOROSA_NO_HTML_PRELOAD=1,preload 对拍跳过(kill-switch)');
+	} else if (!ROOT_ROUTE_STEMS) {
+		console.error('🔴 [check-chunk-dup ⑤] 首屏批次不可得(④ 解析失败)—— preload 对拍无法执行(拒绝虚绿)');
+		bad = 1;
+	} else {
+		const htmlPath = path.join(DIST, 'index.html');
+		if (!fs.existsSync(htmlPath)) {
+			console.error('🔴 [check-chunk-dup ⑤] index.html 缺失 —— preload 对拍无法执行');
+			bad = 1;
+		} else {
+			const html = fs.readFileSync(htmlPath, 'utf8');
+			const block = html.match(/<!-- horosa-preload -->([\s\S]*?)<!-- \/horosa-preload -->/);
+			const preloadFiles = new Set();
+			if (block) {
+				for (const m of block[1].matchAll(/href="[^"]*?([^"/]+\.(?:async\.js|chunk\.css))"/g)) {
+					preloadFiles.add(m[1]);
+				}
+			}
+			if (!preloadFiles.size) {
+				console.error('🔴 [check-chunk-dup ⑤] preload 块缺失或为空 —— inject-preload 未跑或被剥(构建链顺序被改?)');
+				bad = 1;
+			} else {
+				const all = fs.readdirSync(DIST);
+				const LAYOUT_FAMILY = /^(layouts__index|vendors~layouts__index)\./;
+				// 批次每个 stem 的 js(+存在的 css)都必须在 preload 里
+				const required = [];
+				for (const stem of ROOT_ROUTE_STEMS) {
+					const js = all.find((x) => x.startsWith(stem + '.') && x.endsWith('.async.js'));
+					const css = all.find((x) => x.startsWith(stem + '.') && x.endsWith('.chunk.css'));
+					if (js) { required.push(js); }
+					if (css) { required.push(css); }
+				}
+				for (const f of required) {
+					if (!preloadFiles.has(f)) {
+						console.error(`🔴 [check-chunk-dup ⑤] 首屏批次文件「${f}」不在 preload 清单 —— 串行瀑布回潮;把其 stem 加进 inject-preload.js 的 CRITICAL_PREFIXES`);
+						bad = 1;
+					}
+				}
+				for (const f of preloadFiles) {
+					const stem = f.replace(/\.[0-9a-f]+\.(async\.js|chunk\.css)$/, '');
+					if (!ROOT_ROUTE_STEMS.includes(stem) && !LAYOUT_FAMILY.test(f)) {
+						console.error(`🔴 [check-chunk-dup ⑤] preload 清单里的「${f}」既不在首屏批次也非 layouts 家族 —— 游离预取(每个用户白下载);从 CRITICAL_PREFIXES 移除或核对分包形态`);
+						bad = 1;
+					}
+				}
+				if (!bad) {
+					console.log(`· [check-chunk-dup ⑤] preload↔首屏批次对拍恒等(${preloadFiles.size} 件,批次 ${ROOT_ROUTE_STEMS.length} stem+layouts 家族)`);
+				}
+			}
 		}
 	}
 }

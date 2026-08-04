@@ -8,7 +8,7 @@ import { getErrMsg } from '../msg/errmsg';
 import { markServiceOnline, markServiceOffline, isBackendUnreachableError } from './serviceStatus';
 import { renegotiateLocalServerRoot } from './backendIdentity';
 import { waitForBackendBoot } from './backendBootGate';
-// horosa_prefetch_runtime_whitelist_v1(PERF-R9 Ship 7):预取作用域内的 URL 闸(纵深防御)。
+// horosa_prefetch_runtime_whitelist_v1(R4-B1):预取作用域内的 URL 闸(纵深防御)。
 // 非预取作用域恒放行 —— 用户真实请求逐字节零行为变化。
 import { guardPrefetchUrl } from './stepPrefetch';
 
@@ -653,6 +653,12 @@ async function requestCore(url, options) {
             return data;
         }    
     }catch(e){
+		// [R4-B5b] abort 短路(必须在 healAndRetryOnce 之前):主链新请求已 abort 旧请求——
+		// 旧信道的失败既不触发身份再协商/地址自愈,也不 surface(离线横幅/错误弹窗),
+		// 原样上抛由调用方按 AbortError 静默忽略。
+		if(options && options.signal && options.signal.aborted){
+			throw e;
+		}
 		// 服务地址自愈:根换成已验证的新地址后安全重放一次(详见 healAndRetryOnce 注释)。
 		const healed = await healAndRetryOnce(url, options, e, requestCore);
 		if(healed){
@@ -760,6 +766,10 @@ export async function requestRaw(url, options) {
         }
 
     }catch(e){
+		// [R4-B5b] abort 短路(与 requestCore 同构,在自愈之前)。
+		if(options && options.signal && options.signal.aborted){
+			throw e;
+		}
 		// 服务地址自愈:与 request 同构(根换了才安全重放一次)。
 		const healed = await healAndRetryOnce(url, options, e, requestRaw);
 		if(healed){
