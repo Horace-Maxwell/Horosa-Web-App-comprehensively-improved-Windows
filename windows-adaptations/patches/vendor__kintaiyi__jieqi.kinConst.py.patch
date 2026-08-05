@@ -1,5 +1,5 @@
 diff --git a/vendor/kintaiyi/src/kintaiyi/jieqi.py b/vendor/kintaiyi/src/kintaiyi/jieqi.py
-index b168280..5569523 100644
+index 9efa3deb..358d5230 100644
 --- a/vendor/kintaiyi/src/kintaiyi/jieqi.py
 +++ b/vendor/kintaiyi/src/kintaiyi/jieqi.py
 @@ -21,8 +21,22 @@ tian_gan = '甲乙丙丁戊己庚辛壬癸'

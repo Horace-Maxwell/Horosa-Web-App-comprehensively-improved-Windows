@@ -295,20 +295,20 @@ public class ZiWeiChart {
 	}
 	
 	private void setupTianCouCai() {
-		int idx = StemBranch.BranchIndex.get(this.yearZi);
-		if(idx > 0) {
-			idx = 11 - idx;
+		// 天才=命宫起子顺数至生年支;天寿=身宫起子顺数至生年支。
+		// 🔴 旧实现走 Houses[11 - yearZiIdx] 宫名反查而恒偏一位:宫名第 k 位坐落在
+		//    lifeIdx-k 支位,顺行 n 宫要的是 k=(12-n)%12 而非 11-n(仅子年因 idx>0 保护而正确)。
+		//    实算:命宫子/年支巳 → 应落巳,旧法落午。前端 ZiweiCalc.js 原为逐字同构的同源
+		//    实现,已双端同改;今与紧邻的天寿统一为直接支位算术。
+		int yearziIdx0 = StemBranch.BranchIndex.get(this.yearZi);
+		int caiIdx = (this.lifeHouseIndex + yearziIdx0 + 24) % 12;
+		{
+			String housezi = this.houses[caiIdx].ganzi.substring(1);
+			ZiWeiStar star = new ZiWeiStar("天才", this.yearGan, housezi, this.mySihua, this.mySihuaGan);
+			this.houses[caiIdx].addStar(star, ZiWeiStarType.StarOtherGood.getCode());
+			this.starsHouseIndex.put("天才", caiIdx);
 		}
-		String housename = ZiWeiHelper.Houses[idx];
-		for(int i=0; i<12; i++) {
-			if(this.houses[i].name.equals(housename)) {
-				String housezi = this.houses[i].ganzi.substring(1);
-				ZiWeiStar star = new ZiWeiStar("天才", this.yearGan, housezi, this.mySihua, this.mySihuaGan);
-				this.houses[i].addStar(star, ZiWeiStarType.StarOtherGood.getCode());
-				this.starsHouseIndex.put("天才", i);
-				break;
-			}
-		}
+		int idx;
 		
 		idx = this.bodyHouseIndex;
 		int yearziIdx = StemBranch.BranchIndex.get(this.yearZi);

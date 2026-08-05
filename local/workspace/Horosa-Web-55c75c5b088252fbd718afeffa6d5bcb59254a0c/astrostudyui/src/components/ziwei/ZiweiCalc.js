@@ -137,23 +137,32 @@ export function assembleNatalChart(ctx){
 		}
 	});
 
-	// (5) 天才(命宫起年支顺?) / 天寿(身宫起年支)  —— 对齐 Java setupTianCouCai
+	// (5) 天才(命宫起子顺数至生年支) / 天寿(身宫起子顺数至生年支) —— 与 Java setupTianCouCai 双端同改
+	// 🔴 旧实现走 HOUSE_NAMES[11 - yearZiIdx] 宫名反查而恒偏一位:本文件宫名赋值是
+	//    idx = (lifeIdx - i) mod 12(见上「houses[i].name = HOUSE_NAMES[idx]」一段),
+	//    故 HOUSE_NAMES[k] 坐落在支位 lifeIdx-k;顺行 n 宫要的是 k=(12-n)%12 而非 11-n。
+	//    实算:命宫子/年支巳 → 应落巳,旧法落午(恒 +1 宫);仅子年因 if(idx>0) 保护而正确。
+	//    Java ZiWeiChart.setupTianCouCai 原为逐字同构的同源实现,已同步改正(改后须重编 jar)。
+	//    今与紧邻的天寿统一为直接支位算术——两行做同一件事却写法不同,本身就是 bug 指纹。
 	{
-		let idx = yearZiIdx; if(idx > 0){ idx = 11 - idx; }
-		const hn = HOUSE_NAMES[idx];
-		for(let i = 0; i < 12; i++){ if(houses[i].name === hn){ placeRec(i, '天才', 3); break; } }
+		placeRec((lifeIdx + yearZiIdx) % 12, '天才', 3);
 		placeRec((bodyIdx + yearZiIdx) % 12, '天寿', 3);
 	}
 
 	// (6) 年支系
+	// 「年马」与「年支起天马」逐支同位、本是同一颗星:tianmaBasis='year' 时只出天马,
+	// 否则同盘会出现两颗马星(且旧月马口径下位置常不同,用户一眼判「盘不对」)。
+	// 默认 month 档不受影响(此分支不触发),故既有盘与前后端字节零回归。
+	const tianmaBasisEarly = ctx.tianmaBasis || 'month';
 	Object.keys(STARS_YEAR_ZI).forEach((name)=>{
+		if(name === '年马' && tianmaBasisEarly === 'year'){ return; }
 		const def = STARS_YEAR_ZI[name];
 		const zv = def.pos[yearZi];
 		if(zv){ placeRec(zi(zv), name, def.type); }
 	});
 
 	// (7) 生月系（左辅右弼/天马/天刑天姚/解神天巫天月/阴煞）。天马依据可切：默认现状(月马)/年支(三合马)。
-	const tianmaBasis = ctx.tianmaBasis || 'month';
+	const tianmaBasis = tianmaBasisEarly;   // 与 (6) 同源,防两处各读 ctx 而分叉
 	const monthCn = monthCnOf(monthInt);
 	Object.keys(STARS_MONTH).forEach((name)=>{
 		if(name === '天马' && tianmaBasis === 'year'){ return; }   // 年支起马：跳过月马，下面另置

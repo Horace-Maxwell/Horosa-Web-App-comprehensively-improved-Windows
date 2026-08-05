@@ -7,7 +7,12 @@ from __future__ import annotations
 
 # ── §6.1 二十八宿(顺序固定,循环四遍取度主)──────────────────────────
 SU28 = list("角亢氐房心尾箕斗牛女虚危室壁奎娄胃昴毕觜参井鬼柳星张翼轸")
-# 各宿距度(黄道值,合 360)
+# 各宿距度(黄道值,合 360)。
+# ⚠ 这【不是】排盘所用的宿界:实际排盘按 doubingSu28 档位走 perchart.py 的
+#   MOIRA_CURRENT/KAIXI_STELLAR_DEGREES 等(默认 mode 4 恒星制),逐宿宽度与本表最大差 6.6°
+#   (奎 11 vs 17.6、轸 13 vs 17.1、星 9 vs 5.9)——两者分属不同历元与分度制,各自自洽。
+#   凡要呈现给用户的宿界/入宿度,一律取盘面实测 chart.fixedStarSu28,勿拿本表冒充。
+#   本表与 su28_cumulative() 目前无任何调用方(2026-08-04 全仓复核),仅作古法立成的资料底座留存。
 SU28_DISTANCE = [11, 10, 18, 5, 8, 15, 9, 24, 8, 12, 10, 20, 15, 14,
                  11, 13, 13, 9, 15, 1, 10, 31, 4, 17, 9, 18, 17, 13]
 # 宿度主(木金土日月火水 循环四遍)
@@ -109,7 +114,11 @@ def dignity_of(star: str, branch: str) -> str:
 
 
 def su28_cumulative(jiao_start: float):
-    """二十八宿累积起点(角基,未取模),供 LOOKUP 落宿。返回 [起点…] 长 28。"""
+    """二十八宿累积起点(角基,未取模),供 LOOKUP 落宿。返回 [起点…] 长 28。
+
+    ⚠ 现无调用方。落宿一律走盘面实测 chart.fixedStarSu28(随 doubingSu28 档位变),
+      本函数据 SU28_DISTANCE 推得的宿界属另一套分度制,勿用于呈现或判定(见该表注)。
+    """
     out = []
     acc = jiao_start
     for d in SU28_DISTANCE:

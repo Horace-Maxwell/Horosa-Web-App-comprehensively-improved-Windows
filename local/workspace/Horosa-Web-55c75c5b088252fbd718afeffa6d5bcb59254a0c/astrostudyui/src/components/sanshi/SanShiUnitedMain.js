@@ -759,7 +759,12 @@ function getOuterChartKey(chartWrap){
 	if(!chart){
 		return '';
 	}
-	const chartId = safe(chartWrap.chartId || chart.chartId || chart.id, '');
+	// 🔴 **绝不纳入 chartId**:它是 model 里 `Result.chartId = randomStr(8)` 每次取盘现生成的随机值,
+	// 拿它当「盘内容是否变化」的判据两头不讨好——同一时刻重复回流也判「变了」(每次都全量重算,
+	// 含 /qimen/pan 与 /taiyi/pan,性能白掉),而真正该判变的维度反而没被表征。
+	// 内容判据用下面几项就够且稳:ASC/SUN 的 sign|signlon|lon(逐分钟即变,四分钟步进必变)
+	// + 日干支 + 时辰 + 天体数。配合 componentDidUpdate 里去掉 awaitingChartSync 闸门,才形成
+	// 「chartObj 一变就校正、没实质变就 no-op」的闭环(horosa_sanshi_outer_follow_time_v1)。
 	const objs = chart.objects || [];
 	let ascKey = '';
 	let sunKey = '';
@@ -779,7 +784,6 @@ function getOuterChartKey(chartWrap){
 		}
 	}
 	return [
-		chartId,
 		ascKey,
 		sunKey,
 		safe(chart.nongli && chart.nongli.dayGanZi),
@@ -1566,7 +1570,17 @@ function getOuterLabelLayout(branch, houseFont){
 	const shiftStep = Math.max(6, Math.round(houseFont * 0.34));
 	const shiftRows = Math.round(shiftStep * 2.4);
 	const shiftCols = Math.round(shiftStep * 2.4);
+	// [角宫地支对角对称](horosa_sanshi_corner_label_mirror_v1)**只移地支、宫位数字原地不动**
+	// (用户两点定版:「辰申往下、寅戌往上,做成隔壁字沿对角线镜像翻转的位置」+「宫位数字的
+	// 位置别变,否则仍会挤在一起」)。辰/申/戌/寅 四个纵向角标原各比其横向邻居(巳/未/亥/丑)
+	// 多减一格 oneGridShift ⇒ 过分贴角、与邻居不成镜像;现只把 **branch** 那一格去掉,
+	// house 保留 —— 数字位置逐像素不变,地支沿边下移/上移,两者间距因此拉开(不再挤)。
 	const oneGridShift = shiftStep;
+	// 原注(保留以明来历)：辰/申/戌/寅 四个**纵向**角标
+	// 原各比其横向邻居(巳/未/亥/丑)多减一格 oneGridShift ⇒ 四者过分贴角、与邻居不成镜像
+	// (用户实圈:「辰申往下、寅戌往上,做成隔壁字沿对角线镜像翻转的位置」)。去掉那一格后,
+	// 纵向标签距角的距离与横向邻居一致 —— 主对角线两侧自然对称。house 与 branch 同去,
+	// 两者相对间距(rowGap)逐字不变,只是整体沿边平移。
 	const oneAndHalfGridShift = shiftStep * 1.5;
 	const twoGridShift = shiftStep * 2;
 	const fourGridShift = shiftStep * 4;
@@ -1594,7 +1608,7 @@ function getOuterLabelLayout(branch, houseFont){
 	case '辰': // 左偏上梯形：落入左上角三角，数字左上，地支在其下
 		return {
 			house: { left: px, top: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
-			branch: { left: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { left: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px)` },
 		};
 	case '未': // 上偏右梯形：落入右上角三角，数字右上，地支在其左
 		return {
@@ -1604,12 +1618,12 @@ function getOuterLabelLayout(branch, houseFont){
 	case '申': // 右偏上梯形：落入右上角三角，数字右上，地支在其下
 		return {
 			house: { right: px, top: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
-			branch: { right: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { right: px, top: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px)` },
 		};
 	case '戌': // 右偏下梯形：落入右下角三角，数字右下，地支在其上
 		return {
 			house: { right: px, bottom: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
-			branch: { right: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { right: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px)` },
 		};
 	case '亥': // 下偏右梯形：落入右下角三角，数字右下，地支在其左
 		return {
@@ -1624,7 +1638,7 @@ function getOuterLabelLayout(branch, houseFont){
 	case '寅': // 左偏下梯形：落入左下角三角，数字左下，地支在其上
 		return {
 			house: { left: px, bottom: `calc(${cornerOffset} + ${shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
-			branch: { left: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px - ${oneGridShift}px)` },
+			branch: { left: px, bottom: `calc(${cornerOffset} + ${rowGap + shiftRows}px - ${fourGridShift}px)` },
 		};
 	default:
 		return { house: topLeft, branch: topRight };
@@ -2463,7 +2477,10 @@ class SanShiBoardLayer extends Component{
 				const ux = dx / len;
 				const uy = dy / len;
 				// 角三角：地支远离中心，神将靠近中心；使用径向分离保证可读。
-				const outerShift = 3.1;
+				// outerShift 由 3.1 调小到 2.0(仅此一处改动):重心到两条直角边各约 3.7%,
+				// 原值外推后只剩 0.6%≈4.7px,而角位字半宽约 10.5px ⇒ 字压出外框(用户实圈)。
+				// 调小后余量 1.7%≈13.2px,字不再压框;与神将的分离仍有 4.5%≈35px(字宽 21px)，不叠字。
+				const outerShift = 2.0;
 				const innerShift = 2.5;
 				const ziLeft = `${leftNum + (ux * outerShift)}%`;
 				const ziTop = `${topNum + (uy * outerShift)}%`;
@@ -3259,7 +3276,17 @@ class SanShiUnitedMain extends Component{
 	componentDidUpdate(prevProps){
 		this.restoreOptionsFromCurrentCase();
 		const chartChanged = (prevProps.chartObj !== this.props.chartObj) || (prevProps.chart !== this.props.chart);
-		if(this.awaitingChartSync && this.state.hasPlotted && chartChanged){
+		// 🔴 [外圈随时间校正](horosa_sanshi_outer_follow_time_v1)此处**不得**再加 awaitingChartSync 前置条件。
+		// 病史(用户实测三次仍报「改时间盘不动」):awaitingChartSync 只在 clickPlot 的 needChartSync
+		// 分支置起,而实时传导路径下它恒为 false —— onTimeChanged 先 syncFields 把新时间写进
+		// state.fields,待 clickPlot 在 setState 回调里跑时 props.fields 已是新值,maybePatchDateTime
+		// 比出「相等」⇒ patchFields 空 ⇒ needChartSync=false ⇒ 闸门没置起 ⇒ /chart 回流时这条
+		// 校正路径整个被跳过。表现:中栏表头(走三式自己的 /nongli/time)跟着变、奇门与太乙盘也重取,
+		// 唯独**外圈星度(顶/升/金/日/月,唯一数据源是 props.chartObj)冻在起盘那一刻**;同一时辰内
+		// 奇门局与太乙局本就不变,于是整盘看上去「完全没动」。四分钟一档最明显(MC 每 4 分钟约走 1°)。
+		// 安全性:refreshAll → performRecalcByNongli 内有 recalcSignature 去重,chartObj 实质没变
+		// (同一时刻重复回流)即瞬时 no-op —— 前提是 outerChartKey 不含随机 chartId(见 getOuterChartKey)。
+		if(this.state.hasPlotted && chartChanged){
 			if(this.awaitingSyncTimer){
 				clearTimeout(this.awaitingSyncTimer);
 				this.awaitingSyncTimer = null;
@@ -3672,7 +3699,14 @@ class SanShiUnitedMain extends Component{
 			zone: { value: zoneValue },
 		};
 		this.pendingTimeFields = localFields;
-		if(confirmed){
+		// [时间即时传导](horosa_live_time_propagation_v1)用户定版语义:
+		//   · **尚未起盘**:改时间只更新草稿,中栏保持「点击起盘」态 —— 首盘必须显式点「确定」/「起盘」;
+		//   · **已经起盘**:改时间即刻按新时间重算中栏与右栏(方便连续进退),无需再点确定。
+		// 旧行为只认 confirmed(点「确定」/内联步进才带 true;Popover 里改年月日时分秒带 false)
+		// ⇒ 用户实告「时间改了盘不动,只有直接时间那栏变」。confirmed 与否不再决定「算不算」,
+		// 只决定「是不是一次显式提交」——已起盘态下两者走同一条重算链,语义因此统一。
+		const liveReplot = !confirmed && !!this.state.hasPlotted;
+		if(confirmed || liveReplot){
 			this.setState({ localFields }, ()=>{
 				// 与“起盘”按钮保持一致：点击“确定”后直接按最新时间起盘。
 				this.clickPlot();

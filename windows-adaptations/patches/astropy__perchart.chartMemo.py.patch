@@ -1,8 +1,8 @@
 diff --git a/astropy/astrostudy/perchart.py b/astropy/astrostudy/perchart.py
-index ba236d5..3a59c95 100644
+index 309d0f4d..a4ffc1c2 100644
 --- a/astropy/astrostudy/perchart.py
 +++ b/astropy/astrostudy/perchart.py
-@@ -1162,6 +1162,44 @@ class PerChart:
+@@ -1174,6 +1174,44 @@ class PerChart:
          if abs(ae - arcus) <= 5.0:
              planet.phasisEvent = self._phasis_event(obj)
  
@@ -47,7 +47,7 @@ index ba236d5..3a59c95 100644
      def _phasis_event(self, obj):
          """birth 临近(≤7 天)该星偕日升→morningRising(晨星初现);偕日没→eveningSetting(昏星初没)。任何异常返 None。"""
          try:
-@@ -1170,6 +1208,10 @@ class PerChart:
+@@ -1182,6 +1220,10 @@ class PerChart:
              observer = [36.0, 1.0, 0.0, 0.0, 0.0, 0.0]
              birth_jd = self.dateTime.jd
              flag = swisseph.FLG_SWIEPH | swisseph.HELFLAG_HIGH_PRECISION

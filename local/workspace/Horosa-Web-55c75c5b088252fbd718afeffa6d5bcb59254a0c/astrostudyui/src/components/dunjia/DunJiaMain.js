@@ -8,7 +8,7 @@ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 // [Windows-only] horosa_panel_ready_v1(P5):遁甲「画完」观测钉(验收配对靠它)。
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
-import { Spin, Tag, message, Popover, Modal } from 'antd';
+import { Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -1242,7 +1242,16 @@ class DunJiaMain extends Component {
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
 		};
-		this.setState({ localFields });
+		// [时间即时传导](horosa_live_time_propagation_v1)用户定版语义,与三式合一/择日同款:
+		//   · **尚未起盘**:改时间只更新草稿,中栏保持「点击左侧起盘后显示遁甲盘」——首盘必须显式起局;
+		//   · **已经起盘**:改时间即刻按新时间重算中栏与右栏(方便连续进退),无需再点起局。
+		// 旧行为只落 localFields + 预取,盘面纹丝不动(用户实告)。此处只在已起盘态补一次真重算,
+		// 未起盘态行为逐字不变(草稿+预取照旧,首盘仍必须显式点起局)。
+		this.setState({ localFields }, ()=>{
+			if(this.state.hasPlotted){
+				this.requestNongli(localFields, true);
+			}
+		});
 		if(this.prefetchSeedTimer){
 			clearTimeout(this.prefetchSeedTimer);
 		}
@@ -3170,12 +3179,19 @@ class DunJiaMain extends Component {
 		return (
 			<div className="horosa-dunjia-page horosa-astro-redesign horosa-dunjia-redesign" style={{ height: pageHeight, minHeight: 0, overflow: 'hidden' }}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-dunjia-redesign-layout">
-					<Spin spinning={this.state.loading}>
-						<div className="horosa-astro-redesign-grid horosa-dunjia-redesign-grid">
+					{/* [连续调整不打断] 原 <Spin spinning={loading}> 满屏压暗遮罩已撤(用户实告「加载这一大片
+					    白色全屏遮挡也该去掉,只留中间盘右上角的加载中」):重算期旧盘 keep-stale 保留可见,
+					    仅中栏右上角一枚非阻塞小转圈(与三式合一同款,复用全站 workspace-updating 观感,
+					    dunjia-updating 变体只改定位为中栏内 absolute)。奇门择日内嵌的正是本组件,
+					    故择日页同步生效。 */}
+					<div className="horosa-astro-redesign-grid horosa-dunjia-redesign-grid">
 							<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-dunjia-input-panel">
 								{this.renderInputPanel()}
 							</div>
 							<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-dunjia-chart-panel xq-chart-renderer xq-chart-renderer-qimen">
+								{this.state.loading ? (
+									<div className="horosa-workspace-updating horosa-dunjia-updating">重算中…</div>
+								) : null}
 								<div ref={this.captureLeftBoardHost} className="horosa-dunjia-board-host">
 									{this.renderBoard()}
 								</div>
@@ -3189,8 +3205,7 @@ class DunJiaMain extends Component {
 								</div>
 								{this.renderRight()}
 							</div>
-						</div>
-					</Spin>
+					</div>
 					{this.renderQuickDock()}
 				</div>
 			</div>

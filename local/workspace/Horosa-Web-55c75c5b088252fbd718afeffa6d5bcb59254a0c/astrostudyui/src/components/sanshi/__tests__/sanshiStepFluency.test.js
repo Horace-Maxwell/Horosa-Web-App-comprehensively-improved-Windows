@@ -28,8 +28,15 @@ describe('sanshiStepFluency(连续进退四资产)', () => {
 	it('② 不等 /chart 回流:1200ms 兜底已撤,立即 refreshAll;didUpdate 校正链保留', () => {
 		expect(SRC).toContain('horosa_sanshi_no_wait_chart_v1');
 		expect(SRC).not.toMatch(/awaitingSyncTimer = setTimeout\([\s\S]{0,200}?\}, 1200\)/);
-		// didUpdate 回流校正(签名去重兜底)仍在
-		expect(SRC).toMatch(/this\.awaitingChartSync && this\.state\.hasPlotted && chartChanged/);
+		// didUpdate 回流校正仍在。
+		// 🔴 本断言原写作 `awaitingChartSync && hasPlotted && chartChanged` —— 那个形态后被证明
+		// **锁死了一个 bug**:实时传导路径下 awaitingChartSync 恒为 false(onTimeChanged 先
+		// syncFields 写入 state.fields ⇒ clickPlot 里 patchFields 比出「相等」⇒ needChartSync=false
+		// ⇒ 闸门根本没置起),于是 /chart 回流时校正整个被跳过,外圈星度冻在起盘那一刻
+		// (用户实测三轮才定位)。故断言更新为去掉该前置条件后的正确形态,并加反向锚防回潮。
+		// 详见 outerRingFollowsTime.test.js 与 preflight[196]。
+		expect(SRC).toMatch(/if\(this\.state\.hasPlotted && chartChanged\)\{/);
+		expect(SRC).not.toMatch(/this\.awaitingChartSync && this\.state\.hasPlotted && chartChanged/);
 	});
 
 	it('③ 快照构建 idle 化:requestIdleCallback+timeout 兜底+双通道 cancel', () => {

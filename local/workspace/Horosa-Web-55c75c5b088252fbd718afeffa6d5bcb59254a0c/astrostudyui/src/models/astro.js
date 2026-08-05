@@ -1439,17 +1439,6 @@ export default {
 			let requestOptions = values && values.__requestOptions && typeof values.__requestOptions === 'object'
 				? values.__requestOptions
 				: { silent: true };
-			// [R4-B5b] /chart 主链 AbortController:新发先 abort 旧在途(网络层取消——释放连接与
-			// 后端算力;结果层正确性本就由 fieldsEpoch 代际保证,两层互补)。带 signal 的请求在
-			// services 层不入 chartInflight 共享(A abort 不连坐 B);abort 失败路径在 request 层
-			// 短路(不自愈/不弹错)。浅拷贝挂载,绝不变异调用方传入的 __requestOptions 对象。
-			if(mainChainAbortEnabled() && typeof AbortController !== 'undefined' && !requestOptions.signal){
-				if(chartMainAbortCtl){
-					try{ chartMainAbortCtl.abort(); }catch(e){ /* 已 settled 无害 */ }
-				}
-				chartMainAbortCtl = new AbortController();
-				requestOptions = { ...requestOptions, signal: chartMainAbortCtl.signal };
-			}
 			const fieldValues = {
 				...(values || {}),
 			};
@@ -1477,7 +1466,32 @@ export default {
 			// 非 chartFree 页维持「到齐才 save{fields+chartObj}」的原子性(逐字节旧序),但先把
 			// 本页的请求集并行预热(prewarm,silent,经 requestDedupe 在途共享)→ latency=max 而非 sum。
 			const fastCommitOn = fieldsFastCommitEnabled();
+			// 🔴🔴 [代际与取消必须原子](horosa_chart_epoch_abort_atomic_v1)以下两件事之间**绝不允许有
+			// yield**,否则两个并发 effect 会互相残杀、一个响应都保不下来:
+			//   ① `++fieldsEpoch` —— 决定「谁的响应不被当作过期货丢弃」;
+			//   ② abort 旧 AbortController + 建新的 —— 决定「谁的请求不被网络层取消」。
+			// 病史(用户实测三轮「三式改时间盘不动」的真身,horosa_sanshi_outer_follow_time_v1 的下游):
+			// 原实现把 ② 放在函数开头、① 放在 `yield select(state.astro)` 之后。dva 的 effect 默认
+			// takeEvery=并发,一次时间步进会连发两次 fetchByFields,两者在那个 yield 处交错后,
+			// 「持有活 controller 的」与「持有最大 epoch 的」落到了**不同的 effect** 上:
+			//     A:②建 ctlA → B:②abort(ctlA)建 ctlB → B:①epoch=2 → A:①epoch=3
+			//   ⇒ A 的请求被 abort(它 epoch 最大、本该活)、B 的响应被 epoch 判过期丢弃
+			//   ⇒ **两个都没落 store**,chartObj 连 chartId 都不换,外圈星度永远停在起盘那一刻。
+			// 实测日志形如 `start epoch=2 / start epoch=3 / abort epoch=2 / abort epoch=3`——
+			// 两条 abort、零条 SAVE,即此病的指纹。合并为原子段后,「最后进来的」必然同时拿到
+			// 最大 epoch 与活着的 controller,两道机制判据统一。
 			const epoch = fastCommitOn ? ++fieldsEpoch : 0;
+			// [R4-B5b] /chart 主链 AbortController:新发先 abort 旧在途(网络层取消——释放连接与
+			// 后端算力;结果层正确性由 fieldsEpoch 代际保证,两层互补)。带 signal 的请求在
+			// services 层不入 chartInflight 共享(A abort 不连坐 B);abort 失败路径在 request 层
+			// 短路(不自愈/不弹错)。浅拷贝挂载,绝不变异调用方传入的 __requestOptions 对象。
+			if(mainChainAbortEnabled() && typeof AbortController !== 'undefined' && !requestOptions.signal){
+				if(chartMainAbortCtl){
+					try{ chartMainAbortCtl.abort(); }catch(e){ /* 已 settled 无害 */ }
+				}
+				chartMainAbortCtl = new AbortController();
+				requestOptions = { ...requestOptions, signal: chartMainAbortCtl.signal };
+			}
 			const activeHook = astroState.predictHook && astroState.predictHook[astroState.currentTab];
 			const fastPath = fastCommitOn && !!(activeHook && activeHook.chartFree === true);
 

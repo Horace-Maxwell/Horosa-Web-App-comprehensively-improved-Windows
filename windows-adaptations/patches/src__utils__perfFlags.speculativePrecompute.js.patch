@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/perfFlags.js b/astrostudyui/src/utils/perfFlags.js
-index 3102f90a..5255d815 100644
+index 9d0e14c7..8372948e 100644
 --- a/astrostudyui/src/utils/perfFlags.js
 +++ b/astrostudyui/src/utils/perfFlags.js
-@@ -273,3 +273,64 @@ export function stepSelectPrefetchEnabled(){
+@@ -297,3 +297,64 @@ export function stepSelectPrefetchEnabled(){
  	return flagEnabled('horosa.perf.stepSelectPrefetch');
  }
  

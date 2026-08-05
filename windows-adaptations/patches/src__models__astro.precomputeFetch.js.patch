@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index bd5f2687..f5c1cdc5 100644
+index 2360394f..fa57b5cb 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
 @@ -7,11 +7,15 @@ import {randomStr,} from '../utils/helper';
@@ -195,7 +195,7 @@ index bd5f2687..f5c1cdc5 100644
  
  			if(values.nohook){
  				return;
-@@ -1468,11 +1541,13 @@ export default {
+@@ -1482,11 +1555,13 @@ export default {
  					type: 'save',
  					payload: { chartObj: Result },
  				});
@@ -211,7 +211,7 @@ index bd5f2687..f5c1cdc5 100644
  						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
  					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
  						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
-@@ -1488,11 +1563,15 @@ export default {
+@@ -1502,11 +1577,15 @@ export default {
  
              yield put({
                  type: 'save',
@@ -228,7 +228,7 @@ index bd5f2687..f5c1cdc5 100644
  
  			if(values.nohook){
  				return;
-@@ -1510,7 +1589,7 @@ export default {
+@@ -1524,7 +1603,7 @@ export default {
  			// 同快车道分支:优化整块 try,异常静默不碰主流程。
  			try{
  				if(stepHint){

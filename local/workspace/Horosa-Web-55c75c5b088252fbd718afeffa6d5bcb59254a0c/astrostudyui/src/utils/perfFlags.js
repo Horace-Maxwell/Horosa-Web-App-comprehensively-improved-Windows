@@ -222,9 +222,33 @@ export function optionDebounceEnabled(){
 }
 
 // R4-B5b(horosa_main_chain_abort_v1):/chart 主链新发先 abort 旧在途(网络层取消;
-// 结果层正确性本就由 fieldsEpoch 代际保证,此闸释放连接与后端算力)。关=旧请求自然完成。
+// 结果层正确性由 fieldsEpoch 代际保证,此闸释放连接与后端算力)。关=旧请求自然完成。
+//
+// 🔴🔴 **默认改为关**(horosa_main_chain_abort_default_off_v1)——实测它会连「本该活下来的
+// 那一个」一起取消,造成 chartObj 永不更新的正确性事故:
+//   病象:三式合一已起盘后按时间步进(如四分钟一档),中栏表头与奇门/太乙盘都跟着走,
+//        **唯独外圈星度(顶/升/金/日/月)冻在起盘那一刻** —— 它的唯一数据源是 props.chartObj。
+//   实测差分(同一时刻 17:21):点「确定」→ chartId 换、ASC 288.5→289.51、顶3→4 升18→19 ✅;
+//        按步进 ⊕ → chartId/ASC/外圈**逐字不动** ❌。两者在组件层走同一段代码,差别只在
+//        步进会连发两次 fetchByFields(确定只发一次)。
+//   机理:两个并发 effect(dva 默认 takeEvery)在 `yield select` 处交错后,
+//        「持有活 controller 的」与「持有最大 epoch 的」可能落到不同的 effect 上 ⇒
+//        活着的那个被 epoch 判过期丢弃、epoch 最大的那个被 abort ⇒ **两个都不落 store**。
+//        实测日志指纹:`start epoch=2 / start epoch=3 / abort epoch=2 / abort epoch=3`
+//        —— 两条 abort、零条 SAVE。关掉本闸后同一操作立刻恢复正常(已实测复验)。
+//   取舍:本闸的收益只是「提前释放连接与后端算力」,而过期响应本就会被 epoch 层丢弃,
+//        正确性不依赖它;代价却是一整类「盘不跟时间走」的静默错值。**正确性优先**。
+//   要再开:localStorage['horosa.perf.mainChainAbort']='1'(需先把上述竞态真正解决,
+//        判据=连点步进时 chartId 必逐次变化)。
 export function mainChainAbortEnabled(){
-	return flagEnabled('horosa.perf.mainChainAbort');
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			return window.localStorage.getItem('horosa.perf.mainChainAbort') === '1';
+		}
+	}catch(e){
+		// localStorage 不可用时按默认关
+	}
+	return false;
 }
 
 // R4-B8(horosa_boot_chart_restore_v1):温启恢复上次工作现场(owner 拍板默认开)。

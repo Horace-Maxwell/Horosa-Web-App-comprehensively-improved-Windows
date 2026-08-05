@@ -28,8 +28,60 @@ export default class ZeriMain extends Component{
 		this.state = {
 			divId: 'div_' + randomStr(8),
 			currentTab: tab,
+			// [奇门择日空闲预挂载](horosa_zeri_idle_prerender_v1)用户实报「软件首开后首次点
+			// 奇门择日子页签要卡一会儿,其它子页签瞬间」。
+			// 实测(MutationObserver 计时,不依赖 rAF——本机 preview pane 隐藏时 rAF 不触发,
+			// 早前用 rAF 测出的 9.7s/13s 全是假象):**热态**子页签互切仅 28-79ms,故开销集中在
+			// 「首次」= 懒加载 chunk + 首次构造整棵树(本面板内嵌的是完整遁甲盘 DunJiaMain,
+			// 左栏全选项+中栏盘+右栏)。
+			// 本措施只针对后者:进页那一刻仍走「只挂当前面板」的快路径(进择日页速度逐字不变),
+			// 等主线程空闲再把该面板 forceRender 打开,让 React 在空闲片里把树建好 ⇒ 用户真点击
+			// 时已就绪。空闲期建树对其它部件零影响(idle 优先级最低,且有 timeout 兜底)。
+			// ⚠️ 生产环境(装机 APP)的收益尚未 A/B 实测——dev 的 chunk 现编译开销会盖过一切,
+			// 无法在 dev 得到可信数字;若装机后仍卡,须在 APP 内实测再定位(chunk 体积 or 后端请求)。
+			// 首屏就直达奇门择日时无需预挂载(它本就要立刻挂)。
+			prerenderQimenZeri: tab === 'qimenzeri',
 		};
 		this.changeTab = this.changeTab.bind(this);
+	}
+
+	componentDidMount(){
+		// kill-switch:localStorage['horosa.perf.zeriPrerender']='0' ⇒ 完全退回旧行为(点了才挂)。
+		try{
+			if(typeof window !== 'undefined' && window.localStorage
+				&& window.localStorage.getItem('horosa.perf.zeriPrerender') === '0'){
+				return;
+			}
+		}catch(e){ /* 隐私模式读不到 localStorage:按默认开 */ }
+		if(this.state.prerenderQimenZeri){
+			return;
+		}
+		const arm = ()=>{
+			this.zeriPrerenderIdle = null;
+			this.zeriPrerenderTimer = null;
+			if(this.unmounted || this.state.prerenderQimenZeri){
+				return;
+			}
+			this.setState({ prerenderQimenZeri: true });
+		};
+		if(typeof requestIdleCallback === 'function'){
+			// timeout 兜底:长时间无空闲片也要建,否则用户久等后点击仍是冷的。
+			this.zeriPrerenderIdle = requestIdleCallback(arm, { timeout: 4000 });
+		}else{
+			this.zeriPrerenderTimer = setTimeout(arm, 1200);
+		}
+	}
+
+	componentWillUnmount(){
+		this.unmounted = true;
+		if(this.zeriPrerenderIdle && typeof cancelIdleCallback === 'function'){
+			try{ cancelIdleCallback(this.zeriPrerenderIdle); }catch(e){ /* ignore */ }
+			this.zeriPrerenderIdle = null;
+		}
+		if(this.zeriPrerenderTimer){
+			clearTimeout(this.zeriPrerenderTimer);
+			this.zeriPrerenderTimer = null;
+		}
 	}
 
 	componentDidUpdate(prevProps){
@@ -76,7 +128,7 @@ export default class ZeriMain extends Component{
 								dispatch={this.props.dispatch}
 							/>
 						</TabPane>
-						<TabPane tab="奇门择日" key="qimenzeri">
+						<TabPane tab="奇门择日" key="qimenzeri" forceRender={this.state.prerenderQimenZeri}>
 							<QimenZeriMain
 								fields={this.props.fields}
 								height={childHeight}

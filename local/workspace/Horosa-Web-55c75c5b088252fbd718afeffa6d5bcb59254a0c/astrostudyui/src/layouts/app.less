@@ -12606,6 +12606,19 @@
         min-height: 0;
         padding: 4px !important;
         overflow: hidden;
+        /* [连续调整不打断] 中栏内 absolute 小转圈徽标的定位父(见 .horosa-dunjia-updating)。 */
+        position: relative;
+    }
+
+    /* [连续调整不打断·遁甲] 重算小徽标变体:全套观感继承 .horosa-workspace-updating(转圈/金系/
+       双主题),仅定位由 fixed 窗口右上改为中栏容器内右上角——原 <Spin> 满屏压暗遮罩的替代
+       (用户实告「这一大片白色全屏遮挡也应该去掉,只留中间盘右上角的加载中」)。
+       奇门择日内嵌的正是 DunJiaMain,故择日页同步生效,无需另写一份。 */
+    .horosa-workspace-shell .horosa-dunjia-updating {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        z-index: 30;
     }
 
     .horosa-workspace-shell .horosa-dunjia-board-host {

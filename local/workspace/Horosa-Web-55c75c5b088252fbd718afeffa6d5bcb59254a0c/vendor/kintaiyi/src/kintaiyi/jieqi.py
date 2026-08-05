@@ -439,7 +439,38 @@ def xzdistance(year, month, day, hour):
     return int(find_jq_date(year, month, day, hour, "夏至") -  Date("{}/{}/{} {}:00:00.00".format(str(year).zfill(4), str(month).zfill(2), str(day).zfill(2), str(hour).zfill(2))))
 
 def distancejq(year, month, day, hour, minute, jq):
-    return int( Date("{}/{}/{} {}:{}:00.00".format(str(year).zfill(4), str(month).zfill(2), str(day).zfill(2), str(hour).zfill(2), str(minute).zfill(2))) - find_jq_date(year-1, month, day, hour, minute, jq) )
+    """距【当前所在节气】起始的天数(0 ~ 约 15)。
+
+    旧实现:`Date(now) - find_jq_date(year-1, month, day, hour, minute, jq)`。
+    find_jq_date 是自给定日期【向后】连搜 24 个节气取同名者,传 year-1 取到的是
+    【去年】的同名节气。本仓实测(2026-07-14/2025-03-20 两组):所求节气落在当前日期
+    之前时结果正确,落在当天或之后时整整多 365 天(如 2026-07-14 夏至 → 388、
+    2025-03-20 春分 → 365,应分别约 22 与 0)。唯一调用方 config.starhouse 又对结果
+    做环绕,两者叠加成系统性偏移。
+
+    今直接取当前节气的起始时刻:get_jieqi_start_date 已给出(jq() 本身也用它),
+    与调用方的「当前节气」口径同源。名称对不上时(域外回退路径可能不一致)
+    退回 find_jq_date,但把搜索起点前推 30 天,使其命中的是当前这一次而非下一年。
+
+    🔴 全程走 ephem.Date 而非 datetime:`datetime` 只支持公元 1..9999 年,而本函数
+    经 config.starhouse 服务于太乙全年份域(实测公元前 1 年 / 16798 年皆为在册用例)。
+    首版误用 datetime.datetime(year,...) 直接 `ValueError: year out of range` 炸掉整个
+    taiyi/pan(kentang 极端年矩阵三例转红)。ephem.Date 无此限制(BC 与远未来皆可),
+    且与 find_jq_date 的返回同类型、可直接相减得天数。精确路径依赖 get_jieqi_start_date,
+    它内部亦用 datetime ⇒ 仅在 1..9999 内启用,域外自动落到纯 Date 算术的回退路径。
+    """
+    now = Date("{}/{}/{} {}:{}:00.00".format(str(year).zfill(4), str(month).zfill(2), str(day).zfill(2), str(hour).zfill(2), str(minute).zfill(2)))
+    if 1 <= year <= 9999:
+        try:
+            start = get_jieqi_start_date(year, month, day, hour, minute)
+        except (ValueError, OverflowError):
+            start = None
+        if isinstance(start, dict) and start.get("節氣") == jq and start.get("時間"):
+            t = start["時間"]
+            return max(0, int(float(now) - float(Date((t.year, t.month, t.day, t.hour, t.minute, 0)))))
+    # 回退:搜索起点前推 30 天(不得用 year-1 —— 那取到的是【去年】同名节气,即上述 +365 病根)。
+    back = Date(float(now) - 30).tuple()
+    return int(now - find_jq_date(int(back[0]), int(back[1]), int(back[2]), int(back[3]), int(back[4]), jq))
 
 def jq_count_days(year, month, day, hour, minute):#从当前时间开始连续输出未来n个节气的时间
     #current =  datetime.strptime("{}/{}/{} {}:{}:00".format(str(year).zfill(4), str(month).zfill(2), str(day).zfill(2),str(hour).zfill(2), str(minute).zfill(2)), '%Y/%m/%d %H:%M:%S')
