@@ -187,7 +187,7 @@ Start from the entry point that matches your goal:
 - legal & privacy documents: [docs/legal](docs/legal/)
 - product source: [`local/workspace/Horosa-Web-…/`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/) — frontend `astrostudyui`, backends `astrostudysrv` / `astropy`, engines `vendor`, ephemeris `flatlib-ctrad2`
 - runtime-prep scripts (with bundled VC++ runtime): [`prepareruntime/`](prepareruntime/)
-- Windows adaptation layer (post-sync Windows-only patches): [`windows-adaptations/`](windows-adaptations/)
+- Windows adaptation layer (Windows-only patches and release sentinels): [`windows-adaptations/`](windows-adaptations/)
 - release history & full notes: [GitHub Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 ## Acknowledgements

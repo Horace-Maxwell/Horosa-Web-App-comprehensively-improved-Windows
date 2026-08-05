@@ -187,7 +187,7 @@ Windows S 模式只允许运行微软商店应用，会阻止安装任何旁加�
 - 法律与隐私文档：[docs/legal](docs/legal/)
 - 产品源码：[`local/workspace/Horosa-Web-…/`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/) —— 前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`，星历 `flatlib-ctrad2`
 - 运行时准备脚本（含随包 VC++ 运行时）：[`prepareruntime/`](prepareruntime/)
-- Windows 适配层（上游同步后的 Windows 专属补丁）：[`windows-adaptations/`](windows-adaptations/)
+- Windows 适配层（Windows 专属补丁与发布哨兵）：[`windows-adaptations/`](windows-adaptations/)
 - 历史版本与完整发布说明：[GitHub Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
 ## 致谢

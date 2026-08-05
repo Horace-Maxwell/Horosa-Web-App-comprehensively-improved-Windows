@@ -195,6 +195,29 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.7.3(2026-08-04 同步轮;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂,commit a9216e7e)**:warmReady 两臂中位
+  **7210 / 7056ms**(去首样本;首样本 10256/7729 为实例首跑),两臂相距 **2.1%** 落在噪声内
+  ⇒ **构建自洽,无回归信号**。**workspaceVisible 848 / 838ms**(early-nav 活,预算 1500 内)——
+  用户「双击到能看见工作区」这一段本轮完全正常。
+  工件:`docs/perf-artifacts/startup_ab_v373_warmstamp.json`(逐样本 + 机器指纹)。
+- **🔴 绝对值必须按 #64 读:本轮机器态是「睿频压制」态,不是版本对比。**
+  台架自带的 `machineAtStart` 当场记下:`currentClockMHz 2611 == maxClockMHz 2611`
+  (W-11955M 睿频 ~4.5GHz ⇒ **turboSuppressedLikely: true**)、`mumuRunning: true`
+  (owner 的 MuMu 模拟器常驻,MuMuVMMHeadless 累计 150,329 CPU-s / 4GB 工作集)。
+  **MuMu 是 owner 应用,绝不擅杀(owner 红线)。** 故本轮 7.1s 与上一轮 6.65s 的差
+  **不构成版本回归判据** —— 两次读数的机器态不同,#64 明令「先做同机同后台对照再谈回归」。
+- **★台架结构限制照旧(承 v3.7.2 记档,勿重复踩)**:样本跑在 `resourceMode: direct` 且
+  ready 即被杀 ⇒ 加速档链不建成(本轮 artifact 记 `uberJar:false / staticJsa:false`)。
+  **该台架的绝对值恒是「失活态」读数,只能做双臂对照,不能当建成态验收数。**
+- **★本轮最硬的论据 = 代码级不变性(逐文件核过)**:启动路径**零改动** ——
+  Electron 壳 **0 文件**;Python 侧 `webchartsrv.py` / `kentang/registry.py` / `startup_ledger.py`
+  **全部 unchanged**;Java 侧除 `RuntimeWire` 版本串外 **0 文件**(`ZiWeiChart` 不在启动路径上)。
+  ⇒ 结构上不存在本版引入的温启回归面;唯一启动影响是版本 bump 使旧加速档失效需重建
+  (每次 bump 皆有,JV-21 更新收尾自动重建承接)。
+- **裁决线:建成态数字以 owner 实机安装后读数为准**(startup-history 自带 `ladder` 字段,自解释)。
+
 ### 温启对照 v3.7.2(2026-08-04 同步轮;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂,commit 06950a0e)**:warmReady 两臂中位
