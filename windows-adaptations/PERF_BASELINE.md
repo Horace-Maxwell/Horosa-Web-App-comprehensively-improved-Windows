@@ -201,6 +201,31 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.8.0(2026-08-09 同步轮;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `d3febced`)**:
+  warmReady 中位 **6846 / 6661ms**(p95 7403 / 6997),两臂相距 **−2.7%** 落在噪声内
+  ⇒ **构建自洽,无回归信号**。**workspaceVisible 867 / 842ms**(p95 1006 / 867,
+  预算 1500 内 ✓)—— 用户「双击到能看见工作区」这一段完全正常;spawnToVisible 1168 / 1139ms。
+  工件:`docs/perf-artifacts/startup_ab_v380_warmstamp.json`(逐样本 + 机器指纹)。
+- **🔴 绝对值必须按 #64 读:本轮机器态仍是「睿频压制」态。** 台架自带的 `machineAtStart` 当场记下:
+  `currentClockMHz 2611 == maxClockMHz 2611`(W-11955M 睿频 ~4.5GHz ⇒ **turboSuppressedLikely: true**)、
+  `mumuRunning: true`(owner 的 MuMu 模拟器常驻)。**MuMu 是 owner 应用,绝不擅杀(owner 红线)。**
+  故 warmReady 超 4500 预算属机器态,门也如实打 `OVER(check #64 machine state first)`。
+- **★跨轮对照(同机同态,这才是能说话的比较)**:v3.7.3 轮同台架同压制态记录 **7210 / 7056ms**,
+  本轮 **6846 / 6661ms** —— **本版反而快约 5%**,方向上不存在回归。
+- **★台架结构限制照旧(承 v3.7.2/v3.7.3 记档,勿重复踩)**:样本跑在 `resourceMode: direct` 且
+  ready 即被杀 ⇒ 加速档链不建成(本轮 artifact 记 `uberJar:false / staticJsa:false / anyJsa:2`)。
+  **该台架的绝对值恒是「失活态」读数,只能做双臂/跨轮对照,不能当建成态验收数。**
+- **★最硬的论据 = 代码级不变性(逐文件核过)**:启动路径**零改动** —— Electron 壳 **0 文件**;
+  Python 就绪链(`webchartsrv.py` / `kentang/registry.py` / `startup_ledger.py`)**0 改动**;
+  Java 仅 `RuntimeWire` 版本号常量 + `ZiWeiChart` 截空正副(不在启动路径上)。
+  本轮性能面唯一新增是**上游** AI 分析的渐进载入(只影响该页首帧,不在启动就绪链上),
+  与我方 `horosa_freeze_subtabs_v1` 相容互补且已按上游新结构重新落位。
+- **★载荷两修对启动的影响 = 零**:`horosa_payload_residue_free_v1`(剪 204.5KB 构建机残渣)与
+  `horosa_source_eol_upstream_v1`(151 文件换行归位)都**不改运行时行为**,只影响发货字节;
+  实测差量 **10MB / 1.2% 下载 / 98.8% 复用**,健康。
+
 ### 温启对照 v3.7.3(2026-08-04 同步轮;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂,commit a9216e7e)**:warmReady 两臂中位
