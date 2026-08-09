@@ -347,6 +347,46 @@ function memoryStore(storeName){
 	return MEMORY_DB.get(storeName);
 }
 
+// [首开反卡 2026-08-09] 分批游标全量读:WKWebView(Mac APP 的 WebKit)对大 value store 的一次性
+// getAll 反序列化极慢且长期占住主线程(Chromium 无感 → 「preview 秒开 / APP 全页转圈很久」的引擎面根因)。
+// 每批 batch 条一个独立只读事务,批间 setTimeout(0) 让出主线程 —— 总量不变,首帧与交互不再被冻。
+// 返回值与 listStoreRecords 逐条同构(migrateRecord),消费方零改动。
+export async function listStoreRecordsBatched(storeName, options = {}){
+	const batch = Math.max(1, Number(options.batch) || 15);
+	const db = await openDb();
+	if(!db){
+		return listStoreRecords(storeName);   // 无 IndexedDB 环境走内存回退同径
+	}
+	const out = [];
+	let lastKey = null;
+	let done = false;
+	while(!done){
+		// eslint-disable-next-line no-await-in-loop
+		const chunk = await new Promise((resolve, reject)=>{
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			const range = lastKey === null ? undefined : window.IDBKeyRange.lowerBound(lastKey, true);
+			const req = range === undefined ? store.openCursor() : store.openCursor(range);
+			const buf = [];
+			req.onsuccess = ()=>{
+				const cur = req.result;
+				if(!cur){ resolve({ buf, end: true }); return; }
+				buf.push(migrateRecord(storeName, cur.value));
+				lastKey = cur.key;
+				if(buf.length >= batch){ resolve({ buf, end: false }); return; }
+				cur.continue();
+			};
+			req.onerror = ()=>{ reject(req.error); };
+		}).then((r)=>{ done = r.end; return r.buf; });
+		out.push(...chunk);
+		if(!done){
+			// eslint-disable-next-line no-await-in-loop
+			await new Promise((r)=>setTimeout(r, 0));
+		}
+	}
+	return out;
+}
+
 export async function listStoreRecords(storeName){
 	return withStore(storeName, 'readonly', (store, finish)=>{
 		if(!store){

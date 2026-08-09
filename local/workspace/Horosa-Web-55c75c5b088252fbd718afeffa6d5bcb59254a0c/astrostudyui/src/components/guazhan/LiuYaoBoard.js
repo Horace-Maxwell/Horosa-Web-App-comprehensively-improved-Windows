@@ -60,7 +60,7 @@ export function LiuYaoXunKong({ analysis }){
 	);
 }
 
-export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
+export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong, simplifyPositions }){
 	if(!analysis || !analysis.yaos){ return null; }
 	const { yaos, shenSha, liuShen, fushenAll, guaShen, palaceType, settings, guaXing, heHui } = analysis;
 	const moving = movingSet || new Set();
@@ -69,6 +69,10 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 	const showSha = !!(settings && settings.shensha && settings.shensha.on);
 	const showLiu = !!(settings && settings.sixGods);
 	const showBian = moving.size > 0;
+	// [G7] 旺衰列开关(默认开);[G8] 悬停提示总开关(默认开,关=title 族不渲染);[G5] 简显位集(之卦卡用)
+	const showWs = !(settings && settings.wangShuaiCol === false);
+	const tipsOn = !(settings && settings.showTips === false);
+	const simp = simplifyPositions || null;
 	const rows = (settings && settings.writeDir === 'topDown') ? yaos.slice() : yaos.slice().reverse(); // 上爻在上(默认)/初爻在上
 	return (
 		<div>
@@ -82,7 +86,7 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 							<Th>伏神</Th>
 							<Th>本卦六爻</Th>
 							<Th style={{ textAlign: 'center' }}>世应</Th>
-							<Th style={{ textAlign: 'center' }}>旺衰</Th>
+							{showWs ? <Th style={{ textAlign: 'center' }}>旺衰</Th> : null}
 							<Th>日·月</Th>
 							<Th>状态</Th>
 							{showSha ? <Th>神煞</Th> : null}
@@ -101,7 +105,7 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 							if(y.xunKong){ statusTags.push({ t: y.voidKind || '旬空', c: y.voidKind === '真空' ? C.danger : C.accent, title: y.zhenKongJue || '' }); }
 							if(y.ruMu){ statusTags.push({ t: '入墓', c: C.accent }); }
 							// WP-5:十二长生完整阶段,受 changshengUse 控制(off 不显 / four 只生旺墓绝 / full12 全 12 宫);原硬编只显 3 个已修。
-							const _csUse = (settings && settings.changshengUse) || 'four';
+							const _csUse = (settings && settings.changshengUse) || 'full12';   // fallback 与 DEFAULT 同档(曾 'four' 与默认档不一致)
 							if(_csUse !== 'off' && y.changsheng && (_csUse === 'full12' || ['长生', '帝旺', '墓', '绝'].indexOf(y.changsheng) >= 0)){
 								const _c = (y.changsheng === '长生' || y.changsheng === '帝旺') ? C.jade
 									: (['墓', '绝', '死', '病'].indexOf(y.changsheng) >= 0 ? C.danger : C.muted);
@@ -119,18 +123,22 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong }){
 									</Cell>
 									<Cell>
 										<span style={{ fontFamily: 'monospace', fontSize: 16, color: isMoving ? C.accent : C.text, marginRight: 6 }}>{yaoSymbol(y.yin)}</span>
-										<span title={ZHI_CANGGAN[y.zhi] ? `藏干 ${ZHI_CANGGAN[y.zhi]}` : undefined} style={{ color: WX_COLOR[y.wuxing] || C.text, fontWeight: 600, cursor: ZHI_CANGGAN[y.zhi] ? 'help' : undefined }}>{(analysis.gans && analysis.gans[idx]) || ''}{y.zhi}{y.wuxing}</span>
+										{simp && !simp.has(y.pos) ? (
+											<span style={{ color: C.muted }}>{y.zhi}</span>
+										) : (<>
+										<span title={tipsOn && ZHI_CANGGAN[y.zhi] ? `藏干 ${ZHI_CANGGAN[y.zhi]}` : undefined} style={{ color: WX_COLOR[y.wuxing] || C.text, fontWeight: 600, cursor: tipsOn && ZHI_CANGGAN[y.zhi] ? 'help' : undefined }}>{(analysis.gans && analysis.gans[idx]) || ''}{y.zhi}{y.wuxing}</span>
 										<span style={{ color: C.text, marginLeft: 2 }}>{y.liuqin}</span>
 											<span style={{ color: C.muted, marginLeft: 6, fontSize: 11 }}>{yaoTi(y.pos, y.yin)}</span>
+										</>)}
 										{isMoving ? <span style={{ color: C.accent, marginLeft: 4, fontSize: 12 }}>{y.yin ? '✕' : '○'}</span> : null}
-										{isShen ? <span title="卦身" style={{ marginLeft: 4, color: C.cinnabar }}>★</span> : null}
-									{analysis.shiShen && analysis.shiShen.pos === y.pos ? <span title="世身" style={{ marginLeft: 4, color: C.accent }}>◆</span> : null}
+										{isShen ? <span title={tipsOn ? '卦身' : undefined} style={{ marginLeft: 4, color: C.cinnabar }}>★</span> : null}
+									{analysis.shiShen && analysis.shiShen.pos === y.pos ? <span title={tipsOn ? '世身' : undefined} style={{ marginLeft: 4, color: C.accent }}>◆</span> : null}
 									</Cell>
 									<Cell align="center" style={{ fontWeight: 700, color: y.shiYing === '世' ? C.cinnabar : (y.shiYing === '应' ? C.accent : C.muted) }}>{y.shiYing || ''}</Cell>
-									<Cell align="center" style={{ color: WANGSHUAI_COLOR[y.wangShuai] || C.text, fontWeight: 600 }}>{y.wangShuai}</Cell>
+									{showWs ? <Cell align="center" style={{ color: WANGSHUAI_COLOR[y.wangShuai] || C.text, fontWeight: 600 }}>{y.wangShuai}</Cell> : null}
 									<Cell style={{ fontSize: 11, lineHeight: 1.5 }}>{riYueMiniCell(analysis, idx)}</Cell>
 									<Cell style={{ fontSize: 12 }}>
-										{statusTags.length ? statusTags.map((s, i) => (<span key={i} title={s.title || undefined} style={{ color: s.c, marginRight: 5, cursor: s.title ? 'help' : undefined }}>{s.t}</span>)) : <span style={{ color: C.muted }}>—</span>}
+										{statusTags.length ? statusTags.map((s, i) => (<span key={i} title={tipsOn ? (s.title || undefined) : undefined} style={{ color: s.c, marginRight: 5, cursor: tipsOn && s.title ? 'help' : undefined }}>{s.t}</span>)) : <span style={{ color: C.muted }}>—</span>}
 									</Cell>
 									{showSha ? <Cell style={{ fontSize: 12, color: C.muted }}>{(shaList || []).join('·') || '—'}</Cell> : null}
 									{showBian ? <Cell style={{ fontSize: 12 }}>{renderBianCell(analysis, y.pos)}</Cell> : null}
@@ -200,13 +208,18 @@ const EMPTY_SET = new Set();
 export function LiuYaoRelatedCards({ analysis }){
 	if(!analysis || !analysis.related){ return null; }
 	const r = analysis.related;
+	// [G6] 关联卦显隐组合:null=全显(默认);数组=仅显所选。既有 movingOnly 联动(之卦卡置空)保持在前,再过显隐。
+	const sel = analysis.settings && Array.isArray(analysis.settings.relatedCards) ? analysis.settings.relatedCards : null;
+	// [G5] 之卦简显:开=之卦卡仅动爻位标五行六亲;动爻位集取本卦动变(dongBian.moves)。
+	const simpBian = (analysis.settings && analysis.settings.bianguaSimplify && analysis.dongBian && analysis.dongBian.moves)
+		? new Set(analysis.dongBian.moves.map((m) => m.pos)) : null;
 	const cards = [
-		{ key: 'bian', label: '之卦', a: (analysis.settings && analysis.settings.biangua === 'movingOnly') ? null : r.bian },
+		{ key: 'bian', label: '之卦', a: (analysis.settings && analysis.settings.biangua === 'movingOnly') ? null : r.bian, simp: simpBian },
 		{ key: 'hu', label: '互卦', a: r.hu },
-		{ key: 'fu', label: '伏神卦', a: r.fu },
+		{ key: 'fu', label: '伏神', a: r.fu },
 		{ key: 'zong', label: '综卦', a: r.zong },
 		{ key: 'cuo', label: '错卦', a: r.cuo },
-	].filter((c) => c.a && c.a.yaos);
+	].filter((c) => c.a && c.a.yaos && (!sel || sel.indexOf(c.key) >= 0));
 	if(!cards.length){ return null; }
 	return (
 		<div style={{ marginTop: 14 }}>
@@ -215,7 +228,7 @@ export function LiuYaoRelatedCards({ analysis }){
 				const typ = c.a.palaceType ? `${c.a.palaceType.palace}宫·${c.a.palaceType.type}` : '';
 				return (
 					<div key={c.key} style={{ marginBottom: 14 }}>
-						<LiuYaoZhuangTable analysis={c.a} movingSet={EMPTY_SET} title={`${c.label}　${c.a.name}${typ ? `（${typ}）` : ''}`} hideXunKong />
+						<LiuYaoZhuangTable analysis={c.a} movingSet={EMPTY_SET} title={`${c.label}　${c.a.name}${typ ? `（${typ}）` : ''}`} hideXunKong simplifyPositions={c.simp || null} />
 					</div>
 				);
 			})}

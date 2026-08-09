@@ -4,6 +4,7 @@ import * as ZWCont from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import * as GraphHelper from '../graph/GraphHelper';
 import ZWCommHouse from './ZWCommHouse';
+import { isLaiyinPalace } from './ziweiSchools';
 import {randomStr,} from '../../utils/helper';
 // 流派叠层角标/借宫/活盘重排 + 亮度显示层:实现全在基类 ZWCommHouse(四化盘/三合盘共用),本类只调用不再直接依赖开关/名表。
 
@@ -59,6 +60,8 @@ class ZWHouse extends ZWCommHouse {
 		}
 
 		this.drawLaiYing();
+		// [D2] 宫底岁数条(默认双关):画在下 1/4 标题带上沿之上,靠左。
+		this.drawAgeStrips(this.x + 3, this.y + this.height * 3 / 4 - 3, this.width - 6, 10);
 		this.drawOverlayMarks();   // 流派叠层角标/借宫/活盘:实现已上提基类 ZWCommHouse(四化盘/三合盘共用)
 	}
 
@@ -221,9 +224,10 @@ class ZWHouse extends ZWCommHouse {
 		const showOthers = ZiWeiHelper.zwShowOthers();
 		const main = this.houseObj.starsMain || [];
 		const assist = this.houseObj.starsAssist || [];
-		const evil = this.houseObj.starsEvil || [];
-		const othersGood = showOthers ? (this.houseObj.starsOthersGood || []) : [];
-		const othersBad = showOthers ? (this.houseObj.starsOthersBad || []) : [];
+		// [D1] 神煞三组显示过滤(纯显示层,列宽计算前;默认全开=原引用零变化)
+		const evil = ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsEvil || []);
+		const othersGood = showOthers ? ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsOthersGood || []) : [];
+		const othersBad = showOthers ? ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsOthersBad || []) : [];
 		const protectedCount = main.length + assist.length + evil.length;
 		const othersCount = othersGood.length + othersBad.length;
 		const total = protectedCount + othersCount;
@@ -253,13 +257,15 @@ class ZWHouse extends ZWCommHouse {
 		let x = this.x;
 		const drawGroup = (arr, gw, color, nameWeight, sizeScale)=>{
 			for(let i=0; i<arr.length; i++){
-				this.drawStar(arr[i], x, y, gw, h, color, nameWeight, sizeScale);
+				// [D1] color 允许传函数(按星名定色;六煞黑字档用),字符串=整组同色(原行为)。
+				const c = typeof color === 'function' ? color(arr[i] && arr[i].name) : color;
+				this.drawStar(arr[i], x, y, gw, h, c, nameWeight, sizeScale);
 				x += gw;
 			}
 		};
 		drawGroup(main, wProtected, ZWCont.ZWColor.StarMainStroke, 760, 1.16);
 		drawGroup(assist, wProtected, ZWCont.ZWColor.StarAssistStroke, 560, 1);
-		drawGroup(evil, wProtected, ZWCont.ZWColor.StarEvilStroke, 560, 1);
+		drawGroup(evil, wProtected, ZiWeiHelper.colorForEvilStar, 560, 1);
 		drawGroup(othersGood, wOthers, ZWCont.ZWColor.StarOthersGoodStroke, 480, 1);
 		drawGroup(othersBad, wOthers, ZWCont.ZWColor.StarOthersBadStroke, 480, 1);
 	}
@@ -270,22 +276,29 @@ class ZWHouse extends ZWCommHouse {
 		if(!ZiWeiHelper.zwShowSmall()){
 			return;
 		}
-		const smalls = this.houseObj.starsSmall || [];
+		// [D3] 流年神煞上盘:绘制期替换(将前/岁前→流年版),再过显示过滤;chart 数据零触碰。
+		const smallsRaw = ZiWeiHelper.resolveSmallStarsForDisplay(this.houseObj.starsSmall || [], this.houseObj.ganzi ? this.houseObj.ganzi.charAt(1) : null, this.zwchart ? this.zwchart.flowZhi : null);
+		const smalls = ZiWeiHelper.filterShenshaForDisplay(smallsRaw);
 		if(!smalls.length){
 			return;
 		}
 		// 照抄三合盘 ZWHouseSangHe.drawTitle 的十二神排法：每神一行(ch/3)、横排二字、
 		// GraphHelper.drawTextH、StarSmallStroke、weight 400（与三合盘逐字同款，外观一致）。
 		let data = [];
+		// [D0] 行高溢出守卫:恒 3 条时 rowH=ch/3(现状零变化);未来条数>3(如流年神煞替换)自动压行防溢出角格。
+		const rowH = ch / Math.max(3, smalls.length);
 		for(let i=0; i<smalls.length; i++){
 			let star = smalls[i];
 			if(!star || !star.name){
 				continue;
 			}
-			let sy = cy + i*ch/3;
-			data[0] = star.name.substr(0, 1);
-			data[1] = star.name.substr(1, 1);
-			let g = GraphHelper.drawTextH(this.svg.append('g'), data, cx, sy, cw, ch/3, 1.5, ZWCont.ZWColor.StarSmallStroke, 400);
+			let sy = cy + i*rowH;
+			data = star.name.split('');   // [D3] 流年版名 3 字(「流」前缀),split 全展;本命 2 字行为同前
+			const smColor = star.flow ? ZWCont.ZWPeriodColor.liunian : ZWCont.ZWColor.StarSmallStroke;
+			let g = GraphHelper.drawTextH(this.svg.append('g'), data, cx, sy, cw, rowH, 1.5, smColor, 400);
+			if(star.flow && star.natal && g){
+				this.genTooltip(g, { title: star.name, tips: [`流年神煞(随所选流年);本命此位为「${star.natal}」`] }, star.name);
+			}
 			let tip = this.ZWRules && this.ZWRules.RuleStars ? this.ZWRules.RuleStars[star.name] : null;
 			if(g && tip){
 				this.genTooltip(g, { title: star.name, tips: tip }, star.name);
@@ -302,7 +315,8 @@ class ZWHouse extends ZWCommHouse {
 	}
 
 	shouldShowStarLight(){
-		return this.kinastroBorrowed || ZWCont.ZWChart.chart !== ZWCont.ZWChart_SiHua;
+		// 演禽借宫盘恒显(跨技法不惊扰);常规盘沿旧「非四化盘才显」再叠用户开关(默认开=零回归)
+		return this.kinastroBorrowed || (ZWCont.ZWChart.chart !== ZWCont.ZWChart_SiHua && ZiWeiHelper.zwShowStarLight());
 	}
 
 
@@ -381,6 +395,8 @@ class ZWHouse extends ZWCommHouse {
 		// 运限四化叠层（需求5 + 二轮按层对齐）：baseOffset=h(星名格底,各星统一)、slotH=this.luckSlotH(统一槽高);clamp 不越上半矩形(需求4)。
 		const luckMaxBottom = this.y + this.height * 3 / 4 - 2;
 		dim.h = this.drawLuckSihuaForStar(star, x, y, w, h, this.luckSlotH || (w + this.margin), 2, luckMaxBottom);
+		// [D2] 干系四化徽(命/日,默认关):运限槽之后的固定槽位,同越界保护。
+		this.drawStemSihuaChips(star, x, y, w, h, this.luckSlotH || (w + this.margin), 2, luckMaxBottom);
 		this.stars.set(star.name, dim);
 	}
 
@@ -499,21 +515,25 @@ class ZWHouse extends ZWCommHouse {
 	}
 
 	drawLaiYing(){
-		let hgan = this.houseObj.ganzi.charAt(0) + '';
-		let hzi = this.houseObj.ganzi.charAt(1) + '';
-		if(hgan !== this.chartObj.yearGan || hzi === '子' || hzi === '丑'){
-			return;
-		}
-
 		let hw = this.fontSize;
 		let hh = hw * 2 + this.margin;
 		let hx = this.x + this.width - 25;
 		let hy = this.y + this.height - this.height/4 - hh - 10;
-		let txt = ['来', '因'];
 		let color = AstroConst.AstroColor.Stroke;
-		GraphHelper.drawTextV(this.svg.append('g'), txt, hx, hy, hw, hh, 2, 
-			color, null, null, color);
-
+		// 来因判据走 isLaiyinPalace 单源(宫干==年干且非子丑借干宫;两盘/快照/报告四处同谓词)
+		// [D1] 套显示开关(默认开=现状);标记块连排递移 hx(与三合盘同布局语法)。
+		if(ZiWeiHelper.zwShowLaiyin() && isLaiyinPalace(this.houseObj.ganzi, this.chartObj.yearGan)){
+			let txt = ['来', '因'];
+			GraphHelper.drawTextV(this.svg.append('g'), txt, hx, hy, hw, hh, 2, 
+				color, null, null, color);
+			hx = hx - hw - this.margin;
+		}
+		// [D1] 四化盘补画身宫标记(两盘统一;此前仅三合盘有,四化盘身宫无任何盘面标识)。
+		if(ZiWeiHelper.zwShowBodyPalace() && this.houseObj.isBody && !this.kinastroBorrowed){
+			let txt = ['身', '宫'];
+			GraphHelper.drawTextV(this.svg.append('g'), txt, hx, hy, hw, hh, 2, 
+				color, null, null, color);
+		}
 	}
 	
 }

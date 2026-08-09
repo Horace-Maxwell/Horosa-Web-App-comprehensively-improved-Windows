@@ -53,7 +53,7 @@ function gzText(zhu){
 // 藏干=zhu.stemInBranch（hiddenStemText 同式「干+十神」）、纳音=zhu.naying、星运=getSelfZuo(日干,本柱支)、
 // 自坐=getSelfZuo(本柱干,本柱支)（BaZiFineChart 星运/自坐行同式）、空亡=zhu.xunEmpty（Zhu 旬空同字段）。
 // 子项缺数据即省略；全空返回 ''（不产占位）。仅四柱行调用（gzText 本体不动，流年/大运等其它调用处输出零变化）。
-function gzDetailText(zhu, dayGan){
+function gzDetailText(zhu, dayGan, phaseType){
 	if(!zhu){
 		return '';
 	}
@@ -69,11 +69,11 @@ function gzDetailText(zhu, dayGan){
 	}
 	const stemCell = zhu.stem && zhu.stem.cell ? zhu.stem.cell : '';
 	const branchCell = zhu.branch && zhu.branch.cell ? zhu.branch.cell : '';
-	const xingYun = getSelfZuo(dayGan, branchCell);
+	const xingYun = getSelfZuo(dayGan, branchCell, phaseType);
 	if(xingYun){
 		parts.push(`星运：${xingYun}`);
 	}
-	const ziZuo = getSelfZuo(stemCell, branchCell);
+	const ziZuo = getSelfZuo(stemCell, branchCell, phaseType);
 	if(ziZuo){
 		parts.push(`自坐：${ziZuo}`);
 	}
@@ -85,7 +85,7 @@ function gzDetailText(zhu, dayGan){
 
 // [四柱与三元]4 主柱 GFM 表化用:把 gzText/gzDetailText 的同源值逐字拆成单元格(干支/藏干/十神/纳音/星运/自坐/空亡)。
 // 值表达式与 gzText/gzDetailText 逐字同源(stem.cell/branch.cell/relative、stemInBranch、naying、getSelfZuo、xunEmpty)。
-function gzCells(zhu, dayGan){
+function gzCells(zhu, dayGan, phaseType){
 	const gan = zhu && zhu.stem && zhu.stem.cell ? zhu.stem.cell : '';
 	const zhi = zhu && zhu.branch && zhu.branch.cell ? zhu.branch.cell : '';
 	const stemRel = zhu && zhu.stem && zhu.stem.relative ? zhu.stem.relative : '';
@@ -98,8 +98,8 @@ function gzCells(zhu, dayGan){
 		cang: hidden.length ? hidden.join('、') : '—',
 		shishen: [stemRel, branchRel].filter(Boolean).join('·') || '—',
 		naying: (zhu && zhu.naying) || '—',
-		xingYun: getSelfZuo(dayGan, zhi) || '—',
-		ziZuo: getSelfZuo(gan, zhi) || '—',
+		xingYun: getSelfZuo(dayGan, zhi, phaseType) || '—',
+		ziZuo: getSelfZuo(gan, zhi, phaseType) || '—',
 		kong: (zhu && zhu.xunEmpty) || '—',
 	};
 }
@@ -384,7 +384,7 @@ function buildBaziSnapshotText(params, result){
 	lines.push('| 柱 | 干支 | 藏干 | 十神 | 纳音 | 星运 | 自坐 | 空亡 |');
 	lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
 	[['年柱', four.year], ['月柱', four.month], ['日柱', four.day], ['时柱', four.time]].forEach(([label, zhu])=>{
-		const c = gzCells(zhu, dayGanCell);
+		const c = gzCells(zhu, dayGanCell, params && params.phaseType);
 		lines.push(`| ${label} | ${c.ganzhi} | ${c.cang} | ${c.shishen} | ${c.naying} | ${c.xingYun} | ${c.ziZuo} | ${c.kong} |`);
 	});
 	lines.push(`胎元：${gzText(four.tai)}`);

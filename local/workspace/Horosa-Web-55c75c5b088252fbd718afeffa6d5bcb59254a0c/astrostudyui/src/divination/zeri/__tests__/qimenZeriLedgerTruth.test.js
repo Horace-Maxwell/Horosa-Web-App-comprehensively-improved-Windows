@@ -54,10 +54,21 @@ beforeEach(()=>{
 });
 
 describe('① 快照段头 活体对拍', ()=>{
-	test('真盘拼合快照段头序列 == preset.qimenzeri 逐字逐序恒等(20 段)', ()=>{
+	// 条件段:金函系日家专段仅 paiPanType=6 产;择日恒为时家盘 → 该段永不出现。
+	// 判据由「逐字全等」精化为「顺序子集恒等 + 无条件段全覆盖」——两者都比原断言更强:
+	// ① 快照段头必须逐字逐序等于 preset 去掉条件段后的序列(错序/漏段/多段皆红);
+	// ② 择日三段必在尾部(拼合契约)。
+	const CONDITIONAL_SECTIONS = ['日家占方（古籍金函系）'];
+	test('真盘拼合快照段头序列 == preset.qimenzeri 去条件段后逐字逐序恒等', ()=>{
 		const headers = headersOf(composedSnapshot());
-		expect(headers).toEqual(AI_EXPORT_PRESET_SECTIONS.qimenzeri);
-		expect(headers.length).toBe(AI_EXPORT_PRESET_SECTIONS.qimen.length + 3);
+		const expected = AI_EXPORT_PRESET_SECTIONS.qimenzeri.filter((s)=>CONDITIONAL_SECTIONS.indexOf(s) < 0);
+		expect(headers).toEqual(expected);
+		expect(headers.slice(-3)).toEqual(['择日搜索配置', '择日条件', '命中时辰']);
+		// 条件段确实登记在 preset(登记在、但本形态不产)——防「因为不产就把登记删了」的反向漂移
+		CONDITIONAL_SECTIONS.forEach((s)=>{
+			expect(AI_EXPORT_PRESET_SECTIONS.qimenzeri).toContain(s);
+			expect(headers).not.toContain(s);
+		});
 	});
 	test('择日三段内容真值:配置行/条件树含且或前缀/命中行含局名', ()=>{
 		const text = composedSnapshot();

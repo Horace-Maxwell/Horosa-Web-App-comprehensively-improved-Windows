@@ -72,3 +72,37 @@ describe('六爻神煞·WP-F(表H)', () => {
 		expect(Object.keys(m).sort()).toEqual(['桃花', '驿马']);
 	});
 });
+
+// ══ [G1] 贵人歌诀两档(delta 变体,基表零动) ═══
+describe('[G1] guirenOf 贵人歌诀档', ()=>{
+	const { guirenOf, computeShenSha } = require('../../gua/liuyaoShenSha');
+	test('🔴 两档落支:庚 丑未↔寅午;辛两档同=寅午;其余八干恒同;未知档回落基表', ()=>{
+		expect(guirenOf('庚', 'standard')).toBe('丑未');
+		expect(guirenOf('庚', 'geng_ma_hu')).toBe('寅午');
+		expect(guirenOf('辛', 'standard')).toBe('寅午');
+		expect(guirenOf('辛', 'geng_ma_hu')).toBe('寅午');
+		['甲', '乙', '丙', '丁', '戊', '己', '壬', '癸'].forEach((g)=>{
+			expect(`${g}:${guirenOf(g, 'geng_ma_hu')}`).toBe(`${g}:${guirenOf(g, 'standard')}`);
+		});
+		expect(guirenOf('庚', 'nope_variant')).toBe('丑未');   // 回落
+		expect(guirenOf('庚')).toBe('丑未');                    // 缺省=默认
+		expect(guirenOf('', 'geng_ma_hu')).toBe('');
+	});
+	test('computeShenSha 经 opts.guirenFa 透传;庚日盘贵人落支随档', ()=>{
+		const ctx = { dayGan: '庚', dayZhi: '午', yearGan: '甲', yearZhi: '子' };
+		const std = computeShenSha(ctx, { set: ['天乙贵人'] });
+		const alt = computeShenSha(ctx, { set: ['天乙贵人'], guirenFa: 'geng_ma_hu' });
+		expect(std['天乙贵人']).toEqual(['丑', '未']);
+		expect(alt['天乙贵人']).toEqual(['寅', '午']);
+	});
+	test('🔴 facade 两调用点已透传 s.guirenFa;settings 默认档+optionsKey 登记(源码守卫)', ()=>{
+		const fs = require('fs'); const path = require('path');
+		const facade = fs.readFileSync(path.resolve(__dirname, '..', '..', 'gua', 'liuyaoFacade.js'), 'utf8');
+		expect((facade.match(/guirenFa: s\.guirenFa/g) || []).length).toBe(2);
+		const { DEFAULT_LIUYAO_SETTINGS, getLiuyaoOptionsKey } = require('../../gua/liuyaoSchools');
+		expect(DEFAULT_LIUYAO_SETTINGS.guirenFa).toBe('standard');
+		const a = getLiuyaoOptionsKey({ ...DEFAULT_LIUYAO_SETTINGS });
+		const b = getLiuyaoOptionsKey({ ...DEFAULT_LIUYAO_SETTINGS, guirenFa: 'geng_ma_hu' });
+		expect(a === b).toBe(false);   // 切档必触发重算+快照
+	});
+});

@@ -86,3 +86,36 @@ describe('六爻门面·WP-J analyzeLiuyao 编排', () => {
 		expect(fireMu).toBe(false);
 	});
 });
+
+// ══ [G-B] 起卦体验三键(随机概率源/随机前确认/录入默认爻) ═══
+describe('[G-B] 三新键默认值+源码接线守卫', ()=>{
+	const fs = require('fs'); const path = require('path');
+	const { DEFAULT_LIUYAO_SETTINGS } = require('../../gua/liuyaoSchools');
+	test('🔴 默认值=现状零回归(coins/false/shaoyang)', ()=>{
+		expect(DEFAULT_LIUYAO_SETTINGS.randomAlgo).toBe('coins');
+		expect(DEFAULT_LIUYAO_SETTINGS.randomConfirm).toBe(false);
+		expect(DEFAULT_LIUYAO_SETTINGS.defaultYaoState).toBe('shaoyang');
+	});
+	test('🔴 G2 分派器:rollYao 按档取源;5 处随机消费全走 rollYao(禁直连 randYao 回潮)', ()=>{
+		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		expect(/rollYao\(\)\{[\s\S]{0,220}yarrow[\s\S]{0,80}yarrowYao\(\)[\s\S]{0,40}randYao\(\)/.test(src)).toBe(true);
+		const direct = (src.match(/randYao\(\)/g) || []).length;
+		expect(direct).toBe(1);   // 仅分派器内 1 处
+		expect((src.match(/this\.rollYao\(\)/g) || []).length).toBe(5);
+	});
+	test('🔴 G3 守卫:randomConfirm 开+手动来源才弹;time/空盘直滚;停止恒放行', ()=>{
+		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		expect(/confirmRandomThen\(run\)\{[\s\S]{0,240}!s\.randomConfirm \|\| !origin \|\| origin === 'time'[\s\S]{0,20}run\(\)/.test(src)).toBe(true);
+		expect(/genGua\(\)\{[\s\S]{0,560}if\(!stopAct\)\{[\s\S]{0,120}confirmRandomThen/.test(src)).toBe(true);
+		expect(/genYao\(idx\)\{[\s\S]{0,700}confirmRandomThen/.test(src)).toBe(true);
+	});
+	test('G4 默认爻态:CastPad 两录入面同步按档;切档经 key 重挂立即生效', ()=>{
+		const pad = fs.readFileSync(path.resolve(__dirname, '..', 'LiuYaoCastPad.js'), 'utf8');
+		expect(pad.includes("props.defaultYaoState === 'shaoyin'")).toBe(true);
+		expect(pad.includes('yin ? [2, 2, 2, 2, 2, 2]')).toBe(true);
+		expect(pad.includes('yin ? [8, 8, 8, 8, 8, 8]')).toBe(true);
+		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		expect(src.includes('defaultYaoState={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState}')).toBe(true);
+		expect(src.includes('key={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState}')).toBe(true);
+	});
+});

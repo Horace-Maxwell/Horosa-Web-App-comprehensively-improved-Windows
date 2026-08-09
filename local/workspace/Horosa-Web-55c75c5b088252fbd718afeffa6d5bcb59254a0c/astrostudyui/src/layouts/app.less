@@ -57,6 +57,11 @@
         --horosa-ziwei-star-main: #9b6a2d;
         --horosa-ziwei-star-assist: #327f8d;
         --horosa-ziwei-star-evil: #a9473f;
+        --horosa-ziwei-star-others-good: #327f8d;
+        --horosa-ziwei-star-others-bad: #a9473f;
+        --horosa-ziwei-star-sixevil: #2b2b2b;
+        --horosa-ziwei-period-xiaoxian: #9775fa;
+        --horosa-ziwei-duigong-line: rgba(90, 120, 190, 0.55);
         --horosa-ziwei-house-name: #9b6a2d;
         --horosa-ziwei-house-branch: #9a6a25;
         --horosa-ziwei-house-meta: #6d7b8c;
@@ -178,6 +183,11 @@
         --horosa-ziwei-star-main: #f1c879;
         --horosa-ziwei-star-assist: #82adb0;
         --horosa-ziwei-star-evil: #d26a5f;
+        --horosa-ziwei-star-others-good: #82adb0;
+        --horosa-ziwei-star-others-bad: #d26a5f;
+        --horosa-ziwei-star-sixevil: #dfe3e6;
+        --horosa-ziwei-period-xiaoxian: #b197fc;
+        --horosa-ziwei-duigong-line: rgba(140, 165, 220, 0.6);
         --horosa-ziwei-house-name: #f3d18b;
         --horosa-ziwei-house-branch: #c19658;
         --horosa-ziwei-house-meta: #8c9998;
@@ -287,6 +297,99 @@
         tbody tr:nth-child(even) { background: var(--horosa-panel-soft); }
         a { color: var(--horosa-accent); }
         hr { border: none; border-top: 1px solid var(--horosa-border); margin: 14px 0; }
+    }
+
+    /* ── [E11] 报告精排版式(xq-md-v2)──────────────────────────────────────────
+       只做**增量**:上面 .xq-markdown 的规则一条不动,新观感全部叠在 .xq-md-v2 之下。
+       配置包 layoutProfile.render='legacy' 时 ReportPane 不加这个类 ⇒ 逐字节回到改版前。
+       改版前的三处硬伤(都在这里修掉):
+         · h5/h6 完全没样式 → 走浏览器默认 0.83em/0.67em,**比正文还小**,子段越深越看不见
+         · 行内 `code` 只给了颜色没有底色 → 与正文无法区分
+         · strong 只有 600 字重 —— CJK 字族里 600 与 400 差别很浅,改 700 + 金色双通道
+       两态自适应:全部走主题变量,亮/暗均不写死色值。 */
+    .xq-markdown.xq-md-v2 {
+        line-height: 1.8;
+        /* 中西混排:数字用等宽数位(逐年吉凶/度数对齐);避免段末孤字 */
+        font-variant-numeric: tabular-nums;
+        text-wrap: pretty;
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            line-height: 1.4;
+            /* 标题层级差用「字重 + 饰记 + 微字号差」表达,**任何一级都不得小于正文** */
+            font-size: 1em;
+        }
+        h1 { font-size: 1.34em; margin: 22px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--horosa-gold); }
+        h2 { font-size: 1.22em; margin: 20px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--horosa-border); }
+        h3 { font-size: 1.12em; margin: 18px 0 8px; padding-left: 9px; border-left: 3px solid var(--horosa-gold); border-bottom: 0; }
+        h4 {
+            font-size: 1.04em; margin: 16px 0 7px; color: var(--horosa-md-strong, var(--horosa-gold));
+            display: flex; align-items: baseline; gap: 7px;
+        }
+        h4::before {
+            content: ''; flex: none; width: 5px; height: 5px; border-radius: 50%;
+            background: var(--horosa-gold); transform: translateY(-2px);
+        }
+        h5 { font-size: 1em; margin: 14px 0 6px; color: var(--horosa-text-soft); letter-spacing: 0.03em; }
+        h6 { font-size: 1em; margin: 12px 0 5px; color: var(--horosa-muted); font-weight: 600; }
+
+        /* 重点标注:字重 700 + 金色,两条通道各自独立可读(色弱/黑白打印下靠字重仍能分辨) */
+        strong, b { font-weight: 700; }
+        em, i { font-style: italic; color: var(--horosa-text-soft); }
+        del, s { color: var(--horosa-muted); text-decoration-color: var(--horosa-muted); }
+        mark { background: var(--horosa-gold-soft); color: inherit; padding: 0 3px; border-radius: 3px; }
+        sup, sub { font-size: 0.72em; line-height: 0; }
+
+        /* 行内码:此前只有颜色 = 看不出是代码 */
+        :not(pre) > code {
+            background: var(--horosa-panel-soft);
+            border: 1px solid var(--horosa-border);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 0.9em;
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+        }
+        kbd {
+            background: var(--horosa-panel-soft); border: 1px solid var(--horosa-border);
+            border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-size: 0.86em;
+        }
+
+        /* 列表:记号随层级降级(•/◦/▪),有序号金色等宽 */
+        ul { list-style-type: disc; }
+        ul ul { list-style-type: circle; }
+        ul ul ul { list-style-type: square; }
+        ol { counter-reset: none; }
+        li { margin: 5px 0; }
+        li::marker { color: var(--horosa-gold); font-variant-numeric: tabular-nums; }
+        li > p { margin: 4px 0; }
+
+        /* 引用块 → callout:首字符是 ✅ / ⚠️ / ⊘ 时各自换色(导出与一致性审计已在用这三个前缀) */
+        blockquote {
+            padding: 8px 14px;
+            border-left-width: 4px;
+            background: var(--horosa-panel-soft);
+            border-radius: 0 8px 8px 0;
+        }
+        blockquote p { margin: 4px 0; }
+        blockquote.xq-md-note-ok { border-left-color: #3f9d68; }
+        blockquote.xq-md-note-warn { border-left-color: #d08a2c; }
+        blockquote.xq-md-note-stop { border-left-color: var(--horosa-muted); }
+
+        /* 表格:逐年吉凶/度数这类数字列要对齐 → tabular-nums;首列当行头加重 */
+        table {
+            border-radius: 8px;
+            box-shadow: 0 0 0 1px var(--horosa-border) inset;
+            font-variant-numeric: tabular-nums;
+        }
+        th, td { padding: 6px 12px; }
+        th { font-weight: 700; }
+        td:first-child { font-weight: 600; }
+
+        pre { border-radius: 8px; }
+        hr { border-top: 1px dashed var(--horosa-border); margin: 18px 0; }
+        img { max-width: 100%; border-radius: 8px; border: 1px solid var(--horosa-border); }
+        p { margin: 10px 0; }
+        p:first-child, h1:first-child, h2:first-child, h3:first-child, h4:first-child { margin-top: 0; }
     }
 
     :root[data-horosa-appearance='dark'] {
@@ -7120,6 +7223,37 @@
         line-height: 1.3;
     }
 
+    /* 模型选择器头行:标题与「仅视觉模型」开关同行两端对齐(缺此定义时裸 div 堆叠换行=风水左栏实发) */
+    .horosa-workspace-shell .horosa-modelselector-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        white-space: nowrap;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-modelselector-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--horosa-text-soft);
+        cursor: pointer;
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+
+    /* AI 分析·风水图像工作台面板贴边:antd 默认给右栏 tabpane 24px 右距、页内 .pane 再叠 12px,
+       右侧共 36px 空带(用户两轮反馈「空白没利用」)。负 margin 会被 .pane overflow:hidden 裁掉
+       右栏内容(真机实锤)→ 按面板 id 结构覆盖(编号漂移免疫);锚 .ant-tabs-right 防误伤主导航理气页。 */
+    .horosa-workspace-shell .ant-tabs-right > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane[id$="-panel-fengshui"] {
+        padding-right: 8px;
+    }
+    .horosa-workspace-shell .ant-tabs-right .ant-tabs-tabpane[id$="-panel-fengshui"] > div {
+        padding-right: 0;
+    }
+
     .horosa-workspace-shell .horosa-chart-mode-switch {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10152,6 +10286,12 @@
     }
     .horosa-workspace-shell .horosa-ziwei-option-card .ant-checkbox-wrapper:nth-child(3) { grid-column: ~"1 / -1"; }
     .horosa-workspace-shell .horosa-ziwei-overlay-card .horosa-ziwei-select-field { margin: 0; }
+
+    /* [D4美化] 盘面显示区重组:预设头(标题+三芯片钮)+芯片统一一行两个(用户定版:无分组小标题)。
+       display-card 变体把 nth-child(3) 满宽老规则覆盖回 auto(原规则服务旧三项布局的「显示十二神」,
+       别处卡片仍沿用故不删);双类选择器抬 specificity,稳压同权重源序竞争。 */
+    .horosa-workspace-shell .horosa-ziwei-option-card.horosa-ziwei-display-card .ant-checkbox-wrapper:nth-child(3) { grid-column: auto; }
+    .horosa-workspace-shell .horosa-ziwei-center-select { margin-top: 6px; }
 
     /* 八字「神煞分组」并列共享本卡片规则族(容器 grid 在下方单独定义,field-label 跨整行) */
     .horosa-workspace-shell .horosa-bazi-shensha-groups {
@@ -15970,6 +16110,11 @@
         --horosa-ziwei-star-main: #9b6a2d;
         --horosa-ziwei-star-assist: #276977;
         --horosa-ziwei-star-evil: #9f3f38;
+        --horosa-ziwei-star-others-good: #276977;
+        --horosa-ziwei-star-others-bad: #9f3f38;
+        --horosa-ziwei-star-sixevil: #2b2b2b;
+        --horosa-ziwei-period-xiaoxian: #7048e8;
+        --horosa-ziwei-duigong-line: rgba(90, 120, 190, 0.55);
         --horosa-ziwei-house-muted: #526476;
         /* 正方形以视高(vh)为基、px 封顶——与可用的紫微盘(.horosa-ziwei-chart-viewport 纯 vh)同口径。
            关键:绝不用 height:100%/min(...,100%,...)——父(flex 居中、无确定高)会让百分比高循环解析为 ~0,
@@ -21038,6 +21183,27 @@
 		overflow-x: auto;
 		padding: 3px 2px 6px;
 		scrollbar-width: thin;
+	}
+	/* [D3] 限流面板 wrap 版式:轴内芯片折行铺开(compact=单行横滚,默认) */
+	.horosa-workspace-shell .horosa-ziwei-luck.is-wrap .horosa-ziwei-luck-axis {
+		flex-wrap: wrap;
+		overflow-x: visible;
+	}
+	.horosa-workspace-shell .horosa-ziwei-luck-layout-btn {
+		flex: 0 0 auto;
+		align-self: flex-start;
+		padding: 2px 8px;
+		border: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.17));
+		border-radius: 6px;
+		background: var(--horosa-surface-solid, #fff);
+		color: var(--horosa-muted, #68758a);
+		font-size: 11px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.horosa-workspace-shell .horosa-ziwei-luck-layout-btn:hover {
+		border-color: var(--horosa-gold, #9a6a25);
+		color: var(--horosa-gold, #9a6a25);
 	}
 	.horosa-workspace-shell .horosa-ziwei-luck-axis::-webkit-scrollbar { height: 5px; }
 	.horosa-workspace-shell .horosa-ziwei-luck-axis::-webkit-scrollbar-thumb {

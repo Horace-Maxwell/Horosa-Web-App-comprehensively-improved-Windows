@@ -4,7 +4,6 @@ import { Component, Fragment } from 'react';
 import { Checkbox } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQSideSection } from '../xq-ui';
 import { Gua8 } from '../gua/GuaConst';
-import { YAOGUA_GUIJU } from '../gua/liuyaoReference';
 
 const { Option } = Select;
 const C = { muted: 'var(--horosa-astro-muted, #928b82)', accent: 'var(--horosa-accent, #e7bd75)', line: 'var(--horosa-astro-line, rgba(215,173,105,0.18))' };
@@ -40,11 +39,13 @@ const FANGWEI = [{ k: '北', g: 5 }, { k: '东北', g: 6 }, { k: '东', g: 3 }, 
 export default class LiuYaoCastPad extends Component{
 	constructor(props){
 		super(props);
+		// [G4] 手动录入默认爻态:少阳(默认=现状)/少阴 —— 逐掷录入(背面数 1↔2)与逐爻四态(7↔8)同步按档。
+		const yin = props.defaultYaoState === 'shaoyin';
 		this.state = {
-			tosses: [1, 1, 1, 1, 1, 1], // 每爻背面数(0-3),初→上
+			tosses: yin ? [2, 2, 2, 2, 2, 2] : [1, 1, 1, 1, 1, 1], // 每爻背面数(0-3),初→上
 			mi1: 8, mi2: 8, mi3: 6,
 			dice1: 1, dice2: 1, dice3: 6,
-			fourState: [7, 7, 7, 7, 7, 7], // 逐爻四态:6老阴7少阳8少阴9老阳
+			fourState: yin ? [8, 8, 8, 8, 8, 8] : [7, 7, 7, 7, 7, 7], // 逐爻四态:6老阴7少阳8少阴9老阳
 			zi1: '', zi2: '',
 			fangwei: 0, hourNum: 1,
 			sound1: 1, sound2: 1, // 声音起卦:闻声数(上卦/下卦)
@@ -93,24 +94,6 @@ export default class LiuYaoCastPad extends Component{
 		const face = this.props.coinFace || 'standard';
 		return (
 			<XQSideSection iconName="liuyao" title="摇卦录入与更多起卦" storageKey="guazhan.castpad" className="horosa-guazhan-input-section">
-				{/* [C1] 摇卦须知(各派态度)·可折叠 */}
-				<details className="horosa-castpad-method">
-					<summary className="horosa-guazhan-set-subhead" style={{ cursor: 'pointer' }}>摇卦须知 · 各派态度</summary>
-					<div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: '1.5fr 1fr 0.8fr 1fr', gap: '3px 6px', fontSize: 11.5, lineHeight: 1.4 }}>
-						<div style={{ color: C.muted, fontWeight: 600 }}>规则</div>
-						<div style={{ color: C.accent, fontWeight: 600 }}>传统</div>
-						<div style={{ color: C.accent, fontWeight: 600 }}>新派</div>
-						<div style={{ color: C.accent, fontWeight: 600 }}>盲派</div>
-						{YAOGUA_GUIJU.map((r) => (
-							<Fragment key={r.rule}>
-								<div style={{ color: 'var(--horosa-astro-text, #efe4d2)' }}>{r.rule}</div>
-								<div style={{ color: C.muted }}>{r.chuan}</div>
-								<div style={{ color: C.muted }}>{r.xin}</div>
-								<div style={{ color: C.muted }}>{r.mang}</div>
-							</Fragment>
-						))}
-					</div>
-				</details>
 				{this.props.numGuaSlot ? (
 					<div className="horosa-castpad-method">
 						<div className="horosa-guazhan-set-subhead">数字起卦</div>

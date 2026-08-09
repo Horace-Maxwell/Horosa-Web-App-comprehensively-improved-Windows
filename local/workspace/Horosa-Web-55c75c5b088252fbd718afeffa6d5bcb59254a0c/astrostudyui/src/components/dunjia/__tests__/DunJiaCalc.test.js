@@ -88,12 +88,13 @@ function buildLocalNongliForTest(date, time){
 }
 
 describe('DunJiaCalc options', ()=>{
-	test('排盘体例:年/月/日家(0/1/2)走本地全盘,时家(3)走 Ken 后端;刻家/综合无确切算法已下架', ()=>{
-		expect(PAIPAN_OPTIONS.map((item)=>item.value)).toEqual([0, 1, 2, 3]);   // 刻家(4)/综合(5)已移除
+	test('排盘体例:年/月/日/刻家(0/1/2/4)走本地全盘,时家(3)走 Ken 后端;综合(5)无确切算法未暴露', ()=>{
+		expect(PAIPAN_OPTIONS.map((item)=>item.value)).toEqual([0, 1, 2, 3, 4, 6]);   // [H-F] 刻家(4)复活;[H-G] 金函系日家(6)=查表独立体系;综合(5)仍不暴露
 		PAIPAN_OPTIONS.forEach((item)=>{
-			// 年/月/日家走本地 calcDunJia(各家局法 + 年/月/日柱锚点,对齐标准参考盘);时家走 Ken 后端。
-			expect(isKinqimenMode(item.value)).toBe(item.value >= 3);
+			// 年/月/日/刻家/金函日家走本地 calcDunJia;时家走 Ken 后端(转盘字节护栏)。
+			expect(isKinqimenMode(item.value)).toBe(item.value === 3);
 		});
+		expect(isKinqimenMode(5)).toBe(true);   // 综合仍后端分支
 	});
 
 	test('paiPanType(年/月/日/时) produces different juText', ()=>{
@@ -1033,7 +1034,7 @@ describe('DunJiaCalc · 各家对齐第2标准参考盘(2025-11-24)', ()=>{
 describe('DunJiaCalc · 压力测试 全盘式 × 定局 × 排盘 笛卡尔扫描(WP-F)', ()=>{
 	const SCHOOLS = ['转盘', '飞盘', '混合'];
 	const METHODS = ['chaibu', 'zhirun', 'maoshan', 'wurun', 'shuzi'];
-	const PAIPAN = [0, 1, 2, 3];   // 刻家(4)/综合(5)已下架(无确切算法)
+	const PAIPAN = [0, 1, 2, 3, 4];   // [H-F] 刻家(4)复活(十分局);金函(6)=查表独立体系另测;综合(5)仍下架
 	// 含超神/接气/至界/年界/晚子时边界,真盘历法(buildLocalNongliForTest)
 	const DATES = [
 		['2026-08-20', '10:00:00'],   // 处暑超神(置闰=阴一上元)

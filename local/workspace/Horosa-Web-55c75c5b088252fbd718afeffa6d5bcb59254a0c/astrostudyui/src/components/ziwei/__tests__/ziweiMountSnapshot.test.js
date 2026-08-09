@@ -212,3 +212,43 @@ describe('紫微挂载 round-trip：四化流派 + 运限', () => {
 		expect(text).toContain('河洛气数位');
 	});
 });
+
+// ══ [B2-2] AI 快照星曜亮度传导正锚:对象星带 starlight → 宫位总览内联「·档」;切源随动 ═══
+// V2 基线夹具用字符串星(无 starlight)故不受影响 —— 这也是历史盲区:真实盘(Java/本地)的星是
+// 对象且恒带 starlight,快照曾全程丢弃(要义却让模型「依庙旺论强弱」=逼臆造,复查实锤)。
+describe('[B2-2] 快照亮度传导(对象星)', () => {
+	const withObjStars = () => {
+		const houses = makeHouses();
+		// 寅宫(idx2)换成对象星带基础亮度(基表:紫微寅庙/贪狼寅平)
+		houses[2].starsMain = [{ name: '紫微', starlight: '庙' }, { name: '贪狼', starlight: '平' }];
+		return houses;
+	};
+	it('🔴 对象星:宫位总览星文本内联基础档「紫微…·庙」「贪狼…·平」;字符串星宫照旧无档', async () => {
+		const prev = mockState.chart.houses;
+		mockState.chart.houses = withObjStars();
+		try{
+			const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+			const row = text.split('\n').find((l) => l.includes('| 命宫 |'));   // idx2=寅宫(夹具 name 序:idx2→命宫)
+			expect(row).toBeTruthy();
+			expect(row).toMatch(/紫微[^|·]*·庙/);
+			expect(row).toMatch(/贪狼[^|·]*·平/);
+			const wuquRow = text.split('\n').find((l) => l.includes('武曲'));   // idx5 武曲=字符串星
+			expect(wuquRow).toBeTruthy();
+			expect(wuquRow).not.toContain('·');
+		}finally{ mockState.chart.houses = prev; }
+	});
+	it('🔴 挂载切亮度源(quanshu_full):对象星档随源变(天府酉 基表陷→七档旺),用毕单例还原', async () => {
+		const prev = mockState.chart.houses;
+		const houses = makeHouses();
+		houses[9].starsMain = [{ name: '天府', starlight: '陷' }];   // idx9=酉宫
+		mockState.chart.houses = houses;
+		try{
+			const base = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+			expect(base).toMatch(/天府[^|·]*·陷/);
+			const full = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, brightnessSource: 'quanshu_full' });
+			expect(full).toMatch(/天府[^|·]*·旺/);
+			expect(full).toContain('星曜亮度=《全书》七档全表');
+			expect(ZWEngineOptions.brightnessSource).toBe('zi_jian');   // finally 还原
+		}finally{ mockState.chart.houses = prev; }
+	});
+});

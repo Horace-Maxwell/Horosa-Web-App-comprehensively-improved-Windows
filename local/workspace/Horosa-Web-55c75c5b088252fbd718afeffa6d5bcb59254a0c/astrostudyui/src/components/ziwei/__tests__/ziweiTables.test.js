@@ -108,3 +108,75 @@ function findStar(chart, name){
 	}
 	return null;
 }
+
+// ══ [B2] 《全书》七档全表 quanshu_full 数据金标(锚点+规则式,不做全表快照) ═══
+// 谱系=通行整理表(2026-08-07 考据签字);全表快照抓不到语义错,规则式恰是本轮抓出两个
+// 参考源数据腐坏(索引基错位/行内复制错)的手段。
+describe('[B2] quanshu_full 七档全表数据金标', ()=>{
+	const { STAR_LIGHT_SOURCES } = require('../data/ziweiTables');
+	const FULL = STAR_LIGHT_SOURCES.quanshu_full;
+	const LEVELS7 = new Set(['庙', '旺', '得', '利', '平', '不', '陷']);
+	test('形状:20 星(十四正曜+昌曲+火铃+羊陀)×12 支全键;词汇 ⊆ 七档 ∪ null', ()=>{
+		expect(Object.keys(FULL).length).toBe(20);
+		Object.keys(FULL).forEach((s)=>{
+			expect(Object.keys(FULL[s]).length).toBe(12);
+			ZHI.forEach((z)=>{
+				const v = FULL[s][z];
+				expect(v === null || LEVELS7.has(v)).toBe(true);
+			});
+		});
+	});
+	test('🔴 null 结构逐格===基表(结构性不可落宫不变量:羊缺寅巳申亥/陀缺子卯午酉)', ()=>{
+		Object.keys(FULL).forEach((s)=>{
+			ZHI.forEach((z)=>{
+				expect(`${s}${z}:${FULL[s][z] === null}`).toBe(`${s}${z}:${(STAR_LIGHT[s] || {})[z] === undefined || (STAR_LIGHT[s] || {})[z] === null ? true : false}`);
+			});
+		});
+	});
+	test('火铃三合四循环(寅午戌庙/申子辰陷/巳酉丑得/亥卯未利)', ()=>{
+		[['寅午戌', '庙'], ['申子辰', '陷'], ['巳酉丑', '得'], ['亥卯未', '利']].forEach(([grp, exp])=>{
+			grp.split('').forEach((z)=>{
+				expect(`火${z}=${FULL['火星'][z]}`).toBe(`火${z}=${exp}`);
+				expect(`铃${z}=${FULL['铃星'][z]}`).toBe(`铃${z}=${exp}`);
+			});
+		});
+	});
+	test('签字锚点格(含跨派展示格:天府酉 基表陷/七档旺;紫微午庙/太阳卯庙/太阴亥庙/文昌丑庙)', ()=>{
+		expect(FULL['天府']['酉']).toBe('旺');
+		expect(STAR_LIGHT['天府']['酉']).toBe('陷');
+		expect(FULL['紫微']['午']).toBe('庙');
+		expect(FULL['太阳']['卯']).toBe('庙');
+		expect(FULL['太阳']['戌']).toBe('不');
+		expect(FULL['太阴']['亥']).toBe('庙');
+		expect(FULL['文昌']['丑']).toBe('庙');
+		expect(FULL['擎羊']['辰']).toBe('庙');
+		expect(FULL['破军']['子']).toBe('庙');   // 破军子午庙(通说)
+		expect(FULL['巨门']['寅']).toBe('庙');   // 巨机居卯庙旺之乡(寅卯庙)
+	});
+	test('🔴 [G4] 每非默认源效差集非空且两两不同(防死选项/重复选项)', ()=>{
+		const { BRIGHTNESS_SOURCE_OPTIONS } = require('../ziweiOptions');
+		const allStars = Object.keys(STAR_LIGHT);
+		const diffMap = (src)=>{
+			const d = [];
+			allStars.forEach((s)=>ZHI.forEach((z)=>{
+				const a = starLightOf(s, z, 'zi_jian'), b = starLightOf(s, z, src);
+				if(a !== b){ d.push(`${s}${z}:${b}`); }
+			}));
+			return d.join('|');
+		};
+		const sigs = {};
+		// custom 档豁免:其效差=用户逐格自定义(无表时=基表),死选项判据不适用;
+		// 注入/LS/回落三层行为由 ziweiBrightnessCustom.test.js 专项金标锁。
+		BRIGHTNESS_SOURCE_OPTIONS.map((o)=>o.value).filter((v)=>v !== 'zi_jian' && v !== 'custom').forEach((src)=>{
+			const sig = diffMap(src);
+			expect(`${src}:${sig === '' ? 'EMPTY' : 'ok'}`).toBe(`${src}:ok`);
+			sigs[src] = sig;
+		});
+		const keys = Object.keys(sigs);
+		for(let i = 0; i < keys.length; i++){
+			for(let j = i + 1; j < keys.length; j++){
+				expect(sigs[keys[i]]).not.toBe(sigs[keys[j]]);
+			}
+		}
+	});
+});

@@ -6,13 +6,15 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { childLimits, zhongxianOf } from './ziweiCore';   // WP-1 童限 / WP-2 沈氏三限
+import { XIAOXIAN_START } from './data/ziweiTables';      // [B15b] 小限起宫表单源(曾双源字面量,金标对拍锁)
+import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { ZWEngineOptions } from './ziweiOptions';
 
 const DIZI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GANS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const LUNAR_MONTH = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
 const SHICHEN = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
-const HUA_BG = { '禄': '#c9912e', '权': '#2868d8', '科': '#1497a8', '忌': '#d44d43' };
+// [D0] 四化底色并入 ZWConst.ZWColor 单源(本地副本已删;值经逐项核对相同)。
 const LEVEL_LABEL = { daxian: '大限', liunian: '流年小限', xiaoxian: '小限', liuyue: '流月', liuri: '流日', liushi: '流时' };
 
 // ——— 干支基础（纯前端，绝不返回 undefined） ———
@@ -44,11 +46,7 @@ function dayGanziByDate(date) {
 	const idx = (((jdi - DAY_ANCHOR_JDI + DAY_ANCHOR_IDX) % 60) + 60) % 60;
 	return GANS[idx % 10] + DIZI[idx % 12];
 }
-// 小限起宫(虚岁一岁)：寅午戌→辰、申子辰→戌、亥卯未→丑、巳酉丑→未
-const XIAOXIAN_START = {
-	'寅': '辰', '午': '辰', '戌': '辰', '申': '戌', '子': '戌', '辰': '戌',
-	'亥': '丑', '卯': '丑', '未': '丑', '巳': '未', '酉': '未', '丑': '未',
-};
+// 小限起宫(虚岁一岁)：寅午戌→辰、申子辰→戌、亥卯未→丑、巳酉丑→未 —— 表已单源化到 ziweiTables.XIAOXIAN_START。
 
 // houses[] 是连续地支但起始宫不固定 → 必须按地支搜数组下标，不可用 DIZI 位置
 function houseIdxByBranch(chart, zhi) {
@@ -98,11 +96,19 @@ function buildLiunianItems(chart, daxian) {
 		const gz = yearGanzi(year);
 		if (!gz || gz.length < 2) continue;
 		const zhi = gz.charAt(1);
-		out.push({
+		const mingIndex = houseIdxByBranch(chart, zhi);
+		const item = {
 			id: `ln-${year}`, level: 'liunian', year, age: daxian.start + k, ganzi: gz,
-			gan: gz.charAt(0), zhi, mingIndex: houseIdxByBranch(chart, zhi),
+			gan: gz.charAt(0), zhi, mingIndex,
 			top: `${year}`, sub: `${gz}`,
-		});
+		};
+		// [B10] 流年四化取干两法:ming_gong_gan=以流年命宫宫干起四化(飞星系用法)。
+		// 默认档不加字段(item 形状字节稳);消费点统一 `layer.sihuaGan || layer.gan`。
+		// 流曜恒用 layer.gan(流曜按流年干,不随此档);流月干独立五虎遁不受染。
+		if(ZWEngineOptions.liunianSihuaGan === 'ming_gong_gan' && mingIndex >= 0 && chart.houses[mingIndex] && chart.houses[mingIndex].ganzi){
+			item.sihuaGan = chart.houses[mingIndex].ganzi.charAt(0);
+		}
+		out.push(item);
 	}
 	return out;
 }
@@ -113,17 +119,12 @@ function buildXiaoxianItems(chart, daxian) {
 	if (!startZhi) return [];
 	const startIdx = houseIdxByBranch(chart, startZhi);
 	if (startIdx < 0) return [];
-	const male = chart.gender === 'Male' || chart.gender === 1 || chart.gender === '1';
 	// P1-B 小限顺逆：'0'=男顺女逆(现状默认，零回归) / '1'=阳男阴女顺、阴男阳女逆(中州)。
-	let xxMode = '0';
-	try { xxMode = localStorage.getItem('ziweiXiaoxianYinyang') || '0'; } catch (e) { xxMode = '0'; }
-	let clockwise;
-	if (xxMode === '1') {
-		const yang = chart.yearPolar === 'Positive';
-		clockwise = (yang && male) || (!yang && !male);
-	} else {
-		clockwise = male;
-	}
+	// [B15] 迁入 ZWEngineOptions 单例(挂载/导出走 builder set/finally 临时覆盖,不再兜转 localStorage);
+	// LS 键 ziweiXiaoxianYinyang 沿用,由 ZiWeiInput 构造器读入单例。
+	// [B15b] 判定单源化:ZiWeiHelper.xiaoxianClockwise(内核=ziweiCore.xiaoxianClockwiseFor,读同一单例)——
+	// 盘面岁数条/本地引擎与本函数三消费点同口径,金标对拍锁(ziweiXiaoxianSyncWiring)。
+	const clockwise = ZiWeiHelper.xiaoxianClockwise(chart);
 	const birthY = birthYearOf(chart);
 	const out = [];
 	for (let age = daxian.start; age <= daxian.end; age++) {
@@ -146,13 +147,17 @@ function buildLiuyueItems(chart, year) {
 	const gz = yearGanzi(year);
 	const yearGan = gz.charAt(0);
 	const yearZhi = gz.charAt(1);
-	const doujunZhi = ZiWeiHelper.getDouJun(chart.zidou, yearZhi);
-	const doujunIdx = houseIdxByBranch(chart, doujunZhi);
+	// [P3c] 流月起法两档:doujun 斗君宫起正月(默认=现状,三合/四化主流) / taisui 太岁宫(流年支所在宫)起正月。
+	// 本函数同时喂 UI 面板与快照 builder(ZiWeiMain import),两处口径自动一致。
+	const anchorZhi = ZWEngineOptions.liuYueBasis === 'taisui'
+		? yearZhi
+		: ZiWeiHelper.getDouJun(chart.zidou, yearZhi);
+	const anchorIdx = houseIdxByBranch(chart, anchorZhi);
 	const out = [];
 	for (let m = 0; m < 12; m++) {
 		const gan = monthGan(yearGan, m);
 		const zhi = DIZI[(2 + m) % 12]; // 正月建寅
-		const mingIndex = doujunIdx < 0 ? -1 : (doujunIdx + m) % 12;
+		const mingIndex = anchorIdx < 0 ? -1 : (anchorIdx + m) % 12;
 		out.push({
 			id: `ly-${year}-${m}`, level: 'liuyue', month: m + 1, year,
 			ganzi: gan + zhi, gan, zhi, mingIndex,
@@ -240,6 +245,22 @@ function luckSelectLiuri(chart, item, prev) {
 function luckSelectLiushi(chart, item, prev) {
 	return { ...(prev || emptyLuckSel()), liushi: item };
 }
+// [B15b] 运限口径改档(小限顺逆/流年四化取干/流月起法…)后,已选运限是「点击时刻的快照对象」——
+// 不重派生就会与按钮列表自相矛盾(实测:改小限顺逆后芯片列表已按新口径,详情卡/叠宫层/AI period 仍旧口径)。
+// 本函数按各层身份键(start/year/age/month/day/hourIdx)在新口径 build 结果里整链重找:
+// 口径未变时逐层值等(幂等,仅换引用);变了则 mingIndex/ganzi/sihuaGan 全部跟随。ZiWeiMain 广播监听统一调用。
+function rederiveLuckSel(chart, sel) {
+	if (!sel || !chart || !chart.houses) { return sel; }
+	if (!sel.daxian && !sel.liunian && !sel.xiaoxian && !sel.liuyue && !sel.liuri && !sel.liushi) { return sel; }
+	const out = emptyLuckSel();
+	if (sel.daxian) { out.daxian = buildDaxianItems(chart).find((d) => d.start === sel.daxian.start) || sel.daxian; }
+	if (sel.liunian && out.daxian) { out.liunian = buildLiunianItems(chart, out.daxian).find((l) => l.year === sel.liunian.year) || null; }
+	if (sel.xiaoxian && out.daxian) { out.xiaoxian = matchXiaoxian(chart, out.daxian, sel.xiaoxian.age); }
+	if (sel.liuyue) { out.liuyue = buildLiuyueItems(chart, sel.liuyue.year).find((m) => m.month === sel.liuyue.month) || null; }
+	if (sel.liuri && out.liuyue) { out.liuri = buildLiuriItems(chart, sel.liuri.year, out.liuyue).find((d) => d.day === sel.liuri.day) || null; }
+	if (sel.liushi && out.liuri) { out.liushi = buildLiushiItems(chart, out.liuri).find((h) => h.hourIdx === sel.liushi.hourIdx) || null; }
+	return out;
+}
 
 // 导出纯构造器 + 宫位定位工具 + 运限状态机,供 AI 挂载快照与命盘九宫格按同一口径复用(见 ZiWeiMain)。
 export {
@@ -259,11 +280,26 @@ export {
 	luckSelectLiuyue,
 	luckSelectLiuri,
 	luckSelectLiushi,
+	rederiveLuckSel,
 };
 
 class ZWLuckPanel extends Component {
 	// 受控组件：选择态由父级(ZiWeiMain)的 luckSel 单一真值源驱动(props.value)，pick* 经 props.onChange 上报。
 	// 初值/默认/最深层高亮 全由 ZiWeiMain 派生（与命盘九宫格共用同一 luckSel），本组件不持本地选择态。
+	// [D3] 例外:版式(compact 单行横滚/wrap 折行)是右栏 React 局部显示态,自持 setState 即可——
+	// 豁免 bumpZwDisplayRev(广播只为 SVG 盘面组件解 requestDedupe;本面板是 React 树,setState 自然重渲)。
+	constructor(props){
+		super(props);
+		let lay = 'compact';
+		try{ lay = localStorage.getItem('ziweiLuckPanelLayout') === 'wrap' ? 'wrap' : 'compact'; }catch(e){ /* noop */ }
+		this.state = { layout: lay };
+	}
+
+	toggleLayout(){
+		const next = this.state.layout === 'wrap' ? 'compact' : 'wrap';
+		safeLocalStorageSet('ziweiLuckPanelLayout', next);   // [125] 配额满自动清理重试,禁裸 setItem
+		this.setState({ layout: next });
+	}
 	sel() {
 		return this.props.value || emptyLuckSel();
 	}
@@ -388,9 +424,10 @@ class ZWLuckPanel extends Component {
 		const chart = this.props.chart || {};
 		const mingIdx = layer.mingIndex;
 		const oppIdx = (mingIdx + 6) % 12;
-		const sihua = ZiWeiHelper.getLayerSihua(chart, layer.gan) || [];
+		// [B10-fix] 流年四化取干:消费期现算(effLayerSihuaGan)——切档立即生效于已选流年,不再吃 item 快照
+		const sihua = ZiWeiHelper.getLayerSihua(chart, ZiWeiHelper.effLayerSihuaGan(chart, layer)) || [];
 		// P0-2：流曜下沉到全部层级（大限/流年/小限/流月/流日/流时各按本层干支起流曜），不再只限流年。
-		const flowStars = ZiWeiHelper.getFlowStars(layer.gan, layer.zhi) || [];
+		const flowStars = ZiWeiHelper.getFlowStars(layer.gan, layer.zhi, ZiWeiHelper.hourZhiOf(chart)) || [];
 		let sub = '';
 		if (layer.level === 'liunian' && layer.year) sub = `${layer.year}年`;
 		else if (layer.level === 'xiaoxian' && layer.age) sub = `${layer.age}虚岁`;
@@ -412,7 +449,7 @@ class ZWLuckPanel extends Component {
 				)}
 				<div className="horosa-ziwei-luck-sihua">
 					{sihua.map((h) => (
-						<span key={h.star} className="hua" style={{ background: HUA_BG[h.hua] || '#888' }}>
+						<span key={h.star} className="hua" style={{ background: (ZWConst.ZWColor[h.hua] && ZWConst.ZWColor[h.hua].bg) || '#888' }}>
 							<b>{h.hua}</b>{h.star}<i>{houseName(chart, h.houseIndex, true)}</i>
 						</span>
 					))}
@@ -516,7 +553,10 @@ class ZWLuckPanel extends Component {
 		if (s.liushi) cards.push(s.liushi);
 
 		return (
-			<div className="horosa-ziwei-luck">
+			<div className={`horosa-ziwei-luck ${this.state.layout === 'wrap' ? 'is-wrap' : ''}`}>
+				<button type="button" className="horosa-ziwei-luck-layout-btn" onClick={()=>this.toggleLayout()}>
+					{this.state.layout === 'wrap' ? '紧凑版式' : '展开版式'}
+				</button>
 				<div className="horosa-ziwei-luck-axes">
 					{this.renderInfoAxis('童限', tonglianItems, 'tl')}
 					{this.renderAxis('大限', daxianItems, s.daxian ? s.daxian.id : '', (i) => this.pickDaxian(i), 'dx')}

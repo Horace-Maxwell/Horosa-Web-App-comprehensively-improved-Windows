@@ -9,12 +9,25 @@ import path from 'path';
 import { buildExportPdfVectorBlob } from '../aiExportPdfVector';
 
 const FONT_PATH = path.join(__dirname, '../../../public/fonts/HorosaCJK-subset.ttf');
+const BOLD_FONT_PATH = path.join(__dirname, '../../../public/fonts/HorosaCJK-Bold-subset.ttf');
 
-beforeAll(() => {
-	const buf = fs.readFileSync(FONT_PATH);
-	const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-	global.fetch = jest.fn(async ()=> ({ ok: true, status: 200, arrayBuffer: async ()=> ab }));
-});
+// [E11] mock 要按 URL 分发两副字体(Regular / Bold)—— 只喂 Regular 的话「真 Bold 落笔」
+// 这条路径在测试里就是空转,断言等于没验。
+function toAb(p){
+	const buf = fs.readFileSync(p);
+	return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+}
+function mockFonts({ boldOk = true } = {}){
+	const reg = toAb(FONT_PATH);
+	const bold = toAb(BOLD_FONT_PATH);
+	global.fetch = jest.fn(async (url)=>{
+		const isBold = /Bold/i.test(`${url}`);
+		if(isBold && !boldOk){ return { ok: false, status: 404, arrayBuffer: async ()=> new ArrayBuffer(0) }; }
+		return { ok: true, status: 200, arrayBuffer: async ()=> (isBold ? bold : reg) };
+	});
+}
+
+beforeAll(() => { mockFonts(); });
 afterAll(() => { delete global.fetch; });
 
 // Blob.arrayBuffer polyfill for jsdom(取字节做断言)。
@@ -51,6 +64,7 @@ function pdfInfo(bytes){
 		hasToUnicode: /\/ToUnicode\b/.test(deep),  // 有 ToUnicode CMap = 可选可搜(复制得回原字)
 		sizeKB: Math.round(bytes.length / 1024),
 		ops,   // [E5] 内容流文本(含原始字节+过滤解压),查 Tr 等操作符专用
+		deep,  // [E11] 全流解压文本(含 ObjStm 里的字体字典),查 /FontFile2、BaseFont 名专用
 	};
 }
 
@@ -146,27 +160,48 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		expect(rows.filter((r)=> r.isHeader).length).toBe(pagesSeen.length);
 	});
 
-	// [E5] 粗体贯通:**粗** 剥记号入文,粗体段以 Tr2(FillAndOutline)描边合成——内容流必现 `2 Tr`
-	// 且绘后复位 `0 Tr`;无记号输入不应出现 Tr2(粗体路径不误触发)。
-	test('[E5] 行内加粗:记号消化 + Tr2 合成粗体 + 复位', async () => {
-		const text = [
-			'【判语】',
-			'本局**必成**,应期在**2027(丁未)年**。',
-			'',
-			'- **事业方向**：宜金融',
-			'',
-			'| 维度 | 判 |',
-			'|---|---|',
-			'| 婚姻 | **宜早** |',
-		].join('\n');
-		const blob = await buildExportPdfVectorBlob({ tech: '粗体', filenameBase: 'x', text });
+	// [E11] 粗体贯通改真字重:**粗** 剥记号入文,粗体段改用**真 Bold 子集字体**落笔
+	// (Noto Sans CJK SC Bold,与 Regular 同覆盖)——PDF 里必须内嵌两副 TrueType 字体,
+	// 且不再出现 Tr2 描边合成。Tr2 只保留为「Bold 取不到」的降级路径,由下一例守。
+	const BOLD_TEXT = [
+		'【判语】',
+		'本局**必成**,应期在**2027(丁未)年**。',
+		'',
+		'- **事业方向**：宜金融',
+		'',
+		'| 维度 | 判 |',
+		'|---|---|',
+		'| 婚姻 | **宜早** |',
+	].join('\n');
+	test('[E11] 行内加粗:记号消化 + 真 Bold 字重内嵌(不再描边合成)', async () => {
+		const blob = await buildExportPdfVectorBlob({ tech: '粗体', filenameBase: 'x', text: BOLD_TEXT });
 		const info = pdfInfo(await blobBytes(blob));
 		expect(info.valid).toBe(true);
-		expect(/\b2\s+Tr\b/.test(info.ops)).toBe(true);   // FillAndOutline 生效
-		expect(/\b0\s+Tr\b/.test(info.ops)).toBe(true);   // 绘后复位
+		// 两副字体各自内嵌(仍必须是 TrueType glyf:CFF 会整份乱码,老坑不复发)
+		expect((info.deep.match(/\/FontFile2/g) || []).length).toBeGreaterThanOrEqual(2);
+		expect(/\/FontFile3|\/CIDFontType0\b/.test(info.deep)).toBe(false);
+		expect(/Bold/.test(info.deep)).toBe(true);        // BaseFont 里带 Bold 字面
+		expect(/\b2\s+Tr\b/.test(info.ops)).toBe(false);  // 真字重路径不再走 Tr2
 		// 对照组:纯文本无记号(且无表格,表头会强制加粗)→ 粗体路径不误触发
 		const plain = await buildExportPdfVectorBlob({ tech: '纯', filenameBase: 'x', text: '【判语】\n本局平顺,无记号纯文本。' });
 		expect(/\b2\s+Tr\b/.test(pdfInfo(await blobBytes(plain)).ops)).toBe(false);
+	});
+
+	test('[E11] 降级路径:Bold 字体取不到 → 回落 Tr2 描边合成(正文绝不缺席)', async () => {
+		jest.resetModules();
+		mockFonts({ boldOk: false });
+		try{
+			// eslint-disable-next-line global-require
+			const { buildExportPdfVectorBlob: fresh } = require('../aiExportPdfVector');
+			const blob = await fresh({ tech: '粗体降级', filenameBase: 'x', text: BOLD_TEXT });
+			const info = pdfInfo(await blobBytes(blob));
+			expect(info.valid).toBe(true);
+			expect(/\b2\s+Tr\b/.test(info.ops)).toBe(true);   // FillAndOutline 合成粗体
+			expect(/\b0\s+Tr\b/.test(info.ops)).toBe(true);   // 绘后复位
+		}finally{
+			jest.resetModules();
+			mockFonts();
+		}
 	});
 
 	test('含截图 dataUrl(1x1 JPEG)：截图页 + 正文', async () => {

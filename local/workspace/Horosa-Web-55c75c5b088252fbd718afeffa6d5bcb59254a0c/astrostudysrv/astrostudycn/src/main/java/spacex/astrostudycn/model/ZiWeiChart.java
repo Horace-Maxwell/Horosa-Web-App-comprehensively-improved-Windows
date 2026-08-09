@@ -371,7 +371,14 @@ public class ZiWeiChart {
 				
 				idx = StemBranch.BranchIndex.get(zi.substring(1));
 				housezi = this.houses[idx].ganzi.substring(1);
-				star = new ZiWeiStar(starname, this.yearGan, housezi, this.mySihua, this.mySihuaGan);
+				// 正副按「与年干同极性=正支」逐支各判(与旬空 setupStarsXunEmpty 同律)——
+				// 旧实现第二支恒正名:截空对恒[阳支,阴支],阳年干出两颗正截空零副(与前端同构错,已双端同修)
+				housepol = StemBranch.BranchPolarityMap.get(housezi);
+				sname = starname;
+				if(housepol != this.yearPolar) {
+					sname = "副" + starname;
+				}
+				star = new ZiWeiStar(sname, this.yearGan, housezi, this.mySihua, this.mySihuaGan);
 				this.houses[idx].addStar(star, type);
 				this.starsHouseIndex.put(starname, idx);
 			}else {

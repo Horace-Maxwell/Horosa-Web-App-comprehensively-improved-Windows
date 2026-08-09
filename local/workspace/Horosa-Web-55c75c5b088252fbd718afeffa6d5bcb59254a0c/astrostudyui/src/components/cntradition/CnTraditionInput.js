@@ -492,10 +492,10 @@ class CnTraditionInput extends Component{
 					</XQSideSection>
 					<XQSideSection iconName={sideSectionIcon('switches')} title="起盘选项" storageKey="bazi.options" className="horosa-side-input-section">
 					<div className="horosa-field-grid">
-						<div className="horosa-field-block">
+						<div className="horosa-field-block" title="「未知」按男命排(大运顺逆/小运需性别择一,通行默认男)——与选「男」输出相同">
 							<div className="horosa-field-label">性别</div>
 							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
-								<Option value={-1}>未知</Option>
+								<Option value={-1}>未知(按男排)</Option>
 								<Option value={0}>女</Option>
 								<Option value={1}>男</Option>
 							</Select>

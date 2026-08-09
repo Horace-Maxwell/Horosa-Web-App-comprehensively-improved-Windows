@@ -4,6 +4,7 @@ import * as ZWCont from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import * as GraphHelper from '../graph/GraphHelper';
 import ZWCommHouse from './ZWCommHouse';
+import { isLaiyinPalace } from './ziweiSchools';
 import {randomStr,} from '../../utils/helper';
 // 注:getYearJiang/getTaisui 原用于「点宫后把本命将前/岁前十二神改写成流年神煞」,
 // 该逻辑已按 BUG-H 移除(本命神煞应恒定),故不再 import。
@@ -72,6 +73,8 @@ class ZWHouseSangHe extends ZWCommHouse {
 		this.drawHouse();
 
 		this.drawLaiYing();
+		// [D2] 宫底岁数条(默认双关):画在下 1/4 标题带上沿之上,靠左。
+		this.drawAgeStrips(this.x + 3, this.y + this.height * 3 / 4 - 3, this.width - 6, 10);
 		this.drawOverlayMarks();   // 流派叠层角标/借宫/活盘:基类 ZWCommHouse 统一实现(与四化盘同源,三合盘同样生效)
 	}
 
@@ -90,16 +93,22 @@ class ZWHouseSangHe extends ZWCommHouse {
 		this.drawKinastroCornerMark(container, x, y, w, h);
 		let data = [];
 		// 「显示十二神」全局开关:与四化盘 ZWHouse.drawSihuaSmallStars 同口径——关则不绘长生/博士/将前/岁前十二神。
-		const smalls = ZiWeiHelper.zwShowSmall() ? (this.houseObj.starsSmall || []) : [];
+		// [D3] 流年神煞上盘:绘制期替换(将前/岁前→流年版),再过显示过滤;chart 数据零触碰。
+		const smallsRaw = ZiWeiHelper.resolveSmallStarsForDisplay(this.houseObj.starsSmall || [], this.houseObj.ganzi ? this.houseObj.ganzi.charAt(1) : null, this.zwchart ? this.zwchart.flowZhi : null);
+		const smalls = ZiWeiHelper.zwShowSmall() ? ZiWeiHelper.filterShenshaForDisplay(smallsRaw) : [];
 		for(let i=0; i<smalls.length; i++){
 			let star = smalls[i];
 			let sy = y + i*h/3;
-			data[0] = star.name.substr(0,1);
-			data[1] = star.name.substr(1,1);
+			data = star.name.split('');   // [D3] 流年版名 3 字(「流」前缀),split 全展;本命 2 字行为同前
 			// BUG-H 修复:此前在点过任意宫位(flyHouse 非空)后,会把本命「将前十二神(i===1)/
 			// 岁前十二神(i===2)」改写成以被点宫地支为流年支重新起算的流年将星/流年太岁,
 			// 导致本命神煞随点击变化。本命神煞应恒定不变,故移除该改写;flyHouse 仍只驱动三方四正高亮。
-			GraphHelper.drawTextH(container.append('g'), data, x, sy, w, h/3, 1.5, ZWCont.ZWColor.StarSmallStroke, 400);
+			// [D3] 正确语义的流年替换由「选中流年」驱动(resolveSmallStarsForDisplay,star.flow 标记),期紫显色。
+			const smColor = star.flow ? ZWCont.ZWPeriodColor.liunian : ZWCont.ZWColor.StarSmallStroke;
+			const smG = GraphHelper.drawTextH(container.append('g'), data, x, sy, w, h/3, 1.5, smColor, 400);
+			if(star.flow && star.natal && smG){
+				this.genTooltip(smG, { title: star.name, tips: [`流年神煞(随所选流年);本命此位为「${star.natal}」`] }, star.name);
+			}
 		}
 
 		let dirX = x + w;
@@ -246,11 +255,12 @@ class ZWHouseSangHe extends ZWCommHouse {
 	drawStars(){
 		const main = this.houseObj.starsMain || [];
 		const assist = this.houseObj.starsAssist || [];
-		const evil = this.houseObj.starsEvil || [];
+		// [D1] 神煞三组显示过滤(纯显示层,列宽计算前;默认全开=原引用零变化)
+		const evil = ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsEvil || []);
 		// 「显示杂曜」全局开关:与四化盘 ZWHouse.drawSihuaStars 同口径——关则不绘杂吉/杂凶(纯显示,不动排盘数据)。
 		const showOthers = ZiWeiHelper.zwShowOthers();
-		const othersGood = showOthers ? (this.houseObj.starsOthersGood || []) : [];
-		const othersBad = showOthers ? (this.houseObj.starsOthersBad || []) : [];
+		const othersGood = showOthers ? ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsOthersGood || []) : [];
+		const othersBad = showOthers ? ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsOthersBad || []) : [];
 		const protectedCount = main.length + assist.length + evil.length;
 		const othersCount = othersGood.length + othersBad.length;
 		const total = protectedCount + othersCount;
@@ -281,13 +291,15 @@ class ZWHouseSangHe extends ZWCommHouse {
 		let x = this.x;
 		const drawGroup = (arr, gw, color, scale, weight)=>{
 			for(let i=0; i<arr.length; i++){
-				this.drawStar(arr[i], x, y, gw, h, color, scale, weight);
+				// [D1] color 允许传函数(按星名定色;六煞黑字档用),字符串=整组同色(原行为)。
+				const c = typeof color === 'function' ? color(arr[i] && arr[i].name) : color;
+				this.drawStar(arr[i], x, y, gw, h, c, scale, weight);
 				x += gw;
 			}
 		};
 		drawGroup(main, wProtected, ZWCont.ZWColor.StarMainStroke, 1, 700);
 		drawGroup(assist, wProtected, ZWCont.ZWColor.StarAssistStroke, 0.9, 520);
-		drawGroup(evil, wProtected, ZWCont.ZWColor.StarEvilStroke, 0.9, 520);
+		drawGroup(evil, wProtected, ZiWeiHelper.colorForEvilStar, 0.9, 520);
 		drawGroup(othersGood, wOthers, ZWCont.ZWColor.StarOthersGoodStroke, 0.9, 520);
 		drawGroup(othersBad, wOthers, ZWCont.ZWColor.StarOthersBadStroke, 0.9, 520);
 	}
@@ -306,7 +318,8 @@ class ZWHouseSangHe extends ZWCommHouse {
 			this.drawKinastroStar(star, x, y, w, h, color, scale, nameWeight);
 			return;
 		}
-		const sl = this.effStarLight(star);   // 显示层庙旺(亮度源 quanshu 时叠《全书》delta)
+		// 显示层庙旺(非默认亮度源时叠 delta);受「庙旺标注」显示开关控制(默认开=零回归)
+		const sl = ZiWeiHelper.zwShowStarLight() ? this.effStarLight(star) : '';
 		let txt = [];
 		for(let i=0; i<star.name.length; i++){
 			txt[i] = star.name.charAt(i) + '';
@@ -369,6 +382,8 @@ class ZWHouseSangHe extends ZWCommHouse {
 		// baseOffset=h(星名区底,各星统一→跨星对齐)、slotH=this.luckSlotH(统一槽高)；clamp 不越宫格上半矩形(需求4)。
 		const luckMaxBottom = this.y + this.height * 3 / 4 - 2;
 		dim.h = this.drawLuckSihuaForStar(star, x, y, w, h, this.luckSlotH || (w + this.margin), mgn, luckMaxBottom);
+		// [D2] 干系四化徽(命/日,默认关):运限槽之后的固定槽位,同越界保护。
+		this.drawStemSihuaChips(star, x, y, w, h, this.luckSlotH || (w + this.margin), mgn, luckMaxBottom);
 		this.stars.set(star.name, dim);
 	}
 
@@ -493,8 +508,9 @@ class ZWHouseSangHe extends ZWCommHouse {
 		let hy = this.y + this.height - this.height/4 - hh - 10;
 		let color = AstroConst.AstroColor.Stroke;
 	
-		let hgan = this.houseObj.ganzi.charAt(0) + '';
-		if(hgan === this.chartObj.yearGan){
+		// 来因判据走 isLaiyinPalace 单源(宫干==年干且非子丑借干宫)——旧实现不排子丑,
+		// 辛年丑宫/壬年子宫会画假来因,与四化盘/快照/报告口径分叉(复查实锤已统一)
+		if(ZiWeiHelper.zwShowLaiyin() && isLaiyinPalace(this.houseObj.ganzi, this.chartObj.yearGan)){
 			let txt = ['来', '因'];
 			GraphHelper.drawTextV(this.svg.append('g'), txt, hx, hy, hw, hh, 2, 
 				color, null, null, color);		
@@ -502,7 +518,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 			hx = hx - hw - this.margin;
 		}
 		
-		if(this.houseObj.isBody && !this.kinastroBorrowed){
+		if(ZiWeiHelper.zwShowBodyPalace() && this.houseObj.isBody && !this.kinastroBorrowed){
 			let txt = ['身', '宫'];
 			GraphHelper.drawTextV(this.svg.append('g'), txt, hx, hy, hw, hh, 2, 
 				color, null, null, color);		

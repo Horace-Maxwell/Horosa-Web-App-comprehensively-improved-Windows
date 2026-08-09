@@ -75,12 +75,12 @@ class ZWChart {
 
 	clickHouse(house){
 		// 活盘(WP-3):huoPan 模式下点宫=设该宫为太极点(新命宫),再点原太极点则复位;星曜地支不动、仅宫名重排。
+		// [A7] 单击双义:翻完太极点不提前 return,落穿飞化 toggle——落太极点即续飞化(宫底色三态/
+		// 飞化染色/三合虚线/斗君文案不再被连坐);同宫再点=太极点与飞化宫双清,对称。末尾单次 draw。
 		if(ZWEngineOptions.huoPan){
 			const idx = house && house.houseChart ? house.houseChart.houseIndex : null;
 			if(idx !== null && idx !== undefined){
 				this.taijiIdx = (this.taijiIdx === idx) ? null : idx;
-				this.draw();
-				return;
 			}
 		}
 		if(this.flyHouse){

@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.7.3
+version: 3.8.0
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,8 +12,21 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.7.3 beta is a local-first metaphysics workstation that aligns the
-  latest Mac-side work. This release completes Feng Shui to thirteen schools — deepening the
+  Horosa for Windows v3.8.0 beta is a local-first metaphysics workstation. This release is a
+  broad settings expansion across three techniques: Qi Men Dun Jia gains about forty-two new
+  options including two complete standalone systems (quarter-hour Qi Men, and the day-based
+  Jin Han almanac board), plus eight-spirit selection, central-palace lodging, hidden-stem
+  methods, per-layer flying/rotating assembly for mixed boards, and per-school ju derivation;
+  Zi Wei Dou Shu gains multi-school star-brightness sources with a user-editable brightness
+  table that persists across sessions, switchable four-transformation schools, and about
+  thirty-four regrouped display and luck-cycle options; Liu Yao gains eleven casting and board
+  options with a full audit of all twenty-one left-panel selectors. It also rebuilds the BaZi
+  twelve-growth ("chang sheng") tables to three authoritative schools so all three settings
+  take effect on the main chart, fine chart, and AI snapshot; mirrors every new Qi Men option
+  into the combined Three-Rites page; makes the AI analysis page open immediately by loading
+  its library and session history progressively in the background; and repairs several AI
+  export paths that previously reported no exportable text. It builds on the earlier release
+  that completed Feng Shui to thirteen schools — deepening the
   six Liqi schools (San He twelve-growth facing / Yellow Spring & Eight Sha / Bo Sha five
   grades / Chuan Shan Tou Di gold-division lines; Qian Kun Guo Bao nine water positions; Ba
   Zhai door-master-stove with nine-star six-matters; Xuan Kong combined-facing degree

@@ -107,7 +107,8 @@ const DOMAIN_REPLACERS = {
 		{ regex: /值使/g, value: '值使(主事门)' },
 		{ regex: /九星/g, value: '九星(天蓬天任天冲天辅天英天芮天柱天心天禽)' },
 		{ regex: /八门/g, value: '八门(休生伤杜景死惊开)' },
-		{ regex: /八神/g, value: '八神(值符螣蛇太阴六合白虎玄武九地九天)' },
+		// [H-A] 八神扩写与盘式解耦:转盘八神=虎玄表,飞盘九神含勾陈太常朱雀——写死单表会与飞盘盘面自相矛盾。
+		{ regex: /八神/g, value: '八神(值符螣蛇太阴六合等神盘诸神,依盘式取转盘八神或飞盘九神)' },
 		{ regex: /遁甲/g, value: '奇门遁甲' },
 	],
 };
@@ -163,7 +164,10 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 //        🔴 不升 MIGRATION_VERSION(那会令 v45+ 存档重走全 preset union、违「取消=真取消」铁律);
 //        改用键内段级一次性 union（AI_EXPORT_V49_SECTION_UNION）——这三段 v49 前根本不存在,
 //        用户不可能"取消"过它们,故并入不会复活任何被取消项,语义安全。
-export const AI_EXPORT_SETTINGS_VERSION = 50;
+// v51 补:风水新增「风水·形势图判」段(AI 分析页·风水图像分析工作台的快照,整块包段并入 fengshui 导出);
+//        同 v49/v50 键内段级一次性 union——该段本版才诞生,用户无从取消过,并入不复活任何被取消项
+//        (v45「取消=真取消」铁律不破);🔴 不动 MIGRATION_VERSION(见下方铁律注释)。
+export const AI_EXPORT_SETTINGS_VERSION = 51;
 // 🔴 新技法不动此闸：其键老用户本无（未自定义）→ 走 preset 全量、本就含其全部段；
 // union 迁移唯「已自定义过某技法而该技法新增段」者需之。误升此闸会令 v45 存档重走 union，
 // 违「v45 起不再 union 强推、用户取消=真取消」之铁律（其测试锁之）。
@@ -194,6 +198,10 @@ const AI_EXPORT_V49_SECTION_UNION = {
 const AI_EXPORT_V50_UNION_VERSION = 50;
 const AI_EXPORT_V50_SECTION_UNION = {
 	babylon: ['微黄道'],
+};
+// [v51] 同 v49/v50 机制的下一窗(风水·形势图判:图像分析工作台快照并入 fengshui 导出)。
+const AI_EXPORT_V51_UNION_VERSION = 51;
+const AI_EXPORT_V51_SECTION_UNION = {
 };
 const AI_EXPORT_V45_SECTION_UNION = {
 };
@@ -640,11 +648,14 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'命宫行限',
 		'十六宫标记',
 	],
-	qimen: ['起盘信息', '盘型', '全局速览', '盘面要素', '奇门演卦', '八宫详解', '八宫克应', '九宫方盘', '旺相休囚死·月令能量', '六害总览', '化解方案', '八门化气大阵', '用神分论', '财富七要', '事业七要', '恋爱姻缘', '孤辰寡宿'],
+	qimen: ['起盘信息', '盘型', '全局速览', '盘面要素', '奇门演卦', '八宫详解', '八宫克应', '九宫方盘', '旺相休囚死·月令能量', '六害总览', '化解方案', '八门化气大阵', '用神分论', '财富七要', '事业七要', '恋爱姻缘', '孤辰寡宿',
+		// [H-G] 金函系日家专段(独立体系整段;未登记则自定义过段集的用户导出金函盘被静默滤空——indiachart 教训同款)
+		'日家占方（古籍金函系）'],
 	sanshiunited: [
 		'起盘信息',
 		'概览',
 		'太乙',
+		'奇门遁甲',   // [制度化] 挂载重算链的奇门非挑段内容顶段(段头降格并入;live 页无此段=条件段)
 		'太乙十六宫',
 		'神煞',
 		'大六壬',
@@ -716,7 +727,8 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	...JIEQI_SETTING_PRESETS,
 	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体'],
 	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议', '风水·纳气盘', '风水·八卦阳宅', '风水·八宅大游年', '风水·玄空飞星', '风水·三合水法', '风水·金锁玉关', '风水·乾坤国宝', '风水·紫白飞星', '风水·辅星水法', '风水·净阴净阳', '风水·玄空大卦', '风水·形势峦头', '风水·择日选择',
-		'风水·玄空六法', '风水·命理派', '风水·综合罗经'],
+		'风水·玄空六法', '风水·命理派', '风水·综合罗经',
+	],
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
 	zhengchuan: ['起盘信息', '起数', '本命条文', '流年条文', '五基础数据', '装卦', '断本命', '策数', '死月',
 		'十二宫与六亲宫', '六亲属相', '妻室姓氏', '玄机卦动爻', '八刻分命', '条文秘数查询', '性情项查询', '古籍未载之格'],
@@ -1081,6 +1093,19 @@ function normalizeAIExportSettings(settings){
 			]);
 		});
 	}
+	// [v51] 同 v49/v50 机制的下一窗(风水·形势图判)。
+	if(sourceVersion < AI_EXPORT_V51_UNION_VERSION){
+		Object.keys(AI_EXPORT_V51_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V51_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
 	if(sourceVersion < AI_EXPORT_SECTION_MIGRATION_VERSION){
 		AI_EXPORT_SECTION_MIGRATION_KEYS.forEach((key)=>{
 			if(!Object.prototype.hasOwnProperty.call(sections, key)){
@@ -1314,7 +1339,7 @@ export function splitContentSections(content){
 	return sections;
 }
 
-function filterContentByWantedSections(content, wanted){
+export function filterContentByWantedSections(content, wanted){
 	const sections = splitContentSections(content);
 	if(sections.length === 0){
 		return content;
@@ -2149,7 +2174,24 @@ function resolveActiveContext(){
 	}
 
 	const topActiveTab = getTabsNavItems(topTabs).find((n)=>n.classList.contains('ant-tabs-tab-active'));
-	const topLabel = textOf(topActiveTab) || '当前技术';
+	let topLabel = textOf(topActiveTab) || '当前技术';
+	// [制度化] 🔴 主导航短名→导出判定长名归一(结构化真值,与显示文案永久解耦):
+	//   判定链按长名词匹配;导航显示名改短(如「印度占星」→「印占」)曾使印占/七政/三式/分至等页
+	//   顶栏 AI 导出全线报「没有可导出文本」。data-node-key 是 rc-tabs 暴露的结构化 tab key,
+	//   命中归一表则以长名喂给下游全部 includes 判定;未列键沿用真实文本(八字/紫微等短名本就命中)。
+	//   ⚠ 新增主导航技法必须在 aiExportNavKeyCoverage.test.js 三分类表登记(归一/自命中/豁免),哨兵看死。
+	const NAV_KEY_EXPORT_LABEL = {
+		astrochart: '星盘',
+		guolao: '七政四余',
+		indiachart: '印度占星',
+		sanshiunited: '三式合一',
+		jieqichart: '节气盘',
+		cnyibu: '其他术数',
+	};
+	const navNodeKey = topActiveTab ? (topActiveTab.getAttribute('data-node-key') || '') : '';
+	if(navNodeKey && NAV_KEY_EXPORT_LABEL[navNodeKey]){
+		topLabel = NAV_KEY_EXPORT_LABEL[navNodeKey];
+	}
 	const topPane = getDirectActivePane(topTabs) || root;
 
 	const context = {
@@ -2867,7 +2909,8 @@ const AI_EXPORT_TECHNIQUE_GROUPS = [
 		'horary', 'election', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi'] },
 	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'] },
 	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan'] },
-	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'fengshui', 'calendar', 'huangli', 'tongshu'] },
+	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'fengshui',
+		'calendar', 'huangli', 'tongshu'] },
 ];
 
 export function listAIExportTechniqueSettingGroups(){
@@ -3843,6 +3886,12 @@ async function extractAstroContent(context){
 	}
 	const scopeRoot = context ? context.scopeRoot : null;
 	const indiaActive = findIndiaActivePane(scopeRoot);
+	// [制度化] 实时取数先行(六爻/紫微同款范式):派发 refresh 事件让印占组件用当前显示的盘现算现写——
+	// reload 后未重排时懒存缓存为空,只读缓存会「显示有盘却报没有可导出文本」(用户实机抓获)。
+	const refreshed = await requestModuleSnapshotRefresh('indiachart');
+	if(refreshed){
+		return refreshed;
+	}
 	const indiaCached = getIndiaCachedContent(indiaActive ? indiaActive.label : '');
 	return indiaCached || '';
 }
@@ -4395,14 +4444,8 @@ async function extractOtherBuContent(context){
 async function extractFengShuiContent(context){
 	void context;
 	const refreshed = await requestModuleSnapshotRefresh('fengshui');
-	if(refreshed){
-		return refreshed;
-	}
-	const cached = getModuleCachedContent('fengshui');
-	if(cached){
-		return cached;
-	}
-	return '';
+	let base = refreshed || getModuleCachedContent('fengshui') || '';
+	return base;
 }
 
 // 黄历:四子 tab(农历/老黄历/通书择日/日子馆)各自独立模块快照;导出汇合已挂载(用户访问过)的子 tab。
@@ -6666,4 +6709,6 @@ export const __aiExportTesting__ = {
 	beautifyForAIGentle, addScreenshotPageIfAny, normalizeAIExportPrefs,
 	// [YF v45] 导出主链段过滤(内部函数)直测口:锁「空数组=全清」「强推段已死(取消=真取消)」两语义。
 	applyUserSectionFilter, normalizeAIExportSettings, AI_EXPORT_FORCED_INCLUDE_SECTIONS,
+	// 风水导出汇合(理气底段+形势图判包段:过滤→降格→拼接全链)直测口 —— B2 挂载/导出分叉正是零测试才存活的。
+	extractFengShuiContent,
 };

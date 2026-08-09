@@ -12,30 +12,42 @@
 import { parseAiExportDocument, mdInlineSegments } from './aiExportDocModel';
 
 const FONT_URLS = ['./fonts/HorosaCJK-subset.ttf', '/fonts/HorosaCJK-subset.ttf'];
-// [E5] 描边合成粗体系数(×字号):本字体无 Bold 字重,粗体段用 Tr2(FillAndOutline)描边增重——
-//   零字体资产、advance 宽度不变(不影响排版度量)、文字提取不重复(双遍偏移法会让复制出重复词)。
+// [E11] 真 Bold 字重(与 Regular 同源 Noto Sans CJK SC、同 upem、码位完全一致;
+// 由 scripts/build_cjk_bold_subset.py 生成并硬校验)。取不到 → 回落下面的描边合成,绝不失败。
+const BOLD_FONT_URLS = ['./fonts/HorosaCJK-Bold-subset.ttf', '/fonts/HorosaCJK-Bold-subset.ttf'];
+// [E5] 描边合成粗体系数(×字号):**Bold 字体不可用时的降级路径**——用 Tr2(FillAndOutline)
+//   描边增重。零字体资产、advance 宽度不变、文字提取不重复(双遍偏移法会让复制出重复词)。
 const BOLD_STROKE = 0.028;
 let _fontBytesPromise = null;
+let _boldFontBytesPromise = null;
+
+async function fetchFirstFont(urls){
+	let lastErr = null;
+	for(let i = 0; i < urls.length; i++){
+		try{
+			const res = await fetch(urls[i]);
+			if(res && res.ok){
+				const buf = await res.arrayBuffer();
+				if(buf && buf.byteLength > 10000){ return buf; }
+			}
+			lastErr = new Error(`font ${urls[i]} status ${res && res.status}`);
+		}catch(e){ lastErr = e; }
+	}
+	throw lastErr || new Error('font unavailable');
+}
 
 // 字体只取一次（模块级缓存）。相对 './fonts' 优先（桌面 file/hash 路由与 dev `/` 皆解析为 <root>/fonts）。
 async function loadFontBytes(){
 	if(_fontBytesPromise){ return _fontBytesPromise; }
-	_fontBytesPromise = (async ()=>{
-		let lastErr = null;
-		for(let i = 0; i < FONT_URLS.length; i++){
-			try{
-				const res = await fetch(FONT_URLS[i]);
-				if(res && res.ok){
-					const buf = await res.arrayBuffer();
-					if(buf && buf.byteLength > 10000){ return buf; }
-				}
-				lastErr = new Error(`font ${FONT_URLS[i]} status ${res && res.status}`);
-			}catch(e){ lastErr = e; }
-		}
-		_fontBytesPromise = null;   // 允许下次重试
-		throw lastErr || new Error('font unavailable');
-	})();
+	_fontBytesPromise = fetchFirstFont(FONT_URLS).catch((e)=>{ _fontBytesPromise = null; throw e; });
 	return _fontBytesPromise;
+}
+
+// Bold 是**增强项**:取不到不抛,返回 null 让调用方降级到描边合成(正文一定要出得来)。
+async function loadBoldFontBytes(){
+	if(_boldFontBytesPromise){ return _boldFontBytesPromise; }
+	_boldFontBytesPromise = fetchFirstFont(BOLD_FONT_URLS).catch(()=>{ _boldFontBytesPromise = null; return null; });
+	return _boldFontBytesPromise;
 }
 
 // CJK 感知换行：拉丁词/数字整体不断，CJK 与其它字符逐字可断；显式 \n 强制换行。
@@ -50,10 +62,20 @@ function segmentAtoms(text){
 
 // [E5] 富文本换行:runs(mdInlineSegments 产物)→ 行数组;原子级装箱(与 wrapText 同款贪心),
 // 行内相邻同样式原子合并回 run(减少 drawText 次数)。空 runs → 单空行(与 wrapText 空段行为一致)。
-function wrapRuns(runs, font, size, maxWidth){
+// [E11] 🔴 fontOf(bold) 取代原来的单一 font 参数:真 Bold 字重的 advance **与 Regular 不同**
+// (旧注释「Tr2 不改宽度、量宽无需区分粗细」自此失效)—— 量宽与落笔必须用同一副字体,
+// 否则整份 PDF 断行错位、表格串列。atom.bf = 本原子是否真用 Bold 字面(false 且 bold=true
+// 时走描边合成降级)。
+function wrapRuns(runs, fontOf, size, maxWidth, opts){
+	const forceBold = !!(opts && opts.forceBold);
+	const boldOk = (opts && opts.boldOk) || (()=>true);
 	const atoms = [];
 	(runs || []).forEach((r)=>{
-		segmentAtoms(`${r.text == null ? '' : r.text}`).forEach((t)=>{ atoms.push({ t, bold: !!r.bold, code: !!r.code }); });
+		const bold = forceBold || !!r.bold;
+		segmentAtoms(`${r.text == null ? '' : r.text}`).forEach((t)=>{
+			// em/del 也必须随原子带下去 —— 否则 drawRunsLineAt 里的斜体弱化色与删除线永远不触发
+			atoms.push({ t, bold, bf: bold && boldOk(t), code: !!r.code, em: !!r.em, del: !!r.del });
+		});
 	});
 	const lines = [];
 	let cur = [];
@@ -61,7 +83,7 @@ function wrapRuns(runs, font, size, maxWidth){
 	for(let i = 0; i < atoms.length; i++){
 		const atom = atoms[i];
 		let w = 0;
-		try{ w = font.widthOfTextAtSize(atom.t, size); }catch(e){ w = size * atom.t.length; }
+		try{ w = fontOf(atom.bf).widthOfTextAtSize(atom.t, size); }catch(e){ w = size * atom.t.length; }
 		if(cur.length && curW + w > maxWidth && atom.t.trim() !== ''){
 			lines.push(cur);
 			cur = [atom]; curW = w;
@@ -74,8 +96,8 @@ function wrapRuns(runs, font, size, maxWidth){
 		const merged = [];
 		atomLine.forEach((a)=>{
 			const prev = merged[merged.length - 1];
-			if(prev && prev.bold === a.bold && prev.code === a.code){ prev.text += a.t; }
-			else{ merged.push({ text: a.t, bold: a.bold, code: a.code }); }
+			if(prev && prev.bold === a.bold && prev.bf === a.bf && prev.code === a.code && prev.em === a.em && prev.del === a.del){ prev.text += a.t; }
+			else{ merged.push({ text: a.t, bold: a.bold, bf: a.bf, code: a.code, em: a.em, del: a.del }); }
 		});
 		return merged;
 	});
@@ -127,6 +149,27 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	//   唯 TrueType(glyf) + subset:false 同时满足「字体文件有效」与「全字形在位」(三向实证:poppler 0 错、
 	//   pdftext 全文可提、pdftoppm 渲染逐字正确)。字体已是 GB2312+繁+韩 子集(~2.7MB)非全字库,整嵌可控。
 	const font = await pdf.embedFont(fontBytes, { subset: false });
+	// [E11] 真 Bold 字重:同源同覆盖的 Bold 子集(build_cjk_bold_subset.py 硬校验码位一致)。
+	// 取不到 / 内嵌失败 → boldFont=null,粗体段自动回落到 Tr2 描边合成(旧路径完整保留)。
+	let boldFont = null;
+	let boldCharSet = null;
+	try{
+		const boldBytes = await loadBoldFontBytes();
+		if(boldBytes){
+			boldFont = await pdf.embedFont(boldBytes, { subset: false });
+			// 兜底:万一 Bold 少字形,PDF 里会静默出 .notdef 空白方块 —— 逐原子查覆盖,
+			// 未覆盖的原子退回「Regular + 描边」,宁可假粗也不能空白。
+			try{ boldCharSet = new Set(boldFont.getCharacterSet()); }catch(_){ boldCharSet = null; }
+		}
+	}catch(_){ boldFont = null; boldCharSet = null; }
+	const boldOk = (t)=>{
+		if(!boldFont){ return false; }
+		if(!boldCharSet){ return true; }
+		const s = `${t == null ? '' : t}`;
+		for(const ch of s){ if(!boldCharSet.has(ch.codePointAt(0))){ return false; } }
+		return true;
+	};
+	const fontOf = (useBoldFace)=> (useBoldFace && boldFont) ? boldFont : font;
 
 	const PAGE_W = 595.28;   // A4 pt
 	const PAGE_H = 841.89;
@@ -163,14 +206,30 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		for(let i = 0; i < runsLine.length; i++){
 			const r = runsLine[i];
 			if(r.text === ''){ continue; }
+			const f = fontOf(r.bf);
 			let w = 0;
-			try{ w = font.widthOfTextAtSize(r.text, size); }catch(e){ w = size * r.text.length; }
-			if(r.bold){
+			try{ w = f.widthOfTextAtSize(r.text, size); }catch(e){ w = size * r.text.length; }
+			// [E11] 行内码:补一块浅底(与应用内 .xq-md-v2 的 code 底色同一视觉语言)。
+			// 本引擎只内嵌一副 CJK 字族,没有等宽/斜体字面 —— 用底色/字色区分,不硬造字形。
+			if(r.code){
+				page.drawRectangle({ x: cx - 1, y: baselineY - size * 0.22, width: w + 2, height: size * 1.18, color: rgb(0.955, 0.955, 0.965) });
+			}
+			// 纯斜体段:无斜体字面,退而用弱化字色表示语气(与应用内 em 的 text-soft 一致)
+			const runColor = (r.em && !r.bold && !r.code) ? rgb(0.42, 0.42, 0.46) : color;
+			if(r.bf){
+				// [E11] 真 Bold 字面:直接用 Bold 字体落笔,不再描边
+				page.drawText(r.text, { x: cx, y: baselineY, size, font: f, color });
+			}else if(r.bold){
+				// 降级:Bold 字体不可用(或该字未被覆盖)→ Tr2 描边合成
 				page.pushOperators(setTextRenderingMode(TextRenderingMode.FillAndOutline), setLineWidth(size * BOLD_STROKE), setStrokingColor(color));
-				page.drawText(r.text, { x: cx, y: baselineY, size, font, color });
+				page.drawText(r.text, { x: cx, y: baselineY, size, font: f, color });
 				page.pushOperators(setTextRenderingMode(TextRenderingMode.Fill));
 			}else{
-				page.drawText(r.text, { x: cx, y: baselineY, size, font, color });
+				page.drawText(r.text, { x: cx, y: baselineY, size, font: f, color: runColor });
+			}
+			if(r.del){
+				// [E11] 删除线:tokenizer 现在会产 del 段,PDF 端补一条细横线(此前 ~~ 记号被吃掉、无表现)
+				page.drawRectangle({ x: cx, y: baselineY + size * 0.28, width: w, height: Math.max(0.4, size * 0.045), color });
 			}
 			cx += w;
 		}
@@ -180,7 +239,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		const x = opts.x != null ? opts.x : M;
 		const maxW = opts.maxW != null ? opts.maxW : contentW;
 		const lh = size * (opts.lh || 1.5);
-		const lines = wrapRuns(runs, font, size, maxW);
+		const lines = wrapRuns(runs, fontOf, size, maxW, { boldOk });
 		for(let i = 0; i < lines.length; i++){
 			ensure(lh);
 			if(lines[i].length){ drawRunsLineAt(lines[i], x, y - size, size, color); }
@@ -201,13 +260,14 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		const pad = 3;
 		const cellMaxW = colW - 2 * pad;
 		const lh = size * 1.35;
-		const measureRow = (cells)=>{
-			// [E5] 单元格走富文本分段(记号消化;Tr2 描边不改 advance 宽度,量宽无需区分粗细)。
+		// [E11] 🔴 forceBold 必须在**量宽时**就传进去:表头整行加粗,而真 Bold 的 advance 比
+		// Regular 宽——沿用旧的「画的时候再 map bold:true」会按细体的宽度排版、表头串列。
+		const measureRow = (cells, forceBold)=>{
 			const wrapped = [];
 			let maxLines = 1;
 			for(let c = 0; c < cols; c++){
 				const raw = cells && cells[c] != null ? `${cells[c]}` : '';
-				const ls = wrapRuns(mdInlineSegments(raw), font, size, cellMaxW);
+				const ls = wrapRuns(mdInlineSegments(raw), fontOf, size, cellMaxW, { boldOk, forceBold });
 				wrapped.push(ls);
 				if(ls.length > maxLines){ maxLines = ls.length; }
 			}
@@ -223,10 +283,8 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 				let ty = top - pad - size;
 				const ls = wrapped[c];
 				for(let li = 0; li < ls.length; li++){
-					if(ls[li].length){
-						// 表头整行加粗(Tr2 不改宽度,量宽无需重算)
-						drawRunsLineAt(isHeader ? ls[li].map((r)=>({ ...r, bold: true })) : ls[li], cx + pad, ty, size, INK);
-					}
+					// 表头的加粗已在 measureRow(cells, true) 阶段落进 run(量宽/落笔同一副字体)
+					if(ls[li].length){ drawRunsLineAt(ls[li], cx + pad, ty, size, INK); }
 					ty -= lh;
 				}
 			}
@@ -235,7 +293,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 				hooks.onTableRow({ pageIndex: pdf.getPageCount() - 1, isHeader, firstCell: runsLineText((measured.wrapped[0] || [])[0]) });
 			}
 		};
-		const headerMeasured = (block.headers && block.headers.length) ? measureRow(block.headers) : null;
+		const headerMeasured = (block.headers && block.headers.length) ? measureRow(block.headers, true) : null;
 		// [A3] 跨页表头重绘:长表 body 行触底换页后,新页首行必须先重画表头(与打印路径
 		// `<thead>` 每页重复的行为对齐)。旧式表头只画一次,第二页起裸行无表头。
 		const ensureRowWithHeader = (rowH)=>{
@@ -303,7 +361,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			const indent = M + depth * 14;
 			const markerW = font.widthOfTextAtSize(`${marker} `, size);
 			const textX = indent + markerW;
-			const lines = wrapRuns(mdInlineSegments(`${item.text || ''}`), font, size, contentW - (textX - M));
+			const lines = wrapRuns(mdInlineSegments(`${item.text || ''}`), fontOf, size, contentW - (textX - M), { boldOk });
 			ensure(size * 1.6);
 			page.drawText(marker, { x: indent, y: y - size, size, font, color: INK });
 			for(let li = 0; li < lines.length; li++){
@@ -378,20 +436,80 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	// —— 标题 + 头部 ——
 	// [B1] 报告链直供 IR(__docOverride):跳过纯文本反推,标题不再带「· AI 导出」尾缀。
 	const docOverride = payload && payload.__docOverride;
-	drawLines(docOverride ? `${(payload && payload.tech) || '报告'}` : `${(payload && payload.tech) || '导出'} · AI 导出`, 18, INK, { lh: 1.4 });
-	y -= 4;
 	const doc = docOverride || parseAiExportDocument(payload && payload.text);
+	// [E11] 封面 + 目录页:仅报告链(hooks.cover)启用 —— 技法 AI 导出走原路径,产物字节不变。
+	const cover = (hooks && hooks.cover) || null;
+	const docTitle = docOverride ? `${(payload && payload.tech) || '报告'}` : `${(payload && payload.tech) || '导出'} · AI 导出`;
+	const tocPages = [];
+	const sectionPageAt = [];   // 各节起始页 index(渲染完才知道 → 事后回填目录页码)
+	if(cover){
+		// 封面:细金线 + 大标题 + 一句话结论 + 元信息两列
+		const cy0 = PAGE_H * 0.62;
+		page.drawRectangle({ x: M, y: cy0 + 26, width: 46, height: 2.4, color: SECBG });
+		y = cy0;
+		drawLines(`${cover.title || docTitle}`, 24, INK, { lh: 1.32, maxW: contentW - 40 });
+		y -= 10;
+		if(cover.lead){ drawLines(`${cover.lead}`, 10.5, MUTED, { lh: 1.6, maxW: contentW - 60 }); y -= 12; }
+		page.drawRectangle({ x: M, y: y - 2, width: contentW, height: 0.6, color: rgb(0.86, 0.86, 0.88) });
+		y -= 16;
+		(cover.meta || []).filter((m)=>m && m.v).forEach((m)=>{
+			page.drawText(`${m.k}`, { x: M, y: y - 9, size: 8.5, font, color: rgb(0.62, 0.62, 0.66) });
+			page.drawText(`${m.v}`, { x: M + 58, y: y - 9, size: 9, font, color: INK });
+			y -= 15;
+		});
+		newPage();
+		// 目录页按节数预留(每页 30 条),不足/超出都不会把正文挤走
+		const tocPageCount = Math.max(1, Math.ceil(((doc.sections || []).length || 1) / 30));
+		for(let i = 0; i < tocPageCount; i++){
+			tocPages.push(page);
+			if(i < tocPageCount - 1){ newPage(); }
+		}
+		newPage();
+	}else{
+		drawLines(docTitle, 18, INK, { lh: 1.4 });
+		y -= 4;
+	}
 	if(doc.preamble){ drawLines(doc.preamble, 9.5, MUTED, { lh: 1.55 }); y -= 6; }
 
 	// —— 分区 + 段块 ——
 	for(const sec of (doc.sections || [])){
 		ensure(22);
+		sectionPageAt.push(pdf.getPageCount() - 1);
 		const barH = 18;
 		page.drawRectangle({ x: M, y: y - barH + 3, width: contentW, height: barH, color: SECBG });
-		page.drawText(`${sec.title || ''}`, { x: M + 7, y: y - barH + 8, size: 11, font, color: rgb(1, 1, 1) });
+		page.drawText(`${sec.title || ''}`, { x: M + 7, y: y - barH + 8, size: 11, font: fontOf(true), color: rgb(1, 1, 1) });
 		y -= barH + 7;
 		for(const b of (sec.blocks || [])){ await drawBlock(b); }   // [B2] image 块 embed 为异步
 		y -= 5;
+	}
+
+	// [E11] 目录回填:此时才知道每节落在第几页 —— 点线引导 + 右对齐页码。
+	if(cover && tocPages.length){
+		const secs = doc.sections || [];
+		let tp = 0;
+		let ty = PAGE_H - M;
+		const drawTocHead = ()=>{
+			tocPages[tp].drawText(`${cover.tocLabel || '目录'}`, { x: M, y: ty - 14, size: 15, font: fontOf(true), color: INK });
+			tocPages[tp].drawRectangle({ x: M, y: ty - 22, width: contentW, height: 0.6, color: rgb(0.86, 0.86, 0.88) });
+			ty -= 38;
+		};
+		drawTocHead();
+		for(let i = 0; i < secs.length; i++){
+			if(ty < M + FOOT + 16 && tp < tocPages.length - 1){ tp++; ty = PAGE_H - M; drawTocHead(); }
+			const label = `${i + 1}. ${secs[i].title || ''}`;
+			const pageNo = `${(sectionPageAt[i] != null ? sectionPageAt[i] : 0) + 1}`;
+			let lw = 0; let nw = 0;
+			try{ lw = font.widthOfTextAtSize(label, 9.5); }catch(e){ lw = 9.5 * label.length; }
+			try{ nw = font.widthOfTextAtSize(pageNo, 9.5); }catch(e){ nw = 9.5 * pageNo.length; }
+			tocPages[tp].drawText(label, { x: M, y: ty, size: 9.5, font, color: INK });
+			tocPages[tp].drawText(pageNo, { x: M + contentW - nw, y: ty, size: 9.5, font, color: MUTED });
+			const dotX0 = M + lw + 6;
+			const dotX1 = M + contentW - nw - 6;
+			if(dotX1 > dotX0){
+				tocPages[tp].drawRectangle({ x: dotX0, y: ty + 2.6, width: dotX1 - dotX0, height: 0.4, color: rgb(0.84, 0.84, 0.86) });
+			}
+			ty -= 17;
+		}
 	}
 
 	// —— 页码 + [B3] 导出主题(水印/页眉/页脚,每页绘制;theme 缺省=只画页码,零变)——
@@ -399,10 +517,19 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	const pages = pdf.getPages();
 	const total = pages.length;
 	for(let i = 0; i < total; i++){
-		const label = `${i + 1} / ${total}`;
-		let lw = 0;
-		try{ lw = font.widthOfTextAtSize(label, 9); }catch(e){ lw = 24; }
-		pages[i].drawText(label, { x: (PAGE_W - lw) / 2, y: 18, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
+		// [E11] 有封面时:封面页不画页码/页眉(通行的书籍排版口径),其余页加一条细页眉线 + 报告名。
+		const isCoverPage = !!cover && i === 0;
+		if(!isCoverPage){
+			const label = `${i + 1} / ${total}`;
+			let lw = 0;
+			try{ lw = font.widthOfTextAtSize(label, 9); }catch(e){ lw = 24; }
+			pages[i].drawText(label, { x: (PAGE_W - lw) / 2, y: 18, size: 9, font, color: rgb(0.6, 0.6, 0.6) });
+		}
+		if(cover && !isCoverPage && !(theme && theme.headerText)){
+			const rh = `${cover.title || docTitle}`.slice(0, 46);
+			pages[i].drawText(rh, { x: M, y: PAGE_H - 24, size: 8, font, color: rgb(0.68, 0.68, 0.72) });
+			pages[i].drawRectangle({ x: M, y: PAGE_H - 29, width: contentW, height: 0.4, color: rgb(0.88, 0.88, 0.9) });
+		}
 		if(theme && theme.headerText){
 			let hw = 0;
 			try{ hw = font.widthOfTextAtSize(`${theme.headerText}`, 8.5); }catch(e){ hw = 40; }

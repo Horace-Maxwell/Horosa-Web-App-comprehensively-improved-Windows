@@ -52,11 +52,55 @@ elif [ -n "$MAC" ] && [ -f "$MAC/THIRD_PARTY_NOTICES.md" ]; then
 else warn "Mac clone not given/found — copy THIRD_PARTY_NOTICES.md from the Mac repo root into $WS/ manually"; fi
 
 echo "== 5. source patches (isDesktopShellWindow + ensureField) — applied only if the marker is missing =="
-apply_patch(){ # $1=marker $2=target-rel $3=patchfile
-  if grep -q "$1" "$WS/$2" 2>/dev/null; then ok "$2 already has $1"; return; fi
-  if git apply -p1 --directory="$WS" "$OV/patches/$3" 2>/dev/null || (cd "$WS" && patch -p1 --silent < "$OV/patches/$3" 2>/dev/null); then
-    ok "patched $2 ($1)";
+apply_patch(){ # $1=guard-marker $2=target-rel $3=patchfile
+  if grep -q "$1" "$WS/$2" 2>/dev/null; then ok "$2 already has $1"
+  # [#95] `-c core.autocrlf=false`:本仓 core.autocrlf=true,`git apply` 会把它写过的文件整篇
+  # 转成 CRLF,而 port_from_mac.py 是逐字节落盘(LF)。结果:**凡被 overlay 打过补丁的文件都变 CRLF**,
+  # 与上游逐字节不一致。长期没人发现,因为 git 在 autocrlf 下比较的是归一化内容(status 恒 clean)、
+  # port 的校验也做 LF 归一。v3.8.0 被上游一个**源码扫描型契约测试**当场抓出:
+  # ziweiCenterPresetD4 用 `src.indexOf('\n\t}\n')` 切方法体,CRLF 下恒不命中 ⇒ 切出整个文件尾巴 ⇒ 断言炸。
+  # 另一重代价:发货载荷拷的是工作区字节,CRLF 让这些文件与上游逐字节不同(差量/对拍都受影响)。
+  elif git -c core.autocrlf=false apply -p1 --directory="$WS" "$OV/patches/$3" 2>/dev/null || (cd "$WS" && patch -p1 --silent --no-backup-if-mismatch < "$OV/patches/$3" 2>/dev/null); then
+    ok "patched $2 ($1)"
   else warn "auto-patch FAILED for $2 — apply the $1 change by hand per windows-adaptations/README.md"; fi
+  post_apply_marker_check "$1" "$2" "$3"
+}
+# [gotcha #94] 施后逐 marker 校验 —— 守卫 marker 命中 ≠ 补丁内容在。
+# 两条实发的静默丢失路径,单靠守卫 grep 都测不出,输出还都是绿的 [ok]:
+#   (a) **守卫被上游收编**:v3.8.0 的 ZiWeiMain.js / DunJiaMain.js 自己带上了
+#       horosa_prefetch_registry_v1(Mac 采纳了我方接线)⇒ 守卫命中 ⇒ 整个补丁被当作
+#       「已应用」跳过,补丁里其余 11 个 marker(freeze_subtabs×3 / panel_ready×6 /
+#       ziwei_state_slice×2)的内容全丢,零告警。守卫越是共享 marker 越危险:
+#       horosa_stable_react_keys_v1 / horosa_freeze_subtabs_v1 / horosa_panel_ready_v1
+#       各被 30+ 个文件当守卫用,上游收编任一文件即触发本坑。
+#   (b) **局部应用**:部分 hunk 被拒而守卫所在的 hunk 应用成功 ⇒ marker 在、用法在、
+#       绑定没有(#84 型 ReferenceError)。
+# 规则:补丁**新增行**上出现的每个 horosa_*_v<N>,施后都必须能在目标文件里 grep 到。
+# 例外(**唯一**一条,且由总账背书):marker 的家可能**合法迁走** —— 上游把我方实现整体收编后
+# (#49「超集=退役」),补丁在该文件里变成 no-op 安全网,marker 只剩在我方测试里当行为断言。
+# v3.8.0 实例:perfMark.js 的 horosa_panel_ready_no_gen_void_v1 —— 上游把语义连同注释散文
+# 一字不差地收编了(只是没带 marker 记号),行为仍由 perfMark.test.js 断言。
+# 判据不靠人拍脑袋:以 MARKER_INVENTORY.json 为准 —— 总账说这个 marker 不住在本文件,
+# 就不在这里要求它;它是否整体丢失,由 selfcheck 的总账门逐处兜底(那道门是精确比对)。
+post_apply_marker_check(){
+  local miss=""
+  for m in $(grep -hE '^\+' "$OV/patches/$3" 2>/dev/null | grep -ohE 'horosa_[a-z0-9_]+_v[0-9]+' | sort -u); do
+    if ! grep -q "$m" "$WS/$2" 2>/dev/null; then
+      if node -e '
+const fs=require("fs"), [inv,m,t]=process.argv.slice(1);
+let d={}; try{ d=JSON.parse(fs.readFileSync(inv,"utf8")).markers||{}; }catch(e){ process.exit(1); }
+// exit 0 = 总账说它住在本文件(=真缺失,要报);exit 1 = 总账说它不住这儿(=已合法迁走)
+process.exit(Object.prototype.hasOwnProperty.call(d[m]||{}, t) ? 0 : 1);
+' "$OV/MARKER_INVENTORY.json" "$m" "$2" 2>/dev/null; then
+        miss="$miss $m"
+      fi
+    fi
+  done
+  if [ -n "$miss" ]; then
+    warn "POST-APPLY MARKER GAP in $2 —$miss"
+    warn "   guard '$1' 可能已被上游收编(或补丁局部应用)。处置:按 #49 收敛 SOP 重裁补丁,"
+    warn "   守卫改用**本补丁独有**的 marker,然后重跑;发布前 check-marker-inventory 门会拦。"
+  fi
 }
 apply_patch isDesktopShellWindow astrostudyui/src/utils/windowSizePersistence.js src__utils__windowSizePersistence.js.patch
 # PERF-R7 起该 patch 为「Mac 基线→Windows 现状」的累积全量(ensureField 守卫 + P1-5 切页
@@ -85,7 +129,10 @@ apply_patch "./echartsCore"                astrostudyui/src/components/xuanshi/X
 echo "== 8. v3.0.1 perf round-2 (交互/切技法;纯前端结果缓存;kill-switch、功能零降级) =="
 # (PERF-R7 起 perfFlags 的 techniqueCache/firstLoadParallel 链已并入 §7 的累积补丁,此处只剩组件侧。)
 # 前端:紫微本盘 /ziwei/birth 走确定性缓存(cachedPost),重复/来回切秒回。
-apply_patch horosa_prefetch_registry_v1    astrostudyui/src/components/ziwei/ZiWeiMain.js               src__components__ziwei__ZiWeiMain.js.patch
+# [#94] 守卫由 horosa_prefetch_registry_v1 改为 horosa_ziwei_state_slice_v1:v3.8.0 起上游
+# 自己带 prefetch_registry(Mac 收编了我方接线),旧守卫恒命中 ⇒ 本补丁整体静默跳过,
+# freeze_subtabs×3 / panel_ready×6 / state_slice×2 全丢。state_slice 是本补丁独有。
+apply_patch horosa_ziwei_state_slice_v1    astrostudyui/src/components/ziwei/ZiWeiMain.js               src__components__ziwei__ZiWeiMain.js.patch
 echo "== 9. backend perf: /chart 逐段计时(B0;PERF-R7 P1-1 升 INFO 级=perf.log 真机常显)— REQUIRES a jar rebuild =="
 apply_patch "QueueLog.info(AppLoggers.Performance" astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java astrostudycn__ChartController.java.patch
 echo "   ^^ astrostudycn is BACKEND Java. After this patch you MUST rebuild astrostudyboot.jar (SKILL gotcha #5):"
@@ -465,7 +512,8 @@ apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/chartFet
 # ★ 随机起卦族(地占/荆诀/五兆/小六壬)与取现时族(七政 Moira 流年)一律不登记,白名单禁词兜底。
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/astro/IndiaChartMain.js      src__components__astro__IndiaChartMain.prefetchRegistry.js.patch
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/auxchart/AuxChartMain.js     src__components__auxchart__AuxChartMain.prefetchRegistry.js.patch
-apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/dunjia/DunJiaMain.js         src__components__dunjia__DunJiaMain.prefetchRegistry.js.patch
+# [#94] 同 ZiWeiMain:v3.8.0 上游已带 prefetch_registry,守卫改用本文件上游还没有的 panel_ready。
+apply_patch horosa_panel_ready_v1 astrostudyui/src/components/dunjia/DunJiaMain.js         src__components__dunjia__DunJiaMain.prefetchRegistry.js.patch
 apply_patch horosa_sanshi_render_slice_v1 astrostudyui/src/components/sanshi/SanShiUnitedMain.js   src__components__sanshi__SanShiUnitedMain.prefetchRegistry.js.patch
 apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/taiyi/TaiYiMain.js           src__components__taiyi__TaiYiMain.prefetchRegistry.js.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields

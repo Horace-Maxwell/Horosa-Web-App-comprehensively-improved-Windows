@@ -64,44 +64,72 @@ describe('星运/自坐 · 集成（2026-06-22 丙午/甲午/丁卯/己酉，日
 	});
 });
 
-// 死选项接线·phaseType（长生派别）覆盖（仅水土同 + 土日元改起点；其余 byte-perfect）。
+// [B 三档接活 2026-08-08] phaseType 长生三派统一内核(changShengOf):与 Java 权威 wuxingphase.json
+// 逐格全等。曾为半截接线(档0≡档2 死档对、档1 只动戊己)——golden 锚锚住的是错值,按
+// 「golden 是法律,错了重生成」纪律更新:byte-perfect 锚转移到档2(=lunar 原值)。
 describe('phaseType 长生派别覆盖（resolveDiShiByPhaseType）', () => {
-	test('phaseType=0/2 或 非土日元 → 恒返回 fallback（byte-perfect）', () => {
-		expect(resolveDiShiByPhaseType('戊', '寅', 0, '长生')).toBe('长生');
-		expect(resolveDiShiByPhaseType('戊', '申', 2, 'KEEP')).toBe('KEEP'); // 阳顺阴逆=lunar现状
-		expect(resolveDiShiByPhaseType('己', '酉', 0, 'KEEP')).toBe('KEEP');
+	test('🔴 档2/缺参 恒返回 fallback（byte-perfect 锚在阳顺阴逆档）', () => {
+		expect(resolveDiShiByPhaseType('戊', '申', 2, 'KEEP')).toBe('KEEP');
 		expect(resolveDiShiByPhaseType('己', '酉', 2, 'KEEP')).toBe('KEEP');
-		expect(resolveDiShiByPhaseType('甲', '亥', 1, 'KEEP')).toBe('KEEP'); // 非土日元
-		expect(resolveDiShiByPhaseType('壬', '申', 1, 'KEEP')).toBe('KEEP');
+		expect(resolveDiShiByPhaseType('乙', '丑', 2, 'KEEP')).toBe('KEEP');
+		expect(resolveDiShiByPhaseType('甲', '亥', undefined, 'KEEP')).toBe('KEEP');
 	});
-	test('phaseType=1 水土同 土日元（戊/己）→ 长生在申、顺行（对 Java suitutong 表）', () => {
-		// 戊/己 水土同整列一致：申=长生、酉=沐浴、戌=冠带、亥=临官、子=帝旺、午=胎、寅=病。
+	test('🔴 档0 火土同=全干不分阴阳(阴干随阳干搭档顺行):锚格对 Java huotutong', () => {
+		expect(resolveDiShiByPhaseType('戊', '寅', 0, '__')).toBe('长生');   // 阳干与阳顺阴逆同值(幂等覆盖)
+		expect(resolveDiShiByPhaseType('己', '酉', 0, '__')).toBe('死');     // 己随戊寅起顺(修前恒 fallback=死档)
+		expect(resolveDiShiByPhaseType('己', '巳', 0, '__')).toBe('临官');
+		expect(resolveDiShiByPhaseType('乙', '丑', 0, '__')).toBe('冠带');   // 乙随甲亥起顺
+	});
+	test('phaseType=1 水土同：戊/己 长生在申顺行(整列对 Java suitutong)；非土阴干亦随阳干', () => {
 		const expectRow = { 申: '长生', 酉: '沐浴', 戌: '冠带', 亥: '临官', 子: '帝旺', 午: '胎', 寅: '病' };
 		['戊', '己'].forEach((gan) => {
 			Object.keys(expectRow).forEach((zhi) => {
 				expect(resolveDiShiByPhaseType(gan, zhi, 1, '__')).toBe(expectRow[zhi]);
 			});
 		});
+		expect(resolveDiShiByPhaseType('甲', '亥', 1, '__')).toBe('长生');   // 档1 非土干=档0 同式(不分阴阳)
+		expect(resolveDiShiByPhaseType('乙', '丑', 1, '__')).toBe('冠带');
+	});
+	test('🔴 360 格权威对拍:changShengOf 三档全表 ≡ Java wuxingphase.json(单一真值源锁)', () => {
+		// eslint-disable-next-line global-require
+		const J = require('../../../../astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/wuxingphase.json');
+		const { changShengOf } = require('../baziLunarLocal');
+		const TBL = { 0: 'huotutong', 1: 'suitutong', 2: 'yingyang' };
+		const GANS10 = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+		const ZHIS12 = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+		[0, 1, 2].forEach((pt) => {
+			const g = J[TBL[pt]].ganzi;
+			GANS10.forEach((gan) => ZHIS12.forEach((zhi) => {
+				expect(`${pt}:${gan}_${zhi}:${changShengOf(gan, zhi, pt)}`).toBe(`${pt}:${gan}_${zhi}:${g[`${gan}_${zhi}`]}`);
+			}));
+		});
 	});
 });
 
-// 死选项接线·phaseType 引擎级：默认(0) diShi == lunar 现状；切水土同(1) 对戊/己日元四柱 diShi 改变。
+// phaseType 引擎级：缺参/档2 == lunar 现状(byte-perfect)；档0 对阴干日主真变；档1 对土日元真变。
 describe('phaseType 引擎级（buildLocalBaziResult）', () => {
-	// 2000-01-01 = 己卯年/丙子月/戊午日（日元戊=土），用于验证水土同覆盖。
+	// 2000-01-01 = 戊午日（阳土日元）；2024-01-02 = 乙丑日（阴木日元,档0↔档2 差异样本）。
 	const base = { date: '2000-01-01', time: '12:00:00', zone: '+08:00', lon: 113.0, gpsLon: 113.0, lat: 23.0, gpsLat: 23.0, gender: 1, timeAlg: 1 };
+	const baseYin = { ...base, date: '2024-01-02' };
 	const dishis = (params) => {
 		const c = buildLocalBaziResult(params).bazi.fourColumns;
 		return ['year', 'month', 'day', 'time'].map((k) => c[k].ganziPhase);
 	};
-	test('默认（无 phaseType）与 phaseType=0 / phaseType=2 一致（lunar 现状）', () => {
-		const def = dishis({ ...base });
-		expect(dishis({ ...base, phaseType: 0 })).toEqual(def);
-		expect(dishis({ ...base, phaseType: 2 })).toEqual(def);
+	test('🔴 缺参恒=档2(lunar 原值 byte-perfect):9 个不传参技法调用方零波及;显式档才生效', () => {
+		expect(dishis({ ...base, phaseType: 2 })).toEqual(dishis({ ...base }));
+		expect(dishis({ ...baseYin, phaseType: 2 })).toEqual(dishis({ ...baseYin }));
+		// 阴干日主固定锚(独立誊录,防实现自证):乙丑日 lunar 口径 乙逆行长生午 → 卯临官/子病/丑衰/午长生
+		expect(dishis({ ...baseYin })).toEqual(['临官', '病', '衰', '长生']);
 	});
-	test('日元为土（戊/己）时 phaseType=1（水土同）改四柱 diShi；默认不变', () => {
+	test('🔴 阳干日主:档0==档2(幂等);阴干日主(乙丑日):档0≠档2(修前死档对,负锚)+固定锚', () => {
+		expect(dishis({ ...base, phaseType: 0 })).toEqual(dishis({ ...base, phaseType: 2 }));
+		expect(dishis({ ...baseYin, phaseType: 0 })).not.toEqual(dishis({ ...baseYin, phaseType: 2 }));
+		// 档0 乙随甲(亥起顺):卯帝旺/子沐浴/丑冠带/午死(独立推导,对 Java huotutong)
+		expect(dishis({ ...baseYin, phaseType: 0 })).toEqual(['帝旺', '沐浴', '冠带', '死']);
+	});
+	test('日元为土（戊/己）时 phaseType=1（水土同）改四柱 diShi', () => {
 		const c = buildLocalBaziResult({ ...base }).bazi.fourColumns;
-		const dayGan = c.day.stem.cell;
-		expect(['戊', '己']).toContain(dayGan); // 锁定该盘日元为土（戊午日）
+		expect(['戊', '己']).toContain(c.day.stem.cell);
 		expect(dishis({ ...base, phaseType: 1 })).not.toEqual(dishis({ ...base, phaseType: 0 }));
 	});
 });

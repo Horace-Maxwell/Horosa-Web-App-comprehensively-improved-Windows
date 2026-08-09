@@ -100,6 +100,9 @@ describe('WP-D 流派预设', () => {
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.borrowPalace).toBe(true);
 		expect(ZIWEI_SCHOOL_PRESETS.qintian.daxianSpan).toBe('ju');
 		expect(ZIWEI_SCHOOL_PRESETS.quanshu.sihua).toBe('quanshu');
+		// [B3] 全书派四化+亮度同套(修「选全书派不切全书亮度」接线洞);中州派亮度=默认表(基表即中州口径)
+		expect(ZIWEI_SCHOOL_PRESETS.quanshu.brightnessSource).toBe('quanshu');
+		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.brightnessSource).toBe('zi_jian');
 		expect(ZIWEI_SCHOOL_PRESETS.heluo.starSet).toBe('north18');
 		expect(ZIWEI_SCHOOL_PRESETS.heluo.qishuWei).toBe(true);
 		expect(ZIWEI_SCHOOL_PRESETS.ziyun.taiSuiRuGua).toBe(true);
@@ -109,7 +112,7 @@ describe('WP-D 流派预设', () => {
 		expect(ZIWEI_SCHOOL_PRESETS.zhanyan.starSet).toBe('north18');
 	});
 	test('presetMatches/presetOf:默认=三合;改一项→custom', () => {
-		const dflt = { daxianSpan: 10, tianmaBasis: 'month', starSet: 'full', sanPan: 'tian', shangShi: 'fixed', leapMonth: 'mid_split', lateZi: 'zi_chu', yearBoundary: 'lichun', huoling: 'sanhe', kongNaming: 'modern', brightnessSource: 'zi_jian', childLimit: false, zhongxian: false, huoPan: false, qishuWei: false, borrowPalace: false, taiSuiRuGua: false };
+		const dflt = { daxianSpan: 10, tianmaBasis: 'month', starSet: 'full', sanPan: 'tian', shangShi: 'fixed', leapMonth: 'mid_split', lateZi: 'global', yearBoundary: 'lichun', huoling: 'sanhe', kongNaming: 'modern', brightnessSource: 'zi_jian', lifeMasterBy: 'year_branch', liuYueBasis: 'doujun', liunianSihuaGan: 'year_gan', changshengStart: 'shui_tu', changshengDirection: 'yinyang', kuiYue: 'jia_wu_geng', kongwangStyle: 'double', xiaoxianMode: '0', flowLuanXi: false, flowHuoLing: false, flowShenshaOnChart: false, childLimit: false, zhongxian: false, huoPan: false, qishuWei: false, borrowPalace: false, taiSuiRuGua: false };
 		expect(presetMatches('sanhe', 'beipai', dflt)).toBe(true);
 		expect(presetOf('beipai', dflt, 'sanhe')).toBe('sanhe');
 		expect(presetOf('beipai', dflt, 'feixing')).toBe('feixing');   // 同源消歧:保留用户所选

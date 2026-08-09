@@ -164,6 +164,8 @@ class ZiWeiChart extends Component{
 		this.zwchart.luckSihuaLayers = this.props.luckSihuaLayers || null;
 		this.zwchart.luckShowZihua = this.props.luckShowZihua !== false; // 默认 true（无运限=本命四化+自化）
 		this.zwchart.luckLabelLayers = this.props.luckLabelLayers || null;
+		// [D3] 流年神煞上盘:选中流年支透传(house 绘制期经 resolveSmallStarsForDisplay 消费)。
+		this.zwchart.flowZhi = this.props.luckFlowZhi || null;
 
 		// 重绘签名守卫(流畅度):cDU 无条件 scheduleDrawChart,父组件无关 setState(tips/输入区)
 		// 也会穿透到这里整树重建(ZWChart.draw 内 svg.html('') 全清空)。签名取「draw 实际消费的

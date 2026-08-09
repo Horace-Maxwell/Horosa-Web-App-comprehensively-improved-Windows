@@ -10,15 +10,21 @@
 
 ## 本版验收头
 
-- version: 3.7.3
-- build: release(v3.7.0 **功能轮**:新增天星择日·征象搜索主导航页[navigationPages 新键
-  zeri,32 类条件引擎,electionscan 服务挂 :8899 CORE_SERVICE_SPECS]+ 卜卦判读三修 +
-  奇门置闰定局修正;**启动路径零改动**[壳层零字节变,Java 仅 RuntimeWire 版本号],
-  性能面新增=zeri 的 P5 观测终点[markPanelReady('zeri'),照 ElectionMain 先例]与
-  P6 结构性豁免[区间扫描型无步进主轴];缓存由上游 cachedKentangFetch 三层承载,
-  引擎全文零 random/零 now() 已核=确定性标签实证)
-- date: 2026-08-02(键石+zeri 复测日;逐技法全表存档日 2026-07-22)
-- commit: 见本轮发布 commit(v3.7.0 同步轮,feat `adf073a5`)
+- version: 3.8.0
+- build: release(v3.8.0 **设置面大补齐轮**:奇门 +42 档[含刻家奇门/日家金函系两个独立体系]
+  + 紫微亮度多派系与自定义亮度表 + 六爻 11 档 + 八字长生三档接活 + 三式全量同步 +
+  **AI 分析首开改渐进载入**[上游根治:轻数据先行、资料库/会话史后台分批,首帧不再等全量读完]
+  + AI 导出断链修复;**启动路径零改动**[Electron 壳 0 文件、Python 就绪链 0 改动、
+  Java 仅 RuntimeWire 版本号 + ZiWeiChart 截空正副修];性能面唯一新增 = 上游 AI 分析的
+  渐进载入(与我方 `horosa_freeze_subtabs_v1` 五页签冻结**相容且互补**:前者管首帧不被重数据挡、
+  后者管未激活面板不白渲,已按上游新结构重新落位)。
+  **本轮另有两项与性能间接相关的载荷修**:①`horosa_payload_residue_free_v1` 剪除构建机残渣
+  (`.pytest_cache` 168KB 逐版翻转 + 死 `.orig` 37KB,合计 204.5KB);
+  ②`horosa_source_eol_upstream_v1` 把 151 个被 overlay 打过补丁而 CRLF 化的源文件归位 LF ——
+  两者都**不改运行时行为**,只影响发货字节与差量。
+- date: 2026-08-09(v3.8.0 同步轮;逐技法全表存档日 2026-07-22,本轮未重跑逐技法全表 ——
+  见下方「本轮验收范围」说明)
+- commit: 见本轮发布 commit(v3.8.0 同步轮)
 - 机器态: Xeon W-11955M;CurrentClockSpeed **2611 == 基频**(睿频压制)+ MuMu/vmmem 7 进程常驻
   (owner 应用,未动)——#64 特征全中,本表数字仍为保守值;与 3.5.0 轮同机同态,跨轮可比。
 - 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 18899/19999,

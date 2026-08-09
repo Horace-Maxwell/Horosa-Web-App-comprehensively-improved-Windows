@@ -33,7 +33,9 @@ export function resolveLeapMonth(month, day, isLeap, leapMonth, monthDays, passe
 	if(r === 'current'){ return { palaceMonth: month, starMonth: month }; }
 	if(r === 'next'){ return { palaceMonth: nxt, starMonth: nxt }; }
 	if(r === 'split15'){ const m = day <= 15 ? month : nxt; return { palaceMonth: m, starMonth: m }; }
-	if(r === 'split_days'){ const half = Math.floor(((monthDays || 30) + 1) / 2); const m = day <= half ? month : nxt; return { palaceMonth: m, starMonth: m }; }
+	// 🔴 split_days=「按实际天数取中点」:大月(30)半点=15、小月(29)半点=14 —— 与 split15 在
+	//    29 天闰月分道。旧实现 floor((d+1)/2) 对 29/30 都得 15=split15 克隆(假选项,复查实锤)。
+	if(r === 'split_days'){ const half = Math.floor((monthDays || 30) / 2); const m = day <= half ? month : nxt; return { palaceMonth: m, starMonth: m }; }
 	if(r === 'solar_term'){ if(passedNextTerm == null){ throw new Error('solar_term 需 passedNextTerm'); } const m = passedNextTerm ? nxt : month; return { palaceMonth: m, starMonth: m }; }
 	if(r === 'split_star_month'){ return { palaceMonth: nxt, starMonth: month }; }
 	throw new Error('leapMonth ' + r);
@@ -119,6 +121,35 @@ export const SIHUA_OVERRIDES = {
 export function sihuaTable(school){ return Object.assign({}, SIHUA_BASE, SIHUA_OVERRIDES[school] || {}); }
 export function sihuaOf(yearStem, school){ const t = sihuaTable(school)[yearStem]; return { 禄: t[0], 权: t[1], 科: t[2], 忌: t[3] }; }
 export function flySihua(palaceStem, school){ return sihuaOf(palaceStem, school); }
-export function laiyinPalaces(yearStem){ const ps = palaceStems(yearStem); return Object.keys(ps).filter((b)=>ps[b] === yearStem); }
+// 🔴 来因宫判据单源:宫干==生年干,且宫支不取子丑 —— 五虎遁十干恰布寅至亥,子丑必借寅卯
+//    之干,借干宫不作来因。盘面 ZWHouse.drawLaiYing 一直如此;快照/报告曾不排子丑,辛壬年
+//    生人会被列出两个来因宫(画的与 AI 读的不是同一批宫,复查实锤)。四消费点全走此谓词。
+export function isLaiyinPalace(ganzi, yearStem){
+	if(!ganzi || !yearStem) return false;
+	const s = `${ganzi}`;
+	return s.charAt(0) === yearStem && s.charAt(1) !== '子' && s.charAt(1) !== '丑';
+}
+export function laiyinPalaces(yearStem){ const ps = palaceStems(yearStem); return Object.keys(ps).filter((b)=>ps[b] === yearStem && b !== '子' && b !== '丑'); }
 
 export const SIHUA_SCHOOLS = ['tongxing', 'quanshu', 'zhongzhou', 'beipai', 'feixing', 'toupai'];
+
+// ── ⑧ 天魁天钺歌诀两版(2026-08-07 双源考据) ─────────────────────────────
+// 古版「甲戊庚牛羊…六辛逢马虎」(=现表 ziweiyeargan.json:庚→魁丑/钺未);
+// 新版「甲戊兼牛羊…庚辛逢马虎」:仅庚干改魁午/钺寅(辛两版同为午寅;乙己/丙丁/壬癸全同)。
+// 两版并存源于《全集》木刻版天魁天钺诀上方小注「一本作甲戊兼牛羊,庚辛逢马虎」。
+// delta 仅 2 格,代码常量承载(不建第二张 JSON;基表与 Java 孪生零动)。
+// 四版=庚干归属(守牛羊丑未 vs 随辛)×魁钺马虎序(对仗恒魁前钺后:马虎=魁午钺寅/虎马=魁寅钺午);
+// 其余八干四版全同。delta 常量承载,基表与 Java 孪生零动;未知档/默认档返 null 沿基表=安全降级。
+export const KUIYUE_VARIANTS = {
+	geng_ma_hu:     { 天魁: { 庚: '午' }, 天钺: { 庚: '寅' } },                     // 庚辛逢马虎(庚随辛午寅)
+	liu_xin_hu_ma:  { 天魁: { 辛: '寅' }, 天钺: { 辛: '午' } },                     // 六辛逢虎马(辛对调,庚守丑未)
+	geng_xin_hu_ma: { 天魁: { 庚: '寅', 辛: '寅' }, 天钺: { 庚: '午', 辛: '午' } }, // 庚辛逢虎马(庚辛同魁寅钺午)
+};
+export function placeKuiYue(starName, yearStem, variant){
+	const v = KUIYUE_VARIANTS[variant];
+	if(v){
+		const d = v[starName];
+		if(d && d[yearStem]){ return d[yearStem]; }
+	}
+	return null;
+}

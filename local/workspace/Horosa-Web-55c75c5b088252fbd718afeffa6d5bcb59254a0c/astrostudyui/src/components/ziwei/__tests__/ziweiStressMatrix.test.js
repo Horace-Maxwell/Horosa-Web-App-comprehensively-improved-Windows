@@ -4,6 +4,7 @@ import { qiShuWei, allBorrowedStars, taiSuiRuGua } from '../ziweiOverlays';
 import { childLimits, zhongxianOf, relabelPalaces } from '../ziweiCore';
 import { detectPatterns } from '../ziweiPatterns';
 import { SiHuaTables, ZWSchool, refreshActiveSiHua } from '../../../constants/ZWConst';
+import { BRIGHTNESS_SOURCE_OPTIONS } from '../ziweiOptions';
 
 const GAN = '甲乙丙丁戊己庚辛壬癸'.split('');
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
@@ -33,12 +34,12 @@ describe('Step3 压力矩阵 · 传本开关全取值', () => {
 		['modern', 'book'].forEach((v) => assertValid(MK({ kongNaming: v })));
 	});
 	test('leapMonth 全取值(含新增 split_days/split_star_month;leap=true)', () => {
-		['mid_split', 'next', 'prev', 'split_days', 'split_star_month'].forEach((v) => {
-			assertValid(assembleNatalChart({ yearGan: '癸', yearZi: '卯', monthInt: 2, leap: true, dayInt: 10, timeZi: '午', male: true, leapMonth: v }));
+		['mid_split', 'next', 'prev', 'split_days', 'split_star_month', 'solar_term'].forEach((v) => {
+			assertValid(assembleNatalChart({ yearGan: '癸', yearZi: '卯', monthInt: 2, leap: true, dayInt: 10, timeZi: '午', male: true, leapMonth: v, monthDays: 29, passedNextJie: true }));
 		});
 	});
 	test('brightnessSource 全取值(亮度不影响主星数)', () => {
-		['zi_jian', 'quanshu'].forEach((v) => assertValid(MK({})));  // 亮度经 ZWEngineOptions,decorateStar 已单测;此处只验盘骨架
+		BRIGHTNESS_SOURCE_OPTIONS.map((o) => o.value).forEach((v) => assertValid(MK({})));  // 亮度经 ZWEngineOptions,decorateStar 已单测;此处只验盘骨架
 	});
 });
 

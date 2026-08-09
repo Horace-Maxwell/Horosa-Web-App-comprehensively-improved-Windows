@@ -38,6 +38,15 @@ import {
 	SCHOOL_OPTIONS as QIMEN_SCHOOL_OPTIONS,
 	KONG_MODE_OPTIONS as QIMEN_KONG_MODE_OPTIONS,
 	MA_MODE_OPTIONS as QIMEN_MA_MODE_OPTIONS,
+	YIXING_OPTIONS as QIMEN_YIXING_OPTIONS,
+	GODS_PRESET_OPTIONS as QIMEN_GODS_PRESET_OPTIONS,
+	ANGAN_MODE_OPTIONS as QIMEN_ANGAN_MODE_OPTIONS,
+	JIGONG_MODE_OPTIONS as QIMEN_JIGONG_MODE_OPTIONS,
+	SHIFT_ZHIFU_OPTIONS as QIMEN_SHIFT_ZHIFU_OPTIONS,
+	DAYJIA_JU_OPTIONS as QIMEN_DAYJIA_JU_OPTIONS,
+	YEARJIA_JU_OPTIONS as QIMEN_YEARJIA_JU_OPTIONS,
+	KEJIA_FENDUN_OPTIONS as QIMEN_KEJIA_FENDUN_OPTIONS,
+	JINHAN_MENPAI_OPTIONS as QIMEN_JINHAN_MENPAI_OPTIONS,
 	ZHIRUN_LEAP_OPTIONS as QIMEN_ZHIRUN_LEAP_OPTIONS,
 } from '../components/dunjia/DunJiaCalc';
 import {
@@ -96,6 +105,8 @@ import {
 	LATE_ZI_OPTIONS as ZW_LATE_ZI_OPTIONS, YEAR_BOUNDARY_OPTIONS as ZW_YEAR_BOUNDARY_OPTIONS,
 	HUOLING_OPTIONS as ZW_HUOLING_OPTIONS, KONG_NAMING_OPTIONS as ZW_KONG_NAMING_OPTIONS,
 	BRIGHTNESS_SOURCE_OPTIONS as ZW_BRIGHTNESS_SOURCE_OPTIONS,
+	LIFE_MASTER_BY_OPTIONS as ZW_LIFE_MASTER_BY_OPTIONS,
+	LIU_YUE_BASIS_OPTIONS as ZW_LIU_YUE_BASIS_OPTIONS, LIUNIAN_SIHUA_GAN_OPTIONS as ZW_LIUNIAN_SIHUA_GAN_OPTIONS, CHANGSHENG_START_OPTIONS as ZW_CHANGSHENG_START_OPTIONS, CHANGSHENG_DIRECTION_OPTIONS as ZW_CHANGSHENG_DIRECTION_OPTIONS, KONGWANG_STYLE_OPTIONS as ZW_KONGWANG_STYLE_OPTIONS, KUIYUE_OPTIONS as ZW_KUIYUE_OPTIONS,
 } from '../components/ziwei/ziweiOptions';
 // 注：卜卦/择日/六壬起课的选项常量定义在「大组件」(HoraryMain/ElectionMain/LiuRengMain) 内，它们与 aiAnalysisContext
 // 形成循环导入（aiAnalysisContext→techniqueMountSettings→大组件→…→aiAnalysisContext）；当 aiAnalysisContext 为入口时
@@ -268,9 +279,32 @@ const QIMEN_FIELDS = [
 	// 盘类(命局/事局):快照「盘类：」行 + 法奇门用神取向消费;性别:快照「命式：」行(曾缺 → 起课源输出 undefined)。
 	{ name: 'chartCategory', label: '盘类', type: 'select', default: 'shi', group: '排盘', options: QIMEN_CHART_CATEGORY_OPTIONS },
 	{ name: 'sex', label: '命式性别', type: 'select', default: 1, group: '排盘', options: QIMEN_SEX_OPTIONS },
-	{ name: 'shiftPalace', label: '移宫（拆补转盘）', type: 'switch', options: ON_OFF, default: 0, group: '排盘' },
+	// [H-A] 移星域修正:引擎域 0-7 八档(YIXING_OPTIONS),此前 switch 只暴露 0/1=顺转2~7宫六档在挂载侧丢失。
+	{ name: 'shiftPalace', label: '移星（顺转N宫）', type: 'select', default: 0, group: '排盘', options: QIMEN_YIXING_OPTIONS },
 	// fengJu 引擎默认为布尔 false → 用布尔语义,normalize 到 true/false（与 DEFAULT_OPTIONS 字节一致）。
 	{ name: 'fengJu', label: '法奇门叠加层', type: 'switch', options: ON_OFF, default: false, group: '排盘', normalize: (v)=>(v === true || v === 1 || v === '1') },
+	// [H-B] 八神取神/暗干族
+	{ name: 'godsPreset', label: '八神取神', type: 'select', default: 'baihu_xuanwu', group: '排盘', options: QIMEN_GODS_PRESET_OPTIONS },
+	{ name: 'anGanMode', label: '暗干', type: 'select', default: 'off', group: '排盘', options: QIMEN_ANGAN_MODE_OPTIONS },
+	{ name: 'jiGongMode', label: '中宫寄宫', type: 'select', default: 'kun', group: '排盘', options: QIMEN_JIGONG_MODE_OPTIONS },
+	{ name: 'feiXingShun', label: '九星飞法(飞盘)', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '阳顺阴逆(默认)' }, { value: 1, label: '两遁皆顺飞' }] },
+	{ name: 'feiMenShun', label: '九门飞法(飞盘)', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '阳顺阴逆(默认)' }, { value: 1, label: '两遁皆顺飞' }] },
+	{ name: 'feiShenShun', label: '九神飞法(飞盘)', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '阳顺阴逆(默认)' }, { value: 1, label: '两遁皆顺飞' }] },
+	{ name: 'feiMenZhongCan', label: '中门飞宫(飞盘)', type: 'select', default: 1, group: '排盘', options: [{ value: 1, label: '参与(默认)' }, { value: 0, label: '不参与(跳中)' }] },
+	{ name: 'feiMenZhongShow', label: '中宫门位显示', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '留空(默认)' }, { value: 1, label: '标「中」字样' }] },
+	{ name: 'mixTian', label: '混合·天盘层', type: 'select', default: '', group: '排盘', options: [{ value: '', label: '默认(转宫)' }, { value: 'zhuan', label: '转宫' }, { value: 'fei', label: '飞宫' }] },
+	{ name: 'mixXing', label: '混合·九星层', type: 'select', default: '', group: '排盘', options: [{ value: '', label: '默认(转宫)' }, { value: 'zhuan', label: '转宫' }, { value: 'fei', label: '飞宫' }] },
+	{ name: 'mixMen', label: '混合·八门层', type: 'select', default: '', group: '排盘', options: [{ value: '', label: '默认(飞宫)' }, { value: 'zhuan', label: '转宫' }, { value: 'fei', label: '飞宫' }] },
+	{ name: 'mixShen', label: '混合·九神层', type: 'select', default: '', group: '排盘', options: [{ value: '', label: '默认(飞宫)' }, { value: 'zhuan', label: '转宫' }, { value: 'fei', label: '飞宫' }] },
+	{ name: 'kongMarkBoth', label: '空亡标注', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '单一模式(默认)' }, { value: 1, label: '日空时空并标' }] },
+	{ name: 'showAllKong', label: '四柱空亡', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '不显示(默认)' }, { value: 1, label: '显示年月日时空' }] },
+	{ name: 'shiftZhiFuMode', label: '移星值符', type: 'select', default: 'follow', group: '排盘', options: QIMEN_SHIFT_ZHIFU_OPTIONS },
+	{ name: 'yearJiaJu', label: '年家定局', type: 'select', default: 'sanyuan', group: '排盘', options: QIMEN_YEARJIA_JU_OPTIONS },
+	{ name: 'dayJiaJu', label: '日家定局', type: 'select', default: 'yiyuan', group: '排盘', options: QIMEN_DAYJIA_JU_OPTIONS },
+	{ name: 'keJiaFenDun', label: '刻家分遁', type: 'select', default: 'zihou', group: '排盘', options: QIMEN_KEJIA_FENDUN_OPTIONS },
+	{ name: 'keZiZhengHuanShi', label: '刻家子正换时', type: 'select', default: 0, group: '排盘', options: [{ value: 0, label: '子时23点起(默认)' }, { value: 1, label: '子正0点换时' }] },
+	{ name: 'jinhanMenPai', label: '金函系八门排法', type: 'select', default: 'book', group: '排盘', options: QIMEN_JINHAN_MENPAI_OPTIONS },
+	{ name: 'showAnZhi', label: '暗支(随暗干)', type: 'switch', options: ON_OFF, default: 0, group: '排盘' },
 	...TIME_FIELDS,
 ];
 
@@ -548,6 +582,8 @@ const SIXYAO_FIELDS = [
 	{ name: 'doctrine', label: '断诀命中/占类断语', type: 'switch', options: ON_OFF, default: true, group: '显示项', normalize: LY_BOOL },
 	{ name: 'gufa', label: '古法进阶组', type: 'switch', options: ON_OFF, default: false, group: '显示项', normalize: LY_BOOL },
 	{ name: 'yueLiushen', label: '月建六神', type: 'switch', options: ON_OFF, default: false, group: '显示项', normalize: LY_BOOL },
+	{ name: 'guirenFa', label: '贵人歌诀', type: 'select', default: 'standard', group: '神煞', options: [
+		{ value: 'standard', label: '甲戊庚牛羊(庚丑未)' }, { value: 'geng_ma_hu', label: '庚辛逢马虎(庚寅午)' }] },
 	{ name: 'shenshaOn', label: '基础神煞', type: 'switch', options: ON_OFF, default: true, group: '神煞', normalize: LY_BOOL },
 	{ name: 'shenshaBase', label: '神煞基准', type: 'select', default: 'day', group: '神煞',
 		showWhen: (d)=>LY_BOOL(d.shenshaOn === undefined ? true : d.shenshaOn),
@@ -1401,6 +1437,10 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 			{ value: 'beixiang', label: '北派(天相忌)' },
 			{ value: 'custom', label: '自定义' },
 		] },
+		// [A4] 四化流派选 custom 时的随盘自定义表(JSON,形状 {"干":["禄星","权星","科星","忌星"]});
+		// 留空=custom 档回落本机编辑器所存表。builder 端 normalizeSihuaCustomTable 校验,坏值不注入。
+		{ name: 'sihuaCustomTable', label: '自定义四化表(JSON,配合流派=自定义)', type: 'text', default: '', group: '流派',
+			placeholder: '{"甲":["廉贞","破军","武曲","太阳"],...} 留空=用本机表' },
 		// 传本/排盘开关(本地引擎):任一非默认 → buildZiweiSnapshotForParams 临时覆盖 ZWEngineOptions 并以本地引擎重排盘+重算格局,
 		// 使挂载/导出快照与该盘传本设置一致;全默认(缺省·被 pruneOptionsToNonDefault 剪掉不进 record)=回退全局单例=现状逐字节一致。
 		{ name: 'daxianSpan', label: '大限跨度', type: 'select', default: 10, group: '传本', options: ZW_DAXIAN_SPAN_OPTIONS },
@@ -1409,11 +1449,22 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'sanPan', label: '观察盘(三盘)', type: 'select', default: 'tian', group: '传本', options: ZW_SANPAN_OPTIONS },
 		{ name: 'shangShi', label: '天伤天使', type: 'select', default: 'fixed', group: '传本', options: ZW_SHANGSHI_OPTIONS },
 		{ name: 'leapMonth', label: '闰月归月', type: 'select', default: 'mid_split', group: '传本', options: ZW_LEAP_MONTH_OPTIONS },
-		{ name: 'lateZi', label: '晚子时', type: 'select', default: 'zi_chu', group: '传本', options: ZW_LATE_ZI_OPTIONS },
+		{ name: 'lateZi', label: '晚子时', type: 'select', default: 'global', group: '传本', options: ZW_LATE_ZI_OPTIONS },
 		{ name: 'yearBoundary', label: '定年界线', type: 'select', default: 'lichun', group: '传本', options: ZW_YEAR_BOUNDARY_OPTIONS },
 		{ name: 'huoling', label: '火铃', type: 'select', default: 'sanhe', group: '传本', options: ZW_HUOLING_OPTIONS },
 		{ name: 'kongNaming', label: '空劫命名', type: 'select', default: 'modern', group: '传本', options: ZW_KONG_NAMING_OPTIONS },
 		{ name: 'brightnessSource', label: '星曜亮度', type: 'select', default: 'zi_jian', group: '传本', options: ZW_BRIGHTNESS_SOURCE_OPTIONS },
+		// [B14] 亮度=自定义时的随盘亮度表(JSON,形状 {"星":{"支":"档"}};档=庙旺得地利平闲不陷)。
+		// 留空=custom 档回落本机编辑器所存表;builder 端 normalizeBrightnessCustomTable 校验,坏值不注入。
+		{ name: 'brightnessCustomTable', label: '自定义亮度表(JSON,配合亮度=自定义)', type: 'text', default: '', group: '传本',
+			placeholder: '{"紫微":{"子":"平","丑":"庙"},...} 留空=用本机表' },
+		{ name: 'lifeMasterBy', label: '命主取法', type: 'select', default: 'year_branch', group: '传本', options: ZW_LIFE_MASTER_BY_OPTIONS },
+		{ name: 'changshengStart', label: '长生十二神起法', type: 'select', default: 'shui_tu', group: '传本', options: ZW_CHANGSHENG_START_OPTIONS },
+		{ name: 'changshengDirection', label: '长生顺逆', type: 'select', default: 'yinyang', group: '传本', options: ZW_CHANGSHENG_DIRECTION_OPTIONS },
+		{ name: 'kongwangStyle', label: '空亡星式', type: 'select', default: 'double', group: '传本', options: ZW_KONGWANG_STYLE_OPTIONS },
+		{ name: 'kuiYue', label: '魁钺歌诀', type: 'select', default: 'jia_wu_geng', group: '传本', options: ZW_KUIYUE_OPTIONS },
+		{ name: 'liuYueBasis', label: '流月起法', type: 'select', default: 'doujun', group: '传本', options: ZW_LIU_YUE_BASIS_OPTIONS },
+		{ name: 'liunianSihuaGan', label: '流年四化取干', type: 'select', default: 'year_gan', group: '传本', options: ZW_LIUNIAN_SIHUA_GAN_OPTIONS },
 		// 流派叠层显示(纯后处理,开则挂载/导出快照注入对应 ground-truth 段:童限/三限/气数位/借宫/太岁)。默认全关=现状。
 		{ name: 'childLimit', label: '童限', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
 		{ name: 'zhongxian', label: '沈氏三限', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
@@ -1421,9 +1472,13 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'qishuWei', label: '河洛气数位', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
 		{ name: 'borrowPalace', label: '中州借宫', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
 		{ name: 'taiSuiRuGua', label: '紫云太岁入卦', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'taiSuiRelatives', label: '太岁关系人生肖(空格/逗号分隔,如 午 子)', type: 'text', default: '', group: '流派叠层',
-			// text→[{branch}] 归一(与 live UI 同结构):否则 buildZiweiOverlayLines/taiSuiRuGua 的 Array.isArray 判死、挂载侧太岁入卦段静默丢失。
-			normalize: (v)=>{ if(Array.isArray(v)){ return v; } const bs = `${v == null ? '' : v}`.split(/[,，\s]+/).map((x)=>x.trim()).filter(Boolean); return bs.map((b)=>({ branch: b })); } },
+		{ name: 'flowLuanXi', label: '流鸾流喜', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
+		{ name: 'flowHuoLing', label: '流火流铃', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
+		{ name: 'flowShenshaOnChart', label: '流年神煞上盘', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
+		{ name: 'taiSuiRelatives', label: '太岁关系人(支[:角色[:性别]],如 午:母:female 子)', type: 'text', default: '', group: '流派叠层',
+			// text→[{branch,role,sex}] 归一(与 live UI 同结构):否则 buildZiweiOverlayLines/taiSuiRuGua 的 Array.isArray 判死、挂载侧太岁入卦段静默丢失。
+			// [P2e] 文法扩展 `支[:角色[:性别]]`;裸支向后兼容(role/sex 空)。
+			normalize: (v)=>{ if(Array.isArray(v)){ return v; } const bs = `${v == null ? '' : v}`.split(/[,，\s]+/).map((x)=>x.trim()).filter(Boolean); return bs.map((tok)=>{ const seg = tok.split(/[:：]/); return { branch: seg[0], role: seg[1] || '', sex: seg[2] || '' }; }); } },
 		// 运限层(多选,批A)：大限已逐宫含于[宫位总览];选所选层即让快照追加[运限]段(逐层钻取四化落宫+流曜)。
 		// 流年/流月/流日/流时是盘面交互导航,本由 chart 本地推算(无后端参数)→ 复用 ZWLuckPanel 同口径构造器。
 		// 多选语义：大限/流年/流月对所选每项各产一段(流年×流月笛卡尔);流日/流时锚定到所选的第一个上层。

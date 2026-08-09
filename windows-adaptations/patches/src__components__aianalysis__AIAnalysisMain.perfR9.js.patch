@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index c8a2afe..41188ca 100644
+index 9b7e1bf0..fe920fea 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 @@ -168,6 +168,8 @@ import {
@@ -50,7 +50,7 @@ index c8a2afe..41188ca 100644
  const CONTEXT_STATUS_META = {
  	ready: { text: '已就绪', color: 'green' },
  	regenerated: { text: '已按盘重算', color: 'blue' },
-@@ -1432,7 +1466,15 @@ function AIAnalysisMain(props){
+@@ -1448,7 +1482,15 @@ function AIAnalysisMain(props){
  	React.useEffect(()=>{
  		if(props.hook){
  			props.hook.fun = ()=>{
@@ -67,7 +67,7 @@ index c8a2afe..41188ca 100644
  			};
  		}
  	}, [props.hook, loadWorkspace]);
-@@ -4596,7 +4638,7 @@ function AIAnalysisMain(props){
+@@ -4612,7 +4654,7 @@ function AIAnalysisMain(props){
  												) : null}
  												{item.role === 'user'
  													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
@@ -76,19 +76,20 @@ index c8a2afe..41188ca 100644
  												{item.role === 'assistant' && item.errorInfo ? (
  													<Alert
  														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
-@@ -5206,6 +5248,11 @@ function AIAnalysisMain(props){
- 				onChange={handleDesktopFolderInputChange}
- 			/>
- 			<Spin spinning={workspaceLoading}>
-+				{/* horosa_freeze_subtabs_v1：五个 renderXxxPane() 此前在**每次** render 都被无条件调用 ——
-+				    打一个字、流式回答每来一段、切任何设置，都会把「历史」「资料」「模版」「设置」四个
-+				    看不见的面板(含各自的列表/表单/折叠面板)整套重建一遍。函数式 children 让未激活的
-+				    面板连函数都不调用；已激活过的在非激活期跳过 re-render，切回时用本轮最新数据渲一帧，
-+				    不卸载、不重取、不丢用户已填的表单与滚动位置。 */}
- 				<Tabs
+@@ -5224,6 +5266,12 @@ function AIAnalysisMain(props){
+ 			{/* [首开反卡 2026-08-09] 全页 Spin 已摘:曾以 workspaceLoading 包住整个工作区 ——
+ 			    APP(WKWebView)里大库首读把它顶成「全页转圈很久」。现在首帧直接渲染,
+ 			    wave2 未到位时资料/历史 pane 顶部各自细提示(deepLoading)。绝不回包全页。 */}
++			{/* horosa_freeze_subtabs_v1:五个 renderXxxPane() 此前在**每次** render 都被无条件调用 ——
++			    打一个字、流式回答每来一段、切任何设置,都会把「历史」「资料」「模版」「设置」四个
++			    看不见的面板(含各自的列表/表单/折叠面板)整套重建一遍。函数式 children 让未激活的
++			    面板连函数都不调用;已激活过的在非激活期跳过 re-render,切回时用本轮最新数据渲一帧,
++			    不卸载、不重取、不丢用户已填的表单与滚动位置。
++			    与上游「首开反卡」的 deepLoading 细提示相容:提示在各自 pane 内,随该 pane 一同求值。 */}
+ 			<Tabs
  					className={styles.workspaceTabs}
  					tabPosition="right"
-@@ -5214,19 +5261,29 @@ function AIAnalysisMain(props){
+@@ -5232,25 +5280,35 @@ function AIAnalysisMain(props){
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">
@@ -98,12 +99,18 @@ index c8a2afe..41188ca 100644
  					</TabPane>
  					<TabPane tab={<span>{SECONDARY_TABS[1].icon}历史</span>} key="history">
 +						<FreezeSubTab active={innerTab === 'history'}>{()=>(
- 						<div className={styles.pane}>{renderHistoryPane()}</div>
+ 						<div className={styles.pane}>
+ 							{deepLoading ? <div style={{ padding: '4px 12px', color: 'var(--horosa-text-tertiary, #999)', fontSize: 12 }}>会话记录载入中…</div> : null}
+ 							{renderHistoryPane()}
+ 						</div>
 +					)}</FreezeSubTab>
  					</TabPane>
  					<TabPane tab={<span>{SECONDARY_TABS[2].icon}资料</span>} key="materials">
 +						<FreezeSubTab active={innerTab === 'materials'}>{()=>(
- 						<div className={styles.pane}>{renderMaterialsPane()}</div>
+ 						<div className={styles.pane}>
+ 							{deepLoading ? <div style={{ padding: '4px 12px', color: 'var(--horosa-text-tertiary, #999)', fontSize: 12 }}>资料库载入中…</div> : null}
+ 							{renderMaterialsPane()}
+ 						</div>
 +					)}</FreezeSubTab>
  					</TabPane>
  					<TabPane tab={<span>{SECONDARY_TABS[3].icon}模版</span>} key="templates">
@@ -117,4 +124,4 @@ index c8a2afe..41188ca 100644
 +					)}</FreezeSubTab>
  					</TabPane>
  				</Tabs>
- 			</Spin>
+ 

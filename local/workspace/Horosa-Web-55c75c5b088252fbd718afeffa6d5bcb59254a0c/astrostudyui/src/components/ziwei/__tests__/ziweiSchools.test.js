@@ -5,7 +5,7 @@ import {
 	isLateZi, resolveLateZi, resolveYearGanzhi,
 	placeKongJie, placeTiankongYear, placeJieluKong,
 	yinyangGroup, placeShangShi,
-	palaceStems, sihuaTable, sihuaOf, laiyinPalaces,
+	palaceStems, sihuaTable, sihuaOf, laiyinPalaces, isLaiyinPalace,
 	SIHUA_SCHOOLS,
 } from '../ziweiSchools';
 
@@ -42,6 +42,11 @@ describe('闰月取月(分歧点2)', () => {
 		expect(resolveLeapMonth(5, 20, true, 'split15')).toEqual({ palaceMonth: 6, starMonth: 6 });
 		expect(resolveLeapMonth(5, 16, true, 'split_days', 30)).toEqual({ palaceMonth: 6, starMonth: 6 });
 		expect(resolveLeapMonth(5, 15, true, 'split_days', 30)).toEqual({ palaceMonth: 5, starMonth: 5 });
+		// 🔴 [B4] split_days 修真金标:小月(29)半点=14 —— 十五日归**下月**,与 split15(归本月)分道。
+		// 旧 floor((d+1)/2) 对 29/30 都得 15=split15 克隆(假选项);修真依据=选项文案「按实际天数取中点」。
+		expect(resolveLeapMonth(5, 15, true, 'split_days', 29)).toEqual({ palaceMonth: 6, starMonth: 6 });
+		expect(resolveLeapMonth(5, 14, true, 'split_days', 29)).toEqual({ palaceMonth: 5, starMonth: 5 });
+		expect(resolveLeapMonth(5, 15, true, 'split15', 29)).toEqual({ palaceMonth: 5, starMonth: 5 });   // 对照:split15 十五仍本月
 		expect(resolveLeapMonth(5, 20, true, 'solar_term', 30, true)).toEqual({ palaceMonth: 6, starMonth: 6 });
 		expect(resolveLeapMonth(5, 20, true, 'split_star_month')).toEqual({ palaceMonth: 6, starMonth: 5 });   // 命身下月、月系星本月
 	});
@@ -130,10 +135,20 @@ describe('宫干+四化(分歧点7)', () => {
 		expect(palaceStems('己')['寅']).toBe('丙');
 		expect(palaceStems('癸')['寅']).toBe('甲');
 	});
-	test('来因宫', () => {
+	test('来因宫(🔴 子丑借干宫不作来因 —— 与盘面 drawLaiYing 同口径,快照/报告曾不排致辛壬年双来因)', () => {
 		const ps = palaceStems('庚'); const ly = laiyinPalaces('庚');
 		expect(ly.every((b) => ps[b] === '庚')).toBe(true);
 		expect(ly.length).toBeGreaterThanOrEqual(1);
+		// 负锚:壬年丑借卯之干、辛年子借寅之干 —— 排除后每干来因恰一宫且永不含子丑
+		'甲乙丙丁戊己庚辛壬癸'.split('').forEach((stem) => {
+			const one = laiyinPalaces(stem);
+			expect(one.length).toBe(1);
+			expect(one).not.toContain('子');
+			expect(one).not.toContain('丑');
+			expect(isLaiyinPalace(`${stem}${one[0]}`, stem)).toBe(true);
+		});
+		expect(isLaiyinPalace('壬子', '壬')).toBe(false);   // 借干宫被谓词拒绝
+		expect(isLaiyinPalace('辛丑', '辛')).toBe(false);
 	});
 	test('七干各派一致', () => {
 		'甲乙丙丁己辛癸'.split('').forEach((stem) => {

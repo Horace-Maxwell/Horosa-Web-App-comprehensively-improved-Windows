@@ -24,10 +24,34 @@ export const SiHuaTables = {
 // 当前流派（可变单例，镜像 ZWChart；默认=现状）。
 export const ZWSchool = { school: 'beipai' };
 
-// 取当前流派的十干四化表；custom 读 localStorage，缺/坏一律回退 beipai（安全兜底）。
+// [A4] 挂载/导出侧临时注入的自定义四化表(可变单例;非 null 时 custom 档优先于 localStorage)。
+// 挂载 builder set → 用毕 finally 清 null,绝不写 LS ——崩溃残留也不会污染用户本机偏好。
+export const ZWSihuaCustom = { override: null };
+
+// 自定义四化表归一/校验:接受对象或 JSON 字符串,形状={干:[禄,权,科,忌]}(每干 4 星名)。
+// 至少一干合法即返归一表(缺干=该干回落通用表);全坏/空返 null(调用侧不注入=零行为)。
+export function normalizeSihuaCustomTable(raw){
+	let obj = raw;
+	if(typeof raw === 'string'){
+		if(!raw.trim()){ return null; }
+		try{ obj = JSON.parse(raw); }catch(e){ return null; }
+	}
+	if(!obj || typeof obj !== 'object' || Array.isArray(obj)){ return null; }
+	const out = {};
+	'甲乙丙丁戊己庚辛壬癸'.split('').forEach((g)=>{
+		const row = obj[g];
+		if(Array.isArray(row) && row.length === 4 && row.every((x)=>typeof x === 'string' && x.trim())){
+			out[g] = row.map((x)=>x.trim());
+		}
+	});
+	return Object.keys(out).length ? Object.assign({}, SiHuaTables.beipai, out) : null;
+}
+
+// 取当前流派的十干四化表；custom 先查注入单例(挂载侧)再读 localStorage，缺/坏一律回退 beipai（安全兜底）。
 export function getActiveSiHuaGan(){
 	const s = ZWSchool.school;
 	if(s === 'custom'){
+		if(ZWSihuaCustom.override && typeof ZWSihuaCustom.override === 'object'){ return ZWSihuaCustom.override; }
 		try{
 			const c = JSON.parse(localStorage.getItem('ziweiSihuaCustom'));
 			if(c && typeof c === 'object'){ return c; }
@@ -54,8 +78,11 @@ export const ZWColor = {
 	StarMainStroke: 'var(--horosa-ziwei-star-main, #9b6a2d)',
 	StarAssistStroke: 'var(--horosa-ziwei-star-assist, #327f8d)',
 	StarEvilStroke: 'var(--horosa-ziwei-star-evil, #a9473f)',
-	StarOthersGoodStroke: 'var(--horosa-ziwei-star-assist, #327f8d)',
-	StarOthersBadStroke: 'var(--horosa-ziwei-star-evil, #a9473f)',
+	// [D0] 杂曜吉/凶独立 token(三主题区已定义,当前值=assist/evil 同值→零视觉变化;语义拆分后可独立调)。
+	StarOthersGoodStroke: 'var(--horosa-ziwei-star-others-good, #327f8d)',
+	StarOthersBadStroke: 'var(--horosa-ziwei-star-others-bad, #a9473f)',
+	// [D1] 六煞黑字档色(三主题区各有定义;传统「六煞书黑」高对比中性色)
+	StarSixEvilStroke: 'var(--horosa-ziwei-star-sixevil, #2b2b2b)',
 	StarSmallStroke: 'var(--horosa-ziwei-house-muted, #8a8f95)',
 	HouseLineStroke: 'var(--horosa-ziwei-house-line, rgba(184, 137, 63, 0.22))',
 	HouseMetaStroke: 'var(--horosa-ziwei-house-meta, #7a8790)',
@@ -86,13 +113,14 @@ export const ZWColor = {
 // key 与 luckSel 层 key 对齐（liunian=流年小限合并层、liuyue/liuri/liushi）。
 export const ZWPeriodColor = {
 	liunian: 'var(--horosa-ziwei-period-year, #7048e8)',   // 流年小限 紫
+	xiaoxian: 'var(--horosa-ziwei-period-xiaoxian, #9775fa)',   // [D3] 小限叠宫层 浅紫(独立 token,三主题区定义)
 	liuyue: 'var(--horosa-ziwei-period-month, #2f9e44)',   // 流月 绿
 	liuri: 'var(--horosa-ziwei-period-day, #e64980)',      // 流日 玫红
 	liushi: 'var(--horosa-ziwei-period-hour, #e8590c)',    // 流时 橙
 };
 // 运限层前缀字（长生左侧标签 = 前缀 + 该宫在该层下的角色字，如「年命」「时兄」）。
 export const ZWPeriodPrefix = {
-	daxian: '运', liunian: '年', liuyue: '月', liuri: '日', liushi: '时',
+	daxian: '运', liunian: '年', xiaoxian: '限', liuyue: '月', liuri: '日', liushi: '时',
 };
 
 export const Gans = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];

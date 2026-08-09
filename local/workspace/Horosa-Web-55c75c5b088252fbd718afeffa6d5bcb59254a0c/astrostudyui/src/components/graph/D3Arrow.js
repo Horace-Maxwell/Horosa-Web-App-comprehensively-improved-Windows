@@ -9,6 +9,8 @@ class D3Arrow {
 		this.x2 = option.x2;
 		this.y2 = option.y2;
 		this.color = option.color ? option.color : 'var(--horosa-text, #000000)';
+		// 线宽可选:缺省不落 attr(继承宿主 svg 的 stroke-width,现状),显式传入才生效。
+		this.strokeWidth = option.strokeWidth;
 		this.width = 12;
 		this.height = 12;
 
@@ -29,12 +31,12 @@ class D3Arrow {
 	}
 
 	draw(){
-		this.owner.append('line')
+		const line = this.owner.append('line')
 			.attr('x1', this.x1).attr('y1', this.y1)
 			.attr('x2', this.x2).attr('y2', this.y2)
 			.attr('stroke', this.color)
 			.attr('marker-end', 'url(#' + this.id + ')');
-
+		if(this.strokeWidth != null){ line.attr('stroke-width', this.strokeWidth); }
 	}
 
 }

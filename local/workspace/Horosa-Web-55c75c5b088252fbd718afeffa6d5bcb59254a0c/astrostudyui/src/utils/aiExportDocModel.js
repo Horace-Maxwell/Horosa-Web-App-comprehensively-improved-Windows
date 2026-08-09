@@ -21,23 +21,68 @@ const SUBHEAD_RE = /^◆\s+(.+)$/;
 const NOTE_RE = /^(?:注：|说明：|（说明：.*）$|\(说明：.*\)$)/;
 const KV_RE = /^([^\s：:，,、。;；]{1,24})：(.*)$/;
 
-// [E5] 行内 markdown(**粗**/*斜*/`码`)→ 分段数组 [{text, bold?, em?, code?}]。
-// 与 docxCommon.mdInlineToRuns 同一正则语义(docx 端产 TextRun,本函数供 矢量 PDF / 样式化 PDF DOM
-// 两端做分段绘制)——渲染端据此消化记号,星号/反引号绝不字面落产物。纯函数零依赖,jest 安全。
-export function mdInlineSegments(text){
+// [E11] 行内 markdown 唯一 tokenizer —— 全链单一真值。
+// 消费方四条:①docxCommon.mdInlineToRuns(docx TextRun) ②reportExport.inlineMd(导出 HTML/打印/
+// 栅格 PDF) ③aiExportPdfVector(矢量 PDF 分段绘制) ④金标 parity(与 marked 的加粗集合对拍)。
+// 此前 ①②③ 各自养一份 `\*\*(.+?)\*\*` 正则,能力互不相同(转义不认、嵌套不认、删除线不认)
+// ⇒ 应用内所见 ≠ docx/PDF/HTML 所得。现统一到本函数。
+//
+// 支持:`***粗斜***` / `**粗**` / `*斜*` / `` `码` `` / `~~删~~` / 反斜杠转义 / 记号内嵌套。
+// **不支持 `__粗__`** 是刻意的:marked 对中文词内的 `__` 本就不成强调,tokenizer 若单方面支持
+// 反而制造新分歧;`__中文__` 由上游 reportMarkdownNormalize.repairInlineEmphasis 归一成 `**`。
+// 返回 [{text, bold?, em?, code?, del?}];空输入 → []。纯函数零依赖,jest 安全。
+const MD_ESCAPABLE = '\\`*_{}[]()#+-.!~|<>$';
+
+// 从 pos 起找与 delim 相同的闭合记号(跳过反斜杠转义);找不到返回 -1。
+function findCloser(src, pos, delim){
+	const len = delim.length;
+	for(let i = pos; i <= src.length - len; i++){
+		if(src[i] === '\\'){ i++; continue; }
+		if(src.startsWith(delim, i)){
+			// `*` 的闭合记号不能是 `**` 的一半
+			if(delim === '*' && src[i + 1] === '*'){ i++; continue; }
+			return i;
+		}
+	}
+	return -1;
+}
+
+export function mdInlineSegments(text, baseStyle){
 	const src = `${text == null ? '' : text}`;
 	if(!src){ return []; }
+	const base = baseStyle || {};
 	const segs = [];
-	const re = /\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`/g;
-	let last = 0; let m;
-	while((m = re.exec(src))){
-		if(m.index > last){ segs.push({ text: src.slice(last, m.index) }); }
-		if(m[1] != null){ segs.push({ text: m[1], bold: true }); }
-		else if(m[2] != null){ segs.push({ text: m[2], em: true }); }
-		else{ segs.push({ text: m[3], code: true }); }
-		last = re.lastIndex;
+	let buf = '';
+	const flushBuf = ()=>{ if(buf){ segs.push({ text: buf, ...base }); buf = ''; } };
+	const pushInner = (inner, extra)=>{
+		flushBuf();
+		mdInlineSegments(inner, { ...base, ...extra }).forEach((s)=>segs.push(s));
+	};
+	let i = 0;
+	while(i < src.length){
+		const ch = src[i];
+		if(ch === '\\' && i + 1 < src.length && MD_ESCAPABLE.indexOf(src[i + 1]) >= 0){
+			buf += src[i + 1]; i += 2; continue;                       // 转义:记号字面化,反斜杠不落产物
+		}
+		if(ch === '`'){
+			const end = src.indexOf('`', i + 1);                        // 行内码内部不认转义(同 CommonMark)
+			if(end > i + 1){ flushBuf(); segs.push({ text: src.slice(i + 1, end), ...base, code: true }); i = end + 1; continue; }
+		}else if(src.startsWith('~~', i)){
+			const end = findCloser(src, i + 2, '~~');
+			if(end > i + 2){ pushInner(src.slice(i + 2, end), { del: true }); i = end + 2; continue; }
+		}else if(src.startsWith('***', i)){
+			const end = findCloser(src, i + 3, '***');
+			if(end > i + 3){ pushInner(src.slice(i + 3, end), { bold: true, em: true }); i = end + 3; continue; }
+		}else if(src.startsWith('**', i)){
+			const end = findCloser(src, i + 2, '**');
+			if(end > i + 2){ pushInner(src.slice(i + 2, end), { bold: true }); i = end + 2; continue; }
+		}else if(ch === '*'){
+			const end = findCloser(src, i + 1, '*');
+			if(end > i + 1){ pushInner(src.slice(i + 1, end), { em: true }); i = end + 1; continue; }
+		}
+		buf += ch; i++;
 	}
-	if(last < src.length){ segs.push({ text: src.slice(last) }); }
+	flushBuf();
 	return segs;
 }
 

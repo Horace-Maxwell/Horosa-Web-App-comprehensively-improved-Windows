@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaMain.js b/astrostudyui/src/components/dunjia/DunJiaMain.js
-index 50eb0611..82c8fd2b 100644
+index 8566f45f..82d6ba09 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaMain.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaMain.js
 @@ -5,6 +5,8 @@ import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, st
@@ -11,7 +11,7 @@ index 50eb0611..82c8fd2b 100644
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import { Tag, message, Popover, Modal } from 'antd';
  import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-@@ -1559,6 +1561,10 @@ class DunJiaMain extends Component {
+@@ -1617,6 +1619,10 @@ class DunJiaMain extends Component {
  			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
  			this.lastPanSignature = panSignature;
  			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{

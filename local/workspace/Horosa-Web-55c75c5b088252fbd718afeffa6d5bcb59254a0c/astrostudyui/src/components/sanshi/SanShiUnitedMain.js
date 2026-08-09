@@ -1,4 +1,10 @@
 import { Component, Fragment } from 'react';
+import {
+	parseSnapshotSections,
+	SANSHI_TAIYI_SECTION_TITLES,
+	SANSHI_QIMEN_EXTRA_SECTIONS,
+	SANSHI_LIURENG_DUANGUA_SECTIONS,
+} from './sanshiSnapshotSections';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -31,6 +37,15 @@ import {
 	GUXU,
 	isKinqimenMode,
 	buildDunJiaSnapshotText,
+	CHART_CATEGORY_OPTIONS,
+	GODS_PRESET_OPTIONS,
+	ANGAN_MODE_OPTIONS,
+	JIGONG_MODE_OPTIONS,
+	SHIFT_ZHIFU_OPTIONS,
+	DAYJIA_JU_OPTIONS,
+	KEJIA_FENDUN_OPTIONS,
+	JINHAN_MENPAI_OPTIONS,
+	YEARJIA_JU_OPTIONS,
 } from '../dunjia/DunJiaCalc';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import SanShiZiWeiSihua, { buildSanShiZiweiSihuaSnapshotLines } from './SanShiZiWeiSihua';
@@ -192,6 +207,29 @@ const QIMEN_OPTIONS = {
 	school: '转盘',
 	shuziReportNumber: '',
 	zhirunLeapDays: 9,
+	chartCategory: 'shi',   // [H-A] 盘类(事局/命局):此前三式完全缺失,挂载齿轮却经 reTagSanshi 暴露=调了不消费
+	faRelatedPeople: '',    // [H-A] 相关人员(法奇门必护天干消费):此前三式缺失
+	godsPreset: 'baihu_xuanwu',   // [H-B] 八神预设
+	anGanMode: 'off',             // [H-B] 暗干五法
+	showAnZhi: false,
+	jiGongMode: 'kun',
+	feiXingShun: false,
+	feiMenShun: false,
+	feiShenShun: false,
+	feiMenZhongCan: true,
+	feiMenZhongShow: false,
+	mixTian: '',
+	mixXing: '',
+	mixMen: '',
+	mixShen: '',
+	kongMarkBoth: false,
+	showAllKong: false,
+	shiftZhiFuMode: 'follow',
+	dayJiaJu: 'yiyuan',
+	keJiaFenDun: 'zihou',
+	keZiZhengHuanShi: false,
+	jinhanMenPai: 'book',
+	yearJiaJu: 'sanyuan',
 };
 
 const OUTER_RING_LAYOUT = [
@@ -358,7 +396,14 @@ const QIMEN_FENGJU_OPTIONS = [
 const SANSHI_RECALC_OPTION_KEYS = new Set([
 	// 奇门(经 getQimenOptions + fetchQimenPan/calcDunJia)
 	'paiPanType', 'zhiShiType', 'yueJiaQiJuType', 'qijuMethod', 'kongMode', 'yimaMode', 'shiftPalace',
-	'school', 'shuziReportNumber', 'fengJu', 'zhirunLeapDays',
+	'school', 'shuziReportNumber', 'fengJu', 'zhirunLeapDays', 'chartCategory', 'faRelatedPeople',
+	'godsPreset', 'anGanMode', 'showAnZhi', 'jiGongMode',
+	'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow',
+	'mixTian', 'mixXing', 'mixMen', 'mixShen',
+	'kongMarkBoth', 'showAllKong', 'shiftZhiFuMode',
+	'dayJiaJu', 'keJiaFenDun', 'keZiZhengHuanShi',
+	'jinhanMenPai',
+	'yearJiaJu',
 	// 太乙(经 getKintaiyiPan + applyTaiyiSchool)
 	'taiyiStyle', 'taiyiAccum', 'taiyiSchool', 'gameTheory',
 	// 大六壬(经 guirengType + buildSanshiLiuRengCastOverride)
@@ -724,6 +769,29 @@ function getQimenOptionsKey(options){
 		safe(options.school),
 		safe(options.shuziReportNumber),
 		safe(options.zhirunLeapDays),
+		// [H-H] 🔴 同独立页:缓存键维度完备,新引擎键全入(漏=三式改档死开关)。哨兵测试守。
+		safe(options.godsPreset),
+		safe(options.jiGongMode),
+		safe(options.anGanMode),
+		options.showAnZhi ? 1 : 0,
+		options.fullNameTips ? 1 : 0,
+		options.feiXingShun ? 1 : 0,
+		options.feiMenShun ? 1 : 0,
+		options.feiShenShun ? 1 : 0,
+		options.feiMenZhongCan === false ? 0 : 1,
+		options.feiMenZhongShow ? 1 : 0,
+		safe(options.mixTian),
+		safe(options.mixXing),
+		safe(options.mixMen),
+		safe(options.mixShen),
+		options.kongMarkBoth ? 1 : 0,
+		options.showAllKong ? 1 : 0,
+		safe(options.shiftZhiFuMode),
+		safe(options.dayJiaJu),
+		safe(options.keJiaFenDun),
+		options.keZiZhengHuanShi ? 1 : 0,
+		safe(options.jinhanMenPai),
+		safe(options.yearJiaJu),
 	].join('|');
 }
 
@@ -1244,33 +1312,6 @@ function buildLiuRengBranchMap(lrLayout){
 // 单一真值源:把独立技法 builder 产出的整篇快照(段头形如 [X])解析成「段名 → 正文行数组」的 Map,
 // 供三式合一按需挑段并以 appendSection(【X】)重发。这样段内容 100% 来自独立 builder(零平行实现),
 // 三式合一只做「选段 + 改前缀」。段头识别与 parseSectionTitleLine 同口径:整行 [X] 才算段头。
-function parseSnapshotSections(text){
-	const map = {};
-	let current = null;
-	`${text || ''}`.split('\n').forEach((rawLine)=>{
-		const line = `${rawLine || ''}`;
-		const m = line.trim().match(/^\[(.+)\]$/);
-		if(m && m[1]){
-			current = m[1];
-			if(!map[current]){
-				map[current] = [];
-			}
-			return;
-		}
-		if(current){
-			map[current].push(line);
-		}
-	});
-	// 去掉每段尾部多余空行(appendSection 会自行补一行空行做段间隔)。
-	Object.keys(map).forEach((key)=>{
-		const arr = map[key];
-		while(arr.length && arr[arr.length - 1] === ''){
-			arr.pop();
-		}
-	});
-	return map;
-}
-
 // 把独立 builder 整篇里的指定段,以「前缀 + 段名」重发到三式合一快照(单一真值源:正文照搬)。
 // 仅在该段存在且有正文时输出(条件段天然豁免;空段不污染导出与导出设置勾选面)。
 function appendPickedSections(lines, sectionMap, titles, prefix){
@@ -1283,48 +1324,7 @@ function appendPickedSections(lines, sectionMap, titles, prefix){
 	});
 }
 
-// 太乙:复用独立 buildTaiyiSnapshotText 的动态派生段(后端 pan.sections 产出);段名加「太乙」前缀。
-// 仅取这 7 段(主客定算/八门与宿曜/断法/七大兵法/博弈/命法/命宫行限);其余 sections(起盘/太乙诸神/风游/十二神)
-// 与三式合一既有「起盘信息」「太乙」段内容重叠或为基础信息,不重出(避免「太乙太乙诸神」叠词与冗余)。
-const SANSHI_TAIYI_SECTION_TITLES = [
-	'主客定算',
-	'八门与宿曜',
-	'断法',
-	'七大兵法',
-	'博弈',
-	'命法',
-	'命宫行限',
-];
-// 奇门:复用独立遁甲 buildDunJiaSnapshotText 的派生/法奇门段(段名加「奇门」前缀,避免与六壬「概览」等碰撞)。
-const SANSHI_QIMEN_EXTRA_SECTIONS = [
-	'九宫方盘',
-	'旺相休囚死·月令能量',
-	'六害总览',
-	'化解方案',
-	'八门化气大阵',
-	'用神分论',
-	'财富七要',
-	'事业七要',
-	'恋爱姻缘',
-	'孤辰寡宿',
-];
-// 六壬:复用独立大六壬 buildLiuRengSnapshotText 的断卦层段(三式合一缺这些 → 导出/挂载贫)。
-// 大格/小局/参考/概览 三式合一已自有(appendRefSection),此处不重出;旺衰/基础神煞等依赖后端 gods,
-// 三式合一未取(自然不产出,⊆ 语义豁免)。前缀留空:段名与三式合一既有段不碰。
-const SANSHI_LIURENG_DUANGUA_SECTIONS = [
-	'十二盘式',
-	'常用神煞',
-	'年月神煞',
-	'课体结构',
-	'三传旺衰',
-	'空亡真假',
-	'旬空落点',
-	'陷空',
-	'遁干特殊',
-	'年命上神',
-	'毕法（已命中）',
-	'占断向导',
-];
+
 
 export function buildSanShiUnitedSnapshotText(data){
 	const {
@@ -2639,7 +2639,7 @@ class SanShiBoardLayer extends Component{
 					diGanTip
 				)}
 				{wrapWithMeaning(
-					<div className={styles.qmStar} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px` }}>{safe(cell.tianXing, ' ')}</div>,
+					<div className={styles.qmStar} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px`, ...(cell.isJinhan && cell.jinhanStarJi ? { color: cell.jinhanStarJi === '吉' ? '#c41e28' : (cell.jinhanStarJi === '凶' ? 'var(--horosa-text, #1f1f1f)' : 'var(--horosa-muted, #8c8c8c)') } : {}) }}>{safe(cell.tianXing, ' ')}</div>,
 					showMeaning,
 					starTip
 				)}
@@ -2654,6 +2654,11 @@ class SanShiBoardLayer extends Component{
 					showMeaning,
 					doorTip
 				)}
+				{cell.anGan ? (
+					<div style={{ position: 'absolute', right: 4, top: 2, fontSize: Math.max(10, Math.round(qimenFont * 0.55)), lineHeight: '1.2', color: 'var(--horosa-text-soft, #8c6a3f)' }}>
+						{cell.anGan}{cell.anZhi || ''}
+					</div>
+				) : null}
 			</div>
 		);
 	}
@@ -2898,7 +2903,7 @@ class SanShiUnitedMain extends Component{
 				kongMode: 'day',
 				yimaMode: 'day',
 				shiftPalace: 0,
-				// 奇门流派/起局补充(默认=现行行为,零回归):盘式转盘 / 报数空 / 未封局 / 置闰大于9天。
+				// 奇门流派/起局补充(默认=现行行为,零回归):盘式转盘 / 报数空 / 未封局 / 置闰满9天(≥9)即闰。
 				school: '转盘',
 				shuziReportNumber: '',
 				fengJu: false,
@@ -3200,7 +3205,7 @@ class SanShiUnitedMain extends Component{
 			if(!fallbackPan){
 				throw new Error('sanshi.qimen.kinqimen_unavailable');
 			}
-			return fallbackPan;
+			return this.applySanshiFaRelated(fallbackPan, o);
 		}
 		const backendPan = await fetchQimenPan(fields, nongli, qimenOptions, {
 			year,
@@ -3212,6 +3217,16 @@ class SanShiUnitedMain extends Component{
 		if(!pan || pan.source !== 'kinqimen'){
 			throw new Error('sanshi.qimen.kinqimen_unavailable');
 		}
+		return this.applySanshiFaRelated(pan, o);
+	}
+
+	// [H-A] 三式相关人员挂 pan(与独立页 applyFaRelatedToPan 同单源语义:法奇门 DunJiaFaCalc 读 pan.faRelatedPeople 数组)。
+	// 三式侧输入为文本(逗号/空格分隔生年天干),此处解析为十干数组;空=空数组(显式)防兜底读独立页全局残留。
+	applySanshiFaRelated(pan, opt){
+		if(!pan){ return pan; }
+		const raw = `${(opt && opt.faRelatedPeople) || ''}`;
+		const gans = raw.split(/[\s,，、]+/).map((x)=>x.trim()).filter((x)=>'甲乙丙丁戊己庚辛壬癸'.indexOf(x) >= 0);
+		pan.faRelatedPeople = gans;
 		return pan;
 	}
 
@@ -3550,6 +3565,14 @@ class SanShiUnitedMain extends Component{
 				if(payload.options.yinyangSystem){
 					options.yinyangSystem = payload.options.yinyangSystem;
 				}
+				// [QA1] 🔴 奇门键集驱动灌注(根治手写白名单漏新键=存档载入丢设置):
+				// QIMEN_OPTIONS 默认表的每个键都从存档取——独立页 restore 以 Object.keys(DEFAULT_OPTIONS)
+				// 驱动的同构范式,新增奇门键零维护自动跟随;已手写键幂等覆盖同值无害。
+				Object.keys(QIMEN_OPTIONS).forEach((qk)=>{
+					if(payload.options[qk] !== undefined){
+						options[qk] = payload.options[qk];
+					}
+				});
 				if(payload.options.tuWangShuai){
 					options.tuWangShuai = payload.options.tuWangShuai;
 				}
@@ -4132,6 +4155,30 @@ class SanShiUnitedMain extends Component{
 			shuziReportNumber: opt.shuziReportNumber !== undefined ? opt.shuziReportNumber : '',
 			fengJu: !!opt.fengJu,
 			zhirunLeapDays: opt.zhirunLeapDays !== undefined ? opt.zhirunLeapDays : 9,
+			// [H-A] 三式缺口补齐:盘类+相关人员透传(与独立页同语义;默认=事局/空=零回归)
+			chartCategory: opt.chartCategory !== undefined ? opt.chartCategory : 'shi',
+			faRelatedPeople: opt.faRelatedPeople !== undefined ? opt.faRelatedPeople : '',
+			godsPreset: opt.godsPreset !== undefined ? opt.godsPreset : 'baihu_xuanwu',
+			anGanMode: opt.anGanMode !== undefined ? opt.anGanMode : 'off',
+			showAnZhi: !!opt.showAnZhi,
+			jiGongMode: opt.jiGongMode || 'kun',
+			feiXingShun: !!opt.feiXingShun,
+			feiMenShun: !!opt.feiMenShun,
+			feiShenShun: !!opt.feiShenShun,
+			feiMenZhongCan: opt.feiMenZhongCan !== false,
+			feiMenZhongShow: !!opt.feiMenZhongShow,
+			mixTian: opt.mixTian || '',
+			mixXing: opt.mixXing || '',
+			mixMen: opt.mixMen || '',
+			mixShen: opt.mixShen || '',
+			kongMarkBoth: !!opt.kongMarkBoth,
+			showAllKong: !!opt.showAllKong,
+			shiftZhiFuMode: opt.shiftZhiFuMode === 'recalc' ? 'recalc' : 'follow',
+			dayJiaJu: opt.dayJiaJu || 'yiyuan',
+			keJiaFenDun: opt.keJiaFenDun || 'zihou',
+			keZiZhengHuanShi: !!opt.keZiZhengHuanShi,
+			jinhanMenPai: opt.jinhanMenPai === 'shun' ? 'shun' : 'book',
+			yearJiaJu: opt.yearJiaJu === 'yinian' ? 'yinian' : 'sanyuan',
 			// 三式合一统一按“交接时刻”计算，避免日级近似切换。
 			jieQiType: 1,
 			yearGanZhiType: 2,
@@ -5638,6 +5685,193 @@ class SanShiUnitedMain extends Component{
 		return (
 			<div className={`${styles.root} horosa-sanshi-page horosa-astro-redesign horosa-sanshi-redesign`} style={{ height: '100%', minHeight: 0 }}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-sanshi-redesign-layout">
+						{opt.paiPanType === 0 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>年家定局</span>
+								<Select size="small" value={opt.yearJiaJu || 'sanyuan'} onChange={(v)=>this.onOptionChange('yearJiaJu', v)} dropdownMatchSelectWidth={false}>
+									{YEARJIA_JU_OPTIONS.map((item)=><Option key={`yjj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{opt.paiPanType === 2 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>日家定局</span>
+								<Select size="small" value={opt.dayJiaJu || 'yiyuan'} onChange={(v)=>this.onOptionChange('dayJiaJu', v)} dropdownMatchSelectWidth={false}>
+									{DAYJIA_JU_OPTIONS.map((item)=><Option key={`djj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{opt.paiPanType === 4 ? (
+							<>
+								<label className="horosa-sanshi-select-field">
+									<span>刻家分遁</span>
+									<Select size="small" value={opt.keJiaFenDun || 'zihou'} onChange={(v)=>this.onOptionChange('keJiaFenDun', v)} dropdownMatchSelectWidth={false}>
+										{KEJIA_FENDUN_OPTIONS.map((item)=><Option key={`kjfd_${item.value}`} value={item.value}>{item.label}</Option>)}
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>子正换时</span>
+									<Select size="small" value={opt.keZiZhengHuanShi ? 1 : 0} onChange={(v)=>this.onOptionChange('keZiZhengHuanShi', v === 1)}>
+										<Option value={0}>子时23点起(默认)</Option>
+										<Option value={1}>子正0点换时</Option>
+									</Select>
+								</label>
+							</>
+						) : null}
+						{opt.paiPanType === 6 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>八门排法</span>
+								<Select size="small" value={opt.jinhanMenPai || 'book'} onChange={(v)=>this.onOptionChange('jinhanMenPai', v)} dropdownMatchSelectWidth={false}>
+									{JINHAN_MENPAI_OPTIONS.map((item)=><Option key={`jhmp_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{/* [H-A] 三式缺口补齐:月家起局(此前只活在死面板)/盘类/相关人员——与独立页同语义 */}
+						{opt.paiPanType === 1 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>月家起局</span>
+								<Select size="small" value={opt.yueJiaQiJuType} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
+									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						<label className="horosa-sanshi-select-field">
+							<span>八神取神</span>
+							<Select size="small" value={opt.godsPreset || 'baihu_xuanwu'} onChange={(v)=>this.onOptionChange('godsPreset', v)} dropdownMatchSelectWidth={false}>
+								{GODS_PRESET_OPTIONS.map((item)=><Option key={`gp_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>中宫寄宫</span>
+							<Select size="small" value={opt.jiGongMode || 'kun'} onChange={(v)=>this.onOptionChange('jiGongMode', v)} dropdownMatchSelectWidth={false}>
+								{JIGONG_MODE_OPTIONS.map((item)=><Option key={`jg_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>暗干</span>
+							<Select size="small" value={opt.anGanMode || 'off'} onChange={(v)=>this.onOptionChange('anGanMode', v)} dropdownMatchSelectWidth={false}>
+								{ANGAN_MODE_OPTIONS.map((item)=><Option key={`ag_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>暗支</span>
+							<Select size="small" value={opt.showAnZhi ? 1 : 0} onChange={(v)=>this.onOptionChange('showAnZhi', v === 1)}>
+								<Option value={0}>不显示</Option>
+								<Option value={1}>显示</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>空亡标注</span>
+							<Select size="small" value={opt.kongMarkBoth ? 1 : 0} onChange={(v)=>this.onOptionChange('kongMarkBoth', v === 1)}>
+								<Option value={0}>单一模式(默认)</Option>
+								<Option value={1}>日空时空并标</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>四柱空亡</span>
+							<Select size="small" value={opt.showAllKong ? 1 : 0} onChange={(v)=>this.onOptionChange('showAllKong', v === 1)}>
+								<Option value={0}>不显示(默认)</Option>
+								<Option value={1}>显示年月日时空</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>移星值符</span>
+							<Select size="small" value={opt.shiftZhiFuMode || 'follow'} onChange={(v)=>this.onOptionChange('shiftZhiFuMode', v)} dropdownMatchSelectWidth={false}>
+								{SHIFT_ZHIFU_OPTIONS.map((item)=><Option key={`sz_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						{/* [H-D] 飞盘细项(仅飞盘/混合盘式生效)——与独立页同语义 */}
+						{(opt.school === '飞盘' || opt.school === '混合') ? (
+							<>
+							<label className="horosa-sanshi-select-field">
+								<span>九星飞法</span>
+								<Select size="small" value={opt.feiXingShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiXingShun', v === 1)}>
+									<Option value={0}>阳顺阴逆(默认)</Option>
+									<Option value={1}>两遁皆顺飞</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>九门飞法</span>
+								<Select size="small" value={opt.feiMenShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenShun', v === 1)}>
+									<Option value={0}>阳顺阴逆(默认)</Option>
+									<Option value={1}>两遁皆顺飞</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>九神飞法</span>
+								<Select size="small" value={opt.feiShenShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiShenShun', v === 1)}>
+									<Option value={0}>阳顺阴逆(默认)</Option>
+									<Option value={1}>两遁皆顺飞</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>中门飞宫</span>
+								<Select size="small" value={opt.feiMenZhongCan === false ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenZhongCan', v === 0)}>
+									<Option value={0}>参与(默认)</Option>
+									<Option value={1}>不参与(跳中)</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>中宫门位显示</span>
+								<Select size="small" value={opt.feiMenZhongShow ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenZhongShow', v === 1)}>
+									<Option value={0}>留空(默认)</Option>
+									<Option value={1}>标「中」字样</Option>
+								</Select>
+							</label>
+							</>
+						) : null}
+						{opt.school === '混合' ? (
+							<>
+								<label className="horosa-sanshi-select-field">
+									<span>天盘层</span>
+									<Select size="small" value={opt.mixTian || ''} onChange={(v)=>this.onOptionChange('mixTian', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（转宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>九星层</span>
+									<Select size="small" value={opt.mixXing || ''} onChange={(v)=>this.onOptionChange('mixXing', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（转宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>八门层</span>
+									<Select size="small" value={opt.mixMen || ''} onChange={(v)=>this.onOptionChange('mixMen', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（飞宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>九神层</span>
+									<Select size="small" value={opt.mixShen || ''} onChange={(v)=>this.onOptionChange('mixShen', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（飞宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+							</>
+						) : null}
+						<label className="horosa-sanshi-select-field">
+							<span>盘类</span>
+							<Select size="small" value={opt.chartCategory || 'shi'} onChange={(v)=>this.onOptionChange('chartCategory', v)}>
+								{CHART_CATEGORY_OPTIONS.map((item)=><Option key={`cc_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field" style={{ gridColumn: '1 / -1' }}>
+							<span>相关人员</span>
+							<input
+								type="text"
+								value={opt.faRelatedPeople || ''}
+								onChange={(e)=>this.onOptionChange('faRelatedPeople', e.target.value)}
+								placeholder="生年天干(如 甲,丙):必护天干用"
+								style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }}
+							/>
+						</label>
 					{/* [连续调整不打断] 原 <Spin spinning={loading}> 满屏压暗遮罩已撤(用户实告「加载把整屏挡住」):
 					    重算期旧盘 keep-stale 保留可见,仅中栏右上角一枚非阻塞小转圈(复用全站 workspace-updating
 					    观感,sanshi-updating 变体只改定位为中栏内 absolute)。 */}

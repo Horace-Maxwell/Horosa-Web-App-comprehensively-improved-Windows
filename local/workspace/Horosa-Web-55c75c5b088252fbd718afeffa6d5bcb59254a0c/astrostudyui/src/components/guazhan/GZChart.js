@@ -431,7 +431,9 @@ class GZChart {
 			fontsz = cord.w / (txt.length-9);
 		}
 		let h = fontsz + marg*2;
-		let x = cord.x + cord.w/2 - len/2;
+		// [G11] 盘顶信息区对齐档:center 居中(默认=现状)/right 靠右缘
+		const alignRight = this.analysis && this.analysis.settings && this.analysis.settings.titleAlign === 'right';
+		let x = alignRight ? (cord.x + cord.w - len) : (cord.x + cord.w/2 - len/2);
 		let y = cord.y + cord.h/4;
 		let data = [txt];
 		drawTextH(this.svgTopgroup, data, x, y, len, h, marg, this.color);
@@ -462,6 +464,7 @@ class GZChart {
 				let slen = cord.w;
 				drawTextH(this.svgTopgroup, [str], cord.x + cord.w/2 - slen/2, y, slen, h, marg, this.color);
 			}
+			// slen=cord.w 满宽行,右对齐与居中同席位——对齐档只作用于上两行短文本(满宽行天然两档同观)。
 		}
 	}
 

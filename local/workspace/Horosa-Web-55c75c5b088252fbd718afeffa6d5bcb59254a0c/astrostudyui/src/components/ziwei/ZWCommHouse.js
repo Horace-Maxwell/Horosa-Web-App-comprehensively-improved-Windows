@@ -6,7 +6,7 @@ import * as GraphHelper from '../graph/GraphHelper';
 import D3Arrow from '../graph/D3Arrow';
 import {randomStr, creatTooltip, genHtml, positionFloatingTooltip} from '../../utils/helper';
 import { ZWEngineOptions } from './ziweiOptions';           // 亮度源(显示层庙旺覆盖)
-import { STAR_LIGHT_QUANSHU, HOUSES as HOUSE_NAMES } from './data/ziweiTables';    // 《全书》庙旺 delta + 活盘重排名表
+import { starLightOf, HOUSES as HOUSE_NAMES } from './data/ziweiTables';    // 亮度单一取值口 + 活盘重排名表
 import { borrowedStars } from './ziweiOverlays';           // 中州借宫(空宫借对宫十四正曜)
 
 export default class ZWCommHouse {
@@ -56,15 +56,17 @@ export default class ZWCommHouse {
 		this.ZWRuleSihua = option.rules ? option.rules.ZWRuleSihua : null;
 	}
 
-	// 显示层庙旺:亮度源=quanshu 时,对《全书》delta 覆盖格(擎羊子酉/铃星辰巳未申亥/亥卯未火星)返新值,
-	// 其余星/格返基础 star.starlight。纯显示、不改安星/命主(切亮度不重排盘、缓存盘不受污染)。
+	// 显示层庙旺:非默认亮度源时经 starLightOf 单一取值口做覆盖(源表命中用其值、缺格回落基表)。
+	// 纯显示、不改安星/命主(切亮度不重排盘、缓存盘不受污染)。默认 zi_jian 先短路 —— 控制流
+	// 与旧实现逐字等价;等价性由 wiring 金标「渲染器取值===starLightOf」全格机械证明。
 	effStarLight(star){
 		let sl = star ? star.starlight : '';
-		if(ZWEngineOptions.brightnessSource === 'quanshu' && star && star.name){
+		const src = ZWEngineOptions.brightnessSource;
+		if(src && src !== 'zi_jian' && star && star.name){
 			const base = star.name.charAt(0) === '副' ? star.name.slice(1) : star.name;
 			const zhi = (this.houseObj && this.houseObj.ganzi ? this.houseObj.ganzi.charAt(1) : '');
-			const d = STAR_LIGHT_QUANSHU[base];
-			if(d && d[zhi] != null){ sl = d[zhi]; }
+			const v = starLightOf(base, zhi, src);
+			if(v != null){ sl = v; }
 		}
 		return sl;
 	}
@@ -85,6 +87,10 @@ export default class ZWCommHouse {
 			if(ZWEngineOptions.taiSuiRelatives.some((r)=>r && r.branch === zhi)){
 				this.drawCornerTag(['太', '岁'], 'var(--horosa-ziwei-period-hour, #e8590c)', 1);
 			}
+		}
+		// [D4] 活盘太极点角标:huoPan 开且本宫为当前太极点时显「太极」(slot 2,与气数/太岁错列)。
+		if(ZWEngineOptions.huoPan && this.zwchart && this.zwchart.taijiIdx != null && this.zwchart.taijiIdx === this.houseIndex){
+			this.drawCornerTag(['太', '极'], 'var(--horosa-ziwei-period-xiaoxian, #9775fa)', 2);
 		}
 		// 中州借宫(空宫借对宫十四正曜,半透明)
 		if(ZWEngineOptions.borrowPalace){
@@ -233,7 +239,7 @@ export default class ZWCommHouse {
 		};
 		const layers = this.luckSihuaLayers || [];
 		layers.forEach((layer, slotIdx)=>{
-			let hua = ZiWeiHelper.getSiHua(star.name, layer.gan);
+			let hua = ZiWeiHelper.getSiHua(star.name, layer.sihuaGan || layer.gan);   // [B10] 流年取干档随层
 			if(hua === '祿'){
 				hua = '禄';
 			}
@@ -265,6 +271,120 @@ export default class ZWCommHouse {
 		}
 		const totalSlots = layers.length + (this.luckShowZihua ? 1 : 0);
 		return baseOffset + totalSlots * slotH;
+	}
+
+	// [D2] 干系四化徽(命宫干/日干,双字横排「命禄」「日权」hua 色底):追加在运限四化槽之后的
+	// 固定槽位(不进滑窗不用角标);maxBottom 越界跳过;kinastro 借宫星柱不画。默认双关=零绘制。
+	drawStemSihuaChips(star, x, y, w, baseOffset, slotH, mgn, maxBottom){
+		if(!star || !star.name || this.kinastroBorrowed){
+			return;
+		}
+		const chips = [];
+		if(ZiWeiHelper.zwShowMingSihua()){
+			const g = ZiWeiHelper.mingGanOf(this.chartObj);
+			let h = g ? ZiWeiHelper.getSiHua(star.name, g) : null;
+			if(h === '祿'){ h = '禄'; }
+			if(h){ chips.push('命' + h); }
+		}
+		if(ZiWeiHelper.zwShowDaySihua()){
+			const g = ZiWeiHelper.dayGanOf(this.chartObj);
+			let h = g ? ZiWeiHelper.getSiHua(star.name, g) : null;
+			if(h === '祿'){ h = '禄'; }
+			if(h){ chips.push('日' + h); }
+		}
+		if(!chips.length){
+			return;
+		}
+		const m = mgn || 1;
+		const layerCount = (this.luckSihuaLayers || []).length;
+		const huaw = w - m*2;
+		const huah = Math.max(8, Math.min(w, slotH - m));
+		chips.forEach((label, i)=>{
+			const slotIdx = layerCount + i;
+			const cy2 = y + baseOffset + slotIdx * slotH;
+			if(maxBottom !== undefined && maxBottom !== null && (cy2 + huah) > maxBottom){
+				return;   // 越界保护:与运限徽同律,不挤破上半矩形
+			}
+			const hua = label.charAt(1);
+			const co = ZWCont.ZWColor[hua] || { bg: '#888888', color: '#ffffff' };
+			const g2 = this.svg.append('g');
+			g2.append('rect')
+				.attr('x', x + m).attr('y', cy2)
+				.attr('width', huaw).attr('height', huah)
+				.attr('rx', 2).attr('fill', co.bg).attr('stroke', 'none');
+			g2.append('text')
+				.attr('x', x + w/2).attr('y', cy2 + huah/2 + 0.5)
+				.attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
+				.attr('fill', co.color).attr('stroke', 'none')
+				.attr('font-size', `${Math.max(7, Math.min(9, Math.round(huaw * 0.5)))}px`)
+				.attr('font-weight', 850)
+				.attr('font-family', AstroConst.NormalFont)
+				.text(label);
+		});
+	}
+
+	// [D2] 宫底岁数条(流年岁列/小限岁列,靠左小字;两开关默认关=零绘制):
+	// 画在「宫名标题带上方」(by 由各盘传入),两行开则向上堆叠;选中大限区间内的流年岁金色高亮。
+	drawAgeStrips(bx, by, bw, rowH){
+		const showYear = ZiWeiHelper.zwShowYearAges();
+		const showXx = ZiWeiHelper.zwShowXiaoxianAges();
+		if(!showYear && !showXx){
+			return;
+		}
+		const chart = this.chartObj;
+		const fontPx = Math.max(7, Math.min(9, Math.round(rowH * 0.8)));
+		const rows = [];
+		if(showYear && chart && chart.yearZi && this.houseObj && this.houseObj.ganzi){
+			const ages = ZiWeiHelper.yearAgesOf(this.houseObj.ganzi.charAt(1), chart.yearZi);
+			if(ages.length){ rows.push({ prefix: '', ages }); }
+		}
+		if(showXx && this.houseObj && this.houseObj.ganzi){
+			// [B15b] 小限岁列渲染期现算(单源=ZiWeiHelper.xiaoxianAgesOf,随「小限顺逆」档即时跟随;
+			// 广播 rev 触发整绘即得新值)。排盘期 smallDirection 恒默认口径,仅作现算条件不足时的回退。
+			const xxAges = ZiWeiHelper.xiaoxianAgesOf(chart, this.houseObj.ganzi.charAt(1));
+			const xxList = xxAges || (Array.isArray(this.houseObj.smallDirection) ? this.houseObj.smallDirection : []);
+			if(xxList.length){ rows.push({ prefix: '限', ages: xxList }); }
+		}
+		if(!rows.length){
+			return;
+		}
+		const dir = (this.houseObj && this.houseObj.direction) || [];
+		const inDaxian = (a)=>Array.isArray(dir) && dir.length === 2 && a >= dir[0] && a <= dir[1];
+		rows.forEach((row, ri)=>{
+			const ry = by - ri * rowH;   // 两行向上堆叠(越界即停:低于星区顶则不画)
+			if(ry < this.y + 2){
+				return;
+			}
+			const g2 = this.svg.append('g');
+			let tx = bx;
+			const items = row.prefix ? [row.prefix, ...row.ages] : row.ages;
+			for(let k = 0; k < items.length; k++){
+				const it = items[k];
+				const isAge = typeof it === 'number';
+				const hl = isAge && !row.prefix && inDaxian(it);   // 流年行:命中当前大限区间→金色
+				const t = g2.append('text')
+					.attr('x', tx).attr('y', ry)
+					.attr('dominant-baseline', 'auto').attr('text-anchor', 'start')
+					.attr('fill', hl ? 'var(--horosa-ziwei-house-name, #d8ad63)' : ZWCont.ZWColor.HouseAgeStroke)
+					.attr('stroke', 'none')
+					.attr('font-size', `${fontPx}px`)
+					.attr('font-weight', hl ? 800 : 500)
+					.attr('font-family', AstroConst.NormalFont)
+					.text(`${it}`);
+				const est = `${it}`.length * fontPx * 0.62 + fontPx * 0.45;
+				tx += est;
+				if(tx > bx + bw - fontPx){   // 越宽截断加省略号
+					if(k < items.length - 1){
+						g2.append('text')
+							.attr('x', tx).attr('y', ry)
+							.attr('fill', ZWCont.ZWColor.HouseAgeStroke).attr('stroke', 'none')
+							.attr('font-size', `${fontPx}px`).attr('font-family', AstroConst.NormalFont)
+							.text('…');
+					}
+					break;
+				}
+			}
+		});
 	}
 
 	// ===== 长生左侧运限标签（需求3；三合盘/四化盘共用）=====

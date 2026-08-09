@@ -36,12 +36,146 @@ class ZWCenterHouse extends ZWCommHouse {
 				.attr('width', this.width).attr('height', this.height);
 		this.svg = container;
 
+		// [D4] 中宫内容先画(底层),飞化/三合线后画叠上层;clean 档=零绘制(现状)。
+		this.drawCenterContent();
 		this.drawShiTongZiHua();
 		this.drawSanFanSiZeng();
 
 		this.drawSangheLine();
 		this.drawYiLiuGongZong();
 		this.drawInfoButton();
+	}
+
+	// [D4] 中宫内容分派器:clean=现状空;bazi=四柱要素;full=全量信息。
+	// 自适应版式:内容撑满中宫可用宽,字号/行距/列距全部按中宫尺寸推导,窗口缩放即联动;
+	// 整块垂直居中(底部让位信息按钮)。取数 best-effort:缺块跳过不阻断盘面。
+	drawCenterContent(){
+		const mode = ZiWeiHelper.zwCenterContent();
+		if(mode === 'clean'){
+			return;
+		}
+		try{ this.drawCenterInfoPanel(mode); }catch(e){ /* 内容块缺数据=部分绘制,不阻断盘面 */ }
+	}
+
+	drawCenterInfoPanel(mode){
+		const chart = this.chartObj;
+		if(!chart){ return; }
+		const pad = Math.max(16, this.width * 0.055);
+		const bx = this.x + pad;
+		const bw = this.width - pad * 2;
+		const btnH = 56;   // 底部信息按钮让位
+		const availH = this.height - pad - btnH;
+		const u = Math.max(11, Math.min(20, bw / 24));   // 基础字号:随中宫宽缩放
+		const ink = AstroConst.AstroColor.Stroke;
+		const muted = ZWCont.ZWColor.HouseMetaStroke;
+		const gold = ZWCont.ZWColor.HouseBranchStroke;
+		const txt = (str, x, y, { size = u, color = ink, weight = 500, anchor = 'start' } = {})=>{
+			this.svg.append('g').append('text')
+				.attr('dominant-baseline', 'middle').attr('text-anchor', anchor)
+				.attr('fill', color).attr('stroke', 'none')
+				.attr('font-weight', weight).attr('font-size', `${size}px`)
+				.attr('font-family', AstroConst.NormalFont)
+				.attr('x', x).attr('y', y)
+				.text(str);
+		};
+		const bz = chart.bazi && chart.bazi.bazi;
+		const direct = (chart.bazi && chart.bazi.direct && chart.bazi.direct.direction) || [];
+		// —— 预算总高(先量后画,整块垂直居中) ——
+		const headH = mode === 'full' ? u * 1.9 : 0;
+		const nongli = chart.nongli || {};
+		const metaLines = [];
+		if(mode === 'full'){
+			const timeAlg = chart.timeAlg !== undefined && chart.timeAlg !== null ? chart.timeAlg : 0;
+			if(nongli.birth){ metaLines.push((timeAlg === 1 ? '直接时间：' : '真太阳时：') + nongli.birth); }
+			if(nongli.year){ metaLines.push('农历：' + nongli.year + '年 ' + (nongli.leap ? '闰' : '') + (nongli.month || '') + (nongli.day || '') + ' ' + (nongli.time ? nongli.time.charAt(1) + '时' : '')); }
+			metaLines.push('时区：' + chart.zone + '；经度：' + chart.lon + '；纬度：' + chart.lat);
+			const ygl = nongli.yearGZByLunar;
+			if(ygl && bz && bz.year && ygl !== bz.year.ganzi){ metaLines.push('初一口径年柱：' + ygl); }
+			if(this.yearDoujun){ metaLines.push(this.yearDoujun); }
+		}
+		const metaLineH = u * 1.5;
+		const metaH = metaLines.length * metaLineH;
+		// 四柱块:标签行 + 干支两字竖排
+		const pillarU = Math.max(u * 1.25, Math.min(u * 1.9, bw / 14));
+		const pillarsH = bz ? (u * 1.35 + pillarU * 2.5) : 0;
+		// 大限行:起运岁数字 + 干支两字竖排(十列)
+		const dirU = Math.max(u * 0.72, Math.min(u * 1.05, bw / (Math.max(direct.length, 8) * 2.6)));
+		const dirH = direct.length ? (dirU * 1.5 + dirU * 2.6) : 0;
+		const masterH = u * 1.6;
+		const gap = Math.max(u * 0.9, Math.min(u * 2.1, (availH - headH - metaH - pillarsH - dirH - masterH) / 5));
+		const contentH = headH + metaH + pillarsH + dirH + masterH + gap * ((mode === 'full' ? 2 : 0) + (direct.length ? 2 : 1));
+		let by = this.y + Math.max(pad, (availH - contentH) / 2 + pad * 0.4);
+		// —— full:姓名行 + 出生数据 ——
+		if(mode === 'full'){
+			let name = '姓名：' + ((this.fields && this.fields.name && this.fields.name.value) || '匿名');
+			const ju = ZWText.ZWMsg[chart.yearPolar] + ZWText.ZWMsg[chart.gender] + ' ' + chart.wuxingJuText;
+			txt(name, bx, by, { size: u * 1.2, weight: 750 });
+			txt(ju, bx + bw, by, { size: u * 1.1, weight: 650, color: gold, anchor: 'end' });
+			by += headH;
+			metaLines.forEach((mline)=>{ txt(mline, bx, by, { size: u * 0.92, color: muted }); by += metaLineH; });
+			by += gap;
+		}
+		// —— 四柱块(四列均分撑满宽) ——
+		if(bz){
+			const cols = [ ['年', bz.year], ['月', bz.month], ['日', bz.day], ['时', bz.time] ];
+			const colW = bw / 4;
+			cols.forEach((c, i)=>{
+				const cx2 = bx + colW * i + colW / 2;
+				txt(c[0], cx2, by + u * 0.5, { size: u * 0.85, color: muted, anchor: 'middle' });
+				const gz = c[1] && c[1].ganzi ? c[1].ganzi : '';
+				if(gz){
+					txt(gz.charAt(0), cx2, by + u * 1.35 + pillarU * 0.62, { size: pillarU, weight: 700, color: gold, anchor: 'middle' });
+					txt(gz.charAt(1), cx2, by + u * 1.35 + pillarU * 1.72, { size: pillarU, weight: 700, color: gold, anchor: 'middle' });
+				}
+			});
+			by += pillarsH + gap;
+		}
+		// —— 大限起运行(十列撑满宽;保留起始年/流年 tooltip) ——
+		if(direct.length){
+			const dcolW = bw / direct.length;
+			direct.forEach((item, i)=>{
+				const cx2 = bx + dcolW * i + dcolW / 2;
+				const age = item.age + 1;
+				const sage = age < 10 ? '0' + age : '' + age;
+				const agesvg = this.svg.append('g');
+				agesvg.append('text')
+					.attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
+					.attr('fill', muted).attr('stroke', 'none')
+					.attr('font-weight', 600).attr('font-size', `${dirU * 0.95}px`)
+					.attr('font-family', AstroConst.NormalFont)
+					.attr('x', cx2).attr('y', by + dirU * 0.7)
+					.text(sage);
+				this.genTooltip(agesvg, { title: '开始年份', tips: item.startYear });
+				const gz = item.mainDirect && item.mainDirect.ganzi ? item.mainDirect.ganzi : '';
+				const gzsvg = this.svg.append('g');
+				if(gz){
+					gzsvg.append('text')
+						.attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
+						.attr('fill', ink).attr('stroke', 'none')
+						.attr('font-weight', 550).attr('font-size', `${dirU * 1.05}px`)
+						.attr('font-family', AstroConst.NormalFont)
+						.attr('x', cx2).attr('y', by + dirU * 1.5 + dirU * 0.62)
+						.text(gz.charAt(0));
+					gzsvg.append('text')
+						.attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
+						.attr('fill', ink).attr('stroke', 'none')
+						.attr('font-weight', 550).attr('font-size', `${dirU * 1.05}px`)
+						.attr('font-family', AstroConst.NormalFont)
+						.attr('x', cx2).attr('y', by + dirU * 1.5 + dirU * 1.75)
+						.text(gz.charAt(1));
+					const subyears = (item.subDirect || []).map((subdir, k)=>`${age + k}虚岁 -- ${item.startYear + k}年 -- ${subdir.ganzi}`);
+					this.genTooltip(gzsvg, { title: `${gz}大运 -- 流年`, tips: subyears });
+				}
+			});
+			by += dirH + gap;
+		}
+		// —— 命主/身主/子斗/斗君(四项均分一行) ——
+		const masters = [ ['命主', chart.lifeMaster], ['身主', chart.bodyMaster], ['子斗', chart.zidou], ['斗君', chart.doujun] ];
+		const mcolW = bw / 4;
+		masters.forEach((m, i)=>{
+			if(m[1] === undefined || m[1] === null || m[1] === ''){ return; }
+			txt(`${m[0]}：${m[1]}`, bx + mcolW * i + mcolW / 2, by + u * 0.6, { size: u * 0.95, weight: 600, anchor: 'middle' });
+		});
 	}
 
 	// 河洛一六共宗(WP-4):命(1)↔疾厄(6)中心连线(异色于三合虚线);仅 qishuWei 开时绘。
@@ -61,7 +195,10 @@ class ZWCenterHouse extends ZWCommHouse {
 		let bw = Math.min(132, this.width * 0.42);
 		let bh = 34;
 		let x = this.x + this.width / 2 - bw / 2;
-		let y = this.y + this.height / 2 - bh / 2;
+		// [D4] 中宫有内容(bazi/full)时按钮让位到底部;clean=居中(现状)。
+		let y = ZiWeiHelper.zwCenterContent() === 'clean'
+			? this.y + this.height / 2 - bh / 2
+			: this.y + this.height - bh - 10;
 		let btn = this.svg.append('g').attr('class', 'horosa-ziwei-center-info-button');
 		btn.append('rect')
 			.attr('x', x).attr('y', y)
@@ -90,262 +227,9 @@ class ZWCenterHouse extends ZWCommHouse {
 		});
 	}
 
-	drawName(){
-		let name = '姓名：';
-		if(this.fields && this.fields.name && this.fields.name.value){
-			name = name + this.fields.name.value;
-		}else{
-			name = name + '匿名';
-		}
-		let ju = ZWText.ZWMsg[this.chartObj.yearPolar] + 
-			ZWText.ZWMsg[this.chartObj.gender] + ' ' + 
-			this.chartObj.wuxingJuText;
+	// [D4美化] 旧版固定字号的中宫四方法(drawName/drawDate/drawBaZi/drawDouJun)已删——
+	// 自适应版式由 drawCenterInfoPanel 全量承接(信息集覆盖旧四方法),避免「写好零调用」死代码回潮。
 
-		let sz = this.fontSize;
-		let x = this.x + this.margin + sz / 2;
-		let y = this.y + this.margin*2;
-		
-		let namesvg = this.svg.append('g');
-		namesvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', x).attr('y', y)
-			.text(name);
-
-		let jux = this.x + this.width / 2;
-		let jusvg = this.svg.append('g');
-		jusvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', jux).attr('y', y)
-			.text(ju);
-
-		let pos = {
-			x: x,
-			y: y + sz + this.rowgap,
-		}
-		return pos;
-	}
-
-	drawDate(x, y){
-		let zonepos = '时区：' + this.chartObj.zone
-		+ '； 经度：' + this.chartObj.lon + '； 纬度：' + this.chartObj.lat;
-		let nongli = this.chartObj.nongli;
-		let timeAlg = this.chartObj.timeAlg !== undefined && this.chartObj.timeAlg !== null ? this.chartObj.timeAlg : 0;
-		let birthPrefix = timeAlg === 1 ? '直接时间：' : '真太阳时：';
-		let birth = birthPrefix + nongli.birth;
-		let leap = nongli.leap ? '闰' : '';
-		let nltxt = '农历：' + nongli.year + '年 ' + leap + nongli.month + nongli.day + ' ' + nongli.time.charAt(1) + '时';
-
-		let sz = this.fontSize;
-		
-		let birthsvg = this.svg.append('g');
-		birthsvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', x).attr('y', y)
-			.text(birth);
-
-		let nlx = x;
-		let nly = y + sz + this.rowgap;
-		let nlsvg = this.svg.append('g');
-		nlsvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', nlx).attr('y', nly)
-			.text(nltxt);
-
-		let zonex = x;
-		let zoney = nly + sz + this.rowgap;
-		let zonesvg = this.svg.append('g');
-		zonesvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', zonex).attr('y', zoney)
-			.text(zonepos);
-	
-		let lasty = zoney;
-		if(this.yearDoujun){
-			let ydjx = x;
-			let ydjy = zoney + sz + this.rowgap;
-			let ydjsvg = this.svg.append('g');
-			ydjsvg.append('text')
-				.attr("dominant-baseline","middle")
-				.attr("text-anchor", "left")
-				.attr('font-weight', 100)
-				.attr('stroke', AstroConst.AstroColor.Stroke)
-				.attr('font-size', `${sz}px`)
-				.attr('x', ydjx).attr('y', ydjy)
-				.text(this.yearDoujun);
-
-			lasty = ydjy;
-		}
-		let pos = {
-			x: x,
-			y: lasty + sz + this.rowgap,
-		};
-
-		return pos;
-	}
-
-	drawBaZi(x, y){
-		let bz = this.chartObj.bazi.bazi;
-		let year = ' ' + bz.year.ganzi;
-		let m = ' ' + bz.month.ganzi;
-		let d = '日' + bz.day.ganzi;
-		let t = ' ' + bz.time.ganzi;
-		let space = '   ';
-		let data = [year, m, d, t, space];
-
-		let fontsize = 18;
-		let fzoffset = 4;
-		let docw = document.documentElement.clientWidth;
-		if(docw > 1440){
-			fontsize = 25;
-			fzoffset = fontsize / 4;
-		}
-		let svg = this.svg;
-		let sz = this.fontSize;
-		let lineWidth = fontsize * data.length;
-		let margin = 3;
-		let nlx = x - margin;
-		let nly = y;
-		let w = (lineWidth - margin) / data.length;
-		let h = w * 3 + margin;
-		for(let i=0; i<data.length; i++){
-			drawTextV(svg, data[i], nlx, nly, w, h, margin, AstroConst.AstroColor.Stroke);
-			nlx = nlx + w + margin;
-		}
-
-		let dirx = nlx - w/2;
-		let diry = y + w - margin;
-		let dirh = w * 2 + margin*2
-		let direct = this.chartObj.bazi.direct.direction;
-		direct.map((item, idx)=>{
-			let age = item.age + 1;
-			let sage = null;
-			if(age < 10){
-				sage = '0' + age;
-			}else{
-				sage = age + '';
-			}
-			let agesvg = this.svg.append('g');
-			agesvg.append('text')
-				.attr("dominant-baseline","middle")
-				.attr("text-anchor", "left")
-				.attr('font-weight', 100)
-				.attr('stroke', AstroConst.AstroColor.Stroke)
-				.attr('font-size', `${w/2}px`)
-				.attr('x', dirx+fzoffset).attr('y', diry - margin)
-				.text(sage);
-			
-			let tipobj = {
-				title: '开始年份',
-				tips: item.startYear,
-			};
-			this.genTooltip(agesvg, tipobj);
-					
-			let gz = item.mainDirect.ganzi;
-			let gzsvg = drawTextV(svg, gz, dirx, diry, w, dirh, margin, AstroConst.AstroColor.Stroke);
-
-			let subyears = [];
-			item.subDirect.map((subdir, idx)=>{
-				let year = item.startYear + idx;
-				let fage = age + idx;
-				let str = `${fage}虚岁 -- ${year}年 -- ${subdir.ganzi}`;
-				subyears.push(str);
-			});
-			let ytipobj = {
-				title: `${gz}大运 -- 流年`,
-				tips: subyears,
-			};
-			this.genTooltip(gzsvg, ytipobj);
-
-			dirx = dirx + w + margin;
-		});
-
-		let pos = {
-			x: x,
-			y: y+ h + this.rowgap,
-		};
-		return pos;
-	}
-
-	drawDouJun(x, y){
-		let lifemaster = '命主：' + this.chartObj.lifeMaster;
-		let bodymaster = '身主：' + this.chartObj.bodyMaster;
-		let zidou = '子斗：' + this.chartObj.zidou;
-		let doujun = '斗君：' + this.chartObj.doujun;
-
-		let sz = this.fontSize;
-		let sx = x;
-		let sy = y;
-
-		let txtsvg = this.svg.append('g');
-		txtsvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', sx).attr('y', sy)
-			.text(lifemaster);
-
-		sx = this.x + this.width / 2;
-		txtsvg = this.svg.append('g');
-		txtsvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', sx).attr('y', sy)
-			.text(bodymaster);
-
-		sx = x;
-		sy = sy + sz + this.rowgap;
-		txtsvg = this.svg.append('g');
-		txtsvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', sx).attr('y', sy)
-			.text(zidou);
-
-		sx = this.x + this.width / 2;
-		txtsvg = this.svg.append('g');
-		txtsvg.append('text')
-			.attr("dominant-baseline","middle")
-			.attr("text-anchor", "left")
-			.attr('font-weight', 100)
-			.attr('stroke', AstroConst.AstroColor.Stroke)
-			.attr('font-size', `${sz}px`)
-			.attr('x', sx).attr('y', sy)
-			.text(doujun);
-
-		let pos = {
-			x: x,
-			y: sy + sz + this.rowgap,
-		};
-		return pos;
-	}
 
 	drawShiTongZiHua(){
 		this.shiTongZHMap.clear();
@@ -373,10 +257,28 @@ class ZWCenterHouse extends ZWCommHouse {
 	}
 
 	drawSanFanSiZeng(){
-		if(ZWCont.ZWChart !== ZWCont.ZWChart_SangHe){
+		// [D0] 守卫修正:ZWChart 是 {chart} 对象,旧写法「对象!==数字」恒真=方法恒空跑。
+		if(ZWCont.ZWChart.chart !== ZWCont.ZWChart_SangHe){
 			return;
 		}
-
+		// [D4] 对宫指示线:点宫(flyHouse)后画「被点宫↔对宫」中心虚线(三合盘;开关默认开;
+		// 静态盘 flyHouse 空=零绘制)。中心点法仿 drawYiLiuGongZong。
+		if(!ZiWeiHelper.zwShowSfszLine() || !this.zwchart || !this.zwchart.flyHouse){
+			return;
+		}
+		const fly = this.zwchart.flyHouse;
+		const idx = fly && fly.houseChart ? fly.houseChart.houseIndex : null;
+		if(idx == null || idx < 0 || !Array.isArray(this.zwchart.houses)){
+			return;
+		}
+		const src2 = this.zwchart.houses[idx];
+		const opp = this.zwchart.houses[(idx + 6) % 12];
+		if(!src2 || !opp){
+			return;
+		}
+		const cx = (h)=>h.x + h.width / 2;
+		const cy = (h)=>h.y + h.height / 2;
+		drawDashLine(this.svg.append('g'), cx(src2), cy(src2), cx(opp), cy(opp), 'var(--horosa-ziwei-duigong-line, rgba(90, 120, 190, 0.55))');
 	}
 
 	checkPairHouse(house, gan){

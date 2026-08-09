@@ -1,15 +1,15 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiInput.js b/astrostudyui/src/components/ziwei/ZiWeiInput.js
-index 1711cfde..a2da6313 100644
+index 41dc5fa1..15ff89d0 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiInput.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiInput.js
 @@ -1,5 +1,6 @@
  import { Component } from 'react';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
 +import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
- import { Checkbox, Collapse } from 'antd';
+ import { Checkbox, Collapse, message } from 'antd';
  import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
  import { dstAwareZoneAt } from '../../utils/timezone';
-@@ -151,6 +152,24 @@ class ZiWeiInput extends Component{
+@@ -218,6 +219,24 @@ class ZiWeiInput extends Component{
  
  	}
  

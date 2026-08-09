@@ -42,6 +42,14 @@ import {
 	ZHISHI_OPTIONS,
 	QIJU_METHOD_OPTIONS,
 	ZHIRUN_LEAP_OPTIONS,
+	GODS_PRESET_OPTIONS,
+	ANGAN_MODE_OPTIONS,
+	JIGONG_MODE_OPTIONS,
+	SHIFT_ZHIFU_OPTIONS,
+	DAYJIA_JU_OPTIONS,
+	YEARJIA_JU_OPTIONS,
+	KEJIA_FENDUN_OPTIONS,
+	JINHAN_MENPAI_OPTIONS,
 	SCHOOL_OPTIONS,
 	KONG_MODE_OPTIONS,
 	MA_MODE_OPTIONS,
@@ -121,6 +129,28 @@ const DEFAULT_OPTIONS = {
 	lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
 	fengJu: false,
 	zhirunLeapDays: 9,
+	godsPreset: 'baihu_xuanwu',   // [H-B] 转盘八神名预设(默认=历史恒虎玄,零回归)
+	jiGongMode: 'kun',            // [H-C] 中宫寄宫(默认恒坤二,零回归)
+	feiXingShun: false,           // [H-D] 飞盘九星阴阳遁皆顺飞(默认关=阳顺阴逆)
+	feiMenShun: false,            // [H-D] 飞盘九门皆顺飞
+	feiShenShun: false,           // [H-D] 飞盘九神皆顺飞
+	feiMenZhongCan: true,         // [H-D] 中门参与飞宫(默认开=九门含中5;关=八门跳中传派)
+	feiMenZhongShow: false,       // [H-D] 中门不参与时中宫标「中」(纯显示)
+	mixTian: '',                  // [H-D] 混合盘天盘层(''=默认转 /'zhuan'/'fei')
+	mixXing: '',                  // [H-D] 混合盘九星层(''=默认转)
+	mixMen: '',                   // [H-D] 混合盘八门层(''=默认飞)
+	mixShen: '',                  // [H-D] 混合盘九神层(''=默认飞)
+	kongMarkBoth: false,          // [H-E] 日空时空并标(默认关=单模式)
+	showAllKong: false,           // [H-E] 四柱空亡全览(默认关)
+	shiftZhiFuMode: 'follow',     // [H-E] 移星后值符值使标记(follow=随盘平移,默认)
+	yearJiaJu: 'sanyuan',         // [H-I] 年家定局粒度(默认六十年一局)
+	dayJiaJu: 'yiyuan',           // [H-F] 日家定局粒度(默认六十日一局)
+	keJiaFenDun: 'zihou',         // [H-F] 刻家分遁(默认子后阳午后阴)
+	keZiZhengHuanShi: false,      // [H-F] 刻家子正换时(默认关=23点起子时)
+	jinhanMenPai: 'book',         // [H-G] 金函系日家八门排法(默认书表直录)
+	anGanMode: 'off',             // [H-B] 暗干五法(默认关)
+	showAnZhi: false,             // [H-B] 暗支随暗干显示
+	fullNameTips: false,          // [H-B] 提示词条标题带类别全名(星/门/神)
 };
 
 // 起局下拉(非时家):年/月/日家有各自「本家默认」定局(三元/年符头/节气三元),节气四法(置闰/拆补/茅山/无闰)仅时家相关。
@@ -478,6 +508,30 @@ function getQimenOptionsKey(options){
 		getTimeAlgValue(options),
 		options.fengJu ? 1 : 0,
 		safe(options.zhirunLeapDays),
+		// [H-H] 🔴 缓存键维度完备铁律:凡影响 calcDunJia 输出的 options 键必须全部入键,
+		// 漏键=起盘后改档命中旧缓存=死开关(真机实抓:anGanMode 切档盘面纹丝不动)。哨兵测试守。
+		safe(options.godsPreset),
+		safe(options.jiGongMode),
+		safe(options.anGanMode),
+		options.showAnZhi ? 1 : 0,
+		options.fullNameTips ? 1 : 0,
+		options.feiXingShun ? 1 : 0,
+		options.feiMenShun ? 1 : 0,
+		options.feiShenShun ? 1 : 0,
+		options.feiMenZhongCan === false ? 0 : 1,
+		options.feiMenZhongShow ? 1 : 0,
+		safe(options.mixTian),
+		safe(options.mixXing),
+		safe(options.mixMen),
+		safe(options.mixShen),
+		options.kongMarkBoth ? 1 : 0,
+		options.showAllKong ? 1 : 0,
+		safe(options.shiftZhiFuMode),
+		safe(options.dayJiaJu),
+		safe(options.keJiaFenDun),
+		options.keZiZhengHuanShi ? 1 : 0,
+		safe(options.jinhanMenPai),
+		safe(options.yearJiaJu),
 	].join('|');
 }
 
@@ -488,6 +542,10 @@ function needJieqiYearSeed(options){
 	// 日家(本地全盘):局=节气三元六十日一局,须节气种子(冬/夏至日期+日柱)定「至甲子」60日块;
 	// 缺种子会退 findYuan 漏置闰→局错(如1964-11-10日家应阴三却给阴六)。任何盘式/起局下日家都要种子。
 	if(opt.paiPanType === 2){
+		return true;
+	}
+	// [H-G] 金函系日家(6):阴阳盘=冬至后阳/夏至后阴,须至日种子精判(无种子退化节令,至界附近会错半年)。
+	if(opt.paiPanType === 6){
 		return true;
 	}
 	// 飞盘/混合走本地短路计算(非后端),置闰/无闰/茅山需 jieqi 种子(超神/交节时刻);否则退曆法节气漏超神/茅山退拆补。
@@ -1778,7 +1836,7 @@ class DunJiaMain extends Component {
 			}
 			const waitSeed = !!(year && shouldWaitSeed);
 			// 日家(节气三元60日块)晚12月过冬至需次年冬至定半年/至甲子 → 加载 year+1。
-			const seedYears = (fixedOptions && fixedOptions.paiPanType === 2) ? [year - 1, year, year + 1] : [year - 1, year];
+			const seedYears = (fixedOptions && (fixedOptions.paiPanType === 2 || fixedOptions.paiPanType === 6)) ? [year - 1, year, year + 1] : [year - 1, year];
 			const seedPromise = waitSeed ? Promise.all(seedYears.map((yy)=>this.ensureJieqiSeed(flds, yy))) : null;
 			const missingSeed = waitSeed && (!this.jieqiYearSeeds[year - 1] || !this.jieqiYearSeeds[year]);
 			if(missingSeed && !this.state.loading){
@@ -1911,6 +1969,10 @@ class DunJiaMain extends Component {
 			}
 			if(this.state.hasPlotted && canRecalc){
 				this.recalc(this.state.localFields || this.props.fields, this.state.nongli, options, this.state.displaySolarTime);
+			}else if(this.state.hasPlotted){
+				// [QA] 🔴 档位已改而农历缺失/键不匹配(如后端刚就绪窗口):自动补请农历并重排——
+				// 否则用户改档位盘面无反应,必须手点「起盘」(实机抓获;与 after23/timeAlg 分支同款成熟路径)。
+				this.requestNongli(calcFields, true);
 			}
 		});
 	}
@@ -2394,6 +2456,47 @@ class DunJiaMain extends Component {
 								{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
+						{opt.paiPanType === 0 ? (
+							<label className="horosa-dunjia-select-field">
+								<span>年家定局</span>
+								<Select size="small" value={opt.yearJiaJu || 'sanyuan'} onChange={(v)=>this.onOptionChange('yearJiaJu', v)} dropdownMatchSelectWidth={false}>
+									{YEARJIA_JU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{opt.paiPanType === 2 ? (
+							<label className="horosa-dunjia-select-field">
+								<span>日家定局</span>
+								<Select size="small" value={opt.dayJiaJu || 'yiyuan'} onChange={(v)=>this.onOptionChange('dayJiaJu', v)} dropdownMatchSelectWidth={false}>
+									{DAYJIA_JU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{opt.paiPanType === 4 ? (
+							<>
+								<label className="horosa-dunjia-select-field">
+									<span>刻家分遁</span>
+									<Select size="small" value={opt.keJiaFenDun || 'zihou'} onChange={(v)=>this.onOptionChange('keJiaFenDun', v)} dropdownMatchSelectWidth={false}>
+										{KEJIA_FENDUN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+									</Select>
+								</label>
+								<label className="horosa-dunjia-select-field">
+									<span>子正换时</span>
+									<Select size="small" value={opt.keZiZhengHuanShi ? 1 : 0} onChange={(v)=>this.onOptionChange('keZiZhengHuanShi', v === 1)}>
+										<Option value={0}>子时23点起(默认)</Option>
+										<Option value={1}>子正0点换时</Option>
+									</Select>
+								</label>
+							</>
+						) : null}
+						{opt.paiPanType === 6 ? (
+							<label className="horosa-dunjia-select-field">
+								<span>八门排法</span>
+								<Select size="small" value={opt.jinhanMenPai || 'book'} onChange={(v)=>this.onOptionChange('jinhanMenPai', v)} dropdownMatchSelectWidth={false}>
+									{JINHAN_MENPAI_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
 						<label className="horosa-dunjia-select-field">
 							<span>值使</span>
 							{/* 飞盘/混合档值使门宫由飞宫定序直出(FEI_GATE_HOME),取法开关不进该链 → 置灰防死开关假象 */}
@@ -2406,6 +2509,20 @@ class DunJiaMain extends Component {
 							<span>空亡</span>
 							<Select size="small" value={opt.kongMode} onChange={(v)=>this.onOptionChange('kongMode', v)}>
 								{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-dunjia-select-field">
+							<span>空亡标注</span>
+							<Select size="small" value={opt.kongMarkBoth ? 1 : 0} onChange={(v)=>this.onOptionChange('kongMarkBoth', v === 1)}>
+								<Option value={0}>单一模式(默认)</Option>
+								<Option value={1}>日空时空并标</Option>
+							</Select>
+						</label>
+						<label className="horosa-dunjia-select-field">
+							<span>四柱空亡</span>
+							<Select size="small" value={opt.showAllKong ? 1 : 0} onChange={(v)=>this.onOptionChange('showAllKong', v === 1)}>
+								<Option value={0}>不显示(默认)</Option>
+								<Option value={1}>显示年月日时空</Option>
 							</Select>
 						</label>
 						<label className="horosa-dunjia-select-field">
@@ -2426,6 +2543,14 @@ class DunJiaMain extends Component {
 								{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
+						{opt.shiftPalace ? (
+							<label className="horosa-dunjia-select-field">
+								<span>移星值符</span>
+								<Select size="small" value={opt.shiftZhiFuMode || 'follow'} onChange={(v)=>this.onOptionChange('shiftZhiFuMode', v)} dropdownMatchSelectWidth={false}>
+									{SHIFT_ZHIFU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
 						<label className="horosa-dunjia-select-field">
 							<span>日界</span>
 							<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.onOptionChange('after23NewDay', v)}>
@@ -2477,7 +2602,97 @@ class DunJiaMain extends Component {
 										{ZHIRUN_LEAP_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 									</Select>
 								</label>
-								<div style={{ fontSize: 11, color: 'var(--horosa-muted, #8c8c8c)', lineHeight: 1.6 }}>仅影响「置闰」起局法;默认「大于9天」为本仓口径。改后中间盘与右栏信息即时按所选重算。</div>
+								{/* [H-B] 八神取神/暗干族(传本口径) */}
+								<label className="horosa-dunjia-select-field is-wide">
+									<span>八神取神</span>
+									<Select size="small" value={opt.godsPreset || 'baihu_xuanwu'} onChange={(v)=>this.onOptionChange('godsPreset', v)} dropdownMatchSelectWidth={false}>
+										{GODS_PRESET_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+									</Select>
+								</label>
+								<label className="horosa-dunjia-select-field is-wide">
+									<span>中宫寄宫</span>
+									<Select size="small" value={opt.jiGongMode || 'kun'} onChange={(v)=>this.onOptionChange('jiGongMode', v)} dropdownMatchSelectWidth={false}>
+										{JIGONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+									</Select>
+								</label>
+								<label className="horosa-dunjia-select-field is-wide">
+									<span>暗干</span>
+									<Select size="small" value={opt.anGanMode || 'off'} onChange={(v)=>this.onOptionChange('anGanMode', v)} dropdownMatchSelectWidth={false}>
+										{ANGAN_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+									</Select>
+								</label>
+								<label className="horosa-dunjia-select-field is-wide">
+									<span>暗支(随暗干)</span>
+									<Select size="small" value={opt.showAnZhi ? 1 : 0} onChange={(v)=>this.onOptionChange('showAnZhi', v === 1)}>
+										<Option value={0}>不显示</Option>
+										<Option value={1}>显示</Option>
+									</Select>
+								</label>
+								<label className="horosa-dunjia-select-field is-wide">
+									<span>词条标题全名</span>
+									<Select size="small" value={opt.fullNameTips ? 1 : 0} onChange={(v)=>this.onOptionChange('fullNameTips', v === 1)}>
+										<Option value={0}>简称(默认)</Option>
+										<Option value={1}>带星/门/神全名</Option>
+									</Select>
+								</label>
+								{/* [H-D] 飞盘细项(仅飞盘/混合盘式生效) */}
+								{(opt.school === '飞盘' || opt.school === '混合') ? (
+									<>
+									<label className="horosa-dunjia-select-field is-wide">
+										<span>九星飞法</span>
+										<Select size="small" value={opt.feiXingShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiXingShun', v === 1)}>
+											<Option value={0}>阳顺阴逆(默认)</Option>
+											<Option value={1}>两遁皆顺飞</Option>
+										</Select>
+									</label>
+									<label className="horosa-dunjia-select-field is-wide">
+										<span>九门飞法</span>
+										<Select size="small" value={opt.feiMenShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenShun', v === 1)}>
+											<Option value={0}>阳顺阴逆(默认)</Option>
+											<Option value={1}>两遁皆顺飞</Option>
+										</Select>
+									</label>
+									<label className="horosa-dunjia-select-field is-wide">
+										<span>九神飞法</span>
+										<Select size="small" value={opt.feiShenShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiShenShun', v === 1)}>
+											<Option value={0}>阳顺阴逆(默认)</Option>
+											<Option value={1}>两遁皆顺飞</Option>
+										</Select>
+									</label>
+									<label className="horosa-dunjia-select-field is-wide">
+										<span>中门飞宫</span>
+										<Select size="small" value={opt.feiMenZhongCan === false ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenZhongCan', v === 0)}>
+											<Option value={0}>参与(九门含中,默认)</Option>
+											<Option value={1}>不参与(八门跳中)</Option>
+										</Select>
+									</label>
+									{opt.feiMenZhongCan === false ? (
+										<label className="horosa-dunjia-select-field is-wide">
+											<span>中宫门位显示</span>
+											<Select size="small" value={opt.feiMenZhongShow ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenZhongShow', v === 1)}>
+												<Option value={0}>留空(默认)</Option>
+												<Option value={1}>标「中」字样</Option>
+											</Select>
+										</label>
+									) : null}
+									</>
+								) : null}
+								{/* [H-D] 混合盘四层自由装配 */}
+								{opt.school === '混合' ? (
+									<>
+										{[['mixTian', '天盘层', 'zhuan'], ['mixXing', '九星层', 'zhuan'], ['mixMen', '八门层', 'fei'], ['mixShen', '九神层', 'fei']].map(([key, name, dft])=>(
+											<label key={key} className="horosa-dunjia-select-field is-wide">
+												<span>{name}</span>
+												<Select size="small" value={opt[key] || ''} onChange={(v)=>this.onOptionChange(key, v)} dropdownMatchSelectWidth={false}>
+													<Option value="">默认（{dft === 'fei' ? '飞宫' : '转宫'}）</Option>
+													<Option value="zhuan">转宫（排宫）</Option>
+													<Option value="fei">飞宫（飞泊）</Option>
+												</Select>
+											</label>
+										))}
+									</>
+								) : null}
+								<div style={{ fontSize: 11, color: 'var(--horosa-muted, #8c8c8c)', lineHeight: 1.6 }}>仅影响「置闰」起局法;默认口径=超神满 9 天(≥9)即闰。改后中间盘与右栏信息即时按所选重算。</div>
 							</div>
 						</Modal>
 						<label className="horosa-dunjia-select-field is-wide">
@@ -2791,7 +3006,7 @@ class DunJiaMain extends Component {
 		const panelTab = validPanelTabs.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
 		const bagongPalace = BAGONG_PALACE_NAME[this.state.bagongPalace] ? this.state.bagongPalace : BAGONG_PALACE_ORDER[0];
 		const bagongData = buildQimenBaGongPanelData(pan, bagongPalace);
-		const fushiYiGua = buildQimenFuShiYiGua(pan);
+		const fushiYiGua = (pan && pan.isJinhan) ? { text: '' } : buildQimenFuShiYiGua(pan);   // [H-G] 金函盘无三盘结构,演卦不适用
 		const timeInfo = getBoardTimeInfo(pan);
 		const showPatternInterpretation = this.state.showPatternInterpretation !== false;
 		const fields = this.state.localFields || this.props.fields || {};
@@ -2805,109 +3020,7 @@ class DunJiaMain extends Component {
 		}
 		return (
 			<div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-				<div style={{ display: 'none', paddingBottom: 6, borderBottom: '1px solid var(--horosa-border, #f0f0f0)' }}>
-					<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-						<div>
-							<PlusMinusTime value={datetm} onChange={this.onTimeChanged} onStepSelect={this.prefetchStepSelect} hook={this.timeHook} confirmOnAdjust />
-						</div>
-
-						<div style={{ display: 'flex', gap: 4 }}>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.kongMode} onChange={(v)=>this.onOptionChange('kongMode', v)} style={{ width: '100%' }}>
-									{KONG_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.yimaMode} onChange={(v)=>this.onOptionChange('yimaMode', v)} style={{ width: '100%' }}>
-									{MA_MODE_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.qijuMethod} disabled={[3, 4, 5].indexOf(opt.paiPanType) < 0} onChange={(v)=>this.onOptionChange('qijuMethod', v)} style={{ width: '100%' }}>
-									{QIJU_METHOD_OPTIONS.map((item)=><Option key={item.value} value={item.value} disabled={(item.value === 'maoshan' || item.value === 'wurun') && [4, 5].indexOf(opt.paiPanType) >= 0}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.sex} onChange={this.onGenderChange} style={{ width: '100%' }}>
-									{SEX_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.shiftPalace} onChange={(v)=>this.onOptionChange('shiftPalace', v)} style={{ width: '100%' }}>
-									{YIXING_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
-
-						<div style={{ display: 'flex', gap: 4 }}>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.paiPanType} onChange={(v)=>this.onOptionChange('paiPanType', v)} style={{ width: '100%' }}>
-									{PAIPAN_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1.45 }}>
-								<Select size="small" value={opt.yueJiaQiJuType} disabled={opt.paiPanType !== 1} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} style={{ width: '100%' }}>
-									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-						</div>
-
-						<div style={{ display: 'flex', gap: 4 }}>
-							<div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-								<Select size="small" value={opt.after23NewDay} onChange={(v)=>this.onOptionChange('after23NewDay', v)} style={{ width: '100%' }}>
-									{DAY_SWITCH_OPTIONS.map((item)=><Option key={`day_switch_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-								<div style={{ display: 'flex', gap: 4 }}>
-									<Button
-										size="small"
-										type={showPatternInterpretation ? 'primary' : 'default'}
-										style={{ flex: 1 }}
-										onClick={()=>{
-											const next = !showPatternInterpretation;
-											this.setState({ showPatternInterpretation: next });
-											savePatternInterpretationPreference(next);
-										}}
-									>
-										释义：{showPatternInterpretation ? '是' : '否'}
-									</Button>
-									<div style={{ flex: 1 }}>
-										<Select size="small" value={normalizeTimeAlg(opt.timeAlg)} onChange={(v)=>this.onOptionChange('timeAlg', v)} style={{ width: '100%' }}>
-											{TIME_ALG_OPTIONS.map((item)=><Option key={`time_alg_${item.value}`} value={item.value}>{item.label}</Option>)}
-										</Select>
-									</div>
-									<div style={{ flex: 1 }}>
-										<GeoCoordModal onOk={this.changeGeo} lat={fields.gpsLat && fields.gpsLat.value} lng={fields.gpsLon && fields.gpsLon.value}>
-											<Button size="small" style={{ width: '100%' }}>经纬度选择</Button>
-										</GeoCoordModal>
-									</div>
-								</div>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Select size="small" value={opt.fengJu ? 1 : 0} onChange={(v)=>this.onOptionChange('fengJu', v === 1)} style={{ width: '100%' }}>
-									{FENGJU_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Button
-									size="small"
-									type="primary"
-									style={{ width: '100%' }}
-									onClick={this.clickPlot}
-									loading={this.state.loading}
-									disabled={this.state.loading}
-								>
-									起盘
-								</Button>
-							</div>
-							<div style={{ flex: 1 }}>
-								<Button size="small" style={{ width: '100%' }} onClick={this.clickSaveCase}>保存</Button>
-							</div>
-						</div>
-						<div style={{ textAlign: 'right' }}>
-							<span>{fields.lon ? fields.lon.value : ''} {fields.lat ? fields.lat.value : ''}</span>
-						</div>
-					</div>
-				</div>
+				{/* [H-A] 旧版重复设置面板(display:none 死代码,缺 school/盘类/传本/相关人员/报数)已删——现行左栏为唯一设置面 */}
 
 				<Tabs
 					className="horosa-dunjia-tabs"
@@ -2919,7 +3032,7 @@ class DunJiaMain extends Component {
 						<FreezeSubTab active={panelTab === 'overview'}>{()=>(<>
 						{(()=>{
 							// 全局速览：一眼看出 值符值使落宫 / 贵格(三奇得使·九遁) / 六害源头 / 吉凶格品级。
-							const sum = pan ? buildQimenOverviewSummary(pan) : null;
+							const sum = (pan && !pan.isJinhan) ? buildQimenOverviewSummary(pan) : null;   // [H-G] 金函盘走专卡
 							if(!sum){ return null; }
 							const HARM_TONE = { 击刑: '#b71c1c', 入墓: '#8b5e3c', 庚虎: '#c0392b', 门迫: '#d46b08', 空亡: '#2f54eb' };
 							const chip = (text, color, k)=>(
@@ -2960,6 +3073,23 @@ class DunJiaMain extends Component {
 								</Card>
 							);
 						})()}
+						{pan && pan.isJinhan && pan.jinhan ? (
+							<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
+								<div style={{ lineHeight: '26px' }}>
+									<div>起盘方式：日家·古籍金函系（查表占方，独立体系）</div>
+									<div>日干支：{pan.jinhan.dayGz}（{pan.jinhan.pantype}盘·冬至后为阳/夏至后为阴）</div>
+									<div>八门排法：{pan.options.jinhanMenPaiLabel || '书表直录'}</div>
+									<div>中宫星：{pan.jinhan.center}</div>
+									<div>喜神方：{pan.jinhan.xiShen}</div>
+									<div>大吉方：{pan.jinhan.daJiFang || '—'}</div>
+									<div>大吉时：{pan.jinhan.jiShi}</div>
+									<div>农历：{pan.lunarText || '—'}</div>
+									<div>干支：{`年${pan.ganzhi.year} 月${pan.ganzhi.month} 日${pan.ganzhi.day} 时${pan.ganzhi.time}`}</div>
+									<div style={{ marginTop: 6, color: 'var(--horosa-text-soft, #595959)' }}>十二时辰黄黑道：{pan.jinhan.shiText}</div>
+									<div style={{ marginTop: 6, color: 'var(--horosa-muted, #8c8c8c)' }}>吉凶判则（书定）：门重于星；开休生为吉门，杜景为平，死惊伤为凶门；天乙太乙太阴青龙为吉星，轩辕招摇为平，摄提咸池天符为凶星。</div>
+								</div>
+							</Card>
+						) : (
 						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
 							<div style={{ lineHeight: '26px' }}>
 								<div>命式：{pan ? pan.options.sexLabel : '—'}</div>
@@ -2971,7 +3101,8 @@ class DunJiaMain extends Component {
 								<div>节气：{pan ? pan.jieqiText : '—'}</div>
 								<div>局数：{pan ? pan.juText : '—'}</div>
 								<div>旬首：{pan ? pan.xunShou : '—'}</div>
-								<div>{pan ? pan.options.kongModeLabel : '空亡'}：{pan ? pan.kongWang : '—'}</div>
+								<div>{pan && pan.options.kongMarkBoth && pan.xunKong ? `日空：${pan.xunKong.日空 || ''}·时空：${pan.xunKong.时空 || ''}` : `${pan ? pan.options.kongModeLabel : '空亡'}：${pan ? pan.kongWang : '—'}`}</div>
+							{pan && pan.allKong ? (<div>四柱空亡：年{pan.allKong.年空} 月{pan.allKong.月空} 日{pan.allKong.日空} 时{pan.allKong.时空}</div>) : null}
 								<div>值符：{pan ? pan.zhiFu : '—'}</div>
 								<div>值使：{pan ? pan.zhiShi : '—'}</div>
 								<div>奇门演卦：{pan ? (fushiYiGua.text || '无') : '—'}</div>
@@ -2991,8 +3122,9 @@ class DunJiaMain extends Component {
 								<div>节气段：{pan ? (pan.jiedelta || '—') : '—'}</div>
 							</div>
 						</Card>
+						)}
 						{(()=>{
-							const ws = pan ? buildQimenWangShuai(pan) : null;
+							const ws = (pan && !pan.isJinhan) ? buildQimenWangShuai(pan) : null;
 							if(!ws || !ws.monthElem){ return null; }
 							const tone = { 旺: '#2e7d32', 相: '#558b2f', 休: 'var(--horosa-text-soft, #8c8c8c)', 囚: '#b26a00', 死: '#b71c1c' };
 							return (

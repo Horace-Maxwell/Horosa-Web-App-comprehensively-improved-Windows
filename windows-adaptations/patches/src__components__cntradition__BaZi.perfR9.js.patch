@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZi.js b/astrostudyui/src/components/cntradition/BaZi.js
-index 5b9f4dd..929bed0 100644
+index ccbfe7ae..db45e406 100644
 --- a/astrostudyui/src/components/cntradition/BaZi.js
 +++ b/astrostudyui/src/components/cntradition/BaZi.js
 @@ -1,5 +1,6 @@
@@ -10,7 +10,7 @@ index 5b9f4dd..929bed0 100644
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import { XQTabs as Tabs } from '../xq-ui';
  import CnTraditionInput from './CnTraditionInput';
-@@ -21,6 +22,17 @@ import { parseDateParts } from '../../utils/dateStrSafe';
+@@ -22,6 +23,17 @@ import { parseDateParts } from '../../utils/dateStrSafe';
  
  const TabPane = Tabs.TabPane;
  
@@ -28,7 +28,7 @@ index 5b9f4dd..929bed0 100644
  const BaZiOptKey = 'baziopt';
  const BAZI_CORE_ENDPOINT = '/bazi/birth';
  const BAZI_DIRECT_ENDPOINT = '/bazi/direct';
-@@ -837,9 +849,18 @@ class BaZi extends Component{
+@@ -871,9 +883,18 @@ class BaZi extends Component{
  		});
  	}
  
@@ -48,7 +48,7 @@ index 5b9f4dd..929bed0 100644
  		});
  	}
  
-@@ -871,6 +892,32 @@ class BaZi extends Component{
+@@ -905,6 +926,32 @@ class BaZi extends Component{
  		return params;
  	}
  
@@ -81,7 +81,7 @@ index 5b9f4dd..929bed0 100644
  	async prefetchBazi(fields){
  		if(fields === undefined || fields === null){
  			return;
-@@ -907,7 +954,14 @@ class BaZi extends Component{
+@@ -941,7 +988,14 @@ class BaZi extends Component{
  			flowSelection: this.state.currentBaziKey === currentBaziKey ? this.state.flowSelection : null,
  		};
  
@@ -96,8 +96,8 @@ index 5b9f4dd..929bed0 100644
 +		});
  		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
  		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
- 		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school };
-@@ -1033,11 +1087,11 @@ class BaZi extends Component{
+ 		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups };
+@@ -1067,11 +1121,11 @@ class BaZi extends Component{
  		}
  		let tabHeight = height - 20;
  
@@ -112,7 +112,7 @@ index 5b9f4dd..929bed0 100644
  		const isFineChart = this.state.chartStyle === 'fine' || this.state.chartStyle === 'ancient';
  		const isLegacyUi = this.state.baziOpt && this.state.baziOpt.uiMode === 'legacy';
  		const chartHeight = typeof height === 'number' ? Math.max(360, Math.round(height * 0.62)) : height;
-@@ -1048,7 +1102,7 @@ class BaZi extends Component{
+@@ -1082,7 +1136,7 @@ class BaZi extends Component{
  				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-bazi-redesign-layout">
  					<div className="horosa-astro-redesign-grid horosa-bazi-redesign-grid">
  						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-bazi-input-panel">
@@ -121,7 +121,7 @@ index 5b9f4dd..929bed0 100644
  								fields={this.props.fields}
  								baziOpt={this.state.baziOpt}
  								onFieldsChange={this.onFieldsChange}
-@@ -1073,7 +1127,7 @@ class BaZi extends Component{
+@@ -1107,7 +1161,7 @@ class BaZi extends Component{
  										/>
  									</div>
  									<div className="horosa-bazi-main-flow-slot">

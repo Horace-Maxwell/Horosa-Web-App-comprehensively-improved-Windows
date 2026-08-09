@@ -2,9 +2,9 @@
 // 纯函数：给定 干支/月日时/性别 → 完整 chart（形状对齐 Java，供 ZWChart.js 渲染、ZiWeiHelper 运限消费）。
 // 四化单一真值源 = ZWConst.getActiveSiHuaGan()（随流派切换）。农历(birth→干支月日时)由上层提供，不在此。
 import {
-	ZHI, GAN, z, zi, gi, isYangGan, isYangZhi,
+	ZHI, GAN, z, zi, gi, isYangGan, isYangZhi, xiaoxianClockwiseFor,
 	palaceGans, mingGong, shenGong, ziweiPos, tianfuPos,
-	CHANGSHENG_12, CHANGSHENG_START, isClockwise, NORTH_MAIN_STEP, SOUTH_MAIN_STEP,
+	CHANGSHENG_12, CHANGSHENG_START, CHANGSHENG_START_HUO_TU, isClockwise, NORTH_MAIN_STEP, SOUTH_MAIN_STEP,
 	wuxingJu as coreWuxingJu,
 } from './ziweiCore';
 import {
@@ -13,9 +13,9 @@ import {
 	HOUSES as HOUSE_NAMES, monthCnOf, XIAOXIAN_START, starLightOf,
 } from './data/ziweiTables';
 import { getActiveSiHuaGan } from '../../constants/ZWConst';
-import { ZWEngineOptions } from './ziweiOptions';
+import { ZWEngineOptions, collectEngineOpts } from './ziweiOptions';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
-import { placeShangShi } from './ziweiSchools';
+import { placeShangShi, placeKuiYue } from './ziweiSchools';
 
 const HUA = ['禄', '权', '科', '忌'];
 // 星组 type → chart 字段（对齐 Java ZiWeiStarType / ZiWeiHouse）。
@@ -84,7 +84,11 @@ export function assembleNatalChart(ctx){
 		if(lm === 'next'){ month++; }
 		else if(lm === 'prev'){ /* 归上月,不进 */ }
 		else if(lm === 'split_star_month'){ month++; }   // 命身归下月(月系星仍上月=monthInt,§1.5⑥)
-		else if(lm === 'split_days'){ if(dayInt >= 16){ month++; } }   // 日本前后半分割(标准农历月半点15/16,§1.5⑦)
+		// 前后半分割=按实际天数取中点(大月16起/小月15起归下月;缺 monthDays 回落30=旧行为优雅降级)。
+		// 🔴 与 mid_split 在 29 天闰月分道 —— 旧硬编 >=16 是 mid_split 克隆(假选项,复查实锤)。
+		else if(lm === 'split_days'){ if(dayInt > Math.floor((ctx.monthDays || 30) / 2)){ month++; } }
+		// 按节气分界:闰月无中气必含恰一节,过节归下月(内核 resolveLeapMonth 同口径;字段缺失=未过节归本月)
+		else if(lm === 'solar_term'){ if(ctx.passedNextJie){ month++; } }
 		else if(dayInt >= 16){ month++; }   // mid_split 默认(十五分界)
 	}
 	const loc = 2 + month - 1;                      // 寅起正月
@@ -97,9 +101,13 @@ export function assembleNatalChart(ctx){
 	const ju = juInfo.ju;
 	// 大限跨度:默认10年;钦天派 daxianSpan='ju' → 局数年(水二2…火六6)。
 	const span = ctx.daxianSpan === 'ju' ? ju : (ctx.daxianSpan || 10);
-	const csStart = zi(CHANGSHENG_START[ju]);
+	// [P3b] 长生起法档:huo_tu=火土同宫(土五起寅);默认 shui_tu=水土同宫(现状零回归)
+	const csStart = zi((ctx.changshengStart === 'huo_tu' ? CHANGSHENG_START_HUO_TU : CHANGSHENG_START)[ju]);
+	// [B11] 长生顺逆档:always_forward=全顺行 —— 🔴 铁律:仅喂 phase 环,大限 direction 与
+	// 博士十二神仍用 fwd(阳男阴女律),此档绝不连坐运限方向。
+	const csFwd = ctx.changshengDirection === 'always_forward' ? true : fwd;
 	for(let i = 0; i < 12; i++){
-		const phaseIdx = fwd ? (((i - csStart) % 12 + 12) % 12) : (((csStart - i) % 12 + 12) % 12);
+		const phaseIdx = csFwd ? (((i - csStart) % 12 + 12) % 12) : (((csStart - i) % 12 + 12) % 12);
 		houses[i].phase = CHANGSHENG_12[phaseIdx];
 		let delta = i - lifeIdx;
 		let idx = Math.abs(delta);
@@ -128,12 +136,22 @@ export function assembleNatalChart(ctx){
 		const type = def.type;
 		const zv = def.pos[yearGan];
 		if(zv && zv.length === 2){
-			// 双星(如截空)：第一支按极性定正/副名、第二支为正名（对齐 Java setupStarsByYear）。
-			const i0 = zi(zv.charAt(0));
-			place(i0, (isYangZhi(i0) !== yearPolarYang ? '副' : '') + name, type);
-			placeRec(zi(zv.charAt(1)), name, type);
+			// 双星(如截空):正副按「与年干同极性=正支」**逐支各判**——与旬空同律(对齐 Java 已同步修)。
+			// 🔴 旧实现只判第一支、第二支恒正名:截空对恒[阳支,阴支]→阳年干出两颗正截空零副截空
+			//    (双端同构错,复查实锤)。修后任意年干恒一正一副。starIdx 记录沿 Java 律:恒裸名两支皆记。
+			for(let b2 = 0; b2 < 2; b2++){
+				const ii = zi(zv.charAt(b2));
+				const isFu = isYangZhi(ii) !== yearPolarYang;
+				// [B12] 单星法:只安正空支(「一般只论正空,副空不论」),副支整颗不出
+				if(isFu && ctx.kongwangStyle === 'single'){ continue; }
+				const k2 = (ii % 12 + 12) % 12;
+				houses[k2][TYPE_FIELD[type]].push(star((isFu ? '副' : '') + name, k2));
+				starIdx[name] = k2;
+			}
 		}else if(zv){
-			placeRec(zi(zv), name, type);
+			// [P3a] 魁钺歌诀两版:geng_ma_hu(庚辛逢马虎)时庚干魁午/钺寅,余干与默认表全同(内核 delta)
+			const kv = (name === '天魁' || name === '天钺') ? placeKuiYue(name, yearGan, ctx.kuiYue) : null;
+			placeRec(zi(kv || zv), name, type);
 		}
 	});
 
@@ -195,11 +213,12 @@ export function assembleNatalChart(ctx){
 	if(starIdx['文昌'] != null){ place(starIdx['文昌'] + dayInt - 2, '恩光', 3); }
 	if(starIdx['文曲'] != null){ place(starIdx['文曲'] + dayInt - 2, '天贵', 3); }
 
-	// (11) 旬空（年柱→空二支，副按极性）
+	// (11) 旬空（年柱→空二支，副按极性；[B12] 单星法只安正空支）
 	xunEmptyBranches(yearGan, yearZiIdx).forEach((zk)=>{
 		const i = zi(zk);
-		const nm = (isYangZhi(i) !== yearPolarYang ? '副' : '') + '旬空';
-		place(i, nm, 4);
+		const isFu = isYangZhi(i) !== yearPolarYang;
+		if(isFu && ctx.kongwangStyle === 'single'){ return; }
+		place(i, (isFu ? '副' : '') + '旬空', 4);
 	});
 
 	// (12) 博士十二神（起禄存，阳男阴女顺）
@@ -234,13 +253,15 @@ export function assembleNatalChart(ctx){
 		});
 	}
 
-	// (16) 小限 age 1..100
+	// (16) 小限 age 1..100。[B15b] 口径单源=ziweiCore.xiaoxianClockwiseFor(ctx.xiaoxianMode 经 FORWARD 表进来):
+	// 默认'0'=男顺女逆,与 Java setupSmallDirection 字节一致(零回归);'1'=阳男阴女顺(中州)。
 	const xxStart = XIAOXIAN_START[yearZi];
 	if(xxStart){
 		const xs = zi(xxStart);
+		const xxCw = xiaoxianClockwiseFor(ctx.xiaoxianMode, male, yearPolarYang);
 		for(let age = 1; age <= 100; age++){
 			const k = (age - 1) % 12;
-			const idx = male ? ((xs + k) % 12) : (((xs - k) % 12 + 12) % 12);
+			const idx = xxCw ? ((xs + k) % 12) : (((xs - k) % 12 + 12) % 12);
 			houses[idx].smallDirection.push(age);
 		}
 	}
@@ -278,6 +299,22 @@ export function assembleNatalChart(ctx){
 //   天盘=标准命盘;地盘=身宫作命宫(身宫干支定五行局→重排十四正曜);人盘=福德宫作命宫(福德宫干支定局→重排)。
 //   仅「命宫宫垣 + 十四正曜 + 十二宫名 + 五行局/命主」变,其余各星曜(辅杂煞小/长生/大限/身宫)宫位一律不变。
 //   特例:命宫==身宫→天=地;身宫==福德宫→地=人(此时返回原盘)。
+// [P2a] 命主取法后处理(Java 盘专用):ming_branch 时把 chart.lifeMaster 改按命宫支取。
+// 🔴 只许在 ziweiNeedsLocalEngine()===false 的 Java 盘路径调用 —— 本地引擎盘已按 ctx.lifeMasterBy
+//    以**天盘命宫**算好且 deriveSanPan 保留基盘命主;若在 deriveSanPan 之后按当前 lifeHouseIndex
+//    重算,会拿观察盘移过的命宫=错(命主不随三盘移是不变量,金标钉守)。幂等:同选项重复调用同值。
+export function applyLifeMasterOption(chart, lifeMasterBy){
+	// 🔴 默认(year_branch/缺省)恒 no-op —— Java 盘原值即生年支值,默认路径零改动(V2 基线钉着);
+	//    运行时「切回 year_branch」的恢复由 ZiWeiMain 交互监听显式做,不在此函数。
+	if(!chart || lifeMasterBy !== 'ming_branch'){ return chart; }
+	try{
+		const h = chart.houses && chart.houses[chart.lifeHouseIndex];
+		const zhi = h && h.ganzi ? `${h.ganzi}`.charAt(1) : '';
+		if(zhi && LIFE_MASTER[zhi]){ chart.lifeMaster = LIFE_MASTER[zhi]; }
+	}catch(e){ /* 派生失败保留原值 */ }
+	return chart;
+}
+
 export function deriveSanPan(tianChart, anchor){
 	if(!tianChart || anchor === 'tian' || !anchor){ return tianChart; }
 	const houses = tianChart.houses;
@@ -341,8 +378,8 @@ export function calcZiwei(birth, options = {}){
 		}
 		return dayChart;
 	}
-	// 晚子时:若给了 lateZi 则按方案映射;否则沿用显式 after23NewDay/lateZiHourUseNextDay(默认=全局)。
-	const lz = options.lateZi ? lateZiParams(options.lateZi) : { after23NewDay: options.after23NewDay, lateZiHourUseNextDay: options.lateZiHourUseNextDay };
+	// 晚子时:若给了具体方案则映射;'global'(默认档)/缺省=沿用显式 after23NewDay/lateZiHourUseNextDay(即全局设置)。
+	const lz = (options.lateZi && options.lateZi !== 'global') ? lateZiParams(options.lateZi) : { after23NewDay: options.after23NewDay, lateZiHourUseNextDay: options.lateZiHourUseNextDay };
 	const params = {
 		date: birth.date, time: birth.time, zone: birth.zone, lon: birth.lon, lat: birth.lat,
 		gpsLon: birth.gpsLon, gpsLat: birth.gpsLat, ad: birth.ad != null ? birth.ad : 1,
@@ -371,10 +408,10 @@ export function calcZiwei(birth, options = {}){
 		yearGan: yg.charAt(0), yearZi: yg.charAt(1),
 		monthInt: zwMonth, leap: zwLeap, dayInt: zwDay, timeZi: tg.charAt(1),
 		male: Number(birth.gender) !== 0,                  // 0=女、其余=男(对齐 BaZiGender)
-		daxianSpan: options.daxianSpan, tianmaBasis: options.tianmaBasis, starSet: options.starSet,
-		shangShi: options.shangShi, leapMonth: options.leapMonth,
-		huoling: options.huoling, kongNaming: options.kongNaming,
-		lifeMasterBy: options.lifeMasterBy,
+		// 🔴 引擎键经单一真值表转发(手抄清单曾漏 changshengStart/kuiYue=真机死开关,复查实锤)
+		...collectEngineOpts(options),
+		// 闰月两口径派生(baziLunarLocal 仅 leap 时给值;split_days 真半点 / solar_term 过节归下月)
+		monthDays: nl.ziweiMonthDays, passedNextJie: nl.ziweiPassedNextJie,
 	});
 	chart.nongli = nl;
 	chart.fourColumns = fc;

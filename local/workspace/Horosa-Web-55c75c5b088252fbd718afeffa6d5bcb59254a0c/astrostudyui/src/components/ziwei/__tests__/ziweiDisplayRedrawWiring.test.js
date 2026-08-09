@@ -30,8 +30,8 @@ describe('紫微显示层开关 → 盘面重绘链', () => {
 		expect(HELPER).toContain('dispatchEvent');
 	});
 
-	test('② 两个开关的 handler 发广播,而不是借道 redrawChart 假装数据变了', () => {
-		['onShowOthersChange', 'onShowSmallChange'].forEach((fn) => {
+	test('② 显示开关的 handler 发广播,而不是借道 redrawChart 假装数据变了', () => {
+		['onShowOthersChange', 'onShowSmallChange', 'onShowStarLightChange'].forEach((fn) => {
 			const at = INPUT.indexOf(`${fn}(e)`);
 			expect(at).toBeGreaterThan(-1);
 			const body = INPUT.slice(at, INPUT.indexOf('\n\t}', at) + 3);
@@ -62,5 +62,9 @@ describe('紫微显示层开关 → 盘面重绘链', () => {
 		expect(house).toContain('zwShowOthers');
 		expect(HELPER).toContain('ziweiShowOthers');
 		expect(HELPER).toContain('ziweiShowSmall');
+		// 庙旺标注开关:两盘绘制层都必须真消费(默认开=零回归;三合盘直包 sl,四化盘走 shouldShowStarLight)
+		expect(sanghe).toContain('zwShowStarLight');
+		expect(house).toContain('zwShowStarLight');
+		expect(HELPER).toContain('ziweiShowStarLight');
 	});
 });

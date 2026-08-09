@@ -111,6 +111,16 @@ class DunJiaBoard extends Component{
 		return !shallowPropsEqual(this.props, nextProps, DUNJIA_BOARD_SCU_KEYS);
 	}
 
+	// [H-B] 词条标题按「全名档」补类别后缀(星/门/神);title 已含该字则不重复。
+	tipTitleOf(tipObj){
+		if(!tipObj){ return ''; }
+		const full = !!(this.props.pan && this.props.pan.options && this.props.pan.options.fullNameTips);
+		if(!full){ return tipObj.title; }
+		const sfx = tipObj.type === 'star' ? '星' : (tipObj.type === 'door' ? '门' : (tipObj.type === 'god' ? '神' : ''));
+		const t = String(tipObj.title || '');
+		return sfx && !t.endsWith(sfx) ? t + sfx : t;
+	}
+
 	renderQimenDocPopover(tipObj){
 		if(!tipObj){
 			return null;
@@ -119,7 +129,7 @@ class DunJiaBoard extends Component{
 		return (
 			<div style={{ maxWidth: 560, maxHeight: 460, overflowY: 'auto', paddingRight: 4 }}>
 				<div style={{ fontSize: 17, lineHeight: '24px', fontWeight: 700, color: 'var(--horosa-text, #1f1f1f)' }}>
-					{tipObj.title}
+					{this.tipTitleOf(tipObj)}
 				</div>
 				<div style={{ borderTop: '1px solid var(--horosa-border, #d9d9d9)', margin: '6px 0 8px' }} />
 				{blocks.map((block, idx)=>{
@@ -196,7 +206,34 @@ class DunJiaBoard extends Component{
 		);
 	}
 
+	// [H-G] 古籍金函系日家格:正方宫格,门(上)+星(下)大字竖排(书表行序),按书定吉凶着色(吉红/凶墨/平灰);
+	//   左上=方位·卦名,右下=卦名+洛书宫号,喜神/大吉徽章;中宫=本干支之星。
+	renderJinhanCell(cell){
+		const jiColor = (ji)=>ji === '吉' ? '#c41e28' : (ji === '凶' ? 'var(--horosa-text, #1f1f1f)' : 'var(--horosa-muted, #9c9c9c)');
+		const LUOSHU_CN = { 坎: '一', 坤: '二', 震: '三', 巽: '四', 中: '五', 乾: '六', 兑: '七', 艮: '八', 离: '九' };
+		const chip = (text, top)=>(
+			<div style={{ position: 'absolute', top, right: 8, fontSize: 12, lineHeight: '18px', padding: '0 7px', borderRadius: 9, color: '#c41e28', background: 'rgba(196, 30, 40, 0.08)', border: '1px solid rgba(196, 30, 40, 0.35)' }}>{text}</div>
+		);
+		return (
+			<div key={`cell_${cell.palaceNum}`} className="horosa-dunjia-cell" style={{ position: 'relative', width: '100%', height: '100%', border: '1px solid var(--horosa-border, #d9d9d9)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: cell.isCenter ? 'var(--horosa-bg-soft, rgba(140, 140, 140, 0.05))' : 'transparent' }}>
+				<div style={{ position: 'absolute', top: 7, left: 9, fontSize: 13, lineHeight: '17px', color: 'var(--horosa-muted, #8c8c8c)' }}>
+					{cell.isCenter ? '中宫' : cell.jinhanDir}
+				</div>
+				{cell.isXiShen ? chip('喜神', 7) : null}
+				{cell.isDaJi ? chip('大吉', cell.isXiShen ? 29 : 7) : null}
+				{cell.isCenter ? null : (
+					<div style={{ fontSize: 40, lineHeight: '46px', fontWeight: 700, letterSpacing: 2, color: jiColor(cell.jinhanDoorJi) }}>{cell.door}门</div>
+				)}
+				<div style={{ fontSize: 40, lineHeight: '46px', fontWeight: 700, letterSpacing: 2, color: jiColor(cell.jinhanStarJi) }}>{cell.tianXing}</div>
+				<div style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 13, lineHeight: '17px', color: 'var(--horosa-muted, #8c8c8c)' }}>
+					{cell.isCenter ? '中五' : `${cell.palaceName}${LUOSHU_CN[cell.palaceName] || ''}`}
+				</div>
+			</div>
+		);
+	}
+
 	renderCell(cell){
+		if(cell && cell.isJinhan){ return this.renderJinhanCell(cell); }
 		const titleColor = cell.hasKongWang
 			? '#2f54eb'
 			: (cell.isCenter ? 'var(--horosa-muted, #c7c7c7)' : 'var(--horosa-text-soft, #5f5f5f)');
@@ -332,6 +369,11 @@ class DunJiaBoard extends Component{
 					},
 					`qimen_tiangan_${cell.palaceNum}`
 				)}
+				{cell.anGan ? (
+					<div style={{ position: 'absolute', left: insetX + unifiedFont + 6, top: insetY + 6, fontSize: 16, lineHeight: '16px', color: 'var(--horosa-muted, #8c8c8c)', fontWeight: 600 }}>
+						{cell.anGan}{cell.anZhi ? cell.anZhi : ''}
+					</div>
+				) : null}
 				{this.renderQimenHoverNode(
 					'stem',
 					cell.diGan || ' ',
@@ -448,6 +490,13 @@ class DunJiaBoard extends Component{
 				gan: (pan.ganzhi.time || '').substr(0, 1),
 				zhi: (pan.ganzhi.time || '').substr(1, 1),
 			},
+			// [H-F] 刻家:第五柱=刻柱(时柱锚法,首刻即时柱逐刻进一);非刻家盘 keGanZhi='' 自动不出
+			...(pan.keGanZhi ? [{
+				key: 'ke',
+				label: '刻',
+				gan: (pan.keGanZhi || '').substr(0, 1),
+				zhi: (pan.keGanZhi || '').substr(1, 1),
+			}] : []),
 		].map((item)=>({
 			...item,
 			ganColor: getBaZiStemColor(item.gan),
@@ -537,15 +586,32 @@ class DunJiaBoard extends Component{
 									</div>
 								))}
 							</div>
-							<div style={{ marginTop: 6, fontSize: 16, lineHeight: '20px', fontWeight: 700, color: 'var(--horosa-text, #202020)' }}>
-								{pan.juText} 值符:{this.renderQimenHoverInline('star', pan.zhiFu, <span>{pan.zhiFu}</span>, 'qimen_hd_zhifu')} 值使:{this.renderQimenHoverInline('door', pan.zhiShi, <span>{pan.zhiShi}</span>, 'qimen_hd_zhishi')}
-							</div>
-							<div style={{ marginTop: 4, fontSize: 14, lineHeight: '18px', color: 'var(--horosa-text-soft, #595959)' }}>
-								{pan.options.kongModeLabel}-{pan.kongWang} 旬首-{pan.xunShou}
-							</div>
+							{pan.isJinhan && pan.jinhan ? (
+								<div style={{ marginTop: 6, fontSize: 16, lineHeight: '20px', fontWeight: 700, color: 'var(--horosa-text, #202020)' }}>
+									{pan.juText} 日干支:{pan.jinhan.dayGz} 喜神:{pan.jinhan.xiShen} 大吉方:{pan.jinhan.daJiFang || '—'}
+								</div>
+							) : (
+								<div style={{ marginTop: 6, fontSize: 16, lineHeight: '20px', fontWeight: 700, color: 'var(--horosa-text, #202020)' }}>
+									{pan.juText} 值符:{this.renderQimenHoverInline('star', pan.zhiFu, <span>{pan.zhiFu}</span>, 'qimen_hd_zhifu')} 值使:{this.renderQimenHoverInline('door', pan.zhiShi, <span>{pan.zhiShi}</span>, 'qimen_hd_zhishi')}
+								</div>
+							)}
+							{pan.isJinhan && pan.jinhan ? (
+								<div style={{ marginTop: 4, fontSize: 14, lineHeight: '18px', color: 'var(--horosa-text-soft, #595959)' }}>
+									大吉时-{pan.jinhan.jiShi}（{pan.jinhan.pantype}盘·{pan.options.jinhanMenPaiLabel || '书表直录'}）
+								</div>
+							) : (
+								<div style={{ marginTop: 4, fontSize: 14, lineHeight: '18px', color: 'var(--horosa-text-soft, #595959)' }}>
+									{pan.options.kongMarkBoth && pan.xunKong ? `日空-${pan.xunKong.日空 || ''}·时空-${pan.xunKong.时空 || ''}` : `${pan.options.kongModeLabel}-${pan.kongWang}`} 旬首-{pan.xunShou}
+								</div>
+							)}
+							{pan.allKong ? (
+								<div style={{ marginTop: 2, fontSize: 13, lineHeight: '17px', color: 'var(--horosa-text-soft, #595959)' }}>
+									年空-{pan.allKong.年空} 月空-{pan.allKong.月空} 日空-{pan.allKong.日空} 时空-{pan.allKong.时空}
+								</div>
+							) : null}
 						</div>
 						<div className="horosa-dunjia-grid-wrap" style={{ position: 'relative', width: boardWidth, maxWidth: '100%' }}>
-							<div style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${cellSize}px)`, gap: boardGap }}>
+							<div style={{ display: 'grid', gridTemplateColumns: `repeat(3, ${cellSize}px)`, gap: boardGap, ...(pan.isJinhan ? { gridAutoRows: `${cellSize}px` } : {}) }}>
 								{pan.cells.map((cell)=>this.renderCell(cell))}
 							</div>
 							{pan.fengJu ? (

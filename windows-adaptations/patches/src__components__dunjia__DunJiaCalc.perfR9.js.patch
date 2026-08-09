@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaCalc.js b/astrostudyui/src/components/dunjia/DunJiaCalc.js
-index f0f8cfd..08aad8e 100644
+index 00e98023..ddadeae0 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaCalc.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaCalc.js
-@@ -1134,27 +1134,13 @@ export function normalizeKinqimenData(backendPan, fallbackPan, options, nongli){
+@@ -1331,27 +1331,13 @@ export function normalizeKinqimenData(backendPan, fallbackPan, options, nongli){
  	};
  }
  
@@ -37,8 +37,8 @@ index f0f8cfd..08aad8e 100644
  	let rsp = null;
  	try{
  		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('qimen', 'pan'), {
-@@ -1180,6 +1166,32 @@ export async function fetchQimenPan(fields, nongli, options, context){
- 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
+@@ -1419,6 +1405,32 @@ function calcKeJiaMeta(opts, ganzhi, jieqi, dateParts, context){
+ 	};
  }
  
 +export async function fetchQimenPan(fields, nongli, options, context){

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/IndiaChart.js b/astrostudyui/src/components/astro/IndiaChart.js
-index a8ab727..ef3a1c8 100644
+index e9beb6be..7826a2c7 100644
 --- a/astrostudyui/src/components/astro/IndiaChart.js
 +++ b/astrostudyui/src/components/astro/IndiaChart.js
-@@ -91,6 +91,15 @@ export function fieldsToParams(fields, overrides = {}){
+@@ -151,6 +151,15 @@ export function fieldsToParams(fields, overrides = {}){
  	return params;
  }
  

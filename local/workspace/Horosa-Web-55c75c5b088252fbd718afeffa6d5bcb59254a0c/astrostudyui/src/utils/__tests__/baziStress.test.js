@@ -143,27 +143,27 @@ describe('八字压测 · 新增 build-time 选项(phaseType/godKeyPos/cangVersi
 			const dishi1 = ['year', 'month', 'day', 'time'].map((k)=>b1.fourColumns[k].ganziPhase).join('|');
 			// 土日元:水土同应改变至少一柱 diShi(死选项真激活)。
 			expect(dishi1).not.toBe(dishi0);
-			// phaseType=2(阳顺阴逆)== lunar 现状基线 → 与 phaseType=0 同(byte-perfect,见 resolveDiShiByPhaseType 注)。
+			// [B 三档接活] 档2=阳顺阴逆:戊(阳干)档0/档2 同值(不分阴阳与阳干顺行同式=幂等);
+			// 己(阴干)档0(随戊寅起顺)≠档2(酉起逆)——旧断言「2==0 恒等」锚的是半截实现,已按权威表更新。
 			const b2 = run(d, '12:00:00', { phaseType: 2 });
 			const dishi2 = ['year', 'month', 'day', 'time'].map((k)=>b2.fourColumns[k].ganziPhase).join('|');
-			expect(dishi2).toBe(dishi0);
+			if(expectGan === '戊'){ expect(dishi2).toBe(dishi0); }
+			else { expect(dishi2).not.toBe(dishi0); }
 			verified += 1;
 		});
 		expect(verified).toBe(EARTH_DM.length);
 	});
 
-	test('phaseType=1 对非土日元(甲~癸 中的金木水火)零影响(byte-perfect)', () => {
-		// 找一个非土日元盘:phaseType 0/1/2 三档 diShi 必完全相同。
+	test('phaseType 三档对非土日元:阳干日主三档恒等;阴干日主 档0==档1 且 ≠档2(不分阴阳 vs 阴逆)', () => {
 		const b0 = run('2026-06-22', '18:00:00', { phaseType: 0 });
 		const dayGan = (b0.fourColumns.day.ganzi || b0.fourColumns.day.ganZhi || '').charAt(0);
-		if(dayGan !== '戊' && dayGan !== '己'){
-			const dishi0 = ['year', 'month', 'day', 'time'].map((k)=>b0.fourColumns[k].ganziPhase).join('|');
-			[1, 2].forEach((pt)=>{
-				const b = run('2026-06-22', '18:00:00', { phaseType: pt });
-				const dishi = ['year', 'month', 'day', 'time'].map((k)=>b.fourColumns[k].ganziPhase).join('|');
-				expect(dishi).toBe(dishi0);
-			});
-		}
+		expect(dayGan !== '戊' && dayGan !== '己').toBe(true);   // 非土日元样本
+		const dishiOf = (pt)=>{ const b = run('2026-06-22', '18:00:00', { phaseType: pt }); return ['year', 'month', 'day', 'time'].map((k)=>b.fourColumns[k].ganziPhase).join('|'); };
+		const d0 = dishiOf(0), d1 = dishiOf(1), d2 = dishiOf(2);
+		expect(d1).toBe(d0);   // 非土干:档0/档1 同式(不分阴阳,寄宫只动土)
+		const yang = ['甲', '丙', '庚', '壬'].indexOf(dayGan) >= 0;
+		if(yang){ expect(d2).toBe(d0); }   // 阳干:三档恒等(幂等)
+		else { expect(d2).not.toBe(d0); }  // 阴干:不分阴阳≠阴逆
 	});
 
 	test('边界:非法/越界选项值 → 回退默认不抛', () => {

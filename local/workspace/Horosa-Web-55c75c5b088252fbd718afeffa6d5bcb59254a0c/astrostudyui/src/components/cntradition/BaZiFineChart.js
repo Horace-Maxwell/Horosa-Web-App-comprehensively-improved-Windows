@@ -697,8 +697,9 @@ class BaZiFineChart extends Component{
 				{/* 「显示·神煞」此前只关右栏卡片,中栏盘照旧列出 —— 关了却还在显示,开关名不符实。 */}
 				{isSimple && this.props.showShenSha !== false ? this.renderShenShaRow(cols) : null}
 				{!isSimple ? this.renderSimpleRow('纳音', cols, (item)=><strong>{item.naying}</strong>, 'horosa-bazi-fine-info-row') : null}
-				{!isSimple ? this.renderSimpleRow('星运', cols, (item)=><strong>{getSelfZuo(dayGan, item.branch)}</strong>, 'horosa-bazi-fine-info-row') : null}
-				{!isSimple ? this.renderSimpleRow('自坐', cols, (item)=><strong>{getSelfZuo(item.stem, item.branch)}</strong>, 'horosa-bazi-fine-info-row') : null}
+				{/* [B 三档接活] 星运/自坐随「长生」档(fields.phaseType):曾恒阳顺阴逆(不吃档)=档0↔2 死档对+与主盘 diShi 两口径。 */}
+				{!isSimple ? this.renderSimpleRow('星运', cols, (item)=><strong>{getSelfZuo(dayGan, item.branch, this.props.fields && this.props.fields.phaseType ? this.props.fields.phaseType.value : undefined)}</strong>, 'horosa-bazi-fine-info-row') : null}
+				{!isSimple ? this.renderSimpleRow('自坐', cols, (item)=><strong>{getSelfZuo(item.stem, item.branch, this.props.fields && this.props.fields.phaseType ? this.props.fields.phaseType.value : undefined)}</strong>, 'horosa-bazi-fine-info-row') : null}
 				{!isSimple ? this.renderSimpleRow('空亡', cols, (item)=><strong>{item.xunEmpty}</strong>, 'horosa-bazi-fine-info-row') : null}
 			</div>
 		);

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiFineChart.js b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-index 4477f4a..ca0cce5 100644
+index c57bf420..2c837168 100644
 --- a/astrostudyui/src/components/cntradition/BaZiFineChart.js
 +++ b/astrostudyui/src/components/cntradition/BaZiFineChart.js
 @@ -1,4 +1,5 @@

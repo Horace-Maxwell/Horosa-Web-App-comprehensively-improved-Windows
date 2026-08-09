@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { createSignatureMemo } from '../../utils/memoBySignature';
-import { Checkbox, message } from 'antd';
+import { Checkbox, message, Modal } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQModal  } from '../xq-ui';
 import QuickDockBar from '../common/QuickDockBar';
 import * as Constants from '../../utils/constants';
@@ -1067,6 +1067,13 @@ class GuaZhanMain extends Component{
 		return null;
 	}
 
+	// [G2] 随机起卦概率源分派:coins=三钱(randYao,老阳老阴各1/8) / yarrow=大衍蓍草(3/16·1/16)。
+	// 整卦随机/逐爻随机共用;「蓍草起卦」独立按钮恒蓍草不受此档影响。
+	rollYao(){
+		const s = normalizeLiuyaoSettings(this.state.liuyaoSettings);
+		return s.randomAlgo === 'yarrow' ? yarrowYao() : randYao();
+	}
+
 	setupYao(yaos, guaidx){
 		if(guaidx === undefined || guaidx === null){
 			return;
@@ -1101,7 +1108,7 @@ class GuaZhanMain extends Component{
 			let cnt = randomNum(2) % 10;
 			while(cnt > 0){
 				for(let i=0; i<yao.length; i++){
-					let ryao = randYao();
+					let ryao = this.rollYao();
 					yao[i].value = ryao.value;
 					yao[i].change = ryao.change;
 					yao[i].color = this.getYaoColor();
@@ -1126,7 +1133,7 @@ class GuaZhanMain extends Component{
 				this.guaPeriodTask = setInterval(()=>{
 					let yao = this.state.yao;
 					for(let i=0; i<yao.length; i++){
-						let ryao = randYao();
+						let ryao = this.rollYao();
 						yao[i].value = ryao.value;
 						yao[i].change = ryao.change;
 						yao[i].color = this.getYaoColor();
@@ -1151,9 +1158,9 @@ class GuaZhanMain extends Component{
 			}
 			let yao = this.state.yao;
 			let cnt = randomNum(2) % 50;
-			let ryao = randYao();
+			let ryao = this.rollYao();
 			while(cnt > 0){
-				ryao = randYao();
+				ryao = this.rollYao();
 				cnt = cnt - 1;
 			}
 			yao[idx].value = ryao.value;
@@ -1190,7 +1197,7 @@ class GuaZhanMain extends Component{
 			if(this.periodTask === null){
 				this.periodTask = setInterval(() => {
 					let yao = this.state.yao;
-					let ryao = randYao();
+					let ryao = this.rollYao();
 					yao[idx].value = ryao.value;
 					yao[idx].change = ryao.change;
 					this.colorIndex = this.colorIndex + 1;
@@ -1208,6 +1215,20 @@ class GuaZhanMain extends Component{
 		}
 	}
 
+	// [G3] 随机前确认:开启且当前卦为手动来源(摇卦/自定义/直选)时,启动随机先弹确认防误覆盖;
+	// 时间卦/空盘直滚(时间卦本就随时可重起,无「心血覆盖」问题);「停止」动作永不拦。
+	confirmRandomThen(run){
+		const s = normalizeLiuyaoSettings(this.state.liuyaoSettings);
+		const origin = this.state.guaOrigin;
+		if(!s.randomConfirm || !origin || origin === 'time'){ run(); return; }
+		Modal.confirm({
+			title: '覆盖当前卦象?',
+			content: '当前卦为手动所起,随机起卦将覆盖它。',
+			okText: '覆盖并随机', cancelText: '取消',
+			onOk: run,
+		});
+	}
+
 	genGua(){
 		let btnName = this.state.btnGenGua;
 		let stopAct = false;
@@ -1217,6 +1238,12 @@ class GuaZhanMain extends Component{
 			btnName = '整卦随机';
 		}else{
 			btnName = '停止随机';
+		}
+		if(!stopAct){
+			this.confirmRandomThen(()=>{
+				this.setState({ btnGenGua: btnName }, ()=>{ this.randomGua(false); });
+			});
+			return;
 		}
 
 		this.setState({
@@ -1228,6 +1255,26 @@ class GuaZhanMain extends Component{
 	}
 
 	genYao(idx){
+		let btnDisabled = this.state.btnDisabled;
+		let btnName = this.state.btnName;
+		let sz = btnDisabled.length;
+		let stopAct = false;
+		for(let i=0; i<sz; i++){
+			let act = btnName[i].substr(0, 2);
+			if(act === '停止'){
+				stopAct = true;
+				break;
+			}
+		}
+		if(!stopAct){
+			// [G3] 与整卦随机同守卫(启动侧才拦;停止恒放行)
+			this.confirmRandomThen(()=>{ this.genYaoRun(idx); });
+			return;
+		}
+		this.genYaoRun(idx);
+	}
+
+	genYaoRun(idx){
 		let btnDisabled = this.state.btnDisabled;
 		let btnName = this.state.btnName;
 		let sz = btnDisabled.length;
@@ -1404,7 +1451,26 @@ class GuaZhanMain extends Component{
 		}
 		return !wrapperPropsEqual(this.props, nextProps);
 	}
+	// [G10] 改爻快捷键:数字 1-6 翻对应爻动/静(走既有 dongyaoChanged 链)。
+	// 守卫:开关开+无修饰键+焦点不在输入类控件(input/textarea/select/富文本)。
+	handleYaoHotkey = (e) => {
+		const s = normalizeLiuyaoSettings(this.state.liuyaoSettings);
+		if(!s.yaoHotkeys){ return; }
+		if(e.ctrlKey || e.metaKey || e.altKey){ return; }
+		const t = e.target;
+		const tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+		if(tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)){ return; }
+		const n = parseInt(e.key, 10);
+		if(!(n >= 1 && n <= 6)){ return; }
+		const idx = n - 1;
+		const cur = [];
+		(this.state.yao || []).forEach((y, i)=>{ if(y && y.change){ cur.push(i); } });
+		const next = cur.indexOf(idx) >= 0 ? cur.filter((i)=>i !== idx) : cur.concat([idx]);
+		this.dongyaoChanged(next);
+	};
+
 	componentDidMount(){
+		window.addEventListener('keydown', this.handleYaoHotkey);
 		this.unmounted = false;
 		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再触发重新计算
 		this._lateZiHourUserOverrode = false; // v2.2.1: 同款时柱开关局部覆盖语义
@@ -1487,6 +1553,7 @@ class GuaZhanMain extends Component{
 	}
 
 	componentWillUnmount(){
+		window.removeEventListener('keydown', this.handleYaoHotkey);
 		this.unmounted = true;
 		// 摇卦/周期动画 interval:用户在动画态直接切走技法时这里是唯一的清理出口,
 		// 不清则 interval 持续 setState 打已卸载组件(告警刷屏+闭包持组件泄漏)。
@@ -1652,7 +1719,7 @@ class GuaZhanMain extends Component{
 					<Button onClick={this.clickCustGua}>自定义起卦</Button>
 				</XQSideSection>
 
-				<LiuYaoCastPad coinFace={normalizeLiuyaoSettings(this.state.liuyaoSettings).coinFace} onCast={this.onManualCast}
+				<LiuYaoCastPad coinFace={normalizeLiuyaoSettings(this.state.liuyaoSettings).coinFace} defaultYaoState={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState} key={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState} onCast={this.onManualCast}
 					numGuaSlot={(<>
 						<div className="horosa-guazhan-inline-row">
 							<InputNumber value={this.state.number} onChange={this.numberChanged} min={0} />
@@ -1685,10 +1752,10 @@ class GuaZhanMain extends Component{
 		const schoolVal = s.school;
 		const schoolOpts = LIUYAO_SCHOOL_OPTIONS.slice();
 		if(schoolVal === 'custom'){ schoolOpts.push({ value: 'custom', label: '自定义' }); }
-		const sel = (label, key, opts) => (
-			<label className="horosa-guazhan-select-field" key={key}>
+		const sel = (label, key, opts, extra) => (
+			<label className="horosa-guazhan-select-field" key={key} title={extra && extra.title ? extra.title : undefined}>
 				<span>{label}</span>
-				<Select dropdownMatchSelectWidth={false} value={s[key]} onChange={(v)=>this.changeLiuyaoOption(key, v)}>
+				<Select dropdownMatchSelectWidth={false} value={s[key]} onChange={(v)=>this.changeLiuyaoOption(key, v)} disabled={!!(extra && extra.disabled)}>
 					{opts.map((o)=>(<Option key={String(o.v)} value={o.v}>{o.l}</Option>))}
 				</Select>
 			</label>
@@ -1727,14 +1794,22 @@ class GuaZhanMain extends Component{
 						{sel('飞伏', 'fushen', [{ v: 'missing', l: '仅缺用神取' }, { v: 'all', l: '逐爻全标' }])}
 						{sel('月破', 'yuepoMode', [{ v: 'inMonth', l: '当月有效' }, { v: 'always', l: '不论出月' }])}
 						{sel('世身', 'shishen', [{ v: 'off', l: '不用' }, { v: 'standard', l: '子午持世身居初' }, { v: 'lichunfeng', l: '亥子持世身居初' }])}
-						{sel('进退神土路', 'jinTuiTu', [{ v: 'chain', l: '丑辰未戌连环' }, { v: 'break', l: '戌丑断开' }])}
+						{sel('贵人歌诀', 'guirenFa', [{ v: 'standard', l: '甲戊庚牛羊(庚丑未)' }, { v: 'geng_ma_hu', l: '庚辛逢马虎(庚寅午)' }])}
+						{/* [审计 2026-08-08] 结构性空载置灰:64 卦×全部动爻组合(含多爻齐动)枚举,纳甲动变不存在
+						    戌↔丑 本变对 → 两口径输出恒同(金标 liuyaoOptionMatrixAudit 锁事实;若未来体系引入该
+						    载荷,金标红了再解除置灰)。照 PlanetSelector/八字流派标记「置灰+说明」先例。 */}
+						{sel('进退神土路', 'jinTuiTu', [{ v: 'chain', l: '丑辰未戌连环' }, { v: 'break', l: '戌丑断开' }],
+							{ disabled: true, title: '考据声明项:纳甲动变结构中不存在戌↔丑的本变对,两口径在一切实卦中输出恒同,故置灰。详见帮助。' })}
 						{sel('长生用法', 'changshengUse', [{ v: 'full12', l: '十二宫全用' }, { v: 'four', l: '只取生旺墓绝' }])}
 						{sel('天时占法', 'tianshiSchool', [{ v: 'fumu', l: '通行(父母雨子孙晴)' }, { v: 'ancient', l: '古法多套(五家分列)' }])}
 						{sel('生旺墓阴阳', 'changshengYinYang', [{ v: 'ziping', l: '分阴阳' }, { v: 'classic', l: '古法不分' }])}
 						{sel('字背口径', 'coinFace', [{ v: 'standard', l: '背为阳(火珠林系)' }, { v: 'alt', l: '字为阳(卜筮正宗系)' }])}
+						{sel('随机概率源', 'randomAlgo', [{ v: 'coins', l: '三钱(动爻各1/8)' }, { v: 'yarrow', l: '大衍蓍草(3/16·1/16)' }])}
+						{sel('录入默认爻', 'defaultYaoState', [{ v: 'shaoyang', l: '少阳' }, { v: 'shaoyin', l: '少阴' }])}
 						{sel('变卦装法', 'biangua', [{ v: 'movingOnly', l: '仅装变爻' }, { v: 'full', l: '全装变卦' }])}
 						{sel('定年界线', 'yearBoundary', [{ v: 'lichun', l: '立春换岁' }, { v: 'lunar', l: '正月初一' }])}
 						{sel('书写方向', 'writeDir', [{ v: 'bottomUp', l: '上爻在上' }, { v: 'topDown', l: '初爻在上' }])}
+						{sel('盘顶信息对齐', 'titleAlign', [{ v: 'center', l: '居中' }, { v: 'right', l: '靠右' }])}
 						{sel('本命(年支)', 'benming', [{ v: '', l: '不用' }].concat(ZiList.map((z)=>({ v: z, l: z }))))}
 					</div>
 				</div>
@@ -1751,6 +1826,27 @@ class GuaZhanMain extends Component{
 					<div className="horosa-guazhan-toggle-grid horosa-guazhan-toggle-grid-2">
 						<Checkbox checked={s.yueLiushen} onChange={(e)=>this.changeLiuyaoOption('yueLiushen', e.target.checked)}>月建六神</Checkbox>
 						<Checkbox checked={s.gufa} onChange={(e)=>this.changeLiuyaoOption('gufa', e.target.checked)}>古法进阶</Checkbox>
+						<Checkbox checked={s.randomConfirm} onChange={(e)=>this.changeLiuyaoOption('randomConfirm', e.target.checked)}>随机前确认</Checkbox>
+						<Checkbox checked={s.wangShuaiCol !== false} onChange={(e)=>this.changeLiuyaoOption('wangShuaiCol', e.target.checked)}>旺衰列</Checkbox>
+						<Checkbox checked={s.showTips !== false} onChange={(e)=>this.changeLiuyaoOption('showTips', e.target.checked)}>悬停提示</Checkbox>
+						<Checkbox checked={s.bianguaSimplify} onChange={(e)=>this.changeLiuyaoOption('bianguaSimplify', e.target.checked)}>之卦简显</Checkbox>
+						<Checkbox checked={s.yaoHotkeys} onChange={(e)=>this.changeLiuyaoOption('yaoHotkeys', e.target.checked)}>改爻快捷键(1-6)</Checkbox>
+					</div>
+					<div className="horosa-guazhan-set-subhead" style={{ marginTop: 8 }}>关联卦显示</div>
+					<div className="horosa-guazhan-toggle-grid">
+						{[['bian', '之卦'], ['hu', '互卦'], ['fu', '伏神'], ['zong', '综卦'], ['cuo', '错卦']].map(([k, l])=>{
+							const selArr = Array.isArray(s.relatedCards) ? s.relatedCards : null;
+							const on = !selArr || selArr.indexOf(k) >= 0;
+							return (
+								<Checkbox key={k} checked={on} onChange={(e)=>{
+									const all = ['bian', 'hu', 'fu', 'zong', 'cuo'];
+									const cur = selArr || all.slice();
+									const next = e.target.checked ? Array.from(new Set(cur.concat([k]))) : cur.filter((x)=>x !== k);
+									// 全选=回 null(默认态,preset 比对不受扰)
+									this.changeLiuyaoOption('relatedCards', next.length === all.length ? null : next);
+								}}>{l}</Checkbox>
+							);
+						})}
 					</div>
 					<div className="horosa-guazhan-shensha-entry">
 						<Button size="small" className="horosa-guazhan-shensha-btn" onClick={()=>this.setState({ shenshaModalOpen: true })}>
@@ -1767,6 +1863,17 @@ class GuaZhanMain extends Component{
 				{LIUYAO_PRESETS[schoolVal] && LIUYAO_PRESETS[schoolVal].note ? (
 					<div className="horosa-guazhan-set-note">{LIUYAO_PRESETS[schoolVal].note}</div>
 				) : null}
+				{/* [G9] 一键恢复出厂断卦设置(含全部新旧键;本命年支一并清空);确认后套「通用」预设并持久化 */}
+				<div style={{ marginTop: 8 }}>
+					<Button size="small" onClick={()=>{
+						Modal.confirm({
+							title: '恢复默认断卦设置?',
+							content: '全部断卦设置(流派/取法/显示/神煞)将重置为出厂默认。',
+							okText: '恢复默认', cancelText: '取消',
+							onOk: ()=>{ this.changeLiuyaoPreset('default'); },
+						});
+					}}>恢复默认设置</Button>
+				</div>
 			</XQSideSection>
 			{this.renderShenshaModal()}
 			</>

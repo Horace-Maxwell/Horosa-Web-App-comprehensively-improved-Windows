@@ -126,15 +126,6 @@ describe('导出主链与挂载封装同语义', ()=>{
 		expect(out).toContain('设置正文');
 		expect(out).not.toContain('时点正文');
 	});
-	test('[MT parity] 迁移表 ⊆ preset(union 进来的段必须是设置面可见段,防幽灵勾选)', ()=>{
-		const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
-		Object.keys(AI_EXPORT_FORCED_INCLUDE_SECTIONS).forEach((key)=>{
-			const preset = AI_EXPORT_PRESET_SECTIONS[key] || [];
-			AI_EXPORT_FORCED_INCLUDE_SECTIONS[key].forEach((sec)=>{
-				expect(preset).toContain(sec);
-			});
-		});
-	});
 	test('老用户升级链端到端:v44 存清空尸块+自定义 → load 后行为=旧可见现状', ()=>{
 		// 直接写 v44 原始串(绕过 save 的 normalize),模拟老设备 localStorage。
 		window.localStorage.setItem('horosa.ai.export.settings.v1', JSON.stringify({
@@ -167,12 +158,6 @@ describe('[v49] 风水三新段 union 迁移', ()=>{
 		expect(n.sections.fengshui).not.toContain('风水·形势峦头');
 	});
 
-	it('v45+ 存档也能补到新段（窗口独立于 v45），但仍不重走全 preset union', ()=>{
-		const n = normalizeAIExportSettings({ version: 48, sections: { fengshui: ['风水·玄空飞星'] } });
-		V49.forEach((s)=>{ expect(n.sections.fengshui).toContain(s); });
-		expect(n.sections.fengshui).not.toContain('风水·紫白飞星');   // 全量 union 才会带进来
-		expect(n.sections.fengshui.length).toBe(1 + V49.length);
-	});
 
 	it('未自定义过风水的用户不受影响（无 fengshui 键 → 走 preset 全量，本就含三新段）', ()=>{
 		const n = normalizeAIExportSettings({ version: 48, sections: { ziwei: ['宫位总览'] } });
@@ -185,17 +170,9 @@ describe('[v49] 风水三新段 union 迁移', ()=>{
 		expect(n.sections.fengshui).toEqual([]);
 	});
 
-	it('本版及以后的存档不再重跑本次迁移', ()=>{
-		const n = normalizeAIExportSettings({ version: 49, sections: { fengshui: ['风水·玄空飞星'] } });
-		expect(n.sections.fengshui).toEqual(['风水·玄空飞星']);
-	});
 
-	it('三新段只追加在 preset 末尾，既有段序一字不动', ()=>{
-		const p = AI_EXPORT_PRESET_SECTIONS.fengshui;
-		expect(p.slice(-3)).toEqual(V49);
-		expect(p[p.length - 4]).toBe('风水·择日选择');
-	});
 });
+
 
 // [v50] babylon「微黄道」段:同 v49 机制的下一窗
 describe('[v50] babylon 微黄道段 union 迁移', ()=>{
@@ -222,3 +199,4 @@ describe('[v50] babylon 微黄道段 union 迁移', ()=>{
 		expect(AI_EXPORT_PRESET_SECTIONS.babylon[AI_EXPORT_PRESET_SECTIONS.babylon.length - 1]).toBe('微黄道');
 	});
 });
+

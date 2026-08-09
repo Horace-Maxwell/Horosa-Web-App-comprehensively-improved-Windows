@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiChart.js b/astrostudyui/src/components/ziwei/ZiWeiChart.js
-index 375f818..b232482 100644
+index 2ce27b25..0a7c76ff 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiChart.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiChart.js
 @@ -2,9 +2,51 @@ import * as d3 from 'd3';
@@ -55,7 +55,7 @@ index 375f818..b232482 100644
  class ZiWeiChart extends Component{
  	constructor(props) {
  		super(props);
-@@ -166,6 +208,47 @@ class ZiWeiChart extends Component{
+@@ -174,6 +216,47 @@ class ZiWeiChart extends Component{
  		this.zwchart.draw();
  	}
  

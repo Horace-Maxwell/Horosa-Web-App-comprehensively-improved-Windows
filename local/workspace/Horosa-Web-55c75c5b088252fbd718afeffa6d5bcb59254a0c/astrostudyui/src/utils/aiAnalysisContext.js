@@ -51,6 +51,12 @@ import { buildRetrievedContextText } from './aiAnalysisRag';
 import { fetchPreciseNongli } from './preciseCalcBridge';
 import { buildLocalJieqiYearSeed } from './localNongliAdapter';
 import { calcDunJia, buildDunJiaSnapshotText } from '../components/dunjia/DunJiaCalc';
+import {
+	parseSnapshotSections as parseSanshiSnapshotSections,
+	SANSHI_TAIYI_SECTION_TITLES,
+	SANSHI_QIMEN_EXTRA_SECTIONS,
+	SANSHI_LIURENG_DUANGUA_SECTIONS,
+} from '../components/sanshi/sanshiSnapshotSections';
 import { fetchTaiyiPan, buildTaiyiSnapshotText } from '../components/taiyi/TaiYiCalc';
 import { applyTaiyiSchool, isDefaultSchool, DEFAULT_TAIYI_SCHOOL } from '../components/taiyi/core/taiyiSchool';
 import { buildTongSheFaModel, buildTongSheFaSnapshot } from '../components/tongshefa/TongSheFaMain';
@@ -987,18 +993,48 @@ async function regenerateSanshiUnifiedSnapshot(record, payload){
 		regenerateQimenSnapshot(record, payload),
 		regenerateTaiyiSnapshot(record, payload),
 	]);
-	const sections = [];
-	if(liurengText){
-		sections.push(`[大六壬]\n${liurengText}`);
-	}
-	if(qimenText){
-		sections.push(`[奇门遁甲]\n${qimenText}`);
-	}
-	if(taiyiText){
-		sections.push(`[太乙]\n${taiyiText}`);
-	}
-	if(sections.length){
-		return sections.join('\n\n').trim();
+	// [制度化] 🔴 与 live 页 buildSanShiUnitedSnapshotText 同源的挑段/前缀规则(sanshiSnapshotSections 单源):
+	// 此前三大全文按 [大六壬][奇门遁甲][太乙] 整篇嵌套 → 内嵌段头(盘型/全局速览…)被解析成独立段,
+	// 与 AI_EXPORT_PRESET_SECTIONS.sanshiunited 段名全失配 —— 自定义过三式段勾选的用户,
+	// 挂载重算内容被段过滤错杀/漏杀(全技法段登记哨兵抓获)。现:挑段按单源段单以前缀重发,
+	// 其余段的段头降格为「■段名」文本行并入各自顶段(风水包段先例;信息零丢失、段名恒 ⊆ preset)。
+	const flattenInto = (topTitle, fullText, pickTitles, prefix)=>{
+		const txt = `${fullText || ''}`.trim();
+		if(!txt){ return []; }
+		const map = parseSanshiSnapshotSections(txt);
+		const picked = new Set(pickTitles || []);
+		const bodyLines = [];
+		const lead = txt.split('\n');
+		// 无 [] 段结构的整文(如奇门金函形态)兜底:整文进顶段
+		if(!Object.keys(map).length){
+			return [`[${topTitle}]`, ...lead, ''];
+		}
+		// 段外前导行(首个段头前)先入顶段
+		for(let i = 0; i < lead.length; i++){
+			if(/^\[.+\]$/.test(lead[i].trim())){ break; }
+			bodyLines.push(lead[i]);
+		}
+		Object.keys(map).forEach((title)=>{
+			if(picked.has(title)){ return; }
+			bodyLines.push(`■ ${title}`);
+			bodyLines.push(...map[title]);
+		});
+		while(bodyLines.length && bodyLines[0] === ''){ bodyLines.shift(); }
+		const out = [`[${topTitle}]`, ...bodyLines, ''];
+		(pickTitles || []).forEach((title)=>{
+			const body = map[title];
+			if(!body || !body.length){ return; }
+			out.push(`[${prefix || ''}${title}]`, ...body, '');
+		});
+		return out;
+	};
+	const lines = [
+		...flattenInto('大六壬', liurengText, SANSHI_LIURENG_DUANGUA_SECTIONS, ''),
+		...flattenInto('奇门遁甲', qimenText, SANSHI_QIMEN_EXTRA_SECTIONS, '奇门'),
+		...flattenInto('太乙', taiyiText, SANSHI_TAIYI_SECTION_TITLES, '太乙'),
+	];
+	if(lines.length){
+		return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 	}
 	return buildSanshiUnifiedFallbackSnapshot(record, payload || {});
 }
@@ -1215,7 +1251,8 @@ async function deriveNongliForRecord(record){
 	}catch(e){ return null; }
 }
 
-async function regenerateCaseTechniqueSnapshot(record, moduleName, payload){
+// [制度化] export 供全技法段登记哨兵真跑(aiExportSectionsParityAll.test):生产消费不变。
+export async function regenerateCaseTechniqueSnapshot(record, moduleName, payload){
 	const key = normalizeTechniqueKey(moduleName || (payload && payload.module) || (record && record.sourceModule) || '');
 	if(!record || !key){
 		return '';
@@ -1613,17 +1650,35 @@ function buildChartZiweiParams(record){
 	if(record && record.sihuaSchool !== undefined && record.sihuaSchool !== null && `${record.sihuaSchool}` !== ''){
 		params.sihuaSchool = `${record.sihuaSchool}`;
 	}
+	// [A4] 随盘自定义四化表(JSON 文本):builder 端归一校验后临时注入 ZWSihuaCustom(用毕清),不写本机 LS。
+	if(record && record.sihuaCustomTable !== undefined && record.sihuaCustomTable !== null && `${record.sihuaCustomTable}`.trim() !== ''){
+		params.sihuaCustomTable = record.sihuaCustomTable;
+	}
+	// [B15] 小限顺逆:record 键名沿用 ziweiXiaoxianYinyang(零孤儿),映射到单例键 xiaoxianMode 经 SWITCH_KEYS 覆盖。
+	if(record && record.ziweiXiaoxianYinyang !== undefined && record.ziweiXiaoxianYinyang !== null && `${record.ziweiXiaoxianYinyang}` !== ''){
+		params.xiaoxianMode = `${record.ziweiXiaoxianYinyang}`;
+	}
+	// [B14] 随盘自定义亮度表(JSON 文本):同 A4 机制(注入 ZWBrightnessCustom,用毕清)。
+	if(record && record.brightnessCustomTable !== undefined && record.brightnessCustomTable !== null && `${record.brightnessCustomTable}`.trim() !== ''){
+		params.brightnessCustomTable = record.brightnessCustomTable;
+	}
 	// 传本/排盘开关:仅挂载侧显式覆盖(非默认,record 里才有)时挂上 → buildZiweiSnapshotForParams 临时切 ZWEngineOptions;
 	// 缺省不挂 → builder 回退全局单例 = 现状字节级一致。后端 /ziwei/birth 不读这些键(由本地引擎消费)。
 	['daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming',
-		'brightnessSource', 'childLimit', 'zhongxian', 'huoPan', 'qishuWei', 'borrowPalace', 'taiSuiRuGua'].forEach((k)=>{
+		'brightnessSource', 'lifeMasterBy', 'liuYueBasis', 'liunianSihuaGan', 'changshengStart', 'changshengDirection', 'kuiYue', 'kongwangStyle', 'flowLuanXi', 'flowHuoLing', 'flowShenshaOnChart', 'childLimit', 'zhongxian', 'huoPan', 'qishuWei', 'borrowPalace', 'taiSuiRuGua'].forEach((k)=>{
 		if(record && record[k] !== undefined && record[k] !== null && `${record[k]}` !== ''){
 			params[k] = record[k];
 		}
 	});
-	// 紫云关系人:record 存字符串生肖(空格/逗号分隔)→ 解析成 [{branch,role,sex}] 供 taiSuiRuGua 消费。
+	// 紫云关系人:record 存字符串(空格/逗号分隔)→ [{branch,role,sex}] 供 taiSuiRuGua 消费。
+	// [P2e] 文法扩展:每项支持 `支[:角色[:性别]]`(如「午:母:female 子」);裸支向后兼容(role/sex 空)。
 	if(record && record.taiSuiRelatives !== undefined && `${record.taiSuiRelatives}`.trim() !== ''){
-		const arr = `${record.taiSuiRelatives}`.split(/[\s,，、]+/).filter((b)=>'子丑寅卯辰巳午未申酉戌亥'.indexOf(b) >= 0).map((b)=>({ branch: b, role: '', sex: '' }));
+		const arr = `${record.taiSuiRelatives}`.split(/[\s,，、]+/).map((tok)=>{
+			const seg = `${tok}`.split(/[:：]/);
+			const b = seg[0];
+			if('子丑寅卯辰巳午未申酉戌亥'.indexOf(b) < 0 || !b){ return null; }
+			return { branch: b, role: seg[1] || '', sex: seg[2] || '' };
+		}).filter(Boolean);
 		if(arr.length){ params.taiSuiRelatives = arr; }
 	}
 	const period = buildChartZiweiPeriodFromRecord(record);
@@ -2261,7 +2316,8 @@ async function runBuilderScan(record, cfg){
 }
 
 // 命盘侧：按该盘的出生数据无头复算指定技法的快照文本。占卜/事盘走 Part F，不在此列。
-async function regenerateChartTechniqueSnapshot(record, key){
+// [制度化] export 供全技法段登记哨兵真跑(chart 技法入口:bazi/ziwei/indiachart/推运系)。
+export async function regenerateChartTechniqueSnapshot(record, key){
 	if(!record){
 		return '';
 	}
@@ -2269,25 +2325,10 @@ async function regenerateChartTechniqueSnapshot(record, key){
 		switch(normalizeTechniqueKey(key)){
 		case 'bazi':
 			return await buildBaziSnapshotForParams(buildChartBaziParams(record));
-		case 'ziwei': {
-			// 小限顺逆:消费点 ZWLuckPanel.buildXiaoxianItems 直读 localStorage('ziweiXiaoxianYinyang')——
-			// 齿轮值走「临时写入+finally 还原」(与紫微传本临时覆盖同口径),绝不永久改写用户全局偏好。
-			const xxv = record.ziweiXiaoxianYinyang;
-			if(xxv === undefined || xxv === null || `${xxv}` === '' ){
-				return await buildZiweiSnapshotForParams(buildChartZiweiParams(record));
-			}
-			let priorXx = null;
-			try{ priorXx = window.localStorage.getItem('ziweiXiaoxianYinyang'); }catch(e){ priorXx = null; }
-			try{
-				try{ safeLocalStorageSet('ziweiXiaoxianYinyang', `${xxv}`); }catch(e){ /* ignore */ }
-				return await buildZiweiSnapshotForParams(buildChartZiweiParams(record));
-			}finally{
-				try{
-					if(priorXx === null){ window.localStorage.removeItem('ziweiXiaoxianYinyang'); }
-					else{ safeLocalStorageSet('ziweiXiaoxianYinyang', priorXx); }
-				}catch(e){ /* ignore */ }
-			}
-		}
+		case 'ziwei':
+			// [B15] 小限顺逆已迁入 ZWEngineOptions.xiaoxianMode:record 值经 params 透传,
+			// builder 走 SWITCH_KEYS 临时覆盖+finally 还原——不再兜转 localStorage(崩溃残留会污染偏好)。
+			return await buildZiweiSnapshotForParams(buildChartZiweiParams(record));
 		case 'indiachart': {
 			// 挂载分盘可调(2026-07-05):record.indiaChartnum 经挂载齿轮设定;缺省 1=D1 现状零回归。
 			const indiaChartnum = Number(record && record.indiaChartnum) || 1;

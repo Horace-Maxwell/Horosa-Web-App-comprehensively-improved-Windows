@@ -81,7 +81,7 @@ describe('六爻装卦表/用神/动变 渲染冒烟(SSR,捕获运行时JSX错�
 		expect(a.related.fu.yaos).toHaveLength(6);
 		a.related.fu.yaos.forEach((y) => { expect(y.zhi && y.wuxing && y.liuqin).toBeTruthy(); });
 		const html = renderToStaticMarkup(<LiuYaoRelatedCards analysis={a} />);
-		['之卦', '互卦', '伏神卦', '综卦', '错卦'].forEach((lbl) => { expect(html).toContain(lbl); });
+		['之卦', '互卦', '伏神　', '综卦', '错卦'].forEach((lbl) => { expect(html).toContain(lbl); });   // 伏神卡=「伏神」+全角空格接卦名(与表头「伏神」列区分)
 	});
 
 	test('关联卡:静卦无之卦(bian=null),仍渲染互/伏神/综/错', () => {
@@ -110,5 +110,49 @@ describe('六爻装卦表/用神/动变 渲染冒烟(SSR,捕获运行时JSX错�
 			n++;
 		});
 		expect(n).toBe(64);
+	});
+});
+
+// ══ [G-C] 盘面显示组(之卦简显/关联卦显隐/旺衰列/提示总开关/对齐档/快捷键/恢复默认) ═══
+describe('[G-C] 六新键默认+接线守卫', ()=>{
+	const fs = require('fs'); const path = require('path');
+	const { DEFAULT_LIUYAO_SETTINGS, getLiuyaoOptionsKey } = require('../../gua/liuyaoSchools');
+	test('🔴 默认值=现状零回归;九新键全入 optionsKey(防 analysis 不重建死开关)', ()=>{
+		expect(DEFAULT_LIUYAO_SETTINGS.bianguaSimplify).toBe(false);
+		expect(DEFAULT_LIUYAO_SETTINGS.relatedCards).toBe(null);
+		expect(DEFAULT_LIUYAO_SETTINGS.wangShuaiCol).toBe(true);
+		expect(DEFAULT_LIUYAO_SETTINGS.showTips).toBe(true);
+		expect(DEFAULT_LIUYAO_SETTINGS.yaoHotkeys).toBe(false);
+		expect(DEFAULT_LIUYAO_SETTINGS.titleAlign).toBe('center');
+		const base = getLiuyaoOptionsKey({ ...DEFAULT_LIUYAO_SETTINGS });
+		[['randomAlgo', 'yarrow'], ['randomConfirm', true], ['defaultYaoState', 'shaoyin'],
+		 ['bianguaSimplify', true], ['relatedCards', ['hu']], ['wangShuaiCol', false],
+		 ['showTips', false], ['yaoHotkeys', true], ['titleAlign', 'right']].forEach(([k, v])=>{
+			expect(`${k}:${getLiuyaoOptionsKey({ ...DEFAULT_LIUYAO_SETTINGS, [k]: v }) !== base}`).toBe(`${k}:true`);
+		});
+	});
+	test('🔴 Board 接线:旺衰列/提示族/简显位集三守卫;RelatedCards 显隐过滤+之卦简显位集来自本卦动变', ()=>{
+		const src = fs.readFileSync(path.resolve(__dirname, '..', 'LiuYaoBoard.js'), 'utf8');
+		expect(src.includes("settings.wangShuaiCol === false")).toBe(true);
+		expect((src.match(/showWs \?/g) || []).length).toBe(2);   // Th+Cell 成对
+		expect(src.includes("settings.showTips === false")).toBe(true);
+		expect(/title=\{tipsOn && ZHI_CANGGAN/.test(src)).toBe(true);
+		expect(src.includes('simplifyPositions')).toBe(true);
+		expect(/simp && !simp\.has\(y\.pos\)/.test(src)).toBe(true);
+		expect(/relatedCards\) \? analysis\.settings\.relatedCards : null/.test(src)).toBe(true);
+		expect(/dongBian\.moves\.map\(\(m\) => m\.pos\)/.test(src)).toBe(true);
+		expect(/sel\.indexOf\(c\.key\) >= 0/.test(src)).toBe(true);
+	});
+	test('G10/G11/G9:快捷键守卫(输入框豁免+1-6域)/对齐档/恢复默认按钮(源码守卫)', ()=>{
+		const main = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
+		expect(/handleYaoHotkey[\s\S]{0,400}tag === 'input' \|\| tag === 'textarea' \|\| tag === 'select'/.test(main)).toBe(true);
+		expect(/n >= 1 && n <= 6/.test(main)).toBe(true);
+		expect(main.includes("window.addEventListener('keydown', this.handleYaoHotkey)")).toBe(true);
+		expect(main.includes("window.removeEventListener('keydown', this.handleYaoHotkey)")).toBe(true);
+		const chart = fs.readFileSync(path.resolve(__dirname, '..', 'GZChart.js'), 'utf8');
+		expect(chart.includes("settings.titleAlign === 'right'")).toBe(true);
+		expect(/alignRight \? \(cord\.x \+ cord\.w - len\)/.test(chart)).toBe(true);
+		expect(/恢复默认设置/.test(main)).toBe(true);
+		expect(/Modal\.confirm\(\{[\s\S]{0,200}恢复默认断卦设置/.test(main)).toBe(true);
 	});
 });

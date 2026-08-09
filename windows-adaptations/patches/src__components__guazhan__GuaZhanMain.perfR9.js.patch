@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guazhan/GuaZhanMain.js b/astrostudyui/src/components/guazhan/GuaZhanMain.js
-index 0a7a19c..3b54e43 100644
+index 75791375..49edb0f4 100644
 --- a/astrostudyui/src/components/guazhan/GuaZhanMain.js
 +++ b/astrostudyui/src/components/guazhan/GuaZhanMain.js
 @@ -33,6 +33,8 @@ import { setNongliLocalCache } from '../../utils/localCalcCache';
@@ -24,7 +24,7 @@ index 0a7a19c..3b54e43 100644
  		});
  	}
  
-@@ -1866,7 +1874,12 @@ class GuaZhanMain extends Component{
+@@ -1973,7 +1981,12 @@ class GuaZhanMain extends Component{
  		const muted = { color: 'var(--horosa-astro-muted, #928b82)', fontSize: 13 };
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-guazhan-tabs">
@@ -37,7 +37,7 @@ index 0a7a19c..3b54e43 100644
  					<div className="horosa-guazhan-info-card" style={scrollStyle}>
  						{analysis ? <LiuYaoXunKong analysis={analysis} /> : null}
  						{this.renderInfoRows()}
-@@ -1893,34 +1906,45 @@ class GuaZhanMain extends Component{
+@@ -2000,34 +2013,45 @@ class GuaZhanMain extends Component{
  							</div>
  						) : null}
  					</div>

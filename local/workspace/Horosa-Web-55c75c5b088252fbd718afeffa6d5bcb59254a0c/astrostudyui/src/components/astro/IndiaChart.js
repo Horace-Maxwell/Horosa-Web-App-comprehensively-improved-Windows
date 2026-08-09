@@ -1171,6 +1171,7 @@ class IndiaChart extends Component{
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.requestChartObj = this.requestChartObj.bind(this);
 		this.getIndiaOptionOverrides = this.getIndiaOptionOverrides.bind(this);
+		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 
 		if(this.props.hook){
 			// suppressFetch:本实例不自取(数据由父层 chartObj prop 提供,避免单盘模式重复取数+二次渲染)。
@@ -1214,6 +1215,7 @@ class IndiaChart extends Component{
 			this.props.onChartLoad(result, params);
 		}
 		const snapshotFields = sourceFields || this.props.fields;
+		this._lastSnapshotChartnum = params ? params.chartnum : null;
 		const snapshotText = buildIndiaSnapshotText(result, snapshotFields, params ? params.chartnum : null, this.props.hook);
 		if(snapshotText){
 			const fractal = resolveIndiaFractal(params ? params.chartnum : null, this.props.hook);
@@ -1265,6 +1267,13 @@ class IndiaChart extends Component{
 
 	componentDidMount(){
 		this._mounted = true;
+		// [制度化] AI 导出实时取数:导出侧派发 refresh 事件,这里用当前显示的盘即时构建快照并回填——
+		// 不依赖懒存缓存是否在(reload 后未重排时缓存为空,此前缺此监听 → 显示有盘却报
+		// 「当前页面没有可导出文本」;与 ZiWeiMain 同款范式)。所有实例都监听:单盘模式显示的是
+		// suppressFetch 副本(数据在 props.chartObj),handler 兼容两形态+先到先得幂等防竞写。
+		if(typeof window !== 'undefined'){
+			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
 		// suppressFetch:不自取,数据走父层 chartObj prop。
 		if(this.props.suppressFetch){
 			return;
@@ -1274,6 +1283,46 @@ class IndiaChart extends Component{
 
 	componentWillUnmount(){
 		this._mounted = false;
+		if(typeof window !== 'undefined'){
+			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
+	}
+
+	// 与排盘完成路径同口径的数据源:result=this.state.chartObj(盘渲染读的同一份),
+	// chartnum=最近一次写入用的 _lastSnapshotChartnum。写三键(通用/current/分盘号)与写入点一致。
+	handleSnapshotRefreshRequest(evt){
+		const moduleName = evt && evt.detail ? `${evt.detail.module || ''}` : '';
+		if(moduleName.indexOf('indiachart') !== 0){
+			return;
+		}
+		// 先到先得幂等:已有实例回填则不再覆盖(多实例并存时任一有数据者胜出,绝不互踩)。
+		if(evt && evt.detail && `${evt.detail.snapshotText || ''}`.trim()){
+			return;
+		}
+		// 兼容两形态:自取实例=state.chartObj;suppressFetch 副本=父层 props.chartObj(单盘模式显示的正是副本)。
+		const result = (this.state && this.state.chartObj) || this.props.chartObj || null;
+		if(!result){
+			return;
+		}
+		let text = '';
+		let fractal = null;
+		try{
+			text = `${buildIndiaSnapshotText(result, this.props.fields, this._lastSnapshotChartnum || null, this.props.hook) || ''}`.trim();
+			fractal = resolveIndiaFractal(this._lastSnapshotChartnum || null, this.props.hook);
+		}catch(e){
+			text = '';
+		}
+		if(text){
+			const meta = { fractal, label: resolveIndiaLabel(fractal, this.props.hook) };
+			saveModuleAISnapshot('indiachart', text, meta);
+			saveModuleAISnapshot('indiachart_current', text, meta);
+			if(fractal !== null && fractal !== undefined){
+				saveModuleAISnapshot(`indiachart_${fractal}`, text, meta);
+			}
+			if(evt && evt.detail && typeof evt.detail === 'object'){
+				evt.detail.snapshotText = text;
+			}
+		}
 	}
 
 	componentDidUpdate(prevProps){

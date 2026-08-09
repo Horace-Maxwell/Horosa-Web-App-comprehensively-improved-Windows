@@ -1,26 +1,27 @@
-// docx 构造助手 · 单源(v2 底座,行为零变化)。供各 docx 导出链共用。
+// docx 构造助手 · 单源（v2 底座:自 reportExport.js 逐字平移,行为零变化）。
+// 供 reportExport(AI 报告 docx) 与 aiExportDocRender(技法导出 docx) 共用。
 // ⚠️ 本文件静态 import 'docx'(较重):aiExport 主链严禁静态 import 本文件——
 //   必须经 aiExportDocRender 动态 import(代码分包),否则 docx 进主包(哨兵看护)。
-// docx 的对齐/边框等枚举在 jest 下偶尔解构为 undefined,一律沿用字符串字面量。
+// docx 的对齐/边框等枚举在 jest 下偶尔解构为 undefined,沿用字符串字面量(reportExport 先例)。
 
 import { TextRun, Paragraph, Table, TableRow, TableCell } from 'docx';
+import { mdInlineSegments } from './aiExportDocModel';
 
-// 行内 markdown(**粗** / *斜* / `码`)→ docx TextRun[];段落与表格单元格共用。
+// 行内 markdown(***粗斜*** / **粗** / *斜* / `码` / ~~删~~ / 转义)→ docx TextRun[];
+// 段落与表格单元格共用。[E11] 分词一律走 aiExportDocModel.mdInlineSegments 单一 tokenizer,
+// **本函数不得再自养 `\*\*` 正则** —— 四条消费链能力分叉正是「所见≠所得」的根因(哨兵[201] 看守)。
 export function mdInlineToRuns(text, baseOpts){
 	const base = baseOpts || {};
 	const src = `${text == null ? '' : text}`;
 	if(!src) return [new TextRun({ ...base, text: '' })];
-	const runs = [];
-	const re = /\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`/g;
-	let last = 0; let m;
-	while((m = re.exec(src))){
-		if(m.index > last){ runs.push(new TextRun({ ...base, text: src.slice(last, m.index) })); }
-		if(m[1] != null){ runs.push(new TextRun({ ...base, text: m[1], bold: true })); }
-		else if(m[2] != null){ runs.push(new TextRun({ ...base, text: m[2], italics: true })); }
-		else if(m[3] != null){ runs.push(new TextRun({ ...base, text: m[3], font: 'Courier New' })); }
-		last = re.lastIndex;
-	}
-	if(last < src.length){ runs.push(new TextRun({ ...base, text: src.slice(last) })); }
+	const runs = mdInlineSegments(src).map((s)=> new TextRun({
+		...base,
+		text: s.text,
+		...(s.bold ? { bold: true } : {}),
+		...(s.em ? { italics: true } : {}),
+		...(s.del ? { strike: true } : {}),
+		...(s.code ? { font: 'Courier New' } : {}),
+	}));
 	return runs.length ? runs : [new TextRun({ ...base, text: '' })];
 }
 
@@ -75,7 +76,7 @@ export function makeDocxTable(headers, bodyRows, aligns){
 	return new Table({ rows });
 }
 
-// dataURL → Uint8Array(docx ImageRun 输入)。
+// dataURL → Uint8Array(docx ImageRun 输入;自 reportExport 平移)。
 export function dataUrlToUint8Array(dataUrl){
 	if(!dataUrl || typeof dataUrl !== 'string') return null;
 	const idx = dataUrl.indexOf(',');

@@ -26,9 +26,12 @@ describe('账①②：AI 导出段登记 与 导出设置面板（同源 preset�
 			expect(PRESET).toContain(header);
 		});
 	});
-	it('preset 里的「风水·」段与十六项一一对应，无多余无遗漏', ()=>{
+	it('preset 里的「风水·」段与十六项一一对应，无多余无遗漏(+v51 形势图判=图像分析段,非流派段)', ()=>{
 		const inPreset = PRESET.filter((s)=>s.indexOf('风水·') === 0).sort();
-		const expected = Object.keys(SCHOOL_CN).map((k)=>`风水·${SCHOOL_CN[k]}`).sort();
+		// [v51] 「风水·形势图判」=AI 分析页图像分析工作台快照的整块包段(extractFengShuiContent 追加),
+		// 不属理气十六流派 → 单列白名单;流派段仍与 SCHOOL_CN 一一对应。
+		const expected = [...Object.keys(SCHOOL_CN).map((k)=>`风水·${SCHOOL_CN[k]}`)];
+		expected.sort();
 		expect(inPreset).toEqual(expected);
 	});
 	it('导出设置面板的候选项即 preset（勾得到才导得出）', ()=>{
