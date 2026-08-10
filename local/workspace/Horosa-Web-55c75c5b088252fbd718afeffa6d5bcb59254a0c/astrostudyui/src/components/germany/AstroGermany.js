@@ -94,6 +94,7 @@ class AstroGermany extends Component{
 							height={childHeight}
 							fields={this.props.fields}
 							chart={this.props.chart}
+							wheelArt={this.props.wheelArt}
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
@@ -131,6 +132,7 @@ class AstroGermany extends Component{
 								height={childHeight}
 								fields={this.props.fields}
 								chart={this.props.chart}
+								wheelArt={this.props.wheelArt}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

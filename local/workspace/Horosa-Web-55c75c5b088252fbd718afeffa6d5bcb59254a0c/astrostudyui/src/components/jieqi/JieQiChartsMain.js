@@ -1707,6 +1707,7 @@ export class JieQiChartsMain extends Component{
 							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 							showAstroMeaning={this.props.showAstroMeaning}
 							chartStyle={this.props.chartStyle}
+							wheelArt={this.props.wheelArt}
 							dispatch={this.props.dispatch}
 						/>) : null}
 				</TabPane>

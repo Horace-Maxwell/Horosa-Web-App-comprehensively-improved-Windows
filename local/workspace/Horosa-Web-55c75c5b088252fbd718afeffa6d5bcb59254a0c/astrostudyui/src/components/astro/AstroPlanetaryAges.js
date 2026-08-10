@@ -138,6 +138,7 @@ class AstroPlanetaryAges extends Component{
 				<Row gutter={6}>
 					<Col span={16}>
 						<AstroChart
+							wheelArt={this.props.wheelArt}
 							value={this.props.value}
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}

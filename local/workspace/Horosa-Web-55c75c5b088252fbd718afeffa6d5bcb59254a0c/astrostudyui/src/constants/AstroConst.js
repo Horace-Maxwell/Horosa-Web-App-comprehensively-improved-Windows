@@ -1359,6 +1359,28 @@ export function normalizeChartStyle(value){
     return found ? found.value : CHART_STYLE_CURRENT;
 }
 
+// 盘面美术(wheel art):西占各技法共用的盘体画法。classic=经典圆盘(现状唯一画法,恒缺省);
+// 其余四档为方形覆盘(whole-sign 格盘):hellenistic 复用东印井字、northIndian/southIndian 复用印度盘几何、
+// medieval 为独立排版(1/4/7/10 恒居内方形四边中点三角)。归一层缺省恒 classic —— 不传参调用方零字节漂移。
+export const WHEEL_ART_CLASSIC = 'classic';
+export const WHEEL_ART_HELLENISTIC = 'hellenistic';
+export const WHEEL_ART_MEDIEVAL = 'medieval';
+export const WHEEL_ART_NORTH_INDIAN = 'northIndian';
+export const WHEEL_ART_SOUTH_INDIAN = 'southIndian';
+
+export const WHEEL_ART_OPTIONS = [
+    { value: WHEEL_ART_CLASSIC, label: '经典圆盘' },
+    { value: WHEEL_ART_HELLENISTIC, label: '希腊盘' },
+    { value: WHEEL_ART_MEDIEVAL, label: '中世纪盘' },
+    { value: WHEEL_ART_NORTH_INDIAN, label: '北印度盘' },
+    { value: WHEEL_ART_SOUTH_INDIAN, label: '南印度盘' },
+];
+
+export function normalizeWheelArt(value){
+    const found = WHEEL_ART_OPTIONS.find((item)=>item.value === value);
+    return found ? found.value : WHEEL_ART_CLASSIC;
+}
+
 export const INDIA_CHART_STYLE_NORTH = 'north';
 export const INDIA_CHART_STYLE_SOUTH = 'south';
 export const INDIA_CHART_STYLE_EAST = 'east';

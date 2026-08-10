@@ -332,6 +332,7 @@ class AstroRelocationLab extends Component{
 									value={relocChart}
 									chartDisplay={this.props.chartDisplay}
 									chartStyle={this.props.chartStyle}
+									wheelArt={this.props.wheelArt}
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
 									showAstroMeaning={this.props.showAstroMeaning}

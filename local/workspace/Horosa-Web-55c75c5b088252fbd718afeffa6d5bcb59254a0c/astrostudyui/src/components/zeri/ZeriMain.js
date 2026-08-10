@@ -116,6 +116,7 @@ export default class ZeriMain extends Component{
 					>
 						<TabPane tab="天星择日" key="tianxing">
 							<TianxingElectionMain
+							wheelArt={this.props.wheelArt}
 								fields={this.props.fields}
 								height={childHeight}
 								chartDisplay={this.props.chartDisplay}

@@ -104,6 +104,7 @@ class AstroMarks extends Component{
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}
 										chartStyle={this.props.chartStyle}
+										wheelArt={this.props.wheelArt}
 										dispatch={this.props.dispatch}
 										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
@@ -128,6 +129,7 @@ class AstroMarks extends Component{
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}
 										chartStyle={this.props.chartStyle}
+										wheelArt={this.props.wheelArt}
 										dispatch={this.props.dispatch}
 										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}

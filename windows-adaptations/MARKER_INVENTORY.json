@@ -544,6 +544,7 @@
    "start_horosa_local.sh": 1
   },
   "horosa_win_pathsep_posix_v1": {
+   "astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js": 1,
    "astrostudyui/src/components/common/__tests__/quickDockContract.test.js": 1,
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1,
    "astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js": 1

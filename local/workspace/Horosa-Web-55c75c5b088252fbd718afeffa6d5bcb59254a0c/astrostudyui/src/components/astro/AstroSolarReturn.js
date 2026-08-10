@@ -517,6 +517,7 @@ class AstroSolarReturn extends Component{
 							<TabPane tab="返照盘" key="singlechart">
 								<FreezeSubTab active={chartTab === 'singlechart'}>
 									<AstroChart value={rChart}
+										wheelArt={this.props.wheelArt}
 										chartDisplay={this.props.chartDisplay}
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}
@@ -528,6 +529,7 @@ class AstroSolarReturn extends Component{
 							<TabPane tab="原命盘" key="nautalchart">
 								<FreezeSubTab active={chartTab === 'nautalchart'}>
 									<AstroChart value={chartObj.natualChart}
+										wheelArt={this.props.wheelArt}
 										chartDisplay={this.props.chartDisplay}
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}

@@ -346,7 +346,7 @@ export default class UranianHouseFrames extends Component {
 			frameChart ? (
 				// key=frame:换框时强制重建标准盘(确保按新 houses 重绘,不吃旧 d3 签名)。
 				<div style={{ width: chartSize, height: chartSize, maxWidth: '100%' }}>
-					<AstroChart key={`frame-${frame}`} value={frameChart} chartDisplay={this.props.chartDisplay || AstroConst.CHART_DEFAULTOPTS} planetDisplay={this.props.planetDisplay} lotsDisplay={this.props.lotsDisplay} showAstroMeaning={this.props.showAstroMeaning} width="100%" height="100%" />
+					<AstroChart key={`frame-${frame}`} value={frameChart} wheelArt={this.props.wheelArt} chartDisplay={this.props.chartDisplay || AstroConst.CHART_DEFAULTOPTS} planetDisplay={this.props.planetDisplay} lotsDisplay={this.props.lotsDisplay} showAstroMeaning={this.props.showAstroMeaning} width="100%" height="100%" />
 				</div>
 			) : (
 				curFrame ? <UranianFrameWheel cusps={curFrame.cusps} points={this.state.points} size={wheelSize} frameKey={frame} label={FRAME_LABEL[frame]} />

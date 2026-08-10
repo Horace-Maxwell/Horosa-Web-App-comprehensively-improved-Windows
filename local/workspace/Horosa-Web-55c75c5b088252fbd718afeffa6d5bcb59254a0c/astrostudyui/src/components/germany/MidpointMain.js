@@ -39,6 +39,8 @@ function sameMidpointValue(a, b){
 const MIDPOINTMAIN_SCU_KEYS = [
 	'value', 'chartDisplay', 'planetDisplay', 'lotsDisplay', 'showAstroMeaning', 'height',
 	'onChange', 'fields', 'hidezodiacal', 'hidehsys', 'hidedateselector', 'indiahsys',
+	// 盘面美术:漏登=改档被本层 sCU 拦截,量化盘恒圆盘(2026-08-09 实报)。
+	'wheelArt',
 ];
 const MIDPOINTMAIN_SCU_COMPARATORS = {
 	value: sameMidpointValue,
@@ -166,6 +168,7 @@ class MidpointMain extends Component{
 				<Row gutter={6} className="horosa-midpoint-layout">
 					<Col span={18} className="horosa-midpoint-chart-col">
 							<AstroChart value={chartObj} 
+								wheelArt={this.props.wheelArt}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}

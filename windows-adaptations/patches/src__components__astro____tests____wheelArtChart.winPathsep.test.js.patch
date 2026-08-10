@@ -1,0 +1,32 @@
+diff --git a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
+index 60d32753..baeb7350 100644
+--- a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
++++ b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
+@@ -251,10 +251,17 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
+ 		'components/astro/AstroZR.js',
+ 	]);
+ 
++	// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):
++	// `path.relative` 在 Windows 返回反斜杠分隔(`components\astro\AstroZR.js`),
++	// 而 CONSUMER_EXEMPT 的键是 POSIX 写法 ⇒ 键查不中 ⇒ **成文豁免失效**,
++	// AstroZR 被误报成违规(macOS 上恒绿,只在 Windows 假红)。统一归一为 POSIX 再查。
++	// 仓内同类先例:chartFreeContract / quickDockContract / heavyEngineImportGraph 三个契约测试同 marker。
++	const relPosix = (from, to) => path.relative(from, to).split(path.sep).join('/');
++
+ 	it('每个 <AstroChart 渲染点:要么带 wheelArt= 要么在成文豁免名单', ()=>{
+ 		const offenders = [];
+ 		glob(path.join(SRC_ROOT, 'components'), []).forEach((full)=>{
+-			const rel = path.relative(SRC_ROOT, full);
++			const rel = relPosix(SRC_ROOT, full);
+ 			const src = fs.readFileSync(full, 'utf8');
+ 			let idx = 0;
+ 			for(;;){
+@@ -286,7 +293,7 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
+ 			}
+ 			const m = src.match(/const\s+\w*_SCU_KEYS\s*=\s*\[([\s\S]*?)\]/);
+ 			if(m && !m[1].includes("'wheelArt'")){
+-				offenders.push(path.relative(SRC_ROOT, full));
++				offenders.push(relPosix(SRC_ROOT, full));
+ 			}
+ 		});
+ 		expect(offenders).toEqual([]);

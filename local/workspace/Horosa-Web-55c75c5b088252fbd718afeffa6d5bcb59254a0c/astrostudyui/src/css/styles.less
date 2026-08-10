@@ -503,4 +503,68 @@
 			font-size: 17px;
 		}
 	}
+
+	// ---- 盘面美术(wheel art)方形覆盘:西占希腊/中世纪/北印/南印画法(AstroWheelArtChart)。
+	// 布局与字号复用印度盘族;此处只补西占专属:角点红标、中世纪星座徽章白底框、宫头度分三段排。
+	.horosa-wheelart-board .horosa-india-square-object,
+	.horosa-wheelart-south-board .horosa-india-square-object {
+		padding: 0;
+		border-radius: 0;
+		background: transparent;
+		box-shadow: none;
+		line-height: 15px;
+		text-shadow:
+			0 1px 0 var(--horosa-surface-solid, #ffffff),
+			0 0 8px var(--horosa-surface-solid, #ffffff);
+	}
+
+	.horosa-wheelart-board .horosa-india-square-object-name {
+		font-size: 15px;
+	}
+
+	.horosa-wheelart-board .horosa-india-square-object-degree,
+	.horosa-wheelart-board .horosa-india-square-retro {
+		font-size: 10px;
+	}
+
+	.horosa-wheelart-angle .horosa-india-square-object-name,
+	.horosa-wheelart-angle .horosa-india-square-object-degree {
+		color: var(--horosa-wheelart-angle, #b03a2e);
+		font-weight: 700;
+	}
+
+	// 星座徽章三段排(度° glyph 分′):glyph 居中,宫头度分列两边;中世纪盘徽章骑分宫线 → 白色半透明底框防线穿字。
+	// glyph 字形字体逐字宽差异大(如狮子偏窄)→ 钉 min-width 居中,保证全部星座与度分的间隔一致。
+	.horosa-wheelart-board .horosa-india-diagram-sign {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		white-space: nowrap;
+	}
+
+	.horosa-wheelart-board .horosa-india-diagram-sign .horosa-india-square-sign-symbol {
+		display: inline-block;
+		min-width: 15px;
+		text-align: center;
+	}
+
+	.horosa-wheelart-cusp-deg {
+		color: var(--horosa-text-soft, #52627a);
+		font-size: 10px;
+		line-height: 12px;
+		font-weight: 600;
+	}
+
+	.horosa-wheelart-sign-boxed {
+		padding: 1px 4px;
+		border-radius: 4px;
+		background: var(--horosa-surface-solid, #ffffff);
+		box-shadow: 0 0 0 1px var(--horosa-border, rgba(76, 98, 134, 0.17));
+	}
+
+	.horosa-wheelart-medieval-board,
+	.horosa-wheelart-hellenistic-board,
+	.horosa-wheelart-northIndian-board {
+		background: var(--horosa-surface-solid, #ffffff);
+	}
 }

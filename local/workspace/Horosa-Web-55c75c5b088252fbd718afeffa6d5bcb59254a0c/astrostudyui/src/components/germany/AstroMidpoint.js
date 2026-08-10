@@ -701,11 +701,12 @@ class AstroMidpoint extends Component{
 
 		return (
 			<div className="horosa-midpoint-host">
-					<MidpointMain 
-						value={chartObj} 
+					<MidpointMain
+						value={chartObj}
 						onChange={this.onFieldsChange}
-						fields={fields} 
-						height={height} 
+						fields={fields}
+						height={height}
+						wheelArt={this.props.wheelArt}
 						chartDisplay={this.props.chartDisplay}
 						planetDisplay={this.props.planetDisplay}
 						lotsDisplay={this.props.lotsDisplay}

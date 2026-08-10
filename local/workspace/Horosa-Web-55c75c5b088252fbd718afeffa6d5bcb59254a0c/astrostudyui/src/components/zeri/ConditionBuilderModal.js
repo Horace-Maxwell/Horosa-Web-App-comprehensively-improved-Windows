@@ -119,6 +119,7 @@ function MiniChartPopup({ params, title, onClose, display }){
 				{chartObj ? (
 					<div style={{ position: 'absolute', inset: 0 }}>
 						<AstroChart value={chartObj}
+							wheelArt={this.props.wheelArt}
 							chartDisplay={(display || {}).chartDisplay}
 							planetDisplay={(display || {}).planetDisplay}
 							lotsDisplay={(display || {}).lotsDisplay}

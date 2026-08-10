@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroSolarReturn.js b/astrostudyui/src/components/astro/AstroSolarReturn.js
-index b4c475d..cef4336 100644
+index aaad6538..2bb56d95 100644
 --- a/astrostudyui/src/components/astro/AstroSolarReturn.js
 +++ b/astrostudyui/src/components/astro/AstroSolarReturn.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -133,7 +133,7 @@ index b4c475d..cef4336 100644
  
  		return (
  			<div>
-@@ -460,36 +505,47 @@ class AstroSolarReturn extends Component{
+@@ -460,12 +505,18 @@ class AstroSolarReturn extends Component{
  						{/* keep-stale 角标:重取期间旧返照盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
  						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
@@ -151,9 +151,10 @@ index b4c475d..cef4336 100644
 -									<AstroChart value={rChart} 
 +								<FreezeSubTab active={chartTab === 'singlechart'}>
 +									<AstroChart value={rChart}
+ 										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
- 										lotsDisplay={this.props.lotsDisplay}
+@@ -473,9 +524,11 @@ class AstroSolarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -163,9 +164,10 @@ index b4c475d..cef4336 100644
 -									<AstroChart value={chartObj.natualChart} 
 +								<FreezeSubTab active={chartTab === 'nautalchart'}>
 +									<AstroChart value={chartObj.natualChart}
+ 										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
- 										lotsDisplay={this.props.lotsDisplay}
+@@ -483,15 +536,18 @@ class AstroSolarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>

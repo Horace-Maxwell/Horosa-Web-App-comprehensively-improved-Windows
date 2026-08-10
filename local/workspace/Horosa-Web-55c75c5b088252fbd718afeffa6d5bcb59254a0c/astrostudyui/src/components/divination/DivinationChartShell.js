@@ -20,6 +20,30 @@ import DateTime from '../comp/DateTime';
 import { GLOSSARY } from '../../divination/data/glossary';
 import { openDivinationCaseDrawer, getDivinationSavedCasePayload } from '../../utils/divinationCaseSave';
 import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import * as Constants from '../../utils/constants';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
+
+// 盘面美术跨会话:本壳非 connect 组件,直接读写 globalSetup 的 wheelArt 键(与 app model 同一存储,口径一致)。
+function readStoredWheelArt(){
+	try{
+		const json = localStorage.getItem(Constants.GlobalSetupKey);
+		const cfg = json ? JSON.parse(json) : null;
+		return AstroConst.normalizeWheelArt(cfg && cfg.wheelArt);
+	}catch(e){
+		return AstroConst.normalizeWheelArt(undefined);
+	}
+}
+
+function writeStoredWheelArt(wheelArt){
+	try{
+		const json = localStorage.getItem(Constants.GlobalSetupKey);
+		const cfg = json ? JSON.parse(json) : {};
+		cfg.wheelArt = AstroConst.normalizeWheelArt(wheelArt);
+		safeLocalStorageSet(Constants.GlobalSetupKey, JSON.stringify(cfg));
+	}catch(e){
+		// 存储不可用时静默:本会话内 state 仍生效。
+	}
+}
 
 // 「设置→星盘设置」全局古典参数 → 本盘热同步键集(缺省=全量;卜卦页收窄——
 // 流派学理绑定的键(界系/双子界序/福点反转/宫制/星群)恒以流派为准,不被全局改动冲掉)。
@@ -94,6 +118,8 @@ class DivinationChartShell extends Component{
 			busy: false,
 			err: null,
 			chartStyle: AstroConst.normalizeChartStyle ? AstroConst.normalizeChartStyle(undefined) : 'current',
+			// 盘面美术:非 connect 组件,挂载时从 globalSetup 读跨会话值;变更走 changeWheelArt(有 dispatch 则同步 app model)。
+			wheelArt: readStoredWheelArt(),
 			extra: props.initialExtra || {},
 			glossaryOpen: false,
 		};
@@ -107,6 +133,7 @@ class DivinationChartShell extends Component{
 		this.changeGeo = this.changeGeo.bind(this);
 		this.changeField = this.changeField.bind(this);
 		this.changeChartStyle = this.changeChartStyle.bind(this);
+		this.changeWheelArt = this.changeWheelArt.bind(this);
 		this.castNow = this.castNow.bind(this);
 		this.setExtra = this.setExtra.bind(this);
 		this.setTimeDt = this.setTimeDt.bind(this);
@@ -392,6 +419,17 @@ class DivinationChartShell extends Component{
 		this.setState({ chartStyle });
 	}
 
+	changeWheelArt(val){
+		const wheelArt = AstroConst.normalizeWheelArt(val && val.target ? val.target.value : val);
+		this.setState({ wheelArt });
+		// 有 dispatch 走 app/save(写 model+globalSetup 一致);无 dispatch 直接写 globalSetup —— 两路都跨会话。
+		if(this.props.dispatch){
+			this.props.dispatch({ type: 'app/save', payload: { wheelArt } });
+		}else{
+			writeStoredWheelArt(wheelArt);
+		}
+	}
+
 	setExtra(patch, cb){
 		this.setState((s)=>({ extra: { ...s.extra, ...patch } }), cb);
 	}
@@ -488,11 +526,33 @@ class DivinationChartShell extends Component{
 
 				<div className="horosa-chart-style-block" style={{ marginTop: 12 }}>
 					<div className="horosa-side-section-title">星盘样式</div>
-					<XQSegmented
-						value={this.state.chartStyle}
-						onChange={this.changeChartStyle}
-						options={AstroConst.CHART_STYLE_OPTIONS}
-					/>
+					<div className="horosa-field-grid">
+						<div className="horosa-field-block" title={this.state.wheelArt === AstroConst.WHEEL_ART_CLASSIC ? undefined : '方形盘不分外环样式,仅经典圆盘下生效'}>
+							<div className="horosa-field-label">外环样式</div>
+							<XQSelect
+								style={{width: '100%'}}
+								size="small"
+								value={this.state.chartStyle}
+								onChange={this.changeChartStyle}
+								dropdownMatchSelectWidth={false}
+								disabled={this.state.wheelArt !== AstroConst.WHEEL_ART_CLASSIC}
+							>
+								{AstroConst.CHART_STYLE_OPTIONS.map((item)=>(<XQSelect.Option value={item.value} key={item.value}>{item.label}</XQSelect.Option>))}
+							</XQSelect>
+						</div>
+						<div className="horosa-field-block">
+							<div className="horosa-field-label">盘面美术</div>
+							<XQSelect
+								style={{width: '100%'}}
+								size="small"
+								value={this.state.wheelArt}
+								onChange={this.changeWheelArt}
+								dropdownMatchSelectWidth={false}
+							>
+								{AstroConst.WHEEL_ART_OPTIONS.map((item)=>(<XQSelect.Option value={item.value} key={item.value}>{item.label}</XQSelect.Option>))}
+							</XQSelect>
+						</div>
+					</div>
 				</div>
 				</XQSideSection>
 
@@ -525,6 +585,7 @@ class DivinationChartShell extends Component{
 								<AstroChart value={chartObj}
 									chartDisplay={this.props.chartDisplay}
 									chartStyle={this.state.chartStyle}
+									wheelArt={this.state.wheelArt}
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
 									showAstroMeaning={this.props.showAstroMeaning}

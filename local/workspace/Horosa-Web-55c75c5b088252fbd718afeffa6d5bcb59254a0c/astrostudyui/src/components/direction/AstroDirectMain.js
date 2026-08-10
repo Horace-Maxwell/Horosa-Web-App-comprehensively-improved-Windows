@@ -1745,6 +1745,7 @@ class AstroDirectMain extends Component{
 						<FreezeInactive active={this.state.currentTab === "solarreturn"}>
 						<AstroSolarReturn 
 							value={this.props.chartObj} 
+							wheelArt={this.props.wheelArt}
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
@@ -1760,6 +1761,7 @@ class AstroDirectMain extends Component{
 						<FreezeInactive active={this.state.currentTab === "lunarreturn"}>
 						<AstroLunarReturn 
 							value={this.props.chartObj} 
+							wheelArt={this.props.wheelArt}
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
@@ -1775,6 +1777,7 @@ class AstroDirectMain extends Component{
 						<FreezeInactive active={this.state.currentTab === "givenyear"}>
 						<AstroGivenYear 
 							value={this.props.chartObj} 
+							wheelArt={this.props.wheelArt}
 							height={height} 
 							chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
@@ -1801,6 +1804,7 @@ class AstroDirectMain extends Component{
 						<FreezeInactive active={this.state.currentTab === "decennials"}>
 						<AstroDecennials
 							value={this.props.chartObj}
+							wheelArt={this.props.wheelArt}
 							height={height}
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}
@@ -1831,6 +1835,7 @@ class AstroDirectMain extends Component{
 						<FreezeInactive active={this.state.currentTab === "planetaryages"}>
 							<AstroPlanetaryAges
 								value={this.props.chartObj}
+								wheelArt={this.props.wheelArt}
 								height={height}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
@@ -1900,6 +1905,7 @@ class AstroDirectMain extends Component{
 							<FreezeInactive active={this.state.currentTab === "prenatalsyzygy"}>
 							<AstroPrenatalSyzygy
 								value={this.props.chartObj}
+								wheelArt={this.props.wheelArt}
 								height={height}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}

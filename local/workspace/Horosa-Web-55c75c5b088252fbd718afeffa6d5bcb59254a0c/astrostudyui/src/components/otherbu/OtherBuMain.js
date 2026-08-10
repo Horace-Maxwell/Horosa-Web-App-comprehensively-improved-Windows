@@ -66,6 +66,7 @@ class OtherBuMain extends Component{
 		return (
 			<div id={this.state.divId} className="horosa-aux-module-page xq-chart-renderer xq-chart-renderer-dice">
 				<DiceMain
+					wheelArt={this.props.wheelArt}
 					height={height}
 					fields={this.props.fields}
 					chartDisplay={this.props.chartDisplay}

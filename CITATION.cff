@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.8.0
+version: 3.8.1
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,27 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.8.0 beta is a local-first metaphysics workstation. This release is a
+  Horosa for Windows v3.8.1 beta is a local-first metaphysics workstation. This release brings
+  "wheel art" to every Western-astrology single chart: the same chart can be drawn in five
+  interchangeable styles — the classic circular wheel plus four square overlay renderings
+  (a Greek nine-cell grid with the first house always the full left-middle cell; a medieval
+  inscribed square with twelve triangles where houses 1/4/7/10 sit at the four edge centers,
+  sign badges riding cusp midpoints on white backing and planets anchored at triangle
+  centroids; a North-Indian diamond board with fixed houses and signs rotating with the
+  ascendant; and a South-Indian fixed-sign grid with house numbers rotating with the
+  ascendant). Planets enter their sign cells with degree-minutes and retrograde marks, Asc/MC
+  are marked in red, and quadrant-system cusp projections are annotated automatically. A
+  two-dropdown chart-style card (outer-ring style + wheel art) applies instantly, syncs
+  app-wide, persists across sessions, and has a same-source entry in the chart-settings
+  drawer. Coverage spans natal, the synastry family, the entire auxiliary-chart family
+  (quantified midpoints and six-house frame, thirteenth/twelfth divisions, reset, harmonic,
+  draconic and dice charts), horary, electional (including astronomical election condition
+  previews), mundane, solar-term charts, firdaria, profections and prenatal syzygy;
+  double-wheel overlays such as progressions/returns stay on the classic wheel. It also fixes
+  auxiliary pages ignoring the chart-style selection, the quantified chart not following
+  global settings, a blank wheel after switching back from square styles, and the hidden-page
+  repaint mechanism failing after a wheel-art change; sign glyphs are now fixed-width so
+  narrow glyphs no longer overlap degree text. It builds on the v3.8.0 release — a
   broad settings expansion across three techniques: Qi Men Dun Jia gains about forty-two new
   options including two complete standalone systems (quarter-hour Qi Men, and the day-based
   Jin Han almanac board), plus eight-spirit selection, central-palace lodging, hidden-stem

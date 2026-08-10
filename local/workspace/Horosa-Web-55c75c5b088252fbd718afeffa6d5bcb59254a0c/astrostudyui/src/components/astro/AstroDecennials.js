@@ -767,6 +767,7 @@ class AstroDecennials extends Component{
 				<Row gutter={6}>
 					<Col span={14}>
 						<AstroChart
+							wheelArt={this.props.wheelArt}
 							value={this.props.value}
 							chartDisplay={this.props.chartDisplay}
 							planetDisplay={this.props.planetDisplay}

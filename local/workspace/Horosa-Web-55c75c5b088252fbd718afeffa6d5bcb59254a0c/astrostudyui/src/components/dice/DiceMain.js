@@ -591,7 +591,8 @@ class DiceMain extends Component{
 						>
 								<TabPane tab="骰子盘" key="touzichart">
 									<FreezeSubTab active={this.state.chartTab === 'touzichart'}>{() => (
-										<AstroChart value={this.state.diceChart} 
+										<AstroChart value={this.state.diceChart}
+											wheelArt={this.props.wheelArt}
 											keyPlanets={keyPlanets}
 											chartDisplay={chartDisp}
 											planetDisplay={planetDisp}
@@ -603,7 +604,8 @@ class DiceMain extends Component{
 								</TabPane>
 								<TabPane tab="天象盘" key="chart">
 									<FreezeSubTab active={this.state.chartTab === 'chart'}>{() => (
-										<AstroChart value={this.state.chart} 
+										<AstroChart value={this.state.chart}
+											wheelArt={this.props.wheelArt}
 											chartDisplay={this.props.chartDisplay}
 											planetDisplay={this.props.planetDisplay}
 											lotsDisplay={this.props.lotsDisplay}

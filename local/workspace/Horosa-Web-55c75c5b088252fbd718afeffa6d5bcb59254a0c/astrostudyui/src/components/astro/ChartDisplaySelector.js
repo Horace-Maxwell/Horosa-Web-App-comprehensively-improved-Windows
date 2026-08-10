@@ -254,7 +254,7 @@ class ChartDisplaySelector extends Component{
 
 		return (
 			<div className="horosa-selector-drawer">
-				{/* ① 盘面显示 —— 四子组勾选卡 */}
+				{/* ① 盘面显示 —— 四子组勾选卡 + 盘面美术(与左栏「星盘样式」卡同源,写 app model 全局生效) */}
 				<div className="horosa-selector-section">
 					<XQSectionTitle>盘面显示</XQSectionTitle>
 					{displayGroups.map((s)=>(
@@ -265,6 +265,23 @@ class ChartDisplaySelector extends Component{
 							</XQCheckList>
 						</div>
 					))}
+					<div className="horosa-selector-subgroup">
+						<div className="horosa-selector-subtitle">盘面美术</div>
+						<XQSelect
+							size="small"
+							style={{width: 200}}
+							value={AstroConst.normalizeWheelArt(this.props.wheelArt)}
+							dropdownMatchSelectWidth={false}
+							onChange={(e)=>{
+								const wheelArt = e && e.target ? e.target.value : e;
+								if(this.props.dispatch){
+									this.props.dispatch({ type: 'app/save', payload: { wheelArt } });
+								}
+							}}
+						>
+							{AstroConst.WHEEL_ART_OPTIONS.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+						</XQSelect>
+					</div>
 				</div>
 
 				{/* ② 经典尊贵显示 —— 盘面尊贵三环 */}

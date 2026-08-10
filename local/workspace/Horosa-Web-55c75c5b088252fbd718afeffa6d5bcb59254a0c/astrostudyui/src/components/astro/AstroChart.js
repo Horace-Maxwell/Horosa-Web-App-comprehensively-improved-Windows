@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { Component } from 'react';
+import React, { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Constants from '../../utils/constants';
@@ -7,6 +7,7 @@ import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import { watchChartSvgResize } from '../../utils/chartDrawGuard';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import AstroChartCircle from './AstroChartCircle';
+import AstroWheelArtChart from './AstroWheelArtChart';
 
 // sCU(根因 E):本组件 render 输出 + drawChart/AstroChartCircle 消费的「全部影响盘面输出的 props」。
 // 逐项核(grep this.props.* 全集 = 12 项,见 drawChart 转发与 render):
@@ -24,6 +25,8 @@ import AstroChartCircle from './AstroChartCircle';
 const ASTROCHART_SCU_KEYS = [
 	'value', 'chartDisplay', 'planetDisplay', 'lotsDisplay', 'keyPlanets', 'aspects',
 	'chartStyle', 'zrHighlightSign', 'showAstroMeaning', 'width', 'height', 'style', 'id',
+	// 盘面美术:非 classic 时 render 整体切到方形覆盘组件 → 改档必须触发重渲染,漏登=死开关。
+	'wheelArt',
 	// 卜卦判读叠层(二期):描述对象经 horaryOverlayData 单槽 memo,同盘同设置=同引用 → Object.is 即可;
 	// 占星页恒 undefined,零行为变化。
 	'horaryOverlay',
@@ -113,6 +116,9 @@ class AstroChart extends Component{
 			horaryOverlay: this.props.horaryOverlay,   // memo 稳引用,引用比;undefined(占星页)恒等
 			hideBodies: this.props.hideBodies,         // 世俗盘流派渲染白名单;undefined 恒等
 			chartStyle: this.props.chartStyle,
+			// 盘面美术纳入签名:方盘期 svg 被卸载、d3 内容随之销毁,切回 classic 时若签名不含此维度,
+			// 守卫会误判「输入未变」跳过重画 → 白屏(2026-08-09 世俗盘实报)。方盘早退分支另清签名双保险。
+			wheelArt: this.props.wheelArt,
 			// 相位选择纳入签名:desposeAspects 按 AstroConst.AspKey(localStorage)过滤相位线,该选择不在任何 props 数据对象内,
 			// 不纳入则切相位时签名恒等 → 守卫误判跳过、相位线不重画(死选项)。取 localStorage 同源,与实际绘制依据一致。
 			aspKey: (typeof window !== 'undefined' && window.localStorage) ? (window.localStorage.getItem(AstroConst.AspKey) || '') : '',
@@ -146,6 +152,7 @@ class AstroChart extends Component{
 			&& a.horaryOverlay === b.horaryOverlay
 			&& sameDisplayList(a.hideBodies, b.hideBodies)
 			&& a.chartStyle === b.chartStyle
+			&& a.wheelArt === b.wheelArt
 			&& a.aspKey === b.aspKey
 			&& a.zrHl === b.zrHl
 			&& a.meaning === b.meaning
@@ -157,6 +164,12 @@ class AstroChart extends Component{
 	}
 
 	drawChart(){
+		// 方形覆盘期无 <svg> 宿主(render 已切走),d3 管线整体休眠;切回 classic 时 svg 重挂,DidUpdate 自然重画。
+		// 🔴 必须同时清重绘签名:svg 是新空节点,旧签名残留会让守卫误判「画过」跳过重画 → 切回白屏。
+		if(AstroConst.normalizeWheelArt(this.props.wheelArt) !== AstroConst.WHEEL_ART_CLASSIC){
+			this._lastDrawnSig = null;
+			return;
+		}
 		let chartobj = this.props.value;
 		if(chartobj === undefined || chartobj === null ||
 			chartobj.chart === undefined || chartobj.chart === null || chartobj.err){
@@ -274,6 +287,18 @@ class AstroChart extends Component{
 		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制被尺寸早退吞掉,切回 tab 无 React 更新
 		// 可触发重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
+		this._observedSvg = document.getElementById(this.state.chartid);
+	}
+
+	// 方盘期 React 替换掉 <svg> 节点,旧 ResizeObserver 观察的是已 detach 的节点(永不触发);
+	// 切回 classic 后 svg 是新节点 → 必须重挂 observer,否则「隐藏 tab 变可见补画」只剩 120ms retry 兜底。
+	ensureSvgResizeWatcher(){
+		const svgdom = document.getElementById(this.state.chartid);
+		if(svgdom && svgdom !== this._observedSvg){
+			if(this._detachSvgResize){ this._detachSvgResize(); }
+			this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
+			this._observedSvg = svgdom;
+		}
 	}
 
 	shouldComponentUpdate(nextProps, nextState){
@@ -288,6 +313,7 @@ class AstroChart extends Component{
 	}
 
 	componentDidUpdate(){
+		this.ensureSvgResizeWatcher();
 		this.drawChart();
 		this.scheduleDrawRetry();
 	}
@@ -307,6 +333,19 @@ class AstroChart extends Component{
 	}
 
 	render(){
+		// 盘面美术分叉:非 classic → 方形覆盘组件(希腊/中世纪/北印/南印),classic → 既有 d3 圆盘管线零字节不动。
+		const wheelArt = AstroConst.normalizeWheelArt(this.props.wheelArt);
+		if(wheelArt !== AstroConst.WHEEL_ART_CLASSIC){
+			return (
+				<AstroWheelArtChart
+					value={this.props.value}
+					wheelArt={wheelArt}
+					planetDisplay={this.props.planetDisplay}
+					lotsDisplay={this.props.lotsDisplay}
+					height={this.props.height}
+				/>
+			);
+		}
 		let chartstyle = {
 			width: this.props.width ? this.props.width : '100%',
 			height: this.props.height ? this.props.height : '100%',

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroGivenYear.js b/astrostudyui/src/components/astro/AstroGivenYear.js
-index 0dfe715..1d72a02 100644
+index 86030f56..febc724b 100644
 --- a/astrostudyui/src/components/astro/AstroGivenYear.js
 +++ b/astrostudyui/src/components/astro/AstroGivenYear.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -133,7 +133,7 @@ index 0dfe715..1d72a02 100644
  
  		return (
  			<div className="horosa-givenyear-page">
-@@ -462,36 +507,46 @@ class AstroGivenYear extends Component{
+@@ -462,12 +507,17 @@ class AstroGivenYear extends Component{
  						{/* keep-stale 角标:重取期间旧盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
  						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
@@ -150,9 +150,10 @@ index 0dfe715..1d72a02 100644
 -									<AstroChart value={rChart} 
 +								<FreezeSubTab active={chartTab === 'singlechart'}>
 +									<AstroChart value={rChart}
+ 										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
- 										lotsDisplay={this.props.lotsDisplay}
+@@ -475,9 +525,11 @@ class AstroGivenYear extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -162,9 +163,10 @@ index 0dfe715..1d72a02 100644
 -									<AstroChart value={chartObj.natualChart} 
 +								<FreezeSubTab active={chartTab === 'nautalchart'}>
 +									<AstroChart value={chartObj.natualChart}
+ 										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
- 										lotsDisplay={this.props.lotsDisplay}
+@@ -485,15 +537,18 @@ class AstroGivenYear extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>

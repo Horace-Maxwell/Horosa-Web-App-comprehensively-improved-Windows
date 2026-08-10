@@ -224,6 +224,7 @@ class AstroChartMain extends Component{
 		this.openDrawer = this.openDrawer.bind(this);
 		this.newChart = this.newChart.bind(this);
 		this.changeChartStyle = this.changeChartStyle.bind(this);
+		this.changeWheelArt = this.changeWheelArt.bind(this);
 		this.changeIndiaChartStyle = this.changeIndiaChartStyle.bind(this);
 		this.toggleChartDisplayOption = this.toggleChartDisplayOption.bind(this);
 		this.navigateFeature = this.navigateFeature.bind(this);
@@ -454,6 +455,54 @@ class AstroChartMain extends Component{
 				},
 			});
 		}
+	}
+
+	changeWheelArt(e){
+		const wheelArt = e && e.target ? e.target.value : e;
+		if(this.props.dispatch){
+			this.props.dispatch({
+				type: 'app/save',
+				payload: {
+					wheelArt,
+				},
+			});
+		}
+	}
+
+	// 星盘样式:一行两下拉 —— 外环样式(清简/经典)| 盘面美术(五档)。左栏卡片与浮层双入口同源。
+	// 方形美术盘无外环概念 → 外环下拉置灰并注明,防「点了没反应」的死开关观感。
+	renderWheelStyleGrid(chartStyle){
+		const wheelArt = AstroConst.normalizeWheelArt(this.props.wheelArt);
+		const isClassicWheel = wheelArt === AstroConst.WHEEL_ART_CLASSIC;
+		return (
+			<div className="horosa-field-grid">
+				<div className="horosa-field-block" title={isClassicWheel ? undefined : '方形盘不分外环样式,仅经典圆盘下生效'}>
+					<div className="horosa-field-label">外环样式</div>
+					<XQSelect
+						style={{width: '100%'}}
+						size="small"
+						value={chartStyle}
+						onChange={this.changeChartStyle}
+						dropdownMatchSelectWidth={false}
+						disabled={!isClassicWheel}
+					>
+						{AstroConst.CHART_STYLE_OPTIONS.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+					</XQSelect>
+				</div>
+				<div className="horosa-field-block">
+					<div className="horosa-field-label">盘面美术</div>
+					<XQSelect
+						style={{width: '100%'}}
+						size="small"
+						value={wheelArt}
+						onChange={this.changeWheelArt}
+						dropdownMatchSelectWidth={false}
+					>
+						{AstroConst.WHEEL_ART_OPTIONS.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
+					</XQSelect>
+				</div>
+			</div>
+		);
 	}
 
 	changeIndiaChartStyle(e){
@@ -688,11 +737,7 @@ class AstroChartMain extends Component{
 								options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
 							/>
 						) : (
-							<XQSegmented
-								value={chartStyle}
-								onChange={this.changeChartStyle}
-								options={AstroConst.CHART_STYLE_OPTIONS}
-							/>
+							this.renderWheelStyleGrid(chartStyle)
 						)}
 					</div>
 				</XQSideSection>
@@ -841,11 +886,7 @@ class AstroChartMain extends Component{
 							options={AstroConst.INDIA_CHART_STYLE_OPTIONS}
 						/>
 					) : (
-						<XQSegmented
-							value={chartStyle}
-							onChange={this.changeChartStyle}
-							options={AstroConst.CHART_STYLE_OPTIONS}
-						/>
+						this.renderWheelStyleGrid(chartStyle)
 					)}
 				</div>
 				<ChartDisplaySelector
@@ -854,6 +895,7 @@ class AstroChartMain extends Component{
 					showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 					showAstroMeaning={this.props.showAstroMeaning}
 					showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
+					wheelArt={this.props.wheelArt}
 					fields={this.props.fields}
 					dispatch={this.props.dispatch}
 				/>
@@ -1073,11 +1115,13 @@ class AstroChartMain extends Component{
 											chartObj,
 											height: chartHeight,
 											chartStyle: this.props.chartStyle,
+											wheelArt: this.props.wheelArt,
 										})
 									) : (
 										<AstroChart value={chartObj}
 											chartDisplay={this.props.chartDisplay}
 											chartStyle={this.props.chartStyle}
+											wheelArt={this.props.wheelArt}
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}
 										aspects={this.props.aspects}

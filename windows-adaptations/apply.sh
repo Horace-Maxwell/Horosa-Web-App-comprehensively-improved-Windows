@@ -318,6 +318,10 @@ apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/common/__te
 # 相对路径,与正斜杠期望表 toEqual 一一比对;Windows 反斜杠 → found != entries 假红。同法 split(path.sep).join('/') 归一。
 apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/chartFreeContract.test.js src__utils__chartFreeContract.pathsep.test.js.patch
 apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js src__utils____tests____heavyEngineImportGraph.winPathsep.test.js.patch
+# Mac v3.8.1 新增的 wheelArtChart 传链完备性总锁同类(仓内第 4 例):CONSUMER_EXEMPT 键是 POSIX 写法
+# ('components/astro/AstroZR.js'),Windows path.relative 反斜杠 → 成文豁免失效 → AstroZR 被误报
+# 「<AstroChart 渲染点缺 wheelArt=」假红(macOS 恒绿)。同法 relPosix() 归一;豁免语义零放宽。
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js src__components__astro____tests____wheelArtChart.winPathsep.test.js.patch
 
 echo "== 26. PERF-R9 前端:交互跨度观测 + L1 真 LRU(纯观测/纯修 bug,功能零降级;跨平台,建议上游化 Mac) =="
 # ① horosa_interaction_span_v1 —— 端到端「点击 → 中栏+右栏画完」测量。改之前这套观测**量不出**

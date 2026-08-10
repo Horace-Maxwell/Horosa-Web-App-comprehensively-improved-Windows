@@ -65,6 +65,7 @@ class AstroDraconicLab extends Component {
 									<AstroChart
 										value={chartObj}
 										chartStyle={this.props.chartStyle}
+										wheelArt={this.props.wheelArt}
 										chartDisplay={this.props.chartDisplay}
 										planetDisplay={this.props.planetDisplay}
 										lotsDisplay={this.props.lotsDisplay}

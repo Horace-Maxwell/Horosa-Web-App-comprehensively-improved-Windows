@@ -80,6 +80,7 @@ class Dwadasamsa12Main extends Component{
 					fields={fields}
 					height={height}
 					chartStyle={this.props.chartStyle}
+					wheelArt={this.props.wheelArt}
 					dispatch={this.props.dispatch}
 					chartDisplay={this.props.chartDisplay}
 					planetDisplay={this.props.planetDisplay}

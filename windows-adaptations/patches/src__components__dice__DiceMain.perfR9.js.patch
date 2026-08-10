@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/dice/DiceMain.js b/astrostudyui/src/components/dice/DiceMain.js
-index 4b0bbb3..6bb4608 100644
+index 1620780b..65ee83a5 100644
 --- a/astrostudyui/src/components/dice/DiceMain.js
 +++ b/astrostudyui/src/components/dice/DiceMain.js
 @@ -23,6 +23,8 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
@@ -41,7 +41,7 @@ index 4b0bbb3..6bb4608 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -571,28 +580,37 @@ class DiceMain extends Component{
+@@ -571,30 +580,39 @@ class DiceMain extends Component{
  			<div className='horosa-dice-page'>
  				<Row gutter={14} className='horosa-dice-layout'>
  					<Col span={17} className='horosa-dice-chart-panel'>
@@ -56,6 +56,7 @@ index 4b0bbb3..6bb4608 100644
  						>
  								<TabPane tab="骰子盘" key="touzichart">
 -									<AstroChart value={this.state.diceChart} 
+-										wheelArt={this.props.wheelArt}
 -										keyPlanets={keyPlanets}
 -										chartDisplay={chartDisp}
 -										planetDisplay={planetDisp}
@@ -64,7 +65,8 @@ index 4b0bbb3..6bb4608 100644
 -										height={chartHeight}
 -									/>
 +									<FreezeSubTab active={this.state.chartTab === 'touzichart'}>{() => (
-+										<AstroChart value={this.state.diceChart} 
++										<AstroChart value={this.state.diceChart}
++											wheelArt={this.props.wheelArt}
 +											keyPlanets={keyPlanets}
 +											chartDisplay={chartDisp}
 +											planetDisplay={planetDisp}
@@ -76,6 +78,7 @@ index 4b0bbb3..6bb4608 100644
  								</TabPane>
  								<TabPane tab="天象盘" key="chart">
 -									<AstroChart value={this.state.chart} 
+-										wheelArt={this.props.wheelArt}
 -										chartDisplay={this.props.chartDisplay}
 -										planetDisplay={this.props.planetDisplay}
 -										lotsDisplay={this.props.lotsDisplay}
@@ -83,7 +86,8 @@ index 4b0bbb3..6bb4608 100644
 -										height={chartHeight}
 -									/>
 +									<FreezeSubTab active={this.state.chartTab === 'chart'}>{() => (
-+										<AstroChart value={this.state.chart} 
++										<AstroChart value={this.state.chart}
++											wheelArt={this.props.wheelArt}
 +											chartDisplay={this.props.chartDisplay}
 +											planetDisplay={this.props.planetDisplay}
 +											lotsDisplay={this.props.lotsDisplay}
