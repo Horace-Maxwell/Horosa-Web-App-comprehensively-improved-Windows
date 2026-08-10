@@ -10,7 +10,7 @@
 
 ## 本版验收头
 
-- version: 3.8.0
+- version: 3.8.1
 - build: release(v3.8.0 **设置面大补齐轮**:奇门 +42 档[含刻家奇门/日家金函系两个独立体系]
   + 紫微亮度多派系与自定义亮度表 + 六爻 11 档 + 八字长生三档接活 + 三式全量同步 +
   **AI 分析首开改渐进载入**[上游根治:轻数据先行、资料库/会话史后台分批,首帧不再等全量读完]
@@ -201,6 +201,29 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.8.1(2026-08-10 同步轮;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `13d0f977`)**:
+  warmReady 中位 **6290 / 6392ms**(p95 6412 / 6491),两臂相距 **+1.6%** 落在噪声内
+  ⇒ **构建自洽,无回归信号**。**workspaceVisible 794 / 765ms**(p95 849 / 780,
+  预算 1500 内 ✓);spawnToVisible 1068 / 1028ms。
+  工件:`docs/perf-artifacts/startup_ab_v381_warmstamp.json`(逐样本 + 机器指纹)。
+- **🔴 绝对值必须按 #64 读:本轮机器态仍是「睿频压制」态**(与 v3.8.0 戳同态):
+  `currentClockMHz 2611 == maxClockMHz 2611`(W-11955M 睿频 ~4.5GHz ⇒ **turboSuppressedLikely: true**)、
+  `mumuRunning: true`(owner 的 MuMu 模拟器常驻,**绝不擅杀 —— owner 红线**)。
+  故 warmReady 超 4500 预算属机器态,门如实打 `OVER(check #64 machine state first)`。
+- **★跨轮对照(同机同压制态,这才是能说话的比较)**:v3.8.0 轮 **6846 / 6661ms** →
+  本轮 **6290 / 6392ms**,**快约 6%** —— 方向上不存在回归。
+- **★台架结构限制照旧**(承 v3.7.2~v3.8.0 记档):样本跑在 `resourceMode: direct` 且 ready 即被杀
+  ⇒ 加速档链不建成(本轮 artifact 记 `uberJar:false / staticJsa:false / anyJsa:2`)。
+  **该台架的绝对值恒是「失活态」读数,只能做双臂/跨轮对照,不能当建成态验收数。**
+- **★最硬的论据 = 代码级不变性(逐文件核过)**:启动路径**零改动** —— Electron 壳 **0 文件**;
+  Python **0 文件**(本轮零 Python 改动);Java 仅 `RuntimeWire` 版本号常量。前端为纯渲染路径
+  (盘面美术 wheelArt prop 穿线 + 新 AstroWheelArtChart 组件),不在启动就绪链上;
+  workspaceVisible 794/765ms 与 v3.8.0 的 867/842ms 同域即为实证。
+- **★增量更新**:差量门实测 **10MB / 1.2% 下载 / 98.8% 复用**(星历/JDK/玄史等大件与 v3.8.0
+  逐字节一致不重下;CDS 档 byte-identical vs 3.8.0),健康。
+
 ### 温启对照 v3.8.0(2026-08-09 同步轮;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `d3febced`)**:
