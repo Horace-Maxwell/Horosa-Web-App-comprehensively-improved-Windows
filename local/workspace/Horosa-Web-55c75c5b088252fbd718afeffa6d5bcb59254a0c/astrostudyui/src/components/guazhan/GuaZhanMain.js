@@ -28,6 +28,7 @@ import { LiuYaoZhuangTable, LiuYaoYongShenView, LiuYaoDongBianView, LiuYaoRelate
 import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { getStore } from '../../utils/storageutil';
+import { caseApplySeqSuffix, caseFieldSnapshot } from '../../utils/kentangCaseSave';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
 import { setNongliLocalCache } from '../../utils/localCalcCache';
 import XQIcon from '../xq-icons';
@@ -471,7 +472,9 @@ class GuaZhanMain extends Component{
 		}
 		const cid = `${currentCase.cid.value}`;
 		const updateTime = currentCase.updateTime && currentCase.updateTime.value ? `${currentCase.updateTime.value}` : '';
-		const caseVersion = `${cid}|${updateTime}`;
+		// 载入代次后缀走共用件(kentangCaseSave.caseApplySeqSuffix):不带它则同一条记录第二次载入
+		// 会被下面那道去重守卫拦掉,屏幕上仍是用户后来新起的卦。禁另抄一份。
+		const caseVersion = `${cid}|${updateTime}${caseApplySeqSuffix(userState)}`;
 		if(!force && this.lastRestoredCaseId === caseVersion){
 			return;
 		}
@@ -1631,7 +1634,9 @@ class GuaZhanMain extends Component{
 						pos: flds.pos ? flds.pos.value : '',
 						// [X1] 性别影响取用神(占婚男取妻财/女取官鬼),快照头已随之 —— record 不存则载入回落全局值致用神错位。
 						gender: flds.gender && (flds.gender.value === 0 || flds.gender.value === 1) ? flds.gender.value : null,
-						payload: payload,
+						// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
+						// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
+						payload: { ...payload, fieldSnapshot: caseFieldSnapshot(flds) },
 						sourceModule: 'guazhan',
 					},
 				},

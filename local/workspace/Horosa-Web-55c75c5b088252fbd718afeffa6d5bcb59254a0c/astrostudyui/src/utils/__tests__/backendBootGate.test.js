@@ -35,6 +35,12 @@ describe('[B1] backendBootGate', ()=>{
 	});
 
 	test('early=1:后端未起(拒连)则重试,起了才放行', async ()=>{
+		// 🔴 本例只管「拒连要重试、起了才放行」,与 giveUp 兜底无关(那条另有专例、且自带紧预算)。
+		//    公共 beforeEach 的 giveUpMs=200 是墙钟:全量并行跑时 jest 多 worker 抢核,
+		//    两次探活加一次 sleep 就能超 200ms → 循环在第三次探活前走了兜底放行 → 只探到 2 次而判红
+		//    (实测全量里偶发,独占跑 3/3 必绿)。故本例单独把预算放到 5s(正常只需几十 ms,留百倍余量),让兜底不可能先触发;
+		//    断言本身一个字没动,兜底行为的覆盖由第 64 行那条专例保证。
+		__resetBackendBootGateForTest({ retryMs: 5, giveUpMs: 5000 });
 		setSearch('?early=1');
 		expect(isEarlyBootMode()).toBe(true);
 		fetchMock

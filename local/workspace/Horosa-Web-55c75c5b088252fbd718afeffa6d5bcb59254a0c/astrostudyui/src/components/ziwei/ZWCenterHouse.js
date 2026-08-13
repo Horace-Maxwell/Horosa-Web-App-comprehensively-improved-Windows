@@ -7,9 +7,38 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import ZWCommHouse from './ZWCommHouse';
 import D3Arrow from '../graph/D3Arrow';
 import { drawTextV, drawDashLine, } from '../graph/GraphHelper';
+import { formatLonDms, formatLatDms } from '../astro/AstroHelper';   // 中宫经纬度按度分秒显示
 import { ZWEngineOptions } from './ziweiOptions';   // 手册补齐:河洛一六共宗连线
 
+// 中宫文本按可用宽自适应。
+// 🔴 为什么必须有:中宫的「命主/身主/子斗/斗君」是四项均分一行,每项只有中宫宽的 1/4;
+// 值由各技法自行填(借用中宫的策天把「时辰(13-15)·流年YYYY」塞进斗君那格),一长就冲出中宫
+// 压在相邻宫的星名上——用户实报「中间栏严重失真」。治在渲染层而非叫调用方自己数字数:
+// 中宫是共用件,凡往里填字符串的技法都可能超,逐个约束调用方必漏。
+// 两档降级:①先按比例缩字号(下限 0.72 倍,再小读不清);②仍超宽则尾部截断加省略号。
+// SVG 测量在无布局环境(jsdom/SSR)下不可用,此时静默保持原样 —— 与本函数引入前逐字节同行为。
+export function fitTextToWidth(sel, maxWidth, size){
+	const el = sel && typeof sel.node === 'function' ? sel.node() : null;
+	if(!el || typeof el.getComputedTextLength !== 'function' || !(maxWidth > 0)){ return; }
+	const measure = ()=>{ try{ return el.getComputedTextLength(); }catch(e){ return 0; } };
+	let w = measure();
+	if(!w || w <= maxWidth){ return; }
+	sel.attr('font-size', `${Math.max(size * 0.72, size * (maxWidth / w))}px`);
+	w = measure();
+	if(!w || w <= maxWidth){ return; }
+	const full = `${sel.text()}`;
+	for(let n = full.length - 1; n > 0; n -= 1){
+		sel.text(`${full.slice(0, n)}…`);
+		w = measure();
+		if(!w || w <= maxWidth){ return; }
+	}
+}
+
 class ZWCenterHouse extends ZWCommHouse {
+	// 「命盘信息」按钮几何:内容避让与按钮落位共用同一组数,改一处两处同步(分别写死必然错位)。
+	static INFO_BTN_H = 34;
+	static INFO_BTN_GAP = 10;
+
 	constructor(option){
 		super(option);
 
@@ -49,12 +78,58 @@ class ZWCenterHouse extends ZWCommHouse {
 	// [D4] 中宫内容分派器:clean=现状空;bazi=四柱要素;full=全量信息。
 	// 自适应版式:内容撑满中宫可用宽,字号/行距/列距全部按中宫尺寸推导,窗口缩放即联动;
 	// 整块垂直居中(底部让位信息按钮)。取数 best-effort:缺块跳过不阻断盘面。
+	// 中宫档位真值:借用中宫的技法(策天/演禽)各有各的档位,由 chartObj.centerContentMode 带进来;
+	// 缺省(紫微自身)才读全局 ziweiCenterContent。
+	// 🔴 不共用一个键:三者共用会「在策天调档,紫微跟着变」——同一个渲染器不等于同一份用户偏好。
+	resolveCenterMode(){
+		const m = this.chartObj && this.chartObj.centerContentMode;
+		if(m === 'clean' || m === 'bazi' || m === 'full'){ return m; }
+		return ZiWeiHelper.zwCenterContent();
+	}
+
 	drawCenterContent(){
-		const mode = ZiWeiHelper.zwCenterContent();
+		const mode = this.resolveCenterMode();
 		if(mode === 'clean'){
 			return;
 		}
+		// 内容统一画进一个组:画完后与「命盘信息」按钮做碰撞收敛(见 fitContentAboveButton)。
+		this.contentG = this.svg.append('g').attr('class', 'horosa-ziwei-center-content');
 		try{ this.drawCenterInfoPanel(mode); }catch(e){ /* 内容块缺数据=部分绘制,不阻断盘面 */ }
+		try{ this.fitContentAboveButton(); }catch(e){ /* 无布局环境(SSR/jsdom)测不了 bbox=保持原样 */ }
+	}
+
+	// 🔴 借用中宫的技法(策天/演禽)不画「命盘信息」按钮:那颗按钮是不透明的,钉在中宫里就会压住
+	// 四柱与命星行(用户实报两处被挡,并定案「不如直接把这个按钮去掉」)。它在那两法里本也是多余的
+	// —— 起盘时地、命/身/胎、三元、运限右栏各有一整块在显示。紫微自身不受影响(那里它是唯一入口)。
+	centerButtonHidden(){
+		return !!(this.chartObj && this.chartObj.kinastroBorrowed);
+	}
+
+	// 内容可用到的下边界。按钮在时给它让位;按钮不画时内容一直用到中宫底(只留一点呼吸位)。
+	// 两处唯一真值:本方法 + drawInfoButton 的 y 都由它推。
+	centerButtonTop(){
+		const bottom = this.y + this.height - ZWCenterHouse.INFO_BTN_GAP;
+		return this.centerButtonHidden() ? bottom : bottom - ZWCenterHouse.INFO_BTN_H;
+	}
+
+	// 🔴 内容与按钮的重叠必须靠**布局约束**收敛,不能靠调间距数值碰运气:
+	// 中宫内容行数随档位(bazi/full)、随技法(借用中宫的策天/演禽自带命主行)、随姓名与经纬度长度
+	// 变化,而按钮恒定钉在底部——任何一次内容变长都会重新压上去(用户实报「信息被命盘信息按钮挡住」)。
+	// 故画完内容后实测整块 bbox:一旦越过按钮顶边就整体等比缩到按钮之上(下限 0.62 倍,再小读不清;
+	// 触到下限仍越界时至少保证不再继续变糟)。clean 档无内容、按钮居中,本方法不参与。
+	fitContentAboveButton(){
+		const g = this.contentG;
+		const node = g && typeof g.node === 'function' ? g.node() : null;
+		if(!node || typeof node.getBBox !== 'function'){ return; }
+		let bb = null;
+		try{ bb = node.getBBox(); }catch(e){ return; }
+		if(!bb || !(bb.height > 0)){ return; }
+		const limit = this.centerButtonTop() - ZWCenterHouse.INFO_BTN_GAP;
+		if(bb.y + bb.height <= limit){ return; }
+		const scale = Math.max(0.62, (limit - bb.y) / bb.height);
+		if(!(scale > 0) || scale >= 1){ return; }
+		const cx = this.x + this.width / 2;
+		g.attr('transform', `translate(${cx},${bb.y}) scale(${scale}) translate(${-cx},${-bb.y})`);
 	}
 
 	drawCenterInfoPanel(mode){
@@ -69,14 +144,16 @@ class ZWCenterHouse extends ZWCommHouse {
 		const ink = AstroConst.AstroColor.Stroke;
 		const muted = ZWCont.ZWColor.HouseMetaStroke;
 		const gold = ZWCont.ZWColor.HouseBranchStroke;
-		const txt = (str, x, y, { size = u, color = ink, weight = 500, anchor = 'start' } = {})=>{
-			this.svg.append('g').append('text')
+		const txt = (str, x, y, { size = u, color = ink, weight = 500, anchor = 'start', maxWidth = 0 } = {})=>{
+			const sel = (this.contentG || this.svg).append('g').append('text')
 				.attr('dominant-baseline', 'middle').attr('text-anchor', anchor)
 				.attr('fill', color).attr('stroke', 'none')
 				.attr('font-weight', weight).attr('font-size', `${size}px`)
 				.attr('font-family', AstroConst.NormalFont)
 				.attr('x', x).attr('y', y)
 				.text(str);
+			if(maxWidth > 0){ fitTextToWidth(sel, maxWidth, size); }
+			return sel;
 		};
 		const bz = chart.bazi && chart.bazi.bazi;
 		const direct = (chart.bazi && chart.bazi.direct && chart.bazi.direct.direction) || [];
@@ -88,7 +165,13 @@ class ZWCenterHouse extends ZWCommHouse {
 			const timeAlg = chart.timeAlg !== undefined && chart.timeAlg !== null ? chart.timeAlg : 0;
 			if(nongli.birth){ metaLines.push((timeAlg === 1 ? '直接时间：' : '真太阳时：') + nongli.birth); }
 			if(nongli.year){ metaLines.push('农历：' + nongli.year + '年 ' + (nongli.leap ? '闰' : '') + (nongli.month || '') + (nongli.day || '') + ' ' + (nongli.time ? nongli.time.charAt(1) + '时' : '')); }
-			metaLines.push('时区：' + chart.zone + '；经度：' + chart.lon + '；纬度：' + chart.lat);
+			// 经纬度按专业记法(116°24′27″E),不铺十进制长串 —— 借用中宫的技法把后端 double 原样
+			// 塞进 chart.lon/lat,直接拼出来就是 119.31666666666666 这种(用户实报「不要变成一长串」)。
+			// 非数值(已格式化过的串/缺值)原样保留,不二次加工。
+			const geoNum = (v)=>(v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
+			metaLines.push('时区：' + chart.zone
+				+ '；经度：' + (geoNum(chart.lon) ? formatLonDms(chart.lon) : chart.lon)
+				+ '；纬度：' + (geoNum(chart.lat) ? formatLatDms(chart.lat) : chart.lat));
 			const ygl = nongli.yearGZByLunar;
 			if(ygl && bz && bz.year && ygl !== bz.year.ganzi){ metaLines.push('初一口径年柱：' + ygl); }
 			if(this.yearDoujun){ metaLines.push(this.yearDoujun); }
@@ -109,10 +192,11 @@ class ZWCenterHouse extends ZWCommHouse {
 		if(mode === 'full'){
 			let name = '姓名：' + ((this.fields && this.fields.name && this.fields.name.value) || '匿名');
 			const ju = ZWText.ZWMsg[chart.yearPolar] + ZWText.ZWMsg[chart.gender] + ' ' + chart.wuxingJuText;
-			txt(name, bx, by, { size: u * 1.2, weight: 750 });
-			txt(ju, bx + bw, by, { size: u * 1.1, weight: 650, color: gold, anchor: 'end' });
+			// 姓名与右侧局名同行:各占约一半,长姓名不得压到局名上
+			txt(name, bx, by, { size: u * 1.2, weight: 750, maxWidth: bw * 0.56 });
+			txt(ju, bx + bw, by, { size: u * 1.1, weight: 650, color: gold, anchor: 'end', maxWidth: bw * 0.42 });
 			by += headH;
-			metaLines.forEach((mline)=>{ txt(mline, bx, by, { size: u * 0.92, color: muted }); by += metaLineH; });
+			metaLines.forEach((mline)=>{ txt(mline, bx, by, { size: u * 0.92, color: muted, maxWidth: bw }); by += metaLineH; });
 			by += gap;
 		}
 		// —— 四柱块(四列均分撑满宽) ——
@@ -137,7 +221,7 @@ class ZWCenterHouse extends ZWCommHouse {
 				const cx2 = bx + dcolW * i + dcolW / 2;
 				const age = item.age + 1;
 				const sage = age < 10 ? '0' + age : '' + age;
-				const agesvg = this.svg.append('g');
+				const agesvg = (this.contentG || this.svg).append('g');
 				agesvg.append('text')
 					.attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
 					.attr('fill', muted).attr('stroke', 'none')
@@ -147,7 +231,7 @@ class ZWCenterHouse extends ZWCommHouse {
 					.text(sage);
 				this.genTooltip(agesvg, { title: '开始年份', tips: item.startYear });
 				const gz = item.mainDirect && item.mainDirect.ganzi ? item.mainDirect.ganzi : '';
-				const gzsvg = this.svg.append('g');
+				const gzsvg = (this.contentG || this.svg).append('g');
 				if(gz){
 					gzsvg.append('text')
 						.attr('dominant-baseline', 'middle').attr('text-anchor', 'middle')
@@ -170,11 +254,24 @@ class ZWCenterHouse extends ZWCommHouse {
 			by += dirH + gap;
 		}
 		// —— 命主/身主/子斗/斗君(四项均分一行) ——
-		const masters = [ ['命主', chart.lifeMaster], ['身主', chart.bodyMaster], ['子斗', chart.zidou], ['斗君', chart.doujun] ];
+		// 四项标签默认取紫微本名;借用中宫的技法(策天/演禽)可用 centerMasterLabels 覆盖 ——
+		// 🔴 否则标签与值语义对不上:演禽把「胎星」画成「子斗」、「三元」画成「斗君」,
+		// 策天把「命宫」画成「命主」,读者按紫微义去理解就全错(用户实报「中间栏严重失真」)。
+		// 覆盖只认长度 4 的数组,逐项空则回落本名(部分覆盖也安全)。
+		const lb = Array.isArray(chart.centerMasterLabels) && chart.centerMasterLabels.length === 4
+			? chart.centerMasterLabels : [];
+		const masters = [
+			[lb[0] || '命主', chart.lifeMaster],
+			[lb[1] || '身主', chart.bodyMaster],
+			[lb[2] || '子斗', chart.zidou],
+			[lb[3] || '斗君', chart.doujun],
+		];
 		const mcolW = bw / 4;
 		masters.forEach((m, i)=>{
 			if(m[1] === undefined || m[1] === null || m[1] === ''){ return; }
-			txt(`${m[0]}：${m[1]}`, bx + mcolW * i + mcolW / 2, by + u * 0.6, { size: u * 0.95, weight: 600, anchor: 'middle' });
+			// maxWidth 留 4% 列间距:四项贴着排,不留缝时相邻两项会视觉粘连
+			txt(`${m[0]}：${m[1]}`, bx + mcolW * i + mcolW / 2, by + u * 0.6,
+				{ size: u * 0.95, weight: 600, anchor: 'middle', maxWidth: mcolW * 0.96 });
 		});
 	}
 
@@ -192,13 +289,16 @@ class ZWCenterHouse extends ZWCommHouse {
 	}
 
 	drawInfoButton(){
+		if(this.centerButtonHidden()){ return; }
 		let bw = Math.min(132, this.width * 0.42);
-		let bh = 34;
+		let bh = ZWCenterHouse.INFO_BTN_H;
 		let x = this.x + this.width / 2 - bw / 2;
 		// [D4] 中宫有内容(bazi/full)时按钮让位到底部;clean=居中(现状)。
-		let y = ZiWeiHelper.zwCenterContent() === 'clean'
+		// 判据必须与 drawCenterContent 同源(resolveCenterMode),否则借用中宫的技法会出现
+		// 「内容画了、按钮还停在正中间」= 按钮压在内容上。
+		let y = this.resolveCenterMode() === 'clean'
 			? this.y + this.height / 2 - bh / 2
-			: this.y + this.height - bh - 10;
+			: this.centerButtonTop();
 		let btn = this.svg.append('g').attr('class', 'horosa-ziwei-center-info-button');
 		btn.append('rect')
 			.attr('x', x).attr('y', y)

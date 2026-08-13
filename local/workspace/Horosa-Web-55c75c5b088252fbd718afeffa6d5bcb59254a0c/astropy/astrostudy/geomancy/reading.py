@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from .figures import FIRE, data, inverse, planet, points, reverse, row
+from .figures import (AIR, EARTH, ELEMENT_ROWS, FIRE, WATER, data, inverse, name,
+                      planet, points, reverse, row)
 
 PAIRED_HOUSES = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12)]
 
@@ -14,6 +15,28 @@ def _adj(h: int, wrap: bool = False) -> List[int]:
     if wrap:
         return [(h - 2) % 12 + 1, h % 12 + 1]
     return [x for x in (h - 1, h + 1) if 1 <= x <= 12]
+
+
+# 前宫 = 宫序之下一宫、后宫 = 上一宫(与宫序推进同向)。传本只给图示未著公式,此处收于一处以便他日改口径。
+def _forward_house(h: int, wrap: bool = False) -> Optional[int]:
+    if h >= 12:
+        return 1 if wrap else None
+    return h + 1
+
+
+def _backward_house(h: int, wrap: bool = False) -> Optional[int]:
+    if h <= 1:
+        return 12 if wrap else None
+    return h - 1
+
+
+def _side_of(base: int, other: int, wrap: bool = False) -> Optional[str]:
+    """other 相对 base 居前宫(forward)抑或后宫(backward)。"""
+    if other == _forward_house(base, wrap):
+        return "forward"
+    if other == _backward_house(base, wrap):
+        return "backward"
+    return None
 
 
 def perfection(hc: Dict[int, int], q: int, t: int, wrap: bool = False) -> str:
@@ -315,3 +338,380 @@ def perfection_detail(hc: Dict[int, int], q: int, t: int, wrap: bool = False) ->
             out["via_house"] = hs
         return out
     return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 传本对齐补齐:精准相位方向细则 / 法庭三角 / 时间流 / 有效性 / 得地 / 寻源四线 /
+#              元素法 / 成败 / 希腊点 / 地占三角 / 宣判奇偶
+# 均为纯函数;既有各键形态一字未改,新出者皆另立键。
+# ═══════════════════════════════════════════════════════════════════════════
+
+# 传递之四种知晓格局:以第三图分居两指示宫之前后宫论
+_TRANSLATION_KNOWLEDGE = {
+    ("backward", "backward"): "third_party_hidden",
+    ("backward", "forward"): "quesited_knows",
+    ("forward", "backward"): "querent_knows",
+    ("forward", "forward"): "both_know",
+}
+
+
+def perfection_direction(hc: Dict[int, int], q: int, t: int, wrap: bool = False) -> dict:
+    """精准相位之方向细则(传本盘式所载,既有 perfection_detail 之补,不改其四键):
+
+    联合:以图现于对方之**前宫**抑或**后宫**分野 —— 后宫者其功成于对方背后(用对方不解之知),
+          前宫者其功成于台面(用通识或双方有约)。双方皆有联合时,以联合之多寡与图之吉凶较其付出。
+    传递:第三图分居两宫之前后,定四种知晓格局(俱藏/对象知/事主知/双方知)。
+    突变:两图所落之宫即完成之法与地之线索。
+    """
+    typ = perfection(hc, q, t, wrap)
+    out: Dict[str, object] = {"type": typ, "conjunctions_all": [], "sides": None,
+                              "knowledge_code": None, "hint_code": None}
+    if typ == "none":
+        return out
+    fq, ft = hc[q], hc[t]
+
+    # 联合:枚举全部命中(供「双方皆有联合」时比较多寡)
+    conj: List[dict] = []
+    for h in _adj(t, wrap):
+        if h != q and hc[h] == fq:
+            conj.append({"mover": "querent", "house": h, "figure": name(fq),
+                         "direction": _side_of(t, h, wrap), "relative_to": t})
+    for h in _adj(q, wrap):
+        if h != t and hc[h] == ft:
+            conj.append({"mover": "quesited", "house": h, "figure": name(ft),
+                         "direction": _side_of(q, h, wrap), "relative_to": q})
+    out["conjunctions_all"] = conj
+
+    if typ == "mutation":
+        out["hint_code"] = "venue_clue"
+        return out
+
+    if typ == "translation":
+        adj_q = {h: hc[h] for h in _adj(q, wrap)}
+        adj_t = {h: hc[h] for h in _adj(t, wrap)}
+        shared = (set(adj_q.values()) & set(adj_t.values())) - {fq, ft}
+        if shared:
+            fig = sorted(shared)[0]
+            hq = [h for h, f in adj_q.items() if f == fig]
+            ht = [h for h, f in adj_t.items() if f == fig]
+            sq = _side_of(q, hq[0], wrap) if hq else None
+            st = _side_of(t, ht[0], wrap) if ht else None
+            out["sides"] = {"querent_side": sq, "quesited_side": st}
+            out["knowledge_code"] = _TRANSLATION_KNOWLEDGE.get((sq, st))
+    return out
+
+
+# ── 法庭三角:普遍吉凶性(传本口径,与全局 tone 并行不覆盖)──
+def tone_class(fig: int) -> str:
+    """传本普遍吉凶性归三类:吉 good / 凶 bad / 中 mid(含弱吉)。
+    读 figures.json 之 tone_book(传本口径),与既有 tone(本仓固有口径)并存互不覆盖。"""
+    tb = data(fig).get("tone_book") or data(fig).get("tone")
+    if tb == "good":
+        return "good"
+    if tb == "bad":
+        return "bad"
+    return "mid"          # neutral 与 weak_good(弱吉)俱作「中」
+
+
+# (左证, 法官, 右证) → 断语代码。传本原表仅列以下组合,未列者如实标 unlisted,不臆造。
+# 🔴 结构性事实(全 16⁴ 母图穷举实证,见单测):吉凶组合共 23 种可达,而传本首行
+#    「吉吉吉 → 自天佑之」**永不可达** —— 法官 = 右证⊕左证,点数奇偶等价于单点数奇偶,
+#    故二证单点数必同奇偶;传本吉图五者中同奇偶者两两相配,其和恒落{道路,会合,牢狱,群众},
+#    皆非吉图。故此行留表以存传本原貌,但界面不得宣称其可得,亦不可当作漏算之 bug。
+_COURT_TABLE = {
+    ("good", "good", "good"): "all_good",
+    ("good", "good", "bad"): "end_good_delay",
+    ("bad", "good", "good"): "end_good_delay",
+    ("bad", "good", "bad"): "end_good_hard",
+    ("good", "bad", "good"): "gain_not_self",
+    ("bad", "bad", "good"): "no_success_has_end",
+    ("mid", "bad", "good"): "no_success_has_end",
+    ("good", "bad", "bad"): "well_unused",
+    ("good", "bad", "mid"): "well_unused",
+    ("bad", "bad", "bad"): "all_bad",
+}
+# 法官特例:此二图不问三方组合,别有专断
+_JUDGE_SPECIAL = {"Via": "via", "Populus": "populus"}
+
+
+def court_verdict(shield) -> dict:
+    """法庭三角:以左证·法官·右证三图之吉凶断成否。
+    法官定总方向;右证为事主、左证为条件环境(传本口径)。"""
+    rw, lw, jd = shield.right_witness, shield.left_witness, shield.judge
+    combo = (tone_class(lw), tone_class(jd), tone_class(rw))
+    code = _COURT_TABLE.get(combo)
+    return {
+        "left": {"figure": name(lw), "tone_class": combo[0]},
+        "judge": {"figure": name(jd), "tone_class": combo[1]},
+        "right": {"figure": name(rw), "tone_class": combo[2]},
+        "combo": list(combo),
+        "verdict_code": code or "unlisted",
+        "listed": code is not None,
+        "judge_special": _JUDGE_SPECIAL.get(name(jd)),
+    }
+
+
+def time_flow(shield) -> dict:
+    """时间流:右证为过去、法官为现在、左证为未来。
+    论一段时间之吉凶,则三等分之:右证第一段、法官第二段、左证第三段。"""
+    return {
+        "past": {"role": "right_witness", "figure": name(shield.right_witness)},
+        "present": {"role": "judge", "figure": name(shield.judge)},
+        "future": {"role": "left_witness", "figure": name(shield.left_witness)},
+        "segmenting": "tri",
+        "segment_order": ["right_witness", "judge", "left_witness"],
+    }
+
+
+# ── 占卜有效性五则(与「首母中止」各自独立:中止只一档,此为传本五则全谱)──
+_VALIDITY_BY_FIRST = {
+    "Cauda Draconis": ("not_asked_or_decided", "传本自注:不认同此则"),
+    "Rubeus": ("deceit", None),
+    "Amissio": ("insufficient_info", "传本自注:未必"),
+    "Populus": ("question_not_real", None),
+}
+
+
+def validity(shield, hc: Dict[int, int], q: int, t: int, wrap: bool = False) -> dict:
+    """占卜有效性五则(传本所载,全项常驻;命中与否俱如实回传):
+    一 首图龙尾 —— 此事不问,或事主已自决;
+    二 首图红色 —— 自欺、隐瞒、有意欺骗;若两指示卦间有精准相位,则为有意欺骗对象;
+    三 首图失去 —— 信息不足;
+    四 首图群众 —— 所问非事主真实之问,宜重新提问;
+    五 (盘式)一宫群众并十一宫红色 —— 问题虚假,同第四则。
+    前四则论**第一卦**(首母,顺铺与四正入宫下即一宫之图);第五则为盘式,论一宫与十一宫。"""
+    first = shield.mothers[0]
+    fn = name(first)
+    rules: List[dict] = []
+    for idx, key in enumerate(("Cauda Draconis", "Rubeus", "Amissio", "Populus"), start=1):
+        code, note = _VALIDITY_BY_FIRST[key]
+        hit = fn == key
+        if hit and key == "Rubeus" and perfection(hc, q, t, wrap) != "none":
+            code = "deceive_quesited"
+        rules.append({"id": idx, "hit": hit, "figure": key,
+                      "code": code if hit else None, "book_note": note})
+    h1, h11 = name(hc[1]), name(hc[11])
+    hit5 = (h1 == "Populus" and h11 == "Rubeus")
+    rules.append({"id": 5, "hit": hit5, "figure": "Populus+Rubeus",
+                  "code": "false_question" if hit5 else None, "book_note": None,
+                  "scope": "chart"})
+    return {"first_figure": fn, "rules": rules,
+            "any_hit": any(r["hit"] for r in rules)}
+
+
+# ── 得地:盾十六位各配一元素(位序循环 火风水土),与所盛图之主元素论四档强弱 ──
+TENANCY_POSITION_ELEMENTS = tuple(["Fire", "Air", "Water", "Earth"] * 4)
+TENANCY_POSITION_LABELS = ("母一", "母二", "母三", "母四", "女一", "女二", "女三", "女四",
+                           "甥一", "甥二", "甥三", "甥四", "右证", "左证", "判官", "宣判")
+_HOT = ("Fire", "Air")          # 热:火风
+_DRY = ("Fire", "Earth")        # 干:火土
+
+
+def tenancy_grade(fig_element: str, position_element: str) -> str:
+    """四档(传本得地):
+    full   卦与位元素全同 —— 其位最强,能全展此卦之力;
+    assist 温度同而湿度异 —— 作补充辅助而现,目标随时而移;
+    stall  湿度同而温度异 —— 平衡而稳,致行动停滞,来日有增长之潜力,须释放或引外力;
+    weak   全不相同 —— 于此位无力,不能(或不欲)完成其任。"""
+    if fig_element == position_element:
+        return "full"
+    same_temp = (fig_element in _HOT) == (position_element in _HOT)
+    same_humid = (fig_element in _DRY) == (position_element in _DRY)
+    if same_temp:
+        return "assist"
+    if same_humid:
+        return "stall"
+    return "weak"
+
+
+def tenancy(shield, reconciler_fig: Optional[int] = None) -> List[dict]:
+    """盾十六位之得地。第十六位为宣判(调和者),不取调和者时如实留空。"""
+    order = (list(shield.mothers) + list(shield.daughters) + list(shield.nieces)
+             + [shield.right_witness, shield.left_witness, shield.judge])
+    figs: List[Optional[int]] = list(order) + [reconciler_fig]
+    out = []
+    for i, f in enumerate(figs):
+        pos_el = TENANCY_POSITION_ELEMENTS[i]
+        if f is None:
+            out.append({"position": i + 1, "label": TENANCY_POSITION_LABELS[i],
+                        "position_element": pos_el, "figure": None,
+                        "figure_element": None, "grade": None})
+            continue
+        fe = data(f)["element_inner"]
+        out.append({"position": i + 1, "label": TENANCY_POSITION_LABELS[i],
+                    "position_element": pos_el, "figure": name(f),
+                    "figure_element": fe, "grade": tenancy_grade(fe, pos_el)})
+    return out
+
+
+# ── 寻源法四线:自法官之阳爻上溯(传本四线俱可寻,不限火线)──
+_VIA_LINES = {"fire": FIRE, "air": AIR, "water": WATER, "earth": EARTH}
+_VIA_LINE_ZH = {"fire": "火:目的、目标、渴望、指引、意志", "air": "风:交流、创造、思想、主意、逻辑、理论",
+                "water": "水:感情、情绪、灵性层面", "earth": "土:结果、物质层面、隐藏、财富"}
+
+
+def _shield_tree_with_positions(shield):
+    """盾牌亲缘树(带盾位号:母一至母四=1-4、女一至女四=5-8),供寻源定终点。"""
+    M, D, Nz = shield.mothers, shield.daughters, shield.nieces
+
+    def leaf(f, pos):
+        return {"figure": f, "position": pos, "children": []}
+
+    def node(f, kids):
+        return {"figure": f, "position": None, "children": kids}
+
+    n1 = node(Nz[0], [leaf(M[0], 1), leaf(M[1], 2)])
+    n2 = node(Nz[1], [leaf(M[2], 3), leaf(M[3], 4)])
+    n3 = node(Nz[2], [leaf(D[0], 5), leaf(D[1], 6)])
+    n4 = node(Nz[3], [leaf(D[2], 7), leaf(D[3], 8)])
+    rw = node(shield.right_witness, [n1, n2])
+    lw = node(shield.left_witness, [n3, n4])
+    return node(shield.judge, [rw, lw])
+
+
+def via_elements(shield) -> dict:
+    """寻源四线:法官某行为阳爻(单点)者方可寻;沿该行单点之子逐层上溯至母/女层。
+    终点落盾位一至四(个人宫位·我方)则多关事主自身之行,落五至八(人际宫位·对方)则多关他人环境客观。
+
+    🔴 结构性事实(全 16⁴ 穷举实证,见单测):法官该行为阳爻者**必然一路贯通** ——
+       法官=二证异或,该行为单点则二证中恰一者单点,每层皆然,故路径唯一且必达底层。
+       下方 broken_at 一支为防御性保留(手造不自洽盾牌时),正常盘中结构上不出现。
+       可见传本「由法官中的阳爻向上寻源」正是此法可定义之条件:阴爻者非「断路」,乃「不可由此寻」。
+
+    ⚠️ 既有 via_puncti(旧法·只沿火行且不验法官本行,其 broken_at 实为「不可寻」之误呈)
+       一字未改、仍照旧回传;此为传本全谱之补,两键并存各自如实。"""
+    tree = _shield_tree_with_positions(shield)
+    level_names = ["判官", "证", "甥/母层"]
+    out: Dict[str, object] = {}
+    for key, bit in _VIA_LINES.items():
+        if row(shield.judge, bit) != 1:
+            out[key] = {"traceable": False, "line_zh": _VIA_LINE_ZH[key],
+                        "reason": "法官此行为双点(阴爻),传本不由此寻源",
+                        "path": [], "broken_at": None, "through": False, "terminus": None}
+            continue
+        node, path, broken_at, depth = tree, [name(tree["figure"])], None, 0
+        while node["children"]:
+            actives = [c for c in node["children"] if row(c["figure"], bit) == 1]
+            if len(actives) == 1:
+                node = actives[0]
+                path.append(name(node["figure"]))
+            else:
+                broken_at = level_names[depth] if depth < len(level_names) else f"层{depth}"
+                break
+            depth += 1
+        pos = node.get("position")
+        terminus = None
+        if broken_at is None and pos:
+            terminus = {"position": pos,
+                        "side": "self" if pos <= 4 else "other",
+                        "sphere": "personal" if pos <= 4 else "interpersonal",
+                        "figure": name(node["figure"])}
+        out[key] = {"traceable": True, "line_zh": _VIA_LINE_ZH[key], "reason": None,
+                    "path": path, "broken_at": broken_at,
+                    "through": broken_at is None, "terminus": terminus}
+    return out
+
+
+# ── 元素法:四女各由四母同爻位构成(火爻成第五卦、风爻第六、水爻第七、土爻第八)──
+_ELEMENT_DAUGHTER_INDEX = {"fire": 0, "air": 1, "water": 2, "earth": 3}
+
+
+def element_supply(shield, via: Optional[dict] = None) -> dict:
+    """元素法:数各元素之女卦阳爻,三及以上为相对充沛、二及以下为相对匮乏。
+    法官有此元素者,可用寻源法追之:寻得在我方为元素自给,在对方为元素借贷。
+
+    ⚠️ 元素有无与充沛与否**皆非吉凶之判**,当结合盾图综合考虑(此注恒随回传,不得省)。"""
+    out: Dict[str, object] = {"note": "元素之有无、充沛与否皆非吉凶判断,须结合盾图综合考虑"}
+    per: Dict[str, object] = {}
+    for key, bit in _VIA_LINES.items():
+        d_idx = _ELEMENT_DAUGHTER_INDEX[key]
+        fig = shield.daughters[d_idx]
+        # 该女卦之阳爻即诸母于此元素之阳爻:女卦第 (3-k) 位 ← 母 k+1
+        positions = [k + 1 for k in range(4) if (fig >> (3 - k)) & 1]
+        cnt = len(positions)
+        judge_has = row(shield.judge, bit) == 1
+        src = None
+        if judge_has and via and isinstance(via.get(key), dict):
+            src = (via[key] or {}).get("terminus")
+        per[key] = {
+            "figure": name(fig), "daughter_index": d_idx + 1, "shield_position": d_idx + 5,
+            "active_count": cnt, "mother_positions": positions,
+            "level": "abundant" if cnt >= 3 else "scarce",
+            "judge_has": judge_has,
+            "source": src,
+            "supply": (None if not src else ("self_supplied" if src.get("side") == "self"
+                                             else "borrowed")),
+        }
+    out["elements"] = per
+    return out
+
+
+# ── 成败:有无精准相位定发生与否,再以两指示图之吉凶分四格 ──
+_SUCCESS_TONE = {("good", "good"): "both_good", ("good", "bad"): "querent_better",
+                 ("bad", "good"): "quesited_better", ("bad", "bad"): "both_bad"}
+
+
+def success(hc: Dict[int, int], q: int, t: int, wrap: bool = False) -> dict:
+    """成败判定(传本盘式):有精准相位=成功(事将发生)、无=失败(不发生);
+    再以事主图与对象图之吉凶分四格。此判只论成否,与结果好坏(法庭三角)、过程顺逆(相位)无关,
+    且必与法官合参。传本原表只列吉/凶两态,遇「中」则如实标 not_covered,不臆造。"""
+    perf = perfection(hc, q, t, wrap)
+    has = perf != "none"
+    cq, ct = tone_class(hc[q]), tone_class(hc[t])
+    key = _SUCCESS_TONE.get((cq, ct))
+    stem = "occur" if has else "fail"
+    return {
+        "has_perfection": has, "perfection": perf,
+        "querent_tone": cq, "quesited_tone": ct,
+        "code": f"{stem}_{key}" if key else "not_covered",
+        "covered": key is not None,
+        "caveat": "只判成否,不判好坏顺逆;须与法官合参,勿滥用",
+    }
+
+
+# ── 希腊点(地占式):福点取十二卦点数之和、灵点取十二卦阳爻数之和,各除十二取余入盘 ──
+def greek_points(hc: Dict[int, int]) -> dict:
+    """福点:好运所在、身体健康、财富、事业成败、心理素质。
+    灵点:意志、梦想、希望、追求、欲望、幻想。余零者入十二宫。"""
+    f_total = sum(points(hc[h]) for h in range(1, 13))
+    s_total = sum(sum(row(hc[h], b) for b in ELEMENT_ROWS) for h in range(1, 13))
+    return {
+        "fortune_total": f_total, "fortune_house": 12 if f_total % 12 == 0 else f_total % 12,
+        "spirit_total": s_total, "spirit_house": 12 if s_total % 12 == 0 else s_total % 12,
+    }
+
+
+# ── 地占三角:四组(盾位 1,2→9 / 3,4→10 / 5,6→11 / 7,8→12)──
+_TRIANGLE_GROUPS = ((1, 2, 9), (3, 4, 10), (5, 6, 11), (7, 8, 12))
+
+
+def shield_triangles(shield) -> List[dict]:
+    """地占三角四组:底二卦为补充、顶卦(甥)为概括之果;读法同法庭三角。
+    动态发展另可按时间流看过去现在未来 —— 传本未著逐位之映射,故此处只出结构,不硬标时序。"""
+    seq = list(shield.mothers) + list(shield.daughters) + list(shield.nieces)
+    out = []
+    for idx, (a, b, c) in enumerate(_TRIANGLE_GROUPS, start=1):
+        fa, fb, fc = seq[a - 1], seq[b - 1], seq[c - 1]
+        out.append({
+            "index": idx,
+            "base": [{"position": a, "figure": name(fa), "tone_class": tone_class(fa)},
+                     {"position": b, "figure": name(fb), "tone_class": tone_class(fb)}],
+            "apex": {"position": c, "figure": name(fc), "tone_class": tone_class(fc)},
+            "time_flow_note": "静态以顶卦概括、底卦补充;动态可按时间流三分",
+        })
+    return out
+
+
+# ── 宣判(补卦)之奇偶:偶为客观事实(偏实)、奇为主观意志(偏虚)。援传本对应系统之奇偶主客观义。 ──
+RECONCILER_PARITY_CODE = {"even": "objective_real", "odd": "subjective_virtual"}
+
+
+def reconciler_parity(recon_fig: Optional[int]) -> Optional[dict]:
+    """宣判卦(第十六卦=一卦⊕法官)之奇偶,参断事之真假虚实。
+    据传本对应系统「奇数卦主观意志内在、偶数卦客观事实外在」推得:偶偏实、奇偏虚。"""
+    if recon_fig is None:
+        return None
+    p = "even" if points(recon_fig) % 2 == 0 else "odd"
+    return {"figure": name(recon_fig), "points": points(recon_fig), "parity": p,
+            "code": RECONCILER_PARITY_CODE[p],
+            "basis": "对应系统奇偶主客观义", "tradition_note": "arabic"}

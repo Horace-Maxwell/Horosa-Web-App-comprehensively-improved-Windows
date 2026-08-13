@@ -110,7 +110,8 @@ const TIME_SAMPLES = [
 ];
 
 // ---- 选项取值域(每个选项每种取值)----
-const MODES = ['ganzhi', 'day', 'hour', 'minute', 'tang', 'bogus', '', null, undefined];
+const MODES = ['ganzhi', 'day', 'hour', 'minute', 'tang', 'dunhuang', 'qian', 'zhushu',
+	'bogus', '', null, undefined];
 const NUMBERS = [0, 1, 45, 90, 91, 999, -5, 45.7, NaN, null, undefined, '13', 'abc'];
 const MANUALS = [true, false, 1, 0, undefined, null];
 const SPLITS = [
@@ -124,7 +125,20 @@ const SPLITS = [
 	[NaN, 8, 5, 2, 1, 1],         // 含 NaN
 ];
 
-const ALLOWED_MODES = ['ganzhi', 'day', 'hour', 'minute', 'tang'];
+const ALLOWED_MODES = ['ganzhi', 'day', 'hour', 'minute', 'tang', 'dunhuang', 'qian', 'zhushu'];
+// 古法层新档位取值域
+const SHIFA_VARIANTS = ['guayi', 'jiaolu', 'bogus', '', null, undefined];
+const QIAN_THROWS = [
+	undefined, [1, 2, 3, 3, 3, 4], [0, 0, 0, 0, 0, 0], [4, 4, 4, 4, 4, 4],
+	[9, -3, 2, 2, 2, 2], [1, 2], 'notarray', [NaN, 2, 2, 2, 2, 2],
+];
+const ZHAO_NUMS = [
+	undefined, [1, 2, 3, 4, 5, 1], [0, 9, 3, 3, 3, 3], [5, 5, 5, 5, 5, 5],
+	[3, 3], 'notarray', [NaN, 3, 3, 3, 3, 3],
+];
+const XINGSHEN_MONTHS = ['lunar', 'jieqi', 'bogus', '', null, undefined];
+const MING_ZHI = ['子', '亥', '甲', '', null, undefined, 123];
+const GENDERS = ['male', 'female', 'other', '', null, undefined];
 
 function assertPayloadSane(payload, ctxLabel) {
 	if (payload === null) {
@@ -134,6 +148,40 @@ function assertPayloadSane(payload, ctxLabel) {
 	if (ALLOWED_MODES.indexOf(payload.mode) < 0) {
 		throw new Error(`mode 非法归一失败: ${payload.mode}`);
 	}
+	// 挂载场景禁止随机起兆法漏出:随机盘按时间点重算每次不同 → builder 必已回落。
+	if (payload.mode === 'dunhuang' || (payload.mode === 'qian' && payload.qianAuto)) {
+		throw new Error(`随机起兆法未回落: ${payload.mode}`);
+	}
+	if (['day', 'hour', 'minute', 'tang'].indexOf(payload.mode) >= 0 && !payload.manual) {
+		throw new Error(`自动揲筮未回落: ${payload.mode}`);
+	}
+	// 新档位结构完备(六数组必为长度 6 且值域内、枚举必归一)
+	if (['guayi', 'jiaolu'].indexOf(payload.shifaVariant) < 0) {
+		throw new Error(`shifaVariant 归一失败: ${payload.shifaVariant}`);
+	}
+	if (['lunar', 'jieqi'].indexOf(payload.xingshenMonth) < 0) {
+		throw new Error(`xingshenMonth 归一失败: ${payload.xingshenMonth}`);
+	}
+	if (payload.mingZhi !== '' && '子丑寅卯辰巳午未申酉戌亥'.indexOf(payload.mingZhi) < 0) {
+		throw new Error(`mingZhi 归一失败: ${payload.mingZhi}`);
+	}
+	if (['', 'male', 'female'].indexOf(payload.gender) < 0) {
+		throw new Error(`gender 归一失败: ${payload.gender}`);
+	}
+	if (typeof payload.qianAuto !== 'boolean') {
+		throw new Error(`qianAuto 非布尔: ${payload.qianAuto}`);
+	}
+	[['qianThrows', 0, 4], ['zhaoNums', 1, 5]].forEach(([key, lo, hi]) => {
+		const list = payload[key];
+		if (!Array.isArray(list) || list.length !== 6) {
+			throw new Error(`${key} 结构坏: len=${list && list.length}`);
+		}
+		list.forEach((v, i) => {
+			if (typeof v !== 'number' || Number.isNaN(v) || v < lo || v > hi) {
+				throw new Error(`${key}[${i}] 越界/NaN: ${v}`);
+			}
+		});
+	});
 	// number 必为有限数、非 NaN
 	if (typeof payload.number !== 'number' || Number.isNaN(payload.number) || !Number.isFinite(payload.number)) {
 		throw new Error(`number 非有限数: ${payload.number}`);
@@ -241,7 +289,64 @@ describe('五兆穷举压力测试', () => {
 		expect(true).toBe(true);
 	});
 
-	test('⑤汇总:崩溃列表应可枚举(不阻断)', () => {
+	test('⑤古法层新档位 全域遍历(筮法口径×掷钱×卜数×行神月制×年命×性别)', async () => {
+		const baseFields = TIME_SAMPLES[0];
+		for (let i = 0; i < SHIFA_VARIANTS.length; i++) {
+			await runOne(baseFields, { mode: 'dunhuang', shifaVariant: SHIFA_VARIANTS[i] },
+				`dunhuang|variant=${SHIFA_VARIANTS[i]}`);
+			combos++;
+		}
+		for (let i = 0; i < QIAN_THROWS.length; i++) {
+			for (let a = 0; a < 2; a++) {
+				await runOne(baseFields, { mode: 'qian', qianThrows: QIAN_THROWS[i], qianAuto: !!a },
+					`qian|throw#${i}|auto=${!!a}`);
+				combos++;
+			}
+		}
+		for (let i = 0; i < ZHAO_NUMS.length; i++) {
+			await runOne(baseFields, { mode: 'zhushu', zhaoNums: ZHAO_NUMS[i] }, `zhushu|nums#${i}`);
+			combos++;
+		}
+		for (let i = 0; i < XINGSHEN_MONTHS.length; i++) {
+			for (let j = 0; j < MING_ZHI.length; j++) {
+				for (let k = 0; k < GENDERS.length; k++) {
+					await runOne(baseFields, {
+						xingshenMonth: XINGSHEN_MONTHS[i], mingZhi: MING_ZHI[j], gender: GENDERS[k],
+					}, `duanfa|xs=${XINGSHEN_MONTHS[i]}|ming=${MING_ZHI[j]}|g=${GENDERS[k]}`);
+					combos++;
+				}
+			}
+		}
+		expect(true).toBe(true);
+	});
+
+	test('⑥挂载确定性:随机起兆诸式必回落,可复现者原样保留', async () => {
+		// ⚠️ cachedKentangFetch 按请求体缓存:同一 payload 第二次调用直接命中缓存、
+		// 根本不发请求(mock 也就捕不到)。故本例用别处未用过的年份 + 逐次递增的分钟数,
+		// 保证每个 payload 全局唯一(前面几例已把 TIME_SAMPLES 的组合灌满缓存)。
+		let seq = 0;
+		const grab = async (opts)=>{
+			seq += 1;
+			const fields = mkFields(2077, 3, 3, 3, seq % 60, 0);
+			CAPTURED = [];
+			await buildWuZhaoSnapshotForFields(fields, opts);
+			return CAPTURED.length ? CAPTURED[CAPTURED.length - 1] : null;
+		};
+		// 随机诸式 → 回落干支
+		expect((await grab({ mode: 'dunhuang' })).mode).toBe('ganzhi');
+		expect((await grab({ mode: 'qian', qianAuto: true })).mode).toBe('ganzhi');
+		expect((await grab({ mode: 'tang', manual: false })).mode).toBe('ganzhi');
+		expect((await grab({ mode: 'day', manual: false })).mode).toBe('ganzhi');
+		// 可复现者原样保留
+		expect((await grab({ mode: 'zhushu', zhaoNums: [1, 2, 3, 4, 5, 1] })).mode).toBe('zhushu');
+		expect((await grab({ mode: 'qian', qianAuto: false, qianThrows: [1, 2, 3, 3, 3, 4] })).mode).toBe('qian');
+		expect((await grab({ mode: 'tang', manual: true })).mode).toBe('tang');
+		// 掷钱定数须逐位透传(非回落成默认)
+		expect((await grab({ mode: 'qian', qianAuto: false, qianThrows: [1, 2, 3, 3, 3, 4] })).qianThrows)
+			.toEqual([1, 2, 3, 3, 3, 4]);
+	});
+
+	test('⑦汇总:崩溃列表应可枚举(不阻断)', () => {
 		// eslint-disable-next-line no-console
 		console.log(`WUZHAO_STRESS_COMBOS=${combos} CRASH_COUNT=${CRASHES.length}`);
 		expect(Array.isArray(CRASHES)).toBe(true);

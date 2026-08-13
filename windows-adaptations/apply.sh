@@ -322,6 +322,14 @@ apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/heavyE
 # ('components/astro/AstroZR.js'),Windows path.relative 反斜杠 → 成文豁免失效 → AstroZR 被误报
 # 「<AstroChart 渲染点缺 wheelArt=」假红(macOS 恒绿)。同法 relPosix() 归一;豁免语义零放宽。
 apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js src__components__astro____tests____wheelArtChart.winPathsep.test.js.patch
+# Mac v3.9.0 新增的塔罗「王牌判据总锁」同类(仓内第 5 例):ALLOW / ALLOW_IF_CORE78 白名单与
+# `toBe('engine/arcana.js')` 期望值都是 POSIX 写法,Windows 反斜杠 ⇒ 六个合法豁免全被报成
+# 「字面量判据残留」+ 判据本体定义位置判不等(macOS 恒绿)。同法 relPosix() 归一。
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js src__components__tarot____tests____tarotTrumpJudgeLock.winPathsep.test.js.patch
+# Mac v3.9.0 新增的小成图 [XCT-2]:它刻意「绕 Tabs 惰性」直取 pane 产物做内容断言,而我方
+# horosa_freeze_subtabs_v1 把 TabPane 内容包进了 render-prop(非激活目不求值)⇒ 直取得到
+# 空 div。适配 = 取内容时若 children 是函数就求值一次;**断言一字未改**。
+apply_patch horosa_freeze_subtabs_v1  astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js src__components__xiaochengtu____tests____xiaochengtuRender.freezeUnwrap.test.js.patch
 
 echo "== 26. PERF-R9 前端:交互跨度观测 + L1 真 LRU(纯观测/纯修 bug,功能零降级;跨平台,建议上游化 Mac) =="
 # ① horosa_interaction_span_v1 —— 端到端「点击 → 中栏+右栏画完」测量。改之前这套观测**量不出**

@@ -6,8 +6,11 @@ from __future__ import annotations
 import random
 from typing import Optional
 
-CAST_METHODS = ("rng", "time", "manual", "dice", "sand", "coins", "tablets")
+# numbers = 报数起卦(真收十六数、奇偶定爻,盾牌不由 RNG 出;此处收其名以便如实回传所用之法)
+CAST_METHODS = ("rng", "time", "manual", "dice", "sand", "coins", "tablets", "numbers")
 MARK_STYLES = ("dots", "lines", "bindu", "tablets")
+# 记号样式别名:某流派档以「点线」连称,归一到既有 bindu(否则静默回落 dots,该档记号形同虚设)
+MARK_STYLE_ALIASES = {"bindu_rekha": "bindu", "bindu-rekha": "bindu", "rekha": "bindu"}
 
 
 def make_rng(cast_method: str = "rng", seed: Optional[int] = None,
@@ -28,4 +31,5 @@ def normalize_cast_method(v: str) -> str:
 
 
 def normalize_mark_style(v: str) -> str:
+    v = MARK_STYLE_ALIASES.get(v, v)
     return v if v in MARK_STYLES else "dots"

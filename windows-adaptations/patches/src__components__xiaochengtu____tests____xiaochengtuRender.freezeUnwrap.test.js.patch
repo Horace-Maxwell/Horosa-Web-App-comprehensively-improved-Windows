@@ -1,0 +1,24 @@
+diff --git a/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js b/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js
+index d3b0ca82..78c1dc59 100644
+--- a/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js
++++ b/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js
+@@ -63,7 +63,18 @@ describe('小成图 · 渲染冒烟', ()=>{
+ 		inst.state = { ...inst.state, settings: { qiguaFa: 'manual', qiguaShu: 'tiandi', yongGong: 1, piKoujing: 'zheng' }, qi: QI };
+ 		const aux = inst.renderAux(buildPan(QI));
+ 		const panes = aux.props.children.filter(Boolean);
+-		const paneOf = (k)=>panes.find((c)=>c && c.key === k);
++		// horosa_freeze_subtabs_v1:我方 overlay 把每个 TabPane 的内容包进 FreezeSubTab 的
++		// render-prop(非激活目连元素都不创建)。本用例刻意「绕 Tabs 惰性」直取 pane 产物,
++		// 故必须同样绕过冻结层:children 是函数时求值一次即得原内容。
++		// **断言一字未改** —— 只换取内容的方式,不放宽任何判据(跨平台差异,建议上游化 Mac)。
++		const paneOf = (k)=>{
++			const pane = panes.find((c)=>c && c.key === k);
++			const inner = pane && pane.props ? pane.props.children : null;
++			if(inner && inner.props && typeof inner.props.children === 'function'){
++				return { props: { children: inner.props.children() } };
++			}
++			return pane;
++		};
+ 		const yq = renderToStaticMarkup(<div>{paneOf('yingqi').props.children}</div>);
+ 		expect(yq).toContain('两分·半月(升降)');
+ 		expect(yq).toContain('两分·阴阳(定支)');

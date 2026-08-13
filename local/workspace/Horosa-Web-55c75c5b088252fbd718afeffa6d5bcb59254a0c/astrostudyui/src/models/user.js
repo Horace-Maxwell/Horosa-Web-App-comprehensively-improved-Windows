@@ -242,6 +242,14 @@ export default {
 		casePageIndex: 1,
 		caseTotal: 0,
 
+		// 🔴 事盘「显式载入」代次:每执行一次 applyCase(用户在列表里点一条记录)即 +1。
+		// 各技法读档函数都有一道去重守卫 `!force && lastRestoredCaseId === saved.caseVersion`,
+		// 而 lastRestoredCaseId 只在构造函数里初始化、任何地方都不会重置 —— 于是同一条记录
+		// 第二次载入必被守卫拦掉,屏幕上仍是用户后来新起的卦(用户实报:灵棋经存了再读卦不一样)。
+		// 把本代次拼进 caseVersion 后:用户每点一次记录代次就变、必定重新还原;
+		// 而 fields 因无关原因变化时代次不变、守卫照旧拦住(守卫原意「别反复覆盖用户现场」得以保留)。
+		caseApplySeq: 0,
+
 		bookshelf: [],
 		currentBook: null,
 
@@ -891,6 +899,14 @@ export default {
 		},
 
 		*applyCase({ payload: values }, { call, put, select }){
+			// 🔴 先自增「显式载入代次」再设 currentCase:代次进 caseVersion(kentangCaseSave.js),
+			// 各技法的读档去重守卫据此认出「这是用户又点了一次记录」,从而必定重新还原 ——
+			// 同一条记录连点两次也必两次还原(此前第二次永远被守卫拦掉,是存档失真的直接根因)。
+			const prevSeq = yield select((s)=>(s.user && s.user.caseApplySeq) || 0);
+			yield put({
+				type: 'save',
+				payload: { caseApplySeq: prevSeq + 1 },
+			});
 			yield put({
 				type: 'setCurrentCase',
 				payload: values,

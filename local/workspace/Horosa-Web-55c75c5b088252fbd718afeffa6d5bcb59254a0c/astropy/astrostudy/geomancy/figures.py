@@ -54,6 +54,20 @@ def converse(fig: int) -> int:
     return reverse(inverse(fig))
 
 
+def rotate(fig: int) -> int:
+    """减法(地爻置上、成为火爻):四行循环移位 —— 新火行 = 旧地行,余行各下移一行。
+    十六图在此运算下恰成 6 条轨道,与传本所载六条减法链逐条相符(golden 见单测)。"""
+    return ((fig & 1) << 3) | (fig >> 1)
+
+
+def opposite(fig: int) -> int:
+    """对卦:传本以八对相配(大吉↔小吉、道路↔群众、获得↔失去、快乐↔悲伤、
+    结合↔限制、白色↔红色、男子↔女子、龙首↔龙尾)。逐对验证得其规则为:
+    倒卦非自反者取倒卦,倒卦自反者(道路/群众/牢狱/会合)取逆卦。八对全等,见单测。"""
+    r = reverse(fig)
+    return r if r != fig else inverse(fig)
+
+
 def figure_rows(fig: int) -> List[int]:
     return [row(fig, b) for b in ELEMENT_ROWS]
 
@@ -74,6 +88,24 @@ def data(fig: int) -> dict:
 def planet(fig: int) -> str:
     """主管行星(用于 company demi-simple 判定)。"""
     return FIG_BY_INT[fig]["planet"]
+
+
+# 黄道对应三套并存(各有传本依据,互不覆盖)
+ZODIAC_SYSTEMS = ("classical", "planetary", "planetary_alt")
+
+
+def zodiac_of(fig: int, zodiac_system: str = "classical") -> str:
+    """图形之黄道对应。classical 古典定局体系 / planetary 行星归属体系 /
+    planetary_alt 行星归属·乙(另一传本对应表,与 planetary 恰五图相异)。
+    ⚠️ 非法值回落 planetary,与本函数收编前的历史行为一致(零回归)。"""
+    fd = FIG_BY_INT[fig]
+    if zodiac_system == "classical":
+        key = "zodiac_classical"
+    elif zodiac_system == "planetary_alt":
+        key = "zodiac_planetary_alt"
+    else:
+        key = "zodiac_planetary"
+    return str(fd.get(key) or fd["zodiac_planetary"]).rstrip("?")
 
 
 VALID_JUDGES = {i for i in FIG_BY_INT if points(i) % 2 == 0}   # 8 个偶点图(合法法官)

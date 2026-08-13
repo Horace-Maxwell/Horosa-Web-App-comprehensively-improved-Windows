@@ -5,6 +5,8 @@
 //    filterContentByWantedSections 会把整段静默滤掉——用户在设置里勾了却导不出来。
 //    故此处把 SCHOOL_CN 与 PRESET_SECTIONS 做集合对拍，而不是各写各的清单。
 import { SCHOOL_CN } from '../LiqiWorkspace';
+import { LIQI_SCHOOLS } from '../FengShuiMain';
+import { LIQI_SCHOOL_IMPL, REGISTRY_KEYS } from '../liqi/registry';
 import { AI_EXPORT_PRESET_SECTIONS, AI_EXPORT_SETTINGS_VERSION, saveAIExportSettings, __aiExportTesting__ } from '../../../utils/aiExport';
 import { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_TECHNIQUE_LABELS } from '../../../utils/aiAnalysisContext';
 
@@ -18,15 +20,20 @@ const withSections = (arr)=>{ saveAIExportSettings({ version: AI_EXPORT_SETTINGS
 afterEach(()=>{ try{ window.localStorage.clear(); }catch(e){ void e; } });
 
 describe('账①②：AI 导出段登记 与 导出设置面板（同源 preset）', ()=>{
-	it('十六项流派逐一在册，且段名与 buildSnapshot 段头逐字一致', ()=>{
+	// 计数随新增流派显式上调（这是设计：新派漏登记时本行先红）。
+	// 16→17：v52 增「大玄空 · 单盘挨星」（理气新派，registry 范式首派）。
+	// 17→18：v53 增「水龙 · 平洋水法」（形势新派，registry 第二派）。
+	// 18→19：v54 增「改造化煞」（形煞/气煞/补偏救弊，registry 第三派）。
+	// 19→20：v55 增「阳宅判断」（峦头/理气/客星三方合参，registry 第四派）。
+	it('二十项流派逐一在册，且段名与 buildSnapshot 段头逐字一致', ()=>{
 		const keys = Object.keys(SCHOOL_CN);
-		expect(keys.length).toBe(16);
+		expect(keys.length).toBe(20);
 		keys.forEach((k)=>{
 			const header = `风水·${SCHOOL_CN[k]}`;                       // buildSnapshot 出的是 【${header}】
 			expect(PRESET).toContain(header);
 		});
 	});
-	it('preset 里的「风水·」段与十六项一一对应，无多余无遗漏(+v51 形势图判=图像分析段,非流派段)', ()=>{
+	it('preset 里的「风水·」段与全部流派一一对应，无多余无遗漏(+v51 形势图判=图像分析段,非流派段)', ()=>{
 		const inPreset = PRESET.filter((s)=>s.indexOf('风水·') === 0).sort();
 		// [v51] 「风水·形势图判」=AI 分析页图像分析工作台快照的整块包段(extractFengShuiContent 追加),
 		// 不属理气十六流派 → 单列白名单;流派段仍与 SCHOOL_CN 一一对应。
@@ -92,5 +99,62 @@ describe('账②：新增流派的老用户迁移（勾过风水的人必须补�
 		['风水·玄空六法', '风水·命理派', '风水·综合罗经'].forEach((s)=>{ expect(n.sections.fengshui).toContain(s); });
 		expect(n.sections.fengshui).toContain('风水·玄空飞星');
 		expect(n.sections.fengshui).not.toContain('风水·纳气盘');
+	});
+	it('[v52/v53/v54] v51 已自定义 → 大玄空+水龙+化煞段补入；旧勾选不丢、未勾旧段不复活', ()=>{
+		const n = normalizeAIExportSettings({ version: 51, sections: { fengshui: ['风水·玄空飞星'] } });
+		expect(n.sections.fengshui).toContain('风水·大玄空');
+		expect(n.sections.fengshui).toContain('风水·水龙平洋');
+		expect(n.sections.fengshui).toContain('风水·改造化煞');
+		expect(n.sections.fengshui).toContain('风水·阳宅判断');
+		expect(n.sections.fengshui).toContain('风水·玄空飞星');
+		expect(n.sections.fengshui).not.toContain('风水·纳气盘');
+	});
+	it('[v52] 未自定义（无 fengshui 键）不被 union 凭空造键', ()=>{
+		const n = normalizeAIExportSettings({ version: 51, sections: {} });
+		expect(n.sections.fengshui).toBeUndefined();
+	});
+	it('🔴 MIGRATION_VERSION 不因新技法上升（v45「取消=真取消」铁律）', ()=>{
+		// 误升该闸会令 v45+ 存档重走全 preset union、把用户取消过的段复活。
+		const n = normalizeAIExportSettings({ version: 45, sections: { fengshui: ['风水·玄空飞星'] } });
+		expect(n.sections.fengshui).not.toContain('风水·纳气盘');
+		expect(n.sections.fengshui).not.toContain('起盘信息');
+	});
+});
+
+// ── 账⑤（新增·机器强制）：理气派白名单 与 流派表 恒等 ────────────────────────
+// 🔴 这是仓内踩过的真 bug 类：新派若漏登记 LIQI_SCHOOLS，FengShuiMain 的 onVm 守卫不放行，
+//    画布引擎（display:none 仍 emit vm）会把本派快照覆盖成纳气盘 → AI 导出取到错派。
+//    读代码/看 localStorage 瞬时都是对的，只有端到端抓导出才现形 —— 故必须机器钉死。
+describe('账⑤：LIQI_SCHOOLS 白名单 ≡ 流派表 −{画布两法}', ()=>{
+	it('每个纯前端派都在白名单里，且白名单无幽灵键', ()=>{
+		const canvasSchools = ['naqi', 'bagua'];
+		const expected = Object.keys(SCHOOL_CN).filter((k)=>canvasSchools.indexOf(k) < 0).sort();
+		expect([...LIQI_SCHOOLS].sort()).toEqual(expected);
+	});
+	it('画布两法绝不进白名单（进了会让理气守卫误放行画布快照）', ()=>{
+		expect(LIQI_SCHOOLS).not.toContain('naqi');
+		expect(LIQI_SCHOOLS).not.toContain('bagua');
+	});
+	it('registry 新派均已登记进流派表与白名单（契约齐备）', ()=>{
+		REGISTRY_KEYS.forEach((k)=>{
+			expect(SCHOOL_CN[k]).toBeTruthy();
+			expect(LIQI_SCHOOLS).toContain(k);
+			expect(PRESET).toContain(`风水·${SCHOOL_CN[k]}`);
+			const impl = LIQI_SCHOOL_IMPL[k];
+			['defaults', 'compute', 'Params', 'Chart', 'Panel', 'snapshotLines'].forEach((m)=>{
+				expect(impl[m]).toBeDefined();
+			});
+		});
+	});
+	it('🔴 registry 派的 snapshotLines 只回正文行，绝不自带段头（自带会产双段头切坏导出）', ()=>{
+		REGISTRY_KEYS.forEach((k)=>{
+			const impl = LIQI_SCHOOL_IMPL[k];
+			const r = impl.compute(impl.defaults);
+			expect(r.available).toBe(true);
+			const lines = impl.snapshotLines(r);
+			expect(Array.isArray(lines)).toBe(true);
+			expect(lines.length).toBeGreaterThan(0);
+			lines.forEach((ln)=>{ expect(ln.indexOf('【风水·')).toBe(-1); });
+		});
 	});
 });

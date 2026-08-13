@@ -184,14 +184,16 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 		expect(expected.filter((h)=>!splitPreset.has(h))).toEqual([]);
 	});
 
-	test('塔罗 buildReadingText:源内字面量段头(牌阵综览/逐牌详解/综合断语/定局/生命牌)全部登记进 tarot preset', ()=>{
+	test('塔罗 buildReadingText:源内字面量段头(含新增「对读」「开钥」「组合读法」)全部登记进 tarot preset', ()=>{
 		const src = readSrc('../../components/tarot/engine/reportText.js');
-		const region = sliceFrom(src, 'export function buildReadingText', 4000);
+		// 窗口须覆盖整个 buildReadingText:函数随补齐轮次增长(4000 字窗曾把尾部段头截在窗外,
+		// 造成「段头数不足」的假红——扫描型哨兵的窗口必须跟着被扫函数一起长)。
+		const region = sliceFrom(src, 'export function buildReadingText', 20000);
 		const headers = Array.from(sourceBracketHeaders(region));
 		const preset = presetSet('tarot');
-		expect(headers.length).toBeGreaterThanOrEqual(5);
+		expect(headers.length).toBeGreaterThanOrEqual(8);
 		expect(headers.filter((h)=>!preset.has(h))).toEqual([]);
-		expect(headers).toEqual(expect.arrayContaining(['牌阵综览', '逐牌详解', '综合断语', '定局', '生命牌']));
+		expect(headers).toEqual(expect.arrayContaining(['牌阵综览', '逐牌详解', '综合断语', '定局', '对读', '生命牌', '开钥', '组合读法']));
 	});
 
 	// 大六壬全流派补齐:buildLiuRengSnapshotText 的断卦层段头(年月神煞/课体结构/三传旺衰/空亡真假/旬空落点/陷空/遁干特殊/

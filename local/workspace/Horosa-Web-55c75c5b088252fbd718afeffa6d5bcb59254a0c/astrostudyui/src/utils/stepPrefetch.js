@@ -85,6 +85,9 @@ export const PREFETCH_FORBIDDEN_MARKERS = [
 	'dice', 'gua', 'tarot', 'geomancy', 'aianalysis', 'heartbeat', 'planetarium',
 	'taixuan',     // 太玄(蓍法种子在体,预取恐钉死起课 —— Mac 政策表 seedInBody)
 	'jingjue',     // 荆诀(揲蓍种子在体,同上)
+	'lingqi',      // 灵棋经(v3.9.0 新增,卜·其他第 15 门):十二棋一掷成卦、起出即冻结。
+	               // 今日纯本地零端点,故此条是**将来那条路的点名拦截** —— 上游哪天给它加后端,
+	               // 预取会把「一时掷之,不可再掷」的古法语义直接钉死(#93 课三:把将来的路先拦住)。
 	'cast', 'shake', 'random',            // 起卦/摇卦/随机类动作
 	'sse', 'stream',                      // 流式(AI 分析)
 	'moira',                              // 七政 Moira 流年:默认过运时刻=「现在」

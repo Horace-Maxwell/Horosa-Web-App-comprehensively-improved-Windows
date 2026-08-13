@@ -32,15 +32,20 @@ B = "子丑寅卯辰巳午未申酉戌亥"
 
 def test_qipan_per_book_2006():
     # 公曆 2006-10-04 09:58(男):農曆八月十三(2006閏七月,sxtwl 正確);時柱巳。
-    # 天杖=(1-8)%12=5(巳);命=(5+3-5)%12=3(卯);身=(5-⌊12/2.5⌋)%12=1(丑);紫微=(7+戌10)%12=5(巳)。
+    # 天杖=(1-8)%12=5(巳);命=(5+3-5)%12=3(卯);紫微=(7+戌10)%12=5(巳)。
+    # 身宮雙口徑(兩讀共守「從杖星處起初一」=初一偏移 0,分歧只在 2.5 日邊界歸屬):
+    #   yizheng 進一法=(5-⌈12/2.5⌉)%12=(5-5)%12=0(子);literal 捨去法=(5-⌊12/2.5⌋)%12=1(丑)。
     c = compute_cetian_ziwei_chart(2006, 10, 4, 9, 58, 8.0, 30.83, 119.42, 'x', '男')
     assert (c.lunar_year, c.lunar_month, c.lunar_day, c.is_leap_month) == (2006, 8, 13, False)
     assert B[c.ming_gong_branch] == '卯'
-    assert B[c.shen_gong_branch] == '丑'
+    assert B[c.shen_gong_branch] == '子'
     assert B[c.ziwei_branch] == '巳'
     assert c.wu_xing_ju == 0  # 本書無五行局
     assert c.sihua == {} and c.star_flight == {} and c.active_patterns == []  # 臆造已刪
     assert c.solar_term_influence == '寒露'  # 僅節氣名,無感傷詩
+    c_lit = compute_cetian_ziwei_chart(
+        2006, 10, 4, 9, 58, 8.0, 30.83, 119.42, 'x', '男', shen_gong_mode='literal')
+    assert B[c_lit.shen_gong_branch] == '丑'  # 舊口徑鎖存(安身例 p15-16 直讀)
 
 
 def test_palace_sequence_per_book():

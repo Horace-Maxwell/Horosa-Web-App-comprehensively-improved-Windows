@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/fengshui/FengShuiMain.js b/astrostudyui/src/components/fengshui/FengShuiMain.js
-index 1f88de9..2ea3244 100644
+index 73669598..4cd054ce 100644
 --- a/astrostudyui/src/components/fengshui/FengShuiMain.js
 +++ b/astrostudyui/src/components/fengshui/FengShuiMain.js
 @@ -4,9 +4,38 @@ import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
@@ -41,7 +41,7 @@ index 1f88de9..2ea3244 100644
  const { Option } = XQSelect;
  const { Panel } = Collapse;
  
-@@ -104,25 +133,41 @@ const PERIOD_OPTIONS = [
+@@ -110,25 +139,41 @@ const PERIOD_OPTIONS = [
  const TAG_LABEL = { auspicious: '吉', mild: '小吉', neutral: '中性', caution: '宜慎' };
  
  class FengShuiMain extends Component {
@@ -92,7 +92,7 @@ index 1f88de9..2ea3244 100644
  	}
  
  	componentDidMount() {
-@@ -152,8 +197,52 @@ class FengShuiMain extends Component {
+@@ -158,8 +203,52 @@ class FengShuiMain extends Component {
  		if (this.engine) this.engine.destroy();
  	}
  
@@ -146,7 +146,7 @@ index 1f88de9..2ea3244 100644
  		// 🔴 理气/新派激活时，画布引擎(display:none 仍挂载)因 ResizeObserver 等仍会 emit vm；
  		// 不可让其画布快照覆盖 LiqiWorkspace 维护的当前流派快照(否则 AI 导出取到纳气盘而非当前理气派)。
  		if (vm && vm.snapshotText && !LIQI_SET.has(this.state.school)) {
-@@ -180,6 +269,11 @@ class FengShuiMain extends Component {
+@@ -186,6 +275,11 @@ class FengShuiMain extends Component {
  	}
  
  	onFile(e) {
@@ -158,7 +158,7 @@ index 1f88de9..2ea3244 100644
  		const file = e.target.files && e.target.files[0];
  		if (file && this.engine) this.engine.loadImageFile(file);
  		e.target.value = '';
-@@ -187,7 +281,8 @@ class FengShuiMain extends Component {
+@@ -193,7 +287,8 @@ class FengShuiMain extends Component {
  
  	// 流派切换：理气派走纯前端 LiqiWorkspace；户型图两法同步引擎 techMode 并重算画布尺寸。
  	onSchoolChange(v) {
@@ -168,7 +168,7 @@ index 1f88de9..2ea3244 100644
  		if (v === 'naqi' || v === 'bagua') {
  			if (this.engine) {
  				this.engine.setTechMode(v);
-@@ -586,6 +681,11 @@ class FengShuiMain extends Component {
+@@ -592,6 +687,11 @@ class FengShuiMain extends Component {
  		);
  	}
  
@@ -180,7 +180,7 @@ index 1f88de9..2ea3244 100644
  	render() {
  		const vm = this.state.vm || {
  			status: '请上传户型图开始。', imgLoaded: false, rectRotation: 0,
-@@ -601,28 +701,42 @@ class FengShuiMain extends Component {
+@@ -607,7 +707,7 @@ class FengShuiMain extends Component {
  		let height = this.props.height ? this.props.height : '100%';
  		if (typeof height === 'number') height = `${height}px`;
  		return (
@@ -188,7 +188,8 @@ index 1f88de9..2ea3244 100644
 +			<div className="horosa-fengshui-app" style={{ height }} ref={this.rootRef} onPointerDownCapture={this.onRootPointerDown}>
  				<input ref={this.fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(ev) => this.onFile(ev)} />
  				{this.renderQuickbar(vm)}
- 				{isLiqi ? <LiqiWorkspace school={this.state.school} /> : null}
+ 				{/* geo：画布户型图之几何输入，现取现用（含 gongAt，方位仍以画布为唯一真值源）。
+@@ -617,21 +717,35 @@ class FengShuiMain extends Component {
  				<div className="horosa-fengshui-canvas-body" style={isLiqi ? { display: 'none' } : { display: 'contents' }}>
  				<Row gutter={8} className="horosa-fengshui-layout">
  					<Col span={6} className="horosa-fengshui-side">
@@ -231,7 +232,7 @@ index 1f88de9..2ea3244 100644
  								<div className="horosa-fengshui-canvas-wrap">
  									<div className="horosa-fengshui-canvas-toolbar">
  										<div className="horosa-fengshui-legend">
-@@ -642,8 +756,11 @@ class FengShuiMain extends Component {
+@@ -651,8 +765,11 @@ class FengShuiMain extends Component {
  										{!vm.imgLoaded ? <div className="horosa-fengshui-canvas-hint">上传户型图后开始操作</div> : null}
  									</div>
  								</div>

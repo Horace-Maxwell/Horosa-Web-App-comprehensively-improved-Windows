@@ -1,19 +1,19 @@
 diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-index 6f61f7f..076cff5 100644
+index 5f2bb896..cd277d7a 100644
 --- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 +++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-@@ -16,6 +16,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -19,6 +19,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
-+import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
-+import { cachedKentangCall, kentangCacheKey } from '../../services/_kentangResultCache';
++// 我方结果缓存(techniqueResultCacheEnabled/cachedKentangCall)已按 #78 收敛 SOP 退役 ——
++// 上游自带的 kentangCacheEnabled + cachedKentangFetch 是其超集,上面已 import,勿重复引入。
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
+ import WuZhaoBoard from './WuZhaoBoard';
  
  const { Option } = Select;
- const { TabPane } = Tabs;
-@@ -66,7 +70,7 @@ function parseFieldsDateTime(fields){
+@@ -188,7 +192,7 @@ function parseFieldsDateTime(fields){
  	};
  }
  
@@ -22,7 +22,7 @@ index 6f61f7f..076cff5 100644
  	const roots = [];
  	const endpoints = [];
  	if(typeof window !== 'undefined'){
-@@ -126,6 +130,21 @@ async function postWuZhao(path, payload){
+@@ -248,6 +252,21 @@ async function postWuZhao(path, payload){
  	throw lastError || new Error('wuzhao.fetch.failed');
  }
  
@@ -44,7 +44,7 @@ index 6f61f7f..076cff5 100644
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -216,6 +235,7 @@ class WuZhaoMain extends Component{
+@@ -374,6 +393,7 @@ class WuZhaoMain extends Component{
  		}
  	}
  
@@ -52,7 +52,7 @@ index 6f61f7f..076cff5 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -425,6 +445,8 @@ class WuZhaoMain extends Component{
+@@ -596,6 +616,8 @@ class WuZhaoMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -61,41 +61,76 @@ index 6f61f7f..076cff5 100644
  				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -671,19 +693,28 @@ class WuZhaoMain extends Component{
+@@ -1184,32 +1206,53 @@ class WuZhaoMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">
 -					<div className="horosa-huangji-section-list">
--						{this.renderRows(pan ? (pan.sections || []).slice(0, 2) : [])}
+-						{this.renderRows(this.sectionsByKey(['qipan', 'shishi']))}
+-						{this.renderRows([{ title: '孤虚关籥将军', rows: flagRows.length ? flagRows : [{ label: '标记', value: '无' }] }])}
+-						{this.renderShifaDetail()}
 -					</div>
 +					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 +					<FreezeSubTab active={activeKey === 'overview'}>{() => (
 +						<div className="horosa-huangji-section-list">
-+							{this.renderRows(pan ? (pan.sections || []).slice(0, 2) : [])}
++							{this.renderRows(this.sectionsByKey(['qipan', 'shishi']))}
++							{this.renderRows([{ title: '孤虚关籥将军', rows: flagRows.length ? flagRows : [{ label: '标记', value: '无' }] }])}
++							{this.renderShifaDetail()}
 +						</div>
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="六位" key="positions">
 -					<div className="horosa-huangji-section-list">
--						{this.renderRows(pan ? (pan.sections || []).slice(2, 8) : [])}
+-						{this.renderRows(this.sectionsByKey(['zhao', 'muxiang', 'huoxiang', 'tuxiang', 'jinxiang', 'shuixiang']))}
 -					</div>
 +					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
 +					<FreezeSubTab active={activeKey === 'positions'}>{() => (
 +						<div className="horosa-huangji-section-list">
-+							{this.renderRows(pan ? (pan.sections || []).slice(2, 8) : [])}
++							{this.renderRows(this.sectionsByKey(['zhao', 'muxiang', 'huoxiang', 'tuxiang', 'jinxiang', 'shuixiang']))}
 +						</div>
 +					)}</FreezeSubTab>
++				</TabPane>
++				<TabPane tab="断辞" key="duanci">
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'duanci'}>{() => this.renderDuanci()}</FreezeSubTab>
++				</TabPane>
++				<TabPane tab="君子小人" key="junzi">
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'junzi'}>{() => this.renderJunzi()}</FreezeSubTab>
  				</TabPane>
- 				<TabPane tab="标记" key="flags">
+-				<TabPane tab="断辞" key="duanci">{this.renderDuanci()}</TabPane>
+-				<TabPane tab="君子小人" key="junzi">{this.renderJunzi()}</TabPane>
+ 				<TabPane tab="纳甲" key="najia">
 -					<div className="horosa-huangji-section-list">
--						{this.renderRows([{ title: '孤虚关籥将军', rows: flagRows.length ? flagRows : [{ label: '标记', value: '无' }] }])}
+-						{this.renderRows(this.sectionsByKey(['najia']))}
+-						{classic ? this.renderLiuqinFen(classic) : null}
 -					</div>
 +					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
-+					<FreezeSubTab active={activeKey === 'flags'}>{() => (
++					<FreezeSubTab active={activeKey === 'najia'}>{() => (
 +						<div className="horosa-huangji-section-list">
-+							{this.renderRows([{ title: '孤虚关籥将军', rows: flagRows.length ? flagRows : [{ label: '标记', value: '无' }] }])}
++							{this.renderRows(this.sectionsByKey(['najia']))}
++							{classic ? this.renderLiuqinFen(classic) : null}
 +						</div>
 +					)}</FreezeSubTab>
  				</TabPane>
+ 				<TabPane tab="神煞行神" key="shensha">
+-					<div className="horosa-huangji-section-list">
+-						{this.renderRows(this.sectionsByKey(['shensha', 'xingshen']))}
+-						{this.renderWeijie()}
+-					</div>
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'shensha'}>{() => (
++						<div className="horosa-huangji-section-list">
++							{this.renderRows(this.sectionsByKey(['shensha', 'xingshen']))}
++							{this.renderWeijie()}
++						</div>
++					)}</FreezeSubTab>
++				</TabPane>
++				<TabPane tab="类占" key="leizhan">
++					{/* horosa_freeze_subtabs_v1:右栏非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
++					<FreezeSubTab active={activeKey === 'leizhan'}>{() => this.renderLeizhan()}</FreezeSubTab>
+ 				</TabPane>
+-				<TabPane tab="类占" key="leizhan">{this.renderLeizhan()}</TabPane>
  			</Tabs>
  		);
+ 	}

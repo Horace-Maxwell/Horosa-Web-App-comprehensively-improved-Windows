@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/kinastro/KinAstroMain.js b/astrostudyui/src/components/kinastro/KinAstroMain.js
-index c4a3634e..3231836f 100644
+index 486182ca..1dfeda39 100644
 --- a/astrostudyui/src/components/kinastro/KinAstroMain.js
 +++ b/astrostudyui/src/components/kinastro/KinAstroMain.js
 @@ -9,7 +9,9 @@ import CanPingMain from '../shusuan/CanPingMain';
@@ -13,7 +13,7 @@ index c4a3634e..3231836f 100644
  // 🔴 流派名表须自【独立常量文件】引 —— 直引那个 lazy 组件会成循环依赖:
  //    宿主 → ZhengChuanMain → …，其时该导出解析为 undefined，整页当场崩
  //    「Element type is invalid … got: undefined」(实测栽过);且会把其引擎拖回本 chunk。
-@@ -32,13 +34,44 @@ import { cachedKentangFetch } from '../../utils/kentangCache';
+@@ -35,13 +37,44 @@ import { cachedKentangFetch } from '../../utils/kentangCache';
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../../utils/kinAstroFieldsSync';
  import UpdatingBadge from '../common/UpdatingBadge';
@@ -59,7 +59,7 @@ index c4a3634e..3231836f 100644
  const TECHNIQUE_CONFIG = {
  	shaozi: {
  		pageTitle: '数算',
-@@ -224,7 +257,13 @@ const TECHNIQUE_CONFIG = {
+@@ -232,7 +265,13 @@ const TECHNIQUE_CONFIG = {
  // normBinaryGender / parseFieldsDateTime / computeKinFieldsResync 移至 utils/kinAstroFieldsSync
  // （fields→state 同步层，纯函数可测；载入命例时 didUpdate 据此重同步性别/农历锚点，修透传断链）。
  
@@ -74,7 +74,7 @@ index c4a3634e..3231836f 100644
  	let rsp = null;
  	try{
  		const rawResponse = await cachedKentangFetch(buildKentangEndpoint(serviceKey, 'pan'), {
-@@ -252,6 +291,12 @@ async function postKinAstro(serviceKey, payload){
+@@ -260,6 +299,12 @@ async function postKinAstro(serviceKey, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
@@ -87,7 +87,7 @@ index c4a3634e..3231836f 100644
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -984,9 +1029,43 @@ class KinAstroMain extends Component{
+@@ -1167,9 +1212,43 @@ class KinAstroMain extends Component{
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
  
@@ -131,7 +131,7 @@ index c4a3634e..3231836f 100644
  		// fields→state 首次同步（性别+农历锚点）；此后 didUpdate 用同一 helper 做标记式重同步，
  		// 载入命例（fields 变）时性别/锚点必随记录刷新（修透传断链），手动切换不被无关变化冲掉。
  		const nextState = computeKinFieldsResync(this.props.fields, this.state.fieldsSyncSrc) || {};
-@@ -1015,6 +1094,7 @@ class KinAstroMain extends Component{
+@@ -1198,6 +1277,7 @@ class KinAstroMain extends Component{
  		if(prevProps.technique !== this.props.technique){
  			this.config = TECHNIQUE_CONFIG[this.props.technique || 'shaozi'] || TECHNIQUE_CONFIG.shaozi;
  			setRuntimeKinAstroTechnique(this.props.hostModuleKey || this.config.moduleKey, this.config.serviceKey);
@@ -139,7 +139,7 @@ index c4a3634e..3231836f 100644
  			this.requestSeq += 1;
  			this.setState({
  				pan: null,
-@@ -1060,6 +1140,11 @@ class KinAstroMain extends Component{
+@@ -1242,6 +1322,11 @@ class KinAstroMain extends Component{
  
  	componentWillUnmount(){
  		this.unmounted = true;
@@ -151,7 +151,7 @@ index c4a3634e..3231836f 100644
  		if(typeof window !== 'undefined' && this._dayBoundaryListener){
  			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
  		}
-@@ -1338,7 +1423,15 @@ class KinAstroMain extends Component{
+@@ -1555,7 +1640,15 @@ class KinAstroMain extends Component{
  	async fetchPan(fields){
  		if(this.config.native){
  			this.requestSeq += 1;
@@ -168,7 +168,7 @@ index c4a3634e..3231836f 100644
  			return;
  		}
  		const payload = this.buildPayload(fields);
-@@ -1364,7 +1457,15 @@ class KinAstroMain extends Component{
+@@ -1581,7 +1674,15 @@ class KinAstroMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -184,8 +184,8 @@ index c4a3634e..3231836f 100644
  			});
  		}catch(e){
  			if(this._inFlightSig === sig){
-@@ -1389,6 +1490,100 @@ class KinAstroMain extends Component{
- 		this.setState({ centerInfoVisible: false });
+@@ -1598,6 +1699,100 @@ class KinAstroMain extends Component{
+ 		this.setState({ rightPanelTab: key });
  	}
  
 +	// ── horosa_kinastro_render_memo_v1(PERF-R9 Ship 6)──────────────────────────
@@ -285,8 +285,8 @@ index c4a3634e..3231836f 100644
  	renderPillarOverrideFields(){
  		if(!['shaozi', 'tieban'].includes(this.config.serviceKey) || this.state.pillarOverride !== '1'){
  			return null;
-@@ -2933,7 +3128,7 @@ class KinAstroMain extends Component{
- 	}
+@@ -3118,7 +3313,7 @@ class KinAstroMain extends Component{
+ 
  
  	buildHeluoOpts(){
 -		return {
@@ -294,7 +294,7 @@ index c4a3634e..3231836f 100644
  			ziShuMode: this.state.heluoZiShu,
  			jiGongMode: this.state.heluoJiGong,
  			zhiZunEnabled: this.state.heluoZhiZun,
-@@ -2942,7 +3137,7 @@ class KinAstroMain extends Component{
+@@ -3127,7 +3322,7 @@ class KinAstroMain extends Component{
  			liuYueMode: this.state.heluoLiuYueMode,
  			huangdiOffset: parseInt(this.state.heluoHuangdiOffset, 10) || 2697,
  			showLiuRi: this.state.heluoShowLiuRi,
@@ -303,7 +303,7 @@ index c4a3634e..3231836f 100644
  	}
  
  	/**
-@@ -3017,7 +3212,8 @@ class KinAstroMain extends Component{
+@@ -3202,7 +3397,8 @@ class KinAstroMain extends Component{
  
  	buildZhengChuanOpts(){
  		// 汇总全部开关 → 单一 opts 下传;任一变则中/右栏重算 + AI 快照刷新(禁止只监听单项)。
@@ -313,7 +313,7 @@ index c4a3634e..3231836f 100644
  			school: this.state.zhengchuanSchool,
  			askGz: this.state.zhengchuanAskGz,
  			fatherAge: this.state.zhengchuanFatherAge,
-@@ -3036,7 +3232,7 @@ class KinAstroMain extends Component{
+@@ -3221,7 +3417,7 @@ class KinAstroMain extends Component{
  			gong: this.state.zhengchuanGong,
  			xqZhi: this.state.zhengchuanXqZhi,
  			xqYushu: this.state.zhengchuanXqYushu,
@@ -322,7 +322,7 @@ index c4a3634e..3231836f 100644
  	}
  
  	// 预设批量套用（一次 setState 避免多次重渲）
-@@ -3055,7 +3251,7 @@ class KinAstroMain extends Component{
+@@ -3240,7 +3436,7 @@ class KinAstroMain extends Component{
  	}
  
  	buildYizhangjingOpts(){
@@ -331,7 +331,7 @@ index c4a3634e..3231836f 100644
  			shunniRule: this.state.yizhangjingShunni,
  			mingGongMethod: this.state.yizhangjingMingGong,
  			dayunLength: parseInt(this.state.yizhangjingDayunLen, 10) || 7,
-@@ -3075,7 +3271,7 @@ class KinAstroMain extends Component{
+@@ -3260,7 +3456,7 @@ class KinAstroMain extends Component{
  			// 显示层：预设名（题头徽）与童限显示开关；供 UI 标注，不改盘算
  			yizhangjingPresetName: this.yzjDeviationCount() > 0 ? '自定义' : (YZJ_PRESET_LABELS[this.state.yizhangjingPreset] || '自定义'),
  			tongxianShow: this.state.yizhangjingTongxian,
@@ -340,7 +340,7 @@ index c4a3634e..3231836f 100644
  	}
  
  	renderCenter(){
-@@ -3302,29 +3498,8 @@ class KinAstroMain extends Component{
+@@ -3561,29 +3757,8 @@ class KinAstroMain extends Component{
  		if(this.config.serviceKey === 'yizhangjing'){
  			return <div className="horosa-huangji-section-list"><YiZhangJingMain slot="aux" fields={this.props.fields} gender={this.state.gender} opts={this.buildYizhangjingOpts()} /></div>;
  		}
@@ -372,7 +372,7 @@ index c4a3634e..3231836f 100644
  		const activeKey = visibleTabs.some((item)=>item.key === this.state.rightPanelTab)
  			? this.state.rightPanelTab
  			: (visibleTabs[0] ? visibleTabs[0].key : 'overview');
-@@ -3332,19 +3507,29 @@ class KinAstroMain extends Component{
+@@ -3591,23 +3766,33 @@ class KinAstroMain extends Component{
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs horosa-kinastro-tabs">
  				{visibleTabs.map((item)=>(
  					<TabPane tab={item.label} key={item.key}>
@@ -382,10 +382,14 @@ index c4a3634e..3231836f 100644
 -							<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
 -						) : item.key === 'settings' ? (
 -							<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
+-						) : item.key === 'ziliao' && this.config.serviceKey === 'cetian' ? (
+-							this.renderCetianZiliao()
 -						) : item.key === 'yanfa' ? (
 -							<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
 -						) : item.key === 'framework' ? (
 -							<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
+-						) : this.config.serviceKey === 'cetian' ? (
+-							<div className="horosa-huangji-section-list">{renderCetianSectionList(this.getTabSections(item.key), this.state.pan, (secs)=>this.renderRows(secs))}</div>
 -						) : (
 -							<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
 -						)}
@@ -403,10 +407,14 @@ index c4a3634e..3231836f 100644
 +									<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
 +								) : item.key === 'settings' ? (
 +									<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
++								) : item.key === 'ziliao' && this.config.serviceKey === 'cetian' ? (
++									this.renderCetianZiliao()
 +								) : item.key === 'yanfa' ? (
 +									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
 +								) : item.key === 'framework' ? (
 +									<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
++								) : this.config.serviceKey === 'cetian' ? (
++									<div className="horosa-huangji-section-list">{renderCetianSectionList(this.getTabSections(item.key), this.state.pan, (secs)=>this.renderRows(secs))}</div>
 +								) : (
 +									<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
 +								)
@@ -415,7 +423,7 @@ index c4a3634e..3231836f 100644
  					</TabPane>
  				))}
  			</Tabs>
-@@ -3352,29 +3537,10 @@ class KinAstroMain extends Component{
+@@ -3615,29 +3800,10 @@ class KinAstroMain extends Component{
  	}
  
  	renderBottomQuickDock(){
@@ -449,7 +457,7 @@ index c4a3634e..3231836f 100644
  		const actions = [
  			{ label: '起盘', icon: 'quickPrimary', onClick: this.clickPlot },
  			...visibleTabs.map((item)=>({
-@@ -3476,7 +3642,7 @@ class KinAstroMain extends Component{
+@@ -3739,7 +3905,7 @@ class KinAstroMain extends Component{
  							</div>
  							<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-huangji-chart-panel xq-chart-renderer${chartRendererClass}`} style={{ position: 'relative' }}>
  								{this.state.loading && this.state.pan && silentTechniquePanelsEnabled() ? <UpdatingBadge /> : null}

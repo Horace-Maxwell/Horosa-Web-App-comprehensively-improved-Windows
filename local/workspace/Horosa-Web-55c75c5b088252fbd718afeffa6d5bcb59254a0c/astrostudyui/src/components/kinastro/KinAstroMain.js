@@ -1,8 +1,8 @@
 import React, { Component, Suspense } from 'react';   // React/Suspense:神数正传组件级 lazy 所需
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { Collapse, Input, InputNumber, Modal, Spin, Switch } from 'antd';
+import { Checkbox, Collapse, Input, InputNumber, Modal, Spin, Switch } from 'antd';
 import DateTime from '../comp/DateTime';
-import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
+import { convertLatToStr, convertLonToStr, formatLonDms, formatLatDms } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
 import CanPingMain from '../shusuan/CanPingMain';
@@ -18,6 +18,7 @@ const ZhengChuanMain = React.lazy(makeHealingFactory(() => import(/* webpackChun
 import { SCHOOL_LABEL as ZHENGCHUAN_SCHOOL_LABEL } from '../shusuan/zhengchuanSchools';
 import YiZhangJingMain from '../yizhangjing/YiZhangJingMain';
 import YanQinBranchPanel from '../yanqin/YanQinBranchPanel';
+import renderCetianSectionList from './CetianSections';
 import YanQinControls from '../yanqin/YanQinControls';
 import { buildYanqinYanfaSnapshot } from '../yanqin/yanqinSnapshot';
 import { deriveLocalNongliAsync } from '../../utils/divinationTimeDraft';
@@ -27,6 +28,8 @@ import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import ZiWeiChart from '../ziwei/ZiWeiChart';
+import { buildLocalBaziResult } from '../../utils/baziLunarLocal';   // 中宫四柱兜底(策天/演禽后端不产 pillars)
+import { safeLocalStorageSet } from '../../utils/safeStorage';       // 中宫内容档位持久化
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
@@ -228,17 +231,22 @@ const TECHNIQUE_CONFIG = {
 	cetian: {
 		pageTitle: '其他',
 		infoTitle: '其他信息',
-		infoSubTitle: '策天十八飞星（书法/原法可切）',
+		infoSubTitle: '策天十八飞星（移语本增强·书法/原法可切）',
 		serviceKey: 'cetian',
 		moduleKey: 'mingother',
 		techniqueLabel: '策天飞星',
 		showRail: true,
-		// 飞星/格局 tab 仅原法(kentang)有内容时由 visibleTabs 过滤自动出现;书法无该数据则自动隐藏。
+		// 书法(移语本):流年/运限/断诀/典籍四新页;飞星/格局 tab 仅原法(kentang)有数据时
+		// 由 visibleTabs 过滤自动出现,书法无该段自动隐藏(反之书法新段原法不产,同一机制互斥)。
 		tabs: [
 			{ key: 'overview', label: '概览' },
 			{ key: 'palaces', label: '宫位' },
+			{ key: 'liunian', label: '流年' },
+			{ key: 'yunxian', label: '运限' },
+			{ key: 'duanjue', label: '断诀' },
 			{ key: 'flying', label: '飞星' },
 			{ key: 'patterns', label: '格局' },
+			{ key: 'ziliao', label: '典籍' },
 		],
 	},
 	yizhangjing: {
@@ -446,6 +454,21 @@ function sectionByTitle(sections, names){
 	return (sections || []).filter((section)=>wanted.has(section.title));
 }
 
+// 策天流年星盘面单字短名(繁体星名→盘面徽字;毛頭=耗、紅鸞=红)
+const CETIAN_LIUNIAN_SHORT = {
+	'天庫': '库', '天貫': '贯', '文昌': '文', '天福': '福', '天祿': '禄', '紫微': '紫',
+	'天虛': '虚', '天貴': '贵', '天印': '印', '天壽': '寿', '天空': '空', '紅鸞': '红',
+	'天杖': '杖', '天異': '异', '毛頭': '耗', '天刃': '刃', '天刑': '刑', '天姚': '姚', '天哭': '哭',
+};
+
+// 策天流年年份点选范围(当前年±120;左栏铁律:年份全点选)
+const CETIAN_LIUNIAN_YEARS = (()=>{
+	const now = new Date().getFullYear();
+	const list = [];
+	for(let y = now - 120; y <= now + 120; y += 1){ list.push(y); }
+	return list;
+})();
+
 const BRANCH_INDEX = {
 	子: 0, 丑: 1, 寅: 2, 卯: 3, 辰: 4, 巳: 5,
 	午: 6, 未: 7, 申: 8, 酉: 9, 戌: 10, 亥: 11,
@@ -551,7 +574,21 @@ const INTERNAL_SECTION_TITLES = new Set([
 	'飞化规则',
 	'古法格局规则',
 	'三合组',
+	'星曜别名',
+	'廿八宿分野',
+	'十干变曜',
+	'杂曜',
 ]);
+
+// 策天(移语本)右栏页签 → 段名映射(单源;getTabSections 与 ziliao 特渲共用)。
+// ziliao 组含 INTERNAL 资料段,取段时须绕过 INTERNAL 过滤直读 pan.sections。
+const CETIAN_TAB_SECTIONS = {
+	liunian: ['流年飞星', '流年七煞', '十七飞星', '神煞·岁前', '神煞·岁后', '神煞·年干', '神煞·月煞'],
+	yunxian: ['运限', '童限', '凶限提示', '会照', '三日宫'],
+	duanjue: ['断诀'],
+	ziliao: ['廿八宿分野', '十干变曜', '杂曜', '星曜别名', '星曜属性', '正曜副曜',
+		'宫干四化表', '飞化规则', '古法格局规则', '三合组'],   // 后三段仅原法(kentang)产
+};
 
 function normalizeGanzhiInput(value){
 	const text = `${value || ''}`.trim();
@@ -724,9 +761,75 @@ function addPalaceMarker(house, marker){
 	}
 }
 
+// 借用的紫微中宫要画四柱。
+// 🔴 中宫此前四格恒画占位符「—」——演禽四格全空、策天只有年柱(上一轮补年干支时只补了年那一格),
+// 用户实报「中间栏严重失真」。
+// 数据源两级:①pan.pillars([{key,label,ganzhi}])——邵子/铁板/分经等子技法后端给;
+// ②策天(webcetiansrv)与演禽(webxianqinsrv)后端压根不产 pillars,故按起盘时刻用前端本地
+// 排盘补齐(与八字主盘同一个 buildLocalBaziResult,不新起一套干支实现)。
+// 本地排盘不传口径参数 = 各档缺省,与紫微/择时/一掌经等既有「只要干支」的调用方同款。
+function pillarsFromPan(pan){
+	const list = (pan && pan.pillars) || [];
+	const byKey = (k, i)=>{
+		const hit = list.find((p)=>p && p.key === k);
+		return (hit && hit.ganzhi) || (list[i] && list[i].ganzhi) || '';
+	};
+	const out = { year: byKey('year', 0), month: byKey('month', 1), day: byKey('day', 2), time: byKey('hour', 3) };
+	if(out.year && out.month && out.day && out.time){ return out; }
+	// 后端未给全 → 本地按起盘时刻补。失败(缺时间/引擎抛)一律回落占位符,绝不让中宫崩掉整盘。
+	try{
+		const dateStr = pan && pan.dateStr;
+		const timeStr = pan && pan.timeStr;
+		if(!dateStr || !timeStr){ return out; }
+		const fc = ((buildLocalBaziResult({
+			date: `${dateStr}`.slice(0, 10),
+			time: `${timeStr}`.slice(0, 8),
+			zone: pan.timezone,
+			lon: pan.longitude,
+			lat: pan.latitude,
+		}) || {}).bazi || {}).fourColumns || {};
+		const gz = (p)=>(p && (p.ganzi || p.ganZhi)) || '';
+		return {
+			year: out.year || gz(fc.year),
+			month: out.month || gz(fc.month),
+			day: out.day || gz(fc.day),
+			time: out.time || gz(fc.time),
+		};
+	}catch(e){ return out; }
+}
+
+// 中宫内容档位(clean/bazi/full)。策天与演禽各自一个键 —— 与紫微的 ziweiCenterContent 分开,
+// 免得「在策天调了档,紫微跟着变」。缺省 bazi:借用中宫的这两法本就要看四柱与命/身要素,
+// 空着一格中宫反而是浪费(紫微自身默认仍是 clean,零回归)。
+const KIN_CENTER_CONTENT_KEY = { cetian: 'cetianCenterContent', xianqin: 'xianqinCenterContent' };
+
+// 概览段的经纬度按专业记法显示(116°24′27″E / 39°54′15″N),不再把浮点原样铺开
+// —— 后端 sections 直接给的是 double,十进制换算出来就是 119.31666666666666 这种一长串,
+// 既难读又把二进制浮点误差摊在用户眼前(用户实报「不要变成一长串」)。
+// 同段的「时区」后端本就已格式化成 UTC+8.0,此处是把同一条显示纪律补齐到经纬度两行。
+// 仅动**显示**:计算一律仍用 pan.longitude/latitude 原值,精度不受影响。
+// 按 label 认而非按值认:值就是个 number,只有 label 能区分它是经度、纬度还是别的度数。
+function formatGeoRowValue(label, value){
+	const key = `${label || ''}`;
+	if(value === undefined || value === null || value === '' || !Number.isFinite(Number(value))){
+		return value;
+	}
+	if(key.indexOf('经度') >= 0){ return formatLonDms(value) || value; }
+	if(key.indexOf('纬度') >= 0){ return formatLatDms(value) || value; }
+	return value;
+}
+function readKinCenterContent(serviceKey){
+	const key = KIN_CENTER_CONTENT_KEY[serviceKey];
+	if(!key){ return 'clean'; }
+	let v = null;
+	try{ v = localStorage.getItem(key); }catch(e){ /* 隐私模式/配额:回落默认 */ }
+	return v === 'clean' || v === 'bazi' || v === 'full' ? v : 'bazi';
+}
+
 function buildKinAstroZiWeiChart(pan, serviceKey){
 	const dateStr = pan && pan.dateStr ? pan.dateStr : '2026-01-01';
 	const timeStr = pan && pan.timeStr ? pan.timeStr : '00:00:00';
+	const gzOf = pillarsFromPan(pan);
 	const chart = {
 		kinastroBorrowed: true,
 		birth: dateStr,
@@ -742,6 +845,12 @@ function buildKinAstroZiWeiChart(pan, serviceKey){
 		bodyMaster: serviceKey === 'cetian' ? fmtValue(pan && pan.shenGong) : '身星',
 		zidou: serviceKey === 'cetian' ? fmtValue(pan && pan.ziwei) : '—',
 		doujun: serviceKey === 'cetian' ? fmtValue(pan && pan.hourBranch) : '—',
+		// 中宫四项标签随技法改名 —— 借来的是紫微的**版式**,不是紫微的**术语**。
+		// 策天填的是命宫/身宫/紫微所在宫与时辰;演禽填的是命星/身星/胎星与三元(见下方演禽分支)。
+		centerMasterLabels: serviceKey === 'cetian'
+			? ['命宫', '身宫', '紫微', '时辰']
+			: ['命星', '身星', '胎星', '三元'],
+		centerContentMode: readKinCenterContent(serviceKey),
 		nongli: {
 			year: pan && pan.lunar && pan.lunar.text ? pan.lunar.text : dateStr,
 			month: '',
@@ -752,10 +861,10 @@ function buildKinAstroZiWeiChart(pan, serviceKey){
 		},
 		bazi: {
 			bazi: {
-				year: { ganzi: '—' },
-				month: { ganzi: '—' },
-				day: { ganzi: '—' },
-				time: { ganzi: '—' },
+				year: { ganzi: gzOf.year || '—' },
+				month: { ganzi: gzOf.month || '—' },
+				day: { ganzi: gzOf.day || '—' },
+				time: { ganzi: gzOf.time || '—' },
 			},
 			direct: { direction: [] },
 		},
@@ -765,6 +874,52 @@ function buildKinAstroZiWeiChart(pan, serviceKey){
 	if(serviceKey === 'cetian'){
 		const palaces = (pan.cetian && pan.cetian.palaces) || [];
 		const cetian = pan.cetian || {};
+		const yiyu = pan.yiyu || {};
+		const showFlags = pan.showFlags || {};
+		// 中宫真值:年干支/阴阳/性别(修占位符 —— 曾恒写死 'Male'/'子'/'—')。
+		if(cetian.lunar_year_stem !== undefined && STEM_NAMES[cetian.lunar_year_stem]){
+			chart.yearGan = STEM_NAMES[cetian.lunar_year_stem];
+		}
+		if(cetian.lunar_year_branch !== undefined && BRANCH_NAMES[cetian.lunar_year_branch]){
+			chart.yearZi = BRANCH_NAMES[cetian.lunar_year_branch];
+			// 年柱以 pan.pillars 为准(与右栏「四柱」页签同源);仅在那边没给出时才用农历年干支兜底,
+			// 否则同一张盘的中宫与四柱页签可能给出两个年柱。
+			if(!chart.bazi.bazi.year.ganzi || chart.bazi.bazi.year.ganzi === '—'){
+				chart.bazi.bazi.year.ganzi = `${chart.yearGan || ''}${chart.yearZi}`;
+			}
+		}
+		chart.yearPolar = cetian.yin_yang === '陰' ? 'Negative' : 'Positive';
+		chart.gender = cetian.gender === '女' ? 'Female' : 'Male';
+		// 🔴 流年**不**再并进时辰格:该格标签是「时辰」,塞「未時(13-15)·流年2026」既与标签不符,
+		// 又长到冲出中宫压住相邻宫的星名(中宫四项各只占 1/4 宽)。流年在左栏下拉与右栏运限区
+		// 各有一处显示,不存在信息丢失。
+		// 杂曜按支分组(showZaYao 关则不上盘;进 starsEvil 槽 —— 书法 patterns 恒空,原法保持格局占槽)。
+		const zayaoByBranch = {};
+		if(showFlags.zayao !== false && yiyu.zayao){
+			Object.keys(yiyu.zayao).forEach((name)=>{
+				const b = yiyu.zayao[name];
+				if(b === undefined || b === null){ return; }
+				(zayaoByBranch[b] = zayaoByBranch[b] || []).push(name);
+			});
+		}
+		// 流年星单字短名按支分组(showLiunian 关则不画)。
+		const liunianByBranch = {};
+		const ln = yiyu.liunian;
+		if(showFlags.liunian !== false && ln){
+			const pushShort = (name, b)=>{
+				const short = CETIAN_LIUNIAN_SHORT[name] || `${name}`.slice(-1);
+				(liunianByBranch[b] = liunianByBranch[b] || []).push(short);
+			};
+			Object.keys(ln.zhuxu || {}).forEach((name)=>pushShort(name, ln.zhuxu[name]));
+			Object.keys(ln.qisha || {}).forEach((name)=>pushShort(name, ln.qisha[name]));
+			if(ln.feiku !== undefined){ pushShort('哭', ln.feiku); }
+			if(ln.xiaoku !== undefined){ (liunianByBranch[ln.xiaoku] = liunianByBranch[ln.xiaoku] || []).push('小哭'); }
+		}
+		// 限名按支(运限段真值,direction 区显示「X限」替代宫名首字)。
+		const xianByBranch = {};
+		((yiyu.yunxian || {}).daxian || []).forEach((d)=>{
+			if(d && d.branch !== undefined){ xianByBranch[d.branch] = d; }
+		});
 		palaces.forEach((palace, idx)=>{
 			const branchIdx = palace.branch;
 			if(branchIdx === undefined || branchIdx === null || !chart.houses[branchIdx]){
@@ -774,14 +929,22 @@ function buildKinAstroZiWeiChart(pan, serviceKey){
 			const mainStars = toCetianStarList(palace.stars, cetian.sihua, palace, cetian);
 			const assistStars = toCetianStarList(palace.aux_stars, cetian.sihua, palace, cetian);
 			const stemBranch = `${palace.stem_name || ''}${branch}`;
+			// 大限真值:后端 da_xian_start(口径联动);缺失时回退旧伪值(防御,不应触发)。
+			const dxStart = Number(palace.da_xian_start);
+			const direction = Number.isFinite(dxStart) && dxStart > 0
+				? [dxStart, dxStart + 9]
+				: [idx * 10 + 1, idx * 10 + 10];
+			const zaYaoStars = (zayaoByBranch[branchIdx] || []).map((name)=>({ name }));
 			chart.houses[branchIdx] = {
 				...emptyZiWeiHouse(branchIdx),
 				name: `${palace.name || branch || ''}`.replace(/[宫宮]$/, '') || branch,
 				ganzi: stemBranch || branch,
 				starsMain: mainStars,
 				starsAssist: assistStars,
-				starsEvil: toStarList(palace.patterns),
-				direction: [idx * 10 + 1, idx * 10 + 10],
+				starsEvil: (palace.patterns && palace.patterns.length) ? toStarList(palace.patterns) : zaYaoStars,
+				direction,
+				kinastroLiunianRow: liunianByBranch[branchIdx] || null,
+				kinastroXianName: (xianByBranch[branchIdx] || {}).xian_name || '',
 			};
 		});
 		if(chart.houses[cetian.shen_gong_branch]){
@@ -868,7 +1031,6 @@ class KinAstroMain extends Component{
 			loading: false,
 			pan: null,
 			rightPanelTab: 'overview',
-			centerInfoVisible: false,
 			gender: '1',
 			// fields→state 上次同步来源标记（computeKinFieldsResync 用）；不进 optionKeys 观察器。
 			fieldsSyncSrc: null,
@@ -882,6 +1044,29 @@ class KinAstroMain extends Component{
 			cetianShowFlying: 1,
 			cetianShowBrightness: 1,
 			cetianShowSolarTerm: 1,
+			// 书法(移语本)口径与流年选项 —— 仅 method='book' 生效,原法不透传不显示
+			cetianBrightnessSchool: 'yiyu',     // 庙旺口径:移语本诸星格(默认)/quanji 全集本诗诀
+			cetianShenGongMode: 'yizheng',      // 身宫取整:引证图口径(默认)/literal 正文直读
+			cetianDaxianMode: 'yiyu',           // 大限起宫:阳年从命阴年从身(默认)/legacy 顺从命逆从身
+			cetianTianluoMode: 'benshu',        // 天罗地网:本书月日法(默认)/zhongtian 中天太极月时法
+			cetianPalaceNameMode: 'common',     // 宫名:通行(默认)/monk 僧道起法
+			cetianLiunianYear: new Date().getFullYear(),  // 流年年份(点选,默认今年)
+			cetianLiunianQishaMode: 'shengshi', // 流年七煞:生时法(默认)/suishu 岁数法
+			// 中宫内容档位只存「改动代次」不存值 —— 值恒按当前 serviceKey 从 LS 现读。
+			// 🔴 策天与演禽复用同一个 KinAstroMain 实例(technique 走 props),把档位缓存进 state
+			// 会跟着上一个技法漂:实测在策天调成「全量信息」后切到演禽,盘画的是演禽自己的档,
+			// 下拉却显示策天那档 —— 控件与实际不符比档位错更误导人。
+			centerContentRev: 0,
+			// 书法 6 显示开关(默认 1=显示)
+			cetianShowLiunian: 1,
+			cetianShowShensha: 1,
+			cetianShowZaYao: 1,
+			cetianShowDuanjue: 1,
+			cetianShowXiu: 1,
+			cetianShowBianyao: 1,
+			// 典籍全文(惰性拉取 /cetian/texts,组件态缓存)
+			cetianTexts: null,
+			cetianTextsLoading: false,
 			ke: '初刻',
 			useKey: '1',
 			pillarOverride: '0',
@@ -1003,8 +1188,6 @@ class KinAstroMain extends Component{
 		this.clickPlot = this.clickPlot.bind(this);
 		this.fetchPan = this.fetchPan.bind(this);
 		this.setRightPanelTab = this.setRightPanelTab.bind(this);
-		this.openCenterInfo = this.openCenterInfo.bind(this);
-		this.closeCenterInfo = this.closeCenterInfo.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		if(this.props.hook){
 			this.props.hook.fun = (fields)=>{
@@ -1099,8 +1282,7 @@ class KinAstroMain extends Component{
 			this.setState({
 				pan: null,
 				rightPanelTab: 'overview',
-				centerInfoVisible: false,
-				loading: false,
+					loading: false,
 				// fields 与技法同帧变化的角落：早退前也要重同步，否则本分支吞掉载入命例的性别/锚点变化。
 				...(computeKinFieldsResync(this.props.fields, this.state.fieldsSyncSrc) || {}),
 			}, ()=>this.fetchPan(this.props.fields));
@@ -1307,6 +1489,27 @@ class KinAstroMain extends Component{
 		return { ...(baseFields || {}), ...patch };
 	}
 
+	// 中宫内容三档下拉(策天/演禽共用一段;档位各自持久化,见 KIN_CENTER_CONTENT_KEY)。
+	// 纯显示层:只写 LS + setState 触发重渲染,不重新起盘(盘算与中宫画什么无关)。
+	renderCenterContentSelect(){
+		const key = KIN_CENTER_CONTENT_KEY[this.config.serviceKey];
+		if(!key){ return null; }
+		const val = readKinCenterContent(this.config.serviceKey);
+		return (
+			<label className="horosa-huangji-select-field is-wide">
+				<span title="中宫(盘心)显示什么">中宫内容</span>
+				<Select
+					value={val}
+					onChange={(v)=>{ safeLocalStorageSet(key, v); this.setState({ centerContentRev: (this.state.centerContentRev || 0) + 1 }); }}
+				>
+					<Option value="clean">简洁</Option>
+					<Option value="bazi">四柱要素</Option>
+					<Option value="full">全量信息</Option>
+				</Select>
+			</label>
+		);
+	}
+
 	clickPlot(){
 		const nextFields = this.getTimeFieldsFromSelector(this.props.fields) || this.props.fields;
 		if(nextFields && nextFields.date && nextFields.time && nextFields.zone){
@@ -1398,6 +1601,20 @@ class KinAstroMain extends Component{
 			payload.showFlying = this.state.cetianShowFlying;
 			payload.showBrightness = this.state.cetianShowBrightness;
 			payload.showSolarTerm = this.state.cetianShowSolarTerm;
+			// 书法(移语本)口径/流年/显示开关(原法后端自动忽略,统一透传保持键集单源)
+			payload.brightnessSchool = this.state.cetianBrightnessSchool || 'yiyu';
+			payload.shenGongMode = this.state.cetianShenGongMode || 'yizheng';
+			payload.daxianMode = this.state.cetianDaxianMode || 'yiyu';
+			payload.tianluoMode = this.state.cetianTianluoMode || 'benshu';
+			payload.palaceNameMode = this.state.cetianPalaceNameMode || 'common';
+			payload.liunianYear = this.state.cetianLiunianYear || new Date().getFullYear();
+			payload.liunianQishaMode = this.state.cetianLiunianQishaMode || 'shengshi';
+			payload.showLiunian = this.state.cetianShowLiunian;
+			payload.showShensha = this.state.cetianShowShensha;
+			payload.showZaYao = this.state.cetianShowZaYao;
+			payload.showDuanjue = this.state.cetianShowDuanjue;
+			payload.showXiu = this.state.cetianShowXiu;
+			payload.showBianyao = this.state.cetianShowBianyao;
 		}
 		if(this.state.pillarOverride === '1'){
 			const yearGz = normalizeGanzhiInput(this.state.yearGz);
@@ -1480,14 +1697,6 @@ class KinAstroMain extends Component{
 
 	setRightPanelTab(key){
 		this.setState({ rightPanelTab: key });
-	}
-
-	openCenterInfo(){
-		this.setState({ centerInfoVisible: true });
-	}
-
-	closeCenterInfo(){
-		this.setState({ centerInfoVisible: false });
 	}
 
 	// ── horosa_kinastro_render_memo_v1(PERF-R9 Ship 6)──────────────────────────
@@ -1643,11 +1852,11 @@ class KinAstroMain extends Component{
 						) : null}
 						{this.config.serviceKey === 'cetian' ? (
 							<>
-								<label className="horosa-huangji-select-field is-wide">
+								<label className="horosa-huangji-select-field">
 									<span>算法</span>
-									<Select value={this.state.cetianMethod} onChange={(value)=>this.setState({ cetianMethod: value }, this.clickPlot)}>
-										<Option value="book">书法·策天本法</Option>
-										<Option value="kentang">原法·标准紫微</Option>
+									<Select value={this.state.cetianMethod} optionLabelProp="label" onChange={(value)=>this.setState({ cetianMethod: value }, this.clickPlot)}>
+										<Option value="book" label="书法">书法·策天本法</Option>
+										<Option value="kentang" label="原法">原法·标准紫微</Option>
 									</Select>
 								</label>
 								{this.state.cetianMethod === 'kentang' ? (
@@ -1667,32 +1876,85 @@ class KinAstroMain extends Component{
 											</Select>
 										</label>
 									</>
-								) : null}
-								<label className="horosa-huangji-select-field horosa-heluo-switch-field">
-									<span>显示亮度（庙旺乐）</span>
-									<Switch checked={!!this.state.cetianShowBrightness} onChange={(v)=>this.setState({ cetianShowBrightness: v ? 1 : 0 }, this.clickPlot)} />
-								</label>
-								{this.state.cetianMethod === 'kentang' ? (
+								) : (
 									<>
-										<label className="horosa-huangji-select-field horosa-heluo-switch-field">
-											<span>显示五行局</span>
-											<Switch checked={!!this.state.cetianShowWuXingJu} onChange={(v)=>this.setState({ cetianShowWuXingJu: v ? 1 : 0 }, this.clickPlot)} />
+										<label className="horosa-huangji-select-field">
+											<span title="庙旺口径（两古籍分歧）">庙旺</span>
+											<Select value={this.state.cetianBrightnessSchool} optionLabelProp="label" onChange={(value)=>this.setState({ cetianBrightnessSchool: value }, this.clickPlot)}>
+												<Option value="yiyu" label="移语本">移语本·诸星格</Option>
+												<Option value="quanji" label="全集本">全集本·诗诀</Option>
+											</Select>
 										</label>
-										<label className="horosa-huangji-select-field horosa-heluo-switch-field">
-											<span>显示四化（禄权科忌）</span>
-											<Switch checked={!!this.state.cetianShowSihua} onChange={(v)=>this.setState({ cetianShowSihua: v ? 1 : 0 }, this.clickPlot)} />
+										<label className="horosa-huangji-select-field">
+											<span title="身宫取整口径">身宫</span>
+											<Select value={this.state.cetianShenGongMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianShenGongMode: value }, this.clickPlot)}>
+												<Option value="yizheng" label="引证图">引证图口径</Option>
+												<Option value="literal" label="正文直读">正文直读</Option>
+											</Select>
 										</label>
-										<label className="horosa-huangji-select-field horosa-heluo-switch-field">
-											<span>显示飞星与格局</span>
-											<Switch checked={!!this.state.cetianShowFlying} onChange={(v)=>this.setState({ cetianShowFlying: v ? 1 : 0 }, this.clickPlot)} />
+										<label className="horosa-huangji-select-field">
+											<span title="大限起宫口径">大限</span>
+											<Select value={this.state.cetianDaxianMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianDaxianMode: value }, this.clickPlot)}>
+												<Option value="yiyu" label="阳命阴身">阳年从命·阴年从身</Option>
+												<Option value="legacy" label="旧口径">顺从命·逆从身(旧)</Option>
+											</Select>
 										</label>
-										<label className="horosa-huangji-select-field horosa-heluo-switch-field">
-											<span>显示节气影响</span>
-											<Switch checked={!!this.state.cetianShowSolarTerm} onChange={(v)=>this.setState({ cetianShowSolarTerm: v ? 1 : 0 }, this.clickPlot)} />
+										<label className="horosa-huangji-select-field">
+											<span title="天罗地网起法">罗网</span>
+											<Select value={this.state.cetianTianluoMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianTianluoMode: value }, this.clickPlot)}>
+												<Option value="benshu" label="本书月日">本书·月日法</Option>
+												<Option value="zhongtian" label="中天太极">中天太极·月时法</Option>
+											</Select>
+										</label>
+										<label className="horosa-huangji-select-field">
+											<span title="宫名体系">宫名</span>
+											<Select value={this.state.cetianPalaceNameMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianPalaceNameMode: value }, this.clickPlot)}>
+												<Option value="common" label="通行">通行十二宫</Option>
+												<Option value="monk" label="僧道">僧道起法</Option>
+											</Select>
+										</label>
+										<label className="horosa-huangji-select-field">
+											<span>流年</span>
+											<Select
+												value={this.state.cetianLiunianYear}
+												onChange={(value)=>this.setState({ cetianLiunianYear: value }, this.clickPlot)}
+												showSearch
+												optionFilterProp="children"
+											>
+												{CETIAN_LIUNIAN_YEARS.map((y)=><Option value={y} key={y}>{y}年</Option>)}
+											</Select>
+										</label>
+										<label className="horosa-huangji-select-field">
+											<span title="流年七煞起法">七煞</span>
+											<Select value={this.state.cetianLiunianQishaMode} onChange={(value)=>this.setState({ cetianLiunianQishaMode: value }, this.clickPlot)}>
+												<Option value="shengshi">生时法</Option>
+												<Option value="suishu">岁数法</Option>
+											</Select>
 										</label>
 									</>
-								) : null}
-								<div className="horosa-cetian-settings-hint">算法/农历/正曜为排盘设置；显示开关默认全显，切「原法」后另有五行局/四化/飞星/节气可调。</div>
+								)}
+																<div className="horosa-ziwei-option-card horosa-ziwei-display-card horosa-cetian-display-card">
+									<Checkbox checked={!!this.state.cetianShowBrightness} onChange={(e)=>this.setState({ cetianShowBrightness: e.target.checked ? 1 : 0 }, this.clickPlot)} title="显示亮度(庙旺乐)">庙旺标注</Checkbox>
+									{this.state.cetianMethod !== 'kentang' ? (
+										<>
+											<Checkbox checked={!!this.state.cetianShowLiunian} onChange={(e)=>this.setState({ cetianShowLiunian: e.target.checked ? 1 : 0 }, this.clickPlot)} title="流年飞星外盘(主序/七煞/十七飞星)">流年飞星</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowShensha} onChange={(e)=>this.setState({ cetianShowShensha: e.target.checked ? 1 : 0 }, this.clickPlot)} title="岁前/岁后/年干/月煞">神煞四表</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowZaYao} onChange={(e)=>this.setState({ cetianShowZaYao: e.target.checked ? 1 : 0 }, this.clickPlot)} title="龙池凤阁三台八座天罗地网等廿八曜">杂曜</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowDuanjue} onChange={(e)=>this.setState({ cetianShowDuanjue: e.target.checked ? 1 : 0 }, this.clickPlot)} title="古籍条文自动命中">断诀</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowXiu} onChange={(e)=>this.setState({ cetianShowXiu: e.target.checked ? 1 : 0 }, this.clickPlot)} title="廿八宿分野与三日宫">廿八宿</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowBianyao} onChange={(e)=>this.setState({ cetianShowBianyao: e.target.checked ? 1 : 0 }, this.clickPlot)} title="本命与流年变曜">十干变曜</Checkbox>
+										</>
+									) : (
+										<>
+											<Checkbox checked={!!this.state.cetianShowWuXingJu} onChange={(e)=>this.setState({ cetianShowWuXingJu: e.target.checked ? 1 : 0 }, this.clickPlot)} title="显示五行局">五行局</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowSihua} onChange={(e)=>this.setState({ cetianShowSihua: e.target.checked ? 1 : 0 }, this.clickPlot)} title="禄权科忌">四化</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowFlying} onChange={(e)=>this.setState({ cetianShowFlying: e.target.checked ? 1 : 0 }, this.clickPlot)} title="飞星与古法格局">飞星格局</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowSolarTerm} onChange={(e)=>this.setState({ cetianShowSolarTerm: e.target.checked ? 1 : 0 }, this.clickPlot)} title="节气影响">节气</Checkbox>
+										</>
+									)}
+								</div>
+{/* 原此处一段口径提要已按「左边栏永不放大段解释」铁律移入帮助文档「策天飞星 · 设置与判读」章首「左栏一览」卡。 */}
+								{this.renderCenterContentSelect()}
 							</>
 						) : null}
 						{this.config.serviceKey === 'shaozi' ? (
@@ -1737,7 +1999,7 @@ class KinAstroMain extends Component{
 										<Option value="baziStyle">八字大运法（阳男阴女顺）</Option>
 									</Select>
 								</label>
-								<div className="horosa-cetian-settings-hint">诸法分歧：默认取《参评诀》口径——命宫顺行、起运岁按生日推算（单月三十逆数／双月初一顺数，三数一岁）。「恒一岁起」为旧版行为；「八字大运法」依《河洛理数》注解，自月建下一位按阳男阴女顺、阴男阳女逆排。改设置即时重排。</div>
+								{/* 大运排法三档的口径分歧详见帮助文档「数算 · 本页直算三门 · 邵子参评数」——「左边栏永不放大段解释」铁律。 */}
 							</>
 						) : null}
 						{this.config.serviceKey === 'heluo' ? (
@@ -1796,7 +2058,7 @@ class KinAstroMain extends Component{
 										<span>纪年基准（黄帝纪元差，默认 2697）</span>
 										<InputNumber min={0} max={16799} value={parseInt(this.state.heluoHuangdiOffset, 10) || 2697} onChange={(v)=>this.setState({ heluoHuangdiOffset: `${v || 2697}` })} />
 									</label>
-									<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">诸法分歧：默认取「成对全取 · 三元表」（古本/经典主流）。改设置即时重排先后天卦、元堂图、旺相休囚死、十吉与纪年。占事卦/日课本轮未开，命卦为唯一用途。</div>
+									{/* 九项默认口径与各档差异详见帮助文档「数算 · 本页直算三门 · 河洛理数 · 左栏九项」——「左边栏永不放大段解释」铁律。 */}
 								</>
 							) : null}
 							{this.config.serviceKey === 'zhengchuan' ? (
@@ -1904,13 +2166,8 @@ class KinAstroMain extends Component{
 											</label>
 											</>
 										) : null}
-										<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">
-											{this.state.zhengchuanSchool === 'xinyi'
-												? '本支古籍只出部分口诀与部分图表，未出起数入口（由生辰求声音／卦气／余数之法全未载），故据实作查询层：自择项目与声音即出条文号，不作自动推算。其条文正文亦未载，只出号。'
-												: (this.state.zhengchuanSchool === 'liuqin'
-													? '本支配十二宫与遁甲盘演六亲属相、妻室姓氏。改设置即时重排中右栏与 AI 快照。古籍未载之格（心法上卦须秘咒／成数序须卦谱／动爻落阴支之遁法）显式标缺，不臆补。'
-													: '三支同出一系：大定数为条文类神数之底层，铁板与邵子各据其上另立条文体系。改设置即时重排中右栏与 AI 快照。古籍原缺之格显式标「原缺」，不外推。')}
-										</div>
+										{/* 五派各自的性质、所缺之格与三支源流详见帮助文档「数算 · 本页直算三门 · 神数正传」诸卡
+										    ——「左边栏永不放大段解释」铁律;该处逐派载明,比这里随流派切换的一段摘要更全。 */}
 									</>
 								) : null}
 							{this.config.serviceKey === 'yizhangjing' ? (
@@ -2398,6 +2655,7 @@ class KinAstroMain extends Component{
 										<InputNumber min={1} max={30} value={this.state.lunarDay} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setState({ lunarDay: value || 1 })} />
 									</label>
 								</div>
+								{this.renderCenterContentSelect()}
 								<YanQinControls />
 							</div>
 						) : null}
@@ -3047,85 +3305,12 @@ class KinAstroMain extends Component{
 						height="100%"
 						fields={this.props.fields}
 						rules={rules}
-						onCenterInfoClick={this.openCenterInfo}
 					/>
 				</div>
-				<button
-					type="button"
-					className="horosa-kinastro-center-info-overlay"
-					onClick={this.openCenterInfo}
-					aria-label="打开命盘信息"
-				>
-					命盘信息
-				</button>
 			</div>
 		);
 	}
 
-	renderCenterInfoModal(){
-		if(this.config.serviceKey !== 'xianqin' && this.config.serviceKey !== 'cetian'){
-			return null;
-		}
-		const sections = this.getCenterInfoSections();
-		return (
-			<Modal
-				open={this.state.centerInfoVisible}
-				title="命盘信息"
-				footer={null}
-				onCancel={this.closeCenterInfo}
-				width={640}
-				className="horosa-ziwei-center-info-modal horosa-kinastro-center-info-modal"
-			>
-				{this.renderCenterInfoPanel(sections)}
-			</Modal>
-		);
-	}
-
-	getCenterInfoSections(){
-		const sections = this.state.pan ? (this.state.pan.sections || []).filter((section)=>!INTERNAL_SECTION_TITLES.has(section.title)) : [];
-		const titles = this.config.serviceKey === 'cetian'
-			? ['起盘', '农历与命身', '三宫', '四化']
-			: ['起盘', '农历与命身', '三宫', '三星', '二十八宿禽'];
-		const matched = titles
-			.map((title)=>sections.find((section)=>section.title === title))
-			.filter((section)=>section && section.rows && section.rows.length);
-		return matched.length ? matched : sections.slice(0, 4).filter((section)=>section.rows && section.rows.length);
-	}
-
-	renderCenterInfoPanel(sections){
-		const list = sections || [];
-		if(!list.length){
-			return <div className="horosa-empty-hint">起盘后显示命盘信息</div>;
-		}
-		return (
-			<div className="horosa-ziwei-meta-scroll horosa-astro-content-scroll horosa-kinastro-center-info-scroll">
-				{list.map((section)=>{
-					const rows = section.rows || [];
-					const isPillar = section.title === '四柱' || rows.every((row)=>/[年月日時时]柱$/.test(row.label || ''));
-					return (
-						<div className="horosa-info-card" key={section.title}>
-							<div className="horosa-info-card-title">{section.title}</div>
-							{isPillar ? (
-								<div className="horosa-ziwei-bazi-grid">
-									{rows.map((row, idx)=>(
-										<div className="horosa-ziwei-bazi-cell" key={`${section.title}_${row.label}_${idx}`}>
-											<span>{row.label}</span>
-											<strong>{fmtValue(row.value)}</strong>
-										</div>
-									))}
-								</div>
-							) : rows.map((row, idx)=>(
-								<div className="horosa-info-row" key={`${section.title}_${row.label}_${idx}`}>
-									<span>{row.label}</span>
-									<strong>{fmtValue(row.value)}</strong>
-								</div>
-							))}
-						</div>
-					);
-				})}
-			</div>
-		);
-	}
 
 	buildHeluoOpts(){
 		return this.memoOpts('heluo', {
@@ -3328,7 +3513,7 @@ class KinAstroMain extends Component{
 				{(section.rows || []).map((item, idx)=>(
 					<div className="horosa-huangji-info-row" key={`${section.title}_${item.label}_${idx}`}>
 						<span>{item.label}</span>
-						<strong>{fmtValue(item.value)}</strong>
+						<strong>{fmtValue(formatGeoRowValue(item.label, item.value))}</strong>
 					</div>
 				))}
 			</div>
@@ -3444,10 +3629,84 @@ class KinAstroMain extends Component{
 		if(tabKey === 'patterns'){
 			return sectionByTitle(sections, ['格局']);
 		}
+		if(tabKey === 'liunian' || tabKey === 'yunxian' || tabKey === 'duanjue'){
+			return sectionByTitle(sections, CETIAN_TAB_SECTIONS[tabKey]);
+		}
+		if(tabKey === 'ziliao'){
+			// 典籍资料页:含 INTERNAL 段(星曜别名/属性/正曜副曜/三合组),绕过头部过滤直读原始 sections。
+			const raw = this.state.pan ? (this.state.pan.sections || []) : [];
+			return sectionByTitle(raw, CETIAN_TAB_SECTIONS.ziliao);
+		}
 		if(tabKey === 'full'){
 			return sections;
 		}
 		return sections.slice(0, 4);
+	}
+
+	// 策天典籍全文:惰性拉取 /cetian/texts(一次加载,组件态缓存;失败可重试)。
+	loadCetianTexts = async ()=>{
+		if(this.state.cetianTexts || this.state.cetianTextsLoading){
+			return;
+		}
+		this.setState({ cetianTextsLoading: true });
+		try{
+			let rsp = null;
+			try{
+				const raw = await cachedKentangFetch(buildKentangEndpoint('cetian', 'texts'), { method: 'GET' }, { retries: 0 });
+				rsp = JSON.parse(await raw.text());
+			}catch(e){
+				const raw = await cachedKentangFetch(`${ServerRoot}/cetian/texts`, { method: 'GET' }, { retries: 0 });
+				rsp = JSON.parse(await raw.text());
+			}
+			const texts = rsp && rsp[ResultKey] && rsp[ResultKey].texts ? rsp[ResultKey].texts : null;
+			this.setState({ cetianTexts: texts, cetianTextsLoading: false });
+		}catch(e){
+			this.setState({ cetianTextsLoading: false });
+		}
+	};
+
+	renderCetianZiliao(){
+		// 典籍页 = 资料段(含 INTERNAL 星曜别名等) + 来源依据(classics) + 移语本典籍全文(惰性)。
+		const sections = this.getTabSections('ziliao');
+		const classics = this.state.pan && this.state.pan.classics;
+		const classicsSections = Array.isArray(classics) ? classics : [];
+		const texts = this.state.cetianTexts;
+		const textKeys = texts ? Object.keys(texts) : [];
+		return (
+			<div className="horosa-huangji-section-list">
+				{renderCetianSectionList(sections, this.state.pan, (secs)=>this.renderRows(secs))}
+				{classicsSections.length ? this.renderRows(classicsSections) : null}
+				<div className="horosa-cetian-texts-block">
+					<div className="horosa-info-card-title">典籍全文（《正命二十八宿移语》）</div>
+					{texts ? (
+						<Collapse className="horosa-cetian-texts-collapse" bordered={false}>
+							{textKeys.map((key)=>{
+								const doc = texts[key] || {};
+								return (
+									<Collapse.Panel header={doc.title || key} key={key}>
+										{(doc.sections || []).map((sec, idx)=>(
+											<div className="horosa-cetian-text-section" key={`${key}_${idx}`}>
+												{sec.subtitle ? <div className="horosa-cetian-text-subtitle">{sec.subtitle}</div> : null}
+												<pre className="horosa-cetian-text-body">{sec.body}</pre>
+											</div>
+										))}
+									</Collapse.Panel>
+								);
+							})}
+						</Collapse>
+					) : (
+						<button
+							type="button"
+							className="horosa-bottom-quick-button horosa-cetian-texts-load"
+							onClick={this.loadCetianTexts}
+							disabled={!!this.state.cetianTextsLoading}
+						>
+							{this.state.cetianTextsLoading ? '加载中…' : '加载典籍全文'}
+						</button>
+					)}
+				</div>
+			</div>
+		);
 	}
 
 	renderCetianSettings(){
@@ -3521,10 +3780,14 @@ class KinAstroMain extends Component{
 									<div className="horosa-huangji-section-list">{this.renderClassics()}</div>
 								) : item.key === 'settings' ? (
 									<div className="horosa-huangji-section-list">{this.renderCetianSettings()}</div>
+								) : item.key === 'ziliao' && this.config.serviceKey === 'cetian' ? (
+									this.renderCetianZiliao()
 								) : item.key === 'yanfa' ? (
 									<div className="horosa-huangji-section-list"><YanQinBranchPanel fields={this.props.fields} gender={this.state.gender} /></div>
 								) : item.key === 'framework' ? (
 									<div className="horosa-huangji-section-list">{this.renderTiebanFrameworkTab()}</div>
+								) : this.config.serviceKey === 'cetian' ? (
+									<div className="horosa-huangji-section-list">{renderCetianSectionList(this.getTabSections(item.key), this.state.pan, (secs)=>this.renderRows(secs))}</div>
 								) : (
 									<div className="horosa-huangji-section-list">{this.renderRows(this.getTabSections(item.key))}</div>
 								)
@@ -3657,7 +3920,6 @@ class KinAstroMain extends Component{
 						</div>
 					</Spin>
 					{!this.props.hideQuickDock && this.renderBottomQuickDock()}
-					{this.renderCenterInfoModal()}
 				</div>
 			</div>
 		);

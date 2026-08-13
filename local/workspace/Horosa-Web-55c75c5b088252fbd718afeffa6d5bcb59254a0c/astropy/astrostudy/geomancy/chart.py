@@ -13,17 +13,19 @@ from typing import Optional
 
 from . import correspondences as corr
 from . import reading as R
-from .figures import active_elements, data, is_palindrome, name, points, reverse, inverse
+from .figures import (active_elements, data, is_palindrome, name, opposite, points,
+                      reverse, rotate, inverse)
 from .hakata import cast_hakata
 from .house import (PLANET_ORDER, ascendant_sign, ascendant_from_source,
                     astro_place_planets_from_chart, astro_place_planets_bytwelves,
-                    derived_house, house_chart_buyut, house_chart_sequential,
-                    house_signs, HOUSE_SYSTEMS, ASC_SOURCES)
+                    derived_house, house_chart, house_chart_buyut,
+                    house_signs, HOUSE_SYSTEMS, HOUSE_PLACEMENTS, ASC_SOURCES)
 from .ifa import cast_ifa, CULTURAL_NOTICE as IFA_NOTICE, odu_of
 from .numbers import all_numbers, figure_number, normalize_number_system
+from .planetary import planetary_chart as build_planetary_chart, PCHART_ZODIAC_TABLES
 from .vedic import vedic_overlay
 from .random_source import make_rng, normalize_cast_method, normalize_mark_style
-from .shield import cast_shield, reconciler_from, RECONCILER_MODES
+from .shield import cast_shield, cast_shield_from_numbers, reconciler_from, RECONCILER_MODES
 from .sikidy import (cast_sikidy, check2b, col_to_figure, column_compare, princes_slaves,
                      quadrants, red_sikidy, sikidy_valid, tokan_sikidy, SIKIDY_COL_NAMES)
 from .traditions import get_profile
@@ -62,6 +64,9 @@ def _fig_obj(f: int, number_system: str = "points", names_system: str = "latin")
     d["reverse_of"] = name(reverse(f))
     d["inverse_of"] = name(inverse(f))
     d["converse_of"] = name(reverse(inverse(f)))
+    # 传本图形关系六式之余二:对卦(语义相对)与减法(地爻置上)
+    d["opposite_of"] = name(opposite(f))
+    d["rotate_of"] = name(rotate(f))
     alt = corr.figure_alt_names(lat)
     d["name_greek"] = alt.get("greek")
     d["name_hebrew"] = alt.get("hebrew")
@@ -95,7 +100,14 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
                     asc_source: Optional[str] = None,
                     names_system: Optional[str] = None,
                     quesited_house: Optional[int] = None,
-                    parity_scope: Optional[str] = None) -> dict:
+                    parity_scope: Optional[str] = None,
+                    # ---- 传本对齐新增(全部缺省 None,不传即零回归) ----
+                    house_placement: Optional[str] = None,
+                    cast_numbers: Optional[list] = None,
+                    planetary_chart: Optional[bool] = None,
+                    planetary_chart_zodiac: Optional[str] = None,
+                    planetary_chart_nodes: Optional[bool] = None,
+                    planetary_chart_extras: Optional[bool] = None) -> dict:
     """一次完整判读。profile 决定方向/记号/黄道/范围/盘式/调和者/中止默认,可由 granular 形参逐项覆盖。"""
     prof = get_profile(profile_id)
     zsys = zodiac_system or prof.get("zodiac_system", "classical")
@@ -119,9 +131,28 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
     # 流派自带 names 字段(如希腊档 names="greek")即为其默认名表
     g_names = _pick(names_system, prof.get("names"), NAME_SYSTEMS, "latin")
     g_parity = _pick(parity_scope, prof.get("parity_scope"), R.PARITY_SCOPES, "shield16")
+    g_place = _pick(house_placement, prof.get("house_placement"), HOUSE_PLACEMENTS, "sequential")
+    g_pchart = bool(_pick(planetary_chart, prof.get("planetary_chart"), default=False))
+    g_pczod = _pick(planetary_chart_zodiac, prof.get("planetary_chart_zodiac"),
+                    PCHART_ZODIAC_TABLES, "classical")
+    g_pcnodes = bool(_pick(planetary_chart_nodes, prof.get("planetary_chart_nodes"), default=False))
+    g_pcextras = bool(_pick(planetary_chart_extras, prof.get("planetary_chart_extras"), default=False))
 
-    s = cast_shield(rng)
-    hc = house_chart_sequential(s)
+    # 起卦:报数(十六数奇偶定爻)为传本诸法之一,合法即用之,否则照旧走随机源。
+    cast_nums = None
+    if cast_numbers is not None:
+        try:
+            nums = [int(x) for x in list(cast_numbers)]
+            if len(nums) == 16:
+                cast_nums = nums
+        except (TypeError, ValueError):
+            cast_nums = None
+    if cast_nums is not None:
+        s = cast_shield_from_numbers(cast_nums)
+        cm = "numbers"
+    else:
+        s = cast_shield(rng)
+    hc = house_chart(s, g_place)
     q_house = 1
     # 所问宫:**显式指定优先**,否则由问类查表。
     # 🔴 正法是「取与问题主题对应之宫的图」,十一个问类只是**快捷预设,不是真值源**。
@@ -214,7 +245,20 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
         "perfection_detail": R.perfection_detail(hc, q_house, t_house, g_wrap),
         # 注:此前尚有 derived_house_example(问者宫+所问宫的转宫示例),已被下方 `derived` 块
         #     (真转宫重算:派生指示/完美/相位/阻碍/应期/宫图)完全取代,且全仓零消费方 —— 已删。
+        # ── 传本对齐补齐(既有各键形态一字未动,此下皆新键)──
+        "perfection_direction": R.perfection_direction(hc, q_house, t_house, g_wrap),
+        "court_verdict": R.court_verdict(s),
+        "time_flow": R.time_flow(s),
+        "validity": R.validity(s, hc, q_house, t_house, g_wrap),
+        "tenancy": R.tenancy(s, recon_fig if g_recon else None),
+        "via_elements": R.via_elements(s),
+        "success": R.success(hc, q_house, t_house, g_wrap),
+        "greek_points": R.greek_points(hc),
+        "shield_triangles": R.shield_triangles(s),
+        "reconciler_parity": R.reconciler_parity(recon_fig if g_recon else None),
     }
+    # 元素法须用寻源四线之终点判自给/借贷,故排在其后
+    rd["element_supply"] = R.element_supply(s, rd["via_elements"])
 
     # 转宫:以所指之宫为新命宫重算指示与完美(转宫本身早有,此处补交互重算)
     derived_block = None
@@ -239,7 +283,10 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
         "halt_enabled": g_halt, "compound_mode": g_comp, "number_system": g_nums,
         "chart_mode": g_chart, "cast_method": cm,
         "house_system": g_hsys, "asc_source": g_asc, "names_system": g_names,
-        "parity_scope": g_parity,
+        "parity_scope": g_parity, "house_placement": g_place,
+        "cast_numbers": cast_nums,
+        "planetary_chart": g_pchart, "planetary_chart_zodiac": g_pczod,
+        "planetary_chart_nodes": g_pcnodes, "planetary_chart_extras": g_pcextras,
         "quesited_house": t_house,
         "quesited_house_explicit": quesited_house is not None and t_house == quesited_house,
         # 问者宫与所问宫重合 → 完美/相位恒成立,界面须显式标注「不具判别力」,
@@ -265,12 +312,18 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
         "halted_on_first_mother": halted,
         "houses": houses,
         "astro_erection": (lambda _a: {**_a, **house_signs(_a["sign"], g_hsys)})(
-            ascendant_from_source(hc, zsys, g_asc, random.Random(rng.getrandbits(64)))),
+            ascendant_from_source(hc, zsys, g_asc, random.Random(rng.getrandbits(64)), s.judge)),
         "planet_placement": planets,
         "planet_placement_by_twelves": planets_by12,
         "reading": rd,
         "derived": derived_block,
     }
+
+    # 行星地占盘:自成一盘(上升取首图之星座、七政各以报数落宫),与盾牌落星正交并存。
+    # ⚠️ 子 rng 必取在 astro_erection 之后 —— 关此开关则一颗随机数不取,故开关关闭时全响应字节零变。
+    if g_pchart:
+        out["planetary_chart"] = build_planetary_chart(
+            s.mothers[0], random.Random(rng.getrandbits(64)), g_pczod, g_pcnodes, g_pcextras)
 
     if g_chart == "buyut":
         b = house_chart_buyut(s)

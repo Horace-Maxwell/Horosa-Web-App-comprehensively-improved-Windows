@@ -52,48 +52,56 @@ const PLANET_GLYPH_BY_EN = {
 // 每项都可「跟随预设」——不发该参,由后端回落所选流派默认 = 字节零回归。
 const GRANULAR_FIELDS = [
 	{ key: 'direction', backendKey: 'direction', label: '书写方向', options: [
-		{ key: 'LTR', label: '自左向右' }, { key: 'RTL', label: '自右向左' }] },
+		{ key: 'LTR', label: '自左向右', short: '左起' }, { key: 'RTL', label: '自右向左', short: '右起' }] },
 	{ key: 'markStyle', backendKey: 'mark_style', label: '记号样式', options: [
-		{ key: 'dots', label: '点阵(单点/双点)' }, { key: 'lines', label: '线形(单线/双线)' },
-		{ key: 'bindu', label: '点线(点/横)' }, { key: 'tablets', label: '片(开/合)' }] },
+		{ key: 'dots', label: '点阵(单点/双点)', short: '点阵' }, { key: 'lines', label: '线形(单线/双线)', short: '线形' },
+		{ key: 'bindu', label: '点线(点/横)', short: '点线' }, { key: 'tablets', label: '片(开/合)', short: '片' }] },
 	// 「点数取样」:基准所载为「统计全盘(或四母、或某些关键图)」。
 	// 🔴 十二宫取样是**数学退化**(四女为四母转置、四甥成对异或 ⇒ 和恒偶),答案恒为「是」,
 	//    故默认取全盘十六图;十二宫仍留作对照,但界面如实标注其不具判别力。
 	{ key: 'parityScope', backendKey: 'parity_scope', label: '点数取样', options: [
-		{ key: 'shield16', label: '全盘(十六图)' },
-		{ key: 'mothers', label: '四母' },
-		{ key: 'houses12', label: '十二宫(结构恒偶)' }] },
-	// 「落星法」:图形入宫恒为顺铺(此为绝对主流、不构成分歧),真正分歧在**要不要落星、怎么落**。
+		{ key: 'shield16', label: '全盘(十六图)', short: '全盘' },
+		{ key: 'mothers', label: '四母', short: '四母' },
+		{ key: 'houses12', label: '十二宫(结构恒偶)', short: '十二宫' }] },
+	// 「图形入宫」三式(传本载三家):顺铺为绝对主流(默认零回归);四正入宫者四母入四正、四女入续宫、
+	// 四果宫另取对位两图之和;近世学派另有一套固定置换。与下方「落星法」是正交两维,勿混。
+	{ key: 'housePlacement', backendKey: 'house_placement', label: '图形入宫', options: [
+		{ key: 'sequential', label: '顺铺(一至十二卦入一至十二宫)', short: '顺铺' },
+		{ key: 'angular', label: '四正入宫(果宫取合成卦)', short: '四正' },
+		{ key: 'golden_dawn', label: '近世学派置换', short: '近世' }] },
+	// 「落星法」:真正分歧在**要不要落星、怎么落**。
 	// 故此选择器只管落星:不落星 / 甲(星落所主图之宫)/ 乙(另起点数定宫)。后端键值不动,存档兼容。
 	{ key: 'houseProjection', backendKey: 'house_projection', label: '落星法', options: [
-		{ key: 'sequential', label: '不落星(仅图形入宫)' },
-		{ key: 'astro_from_chart', label: '占星定局甲(星落所主图之宫)' },
-		{ key: 'astro_bytwelves', label: '占星定局乙(另起点数定宫)' }] },
+		{ key: 'sequential', label: '不落星(仅图形入宫)', short: '不落' },
+		{ key: 'astro_from_chart', label: '占星定局甲(星落所主图之宫)', short: '定局甲' },
+		{ key: 'astro_bytwelves', label: '占星定局乙(另起点数定宫)', short: '定局乙' }] },
 	{ key: 'wrapHouses', backendKey: 'wrap_houses', label: '宫位成环', bool: true, options: [
-		{ key: 'false', label: '不环(一与十二不相邻)' }, { key: 'true', label: '成环(首尾相接)' }] },
+		{ key: 'false', label: '不环(一与十二不相邻)', short: '不环' }, { key: 'true', label: '成环(首尾相接)', short: '成环' }] },
 	{ key: 'reconciler', backendKey: 'reconciler', label: '调和者', bool: true, options: [
-		{ key: 'true', label: '取' }, { key: 'false', label: '不取' }] },
+		{ key: 'true', label: '取', short: '取' }, { key: 'false', label: '不取', short: '不取' }] },
 	// ⚠️ 二式在未转宫时**数学上恒等**(顺铺下宫一之图即首母),非开关失灵;转宫后方分野。
 	//    该事实由引擎回传 settings.reconciler_modes_coincide,右栏据此如实说明。
 	{ key: 'reconcilerMode', backendKey: 'reconciler_mode', label: '调和者取法', options: [
-		{ key: 'judge_first_mother', label: '判官与首母之和' },
-		{ key: 'judge_querent_significator', label: '判官与问者指示星之和' }] },
+		{ key: 'judge_first_mother', label: '判官与首母之和', short: '⊕首母' },
+		{ key: 'judge_querent_significator', label: '判官与问者指示星之和', short: '⊕问者' }] },
 	{ key: 'haltEnabled', backendKey: 'halt_enabled', label: '首母中止', bool: true, options: [
-		{ key: 'true', label: '启用(遇大凶首母即止)' }, { key: 'false', label: '不启用' }] },
+		{ key: 'true', label: '启用(遇大凶首母即止)', short: '启用' }, { key: 'false', label: '不启用', short: '不启用' }] },
 	{ key: 'compoundMode', backendKey: 'compound_mode', label: '合成同伴判法', options: [
-		{ key: 'inverse', label: '取反(单双互换)' }, { key: 'reverse', label: '逆转(上下翻转)' }] },
+		{ key: 'inverse', label: '取反(单双互换)', short: '取反' }, { key: 'reverse', label: '逆转(上下翻转)', short: '逆转' }] },
 	{ key: 'numberSystem', backendKey: 'number_system', label: '图数体系', options: [
-		{ key: 'points', label: '点数(四至八)' }, { key: 'planetary', label: '行星序' },
-		{ key: 'abjad', label: '字母数值' }] },
+		{ key: 'points', label: '点数(四至八)', short: '点数' }, { key: 'planetary', label: '行星序', short: '行星序' },
+		{ key: 'abjad', label: '字母数值', short: '字母值' }] },
+	// 上升三源:第三源「取法官之图」为传本自出之法,可免「一宫星体必定入庙」之弊。
 	{ key: 'ascSource', backendKey: 'asc_source', label: '上升取法', options: [
-		{ key: 'h1_figure', label: '取第一宫之图' }, { key: 'fresh_points', label: '另起四行点' }] },
+		{ key: 'h1_figure', label: '取第一宫之图', short: '一宫' }, { key: 'fresh_points', label: '另起四行点', short: '四点' },
+		{ key: 'judge_figure', label: '取法官之图(免一宫必入庙)', short: '法官' }] },
 	{ key: 'houseSystem', backendKey: 'house_system', label: '宫制', options: [
-		{ key: 'whole_sign', label: '整宫制' }, { key: 'quadrant', label: '象限制(无度数则退化)' }] },
+		{ key: 'whole_sign', label: '整宫制', short: '整宫' }, { key: 'quadrant', label: '象限制(无度数则退化)', short: '象限' }] },
 	// 名表:只列有配对依据者;马语名与月之十六相名未载「名↔图」配属,故不入此选(在各自视图作参考名录)
 	{ key: 'namesSystem', backendKey: 'names_system', label: '名表体系', options: [
-		{ key: 'latin', label: '拉丁名' }, { key: 'arabic', label: '阿拉伯名' },
-		{ key: 'greek', label: '希腊名' }, { key: 'hebrew', label: '希伯来名' },
-		{ key: 'yoruba', label: '约鲁巴名' }] },
+		{ key: 'latin', label: '拉丁名', short: '拉丁' }, { key: 'arabic', label: '阿拉伯名', short: '阿拉伯' },
+		{ key: 'greek', label: '希腊名', short: '希腊' }, { key: 'hebrew', label: '希伯来名', short: '希伯来' },
+		{ key: 'yoruba', label: '约鲁巴名', short: '约鲁巴' }] },
 ];
 
 // 十六图形马达加斯加名与词义(参考名录)。所据基准只载名与词义、**未载「名↔图」之配对**,
@@ -154,17 +162,17 @@ const HISTORY_MAX = 30;
 
 // 问题类型(11 类;简体)。后端 reading 也回传 questionTypes 可同步覆盖。
 const QUESTION_TYPE_OPTIONS = [
-	{ key: 'life', label: '🌟 生命与命运' },
-	{ key: 'health', label: '⚕️ 健康与疾病' },
-	{ key: 'wealth', label: '💰 财富与资源' },
-	{ key: 'marriage', label: '💑 婚姻与感情' },
-	{ key: 'career', label: '🏆 事业与名誉' },
-	{ key: 'children', label: '👶 子女与生育' },
-	{ key: 'journey', label: '✈️ 旅行与迁移' },
-	{ key: 'religion', label: '🕌 宗教与灵性' },
-	{ key: 'enemy', label: '⚔️ 敌人与诉讼' },
-	{ key: 'death', label: '⚰️ 死亡与遗产' },
-	{ key: 'custom', label: '💬 自订问题' },
+	{ key: 'life', label: '🌟 生命与命运', short: '命运' },
+	{ key: 'health', label: '⚕️ 健康与疾病', short: '健康' },
+	{ key: 'wealth', label: '💰 财富与资源', short: '财富' },
+	{ key: 'marriage', label: '💑 婚姻与感情', short: '婚姻' },
+	{ key: 'career', label: '🏆 事业与名誉', short: '事业' },
+	{ key: 'children', label: '👶 子女与生育', short: '子女' },
+	{ key: 'journey', label: '✈️ 旅行与迁移', short: '旅行' },
+	{ key: 'religion', label: '🕌 宗教与灵性', short: '宗教' },
+	{ key: 'enemy', label: '⚔️ 敌人与诉讼', short: '诉讼' },
+	{ key: 'death', label: '⚰️ 死亡与遗产', short: '遗产' },
+	{ key: 'custom', label: '💬 自订问题', short: '自订' },
 ];
 
 // 所问宫十二项 —— **判读的真值源**。问类只是快捷预设,正法是「取与问题主题对应之宫的图」。
@@ -190,11 +198,20 @@ const QUESTION_TYPE_HOUSE = {
 	journey: 9, religion: 9, enemy: 7, death: 8, custom: 1,
 };
 
+// 起卦法。传本所载报数、点点、抛硬币、掷骰子诸法俱以奇偶定爻;皮肤四法用同一确定性随机源、
+// 只在称名与记号上有别,报数法则真收十六个数(奇=单点/偶=双点)。
 const SEED_MODE_OPTIONS = [
-	{ key: 'random', label: '随机起卦' },
-	{ key: 'time_seed', label: '时间起卦' },
-	{ key: 'manual', label: '手工指定种子' },
+	{ key: 'random', label: '随机起卦', short: '随机' },
+	{ key: 'time_seed', label: '时间起卦', short: '时间' },
+	{ key: 'manual', label: '手工指定种子', short: '手工' },
+	{ key: 'numbers', label: '报数起卦(自报十六数)', short: '报数' },
+	{ key: 'dice', label: '掷骰子', short: '掷骰' },
+	{ key: 'coins', label: '抛硬币', short: '硬币' },
+	{ key: 'sand', label: '沙痕点点', short: '沙痕' },
+	{ key: 'tablets', label: '掷片', short: '掷片' },
 ];
+// 皮肤四法:走同一随机源,以 castMethod 如实回传所用之法(记号样式仍由高级传本决定)
+const CAST_SKIN_MODES = ['dice', 'coins', 'sand', 'tablets'];
 
 // 时间起卦确定性种子:取起卦时间(精确到分)的年月日时分拼成一个稳定 int(0..2147483647)。
 // 同一分钟内重复起卦 → 同种子 → 同盘(可复现);不同时刻 → 不同种子。
@@ -221,26 +238,149 @@ function computeTimeSeed(fields){
 
 // 流派预设(中性命名;后端 reading 也回传 traditions 可同步覆盖)。默认古典定局派=现状零回归。
 const TRADITION_OPTIONS = [
-	{ key: 'european_classical', label: '古典定局派' },
-	{ key: 'european_planetary', label: '行星共鸣派' },
+	{ key: 'european_classical', label: '古典定局派', short: '古典' },
+	{ key: 'european_planetary', label: '行星共鸣派', short: '共鸣' },
 	// [X1·P1-21] 现代综合派引擎口径与古典定局同(traditions 仅 id/label 异);label 如实标注,不臆造分歧。
-	{ key: 'european_modern', label: '现代综合派(判读同古典口径)' },
-	{ key: 'arabic_raml', label: '阿拉伯沙占派' },
-	{ key: 'india_ramal', label: '印度骰占派' },
-	{ key: 'sikidy', label: '异或表盘(Sikidy)' },
-	{ key: 'hakata', label: '四片盘(Hakata)' },
+	{ key: 'european_modern', label: '现代综合派(判读同古典口径)', short: '现代' },
+	{ key: 'arabic_raml', label: '阿拉伯沙占派', short: '沙占' },
+	{ key: 'india_ramal', label: '印度骰占派', short: '骰占' },
+	{ key: 'sikidy', label: '异或表盘(Sikidy)', short: '异或' },
+	{ key: 'hakata', label: '四片盘(Hakata)', short: '四片盘' },
 ];
+// 后端 PROFILES 另有两档(起盘后由 result.traditions 覆盖上表)。
+// 🔴 此表**只备短名、不进可选集** —— 起盘前少几项是既有约定(帮助文档已明文),不可由此悄悄改变。
+const TRADITION_SHORT_EXTRA = { greek: '希腊', ifa: '结构' };
 const READING_SCOPE_OPTIONS = [
-	{ key: 'L0', label: 'L0 仅判官' },
-	{ key: 'L1', label: 'L1 三图(证·判)' },
-	{ key: 'L2', label: 'L2 盾牌全局' },
-	{ key: 'L3', label: 'L3 十二宫(默认)' },
-	{ key: 'L4', label: 'L4 占星定局' },
+	{ key: 'L0', label: 'L0 仅判官', short: 'L0' },
+	{ key: 'L1', label: 'L1 三图(证·判)', short: 'L1' },
+	{ key: 'L2', label: 'L2 盾牌全局', short: 'L2' },
+	{ key: 'L3', label: 'L3 十二宫(默认)', short: 'L3' },
+	{ key: 'L4', label: 'L4 占星定局', short: 'L4' },
 ];
 const ZODIAC_SYSTEM_OPTIONS = [
-	{ key: 'classical', label: '古典定局体系' },
-	{ key: 'planetary', label: '行星归属体系' },
+	{ key: 'classical', label: '古典定局体系', short: '古典' },
+	{ key: 'planetary', label: '行星归属体系', short: '行星' },
+	// 第三套:另一传本之行星归属对应表,与上者恰五图相异(损失/获得/快乐/女子/龙首)
+	{ key: 'planetary_alt', label: '行星归属·乙(另一传本表)', short: '行星乙' },
 ];
+// [行星地占盘] 上升所用之星座对应表二式
+const PCHART_ZODIAC_OPTIONS = [
+	{ key: 'classical', label: '古典行星地占表(默认)', short: '古典' },
+	{ key: 'planetary_alt', label: '另一传本对应表', short: '传本乙' },
+];
+
+// ── 传本判语文案(内核只出代码、文案在此,免两处口径分岔;AI 快照同源复用)──
+// 法庭三角:左证·法官·右证 三图吉凶之断。
+// 🔴 传本首行「吉吉吉」结构上不可达(法官=二证异或,吉图同奇偶两两相配之和恒非吉图,全 16⁴ 穷举实证),
+//    故留表以存原貌,界面不宣称其可得。
+const COURT_VERDICT_ZH = {
+	all_good: '吉,自天佑之,吉无不利',
+	end_good_delay: '终吉,但会延迟或出问题',
+	end_good_hard: '终吉,但漫长曲折或事倍功半',
+	gain_not_self: '求而可得,非利于己,行道偏欹',
+	no_success_has_end: '无成有终',
+	well_unused: '井渫不食,为我心恻,可用汲,受福',
+	all_bad: '凶',
+	unlisted: '传本表未载此组合,当具体分析',
+};
+const COURT_JUDGE_SPECIAL_ZH = {
+	via: '法官为道路:事情变化剧烈、彻底转变',
+	populus: '法官为群众:还是原样、影响因素过多',
+};
+const TONE_CLASS_ZH = { good: '吉', bad: '凶', mid: '中' };
+// 成败八格(有无精准相位 × 两指示图吉凶)
+const SUCCESS_ZH = {
+	occur_both_good: '事件发生,双方都好', occur_querent_better: '事件发生,事主更好',
+	occur_quesited_better: '事件发生,对象更好', occur_both_bad: '事件发生,双方都不好',
+	fail_both_good: '事件不发生,双方都好', fail_querent_better: '事件不发生,事主更好',
+	fail_quesited_better: '事件不发生,对象更好', fail_both_bad: '事件不发生,双方都不好',
+	not_covered: '传本表只列吉凶两态,此局有「中」图,当具体分析',
+};
+// 有效性五则
+const VALIDITY_RULES_ZH = {
+	not_asked_or_decided: '首图龙尾:此事不问,或事主已自决',
+	deceit: '首图红色:自欺、隐瞒、有意欺骗',
+	deceive_quesited: '首图红色且两指示卦有精准相位:事主有意欺骗对象',
+	insufficient_info: '首图失去:信息不足',
+	question_not_real: '首图群众:所问非事主真实之问,宜重新提问',
+	false_question: '一宫群众并十一宫红色:问题虚假,宜重新提问',
+};
+const VALIDITY_LABELS = ['一 龙尾', '二 红色', '三 失去', '四 群众', '五 盘式'];
+// 得地四档
+const TENANCY_GRADE_ZH = {
+	full: { t: '最强', d: '卦与位元素全同,此位最强,能全展此卦之力' },
+	assist: { t: '辅助', d: '温度同而湿度异,作补充辅助而现,目标随时而移' },
+	stall: { t: '停滞', d: '湿度同而温度异,平衡而稳致行动停滞,他日有增长之潜力,须释放或引外力' },
+	weak: { t: '无力', d: '全不相同,于此位无力,不能(或不欲)完成其任' },
+};
+const TENANCY_GRADE_MARK = { full: '◎', assist: '○', stall: '◇', weak: '✕' };
+const ELEMENT_ZH_BY_EN = { Fire: '火', Air: '风', Water: '水', Earth: '土' };
+// 寻源四线之义
+const VIA_LINE_ZH = {
+	fire: { n: '火', d: '目的、目标、渴望、指引、意志' },
+	air: { n: '风', d: '交流、创造、思想、主意、逻辑、理论' },
+	water: { n: '水', d: '感情、情绪、灵性层面' },
+	earth: { n: '土', d: '结果、物质层面、隐藏、财富' },
+};
+const VIA_SIDE_ZH = { self: '我方(个人宫位)', other: '对方(人际宫位)' };
+const SUPPLY_ZH = { self_supplied: '元素自给', borrowed: '元素借贷' };
+const ELEMENT_LEVEL_ZH = { abundant: '相对充沛(阳爻三以上)', scarce: '相对匮乏(阳爻二以下)' };
+// 精准相位方向细则
+const PERF_DIRECTION_ZH = { forward: '前宫', backward: '后宫' };
+const PERF_KNOWLEDGE_ZH = {
+	third_party_hidden: '事主后宫与对象后宫传递:第三方背后做事',
+	quesited_knows: '事主后宫与对象前宫传递:对象知晓第三方',
+	querent_knows: '事主前宫与对象后宫传递:事主知晓第三方',
+	both_know: '事主前宫与对象前宫传递:双方知晓第三方',
+};
+const PERF_CONJ_ZH = {
+	backward: '联合于对方后宫:其功成于对方背后,用对方不解之知',
+	forward: '联合于对方台面(前宫):用通识之知,或双方已有协议认可',
+};
+// 宣判(补卦)奇偶
+const RECON_PARITY_ZH = {
+	objective_real: '偶数卦:客观事实、外在 → 事偏于实',
+	subjective_virtual: '奇数卦:主观意志、内在 → 事偏于虚',
+};
+// 稳定性三联 与 奇偶主客观(传本对应系统)
+const STABILITY_ZH = { stable: '稳·慢·长', mobile: '变·快·短' };
+const PARITY_VIEW_ZH = { odd: '奇数卦:主观意志、内在', even: '偶数卦:客观事实、外在' };
+// 相位吉凶(传本:吉相位六合、拱;凶相位刑、冲)
+const ASPECT_TONE_ZH = {
+	sextile: '吉', trine: '吉', square: '凶', opposition: '凶', conjunction: '中', none: '—',
+};
+// 地占三角四组含义两派
+const TRIANGLE_SCHOOLS = [
+	{ key: 'recent', label: '近代传本' },
+	{ key: 'renaissance', label: '弗卢德古本' },
+];
+const TRIANGLE_MEANINGS = {
+	recent: ['事主当下的自我状况和条件状况', '事件目前情况,或对象状态',
+		'事主所处环境状况,或问题中环境地点', '事主生命中他人的互动、相互作用,或问题中其他人的状态'],
+	renaissance: ['事主当下的自我状况和条件状况', '事主未来的自我状况和条件状况',
+		'事主当下环境状况,或对象当下状态', '环境或对象未来的发展状况'],
+};
+// 盾十六位之占断含义(传本另立一套,书明言「不要与法庭三角、地占三角合用,角度不同」)
+const SHIELD16_MEANINGS = [
+	'身体、事项、目的、目标、意识、灵魂、生命、初始生命',
+	'处理金钱和所有形式的财务事项(购买、销售、接受、馈赠、结算、个人财务状况、赏金、抢劫、民生、收购、获奖、寻找宝藏失物等),表孩子的房子',
+	'兄弟姐妹、短期旅行、交通、法律、亲密的举动、短距离运动、新闻记者',
+	'事主的主题或焦点、父亲、母亲、产权、房地产、住宅、次要结果、丢失物品的交易、谋杀、小病、后代、母亲的合作者、存储的地方、地穴、珍品、耕作、农业、暗处',
+	'儿童、礼物、衣服、好消息、活动庆典、需求、下雨、灵性、送信员、军队骑兵、死后灵魂状态',
+	'疾病、焦虑、忧愁、悲伤、离婚、孤独、盗贼、监禁、指责、谎言、家畜、奴隶、奴隶主、表亲的半亲兄弟',
+	'妇女、两性关系、伙伴关系、招待场所、人道主义目标和意向、当前的统治者、战士、原告、缺席者、祖母、中年人的评价、争论、某个国家',
+	'死亡、恐惧、虚无、继承、债务、司法监狱、兄弟的婚姻、死亡前几年的生活、危险的处境、血、杀戮、受难、非法食品、赏金',
+	'旅游、运动、科学、哲学、崇拜、朝圣、参观、梦想愿望、妻子的兄弟们、父亲的姐妹、堂兄弟',
+	'事业、专业、荣耀、政府、权利、公务员、处理问题的能力、调解事务、羞辱、推广、纪念、来世的事项、不同伴侣的孩子、生存、高军衔、国家',
+	'社团、团体、希望期望、目的地的描述、应酬、友谊、朋友、政府部长及其下属、统治阶级的财富、远距离运动',
+	'敌人、对手、叛军、嫉妒或羡的人、弄虚作假、焦虑、困难、监狱、医院、不好的东西、佣人、墓地、长途或极远的旅行、坐骑、埋藏的宝藏',
+	'调查者、隐秘的学识、忽略的线索、细节(加强一宫,与一宫含义相同)',
+	'预防、障碍、期望、期望的事项(加强十宫)',
+	'官、统治者、平衡、测量称量(加强七宫)',
+	'空虚、失败、家庭、被国家流放、最终结果(加强四宫)',
+];
+// 时间流:右证过去、法官现在、左证未来(传本口径)
+const TIME_FLOW_ZH = { right_witness: '过去', judge: '现在', left_witness: '未来' };
 
 async function postGeomancy(path, payload){
 	let rsp = null;
@@ -298,6 +438,7 @@ export function buildGeomancySnapshotText(result){
 	const tb = [];
 	if(reading.profileId && reading.profileId !== 'european_classical'){ tb.push(`流派=${TRAD[reading.profileId] || reading.profileId}`); }
 	if(reading.zodiacSystem === 'planetary'){ tb.push('黄道=行星归属体系'); }
+	if(reading.zodiacSystem === 'planetary_alt'){ tb.push('黄道=行星归属·乙(另一传本对应表)'); }
 	if(reading.readingScope && reading.readingScope !== 'L3'){ tb.push(`范围=${reading.readingScope}`); }
 	// 传本逐项设置:仅注记与主流缺省不同者,免刷屏又不漏口径(AI 据此才知本盘按何法判读)。
 	const gs = reading.settings || {};
@@ -308,11 +449,17 @@ export function buildGeomancySnapshotText(result){
 		reconciler_mode: { judge_querent_significator: '调和者=判官⊕问者指示星' },
 		mark_style: { lines: '记号=线形', bindu: '记号=点线', tablets: '记号=开合片' },
 		direction: { RTL: '书写=自右向左' },
+		// 传本对齐新增:图形入宫三式 / 上升三源 / 起卦诸法
+		house_placement: { angular: '入宫=四正入宫(四果宫取合成卦)', golden_dawn: '入宫=近世学派置换' },
+		asc_source: { fresh_points: '上升=另起四行点', judge_figure: '上升=取法官之图' },
+		cast_method: { numbers: '起卦=报数(十六数奇偶定爻)', dice: '起卦=掷骰子', coins: '起卦=抛硬币',
+			sand: '起卦=沙痕点点', tablets: '起卦=掷片' },
 	};
 	Object.keys(GNAME).forEach((k)=>{ const hit = GNAME[k][gs[k]]; if(hit){ tb.push(hit); } });
 	if(gs.wrap_houses === true){ tb.push('宫位成环'); }
 	if(gs.reconciler === false){ tb.push('不取调和者'); }
 	if(gs.halt_enabled === false){ tb.push('不启用首母中止'); }
+	if(gs.planetary_chart === true){ tb.push('另起行星地占盘'); }
 	if(tb.length){ lines.push(`传本设置：${tb.join('、')}`); }
 	// 结构对照模式:先申明边界,再不出任何地占判读(下游 AI 不得越界解读)。
 	if(reading.structuralOnly){
@@ -329,12 +476,14 @@ export function buildGeomancySnapshotText(result){
 	lines.push('[判定]');
 	// [X1·P1-22] 首母中止警示(约 1/8 盘触发,后端早已算出而前端/AI 双盲):传统口径此占应中止另占。
 	if(reading.haltedOnFirstMother){ lines.push('⚠ 首母中止：首母落 Rubeus/Cauda 之属,依所选传本传统应中止本占、另择时再占(以下判读仅作参考)。'); }
-	const j = figureLine(reading.judge, '判官');
+	// 时间流(传本口径):右证=过去、法官=现在、左证=未来。
+	// ⚠️ 此前左证误标「现在」而法官无时间标 —— 与传本相左,已按传本改正。
+	const j = figureLine(reading.judge, '判官(现在)');
 	if(j){ lines.push(j); }
-	const r = figureLine(reading.reconciler, '调和者');
+	const r = figureLine(reading.reconciler, '调和者(宣判/补卦)');
 	if(r){ lines.push(r); }
-	if(reading.rightWitness){ lines.push(figureLine(reading.rightWitness, '右证(过去/问者)')); }
-	if(reading.leftWitness){ lines.push(figureLine(reading.leftWitness, '左证(现在/所问)')); }
+	if(reading.rightWitness){ lines.push(figureLine(reading.rightWitness, '右证(过去/问者/事主)')); }
+	if(reading.leftWitness){ lines.push(figureLine(reading.leftWitness, '左证(未来/所问/条件环境)')); }
 	if(reading.primaryHouse){ lines.push(`主宫：第 ${reading.primaryHouse} 宫`); }
 	// [X1·P1-23] sikidy/hakata 流派中栏特有结论入快照(此前 AI 全盲):三道校验/红 Sikidy/诸侯列;四片开合/断语。
 	if(reading.sikidy){
@@ -379,6 +528,102 @@ export function buildGeomancySnapshotText(result){
 			const q = t.timing.quantity;
 			lines.push(`数量：${q.label}(总 ${q.total} 点·域 ${q.min}–${q.max})`);
 		}
+		// 精准相位方向细则:联合之前后宫、传递之知晓格局、突变之场所线索
+		const pdir = t.perfection_direction;
+		if(pdir){
+			(pdir.conjunctions_all || []).forEach((c)=>{
+				lines.push(`联合方向：${c.mover === 'querent' ? '事主之图' : '对象之图'}现于第 ${c.house} 宫(${PERF_DIRECTION_ZH[c.direction] || ''}) —— ${PERF_CONJ_ZH[c.direction] || ''}`);
+			});
+			if(pdir.knowledge_code){ lines.push(`传递知晓：${PERF_KNOWLEDGE_ZH[pdir.knowledge_code]}`); }
+			if(pdir.hint_code === 'venue_clue'){ lines.push('突变线索：两图所落之宫即完成之法与地之线索(偶然意外促成,非双方所想之完成方式)'); }
+		}
+	}
+	// ── 传本对齐新增六段 ──
+	if(t && t.court_verdict){
+		const cv = t.court_verdict;
+		lines.push('');
+		lines.push('[法庭三角]');
+		lines.push(`右证(过去/事主)：${cv.right.figure}(${TONE_CLASS_ZH[cv.right.tone_class]})`);
+		lines.push(`法官(现在/总方向)：${cv.judge.figure}(${TONE_CLASS_ZH[cv.judge.tone_class]})`);
+		lines.push(`左证(未来/条件环境)：${cv.left.figure}(${TONE_CLASS_ZH[cv.left.tone_class]})`);
+		if(cv.judge_special){ lines.push(`法官特例：${COURT_JUDGE_SPECIAL_ZH[cv.judge_special]}`); }
+		lines.push(`合断：${COURT_VERDICT_ZH[cv.verdict_code] || cv.verdict_code}${cv.listed ? '' : '(传本表未载此组合,当具体分析,不得臆造断语)'}`);
+		lines.push('※ 论一段时间之吉凶则三等分:右证第一段、法官第二段、左证第三段。此三角与盾位十六宫含义角度不同,勿合用。');
+		if((t.shield_triangles || []).length){
+			lines.push('地占三角(四组·底二为补充、顶卦为概括之果):');
+			t.shield_triangles.forEach((g)=>{
+				lines.push(`  第${g.index}三角 ${g.base.map((b)=>b.figure).join(' ⊕ ')} → ${g.apex.figure}(${TONE_CLASS_ZH[g.apex.tone_class]})`
+					+ `：近代传本作「${TRIANGLE_MEANINGS.recent[g.index - 1]}」;弗卢德古本作「${TRIANGLE_MEANINGS.renaissance[g.index - 1]}」`);
+			});
+		}
+	}
+	if(t && t.validity){
+		lines.push('');
+		lines.push('[有效性判断]');
+		(t.validity.rules || []).forEach((x)=>{
+			lines.push(`${VALIDITY_LABELS[x.id - 1]}：${x.hit ? (VALIDITY_RULES_ZH[x.code] || x.code) : '不成立'}${x.book_note ? `(${x.book_note})` : ''}`);
+		});
+		if(!t.validity.any_hit){ lines.push('※ 五则皆过,卦盘可判。'); }
+	}
+	if(t && (t.tenancy || []).length){
+		lines.push('');
+		lines.push('[盾面得地]');
+		lines.push('| 位 | 图形 | 位元素 | 卦元素 | 档位 |');
+		lines.push('| --- | --- | --- | --- | --- |');
+		t.tenancy.forEach((x)=>{
+			lines.push(`| ${x.position} ${x.label} | ${x.figure || '—'} | ${ELEMENT_ZH_BY_EN[x.position_element] || '—'} | ${ELEMENT_ZH_BY_EN[x.figure_element] || '—'} | ${x.grade ? (TENANCY_GRADE_ZH[x.grade] || {}).t : '—'} |`);
+		});
+		lines.push('※ 全同者最强(能全展此卦之力)、同温者辅助(目标随时而移)、同湿者停滞(有增长潜力须引外力)、全异者无力。');
+	}
+	if(t && (t.via_elements || t.element_supply)){
+		lines.push('');
+		lines.push('[元素与寻源]');
+		const ve = t.via_elements || {};
+		const es = (t.element_supply || {}).elements || {};
+		['fire', 'air', 'water', 'earth'].forEach((k)=>{
+			const L = VIA_LINE_ZH[k] || {};
+			const b = ve[k] || {};
+			const e = es[k] || {};
+			const src = b.traceable
+				? (b.through
+					? `贯通至盾位${(b.terminus || {}).position}(${VIA_SIDE_ZH[(b.terminus || {}).side] || ''})`
+					: `断于${b.broken_at}`)
+				: '法官此行阴爻,不可由此寻源';
+			lines.push(`${L.n}(${L.d})：${src}${e.active_count !== undefined ? `;女卦 ${e.figure} 阳爻 ${e.active_count} → ${ELEMENT_LEVEL_ZH[e.level] || ''}` : ''}${e.supply ? `;${SUPPLY_ZH[e.supply]}` : ''}`);
+		});
+		lines.push('※ 元素之有无、充沛与否皆非吉凶之判,须结合盾图综合考虑。');
+	}
+	if(t && (t.success || t.greek_points || t.reconciler_parity)){
+		lines.push('');
+		lines.push('[成败与福灵点]');
+		if(t.success){
+			const sc = t.success;
+			lines.push(`成败：${sc.has_perfection ? '有精准相位 → 事将发生' : '无精准相位 → 事不发生'};事主${TONE_CLASS_ZH[sc.querent_tone]}·对象${TONE_CLASS_ZH[sc.quesited_tone]} → ${SUCCESS_ZH[sc.code] || sc.code}`);
+			lines.push(`※ ${sc.caveat}`);
+		}
+		if(t.greek_points){
+			const gp = t.greek_points;
+			lines.push(`福点：第 ${gp.fortune_house} 宫(十二卦点数和 ${gp.fortune_total} 除十二取余) —— 好运所在、身体健康、财富、事业成败、心理素质`);
+			lines.push(`灵点：第 ${gp.spirit_house} 宫(十二卦阳爻数和 ${gp.spirit_total} 除十二取余) —— 意志、梦想、希望、追求、欲望、幻想`);
+		}
+		if(t.reconciler_parity){
+			const rp = t.reconciler_parity;
+			lines.push(`宣判(补卦)：${rp.figure}·${rp.points} 点·${RECON_PARITY_ZH[rp.code] || rp.code}(据传本对应系统之奇偶主客观义推得)`);
+		}
+	}
+	if(reading.planetaryChart){
+		const pc = reading.planetaryChart;
+		lines.push('');
+		lines.push('[行星地占盘]');
+		lines.push(`上升：${pc.asc_sign_zh}(首图 ${pc.first_figure} 定上升,顺序排列黄道十二宫;星座表=${pc.zodiac_table === 'planetary_alt' ? '另一传本对应表' : '古典行星地占表'})`);
+		lines.push('| 星 | 落宫 | 报数 |');
+		lines.push('| --- | --- | --- |');
+		[].concat(pc.planets || [],
+			pc.nodes ? [pc.nodes.north, pc.nodes.south] : [],
+			pc.extras || []).forEach((p)=>{
+			lines.push(`| ${p.planet_zh || p.planet} | 第 ${p.house} 宫 | ${p.draws ? `${p.draws.join('+')}=${p.total}` : '取北交对宫'} |`);
+		});
+		lines.push('※ 此盘与盾面「占星定局落星」正交:本盘自成一盘,宫中并无盾面图形。');
 	}
 	// 转宫派生:以某宫为新命宫重算(问他人之事/事中之事时,此为正解所依)。
 	if(reading.derived){
@@ -488,6 +733,13 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 		let zodiacSystem = o.zodiacSystem;
 		let granular = o.granular;
 		let turnTo = o.turnTo;
+		// 传本对齐:图形入宫(齿轮可选)/报数所报之数/行星地占盘四键亦须随档复算,否则 AI 复算出的盘与界面两样
+		let housePlacement = o.housePlacement;
+		let castNumbers = o.castNumbers;
+		let planetaryChart = o.planetaryChart;
+		let planetaryChartZodiac = o.planetaryChartZodiac;
+		let planetaryChartNodes = o.planetaryChartNodes;
+		let planetaryChartExtras = o.planetaryChartExtras;
 		if(question === undefined || question === null){
 			const saved = getKentangSavedCasePayload('geomancy');
 			const so = saved && saved.payload && saved.payload.options ? saved.payload.options : null;
@@ -496,6 +748,13 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 				seedMode = so.seedMode; seed = so.seed;
 				tradition = so.tradition; readingScope = so.readingScope; zodiacSystem = so.zodiacSystem;
 				granular = so.granular; turnTo = so.turnTo;
+				if(quesitedHouse === undefined || quesitedHouse === null){ quesitedHouse = so.quesitedHouse; }
+				if(housePlacement === undefined){ housePlacement = so.housePlacement; }
+				castNumbers = so.castNumbers;
+				if(planetaryChart === undefined){ planetaryChart = so.planetaryChart; }
+				if(planetaryChartZodiac === undefined){ planetaryChartZodiac = so.planetaryChartZodiac; }
+				if(planetaryChartNodes === undefined){ planetaryChartNodes = so.planetaryChartNodes; }
+				if(planetaryChartExtras === undefined){ planetaryChartExtras = so.planetaryChartExtras; }
 			}
 		}
 		if(question === undefined || question === null){ return ''; }
@@ -516,6 +775,19 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 			if(v !== null && v !== undefined){ payload[k] = v; }
 		});
 		if(Number.isFinite(Number(turnTo))){ payload.turnTo = Number(turnTo); }
+		// 传本对齐:入宫式(齿轮档优先于 granular)/报数/行星地占盘四键
+		if(housePlacement){ payload.housePlacement = housePlacement; }
+		if(Array.isArray(castNumbers) && castNumbers.length === 16){
+			payload.castMethod = 'numbers';
+			payload.castNumbers = castNumbers;
+			payload.seedMode = 'manual';
+		}
+		if(planetaryChart){
+			payload.planetaryChart = true;
+			payload.planetaryChartZodiac = planetaryChartZodiac || 'classical';
+			if(planetaryChartNodes){ payload.planetaryChartNodes = true; }
+			if(planetaryChartExtras){ payload.planetaryChartExtras = true; }
+		}
 		if(payload.seedMode === 'manual'){ payload.seed = seed || 0; }
 		const result = await postGeomancy('reading', payload);
 		return buildGeomancySnapshotText(result);
@@ -562,6 +834,17 @@ class GeomancyMain extends Component{
 			// [自由起盘] 本地时间地理草稿(null=跟主命盘;非空=用户左栏自选时间/经纬:时间起卦按此算种子,
 			// 经纬/时间随事盘存储 + 透传后端占星盘)。
 			localFields: null,
+			// [报数起卦] 用户自报十六数(奇=单点/偶=双点),空白或逗号分隔;仅 seedMode==='numbers' 时用。
+			castNumbersText: '',
+			// [行星地占盘] 独立盘型:默认关(关则后端一颗随机数不取 ⇒ 全响应字节零变)。
+			planetaryChart: false,
+			planetaryChartZodiac: 'classical',
+			planetaryChartNodes: false,
+			planetaryChartExtras: false,
+			// [地占三角] 含义两派 —— 纯显示态,不发后端、不改计算。
+			triangleSchool: 'recent',
+			// [寻源四线] 金字塔盘当前所寻之线(火/风/水/土)
+			pyrLine: 'fire',
 		};
 		this.unmounted = false;
 		this.requestSeq = 0;
@@ -574,6 +857,7 @@ class GeomancyMain extends Component{
 		this.setRightPanelTab = this.setRightPanelTab.bind(this);
 		this.setCenterView = this.setCenterView.bind(this);
 		this.changeGeomancyOpt = this.changeGeomancyOpt.bind(this);
+		this.changePlanetaryOpt = this.changePlanetaryOpt.bind(this);
 		this.traditionOptions = this.traditionOptions.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		this.applyHistory = this.applyHistory.bind(this);
@@ -591,6 +875,14 @@ class GeomancyMain extends Component{
 		this.loadHistory();
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		this.restoreFromCurrentCase();
+	}
+
+	// 🔴 载档触发通路:本组件此前**只有** componentDidMount 这一条。
+	// 子技法面板常驻挂载(Tabs 无 destroyInactiveTabPane),用户若已停在地占页再从事盘列表
+	// 载一条地占档,组件不重挂 → mount 不响 → 载档静默不生效。补上 fields 变化即还原
+	// (照 lingqi:90 / guice:94 同款范式;restore 内部自带去重守卫,不会反复覆盖用户现场)。
+	componentDidUpdate(prev){
+		if(prev.fields !== this.props.fields && this.props.fields){ this.restoreFromCurrentCase(); }
 	}
 
 	componentWillUnmount(){
@@ -621,6 +913,13 @@ class GeomancyMain extends Component{
 			tradition: this.state.tradition, readingScope: this.state.readingScope, zodiacSystem: this.state.zodiacSystem,
 			// 四本账:历史回放须能还原当时的传本改写与转宫,否则回放出的是另一副判读
 			granular: { ...(this.state.granular || {}) }, turnTo: this.state.turnTo,
+			// 四本账续扩:起卦诸法(报数所报之数)与行星地占盘四键
+			castMethod: this.state.seedMode,
+			castNumbers: this.parsedCastNumbers(),
+			planetaryChart: this.state.planetaryChart,
+			planetaryChartZodiac: this.state.planetaryChartZodiac,
+			planetaryChartNodes: this.state.planetaryChartNodes,
+			planetaryChartExtras: this.state.planetaryChartExtras,
 			ts: Date.now(),
 		};
 		let next = [entry];
@@ -664,8 +963,18 @@ class GeomancyMain extends Component{
 			questionType: options.questionType || this.state.questionType,
 			quesitedHouse: options.quesitedHouse !== undefined && options.quesitedHouse !== null
 				? Number(options.quesitedHouse) : this.state.quesitedHouse,
-			seedMode: options.seedMode || this.state.seedMode,
+			// 报数盘同理:存档带十六数者起卦法复位为报数,否则照存档所记(有盘时存的是 manual+种子)
+			seedMode: (Array.isArray(options.castNumbers) && options.castNumbers.length === 16)
+				? 'numbers' : (options.seedMode || this.state.seedMode),
 			manualSeed: options.seed !== undefined ? options.seed : this.state.manualSeed,
+			// 🔴 castMethod 此前**存而不载**:保存时 seedMode 被硬写成 'manual'(锁定复现用),
+			// 真正用过的起卦法(掷骰/抛硬币/沙痕/掷片/报数)只记在 castMethod 里,而无人读回 →
+			// 载档后「这一卦当初是怎么起的」这条信息彻底丢失。此处如实读回;
+			// seedMode 仍保持 manual+冻结种子(复现锁语义不动),两者各司其职。
+			castMethod: options.castMethod || this.state.castMethod || null,
+			// 载档必清本地时地草稿:否则左栏仍显示用户先前改的草稿时地,与存档所记不符
+			// (guice:71 / lingqi / feigong / xiaoliuren / xiaochengtu 皆已如此)。
+			localFields: null,
 			tradition: options.tradition || this.state.tradition,
 			readingScope: options.readingScope || this.state.readingScope,
 			zodiacSystem: options.zodiacSystem || this.state.zodiacSystem,
@@ -673,6 +982,16 @@ class GeomancyMain extends Component{
 			granular: options.granular !== undefined && options.granular !== null
 				? { ...options.granular } : (this.state.granular || {}),
 			turnTo: options.turnTo !== undefined ? options.turnTo : this.state.turnTo,
+			// 四本账续扩:起卦诸法与行星地占盘四键(旧存档缺键则保持现值,不写 undefined)
+			castNumbersText: Array.isArray(options.castNumbers) && options.castNumbers.length === 16
+				? options.castNumbers.join(' ') : this.state.castNumbersText,
+			planetaryChart: options.planetaryChart !== undefined
+				? !!options.planetaryChart : this.state.planetaryChart,
+			planetaryChartZodiac: options.planetaryChartZodiac || this.state.planetaryChartZodiac,
+			planetaryChartNodes: options.planetaryChartNodes !== undefined
+				? !!options.planetaryChartNodes : this.state.planetaryChartNodes,
+			planetaryChartExtras: options.planetaryChartExtras !== undefined
+				? !!options.planetaryChartExtras : this.state.planetaryChartExtras,
 		}, ()=>{
 			const result = this.state.result;
 			// [X1·P2-40] 快照带时地 meta:命盘挂载缓存路径可确凿命中,免每次挂载都复算。
@@ -724,6 +1043,31 @@ class GeomancyMain extends Component{
 		const g = this.state.granular || {};
 		Object.keys(g).forEach((k)=>{ if(g[k] !== null && g[k] !== undefined){ payload[k] = g[k]; } });
 		if(Number.isFinite(Number(this.state.turnTo))){ payload.turnTo = Number(this.state.turnTo); }
+		// [起卦诸法] 皮肤四法(掷骰/抛硬币/沙痕/掷片)走同一随机源,以 castMethod 如实回传所用之法;
+		// 报数法真收十六数(奇=单点/偶=双点),数不足十六即报错不发,免得静默回落成随机盘。
+		if(pinned === null && CAST_SKIN_MODES.indexOf(seedMode) >= 0){
+			payload.castMethod = seedMode;
+			payload.seedMode = 'random';
+		}
+		if(pinned === null && seedMode === 'numbers'){
+			const nums = this.parsedCastNumbers();
+			if(!nums){
+				message.error('报数起卦须自报十六个正整数(奇数为单点、偶数为双点;序为母一至母四之火风水土)');
+				return;
+			}
+			payload.castMethod = 'numbers';
+			payload.castNumbers = nums;
+			payload.seedMode = 'manual';
+			// 盾牌由报数定,但辅助随机(另起四行点之上升、异或表盘等)仍须确定性,否则同一组数两次起盘不全同。
+			payload.seed = Number(this.state.manualSeed) || 0;
+		}
+		// [行星地占盘] 仅开启时发四键:关则请求体与开此功能前逐字节相同(零回归)。
+		if(this.state.planetaryChart){
+			payload.planetaryChart = true;
+			payload.planetaryChartZodiac = this.state.planetaryChartZodiac || 'classical';
+			if(this.state.planetaryChartNodes){ payload.planetaryChartNodes = true; }
+			if(this.state.planetaryChartExtras){ payload.planetaryChartExtras = true; }
+		}
 		if(pinned !== null){ payload.seed = pinned; }
 		else if(seedMode === 'manual'){ payload.seed = this.state.manualSeed || 0; }
 		// 时间起卦:由左栏所选时间(精确到分)算确定性种子塞 timeSeed,使同一时刻起卦可复现;
@@ -778,6 +1122,13 @@ class GeomancyMain extends Component{
 					//    载回来的是流派默认盘,与用户存盘时所见判读不同。往返用例已锁死。
 					granular: { ...(this.state.granular || {}) },
 					turnTo: this.state.turnTo,
+					// 四本账续扩:起卦诸法(含报数所报之数)与行星地占盘四键,存写两侧须对称
+					castMethod: this.state.seedMode,
+					castNumbers: this.parsedCastNumbers(),
+					planetaryChart: this.state.planetaryChart,
+					planetaryChartZodiac: this.state.planetaryChartZodiac,
+					planetaryChartNodes: this.state.planetaryChartNodes,
+					planetaryChartExtras: this.state.planetaryChartExtras,
 				},
 				result: this.state.result,
 				snapshot: buildGeomancySnapshotText(this.state.result),
@@ -791,7 +1142,9 @@ class GeomancyMain extends Component{
 			question: entry.question || '',
 			questionType: entry.questionType || 'custom',
 			quesitedHouse: Number(entry.quesitedHouse) || QUESTION_TYPE_HOUSE[entry.questionType || 'custom'] || 1,
-			seedMode: 'manual',
+			// 🔴 报数盘之母图全由那十六个数定 —— 回放若一律按手工种子重揲,得出的是另一副母图。
+			//    故存有十六数者复位为报数档(clickCast 即带 castNumbers 重出同盘),余者照旧按种子复现。
+			seedMode: (Array.isArray(entry.castNumbers) && entry.castNumbers.length === 16) ? 'numbers' : 'manual',
 			manualSeed: entry.seed !== undefined ? entry.seed : 0,
 			tradition: entry.tradition || this.state.tradition,
 			readingScope: entry.readingScope || this.state.readingScope,
@@ -802,6 +1155,16 @@ class GeomancyMain extends Component{
 			granular: entry.granular !== undefined && entry.granular !== null
 				? { ...entry.granular } : (this.state.granular || {}),
 			turnTo: entry.turnTo !== undefined ? entry.turnTo : this.state.turnTo,
+			// 四本账续扩:回放亦须还原起卦诸法与行星地占盘四键(报数条目按 manual 种子回放同盘)
+			castNumbersText: Array.isArray(entry.castNumbers) && entry.castNumbers.length === 16
+				? entry.castNumbers.join(' ') : this.state.castNumbersText,
+			planetaryChart: entry.planetaryChart !== undefined
+				? !!entry.planetaryChart : this.state.planetaryChart,
+			planetaryChartZodiac: entry.planetaryChartZodiac || this.state.planetaryChartZodiac,
+			planetaryChartNodes: entry.planetaryChartNodes !== undefined
+				? !!entry.planetaryChartNodes : this.state.planetaryChartNodes,
+			planetaryChartExtras: entry.planetaryChartExtras !== undefined
+				? !!entry.planetaryChartExtras : this.state.planetaryChartExtras,
 		}, ()=>{ this.clickCast(); });
 	}
 
@@ -844,6 +1207,40 @@ class GeomancyMain extends Component{
 		return hit ? hit.label : String(raw);
 	}
 
+	// 生效值之**短名**:供闭合态显示。
+	// 🔴 左栏仅 ~195px,而选项全称长至「跟随预设（现为:顺铺(一至十二卦入一至十二宫)）」(实测 277px)
+	//    —— 闭合态必被省略号吃掉,等于「选项被遮挡」。故闭合态显短名、下拉列表显全称(optionLabelProp),
+	//    并保留 title 悬浮全文;长值之项另改单列全宽,断无截断之理。
+	effShort(field){
+		const st = ((this.state.result || {}).reading || {}).settings || {};
+		const raw = st[field.backendKey];
+		if(raw === undefined || raw === null){ return ''; }
+		const k = typeof raw === 'boolean' ? String(raw) : raw;
+		const hit = (field.options || []).find((o)=>o.key === k);
+		return hit ? (hit.short || hit.label) : String(raw);
+	}
+
+	// [行星地占盘] 选项变更:与 changeGeomancyOpt 同构(锁种子重算:盾牌盘不变,行星盘随选项重取)。
+	changePlanetaryOpt(key, value){
+		this.setState({ [key]: value }, ()=>{
+			const reading = this.state.result && this.state.result.reading;
+			if(!reading){ return; }
+			const seed = reading.seed;
+			if(seed === undefined || seed === null || !Number.isFinite(Number(seed))){ this.clickCast(); return; }
+			this.clickCast(Number(seed));
+		});
+	}
+
+	// [报数起卦] 文本 → 十六个数;非十六个或含非数则返回 null(调用方据此报错不发请求)。
+	parsedCastNumbers(){
+		const raw = `${this.state.castNumbersText || ''}`.replace(/[，、]/g, ' ').replace(/,/g, ' ');
+		const parts = raw.split(/\s+/).filter((x)=>x !== '');
+		if(parts.length !== 16){ return null; }
+		const nums = parts.map((x)=>Number(x));
+		if(nums.some((n)=>!Number.isFinite(n) || n < 1 || Math.floor(n) !== n)){ return null; }
+		return nums;
+	}
+
 	changeGeomancyOpt(key, value){
 		// 换流派预设 = 批量写默认:清空逐项覆盖,让新预设的默认值全面生效(用户可再逐项改写)。
 		const patch = key === 'tradition' ? { [key]: value, granular: {} } : { [key]: value };
@@ -857,9 +1254,15 @@ class GeomancyMain extends Component{
 	}
 
 	// 流派选项:优先后端回传 traditions(随内核),缺则静态。
+	// 🔴 后端只回 id/label 而无短名 —— 若直接用,闭合态短名即丢、窄屏下被省略号截断(实测 63/57px)。
+	//    故按 key 从静态表补 short;后端新出的流派无短名则回落其 label(照旧,不至于空)。
 	traditionOptions(){
 		const t = this.state.result && this.state.result.traditions;
-		if(Array.isArray(t) && t.length){ return t.map((x)=>({ key: x.id, label: x.label })); }
+		if(Array.isArray(t) && t.length){
+			const shortByKey = { ...TRADITION_SHORT_EXTRA };
+			TRADITION_OPTIONS.forEach((o)=>{ if(o.short){ shortByKey[o.key] = o.short; } });
+			return t.map((x)=>({ key: x.id, label: x.label, short: shortByKey[x.id] }));
+		}
 		return TRADITION_OPTIONS;
 	}
 
@@ -900,8 +1303,11 @@ class GeomancyMain extends Component{
 									// 选问类即填入其预设所问宫 —— 预设仍在,只是不再是唯一出路
 									quesitedHouse: QUESTION_TYPE_HOUSE[value] || 1 })}
 								dropdownMatchSelectWidth={false}
+								optionLabelProp="label"
 							>
-								{QUESTION_TYPE_OPTIONS.map((o)=>(<Option value={o.key} key={o.key}>{o.label}</Option>))}
+								{QUESTION_TYPE_OPTIONS.map((o)=>(
+									<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>
+								))}
 							</Select>
 						</label>
 						<label className="horosa-huangji-select-field horosa-geomancy-half-field">
@@ -913,42 +1319,58 @@ class GeomancyMain extends Component{
 									questionType: (QUESTION_TYPE_HOUSE[this.state.questionType] === Number(value))
 										? this.state.questionType : 'custom' })}
 								dropdownMatchSelectWidth={false}
+									optionLabelProp="label"
 							>
-								{QUESITED_HOUSE_OPTIONS.map((o)=>(<Option value={o.v} key={o.v}>{`第 ${o.v} 宫 · ${o.label}`}</Option>))}
+								{QUESITED_HOUSE_OPTIONS.map((o)=>(
+									<Option value={o.v} key={o.v} label={`第${o.v}宫`}>{`第 ${o.v} 宫 · ${o.label}`}</Option>
+								))}
 							</Select>
 						</label>
 						<label className="horosa-huangji-select-field horosa-geomancy-half-field">
 							<span>起卦法</span>
-							<Select value={this.state.seedMode} onChange={(value)=>this.setState({ seedMode: value })} dropdownMatchSelectWidth={false}>
-								{SEED_MODE_OPTIONS.map((o)=>(<Option value={o.key} key={o.key}>{o.label}</Option>))}
+							<Select value={this.state.seedMode} onChange={(value)=>this.setState({ seedMode: value })} dropdownMatchSelectWidth={false} optionLabelProp="label">
+								{SEED_MODE_OPTIONS.map((o)=>(<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>))}
 							</Select>
 						</label>
-						{this.state.seedMode === 'manual' ? (
+						{(this.state.seedMode === 'manual' || this.state.seedMode === 'numbers') ? (
 							<label className="horosa-huangji-select-field horosa-geomancy-half-field">
 								<span>手工种子</span>
 								<InputNumber style={{ width: '100%' }} value={this.state.manualSeed} min={0} max={2147483647} onChange={(v)=>this.setState({ manualSeed: v || 0 })} />
+							</label>
+						) : null}
+						{/* [报数起卦] 十六数,奇为单点、偶为双点;序=母一至母四之火风水土(详解见帮助手册) */}
+						{this.state.seedMode === 'numbers' ? (
+							<label className="horosa-huangji-select-field horosa-geomancy-granular-field">
+								<span>报数（十六个）</span>
+								<TextArea
+									value={this.state.castNumbersText}
+									onChange={(e)=>this.setState({ castNumbersText: e.target.value })}
+									placeholder="奇数为单点、偶数为双点，如 7 4 3 6 2 9 5 8 1 4 7 2 6 3 8 5"
+									autoSize={{ minRows: 2, maxRows: 3 }}
+									maxLength={80}
+								/>
 							</label>
 						) : null}
 					</div>
 				</XQSideSection>
 				<XQSideSection iconName="target" title="流派 · 传本设置" storageKey="geomancy.school" className="horosa-huangji-input-section">
 					<div className="horosa-huangji-select-grid">
-						<label className="horosa-huangji-select-field horosa-geomancy-half-field">
+						<label className="horosa-huangji-select-field horosa-geomancy-school-field">
 							<span>流派预设</span>
-							<Select value={this.state.tradition} onChange={(value)=>this.changeGeomancyOpt('tradition', value)} dropdownMatchSelectWidth={false}>
-								{(this.traditionOptions()).map((o)=>(<Option value={o.key} key={o.key}>{o.label}</Option>))}
+							<Select value={this.state.tradition} onChange={(value)=>this.changeGeomancyOpt('tradition', value)} dropdownMatchSelectWidth={false} optionLabelProp="label">
+								{(this.traditionOptions()).map((o)=>(<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>))}
 							</Select>
 						</label>
-						<label className="horosa-huangji-select-field horosa-geomancy-half-field">
+						<label className="horosa-huangji-select-field horosa-geomancy-school-field">
 							<span>读取范围</span>
-							<Select value={this.state.readingScope} onChange={(value)=>this.changeGeomancyOpt('readingScope', value)} dropdownMatchSelectWidth={false}>
-								{READING_SCOPE_OPTIONS.map((o)=>(<Option value={o.key} key={o.key}>{o.label}</Option>))}
+							<Select value={this.state.readingScope} onChange={(value)=>this.changeGeomancyOpt('readingScope', value)} dropdownMatchSelectWidth={false} optionLabelProp="label">
+								{READING_SCOPE_OPTIONS.map((o)=>(<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>))}
 							</Select>
 						</label>
-						<label className="horosa-huangji-select-field horosa-geomancy-half-field">
+						<label className="horosa-huangji-select-field horosa-geomancy-school-field">
 							<span>黄道体系</span>
-							<Select value={this.state.zodiacSystem} onChange={(value)=>this.changeGeomancyOpt('zodiacSystem', value)} dropdownMatchSelectWidth={false}>
-								{ZODIAC_SYSTEM_OPTIONS.map((o)=>(<Option value={o.key} key={o.key}>{o.label}</Option>))}
+							<Select value={this.state.zodiacSystem} onChange={(value)=>this.changeGeomancyOpt('zodiacSystem', value)} dropdownMatchSelectWidth={false} optionLabelProp="label">
+								{ZODIAC_SYSTEM_OPTIONS.map((o)=>(<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>))}
 							</Select>
 						</label>
 					</div>
@@ -964,11 +1386,19 @@ class GeomancyMain extends Component{
 									value={this.granularValue(f.key, f.backendKey)}
 									onChange={(value)=>this.changeGranular(f.key, value === '__profile__' ? null : (f.bool ? value === 'true' : value))}
 									dropdownMatchSelectWidth={false}
+									optionLabelProp="label"
 								>
-									<Option value="__profile__" key="__profile__">
+									{/* 闭合态显短名(免被省略号吃掉)、下拉列表显全称 */}
+									<Option
+										value="__profile__"
+										key="__profile__"
+										label={this.effShort(f) ? `随·${this.effShort(f)}` : '跟随预设'}
+									>
 										{this.effLabel(f) ? `跟随预设（现为：${this.effLabel(f)}）` : '跟随预设'}
 									</Option>
-									{f.options.map((o)=>(<Option value={o.key} key={o.key}>{o.label}</Option>))}
+									{f.options.map((o)=>(
+										<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>
+									))}
 								</Select>
 							</label>
 						))}
@@ -984,6 +1414,52 @@ class GeomancyMain extends Component{
 					<div className="horosa-geomancy-granular-hint">
 						未改动的项跟随所选流派预设;换预设即清空全部改写。改动只影响判读,不重新揲卦。
 					</div>
+				</XQSideSection>
+				{/* [行星地占盘] 自成一盘:以首图定上升、七政各以报数落宫。与盾牌落星正交并存(详解见帮助手册) */}
+				<XQSideSection iconName="target" title="行星地占盘" storageKey="geomancy.pchart" className="horosa-huangji-input-section">
+					<label className="horosa-geomancy-uni-toggle">
+						<input
+							type="checkbox"
+							checked={!!this.state.planetaryChart}
+							onChange={(e)=>this.changePlanetaryOpt('planetaryChart', e.target.checked)}
+						/>
+						<span>另起行星地占盘</span>
+					</label>
+					{this.state.planetaryChart ? (
+						<>
+							<div className="horosa-huangji-select-grid">
+								<label className="horosa-huangji-select-field horosa-geomancy-granular-field">
+									<span>星座对应表</span>
+									<Select
+										value={this.state.planetaryChartZodiac}
+										onChange={(value)=>this.changePlanetaryOpt('planetaryChartZodiac', value)}
+										dropdownMatchSelectWidth={false}
+									optionLabelProp="label"
+									>
+										{PCHART_ZODIAC_OPTIONS.map((o)=>(
+										<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>
+									))}
+									</Select>
+								</label>
+							</div>
+							<label className="horosa-geomancy-uni-toggle">
+								<input
+									type="checkbox"
+									checked={!!this.state.planetaryChartNodes}
+									onChange={(e)=>this.changePlanetaryOpt('planetaryChartNodes', e.target.checked)}
+								/>
+								<span>加北交·南交(南交取对宫)</span>
+							</label>
+							<label className="horosa-geomancy-uni-toggle">
+								<input
+									type="checkbox"
+									checked={!!this.state.planetaryChartExtras}
+									onChange={(e)=>this.changePlanetaryOpt('planetaryChartExtras', e.target.checked)}
+								/>
+								<span>加月孛·三王星</span>
+							</label>
+						</>
+					) : null}
 				</XQSideSection>
 				{r ? (
 					<div className="horosa-geomancy-seed-row">
@@ -1042,6 +1518,10 @@ class GeomancyMain extends Component{
 		// [RTL] 自右向左的传本:四格一行逐行镜像(母一在最右)。格位标签随图同镜,不错位。
 		const rtl = (((reading && reading.settings) || {}).direction || 'LTR') === 'RTL';
 		const idxOf = (i)=>(rtl ? (Math.floor(i / 4) * 4 + (3 - (i % 4))) : i);
+		// [得地] 十六位各配一元素(位序循环火风水土),与所盛图之主元素论四档强弱 —— 角标就地标示。
+		const tenancy = ((reading && reading.technique) || {}).tenancy || [];
+		// [时间流] 右证过去、法官现在、左证未来(传本口径)
+		const TIME_BY_SLOT = { 12: '过去', 13: '未来', 14: '现在' };
 		return (
 			<div className="horosa-geomancy-shield">
 				<div className="horosa-geomancy-shield-title">护盾方盘 · 十六图形{rtl ? ' · 自右向左' : ''}</div>
@@ -1057,9 +1537,20 @@ class GeomancyMain extends Component{
 									const f = figs[i] || {};
 									const tone = (f.tone || '').toLowerCase();
 									const qcls = tone === 'good' ? ' is-good' : (tone === 'bad' ? ' is-bad' : '');
+									const ten = tenancy[i] || null;
+									const when = TIME_BY_SLOT[i];
 									return (
 										<div className={`horosa-geomancy-shield-cell${qcls}`} key={slot}>
-											<span className="horosa-geomancy-shield-slot">{FIGURE_SLOTS[i]}</span>
+											<span className="horosa-geomancy-shield-slot">
+												{FIGURE_SLOTS[i]}
+												{when ? <em className="horosa-geomancy-shield-time">{when}</em> : null}
+											</span>
+											{ten && ten.grade ? (
+												<span
+													className={`horosa-geomancy-shield-tenancy is-${ten.grade}`}
+													title={`${ELEMENT_ZH_BY_EN[ten.figure_element]}入${ELEMENT_ZH_BY_EN[ten.position_element]}位 · ${(TENANCY_GRADE_ZH[ten.grade] || {}).t}:${(TENANCY_GRADE_ZH[ten.grade] || {}).d}`}
+												>{TENANCY_GRADE_MARK[ten.grade]}</span>
+											) : null}
 											{this.renderDots(f.dots)}
 											<div className="horosa-geomancy-shield-name">
 												<strong>{f.nameZh || f.nameEn || '—'}</strong>
@@ -1088,7 +1579,12 @@ class GeomancyMain extends Component{
 		const recon = (reading && reading.reconciler) || null;
 		const rtl = (((reading && reading.settings) || {}).direction || 'LTR') === 'RTL';
 		const tech = (reading && reading.technique) || {};
-		const vp = tech.via_puncti || {};
+		// [寻源四线] 传本四线俱可寻(火主目的意志/风主思想交流/水主感情灵性/土主结果物质),
+		// 由法官该行之阳爻上溯。所选之线无数据时(或旧盘无此键)回落旧「点之路」(只沿火行)。
+		const line = this.state.pyrLine || 'fire';
+		const veAll = tech.via_elements || null;
+		const ve = veAll ? (veAll[line] || null) : null;
+		const vp = ve || tech.via_puncti || {};
 		const onPath = new Set(Array.isArray(vp.path) ? vp.path : []);
 
 		const W = 1010, H = 700;
@@ -1180,8 +1676,31 @@ class GeomancyMain extends Component{
 							? `亲缘三元 ${selTriad.label}:${(selTriad.parents || []).join(' ⊕ ')} = ${selTriad.child}(再点取消)`
 							: (sel ? '已高亮其两源(再点取消)' : '点判官/证/甥可溯其亲缘三元(父·父→子)')}
 					</span>
-					{vp.through ? <span className="horosa-geomancy-pyr-vp is-through">点之路贯通</span>
-						: (vp.broken_at ? <span className="horosa-geomancy-pyr-vp">点之路断于{vp.broken_at}</span> : null)}
+					{/* [寻源四线] 传本:由法官之阳爻上溯,四线各主一层面;线切换即改高亮路径 */}
+					{veAll ? (
+						<span className="horosa-geomancy-pyr-lines">
+							{['fire', 'air', 'water', 'earth'].map((k)=>(
+								<button
+									type="button"
+									key={k}
+									title={(VIA_LINE_ZH[k] || {}).d}
+									className={`${line === k ? 'is-active' : ''}${(veAll[k] || {}).traceable ? '' : ' is-miss'}`}
+									onClick={()=>this.setState({ pyrLine: k })}
+								>{(VIA_LINE_ZH[k] || {}).n}</button>
+							))}
+						</span>
+					) : null}
+					{ve && !ve.traceable
+						? <span className="horosa-geomancy-pyr-vp">{`${(VIA_LINE_ZH[line] || {}).n}线:法官此行阴爻,不可由此寻源`}</span>
+						: (vp.through
+							? (
+								<span className="horosa-geomancy-pyr-vp is-through">
+									{veAll
+										? `${(VIA_LINE_ZH[line] || {}).n}线贯通${(ve && ve.terminus) ? ` → 盾位${ve.terminus.position}·${VIA_SIDE_ZH[ve.terminus.side]}` : ''}`
+										: '点之路贯通'}
+								</span>
+							)
+							: (vp.broken_at ? <span className="horosa-geomancy-pyr-vp">{`${veAll ? `${(VIA_LINE_ZH[line] || {}).n}线` : '点之路'}断于${vp.broken_at}`}</span> : null))}
 				</div>
 				<svg viewBox={`0 0 ${W} ${H}`} className="horosa-geomancy-pyr-svg" xmlns="http://www.w3.org/2000/svg">
 					{lines}
@@ -1235,10 +1754,17 @@ class GeomancyMain extends Component{
 						const deg = houseCenterDeg(i + 1);
 						const [sx, sy] = polar(rSign, deg);
 						const [nx, ny] = polar(rNum, deg);
+						// [希腊点] 福/灵徽记贴宫号侧;四式宫位盘同接一件(greekPointsByHouse)
+						const gk = (this.greekPointsByHouse(reading) || {})[h.house] || [];
 						return (
 							<g key={`h${i}`}>
 								<text x={sx} y={sy} className="horosa-geomancy-wheel-sign" style={{ fontFamily: AstroFont }} textAnchor="middle" dominantBaseline="central">{signGlyph(h.sign)}</text>
 								<text x={nx} y={ny} className="horosa-geomancy-wheel-num" textAnchor="middle" dominantBaseline="central">{h.house}</text>
+								{gk.length ? (
+									<text x={nx} y={ny + 17} className="horosa-geomancy-wheel-greek" textAnchor="middle" dominantBaseline="central">
+										{gk.map((k)=>(k === 'fortune' ? '福' : '灵')).join('')}
+									</text>
+								) : null}
 							</g>
 						);
 					})}
@@ -1347,6 +1873,7 @@ class GeomancyMain extends Component{
 		const byHouse = {};
 		houses.forEach((h)=>{ byHouse[h.house] = h; });
 		const planetsAt = this.planetsByHouse(reading) || {};
+		const greekAt = this.greekPointsByHouse(reading) || {};
 		const isIndia = (reading || {}).profileId === 'india_ramal';   // 印度派:宫名改标该支支名
 		const cells = SLOTS.map(([r, c, hn])=>{
 			const h = byHouse[hn] || {};
@@ -1364,6 +1891,7 @@ class GeomancyMain extends Component{
 						<span className="horosa-geomancy-sq-num">{hn}</span>
 						<span className="horosa-geomancy-sq-sign" style={{ fontFamily: AstroFont }}>{signGlyph(h.sign)}</span>
 						<span className="horosa-geomancy-sq-topic">{isIndia && h.bhava ? h.bhava : (h.nameZh || h.topicsZh || '')}</span>
+						{this.renderGreekMarks(greekAt[hn])}
 					</div>
 					{this.renderDots(fig.dots)}
 					<div className="horosa-geomancy-sq-fig">
@@ -1464,6 +1992,35 @@ class GeomancyMain extends Component{
 		return null;                       // 不落星:如实返回空,盘上不画行星
 	}
 
+	// [希腊点] 福点/灵点各落一宫 → {宫号: ['fortune'|'spirit', …]}。
+	// 🔴 单一真值源 + 共用件:落星层曾只画在圆轮盘一处,其余八式切了零反馈(B0 之病),
+	//    故此件由**四式宫位盘全接**(圆轮/方形宫盘/北印度/中世纪),不得只接一处。
+	greekPointsByHouse(reading){
+		const gp = ((reading && reading.technique) || {}).greek_points || null;
+		if(!gp){ return null; }
+		const by = {};
+		if(gp.fortune_house >= 1 && gp.fortune_house <= 12){ (by[gp.fortune_house] = by[gp.fortune_house] || []).push('fortune'); }
+		if(gp.spirit_house >= 1 && gp.spirit_house <= 12){ (by[gp.spirit_house] = by[gp.spirit_house] || []).push('spirit'); }
+		return Object.keys(by).length ? by : null;
+	}
+
+	// 希腊点徽记(HTML 盘用):福=好运所在·身体财业;灵=意志梦想欲求。
+	renderGreekMarks(list){
+		if(!list || !list.length){ return null; }
+		return (
+			<span className="horosa-geomancy-greek-marks">
+				{list.map((k)=>(
+					<em
+						className={`horosa-geomancy-greek-mark is-${k}`}
+						key={k}
+						title={k === 'fortune' ? '地占式福点:好运所在、身体健康、财富、事业成败、心理素质'
+							: '地占式灵点:意志、梦想、希望、追求、欲望、幻想'}
+					>{k === 'fortune' ? '福' : '灵'}</em>
+				))}
+			</span>
+		);
+	}
+
 	// 宫格内的落星行(HTML 盘用)。圆轮盘另有沿宫楔均分之画法,不共用此件。
 	renderHousePlanets(list){
 		if(!list || !list.length){ return null; }
@@ -1499,6 +2056,7 @@ class GeomancyMain extends Component{
 		const byHouse = {};
 		houses.forEach((h)=>{ byHouse[h.house] = h; });
 		const planetsAt = this.planetsByHouse(reading) || {};
+		const greekAt = this.greekPointsByHouse(reading) || {};
 		const rtl = (((reading && reading.settings) || {}).direction || 'LTR') === 'RTL';
 		const mirror = (pts)=>(rtl
 			? pts.split(' ').map((s)=>{ const [x, y] = s.split(',').map(Number); return `${100 - x},${y}`; }).join(' ')
@@ -1531,6 +2089,7 @@ class GeomancyMain extends Component{
 								<span className="horosa-geomancy-poly-head">
 									<span className="horosa-geomancy-poly-num">{hn}</span>
 									<span className="horosa-geomancy-poly-sign" style={{ fontFamily: AstroFont }}>{signGlyph(h.sign)}</span>
+									{this.renderGreekMarks(greekAt[hn])}
 								</span>
 								{this.renderDots(fig.dots)}
 								<span className="horosa-geomancy-poly-name">{fig.displayName || fig.nameZh || fig.nameEn || ''}</span>
@@ -1583,13 +2142,16 @@ class GeomancyMain extends Component{
 		const hasSikidy = !!reading.sikidy;
 		const hasHakata = !!reading.hakata;
 		const hasIfa = !!reading.ifa;
+		const hasPChart = !!reading.planetaryChart;
 		// 当前视图若不可用(如切回非 sikidy 流派)→ 回落护盾方盘;结构对照模式默认落其专属盘。
 		let view = this.state.centerView;
 		if(view === 'sikidy' && !hasSikidy){ view = 'square'; }
 		if(view === 'hakata' && !hasHakata){ view = 'square'; }
 		if(view === 'ifa' && !hasIfa){ view = 'square'; }
+		if(view === 'planetwheel' && !hasPChart){ view = 'square'; }
 		if(hasIfa && !this.state.centerViewTouched){ view = 'ifa'; }
-		const stage = view === 'wheel' ? this.renderWheel(reading)
+		const stage = view === 'planetwheel' ? this.renderPlanetaryWheel(reading)
+			: view === 'wheel' ? this.renderWheel(reading)
 			: view === 'north' ? this.renderNorthChart(reading)
 				: view === 'medieval' ? this.renderMedievalChart(reading)
 					: view === 'squarehouse' ? this.renderSquareHouses(reading)
@@ -1610,9 +2172,95 @@ class GeomancyMain extends Component{
 					{hasSikidy ? <button type="button" className={`horosa-geomancy-switch-btn${view === 'sikidy' ? ' is-active' : ''}`} onClick={()=>this.setCenterView('sikidy')}>异或表盘</button> : null}
 					{hasHakata ? <button type="button" className={`horosa-geomancy-switch-btn${view === 'hakata' ? ' is-active' : ''}`} onClick={()=>this.setCenterView('hakata')}>四片盘</button> : null}
 					{hasIfa ? <button type="button" className={`horosa-geomancy-switch-btn${view === 'ifa' ? ' is-active' : ''}`} onClick={()=>this.setCenterView('ifa')}>结构对照盘</button> : null}
+					{/* [行星地占盘] 左栏开启后方出此钮 —— 无数据不摆死按钮 */}
+					{hasPChart ? <button type="button" className={`horosa-geomancy-switch-btn${view === 'planetwheel' ? ' is-active' : ''}`} onClick={()=>this.setCenterView('planetwheel')}>行星地占盘</button> : null}
 				</div>
 				{['wheel', 'squarehouse', 'north', 'medieval'].indexOf(view) < 0 ? this.renderPlanetHint(reading) : null}
 				<div className="horosa-geomancy-board-stage">{stage}</div>
+			</div>
+		);
+	}
+
+	// [行星地占盘] 自成一盘:上升取首图之星座、七政各以报数落宫。
+	// 与十二宫盘同用三环几何(外环黄道、中环带落星、内圆盘心),故设计语言一致;
+	// 但此盘宫中并无盾面图形 —— 与「占星定局落星」正交,不可混为一谈。
+	renderPlanetaryWheel(reading){
+		const pc = (reading && reading.planetaryChart) || null;
+		if(!pc){ return null; }
+		const SIZE = 600, C = SIZE / 2;
+		const rOuter = 288, rZodiac = 234, rSign = 261, rNum = 214, rPlanetBand = 156, rInner = 96;
+		const D2R = Math.PI / 180;
+		const polar = (r, deg)=>[C + r * Math.cos(deg * D2R), C - r * Math.sin(deg * D2R)];
+		const houseCenterDeg = (h)=>180 + (h - 1) * 30 + 15;      // 宫一在左(9 点钟),逆时针递增
+		const houseEdgeDeg = (h)=>180 + (h - 1) * 30;
+		const spokes = [];
+		for(let h = 1; h <= 12; h++){
+			const [x1, y1] = polar(rInner, houseEdgeDeg(h));
+			const [x2, y2] = polar(rOuter, houseEdgeDeg(h));
+			spokes.push(<line key={`sp${h}`} x1={x1} y1={y1} x2={x2} y2={y2} className="horosa-geomancy-wheel-spoke" />);
+		}
+		// 落宫:同宫多星沿宫楔均分,恒不越界(与十二宫盘同法)
+		const byHouse = {};
+		const all = [].concat(pc.planets || [],
+			pc.nodes ? [pc.nodes.north, pc.nodes.south] : [],
+			pc.extras || []);
+		all.forEach((p)=>{ if(p && p.house >= 1 && p.house <= 12){ (byHouse[p.house] = byHouse[p.house] || []).push(p); } });
+		const glyphs = [];
+		Object.keys(byHouse).forEach((hs)=>{
+			const hh = parseInt(hs, 10);
+			const list = byHouse[hh];
+			const base = houseCenterDeg(hh);
+			const step = list.length > 1 ? Math.min(22, 26 / list.length) : 0;
+			const start = base - (step * (list.length - 1)) / 2;
+			list.forEach((p, k)=>{
+				const [gx, gy] = polar(rPlanetBand, start + k * step);
+				const gl = PLANET_GLYPH_BY_EN[p.planet] || PLANET_GLYPH_BY_ZH[p.planet_zh] || '';
+				glyphs.push(gl
+					? (
+						<text key={`pw${hh}-${p.planet}`} x={gx} y={gy} className="horosa-geomancy-wheel-planet"
+							style={{ fontFamily: AstroFont }} textAnchor="middle" dominantBaseline="central">{gl}</text>
+					)
+					: (
+						<text key={`pw${hh}-${p.planet}`} x={gx} y={gy} className="horosa-geomancy-wheel-planet is-text"
+							textAnchor="middle" dominantBaseline="central">{(p.planet_zh || '').slice(0, 1)}</text>
+					));
+			});
+		});
+		return (
+			<div className="horosa-geomancy-wheel is-planetary">
+				{/* 标题在上、说明在下、盘居中占满横宽(壳层 flex 横排会把二者挤到盘两侧,故 is-planetary 改纵向) */}
+				<div className="horosa-geomancy-shield-title">
+					{`行星地占盘 · 七政报数落宫`}
+					<span className="horosa-geomancy-pyr-tip">
+						{`星座表:${(PCHART_ZODIAC_OPTIONS.find((o)=>o.key === pc.zodiac_table) || {}).label || pc.zodiac_table}`}
+					</span>
+				</div>
+				<svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="horosa-geomancy-wheel-svg" xmlns="http://www.w3.org/2000/svg">
+					<circle cx={C} cy={C} r={rOuter} className="horosa-geomancy-wheel-ring is-gold" />
+					<circle cx={C} cy={C} r={rZodiac} className="horosa-geomancy-wheel-ring is-gold" />
+					<circle cx={C} cy={C} r={rInner} className="horosa-geomancy-wheel-ring is-gold" />
+					{spokes}
+					{(pc.houses || []).map((h)=>{
+						const [sx, sy] = polar(rSign, houseCenterDeg(h.house));
+						const [nx, ny] = polar(rNum, houseCenterDeg(h.house));
+						return (
+							<g key={`ph${h.house}`}>
+								<text x={sx} y={sy} className="horosa-geomancy-wheel-sign" style={{ fontFamily: AstroFont }} textAnchor="middle" dominantBaseline="central">{signGlyph(h.sign)}</text>
+								<text x={nx} y={ny} className="horosa-geomancy-wheel-num" textAnchor="middle" dominantBaseline="central">{h.house}</text>
+							</g>
+						);
+					})}
+					{glyphs}
+					<text x={C} y={C - 10} className="horosa-geomancy-wheel-center-title" textAnchor="middle">行星地占</text>
+					<text x={C} y={C + 16} className="horosa-geomancy-wheel-center-sub" textAnchor="middle">
+						{`上升 ${pc.asc_sign_zh}`}
+					</text>
+				</svg>
+				<div className="horosa-geomancy-planet-hint">
+					{`首图 ${pc.first_figure} 定上升,顺序排列黄道十二宫;七政各起报数(四数求和除十二取余,余零入十二宫)。`}
+					{pc.nodes ? '北交同法、南交取其对宫。' : ''}
+					{pc.extras ? '月孛与三王星为传本可选加项。' : ''}
+				</div>
 			</div>
 		);
 	}
@@ -1739,10 +2387,42 @@ class GeomancyMain extends Component{
 		);
 	}
 
+	// [边界] 结构对照模式:只作形的识别与比特对照,**不产出该体系之占断,亦不套用地占含义**。
+	// 🔴 引擎守了(reading 只回 structural_only)、AI 快照守了(只出边界声明即 return),
+	//    而右栏此前照旧全出地占判读(概要/判定图形/二十一行技法卡/十二宫断语)—— 边界在显示层被越。
+	//    今三页签统一改出此卡。
+	renderStructuralNotice(r){
+		const ifa = r.ifa || {};
+		return (
+			<div className="horosa-geomancy-reading">
+				<div className="horosa-geomancy-card">
+					<div className="horosa-geomancy-card-title">边界声明</div>
+					<div className="horosa-geomancy-odu-notice">
+						{r.culturalNotice || '独立圣传体系,与地占仅十六个四行二元图形外形同构。此处仅作结构与比特对照,不套用地占含义、不构成该体系之占断。'}
+					</div>
+					{ifa.label ? (
+						<div className="horosa-geomancy-summary">
+							<div className="horosa-geomancy-summary-row"><span>结构对照</span><strong>{`${ifa.label}${ifa.is_meji ? '(主形)' : ''}`}</strong></div>
+							<div className="horosa-geomancy-summary-row"><span>右列</span><strong>{`${(ifa.right || {}).odu_name || '—'} → ${(ifa.right || {}).figure || '—'}`}</strong></div>
+							<div className="horosa-geomancy-summary-row"><span>左列</span><strong>{`${(ifa.left || {}).odu_name || '—'} → ${(ifa.left || {}).figure || '—'}`}</strong></div>
+						</div>
+					) : null}
+					{/* 区块内之注一律用 note-hint:tech-hint 是技法行释义专用类,
+					    混用会破坏「技法每行恰一句释义」的计数不变量 */}
+					<div className="horosa-geomancy-note-hint">
+						本模式不出地占之判定、解读技法与十二宫断语;欲作地占判读请在左栏另择流派。
+						中栏「结构对照盘」可见两列记号与十六主形之比特对照。
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	renderReading(){
 		const result = this.state.result;
 		if(!result){ return <div className="horosa-huangji-empty">暂无地占数据</div>; }
 		const r = result.reading || {};
+		if(r.structuralOnly){ return this.renderStructuralNotice(r); }
 		const houses = r.houses || [];
 		// [X1·P1-20] 读取范围真门控:L0 仅判官 / L1 +解读技法 / L2 盾牌全局(中栏恒在,解读同 L1) /
 		// L3 +十二宫(默认,字节不变) / L4 = L3 并标注占星定局体系(黄道体系选择器所出,不臆造新层)。
@@ -1787,8 +2467,15 @@ class GeomancyMain extends Component{
 					// 如实描述定局链路:上升怎么来 → 十二宫怎么铺。此前文案称「按星座体系定十二宫星座」,
 					// 而盘上画的却是写死的自然星座,与盘心上升矛盾;今与实际取值同源如实陈述。
 					const er = r.astroErection || {};
-					const ascWay = er.asc_source === 'fresh_points' ? '另起四行点成图' : '取第一宫之图';
-					const zsysZh = this.state.zodiacSystem === 'planetary' ? '行星归属体系' : '古典定局体系';
+					// 🔴 上升取法与黄道体系皆已增至三档,此处若仍写「非乙即甲」的二分,第三档就会被显示成第一档
+					//    (选了「取法官之图」却写「取第一宫之图」= 显示层撒谎)。故一律**由选项表按实际值取名**,
+					//    且以引擎回传值为准(而非组件 state,后者在载入/回放途中可能尚未同步)。
+					const ASC_OPTS = (GRANULAR_FIELDS.find((f)=>f.key === 'ascSource') || {}).options || [];
+					const ascWay = ((ASC_OPTS.find((o)=>o.key === er.asc_source) || {}).label)
+						|| '取第一宫之图';
+					const zsysKey = r.zodiacSystem || this.state.zodiacSystem;
+					const zsysZh = ((ZODIAC_SYSTEM_OPTIONS.find((o)=>o.key === zsysKey) || {}).label)
+						|| '古典定局体系';
 					return (
 						<div className="horosa-geomancy-card">
 							<div className="horosa-geomancy-card-title">占星定局(L4)</div>
@@ -1831,6 +2518,7 @@ class GeomancyMain extends Component{
 		const result = this.state.result;
 		if(!result){ return <div className="horosa-huangji-empty">暂无地占数据,请先起盘</div>; }
 		const r = result.reading || {};
+		if(r.structuralOnly){ return this.renderStructuralNotice(r); }
 		const depth = ({ L0: 0, L1: 1, L2: 2, L3: 3, L4: 4 })[this.state.readingScope];
 		const lvl = depth === undefined ? 3 : depth;
 		if(lvl < 1){
@@ -1852,6 +2540,7 @@ class GeomancyMain extends Component{
 		const result = this.state.result;
 		if(!result){ return <div className="horosa-huangji-empty">暂无地占数据,请先起盘</div>; }
 		const r = result.reading || {};
+		if(r.structuralOnly){ return this.renderStructuralNotice(r); }
 		const houses = r.houses || [];
 		const depth = ({ L0: 0, L1: 1, L2: 2, L3: 3, L4: 4 })[this.state.readingScope];
 		const lvl = depth === undefined ? 3 : depth;
@@ -1870,6 +2559,18 @@ class GeomancyMain extends Component{
 			<div className="horosa-geomancy-reading">
 				<div className="horosa-geomancy-card">
 					<div className="horosa-geomancy-card-title">十二宫（图形入宫 · 断语）</div>
+					{/* 入宫式非顺铺时如实交代:四正入宫者四果宫为对位两图之和,近世式为固定置换 */}
+					{((r.settings || {}).house_placement === 'angular') ? (
+						<div className="horosa-geomancy-coincide-note">
+							四正入宫式:四母入一/十/七/四宫、四女入十一/二/八/五宫,
+							三·六·九·十二四果宫所盛为对位两图相加之<strong>合成卦</strong>(非盾面原图)。
+						</div>
+					) : null}
+					{((r.settings || {}).house_placement === 'golden_dawn') ? (
+						<div className="horosa-geomancy-coincide-note">
+							近世学派置换入宫:十二图按固定置换入宫(盾位一→十宫、盾位二→一宫……),非顺铺。
+						</div>
+					) : null}
 					<div className="horosa-geomancy-house-list">
 						{houses.map((h)=>{
 							const fig = h.figure || {};
@@ -1910,6 +2611,13 @@ class GeomancyMain extends Component{
 										</small>
 									) : null}
 									{h.reading ? <small className="horosa-geomancy-house-reading">{h.reading}</small> : null}
+									{/* 盘式十二宫主宰事项(传本关键词树):展开即见该宫所主之全谱 */}
+									{h.topicsDetailZh ? (
+										<details className="horosa-geomancy-house-detail">
+											<summary>{`本宫主宰事项`}</summary>
+											<div>{h.topicsDetailZh}</div>
+										</details>
+									) : null}
 								</div>
 							);
 						})}
@@ -1944,6 +2652,31 @@ class GeomancyMain extends Component{
 		const push = (label, value, hint, group, miss)=>rows.push({
 			label, value, hint, group: group || 'chart', miss: !!miss });
 
+		// ── 传本解卦之首二步:先验卦盘是否有效,再看法庭三角总断 ──
+		{
+			const va = t.validity;
+			const hits = ((va && va.rules) || []).filter((x)=>x.hit);
+			push('有效性', va
+				? (hits.length
+					? hits.map((x)=>`${VALIDITY_LABELS[x.id - 1]}:${VALIDITY_RULES_ZH[x.code] || x.code}${x.book_note ? `(${x.book_note})` : ''}`).join('；')
+					: '五则皆过,卦盘可判')
+				: '—',
+				'传本五则:首图龙尾/红色/失去/群众各有所警,另一则看一宫群众并十一宫红色', 'chart', !va || !hits.length);
+		}
+		{
+			const cv = t.court_verdict;
+			let v = '—';
+			if(cv){
+				const three = `左证${fn(cv.left.figure)}(${TONE_CLASS_ZH[cv.left.tone_class]})·`
+					+ `法官${fn(cv.judge.figure)}(${TONE_CLASS_ZH[cv.judge.tone_class]})·`
+					+ `右证${fn(cv.right.figure)}(${TONE_CLASS_ZH[cv.right.tone_class]})`;
+				v = `${three} → ${COURT_VERDICT_ZH[cv.verdict_code] || cv.verdict_code}`;
+				if(cv.judge_special){ v = `${COURT_JUDGE_SPECIAL_ZH[cv.judge_special]};${v}`; }
+			}
+			push('法庭三角', v,
+				'法官定总方向、右证为事主、左证为条件环境;三图吉凶合断成否(传本表未载之组合如实标出)',
+				'chart', !cv);
+		}
 		push('完美', perfHit ? PERF[t.perfection] : (t.perfection_by_aspect ? `借相位(${ASP[t.perfection_by_aspect]})成局` : PERF.none),
 			'两指示星能否接上:同宫/邻宫/互变/借第三图转介,四者有其一即成局',
 			'chart', !perfHit && !t.perfection_by_aspect);
@@ -2011,9 +2744,73 @@ class GeomancyMain extends Component{
 			push('同伴', comp.length ? comp.join('；') : '无同伴',
 				'成对之宫所盛二图若同/半同/互反/同首,则二事同气相连', 'chart', !comp.length);
 		}
+		// ── 传本补齐:成败 / 得地 / 寻源四线 / 元素法 / 希腊点 / 宣判奇偶 ──
+		{
+			const sc = t.success;
+			push('成败判定', sc
+				? `${sc.has_perfection ? '有精准相位' : '无精准相位'}·事主${TONE_CLASS_ZH[sc.querent_tone]}`
+					+ `·对象${TONE_CLASS_ZH[sc.quesited_tone]} → ${SUCCESS_ZH[sc.code] || sc.code}`
+				: '—',
+				'有精准相位则事发生、无则不发生;再以两指示图吉凶分四格。只判成否,不判好坏顺逆,须与法官合参,勿滥用',
+				'chart', !sc);
+		}
+		{
+			const tn = t.tenancy || [];
+			const key = { 13: '右证', 14: '左证', 15: '判官', 16: '宣判' };
+			const brief = tn.filter((x)=>x.position >= 13 && x.figure)
+				.map((x)=>`${key[x.position]}${fn(x.figure)}入${ELEMENT_ZH_BY_EN[x.position_element]}位·${(TENANCY_GRADE_ZH[x.grade] || {}).t || '—'}`);
+			push('得地', brief.length ? brief.join('；') : '—',
+				'盾十六位以火风水土按序分配;卦元素与位元素全同者最强、同温者辅助、同湿者停滞、全异者无力(盘面已标角标)',
+				'chart', !brief.length);
+		}
+		{
+			const ve = t.via_elements || {};
+			const parts = ['fire', 'air', 'water', 'earth'].map((k)=>{
+				const b = ve[k] || {};
+				const nm = (VIA_LINE_ZH[k] || {}).n || k;
+				if(!b.traceable){ return `${nm}:法官此行阴爻,不可由此寻`; }
+				if(!b.through){ return `${nm}:断于${b.broken_at}`; }
+				const tm = b.terminus || {};
+				return `${nm}:至盾位${tm.position}(${VIA_SIDE_ZH[tm.side] || ''})`;
+			});
+			push('寻源四线', parts.join('；'),
+				'由法官之阳爻上溯以探事之根源:火主目的意志、风主思想交流、水主感情灵性、土主结果物质;'
+				+ '终于盾位一至四多关事主自身之行,终于五至八多关他人环境',
+				'chart', !t.via_elements);
+		}
+		{
+			const es = (t.element_supply || {}).elements || {};
+			const parts = ['fire', 'air', 'water', 'earth'].map((k)=>{
+				const b = es[k] || {};
+				const nm = (VIA_LINE_ZH[k] || {}).n || k;
+				return `${nm}${b.active_count}爻·${b.level === 'abundant' ? '充沛' : '匮乏'}`
+					+ (b.supply ? `·${SUPPLY_ZH[b.supply]}` : '');
+			});
+			push('元素法', Object.keys(es).length ? parts.join('；') : '—',
+				'四女各由四母同爻位构成,数其阳爻:三以上为相对充沛、二以下为匮乏。'
+				+ '法官有此元素者以寻源法追之,得于我方为自给、于对方为借贷。⚠️元素有无与充沛与否皆非吉凶之判',
+				'chart', !Object.keys(es).length);
+		}
+		{
+			const gp = t.greek_points;
+			push('福点灵点', gp
+				? `福点第 ${gp.fortune_house} 宫(总 ${gp.fortune_total} 点)；灵点第 ${gp.spirit_house} 宫(阳爻 ${gp.spirit_total})`
+				: '—',
+				'福点取十二卦点数之和、灵点取十二卦阳爻数之和,各除十二取余入盘:福点主好运所在与身体财业,灵点主意志梦想欲求',
+				'chart', !gp);
+		}
+		{
+			const rp = t.reconciler_parity;
+			push('宣判', rp
+				? `补卦 ${fn(rp.figure)}(${rp.points} 点)·${RECON_PARITY_ZH[rp.code] || rp.code}`
+				: '不取调和者',
+				'第十六卦=一卦与法官相加,示所问之事最终如何影响当事人;并参其奇偶以断事之真假虚实',
+				'chart', !rp);
+		}
 		// ── 随问类而定:只依赖问者宫↔所问宫,与本卦无关(实测固定问类下 300 盘取值种数恒为 1)──
-		push('相位', ASP[t.aspect] || t.aspect || '无相位',
-			'由问者宫与所问宫之宫距定:合/六分/刑/拱/冲', 'topic');
+		push('相位', `${ASP[t.aspect] || t.aspect || '无相位'}${ASPECT_TONE_ZH[t.aspect] && t.aspect !== 'none' ? `(${ASPECT_TONE_ZH[t.aspect]}相位)` : ''}`,
+			'由问者宫与所问宫之宫距定:合/六分/刑/拱/冲。传本以六合、拱为吉相位,刑、冲为凶相位 —— 所描述者是过程之顺逆,非成败',
+			'topic');
 		{
 			const tri = t.triplicities || [];
 			const el = tri.length > 1 ? (TRI_EL[tri[0]] || '') : '';
@@ -2059,6 +2856,150 @@ class GeomancyMain extends Component{
 								</div>
 							))}
 						</div>
+					</div>
+				) : null}
+				{/* [传本] 法庭三角详卡:三图带时间流(右证过去·法官现在·左证未来),论一段时间之吉凶则三等分 */}
+				{t.court_verdict && t.time_flow ? (
+					<div className="horosa-geomancy-court">
+						<div className="horosa-geomancy-triads-title">法庭三角 · 时间流</div>
+						<div className="horosa-geomancy-court-row">
+							{[['past', 'right_witness', t.court_verdict.right],
+								['present', 'judge', t.court_verdict.judge],
+								['future', 'left_witness', t.court_verdict.left]].map(([slot, role, blk])=>(
+								<div className={`horosa-geomancy-court-cell is-tone-${blk.tone_class}`} key={slot}>
+									<div className="horosa-geomancy-court-when">{TIME_FLOW_ZH[role]}</div>
+									<div className="horosa-geomancy-court-role">
+										{role === 'judge' ? '法官' : (role === 'right_witness' ? '右证·事主' : '左证·条件环境')}
+									</div>
+									<div className="horosa-geomancy-court-fig">{fn(blk.figure)}<em>{TONE_CLASS_ZH[blk.tone_class]}</em></div>
+								</div>
+							))}
+						</div>
+						<div className="horosa-geomancy-court-verdict">
+							{t.court_verdict.judge_special
+								? <div><strong>{COURT_JUDGE_SPECIAL_ZH[t.court_verdict.judge_special]}</strong></div> : null}
+							<div>{COURT_VERDICT_ZH[t.court_verdict.verdict_code] || t.court_verdict.verdict_code}</div>
+						</div>
+						<div className="horosa-geomancy-note-hint">
+							论一段时间之状况吉凶,则将该时间三等分:右证第一段、法官第二段、左证第三段。
+							此三角与盾位十六宫含义角度不同,勿合用。
+						</div>
+					</div>
+				) : null}
+				{/* [传本] 地占三角四组:底二卦为补充、顶卦为概括之果;含义两派并列由用户择取 */}
+				{(t.shield_triangles || []).length ? (
+					<div className="horosa-geomancy-triangles">
+						<div className="horosa-geomancy-triads-title">
+							地占三角(四组)
+							<span className="horosa-geomancy-tri-school">
+								{TRIANGLE_SCHOOLS.map((s)=>(
+									<button
+										type="button"
+										key={s.key}
+										className={this.state.triangleSchool === s.key ? 'is-active' : ''}
+										onClick={()=>this.setState({ triangleSchool: s.key })}
+									>{s.label}</button>
+								))}
+							</span>
+						</div>
+						{t.shield_triangles.map((g)=>(
+							<div className="horosa-geomancy-triangle-row" key={g.index}>
+								<span className="horosa-geomancy-triad-label">{`第${g.index}三角`}</span>
+								<span className="horosa-geomancy-triad-expr">
+									{g.base.map((b)=>(
+										<em className={`is-tone-${b.tone_class}`} key={b.position}>{fn(b.figure)}</em>
+									))}
+									→ <strong className={`is-tone-${g.apex.tone_class}`}>{fn(g.apex.figure)}</strong>
+								</span>
+								<span className="horosa-geomancy-triangle-mean">
+									{(TRIANGLE_MEANINGS[this.state.triangleSchool] || [])[g.index - 1]}
+								</span>
+							</div>
+						))}
+						<div className="horosa-geomancy-note-hint">
+							静态以顶卦(甥)概括其果、底二卦为补充;动态则按时间流看过去现在未来。
+						</div>
+					</div>
+				) : null}
+				{/* [传本] 盾位十六宫含义:另一套判读角度,书明言不与法庭三角、地占三角合用 */}
+				{(t.tenancy || []).length ? (
+					<details className="horosa-geomancy-shield16">
+						<summary>盾位十六宫 · 占断含义与得地</summary>
+						<div className="horosa-geomancy-odu-notice">
+							此为另一套判读角度 —— <strong>不要与法庭三角、地占三角合用,角度不同</strong>。
+							十三宫加强一宫、十四宫加强十宫、十五宫加强七宫、十六宫加强四宫。
+						</div>
+						{t.tenancy.map((x)=>(
+							<div className="horosa-geomancy-shield16-row" key={x.position}>
+								<span className="horosa-geomancy-shield16-num">{`${x.position} ${x.label}`}</span>
+								<span className="horosa-geomancy-shield16-fig">
+									{x.figure ? fn(x.figure) : '—'}
+									{x.grade ? (
+										<em title={(TENANCY_GRADE_ZH[x.grade] || {}).d}>
+											{`${TENANCY_GRADE_MARK[x.grade]} ${ELEMENT_ZH_BY_EN[x.figure_element]}入${ELEMENT_ZH_BY_EN[x.position_element]}·${(TENANCY_GRADE_ZH[x.grade] || {}).t}`}
+										</em>
+									) : null}
+								</span>
+								<span className="horosa-geomancy-shield16-mean">{SHIELD16_MEANINGS[x.position - 1]}</span>
+							</div>
+						))}
+					</details>
+				) : null}
+				{/* [传本] 精准相位方向细则:联合之前后宫、传递之知晓格局、突变之场所线索 */}
+				{t.perfection_direction && (t.perfection_direction.conjunctions_all || []).length
+					+ (t.perfection_direction.knowledge_code ? 1 : 0)
+					+ (t.perfection_direction.hint_code ? 1 : 0) > 0 ? (
+						<div className="horosa-geomancy-perfdir">
+							<div className="horosa-geomancy-triads-title">精准相位 · 方向细则</div>
+							{(t.perfection_direction.conjunctions_all || []).map((c, i)=>(
+								<div className="horosa-geomancy-summary-row" key={`cj${i}`}>
+									<span>{c.mover === 'querent' ? '事主→对象' : '对象→事主'}</span>
+									<strong>
+										{`${fn(c.figure)}现于第 ${c.house} 宫(${PERF_DIRECTION_ZH[c.direction] || ''})`}
+										<em className="horosa-geomancy-note-hint">{PERF_CONJ_ZH[c.direction]}</em>
+									</strong>
+								</div>
+							))}
+							{t.perfection_direction.knowledge_code ? (
+								<div className="horosa-geomancy-summary-row">
+									<span>传递知晓</span>
+									<strong>{PERF_KNOWLEDGE_ZH[t.perfection_direction.knowledge_code]}</strong>
+								</div>
+							) : null}
+							{t.perfection_direction.hint_code === 'venue_clue' ? (
+								<div className="horosa-geomancy-summary-row">
+									<span>突变线索</span>
+									<strong>
+										两图所落之宫即完成之法与地之线索
+										<em className="horosa-geomancy-note-hint">偶然之意外事件使双方解决此事,非双方想象之完成方式</em>
+									</strong>
+								</div>
+							) : null}
+							{(t.perfection_direction.conjunctions_all || []).length > 1 ? (
+								<div className="horosa-geomancy-note-hint">
+									双方皆有联合:可由联合之多寡与卦形吉凶判何方付出多、起促进抑或反作用。
+								</div>
+							) : null}
+						</div>
+					) : null}
+				{/* [传本] 行星地占盘落宫表(左栏开启该盘时出) */}
+				{r.planetaryChart ? (
+					<div className="horosa-geomancy-pchart-table">
+						<div className="horosa-geomancy-triads-title">
+							{`行星地占盘 · 上升 ${r.planetaryChart.asc_sign_zh}(首图 ${fn(r.planetaryChart.first_figure)})`}
+						</div>
+						{[].concat(r.planetaryChart.planets || [],
+							r.planetaryChart.nodes ? [r.planetaryChart.nodes.north, r.planetaryChart.nodes.south] : [],
+							r.planetaryChart.extras || []).map((p, i)=>(
+							<div className="horosa-geomancy-summary-row" key={`pc${i}`}>
+								<span>{p.planet_zh || p.planet}</span>
+								<strong>
+									{`第 ${p.house} 宫`}
+									{p.draws ? <em className="horosa-geomancy-note-hint">{`报数 ${p.draws.join('+')} = ${p.total}`}</em> : null}
+									{p.derived_from === 'north_opposite' ? <em className="horosa-geomancy-note-hint">取北交对宫</em> : null}
+								</strong>
+							</div>
+						))}
 					</div>
 				) : null}
 				{/* 亲缘三元:盘之生成即七组「父·父→子」,追某结论之来源即循此逐层上溯。
@@ -2152,20 +3093,36 @@ class GeomancyMain extends Component{
 		const perfHit = t.perfection && t.perfection !== 'none';
 		const d = t.perfection_detail || {};
 		const comp = (t.company || []).filter((c)=>c.type && c.type !== 'none');
+		const va = t.validity;
+		const vaHits = ((va && va.rules) || []).filter((x)=>x.hit);
+		const cv = t.court_verdict;
+		const rp = t.reconciler_parity;
 		const steps = [
+			// 传本解卦六步之首:先看一宫定卦盘是否有效
+			['验卦盘有效', vaHits.length
+				? vaHits.map((x)=>VALIDITY_RULES_ZH[x.code] || x.code).join('；')
+				: (va ? '五则皆过,卦盘可判' : '—'), !!va && !vaHits.length],
 			['定主题之宫', `问类主宫 第 ${r.primaryHouse || '—'} 宫`, !!r.primaryHouse],
 			['取两指示星', `问者 第 ${r.querentHouse || 1} 宫 · 所问 第 ${r.primaryHouse || '—'} 宫`, true],
+			// 传本第二步:法庭三角总断吉凶方向
+			['看法庭三角', cv
+				? `${TONE_CLASS_ZH[cv.left.tone_class]}${TONE_CLASS_ZH[cv.judge.tone_class]}${TONE_CLASS_ZH[cv.right.tone_class]} → ${COURT_VERDICT_ZH[cv.verdict_code] || cv.verdict_code}`
+				: '—', !!cv && cv.judge.tone_class !== 'bad'],
 			['查完美', perfHit ? PERF[t.perfection] : (t.perfection_by_aspect ? `借相位(${ASP[t.perfection_by_aspect]})成局` : '未成局'), !!(perfHit || t.perfection_by_aspect)],
 			['查阻碍', t.prohibition ? `第 ${t.prohibition} 宫强凶图阻断` : '无阻碍', !t.prohibition],
 			['相位与同伴', `${ASP[t.aspect] || t.aspect}${comp.length ? `；同伴 ${comp.length} 对` : '；无同伴'}`, true],
 			['吉凶动静(位置)', t.locus_quesited ? `所问落${t.locus_quesited.label}` : '—', t.locus_quesited ? t.locus_quesited.band !== 'unfortunate' : true],
 			['自然共主', t.natural_cosignificator ? '月亮(判官属月亮系)' : '不涉', true],
-			['点之路·点数·调和者', `${t.via_puncti ? (t.via_puncti.through ? '点之路贯通' : `断于${t.via_puncti.broken_at}`) : '—'}；${t.points_parity ? (t.points_parity.parity === 'even' ? '总点偶→是/稳' : '总点奇→否/动') : '—'}`, !!(t.via_puncti && t.via_puncti.through)],
+			['点之路·点数', `${t.via_puncti ? (t.via_puncti.through ? '点之路贯通' : `断于${t.via_puncti.broken_at}`) : '—'}；${t.points_parity ? (t.points_parity.parity === 'even' ? '总点偶→是/稳' : '总点奇→否/动') : '—'}`, !!(t.via_puncti && t.via_puncti.through)],
+			// 传本第六步:看第十六卦宣判 —— 按提示改变后之结果,并参其奇偶断真假虚实
+			['看宣判(补卦)', rp
+				? `${rp.figure}·${rp.parity === 'even' ? '偶→偏实' : '奇→偏虚'}`
+				: '不取调和者', !!rp],
 			['综合断', d.via_figure ? `经中介成局(${Array.isArray(d.via_figure) ? d.via_figure.join('、') : d.via_figure})` : (perfHit ? '直接成局' : '未见成局之路'), !!perfHit],
 		];
 		return (
 			<div className="horosa-geomancy-card horosa-geomancy-flow">
-				<div className="horosa-geomancy-card-title">判读流程 · 九步</div>
+				<div className="horosa-geomancy-card-title">{`判读流程 · ${steps.length}步`}</div>
 				<ol className="horosa-geomancy-flow-list">
 					{steps.map(([label, val, ok], i)=>(
 						<li className={`horosa-geomancy-flow-step${ok ? ' is-ok' : ' is-no'}`} key={i}>
@@ -2189,15 +3146,45 @@ class GeomancyMain extends Component{
 			<div className="horosa-geomancy-catalog-grid">
 				{figures.map((f, i)=>{
 					const tone = { good: '吉', bad: '凶', neutral: '中' }[f.tone] || '';
+					// 传本吉凶口径(tone_book)与本仓固有口径(tone)六图相异 —— 两口径并显,不相覆盖
+					const toneBook = { good: '吉', bad: '凶', neutral: '中', weak_good: '弱吉' }[f.toneBook] || '';
 					const line2 = [f.planetZh, f.elementZh, f.signZh].filter(Boolean).join(' · ');
 					const line3 = [f.elementOuterZh ? `外元素${f.elementOuterZh}` : '', f.bodyPart ? `身体${f.bodyPart}` : '', f.color || ''].filter(Boolean).join(' · ');
+					// 传本对应系统:稳定性三联(稳慢长/变快短)+ 奇偶主客观 + 卡巴拉源质 + 身体详表
+					const zt = f.zodiacTriple || {};
+					const line4 = [
+						f.qualityBook ? `稳定性${STABILITY_ZH[f.qualityBook]}` : '',
+						f.points ? PARITY_VIEW_ZH[f.points % 2 === 0 ? 'even' : 'odd'] : '',
+						(f.kabbalah && f.kabbalah.length) ? `源质${f.kabbalah.join('·')}` : '',
+					].filter(Boolean).join(' · ');
 					return (
 						<div className={`horosa-geomancy-catalog-card${f.tone ? ` is-tone-${f.tone}` : ''}`} key={f.nameEn || i}>
-							<strong>{f.nameZh || f.latin || f.nameEn}{tone ? <span className="horosa-geomancy-catalog-tone">{tone}</span> : null}</strong>
+							<strong>{f.nameZh || f.latin || f.nameEn}{tone ? <span className="horosa-geomancy-catalog-tone">{tone}</span> : null}
+								{toneBook && toneBook !== tone ? (
+									<span className="horosa-geomancy-catalog-tone is-book" title="传本普遍吉凶性(与本仓固有口径相异者并显)">{`传${toneBook}`}</span>
+								) : null}
+							</strong>
 							<em>{f.displayName || f.nameEn}{f.points ? ` · ${f.points}点` : ''}</em>
 							{line2 ? <small>{line2}</small> : null}
 							{line3 ? <small className="horosa-geomancy-catalog-astro">{line3}</small> : null}
+							{line4 ? <small className="horosa-geomancy-catalog-corr">{line4}</small> : null}
+							{f.bodyDetailZh ? <small className="horosa-geomancy-catalog-body">{`身体详:${f.bodyDetailZh}`}</small> : null}
 							{f.keywordsZh ? <small>{f.keywordsZh}</small> : null}
+							{/* 传本逐卦意象(整段):卦名之外另有物象与情境之喻,为解卦取象所本 */}
+							{f.imageryZh ? (
+								<details className="horosa-geomancy-catalog-more">
+									<summary>传本意象</summary>
+									<div className="horosa-geomancy-catalog-imagery">{f.imageryZh}</div>
+								</details>
+							) : null}
+							{/* 三套黄道并显:古典定局 / 行星归属 / 行星归属·乙(另一传本表) */}
+							{(zt.classical || zt.planetary || zt.planetaryAlt) ? (
+								<small className="horosa-geomancy-catalog-zodiac">
+									{[zt.classical ? `古典${zt.classical.zh}` : '',
+										zt.planetary ? `行星${zt.planetary.zh}` : '',
+										zt.planetaryAlt ? `行星乙${zt.planetaryAlt.zh}` : ''].filter(Boolean).join('　')}
+								</small>
+							) : null}
 							{f.meanings ? <small className="horosa-geomancy-catalog-mean">爱情{f.meanings['爱情']} · 财{f.meanings['财富']} · 业{f.meanings['事业']}</small> : null}
 							{/* 十域全表:此前只内联三域,另七域数据在册却不显 —— 展开即见,不必另开页 */}
 							{f.meanings ? (
@@ -2226,11 +3213,20 @@ class GeomancyMain extends Component{
 										f.activeElements ? `在场:${(f.activeElements.zh || []).join('') || '无'}` : ''].filter(Boolean).join('　')}
 								</small>
 							) : null}
-							{(f.number || f.converseOf || f.directionCompass) ? (
+							{(f.number || f.directionCompass) ? (
 								<small className="horosa-geomancy-catalog-num">
 									{[f.number ? `图数${f.number.value}(${{ points: '点数', planetary: '行星序', abjad: '字母值' }[f.number.system] || f.number.system})` : '',
-										f.converseOf ? `逆反:${f.converseOf}` : '',
 										f.directionCompass ? `方位${f.directionCompass}` : ''].filter(Boolean).join('　')}
+								</small>
+							) : null}
+							{/* 图形关系六式(传本明言「与解卦无关,只为理解十六卦之内在关系」)*/}
+							{(f.oppositeOf || f.reverseOf || f.inverseOf || f.converseOf || f.rotateOf) ? (
+								<small className="horosa-geomancy-catalog-rel" title="与解卦无关,只为理解十六卦之内在关系">
+									{[f.oppositeOf ? `对:${f.oppositeOf}` : '',
+										f.reverseOf ? `倒:${f.reverseOf}` : '',
+										f.inverseOf ? `逆:${f.inverseOf}` : '',
+										f.converseOf ? `倒逆:${f.converseOf}` : '',
+										f.rotateOf ? `减:${f.rotateOf}` : ''].filter(Boolean).join('　')}
 								</small>
 							) : null}
 							{(f.nameArabic || f.nameGreek || f.nameHebrew || f.nameYoruba || f.odu) ? (

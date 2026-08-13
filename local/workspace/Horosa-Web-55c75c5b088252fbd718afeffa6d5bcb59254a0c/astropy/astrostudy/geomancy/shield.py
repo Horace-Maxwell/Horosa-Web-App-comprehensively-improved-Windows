@@ -56,6 +56,21 @@ def reconciler_from(judge: int, other: int) -> int:
     return add(judge, other)
 
 
+def cast_shield_from_numbers(numbers: List[int]) -> Shield:
+    """报数起卦:十六数依序为母一至母四之火风水土四行 —— 奇数为阳爻(单点)、偶数为阴爻(双点)。
+    传本所载报数、点点、抛硬币、掷骰子诸法,俱以奇偶定爻,故同归此一路。"""
+    if len(numbers) != 16:
+        raise ValueError("报数须十六个数")
+    M = [0, 0, 0, 0]
+    for i in range(4):
+        f = 0
+        for k in range(4):
+            if int(numbers[i * 4 + k]) % 2 == 1:
+                f |= 1 << (3 - k)
+        M[i] = f
+    return cast_shield_from_mothers(M)
+
+
 def cast_shield(rng: Optional[random.Random] = None, fill: str = "top_down") -> Shield:
     """随机起盘:16 随机比特 → 四母 → 全盘。fill='top_down' 先火(主流);'bottom_up' 罕见变体先地。"""
     r = rng or random

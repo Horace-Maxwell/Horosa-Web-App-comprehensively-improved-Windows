@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.8.1
+version: 3.9.0
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,35 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.8.1 beta is a local-first metaphysics workstation. This release brings
+  Horosa for Windows v3.9.0 beta is a local-first metaphysics workstation. This release adds a
+  complete new technique and brings six existing modules to full coverage of their source
+  classics, alongside a fidelity fix that affects every divination technique with saved records.
+  The new technique is Ling Qi Jing (the Classic of Numinous Chess), the fifteenth sub-technique
+  under Divination / Other: twelve pieces in three tiers (upper/middle/lower) are cast in one
+  throw, with optional manual placement or direct entry of the three tier values; all 125
+  hexagrams are transcribed from the Siku edition with names, piece counts, image names,
+  attributes, oracle texts, four commentators, case judgments and verdict poems, in both
+  simplified and original-script tracks, with three seed modes for reproducibility and a
+  freeze-on-cast rule so later changes of time or display never silently recast. Six modules
+  gain full classical coverage: Ce Tian Fei Xing (three switchable source readings, an annual
+  outer ring, four spirit tables, twenty-eight miscellaneous star placements, a 470-rule verdict
+  engine and thirteen source texts); Tarot (reversal systems 6 to 13, four parallel meaning
+  tracks, spreads 30 to 65, two court-card systems, eight verdict methods, five timing methods,
+  a single-card detail panel and a daily-course tab); Wu Zhao (125 verdict forms, eight casting
+  methods, classical omen diagrams and a seven-page reading panel); Xiao Cheng Tu (five casting
+  methods, Luoshu nine-palace layout, four timing targets and a full eight-palace text page);
+  Feng Shui (two new complete schools bringing the total to seventeen, deepened form and Li Qi
+  analysis, new remediation and dwelling-judgment schools, a rewritten date-selection module, a
+  three-ring compass with magnetic declination for 358 cities, and automatic geometric detection
+  of indoor inauspicious layouts with explicit evidence); and astronomical geomancy (eleven new
+  reading techniques, eight casting methods and a dedicated planetary board). Help manuals for
+  the four aggregate pages are rebuilt as two-level tabs with one page per technique. The
+  fidelity fix: saving a divination result and re-loading it could previously return a different
+  cast than the one saved; this is repaired across all twenty-one techniques with saved records,
+  together with silent load failures, six entry points that omitted day-boundary and time-method
+  settings, three techniques that were overwritten by a background refetch, and several options
+  that were saved but never read back — plus a new cross-technique gate that fails the build if
+  any technique omits a field. It builds on the v3.8.1 release, which brought
   "wheel art" to every Western-astrology single chart: the same chart can be drawn in five
   interchangeable styles — the classic circular wheel plus four square overlay renderings
   (a Greek nine-cell grid with the first house always the full left-middle cell; a medieval

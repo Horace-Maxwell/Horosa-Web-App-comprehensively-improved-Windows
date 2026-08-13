@@ -167,7 +167,9 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 // v51 补:风水新增「风水·形势图判」段(AI 分析页·风水图像分析工作台的快照,整块包段并入 fengshui 导出);
 //        同 v49/v50 键内段级一次性 union——该段本版才诞生,用户无从取消过,并入不复活任何被取消项
 //        (v45「取消=真取消」铁律不破);🔴 不动 MIGRATION_VERSION(见下方铁律注释)。
-export const AI_EXPORT_SETTINGS_VERSION = 51;
+// v52 补:风水新增「风水·大玄空」段(理气新派·单盘挨星,古籍三元大玄空一路);同 v49/v50/v51 键内段级
+//        一次性 union——该段本版才诞生,用户无从取消过,并入不复活任何被取消项;🔴 不动 MIGRATION_VERSION。
+export const AI_EXPORT_SETTINGS_VERSION = 55;
 // 🔴 新技法不动此闸：其键老用户本无（未自定义）→ 走 preset 全量、本就含其全部段；
 // union 迁移唯「已自定义过某技法而该技法新增段」者需之。误升此闸会令 v45 存档重走 union，
 // 违「v45 起不再 union 强推、用户取消=真取消」之铁律（其测试锁之）。
@@ -202,6 +204,26 @@ const AI_EXPORT_V50_SECTION_UNION = {
 // [v51] 同 v49/v50 机制的下一窗(风水·形势图判:图像分析工作台快照并入 fengshui 导出)。
 const AI_EXPORT_V51_UNION_VERSION = 51;
 const AI_EXPORT_V51_SECTION_UNION = {
+};
+// [v52] 同机制下一窗（风水·大玄空：理气新派单盘挨星，本版才诞生的段）。
+const AI_EXPORT_V52_UNION_VERSION = 52;
+const AI_EXPORT_V52_SECTION_UNION = {
+	fengshui: ['风水·大玄空'],
+};
+// [v53] 同机制下一窗（风水·水龙平洋：形势新派，本版才诞生的段）。
+const AI_EXPORT_V53_UNION_VERSION = 53;
+const AI_EXPORT_V53_SECTION_UNION = {
+	fengshui: ['风水·水龙平洋'],
+};
+// [v54] 同机制下一窗（风水·改造化煞：形煞/气煞/补偏救弊，本版才诞生的段）。
+const AI_EXPORT_V54_UNION_VERSION = 54;
+const AI_EXPORT_V54_SECTION_UNION = {
+	fengshui: ['风水·改造化煞'],
+};
+// [v55] 同机制下一窗（风水·阳宅判断：峦头/理气/客星三方合参，本版才诞生的段）。
+const AI_EXPORT_V55_UNION_VERSION = 55;
+const AI_EXPORT_V55_SECTION_UNION = {
+	fengshui: ['风水·阳宅判断'],
 };
 const AI_EXPORT_V45_SECTION_UNION = {
 };
@@ -282,6 +304,7 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'shenyishu',
 	'geomancy',
 	'tarot',
+	'lingqi',
 	'shaozi',
 	'tieban',
 	'fendjing',
@@ -438,6 +461,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'shenyishu', label: '神易数' },
 	{ key: 'geomancy', label: '天文地占' },
 	{ key: 'tarot', label: '塔罗' },
+	{ key: 'lingqi', label: '灵棋经' },
 	{ key: 'liureng', label: '六壬' },
 	{ key: 'jinkou', label: '金口诀' },
 	{ key: 'qimen', label: '奇门遁甲' },
@@ -545,7 +569,9 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	// [YA v42] A 类硬缺全场最薄:纳甲筮法 tab 整个计算分析层(世应/左右五行/五友/大局升降爻变)此前不入快照。
 	tongshefa: ['本卦', '六爻', '潜藏', '亲和', '三十二观', '世应', '五行关系', '五友', '大局与动变'],
 	huangji: ['起盘', '元会运世', '天道卦', '人事卦', '心易发微', '经典原文', '历史年表'],
-	wuzhao: ['起盘', '揲筮', '兆', '木乡', '火乡', '土乡', '金乡', '水乡', '特殊标记'],
+	// 古法层六段纯增(断辞/君子小人/纳甲/神煞/行神/类占),既有九段序不动;加段不升迁移版本。
+	wuzhao: ['起盘', '揲筮', '兆', '木乡', '火乡', '土乡', '金乡', '水乡', '特殊标记',
+		'断辞', '君子小人', '纳甲', '神煞', '行神', '类占'],
 	// [YC v42] 太玄经全文=默认关段(81 首全文体量大;当值首已在概览,设置面可勾全量)。
 	taixuan: ['起盘', '玄首', '方州部家', '表', '太玄经全文'],
 	guice: ['占事直断', '起卦', '演数', '四位', '卦变', '断法', '时方', '三要十应', '元会运世', '大定起数'],
@@ -555,8 +581,13 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	jingjue: ['起课', '卦辞', '三分', '十六卦'],
 	shenyishu: ['起盘', '干支与五行', '神卦', '五行法则', '兵占', '主客判断', '神煞', '长生', '吉凶'],
 	// 新增四段(纯增量,不动既有段序;加段不升迁移版本):转宫派生 / 定局落星甲乙 / 结构对照模式的边界声明。
-	geomancy: ['判定', '解读技法', '转宫派生', '定局落星·甲', '定局落星·乙', '十二宫·图形入宫', '十六图形', '图形释义', '边界声明'],
-	tarot: ['牌阵综览', '逐牌详解', '综合断语', '定局', '开钥', '生命牌', '组合读法'],
+	// 传本对齐补齐:法庭三角/有效性判断/盾面得地/元素与寻源/成败与福灵点/行星地占盘 六段纯增
+	geomancy: ['判定', '法庭三角', '有效性判断', '解读技法', '盾面得地', '元素与寻源', '成败与福灵点',
+		'转宫派生', '定局落星·甲', '定局落星·乙', '行星地占盘', '十二宫·图形入宫', '十六图形', '图形释义', '边界声明'],
+	// TP2 加「对读」段(马赛两两解读,reportText [对读] 同步;纯增量加段不升迁移版本——对已自定义用户不强推)。
+	tarot: ['牌阵综览', '逐牌详解', '综合断语', '定局', '对读', '开钥', '生命牌', '组合读法'],
+	// 灵棋经:七段恒出(开关只动段内文本,段集恒定 —— lingqiSnapshot.buildLingqiSnapshotText 同源)。
+	lingqi: ['起盘信息', '棋势', '卦象', '繇辞', '诸家注', '课断', '断诗'],
 	liureng: [
 		'起盘信息',
 		'十二盘式',
@@ -720,14 +751,14 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	nanji: ['起盘', '四柱', '宫部条文', '条文查询', '大运', '密码', '星图推演'],
 	chunzi: ['起盘', '四柱', '代码来源', '结构解析', '候选条文', '代码查询', '批量代码查询', '关键词检索', '多标签检索', '宿名检索', '时辰检索'],
 	xianqin: ['起盘', '三宫', '三星·元辰', '大限', '流年小限', '神煞·待校', '衍生星', '十二宫', '吞啖合战', '情性与格局', '二十八宿禽', '十二宫顺序', '三元起宿', '合宿表', '科名月宿', '四季得时', '情性赋全表', '二十八宿正像', '吞啖合战规则', '贵贱赋摘要', '演法·流派', '演法·起禽', '演法·择日', '演法·占卜', '演法·投胎'],
-	cetian: ['起盘', '农历与命身', '四化', '飞星', '格局', '命宮', '兄弟宮', '夫妻宮', '子女宮', '財帛宮', '疾厄宮', '遷移宮', '交友宮', '官祿宮', '田宅宮', '福德宮', '父母宮', '男女宮', '奴僕宮', '妻妾宮', '相貌宮', '星曜属性', '正曜副曜', '宫干四化表', '飞化规则', '古法格局规则', '三合组'],
+	cetian: ['起盘', '农历与命身', '四化', '飞星', '格局', '命宮', '兄弟宮', '夫妻宮', '子女宮', '財帛宮', '疾厄宮', '遷移宮', '交友宮', '官祿宮', '田宅宮', '福德宮', '父母宮', '男女宮', '奴僕宮', '妻妾宮', '相貌宮', '衣鉢宮', '徒弟宮', '本師宮', '小師宮', '人刀宮', '僧道宮', '遊行宮', '師號宮', '相品宮', '运限', '童限', '凶限提示', '会照', '流年飞星', '流年七煞', '十七飞星', '神煞·岁前', '神煞·岁后', '神煞·年干', '神煞·月煞', '三日宫', '廿八宿分野', '十干变曜', '杂曜', '断诀', '星曜别名', '星曜属性', '正曜副曜', '宫干四化表', '飞化规则', '古法格局规则', '三合组'],
 	germany: ['起盘信息', '宫位宫头', '行星', '中点', 'TNP星体', '中点相位', '90°中点盘', '行星图', '映点', '中点列表', '汉堡学派要素', '组合盘', '戴维森盘', '虚星参考'],
 	babylon: ['起盘信息', '七曜按宫', '分至天狼星', '位三法', '行星神性', '微黄道'],
 	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '春分3D盘', '夏至星盘', '夏至宿盘', '夏至3D盘', '秋分星盘', '秋分宿盘', '秋分3D盘', '冬至星盘', '冬至宿盘', '冬至3D盘'],
 	...JIEQI_SETTING_PRESETS,
 	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体'],
 	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议', '风水·纳气盘', '风水·八卦阳宅', '风水·八宅大游年', '风水·玄空飞星', '风水·三合水法', '风水·金锁玉关', '风水·乾坤国宝', '风水·紫白飞星', '风水·辅星水法', '风水·净阴净阳', '风水·玄空大卦', '风水·形势峦头', '风水·择日选择',
-		'风水·玄空六法', '风水·命理派', '风水·综合罗经',
+		'风水·玄空六法', '风水·命理派', '风水·综合罗经', '风水·大玄空', '风水·水龙平洋', '风水·改造化煞', '风水·阳宅判断',
 	],
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
 	zhengchuan: ['起盘信息', '起数', '本命条文', '流年条文', '五基础数据', '装卦', '断本命', '策数', '死月',
@@ -1106,6 +1137,58 @@ function normalizeAIExportSettings(settings){
 			]);
 		});
 	}
+	// [v55] 同机制的下一窗(风水·阳宅判断:峦头/理气/客星三方合参)。
+	if(sourceVersion < AI_EXPORT_V55_UNION_VERSION){
+		Object.keys(AI_EXPORT_V55_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V55_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
+	// [v54] 同机制的下一窗(风水·改造化煞:形煞/气煞/补偏救弊)。
+	if(sourceVersion < AI_EXPORT_V54_UNION_VERSION){
+		Object.keys(AI_EXPORT_V54_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V54_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
+	// [v53] 同机制的下一窗(风水·水龙平洋:形势新派)。
+	if(sourceVersion < AI_EXPORT_V53_UNION_VERSION){
+		Object.keys(AI_EXPORT_V53_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V53_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
+	// [v52] 同机制的下一窗(风水·大玄空:理气新派单盘挨星)。
+	if(sourceVersion < AI_EXPORT_V52_UNION_VERSION){
+		Object.keys(AI_EXPORT_V52_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V52_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
 	if(sourceVersion < AI_EXPORT_SECTION_MIGRATION_VERSION){
 		AI_EXPORT_SECTION_MIGRATION_KEYS.forEach((key)=>{
 			if(!Object.prototype.hasOwnProperty.call(sections, key)){
@@ -1181,6 +1264,7 @@ function snapshotModuleKeyByContextKey(key){
 		shenyishu: 'shenyishu',
 		geomancy: 'geomancy',
 		tarot: 'tarot',
+		lingqi: 'lingqi',
 		shaozi: 'kinastro-shaozi',
 		tieban: 'kinastro-tieban',
 		fendjing: 'kinastro-fendjing',
@@ -2620,6 +2704,8 @@ function resolveContextByAstroState(){
 			xiaoliuren: { key: 'xiaoliuren', displayName: '小六壬' },
 			xiaochengtu: { key: 'xiaochengtu', displayName: '小成图' },
 			feigong: { key: 'feigong', displayName: '飞宫小奇门' },
+			// 灵棋经不带 domain:快照由前端引擎(lingqiSnapshot)构成,无须后端原文符号替换器(照轨策)。
+			lingqi: { key: 'lingqi', displayName: '灵棋经' },
 		};
 		switch(topTab){
 		case 'astrochart':
@@ -2909,7 +2995,7 @@ const AI_EXPORT_TECHNIQUE_GROUPS = [
 		'horary', 'election', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi'] },
 	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'] },
 	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan'] },
-	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'fengshui',
+	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'lingqi', 'fengshui',
 		'calendar', 'huangli', 'tongshu'] },
 ];
 
@@ -3024,7 +3110,7 @@ function getExtractorKindByExportKey(key){
 	}
 	if(exportKey === 'guice' || exportKey === 'xiaoliuren' || exportKey === 'xiaochengtu' || exportKey === 'feigong'
 		|| exportKey === 'huangji' || exportKey === 'wuzhao' || exportKey === 'taixuan' || exportKey === 'jingjue'
-		|| exportKey === 'shenyishu' || exportKey === 'geomancy' || exportKey === 'tarot' || exportKey === 'shaozi' || exportKey === 'tieban' || exportKey === 'fendjing'
+		|| exportKey === 'shenyishu' || exportKey === 'geomancy' || exportKey === 'tarot' || exportKey === 'lingqi' || exportKey === 'shaozi' || exportKey === 'tieban' || exportKey === 'fendjing'
 		|| exportKey === 'beiji' || exportKey === 'nanji' || exportKey === 'chunzi' || exportKey === 'xianqin'
 		|| exportKey === 'cetian' || exportKey === 'qizhengkin' || exportKey === 'guolao' || exportKey === 'suzhan'
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
@@ -6298,7 +6384,7 @@ async function extractContentByKey(exportKey, context){
 		return extractJieQiContent(context);
 	}
 	if(exportKey === 'guice' || exportKey === 'xiaoliuren' || exportKey === 'xiaochengtu' || exportKey === 'feigong'
-		|| exportKey === 'geomancy' || exportKey === 'tarot'
+		|| exportKey === 'geomancy' || exportKey === 'tarot' || exportKey === 'lingqi'
 		|| exportKey === 'babylon'
 	){
 		// 皇极轨策/小六壬/小成图/飞宫/天文地占/塔罗:与卜卦/择日同路 —— 读 saveModuleAISnapshot 存的模块快照

@@ -11,6 +11,7 @@ import { XQButton, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DateTime from '../comp/DateTime';
 import { getStore } from '../../utils/storageutil';
+import { caseApplySeqSuffix } from '../../utils/kentangCaseSave';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { newQimenLeaf, newQimenGroup, compileQimenTree } from '../../divination/zeri/qimenConditionTypes';
 import { scanQimen, explainQimenAt, buildQimenScanSeeds } from '../../divination/zeri/qimenScanEngine';
@@ -101,7 +102,9 @@ export default class QimenZeriMain extends Component{
 		}
 		const cid = `${currentCase.cid.value}`;
 		const updateTime = currentCase.updateTime && currentCase.updateTime.value ? `${currentCase.updateTime.value}` : '';
-		const caseVersion = `${cid}|${updateTime}`;
+		// 载入代次后缀走共用件(kentangCaseSave.caseApplySeqSuffix):不带它则同一条记录第二次载入
+		// 会被下面那道去重守卫拦掉,屏幕上仍是用户后来新起的卦。禁另抄一份。
+		const caseVersion = `${cid}|${updateTime}${caseApplySeqSuffix(userState)}`;
 		if(this.lastRestoredCaseId === caseVersion){
 			return;
 		}

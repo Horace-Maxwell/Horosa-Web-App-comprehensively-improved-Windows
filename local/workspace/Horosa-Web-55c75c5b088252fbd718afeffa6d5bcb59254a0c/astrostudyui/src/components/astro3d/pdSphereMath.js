@@ -266,7 +266,7 @@ export const VIRTUAL_POINT_KINDS = new Set(['term', 'antiscia', 'aspect']);
 //  ① 行星/北交/福点:arc = RA(sig,真纬) − RA(promZ) → 迫星转 +arc 落到应星赤经圈;
 //  ② MC:arc = RA(promZ) − RA(MCZ) / Asc:OA(promZ)−OA(AscZ) / Vertex:OA@余纬 差
 //     / M 类(In-Mundo)/ T 类(界)→ 迫星转 −arc 落到应星轴圈/位置圈。
-// 权威:PRIMARY_DIRECTION_ASTROAPP_ALCHABITIUS_MATH_FLOW.md(半弧比例与顺逆两节)+ perpredict Z 核 docstring;
+// 权威:主限法 Alcabitius 半弧比例推导文档(半弧比例与顺逆两节)+ 推运内核 docstring;
 // direct/converse 只是 arc 正负(推演文档顺逆节),对参考 540 盘逐位坐实,不可动——此处只改可视化「谁动」。
 
 const AXIS_SIG_RE = /^(MC|Asc|Vertex|House\d+)$/i;

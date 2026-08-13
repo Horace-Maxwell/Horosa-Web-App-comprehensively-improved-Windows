@@ -20,7 +20,7 @@ export const AUX_SUBTABS = [
 ];
 
 // 卜·其他。
-export const CNYIBU_SUBTABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong'];
+export const CNYIBU_SUBTABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'lingqi'];
 
 // 择日(工具组主导航模块;首档=数组第一项,新增择日技法尾部追加 + ZeriMain TabPane 成对)。
 export const ZERI_SUBTABS = ['tianxing', 'qimenzeri'];
@@ -36,4 +36,34 @@ export function firstSubTab(list){
 /** 合法则原样返回,否则回落首档。 */
 export function resolveSubTab(list, current){
 	return (Array.isArray(list) && list.indexOf(current) >= 0) ? current : firstSubTab(list);
+}
+
+// ── 各组「最后停留子页签」runtime 记忆 ──
+// 病灶:redux currentSubTab 是全站共享单槽 —— 切到别的主 tab(风水/AI分析…)会被其子键覆写;
+// keep-alive 下各组宿主不重建(constructor 兜底失效),导航层回落只认合法集 → 停在任意子技法
+// 切走再切回被静默打回该组首档(2026-08-11 实测:卜·其他 塔罗/灵棋经 × 风水/AI分析 三组复现)。
+// 解法:各组宿主在子页签变化时 rememberSubTab;导航层回落时 recallSubTab 优先取记忆(合法才用)。
+// cnyibu 键名沿用既有槽(CnYiBuMain/aiExport 已消费该 window 键,勿改名)。
+const SUBTAB_RUNTIME_KEYS = {
+	cnyibu: '__horosaCnyibuCurrentTab',
+	auxchart: '__horosaAuxchartCurrentTab',
+	cntradition: '__horosaCnTraditionCurrentTab',
+	zeri: '__horosaZeriCurrentTab',
+};
+
+/** 记住某组当前子页签(仅合法值入槽;SSR/未知组静默跳过)。 */
+export function rememberSubTab(group, tab, list){
+	const key = SUBTAB_RUNTIME_KEYS[group];
+	if(!key || typeof window === 'undefined'){ return; }
+	if(Array.isArray(list) && list.indexOf(tab) < 0){ return; }
+	if(tab){ window[key] = tab; }
+}
+
+/** 回落决策:current 合法用 current;否则该组记忆合法用记忆;皆非法回 fallback(缺省=首档)。 */
+export function recallSubTab(group, list, current, fallback){
+	if(Array.isArray(list) && list.indexOf(current) >= 0){ return current; }
+	const key = SUBTAB_RUNTIME_KEYS[group];
+	const remembered = (key && typeof window !== 'undefined') ? window[key] : null;
+	if(Array.isArray(list) && list.indexOf(remembered) >= 0){ return remembered; }
+	return fallback !== undefined ? fallback : firstSubTab(list);
 }

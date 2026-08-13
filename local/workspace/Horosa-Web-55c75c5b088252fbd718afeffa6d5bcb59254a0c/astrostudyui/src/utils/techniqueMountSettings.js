@@ -342,14 +342,48 @@ const JINGJUE_FIELDS = [
 	{ name: 'seed', label: '起筮种子 (留空=按起课时间派生)', type: 'number', default: 0, group: '起筮', placeholder: '空 → 按时间派生' },
 ];
 
-// 五兆神数:WuZhaoMain.state 默认 mode='ganzhi' number=0 manual=false manualSplits=DEFAULT_SPLITS。
+// 五兆:WuZhaoMain.state 默认 mode='ganzhi' number=0 manual=false manualSplits=DEFAULT_SPLITS。
+// 随机起兆法(揲筮/自动掷钱)在挂载场景按时间点重算,每次结果不同即不可复现 →
+// builder 会回落干支起例;欲用揲筮请开手动复现、欲用掷钱请关自动掷并填定六掷。
 const WUZHAO_FIELDS = [
 	{ name: 'mode', label: '起例模式', type: 'select', default: 'ganzhi', group: '起例', options: [
 		{ value: 'ganzhi', label: '干支起例(默认,纯时间)' },
-		{ value: 'day', label: '按日报数' },
-		{ value: 'hour', label: '按时报数' },
-		{ value: 'minute', label: '按分报数' },
-		{ value: 'tang', label: '按堂报数' },
+		{ value: 'day', label: '日干起盘(折竹)' },
+		{ value: 'hour', label: '时干起盘(折竹)' },
+		{ value: 'minute', label: '分干起盘(折竹)' },
+		{ value: 'tang', label: '唐代正法揲筮' },
+		{ value: 'dunhuang', label: '敦煌校录揲筮' },
+		{ value: 'qian', label: '以钱代筮' },
+		{ value: 'zhushu', label: '直输五兆数' },
+	]},
+	{ name: 'shifaVariant', label: '筮法口径 (敦煌校录揲筮)', type: 'select', default: 'guayi', group: '起例',
+		showWhen: (d)=>(d.mode === 'dunhuang'), options: [
+			{ value: 'guayi', label: '挂一回加(0策水·5火·10木·15金·20土)' },
+			{ value: 'jiaolu', label: '校录原案(0策土·5水·10火·15木·20金)' },
+		]},
+	{ name: 'qianAuto', label: '每次起盘重掷 (以钱代筮)', type: 'switch', options: ON_OFF, default: 1, group: '起例',
+		showWhen: (d)=>(d.mode === 'qian'), normalize: (v)=>(v === true || v === 1 || v === '1') },
+	{ name: 'qianThrows', label: '六掷阳面数 (逗号分隔 0-4,如 1,2,3,3,3,4)', type: 'text', default: '', group: '起例',
+		showWhen: (d)=>(d.mode === 'qian'),
+		normalize: (v)=>{ if(Array.isArray(v)){ return v.length === 6 ? v.map(Number) : undefined; } const a = `${v == null ? '' : v}`.split(/[,，\s]+/).map((x)=>Number(x)).filter((n)=>!Number.isNaN(n)); return a.length === 6 ? a : undefined; } },
+	{ name: 'zhaoNums', label: '五兆卜数 (逗号分隔 1-5,一水二火三木四金五土)', type: 'text', default: '', group: '起例',
+		showWhen: (d)=>(d.mode === 'zhushu'),
+		normalize: (v)=>{ if(Array.isArray(v)){ return v.length === 6 ? v.map(Number) : undefined; } const a = `${v == null ? '' : v}`.split(/[,，\s]+/).map((x)=>Number(x)).filter((n)=>!Number.isNaN(n)); return a.length === 6 ? a : undefined; } },
+	{ name: 'xingshenMonth', label: '行神月制', type: 'select', default: 'lunar', group: '断法', options: [
+		{ value: 'lunar', label: '农历月(《要诀略》本法)' },
+		{ value: 'jieqi', label: '节气月(月建)' },
+	]},
+	{ name: 'mingZhi', label: '年命支 (行年/年立/官禄位用,留空则该类留白)', type: 'select', default: '', group: '断法', options: [
+		{ value: '', label: '未指定' },
+		{ value: '子', label: '子' }, { value: '丑', label: '丑' }, { value: '寅', label: '寅' },
+		{ value: '卯', label: '卯' }, { value: '辰', label: '辰' }, { value: '巳', label: '巳' },
+		{ value: '午', label: '午' }, { value: '未', label: '未' }, { value: '申', label: '申' },
+		{ value: '酉', label: '酉' }, { value: '戌', label: '戌' }, { value: '亥', label: '亥' },
+	]},
+	{ name: 'gender', label: '性别 (行年/年立用)', type: 'select', default: '', group: '断法', options: [
+		{ value: '', label: '未指定' },
+		{ value: 'male', label: '男' },
+		{ value: 'female', label: '女' },
 	]},
 	{ name: 'number', label: '报数 (mode=报数类时使用)', type: 'number', default: 0, group: '起例' },
 	{ name: 'manual', label: '手动分爻', type: 'switch', options: ON_OFF, default: 0, group: '起例', normalize: (v)=>(v === true || v === 1 || v === '1') },
@@ -1305,7 +1339,39 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 			{ value: 'reverse', label: '逆布（书）' },
 			{ value: 'forward', label: '顺布（原）' },
 		] },
+		// 书法(移语本)口径与流年——与左栏/buildPayload 三方同键(死开关教训:任一缺位=挂载死齿轮)。
+		{ name: 'brightnessSchool', label: '庙旺口径', type: 'select', default: 'yiyu', group: '书法口径', when: { method: 'book' }, options: [
+			{ value: 'yiyu', label: '移语本·诸星格' },
+			{ value: 'quanji', label: '全集本·诗诀' },
+		] },
+		{ name: 'shenGongMode', label: '身宫取整', type: 'select', default: 'yizheng', group: '书法口径', when: { method: 'book' }, options: [
+			{ value: 'yizheng', label: '引证图口径' },
+			{ value: 'literal', label: '正文直读' },
+		] },
+		{ name: 'daxianMode', label: '大限起宫', type: 'select', default: 'yiyu', group: '书法口径', when: { method: 'book' }, options: [
+			{ value: 'yiyu', label: '阳年从命·阴年从身' },
+			{ value: 'legacy', label: '顺从命·逆从身(旧)' },
+		] },
+		{ name: 'tianluoMode', label: '天罗地网起法', type: 'select', default: 'benshu', group: '书法口径', when: { method: 'book' }, options: [
+			{ value: 'benshu', label: '本书·月日法' },
+			{ value: 'zhongtian', label: '中天太极·月时法' },
+		] },
+		{ name: 'palaceNameMode', label: '宫名体系', type: 'select', default: 'common', group: '书法口径', when: { method: 'book' }, options: [
+			{ value: 'common', label: '通行十二宫' },
+			{ value: 'monk', label: '僧道起法' },
+		] },
+		{ name: 'liunianYear', label: '流年年份(留空=当年)', type: 'number', default: '', group: '流年', when: { method: 'book' } },
+		{ name: 'liunianQishaMode', label: '流年七煞起法', type: 'select', default: 'shengshi', group: '流年', when: { method: 'book' }, options: [
+			{ value: 'shengshi', label: '生时法' },
+			{ value: 'suishu', label: '岁数法' },
+		] },
 		{ name: 'showBrightness', label: '显示亮度', type: 'switch', options: ON_OFF, default: 1, group: '显示选项' },
+		{ name: 'showLiunian', label: '显示流年飞星', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'book' } },
+		{ name: 'showShensha', label: '显示神煞', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'book' } },
+		{ name: 'showZaYao', label: '显示杂曜', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'book' } },
+		{ name: 'showDuanjue', label: '显示断诀', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'book' } },
+		{ name: 'showXiu', label: '显示廿八宿三日宫', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'book' } },
+		{ name: 'showBianyao', label: '显示十干变曜', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'book' } },
 		{ name: 'showWuXingJu', label: '显示五行局', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'kentang' } },
 		{ name: 'showSihua', label: '显示四化', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'kentang' } },
 		{ name: 'showFlying', label: '显示飞星格局', type: 'switch', options: ON_OFF, default: 1, group: '显示选项', when: { method: 'kentang' } },
@@ -1683,6 +1749,10 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 			{ value: 1, label: '1 坎宫（默认）' }, { value: 2, label: '2 坤宫' }, { value: 3, label: '3 震宫' }, { value: 4, label: '4 巽宫' },
 			{ value: 6, label: '6 乾宫' }, { value: 7, label: '7 兑宫' }, { value: 8, label: '8 艮宫' }, { value: 9, label: '9 离宫' },
 		] },
+		// 闢(离心)一象之辞两传本相反(往/來/闔三象两本一致):正传=古籍原文、异文=另本情伪论所推。
+		{ name: 'piKoujing', label: '闢卦细判口径', type: 'select', default: 'zheng', group: '判读', options: [
+			{ value: 'zheng', label: '正传:得配害·失配利（默认）' }, { value: 'yiwen', label: '异文:得配利·失配害' },
+		] },
 	] },
 	// 飞宫小奇门:局(起支)=冻结值不登;命宫年龄性别只重排命宫目,不动局。
 	feigong: { kind: 'payload', optionsPath: 'options', group: '飞宫小奇门', fields: [
@@ -1797,22 +1867,59 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		] },
 		{ name: 'zodiacSystem', label: '占星体系', type: 'select', default: '', group: '判读', options: [
 			{ value: '', label: '随档（默认）' }, { value: 'classical', label: '古典定局体系' }, { value: 'planetary', label: '行星归属体系' },
+			{ value: 'planetary_alt', label: '行星归属·乙(另一传本表)' },
+		] },
+		// 图形入宫三式:与落星法(granular,非控件型故不登齿轮)是正交两维
+		{ name: 'housePlacement', label: '图形入宫', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认顺铺）' }, { value: 'sequential', label: '顺铺' },
+			{ value: 'angular', label: '四正入宫(果宫取合成卦)' }, { value: 'golden_dawn', label: '近世学派置换' },
 		] },
 		{ name: 'quesitedHouse', label: '所问宫(1-12)', type: 'select', default: '', group: '判读',
 			options: [{ value: '', label: '随档/问类预设（默认）' }, ...numRangeOptions(1, 12, (i)=>`第 ${i} 宫`)] },
 		{ name: 'turnTo', label: '转宫(1-12)', type: 'select', default: '', group: '判读',
 			options: [{ value: '', label: '不转宫（默认）' }, ...numRangeOptions(1, 12, (i)=>`转第 ${i} 宫`)] },
 	] },
+	// 灵棋经:卦(棋数)=冻结值不登(重掷=伪造一个用户没见过的卦);注家显示/课断/断诗/问类
+	// 皆判读显示层,''=随档(三态 select,免 switch 默认值静默覆盖档内口径)。
+	lingqi: { kind: 'payload', optionsPath: 'options', group: '灵棋经', emptyHint: '棋势取自已存起卦结果、恒不重掷;以下皆为判读显示口径。', fields: [
+		{ name: 'zhu_yan', label: '颜幼明注', type: 'select', default: '', group: '注家', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '显示' }, { value: 0, label: '隐藏' },
+		] },
+		{ name: 'zhu_he', label: '何承天注', type: 'select', default: '', group: '注家', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '显示' }, { value: 0, label: '隐藏' },
+		] },
+		{ name: 'zhu_chen', label: '陈师凯解', type: 'select', default: '', group: '注家', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '显示' }, { value: 0, label: '隐藏' },
+		] },
+		{ name: 'zhu_liu', label: '刘基注', type: 'select', default: '', group: '注家', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '显示' }, { value: 0, label: '隐藏' },
+		] },
+		{ name: 'zhu_ke', label: '课断(此课总断)', type: 'select', default: '', group: '注家', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '显示' }, { value: 0, label: '隐藏' },
+		] },
+		{ name: 'zhu_shi', label: '断诗(诗曰/又曰)', type: 'select', default: '', group: '注家', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '显示' }, { value: 0, label: '隐藏' },
+		] },
+		{ name: 'category', label: '问类', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'general', label: '通用' }, { value: 'career', label: '仕途' },
+			{ value: 'wealth', label: '求财' }, { value: 'marriage', label: '婚姻' }, { value: 'health', label: '疾病' },
+			{ value: 'travel', label: '行人' }, { value: 'lawsuit', label: '官讼' }, { value: 'home', label: '家宅' },
+		] },
+	] },
 	// 🔴 塔罗旧定性同上:牌面只由 deckId/spreadType/seed 决定(存档写死 manual+seed),
 	// settings 全落判读层 —— 同一副牌不同判读文本恒安全;deckId/spreadType/seed/question 不登。
 	tarot: { kind: 'payload', optionsPath: 'options', group: '塔罗', fields: [
 		{ name: 'meaningSystem', label: '牌义体系', type: 'select', default: '', group: '判读', options: [
 			{ value: '', label: '随档（默认）' }, { value: 'manual', label: '逐牌义' }, { value: 'waite', label: 'Waite 1911' },
+			{ value: 'degrees', label: '数字度(马赛)' },
 		] },
 		{ name: 'reversalMode', label: '逆位读法', type: 'select', default: '', group: '判读', options: [
-			{ value: '', label: '随档（默认）' }, { value: 'stored', label: '预存逆位义' }, { value: 'blocked', label: '受阻/延迟' },
+			{ value: '', label: '随档（默认）' }, { value: 'stored', label: '预存逆位义' }, { value: 'blocked', label: '受阻/压抑' },
 			{ value: 'internal', label: '内化/私密' }, { value: 'opposite', label: '相反/反义' },
 			{ value: 'reduced', label: '减弱' }, { value: 'excess', label: '过度/失衡' },
+			{ value: 'delayed', label: '延迟/时机' }, { value: 'projection', label: '投射' }, { value: 'misuse', label: '误用/错向' },
+			{ value: 'negation', label: '不是/没有' }, { value: 'breakthrough', label: '突破/解脱' }, { value: 're_words', label: '回撤/重审' },
+			{ value: 'retreat', label: '回退前课' },
 		] },
 		{ name: 'variant', label: '对应体系', type: 'select', default: '', group: '判读', options: [
 			{ value: '', label: '随档（默认）' }, { value: 'A', label: 'A 金色黎明' }, { value: 'B', label: 'B 托特' }, { value: 'C', label: 'C 大陆' },
@@ -1820,11 +1927,41 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'verdictMode', label: '判定口径', type: 'select', default: '', group: '判读', options: [
 			{ value: '', label: '随档（默认）' }, { value: 'majority', label: '多数' }, { value: 'orientation', label: '朝向' },
 			{ value: 'single', label: '首牌' }, { value: 'polarity', label: '极性' }, { value: 'numeric', label: '数字阈值' },
+			{ value: 'weighted_center', label: '中位加权' }, { value: 'anchor', label: '答案锚位' }, { value: 'single3', label: '单张三态' },
 		] },
 		{ name: 'dignities', label: '牌间尊卑(dignities)', type: 'select', default: '', group: '判读', options: [
 			{ value: '', label: '随档（默认）' }, { value: 1, label: '开' }, { value: 0, label: '关' },
 		] },
 		{ name: 'suitElementSwap', label: '火风互换(花色元素)', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '开' }, { value: 0, label: '关' },
+		] },
+		// TP9 判读齿轮扩容(五书补齐):全部判读显示层——同一副牌不同判读文本;牌面(deckId/spreadType/seed/牌池/朝向生成)恒不入。
+		{ name: 'quintMode', label: '精华牌口径', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'standard', label: '通行' }, { value: 'fool22', label: '愚人廿二(数值加法)' },
+		] },
+		{ name: 'edVersion', label: '尊位版本', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'modern', label: '现行三档' }, { value: 'mathers', label: '原典四档' },
+		] },
+		{ name: 'ookTable', label: '开钥计数表', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'standard', label: '通行' }, { value: 'sephira', label: '质点' },
+		] },
+		{ name: 'astroModern', label: '现代行星注', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 1, label: '开' }, { value: 0, label: '关' },
+		] },
+		{ name: 'timingMethod', label: '计时法', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'suit_unit', label: '花色单位' }, { value: 'major_number', label: '大牌数字' },
+			{ value: 'major_zodiac', label: '大牌星座' }, { value: 'decan_full', label: '旬星全谱' }, { value: 'ace_hunt', label: '翻至王牌' },
+		] },
+		{ name: 'timingUnit', label: '计时单位(大牌数字法)', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: '天', label: '天' }, { value: '周', label: '周' }, { value: '月', label: '月' },
+		] },
+		{ name: 'courtElementSystem', label: '宫廷元素体系', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'gd', label: '元素中元素' }, { value: 'alt', label: '位阶制' },
+		] },
+		{ name: 'courtZodiacSystem', label: '宫廷星座体系', type: 'select', default: '', group: '判读', options: [
+			{ value: '', label: '随档（默认）' }, { value: 'gd_span', label: '跨段' }, { value: 'simple', label: '单座制' },
+		] },
+		{ name: 'crossingUpright', label: '交叉牌横置(恒正读)', type: 'select', default: '', group: '判读', options: [
 			{ value: '', label: '随档（默认）' }, { value: 1, label: '开' }, { value: 0, label: '关' },
 		] },
 	] },

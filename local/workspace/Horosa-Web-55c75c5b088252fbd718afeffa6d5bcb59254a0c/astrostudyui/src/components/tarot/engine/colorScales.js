@@ -1,5 +1,6 @@
 // 金色黎明四色阶之 King 阶(王阶,Atziluth/火界):22 大牌主色(路径主色)。色名为公有领域体系事实(Liber 777/Regardie),
 // hex 为按色名的渲染近似。键=sid。BOTA/金色黎明 牌可显此色点;其余色阶(Queen/Prince/Princess)为 128 格大表,按需扩。
+import { isTrumpArcana } from './arcana.js'; // [QA-9] 王牌判据单一真值源
 export const KING_SCALE = {
 	the_fool: { name: '亮淡黄', hex: '#F3EDA6' },
 	the_magician: { name: '黄', hex: '#F2DE2B' },
@@ -26,7 +27,7 @@ export const KING_SCALE = {
 };
 
 export function kingScaleColor(card){
-	if(!card || card.arcana !== 'major'){ return null; }
+	if(!card || !isTrumpArcana(card.arcana)){ return null; }
 	return KING_SCALE[card.sid] || null;
 }
 
@@ -71,7 +72,36 @@ export const PRINCESS_SCALE = {
 };
 const SCALE_TABLES = { king: KING_SCALE, queen: QUEEN_SCALE, prince: PRINCE_SCALE, princess: PRINCESS_SCALE };
 export function scaleColor(card, scaleKey){
-	if(!card || card.arcana !== 'major'){ return null; }
+	if(!card || !isTrumpArcana(card.arcana)){ return null; }
 	const t = SCALE_TABLES[scaleKey] || KING_SCALE;
 	return t[card.sid] || null;
+}
+
+// ═══ TP-DATA:辉耀×四界色阶(10 质点 × King/Queen/Prince/Princess = 小牌用色) ═══
+// 据 Liber 777 传统辉耀四界色(公有领域体系事实;hex 为按色名的渲染近似)。
+// 数字牌:其 sephira 行 × 花色所属界列(权杖=King/Atziluth·圣杯=Queen/Briah·宝剑=Prince/Yetzirah·钱币=Princess/Assiah);
+// 宫廷:COURT_SEPHIRA 质点行(王2/后3/骑6/侍10)。此前四色阶只覆盖 22 大牌路径色,小牌恒无色点——补齐。
+export const SEPHIROTH_SCALE = {
+	1: { king: { name: '光辉', hex: '#F7F7F2' }, queen: { name: '白光辉', hex: '#FFFFFF' }, prince: { name: '白光辉', hex: '#FDFDF8' }, princess: { name: '白缀金', hex: '#F5EFD8' } },
+	2: { king: { name: '纯柔蓝', hex: '#9FC2E8' }, queen: { name: '灰', hex: '#9098A0' }, prince: { name: '珠母蓝灰', hex: '#AEB8C4' }, princess: { name: '白缀红蓝黄', hex: '#EDE8EA' } },
+	3: { king: { name: '深红', hex: '#8A1E2D' }, queen: { name: '黑', hex: '#1A1A1A' }, prince: { name: '暗棕', hex: '#4A3524' }, princess: { name: '灰缀粉', hex: '#B9A8AC' } },
+	4: { king: { name: '深紫', hex: '#5B2A83' }, queen: { name: '蓝', hex: '#2F66E0' }, prince: { name: '深紫', hex: '#4B2C83' }, princess: { name: '深天蓝缀黄', hex: '#3E6FB0' } },
+	5: { king: { name: '橙', hex: '#E0881C' }, queen: { name: '猩红', hex: '#E0241C' }, prince: { name: '亮猩红', hex: '#F03A2A' }, princess: { name: '红缀黑', hex: '#8E1F1A' } },
+	6: { king: { name: '清粉玫瑰', hex: '#F2B8C6' }, queen: { name: '金黄', hex: '#F0C830' }, prince: { name: '浓鲑红', hex: '#E8735A' }, princess: { name: '金琥珀', hex: '#D9A441' } },
+	7: { king: { name: '琥珀', hex: '#E0AE1C' }, queen: { name: '翠绿', hex: '#2FBE6E' }, prince: { name: '亮黄绿', hex: '#9ED92B' }, princess: { name: '橄榄缀金', hex: '#8A8A3A' } },
+	8: { king: { name: '紫罗兰', hex: '#7B2CD6' }, queen: { name: '橙', hex: '#E0881C' }, prince: { name: '红赤褐', hex: '#A0522D' }, princess: { name: '黄棕缀白', hex: '#C8A96B' } },
+	9: { king: { name: '靛', hex: '#3B2C8A' }, queen: { name: '紫', hex: '#7B2CD6' }, prince: { name: '极暗紫', hex: '#2E1A4A' }, princess: { name: '柠檬黄缀天蓝', hex: '#E8E06B' } },
+	10: { king: { name: '黄', hex: '#F2DE2B' }, queen: { name: '柠檬黄·橄榄·赤褐·黑四分', hex: '#9C8A4D' }, prince: { name: '四分缀金', hex: '#A5924F' }, princess: { name: '黑射黄', hex: '#33301A' } },
+};
+
+// 花色 → 所属界(四界降序:火水风土)。
+export const SUIT_WORLD_SCALE = { wands: 'king', cups: 'queen', swords: 'prince', pentacles: 'princess' };
+
+// 小牌某界色:数字牌按 rank=sephira;宫廷按其质点(卡对象已带 card.sephira,含宫廷)。scaleKey 缺省=该花色本界。
+export function minorScaleColor(card, scaleKey){
+	if(!card || isTrumpArcana(card.arcana) || !card.sephira){ return null; }
+	const row = SEPHIROTH_SCALE[card.sephira];
+	if(!row){ return null; }
+	const key = scaleKey || SUIT_WORLD_SCALE[card.suit] || 'king';
+	return row[key] || null;
 }

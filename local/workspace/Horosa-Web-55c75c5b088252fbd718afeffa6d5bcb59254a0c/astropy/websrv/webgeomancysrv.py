@@ -16,7 +16,8 @@ from websrv.helper import enable_crossdomain
 
 from astrostudy.geomancy import chart as geo_chart
 from astrostudy.geomancy import correspondences as geo_corr
-from astrostudy.geomancy.figures import inverse, name as fig_name, points, reverse
+from astrostudy.geomancy.figures import (inverse, name as fig_name, opposite as fig_opposite,
+                                         points, reverse, rotate as fig_rotate)
 from astrostudy.geomancy.traditions import PROFILES
 from astrostudy.geomancy.random_source import normalize_cast_method
 from astrostudy.geomancy.ifa import odu_of as geo_odu_of
@@ -78,8 +79,20 @@ def _fig_dict(f, zodiac_system="classical"):
     """内核图形对象 → 前端超集(旧字段 nameEn/nameZh/dots/element*/planet*/sign*/quality*/keywords* 兼容 + 新字段透传)。"""
     if not f:
         return None
-    sign = f.get("zodiac_classical") if zodiac_system == "classical" else f.get("zodiac_planetary")
+    # 黄道三套并存:古典定局 / 行星归属 / 行星归属·乙(另一传本表)。
+    # 非 classical 且非 planetary_alt 者回落行星归属 —— 与三套并存前的历史分支一致(零回归)。
+    if zodiac_system == "classical":
+        sign = f.get("zodiac_classical")
+    elif zodiac_system == "planetary_alt":
+        sign = f.get("zodiac_planetary_alt") or f.get("zodiac_planetary")
+    else:
+        sign = f.get("zodiac_planetary")
     sign = (sign or "").rstrip("?")
+
+    def _zt(key):
+        s = (f.get(key) or "").rstrip("?")
+        return {"en": s, "zh": _SIGN_ZH.get(s, s)} if s else None
+
     return {
         "nameEn": f.get("latin"), "nameZh": f.get("name_zh"),
         "dots": list(f.get("bits") or []),
@@ -110,6 +123,18 @@ def _fig_dict(f, zodiac_system="classical"):
         "isPalindrome": f.get("is_palindrome"),
         "activeElements": _json_safe(f.get("active_elements")) if f.get("active_elements") else None,
         "vedic": _json_safe(f.get("vedic")) if f.get("vedic") else None,
+        # 传本对齐新增字段(必须显式拷:不拷则前端恒缺 —— 本文件历来之坑)
+        "toneBook": f.get("tone_book"),
+        "qualityBook": f.get("quality_book"),
+        "imageryZh": f.get("imagery_zh"),
+        "bodyDetailZh": f.get("body_detail_zh"),
+        "kabbalah": list(f.get("kabbalah") or []) or None,
+        "oppositeOf": f.get("opposite_of"),
+        "rotateOf": f.get("rotate_of"),
+        # 三套黄道并显(目录卡「双黄道」之补:古典 / 行星归属 / 行星归属·乙)
+        "zodiacTriple": {"classical": _zt("zodiac_classical"),
+                         "planetary": _zt("zodiac_planetary"),
+                         "planetaryAlt": _zt("zodiac_planetary_alt")},
     }
 
 
@@ -125,6 +150,8 @@ def _figure_catalog(zodiac_system="classical", number_system="points", names_sys
             **v, "points": points(i),
             "reverse_of": fig_name(reverse(i)), "inverse_of": fig_name(inverse(i)),
             "converse_of": fig_name(reverse(inverse(i))),
+            # 关系六式之余二(目录与盘面两条组装路径,此处不补则目录恒缺)
+            "opposite_of": fig_name(fig_opposite(i)), "rotate_of": fig_name(fig_rotate(i)),
             "numbers": geo_all_numbers(i),
             "number": geo_figure_number(i, number_system),
             "odu": ({"name": e["name"], "seniority": e["seniority"], "marks": list(e["marks"])} if e else None),
@@ -169,6 +196,7 @@ def _build_response(r, seed=None):
             "house": h["house"], "figure": _fig_dict(h["figure"], zsys),
             "roles": h.get("roles", []), "reading": h.get("reading"),
             "nameZh": hm.get("latin"), "topicsZh": hm.get("theme"),
+            "topicsDetailZh": hm.get("theme_detail"),
             "sign": sign, "signZh": rot.get("sign_zh") or _SIGN_ZH.get(sign, sign),
             "naturalSign": nat, "naturalSignZh": _SIGN_ZH.get(nat, nat),
             "ruler": hm.get("ruler"), "element": hm.get("element"),
@@ -206,6 +234,8 @@ def _build_response(r, seed=None):
         reading["planetPlacementByTwelves"] = _json_safe(r["planet_placement_by_twelves"])
     if r.get("derived"):
         reading["derived"] = _json_safe(r["derived"])
+    if r.get("planetary_chart"):
+        reading["planetaryChart"] = _json_safe(r["planetary_chart"])
     if r.get("buyut"):
         reading["buyut"] = _json_safe(r["buyut"])
     if r.get("sikidy"):
@@ -285,6 +315,18 @@ class GeomancySrv:
                 return str(v).strip().lower() in ("1", "true", "yes", "on")
 
             turn_to = _to_int(data.get("turnTo"), None)
+            # 报数起卦:十六个数(奇=单点/偶=双点)。非十六个或含非数即弃,由内核回落随机源并如实回传。
+            cast_numbers = data.get("castNumbers")
+            if isinstance(cast_numbers, str):
+                cast_numbers = [x for x in cast_numbers.replace(",", " ").replace("，", " ").split() if x]
+            if isinstance(cast_numbers, (list, tuple)):
+                try:
+                    nums = [int(x) for x in cast_numbers]
+                    cast_numbers = nums if len(nums) == 16 and all(n >= 1 for n in nums) else None
+                except (TypeError, ValueError):
+                    cast_numbers = None
+            else:
+                cast_numbers = None
             r = geo_chart.compute_reading(
                 question_type=question_type, profile_id=profile_id,
                 cast_method=cast_method, seed=kernel_seed, time_seed=kernel_time_seed,
@@ -300,6 +342,13 @@ class GeomancySrv:
                 # 所问宫:显式指定优先于问类查表(问类只是快捷预设,不是真值源)
                 quesited_house=_to_int(data.get("quesitedHouse"), None),
                 parity_scope=_opt("parityScope"),
+                # 传本对齐新增:图形入宫三式 / 报数起卦 / 行星地占盘(开关+星座表+交点+可选加星)
+                house_placement=_opt("housePlacement"),
+                cast_numbers=cast_numbers,
+                planetary_chart=_optb("planetaryChart"),
+                planetary_chart_zodiac=_opt("planetaryChartZodiac"),
+                planetary_chart_nodes=_optb("planetaryChartNodes"),
+                planetary_chart_extras=_optb("planetaryChartExtras"),
             )
             reading = _build_response(r, seed=effective_seed)
             reading["question"] = question

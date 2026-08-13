@@ -288,13 +288,21 @@
 	.horosa-geomancy-hakata-orient { font-size: 13px; opacity: 0.85; }
 }
 
-// ③ 高级传本:一行两个以省纵向空间(不再各占整行)。
-// 父容器 .horosa-huangji-select-grid 本就是两列 grid —— 去掉 is-wide(该类令字段跨两列)即成一行两个。
+// ③ 高级传本 与 流派·传本:**长值之项一行一个、占满左栏整宽**。
+// 🔴 实测(1280×720,左栏 285px → 字段栏 195px):两列时每框内容区仅 57px,而选项全称长至 277px
+//    ⇒ 二十个下拉里十九个闭合态被省略号吃掉,等于「选项被遮挡」。
+//    今双管齐下:① 闭合态改显短名(JSX 之 optionLabelProp,长文仍在下拉列表内完整可读);
+//    ② 闭合态改显极短名(「随·顺铺」四字级)+ 选择器字号 11px —— 一行两个下仍不截断。
+//    (曾试过长值项单列全宽,但用户定案要一行两个以省纵向空间,故走极短名一路。)
 // 🔴 切勿在此再加 flex/max-width:grid item 上的百分比是「格内宽」的百分比,会把字段再砍半。
-.horosa-workspace-shell .horosa-geomancy-granular-field {
+// 用户定案:**一行两个**(纵向省空间,把高度让给盘与右栏);闭合态改显极短名
+// (「随·顺铺」四字级)+ 选择器字号 11px ⇒ 93px 框内仍不截断。长文全在下拉列表与 title。
+.horosa-workspace-shell .horosa-geomancy-granular-field,
+.horosa-workspace-shell .horosa-geomancy-input-stack .horosa-geomancy-school-field {
 	min-width: 0;
 	> span { font-size: 11.5px; }
 	.ant-select, .xq-select { width: 100%; }
+	.ant-select-selection-item { font-size: 11px; }
 }
 
 // ④ 十二宫断语卡:此前断语被挤在仅 179px 的第三列里、字号 11px 难辨。
@@ -347,6 +355,7 @@
 //    把每个框撑成不同高度。要求:**统一高度 + 单行 + 超出省略**,宁可截断也不参差。
 .horosa-workspace-shell .horosa-geomancy-input-stack {
 	.horosa-huangji-select-field.horosa-geomancy-granular-field,
+	.horosa-huangji-select-field.horosa-geomancy-school-field,
 	.horosa-huangji-select-field.horosa-geomancy-half-field {
 		min-width: 0;
 		> span {
@@ -711,6 +720,195 @@
 }
 
 // ══════════════════════════════════════════════════════════════
+// [行星地占盘] 版面:标题在上、说明在下、盘居中占满横宽。
+// 🔴 壳层把 .horosa-geomancy-wheel 定为 `display:flex; align-items:center`(横排),
+//    故标题与说明被挤到盘的左右两侧、把盘挤窄(用户实测截图为证)。
+//    今改纵向三段式:上标题 / 中盘(flex:1 且 min-height:0,故盘吃尽剩余高度)/ 下说明。
+//    只作用于本视图(is-planetary),十二宫盘照旧不受影响。
+.horosa-workspace-shell .horosa-geomancy-wheel.is-planetary {
+	flex-direction: column;
+	justify-content: flex-start;
+	> .horosa-geomancy-shield-title { flex: 0 0 auto; width: 100%; }
+	> .horosa-geomancy-wheel-svg { flex: 1 1 auto; min-height: 0; width: 100%; }
+	> .horosa-geomancy-planet-hint { flex: 0 0 auto; width: 100%; margin: 6px 0 0; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 传本对齐补齐:得地角标 / 时间流 / 寻源四线 / 法庭三角详卡 / 地占三角 /
+//              盾位十六宫 / 方向细则 / 行星地占落宫表 / 希腊点徽记 / 目录新行
+// ══════════════════════════════════════════════════════════════
+// [得地] 盾面格右上角小徽:全同◎/同温○/同湿◇/全异✕。位置绝对,不挤原有点阵与名。
+.horosa-geomancy-shield-cell { position: relative; }
+.horosa-geomancy-shield-tenancy {
+	position: absolute; top: 3px; right: 4px;
+	font-size: 11px; line-height: 1; font-style: normal;
+	opacity: 0.9; cursor: help;
+	&.is-full { color: var(--horosa-astro-gold, #d7ad69); }
+	&.is-assist { color: #7fc4a8; }
+	&.is-stall { color: #c9b073; }
+	&.is-weak { color: #b5788a; }
+}
+// [时间流] 右证过去 / 法官现在 / 左证未来
+.horosa-geomancy-shield-time {
+	margin-left: 4px; font-style: normal; font-size: 10px;
+	padding: 0 3px; border-radius: 3px;
+	color: var(--horosa-astro-gold, #d7ad69);
+	background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.14));
+}
+// [寻源四线] 金字塔盘标题行的四线小钮
+.horosa-geomancy-pyr-lines {
+	display: inline-flex; gap: 4px; margin-left: 10px;
+	button {
+		padding: 1px 8px; font-size: 11px; line-height: 1.6;
+		border-radius: 4px; cursor: pointer;
+		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+		background: transparent; color: var(--horosa-astro-muted, #8fa0b9);
+		&:hover { color: var(--horosa-astro-text, #e8ecf3); }
+		&.is-active {
+			color: #1b1206; font-weight: 600;
+			background: var(--horosa-astro-gold, #d7ad69);
+			border-color: var(--horosa-astro-gold, #d7ad69);
+		}
+		&.is-miss { opacity: 0.45; }
+	}
+}
+// [法庭三角] 三卦倒序横排(过去→现在→未来)+ 合断
+.horosa-geomancy-court {
+	margin-top: 12px; padding-top: 10px;
+	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+}
+.horosa-geomancy-court-row { display: flex; gap: 8px; }
+.horosa-geomancy-court-cell {
+	flex: 1 1 0; min-width: 0; text-align: center;
+	padding: 6px 4px; border-radius: 6px;
+	border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	&.is-tone-good { border-color: rgba(127, 196, 168, 0.55); }
+	&.is-tone-bad { border-color: rgba(181, 120, 138, 0.55); }
+	.horosa-geomancy-court-when {
+		font-size: 11px; color: var(--horosa-astro-gold, #d7ad69); letter-spacing: 1px;
+	}
+	.horosa-geomancy-court-role { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); }
+	.horosa-geomancy-court-fig {
+		font-size: 13px; font-weight: 600; color: var(--horosa-astro-text, #e8ecf3);
+		em { margin-left: 3px; font-size: 10px; font-style: normal; opacity: 0.8; }
+	}
+}
+.horosa-geomancy-court-verdict {
+	margin-top: 6px; font-size: 12px; line-height: 1.6;
+	color: var(--horosa-astro-text, #e8ecf3);
+	strong { color: var(--horosa-astro-gold, #d7ad69); }
+}
+// [地占三角] 四组 + 两派含义切换
+.horosa-geomancy-triangles {
+	margin-top: 12px; padding-top: 10px;
+	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	.horosa-geomancy-tri-school {
+		float: right; display: inline-flex; gap: 4px;
+		button {
+			padding: 0 7px; font-size: 11px; border-radius: 4px; cursor: pointer;
+			border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+			background: transparent; color: var(--horosa-astro-muted, #8fa0b9);
+			&.is-active {
+				color: #1b1206; background: var(--horosa-astro-gold, #d7ad69);
+				border-color: var(--horosa-astro-gold, #d7ad69);
+			}
+		}
+	}
+}
+.horosa-geomancy-triangle-row {
+	display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+	padding: 3px 6px; font-size: 12px; line-height: 1.5;
+	.horosa-geomancy-triad-expr {
+		flex: 0 0 auto;
+		em {
+			font-style: normal; margin-right: 4px;
+			color: var(--horosa-astro-muted, #8fa0b9);
+			&.is-tone-good { color: #7fc4a8; }
+			&.is-tone-bad { color: #b5788a; }
+		}
+		strong {
+			color: var(--horosa-astro-gold, #d7ad69);
+			&.is-tone-good { color: #7fc4a8; }
+			&.is-tone-bad { color: #b5788a; }
+		}
+	}
+	.horosa-geomancy-triangle-mean {
+		flex: 1 1 100%; font-size: 11px; line-height: 1.5;
+		color: var(--horosa-astro-muted, #8fa0b9);
+	}
+}
+// [盾位十六宫] 折叠区:位 | 图形与得地 | 含义
+.horosa-geomancy-shield16 {
+	margin-top: 12px; font-size: 12px;
+	> summary {
+		cursor: pointer; color: var(--horosa-astro-gold, #d7ad69);
+		font-weight: 600; letter-spacing: 0.4px;
+	}
+}
+.horosa-geomancy-shield16-row {
+	display: flex; flex-wrap: wrap; gap: 6px;
+	padding: 4px 6px; line-height: 1.55;
+	border-bottom: 1px dashed var(--horosa-astro-border, rgba(215, 173, 105, 0.18));
+	.horosa-geomancy-shield16-num {
+		flex: 0 0 62px; color: var(--horosa-astro-muted, #8fa0b9);
+	}
+	.horosa-geomancy-shield16-fig {
+		flex: 0 0 auto; color: var(--horosa-astro-text, #e8ecf3);
+		em {
+			margin-left: 5px; font-style: normal; font-size: 11px; cursor: help;
+			color: var(--horosa-astro-gold, #d7ad69);
+		}
+	}
+	.horosa-geomancy-shield16-mean {
+		flex: 1 1 100%; font-size: 11px;
+		color: var(--horosa-astro-muted, #8fa0b9);
+	}
+}
+// [方向细则 / 行星盘落宫表] 沿用 summary-row 版式,只加分隔
+.horosa-geomancy-perfdir,
+.horosa-geomancy-pchart-table {
+	margin-top: 12px; padding-top: 10px;
+	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+}
+// [希腊点] 福/灵徽记
+.horosa-geomancy-greek-marks { display: inline-flex; gap: 2px; margin-left: 3px; }
+.horosa-geomancy-greek-mark {
+	font-style: normal; font-size: 10px; line-height: 1.4;
+	padding: 0 3px; border-radius: 3px; cursor: help;
+	&.is-fortune { color: #1b1206; background: var(--horosa-astro-gold, #d7ad69); }
+	&.is-spirit {
+		color: var(--horosa-astro-gold, #d7ad69);
+		border: 1px solid var(--horosa-astro-gold, #d7ad69);
+	}
+}
+.horosa-geomancy-wheel-greek {
+	font-size: 12px; fill: var(--horosa-astro-gold, #d7ad69);
+}
+// [目录卡新行] 对应系统 / 身体详表 / 三黄道 / 关系六式 / 传本意象
+.horosa-geomancy-catalog-corr,
+.horosa-geomancy-catalog-body,
+.horosa-geomancy-catalog-zodiac,
+.horosa-geomancy-catalog-rel {
+	font-size: 11px; line-height: 1.5;
+	color: var(--horosa-astro-muted, #8fa0b9);
+}
+.horosa-geomancy-catalog-rel { cursor: help; }
+.horosa-geomancy-catalog-imagery {
+	font-size: 11px; line-height: 1.6;
+	color: var(--horosa-astro-text, #e8ecf3);
+}
+.horosa-geomancy-catalog-tone.is-book {
+	margin-left: 3px; opacity: 0.85;
+	border: 1px solid currentColor; background: transparent;
+}
+// [十二宫] 本宫主宰事项折叠
+.horosa-geomancy-house-detail {
+	flex: 1 1 100%; margin-top: 2px; font-size: 11px; line-height: 1.6;
+	> summary { cursor: pointer; color: var(--horosa-astro-gold, #d7ad69); }
+	> div { color: var(--horosa-astro-muted, #8fa0b9); }
+}
+
+// ══════════════════════════════════════════════════════════════
 // [B0] 落星层扩到全部十二宫盘 + 非宫位盘明示不呈现。
 // 此前落星只画在圆轮盘一处,用户停在其余八式时切落星法零反馈,看上去就是开关坏了。
 .horosa-geomancy-house-planets {
@@ -859,6 +1057,14 @@
 	}
 }
 .horosa-geomancy-tech-hint {
+	display: block; margin-top: 1px;
+	font-size: 10.5px; font-style: normal; font-weight: 400; line-height: 1.45;
+	color: var(--horosa-astro-muted, #8fa0b9); opacity: 0.85;
+}
+// 详情区块之注(法庭三角/地占三角/方向细则/行星盘表)——样式同 tech-hint,
+// 但**必须另用一类**:哨兵与用例以 tech-hint 计数校验「技法每行恰一句释义」,
+// 区块内混用同一类即破坏该不变量。
+.horosa-geomancy-note-hint {
 	display: block; margin-top: 1px;
 	font-size: 10.5px; font-style: normal; font-weight: 400; line-height: 1.45;
 	color: var(--horosa-astro-muted, #8fa0b9); opacity: 0.85;

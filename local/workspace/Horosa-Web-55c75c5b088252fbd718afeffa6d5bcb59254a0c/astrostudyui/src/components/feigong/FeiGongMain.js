@@ -204,8 +204,18 @@ class FeiGongMain extends Component {
 				mingGender: o.mingGender || 'male',
 				liuYueMonth: o.liuYueMonth !== undefined ? o.liuYueMonth : null,
 				askEvent: p.askEvent || '',
+				// 起支法相关档位如实读回(旧档缺键则保持现值,不写 undefined)
+				useDayGZ: o.useDayGZ !== undefined ? !!o.useDayGZ : this.state.inputs.useDayGZ,
+				zhi: o.zhi !== undefined && o.zhi !== null ? o.zhi : this.state.inputs.zhi,
+				num: o.num !== undefined ? o.num : this.state.inputs.num,
+				dayGan: o.inputDayGan !== undefined && o.inputDayGan !== null ? o.inputDayGan : this.state.inputs.dayGan,
+				dayZhi: o.inputDayZhi !== undefined && o.inputDayZhi !== null ? o.inputDayZhi : this.state.inputs.dayZhi,
 			},
-			settings: o.koujing ? { ...this.state.settings, heKuiKoujing: o.koujing } : this.state.settings,
+			settings: {
+				...this.state.settings,
+				...(o.koujing ? { heKuiKoujing: o.koujing } : {}),
+				...(o.qiMode ? { qiMode: o.qiMode } : {}),
+			},
 		}, ()=>this.saveSnap());
 		return true;
 	}
@@ -279,7 +289,17 @@ class FeiGongMain extends Component {
 			module: 'feigong',
 			label: '飞宫小奇门',
 			payload: {
-				options: { mingAge: inputs.mingAge, mingGender: inputs.mingGender, liuYueMonth: inputs.liuYueMonth, koujing: this.state.settings.heKuiKoujing },
+				// 🔴 qiMode(起支法四式)与 useDayGZ/zhi/num/dayGan/dayZhi(日干支档位与手输值)
+				// 此前**根本没进 payload** → 载档后中栏是存档之局,左栏控件却是 localStorage 默认档,
+				// 二者自相矛盾(与 xiaochengtu 已修的同类病灶同形)。局本身由 qiZhi/dayGan/dayZhi 冻结,
+				// 补这几档只是让左栏如实显示当初怎么起的,不改判读。
+				options: {
+					mingAge: inputs.mingAge, mingGender: inputs.mingGender, liuYueMonth: inputs.liuYueMonth,
+					koujing: this.state.settings.heKuiKoujing,
+					qiMode: this.state.settings.qiMode,
+					useDayGZ: inputs.useDayGZ, zhi: inputs.zhi, num: inputs.num,
+					inputDayGan: inputs.dayGan, inputDayZhi: inputs.dayZhi,
+				},
 				qiZhi: ju ? ju.qiZhi : null,      // 🔴 冻结起支(重算只重排,绝不重起)
 				dayGan: ju ? ju.dayGan : null,
 				dayZhi: ju ? ju.dayZhi : null,

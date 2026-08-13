@@ -5,6 +5,7 @@ import { littleEndian } from '../../utils/helper';
 import { Gua8, Gua64, getGua64 } from '../gua/GuaConst';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { getStore } from '../../utils/storageutil';
+import { caseApplySeqSuffix, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
 import {
 	XQButton as Button,
 	XQCard as Card,
@@ -1114,6 +1115,10 @@ class TongSheFaMain extends Component{
 		if(prevState.selected !== this.state.selected){
 			this.saveSnapshot();
 		}
+		// 🔴 此前本方法**只看 prevState.selected、不看 fields**,等于没有载档通路:
+		// 子技法面板常驻挂载,用户已停在统摄法页再从事盘列表载档时,mount 不响、hook 也不响
+		// (hook 只在 currentSubTab 变化时触发,而此时子页签没变)→ 载档静默不生效。
+		if(prevProps.fields !== this.props.fields && this.props.fields){ this.restoreFromCurrentCase(); }
 	}
 
 	componentWillUnmount(){
@@ -1176,7 +1181,9 @@ class TongSheFaMain extends Component{
 		}
 		const cid = `${currentCase.cid.value}`;
 		const updateTime = currentCase.updateTime && currentCase.updateTime.value ? `${currentCase.updateTime.value}` : '';
-		const caseVersion = `${cid}|${updateTime}`;
+		// 载入代次后缀走共用件(kentangCaseSave.caseApplySeqSuffix):不带它则同一条记录第二次载入
+		// 会被下面那道去重守卫拦掉,屏幕上仍是用户后来新起的卦。禁另抄一份。
+		const caseVersion = `${cid}|${updateTime}${caseApplySeqSuffix(userState)}`;
 		if(!force && this.lastRestoredCaseId === caseVersion){
 			return;
 		}
@@ -1201,6 +1208,9 @@ class TongSheFaMain extends Component{
 		this.lastRestoredCaseId = caseVersion;
 		this.setState({
 			selected: normalizeSelection(selected),
+			// 载档必清本地时地草稿:存档 divTime 取自 activeFields()(草稿优先),
+			// 不清则左栏仍显示先前草稿时地,与存档所记不符。
+			localFields: null,
 		});
 	}
 
@@ -1260,36 +1270,23 @@ class TongSheFaMain extends Component{
 			message.warning('缺少时间参数，暂无法保存');
 			return;
 		}
-		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
 		const snapshot = loadModuleAISnapshot('tongshefa');
 		const payload = {
-			module: 'tongshefa',
-			version: 1,
-			savedAt: new Date().toISOString(),
 			selection: this.state.selected,
 			snapshot: snapshot,
 		};
-		if(this.props.dispatch){
-			this.props.dispatch({
-				type: 'astro/openDrawer',
-				payload: {
-					key: 'caseadd',
-					record: {
-						event: `统摄法占断 ${divTime}`,
-						caseType: 'tongshefa',
-						divTime: divTime,
-						zone: flds.zone ? flds.zone.value : '',
-						lat: flds.lat ? flds.lat.value : '',
-						lon: flds.lon ? flds.lon.value : '',
-						gpsLat: flds.gpsLat ? flds.gpsLat.value : '',
-						gpsLon: flds.gpsLon ? flds.gpsLon.value : '',
-						pos: flds.pos ? flds.pos.value : '',
-						payload: payload,
-						sourceModule: 'tongshefa',
-					},
-				},
-			});
-		}
+		// 🔴 改走共用件 openKentangCaseDrawer:此前手写 record 漏了 payload.fieldSnapshot
+		// (日界点/晚子时/卦日界/时间算法)与顶层 gender —— applyCase 正是从这两处回灌口径,
+		// 取不到就沿用全局当前值,载回来的盘因此可能与存档不同。
+		// 共用件产出的 record 与原手写逐项等价(event/caseType/divTime/zone/lat/lon/gps/pos),
+		// 且 module/version/savedAt 由它统一注入,故这里的 payload 不必再自带那三键。
+		openKentangCaseDrawer({
+			dispatch: this.props.dispatch,
+			fields: flds,
+			module: 'tongshefa',
+			label: '统摄法',
+			payload,
+		});
 	}
 
 	renderOneYaoLine(val, key){

@@ -2,10 +2,13 @@
 // 长生四局表移植 golden(golden 基准);十二向由长生环反推(5.9);黄泉(5.5)/拨砂(5.11)/线法(5.12-14)/老三合(5.15)。
 import {
 	sanheChangshengTable, sanheStageAt, sanheXiangFaAll,
-	huangquanBaYao, huangquanSiDa, boshaWuGe,
+	huangquanBaYao, huangquanSiDa, boshaWuGe, shanAtDeg,
 	chuanshanAt, toudiAt, fenjinAt, nayinOf,
 } from './liqiCore';
-import { SANHE_STAGE_JX, SANHE_SHUANGSHAN, SHAN_24, GONG_GUA, ZHI_CHONG, ZHI_SANHE_JU } from './fengshuiData';
+import { SANHE_STAGE_JX, SANHE_SHUANGSHAN, SHAN_24, GONG_GUA, ZHI_CHONG, ZHI_SANHE_JU,
+	SHAN_CENTER_DEG, GONG_CENTER_DEG, HOUTIAN_POS } from './fengshuiData';
+import { LAIGONG_BOSHA_WUXING, LAIGONG_BOSHA_SUBLABEL, LAIGONG_BOSHA_NOTE } from './fengshuiLiqiDeepData';
+import { shuifa13, shuifa13Hit } from './fengshuiSanheShuifa';
 
 // 四大局：由水口(去水方/墓库)定局。火局墓戌·金局墓丑·水局墓辰·木局墓未。
 const SHUIKOU_JU = {
@@ -36,7 +39,8 @@ function guaOfShuangshan(shuangshan) {
 // 三合排盘：水口定局 → 24 山长生环 + 十二向 + 黄泉 + 拨砂 + 线法 + 老三合。
 //   shuiKou 去水方山名;waterFlow 左水倒右→旺向/右水倒左→生向;
 //   xiangFaType 显式立向法(覆盖 waterFlow);zuoDeg 坐山度数(线法/老三合);sands 八方砂{卦:sand|water|flat};boshaVariant 消砂法。
-export function sanhe({ shuiKou, waterFlow, xiangFaType, zuoDeg, sands = {}, boshaVariant = 'shuangshan' } = {}) {
+export function sanhe({ shuiKou, waterFlow, xiangFaType, zuoDeg, sands = {}, boshaVariant = 'shuangshan',
+	zuoShanForBosha = '', laiLong = '' } = {}) {
 	const ju = shuiKou ? juByShuiKou(shuiKou) : null;
 	const table = sanheChangshengTable();
 	let ring = null;
@@ -69,14 +73,40 @@ export function sanhe({ shuiKou, waterFlow, xiangFaType, zuoDeg, sands = {}, bos
 	}
 
 	// ── 拨砂五格（5.11）：以「我」之五行量八方砂卦正五行论生克。
-	//    「我」取法两说（古法并陈）：shuangshan＝以向双山三合五行（默认，通行）；zuo＝以坐山（向之对宫）五行。
+	//    「我」取法三说（古法并陈，切档即换判据，不可混算）：
+	//      shuangshan＝以向双山三合五行（默认，通行）
+	//      zuo       ＝以坐山（向之对宫）五行
+	//      laigong   ＝赖公拨砂法：用**人盘中针**，以坐山中针之字为「我」、砂峰中针之字为「他」，
+	//                  按赖公拨砂五行（太阳火/太阴火/木/金/水/土）论生克 —— 与前两档五行表不同源。
 	let bosha = null;
-	if (selected && selected.shuangshan) {
+	if (boshaVariant === 'laigong' && zuoShanForBosha) {
+		// 人盘中针较地盘正针退半山：该度在中针环读到的山 = shanAtDeg(deg + 7.5)。
+		const myShan = shanAtDeg(SHAN_CENTER_DEG[zuoShanForBosha] + 7.5);
+		const myWuxing = LAIGONG_BOSHA_WUXING[myShan] || null;
+		bosha = {
+			myWuxing, boshaVariant, myShan, myFrom: '坐山（人盘中针）',
+			mySub: LAIGONG_BOSHA_SUBLABEL[myShan] || null,
+			note: LAIGONG_BOSHA_NOTE,
+			sands: GUA8.map((g)=>{
+				const actual = sands[g] || 'flat';
+				if (actual !== 'sand') { return { gua: g, actual, wuGe: null }; }
+				// 砂峰亦取人盘中针之字（以该卦中心度 +7.5 读中针山）。
+				const shaShan = shanAtDeg(GONG_CENTER_DEG[HOUTIAN_POS[g]] + 7.5);
+				const shaWuxing = LAIGONG_BOSHA_WUXING[shaShan] || null;
+				const wg = (myWuxing && shaWuxing) ? boshaWuGe(myWuxing, shaWuxing) : null;
+				return { gua: g, actual, shaShan, shaWuxing, shaSub: LAIGONG_BOSHA_SUBLABEL[shaShan] || null, wuGe: wg };
+			}),
+		};
+	} else if (selected && selected.shuangshan) {
 		const xiangZhi = selected.shuangshan.slice(-1);
 		const myZhi = boshaVariant === 'zuo' ? (ZHI_CHONG[xiangZhi] || xiangZhi) : xiangZhi;
 		const myWuxing = ZHI_SANHE_JU[myZhi] || (ju ? JU_WUXING[ju] : null);
+		// 🔴 回落时必须**如实标注实际所用档**：选了赖公却没给坐山，本轮走的是双山表，
+		//    若仍回报 'laigong'，右栏会照赖公口径渲染出「·undefined山中针」的假标签。
+		const effVariant = boshaVariant === 'zuo' ? 'zuo' : 'shuangshan';
 		bosha = {
-			myWuxing, boshaVariant, myZhi, myFrom: boshaVariant === 'zuo' ? '坐山' : '向',
+			myWuxing, boshaVariant: effVariant, myZhi,
+			fellBack: boshaVariant === 'laigong' ? '赖公档需坐山（人盘中针），未给 → 本轮按双山三合五行' : null, myFrom: boshaVariant === 'zuo' ? '坐山' : '向',
 			sands: GUA8.map((g)=>{
 				const actual = sands[g] || 'flat';
 				if (actual !== 'sand') { return { gua: g, actual, wuGe: null }; }
@@ -85,6 +115,32 @@ export function sanhe({ shuiKou, waterFlow, xiangFaType, zuoDeg, sands = {}, bos
 			}),
 		};
 	}
+
+	// ── 格龙（龙法）：来龙山在本局十二长生环上所值之阶。
+	//    古籍口径：三合以四大局起长生，**左旋顺起论水、右旋逆起论龙**——水与龙两套方向，不可混用。
+	//    本模块只据长生环如实读出来龙所值阶并标生旺/死绝，不臆造未载的逆行细表。
+	let geLong = null;
+	if (ring && laiLong) {
+		const meta = SHAN_24[laiLong];
+		const zhi = meta ? (SANHE_SHUANGSHAN[laiLong] ? laiLong : null) : null;
+		// 来龙山 → 其所属双山（山名可能是干/维，取其双山组）。
+		const pair = ring.find((r)=>r.shuangshan.indexOf(laiLong) >= 0) || null;
+		if (pair) {
+			const good = ['长生', '冠带', '临官', '帝旺', '养'].indexOf(pair.stage) >= 0;
+			const bad = ['病', '死', '墓', '绝'].indexOf(pair.stage) >= 0;
+			geLong = {
+				laiLong, shuangshan: pair.shuangshan, stage: pair.stage,
+				jx: good ? 'good' : (bad ? 'bad' : 'neutral'),
+				text: `来龙${laiLong}（${pair.shuangshan}）在${ju}值「${pair.stage}」——${good ? '生旺之龙，可取' : (bad ? '死绝之龙，不宜' : '平常之阶，须细察')}`,
+				note: '三合以四大局起长生：左旋顺起论水、右旋逆起论龙，两套方向不可混用。',
+				zhi,
+			};
+		}
+	}
+
+	// ── 十三水法：本局长生环 → 13 条去水情况，并标出当前水口/水流所落之条 ──
+	const shuiFa13 = ju ? shuifa13(ju, ring) : null;
+	const shuiFa13Cur = shuiFa13 ? shuifa13Hit(shuiFa13, shuiKou, waterFlow) : null;
 
 	// ── 线法（5.12-14）+ 老三合纳音（5.15）：需坐山度数 ──
 	let xianfa = null; let laosanhe = null;
@@ -101,7 +157,7 @@ export function sanhe({ shuiKou, waterFlow, xiangFaType, zuoDeg, sands = {}, bos
 		available: !!ju, shuiKou, ju, juWuXing: ju ? JU_WUXING[ju] : null,
 		ring, table,
 		xiangFa, xiangFaAll, selectedType: useType,
-		huangquan, bosha, xianfa, laosanhe,
+		huangquan, bosha, xianfa, laosanhe, geLong, shuiFa13, shuiFa13Cur,
 		note: ju ? `水口落「${shuiKou}」属${ju}(墓库定局)` : '未定局(请选去水方/水口)',
 	};
 }

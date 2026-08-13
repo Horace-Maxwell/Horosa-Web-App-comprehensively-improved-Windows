@@ -2,7 +2,7 @@ import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
-import { ZERI_SUBTABS } from '../../constants/SubTabRegistry';
+import { ZERI_SUBTABS, rememberSubTab } from '../../constants/SubTabRegistry';
 import TianxingElectionMain from './TianxingElectionMain';
 import QimenZeriMain from './QimenZeriMain';
 
@@ -25,6 +25,7 @@ export default class ZeriMain extends Component{
 		super(props);
 		const subtab = this.props.currentSubTab ? this.props.currentSubTab : 'tianxing';
 		const tab = ZERI_SUBTABS.indexOf(subtab) >= 0 ? subtab : 'tianxing';
+		rememberSubTab('zeri', tab, ZERI_SUBTABS);
 		this.state = {
 			divId: 'div_' + randomStr(8),
 			currentTab: tab,
@@ -87,11 +88,13 @@ export default class ZeriMain extends Component{
 	componentDidUpdate(prevProps){
 		const next = this.props.currentSubTab;
 		if(next && next !== prevProps.currentSubTab && ZERI_SUBTABS.indexOf(next) >= 0 && next !== this.state.currentTab){
+			rememberSubTab('zeri', next, ZERI_SUBTABS);
 			this.setState({ currentTab: next });
 		}
 	}
 
 	changeTab(key){
+		rememberSubTab('zeri', key, ZERI_SUBTABS);
 		this.setState({ currentTab: key }, ()=>{
 			if(this.props.dispatch){
 				this.props.dispatch({ type: 'astro/save', payload: { currentSubTab: key } });

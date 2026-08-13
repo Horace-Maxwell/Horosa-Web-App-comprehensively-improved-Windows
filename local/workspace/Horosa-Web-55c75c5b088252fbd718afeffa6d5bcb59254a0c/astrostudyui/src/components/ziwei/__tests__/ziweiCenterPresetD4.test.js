@@ -57,8 +57,29 @@ describe('[D4] 中宫分派器/对宫线/太极角标(源码守卫)', ()=>{
 		const comm = fs.readFileSync(path.join(__dirname, '..', 'ZWCommHouse.js'), 'utf8');
 		expect(/taijiIdx === this\.houseIndex[\s\S]{0,160}drawCornerTag\(\['太', '极'\][\s\S]{0,80}, 2\)/.test(comm)).toBe(true);
 	});
-	test('信息按钮:clean 居中/有内容让位底部', ()=>{
-		expect(/zwCenterContent\(\) === 'clean'[\s\S]{0,120}this\.height - bh - 10/.test(center)).toBe(true);
+	// 原哨兵锚的是 `zwCenterContent() === 'clean' … this.height - bh - 10` 这组字面量。
+	// 2026-08-12 改：档位判据改走 resolveCenterMode()(借用中宫的策天/演禽各有各的档,不共用紫微那个键),
+	// 按钮落位改走 centerButtonTop()(与内容避让同一组常量)。**意图不变、表达变了**,故哨兵同步升级——
+	// 且比原来更强:多锁「两处判据同源」与「按钮几何来自常量而非写死数字」两条。
+	// 🔴 为什么不把代码改回旧形状迁就哨兵:两处各读各的判据正是要修的病
+	// (内容按 bazi 画了、按钮还按 clean 停在正中 = 按钮压在内容上)。
+	test('信息按钮:clean 居中/有内容让位底部;判据两处同源;几何取自常量', ()=>{
+		expect(/resolveCenterMode\(\) === 'clean'[\s\S]{0,160}this\.centerButtonTop\(\)/.test(center)).toBe(true);
+		// 内容分派与按钮落位必须问同一个判据(各读各的 = 按钮压内容)
+		expect(/drawCenterContent\(\)\{[\s\S]{0,120}this\.resolveCenterMode\(\)/.test(center)).toBe(true);
+		// 按钮顶边由 INFO_BTN_H/GAP 推出,内容避让读同一个方法 —— 两边分别写死数字必然错位。
+		// 不锁两常量的先后(实现可能先算底再减按钮高),只锁「两者都参与」。
+		const btnTopFn = center.slice(center.indexOf('\tcenterButtonTop(){'));
+		const btnTopBody = btnTopFn.slice(0, btnTopFn.indexOf('\n\t}\n'));
+		expect(btnTopBody.includes('INFO_BTN_H')).toBe(true);
+		expect(btnTopBody.includes('INFO_BTN_GAP')).toBe(true);
+		// 🔴 借用中宫的技法(策天/演禽)不画这颗按钮:它不透明,钉在中宫里会压住四柱与命星行
+		// (用户实报两处被挡后定案去掉)。早退必须在按钮绘制的最前面,且内容下边界随之放到中宫底。
+		expect(/drawInfoButton\(\)\{\s*\n\s*if\(this\.centerButtonHidden\(\)\)\{ return; \}/.test(center)).toBe(true);
+		expect(/centerButtonHidden\(\)\{[\s\S]{0,160}kinastroBorrowed/.test(center)).toBe(true);
+		expect(btnTopBody.includes('this.centerButtonHidden()')).toBe(true);
+		expect(center.includes('this.centerButtonTop()')).toBe(true);
+		expect(/bh = ZWCenterHouse\.INFO_BTN_H/.test(center)).toBe(true);
 	});
 });
 

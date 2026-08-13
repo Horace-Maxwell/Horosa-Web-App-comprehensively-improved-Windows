@@ -31,7 +31,7 @@ import LiuRengBirthInput from './LiuRengBirthInput';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+import { getKentangSavedCasePayload, caseFieldSnapshot, caseGenderValue } from '../../utils/kentangCaseSave';
 import {
 	getBirthGanzhiLocalCache,
 	getLiurengRunyearLocalCache,
@@ -5569,7 +5569,10 @@ class LiuRengMain extends Component{
 						gpsLat: flds.gpsLat.value,
 						gpsLon: flds.gpsLon.value,
 						pos: flds.pos ? flds.pos.value : '',
-						payload: payload,
+						gender: caseGenderValue(flds),
+						// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
+						// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
+						payload: { ...payload, fieldSnapshot: caseFieldSnapshot(flds) },
 						sourceModule: 'liureng',
 					},
 				},

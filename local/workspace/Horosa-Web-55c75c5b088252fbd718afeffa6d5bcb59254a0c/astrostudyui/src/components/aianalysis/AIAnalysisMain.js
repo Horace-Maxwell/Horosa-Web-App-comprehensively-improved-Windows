@@ -199,6 +199,11 @@ addFormats(ajv);
 // 否则标记会原样混进 prompt 正文。
 const PROMPT_CACHE_BP = '[[__CACHE_BP__]]';
 
+// 「一键挂载全部式法」的排除集。奇门遁甲=用户考量(不随一键带入,需手动勾选);
+// 黄历/通书=历注而非式法,一键带入只会稀释上下文。抽成常量而非写死在 filter 链里:
+// 逐项之间不再靠 && 串联,增删一项不必改表达式,且各构建可按自身式法集裁剪本表。
+const QUICK_MOUNT_EXCLUDED_KEYS = ['qimen', 'huangli', 'tongshu'];
+
 const COMMON_PROVIDER_OPTION_KEYS = ['extraHeaders', 'extraBody', 'apiVersion', 'requestTimeoutMs'];
 const PROVIDER_OPTION_KEY_MAP = {
 	openai: [],
@@ -4064,7 +4069,7 @@ function AIAnalysisMain(props){
 									<div className={styles.qcActions}>
 										{/* 一键挂载：含六爻(无存卦则按时间起卦,见 sixyao 时间起卦路径)；排除奇门遁甲(用户考量:奇门不随一键带入,需手动勾选)。
 										    六爻不进 TIME_CASTABLE_DIVINATION(保已存事盘不被时间凭空补六爻的护栏),仅在此一键集 + sixyao。 */}
-										{isNatal ? null : <Button size="small" type="primary" title="含六爻(无存卦则按时间起卦)、皇极经世、太玄、荆诀、五兆、神易数、小六壬、飞宫、小成图(时间卦)；奇门遁甲不随一键加入，需手动勾选" onClick={()=>setSelectedTechniqueKeys(listAnalysisTechniqueOptions({ sourceType: 'timepoint' }).map((o)=>o.value).filter((k)=>k !== 'qimen' && k !== 'finance' && k !== 'huangli' && k !== 'tongshu'))}>一键挂载全部式法</Button>}
+										{isNatal ? null : <Button size="small" type="primary" title="含六爻(无存卦则按时间起卦)、皇极经世、太玄、荆诀、五兆、神易数、小六壬、飞宫、小成图(时间卦)；奇门遁甲不随一键加入，需手动勾选" onClick={()=>setSelectedTechniqueKeys(listAnalysisTechniqueOptions({ sourceType: 'timepoint' }).map((o)=>o.value).filter((k)=>QUICK_MOUNT_EXCLUDED_KEYS.indexOf(k) < 0))}>一键挂载全部式法</Button>}
 										<Button size="small" onClick={handleSaveQuickDraftAsSource}>{isNatal ? '保存为命盘' : '保存为事盘'}</Button>
 									</div>
 									<div className={styles.qcHint}>{isNatal ? '默认设置即时起命盘（八字 / 紫微 / 星盘 / 各推运），可改时间·地点·时区；保存后进入案例列表复用。' : '统摄法 / 宿占 / 世俗盘 需手动起盘后存为事盘再挂载（凭时间起会得无意义默认值，不在白名单）；其余 卜卦 / 报数 / 起例 全部式法均可按起课时间即时起盘。'}</div>

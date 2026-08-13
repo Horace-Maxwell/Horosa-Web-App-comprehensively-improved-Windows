@@ -349,6 +349,35 @@ export default class FengShuiEngine {
 		return this.getRectCenter();
 	}
 
+	// 供「室内凶局几何自动检测」取用的结构化输入。
+	// 🔴 方位一律由本引擎的 getSectorForPoint 现算（含盘面旋转），检测侧不自铺九宫；
+	//    房屋框只是矩形，故无「轮廓多边形」——缺角一项会如实落在「未判之项」，不臆造。
+	// 🔴 中宫：扇区表 SECTORS 只有外八方、并无中宫，若只问 getSectorForPoint，
+	//    「卫生间在中宫」一项永不可能命中（＝死判据）。故中宫按九宫之常法取
+	//    房屋框的**居中九分之一**（先转入框的本地坐标，故随框旋转而动）。
+	inCenterPalace(pt) {
+		const center = this.getRectCenter();
+		const local = rotatePoint(pt, center, -this.rect.rotation);
+		return Math.abs(local.x - center.x) <= this.rect.w / 6
+			&& Math.abs(local.y - center.y) <= this.rect.h / 6;
+	}
+
+	buildNeijuGeoInput() {
+		if (!this.rect.active || !this.rect.w || !this.rect.h) { return null; }
+		const gongOf = (pt)=>{
+			if (this.inCenterPalace(pt)) { return 5; }
+			const s = this.getSectorForPoint(pt);
+			return s ? s.num : null;
+		};
+		const markers = this.currentModeMarkers().map((m)=>({ type: m.type, x: m.x, y: m.y, gong: gongOf(m) }));
+		return {
+			rect: { w: this.rect.w, h: this.rect.h },
+			outline: null,
+			markers,
+			gongAt: (x, y)=>gongOf({ x, y }),
+		};
+	}
+
 	getMaxDiskRadius(center) {
 		if (!this.rect.active) return 0;
 		const rc = this.getRectCenter();

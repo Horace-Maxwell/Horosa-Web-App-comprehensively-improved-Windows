@@ -1,5 +1,5 @@
 {
-	"schema": "geomancy.house_meanings/v1",
+	"schema": "geomancy.house_meanings/v2",
 	"houses": {
 		"1": {
 			"num": 1,
@@ -7,7 +7,8 @@
 			"theme": "本人·身体·生命·性格",
 			"sign": "Aries",
 			"ruler": "Mars",
-			"element": "Fire"
+			"element": "Fire",
+			"theme_detail": "我(个性(宫内星的影响)、形象(外貌、示人的映像、体质)、人生观)、幼年生活、头部"
 		},
 		"2": {
 			"num": 2,
@@ -15,7 +16,8 @@
 			"theme": "钱财·动产·收入·资源",
 			"sign": "Taurus",
 			"ruler": "Venus",
-			"element": "Earth"
+			"element": "Earth",
+			"theme_detail": "我的财(动产、正财、财运)、价值观(金钱观、物质观、安全感(物质上))、自卫的本能、颈部、喉咙"
 		},
 		"3": {
 			"num": 3,
@@ -23,7 +25,8 @@
 			"theme": "兄弟姊妹·近邻·短途·消息·沟通",
 			"sign": "Gemini",
 			"ruler": "Mercury",
-			"element": "Air"
+			"element": "Air",
+			"theme_detail": "兄弟姐妹、手足;沟通(言语交流、思维模式(心智)、交通、出行);基础教育;上肢、肩部、肺部、神经系统"
 		},
 		"4": {
 			"num": 4,
@@ -31,7 +34,8 @@
 			"theme": "父亲·家宅·田产·根基·结局",
 			"sign": "Cancer",
 			"ruler": "Moon",
-			"element": "Water"
+			"element": "Water",
+			"theme_detail": "家庭(父母关系(父亲偏重)、夫妻关系(成家后)、家庭观、安全感)、田宅(土地、不动产、墓地、矿产)、根源(泛指结束、死亡(与八宫同参))、晚年生活、胃、消化系统、胸部、胸廓"
 		},
 		"5": {
 			"num": 5,
@@ -39,7 +43,8 @@
 			"theme": "子女·恋爱享乐·怀孕·娱乐",
 			"sign": "Leo",
 			"ruler": "Sun",
-			"element": "Fire"
+			"element": "Fire",
+			"theme_detail": "子女(子女关系、孕育、生产)、快乐(娱乐:游戏、运动、性(与八宫同参)、创造力;恋爱)、投资、投机、偏财、赌博、心脏、家财"
 		},
 		"6": {
 			"num": 6,
@@ -47,7 +52,8 @@
 			"theme": "疾病·仆役雇员·小动物·劳作",
 			"sign": "Virgo",
 			"ruler": "Mercury",
-			"element": "Earth"
+			"element": "Earth",
+			"theme_detail": "同事、员工(对于老板)、宠物、健康状况、工作(工作态度、工作运、工作环境、不得不做的工作)、肠"
 		},
 		"7": {
 			"num": 7,
@@ -55,7 +61,8 @@
 			"theme": "配偶·婚姻·合伙·公开对手",
 			"sign": "Libra",
 			"ruler": "Venus",
-			"element": "Air"
+			"element": "Air",
+			"theme_detail": "夫妻(配偶相关、婚姻观)、一对一关系(合伙人、契约、一对一服务关系)、泛指与我相对的他人(敌人、竞争对手)、肾脏、膀胱"
 		},
 		"8": {
 			"num": 8,
@@ -63,7 +70,8 @@
 			"theme": "死亡·遗产·他人钱财·转化·恐惧",
 			"sign": "Scorpio",
 			"ruler": "Mars",
-			"element": "Water"
+			"element": "Water",
+			"theme_detail": "疾厄(健康:手术;灾祸:重生(心理)、死亡、遗产)、他人(七宫)的财(配偶的钱、借贷关系、钱财资助)、性(与五宫同参)、性器官、直肠、尿道"
 		},
 		"9": {
 			"num": 9,
@@ -71,7 +79,8 @@
 			"theme": "远行·宗教·学问·异乡·梦",
 			"sign": "Sagittarius",
 			"ruler": "Jupiter",
-			"element": "Fire"
+			"element": "Fire",
+			"theme_detail": "迁移(迁居、远行、长期旅行、出国、外国事物)、哲学观(宗教、学术(高等思想)、高等教育)、法律、印刷、出版(射手、木星)、臀部、大腿、坐骨神经"
 		},
 		"10": {
 			"num": 10,
@@ -79,7 +88,8 @@
 			"theme": "事业·名誉·上司君王·母亲·地位",
 			"sign": "Capricorn",
 			"ruler": "Saturn",
-			"element": "Earth"
+			"element": "Earth",
+			"theme_detail": "官禄(事业运势、上下关系与上司、人生志业(最高成就)与事业心)、外在表现(声誉、社会地位)、父母、权威、关节膝盖、骨骼牙齿"
 		},
 		"11": {
 			"num": 11,
@@ -87,7 +97,8 @@
 			"theme": "朋友·盟友·愿望·贵人",
 			"sign": "Aquarius",
 			"ruler": "Saturn",
-			"element": "Air"
+			"element": "Air",
+			"theme_detail": "福德、团体(朋友)、希望、小腿、踝部"
 		},
 		"12": {
 			"num": 12,
@@ -95,7 +106,8 @@
 			"theme": "秘密敌人·监禁·隐患·忧患",
 			"sign": "Pisces",
 			"ruler": "Jupiter",
-			"element": "Water"
+			"element": "Water",
+			"theme_detail": "隐秘(敌人、小人、潜意识、心灵层面、逃避世俗(宗教、五术))、果报(监狱、牢笼、拘束、痛苦)、大病、医院、足"
 		}
 	},
 	"question_house": {

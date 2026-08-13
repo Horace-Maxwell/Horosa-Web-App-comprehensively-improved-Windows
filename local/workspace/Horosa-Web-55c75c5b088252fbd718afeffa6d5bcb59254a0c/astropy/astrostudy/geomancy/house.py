@@ -6,7 +6,7 @@ from __future__ import annotations
 import random
 from typing import Dict, List, Optional
 
-from .figures import FIG_BY_INT, data, name
+from .figures import add, name, zodiac_of
 from .shield import Shield
 
 # 行星 → 所主图(昼/夜两图);交点各一图。
@@ -30,11 +30,45 @@ def house_chart_sequential(s: Shield) -> Dict[int, int]:
     return {h + 1: order[h] for h in range(12)}
 
 
+def house_chart_angular(s: Shield) -> Dict[int, int]:
+    """四正入宫(传本二式):四母入四正、四女入其续宫,四果宫另取对位两图相加之合成图。
+    母一→一宫、母二→十宫、母三→七宫、母四→四宫;女一→十一宫、女二→二宫、女三→八宫、女四→五宫;
+    三宫=盾三⊕盾六、六宫=盾二⊕盾五、九宫=盾一⊕盾八、十二宫=盾四⊕盾七。"""
+    M, D = s.mothers, s.daughters
+    return {
+        1: M[0], 10: M[1], 7: M[2], 4: M[3],
+        11: D[0], 2: D[1], 8: D[2], 5: D[3],
+        3: add(M[2], D[1]), 6: add(M[1], D[0]),
+        9: add(M[0], D[3]), 12: add(M[3], D[2]),
+    }
+
+
+# 盾位 1-12(四母·四女·四甥)→ 宫位(传本三式之置换)
+_GOLDEN_DAWN_HOUSES = [10, 1, 4, 7, 11, 2, 5, 8, 12, 3, 6, 9]
+
+
+def house_chart_golden_dawn(s: Shield) -> Dict[int, int]:
+    """近世学派入宫式:十二图按固定置换入宫(盾位一→十宫、盾位二→一宫、盾位三→四宫……)。"""
+    order = s.mothers + s.daughters + s.nieces
+    return {_GOLDEN_DAWN_HOUSES[i]: order[i] for i in range(12)}
+
+
+HOUSE_PLACEMENTS = ("sequential", "angular", "golden_dawn")
+
+
+def house_chart(s: Shield, placement: str = "sequential") -> Dict[int, int]:
+    """图形入宫三式分派。缺省顺铺 = 收编前唯一路径(默认字节零回归)。"""
+    if placement == "angular":
+        return house_chart_angular(s)
+    if placement == "golden_dawn":
+        return house_chart_golden_dawn(s)
+    return house_chart_sequential(s)
+
+
 def ascendant_sign(house_chart: Dict[int, int], zodiac_system: str = "classical") -> str:
-    """上升 = 第1宫图星座。zodiac_system: classical(古典定局体系) / planetary(行星归属体系)。"""
-    fd = data(house_chart[1])
-    sign = fd["zodiac_classical"] if zodiac_system == "classical" else fd["zodiac_planetary"]
-    return sign.rstrip("?")
+    """上升 = 第1宫图星座。zodiac_system: classical(古典定局体系) / planetary(行星归属体系) /
+    planetary_alt(行星归属·乙)。"""
+    return zodiac_of(house_chart[1], zodiac_system)
 
 
 def astro_place_planets_from_chart(house_chart: Dict[int, int]) -> Dict[str, List[int]]:
@@ -85,7 +119,7 @@ def derived_house(self_house: int, topic_house: int) -> int:
 
 # ── 占星定局配置:上升取法 与 宫制 ──
 HOUSE_SYSTEMS = ("whole_sign", "quadrant")
-ASC_SOURCES = ("h1_figure", "fresh_points")
+ASC_SOURCES = ("h1_figure", "fresh_points", "judge_figure")
 
 SIGN_ORDER = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
               "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
@@ -96,11 +130,13 @@ SIGN_ZH = {"Aries": "白羊", "Taurus": "金牛", "Gemini": "双子", "Cancer": 
 
 def ascendant_from_source(house_chart: Dict[int, int], zodiac_system: str = "classical",
                           asc_source: str = "h1_figure",
-                          rng: Optional[random.Random] = None) -> dict:
-    """上升取法两式(均为主流,应并存):
+                          rng: Optional[random.Random] = None,
+                          judge: Optional[int] = None) -> dict:
+    """上升取法三式(均有传本依据,应并存):
     甲 h1_figure —— 取第一宫之图,按所选星座体系得其星座为上升(缺省)。
     乙 fresh_points —— 另起四行点成一图,取其星座为上升。
-    乙式须用**独立子 rng**,不得污染盘序。"""
+    丙 judge_figure —— 取法官之图定上升(传本自出之法,可免「一宫星体必入庙」之弊)。
+    乙式须用**独立子 rng**,不得污染盘序;丙式未得法官时如实回落甲式。"""
     src = asc_source if asc_source in ASC_SOURCES else "h1_figure"
     if src == "fresh_points":
         r = rng or random
@@ -108,11 +144,13 @@ def ascendant_from_source(house_chart: Dict[int, int], zodiac_system: str = "cla
         for k in range(4):
             f |= (1 if r.randint(1, 2) == 1 else 0) << (3 - k)
         fig = f
+    elif src == "judge_figure" and judge is not None:
+        fig = judge
     else:
+        if src == "judge_figure":
+            src = "h1_figure"
         fig = house_chart[1]
-    fd = data(fig)
-    sign = (fd["zodiac_classical"] if zodiac_system == "classical"
-            else fd["zodiac_planetary"]).rstrip("?")
+    sign = zodiac_of(fig, zodiac_system)
     return {"asc_source": src, "figure": name(fig), "sign": sign,
             "sign_zh": SIGN_ZH.get(sign, sign)}
 

@@ -35,8 +35,10 @@ describe('塔罗穷尽压测 · 全牌组 × 全牌阵 × 全设置', ()=>{
 		DECK_IDS.forEach((id)=>{
 			const deck = getDeck(id);
 			deck.caps.spreads.forEach((sp)=>{
-				const posN = SPREADS[sp].positions.length;
+				const spDef = SPREADS[sp];
 				[true, false].forEach((reversals)=>{
+					// 单张逆位占卜特例:逆位开=恰 1 张(第一张逆位牌);逆位关=0 张+error 提示。
+					const posN = spDef.firstReversal ? (reversals ? 1 : 0) : spDef.positions.length;
 					[true, false].forEach((dignities)=>{
 						let r = null;
 						const settings = { reversals, dignities, seed: undefined };

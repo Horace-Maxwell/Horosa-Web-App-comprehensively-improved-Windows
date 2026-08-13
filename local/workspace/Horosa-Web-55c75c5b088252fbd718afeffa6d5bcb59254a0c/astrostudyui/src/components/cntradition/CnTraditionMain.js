@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
+import { CNTRADITION_SUBTABS, rememberSubTab } from '../../constants/SubTabRegistry';
 import GuaSymDesc from '../gua/GuaSymDesc';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 import { markPanelReady } from '../../utils/perfMark';
@@ -26,8 +27,8 @@ class CnTraditionMain extends Component{
 		super(props);
 
 		const subtab = this.props.currentSubTab ? this.props.currentSubTab : 'guasym';
-		const validTabs = ['guasym', 'cuangong12', 'pithy'];
-		const tab = validTabs.indexOf(subtab) >= 0 ? subtab : 'guasym';
+		const tab = CNTRADITION_SUBTABS.indexOf(subtab) >= 0 ? subtab : 'guasym';
+		rememberSubTab('cntradition', tab, CNTRADITION_SUBTABS);
 		this.state = {
 			divId: 'div_' + randomStr(8),
 			currentTab: tab,
@@ -97,6 +98,7 @@ class CnTraditionMain extends Component{
 
 	changeTab(key){
 		let hook = this.state.hook;
+		rememberSubTab('cntradition', key, CNTRADITION_SUBTABS);
 		this.setState({
 			currentTab: key,
 		}, ()=>{

@@ -330,6 +330,80 @@ CETIAN_BRIGHTNESS_TABLE = {
     "天哭": {1: "廟", 6: "廟", 8: "廟", 3: "旺"},
 }
 
+# 廟旺表·移語本口徑 依道藏系策天古籍《正命二十八宿移語》「諸星格」十九格逐星廟旺標注錄入。
+# 該書「廟旺圖」總表與諸星格分星標注偶有出入,以諸星格(逐星專論,有得地/失地文字互證)為準;
+# 廟旺圖全表另收入典籍資料層。與《十八飛星策天紫微斗數全集》卷三詩訣口徑(上表)為兩古籍
+# 分歧,由左欄「廟旺口徑」選項切換,默認移語本。值可為雙標(如文昌午「廟旺」),照錄。
+# 存疑處如實注:天姚格戌位原書作「虛廟」,按十二支序位認作戌廟;天貴格午位標「貴」非廟旺樂,不錄。
+CETIAN_BRIGHTNESS_TABLE_YIYU = {
+    "紫微": {0: "旺", 5: "廟", 8: "樂", 9: "廟", 11: "樂"},
+    "天虛": {1: "廟", 6: "廟", 7: "樂", 8: "廟", 9: "廟"},
+    "天貴": {0: "廟", 2: "廟", 3: "廟", 4: "廟", 5: "廟", 8: "廟", 11: "廟"},
+    "天印": {0: "廟", 3: "廟", 4: "廟", 9: "廟", 11: "廟"},
+    "天壽": {2: "廟", 9: "廟"},
+    "天空": {0: "廟", 1: "廟", 3: "廟", 4: "廟", 6: "廟", 7: "廟", 8: "廟", 9: "廟", 10: "廟", 11: "廟"},
+    "紅鸞": {1: "廟", 2: "廟", 3: "廟", 4: "廟", 11: "旺"},
+    "天庫": {3: "樂", 5: "廟", 6: "廟", 7: "樂", 11: "旺"},
+    "天貫": {3: "樂", 5: "旺", 6: "樂", 7: "廟", 11: "旺"},
+    "文昌": {2: "廟", 6: "廟旺", 10: "廟"},
+    "天福": {2: "旺", 3: "廟", 5: "樂", 6: "廟", 8: "廟"},
+    "天祿": {2: "廟", 3: "旺", 5: "旺", 8: "廟", 10: "廟"},
+    "天杖": {0: "廟旺", 1: "廟旺", 7: "廟旺", 8: "廟旺", 11: "廟旺"},
+    "天異": {1: "廟", 2: "樂", 4: "樂", 5: "樂", 8: "旺"},
+    "毛頭": {0: "廟旺", 2: "廟旺", 3: "廟旺", 7: "旺", 10: "廟旺"},
+    "天刃": {2: "廟", 5: "廟", 6: "廟", 8: "廟", 9: "廟"},
+    "天刑": {2: "廟", 3: "廟", 6: "廟旺", 9: "廟", 10: "廟"},
+    "天姚": {3: "廟", 4: "廟", 10: "廟", 11: "廟"},
+    "天哭": {1: "廟", 3: "廟", 4: "廟", 8: "廟"},
+}
+
+# 十九星志·移語本(阴阳/別名/得地宮/失地化名/統屬小星)。五行不在此表(仍以
+# CETIAN_STAR_ATTRIBUTES 為準,兩書口徑一致,零回歸)。統屬含原文版與整理修正版兩套。
+CETIAN_STAR_LORE = {
+    "紫微": {"yinyang": "陽", "aliases": ["龍德"], "dedi": [0, 5, 8, 9, 11], "dedi_note": "入子巳申酉亥名為登殿",
+             "shidi": "", "subordinates": ["孤神", "尚文", "天赦", "驲馬", "龍德", "南極"],
+             "subordinates_rev": ["孤神", "驲馬", "龍德", "玉堂", "天厄"]},
+    "天虛": {"yinyang": "陰", "aliases": ["積尸", "玉堂(丑午申)"], "dedi": [1, 6, 8], "dedi_note": "入丑午申號曰玉堂星",
+             "shidi": "歲破", "subordinates": ["積尸"], "subordinates_rev": ["歲破"]},
+    "天貴": {"yinyang": "陰", "aliases": ["太乙星"], "dedi": [2, 3, 4, 5, 8, 11], "dedi_note": "入寅卯辰巳申亥拜相封侯",
+             "shidi": "病符煞星", "subordinates": ["病符"], "subordinates_rev": ["三公", "軒昂"]},
+    "天印": {"yinyang": "陽", "aliases": ["天符帝星"], "dedi": [0, 3, 4, 11], "dedi_note": "在子辰卯亥主威權",
+             "shidi": "官符元神", "subordinates": ["官符", "天弁", "天廪", "天符"],
+             "subordinates_rev": ["官符", "天弁", "天符"]},
+    "天壽": {"yinyang": "陽", "aliases": ["歲星", "南極老人星"], "dedi": [2, 3, 9, 11], "dedi_note": "入亥酉卯寅大吉,主長壽主田莊",
+             "shidi": "太陰星", "subordinates": ["六害", "寶藏"], "subordinates_rev": ["六害", "南極", "尚文", "天梁"]},
+    "天空": {"yinyang": "陽", "aliases": ["天危星"], "dedi": [3, 4, 8, 9, 10, 11], "dedi_note": "入卯辰申酉戌亥宮為吉",
+             "shidi": "空亡·斷橋·喪門", "subordinates": ["空亡", "嗣管", "天狗", "玉堂", "歲破", "天厄", "斷橋", "喪門", "科名"],
+             "subordinates_rev": ["空亡", "嗣管", "斷橋", "喪門"]},
+    "紅鸞": {"yinyang": "陰", "aliases": ["御女", "六合喜神"], "dedi": [1, 2, 3, 4], "dedi_note": "入丑寅卯辰旌節廟廊",
+             "shidi": "計都星", "subordinates": ["計都", "三公", "御女"], "subordinates_rev": ["計都", "御女"]},
+    "天庫": {"yinyang": "陽", "aliases": ["天弁"], "dedi": [3, 5, 6, 7, 11], "dedi_note": "居卯巳午未亥位得地",
+             "shidi": "太歲", "subordinates": ["太歲"], "subordinates_rev": ["太歲", "天廪"]},
+    "天貫": {"yinyang": "陰", "aliases": ["寶藏"], "dedi": [3, 5, 6, 7, 11], "dedi_note": "在未卯巳午亥為得地;吉為寶藏天赦,凶為長繩勾絞",
+             "shidi": "病符", "subordinates": ["勾絞", "天厨"], "subordinates_rev": ["病符", "勾絞", "寶藏", "天赦"]},
+    "文昌": {"yinyang": "陽", "aliases": ["副館", "天文"], "dedi": [2, 6, 10], "dedi_note": "寅午戌三宮為得地,科甲之宿",
+             "shidi": "吊客", "subordinates": ["吊客"], "subordinates_rev": ["吊客", "天狗", "天魁", "科名"]},
+    "天福": {"yinyang": "陽", "aliases": ["三公"], "dedi": [2, 3, 5, 6, 8, 10], "dedi_note": "入寅午戌卯巳申為吉,失地亦不至凶",
+             "shidi": "", "subordinates": [], "subordinates_rev": ["天厨", "卷舌", "六合", "喜神"]},
+    "天祿": {"yinyang": "陽", "aliases": ["祿元星", "天廪星", "天厨星", "天財星"], "dedi": [2, 3, 5, 6, 8, 10], "dedi_note": "居寅午戌卯巳申為吉",
+             "shidi": "白虎", "subordinates": ["白虎"], "subordinates_rev": ["白虎"]},
+    "天杖": {"yinyang": "陽", "aliases": ["折威獄星", "天威(入廟)"], "dedi": [0, 1, 7, 8, 11], "dedi_note": "在子申亥丑未凡事稱心,入廟號曰天威主掌兵權",
+             "shidi": "", "subordinates": ["天獄", "喜神", "天威", "六合"], "subordinates_rev": ["天獄", "天威"]},
+    "天異": {"yinyang": "陰", "aliases": ["天佚"], "dedi": [1, 2, 4, 7, 10], "dedi_note": "入丑寅辰未戌博學多藝,司怪戾天地日月之變",
+             "shidi": "", "subordinates": ["天使", "司危"], "subordinates_rev": ["司怪"]},
+    "毛頭": {"yinyang": "陰", "aliases": ["司危", "孛星"], "dedi": [0, 2, 3, 7, 10], "dedi_note": "入子卯寅未戌為得地,英雄掣電",
+             "shidi": "破耗之宿", "subordinates": ["孛星", "天狼", "天梁", "羅睺"],
+             "subordinates_rev": ["孛星", "天狼", "羅睺", "天慧"]},
+    "天刃": {"yinyang": "陰", "aliases": ["羊刃天根"], "dedi": [2, 5, 6, 8], "dedi_note": "入寅午巳申乃稱威重,主陰惡殺伐之權",
+             "shidi": "", "subordinates": ["殺伐"], "subordinates_rev": ["殺伐", "積尸"]},
+    "天刑": {"yinyang": "陰", "aliases": ["軒昂", "權星", "天梁星", "天藻星(寅午戌酉廟地)"], "dedi": [2, 6, 9, 10], "dedi_note": "入寅午戌酉廟地為天藻星",
+             "shidi": "", "subordinates": ["司怪"], "subordinates_rev": ["天使", "司危"]},
+    "天姚": {"yinyang": "陽", "aliases": ["天慧", "桃花煞"], "dedi": [2, 3, 4, 10, 11], "dedi_note": "居亥位主風流才子,入寅卯辰戌宮主得陰人之喜",
+             "shidi": "", "subordinates": ["姚花", "天慧"], "subordinates_rev": ["桃花"]},
+    "天哭": {"yinyang": "陰", "aliases": ["天鬼孤星", "卷舌"], "dedi": [1, 3, 6, 8], "dedi_note": "入丑卯午申反悲作喜化凶為吉",
+             "shidi": "披麻哭泣之憂", "subordinates": ["孤星", "軒昂", "天魁", "卷舌"], "subordinates_rev": ["孤星"]},
+}
+
 # 原法(標準南派)亮度數值表 + 標籤——僅供左欄「原法」選項使用(非本書,係改寫前舊表)。
 CETIAN_BRIGHTNESS_TABLE_CLASSIC = {
     "紫微": [5, 6, 1, 4, 1, 6, 5, 5, 5, 2, 6, 4],
@@ -475,6 +549,10 @@ class CetianChart:
     method: str = "book"
     lunar_mode: str = "sxtwl"       # 'sxtwl'(修正) | 'classic'(原閏月法)
     star_order: str = "reverse"     # 'reverse'(逆布,書) | 'forward'(順布,原)
+    # 書法口徑選項回顯(移語本補齊,僅 book 法生效)
+    shen_gong_mode: str = "yizheng"     # 'yizheng'(引證圖口徑,默認) | 'literal'(正文直讀)
+    daxian_mode: str = "yiyu"           # 'yiyu'(陽年從命/陰年從身,默認) | 'legacy'(順從命/逆從身)
+    brightness_school: str = "yiyu"     # 'yiyu'(移語本諸星格,默認) | 'quanji'(全集本卷三詩訣)
 
 
 # ============================================================
@@ -808,13 +886,22 @@ def _build_cetian_palaces(
     star_flights: dict[str, dict],
     active_patterns: list[dict],
     is_yang_male_or_yin_female: bool,
+    is_yang_year: bool = True,
+    daxian_mode: str = "yiyu",
+    brightness_school: str = "yiyu",
 ) -> list[CetianPalace]:
     """建立十二宮位資料(雙法)。
     book(策天本法):書宮序逆轉、無宮干/四化/飛化/格局、亮度按「廟旺樂」表、大限起運一歲。
+      廟旺口徑:'yiyu'移語本諸星格(默認)|'quanji'全集本卷三詩訣。
+      大限口徑:'yiyu'陽年從命/陰年從身起,陽男陰女順/陰男陽女逆(移語本·立命宮節,默認)
+              |'legacy'順行恆從命/逆行恆從身(改寫前舊口徑)。
     kentang(原標準紫微嫁接):南派宮序、五虎遁宮干、數值亮度、四化/飛化/格局、大限五行局起運。
     """
     is_book = method != "kentang"
     seq = PALACE_SEQUENCE_BOOK if is_book else PALACE_SEQUENCE_CLASSIC
+    book_brightness = (
+        CETIAN_BRIGHTNESS_TABLE if brightness_school == "quanji" else CETIAN_BRIGHTNESS_TABLE_YIYU
+    )
     yin_stem = (2 * (year_stem % 5) + 2) % 10  # 五虎遁(原法宮干)
     palaces = []
     for idx in range(12):
@@ -833,7 +920,7 @@ def _build_cetian_palaces(
         brightness = {}
         if is_book:
             for star in all_stars:
-                label = CETIAN_BRIGHTNESS_TABLE.get(star, {}).get(branch, "")
+                label = book_brightness.get(star, {}).get(branch, "")
                 if label:
                     brightness[star] = label
         else:
@@ -854,8 +941,15 @@ def _build_cetian_palaces(
 
         # 大限
         if is_book:
-            order = (branch - ming_gong_branch + 12) % 12 if is_yang_male_or_yin_female \
-                else (shen_gong_branch - branch + 12) % 12
+            if daxian_mode == "legacy":
+                order = (branch - ming_gong_branch + 12) % 12 if is_yang_male_or_yin_female \
+                    else (shen_gong_branch - branch + 12) % 12
+            else:
+                # 移語本·立命宮節:起點=陽年從命宮/陰年從身宮;方向=陽男陰女順行/陰男陽女逆行。
+                # 引證圖運限(12歲寅→22丑→32子→42亥→52戌逆行)與此吻合。
+                start = ming_gong_branch if is_yang_year else shen_gong_branch
+                order = (branch - start + 12) % 12 if is_yang_male_or_yin_female \
+                    else (start - branch + 12) % 12
             da_xian_start = 1 + order * 10
         else:
             da_xian_num = ((12 - idx) % 12 if idx > 0 else 0) if is_yang_male_or_yin_female else idx
@@ -893,20 +987,30 @@ def compute_cetian_ziwei_chart(
     method: str = "book",
     lunar_mode: str = "sxtwl",
     star_order: str = "reverse",
+    shen_gong_mode: str = "yizheng",
+    daxian_mode: str = "yiyu",
+    brightness_school: str = "yiyu",
 ) -> CetianChart:
     """
     計算策天十八飛星紫微斗數命盤(雙法,由左欄選擇)。
 
     method='book' 策天本法(默認):天杖法定命身、(7+年支)起紫微、無五行局/宮干/四化/飛化/格局、
       廟旺樂亮度、節氣只取名;固定 sxtwl 農曆 + 正曜逆布。
+      書法口徑子選項(移語本補齊):
+        shen_gong_mode 身宮取整 'yizheng'引證圖口徑(默認)|'literal'正文直讀;
+        daxian_mode 大限起宮 'yiyu'陽年從命/陰年從身(默認)|'legacy'順從命/逆從身;
+        brightness_school 廟旺 'yiyu'移語本諸星格(默認)|'quanji'全集本詩訣。
     method='kentang' 原標準紫微嫁接法:五行局/按農曆日起紫微/命寅起月逆/四化/飛化/格局/數值亮度/
       節氣感傷詩/南派宮序;農曆(lunar_mode: sxtwl|classic)與正曜布法(star_order: reverse|forward)
-      由左欄子選項決定。
+      由左欄子選項決定。書法口徑子選項對原法無效。
     """
     swe.set_ephe_path("")
     is_book = method != "kentang"
     eff_lunar = "sxtwl" if is_book else lunar_mode
     eff_reverse = True if is_book else (star_order != "forward")
+    eff_shen_mode = shen_gong_mode if shen_gong_mode == "literal" else "yizheng"
+    eff_daxian_mode = daxian_mode if daxian_mode == "legacy" else "yiyu"
+    eff_brightness = brightness_school if brightness_school == "quanji" else "yiyu"
 
     decimal_hour = hour + minute / 60.0 - timezone
     jd = swe.julday(year, month, day, decimal_hour)
@@ -925,7 +1029,18 @@ def compute_cetian_ziwei_chart(
         # 書法起盤(天杖/年支)
         tian_zhang_branch = (1 - lunar_month) % 12
         ming_gong_branch = (tian_zhang_branch + 3 - hour_branch) % 12          # 安命例 p15
-        shen_gong_branch = (tian_zhang_branch - int((lunar_day - 1) // 2.5)) % 12  # 安身例 p15-16
+        # 安身:「從杖星處起初一,兩日半行一宮,逆數至生日」——起點與取整兩讀:
+        #   兩讀共守原文起點:初一必在杖星宮(偏移 0),分歧只在 2.5 日邊界的歸屬。
+        #   yizheng(默認) 引證圖口徑——進一法 ceil((日-1)/2.5):廿七→逆 11 宮→卯,
+        #     與引證圖盤面「身」及「格局曰/身宮曰」兩處文字三面互證;初一→偏移 0 亦合原文。
+        #   literal 正文直讀——捨去法 floor((日-1)/2.5):廿七→逆 10 宮→辰,改寫前口徑,字節保真。
+        #   兩讀逐日只差 0 或 1 宮(邊界日相同)。
+        #   🔴 曾誤用 ceil(日/2.5):初一被推到杖星逆一宮、與「起初一」直接抵觸,僅因廿七處
+        #     與引證圖巧合相等而未被單點金標咬出(30 日中 12 日落宮偏一位);雙約束(原文起點
+        #     + 引證圖)同時鎖定才是真解,故金標必兼測初一錨點。
+        offset = int((lunar_day - 1) // 2.5) if eff_shen_mode == "literal" \
+            else int(math.ceil((lunar_day - 1) / 2.5))
+        shen_gong_branch = (tian_zhang_branch - offset) % 12  # 安身例 p15-16
         ziwei_branch = (7 + year_branch) % 12                                  # 起紫微例 p11/13/14
         wu_xing_ju = 0
     else:
@@ -961,6 +1076,9 @@ def compute_cetian_ziwei_chart(
         method, ming_gong_branch, shen_gong_branch, year_stem, wu_xing_ju,
         stars_by_branch, aux_by_branch, sihua, star_flights, active_patterns,
         is_yang_male_or_yin_female,
+        is_yang_year=(yin_yang == "陽"),
+        daxian_mode=eff_daxian_mode,
+        brightness_school=eff_brightness,
     )
 
     return CetianChart(
@@ -982,6 +1100,9 @@ def compute_cetian_ziwei_chart(
         active_patterns=active_patterns,
         method=method, lunar_mode=eff_lunar,
         star_order=("reverse" if eff_reverse else "forward"),
+        shen_gong_mode=(eff_shen_mode if is_book else "yizheng"),
+        daxian_mode=(eff_daxian_mode if is_book else "yiyu"),
+        brightness_school=(eff_brightness if is_book else "yiyu"),
     )
 
 

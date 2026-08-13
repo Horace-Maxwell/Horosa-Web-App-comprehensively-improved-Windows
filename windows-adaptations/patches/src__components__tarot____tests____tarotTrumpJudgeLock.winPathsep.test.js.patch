@@ -1,0 +1,33 @@
+diff --git a/astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js b/astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js
+index c62ebed7..b25f640c 100644
+--- a/astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js
++++ b/astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js
+@@ -31,11 +31,18 @@ function walk(dir, out = []){
+ 	return out;
+ }
+ 
++// horosa_win_pathsep_posix_v1(仓内第 5 个宿主;建议上游化 Mac):
++// `path.relative` 在 Windows 返回反斜杠分隔(`decks\continental.js`),而下方 ALLOW /
++// ALLOW_IF_CORE78 白名单与 `toBe('engine/arcana.js')` 期望值都是 POSIX 写法 ⇒ 白名单恒查不中、
++// 期望值恒不等 ⇒ 六个合法豁免全被报成「字面量判据残留」、判据本体定义位置也判不等(macOS 恒绿)。
++// 归一到 POSIX 再比对;判据语义零放宽(仍是「白名单外一处都不许有」)。
++const relPosix = (from, to) => path.relative(from, to).split(path.sep).join('/');
++
+ describe('王牌判据总锁', () => {
+ 	test('除白名单外,塔罗全目录不得再出现 arcana === "major" 这类字面量判据', () => {
+ 		const offenders = [];
+ 		walk(DIR).forEach((file) => {
+-			const rel = path.relative(DIR, file);
++			const rel = relPosix(DIR, file);
+ 			if(ALLOW.includes(rel)){ return; }
+ 			const src = fs.readFileSync(file, 'utf8');
+ 			src.split('\n').forEach((line, i) => {
+@@ -51,7 +58,7 @@ describe('王牌判据总锁', () => {
+ 		const defs = [];
+ 		walk(DIR).forEach((file) => {
+ 			const src = fs.readFileSync(file, 'utf8');
+-			if(/function\s+isTrumpArcana\s*\(/.test(src)){ defs.push(path.relative(DIR, file)); }
++			if(/function\s+isTrumpArcana\s*\(/.test(src)){ defs.push(relPosix(DIR, file)); }
+ 		});
+ 		expect(defs.join(',')).toBe('engine/arcana.js');
+ 	});

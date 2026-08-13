@@ -65,17 +65,20 @@ describe('地占 · 中栏九式盘面冒烟', () => {
 	});
 });
 
-describe('地占 · 判读九步流程面板', () => {
-	test('九步全渲染且步序完整', () => {
+describe('地占 · 判读十二步流程面板', () => {
+	test('十二步全渲染且步序完整(传本解卦六步全覆盖)', () => {
 		const h = renderWith(CLASSIC, 'square');
 		expect(h).toContain('horosa-geomancy-flow');
-		// 九步逐条须在(缺一即为漏接)
-		// 九步文案逐字取自组件本体(renderFlowChecklist),不凭印象写 —— 写错就是在测自己的想象。
-		const steps = ['定主题之宫', '取两指示星', '查完美', '查阻碍', '相位与同伴',
-			'吉凶动静(位置)', '自然共主', '点之路·点数·调和者', '综合断'];
+		// 逐条须在(缺一即为漏接)。文案逐字取自组件本体(renderFlowChecklist),不凭印象写。
+		// 🔴 传本解卦六步为:①验一宫有效 ②法庭三角 ③精准相位 ④相位 ⑤参与卦 ⑥第十六卦宣判 ——
+		//    此十二步须把这六步全部覆盖,故在原九步上补「验卦盘有效」「看法庭三角」「看宣判(补卦)」三步。
+		const steps = ['验卦盘有效', '定主题之宫', '取两指示星', '看法庭三角', '查完美', '查阻碍',
+			'相位与同伴', '吉凶动静(位置)', '自然共主', '点之路·点数', '看宣判(补卦)', '综合断'];
 		const missing = steps.filter((s) => h.indexOf(s) < 0);
 		expect(missing).toEqual([]);
-		expect((h.match(/horosa-geomancy-flow-step/g) || []).length).toBe(9);
+		expect((h.match(/horosa-geomancy-flow-step/g) || []).length).toBe(12);
+		// 标题随步数自动改写,不得写死「九步」
+		expect(h).toContain('判读流程 · 12步');
 	});
 });
 
@@ -203,10 +206,12 @@ describe('地占 · B3/B6 技法卡:行数恒定 + 两组分列 + 未命中不�
 		expect(rowCount(rich)).toBeGreaterThanOrEqual(12);
 	});
 
-	test('十三项技法逐条恒在其位(缺一即为又退回条件渲染)', () => {
+	test('二十一项技法逐条恒在其位(缺一即为又退回条件渲染)', () => {
 		const h = renderAux(LIVE.tech_sparse);
 		['完美', '阻碍', '点数是否', '应期', '数量', '点之路', '自然共主',
-			'位置', '移动', '中介', '同伴', '相位', '黄道宫三方'].forEach((k) => {
+			'位置', '移动', '中介', '同伴', '相位', '黄道宫三方',
+			// 传本补齐八项:引擎无此键的旧样本亦须显「—」而非整行消失
+			'有效性', '法庭三角', '成败判定', '得地', '寻源四线', '元素法', '福点灵点', '宣判'].forEach((k) => {
 			expect(h).toContain(`<span>${k}</span>`);
 		});
 	});
@@ -288,7 +293,8 @@ describe('地占 · U1 右栏五页签各司其职', () => {
 	test('每条判据各占一整行(单列栅格),不再两列并排', () => {
 		const h = renderToStaticMarkup(inst().renderJudgementTab());
 		expect(h).toContain('horosa-geomancy-tech-list');
-		expect((h.match(/horosa-geomancy-tech-row/g) || []).length).toBe(13);
+		// 13 项旧技法 + 8 项传本补齐(有效性/法庭三角/成败判定/得地/寻源四线/元素法/福点灵点/宣判)
+		expect((h.match(/horosa-geomancy-tech-row/g) || []).length).toBe(21);
 	});
 });
 
@@ -407,5 +413,229 @@ describe('地占 · 十二宫行:图名/副名/角色须各自独立成项(防�
 	});
 	test('副名独立成项,每宫一个', () => {
 		expect((html().match(/horosa-geomancy-house-figure-alt/g) || []).length).toBe(12);
+	});
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// 传本《基础》对齐:行星地占盘 / 得地角标与时间流 / 寻源四线 / 法庭三角 /
+//   地占三角两派 / 盾位十六宫 / 目录新行 / 入宫三式 / 报数
+// 四份新样本(book_pchart / book_angular / book_gd / book_numbers)同为 :8897 真跑实抓。
+// ══════════════════════════════════════════════════════════════════════
+describe('地占 · 传本对齐:行星地占盘', () => {
+	test('开盘样本才出该视图钮,未开之样本不摆死按钮', () => {
+		// ⚠️ 「行星地占盘」四字左栏节标题亦有,故须只截中栏切换钮那一条(否则测的是节标题)
+		const bar = (h) => (h.match(/horosa-geomancy-board-switch">([\s\S]*?)<\/div>/) || ['', ''])[1];
+		expect(bar(renderWith(LIVE.book_pchart, 'square'))).toContain('行星地占盘');
+		expect(bar(renderWith(CLASSIC, 'square'))).not.toContain('行星地占盘');
+		expect(bar(renderWith(CLASSIC, 'square'))).toContain('护盾方盘');   // 反证:截段本身取到了
+	});
+	test('视图渲染:三环 + 十二宫星座 + 七政字形 + 盘心上升', () => {
+		const h = renderWith(LIVE.book_pchart, 'planetwheel');
+		expect(h).toContain('horosa-geomancy-wheel-svg');
+		expect((h.match(/horosa-geomancy-wheel-num/g) || []).length).toBe(12);
+		// 七政 + 北交南交 + 月孛三王星 = 13 枚(南交无报数,取对宫)
+		expect((h.match(/horosa-geomancy-wheel-planet/g) || []).length).toBe(13);
+		expect(h).toContain('上升');
+		expect(h).toContain('除十二取余');
+	});
+	test('未开该盘时切到该视图自动回落护盾方盘(不留空盘)', () => {
+		const h = renderWith(CLASSIC, 'planetwheel');
+		expect(h).toContain('horosa-geomancy-shield-grid');
+	});
+	test('右栏落宫表逐星出报数明细,南交标明取对宫', () => {
+		const inst = new GeomancyMain(PROPS);
+		inst.props = PROPS;
+		inst.state = { ...inst.state, result: LIVE.book_pchart, loading: false };
+		const h = renderToStaticMarkup(inst.renderJudgementTab());
+		expect(h).toContain('horosa-geomancy-pchart-table');
+		expect(h).toContain('报数');
+		expect(h).toContain('取北交对宫');
+	});
+});
+
+describe('地占 · 传本对齐:盾面得地角标与时间流', () => {
+	const h = () => renderWith(LIVE.book_pchart, 'square');
+	test('十六格各有得地角标(不取调和者之末位除外)', () => {
+		const n = (h().match(/horosa-geomancy-shield-tenancy/g) || []).length;
+		expect(n).toBeGreaterThanOrEqual(15);
+		expect(n).toBeLessThanOrEqual(16);
+	});
+	test('四档记号只用 ◎○◇✕ 四者,且带元素释义 title', () => {
+		const marks = h().match(/horosa-geomancy-shield-tenancy is-(full|assist|stall|weak)"/g) || [];
+		expect(marks.length).toBeGreaterThanOrEqual(15);
+		expect(h()).toMatch(/入[火风水土]位/);
+	});
+	test('时间流三标恰三枚,且逐枚贴对其位(右证过去/左证未来/判官现在)', () => {
+		const html = h();
+		const marks = (html.match(/horosa-geomancy-shield-time">([^<]+)</g) || [])
+			.map((x) => x.replace(/.*">/, '').replace('<', ''));
+		expect(marks.sort()).toEqual(['过去', '现在', '未来'].sort());
+		// 🔴 逐枚贴位(而非只看三字都在):旧 AI 文案正是把「现在」贴给了左证
+		expect(html).toContain('右见证<em class="horosa-geomancy-shield-time">过去</em>');
+		expect(html).toContain('左见证<em class="horosa-geomancy-shield-time">未来</em>');
+		expect(html).toContain('判官<em class="horosa-geomancy-shield-time">现在</em>');
+	});
+});
+
+describe('地占 · 传本对齐:寻源四线', () => {
+	test('金字塔盘出四线钮,阴爻之线弱化标出', () => {
+		const h = renderWith(LIVE.book_pchart, 'pyramid');
+		expect(h).toContain('horosa-geomancy-pyr-lines');
+		['火', '风', '水', '土'].forEach((k) => expect(h).toContain(`>${k}</button>`));
+	});
+	test('切线即改所示之线(默认火线,切土线文案随之)', () => {
+		const fire = renderWith(LIVE.book_pchart, 'pyramid', { pyrLine: 'fire' });
+		const earth = renderWith(LIVE.book_pchart, 'pyramid', { pyrLine: 'earth' });
+		expect(fire).not.toBe(earth);
+		expect(`${fire}${earth}`).toMatch(/线贯通|线:法官此行阴爻/);
+	});
+	test('技法卡「寻源四线」一行四线俱列', () => {
+		const inst = new GeomancyMain(PROPS);
+		inst.props = PROPS;
+		inst.state = { ...inst.state, result: LIVE.book_pchart, loading: false };
+		const h = renderToStaticMarkup(inst.renderTechniqueCard(LIVE.book_pchart.reading));
+		expect(h).toContain('<span>寻源四线</span>');
+		expect(h).toMatch(/我方|对方|不可由此寻/);
+	});
+});
+
+describe('地占 · 传本对齐:法庭三角 / 地占三角 / 盾位十六宫', () => {
+	const aux = (res, extra) => {
+		const inst = new GeomancyMain(PROPS);
+		inst.props = PROPS;
+		inst.state = { ...inst.state, result: res, loading: false, ...(extra || {}) };
+		return renderToStaticMarkup(inst.renderTechniqueCard(res.reading));
+	};
+	test('法庭三角详卡:三格时间流 + 合断文案', () => {
+		const h = aux(LIVE.book_pchart);
+		expect(h).toContain('horosa-geomancy-court-row');
+		expect((h.match(/horosa-geomancy-court-cell/g) || []).length).toBe(3);
+		expect(h).toContain('法庭三角 · 时间流');
+		expect(h).toContain('勿合用');
+	});
+	test('未载之组合如实标出,绝不臆造断语', () => {
+		const h = aux(LIVE.book_pchart) + aux(CLASSIC) + aux(LIVE.tech_rich);
+		// 传本表只列十行,余者一律标未载(本仓实测 23 种可达组合中多数未载)。
+		// ⚠️ 逗号须与常量同为半角 —— 全角写法曾使此断言假红。
+		expect(h).toMatch(/传本表未载此组合,当具体分析|自天佑之|终吉|无成有终|井渫不食|行道偏欹/);
+		// 「吉吉吉」结构不可达(全 16⁴ 穷举实证),故任何真样本都不该出现自天佑之之断
+		expect(h).not.toContain('吉,自天佑之');
+	});
+	test('地占三角四组 + 两派含义可切且真改文字', () => {
+		const a = aux(LIVE.book_pchart, { triangleSchool: 'recent' });
+		const b = aux(LIVE.book_pchart, { triangleSchool: 'renaissance' });
+		expect((a.match(/horosa-geomancy-triangle-row/g) || []).length).toBe(4);
+		expect(a).toContain('事件目前情况');
+		expect(b).toContain('事主未来的自我状况');
+		expect(a).not.toBe(b);
+	});
+	test('盾位十六宫:十六行 + 边界警示 + 加强某宫之注', () => {
+		const h = aux(LIVE.book_pchart);
+		expect((h.match(/horosa-geomancy-shield16-row/g) || []).length).toBe(16);
+		expect(h).toContain('不要与法庭三角、地占三角合用');
+		expect(h).toContain('加强一宫');
+	});
+});
+
+describe('地占 · 传本对齐:入宫三式与报数', () => {
+	test('四正入宫:果宫为合成卦,页首如实交代', () => {
+		const inst = new GeomancyMain(PROPS);
+		inst.props = PROPS;
+		inst.state = { ...inst.state, result: LIVE.book_angular, loading: false, readingScope: 'L4' };
+		const h = renderToStaticMarkup(inst.renderHousesTab());
+		expect(h).toContain('四正入宫式');
+		expect(h).toContain('合成卦');
+	});
+	test('近世置换入宫:页首另有其注', () => {
+		const inst = new GeomancyMain(PROPS);
+		inst.props = PROPS;
+		inst.state = { ...inst.state, result: LIVE.book_gd, loading: false, readingScope: 'L4' };
+		expect(renderToStaticMarkup(inst.renderHousesTab())).toContain('近世学派置换入宫');
+	});
+	test('三式宫图真分野(顺铺 / 四正 / 近世 两两互异)', () => {
+		const seq = renderWith(CLASSIC, 'squarehouse');
+		const ang = renderWith(LIVE.book_angular, 'squarehouse');
+		const gd = renderWith(LIVE.book_gd, 'squarehouse');
+		expect(new Set([seq, ang, gd]).size).toBe(3);
+	});
+	test('报数样本:起卦法与所报之数如实入快照', () => {
+		const s = buildGeomancySnapshotText(LIVE.book_numbers);
+		expect(s).toContain('起卦=报数');
+		expect(s).toContain('黄道=行星归属·乙');
+		expect(s).toContain('上升=取法官之图');
+	});
+});
+
+describe('地占 · 传本对齐:AI 快照六新段与时间流纠错', () => {
+	const S = () => buildGeomancySnapshotText(LIVE.book_pchart);
+	test('六新段段头俱在', () => {
+		['[法庭三角]', '[有效性判断]', '[盾面得地]', '[元素与寻源]', '[成败与福灵点]', '[行星地占盘]']
+			.forEach((k) => expect(S()).toContain(k));
+	});
+	test('🔴 时间流按传本:右证过去 / 法官现在 / 左证未来(旧作左证=现在,与传本相左)', () => {
+		const s = S();
+		expect(s).toContain('右证(过去/问者/事主)');
+		expect(s).toContain('左证(未来/所问/条件环境)');
+		expect(s).toContain('判官(现在)');
+		expect(s).not.toContain('左证(现在/所问)');
+	});
+	test('元素法与得地恒随「非吉凶之判」「四档」之注,不让 AI 当吉凶用', () => {
+		const s = S();
+		expect(s).toContain('皆非吉凶之判');
+		expect(s).toContain('全同者最强');
+	});
+	test('成败段恒带「只判成否」告诫;福灵点给宫位与总数', () => {
+		const s = S();
+		expect(s).toContain('只判成否');
+		expect(s).toMatch(/福点：第 \d+ 宫/);
+		expect(s).toMatch(/灵点：第 \d+ 宫/);
+	});
+	test('段头全部落在 aiExport 之 geomancy 预设登记内(加段不升迁移版本)', () => {
+		/* eslint-disable global-require */
+		const { AI_EXPORT_PRESET_SECTIONS } = require('../../../utils/aiExport');
+		const reg = (AI_EXPORT_PRESET_SECTIONS || {}).geomancy || [];
+		const heads = (S().match(/^\[(.+?)\]$/gm) || []).map((x) => x.slice(1, -1));
+		expect(heads.length).toBeGreaterThan(0);
+		heads.forEach((k) => expect(reg).toContain(k));
+	});
+});
+
+describe('地占 · 左栏闭合态短名(选项被遮挡之根治)', () => {
+	const mk = (res) => { const i = new GeomancyMain(PROPS); i.props = PROPS;
+		i.state = { ...i.state, result: res, loading: false }; return i; };
+
+	test('🔴 流派下拉:后端回传覆盖时短名不得丢(丢了窄屏即被省略号截断)', () => {
+		// 后端只回 {id,label} 无 short —— 若直接用,闭合态就退回长名(实测 1180px 下 63/57px 被截)
+		const opts = mk(CLASSIC).traditionOptions();
+		expect(opts.length).toBeGreaterThanOrEqual(7);
+		opts.forEach((o) => {
+			expect(typeof o.label === 'string' && o.label.length > 0).toBe(true);
+			expect(typeof o.short === 'string' && o.short.length > 0).toBe(true);   // 九档全有短名
+			expect(o.short.length).toBeLessThanOrEqual(4);                          // 一行两个之框只容四字
+		});
+	});
+
+	test('起盘前用静态表(七档,少的两档是既有约定)、起盘后随后端(九档)', () => {
+		const before = mk(null).traditionOptions();
+		const after = mk(CLASSIC).traditionOptions();
+		expect(before.length).toBe(7);
+		expect(after.length).toBe(9);
+		before.forEach((o) => expect(o.short.length).toBeLessThanOrEqual(4));
+	});
+
+	test('全部选项表之短名皆 ≤5 字(闭合态方不被截)', () => {
+		/* eslint-disable global-require */
+		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		const shorts = (src.match(/short: '([^']+)'/g) || []).map((x) => x.replace(/short: '|'/g, ''));
+		expect(shorts.length).toBeGreaterThanOrEqual(70);
+		const tooLong = shorts.filter((x) => x.length > 5);
+		expect(tooLong).toEqual([]);
+	});
+
+	test('高级传本闭合态为「随·短值」形态(既短又明示跟随预设)', () => {
+		/* eslint-disable global-require */
+		const src = require('fs').readFileSync(require.resolve('../GeomancyMain'), 'utf8');
+		expect(src).toContain('`随·${this.effShort(f)}`');
+		expect(src).toContain('optionLabelProp="label"');
 	});
 });

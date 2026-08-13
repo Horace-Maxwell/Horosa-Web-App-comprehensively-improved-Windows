@@ -1,9 +1,9 @@
 // [P3] 小成图 · 组合压测:起卦法三模式 × 配数流派 × 动爻多选 × 用宫全档 —— 起卦/佈局/推导/快照全链。
 import {
-	qiGuaManual, qiGuaByNumbers, qiGuaByStock, guaByTianDiShu, guaByXianTian, flipYao, linesOfHex,
+	qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByYaoQian, guaByTianDiShu, guaByXianTian, flipYao, linesOfHex,
 } from '../core/xiaochengtuQiGua';
-import { buildPan, tuiDao, shuZhan, siXiangOfHex, fuDu } from '../core/xiaochengtuPan';
-import { DI_PAN } from '../core/xiaochengtuConst';
+import { buildPan, tuiDao, shuZhan, siXiangOfHex, fuDu, yingQiTui } from '../core/xiaochengtuPan';
+import { DI_PAN, ZHI_YUE } from '../core/xiaochengtuConst';
 import { buildXiaoChengTuSnapshotText } from '../XiaoChengTuMain';
 
 const GUA8 = ['乾', '兑', '离', '震', '巽', '坎', '艮', '坤'];
@@ -97,5 +97,46 @@ describe('[P3] 小成图组合压测 · 股价起卦', ()=>{
 	});
 	test('涨跌/幅度派生不抛(八卦全档)', ()=>{
 		GUA8.forEach((g)=>{ expect(()=>fuDu(g)).not.toThrow(); });
+	});
+});
+
+describe('[P3] 小成图组合压测 · 应期推演链(64 本卦 × 8 用宫 = 512 局)', ()=>{
+	test('全局不抛;成链者字段自洽(月为十二月建之一、日为初/十/二十某)', ()=>{
+		let full = 0;
+		GUA8.forEach((up)=>{
+			GUA8.forEach((lo)=>{
+				const pan = buildPan(qiGuaManual({ up, lo, dongYaos: [2, 5] }));
+				Object.keys(DI_PAN).map(Number).forEach((g0)=>{
+					const r = yingQiTui(pan, g0);
+					expect(r).toBeTruthy();
+					expect(Array.isArray(r.steps)).toBe(true);
+					if(r.zhi){ expect(Object.keys(ZHI_YUE)).toContain(r.zhi); }
+					if(r.yue){ expect(r.yue).toBe(ZHI_YUE[r.zhi]); }
+					if(r.ri){ expect(r.ri).toMatch(/^(初|十|二十)[一二三四五六七八九]$/); }
+					if(r.summary && r.yue && r.ri){ expect(r.summary).toBe(`农历${r.yue}${r.ri}`); full += 1; }
+				});
+			});
+		});
+		// 绝大多数局能推完整链(留档实测值,防日后静默退化成「全靠早退」)
+		expect(full).toBeGreaterThan(400);
+	});
+	test('无效入参 → null 安全(不炸推演页/AI 导出)', ()=>{
+		expect(yingQiTui(null, 1)).toBe(null);
+		expect(yingQiTui({ tianPan: {} }, 5)).toBe(null);   // 中五非地盘宫
+		expect(yingQiTui({ tianPan: {} }, 1)).toMatchObject({ start: 1, steps: [] });
+	});
+});
+
+describe('[P3] 小成图组合压测 · 摇钱三变(种子域)', ()=>{
+	test('种子 1..300:必成卦、counts 域合法、之卦=翻动爻自洽', ()=>{
+		for(let s = 1; s <= 300; s += 1){
+			const qi = qiGuaByYaoQian({ seed: s });
+			expect(qi).toBeTruthy();
+			expect(qi.counts).toHaveLength(6);
+			qi.counts.forEach((c)=>expect([6, 7, 8, 9]).toContain(c));
+			const expZhi = qi.dongYaos.length ? flipYao(qi.ben.lines, qi.dongYaos) : qi.ben.lines;
+			expect(qi.zhi.lines).toEqual(expZhi);
+			expect(buildPan(qi)).toBeTruthy();
+		}
 	});
 });

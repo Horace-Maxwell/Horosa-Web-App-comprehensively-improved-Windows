@@ -1,5 +1,5 @@
 {
-	"schema": "geomancy.figures/v1",
+	"schema": "geomancy.figures/v2",
 	"count": 16,
 	"figures": {
 		"15": {
@@ -36,7 +36,15 @@
 			"planet_zh": "太阴",
 			"quality_zh": "变动",
 			"name_arabic_script": "طريق",
-			"direction_compass": "西"
+			"direction_compass": "西",
+			"tone_book": "neutral",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Cancer",
+			"kabbalah": [
+				"Yesod"
+			],
+			"body_detail_zh": "胃、消化器官",
+			"imagery_zh": "道路、河流、必然的改变、灵活、变通、难以预测、善变;孤独、目标感明确"
 		},
 		"14": {
 			"int": 14,
@@ -72,7 +80,16 @@
 			"planet_zh": "计都(龙尾)",
 			"quality_zh": "变动",
 			"name_arabic_script": "عتبة الخارجة",
-			"direction_compass": "南"
+			"direction_compass": "南",
+			"tone_book": "bad",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Scorpio",
+			"kabbalah": [
+				"Malkuth",
+				"Yesod"
+			],
+			"body_detail_zh": "左臂、排泄系统",
+			"imagery_zh": "坠龙——事物的结束、已完成、定型、无法修改、无法补救、不能落实、不存在、失落、遗憾、反思;潜龙、藏而不用"
 		},
 		"13": {
 			"int": 13,
@@ -108,7 +125,15 @@
 			"planet_zh": "火星",
 			"quality_zh": "变动",
 			"name_arabic_script": "فرح",
-			"direction_compass": "东"
+			"direction_compass": "东",
+			"tone_book": "neutral",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Aries",
+			"kabbalah": [
+				"Geburah"
+			],
+			"body_detail_zh": "头、五官",
+			"imagery_zh": "男子——年轻、有活力、意气风发;剑——冲突、武力、激进、掠夺感;不善沟通、鲁莽、强势、冲动、无感、原则做事"
 		},
 		"12": {
 			"int": 12,
@@ -144,7 +169,15 @@
 			"planet_zh": "太阳",
 			"quality_zh": "稳定",
 			"name_arabic_script": "نصرة الخارج",
-			"direction_compass": "南"
+			"direction_compass": "南",
+			"tone_book": "good",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Leo",
+			"kabbalah": [
+				"Tiphareth"
+			],
+			"body_detail_zh": "脊柱、后背中上部",
+			"imagery_zh": "落果——迅速、短暂、下落、不稳定、外力作用结果、短期获利;树根(无水土)——寻求根基、不牢靠"
 		},
 		"11": {
 			"int": 11,
@@ -180,7 +213,15 @@
 			"planet_zh": "金星",
 			"quality_zh": "稳定",
 			"name_arabic_script": "نقي",
-			"direction_compass": "西"
+			"direction_compass": "西",
+			"tone_book": "weak_good",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Taurus",
+			"kabbalah": [
+				"Netzach"
+			],
+			"body_detail_zh": "背部臀部、肾脏",
+			"imagery_zh": "女子、花——美丽、温柔、细腻、纯洁美好、善倾听、善变、短暂的美好、伪装、表面的、不理性、感性、缺乏创造力、保守、平淡"
 		},
 		"10": {
 			"int": 10,
@@ -216,7 +257,15 @@
 			"planet_zh": "金星",
 			"quality_zh": "变动",
 			"name_arabic_script": "قبض الخارج",
-			"direction_compass": "南"
+			"direction_compass": "南",
+			"tone_book": "bad",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Libra",
+			"kabbalah": [
+				"Netzach"
+			],
+			"body_detail_zh": "肩膀、脖子、喉咙",
+			"imagery_zh": "覆碗——失去、丢失、拒绝、等价交换;感情方面:有激情、感情,无沟通、物质基础"
 		},
 		"9": {
 			"int": 9,
@@ -252,7 +301,15 @@
 			"planet_zh": "土星",
 			"quality_zh": "稳定",
 			"name_arabic_script": "عقلة",
-			"direction_compass": "北"
+			"direction_compass": "北",
+			"tone_book": "bad",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Capricorn",
+			"kabbalah": [
+				"Binah"
+			],
+			"body_detail_zh": "膝盖、骨头",
+			"imagery_zh": "圈环、围墙——约束、契约、约定、画地为牢、圈地自嗨、循环、重复、思而不行;强制性保护、圈套;(围墙能否突破?)"
 		},
 		"8": {
 			"int": 8,
@@ -288,7 +345,15 @@
 			"planet_zh": "木星",
 			"quality_zh": "变动",
 			"name_arabic_script": "لحيان",
-			"direction_compass": "南"
+			"direction_compass": "南",
+			"tone_book": "good",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Sagittarius",
+			"kabbalah": [
+				"Chesed"
+			],
+			"body_detail_zh": "脚、体脂",
+			"imagery_zh": "房屋——快乐、安全感、被保护;艳丽而短暂、利近不利远、天下无不散之筵席、快速消耗、来去匆匆、基础不牢"
 		},
 		"7": {
 			"int": 7,
@@ -324,7 +389,16 @@
 			"planet_zh": "罗睺(龙首)",
 			"quality_zh": "稳定",
 			"name_arabic_script": "عتبة الداخلة",
-			"direction_compass": "北"
+			"direction_compass": "北",
+			"tone_book": "good",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Capricorn",
+			"kabbalah": [
+				"Malkuth",
+				"Yesod"
+			],
+			"body_detail_zh": "右臂、嘴、感觉器官",
+			"imagery_zh": "升龙——事物的开始、萌芽;紧张、期待、不可阻挡的进展;亢龙、物极而衰"
 		},
 		"6": {
 			"int": 6,
@@ -360,7 +434,15 @@
 			"planet_zh": "水星",
 			"quality_zh": "变动",
 			"name_arabic_script": "اجتماع",
-			"direction_compass": "东"
+			"direction_compass": "东",
+			"tone_book": "neutral",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Virgo",
+			"kabbalah": [
+				"Hod"
+			],
+			"body_detail_zh": "胃、肠、手、手臂",
+			"imagery_zh": "十字——交结、纷杂、茫然、事物冲击、选择、在规则内变化、摇摆、缺乏落实;交叉点、二者合一、合作、结婚;对顶角——对抗交锋、对立、摩擦"
 		},
 		"5": {
 			"int": 5,
@@ -396,7 +478,15 @@
 			"planet_zh": "木星",
 			"quality_zh": "稳定",
 			"name_arabic_script": "قبض الداخل",
-			"direction_compass": "东"
+			"direction_compass": "东",
+			"tone_book": "good",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Pisces",
+			"kabbalah": [
+				"Chesed"
+			],
+			"body_detail_zh": "肝脏、臀部、大腿",
+			"imagery_zh": "容器——盛装承载(有形、无形)、获得、不会拒绝、默默承受;感情方面:无自由意识,无感情,貌合神离"
 		},
 		"4": {
 			"int": 4,
@@ -432,7 +522,15 @@
 			"planet_zh": "火星",
 			"quality_zh": "变动",
 			"name_arabic_script": "حمرة",
-			"direction_compass": "东"
+			"direction_compass": "东",
+			"tone_book": "bad",
+			"quality_book": "mobile",
+			"zodiac_planetary_alt": "Scorpio",
+			"kabbalah": [
+				"Geburah"
+			],
+			"body_detail_zh": "生殖系统、排泄系统",
+			"imagery_zh": "覆杯、流血——极端、暴力、冲突(事件、经历)、急切、短暂、停止、警告、流失、欺骗、挑衅、责备、自欺欺人"
 		},
 		"3": {
 			"int": 3,
@@ -468,7 +566,15 @@
 			"planet_zh": "太阳",
 			"quality_zh": "稳定",
 			"name_arabic_script": "نصرة الداخل",
-			"direction_compass": "北"
+			"direction_compass": "北",
+			"tone_book": "good",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Leo",
+			"kabbalah": [
+				"Tiphareth"
+			],
+			"body_detail_zh": "心脏、胸部、循环系统",
+			"imagery_zh": "大树、果树——漫长、积累、持久、延续、丰盛、收获、无致命性、成功的喜悦、自我的努力、适宜的环境、恰当的挫折;礼拜者——仰视、高地位、贵人、领导、尊敬;树上的果实——被动(行动、承受)、成果易被窃取、隐忍"
 		},
 		"2": {
 			"int": 2,
@@ -504,7 +610,15 @@
 			"planet_zh": "水星",
 			"quality_zh": "稳定",
 			"name_arabic_script": "بياض",
-			"direction_compass": "西"
+			"direction_compass": "西",
+			"tone_book": "weak_good",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Gemini",
+			"kabbalah": [
+				"Hod"
+			],
+			"body_detail_zh": "喉咙、肺、头脑",
+			"imagery_zh": "高脚杯——高贵、华丽、圣洁、优雅、行动力欠缺;老者——智慧、谋士、静水流深、迟缓、指导、有人代劳"
 		},
 		"1": {
 			"int": 1,
@@ -540,7 +654,15 @@
 			"planet_zh": "土星",
 			"quality_zh": "稳定",
 			"name_arabic_script": "نكس",
-			"direction_compass": "北"
+			"direction_compass": "北",
+			"tone_book": "bad",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Aquarius",
+			"kabbalah": [
+				"Binah"
+			],
+			"body_detail_zh": "小腿、踝、末梢循环",
+			"imagery_zh": "危房——悲伤、危机感、恐惧、灾难、毁灭、失去保护;固执保守、不灵活、不灵通、稳定、缓慢持久、隐藏"
 		},
 		"0": {
 			"int": 0,
@@ -576,7 +698,15 @@
 			"planet_zh": "太阴",
 			"quality_zh": "稳定",
 			"name_arabic_script": "جماعة",
-			"direction_compass": "西"
+			"direction_compass": "西",
+			"tone_book": "neutral",
+			"quality_book": "stable",
+			"zodiac_planetary_alt": "Cancer",
+			"kabbalah": [
+				"Yesod"
+			],
+			"body_detail_zh": "胸部、中腹部",
+			"imagery_zh": "人群——混乱、忙乱、慌张、不团结、无目的性、散乱、数量多、多数、服从性、无主张、劳碌、周而复始、单调性;湖泊——难以改变、妥协"
 		}
 	}
 }

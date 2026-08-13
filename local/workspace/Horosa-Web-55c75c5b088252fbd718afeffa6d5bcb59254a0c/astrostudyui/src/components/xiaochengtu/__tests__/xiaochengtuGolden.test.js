@@ -1,8 +1,8 @@
 // 小成图 · 金标(golden)—— 古籍与今传本载例逐字对齐。
 // 🔴 失败 = 引擎错,不得改测试将就。
-import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan, guaByTianDiShu, guaByXianTian, hexInfo, linesOfHex } from '../core/xiaochengtuQiGua';
-import { buildPan, zhengTui, zhengTuiText, pangTui, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, klineYongGong } from '../core/xiaochengtuPan';
-import { DI_PAN, GUA_GONG, PANG_GONG, FUDU, SI_XIANG_BASE, SI_XIANG_MATRIX } from '../core/xiaochengtuConst';
+import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan, qiGuaByYaoQian, guaByTianDiShu, guaByXianTian, hexInfo, linesOfHex } from '../core/xiaochengtuQiGua';
+import { buildPan, zhengTui, zhengTuiText, pangTui, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, liangFenZhi, riCandidates, yingQiTui, suggestGong, klineYongGong } from '../core/xiaochengtuPan';
+import { DI_PAN, GUA_GONG, PANG_GONG, FUDU, SI_XIANG_BASE, SI_XIANG_MATRIX, SI_XIANG_MATRIX_BY_KOUJING, PI_CI_KOUJING, GUA_ZUO_ZHI, ZHI_YUE, ZHI_YANG, ZHI_YIN, GONG_INFO, SHI_GONG_SUGGEST, BU_JU_SLOTS } from '../core/xiaochengtuConst';
 
 /** 天盘断言小工具:宫→卦 */
 function expectTianPan(pan, want) {
@@ -143,7 +143,7 @@ describe('金标⑥ 四象阖辟往来(古籍例图四大纲要)', () => {
 		expect(kun.type).toBe('來');
 		expect(kun.ci).toBe('吝');
 	});
-	test('地天泰 = 闔(吉,向心得配);天地否 = 闢(基调凶,离心)', () => {
+	test('地天泰 = 闔(吉,向心得配);天地否 = 闢(基调凶,离心;辞随口径)', () => {
 		const tai = siXiang('坤', '乾');
 		expect(tai.type).toBe('闔');
 		expect(tai.yi).toBe('向心');
@@ -154,27 +154,62 @@ describe('金标⑥ 四象阖辟往来(古籍例图四大纲要)', () => {
 		expect(pi.type).toBe('闢');
 		expect(pi.yi).toBe('离心');
 		expect(pi.baseCi).toBe('凶');
-		expect(pi.ci).toBe('利'); // 细判:阴阳得配为利
+		// 🔴 正传(默认,乙本原文逐字「辟…阴阳得配为害,阴阳失配为利」):否卦乾阳坤阴得配 → 害
+		expect(pi.ci).toBe('害');
+		// 异文(甲本情伪论所推:得配为情为利) → 利
+		expect(siXiang('乾', '坤', 'yiwen').ci).toBe('利');
 	});
-	test('矩阵全表:往亨悔 / 來貞吝 / 闔吉凶 / 闢利害', () => {
+	test('矩阵全表:往亨悔 / 來貞吝 / 闔吉凶 / 闢随口径(正传害利·异文利害)', () => {
 		expect(SI_XIANG_MATRIX).toEqual({
+			往: { 得配: '亨', 失配: '悔' },
+			來: { 得配: '貞', 失配: '吝' },
+			闔: { 得配: '吉', 失配: '凶' },
+			闢: { 得配: '害', 失配: '利' },
+		});
+		expect(SI_XIANG_MATRIX_BY_KOUJING.zheng).toEqual(SI_XIANG_MATRIX);
+		expect(SI_XIANG_MATRIX_BY_KOUJING.yiwen).toEqual({
 			往: { 得配: '亨', 失配: '悔' },
 			來: { 得配: '貞', 失配: '吝' },
 			闔: { 得配: '吉', 失配: '凶' },
 			闢: { 得配: '利', 失配: '害' },
 		});
+		expect(PI_CI_KOUJING).toEqual({ zheng: { 得配: '害', 失配: '利' }, yiwen: { 得配: '利', 失配: '害' } });
+		// 图注基调两本一致(例图皆标 辟=凶),不随口径
 		expect(SI_XIANG_BASE).toEqual({ 往: '悔', 來: '吝', 闔: '吉', 闢: '凶' });
-		// 失配之闔为凶(如水火既济?否——取坎离:上坎降下离升=闔,坎阳离阴得配…改取纯阴对:上兑降下离升=闔,兑离皆阴,失配为凶)
+		// 失配之闔为凶(取纯阴对:上兑降下离升=闔,兑离皆阴,失配为凶)
 		const x = siXiang('兑', '离');
 		expect(x.type).toBe('闔');
 		expect(x.dePei).toBe(false);
 		expect(x.ci).toBe('凶');
+	});
+	test('往/來/闔 三象两口径全同(只闢一象相反)', () => {
+		const GUA = ['乾', '兑', '离', '震', '巽', '坎', '艮', '坤'];
+		let piDiff = 0;
+		GUA.forEach((u) => GUA.forEach((l) => {
+			const a = siXiang(u, l, 'zheng');
+			const b = siXiang(u, l, 'yiwen');
+			expect(a.type).toBe(b.type);
+			if (a.type === '闢') { expect(a.ci).not.toBe(b.ci); piDiff += 1; }
+			else { expect(a.ci).toBe(b.ci); }
+		}));
+		expect(piDiff).toBe(16); // 上升下降之组合数(升4×降4)
+	});
+	test('非法口径 → 回落正传(不静默产异文)', () => {
+		expect(siXiang('乾', '坤', 'nope').ci).toBe('害');
+		expect(siXiang('乾', '坤', 'nope').koujing).toBe('zheng');
+	});
+	test('情伪与升降标注:得配为情、失配为伪;独坎降独离升已烘焙', () => {
+		expect(siXiang('乾', '坤').qingWei).toBe('情');
+		expect(siXiang('乾', '乾').qingWei).toBe('伪');
+		expect(siXiang('坎', '离').sheng).toEqual({ up: '降', lo: '升' });
 	});
 	test('六爻卦四象:履(上乾升下兑降)= 闢', () => {
 		const hex = hexInfo(linesOfHex('乾', '兑'));
 		const s = siXiangOfHex(hex);
 		expect(s.type).toBe('闢');
 		expect(s.dePei).toBe(true); // 乾阳兑阴
+		expect(s.ci).toBe('害');                          // 正传
+		expect(siXiangOfHex(hex, 'yiwen').ci).toBe('利'); // 异文
 	});
 });
 
@@ -333,5 +368,201 @@ describe('金标⑩ 通用应期:三分法(旬)/ 两分法(半月)', () => {
 		// 股市两法仍在,零回归
 		expect(fuDu('兑')).toEqual({ gua: '兑', zhuYao: '上', fudu: '大' });
 		expect(zhangDie('兑')).toBe('跌');
+	});
+});
+
+describe('金标⑪ 睽之归妹佈局(甲本载例之卦;按四正四隅规则派生)', () => {
+	// 睽 = 上离下兑 [1,1,0,1,0,1];归妹 = 上震下兑 [1,1,0,1,0,0];异在上爻 → 动爻 6
+	const qi = qiGuaManual({ up: '离', lo: '兑', dongYaos: [6] });
+	test('本卦=火泽睽,之卦=雷泽归妹', () => {
+		expect(qi.ben.name).toBe('火泽睽');
+		expect(qi.zhi.name).toBe('雷泽归妹');
+	});
+	test('佈局 = 9离 1兑 3震 7兑 4坎 2离 8坎 6离', () => {
+		expectTianPan(buildPan(qi), { 9: '离', 1: '兑', 3: '震', 7: '兑', 4: '坎', 2: '离', 8: '坎', 6: '离' });
+	});
+});
+
+describe('金标⑫ 应期推演链(乙本例二「乾之兑」问来人,逐跳对读原文)', () => {
+	// 乾为天 之 兑为泽:动爻 3、6;问来人 → 用宫艮八(「问来人看艮宫」)
+	const qi = qiGuaManual({ up: '乾', lo: '乾', dongYaos: [3, 6] });
+	const pan = buildPan(qi);
+	const r = yingQiTui(pan, 8);
+
+	test('①起宫:用宫艮八非伏位,天盘得巽(「艮宫巽,巽入也,来人之象」)', () => {
+		expect(r.fuWei).toBe(false);
+		expect(r.startGong).toBe(8);
+		expect(r.startGua).toBe('巽');
+	});
+	test('②正推得日卦:「从艮宫巽正推得巽宫乾,乾数六」', () => {
+		expect(r.riGua).toBe('乾');
+		expect(r.riShu).toBe(6);
+	});
+	test('③日候选:「每月有初六十六二十六」逐字', () => {
+		expect(r.riCandidates).toEqual(['初六', '十六', '二十六']);
+	});
+	test('④三分定旬:「用巽之旁推到震宫得兑…三分法则兑为上旬初六日」', () => {
+		expect(r.xunGua).toBe('兑');
+		expect(r.xun).toBe('上');
+		expect(r.ri).toBe('初六');
+	});
+	test('⑤旁推得月卦:「乾六旁推坤宫又得乾」;⑥「乾坐戌亥二月建」(明载,非推补)', () => {
+		expect(r.yueGua).toBe('乾');
+		expect(r.zuoZhi).toEqual(['戌', '亥']);
+		expect(r.zuoZhiInferred).toBe(false);
+	});
+	test('⑦两分定支:「又用乾正推视乾宫为离,离属阴支,两分法得亥」', () => {
+		expect(r.dingZhiGua).toBe('离');
+		expect(r.dingZhiYY).toBe('阴');
+		expect(r.zhi).toBe('亥');
+	});
+	test('⑧定月定日 = 农历十月初六(「是为十月初六日到也」,亦即所载应验之日)', () => {
+		expect(r.yue).toBe('十月');
+		expect(r.summary).toBe('农历十月初六');
+	});
+	test('逐跳依据可展示(八步齐备,每步有 label/text)', () => {
+		expect(r.steps.map((s) => s.label)).toEqual(['起宫', '正推得日卦', '日候选', '三分定旬', '旁推得月卦', '两分定支', '定月']);
+		r.steps.forEach((s) => expect(typeof s.text === 'string' && s.text.length > 0).toBe(true));
+	});
+	test('伏位用宫依旁推自旁宫起(本盘兑七宫天地同卦 → 自艮八宫起)', () => {
+		expect(pan.tianPan[7]).toBe(DI_PAN[7]); // 兑宫兑卦=伏位
+		const f = yingQiTui(pan, 7);
+		expect(f.fuWei).toBe(true);
+		expect(f.startGong).toBe(8);       // 「艮与兑互为旁宫」
+		expect(f.startGua).toBe('巽');
+		expect(f.summary).toBe('农历十月初六'); // 起宫同得巽,故与艮宫起同应期
+	});
+});
+
+describe('金标⑬ 摇钱三变起卦(通行摇钱古法;载例皆自摇钱而得)', () => {
+	test('同 seed 必复现(纯派生,零随机源)', () => {
+		const a = qiGuaByYaoQian({ seed: 19971018 });
+		const b = qiGuaByYaoQian({ seed: 19971018 });
+		expect(a.counts).toEqual(b.counts);
+		expect(a.ben.name).toBe(b.ben.name);
+		expect(a.dongYaos).toEqual(b.dongYaos);
+		expect(a.mode).toBe('yaoqian');
+	});
+	test('每爻数必落 6/7/8/9;动爻=老阴6/老阳9', () => {
+		const r = qiGuaByYaoQian({ seed: 11 });
+		expect(r.counts).toHaveLength(6);
+		r.counts.forEach((c) => expect([6, 7, 8, 9]).toContain(c));
+		expect(r.dongYaos).toEqual(r.counts.map((c, i) => ((c === 6 || c === 9) ? i + 1 : 0)).filter(Boolean));
+	});
+	test('步文逐爻记背字数(背数+6=爻数)', () => {
+		const r = qiGuaByYaoQian({ manualCounts: [9, 6, 7, 8, 7, 8] });
+		expect(r.steps[0].detail).toBe('三变得 3背0字 → 9(老阳 ○)');
+		expect(r.steps[1].detail).toBe('三变得 0背3字 → 6(老阴 ×)');
+		expect(r.steps[3].detail).toBe('三变得 2背1字 → 8(少阴)');
+	});
+	test('手录六爻:全老阳=乾为天 之 坤为地;非法手录回落种子', () => {
+		const r = qiGuaByYaoQian({ manualCounts: [9, 9, 9, 9, 9, 9] });
+		expect(r.ben.name).toBe('乾为天');
+		expect(r.zhi.name).toBe('坤为地');
+		expect(r.dongYaos).toEqual([1, 2, 3, 4, 5, 6]);
+		const bad = qiGuaByYaoQian({ manualCounts: [5, 5], seed: 3 });
+		expect(bad.counts).toHaveLength(6);
+		bad.counts.forEach((c) => expect([6, 7, 8, 9]).toContain(c));
+	});
+	test('分布近摇钱之数(少阳少阳多于老阴老阳;1:3:3:1 之势)', () => {
+		const all = [];
+		for (let s = 1; s <= 400; s += 1) { all.push(...qiGuaByYaoQian({ seed: s * 7919 }).counts); }
+		const n = (v) => all.filter((c) => c === v).length;
+		expect(n(7) + n(8)).toBeGreaterThan(n(6) + n(9)); // 少阴少阳(6/8)多于老阴老阳(2/8)
+		[6, 7, 8, 9].forEach((v) => expect(n(v)).toBeGreaterThan(0));
+	});
+});
+
+describe('金标⑭ 阴阳两分定支 / 卦坐支表', () => {
+	test('阴阳两分依说卦:乾坎艮震=阳,巽离坤兑=阴', () => {
+		['乾', '坎', '艮', '震'].forEach((g) => expect(liangFenZhi(g).yy).toBe('阳'));
+		['巽', '离', '坤', '兑'].forEach((g) => expect(liangFenZhi(g).yy).toBe('阴'));
+		expect(liangFenZhi('X')).toBeNull();
+	});
+	test('🔴 与升降两分分治:坎离二卦两法结论正相反(载例「离属阴支」之据)', () => {
+		expect(liangFenZhi('离').yy).toBe('阴');   // 阴阳法:离阴
+		expect(liangFen('离').yy).toBe('阳');      // 升降法:离升为阳(前半月)
+		expect(liangFenZhi('坎').yy).toBe('阳');   // 阴阳法:坎阳
+		expect(liangFen('坎').yy).toBe('阴');      // 升降法:坎降为阴(后半月)
+		// 其余六卦两法同向,只坎离颠倒
+		['乾', '艮', '震'].forEach((g) => expect(liangFenZhi(g).yy).toBe(liangFen(g).yy));
+		['巽', '坤', '兑'].forEach((g) => expect(liangFenZhi(g).yy).toBe(liangFen(g).yy));
+	});
+	test('卦坐支:十二支全覆盖无重;唯乾明载(「乾坐戌亥二月建」)其余标推补', () => {
+		const all = Object.keys(GUA_ZUO_ZHI).reduce((acc, g) => acc.concat(GUA_ZUO_ZHI[g].zhis), []);
+		expect(all).toHaveLength(12);
+		expect(new Set(all).size).toBe(12);
+		Object.keys(ZHI_YUE).forEach((z) => expect(all).toContain(z));
+		expect(GUA_ZUO_ZHI['乾']).toEqual({ zhis: ['戌', '亥'], inferred: false });
+		expect(Object.keys(GUA_ZUO_ZHI).filter((g) => !GUA_ZUO_ZHI[g].inferred)).toEqual(['乾']);
+	});
+	test('🔴 四双支卦恰各一阳一阴(故两分法必能定其一);四单支卦直取', () => {
+		const dual = Object.keys(GUA_ZUO_ZHI).filter((g) => GUA_ZUO_ZHI[g].zhis.length === 2);
+		expect(dual.sort()).toEqual(['乾', '坤', '巽', '艮'].sort());
+		dual.forEach((g) => {
+			const [a, b] = GUA_ZUO_ZHI[g].zhis;
+			expect(ZHI_YANG.includes(a) !== ZHI_YANG.includes(b)).toBe(true);
+		});
+		expect(ZHI_YANG).toHaveLength(6);
+		expect(ZHI_YIN).toHaveLength(6);
+		expect(ZHI_YANG.filter((z) => ZHI_YIN.includes(z))).toEqual([]);
+	});
+	test('与各宫所主月份原文互证(八宫无一相违)', () => {
+		Object.keys(GUA_ZUO_ZHI).forEach((gua) => {
+			const yueStr = GONG_INFO[GUA_GONG[gua]].yue;
+			const nums = GUA_ZUO_ZHI[gua].zhis.map((z) => ZHI_YUE[z].replace('月', ''));
+			expect(`${gua}:${nums.some((n) => yueStr.indexOf(n) >= 0)}`).toBe(`${gua}:true`);
+		});
+		// 书载两月之宫,坐支两月全见:艮「十二月正月」/ 巽「三四月」
+		expect(['十二', '正'].every((n) => GONG_INFO[8].yue.indexOf(n) >= 0)).toBe(true);
+		expect(['三', '四'].every((n) => GONG_INFO[4].yue.indexOf(n) >= 0)).toBe(true);
+	});
+	test('日候选:数六=初六/十六/二十六(原文逐字);数一=初一/十一/二十一', () => {
+		expect(riCandidates(6).list).toEqual(['初六', '十六', '二十六']);
+		expect(riCandidates(1).list).toEqual(['初一', '十一', '二十一']);
+		expect(riCandidates(9).byXun).toEqual({ 上: '初九', 中: '十九', 下: '二十九' });
+		expect(riCandidates(0)).toBeNull();
+		expect(riCandidates(10)).toBeNull();
+	});
+});
+
+describe('金标⑮ 问事荐宫(载例明载两条 + 各宫所主)', () => {
+	test('「问出行看震宫,问来人看艮宫」逐字对应', () => {
+		expect(suggestGong('问出行').gong).toBe(3);
+		expect(suggestGong('问来人何时到').gong).toBe(8);
+	});
+	test('余宫按所主取词', () => {
+		expect(suggestGong('求财').gong).toBe(4);
+		expect(suggestGong('考学能否中').gong).toBe(2);
+		expect(suggestGong('失物可寻否').gong).toBe(1);
+		expect(suggestGong('功名').gong).toBe(6);
+		expect(suggestGong('文书何时到').gong).toBe(9);
+		expect(suggestGong('口舌之争').gong).toBe(7);
+	});
+	test('无命中/空 → null(不强制,用宫仍由用户择)', () => {
+		expect(suggestGong('')).toBeNull();
+		expect(suggestGong('天气如何')).toBeNull();
+		expect(suggestGong(null)).toBeNull();
+	});
+	test('荐宫表八宫齐备且宫号合法', () => {
+		expect(SHI_GONG_SUGGEST).toHaveLength(8);
+		expect(SHI_GONG_SUGGEST.map((x) => x.gong).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 6, 7, 8, 9]);
+		SHI_GONG_SUGGEST.forEach((x) => {
+			expect(DI_PAN[x.gong]).toBeTruthy();
+			expect(x.words.length).toBeGreaterThan(0);
+		});
+	});
+});
+
+describe('金标⑯ 佈局单一真值源(BU_JU_SLOTS)', () => {
+	test('buildPan 逐宫等于 BU_JU_SLOTS 声明(常量与实现零副本)', () => {
+		const qi = qiGuaManual({ up: '乾', lo: '兑', dongYaos: [1, 2, 5] });
+		const pan = buildPan(qi);
+		const src = { benUp: qi.ben.up, benLo: qi.ben.lo, benShangHu: qi.ben.shangHu, benXiaHu: qi.ben.xiaHu,
+			zhiUp: qi.zhi.up, zhiLo: qi.zhi.lo, zhiShangHu: qi.zhi.shangHu, zhiXiaHu: qi.zhi.xiaHu };
+		Object.keys(BU_JU_SLOTS).forEach((g) => {
+			expect(`${g}:${pan.tianPan[g]}`).toBe(`${g}:${src[BU_JU_SLOTS[g]]}`);
+		});
+		expect(Object.keys(pan.tianPan).sort()).toEqual(['1', '2', '3', '4', '6', '7', '8', '9']);
 	});
 });

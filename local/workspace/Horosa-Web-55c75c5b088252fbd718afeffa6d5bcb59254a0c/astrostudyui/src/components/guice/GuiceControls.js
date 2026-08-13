@@ -243,10 +243,8 @@ class GuiceControls extends Component {
 				    滚动内容。正应/互应/变应仍由卦自出、于中右栏照显;renderShiYing() 方法保留待恢复。 */}
 				<Button className="horosa-guice-qigua-btn" type="primary" block size="large"
 					onClick={() => { if (this.props.onQiGua) this.props.onQiGua(); }}>起卦</Button>
-				<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">
-					分歧全做成可切换设置，不自裁。改设置即时重排中右栏与 AI 快照。
-					古籍未载之格显式标缺，不外推、不臆补。
-				</div>
+				{/* 「分歧做成可切换、未载之格显式标缺」的处置原则详见帮助文档「卜·其他 · 象数推演 · 皇极轨策」
+				    ——「左边栏永不放大段解释」铁律。 */}
 			</>
 		);
 	}

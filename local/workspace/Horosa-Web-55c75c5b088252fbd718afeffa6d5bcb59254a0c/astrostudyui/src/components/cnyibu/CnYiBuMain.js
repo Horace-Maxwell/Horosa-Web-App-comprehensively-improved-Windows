@@ -9,6 +9,8 @@ import { makeHealingFactory } from '../../utils/lazyBoundary';
 // [horosa_lazy_healing_wrap_v1 / PERF-R12 W2.5] 工厂一律过 makeHealingFactory:裸 React.lazy 会把
 // 「更新中途换包 resolve 出的空模块」永久钉进缓存(v3.6.0 辅盘干净安装必炸的同类根),自愈工厂
 // 让坏结果不进缓存、下次真正重试;好路径行为与裸写逐字节等价(含 ref 透传)。
+// ★上游每新增一个子技法都要一并入列(v3.9.0 的 lingqi 即由此补入)—— 漏一个 = 全组唯一没有
+//   自愈的那一个,而它恰恰在更新后首次点击时最容易撞上空模块。
 const SuZhanMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "suzhan-main" */ '../suzhan/SuZhanMain')));
 const JinKouMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "jinkou-main" */ '../jinkou/JinKouMain')));
 const TongSheFaMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "tongshefa-main" */ '../tongshefa/TongSheFaMain')));
@@ -26,6 +28,7 @@ const GuiceMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName
 const XiaoLiuRenMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "xiaoliuren-main" */ '../xiaoliuren/XiaoLiuRenMain')));
 const XiaoChengTuMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "xiaochengtu-main" */ '../xiaochengtu/XiaoChengTuMain')));
 const FeiGongMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "feigong-main" */ '../feigong/FeiGongMain')));
+const LingQiMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "lingqi-main" */ '../lingqi/LingQiMain')));
 import QuickDockBar from '../common/QuickDockBar';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
@@ -36,10 +39,12 @@ const TabPane = Tabs.TabPane;
 // 合法子页签集合的单一真值源在 constants/SubTabRegistry(导航层同源)。
 const CNYIBU_VALID_TABS = CNYIBU_SUBTABS;
 // horosa_prefetch_registry_v1(PERF-R10 P6):可步进预取的确定性子页,显式枚举 ——
-// 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/tarot/xiaoliuren/guice/dice 类)绝不入列
-//(预取=把随机结果钉死;端点级 FORBIDDEN 双闸仍兜底);jinkou 两阶段(pan 需 nongli 真太阳时
-// 种子,来源不走共享桥)暂不入列,待 P0 实测数据决定接线方式;suzhan/tongshefa/feigong 等
-// 吃 props.chart(主 /chart±N 武装已覆盖其上游)。
+// 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/tarot/xiaoliuren/guice/dice/**lingqi** 类)
+// 绝不入列(预取=把随机结果钉死;端点级 FORBIDDEN 双闸仍兜底);jinkou 两阶段(pan 需 nongli
+// 真太阳时种子,来源不走共享桥)暂不入列,待 P0 实测数据决定接线方式;suzhan/tongshefa/feigong
+// 等吃 props.chart(主 /chart±N 武装已覆盖其上游)。
+// ★lingqi(灵棋经,v3.9.0 新增):一掷成卦、起出即冻结,**永不可入列**;且它零网络调用,
+//   连端点都没有 —— 入列毫无收益却会破坏「一时掷之不可再掷」的古法语义。
 const CNYIBU_PREFETCH_TABS = new Set(['huangji', 'taixuan', 'shenyishu']);
 
 function getRuntimeCnYiBuTab(){
@@ -118,6 +123,9 @@ class CnYiBuMain extends Component{
 				},
 				tarot:{
 					fun: null
+				},
+				lingqi:{
+					fun: null
 				}
 			},
 		};
@@ -137,6 +145,7 @@ class CnYiBuMain extends Component{
 			shenyishu: createRef(),
 			geomancy: createRef(),
 			tarot: createRef(),
+			lingqi: createRef(),
 		};
 
 		this.changeTab = this.changeTab.bind(this);
@@ -549,6 +558,21 @@ class CnYiBuMain extends Component{
 								/>
 							</Suspense>
 						)}</FreezeSubTab>
+					</TabPane>
+
+					<TabPane tab="灵棋经" key="lingqi">
+						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
+							<LingQiMain
+								ref={this.attachChildRef('lingqi')}
+								value={this.props.chart}
+								height={contentHeight}
+								fields={this.props.fields}
+								hook={this.state.hook.lingqi}
+								dispatch={this.props.dispatch}
+								onResultChange={this.refreshDock}
+								hideQuickDock
+							/>
+						</Suspense>
 					</TabPane>
 
 				</Tabs>

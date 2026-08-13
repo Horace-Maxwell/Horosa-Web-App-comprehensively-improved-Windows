@@ -24,14 +24,23 @@ const RICH = {
 	readingScope: 'L4',
 	zodiacSystem: 'planetary',
 	turnTo: 4,
+	// 起卦诸法与行星地占盘四键(传本对齐新增)——存写两侧亦须对称
+	seedMode: 'numbers',
+	castNumbersText: '7 4 3 6 2 9 5 8 1 4 7 2 6 3 8 5',
+	planetaryChart: true,
+	planetaryChartZodiac: 'planetary_alt',
+	planetaryChartNodes: true,
+	planetaryChartExtras: true,
 	granular: {
 		direction: 'RTL', markStyle: 'bindu', parityScope: 'mothers',
+		housePlacement: 'angular',
 		houseProjection: 'astro_bytwelves', wrapHouses: true, reconciler: false,
 		reconcilerMode: 'judge_querent_significator', haltEnabled: false,
-		compoundMode: 'reverse', numberSystem: 'abjad', ascSource: 'fresh_points',
+		compoundMode: 'reverse', numberSystem: 'abjad', ascSource: 'judge_figure',
 		houseSystem: 'quadrant', namesSystem: 'greek',
 	},
 };
+const NUMS = [7, 4, 3, 6, 2, 9, 5, 8, 1, 4, 7, 2, 6, 3, 8, 5];
 
 const mk = (extra) => {
 	const i = new GeomancyMain(PROPS);

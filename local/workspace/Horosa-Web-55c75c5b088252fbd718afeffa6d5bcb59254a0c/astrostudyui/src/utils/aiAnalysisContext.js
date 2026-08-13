@@ -88,7 +88,7 @@ import { buildKinAstroSnapshotForFields } from '../components/kinastro/KinAstroM
 import { buildHuangJiSnapshotForFields } from '../components/huangji/HuangJiMain';
 import { buildTaiXuanSnapshotForFields } from '../components/taixuan/TaiXuanMain';
 import { buildJingJueSnapshotForFields } from '../components/jingjue/JingJueMain';
-import { buildWuZhaoSnapshotForFields } from '../components/wuzhao/WuZhaoMain';
+import { buildWuZhaoSnapshotForFields, WUZHAO_CALC_OPTION_KEYS } from '../components/wuzhao/WuZhaoMain';
 import { buildShenYiShuSnapshotForFields } from '../components/shenyishu/ShenYiShuMain';
 import { buildGeomancySnapshotForFields } from '../components/geomancy/GeomancyMain';
 import { buildTarotSnapshotForFields } from '../components/tarot/TarotMain';
@@ -269,6 +269,7 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	shenyishu: '神易数',
 	geomancy: '天文地占',
 	tarot: '塔罗',
+	lingqi: '灵棋经',
 };
 
 // AI 分析「使用技法」命盘类下拉。仅收录能按本盘数据返回结构化快照的技法。
@@ -361,6 +362,7 @@ export const ANALYSIS_CASE_TECHNIQUES = [
 	'shenyishu',
 	'geomancy',
 	'tarot',
+	'lingqi',
 	'huangji',
 ];
 
@@ -1354,14 +1356,16 @@ export async function regenerateCaseTechniqueSnapshot(record, moduleName, payloa
 		return buildJingJueSnapshotForFields(buildFieldObject(record), { seed: p.seed !== undefined ? p.seed : oo.seed });
 	}
 	case 'wuzhao': {
+		// 🔴 键集驱动,不手抄白名单:此处曾只透传 mode/number/manual/manualSplits 四键,
+		// 而挂载 schema 与存案里另有筮法口径/掷钱/卜数/行神月制/年命支/性别六键——
+		// 用户在挂载设置里设了却读不到,是彻头彻尾的死开关。键集单源自 WuZhaoMain。
 		const oo = (p.options && typeof p.options === 'object') ? p.options : {};
-		const wv = (top, saved)=>(top !== undefined ? top : saved);
-		return buildWuZhaoSnapshotForFields(buildFieldObject(record), {
-			mode: wv(p.mode, oo.mode),
-			number: wv(p.number, oo.number),
-			manual: wv(p.manual, oo.manual),
-			manualSplits: wv(p.manualSplits, oo.manualSplits),
+		const opts = {};
+		WUZHAO_CALC_OPTION_KEYS.forEach((key)=>{
+			const value = p[key] !== undefined ? p[key] : oo[key];
+			if(value !== undefined){ opts[key] = value; }
 		});
+		return buildWuZhaoSnapshotForFields(buildFieldObject(record), opts);
 	}
 	case 'shenyishu': {
 		const oo = (p.options && typeof p.options === 'object') ? p.options : {};
@@ -1426,17 +1430,29 @@ export async function regenerateCaseTechniqueSnapshot(record, moduleName, payloa
 		// 齿轮扁平键落 p.options 顶层,须提升进 settings 对象(engine buildReading 只读 settings.*);
 		// 1/0 三态齿轮值归一为布尔。
 		const to = (p.options && typeof p.options === 'object') ? p.options : p;
-		const liftKeys = ['meaningSystem', 'reversalMode', 'variant', 'verdictMode', 'dignities', 'suitElementSwap'];
+		// TP9 判读齿轮扩容(与 techniqueMountSettings.tarot.fields 一一对应;牌面键恒不入):
+		const liftKeys = [
+			'meaningSystem', 'reversalMode', 'variant', 'verdictMode', 'dignities', 'suitElementSwap',
+			'quintMode', 'edVersion', 'ookTable', 'astroModern', 'timingMethod', 'timingUnit',
+			'courtElementSystem', 'courtZodiacSystem', 'crossingUpright',
+		];
+		const boolKeys = ['dignities', 'suitElementSwap', 'astroModern', 'crossingUpright'];
 		const lift = {};
 		liftKeys.forEach((k)=>{
 			const v = to[k];
 			if(v === undefined || v === null || v === ''){ return; }
-			lift[k] = (k === 'dignities' || k === 'suitElementSwap') ? (v === 1 || v === '1' || v === true) : v;
+			lift[k] = boolKeys.includes(k) ? (v === 1 || v === '1' || v === true) : v;
 		});
 		const tOpts = Object.keys(lift).length
 			? { ...to, settings: { ...((to.settings && typeof to.settings === 'object') ? to.settings : {}), ...lift } }
 			: to;
 		return buildTarotSnapshotForFields(buildFieldObject(record), tOpts);
+	}
+	case 'lingqi': {
+		// 灵棋经为问占型(无生时);卦=冻结棋数自 payload.counts 取、绝不按时重掷(「不可再擲」)。
+		// 🔴 AI 核只 import 轻文件 lingqiSnapshot(纯函数+数据),不 import LingQiMain 组件(chunk 回灌案口径)。
+		const { buildLingqiSnapshotForCase } = await import(/* webpackChunkName: "lingqi-snapshot" */ '../components/lingqi/lingqiSnapshot');
+		return buildLingqiSnapshotForCase(p, (p.options && typeof p.options === 'object') ? p.options : {});
 	}
 	default:
 		return '';
@@ -2636,6 +2652,20 @@ export async function regenerateChartTechniqueSnapshot(record, key){
 				showSihua: record.showSihua,
 				showFlying: record.showFlying,
 				showSolarTerm: record.showSolarTerm,
+				// 书法(移语本)口径/流年/显示开关 —— 与左栏/buildPayload/schema 三方同键(缺一=挂载死齿轮)
+				brightnessSchool: record.brightnessSchool,
+				shenGongMode: record.shenGongMode,
+				daxianMode: record.daxianMode,
+				tianluoMode: record.tianluoMode,
+				palaceNameMode: record.palaceNameMode,
+				liunianYear: record.liunianYear,
+				liunianQishaMode: record.liunianQishaMode,
+				showLiunian: record.showLiunian,
+				showShensha: record.showShensha,
+				showZaYao: record.showZaYao,
+				showDuanjue: record.showDuanjue,
+				showXiu: record.showXiu,
+				showBianyao: record.showBianyao,
 			});
 		// kinastro 系七技法:同 xianqin/cetian 管道;齿轮键与页面 buildPayload 同名,pickKin 只透非空
 		// (''=按盘面/后端自出,与 buildKinAstroSnapshotForFields 的 ''/null 跳过口径一致 = 零回归)。

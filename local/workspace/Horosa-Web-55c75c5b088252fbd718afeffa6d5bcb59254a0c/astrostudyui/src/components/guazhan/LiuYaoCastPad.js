@@ -137,7 +137,8 @@ export default class LiuYaoCastPad extends Component{
 					</div>
 				</div>
 				<div className="horosa-castpad-method">
-					<div className="horosa-guazhan-set-subhead">逐爻四态 · 牙牌／灵棋／抽签</div>
+					{/* 措辞避让:「灵棋」现为独立技法(卜·其他→灵棋经,125 卦体系),此处四态录入改称牙牌/抽签免混淆 */}
+					<div className="horosa-guazhan-set-subhead">逐爻四态 · 牙牌／抽签</div>
 					<div className="horosa-castpad-four">
 						{this.state.fourState.map((v, i) => (
 							<Select key={i} size="small" dropdownMatchSelectWidth={false} value={v}

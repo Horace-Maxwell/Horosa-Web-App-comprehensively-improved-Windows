@@ -39,6 +39,21 @@ function collectText(node, out){
 		['tab', 'title', 'placeholder', 'alt'].forEach((k)=>{
 			if(typeof props[k] === 'string'){ out.push(props[k]); }
 		});
+		// 🔴 两层手册(HelpDocTwoLevel)把逐技法正文放在 props.groups[].items[].render 里**惰性**构建,
+		//    正文不走 children —— 不在此展开的话,下面的保密扫描/标签扫描会对这些手册整体失明,
+		//    比旧的单层结构更危险(旧结构各 TabPane 是实参、必被构造)。故在此逐项调用 render 展开。
+		if(Array.isArray(props.groups)){
+			props.groups.forEach((group)=>{
+				if(!group){ return; }
+				if(typeof group.label === 'string'){ out.push(group.label); }
+				if(typeof group.hint === 'string'){ out.push(group.hint); }
+				(group.items || []).forEach((item)=>{
+					if(!item){ return; }
+					if(typeof item.label === 'string'){ out.push(item.label); }
+					collectText(typeof item.render === 'function' ? item.render() : item.content, out);
+				});
+			});
+		}
 		if(props.children !== undefined){
 			collectText(props.children, out);
 		}

@@ -141,8 +141,9 @@
    "astrostudyui/src/components/taiyi/TaiYiMain.js": 1,
    "astrostudyui/src/components/tarot/TarotMain.js": 1,
    "astrostudyui/src/components/tongshefa/TongSheFaMain.js": 1,
-   "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 3,
+   "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 7,
    "astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js": 1,
+   "astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js": 1,
    "astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js": 1,
    "astrostudyui/src/components/ziwei/ZiWeiMain.js": 3,
    "astrostudyui/src/utils/perfFlags.js": 2
@@ -545,7 +546,8 @@
   },
   "horosa_win_pathsep_posix_v1": {
    "astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js": 1,
-   "astrostudyui/src/components/common/__tests__/quickDockContract.test.js": 1,
+   "astrostudyui/src/components/common/__tests__/quickDockContract.test.js": 2,
+   "astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js": 1,
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1,
    "astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js": 1
   },

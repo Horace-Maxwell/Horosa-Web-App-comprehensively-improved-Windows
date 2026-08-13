@@ -27,14 +27,6 @@ describe('风水 SVG 盘面 冒烟', ()=>{
 		const sh = sanhe({ shuiKou: '戌', waterFlow: 'leftToRight' });
 		expect(TwentyFourShanRing({ ring: sh.ring, zuoShan: '子', xiangShan: '午' }).type).toBe('svg');
 	});
-	it('EightPalaceDisk 渲染 金锁 + 乾坤国宝', ()=>{
-		const js = jinsuo({ sectors: { 坎: 'sand', 乾: 'water' } });
-		const jsP = js.palaces.map((p)=>({ gong: p.gong, gua: p.gua, dir: p.dir, primary: p.actual === 'sand' ? '砂' : (p.actual === 'water' ? '水' : '平'), secondary: p.deWei ? '得位' : '失位', jx: p.deWei ? 'good' : 'bad' }));
-		expect(EightPalaceDisk({ palaces: jsP, centerLabel: '金锁' }).type).toBe('svg');
-		const qk = qiankun({ zuoGua: '坎' });
-		const qkP = qk.positions.map((p)=>({ gong: p.pos, dir: p.posName, primary: p.name.slice(0, 2), jx: p.jx }));
-		expect(EightPalaceDisk({ palaces: qkP, centerLabel: '乾坤国宝' }).type).toBe('svg');
-	});
 });
 
 // 第二批四图表（含 hooks，须走 SSR 渲染，不能当纯函数直调）。
@@ -42,6 +34,42 @@ const R = (el)=>renderToStaticMarkup(el);
 const visible = (html)=>html.replace(/<[^>]*>/g, '\u0001');
 
 describe('风水 SVG 盘面 冒烟 · 第二批', ()=>{
+	// EightPalaceDisk 自 2026-08-12 起带 hooks(自量可用宽 → 盘铺满中栏),故由第一批移来此处走
+	// SSR 渲染 —— 纯函数直调必 "Invalid hook call"。
+	it('EightPalaceDisk 渲染 金锁 + 乾坤国宝', ()=>{
+		const js = jinsuo({ sectors: { 坎: 'sand', 乾: 'water' } });
+		const jsP = js.palaces.map((p)=>({ gong: p.gong, gua: p.gua, dir: p.dir, primary: p.actual === 'sand' ? '砂' : (p.actual === 'water' ? '水' : '平'), secondary: p.deWei ? '得位' : '失位', jx: p.deWei ? 'good' : 'bad' }));
+		const jsHtml = R(<EightPalaceDisk palaces={jsP} centerLabel="金锁" />);
+		expect(jsHtml).toContain('<svg');
+		expect(jsHtml).toContain('金锁');
+		const qk = qiankun({ zuoGua: '坎' });
+		const qkP = qk.positions.map((p)=>({ gong: p.pos, dir: p.posName, primary: p.name.slice(0, 2), jx: p.jx }));
+		const qkHtml = R(<EightPalaceDisk palaces={qkP} centerLabel="乾坤国宝" />);
+		expect(qkHtml).toContain('<svg');
+		expect(qkHtml).toContain('乾坤国宝');
+	});
+
+	// 🔴 格内文本收敛(用户实报改造化煞页「文字超出框架」):SVG <text> 既不换行也不截断,
+	// 一长就画出格子压到隔壁宫。两条金标:①超长单串必被截断加省略号;②并列多项传数组时
+	// 各占一行、逐行完整不截(挤成一行会丢尾字,实测「理·先后天火煞」丢过「火煞」)。
+	it('EightPalaceDisk 格内长文本:单串截断 / 数组分行不丢字', ()=>{
+		const long = '理·阴神满地／理·先后天火煞／理·斗牛煞／理·黄入贪狼';
+		const one = R(<EightPalaceDisk palaces={[{ gong: 1, gua: '坎', primary: '3', secondary: long }]} centerLabel="化煞" size={324} />);
+		expect(one).toContain('…');
+		expect(one).not.toContain(long);
+		const two = R(<EightPalaceDisk palaces={[{ gong: 1, gua: '坎', primary: '2', secondary: ['理·阴神满地', '理·先后天火煞'] }]} centerLabel="化煞" size={324} />);
+		expect(two).toContain('理·阴神满地');
+		expect(two).toContain('理·先后天火煞');
+		expect(two).not.toContain('…');
+	});
+
+	// 量不到容器(SSR/jsdom 无布局)时必须回落传入的 size —— 绝不因量不到画成 0。
+	it('EightPalaceDisk 无布局环境回落 size,不塌成 0', ()=>{
+		const html = R(<EightPalaceDisk palaces={[{ gong: 1, primary: '1' }]} centerLabel="x" size={480} />);
+		expect(html).toContain('width="480"');
+		expect(html).toContain('height="480"');
+	});
+
 	it('LuopanDial 全层/默认层/单层/无参 均出 svg 且无 NaN', ()=>{
 		const all = R(<LuopanDial deg={176.4} zuoShan="子" xiangShan="午" layers={LUOPAN_LAYERS.map((l)=>l.key)} />);
 		expect(all.startsWith('<svg')).toBe(true);

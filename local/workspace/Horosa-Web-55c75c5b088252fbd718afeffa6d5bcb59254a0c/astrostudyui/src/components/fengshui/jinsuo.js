@@ -3,6 +3,82 @@
 // 注:与现有「纳气盘 6789=气位」是不同体系,不可混用。
 import { HOUTIAN_POS, POS_NAME, ZIBAI_STAR, YUN_YEARS } from './fengshuiData';
 import { zibaiYearCenter } from './liqiCore';
+import { JINSUO_SHAN_DUAN, JINSUO_GONG_QUAN, JINSUO_KUA_GONG, JINSUO_XING, JINSUO_DUANJUE_NOTE } from './fengshuiJinsuoDuanjue';
+
+// 24 山按宫分组（断诀库以山为粒度，本文件以宫为粒度，此表是两者的桥）。
+const GUA_SHANS = {
+	坎: ['壬', '子', '癸'], 坤: ['未', '坤', '申'], 震: ['甲', '卯', '乙'], 巽: ['辰', '巽', '巳'],
+	乾: ['戌', '乾', '亥'], 兑: ['庚', '酉', '辛'], 艮: ['丑', '艮', '寅'], 离: ['丙', '午', '丁'],
+};
+
+// 24 山实况 → 八宫实况。显式给了 sectors 的宫以 sectors 为准；否则由三山归纳：
+// 🔴 三山一致才作该宫之实况，参差者作「未定(flat)」并标 mixed —— 不臆断哪一山说了算。
+function sectorsFromShans(shans, sectors) {
+	const out = {}; const mixed = [];
+	Object.keys(GUA_SHANS).forEach((gua)=>{
+		const vals = GUA_SHANS[gua].map((s)=>shans[s] || 'flat');
+		const nonFlat = vals.filter((v)=>v !== 'flat');
+		// 🔴 三山一个都没录的宫才退回八方档。若按 `sectors[gua]` 真值先判，
+		//    八方档遗留的 'flat'（非空串＝truthy）会把细式录入整宫吞掉 —— 典型死开关。
+		if (!nonFlat.length) { out[gua] = (sectors && sectors[gua]) || 'flat'; return; }
+		const uniq = Array.from(new Set(nonFlat));
+		if (uniq.length === 1) { out[gua] = uniq[0]; return; }
+		out[gua] = 'flat';
+		mixed.push(gua);
+	});
+	return { sectors: out, mixed };
+}
+
+// 条件满足判定：req 登记的是「某山须为砂/水」，any=true 表任一命中即可。
+function reqHit(w, shans) {
+	if (!w || !Array.isArray(w.req) || !w.req.length) { return false; }
+	const one = (r)=>(shans[r.shan] || 'flat') === r.side;
+	return w.any ? w.req.some(one) : w.req.every(one);
+}
+
+// 断诀查检（24 山粒度）。只出断语，不改得位/失位之判。
+//   shans: {山: 'sand'|'water'|'flat'}；xings: {山: 形态key}（形态条件命中才并入）。
+function duanjueOf(shans, xings, effSectors) {
+	const rows = [];
+	Object.keys(JINSUO_SHAN_DUAN).forEach((shan)=>{
+		const actual = shans[shan] || 'flat';
+		if (actual === 'flat') { return; }
+		const meta = JINSUO_SHAN_DUAN[shan];
+		const side = actual === 'water' ? 'shui' : 'sha';
+		const d = meta[side];
+		if (!d) { return; }
+		const xingKey = xings[shan] || '';
+		const xingLabel = (JINSUO_XING.find((x)=>x.key === xingKey) || {}).label || '';
+		const fired = []; const conds = [];
+		d.when.forEach((w)=>{
+			if (w.kind === 'zhao') {
+				if (reqHit(w, shans)) { fired.push({ ...w, by: '对照命中' }); } else { conds.push(w); }
+			} else if (w.kind === 'xing') {
+				// 形态条件：左栏选中的形与该条件文字相扣才算命中（未选＝只列为待验条件）。
+				if (xingLabel && (w.cond.indexOf(xingLabel) >= 0 || xingLabel.indexOf(w.cond) >= 0)) { fired.push({ ...w, by: '形态命中' }); } else { conds.push(w); }
+			} else { conds.push(w); }
+		});
+		const need = ['坎', '坤', '震', '巽'].indexOf(meta.gua) >= 0 ? 'sand' : 'water';
+		rows.push({
+			shan, gua: meta.gua, actual, side, deWei: actual === need,
+			base: d.base, fang: d.fang, xing: xingLabel,
+			fired, conds,
+			text: [d.base].concat(fired.map((f)=>`（${f.cond}）${f.text}`)).join('；'),
+		});
+	});
+	// 本宫全砂/全水
+	//   「都是水/全是砂」＝三山逐一录满该值；一山未录即不算（不足而断＝造假阳）。
+	const quan = (gua, want)=>{
+		const vals = GUA_SHANS[gua].map((s)=>shans[s] || 'flat');
+		if (vals.every((v)=>v === want)) { return true; }
+		return vals.every((v)=>v === 'flat') && effSectors[gua] === want;   // 该宫未录细式 → 退回八方档
+	};
+	const gongQuan = JINSUO_GONG_QUAN.filter((g)=>quan(g.gua, g.side === 'shui' ? 'water' : 'sand'))
+		.map((g)=>({ ...g, extraFired: g.extra && reqHit(g.extra, shans) ? g.extra : null }));
+	// 跨宫组合
+	const kuaGong = JINSUO_KUA_GONG.filter((k)=>k.guas.every((gua)=>quan(gua, k.side === 'shui' ? 'water' : 'sand')));
+	return { rows, gongQuan, kuaGong, note: JINSUO_DUANJUE_NOTE };
+}
 
 // 后天宫数 → 卦。
 const GONG_GUA8 = { 1: '坎', 2: '坤', 3: '震', 4: '巽', 6: '乾', 7: '兑', 8: '艮', 9: '离' };
@@ -37,7 +113,11 @@ function nextBenGuaYears(gong, fromYear, count = 3) {
 // 金锁玉关排盘：八方各「砂/水/平」→ 逐方得位失位 + 断 + 化解 + 应期。
 //   sectors: {坎:'sand'|'water'|'flat', …}；yun/year 给了才出应期（缺省零回归）。
 //   应期(7.A.7)：得位之方逢其卦当运或流年本卦星飞临 → 吉应显；失位之方逢凶星飞临 → 灾应。
-export function jinsuo({ sectors = {}, yun, year } = {}) {
+export function jinsuo({ sectors = {}, shans = null, xings = {}, yun, year } = {}) {
+	// 24 山细式（additive）：给了 shans 才启用；不给时与旧路逐字节等（零回归）。
+	const hasShan = !!shans && typeof shans === 'object' && Object.keys(shans).some((k)=>shans[k] && shans[k] !== 'flat');
+	const derived = hasShan ? sectorsFromShans(shans, sectors) : null;
+	const effSectors = derived ? derived.sectors : sectors;
 	const hasYun = yun != null && yun !== '' && !Number.isNaN(Number(yun));
 	const hasYear = year != null && year !== '' && !Number.isNaN(Number(year));
 	const yunN = hasYun ? Math.trunc(Number(yun)) : null;
@@ -47,7 +127,7 @@ export function jinsuo({ sectors = {}, yun, year } = {}) {
 	for (let g = 1; g <= 9; g++) {
 		if (g === 5) { continue; }
 		const gua = GONG_GUA8[g];
-		const actual = sectors[gua] || 'flat';
+		const actual = effSectors[gua] || 'flat';
 		const need = SAND_GONG.has(g) ? 'sand' : 'water';
 		const deWei = actual === need;
 		const wantsSand = need === 'sand';
@@ -87,13 +167,17 @@ export function jinsuo({ sectors = {}, yun, year } = {}) {
 		palaces.push(p);
 	}
 	const deCount = palaces.filter((p)=>p.deWei).length;
+	const duanjue = hasShan ? duanjueOf(shans, xings || {}, effSectors) : null;
 	return {
 		available: true, palaces,
 		deCount, score: Math.round(deCount / 8 * 100),
 		remedies: palaces.filter((p)=>p.remedy).map((p)=>`${p.dir}：${p.remedy}`),
 		yun: yunN, year: yearN, yearPan,
+		granularity: hasShan ? 'shan24' : 'gong8', shans: hasShan ? shans : null,
+		mixedGuas: derived ? derived.mixed : [], duanjue,
 		yingqiList: (hasYun || hasYear) ? palaces.filter((p)=>p.yingqi && p.yingqi.jx !== 'neutral').map((p)=>({ dir: p.dir, gua: p.gua, ...p.yingqi })) : [],
 		note: '1234坎坤震巽要砂主丁、6789乾兑艮离要水主财;得位吉失位凶'
+			+ (hasShan ? ';24山细式(三山参差之宫作未定)' : '')
 			+ ((hasYun || hasYear) ? ';应期配元运与流年九星' : ';填元运/流年可出应期'),
 	};
 }

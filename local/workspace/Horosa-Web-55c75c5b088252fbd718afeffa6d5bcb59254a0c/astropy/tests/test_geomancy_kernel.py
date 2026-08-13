@@ -781,3 +781,448 @@ def test_points_parity_scope_not_degenerate():
     assert RE(1, 'shield16')['sampled'] == 16
     assert RE(1, 'mothers')['sampled'] == 4
     assert RE(1, 'houses12')['sampled'] == 12
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 传本《基础》对齐补齐:关系六式 / 入宫三式 / 上升三源 / 法庭三角 / 时间流 /
+#   有效性五则 / 得地 / 寻源四线 / 元素法 / 成败 / 希腊点 / 地占三角 /
+#   宣判奇偶 / 报数起卦 / 行星地占盘
+# ═══════════════════════════════════════════════════════════════════════
+from astrostudy.geomancy import reading as RD                       # noqa: E402
+from astrostudy.geomancy.chart import compute_reading as CR         # noqa: E402
+from astrostudy.geomancy.figures import name as FN                  # noqa: E402
+from astrostudy.geomancy.figures import opposite, rotate            # noqa: E402
+
+
+def _sh(seed=42):
+    from astrostudy.geomancy.shield import cast_shield
+    return cast_shield(random.Random(seed))
+
+
+def test_rotate_six_chains_golden():
+    """减法(地爻置上):十六图恰成六条轨道,与传本所载六链逐条相符。"""
+    seen, chains = set(), []
+    for i in range(16):
+        if i in seen:
+            continue
+        c, j = [i], rotate(i)
+        seen.add(i)
+        while j != i:
+            c.append(j)
+            seen.add(j)
+            j = rotate(j)
+        chains.append(frozenset(FN(x) for x in c))
+    assert len(chains) == 6
+    assert set(chains) == {
+        frozenset({'Populus'}), frozenset({'Via'}),
+        frozenset({'Acquisitio', 'Amissio'}),
+        frozenset({'Laetitia', 'Rubeus', 'Albus', 'Tristitia'}),
+        frozenset({'Fortuna Maior', 'Carcer', 'Fortuna Minor', 'Coniunctio'}),
+        frozenset({'Caput Draconis', 'Puella', 'Puer', 'Cauda Draconis'}),
+    }
+
+
+def test_opposite_eight_pairs_golden():
+    """对卦八对(传本):倒卦非自反者取倒卦、自反者取逆卦 —— 逐对全等且自反。"""
+    pairs = {'Fortuna Maior': 'Fortuna Minor', 'Via': 'Populus', 'Acquisitio': 'Amissio',
+             'Laetitia': 'Tristitia', 'Coniunctio': 'Carcer', 'Albus': 'Rubeus',
+             'Puer': 'Puella', 'Caput Draconis': 'Cauda Draconis'}
+    full = dict(pairs)
+    full.update({v: k for k, v in pairs.items()})
+    for i in range(16):
+        assert FN(opposite(i)) == full[FN(i)], FN(i)
+        assert opposite(opposite(i)) == i          # 对卦自反
+
+
+def test_house_placement_three_states():
+    """入宫三式:顺铺(默认零回归)/ 四正入宫 / 近世置换 —— 三态互异且各自合法。"""
+    from astrostudy.geomancy.house import (HOUSE_PLACEMENTS, house_chart,
+                                           house_chart_sequential)
+    from astrostudy.geomancy.figures import add
+    assert HOUSE_PLACEMENTS == ('sequential', 'angular', 'golden_dawn')
+    s = _sh(7)
+    seq = house_chart(s, 'sequential')
+    assert seq == house_chart_sequential(s)                     # 默认路径一字不动
+    ang = house_chart(s, 'angular')
+    gd = house_chart(s, 'golden_dawn')
+    for hcx in (seq, ang, gd):
+        assert sorted(hcx) == list(range(1, 13))
+    # 四正入宫:四母入四正、四女入续宫、四果宫为对位两图之和
+    assert [ang[1], ang[10], ang[7], ang[4]] == list(s.mothers)
+    assert [ang[11], ang[2], ang[8], ang[5]] == list(s.daughters)
+    assert ang[3] == add(s.mothers[2], s.daughters[1])
+    assert ang[6] == add(s.mothers[1], s.daughters[0])
+    assert ang[9] == add(s.mothers[0], s.daughters[3])
+    assert ang[12] == add(s.mothers[3], s.daughters[2])
+    # 近世置换:十二图对十二宫之双射,盾位一→十宫、盾位二→一宫
+    order = list(s.mothers) + list(s.daughters) + list(s.nieces)
+    assert gd[10] == order[0] and gd[1] == order[1] and gd[4] == order[2]
+    assert sorted(gd.values()) == sorted(order)
+    # 整盘三态指纹互异(多种子)
+    fps = {p: [] for p in HOUSE_PLACEMENTS}
+    for sd in range(1, 41):
+        for p in HOUSE_PLACEMENTS:
+            fps[p].append(CR('marriage', 'european_classical', cast_method='manual',
+                             seed=sd, house_placement=p)['reading']['perfection'])
+    assert len({tuple(v) for v in fps.values()}) == 3, fps
+
+
+def test_asc_source_judge_figure():
+    """上升三源:法官定上升为第三源(传本自出之法),与前二源互异。"""
+    from astrostudy.geomancy.house import ASC_SOURCES
+    assert ASC_SOURCES == ('h1_figure', 'fresh_points', 'judge_figure')
+    r = CR('marriage', 'european_classical', cast_method='manual', seed=42,
+           reading_scope='L4', asc_source='judge_figure')
+    ae = r['astro_erection']
+    assert ae['asc_source'] == 'judge_figure'
+    assert ae['figure'] == r['judge']['latin']
+    assert ae['sign'] and ae['signs'][0]['sign'] == ae['sign']
+    fps = set()
+    for src in ASC_SOURCES:
+        fps.add(tuple(CR('marriage', 'european_classical', cast_method='manual', seed=sd,
+                         reading_scope='L4', asc_source=src)['astro_erection']['sign']
+                      for sd in range(1, 41)))
+    assert len(fps) == 3
+
+
+def test_zodiac_planetary_alt_exact_five_diffs():
+    """第三套黄道(另一传本对应表)与行星归属表恰五图相异,余十一图全等。"""
+    from astrostudy.geomancy.figures import FIG_BY_INT, zodiac_of
+    diff = {FN(i) for i in FIG_BY_INT
+            if zodiac_of(i, 'planetary') != zodiac_of(i, 'planetary_alt')}
+    assert diff == {'Puella', 'Amissio', 'Laetitia', 'Caput Draconis', 'Acquisitio'}
+    assert zodiac_of(N['Amissio'], 'planetary_alt') == 'Libra'
+    assert zodiac_of(N['Acquisitio'], 'planetary_alt') == 'Pisces'
+    # 非法值回落行星归属表(收编前历史行为),classical 档不受影响
+    assert zodiac_of(3, 'nonsense') == zodiac_of(3, 'planetary')
+    assert zodiac_of(3, 'classical') == FIG_BY_INT[3]['zodiac_classical']
+
+
+def test_court_verdict_table_and_specials():
+    """法庭三角:**穷举全部 16⁴ 母图组合**,锁三事 ——
+
+    ① 传本十行断语中九行可达、组合共 23 种(余 4 种组合结构上不可能出现);
+    ② 🔴 传本首行「吉吉吉 → 自天佑之」**结构上不可达**:法官 = 右证⊕左证,
+       而点数奇偶等价于单点数奇偶,故二证之单点数必同奇偶;传本吉图五者
+       {大吉·小吉·获得}(单点二)与{龙首(三)·快乐(一)},同奇偶两两相配之和
+       恒落 {道路,会合,牢狱,群众} —— 皆非吉图。故此行永不出现,如实登记不当作 bug;
+    ③ 未列组合一律 unlisted 且 listed=False,绝不臆造断语。"""
+    from itertools import product
+    from astrostudy.geomancy.shield import cast_shield_from_mothers
+    codes, combos = {}, set()
+    for M in product(range(16), repeat=4):
+        cv = RD.court_verdict(cast_shield_from_mothers(list(M)))
+        combos.add(tuple(cv['combo']))
+        codes[cv['verdict_code']] = codes.get(cv['verdict_code'], 0) + 1
+        assert (cv['verdict_code'] == 'unlisted') == (not cv['listed'])
+        assert cv['combo'] == [cv['left']['tone_class'], cv['judge']['tone_class'],
+                               cv['right']['tone_class']]
+    assert len(combos) == 23
+    assert ('good', 'good', 'good') not in combos          # ② 结构不可达
+    reachable = set(codes)
+    assert reachable == {'unlisted', 'end_good_delay', 'end_good_hard', 'gain_not_self',
+                         'no_success_has_end', 'well_unused', 'all_bad'}
+    assert 'all_good' not in reachable
+    # 传本十行中除首行外皆可达
+    listed_codes = set(RD._COURT_TABLE.values())
+    assert listed_codes - reachable == {'all_good'}
+    # 法官特例:道路/群众别有专断
+    for lat, code in (('Via', 'via'), ('Populus', 'populus')):
+        got = None
+        for sd in range(1, 2001):
+            s = _sh(sd)
+            if FN(s.judge) == lat:
+                got = RD.court_verdict(s)
+                break
+        assert got and got['judge_special'] == code, lat
+    # 凶凶凶 → 凶(右证赤红、左证龙尾 ⇒ 法官损失)
+    s = cast_shield_from_mothers([N['Rubeus'], N['Rubeus'], N['Cauda Draconis'], N['Rubeus']])
+    if RD.court_verdict(s)['combo'] == ['bad', 'bad', 'bad']:
+        assert RD.court_verdict(s)['verdict_code'] == 'all_bad'
+
+
+def test_time_flow_roles():
+    """时间流:右证过去、法官现在、左证未来(与旧文案「左证=现在」之误相对)。"""
+    s = _sh(42)
+    tf = RD.time_flow(s)
+    assert tf['past']['role'] == 'right_witness' and tf['past']['figure'] == FN(s.right_witness)
+    assert tf['present']['role'] == 'judge' and tf['present']['figure'] == FN(s.judge)
+    assert tf['future']['role'] == 'left_witness' and tf['future']['figure'] == FN(s.left_witness)
+    assert tf['segment_order'] == ['right_witness', 'judge', 'left_witness']
+
+
+def test_validity_five_rules_independent_of_halt():
+    """有效性五则:五则全项常驻;首图四则逐则可触发;第五则为盘式;与「首母中止」各自独立。"""
+    from astrostudy.geomancy.shield import cast_shield_from_mothers
+    from astrostudy.geomancy.house import house_chart_sequential
+    for lat, code in (('Cauda Draconis', 'not_asked_or_decided'),
+                      ('Amissio', 'insufficient_info'),
+                      ('Populus', 'question_not_real')):
+        s = cast_shield_from_mothers([N[lat], N['Albus'], N['Puella'], N['Carcer']])
+        v = RD.validity(s, house_chart_sequential(s), 1, 7)
+        assert len(v['rules']) == 5 and v['any_hit'] is True
+        hits = [r['code'] for r in v['rules'] if r['hit']]
+        assert code in hits, (lat, hits)
+    # 传本自注如实登记(不认同/未必)
+    v0 = RD.validity(_sh(42), house_chart_sequential(_sh(42)), 1, 7)
+    notes = {r['id']: r['book_note'] for r in v0['rules']}
+    assert notes[1] and notes[3] and notes[2] is None
+    # 红色首图:有精准相位则升为「有意欺骗对象」
+    s = cast_shield_from_mothers([N['Rubeus']] * 4)
+    hc = house_chart_sequential(s)
+    v = RD.validity(s, hc, 1, 1)            # q==t ⇒ 完美恒入主
+    assert [r['code'] for r in v['rules'] if r['id'] == 2] == ['deceive_quesited']
+    # 与 halt 独立:关掉首母中止,有效性照出
+    r = CR('marriage', 'european_classical', cast_method='manual', seed=42, halt_enabled=False)
+    assert r['halted_on_first_mother'] is False
+    assert len(r['reading']['validity']['rules']) == 5
+
+
+def test_tenancy_grade_matrix_and_positions():
+    """得地:四档判据(全同/同温/同湿/全异)+ 位序循环火风水土 + 不取调和者则末位留空。"""
+    assert RD.TENANCY_POSITION_ELEMENTS[:4] == ('Fire', 'Air', 'Water', 'Earth')
+    assert RD.TENANCY_POSITION_ELEMENTS[12:] == ('Fire', 'Air', 'Water', 'Earth')  # 二证/判官/宣判
+    assert len(RD.TENANCY_POSITION_ELEMENTS) == 16
+    G = RD.tenancy_grade
+    assert G('Fire', 'Fire') == 'full'
+    assert G('Fire', 'Air') == 'assist' and G('Water', 'Earth') == 'assist'
+    assert G('Fire', 'Earth') == 'stall' and G('Air', 'Water') == 'stall'
+    assert G('Fire', 'Water') == 'weak' and G('Air', 'Earth') == 'weak'
+    for a in ('Fire', 'Air', 'Water', 'Earth'):
+        for b in ('Fire', 'Air', 'Water', 'Earth'):
+            assert G(a, b) in ('full', 'assist', 'stall', 'weak')
+    s = _sh(42)
+    t = RD.tenancy(s, None)
+    assert len(t) == 16 and t[15]['figure'] is None and t[15]['grade'] is None
+    assert t[0]['figure'] == FN(s.mothers[0]) and t[14]['figure'] == FN(s.judge)
+    t2 = RD.tenancy(s, s.reconciler)
+    assert t2[15]['figure'] == FN(s.reconciler) and t2[15]['grade']
+    r = CR('marriage', 'european_classical', cast_method='manual', seed=42, reconciler=False)
+    assert r['reading']['tenancy'][15]['figure'] is None
+
+
+def test_via_elements_four_lines_and_old_key_intact():
+    """寻源四线,锁三事 ——
+
+    ① 法官该行为阴爻(双点)者不可由此寻源(traceable=False),终点为空并如实给由;
+    ② 🔴 法官该行为阳爻者**必然一路贯通**(4096+ 盘零反例,另经全 16⁴ 穷举复核):
+       法官=二证异或,故该行为单点时二证中恰一者为单点 —— 每层皆然,路径唯一且必达母/女层。
+       可见传本「由法官中的阳爻向上寻源」正是此法可定义之条件;断路一支为防御性保留,结构上不出现;
+    ③ 旧键 via_puncti(只沿火行、且不验法官本行,故其 broken_at 实为「不可寻」之误呈)形态一字不动。"""
+    from itertools import product
+    from astrostudy.geomancy.figures import row, FIRE, AIR, WATER, EARTH
+    from astrostudy.geomancy.shield import cast_shield_from_mothers
+    bits = {'fire': FIRE, 'air': AIR, 'water': WATER, 'earth': EARTH}
+    hit_self = hit_other = hit_untrace = hit_through = 0
+    shields = [cast_shield_from_mothers([a, b, c, 5]) for a, b, c in product(range(16), repeat=3)]
+    shields += [_sh(sd) for sd in range(1, 401)]
+    for s in shields:
+        ve = RD.via_elements(s)
+        assert set(ve) == {'fire', 'air', 'water', 'earth'}
+        for k, b in bits.items():
+            blk = ve[k]
+            assert blk['traceable'] == (row(s.judge, b) == 1)
+            if not blk['traceable']:
+                hit_untrace += 1
+                assert blk['terminus'] is None and blk['reason'] and blk['path'] == []
+                continue
+            assert blk['path'] and blk['path'][0] == FN(s.judge)
+            assert blk['through'] is True and blk['broken_at'] is None    # ② 阳爻必贯通
+            assert len(blk['path']) == 4                                  # 判官→证→甥/女→母/女层
+            tm = blk['terminus']
+            assert 1 <= tm['position'] <= 8
+            assert tm['side'] == ('self' if tm['position'] <= 4 else 'other')
+            assert tm['sphere'] == ('personal' if tm['position'] <= 4 else 'interpersonal')
+            hit_self += tm['side'] == 'self'
+            hit_other += tm['side'] == 'other'
+            hit_through += 1
+    assert hit_untrace and hit_through and hit_self and hit_other
+    # ③ 旧键仍在且形态未改
+    r = CR('marriage', 'european_classical', cast_method='manual', seed=42)['reading']
+    assert set(r['via_puncti']) == {'path', 'broken_at', 'through'}
+
+
+def test_element_supply_thresholds_and_note():
+    """元素法:女卦阳爻数 ≥3 充沛 / ≤2 匮乏;母位来源正确;非吉凶之注恒随。"""
+    for sd in range(1, 121):
+        s = _sh(sd)
+        es = RD.element_supply(s, RD.via_elements(s))
+        assert es['note']
+        for k, blk in es['elements'].items():
+            assert blk['level'] == ('abundant' if blk['active_count'] >= 3 else 'scarce')
+            assert len(blk['mother_positions']) == blk['active_count']
+            # 该女卦即诸母同爻位所成:逐位复核
+            d_idx = blk['daughter_index'] - 1
+            for k2 in range(4):
+                bit_on = bool((s.daughters[d_idx] >> (3 - k2)) & 1)
+                assert bit_on == ((k2 + 1) in blk['mother_positions'])
+            if blk['source']:
+                assert blk['supply'] in ('self_supplied', 'borrowed')
+                assert blk['judge_has'] is True
+            else:
+                assert blk['supply'] is None
+
+
+def test_success_matrix_codes():
+    """成败:有无精准相位 × 两指示图吉凶 → 八格;遇「中」如实标 not_covered。"""
+    codes = set()
+    for sd in range(1, 401):
+        r = CR('marriage', 'european_classical', cast_method='manual', seed=sd)['reading']
+        sc = r['success']
+        assert sc['has_perfection'] == (r['perfection'] != 'none')
+        assert sc['caveat']
+        codes.add(sc['code'])
+        if sc['covered']:
+            assert sc['code'].startswith('occur_' if sc['has_perfection'] else 'fail_')
+        else:
+            assert sc['code'] == 'not_covered'
+    assert len([c for c in codes if c.startswith('occur_')]) >= 2
+    assert 'not_covered' in codes
+
+
+def test_greek_points_mod_twelve():
+    """希腊点:福点=十二卦点数和、灵点=十二卦阳爻数和,各 mod 12,余零入十二宫。"""
+    from astrostudy.geomancy.figures import points as P, row, ELEMENT_ROWS
+    from astrostudy.geomancy.house import house_chart_sequential
+    for sd in range(1, 201):
+        s = _sh(sd)
+        hc = house_chart_sequential(s)
+        gp = RD.greek_points(hc)
+        ft = sum(P(hc[h]) for h in range(1, 13))
+        st = sum(sum(row(hc[h], b) for b in ELEMENT_ROWS) for h in range(1, 13))
+        assert gp['fortune_total'] == ft and gp['spirit_total'] == st
+        assert gp['fortune_house'] == (12 if ft % 12 == 0 else ft % 12)
+        assert gp['spirit_house'] == (12 if st % 12 == 0 else st % 12)
+        assert 1 <= gp['fortune_house'] <= 12 and 1 <= gp['spirit_house'] <= 12
+
+
+def test_shield_triangles_four_groups():
+    """地占三角四组:底二(1,2/3,4/5,6/7,8)顶一(9/10/11/12)。"""
+    s = _sh(42)
+    tri = RD.shield_triangles(s)
+    assert [t['index'] for t in tri] == [1, 2, 3, 4]
+    assert [[b['position'] for b in t['base']] for t in tri] == [[1, 2], [3, 4], [5, 6], [7, 8]]
+    assert [t['apex']['position'] for t in tri] == [9, 10, 11, 12]
+    assert tri[0]['apex']['figure'] == FN(s.nieces[0])
+    assert tri[3]['base'][1]['figure'] == FN(s.daughters[3])
+    for t in tri:
+        assert t['apex']['tone_class'] in ('good', 'bad', 'mid') and t['time_flow_note']
+
+
+def test_reconciler_parity_code():
+    """宣判奇偶:偶=客观事实偏实、奇=主观意志偏虚;不取调和者则为空。"""
+    assert RD.RECONCILER_PARITY_CODE == {'even': 'objective_real', 'odd': 'subjective_virtual'}
+    assert RD.reconciler_parity(None) is None
+    seen = set()
+    for sd in range(1, 201):
+        r = CR('marriage', 'european_classical', cast_method='manual', seed=sd)['reading']
+        rp = r['reconciler_parity']
+        assert rp['parity'] == ('even' if rp['points'] % 2 == 0 else 'odd')
+        assert rp['code'] == RD.RECONCILER_PARITY_CODE[rp['parity']]
+        seen.add(rp['parity'])
+    assert seen == {'even', 'odd'}
+    off = CR('marriage', 'european_classical', cast_method='manual', seed=42,
+             reconciler=False)['reading']
+    assert off['reconciler_parity'] is None
+
+
+def test_perfection_direction_additive():
+    """方向细则:既有 perfection_detail 四键一字不动;新键出前后宫与知晓格局。"""
+    seen_dir, seen_know, seen_hint = set(), set(), set()
+    for sd in range(1, 601):
+        r = CR('marriage', 'european_classical', cast_method='manual', seed=sd,
+               quesited_house=7)['reading']
+        assert set(r['perfection_detail']) == {'type', 'via_figure', 'via_house', 'mover'}
+        pdir = r['perfection_direction']
+        assert pdir['type'] == r['perfection']
+        for c in pdir['conjunctions_all']:
+            assert c['mover'] in ('querent', 'quesited') and c['direction'] in ('forward', 'backward')
+            seen_dir.add(c['direction'])
+        if pdir['type'] == 'translation' and pdir['knowledge_code']:
+            seen_know.add(pdir['knowledge_code'])
+        if pdir['type'] == 'mutation':
+            seen_hint.add(pdir['hint_code'])
+    assert seen_dir == {'forward', 'backward'}
+    assert seen_know and seen_know <= {'third_party_hidden', 'quesited_knows',
+                                       'querent_knows', 'both_know'}
+    assert seen_hint == {'venue_clue'}
+
+
+def test_cast_numbers_shield():
+    """报数起卦:十六数奇偶定爻(奇单偶双);非法则静默回落随机源并如实回传。"""
+    from astrostudy.geomancy.shield import cast_shield_from_numbers
+    nums = [1, 2, 2, 2,  1, 1, 2, 2,  2, 2, 1, 1,  1, 1, 1, 1]
+    s = cast_shield_from_numbers(nums)
+    assert s.mothers == [0b1000, 0b1100, 0b0011, 0b1111]
+    r = CR('marriage', 'european_classical', cast_method='manual', seed=42, cast_numbers=nums)
+    assert r['settings']['cast_method'] == 'numbers'
+    assert r['settings']['cast_numbers'] == nums
+    assert [m['int'] for m in r['mothers']] == s.mothers
+    bad = CR('marriage', 'european_classical', cast_method='manual', seed=42, cast_numbers=[1, 2, 3])
+    assert bad['settings']['cast_method'] == 'manual' and bad['settings']['cast_numbers'] is None
+    ref = CR('marriage', 'european_classical', cast_method='manual', seed=42)
+    assert [m['int'] for m in bad['mothers']] == [m['int'] for m in ref['mothers']]
+
+
+def test_planetary_chart_isolated_and_deterministic():
+    """行星地占盘:开关关闭则一颗随机数不取(除该键外全响应全等);报数域 1..9;南交取北交对宫。"""
+    import json
+    from astrostudy.geomancy.planetary import (PCHART_DRAW_LO, PCHART_DRAW_HI,
+                                               PCHART_DRAW_COUNT, PCHART_PLANETS)
+    assert (PCHART_DRAW_LO, PCHART_DRAW_HI, PCHART_DRAW_COUNT) == (1, 9, 4)
+    assert PCHART_PLANETS == ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Saturn', 'Jupiter']
+    for sd in (1, 42, 999):
+        off = CR('marriage', 'european_classical', cast_method='manual', seed=sd, reading_scope='L4')
+        on = CR('marriage', 'european_classical', cast_method='manual', seed=sd, reading_scope='L4',
+                planetary_chart=True, planetary_chart_nodes=True, planetary_chart_extras=True)
+        assert 'planetary_chart' not in off
+        pc = on['planetary_chart']
+        del on['planetary_chart']
+        for d in (off, on):
+            for k in ('planetary_chart', 'planetary_chart_zodiac',
+                      'planetary_chart_nodes', 'planetary_chart_extras'):
+                d['settings'].pop(k, None)
+        assert json.dumps(off, sort_keys=True, default=str) == json.dumps(on, sort_keys=True, default=str)
+        # 盘体本身
+        assert pc['first_figure'] == off['mothers'][0]['latin']
+        assert [h['house'] for h in pc['houses']] == list(range(1, 13))
+        assert pc['houses'][0]['sign'] == pc['asc_sign']
+        assert len(pc['planets']) == 7
+        for p in pc['planets']:
+            assert len(p['draws']) == 4 and all(1 <= x <= 9 for x in p['draws'])
+            assert p['total'] == sum(p['draws'])
+            assert p['house'] == (12 if p['total'] % 12 == 0 else p['total'] % 12)
+        n = pc['nodes']
+        assert n['south']['house'] == ((n['north']['house'] - 1 + 6) % 12) + 1
+        assert len(pc['extras']) == 4
+    # 确定性:同种子同结果
+    a = CR('marriage', 'european_classical', cast_method='manual', seed=7, planetary_chart=True)
+    b = CR('marriage', 'european_classical', cast_method='manual', seed=7, planetary_chart=True)
+    assert a['planetary_chart'] == b['planetary_chart']
+    # 二式星座表真分野
+    alt = CR('marriage', 'european_classical', cast_method='manual', seed=7,
+             planetary_chart=True, planetary_chart_zodiac='planetary_alt')['planetary_chart']
+    assert alt['zodiac_table'] == 'planetary_alt'
+
+
+def test_book_alignment_data_fields():
+    """传本口径字段:tone_book 六图与固有 tone 相异、quality_book 一图相异、
+    卡巴拉/身体详表/意象十六图齐备(既有 tone/quality 一字未改)。"""
+    from astrostudy.geomancy.figures import FIG_BY_INT
+    tone_diff = {FN(i) for i, v in FIG_BY_INT.items() if v['tone_book'] != v['tone']}
+    assert tone_diff == {'Via', 'Puer', 'Fortuna Minor', 'Puella', 'Caput Draconis', 'Albus'}
+    q_diff = {FN(i) for i, v in FIG_BY_INT.items() if v['quality_book'] != v['quality']}
+    assert q_diff == {'Fortuna Minor'}
+    for i, v in FIG_BY_INT.items():
+        assert v['tone_book'] in ('good', 'bad', 'neutral', 'weak_good')
+        assert v['quality_book'] in ('stable', 'mobile')
+        assert v['kabbalah'] and all(isinstance(x, str) for x in v['kabbalah'])
+        assert v['body_detail_zh'] and v['imagery_zh']
+        assert v['zodiac_planetary_alt']
+    assert FIG_BY_INT[N['Caput Draconis']]['kabbalah'] == ['Malkuth', 'Yesod']
+    # 弱吉归「中」(法庭三角三分)
+    assert RD.tone_class(N['Albus']) == 'mid' and RD.tone_class(N['Fortuna Minor']) == 'good'
+    # 十二宫关键词树齐备
+    from astrostudy.geomancy import correspondences as C
+    for h in range(1, 13):
+        assert C.house_meaning(h).get('theme_detail')

@@ -71,6 +71,67 @@ export default class ZWCommHouse {
 		return sl;
 	}
 
+	// ===== 策天(移语本)流年星徽行:四化盘/三合盘共用;仅 kinastroBorrowed 且宫有数据时画 =====
+	drawKinastroLiunianRow(){
+		if(!this.kinastroBorrowed || !this.houseObj || !this.houseObj.kinastroLiunianRow
+			|| !this.houseObj.kinastroLiunianRow.length || this.svg == null){
+			return;
+		}
+		const items = this.houseObj.kinastroLiunianRow;
+		const rowH = 15;
+		const rowY = this.y + this.height * 3 / 4 - rowH - 4;
+		const rowX = this.x + 4;
+		const maxW = this.width - 8;
+		const group = this.svg.append('g').attr('class', 'horosa-ziwei-kinastro-liunian-row');
+		const fontSize = 11;
+		let text = items.join(' ');
+		// 护栏:超宽截断(约每字 fontSize px),尾附「…」——盘面绝不横向溢出。
+		const maxChars = Math.max(3, Math.floor((maxW - 18) / (fontSize * 1.05)));
+		const plain = text.replace(/ /g, '');
+		if(plain.length > maxChars){
+			const kept = [];
+			let count = 0;
+			for(let i = 0; i < items.length; i += 1){
+				if(count + items[i].length > maxChars - 1){ break; }
+				kept.push(items[i]);
+				count += items[i].length;
+			}
+			text = `${kept.join(' ')}…`;
+		}
+		group.append('rect')
+			.attr('x', rowX)
+			.attr('y', rowY)
+			.attr('width', 14)
+			.attr('height', rowH - 1)
+			.attr('rx', 2.5)
+			.attr('fill', 'rgba(120, 156, 214, 0.16)')
+			.attr('stroke', 'var(--horosa-ziwei-kinastro-liunian, #7f9cd0)')
+			.attr('stroke-width', 0.9);
+		group.append('text')
+			.attr('x', rowX + 7)
+			.attr('y', rowY + rowH / 2 - 0.5)
+			.attr('dominant-baseline', 'middle')
+			.attr('text-anchor', 'middle')
+			.attr('fill', 'var(--horosa-ziwei-kinastro-liunian, #7f9cd0)')
+			.attr('stroke', 'none')
+			.attr('font-size', '9px')
+			.attr('font-weight', 760)
+			.attr('font-family', AstroConst.NormalFont)
+			.text('流');
+		group.append('text')
+			.attr('class', 'horosa-ziwei-kinastro-liunian-text')
+			.attr('x', rowX + 18)
+			.attr('y', rowY + rowH / 2)
+			.attr('dominant-baseline', 'middle')
+			.attr('text-anchor', 'start')
+			.attr('fill', 'var(--horosa-ziwei-kinastro-liunian, #8aa7dc)')
+			.attr('stroke', 'none')
+			.attr('font-size', `${fontSize}px`)
+			.attr('font-weight', 700)
+			.attr('font-family', AstroConst.NormalFont)
+			.text(text);
+	}
+
 	// ===== 流派叠层角标 + 活盘重排(四化盘/三合盘共用;基类统一实现防两盘漂移) =====
 	// 手册补齐·流派叠层角标(开关开时,自算不改基础安星):气数位/太岁入卦角标 + 中州借宫半透明星。
 	drawOverlayMarks(){

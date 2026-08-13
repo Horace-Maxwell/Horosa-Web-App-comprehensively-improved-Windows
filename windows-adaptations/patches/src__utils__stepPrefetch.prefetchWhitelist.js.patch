@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/stepPrefetch.js b/astrostudyui/src/utils/stepPrefetch.js
-index 19c7afad..227ceef7 100644
+index 19c7afad..7222e0a3 100644
 --- a/astrostudyui/src/utils/stepPrefetch.js
 +++ b/astrostudyui/src/utils/stepPrefetch.js
 @@ -35,7 +35,7 @@
@@ -22,7 +22,17 @@ index 19c7afad..227ceef7 100644
  	'/predict/',     // 推运(dice 由 FORBIDDEN 拦)
  	'/ziwei/',       // 紫微
  	'/liureng/',     // 六壬/金口诀共用神将
-@@ -94,6 +98,10 @@ export const PREFETCH_FORBIDDEN_MARKERS = [
+@@ -81,6 +85,9 @@ export const PREFETCH_FORBIDDEN_MARKERS = [
+ 	'dice', 'gua', 'tarot', 'geomancy', 'aianalysis', 'heartbeat', 'planetarium',
+ 	'taixuan',     // 太玄(蓍法种子在体,预取恐钉死起课 —— Mac 政策表 seedInBody)
+ 	'jingjue',     // 荆诀(揲蓍种子在体,同上)
++	'lingqi',      // 灵棋经(v3.9.0 新增,卜·其他第 15 门):十二棋一掷成卦、起出即冻结。
++	               // 今日纯本地零端点,故此条是**将来那条路的点名拦截** —— 上游哪天给它加后端,
++	               // 预取会把「一时掷之,不可再掷」的古法语义直接钉死(#93 课三:把将来的路先拦住)。
+ 	'cast', 'shake', 'random',            // 起卦/摇卦/随机类动作
+ 	'sse', 'stream',                      // 流式(AI 分析)
+ 	'moira',                              // 七政 Moira 流年:默认过运时刻=「现在」
+@@ -94,6 +101,10 @@ export const PREFETCH_FORBIDDEN_MARKERS = [
  const BUDGET_PER_SETTLE = 12;
  // 自适应间隔下限:任务间至少 80ms;实际间隔取 max(80, 上个任务耗时) —— 重端点自然拉长错峰。
  const MIN_GAP_MS = 80;
@@ -33,7 +43,7 @@ index 19c7afad..227ceef7 100644
  
  let generation = 0;
  let running = false;
-@@ -192,7 +200,7 @@ function pump(){
+@@ -192,7 +203,7 @@ function pump(){
  		return;
  	}
  	running = true;
@@ -42,7 +52,7 @@ index 19c7afad..227ceef7 100644
  		// horosa_prefetch_pump_livelock_v1:一拍之内先丢干净旧代,直接执行遇到的第一个当代任务
  		// —— 丢旧代不消耗拍(旧行为「丢一个→排下一拍」在连点下把每一拍都浪费在丢弃上)。
  		let entry = queue.shift();
-@@ -224,7 +232,26 @@ function pump(){
+@@ -224,7 +235,26 @@ function pump(){
  					pump();
  				}, Math.max(MIN_GAP_MS, lastTaskDurationMs));
  			});
@@ -70,7 +80,7 @@ index 19c7afad..227ceef7 100644
  }
  
  /**
-@@ -257,7 +284,9 @@ export function submitStepPrefetch(tasks, opts){
+@@ -257,7 +287,9 @@ export function submitStepPrefetch(tasks, opts){
  	const budget = opts && Number.isInteger(opts.budget) && opts.budget > 0
  		? Math.min(opts.budget, 5)
  		: BUDGET_PER_SETTLE;

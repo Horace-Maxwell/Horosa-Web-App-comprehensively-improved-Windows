@@ -231,6 +231,10 @@ class JingJueMain extends Component{
 			return false;
 		}
 		if(!force && this.lastRestoredCaseId === saved.caseVersion){
+			// 🔴 去重命中曾裸返 false → componentDidUpdate 落 else 分支 fetchPan,
+			// 把已还原的冻结盘网络重取覆盖(还原盘≠保存盘)。已持有盘 → 返 true 拦下重取;
+			// 盘确实丢了才放行向下重还原。范式同 wuzhao:455-460 / taixuan:258-262。
+			if(this.state.pan){ return true; }
 			return false;
 		}
 		const payload = saved.payload;

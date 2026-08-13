@@ -1,5 +1,5 @@
 // pages/index.js changeCond 显式白名单完备性锁(L3,2026-08 死开关审计 DS-P1)。
-// changeCond 是命组 8 处挂载组件(Astro/GuoLao/India/Aux/Finance/3D/LineChart…)的总闸:
+// changeCond 是命组 8 处挂载组件的总闸(具体清单以 pages/index.js 白名单为准):
 // 「不在白名单登记的键会被静默丢弃」(源码 :522 自陈)—— 漏登键 = 组件发了、闸口吞了、
 // 用户改了没反应的死开关(先例:古典参数五批三层断链)。
 // 范式四要件:机械提取/最小数量守卫/豁免带理由/双向检查;另加两条本闸特有形态锁。

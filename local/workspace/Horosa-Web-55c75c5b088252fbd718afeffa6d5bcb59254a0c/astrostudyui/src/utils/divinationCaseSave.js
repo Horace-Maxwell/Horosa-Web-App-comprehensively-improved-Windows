@@ -4,6 +4,7 @@
 // kentangCaseSave 同款；区别在于卜卦/择日的「时间·地点」本身就是核心征象，故 record 完整存
 // divTime/zone/经纬，payload 再存技法设置（黄道/宫制/守护）与问题类别(horary)/用事类型(election)。
 import { getStore } from './storageutil';
+import { caseFieldSnapshot, caseGenderValue } from './kentangCaseSave';
 
 function fv(fields, key, fallback = ''){
 	if(!fields || !fields[key]){
@@ -62,10 +63,14 @@ export function openDivinationCaseDrawer({ dispatch, fields, module, label, extr
 				gpsLat: fv(fields, 'gpsLat'),
 				gpsLon: fv(fields, 'gpsLon'),
 				pos: fv(fields, 'pos'),
+				gender: caseGenderValue(fields),
 				payload: {
 					module,
 					version: 1,
 					savedAt: new Date().toISOString(),
+					// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
+					// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
+					fieldSnapshot: caseFieldSnapshot(fields),
 					settings,
 					extra: ex,
 					// 世俗盘(入宫盘)等 astro 类事盘存档时带上格式化 astro 快照 →

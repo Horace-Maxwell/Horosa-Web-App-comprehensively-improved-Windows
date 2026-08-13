@@ -62,8 +62,11 @@ class ZWHouse extends ZWCommHouse {
 		this.drawLaiYing();
 		// [D2] 宫底岁数条(默认双关):画在下 1/4 标题带上沿之上,靠左。
 		this.drawAgeStrips(this.x + 3, this.y + this.height * 3 / 4 - 3, this.width - 6, 10);
+		this.drawKinastroLiunianRow();   // 策天(移语本)流年星徽行:仅 kinastroBorrowed 且有数据时画
 		this.drawOverlayMarks();   // 流派叠层角标/借宫/活盘:实现已上提基类 ZWCommHouse(四化盘/三合盘共用)
 	}
+
+	// drawKinastroLiunianRow: 实现上提基类 ZWCommHouse(四化盘/三合盘共用,与 drawAgeStrips 同模式)。
 
 	drawSihuaTitle(){
 		let h = this.height / 4;
@@ -98,7 +101,25 @@ class ZWHouse extends ZWCommHouse {
 				.attr('stroke', ZWCont.ZWColor.HouseLineStroke)
 				.attr('x', dirX).attr('y', dirY)
 				.attr('width', dirW).attr('height', dirH);
-		if(this.dirname !== undefined && this.dirname !== null && this.dirname.length){
+		if(this.kinastroBorrowed && this.houseObj && this.houseObj.kinastroXianName){
+			// 策天(移语本):限名真值(禄限/紫限/文限…)替代「运+宫名首字」——运限段单源。
+			// 直接 fill 文本(drawTextH 是描边字,限名两字大号下描边发毛,用户点名去描边)。
+			const xn = `${this.houseObj.kinastroXianName}`.slice(0, 2);
+			const xnSize = Math.max(12, Math.min(15, Math.round(dirH * 0.5)));
+			container.append('text')
+				.attr('class', 'horosa-ziwei-kinastro-xian-name')
+				.attr('x', dirX + dirW / 2)
+				.attr('y', dirY + dirH / 4 + 0.5)
+				.attr('dominant-baseline', 'middle')
+				.attr('text-anchor', 'middle')
+				.attr('fill', ZWCont.ZWColor.HouseBranchStroke)
+				.attr('stroke', 'none')
+				.attr('font-size', `${xnSize}px`)
+				.attr('font-weight', 650)
+				.attr('letter-spacing', '1.5px')
+				.attr('font-family', AstroConst.NormalFont)
+				.text(xn);
+		}else if(this.dirname !== undefined && this.dirname !== null && this.dirname.length){
 			let dirData = [];
 			dirData[0] = '运';
 			dirData[1] = this.dirname.substr(0, 1);

@@ -215,8 +215,62 @@ export function xuankong(yun, xiangShan, opts = {}) {
 	// 阴阳宅（4.19）：立向口径提示。
 	const yinYangZhai = opts.yinYangZhai === 'yin' ? 'yin' : 'yang';
 
+	// ── 收山出煞（古籍口径·环境合参层）───────────────────────────────────────
+	//   opts.shousha = { [gong]: 'shan'|'shui'|'kong'|'gao'|'' }（八方实况：见山/见水/空地/高物）
+	//   四原则：旺生山星方宜见山不宜见水（收山）；退死山星方宜见水不宜见山（出煞）；
+	//           旺生向星方宜见水不宜见山（收水）；退死向星方宜见山不宜见水（出煞）。
+	//   🔴 本层是「形势与理气合参」的独立结论，**不改四大局 ge 的本判**（ge 恒按飞星格局给出）；
+	//      古籍另有「能收山出煞者虽上山下水亦吉、不能者虽旺山旺向亦凶」之说，故此处并陈两说不相覆盖。
+	let shousha = null;
+	if (opts.shousha && typeof opts.shousha === 'object') {
+		const sanJi = [yun, (yun % 9) + 1, ((yun + 1) % 9) + 1];   // 当令 + 生气 + 次生（三吉）
+		const isWang = (star)=>sanJi.indexOf(star) >= 0;
+		const rows = [];
+		palaces.forEach((p)=>{
+			if (p.gong === 5) { return; }
+			const env = opts.shousha[p.gong] || '';
+			// 🔴 只认四个合法实况值。杂值既不算见山也不算见水，两面判据会双双落 false，
+			//    凭空造出「全违」的凶断 —— 故此处白名单硬闸，非法值等同未录。
+			if (['shan', 'gao', 'shui', 'kong'].indexOf(env) < 0) { return; }
+			const isShanLike = env === 'shan' || env === 'gao';
+			const isShuiLike = env === 'shui' || env === 'kong';
+			const shanWang = isWang(p.shan);
+			const xiangWang = isWang(p.xiang);
+			const hits = [];
+			// 山星面
+			if (shanWang) {
+				hits.push(isShanLike ? { ok: true, text: `山星${p.shan}当旺得山——收山（山上龙神不下水）` }
+					: { ok: false, text: `山星${p.shan}当旺却见水空——山上龙神下水` });
+			} else {
+				hits.push(isShuiLike ? { ok: true, text: `山星${p.shan}退死见水空——出煞` }
+					: { ok: false, text: `山星${p.shan}退死却见山高——衰星得山，凶` });
+			}
+			// 向星面
+			if (xiangWang) {
+				hits.push(isShuiLike ? { ok: true, text: `向星${p.xiang}当旺得水——收水（水里龙神不上山）` }
+					: { ok: false, text: `向星${p.xiang}当旺却见山高——水里龙神上山` });
+			} else {
+				hits.push(isShanLike ? { ok: true, text: `向星${p.xiang}退死见山高——出煞` }
+					: { ok: false, text: `向星${p.xiang}退死却见水空——衰星得水，凶` });
+			}
+			rows.push({ gong: p.gong, name: p.name, gua: p.gua, env,
+				shan: p.shan, xiang: p.xiang, shanWang, xiangWang, hits,
+				okN: hits.filter((h)=>h.ok).length, badN: hits.filter((h)=>!h.ok).length });
+		});
+		const okN = rows.reduce((a, r)=>a + r.okN, 0);
+		const badN = rows.reduce((a, r)=>a + r.badN, 0);
+		shousha = {
+			rows, okN, badN, sanJi,
+			verdict: !rows.length ? { text: '未录八方实况——收山出煞须以形势实况判定', jx: 'neutral' }
+				: (badN === 0 ? { text: '八方形势与山向星相得——能收山出煞', jx: 'good' }
+					: (okN >= badN ? { text: `合${okN}违${badN}——大体能收山出煞，尚有瑕疵`, jx: 'neutral' }
+						: { text: `合${okN}违${badN}——不能收山出煞`, jx: 'bad' })),
+			note: '古籍另说：能收山出煞者虽上山下水亦吉，不能者虽旺山旺向亦凶。本模块两说并陈——格局仍按飞星本判，此处只出环境合参之结论。',
+		};
+	}
+
 	return {
-		available: true, yun, yunRange: YUN_YEARS[yun], xiangShan: effXiang, zuoShan, ge,
+		available: true, yun, yunRange: YUN_YEARS[yun], xiangShan: effXiang, zuoShan, ge, shousha,
 		gZuo, gXiang, yunPan, shanPan, xiangPan, palaces, flags,
 		zhengShen, lingShen, fuMuSanBan, lianZhuSanBan, yearPan, monthPan, yearHui, monthHui,
 		gate, rob, jian, tiVariant, jianInfo, yinYangZhai, sameAsXiaGua: c.sameAsXiaGua, method: c.method || '下卦',

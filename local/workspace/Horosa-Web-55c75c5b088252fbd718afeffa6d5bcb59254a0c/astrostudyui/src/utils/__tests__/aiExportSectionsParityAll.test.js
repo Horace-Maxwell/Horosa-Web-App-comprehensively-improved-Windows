@@ -66,6 +66,8 @@ const LOCAL = {
 	xiaoliuren: {},
 	xiaochengtu: {},
 	feigong: {},
+	// 灵棋经:纯前端引擎;卦=冻结棋数必须随 payload(headless 恒不重掷,无 counts 即空,故供样本)。
+	lingqi: { payload: { counts: [1, 1, 1], options: {} } },
 };
 
 // SOFT=依赖后端盘/外部服务(有产出才断言;产空提示不红)

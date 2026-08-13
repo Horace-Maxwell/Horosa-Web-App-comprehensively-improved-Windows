@@ -46,8 +46,8 @@ const MODE_OPTIONS = [
 
 // 理气/水法/大卦/形势/择日 —— 纯前端流派（不依赖户型图，走 LiqiWorkspace）。
 // 🔴 新增任何纯前端派必须同时进本表（LIQI_SET 是 onVm 守的判据）——漏登记 = 画布快照覆盖本派快照。
-const LIQI_SCHOOLS = ['bazhai', 'xuankong', 'sanhe', 'jinsuo', 'qiankun', 'zibai', 'fuxing', 'jingyin', 'dagua', 'xingshi', 'zeri',
-	'liufa', 'mingli', 'luopan'];
+export const LIQI_SCHOOLS = ['bazhai', 'xuankong', 'sanhe', 'jinsuo', 'qiankun', 'zibai', 'fuxing', 'jingyin', 'dagua', 'xingshi', 'zeri',
+	'liufa', 'mingli', 'luopan', 'daxuankong', 'shuilong', 'huasha', 'zhaiduan'];
 const LIQI_SET = new Set(LIQI_SCHOOLS);
 const SCHOOL_GROUPS = [
 	{ label: '户型图阳宅（标注）', items: [
@@ -62,14 +62,20 @@ const SCHOOL_GROUPS = [
 		{ value: 'qiankun', label: '乾坤国宝' },
 		{ value: 'zibai', label: '紫白飞星' },
 		{ value: 'liufa', label: '玄空六法 · 谈养吾' },
+		{ value: 'daxuankong', label: '大玄空 · 单盘挨星' },
 	] },
 	{ label: '罗盘 · 命理', items: [
 		{ value: 'luopan', label: '综合罗经 · 三针分层' },
 		{ value: 'mingli', label: '命理派 · 以命配宅' },
 	] },
 	{ label: '水法 · 翻卦', items: [
+		{ value: 'shuilong', label: '水龙 · 平洋水法' },
 		{ value: 'fuxing', label: '辅星水法 · 翻卦九星' },
 		{ value: 'jingyin', label: '净阴净阳 · 纳甲水法' },
+	] },
+	{ label: '改造 · 化煞 · 宅断', items: [
+		{ value: 'huasha', label: '改造化煞 · 形煞/气煞' },
+		{ value: 'zhaiduan', label: '阳宅判断 · 三方合参' },
 	] },
 	{ label: '易卦 · 形势 · 择日', items: [
 		{ value: 'dagua', label: '玄空大卦 · 六十四卦' },
@@ -704,7 +710,10 @@ class FengShuiMain extends Component {
 			<div className="horosa-fengshui-app" style={{ height }} ref={this.rootRef} onPointerDownCapture={this.onRootPointerDown}>
 				<input ref={this.fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(ev) => this.onFile(ev)} />
 				{this.renderQuickbar(vm)}
-				{isLiqi ? <LiqiWorkspace school={this.state.school} /> : null}
+				{/* geo：画布户型图之几何输入，现取现用（含 gongAt，方位仍以画布为唯一真值源）。
+				    画布未画房屋框时为 null —— 宅断派几何检测整块落「未判」，不臆造。 */}
+				{isLiqi ? <LiqiWorkspace school={this.state.school}
+					geo={this.engine ? this.engine.buildNeijuGeoInput() : null} /> : null}
 				<div className="horosa-fengshui-canvas-body" style={isLiqi ? { display: 'none' } : { display: 'contents' }}>
 				<Row gutter={8} className="horosa-fengshui-layout">
 					<Col span={6} className="horosa-fengshui-side">

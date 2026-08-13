@@ -25,7 +25,7 @@ import { resolveJinKouDiFen } from './JinKouState';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+import { getKentangSavedCasePayload, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
 import {
 	XQButton as Button,
 	XQSelect as Select,
@@ -1766,7 +1766,6 @@ class JinKouMain extends Component{
 			return;
 		}
 		const displayRunYear = resolveDisplayRunYear(this.state.runyear, getAppliedBirth(this.state), flds);
-		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
 		const snapshot = loadModuleAISnapshot('jinkou');
 		const payload = {
 			module: 'jinkou',
@@ -1806,27 +1805,20 @@ class JinKouMain extends Component{
 				gender: this.state.birth.gender ? this.state.birth.gender.value : 1,
 			} : null,
 		};
-		if(this.props.dispatch){
-			this.props.dispatch({
-				type: 'astro/openDrawer',
-				payload: {
-					key: 'caseadd',
-					record: {
-						event: `金口诀占断 ${divTime}`,
-						caseType: 'jinkou',
-						divTime: divTime,
-						zone: flds.zone.value,
-						lat: flds.lat.value,
-						lon: flds.lon.value,
-						gpsLat: flds.gpsLat.value,
-						gpsLon: flds.gpsLon.value,
-						pos: flds.pos ? flds.pos.value : '',
-						payload: payload,
-						sourceModule: 'jinkou',
-					},
-				},
-			});
-		}
+		// 🔴 改走共用件 openKentangCaseDrawer:此前这里手写 record,漏了两样东西 ——
+		//   ① payload.fieldSnapshot(日界点 after23NewDay / 晚子时 lateZiHourUseNextDay /
+		//      卦日界 guaAfter23NewDay / 时间算法 timeAlg);② 顶层 gender。
+		// applyCase 载档时正是从这两处回灌口径(user.js pickCaseField),取不到就跳过、
+		// 沿用全局当前值 —— 于是存档时若把日界点设成非默认,再载回来日柱/时柱直接算错。
+		// 共用件产出的 record 与原手写完全等价(event/caseType/divTime/zone/lat/lon/gps/pos 逐项同),
+		// 只是额外补齐上面两样,故此处零行为变更、纯补账。
+		openKentangCaseDrawer({
+			dispatch: this.props.dispatch,
+			fields: flds,
+			module: 'jinkou',
+			label: '金口诀',
+			payload,
+		});
 	}
 
 	genWuXingDoms(){

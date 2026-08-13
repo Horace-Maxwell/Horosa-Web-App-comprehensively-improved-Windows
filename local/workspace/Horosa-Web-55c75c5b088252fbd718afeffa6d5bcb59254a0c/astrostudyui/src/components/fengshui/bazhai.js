@@ -66,12 +66,20 @@ export function guaRelation(guaA, guaB) {
 
 // 八宅排盘：坐山 + 命卦相配 + 门主灶三要 + 九星配六事 + 静动变化。
 //   { zuoGua, ming:{year,isMale}, mode, doorGua, mainGua, stoveGua, zhaiType }
-export function bazhai({ zuoGua, ming, mode = 'zhai', doorGua, mainGua, stoveGua, zhaiType = 'jing' } = {}) {
+// faMai 法脉三档（古法并陈，切档即换起例，不可混算）：
+//   'zuoshan'（默认·通行）＝以坐山卦起伏位排大游年；
+//   'menshang'          ＝以**大门卦**起伏位排大游年（古籍主张此为真法，但坊间多从坐山，故并存可切）；
+//   'sanyuan'           ＝三元阳宅：**以门向与三元衰旺定宅**，游年只作断时日之用
+//                          （古籍：「八宅因门坐向空，三元衰旺定真踪」「天医福德莫安排，只好游年断时日」）。
+export function bazhai({ zuoGua, ming, mode = 'zhai', doorGua, mainGua, stoveGua, zhaiType = 'jing',
+	faMai = 'zuoshan', yun = 9, lunMing = true } = {}) {
 	if (!(zuoGua in GUA_BIN)) { return { available: false }; }
 	const zhaiGroupName = EAST.indexOf(zuoGua) >= 0 ? '东四宅' : '西四宅';
-	const stars = dayouNian(zuoGua);
+	// 法脉：起伏位之卦（坐山 / 大门）；三元阳宅档亦以门为主（其游年只断时日）。
+	const fuweiGua = ((faMai === 'menshang' || faMai === 'sanyuan') && doorGua && GUA_BIN[doorGua]) ? doorGua : zuoGua;
+	const stars = dayouNian(fuweiGua);
 	let mingGuaNum = null; let mingGroupName = null; let mingStars = null; let match = null;
-	if (ming && ming.year) {
+	if (lunMing !== false && ming && ming.year) {
 		mingGuaNum = mingGua(ming.year, ming.isMale !== false);
 		mingGroupName = mingGroup(mingGuaNum);
 		const mGua = GONG_TO_GUA[mingGuaNum] || GONG_GUA[mingGuaNum];
@@ -109,8 +117,39 @@ export function bazhai({ zuoGua, ming, mode = 'zhai', doorGua, mainGua, stoveGua
 		};
 	}
 
+	// 三元阳宅（蒋氏一路）：以门向与三元衰旺定宅，游年降为「只断时日」。
+	//   古籍：「八宅因门坐向空，三元衰旺定真踪」；「天医福德莫安排，只好游年断时日；
+	//          逢兴鬼绝更昌隆，遇替生延皆困迫」——宅运兴时鬼绝反昌、宅运替时生延反困。
+	let sanyuan = null;
+	if (faMai === 'sanyuan') {
+		const y = Math.trunc(Number(yun)) || 9;
+		const menGua = (doorGua && GUA_BIN[doorGua]) ? doorGua : null;
+		const menGong = menGua ? HOUTIAN_POS[menGua] : null;
+		// 门所在宫之数与当运数比较：得令（当运/生气）为兴，失令为替。
+		const sheng = ((y % 9) + 1);                    // 次运＝生气
+		const wang = !!menGua && menGong === y;
+		const shengQi = !!menGua && menGong === sheng;
+		const xingTi = (wang || shengQi) ? 'xing' : 'ti';
+		// 🔴 本档「以门向定宅」，没门卦就没得判：据实报缺，绝不把 null 拼进用户可见文案
+		//    （真机上曾读出「门在null宫非当运非生气」——jest 只断了 xingTi 没断文案，没拦住）。
+		sanyuan = {
+			yun: y, menGua, menGong, wang, shengQi, xingTi, needsMen: !menGua,
+			verdict: !menGua ? { text: '未设大门之卦——本档以门向定宅，请先在左栏设「门卦」', jx: 'neutral' }
+				: (wang ? { text: `门在${menGua}宫得当运${y}——宅气正兴`, jx: 'good' }
+					: (shengQi ? { text: `门在${menGua}宫得生气${sheng}——宅气将兴`, jx: 'good' }
+						: { text: `门在${menGua}宫非当运非生气——宅气已替`, jx: 'bad' })),
+			youNianRole: '本档游年只作断时日之用，不据以定宅吉凶',
+			fanZhuan: !menGua ? '（未设门卦，兴替未定）'
+				: (xingTi === 'xing'
+					? '宅运兴时：纵游年落鬼绝，亦「逢兴鬼绝更昌隆」'
+					: '宅运替时：纵游年得生延，亦「遇替生延皆困迫」'),
+			note: '八宅因门坐向空，三元衰旺定真踪 —— 本档与「坐山起伏位」为两路口径，不可混算。',
+		};
+	}
+
 	return {
 		available: true, zuoGua, zhaiGroup: zhaiGroupName,
+		faMai, fuweiGua, lunMing: lunMing !== false, sanyuan,
 		palaces: Object.keys(baseStars).map((g)=>({ gong: +g, ...baseStars[g] })),
 		mingGua: mingGuaNum, mingGroup: mingGroupName, match, mode,
 		doorMainStove: {

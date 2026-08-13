@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
-index 52d0b41..cc77faf 100644
+index 3df5f791..583907bc 100644
 --- a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 +++ b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 @@ -16,6 +16,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
@@ -11,7 +11,7 @@ index 52d0b41..cc77faf 100644
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.xiaochengtu.settings.v1';
-@@ -126,6 +128,7 @@ class XiaoChengTuMain extends Component {
+@@ -167,6 +169,7 @@ class XiaoChengTuMain extends Component {
  		this.onTimeChanged = this.onTimeChanged.bind(this);
  		this.changeGeo = this.changeGeo.bind(this);
  	}
@@ -19,7 +19,7 @@ index 52d0b41..cc77faf 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		if(typeof window !== 'undefined'){
-@@ -213,7 +216,8 @@ class XiaoChengTuMain extends Component {
+@@ -270,7 +273,8 @@ class XiaoChengTuMain extends Component {
  			qi = qiGuaByStock({ open: inputs.open, close: inputs.close });
  			if(!qi){ return this.setState({ error: '开收盘价非法(需含数字,如 1563.62)', qi: null }); }
  		}
@@ -29,13 +29,13 @@ index 52d0b41..cc77faf 100644
  	}
  	setSettings(patch){
  		const settings = { ...this.state.settings, ...patch };
-@@ -465,47 +469,66 @@ class XiaoChengTuMain extends Component {
+@@ -559,9 +563,19 @@ class XiaoChengTuMain extends Component {
  			</div>
  		);
  		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
 +		// 受控化的兜底:「股市」目只在 qi.mode==='stock' 时存在。非受控 antd 在当前目消失时会自行落回,
 +		// 受控则不会 —— 故此处按【当前实际存在的目】校验一次,失效即落回首目,绝不出现空白右栏。
-+		const auxKeys = ['tuidao', 'sixiang', 'yingqi'].concat(qi && qi.mode === 'stock' ? ['stock'] : []).concat(['qigua']);
++		const auxKeys = ['tuidao', 'sixiang', 'yingqi', 'gongyi'].concat(qi && qi.mode === 'stock' ? ['stock'] : []).concat(['qigua']);
 +		const auxTab = auxKeys.indexOf(this.state.auxTab) >= 0 ? this.state.auxTab : 'tuidao';
  		return (
 -			<Tabs size="small" className="horosa-xct-aux horosa-cnx-aux">
@@ -46,84 +46,71 @@ index 52d0b41..cc77faf 100644
 +				activeKey={auxTab}
 +				onChange={(k)=>this.setState({ auxTab: k })}>
  				<TabPane tab="推导" key="tuidao">
--					{!pan ? wait('左栏择起卦法「起卦」后显示正推/旁推链。') : <>
--					{td ? row(`用宫 ${g0}${DI_PAN[g0]}`, td.fuWei ? '天地盘同卦,伏位不动' : zhengTuiText(td)) : row('推导', '—')}
--					{td && td.pang ? row('旁推', zhengTuiText(td.pang) || '—') : null}
--					{td && !td.fuWei ? td.steps.map((s, i)=>row(`第${i + 1}步`, `${s.diGua}宫见天盘${s.tianGua}(宫数${s.shu})`, i)) : null}
--					</>}
 +					<FreezeSubTab active={auxTab === 'tuidao'}>{() => (<>
-+						{!pan ? wait('左栏择起卦法「起卦」后显示正推/旁推链。') : <>
-+						{td ? row(`用宫 ${g0}${DI_PAN[g0]}`, td.fuWei ? '天地盘同卦,伏位不动' : zhengTuiText(td)) : row('推导', '—')}
-+						{td && td.pang ? row('旁推', zhengTuiText(td.pang) || '—') : null}
-+						{td && !td.fuWei ? td.steps.map((s, i)=>row(`第${i + 1}步`, `${s.diGua}宫见天盘${s.tianGua}(宫数${s.shu})`, i)) : null}
-+						</>}
+ 					{!pan ? wait('左栏择起卦法「起卦」后显示正推/旁推链。') : <>
+ 					{GONG_INFO[g0] ? row('用宫所主', `${g0}宫${GONG_INFO[g0].gua}(${GONG_INFO[g0].fangwei}·${GONG_INFO[g0].yue}) · 宫主${GONG_INFO[g0].zhu}`) : null}
+ 					{td ? row(`用宫 ${g0}${DI_PAN[g0]}`, td.fuWei ? '天地盘同卦,伏位不动' : zhengTuiText(td), 1) : row('推导', '—', 1)}
+@@ -569,8 +583,10 @@ class XiaoChengTuMain extends Component {
+ 					{td && !td.fuWei ? td.steps.map((s, i)=>row(`第${i + 1}步`, `${s.diGua}宫见天盘${s.tianGua}(宫数${s.shu})`, i + 10)) : null}
+ 					<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>{PANG_TUI_ZONG_TEXT}</div>
+ 					</>}
 +					</>)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="四象" key="sixiang">
--					{!qi ? wait('起卦后显示本卦/之卦四象配断。') : <>
--					{sxB ? row(`本卦${qi.ben.name}`, `${sxB.type}(${SI_XIANG_BASE[sxB.type] || ''}) · ${sxB.yi} · ${sxB.dePei ? '得配' : '失配'}:${sxB.ci}`) : null}
--					{sxZ ? row(`之卦${qi.zhi.name}`, `${sxZ.type}(${SI_XIANG_BASE[sxZ.type] || ''}) · ${sxZ.yi} · ${sxZ.dePei ? '得配' : '失配'}:${sxZ.ci}`) : null}
--					<div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>阖辟往来:阖吉、辟凶、往悔、來吝(四象配断之纲)。</div>
--					</>}
 +					<FreezeSubTab active={auxTab === 'sixiang'}>{() => (<>
-+						{!qi ? wait('起卦后显示本卦/之卦四象配断。') : <>
-+						{sxB ? row(`本卦${qi.ben.name}`, `${sxB.type}(${SI_XIANG_BASE[sxB.type] || ''}) · ${sxB.yi} · ${sxB.dePei ? '得配' : '失配'}:${sxB.ci}`) : null}
-+						{sxZ ? row(`之卦${qi.zhi.name}`, `${sxZ.type}(${SI_XIANG_BASE[sxZ.type] || ''}) · ${sxZ.yi} · ${sxZ.dePei ? '得配' : '失配'}:${sxZ.ci}`) : null}
-+						<div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>阖辟往来:阖吉、辟凶、往悔、來吝(四象配断之纲)。</div>
-+						</>}
+ 					{!qi ? wait('起卦后显示本卦/之卦四象配断。') : <>
+ 					{sxB ? row(`本卦${qi.ben.name}`, `${sxB.type}(${SI_XIANG_BASE[sxB.type] || ''}) · ${sxB.yi} · 上${sxB.up}${sxB.sheng.up === '升' ? '↑' : '↓'}下${sxB.lo}${sxB.sheng.lo === '升' ? '↑' : '↓'} · ${sxB.dePei ? '得配' : '失配'}为${sxB.qingWei}:${sxB.ci}`) : null}
+ 					{sxZ ? row(`之卦${qi.zhi.name}`, `${sxZ.type}(${SI_XIANG_BASE[sxZ.type] || ''}) · ${sxZ.yi} · 上${sxZ.up}${sxZ.sheng.up === '升' ? '↑' : '↓'}下${sxZ.lo}${sxZ.sheng.lo === '升' ? '↑' : '↓'} · ${sxZ.dePei ? '得配' : '失配'}为${sxZ.qingWei}:${sxZ.ci}`, 1) : null}
+@@ -606,8 +622,10 @@ class XiaoChengTuMain extends Component {
+ 						<div style={{ marginTop: 4 }}>{QU_BI_TEXT}</div>
+ 					</div>
+ 					</>}
 +					</>)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="应期" key="yingqi">
--					{!pan ? wait('起卦后显示数占应期。') : <>
--					{sz && sz.sum != null ? row('数占', `正推链宫数相加 = ${sz.sum}(问数以数应)`) : row('数占', sz && sz.fuWei ? '伏位无链和,参旁推' : '—')}
--					{(()=>{ const yg = pan.tianPan[g0]; const sf = yg ? sanFen(yg) : null; return sf ? row('三分·旬', `用宫得 ${yg} 卦 → ${sf.xun}旬`, 1) : null; })()}
--					{(()=>{ const yg = pan.tianPan[g0]; const lf = yg ? liangFen(yg) : null; return lf ? row('两分·半月', `用宫得 ${yg} 卦 → ${lf.ban}月(${lf.yy})`, 2) : null; })()}
--					<div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>三分法定上/中/下旬,两分法定前/后半月;应期卦取用宫天盘卦(与股市幅度/涨跌分治)。</div>
--					</>}
 +					<FreezeSubTab active={auxTab === 'yingqi'}>{() => (<>
-+						{!pan ? wait('起卦后显示数占应期。') : <>
-+						{sz && sz.sum != null ? row('数占', `正推链宫数相加 = ${sz.sum}(问数以数应)`) : row('数占', sz && sz.fuWei ? '伏位无链和,参旁推' : '—')}
-+						{(()=>{ const yg = pan.tianPan[g0]; const sf = yg ? sanFen(yg) : null; return sf ? row('三分·旬', `用宫得 ${yg} 卦 → ${sf.xun}旬`, 1) : null; })()}
-+						{(()=>{ const yg = pan.tianPan[g0]; const lf = yg ? liangFen(yg) : null; return lf ? row('两分·半月', `用宫得 ${yg} 卦 → ${lf.ban}月(${lf.yy})`, 2) : null; })()}
-+						<div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>三分法定上/中/下旬,两分法定前/后半月;应期卦取用宫天盘卦(与股市幅度/涨跌分治)。</div>
-+						</>}
+ 					{!pan ? wait('起卦后显示数占应期。') : <>
+ 					{sz && sz.sum != null ? row('数占', `正推链宫数相加 = ${sz.sum}(问数以数应)`) : row('数占', sz && sz.fuWei ? '伏位无链和,参旁推' : '—')}
+ 					{(()=>{ const yg = pan.tianPan[g0]; const sf = yg ? sanFen(yg) : null; return sf ? row('三分·旬', `用宫得 ${yg} 卦 → ${sf.xun}旬`, 1) : null; })()}
+@@ -630,8 +648,10 @@ class XiaoChengTuMain extends Component {
+ 						应期推演之链系古籍载例逐步归纳,非另有明文总则,仅供推寻参照。
+ 					</div>
+ 					</>}
++					</>)}</FreezeSubTab>
+ 				</TabPane>
+ 				<TabPane tab="宫义" key="gongyi">
++					<FreezeSubTab active={auxTab === 'gongyi'}>{() => (<>
+ 					{/* [XCT-4] 九宫八方各有所主(原文八条),此前只入快照一行、UI 零处可见。 */}
+ 					<div style={{ fontSize: 12, lineHeight: 1.85 }}>
+ 						{[9, 8, 7, 6, 4, 3, 2, 1].map((g)=>(
+@@ -644,9 +664,11 @@ class XiaoChengTuMain extends Component {
+ 						<div>{SHENG_JIANG_TEXT}</div>
+ 						<div style={{ marginTop: 4 }}>{ZHONG_GONG_NOTE}</div>
+ 					</div>
 +					</>)}</FreezeSubTab>
  				</TabPane>
  				{qi && qi.mode === 'stock' ? (
  					<TabPane tab="股市" key="stock">
--						{(()=>{ const fd = fuDu(qi.ben.up); return fd ? row('幅度三分', `${fd.gua} 主爻位 ${fd.zhuYao} · 幅度${fd.fudu}`) : null; })()}
--						{(()=>{ const zd = zhangDie(qi.ben.up); return zd ? row('涨跌两分', `上卦${qi.ben.up} → ${zd}`) : null; })()}
--						{(()=>{ const k = this.klineOpt(); if(!k){ return (this.state.inputs.klineBody === 'doji') ? row('K线定用宫', '十字星阴阳莫辨,须手动择用宫') : null; }
--							const hit = klineYongGong(k); return hit ? row('K线定用宫', `${hit.key} → ${hit.gua}宫(${hit.gong})${hit.inferred ? '·推补' : ''}`) : null; })()}
--						{(()=>{ const og = pan.tianPan[g0]; return og ? row('研判·开盘', `用宫天盘${og} → ${zhangDie(og) || '—'}(幅度${(fuDu(og) || {}).fudu || '—'})`, 8) : null; })()}
--						{(()=>{ const tdS = tuiDao(pan, g0); const cg = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : pan.tianPan[g0]); return cg ? row('研判·收盘', `正推末卦${cg} → ${zhangDie(cg) || '—'}(幅度${(fuDu(cg) || {}).fudu || '—'})`, 9) : null; })()}
--						<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
--						<pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, opacity: 0.75, marginTop: 8 }}>{STOCK_QI_GUA_TEXT}</pre>
--					</TabPane>
--				) : null}
--				<TabPane tab="起卦" key="qigua">
--					{!qi ? wait('起卦后显示起卦步骤明细。') : <>
--					{(qi.steps || []).map((s, i)=>row(s.label, `${s.detail} → ${s.value}`, i))}
--					{!((qi.steps || []).length) ? row('起卦', `手动:${qi.ben.name} 动 ${(qi.dongYaos || []).join('、') || '无'}`) : null}
--					</>}
 +						<FreezeSubTab active={auxTab === 'stock'}>{() => (<>
-+							{(()=>{ const fd = fuDu(qi.ben.up); return fd ? row('幅度三分', `${fd.gua} 主爻位 ${fd.zhuYao} · 幅度${fd.fudu}`) : null; })()}
-+							{(()=>{ const zd = zhangDie(qi.ben.up); return zd ? row('涨跌两分', `上卦${qi.ben.up} → ${zd}`) : null; })()}
-+							{(()=>{ const k = this.klineOpt(); if(!k){ return (this.state.inputs.klineBody === 'doji') ? row('K线定用宫', '十字星阴阳莫辨,须手动择用宫') : null; }
-+								const hit = klineYongGong(k); return hit ? row('K线定用宫', `${hit.key} → ${hit.gua}宫(${hit.gong})${hit.inferred ? '·推补' : ''}`) : null; })()}
-+							{(()=>{ const og = pan.tianPan[g0]; return og ? row('研判·开盘', `用宫天盘${og} → ${zhangDie(og) || '—'}(幅度${(fuDu(og) || {}).fudu || '—'})`, 8) : null; })()}
-+							{(()=>{ const tdS = tuiDao(pan, g0); const cg = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : pan.tianPan[g0]); return cg ? row('研判·收盘', `正推末卦${cg} → ${zhangDie(cg) || '—'}(幅度${(fuDu(cg) || {}).fudu || '—'})`, 9) : null; })()}
-+							<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
-+							<pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, opacity: 0.75, marginTop: 8 }}>{STOCK_QI_GUA_TEXT}</pre>
+ 						{(()=>{ const fd = fuDu(qi.ben.up); return fd ? row('幅度三分', `${fd.gua} 主爻位 ${fd.zhuYao} · 幅度${fd.fudu}`) : null; })()}
+ 						{(()=>{ const zd = zhangDie(qi.ben.up); return zd ? row('涨跌两分', `上卦${qi.ben.up} → ${zd}`) : null; })()}
+ 						{(()=>{ const k = this.klineOpt(); if(!k){ return (this.state.inputs.klineBody === 'doji') ? row('K线定用宫', '十字星阴阳莫辨,须手动择用宫') : null; }
+@@ -655,9 +677,11 @@ class XiaoChengTuMain extends Component {
+ 						{(()=>{ const tdS = tuiDao(pan, g0); const cg = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : pan.tianPan[g0]); return cg ? row('研判·收盘', `正推末卦${cg} → ${zhangDie(cg) || '—'}(幅度${(fuDu(cg) || {}).fudu || '—'})`, 9) : null; })()}
+ 						<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
+ 						<pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, opacity: 0.75, marginTop: 8 }}>{STOCK_QI_GUA_TEXT}</pre>
 +						</>)}</FreezeSubTab>
-+						</TabPane>
-+					) : null}
-+					<TabPane tab="起卦" key="qigua">
-+						<FreezeSubTab active={auxTab === 'qigua'}>{() => (<>
-+						{!qi ? wait('起卦后显示起卦步骤明细。') : <>
-+						{(qi.steps || []).map((s, i)=>row(s.label, `${s.detail} → ${s.value}`, i))}
-+						{!((qi.steps || []).length) ? row('起卦', `手动:${qi.ben.name} 动 ${(qi.dongYaos || []).join('、') || '无'}`) : null}
-+						</>}
+ 					</TabPane>
+ 				) : null}
+ 				<TabPane tab="起卦" key="qigua">
++					<FreezeSubTab active={auxTab === 'qigua'}>{() => (<>
+ 					{!qi ? wait('起卦后显示起卦步骤明细。') : <>
+ 					{(qi.steps || []).map((s, i)=>row(s.label, `${s.detail} → ${s.value}`, i))}
+ 					{!((qi.steps || []).length) ? row('起卦', `手动:${qi.ben.name} 动 ${(qi.dongYaos || []).join('、') || '无'}`) : null}
+@@ -670,6 +694,7 @@ class XiaoChengTuMain extends Component {
+ 						</div>
+ 					) : null}
+ 					</>}
 +					</>)}</FreezeSubTab>
  				</TabPane>
  			</Tabs>
