@@ -18,8 +18,10 @@ from .figures import (active_elements, data, is_palindrome, name, opposite, poin
 from .hakata import cast_hakata
 from .house import (PLANET_ORDER, ascendant_sign, ascendant_from_source,
                     astro_place_planets_from_chart, astro_place_planets_bytwelves,
+                    astro_place_planets_real,
                     derived_house, house_chart, house_chart_buyut,
                     house_signs, HOUSE_SYSTEMS, HOUSE_PLACEMENTS, ASC_SOURCES)
+from .ephem import real_erection
 from .ifa import cast_ifa, CULTURAL_NOTICE as IFA_NOTICE, odu_of
 from .numbers import all_numbers, figure_number, normalize_number_system
 from .planetary import planetary_chart as build_planetary_chart, PCHART_ZODIAC_TABLES
@@ -30,7 +32,8 @@ from .sikidy import (cast_sikidy, check2b, col_to_figure, column_compare, prince
                      quadrants, red_sikidy, sikidy_valid, tokan_sikidy, SIKIDY_COL_NAMES)
 from .traditions import get_profile
 
-HOUSE_PROJECTIONS = ("sequential", "astro_from_chart", "astro_bytwelves")
+# 定局落星四式:顺铺(不落星)/甲 图主之宫/乙 各星报数定宫/丁 真实星历黄经定宫(须时地)
+HOUSE_PROJECTIONS = ("sequential", "astro_from_chart", "astro_bytwelves", "real_ephemeris")
 DIRECTIONS = ("LTR", "RTL")
 COMPOUND_MODES = ("inverse", "reverse")
 # 名表体系:只列**有配对依据**者。马语名与月之十六相名所据基准均只载名与义、未载其与图之配属,
@@ -107,7 +110,11 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
                     planetary_chart: Optional[bool] = None,
                     planetary_chart_zodiac: Optional[str] = None,
                     planetary_chart_nodes: Optional[bool] = None,
-                    planetary_chart_extras: Optional[bool] = None) -> dict:
+                    planetary_chart_extras: Optional[bool] = None,
+                    # ---- 真实星历盘(据所问之时地起上升与宫头;三者缺一即无真实盘)----
+                    jd: Optional[float] = None,
+                    geo_lon: Optional[float] = None,
+                    geo_lat: Optional[float] = None) -> dict:
     """一次完整判读。profile 决定方向/记号/黄道/范围/盘式/调和者/中止默认,可由 granular 形参逐项覆盖。"""
     prof = get_profile(profile_id)
     zsys = zodiac_system or prof.get("zodiac_system", "classical")
@@ -212,13 +219,27 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
     #    ② `or scope == "L4"` **无视用户选择**恒算乙 → L4 档下三态指纹全同。
     #    今改为按所选之法门控:顺铺=不做占星定局(不落星)、甲=只产甲、乙=只产乙。
     #    唯一保留的兜底:L4 本就是「占星定局」档,用户**未显式指定**时给主流甲法,免得该档空无落星。
+    #    丁法(真实星历)另须所问之时地,缺则如实回落甲法并在 astro_erection 标出原因。
+    # ⚠️ 真实盘**只在真被选用时才算**:如此则未选此二档者一个新键都不多、一次星历都不查(字节零回归),
+    #    且星历为纯函数不动 rng,故插在此处不影响后续任何随机取值之次序。
+    real_chart = None
+    if g_asc == "real_chart" or g_proj == "real_ephemeris":
+        if jd is not None and geo_lon is not None and geo_lat is not None:
+            real_chart = real_erection(jd, geo_lat, geo_lon, g_hsys)
+
     planets = None
     planets_by12 = None
+    planets_real = None
     if g_proj == "astro_from_chart":
         planets = astro_place_planets_from_chart(hc)
     elif g_proj == "astro_bytwelves":
         sub = random.Random(rng.getrandbits(64))
         planets_by12 = astro_place_planets_bytwelves(sub)
+    elif g_proj == "real_ephemeris":
+        planets_real = (astro_place_planets_real(jd, real_chart["cusps"])
+                        if (real_chart and real_chart.get("cusps")) else None)
+        if planets_real is None:
+            planets = astro_place_planets_from_chart(hc)     # 时地不可用即如实回落甲法
     elif scope == "L4" and house_projection not in HOUSE_PROJECTIONS:
         planets = astro_place_planets_from_chart(hc)
 
@@ -297,6 +318,11 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
         # 免得用户以为开关失灵。转宫后即分野。
         "reconciler_modes_coincide": recon_coincides,
     }
+    # 真实星历盘之实况:**只在用户真选了此二档时才添此二键**,故未选者 settings 字节零变。
+    # 有此二键界面才能如实说「已按所选时地起真实盘」或「时地缺失,已回落图形取法」,不至于静默变脸。
+    if g_asc == "real_chart" or g_proj == "real_ephemeris":
+        settings["real_chart_requested"] = True
+        settings["real_chart_available"] = real_chart is not None
 
     out = {
         "profile": prof, "zodiac_system": zsys, "reading_scope": scope, "settings": settings,
@@ -311,13 +337,24 @@ def compute_reading(question_type: str = "custom", profile_id: str = "european_c
         "reconciler": _fig_obj(recon_fig, g_nums, g_names) if g_recon else None,
         "halted_on_first_mother": halted,
         "houses": houses,
-        "astro_erection": (lambda _a: {**_a, **house_signs(_a["sign"], g_hsys)})(
-            ascendant_from_source(hc, zsys, g_asc, random.Random(rng.getrandbits(64)), s.judge)),
+        "astro_erection": (lambda _a: {**_a, **house_signs(
+            _a["sign"], g_hsys, real_chart if _a.get("asc_source") == "real_chart" else None)})(
+            ascendant_from_source(hc, zsys, g_asc, random.Random(rng.getrandbits(64)), s.judge,
+                                  real_chart)),
         "planet_placement": planets,
         "planet_placement_by_twelves": planets_by12,
         "reading": rd,
         "derived": derived_block,
     }
+
+    # 真实星历落星:与行星地占盘同法只在真用时出键 —— 未选此档者响应字节零变。
+    if planets_real is not None:
+        out["planet_placement_real"] = planets_real
+        out["real_chart"] = {
+            "asc_lon": real_chart.get("asc_lon"), "mc_lon": real_chart.get("mc_lon"),
+            "cusps": [round(float(c), 4) for c in real_chart.get("cusps") or []],
+            "quadrant_system": real_chart.get("quadrant_system"),
+        }
 
     # 行星地占盘:自成一盘(上升取首图之星座、七政各以报数落宫),与盾牌落星正交并存。
     # ⚠️ 子 rng 必取在 astro_erection 之后 —— 关此开关则一颗随机数不取,故开关关闭时全响应字节零变。

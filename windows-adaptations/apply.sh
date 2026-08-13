@@ -331,6 +331,16 @@ apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/tarot/__tes
 # 空 div。适配 = 取内容时若 children 是函数就求值一次;**断言一字未改**。
 apply_patch horosa_freeze_subtabs_v1  astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js src__components__xiaochengtu____tests____xiaochengtuRender.freezeUnwrap.test.js.patch
 
+echo "== 38. issue #65/#68 线上事故根治(三式打不开 / 3D 全屏失效;gotcha #98) =="
+# ① 3D 全屏状态机:判据从「允不允许全屏」(fullscreenEnabled,Electron 恒真)改为「当前是否全屏」
+#    (fullscreenElement);标准 API 名优先;新增 onFullScreenChange 订阅 —— 用户按 Esc 退出后
+#    组件标志不再停在 true(那正是「就是没法全屏」)。尺寸从猜 window.screen.* 改为量真实盒子。
+apply_patch horosa_fullscreen_state_v1  astrostudyui/src/utils/helper.js                       src__utils__helper.fullscreenState.js.patch
+apply_patch horosa_fullscreen_state_v1  astrostudyui/src/components/astro3d/AstroChart3D.js    src__components__astro3d__AstroChart3D.fullscreenState.js.patch
+# ② 两个常设回归守卫(纯新增测试文件,随 overlay 落地)
+cp "$OV/files/astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js" "$WS/astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js" && ok "sanshiRenderSmoke.test.js"
+cp "$OV/files/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js" "$WS/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js" && ok "fullscreenState.test.js"
+
 echo "== 26. PERF-R9 前端:交互跨度观测 + L1 真 LRU(纯观测/纯修 bug,功能零降级;跨平台,建议上游化 Mac) =="
 # ① horosa_interaction_span_v1 —— 端到端「点击 → 中栏+右栏画完」测量。改之前这套观测**量不出**
 #    要验收的那个数:':refresh-start' 全仓只有 changeTab 打点(切时间/改选项一次都不打,于是

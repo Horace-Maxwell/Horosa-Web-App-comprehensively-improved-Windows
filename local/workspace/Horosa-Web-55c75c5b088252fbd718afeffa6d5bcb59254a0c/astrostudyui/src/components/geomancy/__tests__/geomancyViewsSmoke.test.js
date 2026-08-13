@@ -639,3 +639,53 @@ describe('地占 · 左栏闭合态短名(选项被遮挡之根治)', () => {
 		expect(src).toContain('optionLabelProp="label"');
 	});
 });
+
+// ── 真实星历盘(时地真正接入后端)· 右栏两处渲染 ──
+// 判据取「文案与引擎回值同源」:上升度数/象限宫制/宫头度数皆须真见于渲染,
+// 且未选此档者一字不多(默认路径逐字不变)。
+describe('地占 · 真实星历盘之显示', () => {
+	const instFor = (sample, extraState) => {
+		const inst = new GeomancyMain(PROPS);
+		inst.props = PROPS;
+		inst.state = { ...inst.state, result: LIVE[sample], readingScope: 'L4',
+			loading: false, ...(extraState || {}) };
+		return inst;
+	};
+	const flat = (el) => renderToStaticMarkup(el).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+	test('L4 卡:上升带度分、象限用列宫制、报中天,并自陈非传本之法', () => {
+		const s = flat(instFor('book_real_ephem').renderReading());
+		expect(s).toMatch(/上升 射手 7°12′/);
+		expect(s).toContain('已按左栏所选时地起真实星历盘');
+		expect(s).toContain('列宫制');
+		expect(s).toContain('中天黄经 174.15');
+		expect(s).toContain('十二宫按真实宫头度数分');
+		expect(s).toContain('此式非传本之法');
+		// 🔴 象限宫制此前恒退化,真实盘下绝不许再出那句退化说明
+		expect(s).not.toContain('退化为整宫制');
+	});
+
+	test('🔴 回落态:如实出告诫,绝不声称已按时地起盘', () => {
+		const s = flat(instFor('book_real_fallback').renderReading());
+		expect(s).toContain('已如实回落图形取法');
+		expect(s).toContain('时地不全');
+		expect(s).not.toContain('已按左栏所选时地起真实星历盘');
+		// 回落之后取法名须是真正生效的那个(不是用户所选的),否则显示层撒谎
+		expect(s).toContain('取第一宫之图');
+	});
+
+	test('十二宫:真实盘逐宫带宫头度数;寻常盘一个度数都不许有', () => {
+		const a = flat(instFor('book_real_ephem').renderHousesTab());
+		expect(a).toMatch(/射手\s*7°12′/);
+		expect(a).toMatch(/摩羯\s*5°56′/);
+		const b = flat(instFor('european_classical').renderHousesTab());
+		expect(b).not.toMatch(/\d+°\d\d′/);
+	});
+
+	test('默认路径零回归:寻常盘 L4 卡仍是「自上升顺铺」且无一处度数', () => {
+		const s = flat(instFor('european_classical').renderReading());
+		expect(s).toContain('十二宫自上升起按黄道顺铺');
+		expect(s).not.toContain('真实星历盘');
+		expect(s).not.toMatch(/\d+°\d\d′/);
+	});
+});

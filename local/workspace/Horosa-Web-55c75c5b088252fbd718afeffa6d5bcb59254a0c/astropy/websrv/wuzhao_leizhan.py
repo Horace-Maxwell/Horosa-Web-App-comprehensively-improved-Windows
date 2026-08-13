@@ -657,6 +657,18 @@ def _count_elem(elements, elem):
     return sum(1 for e in elements if e == elem)
 
 
+def _luwei_jiang(ming_branch, day_branch):
+    """官禄位：以河魁加本命，视生日之支上所见何神将。"""
+    from .wuzhao_classics import _jiang_shift, YUE_JIANG_BRANCH
+    if not ming_branch or not day_branch:
+        return ''
+    for jiang in ('徵明', '太一', '胜光', '神后', '大吉', '小吉',
+                  '从魁', '太冲', '功曹', '传送', '天罡', '河魁'):
+        if _jiang_shift('河魁', ming_branch, jiang) == day_branch:
+            return jiang
+    return ''
+
+
 def _rule(title, text, **extra):
     row = {'title': title, 'text': text}
     row.update(extra)
@@ -745,6 +757,21 @@ def leizhan(*, zhao, zhi, elements, ganzhi, season, beasts, shensha_map,
         if dasha in najia_branches:
             rules.append(_rule('兆与大煞并', '兆与大煞并，为大贼，为州、刺史所录。',
                                source=GUAN_TEXTS[7][1], luck='daxiong'))
+    # 官禄位贵贱天命法须「以河魁加本命，视生日上见何神将」——无年命支则算不得。
+    # 照实出占位行说明缺什么，不以任何缺省年命代填（不猜）。
+    ming = (options.get('mingZhi') if options else '') or ''
+    if ming:
+        jiang = _luwei_jiang(ming, day_branch)
+        if jiang:
+            rules.append(_rule('官禄位（天命法）',
+                               '本命%s，河魁加之，生日%s上见%s：%s'
+                               % (ming, day_branch, jiang, GUAN_LUWEI.get(jiang, '')),
+                               source=GUAN_TEXTS[0][1], branches={'本命': ming, '神将': jiang}))
+    else:
+        rules.append(_rule('官禄位（天命法）·待补年命',
+                           '此法须以河魁加本命、视生日上所见之神将而断；本盘未指定年命支，'
+                           '故留白不断。于左栏「断法与类占 · 年命支」指定后即出。',
+                           source=GUAN_TEXTS[0][1], pending='mingZhi'))
     out['卜官事'] = {'rules': rules, 'texts': GUAN_TEXTS}
 
     # ---- 卜财 ----
@@ -843,6 +870,31 @@ def leizhan(*, zhao, zhi, elements, ganzhi, season, beasts, shensha_map,
                        '日辰克兆为得，扶兆亦得，兆克日辰不可得。兆王相大盛妇，休废妇贪夫。'
                        '（本兆%s，日支%s，当令%s。）' % (zhao, day_branch, zhao_ws),
                        source=LIUQIN_TEXTS[6][1]))
+    # 行年、年立须年命支与性别（男女起法相反）——缺则照实出占位行，不以缺省代填。
+    ming = (options.get('mingZhi') if options else '') or ''
+    gender = (options.get('gender') if options else '') or ''
+    if ming and gender:
+        xn = {k: v.get('branch') for k, v in shensha_map.items() if k in ('行年', '年立')}
+        if xn:
+            rules.append(_rule('行年·年立',
+                               '本命%s、%s：行年在%s，年立在%s。'
+                               % (ming, '男' if gender == 'male' else '女',
+                                  xn.get('行年', '—'), xn.get('年立', '—')),
+                               source='男常以本命加太岁，功曹下为行年，天罡下为年立。'
+                                      '女以太岁加本命，传送下为行年，徵明为年立。'))
+    else:
+        missing = []
+        if not ming:
+            missing.append('年命支')
+        if not gender:
+            missing.append('性别')
+        rules.append(_rule('行年·年立·待补%s' % '与'.join(missing),
+                           '此法男女起例相反（男以本命加太岁、功曹下为行年；'
+                           '女以太岁加本命、传送下为行年），须%s方能起；本盘未指定，故留白不断。'
+                           % '与'.join(missing),
+                           source='男常以本命加太岁，功曹下为行年，天罡下为年立。',
+                           pending='/'.join(['mingZhi'] if not ming else []
+                                            + (['gender'] if not gender else []))))
     out['卜六亲'] = {'rules': rules, 'texts': LIUQIN_TEXTS}
 
     # ---- 卜宅田丘墓 ----

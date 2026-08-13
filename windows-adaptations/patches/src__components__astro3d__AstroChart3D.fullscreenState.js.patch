@@ -1,0 +1,187 @@
+diff --git a/astrostudyui/src/components/astro3d/AstroChart3D.js b/astrostudyui/src/components/astro3d/AstroChart3D.js
+index 98231dc2..a1fe660f 100644
+--- a/astrostudyui/src/components/astro3d/AstroChart3D.js
++++ b/astrostudyui/src/components/astro3d/AstroChart3D.js
+@@ -2,7 +2,7 @@ import { Component } from 'react';
+ import {randomStr} from '../../utils/helper';
+ import Astro3D from './Astro3D';
+ import * as AstroConst from '../../constants/AstroConst';
+-import {launchFullScreen, exitFullScreen, checkFullScreen} from '../../utils/helper';
++import {launchFullScreen, exitFullScreen, checkFullScreen, onFullScreenChange} from '../../utils/helper';
+ 
+ class AstroChart3D extends Component{
+ 
+@@ -21,79 +21,96 @@ class AstroChart3D extends Component{
+ 		this.handleResize = this.handleResize.bind(this);
+ 		this.drawChart = this.drawChart.bind(this);
+ 		this.doubleClick = this.doubleClick.bind(this);
++		this.handleFullScreenChange = this.handleFullScreenChange.bind(this);
++		this.syncCanvasSize = this.syncCanvasSize.bind(this);
++		this.unsubscribeFullScreen = null;
++		this._styleBeforeFull = null;
+ 	}
+ 
+-	handleResize(){
+-		let svgdom = document.getElementById(this.state.chartid);
+-		if(svgdom === undefined || svgdom === null){
++	// horosa_fullscreen_state_v1(2026-08-13,GitHub issue #68;跨平台真 bug,建议上游化 Mac)
++	//
++	// 原实现:进全屏时把画布尺寸**猜**成 `window.screen.width/height`,再靠 `setTimeout(100)` +
++	// `flip`/`waitEsc` 两个手写标志去追状态。三个后果(用户实报「显示不完整」「就是没法全屏」):
++	//   ① `screen.*` 是**整块屏幕**的 CSS 尺寸,而全屏视口要减去 Windows 缩放/多显示器等因素 ⇒ 画不满;
++	//   ② 100ms 定时器与浏览器全屏过渡是竞态,过渡慢一点就按旧尺寸画完再不更新;
++	//   ③ 用户按 Esc 退出时没有任何事件回灌 ⇒ `fullScreen` 永远停在 true,**此后双击再也进不去全屏**。
++	// 现改为「事件驱动 + 真实测量」:状态一律读 `checkFullScreen()`(即 fullscreenElement),
++	// 尺寸一律量**元素自己的盒子**(全屏时它就是全屏视口),并在 rAF 里量以确保过渡已落定。
++	syncCanvasSize(){
++		const svgdom = document.getElementById(this.state.chartid);
++		if(!svgdom || !this.astro3d){
+ 			return;
+ 		}
+-
+-		let w = svgdom.clientWidth;
+-		let h = svgdom.clientHeight;
+-
+-		let flag = checkFullScreen();
+-		if(!this.fullScreen){
+-			this.width = w;
+-			this.height = h;	
+-		}else{
+-			if(flag){
+-				setTimeout(()=>{
+-					w = this.orgWidth;
+-					h = this.orgHeight;	
+-					if(this.flip){
+-						w = window.screen.width;
+-						h = window.screen.height;
+-						this.flip = false;
+-						this.waitEsc = true;
+-					}
+-					svgdom.style.width = w + 'px';
+-					svgdom.style.height = h + 'px';
+-					this.astro3d.resize(w, h);	
+-				}, 100);
+-			}else{
+-				setTimeout(()=>{
+-					if(this.waitEsc){
+-						w = this.width;
+-						h = this.height;
+-						this.waitEsc = false;
+-					}
+-					svgdom.style.width = w + 'px';
+-					svgdom.style.height = h + 'px';
+-					this.astro3d.resize(w, h);	
+-				}, 100);
+-			}
++		const isFull = checkFullScreen();
++		if(isFull){
++			// 全屏:元素已升到 top-layer,其视口即全屏区域。用 innerWidth/innerHeight 兜底
++			// (个别实现里过渡首帧 clientWidth 仍是旧值)。
++			const w = Math.max(svgdom.clientWidth, window.innerWidth || 0);
++			const h = Math.max(svgdom.clientHeight, window.innerHeight || 0);
++			svgdom.style.width = `${w}px`;
++			svgdom.style.height = `${h}px`;
++			this.astro3d.resize(w, h);
+ 			return;
+ 		}
++		// 非全屏:把进全屏前的内联尺寸**原样还原**。
++		// ⚠️ 这里不能简单清空:该 div 的 width/height 是 React 经 style prop 写下的内联样式,
++		// 清空后在下一次重渲染之前它就没有尺寸了(退出全屏会看到画布塌掉)。
++		// 故进全屏那一刻精确捕获、退出时逐字写回。
++		if(this._styleBeforeFull){
++			svgdom.style.width = this._styleBeforeFull.width;
++			svgdom.style.height = this._styleBeforeFull.height;
++			this._styleBeforeFull = null;
++		}
++		const w = svgdom.clientWidth;
++		const h = svgdom.clientHeight;
++		if(w > 0 && h > 0){
++			this.width = w;
++			this.height = h;
++		}
++		this.astro3d.resize(this.width, this.height);
++	}
+ 
+-		this.astro3d.resize(w, h);
++	// 过渡未必在事件触发时就完成:量两次(下一帧 + 再下一帧),两次都按事实测量,幂等无副作用。
++	scheduleSizeSync(){
++		const raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
++			? window.requestAnimationFrame.bind(window)
++			: (fn)=>setTimeout(fn, 16);
++		raf(()=>{
++			this.syncCanvasSize();
++			raf(()=>this.syncCanvasSize());
++		});
++	}
+ 
++	handleResize(){
++		this.syncCanvasSize();
++	}
++
++	// 全屏状态由浏览器事件回灌(涵盖 Esc / F11 / 系统强制退出)—— 不再自己记标志。
++	handleFullScreenChange(){
++		const wasFull = !!this.fullScreen;
++		this.fullScreen = checkFullScreen();
++		if(this.fullScreen && !wasFull){
++			// 刚进全屏:先把 React 写下的内联尺寸原样存起来,退出时才能逐字还原(见 syncCanvasSize)。
++			const svgdom = document.getElementById(this.state.chartid);
++			if(svgdom){
++				this._styleBeforeFull = { width: svgdom.style.width, height: svgdom.style.height };
++			}
++		}
++		this.scheduleSizeSync();
+ 	}
+ 
+ 	doubleClick(){
+-		let svgdom = document.getElementById(this.state.chartid);
+-		if(svgdom === undefined || svgdom === null){
++		const svgdom = document.getElementById(this.state.chartid);
++		if(!svgdom){
+ 			return;
+ 		}
+-
+-		if(this.fullScreen){
+-			this.fullScreen = false;
++		// 以**真实状态**决定进还是出(而不是组件里那个可能已经过期的标志)。
++		if(checkFullScreen()){
+ 			exitFullScreen();
+-			let w = this.width;
+-			let h = this.height;
+-			svgdom.style.width = w + 'px';
+-			svgdom.style.height = h + 'px';	
+ 		}else{
+-			this.orgHeight = this.height;
+-			this.orgWidth = this.width;
+-			this.fullScreen = true;
+ 			launchFullScreen(svgdom);
+-			let w = window.screen.width;
+-			let h = window.screen.height;
+-			svgdom.style.width = w + 'px';
+-			svgdom.style.height = h + 'px';	
+-			this.flip = true;
+ 		}
++		// 尺寸不在这里猜:等 fullscreenchange 回来后按真实盒子量(见 handleFullScreenChange)。
+ 	}
+ 
+ 	getChartParams(){
+@@ -179,6 +196,9 @@ class AstroChart3D extends Component{
+ 
+ 	componentDidMount(){
+ 		window.addEventListener('resize', this.handleResize);
++		// horosa_fullscreen_state_v1:全屏状态由浏览器事件回灌 —— 用户按 Esc/F11 退出时组件才不会
++		// 停在过期的 fullScreen=true(那正是 issue #68「就是没法全屏」的成因:此后双击只会调 exit)。
++		this.unsubscribeFullScreen = onFullScreenChange(this.handleFullScreenChange);
+ 		this.drawChart();
+ 
+ 		let svgdom = document.getElementById(this.state.chartid);
+@@ -208,6 +228,10 @@ class AstroChart3D extends Component{
+ 
+ 	componentWillUnmount() {
+ 		window.removeEventListener('resize', this.handleResize);
++		if(this.unsubscribeFullScreen){
++			this.unsubscribeFullScreen();
++			this.unsubscribeFullScreen = null;
++		}
+ 		try{
+ 			if(this.astro3d){
+ 				this.astro3d.dispose()

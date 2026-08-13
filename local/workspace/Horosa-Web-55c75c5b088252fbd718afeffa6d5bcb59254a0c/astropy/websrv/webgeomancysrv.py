@@ -15,6 +15,7 @@ import jsonpickle
 from websrv.helper import enable_crossdomain
 
 from astrostudy.geomancy import chart as geo_chart
+from astrostudy.geomancy import ephem as geo_ephem
 from astrostudy.geomancy import correspondences as geo_corr
 from astrostudy.geomancy.figures import (inverse, name as fig_name, opposite as fig_opposite,
                                          points, reverse, rotate as fig_rotate)
@@ -24,6 +25,9 @@ from astrostudy.geomancy.ifa import odu_of as geo_odu_of
 from astrostudy.geomancy.numbers import all_numbers as geo_all_numbers, figure_number as geo_figure_number
 from astrostudy.geomancy.figures import is_palindrome as geo_is_palindrome, active_elements as geo_active_elements
 from astrostudy.geomancy.vedic import vedic_overlay as geo_vedic
+# 经纬解析复用 websrv 层既有 coord_to_float(度分记法与十进制通吃,且刻意绕开
+# float('119e19')=1.19e21 这个科学记数法陷阱);webcetiansrv/webqizhengkinsrv 同款,勿另立口径。
+from websrv.horosa_engine_common import coord_to_float
 
 # 种子上界:与前端 InputNumber max 对齐(int32 正区间),保证回传种子可手填复现。
 _SEED_MAX = 2147483647
@@ -49,6 +53,99 @@ def _to_int(value, default=0):
         return int(value)
     except Exception:
         return default
+
+
+def _to_float(value, default=None):
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_geo(v):
+    """经纬 → 十进制度。度分记法('119e19'/'26n04')与十进制('119.32'/119.32)通吃;
+    不可解析或越界者回 None(宁可如实无真实盘,也不拿错值充数)。"""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    d = coord_to_float(v, None)
+    if d is None:
+        return None
+    try:
+        d = float(d)
+    except (TypeError, ValueError):
+        return None
+    return d if -180.0 <= d <= 180.0 else None
+
+
+def _parse_zone(v):
+    """时区 → 小时数(float)。收 '+08:00'/'-05:30'/'+8' 与数值三形态;不合法回 None。"""
+    if v is None:
+        return None
+    if isinstance(v, (Integral, Real)) and not isinstance(v, bool):
+        z = float(v)
+        return z if -14.0 <= z <= 14.0 else None
+    text = str(v).strip()
+    if not text:
+        return None
+    sign = -1.0 if text[0] == "-" else 1.0
+    text = text.lstrip("+-")
+    parts = text.split(":")
+    try:
+        hh = float(parts[0]) if parts[0] else 0.0
+        mm = float(parts[1]) if len(parts) > 1 and parts[1] else 0.0
+    except (TypeError, ValueError):
+        return None
+    z = sign * (hh + mm / 60.0)
+    return z if -14.0 <= z <= 14.0 else None
+
+
+def _parse_time_place(data):
+    """所问之时地 → (jd, lon, lat)。任一环缺失或不合法即整体回 (None, None, None) ——
+    宁可如实无真实盘,也不拿今日此刻或格林威治充数(那会让用户看到一个他没选的盘)。
+    date='YYYY-MM-DD' / time='HH:MM[:SS]' / zone=时区偏移 / lon,lat=十进制度 / ad=-1 表纪元前。"""
+    date_text = _clean(data.get("date"))
+    time_text = _clean(data.get("time")) or "12:00:00"
+    # 🔴 前端发的是**度分记法**('119e19'/'26n04',见 paramsFromFields ← convertLonToStr),不是十进制度。
+    #    旧码直接 _to_float:'26n04' 抛 ValueError 回 None;而 '119e19' 更险 —— Python 认它是科学记数法
+    #    合法浮点 1.19e21,过了 float 这关却卡在经度范围检查上,整体静默回落「无真实盘」。
+    #    后果:「据所选时地起真实上升」与「真实星历落星」两档在真实 UI 上从未生效过(死开关);
+    #    单测因直接喂十进制度而一路全绿。故改走仓内权威解析(度分/十进制通吃)。
+    lon = _parse_geo(data.get("lon"))
+    lat = _parse_geo(data.get("lat"))
+    if not date_text or lon is None or lat is None:
+        return None, None, None
+    if not (-180.0 <= lon <= 180.0) or not (-90.0 <= lat <= 90.0):
+        return None, None, None
+    parts = date_text.replace("/", "-").split("-")
+    if len(parts) < 3:
+        return None, None, None
+    try:
+        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    except (TypeError, ValueError):
+        return None, None, None
+    # 纪元前:沿仓内既定编码(ad=-1 → 负年;天文纪年 1 BC = 0),不另立一套
+    if _to_int(data.get("ad"), 1) == -1 and year > 0:
+        year = -(year - 1)
+    tparts = time_text.split(":")
+    try:
+        hour = int(tparts[0]) + (int(tparts[1]) / 60.0 if len(tparts) > 1 else 0.0) \
+            + (float(tparts[2]) / 3600.0 if len(tparts) > 2 else 0.0)
+    except (TypeError, ValueError):
+        return None, None, None
+    # 前端 paramsFromFields 恒发十进制数值 zone;缺则按仓内通例取东八区。
+    # 🔴 zone 亦然:前端发 '+08:00' 这类偏移串(仓内通例,flatlib Datetime 直接吃它),
+    #    _to_float 抛错回 None → 旧码悄悄按东八区算,换了时区的盘时刻整体偏。
+    zone = _parse_zone(data.get("zone"))
+    if zone is None:
+        zone = _parse_zone(data.get("timezone"))
+    if zone is None or not (-14.0 <= zone <= 14.0):
+        zone = 8.0
+    jd = geo_ephem.julian_day(year, month, day, hour, zone)
+    if jd is None:
+        return None, None, None
+    return jd, lon, lat
 
 
 def _clean(value, default=""):
@@ -199,6 +296,10 @@ def _build_response(r, seed=None):
             "topicsDetailZh": hm.get("theme_detail"),
             "sign": sign, "signZh": rot.get("sign_zh") or _SIGN_ZH.get(sign, sign),
             "naturalSign": nat, "naturalSignZh": _SIGN_ZH.get(nat, nat),
+            # 宫头度数:唯真实星历盘才有(图形取法只出星座无度数),故此键**只在真实盘下出现**,
+            # 未选该档者此行字节零变。有度数则界面在星座后加「12°30′」,如实告知宫头落处。
+            **({"cuspDegInSign": rot["cusp_deg_in_sign"], "cuspLon": rot["cusp_lon"]}
+               if "cusp_deg_in_sign" in rot else {}),
             "ruler": hm.get("ruler"), "element": hm.get("element"),
             # 宫位之东传支名:数据表本有 bhava 一列,却从未挂到宫上 —— 补出,免得 AI 据承诺而无据。
             "bhava": (h.get("vedic") or {}).get("bhava_sanskrit"),
@@ -232,6 +333,11 @@ def _build_response(r, seed=None):
         reading["astroErection"] = _json_safe(r["astro_erection"])
     if r.get("planet_placement_by_twelves"):
         reading["planetPlacementByTwelves"] = _json_safe(r["planet_placement_by_twelves"])
+    # 真实星历盘:与行星地占盘同法只在真用时出键,未选此档者响应字节零变。
+    if r.get("planet_placement_real"):
+        reading["planetPlacementReal"] = _json_safe(r["planet_placement_real"])
+    if r.get("real_chart"):
+        reading["realChart"] = _json_safe(r["real_chart"])
     if r.get("derived"):
         reading["derived"] = _json_safe(r["derived"])
     if r.get("planetary_chart"):
@@ -327,6 +433,11 @@ class GeomancySrv:
                     cast_numbers = None
             else:
                 cast_numbers = None
+            # ── 所问之时地 → 儒略日 + 经纬(供「真实星历盘」二档用)──
+            # 前端一直在发 date/time/zone/lon/lat,此前后端不接 —— 于是「时地」这一节除了
+            # 时间起卦的种子之外什么也不影响,而注释却写着「星盘按此时地起」,是句空头承诺。
+            # 今如实接住:三者(时刻/经/纬)缺一即整体作 None,由内核如实回落图形取法。
+            geo_jd, geo_lon, geo_lat = _parse_time_place(data)
             r = geo_chart.compute_reading(
                 question_type=question_type, profile_id=profile_id,
                 cast_method=cast_method, seed=kernel_seed, time_seed=kernel_time_seed,
@@ -349,6 +460,8 @@ class GeomancySrv:
                 planetary_chart_zodiac=_opt("planetaryChartZodiac"),
                 planetary_chart_nodes=_optb("planetaryChartNodes"),
                 planetary_chart_extras=_optb("planetaryChartExtras"),
+                # 真实星历盘:仅 ascSource=real_chart 或 houseProjection=real_ephemeris 时内核才用
+                jd=geo_jd, geo_lon=geo_lon, geo_lat=geo_lat,
             )
             reading = _build_response(r, seed=effective_seed)
             reading["question"] = question

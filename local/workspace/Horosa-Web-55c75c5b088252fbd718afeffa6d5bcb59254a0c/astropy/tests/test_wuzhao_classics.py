@@ -506,6 +506,58 @@ def test_leizhan_bing_wei_by_day_gan():
     assert "头颈" in hits.get("病在何处", "")
 
 
+def test_leizhan_pending_placeholder_when_params_missing():
+    """需年命支／性别的条目：缺参时出「待补」占位行说明缺什么，绝不以缺省值代填。
+
+    官禄位贵贱天命法须「以河魁加本命，视生日上见何神将」；行年、年立男女起例相反。
+    两者缺参即算不得，照实留白是本模块对「不代原卷补断」的一贯口径。
+    """
+    def leizhan_with(opts):
+        elements = ["金", "木", "火", "火", "火", "水"]
+        gz = ["甲子", "丙寅", "乙丑", "丙子", "丁丑"]
+        r = C.enrich(elements=elements, ganzhi=gz, jieqi="立春", lunar_month=1, options=opts)
+        ss = {i["name"]: i for i in r["shensha"]["items"]}
+        return L.leizhan(
+            zhao=r["zhaoElem"], zhi=r["zhiElem"], elements=elements, ganzhi=gz,
+            season=r["season"], beasts=[p["beast"] for p in r["positions"]],
+            shensha_map=ss, wangshuai_map=r["qi"]["map"], xun=r["xun"],
+            kongwang=r["najia"]["kongwang"]["branches"], options=opts)
+
+    def titles(lz, men):
+        return [x["title"] for x in lz[men]["rules"]]
+
+    # 缺参 → 出占位行，且标明 pending 的是哪个档位
+    none = leizhan_with({})
+    guan = [t for t in titles(none, "卜官事") if "官禄位" in t]
+    assert guan and "待补年命" in guan[0]
+    liu = [t for t in titles(none, "卜六亲") if "行年" in t]
+    assert liu and "待补" in liu[0]
+    pend = [x.get("pending") for x in none["卜官事"]["rules"] if "官禄位" in x["title"]]
+    assert pend == ["mingZhi"]
+
+    # 给参 → 出真断，且不再出占位
+    full = leizhan_with({"mingZhi": "亥", "gender": "male"})
+    guan2 = [x for x in full["卜官事"]["rules"] if "官禄位" in x["title"]]
+    assert guan2 and "待补" not in guan2[0]["title"]
+    assert "本命亥" in guan2[0]["text"]
+    liu2 = [x for x in full["卜六亲"]["rules"] if "行年" in x["title"]]
+    assert liu2 and "待补" not in liu2[0]["title"]
+    assert "行年在" in liu2[0]["text"]
+
+    # 只给一半 → 占位行须点名缺的那一个
+    half = leizhan_with({"mingZhi": "亥"})
+    liu3 = [t for t in titles(half, "卜六亲") if "行年" in t]
+    assert liu3 and "性别" in liu3[0] and "年命支" not in liu3[0]
+
+
+def test_luwei_jiang_matches_document_table():
+    """官禄位：以河魁加本命，生日上所见神将须落在《要诀略》所列十二将之内。"""
+    for ming in "子丑寅卯辰巳午未申酉戌亥":
+        for day in "子丑寅卯辰巳午未申酉戌亥":
+            jiang = L._luwei_jiang(ming, day)
+            assert jiang in L.GUAN_LUWEI, (ming, day, jiang)
+
+
 def test_leizhan_qiucai_and_sanxiang():
     """求财法：金兆木支为金财；三某之数须依本盘六位实计。"""
     _, lz = _leizhan_for(["金", "木", "火", "火", "火", "水"],

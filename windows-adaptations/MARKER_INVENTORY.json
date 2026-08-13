@@ -148,6 +148,11 @@
    "astrostudyui/src/components/ziwei/ZiWeiMain.js": 3,
    "astrostudyui/src/utils/perfFlags.js": 2
   },
+  "horosa_fullscreen_state_v1": {
+   "astrostudyui/src/components/astro3d/AstroChart3D.js": 2,
+   "astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js": 2,
+   "astrostudyui/src/utils/helper.js": 1
+  },
   "horosa_gesture_start_v1": {
    "astrostudyui/src/utils/perfMark.js": 2
   },
@@ -444,7 +449,10 @@
    "astrostudyui/src/models/astro.js": 1
   },
   "horosa_sanshi_render_slice_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 12
+   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 13
+  },
+  "horosa_sanshi_render_smoke_v1": {
+   "astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js": 1
   },
   "horosa_sanshi_snapshot_idle_v1": {
    "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,

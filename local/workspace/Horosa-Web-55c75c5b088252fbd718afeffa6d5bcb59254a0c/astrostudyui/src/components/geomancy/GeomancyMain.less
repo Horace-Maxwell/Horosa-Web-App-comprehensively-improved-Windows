@@ -321,6 +321,11 @@
 	&.is-significator { border-color: var(--horosa-astro-gold, #d7ad69); }
 	.horosa-geomancy-house-num { font-size: 15px; font-weight: 700; color: var(--horosa-astro-gold, #d7ad69); }
 	.horosa-geomancy-house-sign { font-size: 13px; white-space: nowrap; }
+	// 宫头度数:唯真实星历盘才有。压小一号并降透明度,免得抢了星座与图名的主位。
+	.horosa-geomancy-cusp-deg {
+		margin-left: 3px; font-size: 11px; font-style: normal; opacity: 0.7;
+		font-variant-numeric: tabular-nums;
+	}
 	.horosa-geomancy-sign-glyph { font-size: 17px; }
 	.horosa-geomancy-house-topic { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
 	.horosa-geomancy-house-name { font-size: 13.5px; font-weight: 600; }

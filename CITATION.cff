@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.9.0
+version: 3.9.1
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,22 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.9.0 beta is a local-first metaphysics workstation. This release adds a
+  Horosa for Windows v3.9.1 beta is a local-first metaphysics workstation. In astronomical
+  geomancy the chosen time and place now genuinely drive the calculation: a fourth ascendant
+  method casts a real chart for the selected moment and location (the only method that yields
+  cusp degrees, and therefore the only one under which quadrant house division truly applies),
+  a fourth planet-placement method places the seven planets and the nodes by real longitude,
+  quadrant division uses the whole-sign-of-the-cusp convention that works at every latitude
+  including the poles, and when time or place is incomplete the reading falls back to the
+  figure-derived method and says so explicitly rather than silently substituting the current
+  moment. Three defects are repaired: changing any setting or location now re-derives the
+  reading immediately instead of requiring a re-cast (which used to destroy the cast in hand);
+  charts cast by the number-report method are no longer silently re-cast when a school or
+  setting changes; and the two real-sky methods now actually take effect (coordinates were sent
+  in degree-minute notation but parsed as decimal degrees, so they silently fell back). Ce Tian
+  Fei Xing gains yin/yang palace determination, birth-year納音 sixty-cycle tables, and the star
+  commentary and luck-cycle verses for all nineteen configurations. Tarot fills both parallel
+  meaning tracks to the full seventy-eight cards. It builds on the v3.9.0 release, which added a
   complete new technique and brings six existing modules to full coverage of their source
   classics, alongside a fidelity fix that affects every divination technique with saved records.
   The new technique is Ling Qi Jing (the Classic of Numinous Chess), the fifteenth sub-technique

@@ -142,8 +142,9 @@ describe('对应叠层二期 · 派生交叉锚', () => {
 		// 主题占断已铺满 78 张(内容波次);缺条语义改由异构牌组(无 arcana/suit 对应)守——覆盖率断言在 tarotContentWaves。
 		expect(domainsOf({ arcana: 'lenormand', suit: 'lenormand', sid: 'lenormand_01' })).toBeNull();
 		expect(noteOf(byId.death).special).toContain('不作死亡预兆');
-		// 牌面笔记已铺大牌 22 + 六张有图像倒转传统的数字牌;缺条语义由其余数字牌守(覆盖率断言在 tarotContentWaves)。
-		expect(noteOf(byId.cups_02)).toBeNull();
+		// 牌面笔记已铺满 78 张(覆盖率断言在 tarotContentWaves);缺条语义改由不存在的 sid 守。
+		expect(noteOf({ sid: 'no_such_card' })).toBeNull();
+		expect(noteOf(null)).toBeNull();
 		expect(DOMAIN_KEYS.every((k) => DOMAIN_CN[k])).toBe(true);
 	});
 });

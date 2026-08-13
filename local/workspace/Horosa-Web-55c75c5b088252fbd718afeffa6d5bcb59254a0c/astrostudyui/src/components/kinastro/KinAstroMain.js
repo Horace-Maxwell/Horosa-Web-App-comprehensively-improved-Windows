@@ -584,7 +584,7 @@ const INTERNAL_SECTION_TITLES = new Set([
 // ziliao 组含 INTERNAL 资料段,取段时须绕过 INTERNAL 过滤直读 pan.sections。
 const CETIAN_TAB_SECTIONS = {
 	liunian: ['流年飞星', '流年七煞', '十七飞星', '神煞·岁前', '神煞·岁后', '神煞·年干', '神煞·月煞'],
-	yunxian: ['运限', '童限', '凶限提示', '会照', '三日宫'],
+	yunxian: ['运限', '童限', '凶限提示', '会照', '阴阳宫', '星解与运限歌', '三日宫'],
 	duanjue: ['断诀'],
 	ziliao: ['廿八宿分野', '十干变曜', '杂曜', '星曜别名', '星曜属性', '正曜副曜',
 		'宫干四化表', '飞化规则', '古法格局规则', '三合组'],   // 后三段仅原法(kentang)产

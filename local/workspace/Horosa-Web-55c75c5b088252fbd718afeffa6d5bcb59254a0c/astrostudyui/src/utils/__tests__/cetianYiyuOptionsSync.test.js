@@ -79,13 +79,13 @@ describe('策天移语本选项三方同键', () => {
     });
   });
 
-  test('四本账归属：命盘账在/事盘账不在/导出 preset 53 段', () => {
+  test('四本账归属：命盘账在/事盘账不在/导出 preset 55 段', () => {
     // 策天为纯命盘技法：起课性事盘不适用（挂载重算按出生时间,事盘绝不按时间复算铁律）。
     expect(ANALYSIS_CHART_TECHNIQUES).toContain('cetian');
     expect(ANALYSIS_CASE_TECHNIQUES).not.toContain('cetian');
     // 导出 preset = 书法(移语本增强+僧道宫名变体)∪原法 全段并集,漂移即咬。
-    expect(AI_EXPORT_PRESET_SECTIONS.cetian).toHaveLength(53);
-    ['运限', '断诀', '星曜别名', '神煞·岁前', '衣鉢宮', '僧道宮', '飞化规则']
+    expect(AI_EXPORT_PRESET_SECTIONS.cetian).toHaveLength(55);
+    ['运限', '断诀', '星曜别名', '神煞·岁前', '衣鉢宮', '僧道宮', '飞化规则', '阴阳宫', '星解与运限歌']
       .forEach((sec) => expect(AI_EXPORT_PRESET_SECTIONS.cetian).toContain(sec));
   });
 

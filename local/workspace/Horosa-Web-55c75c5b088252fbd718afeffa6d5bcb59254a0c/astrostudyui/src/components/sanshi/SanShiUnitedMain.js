@@ -2052,6 +2052,200 @@ class SanShiInputPanel extends Component{
 								</Select>
 							</label>
 						) : null}
+						{/* horosa_sanshi_render_slice_v1 · 归位(2026-08-13,issue #65/#68):以下 24 个控件
+						    (年家/日家/刻家定局、八神取神、中宫寄宫、暗干暗支、飞法三层、中门飞宫、盘类…)
+						    是 v3.8.0 上游「奇门 +42 档」新增项。S1 切片已把左栏整栏收编进本组件,而那轮同步
+						    把这批新 JSX 落进了主类 render() —— 那里 `opt` 不在作用域 ⇒ 打开三式必抛
+						    ReferenceError、这 24 档从未可用。现搬回本宿主(顺序照上游 renderInputPanel:
+						    紧随「置闰天数」),处理器按本组件约定改 this.props.onOptionChange。
+						    常设拦截 = check-no-undef.cjs(作用域分析门,gotcha #98)。 */}
+						{opt.paiPanType === 0 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>年家定局</span>
+								<Select size="small" value={opt.yearJiaJu || 'sanyuan'} onChange={(v)=>this.props.onOptionChange('yearJiaJu', v)} dropdownMatchSelectWidth={false}>
+									{YEARJIA_JU_OPTIONS.map((item)=><Option key={`yjj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{opt.paiPanType === 2 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>日家定局</span>
+								<Select size="small" value={opt.dayJiaJu || 'yiyuan'} onChange={(v)=>this.props.onOptionChange('dayJiaJu', v)} dropdownMatchSelectWidth={false}>
+									{DAYJIA_JU_OPTIONS.map((item)=><Option key={`djj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{opt.paiPanType === 4 ? (
+							<>
+								<label className="horosa-sanshi-select-field">
+									<span>刻家分遁</span>
+									<Select size="small" value={opt.keJiaFenDun || 'zihou'} onChange={(v)=>this.props.onOptionChange('keJiaFenDun', v)} dropdownMatchSelectWidth={false}>
+										{KEJIA_FENDUN_OPTIONS.map((item)=><Option key={`kjfd_${item.value}`} value={item.value}>{item.label}</Option>)}
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>子正换时</span>
+									<Select size="small" value={opt.keZiZhengHuanShi ? 1 : 0} onChange={(v)=>this.props.onOptionChange('keZiZhengHuanShi', v === 1)}>
+										<Option value={0}>子时23点起(默认)</Option>
+										<Option value={1}>子正0点换时</Option>
+									</Select>
+								</label>
+							</>
+						) : null}
+						{opt.paiPanType === 6 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>八门排法</span>
+								<Select size="small" value={opt.jinhanMenPai || 'book'} onChange={(v)=>this.props.onOptionChange('jinhanMenPai', v)} dropdownMatchSelectWidth={false}>
+									{JINHAN_MENPAI_OPTIONS.map((item)=><Option key={`jhmp_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						{/* [H-A] 三式缺口补齐:月家起局(此前只活在死面板)/盘类/相关人员——与独立页同语义 */}
+						{opt.paiPanType === 1 ? (
+							<label className="horosa-sanshi-select-field">
+								<span>月家起局</span>
+								<Select size="small" value={opt.yueJiaQiJuType} onChange={(v)=>this.props.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
+									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value}>{item.label}</Option>)}
+								</Select>
+							</label>
+						) : null}
+						<label className="horosa-sanshi-select-field">
+							<span>八神取神</span>
+							<Select size="small" value={opt.godsPreset || 'baihu_xuanwu'} onChange={(v)=>this.props.onOptionChange('godsPreset', v)} dropdownMatchSelectWidth={false}>
+								{GODS_PRESET_OPTIONS.map((item)=><Option key={`gp_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>中宫寄宫</span>
+							<Select size="small" value={opt.jiGongMode || 'kun'} onChange={(v)=>this.props.onOptionChange('jiGongMode', v)} dropdownMatchSelectWidth={false}>
+								{JIGONG_MODE_OPTIONS.map((item)=><Option key={`jg_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>暗干</span>
+							<Select size="small" value={opt.anGanMode || 'off'} onChange={(v)=>this.props.onOptionChange('anGanMode', v)} dropdownMatchSelectWidth={false}>
+								{ANGAN_MODE_OPTIONS.map((item)=><Option key={`ag_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>暗支</span>
+							<Select size="small" value={opt.showAnZhi ? 1 : 0} onChange={(v)=>this.props.onOptionChange('showAnZhi', v === 1)}>
+								<Option value={0}>不显示</Option>
+								<Option value={1}>显示</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>空亡标注</span>
+							<Select size="small" value={opt.kongMarkBoth ? 1 : 0} onChange={(v)=>this.props.onOptionChange('kongMarkBoth', v === 1)}>
+								<Option value={0}>单一模式(默认)</Option>
+								<Option value={1}>日空时空并标</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>四柱空亡</span>
+							<Select size="small" value={opt.showAllKong ? 1 : 0} onChange={(v)=>this.props.onOptionChange('showAllKong', v === 1)}>
+								<Option value={0}>不显示(默认)</Option>
+								<Option value={1}>显示年月日时空</Option>
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field">
+							<span>移星值符</span>
+							<Select size="small" value={opt.shiftZhiFuMode || 'follow'} onChange={(v)=>this.props.onOptionChange('shiftZhiFuMode', v)} dropdownMatchSelectWidth={false}>
+								{SHIFT_ZHIFU_OPTIONS.map((item)=><Option key={`sz_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						{/* [H-D] 飞盘细项(仅飞盘/混合盘式生效)——与独立页同语义 */}
+						{(opt.school === '飞盘' || opt.school === '混合') ? (
+							<>
+							<label className="horosa-sanshi-select-field">
+								<span>九星飞法</span>
+								<Select size="small" value={opt.feiXingShun ? 1 : 0} onChange={(v)=>this.props.onOptionChange('feiXingShun', v === 1)}>
+									<Option value={0}>阳顺阴逆(默认)</Option>
+									<Option value={1}>两遁皆顺飞</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>九门飞法</span>
+								<Select size="small" value={opt.feiMenShun ? 1 : 0} onChange={(v)=>this.props.onOptionChange('feiMenShun', v === 1)}>
+									<Option value={0}>阳顺阴逆(默认)</Option>
+									<Option value={1}>两遁皆顺飞</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>九神飞法</span>
+								<Select size="small" value={opt.feiShenShun ? 1 : 0} onChange={(v)=>this.props.onOptionChange('feiShenShun', v === 1)}>
+									<Option value={0}>阳顺阴逆(默认)</Option>
+									<Option value={1}>两遁皆顺飞</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>中门飞宫</span>
+								<Select size="small" value={opt.feiMenZhongCan === false ? 1 : 0} onChange={(v)=>this.props.onOptionChange('feiMenZhongCan', v === 0)}>
+									<Option value={0}>参与(默认)</Option>
+									<Option value={1}>不参与(跳中)</Option>
+								</Select>
+							</label>
+							<label className="horosa-sanshi-select-field">
+								<span>中宫门位显示</span>
+								<Select size="small" value={opt.feiMenZhongShow ? 1 : 0} onChange={(v)=>this.props.onOptionChange('feiMenZhongShow', v === 1)}>
+									<Option value={0}>留空(默认)</Option>
+									<Option value={1}>标「中」字样</Option>
+								</Select>
+							</label>
+							</>
+						) : null}
+						{opt.school === '混合' ? (
+							<>
+								<label className="horosa-sanshi-select-field">
+									<span>天盘层</span>
+									<Select size="small" value={opt.mixTian || ''} onChange={(v)=>this.props.onOptionChange('mixTian', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（转宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>九星层</span>
+									<Select size="small" value={opt.mixXing || ''} onChange={(v)=>this.props.onOptionChange('mixXing', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（转宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>八门层</span>
+									<Select size="small" value={opt.mixMen || ''} onChange={(v)=>this.props.onOptionChange('mixMen', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（飞宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+								<label className="horosa-sanshi-select-field">
+									<span>九神层</span>
+									<Select size="small" value={opt.mixShen || ''} onChange={(v)=>this.props.onOptionChange('mixShen', v)} dropdownMatchSelectWidth={false}>
+										<Option value="">默认（飞宫）</Option>
+										<Option value="zhuan">转宫（排宫）</Option>
+										<Option value="fei">飞宫（飞泊）</Option>
+									</Select>
+								</label>
+							</>
+						) : null}
+						<label className="horosa-sanshi-select-field">
+							<span>盘类</span>
+							<Select size="small" value={opt.chartCategory || 'shi'} onChange={(v)=>this.props.onOptionChange('chartCategory', v)}>
+								{CHART_CATEGORY_OPTIONS.map((item)=><Option key={`cc_${item.value}`} value={item.value}>{item.label}</Option>)}
+							</Select>
+						</label>
+						<label className="horosa-sanshi-select-field" style={{ gridColumn: '1 / -1' }}>
+							<span>相关人员</span>
+							<input
+								type="text"
+								value={opt.faRelatedPeople || ''}
+								onChange={(e)=>this.props.onOptionChange('faRelatedPeople', e.target.value)}
+								placeholder="生年天干(如 甲,丙):必护天干用"
+								style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }}
+							/>
+						</label>
 					</div>
 
 				</XQSideSection>
@@ -5691,193 +5885,6 @@ class SanShiUnitedMain extends Component{
 		return (
 			<div className={`${styles.root} horosa-sanshi-page horosa-astro-redesign horosa-sanshi-redesign`} style={{ height: '100%', minHeight: 0 }}>
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-sanshi-redesign-layout">
-						{opt.paiPanType === 0 ? (
-							<label className="horosa-sanshi-select-field">
-								<span>年家定局</span>
-								<Select size="small" value={opt.yearJiaJu || 'sanyuan'} onChange={(v)=>this.onOptionChange('yearJiaJu', v)} dropdownMatchSelectWidth={false}>
-									{YEARJIA_JU_OPTIONS.map((item)=><Option key={`yjj_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</label>
-						) : null}
-						{opt.paiPanType === 2 ? (
-							<label className="horosa-sanshi-select-field">
-								<span>日家定局</span>
-								<Select size="small" value={opt.dayJiaJu || 'yiyuan'} onChange={(v)=>this.onOptionChange('dayJiaJu', v)} dropdownMatchSelectWidth={false}>
-									{DAYJIA_JU_OPTIONS.map((item)=><Option key={`djj_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</label>
-						) : null}
-						{opt.paiPanType === 4 ? (
-							<>
-								<label className="horosa-sanshi-select-field">
-									<span>刻家分遁</span>
-									<Select size="small" value={opt.keJiaFenDun || 'zihou'} onChange={(v)=>this.onOptionChange('keJiaFenDun', v)} dropdownMatchSelectWidth={false}>
-										{KEJIA_FENDUN_OPTIONS.map((item)=><Option key={`kjfd_${item.value}`} value={item.value}>{item.label}</Option>)}
-									</Select>
-								</label>
-								<label className="horosa-sanshi-select-field">
-									<span>子正换时</span>
-									<Select size="small" value={opt.keZiZhengHuanShi ? 1 : 0} onChange={(v)=>this.onOptionChange('keZiZhengHuanShi', v === 1)}>
-										<Option value={0}>子时23点起(默认)</Option>
-										<Option value={1}>子正0点换时</Option>
-									</Select>
-								</label>
-							</>
-						) : null}
-						{opt.paiPanType === 6 ? (
-							<label className="horosa-sanshi-select-field">
-								<span>八门排法</span>
-								<Select size="small" value={opt.jinhanMenPai || 'book'} onChange={(v)=>this.onOptionChange('jinhanMenPai', v)} dropdownMatchSelectWidth={false}>
-									{JINHAN_MENPAI_OPTIONS.map((item)=><Option key={`jhmp_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</label>
-						) : null}
-						{/* [H-A] 三式缺口补齐:月家起局(此前只活在死面板)/盘类/相关人员——与独立页同语义 */}
-						{opt.paiPanType === 1 ? (
-							<label className="horosa-sanshi-select-field">
-								<span>月家起局</span>
-								<Select size="small" value={opt.yueJiaQiJuType} onChange={(v)=>this.onOptionChange('yueJiaQiJuType', v)} dropdownMatchSelectWidth={false}>
-									{YUEJIA_QIJU_OPTIONS.map((item)=><Option key={`yjqj_${item.value}`} value={item.value}>{item.label}</Option>)}
-								</Select>
-							</label>
-						) : null}
-						<label className="horosa-sanshi-select-field">
-							<span>八神取神</span>
-							<Select size="small" value={opt.godsPreset || 'baihu_xuanwu'} onChange={(v)=>this.onOptionChange('godsPreset', v)} dropdownMatchSelectWidth={false}>
-								{GODS_PRESET_OPTIONS.map((item)=><Option key={`gp_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>中宫寄宫</span>
-							<Select size="small" value={opt.jiGongMode || 'kun'} onChange={(v)=>this.onOptionChange('jiGongMode', v)} dropdownMatchSelectWidth={false}>
-								{JIGONG_MODE_OPTIONS.map((item)=><Option key={`jg_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>暗干</span>
-							<Select size="small" value={opt.anGanMode || 'off'} onChange={(v)=>this.onOptionChange('anGanMode', v)} dropdownMatchSelectWidth={false}>
-								{ANGAN_MODE_OPTIONS.map((item)=><Option key={`ag_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>暗支</span>
-							<Select size="small" value={opt.showAnZhi ? 1 : 0} onChange={(v)=>this.onOptionChange('showAnZhi', v === 1)}>
-								<Option value={0}>不显示</Option>
-								<Option value={1}>显示</Option>
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>空亡标注</span>
-							<Select size="small" value={opt.kongMarkBoth ? 1 : 0} onChange={(v)=>this.onOptionChange('kongMarkBoth', v === 1)}>
-								<Option value={0}>单一模式(默认)</Option>
-								<Option value={1}>日空时空并标</Option>
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>四柱空亡</span>
-							<Select size="small" value={opt.showAllKong ? 1 : 0} onChange={(v)=>this.onOptionChange('showAllKong', v === 1)}>
-								<Option value={0}>不显示(默认)</Option>
-								<Option value={1}>显示年月日时空</Option>
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field">
-							<span>移星值符</span>
-							<Select size="small" value={opt.shiftZhiFuMode || 'follow'} onChange={(v)=>this.onOptionChange('shiftZhiFuMode', v)} dropdownMatchSelectWidth={false}>
-								{SHIFT_ZHIFU_OPTIONS.map((item)=><Option key={`sz_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						{/* [H-D] 飞盘细项(仅飞盘/混合盘式生效)——与独立页同语义 */}
-						{(opt.school === '飞盘' || opt.school === '混合') ? (
-							<>
-							<label className="horosa-sanshi-select-field">
-								<span>九星飞法</span>
-								<Select size="small" value={opt.feiXingShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiXingShun', v === 1)}>
-									<Option value={0}>阳顺阴逆(默认)</Option>
-									<Option value={1}>两遁皆顺飞</Option>
-								</Select>
-							</label>
-							<label className="horosa-sanshi-select-field">
-								<span>九门飞法</span>
-								<Select size="small" value={opt.feiMenShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenShun', v === 1)}>
-									<Option value={0}>阳顺阴逆(默认)</Option>
-									<Option value={1}>两遁皆顺飞</Option>
-								</Select>
-							</label>
-							<label className="horosa-sanshi-select-field">
-								<span>九神飞法</span>
-								<Select size="small" value={opt.feiShenShun ? 1 : 0} onChange={(v)=>this.onOptionChange('feiShenShun', v === 1)}>
-									<Option value={0}>阳顺阴逆(默认)</Option>
-									<Option value={1}>两遁皆顺飞</Option>
-								</Select>
-							</label>
-							<label className="horosa-sanshi-select-field">
-								<span>中门飞宫</span>
-								<Select size="small" value={opt.feiMenZhongCan === false ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenZhongCan', v === 0)}>
-									<Option value={0}>参与(默认)</Option>
-									<Option value={1}>不参与(跳中)</Option>
-								</Select>
-							</label>
-							<label className="horosa-sanshi-select-field">
-								<span>中宫门位显示</span>
-								<Select size="small" value={opt.feiMenZhongShow ? 1 : 0} onChange={(v)=>this.onOptionChange('feiMenZhongShow', v === 1)}>
-									<Option value={0}>留空(默认)</Option>
-									<Option value={1}>标「中」字样</Option>
-								</Select>
-							</label>
-							</>
-						) : null}
-						{opt.school === '混合' ? (
-							<>
-								<label className="horosa-sanshi-select-field">
-									<span>天盘层</span>
-									<Select size="small" value={opt.mixTian || ''} onChange={(v)=>this.onOptionChange('mixTian', v)} dropdownMatchSelectWidth={false}>
-										<Option value="">默认（转宫）</Option>
-										<Option value="zhuan">转宫（排宫）</Option>
-										<Option value="fei">飞宫（飞泊）</Option>
-									</Select>
-								</label>
-								<label className="horosa-sanshi-select-field">
-									<span>九星层</span>
-									<Select size="small" value={opt.mixXing || ''} onChange={(v)=>this.onOptionChange('mixXing', v)} dropdownMatchSelectWidth={false}>
-										<Option value="">默认（转宫）</Option>
-										<Option value="zhuan">转宫（排宫）</Option>
-										<Option value="fei">飞宫（飞泊）</Option>
-									</Select>
-								</label>
-								<label className="horosa-sanshi-select-field">
-									<span>八门层</span>
-									<Select size="small" value={opt.mixMen || ''} onChange={(v)=>this.onOptionChange('mixMen', v)} dropdownMatchSelectWidth={false}>
-										<Option value="">默认（飞宫）</Option>
-										<Option value="zhuan">转宫（排宫）</Option>
-										<Option value="fei">飞宫（飞泊）</Option>
-									</Select>
-								</label>
-								<label className="horosa-sanshi-select-field">
-									<span>九神层</span>
-									<Select size="small" value={opt.mixShen || ''} onChange={(v)=>this.onOptionChange('mixShen', v)} dropdownMatchSelectWidth={false}>
-										<Option value="">默认（飞宫）</Option>
-										<Option value="zhuan">转宫（排宫）</Option>
-										<Option value="fei">飞宫（飞泊）</Option>
-									</Select>
-								</label>
-							</>
-						) : null}
-						<label className="horosa-sanshi-select-field">
-							<span>盘类</span>
-							<Select size="small" value={opt.chartCategory || 'shi'} onChange={(v)=>this.onOptionChange('chartCategory', v)}>
-								{CHART_CATEGORY_OPTIONS.map((item)=><Option key={`cc_${item.value}`} value={item.value}>{item.label}</Option>)}
-							</Select>
-						</label>
-						<label className="horosa-sanshi-select-field" style={{ gridColumn: '1 / -1' }}>
-							<span>相关人员</span>
-							<input
-								type="text"
-								value={opt.faRelatedPeople || ''}
-								onChange={(e)=>this.onOptionChange('faRelatedPeople', e.target.value)}
-								placeholder="生年天干(如 甲,丙):必护天干用"
-								style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }}
-							/>
-						</label>
 					{/* [连续调整不打断] 原 <Spin spinning={loading}> 满屏压暗遮罩已撤(用户实告「加载把整屏挡住」):
 					    重算期旧盘 keep-stale 保留可见,仅中栏右上角一枚非阻塞小转圈(复用全站 workspace-updating
 					    观感,sanshi-updating 变体只改定位为中栏内 absolute)。 */}

@@ -2,7 +2,10 @@
 // 与现代义分层存储、绝不互推:此层正/逆位曾历史性对调,且传统逆位表常含正面词(如钱币王牌逆位反主厚财、
 // 命运之轮逆位反主增益、太阳与世界逆位只是「程度稍减」而非反转)——故必须独立成层,不可由现代义派生。
 // 结构与 manualMeanings 同构:TRAD_MAJOR[sid]{up,rev} · TRAD_PIP[suit][1..10]{up,rev} · TRAD_COURT[suit][court]{up,rev}。
-// Wave A 已录:大牌 22 张全。数字牌与宫廷牌待后续波次;accessor 对缺条返回 null,消费端自动隐藏该层。
+// 覆盖:78 张已满 —— 大牌 22(TRAD_MAJOR)· 数字 40(TRAD_PIP 四花色 × 1..10)· 宫廷 16(TRAD_COURT 四花色 × 四位阶)。
+// (原注写「数字与宫廷待后续波次」,那是 Wave A 时的状态;后续波次已补齐,注释此前未同步更新——
+//  逐表实数为 22/40/16,合 78。文件头是读者判断覆盖率的唯一入口,过时即误导。)
+// accessor 对缺条返回 null,消费端自动隐藏该层。
 import { isTrumpArcana } from '../engine/arcana.js'; // [QA-9] 王牌判据单一真值源
 export const TRAD_MAJOR = {
 	the_fool: {

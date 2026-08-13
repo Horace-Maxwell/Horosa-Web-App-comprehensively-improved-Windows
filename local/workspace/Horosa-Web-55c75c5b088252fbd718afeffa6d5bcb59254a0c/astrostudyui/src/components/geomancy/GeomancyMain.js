@@ -74,7 +74,9 @@ const GRANULAR_FIELDS = [
 	{ key: 'houseProjection', backendKey: 'house_projection', label: '落星法', options: [
 		{ key: 'sequential', label: '不落星(仅图形入宫)', short: '不落' },
 		{ key: 'astro_from_chart', label: '占星定局甲(星落所主图之宫)', short: '定局甲' },
-		{ key: 'astro_bytwelves', label: '占星定局乙(另起点数定宫)', short: '定局乙' }] },
+		{ key: 'astro_bytwelves', label: '占星定局乙(另起点数定宫)', short: '定局乙' },
+		// 丁:据左栏所选时地起真实星历盘,各体按真实黄经落宫(缺时地即如实回落甲法)
+		{ key: 'real_ephemeris', label: '真实星历(按所选时地落宫)', short: '真星历' }] },
 	{ key: 'wrapHouses', backendKey: 'wrap_houses', label: '宫位成环', bool: true, options: [
 		{ key: 'false', label: '不环(一与十二不相邻)', short: '不环' }, { key: 'true', label: '成环(首尾相接)', short: '成环' }] },
 	{ key: 'reconciler', backendKey: 'reconciler', label: '调和者', bool: true, options: [
@@ -91,12 +93,16 @@ const GRANULAR_FIELDS = [
 	{ key: 'numberSystem', backendKey: 'number_system', label: '图数体系', options: [
 		{ key: 'points', label: '点数(四至八)', short: '点数' }, { key: 'planetary', label: '行星序', short: '行星序' },
 		{ key: 'abjad', label: '字母数值', short: '字母值' }] },
-	// 上升三源:第三源「取法官之图」为传本自出之法,可免「一宫星体必定入庙」之弊。
+	// 上升四源:第三源「取法官之图」为传本自出之法,可免「一宫星体必定入庙」之弊;
+	// 第四源「据时地起真实上升」非传本之法(传本盘式之上升取自图形),故只作可选之档,缺省绝不启用 ——
+	// 但唯有它带真实度数,故也唯有它能让「象限宫制」真正成立(其余三源无度数必退化整宫)。
 	{ key: 'ascSource', backendKey: 'asc_source', label: '上升取法', options: [
 		{ key: 'h1_figure', label: '取第一宫之图', short: '一宫' }, { key: 'fresh_points', label: '另起四行点', short: '四点' },
-		{ key: 'judge_figure', label: '取法官之图(免一宫必入庙)', short: '法官' }] },
+		{ key: 'judge_figure', label: '取法官之图(免一宫必入庙)', short: '法官' },
+		{ key: 'real_chart', label: '据所选时地起真实上升', short: '真时地' }] },
 	{ key: 'houseSystem', backendKey: 'house_system', label: '宫制', options: [
-		{ key: 'whole_sign', label: '整宫制', short: '整宫' }, { key: 'quadrant', label: '象限制(无度数则退化)', short: '象限' }] },
+		{ key: 'whole_sign', label: '整宫制', short: '整宫' },
+		{ key: 'quadrant', label: '象限制(须真实上升方不退化)', short: '象限' }] },
 	// 名表:只列有配对依据者;马语名与月之十六相名未载「名↔图」配属,故不入此选(在各自视图作参考名录)
 	{ key: 'namesSystem', backendKey: 'names_system', label: '名表体系', options: [
 		{ key: 'latin', label: '拉丁名', short: '拉丁' }, { key: 'arabic', label: '阿拉伯名', short: '阿拉伯' },
@@ -159,6 +165,8 @@ const PARITY_SCOPE_ZH = { shield16: '全盘十六图', mothers: '四母', houses
 
 const HISTORY_KEY = 'horosaGeomancyHistory';
 const HISTORY_MAX = 30;
+// 时地改动的静默期:时间面板选年/选月/选日各吐一拍,合并成一次重算(逐拍打后端既慢又白费)。
+const RECAST_DEBOUNCE_MS = 260;
 
 // 问题类型(11 类;简体)。后端 reading 也回传 questionTypes 可同步覆盖。
 const QUESTION_TYPE_OPTIONS = [
@@ -381,6 +389,16 @@ const SHIELD16_MEANINGS = [
 ];
 // 时间流:右证过去、法官现在、左证未来(传本口径)
 const TIME_FLOW_ZH = { right_witness: '过去', judge: '现在', left_witness: '未来' };
+// 真实星历盘所用之象限宫制(引擎回传键 → 中文名)。只此一家:列宫制全纬度有解,故无极区备用之法。
+const QUADRANT_SYSTEM_ZH = { regiomontanus: '列宫制' };
+// 度分记法:12.5 → 12°30′。真实盘之上升与宫头唯此式带度数,故专置一处免各处各写一遍。
+function fmtDegMin(v){
+	if(typeof v !== 'number' || !Number.isFinite(v)){ return '—'; }
+	const d = Math.floor(v);
+	let m = Math.round((v - d) * 60);
+	// 59.6′ 四舍五入成 60′ 必须进位,否则出「12°60′」这种不存在的写法
+	return m >= 60 ? `${d + 1}°00′` : `${d}°${String(m).padStart(2, '0')}′`;
+}
 
 async function postGeomancy(path, payload){
 	let rsp = null;
@@ -652,6 +670,29 @@ export function buildGeomancySnapshotText(result){
 		lines.push('[定局落星·乙]');
 		lines.push(Object.keys(b).map((k)=>`${PZH[k] || k}→${b[k]}宫`).join('；'));
 	}
+	// 丁:真实星历落星 —— 各体按其真实黄经落宫。此段只在用户选了该档且时地俱备时才有,
+	// 故未启用者快照逐字不变。⚠️ 必须同时交代此式非传本之法,免得模型把它当传本口径引用。
+	if(reading.planetPlacementReal){
+		const c = reading.planetPlacementReal;
+		const rc = reading.realChart || {};
+		const er = reading.astroErection || {};
+		lines.push('');
+		lines.push('[定局落星·真实星历]');
+		lines.push(`按所问之时地起真实星历盘：上升 ${er.sign_zh || '—'}${
+			typeof er.asc_deg_in_sign === 'number' ? ` ${er.asc_deg_in_sign.toFixed(2)}°` : ''
+		}${typeof rc.mc_lon === 'number' ? `；中天黄经 ${rc.mc_lon.toFixed(2)}°` : ''}${
+			rc.quadrant_system ? `；象限分宫用${QUADRANT_SYSTEM_ZH[rc.quadrant_system] || rc.quadrant_system}` : '；整宫制'
+		}`);
+		lines.push(Object.keys(c).map((k)=>`${PZH[k] || k}→${c[k]}宫`).join('；'));
+		lines.push('※ 此式非传本之法：传本盘式之上升取自图形、不起真实星盘,此为本软件另备之可选第四式,'
+			+ '引用时须与传本口径分辨清楚。');
+	}
+	// 用户选了真实星历而时地不全者,如实写明已回落 —— 不写则模型会以为盘真按时地起。
+	if((reading.settings || {}).real_chart_requested && (reading.settings || {}).real_chart_available === false){
+		lines.push('');
+		lines.push('※ 已选「据所选时地起真实上升」或「真实星历落星」,然时地不全(须日期与经纬俱备)或星历不可用,'
+			+ '本盘已如实回落图形取法,勿按真实星盘解读。');
+	}
 	// 图数(非点数体系时注记,供择时/寻隐一类专门占法)
 	if(reading.judge && reading.judge.number && reading.judge.number.system !== 'points'){
 		const n = reading.judge.number;
@@ -768,6 +809,17 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 			readingScope: readingScope || 'L3',
 			zodiacSystem: zodiacSystem || 'classical',
 		};
+		// 🔴 时地必须与主起盘路径同发:上升取法「据所选时地起真实上升」或落星法「真实星历」之下,
+		//    盘由时地定 —— 复算侧不发时地,则内核以为无时地而如实回落图形取法,
+		//    于是 AI 读到的定局与用户界面所见**两样**(界面按真实时地起,AI 却是一宫之图)。
+		//    fields 来自存档记录(aiAnalysisContext 以 buildFieldObject(record) 造),故复算得的是存盘那一刻之时地。
+		const gp = paramsFromFields(fields);
+		if(gp){
+			payload.date = gp.date; payload.time = gp.time; payload.zone = gp.zone;
+			payload.lon = gp.lon; payload.lat = gp.lat;
+			// ad 只在纪元前(-1)才发:如此则公元后之请求体与本次改动前逐字节相同
+			if(Number(gp.ad) === -1){ payload.ad = -1; }
+		}
 		// 🔴 四本账:传本逐项改写与转宫也须随存随取,否则复算出来的是流派默认盘,
 		//    与用户存盘时所见不符(AI 挂载据此复算,不带则 AI 看到的与界面两样)。
 		Object.keys(granular || {}).forEach((k)=>{
@@ -848,6 +900,11 @@ class GeomancyMain extends Component{
 		};
 		this.unmounted = false;
 		this.requestSeq = 0;
+		this._recastTimer = null;
+		this._suppressRecast = false;
+		// [实时重算] 时地签名基线须在构造期就取真值:否则首次 didUpdate 会把「本来就没变」误判成变了,
+		// 而那一拍若正带着载入的存档盘,就会把存档盘重算覆盖掉。
+		this._lastCastParamSig = this.castParamSig();
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 		this.clickCast = this.clickCast.bind(this);
@@ -857,6 +914,9 @@ class GeomancyMain extends Component{
 		this.setRightPanelTab = this.setRightPanelTab.bind(this);
 		this.setCenterView = this.setCenterView.bind(this);
 		this.changeGeomancyOpt = this.changeGeomancyOpt.bind(this);
+		this.commitQuestion = this.commitQuestion.bind(this);
+		this.changeQuestionType = this.changeQuestionType.bind(this);
+		this.changeQuesitedHouse = this.changeQuesitedHouse.bind(this);
 		this.changePlanetaryOpt = this.changePlanetaryOpt.bind(this);
 		this.traditionOptions = this.traditionOptions.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
@@ -882,10 +942,19 @@ class GeomancyMain extends Component{
 	// 载一条地占档,组件不重挂 → mount 不响 → 载档静默不生效。补上 fields 变化即还原
 	// (照 lingqi:90 / guice:94 同款范式;restore 内部自带去重守卫,不会反复覆盖用户现场)。
 	componentDidUpdate(prev){
-		if(prev.fields !== this.props.fields && this.props.fields){ this.restoreFromCurrentCase(); }
+		let restored = false;
+		if(prev.fields !== this.props.fields && this.props.fields){ restored = this.restoreFromCurrentCase(); }
+		// 🔴 [实时重算] 时地一改即按新时地重排判读,不必再点一次「起盘」(原先改了地点毫无反应,
+		//    非得重起一盘才生效 —— 而重起就是重掷,那副卦就没了)。护盾盘由 recastPinned 钉住不动。
+		//    签名无论是否重算都要同步:载档那一拍若留下陈旧签名,下一拍就会误触发一次重算把存档盘覆盖掉。
+		const sig = this.castParamSig();
+		const changed = (sig !== this._lastCastParamSig);
+		this._lastCastParamSig = sig;
+		if(changed && !restored && !this._suppressRecast){ this.scheduleRecastPinned(); }
 	}
 
 	componentWillUnmount(){
+		if(this._recastTimer){ clearTimeout(this._recastTimer); this._recastTimer = null; }
 		if(this._centerRO){ this._centerRO.disconnect(); this._centerRO = null; }
 		if(this._unsubNongli){ this._unsubNongli(); }
 		this.unmounted = true;
@@ -926,7 +995,17 @@ class GeomancyMain extends Component{
 		try{
 			const raw = window.localStorage.getItem(HISTORY_KEY);
 			const prev = raw ? JSON.parse(raw) : [];
-			if(Array.isArray(prev)){ next = [entry, ...prev]; }
+			if(Array.isArray(prev)){
+				// 🔴 一次起卦只占一条:钉盘重算(改时地/流派/传本/所问宫…)出的还是**同一副卦**,
+				//    若照旧追加,拖一下时间选择器就能把三十条上限刷满、把真正起过的卦挤出去。
+				//    故种子相同即原地替换首条(该条随之反映当前设置,回放亦得最新那份判读)。
+				// 判据须含起卦源:报数盘的默认种子恒为 0,只比种子会把两组不同的十六数误当同一盘。
+				const castKey = (e)=>[e && e.seed, e && e.castMethod || '',
+					JSON.stringify((e && e.castNumbers) || null)].join('|');
+				const same = prev.length && prev[0] && Number.isFinite(Number(entry.seed))
+					&& castKey(prev[0]) === castKey(entry);
+				next = same ? [entry, ...prev.slice(1)] : [entry, ...prev];
+			}
 		}catch(e){ /* ignore */ }
 		next = next.slice(0, HISTORY_MAX);
 		try{ safeLocalStorageSet(HISTORY_KEY, JSON.stringify(next)); }catch(e){ /* ignore */ }
@@ -956,6 +1035,11 @@ class GeomancyMain extends Component{
 		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
 		this.lastRestoredCaseId = saved.caseVersion;
 		this.requestSeq += 1;
+		// 🔴 载档整个提交周期内一律不许重算。真机 setState 是异步的:此处清掉的本地时地草稿要到
+		//    下一拍才生效,而那一拍 restored 已是 false、签名却变了 —— 存档盘就被重算覆盖掉了
+		//    (jest 若用同步 setState 模拟,这条永远测不出来)。并作废在途的时地重排。
+		this._suppressRecast = true;
+		if(this._recastTimer){ clearTimeout(this._recastTimer); this._recastTimer = null; }
 		this.setState({
 			loading: false,
 			result: payload.result || null,
@@ -993,6 +1077,8 @@ class GeomancyMain extends Component{
 			planetaryChartExtras: options.planetaryChartExtras !== undefined
 				? !!options.planetaryChartExtras : this.state.planetaryChartExtras,
 		}, ()=>{
+			this._lastCastParamSig = this.castParamSig();
+			this._suppressRecast = false;
 			const result = this.state.result;
 			// [X1·P2-40] 快照带时地 meta:命盘挂载缓存路径可确凿命中,免每次挂载都复算。
 			if(result){ saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() })); }
@@ -1017,6 +1103,9 @@ class GeomancyMain extends Component{
 		this.setState({ localFields: { ...base, ...geoPatchFromRec(rec, base) } });
 	}
 	async clickCast(pinnedSeed){
+		// 待触发的时地重排就此作废:用户改完时地立刻点「起盘」时,那一拍会在新盘出来后又多打一次
+		// (盘不会错,requestSeq 挡得住乱序,但白费一次往返)。
+		if(this._recastTimer){ clearTimeout(this._recastTimer); this._recastTimer = null; }
 		const seq = ++this.requestSeq;
 		const seedMode = this.state.seedMode;
 		// pinnedSeed(有限数)= 用既有母图种子定盘重算:同护盾盘、赋义随流派/范围/黄道变,不重新揲卦。
@@ -1037,6 +1126,8 @@ class GeomancyMain extends Component{
 		if(gp){
 			payload.date = gp.date; payload.time = gp.time; payload.zone = gp.zone;
 			payload.lon = gp.lon; payload.lat = gp.lat;
+			// 纪元前才发 ad:公元后之请求体与本次改动前逐字节相同(负年之真实盘方能起对)
+			if(Number(gp.ad) === -1){ payload.ad = -1; }
 		}
 		// [高级传本] 只发用户显式改过的项;未改的键根本不出现在请求里 → 后端回落所选流派默认。
 		// 这是零回归的关键:不传 ≠ 传默认值,后者会在换流派时把旧流派的值钉死。
@@ -1068,7 +1159,24 @@ class GeomancyMain extends Component{
 			if(this.state.planetaryChartNodes){ payload.planetaryChartNodes = true; }
 			if(this.state.planetaryChartExtras){ payload.planetaryChartExtras = true; }
 		}
-		if(pinned !== null){ payload.seed = pinned; }
+		// [钉盘重算] 起卦源取**这副盘自己**回传的 settings,而非左栏现值 —— 左栏那串是下一次起卦的
+		// 草稿,不该反噬已出之卦(用户改完报数框却没点起盘,不等于要换掉手上这一卦)。
+		// 🔴 报数盘之母图全由那十六个数定、与种子无涉:只钉种子而不带数,后端即改由 RNG 重揲 ——
+		//    切一次流派就换了一副卦(实测同种子下 Amissio×4 变成 Puella/Coniunctio…)。
+		// 🔴 时间档只认 timeSeed(seed 对它无效),钉错字段即退化真随机 → 按档分派。
+		// 八档起卦法逐档实证:回带起卦法 + 按档钉种子 = 八档全同盘,且「当初是怎么起的」不丢。
+		if(pinned !== null){
+			const fz = (this.state.result && this.state.result.reading && this.state.result.reading.settings) || {};
+			const fzMethod = fz.cast_method || '';
+			if(fzMethod === 'time'){ payload.castMethod = 'time'; payload.timeSeed = pinned; }
+			else{
+				payload.seed = pinned;
+				if(fzMethod && fzMethod !== 'manual'){ payload.castMethod = fzMethod; }
+				if(fzMethod === 'numbers' && Array.isArray(fz.cast_numbers) && fz.cast_numbers.length === 16){
+					payload.castNumbers = fz.cast_numbers.slice();
+				}
+			}
+		}
 		else if(seedMode === 'manual'){ payload.seed = this.state.manualSeed || 0; }
 		// 时间起卦:由左栏所选时间(精确到分)算确定性种子塞 timeSeed,使同一时刻起卦可复现;
 		// 不塞则后端走 secrets.randbelow 退化真随机,刷新即变盘(后端 webgeomancysrv.py 已就绪接收 timeSeed)。
@@ -1172,20 +1280,63 @@ class GeomancyMain extends Component{
 	// centerViewTouched:用户一旦手点过视图,就不再被「结构对照模式自动落其专属盘」覆盖其选择。
 	setCenterView(v){ this.setState({ centerView: v, centerViewTouched: true }); }
 
-	// 流派/传本设置变更:写 state,已有盘则重算(左选→中右随动)。
-	// 关键:用既有盘的实际种子定盘重算 → 同一母图(护盾盘不变),仅赋义随流派/范围/黄道变;
-	// 否则随机/时间起卦下会重新揲卦得另一副盘,用户切流派对比时整盘跳变(原 bug)。
+	// [实时重算·唯一入口] 左栏一改(流派/范围/黄道/传本/行星盘/问类/所问宫/时地)即重排判读,
+	// 不必再点一次「起盘」。关键:用既有盘的实际起卦源定盘重算 → 同一母图(护盾盘不变),
+	// 仅赋义随设置与时地变;否则随机/时间起卦下会重新揲卦得另一副盘,切一次流派整盘跳变(原 bug)。
+	// 未起盘则什么都不算 —— 此时左栏改动只是下一次起卦的草稿。
+	recastPinned(){
+		const reading = this.state.result && this.state.result.reading;
+		if(!reading){ return; }
+		const seed = reading.seed;
+		if(seed === undefined || seed === null || !Number.isFinite(Number(seed))){ this.clickCast(); return; }
+		this.clickCast(Number(seed));
+	}
+
+	// 时地面板逐段吐值(选年→选月→选日各一拍),逐拍打后端既慢又白费 → 并到静默期后一次算。
+	scheduleRecastPinned(){
+		if(this._recastTimer){ clearTimeout(this._recastTimer); }
+		this._recastTimer = setTimeout(()=>{
+			this._recastTimer = null;
+			if(this.unmounted){ return; }
+			this.recastPinned();
+		}, RECAST_DEBOUNCE_MS);
+	}
+
+	// 时地判据:取**真正送进请求体的那几个值**,而非 fields 引用 —— 全局 fields 会因无关 dispatch
+	// 换新引用(按引用判会平白重打后端),而本地草稿 localFields 每次都是新对象(按引用判则每敲一下都重算)。
+	castParamSig(){
+		const gp = paramsFromFields(this.activeFields());
+		return gp ? [gp.date, gp.time, gp.zone, gp.lon, gp.lat, gp.ad].join('|') : '';
+	}
+
+	// 所问之事:失焦时若与盘上那份不同才重排(逐字重算 = 每敲一下打一次后端)。
+	commitQuestion(){
+		const rd = this.state.result && this.state.result.reading;
+		if(rd && (rd.question || '') !== (this.state.question || '')){ this.recastPinned(); }
+	}
+
+	// 问类:选问类即填入其预设所问宫 —— 预设仍在,只是不再是唯一出路。
+	changeQuestionType(value){
+		this.setState({ questionType: value, quesitedHouse: QUESTION_TYPE_HOUSE[value] || 1 },
+			()=>this.recastPinned());
+	}
+
+	// 所问宫定的是判读主宫(法官/证人取谁、得地算哪一宫),改了必须重排判读。
+	// 手改所问宫即脱离预设 → 问类转「自订」,免得界面显示的问类与实际主宫不符。
+	changeQuesitedHouse(value){
+		const v = Number(value);
+		this.setState({ quesitedHouse: v,
+			questionType: (QUESTION_TYPE_HOUSE[this.state.questionType] === v) ? this.state.questionType : 'custom' },
+			()=>this.recastPinned());
+	}
+
 	// 高级传本逐项改写:写入覆盖表 → 锁种子重算(护盾盘不变,仅判读随设置变)。
 	changeGranular(key, value){
 		const next = { ...(this.state.granular || {}) };
 		if(value === null || value === undefined || value === '__profile__'){ delete next[key]; }
 		else{ next[key] = value; }
 		this.setState({ granular: next }, ()=>{
-			const reading = this.state.result && this.state.result.reading;
-			if(!reading){ return; }
-			const seed = reading.seed;
-			if(seed === undefined || seed === null || !Number.isFinite(Number(seed))){ this.clickCast(); return; }
-			this.clickCast(Number(seed));
+			this.recastPinned();
 		});
 	}
 
@@ -1223,11 +1374,7 @@ class GeomancyMain extends Component{
 	// [行星地占盘] 选项变更:与 changeGeomancyOpt 同构(锁种子重算:盾牌盘不变,行星盘随选项重取)。
 	changePlanetaryOpt(key, value){
 		this.setState({ [key]: value }, ()=>{
-			const reading = this.state.result && this.state.result.reading;
-			if(!reading){ return; }
-			const seed = reading.seed;
-			if(seed === undefined || seed === null || !Number.isFinite(Number(seed))){ this.clickCast(); return; }
-			this.clickCast(Number(seed));
+			this.recastPinned();
 		});
 	}
 
@@ -1245,11 +1392,7 @@ class GeomancyMain extends Component{
 		// 换流派预设 = 批量写默认:清空逐项覆盖,让新预设的默认值全面生效(用户可再逐项改写)。
 		const patch = key === 'tradition' ? { [key]: value, granular: {} } : { [key]: value };
 		this.setState(patch, ()=>{
-			const reading = this.state.result && this.state.result.reading;
-			if(!reading){ return; }
-			const seed = reading.seed;
-			if(seed === undefined || seed === null || !Number.isFinite(Number(seed))){ this.clickCast(); return; }
-			this.clickCast(Number(seed));
+			this.recastPinned();
 		});
 	}
 
@@ -1274,7 +1417,11 @@ class GeomancyMain extends Component{
 					<div className="horosa-side-panel-title">天文地占</div>
 					<div className="horosa-side-panel-subtitle">护盾盘 · 16 图形 · 判官</div>
 				</div>
-				{/* [自由起盘] 时间与地点:独立草稿。「时间起卦」按此时刻算种子;占星定局按此时刻地点起星盘(不写主命盘) */}
+				{/* [自由起盘] 时间与地点:独立草稿,不写主命盘。此三处用得着它:
+			    ①「时间起卦」按此时刻算确定性种子;
+			    ② 上升取法选「据所选时地起真实上升」时,按此时地起真实星历盘(唯此式带度数,象限宫制方不退化);
+			    ③ 落星法选「真实星历」时,各体按其真实黄经落宫。
+			    其余档位一概不用时地(传本盘式之上升取自图形),详见帮助手册「时间与地点」一章。 */}
 				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<SpaceTimePanel
 						fields={this.activeFields()}
@@ -1288,6 +1435,9 @@ class GeomancyMain extends Component{
 					<TextArea
 						value={this.state.question}
 						onChange={(e)=>this.setState({ question: e.target.value })}
+						// 所问之事进中栏摘要与 AI 快照(取的是盘上那份 reading.question),改了不重排就一直是旧的。
+						// 但逐字重算等于每敲一下打一次后端 → 落在失焦,且只在「真跟盘上那份不一样」时才发。
+						onBlur={this.commitQuestion}
 						placeholder="输入所问之事（可留空）"
 						autoSize={{ minRows: 2, maxRows: 4 }}
 						maxLength={200}
@@ -1299,9 +1449,7 @@ class GeomancyMain extends Component{
 							<span>问类</span>
 							<Select
 								value={this.state.questionType}
-								onChange={(value)=>this.setState({ questionType: value,
-									// 选问类即填入其预设所问宫 —— 预设仍在,只是不再是唯一出路
-									quesitedHouse: QUESTION_TYPE_HOUSE[value] || 1 })}
+								onChange={this.changeQuestionType}
 								dropdownMatchSelectWidth={false}
 								optionLabelProp="label"
 							>
@@ -1314,10 +1462,7 @@ class GeomancyMain extends Component{
 							<span>所问宫</span>
 							<Select
 								value={Number(this.state.quesitedHouse) || (QUESTION_TYPE_HOUSE[this.state.questionType] || 1)}
-								onChange={(value)=>this.setState({ quesitedHouse: Number(value),
-									// 手改所问宫即脱离预设 → 问类转「自订」,免得界面显示的问类与实际主宫不符
-									questionType: (QUESTION_TYPE_HOUSE[this.state.questionType] === Number(value))
-										? this.state.questionType : 'custom' })}
+								onChange={this.changeQuesitedHouse}
 								dropdownMatchSelectWidth={false}
 									optionLabelProp="label"
 							>
@@ -2476,14 +2621,44 @@ class GeomancyMain extends Component{
 					const zsysKey = r.zodiacSystem || this.state.zodiacSystem;
 					const zsysZh = ((ZODIAC_SYSTEM_OPTIONS.find((o)=>o.key === zsysKey) || {}).label)
 						|| '古典定局体系';
+					// 真实星历盘为唯一带度数之取法:有度数则如实报度、报所用象限宫制,并说明十二宫按真宫头分
+					//(而非自上升整宫顺铺)。用户选了此档而时地不全者,如实报回落原因 —— 绝不假作已按时地起。
+					const rc = r.realChart || null;
+					const st = r.settings || {};
+					const isReal = er.asc_source === 'real_chart' && er.asc_lon !== undefined;
+					const PROJ_OPTS = (GRANULAR_FIELDS.find((f)=>f.key === 'houseProjection') || {}).options || [];
+					const projWay = ((PROJ_OPTS.find((o)=>o.key === st.house_projection) || {}).label) || '';
+					const projReal = st.house_projection === 'real_ephemeris';
 					return (
 						<div className="horosa-geomancy-card">
 							<div className="horosa-geomancy-card-title">占星定局(L4)</div>
 							<div style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-								上升 <strong>{r.ascendantSignZh || '—'}</strong>(取法:{ascWay}
-								{er.figure ? ` · ${er.figure}` : ''},按「{zsysZh}」得其星座);
-								十二宫自上升起按黄道顺铺,见下各行星座列。
+								上升 <strong>{isReal ? (er.sign_zh || '—') : (r.ascendantSignZh || '—')}</strong>
+								{isReal ? <strong>{` ${fmtDegMin(er.asc_deg_in_sign)}`}</strong> : null}
+								(取法:{ascWay}
+								{isReal ? '' : (er.figure ? ` · ${er.figure}` : '')}
+								{isReal ? '' : `,按「${zsysZh}」得其星座`});
+								{isReal
+									? '十二宫按真实宫头度数分,见下各行星座与宫头度数。'
+									: '十二宫自上升起按黄道顺铺,见下各行星座列。'}
 							</div>
+							{isReal ? (
+								<div className="horosa-geomancy-note-hint">
+									已按左栏所选时地起真实星历盘
+									{er.quadrant_system
+										? `(象限分宫用${QUADRANT_SYSTEM_ZH[er.quadrant_system] || er.quadrant_system})`
+										: '(整宫制:各宫头为其星座之零度)'}
+									{rc && typeof rc.mc_lon === 'number' ? `;中天黄经 ${rc.mc_lon.toFixed(2)}°` : ''}。
+									⚠️ 此式非传本之法 —— 传本盘式之上升取自图形、不起真实星盘,故此为可选之第四式。
+								</div>
+							) : null}
+							{(st.real_chart_requested && st.real_chart_available === false) ? (
+								<div className="horosa-geomancy-note-hint">
+									⚠️ 已选「据所选时地起真实上升」{projReal ? `与「${projWay}」` : ''},
+									然左栏时地不全(须日期与经纬俱备)或星历不可用,
+									故已如实回落图形取法{projReal ? '与占星定局甲' : ''}。
+								</div>
+							) : null}
 							{er.degenerate_to_whole_sign ? (
 								<div style={{ fontSize: 12, lineHeight: 1.6, marginTop: 6, opacity: 0.75 }}>
 									{er.note || '地占定局只出上升星座而无度数,象限分宫须有宫头度数,故此处退化为整宫制'}。
@@ -2583,7 +2758,12 @@ class GeomancyMain extends Component{
 										title={h.naturalSignZh && h.naturalSignZh !== h.signZh
 											? `定局星座 ${h.signZh}(自上升顺铺)· 自然星座 ${h.naturalSignZh}(次要判断)`
 											: undefined}
-									><span className="horosa-geomancy-sign-glyph" style={{ fontFamily: AstroFont }}>{signGlyph(h.sign)}</span> {h.signZh}</span>
+									><span className="horosa-geomancy-sign-glyph" style={{ fontFamily: AstroFont }}>{signGlyph(h.sign)}</span> {h.signZh}
+										{/* 宫头度数只在真实星历盘下有(图形取法无度数);无则此处一字不多,默认路径逐字不变 */}
+										{typeof h.cuspDegInSign === 'number'
+											? <em className="horosa-geomancy-cusp-deg">{fmtDegMin(h.cuspDegInSign)}</em>
+											: null}
+									</span>
 									<span className="horosa-geomancy-house-topic">
 										<span className="horosa-geomancy-house-name">{h.nameZh || h.topicsZh}</span>
 										{/* 🔴 图名 / 副名 / 角色**各自独立成项**,由 topic 的 flex-wrap 自然换行。
@@ -3021,11 +3201,8 @@ class GeomancyMain extends Component{
 						<span>转宫(以某宫为新命宫)</span>
 						<Select
 							value={Number.isFinite(Number(this.state.turnTo)) ? Number(this.state.turnTo) : '__none__'}
-							onChange={(v)=>this.setState({ turnTo: v === '__none__' ? null : Number(v) }, ()=>{
-								const rd = this.state.result && this.state.result.reading;
-								const sd = rd && rd.seed;
-								if(Number.isFinite(Number(sd))){ this.clickCast(Number(sd)); }else{ this.clickCast(); }
-							})}
+							onChange={(v)=>this.setState({ turnTo: v === '__none__' ? null : Number(v) },
+								()=>this.recastPinned())}
 							dropdownMatchSelectWidth={false}
 						>
 							<Option value="__none__" key="__none__">不转(本命起)</Option>

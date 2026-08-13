@@ -36,7 +36,10 @@ from astrostudy.cetian_ziwei import (
     compute_cetian_ziwei_chart,
 )
 from astrostudy.cetian_yiyu import (
+    collect_xingge_verses,
     compute_bianyao,
+    compute_nayin,
+    compute_yinyang_gong,
     compute_huizhao,
     compute_liunian,
     compute_shensha,
@@ -170,6 +173,26 @@ def _build_yiyu_sections(chart, yiyu, show):
             row("福分诀", huizhao["note"]),
         ]})
 
+    # 阴阳宫相得(恒出:星之阴阳 vs 宫之阴阳)
+    yygong = yiyu.get("yinyang_gong")
+    if yygong:
+        rows = [row(f"{it['star']}({it['yinyang']}星·{it['branch_name']}{it['gong_yinyang']}宫)", it["verdict"])
+                for it in yygong["items"]]
+        rows.append(row("通则", yygong["note"]))
+        sections.append({"title": "阴阳宫", "rows": rows})
+
+    # 诸星格·星解与运限歌(恒出:只出本盘落宫之星,非全库罗列)
+    verses = yiyu.get("xingge_verses")
+    if verses:
+        rows = []
+        for v in verses:
+            if v.get("jie"):
+                rows.append(row(f"{v['star']}·{v['branch_name']}宫·星解", v["jie"]))
+            if v.get("yunxian"):
+                rows.append(row(f"{v['star']}·运限歌", v["yunxian"]))
+        if rows:
+            sections.append({"title": "星解与运限歌", "rows": rows})
+
     # 流年(showLiunian)
     if liunian and show.get("liunian", True):
         sections.append({"title": "流年飞星", "rows": [
@@ -266,8 +289,10 @@ def _build_sections(pan, show_wu_xing_ju=True, show_sihua=True, show_flying=True
     lunar = pan.get("lunar", {})
     is_kentang = chart.get("method") == "kentang"
 
+    nayin = (yiyu or {}).get("nayin") if isinstance(yiyu, dict) else None
     mingshen_rows = [
         row("农历", lunar.get("text")),
+    ] + ([row("纳音", f"{nayin['ganzhi']}·{nayin['wuxing']}")] if nayin and nayin.get("wuxing") else []) + [
         row("时辰", pan.get("hourBranch")),
         row("命宫", pan.get("mingGong")),
         row("身宫", pan.get("shenGong")),
@@ -505,7 +530,11 @@ class CeTianSrv:
                 yunxian = compute_yunxian(palaces, ming_b, shen_b, year_b, is_shun, start_branch)
                 bianyao = compute_bianyao(year_s, liunian["stem"])
                 duanjue = match_duanjue(palaces, ming_b, shen_b, zayao)
+                yinyang_gong = compute_yinyang_gong(palaces, CETIAN_STAR_LORE)
+                nayin = compute_nayin(year_s, year_b)
+                xingge_verses = collect_xingge_verses(palaces)
                 yiyu = {
+                    "yinyang_gong": yinyang_gong, "nayin": nayin, "xingge_verses": xingge_verses,
                     "zayao": zayao, "zayao_notes": zayao_notes, "liunian": liunian,
                     "shensha": shensha, "huizhao": huizhao, "xiu": xiu,
                     "yunxian": yunxian, "bianyao": bianyao, "duanjue": duanjue,

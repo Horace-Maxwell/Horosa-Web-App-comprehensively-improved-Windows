@@ -13,6 +13,9 @@ import math
 import swisseph as swe
 
 from astrostudy.cetian_yiyu_data import (
+    NAYIN_60,
+    YANG_GONG_BRANCHES,
+    YINYANG_GONG_NOTE,
     YIYU_GONGZUO,
     YIYU_GUANSHA,
     YIYU_JINJING,
@@ -527,6 +530,64 @@ def match_duanjue(palaces, ming_gong_branch, shen_gong_branch, zayao=None):
 # 入垣圖月表(資料透傳)
 # ============================================================
 
+def compute_yinyang_gong(palaces, star_lore):
+    """陰陽宮相得(移語本「陽星」「陰星」二節):星之陰陽 vs 所居宮之陰陽。
+
+    同 → 福重災輕;異 → 福輕災重。star_lore = CETIAN_STAR_LORE(避免反向 import)。
+    返回 {"note", "items": [{star, yinyang, branch, gong_yinyang, verdict}]}
+    """
+    items = []
+    for p in palaces:
+        b = p["branch"]
+        gong_yy = "陽" if b in YANG_GONG_BRANCHES else "陰"
+        for st in (p.get("stars") or []) + (p.get("aux_stars") or []):
+            lore = star_lore.get(st) or {}
+            star_yy = lore.get("yinyang") or ""
+            if not star_yy:
+                continue
+            items.append({
+                "star": st, "yinyang": star_yy,
+                "branch": b, "branch_name": _bn(b), "gong_yinyang": gong_yy,
+                "verdict": "福重災輕" if star_yy == gong_yy else "福輕災重",
+            })
+    items.sort(key=lambda x: (x["verdict"] != "福重災輕", x["branch"]))
+    return {"note": YINYANG_GONG_NOTE, "items": items}
+
+
+def compute_nayin(year_stem, year_branch):
+    """生年干支納音(移語本「納音」節 p11 全表)。"""
+    # 干支序:同時滿足 idx%10==stem、idx%12==branch 的唯一 0..59
+    for idx in range(60):
+        if idx % 10 == year_stem and idx % 12 == year_branch:
+            return {
+                "ganzhi": f"{HEAVENLY_STEMS[year_stem]}{EARTHLY_BRANCHES[year_branch]}",
+                "wuxing": NAYIN_60[idx],
+            }
+    return {"ganzhi": "", "wuxing": ""}
+
+
+def collect_xingge_verses(palaces):
+    """諸星格「星解」與「運限歌」——按本盤實際落宮之星取出(非全庫羅列)。
+
+    每星一條:落宮 + 該格星解要句 + 運限歌;供右欄運限/斷訣頁與 AI 快照引用。
+    """
+    present = []
+    seen = set()
+    for p in palaces:
+        for st in (p.get("stars") or []) + (p.get("aux_stars") or []):
+            if st in seen:
+                continue
+            ge = YIYU_XINGGE.get(st)
+            if not ge:
+                continue
+            seen.add(st)
+            present.append({
+                "star": st, "branch": p["branch"], "branch_name": _bn(p["branch"]),
+                "jie": ge.get("jie", ""), "yunxian": ge.get("yunxian", ""),
+            })
+    return present
+
+
 def ruyuan_month_row(lunar_month):
     """入垣圖·龍池鳳閣月表本生月行。"""
     row = YIYU_RUYUAN_MONTH_TABLE[lunar_month - 1]
@@ -536,5 +597,6 @@ def ruyuan_month_row(lunar_month):
 __all__ = [
     "compute_zayao", "compute_liunian", "compute_shensha", "compute_huizhao",
     "compute_xiu", "compute_yunxian", "compute_bianyao", "match_duanjue",
+    "compute_yinyang_gong", "compute_nayin", "collect_xingge_verses",
     "ruyuan_month_row",
 ]

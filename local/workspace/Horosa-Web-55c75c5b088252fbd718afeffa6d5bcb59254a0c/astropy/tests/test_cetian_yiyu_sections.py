@@ -10,9 +10,11 @@ import pytest
 
 from astrostudy.cetian_ziwei import compute_cetian_ziwei_chart
 from astrostudy.cetian_yiyu import (
-    compute_bianyao, compute_huizhao, compute_liunian, compute_shensha,
-    compute_xiu, compute_yunxian, compute_zayao, match_duanjue, ruyuan_month_row,
+    collect_xingge_verses, compute_bianyao, compute_huizhao, compute_liunian,
+    compute_nayin, compute_shensha, compute_xiu, compute_yinyang_gong,
+    compute_yunxian, compute_zayao, match_duanjue, ruyuan_month_row,
 )
+from astrostudy.cetian_ziwei import CETIAN_STAR_LORE
 from websrv.webcetiansrv import MONK_PALACE_NAMES, _build_sections, _build_yiyu_sections
 
 
@@ -42,7 +44,10 @@ def _mk_yiyu(chart, liunian_year=2026, qisha_mode="shengshi", tianluo_mode="bens
     duanjue = match_duanjue(palaces, ming_b, shen_b, zayao)
     return {"zayao": zayao, "zayao_notes": notes, "liunian": liunian, "shensha": shensha,
             "huizhao": huizhao, "xiu": xiu, "yunxian": yunxian, "bianyao": bianyao,
-            "duanjue": duanjue, "ruyuan_month": ruyuan_month_row(chart["lunar_month"])}
+            "duanjue": duanjue, "ruyuan_month": ruyuan_month_row(chart["lunar_month"]),
+            "yinyang_gong": compute_yinyang_gong(palaces, CETIAN_STAR_LORE),
+            "nayin": compute_nayin(year_s, year_b),
+            "xingge_verses": collect_xingge_verses(palaces)}
 
 
 ALL_ON = {"liunian": True, "shensha": True, "zayao": True, "duanjue": True, "xiu": True, "bianyao": True}
@@ -55,7 +60,8 @@ def test_book_sections_full():
     titles = [s["title"] for s in sections]
     for need in ["起盘", "农历与命身", "运限", "童限", "凶限提示", "会照", "流年飞星", "流年七煞",
                  "十七飞星", "神煞·岁前", "神煞·岁后", "神煞·年干", "神煞·月煞", "三日宫",
-                 "廿八宿分野", "十干变曜", "杂曜", "断诀", "星曜别名", "命宮", "三合组"]:
+                 "廿八宿分野", "十干变曜", "杂曜", "断诀", "星曜别名", "命宮", "三合组",
+                 "阴阳宫", "星解与运限歌"]:
         assert need in titles, f"缺段:{need}"
     # 运限段 12 限行+步位诀。
     yx = next(s for s in sections if s["title"] == "运限")
@@ -122,3 +128,25 @@ def test_yiyu_sections_duanjue_texts_present():
     assert len(dj["rows"]) >= 20
     lore = next(s for s in secs if s["title"] == "星曜别名")
     assert len(lore["rows"]) == 19
+
+
+def test_yiyu_gap_closure_yinyang_nayin_verses():
+    """计划 gap A8/A9/C7 补齐:阴阳宫判定 / 生年纳音 / 诸星格星解与运限歌。"""
+    pan, chart = _mk_pan()
+    yiyu = _mk_yiyu(chart)
+    sections = _build_sections(pan, yiyu=yiyu, show_yiyu=ALL_ON)
+    titles = [s["title"] for s in sections]
+    assert "阴阳宫" in titles and "星解与运限歌" in titles
+    # A8:十九星逐星判定,同阴阳=福重灾轻
+    yy = yiyu["yinyang_gong"]
+    assert len(yy["items"]) == 19
+    for it in yy["items"]:
+        same = it["yinyang"] == it["gong_yinyang"]
+        assert it["verdict"] == ("福重災輕" if same else "福輕災重")
+    # A9:乙卯年纳音=水(原书 p11)
+    assert yiyu["nayin"] == {"ganzhi": "乙卯", "wuxing": "水"}
+    ms = next(s for s in sections if s["title"] == "农历与命身")
+    assert any(r.get("label") == "纳音" for r in ms["rows"])
+    # C7:诸星格 19 格的星解/运限歌按落宫取出
+    assert len(yiyu["xingge_verses"]) == 19
+    assert all(v["jie"] for v in yiyu["xingge_verses"])

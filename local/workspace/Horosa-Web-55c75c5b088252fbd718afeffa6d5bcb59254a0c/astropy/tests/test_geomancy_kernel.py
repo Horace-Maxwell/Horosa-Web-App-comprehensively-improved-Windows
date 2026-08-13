@@ -616,24 +616,31 @@ def test_names_shakal_honest_no_pairing():
     assert len(FIG_BY_INT) == 16
 
 
-# ── B0 死开关守:落星法三态必两两互异 ──
+# ── B0 死开关守:落星法四态必两两互异 ──
 def test_projection_three_states_distinct():
-    """「落星法」三态(不落星/甲/乙)输出必两两不同 —— 曾经三态指纹全同,是彻底的死开关。
-    两处旁路合谋:甲法**无条件**计算(不看所选之法),且 L4 档 `or scope=='L4'` 无视用户选择恒算乙。"""
+    """「落星法」四态(不落星/甲/乙/丁真实星历)输出必两两不同 —— 曾经三态指纹全同,是彻底的死开关。
+    两处旁路合谋:甲法**无条件**计算(不看所选之法),且 L4 档 `or scope=='L4'` 无视用户选择恒算乙。
+    丁式须给时地方成立,故其指纹另比;不给时地时它按设计回落甲式(与甲同值),此乃如实回落非死开关。"""
     from astrostudy.geomancy.chart import compute_reading, HOUSE_PROJECTIONS
+    from astrostudy.geomancy.ephem import julian_day
     import hashlib, json
-    assert HOUSE_PROJECTIONS == ('sequential', 'astro_from_chart', 'astro_bytwelves')
+    assert HOUSE_PROJECTIONS == ('sequential', 'astro_from_chart', 'astro_bytwelves', 'real_ephemeris')
+    JD = julian_day(2026, 8, 12, 14.5, 8.0)
+    TP = dict(jd=JD, geo_lon=116.4, geo_lat=39.9)
+
+    def _fp(r):
+        key = {'a': r['planet_placement'], 'b': r['planet_placement_by_twelves'],
+               'd': r.get('planet_placement_real')}
+        return hashlib.sha1(json.dumps(key, sort_keys=True, default=str).encode()).hexdigest()
+
     for scope in ('L3', 'L4'):
         for seed in (1, 42, 777, 20260721):
             fps = {}
             for proj in HOUSE_PROJECTIONS:
                 r = compute_reading('marriage', 'european_classical', cast_method='manual',
-                                    seed=seed, house_projection=proj, reading_scope=scope)
-                key = {'a': r['planet_placement'], 'b': r['planet_placement_by_twelves']}
-                fps[proj] = hashlib.sha1(json.dumps(key, sort_keys=True, default=str).encode()).hexdigest()
-            assert len(set(fps.values())) == 3, (scope, seed, fps)
-            # 语义:各法只产其所属之落星,不越俎代庖
-            assert fps  # 上行已断言互异,此处再逐条验语义
+                                    seed=seed, house_projection=proj, reading_scope=scope, **TP)
+                fps[proj] = _fp(r)
+            assert len(set(fps.values())) == 4, (scope, seed, fps)
         r_seq = compute_reading('marriage', 'european_classical', cast_method='manual', seed=42,
                                 house_projection='sequential', reading_scope=scope)
         assert r_seq['planet_placement'] is None and r_seq['planet_placement_by_twelves'] is None
@@ -643,6 +650,15 @@ def test_projection_three_states_distinct():
         r_b = compute_reading('marriage', 'european_classical', cast_method='manual', seed=42,
                               house_projection='astro_bytwelves', reading_scope=scope)
         assert r_b['planet_placement'] is None and r_b['planet_placement_by_twelves']
+        # 丁式:给时地则只产真实落星;不给时地则如实回落甲式并**不产**真实落星键
+        r_d = compute_reading('marriage', 'european_classical', cast_method='manual', seed=42,
+                              house_projection='real_ephemeris', reading_scope=scope, **TP)
+        assert r_d['planet_placement_real'] and r_d['planet_placement'] is None
+        assert r_d['planet_placement_by_twelves'] is None
+        r_d0 = compute_reading('marriage', 'european_classical', cast_method='manual', seed=42,
+                               house_projection='real_ephemeris', reading_scope=scope)
+        assert 'planet_placement_real' not in r_d0 and r_d0['planet_placement']
+        assert r_d0['settings']['real_chart_available'] is False
     # L4 档而用户**未显式指定**时,给主流甲法兜底(免得该档空无落星)
     r_l4 = compute_reading('marriage', 'european_classical', cast_method='manual', seed=42,
                            reading_scope='L4')
@@ -868,9 +884,12 @@ def test_house_placement_three_states():
 
 
 def test_asc_source_judge_figure():
-    """上升三源:法官定上升为第三源(传本自出之法),与前二源互异。"""
+    """上升四源:法官定上升为第三源(传本自出之法),真实星历为第四源(须时地),四者互异。
+    第四源须传时地方能成立;其「同一时地下四十盘上升恒同」正是它的判据 —— 上升由时地定而非由图定。"""
     from astrostudy.geomancy.house import ASC_SOURCES
-    assert ASC_SOURCES == ('h1_figure', 'fresh_points', 'judge_figure')
+    from astrostudy.geomancy.ephem import julian_day
+    assert ASC_SOURCES == ('h1_figure', 'fresh_points', 'judge_figure', 'real_chart')
+    TP = dict(jd=julian_day(2026, 8, 12, 14.5, 8.0), geo_lon=116.4, geo_lat=39.9)
     r = CR('marriage', 'european_classical', cast_method='manual', seed=42,
            reading_scope='L4', asc_source='judge_figure')
     ae = r['astro_erection']
@@ -880,9 +899,24 @@ def test_asc_source_judge_figure():
     fps = set()
     for src in ASC_SOURCES:
         fps.add(tuple(CR('marriage', 'european_classical', cast_method='manual', seed=sd,
-                         reading_scope='L4', asc_source=src)['astro_erection']['sign']
+                         reading_scope='L4', asc_source=src, **TP)['astro_erection']['sign']
                       for sd in range(1, 41)))
-    assert len(fps) == 3
+    assert len(fps) == 4
+    # 第四源:上升由时地定 → 四十个不同盘之上升恒为同一星座,且带度数(前三源皆无度数)
+    signs4 = {CR('marriage', 'european_classical', cast_method='manual', seed=sd,
+                 reading_scope='L4', asc_source='real_chart', **TP)['astro_erection']['sign']
+              for sd in range(1, 41)}
+    assert len(signs4) == 1
+    ae4 = CR('marriage', 'european_classical', cast_method='manual', seed=42,
+             reading_scope='L4', asc_source='real_chart', **TP)['astro_erection']
+    assert ae4['asc_source'] == 'real_chart' and ae4['figure'] is None
+    assert 'asc_lon' in ae4 and 'asc_deg_in_sign' in ae4
+    assert 'asc_lon' not in ae     # 前三源绝不带度数(不许伪造)
+    # 缺时地:如实回落甲式并说明,绝不静默变脸
+    ae0 = CR('marriage', 'european_classical', cast_method='manual', seed=42,
+             reading_scope='L4', asc_source='real_chart')['astro_erection']
+    assert ae0['asc_source'] == 'h1_figure' and ae0['real_chart_requested'] is True
+    assert ae0['real_chart_unavailable']
 
 
 def test_zodiac_planetary_alt_exact_five_diffs():
@@ -1226,3 +1260,169 @@ def test_book_alignment_data_fields():
     from astrostudy.geomancy import correspondences as C
     for h in range(1, 13):
         assert C.house_meaning(h).get('theme_detail')
+
+
+# ── 真实星历盘(时地真正接入)· 内核层 ──
+def test_ephem_julian_day_and_zone():
+    """儒略日:时区须真参与(东八区之 14:30 等于世界时 6:30);垃圾入参如实回 None。"""
+    from astrostudy.geomancy.ephem import julian_day
+    jd8 = julian_day(2026, 8, 12, 14.5, 8.0)
+    jd0 = julian_day(2026, 8, 12, 6.5, 0.0)
+    assert abs(jd8 - jd0) < 1e-9                     # 同一世界时刻
+    # 正午世界时之 JD 恰为整数(JD 自正午起算)—— 此性质即独立换算之作证
+    jd_noon = julian_day(2026, 8, 12, 12.0, 0.0)
+    assert jd_noon == float(int(jd_noon))
+    assert abs(jd_noon - 2461265.0) < 1e-6
+    # 加一日恰差 1.0;午夜世界时恰差半日
+    assert abs(julian_day(2026, 8, 13, 12.0, 0.0) - jd_noon - 1.0) < 1e-9
+    assert abs(julian_day(2026, 8, 12, 0.0, 0.0) - jd_noon + 0.5) < 1e-9
+    assert julian_day('x', 8, 12, 12.0, 0.0) is None
+
+
+def test_ephem_real_erection_invariants():
+    """真实盘不变量:上升与宫制无关 / 整宫制宫头必为星座零度 / 象限十二宫跨度和恰 360 /
+    各宫头必落其本宫 / 越界经纬如实回 None(绝不夹逼成合法值充数)。"""
+    from astrostudy.geomancy.ephem import (real_erection, julian_day, house_of_longitude,
+                                           QUADRANT_PRIMARY)
+    jd = julian_day(2026, 8, 12, 14.5, 8.0)
+    w = real_erection(jd, 39.9, 116.4, 'whole_sign')
+    q = real_erection(jd, 39.9, 116.4, 'quadrant')
+    assert abs(w['asc_lon'] - q['asc_lon']) < 1e-9    # 上升由地平定,与分宫法无关
+    assert w['quadrant_system'] is None and q['quadrant_system'] == QUADRANT_PRIMARY
+    assert all(abs(x % 30.0) < 1e-9 for x in w['cusps'])
+    c = q['cusps']
+    assert abs(sum((c[(i + 1) % 12] - c[i]) % 360 for i in range(12)) - 360.0) < 1e-6
+    assert all(house_of_longitude(c[i] + 1e-6, c) == i + 1 for i in range(12))
+    # 列宫制全纬度有解(连极点亦然)—— 故本模块无极区备用之法,不留永不触发的死代码
+    for lat in (66.5, 78.0, 89.999, 90.0, -90.0):
+        assert real_erection(jd, lat, 15.0, 'quadrant') is not None
+    for bad in ((91.0, 0.0), (-91.0, 0.0), (0.0, 181.0), (0.0, -181.0)):
+        assert real_erection(jd, bad[0], bad[1], 'quadrant') is None
+
+
+def test_ephem_bodies_and_south_node():
+    """七政与交点:南交恒取北交对冲(非另算,免二者不自洽);落宫恒在 1-12。"""
+    from astrostudy.geomancy.ephem import (body_longitudes, place_bodies_real, real_erection,
+                                           julian_day, EPHEM_BODIES)
+    jd = julian_day(2026, 8, 12, 14.5, 8.0)
+    lons = body_longitudes(jd)
+    assert set(lons) == set(EPHEM_BODIES)
+    assert abs(((lons['SouthNode'] - lons['NorthNode']) % 360) - 180.0) < 1e-9
+    assert all(0.0 <= v < 360.0 for v in lons.values())
+    cusps = real_erection(jd, 39.9, 116.4, 'quadrant')['cusps']
+    placed = place_bodies_real(jd, cusps)
+    assert set(placed) == set(EPHEM_BODIES)
+    assert all(1 <= h <= 12 for h in placed.values())
+    assert place_bodies_real(jd, []) is None
+
+
+def test_ephem_house_of_longitude_wraps_zero():
+    """跨 0° 之宫照常成立 —— 朴素大小比较会把它算错,故此处专锁绕零。"""
+    from astrostudy.geomancy.ephem import house_of_longitude
+    cusps = [(350.0 + 30.0 * k) % 360 for k in range(12)]   # 一宫头 350°,故一宫跨 350→20
+    assert house_of_longitude(355.0, cusps) == 1
+    assert house_of_longitude(5.0, cusps) == 1
+    assert house_of_longitude(19.999, cusps) == 1
+    assert house_of_longitude(20.001, cusps) == 2
+    assert house_of_longitude(349.999, cusps) == 12
+
+
+def test_real_chart_agrees_with_repo_astrology_stack():
+    """🔴 与仓内既有占星栈对拍:地占之真实上升须与主排盘用的同一套算出同一值。
+    若哪天两处分岔(如时区口径或分宫参数写错),此断言即红 —— 这是跨模块一致性的唯一硬证。"""
+    from astrostudy.geomancy.ephem import real_erection, julian_day
+    mine = real_erection(julian_day(2026, 8, 12, 14.5, 8.0), 39.9, 116.4, 'quadrant')
+    from flatlib.chart import Chart
+    from flatlib.datetime import Datetime
+    from flatlib.geopos import GeoPos
+    from flatlib import const
+    ch = Chart(Datetime('2026/08/12', '14:30', '+08:00'), GeoPos('39n54', '116e24'),
+               hsys=const.HOUSES_REGIOMONTANUS)
+    assert abs(mine['asc_lon'] - ch.get(const.ASC).lon) < 1e-4
+
+
+# ---- 时地解析:前端发的是**度分记法**,不是十进制度(2026-08-12 真机抓出的死开关) ----
+# 🔴 病症:「据所选时地起真实上升」与「真实星历落星」两档在真实 UI 上从未生效过。
+#    根因是服务层拿 float() 直接吃 '119e19'/'26n04':后者抛 ValueError 回 None;
+#    前者更险 —— Python 认它是科学记数法合法浮点 1.19e21,过了 float 这关却卡在
+#    经度范围检查上,于是整体静默回落「无真实盘」。单测因直接喂十进制度而一路全绿。
+def test_parse_geo_accepts_dms_and_decimal():
+    from websrv.webgeomancysrv import _parse_geo
+    lon = _parse_geo
+    lat = _parse_geo
+    # 度分记法(前端 convertLonToStr 的产物)
+    assert abs(lon('119e19') - (119 + 19 / 60.0)) < 1e-9
+    assert abs(lat('26n04') - (26 + 4 / 60.0)) < 1e-9
+    assert abs(lon('74w00') + 74.0) < 1e-9          # 西经取负
+    assert abs(lat('33s52') + (33 + 52 / 60.0)) < 1e-9
+    # 十进制(字符串与数值两形态)照旧
+    assert abs(lon('119.32') - 119.32) < 1e-9
+    assert abs(lon(119.32) - 119.32) < 1e-9
+    # 🔴 反向锚:'119e19' 若被当科学记数法,得 1.19e21,必须落在越界回 None 之外 —— 这里要求它被正确解析
+    assert lon('119e19') < 180.0
+    # 缺失/不可解析/越界 → None(宁可如实无真实盘,不拿错值充数)
+    for bad in (None, '', '   ', '999e99'):
+        assert lon(bad) is None
+
+
+def test_parse_zone_accepts_offset_string_and_number():
+    from websrv.webgeomancysrv import _parse_zone
+    assert _parse_zone('+08:00') == 8.0
+    assert _parse_zone('-05:30') == -5.5
+    assert _parse_zone('+00:00') == 0.0
+    assert _parse_zone('+8') == 8.0
+    assert _parse_zone(8) == 8.0
+    assert _parse_zone(-5.5) == -5.5
+    for bad in (None, '', 'abc', '+99:00', 99):
+        assert _parse_zone(bad) is None
+
+
+def test_time_place_reaches_real_chart_with_frontend_payload():
+    """前端**原样**发的请求体(度分串 + '+08:00')必须能起出真实盘,且时地一变结果就变。"""
+    from websrv.webgeomancysrv import _parse_time_place
+    from astrostudy.geomancy.chart import compute_reading
+    def read(**over):
+        d = dict(date='2026-08-12', time='12:00:00', zone='+08:00', lon='119e19', lat='26n04')
+        d.update(over)
+        jd, lo, la = _parse_time_place(d)
+        assert jd is not None and lo is not None and la is not None, '前端形状的时地必须解析得出'
+        return compute_reading(profile_id='european_classical', reading_scope='L3',
+                               cast_method='manual', seed=4242, question_type='custom',
+                               quesited_house=1, asc_source='real_chart',
+                               jd=jd, geo_lon=lo, geo_lat=la)
+    base = read()
+    assert (base.get('settings') or {}).get('real_chart_available') is True
+    # 真实上升落在 astro_erection.sign(ascendant_sign 是图形派生的那一个,与天象无涉)
+    asc = lambda r: (r.get('astro_erection') or {}).get('sign')
+    assert asc(base), '选了真实上升档却没出 astro_erection'
+    # 时/地/时区任一变,真实上升即随之变(三条各自独立成立)
+    assert asc(read(time='06:00:00')) != asc(base)
+    assert asc(read(lon='74w00', lat='40n42')) != asc(base)
+    assert asc(read(zone='-05:00')) != asc(base)
+
+
+def test_real_chart_switch_off_means_time_place_never_matters():
+    """零回归硬证:未选真实盘二档时,喂不喂时地输出必须逐字节恒等。"""
+    import json
+    from astrostudy.geomancy.chart import compute_reading
+    from astrostudy.geomancy.traditions import PROFILES
+    def dump(**kw):
+        return json.dumps(compute_reading(**kw), sort_keys=True, default=str)
+    n = 0
+    for pid in PROFILES:
+        for scope in ('L1', 'L2', 'L3', 'L4'):
+            for proj in (None, 'sequential', 'astro_from_chart', 'astro_bytwelves'):
+                kw = dict(profile_id=pid, reading_scope=scope, cast_method='manual', seed=4242,
+                          question_type='custom', quesited_house=1)
+                if proj:
+                    kw['house_projection'] = proj
+                assert dump(**kw, jd=None, geo_lon=None, geo_lat=None) == \
+                       dump(**kw, jd=2461265.0, geo_lon=119.32, geo_lat=26.07)
+                n += 1
+    assert n >= 100, '组合数过少则判据形同虚设'
+    # 反向对照:真选了真实盘档就必须相异,否则上面的恒等是空判据
+    base = dict(profile_id='european_classical', reading_scope='L3', cast_method='manual',
+                seed=4242, question_type='custom', quesited_house=1)
+    for extra in ({'asc_source': 'real_chart'}, {'house_projection': 'real_ephemeris'}):
+        assert dump(**base, **extra, jd=None, geo_lon=None, geo_lat=None) != \
+               dump(**base, **extra, jd=2461265.0, geo_lon=119.32, geo_lat=26.07)
