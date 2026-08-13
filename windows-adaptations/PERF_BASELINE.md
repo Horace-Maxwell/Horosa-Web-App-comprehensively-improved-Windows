@@ -10,7 +10,7 @@
 
 ## 本版验收头
 
-- version: 3.9.0
+- version: 3.9.1
 - build: release(v3.8.0 **设置面大补齐轮**:奇门 +42 档[含刻家奇门/日家金函系两个独立体系]
   + 紫微亮度多派系与自定义亮度表 + 六爻 11 档 + 八字长生三档接活 + 三式全量同步 +
   **AI 分析首开改渐进载入**[上游根治:轻数据先行、资料库/会话史后台分批,首帧不再等全量读完]
@@ -201,6 +201,29 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.9.1(2026-08-13 同步轮 + 线上事故根治;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `92aea532`)**:
+  warmReady 中位 **6650 / 6635ms**(p95 7192 / 6782),两臂相距 **−0.2%** 落在噪声内
+  ⇒ **构建自洽,无回归信号**。**workspaceVisible 858 / 819ms**(p95 956 / 834,预算 1500 内 ✓);
+  spawnToVisible 1153 / 1108ms。工件:`docs/perf-artifacts/startup_ab_v391_warmstamp.json`。
+- **🔴 绝对值按 #64 读**:机器态仍为睿频压制(`currentClockMHz 2611 == maxClockMHz 2611`,
+  W-11955M 睿频 ~4.5GHz ⇒ `turboSuppressedLikely: true`)+ `mumuRunning: true`(owner 应用,**绝不擅杀**)。
+  故 warmReady 超 4500 预算属机器态,门如实打 `OVER(check #64 machine state first)`。
+- **★跨轮对照(同机同压制态,四轮同一平台)**:v3.8.0 6846/6661 → v3.8.1 6290/6392 →
+  v3.9.0 6533/6483 → 本轮 **6650/6635**,**波动 ±3% 属单轮 n=5 的噪声量级,无趋势性劣化**;
+  workspaceVisible 四轮 867/794/831/858 同域。
+- **★本轮启动路径代码面**:Electron 壳 **0 文件**;Python 就绪链 **0 改动**
+  (v3.9.1 新增的 `geomancy/ephem.py` 是**按需 import 的计算件**,只在天文地占请求里被调,不在启动链上);
+  Java 仅 `RuntimeWire` 版本号常量。**两处 issue 修复均在渲染层**:三式 24 控件搬回子组件
+  (`SanShiInputPanel` 本就在 `horosa_freeze_subtabs_v1` 冻结之下 ⇒ **未激活时不重渲**,
+  搬回后反而比留在主 render 里更省);3D 全屏改事件驱动后**去掉了两个 `setTimeout(100)` 竞态**,
+  只在 `fullscreenchange` 与 `resize` 时各量两帧 —— **较原实现更少无谓重排**。
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成
+  (`uberJar:false / staticJsa:false / anyJsa:2`),绝对值恒是「失活态」读数,只作双臂/跨轮对照。
+- **★增量更新**:差量门实测 **7MB / 0.8% 下载 / 99.2% 复用**(真变 13MB,预算 70MB);
+  CDS 档 byte-identical vs 3.9.0 —— 修复版升级几乎无感。
+
 ### 温启对照 v3.9.0(2026-08-12 同步轮;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `bd6f52a7`)**:
