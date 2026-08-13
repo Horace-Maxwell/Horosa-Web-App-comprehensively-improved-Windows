@@ -10,7 +10,7 @@
 
 ## 本版验收头
 
-- version: 3.8.1
+- version: 3.9.0
 - build: release(v3.8.0 **设置面大补齐轮**:奇门 +42 档[含刻家奇门/日家金函系两个独立体系]
   + 紫微亮度多派系与自定义亮度表 + 六爻 11 档 + 八字长生三档接活 + 三式全量同步 +
   **AI 分析首开改渐进载入**[上游根治:轻数据先行、资料库/会话史后台分批,首帧不再等全量读完]
@@ -201,6 +201,32 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.9.0(2026-08-12 同步轮;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `bd6f52a7`)**:
+  warmReady 中位 **6533 / 6483ms**(p95 6888 / 6545),两臂相距 **−0.8%** 落在噪声内
+  ⇒ **构建自洽,无回归信号**。**workspaceVisible 831 / 803ms**(p95 861 / 807,预算 1500 内 ✓);
+  spawnToVisible 1112 / 1082ms。
+  工件:`docs/perf-artifacts/startup_ab_v390_warmstamp.json`(逐样本 + 机器指纹)。
+- **🔴 绝对值必须按 #64 读:本轮机器态仍是「睿频压制」态**(与 v3.8.0/v3.8.1 戳同态):
+  `currentClockMHz 2611 == maxClockMHz 2611`(W-11955M 睿频 ~4.5GHz ⇒ **turboSuppressedLikely: true**)、
+  `mumuRunning: true`(owner 的 MuMu 模拟器常驻,**绝不擅杀 —— owner 红线**)。
+  故 warmReady 超 4500 预算属机器态,门如实打 `OVER(check #64 machine state first)`。
+- **★跨轮对照(同机同压制态)**:v3.8.1 轮 6290/6392ms → 本轮 **6533/6483ms**,同域内小幅波动
+  (+2~4%,单轮 n=5 的噪声量级);v3.8.0 轮 6846/6661ms ⇒ **三轮横向看仍在同一平台,无趋势性劣化**。
+  workspaceVisible 831/803 与 v3.8.1 的 794/765 同域。
+- **★本轮是 +180K 行的大版本,但启动路径代码面几乎未动(逐文件核过)**:Electron 壳 **0 文件**;
+  Python 就绪链(`webchartsrv.py` / `kentang/registry.py` / `startup_ledger.py`)**0 改动**
+  —— 上游新增的 `wuzhao_classics/duanci/leizhan` 与 `cetian_yiyu*` 都是**被服务模块按需 import 的数据/逻辑件**,
+  不在启动就绪链上;Java 仅 `RuntimeWire` 版本号常量。前端新增面(灵棋经/塔罗/风水扩容)全部走
+  组件级 lazy(灵棋经已并入 `makeHealingFactory`),不入首屏批次 ——
+  `check-chunk-dup` 实证首屏批次仍为 `[vendors-d3, shared-technique, …]` **无引擎**。
+- **★台架结构限制照旧**(承 v3.7.2~v3.8.1 记档):`resourceMode: direct` 且 ready 即被杀 ⇒
+  加速档链不建成(本轮 artifact 记 `uberJar:false / staticJsa:false / anyJsa:2`)。
+  **该台架的绝对值恒是「失活态」读数,只能做双臂/跨轮对照,不能当建成态验收数。**
+- **★增量更新**:差量门实测 **11MB / 1.3% 下载 / 98.7% 复用**(真变 33MB,预算 99MB);
+  星历/JDK/玄史等大件字节恒等不重下,**CDS 档 byte-identical vs 3.8.1** —— 大版本不等于大下载。
+
 ### 温启对照 v3.8.1(2026-08-10 同步轮;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `13d0f977`)**:
