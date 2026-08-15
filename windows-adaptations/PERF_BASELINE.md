@@ -201,6 +201,30 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.9.2(2026-08-14 同步轮·档案管理体系;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `dc2335e4`)**:
+  warmReady 中位 **6572 / 6607ms**(p95 7371 / 6704),两臂相距 **+0.5%** 落在噪声内
+  ⇒ **构建自洽,无回归信号**。**workspaceVisible 852 / 825ms**(p95 902 / 835,预算 1500 内 ✓);
+  spawnToVisible 1144 / 1102ms。工件:`docs/perf-artifacts/startup_ab_v392_warmstamp.json`。
+- **🔴 绝对值按 #64 读**:机器态仍为睿频压制(`currentClockMHz 2611 == maxClockMHz 2611`,
+  W-11955M 睿频 ~4.5GHz ⇒ `turboSuppressedLikely: true`)+ `mumuRunning: true`(owner 应用,**绝不擅杀**)。
+  故 warmReady 超 4500 预算属机器态,门如实打 `OVER(check #64 machine state first)`。
+- **★跨轮对照(同机同压制态,五轮同一平台)**:v3.8.0 6846/6661 → v3.8.1 6290/6392 →
+  v3.9.0 6533/6483 → v3.9.1 6650/6635 → 本轮 **6572/6607**,±3% 单轮噪声域,**无趋势性劣化**;
+  workspaceVisible 五轮 867/794/831/858/852 同域。
+- **★本轮启动路径代码面(逐处核过)**:Python 就绪链 **0 改动**(本轮 port 含 0 个 astropy 文件);
+  Java 仅 `RuntimeWire` 版本号常量;Electron 壳 **2 文件**(main.js/preload.js)但只是
+  「双保险副本」IPC 通道**注册**(`desktop:shadow-store-write/read-all`)——注册零工作,
+  仅在渲染器调用时才落盘。前端档案体系新件(localRecordStore/unifiedBackup/autoBackup 等)
+  全部组件级/工具级懒载,`check-chunk-dup` 实证首屏批次仍无引擎;启动新增的
+  `reconcileShadowOnBoot` = 一次 IPC read-all + 4 键 localStorage 对账(毫秒级,fire 于渲染器
+  boot 后,不在 runtime-ready 关键路径上)——上表 A/B 的 852/825ms 已含其代价,与前四轮同域即为实证。
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成
+  (`uberJar:false / staticJsa:false / anyJsa:2`),绝对值恒是「失活态」读数,只作双臂/跨轮对照。
+- **★增量更新**:差量门实测 **8MB / 1.0% 下载 / 99.0% 复用**(真变 19MB,预算 79MB);
+  **CDS 档 byte-identical vs 3.9.1** —— 档案体系大版本对存量用户仍近乎无感升级。
+
 ### 温启对照 v3.9.1(2026-08-13 同步轮 + 线上事故根治;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `92aea532`)**:
