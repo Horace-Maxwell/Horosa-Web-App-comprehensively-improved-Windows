@@ -5,6 +5,8 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { THEMA_MUNDI, SIGN_EN, SIGN_CN, PLANET_CN, parseSignDegree } from '../../divination/data/hellenisticData';
 import { astroSymbol } from './AstroExtraCommon';
+// 范式位派生与三条含义文案住 utils/astroClassicalDerived 单源(AI 快照 [古典·世界范式盘] 段同引)。
+import { themaPositions, THEMA_MUNDI_BULLETS } from '../../utils/astroClassicalDerived';
 
 const MUTED = 'var(--horosa-muted, #999)';
 const BORDER = 'var(--horosa-border, rgba(120,120,120,0.28))';
@@ -12,17 +14,6 @@ const GOLD = 'var(--horosa-gold, #b8860b)';
 const ASTRO_FONT = AstroConst.AstroFont;
 // SVG <text> 不能嵌 HTML <span>,须直接取 ywastro 原始 glyph 字符 + 在 text 上设字体。
 function glyphOf(id){ return (AstroText.AstroMsg && AstroText.AstroMsg[id]) || ''; }
-
-// 七政范式位 → [{planetEn, signIndex, deg, lon}]。上升=15°巨蟹(lon 105)。
-function themaPositions(){
-	const pos = THEMA_MUNDI.positions || {};
-	const out = [];
-	Object.keys(pos).forEach((p)=>{
-		const sd = parseSignDegree(pos[p]);
-		if(sd){ out.push({ planetEn: p, ...sd }); }
-	});
-	return out;
-}
 
 // 静态范式盘 SVG:上升(15°巨蟹)置于左(9 点钟),黄经递增逆时针。
 function ThemaWheel({ size = 300 }){
@@ -105,9 +96,7 @@ class AstroThemaMundi extends Component{
 							))}
 						</div>
 						<ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.7 }}>
-							<li>庙位由来:各星置于本垣(土摩羯/木射手/火天蝎/日狮/金天秤/水处女/月巨蟹),范式盘即「庙=第一性原理」之图解。</li>
-							<li>相位语义:从巨蟹(上升)起整宫,与各星所成相位(三分/六分吉、四分/对分挑战)奠定相位本义。</li>
-							<li>坏宫由来:自上升 2/6/8/12 宫(与上升不成主相位=背离)由范式盘几何推出,故为「衰宫」。</li>
+							{THEMA_MUNDI_BULLETS.map((b, i)=>(<li key={i}>{b}</li>))}
 						</ul>
 					</div>
 				) : null}

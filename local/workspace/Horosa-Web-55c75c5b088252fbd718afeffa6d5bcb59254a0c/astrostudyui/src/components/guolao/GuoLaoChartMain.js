@@ -1767,7 +1767,20 @@ export async function buildGuolaoSnapshotForFields(fields){
 	if(!result){
 		return '';
 	}
-	return buildGuolaoSnapshotTextV2(params, result, null, fields);
+	// [审计修] 无头路径曾漏传第 5 参 moiraRules(恒 undefined)→ 挂载复算恒丢 [虚实]/[本命化曜]/
+	// [流年流曜] 三段、[神煞] 降级历法源——与页面快照不等长。补:远端规则同页面口径,
+	// 不完整/失败回退本地纯算(与 requestMoiraRules 同两级兜底,绝不阻断主体段)。
+	let rules = null;
+	try{
+		const rsp = await fetchMoiraQizhengRules({
+			params, chartObj: result, transitParams: null, transitChartObj: null,
+		}, { silent: true, timeoutMs: 12000 });
+		const remote = rsp && rsp[Constants.ResultKey] ? rsp[Constants.ResultKey] : null;
+		rules = isIncompleteMoiraRules(remote) ? buildLocalMoiraRules(params, result, fields, 'headless-fallback') : remote;
+	}catch(e){
+		try{ rules = buildLocalMoiraRules(params, result, fields, 'headless-error'); }catch(_e){ rules = null; }
+	}
+	return buildGuolaoSnapshotTextV2(params, result, null, fields, rules);
 }
 
 // AI 快照·神煞段与盘面同源(rules 引擎 godHits+十二长生;rules 未到回退历法 ziGods)——

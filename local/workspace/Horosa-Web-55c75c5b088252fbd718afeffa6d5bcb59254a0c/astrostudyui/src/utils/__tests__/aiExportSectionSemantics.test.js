@@ -22,7 +22,8 @@ describe('v45 迁移(normalizeAIExportSettings)', ()=>{
 	test('v<45 空数组=旧清空尸块 → 删键(回未自定义,与旧行为可见面一致)', ()=>{
 		const out = normalizeAIExportSettings({ version: 44, sections: { bazi: [], ziwei: ['星曜'] } });
 		expect(Object.prototype.hasOwnProperty.call(out.sections, 'bazi')).toBe(false);
-		expect(out.sections.ziwei).toEqual(['星曜']);
+		// [v56] v44 存档同时落进 v56 窗(窗口独立逐窗累加,同 v49 系先例)→ ziwei 自定义者补 身宫/八字大运 段
+		expect(out.sections.ziwei).toEqual(['星曜', '身宫', '八字大运']);
 		expect(out.version).toBe(AI_EXPORT_SETTINGS_VERSION);
 	});
 	test('v45 起空数组=显式全清 → 原样保留', ()=>{
@@ -200,3 +201,66 @@ describe('[v50] babylon 微黄道段 union 迁移', ()=>{
 	});
 });
 
+
+// ── [v56] 内容完备性审计批·紫微「身宫」段 union 迁移 ──────────────────────
+// 场景:老用户自定义过紫微导出段;本版快照补上恒缺的 [身宫](盘面/深报早有,快照反方向审计首批)。
+// 同 v49-v55 键内段级一次性 union:新段本版才诞生、用户无从取消过,并入不复活任何被取消项。
+describe('[v56] 紫微身宫段 union 迁移', ()=>{
+	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
+
+	it('已自定义过紫微的 v55 存档:补上「身宫/八字大运」,原勾选不动、被取消段不复活(取消=真取消)', ()=>{
+		const kept = ['起盘信息', '宫位总览'];
+		const n = normalizeAIExportSettings({ version: 55, sections: { ziwei: kept.slice() } });
+		expect(n.sections.ziwei).toContain('身宫');
+		expect(n.sections.ziwei).toContain('八字大运');
+		kept.forEach((s)=>{ expect(n.sections.ziwei).toContain(s); });
+		expect(n.sections.ziwei).not.toContain('来因宫');   // 当年取消的不得因迁移复活
+		expect(n.sections.ziwei.length).toBe(kept.length + 2);
+		// bazi 同窗:已自定义者补「干支合冲」
+		const nb = normalizeAIExportSettings({ version: 55, sections: { bazi: ['起盘信息'] } });
+		expect(nb.sections.bazi).toEqual(['起盘信息', '干支合冲']);
+		// astrochart 同窗:补衍化三段;世界范式盘=默认关段不入 union(口径倒挂防线)
+		const na = normalizeAIExportSettings({ version: 55, sections: { astrochart: ['起盘信息'] } });
+		expect(na.sections.astrochart).toEqual(['起盘信息', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分']);
+		expect(na.sections.astrochart).not.toContain('古典·世界范式盘');
+	});
+
+	it('显式全清(空数组)不得被 union 灌回', ()=>{
+		const n = normalizeAIExportSettings({ version: 55, sections: { ziwei: [] } });
+		expect(n.sections.ziwei).toEqual([]);
+	});
+
+	it('本版及以后的存档不再重跑本次迁移', ()=>{
+		const n = normalizeAIExportSettings({ version: 56, sections: { ziwei: ['宫位总览'] } });
+		expect(n.sections.ziwei).toEqual(['宫位总览']);
+	});
+
+	it('未自定义紫微的用户不凭空建键;迁移段 ⊆ preset 且段序=builder 文档序(身宫紧随宫位总览)', ()=>{
+		const n = normalizeAIExportSettings({ version: 55, sections: { fengshui: ['起盘信息'] } });
+		expect(n.sections.ziwei).toBeUndefined();
+		const p = AI_EXPORT_PRESET_SECTIONS.ziwei;
+		expect(p).toContain('身宫');
+		expect(p[p.indexOf('宫位总览') + 1]).toBe('身宫');
+	});
+});
+
+// ── [M-2] 挂载封装补禁段剥离(与导出主链收敛) ──────────────────────────
+describe('[M-2] 挂载封装 FORBIDDEN 剥离', ()=>{
+	const { applyAIExportSectionFilterToSnapshot } = require('../aiExport');
+	const SAMPLE = '[大格]\n贼克法。\n\n[右侧栏目]\n(纯 UI 回显噪音)\n\n[小局]\n元首课。';
+
+	it('🔴 未自定义(键不存在):禁段剥除、相邻段原样(此前挂载带着导出恒剥的禁段=两链分叉)', ()=>{
+		const out = applyAIExportSectionFilterToSnapshot('liureng', SAMPLE, { version: 56, sections: {} });
+		expect(out).not.toContain('右侧栏目');
+		expect(out).toContain('[大格]');
+		expect(out).toContain('[小局]');
+	});
+	it('自定义白名单:禁段照旧进不来;无禁段技法(bazi)原样零波及', ()=>{
+		const out = applyAIExportSectionFilterToSnapshot('liureng', SAMPLE, { version: 56, sections: { liureng: ['大格'] } });
+		expect(out).toContain('[大格]');
+		expect(out).not.toContain('右侧栏目');
+		expect(out).not.toContain('[小局]');
+		const baziSample = '[四柱与三元]\n表。';
+		expect(applyAIExportSectionFilterToSnapshot('bazi', baziSample, { version: 56, sections: {} })).toBe(baziSample);
+	});
+});

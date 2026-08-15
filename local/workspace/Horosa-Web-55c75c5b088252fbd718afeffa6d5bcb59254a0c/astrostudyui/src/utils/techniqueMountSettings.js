@@ -17,6 +17,7 @@
 //  - type:'switch' 的值用 0/1（与 buildFieldObject 既有写法一致）。
 
 import * as AstroConst from '../constants/AstroConst';
+import { classicalGlobalValue } from './classicalChartGlobals';
 import { EGYPT_SCHOOL_AXES, EGYPT_SCHOOL_DEFAULT } from '../divination/data/egyptianSchools';
 import { safeLocalStorageSet } from '../utils/safeStorage';
 import {
@@ -704,7 +705,7 @@ const ELECTION_FIELDS = [
 ];
 
 // 命盘星盘系（占星本命/十三分盘/宿占等跟随 fields）：把更多排盘选项从 record 读出。
-// 默认全部 === buildFieldObject 现状（hsys 0 / zodiacal 0 / 各择宫开关 0 / doubingSu28 0 / timeAlg 0）。
+// 默认全部 === buildFieldObject 现状（hsys 1=Alcabitius / zodiacal 0 / 各择宫开关 0 / doubingSu28 0 / timeAlg 0）。
 // 界系(bounds/terms)：0 埃及(默认,与现状一致)/1 托勒密·校勘本(Tetrabiblos 批判本)/2 托勒密·经典传本(1647 印本)。
 // 三套表后端 flatlib 内已有；变体标签 2026-07-23 正名(数字键与表内容零改动,勿动存档契约)。
 const BOUNDS_SYSTEM_OPTIONS = [
@@ -729,7 +730,11 @@ const TRIPLICITY_OPTIONS_M = [
 ];
 
 const ASTRO_CHART_FIELDS = [
-	{ name: 'hsys', label: '宫制', type: 'select', options: HSYS_OPTIONS, default: 0, group: '排盘' },
+	// [V6-W1] 🔴 default 锚对:此前写 0(整宫制),而全站真实默认=DefaultHouseSystem=1(Alcabitus,
+	// models/astro.js:25;存盘 record 恒带 1)——「默认即现状」在此键上被违反,整宫制成为不可表达值
+	// (用户实锤)。有盘场景由 prune baseline(盘现状锚)治;此 default 只剩无盘场景(配置包模板)语义,
+	// 锚 1=真实默认 → 配置包选整宫制(0≠1)可表达、选 Alcabitus(=1)=不覆盖(应用到盘时随盘现状)。
+	{ name: 'hsys', label: '宫制', type: 'select', options: HSYS_OPTIONS, default: 1, group: '排盘' },
 	{ name: 'zodiacal', label: '黄道', type: 'select', options: ZODIACAL_OPTIONS, default: 0, group: '排盘' },
 	// 恒星黄道时的具体 ayanāṃśa（与命盘页同一套 47 制，复用印占 INDIA_AYANAMSA_OPTIONS——西洋 siderealAyanamsa 键即此）。
 	// 默认 ''=随盘/后端默认(Lahiri)；prune-empty → 不覆盖存盘 ayanāṃśa（守「默认即现状」）。仅「黄道=恒星」时后端生效。
@@ -741,11 +746,11 @@ const ASTRO_CHART_FIELDS = [
 	// 占星(希腊化)G12/G13/G15/G20-P2:月交点真平 / 区分缓冲 / 狮子土星优先 / 三分集 / 福点反转。
 	// 默认=现状零回归(平/几何/关/Dorothean/反转ON),prune 丢弃默认值 → 不调任何项与现状逐字一致;
 	// 调整后经 buildFieldObject→fieldsToParams→/chart 复算,AI 快照尊贵/界主/福点与所选口径一致。
-	{ name: 'westNodeType', label: '月交点（真/平）', type: 'select', options: WEST_NODE_OPTIONS_M, default: 'mean', group: '择宫' },
-	{ name: 'sectBuffer', label: '区分判定（昼/夜）', type: 'select', options: SECT_BUFFER_OPTIONS_M, default: 'geo', group: '择宫' },
-	{ name: 'leoBoundFirst', label: '托勒密界·狮子土星优先', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
-	{ name: 'triplicity', label: '三分集', type: 'select', options: TRIPLICITY_OPTIONS_M, default: 'Dorothean', group: '择宫' },
-	{ name: 'lotReversal', label: '福点按昼夜反转', type: 'switch', options: ON_OFF, default: 1, group: '择宫' },
+	{ name: 'westNodeType', label: '月交点（真/平）', type: 'select', options: WEST_NODE_OPTIONS_M, default: 'mean', globalCurrent: ()=>classicalGlobalValue('westNodeType'), group: '择宫' },
+	{ name: 'sectBuffer', label: '区分判定（昼/夜）', type: 'select', options: SECT_BUFFER_OPTIONS_M, default: 'geo', globalCurrent: ()=>classicalGlobalValue('sectBuffer'), group: '择宫' },
+	{ name: 'leoBoundFirst', label: '托勒密界·狮子土星优先', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('leoBoundFirst'), group: '择宫' },
+	{ name: 'triplicity', label: '三分集', type: 'select', options: TRIPLICITY_OPTIONS_M, default: 'Dorothean', globalCurrent: ()=>classicalGlobalValue('triplicity'), group: '择宫' },
+	{ name: 'lotReversal', label: '福点按昼夜反转', type: 'switch', options: ON_OFF, default: 1, globalCurrent: ()=>classicalGlobalValue('lotReversal'), group: '择宫' },
 	// 点公式文档序反转(0/1):链早已全通(buildFieldObject+fieldParams 条件透传),只差齿轮项。
 	{ name: 'lotsDocReverse', label: '点公式·文档序反转', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
 	// 双子界序(仅托勒密经典传本 termsVariant=2 生效;1647 印本两皆有据):曾是死透传(fieldParams 读、字段不存在)。
@@ -757,31 +762,31 @@ const ASTRO_CHART_FIELDS = [
 		] },
 	// ── 古典口径 10 键(与「设置→星盘设置」同一后端真值仓 classicalChartGlobals;镜像其面板选项):
 	// 默认=后端硬编码现状,prune 剪掉零回归;非默认经 classicalBackendOverridesFromFields 单源下发。──
-	{ name: 'houseCuspAdvance', label: '落宫·宫头前移', type: 'select', default: 5, group: '古典口径', options: [
+	{ name: 'houseCuspAdvance', label: '落宫·宫头前移', type: 'select', default: 5, globalCurrent: ()=>classicalGlobalValue('houseCuspAdvance'), group: '古典口径', options: [
 		{ value: 5, label: '5°（传统·默认）' }, { value: 3, label: '3°' }, { value: 1, label: '1°' }, { value: 0, label: '0°（纯宫界）' },
 	] },
-	{ name: 'cazimiOrb', label: '日心 cazimi', type: 'select', default: 17 / 60, group: '古典口径', options: [
+	{ name: 'cazimiOrb', label: '日心 cazimi', type: 'select', default: 17 / 60, globalCurrent: ()=>classicalGlobalValue('cazimiOrb'), group: '古典口径', options: [
 		{ value: 17 / 60, label: '17′（1647·默认）' }, { value: 16 / 60, label: '16′（中世纪）' }, { value: 1, label: '1°（早期）' },
 	] },
-	{ name: 'combustOrb', label: '燃烧上界', type: 'select', default: 8.5, group: '古典口径', options: [
+	{ name: 'combustOrb', label: '燃烧上界', type: 'select', default: 8.5, globalCurrent: ()=>classicalGlobalValue('combustOrb'), group: '古典口径', options: [
 		{ value: 8.5, label: '8°30′（1647·默认）' }, { value: 8, label: '8°（中世纪）' },
 	] },
-	{ name: 'underBeamsOrb', label: '日光束外界', type: 'select', default: 17, group: '古典口径', options: [
+	{ name: 'underBeamsOrb', label: '日光束外界', type: 'select', default: 17, globalCurrent: ()=>classicalGlobalValue('underBeamsOrb'), group: '古典口径', options: [
 		{ value: 17, label: '17°（1647·默认）' }, { value: 15, label: '15°（较古）' },
 	] },
-	{ name: 'vocMode', label: '空亡口径（月亮 isVOC）', type: 'select', default: 'classic', group: '古典口径', options: [
+	{ name: 'vocMode', label: '空亡口径（月亮 isVOC）', type: 'select', default: 'classic', globalCurrent: ()=>classicalGlobalValue('vocMode'), group: '古典口径', options: [
 		{ value: 'classic', label: '无入相即空（1647·默认）' }, { value: 'by_orb', label: '容许度 12°30′' },
 		{ value: 'by_sign_perfect', label: '本座内须完成（现代）' }, { value: 'by_sign_orb', label: '本座内入容许度（16c）' },
 		{ value: 'kenodromia', label: '30° 法（希腊化）' }, { value: 'exempt4', label: '无入相＋四座豁免（中世纪）' },
 	] },
-	{ name: 'vocIncludeOuter', label: '空亡计三王星（仅非 1647 口径）', type: 'switch', options: ON_OFF, default: 0, group: '古典口径',
+	{ name: 'vocIncludeOuter', label: '空亡计三王星（仅非 1647 口径）', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('vocIncludeOuter'), group: '古典口径',
 		showWhen: (d)=>d.vocMode !== undefined && d.vocMode !== 'classic' },
-	{ name: 'fixedStarOrbMode', label: '恒星轨档', type: 'select', default: 'school', group: '古典口径', options: [
+	{ name: 'fixedStarOrbMode', label: '恒星轨档', type: 'select', default: 'school', globalCurrent: ()=>classicalGlobalValue('fixedStarOrbMode'), group: '古典口径', options: [
 		{ value: 'school', label: '按流派平轨（默认）' }, { value: 'byMagnitude', label: '按星等' },
 	] },
-	{ name: 'fixedStarOrb', label: '恒星平轨值', type: 'select', default: 1, group: '古典口径', options: [1, 1.5, 2, 3, 5].map((v)=>({ value: v, label: `${v}°` })) },
-	{ name: 'antisciaOrb', label: '映点接触容许度', type: 'select', default: 1, group: '古典口径', options: [0.5, 1, 1.5, 2, 3].map((v)=>({ value: v, label: `${v}°` })) },
-	{ name: 'viaCombustaVariant', label: '燃烧之路边界', type: 'select', default: 'standard', group: '古典口径', options: [
+	{ name: 'fixedStarOrb', label: '恒星平轨值', type: 'select', default: 1, globalCurrent: ()=>classicalGlobalValue('fixedStarOrb'), group: '古典口径', options: [1, 1.5, 2, 3, 5].map((v)=>({ value: v, label: `${v}°` })) },
+	{ name: 'antisciaOrb', label: '映点接触容许度', type: 'select', default: 1, globalCurrent: ()=>classicalGlobalValue('antisciaOrb'), group: '古典口径', options: [0.5, 1, 1.5, 2, 3].map((v)=>({ value: v, label: `${v}°` })) },
+	{ name: 'viaCombustaVariant', label: '燃烧之路边界', type: 'select', default: 'standard', globalCurrent: ()=>classicalGlobalValue('viaCombustaVariant'), group: '古典口径', options: [
 		{ value: 'standard', label: '天秤15°–天蝎15°（传统·默认）' }, { value: 'narrow', label: '窄口径（天秤28°–天蝎7°）' },
 		{ value: 'scorpioFull', label: '天秤后15°＋天蝎全宫' }, { value: 'bothFull', label: '天秤＋天蝎全段' },
 	] },
@@ -946,23 +951,23 @@ const PRIMARY_DIRECT_CHART_FIELDS = [
 // 否则一次挂载覆盖会永久改写用户的全局显示设置。想真正改默认走「设为同类默认」（saveMountTechniqueDefaults）。
 const GUOLAO_DIZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GUOLAO_FIELDS = [
-	{ name: 'lifeMode', label: '七政命度', type: 'select', default: 'asc', group: '命度', storageKey: 'horosaGuolaoLifeMode', options: [
+	{ name: 'lifeMode', label: '七政命度', type: 'select', default: 'asc', group: '命度', storageKey: 'horosaGuolaoLifeMode', recordKey: 'guolaoLifeMode', options: [
 		{ value: 'asc', label: '占星上升（默认）' },
 		{ value: 'yumao', label: '日出安命' },
 		{ value: 'gumao', label: '遇卯安命(古法)' },
 		{ value: 'cotrans', label: '赤黄转换' },
 		...GUOLAO_DIZHI.map((z)=>({ value: z, label: `自定命宫·${z}` })),
 	] },
-	{ name: 'bodyMode', label: '身宫法', type: 'select', default: 'taiyin', group: '命度', storageKey: 'horosaGuolaoBodyMode', options: [
+	{ name: 'bodyMode', label: '身宫法', type: 'select', default: 'taiyin', group: '命度', storageKey: 'horosaGuolaoBodyMode', recordKey: 'guolaoBodyMode', options: [
 		{ value: 'taiyin', label: '太阴落宫(果老,默认)' },
 		{ value: 'youjin', label: '逢酉(琴堂)' },
 		...GUOLAO_DIZHI.map((z)=>({ value: z, label: `自定身宫·${z}` })),
 	] },
-	{ name: 'nodeMode', label: '罗计', type: 'select', default: 'northKetuSouthRahu', group: '命度', storageKey: 'horosaGuolaoNodeMode', options: [
+	{ name: 'nodeMode', label: '罗计', type: 'select', default: 'northKetuSouthRahu', group: '命度', storageKey: 'horosaGuolaoNodeMode', recordKey: 'guolaoNodeMode', options: [
 		{ value: 'northKetuSouthRahu', label: '北计南罗（默认）' },
 		{ value: 'northRahuSouthKetu', label: '北罗南计' },
 	] },
-	{ name: 'su28Mode', label: '宿度制', type: 'select', default: 2, group: '命度', storageKey: 'horosaGuolaoSu28Mode', options: [
+	{ name: 'su28Mode', label: '宿度制', type: 'select', default: 2, group: '命度', storageKey: 'horosaGuolaoSu28Mode', recordKey: 'doubingSu28', options: [
 		{ value: 2, label: '回归今宿（默认）' },
 		{ value: 3, label: '回归古制开禧' },
 		{ value: 4, label: '恒星制（黄道）' },
@@ -1002,16 +1007,16 @@ const GUOLAO_FIELDS = [
 		options: [{ value: '', label: '随全局（默认）' }, { value: 'tong10', label: '通行十年' }, { value: 'gu9', label: '古九岁' }, { value: 'xu11', label: '虚十一' }] },
 	// engineMode(horosa/kinastro 引擎切换)不入齿轮:挂载复算恒走 horosa 引擎 buildGuolaoSnapshotForFields,
 	// 页面切 kinastro 引擎属页面级渲染源切换(挂载侧无 kinastro 七政快照复算路径),登了即死开关。
-	{ name: 'trueSolarTime', label: '报时星太阳时', type: 'select', default: 'true', group: '四余/时间', storageKey: 'horosaGuolaoTrueSolarTime', options: [
+	{ name: 'trueSolarTime', label: '报时星太阳时', type: 'select', default: 'true', group: '四余/时间', storageKey: 'horosaGuolaoTrueSolarTime', recordKey: 'guolaoTrueSolarTime', options: [
 		{ value: 'true', label: '真太阳时（经度+均时差，默认）' },
 		{ value: 'mean', label: '平太阳时（仅经度）' },
 		{ value: 'off', label: '钟表时' },
 	] },
-	{ name: 'nodeType', label: '罗计取法', type: 'select', default: 'mean', group: '四余/时间', storageKey: 'horosaGuolaoNodeType', options: [
+	{ name: 'nodeType', label: '罗计取法', type: 'select', default: 'mean', group: '四余/时间', storageKey: 'horosaGuolaoNodeType', recordKey: 'guolaoNodeType', options: [
 		{ value: 'mean', label: '平交点（默认）' },
 		{ value: 'true', label: '真交点' },
 	] },
-	{ name: 'lilithType', label: '月孛取法', type: 'select', default: 'mean', group: '四余/时间', storageKey: 'horosaGuolaoLilithType', options: [
+	{ name: 'lilithType', label: '月孛取法', type: 'select', default: 'mean', group: '四余/时间', storageKey: 'horosaGuolaoLilithType', recordKey: 'guolaoLilithType', options: [
 		{ value: 'mean', label: '平远地点（默认）' },
 		{ value: 'true', label: '真远地点' },
 	] },
@@ -1326,7 +1331,9 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'chunziResultLimit', label: '显示数量(空=默认)', type: 'number', default: '', min: 1, max: 200, group: '筛选' },
 	] },
 	// 策天飞星：算法(书/原)+原法子选项 + 5 显示开关；全默认=现状(prune 为空，零字节差)。show_* 经 payload 下发后端过滤输出段/行。
-	cetian: { kind: 'payload', optionsPath: '', group: '策天飞星', fields: [
+	// chartRoute: payload kind 但登记在 ANALYSIS_CHART_TECHNIQUES 走 A 路(历史双例);覆盖与现状
+	// 都在 record 平铺键(regenerate case 从 record.* 手抄回塞),基线锚用平铺而非 payload 段。
+	cetian: { kind: 'payload', optionsPath: '', chartRoute: true, group: '策天飞星', fields: [
 		{ name: 'method', label: '排盘算法', type: 'select', default: 'book', group: '排盘方法', options: [
 			{ value: 'book', label: '书法·策天本法' },
 			{ value: 'kentang', label: '原法·标准紫微嫁接' },
@@ -1380,7 +1387,20 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// 皇极经世：双栖——命盘侧按出生重算(buildHuangJiSnapshotForFields)，又可存事盘。
 	// kind='payload'(optionsPath'' 顶层铺平;旧注误称「同列 sectionsOnly」——与实现不符,已勘正):
 	// 齿轮顶层键优先、存档 payload.options.{historyYear,classicKey,classicSectionIndex,xinyiOptions} 打底(regenerate 双源读)。
-	huangji: { kind: 'payload', optionsPath: '', fields: [
+	huangji: { kind: 'payload', optionsPath: '', chartRoute: true,
+		// 事盘存档层映射(payload.options + 嵌套 xinyiOptions,键名不同构):chartRoute 合成基线
+		// =存档打底+record 平铺覆盖 —— 只锚平铺时事盘抽屉恒显 schema 想象值(A 类实锤同型)。
+		baselineSource: (p)=>{
+			const ho = p && p.options && typeof p.options === 'object' ? p.options : null;
+			if(!ho){ return null; }
+			const hx = ho.xinyiOptions && typeof ho.xinyiOptions === 'object' ? ho.xinyiOptions : {};
+			const out = { classicKey: ho.classicKey, historyYear: ho.historyYear, classicSectionIndex: ho.classicSectionIndex,
+				xinyiMethod: hx.method, upperNum: hx.upperNum, lowerNum: hx.lowerNum,
+				upperStrokes: hx.upperStrokes, lowerStrokes: hx.lowerStrokes, objectGua: hx.objectGua, direction: hx.direction };
+			Object.keys(out).forEach((k)=>{ if(out[k] === undefined || out[k] === null){ delete out[k]; } });
+			return Object.keys(out).length ? out : null;
+		},
+		fields: [
 		// 所推之年:元会运世值卦按年而定(留空=按起课/出生年,即无头现状)。
 		{ name: 'historyYear', label: '所推之年(留空=按盘面年)', type: 'number', default: '', group: '典籍' },
 		{ name: 'classicKey', label: '典籍', type: 'select', default: 'huangji_jingshi_shu', group: '典籍',
@@ -1830,6 +1850,11 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	] },
 	// 🔴 旧定性「sectionsOnly 不可改卦象」过宽:不可改的只有卦象本身;21 项判读口径经冻结卦重算恒安全。
 	sixyao: { kind: 'payload', optionsPath: 'liuyaoSettings', group: '六爻', fields: SIXYAO_FIELDS,
+		// 存档现状住 payload.gua.liuyaoSettings(存档层);optionsPath 顶层是覆盖层(merge 写入、
+		// mergeLiuyaoGearSettings 与存档合并)。基线锚必须读存档层,否则恒退 schema 默认。
+		baselineSource: (payload)=>(payload && payload.gua && typeof payload.gua === 'object'
+			&& payload.gua.liuyaoSettings && typeof payload.gua.liuyaoSettings === 'object'
+			? payload.gua.liuyaoSettings : null),
 		emptyHint: '卦象与动爻取自已存起卦结果、恒不重起;以下皆为判读口径。' },
 	tongshefa: { kind: 'sectionsOnly', reason: '统摄法基于已起卦象的确定性结果，仅可调纳入内容、不可重算。' },
 	// 真阻断点=regenerateCaseTechniqueSnapshot 无 mundane 支(挂载只能直读 payload.aiSnapshot,无无头复算路径);
@@ -2024,12 +2049,143 @@ function normalizeArrayForCompare(v){
 }
 
 // 把一份「可能含默认值」的 options 收敛为「只保留与默认不同的项」（默认即现状：空对象 = 不覆盖）。
-export function pruneOptionsToNonDefault(key, options){
+// [V6-W1] 🔴 比较锚升级「非默认」→「非现状」:第三参 baseline(该盘实际生效值,如 record/
+// 存档 payload)存在时,比较锚 = baseline[name](present)?? field.default。
+// 由来(用户实锤):astrochart hsys 的 schema default=0(整宫制)而存盘现状恒为 1(Alcabitus)——
+// 「选整宫制」≡「选 schema 默认」被三道 prune 连剪,该值**永远不可表达**;凡 schema 默认 ≠
+// 盘存值的字段(zodiacal/termsVariant/tradition…)同构发病。锚到盘现状后:与盘不同才算覆盖,
+// 调回盘现状=不覆盖(「默认即现状」契约的正确实现——现状是盘的现状,不是 schema 的想象)。
+// 无 baseline(配置包等无盘场景)回退 schema default 旧语义。
+// [V6 二轮复查] 「现状默认」单源:field.globalCurrent(全局仓种子键——页面种子=全局现值、
+// 存盘「值==种子不落键」,record 缺键的真实语义=「随全局」而非内建 schema 默认;15 键族
+// westNodeType 系+古典口径 10 键)优先于 field.default。prune 比较锚与抽屉基线显示共用。
+function fieldCurrentDefault(field){
+	if(field && typeof field.globalCurrent === 'function'){
+		try{
+			const v = field.globalCurrent();
+			if(v !== undefined && v !== null){
+				return v;
+			}
+		}catch(_e){ /* 回落静态默认 */ }
+	}
+	return field ? field.default : undefined;
+}
+
+// B 类基线段解析(effectiveMountBaseline / payloadMountBaseline / mergeOptionsIntoPayload 内层
+// prune 三处共用同一双眼睛):schema.baselineSource(payload) 优先(存档层与 optionsPath 不同层的
+// 技法,如六爻存档在 payload.gua.liuyaoSettings 而 optionsPath 顶层是覆盖层);否则按 optionsPath。
+// 🔴 三处必须同锚 —— 复查轮内容级差分闸实锤:外层判覆盖(存档层锚)放行、merge 内层(顶层锚)
+// 二次剪掉「=schema 默认但≠存档」的拨值 ⇒ 覆盖蒸发,重算出的仍是存档档。
+export function payloadSegmentOf(schema, payload){
+	if(!schema || !payload || typeof payload !== 'object'){
+		return null;
+	}
+	if(typeof schema.baselineSource === 'function'){
+		try{
+			const seg = schema.baselineSource(payload);
+			return seg && typeof seg === 'object' ? seg : null;
+		}catch(_e){
+			return null;
+		}
+	}
+	const path = schema.optionsPath;
+	if(path === '' || path === undefined || path === null){
+		return payload;
+	}
+	const seg = payload[path];
+	return seg && typeof seg === 'object' ? seg : null;
+}
+
+export function payloadBaselineSegment(schema, record){
+	try{
+		const raw = record && typeof record === 'object' ? record.payload : null;
+		if(!raw){
+			return null;
+		}
+		const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+		return payloadSegmentOf(schema, payload);
+	}catch(_e){
+		return null;
+	}
+}
+
+// C 类基线:builder 真实消费序 = record 平铺长名(field.recordKey,随盘保真键) 优先、
+// 全局 localStorage 兜底、schema 默认收尾 —— 此前只认全局,record 带 guolaoLifeMode 的盘
+// 抽屉显示全局值而内容按 record 值(误导),「拨回=全局值」被剪空(覆盖失效)。
+// 数字型 default 的字段把串值转回数字(storage 恒存串,不转则 select 显示与 prune 比对全乱套)。
+export function localStorageMountBaseline(key, record){
+	const schema = getTechniqueSettingsSchema(key);
+	const out = {};
+	if(!schema || schema.kind !== 'localStorage' || !Array.isArray(schema.fields)){
+		return out;
+	}
+	const rec = record && typeof record === 'object' ? record : null;
+	schema.fields.forEach((field)=>{
+		if(rec && field.recordKey && rec[field.recordKey] !== undefined && rec[field.recordKey] !== null && rec[field.recordKey] !== ''){
+			const rv = rec[field.recordKey];
+			out[field.name] = (typeof field.default === 'number') ? Number(rv) : rv;
+			return;
+		}
+		let v = null;
+		if(field.storageKey && typeof window !== 'undefined' && window.localStorage){
+			try{ v = window.localStorage.getItem(field.storageKey); }catch(_e){ v = null; }
+		}
+		if(v === null || v === undefined || v === ''){
+			out[field.name] = field.default;
+			return;
+		}
+		out[field.name] = (typeof field.default === 'number') ? Number(v) : v;
+	});
+	return out;
+}
+
+export function effectiveMountBaseline(key, record){
+	const schema = getTechniqueSettingsSchema(key);
+	const out = {};
+	if(!schema || !Array.isArray(schema.fields)){
+		return out;
+	}
+	let src = record && typeof record === 'object' ? record : {};
+	if(schema.kind === 'localStorage'){
+		// [V6 复查轮] C 类现状=record 长名(随盘保真) ?? 全局 storageKey 现值 —— 此前读平铺
+		// 短名恒退化 schema 默认:抽屉不显示真实现状,「选 schema 默认」在现状非默认时被剪空。
+		return localStorageMountBaseline(key, record);
+	}
+	if(schema.kind === 'payload' && !schema.chartRoute){
+		// [V6 复查轮] 🔴 B 类(payload)技法的现状住 record.payload 存档段,不在平铺键——
+		// 此前一律读平铺键 ⇒ B 类基线恒退化 schema 默认:抽屉打开显示想象值(A 类实锤的同型
+		// 二次误导),且「存档非默认时调回 schema 默认档」在 UI 层即被剪空,永远到不了重算入口
+		// 的 payload 现状锚。
+		src = payloadBaselineSegment(schema, src) || {};
+	}else if(schema.kind === 'payload' && schema.chartRoute){
+		// chartRoute 例外(cetian/huangji):payload kind 但走 A 路,覆盖写 record 平铺;
+		// [V6 二轮复查] 现状=存档段(事盘 payload,经 baselineSource 映射)打底 + 平铺覆盖——
+		// 只锚平铺时,huangji 事盘(存档在 payload.options)基线恒退 schema 默认。命盘无 payload
+		// 段自然回落纯平铺(cetian 不受影响)。
+		const seg = payloadBaselineSegment(schema, src);
+		if(seg){
+			const flat = {};
+			schema.fields.forEach((f)=>{
+				if(src[f.name] !== undefined && src[f.name] !== null){ flat[f.name] = src[f.name]; }
+			});
+			src = { ...seg, ...flat };
+		}
+	}
+	schema.fields.forEach((field)=>{
+		out[field.name] = (src[field.name] !== undefined && src[field.name] !== null)
+			? src[field.name]
+			: fieldCurrentDefault(field);
+	});
+	return out;
+}
+
+export function pruneOptionsToNonDefault(key, options, baseline){
 	const schema = getTechniqueSettingsSchema(key);
 	const out = {};
 	if(!schema || !Array.isArray(schema.fields) || !options || typeof options !== 'object'){
 		return out;
 	}
+	const base = baseline && typeof baseline === 'object' ? baseline : null;
 	schema.fields.forEach((field)=>{
 		if(!Object.prototype.hasOwnProperty.call(options, field.name)){
 			return;
@@ -2038,7 +2194,9 @@ export function pruneOptionsToNonDefault(key, options){
 		if(typeof field.normalize === 'function'){
 			v = field.normalize(v);
 		}
-		let def = field.default;
+		let def = (base && base[field.name] !== undefined && base[field.name] !== null)
+			? base[field.name]
+			: fieldCurrentDefault(field);
 		if(typeof field.normalize === 'function'){
 			def = field.normalize(def);
 		}
@@ -2059,6 +2217,33 @@ export function pruneOptionsToNonDefault(key, options){
 
 // ---- localStorage 持久化（per-技法默认；独立版本号，与 aiExport 设置互不迁移）----
 
+// [V6 二轮复查] 🔴 模板店存/读只做「schema 字段过滤 + 值域归一」,绝不比默认值——
+// 「同类默认」的键值语义=保存时的用户显式改动集(外层已按盘现状剪过),其中「恰=schema 默认」
+// 是合法内容(对存非默认的盘=真改动;消费端原样透传,由重算入口按各盘现状终判)。此前店内
+// 二参 prune(锚裸 schema 默认)把这类值二次剪掉:盘存整宫制拨 Alcabitius 点「设为同类默认」
+// → 店里删键、UI 却报「已设为持久」—— 双层锚不同构的模板店翻版。
+function sanitizeOptionsToSchema(key, options){
+	const schema = getTechniqueSettingsSchema(key);
+	const out = {};
+	if(!schema || !Array.isArray(schema.fields) || !options || typeof options !== 'object'){
+		return out;
+	}
+	schema.fields.forEach((field)=>{
+		if(!Object.prototype.hasOwnProperty.call(options, field.name)){
+			return;
+		}
+		let v = options[field.name];
+		if(typeof field.normalize === 'function'){
+			v = field.normalize(v);
+		}
+		if(v === undefined){
+			return;
+		}
+		out[field.name] = Array.isArray(v) ? [...v] : v;
+	});
+	return out;
+}
+
 function emptyMountDefaults(){
 	return { version: MOUNT_TECHNIQUE_DEFAULTS_VERSION, techniques: {} };
 }
@@ -2076,9 +2261,10 @@ export function loadMountTechniqueDefaults(){
 		const techniques = parsed && parsed.techniques && typeof parsed.techniques === 'object' ? parsed.techniques : {};
 		const cleaned = {};
 		Object.keys(techniques).forEach((k)=>{
-			const pruned = pruneOptionsToNonDefault(k, techniques[k]);
-			if(pruned && Object.keys(pruned).length){
-				cleaned[k] = pruned;
+			// 读侧同款只滤字段不比值(比值会把「显式存的 schema 默认值」在载入时又吃掉)。
+			const sane = sanitizeOptionsToSchema(k, techniques[k]);
+			if(sane && Object.keys(sane).length){
+				cleaned[k] = sane;
 			}
 		});
 		return { version: MOUNT_TECHNIQUE_DEFAULTS_VERSION, techniques: cleaned };
@@ -2093,13 +2279,14 @@ export function getMountTechniqueDefault(key){
 	return v && typeof v === 'object' ? v : {};
 }
 
-// 保存某技法的「同类默认」。传空对象/全默认 → 删除该键（回归现状）。
+// 保存某技法的「同类默认」。传空对象 → 删除该键（回归现状）。调用方负责按盘现状剪 no-op;
+// 本函数只滤 schema 字段+归一,不比默认值(见 sanitizeOptionsToSchema 注)。
 export function saveMountTechniqueDefaults(key, options){
 	const all = loadMountTechniqueDefaults();
 	const k = `${key || ''}`;
-	const pruned = pruneOptionsToNonDefault(k, options || {});
-	if(pruned && Object.keys(pruned).length){
-		all.techniques[k] = pruned;
+	const sane = sanitizeOptionsToSchema(k, options || {});
+	if(sane && Object.keys(sane).length){
+		all.techniques[k] = sane;
 	}else{
 		delete all.techniques[k];
 	}
@@ -2115,17 +2302,36 @@ export function saveMountTechniqueDefaults(key, options){
 
 export function mergeOptionsIntoRecord(record, key, options){
 	const base = record && typeof record === 'object' ? { ...record } : {};
-	const pruned = pruneOptionsToNonDefault(key, options);
+	// [V6-W1] baseline=record 本身:与盘现状不同才写(盘存 hsys=1 时选 0=真差异 → 写入生效)。
+	// [V6 二轮复查] C 类内层锚=与外层同源的 localStorageMountBaseline(record 短名缺键会错锚
+	// schema 默认,把「=schema 默认但≠现状」的合法覆盖二次剪掉——双层锚不同构又一例)。
+	const schema = getTechniqueSettingsSchema(key);
+	const baseline = (schema && schema.kind === 'localStorage') ? localStorageMountBaseline(key, base) : base;
+	const pruned = pruneOptionsToNonDefault(key, options, baseline);
+	const fieldByName = {};
+	if(schema && Array.isArray(schema.fields)){
+		schema.fields.forEach((f)=>{ fieldByName[f.name] = f; });
+	}
 	Object.keys(pruned).forEach((name)=>{
-		base[name] = pruned[name];
+		// C 类覆盖写 record 长名(builder 消费序 record 优先——写短名恒被既有长名遮蔽=死开关)。
+		const f = fieldByName[name];
+		const target = f && f.recordKey ? f.recordKey : name;
+		base[target] = pruned[name];
 	});
 	return base;
+}
+
+// B 类同构:baseline=存档 payload 的 optionsPath 现值(存档流派非默认时,调回默认档同样要可表达)。
+function payloadOptionsBaseline(schema, payload){
+	// [V6 复查轮] 与外层覆盖判定同锚(payloadSegmentOf 认 baselineSource 存档层) —— 此前只按
+	// optionsPath 取顶层覆盖层,六爻类「存档层≠optionsPath 层」技法在此二次剪掉合法覆盖。
+	return payloadSegmentOf(schema, payload);
 }
 
 export function mergeOptionsIntoPayload(payload, key, options){
 	const schema = getTechniqueSettingsSchema(key);
 	const base = payload && typeof payload === 'object' ? { ...payload } : {};
-	const pruned = pruneOptionsToNonDefault(key, options);
+	const pruned = pruneOptionsToNonDefault(key, options, payloadOptionsBaseline(schema, base));
 	if(!schema || schema.kind !== 'payload' || !Object.keys(pruned).length){
 		return base;
 	}
@@ -2149,7 +2355,9 @@ export function applyLocalStorageSettings(key, options){
 	if(!schema || schema.kind !== 'localStorage' || typeof window === 'undefined' || !window.localStorage){
 		return;
 	}
-	const pruned = pruneOptionsToNonDefault(key, options);
+	// [V6 复查轮] 内层 prune 锚全局现状(与外层同锚):锚裸 schema 默认时,「全局存非默认、
+	// 挂载临时拨回默认档」会在这里被剪掉不写 → builder 仍读到全局非默认值,临时覆盖失效。
+	const pruned = pruneOptionsToNonDefault(key, options, localStorageMountBaseline(key));
 	schema.fields.forEach((field)=>{
 		if(!field.storageKey){
 			return;

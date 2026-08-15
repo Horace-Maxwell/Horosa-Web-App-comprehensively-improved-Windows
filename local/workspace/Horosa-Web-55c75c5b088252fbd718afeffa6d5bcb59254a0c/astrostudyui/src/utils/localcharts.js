@@ -1,247 +1,44 @@
 import { currentEgyptSchool, egyptSchoolToRecordValues } from '../divination/data/egyptianSchools';
+import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload } from './localRecordStore';
 
 const LocalChartsKey = 'horosa.localCharts.v1';
-const AstroAiSnapshotKey = 'horosa.ai.snapshot.astro.v1';
-const ModuleAiSnapshotPrefix = 'horosa.ai.snapshot.module.v1.';
-let fallbackToMemoryStore = false;
-let fallbackWarned = false;
-let memoryCharts = [];
 
-function getLocalStorage(){
-	try{
-		if(typeof window !== 'undefined' && window.localStorage){
-			return window.localStorage;
-		}
-		if(typeof localStorage !== 'undefined'){
-			return localStorage;
-		}
-	}catch(e){
-		return null;
-	}
-	return null;
-}
-
-function warnMemoryFallback(){
-	if(fallbackWarned){
-		return;
-	}
-	fallbackWarned = true;
-	if(typeof console !== 'undefined' && console && typeof console.warn === 'function'){
-		console.warn('[horosa] localStorage unavailable, chart data falls back to memory for this session.');
-	}
-}
-
-function enableMemoryFallback(){
-	fallbackToMemoryStore = true;
-	warnMemoryFallback();
-}
-
-function isQuotaError(err){
-	if(!err){
-		return false;
-	}
-	const name = `${err.name || ''}`;
-	const code = Number(err.code || 0);
-	const message = `${err.message || ''}`.toLowerCase();
-	if(code === 22 || code === 1014){
-		return true;
-	}
-	if(name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED'){
-		return true;
-	}
-	return message.indexOf('quota') >= 0;
-}
-
-function purgeHeavyLocalCache(){
-	const storage = getLocalStorage();
-	if(!storage){
-		return;
-	}
-	try{
-		storage.removeItem(AstroAiSnapshotKey);
-	}catch(e){
-		// ignore
-	}
-	const keys = [];
-	try{
-		for(let i=0; i<storage.length; i++){
-			const key = storage.key(i);
-			if(key && key.indexOf(ModuleAiSnapshotPrefix) === 0){
-				keys.push(key);
-			}
-		}
-	}catch(e){
-		return;
-	}
-	keys.forEach((key)=>{
-		try{
-			storage.removeItem(key);
-		}catch(e){
-			// ignore
-		}
-	});
-}
-
-function safeParseJson(txt, defVal){
-	if(!txt){
-		return defVal;
-	}
-	try{
-		return JSON.parse(txt);
-	}catch(e){
-		return defVal;
-	}
-}
-
-function nowStr(){
-	const dt = new Date();
-	const y = dt.getFullYear();
-	const m = String(dt.getMonth() + 1).padStart(2, '0');
-	const d = String(dt.getDate()).padStart(2, '0');
-	const hh = String(dt.getHours()).padStart(2, '0');
-	const mm = String(dt.getMinutes()).padStart(2, '0');
-	const ss = String(dt.getSeconds()).padStart(2, '0');
-	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
-}
-
-function normalizeGroup(group){
-	if(group === undefined || group === null || group === ''){
-		return null;
-	}
-	if(group instanceof Array){
-		return JSON.stringify(group);
-	}
-	if(typeof group === 'string'){
-		const parsed = safeParseJson(group, null);
-		if(parsed instanceof Array){
-			return JSON.stringify(parsed);
-		}
-		return group;
-	}
-	return JSON.stringify([group]);
-}
-
-function normalizePayload(payload){
-	if(payload === undefined || payload === null){
-		return null;
-	}
-	if(typeof payload === 'string'){
-		return payload;
-	}
-	try{
-		return JSON.stringify(payload);
-	}catch(e){
-		return `${payload}`;
-	}
-}
-
-function sortByUpdateTimeDesc(list){
-	return list.sort((a, b)=>{
-		const ta = Date.parse(a.updateTime || '') || 0;
-		const tb = Date.parse(b.updateTime || '') || 0;
-		return tb - ta;
-	});
-}
-
-function readRawCharts(){
-	if(fallbackToMemoryStore){
-		return memoryCharts.slice();
-	}
-	const storage = getLocalStorage();
-	if(!storage){
-		enableMemoryFallback();
-		return memoryCharts.slice();
-	}
-	let raw = null;
-	try{
-		raw = storage.getItem(LocalChartsKey);
-	}catch(e){
-		enableMemoryFallback();
-		return memoryCharts.slice();
-	}
-	const ary = safeParseJson(raw, []);
-	if(!(ary instanceof Array)){
-		return [];
-	}
-	memoryCharts = ary.slice();
-	return ary;
-}
-
-// horosa_aux_render_slice_v1:命盘库写版本号。writeRawCharts 是本仓唯一写盘口
-// (upsertLocalChart/removeLocalChart/importLocalChartsBackup 全走它),每写一次自增。
-// 读侧(90°中点盘叠盘人清单的签名记忆)把它编进签名键 → 库一有增删改签名即变、缓存即失效:
-// 写驱动失效,零轮询零事件面。仅内存计数不落盘(重载后从 0 起,读侧首键必 miss,安全)。
-let chartsWriteVersion = 0;
-export function localChartsVersion(){
-	return chartsWriteVersion;
-}
-
-function writeRawCharts(list){
-	chartsWriteVersion += 1; // horosa_aux_render_slice_v1:所有写路径(含内存回退)都经此,先自增再落盘
-	const next = list instanceof Array ? list.slice() : [];
-	memoryCharts = next;
-	if(fallbackToMemoryStore){
-		return true;
-	}
-	const storage = getLocalStorage();
-	if(!storage){
-		enableMemoryFallback();
-		return true;
-	}
-	const text = JSON.stringify(next);
-	try{
-		storage.setItem(LocalChartsKey, text);
-		return true;
-	}catch(e){
-		if(isQuotaError(e)){
-			purgeHeavyLocalCache();
-			try{
-				storage.setItem(LocalChartsKey, text);
-				return true;
-			}catch(e2){
-				// ignore and fallback below
-			}
-		}
-		enableMemoryFallback();
-		return true;
-	}
-}
+// [S1 内核收编] 存储机械层(storage 句柄/quota 自救/读写/排序/分页/标签聚合/信封导入导出)
+// 收编进 localRecordStore 单一内核 —— 本文件此前与 localcases.js 是逐函数镜像的孪生复制,
+// 任何加固都要改两遍且已实际漂移。本文件只保留域层:buildLocalChartRecord
+// (recordFieldsRestore 哨兵按源码切片锁定 export function…return record;,必须原文驻留)。
+// 公开 API 名称/签名/行为逐字节不变(localRecordStoreParity 金标看守)。
+const store = createLocalRecordStore({
+	storageKey: LocalChartsKey,
+	searchField: 'name',
+	envelopeFormat: 'horosa-local-charts',
+	envelopeListField: 'charts',
+	buildRecord: buildLocalChartRecord,
+	saveErrorCode: 'local.chart.save.failed',
+	deleteErrorCode: 'local.chart.delete.failed',
+	warnLabel: 'chart',
+	trashKey: 'horosa.localCharts.trash.v1',
+});
 
 export function listLocalCharts(filter){
-	let list = readRawCharts();
-	if(filter && filter.name){
-		const name = (filter.name + '').trim().toLowerCase();
-		if(name !== ''){
-			list = list.filter((item)=>{
-				const txt = item && item.name ? (item.name + '').toLowerCase() : '';
-				return txt.indexOf(name) >= 0;
-			});
-		}
-	}
-	if(filter && filter.tag){
-		const tag = filter.tag + '';
-		if(tag !== ''){
-			list = list.filter((item)=>{
-				const grp = safeParseJson(item.group, []);
-				return grp instanceof Array && grp.indexOf(tag) >= 0;
-			});
-		}
-	}
-	return sortByUpdateTimeDesc(list);
+	return store.list(filter);
+}
+
+// horosa_aux_render_slice_v1(Windows-ahead):命盘库写版本号。v3.9.2 上游把写盘口收编进
+// localRecordStore 内核,本函数改为转发内核计数(语义逐字不变:任何增删改 —— 含回收站
+// 恢复/导入/置顶 —— 都会使版本前进)。消费方 UranianDialMain 叠盘人清单签名键;
+// 断供 = 打开量化盘即「localChartsVersion is not a function」(#84 族,消费方健在提供方消失)。
+export function localChartsVersion(){
+	return store.getWriteVersion();
+}
+
+// 标签筛选下拉的选项源:本地库全量聚合去重(与筛选判据同源;详见内核 listTags)。
+export function listLocalChartTags(){
+	return store.listTags();
 }
 
 export function getPagedLocalCharts(params){
-	const pidx = params && params.PageIndex ? parseInt(params.PageIndex + '', 10) : 1;
-	const psz = params && params.PageSize ? parseInt(params.PageSize + '', 10) : 30;
-	const list = listLocalCharts(params || {});
-	const start = (pidx - 1) * psz;
-	const end = start + psz;
-	return {
-		List: list.slice(start, end),
-		Total: list.length,
-		PageIndex: pidx,
-		PageSize: psz,
-	};
+	return store.getPaged(params);
 }
 
 export function buildLocalChartRecord(values){
@@ -286,6 +83,8 @@ export function buildLocalChartRecord(values){
 		memoLiuReng: values.memoLiuReng ? values.memoLiuReng : null,
 		memoQiMeng: values.memoQiMeng ? values.memoQiMeng : null,
 		memoSuZhan: values.memoSuZhan ? values.memoSuZhan : null,
+		// [V] 通用备注(表单直填,与技法批注 memo* 八槽并存;present 才落,旧档体积零变)。
+		memo: values.memo !== undefined && values.memo !== null && values.memo !== '' ? `${values.memo}` : undefined,
 		payload: normalizePayload(values.payload),
 		sourceModule: sourceModule,
 		chartType: values.chartType ? values.chartType : sourceModule,
@@ -319,10 +118,10 @@ export function buildLocalChartRecord(values){
 		pdTimeKeyCustom: values.pdTimeKeyCustom !== undefined && values.pdTimeKeyCustom !== null ? Number(values.pdTimeKeyCustom) : undefined,
 		pdSignificators: Array.isArray(values.pdSignificators) && values.pdSignificators.length ? values.pdSignificators : undefined,
 		pdPromissorTypes: Array.isArray(values.pdPromissorTypes) && values.pdPromissorTypes.length ? values.pdPromissorTypes : undefined,
-		termsVariant: values.termsVariant !== undefined && values.termsVariant !== null ? parseInt(values.termsVariant + '', 10) : undefined,
+		// (termsVariant 曾在此重复枚举一份 —— 与下方古典参数块的正主逐字相同,后者覆盖前者,纯冗余已删)
 		// AI 挂载「每技法设置」可调的占星排盘开关 + 数算/八字取用 + 七政命度模式:仅在 values 提供时落库
 		// (present 才落库,对齐 pd* 写法),否则 buildFieldObject 回退现状默认 → 不破坏既有命盘。
-		hsys: values.hsys !== undefined && values.hsys !== null ? values.hsys : undefined,
+		hsys: values.hsys !== undefined && values.hsys !== null ? parseInt(values.hsys + '', 10) : undefined,
 		zodiacal: values.zodiacal !== undefined && values.zodiacal !== null ? parseInt(values.zodiacal + '', 10) : undefined,
 		siderealAyanamsa: values.siderealAyanamsa !== undefined && values.siderealAyanamsa !== null ? (values.siderealAyanamsa + '') : undefined,
 		tradition: values.tradition !== undefined && values.tradition !== null ? parseInt(values.tradition + '', 10) : undefined,
@@ -451,68 +250,67 @@ export function buildLocalChartRecord(values){
 }
 
 export function upsertLocalChart(values){
-	const list = readRawCharts();
-	const cid = values && values.cid ? values.cid : null;
-	const idx = cid ? list.findIndex((item)=> item.cid === cid) : -1;
-	const base = idx >= 0 ? list[idx] : {};
-	const next = buildLocalChartRecord({
-		...base,
-		...(values || {}),
-	});
-	if(idx >= 0){
-		list[idx] = {
-			...list[idx],
-			...next,
-		};
-	}else{
-		list.push(next);
-	}
-	const saved = writeRawCharts(sortByUpdateTimeDesc(list));
-	if(!saved){
-		throw new Error('local.chart.save.failed');
-	}
-	return next;
+	return store.upsert(values);
 }
 
 export function removeLocalChart(cid){
-	const list = readRawCharts();
-	const next = list.filter((item)=> item.cid !== cid);
-	const saved = writeRawCharts(next);
-	if(!saved){
-		throw new Error('local.chart.delete.failed');
-	}
+	return store.remove(cid);
 }
 
 export function exportLocalChartsBackup(){
-	const charts = sortByUpdateTimeDesc(readRawCharts().slice());
-	return {
-		format: 'horosa-local-charts',
-		version: 1,
-		exportedAt: nowStr(),
-		total: charts.length,
-		charts: charts,
-	};
+	return store.exportBackup();
 }
 
 export function importLocalChartsBackup(payload){
-	if(!payload || typeof payload !== 'object'){
-		return { imported: 0, total: readRawCharts().length };
-	}
-	const incoming = payload.charts;
-	if(!(incoming instanceof Array)){
-		return { imported: 0, total: readRawCharts().length };
-	}
-	let imported = 0;
-	incoming.forEach((item)=>{
-		if(!item || typeof item !== 'object'){
-			return;
-		}
-		upsertLocalChart({
-			...item,
-			preserveUpdateTime: true,
-		});
-		imported += 1;
-	});
-	const total = readRawCharts().length;
-	return { imported, total };
+	return store.importBackup(payload);
+}
+
+// [S4] 存储健康态(横幅/诊断用):mode 'persistent'|'memory' + 最近写失败原因。
+export function getLocalChartsStoreHealth(){
+	return store.getHealth();
+}
+
+// [S8] 导入三闸的纯函数面(校验/预览),UI 在确认后才调 importLocalChartsBackup 真写。
+export function validateLocalChartsBackup(payload){
+	return store.validateBackupEnvelope(payload);
+}
+
+export function previewLocalChartsBackup(payload){
+	return store.previewImportBackup(payload);
+}
+
+// [V] 置顶/置底:tier 1=顶 | -1=底 | 0=取消(三层分区排序,层内共享现行排序;不刷新 updateTime)。
+export function pinLocalChart(cid, tier){
+	return store.setPin(cid, tier);
+}
+
+// [V] 上移/下移:同层相邻交换有效排序键(dir -1 上 | 1 下;默认序语义,详见内核 moveRecord)。
+// [V5-D1/D2/D3] 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
+export function flagLocalChart(cid, field, on){
+	return store.setFlag(cid, field, on);
+}
+
+export function touchLocalChart(cid){
+	return store.touchRecord(cid);
+}
+
+export function moveLocalChart(cid, dir){
+	return store.moveRecord(cid, dir);
+}
+
+// [R3] 回收站:删除先进回收站(30 天/上限 FIFO 惰性清理),可恢复/彻底删除/清空。
+export function listLocalChartsTrash(){
+	return store.listTrash();
+}
+
+export function restoreLocalChartFromTrash(cid){
+	return store.restoreFromTrash(cid);
+}
+
+export function purgeLocalChartTrashItem(cid){
+	return store.purgeTrashItem(cid);
+}
+
+export function clearLocalChartsTrash(){
+	return store.clearTrash();
 }

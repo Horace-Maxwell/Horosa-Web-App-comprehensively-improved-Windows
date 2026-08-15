@@ -414,7 +414,7 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 	it('反向哨兵:有导出预设的技法必须可挂载、或在显式豁免清单(kinastro 七技法曾「可导出不可挂载」从正向检查溜过)', ()=>{
 		// 豁免=结构上不可按单记录/单事盘重算者;新增豁免必须在此写明理由,否则新技法漏挂载当场红。
 		const MOUNT_EXEMPT = {
-			generic: '通用兜底键,非具体技法',
+			// generic 已自 preset/设置面除名(E-3:运行时兜底 context 键) → 不再需要豁免行(僵尸锁咬过)。
 			jieqi: '节气盘走自有 split 多取数导出,无单盘挂载语义',
 			relative: '合盘需两张盘,单记录挂载不适用',
 			otherbu: '骰子随机不可复算,无事盘存储',

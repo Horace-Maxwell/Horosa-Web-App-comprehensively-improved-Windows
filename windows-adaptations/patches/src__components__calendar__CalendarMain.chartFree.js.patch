@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/CalendarMain.js b/astrostudyui/src/components/calendar/CalendarMain.js
-index 5ca8b95..78d6036 100644
+index a6a2e2f3..f2157a25 100644
 --- a/astrostudyui/src/components/calendar/CalendarMain.js
 +++ b/astrostudyui/src/components/calendar/CalendarMain.js
 @@ -2,6 +2,8 @@ import { Component } from 'react';
@@ -44,10 +44,10 @@ index 5ca8b95..78d6036 100644
 +		markInteractionStart('calendar');
 +		const wasVisited = !!this._visitedTabs[key];
 +		this._visitedTabs[key] = true;
- 		this.setState({
- 			currentTab: key,
- 		}, ()=>{
-@@ -74,7 +92,13 @@ class CalendarMain extends Component{
+ 		// [E-2] 子 tab 运行时注册(__horosaCnyibuCurrentTab 同范式):AI 导出按当前子 tab 分流
+ 		// huangli/tongshu 独立键(此前恒 calendar 聚合,两键设置面可勾恒无效)。
+ 		try{ window.__horosaCalendarCurrentTab = key; }catch(e){ /* SSR/jest 无 window 静默 */ }
+@@ -77,7 +95,13 @@ class CalendarMain extends Component{
  						currentSubTab: key,
  					}
  				});
@@ -62,7 +62,7 @@ index 5ca8b95..78d6036 100644
  		});
  	}
  
-@@ -83,51 +107,65 @@ class CalendarMain extends Component{
+@@ -86,51 +110,65 @@ class CalendarMain extends Component{
  		// 填满整页高度（原按 props.height-20 固定像素，比实际页面矮 ~66px 留大片空白）；
  		// 子 main 皆已支持 '100%'（内部转 calc）。配合 CSS 让 tab 内容链 height:100% 逐层撑满。
  		const height = '100%';

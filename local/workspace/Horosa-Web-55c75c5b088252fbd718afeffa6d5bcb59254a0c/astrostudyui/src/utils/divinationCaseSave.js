@@ -4,7 +4,7 @@
 // kentangCaseSave 同款；区别在于卜卦/择日的「时间·地点」本身就是核心征象，故 record 完整存
 // divTime/zone/经纬，payload 再存技法设置（黄道/宫制/守护）与问题类别(horary)/用事类型(election)。
 import { getStore } from './storageutil';
-import { caseFieldSnapshot, caseGenderValue } from './kentangCaseSave';
+import { caseFieldSnapshot, caseGenderValue, caseApplySeqSuffix } from './kentangCaseSave';
 
 function fv(fields, key, fallback = ''){
 	if(!fields || !fields[key]){
@@ -121,9 +121,12 @@ export function getDivinationSavedCasePayload(module){
 	}
 	const cid = `${cc.cid.value}`;
 	const updateTime = getV('updateTime') ? `${getV('updateTime')}` : '';
+	// caseVersion 必带载入代次后缀(单一真值源 caseApplySeqSuffix,理由见其头注):
+	// DivinationChartShell 的 _appliedCaseVersion 只在构造函数初始化、从不重置,宿主 Tabs 常驻挂载;
+	// 不带代次时同一条事盘第二次载入必被守卫拦掉 —— 四技法(卜卦/择日/世俗/天星)曾因此漏网退化。
 	return {
 		payload,
-		caseVersion: `${module}|${cid}|${updateTime}`,
+		caseVersion: `${module}|${cid}|${updateTime}${caseApplySeqSuffix(userState)}`,
 		divTime: getV('divTime') || '',
 		zone: getV('zone') || '',
 		lat: getV('lat') || '',

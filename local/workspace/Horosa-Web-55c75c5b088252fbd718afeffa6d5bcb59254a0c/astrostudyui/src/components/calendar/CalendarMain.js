@@ -79,6 +79,9 @@ class CalendarMain extends Component{
 		markInteractionStart('calendar');
 		const wasVisited = !!this._visitedTabs[key];
 		this._visitedTabs[key] = true;
+		// [E-2] 子 tab 运行时注册(__horosaCnyibuCurrentTab 同范式):AI 导出按当前子 tab 分流
+		// huangli/tongshu 独立键(此前恒 calendar 聚合,两键设置面可勾恒无效)。
+		try{ window.__horosaCalendarCurrentTab = key; }catch(e){ /* SSR/jest 无 window 静默 */ }
 		this.setState({
 			currentTab: key,
 		}, ()=>{

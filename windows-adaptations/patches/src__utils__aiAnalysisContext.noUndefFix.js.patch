@@ -1,0 +1,17 @@
+diff --git a/astrostudyui/src/utils/aiAnalysisContext.js b/astrostudyui/src/utils/aiAnalysisContext.js
+index ee248ef1..5e9744b1 100644
+--- a/astrostudyui/src/utils/aiAnalysisContext.js
++++ b/astrostudyui/src/utils/aiAnalysisContext.js
+@@ -145,7 +145,11 @@ import { calculate as heluoCalc, daYun as heluoDaYun, judge as heluoJudge, build
+ import { buildYizhangjingModel, buildYizhangjingSnapshotText } from './yizhangjingReport';
+ import { Solar as HeluoSolar } from 'lunar-javascript';
+ // P5 主限法盘快照：方位法/度数换算的中文标签 + 默认（纯 util，无组件依赖、不回环 aiAnalysisContext）。
+-import { getPdMethodLabel, getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY } from './primaryDirectionSync';
++// horosa_no_undef_fix_v1(check-no-undef 门抓获,上游同病;建议上游同步):
++// 2372 行 `pdtype: DEFAULT_PD_TYPE` 引用了从未 import 的常量 → 该处在 try 里被吞成
++// 「主限法盘配置(降级)」—— 本版发布说明宣称的「主限法补全盘体」在该段从未真正生效。
++// 单一事实源 = primaryDirectionSync(同族 DEFAULT_PD_METHOD/TIME_KEY 本就从这里进)。
++import { getPdMethodLabel, getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE } from './primaryDirectionSync';
+ 
+ const DEFAULT_PD_ASPECTS = [0, 60, 90, 120, 180];
+ // [挂载预算] 上下文字数预算单一真值：发送路径（AIAnalysisMain）与默认裁剪上限共用，消灭散落的字面量。

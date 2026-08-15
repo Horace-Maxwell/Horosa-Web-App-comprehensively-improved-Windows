@@ -34,12 +34,24 @@ const FIX = path.join(__dirname, 'fixtures', 'baziSectionTableBaseline.txt');
 // 表化【之后】新增的解读行（三维分列/成败救应/新补神煞四味/各派忌列），不属「表化等价」比较域：
 // 基线冻结于新增前且须保持旧格式（第 2 个用例守此），故仅在本断言按行剔除，表化守卫职责不变。
 // 各自正确性由 baziWuxingDimensions / baziChengBai / baziShenShaAug2 / baziZaGeXuYao 覆盖。
-const ADDED_LINE_RE = /^(三维分列|· 得令|· 得地|· 得势|成败：)/;
+// [W1 内容补缺] 十二串宫行 + [干支合冲] 段(干合/干冲/支合拱会刑冲穿破)同属表化后新增,
+// 剔出比较域;正确性由 baziMountSnapshot [W1] 金标(逐行钉死)覆盖。
+const ADDED_LINE_RE = /^(三维分列|· 得令|· 得地|· 得势|成败：|十二串宫：|\[干支合冲\]|干合：|干冲：|支[合拱会刑冲穿破]：)/;
 const ADDED_TOKENS = ['福星贵人', '德秀贵人', '国印贵人', '天喜', '调候以寒暖燥湿论急缓', '本派不单列忌神'];
 // 通关派 note 本轮追加的忌神句（五行随盘而变，按句型整段剔除）。
 const ADDED_PHRASE_RE = /[；;]忌.夺通关。?/g;
 function stripAddedFacts(text) {
-	const kept = `${text || ''}`.split('\n')
+	// [W1] 小运表(内容级补缺)整块剔除:标记行起、连续表行止;正确性由 baziMountSnapshot [W1] 金标覆盖。
+	const src = `${text || ''}`.split('\n');
+	const noXiaoYun = [];
+	let inXiaoYun = false;
+	for (let i = 0; i < src.length; i++) {
+		const t = src[i].trim();
+		if (t === '小运（逐年，与流年并列）：') { inXiaoYun = true; continue; }
+		if (inXiaoYun) { if (t.startsWith('|')) { continue; } inXiaoYun = false; }
+		noXiaoYun.push(src[i]);
+	}
+	const kept = noXiaoYun
 		.filter((l) => !ADDED_LINE_RE.test(l.trim()))
 		// 多派对照表「忌」列本轮由空补为真数据（格局派/通关派），该列整列不入表化比较域。
 		.map((l) => {

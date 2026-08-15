@@ -22,11 +22,15 @@ import { perfBegin } from '../utils/perfMark';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
 import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
-import { applyRecordToFields } from '../utils/recordFieldsRestore';
+import { applyRecordToFields, registerFieldsBaselineFactory } from '../utils/recordFieldsRestore';
 import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverridesFromFields } from '../utils/classicalChartGlobals';
 
 let dtm = new DateTime();
 const DefaultHouseSystem = 1;
+
+// [R4 随盘保真] newEmptyFields = 「非默认捕获」的基准注册(工厂注入防循环 import:
+// recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
+registerFieldsBaselineFactory(()=>newEmptyFields());
 
 // PERF-R8 P0(纯观测,horosa_interaction_span_v1 配套):排盘 saga 成功提交 chartObj 后打
 // refresh-end mark,并与 pages/index.js 的 horosa:tab:*:refresh-start 配 measure ——
@@ -1297,7 +1301,7 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshotLazy(Result, values);
+			saveAstroAISnapshotLazy(Result, values, { classicalDerived: true });   // 本命主盘快照带古典衍化四段(opt-in,嵌套消费方不带)
 
 			let drawer = closeAllDrawer('*fetch');
 
@@ -1364,7 +1368,7 @@ export default {
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshotLazy(Result, fields);
+			saveAstroAISnapshotLazy(Result, fields, { classicalDerived: true });   // 本命主盘快照带古典衍化四段(opt-in,嵌套消费方不带)
 
 			// memo×8：无条件覆盖语义（record 无备注 = 清空该备注），与还原键的条件语义不同，故留手工。
 			setF('memo74', values.memo74);
@@ -1546,7 +1550,7 @@ export default {
 			if(fieldValues.orbs && fieldValues.orbs.value){ Result.params.orbs = fieldValues.orbs.value; }
 			if(fieldValues.orbScale && fieldValues.orbScale.value){ Result.params.orbScale = fieldValues.orbScale.value; }
 			Result.chartId = randomStr(8);
-			saveAstroAISnapshotLazy(Result, fieldValues);
+			saveAstroAISnapshotLazy(Result, fieldValues, { classicalDerived: true });   // 本命主盘快照带古典衍化四段(opt-in,嵌套消费方不带)
 
 			if(fastPath){
 				// fields 已先行提交且引用未变 —— 只补 chartObj,不重放 fields(免二次 didUpdate)、
@@ -1671,7 +1675,7 @@ export default {
 			if(!Result.params){ Result.params = {}; }
 			if(fields && fields.name){ Result.params.name = fields.name.value; }
 			if(fields && fields.pos){ Result.params.pos = fields.pos.value; }
-			saveAstroAISnapshotLazy(Result, fields);
+			saveAstroAISnapshotLazy(Result, fields, { classicalDerived: true });   // 本命主盘快照带古典衍化四段(opt-in,嵌套消费方不带)
 
 			let drawer = closeAllDrawer('*nowChart');
             yield put({
@@ -1731,46 +1735,15 @@ export default {
 				},
 			});		
 
-			const param = {
-				Cid: values.cid,
-			};
-			const localOnly = true;
-			if(localOnly){
-				const localResult = loadLocalFateEvents(values.cid);
-				yield put({
-					type: 'save',
-					payload: {
-						deeplearn: localResult,
-					},
-				});
-				return;
-			}
-
-			let rsp = null;
-			try{
-				rsp = yield call(service.fetchFateEvents, param);
-			}catch(e){
-				rsp = null;
-			}
-			if(!rsp || !rsp.Result){
-				const localResult = loadLocalFateEvents(values.cid);
-				yield put({
-					type: 'save',
-					payload: {
-						deeplearn: localResult,
-					},
-				});
-				return;
-			}
-			const Result = rsp.Result;
-
-            yield put({
-                type: 'save',
-                payload: {  
-					deeplearn: Result,
-                },
-            });
-
+			// [R4 死分支收敛] 曾有 `const localOnly = true` 写死的服务端 fetchFateEvents 分支
+			// (登录多用户时代残留,永不可达)——纯本地桌面形态定谳后收敛为本地唯一路径。
+			const localResult = loadLocalFateEvents(values.cid);
+			yield put({
+				type: 'save',
+				payload: {
+					deeplearn: localResult,
+				},
+			});
 		},
 
 		*deeplearn({ payload: values }, { call, put, select }){
@@ -1783,16 +1756,8 @@ export default {
 					Val30000: state.deeplearn.Val30000,
 					Val40000: state.deeplearn.Val40000,
 				};
-				const localOnly = true;
-				if(localOnly){
-					saveLocalFateEvents(param);
-				}else{
-					try{
-						yield call(service.dlTrain, param);
-					}catch(e){
-						saveLocalFateEvents(param);
-					}
-				}
+				// [R4 死分支收敛] 服务端 dlTrain 分支同上,收敛为本地唯一路径。
+				saveLocalFateEvents(param);
 			}
 
             yield put({

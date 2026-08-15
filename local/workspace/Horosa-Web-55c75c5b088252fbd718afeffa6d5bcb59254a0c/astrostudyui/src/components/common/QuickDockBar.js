@@ -63,6 +63,19 @@ export default function QuickDockBar(props){
 	const tail = [];
 	if(save){
 		tail.push({ key: 'save', label: '保存', icon: 'quickNote', onClick: save, disabled: !hasResult });
+		// [R4] 有「保存」必有「载入」:此前存了案只能绕行右上角用户菜单才能读回(技法页零载入
+		// 入口)。开事盘列表抽屉(内有类型/标签/检索三筛),无盘态也可用。零逐技法接线。
+		tail.push({
+			key: 'load',
+			label: '载入',
+			icon: 'quickNote',
+			disabled: false,
+			onClick: ()=>{
+				if(dispatch){
+					dispatch({ type: 'astro/openDrawer', payload: { key: 'caselist' } });
+				}
+			},
+		});
 	}
 	if(ai){
 		const onAi = typeof ai === 'function'

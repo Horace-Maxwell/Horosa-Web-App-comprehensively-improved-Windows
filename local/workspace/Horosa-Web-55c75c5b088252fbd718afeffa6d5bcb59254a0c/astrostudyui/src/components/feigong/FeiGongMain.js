@@ -64,6 +64,8 @@ export function buildFeiGongSnapshotText(ju, opts){
 	const zk = zhuKe(ju);
 	if(zk && (zk.zhuGong != null || zk.keGong != null)){
 		out.push(`主(日干${ju.dayGan || '—'})落 ${zk.zhuGong != null ? zk.zhuGong : '—'} 宫;客(日支${ju.dayZhi || '—'})落 ${zk.keGong != null ? zk.keGong : '—'} 宫`);
+		// [审计修] 主客判语正文(页面整段渲染有快照无;zk.text 唯一消费点曾只在渲染层)。
+		if(zk.text){ out.push(zk.text); }
 	}else{
 		out.push('(未录日干支,主客不定)');
 	}

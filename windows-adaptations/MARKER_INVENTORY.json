@@ -15,7 +15,8 @@
    "astrostudyui/src/components/germany/AstroGermany.js": 1,
    "astrostudyui/src/components/germany/UranianDialMain.js": 3,
    "astrostudyui/src/components/germany/UranianDialStyle.js": 2,
-   "astrostudyui/src/utils/localcharts.js": 2
+   "astrostudyui/src/utils/localRecordStore.js": 1,
+   "astrostudyui/src/utils/localcharts.js": 1
   },
   "horosa_bazi_chartbazi_memo_v1": {
    "astrostudyui/src/components/cntradition/BaZi.js": 1
@@ -259,6 +260,9 @@
   "horosa_no_state_mutation_v1": {
    "astrostudyui/src/components/commtools/BaziPattern.js": 1
   },
+  "horosa_no_undef_fix_v1": {
+   "astrostudyui/src/utils/aiAnalysisContext.js": 1
+  },
   "horosa_option_prefetch_v1": {
    "astrostudyui/src/models/astro.js": 3,
    "astrostudyui/src/utils/__tests__/optionPrefetch.test.js": 1,
@@ -465,6 +469,9 @@
   "horosa_scu_arraywise_v1": {
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 1
   },
+  "horosa_shadow_mirror_electron_v1": {
+   "astrostudyui/src/utils/shadowMirror.js": 1
+  },
   "horosa_shallow_scu_v1": {
    "astrostudyui/src/components/astro3d/AstroPDSphere.js": 2,
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 2
@@ -517,9 +524,7 @@
    "astrostudyui/src/components/ruleziwei/RuleHouses.js": 1,
    "astrostudyui/src/components/ruleziwei/RuleHuaDesc.js": 1,
    "astrostudyui/src/components/ruleziwei/RuleSihua.js": 1,
-   "astrostudyui/src/components/ruleziwei/RuleStars.js": 1,
-   "astrostudyui/src/components/user/CaseList.js": 1,
-   "astrostudyui/src/components/user/ChartList.js": 1
+   "astrostudyui/src/components/ruleziwei/RuleStars.js": 1
   },
   "horosa_startupgate_desktop_elapsed_v1": {
    "astrostudyui/src/components/common/StartupGate.js": 2,
@@ -558,6 +563,9 @@
    "astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js": 1,
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1,
    "astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js": 1
+  },
+  "horosa_windows_storage_keys_v1": {
+   "astrostudyui/src/utils/storageKeyRegistry.js": 1
   },
   "horosa_wuzhao_random_guard_v1": {
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,

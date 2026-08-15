@@ -21,4 +21,15 @@ try{
 	}
 }catch(e){ /* storage 不可用时保持 1:1 */ }
 
+// [V5-A2] 持久存储保险:persisted origin 免受 WebKit 磁盘压力 LRU 驱逐(非 persisted 的
+// origin 在系统磁盘紧张时可能被整体清掉 —— 本地记录库的隐性丢失面之一)。授予与否由
+// 引擎启发式决定,失败无害;granted 状态落 device-local 键供存储健康页显示。
+try{
+	if(navigator.storage && typeof navigator.storage.persist === 'function'){
+		navigator.storage.persist().then(function(granted){
+			__hszSet('horosa.storage.persisted', granted ? '1' : '0');
+		}).catch(function(){ /* 引擎不支持/拒绝:健康页显示未知即可 */ });
+	}
+}catch(e){ /* 非浏览器环境零影响 */ }
+
 let _globalObj = {}

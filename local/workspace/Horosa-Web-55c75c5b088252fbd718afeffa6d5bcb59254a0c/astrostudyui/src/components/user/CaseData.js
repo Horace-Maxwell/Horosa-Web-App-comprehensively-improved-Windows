@@ -9,7 +9,9 @@ import GeoCoordModal from '../amap/GeoCoordModal';
 import { applyDstToFields } from '../../utils/timezone';
 import { applyGeoNameToFields } from '../../utils/geoName';
 import DstZoneIndicator from '../comp/DstZoneIndicator';
-import { CASE_TYPE_OPTIONS, getCaseTypeMeta } from '../../utils/localcases';
+import { CASE_TYPE_OPTIONS, getCaseTypeMeta, listLocalCases, upsertLocalCase } from '../../utils/localcases';
+import RecordRevisionsModal from '../common/RecordRevisionsModal';
+import { RecordJournalModal } from '../common/RecordToolsModals';
 import { XQButton, XQInput, XQSelect, XQTextArea } from '../xq-ui';
 
 const Option = XQSelect.Option;
@@ -22,11 +24,17 @@ export default class CaseData extends Component{
 			fields: {
 				...this.props.fields,
 			},
+			// [V6 复查轮] 历史版本/断事日志 Modal 开关(与命盘编辑页 ChartData 同款;事盘内核
+			// 本就双 kind 记版本与日志,此前只缺查看入口 —— 「入口进每个盘的编辑页」含事盘)。
+			revisionsOpen: false,
+			journalOpen: false,
 		};
 		this.submitted = false;
 		this.zoneManual = false;
 		this.setValue = this.setValue.bind(this);
 		this.changeDivTime = this.changeDivTime.bind(this);
+		this.changeGender = this.changeGender.bind(this);
+		this.changeMemo = this.changeMemo.bind(this);
 		this.changeIsPub = this.changeIsPub.bind(this);
 		this.changeGroup = this.changeGroup.bind(this);
 		this.changeEvent = this.changeEvent.bind(this);
@@ -46,6 +54,19 @@ export default class CaseData extends Component{
 		this.setState({
 			fields: flds,
 		});
+	}
+
+	// [V6 复查轮] 取当前编辑事盘的完整记录(历史/日志 Modal 用):按 cid 从库读最新态。
+	currentRecord(){
+		try{
+			const cid = this.state.fields && this.state.fields.cid ? this.state.fields.cid.value : null;
+			if(!cid){
+				return null;
+			}
+			return listLocalCases({ includeArchived: true }).find((r)=>r && r.cid === cid) || null;
+		}catch(_e){
+			return null;
+		}
 	}
 
 	changeDivTime(val){
@@ -73,12 +94,26 @@ export default class CaseData extends Component{
 		this.setValue('isPub', val);
 	}
 
+	// 性别:下拉哨兵值 -1=未指定 → 存 null(不落库);0=女 合法值,禁真值判断。
+	changeGender(val){
+		this.setValue('gender', val === -1 ? null : val);
+	}
+
 	changeGroup(val){
 		this.setValue('group', val);
 	}
 
 	changeEvent(e){
 		this.setValue('event', e.target.value);
+	}
+
+	// [R4] 事盘备注(断后复盘/应期回填);旧 currentCase 无 memo 槽时补建,防 setValue 取 undefined 炸。
+	changeMemo(e){
+		const flds = this.state.fields;
+		if(!flds.memo){
+			flds.memo = { name: ['memo'], value: null };
+		}
+		this.setValue('memo', e.target.value);
 	}
 
 	changeCaseType(val){
@@ -242,6 +277,23 @@ export default class CaseData extends Component{
 				</Row>
 
 				<Row gutter={12} style={{ marginTop: margintop }}>
+					<Col span={24}>
+						<Row>
+							<Col span={24}>备注（断后复盘/应期回填，可留空）：</Col>
+							<Col span={24}>
+								<XQTextArea
+									placeholder='备注'
+									value={flds.memo ? flds.memo.value : null}
+									onChange={this.changeMemo}
+									autoSize={{ minRows: 2, maxRows: 6 }}
+									style={{ width: '100%', resize: 'both' }}
+								/>
+							</Col>
+						</Row>
+					</Col>
+				</Row>
+
+				<Row gutter={12} style={{ marginTop: margintop }}>
 					<Col span={12}>
 						<Row>
 							<Col span={24}>类型：</Col>
@@ -294,16 +346,25 @@ export default class CaseData extends Component{
 				<Row gutter={12} style={{ marginTop: margintop }}>
 					<Col span={8}>
 						<Row>
-							<Col span={24}>是否公开：</Col>
+							<Col span={24}>求测人性别：</Col>
 							<Col span={24}>
-								<XQSelect value={flds.isPub.value} onChange={this.changeIsPub}>
-									<Option value={0}>否</Option>
-									<Option value={1}>是</Option>
+								<XQSelect
+									value={flds.gender && flds.gender.value !== undefined && flds.gender.value !== null ? flds.gender.value : -1}
+									onChange={this.changeGender}
+									style={{ width: '100%' }}
+								>
+									<Option value={-1}>未指定</Option>
+									<Option value={1}>男</Option>
+									<Option value={0}>女</Option>
 								</XQSelect>
 							</Col>
 						</Row>
 					</Col>
-					<Col span={16}>
+					{/* [R4] 「是否公开」控件已隐藏:纯本地桌面版无发布语义(isPub 槽与数据字段保留,旧档兼容)。 */}
+				</Row>
+
+				<Row gutter={12} style={{ marginTop: margintop }}>
+					<Col span={24}>
 						<Row>
 							<Col span={24}>标签：</Col>
 							<Col span={24}>
@@ -324,8 +385,39 @@ export default class CaseData extends Component{
 					</Col>
 					<Col span={12}>
 						<XQButton onClick={this.clickReturn}>{returnTitle}</XQButton>
+						{/* [V6 复查轮] 历史版本/断事日志入口(与命盘编辑页同款;仅编辑已存事盘时显示) */}
+						{flds.cid && flds.cid.value ? (
+							<>
+								<XQButton style={{ marginLeft: 8 }} onClick={()=>this.setState({ revisionsOpen: true })} title='查看该事盘历史版本(每次修改自动留存最近 10 版),可恢复为副本'>历史版本</XQButton>
+								<XQButton style={{ marginLeft: 8 }} onClick={()=>this.setState({ journalOpen: true })} title='断事日志:多条带时间戳的跟进记录,随记录导出/备份全链保留'>断事日志</XQButton>
+							</>
+						) : null}
 					</Col>
 				</Row>
+				{flds.cid && flds.cid.value ? (
+					<>
+						<RecordRevisionsModal
+							visible={!!this.state.revisionsOpen}
+							storeLabel='case'
+							record={this.currentRecord()}
+							onClose={()=>this.setState({ revisionsOpen: false })}
+							onRestoreAsCopy={(snap)=>{
+								const dup = { ...snap };
+								delete dup.cid;
+								delete dup.schemaVersion;
+								dup.event = `${dup.event || ''}(历史版)`;
+								upsertLocalCase(dup);
+							}}
+						/>
+						<RecordJournalModal
+							visible={!!this.state.journalOpen}
+							kind='case'
+							record={this.state.journalOpen ? this.currentRecord() : null}
+							onClose={()=>this.setState({ journalOpen: false })}
+							onChanged={()=>{ this.forceUpdate(); }}
+						/>
+					</>
+				) : null}
 			</div>
 		);
 	}

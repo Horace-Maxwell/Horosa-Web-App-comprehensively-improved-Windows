@@ -147,12 +147,24 @@ describe('默认即现状(prune / merge 等价性)', ()=>{
 });
 
 describe('mount defaults 持久化(独立键,与 aiExport 互不冲突)', ()=>{
-	it('saveMountTechniqueDefaults 只存非默认项;全默认 → 删键', ()=>{
+	it('🔴 [V6 二轮复查] saveMountTechniqueDefaults 只滤字段不比值;空对象才删键(契约升级)', ()=>{
+		// 旧契约「只存非默认项」是双层锚不同构的病根:外层按盘现状剪过的显式改动
+		// (含「恰=schema 默认」的合法值,如盘存整宫制拨 Alcabitius)在店内被二次剪掉删键,
+		// UI 却按外层结果报「已设为持久」。新契约:店只做 schema 字段过滤+归一,值全保留;
+		// no-op 剪枝是调用方(按盘现状三参 prune)的职责。
 		saveMountTechniqueDefaults('qimen', { qijuMethod: 'chaijbu', paiPanType: 3 });
+		expect(getMountTechniqueDefault('qimen')).toEqual({ qijuMethod: 'chaijbu', paiPanType: 3 });
+		// 判别例:「=schema 默认」的显式值必须存活(退化回旧契约此断言当场红)。
+		saveMountTechniqueDefaults('astrochart', { hsys: 1 });
+		expect(getMountTechniqueDefault('astrochart')).toEqual({ hsys: 1 });
+		// 非 schema 字段被滤掉(店的字段过滤职责仍在)。
+		saveMountTechniqueDefaults('qimen', { qijuMethod: 'chaijbu', notAField: 9 });
 		expect(getMountTechniqueDefault('qimen')).toEqual({ qijuMethod: 'chaijbu' });
-		// 写回全默认 → 删除该技法键。
-		saveMountTechniqueDefaults('qimen', getTechniqueSettingsDefaults('qimen'));
+		// 空对象 → 删键(「清除同类默认」的唯一触发形态)。
+		saveMountTechniqueDefaults('qimen', {});
 		expect(getMountTechniqueDefault('qimen')).toEqual({});
+		saveMountTechniqueDefaults('astrochart', {});
+		expect(getMountTechniqueDefault('astrochart')).toEqual({});
 	});
 
 	it('mount defaults 存在独立 localStorage 键,不写 aiExport 设置键', ()=>{
@@ -233,8 +245,14 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		expect(optVals('astrochart', 'siderealAyanamsa')).toEqual(expect.arrayContaining(['', 'raman', 'fagan_bradley']));
 		// 选具体 ayanāṃśa → 落 record.siderealAyanamsa(buildFieldObject 读 → fieldsToParams 下发)
 		expect(mergeOptionsIntoRecord({ cid: 'x' }, 'astrochart', { siderealAyanamsa: 'fagan_bradley' }).siderealAyanamsa).toBe('fagan_bradley');
-		// 默认空 → prune → 不覆盖存盘 ayanāṃśa(守「默认即现状」)
-		expect(mergeOptionsIntoRecord({ cid: 'x', siderealAyanamsa: 'raman' }, 'astrochart', { siderealAyanamsa: '' }).siderealAyanamsa).toBe('raman');
+		// [V6-W1] 🔴 契约升级「非默认」→「非现状」:比较锚 = record 现值。
+		// 盘存 raman 时拨回空(schema 默认)= 与盘现状的真差异 → **覆盖生效写 ''**(旧语义把它剪空
+		// 保 raman = 「调回默认不可表达」,正是星盘整宫制实锤的同构病灶,已根修)。
+		expect(mergeOptionsIntoRecord({ cid: 'x', siderealAyanamsa: 'raman' }, 'astrochart', { siderealAyanamsa: '' }).siderealAyanamsa).toBe('');
+		// 拨的值 = 盘现状 → 不覆盖(「默认即现状」的正确实现:现状是盘的现状)。
+		expect(mergeOptionsIntoRecord({ cid: 'x', siderealAyanamsa: 'raman' }, 'astrochart', { siderealAyanamsa: 'raman' }).siderealAyanamsa).toBe('raman');
+		// 🔴 用户实锤例红转绿:盘存 Alcabitus(hsys=1) + 选整宫制(0=旧 schema 默认) → 必须写入生效。
+		expect(mergeOptionsIntoRecord({ cid: 'x', hsys: 1 }, 'astrochart', { hsys: 0 }).hsys).toBe(0);
 	});
 
 	it('西洋盘挂载设置暴露 termsVariant 界系(埃及默认/托勒密/莉莉/迦勒底;默认0=现状,prune 不覆盖)', ()=>{
@@ -249,6 +267,16 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		expect(mergeOptionsIntoRecord({ cid: 'x' }, 'astrochart', { termsVariant: 3 }).termsVariant).toBe(3);
 		// 默认 0(埃及)→ prune → 不写 record(守「默认即现状」零回归)
 		expect(pruneOptionsToNonDefault('astrochart', { termsVariant: 0 })).toEqual({});
+	});
+
+	it('🔴 [V6 复查轮] prune 第三参基线直测:比较锚=盘现状而非 schema 默认(判别向量单元级)', ()=>{
+		// 盘存 hsys=0(整宫制),拨 1(恰=schema 默认 Alcabitius):对现状 0 是真覆盖必须保留——
+		// 退化(丢三参/体内 baseline 分支被删)时锚回落 schema 默认 1,拨 1 被剪空,此断言当场红。
+		expect(pruneOptionsToNonDefault('astrochart', { hsys: 1 }, { hsys: 0 })).toEqual({ hsys: 1 });
+		// 对偶:拨值≡盘现状(哪怕≠schema 默认)= 无覆盖剪空。
+		expect(pruneOptionsToNonDefault('astrochart', { hsys: 0 }, { hsys: 0 })).toEqual({});
+		// 基线缺该键 → 回落 schema 默认锚(向后兼容旧语义)。
+		expect(pruneOptionsToNonDefault('astrochart', { hsys: 1 }, {})).toEqual({});
 	});
 
 	it('西洋盘挂载设置暴露本会话希腊化新设置(月交点真平/区分缓冲/狮子土星/三分集含水象变体/福点反转)', ()=>{

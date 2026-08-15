@@ -4,6 +4,9 @@
 import { conditionSummaryText } from './conditionGlyph';
 import { JOINER_CN } from './conditionTypes';
 import { HOUSE_SYSTEM_OPTIONS } from '../../constants/AstroConst';
+// [审计修] 选中时刻整张星盘的判读正文(右栏=占星主页同款七页签,快照曾只有搜索条件与命中区间——
+// 被选时刻那张盘 AI 完全看不见)。headerless 收进单一父段,避免 13 个 astro 子段头泄入 tianxing 键。
+import { buildAstroSnapshotContent } from '../../utils/astroAiSnapshot';
 
 // 经纬度显示格式:度分制+大写方向字母(用户规格,如 119°19′E, 26°05′N;拒绝裸十进制)。
 export function formatGpsDms(lon, lat){
@@ -92,6 +95,17 @@ export function buildTianxingSnapshot(chart, fields, extra, ctx){
 		}
 	}else{
 		lines.push(results ? '时间段内无满足全部条件的时刻。' : '(尚未执行搜索)');
+	}
+	// [选中时刻星盘] 右栏七页签的判读底盘(整张盘 headerless 并入本段;无盘不产段,零回归)。
+	if(chart){
+		try{
+			const body = `${buildAstroSnapshotContent(chart, fields, { headerless: true }) || ''}`.trim();
+			if(body){
+				lines.push('');
+				lines.push('[选中时刻星盘]');
+				lines.push(body);
+			}
+		}catch(e){ /* 星盘正文失败不阻断搜索段 */ }
 	}
 	return lines.join('\n');
 }

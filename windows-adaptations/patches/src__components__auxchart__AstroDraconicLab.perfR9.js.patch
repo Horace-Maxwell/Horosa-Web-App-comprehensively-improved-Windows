@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroDraconicLab.js b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-index 03d719e..a88a6b0 100644
+index c9342893..52ccdb27 100644
 --- a/astrostudyui/src/components/auxchart/AstroDraconicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-@@ -6,6 +6,7 @@ import AstroChart from '../astro/AstroChart';
+@@ -7,6 +7,7 @@ import AstroChart from '../astro/AstroChart';
  import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
  import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
@@ -10,16 +10,16 @@ index 03d719e..a88a6b0 100644
  
  class AstroDraconicLab extends Component {
  	constructor(props){
-@@ -38,7 +39,11 @@ class AstroDraconicLab extends Component {
- 				timeoutMs: 30000,
+@@ -40,7 +41,11 @@ class AstroDraconicLab extends Component {
  			});
  			if(!this._mounted) return;
--			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key });
+ 			const res = unwrapResult(data) || {};
+-			this.setState({ result: res, loading: false, requestKey: key });
 +			// horosa_panel_ready_v1:龙盘中栏(整盘)+右栏(位置/合相表)全由 result 派生,
 +			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(双 rAF 后记,近似本帧已绘)。
-+			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key }, ()=>{
++			this.setState({ result: res, loading: false, requestKey: key }, ()=>{
 +				markPanelReady('auxchart');
 +			});
- 		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({ loading: false, requestKey: key });
+ 			// [审计修·派生盘快照重定源] 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
+ 			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>{
+ 				const out = ['[龙盘]'];

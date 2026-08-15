@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroRelocationLab.js b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
-index ea6e637..e20e738 100644
+index 6a7c42ac..d3626e85 100644
 --- a/astrostudyui/src/components/auxchart/AstroRelocationLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
-@@ -17,6 +17,8 @@ import {
+@@ -18,6 +18,8 @@ import {
  	formatLatDms, formatLonDms,
  } from '../astro/AstroHelper';
  import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
@@ -11,7 +11,7 @@ index ea6e637..e20e738 100644
  
  const TabPane = XQTabs.TabPane;
  
-@@ -56,10 +58,17 @@ class AstroRelocationLab extends Component{
+@@ -57,10 +59,17 @@ class AstroRelocationLab extends Component{
  			loading: false,
  			result: null,
  			requestKey: '',
@@ -29,20 +29,20 @@ index ea6e637..e20e738 100644
  	}
  
  	componentDidMount(){
-@@ -130,7 +139,11 @@ class AstroRelocationLab extends Component{
- 				timeoutMs: 30000,
+@@ -132,7 +141,11 @@ class AstroRelocationLab extends Component{
  			});
  			if(!this._mounted) return;
--			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+ 			const res = unwrapResult(data) || {};
+-			this.setState({result: res, loading: false, requestKey: key});
 +			// horosa_panel_ready_v1:重置盘中栏(异地整盘)+右栏(信息/相位/行星…六页签)全由 result 派生,
 +			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
-+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{
++			this.setState({result: res, loading: false, requestKey: key}, ()=>{
 +				markPanelReady('auxchart');
 +			});
- 		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({loading: false, requestKey: key});
-@@ -176,8 +189,13 @@ class AstroRelocationLab extends Component{
+ 			// [审计修·派生盘快照重定源] 出盘即存:整张重置盘 + [重置盘] 专属段(地点/四角对比)。
+ 			saveDerivedAstroSnapshot('relocation', res.chart, this.props.fields, ()=>{
+ 				const out = ['[重置盘]'];
+@@ -192,8 +205,13 @@ class AstroRelocationLab extends Component{
  	renderContentPanel(chartObj, fields, tabHeight){
  		return (
  			<div className="horosa-inspector-panel horosa-astro-content-panel">
@@ -57,7 +57,7 @@ index ea6e637..e20e738 100644
  						<AstroInfo mode="summary" height={tabHeight}
  							value={chartObj} fields={fields}
  							planetDisplay={this.props.planetDisplay}
-@@ -185,8 +203,10 @@ class AstroRelocationLab extends Component{
+@@ -201,8 +219,10 @@ class AstroRelocationLab extends Component{
  							showAstroMeaning={this.props.showAstroMeaning}
  							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  						/>
@@ -68,7 +68,7 @@ index ea6e637..e20e738 100644
  						<AstroAspect
  							value={chartObj} height={tabHeight}
  							lotsDisplay={this.props.lotsDisplay}
-@@ -194,8 +214,10 @@ class AstroRelocationLab extends Component{
+@@ -210,8 +230,10 @@ class AstroRelocationLab extends Component{
  							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  							showAstroMeaning={this.props.showAstroMeaning}
  						/>
@@ -79,7 +79,7 @@ index ea6e637..e20e738 100644
  						<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  							<AstroPlanet
  								value={chartObj}
-@@ -208,8 +230,10 @@ class AstroRelocationLab extends Component{
+@@ -224,8 +246,10 @@ class AstroRelocationLab extends Component{
  								<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  							</div>
  						</div>
@@ -90,7 +90,7 @@ index ea6e637..e20e738 100644
  						<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
  							<AstroInfo mode="classical" height={tabHeight}
  								value={chartObj} fields={fields}
-@@ -219,19 +243,24 @@ class AstroRelocationLab extends Component{
+@@ -235,19 +259,24 @@ class AstroRelocationLab extends Component{
  								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  							/>
  						</div>

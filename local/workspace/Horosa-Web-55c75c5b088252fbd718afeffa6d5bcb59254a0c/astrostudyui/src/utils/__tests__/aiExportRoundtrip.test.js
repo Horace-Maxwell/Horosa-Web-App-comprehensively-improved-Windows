@@ -394,3 +394,24 @@ describe('AI 导出 roundtrip 哨兵:段头卫生(段头字面量独占一行)',
 		expect(offenders).toEqual([]);
 	});
 });
+
+// ══ [W2·E-4/E-10] 设置面分组 allowlist 锁 + 默认关段派生锁 ══
+describe('[W2] 分组收编与默认关段哨兵', ()=>{
+	it('🔴 GROUPS 全收编:任何键落「其他」组=红(新键必须有意识归组,不再静默降级)', ()=>{
+		const { listAIExportTechniqueSettingGroups } = require('../aiExport');
+		const groups = listAIExportTechniqueSettingGroups();
+		const rest = groups.find((g)=>g.title === '其他');
+		expect(rest ? rest.items.map((i)=>i.key) : []).toEqual([]);
+	});
+	it('🔴 qimenzeri 默认关段 ⊇ qimen(单源派生,双份手抄漂移=红)', ()=>{
+		const q = getAIExportDefaultOffSet('qimen');
+		const z = getAIExportDefaultOffSet('qimenzeri');
+		expect(!!q && !!z).toBe(true);
+		expect([...q].every((s)=>z.has(s))).toBe(true);
+	});
+	it('[E-6] calendar 子源标签单源锁:CALENDAR_SUB_SOURCE_LABELS 每名 ∈ preset.calendar(通书择日共用既有段名)', ()=>{
+		const { CALENDAR_SUB_SOURCE_LABELS } = require('../aiExport');
+		const preset = new Set(AI_EXPORT_PRESET_SECTIONS.calendar);
+		CALENDAR_SUB_SOURCE_LABELS.forEach((label)=>expect(preset.has(label)).toBe(true));
+	});
+});

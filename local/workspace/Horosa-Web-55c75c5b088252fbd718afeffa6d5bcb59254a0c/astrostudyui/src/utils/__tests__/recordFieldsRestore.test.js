@@ -79,6 +79,7 @@ const AI_BUILDER_EXEMPT = {
 const METADATA_EXEMPT = {
 	isPub: '公开标记', creator: '创建者', updateTime: '更新时间戳',
 	payload: '事盘负载信封', sourceModule: '来源技法键', chartType: '盘族标记',
+	memo: '通用备注(表单直填,setCurrentChart 镜像,非排盘输入)',
 };
 
 describe('命盘储存→载入 全字段透传哨兵（保存/消费/还原 三清单防漂移）', ()=>{

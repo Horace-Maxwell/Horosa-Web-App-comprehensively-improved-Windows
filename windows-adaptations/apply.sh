@@ -274,7 +274,9 @@ echo "== 22. PERF-R7 T-6 预测性预计算(点击→显示体感瞬间;perfFlag
 # 信封不进缓存=对既有路径也是净改善)。perfFlags 开关已并入 §7 的累积补丁。跨平台,建议上游化 Mac。
 # 守卫 marker 取最新(gotcha #48):PERF-R9 给快车道补了 markChartRefreshEnd 调用,
 # marker 换成该次改动引入的 horosa_interaction_span_v1,旧状态 grep 不到必定重打。
-apply_patch reportStepUnit                 astrostudyui/src/models/astro.js                             src__models__astro.precomputeFetch.js.patch
+# [#94 守卫换血 v3.9.2] 原守卫 reportStepUnit 已被上游收编(文件里天然存在)⇒ 幂等判定恒真、整补丁被静默跳过。
+# 换成本补丁独有的 horosa_pump_skew_v1(上游永不带它);post-apply marker 校验仍逐 marker 兜底。
+apply_patch horosa_pump_skew_v1            astrostudyui/src/models/astro.js                             src__models__astro.precomputeFetch.js.patch
 apply_patch markChartCacheHit              astrostudyui/src/services/astro.js                           src__services__astro.chartMemValidOnly.js.patch
 apply_patch scheduleLivePrecompute         astrostudyui/src/components/comp/ChartFormData.js            src__components__comp__ChartFormData.livePrecompute.js.patch
 apply_patch onLivePrecompute               astrostudyui/src/components/astro/AstroFormComp.js           src__components__astro__AstroFormComp.livePrecompute.js.patch
@@ -466,8 +468,8 @@ apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/rule
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/ruleziwei/RuleHuaDesc.js           src__components__ruleziwei__RuleHuaDesc.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/ruleziwei/RuleSihua.js             src__components__ruleziwei__RuleSihua.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/ruleziwei/RuleStars.js             src__components__ruleziwei__RuleStars.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/user/CaseList.js                   src__components__user__CaseList.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/user/ChartList.js                  src__components__user__ChartList.perfR9.js.patch
+# [v3.9.2 退役] CaseList/ChartList 稳定 key 已被上游超集收编(档案列表重写为内容派生 key={item}/key={r.key},
+# randomStr 整个消失;全站仍有 no-random-React-keys 门看守)。补丁删除,哨兵迁移,详 README 行 30a 注。
 
 # ---- 30b kentang 原始 fetch 结果缓存(horosa_kentang_result_cache_v1)----
 # 14 个 kentang raw-fetch 调用点里 **11 个零缓存**(它们绕过 utils/request ⇒ 绕过 requestDedupe/
@@ -798,6 +800,19 @@ echo "== 37. PERF-R12 Phase-2 宗师轮渲染切片六件(净新补丁;既有 15
 apply_patch horosa_guolao_render_slice_v1        astrostudyui/src/components/guolao/GuoLaoInput.js                src__components__guolao__GuoLaoInput.renderSlice.js.patch
 apply_patch horosa_aux_render_slice_v1           astrostudyui/src/components/germany/UranianDialStyle.js          src__components__germany__UranianDialStyle.dispMemo.js.patch
 apply_patch localChartsVersion                   astrostudyui/src/utils/localcharts.js                            src__utils__localcharts.writeVersion.js.patch
+# v3.9.2:写盘口收编进内核 ⇒ 写版本号随之迁入(shim 只转发);两补丁成对,缺一即消费方(量化盘)断链。
+apply_patch getWriteVersion                      astrostudyui/src/utils/localRecordStore.js                       src__utils__localRecordStore.writeVersion.js.patch
+# v3.9.2 check-no-undef 门抓获的上游 bug(两端同病):aiAnalysisContext 引用未 import 的
+# DEFAULT_PD_TYPE → 主限法盘配置段在 try 里恒降级 = 本版宣称的补齐从未生效。建议上游同步。
+apply_patch horosa_no_undef_fix_v1               astrostudyui/src/utils/aiAnalysisContext.js                      src__utils__aiAnalysisContext.noUndefFix.js.patch
+# v3.9.2「双保险副本」的 Electron 对位:上游走 Tauri invoke,Electron 无 __TAURI__ ⇒ 不对位则
+# 该数据保险在 Windows 静默不存在。壳层 IPC(main.js/preload.js,HARNESS_MANIFEST 域)+ 本适配层成套。
+apply_patch horosa_shadow_mirror_electron_v1     astrostudyui/src/utils/shadowMirror.js                           src__utils__shadowMirror.electronBridge.js.patch
+# v3.9.2 上游存储键注册表([V4] 穷举哨兵「新键不登记即红」):Windows-ahead 键必须入册,
+# 否则 umi 全量必红。快照补丁=形状快照测试的 jest -u 留痕(注册表与快照必须成对,缺快照那张
+# 补丁则下轮同步后 umi「形状快照」测试红)。
+apply_patch horosa_windows_storage_keys_v1       astrostudyui/src/utils/storageKeyRegistry.js                     src__utils__storageKeyRegistry.windowsKeys.js.patch
+apply_patch horosa.boot.lastChart.v1             astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap src__utils__tests__snapshots__storageRegistryCompleteness.snap.patch
 # Z5 否决线(评估后不做)以在码注释形式常驻 —— 防下一轮优化者再走同一条弯路;3 行纯注释补丁。
 apply_patch "W3b-Z5"                             astrostudyui/src/components/divination/DivinationChartShell.js   src__components__divination__DivinationChartShell.z5Decline.js.patch
 # W3g 纯时间步进→补间链路源级钉(五针);Astro3D 本体零改动,只加测试。

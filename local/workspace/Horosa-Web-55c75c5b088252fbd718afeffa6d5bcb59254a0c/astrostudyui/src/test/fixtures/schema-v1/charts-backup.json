@@ -1,0 +1,40 @@
+{
+	"format": "horosa-local-charts",
+	"version": 1,
+	"exportedAt": "2026-08-01T00:00:00.000Z",
+	"total": 2,
+	"charts": [
+		{
+			"cid": "local-fixture-v1-a",
+			"name": "夹具甲(v1无schemaVersion)",
+			"birth": "1984-11-05 06:30:00",
+			"ad": 1,
+			"zone": "+08:00",
+			"lat": "39n54",
+			"lon": "116e23",
+			"pos": "北京",
+			"gender": 1,
+			"isPub": 0,
+			"group": "夹具",
+			"creator": "local",
+			"updateTime": "2026-07-01 10:00:00",
+			"memoAstro": "v1 世界的技法批注",
+			"hsys": 1
+		},
+		{
+			"cid": "local-fixture-v1-b",
+			"name": "夹具乙",
+			"birth": "1992-03-18 21:15:00",
+			"ad": 1,
+			"zone": "+08:00",
+			"lat": "31n12",
+			"lon": "121e30",
+			"pos": "上海",
+			"gender": 0,
+			"isPub": 0,
+			"creator": "local",
+			"updateTime": "2026-07-02 11:00:00",
+			"future_v1_key": "v1 时代就带的未知键(迁移不许丢)"
+		}
+	]
+}

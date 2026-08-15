@@ -40,6 +40,9 @@ jest.mock('../localcases', () => ({
 jest.mock('../astroAiSnapshot', () => ({
 	buildAstroSnapshotContent: jest.fn(() => 'snapshot'),
 	loadAstroAISnapshot: jest.fn(() => null),
+	// [审计修] 盘无头补全后消费的两条 line-builder(缺则产线 typeof 守卫回 [],此处给正锚)。
+	buildStarAndLotPositionLines: jest.fn(() => ['太阳 白羊 10.00°']),
+	buildHouseCuspLines: jest.fn(() => ['1宫 白羊 0.00°']),
 }));
 jest.mock('../moduleAiSnapshot', () => ({
 	loadModuleAISnapshot: jest.fn(() => null),
@@ -82,6 +85,10 @@ describe('P5 主限法盘 primarydirchart round-trip', () => {
 		expect(ctx.content).toContain('2025-06-05 10:00:00'); // 所选时间换算后回显
 		expect(ctx.content).toContain('逆向 Converse');       // direction 透传
 		expect(ctx.content).toContain('当前Arc');
+		// [审计修] 盘体补全:本命段带星/宫行(此前无头快照零盘体,AI 拿不到任何星曜宫位)。
+		expect(ctx.content).toContain('[本命盘配置]');
+		expect(ctx.content).toContain('太阳 白羊 10.00°');
+		expect(ctx.content).toContain('[主限法盘配置]');
 		// 不应误用表格 builder 的占位串。
 		expect(ctx.content).not.toContain('主限法表格快照(占位)');
 	});

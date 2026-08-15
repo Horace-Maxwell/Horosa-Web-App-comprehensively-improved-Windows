@@ -1,6 +1,7 @@
 // components/auxchart/AstroDraconicLab.js
 // 龙盘（Draconic）：以月亮北交点归零为白羊 0°，各点黄经减北交点黄经。后端 /astroextra/draconic 出整盘，复用 AstroChart 绘制。
 import { Component } from 'react';
+import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
 import { Row, Col } from 'antd';
 import AstroChart from '../astro/AstroChart';
 import request from '../../utils/request';
@@ -39,10 +40,23 @@ class AstroDraconicLab extends Component {
 				timeoutMs: 30000,
 			});
 			if(!this._mounted) return;
+			const res = unwrapResult(data) || {};
 			// horosa_panel_ready_v1:龙盘中栏(整盘)+右栏(位置/合相表)全由 result 派生,
 			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(双 rAF 后记,近似本帧已绘)。
-			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key }, ()=>{
+			this.setState({ result: res, loading: false, requestKey: key }, ()=>{
 				markPanelReady('auxchart');
+			});
+			// [审计修·派生盘快照重定源] 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
+			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>{
+				const out = ['[龙盘]'];
+				if(res.nodeLon != null){ out.push(`北交点 ${Number(res.nodeLon).toFixed(2)}° → 归零白羊 0°（龙盘基准）`); }
+				(res.positions || []).forEach((row)=>{
+					if(row && row.id){ out.push(`${row.id}：本命黄经 ${row.natalLon != null ? Number(row.natalLon).toFixed(2) : '—'}° → 龙盘 ${row.sign || ''}${row.signlon != null ? Number(row.signlon).toFixed(2) + '°' : ''}`); }
+				});
+				(res.conjunctions || []).forEach((c)=>{
+					if(c && c.a && c.b){ out.push(`同频：${c.a} 合 ${c.b}（误差 ${c.orb != null ? Number(c.orb).toFixed(3) : '—'}）`); }
+				});
+				return out.length > 1 ? out : [];
 			});
 		}catch(e){
 			if(!this._mounted) return;

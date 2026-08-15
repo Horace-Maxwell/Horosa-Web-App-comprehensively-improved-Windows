@@ -20,53 +20,9 @@ export function checkUser(values) {
 	});
 }
 
-export function getUserCharts(values){
-    return request(`${ServerRoot}/user/charts`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function addChart(values){
-    return request(`${ServerRoot}/user/charts/add`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function updateChart(values){
-    return request(`${ServerRoot}/user/charts/update`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function saveMemo(values){
-    return request(`${ServerRoot}/user/charts/memo`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function deleteChart(values){
-    return request(`${ServerRoot}/user/charts/delete`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function fetchAllowedCharts(values){
-    return request(`${ServerRoot}/allowedcharts`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function importChart(values){
-    return request(`${ServerRoot}/user/charts/import`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function exportChart(values){
-    return request(`${ServerRoot}/user/charts/export`, {
-        body: JSON.stringify(values),
-    });
-}
+// [R4] 服务端命盘 CRUD 八函数已删(getUserCharts/addChart/updateChart/saveMemo/deleteChart/
+// fetchAllowedCharts/importChart/exportChart):models/user.js 从未 call 过任何一个(命盘
+// 全走本地 localcharts),属登录多用户时代残留。日后如做云同步按当时协议重写,不留假接口。
 
 
 export function listBooks(values){

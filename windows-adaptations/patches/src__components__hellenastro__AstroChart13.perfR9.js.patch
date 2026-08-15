@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/hellenastro/AstroChart13.js b/astrostudyui/src/components/hellenastro/AstroChart13.js
-index 662976b..5adaf71 100644
+index 86e6cd19..3df5c569 100644
 --- a/astrostudyui/src/components/hellenastro/AstroChart13.js
 +++ b/astrostudyui/src/components/hellenastro/AstroChart13.js
-@@ -5,6 +5,7 @@ import * as Constants from '../../utils/constants';
+@@ -7,6 +7,7 @@ import * as Constants from '../../utils/constants';
  import { randomStr, } from '../../utils/helper';
  import styles from '../../css/styles.less';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
@@ -10,7 +10,7 @@ index 662976b..5adaf71 100644
  
  function fieldsToParams(fields){
  	const params = {
-@@ -157,7 +158,11 @@ class AstroChart13 extends Component{
+@@ -163,7 +164,11 @@ class AstroChart13 extends Component{
  			chartObj: result,
  		};
  
@@ -20,6 +20,6 @@ index 662976b..5adaf71 100644
 +		this.setState(st, ()=>{
 +			markPanelReady('auxchart');
 +		});
- 	}
- 
- 	genParams(){
+ 		// [审计修·派生盘快照重定源] 此前导出/挂载读 astro 单例=本命盘冒充分盘;出盘即存本键快照。
+ 		try{
+ 			const snapKey = this.props.endpoint === 'chart12' ? 'dwadasamsa' : 'hellenastro';

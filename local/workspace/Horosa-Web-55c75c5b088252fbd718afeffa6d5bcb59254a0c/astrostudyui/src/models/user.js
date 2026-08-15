@@ -1,9 +1,10 @@
 import { history } from 'umi';
-import { Modal, } from 'antd';
+import { Modal, message } from 'antd';
 import * as service from '../services/user';
 import DateTime from '../components/comp/DateTime';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
-import { getPagedLocalCharts, upsertLocalChart, removeLocalChart } from '../utils/localcharts';
+import { getPagedLocalCharts, upsertLocalChart, removeLocalChart, listLocalCharts } from '../utils/localcharts';
+import { captureNonDefaultTechniqueFields } from '../utils/recordFieldsRestore';
 import { getPagedLocalCases, upsertLocalCase, removeLocalCase, getCaseTypeMeta } from '../utils/localcases';
 
 
@@ -136,6 +137,23 @@ function newEmptyChartFields(){
 			value: null,
 			name: ['memoSuZhan'],
 		},
+		// [V] 通用备注(命盘表单直填;技法批注 memo* 八槽照旧走右栏「命盘批注」抽屉)。
+		memo: {
+			value: null,
+			name: ['memo'],
+		},
+		rodden: {
+			value: null,
+			name: ['rodden'],
+		},
+		relation: {
+			value: null,
+			name: ['relation'],
+		},
+		sourceNote: {
+			value: null,
+			name: ['sourceNote'],
+		},
 		payload: {
 			value: null,
 			name: ['payload'],
@@ -192,6 +210,30 @@ function newEmptyCaseFields(){
 		caseType: {
 			value: 'liuyao',
 			name: ['caseType'],
+		},
+		// 性别随档(占类影响取用神:六爻占婚男取妻财/女取官鬼)。null=未指定,不落库。
+		// 🔴 曾三段断链:存案入口一直送 caseGenderValue(fields),但此模板无槽 → 表单管道整段丢,
+		// applyCase 的 gender 还原读取永远落空、AI 挂载恒退默认男。
+		gender: {
+			value: null,
+			name: ['gender'],
+		},
+		// [R4] 事盘备注(断后复盘/应期回填;present 才落库)。
+		memo: {
+			value: null,
+			name: ['memo'],
+		},
+		rodden: {
+			value: null,
+			name: ['rodden'],
+		},
+		relation: {
+			value: null,
+			name: ['relation'],
+		},
+		sourceNote: {
+			value: null,
+			name: ['sourceNote'],
 		},
 		isPub: {
 			value: 0,
@@ -414,6 +456,23 @@ export default {
 				value: null,
 				name: ['chartType'],
 			},
+			// [V] 通用备注(与 newEmptyChartFields 同步;此内联初值是第三份模板,缺槽=首挂表单无此栏)
+			memo: {
+				value: null,
+				name: ['memo'],
+			},
+			rodden: {
+				value: null,
+				name: ['rodden'],
+			},
+			relation: {
+				value: null,
+				name: ['relation'],
+			},
+			sourceNote: {
+				value: null,
+				name: ['sourceNote'],
+			},
 
 		},
 		currentCase: {
@@ -530,6 +589,19 @@ export default {
 			chart.memoLiuReng.value = fld.memoLiuReng.value;
 			chart.memoQiMeng.value = fld.memoQiMeng.value;
 			chart.memoSuZhan.value = fld.memoSuZhan.value;
+			if(fld.memo && fld.memo.value !== undefined && chart.memo){
+				chart.memo.value = fld.memo.value;
+			}
+			// [V5-UI尾款] 研究三字段随表单流入(memo 同款)。
+			if(fld.rodden && fld.rodden.value !== undefined && chart.rodden){
+				chart.rodden.value = fld.rodden.value;
+			}
+			if(fld.relation && fld.relation.value !== undefined && chart.relation){
+				chart.relation.value = fld.relation.value;
+			}
+			if(fld.sourceNote && fld.sourceNote.value !== undefined && chart.sourceNote){
+				chart.sourceNote.value = fld.sourceNote.value;
+			}
 			// 日界点 + 晚子时·时柱起干 + 时间算法 随命盘存档(用户拍板,见 dayBoundary.js)。
 			if(fld.after23NewDay && fld.after23NewDay.value !== undefined){
 				chart.after23NewDay.value = fld.after23NewDay.value;
@@ -622,6 +694,19 @@ export default {
 			chart.memoLiuReng.value = values.memoLiuReng;
 			chart.memoQiMeng.value = values.memoQiMeng;
 			chart.memoSuZhan.value = values.memoSuZhan;
+			if(values.memo !== undefined && values.memo !== null && chart.memo){
+				chart.memo.value = `${values.memo}`;
+			}
+			// [V5-UI尾款] 研究三字段镜像(memo 同款:present 才写,旧档无槽防御)。
+			if(values.rodden !== undefined && values.rodden !== null && chart.rodden){
+				chart.rodden.value = `${values.rodden}`;
+			}
+			if(values.relation !== undefined && values.relation !== null && chart.relation){
+				chart.relation.value = `${values.relation}`;
+			}
+			if(values.sourceNote !== undefined && values.sourceNote !== null && chart.sourceNote){
+				chart.sourceNote.value = `${values.sourceNote}`;
+			}
 			chart.payload.value = values.payload;
 			chart.sourceModule.value = values.sourceModule;
 			chart.chartType.value = values.chartType;
@@ -674,6 +759,14 @@ export default {
 			if(values){
 				if(values.caseType !== undefined && values.caseType !== null){
 					caze.caseType.value = values.caseType;
+				}
+				// 性别透传(0=女 合法值,判 undefined/null/空串而非真值)——缺这段则存案入口送来的
+				// caseGenderValue 在此丢失,表单与落库全链拿不到。
+				if(values.gender !== undefined && values.gender !== null && values.gender !== '' && caze.gender){
+					caze.gender.value = parseInt(values.gender + '', 10);
+				}
+				if(values.memo !== undefined && values.memo !== null && caze.memo){
+					caze.memo.value = `${values.memo}`;
 				}
 				if(values.event !== undefined && values.event !== null){
 					caze.event.value = values.event;
@@ -739,6 +832,13 @@ export default {
 			caze.event.value = values.event;
 			caze.pos.value = values.pos;
 			caze.caseType.value = values.caseType;
+			// 性别回填(编辑表单显示既存值;旧档无此键 → 保持模板 null=未指定)
+			if(values.gender !== undefined && values.gender !== null && values.gender !== '' && caze.gender){
+				caze.gender.value = parseInt(values.gender + '', 10);
+			}
+			if(values.memo !== undefined && values.memo !== null && caze.memo){
+				caze.memo.value = `${values.memo}`;
+			}
 			caze.isPub.value = parseInt((values.isPub !== undefined && values.isPub !== null ? values.isPub : 0) + '', 10);
 			caze.cid.value = values.cid;
 			caze.creator.value = values.creator;
@@ -956,7 +1056,13 @@ export default {
 			// (如保存时求测人性别=女、还原时全局=男 → 用神/乾坤造错位)。存档无该字段则跳过、不改现状。
 			// 🔴 [X1 审计] 事盘经 openKentangCaseDrawer 存的这些口径在 payload.fieldSnapshot(嵌套),
 			// 顶层同名键永不存在 → 此前全仓只写不读、载入必回落全局当前值;读取补嵌套回退(顶层优先兼容旧档)。
-			const caseFieldSnap = (values.payload && values.payload.fieldSnapshot && typeof values.payload.fieldSnapshot === 'object') ? values.payload.fieldSnapshot : {};
+			// 🔴 payload 落库恒为 JSON 串(normalizePayload),列表「选择」把原样 record 派发进来 ——
+			// 只认对象形态则 fieldSnapshot 在主路径上永远读不到(X1 修复对列表载入失效)。串先解析,坏串回退。
+			let casePayloadObj = values.payload;
+			if(typeof casePayloadObj === 'string' && casePayloadObj){
+				try{ casePayloadObj = JSON.parse(casePayloadObj); }catch(e){ casePayloadObj = null; }
+			}
+			const caseFieldSnap = (casePayloadObj && casePayloadObj.fieldSnapshot && typeof casePayloadObj.fieldSnapshot === 'object') ? casePayloadObj.fieldSnapshot : {};
 			const pickCaseField = (k)=>{
 				const v = values[k] !== undefined && values[k] !== null && values[k] !== '' ? values[k] : caseFieldSnap[k];
 				return v === undefined || v === null || v === '' ? null : v;
@@ -1037,7 +1143,7 @@ export default {
 
 		},
 
-		*addChart({ payload: values }, { call, put }){
+		*addChart({ payload: values }, { call, put, select }){
 			const param = {
 				...values,
 			};
@@ -1046,7 +1152,29 @@ export default {
 					param.birth = values.birth.format('YYYY-MM-DD HH:mm:ss');
 					param.zone = values.birth.zone;
 				}
+				// [R4 随盘保真] 保存命盘时捕获「当前技法排盘设置 ≠ schema 默认」的键随盘落库
+				// (埃及历「非默认才落键」范式推广,用户拍板)。捕获面=还原清单键集(对称闭合);
+				// 表单信封已有的键不覆写;全默认零落键 → 旧行为/旧记录体积语义零变。
+				// 仅新建捕获 —— updateChart 不捕获:编辑元数据不应把当前全局设置盖到旧记录上。
+				const astrostate = yield select((s)=>s.astro);
+				const captured = captureNonDefaultTechniqueFields(astrostate ? astrostate.fields : null);
+				Object.keys(captured).forEach((k)=>{
+					if(param[k] === undefined){
+						param[k] = captured[k];
+					}
+				});
 				const rec = upsertLocalChart(param);
+				// [R4 重复检测] 同名同生辰提示(不拦截保存 —— 双胞胎/重录皆合法,只提醒区分)。
+				try{
+					if(rec && rec.name){
+						const same = listLocalCharts({ name: rec.name }).filter((r)=> r.name === rec.name && r.birth === rec.birth);
+						if(same.length > 1){
+							message.warning(`已存在 ${same.length} 条同名同生辰命盘，请注意区分（可编辑改名或加标签）`);
+						}
+					}
+				}catch(e){
+					// 提示尽力而为,绝不阻断保存
+				}
 				yield put({
 		                type: 'setCurrentChart',
 		                payload: rec,

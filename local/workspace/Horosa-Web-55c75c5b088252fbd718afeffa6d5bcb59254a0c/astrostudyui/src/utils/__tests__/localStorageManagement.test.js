@@ -543,3 +543,159 @@ describe('local chart and case management', ()=>{
 		expect(record.payload.pan.key).toBe('kept');
 	});
 });
+
+describe('tag aggregation for filter dropdowns', ()=>{
+	// 🔴 标签筛选断线双修的金标:选项源必须来自本地库记录自身的 group(与筛选判据同源)。
+	// 原 UI 读登录用户档案 userInfo.group —— 纯本地桌面态恒 null,下拉永远为空(死开关)。
+	const { listLocalChartTags } = require('../localcharts');
+	const { listLocalCaseTags } = require('../localcases');
+
+	it('aggregates chart tags across records, deduped, first-seen order, skipping empty groups', ()=>{
+		upsertLocalChart({ name: 'a', birth: '1990-01-01 08:00:00', zone: '+08:00', group: ['家人', '客户'] });
+		upsertLocalChart({ name: 'b', birth: '1991-01-01 08:00:00', zone: '+08:00', group: ['客户', '名人'] });
+		upsertLocalChart({ name: 'c', birth: '1992-01-01 08:00:00', zone: '+08:00' });
+		expect(listLocalChartTags()).toEqual(['家人', '客户', '名人']);
+	});
+
+	it('aggregates case tags the same way and tolerates malformed group payloads', ()=>{
+		upsertLocalCase({ event: 'x', caseType: 'liuyao', divTime: '2026-01-01 10:00:00', zone: '+08:00', group: ['六爻', '婚姻'] });
+		upsertLocalCase({ event: 'y', caseType: 'taiyi', divTime: '2026-01-02 10:00:00', zone: '+08:00', group: ['婚姻'] });
+		const raw = JSON.parse(window.localStorage.getItem('horosa.localCases.v1'));
+		raw.push({ cid: 'corrupt', event: 'z', group: '{not-json' });
+		window.localStorage.setItem('horosa.localCases.v1', JSON.stringify(raw));
+		expect(listLocalCaseTags()).toEqual(['六爻', '婚姻']);
+	});
+
+	it('returns empty list on empty store (no throw)', ()=>{
+		expect(listLocalChartTags()).toEqual([]);
+		expect(listLocalCaseTags()).toEqual([]);
+	});
+});
+
+describe('[R4] store 级排序与事盘类型筛选', ()=>{
+	it('orderBy=name 中文 locale 排序、orderDir 双向;缺省仍 updateTime 倒序(零回归)', ()=>{
+		window.localStorage.clear();
+		upsertLocalChart({ cid: 'c1', name: '张三', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'c2', name: '李四', birth: '1991-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-02 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'c3', name: '王五', birth: '1989-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-03 10:00:00', preserveUpdateTime: true });
+		expect(listLocalCharts().map((r)=>r.name)).toEqual(['王五', '李四', '张三']);   // 缺省 updateTime 倒序
+		const asc = listLocalCharts({ orderBy: 'name', orderDir: 'asc' }).map((r)=>r.name);
+		const desc = listLocalCharts({ orderBy: 'name', orderDir: 'desc' }).map((r)=>r.name);
+		expect(asc.slice().reverse()).toEqual(desc);
+		expect(listLocalCharts({ orderBy: 'birth', orderDir: 'asc' }).map((r)=>r.cid)).toEqual(['c3', 'c1', 'c2']);
+		expect(listLocalCharts({ orderBy: 'updateTime', orderDir: 'asc' }).map((r)=>r.cid)).toEqual(['c1', 'c2', 'c3']);
+	});
+
+	it('事盘 caseType 精确筛选,与标签/检索可叠加', ()=>{
+		window.localStorage.clear();
+		upsertLocalCase({ cid: 'k1', event: '占婚', caseType: 'liuyao', divTime: '2026-01-01 10:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
+		upsertLocalCase({ cid: 'k2', event: '占事', caseType: 'taiyi', divTime: '2026-01-02 10:00:00', zone: '+08:00', updateTime: '2026-08-02 10:00:00', preserveUpdateTime: true });
+		upsertLocalCase({ cid: 'k3', event: '占婚二', caseType: 'liuyao', divTime: '2026-01-03 10:00:00', zone: '+08:00', updateTime: '2026-08-03 10:00:00', preserveUpdateTime: true });
+		expect(listLocalCases({ caseType: 'liuyao' }).map((r)=>r.cid)).toEqual(['k3', 'k1']);
+		expect(listLocalCases({ caseType: 'liuyao', name: '二' }).map((r)=>r.cid)).toEqual(['k3']);
+		expect(listLocalCases({ caseType: 'qimen' })).toEqual([]);
+	});
+});
+
+describe('[V] 置顶/置底三层分区 + 命盘通用备注全链', ()=>{
+	const { pinLocalChart } = require('../localcharts');
+
+	function seed3(){
+		window.localStorage.clear();
+		upsertLocalChart({ cid: 'p1', name: '甲', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'p2', name: '乙', birth: '1991-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-02 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'p3', name: '丙', birth: '1992-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-03 10:00:00', preserveUpdateTime: true });
+	}
+
+	it('🔴 默认序按用户自定义(置顶恒前/置底恒后);表头排序**完全覆盖**自定义;取消回默认;不刷新 updateTime', ()=>{
+		seed3();
+		const before = listLocalCharts().find((r)=>r.cid === 'p1').updateTime;
+		pinLocalChart('p1', 1);      // 最旧的甲置顶
+		pinLocalChart('p3', -1);     // 最新的丙置底
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['p1', 'p2', 'p3']);
+		// [排序定谳] 表头升序/降序=纯按字段规则,置顶/置底让位(名 asc 拼音:丙<甲<乙)
+		expect(listLocalCharts({ orderBy: 'name', orderDir: 'asc' }).map((r)=>r.cid)).toEqual(['p3', 'p1', 'p2']);
+		// 取消表头排序 → 回用户自定义序
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['p1', 'p2', 'p3']);
+		expect(listLocalCharts().find((r)=>r.cid === 'p1').updateTime).toBe(before);   // 置顶不改「最近更新」
+		pinLocalChart('p1', 0);
+		pinLocalChart('p3', 0);
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['p3', 'p2', 'p1']);          // 回 updateTime 倒序
+		expect('pinTier' in listLocalCharts().find((r)=>r.cid === 'p1')).toBe(false);
+	});
+
+	it('置顶态经 导出→清库→导入 保真(upsert 内核级透传,不被 buildRecord 剥)', ()=>{
+		seed3();
+		pinLocalChart('p2', 1);
+		const backup = exportLocalChartsBackup();
+		window.localStorage.clear();
+		importLocalChartsBackup(backup);
+		const rec = listLocalCharts().find((r)=>r.cid === 'p2');
+		expect(rec.pinTier).toBe(1);
+		expect(listLocalCharts()[0].cid).toBe('p2');
+	});
+
+	it('🔴 命盘通用备注 memo 全链:落库(present 才落)→读回→导出导入保真;未填零落键', ()=>{
+		window.localStorage.clear();
+		upsertLocalChart({ cid: 'm1', name: '带备注', birth: '1990-01-01 08:00:00', zone: '+08:00', memo: '客户介绍,复盘于秋后', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'm2', name: '无备注', birth: '1991-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-02 10:00:00', preserveUpdateTime: true });
+		expect(listLocalCharts().find((r)=>r.cid === 'm1').memo).toBe('客户介绍,复盘于秋后');
+		expect('memo' in listLocalCharts().find((r)=>r.cid === 'm2')).toBe(false);
+		const backup = exportLocalChartsBackup();
+		window.localStorage.clear();
+		importLocalChartsBackup(backup);
+		expect(listLocalCharts().find((r)=>r.cid === 'm1').memo).toBe('客户介绍,复盘于秋后');
+		expect('memo' in listLocalCharts().find((r)=>r.cid === 'm2')).toBe(false);
+	});
+});
+
+describe('[V] 删除确认「下次不再提醒」偏好', ()=>{
+	const { shouldSkipDeleteConfirm, setSkipDeleteConfirm, clearSkipDeleteConfirm } = require('../uiPrefs');
+	it('缺省提醒开启;设后跳过;清除即恢复(后悔药)', ()=>{
+		window.localStorage.removeItem('horosa.ui.skipDeleteConfirm.v1');
+		expect(shouldSkipDeleteConfirm()).toBe(false);
+		setSkipDeleteConfirm();
+		expect(shouldSkipDeleteConfirm()).toBe(true);
+		clearSkipDeleteConfirm();
+		expect(shouldSkipDeleteConfirm()).toBe(false);
+	});
+});
+
+describe('[V] 上移/下移(同层相邻交换有效排序键)', ()=>{
+	const { moveLocalChart, pinLocalChart } = require('../localcharts');
+
+	function seed3m(){
+		window.localStorage.clear();
+		upsertLocalChart({ cid: 'q1', name: '甲', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'q2', name: '乙', birth: '1991-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-02 10:00:00', preserveUpdateTime: true });
+		upsertLocalChart({ cid: 'q3', name: '丙', birth: '1992-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-03 10:00:00', preserveUpdateTime: true });
+	}
+
+	it('🔴 上移/下移交换相邻;边界不动;固化 orderKey 与时间序同轴无缝混排', ()=>{
+		seed3m();
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q3', 'q2', 'q1']);
+		moveLocalChart('q2', -1);   // 乙上移 → 越过丙
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q2', 'q3', 'q1']);
+		moveLocalChart('q2', -1);   // 已最前,边界不动
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q2', 'q3', 'q1']);
+		moveLocalChart('q1', 1);    // 已最后,边界不动
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q2', 'q3', 'q1']);
+		moveLocalChart('q2', 1);    // 乙下移回去
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q3', 'q2', 'q1']);
+	});
+
+	it('层内移动不越层(置顶层内移动,不影响中层);导出导入后手动序保真', ()=>{
+		seed3m();
+		pinLocalChart('q1', 1);
+		pinLocalChart('q2', 1);     // 顶层 [q2(新), q1(旧)]
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q2', 'q1', 'q3']);
+		moveLocalChart('q1', -1);   // 顶层内 q1 上移
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q1', 'q2', 'q3']);
+		moveLocalChart('q1', -1);   // 顶层边界,不掉层
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q1', 'q2', 'q3']);
+		const backup = exportLocalChartsBackup();
+		window.localStorage.clear();
+		importLocalChartsBackup(backup);
+		expect(listLocalCharts().map((r)=>r.cid)).toEqual(['q1', 'q2', 'q3']);   // orderKey+pinTier 双保真
+	});
+});

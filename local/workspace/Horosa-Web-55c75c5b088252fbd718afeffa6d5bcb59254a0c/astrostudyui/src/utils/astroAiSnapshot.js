@@ -12,6 +12,8 @@ import { buildPatternOverview } from './astroPatternOverview';
 import { SIGNS } from '../divination/data/signs';
 import { buildEgyptSectionLines } from '../components/astro/AstroEgypt'; // [埃及历]段本盘派生(纯函数;已验证无环:AstroEgypt 不回 import 本文件)
 import { currentEgyptSchool, egyptSchoolFromFields } from '../divination/data/egyptianSchools'; // 埃及流派口径(record 随盘键优先,回落全局)
+// 古典衍化四段(opt-in)行构建:零组件依赖单源(与 AstroDerivedHouses/AstroKlimata/AstroEminence/AstroThemaMundi 同引)。
+import { buildDerivedHousesSnapshotLines, buildKlimataSnapshotLines, buildEminenceSnapshotLines, buildThemaMundiSnapshotLines } from './astroClassicalDerived';
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -339,8 +341,11 @@ function buildBaseInfoLines(chartObj, fields){
 		lines.push(`排盘规则：日柱开关【${dayLabel}】+ 时柱开关【${hourLabel}】。本盘四柱按此规则计算。`);
 	}
 
-	const zodiacal = chart.zodiacal || AstroConst.ZODIACAL[fieldValue(fields, 'zodiacal')];
-	const hsys = chart.hsys || AstroConst.HouseSys[fieldValue(fields, 'hsys')];
+	// [V6-W2] 🔴 取值源统一为「请求参数优先、后端 echo 兜底」(与 buildPredictiveBirthLines:1795 同序):
+	// fields 数字值就是发出去的排盘入参 —— 标注与计算恒同源;此前 chart echo 优先,与同文件推运行
+	// 双标准并存(echo 缺失/命名不一时标注口径漂)。
+	const zodiacal = AstroConst.ZODIACAL[fieldValue(fields, 'zodiacal')] || chart.zodiacal;
+	const hsys = AstroConst.HouseSys[fieldValue(fields, 'hsys')] || chart.hsys;
 	if(zodiacal || hsys){
 		const ayanKey = fieldValue(fields, 'siderealAyanamsa', '') || (chart && chart.siderealAyanamsa) || '';
 		const zodiacalTxt = zodiacal ? AstroConst.zodiacalDisplayText(zodiacal, ayanKey) : msg(zodiacal);
@@ -1138,11 +1143,28 @@ export function createAstroSnapshotSignature(chartObj, fields, options = {}){
 	// 必入签名，否则换 ayanāṃśa 后 hasMatchingSavedAstroSnapshot 误判旧快照可复用（Lahiri 快照套到 Raman 盘）。
 	// 追加在末位：旧签名无 parts[9] → 解码为 '' → 匹配守卫跳过 → 旧快照行为逐字不变（向后兼容）。
 	const siderealAyanamsa = params.siderealAyanamsa || fieldValue(fields, 'siderealAyanamsa') || '';
-	return [chartId, birth, zone, lon, lat, zodiacal, hsys, chart.isDiurnal ? '1' : '0', onlyRulerExaltReception ? '1' : '0', siderealAyanamsa].join('|');
+	// [V6-W1] 宫制/黄道**数字位**追加(parts[10]/parts[11]):parts[5]/[6] 是后端 echo 文本
+	// (如 'Alcabitius'),与 record 数字值无可靠映射(前端表还有 Alcabitus 拼写差)——不可比对。
+	// 数字位来源=本次排盘的 fields 实值,与 record 同数轴 → hasMatchingSavedAstroSnapshot 精确
+	// 失效判定「换宫制/换黄道必重算」。旧签名无此二位 → 解码 '' → 守卫跳过(siderealAyanamsa 同范式,向后兼容)。
+	const hsysNum = fieldValue(fields, 'hsys');
+	const zodiacalNum = fieldValue(fields, 'zodiacal');
+	// [V6 二轮复查] parts[12]/[13]=择宫传统/界系数字位:两键改快照正文(界主/接纳/古典段)最重,
+	// 此前不在比对键集 → 命盘页开 tradition=1 落的快照,挂载 tradition=0 的盘整份复用(与宫制
+	// 实锤「根因 B」同构,换了齿轮而已)。同 hsysNum 范式:旧签名缺位=''=守卫跳过,向后兼容。
+	const traditionNum = fieldValue(fields, 'tradition');
+	const termsVariantNum = fieldValue(fields, 'termsVariant');
+	return [chartId, birth, zone, lon, lat, zodiacal, hsys, chart.isDiurnal ? '1' : '0', onlyRulerExaltReception ? '1' : '0', siderealAyanamsa,
+		(hsysNum !== undefined && hsysNum !== null) ? `${hsysNum}` : '',
+		(zodiacalNum !== undefined && zodiacalNum !== null) ? `${zodiacalNum}` : '',
+		(traditionNum !== undefined && traditionNum !== null) ? `${traditionNum}` : '',
+		(termsVariantNum !== undefined && termsVariantNum !== null) ? `${termsVariantNum}` : ''].join('|');
 }
 
 // === 古典占星(WI-00..28 逐曜状态 + 围攻详断);标签与 AstroInfo.js 古典渲染严格一致(单一语义源)。===
 const CLS_STATUS_IDS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+// 数值安全短格式(两位内去尾零;非数原样)——恒星触发容许度/参照星黄经距等补列用。
+const fmtNumSafe = (v)=>{ const n = Number(v); return Number.isFinite(n) ? `${Math.round(n * 100) / 100}` : `${v}`; };
 const CLS_PHASE = { cazimi: '核心', combust: '焦伤', underBeams: '日光束下', free: '自由光' };
 const CLS_PHASE_EVENT = { morningRising: '晨星初现', eveningSetting: '昏星初没' };
 const CLS_QUALITY = { B: '明度', D: '暗度', E: '空度', S: '烟度' };
@@ -1395,7 +1417,12 @@ export function buildClassicalAnalysisSection(analysis){
 	if(ta.length){ lines.push('逐题主星'); lines.push(ta.join('；')); }
 	const acc = (analysis.accidentalDignity || []).filter((r)=> r && r.planet).map((r)=> `${msg(r.planet)} ${r.score}（${(r.factors || []).join('·')}）`);
 	if(acc.length){ lines.push('偶然尊贵'); lines.push(...acc); }
-	const fs = (analysis.fixedStarHits || []).map((s)=> `${msg(s.point)} 合 ${s.cn || s.star}${s.behenian ? '·比尼' : ''}${s.royal ? `·王者${s.royal}` : ''}`);
+	// [审计修] 补 位置/容许度 两列(右栏恒星触发表渲染有快照曾无;字段缺省不产,零回归)。
+	const fs = (analysis.fixedStarHits || []).map((s)=>{
+		const pos = (s.sign && s.signlon !== undefined && s.signlon !== null) ? `·${formatSignDegree(s.sign, s.signlon)}` : '';
+		const orb = (s.orb !== undefined && s.orb !== null) ? `·容许${fmtNumSafe(s.orb)}°` : '';
+		return `${msg(s.point)} 合 ${s.cn || s.star}${pos}${orb}${s.behenian ? '·比尼' : ''}${s.royal ? `·王者${s.royal}` : ''}`;
+	});
 	if(fs.length){ lines.push('恒星触发'); lines.push(fs.join('；')); }
 	const ph = analysis.planetaryHours;
 	if(ph && ph.dayRuler){
@@ -1420,10 +1447,15 @@ export function buildClassicalAnalysisSection(analysis){
 		if(eg.decanIndex){ parts.push(`上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
 		if(parts.length){ lines.push(`埃及历：${parts.join('；')}`); }
 	}
-	const bab = (analysis.babylonianStars || []).filter((b)=> b && b.conj).map((b)=> {
+	// [审计修] 曾 .filter(b.conj) 只留合相行且丢黄经距——右栏参照星定位表渲染全部行(含 dist);
+	// 现全行输出,合相加注、非合相带距(与渲染同宽)。
+	const bab = (analysis.babylonianStars || []).filter((b)=> b && (b.planet || b.star)).map((b)=> {
 		// 定名距星表升级:附楔文读法(上/下·前/后 X 肘 Y 指);老数据无此键时保持原行(零回归)。
 		const rd = (b.latDir !== undefined) ? `(${b.latDir}${b.lonDir} ${b.cubits} 肘 ${b.fingers} 指)` : '';
-		return `${msg(b.planet)} 合参照星 ${b.cn || b.star}${rd}`;
+		const dist = (b.dist !== undefined && b.dist !== null) ? `·距${fmtNumSafe(b.dist)}°` : '';
+		return b.conj
+			? `${msg(b.planet)} 合参照星 ${b.cn || b.star}${rd}${dist}`
+			: `${msg(b.planet)} 近参照星 ${b.cn || b.star}${rd}${dist}`;
 	});
 	if(bab.length){ lines.push('巴比伦参照星'); lines.push(bab.join('；')); }
 	// 相位格局(Grand Trine/T-Square/Yod/Stellium…)、分布权重(元素/模态/半球)、气质(四液)、Almuten 总主 —
@@ -1482,7 +1514,8 @@ export function buildClassicalAnalysisSection(analysis){
 	const extra = (analysis.extraLots || []).filter((l)=> l && l.label);
 	if(extra.length){
 		lines.push('阿拉伯点(扩展)');
-		extra.slice(0, 60).forEach((l)=>{
+		// [审计修] 截断上限对齐 UI(渲染 120,快照曾 60——61-120 条渲染有快照无)。
+		extra.slice(0, 120).forEach((l)=>{
 			const cnLabel = CLS_LOT_CN[l.label] || l.label;
 			const cat = l.category ? `（${l.category}）` : '';
 			let dg = '';
@@ -1514,6 +1547,16 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	sections.push(buildSectionText('12分度', buildDodecaSection(chartObj)));
 	sections.push(buildSectionText('主宰星链', buildDispositorSection(chartObj)));
 	sections.push(buildSectionText('古典', buildClassicalSection(chartObj)));
+	// [衍化四段] 古典 tab 衍化组件(派生宫转宫/气候带/显赫计分/世界范式盘)快照镜像 —— 🔴 opt-in:
+	// 仅本命 astro 快照保存路径(models/astro 四效果)与挂载 astrochart 分支传 classicalDerived;
+	// germany/mundane/indiachart/jieqi/relative 等嵌套消费方缺省 falsy=零输出零字节(段头爆炸半径钉死,
+	// per-key 负向锁看死)。计算层单源 utils/astroClassicalDerived(与四组件同引)。
+	if(options.classicalDerived){
+		sections.push(buildSectionText('古典·派生宫转宫', buildDerivedHousesSnapshotLines(chartObj)));
+		sections.push(buildSectionText('古典·气候带', buildKlimataSnapshotLines(chartObj, fields)));
+		sections.push(buildSectionText('古典·显赫计分', buildEminenceSnapshotLines(chartObj)));
+		sections.push(buildSectionText('古典·世界范式盘', buildThemaMundiSnapshotLines()));
+	}
 	// [埃及历]:各点落旬/上升旬详情/民用历(本盘派生);数据缺 → [] 不产段。在 builder 本体内,同步/惰性两路径自然一致。
 	// 流派口径三级:record 随盘键(egypt_*,存盘时全局非默认才捕获) > 当前全局 > 默认档 ——
 	// 保证同一命例重开,本段不随「后来改过的全局设置」静默漂移(与其余古典键随盘保真同口径)。

@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
 import { Row, Col } from 'antd';
 import AstroChart from '../astro/AstroChart';
 import { XQButton as Button } from '../xq-ui';
@@ -58,10 +59,23 @@ class AstroHarmonicLab extends Component{
 				timeoutMs: 30000,
 			});
 			if(!this._mounted) return;
+			const res = unwrapResult(data) || {};
 			// horosa_panel_ready_v1:调波盘中栏(调波整盘)+右栏(相位/位置表)全由 result 派生,
 			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{
+			this.setState({result: res, loading: false, requestKey: key}, ()=>{
 				markPanelReady('auxchart');
+			});
+			// [审计修·派生盘快照重定源] 出盘即存:整张调波盘 + [调波盘] 专属段(H数/位置表/同频)。
+			saveDerivedAstroSnapshot('harmonic', res.chart, this.props.fields, ()=>{
+				const out = ['[调波盘]'];
+				out.push(`调波数：H${res.harmonic || this.state.harmonic || ''}`);
+				(res.positions || []).forEach((row)=>{
+					if(row && row.id){ out.push(`${row.id}：本命黄经 ${row.natalLon != null ? Number(row.natalLon).toFixed(2) : '—'}° → 调波 ${row.sign || ''}${row.signlon != null ? Number(row.signlon).toFixed(2) + '°' : ''}`); }
+				});
+				(res.conjunctions || []).forEach((c)=>{
+					if(c && c.a && c.b){ out.push(`同频：${c.a} 合 ${c.b}（误差 ${c.orb != null ? Number(c.orb).toFixed(3) : '—'}）`); }
+				});
+				return out.length > 1 ? out : [];
 			});
 		}catch(e){
 			if(!this._mounted) return;

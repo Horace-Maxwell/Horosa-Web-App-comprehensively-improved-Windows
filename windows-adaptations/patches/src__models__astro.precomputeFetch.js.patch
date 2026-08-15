@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index 2360394f..fa57b5cb 100644
+index 7f93a24a..6499d63f 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
 @@ -7,11 +7,15 @@ import {randomStr,} from '../utils/helper';
@@ -20,9 +20,9 @@ index 2360394f..fa57b5cb 100644
  // R4-B5(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm,settle 尾空闲投机。
  import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
  import { perfBegin } from '../utils/perfMark';
-@@ -24,6 +28,24 @@ import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverrid
- let dtm = new DateTime();
- const DefaultHouseSystem = 1;
+@@ -28,6 +32,24 @@ const DefaultHouseSystem = 1;
+ // recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
+ registerFieldsBaselineFactory(()=>newEmptyFields());
  
 +// PERF-R8 P0(纯观测,horosa_interaction_span_v1 配套):排盘 saga 成功提交 chartObj 后打
 +// refresh-end mark,并与 pages/index.js 的 horosa:tab:*:refresh-start 配 measure ——
@@ -45,7 +45,7 @@ index 2360394f..fa57b5cb 100644
  function newEmptyFields(){
  	const fields = {
  		cid: {
-@@ -561,9 +583,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -565,9 +587,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	let plan;
  	if(stepHint && stepHint.dir){
  		const d = Math.max(2, depth || 2);
@@ -78,7 +78,7 @@ index 2360394f..fa57b5cb 100644
  		}
  	}else if(depth > 0){
  		plan = [];
-@@ -651,28 +693,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -655,28 +697,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	return tasks;
  }
  
@@ -118,7 +118,7 @@ index 2360394f..fa57b5cb 100644
  });
  
  // R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
-@@ -1206,6 +1238,40 @@ export default {
+@@ -1210,6 +1242,40 @@ export default {
  		},
  
  
@@ -159,7 +159,7 @@ index 2360394f..fa57b5cb 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const param = {
  				...values,
-@@ -1237,11 +1303,12 @@ export default {
+@@ -1241,11 +1307,12 @@ export default {
  
              yield put({
                  type: 'save',
@@ -173,7 +173,7 @@ index 2360394f..fa57b5cb 100644
  
  			if(values.nohook){
  				return;
-@@ -1330,7 +1397,7 @@ export default {
+@@ -1334,7 +1401,7 @@ export default {
  			}
  			yield put({
                  type: 'save',
@@ -182,7 +182,7 @@ index 2360394f..fa57b5cb 100644
  					chartObj: Result,
  					fields: fields,
  					byChartData: true,
-@@ -1338,6 +1405,12 @@ export default {
+@@ -1342,6 +1409,12 @@ export default {
  					memoType: type,
                  },
              });
@@ -195,7 +195,7 @@ index 2360394f..fa57b5cb 100644
  
  			if(values.nohook){
  				return;
-@@ -1482,11 +1555,13 @@ export default {
+@@ -1486,11 +1559,13 @@ export default {
  					type: 'save',
  					payload: { chartObj: Result },
  				});
@@ -211,7 +211,7 @@ index 2360394f..fa57b5cb 100644
  						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
  					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
  						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
-@@ -1502,11 +1577,15 @@ export default {
+@@ -1506,11 +1581,15 @@ export default {
  
              yield put({
                  type: 'save',
@@ -228,7 +228,7 @@ index 2360394f..fa57b5cb 100644
  
  			if(values.nohook){
  				return;
-@@ -1524,7 +1603,7 @@ export default {
+@@ -1528,7 +1607,7 @@ export default {
  			// 同快车道分支:优化整块 try,异常静默不碰主流程。
  			try{
  				if(stepHint){

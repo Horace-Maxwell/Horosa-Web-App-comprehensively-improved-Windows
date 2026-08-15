@@ -162,4 +162,49 @@ export function applyRecordToFields(baseFields, record){
 	return fields;
 }
 
+// ── [R4 随盘保真·非默认捕获] ────────────────────────────────────────────────
+// 「存为命盘」此前只存表单信封 ~31 基础键,技法排盘设置(宫制/黄道/界系/主限/七政/印占等
+// 住在 astro.fields 的键)不随盘 → 载入后跟全局当前值走,同一命例重开会随全局漂移。
+// 埃及历「非默认才落键」范式推广(用户拍板):保存命盘时凡当前 fields ≠ schema 默认即随盘捕获。
+// - 捕获面 = RECORD_FIELDS_RESTORE_MANIFEST 键集(保存捕获↔载入还原对称闭合,同居本文件防漂移;
+//   manifest 外键不捕获 —— 捕了也没人还原);
+// - 基准 = models/astro newEmptyFields 的 schema 初值,经工厂注册注入(astro 已 import 本文件,
+//   反向 import 即循环,故用注册);schema 无此键(termsVariant 族)= fields 出现即非默认;
+// - 全默认零落键(旧记录体积语义零变);对象值(orbs)按 JSON 串比对;
+// - 调用方(models/user addChart)对 param 已有键不覆写 —— 表单信封值优先。
+let fieldsBaselineFactory = null;
+
+export function registerFieldsBaselineFactory(fn){
+	fieldsBaselineFactory = typeof fn === 'function' ? fn : null;
+}
+
+export function captureNonDefaultTechniqueFields(fields){
+	if(!fields || typeof fields !== 'object'){
+		return {};
+	}
+	let baseline = {};
+	try{
+		baseline = fieldsBaselineFactory ? (fieldsBaselineFactory() || {}) : {};
+	}catch(e){
+		baseline = {};
+	}
+	const out = {};
+	RECORD_FIELDS_RESTORE_MANIFEST.forEach(({ key })=>{
+		const entry = fields[key];
+		if(!entry || entry.value === undefined || entry.value === null){
+			return;
+		}
+		const v = entry.value;
+		const defEntry = baseline[key];
+		const def = defEntry ? defEntry.value : undefined;
+		const same = (v !== null && typeof v === 'object') || (def !== null && typeof def === 'object')
+			? JSON.stringify(v) === JSON.stringify(def)
+			: v === def;
+		if(!same){
+			out[key] = v;
+		}
+	});
+	return out;
+}
+
 export default { RECORD_FIELDS_RESTORE_MANIFEST, applyRecordToFields };

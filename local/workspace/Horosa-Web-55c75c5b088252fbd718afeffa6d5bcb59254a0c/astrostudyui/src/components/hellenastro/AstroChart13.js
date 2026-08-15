@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
 import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
 import AstroChartMain from '../astro/AstroChartMain';
 import request from '../../utils/request';
@@ -168,6 +169,11 @@ class AstroChart13 extends Component{
 		this.setState(st, ()=>{
 			markPanelReady('auxchart');
 		});
+		// [审计修·派生盘快照重定源] 此前导出/挂载读 astro 单例=本命盘冒充分盘;出盘即存本键快照。
+		try{
+			const snapKey = this.props.endpoint === 'chart12' ? 'dwadasamsa' : 'hellenastro';
+			saveDerivedAstroSnapshot(snapKey, result, this.props.fields, null);
+		}catch(e){ /* 快照失败不阻断渲染 */ }
 	}
 
 	genParams(){

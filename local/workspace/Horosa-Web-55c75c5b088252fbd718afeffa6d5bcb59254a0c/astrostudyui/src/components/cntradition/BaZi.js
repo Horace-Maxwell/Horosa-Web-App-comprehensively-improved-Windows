@@ -390,6 +390,14 @@ function buildBaziSnapshotText(params, result){
 	lines.push(`胎元：${gzText(four.tai)}`);
 	lines.push(`命宫：${gzText(four.ming)}（起法：${(params && params.minggongMethod === 'shufa') ? '子平数法' : '通行版'}）`);
 	lines.push(`身宫：${gzText(four.shen)}`);
+	// 十二串宫(中栏四柱板「串宫」芯片,快照曾恒缺——同段胎元/命宫/身宫都有独漏此项):
+	// 支为主,星/神煞/卦 best-effort 随源(仅后端盘带),字段与 ZhuMing12 组件同源;缺 zhi 不产行。
+	const m12 = four.ming12 || {};
+	if(m12.zhi){
+		const m12Extra = [m12.star, (Array.isArray(m12.gods) && m12.gods.length) ? m12.gods.join('，') : '', m12.gua]
+			.filter(Boolean).join('；');
+		lines.push(`十二串宫：${m12.zhi}${m12Extra ? `（${m12Extra}）` : ''}`);
+	}
 
 	lines.push('');
 	lines.push('[神煞（四柱与三元）]');
@@ -495,18 +503,56 @@ function buildBaziSnapshotText(params, result){
 		lines.push(`轮值：${fy.segments.map((s)=>`${s.gan}${s.pos}${s.days}日`).join(' → ')}`);
 	}
 
-	if(bazi.mainDirection && bazi.mainDirection.length){
+	// [干支合冲] legacy 天干/地支两 tab 的刑冲合害全表,快照曾恒缺。字段与 GanHeCong/ZiHeCong
+	// 组件同源(four.ganHe/ganCong + ziHe6合/ziHe3拱/ziHui会/ziXing刑/ziCong冲/ziCuan穿/ziPo破);全空不产段。
+	const relLine = (label, rec)=>{
+		const parts = [];
+		Object.keys(rec || {}).forEach((key)=>{
+			const ary = rec[key];
+			if(Array.isArray(ary) && ary.length){
+				parts.push(`${ary.map((item)=>`${(item && item.cell) || ''}（${(item && item.zhu) || ''}）`).join(' ')}→${key}`);
+			}
+		});
+		return parts.length ? `${label}：${parts.join('；')}` : '';
+	};
+	const heCongLines = [
+		relLine('干合', four.ganHe), relLine('干冲', four.ganCong),
+		relLine('支合', four.ziHe6), relLine('支拱', four.ziHe3), relLine('支会', four.ziHui),
+		relLine('支刑', four.ziXing), relLine('支冲', four.ziCong), relLine('支穿', four.ziCuan), relLine('支破', four.ziPo),
+	].filter(Boolean);
+	if(heCongLines.length){
+		lines.push('');
+		lines.push('[干支合冲]');
+		lines.push(...heCongLines);
+	}
+
+	// 小运(legacy 小运 tab,快照曾恒缺):逐年小运/流年并列,字段与 SmallDirection 同源(d.direct/d.yearGanzi)。
+	const smallDirs = Array.isArray(bazi.smallDirection) ? bazi.smallDirection : [];
+	if((bazi.mainDirection && bazi.mainDirection.length) || smallDirs.length){
 		lines.push('');
 		lines.push('[大运]');
-		// [v2 排版批量·表化] 同构逐条行改 GFM 表（紫微宫位总览范式）：段头/值表达式零变更
-		// （第N步/item.year/getGz 逐字复用），仅排版骨架换表头+分隔行+数据行；归一器/docx/PDF 表块直通。
-		lines.push('| 步序 | 起运年 | 干支 |');
-		lines.push('| --- | --- | --- |');
-		bazi.mainDirection.forEach((item, idx)=>{
-			const y = item.year !== undefined ? `${item.year}` : '';
-			const gz = getGz(item);
-			lines.push(`| 第${idx + 1}步 | ${y} | ${gz} |`);
-		});
+		if(bazi.mainDirection && bazi.mainDirection.length){
+			// [v2 排版批量·表化] 同构逐条行改 GFM 表（紫微宫位总览范式）：段头/值表达式零变更
+			// （第N步/item.year/getGz 逐字复用），仅排版骨架换表头+分隔行+数据行；归一器/docx/PDF 表块直通。
+			lines.push('| 步序 | 起运年 | 干支 |');
+			lines.push('| --- | --- | --- |');
+			bazi.mainDirection.forEach((item, idx)=>{
+				const y = item.year !== undefined ? `${item.year}` : '';
+				const gz = getGz(item);
+				lines.push(`| 第${idx + 1}步 | ${y} | ${gz} |`);
+			});
+		}
+		if(smallDirs.length){
+			lines.push('小运（逐年，与流年并列）：');
+			lines.push('| 年份 | 周岁 | 小运 | 流年 |');
+			lines.push('| --- | --- | --- | --- |');
+			smallDirs.forEach((dir)=>{
+				const d = dir || {};
+				const sub = d.direct || {};
+				const yr = d.yearGanzi || {};
+				lines.push(`| ${d.year !== undefined ? d.year : '无'} | ${d.age !== undefined ? d.age : '无'} | ${sub.ganzi || '无'} | ${yr.ganzi || '无'} |`);
+			});
+		}
 	}
 
 	if(bazi.direction && bazi.direction.length){

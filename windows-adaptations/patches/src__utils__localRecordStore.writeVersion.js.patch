@@ -1,0 +1,30 @@
+diff --git a/astrostudyui/src/utils/localRecordStore.js b/astrostudyui/src/utils/localRecordStore.js
+index a27b11c6..dea99319 100644
+--- a/astrostudyui/src/utils/localRecordStore.js
++++ b/astrostudyui/src/utils/localRecordStore.js
+@@ -262,7 +262,18 @@ export function createLocalRecordStore(config){
+ 	// 改为如实返回 { persisted, reason:'ok'|'memory-mode'|'quota'|'storage-error' }:
+ 	// - quota 终败**不再粘死内存模式**(用户删几条/清缓存后下一次写自动重试真储存);
+ 	// - memory-mode / storage-error 走降级事件+横幅(会话内数据仍可用,不逐次弹错)。
++	// horosa_aux_render_slice_v1(Windows-ahead;v3.9.2 收编重构后随写盘口迁入内核):
++	// 库写版本号 —— writeRaw 是内核唯一写盘口(upsert/remove/setPin/move/trash/import 全走它),
++	// 每写一次自增(**含内存回退写**:memoryList 变了读侧结果就变,签名必须跟着变)。
++	// 消费方:localcharts.js 的 localChartsVersion()(90°中点盘叠盘人清单把它编进签名键 →
++	// 库一有增删改签名即变、缓存即失效:写驱动失效,零轮询零事件面)。仅内存计数不落盘
++	// (重载后从 0 起,读侧首键必 miss,安全)。
++	let writeVersion = 0;
++	function getWriteVersion(){
++		return writeVersion;
++	}
+ 	function writeRaw(list){
++		writeVersion += 1; // 所有写路径(含内存回退)都经此,先自增再落盘
+ 		const next = list instanceof Array ? list.slice() : [];
+ 		memoryList = next;
+ 		if(fallbackToMemoryStore){
+@@ -866,5 +877,5 @@ export function createLocalRecordStore(config){
+ 		newerSchemaNotified = false;
+ 	}
+ 
+-	return { list, listTags, getPaged, upsert, remove, setPin, moveRecord, setFlag, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests };
++	return { list, listTags, getPaged, upsert, remove, setPin, moveRecord, setFlag, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, getWriteVersion, __resetForTests };
+ }

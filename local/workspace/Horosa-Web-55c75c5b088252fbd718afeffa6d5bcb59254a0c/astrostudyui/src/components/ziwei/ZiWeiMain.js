@@ -411,6 +411,14 @@ function buildZiWeiSnapshotText(params, result){
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
 	lines.push(`性别：${`${params.gender}` === '1' ? '男' : (`${params.gender}` === '0' ? '女' : '未知')}`);
 	lines.push(`时间算法：${params.timeAlg === 1 ? '直接时间' : '真太阳时'}`);
+	// 换算后时刻(审计补缺:此前只写算法名、无换算结果):双时刻并列与八字快照同款,换算关系一眼可见;
+	// 后端盘缺 clockTime/solarTime 双字段时回落单行 nongli.birth(盘心 ZWCenterHouse 同款取数),全缺不产行。
+	const tmNl = chart.nongli || {};
+	if(tmNl.clockTime && tmNl.solarTime){
+		lines.push(`直接时间：${tmNl.clockTime}　真太阳时：${tmNl.solarTime}`);
+	}else if(tmNl.birth){
+		lines.push(`${params.timeAlg === 1 ? '直接时间：' : '真太阳时：'}${tmNl.birth}`);
+	}
 	const schoolLabel = { beipai: '通用·飞星', zhongzhou: '中州派', quanshu: '全书系', beixiang: '北派(天相忌)', custom: '自定义' }[ZWConst.ZWSchool.school] || '通用·飞星';
 	lines.push(`四化流派：${schoolLabel}`);
 	// 传本/排盘开关(非默认才注记,供 AI 知悉本盘用了哪套传本)。
@@ -485,7 +493,8 @@ function buildZiWeiSnapshotText(params, result){
 	lines.push('| 宫位 | 干支 | 大限 | 星曜（四化括注） |');
 	lines.push('| --- | --- | --- | --- |');
 	houses.forEach((house, idx)=>{
-		const name = house.name || house.id || `宫位${idx + 1}`;
+		// 长生十二神内联宫位格(三合盘恒画的 house.phase,快照曾恒缺;不加表列,表头断言零触;缺省不产)。
+		const name = `${house.name || house.id || `宫位${idx + 1}`}${house.phase ? `·${house.phase}` : ''}`;
 		const ganzi = house.ganzi || '';
 		const palaceGan = ganzi ? normalizeGan(ganzi) : '';
 		const direction = house.direction && house.direction.length === 2 ? `${house.direction[0]}~${house.direction[1]}` : '';
@@ -503,6 +512,15 @@ function buildZiWeiSnapshotText(params, result){
 	});
 	lines.push('');
 
+	// 身宫判据钉死引擎输出 house.isBody(与盘面 ZWHouse/ZWHouseSangHe 身宫标记同源;本地/后端两引擎皆保证,
+	// bodyHouseIndex 仅本地引擎有故禁走该旁路)。找不到整段不产(best-effort,与来因宫同范式)。
+	const bodyHouse = houses.find((house)=> house && house.isBody);
+	if(bodyHouse && bodyHouse.name){
+		lines.push('[身宫]');
+		lines.push(`身宫落${bodyHouse.name}${bodyHouse.ganzi ? `（${bodyHouse.ganzi}）` : ''}`);
+		lines.push('');
+	}
+
 	if(yearGan){
 		// 来因宫判据走 isLaiyinPalace 单源(排除子丑借干宫;与盘面 drawLaiYing 同口径)
 		const laiyin = houses.filter((house)=> isLaiyinPalace(house.ganzi, yearGan))
@@ -512,6 +530,22 @@ function buildZiWeiSnapshotText(params, result){
 			lines.push(laiyin.join('、'));
 			lines.push('');
 		}
+	}
+
+	// [八字大运] 盘心十列(起运虚岁+大运干支+起始年,ZWCenterHouse 恒画)快照曾恒缺;
+	// 数据与盘心/info 面板同源 chart.bazi.direct.direction,缺省(本地引擎无 direct)整段不产。
+	const bzDirect = chart.bazi && chart.bazi.direct && Array.isArray(chart.bazi.direct.direction)
+		? chart.bazi.direct.direction : [];
+	if(bzDirect.length){
+		lines.push('[八字大运]');
+		lines.push('| 起运虚岁 | 起始年份 | 大运干支 |');
+		lines.push('| --- | --- | --- |');
+		bzDirect.forEach((item)=>{
+			const gz = item && item.mainDirect && item.mainDirect.ganzi ? item.mainDirect.ganzi : '';
+			if(!gz){ return; }
+			lines.push(`| ${(item.age || 0) + 1} | ${item.startYear || '无'} | ${gz} |`);
+		});
+		lines.push('');
 	}
 
 	const patterns = result && result.patterns ? result.patterns : [];

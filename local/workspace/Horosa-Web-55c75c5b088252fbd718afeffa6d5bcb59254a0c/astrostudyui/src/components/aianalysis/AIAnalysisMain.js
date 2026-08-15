@@ -101,6 +101,7 @@ import {
 	isSectionsOnlyTechnique,
 	hasMountSettingsFields,
 	pruneOptionsToNonDefault,
+	effectiveMountBaseline,
 	saveMountTechniqueDefaults,
 	getMountTechniqueDefault,
 } from '../../utils/techniqueMountSettings';
@@ -793,6 +794,9 @@ const CONTEXT_STATUS_META = {
 	ready: { text: '已就绪', color: 'green' },
 	regenerated: { text: '已按盘重算', color: 'blue' },
 	missing: { text: '缺失', color: 'red' },
+	// [V6 复查轮] 覆盖重算失败独立态(aiAnalysisContext 闸5):无此映射会落 pending 显「待生成」,
+	// 与展开后的「重算失败」emptyHint 自相矛盾且永不兑现。
+	error: { text: '重算失败', color: 'volcano' },
 	pending: { text: '待生成', color: 'default' },
 };
 
@@ -1158,8 +1162,10 @@ function AIAnalysisMain(props){
 		const out = {};
 		(activeTechniqueKeys || []).forEach((key)=>{
 			const session = techniqueOptionOverrides[key];
+			// [V6-W1] 会话覆盖锚盘现状再剪(与草稿/应用同锚);同类默认(getMountTechniqueDefault)
+			// 是跨盘模板,原样透传,由重算入口按各盘现状终判。
 			const eff = (session && typeof session === 'object')
-				? pruneOptionsToNonDefault(key, session)
+				? pruneOptionsToNonDefault(key, session, effectiveMountBaseline(key, activeSource && activeSource.record ? activeSource.record : null))
 				: getMountTechniqueDefault(key);
 			if(eff && Object.keys(eff).length){
 				out[key] = eff;
@@ -1167,7 +1173,7 @@ function AIAnalysisMain(props){
 		});
 		return out;
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [activeTechniqueKeys, techniqueOptionOverrides, mountSettingsNonce]);
+	}, [activeTechniqueKeys, techniqueOptionOverrides, mountSettingsNonce, activeSource]);
 	// 稳定签名,供 useEffect 依赖(对象引用每次都变,用 JSON 串避免无谓重算)。
 	const effectiveTechniqueOptionsSig = React.useMemo(
 		()=>JSON.stringify(effectiveTechniqueOptions),
@@ -1373,7 +1379,9 @@ function AIAnalysisMain(props){
 					? '该技法所有分段已在「纳入内容」中取消,未挂载任何内容;到挂载设置重新勾选即可恢复。'
 					: (item.status === 'missing'
 						? '当前未找到该技法可用快照，未挂载该技法内容。'
-						: '正在按已存案例/命盘数据自动补生成快照。'),
+						: (item.status === 'error'
+							? '按挂载设置重算该技法快照失败，本次未挂载该技法内容;可调整设置重试或恢复默认。'
+							: '正在按已存案例/命盘数据自动补生成快照。')),
 			});
 		});
 		resolved.materials.forEach((item)=>{
@@ -2583,6 +2591,19 @@ function AIAnalysisMain(props){
 		for(let i=0; i<storeKeys.length; i++){
 			workspace.stores[storeKeys[i]] = await listStoreRecords(storeKeys[i]);
 		}
+		// 🔴 [V4 敏感剥离] listStoreRecords(providerProfiles) 读端自动解密——原样入包=备份文件
+		// 泄明文 API 密钥(放网盘/转发即外泄)。导出一律剥密置空;恢复端读到空 key 走既有
+		// 「提示重填」语义,零额外处理。
+		if(Array.isArray(workspace.stores[AI_ANALYSIS_STORES.providerProfiles])){
+			workspace.stores[AI_ANALYSIS_STORES.providerProfiles] = workspace.stores[AI_ANALYSIS_STORES.providerProfiles]
+				.map((rec)=>{
+					if(!rec || typeof rec !== 'object'){
+						return rec;
+					}
+					const { apiKey, apiKeyDecryptFailed, ...rest } = rec;
+					return { ...rest, apiKey: '', apiKeyRedacted: true };
+				});
+		}
 		const blob = await exportWorkspaceBackupBlob(workspace);
 		if(desktopBridge){
 			try{
@@ -3752,12 +3773,16 @@ function AIAnalysisMain(props){
 		if(!k){
 			return;
 		}
-		// 草稿初值 = 默认值 叠加 当前生效覆盖（会话覆盖 ?? 同类默认）。未改任何项 → 草稿 === 默认 → prune 后空。
+		// [V6-W1] 🔴 草稿初值 = schema 默认 叠加 **盘现状**(record 实值) 叠加 当前生效覆盖。
+		// 此前只叠 schema 默认 → 抽屉打开恒显 schema 想象值(整宫制)而非盘实值(Alcabitus),
+		// 用户「确认整宫制」=零变更=静默无操作(实锤二次误导)。现在:打开即见真实现状,
+		// 改动=与盘的真实差异(prune 同锚盘现状)。
 		const base = getTechniqueSettingsDefaults(k);
+		const chartBaseline = effectiveMountBaseline(k, activeSource && activeSource.record ? activeSource.record : null);
 		const session = techniqueOptionOverrides[k];
-		const eff = (session && typeof session === 'object') ? pruneOptionsToNonDefault(k, session) : getMountTechniqueDefault(k);
+		const eff = (session && typeof session === 'object') ? session : getMountTechniqueDefault(k);
 		setTechniqueSettingsKey(k);
-		setTechniqueSettingsDraft({ ...base, ...(eff || {}) });
+		setTechniqueSettingsDraft({ ...base, ...chartBaseline, ...(eff || {}) });
 	}
 
 	function closeTechniqueSettings(){
@@ -3775,7 +3800,8 @@ function AIAnalysisMain(props){
 		if(!k){
 			return;
 		}
-		const pruned = pruneOptionsToNonDefault(k, techniqueSettingsDraft);
+		// [V6-W1] prune 锚盘现状:与该盘真实值不同的项才算覆盖(整宫制 vs 盘存 Alcabitus=真覆盖)。
+		const pruned = pruneOptionsToNonDefault(k, techniqueSettingsDraft, effectiveMountBaseline(k, activeSource && activeSource.record ? activeSource.record : null));
 		setTechniqueOptionOverrides((prev)=>{
 			const next = { ...prev };
 			if(pruned && Object.keys(pruned).length){
@@ -3794,7 +3820,10 @@ function AIAnalysisMain(props){
 		if(!k){
 			return;
 		}
-		const pruned = pruneOptionsToNonDefault(k, techniqueSettingsDraft);
+		// [V6 复查轮] 🔴 三参同锚盘现状:草稿自带盘现状全量后,二参(schema 默认锚)会把盘私值
+		// 全判「覆盖」写进跨盘持久模板 —— 什么都不改点「设为同类默认」= 把这张盘的黄道/岁差
+		// 强加给以后所有盘。同 apply 锚:只存用户本次显式改动。
+		const pruned = pruneOptionsToNonDefault(k, techniqueSettingsDraft, effectiveMountBaseline(k, activeSource && activeSource.record ? activeSource.record : null));
 		saveMountTechniqueDefaults(k, pruned);
 		setTechniqueOptionOverrides((prev)=>{
 			const next = { ...prev };
@@ -3817,7 +3846,12 @@ function AIAnalysisMain(props){
 			delete next[k];
 			return next;
 		});
-		setTechniqueSettingsDraft(getTechniqueSettingsDefaults(k));
+		// [V6 复查轮] 清除覆盖后的真实生效值 = 盘现状(非 schema 想象值):草稿回落
+		// defaults+盘现状,否则此刻再点「应用」会把 schema 默认误写成真覆盖。
+		setTechniqueSettingsDraft({
+			...getTechniqueSettingsDefaults(k),
+			...effectiveMountBaseline(k, activeSource && activeSource.record ? activeSource.record : null),
+		});
 		setMountSettingsNonce((n)=>n + 1);
 		message.success('已恢复该技法默认（设置 + 同类默认均清除）');
 	}
@@ -3913,7 +3947,9 @@ function AIAnalysisMain(props){
 		const sectionsOnly = key ? isSectionsOnlyTechnique(key) : false;
 		const hasFields = key ? hasMountSettingsFields(key) : false;
 		// 字段渲染(含 group 分组/条件揭示)已抽到共用件 <TechniqueSettingsFields/>(各设置界面同源)。
-		const pruned = key ? pruneOptionsToNonDefault(key, techniqueSettingsDraft) : {};
+		// [V6 二轮复查] 徽记计数与 apply/save 同锚盘现状:二参(schema 默认锚)时草稿含盘现状
+		// 会双向误导——盘存非默认什么都不动显「已自定义」、拨到 schema 默认显「全默认」而应用落真覆盖。
+		const pruned = key ? pruneOptionsToNonDefault(key, techniqueSettingsDraft, effectiveMountBaseline(key, activeSource && activeSource.record ? activeSource.record : null)) : {};
 		const customizedCount = Object.keys(pruned).length;
 		return (
 			<Drawer

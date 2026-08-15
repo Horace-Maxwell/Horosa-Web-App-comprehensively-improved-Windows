@@ -298,7 +298,9 @@ export function stepSelectPrefetchEnabled(){
 }
 
 // ═══ Windows-only 闸族(与上游同步时整块保全,哨兵逐函数钉;上游收编某项后按 #49 就地删行) ═══
-// 关闭方法同上:safeLocalStorageSet('<key>','0') 后刷新。
+// 关闭方法同上:safeLocalStorageSet(对应键名, '0') 后刷新。
+// (措辞刻意不把首参写成带引号字面量 —— [V4] 存储键穷举哨兵机械扫描 set/get 调用的引号
+//  首参,注释里的占位串也会被当真键抓红;horosa.perf. 前缀族已在 storageKeyRegistry 登记。)
 
 // PERF-R9 Ship 6:城市大库 chunk(3.85MB)空闲预载。关=打开经纬度选择器时才现场下载+解析。
 export function cityDbIdlePreloadEnabled(){

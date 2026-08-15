@@ -19,8 +19,21 @@ function extractFacts(text) {
 	for (let i = 0; i < lines.length; i++) { if (isSep(lines[i])) { kept.pop(); continue; } kept.push(lines[i]); }
 	// [X1·P2-34] 计数链是表化之后新增的独立事实行(定局段),不属「逐牌详解表化不改事实」的比较域:
 	// 基线为表化前冻结快照(不许含 GFM 表)无从含它,两侧一并剔除,守卫仍盯逐牌盘面值零变化。
-	const keptScoped = kept.filter((l) => !`${l}`.trim().startsWith('计数链:'));
-	const tokens = keptScoped.join('\n').match(/[一-龥A-Za-z0-9~+.]+/g) || [];
+	const keptScoped = kept.filter((l) => {
+		const t = `${l}`.trim();
+		// [审计修] 自问句行同计数链:表化后新增独立事实行,不属比较域。
+		return !t.startsWith('计数链:') && !t.startsWith('可就此牌自问') && !t.startsWith('　可就此牌自问');
+	});
+	// [审计修] 位义列(牌阵位含义+元素相合注)是表化之后新增的独立事实列:基线为表化前冻结快照
+	// 无从含它;新 7 列表行剔第 2 格(位义)后再比,守卫仍盯逐牌盘面值零变化(同 计数链 剔除范式)。
+	const keptCells = keptScoped.map((l) => {
+		const t = `${l}`.trim();
+		if (!t.startsWith('|')) { return l; }
+		const cells = t.split('|');
+		if (cells.length === 9) { cells.splice(2, 1); return cells.join('|'); }
+		return l;
+	});
+	const tokens = keptCells.join('\n').match(/[一-龥A-Za-z0-9~+.]+/g) || [];
 	const m = new Map();
 	tokens.forEach((t) => { if (INLINE_LABELS.has(t)) { return; } m.set(t, (m.get(t) || 0) + 1); });
 	return m;

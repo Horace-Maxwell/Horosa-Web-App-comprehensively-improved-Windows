@@ -393,7 +393,7 @@ class TongshuMain extends Component {
 	}
 
 	saveAISnapshot() {
-		const text = `${buildTongshuSnapshotText(this.state.settings, this.ymd()) || ''}`.trim();
+		const text = `${buildTongshuSnapshotText(this.state.settings, this.ymd(), { hour: this.state.qimenHour }) || ''}`.trim();
 		if (text) { saveModuleAISnapshot(MODULE, text); }
 		return text;
 	}

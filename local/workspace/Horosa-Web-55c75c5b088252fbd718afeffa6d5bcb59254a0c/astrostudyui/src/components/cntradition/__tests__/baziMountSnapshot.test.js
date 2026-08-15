@@ -127,3 +127,48 @@ describe('八字挂载 round-trip：断命流派', () => {
 		expect(text).toContain('当前主用流派：盲派');
 	});
 });
+
+// ══ [W1·审计补缺] 串宫/干支合冲/小运 内容锚(本地引擎直算,夹具生辰固定→输出确定) ═══
+describe('[W1] 串宫与干支合冲内容锚', () => {
+	test('🔴 十二串宫行在(与四柱板「串宫」芯片同源=four.ming12.zhi,支必非空)', async () => {
+		const text = await buildBaziSnapshotForParams({ ...BASE_PARAMS });
+		const line = text.split('\n').find((l)=>l.startsWith('十二串宫：'));
+		expect(line).toBeTruthy();
+		expect(line.length).toBeGreaterThan('十二串宫：'.length);
+	});
+	test('🔴 [干支合冲] 段金标:与页面天干/地支两 tab 同源字段逐行钉死(合化规则人工核对过)', async () => {
+		const text = await buildBaziSnapshotForParams({ ...BASE_PARAMS });
+		const i = text.indexOf('[干支合冲]');
+		expect(i).toBeGreaterThanOrEqual(0);
+		const seg = text.slice(i, text.indexOf('\n[', i + 1));
+		expect(seg.split('\n')).toEqual([
+			'[干支合冲]',
+			'干合：丁（时） 丁（身） 壬（胎）→丁壬合木',
+			'干冲：丁（时） 丁（身） 癸（日） 癸（命）→丁癸冲',
+			'支合：巳（月） 巳（时） 申（胎）→巳申合水；午（年） 未（日） 未（命）→午未合土',
+			'支拱：亥（身） 未（日） 未（命）→亥卯未合木',
+			'支会：巳（月） 巳（时） 午（年） 未（日） 未（命）→巳午未会火',
+			'支冲：巳（月） 巳（时） 亥（身）→巳亥冲',
+			'支穿：申（胎） 亥（身）→申亥穿',
+			'支破：巳（月） 巳（时） 申（胎）→巳申破',
+			'',
+		]);
+	});
+	test('十二串宫=命宫支(本盘未),与 [四柱与三元] 命宫行自洽', async () => {
+		const text = await buildBaziSnapshotForParams({ ...BASE_PARAMS });
+		expect(text).toContain('十二串宫：未');
+	});
+	test('🔴 小运表在 [大运] 段:逐年与流年并列(男阳年顺行,首年戊午承时柱丁巳)', async () => {
+		const text = await buildBaziSnapshotForParams({ ...BASE_PARAMS });
+		expect(text).toContain('小运（逐年，与流年并列）：');
+		expect(text).toContain('| 1990 | 1 | 戊午 | 庚午 |');
+		expect(text).toContain('| 1991 | 2 | 己未 | 辛未 |');
+		// 小运表须在 [大运] 段内、[流年行运概略] 之前
+		const iDa = text.indexOf('[大运]');
+		const iXy = text.indexOf('小运（逐年，与流年并列）：');
+		const iLn = text.indexOf('[流年行运概略]');
+		expect(iDa).toBeGreaterThanOrEqual(0);
+		expect(iXy).toBeGreaterThan(iDa);
+		expect(iLn === -1 || iXy < iLn).toBe(true);
+	});
+});

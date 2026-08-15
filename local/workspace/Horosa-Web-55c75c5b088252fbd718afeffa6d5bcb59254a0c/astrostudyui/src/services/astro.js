@@ -121,15 +121,6 @@ export function fetchAllowedCharts(values){
     });
 }
 
-export function fetchFateEvents(values){
-    return request(`${ServerRoot}/deeplearn/fateevents`, {
-        body: JSON.stringify(values),
-    });
-}
-
-export function dlTrain(values){
-    return request(`${ServerRoot}/deeplearn/train`, {
-        body: JSON.stringify(values),
-    });
-}
+// [R4] fetchFateEvents/dlTrain 已删:唯一调用方是 models/astro 里 `localOnly=true` 写死的
+// 永不可达分支(登录多用户时代残留),分支收敛后此处零引用。人生事件走本地存储。
 

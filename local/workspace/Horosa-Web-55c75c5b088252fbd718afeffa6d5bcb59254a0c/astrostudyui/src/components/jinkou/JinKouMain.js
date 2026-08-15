@@ -433,6 +433,8 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 			row.label, fmtValue(row.gan), fmtValue(row.content), fmtValue(row.shenjiang), fmtValue(row.power), fmtValue(row.kong), row.nayin ? fmtValue(row.nayin) : '',
 		]);
 		pushMdRows(lines, ['位', '天干', '内容', '神将', '状态', '空亡', '纳音'], siWeiRows);
+		// [审计修] 四位类象参考行(右栏「四位」tab 渲染有快照无;固定类象表,与渲染同文)。
+		lines.push('四位类象：四人元=尊、客、天、君、祖、外；三贵神=上、主、宰相、臣、父、官禄；二月将=中、己身、妻财、亲戚、内；一地分=下、田宅、子孙、奴仆、鞍马、六畜');
 	}else{
 		lines.push('无');
 	}
@@ -531,7 +533,8 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	if(jinkouData && jinkouData.branchRelations && jinkouData.branchRelations.length){
 		for(let i=0; i<jinkouData.branchRelations.length; i++){
 			const b = jinkouData.branchRelations[i];
-			lines.push(`${b.aLabel}${b.a} ${b.type} ${b.bLabel}${b.b}`);
+			// [审计修] 补关系说明句 b.desc(右栏渲染有快照无)。
+			lines.push(`${b.aLabel}${b.a} ${b.type} ${b.bLabel}${b.b}${b.desc ? `：${b.desc}` : ''}`);
 		}
 	}else{
 		lines.push('无');

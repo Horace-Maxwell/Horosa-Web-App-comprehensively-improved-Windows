@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroHarmonicLab.js b/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
-index 0bb00a9..fc2cb99 100644
+index 2af937cd..3fea0e3c 100644
 --- a/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
-@@ -5,6 +5,7 @@ import { XQButton as Button } from '../xq-ui';
+@@ -6,6 +6,7 @@ import { XQButton as Button } from '../xq-ui';
  import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
  import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
@@ -10,16 +10,16 @@ index 0bb00a9..fc2cb99 100644
  
  class AstroHarmonicLab extends Component{
  	constructor(props){
-@@ -57,7 +58,11 @@ class AstroHarmonicLab extends Component{
- 				timeoutMs: 30000,
+@@ -59,7 +60,11 @@ class AstroHarmonicLab extends Component{
  			});
  			if(!this._mounted) return;
--			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+ 			const res = unwrapResult(data) || {};
+-			this.setState({result: res, loading: false, requestKey: key});
 +			// horosa_panel_ready_v1:调波盘中栏(调波整盘)+右栏(相位/位置表)全由 result 派生,
 +			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
-+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{
++			this.setState({result: res, loading: false, requestKey: key}, ()=>{
 +				markPanelReady('auxchart');
 +			});
- 		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({loading: false, requestKey: key});
+ 			// [审计修·派生盘快照重定源] 出盘即存:整张调波盘 + [调波盘] 专属段(H数/位置表/同频)。
+ 			saveDerivedAstroSnapshot('harmonic', res.chart, this.props.fields, ()=>{
+ 				const out = ['[调波盘]'];

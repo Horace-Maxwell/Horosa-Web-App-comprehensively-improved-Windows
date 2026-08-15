@@ -3,6 +3,7 @@ import { Popover } from 'antd';
 import { BaZiColor, ZhiColor } from '../../msg/bazimsg';
 import sealedImage from '../../assets/sealed.png';
 import { buildQimenXiangTipObj, formatQimenDocLineToHtml } from './QimenXiangDoc';
+import { QIMEN_WU_HE } from './DunJiaCalc';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import { shallowPropsEqual } from '../../utils/chartUpdateGuard';
 
@@ -272,20 +273,9 @@ class DunJiaBoard extends Component{
 			9: { left: 12, top: 8 }, // 乾：靠中宫（左上）
 		};
 		const palaceStyle = palacePosMap[cell.palaceNum] || null;
-		const wuHeMap = {
-			甲: '己',
-			乙: '庚',
-			丙: '辛',
-			丁: '壬',
-			戊: '癸',
-			己: '甲',
-			庚: '乙',
-			辛: '丙',
-			壬: '丁',
-			癸: '戊',
-		};
+		// 五合表下沉 DunJiaCalc.QIMEN_WU_HE 单源(与快照 [盘面要素] 五合配干行同表;引擎侧无 React 零环依赖)。
 		const centerGan = cell.tianGan || cell.diGan || '';
-		const centerHeGan = centerGan ? (wuHeMap[centerGan] || '') : '';
+		const centerHeGan = centerGan ? (QIMEN_WU_HE[centerGan] || '') : '';
 		const centerItems = [];
 		if(centerGan){
 			centerItems.push({ text: centerGan, color: centerMinorColor });

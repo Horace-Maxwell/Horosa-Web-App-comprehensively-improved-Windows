@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.9.1
+version: 3.9.2
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,7 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.9.1 beta is a local-first metaphysics workstation. In astronomical
+  Horosa for Windows v3.9.2 beta is a local-first metaphysics workstation. In astronomical
   geomancy the chosen time and place now genuinely drive the calculation: a fourth ascendant
   method casts a real chart for the selected moment and location (the only method that yields
   cusp degrees, and therefore the only one under which quadrant house division truly applies),

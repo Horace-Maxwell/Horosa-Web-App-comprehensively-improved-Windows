@@ -2522,7 +2522,9 @@ class MundaneMain extends Component{
 		else if(type === 'region'){ headLines.push(`地区：${ex.regionCn || '-'}`); }
 		else if(type === 'solunar'){
 			const st = describeSolunar(ex.solunarType || 'capsolar', ex.solunarWeights || 'scheme_a');
-			if(st){ headLines.push(`盘种：${st.cn}`, `有效期：${st.span} · 权重 ${st.weight}`, '体系：恒星黄道 Fagan/Bradley · Campanus 量角化'); }
+			if(st){ // [V6-W2] 体系行=盘种固定设计(solunar 恒 Fagan/Bradley+Campanus,非可调参数)=事实标注;
+			// 若未来做成可调参数,必须改从实际计算参数取值(禁字面量)。
+			headLines.push(`盘种：${st.cn}`, `有效期：${st.span} · 权重 ${st.weight}`, '体系：恒星黄道 Fagan/Bradley · Campanus 量角化'); }
 		}
 		else if(type === 'vedicmundane'){
 			headLines.push(`年份：${ex.vedicYear || currentYear()}`, '体系：恒星黄道 Lahiri · 梅沙入境为年度主盘');

@@ -4,6 +4,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, astroSymbolList, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, gridStyle, SmallTable } from './AstroExtraCommon';
 import { buildPatternOverview } from '../../utils/astroPatternOverview';
+import { classicalGlobalValue } from '../../utils/classicalChartGlobals';   // [审计修] 恒星轨随全局仓,与导出/挂载三方同口径
 import { SIGNS } from '../../divination/data/signs';
 
 // 阿拉伯点中文名(中性词;英文名同列小字便于对照)。
@@ -77,7 +78,8 @@ class AstroAnalysisLab extends Component{
 			const data = await request(`${Constants.ServerRoot}/astroextra/analysis`, {
 				body: JSON.stringify({
 					...chartParams(this.props.value),
-					fixedStarOrb: 1,
+					// [审计修] 曾硬编 1°:用户改恒星轨后右栏格局 tab 与导出/挂载(皆读全局仓)命中集分叉。
+					fixedStarOrb: classicalGlobalValue('fixedStarOrb'),
 					voidClassical: !!this.props.voidClassical,
 				}),
 				silent: true,

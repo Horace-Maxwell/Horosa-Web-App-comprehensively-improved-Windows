@@ -1,0 +1,51 @@
+diff --git a/astrostudyui/src/utils/shadowMirror.js b/astrostudyui/src/utils/shadowMirror.js
+index d2e6bfc7..5ee12532 100644
+--- a/astrostudyui/src/utils/shadowMirror.js
++++ b/astrostudyui/src/utils/shadowMirror.js
+@@ -12,11 +12,25 @@ import { isDesktopBridgeAvailable, invokeDesktopCommand } from './aiAnalysisDesk
+ import { safeLocalStorageGet, safeLocalStorageSet } from './safeStorage';
+ import { isSecondaryInstancePort } from '../components/common/MultiInstanceNotice';
+ 
++// horosa_shadow_mirror_electron_v1(Windows 对位;建议上游知悉):上游把「双保险副本」的
++// 壳侧文件镜像走 Tauri invoke —— Electron 壳没有 __TAURI__,不对位则该特性在 Windows
++// **静默不存在**(发布说明承诺的数据保险死件)。对位=同语义三件套:壳层 IPC 原子写
++// (tmp+fsync+rename,与 Rust 端同款)+ preload 桥 + 本适配层;白名单/恢复规则逐字对齐。
++// jest/浏览器无 horosaDesktop ⇒ 返回 null 走原 Tauri 判定,上游测试与 Mac 行为零改变。
++function electronShadowBridge(){
++	try{
++		const d = typeof window !== 'undefined' ? window.horosaDesktop : null;
++		return (d && typeof d.shadowStoreWrite === 'function' && typeof d.shadowStoreReadAll === 'function') ? d : null;
++	}catch(_e){
++		return null;
++	}
++}
++
+ // 🔴 只有主实例(首选端口)做影子镜像与对账:第二实例(阶梯口 38992+)是**独立数据集**
+ // (localStorage 按 origin=端口分区,R3 定谳互不相通),若也写同一 shadow/ 文件会把主实例
+ // 的影子覆盖成第二实例的数据 —— 恢复时数据混串。第二实例:不镜像、不对账。
+ function shadowEligible(){
+-	if(!isDesktopBridgeAvailable()){
++	if(!isDesktopBridgeAvailable() && !electronShadowBridge()){
+ 		return false;
+ 	}
+ 	try{
+@@ -48,7 +62,8 @@ export function mirrorShadowWrite(key, text){
+ 	if(typeof text !== 'string'){
+ 		return;
+ 	}
+-	invokeDesktopCommand('shadow_store_write_command', { key, text })
++	const eb = electronShadowBridge();
++	(eb ? eb.shadowStoreWrite(key, text) : invokeDesktopCommand('shadow_store_write_command', { key, text }))
+ 		.then(()=>{ lastMirrorError = null; })
+ 		.catch((e)=>{ lastMirrorError = `${(e && e.message) || e}`; });
+ }
+@@ -63,7 +78,8 @@ export async function reconcileShadowOnBoot(){
+ 	}
+ 	let mirror = null;
+ 	try{
+-		mirror = await invokeDesktopCommand('shadow_store_read_all_command', {});
++		const eb = electronShadowBridge();
++		mirror = eb ? await eb.shadowStoreReadAll() : await invokeDesktopCommand('shadow_store_read_all_command', {});
+ 	}catch(e){
+ 		lastMirrorError = `${(e && e.message) || e}`;
+ 		lastReconcile = result;

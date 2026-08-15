@@ -9,7 +9,10 @@ import GeoCoordModal from '../amap/GeoCoordModal';
 import { applyDstToFields } from '../../utils/timezone';
 import { applyGeoNameToFields } from '../../utils/geoName';
 import DstZoneIndicator from '../comp/DstZoneIndicator';
-import { XQButton, XQInput, XQSelect } from '../xq-ui';
+import { XQButton, XQInput, XQSelect, XQTextArea } from '../xq-ui';
+import RecordRevisionsModal from '../common/RecordRevisionsModal';
+import { RecordJournalModal } from '../common/RecordToolsModals';
+import { listLocalCharts, upsertLocalChart } from '../../utils/localcharts';
 
 const Option = XQSelect.Option;
 
@@ -24,6 +27,7 @@ export default class ChartData extends Component{
 		}
 
 		this.submitted = false;
+		// [V6-UI] 历史版本/断事日志 Modal 开关(仅编辑已存盘时可用)。
 		this.zoneManual = false;
 
 		this.setValue = this.setValue.bind(this);
@@ -33,6 +37,10 @@ export default class ChartData extends Component{
 		this.changeName = this.changeName.bind(this);
 		this.changeGender = this.changeGender.bind(this);
 		this.changePos = this.changePos.bind(this);
+		this.changeMemo = this.changeMemo.bind(this);
+		this.changeRodden = this.changeRodden.bind(this);
+		this.changeRelation = this.changeRelation.bind(this);
+		this.changeSourceNote = this.changeSourceNote.bind(this);
 		this.changeLat = this.changeLat.bind(this);
 		this.changeLon = this.changeLon.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
@@ -87,6 +95,40 @@ export default class ChartData extends Component{
 
 	changeGender(val){
 		this.setValue('gender', val);
+	}
+
+	// [V] 通用备注(表单直填);旧 currentChart 无 memo 槽时补建,防 setValue 取 undefined 炸。
+	changeMemo(e){
+		const flds = this.state.fields;
+		if(!flds.memo){
+			flds.memo = { name: ['memo'], value: null };
+		}
+		this.setValue('memo', e.target.value);
+	}
+
+	// [V5-UI尾款] 研究三字段(memo 同款防御补槽;Select allowClear 清除=null 不落库)。
+	changeRodden(val){
+		const flds = this.state.fields;
+		if(!flds.rodden){
+			flds.rodden = { name: ['rodden'], value: null };
+		}
+		this.setValue('rodden', val === undefined ? null : val);
+	}
+
+	changeRelation(val){
+		const flds = this.state.fields;
+		if(!flds.relation){
+			flds.relation = { name: ['relation'], value: null };
+		}
+		this.setValue('relation', val === undefined ? null : val);
+	}
+
+	changeSourceNote(e){
+		const flds = this.state.fields;
+		if(!flds.sourceNote){
+			flds.sourceNote = { name: ['sourceNote'], value: null };
+		}
+		this.setValue('sourceNote', e.target.value);
 	}
 
 	changePos(e){
@@ -178,6 +220,19 @@ export default class ChartData extends Component{
 		this.setState({
 			fields: flds,
 		});
+	}
+
+	// [V6-UI] 取当前编辑盘的完整记录(历史/日志 Modal 用):按 cid 从库读最新态。
+	currentRecord(){
+		try{
+			const cid = this.state.fields && this.state.fields.cid ? this.state.fields.cid.value : null;
+			if(!cid){
+				return null;
+			}
+			return listLocalCharts({ includeArchived: true }).find((r)=>r && r.cid === cid) || null;
+		}catch(_e){
+			return null;
+		}
 	}
 
 	clickOk(){
@@ -297,18 +352,67 @@ export default class ChartData extends Component{
 					</Col>
 				</Row>
 				<Row gutter={12} style={{marginTop: margintop}}>
+					<Col span={24}>
+						<Row>
+							<Col span={24}>备注（可留空）：</Col>
+							<Col span={24}>
+								<XQTextArea
+									placeholder='备注'
+									value={flds.memo ? flds.memo.value : null}
+									onChange={this.changeMemo}
+									autoSize={{ minRows: 2, maxRows: 6 }}
+									style={{ width: '100%', resize: 'both' }}
+								/>
+							</Col>
+						</Row>
+					</Col>
+				</Row>
+				{/* [V5-UI尾款] 研究三字段(全部可留空;present 才落库,旧档零变):
+				    可信度=生辰数据可靠等级(录入界面惯例 AA 出生记录/A 本人口述/B 传记/C 无来源/DD 相互矛盾/X 无时间);
+				    资料出处=这条生辰从哪来;关系=固定筛选面(区别于自由标签)。 */}
+				<Row gutter={12} style={{marginTop: margintop}}>
 					<Col span={8}>
 						<Row>
-							<Col span={24}>是否公开：</Col>
+							<Col span={24}>生辰可信度：</Col>
 							<Col span={24}>
-								<XQSelect value={flds.isPub.value} onChange={this.changeIsPub}>
-									<Option value={0}>否</Option>
-									<Option value={1}>是</Option>
+								<XQSelect value={flds.rodden ? flds.rodden.value : null} onChange={this.changeRodden} style={{ width: '100%' }} allowClear placeholder='未评级'>
+									<Option value='AA'>AA 出生记录</Option>
+									<Option value='A'>A 本人口述</Option>
+									<Option value='B'>B 传记资料</Option>
+									<Option value='C'>C 来源不明</Option>
+									<Option value='DD'>DD 相互矛盾</Option>
+									<Option value='X'>X 无出生时间</Option>
 								</XQSelect>
 							</Col>
 						</Row>
 					</Col>
-					<Col span={16}>
+					<Col span={8}>
+						<Row>
+							<Col span={24}>关系：</Col>
+							<Col span={24}>
+								<XQSelect value={flds.relation ? flds.relation.value : null} onChange={this.changeRelation} style={{ width: '100%' }} allowClear placeholder='未指定'>
+									<Option value='self'>自己</Option>
+									<Option value='family'>家人</Option>
+									<Option value='friend'>朋友</Option>
+									<Option value='client'>客户</Option>
+									<Option value='other'>其他</Option>
+								</XQSelect>
+							</Col>
+						</Row>
+					</Col>
+					<Col span={8}>
+						<Row>
+							<Col span={24}>资料出处：</Col>
+							<Col span={24}>
+								<XQInput placeholder='如:出生证/家谱/口述' value={flds.sourceNote ? flds.sourceNote.value : null} onChange={this.changeSourceNote} />
+							</Col>
+						</Row>
+					</Col>
+				</Row>
+
+				{/* [R4] 「是否公开」控件已隐藏:纯本地桌面版无发布语义(isPub 槽与数据字段保留,旧档兼容)。 */}
+				<Row gutter={12} style={{marginTop: margintop}}>
+					<Col span={24}>
 						<Row>
 							<Col span={24}>标签：</Col>
 							<Col span={24}>
@@ -327,8 +431,40 @@ export default class ChartData extends Component{
 					</Col>
 					<Col span={12}>
 						<XQButton onClick={this.clickReturn}>{returnTitle}</XQButton>
+						{/* [V6-UI] 历史版本/断事日志入口移入编辑页(用户定谳:批量条太挤,盘级动作跟盘走)。
+						    仅编辑已存盘(有 cid)时显示;新建盘尚无历史/日志。 */}
+						{flds.cid && flds.cid.value ? (
+							<span style={{ marginLeft: 8 }}>
+								<XQButton onClick={()=>this.setState({ revisionsOpen: true })} title='查看该盘历史版本(每次修改自动留存最近 10 版),可恢复为副本'>历史版本</XQButton>
+								<XQButton style={{ marginLeft: 8 }} onClick={()=>this.setState({ journalOpen: true })} title='断事日志:多条带时间戳的跟进记录,随记录导出/备份全链保留'>断事日志</XQButton>
+							</span>
+						) : null}
 					</Col>
 				</Row>
+				{flds.cid && flds.cid.value ? (
+					<>
+						<RecordRevisionsModal
+							visible={!!this.state.revisionsOpen}
+							storeLabel='chart'
+							record={this.currentRecord()}
+							onClose={()=>this.setState({ revisionsOpen: false })}
+							onRestoreAsCopy={(snap)=>{
+								const dup = { ...snap };
+								delete dup.cid;
+								delete dup.schemaVersion;
+								dup.name = `${dup.name || ''}(历史版)`;
+								upsertLocalChart(dup);
+							}}
+						/>
+						<RecordJournalModal
+							visible={!!this.state.journalOpen}
+							kind='chart'
+							record={this.state.journalOpen ? this.currentRecord() : null}
+							onClose={()=>this.setState({ journalOpen: false })}
+							onChanged={()=>{ this.forceUpdate(); }}
+						/>
+					</>
+				) : null}
 			</div>
 		)
 	}

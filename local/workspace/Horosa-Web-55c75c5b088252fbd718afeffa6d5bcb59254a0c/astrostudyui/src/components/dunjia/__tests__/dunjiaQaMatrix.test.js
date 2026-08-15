@@ -275,3 +275,25 @@ describe('[QA3b] 挂载齿轮/导出/存档链', ()=>{
 		expect(ctx.includes('[奇门遁甲]')).toBe(true);
 	});
 });
+
+// ══ [W1·审计补缺] 五合配干进快照:盘面每宫恒画的注记(cell.tianGan||diGan 经 QIMEN_WU_HE)快照曾恒缺 ═══
+describe('[W1] 五合配干快照锚', ()=>{
+	test('🔴 [盘面要素] 含五合配干行,且逐宫与单源表一致(与 DunJiaBoard 同判据)', ()=>{
+		const { QIMEN_WU_HE } = require('../DunJiaCalc');
+		const pan = calc('2026-02-17', '09:05:00', { paiPanType: 2 });
+		const snap = buildDunJiaSnapshotText(pan);
+		expect(snap).toContain('五合配干：');
+		const line = snap.split('\n').find((l)=>l.startsWith('五合配干：'));
+		pan.cells.forEach((cell)=>{
+			const g = cell.tianGan || cell.diGan || '';
+			if(g && QIMEN_WU_HE[g]){
+				expect(line).toContain(`${g}合${QIMEN_WU_HE[g]}`);
+			}
+		});
+	});
+	test('金函盘(独立查表体系)不受五合行波及:结构照旧', ()=>{
+		const pan = calc('2026-02-17', '09:05:00', { paiPanType: 6 });
+		expect(pan.isJinhan).toBe(true);
+		expect(pan.cells.length).toBe(9);
+	});
+});

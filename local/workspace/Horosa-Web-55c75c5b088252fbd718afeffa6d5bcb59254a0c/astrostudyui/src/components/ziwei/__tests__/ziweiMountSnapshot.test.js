@@ -252,3 +252,75 @@ describe('[B2-2] 快照亮度传导(对象星)', () => {
 		}finally{ mockState.chart.houses = prev; }
 	});
 });
+
+// ══ [W0·审计补缺] 身宫段 + 换算后时刻行:内容锚金标(「渲染有→快照有」反方向审计首批) ═══
+// 夹具默认无 isBody/无 nongli 双时刻字段 → 上方全部既有用例即「缺省不产行」的零回归证明。
+describe('[W0] 身宫段与换算后时刻行', ()=>{
+	it('🔴 isBody 宫在 → [身宫] 段产出且落宫与引擎标记一致(判据=house.isBody,与盘面标记同源)', async ()=>{
+		const prev = mockState.chart.houses;
+		const houses = makeHouses();
+		houses[4].isBody = true;   // idx4:夹具宫名序=夫妻宫,干支=戊辰
+		mockState.chart.houses = houses;
+		try{
+			const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+			expect(text).toContain('[身宫]');
+			expect(text).toContain('身宫落夫妻宫（戊辰）');
+			expect((text.match(/\[身宫\]/g) || []).length).toBe(1);   // 至多一段
+		}finally{ mockState.chart.houses = prev; }
+	});
+	it('无 isBody(字段缺省)→ 无 [身宫] 段(best-effort 不臆造)', async ()=>{
+		const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		expect(text).not.toContain('[身宫]');
+	});
+	it('🔴 nongli 双时刻在 → 双时刻并列行(八字快照同款,换算关系一眼可见)', async ()=>{
+		const prev = mockState.chart.nongli;
+		mockState.chart.nongli = { yearGanZi: '庚午', clockTime: '1990-05-18 10:00:00', solarTime: '1990-05-18 09:47:31' };
+		try{
+			const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+			expect(text).toContain('直接时间：1990-05-18 10:00:00　真太阳时：1990-05-18 09:47:31');
+		}finally{ mockState.chart.nongli = prev; }
+	});
+	it('仅 nongli.birth(后端盘)→ 按 timeAlg 单行回落;双字段全缺 → 不产行', async ()=>{
+		const prev = mockState.chart.nongli;
+		mockState.chart.nongli = { yearGanZi: '庚午', birth: '1990-05-18 09:47:31' };
+		try{
+			const solar = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });            // timeAlg:0 → 真太阳时
+			expect(solar).toContain('真太阳时：1990-05-18 09:47:31');
+			const direct = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, timeAlg: 1 });
+			expect(direct).toContain('直接时间：1990-05-18 09:47:31');
+		}finally{ mockState.chart.nongli = prev; }
+		const none = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		expect(none).not.toContain('真太阳时：1990');
+		expect(none).not.toContain('直接时间：1990');
+	});
+});
+
+// ══ [W1·审计补缺] 宫位长生内联 + [八字大运] 段:内容锚金标(夹具默认无 phase/无 bazi.direct=零回归) ═══
+describe('[W1] 宫位长生内联与八字大运段', ()=>{
+	it('house.phase 在 → 宫位格内联「宫名·档」;缺省宫照旧', async ()=>{
+		const prev = mockState.chart.houses;
+		const houses = makeHouses();
+		houses[2].phase = '长生';   // idx2=命宫
+		mockState.chart.houses = houses;
+		try{
+			const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+			expect(text).toContain('| 命宫·长生 |');
+			expect(text).toContain('| 兄弟宫 |');   // 无 phase 宫不带内联
+		}finally{ mockState.chart.houses = prev; }
+	});
+	it('🔴 chart.bazi.direct.direction 在 → [八字大运] 表(虚岁=age+1,与盘心十列同源);缺省无段', async ()=>{
+		const prev = mockState.chart.bazi;
+		mockState.chart.bazi = { direct: { direction: [
+			{ age: 2, startYear: 1993, mainDirect: { ganzi: '丙申' } },
+			{ age: 12, startYear: 2003, mainDirect: { ganzi: '丁酉' } },
+		] } };
+		try{
+			const text = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+			expect(text).toContain('[八字大运]');
+			expect(text).toContain('| 3 | 1993 | 丙申 |');
+			expect(text).toContain('| 13 | 2003 | 丁酉 |');
+		}finally{ mockState.chart.bazi = prev; }
+		const none = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		expect(none).not.toContain('[八字大运]');
+	});
+});

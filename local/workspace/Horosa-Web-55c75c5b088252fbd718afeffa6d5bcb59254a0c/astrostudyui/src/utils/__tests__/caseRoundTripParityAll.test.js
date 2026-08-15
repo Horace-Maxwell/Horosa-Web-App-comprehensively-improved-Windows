@@ -105,6 +105,29 @@ describe('存案保真总闸 · 读档去重键(本次 bug 的直接金标)', ()
 		expect(b.payload).toEqual(a.payload);
 	});
 
+	it('🔴 西占系共用件同款金标(horary):代次一变 caseVersion 必变、不变则恒定', ()=>{
+		// getDivinationSavedCasePayload 曾无代次后缀 → DivinationChartShell._appliedCaseVersion
+		// 永不重置,四技法第二次载入静默不生效。行为金标与 kentang 侧一比一。
+		const { getDivinationSavedCasePayload } = require('../divinationCaseSave');
+		const DIV_CASE = {
+			cid: { value: 'case-div-1' },
+			updateTime: { value: '2026-08-13 02:00:00' },
+			sourceModule: { value: 'horary' },
+			caseType: { value: 'horary' },
+			payload: { value: JSON.stringify({ module: 'horary', settings: { hsys: 3 } }) },
+		};
+		storageutil.setGlobalStore({ user: { currentCase: DIV_CASE, caseApplySeq: 1 } });
+		const a = getDivinationSavedCasePayload('horary');
+		storageutil.setGlobalStore({ user: { currentCase: DIV_CASE, caseApplySeq: 2 } });
+		const b = getDivinationSavedCasePayload('horary');
+		expect(a && a.caseVersion).toBeTruthy();
+		expect(b && b.caseVersion).toBeTruthy();
+		expect(b.caseVersion).not.toBe(a.caseVersion);
+		expect(b.payload).toEqual(a.payload);
+		storageutil.setGlobalStore({ user: { currentCase: DIV_CASE, caseApplySeq: 2 } });
+		expect(getDivinationSavedCasePayload('horary').caseVersion).toBe(b.caseVersion);
+	});
+
 	it('代次不变时 caseVersion 恒定 —— 守卫「别反复覆盖用户现场」的原意必须保住', ()=>{
 		stubStore(7);
 		const a = getKentangSavedCasePayload('lingqi');
@@ -134,11 +157,17 @@ describe('存案保真总闸 · 源码接线锚(防复辟)', ()=>{
 		expect(bad).toEqual([]);
 	});
 
-	it('🔴 共用件的 caseVersion 也必须带后缀(改坏它 = 21 技法一起退化)', ()=>{
-		const src = fs.readFileSync(path.join(helper.UI_SRC, 'utils/kentangCaseSave.js'), 'utf8');
-		const line = src.split('\n').find((l)=>/caseVersion:/.test(l.replace(/\/\/.*$/, '')));
-		expect(line).toBeTruthy();
-		expect(line.includes('caseApplySeqSuffix')).toBe(true);
+	it('🔴 共用件的 caseVersion 也必须带后缀(改坏它 = 25 技法一起退化)', ()=>{
+		// 双共用件:kentangCaseSave(19 技法) + divinationCaseSave(卜卦/择日/世俗/天星四技法)。
+		// 🔴 后者曾漏网 —— 本哨兵原只钉 kentangCaseSave,自拼 caseVersion 的扫描域又只有
+		// components/**/*Main.js,utils/ 下的共用件 B 无人看守,四技法退回「同一事盘第二次
+		// 载入被守卫拦掉」的修复前状态。扩域后改坏任意一份即红。
+		['utils/kentangCaseSave.js', 'utils/divinationCaseSave.js'].forEach((u)=>{
+			const src = fs.readFileSync(path.join(helper.UI_SRC, u), 'utf8');
+			const line = src.split('\n').find((l)=>/caseVersion:/.test(l.replace(/\/\/.*$/, '')));
+			expect(line).toBeTruthy();
+			expect(`${u} → ${line.trim()}`).toContain('caseApplySeqSuffix');
+		});
 	});
 
 	it('🔴 applyCase 必须自增代次(不增则后缀恒定,等于没修)', ()=>{

@@ -116,7 +116,7 @@ const EXEMPT = {
 	heluo: '河洛理数走数算宿主', yizhangjing: '一掌经快照取自组件态', germany: '量化盘走后端 chart',
 	babylon: '巴比伦盘走后端', jieqi: '节气盘走后端 chart', otherbu: '卜其他聚合键(子技法各自覆盖)',
 	fengshui: '风水理气快照取自画布组件态', calendar: '黄历聚合键(huangli/tongshu 已覆盖)',
-	generic: '兜底键(无固定段)',
+	// generic 已从 preset/设置面除名(E-3:运行时兜底 context 键,无固定产出,死设置行)——不再入注册表。
 };
 
 describe('[制度化] 全技法段登记双向哨兵(总闸)', ()=>{
