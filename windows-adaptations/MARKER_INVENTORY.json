@@ -73,6 +73,9 @@
    "astrostudyui/src/utils/dataWarmTasks.js": 1,
    "astrostudyui/src/utils/idleWarmQueue.js": 1
   },
+  "horosa_dedupe_chart3d_v1": {
+   "astrostudyui/src/utils/requestDedupe.js": 1
+  },
   "horosa_dedupe_l1_lru_v1": {
    "astrostudyui/src/utils/__tests__/requestDedupe.test.js": 1,
    "astrostudyui/src/utils/requestDedupe.js": 3

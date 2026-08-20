@@ -361,7 +361,11 @@ apply_patch horosa_perf_reset_v1  astrostudyui/src/utils/perfMark.js  src__utils
 #    一直是对的,只有 L1 漏了)。后果:一串后台预取会把用户正在反复访问的那条挤出去,预取自己却活着 ——
 #    预取覆盖面从 1 个端点扩到十几个技法之后,这个方向是反的,会主动伤害命中率。
 #    ★ 刻意不刷新 ent.at:LRU 管淘汰顺序,TTL 管新鲜度;刷 at 会让热条目永不过期=偷改缓存语义。
-apply_patch horosa_dedupe_l1_lru_v1     astrostudyui/src/utils/requestDedupe.js  src__utils__requestDedupe.l1Lru.js.patch
+# [#94/#100] 守卫由 horosa_dedupe_l1_lru_v1 改为 horosa_dedupe_chart3d_v1:v3.9.3 上游把
+# L1-LRU 连 marker 一起收编 ⇒ 旧守卫恒命中、整补丁静默跳过,Windows-only 的 '/chart3d'
+# 白名单行(无 marker hunk)v3.9.3 轮实丢、由 SENT 哨兵接住。现补丁已重裁为仅剩该残差,
+# 守卫 = 残差自己的 marker(本补丁独有)。
+apply_patch horosa_dedupe_chart3d_v1    astrostudyui/src/utils/requestDedupe.js  src__utils__requestDedupe.l1Lru.js.patch
 # ③ 配套回归断言(已受控验证:撤掉那两行则该断言变红 1/13,装回则 13/13 绿 —— 它真的能抓)。
 apply_patch horosa_dedupe_l1_lru_v1     astrostudyui/src/utils/__tests__/requestDedupe.test.js  src__utils____tests____requestDedupe.l1Lru.test.js.patch
 

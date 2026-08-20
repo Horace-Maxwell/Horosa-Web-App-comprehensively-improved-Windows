@@ -58,6 +58,7 @@
 | p6-prefetch | `bazi` | chartFree 纯本地引擎(lunar-javascript/sxtwl 前端自算),时间步进零网络请求 —— 没有可预取的端点;/chart 底盘由内建 chartTasks 覆盖 |
 | p6-prefetch | `fengshui` | chartFree 纯本地(玄空引擎前端自算),步进零网络;与 bazi 同理无端点可登记 |
 | p6-prefetch | `calendar` | chartFree,黄历月历/日课走确定性历法端点但首点已由 dataWarmTasks 注册表暖(FE-16),步进语义是「换日期看月历」= /calendar/month 经 dedupe 白名单缓存,±N 预取收益已被月粒度缓存覆盖 |
+| p6-prefetch | `tarot` | 随机起卦型(FE-28 红线:随机档结果绝不入预取/缓存 —— 预取=把随机结果钉死);无步进主轴,换牌阵/换体系是重洗随机种子而非确定性步进。v3.9.3 升「卜」一级导航后成为独立技法键,豁免语义与其在 cnyibu 聚合页时期一致(彼时由 cnyibu 键的随机子页清单承载) |
 | p6-prefetch | `cntradition` | chartFree 纯本地页(卦象符号/穿宫十二式/口诀速查全部前端自算),时间步进零网络请求,没有可登记的预取端点;/chart 底盘由内建 chartTasks 覆盖 |
 | p6-prefetch | `guazhan` | 六爻随机起卦 —— 预取 = 把随机结果钉死进缓存(功能性降级,比慢更糟);gua 端点同时在 PREFETCH_FORBIDDEN_MARKERS 双闸 |
 | p6-prefetch | `jieqichart` | 年份邻位预取由专门机制 prefetchJieqiYearNeighbors(FE-6)承担(year±1 粒度与本表 ±N 步进不同轴);/jieqi/ 在 dedupe 白名单,重复登记会双份取数 |

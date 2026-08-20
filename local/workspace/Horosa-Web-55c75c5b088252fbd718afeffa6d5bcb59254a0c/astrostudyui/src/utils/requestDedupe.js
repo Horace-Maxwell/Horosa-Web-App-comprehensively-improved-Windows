@@ -33,6 +33,10 @@ const DEDUPE_PATH_PREFIXES = [
 	'/bazi/birth',
 	'/bazi/direct',
 	'/nongli/time',      // 真太阳时+四柱(确定性历法;bridge 外散点调用的落桶)
+	// [Windows-only] horosa_dedupe_chart3d_v1:/chart3d/state,3D 星盘状态(确定性纯计算,
+	// v3.5.0 起独立路由)。AstroChartMain3D 的步进预取声明此路径 —— 缺本行 =「允许预取却
+	// 无处落桶」,预取白取。上游收编 L1-LRU 后本行是该补丁仅存的 Windows 残差,守卫即本 marker。
+	'/chart3d',
 ];
 const DEDUPE_PATH_EXCLUDES = [
 	'/predict/dice',     // 随机骰子,绝不可缓存

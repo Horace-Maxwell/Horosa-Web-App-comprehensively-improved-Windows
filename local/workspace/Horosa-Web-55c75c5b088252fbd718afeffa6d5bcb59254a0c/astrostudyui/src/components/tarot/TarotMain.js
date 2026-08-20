@@ -237,7 +237,9 @@ class TarotMain extends Component{
 		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
 		this.setState({ reading, lastSeed: `${seed}` }, () => {
 			// horosa_panel_ready_v1:reading 落定 = 牌阵(中栏)与释义(右栏)画完的那一次 setState。
-			markPanelReady('cnyibu');
+			// v3.9.3 塔罗升「卜」一级导航 ⇒ 归属键随迁 'cnyibu' → 'tarot'(#75 归属键契约:
+			// 键错配会把塔罗的交互记到聚合页名下,P5 观测门按 navigationPages 键索引也会漏)。
+			markPanelReady('tarot');
 			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
 		});
 	}
