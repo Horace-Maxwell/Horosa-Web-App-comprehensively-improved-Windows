@@ -198,6 +198,20 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.9.3(2026-08-20 同步轮·占星古典设置大扩充;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `ec7f6782`)**:
+  warmReady 中位 **7007 / 6978ms**(p95 7246 / 7171),两臂相距 **−0.4%** = 构建自洽,无回归信号。
+  **workspaceVisible 845 / 836ms**(p95 954 / 869,预算 1500 内 ✓)—— 用户「双击到可见工作区」段
+  与近五轮读数(836-867ms)完全同带。工件:`docs/perf-artifacts/startup_ab_v393_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 == maxClockMHz`(睿频压制)+ `mumuRunning: true`
+  (owner 应用,未动)。绝对值属机器态区间读数:近五轮同台同压制态 warmReady 中位带 =
+  **6572-7210ms**(v3.7.3 7210/7056 → v3.8.0 6846/6661 → v3.9.2 6572/6607 → 本轮 7007/6978),
+  本轮落带内、无越界 —— 带内 ±5% 波动为后台负载噪声,历轮已档。
+- **★最硬论据 = 代码级不变性**:启动路径**零改动** —— Electron 壳 0 文件;Python 就绪链
+  (webchartsrv 门前段/registry/ledger)0 改动;Java 仅四控制器古典参数透传 + RuntimeWire 版本号,
+  均不在启动路径上。台架结构限制照旧(`resourceMode: direct`,ladder 失活态读数,只做对照)。
+
 ### 温启对照 v3.9.2(2026-08-14 同步轮·档案管理体系;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `dc2335e4`)**:
