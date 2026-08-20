@@ -95,7 +95,7 @@ future session/agent inherits the mechanism without needing to understand it.
 - After every Mac sync, run `python scripts/delta-report.py` against the live blockmap before releasing —
   the delta composition should match what the sync actually changed.
 
-## The adaptations (71)
+## The adaptations (72)
 
 > **Round-3 note — the dominant Windows perf fix is NOT in this overlay.** Measured: Windows Defender on-access
 > scanning of the bundled runtime = ~500x I/O tax (2 MB/s) — the #1 cause of slow startup + slow compute on
@@ -179,6 +179,8 @@ future session/agent inherits the mechanism without needing to understand it.
 | 69 | `astrostudyui/src/utils/aiAnalysisContext.js`(v3.9.2 上游 bug 修复,**建议上游同步**) | `check-no-undef` 门(#98 制度化产物)在移植当轮抓获:2372 行 `pdtype: DEFAULT_PD_TYPE` 引用了**从未 import** 的常量 —— 该处在 try 里被吞成「主限法盘配置(降级)」,于是 v3.9.2 发布说明宣称的「主限法补全盘体」这一段**在两端都从未真正生效**(Mac 无此门故未察觉)。修 = 从单一事实源 `utils/primaryDirectionSync`(同族 `DEFAULT_PD_METHOD`/`DEFAULT_PD_TIME_KEY` 本就从这里 import)补一个导入符,行为=补齐段真正出内容。 | `patches/src__utils__aiAnalysisContext.noUndefFix.js.patch`(round-trip 验过);apply.sh 行内注;哨兵 `horosa_no_undef_fix_v1` |
 | 70 | `astrostudyui/src/utils/shadowMirror.js` + 壳层 `electron/main.js`/`electron/preload.js`(v3.9.2「双保险副本」的 Electron 对位) | 上游把记录库四键的壳侧文件镜像走 **Tauri invoke**(Mac main.rs [V5-A3]:白名单 + 临时文件 + fsync + 原子 rename);Electron 壳无 `__TAURI__` ⇒ 不对位则该数据保险在 Windows **静默不存在**(发布说明承诺的功能死件)。对位=同语义三件套:①shadowMirror.js 适配层 `electronShadowBridge()`(jest/浏览器/Mac 返回 null 走原 Tauri 判定,上游测试与 Mac 行为零改变)②preload 桥 `shadowStoreWrite/ReadAll` ③main.js IPC `desktop:shadow-store-write/read-all`(**主进程白名单硬验**,渲染器无法借此写任意文件;原子写=tmp+fsyncSync+rename,与 Rust 端逐字对齐;目录 userData/shadow/)。恢复语义不变:仅主存缺失时写回、绝不覆盖存在的主存。 | `patches/src__utils__shadowMirror.electronBridge.js.patch`(round-trip 验过)+ 壳层两文件(HARNESS_MANIFEST 域);apply.sh 行内注;哨兵三条目(shadowMirror/main.js/preload.js) |
 | 71 | `astrostudyui/src/utils/storageKeyRegistry.js` + 同名形状快照 `.snap`(v3.9.2 上游存储键注册表的 Windows-ahead 登记) | 上游 [V4] 档案体系新增「存储键穷举哨兵」:机械扫源码全部存储键字面量 diff 注册表,**新键不登记 = umi 必红**;全量备份面由注册表推导。Windows-ahead 键 `horosa.boot.lastChart.v1`(utils/bootChartRestore.js,PERF-R10 温启现场恢复)按四类语义登记为 **device-local/backup:false**(设备会话态:存「上次退出时的主盘现场」,跨机带走反而错,丢失零资产损失)。注册表条目与形状快照(测试契约要求 jest -u 显式留痕)**必须成对**:只带注册表那张则下轮同步后「形状快照」测试红。另注:perfFlags.js 累积补丁内注释措辞不得把 set/get 首参写成带引号字面量(占位串会被穷举哨兵当真键抓红,v3.9.2 实发)。 | `patches/src__utils__storageKeyRegistry.windowsKeys.js.patch` + `patches/src__utils__tests__snapshots__storageRegistryCompleteness.snap.patch`(均 round-trip 验过);哨兵两条目;守卫=marker/键名(键名被上游收编=收敛信号,走 #49) |
+
+| 72 | `astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js`(上游契约测的仓库布局解耦,**可上游化**) | v3.9.3 上游新契约测「横向复制点全等」组以 `REPO + 'Horosa-Web/…'` 读后端源(ModernChartController/ChartController/PredictiveController/webchartsrv/helper/webmodernsrv 等)—— 把仓库布局硬编码成「工作区目录名恒为 Horosa-Web」。Windows 工作区带内容哈希后缀(`Horosa-Web-<sha>`)且挂 `local/workspace/` 下 ⇒ **六个后端扫描测全 ENOENT**(#99 课一「机械扫源码契约门咬 Windows 面」同族,#96 [207] 判例线)。修 = `read()` 改「本测试文件 → 工作区根」相对定位(`WSROOT = __dirname/../../../..`)+ 剥 `Horosa-Web/` 前缀:布局无关,macOS 上解析到完全相同的文件(行为等价)。**建议上游化**。 | `patches/src__utils__tests__classicalParamSpec.wsDirnameAgnostic.test.js.patch`(guard `horosa_ws_dirname_agnostic_v1`,round-trip 验过);apply.sh §39;SENT 双针(marker + WSROOT 字面) |
 
 ## Notes
 - **#1–#5 are robust** (full copies / idempotent ops). **#6–#8 are patches** against Mac `1c463718`/`270eb01e`; if a

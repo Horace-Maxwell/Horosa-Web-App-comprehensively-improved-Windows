@@ -567,6 +567,9 @@
   "horosa_windows_storage_keys_v1": {
    "astrostudyui/src/utils/storageKeyRegistry.js": 1
   },
+  "horosa_ws_dirname_agnostic_v1": {
+   "astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js": 1
+  },
   "horosa_wuzhao_random_guard_v1": {
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,
    "astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js": 1,

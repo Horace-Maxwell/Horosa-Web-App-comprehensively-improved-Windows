@@ -818,4 +818,10 @@ apply_patch "W3b-Z5"                             astrostudyui/src/components/div
 # W3g 纯时间步进→补间链路源级钉(五针);Astro3D 本体零改动,只加测试。
 apply_patch "W3g"                                astrostudyui/src/components/astro3d/__tests__/astro3dMorph.test.js  src__components__astro3d____tests____astro3dMorph.w3g.test.js.patch
 
+echo "== 39. v3.9.3 上游契约测硬编码仓库布局(Horosa-Web/ 目录名)→ 布局无关定位(gotcha #100)=="
+# 上游 classicalParamSpec.contract 的「横向复制点」组用 REPO + 'Horosa-Web/…' 读后端源;
+# Windows 工作区名带哈希后缀 ⇒ 六个后端扫描测全 ENOENT。改「测试文件→工作区根」相对定位 +
+# 剥前缀,macOS 上解析到同一文件(行为等价,可上游化)。
+apply_patch horosa_ws_dirname_agnostic_v1        astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js  src__utils__tests__classicalParamSpec.wsDirnameAgnostic.test.js.patch
+
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="

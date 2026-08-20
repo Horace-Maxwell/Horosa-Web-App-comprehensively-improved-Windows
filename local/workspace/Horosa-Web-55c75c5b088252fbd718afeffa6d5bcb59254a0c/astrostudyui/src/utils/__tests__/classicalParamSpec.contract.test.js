@@ -196,7 +196,14 @@ describe('横向复制点全等(第三闸/回显白名单/PD 收缩/卜卦构参
 	const path = require('path');
 	const UI = path.join(__dirname, '../..');
 	const REPO = path.join(UI, '../../..');
-	const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+	// [Windows-only] horosa_ws_dirname_agnostic_v1:上游此组用 `REPO + 'Horosa-Web/…'` 定位
+	// 后端源 —— 把仓库布局硬编码成「工作区目录名恒为 Horosa-Web」。Windows 侧工作区带内容
+	// 哈希后缀(Horosa-Web-<sha>)且挂在 local/workspace/ 下 ⇒ 六个后端扫描测全 ENOENT
+	// (#99 课一「机械扫源码契约门咬 Windows 面」同族)。改为「本测试文件 → 工作区根」相对
+	// 定位 + 剥离 Horosa-Web/ 前缀:布局无关,macOS 上解析到完全相同的文件(行为等价)。
+	const WSROOT = path.join(__dirname, '../../../..');
+	const read = (rel) => fs.readFileSync(
+		path.join(WSROOT, String(rel).replace(/^Horosa-Web[\\/]/, '')), 'utf8');
 	const NON_DEFAULT_KEYS = CLASSICAL_PARAM_SPEC.filter((s) => s.send === 'nonDefault').map((s) => s.backendKey || s.key);
 	const NEVER_KEYS = CLASSICAL_PARAM_SPEC.filter((s) => s.send === 'never').map((s) => s.key);
 
