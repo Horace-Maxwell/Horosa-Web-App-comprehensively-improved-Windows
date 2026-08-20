@@ -44,6 +44,7 @@ import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
 import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
 import { schoolToBackendParams } from './UranianSchools';
 import { tnpGlyph } from './UranianGlyphs';
+import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
 
 // 标准盘所需的「宫头对象」结构:{id:'House1'..'House12', lon, size, sign, signlon}。
 // AstroChartCircle.desposeHouses/getHouse 消费 lon/size/sign/signlon/id;此处从框的 cusps[12] 派生。
@@ -118,6 +119,8 @@ function fieldsToParams(fields){
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa') || '',
 		tradition: false, predictive: 0, name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
+		// [SURF-5] 古典设置单源接入;条件发送=默认态字节不变。
+		...classicalBackendOverridesFromFields(fields),
 	};
 }
 function paramsReady(p){

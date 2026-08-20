@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroLunarReturn.js b/astrostudyui/src/components/astro/AstroLunarReturn.js
-index 142468f1..5970d33d 100644
+index ee3f571b..76b7741c 100644
 --- a/astrostudyui/src/components/astro/AstroLunarReturn.js
 +++ b/astrostudyui/src/components/astro/AstroLunarReturn.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -11,10 +11,10 @@ index 142468f1..5970d33d 100644
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -17,6 +17,11 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
- import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
- import UpdatingBadge from '../common/UpdatingBadge';
+@@ -19,6 +19,11 @@ import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+ import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -23,7 +23,7 @@ index 142468f1..5970d33d 100644
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -35,6 +40,7 @@ class AstroLunarReturn extends Component{
+@@ -37,6 +42,7 @@ class AstroLunarReturn extends Component{
  		this.requestData = this.requestData.bind(this);
  		this.genAspectDom = this.genAspectDom.bind(this);
  		this.changeDblChartType = this.changeDblChartType.bind(this);
@@ -31,7 +31,7 @@ index 142468f1..5970d33d 100644
  		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  
-@@ -68,6 +74,9 @@ class AstroLunarReturn extends Component{
+@@ -70,6 +76,9 @@ class AstroLunarReturn extends Component{
  			dirChart: null,
  			inverse: true,
  			secDirChart: null,
@@ -41,7 +41,7 @@ index 142468f1..5970d33d 100644
  		}
  
  		if(this.state.params.date){
-@@ -119,7 +128,13 @@ class AstroLunarReturn extends Component{
+@@ -122,7 +131,13 @@ class AstroLunarReturn extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -56,16 +56,16 @@ index 142468f1..5970d33d 100644
  		let datetime = new DateTime();
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
-@@ -201,6 +216,8 @@ class AstroLunarReturn extends Component{
+@@ -212,6 +227,8 @@ class AstroLunarReturn extends Component{
  		}
  
  		this.setState(st, ()=>{
 +			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 +			markPanelReady('direction');
- 			const chartValue = this.props.value;
+ 			const chartValue = chartValueAtRequest;
  			saveModuleAISnapshotLazy('lunarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'lunarreturn'), {
  				module: 'lunarreturn',
-@@ -265,7 +282,30 @@ class AstroLunarReturn extends Component{
+@@ -276,7 +293,30 @@ class AstroLunarReturn extends Component{
  		});
  	}
  
@@ -96,7 +96,7 @@ index 142468f1..5970d33d 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -311,7 +351,7 @@ class AstroLunarReturn extends Component{
+@@ -322,7 +362,7 @@ class AstroLunarReturn extends Component{
  			if(i % 2 === 0){
  				if(i > 0){
  					let dom = (
@@ -105,7 +105,7 @@ index 142468f1..5970d33d 100644
  							<Row>
  								{cols}
  							</Row>
-@@ -325,7 +365,7 @@ class AstroLunarReturn extends Component{
+@@ -336,7 +376,7 @@ class AstroLunarReturn extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((
@@ -114,7 +114,7 @@ index 142468f1..5970d33d 100644
  				{cols}
  			</Row>
  		));
-@@ -344,6 +384,10 @@ class AstroLunarReturn extends Component{
+@@ -355,6 +395,10 @@ class AstroLunarReturn extends Component{
  		});
  	}
  
@@ -125,7 +125,7 @@ index 142468f1..5970d33d 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this.requestData();
-@@ -469,6 +513,12 @@ class AstroLunarReturn extends Component{
+@@ -480,6 +524,12 @@ class AstroLunarReturn extends Component{
  			overflowX:'hidden',
  		};
  		let chartHeight = height - 50;
@@ -138,7 +138,7 @@ index 142468f1..5970d33d 100644
  
  		return (
  			<div>
-@@ -477,12 +527,17 @@ class AstroLunarReturn extends Component{
+@@ -488,12 +538,17 @@ class AstroLunarReturn extends Component{
  						{/* keep-stale 角标:重取期间旧返照盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
  						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
@@ -158,7 +158,7 @@ index 142468f1..5970d33d 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -490,9 +545,11 @@ class AstroLunarReturn extends Component{
+@@ -501,9 +556,11 @@ class AstroLunarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -171,7 +171,7 @@ index 142468f1..5970d33d 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -500,20 +557,24 @@ class AstroLunarReturn extends Component{
+@@ -511,20 +568,24 @@ class AstroLunarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -198,7 +198,7 @@ index 142468f1..5970d33d 100644
  												wheelArt={this.props.wheelArt}
  												chartDisplay={this.props.chartDisplay}
  												planetDisplay={this.props.planetDisplay}
-@@ -521,13 +582,15 @@ class AstroLunarReturn extends Component{
+@@ -532,13 +593,15 @@ class AstroLunarReturn extends Component{
  												showAstroMeaning={this.props.showAstroMeaning}
  												height={chartHeight}
  											/>
@@ -215,7 +215,7 @@ index 142468f1..5970d33d 100644
  											<AstroDoubleChart value={secChartObj}
  												height={chartHeight}
  												planetDisplay={this.props.planetDisplay}
-@@ -535,6 +598,7 @@ class AstroLunarReturn extends Component{
+@@ -546,6 +609,7 @@ class AstroLunarReturn extends Component{
  												chartDisplay={this.props.chartDisplay}
  												showAstroMeaning={this.props.showAstroMeaning}
  											/>

@@ -54,6 +54,9 @@ export const STORAGE_KEY_REGISTRY = [
 	{ key: 'horosa.report.thinkingLevel', kind: 'settings', backup: true, label: 'AI 思考档' },
 	{ key: 'horosa.sec.aiBodyEncrypt', kind: 'settings', backup: true, label: 'AI 请求体加密开关' },
 	{ key: 'horosa.chart.classicalGlobals.v1', kind: 'settings', backup: true, label: '古典占星全局参数' },
+	// [WP-7] 自定义界表 + 自定义恒星黄道槽位(星盘设置两 Modal;排盘条件下发)。
+	{ key: 'horosa.astro.customTerms.v1', kind: 'settings', backup: true, label: '自定义界表(昼/夜两表)' },
+	{ key: 'horosa.astro.customAyanamsa.v1', kind: 'settings', backup: true, label: '自定义恒星黄道槽位(≤10)' },
 	{ key: 'horosa.chart.divinationJudgeGlobals.v1', kind: 'settings', backup: true, label: '卜卦判读全局参数' },
 	{ key: 'horosa.astroTimeline.v1', kind: 'settings', backup: true, label: '占星时间线视图状态' },
 	{ key: 'horosa.egypt.school.v1', kind: 'settings', backup: true, label: '埃及占星流派' },

@@ -11,6 +11,8 @@ Array [
   "horosa.ai.export.settings.v1 :: settings :: backup=true",
   "horosa.ai.mount.techniqueDefaults.v1 :: settings :: backup=true",
   "horosa.ai.snapshot.* :: cache :: backup=false",
+  "horosa.astro.customAyanamsa.v1 :: settings :: backup=true",
+  "horosa.astro.customTerms.v1 :: settings :: backup=true",
   "horosa.astroTimeline.v1 :: settings :: backup=true",
   "horosa.backup.lastResult :: device-local :: backup=false",
   "horosa.boot.lastChart.v1 :: device-local :: backup=false",

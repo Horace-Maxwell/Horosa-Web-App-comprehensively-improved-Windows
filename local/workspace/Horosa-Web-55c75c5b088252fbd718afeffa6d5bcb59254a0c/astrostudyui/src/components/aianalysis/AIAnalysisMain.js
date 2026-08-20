@@ -137,7 +137,7 @@ import {
 	mergeRetrievedChunks,
 	rankChunksByKeyword,
 	rerankChunksWithVector,
-	shouldUseDirectAttach,
+	partitionMaterialsByRetrieval,
 } from '../../utils/aiAnalysisRag';
 import {
 	filterTechniqueKeysBySource,
@@ -724,7 +724,7 @@ function preRenderLatex(src){
 		try{
 			const html = katex.renderToString(tex, { displayMode, throwOnError: false, output: 'html' });
 			placeholders.push(html);
-			return ` KATEX${placeholders.length - 1} `;
+			return `\x00KATEX${placeholders.length - 1}\x00`;
 		}catch(_){ return escape(tex); }
 	};
 	let s = src;
@@ -749,7 +749,7 @@ function renderMarkdownToHtml(text){
 	try{
 		const pre = preRenderLatex(normalizeMarkdown(raw));
 		const html = marked.parse(pre.source);
-		const restored = html.replace(/ KATEX(\d+) /g, (_, idx)=>pre.placeholders[Number(idx)] || '');
+		const restored = html.replace(/\x00KATEX(\d+)\x00/g, (_, idx)=>pre.placeholders[Number(idx)] || '');
 		return DOMPurify.sanitize(restored, { ADD_ATTR: ['target', 'rel', 'class', 'type', 'title', 'aria-label', 'style'], ADD_TAGS: ['math', 'mrow', 'mi', 'mn', 'mo', 'msup', 'msub', 'mfrac', 'mtext', 'annotation', 'semantics'] });
 	}catch(e){
 		console.warn('markdown render failed', e);
@@ -1939,15 +1939,9 @@ function AIAnalysisMain(props){
 	}
 
 	async function retrieveMaterialContext(query, resolvedRefs, embeddingTarget, retrievalMode){
-		const directMaterials = [];
-		const ragMaterials = [];
-		(resolvedRefs.materials || []).forEach((item)=>{
-			if(shouldUseDirectAttach(item, retrievalMode)){
-				directMaterials.push(item);
-			}else{
-				ragMaterials.push(item);
-			}
-		});
+		// 分拣走 partitionMaterialsByRetrieval 单源:直挂/检索的档位判定只此一处,
+		// 与逐项 shouldUseDirectAttach 判定逐字节等价,避免多处各判各的漂移。
+		const { direct: directMaterials, rag: ragMaterials } = partitionMaterialsByRetrieval(resolvedRefs.materials || [], retrievalMode);
 		if(!ragMaterials.length){
 			return {
 				directMaterials,

@@ -251,6 +251,82 @@ function newEmptyFields(){
 			value: classicalGlobalValue('antisciaOrb'),
 			name: ['antisciaOrb'],
 		},
+		// [对标战役 0b] 二批第十键 viaCombustaVariant 此前独漏播种(九键有它没有)→用户改 narrow 重启后
+		// 首发盘 fields 无此键、classicalBackendOverridesFromFields 取 undefined 不下发,静默回落 standard。
+		viaCombustaVariant: {
+			value: classicalGlobalValue('viaCombustaVariant'),
+			name: ['viaCombustaVariant'],
+		},
+		// [对标战役 0c] 三个 0/1 流派开关(点公式文档序/交点入旺/土星旺20°):schema 历史无此三键,
+		// 照 termsVariant 条件播种范式——仅全局仓非默认才播 wrapper,默认态 fields 键集逐字节不变。
+		...(classicalGlobalOverrides().lotsDocReverse !== undefined ? {
+			lotsDocReverse: { value: classicalGlobalValue('lotsDocReverse'), name: ['lotsDocReverse'] },
+		} : {}),
+		...(classicalGlobalOverrides().nodeExaltation !== undefined ? {
+			nodeExaltation: { value: classicalGlobalValue('nodeExaltation'), name: ['nodeExaltation'] },
+		} : {}),
+		// [WP-2] 天文口径批五键:同 termsVariant 条件播种范式(schema 历史无此键,仅全局非默认才播,
+		// 默认态 fields 键集逐字节不变;eclipseTimeMode 纯全局显示口径不进 fields)。
+		...(classicalGlobalOverrides().combustOwnChariotExempt !== undefined ? {
+			combustOwnChariotExempt: { value: classicalGlobalValue('combustOwnChariotExempt'), name: ['combustOwnChariotExempt'] },
+		} : {}),
+		...(classicalGlobalOverrides().westLilithType !== undefined ? {
+			westLilithType: { value: classicalGlobalValue('westLilithType'), name: ['westLilithType'] },
+		} : {}),
+		...(classicalGlobalOverrides().topocentricMoon !== undefined ? {
+			topocentricMoon: { value: classicalGlobalValue('topocentricMoon'), name: ['topocentricMoon'] },
+		} : {}),
+		...(classicalGlobalOverrides().stationMarking !== undefined ? {
+			stationMarking: { value: classicalGlobalValue('stationMarking'), name: ['stationMarking'] },
+		} : {}),
+		...(classicalGlobalOverrides().hermeticLotsReversal !== undefined ? {
+			hermeticLotsReversal: { value: classicalGlobalValue('hermeticLotsReversal'), name: ['hermeticLotsReversal'] },
+		} : {}),
+		...(classicalGlobalOverrides().erosConstruction !== undefined ? {
+			erosConstruction: { value: classicalGlobalValue('erosConstruction'), name: ['erosConstruction'] },
+		} : {}),
+		...(classicalGlobalOverrides().lotFortuneVariant !== undefined ? {
+			lotFortuneVariant: { value: classicalGlobalValue('lotFortuneVariant'), name: ['lotFortuneVariant'] },
+		} : {}),
+		...(classicalGlobalOverrides().lotFatherCombustAlt !== undefined ? {
+			lotFatherCombustAlt: { value: classicalGlobalValue('lotFatherCombustAlt'), name: ['lotFatherCombustAlt'] },
+		} : {}),
+		...(classicalGlobalOverrides().lotProjection !== undefined ? {
+			lotProjection: { value: classicalGlobalValue('lotProjection'), name: ['lotProjection'] },
+		} : {}),
+		...(classicalGlobalOverrides().dignityDebilities !== undefined ? {
+			dignityDebilities: { value: classicalGlobalValue('dignityDebilities'), name: ['dignityDebilities'] },
+		} : {}),
+		...(classicalGlobalOverrides().almutenTripMode !== undefined ? {
+			almutenTripMode: { value: classicalGlobalValue('almutenTripMode'), name: ['almutenTripMode'] },
+		} : {}),
+		...(classicalGlobalOverrides().planetaryHourMethod !== undefined ? {
+			planetaryHourMethod: { value: classicalGlobalValue('planetaryHourMethod'), name: ['planetaryHourMethod'] },
+		} : {}),
+		...(classicalGlobalOverrides().orbSystem !== undefined ? {
+			orbSystem: { value: classicalGlobalValue('orbSystem'), name: ['orbSystem'] },
+		} : {}),
+		...(classicalGlobalOverrides().luminaryOrbBonus !== undefined ? {
+			luminaryOrbBonus: { value: classicalGlobalValue('luminaryOrbBonus'), name: ['luminaryOrbBonus'] },
+		} : {}),
+		...(classicalGlobalOverrides().aspectIncludeCusps !== undefined ? {
+			aspectIncludeCusps: { value: classicalGlobalValue('aspectIncludeCusps'), name: ['aspectIncludeCusps'] },
+		} : {}),
+		...(classicalGlobalOverrides().aspectIncludeLots !== undefined ? {
+			aspectIncludeLots: { value: classicalGlobalValue('aspectIncludeLots'), name: ['aspectIncludeLots'] },
+		} : {}),
+		...(classicalGlobalOverrides().aspectIncludeMidpoints !== undefined ? {
+			aspectIncludeMidpoints: { value: classicalGlobalValue('aspectIncludeMidpoints'), name: ['aspectIncludeMidpoints'] },
+		} : {}),
+		...(classicalGlobalOverrides().solarReturnVariant !== undefined ? {
+			solarReturnVariant: { value: classicalGlobalValue('solarReturnVariant'), name: ['solarReturnVariant'] },
+		} : {}),
+		...(classicalGlobalOverrides().returnLatitudeMode !== undefined ? {
+			returnLatitudeMode: { value: classicalGlobalValue('returnLatitudeMode'), name: ['returnLatitudeMode'] },
+		} : {}),
+		...(classicalGlobalOverrides().vulcanCalc !== undefined ? {
+			vulcanCalc: { value: classicalGlobalValue('vulcanCalc'), name: ['vulcanCalc'] },
+		} : {}),
 		houseStartMode: {
 			// [X1] 宿占「人事十二宫起盘」持久化读回:写侧存 localStorage(suzhanHouseStartMode),
 			// 初值曾硬编码 0 → 用户选 ASC 重启即静默回退八字公式起盘。SSR/jest 无 localStorage 时守 0。
@@ -412,11 +488,15 @@ function fieldsToParams(fields){
 		southchart: fields.southchart.value,
 		zodiacal: fields.zodiacal.value,
 		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
+		// [WP-7] 自定义恒星黄道 'user' 档:随行附历元参数(fields 优先,缺读当前槽;后端 SIDM_USER)。
+		...((fields.siderealAyanamsa && `${fields.siderealAyanamsa.value}` === 'user')
+			? require('../utils/customCalibreStores').userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined))
+			: {}),
 		tradition: fields.tradition.value,
-		// 界系(bounds)：默认 0/缺省 不下发 → /chart body 零变 + 不扰缓存键(同 pd*/orbScale 条件透传口径);仅非 0 才传给 Java→Python。
-		...(fields.termsVariant && fields.termsVariant.value ? { termsVariant: fields.termsVariant.value } : {}),
-		// 双子界序(仅托勒密界·经典传本受影响):默认/0 不下发=忠原书零回归;1 才传(与卜卦 chartRequest 同口径)。
-		...(fields.geminiBoundEmended && fields.geminiBoundEmended.value ? { geminiBoundEmended: 1 } : {}),
+		// [SURF-R3f] termsVariant/geminiBoundEmended 手写条件段已删:spread(下行)按 spec 全覆盖
+		// 且归一化更严(int 强转+值域校验);旧手写段在 spread 前=恒被覆盖的死代码,唯一「生效」
+		// 场景是 termsVariant=4 无合法表时 spread 自删而手写键存活→请求带 4 被后端回落——
+		// 删除后前端即降级不发 4,恰是 WP-7 设计意图。
 		// 2026-07 二批九键(落宫/三态/空亡/恒星/映点):共享 helper 条件透传,默认不下发零回归。
 		...classicalBackendOverridesFromFields(fields),
 		doubingSu28: fields.doubingSu28.value,
@@ -436,7 +516,7 @@ function fieldsToParams(fields){
 		...(fields.leoBoundFirst && (fields.leoBoundFirst.value === 1 || fields.leoBoundFirst.value === '1') ? { leoBoundFirst: 1 } : {}),
 		...(fields.triplicity && fields.triplicity.value && fields.triplicity.value !== 'Dorothean' ? { triplicity: fields.triplicity.value } : {}),
 		...(fields.lotReversal && (fields.lotReversal.value === 0 || fields.lotReversal.value === '0') ? { lotReversal: 0 } : {}),
-		// lotsDocReverse/nodeExaltation/saturnExalt20 三个 0/1 开关已并入
+		// lotsDocReverse/nodeExaltation 两个 0/1 开关已并入
 		// classicalBackendOverridesFromFields 单一真值源(上方 spread),此处不再手写——
 		// 曾因手写副本只覆盖主盘,13宫盘/12分盘/合盘全部丢参(与主盘同档流派分叉)。
 		strongRecption: fields.strongRecption.value,

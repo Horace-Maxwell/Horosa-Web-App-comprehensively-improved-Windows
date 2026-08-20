@@ -97,14 +97,24 @@ class BabylonMain extends Component{
 		if(this.unmounted || seq !== this.reqSeq){ return; }
 		let ephemDigest = digestBabylonEphemeris(ephem, jdn);
 		this.setState({ chartObj: result, ephemDigest });
-		// NA/KUR 观测量(满月日/残月晨的日月升落)二段轻请求;回填不阻塞首屏
+		// NA/KUR 观测量(满月日/残月晨的日月升落)二段轻请求;回填不阻塞首屏。
+		// [issue#74 同类] 回填落地后必须补拍快照:旧实现只 setState,而下方快照在本同步块
+		// 已用「无 na/kur 的裸 digest」产出并冻结(本文件无 refresh-event 监听,导出直吃缓存)
+		// → 页面显示 NA/KUR 而 AI 挂载恒缺两子句。补拍与 render 同构,回包即自愈。
 		if(ephemDigest){
 			computeNaKur(this.props.fields, ephemDigest).then((full) => {
-				if(!this.unmounted && seq === this.reqSeq){ this.setState({ ephemDigest: full }); }
+				if(!this.unmounted && seq === this.reqSeq){
+					this.setState({ ephemDigest: full }, () => this.saveBabylonSnapshot(result, params, jdn, full));
+				}
 				return full;
 			}).catch(() => null);
 		}
-		// 页面侧存模块 AI 快照(AI 导出当前页/挂载候选;meta=生辰签名防串盘)
+		this.saveBabylonSnapshot(result, params, jdn, ephemDigest);
+	}
+
+	// 页面侧存模块 AI 快照(AI 导出当前页/挂载候选;meta=生辰签名防串盘)。
+	// 抽成方法供两处调用:首拍(裸 digest,即时可用)+ NA/KUR 回填补拍(终值)。
+	saveBabylonSnapshot(result, params, jdn, ephemDigest){
 		try{
 			const lons = chartToLons(result);
 			if(jdn && lons.sun !== undefined){

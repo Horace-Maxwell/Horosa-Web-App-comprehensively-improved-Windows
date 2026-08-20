@@ -101,6 +101,7 @@ function normalizeGlobalSetup(setup){
     }
     normalized.chartStyle = AstroConst.normalizeChartStyle(normalized.chartStyle);
     normalized.wheelArt = AstroConst.normalizeWheelArt(normalized.wheelArt);
+    if(normalized.planetListStyle !== 'degreeOnly' && normalized.planetListStyle !== 'glyphOnly'){ normalized.planetListStyle = 'full'; }
     normalized.indiaChartStyle = AstroConst.normalizeIndiaChartStyle(normalized.indiaChartStyle);
     normalized.dayBoundary = normalizeDayBoundary(normalized.dayBoundary);
     normalized.lateZiHourMode = normalizeLateZiHourMode(normalized.lateZiHourMode);
@@ -187,6 +188,7 @@ export default {
         chartDisplay: AstroConst.CHART_DEFAULTOPTS,
         chartStyle: AstroConst.CHART_STYLE_CURRENT,
         wheelArt: AstroConst.WHEEL_ART_CLASSIC,
+        planetListStyle: 'full',   // [WP-9] 行星列表密度:full/degreeOnly/glyphOnly
         indiaChartStyle: AstroConst.INDIA_CHART_STYLE_SOUTH,
         planetDisplay: AstroConst.DEFAULT_OBJECTS,
         lotsDisplay: AstroConst.DEFAULT_LOTS,
@@ -258,6 +260,10 @@ export default {
             if(Object.prototype.hasOwnProperty.call(payload, 'wheelArt')){
                 payload.wheelArt = AstroConst.normalizeWheelArt(payload.wheelArt);
             }
+            if(Object.prototype.hasOwnProperty.call(payload, 'planetListStyle')){
+                const pls = payload.planetListStyle;
+                payload.planetListStyle = (pls === 'degreeOnly' || pls === 'glyphOnly') ? pls : 'full';
+            }
             if(Object.prototype.hasOwnProperty.call(payload, 'indiaChartStyle')){
                 payload.indiaChartStyle = AstroConst.normalizeIndiaChartStyle(payload.indiaChartStyle);
             }
@@ -268,6 +274,7 @@ export default {
                 chartDisplay: st.chartDisplay,
                 chartStyle: st.chartStyle,
                 wheelArt: st.wheelArt,
+                planetListStyle: st.planetListStyle,
                 indiaChartStyle: st.indiaChartStyle,
                 planetDisplay: st.planetDisplay,
                 lotsDisplay: st.lotsDisplay,

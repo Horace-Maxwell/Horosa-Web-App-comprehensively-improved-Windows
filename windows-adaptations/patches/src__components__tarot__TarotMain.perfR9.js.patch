@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/tarot/TarotMain.js b/astrostudyui/src/components/tarot/TarotMain.js
-index 2171863c..6beebc80 100644
+index 59d77acd..c6d8f64b 100644
 --- a/astrostudyui/src/components/tarot/TarotMain.js
 +++ b/astrostudyui/src/components/tarot/TarotMain.js
-@@ -22,6 +22,8 @@ import { cardElement } from './engine/cardSchema';
+@@ -23,6 +23,8 @@ import { cardElement } from './engine/cardSchema';
  import { SCALE_META, SCALE_ORDER, scaleColor } from './engine/colorScales';
  import { DUMMETT_ORDERS } from './decks/visconti';
  import { PUBLIC_DOMAIN_ATTRIBUTION } from './decks/meanings78';
@@ -11,7 +11,7 @@ index 2171863c..6beebc80 100644
  // settings↔state 键映射单源(保存/载入同表,防「存而不载」)——正文与 roundtrip 哨兵见 engine/settingsMap.js。
  import { settingsFromState, statePatchFromSavedSettings } from './engine/settingsMap';
  import { REVERSAL_MODE_GROUPS, REVERSAL_TEMPLATES } from './engine/reversalModes';
-@@ -192,6 +194,7 @@ class TarotMain extends Component{
+@@ -193,6 +195,7 @@ class TarotMain extends Component{
  		if(this.props.hook){ this.props.hook.fun = () => { if(!this.unmounted){ this.restoreFromCurrentCase(); } }; }
  	}
  
@@ -19,7 +19,7 @@ index 2171863c..6beebc80 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -232,6 +235,8 @@ class TarotMain extends Component{
+@@ -233,6 +236,8 @@ class TarotMain extends Component{
  		if(seed === undefined || seed === null || seed === ''){ return; }
  		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
  		this.setState({ reading, lastSeed: `${seed}` }, () => {
@@ -28,7 +28,7 @@ index 2171863c..6beebc80 100644
  			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
  		});
  	}
-@@ -951,7 +956,9 @@ class TarotMain extends Component{
+@@ -952,7 +957,9 @@ class TarotMain extends Component{
  		const summary = reading && reading.summary;
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-content-tabs horosa-tarot-tabs">
@@ -38,7 +38,7 @@ index 2171863c..6beebc80 100644
  					<div className="horosa-tarot-reading">
  						{this.state.question ? <div className="horosa-info-card"><div className="horosa-info-card-title">所问</div><div>{this.state.question}</div></div> : null}
  						{reading && reading.firstReversal && !reading.firstReversal.error ? (
-@@ -988,8 +995,10 @@ class TarotMain extends Component{
+@@ -989,8 +996,10 @@ class TarotMain extends Component{
  							</div>
  						) : <div className="horosa-tarot-empty">尚未抽牌</div>}
  					</div>
@@ -49,7 +49,7 @@ index 2171863c..6beebc80 100644
  					<table className="horosa-tarot-table">
  						<thead><tr><th>位置</th><th>牌</th><th>正逆</th><th>含义</th></tr></thead>
  						<tbody>{draws.map((d) => (
-@@ -1001,8 +1010,10 @@ class TarotMain extends Component{
+@@ -1002,8 +1011,10 @@ class TarotMain extends Component{
  							</tr>
  						))}</tbody>
  					</table>
@@ -60,7 +60,7 @@ index 2171863c..6beebc80 100644
  					<table className="horosa-tarot-table">
  						<thead><tr><th>牌</th>{caps.reversals !== false ? <th>正逆</th> : null}{isTarot ? <th>对应</th> : null}{caps.dignities ? <th>尊位</th> : null}<th>关键义</th></tr></thead>
  						<tbody>{draws.map((d) => {
-@@ -1021,14 +1032,15 @@ class TarotMain extends Component{
+@@ -1022,14 +1033,15 @@ class TarotMain extends Component{
  							);
  						})}</tbody>
  					</table>

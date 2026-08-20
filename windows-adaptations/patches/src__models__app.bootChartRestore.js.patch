@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/models/app.js b/astrostudyui/src/models/app.js
-index 45df4e9..90a8f73 100644
+index e80a81fd..70f3f142 100644
 --- a/astrostudyui/src/models/app.js
 +++ b/astrostudyui/src/models/app.js
 @@ -6,6 +6,7 @@ import * as Constants from '../utils/constants';
@@ -10,7 +10,7 @@ index 45df4e9..90a8f73 100644
  import * as AstroConst from '../constants/AstroConst';
  import { setTmDelta } from '../utils/request';
  import { normalizeAppearanceMode } from '../utils/appearance';
-@@ -769,7 +770,22 @@ export default {
+@@ -791,7 +792,22 @@ export default {
              dispatch({
                  type: 'rules/ziwei',
                  payload:{},

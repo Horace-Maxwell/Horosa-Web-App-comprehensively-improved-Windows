@@ -28,6 +28,20 @@ export function shouldUseDirectAttach(material, retrievalMode){
 	return normalizeText(material && material.extractedText).length <= DIRECT_ATTACH_THRESHOLD;
 }
 
+// [B1-Bug2] 直挂/RAG 分拣单源:两消费端此前各写分拣——报告侧 `filtered.filter(shouldUseDirectAttach)`
+// 把 Array.filter 的第二参(数组下标)当 retrievalMode 传入,数字恒非 'fulltext'/'rag' → 恒走长度
+// 规则,「默认检索策略」在报告路径整体坏死(对话侧手写循环传参正确)。收敛为唯一入口后,
+// 这一类「裸 filter 复用二参函数」bug 从此无处发生。
+export function partitionMaterialsByRetrieval(materials, retrievalMode){
+	const direct = [];
+	const rag = [];
+	(materials || []).forEach((m)=>{
+		if(shouldUseDirectAttach(m, retrievalMode)){ direct.push(m); }
+		else { rag.push(m); }
+	});
+	return { direct, rag };
+}
+
 export function splitTextIntoChunks(text, options = {}){
 	const raw = normalizeText(text);
 	if(!raw){

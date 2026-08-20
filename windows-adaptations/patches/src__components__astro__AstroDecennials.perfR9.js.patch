@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroDecennials.js b/astrostudyui/src/components/astro/AstroDecennials.js
-index d215a57..c8c9399 100644
+index d6fb21d2..f249eb95 100644
 --- a/astrostudyui/src/components/astro/AstroDecennials.js
 +++ b/astrostudyui/src/components/astro/AstroDecennials.js
-@@ -28,6 +28,7 @@ import { buildMeaningTipByCategory, } from './AstroMeaningData';
- import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
+@@ -29,6 +29,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
  import styles from '../../css/styles.less';
  import { XQSelect as Select } from '../xq-ui';
+ import { natalClassicalParams } from './AstroExtraCommon';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const { Option } = Select;
  const { TreeNode } = Tree;
-@@ -398,6 +399,8 @@ class AstroDecennials extends Component{
+@@ -399,6 +400,8 @@ class AstroDecennials extends Component{
  
  	componentDidUpdate(prevProps, prevState){
  		if(prevProps.value !== this.props.value){

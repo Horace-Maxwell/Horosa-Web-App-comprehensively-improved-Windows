@@ -30,6 +30,7 @@ import {
 	getPdTimeKeyLabel,
 } from '../../utils/primaryDirectionSync';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
+import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -802,6 +803,8 @@ class AstroPrimaryDirectionChart extends Component{
 			doubingSu28: params.doubingSu28 !== undefined ? params.doubingSu28 : false,
 			southchart: params.southchart !== undefined ? params.southchart : false,
 			predictive: true,
+			// [SURF-5] 古典设置随盘回显透传(此前逐键手挑丢全部古典回显;FromPlain 条件发送)。
+			...classicalBackendOverridesFromPlain(params),
 			showPdBounds: params.showPdBounds === 0 ? 0 : 1,
 			// 盘的「计算」会重算表格,须保留表格侧的进阶设置(方向类型/顺逆/映点/界),否则会被 clobber 回默认。
 			pdtype: params.pdtype === 1 ? 1 : DEFAULT_PD_TYPE,
@@ -831,7 +834,7 @@ class AstroPrimaryDirectionChart extends Component{
 			})()),
 			...(Array.isArray(params.pdSignificators) && params.pdSignificators.length ? { pdSignificators: params.pdSignificators } : {}),
 			...(Array.isArray(params.pdPromissorTypes) && params.pdPromissorTypes.length ? { pdPromissorTypes: params.pdPromissorTypes } : {}),
-			termsVariant: (params.termsVariant === 1 || params.termsVariant === 2) ? params.termsVariant : 0,
+			termsVariant: (()=>{ const n = Number(params.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // [F4][R2-12]
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
 			pdaspects: params.pdaspects || [0, 60, 90, 120, 180],
@@ -849,6 +852,10 @@ class AstroPrimaryDirectionChart extends Component{
 		if(!req){
 			return;
 		}
+		// [SURF-R5b] 代际校验(照 :1024 pdchart 路径同款):主限全表秒级耗时,窗口内换盘后
+		// 旧响应以 await 前捕获的旧盘为基座 merge 并 dispatch astro/save = 全站盘面回滚旧盘
+		// +旧快照落盘,无自愈。seq 失配即弃;基座在响应落地后重读 props.value(与代际同代)。
+		const seq = ++this.requestSeq;
 		const chartObj = this.props.value || {};
 		const nextFields = buildFieldsFromChartObj(
 			this.props.fields,
@@ -870,15 +877,22 @@ class AstroPrimaryDirectionChart extends Component{
 		}catch(e){
 			pdRows = null;
 		}
-		if(this.unmounted || !Array.isArray(pdRows)){
+		if(this.unmounted || seq !== this.requestSeq || !Array.isArray(pdRows)){
 			return;
+		}
+		// [SURF-R5b] 基座同代:响应落地重读当前盘;换盘瞬间(seq 未变但引用已换)按新基座 merge
+		// 也不成立——生辰键不一致即弃(等 hook.fun 触发的新请求)。
+		const liveChart = this.props.value || {};
+		if(liveChart !== chartObj){
+			const bk = (o)=>{ const pr = (o && o.params) || {}; return `${pr.birth || ''}|${pr.lat || ''}|${pr.lon || ''}`; };
+			if(bk(liveChart) !== bk(chartObj)){ return; }
 		}
 		// base 盘不完整时绝不落盘部分态对象(同 AstroDirectMain.savePrimaryDirectionRows 守卫,
 		// 防污染全局 astro.chartObj 崩宿占/3D;2026-07-16 诊断实证链)。
-		if(!chartObj || !chartObj.chart){
+		if(!liveChart || !liveChart.chart){
 			return;
 		}
-		const nextChartObj = mergePrimaryDirectionChartObj(chartObj, {
+		const nextChartObj = mergePrimaryDirectionChartObj(liveChart, {
 			pdRows,
 			showPdBounds: req.showPdBounds,
 			pdMethod: this.getSelectedPdMethod(),

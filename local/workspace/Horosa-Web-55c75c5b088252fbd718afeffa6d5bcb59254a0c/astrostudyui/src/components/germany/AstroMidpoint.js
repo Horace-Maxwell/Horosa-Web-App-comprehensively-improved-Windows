@@ -4,6 +4,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
+import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart } from '../../utils/uranianDial';
@@ -30,6 +31,11 @@ function fieldsToParams(fields){
 		hsys: fields.hsys.value,
 		zodiacal: fields.zodiacal.value,
 		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
+		// [SURF-R5g2] user 岁差三元(R4u 第三域):germany 双腿此前 'user' 档同回落 Lahiri
+		// (页面与 AI 挂载共用本函数=两侧一致地错,一并修)。
+		...((`${fields.siderealAyanamsa ? fields.siderealAyanamsa.value : ''}` === 'user')
+			? require('../../utils/customCalibreStores').userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined))
+			: {}),
 		tradition: fields.tradition.value,
 		strongRecption: fields.strongRecption.value,
 		simpleAsp: fields.simpleAsp.value,
@@ -37,6 +43,8 @@ function fieldsToParams(fields){
 		predictive: 0,
 		name: fields.name.value,
 		pos: fields.pos.value,
+		// [SURF-5] 古典设置单源接入(量化盘本地构参副本此前零古典键);条件发送=默认态字节不变。
+		...classicalBackendOverridesFromFields(fields),
 	};
 
 	return params;
@@ -533,6 +541,8 @@ class AstroMidpoint extends Component{
 	}
 
 	async requestChart(params){
+		// [SURF-R5m] 乱序/卸载防(同批 seq 范式;onFieldsChange 连改连发窗口小但存在)。
+		const seq = ++this._mpSeq || (this._mpSeq = 1);
 		// 流派出参随「90°中点盘」存储派生(同盘口径);默认 classic 即现状字节零回归,不扰后端缓存。
 		// 第3组:strictFactors/frames(live+东点)/davison 与 90°盘、挂载链同参面(供给三链一致)。
 		const disp = getStoredUranianDisplay();
@@ -548,6 +558,7 @@ class AstroMidpoint extends Component{
 		});
 		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null; // 后端无响应/异常时优雅降级(与本文件 229/237 同口径),不再 data undefined 时 data[ResultKey] 崩红屏
 
+		if(this.unmounted || seq !== this._mpSeq){ return; }
 		const st = {
 			midpoints: result,
 		};

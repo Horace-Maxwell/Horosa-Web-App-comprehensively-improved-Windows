@@ -19,9 +19,10 @@ import { stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 import DateTime from '../comp/DateTime';
 import { GLOSSARY } from '../../divination/data/glossary';
 import { openDivinationCaseDrawer, getDivinationSavedCasePayload } from '../../utils/divinationCaseSave';
-import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT, CLASSICAL_GLOBAL_DEFAULTS } from '../../utils/classicalChartGlobals';
 import * as Constants from '../../utils/constants';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { DIVINATION_CASE_SETTING_KEYS } from '../../utils/divinationCaseSave';
 
 // 盘面美术跨会话:本壳非 connect 组件,直接读写 globalSetup 的 wheelArt 键(与 app model 同一存储,口径一致)。
 function readStoredWheelArt(){
@@ -48,7 +49,17 @@ function writeStoredWheelArt(wheelArt){
 // 「设置→星盘设置」全局古典参数 → 本盘热同步键集(缺省=全量;卜卦页收窄——
 // 流派学理绑定的键(界系/双子界序/福点反转/宫制/星群)恒以流派为准,不被全局改动冲掉)。
 const DEFAULT_GLOBAL_SYNC_KEYS = ['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
-	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb'];
+	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
+	// [对标战役 0b/0c] 二批第十键与三流派开关此前漏在热同步集外(非流派绑定键,应随全局)。
+	'viaCombustaVariant', 'lotsDocReverse', 'nodeExaltation',
+	// [WP-2] 天文口径批(同为非流派绑定键)
+	'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon', 'stationMarking',
+	'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant', 'lotFatherCombustAlt', 'lotProjection',
+	'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod',
+	'orbSystem', 'luminaryOrbBonus',
+	'aspectIncludeCusps', 'aspectIncludeLots', 'aspectIncludeMidpoints',
+	'solarReturnVariant', 'returnLatitudeMode',
+	'vulcanCalc'];
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
@@ -196,6 +207,10 @@ class DivinationChartShell extends Component{
 		keys.forEach((k)=>{
 			if(g[k] === undefined){ return; }
 			const cur = this.state.fields[k] && this.state.fields[k].value !== undefined ? this.state.fields[k].value : undefined;
+			// [F13] fields 缺键(cur=undefined)语义=「随全局」:全局值仍为默认时不物化进 fields——
+			// 否则任一次全局改动会把 26 个 conditional 键的默认值 wrapper 写进 fields,
+			// 存案时被「present 才落档」钉死成当日默认,「缺键=随全局」被静默转「钉死」。
+			if(cur === undefined && k in CLASSICAL_GLOBAL_DEFAULTS && g[k] === CLASSICAL_GLOBAL_DEFAULTS[k]){ return; }
 			if(cur !== g[k]){ patch[k] = g[k]; }
 		});
 		if(Object.keys(patch).length){ this.patchFields(patch); }
@@ -252,11 +267,12 @@ class DivinationChartShell extends Component{
 		const settings = (c.payload && c.payload.settings) || null;
 		if(settings){
 			if(settings.zodiacal !== undefined){ patch.zodiacal = settings.zodiacal; }
+			if(settings.siderealAyanamsa !== undefined){ patch.siderealAyanamsa = settings.siderealAyanamsa; }
 			if(settings.hsys !== undefined){ patch.hsys = settings.hsys; }
 			if(settings.tradition !== undefined){ patch.tradition = settings.tradition; }
-			['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
-				'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
-				'viaCombustaVariant'].forEach((k)=>{   // 与 divinationCaseSave 落档键列表成对(存/还原白名单必须 lockstep)
+			// [SURF-R0] 还原白名单与保存侧同源(此前手抄 17 键=27 键「存而不还原」:事盘重开
+			// 回本机全局值、与 AI 挂载文本口径矛盾;自定义界表/user 岁差事盘换机静默降级)。
+			DIVINATION_CASE_SETTING_KEYS.forEach((k)=>{
 				if(settings[k] !== undefined && settings[k] !== null){ patch[k] = settings[k]; }
 			});
 		}

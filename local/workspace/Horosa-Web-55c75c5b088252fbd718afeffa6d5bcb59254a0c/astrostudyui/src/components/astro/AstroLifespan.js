@@ -4,6 +4,7 @@
 import { Component } from 'react';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import buildFacts from '../../divination/engine/chartFacts';
+import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import { runLifespan } from '../../divination/lifespan/lifespanEngine';
 import { PLANETARY_YEARS } from '../../divination/lifespan/lifespanData';
 import { SIGNS } from '../../divination/data/signs';
@@ -60,6 +61,26 @@ class AstroLifespan extends Component {
 		this.state = { method: _m, timelineOpen: false };
 	}
 
+	componentDidMount(){
+		// [SURF-3] never 键(domicileMasterMethod 经 lifespanEngine.rulersOfLife 消费)改档即时重渲;
+		// 太阳三态阈值 opts 也读全局仓,同一监听覆盖。
+		this._onClassicalGlobals = () => this.forceUpdate();
+		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
+
+	componentWillUnmount(){
+		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
+
+	// [SURF-3] 太阳三态阈值:优先本盘回显(params 只在非默认时带键=载档口径保真),兜全局仓现值。
+	// 此前 buildFacts 不传 opts → chartFacts 硬编码 17′/8.5°/17°,行星状态盘「日下」列对
+	// 三档改动恒盲(与同屏「偕日相」卡吃后端 phase 相互矛盾)。
+	solarOrbOpts(chartObj){
+		const p = (chartObj && chartObj.params) || {};
+		const pick = (k) => (p[k] !== undefined && p[k] !== null && p[k] !== '' ? Number(p[k]) : Number(classicalGlobalValue(k)));
+		return { cazimiOrb: pick('cazimiOrb'), combustOrb: pick('combustOrb'), underBeamsOrb: pick('underBeamsOrb') };
+	}
+
 	render(){
 		const chartObj = this.props.value;
 		if(!chartObj || !chartObj.chart){
@@ -67,7 +88,7 @@ class AstroLifespan extends Component {
 		}
 		let res = null;
 		try{
-			const facts = buildFacts(ensureMaps(chartObj));
+			const facts = buildFacts(ensureMaps(chartObj), this.solarOrbOpts(chartObj));
 			res = facts ? runLifespan(facts, { method: this.state.method }) : null;
 		}catch(e){
 			return <div style={{ padding: 12, fontSize: 12, color: '#c0392b' }}>寿命格局计算出错：{String(e && e.message || e)}</div>;

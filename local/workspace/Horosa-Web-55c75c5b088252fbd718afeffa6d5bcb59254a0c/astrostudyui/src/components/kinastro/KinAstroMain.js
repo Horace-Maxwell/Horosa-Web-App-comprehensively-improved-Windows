@@ -428,7 +428,7 @@ function setRuntimeKinAstroTechnique(moduleKey, serviceKey){
 	}
 }
 
-function saveKinAstroAISnapshots(config, pan, extraSnapshot, moduleKeyOverride){
+function saveKinAstroAISnapshots(config, pan, extraSnapshot, moduleKeyOverride, fields){
 	if(!config || !pan){
 		return;
 	}
@@ -437,7 +437,19 @@ function saveKinAstroAISnapshots(config, pan, extraSnapshot, moduleKeyOverride){
 	// 命·其他页看演禽却取到策天旧盘。宿主传 hostModuleKey 即写对槽位。
 	const moduleKey = moduleKeyOverride || config.moduleKey;
 	const base = buildSnapshotText(pan);
-	const content = extraSnapshot ? `${base}\n\n${extraSnapshot}` : base;
+	let content = extraSnapshot ? `${base}\n\n${extraSnapshot}` : base;
+	// [issue#74 同类] 演禽演法段页面/无头同构:无头路径(:349-358)对 xianqin await 农历桥后
+	// 追加 buildYanqinYanfaSnapshot,页面路径曾整段不产 → 页面 render(YanQinBranchPanel)
+	// 自愈显示而 AI 快照恒缺 [演法] 段。此处同构:域内 lunar-js 同步自算即全对;
+	// 域外(BC/万年后)builder 退公历月兜底不崩,再 fire 农历桥回包带 monthInt 补拍终版。
+	const appendYanfa = (lunarMonth)=>{
+		try{
+			const payload = parseFieldsDateTime(fields);
+			if(lunarMonth){ payload.lunarMonth = lunarMonth; }
+			const yanfa = buildYanqinYanfaSnapshot(payload);
+			return yanfa ? `${content}\n\n${yanfa}` : content;
+		}catch(e){ return content; }
+	};
 	const meta = {
 		source: 'kentang2017/kinastro',
 		serviceKey: config.serviceKey,
@@ -445,8 +457,20 @@ function saveKinAstroAISnapshots(config, pan, extraSnapshot, moduleKeyOverride){
 		moduleKey,
 		sections: (pan.sections || []).map((section)=>section.title).filter(Boolean),
 	};
-	saveModuleAISnapshot(kinAstroSnapshotKey(config.serviceKey), content, meta);
-	saveModuleAISnapshot(moduleKey, content, meta);
+	const persist = (txt)=>{
+		saveModuleAISnapshot(kinAstroSnapshotKey(config.serviceKey), txt, meta);
+		saveModuleAISnapshot(moduleKey, txt, meta);
+	};
+	if(config.serviceKey === 'xianqin' && content && fields){
+		persist(appendYanfa(null));
+		try{
+			deriveLocalNongliAsync(fields).then((nl)=>{
+				if(nl && nl.monthInt){ persist(appendYanfa(nl.monthInt)); }
+			}).catch(()=>{ /* 桥失败 → 首拍的 lunar-js/公历月兜底已在 */ });
+		}catch(e){ /* 同上 */ }
+		return;
+	}
+	persist(content);
 }
 
 function sectionByTitle(sections, names){
@@ -1358,6 +1382,14 @@ class KinAstroMain extends Component{
 		try{
 			const suffix = this.tiebanFrameworkSuffix(pan);
 			text = `${buildSnapshotText(pan) || ''}${suffix ? `\n\n${suffix}` : ''}`.trim();
+			// [issue#74 同类] refresh 路径同构补演法段(与 saveKinAstroAISnapshots/无头同律):
+			// 实时导出走此处,不补则「当前页导出」也缺 [演法]。同步 lunar-js 域内即全对。
+			if(cfg.serviceKey === 'xianqin' && text && this.props.fields){
+				try{
+					const yf = buildYanqinYanfaSnapshot(parseFieldsDateTime(this.props.fields));
+					if(yf){ text = `${text}\n\n${yf}`; }
+				}catch(e2){ /* 演法失败不拖主快照 */ }
+			}
 		}catch(e){
 			text = '';
 		}
@@ -1679,7 +1711,7 @@ class KinAstroMain extends Component{
 				// saveKinAstroAISnapshots 之后会把快照序列化的耗时算进交互预算里。
 				// 键契约(horosa_panel_ready_attribution_key_v1):页签归属键(hostModuleKey 优先)。
 				markPanelReady(this.props.hostModuleKey || this.config.moduleKey);
-				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan), this.props.hostModuleKey);
+				saveKinAstroAISnapshots(this.config, pan, this.tiebanFrameworkSuffix(pan), this.props.hostModuleKey, this.props.fields);
 				// horosa_step_prefetch_arm_v1(b′):换轨/改选项后的 settle 也按当前技法武装 ±N
 				//(fetchByFields settle 只覆盖时间派发路径;/chart 不在本页步进路径上)。
 				try{ armStepPrefetch('local-settle', { fieldsOverride: fields, skipChart: true }); }catch(e){ /* 武装失败静默 */ }
@@ -1996,7 +2028,7 @@ class KinAstroMain extends Component{
 									<Select value={this.state.canpingDayun} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ canpingDayun: value })}>
 										<Option value="mingGongQiyun">命宫顺行 · 生日推起运</Option>
 										<Option value="mingGongOne">命宫顺行 · 恒一岁起</Option>
-										<Option value="baziStyle">八字大运法（阳男阴女顺）</Option>
+										<Option value="baziStyle">八字大运法（与八字盘同源）</Option>
 									</Select>
 								</label>
 								{/* 大运排法三档的口径分歧详见帮助文档「数算 · 本页直算三门 · 邵子参评数」——「左边栏永不放大段解释」铁律。 */}

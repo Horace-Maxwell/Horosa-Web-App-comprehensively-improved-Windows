@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroZR.js b/astrostudyui/src/components/astro/AstroZR.js
-index 128ab6d..ffecd16 100644
+index 7f417808..ef7648ac 100644
 --- a/astrostudyui/src/components/astro/AstroZR.js
 +++ b/astrostudyui/src/components/astro/AstroZR.js
-@@ -16,6 +16,7 @@ import styles from '../../css/styles.less';
- import { XQSelect as Select } from '../xq-ui';
- import UpdatingBadge from '../common/UpdatingBadge';
+@@ -18,6 +18,7 @@ import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { natalClassicalParams } from './AstroExtraCommon';
+ import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const RadioGroup = Radio.Group;
  const Option = Select.Option;
-@@ -539,7 +540,12 @@ class AstroZR extends Component{
+@@ -545,7 +546,12 @@ class AstroZR extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -24,7 +24,7 @@ index 128ab6d..ffecd16 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -584,6 +590,9 @@ class AstroZR extends Component{
+@@ -596,6 +602,9 @@ class AstroZR extends Component{
  			// state.params 恒保 stopLevelIdx=3(全深目标);仅快取那次临时下发 0。保 3 供 AI 快照/再切基点取全深一致。
  			params: { ...params, stopLevelIdx: 3 },
  		}, ()=>{

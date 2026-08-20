@@ -33,10 +33,6 @@ const DEDUPE_PATH_PREFIXES = [
 	'/bazi/birth',
 	'/bazi/direct',
 	'/nongli/time',      // 真太阳时+四柱(确定性历法;bridge 外散点调用的落桶)
-	// [Windows-only] /chart3d/state:3D 星盘状态,确定性纯计算(v3.5.0 起独立路由)。
-	// AstroChartMain3D 的步进预取声明此路径(预取白名单同款 Windows 补位)——
-	// 缺本行 = 「允许预取却无处落桶」,预取白取。
-	'/chart3d',
 ];
 const DEDUPE_PATH_EXCLUDES = [
 	'/predict/dice',     // 随机骰子,绝不可缓存
@@ -214,7 +210,7 @@ function pruneWarm(){
 
 // runner: () => Promise<result>(真正的网络执行体,由 request() 传入)
 export function dedupedRequest(url, options, runner){
-	const key = `${url} ${options.body}`;
+	const key = `${url}\x00${options.body}`;
 	const hit = done.get(key);
 	if(hit && (Date.now() - hit.at) <= TTL_MS){
 		// horosa_dedupe_l1_lru_v1(R4-B1):命中必须重插。Map 的迭代序 == 插入序,而 prune()

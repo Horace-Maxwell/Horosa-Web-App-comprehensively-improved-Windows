@@ -4554,6 +4554,12 @@ async function extractGenericContent(context){
 		}
 	}
 	if(context.key === 'guolao'){
+		// [issue#74 同类·制度化] 实时取数先行(印占/六爻同款范式):果老页有 refresh 监听却不在
+		// 名单,导出只读懒存缓存——阶段一裸拍冻结的缺 Moira 段快照被直接吃走。先 refresh 现算现写。
+		const refreshed = await requestModuleSnapshotRefresh('guolao');
+		if(refreshed){
+			return refreshed;
+		}
 		const cached = getModuleCachedContent('guolao');
 		if(cached){
 			return cached;
@@ -6532,7 +6538,7 @@ async function fetchAstroClassicalAnalysisSectionForExport(){
 		}
 		// [M-1] 与挂载链 fetchClassicalAnalysisSection 同口径:恒星轨读全局仓(此前硬编 1° → 用户改
 		// 恒星轨后导出 [古典格局] 与右栏/挂载三方漂移);voidClassical 同判据条件附(缺键=本座义=现状零回归)。
-		const reqBody = { ...params, fixedStarOrb: classicalGlobalValue('fixedStarOrb') };
+		const reqBody = { _v: 'cls1', ...params, fixedStarOrb: classicalGlobalValue('fixedStarOrb') };   // [SURF] 缓存代次盐
 		try{
 			const st = getStore();
 			const app = st && st.app ? st.app : null;

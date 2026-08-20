@@ -246,7 +246,7 @@ export function mergePrimaryDirectionChartObj(chartObj, options = {}){
 			pdFramework: pdFramework || DEFAULT_PD_FRAMEWORK,
 			pdParallel: pdParallel ? 1 : 0,
 			pdRaptParallel: pdRaptParallel ? 1 : 0,
-			termsVariant: (termsVariant === 1 || termsVariant === 2) ? termsVariant : 0,
+			termsVariant: (()=>{ const n = Number(termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // [F4][R2-12] 放行 0-4;null/undefined/NaN 恒 0
 			...(pdTimeKeyCustom !== undefined ? { pdTimeKeyCustom, } : {}),
 			// 🔴 空数组=显式全清:必须落库覆盖旧值(`&&length` 会让清空后旧勾选残留、
 			// 天球扩展 Popover 勾选回弹/清空失灵);仅 undefined(调用方未传)才保旧。

@@ -49,9 +49,17 @@ class AstroAnalysisLab extends Component{
 		return chartRequestKey(this.props.value, `analysis|vc:${this.props.voidClassical ? 1 : 0}`);
 	}
 
+	// [SURF-R3e] 重载判据单一实现:didUpdate 与 render 兜底 ensureLoaded 此前各写一份
+	// (后者漏 failedExpired 放行)——同一状态双判据异形,改动必漂移。
+	shouldReload(key){
+		// [SURF-3] failedKey 泊车加 30s 过期:此前同 key 一次失败(如后端启动窗 500)即永不重试,
+		// 用户观感=「改档右栏没反应」;过期后允许再试一次,仍失败继续泊车 30s。
+		const failedExpired = this.state.failedKey && (Date.now() - (this._failedAt || 0) > 30000);
+		return !!(key && key !== this.state.requestKey && (key !== this.state.failedKey || failedExpired) && !this.state.loading);
+	}
+
 	componentDidUpdate(prevProps){
-		const key = this.buildRequestKey();
-		if(key && key !== this.state.requestKey && key !== this.state.failedKey && !this.state.loading){
+		if(this.shouldReload(this.buildRequestKey())){
 			this.load();
 		}
 	}
@@ -62,13 +70,13 @@ class AstroAnalysisLab extends Component{
 	};
 
 	ensureLoaded(){
-		const key = this.buildRequestKey();
-		if(key && key !== this.state.requestKey && key !== this.state.failedKey && !this.state.loading){
+		if(this.shouldReload(this.buildRequestKey())){
 			setTimeout(this.load, 0);
 		}
 	}
 
 	async load(){
+		if(this._mounted === false){ return; }   // [SURF-R5g] ensureLoaded 的 setTimeout 在卸载后触发的微窗守卫
 		if(!this.props.value){
 			return;
 		}
@@ -77,6 +85,9 @@ class AstroAnalysisLab extends Component{
 		try{
 			const data = await request(`${Constants.ServerRoot}/astroextra/analysis`, {
 				body: JSON.stringify({
+					// [SURF] 前端缓存代次盐(与 Java _v 同义):analysis 语义升级后 L1/L2/L3(键=body)整体失效,
+					// 否则升级后默认态 24h 内命中旧响应(无 hourMode/未过临界区)。
+					_v: 'cls1',
 					...chartParams(this.props.value),
 					// [审计修] 曾硬编 1°:用户改恒星轨后右栏格局 tab 与导出/挂载(皆读全局仓)命中集分叉。
 					fixedStarOrb: classicalGlobalValue('fixedStarOrb'),
@@ -89,6 +100,7 @@ class AstroAnalysisLab extends Component{
 			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key, failedKey: '', failedMsg: ''});
 		}catch(e){
 			if(!this._mounted) return;
+			this._failedAt = Date.now();
 			this.setState({loading: false, failedKey: key, failedMsg: (e && e.message) ? `${e.message}` : ''});
 		}
 	}
@@ -365,17 +377,24 @@ class AstroAnalysisLab extends Component{
 			);
 		}
 		const rows = ph.hours;
+		// [SURF-R1a] 昼夜分组按 h.diurnal 真值,不再按下标切 12+12:默认档已是 sunrise 等长制,
+		// 短昼盘昼弧≠12 行,旧「index-12」在昼列尾出 -1/0 假标签。夜序=组内序号;
+		// 表头标注制式(equal24 无昼夜弧语义,单列 24 行)。
+		const hourModeLabel = ({ sunrise: '日出起等长', unequal: '昼夜不等时', equal24: '廿四时等分' })[ph.hourMode] || '';
+		const dayRows = rows.filter((h)=> h.diurnal);
+		const nightRows = rows.filter((h)=> !h.diurnal);
+		const single = ph.hourMode === 'equal24';
 		const col = (arc, title)=> (
 			<div>
 				<div style={{fontSize: 11, opacity: 0.6, marginBottom: 3}}>{title}</div>
-				{arc.map((h)=> (
+				{arc.map((h, i)=> (
 					<div key={h.index} style={{
 						display: 'flex', justifyContent: 'space-between', alignItems: 'center',
 						padding: '1px 6px', borderRadius: 4,
 						background: h.current ? 'rgba(184,134,11,.16)' : 'transparent',
 						fontWeight: h.current ? 600 : 400,
 					}}>
-						<span><span style={{opacity: 0.5, fontSize: 11, marginRight: 4}}>{h.diurnal ? h.index : h.index - 12}</span>{astroSymbol(h.ruler)}</span>
+						<span><span style={{opacity: 0.5, fontSize: 11, marginRight: 4}}>{single ? h.index - 1 : i + 1}</span>{astroSymbol(h.ruler)}</span>
 						<span style={{opacity: 0.7, fontSize: 11}}>{`${h.start.slice(0, 5)}`}</span>
 					</div>
 				))}
@@ -383,14 +402,21 @@ class AstroAnalysisLab extends Component{
 		);
 		return (
 			<div style={cardStyle}>
-				<div className="horosa-info-card-title">行星时 Planetary Hours</div>
+				<div className="horosa-info-card-title">行星时 Planetary Hours{hourModeLabel ? `（${hourModeLabel}）` : ''}</div>
 				<div style={{marginBottom: 6, opacity: 0.85, fontSize: 12}}>
 					值日星 {astroSymbol(ph.dayRuler)}　日出 {ph.sunrise && ph.sunrise.slice(0, 5)}　日落 {ph.sunset && ph.sunset.slice(0, 5)}
 				</div>
-				<div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px'}}>
-					{col(rows.slice(0, 12), '昼时')}
-					{col(rows.slice(12, 24), '夜时')}
-				</div>
+				{single ? (
+					<div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px'}}>
+						{col(rows.slice(0, 12), '0-11 时')}
+						{col(rows.slice(12, 24), '12-23 时')}
+					</div>
+				) : (
+					<div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px'}}>
+						{col(dayRows, '昼时')}
+						{col(nightRows, '夜时')}
+					</div>
+				)}
 			</div>
 		);
 	}

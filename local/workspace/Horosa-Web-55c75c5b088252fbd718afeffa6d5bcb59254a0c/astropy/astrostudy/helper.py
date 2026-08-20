@@ -246,7 +246,16 @@ def getChartObj(data, perchart):
                 'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb',
                 'vocMode', 'vocIncludeOuter', 'starOrb', 'starOrbMode',
                 'antisciaOrb', 'viaCombustaVariant',
-                'lotsDocReverse', 'nodeExaltation', 'saturnExalt20',
+                'lotsDocReverse', 'nodeExaltation',
+                'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon',
+                'stationMarking',
+                'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant',
+                'lotFatherCombustAlt', 'lotProjection', 'dignityDebilities',
+                'almutenTripMode', 'planetaryHourMethod', 'orbSystem',
+                'luminaryOrbBonus', 'aspectIncludeCusps', 'aspectIncludeLots',
+                'aspectIncludeMidpoints', 'solarReturnVariant', 'returnLatitudeMode',
+                'vulcanCalc', 'customTermsDay', 'customTermsNight',
+                'siderealAyanamsa', 'userAyanT0', 'userAyanDeg',
                 'orbs', 'orbScale'):
         if data.get(_vk) is not None:
             obj['params'][_vk] = data.get(_vk)

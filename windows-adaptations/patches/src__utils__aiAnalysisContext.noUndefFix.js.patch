@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/aiAnalysisContext.js b/astrostudyui/src/utils/aiAnalysisContext.js
-index ee248ef1..5e9744b1 100644
+index c4bc1c4b..aecdf35b 100644
 --- a/astrostudyui/src/utils/aiAnalysisContext.js
 +++ b/astrostudyui/src/utils/aiAnalysisContext.js
-@@ -145,7 +145,11 @@ import { calculate as heluoCalc, daYun as heluoDaYun, judge as heluoJudge, build
+@@ -146,7 +146,11 @@ import { calculate as heluoCalc, daYun as heluoDaYun, judge as heluoJudge, build
  import { buildYizhangjingModel, buildYizhangjingSnapshotText } from './yizhangjingReport';
  import { Solar as HeluoSolar } from 'lunar-javascript';
  // P5 主限法盘快照：方位法/度数换算的中文标签 + 默认（纯 util，无组件依赖、不回环 aiAnalysisContext）。

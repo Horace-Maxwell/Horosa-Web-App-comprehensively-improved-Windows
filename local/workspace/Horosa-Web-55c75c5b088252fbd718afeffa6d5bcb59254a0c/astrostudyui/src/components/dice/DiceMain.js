@@ -23,6 +23,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
+import { classicalBackendOverrides, classicalGlobalValue } from '../../utils/classicalChartGlobals';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -239,6 +240,8 @@ class DiceMain extends Component{
 			sign: AstroConst.LIST_SIGNS[ranSign],
 			house: ranHouse,
 			planet: planet,
+			// [SURF-5] 古典设置单源接入(骰子盘无 fields,直读全局仓;/predict/dice 装饰器统一 push)。
+			...classicalBackendOverrides(classicalGlobalValue),
 		};
 		return params;
 	}
@@ -249,9 +252,13 @@ class DiceMain extends Component{
 	}
 
 	async requestDirection(params){
+		// [SURF-R5d] 连掷乱序防:每掷=独立随机占,快速连掷两在途,先掷后回会覆盖后掷(显示与
+		// _lastDiceSnapshotInput/AI 快照全取旧占)。代际失配即弃+unmounted 守卫补齐。
+		const seq = ++this._diceSeq || (this._diceSeq = 1);
 		const data = await request(`${Constants.ServerRoot}/predict/dice`, {
 			body: JSON.stringify(params),
 		});
+		if(this.unmounted || seq !== this._diceSeq){ return; }
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 

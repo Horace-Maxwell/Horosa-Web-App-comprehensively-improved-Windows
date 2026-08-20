@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 41c13675..6feb4c1e 100644
+index 8e1935a5..a2361504 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -20,6 +20,7 @@ import cherrypy
@@ -48,7 +48,7 @@ index 41c13675..6feb4c1e 100644
  
  # Ensure flatlib is resolvable from bundled sources.
  _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-@@ -73,6 +105,28 @@ CORE_SERVICE_SPECS = [
+@@ -72,6 +104,28 @@ CORE_SERVICE_SPECS = [
  ]
  
  
@@ -77,7 +77,7 @@ index 41c13675..6feb4c1e 100644
  def _core_lazy_enabled():
      return os.environ.get('HOROSA_CORE_LAZY', '1') not in ('0', 'false', 'no', 'off')
  
-@@ -89,7 +143,12 @@ def mount_core_services():
+@@ -88,7 +142,12 @@ def mount_core_services():
  def prewarm_core_services():
      loaded = 0
      failed = 0
@@ -90,7 +90,7 @@ index 41c13675..6feb4c1e 100644
          try:
              app = cherrypy.tree.apps.get(spec["mount"])
              root = getattr(app, "root", None)
-@@ -102,11 +161,34 @@ def prewarm_core_services():
+@@ -101,11 +160,34 @@ def prewarm_core_services():
              traceback.print_exc()
      return loaded, failed
  
@@ -125,7 +125,7 @@ index 41c13675..6feb4c1e 100644
  
  
  
-@@ -193,7 +275,12 @@ class WebChartSrv:
+@@ -209,7 +291,12 @@ class WebChartSrv:
              _geoerr = validate_geo(data)
              if _geoerr:
                  return jsonpickle.encode(_geoerr, unpicklable=False)
@@ -137,9 +137,9 @@ index 41c13675..6feb4c1e 100644
 +            if _CHART_DEBUG_DUMP:
 +                print(data, flush=True)
  
-             _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'), data.get('geminiBoundEmended'))
-             _trip_orig = push_request_trip(data.get('triplicity'))
-@@ -739,7 +826,12 @@ def _run_warmups():
+             _cls_tokens = push_classical_request(data)
+             _pt0 = time.perf_counter() if _PY_CHART_TIMING else 0.0
+@@ -727,7 +814,12 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -153,7 +153,7 @@ index 41c13675..6feb4c1e 100644
      # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
      # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
      # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
-@@ -766,6 +858,66 @@ def _run_warmups():
+@@ -754,6 +846,66 @@ def _run_warmups():
      # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
      ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()

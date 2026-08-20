@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index ffb60b9c..e83b46d3 100644
+index 237847dc..aad93e01 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
 @@ -20,6 +20,8 @@ import AstroFormComp from '../components/astro/AstroFormComp';
@@ -28,8 +28,8 @@ index ffb60b9c..e83b46d3 100644
  // 3D 星盘动态化(首包瘦身):babylon 系重组件不入主包;lazyPreloadable 自带 Suspense+错误边界,并进 idle 预取队列(用户点击时通常已就绪)。
  const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/AstroChartMain3D'), { order: 3, navKey: 'astrochart3D' });
  const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
-@@ -98,7 +110,9 @@ const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/
- const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
+@@ -99,7 +111,9 @@ const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain
+ const TarotMain = lazyPreloadable(() => import(/* webpackChunkName: "tarot-main" */ '../components/tarot/TarotMain'), { order: 2, navKey: 'tarot' });
  const XuanShiMain = lazyPreloadable(() => import('../components/xuanshi/XuanShiMain'), { order: 3, navKey: 'xuanshi' });
  const AstrodataPage = lazyPreloadable(() => import('../components/astrodata/AstrodataPage'), { order: 3, navKey: 'astrodata' });
 -const ZeriMain = lazyPreloadable(() => import('../components/zeri/ZeriMain'), { order: 3, navKey: 'zeri' });
@@ -39,7 +39,7 @@ index ffb60b9c..e83b46d3 100644
  const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'), { order: 2, navKey: 'calendar' });
  const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
  const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
-@@ -543,8 +557,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -550,8 +564,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          if(values.southchart !== undefined && values.southchart !== null){
              setFld(flds, 'southchart', values.southchart);
          }

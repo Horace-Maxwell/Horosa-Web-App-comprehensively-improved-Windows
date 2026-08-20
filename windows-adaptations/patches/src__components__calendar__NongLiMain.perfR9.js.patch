@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/NongLiMain.js b/astrostudyui/src/components/calendar/NongLiMain.js
-index bf18915..ed0365f 100644
+index a2fa2e18..0b4f95b2 100644
 --- a/astrostudyui/src/components/calendar/NongLiMain.js
 +++ b/astrostudyui/src/components/calendar/NongLiMain.js
 @@ -13,6 +13,35 @@ import NongLi from './NongLi';
@@ -38,7 +38,7 @@ index bf18915..ed0365f 100644
  
  // 日干支五行着色（与八字模块同色变量 --horosa-bazi-*）。农历网格 dayExtra 用。
  const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
-@@ -99,15 +128,9 @@ export function buildNongliSnapshotText(state){
+@@ -104,15 +133,9 @@ export function buildNongliSnapshotText(state){
  }
  
  class NongLiMain extends Component{
@@ -57,7 +57,7 @@ index bf18915..ed0365f 100644
  	constructor(props) {
  		super(props);
  		this.state = {
-@@ -181,16 +204,21 @@ class NongLiMain extends Component{
+@@ -186,22 +209,27 @@ class NongLiMain extends Component{
  			dateSelected: null,
  		};
  
@@ -77,11 +77,18 @@ index bf18915..ed0365f 100644
  		let gua = date.qimengYearGua;
  		if(gua === undefined || gua === null){
 +			markPanelReady('calendar');   // horosa_panel_ready_v1:同上,不留悬空计时
- 			return;
++			return;
+ 			// [issue#74 同类] 新选日无年卦时清旧值:不清则页面(render 只看 state.yearGua)仍画
+ 			// 上一个日期的卦释,与所选日错配。快照侧有 qimengYearGua 守卫反而不受影响。
+ 			if(this.state.yearGua){
+ 				this.setState({ yearGua: null }, this.saveAISnapshot);
+ 			}
+-			return;
  		}
  
-@@ -207,10 +235,14 @@ class NongLiMain extends Component{
- 			yearGua: result[gua],
+ 		let params = {
+@@ -218,10 +246,14 @@ class NongLiMain extends Component{
+ 			yearGua: result[gua] ? { ...result[gua], guaName: gua } : null,
  		};
  
 -		this.setState(st, this.saveAISnapshot);
@@ -96,7 +103,7 @@ index bf18915..ed0365f 100644
  		this.setState({
  			date: dt.value,
  		}, ()=>{
-@@ -219,6 +251,7 @@ class NongLiMain extends Component{
+@@ -230,6 +262,7 @@ class NongLiMain extends Component{
  	}
  
  	changeGeo(rec){
@@ -104,7 +111,7 @@ index bf18915..ed0365f 100644
  		// 选新地点时按新坐标自动校正时区(未在 atlas 内手改时区时),genParams 读 this.state.date.zone。
  		// setZone 仅改时区标签、保留钟面时刻(见 DateTime.setZone),不移位时间。
  		const patch = {
-@@ -251,6 +284,7 @@ class NongLiMain extends Component{
+@@ -262,6 +295,7 @@ class NongLiMain extends Component{
  		let lastGua = lastdt ? lastdt.qimengYearGua : null;
  		let same = lastGua === date.qimengYearGua;
  
@@ -112,7 +119,7 @@ index bf18915..ed0365f 100644
  		this.setState({
  			dateSelected: date,
  		}, ()=>{
-@@ -258,10 +292,16 @@ class NongLiMain extends Component{
+@@ -269,10 +303,16 @@ class NongLiMain extends Component{
  				this.requestYearGua();
  			}
  			this.saveAISnapshot();
@@ -129,7 +136,7 @@ index bf18915..ed0365f 100644
  		this.requestYearGua();
  	}
  
-@@ -405,6 +445,11 @@ class NongLiMain extends Component{
+@@ -416,6 +456,11 @@ class NongLiMain extends Component{
  		}
  	}
  

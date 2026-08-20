@@ -62,6 +62,8 @@ class Chart:
         # Handle optional arguments
         hsys = kwargs.get('hsys', const.HOUSES_DEFAULT)
         IDs = kwargs.get('IDs', const.LIST_OBJECTS_TRADITIONAL)
+        # [0i] 存请求天体集:solarReturn 年表转发用(此前年表盘退化为传统集,与单盘模式天体数不齐)。
+        self._IDs = IDs
 
         realdate = date
 
@@ -239,7 +241,11 @@ class Chart:
                         '00:00',
                         self.date.utcoffset)
         srDate = ephem.nextSolarReturn(date, sun.lon, self.flags)
-        return Chart(srDate, self.pos, self.flags, hsys=self.hsys)
+        # [0i] 🐛一行修:Chart 第三位置参数是 zodiacal(str),此前误传 self.flags(int)——
+        # const.SIDEREAL('Sidereal') 永不等于整数 → 恒星盘用户的 90 年返照年表恒按回归黄道排,
+        # 且 sidereal_mode(ayanamsa)/IDs(天体集)双丢。单盘模式(getSolarReturnByDate 族)不走此路不受影响。
+        return Chart(srDate, self.pos, self.zodiacal, hsys=self.hsys, IDs=self._IDs,
+                     sidereal_mode=self.sidereal_mode, height=self.height)
 
 
 class _SiderealContext:

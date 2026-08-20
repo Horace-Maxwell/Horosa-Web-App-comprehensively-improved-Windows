@@ -33,6 +33,7 @@ const SELF_MATCHING = {
 	direction: '星运', bazi: '八字', ziwei: '紫微', auxchart: '辅盘', relativechart: '合盘',
 	fengshui: '风水', liureng: '六壬', dunjia: '遁甲',
 	guazhan: '六爻', taiyi: '太乙', cntradition: '辅助',
+	tarot: '塔罗',   // 2026-08-15 升一级;label 词直命中 kentang_raw 判定表(与六壬/遁甲同型)
 	astrochart3D: '3D星盘',   // 含「星盘」命中 :2407 分支
 };
 // ③ 豁免:无顶栏 AI 导出语义或走各自独立导出链(新增豁免必须写理由)

@@ -1194,6 +1194,9 @@ export function buildZodiacOptions(){
     INDIA_AYANAMSA_OPTIONS.forEach((o)=>{
         out.push({ value: `sidereal:${o.value}`, label: o.label, group: `恒星·${o.group}` });
     });
+    // [WP-7] 自定义恒星黄道:历元槽在「星盘设置 → 恒星与天象 → 自定义恒星黄道…」管理;
+    // 未设当前槽时后端回落 Lahiri(不炸盘)。
+    out.push({ value: 'sidereal:user', label: '自定义（历元槽位）', group: '恒星·自定义' });
     return out;
 }
 // (zodiacal, siderealAyanamsa) → 下拉当前值
@@ -1216,6 +1219,7 @@ export const NAK_LORD_CN = {
 // 由 ayanāṃśa key 取短标签(复用黄道下拉同款 INDIA_AYANAMSA_OPTIONS label)。无 key/未知返回原值。
 export function ayanamsaLabel(key){
     if(!key){ return ''; }
+    if(key === 'user'){ return '自定义（历元槽位）'; }   // [R5-P3] AI 快照/显示层词条(否则出「恒星黄道·user」原始键)
     const hit = INDIA_AYANAMSA_OPTIONS.find((o)=>o.value === key);
     return hit ? hit.label : key;
 }
@@ -1312,6 +1316,11 @@ export const CHART_3D_EARTH_LONLINE = 262144;
 export const CHART_3D_EARTH_RADIUS_SAMESKY = 524288;
 export const CHART_3D_EARTH = 1048576;
 export const CHART_3D_PLANET_SYM = 2097152;
+// [WP-9] 盘面增强四位:角宫三元组徽/盘心行星时·日主星/盘心赤经上升/符号盘(隐度数)。
+export const CHART_ANGULAR_TRIAD = 4194304;
+export const CHART_CENTER_HOURS = 8388608;
+export const CHART_CENTER_RAMC = 16777216;
+export const CHART_GLYPH_ONLY = 33554432;
 export const CHART_OPTIONS = [
     CHART_PLANETS, 
     CHART_ASP_LINES, 
@@ -1334,7 +1343,11 @@ export const CHART_OPTIONS = [
     CHART_3D_EARTH_LONLINE,
     CHART_3D_EARTH_RADIUS_SAMESKY,
     CHART_3D_EARTH,
-    CHART_3D_PLANET_SYM
+    CHART_3D_PLANET_SYM,
+    CHART_ANGULAR_TRIAD,
+    CHART_CENTER_HOURS,
+    CHART_CENTER_RAMC,
+    CHART_GLYPH_ONLY
 ];
 export const CHART_DEFAULTOPTS = [
     CHART_PLANETS, 

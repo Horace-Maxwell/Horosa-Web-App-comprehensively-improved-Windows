@@ -1,13 +1,14 @@
 diff --git a/astrostudyui/src/components/germany/UranianDialMain.js b/astrostudyui/src/components/germany/UranianDialMain.js
-index 937ccc51..0acdd0c4 100644
+index 646581e5..295ce202 100644
 --- a/astrostudyui/src/components/germany/UranianDialMain.js
 +++ b/astrostudyui/src/components/germany/UranianDialMain.js
-@@ -19,7 +19,74 @@ import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, X
+@@ -19,8 +19,75 @@ import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, X
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams, schoolComparisonRows } from './UranianSchools';
  import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
 -import { listLocalCharts } from '../../utils/localcharts';
 +import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
+ import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 +import { createSignatureMemo, memoEnabled } from '../../utils/memoBySignature';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
@@ -78,7 +79,7 @@ index 937ccc51..0acdd0c4 100644
  
  const DIAL_BODY_IDS = new Set([
  	AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS,
-@@ -216,14 +283,6 @@ function parseNum(v){
+@@ -221,14 +288,6 @@ function parseNum(v){
  }
  
  export default class UranianDialMain extends Component {
@@ -93,7 +94,7 @@ index 937ccc51..0acdd0c4 100644
  
  	constructor(props){
  		super(props);
-@@ -263,6 +322,9 @@ export default class UranianDialMain extends Component {
+@@ -268,6 +327,9 @@ export default class UranianDialMain extends Component {
  			colH: 0,
  		};
  		this.unmounted = false;
@@ -103,7 +104,7 @@ index 937ccc51..0acdd0c4 100644
  		this._measure = this._measure.bind(this);
  		this.requestNatalTnp = this.requestNatalTnp.bind(this);
  		this.requestTransit = this.requestTransit.bind(this);
-@@ -275,6 +337,12 @@ export default class UranianDialMain extends Component {
+@@ -280,6 +342,12 @@ export default class UranianDialMain extends Component {
  		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); this._measure(); } };
  	}
  
@@ -116,7 +117,7 @@ index 937ccc51..0acdd0c4 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this.requestNatalTnp();
-@@ -347,7 +415,11 @@ export default class UranianDialMain extends Component {
+@@ -352,7 +420,11 @@ export default class UranianDialMain extends Component {
  				const hf = result.houseFrames;
  				patch.natalEastPoint = (hf && Number.isFinite(Number(hf.eastPoint))) ? Number(hf.eastPoint) : null;
  				patch.natalVertex = (hf && Number.isFinite(Number(hf.vertex))) ? Number(hf.vertex) : null;
@@ -129,7 +130,7 @@ index 937ccc51..0acdd0c4 100644
  			}
  		} catch (e) { /* 静默 */ }
  	}
-@@ -505,8 +577,10 @@ export default class UranianDialMain extends Component {
+@@ -510,8 +582,10 @@ export default class UranianDialMain extends Component {
  
  	// 叠盘人 id → 唯一显示名(供环标签/接触表/读数 ring tag/色点共用一致文案)。
  	//   当前盘记 '人名(当前)';库盘记人名,库内同名或与当前盘撞名时后缀 ' ·库'/序号以保唯一(ringTone 按文案键控)。
@@ -142,7 +143,7 @@ index 937ccc51..0acdd0c4 100644
  		const byId = {}; const used = {};
  		list.forEach((p) => {
  			let base = p.source === 'current' ? `${p.label}（当前）` : `${p.label}`;
-@@ -518,7 +592,7 @@ export default class UranianDialMain extends Component {
+@@ -523,7 +597,7 @@ export default class UranianDialMain extends Component {
  		return byId;
  	}
  
@@ -151,7 +152,7 @@ index 937ccc51..0acdd0c4 100644
  		const natalPts = this.natalPoints();
  		const rings = [{ key: 'natal', label: '本命', points: natalPts }];
  		if (this.state.showTransit && this.state.transitPoints) {
-@@ -530,7 +604,7 @@ export default class UranianDialMain extends Component {
+@@ -535,7 +609,7 @@ export default class UranianDialMain extends Component {
  		}
  		// WP-9 合盘人环(最多 SYN_MAX 人):每位选中且已拉到盘点的人各一环,TNP 过滤随全局开关。
  		//   环标签=人名(经 personLabelMap 去重),与右栏接触表/色点同源,ringTone 也按此键控。
@@ -160,7 +161,7 @@ index 937ccc51..0acdd0c4 100644
  		(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => {
  			const pts = this.state.synastryPersonPoints[id];
  			if (Array.isArray(pts) && pts.length) {
-@@ -689,7 +763,35 @@ export default class UranianDialMain extends Component {
+@@ -694,7 +768,35 @@ export default class UranianDialMain extends Component {
  
  	render(){
  		const height = this.props.height ? this.props.height : 760;
@@ -197,7 +198,7 @@ index 937ccc51..0acdd0c4 100644
  		const natalPts = rings[0].points;
  		// 中间盘 size:按实测「中间列」的内容框最大化——取列宽、列高(减盘下 24 padding)较小者,填满方框且永不超出被裁。
  		// 列尺寸由 _measure(ResizeObserver)实测;未测得时用 viewport 估算兜底;vh-140 为防底部 Dock 的二级兜底。
-@@ -705,28 +807,32 @@ export default class UranianDialMain extends Component {
+@@ -710,28 +812,32 @@ export default class UranianDialMain extends Component {
  		// 全部派生项都从完整 state 计算:school/盘基/虚星/orb/orbPersonal 任一改变都全量重算重绘。
  		const personalSet = this.personalSet();
  		const treeOpts = { personal: personalSet, onlyPersonal: this.state.onlyPersonal, orbPersonal: this.state.orbPersonal };
@@ -247,7 +248,7 @@ index 937ccc51..0acdd0c4 100644
  		});
  		const natalAngleLon = (aid) => { const o = (natalPts || []).find((p) => p.id === aid); return o && Number.isFinite(Number(o.lon)) ? Number(o.lon) : null; };
  		const natalMc = natalAngleLon(AstroConst.MC);
-@@ -875,7 +981,7 @@ export default class UranianDialMain extends Component {
+@@ -880,7 +986,7 @@ export default class UranianDialMain extends Component {
  		);
  
  		// 指针读数:用短横线 '-' 标距(原希腊符像三角不友好);单行 nowrap 防换行;TNP 过滤已在源头完成(natalPoints/transit),此处直接信任。
@@ -256,7 +257,7 @@ index 937ccc51..0acdd0c4 100644
  			? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12 }}>拖动行运/太阳弧环或红指针，对齐处的星体/中点会列在这里。</div>
  			: this.state.readout.slice(0, 60).map((h, i) => {
  				// 中点='/'(近中点)、和点='+'(A+B)、差距='∠'(A∠B);body=单星;均按 sep 标距。
-@@ -893,45 +999,54 @@ export default class UranianDialMain extends Component {
+@@ -898,45 +1004,54 @@ export default class UranianDialMain extends Component {
  							: <span>轴 = {glyphOf(h.a)}<span style={{ color: 'var(--horosa-text-soft)' }}>{op}</span>{glyphOf(h.b)} <span style={{ color: 'var(--horosa-text-soft)' }}>- {h.sep.toFixed(2)}°</span></span>}
  					</div>
  				);
@@ -325,7 +326,7 @@ index 937ccc51..0acdd0c4 100644
  		// 右栏:可收放卡片(antd Collapse),头部左为标题/副标、右为数量徽标;展开项持久化 openPanels。
  		const hdr = (title, sub, n) => (
  			<span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-@@ -950,7 +1065,7 @@ export default class UranianDialMain extends Component {
+@@ -955,7 +1070,7 @@ export default class UranianDialMain extends Component {
  			{ title: '到期(岁)', dataIndex: 'age', key: 'age', width: 72, defaultSortOrder: 'ascend', sorter: (x, y) => x.age - y.age, render: (v) => v.toFixed(1) },
  			{ title: '到期', dataIndex: 'due', key: 'due', width: 44, render: (v) => (v ? <span style={{ color: 'var(--horosa-accent, #c0392b)', fontWeight: 600 }}>●</span> : <span style={soft}>·</span>) },
  		];
@@ -334,7 +335,7 @@ index 937ccc51..0acdd0c4 100644
  			<div>
  				<div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
  					<span style={{ fontSize: 12 }}>目标年龄</span>
-@@ -969,12 +1084,12 @@ export default class UranianDialMain extends Component {
+@@ -974,12 +1089,12 @@ export default class UranianDialMain extends Component {
  						rowClassName={(r) => (r.due ? 'horosa-uranian-diff-due' : '')} />
  				)}
  			</div>
@@ -350,7 +351,7 @@ index 937ccc51..0acdd0c4 100644
  			: (synContacts.length === 0 || synCount === 0) ? empty('容许度内暂无合盘接触')
  			: synContacts.map((g) => (
  				<div key={g.id} style={{ marginBottom: 8 }}>
-@@ -994,9 +1109,9 @@ export default class UranianDialMain extends Component {
+@@ -999,9 +1114,9 @@ export default class UranianDialMain extends Component {
  						);
  					})}
  				</div>
@@ -362,7 +363,7 @@ index 937ccc51..0acdd0c4 100644
  			<UranianRectify
  				events={this.state.rectifyEvents}
  				onChange={this.onRectifyEventsChange}
-@@ -1026,7 +1141,7 @@ export default class UranianDialMain extends Component {
+@@ -1031,7 +1146,7 @@ export default class UranianDialMain extends Component {
  		const declTblRows = decl && decl.decls && typeof decl.decls === 'object'
  			? Object.keys(decl.decls).map((id) => ({ id, d: Number(decl.decls[id]) })).filter((r) => Number.isFinite(r.d))
  			: [];
@@ -371,7 +372,7 @@ index 937ccc51..0acdd0c4 100644
  			? empty('需后端赤纬数据（开启「赤纬接触」并重新排盘）')
  			: (
  				<div>
-@@ -1046,7 +1161,7 @@ export default class UranianDialMain extends Component {
+@@ -1051,7 +1166,7 @@ export default class UranianDialMain extends Component {
  							pagination={false} bordered={false} />
  					)}
  				</div>
@@ -380,7 +381,7 @@ index 937ccc51..0acdd0c4 100644
  		// 右栏卡片定义(group=归属的分组 Tab)。受 showXXX/rings 控制的卡片仅在条件成立时入列。
  		// 分组:reading 读数(指针读数+中点树) / midpoint 中点(中点列表+行星图+映点) /
  		//       solararc 太阳弧(差值表) / contact 接触(合盘接触+赤纬接触) / rectify 校时(只读预览,独立成 Tab)。
-@@ -1126,20 +1241,22 @@ export default class UranianDialMain extends Component {
+@@ -1131,20 +1246,22 @@ export default class UranianDialMain extends Component {
  				))}
  			</div>
  		);
@@ -415,7 +416,7 @@ index 937ccc51..0acdd0c4 100644
  		].filter(Boolean);
  		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'pic', 'list', 'spiegel', 'diff', 'contact', 'parallel', 'rectify', 'tnpref', 'lexicon'];
  		// 分组 Tab 定义(顺序固定);某卡片受开关控制为空时,对应 Tab 显空提示而非报错。
-@@ -1160,8 +1277,8 @@ export default class UranianDialMain extends Component {
+@@ -1165,8 +1282,8 @@ export default class UranianDialMain extends Component {
  				<Collapse className="horosa-uranian-panels" activeKey={openKeys}
  					onChange={(keys) => this.saveDisp({ openPanels: Array.isArray(keys) ? keys : [keys] })}>
  					{cards.map((p) => (
@@ -426,7 +427,7 @@ index 937ccc51..0acdd0c4 100644
  						</Collapse.Panel>
  					))}
  				</Collapse>
-@@ -1174,9 +1291,11 @@ export default class UranianDialMain extends Component {
+@@ -1179,9 +1296,11 @@ export default class UranianDialMain extends Component {
  		const rightCol = (
  			<XQTabs className="horosa-uranian-right-tabs" size="small" activeKey={activeRightTab}
  				onChange={(k) => this.saveDisp({ activeRightTab: k })}>

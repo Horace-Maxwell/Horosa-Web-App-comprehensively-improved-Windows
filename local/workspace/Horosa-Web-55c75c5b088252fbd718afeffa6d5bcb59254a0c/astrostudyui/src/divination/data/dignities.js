@@ -84,9 +84,19 @@ export const PTOLEMAIC_TRIPLICITY = {
 // 界系表选择：'ptolemaic'=托勒密界·经典传本；'tetrabiblos'=托勒密界·校勘本；
 // 其它/缺省 → 埃及界（默认，零回归）。迦勒底界（termsVariant=3）为昼夜双表、按 sect 取用，
 // 由 hellenisticData.CHALDEAN_TERMS_DAY/NIGHT 提供（键为英文首字母大写座名），本模块不重复建表。
-function termsTableFor(variant){
+function termsTableFor(variant, opts){
 	if(variant === 'ptolemaic') return PTOLEMAIC_TERMS;
 	if(variant === 'tetrabiblos') return TETRABIBLOS_TERMS;
+	// [F5] custom=自定义界表(昼表;判读引擎无昼夜上下文,取昼表与后端主口径一致);无合法表回落埃及。
+	// [R2-3] opts.customTermsDay=随盘/回显表体优先,与计算同表。
+	if(variant === 'custom'){
+		try{
+			// [R4-P2] 昼夜从 opts 读(缺省 true=昼表,与既往行为同);夜盘配独立夜表时与后端同表。
+			const t = require('../../utils/customCalibreStores').customTermsDisplayTables(
+				!(opts && opts.isDiurnal === false), opts && opts.customTermsDay, opts && opts.customTermsNight);
+			if(t && t.lower){ return t.lower; }
+		}catch(e){ /* 回落埃及 */ }
+	}
 	return EGYPTIAN_TERMS;
 }
 
@@ -94,7 +104,7 @@ function termsTableFor(variant){
 // 0=埃及 / 1=托勒密·校勘本(tetrabiblos) / 2=托勒密·经典传本(ptolemaic) / 3=迦勒底(chaldean,昼夜另取)。
 export function termsVariantKey(n){
 	const v = Number(n) || 0;
-	return ['egyptian', 'tetrabiblos', 'ptolemaic', 'chaldean'][v] || 'egyptian';
+	return ['egyptian', 'tetrabiblos', 'ptolemaic', 'chaldean', 'custom'][v] || 'egyptian';
 }
 
 // 面（Chaldean decans）：每座 3 个面，按迦勒底序，自白羊 0° 起火星
@@ -118,7 +128,7 @@ export const FACES = {
 export function termRulerAt(lon, variant, opts){
 	const sign = signOfLon(lon);
 	const deg = ((lon % 360) + 360) % 360 % 30;
-	let terms = termsTableFor(variant)[sign] || [];
+	let terms = termsTableFor(variant, opts)[sign] || [];
 	if(opts && opts.geminiEmended && variant === 'ptolemaic' && sign === 'gemini'){
 		terms = PTOLEMAIC_GEMINI_EMENDED_ROW;
 	}

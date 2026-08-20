@@ -33,6 +33,8 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'siderealAyanamsa', parse: 'str' },
 	{ key: 'tradition', parse: 'int' },
 	{ key: 'termsVariant', parse: 'int' },        // schema 无此键 → 还原时新建 entry
+	{ key: 'customTermsDay' },                     // [F14] termsVariant=4 的随盘表体(昼);对象值原样
+	{ key: 'customTermsNight' },                   // [F14] 夜表(可缺=同昼)
 	{ key: 'geminiBoundEmended', parse: 'int' },  // 双子界序(仅经典传本受影响);schema 无此键 → 还原时新建 entry
 	// 2026-07 二批九键(落宫前移/太阳三态/空亡口径/恒星轨/映点容许度)。
 	{ key: 'houseCuspAdvance', parse: 'int' },
@@ -46,6 +48,36 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'antisciaOrb', parse: 'num' },
 	// 2026-07 四批:燃烧之路边界档(与 localcharts 落库键成对;partileDef 纯前端不随盘)。
 	{ key: 'viaCombustaVariant', parse: 'str' },
+	// [WP-2] 天文口径批(eclipseTimeMode 为纯全局显示口径不随盘)
+	{ key: 'combustOwnChariotExempt', parse: 'int' },
+	{ key: 'westLilithType', parse: 'str' },
+	{ key: 'topocentricMoon', parse: 'int' },
+	{ key: 'stationMarking', parse: 'str' },
+	// [WP-3] 希腊点变体批
+	{ key: 'hermeticLotsReversal', parse: 'int' },
+	{ key: 'erosConstruction', parse: 'str' },
+	{ key: 'lotFortuneVariant', parse: 'str' },
+	{ key: 'lotFatherCombustAlt', parse: 'int' },
+	{ key: 'lotProjection', parse: 'str' },
+	// [WP-4] 尊贵与判定批(后端三键;peregrine/domicileMaster/dynamical/busyPlaces 纯全局不随盘)
+	{ key: 'dignityDebilities', parse: 'int' },
+	{ key: 'almutenTripMode', parse: 'str' },
+	{ key: 'planetaryHourMethod', parse: 'str' },
+	// [WP-5a] 容许度体系批(后端两键;transitOrb/只显入相/离相上限 纯前端不随盘)
+	{ key: 'orbSystem', parse: 'str' },
+	{ key: 'luminaryOrbBonus', parse: 'int' },
+	// [WP-5b] 相位对象扩展三开关
+	{ key: 'aspectIncludeCusps', parse: 'int' },
+	{ key: 'aspectIncludeLots', parse: 'int' },
+	{ key: 'aspectIncludeMidpoints', parse: 'int' },
+	// [WP-6] 返照专项两键
+	{ key: 'solarReturnVariant', parse: 'str' },
+	{ key: 'returnLatitudeMode', parse: 'str' },
+	// [WP-7] 自定义恒星黄道历元参数(仅 siderealAyanamsa='user' 时有值)
+	{ key: 'userAyanT0', parse: 'num' },           // 自定义恒星黄道历元 JD('user' 档随盘;capture 特例 [R2-9] 兜底捕当前槽)
+	{ key: 'userAyanDeg', parse: 'num' },          // 历元 ayanamsa 度值(同上)
+	// [WP-8] 灵学扩展(rayWeighting 纯全局不随盘)
+	{ key: 'vulcanCalc', parse: 'str' },
 	{ key: 'doubingSu28', parse: 'num' },
 	{ key: 'houseStartMode', parse: 'num' },       // 宿占人事十二宫起宫(ASC/八字):存盘后须还原,否则载入回退默认
 	{ key: 'southchart', parse: 'int' },
@@ -60,7 +92,6 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	// 希腊补齐三开关:与 localcharts 落库键成对(存了不还原=载入后盘变样)
 	{ key: 'lotsDocReverse', parse: 'int' },
 	{ key: 'nodeExaltation', parse: 'int' },
-	{ key: 'saturnExalt20', parse: 'int' },
 	{ key: 'gpsLat', parse: 'raw' },
 	{ key: 'gpsLon', parse: 'raw' },
 	// ── 主限法视图键（schema + fieldsToParams）───────────────────
@@ -204,6 +235,30 @@ export function captureNonDefaultTechniqueFields(fields){
 			out[key] = v;
 		}
 	});
+	// [F14] 自定义界表随盘:termsVariant=4 且 fields 未带表体 → 从编辑器仓捕当前合法表
+	// (否则表体只活在本机 localStorage,换机/清仓后旧盘静默变埃及)。
+	try{
+		// [R2-9] 自定义恒星黄道随盘:user 档且 fields 未带历元 → 捕当前槽两参
+		// (否则历元只活在本机槽位,换机/换槽后同一记录静默按彼时彼机的槽或回落 Lahiri)。
+		const ayanEntry = fields.siderealAyanamsa;
+		if(ayanEntry && `${ayanEntry.value}` === 'user' && out.userAyanT0 === undefined){
+			const { userAyanParamsFrom } = require('./customCalibreStores');
+			const ap = userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined)) || {};
+			if(Number.isFinite(ap.userAyanT0) && Number.isFinite(ap.userAyanDeg)){
+				out.userAyanT0 = ap.userAyanT0;
+				out.userAyanDeg = ap.userAyanDeg;
+			}
+		}
+		const tvEntry = fields.termsVariant;
+		if(tvEntry && Number(tvEntry.value) === 4 && out.customTermsDay === undefined){
+			const { loadCustomTerms, validateTermsTable } = require('./customCalibreStores');
+			const tbl = loadCustomTerms();
+			if(tbl && tbl.day && validateTermsTable(tbl.day) === true){
+				out.customTermsDay = tbl.day;
+				if(tbl.night && validateTermsTable(tbl.night) === true){ out.customTermsNight = tbl.night; }
+			}
+		}
+	}catch(e){ /* 捕获失败不阻断存盘 */ }
 	return out;
 }
 

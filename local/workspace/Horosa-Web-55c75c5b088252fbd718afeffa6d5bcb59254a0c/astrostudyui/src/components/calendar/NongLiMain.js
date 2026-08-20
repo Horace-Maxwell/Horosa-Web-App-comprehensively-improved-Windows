@@ -112,7 +112,12 @@ export function buildNongliSnapshotText(state){
 		}
 		if(sel.qimengYearGua){
 			const gua = st.yearGua;
-			lines.push(`奇门年卦：${sel.qimengYearGua}${gua && gua.desc ? `（${gua.desc}）` : ''}`);
+			// [issue#74 同类] 卦名↔释文配对校验:clickDate 里 requestYearGua(异步) 与 saveAISnapshot
+			// 同步背靠背,首版快照曾拼出「新卦名+旧卦释文」错配对;网络静默失败(requestYearGua 的
+			// 空载荷守卫 return 不 setState)时第二版纠正不发生,错配恒留。释文只在与当前卦名配对
+			// (guaName 随取数落档)时才拼;不配对=只出卦名,缺比错好。
+			const descOk = gua && gua.desc && gua.guaName === sel.qimengYearGua;
+			lines.push(`奇门年卦：${sel.qimengYearGua}${descOk ? `（${gua.desc}）` : ''}`);
 		}
 	}
 
@@ -220,6 +225,11 @@ class NongLiMain extends Component{
 		if(gua === undefined || gua === null){
 			markPanelReady('calendar');   // horosa_panel_ready_v1:同上,不留悬空计时
 			return;
+			// [issue#74 同类] 新选日无年卦时清旧值:不清则页面(render 只看 state.yearGua)仍画
+			// 上一个日期的卦释,与所选日错配。快照侧有 qimengYearGua 守卫反而不受影响。
+			if(this.state.yearGua){
+				this.setState({ yearGua: null }, this.saveAISnapshot);
+			}
 		}
 
 		let params = {
@@ -232,7 +242,8 @@ class NongLiMain extends Component{
 		const result = data[Constants.ResultKey];
 
 		const st = {
-			yearGua: result[gua],
+			// guaName 随释文落档:快照侧只在卦名配对时拼 desc(防「新卦名+旧释文」错配对)。
+			yearGua: result[gua] ? { ...result[gua], guaName: gua } : null,
 		};
 
 		this.setState(st, ()=>{

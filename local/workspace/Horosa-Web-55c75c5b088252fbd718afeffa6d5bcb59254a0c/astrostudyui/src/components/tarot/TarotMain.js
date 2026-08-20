@@ -1,4 +1,5 @@
 import { isTrumpArcana } from './engine/arcana';
+import QuickDockBar from '../common/QuickDockBar';
 import React, { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Input, InputNumber, message, Checkbox } from 'antd';
@@ -1406,6 +1407,24 @@ class TarotMain extends Component{
 						onClose={() => this.setState({ detailCard: null })}
 						view={{ variant: this.state.variant, astroModern: this.state.astroModern, courtElementSystem: this.state.courtElementSystem, courtZodiacSystem: this.state.courtZodiacSystem }}
 					/>
+					{/* [塔罗升一级] 独立页自渲底部快捷坞(存档/AI 能力跟上;聚合容器时代由 CnYiBuMain
+					    读 getQuickDockConfig 透传渲染,升一级后无容器 → 自渲。hideQuickDock 防御保留:
+					    任何宿主想统一渲染时仍可关掉,绝不双 dock)。config 与容器时代同一来源零分叉。 */}
+					{!this.props.hideQuickDock && (() => {
+						const dc = this.getQuickDockConfig() || {};
+						return (
+							<QuickDockBar
+								page="tarot"
+								className="horosa-tarot-quick-dock"
+								hasResult={dc.hasResult !== undefined ? !!dc.hasResult : false}
+								primary={dc.primary}
+								extras={dc.extras || []}
+								save={dc.save}
+								ai={dc.ai !== undefined ? dc.ai : true}
+								dispatch={this.props.dispatch}
+							/>
+						);
+					})()}
 				</div>
 			</TechniqueErrorBoundary>
 		);

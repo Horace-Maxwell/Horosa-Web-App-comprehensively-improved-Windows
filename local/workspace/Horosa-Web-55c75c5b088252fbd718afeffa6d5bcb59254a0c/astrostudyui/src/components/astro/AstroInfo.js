@@ -14,6 +14,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import * as Constants from '../../utils/constants';
 import { XQSegmented } from '../xq-ui';
 import { monomoiriaTriplicity } from '../../divination/data/monomoiriaTriplicity';
+import { CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import styles from '../../css/styles.less';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
@@ -53,6 +54,17 @@ export function resolveAstroDisplayMode(perchart, fields){
 
 
 class AstroInfo extends Component{
+
+	componentDidMount(){
+		// [SURF-3] 古典全局(含 never 键)改档即时重渲右栏:子卡(显赫/寿命/状态盘)自身也各挂监听,
+		// 本层监听兜住直接消费面与容器级派生,防「改档右栏恒旧值」。
+		this._onClassicalGlobals = () => this.forceUpdate();
+		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
+
+	componentWillUnmount(){
+		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
 
 	constructor(props) {
 		super(props);
@@ -1074,6 +1086,12 @@ class AstroInfo extends Component{
 				['黄道', zodiacal],
 				['宫位制', hsys],
 			];
+			// [0j] 极区宫制回退徽记:极圈内象限制(Placidus/Koch 等)数学无解时后端兜底 Porphyry,
+			// houses 元素带 hsysFallback(此前静默回退,响应仍标请求宫制,高纬用户看不出宫顶已非所选制)。
+			const hFallback = (perchart.houses && perchart.houses[0] && perchart.houses[0].hsysFallback) || null;
+			if(hFallback){
+				rows.push(['宫制回退', <span key="hfb" style={{ color: 'var(--horosa-warn, #b8860b)', fontFamily: AstroConst.NormalFont }}>⚠ 极区该制无解 · 已回退 {hFallback}</span>]);
+			}
 			// B3 格局速览(纯本盘数据,无需分析请求):命主星(1R) + 三围(围攻/围荣/围耀) + 互容 + 接纳。
 			const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
 			const objs = perchart.objects || [];

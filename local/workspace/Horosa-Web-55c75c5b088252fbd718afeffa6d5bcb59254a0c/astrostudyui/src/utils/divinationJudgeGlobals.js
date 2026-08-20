@@ -22,6 +22,24 @@ const BOOL_KEYS = ['combustMitigateSameSign', 'antiscia'];
 const ALL_KEYS = Object.keys(DIVINATION_JUDGE_DEFAULTS);
 
 let cache = null;
+// [SURF-R5c] 读侧自愈(照 classicalChartGlobals 同款):备份恢复直写本仓 raw 键不经 set,
+// 热 cache 恒旧值+恢复后改一档=旧 cache 整包回写覆盖恢复值。rawStr 比对+1s 节流。
+let cacheRawStr = null;
+let lastRawCheckAt = 0;
+function rawSelfHealCheck(){
+	if(!cache){ return; }
+	const now = Date.now();
+	if(now - lastRawCheckAt < 1000){ return; }
+	lastRawCheckAt = now;
+	let rawStr = null;
+	try{ rawStr = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem(DIVINATION_JUDGE_STORAGE_KEY) : null; }catch(e){ return; }
+	if(rawStr === cacheRawStr){ return; }
+	cache = null;
+	getDivinationJudgeGlobals();
+	if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
+		try{ window.dispatchEvent(new CustomEvent(DIVINATION_JUDGE_EVENT, { detail: { key: '*', value: null } })); }catch(e){ /* ignore */ }
+	}
+}
 
 function normalize(raw){
 	const out = { ...DIVINATION_JUDGE_DEFAULTS };
@@ -38,7 +56,9 @@ function normalize(raw){
 }
 
 export function getDivinationJudgeGlobals(){
+	rawSelfHealCheck();
 	if(!cache){
+		try{ cacheRawStr = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem(DIVINATION_JUDGE_STORAGE_KEY) : null; }catch(e){ cacheRawStr = null; }
 		cache = normalize(safeJsonParseFromStorage(DIVINATION_JUDGE_STORAGE_KEY));
 	}
 	return { ...cache };
@@ -59,6 +79,8 @@ export function setDivinationJudgeGlobal(key, value){
 	const next = normalize({ ...getDivinationJudgeGlobals(), [key]: value });
 	cache = next;
 	safeJsonStringifyToStorage(DIVINATION_JUDGE_STORAGE_KEY, next);
+	try{ cacheRawStr = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem(DIVINATION_JUDGE_STORAGE_KEY) : cacheRawStr; }catch(e){ /* keep */ }
+	lastRawCheckAt = Date.now();
 	if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
 		try{
 			window.dispatchEvent(new CustomEvent(DIVINATION_JUDGE_EVENT, { detail: { key, value: next[key] } }));
@@ -68,4 +90,6 @@ export function setDivinationJudgeGlobal(key, value){
 
 export function __resetDivinationJudgeCacheForTest(){
 	cache = null;
+	cacheRawStr = null;
+	lastRawCheckAt = 0;
 }

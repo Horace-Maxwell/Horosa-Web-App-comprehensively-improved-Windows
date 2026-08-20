@@ -48,6 +48,12 @@ class GuiceMain extends Component {
 	}
 
 	componentDidMount() {
+		// [issue#74 同类] 农历桥回包履约(灵棋/飞宫/小六壬同律):快照 timeLines 域外年首拍缺
+		// 农历/四柱行;本文件 import 了 subscribeRemoteNongli 却从未订阅——连 render 自愈都没有。
+		this._unsubNongli = subscribeRemoteNongli(() => {
+			this.forceUpdate();
+			this.saveSnap();
+		});
 		if (typeof window !== 'undefined') {
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -117,6 +123,7 @@ class GuiceMain extends Component {
 
 	componentWillUnmount() {
 		this._unmounted = true;
+		if (this._unsubNongli) { this._unsubNongli(); }
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}

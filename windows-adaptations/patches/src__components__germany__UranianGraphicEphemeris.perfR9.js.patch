@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
-index bd4e835..29b21ac 100644
+index 379c6fae..3c3efdee 100644
 --- a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 +++ b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 @@ -1,4 +1,5 @@
@@ -8,7 +8,7 @@ index bd4e835..29b21ac 100644
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import moment from 'moment';
  import { DatePicker, Radio, Spin, Empty, Checkbox, Select } from 'antd';
-@@ -155,7 +156,11 @@ export default class UranianGraphicEphemeris extends Component {
+@@ -158,7 +159,11 @@ export default class UranianGraphicEphemeris extends Component {
  			const data = await request(`${Constants.ServerRoot}/astroextra/ephemeris`, { body: JSON.stringify(params), silent: true });
  			const res = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
  			const rows = res && Array.isArray(res.dailyPositions) ? res.dailyPositions : [];

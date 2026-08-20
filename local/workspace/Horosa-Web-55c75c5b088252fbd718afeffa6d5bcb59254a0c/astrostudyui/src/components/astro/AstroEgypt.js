@@ -136,7 +136,8 @@ class AstroEgypt extends Component {
 		if(!p.date){ return; }
 		this._loadingExtra = true;
 		request(`${Constants.ServerRoot}/astroextra/analysis`, {
-			body: JSON.stringify(p),
+			// [SURF] 前端缓存代次盐(analysis 语义升级,旧 body 键缓存整体失效)
+			body: JSON.stringify({ _v: 'cls1', ...p }),
 			silent: true,
 			timeoutMs: 30000,
 		}).then((data) => {

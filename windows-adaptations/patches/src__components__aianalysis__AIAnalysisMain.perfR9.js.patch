@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index 9b7e1bf0..fe920fea 100644
+index 07988b98..e4a3c0a2 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-@@ -168,6 +168,8 @@ import {
+@@ -169,6 +169,8 @@ import {
  	effectiveMaxTokensForModel,
  	maxTokensKeyForModel,
  } from '../../utils/aiAnalysisProviders';
@@ -11,7 +11,7 @@ index 9b7e1bf0..fe920fea 100644
  
  const { TextArea, Search } = Input;
  const { Title, Text } = Typography;
-@@ -750,6 +752,38 @@ function renderMarkdownToHtml(text){
+@@ -756,6 +758,38 @@ function renderMarkdownToHtml(text){
  	}
  }
  
@@ -50,7 +50,7 @@ index 9b7e1bf0..fe920fea 100644
  const CONTEXT_STATUS_META = {
  	ready: { text: '已就绪', color: 'green' },
  	regenerated: { text: '已按盘重算', color: 'blue' },
-@@ -1448,7 +1482,15 @@ function AIAnalysisMain(props){
+@@ -1461,7 +1495,15 @@ function AIAnalysisMain(props){
  	React.useEffect(()=>{
  		if(props.hook){
  			props.hook.fun = ()=>{
@@ -67,7 +67,7 @@ index 9b7e1bf0..fe920fea 100644
  			};
  		}
  	}, [props.hook, loadWorkspace]);
-@@ -4612,7 +4654,7 @@ function AIAnalysisMain(props){
+@@ -4647,7 +4689,7 @@ function AIAnalysisMain(props){
  												) : null}
  												{item.role === 'user'
  													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
@@ -76,7 +76,7 @@ index 9b7e1bf0..fe920fea 100644
  												{item.role === 'assistant' && item.errorInfo ? (
  													<Alert
  														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
-@@ -5224,6 +5266,12 @@ function AIAnalysisMain(props){
+@@ -5259,6 +5301,12 @@ function AIAnalysisMain(props){
  			{/* [首开反卡 2026-08-09] 全页 Spin 已摘:曾以 workspaceLoading 包住整个工作区 ——
  			    APP(WKWebView)里大库首读把它顶成「全页转圈很久」。现在首帧直接渲染,
  			    wave2 未到位时资料/历史 pane 顶部各自细提示(deepLoading)。绝不回包全页。 */}
@@ -89,7 +89,7 @@ index 9b7e1bf0..fe920fea 100644
  			<Tabs
  					className={styles.workspaceTabs}
  					tabPosition="right"
-@@ -5232,25 +5280,35 @@ function AIAnalysisMain(props){
+@@ -5267,25 +5315,35 @@ function AIAnalysisMain(props){
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">

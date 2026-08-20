@@ -1,5 +1,5 @@
 diff --git a/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java b/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java
-index dc48dae..9d9ab81 100644
+index 5cc4a3df..18177bd3 100644
 --- a/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java
 +++ b/astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java
 @@ -13,6 +13,34 @@ public class AstroHelper {
@@ -37,7 +37,7 @@ index dc48dae..9d9ab81 100644
  	public static final String AstroSrvUrl = PropertyPlaceholder.getProperty("astrosrv", "http://127.0.0.1:8899");
  	public static final String SolarReturn = PropertyPlaceholder.getProperty("solarreturn", "/predict/solarreturn");
  	public static final String LunarReturn = PropertyPlaceholder.getProperty("lunarreturn", "/predict/lunarreturn");
-@@ -64,6 +92,11 @@ public class AstroHelper {
+@@ -66,6 +94,11 @@ public class AstroHelper {
  		if(Debug || DisableRequestCache) {
  			return requestNoCache(path, params);
  		}

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroGivenYear.js b/astrostudyui/src/components/astro/AstroGivenYear.js
-index 86030f56..febc724b 100644
+index 78456e6a..d805125e 100644
 --- a/astrostudyui/src/components/astro/AstroGivenYear.js
 +++ b/astrostudyui/src/components/astro/AstroGivenYear.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -11,10 +11,10 @@ index 86030f56..febc724b 100644
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -17,6 +17,11 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
- import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
- import UpdatingBadge from '../common/UpdatingBadge';
+@@ -19,6 +19,11 @@ import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+ import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -23,7 +23,7 @@ index 86030f56..febc724b 100644
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -35,6 +40,7 @@ class AstroGivenYear extends Component{
+@@ -37,6 +42,7 @@ class AstroGivenYear extends Component{
  		this.requestData = this.requestData.bind(this);
  		this.genAspectDom = this.genAspectDom.bind(this);
  		this.changeDblChartType = this.changeDblChartType.bind(this);
@@ -31,7 +31,7 @@ index 86030f56..febc724b 100644
  		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  
-@@ -67,6 +73,9 @@ class AstroGivenYear extends Component{
+@@ -69,6 +75,9 @@ class AstroGivenYear extends Component{
  			},
  			dirChart: null,
  			inverse: false,
@@ -41,7 +41,7 @@ index 86030f56..febc724b 100644
  		}
  
  		if(this.state.params.date){
-@@ -118,7 +127,13 @@ class AstroGivenYear extends Component{
+@@ -121,7 +130,13 @@ class AstroGivenYear extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -56,16 +56,16 @@ index 86030f56..febc724b 100644
  		let datetime = new DateTime();
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
-@@ -195,6 +210,8 @@ class AstroGivenYear extends Component{
+@@ -206,6 +221,8 @@ class AstroGivenYear extends Component{
  		};
  
  		this.setState(st, ()=>{
 +			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 +			markPanelReady('direction');
- 			const chartValue = this.props.value;
+ 			const chartValue = chartValueAtRequest;
  			saveModuleAISnapshotLazy('givenyear', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'givenyear'), {
  				module: 'givenyear',
-@@ -259,7 +276,30 @@ class AstroGivenYear extends Component{
+@@ -270,7 +287,30 @@ class AstroGivenYear extends Component{
  		});
  	}
  
@@ -96,7 +96,7 @@ index 86030f56..febc724b 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -305,7 +345,7 @@ class AstroGivenYear extends Component{
+@@ -316,7 +356,7 @@ class AstroGivenYear extends Component{
  			if(i % 2 === 0){
  				if(i > 0){
  					let dom = (
@@ -105,7 +105,7 @@ index 86030f56..febc724b 100644
  							<Row>
  								{cols}
  							</Row>
-@@ -319,7 +359,7 @@ class AstroGivenYear extends Component{
+@@ -330,7 +370,7 @@ class AstroGivenYear extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((
@@ -114,7 +114,7 @@ index 86030f56..febc724b 100644
  				{cols}
  			</Row>
  		));
-@@ -338,6 +378,10 @@ class AstroGivenYear extends Component{
+@@ -349,6 +389,10 @@ class AstroGivenYear extends Component{
  		});
  	}
  
@@ -125,7 +125,7 @@ index 86030f56..febc724b 100644
  	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示的盘即时构建快照并回填,
  	// 保证「显示什么就导出什么」——不依赖懒存缓存是否已物化(reload/rehydrate 未重排时缓存可能为空,
  	// 此前缺此监听 → 显示有盘却报「当前页面没有可导出文本」)。
-@@ -454,6 +498,7 @@ class AstroGivenYear extends Component{
+@@ -465,6 +509,7 @@ class AstroGivenYear extends Component{
  			overflowX:'hidden',
  		};
  		let chartHeight = height - 50;
@@ -133,7 +133,7 @@ index 86030f56..febc724b 100644
  
  		return (
  			<div className="horosa-givenyear-page">
-@@ -462,12 +507,17 @@ class AstroGivenYear extends Component{
+@@ -473,12 +518,17 @@ class AstroGivenYear extends Component{
  						{/* keep-stale 角标:重取期间旧盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
  						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
@@ -153,7 +153,7 @@ index 86030f56..febc724b 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -475,9 +525,11 @@ class AstroGivenYear extends Component{
+@@ -486,9 +536,11 @@ class AstroGivenYear extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -166,7 +166,7 @@ index 86030f56..febc724b 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -485,15 +537,18 @@ class AstroGivenYear extends Component{
+@@ -496,15 +548,18 @@ class AstroGivenYear extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>

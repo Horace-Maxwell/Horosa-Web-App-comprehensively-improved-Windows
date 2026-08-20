@@ -137,6 +137,7 @@ class AstroContentPanel extends Component{
 								<AstroPlanet
 									value={chartObj}
 									fill={true}
+									planetListStyle={this.props.planetListStyle}
 									showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 									showAstroMeaning={this.props.showAstroMeaning}
 								/>
@@ -896,6 +897,7 @@ class AstroChartMain extends Component{
 					showAstroMeaning={this.props.showAstroMeaning}
 					showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 					wheelArt={this.props.wheelArt}
+					planetListStyle={this.props.planetListStyle}
 					fields={this.props.fields}
 					dispatch={this.props.dispatch}
 				/>

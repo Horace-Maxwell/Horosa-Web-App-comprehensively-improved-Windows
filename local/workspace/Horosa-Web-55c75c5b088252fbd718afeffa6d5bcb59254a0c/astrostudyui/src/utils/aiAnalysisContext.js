@@ -31,7 +31,7 @@ function buildDayBoundaryMeta(after23NewDay, lateZiHourUseNextDay){
 }
 import { buildAstroSnapshotContent, loadAstroAISnapshot, buildClassicalAnalysisSection, buildStarAndLotPositionLines, buildHouseCuspLines } from './astroAiSnapshot';
 import * as AstroConst from '../constants/AstroConst';   // [G1] 主限法盘无头快照的黄道/宫制标签(纯常量,零组件依赖)
-import { classicalGlobalValue, classicalBackendOverridesFromFields } from './classicalChartGlobals';
+import { classicalGlobalValue, classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain, getClassicalChartGlobals, CLASSICAL_GLOBAL_DEFAULTS, classicalSnapshotNeverSig } from './classicalChartGlobals';
 // 卜卦/择日「判读参数/流派口径」单一真值(叶子模块,无环):齿轮 hp_/ep_ 扁平键按此表解码。
 import { HORARY_PARAM_SPEC, horaryBackendFields } from '../divination/horary/horarySchools';
 import { safeLocalStorageSet } from './safeStorage';
@@ -49,6 +49,7 @@ import { loadModuleAISnapshot, saveModuleAISnapshot } from './moduleAiSnapshot';
 import { fetchChart } from '../services/astro';
 import { AI_ANALYSIS_STORES, getStoreRecord, putStoreRecord } from './aiAnalysisStore';
 import { getStore } from './storageutil';
+import { DIVINATION_CASE_SETTING_KEYS } from './divinationCaseSave';
 import { buildRetrievedContextText } from './aiAnalysisRag';
 import { fetchPreciseNongli } from './preciseCalcBridge';
 import { buildLocalJieqiYearSeed } from './localNongliAdapter';
@@ -452,10 +453,16 @@ function buildFieldObject(record){
 		// 恒星黄道盘挂载 AI 时,沿用该盘保存的 ayanāṃśa(缺省 ''=后端默认 Lahiri),
 		// 使 AI 快照行星经度与盘面一致(全链路:储存→挂载→AI)。
 		siderealAyanamsa: { value: record.siderealAyanamsa !== undefined ? record.siderealAyanamsa : '' },
+		// [WP-7] user 档历元参数随盘还原(record 有才建;缺=读全局当前槽由 fieldParams 兜)
+		...(record.userAyanT0 !== undefined && record.userAyanT0 !== null ? { userAyanT0: { value: record.userAyanT0 } } : {}),
+		...(record.userAyanDeg !== undefined && record.userAyanDeg !== null ? { userAyanDeg: { value: record.userAyanDeg } } : {}),
 		// AI 挂载「每技法设置」可覆盖的占星排盘开关:优先读 record(挂载重算时 merge 进 record.*),
 		// 缺省回退现状默认(0)→ 不调任何项时与现状逐字一致(守「默认即现状」)。
 		tradition: { value: record.tradition !== undefined && record.tradition !== null ? record.tradition : 0 },
 		termsVariant: { value: record.termsVariant !== undefined && record.termsVariant !== null ? record.termsVariant : 0 },
+		// [F14] 随盘界表表体(termsVariant=4):record 有才建 entry → overrides getVal 直取随盘表,零膨胀
+		...(Array.isArray(record.customTermsDay) ? { customTermsDay: { value: record.customTermsDay } } : {}),
+		...(Array.isArray(record.customTermsNight) ? { customTermsNight: { value: record.customTermsNight } } : {}),
 		// 占星(希腊化)G12/G13/G15/G20-P2:西占月交点真平 / 区分缓冲 / 狮子土星优先 / 三分集 / 福点反转。
 		// 挂载重算优先读 record,缺省回退零回归默认(平/几何/木首/Dorothean/反转ON)→ 不调任何项与现状逐字一致;
 		// 经 fieldsToParams 条件透传(默认不下发)→ /chart 复算 → AI 快照行星尊贵/界主/福点与盘面一致。
@@ -464,11 +471,11 @@ function buildFieldObject(record){
 		leoBoundFirst: { value: record.leoBoundFirst !== undefined && record.leoBoundFirst !== null ? record.leoBoundFirst : classicalGlobalValue('leoBoundFirst') },
 		triplicity: { value: record.triplicity !== undefined && record.triplicity !== null ? record.triplicity : classicalGlobalValue('triplicity') },
 		lotReversal: { value: record.lotReversal !== undefined && record.lotReversal !== null ? record.lotReversal : classicalGlobalValue('lotReversal') },
-		// 希腊补齐三开关(点公式文档口径/交点旺/土星旺20°):同款「读 record、缺省回退默认关」,
-		// 与 localcharts 落库键+recordFieldsRestore 还原键成对 ⇒ 挂载复算与所存盘逐字一致。
-		lotsDocReverse: { value: record.lotsDocReverse !== undefined && record.lotsDocReverse !== null ? record.lotsDocReverse : 0 },
-		nodeExaltation: { value: record.nodeExaltation !== undefined && record.nodeExaltation !== null ? record.nodeExaltation : 0 },
-		saturnExalt20: { value: record.saturnExalt20 !== undefined && record.saturnExalt20 !== null ? record.saturnExalt20 : 0 },
+		// 希腊补齐三开关(点公式文档口径/交点旺/土星旺20°):与 localcharts 落库键+recordFieldsRestore
+		// 还原键成对 ⇒ 挂载复算与所存盘逐字一致。[对标战役 0c] 三键升正仓后缺省改读全局现值
+		// (与下方古典口径 10 键同理:record 缺键=「随全局」;全局=默认 0 时 helper 判等仍不下发=零回归)。
+		lotsDocReverse: { value: record.lotsDocReverse !== undefined && record.lotsDocReverse !== null ? record.lotsDocReverse : classicalGlobalValue('lotsDocReverse') },
+		nodeExaltation: { value: record.nodeExaltation !== undefined && record.nodeExaltation !== null ? record.nodeExaltation : classicalGlobalValue('nodeExaltation') },
 		// 双子界序校勘(0/1):fieldParams 的条件透传早已在读它 —— 🔴 此处曾不产该字段,
 		// 那行透传恒为永假分支(死透传),挂载改「双子界序」永不生效。
 		geminiBoundEmended: { value: record.geminiBoundEmended !== undefined && record.geminiBoundEmended !== null ? record.geminiBoundEmended : 0 },
@@ -488,6 +495,29 @@ function buildFieldObject(record){
 		fixedStarOrbMode: { value: record.fixedStarOrbMode !== undefined && record.fixedStarOrbMode !== null ? record.fixedStarOrbMode : classicalGlobalValue('fixedStarOrbMode') },
 		antisciaOrb: { value: record.antisciaOrb !== undefined && record.antisciaOrb !== null ? record.antisciaOrb : classicalGlobalValue('antisciaOrb') },
 		viaCombustaVariant: { value: record.viaCombustaVariant !== undefined && record.viaCombustaVariant !== null ? record.viaCombustaVariant : classicalGlobalValue('viaCombustaVariant') },
+		// [WP-2] 天文口径批(record 缺键=随全局;全局=默认时 helper 判等不下发=零回归)
+		combustOwnChariotExempt: { value: record.combustOwnChariotExempt !== undefined && record.combustOwnChariotExempt !== null ? record.combustOwnChariotExempt : classicalGlobalValue('combustOwnChariotExempt') },
+		westLilithType: { value: record.westLilithType !== undefined && record.westLilithType !== null ? record.westLilithType : classicalGlobalValue('westLilithType') },
+		topocentricMoon: { value: record.topocentricMoon !== undefined && record.topocentricMoon !== null ? record.topocentricMoon : classicalGlobalValue('topocentricMoon') },
+		stationMarking: { value: record.stationMarking !== undefined && record.stationMarking !== null ? record.stationMarking : classicalGlobalValue('stationMarking') },
+		// [WP-3] 希腊点变体批(record 缺键=随全局)
+		hermeticLotsReversal: { value: record.hermeticLotsReversal !== undefined && record.hermeticLotsReversal !== null ? record.hermeticLotsReversal : classicalGlobalValue('hermeticLotsReversal') },
+		erosConstruction: { value: record.erosConstruction !== undefined && record.erosConstruction !== null ? record.erosConstruction : classicalGlobalValue('erosConstruction') },
+		lotFortuneVariant: { value: record.lotFortuneVariant !== undefined && record.lotFortuneVariant !== null ? record.lotFortuneVariant : classicalGlobalValue('lotFortuneVariant') },
+		lotFatherCombustAlt: { value: record.lotFatherCombustAlt !== undefined && record.lotFatherCombustAlt !== null ? record.lotFatherCombustAlt : classicalGlobalValue('lotFatherCombustAlt') },
+		lotProjection: { value: record.lotProjection !== undefined && record.lotProjection !== null ? record.lotProjection : classicalGlobalValue('lotProjection') },
+		// [WP-4] 尊贵与判定批后端三键
+		dignityDebilities: { value: record.dignityDebilities !== undefined && record.dignityDebilities !== null ? record.dignityDebilities : classicalGlobalValue('dignityDebilities') },
+		almutenTripMode: { value: record.almutenTripMode !== undefined && record.almutenTripMode !== null ? record.almutenTripMode : classicalGlobalValue('almutenTripMode') },
+		planetaryHourMethod: { value: record.planetaryHourMethod !== undefined && record.planetaryHourMethod !== null ? record.planetaryHourMethod : classicalGlobalValue('planetaryHourMethod') },
+		orbSystem: { value: record.orbSystem !== undefined && record.orbSystem !== null ? record.orbSystem : classicalGlobalValue('orbSystem') },
+		luminaryOrbBonus: { value: record.luminaryOrbBonus !== undefined && record.luminaryOrbBonus !== null ? record.luminaryOrbBonus : classicalGlobalValue('luminaryOrbBonus') },
+		aspectIncludeCusps: { value: record.aspectIncludeCusps !== undefined && record.aspectIncludeCusps !== null ? record.aspectIncludeCusps : classicalGlobalValue('aspectIncludeCusps') },
+		aspectIncludeLots: { value: record.aspectIncludeLots !== undefined && record.aspectIncludeLots !== null ? record.aspectIncludeLots : classicalGlobalValue('aspectIncludeLots') },
+		aspectIncludeMidpoints: { value: record.aspectIncludeMidpoints !== undefined && record.aspectIncludeMidpoints !== null ? record.aspectIncludeMidpoints : classicalGlobalValue('aspectIncludeMidpoints') },
+		solarReturnVariant: { value: record.solarReturnVariant !== undefined && record.solarReturnVariant !== null ? record.solarReturnVariant : classicalGlobalValue('solarReturnVariant') },
+		returnLatitudeMode: { value: record.returnLatitudeMode !== undefined && record.returnLatitudeMode !== null ? record.returnLatitudeMode : classicalGlobalValue('returnLatitudeMode') },
+		vulcanCalc: { value: record.vulcanCalc !== undefined && record.vulcanCalc !== null ? record.vulcanCalc : classicalGlobalValue('vulcanCalc') },
 		strongRecption: { value: record.strongRecption !== undefined && record.strongRecption !== null ? record.strongRecption : 0 },
 		simpleAsp: { value: record.simpleAsp !== undefined && record.simpleAsp !== null ? record.simpleAsp : 0 },
 		virtualPointReceiveAsp: { value: record.virtualPointReceiveAsp !== undefined && record.virtualPointReceiveAsp !== null ? record.virtualPointReceiveAsp : 0 },
@@ -609,6 +639,9 @@ function fieldParams(fields){
 		southchart: fields.southchart.value,
 		zodiacal: fields.zodiacal.value,
 		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
+		...((fields.siderealAyanamsa && `${fields.siderealAyanamsa.value}` === 'user')
+			? require('./customCalibreStores').userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined))
+			: {}),
 		tradition: fields.tradition.value,
 		doubingSu28: fields.doubingSu28.value,
 		strongRecption: fields.strongRecption.value,
@@ -654,8 +687,8 @@ function fieldParams(fields){
 		// 🔴 希腊化开关六项：此前本函数只转发 tradition，漏这六项 ⇒ AI 重算盘对界系/交点/区分缓冲/
 		// 狮首界/三分集/福点反转全不敏感（与所选流派档分叉）。按 models/astro.js fieldsToParams 同款
 		// **条件透传**补齐：默认值不下发 → 请求体与缓存键逐字节不变（改成无条件传即全量回归）。
-		...(fields.termsVariant && fields.termsVariant.value ? { termsVariant: fields.termsVariant.value } : {}),
-		...(fields.geminiBoundEmended && fields.geminiBoundEmended.value ? { geminiBoundEmended: 1 } : {}),
+		// [SURF-R3f] termsVariant/geminiBoundEmended 手写行随 models/astro.js 同步删除:spread(下方)
+		// 按 spec 全覆盖且归一更严;两侧同删=fieldParams≡fieldsToParams 对拍闸恰等。
 		...(fields.westNodeType && fields.westNodeType.value === 'true' ? { westNodeType: 'true' } : {}),
 		...(fields.sectBuffer && fields.sectBuffer.value === 'ptolemy5' ? { sectBuffer: 'ptolemy5' } : {}),
 		...(fields.leoBoundFirst && (fields.leoBoundFirst.value === 1 || fields.leoBoundFirst.value === '1') ? { leoBoundFirst: 1 } : {}),
@@ -663,8 +696,8 @@ function fieldParams(fields){
 		...(fields.lotReversal && (fields.lotReversal.value === 0 || fields.lotReversal.value === '0') ? { lotReversal: 0 } : {}),
 		// 🔴 古典口径覆盖走 classicalBackendOverridesFromFields 单一真值源(与 models/astro.js:390 同款):
 		// 覆盖 宫头前移/日心/焦伤/日光束/空亡口径(+外行星)/恒星容许度·档(含 starOrb/starOrbMode 名映射)/
-		// 映点容许度/燃烧之路边界 + lotsDocReverse/nodeExaltation/saturnExalt20 三开关。
-		// 此前三开关在此手写、其余 10 键整段缺失 —— 手写副本正是主盘/挂载分叉的病根,并入单源。
+		// 映点容许度/燃烧之路边界 + lotsDocReverse/nodeExaltation 两开关。
+		// 此前开关在此手写、其余 10 键整段缺失 —— 手写副本正是主盘/挂载分叉的病根,并入单源。
 		...classicalBackendOverridesFromFields(fields),
 		name: fields.name.value,
 		pos: fields.pos.value,
@@ -1786,6 +1819,8 @@ function buildChartShusuanBazi(record){
 			lunarMonth: Number((bazi.lunar || bazi.nongli || {}).monthNum || (bazi.lunar || bazi.nongli || {}).month) || 0,
 			lunarDay: Number((bazi.lunar || bazi.nongli || {}).dayNum || (bazi.lunar || bazi.nongli || {}).day) || 0,
 			isLeapMonth: !!((bazi.lunar || bazi.nongli || {}).isLeap || (bazi.lunar || bazi.nongli || {}).leap),
+			// [Win-D69] 八字大运真源(lunar-js 节气起运),参评「八字大运法」档注入用。纯增字段。
+			direction: Array.isArray(bazi.direction) ? bazi.direction : null,
 		};
 	}catch(e){
 		return null;
@@ -1858,6 +1893,21 @@ async function buildCanpingSnapshotForRecord(record, opts){
 	const b = buildChartShusuanBazi(record);
 	if(!b){ return ''; }
 	const method = (opts && opts.method === 'gu') ? 'gu' : 'ming';
+	// [Win-D69] 挂载复算与页面同构(快照×异步三问自查):此前不传 dayunRule/农历 → 页面选
+	// 任何大运档,挂载恒回落默认档+一岁起(「页面对、挂载错」再一例)。现:dayunRule 经挂载
+	// 每技法设置透传;农历月日供《参评诀》起运;baziStyle 档注入八字真源 direction(节气起运,
+	// 与八字盘/页面侧逐字节同源)。缺省全 undefined=默认档=现状零回归。
+	const dayunRule = (opts && ['mingGongQiyun', 'mingGongOne', 'baziStyle'].indexOf(opts.dayunRule) >= 0) ? opts.dayunRule : 'mingGongQiyun';
+	let baziYun = null;
+	if(dayunRule === 'baziStyle' && Array.isArray(b.direction) && b.direction.length){
+		try{
+			baziYun = b.direction.map((d)=>{
+				const gzd = (d.mainDirect && (d.mainDirect.ganzi || d.mainDirect.ganZhi)) || '';
+				return { branch: gzd.charAt(1) || '', ganzi: gzd, ageStart: d.age, ageEnd: d.age + 9, startYear: d.startYear, endYear: d.endYear };
+			}).filter((d)=>d.branch);
+			if(!baziYun.length){ baziYun = null; }
+		}catch(e){ baziYun = null; }
+	}
 	try{
 		const result = canpingCalculate({
 			yearGz: b.yearGz,
@@ -1867,6 +1917,10 @@ async function buildCanpingSnapshotForRecord(record, opts){
 			gender: b.gender,
 			method: method,
 			qiyunAge: 1,
+			lunarMonth: b.lunarMonth,
+			lunarDay: b.lunarDay,
+			dayunRule,
+			baziYun,
 		});
 		// 补全生涯流年表:此前不传 liunianRows → result.liunian 恒 null、快照缺整层流年(用户反馈数算缺流年)。
 		let liunianRows = null;
@@ -1882,6 +1936,10 @@ async function buildCanpingSnapshotForRecord(record, opts){
 				birthYear: b.birthYear,
 				startAge: 1,
 				endAge: 120,
+				lunarMonth: b.lunarMonth,
+				lunarDay: b.lunarDay,
+				dayunRule,
+				baziYun,
 			});
 			liunianRows = (series && series.rows) || null;
 		}catch(e){ liunianRows = null; }
@@ -1996,11 +2054,9 @@ async function fetchChartResultForRecord(record, options = {}){
 // 此前两 regenerate 从不读 settings ⇒ 挂载补算按 buildFieldObject 回退起盘:择日页面默认
 // 整宫制(hsys=0),hsys 回退修为 1 后挂载与页面新分叉;卜卦存档口径同被无视。settings 打底、
 // 流派 backend 播种(显式换派)覆盖 —— 与页面「先还原存档再按换派播 backend」同序。
+// [SURF-R0] 三方单源:古典段 import 自 divinationCaseSave(保存侧真源),本地只保留 4 基础键前缀。
 const DIVINATION_SETTINGS_KEYS = ['zodiacal', 'siderealAyanamsa', 'hsys', 'tradition',
-	'termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
-	'lotsDocReverse', 'nodeExaltation', 'saturnExalt20',
-	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter',
-	'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb', 'viaCombustaVariant'];
+	...DIVINATION_CASE_SETTING_KEYS];
 function divinationSettingsFields(record){
 	try{
 		const raw = record && record.payload;
@@ -2125,8 +2181,12 @@ async function regenerateElectionSnapshot(record, options){
 			if(v !== undefined && v !== null && v !== ''){ epFlat[sp.key] = v; }
 		});
 		const electionParams = { ...((epSaved && typeof epSaved === 'object') ? epSaved : {}), ...epFlat };
+		// [R5-P1] 判读全局层与页面(ElectionJudgment:278)同构——缺此 spread 时 AI 再生的择日判读
+		// (太阳三态/空亡/partile/恒星轨/映点)全部跌回引擎默认,与页面判读卡分叉。
+		const { judgeLayerOverrides } = require('./judgeLayerOverrides');
 		const j = runElection(chart, topicId, undefined, undefined, {
 			westSchool, surgeryPart: pick('surgeryPart'), crisisBase: pick('crisisBase'),
+			...judgeLayerOverrides(),
 			electionParams: Object.keys(electionParams).length ? electionParams : undefined, tradeSide: pick('tradeSide'),
 			talismanStar: pick('talismanStar'), surgeryPartOpposite: !!pick('surgeryPartOpposite'),
 		});
@@ -2427,7 +2487,11 @@ async function buildPredictivePeriodSnapshot(chartObj, key, opts){
 	}
 	const optDatetime = `${o.datetime || ''}`.trim();
 	const tmType = (o.tmType === 'm' || o.tmType === 'd' || o.tmType === 'y') ? o.tmType : 'y';
-	const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : 1;
+	// [R5-P2] 缺省与推运 9 组件同源(transitOrbDefault 读全局 transitOrb,默认 1 零回归)——
+	// 硬编码 1 会在全局改 3° 后与页面推运相位表分叉。
+	let _orbDefault = 1;
+	try{ _orbDefault = require('../components/astro/AstroExtraCommon').transitOrbDefault() || 1; }catch(e){ _orbDefault = 1; }
+	const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : _orbDefault;
 	const nodeRetrograde = (o.nodeRetrograde === true || o.nodeRetrograde === 1 || o.nodeRetrograde === '1');
 	// 单一时点的快照（datetimeForPoint = 'YYYY-MM-DD HH:mm'）。区间扫描循环调用它。
 	const runOnePoint = async (datetimeForPoint)=>{
@@ -2449,6 +2513,23 @@ async function buildPredictivePeriodSnapshot(chartObj, key, opts){
 			nodeRetrograde: nodeRetrograde,
 			asporb: asporb,
 		};
+		// [F2 根修] AI 推运构参补古典口径续传:七头键(响应 params 有即续传,与派生盘组件
+		// natalClassicalParams 同语义)+overrides 全量非默认——此前连 termsVariant 都不带,
+		// AI 推运段恒按全默认口径重算,与主盘/推运页分叉。
+		['termsVariant', 'leoBoundFirst', 'geminiBoundEmended', 'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer'].forEach((ck)=>{
+			if(np[ck] !== undefined && np[ck] !== null && `${np[ck]}` !== ''){
+				params[ck] = np[ck];
+			}
+		});
+		Object.assign(params, classicalBackendOverridesFromPlain(np));
+		// [SURF-R5ai] user 自定义岁差三元(照 natalClassicalParams R4u 同款):spec 无 userAyan 两键,
+		// overrides 不产——缺此段则 AI 推运段带裸 'user' 键,后端建档失败静默回落 Lahiri,
+		// 与页面推运(已修)口径分叉。echo 有值直取,缺则回落本机当前槽。
+		if(`${np.siderealAyanamsa}` === 'user'){
+			try{ Object.assign(params, require('./customCalibreStores').userAyanParamsFrom((k)=>np[k])); }catch(e){ /* 无槽=后端回落,与页面同 */ }
+		}
+		// [R2-11] 头键循环先写了 termsVariant;overrides 的「无表降级删 4」撤不回它 → 补刀:4 而无表体=不发(后端等效埃及,显式化)。
+		if(Number(params.termsVariant) === 4 && !params.customTermsDay){ delete params.termsVariant; }
 		// 异地返照（仅 returns 型：solarreturn/lunarreturn/givenyear）才下发 dirLat/dirLon——与各 Return 组件一致
 		// （默认 = 本命经纬，字节级等同现状）；profection/solararc 组件本就不带 dirLat/dirLon，不加以免改默认行为。
 		if(key === 'solarreturn' || key === 'lunarreturn' || key === 'givenyear'){
@@ -2977,6 +3058,9 @@ function parseAstroSnapshotSignature(signature){
 		// 无条件重算,不经本守卫 —— 本守卫只管「默认路径复用已存快照」的失效判定)。
 		traditionNum: `${parts[12] || ''}`.trim(),
 		termsVariantNum: `${parts[13] || ''}`.trim(),
+		// [0e] parts[14]=古典口径 overrides JSON 段(签名侧 createAstroSnapshotSignature 同位):
+		// 改燃烧上界/空亡口径/三分集等 22 键任一 → 段串变 → 精确失效。旧签名缺位→''=守卫跳过。
+		classicalOv: `${parts[14] || ''}`.trim(),
 	};
 }
 
@@ -3044,6 +3128,28 @@ function hasMatchingSavedAstroSnapshot(record){
 	if(parsed.termsVariantNum && parsed.termsVariantNum !== recTermsVariant){
 		return null;
 	}
+	// [0e] 古典口径段比对:record 缺键=「随全局」(buildFieldObject 同款回退),故基准=全局仓打底、
+	// record 平铺键覆盖,再经请求体单源归一成 JSON 串(两侧同函数产键,插入序固定=串稳定)。
+	// 旧签名缺位 ''=跳过(hsysNum 同范式,向后兼容;最坏复用一次,下一次保存即进精确判定)。
+	if(parsed.classicalOv){
+		const g = getClassicalChartGlobals();
+		const merged = { ...g };
+		Object.keys(CLASSICAL_GLOBAL_DEFAULTS).forEach((k) => {
+			if(record[k] !== undefined && record[k] !== null){ merged[k] = record[k]; }
+		});
+		// [R2-7] 随盘界表表体非 spec 键,上面循环带不进——显式 overlay,否则外机自定义表记录
+		// 比对侧落到本机仓表,与签名侧(随盘表)恒不等 → 该类记录快照永不命中缓存。
+		['customTermsDay', 'customTermsNight'].forEach((k) => {
+			if(Array.isArray(record[k])){ merged[k] = record[k]; }
+		});
+		const recOv = JSON.stringify({
+			...classicalBackendOverridesFromPlain(merged),
+			...classicalSnapshotNeverSig((k) => merged[k]),
+		});
+		if(parsed.classicalOv !== recOv){
+			return null;
+		}
+	}
 	return snapshot;
 }
 
@@ -3071,7 +3177,7 @@ async function fetchClassicalAnalysisSection(params){
 		// voidClassical 默认 0 → 与 AstroAnalysisLab 同参;后端缺键=本座义=现状,默认用户零回归。
 		const vc = liveVoidClassical();
 		// 恒星轨读全局仓(此前硬编 1° → 用户在星盘设置改恒星轨后,AI 古典段与主盘恒星集漂移)。
-		const reqBody = { ...params, fixedStarOrb: classicalGlobalValue('fixedStarOrb') };
+		const reqBody = { _v: 'cls1', ...params, fixedStarOrb: classicalGlobalValue('fixedStarOrb') };   // [SURF] 缓存代次盐
 		if(vc){ reqBody.voidClassical = true; }
 		const data = await request(`${Constants.ServerRoot}/astroextra/analysis`, {
 			body: JSON.stringify(reqBody),

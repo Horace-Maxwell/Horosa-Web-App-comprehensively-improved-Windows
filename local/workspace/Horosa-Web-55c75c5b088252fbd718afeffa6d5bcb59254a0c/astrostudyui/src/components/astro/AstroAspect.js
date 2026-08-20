@@ -127,6 +127,16 @@ class AstroAspect extends Component{
 			}
 
 			let rows = [];
+			// [WP-5a] 相位表显示过滤(纯前端,读全局仓;默认 关/不限=现状零回归):
+			// aspectShowOnlyApplying=1 → 离相行整体隐藏;separatingOrbCap>0 → 离相误差超上限的行隐藏。
+			let onlyApplying = false;
+			let sepCap = 0;
+			try{
+				const { classicalGlobalValue } = require('../../utils/classicalChartGlobals');
+				onlyApplying = classicalGlobalValue('aspectShowOnlyApplying') === 1;
+				const c = Number(classicalGlobalValue('separatingOrbCap'));
+				sepCap = Number.isFinite(c) ? c : 0;
+			}catch(e){ /* 守默认全显 */ }
 
 			for(let idx in obj.Applicative){
 				let asp = obj.Applicative[idx];
@@ -152,6 +162,12 @@ class AstroAspect extends Component{
 				}
 				if((!planets.has(asp.id))){
 					continue;
+				}
+				if(onlyApplying){
+					continue;   // 只显入相:离相/正相(离相段)整体不入行
+				}
+				if(sepCap > 0 && Number(asp.orb) > sepCap){
+					continue;   // 离相误差超上限
 				}
 				rows.push(this.aspPill(key + 's' + asp.id, key, asp, '离相', 'separating'));
 			}
@@ -362,6 +378,35 @@ class AstroAspect extends Component{
 		let immediateAsp = this.genImmediateAspDom(aspects.immediateAsp);
 		let signAsp = this.genSignAspDom(aspects.signAsp);
 		let antiAsp = this.genAntisciasDom(chart.chart);
+		// [WP-5b] 相位参与对象扩展分组(默认全关=响应无字段=零渲染)。
+		const extraGroups = (() => {
+			const extra = chart.extraAspects;
+			if(!extra || typeof extra !== 'object'){ return null; }
+			const GROUP_CN = { cusps: '宫头相位', lots: '点位相位', midpoints: '中点接触' };
+			const blocks = [];
+			['cusps', 'lots', 'midpoints'].forEach((g) => {
+				const rows = Array.isArray(extra[g]) ? extra[g] : [];
+				if(!rows.length){ return; }
+				const cn = (id) => (AstroText.AstroMsgCN && AstroText.AstroMsgCN[id]) || (AstroText.AstroTxtMsg && AstroText.AstroTxtMsg[id]) || `${id}`;
+				const ASP_CN = { 0: '合', 60: '六合', 90: '刑', 120: '拱', 180: '冲' };
+				blocks.push(
+					<div className="horosa-aspect-section" key={`extra-${g}`}>
+						<div className="horosa-aspect-section-title">{GROUP_CN[g]}</div>
+						<div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+							{rows.map((r, i) => (
+								<span key={`${g}-${i}`} className="horosa-aspect-pill" style={{ fontFamily: AstroConst.NormalFont, fontSize: 12 }}>
+									{cn(r.planet)}
+									<span style={{ margin: '0 3px', opacity: 0.85 }}>{ASP_CN[r.asp] || `${r.asp}°`}</span>
+									<span>{cn(r.target)}</span>
+									<span style={{ opacity: 0.65, marginLeft: 3 }}>{Math.round(r.orb * 100) / 100}°</span>
+								</span>
+							))}
+						</div>
+					</div>
+				);
+			});
+			return blocks.length ? blocks : null;
+		})();
 
 		let height = this.props.height ? this.props.height : '100%';
 		let style = {
@@ -390,6 +435,7 @@ class AstroAspect extends Component{
 						{antiAsp}
 					</div>
 				) : null}
+				{extraGroups}
 			</div>
 		);
 	}

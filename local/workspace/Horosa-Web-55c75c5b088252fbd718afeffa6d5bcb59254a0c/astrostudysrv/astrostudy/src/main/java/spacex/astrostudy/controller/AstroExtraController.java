@@ -20,7 +20,24 @@ public class AstroExtraController {
 		"endDate", "startTime", "endTime", "includeTransits", "planets", "natalPoints",
 		"aspects", "targetDate", "targetTime", "datetime", "orb", "startYear", "endYear", "count",
 		"harmonic", "inner", "outer", "relative", "altitude", "body", "p1", "p2", "aspect", "eclipseKind",
-		"minorVariant", "relocLat", "relocLon", "termsVariant", "voidClassical"
+		"minorVariant", "relocLat", "relocLon", "termsVariant", "voidClassical",
+		// [WP-2] 食时刻口径(星历页食相表:'max' 食甚=现状默认/'syzygy' 精确朔望)。
+		"eclipseTimeMode",
+		// [SURF-1] 古典设置全集透传:前端 chartParams 经 natalClassicalParams 早已全带,
+		// 此前本白名单逐个丢键 → analysis 族(Almuten/逐题主星/行星时/气质/埃及历)对全部
+		// 古典档位空转(右栏改档恒旧值)。与 classicalParamSpec send:'nonDefault' 全集
+		// lockstep(backendKey 口径:fixedStarOrb→starOrb/fixedStarOrbMode→starOrbMode);
+		// 合同 classicalSurfaceParity.test.js 机械看守,缺键即红。
+		"geminiBoundEmended", "leoBoundFirst", "triplicity", "dignityDebilities",
+		"almutenTripMode", "planetaryHourMethod", "sectBuffer", "westNodeType",
+		"nodeExaltation", "cazimiOrb", "combustOrb", "combustOwnChariotExempt",
+		"underBeamsOrb", "vocMode", "vocIncludeOuter", "westLilithType", "topocentricMoon",
+		"viaCombustaVariant", "lotReversal", "lotsDocReverse", "hermeticLotsReversal",
+		"erosConstruction", "lotFortuneVariant", "lotFatherCombustAlt", "lotProjection",
+		"orbSystem", "luminaryOrbBonus", "aspectIncludeCusps", "aspectIncludeLots",
+		"aspectIncludeMidpoints", "antisciaOrb", "starOrb", "starOrbMode", "stationMarking",
+		"solarReturnVariant", "returnLatitudeMode", "houseCuspAdvance", "vulcanCalc",
+		"customTermsDay", "customTermsNight", "siderealAyanamsa", "userAyanT0", "userAyanDeg"
 	};
 
 	private Map<String, Object> getBaseParams(){

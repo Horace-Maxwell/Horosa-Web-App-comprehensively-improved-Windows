@@ -7,8 +7,7 @@ from astrostudy.modern.chartcomposite import ChartComposite
 from astrostudy.modern.chartsynastry import ChartSynastry
 from astrostudy.modern.charttmspace import ChartTimeSpace
 from astrostudy.modern.chartmarks import ChartMarks
-from astrostudy.perchart import push_request_terms, pop_request_terms, push_request_trip, pop_request_trip, push_request_house_offset, pop_request_house_offset, push_request_exalt_variants, pop_request_exalt_variants
-from flatlib.tools.arabicparts import push_request_lots_doc_reverse, pop_request_lots_doc_reverse
+from astrostudy.perchart import push_classical_request, pop_classical_request
 
 
 class ModernAstroSrv:
@@ -51,10 +50,16 @@ class ModernAstroSrv:
             #  ① westNodeType/sectBuffer/lotReversal —— perchart 从每盘 data dict 读 → 灌 inner/outer;
             #  ② termsVariant/leoBoundFirst/geminiBoundEmended/triplicity —— 请求级线程态,
             #     push/pop 包住 compute(与 webchartsrv 各路由同款,finally 必还原防污染后续请求)。
-            for _ck in ('westNodeType', 'sectBuffer', 'lotReversal', 'houseCuspAdvance',
+            for _ck in ('westNodeType', 'sectBuffer', 'lotReversal', 'houseCuspAdvance', 'triplicity',   # [R4-P2] setupPlanets 水象夜表分支读每盘 data.get('triplicity'),缺=夜换挡死
                         'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter',
                         'starOrb', 'starOrbMode', 'antisciaOrb', 'viaCombustaVariant',
-                        # ↓ 三键计算走线程态(push_request_terms),塞每盘仅供 helper.getChartObj
+                        # [F3] WP-2~8 per-chart 实例键(perchart 从每盘 data dict 读;缺省不塞=零变)
+                        'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon',
+                        'stationMarking', 'planetaryHourMethod', 'vulcanCalc',
+                        'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant',
+                        'lotFatherCombustAlt', 'lotProjection',
+                        'siderealAyanamsa', 'userAyanT0', 'userAyanDeg',
+                        # ↓ 三键计算走线程态(push_classical_request),塞每盘仅供 helper.getChartObj
                         #   params 条件回显 → 前端合盘界环/「位于 X 界」与计算同口径(缺省不塞=响应字节零变)
                         'termsVariant', 'leoBoundFirst', 'geminiBoundEmended'):
                 if _ck in data:
@@ -77,21 +82,13 @@ class ModernAstroSrv:
             else:
                 reschart = ChartComp(inner, outer)
 
-            _terms_orig = push_request_terms(data.get('termsVariant', 0), data.get('leoBoundFirst'), data.get('geminiBoundEmended'))
-            _trip_orig = push_request_trip(data.get('triplicity'))
-            _hco_orig = push_request_house_offset(data.get('houseCuspAdvance'))
-            # 与 webchartsrv 三路由同款令牌纪律:合盘的点表方向/旺位异文也须请求级 push,
-            # 否则 _docReverseOn 等模块级全局在并发下会读到别的请求置的值(且合盘恒用默认)。
-            _ldr_orig = push_request_lots_doc_reverse(data.get('lotsDocReverse'))
-            _exv_orig = push_request_exalt_variants(data.get('nodeExaltation'), data.get('saturnExalt20'))
+            # [F3] 收编复合临界区(七族全:terms 含自定义表体/trip/house_offset/lots 族/exalt/
+            # scores/orb_policy——旧散 push 只五族且不带 custom 表体,合盘 orbSystem/dignityDebilities 恒默认)。
+            _cls_tokens = push_classical_request(data)
             try:
                 res = reschart.compute()
             finally:
-                pop_request_exalt_variants(_exv_orig)
-                pop_request_lots_doc_reverse(_ldr_orig)
-                pop_request_house_offset(_hco_orig)
-                pop_request_trip(_trip_orig)
-                pop_request_terms(_terms_orig)
+                pop_classical_request(_cls_tokens)
             return jsonpickle.encode(res, unpicklable=False)
         except:
             traceback.print_exc()

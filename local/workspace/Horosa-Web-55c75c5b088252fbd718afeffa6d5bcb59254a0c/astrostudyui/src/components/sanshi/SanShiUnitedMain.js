@@ -4437,6 +4437,10 @@ class SanShiUnitedMain extends Component{
 	}
 
 	scheduleSnapshotSave(snapshotPayload, snapshotMeta){
+		// [issue#74 同类] 留底最近一次 payload/meta:紫微四化 tab 的盘经异步归来时(上报点
+		// handleZiweiSihuaSnapshotState)据此换键补拍——重算路径按值捕获,四化后到不补则挂载恒缺段。
+		this._lastSnapshotPayload = snapshotPayload;
+		this._lastSnapshotMeta = snapshotMeta;
 		if(this.pendingSnapshotTimer){
 			clearTimeout(this.pendingSnapshotTimer);
 			this.pendingSnapshotTimer = null;
@@ -4473,6 +4477,12 @@ class SanShiUnitedMain extends Component{
 	// 供快照三条路径(重算 scheduleSnapshotSave/存档 clickSave/导出刷新 handleSnapshotRefreshRequest)payload 带上。
 	handleZiweiSihuaSnapshotState(payload){
 		this.ziweiSihuaSnapshotInput = payload || null;
+		// [issue#74 同类] 四化上报实变即补拍(子组件已同值去重,此处必为实变):重算路径的
+		// snapshotPayload 按值捕获,四化盘异步归来若只落实例字段不重存,挂载快照恒缺
+		// [紫微四化] 段——而导出刷新路径实时读实例字段反而有,两路径不同构。
+		if(payload && this._lastSnapshotPayload){
+			this.scheduleSnapshotSave({ ...this._lastSnapshotPayload, ziweiSihua: payload }, this._lastSnapshotMeta);
+		}
 	}
 
 	handleSnapshotRefreshRequest(evt){

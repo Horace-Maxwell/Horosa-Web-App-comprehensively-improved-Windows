@@ -147,28 +147,34 @@ describe('迁仓与判读合并层（classical 二批九键 + judgeLayerOverride
 	});
 });
 
-// ── 三流派开关进单源(曾只在主盘手写下发,13宫/12分盘/合盘全部丢参) ──
-describe('classicalBackendOverrides 三流派开关(lotsDocReverse/nodeExaltation/saturnExalt20)', () => {
+// ── 两流派开关进单源(曾只在主盘手写下发,13宫/12分盘/合盘全部丢参) ──
+describe('classicalBackendOverrides 两流派开关(lotsDocReverse/nodeExaltation)', () => {
 	const { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } = require('../classicalChartGlobals');
 	it('默认关(0/undefined)一律不发', () => {
 		expect(classicalBackendOverridesFromPlain({})).not.toHaveProperty('lotsDocReverse');
-		const out = classicalBackendOverridesFromPlain({ lotsDocReverse: 0, nodeExaltation: '0', saturnExalt20: false });
-		['lotsDocReverse', 'nodeExaltation', 'saturnExalt20'].forEach((k) => expect(out).not.toHaveProperty(k));
+		const out = classicalBackendOverridesFromPlain({ lotsDocReverse: 0, nodeExaltation: '0' });
+		['lotsDocReverse', 'nodeExaltation'].forEach((k) => expect(out).not.toHaveProperty(k));
 	});
-	it('开(1/"1"/true)发 1,三键互相独立', () => {
-		const out = classicalBackendOverridesFromPlain({ lotsDocReverse: 1, nodeExaltation: '1', saturnExalt20: true });
+	it('开(1/"1")发 1,两键互相独立', () => {
+		const out = classicalBackendOverridesFromPlain({ lotsDocReverse: 1, nodeExaltation: '1' });
 		expect(out.lotsDocReverse).toBe(1);
 		expect(out.nodeExaltation).toBe(1);
-		expect(out.saturnExalt20).toBe(1);
 		const only = classicalBackendOverridesFromPlain({ nodeExaltation: 1 });
 		expect(only).toEqual(expect.objectContaining({ nodeExaltation: 1 }));
 		expect(only).not.toHaveProperty('lotsDocReverse');
-		expect(only).not.toHaveProperty('saturnExalt20');
 	});
 	it('fields 形状(value 包装)同样生效 —— 六构参点全走此单源', () => {
-		const f = { lotsDocReverse: { value: 1 }, saturnExalt20: { value: '1' } };
+		const f = { lotsDocReverse: { value: 1 } };
 		const out = classicalBackendOverridesFromFields(f);
 		expect(out.lotsDocReverse).toBe(1);
-		expect(out.saturnExalt20).toBe(1);
+	});
+	it('已删档键残值零残留:老 globalSetup/存档残存 saturnExalt20/polarMcMode 喂真值也绝不进 send(spec 单源循环天然免疫)', () => {
+		const out = classicalBackendOverridesFromPlain({ saturnExalt20: 1, polarMcMode: 'aboveHorizon', nodeExaltation: 1 });
+		expect(out).not.toHaveProperty('saturnExalt20');
+		expect(out).not.toHaveProperty('polarMcMode');
+		expect(out.nodeExaltation).toBe(1);
+		const fout = classicalBackendOverridesFromFields({ saturnExalt20: { value: 1 }, polarMcMode: { value: 'aboveHorizon' } });
+		expect(fout).not.toHaveProperty('saturnExalt20');
+		expect(fout).not.toHaveProperty('polarMcMode');
 	});
 });

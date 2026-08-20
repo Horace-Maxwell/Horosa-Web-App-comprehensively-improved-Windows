@@ -14,7 +14,8 @@ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
 const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
 const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
-import { SmallTable, symbolWithMeaning } from './AstroExtraCommon';
+import { SmallTable, symbolWithMeaning, natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import PlusMinusTime from './PlusMinusTime';
@@ -48,6 +49,8 @@ function natalParams(chartObj){
 		zone: params.zone, dirZone: params.zone, lon: params.lon, lat: params.lat,
 		gpsLat: params.gpsLat, gpsLon: params.gpsLon, hsys: params.hsys,
 		zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa, tradition: params.tradition,
+		// [0d] 古典口径段(单源):此前只带基础键,推运链丢古典口径。
+		...natalClassicalParams(params),
 	};
 }
 
@@ -183,7 +186,7 @@ class AstroPersianDirected extends Component{
 		const np = natalParams(props.value);
 		const dt = new DateTime();
 		dt.addDate(1);
-		this.state = { params: { ...np, datetime: dt, asporb: 1, nodeRetrograde: false, rateKey: 'persian', direction: 'direct', maxYears: 90 }, dirChart: null };
+		this.state = { params: { ...np, datetime: dt, asporb: transitOrbDefault(), nodeRetrograde: false, rateKey: 'persian', direction: 'direct', maxYears: 90 }, dirChart: null };
 		// 终生应期长表的滚动定位：fullListRef=滚动盒、anchorRowNode=当前向运年龄锚点行、lastScrolledAge=去抖。
 		this.fullListRef = null;
 		this.anchorRowNode = null;
@@ -276,7 +279,8 @@ class AstroPersianDirected extends Component{
 		// 否则组件构造时绑定的旧盘会把内圈本命冻结成错误日期：换盘后 componentDidUpdate
 		// 只重新请求、不重算 natalParams，内圈本命会被后端按旧 date 起盘(实测对不上选择的盘)。
 		const np = natalParams(this.props.value);
-		const params = { ...this.state.params, ...np };
+		// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 np 不带古典键,旧值不得残留。
+		const params = pruneStaleClassicalParams({ ...this.state.params, ...np }, np);
 		params.datetime = params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime;
 		if(this.props.value){ this.requestDirection(params); }
 	}

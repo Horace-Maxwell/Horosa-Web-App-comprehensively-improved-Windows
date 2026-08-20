@@ -72,11 +72,13 @@ describe('🔴 默认检索策略 · 消费链层(源码级,防被静默摘线)'
 		expect(RAG).toMatch(/retrievalMode\s*===\s*'rag'/);
 	});
 
-	it('retrieveMaterialContext 收 mode 形参,并把它传给 shouldUseDirectAttach', ()=>{
+	it('retrieveMaterialContext 收 mode 形参,并把它传给分拣单源', ()=>{
 		const fn = MAIN.slice(MAIN.indexOf('async function retrieveMaterialContext'));
 		const body = fn.slice(0, 900);
 		expect(body).toContain('retrieveMaterialContext(query, resolvedRefs, embeddingTarget, retrievalMode)');
-		expect(body).toContain('shouldUseDirectAttach(item, retrievalMode)');	// 红=形参收了但没往下传
+		// [B1] 分拣收编进 partitionMaterialsByRetrieval 单源(内部调 shouldUseDirectAttach,
+		// 契约层已断三档改判)。判据换锚同一意图:mode 必须作为第二实参传入单源,红=收了没往下传。
+		expect(body).toMatch(/partitionMaterialsByRetrieval\([^,]+,\s*retrievalMode\)/);
 	});
 
 	it('调用点从挂载的组合取 defaultRetrievalMode 并传入(不是硬写 undefined)', ()=>{

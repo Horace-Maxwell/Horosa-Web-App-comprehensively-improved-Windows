@@ -25,6 +25,13 @@ export function buildChartParams(fields){
 		southchart: v('southchart', 0),
 		zodiacal: v('zodiacal', 0),
 		siderealAyanamsa: v('siderealAyanamsa', ''),
+		// [F9] 自定义恒星黄道('user' 槽):附历元两参,缺参后端静默回落 Lahiri 与主盘分叉。
+		...(`${v('siderealAyanamsa', '')}` === 'user' ? (()=>{
+			try{
+				const { userAyanParamsFrom } = require('../../utils/customCalibreStores');
+				return userAyanParamsFrom((k)=>(fields && fields[k] ? fields[k].value : undefined)) || {};
+			}catch(e){ return {}; }
+		})() : {}),
 		tradition: v('tradition', 1),
 		doubingSu28: v('doubingSu28', 0),
 		strongRecption: v('strongRecption', 0),
@@ -51,6 +58,8 @@ export function buildChartParams(fields){
 		// 2026-07 二批九键(落宫前移/三态/空亡口径/恒星轨/映点容许度):共享 helper,默认不下发零回归。
 		...classicalBackendOverridesFromFields(fields),
 	};
+	// [R2-11] 头键 spread 先写 termsVariant;overrides 的「无表降级删 4」撤不回 → 4 而无表体=不发(等效埃及,显式化)。
+	if(Number(params.termsVariant) === 4 && !params.customTermsDay){ delete params.termsVariant; }
 	if(params.pdaspects && params.pdaspects instanceof String){
 		params.pdaspects = JSON.parse(params.pdaspects);
 	}

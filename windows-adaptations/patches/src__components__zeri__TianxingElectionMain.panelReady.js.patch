@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/zeri/TianxingElectionMain.js b/astrostudyui/src/components/zeri/TianxingElectionMain.js
-index ffb77a55..4dd34e58 100644
+index 8b251d8e..c58c3d83 100644
 --- a/astrostudyui/src/components/zeri/TianxingElectionMain.js
 +++ b/astrostudyui/src/components/zeri/TianxingElectionMain.js
-@@ -17,6 +17,8 @@ import AstroKlimata from '../astro/AstroKlimata';
+@@ -18,6 +18,8 @@ import AstroKlimata from '../astro/AstroKlimata';
  import AstroPredictPlanetSign from '../astro/AstroPredictPlanetSign';
  import AstroAnalysisLab from '../astro/AstroAnalysisLab';
  import AstroEgypt from '../astro/AstroEgypt';
@@ -11,7 +11,7 @@ index ffb77a55..4dd34e58 100644
  import { newLeaf, newGroup, compileTree } from '../../divination/zeri/conditionTypes';
  import { runScan } from '../../divination/zeri/scanOrchestrator';
  import { pushHistory } from '../../divination/zeri/schemeStore';
-@@ -77,10 +79,37 @@ export default class TianxingElectionMain extends Component{
+@@ -78,10 +80,37 @@ export default class TianxingElectionMain extends Component{
  			results: null,
  			truncated: false,
  			scanErr: '',
@@ -49,7 +49,7 @@ index ffb77a55..4dd34e58 100644
  	}
  
  	componentWillUnmount(){
-@@ -254,15 +283,29 @@ export default class TianxingElectionMain extends Component{
+@@ -258,15 +287,29 @@ export default class TianxingElectionMain extends Component{
  	renderRight({ chart, fields, patchFields }){
  		this._patchFields = patchFields;
  		const chartObj = chart;
@@ -80,7 +80,7 @@ index ffb77a55..4dd34e58 100644
  					<AstroInfo mode="summary" height={tabHeight}
  						value={chartObj} fields={fields}
  						planetDisplay={this.props.planetDisplay}
-@@ -270,8 +313,10 @@ export default class TianxingElectionMain extends Component{
+@@ -274,8 +317,10 @@ export default class TianxingElectionMain extends Component{
  						showAstroMeaning={this.props.showAstroMeaning}
  						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  					/>
@@ -91,7 +91,7 @@ index ffb77a55..4dd34e58 100644
  					<AstroAspect
  						value={chartObj} height={tabHeight}
  						lotsDisplay={this.props.lotsDisplay}
-@@ -279,8 +324,10 @@ export default class TianxingElectionMain extends Component{
+@@ -283,8 +328,10 @@ export default class TianxingElectionMain extends Component{
  						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  						showAstroMeaning={this.props.showAstroMeaning}
  					/>
@@ -102,7 +102,7 @@ index ffb77a55..4dd34e58 100644
  					<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  						<AstroPlanet
  							value={chartObj}
-@@ -293,8 +340,10 @@ export default class TianxingElectionMain extends Component{
+@@ -297,8 +344,10 @@ export default class TianxingElectionMain extends Component{
  							<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  						</div>
  					</div>
@@ -113,7 +113,7 @@ index ffb77a55..4dd34e58 100644
  					<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
  						<AstroInfo mode="classical" height={tabHeight}
  							value={chartObj} fields={fields}
-@@ -314,23 +363,30 @@ export default class TianxingElectionMain extends Component{
+@@ -318,23 +367,30 @@ export default class TianxingElectionMain extends Component{
  							<AstroKlimata value={chartObj} fields={fields} />
  						</div>
  					</div>
@@ -144,7 +144,7 @@ index ffb77a55..4dd34e58 100644
  				</TabPane>
  			</XQTabs>
  		);
-@@ -406,12 +462,7 @@ export default class TianxingElectionMain extends Component{
+@@ -411,12 +467,7 @@ export default class TianxingElectionMain extends Component{
  					scanEpoch={this._scanEpoch || 0}
  					resultsStale={!!(this.state.results && this._scanUiTreeJson
  						&& JSON.stringify(this.state.tree) !== this._scanUiTreeJson)}

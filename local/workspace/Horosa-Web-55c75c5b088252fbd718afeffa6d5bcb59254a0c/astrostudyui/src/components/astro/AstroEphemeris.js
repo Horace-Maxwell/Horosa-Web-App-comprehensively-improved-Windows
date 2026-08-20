@@ -4,6 +4,7 @@ import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -44,21 +45,33 @@ class AstroEphemeris extends Component{
 	componentDidMount(){
 		this._mounted = true;
 		this.load();
+		// [SURF-T2] 食时刻口径为纯全局键(不进 fields/props):抽屉改档不触发本组件任何 React 更新,
+		// buildRequestKey 的 didUpdate 比对永远没机会跑 → 监听全局事件补上这跳(load 内有键比对防重复拉)。
+		this._onClassicalGlobals = () => { this.componentDidUpdate({}); };
+		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
 	}
 
 	componentWillUnmount(){
 		this._mounted = false;
+		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
+
+	// [F1 根修] 请求键唯一算法:三处(didUpdate/ensureLoaded/load)必走同一函数——
+	// 曾因 load 键尾加了 eclMode 段而另两处没加,默认态两键永不相等 → 无限重取循环。
+	buildRequestKey(){
+		const eclMode = classicalGlobalValue('eclipseTimeMode') || 'max';
+		return chartRequestKey(this.props.value, `ephemeris|${this.state.startDate}|${this.state.endDate}|${this.state.includeTransits ? 1 : 0}|${eclMode === 'max' ? '' : eclMode}`);
 	}
 
 	componentDidUpdate(prevProps){
-		const key = chartRequestKey(this.props.value, `ephemeris|${this.state.startDate}|${this.state.endDate}|${this.state.includeTransits ? 1 : 0}`);
+		const key = this.buildRequestKey();
 		if(key && key !== this.state.requestKey && !this.state.loading){
 			this.load();
 		}
 	}
 
 	ensureLoaded(){
-		const key = chartRequestKey(this.props.value, `ephemeris|${this.state.startDate}|${this.state.endDate}|${this.state.includeTransits ? 1 : 0}`);
+		const key = this.buildRequestKey();
 		if(key && key !== this.state.requestKey && !this.state.loading){
 			setTimeout(this.load, 0);
 		}
@@ -73,10 +86,13 @@ class AstroEphemeris extends Component{
 	}
 
 	async load(){
+		if(this._mounted === false){ return; }   // [SURF-R5g] ensureLoaded 的 setTimeout 在卸载后触发的微窗守卫
 		if(!this.props.value){
 			return;
 		}
-		const key = chartRequestKey(this.props.value, `ephemeris|${this.state.startDate}|${this.state.endDate}|${this.state.includeTransits ? 1 : 0}`);
+		// [WP-2] 食时刻口径(纯全局键,非默认才随请求与缓存键;默认 'max'=食甚零回归)。
+		const eclMode = classicalGlobalValue('eclipseTimeMode') || 'max';
+		const key = this.buildRequestKey();
 		this.setState({loading: true});
 		try{
 			const data = await request(`${Constants.ServerRoot}/astroextra/ephemeris`, {
@@ -85,6 +101,7 @@ class AstroEphemeris extends Component{
 					startDate: this.state.startDate,
 					endDate: this.state.endDate,
 					includeTransits: this.state.includeTransits,
+					...(eclMode !== 'max' ? { eclipseTimeMode: eclMode } : {}),
 				}),
 				timeoutMs: 90000,
 			});

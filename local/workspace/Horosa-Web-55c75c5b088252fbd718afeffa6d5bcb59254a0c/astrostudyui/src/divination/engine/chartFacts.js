@@ -136,6 +136,7 @@ export function buildFacts(result, opts){
 	if(houses[8]){ lons.eighth = houses[8].lon; }
 
 	return {
+		opts: opts || null,   // [R5-P2] 判读口径随 facts 携带(择日 antiscia 门等模块级门读 facts.opts;不传=null 门恒开=零回归)
 		meta: {
 			isDiurnal: !!chart.isDiurnal,
 			sect: chart.isDiurnal ? 'day' : 'night',

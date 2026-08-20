@@ -12,6 +12,7 @@ import GuazhanHelpDoc from './GuazhanHelpDoc';
 import TaiyiHelpDoc from './TaiyiHelpDoc';
 import FengshuiHelpDoc from './FengshuiHelpDoc';
 import CnyibuHelpDoc from './CnyibuHelpDoc';
+import TarotHelpDoc from './TarotHelpDoc';
 import SanshiHelpDoc from './SanshiHelpDoc';
 import DirectionHelpDoc from './DirectionHelpDoc';
 import AuxchartHelpDoc from './AuxchartHelpDoc';
@@ -42,6 +43,7 @@ export const TECHNIQUE_HELP_DOCS = {
 	taiyi: TaiyiHelpDoc,
 	fengshui: FengshuiHelpDoc,
 	cnyibu: CnyibuHelpDoc,
+	tarot: TarotHelpDoc,
 	sanshiunited: SanshiHelpDoc,
 	direction: DirectionHelpDoc,
 	auxchart: AuxchartHelpDoc,

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/cnyibu/CnYiBuMain.js b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-index 623b7bcd..fe9b4409 100644
+index 5bff9bd5..b52f8b72 100644
 --- a/astrostudyui/src/components/cnyibu/CnYiBuMain.js
 +++ b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-@@ -3,33 +3,49 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+@@ -3,32 +3,48 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { Spin } from 'antd';
  import { XQTabs as Tabs } from '../xq-ui';
  import { randomStr } from '../../utils/helper';
@@ -18,7 +18,6 @@ index 623b7bcd..fe9b4409 100644
 -const JingJueMain = React.lazy(() => import(/* webpackChunkName: "jingjue-main" */ '../jingjue/JingJueMain'));
 -const ShenYiShuMain = React.lazy(() => import(/* webpackChunkName: "shenyishu-main" */ '../shenyishu/ShenYiShuMain'));
 -const GeomancyMain = React.lazy(() => import(/* webpackChunkName: "geomancy-main" */ '../geomancy/GeomancyMain'));
--const TarotMain = React.lazy(() => import(/* webpackChunkName: "tarot-main" */ '../tarot/TarotMain'));
 +// [horosa_lazy_healing_wrap_v1 / PERF-R12 W2.5] 工厂一律过 makeHealingFactory:裸 React.lazy 会把
 +// 「更新中途换包 resolve 出的空模块」永久钉进缓存(v3.6.0 辅盘干净安装必炸的同类根),自愈工厂
 +// 让坏结果不进缓存、下次真正重试;好路径行为与裸写逐字节等价(含 ref 透传)。
@@ -33,7 +32,6 @@ index 623b7bcd..fe9b4409 100644
 +const JingJueMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "jingjue-main" */ '../jingjue/JingJueMain')));
 +const ShenYiShuMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "shenyishu-main" */ '../shenyishu/ShenYiShuMain')));
 +const GeomancyMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "geomancy-main" */ '../geomancy/GeomancyMain')));
-+const TarotMain = React.lazy(makeHealingFactory(() => import(/* webpackChunkName: "tarot-main" */ '../tarot/TarotMain')));
  // 皇极轨策:组件级 lazy —— 其引擎(十二起卦法/演数/卦变/断法/十应/大定/历数)只随本页签走,
  // 不入本模块主 chunk。ref 经 React.lazy 透传至内层 class(getQuickDockConfig 等仍可用);
  // 未解析前 childRefs.guice.current 为 null,getActiveChild 本就判空 → dock 自动降级。
@@ -57,7 +55,7 @@ index 623b7bcd..fe9b4409 100644
  // 合法子页签集合的单一真值源在 constants/SubTabRegistry(导航层同源)。
  const CNYIBU_VALID_TABS = CNYIBU_SUBTABS;
 +// horosa_prefetch_registry_v1(PERF-R10 P6):可步进预取的确定性子页,显式枚举 ——
-+// 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/tarot/xiaoliuren/guice/dice/**lingqi** 类)
++// 随机起卦子页(wuzhao 非 ganzhi/jingjue/geomancy/xiaoliuren/guice/dice/**lingqi** 类;塔罗已升一级导航迁出本页)
 +// 绝不入列(预取=把随机结果钉死;端点级 FORBIDDEN 双闸仍兜底);jinkou 两阶段(pan 需 nongli
 +// 真太阳时种子,来源不走共享桥)暂不入列,待 P0 实测数据决定接线方式;suzhan/tongshefa/feigong
 +// 等吃 props.chart(主 /chart±N 武装已覆盖其上游)。
@@ -67,7 +65,7 @@ index 623b7bcd..fe9b4409 100644
  
  function getRuntimeCnYiBuTab(){
  	if(typeof window === 'undefined'){
-@@ -172,10 +188,29 @@ class CnYiBuMain extends Component{
+@@ -167,10 +183,29 @@ class CnYiBuMain extends Component{
  		this.unmounted = false;
  		// 首渲时子页 ref 尚未挂上,取不到 getQuickDockConfig;挂载后补一拍让 dock 内容就位
  		this.forceUpdate();
@@ -97,7 +95,7 @@ index 623b7bcd..fe9b4409 100644
  	}
  
  	componentDidUpdate(prevProps){
-@@ -293,194 +328,236 @@ class CnYiBuMain extends Component{
+@@ -288,180 +323,219 @@ class CnYiBuMain extends Component{
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab="宿盘" key="suzhan">
@@ -457,34 +455,6 @@ index 623b7bcd..fe9b4409 100644
 +									height={contentHeight}
 +									fields={this.props.fields}
 +									hook={this.state.hook.geomancy}
-+									dispatch={this.props.dispatch}
-+									hideQuickDock
-+								/>
-+							</Suspense>
-+						)}</FreezeSubTab>
- 					</TabPane>
- 
- 					<TabPane tab="塔罗" key="tarot">
--						<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
--							<TarotMain
--								ref={this.attachChildRef('tarot')}
--								value={this.props.chart}
--								height={contentHeight}
--								fields={this.props.fields}
--								hook={this.state.hook.tarot}
--								dispatch={this.props.dispatch}
--								hideQuickDock
--							/>
--						</Suspense>
-+						{/* horosa_freeze_subtabs_v1: 非激活子页冻结重渲(冻结≠卸载,切回即拿最新 children) */}
-+						<FreezeSubTab active={tab === 'tarot'}>{() => (
-+							<Suspense fallback={<div className="horosa-guice-loading"><Spin size="small" /> 载入中</div>}>
-+								<TarotMain
-+									ref={this.attachChildRef('tarot')}
-+									value={this.props.chart}
-+									height={contentHeight}
-+									fields={this.props.fields}
-+									hook={this.state.hook.tarot}
 +									dispatch={this.props.dispatch}
 +									hideQuickDock
 +								/>

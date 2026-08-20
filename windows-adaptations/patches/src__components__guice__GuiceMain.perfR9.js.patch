@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guice/GuiceMain.js b/astrostudyui/src/components/guice/GuiceMain.js
-index 293a60c..0d851e8 100644
+index 7064f634..4d694f9e 100644
 --- a/astrostudyui/src/components/guice/GuiceMain.js
 +++ b/astrostudyui/src/components/guice/GuiceMain.js
 @@ -19,6 +19,7 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
@@ -10,7 +10,7 @@ index 293a60c..0d851e8 100644
  
  const STORE_KEY = 'horosa.guice.settings.v1';
  // 八卦 → 其三爻（自下而上）。取仓内既有之 Gua8.value，不另造一份（两份必漂）。
-@@ -250,7 +251,9 @@ class GuiceMain extends Component {
+@@ -257,7 +258,9 @@ class GuiceMain extends Component {
  		});
  		if (!r) return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null });
  		if (r.error) return this.setState({ error: r.error, gua: null, frozenCtx: null });

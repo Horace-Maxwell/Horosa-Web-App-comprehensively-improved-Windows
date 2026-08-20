@@ -65,6 +65,9 @@ function fieldsToBase(fields){
 		zone: fv(fields, 'zone') || '+08:00', lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa'),
+		// [SURF-5] 古典设置单源接入;条件发送=默认态字节不变。
+		// [SURF-R3g] 有意不带古典键:唯一去处 /astroextra/ephemeris 的图形星历腿(includeTransits:false)
+		// 端点纯 swe 按 jd 取位、无 push 临界区=零消费——带键只白翻缓存键(「接了后端不消费=造新死链」豁免)。
 	};
 }
 function paramsReady(p){

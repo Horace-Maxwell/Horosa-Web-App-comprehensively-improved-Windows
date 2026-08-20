@@ -37,6 +37,69 @@ from . import const
 MAX_MINOR_ASP_ORB = 3
 MAX_EXACT_ORB = 0.3
 
+# ── [WP-5a] 相位容许度判据体系(请求级;默认 perObject=历史现状零回归) ──
+# 'perObject'  : 任一星体轨覆盖即成相(obj1.orb()<orb and obj2.orb()<orb 才丢弃——现状);
+# 'byAspect'   : 按相位名固定表封顶(合/冲/刑/拱 8°,六合 4°,次相 2°——现代口径);
+# 'wholeSign'  : 整星座位相(星座距匹配相位角即成相,度距不设限);
+# 'wholeSignMoiety': 整星座先决 + 两星轨半距和收紧(sign 匹配且 orb ≤ (orb1+orb2)/2)。
+# 发光体/四轴加成 luminaryOrbBonus(0/10/20/30%):日月 Asc MC 的有效轨 ×(1+bonus)。
+# 照 _DOC_REVERSE 范式:默认不 push 零锁开销;push/pop 由 perchart 复合临界区统一管理。
+import threading as _orb_threading
+_ORB_POLICY_LOCK = _orb_threading.Lock()
+_orbPolicy = {'mode': 'perObject', 'lumBonus': 0.0}
+_BY_ASPECT_ORBS = {0: 8.0, 180: 8.0, 90: 8.0, 120: 8.0, 60: 4.0}
+_LUM_BONUS_IDS = ('Sun', 'Moon', 'Asc', 'MC')
+
+
+def push_request_orb_policy(orbSystem, luminaryOrbBonus):
+    mode = orbSystem if orbSystem in ('byAspect', 'wholeSign', 'wholeSignMoiety') else 'perObject'
+    try:
+        bonus = float(luminaryOrbBonus or 0) / 100.0
+    except (TypeError, ValueError):
+        bonus = 0.0
+    # [R4-P3] inf/nan 会骗过 float():inf 使发光体轨 ×∞(全相位命中)——非有限或出值域(0..1)归零。
+    import math
+    if not math.isfinite(bonus) or bonus < 0 or bonus > 1.0:
+        bonus = 0.0
+    if mode == 'perObject' and bonus <= 0:
+        return None
+    _ORB_POLICY_LOCK.acquire()
+    global _orbPolicy
+    orig = _orbPolicy
+    _orbPolicy = {'mode': mode, 'lumBonus': bonus}
+    return orig
+
+
+def pop_request_orb_policy(token):
+    if token is None:
+        return
+    global _orbPolicy
+    try:
+        _orbPolicy = token
+    finally:
+        _ORB_POLICY_LOCK.release()
+
+
+def _effOrb(obj):
+    """星体有效轨:发光体/四轴按 lumBonus 放大;其余原值。"""
+    o = obj.orb()
+    p = _orbPolicy
+    if p['lumBonus'] > 0 and getattr(obj, 'id', None) in _LUM_BONUS_IDS:
+        return o * (1.0 + p['lumBonus'])
+    return o
+
+
+def _signDistanceMatches(obj1, obj2, asp):
+    """整星座位相:两星座序距(0..6)×30 == 相位角。"""
+    try:
+        s1 = const.LIST_SIGNS.index(obj1.sign)
+        s2 = const.LIST_SIGNS.index(obj2.sign)
+    except (ValueError, AttributeError):
+        return False
+    d = abs(s1 - s2) % 12
+    d = min(d, 12 - d)
+    return d * 30 == int(asp)
+
 
 # === Private functions === #
     
@@ -85,9 +148,23 @@ def _aspectDict(obj1, obj2, aspList):
         
         # Check if aspect is within orb
         if asp in const.MAJOR_ASPECTS:
-            # Ignore major aspects out of orb
-            if obj1.orb() < orb and obj2.orb() < orb:
-                continue
+            # [WP-5a] 主相位按当前 orb 体系判(默认 perObject=历史现状)。
+            mode = _orbPolicy['mode']
+            if mode == 'byAspect':
+                if _BY_ASPECT_ORBS.get(asp, MAX_MINOR_ASP_ORB) < orb:
+                    continue
+            elif mode == 'wholeSign':
+                if not _signDistanceMatches(obj1, obj2, asp):
+                    continue
+            elif mode == 'wholeSignMoiety':
+                if not _signDistanceMatches(obj1, obj2, asp):
+                    continue
+                if (_effOrb(obj1) + _effOrb(obj2)) / 2.0 < orb:
+                    continue
+            else:
+                # Ignore major aspects out of orb (perObject 现状:任一星轨覆盖即保留)
+                if _effOrb(obj1) < orb and _effOrb(obj2) < orb:
+                    continue
         else:
             # Ignore minor aspects out of max orb
             if MAX_MINOR_ASP_ORB < orb:
@@ -143,11 +220,11 @@ def _aspectProperties(obj1, obj2, aspDict, simpleAsp=False):
     if asp == const.NO_ASPECT:
         return prop
     
-    # Aspect within orb
-    prop1['inOrb'] = orb <= obj1.orb()
-    prop2['inOrb'] = orb <= obj2.orb()
+    # Aspect within orb([WP-5a] 有效轨含发光体/四轴加成;默认 bonus=0 与原值恒等)
+    prop1['inOrb'] = orb <= _effOrb(obj1)
+    prop2['inOrb'] = orb <= _effOrb(obj2)
     if simpleAsp:
-        midorb = (obj1.orb() + obj2.orb()) / 2
+        midorb = (_effOrb(obj1) + _effOrb(obj2)) / 2
         prop1['inOrb'] = orb <= midorb
         prop2['inOrb'] = orb <= midorb
 

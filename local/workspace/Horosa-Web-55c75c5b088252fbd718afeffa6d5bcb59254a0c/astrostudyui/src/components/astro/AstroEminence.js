@@ -5,7 +5,8 @@
 // 角宫判定复用现成宫位分类(1/4/7/10 角宫);夜盘区间光体=月,缺福点/朔望降级。中性表述。
 import { Component } from 'react';
 import { SmallTable, astroSymbol } from './AstroExtraCommon';
-import { computeEminence } from '../../utils/astroClassicalDerived';
+import { computeEminence, computePredominator, computeSevenRays, RAY_NAMES_CN } from '../../utils/astroClassicalDerived';
+import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 
 const MUTED = 'var(--horosa-muted, #999)';
 const GOLD = 'var(--horosa-gold, #b8860b)';
@@ -15,10 +16,42 @@ class AstroEminence extends Component{
 		super(props);
 		this.state = { open: false };
 	}
+	componentDidMount(){
+		// [SURF-3] never 键(busyPlaces/dynamicalDivisions/domicileMasterMethod/rayWeighting)
+		// 改档即时重渲——此前只刷设置抽屉自己,本卡展开态也恒旧值。
+		this._onClassicalGlobals = () => this.forceUpdate();
+		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
+	componentWillUnmount(){
+		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+	}
 	render(){
 		const { open } = this.state;
 		const chartObj = this.props.value;
 		const data = computeEminence(chartObj);
+		// [F12] 主宰光体/七射线/祝融星:此前仅 AI 快照可见(半死开关)——补 UI 消费面。
+		// 全默认态:pred 恒有结论(Valens 三判据),射线/祝融星只在开启档才出行(零回归=不开不显)。
+		let pred = null;
+		if(open){   // [R4-P3] 收起态短路:pred/rays 只在展开时算(标题行只消费 computeEminence 总分)
+		try{
+			pred = computePredominator(chartObj, {
+				busyPlaces: `${classicalGlobalValue('busyPlaces') || '1,4,5,7,10,11'}`.split(',').map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n)),
+				dynamicalDivisions: classicalGlobalValue('dynamicalDivisions'),
+				domicileMasterMethod: classicalGlobalValue('domicileMasterMethod'),
+				termsVariant: chartObj && chartObj.params ? chartObj.params.termsVariant : 0,
+				geminiBoundEmended: chartObj && chartObj.params ? chartObj.params.geminiBoundEmended : 0,
+				// [N3] 自定义界表体(回显/随盘)——缺则 termRulerAt('custom') 回落本机仓,换机显示≠计算
+				customTermsDay: chartObj && chartObj.params ? chartObj.params.customTermsDay : undefined,
+				customTermsNight: chartObj && chartObj.params ? chartObj.params.customTermsNight : undefined,
+			});
+		}catch(e){ pred = null; }
+		}
+		const rayMode = open ? classicalGlobalValue('rayWeighting') : 'off';   // [R4-P3] 收起态短路
+		let rays = null;
+		// [R2-1] computeSevenRays 返回 { totals, max, weighting } 无 ok 字段——门卫按 totals 数组判,勿写 rays.ok(恒假=死门)。
+		try{ rays = (rayMode === 'equal' || rayMode === 'weighted') ? computeSevenRays(chartObj, rayMode) : null; }catch(e){ rays = null; }
+		const raysOn = !!(rays && Array.isArray(rays.totals));
+		const vulcan = chartObj && chartObj.vulcan ? chartObj.vulcan : null;
 		return (
 			<div className="horosa-info-card horosa-classical-card">
 				<div className="horosa-classical-card-title" style={{ cursor: 'pointer', justifyContent: 'space-between' }}
@@ -62,6 +95,30 @@ class AstroEminence extends Component{
 								显赫由两光位置、福点、护卫、盘主、四显赫点综合判定:总分 ≥8 显赫 / 6-7 显著 / 3-5 平凡 / &lt;3 暗晦。
 								{data.note ? <div style={{ color: GOLD, marginTop: 2 }}>{data.note}</div> : null}
 							</div>
+							{pred && pred.ok ? (
+								<div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.28))', fontSize: 12.5, lineHeight: 1.8 }}>
+									<div>
+										<span style={{ color: MUTED }}>主宰光体　</span>
+										{astroSymbol(pred.winner)}（日 {pred.sunScore} 分 / 月 {pred.moonScore} 分）
+										<span style={{ color: MUTED, marginLeft: 8 }}>主宰主星</span>　{pred.master ? astroSymbol(`${pred.master}`.charAt(0).toUpperCase() + `${pred.master}`.slice(1)) : '—'}{/* [R2-2] domicile/termRulerAt 产小写星名,AstroMsg 键空间首字母大写 */}
+										<span style={{ color: MUTED, marginLeft: 4 }}>（{pred.method === 'bound' ? '界主派' : '庙主派'}）</span>
+									</div>
+								</div>
+							) : null}
+							{raysOn ? (
+								<div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.8 }}>
+									<span style={{ color: MUTED }}>七射线分布　</span>
+									{rays.totals.map((v, i) => `${i + 1}·${RAY_NAMES_CN[i]} ${v}`).join('／')}
+									<span style={{ color: MUTED, marginLeft: 6 }}>(灵学体系推算)</span>
+								</div>
+							) : null}
+							{vulcan && vulcan.lon !== undefined ? (
+								<div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.8 }}>
+									<span style={{ color: MUTED }}>祝融星　</span>
+									{astroSymbol(vulcan.sign)} {Number(vulcan.signlon).toFixed(2)}°
+									<span style={{ color: MUTED, marginLeft: 6 }}>(推算行星)</span>
+								</div>
+							) : null}
 						</div>
 					)
 				) : null}

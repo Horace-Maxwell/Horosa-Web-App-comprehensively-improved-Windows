@@ -713,6 +713,7 @@ const BOUNDS_SYSTEM_OPTIONS = [
 	{ value: 1, label: '托勒密界·校勘本（Tetrabiblos）' },
 	{ value: 2, label: '托勒密界·经典传本' },
 	{ value: 3, label: '迦勒底界（推演慎用）' },
+	{ value: 4, label: '自定义界表（星盘设置编辑）' },
 ];
 // 占星(希腊化)G12/G13/G20-P2 挂载可配项选项。
 const WEST_NODE_OPTIONS_M = [
@@ -722,6 +723,7 @@ const WEST_NODE_OPTIONS_M = [
 const SECT_BUFFER_OPTIONS_M = [
 	{ value: 'geo', label: '几何地平（默认）' },
 	{ value: 'ptolemy5', label: 'Ptolemy 5°缓冲' },
+	{ value: 'apparent', label: '视地平（含折射）' },   // [R5-P2] WP-2 第三档:spec/抽屉/后端三方早有,齿轮漏档=回显异常且不能逐盘钉
 ];
 const TRIPLICITY_OPTIONS_M = [
 	{ value: 'Dorothean', label: '多罗特三主（默认）' },
@@ -738,11 +740,13 @@ const ASTRO_CHART_FIELDS = [
 	{ name: 'zodiacal', label: '黄道', type: 'select', options: ZODIACAL_OPTIONS, default: 0, group: '排盘' },
 	// 恒星黄道时的具体 ayanāṃśa（与命盘页同一套 47 制，复用印占 INDIA_AYANAMSA_OPTIONS——西洋 siderealAyanamsa 键即此）。
 	// 默认 ''=随盘/后端默认(Lahiri)；prune-empty → 不覆盖存盘 ayanāṃśa（守「默认即现状」）。仅「黄道=恒星」时后端生效。
-	{ name: 'siderealAyanamsa', label: '岁差制（黄道=恒星时生效）', type: 'select', options: [{ value: '', label: '默认（随盘 / Lahiri）' }, ...AstroConst.INDIA_AYANAMSA_OPTIONS], default: '', group: '排盘' },
+	{ name: 'siderealAyanamsa', label: '岁差制（黄道=恒星时生效）', type: 'select', options: [{ value: '', label: '默认（随盘 / Lahiri）' }, ...AstroConst.INDIA_AYANAMSA_OPTIONS, { value: 'user', label: '自定义（历元槽位）' }], default: '', group: '排盘' },   // [R5-P3] user 档:抽屉/左栏/后端三方早有,齿轮漏档
 	{ name: 'doubingSu28', label: '斗柄二十八宿', type: 'switch', options: ON_OFF, default: 0, group: '排盘' },
 	{ name: 'tradition', label: '传统择宫（界/外观）', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
 	// 界系（bounds）：选哪套界主表（埃及/托勒密/莉莉），影响星体「界」尊贵与界主。默认埃及=现状，prune 丢弃零回归。
-	{ name: 'termsVariant', label: '界系（bounds）', type: 'select', options: BOUNDS_SYSTEM_OPTIONS, default: 0, group: '择宫' },
+	// [WP-1 契约实抓] 补 globalCurrent:此前缺失 → 改过全局界系的用户,A 类 baseline 退化裸 schema
+	// 默认(0),挂载与页面(种子=全局值)分叉——与 aiAnalysisContext buildFieldObject 病史同病。
+	{ name: 'termsVariant', label: '界系（bounds）', type: 'select', options: BOUNDS_SYSTEM_OPTIONS, default: 0, globalCurrent: ()=>classicalGlobalValue('termsVariant'), group: '择宫' },
 	// 占星(希腊化)G12/G13/G15/G20-P2:月交点真平 / 区分缓冲 / 狮子土星优先 / 三分集 / 福点反转。
 	// 默认=现状零回归(平/几何/关/Dorothean/反转ON),prune 丢弃默认值 → 不调任何项与现状逐字一致;
 	// 调整后经 buildFieldObject→fieldsToParams→/chart 复算,AI 快照尊贵/界主/福点与所选口径一致。
@@ -752,9 +756,13 @@ const ASTRO_CHART_FIELDS = [
 	{ name: 'triplicity', label: '三分集', type: 'select', options: TRIPLICITY_OPTIONS_M, default: 'Dorothean', globalCurrent: ()=>classicalGlobalValue('triplicity'), group: '择宫' },
 	{ name: 'lotReversal', label: '福点按昼夜反转', type: 'switch', options: ON_OFF, default: 1, globalCurrent: ()=>classicalGlobalValue('lotReversal'), group: '择宫' },
 	// 点公式文档序反转(0/1):链早已全通(buildFieldObject+fieldParams 条件透传),只差齿轮项。
-	{ name: 'lotsDocReverse', label: '点公式·文档序反转', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
+	// [对标战役 0c] 三开关升正仓(classicalChartGlobals)后补 globalCurrent——改过全局的用户
+	// baseline 才不退化成裸 schema 默认(挂载与页面分叉病史,aiAnalysisContext:508 注释)。
+	{ name: 'lotsDocReverse', label: '点公式·文档序反转', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('lotsDocReverse'), group: '择宫' },
+	{ name: 'nodeExaltation', label: '交点入旺（北交双子·南交射手）', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('nodeExaltation'), group: '择宫' },
 	// 双子界序(仅托勒密经典传本 termsVariant=2 生效;1647 印本两皆有据):曾是死透传(fieldParams 读、字段不存在)。
-	{ name: 'geminiBoundEmended', label: '双子界序(经典传本)', type: 'select', default: 0, group: '择宫',
+	// [WP-1 契约实抓] 补 globalCurrent(同 termsVariant)。
+	{ name: 'geminiBoundEmended', label: '双子界序(经典传本)', type: 'select', default: 0, globalCurrent: ()=>classicalGlobalValue('geminiBoundEmended'), group: '择宫',
 		showWhen: (d)=>Number(d.termsVariant) === 2,
 		options: [
 			{ value: 0, label: '忠原书（♄21–25/♂25–30）' },
@@ -769,7 +777,7 @@ const ASTRO_CHART_FIELDS = [
 		{ value: 17 / 60, label: '17′（1647·默认）' }, { value: 16 / 60, label: '16′（中世纪）' }, { value: 1, label: '1°（早期）' },
 	] },
 	{ name: 'combustOrb', label: '燃烧上界', type: 'select', default: 8.5, globalCurrent: ()=>classicalGlobalValue('combustOrb'), group: '古典口径', options: [
-		{ value: 8.5, label: '8°30′（1647·默认）' }, { value: 8, label: '8°（中世纪）' },
+		{ value: 8.5, label: '8°30′（1647·默认）' }, { value: 8, label: '8°（中世纪）' }, { value: 15, label: '15°（希腊化）' },
 	] },
 	{ name: 'underBeamsOrb', label: '日光束外界', type: 'select', default: 17, globalCurrent: ()=>classicalGlobalValue('underBeamsOrb'), group: '古典口径', options: [
 		{ value: 17, label: '17°（1647·默认）' }, { value: 15, label: '15°（较古）' },
@@ -789,6 +797,56 @@ const ASTRO_CHART_FIELDS = [
 	{ name: 'viaCombustaVariant', label: '燃烧之路边界', type: 'select', default: 'standard', globalCurrent: ()=>classicalGlobalValue('viaCombustaVariant'), group: '古典口径', options: [
 		{ value: 'standard', label: '天秤15°–天蝎15°（传统·默认）' }, { value: 'narrow', label: '窄口径（天秤28°–天蝎7°）' },
 		{ value: 'scorpioFull', label: '天秤后15°＋天蝎全宫' }, { value: 'bothFull', label: '天秤＋天蝎全段' },
+	] },
+	// ── [WP-2] 天文口径批(默认=后端现状零回归;eclipseTimeMode 走星历页独立构参不进本齿轮) ──
+	{ name: 'combustOwnChariotExempt', label: '界内三分内免燃烧（own chariot）', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('combustOwnChariotExempt'), group: '古典口径' },
+	{ name: 'westLilithType', label: '黑月莉莉丝（真/平远地点）', type: 'select', default: 'mean', globalCurrent: ()=>classicalGlobalValue('westLilithType'), group: '古典口径', options: [
+		{ value: 'mean', label: '平均远地点（默认）' }, { value: 'true', label: '真实远地点（osculating）' },
+	] },
+	{ name: 'topocentricMoon', label: '月亮站心视差修正', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('topocentricMoon'), group: '古典口径' },
+	{ name: 'stationMarking', label: '留驻判定（S·D 标）', type: 'select', default: 'off', globalCurrent: ()=>classicalGlobalValue('stationMarking'), group: '古典口径', options: [
+		{ value: 'off', label: '关（默认·仅逆行 R）' }, { value: 'exactWindow', label: '距留点 ≤1 日' },
+		{ value: 'distance', label: '距留点黄经 ≤2′' }, { value: 'absSpeed', label: '日速 <1′' }, { value: 'relSpeed', label: '日速 <3% 均速' },
+	] },
+	// ── [WP-3] 希腊点变体批 ──
+	{ name: 'hermeticLotsReversal', label: '七星点按昼夜反转', type: 'switch', options: ON_OFF, default: 1, globalCurrent: ()=>classicalGlobalValue('hermeticLotsReversal'), group: '古典口径' },
+	{ name: 'erosConstruction', label: '爱欲·必然构成', type: 'select', default: 'paulus', globalCurrent: ()=>classicalGlobalValue('erosConstruction'), group: '古典口径', options: [
+		{ value: 'paulus', label: 'Paulus 式（默认）' }, { value: 'valens', label: 'Valens 式（福点·精神系）' },
+	] },
+	{ name: 'lotFortuneVariant', label: '福点公式变体', type: 'select', default: 'standard', globalCurrent: ()=>classicalGlobalValue('lotFortuneVariant'), group: '古典口径', options: [
+		{ value: 'standard', label: '标准昼夜式（默认）' }, { value: 'moonAboveNight', label: '月在地平上恒夜式' },
+	] },
+	{ name: 'lotFatherCombustAlt', label: '父点土星伏时替代式', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('lotFatherCombustAlt'), group: '古典口径' },
+	{ name: 'lotProjection', label: '点度计数法', type: 'select', default: 'portion', globalCurrent: ()=>classicalGlobalValue('lotProjection'), group: '古典口径', options: [
+		{ value: 'portion', label: '度数投射（默认）' }, { value: 'sign', label: '整星座' },
+	] },
+	// ── [WP-4] 尊贵与判定批(后端三键;纯全局判读键不进齿轮) ──
+	{ name: 'dignityDebilities', label: '弱陷计负分', type: 'switch', options: ON_OFF, default: 1, globalCurrent: ()=>classicalGlobalValue('dignityDebilities'), group: '古典口径' },
+	{ name: 'almutenTripMode', label: 'Almuten 三分计分', type: 'select', default: 'all', globalCurrent: ()=>classicalGlobalValue('almutenTripMode'), group: '古典口径', options: [
+		{ value: 'all', label: '三主全计（默认）' }, { value: 'sectRulerOnly', label: '仅当值主' },
+	] },
+	{ name: 'planetaryHourMethod', label: '行星时制式', type: 'select', default: 'sunrise', globalCurrent: ()=>classicalGlobalValue('planetaryHourMethod'), group: '古典口径', options: [
+		{ value: 'sunrise', label: '日出起算·等长时（现行）' }, { value: 'unequal', label: '昼夜不等时（传统）' }, { value: 'equal24', label: '廿四时等分' },
+	] },
+	// ── [WP-5a] 容许度体系批 ──
+	{ name: 'orbSystem', label: '容许度判据体系', type: 'select', default: 'perObject', globalCurrent: ()=>classicalGlobalValue('orbSystem'), group: '古典口径', options: [
+		{ value: 'perObject', label: '星体轨·任一覆盖（现行）' }, { value: 'byAspect', label: '按相位名' },
+		{ value: 'wholeSign', label: '整星座位相' }, { value: 'wholeSignMoiety', label: '整星座内·两轨半距和' },
+	] },
+	{ name: 'luminaryOrbBonus', label: '发光体·四轴轨加成(%)', type: 'select', default: 0, globalCurrent: ()=>classicalGlobalValue('luminaryOrbBonus'), group: '古典口径', options: [
+		{ value: 0, label: '0%（默认）' }, { value: 10, label: '10%' }, { value: 20, label: '20%' }, { value: 30, label: '30%' },
+	] },
+	{ name: 'aspectIncludeCusps', label: '宫头参与相位', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('aspectIncludeCusps'), group: '古典口径' },
+	{ name: 'aspectIncludeLots', label: '希腊点参与相位', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('aspectIncludeLots'), group: '古典口径' },
+	{ name: 'aspectIncludeMidpoints', label: '中点参与相位(日月四轴)', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('aspectIncludeMidpoints'), group: '古典口径' },
+	{ name: 'solarReturnVariant', label: '太阳返照法', type: 'select', default: 'precise', globalCurrent: ()=>classicalGlobalValue('solarReturnVariant'), group: '古典口径', options: [
+		{ value: 'precise', label: '精确回归（默认）' }, { value: 'hellenistic', label: '希腊式（月定上升）' },
+	] },
+	{ name: 'returnLatitudeMode', label: '返照落宫投影', type: 'select', default: 'ecliptic', globalCurrent: ()=>classicalGlobalValue('returnLatitudeMode'), group: '古典口径', options: [
+		{ value: 'ecliptic', label: '黄道度（默认）' }, { value: 'withLatitude', label: '计入黄纬' },
+	] },
+	{ name: 'vulcanCalc', label: '祝融星（推算行星）', type: 'select', default: 'off', globalCurrent: ()=>classicalGlobalValue('vulcanCalc'), group: '古典口径', options: [
+		{ value: 'off', label: '关（默认）' }, { value: 'weston', label: '轨道根数法' }, { value: 'baker', label: '水星系推算' },
 	] },
 	{ name: 'strongRecption', label: '强互容', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
 	{ name: 'simpleAsp', label: '简化相位', type: 'switch', options: ON_OFF, default: 0, group: '择宫' },
@@ -1121,7 +1179,7 @@ const PLANETARY_ARC_FIELDS = [
 		options: ARC_SOURCES.map((p)=>({ value: p, label: p })) },
 	// P4：目标时刻改 datetime picker（空显示「此刻/今日」但 default 恒 ''，不破 prune）。
 	{ name: 'targetDatetime', label: '目标时刻(空=今日)', type: 'datetime', default: '', group: '弧源' },
-	{ name: 'asporb', label: '容许度(°)', type: 'number', default: 1, min: 0, max: 12, group: '弧源' },
+	{ name: 'asporb', label: '容许度(°)', type: 'number', default: 1, min: 0, max: 12, group: '弧源', globalCurrent: ()=>{ try{ return require('../components/astro/AstroExtraCommon').transitOrbDefault(); }catch(e){ return 1; } } },   // [R5-P2] 基线随全局 transitOrb
 	// P4 区间扫描：end 非空且 step 有值时，builder 循环多段（每段一个目标时刻）。
 	...scanRangeDatetimeFields('区间扫描'),
 ];
@@ -1168,7 +1226,7 @@ const PREDICTIVE_PERIOD_BASE_FIELDS = [
 		{ value: 'm', label: '逐月' },
 		{ value: 'd', label: '逐日' },
 	] },
-	{ name: 'asporb', label: '容许度(°)', type: 'number', default: 1, min: 0, max: 12, group: '目标' },
+	{ name: 'asporb', label: '容许度(°)', type: 'number', default: 1, min: 0, max: 12, group: '目标', globalCurrent: ()=>{ try{ return require('../components/astro/AstroExtraCommon').transitOrbDefault(); }catch(e){ return 1; } } },   // [R5-P2]
 	{ name: 'nodeRetrograde', label: '南北交逆移', type: 'switch', options: ON_OFF, default: 0, group: '目标' },
 	// P4 区间扫描：datetime 为起点、datetimeEnd 为终点，按 scanStep 循环多段（每段一个推运时点）。
 	// 注：scanStep（区间步进）与上方 tmType（推运内部步进）是两个独立概念，互不冲突。
@@ -1627,6 +1685,13 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'method', label: '取法', type: 'select', default: 'ming', group: '取法', options: [
 			{ value: 'ming', label: '明法（月支反向，默认）' },
 			{ value: 'gu', label: '古法（八字日支）' },
+		] },
+		// [Win-D69] 大运排法三档与页面同枚举:此前挂载不暴露 → 页面选档挂载恒默认(不同构死角)。
+		// baziStyle=八字真源注入(节气起运,与八字盘同源);默认 mingGongQiyun === 现状(零回归)。
+		{ name: 'dayunRule', label: '大运排法', type: 'select', default: 'mingGongQiyun', group: '取法', options: [
+			{ value: 'mingGongQiyun', label: '命宫顺行 · 生日推起运（默认）' },
+			{ value: 'mingGongOne', label: '命宫顺行 · 恒一岁起' },
+			{ value: 'baziStyle', label: '八字大运法（与八字盘同源）' },
 		] },
 	] },
 	// 河洛 quHuaGong(取化工法)：buildHeluoSnapshotForRecord 仅在「显式覆盖」时据真实节气算化工并传 judge(改[命运篇]化工行)；

@@ -28,6 +28,7 @@ import { buildMeaningTipByCategory, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
+import { natalClassicalParams } from './AstroExtraCommon';
 import { markPanelReady } from '../../utils/perfMark';
 
 const { Option } = Select;
@@ -445,6 +446,8 @@ class AstroDecennials extends Component{
 			tradition: qryparam.tradition,
 			birth: qryparam.birth,
 			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
+			// [0d] 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
+			...natalClassicalParams(qryparam),
 		};
 	}
 

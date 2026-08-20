@@ -19,7 +19,7 @@ const SRC_ROOT = path.resolve(__dirname, '../../..');
 const read = (rel)=>fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
 
 describe('wheelArt 五档常量与归一', ()=>{
-	it('五档值恒等,缺省/野值恒兜 classic(不传参调用方零漂移)', ()=>{
+	it('五档值恒等,缺省/野值恒兜 classic(不传参调用方零漂移)——金字塔档已按用户拍板移除', ()=>{
 		expect(AstroConst.WHEEL_ART_OPTIONS.map((o)=>o.value)).toEqual([
 			'classic', 'hellenistic', 'medieval', 'northIndian', 'southIndian',
 		]);
@@ -388,5 +388,74 @@ describe('渲染冒烟(类实例直测)', ()=>{
 		const c = new AstroChart({ value: westChart(), wheelArt: 'southIndian', id: 'natal' });
 		const tree = c.render();
 		expect(tree.type).toBe(AstroWheelArtChart);
+	});
+});
+
+// ── [WP-9] 盘式变体包静态锁:四掩码/密度三档/绘制挂点/prop 链(2026-08 显式新增) ──
+describe('WP-9 盘式变体包接线锁', ()=>{
+	const fs = require('fs');
+	const path = require('path');
+	const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+
+	it('四掩码常量值恒等且全部进 CHART_OPTIONS(值变=老用户 globalSetup 语义漂移,禁改)', ()=>{
+		expect(AstroConst.CHART_ANGULAR_TRIAD).toBe(4194304);
+		expect(AstroConst.CHART_CENTER_HOURS).toBe(8388608);
+		expect(AstroConst.CHART_CENTER_RAMC).toBe(16777216);
+		expect(AstroConst.CHART_GLYPH_ONLY).toBe(33554432);
+		[AstroConst.CHART_ANGULAR_TRIAD, AstroConst.CHART_CENTER_HOURS, AstroConst.CHART_CENTER_RAMC, AstroConst.CHART_GLYPH_ONLY].forEach((m)=>{
+			expect(AstroConst.CHART_OPTIONS.indexOf(m) >= 0).toBe(true);
+		});
+	});
+
+	it('AstroChartCircle:两绘制函数挂点在位;盘心字画 svg 根(免盘体旋转);GLYPH_ONLY 关 txtplanet 恰三处', ()=>{
+		const src = read('../AstroChartCircle.js');
+		expect(src.includes('this.drawCenterExtras(svg, chartObj, orgx, orgy, flags)')).toBe(true);
+		expect(src.includes('this.drawAngularTriads(topgroup, chartObj, radius, flags)')).toBe(true);
+		expect((src.match(/txtplanet = false/g) || []).length).toBe(3);
+		// [SURF-4] 三元组徽与宫头线同几何(黄经系 -R·sin/-R·cos);朝向=切向排布(长轴⊥半径,
+		// rotate 到 atan2+90;屏幕下半圈 +180 防倒置)——旧 backAngle 反旋正立已废(用户规格)。
+		expect(src.includes('const bx = -bR * Math.sin(lonrad)')).toBe(true);
+		expect(src.includes('Math.atan2(by, bx) * 180 / Math.PI + 90')).toBe(true);
+		expect(src.includes('backAngle')).toBe(false);
+		// [SURF-4] 角宫按 id 查表(HOUSE1/10/7/4),位置下标取角宫已废(后端 houses 按黄经排序,下标≠宫号)
+		expect(src.includes('[AstroConst.HOUSE1, AstroConst.HOUSE10, AstroConst.HOUSE7, AstroConst.HOUSE4]')).toBe(true);
+		// [SURF-4] 三元组内容=真三分主星组单源(吃三分制档),庙主/定位星硬编码表已废
+		expect(src.includes("require('../../utils/triplicityRulers').resolveTripletForSign")).toBe(true);
+		// [SURF-4] RAMC 直读宫头赤经(House10.ra),字符串黄道判据(Number('Tropical')=NaN 恒假已修)
+		expect(src.includes('Number(h10.ra)')).toBe(true);
+	});
+
+	it('行星列表密度:app model 三处(初值/save 归一/globalSetup 白名单)+AstroPlanet prop 优先', ()=>{
+		const app = read('../../../models/app.js');
+		expect(app.includes("planetListStyle: 'full'")).toBe(true);
+		expect(app.includes('planetListStyle: st.planetListStyle')).toBe(true);
+		expect((app.match(/planetListStyle/g) || []).length >= 4).toBe(true);
+		const ap = read('../AstroPlanet.js');
+		expect(ap.includes("this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly'")).toBe(true);
+		// 宿主接线:AstroChartMain 给 AstroPlanet 与 ChartDisplaySelector 都传了 prop
+		const main = read('../AstroChartMain.js');
+		expect((main.match(/planetListStyle=\{this\.props\.planetListStyle\}/g) || []).length).toBe(2);
+		// pages/index:AstroChartMain 壳传 app.planetListStyle(插错组件曾致 prop 链断,真机 fiber 抓获)
+		const idx = read('../../../pages/index.js');
+		expect((idx.match(/planetListStyle=\{app\.planetListStyle\}/g) || []).length >= 2).toBe(true);
+	});
+
+	it('抽屉:盘面增强子组四掩码+密度 Segmented 三档在位', ()=>{
+		const sel = read('../ChartDisplaySelector.js');
+		expect(sel.includes("title: '盘面增强'")).toBe(true);
+		expect(sel.includes('C.CHART_ANGULAR_TRIAD, C.CHART_CENTER_HOURS, C.CHART_CENTER_RAMC, C.CHART_GLYPH_ONLY')).toBe(true);
+		expect(sel.includes('行星列表密度')).toBe(true);
+		["{ value: 'full', label: '完整' }", "{ value: 'degreeOnly', label: '仅度数' }", "{ value: 'glyphOnly', label: '仅符号' }"].forEach((s)=>{
+			expect(sel.includes(s)).toBe(true);
+		});
+	});
+
+	it('金字塔档已移除:常量/渲染器/档位零残留(用户拍板;normalizeWheelArt 把旧存值兜回 classic)', ()=>{
+		const src = read('../AstroWheelArtChart.js');
+		expect(src.includes('renderPyramid')).toBe(false);
+		expect(src.includes('WHEEL_ART_PYRAMID')).toBe(false);
+		const constSrc = read('../../../constants/AstroConst.js');
+		expect(constSrc.includes('PYRAMID')).toBe(false);
+		expect(constSrc.includes('金字塔')).toBe(false);
 	});
 });

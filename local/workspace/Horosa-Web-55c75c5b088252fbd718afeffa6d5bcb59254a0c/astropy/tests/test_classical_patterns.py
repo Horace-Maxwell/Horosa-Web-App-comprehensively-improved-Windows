@@ -159,12 +159,15 @@ def test_fixed_star_behenian_royal():
 
 
 def test_planetary_hours_structure():
-    """WI-18:24不等时;值日星(2020-01-13 周一=Moon);恰一段当前;首时=值日星;迦勒底降序。"""
+    """WI-18/[SURF]:昼夜不等时排法结构(显式 unequal 档——旧版本表恒此排法,断言原样保留);
+    值日星(2020-01-13 周一=Moon);恰一段当前;首时=值日星;迦勒底降序。"""
     ph = astroextra.compute_planetary_hours(astroextra.base_params({
         'date': '2020/01/13', 'time': '21:18:14', 'zone': '+08:00',
         'lat': '26N04', 'lon': '119E19', 'ad': 1, 'hsys': 'ALCABITUS',
+        'planetaryHourMethod': 'unequal',
     }))
     assert ph and len(ph['hours']) == 24
+    assert ph['hourMode'] == 'unequal'
     assert ph['dayRuler'] == 'Moon'
     assert ph['hours'][0]['ruler'] == 'Moon'
     assert ph['hours'][1]['ruler'] == 'Saturn'
@@ -172,6 +175,24 @@ def test_planetary_hours_structure():
     cur = [h for h in ph['hours'] if h['current']][0]
     assert cur['ruler'] == 'Saturn' and cur['diurnal'] is False
     assert [h['index'] for h in ph['hours']] == list(range(1, 25))
+
+
+def test_planetary_hours_default_sunrise_equal_length():
+    """[SURF] 默认档=sunrise 等长 60 分小时(与「时主星」口径一致,双实现分裂修正):
+    首时起点=日出,相邻时段恒差 1 小时;同刻 current 恰一段。"""
+    ph = astroextra.compute_planetary_hours(astroextra.base_params({
+        'date': '2020/01/13', 'time': '21:18:14', 'zone': '+08:00',
+        'lat': '26N04', 'lon': '119E19', 'ad': 1, 'hsys': 'ALCABITUS',
+    }))
+    assert ph and ph['hourMode'] == 'sunrise'
+    assert ph['hours'][0]['start'] == ph['sunrise']
+    h0 = ph['hours'][0]['start']
+    h1 = ph['hours'][1]['start']
+    def _sec(t):
+        p = [int(x) for x in t.split(':')]
+        return p[0] * 3600 + p[1] * 60 + (p[2] if len(p) > 2 else 0)
+    assert (_sec(h1) - _sec(h0)) % 86400 == 3600
+    assert sum(1 for h in ph['hours'] if h['current']) == 1
 
 
 def test_besieging_blocked_by_intervening_star():

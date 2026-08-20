@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
-index 60d32753..baeb7350 100644
+index da77b94c..684d352d 100644
 --- a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
 +++ b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
 @@ -251,10 +251,17 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显

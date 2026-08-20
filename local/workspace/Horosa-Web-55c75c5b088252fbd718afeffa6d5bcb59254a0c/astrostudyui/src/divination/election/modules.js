@@ -714,7 +714,7 @@ export function runModules(facts, topic, school){
 		moonMechanicsModule(facts),
 		planetaryHourModule(facts, topic),
 		mansionModule(facts, topic),
-		antisciaModule(facts),
+		...((facts && facts.opts && facts.opts.antiscia === false) ? [] : [antisciaModule(facts)]),   // [R5-P2] 全局「映点参与判读」门(缺省 true=零回归)
 		paransModule(facts, topic),
 		radicalityModule(facts),
 		almutenModule(facts),

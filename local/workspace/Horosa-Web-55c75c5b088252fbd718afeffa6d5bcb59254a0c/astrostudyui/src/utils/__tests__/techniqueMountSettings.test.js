@@ -851,7 +851,7 @@ describe('R3 挂载大修覆盖面锁(2026-07-30)', ()=>{
 		expect(an).not.toContain('timeAlg');
 		const pd = getTechniqueSettingsSchema('primarydirect').fields.find((f)=>f.name === 'termsVariant');
 		expect(pd.options.map((o)=>o.label).join('')).not.toContain('莉莉');
-		expect(pd.options.length).toBe(4);   // 含迦勒底(与 BOUNDS_SYSTEM_OPTIONS 单源)
+		expect(pd.options.length).toBe(5);   // 含迦勒底+自定义([WP-7] 显式升级;与 BOUNDS_SYSTEM_OPTIONS 单源)
 	});
 });
 

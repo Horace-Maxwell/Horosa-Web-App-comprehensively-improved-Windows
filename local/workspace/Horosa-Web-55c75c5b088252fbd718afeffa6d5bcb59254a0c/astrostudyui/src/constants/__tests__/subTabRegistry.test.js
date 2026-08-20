@@ -32,8 +32,9 @@ describe('recallSubTab 回落三级', () => {
 		rememberSubTab('cnyibu', 'lingqi', CNYIBU_SUBTABS);
 		expect(recallSubTab('cnyibu', CNYIBU_SUBTABS, 'liqi-bazhai', 'suzhan')).toBe('lingqi');
 		// 塔罗同验
-		rememberSubTab('cnyibu', 'tarot', CNYIBU_SUBTABS);
-		expect(recallSubTab('cnyibu', CNYIBU_SUBTABS, undefined, 'suzhan')).toBe('tarot');
+		// 样例子键用 geomancy(tarot 已升一级不在 cnyibu 集,2026-08-15)。
+		rememberSubTab('cnyibu', 'geomancy', CNYIBU_SUBTABS);
+		expect(recallSubTab('cnyibu', CNYIBU_SUBTABS, undefined, 'suzhan')).toBe('geomancy');
 		// 辅盘组
 		rememberSubTab('auxchart', 'draconic', AUX_SUBTABS);
 		expect(recallSubTab('auxchart', AUX_SUBTABS, 'whatever-alien', 'germanytech')).toBe('draconic');

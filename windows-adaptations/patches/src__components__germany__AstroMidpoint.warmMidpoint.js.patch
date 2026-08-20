@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/germany/AstroMidpoint.js b/astrostudyui/src/components/germany/AstroMidpoint.js
-index 0a50b67..e8e2c7c 100644
+index 8706513f..ac891685 100644
 --- a/astrostudyui/src/components/germany/AstroMidpoint.js
 +++ b/astrostudyui/src/components/germany/AstroMidpoint.js
-@@ -12,6 +12,7 @@ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './U
+@@ -13,6 +13,7 @@ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './U
  import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
  import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
  import { chartToPoints, firstSynastryPartnerParams } from './UranianDialMain';
@@ -10,7 +10,7 @@ index 0a50b67..e8e2c7c 100644
  
  // AI 快照口径:个人点集随「90°中点盘」当前流派派生(与盘交互层一致,防口径分叉);TNP 集恒定。
  const SNAP_URANIAN = new Set(AstroConst.LIST_URANIAN);
-@@ -265,6 +266,28 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
+@@ -273,6 +274,28 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
  	return out;
  }
  
@@ -39,7 +39,7 @@ index 0a50b67..e8e2c7c 100644
  // 供 AI 分析无头复算：取本命西洋盘 + 中点盘，生成量化盘快照（不依赖组件挂载）。
  export async function buildGermanySnapshotForFields(fields, dispOverride){
  	if(!fields){
-@@ -529,9 +552,53 @@ class AstroMidpoint extends Component{
+@@ -540,9 +563,53 @@ class AstroMidpoint extends Component{
  			midpoints: result,
  		};
  
@@ -95,7 +95,7 @@ index 0a50b67..e8e2c7c 100644
  	}
  
  	saveGermanySnapshot(paramsOverride, resultOverride){
-@@ -562,6 +629,8 @@ class AstroMidpoint extends Component{
+@@ -573,6 +640,8 @@ class AstroMidpoint extends Component{
  		if(!evt || !evt.detail || evt.detail.module !== 'germany'){
  			return;
  		}
@@ -104,7 +104,7 @@ index 0a50b67..e8e2c7c 100644
  		const snapshotText = this.saveGermanySnapshot();
  		if(snapshotText && evt.detail && typeof evt.detail === 'object'){
  			evt.detail.snapshotText = snapshotText;
-@@ -601,7 +670,7 @@ class AstroMidpoint extends Component{
+@@ -612,7 +681,7 @@ class AstroMidpoint extends Component{
  		if(typeof window !== 'undefined' && window.addEventListener){
  			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
  		}
@@ -113,7 +113,7 @@ index 0a50b67..e8e2c7c 100644
  	}
  
  	componentDidUpdate(prevProps, prevState){
-@@ -610,11 +679,12 @@ class AstroMidpoint extends Component{
+@@ -621,11 +690,12 @@ class AstroMidpoint extends Component{
  			|| prevProps.chart !== this.props.chart
  			|| prevProps.fields !== this.props.fields
  		){

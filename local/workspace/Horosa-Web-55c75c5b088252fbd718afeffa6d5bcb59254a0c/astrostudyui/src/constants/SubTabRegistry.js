@@ -20,7 +20,8 @@ export const AUX_SUBTABS = [
 ];
 
 // 卜·其他。
-export const CNYIBU_SUBTABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'lingqi'];
+// tarot 已升「卜」一级入口(2026-08-15 用户反馈:成熟功能藏聚合页没人发现),不再是 cnyibu 子页。
+export const CNYIBU_SUBTABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'lingqi'];
 
 // 择日(工具组主导航模块;首档=数组第一项,新增择日技法尾部追加 + ZeriMain TabPane 成对)。
 export const ZERI_SUBTABS = ['tianxing', 'qimenzeri'];

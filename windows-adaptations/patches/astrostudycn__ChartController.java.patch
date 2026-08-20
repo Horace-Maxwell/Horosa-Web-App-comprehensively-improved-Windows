@@ -1,5 +1,5 @@
 diff --git a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
-index 003db01..1294050 100644
+index 41901e5c..df3b6645 100644
 --- a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 +++ b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 @@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;

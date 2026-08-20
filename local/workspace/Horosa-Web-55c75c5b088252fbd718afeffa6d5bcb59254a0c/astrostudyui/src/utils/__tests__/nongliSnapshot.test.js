@@ -26,7 +26,7 @@ describe('黄历快照 builder（四同步+防御）', ()=>{
 			lon: '120e00',
 			days: [day(), day({ birth: '2026-07-02 00:00:00', dayOfWeek: 4, day: '十八', dayInt: 18, dayGanZi: '己酉' })],
 			dateSelected: day(),
-			yearGua: { desc: '泽火革' },
+			yearGua: { desc: '泽火革', guaName: '革' },
 		};
 		const text = buildNongliSnapshotText(st);
 		const heads = (text.match(/^\[[^\]]+\]$/gm) || []).map((h)=>h.slice(1, -1));
@@ -78,7 +78,7 @@ describe('黄历快照 builder（四同步+防御）', ()=>{
 				moonTime: '20:10', moonJdn: 2461958.3, date: '2026-07-01',
 				qimengYearGua: '革',
 			}),
-			yearGua: { desc: '泽火革' },
+			yearGua: { desc: '泽火革', guaName: '革' },
 		};
 		const text = buildNongliSnapshotText(st);
 		expect(text).toMatch(/公历：2026-07-01 周三/);
@@ -96,6 +96,11 @@ describe('黄历快照 builder（四同步+防御）', ()=>{
 		expect(noSel).not.toMatch(/\[选中日详情\]/);
 		const noDesc = buildNongliSnapshotText({ days: [day()], dateSelected: day({ qimengYearGua: '革' }), yearGua: null });
 		expect(noDesc).toMatch(/奇门年卦：革$/m);
+		// [issue#74] 错配对负锚:释文是异步取回的,静默失败时 state 里可能滞留上一个卦的释文
+		// (新卦名+旧释文曾拼成错配对)。guaName 不配对 → 只出卦名,绝不拼旧释文。
+		const stale = buildNongliSnapshotText({ days: [day()], dateSelected: day({ qimengYearGua: '革' }), yearGua: { desc: '水火既济', guaName: '既济' } });
+		expect(stale).toMatch(/奇门年卦：革$/m);
+		expect(stale).not.toMatch(/既济/);
 	});
 
 	it('方法说明:月干支正午口径+年柱双口径恒在', ()=>{

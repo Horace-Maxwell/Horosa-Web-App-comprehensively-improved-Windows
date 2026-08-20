@@ -190,7 +190,23 @@ class CanPingMain extends Component {
 		const lunarMonth = Number(nl.monthNum || nl.month) || 0;
 		const lunarDay = Number(nl.dayNum || nl.day) || 0;
 		const dayunRule = (this.props.opts && this.props.opts.dayunRule) || 'mingGongQiyun';
-		const base = { yearGz, monthBranch, dayBranch, hourBranch, gender, method, qiyunAge: 1, lunarMonth, lunarDay, dayunRule };
+		// [Win-D69] 八字大运法真源注入:bazi.direction=lunar-js 节气起运(与八字模块同一函数
+		// 同一结果),干支/起讫虚岁/公历年份逐字节同源——用户实测「起运岁数与年份对不上」的根治。
+		// 远程农历桥分支(域外年)无 direction → 不注入,引擎回退旧排序法(零崩)。
+		let baziYun = null;
+		if (dayunRule === 'baziStyle') {
+			try {
+				const dir = bazi && bazi.direction;
+				if (Array.isArray(dir) && dir.length) {
+					baziYun = dir.map((d) => {
+						const gzd = (d.mainDirect && (d.mainDirect.ganzi || d.mainDirect.ganZhi)) || '';
+						return { branch: gzd.charAt(1) || '', ganzi: gzd, ageStart: d.age, ageEnd: d.age + 9, startYear: d.startYear, endYear: d.endYear };
+					}).filter((d) => d.branch);
+					if (!baziYun.length) { baziYun = null; }
+				}
+			} catch (e) { baziYun = null; }
+		}
+		const base = { yearGz, monthBranch, dayBranch, hourBranch, gender, method, qiyunAge: 1, lunarMonth, lunarDay, dayunRule, baziYun };
 		const r = canpingCalculate(base);
 		if (!r) return cache(null);
 		let series = null;
@@ -266,15 +282,17 @@ class CanPingMain extends Component {
 				</div>
 
 				<div className="horosa-huangji-info-card">
-					{/* 标题随大运法档实变（防「换了档看不出换没换」）；起运岁另附推算明细。 */}
-					<div className="horosa-huangji-info-heading">大运（歲運）· {r.dayunRule === 'baziStyle' ? `八字大运法·${r.dayunForward ? '顺行' : '逆行'}` : '命宫顺行'}{r.qiyunDetail && r.qiyunDetail.usable ? ` · 起运 ${r.qiyunDetail.years}岁${r.qiyunDetail.months ? `${r.qiyunDetail.months}个月` : ''}（自 ${r.qiyunAge} 岁行运）` : ' · 一岁起运'}</div>
+					{/* 标题随大运法档实变（防「换了档看不出换没换」）；起运岁另附推算明细。
+					    [Win-D69] baziSourced=八字真源注入成功:起运/年份与八字盘同源,表加干支与公历年两列。 */}
+					<div className="horosa-huangji-info-heading">大运（歲運）· {r.dayunRule === 'baziStyle' ? `八字大运法·${r.dayunForward ? '顺行' : '逆行'}${r.baziSourced ? '·与八字盘同源' : ''}` : '命宫顺行'}{r.baziSourced ? ` · 节气起运（自 ${r.qiyunAge} 岁行运）` : (r.qiyunDetail && r.qiyunDetail.usable ? ` · 起运 ${r.qiyunDetail.years}岁${r.qiyunDetail.months ? `${r.qiyunDetail.months}个月` : ''}（自 ${r.qiyunAge} 岁行运）` : ' · 一岁起运')}</div>
 					<table className="horosa-canping-table horosa-canping-dayun">
-						<thead><tr><th>年龄</th><th>支</th><th>顺 · 歲運</th><th>逆 · 歲運</th></tr></thead>
+						<thead><tr><th>年龄</th>{r.baziSourced ? <th>公历年</th> : null}<th>{r.baziSourced ? '干支' : '支'}</th><th>顺 · 歲運</th><th>逆 · 歲運</th></tr></thead>
 						<tbody>
 							{r.dayun.map((d) => (
 								<tr key={d.index}>
 									<td>{d.ageStart}-{d.ageEnd}</td>
-									<td>{d.branch}</td>
+									{r.baziSourced ? <td>{d.startYear && d.endYear ? `${d.startYear}-${d.endYear}` : '—'}</td> : null}
+									<td>{r.baziSourced && d.ganzi ? d.ganzi : d.branch}</td>
 									<td><b>{d.numShun}</b> {(d.verses || {}).textShun}</td>
 									<td><b>{d.numNi}</b> {(d.verses || {}).textNi}</td>
 								</tr>

@@ -389,7 +389,8 @@ class TongshuMain extends Component {
 	// 现绑定成稳定引用(顺带给下游 memo 化留出可能)。
 	onSelHour(h) {
 		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(换时辰)
-		this.setState({ qimenHour: h }, ()=> this.settle());
+		// 换时辰后同步刷新 AI 快照(奇门叠数/三元玄空两处调用点共用本方法,一处即全覆盖)。
+		this.setState({ qimenHour: h }, ()=> { this.settle(); this.saveAISnapshot(); });
 	}
 
 	saveAISnapshot() {

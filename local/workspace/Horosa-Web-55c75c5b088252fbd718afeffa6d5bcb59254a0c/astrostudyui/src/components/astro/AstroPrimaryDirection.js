@@ -234,7 +234,7 @@ class AstroPrimaryDirection extends Component{
 			pdTimeKeyCustomValue: (props.pdTimeKeyCustom && Number(props.pdTimeKeyCustom) > 0) ? Number(props.pdTimeKeyCustom) : null,
 			pdSignificatorsValue: Array.isArray(props.pdSignificators) ? props.pdSignificators : [],
 			pdPromissorTypesValue: Array.isArray(props.pdPromissorTypes) ? props.pdPromissorTypes : [],
-			termsVariantValue: (props.termsVariant === 1 || props.termsVariant === 2) ? props.termsVariant : 0,
+			termsVariantValue: (()=>{ const n = Number(props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // [F4][R2-12]
 			// 分页大小受控+持久化:antd4 在 total>50 时自动显示「X 条/页」选择器,此前 pageSize 写死 50
 			// 又无 onChange → 用户改完被立即重置(「点了没反应」)。
 			pdPageSize: readPdPageSize(),
@@ -366,7 +366,7 @@ class AstroPrimaryDirection extends Component{
 		const nextFramework = SUPPORTED_PD_FRAMEWORKS.indexOf(this.props.pdFramework) >= 0 ? this.props.pdFramework : 'aspect';
 		const nextParallel = this.props.pdParallel ? 1 : 0;
 		const nextRapt = this.props.pdRaptParallel ? 1 : 0;
-		const nextTermsVariant = (this.props.termsVariant === 1 || this.props.termsVariant === 2) ? this.props.termsVariant : 0;
+		const nextTermsVariant = (()=>{ const n = Number(this.props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })();   // [F4][R2-12]
 		if(this.state.pdMethodValue !== nextMethod
 			|| this.state.pdTimeKeyValue !== nextTimeKey
 			|| this.state.pdYearsValue !== nextYears
@@ -687,7 +687,7 @@ class AstroPrimaryDirection extends Component{
 
 	getSelectedTermsVariant(){
 		const v = this.state.termsVariantValue;
-		return (v === 1 || v === 2) ? v : 0;
+		return (Number.isFinite(Number(v)) && v >= 0 && v <= 4) ? Number(v) : 0;   // [F4][R2-12]
 	}
 
 	getSelectedPdTimeKeyCustom(){
@@ -748,7 +748,7 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	handleTermsVariantChange(value){
-		this.setState({ termsVariantValue: (value === 1 || value === 2) ? value : 0 });
+		this.setState({ termsVariantValue: (Number.isFinite(Number(value)) && value >= 0 && value <= 4) ? Number(value) : 0 });   // [F4][R2-12]
 	}
 
 	handlePdTimeKeyCustomChange(value){
@@ -893,7 +893,7 @@ class AstroPrimaryDirection extends Component{
 				: (SUPPORTED_PD_FRAMEWORKS.indexOf(this.props.pdFramework) >= 0 ? this.props.pdFramework : 'aspect')),
 			pdParallel: (params.pdParallel !== undefined && params.pdParallel !== null ? params.pdParallel : this.props.pdParallel) ? 1 : 0,
 			pdRaptParallel: (params.pdRaptParallel !== undefined && params.pdRaptParallel !== null ? params.pdRaptParallel : this.props.pdRaptParallel) ? 1 : 0,
-			termsVariant: (()=>{ const v = params.termsVariant !== undefined && params.termsVariant !== null ? Number(params.termsVariant) : Number(this.props.termsVariant); return (v === 1 || v === 2) ? v : 0; })(),
+			termsVariant: (()=>{ const v = params.termsVariant !== undefined && params.termsVariant !== null ? Number(params.termsVariant) : Number(this.props.termsVariant); return (Number.isFinite(v) && v >= 0 && v <= 4) ? v : 0; })(),   // [F4][R2-12](v 已 Number)
 			pdSignificators: Array.isArray(params.pdSignificators) ? params.pdSignificators : (Array.isArray(this.props.pdSignificators) ? this.props.pdSignificators : []),
 			pdPromissorTypes: Array.isArray(params.pdPromissorTypes) ? params.pdPromissorTypes : (Array.isArray(this.props.pdPromissorTypes) ? this.props.pdPromissorTypes : []),
 			pdTimeKeyCustom: (()=>{ const v = Number(params.pdTimeKeyCustom !== undefined && params.pdTimeKeyCustom !== null ? params.pdTimeKeyCustom : this.props.pdTimeKeyCustom); return (Number.isFinite(v) && v > 0) ? v : null; })(),
@@ -1617,8 +1617,10 @@ class AstroPrimaryDirection extends Component{
 										dropdownMatchSelectWidth={false}
 									>
 										<Option value={0}>埃及界</Option>
-										<Option value={1}>托勒密界</Option>
-										<Option value={2}>莉莉界</Option>
+										<Option value={1}>托勒密界·校勘本</Option>
+										<Option value={2}>托勒密界·经典传本</Option>
+										<Option value={3}>迦勒底界</Option>
+										<Option value={4}>自定义</Option>
 									</Select>
 								) : null}
 								<Checkbox

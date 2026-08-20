@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/TongshuMain.js b/astrostudyui/src/components/calendar/TongshuMain.js
-index ba89b54..0034543 100644
+index f1e3eb8f..0caef308 100644
 --- a/astrostudyui/src/components/calendar/TongshuMain.js
 +++ b/astrostudyui/src/components/calendar/TongshuMain.js
 @@ -14,32 +14,66 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
@@ -156,7 +156,7 @@ index ba89b54..0034543 100644
  	constructor(props) {
  		super(props);
  		const settings = loadTongshuSettings();
-@@ -324,23 +353,43 @@ class TongshuMain extends Component {
+@@ -324,23 +353,44 @@ class TongshuMain extends Component {
  		this.onSettingChange = this.onSettingChange.bind(this);
  		this.onDateChange = this.onDateChange.bind(this);
  		this.pickDay = this.pickDay.bind(this);
@@ -199,11 +199,12 @@ index ba89b54..0034543 100644
 +	// 现绑定成稳定引用(顺带给下游 memo 化留出可能)。
 +	onSelHour(h) {
 +		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点(换时辰)
-+		this.setState({ qimenHour: h }, ()=> this.settle());
++		// 换时辰后同步刷新 AI 快照(奇门叠数/三元玄空两处调用点共用本方法,一处即全覆盖)。
++		this.setState({ qimenHour: h }, ()=> { this.settle(); this.saveAISnapshot(); });
  	}
  
  	saveAISnapshot() {
-@@ -361,6 +410,9 @@ class TongshuMain extends Component {
+@@ -361,6 +411,9 @@ class TongshuMain extends Component {
  			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
  		}
  		this.saveAISnapshot();
@@ -213,7 +214,7 @@ index ba89b54..0034543 100644
  	}
  
  	componentWillUnmount() {
-@@ -369,6 +421,11 @@ class TongshuMain extends Component {
+@@ -369,6 +422,11 @@ class TongshuMain extends Component {
  		}
  	}
  
@@ -225,20 +226,20 @@ index ba89b54..0034543 100644
  	renderPanes() {
  		const s = this.state.settings;
  		const ymd = this.ymd();
-@@ -380,7 +437,7 @@ class TongshuMain extends Component {
+@@ -380,7 +438,7 @@ class TongshuMain extends Component {
  			};
  		}
  		if (s.school === 'qimen') {
--			return QimenPanes({ y, m, d, selHour: this.state.qimenHour, onSelHour: (h)=> this.setState({ qimenHour: h }) });
+-			return QimenPanes({ y, m, d, selHour: this.state.qimenHour, onSelHour: (h)=> this.setState({ qimenHour: h }, this.saveAISnapshot) });
 +			return QimenPanes({ y, m, d, selHour: this.state.qimenHour, onSelHour: this.onSelHour });
  		}
  		if (s.school === 'sanyuanliexiu') {
  			return SanyuanPanes({ y, m, d, use: s.liexiuUse, onPick: this.pickDay });
-@@ -389,7 +446,7 @@ class TongshuMain extends Component {
+@@ -389,7 +447,7 @@ class TongshuMain extends Component {
  			return WutuPanes({ y, m, d, onPick: this.pickDay });
  		}
  		if (s.school === 'sanyuan') {
--			return XuankongPanes({ y, m, d, mingYear: s.mingYear, selHour: this.state.qimenHour, onSelHour: (h)=> this.setState({ qimenHour: h }) });
+-			return XuankongPanes({ y, m, d, mingYear: s.mingYear, selHour: this.state.qimenHour, onSelHour: (h)=> this.setState({ qimenHour: h }, this.saveAISnapshot) });
 +			return XuankongPanes({ y, m, d, mingYear: s.mingYear, selHour: this.state.qimenHour, onSelHour: this.onSelHour });
  		}
  		const school = TONGSHU_SCHOOL_MAP[s.school] || {};

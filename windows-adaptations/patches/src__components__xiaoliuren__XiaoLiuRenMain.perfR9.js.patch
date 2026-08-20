@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
-index cd79cda..ce5a82c 100644
+index 8c22a8a0..15800d51 100644
 --- a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 +++ b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 @@ -18,6 +18,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
@@ -17,9 +17,9 @@ index cd79cda..ce5a82c 100644
  	}
 +
  	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		if(typeof window !== 'undefined'){
-@@ -213,7 +216,8 @@ class XiaoLiuRenMain extends Component {
+ 		// [issue#74 同类] 农历桥回包履约(与灵棋/飞宫同律):域外年首拍快照缺农历/四柱行,
+ 		// 只 forceUpdate 不重存则缓存/事盘恒缺——桥契约「远程回包后由订阅方重存快照补全」。
+@@ -220,7 +223,8 @@ class XiaoLiuRenMain extends Component {
  		}
  		const ke = qiKe({ m, d, h, school: settings.school });
  		if(!ke){ return this.setState({ error: '三数非法,不可起课', ke: null }); }
@@ -29,7 +29,7 @@ index cd79cda..ce5a82c 100644
  	}
  	// 改流派:课(三数)冻结,按新环重排三传(重排≠重起——三数不变)。
  	setSetting(key, val){
-@@ -423,41 +427,56 @@ class XiaoLiuRenMain extends Component {
+@@ -431,41 +435,56 @@ class XiaoLiuRenMain extends Component {
  			</div>
  		);
  		return (

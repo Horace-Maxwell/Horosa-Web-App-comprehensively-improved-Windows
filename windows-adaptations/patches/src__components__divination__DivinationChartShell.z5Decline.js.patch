@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/divination/DivinationChartShell.js b/astrostudyui/src/components/divination/DivinationChartShell.js
-index 3b2dea0b..8467437a 100644
+index 131fe861..7fcd41e3 100644
 --- a/astrostudyui/src/components/divination/DivinationChartShell.js
 +++ b/astrostudyui/src/components/divination/DivinationChartShell.js
-@@ -183,6 +183,9 @@ class DivinationChartShell extends Component{
+@@ -225,6 +225,9 @@ class DivinationChartShell extends Component{
  	}
  
  	componentDidUpdate(){

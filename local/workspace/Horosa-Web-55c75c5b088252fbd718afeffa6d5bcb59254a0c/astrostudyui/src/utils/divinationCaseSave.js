@@ -27,6 +27,26 @@ function caseDateTime(fields){
 }
 
 // 存为事件盘。module: 'horary' | 'election'；extra 取自 Shell 的 state.extra（questionCategory / topicId）。
+// [SURF-R0] 事盘技法设置键·单源常量:保存(本文件)/页面还原(DivinationChartShell)/AI 挂载
+// (aiAnalysisContext DIVINATION_SETTINGS_KEYS)三方必须逐键同集——此前靠注释「lockstep」维持,
+// 实际还原侧漏 27 键(SURF 22 键+siderealAyanamsa+表体 4 键)=事盘重开回本机全局值、与挂载
+// 文本口径矛盾;自定义界表事盘换机静默变埃及界。三方自此 import 同一数组,合同机械看守。
+export const DIVINATION_CASE_SETTING_KEYS = [
+	'termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
+	'lotsDocReverse', 'nodeExaltation',
+	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
+	'viaCombustaVariant',
+	// [WP-2] 天文口径批
+	'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon', 'stationMarking',
+	'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant', 'lotFatherCombustAlt', 'lotProjection',
+	'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod',
+	'orbSystem', 'luminaryOrbBonus',
+	'aspectIncludeCusps', 'aspectIncludeLots', 'aspectIncludeMidpoints',
+	'solarReturnVariant', 'returnLatitudeMode',
+	'vulcanCalc',
+	// [F14] 自定义界表随案表体(termsVariant=4;present 才落档)
+	'customTermsDay', 'customTermsNight', 'userAyanT0', 'userAyanDeg'];
+
 export function openDivinationCaseDrawer({ dispatch, fields, module, label, extra, aiSnapshot }){
 	if(!dispatch || !module){
 		return;
@@ -42,10 +62,7 @@ export function openDivinationCaseDrawer({ dispatch, fields, module, label, extr
 	};
 	// 古典占星参数(界系/双子界序/交点真平/昼夜缓冲/狮子首星/三分集/福点反转)：present 才落档
 	// (老案例结构零变),重开按保存时口径还原——卜卦流派绑定值/全局偏好双双保真。
-	['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
-		'lotsDocReverse', 'nodeExaltation', 'saturnExalt20',
-		'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
-		'viaCombustaVariant'].forEach((k)=>{
+	DIVINATION_CASE_SETTING_KEYS.forEach((k)=>{
 		const v = fv(fields, k, undefined);
 		if(v !== undefined && v !== null && v !== ''){ settings[k] = v; }
 	});

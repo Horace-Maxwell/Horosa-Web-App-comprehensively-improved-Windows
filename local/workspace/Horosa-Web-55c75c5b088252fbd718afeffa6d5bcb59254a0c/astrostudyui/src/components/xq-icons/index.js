@@ -385,6 +385,12 @@ const iconMap = {
 			<path {...lineProps} d="M9.3 4v16M14.7 4v16M4 9.3h16M4 14.7h16" />
 		</Svg>
 	),
+	tarot: (
+		<Svg>
+			<rect {...lineProps} x="7.2" y="4.4" width="9.6" height="15.2" rx="1.6" />
+			<path {...lineProps} d="M12 9l0.95 1.92 2.12 0.31-1.53 1.5 0.36 2.11L12 13.84l-1.9 1-0.36-2.11-1.53-1.5 2.12-0.31z" />
+		</Svg>
+	),
 	liuyao: (
 		<Svg>
 			<path {...lineProps} d="M6 6h12M6 9.2h12M6 12.4h12M6 15.6h12M6 18.8h12" />

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroPrimaryDirection.js b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
-index 98adf19d..980a033e 100644
+index ace1cd3b..3d12faaf 100644
 --- a/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 +++ b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 @@ -1,4 +1,5 @@

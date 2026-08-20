@@ -20,6 +20,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams, schoolComparisonRows } from './UranianSchools';
 import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
 import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
+import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { createSignatureMemo, memoEnabled } from '../../utils/memoBySignature';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -163,6 +164,8 @@ function fieldsToParams(fields){
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa') || '', tradition: false, predictive: 0,
 		name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
+		// [SURF-5] 古典设置单源接入;条件发送=默认态字节不变。
+		...classicalBackendOverridesFromFields(fields),
 	};
 }
 
@@ -204,6 +207,8 @@ function libraryChartParams(rec){
 		gpsLat: rec.gpsLat, gpsLon: rec.gpsLon,
 		hsys: rec.hsys, zodiacal: rec.zodiacal, siderealAyanamsa: rec.siderealAyanamsa || '', tradition: false, predictive: 0,
 		name: rec.name || '', pos: rec.pos || '',
+		// [SURF-5] 库盘人随盘古典键保真(record 非默认捕获键平面存):FromPlain 条件发送。
+		...classicalBackendOverridesFromPlain(rec),
 	};
 }
 // 快照/挂载链共用:从持久化 synastryPeople 解析第一位叠盘人的起盘参数。

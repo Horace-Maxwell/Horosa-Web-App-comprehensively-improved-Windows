@@ -579,9 +579,26 @@ public class ChartController {
 		// 本批真机首验即抓到「前端发了 Java 丢了」的白名单三层静默丢,此处为主 /chart 唯一闸口)。
 		String[] classicalBatch2Keys = { "geminiBoundEmended", "houseCuspAdvance", "cazimiOrb", "combustOrb",
 				"underBeamsOrb", "vocMode", "vocIncludeOuter", "starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
-				// 三个 0/1 流派开关(点公式文档序反转/交点入旺/土星旺20°):Python push_request_* 已就绪,
+				// 两个 0/1 流派开关(点公式文档序反转/交点入旺):Python push_request_* 已就绪,
 				// 曾因此处白名单缺键而真链路静默丢参(pytest 直连 :8899 绿 ≠ RSA 链路安全)。
-				"lotsDocReverse", "nodeExaltation", "saturnExalt20" };
+				"lotsDocReverse", "nodeExaltation",
+				// [WP-2] 天文口径批(sect 视地平/own chariot/黑月西占键/站心月/留驻判定):
+				// PerChart 实例级直读 data,本白名单为唯一 Java 闸。
+				"combustOwnChariotExempt", "westLilithType", "topocentricMoon", "stationMarking",
+				// [WP-3] 希腊点变体批(perchart._applyLotVariants 消费)。
+				"hermeticLotsReversal", "erosConstruction", "lotFortuneVariant", "lotFatherCombustAlt", "lotProjection",
+				// [WP-4] 尊贵与判定批(计分表 push/almuten 口径/行星时制式)。
+				"dignityDebilities", "almutenTripMode", "planetaryHourMethod",
+				// [WP-5a] 容许度体系批。
+				"orbSystem", "luminaryOrbBonus",
+				// [WP-5b] 相位参与对象扩展。
+				"aspectIncludeCusps", "aspectIncludeLots", "aspectIncludeMidpoints",
+				// [WP-6] 返照专项(主盘透传仅为随盘续传;消费在推运链)。
+				"solarReturnVariant", "returnLatitudeMode",
+				// [WP-7] 自定义界表表体+自定义恒星黄道历元参数。
+				"customTermsDay", "customTermsNight", "userAyanT0", "userAyanDeg",
+				// [WP-8] 灵学扩展(祝融星推算)。
+				"vulcanCalc" };
 		for(String key : classicalBatch2Keys) {
 			if(TransData.containsParam(key)) {
 				params.put(key, TransData.get(key));

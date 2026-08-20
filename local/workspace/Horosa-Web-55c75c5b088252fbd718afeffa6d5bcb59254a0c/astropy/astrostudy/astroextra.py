@@ -10,7 +10,7 @@ from flatlib import angle
 from flatlib.dignities import essential
 from flatlib.protocols.temperament import Temperament
 
-from astrostudy.perchart import PerChart, push_request_terms, pop_request_terms, parse_terms_variant
+from astrostudy.perchart import PerChart, push_request_terms, pop_request_terms, parse_terms_variant, push_classical_request, pop_classical_request
 from astrostudy.perpredict import dateSolarReturn, dateLunarReturn
 from astrostudy.thirteenthchart import HarmonicChart, DraconicChart
 
@@ -413,10 +413,20 @@ def almuten_table(perchart):
         perchart.chart.getObject(const.PARS_FORTUNA),
         perchart.chart.getObject(const.SYZYGY),
     ]
+    # [WP-4] almuten 三分计分口径:'all'(默认=现状,day/night/part 三主各 +3)/'sectRulerOnly'
+    # (只计当值主:昼盘 dayTrip/夜盘 nightTrip,partTrip 与非当值主不计——文献另一派口径)。
+    trip_mode = None
+    try:
+        trip_mode = (perchart.data or {}).get('almutenTripMode')
+    except Exception:
+        trip_mode = None
+    sect_trip_key = 'dayTrip' if getattr(perchart, 'isDiurnal', True) else 'nightTrip'
     for point in hylegic:
         row = {'point': point.id, 'scores': {obj: 0 for obj in const.LIST_SEVEN_PLANETS}}
         dig = essential.getInfo(point.sign, point.signlon)
         for key, score in DIGNITY_SCORES.items():
+            if trip_mode == 'sectRulerOnly' and key in ('dayTrip', 'nightTrip', 'partTrip') and key != sect_trip_key:
+                continue
             obj_id = dig.get(key)
             if obj_id in row['scores']:
                 row['scores'][obj_id] += score
@@ -967,25 +977,75 @@ def compute_planetary_hours(params):
     dow = swisseph.day_of_week(sr + zone_value(zone) / 24.0)
     day_ruler = _DAY_RULER_BY_DOW.get(dow, const.SUN)
     start_idx = _CHALDEAN_DESC.index(day_ruler)
-    day_h = (ss - sr) / 12.0
-    night_h = (srn - ss) / 12.0
+    # [SURF-2] 行星时制式三档(与 perchart.getTimerStar 同语义,修双实现分裂:此前本表恒
+    # 昼夜不等时排法,而「时主星」按 sunrise 等长口径——同屏两口径互相矛盾):
+    #   'sunrise'(键默认) = 日出起算·等长 60 分钟小时 ×24;
+    #   'unequal'         = 真日出→日没 12 等分昼时 + 日没→次日出 12 等分夜时(本表旧排法);
+    #   'equal24'         = 当地当日 0 时起 24 等分,时主序仍迦勒底降序从当日日主起。
+    hour_mode = params.get('planetaryHourMethod') or 'sunrise'
     hours = []
-    for i in range(24):
-        if i < 12:
-            t0, t1, diurnal = sr + day_h * i, sr + day_h * (i + 1), True
-        else:
-            j = i - 12
-            t0, t1, diurnal = ss + night_h * j, ss + night_h * (j + 1), False
-        hours.append({
-            'index': i + 1,
-            'ruler': _CHALDEAN_DESC[(start_idx + i) % 7],
-            'diurnal': diurnal,
-            'start': date_time_from_jd(t0, zone)['time'],
-            'end': date_time_from_jd(t1, zone)['time'],
-            'current': bool(t0 <= birth < t1),
-        })
+    if hour_mode == 'equal24':
+        local_midnight = math.floor(birth + zone_value(zone) / 24.0 - 0.5) + 0.5 - zone_value(zone) / 24.0
+        dow0 = swisseph.day_of_week(local_midnight + 0.5 + zone_value(zone) / 24.0)
+        ruler0 = _DAY_RULER_BY_DOW.get(dow0, const.SUN)
+        idx0 = _CHALDEAN_DESC.index(ruler0)
+        day_ruler = ruler0
+        # [SURF-R2a] 本表跨「出生民用日 00:00-24:00」,而外层 sr/ss 是「覆盖出生时刻的日出周期」
+        # (凌晨生=前一日的日出日没)——凌晨盘用它判当日整点恒 diurnal=False。此处单独求
+        # 当日日出日没(自当日 0 时起算),失败(极区)回落外层值,回显 sunrise/sunset 同步换。
+        try:
+            sr_d = nxt(local_midnight, swisseph.CALC_RISE)
+            ss_d = nxt(sr_d, swisseph.CALC_SET)
+        except Exception:
+            sr_d, ss_d = sr, ss
+        sr, ss = sr_d, ss_d
+        for i in range(24):
+            t0 = local_midnight + i / 24.0
+            t1 = local_midnight + (i + 1) / 24.0
+            hours.append({
+                'index': i + 1,
+                'ruler': _CHALDEAN_DESC[(idx0 + i) % 7],
+                'diurnal': bool(sr <= t0 < ss),
+                'start': date_time_from_jd(t0, zone)['time'],
+                'end': date_time_from_jd(t1, zone)['time'],
+                'current': bool(t0 <= birth < t1),
+            })
+    elif hour_mode == 'unequal':
+        day_h = (ss - sr) / 12.0
+        night_h = (srn - ss) / 12.0
+        for i in range(24):
+            if i < 12:
+                t0, t1, diurnal = sr + day_h * i, sr + day_h * (i + 1), True
+            else:
+                j = i - 12
+                t0, t1, diurnal = ss + night_h * j, ss + night_h * (j + 1), False
+            hours.append({
+                'index': i + 1,
+                'ruler': _CHALDEAN_DESC[(start_idx + i) % 7],
+                'diurnal': diurnal,
+                'start': date_time_from_jd(t0, zone)['time'],
+                'end': date_time_from_jd(t1, zone)['time'],
+                'current': bool(t0 <= birth < t1),
+            })
+    else:   # 'sunrise' 默认:日出起算等长 60 分钟小时(与时主星口径一致)
+        for i in range(24):
+            t0 = sr + i / 24.0
+            t1 = sr + (i + 1) / 24.0
+            if i == 23 and srn > t1:
+                # [SURF-R3a] 行星日实长=sr→srn≠24h:秋季高纬日出逐日推迟时 srn>sr+24h,
+                # 生于 [sr+24h, srn) 的盘 24 行皆无 current——末行右边界放宽到次日出。
+                t1 = srn
+            hours.append({
+                'index': i + 1,
+                'ruler': _CHALDEAN_DESC[(start_idx + i) % 7],
+                'diurnal': bool(t0 < ss),
+                'start': date_time_from_jd(t0, zone)['time'],
+                'end': date_time_from_jd(t1, zone)['time'],
+                'current': bool(t0 <= birth < t1),
+            })
     return {
         'dayRuler': day_ruler,
+        'hourMode': hour_mode,
         'sunrise': date_time_from_jd(sr, zone)['time'],
         'sunset': date_time_from_jd(ss, zone)['time'],
         'nextSunrise': date_time_from_jd(srn, zone)['time'],
@@ -1115,6 +1175,17 @@ def compute_egyptian_calendar(perchart, params):
 
 def analyze_chart(data):
     params = base_params(data)
+    # [SURF-2] analysis 族接入古典复合临界区:此前唯本端点裸建 PerChart(harmonic/relocation/
+    # draconic 均已 push),almuten_table/compute_topic_almuten 的 essential.getInfo 恒用默认
+    # 界表/三分表/计分表——右栏 Almuten/逐题主星对界系/三分制/宫头前移全档空转。
+    _cls_tok = push_classical_request(params)
+    try:
+        return _analyze_chart_inner(params, data)
+    finally:
+        pop_classical_request(_cls_tok)
+
+
+def _analyze_chart_inner(params, data):
     perchart = PerChart(params)
     points = chart_points(perchart, include_angles=True)
     try:
@@ -1294,7 +1365,32 @@ def _eclipse_band(digit):
     return '全'
 
 
-def _calc_eclipses_inner(start_jd, end_jd, zone):
+def _syzygy_near(e_jd, target):
+    """[WP-2] 食甚附近求精确朔望时刻:f(t)=日月黄经差−target(0=朔/180=望)在 ±1.5 日窗内二分。
+    找不到变号(理论不应发生)回落食甚。"""
+    def f(t):
+        s, _, _ = swe_lon(const.SUN, t)
+        m, _, _ = swe_lon(const.MOON, t)
+        return ((m - s - target + 180.0) % 360.0) - 180.0
+    try:
+        lo, hi = e_jd - 1.5, e_jd + 1.5
+        flo = f(lo)
+        if (flo < 0) == (f(hi) < 0):
+            return e_jd
+        for _ in range(40):
+            mid = (lo + hi) / 2.0
+            if (flo < 0) == (f(mid) < 0):
+                lo, flo = mid, f(mid)
+            else:
+                hi = mid
+        return (lo + hi) / 2.0
+    except Exception:
+        return e_jd
+
+
+def _calc_eclipses_inner(start_jd, end_jd, zone, time_mode='max'):
+    # [WP-2] time_mode:'max'(默认=现状,tret[0] 食甚)/'syzygy'(精确朔望时刻——日食取朔/月食取望;
+    # 搜索推进与事件身份仍按食甚,仅显示时刻换算)。
     events = []
     jd = start_jd - 1
     while True:
@@ -1310,8 +1406,9 @@ def _calc_eclipses_inner(start_jd, end_jd, zone):
             except Exception:
                 mag = None
             digit = round(mag * 12.0, 1) if mag is not None else None
+            _show_jd = _syzygy_near(e_jd, 0.0) if time_mode == 'syzygy' else e_jd
             events.append({
-                **date_time_from_jd(e_jd, zone),
+                **date_time_from_jd(_show_jd, zone),
                 'type': 'solar_eclipse',
                 'eclipseType': eclipse_type(ret),
                 'body': const.SUN,
@@ -1337,8 +1434,9 @@ def _calc_eclipses_inner(start_jd, end_jd, zone):
             except Exception:
                 mag = None
             digit = round(mag * 12.0, 1) if mag is not None else None
+            _show_jd = _syzygy_near(e_jd, 180.0) if time_mode == 'syzygy' else e_jd
             events.append({
-                **date_time_from_jd(e_jd, zone),
+                **date_time_from_jd(_show_jd, zone),
                 'type': 'lunar_eclipse',
                 'eclipseType': eclipse_type(ret, lunar=True),
                 'body': const.MOON,
@@ -1353,11 +1451,12 @@ def _calc_eclipses_inner(start_jd, end_jd, zone):
     return sorted(events, key=lambda item: item['jd'])
 
 
-def calc_eclipses(start_jd, end_jd, zone):
+def calc_eclipses(start_jd, end_jd, zone, time_mode='max'):
     """食相搜索:窗口贴近星历域上界时,前向搜索会越出数据尽头(如 16799 年末搜下一次
-    月食需 16800 段)——此时返回已搜到的部分(域内事件不受影响),不拖垮整个星历页。"""
+    月食需 16800 段)——此时返回已搜到的部分(域内事件不受影响),不拖垮整个星历页。
+    [WP-2] time_mode 见 _calc_eclipses_inner(默认 'max'=食甚现状零回归)。"""
     try:
-        return _calc_eclipses_inner(start_jd, end_jd, zone)
+        return _calc_eclipses_inner(start_jd, end_jd, zone, time_mode)
     except Exception:
         return []
 
@@ -1531,7 +1630,7 @@ def build_ephemeris(data):
         'ingresses': calc_ingresses(start_jd, end_jd, params.get('zone', '+00:00'), planets),
         'stations': calc_stations(start_jd, end_jd, params.get('zone', '+00:00'), planets),
         'lunarPhases': calc_lunar_phases(start_jd, end_jd, params.get('zone', '+00:00')),
-        'eclipses': calc_eclipses(start_jd, end_jd, params.get('zone', '+00:00')),
+        'eclipses': calc_eclipses(start_jd, end_jd, params.get('zone', '+00:00'), data.get('eclipseTimeMode') or 'max'),
         'transitAspects': calc_transit_aspects(params, start_jd, end_jd, params.get('zone', '+00:00'), planets, natal_points, aspects) if include_transits else [],
         'riseSet': calc_rise_set(start_jd, params, planets),
         'phenomena': calc_phenomena(start_jd, planets),
@@ -1726,7 +1825,7 @@ def build_harmonic(data):
     # 界系(termsVariant)请求级临界区:push 取锁+换 essential.TERMS,finally 必还原+释放锁。默认埃及=零回归。
     _terms_orig = None
     try:
-        _terms_orig = push_request_terms(data.get('termsVariant', 0))
+        _terms_orig = push_classical_request(data)   # [R4-P2] 收编复合临界区:旧散 push 丢表体/双子/狮子且只 1/7 族(tv=4 静默回埃及)
         perchart = PerChart(params)
         positions = []
         for p in chart_points(perchart, include_angles=True):
@@ -1779,7 +1878,7 @@ def build_harmonic(data):
 
         return {'harmonic': harmonic, 'positions': positions, 'conjunctions': aspects[:120], 'chart': chart_obj}
     finally:
-        pop_request_terms(_terms_orig)
+        pop_classical_request(_terms_orig)
 
 
 def build_relocation(data):
@@ -1799,7 +1898,7 @@ def build_relocation(data):
     params['predictive'] = False
 
     # 界系(termsVariant)请求级临界区:push 取锁+换 essential.TERMS,finally 必还原+释放锁。默认埃及=零回归。
-    _terms_orig = push_request_terms(data.get('termsVariant', 0))
+    _terms_orig = push_classical_request(data)   # [R4-P2] 收编复合临界区:旧散 push 丢表体/双子/狮子且只 1/7 族(tv=4 静默回埃及)
     chart_obj = None
     try:
         perchart = PerChart(params)
@@ -1833,7 +1932,7 @@ def build_relocation(data):
         traceback.print_exc()
         chart_obj = None
     finally:
-        pop_request_terms(_terms_orig)
+        pop_classical_request(_terms_orig)
 
     return {'chart': chart_obj, 'relocLat': reloc_lat, 'relocLon': reloc_lon, 'natalLat': natal_lat, 'natalLon': natal_lon}
 
@@ -2235,7 +2334,7 @@ def build_draconic(data):
     # 界系(termsVariant)请求级临界区:push 取锁+换 essential.TERMS,finally 必还原+释放锁。默认埃及=零回归。
     _terms_orig = None
     try:
-        _terms_orig = push_request_terms(data.get('termsVariant', 0))
+        _terms_orig = push_classical_request(data)   # [R4-P2] 收编复合临界区:旧散 push 丢表体/双子/狮子且只 1/7 族(tv=4 静默回埃及)
         perchart = PerChart(params)
         node = perchart.chart.getObject(const.NORTH_NODE)
         node_lon = norm360(node.lon)
@@ -2288,7 +2387,7 @@ def build_draconic(data):
 
         return {'nodeLon': node_lon, 'positions': positions, 'conjunctions': aspects[:120], 'chart': chart_obj}
     finally:
-        pop_request_terms(_terms_orig)
+        pop_classical_request(_terms_orig)
 
 
 # ── 关系量化：天体权重分档（占星通用口径，非门派）─────────────────────────────

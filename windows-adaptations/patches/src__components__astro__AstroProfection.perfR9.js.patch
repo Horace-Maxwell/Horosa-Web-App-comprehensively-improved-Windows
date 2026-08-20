@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroProfection.js b/astrostudyui/src/components/astro/AstroProfection.js
-index 4c3e774..f1fe03a 100644
+index c555447f..bbb2d4b2 100644
 --- a/astrostudyui/src/components/astro/AstroProfection.js
 +++ b/astrostudyui/src/components/astro/AstroProfection.js
 @@ -7,7 +7,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -11,10 +11,10 @@ index 4c3e774..f1fe03a 100644
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -17,6 +17,10 @@ import { XQSegmented, XQSelect } from '../xq-ui';
- import { SIGNS } from '../../divination/data/signs';
- import UpdatingBadge from '../common/UpdatingBadge';
+@@ -19,6 +19,10 @@ import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+ import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 +import { markPanelReady } from '../../utils/perfMark';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
@@ -22,7 +22,7 @@ index 4c3e774..f1fe03a 100644
  
  // ===== G9 月/日小限 + 多起点(纯前端派生) =====
  // flatlib 后端小限盘已连续旋转(年盘自上升),此处的「年/月/日」摘要为离散古典口径的纯前端派生,
-@@ -116,7 +120,9 @@ class AstroProfection extends Component{
+@@ -118,7 +122,9 @@ class AstroProfection extends Component{
  		super(props);
  		this.unmounted = false;
  
@@ -33,7 +33,7 @@ index 4c3e774..f1fe03a 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -208,7 +214,13 @@ class AstroProfection extends Component{
+@@ -211,7 +217,13 @@ class AstroProfection extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -48,16 +48,16 @@ index 4c3e774..f1fe03a 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -277,6 +289,8 @@ class AstroProfection extends Component{
+@@ -288,6 +300,8 @@ class AstroProfection extends Component{
  		};
  
  		this.setState(st, ()=>{
 +			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 +			markPanelReady('direction');
- 			const chartValue = this.props.value;
+ 			const chartValue = chartValueAtRequest;
  			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'profection'), {
  				module: 'profection',
-@@ -331,7 +345,30 @@ class AstroProfection extends Component{
+@@ -342,7 +356,30 @@ class AstroProfection extends Component{
  		});
  	}
  
@@ -88,7 +88,7 @@ index 4c3e774..f1fe03a 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -377,7 +414,7 @@ class AstroProfection extends Component{
+@@ -388,7 +425,7 @@ class AstroProfection extends Component{
  			if(i % 2 === 0){
  				if(i > 0){
  					let dom = (
@@ -97,7 +97,7 @@ index 4c3e774..f1fe03a 100644
  							<Row>
  								{cols}
  							</Row>
-@@ -391,7 +428,7 @@ class AstroProfection extends Component{
+@@ -402,7 +439,7 @@ class AstroProfection extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroAspect.js b/astrostudyui/src/components/astro/AstroAspect.js
-index 123255d..295e418 100644
+index 72631a90..99d5f5b2 100644
 --- a/astrostudyui/src/components/astro/AstroAspect.js
 +++ b/astrostudyui/src/components/astro/AstroAspect.js
-@@ -3,11 +3,13 @@ import { Row, Col, Popover, } from 'antd';
+@@ -5,11 +5,13 @@ import { Row, Col, Popover, } from 'antd';
  import * as AstroConst from '../../constants/AstroConst';
  import * as AstroText from '../../constants/AstroText';
  import * as AstroHelper from './AstroHelper';
@@ -17,7 +17,7 @@ index 123255d..295e418 100644
  
  let pars = new Set()
  let planets = new Set()
-@@ -142,7 +144,7 @@ class AstroAspect extends Component{
+@@ -185,7 +187,7 @@ class AstroAspect extends Component{
  				continue;
  			}
  			groups.push(
@@ -26,7 +26,7 @@ index 123255d..295e418 100644
  					<div className="horosa-aspect-group-title" style={{fontFamily: AstroConst.AstroFont}}>{this.planetLabel(key)}</div>
  					<div className="horosa-aspect-rows">{rows}</div>
  				</div>
-@@ -175,7 +177,7 @@ class AstroAspect extends Component{
+@@ -218,7 +220,7 @@ class AstroAspect extends Component{
  			}
  
  			let dom = (

@@ -130,6 +130,12 @@ export function buildLocalChartRecord(values){
 		// 读回 → fieldsToParams 条件透传,但此前 buildLocalChartRecord 未枚举 → 存盘即丢、重开/挂载回退默认(界系尊贵/福点
 		// 与保存时盘面不一致)。仅在 values 提供时落库(present 才落,对齐 hsys/pd* 写法),否则 buildFieldObject 回退现状默认。
 		termsVariant: values.termsVariant !== undefined && values.termsVariant !== null ? parseInt(values.termsVariant + '', 10) : undefined,
+		// [F14] termsVariant=4 的随盘界表表体(对象值原样;present 才落库,换机/清仓后旧盘不再静默变埃及)
+		customTermsDay: Array.isArray(values.customTermsDay) ? values.customTermsDay : undefined,
+		customTermsNight: Array.isArray(values.customTermsNight) ? values.customTermsNight : undefined,
+		// [R2-9] 自定义恒星黄道历元两参(user 档随盘)
+		userAyanT0: (values.userAyanT0 !== undefined && values.userAyanT0 !== null && Number.isFinite(Number(values.userAyanT0))) ? Number(values.userAyanT0) : undefined,
+		userAyanDeg: (values.userAyanDeg !== undefined && values.userAyanDeg !== null && Number.isFinite(Number(values.userAyanDeg))) ? Number(values.userAyanDeg) : undefined,
 		geminiBoundEmended: values.geminiBoundEmended !== undefined && values.geminiBoundEmended !== null ? parseInt(values.geminiBoundEmended + '', 10) : undefined,
 		// 2026-07 二批九键(落宫/三态/空亡/恒星/映点):present 才落库,与 termsVariant 同纪律。
 		houseCuspAdvance: values.houseCuspAdvance !== undefined && values.houseCuspAdvance !== null ? parseInt(values.houseCuspAdvance + '', 10) : undefined,
@@ -143,6 +149,27 @@ export function buildLocalChartRecord(values){
 		antisciaOrb: values.antisciaOrb !== undefined && values.antisciaOrb !== null ? Number(values.antisciaOrb) : undefined,
 		// 2026-07 四批:燃烧之路边界档(排盘键,present 才落库;partileDef 纯前端显示键有意不随盘存)。
 		viaCombustaVariant: values.viaCombustaVariant !== undefined && values.viaCombustaVariant !== null ? (values.viaCombustaVariant + '') : undefined,
+		// [WP-2] 天文口径批(present 才落库,与 manifest parse 一一对应)
+		combustOwnChariotExempt: values.combustOwnChariotExempt !== undefined && values.combustOwnChariotExempt !== null ? parseInt(values.combustOwnChariotExempt + '', 10) : undefined,
+		westLilithType: values.westLilithType !== undefined && values.westLilithType !== null ? (values.westLilithType + '') : undefined,
+		topocentricMoon: values.topocentricMoon !== undefined && values.topocentricMoon !== null ? parseInt(values.topocentricMoon + '', 10) : undefined,
+		stationMarking: values.stationMarking !== undefined && values.stationMarking !== null ? (values.stationMarking + '') : undefined,
+		hermeticLotsReversal: values.hermeticLotsReversal !== undefined && values.hermeticLotsReversal !== null ? parseInt(values.hermeticLotsReversal + '', 10) : undefined,
+		erosConstruction: values.erosConstruction !== undefined && values.erosConstruction !== null ? (values.erosConstruction + '') : undefined,
+		lotFortuneVariant: values.lotFortuneVariant !== undefined && values.lotFortuneVariant !== null ? (values.lotFortuneVariant + '') : undefined,
+		lotFatherCombustAlt: values.lotFatherCombustAlt !== undefined && values.lotFatherCombustAlt !== null ? parseInt(values.lotFatherCombustAlt + '', 10) : undefined,
+		lotProjection: values.lotProjection !== undefined && values.lotProjection !== null ? (values.lotProjection + '') : undefined,
+		dignityDebilities: values.dignityDebilities !== undefined && values.dignityDebilities !== null ? parseInt(values.dignityDebilities + '', 10) : undefined,
+		almutenTripMode: values.almutenTripMode !== undefined && values.almutenTripMode !== null ? (values.almutenTripMode + '') : undefined,
+		planetaryHourMethod: values.planetaryHourMethod !== undefined && values.planetaryHourMethod !== null ? (values.planetaryHourMethod + '') : undefined,
+		orbSystem: values.orbSystem !== undefined && values.orbSystem !== null ? (values.orbSystem + '') : undefined,
+		luminaryOrbBonus: values.luminaryOrbBonus !== undefined && values.luminaryOrbBonus !== null ? parseInt(values.luminaryOrbBonus + '', 10) : undefined,
+		aspectIncludeCusps: values.aspectIncludeCusps !== undefined && values.aspectIncludeCusps !== null ? parseInt(values.aspectIncludeCusps + '', 10) : undefined,
+		aspectIncludeLots: values.aspectIncludeLots !== undefined && values.aspectIncludeLots !== null ? parseInt(values.aspectIncludeLots + '', 10) : undefined,
+		aspectIncludeMidpoints: values.aspectIncludeMidpoints !== undefined && values.aspectIncludeMidpoints !== null ? parseInt(values.aspectIncludeMidpoints + '', 10) : undefined,
+		solarReturnVariant: values.solarReturnVariant !== undefined && values.solarReturnVariant !== null ? (values.solarReturnVariant + '') : undefined,
+		returnLatitudeMode: values.returnLatitudeMode !== undefined && values.returnLatitudeMode !== null ? (values.returnLatitudeMode + '') : undefined,
+		vulcanCalc: values.vulcanCalc !== undefined && values.vulcanCalc !== null ? (values.vulcanCalc + '') : undefined,
 		westNodeType: values.westNodeType !== undefined && values.westNodeType !== null ? (values.westNodeType + '') : undefined,
 		sectBuffer: values.sectBuffer !== undefined && values.sectBuffer !== null ? (values.sectBuffer + '') : undefined,
 		leoBoundFirst: values.leoBoundFirst !== undefined && values.leoBoundFirst !== null ? parseInt(values.leoBoundFirst + '', 10) : undefined,
@@ -152,7 +179,6 @@ export function buildLocalChartRecord(values){
 		// 缺此三行 = 存盘再载入后开关静默丢失、盘变样(与既有六键同一范式)。
 		lotsDocReverse: values.lotsDocReverse !== undefined && values.lotsDocReverse !== null ? parseInt(values.lotsDocReverse + '', 10) : undefined,
 		nodeExaltation: values.nodeExaltation !== undefined && values.nodeExaltation !== null ? parseInt(values.nodeExaltation + '', 10) : undefined,
-		saturnExalt20: values.saturnExalt20 !== undefined && values.saturnExalt20 !== null ? parseInt(values.saturnExalt20 + '', 10) : undefined,
 		strongRecption: values.strongRecption !== undefined && values.strongRecption !== null ? parseInt(values.strongRecption + '', 10) : undefined,
 		simpleAsp: values.simpleAsp !== undefined && values.simpleAsp !== null ? parseInt(values.simpleAsp + '', 10) : undefined,
 		virtualPointReceiveAsp: values.virtualPointReceiveAsp !== undefined && values.virtualPointReceiveAsp !== null ? parseInt(values.virtualPointReceiveAsp + '', 10) : undefined,

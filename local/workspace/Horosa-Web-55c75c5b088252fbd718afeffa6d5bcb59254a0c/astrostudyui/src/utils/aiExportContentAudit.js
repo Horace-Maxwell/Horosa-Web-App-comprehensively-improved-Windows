@@ -19,7 +19,7 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	canping: { at: 'v56', t1: 'ok', t2: 'gap:四柱行+起数三值', t3: 'ok', t5: 'ok:段名切片', note: 'schema 缺 canpingDayun(挂载恒默认档)' },
 	zhengchuan: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:铁板流年总纲两行+大定死月扫描全表', t5: 'ok:passthrough', note: '' },
 	/* ── 西占族 ── */
-	astrochart: { at: 'v56', t1: 'ok', t2: 'fixed:恒星触发位置/容许两列+参照星全行带距+阿拉伯点120', t3: 'fixed:古典衍化四段(opt-in);格局tab恒星轨改读全局仓(三方对齐)', t5: 'ok:单源切片', note: '' },
+	astrochart: { at: 'v56', t1: 'ok', t2: 'fixed:恒星触发位置/容许两列+参照星全行带距+阿拉伯点120', t3: 'fixed:古典衍化四段(opt-in);格局tab恒星轨改读全局仓(三方对齐)', t5: 'ok:单源切片', note: 'v3.9.3 占星设置战役:~44 新键全走「基础信息·古典口径」段内自陈行(仅非默认成行)+显赫段三行(主宰光体/七射线/祝融星,开启才出);零新段头,MIGRATION_VERSION 恒 44' },
 	hellenastro: { at: 'v56', t1: 'fixed:快照重定源(曾本命冒充分盘)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'derivedAstroSnapshot 出盘即存' },
 	dwadasamsa: { at: 'v56', t1: 'fixed:快照重定源(同上)', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	harmonic: { at: 'v56', t1: 'fixed:快照重定源+[调波盘]专属段', t2: 'fixed:natalLon 对照入段', t3: 'ok', t5: 'ok', note: 'schema 缺 harmonic(N)(排队)' },

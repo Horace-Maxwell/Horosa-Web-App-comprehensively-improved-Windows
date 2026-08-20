@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/dice/DiceMain.js b/astrostudyui/src/components/dice/DiceMain.js
-index 1620780b..65ee83a5 100644
+index ff58ee66..c1ca318c 100644
 --- a/astrostudyui/src/components/dice/DiceMain.js
 +++ b/astrostudyui/src/components/dice/DiceMain.js
-@@ -23,6 +23,8 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
- import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+@@ -24,6 +24,8 @@ import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/mod
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
+ import { classicalBackendOverrides, classicalGlobalValue } from '../../utils/classicalChartGlobals';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -178,6 +180,10 @@ class DiceMain extends Component{
+@@ -179,6 +181,10 @@ class DiceMain extends Component{
  			planet: null,
  			sign: null,
  			house: null,
@@ -22,7 +22,7 @@ index 1620780b..65ee83a5 100644
  		}
  
  		if(this.props.hook){
-@@ -257,7 +263,9 @@ class DiceMain extends Component{
+@@ -264,7 +270,9 @@ class DiceMain extends Component{
  			sign: result.sign,
  		};
  
@@ -33,7 +33,7 @@ index 1620780b..65ee83a5 100644
  		const diceTxt = this.state.txt;
  		this._lastDiceSnapshotInput = { params, result, text: diceTxt };
  		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), {
-@@ -532,6 +540,7 @@ class DiceMain extends Component{
+@@ -539,6 +547,7 @@ class DiceMain extends Component{
  		}
  	}
  
@@ -41,7 +41,7 @@ index 1620780b..65ee83a5 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -571,30 +580,39 @@ class DiceMain extends Component{
+@@ -578,30 +587,39 @@ class DiceMain extends Component{
  			<div className='horosa-dice-page'>
  				<Row gutter={14} className='horosa-dice-layout'>
  					<Col span={17} className='horosa-dice-chart-panel'>

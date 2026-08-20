@@ -1,7 +1,7 @@
 import traceback
 import jsonpickle
 import cherrypy
-from astrostudy.perchart import PerChart
+from astrostudy.perchart import PerChart, push_classical_request, pop_classical_request
 from websrv.helper import enable_crossdomain
 from astrostudy.germany.midpoint import MidPoint
 from astrostudy.germany.houseframes import compute_house_frames
@@ -44,6 +44,7 @@ class GermanyAstroSrv:
     @cherrypy.tools.json_in()
     def midpoint(self):
         enable_crossdomain()
+        _cls_tokens = None   # 预初始化纪律:守卫早退/异常路径 pop(None)=no-op
         try:
             data = cherrypy.request.json
 
@@ -78,6 +79,9 @@ class GermanyAstroSrv:
             # 严格汉堡因子集(D2):true 时剔黑月/紫气(中点对+相位目标双面);缺省 False = 现状字节零回归。
             strict_factors = bool(data.get('strictFactors', False))
 
+            # [SURF-R2g] 古典复合临界区:此前本端点不 push → 中点/TNP/戴维森腿古典键零消费,
+            # 与同页 /chart 腿口径分叉。davison 的 PerChart(dav_data) 同区内(伙伴盘同口径)。
+            _cls_tokens = push_classical_request(data)
             perchart = PerChart(data)
             # uranian=True:中点对纳入 Asc/MC(+ include_tnp 时 8 TNP)、近中点单算、跨 0° 归一、TNP 作相位目标。
             midpoint = MidPoint(perchart, orb=orb, uranian=True, includeTnp=include_tnp, personalOrb=personal_orb,
@@ -130,6 +134,8 @@ class GermanyAstroSrv:
                     mids['davisonError'] = '{0}'.format(e)
 
             res = jsonpickle.encode(mids, unpicklable=False)
+            pop_classical_request(_cls_tokens)
+            _cls_tokens = None
             return res
         except Exception as e:
             traceback.print_exc()
@@ -138,3 +144,5 @@ class GermanyAstroSrv:
                 'detail': '{0}'.format(e),
             }
             return jsonpickle.encode(obj, unpicklable=False)
+        finally:
+            pop_classical_request(_cls_tokens)

@@ -93,17 +93,35 @@ def test_validate_geo_rejects_garbage_structured(data, frag):
     assert frag in err.get('detail', '')
 
 
-# ── webchartsrv finally 早退漏洞回归锁：_trip_orig 必须与 _terms_orig 同预初始化 ──
-# 历史 bug：守卫早退(invalid_date/invalid_coordinates)时 finally 引用未赋值的 _trip_orig
-# → UnboundLocalError → CherryPy HTML 500(结构化错误被吞)。源扫锁死配对。
-def test_webchartsrv_trip_orig_preinitialized_with_terms_orig():
+# ── webchartsrv finally 早退漏洞回归锁(0d 复合令牌版)：_cls_tokens 必须预初始化 ──
+# 历史 bug：守卫早退(invalid_date/invalid_coordinates)时 finally 引用未赋值的令牌变量
+# → UnboundLocalError → CherryPy HTML 500(结构化错误被吞)。0d 把五族散令牌收编为
+# push_classical_request/pop_classical_request 复合令牌,哨兵同步升级:三端点各有
+# 「_cls_tokens = None」预初始化 + push/pop 配对(pop 只在 finally,对 None 容忍)。
+def test_webchartsrv_classical_tokens_preinitialized_and_paired():
     import io
     import os
     src = io.open(os.path.join(os.path.dirname(__file__), '..', 'websrv', 'webchartsrv.py'), encoding='utf-8').read()
-    terms_inits = src.count('_terms_orig = None')
-    trip_inits = src.count('_trip_orig = None')
-    assert terms_inits >= 3, '端点结构变动:请同步本哨兵'
-    assert trip_inits >= terms_inits, '_trip_orig 预初始化缺失:守卫早退将 UnboundLocalError→500'
+    inits = src.count('_cls_tokens = None')
+    pushes = src.count('_cls_tokens = push_classical_request(')
+    pops = src.count('pop_classical_request(_cls_tokens)')
+    assert inits >= 3, '端点结构变动:_cls_tokens 预初始化缺失(守卫早退将 UnboundLocalError→500)'
+    assert pushes == inits, 'push 与预初始化数不配对:%s/%s' % (pushes, inits)
+    assert pops == inits, 'pop 与预初始化数不配对(漏 pop=锁泄漏全站卡死):%s/%s' % (pops, inits)
+    # 散令牌禁复活:端点不得绕过复合入口手写五族 push(顺序/配对纪律只在 helper 内维护)。
+    assert '_terms_orig = push_request_terms(' not in src, '散 push 复活:请走 push_classical_request'
+
+
+# ── webpredictsrv 16 端点装饰器覆盖锁(0d)：全部推运端点必须挂 @_with_classical ──
+# 病理:此前 16 端点零 push——界系/三分/宫头5°律/点公式/旺位异文在推运链全走默认。
+def test_webpredictsrv_all_endpoints_decorated():
+    import io
+    import os
+    src = io.open(os.path.join(os.path.dirname(__file__), '..', 'websrv', 'webpredictsrv.py'), encoding='utf-8').read()
+    json_in = src.count('@cherrypy.tools.json_in()')
+    decorated = src.count('@_with_classical')
+    assert json_in >= 16, '端点数异动:请同步本哨兵(%s)' % json_in
+    assert decorated == json_in, '有端点漏挂 @_with_classical(古典口径将静默走默认):%s/%s' % (decorated, json_in)
 
 
 # ── PerChart 冒烟：十进制串坐标出盘 == 数值坐标出盘（历史上前者直接崩）──────────

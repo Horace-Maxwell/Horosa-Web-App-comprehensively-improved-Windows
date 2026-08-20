@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianHouseFrames.js b/astrostudyui/src/components/germany/UranianHouseFrames.js
-index 478fcbc..aa9041e 100644
+index 36a86025..329a0751 100644
 --- a/astrostudyui/src/components/germany/UranianHouseFrames.js
 +++ b/astrostudyui/src/components/germany/UranianHouseFrames.js
 @@ -1,4 +1,7 @@
@@ -41,7 +41,7 @@ index 478fcbc..aa9041e 100644
  import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
  import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
  import { schoolToBackendParams } from './UranianSchools';
-@@ -150,6 +177,12 @@ export default class UranianHouseFrames extends Component {
+@@ -153,6 +180,12 @@ export default class UranianHouseFrames extends Component {
  		this._measure = this._measure.bind(this);
  		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.load(); this._measure(); } };
  	}
@@ -54,7 +54,7 @@ index 478fcbc..aa9041e 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this.load();
-@@ -188,11 +221,13 @@ export default class UranianHouseFrames extends Component {
+@@ -191,11 +224,13 @@ export default class UranianHouseFrames extends Component {
  			const m = (mid && mid[Constants.ResultKey]) ? mid[Constants.ResultKey] : mid;
  			const tnp = (m && m.tnp) || [];
  			const points = collectPoints(chartObj, tnp);

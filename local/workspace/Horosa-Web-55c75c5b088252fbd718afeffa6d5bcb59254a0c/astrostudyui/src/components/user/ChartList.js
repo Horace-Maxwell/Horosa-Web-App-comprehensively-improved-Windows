@@ -516,9 +516,14 @@ class ChartList extends Component{
 					if(bad.length){
 						message.warning(`恢复完成，${bad.length} 项失败（${bad.map((r)=>r.key).join('、')}）`);
 					}else{
-						message.success('全量恢复完成');
+						message.success('全量恢复完成，即将刷新页面…');
 					}
 					this.searchByName(this.state.name || '');
+					// [SURF-R5c] 恢复=raw 键直写:两全局仓已有读侧自愈,但其余 40+ settings 键的
+					// 已挂载组件旧 state 无从感知——整页刷新一次性对齐(1.2s 让 message 可见)。
+					if(typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function'){
+						setTimeout(()=>{ try{ window.location.reload(); }catch(e){ /* ignore */ } }, 1200);
+					}
 				},
 			});
 		}catch(e){

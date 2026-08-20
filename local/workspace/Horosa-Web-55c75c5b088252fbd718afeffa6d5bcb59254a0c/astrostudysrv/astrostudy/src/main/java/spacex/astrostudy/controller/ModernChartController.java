@@ -102,8 +102,17 @@ public class ModernChartController {
 		// Python webmodernsrv.relative 以 push_request_terms/trip + inner/outer 每盘键消费。
 		String[] classicalKeys = { "termsVariant", "geminiBoundEmended", "leoBoundFirst", "triplicity", "westNodeType", "sectBuffer", "lotReversal",
 				"houseCuspAdvance", "cazimiOrb", "combustOrb", "underBeamsOrb", "vocMode", "vocIncludeOuter", "starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
-				// 三个 0/1 流派开关(点公式文档序反转/交点入旺/土星旺20°)——与 astrostudycn ChartController 同步补齐
-				"lotsDocReverse", "nodeExaltation", "saturnExalt20" };
+				// 两个 0/1 流派开关(点公式文档序反转/交点入旺)——与 astrostudycn ChartController 同步补齐
+				"lotsDocReverse", "nodeExaltation",
+				// [F3] 天文口径/希腊点变体/尊贵计分/容许度体系/相位对象/自定义表体批——与两 Controller 全集同步
+				// (缺省请求体零变;Python webmodernsrv 复合临界区+inner/outer 每盘键消费)
+				"combustOwnChariotExempt", "westLilithType", "topocentricMoon", "stationMarking",
+				"hermeticLotsReversal", "erosConstruction", "lotFortuneVariant", "lotFatherCombustAlt", "lotProjection",
+				"dignityDebilities", "almutenTripMode", "planetaryHourMethod",
+				"orbSystem", "luminaryOrbBonus",
+				"aspectIncludeCusps", "aspectIncludeLots", "aspectIncludeMidpoints",
+				"solarReturnVariant", "returnLatitudeMode",
+				"customTermsDay", "customTermsNight", "userAyanT0", "userAyanDeg", "vulcanCalc" };
 		for(String key : classicalKeys) {
 			if(TransData.containsParam(key)) {
 				params.put(key, TransData.get(key));

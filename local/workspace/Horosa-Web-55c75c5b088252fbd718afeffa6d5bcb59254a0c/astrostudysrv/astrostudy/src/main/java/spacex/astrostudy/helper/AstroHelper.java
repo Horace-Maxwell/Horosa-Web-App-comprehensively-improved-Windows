@@ -249,6 +249,9 @@ public class AstroHelper {
 	}
 
 	public static Map<String, Object> getAstroExtraAnalysis(Map<String, Object> params){
+		// [SURF-1] 古典设置接入 analysis 的代次盐:白名单扩键+Python 临界区接活后,
+		// 旧 paramhash 磁盘缓存(不含古典键维度)必须整体失效,否则改档命中旧响应。
+		params.put("_v", "cls1");
 		return request(AstroExtraAnalysis, params);
 	}
 

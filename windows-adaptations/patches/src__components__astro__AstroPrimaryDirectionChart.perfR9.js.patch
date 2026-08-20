@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroPrimaryDirectionChart.js b/astrostudyui/src/components/astro/AstroPrimaryDirectionChart.js
-index 4ab8fcdf..0f5e63e9 100644
+index b2398bdb..e3e32575 100644
 --- a/astrostudyui/src/components/astro/AstroPrimaryDirectionChart.js
 +++ b/astrostudyui/src/components/astro/AstroPrimaryDirectionChart.js
-@@ -30,6 +30,7 @@ import {
- 	getPdTimeKeyLabel,
+@@ -31,6 +31,7 @@ import {
  } from '../../utils/primaryDirectionSync';
  import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
+ import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const Option = Select.Option;
  // 方法下拉的「无单维等价」占位档:表格 pane 的正交自由组合(投影×分宫)回显用,禁选。
-@@ -1041,6 +1042,9 @@ class AstroPrimaryDirectionChart extends Component{
+@@ -1055,6 +1056,9 @@ class AstroPrimaryDirectionChart extends Component{
  		}
  		this.setState({
  			dirChart: result,

@@ -108,6 +108,7 @@ import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS, ZERI_SUBTABS, recallS
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
 const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
+const TarotMain = lazyPreloadable(() => import(/* webpackChunkName: "tarot-main" */ '../components/tarot/TarotMain'), { order: 2, navKey: 'tarot' });
 const XuanShiMain = lazyPreloadable(() => import('../components/xuanshi/XuanShiMain'), { order: 3, navKey: 'xuanshi' });
 const AstrodataPage = lazyPreloadable(() => import('../components/astrodata/AstrodataPage'), { order: 3, navKey: 'astrodata' });
 // horosa_zeri_render_slice_v1(Windows-ahead,W3b-Z4):order 3→2 —— 择日是主导航技法页
@@ -165,6 +166,7 @@ const mainTabIcons = {
     六壬: <XQIcon name="liureng" />,
     遁甲: <XQIcon name="qimen" />,
     六爻: <XQIcon name="liuyao" />,
+    塔罗: <XQIcon name="tarot" />,
     太乙: <XQIcon name="taiyi" />,
     分至: <XQIcon name="solstice" />,
     节气盘: <XQIcon name="solstice" />,
@@ -203,7 +205,8 @@ const navigationPages = [
     { label: '太乙', key: 'taiyi', icon: 'taiyi', group: '卜', keywords: '太乙神数 太乙' },
     { label: '分至', key: 'jieqichart', icon: 'solstice', group: '卜', keywords: '节气盘 分至 二分二至' },
     { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜', keywords: '风水 纳气盘 八卦阳宅 阳宅 理气 罗盘 八宅 大游年 东西四宅 门主灶 玄空 玄空飞星 兼向 替卦 三合 十二长生 水法 立向 黄泉 拨砂 穿山 透地 分金 金锁玉关 过路阴阳 乾坤国宝 龙门八局 紫白 紫白飞星 辅星水法 翻卦 净阴净阳 纳甲 玄空大卦 六十四卦 卦运 形势 峦头 龙穴砂水向 择日 造命 太岁 三煞 岁破 坐向 元运 玄空六法 谈养吾 零正 雌雄 金龙 挨星 城门 命理派 以命配宅 罗盘 罗经 三针 正针 中针 缝针 天池 圆图 补龙 相主 定穴 倒杖 五黄分运 兼向度界 大玄空 单盘挨星 正神 零神 父母星 合局 反局 拨水入零堂 水破令星 上山下水 水龙 平洋 平洋龙 坐水骑龙 挟龙倚水 向水攀龙 息道 漏道 干水 支水 湖荡 曲水朝堂 化煞 改造化煞 形煞 气煞 枪煞 天堑煞 反弓煞 尖射煞 孤阳煞 孤阴煞 辐射煞 廉贞煞 补偏救弊 镇物 石敢当 葫芦 六帝钱 黄黑煞 斗牛煞 交剑煞 紫黄毒药 阴神满地 令星煞 阳宅判断 峦头断 外六事 内六事 峤星 客星 飞太岁 选宅 室内凶局 用事 紫白择日 斗首 元辰 武财 廉子 贪狼 破鬼' },
-    { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法 地占 天文地占 护盾盘 判官 调和者 16图形 盾牌盘 四片盘 Hakata 异或表盘 Sikidy 塔罗 tarot 韦特 RWS 马赛 托特 Thoth 雷诺曼 Lenormand 埃及塔罗 扑克占卜 大牌 小牌 权杖 圣杯 宝剑 星币 凯尔特十字 皇极轨策 轨策 策数 轨数 万物数 周易数 梅花易数 体用 互卦 三要十应 大定神数 元会运世 邵子 小成图 小成圖 股市卦 飞宫小奇门 小奇门 飞宫 小六壬 掌诀 大安 留连 速喜 赤口 小吉 空亡 灵棋经 灵棋 靈棋 十二棋 灵棋卜 掷棋 棋卦 东方朔' },
+    { label: '塔罗', key: 'tarot', icon: 'tarot', group: '卜', keywords: '塔罗 tarot 韦特 RWS 马赛 托特 Thoth 雷诺曼 Lenormand 埃及塔罗 扑克占卜 大牌 小牌 权杖 圣杯 宝剑 星币 凯尔特十字 牌阵 日课 逆位 宫廷牌 定局 计时' },
+    { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法 地占 天文地占 护盾盘 判官 调和者 16图形 盾牌盘 四片盘 Hakata 异或表盘 Sikidy 皇极轨策 轨策 策数 轨数 万物数 周易数 梅花易数 体用 互卦 三要十应 大定神数 元会运世 邵子 小成图 小成圖 股市卦 飞宫小奇门 小奇门 飞宫 小六壬 掌诀 大安 留连 速喜 赤口 小吉 空亡 灵棋经 灵棋 靈棋 十二棋 灵棋卜 掷棋 棋卦 东方朔' },
     { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具', keywords: 'AI 分析 挂载 报告 大模型' },
     { label: '天文馆', key: 'planetarium', icon: 'globe', group: '工具', keywords: '天文馆 星空 观星 星图 babylon' },
     { label: '黄历', key: 'calendar', icon: 'calendar', group: '工具', keywords: '黄历 农历 老黄历 择日 宜忌 节气' },
@@ -266,6 +269,7 @@ const fullHeightWorkspaceTabs = new Set([
     'taiyi',
     'jieqichart',
     'fengshui',
+    'tarot',
     'cnyibu',
     'zeri',
     'aianalysis',
@@ -450,7 +454,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             setTimeout(()=>{
                 if(!(predictHook[key] && predictHook[key].fun)){ return; }
                 if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
-                    || key === 'otherbu' || key === 'cnyibu' || key === 'germanytech'
+                    || key === 'otherbu' || key === 'cnyibu' || key === 'tarot' || key === 'germanytech'
                     || key === 'guolao' || key === 'hellenastro'  || key === 'astrochart'
                     || key === 'locastro' || key === 'admintools' || key === 'astrochart3D'
                     || key === 'planetarium'
@@ -707,6 +711,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         chartDisplay={chartDisplay}
                         chartStyle={chartStyle}
                         wheelArt={wheelArt}
+                        planetListStyle={app.planetListStyle}
                         aspects={aspects}
                         planetDisplay={planetDisplay}
 	                        lotsDisplay={lotsDisplay}
@@ -731,6 +736,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                   <FreezeInactive active={activeMainTab === "direction"}>
 	                    <AstroDirectMain
 	                    wheelArt={wheelArt}
+	                    planetListStyle={app.planetListStyle}
                         height={height} 
                         fields={fields}
                         fieldsAry={aryfields}
@@ -963,6 +969,18 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         height={height}
                         fields={fields}
                         fieldsAry={aryfields}
+                        dispatch={dispatch}
+                    />
+                  </FreezeInactive>
+                </TabPane>
+
+                <TabPane tab={mainTab('塔罗')} key="tarot">
+                  <FreezeInactive active={activeMainTab === "tarot"}>
+                    <TarotMain
+                        value={chartObj}
+                        height={height}
+                        fields={fields}
+                        hook={predictHook.tarot}
                         dispatch={dispatch}
                     />
                   </FreezeInactive>
@@ -1494,7 +1512,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
             <Drawer
                 title='星盘设置'
-                width={720}
+                className='horosa-chart-settings-drawer'
+                width={760}
                 placement="left"
                 onClose={closeDrawer}
                 maskClosable={true}
@@ -1514,6 +1533,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     showAstroMeaning={showAstroMeaning}
                     showOnlyRulExaltReception={showOnlyRulExaltReception}
                     wheelArt={wheelArt}
+                    planetListStyle={app.planetListStyle}
                     termsVariant={fields && fields.termsVariant ? fields.termsVariant.value : 0}
                     voidClassical={voidClassical}
                     fields={fields}

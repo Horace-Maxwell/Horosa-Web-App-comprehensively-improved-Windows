@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import {splitDegree, whichTerm, convertLatToStr, convertLonToStr, getDignityText, getObjectsText} from './AstroHelper';
+import {splitDegree, whichTerm, convertLatToStr, convertLonToStr, getDignityText, getObjectsText, getObject} from './AstroHelper';
 import {randomStr, detectOS, distanceInCircleAbs, creatTooltip, setupFloatingTooltip} from '../../utils/helper';
 import {drawTextV, drawTextH} from '../graph/GraphHelper';
 import { appendAstroMeaningTips, buildSignMeaningTip, buildAspectMeaningTip } from './AstroMeaningData';
@@ -1013,6 +1013,8 @@ export default class AstroChartCircle {
 		let samecolorwithsign = (flags & AstroConst.CHART_PLANETCOLORWITHSIGN) === 0 ? false : true;
 		let txtforward = (flags & AstroConst.CHART_TXTPLANETFORWARD) === 0 ? false : true;
 		let txtplanet = (flags & AstroConst.CHART_TXTPLANET) === 0 ? false : true;
+		// [WP-9] 符号盘(隐度数):强制关掉行星旁度数文本,只留符号(掩码默认不含=零回归)。
+		if((flags & AstroConst.CHART_GLYPH_ONLY) !== 0){ txtplanet = false; }
 		let degSet = [];
 		const isWideChart = r >= this.rThreshold;
 		const planetSymbolFont = txtplanet ? (isWideChart ? 30 : 25) : (isWideChart ? 43 : 36);
@@ -1094,11 +1096,17 @@ export default class AstroChartCircle {
 				startxt[5] = '';
 				startxt[6] = degs[1] + "'";	
 			}
-			const hasRetrograde = pnt.lonspeed < 0;
-			if(hasRetrograde){
+			// [WP-2] 留驻 S/D 标:stationMarking 开启时后端产出 stationState('S' 留驻带内/'D' 顺行留后初段),
+			// 优先于 R 标同槽位显示(留驻中速度可能仍微负,双标并存会误读);默认 off=null 走原 R 逻辑零回归。
+			const stationState = pnt.stationState === 'S' || pnt.stationState === 'D' ? pnt.stationState : null;
+			const hasRetrograde = pnt.lonspeed < 0 && !stationState;
+			if(stationState){
+				startxt.push(stationState);
+			}else if(hasRetrograde){
 				startxt.push(AstroText.AstroMsg['Retrograde']);
 			}
-			const retrogradeTextIndex = hasRetrograde ? (txtplanet ? 7 : 2) : -1;
+			const retrogradeTextIndex = (stationState || hasRetrograde) ? (txtplanet ? 7 : 2) : -1;
+			const stationTextValue = stationState;
 			const degreeTextIndex = txtplanet ? 2 : -1;
 			const signTextIndex = txtplanet ? 4 : -1;
 			const minuteTextIndex = txtplanet ? 6 : -1;
@@ -1116,7 +1124,11 @@ export default class AstroChartCircle {
 				.attr("dominant-baseline","central")
 				.attr("text-anchor", "middle")
 				.attr('class', function(d, idx){
-					return idx === retrogradeTextIndex ? 'horosa-astro-retrograde-symbol' : null;
+					if(idx !== retrogradeTextIndex){ return null; }
+					// [WP-2] 留驻标复用逆行槽位与字号,色分两类(app.less :global 定义,S=amber/D=green)。
+					if(stationTextValue === 'S'){ return 'horosa-astro-station-s'; }
+					if(stationTextValue === 'D'){ return 'horosa-astro-station-d'; }
+					return 'horosa-astro-retrograde-symbol';
 				})
 				.attr('font-size', function(d, idx){
 					if(idx === retrogradeTextIndex){
@@ -1139,6 +1151,10 @@ export default class AstroChartCircle {
 				})
 				.attr('stroke', function(d, idx){
 					if(idx === retrogradeTextIndex){
+						// [WP-2] 留驻标分色:S=amber(留驻警示)/D=green(回顺);R 保持原逆行色。
+						// 字面量色(盘面 d3 惯例;标叠盘面底,双主题同值可读——photo-space 同论证)。
+						if(stationTextValue === 'S'){ return '#c9973a'; }
+						if(stationTextValue === 'D'){ return '#3f9a5f'; }
 						return RETROGRADE_SYMBOL_COLOR;
 					}
 					if(idx === minuteTextIndex){
@@ -1152,6 +1168,8 @@ export default class AstroChartCircle {
 				})
 				.attr('fill', function(d, idx){
 					if(idx === retrogradeTextIndex){
+						if(stationTextValue === 'S'){ return '#c9973a'; }
+						if(stationTextValue === 'D'){ return '#3f9a5f'; }
 						return RETROGRADE_SYMBOL_COLOR;
 					}
 					if(idx === minuteTextIndex){
@@ -1160,6 +1178,11 @@ export default class AstroChartCircle {
 					return null;
 				})
 				.attr('font-family', function(d,idx){
+					// [WP-2] 🔴 S/D 是拉丁字母,绝不能走 AstroChartFont(glyph 字体把拉丁字符映射成占星符=乱码,
+					// 「Ibclxc°」教训同类);仅真 R 逆行符保留 glyph 字体。
+					if(idx === retrogradeTextIndex && stationTextValue){
+						return AstroConst.NormalFont;
+					}
 					if(idx === 0 || idx === 4 || idx === retrogradeTextIndex || (startxt.length === 3 && idx === 2)){
 						return AstroConst.AstroChartFont;
 					}else{
@@ -1577,6 +1600,10 @@ export default class AstroChartCircle {
 	
 		let txtsu28 = (flags & AstroConst.CHART_SU28_TEXT) === 0 ? false : true;
 		let chartres = this.drawInnerChartWithOrgXY(topgroup, chartObj, orgx, orgy, houseR, rStep, flags, planetDisplay, txtsu28, keyplanets);
+		// [WP-9] 盘心显示(行星时·日主星 / 赤经上升 RAMC)+角宫三元组徽:默认掩码不含=零渲染零回归。
+		// 盘心字画在 svg 根(屏幕系):topgroup 带 translate+rotate(house1-90),进去会歪。三元组进 topgroup 与宫头线同几何。
+		this.drawCenterExtras(svg, chartObj, orgx, orgy, flags);
+		this.drawAngularTriads(topgroup, chartObj, radius, flags);
 		this.solidifyText(svg);
 		let resobj = {
 			svg: svg,
@@ -1584,7 +1611,125 @@ export default class AstroChartCircle {
 		}
 		return resobj;
 	}
-	
+
+	// [WP-9] 盘心两行小字:时主/日主(后端 timerStar/dayerStar 现成)+RAMC(MC 赤经现成)。
+	drawCenterExtras(svgRoot, chartObj, orgx, orgy, flags){
+		const wantHours = (flags & AstroConst.CHART_CENTER_HOURS) !== 0;
+		const wantRamc = (flags & AstroConst.CHART_CENTER_RAMC) !== 0;
+		if(!wantHours && !wantRamc){ return; }
+		const chart = (chartObj && chartObj.chart) || {};
+		const lines = [];
+		if(wantHours && (chart.timerStar || chart.dayerStar)){
+			const cn = (id)=> (AstroText.AstroMsgCN && AstroText.AstroMsgCN[id]) || id || '—';
+			lines.push(`时主 ${cn(chart.timerStar)} · 日主 ${cn(chart.dayerStar)}`);
+		}
+		if(wantRamc){
+			// [SURF-4] RAMC=天顶赤经:直读后端宫头赤经(每宫头随盘下发 ra)。旧实现两病:
+			// ①判据 Number(params.zodiacal)===0 而回显是字符串 'Tropical'→Number=NaN 恒假
+			// →两种黄道制都静默不显示;②前端三角换算多此一举。
+			// [SURF-R1b] 恒星制回落不显:后端 sweHouses 对恒星制宫头把「恒星黄经」当回归黄经做
+			// 黄→赤旋转,下发的 ra 是差≈ayanamsa 赤道投影(~24°)的伪赤经——错值比缺行更糟,
+			// 直读只在回归制成立(pytest test_house_ra_sidereal_vs_tropical_divergence 锁两制分岔;
+			// 后端治本需全量排查 su28/_houseByRa 等 ra 消费面,另案)。
+			const _zs = `${(chartObj && chartObj.params && chartObj.params.zodiacal) != null ? chartObj.params.zodiacal : ''}`;
+			const _sid = _zs === AstroConst.SIDEREAL || _zs === '1';
+			const h10 = _sid ? null : this.getHouse(chartObj, AstroConst.HOUSE10);
+			let ra = h10 && Number.isFinite(Number(h10.ra)) ? Number(h10.ra) : NaN;
+			if(!Number.isFinite(ra)){
+				// 老响应无 ra 字段的兜底:回归黄经三角换算(tanα=tanλ·cosε);恒星黄经差 ayanamsa,诚实跳过。
+				const mc = !_sid ? getObject(chartObj, AstroConst.MC) : null;
+				const mlon = mc ? Number(mc.lon) : NaN;
+				if(Number.isFinite(mlon)){
+					const rad = Math.PI / 180;
+					const eps = 23.4367 * rad;
+					ra = Math.atan2(Math.sin(mlon * rad) * Math.cos(eps), Math.cos(mlon * rad)) / rad;
+				}
+			}
+			if(Number.isFinite(ra)){
+				ra = ((ra % 360) + 360) % 360;
+				let d = Math.floor(ra);
+				let m = Math.round((ra - d) * 60);
+				if(m === 60){ d = (d + 1) % 360; m = 0; }
+				lines.push(`RAMC ${d}˚${m < 10 ? '0' : ''}${m}′`);
+			}
+		}
+		if(!lines.length){ return; }
+		const g = svgRoot.append('g');
+		lines.forEach((t, i)=>{
+			g.append('text')
+				.attr('x', orgx).attr('y', orgy - 7 + i * 15)
+				.attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+				.attr('font-family', AstroConst.NormalFont).attr('font-size', 11)
+				.attr('fill', AstroConst.AstroColor.Stroke).attr('stroke', 'none')
+				.attr('opacity', 0.85)
+				.text(t);
+		});
+	}
+
+	// [WP-9][SURF-4] 角宫三元组徽:1/4/7/10 四角宫外侧胶囊,内容=该宫头星座的**三分主星组**
+	// (resolveTripletForSign 单源,吃三分制档+昼夜换序——与 label 语义对齐;旧版画的是
+	// 庙主/定位星/界主硬编码表,名不副实且不吃 triplicity 设置)。
+	drawAngularTriads(topgroup, chartObj, radius, flags){
+		if((flags & AstroConst.CHART_ANGULAR_TRIAD) === 0){ return; }
+		// [R2-16] 小画布(辅盘缩略/多盘格)胶囊出界且三符不可读——诚实跳过。
+		if(!Number.isFinite(radius) || radius < 240){ return; }
+		const chart = (chartObj && chartObj.chart) || {};
+		const houses = Array.isArray(chart.houses) ? chart.houses : [];
+		if(houses.length < 12){ return; }
+		let resolveTripletForSign = null;
+		try{
+			resolveTripletForSign = require('../../utils/triplicityRulers').resolveTripletForSign;
+		}catch(e){ resolveTripletForSign = null; }
+		if(!resolveTripletForSign){ return; }
+		const tripSystem = (chartObj && chartObj.params && chartObj.params.triplicity) || 'Dorothean';
+		const isDiurnal = !!(chartObj && chartObj.chart && chartObj.chart.isDiurnal);
+		// [SURF-4] 病根修:后端 houses 按黄经排过序(perchart.getChartObj houses.sort(key=takeLon)),
+		// 位置下标 [0]/[9]/[6]/[3] 只有 ~1/3 盘碰巧是角宫——必须按 id 查表(同类 :1736/:1804 先例)。
+		const angleHouses = [AstroConst.HOUSE1, AstroConst.HOUSE10, AstroConst.HOUSE7, AstroConst.HOUSE4]
+			.map((id)=> this.getHouse(chartObj, id)).filter(Boolean);
+		const house1 = this.getHouse(chartObj, AstroConst.HOUSE1);
+		const globalRot = house1 && Number.isFinite(Number(house1.lon)) ? Number(house1.lon) - 90 : 0;
+		const g = topgroup.append('g');
+		angleHouses.forEach((h)=>{
+			const lon = Number(h.lon);
+			if(!Number.isFinite(lon)){ return; }
+			const glyphs = (resolveTripletForSign(h.sign, tripSystem, isDiurnal) || [])
+				.map((id)=> (AstroText.AstroMsg && AstroText.AstroMsg[id]) || '')
+				.filter((s)=> s);   // 空字形串过滤放 map 后(旧版序反=可能画空胶囊)
+			if(!glyphs.length){ return; }
+			// 与宫头线同几何(x=-R·sin(lon)/y=-R·cos(lon),黄经系;topgroup translate+rotate(house1-90) 转屏幕位)。
+			const lonrad = lon * Math.PI / 180;
+			const bR = radius + 27;
+			const bx = -bR * Math.sin(lonrad);
+			const by = -bR * Math.cos(lonrad);
+			// [SURF-4] 朝向=切向排布(用户规格:胶囊长轴 ⊥ 圆心→徽记的半径):rotate 到 φ+90°(φ=半径方向角)。
+			// 旋转不变性保证 topgroup 全局旋转后仍切向;屏幕终角落在下半圈再 +180° 防文字倒置(不破坏垂直性)。
+			let rot = Math.atan2(by, bx) * 180 / Math.PI + 90;
+			const screenAng = (((rot + globalRot) % 360) + 360) % 360;
+			if(screenAng > 90 && screenAng < 270){ rot += 180; }
+			// 切向排布的径向占用=胶囊半高 9(而非半宽 24.5),bR+9 ≤ 画布余量,四轴处不再裁切。
+			const capW = glyphs.length * 13 + 10;
+			g.append('rect')
+				.attr('x', bx - capW / 2).attr('y', by - 9)
+				.attr('width', capW).attr('height', 18)
+				.attr('rx', 9).attr('ry', 9)
+				.attr('fill', 'rgba(199,163,98,.10)')
+				.attr('stroke', AstroConst.AstroColor.Stroke).attr('stroke-width', 0.6).attr('opacity', 0.9)
+				.attr('transform', `rotate(${rot}, ${bx}, ${by})`);
+			glyphs.forEach((gl, i)=>{
+				const tx = bx + (i - (glyphs.length - 1) / 2) * 13;
+				g.append('text')
+					.attr('x', tx).attr('y', by)
+					.attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+					.attr('font-family', AstroConst.AstroChartFont).attr('font-size', 11)
+					.attr('fill', AstroConst.AstroColor.Stroke).attr('stroke', 'none')
+					.attr('opacity', 0.95)
+					.attr('transform', `rotate(${rot}, ${bx}, ${by})`)
+					.text(gl);
+			});
+		});
+	}
+
 	drawOuterSigns(chartObj, topgroup, radius, rStep, flags, isDiurnal, termHighlight){
 		const profile = this.getChartStyleProfile();
 		const outerBandStep = ['cusp', 'zodiac'].indexOf(profile.outerMode) >= 0 ? rStep + 8 : rStep;
@@ -1631,6 +1776,8 @@ export default class AstroChartCircle {
 		let starStep = Math.max(132, Math.min(188, Math.round(houseR * 0.45)));
 		let innerHouseStep = Math.max(24, Math.min(30, Math.round(rStep * 0.9)));
 		let txtplanet = (flags & AstroConst.CHART_TXTPLANET) === 0 ? false : true;
+		// [WP-9] 符号盘(隐度数):强制关掉行星旁度数文本,只留符号(掩码默认不含=零回归)。
+		if((flags & AstroConst.CHART_GLYPH_ONLY) !== 0){ txtplanet = false; }
 		if(txtplanet){
 			if(starsR < this.rThreshold){
 				starStep = 86
@@ -2039,6 +2186,8 @@ export default class AstroChartCircle {
 		objectsAry.sort((a,b)=>{ return a.lon - b.lon});
 		let starStep = 100;
 		let txtplanet = (flags & AstroConst.CHART_TXTPLANET) === 0 ? false : true;
+		// [WP-9] 符号盘(隐度数):强制关掉行星旁度数文本,只留符号(掩码默认不含=零回归)。
+		if((flags & AstroConst.CHART_GLYPH_ONLY) !== 0){ txtplanet = false; }
 	
 		let natalchart = chartObj.dirChart.natalChart ? chartObj.dirChart.natalChart : chartObj.natualChart;
 		if(chartObj.dirChart.dirChart && chartObj.inverse){

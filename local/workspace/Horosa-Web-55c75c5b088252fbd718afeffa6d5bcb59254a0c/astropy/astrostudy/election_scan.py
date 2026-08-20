@@ -1971,11 +1971,14 @@ def scan(data):
     ctx._syz_hi = jd1
 
     from astrostudy import perchart
-    terms_token = perchart.push_request_terms(
-        ctx.eff.get('termsVariant'),
-        bool(data.get('leoBoundFirst')),
-        bool(data.get('geminiBoundEmended')))
-    trip_token = perchart.push_request_trip(ctx.eff.get('triplicity'))
+    # [F8] 收编复合临界区(七族全:terms 含自定义表体/scores/orb 等——旧散 push 只 2 族,
+    # dignityDebilities/orbSystem 等发了不生效);termsVariant/triplicity 保持 eff 优先语义。
+    _cls_req = dict(data) if isinstance(data, dict) else {}
+    if ctx.eff.get('termsVariant') is not None:
+        _cls_req['termsVariant'] = ctx.eff.get('termsVariant')
+    if ctx.eff.get('triplicity') is not None:
+        _cls_req['triplicity'] = ctx.eff.get('triplicity')
+    cls_tokens = perchart.push_classical_request(_cls_req)
     try:
         ivs = _eval_node(tree, ctx, (jd0, jd1))
     except (ValueError, TypeError, KeyError) as exc:
@@ -1983,8 +1986,7 @@ def scan(data):
         # 不让它冒成端点层的 internal(前端要能把 detail 直给用户)。
         return {'err': 'invalid_conditions', 'detail': str(exc)}
     finally:
-        perchart.pop_request_trip(trip_token)
-        perchart.pop_request_terms(terms_token)
+        perchart.pop_classical_request(cls_tokens)
 
     ivs = norm_intervals(ivs)
     truncated = len(ivs) > MAX_INTERVALS
@@ -2057,16 +2059,17 @@ def explain(data):
     ctx._syz_lo = jd - 40.0
     ctx._syz_hi = jd + 1.0
     from astrostudy import perchart as _pch
-    terms_token = _pch.push_request_terms(
-        ctx.eff.get('termsVariant'),
-        bool(data.get('leoBoundFirst')),
-        bool(data.get('geminiBoundEmended')))
-    trip_token = _pch.push_request_trip(ctx.eff.get('triplicity'))
+    # [F8] 同扫描端:复合临界区七族全。
+    _cls_req = dict(data) if isinstance(data, dict) else {}
+    if ctx.eff.get('termsVariant') is not None:
+        _cls_req['termsVariant'] = ctx.eff.get('termsVariant')
+    if ctx.eff.get('triplicity') is not None:
+        _cls_req['triplicity'] = ctx.eff.get('triplicity')
+    cls_tokens = _pch.push_classical_request(_cls_req)
     try:
         node = _ext.explain_tree(tree, ctx, jd)
     except (ValueError, TypeError, KeyError) as exc:
         return {'err': 'invalid_conditions', 'detail': str(exc)}
     finally:
-        _pch.pop_request_trip(trip_token)
-        _pch.pop_request_terms(terms_token)
+        _pch.pop_classical_request(cls_tokens)
     return {'t': t, 'tree': node}

@@ -279,7 +279,8 @@ function buildFallbackRunYearByYearDiff(birth, guaFields){
 	};
 }
 
-function resolveDisplayRunYear(runyear, birth, guaFields){
+// [issue#74] export 供金标直测(与六壬同律,见 LiuRengMain.resolveDisplayRunYear 注)。
+export function resolveDisplayRunYear(runyear, birth, guaFields){
 	const fallback = buildFallbackRunYearByYearDiff(birth, guaFields);
 	if(!fallback){
 		return runyear;
@@ -1122,9 +1123,15 @@ class JinKouMain extends Component{
 		if(this.state.calcBirth && nextGender !== undefined && nextGender !== prevGender){
 			next.calcBirth = { ...this.state.calcBirth, gender: { ...(this.state.calcBirth.gender || {}), value: nextGender } };
 		}
+		// [issue#74] 出生档变更即作废旧行年(与六壬同律):旧档 runyear(含 birthGanZi)滞留 state
+		// 会被 resolveDisplayRunYear 的 ±1 岁容差放行、且 merged 展开保留旧 birthGanZi →
+		// 快照/旬法吃旧档。清空 → 年差法 fallback 即刻接管,requestRunYear 归来再精修。
+		next.runyear = null;
 		this.setState(next, ()=>{
-			// 行年男顺女逆随性别翻转 → 重取行年并重存挂载快照（与流派 setter 同律）。
-			if(next.calcBirth && this.state.liureng){
+			// 行年男顺女逆随性别翻转 → 重取行年并重存挂载快照(与流派 setter 同律)。
+			// [issue#74] 条件放宽到「改生日也重取」:清空后年差法 fallback 只有 age/year,
+			// 旬法的 birthGanZi(生年干支)唯后端能给——只在性别变时重取则改生日后旬法段恒空。
+			if(this.state.liureng){
 				this.requestRunYear();
 			}
 		});
@@ -1187,9 +1194,12 @@ class JinKouMain extends Component{
 	}
 
 	// 组装显示用金口诀数据：流派非默认时以本地确定性重算为准(后端不解流派)；默认时走后端盘(零回归)。
-	assembleJinKouData(liureng, backendPan){
+	assembleJinKouData(liureng, backendPan, runYearOverride){
 		// 签名 = 装配实际消费的全部输入(liureng/backendPan 引用 + 地分/贵神/昼夜/月将/占时/三流派/盘式)。
 		// 全等 → 复用上次结果(同输入必同输出,引用稳定);任一变 → 真重算。切右栏 tab 不动这些 → 跳过引擎重跑。
+		// [issue#74] runYearOverride:快照路径传收口后的行年(state.runyear 裸拍是挂载恒旧的病根,
+		// 收口只堵文本参不堵此处=旬法/本命/虚岁三键绕道);缺省(render 路径)沿用 state。
+		const effRunYear = runYearOverride !== undefined ? runYearOverride : this.state.runyear;
 		const guardOn = chartDrawGuardEnabled();
 		const sigArr = [
 			liureng, backendPan,
@@ -1202,8 +1212,8 @@ class JinKouMain extends Component{
 			// 专题起式与行年（新增消费输入，须进签名否则切专题不重算）
 			this.state.topicKey, this.state.shiJianKind, this.state.askKey, this.state.timeScope,
 			// 行年旬法只吃这两个派生值(非整个 runyear 对象),避免每轮取回都判失效
-			this.state.runyear ? this.state.runyear.birthGanZi : '',
-			this.state.runyear ? this.state.runyear.age : '',
+			effRunYear ? effRunYear.birthGanZi : '',
+			effRunYear ? effRunYear.age : '',
 		];
 		if(guardOn && this._jinkouDataCache && sameSigArr(this._jinkouDataCache.sig, sigArr)){
 			return this._jinkouDataCache.data;
@@ -1231,12 +1241,12 @@ class JinKouMain extends Component{
 				shiJianKind: this.state.shiJianKind,
 				askKey: this.state.askKey,
 				timeScope: this.state.timeScope,
-				benMing: deriveBenMingFromRunYear(this.state.runyear),
+				benMing: deriveBenMingFromRunYear(effRunYear),
 				// 金口诀行年（旬法）：生年干支取自问测人档（runyear 留档），虚岁优先取左栏输入，
 				// 未填则回落既有干支流年之岁数；与既有干支流年两法并存互不覆盖。
-				birthGanZi: this.state.runyear ? this.state.runyear.birthGanZi : '',
+				birthGanZi: effRunYear ? effRunYear.birthGanZi : '',
 				gender: appliedBirthForCalc && appliedBirthForCalc.gender ? appliedBirthForCalc.gender.value : 1,
-				age: deriveXuSuiFromRunYear(this.state.runyear),
+				age: deriveXuSuiFromRunYear(effRunYear),
 			});
 			const isDefault = (this.state.schoolYueJiang || 'zhongqi') === 'zhongqi'
 				&& (this.state.schoolGuiTable || 'shiwu') === 'shiwu'
@@ -1425,12 +1435,18 @@ class JinKouMain extends Component{
 			lon: finalLon,
 			lat: finalLat,
 		};
-		const jinkouData = this.assembleJinKouData(liureng, jinkouPan || this.state.jinkouPan);
 		const appliedBirth = getAppliedBirth(this.state);
+		// [issue#74] 行年单点收口(与六壬 saveLiuRengAISnapshot 同律):四个调用点全传
+		// this.state.runyear 裸拍,起课回调在 requestRunYear(异步)归来前即产快照 → 挂载行年
+		// 恒旧一拍;而 refresh-event 路径(handleSnapshotRefreshRequest)一直过 resolveDisplayRunYear
+		// → 两路径不同构。此处与其同构收口,懒存物化的快照第一版即正确。
+		// 收口值同时喂 assembleJinKouData(旬法/本命/虚岁三键的第二消费路径,只堵文本参会绕道)。
+		const appliedRunYear = resolveDisplayRunYear(runyear, appliedBirth, flds);
+		const jinkouData = this.assembleJinKouData(liureng, jinkouPan || this.state.jinkouPan, appliedRunYear);
 		saveModuleAISnapshotLazy('jinkou', ()=>buildJinKouSnapshotText(
 			saveParams,
 			liureng,
-			runyear,
+			appliedRunYear,
 			jinkouData,
 			wuxing,
 			guirengType,
@@ -1463,7 +1479,7 @@ class JinKouMain extends Component{
 			const params = flds ? this.genGodsParams(flds) : null;
 			const appliedBirth = getAppliedBirth(this.state);
 			const displayRunYear = resolveDisplayRunYear(this.state.runyear, appliedBirth, flds);
-			const jinkouData = this.assembleJinKouData(liureng, this.state.jinkouPan);
+			const jinkouData = this.assembleJinKouData(liureng, this.state.jinkouPan, displayRunYear);
 			snapshotText = `${buildJinKouSnapshotText(
 				params,
 				liureng,

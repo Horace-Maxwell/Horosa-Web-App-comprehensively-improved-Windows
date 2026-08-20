@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/election/ElectionMain.js b/astrostudyui/src/components/election/ElectionMain.js
-index 3eb35cf..ec24cf1 100644
+index 53ceb658..c0c06287 100644
 --- a/astrostudyui/src/components/election/ElectionMain.js
 +++ b/astrostudyui/src/components/election/ElectionMain.js
-@@ -20,6 +20,7 @@ import { ELECTION_PARAM_SPEC, calibreOverrideCount, electionCalibreDefaults, res
+@@ -21,6 +21,7 @@ import { ELECTION_PARAM_SPEC, calibreOverrideCount, electionCalibreDefaults, res
  import { fetchReturnSet, fetchPdHitsNearElection } from '../../divination/election/returnCharts';
  import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
  import moment from 'moment';
@@ -10,7 +10,7 @@ index 3eb35cf..ec24cf1 100644
  
  const Option = XQSelect.Option;
  
-@@ -473,6 +474,13 @@ class ElectionMain extends Component{
+@@ -477,6 +478,13 @@ class ElectionMain extends Component{
  	}
  
  	renderRight({ chart, extra }){

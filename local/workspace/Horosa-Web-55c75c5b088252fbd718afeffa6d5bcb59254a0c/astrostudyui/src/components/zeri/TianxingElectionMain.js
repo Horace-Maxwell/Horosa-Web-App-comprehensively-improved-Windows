@@ -5,7 +5,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import DateTime from '../comp/DateTime';
 import { convertLonToStr, convertLatToStr } from '../astro/AstroHelper';
-import { classicalGlobalValue } from '../../utils/classicalChartGlobals';
+import { getClassicalChartGlobals } from '../../utils/classicalChartGlobals';
+import { natalClassicalParams } from '../astro/AstroExtraCommon';
 import AstroInfo from '../astro/AstroInfo';
 import AstroAspect from '../astro/AstroAspect';
 import AstroPlanet from '../astro/AstroPlanet';
@@ -155,9 +156,12 @@ export default class TianxingElectionMain extends Component{
 			hsys: Number(cfg.hsys || 0),
 			zodiacal: Number(cfg.zodiacal || 0),
 			siderealAyanamsa: cfg.siderealAyanamsa || undefined,
-			// 落宫宫头前移随全局设置透传(0/1/3/5;引擎缺省 5=主排盘同律,整宫制引擎侧豁免)——
-			// 宫位类判定与页面「行星落宫」显示一致(用户实抓 Placidus 下 5° 窗内不一致)。
-			houseCuspAdvance: classicalGlobalValue('houseCuspAdvance'),
+			// [0d/0g] 古典口径全段随全局设置透传(此前只带 houseCuspAdvance 一键——界系/三分/三态阈/
+			// 空亡等在扫描侧全走默认,与主排盘口径分叉)。全局仓全量值经请求体单源判非默认+键名映射;
+			// 默认态恒 {}=零回归(引擎缺省=主排盘同律;此前 houseCuspAdvance 恒发默认 5,归正为默认不发)。
+			// [SURF-R5t] 并入页面 siderealAyanamsa:全局仓无此键,R4u user 三元段判 p.siderealAyanamsa
+			// ==='user' 在纯仓形态恒不触发 → 'user' 档扫描请求缺 T0/Deg 静默回落 lahiri,与主排盘分叉。
+			...natalClassicalParams({ ...getClassicalChartGlobals(), siderealAyanamsa: cfg.siderealAyanamsa }),
 			ad: 1,
 			precision: 'minute',
 		};

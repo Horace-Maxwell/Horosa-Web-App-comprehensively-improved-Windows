@@ -67,7 +67,13 @@ class LingQiMain extends Component {
 		this.doCast = this.doCast.bind(this);
 	}
 	componentDidMount() {
-		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
+		// [issue#74 同类] 农历桥契约履约:域外年首访 deriveNongliUniversalSync 返 null,首版快照
+		// 缺「农历/四柱」行;桥契约写明「远程回包后由订阅方重存快照补全」——旧实现只 forceUpdate
+		// (render 自愈)不重存 → 缓存快照/事盘存档恒缺行,页面对、AI 挂载错。回包补拍即自愈。
+		this._unsubNongli = subscribeRemoteNongli(() => {
+			this.forceUpdate();
+			if (this.state.counts) { this.saveSnap(); }
+		});
 		if (typeof window !== 'undefined') {
 			this._onSnapRefresh = (evt) => {
 				if (!evt || !evt.detail || evt.detail.module !== 'lingqi' || !this.state.counts) { return; }

@@ -384,26 +384,33 @@ def sweHouses(jd, lat, lon, hsys, flag=0):
     hlist = None
     ascmc = None
     swhsys = SWE_HOUSESYS[hsys]
+    _fallback = None
     try:
         hlist, ascmc = _sweHousesRaw(jd, lat, lon, swhsys, flag)
     except swisseph.Error:
         # 极圈内象限分宫制(Placidus/Koch 等)数学上无解,swisseph 抛错。
         # 业界标准兜底:回退 Porphyry(保留 ASC/MC 四轴象限结构),盘可出而非整请求报错。
         # 返回结构仍标注请求的 hsys(上层按所选制做语义),仅宫顶数值为回退值。
+        # [0j] 回退不再静默:house dict 带 hsysFallback 标记(fromDict=__dict__.update 全保留,
+        # jsonpickle 序列化直达前端;前端信息卡据 houses[0].hsysFallback 出「极区回退」徽记)。
         if swhsys == b'O':
             raise
         hlist, ascmc = _sweHousesRaw(jd, lat, lon, b'O', flag)
+        _fallback = 'Porphyry'
     # Add first house to the end of 'hlist' so that we
-    # can compute house sizes with an iterator 
+    # can compute house sizes with an iterator
     hlist += (hlist[0],)
     houses = [
         {
             'hsys': hsys,
             'id': const.LIST_HOUSES[i],
-            'lon': hlist[i], 
+            'lon': hlist[i],
             'size': angle.distance(hlist[i], hlist[i+1])
         } for i in range(12)
     ]
+    if _fallback:
+        for house in houses:
+            house['hsysFallback'] = _fallback
     for house in houses:
         eqcod = swisseph.cotrans([house['lon'], 0, 1], const.ECLI2EQ_OBLIQUITY)
         house['ra'] = eqcod[0]
@@ -431,13 +438,14 @@ def sweHousesLon(jd, lat, lon, hsys, flag=0):
     hlist = None
     ascmc = None
     hsys = SWE_HOUSESYS[hsys]
-    if flag == 0:
-        hlist, ascmc = swisseph.houses(jd, lat, lon, hsys)
-    else:
-        if flag == swisseph.FLG_RADIANS:
-            hlist, ascmc = swisseph.houses_ex(jd, lat, lon, hsys, swisseph.FLG_RADIANS)
-        else:
-            hlist, ascmc = swisseph.houses_ex(jd, lat, lon, hsys, swisseph.FLG_SIDEREAL)
+    # [0j] 补同款 Porphyry 兜底:此前本函数在极圈内象限制直接抛 swisseph.Error 炸整请求
+    # (sweHouses 有兜底它没有——同层双函数单边裸奔)。
+    try:
+        hlist, ascmc = _sweHousesRaw(jd, lat, lon, hsys, flag)
+    except swisseph.Error:
+        if hsys == b'O':
+            raise
+        hlist, ascmc = _sweHousesRaw(jd, lat, lon, b'O', flag)
 
     angles = [
         ascmc[0],

@@ -392,22 +392,76 @@ _PERCHART_TERMS_LOCK = threading.Lock()
 
 
 def parse_terms_variant(v):
-    """界系入参 → 合法 0/1/2/3(非法回落 0=埃及)。3=迦勒底界(推演慎用)。"""
+    """界系入参 → 合法 0/1/2/3/4(非法回落 0=埃及)。3=迦勒底界(推演慎用);4=自定义界表([WP-7])。"""
     try:
         tv = int(v)
     except (TypeError, ValueError):
         tv = 0
-    return tv if tv in (0, 1, 2, 3) else 0
+    return tv if tv in (0, 1, 2, 3, 4) else 0
 
 
-def push_request_terms(termsVariant, leoBoundFirst=False, geminiBoundEmended=False):
+# [WP-7] 自定义界表:表体 = [[["jupiter",6],["venus",6],...]×12](白羊..双鱼序,每座 5 界 [星,宽度],
+# 宽度和恒 30)。夜表槽为模块级(terms 锁内读写安全;push 设/pop 清,照迦勒底夜表消费范式)。
+_CUSTOM_TERMS_SIGNS = ('Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                       'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces')
+_CUSTOM_TERMS_STARS = {'sun': const.SUN, 'moon': const.MOON, 'mercury': const.MERCURY, 'venus': const.VENUS,
+                       'mars': const.MARS, 'jupiter': const.JUPITER, 'saturn': const.SATURN}
+_CUSTOM_TERMS_NIGHT_ACTIVE = None
+# [R4-P1] push 时的昼向主表引用:setupPlanets 夜盘换夜表后,同一临界区内的下一张昼盘
+# (合盘 inner/outer、返照 natal→dirChart 等多盘一 push 端点)据此显式换回——否则夜表跨盘泄漏。
+_PUSH_TERMS_DAY_ACTIVE = None
+_PUSH_TRIP_DAY_ACTIVE = None
+
+
+def _buildCustomTermsTable(rows):
+    """表体 → flatlib TERMS 形({Sign:[[Star,start,end]×5]});任何非法(缺座/界数≠5/星名未知/
+    宽度非正/合计≠30)返回 None(调用方整表回落埃及,绝不半表上盘)。"""
+    try:
+        if not isinstance(rows, list) or len(rows) != 12:
+            return None
+        out = {}
+        for i, sign in enumerate(_CUSTOM_TERMS_SIGNS):
+            row = rows[i]
+            if not isinstance(row, list) or len(row) != 5:
+                return None
+            acc = 0.0
+            cells = []
+            for cell in row:
+                star = _CUSTOM_TERMS_STARS.get(str(cell[0]).strip().lower())
+                width = float(cell[1])
+                # [F10] NaN 宽度会同时骗过 width<=0 与 abs(acc-30)>eps 两判(NaN 比较恒 False)→ isfinite 前置。
+                if star is None or (not math.isfinite(width)) or width <= 0:
+                    return None
+                cells.append([star, acc, acc + width])
+                acc += width
+            if abs(acc - 30.0) > 1e-9:
+                return None
+            out[sign] = cells
+        return out
+    except Exception:
+        return None
+
+
+def push_request_terms(termsVariant, leoBoundFirst=False, geminiBoundEmended=False, customDay=None, customNight=None):
     """/chart 请求级界系:获取锁 + 换 essential.TERMS,返回还原令牌(原表);必须在 finally 配对 pop_request_terms。
     G15:leoBoundFirst 且托勒密界·校勘本(tv==1)时换狮子土星优先变体表;默认木优先零回归。
-    卜卦 2b:geminiBoundEmended 且经典传本(tv==2)时换双子校勘口径表;默认忠原书零回归。"""
+    卜卦 2b:geminiBoundEmended 且经典传本(tv==2)时换双子校勘口径表;默认忠原书零回归。
+    [WP-7] tv==4 自定义界表:昼表必备(非法整表回落埃及);夜表可缺(缺=昼夜同表),
+    夜表消费在 setupPlanets(isDiurnal 判定后,锁内安全,照迦勒底范式)。"""
     tv = parse_terms_variant(termsVariant)
     _PERCHART_TERMS_LOCK.acquire()
+    global _CUSTOM_TERMS_NIGHT_ACTIVE, _PUSH_TERMS_DAY_ACTIVE
     orig = essential.TERMS
-    if tv == 3:
+    _CUSTOM_TERMS_NIGHT_ACTIVE = None
+    if tv == 4:
+        day_tbl = _buildCustomTermsTable(customDay)
+        if day_tbl is not None:
+            essential.TERMS = day_tbl
+            night_tbl = _buildCustomTermsTable(customNight) if customNight else None
+            _CUSTOM_TERMS_NIGHT_ACTIVE = night_tbl
+        else:
+            essential.TERMS = _TERMS_TABLES[0]   # 非法整表回落埃及(前端编辑器禁存非法=双保险)
+    elif tv == 3:
         essential.TERMS = _CHALDEAN_TERMS_DAY   # 迦勒底界:先昼表;夜盘由 perchart setupPlanets 据 isDiurnal 换夜表(锁内安全)
     elif tv == 1 and leoBoundFirst in (True, 1, '1', 'true'):
         essential.TERMS = _TETRABIBLOS_LEO_SATURN_FIRST
@@ -415,6 +469,7 @@ def push_request_terms(termsVariant, leoBoundFirst=False, geminiBoundEmended=Fal
         essential.TERMS = _LILLY_GEMINI_EMENDED
     else:
         essential.TERMS = _TERMS_TABLES[tv]
+    _PUSH_TERMS_DAY_ACTIVE = essential.TERMS   # [R4-P1] 记录昼向主表(夜盘换表后下一张昼盘据此复位)
     return orig
 
 
@@ -422,8 +477,11 @@ def pop_request_terms(token):
     """还原 essential.TERMS 并释放锁;token=None(未 push)时安全 no-op。"""
     if token is None:
         return
+    global _CUSTOM_TERMS_NIGHT_ACTIVE, _PUSH_TERMS_DAY_ACTIVE
     try:
         essential.TERMS = token
+        _CUSTOM_TERMS_NIGHT_ACTIVE = None   # [WP-7] 清自定义夜表槽(防跨请求泄漏)
+        _PUSH_TERMS_DAY_ACTIVE = None       # [R4-P1] 清昼表槽
     finally:
         _PERCHART_TERMS_LOCK.release()
 
@@ -477,36 +535,38 @@ def push_request_trip(triplicity):
     if tv not in ('Ptolemaic', 'PtolemaicWaterVariant'):
         return None
     _PERCHART_TRIP_LOCK.acquire()
+    global _PUSH_TRIP_DAY_ACTIVE
     orig = essential.TABLE
     if tv == 'PtolemaicWaterVariant':
         essential.TABLE = _PTOLEMAIC_WATER_VARIANT_DIGNITIES_DAY
     else:
         essential.TABLE = _PTOLEMAIC_DIGNITIES
+    _PUSH_TRIP_DAY_ACTIVE = essential.TABLE   # [R4-P1] 同 terms:夜盘换水象夜表后昼盘据此复位
     return orig
 
 def pop_request_trip(token):
     """还原 essential.TABLE 并释放锁;token=None(未 push,默认 Dorothean)时安全 no-op。"""
+    global _PUSH_TRIP_DAY_ACTIVE
     if token is None:
         return
     try:
         essential.TABLE = token
+        _PUSH_TRIP_DAY_ACTIVE = None   # [R4-P1] 清槽
     finally:
         _PERCHART_TRIP_LOCK.release()
 
 
-# ── 旺位异文两开关(月交点旺 / 土星旺 20°)请求级参数化 ────────────────────
-# 二者皆改 essential.TABLE 的 exalt/fall 位 ⇒ 会动全盘尊贵计分,故一律默认关(零回归),
+# ── 旺位异文开关(月交点旺)请求级参数化 ────────────────────
+# 改 essential.TABLE 的 exalt/fall 位 ⇒ 会动全盘尊贵计分,故默认关(零回归),
 # 仅显式开启才 锁+换表,finally 配对 pop。照 push_request_trip 同款范式(pop(None)=no-op)。
 #   nodeExaltation:北交旺 3°双子 / 南交旺 3°射手(对宫互为落);少数派传统,文档标「可作软件开关」。
-#   saturnExalt20 :土星旺 天秤 20°(默认 21°);少数异文。
+#   (saturnExalt20 已删档 2026-08-18 用户拍板:degree 位全仓零消费者=真死开关。)
 # 🔴 必须用独立锁:本开关叠加在 push_request_trip 之后(同线程),复用 _PERCHART_TRIP_LOCK 会自锁死。
 #    两者串行嵌套(trip 先 push、exalt 后 push;pop 反序),各自持锁不交叉,无 ABBA 风险。
 _PERCHART_EXALT_LOCK = threading.Lock()
-_SATURN_EXALT_DEFAULT_DEG = 21
-_SATURN_EXALT_VARIANT_DEG = 20
 
 
-def _build_dignities_variant(base_table, node_exalt=False, saturn20=False):
+def _build_dignities_variant(base_table, node_exalt=False):
     """在给定基表上叠加旺位异文;不改基表本身(深拷贝)。"""
     tbl = copy.deepcopy(base_table)
     if node_exalt:
@@ -517,12 +577,6 @@ def _build_dignities_variant(base_table, node_exalt=False, saturn20=False):
         if 'Sagittarius' in tbl:
             tbl['Sagittarius']['exalt'] = [const.SOUTH_NODE, 3]
             tbl['Sagittarius']['fall'] = [const.NORTH_NODE, 3]
-    if saturn20:
-        if 'Libra' in tbl and tbl['Libra'].get('exalt') and tbl['Libra']['exalt'][0] == const.SATURN:
-            tbl['Libra']['exalt'] = [const.SATURN, _SATURN_EXALT_VARIANT_DEG]
-        # 土星之落(白羊)随旺度同步为对宫同度,保持旺落对称
-        if 'Aries' in tbl and tbl['Aries'].get('fall') and tbl['Aries']['fall'][0] == const.SATURN:
-            tbl['Aries']['fall'] = [const.SATURN, _SATURN_EXALT_VARIANT_DEG]
     return tbl
 
 
@@ -530,16 +584,15 @@ def _truthy(v):
     return v in (1, '1', True, 'true', 'True')
 
 
-def push_request_exalt_variants(nodeExaltation=None, saturnExalt20=None):
-    """请求级旺位异文:两者全关 → 不 push(返回 None,零锁开销零回归);任一开 → 锁+叠加换表。
+def push_request_exalt_variants(nodeExaltation=None):
+    """请求级旺位异文:关 → 不 push(返回 None,零锁开销零回归);开 → 锁+叠加换表。
     在当前 essential.TABLE(可能已被 push_request_trip 换成托勒密表)之上叠加,故两层可共存。"""
     node_on = _truthy(nodeExaltation)
-    sat_on = _truthy(saturnExalt20)
-    if not node_on and not sat_on:
+    if not node_on:
         return None
     _PERCHART_EXALT_LOCK.acquire()
     orig = essential.TABLE
-    essential.TABLE = _build_dignities_variant(orig, node_exalt=node_on, saturn20=sat_on)
+    essential.TABLE = _build_dignities_variant(orig, node_exalt=node_on)
     return orig
 
 
@@ -599,6 +652,79 @@ def pop_request_house_offset(token):
         _PERCHART_HOUSE_OFFSET_LOCK.release()
 
 
+# ── [WP-4] 必然尊贵计分表请求级参数化(dignityDebilities=0 → fall/exile 不减分) ──
+# essential.SCORES 是模块级全局(essential.score/getInfo 消费=显赫计分/almuten/择日 getInfo);
+# 照 terms 范式:默认(1=减分现状)不 push 零锁开销,仅显式关闭才 锁+换表,finally 配对 pop。
+_PERCHART_SCORES_LOCK = threading.Lock()
+
+def push_request_scores(dignityDebilities):
+    on_default = str(dignityDebilities) not in ('0', 'false', 'False')
+    if on_default:
+        return None
+    _PERCHART_SCORES_LOCK.acquire()
+    orig = essential.SCORES
+    nos = dict(orig)
+    nos['fall'] = 0
+    nos['exile'] = 0
+    essential.SCORES = nos
+    return orig
+
+def pop_request_scores(token):
+    if token is None:
+        return
+    try:
+        essential.SCORES = token
+    finally:
+        _PERCHART_SCORES_LOCK.release()
+
+
+# ── 五族古典临界区统一入口(0d) ────────────────────────────────────────────
+# 此前只有 /chart、/chart13、/chart12、/relative 手写五对 push/pop;推运全族端点
+# (websrv/webpredictsrv.py)一对都没有——界系/三分/宫头5°律/点公式口径/旺位异文在
+# 返照·推运·主限链全走默认,与主盘口径静默分叉。统一入口后端点只见一对调用+finally,
+# 「漏一族/漏 pop=锁泄漏全站卡死」结构性不可能。
+# 🔴 顺序表(pop 严格反序,防 ABBA 死锁;未来新族在此追加,禁止端点散 push):
+#   terms → trip → house_offset → lots_doc_reverse → exalt_variants → scores → orb_policy
+def push_classical_request(data):
+    """按请求体 push 七族古典临界区,返回还原令牌元组(供 pop_classical_request)。
+    data 缺省/非 dict → 全默认(terms/trip 仍按默认表 push=与主盘 index 行为一致)。
+    中途异常回滚已 push 的族(pop 对 None 令牌安全 no-op)再抛。"""
+    from flatlib.tools.arabicparts import push_request_lots_doc_reverse
+    from flatlib.aspects import push_request_orb_policy
+    d = data if isinstance(data, dict) else {}
+    tokens = [None, None, None, None, None, None, None]
+    try:
+        tokens[0] = push_request_terms(d.get('termsVariant', 0), d.get('leoBoundFirst'), d.get('geminiBoundEmended'),
+                                       d.get('customTermsDay'), d.get('customTermsNight'))
+        tokens[1] = push_request_trip(d.get('triplicity'))
+        tokens[2] = push_request_house_offset(d.get('houseCuspAdvance'))
+        tokens[3] = push_request_lots_doc_reverse(d.get('lotsDocReverse'))
+        tokens[4] = push_request_exalt_variants(d.get('nodeExaltation'))
+        tokens[5] = push_request_scores(d.get('dignityDebilities', 1))
+        tokens[6] = push_request_orb_policy(d.get('orbSystem'), d.get('luminaryOrbBonus'))
+        return tokens
+    except Exception:
+        pop_classical_request(tokens)
+        raise
+
+
+def pop_classical_request(tokens):
+    """反序 pop 七族;tokens=None 或某位 None(未 push/守卫早退)一律安全。"""
+    from flatlib.tools.arabicparts import pop_request_lots_doc_reverse
+    from flatlib.aspects import pop_request_orb_policy
+    if not tokens:
+        return
+    if len(tokens) > 6:
+        pop_request_orb_policy(tokens[6])
+    if len(tokens) > 5:
+        pop_request_scores(tokens[5])
+    pop_request_exalt_variants(tokens[4])
+    pop_request_lots_doc_reverse(tokens[3])
+    pop_request_house_offset(tokens[2])
+    pop_request_trip(tokens[1])
+    pop_request_terms(tokens[0])
+
+
 class PerChart:
 
     @staticmethod
@@ -650,6 +776,16 @@ class PerChart:
         # 旧值以 'narrow' 档保留)。畸形键回默认。
         self._viaCombustaRange = self._VIA_COMBUSTA_RANGES.get(
             data.get('viaCombustaVariant') or 'standard', self._VIA_COMBUSTA_RANGES['standard'])
+        # ── [WP-2] 天文口径 2026-08 对标批(缺省=历史现值零回归)──
+        # own chariot(Porphyry):行星在自己的界或当值三分内免「燃烧/日光束下」判定(cazimi 吉态不豁免)。
+        self._combustOwnChariot = str(data.get('combustOwnChariotExempt', 0)) in ('1', 'true', 'True')
+        # 月亮站心视差修正:月亮(及其派生点)按测站坐标重算(黄经差可达 ~1°)。
+        self._topoMoon = str(data.get('topocentricMoon', 0)) in ('1', 'true', 'True')
+        # (polarMcMode 已删档 2026-08-18 用户拍板:'aboveHorizon' swap 分支实测不可达——极区
+        #  兜底后 MC altitudeTrue 恒正;引擎恒走 equator 现状行为。)
+        # 留驻判定:'off'(默认=现状,仅逆行 R 标)/'exactWindow'(距留点 ≤1 日)/'distance'(距留点黄经 ≤2′)/
+        # 'absSpeed'(|日速|<1′)/'relSpeed'(|日速|<3% 均速)。产出行星 stationState 属性供盘面 S/D 标。
+        self._stationMode = data.get('stationMarking') or 'off'
 
         date = data['date']
         self.time = data['time']
@@ -901,13 +1037,23 @@ class PerChart:
             else:
                 siderealMode = ZHENG_SIDEREAL_MODE
         elif self.zodiacal == const.SIDEREAL and ayan_key:
-            try:
-                from astrostudy.india.india_chart_kernel import normalize_ayanamsa
-                resolved = normalize_ayanamsa(ayan_key)
-                siderealMode = resolved
-                self.siderealAyanamsa = resolved.get('key', '')
-            except Exception:
-                siderealMode = None
+            # [WP-7] 自定义恒星黄道:ayan_key='user' + userAyanT0(参考历元 JD) + userAyanDeg(该历元
+            # ayanamsa 度值) → SIDM_USER 三参(通道 swe.setSiderealContext 早已齐备,此前只有两处
+            # 硬编码历元)。参数缺失/畸形回落 47 档 normalize(默认 lahiri),不炸盘。
+            if str(ayan_key).strip().lower() == 'user':
+                _ut0 = _optional_float(data.get('userAyanT0'))
+                _udeg = _optional_float(data.get('userAyanDeg'))
+                if _ut0 is not None and _udeg is not None:
+                    siderealMode = {'key': 'user', 'mode': swe.SE_SIDM_USER, 't0': _ut0, 'ayan_t0': _udeg}
+                    self.siderealAyanamsa = 'user'
+            if siderealMode is None:
+                try:
+                    from astrostudy.india.india_chart_kernel import normalize_ayanamsa
+                    resolved = normalize_ayanamsa(ayan_key)
+                    siderealMode = resolved
+                    self.siderealAyanamsa = resolved.get('key', '')
+                except Exception:
+                    siderealMode = None
         self.siderealMode = siderealMode
 
         self.needpars = True
@@ -944,7 +1090,10 @@ class PerChart:
         data = self.data if isinstance(self.data, dict) else {}
         nodeTrue = (data.get('guolaoNodeType', 'mean') == 'true'
                     or data.get('westNodeType', 'mean') == 'true')
-        lilithTrue = data.get('guolaoLilithType', 'mean') == 'true'
+        # [WP-2] 黑月补西占专用键 westLilithType(交点早有双键、黑月此前只有七政键——
+        # 西占用户要切真远地点必须借 guolao 键名,域污染):两键 or 等效,默认 mean 零回归。
+        lilithTrue = (data.get('guolaoLilithType', 'mean') == 'true'
+                      or data.get('westLilithType', 'mean') == 'true')
         if not nodeTrue and not lilithTrue:
             return
         jd = self.dateTime.jd
@@ -1305,13 +1454,185 @@ class PerChart:
             oriental = (((planet.lon - sun.lon + 180.0) % 360.0) - 180.0) < 0
             planet.ofSect = bool(oriental == self.isDiurnal)
 
+    # [WP-2] 行星均速表(度/日,标准值):留驻 relSpeed 法阈值基准+求根前置滤。日月交点不逆不列。
+    _MEAN_DAILY_SPEED = {
+        const.MERCURY: 1.383, const.VENUS: 1.2, const.MARS: 0.524, const.JUPITER: 0.083,
+        const.SATURN: 0.033, const.URANUS: 0.012, const.NEPTUNE: 0.006, const.PLUTO: 0.004,
+    }
+
+    def _ownChariotExempt(self, objid):
+        """[WP-2] own chariot(Porphyry 引):行星在自己的界(term)或当值三分主(昼/夜随 sect)领地内,
+        免「燃烧/日光束下」判定;cazimi 吉态不豁免。默认关=零回归零成本。仅有界/三分身份的七政生效。"""
+        if not self._combustOwnChariot:
+            return False
+        try:
+            o = self.chart.get(objid)
+            if essential.term(o.sign, o.signlon) == objid:
+                return True
+            trip = essential.dayTrip(o.sign) if self.isDiurnal else essential.nightTrip(o.sign)
+            return trip == objid
+        except Exception:
+            return False
+
+    def _nearestStation(self, swid, jd):
+        """±40 日窗内最近的速度变号点(留)。逐日粗扫 + 24 次二分。
+        返回 (t0_jd, sd_bool) —— sd=True 为顺行留(逆转顺 SD);无留点返回 None。"""
+        try:
+            def spd(t):
+                return swisseph.calc_ut(t, swid, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)[0][3]
+            prev_t = jd - 40.0
+            prev_v = spd(prev_t)
+            hit = None
+            t = prev_t + 1.0
+            while t <= jd + 40.0:
+                v = spd(t)
+                if (prev_v < 0) != (v < 0):
+                    lo, hi = prev_t, t
+                    lov = prev_v
+                    for _ in range(24):
+                        mid = (lo + hi) / 2.0
+                        mv = spd(mid)
+                        if (lov < 0) != (mv < 0):
+                            hi = mid
+                        else:
+                            lo, lov = mid, mv
+                    t0 = (lo + hi) / 2.0
+                    sd = bool(prev_v < 0)   # 由逆转顺
+                    if hit is None or abs(t0 - jd) < abs(hit[0] - jd):
+                        hit = (t0, sd)
+                prev_t, prev_v = t, v
+                t += 1.0
+            return hit
+        except Exception:
+            return None
+
+    def _stationState(self, obj, planet):
+        """[WP-2] 留驻判定四法 → 'S'(留驻带内/将留)/'D'(顺行留后回顺初段)/None。
+        默认 off 零成本;absSpeed/relSpeed 瞬时零额外星历;exactWindow/distance 仅对
+        「近留候选」(|日速|<20% 均速)求根,单星最多一次求根。"""
+        mode = self._stationMode
+        if mode == 'off' or not mode:
+            return None
+        mean = self._MEAN_DAILY_SPEED.get(obj)
+        if mean is None:
+            return None
+        try:
+            v = float(getattr(planet, 'lonspeed', 0.0))
+        except Exception:
+            return None
+        if mode == 'absSpeed':
+            return 'S' if abs(v) < (1.0 / 60.0) else None
+        if mode == 'relSpeed':
+            return 'S' if abs(v) < 0.03 * mean else None
+        if mode in ('exactWindow', 'distance'):
+            if abs(v) >= 0.2 * mean:
+                return None   # 远离留驻带,免求根
+            # 注:setupPlanets 的 _SWE_BODY 是函数局部,此处自带八行星映射(日月交点不逆不列)。
+            _SW = {const.MERCURY: swisseph.MERCURY, const.VENUS: swisseph.VENUS, const.MARS: swisseph.MARS,
+                   const.JUPITER: swisseph.JUPITER, const.SATURN: swisseph.SATURN, const.URANUS: swisseph.URANUS,
+                   const.NEPTUNE: swisseph.NEPTUNE, const.PLUTO: swisseph.PLUTO}
+            swid = _SW.get(obj)
+            if swid is None:
+                return None
+            hit = self._nearestStation(swid, self.dateTime.jd)
+            if hit is None:
+                return None
+            t0, sd = hit
+            if mode == 'exactWindow':
+                if abs(self.dateTime.jd - t0) > 1.0:
+                    return None
+            else:
+                try:
+                    lon0 = swisseph.calc_ut(t0, swid, swisseph.FLG_SWIEPH)[0][0]
+                except Exception:
+                    return None
+                d = abs(((planet.lon - lon0 + 180.0) % 360.0) - 180.0)
+                if d > (2.0 / 60.0):
+                    return None
+            return 'D' if (sd and self.dateTime.jd >= t0) else 'S'
+        return None
+
+    def _applyTopoMoon(self):
+        """[WP-2] 月亮站心视差修正:测站坐标重算月亮(黄经差可达 ~1°),随后福点与全部
+        阿拉伯点按新月位重投(点公式吃月)。默认关零回归。set_topo 显式逐次设置
+        (防跨请求泄漏,照 astroextra CENTER_FLAGS 纪律;仅本次带 FLG_TOPOCTR 的 calc 受影响)。"""
+        if not self._topoMoon:
+            return
+        from flatlib.tools import arabicparts as _ap
+        try:
+            moon = self.chart.getObject(const.MOON)
+            pos = self.chart.pos
+            jd = self.chart.date.jd
+            with self.chart._siderealContext():
+                swe.swisseph.set_topo(pos.lon, pos.lat, 0.0)
+                flags = getattr(self.chart, 'flags', swe.SEDEFAULT_FLAG) | swe.swisseph.FLG_TOPOCTR
+                xx = swe.swisseph.calc_ut(jd, 1, flags)[0]
+                eq = swe.swisseph.calc_ut(jd, 1, flags | swe.SEFLG_EQUATORIAL)[0]
+            moon.relocate(xx[0] % 360.0)
+            moon.lat = xx[1]
+            moon.lonspeed = xx[3]
+            moon.latspeed = xx[4]
+            moon.ra = eq[0] % 360.0
+            moon.decl = eq[1]
+            pf = self.chart.getObject(const.PARS_FORTUNA)
+            if pf is not None:
+                pf.relocate(_ap.partLon(const.PARS_FORTUNA, self.chart) % 360.0)
+            for p in (getattr(self.chart, 'pars', None) or []):
+                try:
+                    p.relocate(_ap.partLon(p.id, self.chart) % 360.0)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _houseByRa(self, ra):
+        """[WP-6] 赤经落宫:12 宫头按 ra 排序成区间(环绕),返回 ra 命中的宫 id;数据缺返 None。"""
+        try:
+            if ra is None:
+                return None
+            hs = [(float(h.ra), h.id) for h in self.chart.houses if getattr(h, 'ra', None) is not None]
+            if len(hs) != 12:
+                return None
+            hs.sort()
+            r = float(ra) % 360.0
+            for i in range(12):
+                lo = hs[i][0]
+                hi = hs[(i + 1) % 12][0]
+                if lo <= hi:
+                    if lo <= r < hi:
+                        return hs[i][1]
+                else:   # 环绕段
+                    if r >= lo or r < hi:
+                        return hs[i][1]
+            return hs[-1][1]
+        except Exception:
+            return None
+
     def _diurnalWithSectBuffer(self):
         """G13 区分昼夜:默认纯几何地平(chart.isDiurnal);sectBuffer=='ptolemy5' 加 5° 缓冲——
         太阳虽在地平下,但黄经距上升点 5° 内(拂晓将升)仍判昼。默认 geo 零回归。
+        [WP-2] sectBuffer=='apparent':视地平判昼——真日出/日没时刻(swisseph rise_trans,
+        默认含大气折射-34′与日面上缘),比较「下一事件」归属:下一事件是日没⇒当前昼;是日出⇒当前夜。
+        极昼极夜(rise_trans 无解)回落几何地平。
         sect 翻转连锁影响:得失区分凶星 / 三分昼夜序 / 福点反转 / 寿命法 hyleg 优先 / ZR 默认释放点。"""
         base = bool(self.chart.isDiurnal())
         data = self.data if isinstance(self.data, dict) else {}
-        if base or data.get('sectBuffer') != 'ptolemy5':
+        sb = data.get('sectBuffer')
+        if sb == 'apparent':
+            try:
+                jd = self.chart.date.jd
+                pos = self.chart.pos
+                geopos = (pos.lon, pos.lat, 0.0)
+                rr, tr = swe.swisseph.rise_trans(jd, swe.swisseph.SUN, swe.swisseph.CALC_RISE, geopos)
+                rs, ts = swe.swisseph.rise_trans(jd, swe.swisseph.SUN, swe.swisseph.CALC_SET, geopos)
+                if rr == 0 and rs == 0:
+                    next_rise = tr[0]
+                    next_set = ts[0]
+                    return bool(next_set < next_rise)   # 将先日没 ⇒ 现在在地平上(昼)
+            except Exception:
+                pass
+            return base
+        if base or sb != 'ptolemy5':
             return base
         try:
             sun = self.chart.getObject(const.SUN)
@@ -1321,30 +1642,102 @@ class PerChart:
         except Exception:
             return base
 
-    def _applyLotReversal(self):
-        """G20-P2 福点反转:默认 ON(sect-aware,flatlib 原值 asc+月-日/夜 asc+日-月,零回归);
-        lotReversal 显式 OFF(0)→ 福点恒用昼式 asc+月-日(不随昼夜反转)。仅显式关闭才置换。"""
+    def _applyLotVariants(self):
+        """[WP-3] 希腊点变体一体后处理(收编原 _applyLotReversal;全默认=零 relocate 零回归):
+        ① lotReversal=0 → 福点恒昼式(压过任何变体);
+        ② lotFortuneVariant='moonAboveNight' → 月在地平上时福点恒用夜式(Valens 变体);
+        ③ hermeticLotsReversal=0 → 夜盘赫尔墨斯六点(精神/爱欲/必然/勇气/胜利/复仇)用昼式(批判本校勘);
+        ④ erosConstruction='valens' → 爱欲=Asc+(精神−福点)/必然=Asc+(福点−精神)(昼;夜按③口径定向);
+        ⑤ lotFatherCombustAlt=1 且土星在日光束下 → 父点=Asc+(Jupiter−Mars)(昼;夜反转);
+        ⑥ lotProjection='sign' → 全点整星座投射(点归座首,最后执行)。
+        点对象就地 relocate:下游相位/落宫/快照自动吃新位。"""
         data = self.data if isinstance(self.data, dict) else {}
-        if str(data.get('lotReversal', 1)) not in ('0', 'false', 'False'):
-            return
+        from flatlib.tools import arabicparts as ap
         try:
             pf = self.chart.getObject(const.PARS_FORTUNA)
             asc = self.chart.getAngle(const.ASC)
             sun = self.chart.getObject(const.SUN)
             moon = self.chart.getObject(const.MOON)
-            if pf is not None and asc is not None and sun is not None and moon is not None:
-                pf.relocate((asc.lon + moon.lon - sun.lon) % 360.0)
+            if pf is None or asc is None or sun is None or moon is None:
+                return
+            fortune_day = (asc.lon + moon.lon - sun.lon) % 360.0
+            fortune_night = (asc.lon + sun.lon - moon.lon) % 360.0
+            lot_rev_on = str(data.get('lotReversal', 1)) not in ('0', 'false', 'False')
+            # ①/②:福点
+            if not lot_rev_on:
+                pf.relocate(fortune_day)
+            elif (data.get('lotFortuneVariant') or 'standard') == 'moonAboveNight':
+                try:
+                    from flatlib import utils as _futils
+                    mc = self.chart.getAngle(const.MC)
+                    moon_above = _futils.isAboveHorizon(moon.ra, moon.decl, mc.ra, self.chart.pos.lat)
+                except Exception:
+                    moon_above = False
+                if moon_above:
+                    pf.relocate(fortune_night)
+            # ③:批判本恒同式(夜盘六点用昼式;昼盘零动)
+            _HERMETIC6 = (ap.PARS_SPIRIT, ap.PARS_EROS, ap.PARS_NECESSITY, ap.PARS_COURAGE, ap.PARS_VICTORY, ap.PARS_NEMESIS)
+            schmidt_on = str(data.get('hermeticLotsReversal', 1)) in ('0', 'false', 'False')
+            def _dayFormulaLon(pid):
+                abc = ap.FORMULAS[pid][0]
+                return (ap.objLon(abc[2], self.chart) + ap.objLon(abc[1], self.chart) - ap.objLon(abc[0], self.chart)) % 360.0
+            if schmidt_on and not self.isDiurnal:
+                for pid in _HERMETIC6:
+                    try:
+                        self.chart.get(pid).relocate(_dayFormulaLon(pid))
+                    except Exception:
+                        pass
+            # ④:Valens 式爱欲/必然(福点·精神构成;夜按批判本口径决定是否反转)
+            if data.get('erosConstruction') == 'valens':
+                try:
+                    spirit_lon = self.chart.get(ap.PARS_SPIRIT).lon
+                    use_day = self.isDiurnal or schmidt_on
+                    eros = (asc.lon + spirit_lon - pf.lon) if use_day else (asc.lon + pf.lon - spirit_lon)
+                    nec = (asc.lon + pf.lon - spirit_lon) if use_day else (asc.lon + spirit_lon - pf.lon)
+                    self.chart.get(ap.PARS_EROS).relocate(eros % 360.0)
+                    self.chart.get(ap.PARS_NECESSITY).relocate(nec % 360.0)
+                except Exception:
+                    pass
+            # ⑤:父点土星伏替代式(土星距日 < 日光束外界现值)
+            if str(data.get('lotFatherCombustAlt', 0)) in ('1', 'true', 'True'):
+                try:
+                    saturn = self.chart.getObject(const.SATURN)
+                    d_sun = abs(((saturn.lon - sun.lon + 180.0) % 360.0) - 180.0)
+                    if d_sun < float(self._sunPosBeams):
+                        jup = self.chart.getObject(const.JUPITER)
+                        mars = self.chart.getObject(const.MARS)
+                        alt = (asc.lon + jup.lon - mars.lon) if self.isDiurnal else (asc.lon + mars.lon - jup.lon)
+                        self.chart.get(ap.PARS_FATHER).relocate(alt % 360.0)
+                except Exception:
+                    pass
+            # ⑥:整星座投射(全点归座首;最后执行,福点同投)
+            if data.get('lotProjection') == 'sign':
+                try:
+                    pf.relocate(float(int(pf.lon // 30) * 30))
+                    for p in (getattr(self.chart, 'pars', None) or []):
+                        p.relocate(float(int(p.lon // 30) * 30))
+                except Exception:
+                    pass
         except Exception:
             pass
 
     def setupPlanets(self):
         self.isDiurnal = self._diurnalWithSectBuffer()
-        self._applyLotReversal()   # G20-P2 福点反转(默认 ON 零回归;OFF 恒昼式)
+        self._applyTopoMoon()      # [WP-2] 站心月(默认关);须在点变体前(变体公式吃新月位)
+        self._applyLotVariants()   # [WP-3] 希腊点变体一体(收编福点反转;全默认零 relocate 零回归)
         # G15 迦勒底界:夜盘换夜表(土↔水位置互换);锁由 webchartsrv 请求级持有,此处重置 essential.TERMS 安全。
         # 默认/其它界系不命中此分支(termsVariant!=3)→ 零回归。
+        # [WP-7] 自定义界表夜盘同范式:tv==4 且夜表在槽(用户勾了「夜表另配」)才换。
         try:
-            if str((self.data or {}).get('termsVariant', '')) == '3' and not self.isDiurnal:
+            _tv = str((self.data or {}).get('termsVariant', ''))
+            if _tv == '3' and not self.isDiurnal:
                 essential.TERMS = _CHALDEAN_TERMS_NIGHT
+            elif _tv == '4' and not self.isDiurnal and _CUSTOM_TERMS_NIGHT_ACTIVE is not None:
+                essential.TERMS = _CUSTOM_TERMS_NIGHT_ACTIVE
+            elif _PUSH_TERMS_DAY_ACTIVE is not None:
+                # [R4-P1] 昼盘(或夜盘无独立夜表)显式复位 push 时的昼向主表——同一临界区内
+                # 「夜盘在前、昼盘在后」(合盘 inner/outer、返照 natal→dirChart)不再吃前一张的夜表。
+                essential.TERMS = _PUSH_TERMS_DAY_ACTIVE
         except Exception:
             pass
         # 三分集水象变体:夜盘换水象「夜」表(水象 trip=火+月);锁由 webchartsrv 请求级持有,此处重置 essential.TABLE 安全。
@@ -1352,6 +1745,8 @@ class PerChart:
         try:
             if str((self.data or {}).get('triplicity', '')) == 'PtolemaicWaterVariant' and not self.isDiurnal:
                 essential.TABLE = _PTOLEMAIC_WATER_VARIANT_DIGNITIES_NIGHT
+            elif _PUSH_TRIP_DAY_ACTIVE is not None:
+                essential.TABLE = _PUSH_TRIP_DAY_ACTIVE   # [R4-P1] 同 terms:昼盘复位
         except Exception:
             pass
         suobjs = const.LIST_OBJECTS_TRADITIONAL.copy()
@@ -1443,6 +1838,8 @@ class PerChart:
             planet.ninthPart = ctab.ninth_part_sign(planet.lon)
             planet.darijan = ctab.darijan_ruler(planet.sign, planet.signlon)
             planet.movedir = planet.movement()
+            # [WP-2] 留驻判定(stationMarking 四法;默认 off=None 零成本):'S' 留驻带内/'D' 顺行留后初段。
+            planet.stationState = self._stationState(obj, planet)
             # WI-25/25b 远地点 apogee 升降 + 数增数减 + (月)光增光减:用 swisseph 距速 distspeed。
             # distspeed>0=距地渐增→趋远地点(升)+行速渐慢(数减);<0=距地渐减→趋近地点(降)+行速渐快(数增)。
             try:
@@ -1470,6 +1867,14 @@ class PerChart:
             }
             planethouse = self.chart.houses.getHouseByLon(planet.lon)
             planet.house = planethouse.id
+            # [WP-6] 返照落宫「计入黄纬」(Umar al-Tabari 系):行星按赤经落宫头 ra 区间
+            # (黄纬经赤道座标自然生效)。仅返照盘生效(_isReturnChart 内部标记由 perpredict 注入,
+            # 主盘即便带 returnLatitudeMode 键也零效);默认 'ecliptic' 零动。
+            if (isinstance(self.data, dict) and self.data.get('returnLatitudeMode') == 'withLatitude'
+                    and self.data.get('_isReturnChart')):
+                ra_house = self._houseByRa(getattr(planet, 'ra', None))
+                if ra_house is not None:
+                    planet.house = ra_house
             if obj in props.object.meanMotion.keys():
                 planet.meanSpeed = planet.meanMotion()
                 self.hayyiz(planet, self.isDiurnal)
@@ -1853,6 +2258,8 @@ class PerChart:
                         continue
                     if obj['orb'] < self._sunPosCazimi:
                         plobj.sunPos = 'Cazimi'
+                    elif self._ownChariotExempt(obj['id']):
+                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
                     elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
                         plobj.sunPos = 'Combust'
                     elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
@@ -1868,6 +2275,8 @@ class PerChart:
                         continue
                     if obj['orb'] < self._sunPosCazimi:
                         plobj.sunPos = 'Cazimi'
+                    elif self._ownChariotExempt(obj['id']):
+                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
                     elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
                         plobj.sunPos = 'Combust'
                     elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
@@ -1883,6 +2292,8 @@ class PerChart:
                         continue
                     if obj['orb'] < self._sunPosCazimi:
                         plobj.sunPos = 'Cazimi'
+                    elif self._ownChariotExempt(obj['id']):
+                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
                     elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
                         plobj.sunPos = 'Combust'
                     elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
@@ -1898,6 +2309,8 @@ class PerChart:
                         continue
                     if obj['orb'] < self._sunPosCazimi:
                         plobj.sunPos = 'Cazimi'
+                    elif self._ownChariotExempt(obj['id']):
+                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
                     elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
                         plobj.sunPos = 'Combust'
                     elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
@@ -3089,6 +3502,60 @@ class PerChart:
         sunT = tstrparts[1]
         sunTparts = sunT.split(':')
         sunH = int(sunTparts[0]) + float(sunTparts[1])/60 + float(sunTparts[2])/3600
+
+        # [WP-4] 行星时制式 planetaryHourMethod(默认 'sunrise'=现状零回归):
+        #   'sunrise' = 日出起算·等长 60 分钟小时(本实现历史口径);
+        #   'unequal' = 昼夜不等时(传统主流):真日出→真日没 12 等分为昼时,日没→次日出 12 等分为夜时
+        #               (界取 swisseph rise_trans 含折射;极昼夜无解回落 sunrise 口径);
+        #   'equal24' = 当日 0 时起 24 等分等长时,时主序仍迦勒底降序从当日日主起。
+        hour_mode = self.data.get('planetaryHourMethod') if isinstance(self.data, dict) else None
+        if hour_mode == 'equal24':
+            delta = int(math.floor(h)) % 24
+            idx = (timerIdx + delta + 28) % 7
+            return timerStar[idx]
+        if hour_mode == 'unequal':
+            try:
+                geopos = (self.chart.pos.lon, self.chart.pos.lat, 0.0)
+                jd0 = self.dateTime.jd
+                # 取「当日」界:从前一日中午向后找日出/日没,拼出覆盖出生时刻的昼/夜段。
+                rr, tr = swe.swisseph.rise_trans(jd0 - 1.5, swe.swisseph.SUN, swe.swisseph.CALC_RISE, geopos)
+                rs, ts = swe.swisseph.rise_trans(jd0 - 1.5, swe.swisseph.SUN, swe.swisseph.CALC_SET, geopos)
+                if rr == 0 and rs == 0:
+                    rises = [tr[0]]
+                    sets = [ts[0]]
+                    for _ in range(3):
+                        rr2, tr2 = swe.swisseph.rise_trans(rises[-1] + 0.2, swe.swisseph.SUN, swe.swisseph.CALC_RISE, geopos)
+                        rs2, ts2 = swe.swisseph.rise_trans(sets[-1] + 0.2, swe.swisseph.SUN, swe.swisseph.CALC_SET, geopos)
+                        if rr2 != 0 or rs2 != 0:
+                            raise ValueError('polar')
+                        rises.append(tr2[0])
+                        sets.append(ts2[0])
+                    # 找覆盖 jd0 的段:最近一次「日出 ≤ jd0」→若其后的日没 > jd0=昼段;否则夜段(日没→下一日出)。
+                    last_rise = max([x for x in rises if x <= jd0], default=None)
+                    last_set = max([x for x in sets if x <= jd0], default=None)
+                    if last_rise is not None and (last_set is None or last_rise > last_set):
+                        # 昼段:last_rise → 其后第一个日没
+                        next_set = min([x for x in sets if x > last_rise])
+                        seg_len = (next_set - last_rise) / 12.0
+                        hour_idx = int((jd0 - last_rise) / seg_len)
+                        seg_day_jd = last_rise
+                        night = False
+                    else:
+                        next_rise = min([x for x in rises if x > last_set])
+                        seg_len = (next_rise - last_set) / 12.0
+                        hour_idx = 12 + int((jd0 - last_set) / seg_len)
+                        # 夜段归属「日没那天」的行星日(昼起日主)。
+                        seg_day_jd = last_set - 0.25
+                        night = True
+                    _ = night
+                    seg_dt = Datetime.fromJD(seg_day_jd + offsetjdn, self.zone)
+                    seg_dow = seg_dt.date.dayofweek()
+                    seg_daystar = dayerStar[seg_dow]
+                    seg_timer_idx = timerStar.index(seg_daystar)
+                    return timerStar[(seg_timer_idx + hour_idx + 28) % 7]
+            except Exception:
+                pass   # 极昼夜/星历异常 → 回落 sunrise 口径
+
         # 日出后第 N 个小时:floor(经过时长)。原 int(h)-int(sunH) 数的是「跨过几个整点」,
         # 日出 6:50 生于 7:10(仅过 20 分钟)会被错算成第 2 小时;日出前出生 floor 给负数,
         # (timerIdx-2)%7 与「前一日第 22 时」在 7 星循环下同余,口径自洽。
@@ -3096,6 +3563,109 @@ class PerChart:
         idx = (timerIdx + delta + 28) % 7
         star = timerStar[idx]
         return star
+
+    def getVulcan(self):
+        """[WP-8] 祝融星(推算行星,灵学体系;默认 off 返回 None=响应零字段):
+        'weston' = Swiss Ephemeris 内置轨道根数(虚构行星 55 号;需 seorbel 扩展文件——运行时探测,
+                   不可用时诚实回落 baker 几何并标 method='baker(fallback)',绝不伪造精度);
+        'baker'  = 纯几何:恒在水星向日侧,距日 min(3°, |水星−太阳|)(水星距日 <3° 时合日)。"""
+        data = self.data if isinstance(self.data, dict) else {}
+        mode = data.get('vulcanCalc') or 'off'
+        if mode not in ('weston', 'baker'):
+            return None
+        try:
+            sun = self.chart.getObject(const.SUN)
+            mercury = self.chart.getObject(const.MERCURY)
+            if sun is None or mercury is None:
+                return None
+            jd = self.chart.date.jd
+            lon = None
+            method = mode
+            if mode == 'weston':
+                try:
+                    with self.chart._siderealContext():
+                        flags = getattr(self.chart, 'flags', swe.SEDEFAULT_FLAG)
+                        xx = swe.swisseph.calc_ut(jd, 55, flags)[0]
+                    lon = xx[0] % 360.0
+                except Exception:
+                    lon = None
+                    method = 'baker(fallback)'   # 星历扩展缺失:诚实回落几何法并标注
+            if lon is None:
+                d = ((mercury.lon - sun.lon + 180.0) % 360.0) - 180.0   # 水星相对太阳的有向弧
+                step = max(-3.0, min(3.0, d))
+                lon = (sun.lon + step) % 360.0
+            sign_idx = int(lon // 30) % 12
+            return {
+                'lon': round(lon, 6),
+                'sign': const.LIST_SIGNS[sign_idx],
+                'signlon': round(lon % 30.0, 6),
+                'method': method,
+                'distToSun': round(abs(((lon - sun.lon + 180.0) % 360.0) - 180.0), 4),
+            }
+        except Exception:
+            return None
+
+    def getExtraAspects(self):
+        """[WP-5b] 相位参与对象扩展(默认全关=返回 None,响应零字段零回归):
+        aspectIncludeCusps    → 行星×12 宫头 主相位(宫头无速度,恒 separating 语义;orb ≤3°);
+        aspectIncludeLots     → 行星×希腊点 主相位(点为受体,单向;orb ≤3°);
+        aspectIncludeMidpoints→ 行星×{日/月/Asc/MC}两两 6 组中点 0/90/180 硬相(orb ≤1.5°,量化盘先例)。
+        (恒星汇合已有 chart.stars 现成输出,前端直接引用零重算。)
+        固定口径不吃 orbSystem(对象无自有星轨,半距语义不适用;文档声明)。"""
+        data = self.data if isinstance(self.data, dict) else {}
+        def _on(k):
+            return str(data.get(k, 0)) in ('1', 'true', 'True')
+        want_cusps = _on('aspectIncludeCusps')
+        want_lots = _on('aspectIncludeLots')
+        want_mid = _on('aspectIncludeMidpoints')
+        if not (want_cusps or want_lots or want_mid):
+            return None
+        MAJOR = (0, 60, 90, 120, 180)
+        HARD = (0, 90, 180)
+        planets = [self.chart.getObject(o) for o in const.LIST_SEVEN_PLANETS]
+        planets = [p for p in planets if p is not None]
+        def _pairs(targets, asps, orbcap):
+            rows = []
+            for t_id, t_lon in targets:
+                for p in planets:
+                    d = abs(((p.lon - t_lon + 180.0) % 360.0) - 180.0)
+                    for asp in asps:
+                        orb = abs(d - asp)
+                        if orb <= orbcap:
+                            rows.append({'planet': p.id, 'target': t_id, 'asp': asp,
+                                         'orb': round(orb, 4)})
+                            break
+            return rows
+        out = {}
+        if want_cusps:
+            targets = []
+            for h in self.chart.houses:
+                targets.append((getattr(h, 'id', ''), h.lon))
+            out['cusps'] = _pairs(targets, MAJOR, 3.0)
+        if want_lots:
+            targets = [(const.PARS_FORTUNA, self.chart.getObject(const.PARS_FORTUNA).lon)] if self.chart.getObject(const.PARS_FORTUNA) else []
+            for pobj in (getattr(self.chart, 'pars', None) or []):
+                targets.append((pobj.id, pobj.lon))
+            out['lots'] = _pairs(targets, MAJOR, 3.0)
+        if want_mid:
+            pts = []
+            for oid in (const.SUN, const.MOON):
+                o = self.chart.getObject(oid)
+                if o is not None:
+                    pts.append((oid, o.lon))
+            for aid in (const.ASC, const.MC):
+                a = self.chart.getAngle(aid)
+                if a is not None:
+                    pts.append((aid, a.lon))
+            targets = []
+            for i in range(len(pts)):
+                for j in range(i + 1, len(pts)):
+                    (id1, l1), (id2, l2) = pts[i], pts[j]
+                    # 短弧中点:l1 + 有向短弧差的一半(模 360)。
+                    mid = (l1 + (((l2 - l1 + 180.0) % 360.0) - 180.0) / 2.0) % 360.0
+                    targets.append(('%s/%s' % (id1, id2), mid))
+            out['midpoints'] = _pairs(targets, HARD, 1.5)
+        return out
 
     def getHyleg(self):
         pass

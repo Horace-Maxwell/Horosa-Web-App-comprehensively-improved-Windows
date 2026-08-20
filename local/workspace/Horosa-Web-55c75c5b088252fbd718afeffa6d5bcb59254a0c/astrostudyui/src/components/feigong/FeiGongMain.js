@@ -157,7 +157,17 @@ class FeiGongMain extends Component {
 	}
 
 	componentDidMount(){
-		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
+		// [issue#74 同类] 农历桥回包履约(与灵棋同律):①已定局 → 补拍快照(首版缺农历/四柱行,
+		// 只 forceUpdate 不重存则缓存/事盘恒缺);②曾因「排盘未出时支」定局失败(error 且无 ju)
+		// → 重跑 doQiJu 自愈(旧实现回包只重渲,局恒 null)。重跑幂等:其余 error 重跑仍同 error。
+		this._unsubNongli = subscribeRemoteNongli(() => {
+			this.forceUpdate();
+			if(this.state.ju){
+				this.saveSnap();
+			}else if(this.state.error && this.state.settings && this.state.settings.qiMode === 'hour'){
+				this.doQiJu();
+			}
+		});
 		if(typeof window !== 'undefined'){
 			this._onSnapRefresh = (evt)=>{
 				if(!evt || !evt.detail || evt.detail.module !== 'feigong' || !this.state.ju){ return; }

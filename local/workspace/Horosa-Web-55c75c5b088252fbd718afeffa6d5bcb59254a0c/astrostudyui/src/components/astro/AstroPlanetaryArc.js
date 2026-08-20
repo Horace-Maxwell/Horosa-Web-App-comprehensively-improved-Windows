@@ -13,11 +13,13 @@ import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
 import { markPanelReady } from '../../utils/perfMark';
+import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 
 const Option = Select.Option;
 export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
 // AI 挂载「行星弧」可调项默认（=无头默认：月亮弧 / 截至今日 12:00 / 容许 1°）。不调任何项 → 输出逐字不变。
-const PLANETARY_ARC_DEFAULT_OPTS = { arcSource: AstroConst.MOON, datetime: '', asporb: 1 };
+const PLANETARY_ARC_DEFAULT_OPTS = { arcSource: AstroConst.MOON, datetime: '', asporb: 1 };   // asporb 运行时以 transitOrbDefault() 覆盖
 
 // [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
 // 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
@@ -36,6 +38,8 @@ function natalParams(chartObj){
 		zone: params.zone, dirZone: params.zone, lon: params.lon, lat: params.lat,
 		gpsLat: params.gpsLat, gpsLon: params.gpsLon, hsys: params.hsys,
 		zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa, tradition: params.tradition,
+		// [0d] 古典口径段(单源):此前只带基础键,推运链丢古典口径。
+		...natalClassicalParams(params),
 	};
 }
 
@@ -120,7 +124,7 @@ class AstroPlanetaryArc extends Component{
 		const dt = new DateTime();
 		dt.addDate(1);
 		this.state = {
-			params: { ...np, datetime: dt, tmType: 'y', nodeRetrograde: false, asporb: 1, arcSource: AstroConst.MOON },
+			params: { ...np, datetime: dt, tmType: 'y', nodeRetrograde: false, asporb: transitOrbDefault(), arcSource: AstroConst.MOON },
 			dirChart: null,
 		};
 		this.submit = this.submit.bind(this);
@@ -152,7 +156,8 @@ class AstroPlanetaryArc extends Component{
 		// 照 AstroPersianDirected 同款:value 引用变即重算本命参数(保留用户已设的向运时刻/弧源/容许度)并重取。
 		if(prevProps.value !== this.props.value){
 			const np = natalParams(this.props.value);
-			this.setState((s) => ({ params: { ...s.params, ...np } }), this.requestData);
+			// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 np 不带古典键,旧值不得残留。
+			this.setState((s) => ({ params: pruneStaleClassicalParams({ ...s.params, ...np }, np) }), this.requestData);
 		}
 	}
 

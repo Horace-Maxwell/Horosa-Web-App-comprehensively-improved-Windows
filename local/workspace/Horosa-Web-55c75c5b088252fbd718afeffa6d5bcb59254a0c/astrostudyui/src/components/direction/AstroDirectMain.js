@@ -77,6 +77,7 @@ import {
 	PD_FRAMEWORK_LABELS,
 } from '../../utils/primaryDirectionSync';
 import FreezeInactive from '../comp/FreezeInactive';
+import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
 
 const TabPane = Tabs.TabPane;
 const AI_EXPORT_PLANET_INFO = {
@@ -374,8 +375,9 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	if(pdParams.pdRaptParallel){
 		lines.push('急动平行迫星：是');
 	}
-	if(pdParams.termsVariant === 1 || pdParams.termsVariant === 2){
-		lines.push(`界系：${pdParams.termsVariant === 1 ? '托勒密界' : '莉莉界'}`);
+	if(pdParams.termsVariant >= 1 && pdParams.termsVariant <= 4){   // [F4] 放行自定义(4)
+		// [0h] 标签正名(旧「莉莉界」)+迦勒底(3)放行:主限法链此前三元限死 1/2,全局选迦勒底被静默降 0。
+		lines.push(`界系：${({ 1: '托勒密界·校勘本', 2: '托勒密界·经典传本', 3: '迦勒底界', 4: '自定义界表' })[pdParams.termsVariant]}`);   // [R2-4] 补 4,否则快照出「界系：undefined」
 	}
 	if(pdParams.pdTimeKey === 'User' && pdParams.pdTimeKeyCustom){
 		lines.push(`自定义钥匙率：${pdParams.pdTimeKeyCustom}°/年`);
@@ -700,7 +702,7 @@ function getDesiredPdConfigPure(chartObj, fields, override = {}){
 		pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
 		pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
 		pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
-		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v === 1 || v === 2) ? v : 0; })(),
+		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),   // [F4]
 	};
 }
 
@@ -771,6 +773,43 @@ function buildPrimaryDirectionRequestPure(chartObj, fields, override = {}){
 		...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
 		...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
 		termsVariant: desired.termsVariant,
+		// [SURF-5] 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
+		// /predict/pd 装饰器统一 push,条件发送保默认态字节不变=golden 540 天然守护)。
+		// [SURF-R1] 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
+		// 选择)>params(已落库)>fields,而 spread 在其后会用 fields 值静默覆盖——全局仓非默认
+		// 时主限页任何异档选择「永不可达」。剔除 spread 里的 termsVariant(delete 法保键序=
+		// 不翻缓存键);非自定义界(≠4)时连剔表体伴生键,防已废 12 座表随请求。
+		...(()=>{
+			const cls = classicalBackendOverridesFromFields(nextFields || {});
+			delete cls.termsVariant;
+			if(desired.termsVariant !== 4){
+				delete cls.customTermsDay; delete cls.customTermsNight;
+			}else if(!cls.customTermsDay){
+				// [SURF-R5a] 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
+				// fields 值为 4)——裸发 4 后端静默回落埃及,而 UI/params/快照全标「自定义界表」
+				// 且 needsPrimaryDirectionLoad 判 4===4 永久停错档。随盘 fields 表体优先,
+				// 回落本机编辑器仓;仍无表=照 chartRequest.js WP-7 口径降级不发 4。
+				const fDay = nextFields && nextFields.customTermsDay ? nextFields.customTermsDay.value : undefined;
+				const fNight = nextFields && nextFields.customTermsNight ? nextFields.customTermsNight.value : undefined;
+				let day = Array.isArray(fDay) && fDay.length === 12 ? fDay : null;
+				let night = Array.isArray(fNight) && fNight.length === 12 ? fNight : null;
+				if(!day){
+					try{
+						const t = require('../../utils/customCalibreStores').loadCustomTerms();
+						if(t && Array.isArray(t.day) && t.day.length === 12){ day = t.day; night = Array.isArray(t.night) && t.night.length === 12 ? t.night : night; }
+					}catch(e){ /* 无编辑器仓=降级 */ }
+				}
+				if(day){
+					cls.customTermsDay = day;
+					if(night){ cls.customTermsNight = night; }
+				}else{
+					// 无表降级埃及:手写 termsVariant 行在本 IIFE 之前已求值(对象字面量按序),
+					// 改 desired 无效——由 spread 同名键覆盖(spread 在后=后者胜)。
+					cls.termsVariant = 0;
+				}
+			}
+			return cls;
+		})(),
 		pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 		name: nextFields.name ? nextFields.name.value : null,
 		pos: nextFields.pos ? nextFields.pos.value : null,
@@ -1044,7 +1083,7 @@ class AstroDirectMain extends Component{
 		if((params.pdFramework || 'aspect') !== desired.pdFramework){ return true; }
 		if(((params.pdParallel ? 1 : 0)) !== desired.pdParallel){ return true; }
 		if(((params.pdRaptParallel ? 1 : 0)) !== desired.pdRaptParallel){ return true; }
-		if(((params.termsVariant === 1 || params.termsVariant === 2) ? params.termsVariant : 0) !== desired.termsVariant){ return true; }
+		if(((params.termsVariant >= 1 && params.termsVariant <= 4) ? params.termsVariant : 0) !== desired.termsVariant){ return true; }   // [F4]
 		// pdtype/pdDirect/pdConverse/pdAntiscia/pdTerms 现为真实选项,已随 chart.params 持久化;
 		// desired(无 override)即取自 params,故自动加载不因开关而误触发(显式重算走表格「计算」按钮)。
 		return pds.length === 0;
@@ -1136,6 +1175,9 @@ class AstroDirectMain extends Component{
 			pdTimeKeyCustom: req.pdTimeKeyCustom, pdSignificators: req.pdSignificators,
 			pdPromissorTypes: req.pdPromissorTypes, termsVariant: req.termsVariant,
 			pdaspects: req.pdaspects,
+			// [SURF-R3c] spread 古典键(cazimiOrb/sectBuffer 等)不逐键枚举,整包兜底进 key——
+			// 否则「同 pd 键、异古典档」两请求在在途窗内被误去重(完成后自愈,但窗内丢档)。
+			cls: classicalBackendOverridesFromFields(this.props.fields || {}),
 		});
 		if(this.primaryDirectionInflightKey === reqKey){
 			return;
@@ -1216,7 +1258,7 @@ class AstroDirectMain extends Component{
 			pdtype: chartParams.pdtype === 1 ? 1 : 0,
 			pdParallel: chartParams.pdParallel ? 1 : 0,
 			pdRaptParallel: chartParams.pdRaptParallel ? 1 : 0,
-			termsVariant: (chartParams.termsVariant === 1 || chartParams.termsVariant === 2) ? chartParams.termsVariant : 0,
+			termsVariant: (chartParams.termsVariant >= 1 && chartParams.termsVariant <= 4) ? chartParams.termsVariant : 0,   // [F4]
 			...(chartParams.pdTimeKeyCustom ? { pdTimeKeyCustom: chartParams.pdTimeKeyCustom } : {}),
 			...(Array.isArray(chartParams.pdSignificators) && chartParams.pdSignificators.length
 				? { pdSignificators: chartParams.pdSignificators } : {}),
@@ -1430,7 +1472,7 @@ class AstroDirectMain extends Component{
 				...(opt.timeKeyCustom ? { pdTimeKeyCustom: opt.timeKeyCustom } : {}),
 				...(Array.isArray(opt.significators) ? { pdSignificators: opt.significators } : {}),
 				...(Array.isArray(opt.promissorTypes) ? { pdPromissorTypes: opt.promissorTypes } : {}),
-				...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant === 1 || opt.termsVariant === 2) ? opt.termsVariant : 0 } : {}),
+				...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? opt.termsVariant : 0 } : {}),   // [F4]
 			},
 		});
 		const nextFields = buildPrimaryDirectionFetchFields(
@@ -1468,7 +1510,7 @@ class AstroDirectMain extends Component{
 			...(opt.timeKeyCustom ? { pdTimeKeyCustom: opt.timeKeyCustom } : {}),
 			...(Array.isArray(opt.significators) ? { pdSignificators: opt.significators } : {}),
 			...(Array.isArray(opt.promissorTypes) ? { pdPromissorTypes: opt.promissorTypes } : {}),
-			...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant === 1 || opt.termsVariant === 2) ? opt.termsVariant : 0 } : {}),
+			...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? opt.termsVariant : 0 } : {}),   // [F4]
 			runHook: true,
 		});
 	}

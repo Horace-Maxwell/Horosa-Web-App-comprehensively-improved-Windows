@@ -2,6 +2,8 @@ import { Component } from 'react';
 import { XQTabs, XQSegmented } from '../xq-ui';
 import { runElection } from '../../divination/election/electionEngine';
 import { judgeLayerOverrides } from '../../utils/judgeLayerOverrides';
+import { CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import { DIVINATION_JUDGE_EVENT } from '../../utils/divinationJudgeGlobals';
 import { buildElectionSnapshot } from '../../divination/election/electionSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { aspectsOf } from '../../divination/engine/aspectsEngine';
@@ -40,7 +42,22 @@ class ElectionJudgment extends Component{
 		// 阿拉伯点页的纯视图态(分组/派生宫开关),不入存档。
 		this.state = { lotGroup: 'hermetic', lotDerive: 'none' };
 	}
-	componentDidMount(){ this.saveSnap(); }
+	componentDidMount(){
+		this.saveSnap();
+		// [SURF-T3] 判读在 render 现取双 store 全局键(peregrineScore/almuten 口径/judge 键),
+		// 但改档不触发本组件任何 React 更新 → 双事件监听补重渲(与 AstroAspect 同范式)。
+		this._onGlobals = () => this.forceUpdate();
+		if(typeof window !== 'undefined'){
+			window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onGlobals);
+			window.addEventListener(DIVINATION_JUDGE_EVENT, this._onGlobals);
+		}
+	}
+	componentWillUnmount(){
+		if(typeof window !== 'undefined' && this._onGlobals){
+			window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onGlobals);
+			window.removeEventListener(DIVINATION_JUDGE_EVENT, this._onGlobals);
+		}
+	}
 	componentDidUpdate(){ this.saveSnap(); }
 
 	// 尊贵强弱页:五重本质矩阵 + 偶然满分表 + Almuten 五点矩阵 + 接纳五级 + 面神像(折叠)。

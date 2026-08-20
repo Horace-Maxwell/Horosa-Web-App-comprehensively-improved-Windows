@@ -10,6 +10,7 @@ import { julianDayIndex } from './julianDayIndex';
 import { jdnToDateStr } from '../divination/babylon/calendar';
 import { kalendertextD, kalendertextK, lonToSchematicDate } from '../divination/babylon/microzodiac';
 import { lonToSignDeg } from '../divination/babylon/units';
+import { classicalBackendOverridesFromFields } from './classicalChartGlobals';
 
 // 出生 ±183 日窗口的实算历象(朔望/邻近食;/astroextra/ephemeris)。
 // 公元 1 年前(远古纪元)不请求 —— 历日串口径不一,图式方案照常显示。
@@ -123,6 +124,8 @@ export function babylonChartParams(fields){
 		predictive: 0,
 		name: v('name', ''),
 		pos: v('pos', ''),
+		// [SURF-5] 古典设置单源接入(/chart 全吃;条件发送=默认态字节不变)。
+		...classicalBackendOverridesFromFields(fields),
 	};
 }
 

@@ -104,6 +104,12 @@ const PAGES = {
 		optionPrefetch: 'na:本地即时', dataPrewarm: 'na:本地即时', localMemo: 'existing', scu: 'done',
 		drawGuard: 'existing', keepStale: 'na:本地即时',
 	} },
+	// 塔罗 2026-08-15 升「卜」一级(性能语义自 cnyibu 聚合承袭:纯前端抽牌引擎,零后端排盘)。
+	tarot: { kind: 'A', axes: {
+		netCache: 'na:纯前端抽牌引擎(种子 RNG),零后端排盘请求', stepPrefetch: 'na:无时间步进主轴(种子模式手动抽)', stepSelect: 'na:同左',
+		optionPrefetch: 'na:本地即时(牌组/牌阵切换纯前端)', dataPrewarm: 'na:本地即时', localMemo: 'existing', scu: 'done',
+		drawGuard: 'na:声明式 React 渲染(无命令式画布)', keepStale: 'na:本地即时;抽牌「起出即冻结」无旧盘等待态',
+	} },
 	cnyibu: { kind: 'MIXED', axes: {
 		netCache: 'done', stepPrefetch: 'done', stepSelect: 'done:全局(/chart)+jinkou 本地 prefetchStepSelect(gods→pan ±1 双向,经内嵌 LiuRengInput onStepSelect 透传)', optionPrefetch: 'na:已算沉淀(L1/L2/L3/paramhash)秒回+未命中路径最短;计算型后端投机变体预取判弊>利(开下拉即触真算),有据判不做',
 		dataPrewarm: 'na:进页即取+keep-stale 可见+全层缓存承接;预挂载预热需复刻实例构参(坑45 漂移类)判不做,有纯函数缝者(七政/六壬/奇门)已做', localMemo: 'existing', scu: 'done', drawGuard: 'na:声明式 React SVG(金口/六壬画布各自已有守卫)', keepStale: 'na:聚合壳,loading 态由子技法自面(kentang 子面 Spin 包裹旧盘)',

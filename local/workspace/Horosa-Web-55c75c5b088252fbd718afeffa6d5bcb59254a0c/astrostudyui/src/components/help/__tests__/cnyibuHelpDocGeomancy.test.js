@@ -19,8 +19,9 @@ const GEO = (() => {
 })();
 
 // 十五子技法 + 总览,逐一对应一个 render 方法(顺序照 CNYIBU_SUBTABS 之外的可读顺序)
+// Tarot 章已迁 TarotHelpDoc(塔罗升一级,2026-08-15);其冒烟由 helpDocsGuard 总闸按 registry 键覆盖。
 const CHAPTERS = ['Overview', 'Suzhan', 'Jinkou', 'Xiaoliuren', 'Wuzhao', 'Taixuan', 'Jingjue', 'Lingqi',
-	'Tongshefa', 'Huangji', 'Guice', 'Xiaochengtu', 'Feigong', 'Shenyishu', 'Geomancy', 'Tarot'];
+	'Tongshefa', 'Huangji', 'Guice', 'Xiaochengtu', 'Feigong', 'Shenyishu', 'Geomancy'];
 
 describe('卜·其他 帮助文档 · 结构与地占章', () => {
 	test('整篇渲染不抛且非空(默认落在总览)', () => {
@@ -30,7 +31,7 @@ describe('卜·其他 帮助文档 · 结构与地占章', () => {
 		expect(html).toContain('其他术数 · 操作手册');
 	});
 
-	test('🔴 十六章逐一可渲染且非空壳(惰性构建后必须逐章冒烟)', () => {
+	test('🔴 十五章逐一可渲染且非空壳(惰性构建后必须逐章冒烟;塔罗章已迁 TarotHelpDoc 2026-08-15)', () => {
 		const inst = new CnyibuHelpDoc({});
 		const thin = [];
 		CHAPTERS.forEach((name) => {
@@ -43,14 +44,14 @@ describe('卜·其他 帮助文档 · 结构与地占章', () => {
 		expect(thin).toEqual([]);
 	});
 
-	test('两层页签配置齐备:四大类共十六项,键唯一且与 render 方法一一对应', () => {
+	test('两层页签配置齐备:四大类共十五项,键唯一且与 render 方法一一对应(塔罗已升一级)', () => {
 		const inst = new CnyibuHelpDoc({});
 		const groups = renderToStaticMarkup.length >= 0 ? inst.render().props.children[1].props.groups : null;
 		expect(Array.isArray(groups)).toBe(true);
 		expect(groups.length).toBe(4);
 		const items = groups.reduce((acc, g) => acc.concat(g.items), []);
-		expect(items.length).toBe(16);
-		expect(new Set(items.map((it) => it.key)).size).toBe(16);
+		expect(items.length).toBe(15);
+		expect(new Set(items.map((it) => it.key)).size).toBe(15);
 		items.forEach((it) => {
 			expect([it.key, typeof it.render]).toEqual([it.key, 'function']);
 			expect([it.key, typeof it.label === 'string' && it.label.length > 0]).toEqual([it.key, true]);

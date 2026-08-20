@@ -80,6 +80,42 @@ export function fmtDegree(item){
 	return `${sign} ${fmtNum(signlon, 2)}°`;
 }
 
+// [0d] 本命参数古典段(单源):7 个希腊化头键条件透传 + 二/四批 helper 段。
+// 推运/返照族 9 组件(SolarReturn/LunarReturn/Profection/GivenYear/Decennials/SolarArc/ZR/
+// PersianDirected/PlanetaryArc)的 genNatalParams 此前手写 4-6 基础键,古典键全丢——改界系/
+// 三分/宫头5°律/三态阈后这些盘与主盘口径静默分叉(三层断链之前端层)。统一 spread 本段;
+// 条件形与主盘 fieldsToParams 同口径(默认不下发=请求体/缓存键零回归)。
+// 判非默认写成「≠默认值」形(而非「==已知非默认值」枚举):后续档位扩容(如 sect 第三档)自动透传。
+// [WP-5a] 行运相位容许度全局默认源:推运族 asporb 初值改读全局仓 transitOrb(默认 1=历史现状
+// 零回归;用户在「星盘设置」改 2°/3°/5° 后,新开推运页初值随全局——请求仍发 asporb 键)。
+export function transitOrbDefault(){
+	try{
+		const { classicalGlobalValue } = require('../../utils/classicalChartGlobals');
+		const v = Number(classicalGlobalValue('transitOrb'));
+		return Number.isFinite(v) && v > 0 ? v : 1;
+	}catch(e){ return 1; }
+}
+
+export function natalClassicalParams(params){
+	const p = params || {};
+	return {
+		// [SURF-R4u] user 自定义岁差随行历元(照 chartParams 同款三元):此前推运族构参缺此段,
+		// 请求只带 siderealAyanamsa='user' 无 T0/Deg → 后端 user 档建立失败静默回落 Lahiri
+		// (perpredict._fill_user_ayan 内层回填也因外层未建档而空转=上一轮只修了半边)。
+		...((`${p.siderealAyanamsa}` === 'user')
+			? require('../../utils/customCalibreStores').userAyanParamsFrom((k) => p[k])
+			: {}),
+		...(p.termsVariant ? { termsVariant: p.termsVariant } : {}),
+		...(p.geminiBoundEmended ? { geminiBoundEmended: 1 } : {}),
+		...((p.westNodeType && p.westNodeType !== 'mean') ? { westNodeType: p.westNodeType } : {}),
+		...((p.sectBuffer && p.sectBuffer !== 'geo') ? { sectBuffer: p.sectBuffer } : {}),
+		...((p.leoBoundFirst === 1 || p.leoBoundFirst === '1') ? { leoBoundFirst: 1 } : {}),
+		...((p.triplicity && p.triplicity !== 'Dorothean') ? { triplicity: p.triplicity } : {}),
+		...((p.lotReversal === 0 || p.lotReversal === '0') ? { lotReversal: 0 } : {}),
+		...classicalBackendOverridesFromPlain(p),
+	};
+}
+
 export function chartParams(chartObj){
 	const params = chartObj && chartObj.params ? chartObj.params : {};
 	const birth = params.birth || '';
@@ -94,22 +130,15 @@ export function chartParams(chartObj){
 		hsys: params.hsys !== undefined ? params.hsys : 0,
 		zodiacal: params.zodiacal !== undefined ? params.zodiacal : 0,
 		siderealAyanamsa: params.siderealAyanamsa !== undefined ? params.siderealAyanamsa : '',
+		...((`${params.siderealAyanamsa}` === 'user')
+			? require('../../utils/customCalibreStores').userAyanParamsFrom((k) => params[k])
+			: {}),
 		tradition: false,
 		predictive: false,
 		orbs: params.orbs,
 		orbScale: params.orbScale,
-		// 界系(bounds)随本命盘透传:本命 params.termsVariant 非 0 才带(默认埃及 不下发=零回归)。
-		...(params.termsVariant ? { termsVariant: params.termsVariant } : {}),
-		// 双子界序(仅经典传本受影响):同款条件透传。
-		...(params.geminiBoundEmended ? { geminiBoundEmended: 1 } : {}),
-		// 古典占星参数随本命盘透传(三分集/福点反转/界系/交点真平/宗派缓冲/狮子木首):本命非默认才带,与主盘 fieldsToParams 同口径,默认不下发=零回归。
-		...(params.westNodeType === 'true' ? { westNodeType: 'true' } : {}),
-		...(params.sectBuffer === 'ptolemy5' ? { sectBuffer: 'ptolemy5' } : {}),
-		...((params.leoBoundFirst === 1 || params.leoBoundFirst === '1') ? { leoBoundFirst: 1 } : {}),
-		...((params.triplicity && params.triplicity !== 'Dorothean') ? { triplicity: params.triplicity } : {}),
-		...((params.lotReversal === 0 || params.lotReversal === '0') ? { lotReversal: 0 } : {}),
-		// 2026-07 二批九键:共享 helper(平面版)条件透传。
-		...classicalBackendOverridesFromPlain(params),
+		// 古典占星参数随本命盘透传:单源 natalClassicalParams(含二/四批九键),默认不下发=零回归。
+		...natalClassicalParams(params),
 	};
 }
 
@@ -148,6 +177,11 @@ export function chartRequestKey(chartObj, extra = ''){
 		params.westNodeType === 'true' ? 'true' : '',
 		params.sectBuffer === 'ptolemy5' ? 'ptolemy5' : '',
 		(params.leoBoundFirst === 1 || params.leoBoundFirst === '1') ? '1' : '',
+		// [对标战役 0a] 缓存键此前只纳上面 6 键——连 geminiBoundEmended 都缺,二/四批 10 键+三开关全缺,
+		// 改燃烧上界/空亡口径等后辅盘(调波/龙盘/世俗)可能命中旧缓存返旧盘。修法=追加共享 helper 的
+		// JSON 段(默认态恒 '{}',老键序不变;未来新键进 helper 即自动进缓存键,不再逐键手补)。
+		(params.geminiBoundEmended === 1 || params.geminiBoundEmended === '1') ? 'g1' : '',
+		JSON.stringify(classicalBackendOverridesFromPlain(params)),
 		extra,
 	];
 	return parts.join('|');

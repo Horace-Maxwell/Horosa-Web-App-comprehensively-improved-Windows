@@ -305,6 +305,7 @@ class ElectionMain extends Component{
 		this._westSchool = extra.westSchool || 'modern_main';
 		this._elecOpts = {
 			westSchool: this._westSchool, surgeryPart: extra.surgeryPart || null, crisisBase: extra.crisisBase || null,
+			...judgeLayerOverrides(),   // [R5-P2] 判读全局层:扫描候选评分与主判读卡(ElectionJudgment:278)同口径,否则改三态/空亡后两处分叉
 			electionParams: extra.electionParams || null,
 			tradeSide: extra.tradeSide || '', talismanStar: extra.talismanStar || null,
 			surgeryPartOpposite: !!extra.surgeryPartOpposite,

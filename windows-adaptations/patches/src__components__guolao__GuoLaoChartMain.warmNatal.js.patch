@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoChartMain.js b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-index dedbbaf3..b12edfa5 100644
+index 69be73f9..6971263d 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 @@ -1,7 +1,8 @@
@@ -57,7 +57,7 @@ index dedbbaf3..b12edfa5 100644
  // ⚠️ 死代码(零调用,同类自检 v42 定性):主链=buildGuolaoSnapshotTextV2;本函数段头(宫位与星体/宫位二十八宿)
  // 未登 preset 属死码段——若复活必须先登记 preset+migration(全树段头哨兵会咬)。
  function buildGuolaoSnapshotText(params, result){
-@@ -2108,23 +2127,6 @@ export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, t
+@@ -2121,23 +2140,6 @@ export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, t
  	}
  }
  
@@ -81,7 +81,7 @@ index dedbbaf3..b12edfa5 100644
  function fieldsToParams(fields){
  	const su28Mode = guolaoSu28ModeFromFields(fields);
  	const params = {
-@@ -2228,6 +2230,144 @@ function paramsWithMoiraTransit(fields, transitTime){
+@@ -2241,6 +2243,144 @@ function paramsWithMoiraTransit(fields, transitTime){
  	return params;
  }
  
@@ -226,7 +226,7 @@ index dedbbaf3..b12edfa5 100644
  
  class GuoLaoChartMain extends Component{
  	constructor(props) {
-@@ -2323,6 +2463,8 @@ class GuoLaoChartMain extends Component{
+@@ -2336,6 +2476,8 @@ class GuoLaoChartMain extends Component{
  			// 判读规则三段串行,前两段有缓存、第三段(fetchMoiraQizhengRules,几百 ms 重计算)每步必付。
  			// 登记的预取任务把三段【链式】全预热(与 requestGuolaoBundle 同构:同 params/同
  			// applyGuolaoNodeMode/同 rules 入参形态 → 键逐字节同,真点步进时第三段归零)。
@@ -235,7 +235,7 @@ index dedbbaf3..b12edfa5 100644
  			// 🔴 取现时红线:moiraTransitTime 为 null(默认过运=「现在」)时流年/规则两段的键含
  			//    构造时刻的「现在」——真点时刻已变,键不同=预热白打且徒增负载 → 该态只暖本命段。
  			//    键不同也意味着绝不会错误命中旧「现在」(无「今天被冻住」降级)。
-@@ -2534,6 +2676,10 @@ class GuoLaoChartMain extends Component{
+@@ -2547,6 +2689,10 @@ class GuoLaoChartMain extends Component{
  				qizhengKinPan: pan,
  				qizhengKinLoading: false,
  				qizhengKinError: '',
@@ -246,7 +246,7 @@ index dedbbaf3..b12edfa5 100644
  			});
  			if(pan && pan.snapshot){
  				saveModuleAISnapshot('guolao-qizhengkin', pan.snapshot, {
-@@ -2550,6 +2696,9 @@ class GuoLaoChartMain extends Component{
+@@ -2563,6 +2709,9 @@ class GuoLaoChartMain extends Component{
  				this.setState({
  					qizhengKinLoading: false,
  					qizhengKinError: e && e.message ? e.message : '七政四余服务暂不可用',
@@ -256,18 +256,17 @@ index dedbbaf3..b12edfa5 100644
  				});
  			}
  			return null;
-@@ -2625,6 +2774,10 @@ class GuoLaoChartMain extends Component{
- 			moiraPanelTransitChartObj: clonePlain(transitChartObj || this.state.moiraTransitChartObj),
+@@ -2639,6 +2788,9 @@ class GuoLaoChartMain extends Component{
  			moiraPanelTransitParams: clonePlain(nextTransitParams),
  			moiraLoading: false,
-+		}, ()=>{
+ 		}, ()=>{
 +			// horosa_panel_ready_v1:旧多段路径的**唯一**终点(applyChartObj→requestMoiraTransitChart
 +			// →requestMoiraRules 全部汇入此处),中栏盘面 + 右栏 rules 在这一次 setState 里一起落定。
 +			markPanelReady('guolao');
- 		});
- 	}
- 
-@@ -2711,6 +2864,9 @@ class GuoLaoChartMain extends Component{
+ 			// [issue#74 同类] 规则落地即补拍快照:阶段一在 moiraRules 未归时已产首版(lazy 200-800ms
+ 			// 即物化冻结,导出直吃缓存),不补拍则 AI 侧恒丢 [虚实]/[本命化曜]/[流年流曜] 三段、
+ 			// [神煞] 降级历法源——页面/refresh/无头三路都等规则,唯存盘路裸拍(不同构)。
+@@ -2729,6 +2881,9 @@ class GuoLaoChartMain extends Component{
  					moiraTransitChartObj: displayResult,
  					moiraTransitLoading: false,
  					moiraLoading: false,
@@ -277,7 +276,7 @@ index dedbbaf3..b12edfa5 100644
  				});
  				this._pendingMoiraChartObj = null;
  				return result;
-@@ -2735,6 +2891,9 @@ class GuoLaoChartMain extends Component{
+@@ -2753,6 +2908,9 @@ class GuoLaoChartMain extends Component{
  					this.setState({
  						...(this._pendingMoiraChartObj ? { chartObj: this._pendingMoiraChartObj } : {}),
  						moiraLoading: false,
@@ -287,7 +286,7 @@ index dedbbaf3..b12edfa5 100644
  					});
  					this._pendingMoiraChartObj = null;
  				}
-@@ -2859,7 +3018,11 @@ class GuoLaoChartMain extends Component{
+@@ -2877,7 +3035,11 @@ class GuoLaoChartMain extends Component{
  			this.saveGuolaoAISnapshot(params, chartObj);
  		}
  		if(!chartObj){
@@ -300,7 +299,7 @@ index dedbbaf3..b12edfa5 100644
  			return;
  		}
  
-@@ -2876,10 +3039,18 @@ class GuoLaoChartMain extends Component{
+@@ -2894,10 +3056,18 @@ class GuoLaoChartMain extends Component{
  			}
  		}
  		const transitObj = transitRaw ? applyGuolaoNodeMode(transitRaw, this.props.fields) : null;
@@ -323,7 +322,7 @@ index dedbbaf3..b12edfa5 100644
  		let rsp = null;
  		let fallbackReason = 'empty-response';
  		try{
-@@ -2904,11 +3075,18 @@ class GuoLaoChartMain extends Component{
+@@ -2922,12 +3092,18 @@ class GuoLaoChartMain extends Component{
  			: remoteRules;
  		this.setState({
  			moiraRules: rules,
@@ -335,14 +334,14 @@ index dedbbaf3..b12edfa5 100644
  			moiraPanelTransitParams: transitParams,
  			moiraLoading: false,
  			moiraTransitLoading: false,
-+		}, ()=>{
+ 		}, ()=>{
 +			// horosa_panel_ready_v1:主路径(单闸门 requestGuolaoBundle)终点 —— 中栏命盘轮 + 流年环
 +			// + 右栏 Moira 面板(rules/流曜/格局)全部落定的那一次 setState。
 +			markPanelReady('guolao');
+ 			// [issue#74 同类] 同 commitMoiraPanel:阶段二规则取齐即补拍,快照终版带全 Moira 段。
+ 			this.saveGuolaoAISnapshot(params, chartObj);
  		});
- 	}
- 
-@@ -3002,10 +3180,11 @@ class GuoLaoChartMain extends Component{
+@@ -3023,10 +3199,11 @@ class GuoLaoChartMain extends Component{
  
  
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
@@ -356,7 +355,7 @@ index dedbbaf3..b12edfa5 100644
  			return true;
  		}
  		return !wrapperPropsEqual(this.props, nextProps);
-@@ -3641,8 +3820,40 @@ class GuoLaoChartMain extends Component{
+@@ -3662,8 +3839,40 @@ class GuoLaoChartMain extends Component{
  		});
  	}
  
@@ -397,7 +396,7 @@ index dedbbaf3..b12edfa5 100644
  		const ele = this.state.electionOptions || {};
  		if(ele.adjNorth === false){
  			if(this.state.electionDeclOutOfRange){
-@@ -3695,10 +3906,34 @@ class GuoLaoChartMain extends Component{
+@@ -3716,10 +3925,34 @@ class GuoLaoChartMain extends Component{
  
  	// 化曜/虚实/命曜/流曜/相位 五类信息面板原本没有——注入为右栏常驻 tab(信息不得仅在
  	// 快捷弹层可见);格局/神煞面板已有同源信息,不重复注入(格局弹窗仍留盘面徽标入口)。
@@ -433,7 +432,7 @@ index dedbbaf3..b12edfa5 100644
  				<GuoLaoElectionTable
  					electionData={this.state.electionData}
  					transitChartObj={this.state.moiraTransitChartObj}
-@@ -3707,20 +3942,23 @@ class GuoLaoChartMain extends Component{
+@@ -3728,20 +3961,23 @@ class GuoLaoChartMain extends Component{
  					declination={this.resolveElectionDeclination()}
  				/>
  			) },
@@ -461,7 +460,7 @@ index dedbbaf3..b12edfa5 100644
  	}
  
  	renderMoiraQuickModal(){
-@@ -3850,20 +4088,27 @@ class GuoLaoChartMain extends Component{
+@@ -3871,20 +4107,27 @@ class GuoLaoChartMain extends Component{
  		const options = this.state.kinastroOptions || {};
  		const zhangguo = safeMap(qz.zhangguo);
  		const mingGong = safeMap(qz.mingGong);
@@ -501,7 +500,7 @@ index dedbbaf3..b12edfa5 100644
  				<div className="horosa-qizheng-kin-info-stack">
  					{this.renderQizhengKinReadingCards(sectionByTitle.get('张果断语') || {title: '张果断语', rows: []})}
  					<div className="horosa-qizheng-kin-info-card">
-@@ -3876,9 +4121,9 @@ class GuoLaoChartMain extends Component{
+@@ -3897,9 +4140,9 @@ class GuoLaoChartMain extends Component{
  					</div>
  				</div>
  			)},
@@ -514,7 +513,7 @@ index dedbbaf3..b12edfa5 100644
  				<div className="horosa-qizheng-kin-info-stack">
  					{sections.filter((item)=>/宿度$/.test(item.title)).map((item)=>this.renderQizhengKinSection(item))}
  				</div>
-@@ -3896,12 +4141,12 @@ class GuoLaoChartMain extends Component{
+@@ -3917,12 +4160,12 @@ class GuoLaoChartMain extends Component{
  			>
  				{tabs.map((item)=>(
  					<TabPane tab={item.label} key={item.key}>
@@ -532,7 +531,7 @@ index dedbbaf3..b12edfa5 100644
  						</FreezeSubTab>
  					</TabPane>
  				))}
-@@ -3933,20 +4178,33 @@ class GuoLaoChartMain extends Component{
+@@ -3954,20 +4197,33 @@ class GuoLaoChartMain extends Component{
  		);
  	}
  
@@ -574,7 +573,7 @@ index dedbbaf3..b12edfa5 100644
  		// 与盘面绝对同源:盘面神煞环已切到 rules 引擎(godHits/transitGodHits,Moira prop 规则本尊),
  		// 清单从同一 hits 收集(全集 ~107 字,勾选与盘一一联动);rules 未到回退历法 ziGods。
  		const rules = this.state.moiraRules || {};
-@@ -3985,6 +4243,21 @@ class GuoLaoChartMain extends Component{
+@@ -4006,6 +4262,21 @@ class GuoLaoChartMain extends Component{
  		};
  	}
  
@@ -596,7 +595,7 @@ index dedbbaf3..b12edfa5 100644
  	render(){
  		let height = this.props.height ? this.props.height : 760;
  		if(height === '100%'){
-@@ -3994,16 +4267,21 @@ class GuoLaoChartMain extends Component{
+@@ -4015,16 +4286,21 @@ class GuoLaoChartMain extends Component{
  		}
  
  		let chartObj = this.state.chartObj;
@@ -622,7 +621,7 @@ index dedbbaf3..b12edfa5 100644
  
  		return (
  			<div className={`horosa-guolao-page horosa-astro-redesign horosa-guolao-redesign${useKinastroQizheng ? ' horosa-qizheng-kin-page' : ''}`}>
-@@ -4036,74 +4314,27 @@ class GuoLaoChartMain extends Component{
+@@ -4057,74 +4333,27 @@ class GuoLaoChartMain extends Component{
  							/>
  						</div>
  						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-guolao-chart-panel xq-chart-renderer xq-chart-renderer-guolao${useMoiraLikeWheel ? ' horosa-guolao-chart-panel-moira' : ''}`}>

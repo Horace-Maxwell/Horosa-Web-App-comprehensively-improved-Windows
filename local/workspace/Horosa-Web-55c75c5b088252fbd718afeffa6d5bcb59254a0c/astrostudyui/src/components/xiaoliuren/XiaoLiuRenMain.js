@@ -122,11 +122,18 @@ class XiaoLiuRenMain extends Component {
 	}
 
 	componentDidMount(){
-		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
+		// [issue#74 同类] 农历桥回包履约(与灵棋/飞宫同律):域外年首拍快照缺农历/四柱行,
+		// 只 forceUpdate 不重存则缓存/事盘恒缺——桥契约「远程回包后由订阅方重存快照补全」。
+		this._unsubNongli = subscribeRemoteNongli(() => {
+			this.forceUpdate();
+			if(this.state.ke){ this.saveSnap(); }
+		});
 		if(typeof window !== 'undefined'){
 			this._onSnapRefresh = (evt)=>{
 				if(!evt || !evt.detail || evt.detail.module !== 'xiaoliuren' || !this.state.ke){ return; }
-				const t = buildXiaoLiuRenSnapshotText(this.state.ke, this.state.inputs.askEvent, this.state.settings);
+				// [issue#74 同类] timeLines 必带(与 saveSnap/feigong/xiaochengtu 同构):此前第三参
+				// 裸 settings → refresh 版无起卦时间/农历/四柱,反把 saveSnap 的完整版覆盖掉。
+				const t = buildXiaoLiuRenSnapshotText(this.state.ke, this.state.inputs.askEvent, { ...this.state.settings, timeLines: buildQiKeTimeLines(this.activeFields()) });
 				if(t){ saveModuleAISnapshot('xiaoliuren', t); evt.detail.snapshotText = t; }
 			};
 			window.addEventListener('horosa:refresh-module-snapshot', this._onSnapRefresh);
@@ -251,7 +258,8 @@ class XiaoLiuRenMain extends Component {
 				options: { ...this.state.settings },
 				nums: this.state.ke ? this.state.ke.nums : null,   // 🔴 冻结三数(重算只重排,绝不重起)
 				askEvent: this.state.inputs.askEvent,
-				snapshot: buildXiaoLiuRenSnapshotText(this.state.ke, this.state.inputs.askEvent, this.state.settings),
+				// [issue#74 同类] 存档快照同带 timeLines(与 saveSnap 同构,否则事盘恒缺起课时间段)。
+				snapshot: buildXiaoLiuRenSnapshotText(this.state.ke, this.state.inputs.askEvent, { ...this.state.settings, timeLines: buildQiKeTimeLines(this.activeFields()) }),
 			},
 		});
 	}

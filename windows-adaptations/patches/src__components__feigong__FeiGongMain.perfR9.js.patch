@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/feigong/FeiGongMain.js b/astrostudyui/src/components/feigong/FeiGongMain.js
-index e308055..f8b0f9f 100644
+index d479be30..df23372e 100644
 --- a/astrostudyui/src/components/feigong/FeiGongMain.js
 +++ b/astrostudyui/src/components/feigong/FeiGongMain.js
 @@ -17,6 +17,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
@@ -11,15 +11,15 @@ index e308055..f8b0f9f 100644
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.feigong.settings.v1';
-@@ -151,6 +153,7 @@ class FeiGongMain extends Component {
+@@ -153,6 +155,7 @@ class FeiGongMain extends Component {
  		this.onTimeChanged = this.onTimeChanged.bind(this);
  		this.changeGeo = this.changeGeo.bind(this);
  	}
 +
  	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		if(typeof window !== 'undefined'){
-@@ -254,7 +257,8 @@ class FeiGongMain extends Component {
+ 		// [issue#74 同类] 农历桥回包履约(与灵棋同律):①已定局 → 补拍快照(首版缺农历/四柱行,
+ 		// 只 forceUpdate 不重存则缓存/事盘恒缺);②曾因「排盘未出时支」定局失败(error 且无 ju)
+@@ -276,7 +279,8 @@ class FeiGongMain extends Component {
  		const dayZhi = inputs.useDayGZ ? c.dayZhi : inputs.dayZhi;
  		const ju = buildJu({ zhi: qz, dayGan, dayZhi });
  		if(!ju){ return this.setState({ error: '起支非法,不可定局', ju: null }); }
@@ -29,7 +29,7 @@ index e308055..f8b0f9f 100644
  	}
  	setSettings(patch){
  		const settings = { ...this.state.settings, ...patch };
-@@ -454,82 +458,97 @@ class FeiGongMain extends Component {
+@@ -490,82 +494,97 @@ class FeiGongMain extends Component {
  		);
  		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
  		return (

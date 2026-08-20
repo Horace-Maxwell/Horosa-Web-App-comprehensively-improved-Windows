@@ -72,6 +72,20 @@ CORE_PD_SIGNIFICATOR_IDS = [
 CORE_PD_VERTEX_ID = 'Vertex'
 
 
+
+def _fill_user_ayan(perchart, target):
+    """[SURF-R2u] 内层构参只回填 siderealAyanamsa 键名,user 档的 t0/ayan_t0 三参丢失 →
+    推运盘(返照/推运内圈等)在自定义恒星黄道下静默回落默认岁差。user 档时补两附参。"""
+    try:
+        if getattr(perchart, 'siderealAyanamsa', '') == 'user':
+            sm = getattr(perchart, 'siderealMode', None) or {}
+            if sm.get('t0') is not None and sm.get('ayan_t0') is not None:
+                target['userAyanT0'] = sm.get('t0')
+                target['userAyanDeg'] = sm.get('ayan_t0')
+    except Exception:
+        pass
+
+
 def _polarSafeHousesEx(jd, lat, lon, swhsys=b'P'):
     """swisseph.houses_ex 的极地安全包装:象限分宫制(P/K 等)在极圈内无解抛 swisseph.Error。
     仅取 ascmc(RAMC/ASC/Vertex)的调用点经此包装——ascmc 与分宫制无关(W/B/O 实测逐位一致),
@@ -2004,6 +2018,7 @@ class PerPredict:
             cparams['date'] = dirparts[0]
             cparams['time'] = dirparts[1]
             cparams['siderealAyanamsa'] = self.perchart.siderealAyanamsa
+            _fill_user_ayan(self.perchart, cparams)
             obj = {
                 'date': srdtstr,
                 'chart': {
@@ -2016,6 +2031,25 @@ class PerPredict:
             res.append(obj)
         return res
 
+    def _hellenisticSrDate(self, srDate):
+        """[WP-6] 希腊式太阳返照:精确回归时刻 ±17 日窗内找「月亮回本命月黄经」的最近时刻
+        (古法以月位代精密太阳定返照上升)。默认 'precise' 不调用=零回归。"""
+        try:
+            natal_moon = self.perchart.chart.getObject(const.MOON).lon
+            base = Datetime.fromJD(srDate.jd - 17.0, srDate.utcoffset)
+            t1 = dateLunarReturn(base, natal_moon, self.perchart.zodiacal)
+            t2 = dateLunarReturn(Datetime.fromJD(t1.jd + 2.0, srDate.utcoffset), natal_moon, self.perchart.zodiacal)
+            pick = t1 if abs(t1.jd - srDate.jd) <= abs(t2.jd - srDate.jd) else t2
+            return pick
+        except Exception:
+            return srDate
+
+    def _srVariantFlags(self, params):
+        data = self.perchart.data if isinstance(self.perchart.data, dict) else {}
+        variant = data.get('solarReturnVariant') or params.get('solarReturnVariant') or 'precise'
+        latmode = data.get('returnLatitudeMode') or params.get('returnLatitudeMode') or 'ecliptic'
+        return variant, latmode
+
     def getSolarReturnByDate(self, params, date, asporb=-1):
         sun = self.perchart.chart.getObject(const.SUN)
         parts = date.split(' ')
@@ -2024,13 +2058,20 @@ class PerPredict:
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
         srDate = dateSolarReturn(returnDate, sun.lon, self.perchart.zodiacal)
+        _variant, _latmode = self._srVariantFlags(params)
+        if _variant == 'hellenistic':
+            srDate = self._hellenisticSrDate(srDate)
         chart = Chart(srDate, self.perchart.pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
+        if _latmode == 'withLatitude':
+            params['returnLatitudeMode'] = 'withLatitude'
+            params['_isReturnChart'] = 1   # dirChart(PerChart) 端赤经落宫仅此标记生效,主盘零效
         srdt = Datetime.fromJD(srDate.jd, srDate.utcoffset)
         srdtstr = srdt.toCNString()
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
         params['time'] = dirparts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
+        _fill_user_ayan(self.perchart, params)
         obj = {
             'date': srdtstr,
             'chart': {
@@ -2050,14 +2091,20 @@ class PerPredict:
         zone = params['zone']
         returnDate = Datetime(dt, tm, zone)
         srDate = dateSolarReturn(returnDate, sun.lon, self.perchart.zodiacal)
+        _variant, _latmode = self._srVariantFlags(params)
+        if _variant == 'hellenistic':
+            srDate = self._hellenisticSrDate(srDate)
         chart = Chart(srDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
+        if _latmode == 'withLatitude':
+            params['returnLatitudeMode'] = 'withLatitude'
+            params['_isReturnChart'] = 1
         srdt = Datetime.fromJD(srDate.jd, srDate.utcoffset)
         srdtstr = srdt.toCNString()
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
         params['time'] = dirparts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
-
+        _fill_user_ayan(self.perchart, params)
         obj = {
             'date': srdtstr,
             'pos': {
@@ -2090,7 +2137,7 @@ class PerPredict:
         params['date'] = dirparts[0]
         params['time'] = dirparts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
-
+        _fill_user_ayan(self.perchart, params)
         obj = {
             'date': srdtstr,
             'pos': {
@@ -2121,6 +2168,7 @@ class PerPredict:
             params1['date'] = dirparts1[0]
             params1['time'] = dirparts1[1]
             params1['siderealAyanamsa'] = self.perchart.siderealAyanamsa
+            _fill_user_ayan(self.perchart, params1)
             parts = dirparts1[0].split('-')
             if parts[1] == m:
                 obj1 = {
@@ -2150,7 +2198,7 @@ class PerPredict:
         params['date'] = parts[0]
         params['time'] = parts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
-
+        _fill_user_ayan(self.perchart, params)
         obj = {
             'date': date,
             'pos': {

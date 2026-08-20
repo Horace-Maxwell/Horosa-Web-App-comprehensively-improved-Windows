@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/shusuan/CanPingMain.js b/astrostudyui/src/components/shusuan/CanPingMain.js
-index c36aebf..cafca7c 100644
+index a9a36fd0..5d86cacc 100644
 --- a/astrostudyui/src/components/shusuan/CanPingMain.js
 +++ b/astrostudyui/src/components/shusuan/CanPingMain.js
-@@ -41,6 +41,7 @@ function deepFreeze(o){
+@@ -42,6 +42,7 @@ function deepFreeze(o){
  }
  
  class CanPingMain extends Component {
@@ -10,7 +10,7 @@ index c36aebf..cafca7c 100644
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
  	shouldComponentUpdate(nextProps, nextState){
-@@ -57,6 +58,7 @@ class CanPingMain extends Component {
+@@ -58,6 +59,7 @@ class CanPingMain extends Component {
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  	}
  

@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/astro/AstroEphemeris.js b/astrostudyui/src/components/astro/AstroEphemeris.js
-index 708b7e6..b273f0d 100644
+index c95b3702..4273f466 100644
 --- a/astrostudyui/src/components/astro/AstroEphemeris.js
 +++ b/astrostudyui/src/components/astro/AstroEphemeris.js
-@@ -4,6 +4,8 @@ import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
- import request from '../../utils/request';
+@@ -5,6 +5,8 @@ import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
  import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+ import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const TabPane = Tabs.TabPane;
  
-@@ -31,9 +33,12 @@ class AstroEphemeris extends Component{
+@@ -32,9 +34,12 @@ class AstroEphemeris extends Component{
  			loading: false,
  			result: null,
  			requestKey: '',
@@ -24,7 +24,7 @@ index 708b7e6..b273f0d 100644
  	}
  
  	componentDidMount(){
-@@ -59,6 +64,10 @@ class AstroEphemeris extends Component{
+@@ -72,6 +77,10 @@ class AstroEphemeris extends Component{
  		}
  	}
  
@@ -35,7 +35,7 @@ index 708b7e6..b273f0d 100644
  	change(key, value){
  		this.setState({[key]: value});
  	}
-@@ -80,7 +89,8 @@ class AstroEphemeris extends Component{
+@@ -97,7 +106,8 @@ class AstroEphemeris extends Component{
  				timeoutMs: 90000,
  			});
  			if(!this._mounted) return;
@@ -45,7 +45,7 @@ index 708b7e6..b273f0d 100644
  		}catch(e){
  			if(!this._mounted) return;
  			this.setState({loading: false, requestKey: key});
-@@ -133,12 +143,20 @@ class AstroEphemeris extends Component{
+@@ -150,12 +160,20 @@ class AstroEphemeris extends Component{
  		this.ensureLoaded();
  		const result = this.state.result || {};
  		const height = this.props.height ? this.props.height - 20 : 720;
@@ -67,7 +67,7 @@ index 708b7e6..b273f0d 100644
  							<div style={cardStyle}>
  								<div className="horosa-info-card-title">入座</div>
  								{this.renderEvents(result.ingresses, [
-@@ -175,8 +193,10 @@ class AstroEphemeris extends Component{
+@@ -192,8 +210,10 @@ class AstroEphemeris extends Component{
  									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{opacity: 0.6, fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
  								])}
  							</div>
@@ -78,7 +78,7 @@ index 708b7e6..b273f0d 100644
  							<div style={cardStyle}>
  								{this.renderEvents(result.transitAspects, [
  									{key: 'datetime', title: '时间'},
-@@ -186,11 +206,15 @@ class AstroEphemeris extends Component{
+@@ -203,11 +223,15 @@ class AstroEphemeris extends Component{
  									{key: 'orb', title: '误差', render: (v)=>fmtNum(v, 3)},
  								])}
  							</div>
@@ -94,7 +94,7 @@ index 708b7e6..b273f0d 100644
  							<div style={cardStyle}>
  								<div className="horosa-info-card-title">升落与中天</div>
  								{this.renderEvents(result.riseSet, [
-@@ -219,6 +243,7 @@ class AstroEphemeris extends Component{
+@@ -236,6 +260,7 @@ class AstroEphemeris extends Component{
  									{key: 'setting', title: '偕日落', render: (v)=>v && v.datetime ? v.datetime : '-'},
  								])}
  							</div>

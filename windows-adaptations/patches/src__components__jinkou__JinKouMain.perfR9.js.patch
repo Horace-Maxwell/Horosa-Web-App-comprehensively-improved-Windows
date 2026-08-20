@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/jinkou/JinKouMain.js b/astrostudyui/src/components/jinkou/JinKouMain.js
-index 83f1761..20488da 100644
+index fa9345ba..3332a01a 100644
 --- a/astrostudyui/src/components/jinkou/JinKouMain.js
 +++ b/astrostudyui/src/components/jinkou/JinKouMain.js
 @@ -22,6 +22,8 @@ import {
@@ -9,7 +9,7 @@ index 83f1761..20488da 100644
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
- import { getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+ import { getKentangSavedCasePayload, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
  import {
 @@ -38,7 +40,7 @@ import {
  } from '../../utils/localCalcCache';
@@ -20,7 +20,7 @@ index 83f1761..20488da 100644
  
  const { Option } = Select;
  const TabPane = Tabs.TabPane;
-@@ -840,6 +842,34 @@ function pushCache(map, key, val, max = 96){
+@@ -844,6 +846,34 @@ function pushCache(map, key, val, max = 96){
  	}
  }
  
@@ -55,7 +55,7 @@ index 83f1761..20488da 100644
  class JinKouMain extends Component{
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -899,16 +929,18 @@ class JinKouMain extends Component{
+@@ -903,16 +933,18 @@ class JinKouMain extends Component{
  		};
  
  		this.unmounted = false;
@@ -79,7 +79,7 @@ index 83f1761..20488da 100644
  
  		this.onFieldsChange = this.onFieldsChange.bind(this);
  		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
-@@ -1340,7 +1372,7 @@ class JinKouMain extends Component{
+@@ -1353,7 +1385,7 @@ class JinKouMain extends Component{
  		}
  		const localHit = getBirthGanzhiLocalCache(key);
  		if(localHit){
@@ -88,7 +88,7 @@ index 83f1761..20488da 100644
  			return localHit;
  		}
  		const params = {
-@@ -1363,7 +1395,7 @@ class JinKouMain extends Component{
+@@ -1376,7 +1408,7 @@ class JinKouMain extends Component{
  				lr && lr.fourColumns && lr.fourColumns.year ? lr.fourColumns.year.ganzi : ''
  			) || extractGanZi(lr && lr.nongli ? (lr.nongli.yearGanZi || lr.nongli.yearJieqi || lr.nongli.year) : '');
  			if(ganzi){
@@ -97,7 +97,7 @@ index 83f1761..20488da 100644
  				setBirthGanzhiLocalCache(key, ganzi);
  			}
  			return ganzi;
-@@ -1523,7 +1555,12 @@ class JinKouMain extends Component{
+@@ -1542,7 +1574,12 @@ class JinKouMain extends Component{
  		}
  
  		this.setState(st, ()=>{
@@ -111,7 +111,7 @@ index 83f1761..20488da 100644
  			// 快照的五行须与页面实际所用一致（手选档下不能再写日干的 wx，否则快照与右栏两张表）。
  			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, diFen, jinkouPan);
  		});
-@@ -1800,6 +1837,7 @@ class JinKouMain extends Component{
+@@ -1811,6 +1848,7 @@ class JinKouMain extends Component{
  		});
  	}
  
@@ -119,7 +119,7 @@ index 83f1761..20488da 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再触发重新起课
-@@ -2772,10 +2810,16 @@ class JinKouMain extends Component{
+@@ -2783,10 +2821,16 @@ class JinKouMain extends Component{
  		return (
  			<div className="horosa-jinkou-rightpanel-wrap">
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-jinkou-tabs">
@@ -137,7 +137,7 @@ index 83f1761..20488da 100644
  					<div className="horosa-jinkou-overview-stack">
  						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
  							<div className="horosa-jinkou-section-card__title">四位神煞</div>
-@@ -2786,8 +2830,10 @@ class JinKouMain extends Component{
+@@ -2797,8 +2841,10 @@ class JinKouMain extends Component{
  						{this.renderFangWei(jinkouData)}
  						{this.renderShenshaGrid(`${this.state.wuxing}十二长生`, zsRows)}
  					</div>
@@ -148,7 +148,7 @@ index 83f1761..20488da 100644
  					<div className="horosa-jinkou-overview-stack">
  						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
  							<div className="horosa-jinkou-section-card__title">四位关系图</div>
-@@ -2801,8 +2847,10 @@ class JinKouMain extends Component{
+@@ -2812,8 +2858,10 @@ class JinKouMain extends Component{
  						{this.renderNianYueRi(jinkouData)}
  						{this.renderTaixuan(jinkouData)}
  					</div>
@@ -159,7 +159,7 @@ index 83f1761..20488da 100644
  					<div className="horosa-jinkou-overview-stack">
  						{this.renderHezhan(jinkouData)}
  						{this.renderSixiangShu(jinkouData)}
-@@ -2810,15 +2858,18 @@ class JinKouMain extends Component{
+@@ -2821,15 +2869,18 @@ class JinKouMain extends Component{
  						{this.renderInfoTable('四位类象', roleRefRows)}
  						{this.renderCategory(jinkouData)}
  					</div>

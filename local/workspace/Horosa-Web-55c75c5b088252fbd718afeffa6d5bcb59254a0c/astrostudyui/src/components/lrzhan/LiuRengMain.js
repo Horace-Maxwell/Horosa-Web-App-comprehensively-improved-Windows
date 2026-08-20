@@ -311,7 +311,9 @@ function buildFallbackRunYearByYearDiff(birth, guaFields){
 	};
 }
 
-function resolveDisplayRunYear(runyear, birth, guaFields){
+// [issue#74] export 供金标直测:此函数是「页面显示对、AI 挂载错」的分水岭——render 侧一直
+// 过它校正,快照侧曾裸拍。金标锚死其校正语义+快照侧收口在位,两路径同构不许再散。
+export function resolveDisplayRunYear(runyear, birth, guaFields){
 	const fallback = buildFallbackRunYearByYearDiff(birth, guaFields);
 	if(!fallback){
 		return runyear;
@@ -4933,6 +4935,10 @@ class LiuRengMain extends Component{
 		};
 		this.setState({
 			birth: flds,
+			// [issue#74] 出生档变更即作废旧行年:不清则改卜卦人信息后、后端行年归来前,旧档行年
+			// 滞留 state——resolveDisplayRunYear 的 ±1 岁容差(立春界/岁首口径正常差)会放行改生年
+			// ±1 场景的旧值。清空 → 本地年差法全量接管,起课/快照/render 三路即刻一致。
+			runyear: null,
 		});
 	}
 
@@ -5084,10 +5090,15 @@ class LiuRengMain extends Component{
 			lat: finalLat,
 		};
 		const appliedBirth = getAppliedBirth(this.state);
+		// [issue#74] 行年单点收口:七个调用点传入的 runyear 全是 this.state.runyear 裸拍——起课回调
+		// 紧跟 requestRunYear(异步)即产快照,改出生档后后端行年未归/静默失败时恒旧;而 render 侧
+		// (格局参考)一直过 resolveDisplayRunYear 本地校正 → 页面对、AI 挂载错,两路径不同构。
+		// 此处与 render 同构收口:值对=幂等原样过,旧拍/缺失=本地年差法立即兜底,快照第一版即正确。
+		const appliedRunYear = resolveDisplayRunYear(runyear, appliedBirth, flds);
 		const snapshotText = buildLiuRengSnapshotText(
 			saveParams,
 			liureng,
-			runyear,
+			appliedRunYear,
 			chartObj,
 			guirengType,
 			wuxing,
@@ -5106,7 +5117,7 @@ class LiuRengMain extends Component{
 				yinyangSystem: this.state.yinyangSystem,
 				tuWangShuai: this.state.tuWangShuai,
 				solarYear: getSolarYearFromField(flds && flds.date ? flds.date : null),
-				...liurengBenmingXingnian(appliedBirth, runyear),
+				...liurengBenmingXingnian(appliedBirth, appliedRunYear),
 			}
 		);
 		if(typeof window !== 'undefined'){

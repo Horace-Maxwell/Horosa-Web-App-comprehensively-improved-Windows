@@ -16,6 +16,8 @@ import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { natalClassicalParams } from './AstroExtraCommon';
+import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 import { markPanelReady } from '../../utils/perfMark';
 
 const RadioGroup = Radio.Group;
@@ -347,6 +349,9 @@ function zrNatalParamsStandalone(chartObj, startSign){
 		tradition: qp.tradition,
 		birth: qp.birth,
 		zodiacal: qp.zodiacal, siderealAyanamsa: qp.siderealAyanamsa,
+		// [SURF-R5zr] 无头 builder 补古典单源(页面 :562 同源):此前零古典键,lotReversal 非默认时
+		// AI 期表按默认档福点起算=可整体错座;'user' 岁差同回落。qp=响应回显,键面全。
+		...natalClassicalParams(qp),
 		startSign: startSign !== undefined ? startSign : null,
 		stopLevelIdx: 3,
 	};
@@ -443,10 +448,11 @@ class AstroZR extends Component{
 					return;
 				}
 				let param = this.genNatalParams(chartObj);
-				let params = {
+				// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 param 不带键,旧值不得残留(见 classicalChartGlobals)。
+				let params = pruneStaleClassicalParams({
 					...this.state.params,
 					...param,
-				};
+				}, param);
 				this.loadWholeSignChart(chartObj);
 				this.setState({
 					params: params
@@ -561,11 +567,17 @@ class AstroZR extends Component{
 			tradition: qryparam.tradition,
 			birth: qryparam.birth,
 			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
+			// [0d] 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
+			...natalClassicalParams(qryparam),
 		};
 		return params;
 	}
 
 	async requestDirection(params, isQuick){
+		// [SURF-R5z] 深取乱序防:快取(浅,快)+深取(4 层,秒级)双在途,切基点(changePoint)后旧
+		// 深取后回 → list=旧基点全深表+params.startSign 回滚而 basePoint 已是新值=持久错配
+		// (isQuick=false 不再补取)。代际失配即弃(新请求自然使旧在途失效)。
+		const seq = ++this._zrSeq || (this._zrSeq = 1);
 		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧期表留存+「更新中…」角标,
 		// 新数据到达单次 setState 整体替换 —— 印占同款范式)。关 silentTechniquePanels 开关=旧全屏。
 		this.setState({ updating: true });
@@ -580,7 +592,7 @@ class AstroZR extends Component{
 			if(!this.unmounted){ this.setState({ updating: false }); }
 			return;
 		}
-		if(this.unmounted){ return; }
+		if(this.unmounted || seq !== this._zrSeq){ return; }
 		if(!data){ this.setState({ updating: false }); return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey] || {};
 

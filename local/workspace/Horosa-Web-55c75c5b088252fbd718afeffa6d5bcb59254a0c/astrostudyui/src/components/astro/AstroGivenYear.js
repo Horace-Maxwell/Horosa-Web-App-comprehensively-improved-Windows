@@ -17,6 +17,8 @@ import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -69,7 +71,7 @@ class AstroGivenYear extends Component{
 				gpsLon: qryparam.gpsLon,
 				tmType: 'y',
 				nodeRetrograde: false,
-				asporb: 1,
+				asporb: transitOrbDefault(),
 			},
 			dirChart: null,
 			inverse: false,
@@ -96,10 +98,11 @@ class AstroGivenYear extends Component{
 					return;
 				}
 				let param = this.genNatalParams(chartObj);
-				let params = {
+				// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 param 不带键,旧值不得残留(见 classicalChartGlobals)。
+				let params = pruneStaleClassicalParams({
 					...this.state.params,
 					...param,
-				};
+				}, param);
 				this.setState({
 					params: params
 				}, ()=>{
@@ -158,6 +161,8 @@ class AstroGivenYear extends Component{
 			hsys: qryparam.hsys,
 			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
 			tradition: qryparam.tradition,
+			// [0d] 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
+			...natalClassicalParams(qryparam),
 		};
 		return params;
 	}
@@ -174,6 +179,10 @@ class AstroGivenYear extends Component{
 	}
 
 	async requestDirection(params){
+		// [SURF-R5p] 乱序/混代防(B 断面):双在途旧响应后回=盘面与快照回滚;快照 chartValue
+		// 此前取回调时刻 props=与响应混代——请求时捕获,与 params/result 同代(响应内产范式)。
+		const seq = ++this._reqSeq || (this._reqSeq = 1);
+		const chartValueAtRequest = this.props.value;
 		// 空回包/请求失败防御:后端未就绪、无效生辰等场景 request 可能抛错或返回空——
 		// 静默保持现盘,不产生 Unhandled Rejection(request 失败 resolve undefined 是全仓契约)。
 		let data = null;
@@ -186,9 +195,11 @@ class AstroGivenYear extends Component{
 				silent: silentTechniquePanelsEnabled(),
 			});
 		}catch(e){
+			if(this.unmounted || seq !== this._reqSeq){ return; }
 			this.setState({ updating: false });
 			return;
 		}
+		if(this.unmounted || seq !== this._reqSeq){ return; }
 		const result = data ? data[Constants.ResultKey] : null;
 		if(!result){
 			this.setState({ updating: false });
@@ -212,7 +223,7 @@ class AstroGivenYear extends Component{
 		this.setState(st, ()=>{
 			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 			markPanelReady('direction');
-			const chartValue = this.props.value;
+			const chartValue = chartValueAtRequest;
 			saveModuleAISnapshotLazy('givenyear', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'givenyear'), {
 				module: 'givenyear',
 			});

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index fc5d1dc..f135466 100644
+index 058d346c..6f5c889f 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
 @@ -1,4 +1,10 @@
@@ -13,7 +13,7 @@ index fc5d1dc..f135466 100644
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { safeJsonParseFromStorage } from '../../utils/safeStorage';
  import { Row, Col, message, } from 'antd';
-@@ -646,6 +652,153 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
+@@ -648,6 +654,190 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
  	return fields;
  }
  
@@ -65,7 +65,7 @@ index fc5d1dc..f135466 100644
 +		pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
 +		pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
 +		pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
-+		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v === 1 || v === 2) ? v : 0; })(),
++		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),   // [F4]
 +	};
 +}
 +
@@ -136,6 +136,43 @@ index fc5d1dc..f135466 100644
 +		...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
 +		...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
 +		termsVariant: desired.termsVariant,
++		// [SURF-5] 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
++		// /predict/pd 装饰器统一 push,条件发送保默认态字节不变=golden 540 天然守护)。
++		// [SURF-R1] 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
++		// 选择)>params(已落库)>fields,而 spread 在其后会用 fields 值静默覆盖——全局仓非默认
++		// 时主限页任何异档选择「永不可达」。剔除 spread 里的 termsVariant(delete 法保键序=
++		// 不翻缓存键);非自定义界(≠4)时连剔表体伴生键,防已废 12 座表随请求。
++		...(()=>{
++			const cls = classicalBackendOverridesFromFields(nextFields || {});
++			delete cls.termsVariant;
++			if(desired.termsVariant !== 4){
++				delete cls.customTermsDay; delete cls.customTermsNight;
++			}else if(!cls.customTermsDay){
++				// [SURF-R5a] 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
++				// fields 值为 4)——裸发 4 后端静默回落埃及,而 UI/params/快照全标「自定义界表」
++				// 且 needsPrimaryDirectionLoad 判 4===4 永久停错档。随盘 fields 表体优先,
++				// 回落本机编辑器仓;仍无表=照 chartRequest.js WP-7 口径降级不发 4。
++				const fDay = nextFields && nextFields.customTermsDay ? nextFields.customTermsDay.value : undefined;
++				const fNight = nextFields && nextFields.customTermsNight ? nextFields.customTermsNight.value : undefined;
++				let day = Array.isArray(fDay) && fDay.length === 12 ? fDay : null;
++				let night = Array.isArray(fNight) && fNight.length === 12 ? fNight : null;
++				if(!day){
++					try{
++						const t = require('../../utils/customCalibreStores').loadCustomTerms();
++						if(t && Array.isArray(t.day) && t.day.length === 12){ day = t.day; night = Array.isArray(t.night) && t.night.length === 12 ? t.night : night; }
++					}catch(e){ /* 无编辑器仓=降级 */ }
++				}
++				if(day){
++					cls.customTermsDay = day;
++					if(night){ cls.customTermsNight = night; }
++				}else{
++					// 无表降级埃及:手写 termsVariant 行在本 IIFE 之前已求值(对象字面量按序),
++					// 改 desired 无效——由 spread 同名键覆盖(spread 在后=后者胜)。
++					cls.termsVariant = 0;
++				}
++			}
++			return cls;
++		})(),
 +		pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 +		name: nextFields.name ? nextFields.name.value : null,
 +		pos: nextFields.pos ? nextFields.pos.value : null,
@@ -167,7 +204,7 @@ index fc5d1dc..f135466 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -793,6 +946,41 @@ class AstroDirectMain extends Component{
+@@ -795,6 +985,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -209,7 +246,7 @@ index fc5d1dc..f135466 100644
  		}
  
  	}
-@@ -814,125 +1002,13 @@ class AstroDirectMain extends Component{
+@@ -816,162 +1041,13 @@ class AstroDirectMain extends Component{
  	}
  
  	getDesiredPdConfig(chartObj, override = {}){
@@ -258,7 +295,7 @@ index fc5d1dc..f135466 100644
 -			pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
 -			pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
 -			pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
--			termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v === 1 || v === 2) ? v : 0; })(),
+-			termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),   // [F4]
 -		};
 +		// PERF-R8 P2:逻辑原样抽为模块级纯函数(预热复用同一构造 → key/body 逐字节一致);
 +		// 本方法保持既有签名与解析语义(chartObj/props 兜底),纯委托零行为变化。
@@ -330,6 +367,43 @@ index fc5d1dc..f135466 100644
 -			...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
 -			...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
 -			termsVariant: desired.termsVariant,
+-			// [SURF-5] 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
+-			// /predict/pd 装饰器统一 push,条件发送保默认态字节不变=golden 540 天然守护)。
+-			// [SURF-R1] 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
+-			// 选择)>params(已落库)>fields,而 spread 在其后会用 fields 值静默覆盖——全局仓非默认
+-			// 时主限页任何异档选择「永不可达」。剔除 spread 里的 termsVariant(delete 法保键序=
+-			// 不翻缓存键);非自定义界(≠4)时连剔表体伴生键,防已废 12 座表随请求。
+-			...(()=>{
+-				const cls = classicalBackendOverridesFromFields(nextFields || {});
+-				delete cls.termsVariant;
+-				if(desired.termsVariant !== 4){
+-					delete cls.customTermsDay; delete cls.customTermsNight;
+-				}else if(!cls.customTermsDay){
+-					// [SURF-R5a] 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
+-					// fields 值为 4)——裸发 4 后端静默回落埃及,而 UI/params/快照全标「自定义界表」
+-					// 且 needsPrimaryDirectionLoad 判 4===4 永久停错档。随盘 fields 表体优先,
+-					// 回落本机编辑器仓;仍无表=照 chartRequest.js WP-7 口径降级不发 4。
+-					const fDay = nextFields && nextFields.customTermsDay ? nextFields.customTermsDay.value : undefined;
+-					const fNight = nextFields && nextFields.customTermsNight ? nextFields.customTermsNight.value : undefined;
+-					let day = Array.isArray(fDay) && fDay.length === 12 ? fDay : null;
+-					let night = Array.isArray(fNight) && fNight.length === 12 ? fNight : null;
+-					if(!day){
+-						try{
+-							const t = require('../../utils/customCalibreStores').loadCustomTerms();
+-							if(t && Array.isArray(t.day) && t.day.length === 12){ day = t.day; night = Array.isArray(t.night) && t.night.length === 12 ? t.night : night; }
+-						}catch(e){ /* 无编辑器仓=降级 */ }
+-					}
+-					if(day){
+-						cls.customTermsDay = day;
+-						if(night){ cls.customTermsNight = night; }
+-					}else{
+-						// 无表降级埃及:手写 termsVariant 行在本 IIFE 之前已求值(对象字面量按序),
+-						// 改 desired 无效——由 spread 同名键覆盖(spread 在后=后者胜)。
+-						cls.termsVariant = 0;
+-					}
+-				}
+-				return cls;
+-			})(),
 -			pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
 -			name: nextFields.name ? nextFields.name.value : null,
 -			pos: nextFields.pos ? nextFields.pos.value : null,
@@ -339,7 +413,7 @@ index fc5d1dc..f135466 100644
  	}
  
  	needsPrimaryDirectionLoad(chartObj){
-@@ -1201,6 +1277,8 @@ class AstroDirectMain extends Component{
+@@ -1243,6 +1319,8 @@ class AstroDirectMain extends Component{
  		this.syncCurrentSubTab();
  		this.ensurePrimaryDirectionReady();
  		this.saveDirectionSnapshot();
