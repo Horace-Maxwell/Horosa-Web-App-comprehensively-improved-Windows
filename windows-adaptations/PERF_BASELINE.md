@@ -196,6 +196,28 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.9.4(2026-08-20 同步轮·术数真值校准;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `6e9c2512`)**:
+  warmReady 中位 **6263 / 6200ms**(p95 6804 / 6364),两臂相距 **−1.0%** = 构建自洽,无回归信号。
+  **workspaceVisible 816 / 782ms**(p95 858 / 838,预算 1500 内 ✓);spawnToVisible 1070 / 1057ms。
+  工件:`docs/perf-artifacts/startup_ab_v394_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 == maxClockMHz`(睿频压制)+ `mumuRunning: true`
+  (owner 应用,未动)。绝对值属机器态区间读数:近六轮同台同压制态 warmReady 中位带 =
+  **6200-7210ms**(v3.7.3 7210/7056 → v3.8.0 6846/6661 → v3.9.2 6572/6607 → v3.9.3 7007/6978 →
+  本轮 **6263/6200**)——**本轮落在该带的下沿**,是近六轮最快的一次,更无越界之虞。
+  workspaceVisible 同带(近六轮 867/794/831/858/852/845/836 → 本轮 816/782)。
+- **★最硬论据 = 代码级不变性(启动路径零改动)**:Electron 壳 **0 文件**;Python **0 文件**
+  (本轮 port 含 0 个 astropy 文件);Java 仅 `RuntimeWire` 版本号常量,无业务逻辑改动。
+  前端 11 个改动件全在组件/文案层(liureng 三件、astro3d、reader、ziwei、bazimsg、helper 全屏段),
+  无一在 boot 关键路径上。**⇒ 结构上不存在本版引入的温启回归面**,上表 A/B 只作台账留痕。
+- **★退役面对性能中性**:`horosa_fullscreen_state_v1` 两补丁退役后由上游等价实现承载
+  (→ gotcha #101),订阅/量测都发生在用户进全屏时,不在启动路径;A/B 双臂同带即实证。
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成
+  (`uberJar:false / staticJsa:false / anyJsa:2`),绝对值恒是「失活态」读数,只作双臂/跨轮对照。
+- **★增量更新**:差量门实测 **8MB / 1.0% 下载 / 99.0% 复用**(真变 15MB,预算 72MB);
+  **CDS 档 byte-identical vs 3.9.3** —— 存量用户升级近乎无感。
+
 ### 温启对照 v3.9.3(2026-08-20 同步轮·占星古典设置大扩充;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `ec7f6782`)**:
