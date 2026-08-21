@@ -48,8 +48,10 @@ describe('LRShenShaDoc · computeFrontendShenSha 起例', ()=>{
 		expect(m['华盖']).toBe('辰');
 		expect(m['灾煞']).toBe('午');
 		expect(m['岁煞']).toBe('未');
-		expect(m['攀鞍']).toBe('卯');
-		expect(m['六厄']).toBe('丑');
+		// [Issue#75 同批] 修前此二锚把互换后的错值锁成金标(144 例全绿仍带病=假绿哨兵族,
+		// 与 #46「列举序≠判定序」同源)。正解:攀鞍=衰位(子局丑)、六厄=死位(子局卯)。
+		expect(m['攀鞍']).toBe('丑');
+		expect(m['六厄']).toBe('卯');
 	});
 	it('WP-C1 将星四局:申子辰→子/寅午戌→午/巳酉丑→酉/亥卯未→卯', ()=>{
 		const jx = (zhi)=>computeFrontendShenSha('甲', zhi, []).find((s)=>s.name === '将星').branch;
@@ -100,5 +102,27 @@ describe('LRShenShaDoc · computeFrontendShenSha 起例', ()=>{
 	it('缺日干支不抛错', ()=>{
 		expect(Array.isArray(computeFrontendShenSha('', '', []))).toBe(true);
 		expect(computeFrontendShenSha('', '', []).length).toBe(0);
+	});
+});
+
+describe('[Issue#75 同批] 三合十二神煞 ≡ 长生十二宫派生(四局×四煞全覆盖)', ()=>{
+	// 三合局长生位:申子辰水→申 / 寅午戌火→寅 / 巳酉丑金→巳 / 亥卯未木→亥。
+	// 序:长生起「指背」,帝旺=将星、衰=攀鞍、病=驿马、死=六厄、墓=华盖、胎=灾煞、养=岁煞。
+	const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+	const JU_START = { 申: '申', 子: '申', 辰: '申', 寅: '寅', 午: '寅', 戌: '寅', 巳: '巳', 酉: '巳', 丑: '巳', 亥: '亥', 卯: '亥', 未: '亥' };
+	const STEP = { 将星: 4, 攀鞍: 5, 驿马: 6, 六厄: 7, 华盖: 8, 灾煞: 10, 岁煞: 11 };
+	it('十二日支 × 七煞 = 84 格逐格与长生十二宫一致', ()=>{
+		const wrong = [];
+		Object.keys(JU_START).forEach((dayZhi)=>{
+			const base = ZHI.indexOf(JU_START[dayZhi]);
+			const got = {};
+			computeFrontendShenSha('甲', dayZhi, []).forEach((s)=>{ got[s.name] = s.branch; });
+			Object.keys(STEP).forEach((name)=>{
+				if(got[name] === undefined){ return; }
+				const want = ZHI[(base + STEP[name]) % 12];
+				if(got[name] !== want){ wrong.push(`${dayZhi}日 ${name}: 表=${got[name]} 应=${want}`); }
+			});
+		});
+		expect(wrong).toEqual([]);
 	});
 });

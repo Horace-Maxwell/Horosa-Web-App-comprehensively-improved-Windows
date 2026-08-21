@@ -40,9 +40,12 @@ describe('LRXiangDoc · buildXiangContext 取象聚合', ()=>{
 		const cx = buildXiangContext('子', '甲', '土');
 		const types = (cx.relationNotes || []).map((r)=>r.type);
 		expect(types).toEqual(expect.arrayContaining(['刑', '冲', '六合', '害', '破', '三合']));
-		// 子:六合丑 + 刑卯 → 蜜中砒霜
-		expect(types).toContain('蜜中砒霜');
-		const miz = cx.relationNotes.find((r)=>r.type === '蜜中砒霜');
+		// [Issue#75 同批] 旧锚把恒真产物锁成金标(「子:六合丑+刑卯」两者本非同一支,不构成
+		// 蜜中砒霜)。正解:子不命中;命中面另用巳(六合申,而巳申相刑)验。
+		expect(types).not.toContain('蜜中砒霜');
+		const si = buildXiangContext('巳', '甲', '土');
+		const miz = (si.relationNotes || []).find((r)=>r.type === '蜜中砒霜');
+		expect(miz).toBeTruthy();
 		expect(miz.note).toMatch(/外合内离|合中带刑害/);
 		// 每条断语非空
 		cx.relationNotes.forEach((r)=>expect(typeof r.note === 'string' && r.note.length > 0).toBe(true));
@@ -52,5 +55,18 @@ describe('LRXiangDoc · buildXiangContext 取象聚合', ()=>{
 		expect(buildXiangContext('X', '甲', '土')).toBeNull();
 		expect(buildXiangContext('', '甲', '土')).toBeNull();
 		expect(buildXiangContext(null, '甲', '土')).toBeNull();
+	});
+});
+
+describe('[Issue#75 同批] 蜜中砒霜判据不再恒真', ()=>{
+	// 旧判据「表里有值」在三张 12 键全映射表上恒真 → 十二支全标蜜中砒霜(10 例假阳)。
+	// 正解=本支六合之支恰与本支相刑/相害;全域仅 巳/申 命中(巳申六合且在寅巳申三刑内)。
+	const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+	it('十二支中恰 巳/申 两支命中', ()=>{
+		const hit = ZHI.filter((z)=>{
+			const info = buildXiangContext(z, '甲', '土');
+			return (info.relationNotes || []).some((n)=>n.type === '蜜中砒霜');
+		});
+		expect(hit).toEqual(['巳', '申']);
 	});
 });

@@ -498,24 +498,11 @@ class BookReader extends Component{
 		if(divdom === undefined || divdom === null){
 			return;
 		}
-
-		if(this.fullScreen){
-			this.fullScreen = false;
+		// [Issue#68 同族] 只管进出全屏,尺寸交给 fullscreenchange → handleResize 实测。
+		if(checkFullScreen()){
 			exitFullScreen();
-			let w = this.readerWidth;
-			let h = this.readerHeight;
-			divdom.style.width = w + 'px';
-			divdom.style.height = h + 'px';	
 		}else{
-			this.orgHeight = this.readerHeight;
-			this.orgWidth = this.readerWidth;
-			this.fullScreen = true;
 			launchFullScreen(divdom);
-			let w = window.screen.width;
-			let h = window.screen.height;
-			divdom.style.width = w + 'px';
-			divdom.style.height = h + 'px';	
-			this.flip = true;
 		}
 	}
 
@@ -524,42 +511,20 @@ class BookReader extends Component{
 		if(divdom === undefined || divdom === null){
 			return;
 		}
-
-		let w = divdom.clientWidth;
-		let h = divdom.clientHeight;
-
-		let flag = checkFullScreen();
-		if(!this.fullScreen){
-			this.readerWidth = w;
-			this.readerHeight = h;	
-		}else{
-			if(flag){
-				setTimeout(()=>{
-					w = this.orgWidth;
-					h = this.orgHeight;	
-					if(this.flip){
-						w = window.screen.width;
-						h = window.screen.height;
-						this.flip = false;
-						this.waitEsc = true;
-					}
-					divdom.style.width = w + 'px';
-					divdom.style.height = h + 'px';
-				}, 100);
-			}else{
-				setTimeout(()=>{
-					if(this.waitEsc){
-						w = this.readerWidth;
-						h = this.readerHeight;
-						this.waitEsc = false;
-					}
-					divdom.style.width = w + 'px';
-					divdom.style.height = h + 'px';
-				}, 100);
-			}
+		// [Issue#68 同族] 与 AstroChart3D 同款根治:全屏态按视口实测、常态摘内联尺寸回布局值,
+		// 弃 window.screen.* 估算与 flip/waitEsc 手工状态机(它们是围着恒真旧判据长出来的补丁)。
+		const full = checkFullScreen();
+		this.fullScreen = full;
+		if(full){
+			divdom.style.width = Math.max(1, window.innerWidth || divdom.clientWidth) + 'px';
+			divdom.style.height = Math.max(1, window.innerHeight || divdom.clientHeight) + 'px';
 			return;
 		}
-
+		divdom.style.width = '';
+		divdom.style.height = '';
+		const rect = divdom.getBoundingClientRect ? divdom.getBoundingClientRect() : null;
+		this.readerWidth = Math.max(1, Math.round((rect && rect.width) || divdom.clientWidth));
+		this.readerHeight = Math.max(1, Math.round((rect && rect.height) || divdom.clientHeight));
 	}
 
 	isScrollEnd(){
@@ -844,6 +809,9 @@ class BookReader extends Component{
 
 	componentDidMount(){
 		window.addEventListener('resize', this.handleResize);
+		['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((evt)=>{
+			document.addEventListener(evt, this.handleResize);
+		});
 		let readerdom = document.getElementById(this.state.divId);
 		if(readerdom){
 			this.readerWidth = readerdom.clientWidth;
@@ -865,6 +833,9 @@ class BookReader extends Component{
 
 	componentWillUnmount(){
 		window.removeEventListener('resize', this.handleResize);
+		['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((evt)=>{
+			document.removeEventListener(evt, this.handleResize);
+		});
 		clearTimeout(this.timer);   // 卸载后 1s 内 isScrollEnd 会读已移除 DOM 报错,须清
 		this.saveChapter();
 	}

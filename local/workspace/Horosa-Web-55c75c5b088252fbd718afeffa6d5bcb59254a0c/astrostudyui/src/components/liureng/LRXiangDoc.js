@@ -108,7 +108,8 @@ export function buildXiangContext(branch, dayGan, elem){
 	if(Array.isArray(sangHe) && sangHe.length){
 		relations.push(`三合：${sangHe.join('、')}`);
 	}
-	// 刑冲破害合 断语(§22.2):仅列该支实有的关系 + 蜜中砒霜特例。
+	// 刑冲破害合 断语(§22.2):五类通则每支皆有(刑/冲/六合/六害/六破 均为 12 键全映射),
+	// 故此五条对任何支恒列出=通则说明,不是「该支独有」——[Issue#75 同批] 注释按实修正,行为不变。
 	const relationNotes = [];
 	const hasRel = (label, table)=>{ const t = table ? table[zhi] : null; return Array.isArray(t) ? t.length > 0 : !!t; };
 	['刑', '冲', '六合', '害', '破'].forEach((label)=>{
@@ -116,8 +117,19 @@ export function buildXiangContext(branch, dayGan, elem){
 		if(hasRel(label, tbl)){ relationNotes.push({ type: label, note: REL_NOTE[label] }); }
 	});
 	if(Array.isArray(sangHe) && sangHe.length){ relationNotes.push({ type: '三合', note: REL_NOTE['三合'] }); }
-	// 蜜中砒霜:既六合又带刑/害(外合内离)
-	if(hasRel('六合', LRConst.ZiHe) && (hasRel('刑', LRConst.ZiXing) || hasRel('害', LRConst.ZiHai))){
+	// 蜜中砒霜:本支的**六合之支**恰又与本支相刑或相害(外合内离)。
+	// [Issue#75 同批] 旧判据 hasRel('六合')&&(hasRel('刑')||hasRel('害')) 三张表都是 12 键全映射
+	// → 条件恒真,十二支全被标「蜜中砒霜」并红字高亮(10 例假阳),AI 快照亦逐支下「外合内离」断语。
+	// 正解按「合支 ≡ 刑支/害支」判:全域实测仅 巳/申 命中(巳申既六合又在寅巳申三刑内)。
+	const _he = LRConst.ZiHe ? LRConst.ZiHe[zhi] : null;
+	const _xing = LRConst.ZiXing ? LRConst.ZiXing[zhi] : null;
+	const _hai = LRConst.ZiHai ? LRConst.ZiHai[zhi] : null;
+	const _heHitsXingHai = !!_he && (
+		_xing === _he || _hai === _he
+		|| (LRConst.ZiXing && LRConst.ZiXing[_he] === zhi)
+		|| (LRConst.ZiHai && LRConst.ZiHai[_he] === zhi)
+	);
+	if(_heHitsXingHai){
 		relationNotes.push({ type: '蜜中砒霜', note: '合中带刑害——外合内离、看似团结实则分裂' });
 	}
 	return {

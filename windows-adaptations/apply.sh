@@ -337,8 +337,10 @@ echo "== 38. issue #65/#68 线上事故根治(三式打不开 / 3D 全屏失效;
 # ① 3D 全屏状态机:判据从「允不允许全屏」(fullscreenEnabled,Electron 恒真)改为「当前是否全屏」
 #    (fullscreenElement);标准 API 名优先;新增 onFullScreenChange 订阅 —— 用户按 Esc 退出后
 #    组件标志不再停在 true(那正是「就是没法全屏」)。尺寸从猜 window.screen.* 改为量真实盒子。
-apply_patch horosa_fullscreen_state_v1  astrostudyui/src/utils/helper.js                       src__utils__helper.fullscreenState.js.patch
-apply_patch horosa_fullscreen_state_v1  astrostudyui/src/components/astro3d/AstroChart3D.js    src__components__astro3d__AstroChart3D.fullscreenState.js.patch
+# [#49 收敛,v3.9.4] helper.js / AstroChart3D.js 两条 fullscreenState 补丁**退役**:上游以自有
+# 符号形重实现了同三处修(checkFullScreen 状态位判据 / fullscreenchange×4 订阅 / 实测盒子驱动,
+# 注释直接引用 Issue#68)并扩到 BookReader —— 等价超集。守卫哨兵迁移至上游形态(SENT 钉
+# document.fullscreenElement / fullscreenchange 监听数组等),回归测试改写为钉上游形(下 cp 行)。
 # ② 两个常设回归守卫(纯新增测试文件,随 overlay 落地)
 cp "$OV/files/astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js" "$WS/astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js" && ok "sanshiRenderSmoke.test.js"
 cp "$OV/files/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js" "$WS/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js" && ok "fullscreenState.test.js"

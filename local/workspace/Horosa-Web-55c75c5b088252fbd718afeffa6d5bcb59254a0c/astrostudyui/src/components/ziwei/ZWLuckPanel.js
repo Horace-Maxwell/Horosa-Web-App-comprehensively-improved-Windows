@@ -5,6 +5,7 @@ import * as ZWConst from '../../constants/ZWConst';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 import { childLimits, zhongxianOf } from './ziweiCore';   // WP-1 童限 / WP-2 沈氏三限
 import { XIAOXIAN_START } from './data/ziweiTables';      // [B15b] 小限起宫表单源(曾双源字面量,金标对拍锁)
 import { safeLocalStorageSet } from '../../utils/safeStorage';
@@ -59,10 +60,19 @@ function houseName(chart, idx, short) {
 	const name = h && h.name ? h.name : '—';
 	return short ? name.replace(/[宫宮]$/, '') : name;
 }
+// [Issue#53 同族·同类未扩面] 流年/小限的公历年基准必须是**干支年**,不是出生公历年:
+// 两者只在换年界(立春或正月初一,随 ziweiOptions.yearBoundary)之后才重合。界前出生者直接
+// 拿 parseYearFromDateStr(生日) 当 base,会让运限首年整体错一位——盘面生年干支与右栏流年
+// 首条自相矛盾,且本函数同时供 AI 挂载复算(见下方注释),错会一并进快照文本。
+// 口径同 utils/ganzhiYearBase:不自判界,从**引擎已算好的生年干支**(chart.yearGan/yearZi,
+// 紫微引擎按所选 yearBoundary 产出)反推公历年;缺字段则退回旧行为(绝不抛)。
 function birthYearOf(chart) {
 	if (chart && chart.birth) {
 		const y = parseYearFromDateStr(`${chart.birth}`);
-		if (!Number.isNaN(y)) return y;
+		if (!Number.isNaN(y)) {
+			const gz = `${(chart.yearGan || '')}${(chart.yearZi || '')}`.trim();
+			return gz.length >= 2 ? ganzhiYearBase(y, gz) : y;
+		}
 	}
 	return 2000;
 }

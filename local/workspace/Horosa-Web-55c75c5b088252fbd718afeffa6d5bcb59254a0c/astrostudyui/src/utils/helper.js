@@ -478,66 +478,40 @@ export function isNumber(c){
 	return num.indexOf(c) >= 0;
 }
 
-// horosa_fullscreen_state_v1(2026-08-13,GitHub issue #68;跨平台真 bug,建议上游化 Mac)
-//
-// 原实现三处硬伤,合起来就是用户实报的「全屏后显示不完整 / 就是没法全屏」:
-//   ① `checkFullScreen()` 判的是 `document.fullscreenEnabled` —— 那是「本文档**允许**用全屏 API 吗」,
-//      在 Electron 里**恒为 true**,与「当前是否处于全屏」毫无关系。⇒ 判据恒真。
-//   ② 标准 API 名拼错:标准是 `requestFullscreen` / `exitFullscreen`(小写 s),
-//      原代码写的是 `requestFullScreen` / `exitFullScreen`(大写 S)—— 那只是 WebKit 旧别名的写法。
-//      Chromium 恰好两者都有,所以侥幸能用;一旦哪天去掉旧别名就整个失效。
-//   ③ 没有任何 `fullscreenchange` 监听 ⇒ 用户按 **Esc** 退出全屏后,组件内的 `fullScreen` 标志
-//      仍停在 true,此后再双击只会去调 exit(空操作)—— **全屏从此再也进不去**(= issue #68 原话)。
-//
-// 下面三个函数改为:标准名优先 + 旧别名兜底;状态一律以 `fullscreenElement` 这个**事实**为准。
 export function launchFullScreen(divElem){
-	if(!divElem){
+	let rfs = divElem.requestFullScreen || divElem.webkitRequestFullScreen || divElem.mozRequestFullScreen || divElem.msRequestFullScreen;
+	
+	if(rfs !== undefined && rfs) {
+		rfs.call(divElem);
 		return;
-	}
-	const rfs = divElem.requestFullscreen || divElem.webkitRequestFullscreen
-		|| divElem.webkitRequestFullScreen || divElem.mozRequestFullScreen || divElem.msRequestFullscreen;
-	if(rfs){
-		try{
-			// 标准返回 Promise;被用户手势策略拒绝时不应把整棵树炸掉。
-			const ret = rfs.call(divElem);
-			if(ret && typeof ret.catch === 'function'){
-				ret.catch(()=>{});
-			}
-		}catch(e){ /* 全屏是增强功能,失败即维持窗口态 */ }
-	}
+	}	
 }
 
 export function exitFullScreen() {
-	const el = document;
-	const cfs = el.exitFullscreen || el.webkitExitFullscreen || el.webkitCancelFullScreen
-		|| el.mozCancelFullScreen || el.msExitFullscreen;
-	if(cfs){
-		try{
-			const ret = cfs.call(el);
-			if(ret && typeof ret.catch === 'function'){
-				ret.catch(()=>{});
-			}
-		}catch(e){ /* 同上 */ }
-	}
+	let el= document;
+	let cfs = el.cancelFullScreen || el.webkitCancelFullScreen || el.mozCancelFullScreen || el.exitFullScreen
+	
+	if (cfs !== undefined && cfs) {
+		cfs.call(el);
+		return;
+	}	
 }
 
-/** 当前**是否真的处于全屏**(唯一事实源:fullscreenElement)。原实现问的是「允不允许」,恒真。 */
+// [Issue#68] 全屏「状态」判据:旧版混进了两个**能力位**——`document.fullscreenEnabled` 与
+// `msFullscreenEnabled` 表示「本文档允许全屏」,在支持全屏的浏览器里恒 true,于是本函数恒返回
+// true:3D 星盘/阅读器一进页面就自认已全屏,尺寸按全屏估算 → 「全屏后显示不完整」。
+// 正解只认状态位:fullscreenElement(标准)/webkitFullscreenElement(旧 WebKit,Tauri WKWebView 走这支)
+// /webkitIsFullScreen(更旧)/msFullscreenElement;window.fullScreen 是 Firefox 私有状态位,保留兜底。
 export function checkFullScreen(){
-	if(typeof document === 'undefined'){
-		return false;
-	}
-	return !!(document.fullscreenElement || document.webkitFullscreenElement
-		|| document.mozFullScreenElement || document.msFullscreenElement);
-}
-
-/** 订阅全屏状态变化(含用户按 Esc / F11 / 系统强制退出)。返回取消订阅函数。 */
-export function onFullScreenChange(handler){
-	if(typeof document === 'undefined' || typeof handler !== 'function'){
-		return ()=>{};
-	}
-	const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-	events.forEach((name)=>document.addEventListener(name, handler));
-	return ()=>events.forEach((name)=>document.removeEventListener(name, handler));
+	if(typeof document === 'undefined'){ return false; }
+	const el = document.fullscreenElement
+		|| document.webkitFullscreenElement
+		|| document.mozFullScreenElement
+		|| document.msFullscreenElement;
+	if(el){ return true; }
+	if(document.webkitIsFullScreen === true){ return true; }
+	if(typeof window !== 'undefined' && window.fullScreen === true){ return true; }
+	return false;
 }
 
 export function getAzimuthStr(deg){

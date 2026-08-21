@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.9.3
+version: 3.9.4
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,23 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.9.3 beta is a local-first metaphysics workstation. This release is a
+  Horosa for Windows v3.9.4 beta is a local-first metaphysics workstation. This release is a
+  ground-truth calibration of the technique tables plus display and timing repairs: the Da Liu
+  Ren six-relations table (fire branches under a Yi day-stem now correctly read as offspring),
+  the San He twelve-spirits table (saddle and six-adversity rows were transposed across all 24
+  cells), and the BaZi twelve-growth table (26 corrected cells including a transposed pair that
+  mislocated the Xin day-stem's throne) are each re-derived from first principles and locked by
+  about one thousand cell-by-cell parity tests so no cell can silently drift again; an imagery
+  card that flagged every branch as "poison in the honey" now fires only on the two branches
+  where it actually applies. Fullscreen on the 3D chart and the classics reader is rebuilt on
+  real fullscreen state with enter/exit listeners and true element measurement, so Esc no longer
+  strands the view; Zi Wei luck-cycle flowing-year labels are anchored to the chart's birth-year
+  stem-branch so people born before the year boundary no longer shift by one year; rapid
+  chart-switching and repeated casts can no longer let a stale result overwrite a newer one
+  across the return, profection, solar-arc, flowing-year, zodiacal-releasing, dice and midpoint
+  pages; restoring a full backup now takes effect immediately and survives subsequent settings
+  edits; and the custom ayanamsa epoch flows through progressions, election scanning, the
+  quantified chart and AI analysis. It builds on the v3.9.3 release, a
   broad expansion of classical Western-astrology settings — about forty new option groups
   (terms/bounds in five systems including a user-editable custom terms table with separate
   day/night rows; triplicity rulers in three schemes; sect determination in three definitions;

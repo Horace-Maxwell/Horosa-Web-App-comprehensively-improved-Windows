@@ -153,9 +153,7 @@
    "astrostudyui/src/utils/perfFlags.js": 2
   },
   "horosa_fullscreen_state_v1": {
-   "astrostudyui/src/components/astro3d/AstroChart3D.js": 2,
-   "astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js": 2,
-   "astrostudyui/src/utils/helper.js": 1
+   "astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js": 3
   },
   "horosa_gesture_start_v1": {
    "astrostudyui/src/utils/perfMark.js": 2

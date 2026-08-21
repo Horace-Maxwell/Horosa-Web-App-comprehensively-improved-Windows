@@ -1,57 +1,68 @@
 /**
- * horosa_fullscreen_state_v1 —— 3D 星盘全屏状态机(GitHub issue #68)。
+ * horosa_fullscreen_state_v1 —— 3D 星盘/阅读器全屏状态机回归钉(GitHub issue #68)。
  *
- * ## 被测的三个真 bug(用户实报:「全屏后显示不完整」「就是没法全屏,关了吧」)
- *
- * ① `checkFullScreen()` 原本读的是 `document.fullscreenEnabled` —— 那是「本文档**允许**用全屏 API 吗」,
- *    在 Electron 里恒为 true,与「当前是否全屏」无关 ⇒ **判据恒真**。
- * ② 没有 `fullscreenchange` 订阅 ⇒ 用户按 **Esc** 退出后组件标志仍停在 true,
- *    此后双击只会去调 exit(空操作)⇒ **全屏再也进不去**(这正是「就是没法全屏」)。
- * ③ 进全屏时把尺寸**猜**成 `window.screen.*` 并靠 100ms 定时器追 ⇒ Windows 显示缩放下画不满。
- *
- * 这里只测**可测的状态机与判据**(①②),③ 属尺寸测量、由真机验收覆盖。
- * 每条断言都做过反向验证:把修复回退,对应用例即红。
+ * ## 版本史(为什么这个测试长这样)
+ * v3.9.1(Windows 先行):我方修了三处硬伤 —— ①checkFullScreen 误读 `fullscreenEnabled`
+ * (能力位,Electron 恒真)而非状态位;②无 fullscreenchange 订阅 ⇒ Esc 退出后标志卡 true,
+ * 全屏再也进不去;③尺寸按 `window.screen.*` 猜。当时以 helper/AstroChart3D 两补丁承载。
+ * v3.9.4(上游收编,#49 退役):Mac 以**自有符号形**重实现同三处修(注释直接引用 Issue#68),
+ * 并扩到古籍阅读器 BookReader —— 两补丁退役,本测试改写为**钉上游实现形**:
+ * 行为面(checkFullScreen 状态位语义,仍是导出函数)+ 源扫描面(订阅数组/实测盒子)。
+ * 任何一针红 = 上游把这套修回退/改坏了,Windows 用户将复现 issue #68。
  */
-import { checkFullScreen, onFullScreenChange } from '../../../utils/helper';
+import fs from 'fs';
+import path from 'path';
+import { checkFullScreen } from '../../../utils/helper';
 
-describe('horosa_fullscreen_state_v1 · 全屏判据与订阅', ()=>{
-	afterEach(()=>{
+const UI = path.join(__dirname, '../../..');
+const read = (rel) => fs.readFileSync(path.join(UI, rel), 'utf8');
+
+describe('horosa_fullscreen_state_v1 · 全屏判据(行为面,issue #68 ①)', () => {
+	afterEach(() => {
 		delete document.fullscreenElement;
 		delete document.webkitFullscreenElement;
+		delete document.webkitIsFullScreen;
+		delete document.fullscreenEnabled;
 	});
 
-	test('判据读的是 fullscreenElement,而不是「允不允许全屏」的 fullscreenEnabled', ()=>{
-		// 关键:即使 fullscreenEnabled 为 true(Electron 恒真),没有 fullscreenElement 就不算全屏。
+	it('非全屏时必须返回 false —— 即使能力位 fullscreenEnabled 为 true(原 bug:恒真)', () => {
 		Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true });
-		document.fullscreenElement = null;
-		expect(checkFullScreen()).toBe(false);      // ← 旧实现在这里会返回 true(恒真)
+		expect(checkFullScreen()).toBe(false);
+	});
 
-		document.fullscreenElement = document.createElement('div');
+	it('fullscreenElement 在 ⇒ true(标准状态位)', () => {
+		Object.defineProperty(document, 'fullscreenElement', { value: {}, configurable: true });
 		expect(checkFullScreen()).toBe(true);
 	});
 
-	test('webkit 旧前缀也认(Electron/旧内核兜底)', ()=>{
-		document.fullscreenElement = null;
-		document.webkitFullscreenElement = document.createElement('div');
+	it('webkitFullscreenElement 在 ⇒ true(旧 WebKit 状态位)', () => {
+		Object.defineProperty(document, 'webkitFullscreenElement', { value: {}, configurable: true });
 		expect(checkFullScreen()).toBe(true);
 	});
+});
 
-	test('onFullScreenChange 订阅到事件,且退订后不再触发(防 unmount 泄漏)', ()=>{
-		const seen = [];
-		const off = onFullScreenChange(()=>seen.push(1));
-		document.dispatchEvent(new Event('fullscreenchange'));
-		expect(seen.length).toBe(1);
+describe('horosa_fullscreen_state_v1 · 订阅与实测(源扫描面,issue #68 ②③)', () => {
+	const EVTS = "['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange']";
 
-		// 用户按 Esc 也是同一个事件 —— 这条链就是「Esc 之后还能再进全屏」的保证。
-		document.dispatchEvent(new Event('fullscreenchange'));
-		expect(seen.length).toBe(2);
-
-		off();
-		document.dispatchEvent(new Event('fullscreenchange'));
-		expect(seen.length).toBe(2);
+	it('AstroChart3D:四事件订阅成对(挂载 add / 卸载 remove)—— 缺订阅 = Esc 后全屏永进不去', () => {
+		const src = read('components/astro3d/AstroChart3D.js');
+		const n = src.split(EVTS).length - 1;
+		expect(n).toBeGreaterThanOrEqual(2);   // add 一处 + remove 一处
+		expect(src.includes('getBoundingClientRect')).toBe(true);   // 实测盒子,不再 screen.* 猜
 	});
 
-	test('SSR/无 document 环境不抛(组件在服务端渲染路径上也会被求值)', ()=>{
-		expect(typeof onFullScreenChange(null)).toBe('function');
+	it('BookReader:同款订阅成对(上游 v3.9.4 扩展面,一并钉住)', () => {
+		const src = read('components/reader/BookReader.js');
+		const n = src.split(EVTS).length - 1;
+		expect(n).toBeGreaterThanOrEqual(2);
+	});
+
+	it('checkFullScreen 函数体内不得回潮能力位判据(负锚:只认真代码形态)', () => {
+		const src = read('utils/helper.js');
+		const i = src.indexOf('export function checkFullScreen()');
+		expect(i).toBeGreaterThan(0);
+		const body = src.slice(i, src.indexOf('\n}', i));
+		expect(body.includes('fullscreenEnabled')).toBe(false);
+		expect(body.includes('fullscreenElement')).toBe(true);
 	});
 });
