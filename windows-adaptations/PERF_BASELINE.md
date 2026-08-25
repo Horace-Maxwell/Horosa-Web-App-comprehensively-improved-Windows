@@ -196,6 +196,33 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.9.5(2026-08-24 同步轮·卜卦盘全面改进 + 缩放档浮层根治;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `ea967134`)**:
+  warmReady 中位 **4817 / 4821ms**(p95 4869 / 4906),两臂相距 **+0.1%** = 构建自洽,无回归信号。
+  **workspaceVisible 602 / 608ms**(p95 606 / 618,预算 1500 内 ✓);spawnToVisible 821 / 829ms。
+  工件:`docs/perf-artifacts/startup_ab_v395_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 == maxClockMHz`(睿频压制**照旧**)+ `mumuRunning: true`
+  (owner 应用,未动)、`vmmemRunning: false`。**记录在案的机器态与上一轮逐项相同。**
+- **★★本轮是七轮以来最快的一次,但功劳不算在 v3.9.5 头上(重要,别误读成本版优化成果)**:
+  近七轮同台带 warmReady 中位 = v3.7.3 7210/7056 → v3.8.0 6846/6661 → v3.9.2 6572/6607 →
+  v3.9.3 7007/6978 → v3.9.4 6263/6200 → **本轮 4817/4821**,较上一轮再降约 23%,**远低于该带下沿**;
+  workspaceVisible 同步从 816/782 降到 **602/608**(约 −25%)。
+  **判定依据(为什么不是本版的功劳)**:warmReady 覆盖的是 **python + java 起栈 + 校验**,
+  workspaceVisible 覆盖的是 **renderer 载入** —— 这是两条彼此独立的路径,**却同步下降了几乎相同的比例**。
+  前端代码改动不可能让 Python/Java 起栈也快 23%;能同时压低两者的只有**机器级因素**
+  (最可能是 MuMu 虽在但本轮处于空载 —— 指纹只记「进程在否」,不记它的实时负载,这正是该指纹的已知盲点)。
+  **⇒ 结论:机器态红利,不是 v3.9.5 的性能成果;下轮若回到 6000+ 也不构成回归,先查同一盲点。**
+- **★预算判定**:门给出 `OVER(check #64 machine state first)`(4817 > 4500)—— 与前六轮同型
+  (前六轮 6200-7210 同样 OVER)。该台架 `resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成
+  (uberJar:false / staticJsa:false),绝对值恒是「失活态」读数,只作双臂/跨轮对照,不作用户体感判据。
+- **★本轮启动路径的代码面**:Electron 壳 **0 文件**;Python/vendor **0 文件**;Java 仅 `RuntimeWire`
+  版本号常量。前端有 3 个 boot 路径文件被碰(`global.js` 增 `installAlignHooks()`、`pages/index.js`、
+  `models/app.js`),但**方向都是加钩子/加逻辑**,只可能变慢不可能变快 —— 更佐证上面的机器态归因。
+  缩放钩子在默认档(zoom=1)直接短路返回、**探针 DOM 从未创建**(守卫 T2 有「零 reflow 成本锁」用例)。
+- **★增量更新**:差量门实测 **7MB / 0.8% 下载 / 99.2% 复用**(真变 19MB,预算 79MB);
+  **CDS 档 byte-identical vs 3.9.4** —— 存量用户升级近乎无感。
+
 ### 温启对照 v3.9.4(2026-08-20 同步轮·术数真值校准;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `6e9c2512`)**:
