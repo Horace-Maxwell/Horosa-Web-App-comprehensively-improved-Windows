@@ -11,7 +11,7 @@ jest.mock('../../mundane/momentPipeline', () => ({
 		return {
 			chart: { objects: [mk('Sun', lonOf(120, 0.9856), 0.9856), mk('Moon', lonOf(240, 13.1764), 13.1764), mk('Asc', 0, 0)], houses: [], isDiurnal: true },
 			params: { date: momentStr.slice(0, 10) },
-			aspects: { normalAsp: {} }, receptions: { normal: [], abnormal: [] }, mutuals: { normal: [], abnormal: [] }, antiscias: [], surround: {},
+			aspects: { normalAsp: {} }, receptions: { normal: [], abnormal: [] }, mutuals: { normal: [], abnormal: [] }, surround: {},
 		};
 	}),
 }));

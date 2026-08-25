@@ -18,6 +18,7 @@ Array [
   "horosa.boot.lastChart.v1 :: device-local :: backup=false",
   "horosa.chart.classicalGlobals.v1 :: settings :: backup=true",
   "horosa.chart.divinationJudgeGlobals.v1 :: settings :: backup=true",
+  "horosa.compat.alignZoom :: device-local :: backup=false",
   "horosa.compat.hasFallback :: device-local :: backup=false",
   "horosa.debug.* :: device-local :: backup=false",
   "horosa.deleted.log.v1 :: user-data :: backup=true",

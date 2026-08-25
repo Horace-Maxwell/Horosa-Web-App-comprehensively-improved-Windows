@@ -13,7 +13,7 @@ package spacex.basecomm.constants;
  * 缓存盐一律 basecomm 单源,控制器只引用不手抄。
  */
 public final class RuntimeWire {
-	public static final String RUNTIME_VERSION = "3.9.4-runtime1";
+	public static final String RUNTIME_VERSION = "3.9.5-runtime1";
 
 	private RuntimeWire() {
 	}

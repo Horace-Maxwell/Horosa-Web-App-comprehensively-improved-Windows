@@ -2012,6 +2012,8 @@ export default class AstroChartCircle {
 				if(line.kind === 'relay'){ stroke = OV_AMBER; dash = '6,4'; width = 1.8; }
 				else if(line.kind === 'antiscion'){ dash = '2,4'; width = 1.8; }
 				else if(line.kind === 'broken'){ stroke = OV_RED; dash = '4,3'; width = 1.6; opacity = 0.9; }
+				// [卜卦 H8] parallel=并列路径(月亮独立成事径,主径未成时):细虚线弱化,不与主实线争眼。
+				else if(line.kind === 'parallel'){ stroke = OV_GREEN; dash = '3,5'; width = 1.3; opacity = 0.6; }
 				lg.append('path').attr('d', dstr)
 					.attr('stroke', stroke).attr('stroke-width', width)
 					.attr('stroke-opacity', opacity)

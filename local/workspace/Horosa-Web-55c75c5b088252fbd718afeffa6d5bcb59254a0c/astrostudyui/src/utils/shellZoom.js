@@ -38,14 +38,31 @@ export function getShellZoom(){
 
 // 布局视口高:innerHeight 恒报物理 CSS px(不随 html zoom),布局域真值须除以壳缩放。
 // 1:1 时除 1=恒等。
+//
+// 🔴 [Tahoe 根治] 除数从**声明值**(getShellZoom:query/localStorage)改为**实测值**
+// (zoomDomain.getEffectiveScale:探针实测引擎到底缩放了没有)。两者在正常路径相等,
+// 行为一字不变;而在「壳声明了缩放但引擎未生效」的环境(旧 WKWebView 疑似如此)下,
+// 按声明值除会制造反向错位——那是一个可能一直存在的隐患,改实测后自动消失。
+// getShellZoom() 语义与签名保持不变(它表达"用户选的档位",别处在用)。
+// 惰性 require 破循环:zoomDomain 反过来要用本模块的 getShellZoom 作声明值回落。
+function effectiveScale(){
+	try{
+		// eslint-disable-next-line global-require
+		const { getEffectiveScale } = require('./zoomDomain');
+		const s = getEffectiveScale();
+		return (s && s > 0) ? s : 1;
+	}catch(e){
+		const z = getShellZoom();
+		return z || 1;
+	}
+}
+
 export function getLayoutViewportHeight(){
-	const z = getShellZoom();
-	return Math.round(window.innerHeight / (z || 1));
+	return Math.round(window.innerHeight / effectiveScale());
 }
 
 export function getLayoutViewportWidth(){
-	const z = getShellZoom();
-	return Math.round(window.innerWidth / (z || 1));
+	return Math.round(window.innerWidth / effectiveScale());
 }
 
 export const SHELL_ZOOM_STORAGE_KEY = KEY;

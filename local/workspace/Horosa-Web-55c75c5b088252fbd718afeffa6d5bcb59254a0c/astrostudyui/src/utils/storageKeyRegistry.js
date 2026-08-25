@@ -108,6 +108,7 @@ export const STORAGE_KEY_REGISTRY = [
 	{ prefix: 'horosa.perf.', kind: 'device-local', backup: false, label: '性能旗标族(设备调优,42+ 键)' },
 	{ prefix: 'horosa.debug.', kind: 'device-local', backup: false, label: '调试开关' },
 	{ key: 'horosa.compat.hasFallback', kind: 'device-local', backup: false, label: '兼容回退标志' },
+	{ key: 'horosa.compat.alignZoom', kind: 'device-local', backup: false, label: '浮层缩放补偿开关(设 \'0\' 即全链退回补偿前行为;本机应急阀,不随迁)' },
 	{ key: 'horosa.lc.idb', kind: 'device-local', backup: false, label: 'IndexedDB 可用性/迁移标志(带走会骗新机跳过迁移)' },
 	{ key: 'horosa.localRecordStore.degraded', kind: 'device-local', backup: false, label: '存储降级会话标志' },
 	{ key: 'horosa.localRecordStore.newerSchema', kind: 'device-local', backup: false, label: '超版记录提示事件名(非存储键,登记以过穷举哨兵,degraded 同例)' },

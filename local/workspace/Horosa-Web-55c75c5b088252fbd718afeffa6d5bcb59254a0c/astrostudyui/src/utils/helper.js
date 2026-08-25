@@ -1,3 +1,4 @@
+
 import * as forge from 'node-forge';
 import { message } from 'antd';
 import { history } from 'umi';
@@ -7,6 +8,7 @@ import { getErrMsg } from '../msg/errmsg';
 import {GPS} from './gps';
 import printJS from 'print-js';
 import {innerHandleError} from './request';
+import { clientToFixed } from './zoomDomain';
 
 export function twoTextOneLine(ary, howmanyLines){
 	let res = [];
@@ -916,9 +918,12 @@ export function positionFloatingTooltip(divTooltip, evt, options){
 	const rect = node.getBoundingClientRect();
 	const placement = placeTooltipWithinViewport(anchorRect, rect, viewportWidth, viewportHeight, options);
 
+	// placement 全程在 rect 域(anchorRect / tooltipRect / innerWidth-Height 同域,计算自洽);
+	// 宿主是 setupFloatingTooltip 设的 position:fixed,style.left/top 属 CSS 域 ⇒ 写回须换算。
+	// 壳缩放=1(浏览器/默认档)时 clientToFixed 恒等返回,原值一字不变。
 	divTooltip
-		.style('left', `${placement.left}px`)
-		.style('top', `${placement.top}px`);
+		.style('left', `${clientToFixed(placement.left)}px`)
+		.style('top', `${clientToFixed(placement.top)}px`);
 }
 
 export function creatTooltip(divTooltip, titleSvg, tipobj, onTipClick, needpadding, forceRich, options){

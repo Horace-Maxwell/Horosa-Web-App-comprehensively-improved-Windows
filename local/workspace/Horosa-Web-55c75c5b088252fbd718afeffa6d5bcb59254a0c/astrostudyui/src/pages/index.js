@@ -20,7 +20,11 @@ import AstroFormComp from '../components/astro/AstroFormComp';
 import AstroChartMain from '../components/astro/AstroChartMain';
 import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
 import { makeLazyBoundary } from '../utils/lazyBoundary';
-// Windows-ahead:城市库空闲预载开关(与上游懒加载改造无关,勿随 import 区重写一并丢)。
+import { clientToFixed } from '../utils/zoomDomain';
+// Windows-ahead:城市库空闲预载开关(与上游懒加载/缩放域改造无关,勿随 import 区重写一并丢)。
+// ★v3.9.5 实撞第二次(#86 同型):上游在本区新增 clientToFixed 的 import,我方这一行的 hunk
+//   被拒 ⇒ 第 86 行 `cityDbIdlePreloadEnabled()` 成「用法在、绑定没有」,打开首页即 ReferenceError。
+//   常设拦截 = check-no-undef.cjs(作用域分析门,gotcha #98);此处保留本注释以便下次一眼认出。
 import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
 
 // 流畅度:可预取的 lazy —— 启动仍只载首包(快),首屏就绪后空闲时段后台预载全部技法 chunk,
@@ -653,8 +657,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             }
             if(stage){
                 const r = stage.getBoundingClientRect();
-                el.style.top = Math.round(r.top + 10) + 'px';
-                el.style.right = Math.round(window.innerWidth - r.right + 12) + 'px';
+                // r 与 innerWidth 同属 rect 域(计算自洽);徽标 .horosa-workspace-updating
+                // 是 position:fixed,style 属 CSS 域 ⇒ 写回换算。壳缩放=1 时恒等。
+                el.style.top = Math.round(clientToFixed(r.top + 10)) + 'px';
+                el.style.right = Math.round(clientToFixed(window.innerWidth - r.right + 12)) + 'px';
                 el.style.left = 'auto';
             }
         }catch(e){ /* 定位失败回退 CSS 默认位置 */ }

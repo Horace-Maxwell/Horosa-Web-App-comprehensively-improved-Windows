@@ -12,9 +12,9 @@
 	],
 	"scripts": {
 		"start": "node scripts/umi-runner.js dev",
-		"build": "node scripts/umi-runner.js build && node scripts/scrub-build-paths.js dist && node scripts/write-build-info.js dist && node scripts/inject-preload.js dist && node scripts/check-chunk-dup.js dist",
-		"build:file": "node scripts/umi-runner.js build --for-file && node scripts/scrub-build-paths.js dist-file && node scripts/write-build-info.js dist-file && node scripts/inject-preload.js dist-file && node scripts/check-chunk-dup.js dist-file",
-		"postinstall": "umi generate tmp",
+		"build": "node scripts/patch-dom-align-zoom.js && node scripts/umi-runner.js build && node scripts/scrub-build-paths.js dist && node scripts/write-build-info.js dist && node scripts/inject-preload.js dist && node scripts/check-chunk-dup.js dist",
+		"build:file": "node scripts/patch-dom-align-zoom.js && node scripts/umi-runner.js build --for-file && node scripts/scrub-build-paths.js dist-file && node scripts/write-build-info.js dist-file && node scripts/inject-preload.js dist-file && node scripts/check-chunk-dup.js dist-file",
+		"postinstall": "node scripts/patch_quill_domnodeinserted.js && node scripts/patch-dom-align-zoom.js && umi generate tmp",
 		"prettier": "prettier --write '**/*.{js,jsx,tsx,ts,less,md,json}'",
 		"test": "umi-test",
 		"test:coverage": "umi-test --coverage"

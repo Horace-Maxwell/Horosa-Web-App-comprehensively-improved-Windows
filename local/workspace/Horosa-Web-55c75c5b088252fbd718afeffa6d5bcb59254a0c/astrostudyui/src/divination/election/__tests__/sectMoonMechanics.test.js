@@ -1,6 +1,7 @@
 // WP-1 宗派深化 + WP-2 月相机制:分支行为单测 + 流派计权。
 import { runElection } from '../electionEngine';
 import { buildMockResult } from './electionFixture';
+import { stretchBase } from '../scoring';
 
 function sectionOf(j, key){ return j.sections.find((s) => s.key === key); }
 function msgs(sec){ return (sec.findings || []).map((f) => f.message).join('\n'); }
@@ -100,7 +101,7 @@ describe('流派计权(extraWeights)', () => {
 		const j = runElection(buildMockResult(), 'marriage');
 		expect(sectionOf(j, 'sect')).toBeTruthy();
 		expect(sectionOf(j, 'moon_mechanics')).toBeTruthy();
-		expect(j.base).toBe(58); // golden 锚:与 WP-1/2 之前逐字一致
+		expect(j.base).toBe(70); // [重标定] 锚显式升级:58(旧标定)→70(良态确认加厚+不对称拉伸后同一 fixture 的新值;守护语义不变=新模块仍不进默认档总分构成)
 	});
 
 	it('宗派强调档:新模块按 extraWeights 计入总分(动态手算核对)', () => {
@@ -115,14 +116,20 @@ describe('流派计权(extraWeights)', () => {
 			expect(sec).toBeTruthy();
 			extra += sec.score * ew[k]; wsum += ew[k];
 		});
-		const exp = Math.round((58 * 1.03 + extra) / (1.03 + wsum));
-		expect(Math.abs(pj.base - exp)).toBeLessThanOrEqual(1); // 58 为默认档四舍五入锚,容 ±1
+		// [重标定] base 现含不对称拉伸:手算=raw 加权后过 stretchBase 单源(58 旧锚是拉伸前时代的
+		// 默认档 base;从 dj.base 反推 raw 锚,免在测试里再抄一份拉伸公式的逆)。
+		const rawDefault = dj.base >= 50 ? 50 + (dj.base - 50) / 1.6 : 50 + (dj.base - 50) / 1.15;
+		const exp = Math.round(stretchBase((rawDefault * 1.03 + extra) / (1.03 + wsum)));
+		expect(Math.abs(pj.base - exp)).toBeLessThanOrEqual(2); // 反推+两次取整,容 ±2
 		expect(dj).toBeTruthy();
 		// 计权真实生效(确定性合成盘,不吃 fixture 均值巧合):
 		// persian 计 sect(权重>0) → moon100+sect0 均分 <100;默认档不计 → =100。
 		const { scoreReport } = require('../scoring');
-		const synth = [{ key: 'moon', score: 100 }, { key: 'sect', score: 0 }];
-		expect(scoreReport(synth, [], WEST_SCHOOLS.persian).base).toBeLessThan(100);
-		expect(scoreReport(synth, [], WEST_SCHOOLS.modern_main).base).toBe(100);
+		// [重标定] 高分 synth(100/0)在拉伸+clamp 后两档同触 100 顶=零判别力;改中段 synth,
+		// 断言相对关系(persian 计 sect 0 分被摊入 → base 必低于不计的默认档)。
+		const synth = [{ key: 'moon', score: 60 }, { key: 'sect', score: 0 }];
+		const pBase = scoreReport(synth, [], WEST_SCHOOLS.persian).base;
+		const mBase = scoreReport(synth, [], WEST_SCHOOLS.modern_main).base;
+		expect(pBase).toBeLessThan(mBase);
 	});
 });

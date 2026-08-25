@@ -15,39 +15,12 @@ import { turnedHouseOf } from '../../divination/horary/significators';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroConst from '../../constants/AstroConst';
 import { getQuestionGuide } from '../../divination/horary/questionGuide';
+import { buildAntisciaTable } from '../../divination/horary/antisciaTable';
 
 const XQOption = XQSelect.Option;
 // 迦勒底时序（行星时全表用）：由慢到快循环。
 const CHALDEAN_SEQ = ['saturn', 'jupiter', 'mars', 'sun', 'venus', 'mercury', 'moon'];
-// 全盘映点/对映点表：映点=(180−λ)、对映点=(360−λ);命中(≤orb)其它行星/四轴/宫头者高亮。
-function buildAntisciaTable(facts, orb){
-	const o = (typeof orb === 'number' && orb > 0) ? orb : 1;
-	const keys = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
-	const points = [];
-	keys.forEach((k) => { if(facts.planets[k]) points.push({ label: (PLANETS[k] || {}).cn || k, lon: facts.planets[k].lon, key: k }); });
-	if(facts.meta.ascLon != null) points.push({ label: '命度', lon: facts.meta.ascLon, key: 'asc' });
-	if(facts.meta.mcLon != null) points.push({ label: '天顶', lon: facts.meta.mcLon, key: 'mc' });
-	const cuspTargets = [];
-	Object.keys(facts.houses || {}).forEach((h) => { const c = facts.houses[h]; if(c && c.lon != null) cuspTargets.push({ label: `${h}宫头`, lon: c.lon }); });
-	const dist = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return Math.min(d, 360 - d); };
-	const hitsOf = (lon, selfKey) => {
-		const hits = [];
-		points.forEach((p) => { if(p.key !== selfKey && dist(lon, p.lon) <= o) hits.push(p.label); });
-		cuspTargets.forEach((c) => { if(dist(lon, c.lon) <= o) hits.push(c.label); });
-		return hits;
-	};
-	return keys.filter((k) => facts.planets[k]).map((k) => {
-		const lam = facts.planets[k].lon;
-		const anti = ((180 - lam) % 360 + 360) % 360;
-		const contra = ((360 - lam) % 360 + 360) % 360;
-		const fmt = (l) => `${(SIGNS[signOfLon(l)] || {}).cn || ''} ${(((l % 30) + 30) % 30).toFixed(1)}°`;
-		return {
-			key: k, cn: (PLANETS[k] || {}).cn || k,
-			anti, antiText: fmt(anti), antiHits: hitsOf(anti, k),
-			contra, contraText: fmt(contra), contraHits: hitsOf(contra, k),
-		};
-	});
-}
+// [H8] 映点表实现收编至 divination/horary/antisciaTable.js(快照/UI 单源,orb 同吃 opts.antisciaOrb)。
 
 const TabPane = XQTabs.TabPane;
 // 古典·接纳/互容（卜卦右栏「古典」tab）：直接读排盘引擎已算的后端 chart.receptions / chart.mutuals，
@@ -67,6 +40,8 @@ function classicalReception(chart){
 }
 let _lastHorarySnap = '';
 function cn(k){ return (PLANETS[k] || {}).cn || k || '—'; }
+// [H4a] 后端盘面 id(Sun/Moon/Mars…)→中文:与 horarySnapshot.clsPlanetCn 同源口径(AstroMsgCN 全名优先)。
+function clsPlanetCnUI(id){ return AstroText.AstroMsgCN[id] || AstroText.AstroTxtMsg[id] || id || '—'; }
 const ANG_CN = { angular: '角宫·有力', succedent: '续宫·中等', cadent: '果宫·偏弱' };
 const LEAN = {
 	yes: { word: '倾向：成', sub: '完成法命中、吉证占优 → 多向「成」倾斜。仍须结合实际，不替您下命定结论。', cls: 'lean-yes' },
@@ -207,6 +182,7 @@ class HoraryJudgment extends Component{
 			...(assessments ? {
 				sincerityConfirmed: assessments.sincerityConfirmed,
 				confirmYouthMatch: assessments.confirmYouthMatch,
+				isEventChart: assessments.isEventChart,
 			} : {}),
 		};
 		const school = schoolOf(schoolId);
@@ -235,9 +211,30 @@ class HoraryJudgment extends Component{
 				<TabPane tab="裁决" key="verdict">
 					<div className="horosa-divi-judge">
 						<div className={'horosa-divi-verdict-big ' + lean.cls}>
-							{lean.word}
-							<div className="sub">{lean.sub}</div>
+							{v.profile === 'v2' ? `${v.bandCn}（置信度 ${v.confidence}/100）` : lean.word}
+							<div className="sub">{v.profile === 'v2' ? `全证词池五档判语（三值投影：${lean.word.replace('倾向：', '')}）${(v.guards || []).length ? ' · 结构护栏生效' : ''}` : lean.sub}</div>
 						</div>
+						{v.profile === 'v2' ? (() => {
+							const tot = (v.posScore || 0) + (v.negScore || 0) || 1;
+							const pw = Math.round((v.posScore / tot) * 100);
+							return (
+								<div className="horosa-divi-card" style={{ marginBottom: 6 }}>
+									<div className="horosa-divi-card-head">证词天平（去重·软封顶）</div>
+									<div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+										<span style={{ fontSize: 12, minWidth: 70 }}>有利 {v.posScore}（{(v.positive || []).length} 条）</span>
+										<div style={{ flex: 1, height: 10, borderRadius: 5, overflow: 'hidden', display: 'flex', background: 'rgba(147,161,176,0.25)' }}>
+											<div style={{ width: pw + '%', background: '#2f9e6f' }} />
+											<div style={{ width: (100 - pw) + '%', background: '#cf5b45' }} />
+										</div>
+										<span style={{ fontSize: 12, minWidth: 70, textAlign: 'right' }}>不利 {v.negScore}（{(v.negative || []).length} 条）</span>
+									</div>
+									{(v.conditions || []).length ? v.conditions.map((c, i) => (
+										<div key={i} className="horosa-divi-testi"><span className="dot">◈</span><span>条件式结论：{c.text}</span></div>
+									)) : null}
+									{(v.guards || []).length ? <div className="horosa-divi-kv" style={{ opacity: 0.75 }}>结构护栏生效：完成法/破坏为结构性证词，数值分不越其界。</div> : null}
+								</div>
+							);
+						})() : null}
 						<div className="horosa-divi-muted" style={{ marginBottom: 6 }}>判读流派：<b>{school.cn}</b> · {school.desc}</div>
 						{guide ? (
 							<div className="horosa-divi-card">
@@ -291,7 +288,13 @@ class HoraryJudgment extends Component{
 							<div className="horosa-divi-card-head">谁代表谁（征象星指派）</div>
 							<div className="horosa-divi-kv">问卜者本人 ＝ 命宫主星 <span className="tag">{cn(sig.querentKey)}</span> ＋ 月亮</div>
 							<div className="horosa-divi-kv">{sig.quesitedLabel || '所问之事'} ＝ {sig.quesitedHouse ? sig.quesitedHouse + '宫主 ' : ''}<span className="tag">{cn(sig.quesitedKey)}</span></div>
-							{sig.natural ? <div className="horosa-divi-kv">自然征象星（该事项的天然代表）＝ <span className="tag">{cn(sig.natural)}</span></div> : null}
+							{sig.turned ? (
+							<div className="horosa-divi-testi is-pos"><span className="dot">⟳</span><span>转宫：第 {sig.turned.personHouse} 宫人的第 {sig.turned.radicalHouse} 宫事 → 本盘第 <b>{sig.turned.turnedHouse}</b> 宫（引擎已自动转宫，下方速查器供手动核对）。</span></div>
+						) : null}
+						{sig.natural ? <div className="horosa-divi-kv">自然征象星（该事项的天然代表）＝ <span className="tag">{cn(sig.natural)}</span>{sig.naturalPromoted ? <span style={{ opacity: 0.85 }}>（已升 co-quesited：用事宫主三重受克）</span> : null}</div> : null}
+						{(sig.coSignificators && sig.coSignificators.length) ? (
+							<div className="horosa-divi-kv">用事宫内驻星（co-significator，低权参证）＝ {sig.coSignificators.map((k) => <span key={k} className="tag">{cn(k)}</span>)}</div>
+						) : null}
 							<div className="horosa-divi-kv">此刻「时主星」（活跃征象）＝ <span className="tag">{cn(j.hourRuler)}</span></div>
 							{j.hourAgreement ? <div className={'horosa-divi-testi ' + (j.hourAgreement.agree ? 'is-pos' : '')}><span className="dot">{j.hourAgreement.agree ? '✓' : '·'}</span><span>{j.hourAgreement.text}</span></div> : null}
 							{j.significators && j.facts && j.almuten ? (
@@ -336,12 +339,41 @@ class HoraryJudgment extends Component{
 						</div>
 						{(j.fixedStars && j.fixedStars.length) ? (
 							<div className="horosa-divi-card">
-								<div className="horosa-divi-card-head">恒星会合（≤1°）</div>
+								<div className="horosa-divi-card-head">恒星会合（{opts.fixedStarOrbMode === 'byMagnitude' ? '按星等轨·王者≤5°' : `≤${opts.fixedStarOrb || 2}°`}）</div>
 								<div className="horosa-divi-legend">征象星 / 命度 / 天顶 紧密会合精选恒星 → 叠加该星吉凶之力（卜卦取少而精的一组恒星）。</div>
 								{j.fixedStars.map((s, i) => (
 									<div key={i} className={'horosa-divi-testi ' + (s.nature === 'boost' ? 'is-pos' : 'is-neg')}>
 										<span className="dot">{s.nature === 'boost' ? '★' : '⚠'}</span>
 										<span><b>{s.point}</b> 会合 <b>{s.star}</b>（{s.meaning}）</span>
+									</div>
+								))}
+								{(() => {
+									// [H4a] 后端实测恒星附加行:仅征象星三键(全表 31 行太长);与上方前端精选表两口径对照。
+									const bs = j.backendStars || {};
+									const rows = [];
+									[[sig.querentKey, '命主'], [sig.quesitedKey, '事项'], ['moon', '月亮']].forEach(([k, label]) => {
+										const p = k && facts.planets[k];
+										const hit = p && bs[p.chartId];
+										if(hit && hit.length){ rows.push(`${label}·${cn(k)}：${hit.map((s) => `${s.cn || s.star}（差${s.orb.toFixed(1)}°)`).join('、')}`); }
+									});
+									return rows.length ? (
+										<div className="horosa-divi-kv" style={{ opacity: 0.8, marginTop: 6 }}>后端实测（星历全表口径）：{rows.join('；')}</div>
+									) : null;
+								})()}
+							</div>
+						) : null}
+						{(j.besiegement && j.besiegement.length) ? (
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">围攻详断（后端十六式）</div>
+								<div className="horosa-divi-legend">凶围＝火土两侧夹攻（<b>重</b>＝紧密）；围荣/围耀＝金木/日月环护（吉）；协防星以相位解一侧之围。</div>
+								{j.besiegement.map((b, i) => (
+									<div key={i} className={'horosa-divi-testi ' + (b.nature === '凶' ? 'is-neg' : 'is-pos')}>
+										<span className="dot">{b.nature === '凶' ? '⚔' : '☗'}</span>
+										<span>
+											<b>{clsPlanetCnUI(b.target)}</b> {b.kind || '围攻'}（{b.nature || ''}{b.severe ? '·重' : ''}{b.targetRetro ? '·被围者逆行' : ''}）：
+											{(b.besiegers || []).map((x) => `${clsPlanetCnUI(x.id)}（${ASPECT_CN[Math.abs(x.aspect)] || (Math.abs(x.aspect) + '°')} 差${typeof x.delta === 'number' ? x.delta.toFixed(1) : '—'}°${x.retro ? '·逆' : ''}）`).join('＋')}
+											{(b.defense || []).length ? '；协防：' + b.defense.map((d) => `${clsPlanetCnUI(d.id)}（${ASPECT_CN[Math.abs(d.aspect)] || (Math.abs(d.aspect) + '°')}解${clsPlanetCnUI(d.against)}侧${d.strong ? '·有力' : ''}）`).join('、') : ''}
+										</span>
 									</div>
 								))}
 							</div>
@@ -373,6 +405,12 @@ class HoraryJudgment extends Component{
 							<div className="horosa-divi-legend">月亮刚离开的星＝事情来由/已过；接下来要会的星＝事情走向/将发生（卜卦最重要的线索之一）。</div>
 							{moonStory.separating.slice(0, 2).map((a, i) => <div key={'sep' + i} className="horosa-divi-testi"><span className="dot">↤</span><span>月 刚离开 {cn(a.other)}（{ASPECT_CN[a.angle]}，已过 {a.orb.toFixed(1)}°）</span></div>)}
 							{moonStory.applying.length ? moonStory.applying.slice(0, 3).map((a, i) => <div key={'app' + i} className={'horosa-divi-testi ' + (a.nature === 'positive' ? 'is-pos' : (a.nature === 'negative' ? 'is-neg' : ''))}><span className="dot">↦</span><span>月 接下来会 {cn(a.other)}（{ASPECT_CN[a.angle]}，还差 {a.orb.toFixed(1)}°）</span></div>) : <div className="horosa-divi-line">月亮接下来无主相位（空亡）。</div>}
+							{(moonStory.immediate && moonStory.immediate.length) ? (
+								<div className="horosa-divi-kv" style={{ opacity: 0.8, marginTop: 6 }}>后端实测（按紧密度序·权威）：{moonStory.immediate.slice(0, 4).map((a) => `${cn(a.other)} ${ASPECT_CN[a.angle]} 差${a.orb.toFixed(1)}°`).join('；')}</div>
+							) : null}
+							{j.moonFinal ? (
+								<div className={'horosa-divi-testi ' + (j.moonFinal.angle === 90 || j.moonFinal.angle === 180 ? 'is-neg' : 'is-pos')}><span className="dot">◑</span><span>本座终局相位：与 {cn(j.moonFinal.other)} 成{ASPECT_CN[j.moonFinal.angle]}（约 {j.moonFinal.tDays} 天后精确）→ 事之收尾{j.moonFinal.angle === 90 || j.moonFinal.angle === 180 ? '偏凶' : '偏吉'}。</span></div>
+							) : null}
 						</div>
 						<div className="horosa-divi-card">
 							<div className="horosa-divi-card-head">相位全览（七政之间）</div>
@@ -592,6 +630,18 @@ class HoraryJudgment extends Component{
 								{j.theft.steps.map((s, i) => (
 									<div key={i} className={'horosa-divi-testi ' + (s.polarity === 'positive' ? 'is-pos' : (s.polarity === 'negative' ? 'is-neg' : ''))}>
 										<span className="dot" style={{ fontWeight: 600 }}>{s.label}</span><span>{s.text}</span>
+									</div>
+								))}
+							</div>
+						) : null}
+						{(rad.moleHints && rad.moleHints.length) ? (
+							<div className="horosa-divi-card">
+								<div className="horosa-divi-card-head">痣记验证（身体印记比对）</div>
+								<div className="horosa-divi-legend">传统验盘法：命度/命主/六宫/月亮所落座对应身体部位——问卜者身上该处若真有痣/疤/记，则盘更可信（Consideration 的正面确认之一）。</div>
+								{rad.moleHints.map((m, i) => (
+									<div key={i} className="horosa-divi-testi">
+										<span className="dot">◦</span>
+										<span><b>{m.source}</b>（{(SIGNS[m.sign] || {}).cn || m.sign}）→ {Array.isArray(m.parts) ? m.parts.join('、') : m.parts}{m.side ? ` · ${m.side}` : ''}{m.frontBack ? ` · ${m.frontBack}` : ''}{m.updown ? ` · ${m.updown}` : ''}</span>
 									</div>
 								))}
 							</div>

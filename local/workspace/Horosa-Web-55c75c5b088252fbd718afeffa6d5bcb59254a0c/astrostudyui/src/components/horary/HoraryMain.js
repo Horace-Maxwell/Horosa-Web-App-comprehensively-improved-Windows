@@ -16,8 +16,8 @@ import DateTime from '../comp/DateTime';
 import HoraryJudgment from './HoraryJudgment';
 import { buildHoraryOverlay } from './horaryOverlayData';
 import {
-	HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, HORARY_PARAM_SPEC,
-	horaryBackendFields, presetOf, schoolOf, overrideCount,
+	HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, HORARY_PARAM_SPEC, HORARY_PARAM_BY_KEY,
+	horaryBackendFields, presetOf, schoolOf, overrideCount, horaryJudgeOpts,
 } from '../../divination/horary/horarySchools';
 
 const Option = XQSelect.Option;
@@ -35,7 +35,9 @@ export const HORARY_CATEGORIES = [
 	{ value: 'mother', label: '母亲（父母宫参数定 10/4）' },
 	{ value: 'pregnancy', label: '子嗣 · 怀孕（五宫）' },
 	{ value: 'health', label: '疾病 · 健康（六宫）' },
+	{ value: 'lost_animal', label: '走失活物（六宫/大畜十二宫）' },
 	{ value: 'marriage', label: '婚姻 · 感情（七宫）' },
+	{ value: 'trade', label: '买卖 · 交易（七宫四角）' },
 	{ value: 'lawsuit', label: '诉讼 · 合伙 · 战争（七宫）' },
 	{ value: 'theft', label: '盗窃 · 走失（七宫/转宫）' },
 	{ value: 'death', label: '死生 · 遗产（八宫）' },
@@ -63,15 +65,25 @@ function chipCls(label){
 // （global 键在「设置→星盘设置」统一改,school 键随流派绑定——左栏零双入口）。
 const PANEL_GROUP_ORDER = ['尊贵计分', '完成与破坏', '考量', '应期与指派'];
 const PANEL_GROUP_OF = {
-	accidentalMode: '尊贵计分', partileDef: '尊贵计分', lotsSet: '尊贵计分',
+	accidentalMode: '尊贵计分', lotsSet: '尊贵计分',
 	orbMode: '完成与破坏', interferenceTiming: '完成与破坏', detectAbscission: '完成与破坏',
 	refranationAsDestruction: '完成与破坏', refranationIncludeSignChange: '完成与破坏',
 	collectionRequireReception: '完成与破坏', oppositionVerdict: '完成与破坏',
 	perfectionStrict: '完成与破坏', combustExemptConjAnswer: '完成与破坏',
 	considerationsMode: '考量', ascEarlyDeg: '考量', ascLateDeg: '考量',
-	hourAgreementVariant: '考量', viaCombustaVariant: '考量', vocMitigateSigns: '考量',
+	hourAgreementVariant: '考量', vocMitigateSigns: '考量',   // [H8] 僵尸清理:partileDef/viaCombustaVariant 是 global 键,面板只渲染 horary 域——死映射已删
 	timingVariant: '应期与指派', timingModifiers: '应期与指派', timingSecondLaw: '应期与指派',
 	onePlanetBoth: '应期与指派', parentHousesVariant: '应期与指派', includeOuter: '应期与指派',
+	// [H2] 完成法五键
+	perfectionCandidates: '完成与破坏', receptionForHardAspects: '完成与破坏',
+	receptionPerfection: '完成与破坏', rescueAfterDestruction: '完成与破坏',
+	timingStationAware: '应期与指派',
+	// [H4b][H5] 实测证词+徵象星语义
+	backendConditionNotes: '考量',
+	personScope: '应期与指派', querentGender: '应期与指派',
+	moonPromotion: '应期与指派', naturalSignifEnhanced: '应期与指派',
+	// [H7] 裁决双轨
+	verdictProfile: '考量',
 };
 const FIVE_MOMENTS_HELP = (
 	<div style={{ maxWidth: 300, fontSize: 12, lineHeight: 1.7 }}>
@@ -99,8 +111,13 @@ function horaryKeyPlanets(chartObj, extra){
 	const houses = chartObj.chart.houses || [];
 	const byId = {};
 	houses.forEach((h) => { if(h && h.id){ byId[h.id] = h; } });
-	const def = { general: null, wealth: 2, lost: 2, family: 3, message: 3, property: 4, pregnancy: 5, health: 6, marriage: 7, lawsuit: 7, theft: 7, death: 8, travel: 9, career: 10, hope: 11, enemy: 12 };
-	const qh = def[(extra && extra.questionCategory) || 'general'];
+	// [H6] 补 father/mother(4/10 随父母宫两派参数)与两新类;此前父母类聚焦恒不亮。
+	const def = { general: null, wealth: 2, lost: 2, family: 3, message: 3, property: 4, pregnancy: 5, health: 6, marriage: 7, lawsuit: 7, theft: 7, death: 8, travel: 9, career: 10, hope: 11, enemy: 12, lost_animal: 6, trade: 7, father: 4, mother: 10 };
+	const cat = (extra && extra.questionCategory) || 'general';
+	let qh = def[cat];
+	if((cat === 'father' || cat === 'mother') && extra && extra.horaryOverrides && extra.horaryOverrides.parentHousesVariant === 'modern'){
+		qh = cat === 'father' ? 10 : 4;
+	}
 	const keys = [];
 	const l1 = byId.House1 && byId.House1.ruler;
 	if(l1){ keys.push(l1); }
@@ -384,6 +401,29 @@ class HoraryMain extends Component{
 						</XQSelect>
 					</div>
 				</div>
+				{/* [H5b] 人称档/性别档快捷位:与「判读参数」面板同写 horaryOverrides(单一真值源,
+				    面板自动回显「·改」);选项列表取 spec(零第二份枚举)。 */}
+				<div className="horosa-field-grid">
+					{['personScope', 'querentGender'].map((k) => {
+						const sp = HORARY_PARAM_BY_KEY[k];
+						const ov = extra.horaryOverrides || {};
+						const cur = ov[k] !== undefined ? ov[k] : sp.default;
+						return (
+							<div key={k} className="horosa-field-block">
+								<div className="horosa-field-label">{sp.label}</div>
+								<XQSelect style={{ width: '100%' }} size="small" value={cur}
+									dropdownMatchSelectWidth={false}
+									onChange={(val)=>{
+										const next = { ...ov };
+										if(val === sp.default){ delete next[k]; } else { next[k] = val; }
+										setExtra({ horaryOverrides: next });
+									}}>
+									{(sp.options || []).map((o)=>(<Option key={String(o.value)} value={o.value}>{o.label}</Option>))}
+								</XQSelect>
+							</div>
+						);
+					})}
+				</div>
 				{this.renderCampBlock(args)}
 				<div className="horosa-horary-option-card">
 					<Checkbox className="horosa-chip-full" checked={extra.chartFocus !== false}
@@ -397,6 +437,11 @@ class HoraryMain extends Component{
 					<Checkbox className="horosa-chip-full" checked={!!extra.confirmYouthMatch}
 						onChange={(e)=>setExtra({ confirmYouthMatch: !!(e && e.target && e.target.checked) })}>
 						年轻体貌合上升
+					</Checkbox>
+					{/* [H8] 事件盘=有确定客观时刻(⑤类起盘):命度过晚(asc_late)考量的正当救济入口 */}
+					<Checkbox className="horosa-chip-full" checked={!!extra.isEventChart}
+						onChange={(e)=>setExtra({ isEventChart: !!(e && e.target && e.target.checked) })}>
+						事件盘（客观时刻）
 					</Checkbox>
 					{/* [二期] 判读叠层四子层(默认开;说明详帮助·卜卦盘) */}
 					<Checkbox className="horosa-chip-full" checked={extra.overlayPerfection !== false}
@@ -438,6 +483,7 @@ class HoraryMain extends Component{
 			assessments={{
 				sincerityConfirmed: extra.sincerityConfirmed !== false,
 				confirmYouthMatch: !!extra.confirmYouthMatch,
+				isEventChart: !!extra.isEventChart,
 			}} />;
 	}
 
@@ -454,7 +500,8 @@ class HoraryMain extends Component{
 				// 全局古典参数热同步白名单:流派学理绑定键(界系/双子界序/福点反转/宫制/星群)
 				// 恒以流派为准,只放行未被流派区分的四键随「设置→星盘设置」全局变更。
 				globalSyncKeys={['westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity',
-					'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'antisciaOrb', 'fixedStarOrb', 'fixedStarOrbMode', 'vocMode', 'vocIncludeOuter']}
+					'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'antisciaOrb', 'fixedStarOrb', 'fixedStarOrbMode', 'vocMode', 'vocIncludeOuter',
+					'stationMarking']}
 				initialExtra={{ questionCategory: 'general' }}
 				fields={this.props.fields}
 				height={this.props.height}
@@ -464,6 +511,24 @@ class HoraryMain extends Component{
 				showAstroMeaning={this.props.showAstroMeaning}
 				dispatch={this.props.dispatch}
 				saveModule="horary"
+				// [H9] 存案带格式化 AI 快照(对齐择日/世俗):挂载读 payload.aiSnapshot 免重算路径。
+				// 判读 opts 与页面 HoraryJudgment 四层同构;runHorary 有 H3 memo,页面已算过=零成本。
+				buildAiSnapshot={(chart, fields, extra) => {
+					try{
+						const ex = extra || {};
+						const { runHorary } = require('../../divination/horary/horaryEngine');
+						const { buildHorarySnapshot } = require('../../divination/horary/horarySnapshot');
+						const opts = {
+							...horaryJudgeOpts(activeSchoolId(ex, fields), ex.horaryOverrides || null, judgeLayerOverrides()),
+							sincerityConfirmed: ex.sincerityConfirmed !== false,
+							confirmYouthMatch: !!ex.confirmYouthMatch,
+							isEventChart: !!ex.isEventChart,
+						};
+						const j = runHorary(chart, ex.questionCategory || 'general', opts);
+						// [复审C1] 第二参=全 Result(receptions/mutuals 在顶层,页面 saveSnap 同款)——曾传 chart.chart 致存案路径 [古典接纳] 段恒缺。
+						return j ? buildHorarySnapshot(j, chart, { questionText: ex.questionText, castingCamp: ex.castingCamp }) : undefined;
+					}catch(e){ return undefined; }
+				}}
 				keyPlanets={horaryKeyPlanets}
 				// [二期] 判读叠层:函数型 prop,shell 按 (chartObj, extra) 求值;
 				// buildHoraryOverlay 单槽 memo 保证同盘同设置=同引用(AstroChart 签名短路)。

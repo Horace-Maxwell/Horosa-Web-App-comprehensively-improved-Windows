@@ -1,0 +1,39 @@
+diff --git a/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js b/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js
+index 1b687f9d..0330112c 100644
+--- a/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js
++++ b/astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js
+@@ -227,14 +227,30 @@ describe('T4 补丁完整性哨兵', () => {
+ 	});
+ 
+ 	it('全树只有一份 dom-align(补丁覆盖面完整性前提)', () => {
+-		const { execSync } = require('child_process');
++		// horosa_win_shell_free_scan_v1(Windows 侧移植适配;建议上游化 Mac)
++		// 原实现走 `execSync('find … -maxdepth 4 -type d -name dom-align')`。**Windows 上 `find` 是
++		// 另一个命令**(cmd 内建的 find 是「在文件里搜文本」,不接受 -maxdepth/-type/-name),
++		// execSync 直接抛错 ⇒ 本用例在 Windows 恒红,与被测事实无关。
++		// 改为纯 Node 等价遍历:同样解引用软链、同样限深 4、同样只数目录名为 dom-align 的目录。
+ 		let nm = path.join(root, 'node_modules');
+ 		if(!fs.existsSync(nm)){ return; }       // 依赖未安装时不误红(装完自然覆盖)
+-		// 🔴 先解引用:node_modules 常被做成指向共享依赖树的软链,而 find 默认**不跟随**软链
++		// 🔴 先解引用:node_modules 常被做成指向共享依赖树的软链,遍历默认**不跟随**软链
+ 		// (fs.existsSync 却跟随)⇒ 不解引用会得 0 命中的假红。
+ 		nm = fs.realpathSync(nm);
+-		const out = execSync(`find ${JSON.stringify(nm)} -maxdepth 4 -type d -name dom-align`, { encoding: 'utf8' });
+-		expect(out.split('\n').filter(Boolean).length).toBe(1);
++		const found = [];
++		const walk = (dir, depth) => {
++			if(depth > 4){ return; }
++			let ents = [];
++			try{ ents = fs.readdirSync(dir, { withFileTypes: true }); }catch(e){ return; }
++			ents.forEach((ent) => {
++				if(!ent.isDirectory()){ return; }
++				const full = path.join(dir, ent.name);
++				if(ent.name === 'dom-align'){ found.push(full); return; }
++				walk(full, depth + 1);
++			});
++		};
++		walk(nm, 1);
++		expect(found.length).toBe(1);
+ 	});
+ 
+ 	it('antd 浮层不走 transform 路径(P4 防御性补丁的前提假设锁)', () => {

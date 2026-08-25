@@ -36,18 +36,16 @@ export function receptionsOf(facts, key){
 
 // 两星互溶？(mutuals.normal/abnormal)
 export function mutualReceptionBetween(facts, a, b){
-	const mu = (facts.result && facts.result.mutuals) || {};
+	// [H1b 死链根修] 旧读法猜 it.mutual/it.pair/[beneficiary,supplier]——后端真键名是
+	// {planetA:{id,rulerShip},planetB:{...}},pair 恒 [undefined,undefined] → 本函数恒 null,
+	// 互容对完成法/硬相位化解从未有过贡献。改消费 resultShapes.mutualPairsOf(带 strong/weak/mixed 分层)。
+	const { mutualPairsOf } = require('./resultShapes');
 	const bands = [];
-	['normal', 'abnormal'].forEach((band) => {
-		(mu[band] || []).forEach((it) => {
-			// it 可能形如 {mutual:[p1,p2], dignity:[..]} 或含 beneficiary/supplier 对
-			const pair = it.mutual || it.pair || [it.beneficiary, it.supplier];
-			if(!pair) return;
-			const k0 = keyOfChartId(pair[0]); const k1 = keyOfChartId(pair[1]);
-			if((k0 === a && k1 === b) || (k0 === b && k1 === a)){
-				bands.push({ band, dignity: it.dignity || it.dignities || [], strong: band === 'normal' });
-			}
-		});
+	mutualPairsOf(facts.result).forEach((it) => {
+		const k0 = keyOfChartId(it.a); const k1 = keyOfChartId(it.b);
+		if((k0 === a && k1 === b) || (k0 === b && k1 === a)){
+			bands.push({ band: it.abnormal ? 'abnormal' : 'normal', dignity: [...(it.shipA || []), ...(it.shipB || [])], level: it.level, strong: it.level === 'strong' });
+		}
 	});
 	return bands.length ? bands : null;
 }

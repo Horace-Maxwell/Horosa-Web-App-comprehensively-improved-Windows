@@ -95,11 +95,19 @@ describe('WP1.2 偶然尊贵满分表(±38)', () => {
 		expect(r.items.find((x) => x.key === 'conj_regulus').score).toBe(6);
 		const algol = FIXED_STARS.find((s) => s.name_en === 'Algol');
 		const facts2 = makeFacts({ venus: { lon: starLonAt(algol.lon_1995, 2000) } });
-		expect(scoreAccidental('venus', facts2, {}).items.find((x) => x.key === 'conj_algol').score).toBe(-4);
+		expect(scoreAccidental('venus', facts2, {}).items.find((x) => x.key === 'conj_algol').score).toBe(-5);   // [H1c] 1647 传统 −5 显式升级
 	});
-	test('围攻 besieged −4(读 surround.attacks)', () => {
-		const facts = makeFacts({ venus: { chartId: 'Venus' } }, { surround: { attacks: ['Venus'] } });
-		expect(scoreAccidental('venus', facts, {}).items.find((x) => x.key === 'besieged').score).toBe(-4);
+	test('围攻 besieged −5(真形状:attacks 按行星分桶,仅火土桶计凶围;1647 传统 −5)', () => {
+		const facts = makeFacts({ venus: { chartId: 'Venus' } }, { surround: { attacks: { Venus: { MarsSaturn: [
+			{ id: 'Mars', aspect: 0, delta: 3.2 }, { id: 'Saturn', aspect: 0, delta: 4.1 },
+		], VenusJupiter: [], SunMoon: [], MinDelta: [] } } } });
+		expect(scoreAccidental('venus', facts, {}).items.find((x) => x.key === 'besieged').score).toBe(-5);
+	});
+	test('围荣不计凶围(吉围语义陷阱负向锁:金木桶有记录、火土桶空 → 不判 besieged)', () => {
+		const facts = makeFacts({ venus: { chartId: 'Venus' } }, { surround: { attacks: { Venus: { MarsSaturn: [],
+			VenusJupiter: [{ id: 'Venus', aspect: 0, delta: 2 }, { id: 'Jupiter', aspect: 0, delta: 3 }], SunMoon: [], MinDelta: [] } } } });
+		const it = scoreAccidental('venus', facts, {}).items.find((x) => x.key === 'besieged');
+		expect(it ? it.score : 0).toBe(0);
 	});
 	test('isPartile 三口径独立可判', () => {
 		const facts = makeFacts();

@@ -8,10 +8,11 @@ import { TOPIC_MASTER } from '../../data/topicMaster';
 import { mansionOf } from '../../data/lunarMansions';
 import { paransAt, riseHourAngle } from '../../engine/paransLocal';
 import { buildMockResult } from './electionFixture';
+import { computePenalty } from '../scoring';
 
 const GRADES = ['excellent', 'good', 'fair', 'poor', 'disqualified'];
 const SEVS = ['critical', 'high', 'medium', 'low', 'info'];
-const PENALTY = { critical: 40, high: 15, medium: 8, low: 3 };
+// [重标定] 罚分核对改消费 scoring 单源 computePenalty(测试内复制公式=第二实现必漂移)。
 
 function assertInvariants(j, schoolId, topicId, opts){
 	expect(j).toBeTruthy();
@@ -30,13 +31,7 @@ function assertInvariants(j, schoolId, topicId, opts){
 	});
 	// severity 合法;info 仅 annotate 档;info 零罚分
 	const annotate = WEST_SCHOOLS[schoolId] && WEST_SCHOOLS[schoolId].modernPlanets === 'annotate';
-	let expPenalty = 0;
-	j.hard_flags.forEach((f) => {
-		expect(SEVS).toContain(f.severity);
-		if(f.severity === 'info') expect(annotate).toBe(true);
-		expPenalty += PENALTY[f.severity] || 0;
-	});
-	expect(j.penalty).toBe(expPenalty);
+	expect(j.penalty).toBe(computePenalty(j.hard_flags));   // [重标定] 同源核对(去重+软封顶)
 	// 流派回显 + 快照
 	expect(j.westSchool.id).toBe(WEST_SCHOOLS[schoolId] ? schoolId : 'modern_main');
 	const snap = buildElectionSnapshot(j);

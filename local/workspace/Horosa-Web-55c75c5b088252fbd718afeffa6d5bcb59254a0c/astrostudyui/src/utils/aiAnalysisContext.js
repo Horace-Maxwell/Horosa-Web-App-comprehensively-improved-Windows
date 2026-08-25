@@ -2108,7 +2108,7 @@ async function regenerateHorarySnapshot(record, options){
 		// 曾只读 topicId → 存了「婚姻」的卜卦事盘一动齿轮即回落「综合」,整盘判读换主题。
 		const topicId = o.topicId || o.questionCategory || ox.topicId || ox.questionCategory || 'general';
 		const horarySchool = (o.horarySchool || ox.horarySchool) || undefined;
-		// 判读参数(卜卦专属 22 键):存档 extra.horaryOverrides 打底,齿轮 hp_* 扁平键覆盖 ——
+		// 判读参数(卜卦专属判读键(spec 单源自动扩,勿写死键数)):存档 extra.horaryOverrides 打底,齿轮 hp_* 扁平键覆盖 ——
 		// 🔴 曾第二参写死 null:页面「判读参数」面板改的全部口径在挂载重算里整组蒸发。
 		const savedOverrides = (ox.horaryOverrides && typeof ox.horaryOverrides === 'object') ? ox.horaryOverrides : {};
 		const gearOverrides = {};
@@ -2122,9 +2122,10 @@ async function regenerateHorarySnapshot(record, options){
 		// 定盘自评(问句真诚/年轻体貌)随档并入 opts(影响 radicality,与页面 HoraryJudgment 同构)。
 		const j = runHorary(chart, topicId, {
 			...horaryJudgeOpts(horarySchool, Object.keys(overrides).length ? overrides : null, judgeLayerOverrides()),
-			...(ox.sincerityConfirmed !== undefined || ox.confirmYouthMatch !== undefined ? {
+			...(ox.sincerityConfirmed !== undefined || ox.confirmYouthMatch !== undefined || ox.isEventChart !== undefined ? {
 				sincerityConfirmed: ox.sincerityConfirmed,
 				confirmYouthMatch: ox.confirmYouthMatch,
+				isEventChart: ox.isEventChart,
 			} : {}),
 		});
 		// 第三参问句/阵营 → [定盘考量] 段(页面 saveSnap 同构;曾缺参致该段在挂载里必然消失)。

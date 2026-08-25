@@ -80,6 +80,18 @@ function compute(chartObj, extra, schoolId, sw){
 				if(T){ marks.push({ id: T, style: 'danger' }); }
 			}
 		}
+		// [H8] 并列路径:月亮独立成事径(moonPerfection 成而主径未成)→ 月亮→事项星虚线(kind: parallel)。
+		const mp = j.moonPerfection;
+		if(mp && mp.perfects && !mp.destroyed && !(perf.perfects) && B){
+			const M = cid('moon');
+			if(M && M !== B){
+				if(mp.method === 'translation' && mp.translator){
+					lines.push({ from: cid(mp.translatorFrom) || M, via: cid(mp.translator), to: cid(mp.translatorTo) || B, kind: 'parallel' });
+				}else{
+					lines.push({ from: M, to: B, kind: 'parallel' });
+				}
+			}
+		}
 		if(lines.length || marks.length){ out.perfection = { lines, marks }; }
 	}
 

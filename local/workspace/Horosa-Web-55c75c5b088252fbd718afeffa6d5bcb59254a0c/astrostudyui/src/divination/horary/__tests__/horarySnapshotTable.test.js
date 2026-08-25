@@ -46,7 +46,10 @@ describe('horary 快照 [相位全览] 表化 · 数值不变证明', () => {
 		if (!fs.existsSync(FIX)) { fs.mkdirSync(path.dirname(FIX), { recursive: true }); fs.writeFileSync(FIX, now, 'utf8'); }
 		expect(diffFacts(extractFacts(fs.readFileSync(FIX, 'utf8')), extractFacts(now))).toEqual([]);
 	});
-	it('baseline 为表化前基线(不含 GFM 表)', () => { expect(fs.readFileSync(FIX, 'utf8')).not.toMatch(/\| --- \|/); });
+	// [H2 显式重锚 2026-08] 基线纪元推进:传递完成的应期从恒缺变为按传递腿(T→target)折算
+	// (治愈性变更,人工核 diff=仅[应期方位]一行+新段),故基线重录于表化后纪元——现在**含** GFM 表。
+	// 多重集断言(上方)仍是漂移哨兵:今后任何事实变化 vs 本基线必红。
+	it('baseline 为表化后纪元(含 GFM 表;防拿旧纪元文件冒充)', () => { expect(fs.readFileSync(FIX, 'utf8')).toMatch(/\| --- \|/); });
 	it('[相位全览] 已 GFM 表化', () => { const now = build(); expect(now).toMatch(/\[相位全览\][\s\S]*\| --- \|/); });
 	it('批6 新段在位([定盘考量]/[Almuten]/[映点对映点]/[行星时]/[尊贵明细])且基线纪元段仍齐', () => {
 		const now = build();

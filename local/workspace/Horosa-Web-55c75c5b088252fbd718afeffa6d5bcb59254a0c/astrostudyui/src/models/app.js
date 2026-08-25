@@ -733,12 +733,15 @@ export default {
                 aspects = AstroConst.DEFAULT_ASPECTS;
             }
             const syncWorkspaceHeight = (extraPayload = {})=>{
-                // 🔴 壳级 CSS zoom 下 clientHeight 报物理视口值,布局域真值须除以 zoom
-                // (horosa.shell.zoom 由桌面壳写入;无键/1:1 时除 1=零回归)。
+                // 🔴 壳级 CSS zoom 下 clientHeight 报物理视口值,布局域真值须除以缩放。
+                // [Tahoe 根治] 改用 zoomDomain 的**实测**有效缩放单源(此前是就地读
+                // localStorage 声明值的复制品;声明≠生效的引擎上按声明除会反向错位)。
                 let shellZoom = 1;
                 try{
-                    const zRaw = Number(window.localStorage.getItem('horosa.shell.zoom'));
-                    if(zRaw && zRaw > 0){ shellZoom = zRaw; }
+                    // eslint-disable-next-line global-require
+                    const { getEffectiveScale } = require('../utils/zoomDomain');
+                    const s = getEffectiveScale();
+                    if(s && s > 0){ shellZoom = s; }
                 }catch(e){ /* ignore */ }
                 const nextViewportHeight = Math.round(document.documentElement.clientHeight / shellZoom);
                 const h = normalizeWorkspaceHeight(nextViewportHeight);

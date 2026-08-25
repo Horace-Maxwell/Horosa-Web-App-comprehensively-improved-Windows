@@ -318,14 +318,17 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		expect(optVals('bazi', 'godKeyPos')).toContain('年日');
 	});
 
-	it('卜卦 topicId=18 类(批2 起 lost/message 正式类;2026-07-31 增 father/mother 父母宫两派转宫)', ()=>{
+	it('卜卦 topicId=20 类(批2 lost/message;2026-07-31 father/mother;卜卦 H6 增 lost_animal/trade)', ()=>{
 		// 历史注记:lost 曾是无引擎支撑的假值被本测试拦截;2026-07 批2 落地失物专题
 		// (CATEGORY_DEF.lost + topicModule.buildLostObject)后转正,与 message(B3 消息真假)一并入册。
+		// [H6] 走失活物(6/12 宫专题)+通用买卖(7 宫四角专题)——两类均有 CATEGORY_DEF+topicModule 真支撑。
 		const vals = optVals('horary', 'topicId');
-		expect(vals.length).toBe(18);
+		expect(vals.length).toBe(20);
 		expect(vals).toContain('theft');
 		expect(vals).toContain('lost');
 		expect(vals).toContain('message');
+		expect(vals).toContain('lost_animal');
+		expect(vals).toContain('trade');
 	});
 
 	it('择日 topicId=25 类(含 renovation/surgery 与 R2 六新分科,无假值 construction/medical)', ()=>{

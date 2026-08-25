@@ -563,7 +563,12 @@
    "astrostudyui/src/components/common/__tests__/quickDockContract.test.js": 2,
    "astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js": 1,
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1,
-   "astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js": 1
+   "astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js": 1,
+   "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1
+  },
+  "horosa_win_shell_free_scan_v1": {
+   "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1,
+   "astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js": 1
   },
   "horosa_windows_storage_keys_v1": {
    "astrostudyui/src/utils/storageKeyRegistry.js": 1

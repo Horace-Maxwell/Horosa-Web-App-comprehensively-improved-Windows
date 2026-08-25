@@ -31,7 +31,7 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	germany: { at: 'v56', t1: 'exempt:图形星历读数=hover层', t2: 'ok', t3: 'gap:六宫框全点表(默认档零字)+校时tab', t5: 'ok', note: '' },
 	babylon: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:数理星历/吉日历/年历预测三tab(图式天文/医疗=教义豁免)', t5: 'exempt:通用兜底', note: '' },
 	mundane: { at: 'v56', t1: 'ok:尾接astro正文', t2: 'ok', t3: 'gap:cycles三tab/日月食三卡/judge三卡/stars二卡/vedic五tab等约20卡(折入既有盘型段)', t5: 'ok', note: '31 段骨架在,卡群逐 render 回填为最大剩余面' },
-	horary: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:恒星会合/同主一星/盗窃11步/⑥结局/应期修正/断法要点/自然象征/行星时全表8项(数据均在j上)', t5: 'exempt:无精确映射', note: '19 段主链完备' },
+	horary: { at: 'v57', t1: 'ok', t2: 'ok', t3: 'ok:官方八 gap 清零(卜卦 H9:断法要点/六类问法①-⑥/恒星会合两口径/同主一星/自然象征/盗窃11步/应期修正链/行星时全表)', t5: 'exempt:无精确映射', note: '28 段主链完备(含 H4a 围攻详断/月亮实测+H9 七段)' },
 	election: { at: 'v56', t1: 'ok', t2: 'gap:尊贵逐项/Almuten逐点/择前考量未命中项(汇总→明细还原)', t3: 'gap:回归盘与主限整卡([回归与主限]候选段)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
 	tianxing: { at: 'v56', t1: 'fixed:[选中时刻星盘]段(整盘headerless,曾零判读)', t2: 'ok', t3: 'ok', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
 	jieqi: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'ok:整年主键', t5: 'ok', note: '挂载豁免=F5/M-5 定谳备案' },

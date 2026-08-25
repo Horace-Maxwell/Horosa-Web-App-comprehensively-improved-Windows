@@ -24,12 +24,14 @@ function build() { return buildElectionSnapshot(runElection(buildMockResult(), '
 
 const FIX = path.join(__dirname, 'fixtures', 'electionSnapshotTableBaseline.txt');
 
-describe('election 快照 [分项]/[应期] 表化 · 数值不变证明', () => {
-	it('表化后事实多重集零变化', () => {
+// [2026-08 评分重标定] 原「表化前 vs 表化后」一次性证明已完成历史使命(表化前基线在分数
+// 重标定后不可再生)。语义升级为**事实多重集回归锚**:baseline=当前输出(capture-if-missing,
+// 分数重标定时点重录),守护「未来渲染层改动不吞/不糊数值」——引擎分数有意变更时删 baseline 重录留痕。
+describe('election 快照 [分项]/[应期] 表化 · 事实多重集回归锚', () => {
+	it('渲染层事实多重集与 baseline 零漂移', () => {
 		const now = build();
 		if (!fs.existsSync(FIX)) { fs.mkdirSync(path.dirname(FIX), { recursive: true }); fs.writeFileSync(FIX, now, 'utf8'); }
 		expect(diffFacts(extractFacts(fs.readFileSync(FIX, 'utf8')), extractFacts(now))).toEqual([]);
 	});
-	it('baseline 为表化前基线(不含 GFM 表)', () => { expect(fs.readFileSync(FIX, 'utf8')).not.toMatch(/\| --- \|/); });
 	it('[分项] 已 GFM 表化', () => { expect(build()).toMatch(/\[分项\][\s\S]*\| --- \|/); });
 });

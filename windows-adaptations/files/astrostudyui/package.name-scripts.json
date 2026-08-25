@@ -1,10 +1,20 @@
 {
+	"_comment_windows_scripts": [
+		"Windows 侧的 name + scripts 覆盖块。apply.sh §3 用它整块替换 pkg.scripts —— 所以",
+		"**上游每新增一个构建链步骤,这里必须同步补**,否则那一步在 Windows 静默缺席。",
+		"这条已实撞三次(#83 check-chunk-dup/inject-preload、#86 同族、v3.9.5 patch-dom-align-zoom",
+		"与 patch_quill_domnodeinserted),故 v3.9.5 起加了常设门 `check_build_chain_parity`:",
+		"逐条比对上游 package.json 的 build/build:file/postinstall 里引用的每个 `scripts/*.js`,",
+		"少一个即发布失败。**新增步骤时改这里就够,门会替你确认没漏。**",
+		"与上游的唯一形态差异:我方走 `node scripts/umi-runner.js`(封装 NODE_OPTIONS 与 BUILD_FOR_FILE,",
+		"因为 Windows 没有 `export VAR=… &&` 这种 POSIX 前缀写法)。"
+	],
 	"name": "horosa-astrostudyui",
 	"scripts": {
 		"start": "node scripts/umi-runner.js dev",
-		"build": "node scripts/umi-runner.js build && node scripts/scrub-build-paths.js dist && node scripts/write-build-info.js dist && node scripts/inject-preload.js dist && node scripts/check-chunk-dup.js dist",
-		"build:file": "node scripts/umi-runner.js build --for-file && node scripts/scrub-build-paths.js dist-file && node scripts/write-build-info.js dist-file && node scripts/inject-preload.js dist-file && node scripts/check-chunk-dup.js dist-file",
-		"postinstall": "umi generate tmp",
+		"build": "node scripts/patch-dom-align-zoom.js && node scripts/umi-runner.js build && node scripts/scrub-build-paths.js dist && node scripts/write-build-info.js dist && node scripts/inject-preload.js dist && node scripts/check-chunk-dup.js dist",
+		"build:file": "node scripts/patch-dom-align-zoom.js && node scripts/umi-runner.js build --for-file && node scripts/scrub-build-paths.js dist-file && node scripts/write-build-info.js dist-file && node scripts/inject-preload.js dist-file && node scripts/check-chunk-dup.js dist-file",
+		"postinstall": "node scripts/patch_quill_domnodeinserted.js && node scripts/patch-dom-align-zoom.js && umi generate tmp",
 		"prettier": "prettier --write '**/*.{js,jsx,tsx,ts,less,md,json}'",
 		"test": "umi-test",
 		"test:coverage": "umi-test --coverage"

@@ -222,7 +222,8 @@ function randomProbe(seed){
 function rebuildDerived(r, ascLon){
 	rebuildHouses(r, ascLon);
 	r.aspects = { normalAsp: synthAspects(r) };
-	r.antiscias = synthAntiscia(r);
+	// [H1 形状迁移] 真形状=chart.antiscias.{antiscia,cantiscia}(旧顶层扁平会使 antiscia 开关的可判别性审计静默失效)
+	r.chart.antiscias = { antiscia: synthAntiscia(r), cantiscia: [] };
 	r.receptions = synthReceptions(r);
 }
 

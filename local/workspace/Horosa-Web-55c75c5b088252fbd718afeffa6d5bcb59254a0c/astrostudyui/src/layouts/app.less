@@ -10491,8 +10491,11 @@
         min-height: 0;
         padding: 6px !important;
         overflow: hidden;
-        contain: layout paint;
-        container-type: size;
+        /* contain: layout paint 与 container-type: size 已删——两者都会把中栏变成
+           position:fixed 后代的**包含块** + 新 stacking context,于是上面的 overflow:hidden
+           开始裁剪本应以视口为参照的悬浮窗(浮层被压层/被截断的根因)。全仓零 @container
+           消费者,container-type 纯属无收益副作用;普通溢出的裁剪由 overflow:hidden 独自
+           保证,视觉不变。 */
     }
 
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-chart-viewport {

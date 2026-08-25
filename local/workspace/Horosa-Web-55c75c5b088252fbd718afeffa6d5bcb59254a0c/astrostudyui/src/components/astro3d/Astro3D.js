@@ -943,6 +943,10 @@ class Astro3D {
 			+ `<div class="${styles.astro3dtapDeg}">${degLine}</div>`
 			+ `<ul>${rows}</ul>`;
 
+		// ⚠️ [缩放域判定·2026-08-24] 此处**不需要** zoomDomain 换算,勿"顺手补齐"。
+		// xy 来自 transPosition = THREE 投影到 canvas 内部像素(基于 this.width/height =
+		// option.width/height,布局域);planetHintDiv 是 .astro3dtap{position:absolute},挂在
+		// 同一 canvas 容器内 ⇒ 取值与写回同属 CSS 域,零跨域。加换算反而制造新错位。
 		let xy = this.transPosition(vec);
 		let w = 300;
 		let h = 210;

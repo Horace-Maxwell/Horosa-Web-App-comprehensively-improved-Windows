@@ -71,7 +71,7 @@ const JINKOU_ASK_OPTIONS_M = [
 const JINKOU_TIME_OPTIONS_M = [
 	{ value: 'day', label: '日内' }, { value: 'year', label: '一年' }, { value: 'default', label: '常规' },
 ];
-// 卜卦判读参数 22 键 / 择日流派口径 13 键(叶子单源;齿轮 hp_/ep_ 扁平键,regenerate 解码)。
+// 卜卦判读参数(HORARY_PARAM_SPEC scope='horary' 单源,随 spec 自动扩,勿写死键数) / 择日流派口径 13 键(叶子单源;齿轮 hp_/ep_ 扁平键,regenerate 解码)。
 import { HORARY_PARAM_SPEC } from '../divination/horary/horarySchools';
 import { ELECTION_PARAM_SPEC } from '../divination/election/electionParams';
 // 六爻判读设置(叶子数据:流派预设/占测事项/神煞表)。
@@ -213,7 +213,7 @@ const LIUREN_QI_METHODS = [
 	{ key: 'yanshu', name: '演数·随感之数(加时)' },
 	{ key: 'baoshu', name: '报数/端法·活时(÷12定支)' },
 ];
-// 镜像 HoraryMain.HORARY_CATEGORIES（16 类，value/label 一致;批2 新增 失物/消息 两类）。
+// 镜像 HoraryMain.HORARY_CATEGORIES（20 类，value/label 一致;批2 新增 失物/消息 两类）。
 const HORARY_CATEGORIES = [
 	{ value: 'general', label: '综合 · 能否成事' },
 	{ value: 'wealth', label: '财物 · 借贷（二宫）' },
@@ -225,7 +225,9 @@ const HORARY_CATEGORIES = [
 	{ value: 'mother', label: '母亲（父母宫参数定 10/4）' },
 	{ value: 'pregnancy', label: '子嗣 · 怀孕（五宫）' },
 	{ value: 'health', label: '疾病 · 健康（六宫）' },
+	{ value: 'lost_animal', label: '走失活物（六宫/大畜十二宫）' },
 	{ value: 'marriage', label: '婚姻 · 感情（七宫）' },
+	{ value: 'trade', label: '买卖 · 交易（七宫四角）' },
 	{ value: 'lawsuit', label: '诉讼 · 合伙 · 战争（七宫）' },
 	{ value: 'theft', label: '盗窃 · 走失（七宫/转宫）' },
 	{ value: 'death', label: '死生 · 遗产（八宫）' },
@@ -631,9 +633,9 @@ const SIXYAO_FIELDS = [
 ];
 
 // 卜卦盘 / 择日盘：类别 topicId。regenerate 透传 options.topicId（缺省=现状）。
-// 复用各自主页面权威常量（HORARY_CATEGORIES 14 类 / ELECTION_TOPICS 25 类），杜绝手写错值——
+// 复用各自主页面权威常量（HORARY_CATEGORIES 20 类 / ELECTION_TOPICS 25 类），杜绝手写错值——
 // 原 schema 仅列 8/6 类且含不存在的假值（horary 'lost' 实为 'theft'；election 'construction/medical' 实为 'renovation/surgery'）。
-// 判读参数(卜卦专属 22 键,HORARY_PARAM_SPEC scope='horary' 单源):齿轮扁平键 hp_<key>,
+// 判读参数(卜卦专属,HORARY_PARAM_SPEC scope='horary' 单源自动扩):齿轮扁平键 hp_<key>,
 // 默认 '' = 随流派(prune 剪掉,四层优先级回落流派/全局/内建 = 现状);switch 型以 1/0 显式覆盖。
 // regenerateHorarySnapshot 解码 hp_* → horaryJudgeOpts 第二参(与页面「判读参数」面板同层级)。
 const HORARY_JUDGE_FIELDS = HORARY_PARAM_SPEC

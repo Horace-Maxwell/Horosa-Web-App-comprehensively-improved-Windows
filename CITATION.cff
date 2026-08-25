@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.9.4
+version: 3.9.5
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,21 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.9.4 beta is a local-first metaphysics workstation. This release is a
+  Horosa for Windows v3.9.5 beta is a local-first metaphysics workstation. This release overhauls
+  the horary chart: the judgement elements are wired through end to end, perfection modes and
+  timing are completed, a "whose matter is it" person selector turns the quesited house by the
+  classical derived-house rule (asking about a spouse's career = the tenth from the seventh = the
+  natal fourth) with significators and radicality following along, verdicts run on a dual track
+  with an explicit confidence level, question categories expand to twenty, and the AI snapshot
+  grows to twenty-eight sections. Electional scoring is recalibrated, and a long-standing overlay
+  misplacement at non-default zoom levels is repaired at its root: the desktop shell scales the
+  page through CSS zoom, which splits the page into two coordinate spaces — the rect space, which
+  the browser scales, and the CSS space, which it does not — and the alignment library wrote a
+  displacement computed in the former straight into the latter, so every dropdown, tooltip,
+  popover and date panel drifted whenever the app ran at anything other than the default zoom.
+  The fix measures the effective scale at run time and divides the write-backs by it; at the
+  default zoom the original expressions execute unchanged, so the repair is provably zero-risk
+  for anyone who never changes zoom. It builds on the v3.9.4 release, which was a
   ground-truth calibration of the technique tables plus display and timing repairs: the Da Liu
   Ren six-relations table (fire branches under a Yi day-stem now correctly read as offspring),
   the San He twelve-spirits table (saddle and six-adversity rows were transposed across all 24
