@@ -196,6 +196,26 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.10.0(2026-09-01 同步轮·择日十技法大版本;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `115b1ee7`)**:
+  warmReady 中位 **5050 / 5040ms**(p95 5154 / 5095),两臂相距 **−0.2%** = 构建自洽,无回归信号。
+  **workspaceVisible 638 / 632ms**(p95 655 / 647,预算 1500 内 ✓);spawnToVisible 885 / 889ms。
+  工件:`docs/perf-artifacts/startup_ab_v3100_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 == maxClockMHz`(睿频压制)+ `mumuRunning: true`
+  (owner 应用,未动)。绝对值读法沿 v3.9.5 的盲点注:指纹只记进程在否不记实时负载 ——
+  v3.9.5 实测 4817/4821(七轮最快)、本轮 5050/5040,均低于历史带 6200-7210 ⇒ 延续「MuMu 空载」
+  机器态,**快不算本版功劳,下轮回到 6000+ 也不算回归**(先查负载盲点再谈)。
+  workspaceVisible 638/632 与 v3.9.5 的 602/608 同带。
+- **★启动路径代码面(逐处核过)**:Electron 壳 **0 文件**;Python 新增 2 个择日扫描服务
+  **均已按 #89 显式入 POST_GATE**(门前预算表零扩 ⇒ trusted 温启串行头结构不变;/scan ping
+  短路在触碰引擎前返回);Java 仅 AI 代理超时重构 + RuntimeWire,不在启动路径。前端择日十技法
+  全部组件级懒载(zeri 页 lazyPreloadable order=2)。**⇒ 结构上不存在本版引入的温启回归面。**
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成,绝对值恒是
+  「失活态」读数,只作双臂/跨轮对照。
+- **★增量更新**:差量门实测 **14MB / 1.7% 下载 / 98.3% 复用**(真变 58MB,预算 138MB);
+  **CDS 档 byte-identical vs 3.9.5** —— 择日大版本对存量用户仍近乎无感升级。
+
 ### 温启对照 v3.9.5(2026-08-24 同步轮·卜卦盘全面改进 + 缩放档浮层根治;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `ea967134`)**:

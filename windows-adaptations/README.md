@@ -95,7 +95,7 @@ future session/agent inherits the mechanism without needing to understand it.
 - After every Mac sync, run `python scripts/delta-report.py` against the live blockmap before releasing —
   the delta composition should match what the sync actually changed.
 
-## The adaptations (76)
+## The adaptations (80)
 
 > **Round-3 note — the dominant Windows perf fix is NOT in this overlay.** Measured: Windows Defender on-access
 > scanning of the bundled runtime = ~500x I/O tax (2 MB/s) — the #1 cause of slow startup + slow compute on

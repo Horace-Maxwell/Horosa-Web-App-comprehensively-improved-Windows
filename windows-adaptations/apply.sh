@@ -205,7 +205,9 @@ echo "== 14b. v3.2.1 太乙事故根因修复(streamlit 桩 dunder 守卫)=="
 # 静默 404。七政/玄学史预热(+10/14s)先注入桩、用户首点太乙必在其后 → Windows 必现。
 # 修:dunder 探测一律 AttributeError 拒答(hasattr(stub,'__file__')=False,标准内省安全跳过);
 # 具名属性语义不变。跨平台 bug(Mac 用户先开七政再开太乙同样触发)→ 建议上游化到 Mac。
-apply_patch stub_dunder_guard_v1           astropy/websrv/kentang/kinastro_common.py     astropy__kentang__kinastro_common.stubDunderGuard.py.patch
+# [#103,R8 首跑实抓] 原守卫 stub_dunder_guard_v1 是**上游自带**的 marker(补丁只加 display_trans)——
+# TaiYiMain 同型潜伏弹:上游哪天碰 kinastro_common.py,补丁会被静默跳过。换补丁自带 marker。
+apply_patch horosa_display_trans_v1        astropy/websrv/kentang/kinastro_common.py     astropy__kentang__kinastro_common.stubDunderGuard.py.patch
 
 echo "== 15. v3.0.1 perf ROUND-4 P0 (log4j Windows 缺陷：6 个程序化 appender 以字面 env:HOME 模板建文件, NTFS 拒绝 → 启动报错刷屏 + perf/错误日志静默丢失) — REQUIRES a jar rebuild =="
 # 根因：AppLoggers.createLog/changeLogFile/getBaseDir 用 getStrSubstitutor().getVariableResolver().lookup("basedir")
@@ -295,7 +297,10 @@ apply_patch horosa_data_warm_registry_v1   astrostudyui/src/utils/idleWarmQueue.
 apply_patch scheduleDataWarmGroup          "astrostudyui/src/utils/__tests__/idleWarmQueue.test.js" src__utils__tests__idleWarmQueue.test.dataWarmGroup.js.patch
 apply_patch buildIndiaWarmParams           astrostudyui/src/components/astro/IndiaChart.js src__components__astro__IndiaChart.warmParams.js.patch
 apply_patch horosa_guolao_render_slice_v1  astrostudyui/src/components/guolao/GuoLaoChartMain.js src__components__guolao__GuoLaoChartMain.warmNatal.js.patch
-apply_patch horosa_prefetch_registry_v1    astrostudyui/src/components/direction/AstroDirectMain.js src__components__direction__AstroDirectMain.warmPd.js.patch
+# [#103 预防性换代,v3.10.0] 下三行守卫由 horosa_prefetch_registry_v1(v3.7.1 已被上游收编成家族
+# marker;TaiYiMain 同守卫本轮实炸 #94 三连击)预防换为各补丁独有 marker —— 上游哪天把注册表
+# 注释也收编进这三个文件,补丁不会再被静默跳过。R8 门(guard ∈ patch + 行)常设看护。
+apply_patch horosa_pdsphere_lazy_v1        astrostudyui/src/components/direction/AstroDirectMain.js src__components__direction__AstroDirectMain.warmPd.js.patch
 apply_patch warmGermanyMidpoint            astrostudyui/src/components/germany/AstroMidpoint.js src__components__germany__AstroMidpoint.warmMidpoint.js.patch
 apply_patch prefetchJieqiYearNeighbors     astrostudyui/src/utils/preciseCalcBridge.js   src__utils__preciseCalcBridge.neighborPrefetch.js.patch
 apply_patch warmJieqiYear                  astrostudyui/src/components/jieqi/JieQiChartsMain.js src__components__jieqi__JieQiChartsMain.neighborPrefetch.js.patch
@@ -551,8 +556,8 @@ apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/chartFet
 # 构参吃组件态(流派/子页/引擎模式),模块级构不出与真点逐字节同键的 body。
 # ★ 每条登记都自带 path 声明,过 31a 的运行时白名单;两段式技法只登记 stage-1(确定性历法)。
 # ★ 随机起卦族(地占/荆诀/五兆/小六壬)与取现时族(七政 Moira 流年)一律不登记,白名单禁词兜底。
-apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/astro/IndiaChartMain.js      src__components__astro__IndiaChartMain.prefetchRegistry.js.patch
-apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/auxchart/AuxChartMain.js     src__components__auxchart__AuxChartMain.prefetchRegistry.js.patch
+apply_patch horosa_india_settings_memo_v1 astrostudyui/src/components/astro/IndiaChartMain.js    src__components__astro__IndiaChartMain.prefetchRegistry.js.patch
+apply_patch horosa_freeze_subtabs_v1 astrostudyui/src/components/auxchart/AuxChartMain.js        src__components__auxchart__AuxChartMain.prefetchRegistry.js.patch
 # [#94] 同 ZiWeiMain:v3.8.0 上游已带 prefetch_registry,守卫改用本文件上游还没有的 panel_ready。
 apply_patch horosa_panel_ready_v1 astrostudyui/src/components/dunjia/DunJiaMain.js         src__components__dunjia__DunJiaMain.prefetchRegistry.js.patch
 apply_patch horosa_sanshi_render_slice_v1 astrostudyui/src/components/sanshi/SanShiUnitedMain.js   src__components__sanshi__SanShiUnitedMain.prefetchRegistry.js.patch
